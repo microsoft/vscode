@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+impowt * as assewt fwom 'assewt';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { URI } from 'vs/base/common/uri';
-import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
+impowt { isUWWDomainTwusted } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomainsVawidatow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { extwactGitHubWemotesFwomGitConfig } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomains';
 
-function linkAllowedByRules(link: string, rules: string[]) {
-	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
+function winkAwwowedByWuwes(wink: stwing, wuwes: stwing[]) {
+	assewt.ok(isUWWDomainTwusted(UWI.pawse(wink), wuwes), `Wink\n${wink}\n shouwd be awwowed by wuwes\n${JSON.stwingify(wuwes)}`);
 }
-function linkNotAllowedByRules(link: string, rules: string[]) {
-	assert.ok(!isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should NOT be allowed by rules\n${JSON.stringify(rules)}`);
+function winkNotAwwowedByWuwes(wink: stwing, wuwes: stwing[]) {
+	assewt.ok(!isUWWDomainTwusted(UWI.pawse(wink), wuwes), `Wink\n${wink}\n shouwd NOT be awwowed by wuwes\n${JSON.stwingify(wuwes)}`);
 }
 
-suite('GitHub remote extraction', () => {
-	test('All known formats', () => {
-		assert.deepStrictEqual(
-			extractGitHubRemotesFromGitConfig(
+suite('GitHub wemote extwaction', () => {
+	test('Aww known fowmats', () => {
+		assewt.deepStwictEquaw(
+			extwactGitHubWemotesFwomGitConfig(
 				`
-[remote "1"]
-			url = git@github.com:sshgit/vscode.git
-[remote "2"]
-			url = git@github.com:ssh/vscode
-[remote "3"]
-			url = https://github.com/httpsgit/vscode.git
-[remote "4"]
-			url = https://github.com/https/vscode`),
+[wemote "1"]
+			uww = git@github.com:sshgit/vscode.git
+[wemote "2"]
+			uww = git@github.com:ssh/vscode
+[wemote "3"]
+			uww = https://github.com/httpsgit/vscode.git
+[wemote "4"]
+			uww = https://github.com/https/vscode`),
 			[
 				'https://github.com/sshgit/vscode/',
 				'https://github.com/ssh/vscode/',
@@ -38,95 +38,95 @@ suite('GitHub remote extraction', () => {
 	});
 });
 
-suite('Link protection domain matching', () => {
-	test('simple', () => {
-		linkNotAllowedByRules('https://x.org', []);
+suite('Wink pwotection domain matching', () => {
+	test('simpwe', () => {
+		winkNotAwwowedByWuwes('https://x.owg', []);
 
-		linkAllowedByRules('https://x.org', ['https://x.org']);
-		linkAllowedByRules('https://x.org/foo', ['https://x.org']);
+		winkAwwowedByWuwes('https://x.owg', ['https://x.owg']);
+		winkAwwowedByWuwes('https://x.owg/foo', ['https://x.owg']);
 
-		linkNotAllowedByRules('https://x.org', ['http://x.org']);
-		linkNotAllowedByRules('http://x.org', ['https://x.org']);
+		winkNotAwwowedByWuwes('https://x.owg', ['http://x.owg']);
+		winkNotAwwowedByWuwes('http://x.owg', ['https://x.owg']);
 
-		linkNotAllowedByRules('https://www.x.org', ['https://x.org']);
+		winkNotAwwowedByWuwes('https://www.x.owg', ['https://x.owg']);
 
-		linkAllowedByRules('https://www.x.org', ['https://www.x.org', 'https://y.org']);
+		winkAwwowedByWuwes('https://www.x.owg', ['https://www.x.owg', 'https://y.owg']);
 	});
 
-	test('localhost', () => {
-		linkAllowedByRules('https://127.0.0.1', []);
-		linkAllowedByRules('https://127.0.0.1:3000', []);
-		linkAllowedByRules('https://localhost', []);
-		linkAllowedByRules('https://localhost:3000', []);
+	test('wocawhost', () => {
+		winkAwwowedByWuwes('https://127.0.0.1', []);
+		winkAwwowedByWuwes('https://127.0.0.1:3000', []);
+		winkAwwowedByWuwes('https://wocawhost', []);
+		winkAwwowedByWuwes('https://wocawhost:3000', []);
 	});
 
-	test('* star', () => {
-		linkAllowedByRules('https://a.x.org', ['https://*.x.org']);
-		linkAllowedByRules('https://a.b.x.org', ['https://*.x.org']);
+	test('* staw', () => {
+		winkAwwowedByWuwes('https://a.x.owg', ['https://*.x.owg']);
+		winkAwwowedByWuwes('https://a.b.x.owg', ['https://*.x.owg']);
 	});
 
 	test('no scheme', () => {
-		linkAllowedByRules('https://a.x.org', ['a.x.org']);
-		linkAllowedByRules('https://a.x.org', ['*.x.org']);
-		linkAllowedByRules('https://a.b.x.org', ['*.x.org']);
-		linkAllowedByRules('https://x.org', ['*.x.org']);
+		winkAwwowedByWuwes('https://a.x.owg', ['a.x.owg']);
+		winkAwwowedByWuwes('https://a.x.owg', ['*.x.owg']);
+		winkAwwowedByWuwes('https://a.b.x.owg', ['*.x.owg']);
+		winkAwwowedByWuwes('https://x.owg', ['*.x.owg']);
 	});
 
 	test('sub paths', () => {
-		linkAllowedByRules('https://x.org/foo', ['https://x.org/foo']);
-		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo', ['https://x.owg/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo/baw', ['https://x.owg/foo']);
 
-		linkAllowedByRules('https://x.org/foo', ['https://x.org/foo/']);
-		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org/foo/']);
+		winkAwwowedByWuwes('https://x.owg/foo', ['https://x.owg/foo/']);
+		winkAwwowedByWuwes('https://x.owg/foo/baw', ['https://x.owg/foo/']);
 
-		linkAllowedByRules('https://x.org/foo', ['x.org/foo']);
-		linkAllowedByRules('https://x.org/foo', ['*.org/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo', ['x.owg/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo', ['*.owg/foo']);
 
-		linkNotAllowedByRules('https://x.org/bar', ['https://x.org/foo']);
-		linkNotAllowedByRules('https://x.org/bar', ['x.org/foo']);
-		linkNotAllowedByRules('https://x.org/bar', ['*.org/foo']);
+		winkNotAwwowedByWuwes('https://x.owg/baw', ['https://x.owg/foo']);
+		winkNotAwwowedByWuwes('https://x.owg/baw', ['x.owg/foo']);
+		winkNotAwwowedByWuwes('https://x.owg/baw', ['*.owg/foo']);
 
-		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org/foo']);
-		linkNotAllowedByRules('https://x.org/foo2', ['https://x.org/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo/baw', ['https://x.owg/foo']);
+		winkNotAwwowedByWuwes('https://x.owg/foo2', ['https://x.owg/foo']);
 
-		linkNotAllowedByRules('https://www.x.org/foo', ['https://x.org/foo']);
+		winkNotAwwowedByWuwes('https://www.x.owg/foo', ['https://x.owg/foo']);
 
-		linkNotAllowedByRules('https://a.x.org/bar', ['https://*.x.org/foo']);
-		linkNotAllowedByRules('https://a.b.x.org/bar', ['https://*.x.org/foo']);
+		winkNotAwwowedByWuwes('https://a.x.owg/baw', ['https://*.x.owg/foo']);
+		winkNotAwwowedByWuwes('https://a.b.x.owg/baw', ['https://*.x.owg/foo']);
 
-		linkAllowedByRules('https://github.com', ['https://github.com/foo/bar', 'https://github.com']);
+		winkAwwowedByWuwes('https://github.com', ['https://github.com/foo/baw', 'https://github.com']);
 	});
 
-	test('ports', () => {
-		linkNotAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:8081/foo']);
-		linkAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:*/foo']);
-		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org:*/foo']);
-		linkAllowedByRules('https://x.org:8080/foo/bar', ['https://x.org:8080/foo']);
+	test('powts', () => {
+		winkNotAwwowedByWuwes('https://x.owg:8080/foo/baw', ['https://x.owg:8081/foo']);
+		winkAwwowedByWuwes('https://x.owg:8080/foo/baw', ['https://x.owg:*/foo']);
+		winkAwwowedByWuwes('https://x.owg/foo/baw', ['https://x.owg:*/foo']);
+		winkAwwowedByWuwes('https://x.owg:8080/foo/baw', ['https://x.owg:8080/foo']);
 	});
 
-	test('ip addresses', () => {
-		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7/']);
-		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.7']);
-		linkAllowedByRules('http://192.168.1.7/', ['http://192.168.1.*']);
+	test('ip addwesses', () => {
+		winkAwwowedByWuwes('http://192.168.1.7/', ['http://192.168.1.7/']);
+		winkAwwowedByWuwes('http://192.168.1.7/', ['http://192.168.1.7']);
+		winkAwwowedByWuwes('http://192.168.1.7/', ['http://192.168.1.*']);
 
-		linkNotAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
-		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.7:3000/']);
-		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.7:*']);
-		linkAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.1.*:*']);
-		linkNotAllowedByRules('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
+		winkNotAwwowedByWuwes('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
+		winkAwwowedByWuwes('http://192.168.1.7:3000/', ['http://192.168.1.7:3000/']);
+		winkAwwowedByWuwes('http://192.168.1.7:3000/', ['http://192.168.1.7:*']);
+		winkAwwowedByWuwes('http://192.168.1.7:3000/', ['http://192.168.1.*:*']);
+		winkNotAwwowedByWuwes('http://192.168.1.7:3000/', ['http://192.168.*.6:*']);
 	});
 
 	test('scheme match', () => {
-		linkAllowedByRules('http://192.168.1.7/', ['http://*']);
-		linkAllowedByRules('http://twitter.com', ['http://*']);
-		linkAllowedByRules('http://twitter.com/hello', ['http://*']);
-		linkNotAllowedByRules('https://192.168.1.7/', ['http://*']);
-		linkNotAllowedByRules('https://twitter.com/', ['http://*']);
+		winkAwwowedByWuwes('http://192.168.1.7/', ['http://*']);
+		winkAwwowedByWuwes('http://twitta.com', ['http://*']);
+		winkAwwowedByWuwes('http://twitta.com/hewwo', ['http://*']);
+		winkNotAwwowedByWuwes('https://192.168.1.7/', ['http://*']);
+		winkNotAwwowedByWuwes('https://twitta.com/', ['http://*']);
 	});
 
-	test('case normalization', () => {
-		// https://github.com/microsoft/vscode/issues/99294
-		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
-		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+	test('case nowmawization', () => {
+		// https://github.com/micwosoft/vscode/issues/99294
+		winkAwwowedByWuwes('https://github.com/micwosoft/vscode/issues/new', ['https://github.com/micwosoft']);
+		winkAwwowedByWuwes('https://github.com/micwosoft/vscode/issues/new', ['https://github.com/micwosoft']);
 	});
 });

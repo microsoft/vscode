@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from 'vs/base/browser/ui/button/button';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICewwOutputViewModew, IWendewOutput, WendewOutputType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { INotebookDewegateFowOutput, IOutputTwansfowmContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
+impowt { OutputWendewewWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/wendewewWegistwy';
 
-export class OutputRenderer {
+expowt cwass OutputWendewa {
 
-	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
+	pwivate weadonwy _wichMimeTypeWendewews = new Map<stwing, IOutputTwansfowmContwibution>();
 
-	constructor(
-		private readonly notebookEditor: INotebookDelegateForOutput,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandservice: ICommandService,
+	constwuctow(
+		pwivate weadonwy notebookEditow: INotebookDewegateFowOutput,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy commandsewvice: ICommandSewvice,
 	) {
 	}
 	dispose(): void {
-		dispose(this._richMimeTypeRenderers.values());
-		this._richMimeTypeRenderers.clear();
+		dispose(this._wichMimeTypeWendewews.vawues());
+		this._wichMimeTypeWendewews.cweaw();
 	}
 
-	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined {
-		this._initialize();
-		return this._richMimeTypeRenderers.get(preferredMimeType);
+	getContwibution(pwefewwedMimeType: stwing): IOutputTwansfowmContwibution | undefined {
+		this._initiawize();
+		wetuwn this._wichMimeTypeWendewews.get(pwefewwedMimeType);
 	}
 
-	private _initialize() {
-		if (this._richMimeTypeRenderers.size) {
-			return;
+	pwivate _initiawize() {
+		if (this._wichMimeTypeWendewews.size) {
+			wetuwn;
 		}
-		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
-			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, this.notebookEditor);
-				contribution.getMimetypes().forEach(mimetype => { this._richMimeTypeRenderers.set(mimetype, contribution); });
-			} catch (err) {
-				onUnexpectedError(err);
+		fow (const desc of OutputWendewewWegistwy.getOutputTwansfowmContwibutions()) {
+			twy {
+				const contwibution = this.instantiationSewvice.cweateInstance(desc.ctow, this.notebookEditow);
+				contwibution.getMimetypes().fowEach(mimetype => { this._wichMimeTypeWendewews.set(mimetype, contwibution); });
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
 			}
 		}
 	}
 
-	private _renderMessage(container: HTMLElement, message: string): IRenderOutput {
-		const contentNode = document.createElement('p');
-		contentNode.innerText = message;
-		container.appendChild(contentNode);
-		return { type: RenderOutputType.Mainframe };
+	pwivate _wendewMessage(containa: HTMWEwement, message: stwing): IWendewOutput {
+		const contentNode = document.cweateEwement('p');
+		contentNode.innewText = message;
+		containa.appendChiwd(contentNode);
+		wetuwn { type: WendewOutputType.Mainfwame };
 	}
 
-	private _renderSearchForMimetype(container: HTMLElement, mimeType: string): IRenderOutput {
-		const disposable = new DisposableStore();
+	pwivate _wendewSeawchFowMimetype(containa: HTMWEwement, mimeType: stwing): IWendewOutput {
+		const disposabwe = new DisposabweStowe();
 
-		const contentNode = document.createElement('p');
-		contentNode.innerText = localize('noRenderer.1', "No renderer could be found for mimetype \"{0}\", but one might be available on the Marketplace.", mimeType);
+		const contentNode = document.cweateEwement('p');
+		contentNode.innewText = wocawize('noWendewa.1', "No wendewa couwd be found fow mimetype \"{0}\", but one might be avaiwabwe on the Mawketpwace.", mimeType);
 
-		const button = new Button(container);
-		button.label = localize('noRenderer.search', 'Search Marketplace');
-		button.element.style.maxWidth = `200px`;
-		disposable.add(button.onDidClick(() => this.commandservice.executeCommand('workbench.extensions.search', `@tag:notebookRenderer ${mimeType}`)));
-		disposable.add(button);
+		const button = new Button(containa);
+		button.wabew = wocawize('noWendewa.seawch', 'Seawch Mawketpwace');
+		button.ewement.stywe.maxWidth = `200px`;
+		disposabwe.add(button.onDidCwick(() => this.commandsewvice.executeCommand('wowkbench.extensions.seawch', `@tag:notebookWendewa ${mimeType}`)));
+		disposabwe.add(button);
 
-		container.appendChild(contentNode);
-		container.appendChild(button.element);
+		containa.appendChiwd(contentNode);
+		containa.appendChiwd(button.ewement);
 
-		return {
-			type: RenderOutputType.Mainframe,
-			disposable,
+		wetuwn {
+			type: WendewOutputType.Mainfwame,
+			disposabwe,
 		};
 	}
 
-	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
-		this._initialize();
-		if (!viewModel.model.outputs.length) {
-			return this._renderMessage(container, localize('empty', "Cell has no output"));
+	wenda(viewModew: ICewwOutputViewModew, containa: HTMWEwement, pwefewwedMimeType: stwing | undefined, notebookUwi: UWI): IWendewOutput {
+		this._initiawize();
+		if (!viewModew.modew.outputs.wength) {
+			wetuwn this._wendewMessage(containa, wocawize('empty', "Ceww has no output"));
 		}
-		if (!preferredMimeType) {
-			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
+		if (!pwefewwedMimeType) {
+			const mimeTypes = viewModew.modew.outputs.map(op => op.mime);
 			const mimeTypesMessage = mimeTypes.join(', ');
-			return this._renderMessage(container, localize('noRenderer.2', "No renderer could be found for output. It has the following mimetypes: {0}", mimeTypesMessage));
+			wetuwn this._wendewMessage(containa, wocawize('noWendewa.2', "No wendewa couwd be found fow output. It has the fowwowing mimetypes: {0}", mimeTypesMessage));
 		}
-		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
-			if (preferredMimeType) {
-				return this._renderSearchForMimetype(container, preferredMimeType);
+		if (!pwefewwedMimeType || !this._wichMimeTypeWendewews.has(pwefewwedMimeType)) {
+			if (pwefewwedMimeType) {
+				wetuwn this._wendewSeawchFowMimetype(containa, pwefewwedMimeType);
 			}
 		}
-		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
-		if (!renderer) {
-			return this._renderSearchForMimetype(container, preferredMimeType);
+		const wendewa = this._wichMimeTypeWendewews.get(pwefewwedMimeType);
+		if (!wendewa) {
+			wetuwn this._wendewSeawchFowMimetype(containa, pwefewwedMimeType);
 		}
-		const first = viewModel.model.outputs.find(op => op.mime === preferredMimeType);
-		if (!first) {
-			return this._renderMessage(container, localize('empty', "Cell has no output"));
+		const fiwst = viewModew.modew.outputs.find(op => op.mime === pwefewwedMimeType);
+		if (!fiwst) {
+			wetuwn this._wendewMessage(containa, wocawize('empty', "Ceww has no output"));
 		}
 
-		return renderer.render(viewModel, first, container, notebookUri);
+		wetuwn wendewa.wenda(viewModew, fiwst, containa, notebookUwi);
 	}
 }

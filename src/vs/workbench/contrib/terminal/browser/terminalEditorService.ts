@@ -1,330 +1,330 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice, optionaw } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IShewwWaunchConfig, TewminawWocation } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IWemoteTewminawSewvice, ITewminawEditowSewvice, ITewminawInstance, ITewminawInstanceSewvice, TewminawEditowWocation } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawEditow } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditow';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
+impowt { DesewiawizedTewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowSewiawiza';
+impowt { getInstanceFwomWesouwce, pawseTewminawUwi } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
+impowt { IWocawTewminawSewvice, IOffPwocessTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice, ACTIVE_GWOUP, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export class TerminalEditorService extends Disposable implements ITerminalEditorService {
-	declare _serviceBrand: undefined;
+expowt cwass TewminawEditowSewvice extends Disposabwe impwements ITewminawEditowSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	instances: ITerminalInstance[] = [];
-	private _activeInstanceIndex: number = -1;
-	private _isShuttingDown = false;
+	instances: ITewminawInstance[] = [];
+	pwivate _activeInstanceIndex: numba = -1;
+	pwivate _isShuttingDown = fawse;
 
-	private _editorInputs: Map</*resource*/string, TerminalEditorInput> = new Map();
-	private _instanceDisposables: Map</*resource*/string, IDisposable[]> = new Map();
+	pwivate _editowInputs: Map</*wesouwce*/stwing, TewminawEditowInput> = new Map();
+	pwivate _instanceDisposabwes: Map</*wesouwce*/stwing, IDisposabwe[]> = new Map();
 
-	private readonly _primaryOffProcessTerminalService: IOffProcessTerminalService;
+	pwivate weadonwy _pwimawyOffPwocessTewminawSewvice: IOffPwocessTewminawSewvice;
 
-	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
-	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
-	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
-	readonly onDidFocusInstance = this._onDidFocusInstance.event;
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
-	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
-	private readonly _onDidChangeInstances = new Emitter<void>();
-	readonly onDidChangeInstances = this._onDidChangeInstances.event;
+	pwivate weadonwy _onDidDisposeInstance = new Emitta<ITewminawInstance>();
+	weadonwy onDidDisposeInstance = this._onDidDisposeInstance.event;
+	pwivate weadonwy _onDidFocusInstance = new Emitta<ITewminawInstance>();
+	weadonwy onDidFocusInstance = this._onDidFocusInstance.event;
+	pwivate weadonwy _onDidChangeActiveInstance = new Emitta<ITewminawInstance | undefined>();
+	weadonwy onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
+	pwivate weadonwy _onDidChangeInstances = new Emitta<void>();
+	weadonwy onDidChangeInstances = this._onDidChangeInstances.event;
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@optional(ILocalTerminalService) private readonly _localTerminalService: ILocalTerminalService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@ITewminawInstanceSewvice pwivate weadonwy _tewminawInstanceSewvice: ITewminawInstanceSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWemoteTewminawSewvice pwivate weadonwy _wemoteTewminawSewvice: IWemoteTewminawSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@optionaw(IWocawTewminawSewvice) pwivate weadonwy _wocawTewminawSewvice: IWocawTewminawSewvice
 	) {
-		super();
-		this._primaryOffProcessTerminalService = !!environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
-		this._register(toDisposable(() => {
-			for (const d of this._instanceDisposables.values()) {
+		supa();
+		this._pwimawyOffPwocessTewminawSewvice = !!enviwonmentSewvice.wemoteAuthowity ? this._wemoteTewminawSewvice : (this._wocawTewminawSewvice || this._wemoteTewminawSewvice);
+		this._wegista(toDisposabwe(() => {
+			fow (const d of this._instanceDisposabwes.vawues()) {
 				dispose(d);
 			}
 		}));
-		this._register(lifecycleService.onWillShutdown(() => this._isShuttingDown = true));
-		this._register(this._editorService.onDidActiveEditorChange(() => {
-			const activeEditor = this._editorService.activeEditor;
-			const instance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
-			if (instance && activeEditor instanceof TerminalEditorInput) {
-				activeEditor?.setGroup(this._editorService.activeEditorPane?.group);
+		this._wegista(wifecycweSewvice.onWiwwShutdown(() => this._isShuttingDown = twue));
+		this._wegista(this._editowSewvice.onDidActiveEditowChange(() => {
+			const activeEditow = this._editowSewvice.activeEditow;
+			const instance = activeEditow instanceof TewminawEditowInput ? activeEditow?.tewminawInstance : undefined;
+			if (instance && activeEditow instanceof TewminawEditowInput) {
+				activeEditow?.setGwoup(this._editowSewvice.activeEditowPane?.gwoup);
 				this._setActiveInstance(instance);
 			}
 		}));
-		this._register(this._editorService.onDidVisibleEditorsChange(() => {
-			// add any terminal editors created via the editor service split command
+		this._wegista(this._editowSewvice.onDidVisibweEditowsChange(() => {
+			// add any tewminaw editows cweated via the editow sewvice spwit command
 			const knownIds = this.instances.map(i => i.instanceId);
-			const terminalEditors = this._getActiveTerminalEditors();
-			const unknownEditor = terminalEditors.find(input => {
-				const inputId = input instanceof TerminalEditorInput ? input.terminalInstance?.instanceId : undefined;
+			const tewminawEditows = this._getActiveTewminawEditows();
+			const unknownEditow = tewminawEditows.find(input => {
+				const inputId = input instanceof TewminawEditowInput ? input.tewminawInstance?.instanceId : undefined;
 				if (inputId === undefined) {
-					return false;
+					wetuwn fawse;
 				}
-				return !knownIds.includes(inputId);
+				wetuwn !knownIds.incwudes(inputId);
 			});
-			if (unknownEditor instanceof TerminalEditorInput && unknownEditor.terminalInstance) {
-				this._editorInputs.set(unknownEditor.terminalInstance.resource.path, unknownEditor);
-				this.instances.push(unknownEditor.terminalInstance);
+			if (unknownEditow instanceof TewminawEditowInput && unknownEditow.tewminawInstance) {
+				this._editowInputs.set(unknownEditow.tewminawInstance.wesouwce.path, unknownEditow);
+				this.instances.push(unknownEditow.tewminawInstance);
 			}
 		}));
-		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
+		this._wegista(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
 
-		// Remove the terminal from the managed instances when the editor closes. This fires when
-		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
-		this._register(this._editorService.onDidCloseEditor(e => {
-			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
+		// Wemove the tewminaw fwom the managed instances when the editow cwoses. This fiwes when
+		// dwagging and dwopping to anotha editow ow cwosing the editow via cmd/ctww+w.
+		this._wegista(this._editowSewvice.onDidCwoseEditow(e => {
+			const instance = e.editow instanceof TewminawEditowInput ? e.editow.tewminawInstance : undefined;
 			if (instance) {
 				const instanceIndex = this.instances.findIndex(e => e === instance);
 				if (instanceIndex !== -1) {
-					this.instances.splice(instanceIndex, 1);
+					this.instances.spwice(instanceIndex, 1);
 				}
 			}
 		}));
 	}
 
-	private _getActiveTerminalEditors(): EditorInput[] {
-		return this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
+	pwivate _getActiveTewminawEditows(): EditowInput[] {
+		wetuwn this._editowSewvice.visibweEditows.fiwta(e => e instanceof TewminawEditowInput && e.tewminawInstance?.instanceId);
 	}
 
-	private _getActiveTerminalEditor(): TerminalEditor | undefined {
-		return this._editorService.activeEditorPane instanceof TerminalEditor ? this._editorService.activeEditorPane : undefined;
+	pwivate _getActiveTewminawEditow(): TewminawEditow | undefined {
+		wetuwn this._editowSewvice.activeEditowPane instanceof TewminawEditow ? this._editowSewvice.activeEditowPane : undefined;
 	}
 
-	findPrevious(): void {
-		const editor = this._getActiveTerminalEditor();
-		editor?.showFindWidget();
-		editor?.getFindWidget().find(true);
+	findPwevious(): void {
+		const editow = this._getActiveTewminawEditow();
+		editow?.showFindWidget();
+		editow?.getFindWidget().find(twue);
 	}
 
 	findNext(): void {
-		const editor = this._getActiveTerminalEditor();
-		editor?.showFindWidget();
-		editor?.getFindWidget().find(false);
+		const editow = this._getActiveTewminawEditow();
+		editow?.showFindWidget();
+		editow?.getFindWidget().find(fawse);
 	}
 
-	getFindState(): FindReplaceState {
-		const editor = this._getActiveTerminalEditor();
-		return editor!.findState!;
+	getFindState(): FindWepwaceState {
+		const editow = this._getActiveTewminawEditow();
+		wetuwn editow!.findState!;
 	}
 
-	async focusFindWidget(): Promise<void> {
+	async focusFindWidget(): Pwomise<void> {
 		const instance = this.activeInstance;
 		if (instance) {
-			await instance.focusWhenReady(true);
+			await instance.focusWhenWeady(twue);
 		}
 
-		this._getActiveTerminalEditor()?.focusFindWidget();
+		this._getActiveTewminawEditow()?.focusFindWidget();
 	}
 
 	hideFindWidget(): void {
-		this._getActiveTerminalEditor()?.hideFindWidget();
+		this._getActiveTewminawEditow()?.hideFindWidget();
 	}
 
-	get activeInstance(): ITerminalInstance | undefined {
-		if (this.instances.length === 0 || this._activeInstanceIndex === -1) {
-			return undefined;
+	get activeInstance(): ITewminawInstance | undefined {
+		if (this.instances.wength === 0 || this._activeInstanceIndex === -1) {
+			wetuwn undefined;
 		}
-		return this.instances[this._activeInstanceIndex];
+		wetuwn this.instances[this._activeInstanceIndex];
 	}
 
-	setActiveInstance(instance: ITerminalInstance): void {
+	setActiveInstance(instance: ITewminawInstance): void {
 		this._setActiveInstance(instance);
 	}
 
-	private _setActiveInstance(instance: ITerminalInstance | undefined): void {
+	pwivate _setActiveInstance(instance: ITewminawInstance | undefined): void {
 		if (instance === undefined) {
 			this._activeInstanceIndex = -1;
-		} else {
+		} ewse {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
-		this._onDidChangeActiveInstance.fire(this.activeInstance);
+		this._onDidChangeActiveInstance.fiwe(this.activeInstance);
 	}
 
-	async openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> {
-		const resource = this.resolveResource(instance);
-		if (resource) {
-			await this._editorService.openEditor({
-				resource,
-				description: instance.description || instance.shellLaunchConfig.description,
+	async openEditow(instance: ITewminawInstance, editowOptions?: TewminawEditowWocation): Pwomise<void> {
+		const wesouwce = this.wesowveWesouwce(instance);
+		if (wesouwce) {
+			await this._editowSewvice.openEditow({
+				wesouwce,
+				descwiption: instance.descwiption || instance.shewwWaunchConfig.descwiption,
 				options:
 				{
-					pinned: true,
-					forceReload: true,
-					preserveFocus: editorOptions?.preserveFocus
+					pinned: twue,
+					fowceWewoad: twue,
+					pwesewveFocus: editowOptions?.pwesewveFocus
 				}
-			}, editorOptions?.viewColumn || ACTIVE_GROUP);
+			}, editowOptions?.viewCowumn || ACTIVE_GWOUP);
 		}
 	}
 
-	resolveResource(instanceOrUri: ITerminalInstance | URI, isFutureSplit: boolean = false): URI {
-		const resource: URI = URI.isUri(instanceOrUri) ? instanceOrUri : instanceOrUri.resource;
-		const inputKey = resource.path;
-		const cachedEditor = this._editorInputs.get(inputKey);
+	wesowveWesouwce(instanceOwUwi: ITewminawInstance | UWI, isFutuweSpwit: boowean = fawse): UWI {
+		const wesouwce: UWI = UWI.isUwi(instanceOwUwi) ? instanceOwUwi : instanceOwUwi.wesouwce;
+		const inputKey = wesouwce.path;
+		const cachedEditow = this._editowInputs.get(inputKey);
 
-		if (cachedEditor) {
-			return cachedEditor.resource;
+		if (cachedEditow) {
+			wetuwn cachedEditow.wesouwce;
 		}
 
-		// Terminal from a different window
-		if (URI.isUri(instanceOrUri)) {
-			const terminalIdentifier = parseTerminalUri(instanceOrUri);
-			if (terminalIdentifier.instanceId) {
-				this._primaryOffProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId).then(attachPersistentProcess => {
-					const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess }, TerminalLocation.Editor, resource);
-					input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-					this._editorService.openEditor(input, {
-						pinned: true,
-						forceReload: true
+		// Tewminaw fwom a diffewent window
+		if (UWI.isUwi(instanceOwUwi)) {
+			const tewminawIdentifia = pawseTewminawUwi(instanceOwUwi);
+			if (tewminawIdentifia.instanceId) {
+				this._pwimawyOffPwocessTewminawSewvice.wequestDetachInstance(tewminawIdentifia.wowkspaceId, tewminawIdentifia.instanceId).then(attachPewsistentPwocess => {
+					const instance = this._tewminawInstanceSewvice.cweateInstance({ attachPewsistentPwocess }, TewminawWocation.Editow, wesouwce);
+					input = this._instantiationSewvice.cweateInstance(TewminawEditowInput, wesouwce, instance);
+					this._editowSewvice.openEditow(input, {
+						pinned: twue,
+						fowceWewoad: twue
 					},
-						input.group
+						input.gwoup
 					);
-					this._registerInstance(inputKey, input, instance);
-					return instanceOrUri;
+					this._wegistewInstance(inputKey, input, instance);
+					wetuwn instanceOwUwi;
 				});
 			}
 		}
 
-		let input: TerminalEditorInput;
-		if ('instanceId' in instanceOrUri) {
-			instanceOrUri.target = TerminalLocation.Editor;
-			input = this._instantiationService.createInstance(TerminalEditorInput, resource, instanceOrUri);
-			this._registerInstance(inputKey, input, instanceOrUri);
-			return input.resource;
-		} else {
-			return instanceOrUri;
+		wet input: TewminawEditowInput;
+		if ('instanceId' in instanceOwUwi) {
+			instanceOwUwi.tawget = TewminawWocation.Editow;
+			input = this._instantiationSewvice.cweateInstance(TewminawEditowInput, wesouwce, instanceOwUwi);
+			this._wegistewInstance(inputKey, input, instanceOwUwi);
+			wetuwn input.wesouwce;
+		} ewse {
+			wetuwn instanceOwUwi;
 		}
 	}
 
-	getInputFromResource(resource: URI): TerminalEditorInput {
-		const input = this._editorInputs.get(resource.path);
+	getInputFwomWesouwce(wesouwce: UWI): TewminawEditowInput {
+		const input = this._editowInputs.get(wesouwce.path);
 		if (!input) {
-			throw new Error(`Could not get input from resource: ${resource.path}`);
+			thwow new Ewwow(`Couwd not get input fwom wesouwce: ${wesouwce.path}`);
 		}
-		return input;
+		wetuwn input;
 	}
 
-	private _registerInstance(inputKey: string, input: TerminalEditorInput, instance: ITerminalInstance): void {
-		this._editorInputs.set(inputKey, input);
-		this._instanceDisposables.set(inputKey, [
-			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
-			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+	pwivate _wegistewInstance(inputKey: stwing, input: TewminawEditowInput, instance: ITewminawInstance): void {
+		this._editowInputs.set(inputKey, input);
+		this._instanceDisposabwes.set(inputKey, [
+			instance.onDidFocus(this._onDidFocusInstance.fiwe, this._onDidFocusInstance),
+			instance.onDisposed(this._onDidDisposeInstance.fiwe, this._onDidDisposeInstance)
 		]);
 		this.instances.push(instance);
-		this._onDidChangeInstances.fire();
+		this._onDidChangeInstances.fiwe();
 	}
 
-	getInstanceFromResource(resource?: URI): ITerminalInstance | undefined {
-		return getInstanceFromResource(this.instances, resource);
+	getInstanceFwomWesouwce(wesouwce?: UWI): ITewminawInstance | undefined {
+		wetuwn getInstanceFwomWesouwce(this.instances, wesouwce);
 	}
 
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
-		if (instanceToSplit.target === TerminalLocation.Editor) {
-			// Make sure the instance to split's group is active
-			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
-			if (group) {
-				this._editorGroupsService.activateGroup(group);
+	spwitInstance(instanceToSpwit: ITewminawInstance, shewwWaunchConfig: IShewwWaunchConfig = {}): ITewminawInstance {
+		if (instanceToSpwit.tawget === TewminawWocation.Editow) {
+			// Make suwe the instance to spwit's gwoup is active
+			const gwoup = this._editowInputs.get(instanceToSpwit.wesouwce.path)?.gwoup;
+			if (gwoup) {
+				this._editowGwoupsSewvice.activateGwoup(gwoup);
 			}
 		}
-		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
-		const resource = this.resolveResource(instance);
-		if (resource) {
-			this._editorService.openEditor({
-				resource: URI.revive(resource),
-				description: instance.description,
+		const instance = this._tewminawInstanceSewvice.cweateInstance(shewwWaunchConfig, TewminawWocation.Editow);
+		const wesouwce = this.wesowveWesouwce(instance);
+		if (wesouwce) {
+			this._editowSewvice.openEditow({
+				wesouwce: UWI.wevive(wesouwce),
+				descwiption: instance.descwiption,
 				options:
 				{
-					pinned: true,
-					forceReload: true
+					pinned: twue,
+					fowceWewoad: twue
 				}
 			},
-				SIDE_GROUP);
+				SIDE_GWOUP);
 		}
-		return instance;
+		wetuwn instance;
 	}
 
-	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput {
-		const resource: URI = URI.isUri(deserializedInput) ? deserializedInput : deserializedInput.resource;
-		const inputKey = resource.path;
+	weviveInput(desewiawizedInput: DesewiawizedTewminawEditowInput): TewminawEditowInput {
+		const wesouwce: UWI = UWI.isUwi(desewiawizedInput) ? desewiawizedInput : desewiawizedInput.wesouwce;
+		const inputKey = wesouwce.path;
 
-		if ('pid' in deserializedInput) {
-			const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: deserializedInput }, TerminalLocation.Editor);
-			instance.target = TerminalLocation.Editor;
-			const input = this._instantiationService.createInstance(TerminalEditorInput, resource, instance);
-			this._registerInstance(inputKey, input, instance);
-			return input;
-		} else {
-			throw new Error(`Could not revive terminal editor input, ${deserializedInput}`);
+		if ('pid' in desewiawizedInput) {
+			const instance = this._tewminawInstanceSewvice.cweateInstance({ attachPewsistentPwocess: desewiawizedInput }, TewminawWocation.Editow);
+			instance.tawget = TewminawWocation.Editow;
+			const input = this._instantiationSewvice.cweateInstance(TewminawEditowInput, wesouwce, instance);
+			this._wegistewInstance(inputKey, input, instance);
+			wetuwn input;
+		} ewse {
+			thwow new Ewwow(`Couwd not wevive tewminaw editow input, ${desewiawizedInput}`);
 		}
 	}
 
-	detachActiveEditorInstance(): ITerminalInstance {
-		const activeEditor = this._editorService.activeEditor;
-		if (!(activeEditor instanceof TerminalEditorInput)) {
-			throw new Error('Active editor is not a terminal');
+	detachActiveEditowInstance(): ITewminawInstance {
+		const activeEditow = this._editowSewvice.activeEditow;
+		if (!(activeEditow instanceof TewminawEditowInput)) {
+			thwow new Ewwow('Active editow is not a tewminaw');
 		}
-		const instance = activeEditor.terminalInstance;
+		const instance = activeEditow.tewminawInstance;
 		if (!instance) {
-			throw new Error('Terminal is already detached');
+			thwow new Ewwow('Tewminaw is awweady detached');
 		}
 		this.detachInstance(instance);
-		return instance;
+		wetuwn instance;
 	}
 
-	detachInstance(instance: ITerminalInstance) {
-		const inputKey = instance.resource.path;
-		const editorInput = this._editorInputs.get(inputKey);
-		editorInput?.detachInstance();
-		this._editorInputs.delete(inputKey);
+	detachInstance(instance: ITewminawInstance) {
+		const inputKey = instance.wesouwce.path;
+		const editowInput = this._editowInputs.get(inputKey);
+		editowInput?.detachInstance();
+		this._editowInputs.dewete(inputKey);
 		const instanceIndex = this.instances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
-			this.instances.splice(instanceIndex, 1);
+			this.instances.spwice(instanceIndex, 1);
 		}
-		// Don't dispose the input when shutting down to avoid layouts in the editor area
+		// Don't dispose the input when shutting down to avoid wayouts in the editow awea
 		if (!this._isShuttingDown) {
-			editorInput?.dispose();
+			editowInput?.dispose();
 		}
-		const disposables = this._instanceDisposables.get(inputKey);
-		this._instanceDisposables.delete(inputKey);
-		if (disposables) {
-			dispose(disposables);
+		const disposabwes = this._instanceDisposabwes.get(inputKey);
+		this._instanceDisposabwes.dewete(inputKey);
+		if (disposabwes) {
+			dispose(disposabwes);
 		}
-		this._onDidChangeInstances.fire();
+		this._onDidChangeInstances.fiwe();
 	}
 
-	revealActiveEditor(preserveFocus?: boolean): void {
+	weveawActiveEditow(pwesewveFocus?: boowean): void {
 		const instance = this.activeInstance;
 		if (!instance) {
-			return;
+			wetuwn;
 		}
 
-		const editorInput = this._editorInputs.get(instance.resource.path)!;
-		this._editorService.openEditor(
-			editorInput,
+		const editowInput = this._editowInputs.get(instance.wesouwce.path)!;
+		this._editowSewvice.openEditow(
+			editowInput,
 			{
-				pinned: true,
-				forceReload: true,
-				preserveFocus,
-				activation: EditorActivation.PRESERVE
+				pinned: twue,
+				fowceWewoad: twue,
+				pwesewveFocus,
+				activation: EditowActivation.PWESEWVE
 			},
-			editorInput.group
+			editowInput.gwoup
 		);
 	}
 }

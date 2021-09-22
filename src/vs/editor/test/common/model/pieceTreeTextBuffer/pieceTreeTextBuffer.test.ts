@@ -1,1900 +1,1900 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
-import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { splitLines } from 'vs/base/common/strings';
+impowt * as assewt fwom 'assewt';
+impowt { WowdChawactewCwassifia } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { DefauwtEndOfWine, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { PieceTweeBase } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeBase';
+impowt { PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { NodeCowow, SENTINEW, TweeNode } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/wbTweeBase';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { SeawchData } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
 
-const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
+const awphabet = 'abcdefghijkwmnopqwstuvwxyzABCDEFGHIJKWMNOPQWSTUVWXYZ\w\n';
 
-function randomChar() {
-	return alphabet[randomInt(alphabet.length)];
+function wandomChaw() {
+	wetuwn awphabet[wandomInt(awphabet.wength)];
 }
 
-function randomInt(bound: number) {
-	return Math.floor(Math.random() * bound);
+function wandomInt(bound: numba) {
+	wetuwn Math.fwoow(Math.wandom() * bound);
 }
 
-function randomStr(len: number) {
-	if (len === null) {
-		len = 10;
+function wandomStw(wen: numba) {
+	if (wen === nuww) {
+		wen = 10;
 	}
-	return (function () {
-		let j, ref, results;
-		results = [];
-		for (
-			j = 1, ref = len;
-			1 <= ref ? j < ref : j > ref;
-			1 <= ref ? j++ : j--
+	wetuwn (function () {
+		wet j, wef, wesuwts;
+		wesuwts = [];
+		fow (
+			j = 1, wef = wen;
+			1 <= wef ? j < wef : j > wef;
+			1 <= wef ? j++ : j--
 		) {
-			results.push(randomChar());
+			wesuwts.push(wandomChaw());
 		}
-		return results;
+		wetuwn wesuwts;
 	})().join('');
 }
 
-function trimLineFeed(text: string): string {
-	if (text.length === 0) {
-		return text;
+function twimWineFeed(text: stwing): stwing {
+	if (text.wength === 0) {
+		wetuwn text;
 	}
 
-	if (text.length === 1) {
+	if (text.wength === 1) {
 		if (
-			text.charCodeAt(text.length - 1) === 10 ||
-			text.charCodeAt(text.length - 1) === 13
+			text.chawCodeAt(text.wength - 1) === 10 ||
+			text.chawCodeAt(text.wength - 1) === 13
 		) {
-			return '';
+			wetuwn '';
 		}
-		return text;
+		wetuwn text;
 	}
 
-	if (text.charCodeAt(text.length - 1) === 10) {
-		if (text.charCodeAt(text.length - 2) === 13) {
-			return text.slice(0, -2);
+	if (text.chawCodeAt(text.wength - 1) === 10) {
+		if (text.chawCodeAt(text.wength - 2) === 13) {
+			wetuwn text.swice(0, -2);
 		}
-		return text.slice(0, -1);
+		wetuwn text.swice(0, -1);
 	}
 
-	if (text.charCodeAt(text.length - 1) === 13) {
-		return text.slice(0, -1);
+	if (text.chawCodeAt(text.wength - 1) === 13) {
+		wetuwn text.swice(0, -1);
 	}
 
-	return text;
+	wetuwn text;
 }
 
-//#region Assertion
+//#wegion Assewtion
 
-function testLinesContent(str: string, pieceTable: PieceTreeBase) {
-	let lines = splitLines(str);
-	assert.strictEqual(pieceTable.getLineCount(), lines.length);
-	assert.strictEqual(pieceTable.getLinesRawContent(), str);
-	for (let i = 0; i < lines.length; i++) {
-		assert.strictEqual(pieceTable.getLineContent(i + 1), lines[i]);
-		assert.strictEqual(
-			trimLineFeed(
-				pieceTable.getValueInRange(
-					new Range(
+function testWinesContent(stw: stwing, pieceTabwe: PieceTweeBase) {
+	wet wines = spwitWines(stw);
+	assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+	assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+	fow (wet i = 0; i < wines.wength; i++) {
+		assewt.stwictEquaw(pieceTabwe.getWineContent(i + 1), wines[i]);
+		assewt.stwictEquaw(
+			twimWineFeed(
+				pieceTabwe.getVawueInWange(
+					new Wange(
 						i + 1,
 						1,
 						i + 1,
-						lines[i].length + (i === lines.length - 1 ? 1 : 2)
+						wines[i].wength + (i === wines.wength - 1 ? 1 : 2)
 					)
 				)
 			),
-			lines[i]
+			wines[i]
 		);
 	}
 }
 
-function testLineStarts(str: string, pieceTable: PieceTreeBase) {
-	let lineStarts = [0];
+function testWineStawts(stw: stwing, pieceTabwe: PieceTweeBase) {
+	wet wineStawts = [0];
 
-	// Reset regex to search from the beginning
-	let _regex = new RegExp(/\r\n|\r|\n/g);
-	_regex.lastIndex = 0;
-	let prevMatchStartIndex = -1;
-	let prevMatchLength = 0;
+	// Weset wegex to seawch fwom the beginning
+	wet _wegex = new WegExp(/\w\n|\w|\n/g);
+	_wegex.wastIndex = 0;
+	wet pwevMatchStawtIndex = -1;
+	wet pwevMatchWength = 0;
 
-	let m: RegExpExecArray | null;
+	wet m: WegExpExecAwway | nuww;
 	do {
-		if (prevMatchStartIndex + prevMatchLength === str.length) {
-			// Reached the end of the line
-			break;
+		if (pwevMatchStawtIndex + pwevMatchWength === stw.wength) {
+			// Weached the end of the wine
+			bweak;
 		}
 
-		m = _regex.exec(str);
+		m = _wegex.exec(stw);
 		if (!m) {
-			break;
+			bweak;
 		}
 
-		const matchStartIndex = m.index;
-		const matchLength = m[0].length;
+		const matchStawtIndex = m.index;
+		const matchWength = m[0].wength;
 
 		if (
-			matchStartIndex === prevMatchStartIndex &&
-			matchLength === prevMatchLength
+			matchStawtIndex === pwevMatchStawtIndex &&
+			matchWength === pwevMatchWength
 		) {
-			// Exit early if the regex matches the same range twice
-			break;
+			// Exit eawwy if the wegex matches the same wange twice
+			bweak;
 		}
 
-		prevMatchStartIndex = matchStartIndex;
-		prevMatchLength = matchLength;
+		pwevMatchStawtIndex = matchStawtIndex;
+		pwevMatchWength = matchWength;
 
-		lineStarts.push(matchStartIndex + matchLength);
-	} while (m);
+		wineStawts.push(matchStawtIndex + matchWength);
+	} whiwe (m);
 
-	for (let i = 0; i < lineStarts.length; i++) {
-		assert.deepStrictEqual(
-			pieceTable.getPositionAt(lineStarts[i]),
+	fow (wet i = 0; i < wineStawts.wength; i++) {
+		assewt.deepStwictEquaw(
+			pieceTabwe.getPositionAt(wineStawts[i]),
 			new Position(i + 1, 1)
 		);
-		assert.strictEqual(pieceTable.getOffsetAt(i + 1, 1), lineStarts[i]);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(i + 1, 1), wineStawts[i]);
 	}
 
-	for (let i = 1; i < lineStarts.length; i++) {
-		let pos = pieceTable.getPositionAt(lineStarts[i] - 1);
-		assert.strictEqual(
-			pieceTable.getOffsetAt(pos.lineNumber, pos.column),
-			lineStarts[i] - 1
+	fow (wet i = 1; i < wineStawts.wength; i++) {
+		wet pos = pieceTabwe.getPositionAt(wineStawts[i] - 1);
+		assewt.stwictEquaw(
+			pieceTabwe.getOffsetAt(pos.wineNumba, pos.cowumn),
+			wineStawts[i] - 1
 		);
 	}
 }
 
-function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
-	let bufferBuilder = new PieceTreeTextBufferBuilder();
-	for (const chunk of val) {
-		bufferBuilder.acceptChunk(chunk);
+function cweateTextBuffa(vaw: stwing[], nowmawizeEOW: boowean = twue): PieceTweeBase {
+	wet buffewBuiwda = new PieceTweeTextBuffewBuiwda();
+	fow (const chunk of vaw) {
+		buffewBuiwda.acceptChunk(chunk);
 	}
-	let factory = bufferBuilder.finish(normalizeEOL);
-	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF).textBuffer).getPieceTree();
+	wet factowy = buffewBuiwda.finish(nowmawizeEOW);
+	wetuwn (<PieceTweeTextBuffa>factowy.cweate(DefauwtEndOfWine.WF).textBuffa).getPieceTwee();
 }
 
-function assertTreeInvariants(T: PieceTreeBase): void {
-	assert(SENTINEL.color === NodeColor.Black);
-	assert(SENTINEL.parent === SENTINEL);
-	assert(SENTINEL.left === SENTINEL);
-	assert(SENTINEL.right === SENTINEL);
-	assert(SENTINEL.size_left === 0);
-	assert(SENTINEL.lf_left === 0);
-	assertValidTree(T);
+function assewtTweeInvawiants(T: PieceTweeBase): void {
+	assewt(SENTINEW.cowow === NodeCowow.Bwack);
+	assewt(SENTINEW.pawent === SENTINEW);
+	assewt(SENTINEW.weft === SENTINEW);
+	assewt(SENTINEW.wight === SENTINEW);
+	assewt(SENTINEW.size_weft === 0);
+	assewt(SENTINEW.wf_weft === 0);
+	assewtVawidTwee(T);
 }
 
-function depth(n: TreeNode): number {
-	if (n === SENTINEL) {
-		// The leafs are black
-		return 1;
+function depth(n: TweeNode): numba {
+	if (n === SENTINEW) {
+		// The weafs awe bwack
+		wetuwn 1;
 	}
-	assert(depth(n.left) === depth(n.right));
-	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
+	assewt(depth(n.weft) === depth(n.wight));
+	wetuwn (n.cowow === NodeCowow.Bwack ? 1 : 0) + depth(n.weft);
 }
 
-function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
-	if (n === SENTINEL) {
-		return { size: 0, lf_cnt: 0 };
+function assewtVawidNode(n: TweeNode): { size: numba, wf_cnt: numba } {
+	if (n === SENTINEW) {
+		wetuwn { size: 0, wf_cnt: 0 };
 	}
 
-	let l = n.left;
-	let r = n.right;
+	wet w = n.weft;
+	wet w = n.wight;
 
-	if (n.color === NodeColor.Red) {
-		assert(l.color === NodeColor.Black);
-		assert(r.color === NodeColor.Black);
+	if (n.cowow === NodeCowow.Wed) {
+		assewt(w.cowow === NodeCowow.Bwack);
+		assewt(w.cowow === NodeCowow.Bwack);
 	}
 
-	let actualLeft = assertValidNode(l);
-	assert(actualLeft.lf_cnt === n.lf_left);
-	assert(actualLeft.size === n.size_left);
-	let actualRight = assertValidNode(r);
+	wet actuawWeft = assewtVawidNode(w);
+	assewt(actuawWeft.wf_cnt === n.wf_weft);
+	assewt(actuawWeft.size === n.size_weft);
+	wet actuawWight = assewtVawidNode(w);
 
-	return { size: n.size_left + n.piece.length + actualRight.size, lf_cnt: n.lf_left + n.piece.lineFeedCnt + actualRight.lf_cnt };
+	wetuwn { size: n.size_weft + n.piece.wength + actuawWight.size, wf_cnt: n.wf_weft + n.piece.wineFeedCnt + actuawWight.wf_cnt };
 }
 
-function assertValidTree(T: PieceTreeBase): void {
-	if (T.root === SENTINEL) {
-		return;
+function assewtVawidTwee(T: PieceTweeBase): void {
+	if (T.woot === SENTINEW) {
+		wetuwn;
 	}
-	assert(T.root.color === NodeColor.Black);
-	assert(depth(T.root.left) === depth(T.root.right));
-	assertValidNode(T.root);
+	assewt(T.woot.cowow === NodeCowow.Bwack);
+	assewt(depth(T.woot.weft) === depth(T.woot.wight));
+	assewtVawidNode(T.woot);
 }
 
-//#endregion
+//#endwegion
 
-suite('inserts and deletes', () => {
-	test('basic insert/delete', () => {
-		let pieceTable = createTextBuffer([
+suite('insewts and dewetes', () => {
+	test('basic insewt/dewete', () => {
+		wet pieceTabwe = cweateTextBuffa([
 			'This is a document with some text.'
 		]);
 
-		pieceTable.insert(34, 'This is some more text to insert at offset 34.');
-		assert.strictEqual(
-			pieceTable.getLinesRawContent(),
-			'This is a document with some text.This is some more text to insert at offset 34.'
+		pieceTabwe.insewt(34, 'This is some mowe text to insewt at offset 34.');
+		assewt.stwictEquaw(
+			pieceTabwe.getWinesWawContent(),
+			'This is a document with some text.This is some mowe text to insewt at offset 34.'
 		);
-		pieceTable.delete(42, 5);
-		assert.strictEqual(
-			pieceTable.getLinesRawContent(),
-			'This is a document with some text.This is more text to insert at offset 34.'
+		pieceTabwe.dewete(42, 5);
+		assewt.stwictEquaw(
+			pieceTabwe.getWinesWawContent(),
+			'This is a document with some text.This is mowe text to insewt at offset 34.'
 		);
-		assertTreeInvariants(pieceTable);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('more inserts', () => {
-		let pt = createTextBuffer(['']);
+	test('mowe insewts', () => {
+		wet pt = cweateTextBuffa(['']);
 
-		pt.insert(0, 'AAA');
-		assert.strictEqual(pt.getLinesRawContent(), 'AAA');
-		pt.insert(0, 'BBB');
-		assert.strictEqual(pt.getLinesRawContent(), 'BBBAAA');
-		pt.insert(6, 'CCC');
-		assert.strictEqual(pt.getLinesRawContent(), 'BBBAAACCC');
-		pt.insert(5, 'DDD');
-		assert.strictEqual(pt.getLinesRawContent(), 'BBBAADDDACCC');
-		assertTreeInvariants(pt);
+		pt.insewt(0, 'AAA');
+		assewt.stwictEquaw(pt.getWinesWawContent(), 'AAA');
+		pt.insewt(0, 'BBB');
+		assewt.stwictEquaw(pt.getWinesWawContent(), 'BBBAAA');
+		pt.insewt(6, 'CCC');
+		assewt.stwictEquaw(pt.getWinesWawContent(), 'BBBAAACCC');
+		pt.insewt(5, 'DDD');
+		assewt.stwictEquaw(pt.getWinesWawContent(), 'BBBAADDDACCC');
+		assewtTweeInvawiants(pt);
 	});
 
-	test('more deletes', () => {
-		let pt = createTextBuffer(['012345678']);
-		pt.delete(8, 1);
-		assert.strictEqual(pt.getLinesRawContent(), '01234567');
-		pt.delete(0, 1);
-		assert.strictEqual(pt.getLinesRawContent(), '1234567');
-		pt.delete(5, 1);
-		assert.strictEqual(pt.getLinesRawContent(), '123457');
-		pt.delete(5, 1);
-		assert.strictEqual(pt.getLinesRawContent(), '12345');
-		pt.delete(0, 5);
-		assert.strictEqual(pt.getLinesRawContent(), '');
-		assertTreeInvariants(pt);
+	test('mowe dewetes', () => {
+		wet pt = cweateTextBuffa(['012345678']);
+		pt.dewete(8, 1);
+		assewt.stwictEquaw(pt.getWinesWawContent(), '01234567');
+		pt.dewete(0, 1);
+		assewt.stwictEquaw(pt.getWinesWawContent(), '1234567');
+		pt.dewete(5, 1);
+		assewt.stwictEquaw(pt.getWinesWawContent(), '123457');
+		pt.dewete(5, 1);
+		assewt.stwictEquaw(pt.getWinesWawContent(), '12345');
+		pt.dewete(0, 5);
+		assewt.stwictEquaw(pt.getWinesWawContent(), '');
+		assewtTweeInvawiants(pt);
 	});
 
-	test('random test 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'ceLPHmFzvCtFeHkCBej ');
-		str = str.substring(0, 0) + 'ceLPHmFzvCtFeHkCBej ' + str.substring(0);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		pieceTable.insert(8, 'gDCEfNYiBUNkSwtvB K ');
-		str = str.substring(0, 8) + 'gDCEfNYiBUNkSwtvB K ' + str.substring(8);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		pieceTable.insert(38, 'cyNcHxjNPPoehBJldLS ');
-		str = str.substring(0, 38) + 'cyNcHxjNPPoehBJldLS ' + str.substring(38);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		pieceTable.insert(59, 'ejMx\nOTgWlbpeDExjOk ');
-		str = str.substring(0, 59) + 'ejMx\nOTgWlbpeDExjOk ' + str.substring(59);
+	test('wandom test 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'ceWPHmFzvCtFeHkCBej ');
+		stw = stw.substwing(0, 0) + 'ceWPHmFzvCtFeHkCBej ' + stw.substwing(0);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		pieceTabwe.insewt(8, 'gDCEfNYiBUNkSwtvB K ');
+		stw = stw.substwing(0, 8) + 'gDCEfNYiBUNkSwtvB K ' + stw.substwing(8);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		pieceTabwe.insewt(38, 'cyNcHxjNPPoehBJwdWS ');
+		stw = stw.substwing(0, 38) + 'cyNcHxjNPPoehBJwdWS ' + stw.substwing(38);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		pieceTabwe.insewt(59, 'ejMx\nOTgWwbpeDExjOk ');
+		stw = stw.substwing(0, 59) + 'ejMx\nOTgWwbpeDExjOk ' + stw.substwing(59);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random test 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'VgPG ');
-		str = str.substring(0, 0) + 'VgPG ' + str.substring(0);
-		pieceTable.insert(2, 'DdWF ');
-		str = str.substring(0, 2) + 'DdWF ' + str.substring(2);
-		pieceTable.insert(0, 'hUJc ');
-		str = str.substring(0, 0) + 'hUJc ' + str.substring(0);
-		pieceTable.insert(8, 'lQEq ');
-		str = str.substring(0, 8) + 'lQEq ' + str.substring(8);
-		pieceTable.insert(10, 'Gbtp ');
-		str = str.substring(0, 10) + 'Gbtp ' + str.substring(10);
+	test('wandom test 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'VgPG ');
+		stw = stw.substwing(0, 0) + 'VgPG ' + stw.substwing(0);
+		pieceTabwe.insewt(2, 'DdWF ');
+		stw = stw.substwing(0, 2) + 'DdWF ' + stw.substwing(2);
+		pieceTabwe.insewt(0, 'hUJc ');
+		stw = stw.substwing(0, 0) + 'hUJc ' + stw.substwing(0);
+		pieceTabwe.insewt(8, 'wQEq ');
+		stw = stw.substwing(0, 8) + 'wQEq ' + stw.substwing(8);
+		pieceTabwe.insewt(10, 'Gbtp ');
+		stw = stw.substwing(0, 10) + 'Gbtp ' + stw.substwing(10);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random test 3', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'gYSz');
-		str = str.substring(0, 0) + 'gYSz' + str.substring(0);
-		pieceTable.insert(1, 'mDQe');
-		str = str.substring(0, 1) + 'mDQe' + str.substring(1);
-		pieceTable.insert(1, 'DTMQ');
-		str = str.substring(0, 1) + 'DTMQ' + str.substring(1);
-		pieceTable.insert(2, 'GGZB');
-		str = str.substring(0, 2) + 'GGZB' + str.substring(2);
-		pieceTable.insert(12, 'wXpq');
-		str = str.substring(0, 12) + 'wXpq' + str.substring(12);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+	test('wandom test 3', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'gYSz');
+		stw = stw.substwing(0, 0) + 'gYSz' + stw.substwing(0);
+		pieceTabwe.insewt(1, 'mDQe');
+		stw = stw.substwing(0, 1) + 'mDQe' + stw.substwing(1);
+		pieceTabwe.insewt(1, 'DTMQ');
+		stw = stw.substwing(0, 1) + 'DTMQ' + stw.substwing(1);
+		pieceTabwe.insewt(2, 'GGZB');
+		stw = stw.substwing(0, 2) + 'GGZB' + stw.substwing(2);
+		pieceTabwe.insewt(12, 'wXpq');
+		stw = stw.substwing(0, 12) + 'wXpq' + stw.substwing(12);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 	});
 
-	test('random delete 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
+	test('wandom dewete 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
 
-		pieceTable.insert(0, 'vfb');
-		str = str.substring(0, 0) + 'vfb' + str.substring(0);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		pieceTable.insert(0, 'zRq');
-		str = str.substring(0, 0) + 'zRq' + str.substring(0);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		pieceTabwe.insewt(0, 'vfb');
+		stw = stw.substwing(0, 0) + 'vfb' + stw.substwing(0);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		pieceTabwe.insewt(0, 'zWq');
+		stw = stw.substwing(0, 0) + 'zWq' + stw.substwing(0);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		pieceTable.delete(5, 1);
-		str = str.substring(0, 5) + str.substring(5 + 1);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		pieceTabwe.dewete(5, 1);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 1);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		pieceTable.insert(1, 'UNw');
-		str = str.substring(0, 1) + 'UNw' + str.substring(1);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		pieceTabwe.insewt(1, 'UNw');
+		stw = stw.substwing(0, 1) + 'UNw' + stw.substwing(1);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		pieceTable.delete(4, 3);
-		str = str.substring(0, 4) + str.substring(4 + 3);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		pieceTabwe.dewete(4, 3);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 3);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		pieceTable.delete(1, 4);
-		str = str.substring(0, 1) + str.substring(1 + 4);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		pieceTabwe.dewete(1, 4);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 4);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		pieceTable.delete(0, 1);
-		str = str.substring(0, 0) + str.substring(0 + 1);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		pieceTabwe.dewete(0, 1);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 1);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random delete 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
+	test('wandom dewete 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
 
-		pieceTable.insert(0, 'IDT');
-		str = str.substring(0, 0) + 'IDT' + str.substring(0);
-		pieceTable.insert(3, 'wwA');
-		str = str.substring(0, 3) + 'wwA' + str.substring(3);
-		pieceTable.insert(3, 'Gnr');
-		str = str.substring(0, 3) + 'Gnr' + str.substring(3);
-		pieceTable.delete(6, 3);
-		str = str.substring(0, 6) + str.substring(6 + 3);
-		pieceTable.insert(4, 'eHp');
-		str = str.substring(0, 4) + 'eHp' + str.substring(4);
-		pieceTable.insert(1, 'UAi');
-		str = str.substring(0, 1) + 'UAi' + str.substring(1);
-		pieceTable.insert(2, 'FrR');
-		str = str.substring(0, 2) + 'FrR' + str.substring(2);
-		pieceTable.delete(6, 7);
-		str = str.substring(0, 6) + str.substring(6 + 7);
-		pieceTable.delete(3, 5);
-		str = str.substring(0, 3) + str.substring(3 + 5);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		pieceTabwe.insewt(0, 'IDT');
+		stw = stw.substwing(0, 0) + 'IDT' + stw.substwing(0);
+		pieceTabwe.insewt(3, 'wwA');
+		stw = stw.substwing(0, 3) + 'wwA' + stw.substwing(3);
+		pieceTabwe.insewt(3, 'Gnw');
+		stw = stw.substwing(0, 3) + 'Gnw' + stw.substwing(3);
+		pieceTabwe.dewete(6, 3);
+		stw = stw.substwing(0, 6) + stw.substwing(6 + 3);
+		pieceTabwe.insewt(4, 'eHp');
+		stw = stw.substwing(0, 4) + 'eHp' + stw.substwing(4);
+		pieceTabwe.insewt(1, 'UAi');
+		stw = stw.substwing(0, 1) + 'UAi' + stw.substwing(1);
+		pieceTabwe.insewt(2, 'FwW');
+		stw = stw.substwing(0, 2) + 'FwW' + stw.substwing(2);
+		pieceTabwe.dewete(6, 7);
+		stw = stw.substwing(0, 6) + stw.substwing(6 + 7);
+		pieceTabwe.dewete(3, 5);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 5);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random delete 3', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'PqM');
-		str = str.substring(0, 0) + 'PqM' + str.substring(0);
-		pieceTable.delete(1, 2);
-		str = str.substring(0, 1) + str.substring(1 + 2);
-		pieceTable.insert(1, 'zLc');
-		str = str.substring(0, 1) + 'zLc' + str.substring(1);
-		pieceTable.insert(0, 'MEX');
-		str = str.substring(0, 0) + 'MEX' + str.substring(0);
-		pieceTable.insert(0, 'jZh');
-		str = str.substring(0, 0) + 'jZh' + str.substring(0);
-		pieceTable.insert(8, 'GwQ');
-		str = str.substring(0, 8) + 'GwQ' + str.substring(8);
-		pieceTable.delete(5, 6);
-		str = str.substring(0, 5) + str.substring(5 + 6);
-		pieceTable.insert(4, 'ktw');
-		str = str.substring(0, 4) + 'ktw' + str.substring(4);
-		pieceTable.insert(5, 'GVu');
-		str = str.substring(0, 5) + 'GVu' + str.substring(5);
-		pieceTable.insert(9, 'jdm');
-		str = str.substring(0, 9) + 'jdm' + str.substring(9);
-		pieceTable.insert(15, 'na\n');
-		str = str.substring(0, 15) + 'na\n' + str.substring(15);
-		pieceTable.delete(5, 8);
-		str = str.substring(0, 5) + str.substring(5 + 8);
-		pieceTable.delete(3, 4);
-		str = str.substring(0, 3) + str.substring(3 + 4);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+	test('wandom dewete 3', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'PqM');
+		stw = stw.substwing(0, 0) + 'PqM' + stw.substwing(0);
+		pieceTabwe.dewete(1, 2);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 2);
+		pieceTabwe.insewt(1, 'zWc');
+		stw = stw.substwing(0, 1) + 'zWc' + stw.substwing(1);
+		pieceTabwe.insewt(0, 'MEX');
+		stw = stw.substwing(0, 0) + 'MEX' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'jZh');
+		stw = stw.substwing(0, 0) + 'jZh' + stw.substwing(0);
+		pieceTabwe.insewt(8, 'GwQ');
+		stw = stw.substwing(0, 8) + 'GwQ' + stw.substwing(8);
+		pieceTabwe.dewete(5, 6);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 6);
+		pieceTabwe.insewt(4, 'ktw');
+		stw = stw.substwing(0, 4) + 'ktw' + stw.substwing(4);
+		pieceTabwe.insewt(5, 'GVu');
+		stw = stw.substwing(0, 5) + 'GVu' + stw.substwing(5);
+		pieceTabwe.insewt(9, 'jdm');
+		stw = stw.substwing(0, 9) + 'jdm' + stw.substwing(9);
+		pieceTabwe.insewt(15, 'na\n');
+		stw = stw.substwing(0, 15) + 'na\n' + stw.substwing(15);
+		pieceTabwe.dewete(5, 8);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 8);
+		pieceTabwe.dewete(3, 4);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 4);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random insert/delete \\r bug 1', () => {
-		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
-		pieceTable.delete(0, 1);
-		str = str.substring(0, 0) + str.substring(0 + 1);
-		pieceTable.insert(0, '\r\r\n\n');
-		str = str.substring(0, 0) + '\r\r\n\n' + str.substring(0);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.insert(2, '\n\n\ra');
-		str = str.substring(0, 2) + '\n\n\ra' + str.substring(2);
-		pieceTable.delete(4, 3);
-		str = str.substring(0, 4) + str.substring(4 + 3);
-		pieceTable.insert(2, '\na\r\r');
-		str = str.substring(0, 2) + '\na\r\r' + str.substring(2);
-		pieceTable.insert(6, '\ra\n\n');
-		str = str.substring(0, 6) + '\ra\n\n' + str.substring(6);
-		pieceTable.insert(0, 'aa\n\n');
-		str = str.substring(0, 0) + 'aa\n\n' + str.substring(0);
-		pieceTable.insert(5, '\n\na\r');
-		str = str.substring(0, 5) + '\n\na\r' + str.substring(5);
+	test('wandom insewt/dewete \\w bug 1', () => {
+		wet stw = 'a';
+		wet pieceTabwe = cweateTextBuffa(['a']);
+		pieceTabwe.dewete(0, 1);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 1);
+		pieceTabwe.insewt(0, '\w\w\n\n');
+		stw = stw.substwing(0, 0) + '\w\w\n\n' + stw.substwing(0);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.insewt(2, '\n\n\wa');
+		stw = stw.substwing(0, 2) + '\n\n\wa' + stw.substwing(2);
+		pieceTabwe.dewete(4, 3);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 3);
+		pieceTabwe.insewt(2, '\na\w\w');
+		stw = stw.substwing(0, 2) + '\na\w\w' + stw.substwing(2);
+		pieceTabwe.insewt(6, '\wa\n\n');
+		stw = stw.substwing(0, 6) + '\wa\n\n' + stw.substwing(6);
+		pieceTabwe.insewt(0, 'aa\n\n');
+		stw = stw.substwing(0, 0) + 'aa\n\n' + stw.substwing(0);
+		pieceTabwe.insewt(5, '\n\na\w');
+		stw = stw.substwing(0, 5) + '\n\na\w' + stw.substwing(5);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random insert/delete \\r bug 2', () => {
-		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
-		pieceTable.insert(1, '\naa\r');
-		str = str.substring(0, 1) + '\naa\r' + str.substring(1);
-		pieceTable.delete(0, 4);
-		str = str.substring(0, 0) + str.substring(0 + 4);
-		pieceTable.insert(1, '\r\r\na');
-		str = str.substring(0, 1) + '\r\r\na' + str.substring(1);
-		pieceTable.insert(2, '\n\r\ra');
-		str = str.substring(0, 2) + '\n\r\ra' + str.substring(2);
-		pieceTable.delete(4, 1);
-		str = str.substring(0, 4) + str.substring(4 + 1);
-		pieceTable.insert(8, '\r\n\r\r');
-		str = str.substring(0, 8) + '\r\n\r\r' + str.substring(8);
-		pieceTable.insert(7, '\n\n\na');
-		str = str.substring(0, 7) + '\n\n\na' + str.substring(7);
-		pieceTable.insert(13, 'a\n\na');
-		str = str.substring(0, 13) + 'a\n\na' + str.substring(13);
-		pieceTable.delete(17, 3);
-		str = str.substring(0, 17) + str.substring(17 + 3);
-		pieceTable.insert(2, 'a\ra\n');
-		str = str.substring(0, 2) + 'a\ra\n' + str.substring(2);
+	test('wandom insewt/dewete \\w bug 2', () => {
+		wet stw = 'a';
+		wet pieceTabwe = cweateTextBuffa(['a']);
+		pieceTabwe.insewt(1, '\naa\w');
+		stw = stw.substwing(0, 1) + '\naa\w' + stw.substwing(1);
+		pieceTabwe.dewete(0, 4);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 4);
+		pieceTabwe.insewt(1, '\w\w\na');
+		stw = stw.substwing(0, 1) + '\w\w\na' + stw.substwing(1);
+		pieceTabwe.insewt(2, '\n\w\wa');
+		stw = stw.substwing(0, 2) + '\n\w\wa' + stw.substwing(2);
+		pieceTabwe.dewete(4, 1);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 1);
+		pieceTabwe.insewt(8, '\w\n\w\w');
+		stw = stw.substwing(0, 8) + '\w\n\w\w' + stw.substwing(8);
+		pieceTabwe.insewt(7, '\n\n\na');
+		stw = stw.substwing(0, 7) + '\n\n\na' + stw.substwing(7);
+		pieceTabwe.insewt(13, 'a\n\na');
+		stw = stw.substwing(0, 13) + 'a\n\na' + stw.substwing(13);
+		pieceTabwe.dewete(17, 3);
+		stw = stw.substwing(0, 17) + stw.substwing(17 + 3);
+		pieceTabwe.insewt(2, 'a\wa\n');
+		stw = stw.substwing(0, 2) + 'a\wa\n' + stw.substwing(2);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random insert/delete \\r bug 3', () => {
-		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
-		pieceTable.insert(0, '\r\na\r');
-		str = str.substring(0, 0) + '\r\na\r' + str.substring(0);
-		pieceTable.delete(2, 3);
-		str = str.substring(0, 2) + str.substring(2 + 3);
-		pieceTable.insert(2, 'a\r\n\r');
-		str = str.substring(0, 2) + 'a\r\n\r' + str.substring(2);
-		pieceTable.delete(4, 2);
-		str = str.substring(0, 4) + str.substring(4 + 2);
-		pieceTable.insert(4, 'a\n\r\n');
-		str = str.substring(0, 4) + 'a\n\r\n' + str.substring(4);
-		pieceTable.insert(1, 'aa\n\r');
-		str = str.substring(0, 1) + 'aa\n\r' + str.substring(1);
-		pieceTable.insert(7, '\na\r\n');
-		str = str.substring(0, 7) + '\na\r\n' + str.substring(7);
-		pieceTable.insert(5, '\n\na\r');
-		str = str.substring(0, 5) + '\n\na\r' + str.substring(5);
-		pieceTable.insert(10, '\r\r\n\r');
-		str = str.substring(0, 10) + '\r\r\n\r' + str.substring(10);
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		pieceTable.delete(21, 3);
-		str = str.substring(0, 21) + str.substring(21 + 3);
+	test('wandom insewt/dewete \\w bug 3', () => {
+		wet stw = 'a';
+		wet pieceTabwe = cweateTextBuffa(['a']);
+		pieceTabwe.insewt(0, '\w\na\w');
+		stw = stw.substwing(0, 0) + '\w\na\w' + stw.substwing(0);
+		pieceTabwe.dewete(2, 3);
+		stw = stw.substwing(0, 2) + stw.substwing(2 + 3);
+		pieceTabwe.insewt(2, 'a\w\n\w');
+		stw = stw.substwing(0, 2) + 'a\w\n\w' + stw.substwing(2);
+		pieceTabwe.dewete(4, 2);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 2);
+		pieceTabwe.insewt(4, 'a\n\w\n');
+		stw = stw.substwing(0, 4) + 'a\n\w\n' + stw.substwing(4);
+		pieceTabwe.insewt(1, 'aa\n\w');
+		stw = stw.substwing(0, 1) + 'aa\n\w' + stw.substwing(1);
+		pieceTabwe.insewt(7, '\na\w\n');
+		stw = stw.substwing(0, 7) + '\na\w\n' + stw.substwing(7);
+		pieceTabwe.insewt(5, '\n\na\w');
+		stw = stw.substwing(0, 5) + '\n\na\w' + stw.substwing(5);
+		pieceTabwe.insewt(10, '\w\w\n\w');
+		stw = stw.substwing(0, 10) + '\w\w\n\w' + stw.substwing(10);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		pieceTabwe.dewete(21, 3);
+		stw = stw.substwing(0, 21) + stw.substwing(21 + 3);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random insert/delete \\r bug 4s', () => {
-		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
-		pieceTable.delete(0, 1);
-		str = str.substring(0, 0) + str.substring(0 + 1);
-		pieceTable.insert(0, '\naaa');
-		str = str.substring(0, 0) + '\naaa' + str.substring(0);
-		pieceTable.insert(2, '\n\naa');
-		str = str.substring(0, 2) + '\n\naa' + str.substring(2);
-		pieceTable.delete(1, 4);
-		str = str.substring(0, 1) + str.substring(1 + 4);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.delete(1, 2);
-		str = str.substring(0, 1) + str.substring(1 + 2);
-		pieceTable.delete(0, 1);
-		str = str.substring(0, 0) + str.substring(0 + 1);
-		pieceTable.insert(0, 'a\n\n\r');
-		str = str.substring(0, 0) + 'a\n\n\r' + str.substring(0);
-		pieceTable.insert(2, 'aa\r\n');
-		str = str.substring(0, 2) + 'aa\r\n' + str.substring(2);
-		pieceTable.insert(3, 'a\naa');
-		str = str.substring(0, 3) + 'a\naa' + str.substring(3);
+	test('wandom insewt/dewete \\w bug 4s', () => {
+		wet stw = 'a';
+		wet pieceTabwe = cweateTextBuffa(['a']);
+		pieceTabwe.dewete(0, 1);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 1);
+		pieceTabwe.insewt(0, '\naaa');
+		stw = stw.substwing(0, 0) + '\naaa' + stw.substwing(0);
+		pieceTabwe.insewt(2, '\n\naa');
+		stw = stw.substwing(0, 2) + '\n\naa' + stw.substwing(2);
+		pieceTabwe.dewete(1, 4);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 4);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.dewete(1, 2);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 2);
+		pieceTabwe.dewete(0, 1);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 1);
+		pieceTabwe.insewt(0, 'a\n\n\w');
+		stw = stw.substwing(0, 0) + 'a\n\n\w' + stw.substwing(0);
+		pieceTabwe.insewt(2, 'aa\w\n');
+		stw = stw.substwing(0, 2) + 'aa\w\n' + stw.substwing(2);
+		pieceTabwe.insewt(3, 'a\naa');
+		stw = stw.substwing(0, 3) + 'a\naa' + stw.substwing(3);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
-	test('random insert/delete \\r bug 5', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, '\n\n\n\r');
-		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
-		pieceTable.insert(1, '\n\n\n\r');
-		str = str.substring(0, 1) + '\n\n\n\r' + str.substring(1);
-		pieceTable.insert(2, '\n\r\r\r');
-		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
-		pieceTable.insert(8, '\n\r\n\r');
-		str = str.substring(0, 8) + '\n\r\n\r' + str.substring(8);
-		pieceTable.delete(5, 2);
-		str = str.substring(0, 5) + str.substring(5 + 2);
-		pieceTable.insert(4, '\n\r\r\r');
-		str = str.substring(0, 4) + '\n\r\r\r' + str.substring(4);
-		pieceTable.insert(8, '\n\n\n\r');
-		str = str.substring(0, 8) + '\n\n\n\r' + str.substring(8);
-		pieceTable.delete(0, 7);
-		str = str.substring(0, 0) + str.substring(0 + 7);
-		pieceTable.insert(1, '\r\n\r\r');
-		str = str.substring(0, 1) + '\r\n\r\r' + str.substring(1);
-		pieceTable.insert(15, '\n\r\r\r');
-		str = str.substring(0, 15) + '\n\r\r\r' + str.substring(15);
+	test('wandom insewt/dewete \\w bug 5', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, '\n\n\n\w');
+		stw = stw.substwing(0, 0) + '\n\n\n\w' + stw.substwing(0);
+		pieceTabwe.insewt(1, '\n\n\n\w');
+		stw = stw.substwing(0, 1) + '\n\n\n\w' + stw.substwing(1);
+		pieceTabwe.insewt(2, '\n\w\w\w');
+		stw = stw.substwing(0, 2) + '\n\w\w\w' + stw.substwing(2);
+		pieceTabwe.insewt(8, '\n\w\n\w');
+		stw = stw.substwing(0, 8) + '\n\w\n\w' + stw.substwing(8);
+		pieceTabwe.dewete(5, 2);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 2);
+		pieceTabwe.insewt(4, '\n\w\w\w');
+		stw = stw.substwing(0, 4) + '\n\w\w\w' + stw.substwing(4);
+		pieceTabwe.insewt(8, '\n\n\n\w');
+		stw = stw.substwing(0, 8) + '\n\n\n\w' + stw.substwing(8);
+		pieceTabwe.dewete(0, 7);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 7);
+		pieceTabwe.insewt(1, '\w\n\w\w');
+		stw = stw.substwing(0, 1) + '\w\n\w\w' + stw.substwing(1);
+		pieceTabwe.insewt(15, '\n\w\w\w');
+		stw = stw.substwing(0, 15) + '\n\w\w\w' + stw.substwing(15);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
-suite('prefix sum for line feed', () => {
+suite('pwefix sum fow wine feed', () => {
 	test('basic', () => {
-		let pieceTable = createTextBuffer(['1\n2\n3\n4']);
+		wet pieceTabwe = cweateTextBuffa(['1\n2\n3\n4']);
 
-		assert.strictEqual(pieceTable.getLineCount(), 4);
-		assert.deepStrictEqual(pieceTable.getPositionAt(0), new Position(1, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(1), new Position(1, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(2), new Position(2, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(3), new Position(2, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(4), new Position(3, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(5), new Position(3, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 4);
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(0), new Position(1, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(1), new Position(1, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(2), new Position(2, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(3), new Position(2, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(4), new Position(3, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(5), new Position(3, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(6), new Position(4, 1));
 
-		assert.strictEqual(pieceTable.getOffsetAt(1, 1), 0);
-		assert.strictEqual(pieceTable.getOffsetAt(1, 2), 1);
-		assert.strictEqual(pieceTable.getOffsetAt(2, 1), 2);
-		assert.strictEqual(pieceTable.getOffsetAt(2, 2), 3);
-		assert.strictEqual(pieceTable.getOffsetAt(3, 1), 4);
-		assert.strictEqual(pieceTable.getOffsetAt(3, 2), 5);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(1, 1), 0);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(1, 2), 1);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(2, 1), 2);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(2, 2), 3);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(3, 1), 4);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(3, 2), 5);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 1), 6);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
 	test('append', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
-		pieceTable.insert(8, 'fh\ni\njk');
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\nde']);
+		pieceTabwe.insewt(8, 'fh\ni\njk');
 
-		assert.strictEqual(pieceTable.getLineCount(), 6);
-		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(4, 4));
-		assert.strictEqual(pieceTable.getOffsetAt(1, 1), 0);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 6);
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(9), new Position(4, 4));
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(1, 1), 0);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('insert', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
-		pieceTable.insert(7, 'fh\ni\njk');
+	test('insewt', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\nde']);
+		pieceTabwe.insewt(7, 'fh\ni\njk');
 
-		assert.strictEqual(pieceTable.getLineCount(), 6);
-		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(4, 4));
-		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(14), new Position(6, 3));
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 6);
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(6), new Position(4, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(7), new Position(4, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(8), new Position(4, 3));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(9), new Position(4, 4));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(12), new Position(6, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(13), new Position(6, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(14), new Position(6, 3));
 
-		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 4), 9);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 12);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 13);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 14);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 1), 6);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 2), 7);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 3), 8);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 4), 9);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 1), 12);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 2), 13);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 3), 14);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('delete', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\ndefh\ni\njk']);
-		pieceTable.delete(7, 2);
+	test('dewete', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\ndefh\ni\njk']);
+		pieceTabwe.dewete(7, 2);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
-		assert.strictEqual(pieceTable.getLineCount(), 6);
-		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(5, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(11), new Position(6, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 3));
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), 'a\nb\nc\ndh\ni\njk');
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 6);
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(6), new Position(4, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(7), new Position(4, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(8), new Position(4, 3));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(9), new Position(5, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(11), new Position(6, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(12), new Position(6, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(13), new Position(6, 3));
 
-		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
-		assert.strictEqual(pieceTable.getOffsetAt(5, 1), 9);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 11);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 12);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 13);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 1), 6);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 2), 7);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 3), 8);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(5, 1), 9);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 1), 11);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 2), 12);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 3), 13);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('add+delete 1', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
-		pieceTable.insert(8, 'fh\ni\njk');
-		pieceTable.delete(7, 2);
+	test('add+dewete 1', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\nde']);
+		pieceTabwe.insewt(8, 'fh\ni\njk');
+		pieceTabwe.dewete(7, 2);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
-		assert.strictEqual(pieceTable.getLineCount(), 6);
-		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(5, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(11), new Position(6, 1));
-		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 2));
-		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 3));
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), 'a\nb\nc\ndh\ni\njk');
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 6);
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(6), new Position(4, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(7), new Position(4, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(8), new Position(4, 3));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(9), new Position(5, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(11), new Position(6, 1));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(12), new Position(6, 2));
+		assewt.deepStwictEquaw(pieceTabwe.getPositionAt(13), new Position(6, 3));
 
-		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
-		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
-		assert.strictEqual(pieceTable.getOffsetAt(5, 1), 9);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 11);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 12);
-		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 13);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 1), 6);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 2), 7);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(4, 3), 8);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(5, 1), 9);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 1), 11);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 2), 12);
+		assewt.stwictEquaw(pieceTabwe.getOffsetAt(6, 3), 13);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('insert random bug 1: prefixSumComputer.removeValues(start, cnt) cnt is 1 based.', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, ' ZX \n Z\nZ\n YZ\nY\nZXX ');
-		str =
-			str.substring(0, 0) +
+	test('insewt wandom bug 1: pwefixSumComputa.wemoveVawues(stawt, cnt) cnt is 1 based.', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, ' ZX \n Z\nZ\n YZ\nY\nZXX ');
+		stw =
+			stw.substwing(0, 0) +
 			' ZX \n Z\nZ\n YZ\nY\nZXX ' +
-			str.substring(0);
-		pieceTable.insert(14, 'X ZZ\nYZZYZXXY Y XY\n ');
-		str =
-			str.substring(0, 14) + 'X ZZ\nYZZYZXXY Y XY\n ' + str.substring(14);
+			stw.substwing(0);
+		pieceTabwe.insewt(14, 'X ZZ\nYZZYZXXY Y XY\n ');
+		stw =
+			stw.substwing(0, 14) + 'X ZZ\nYZZYZXXY Y XY\n ' + stw.substwing(14);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('insert random bug 2: prefixSumComputer initialize does not do deep copy of UInt32Array.', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'ZYZ\nYY XY\nX \nZ Y \nZ ');
-		str =
-			str.substring(0, 0) + 'ZYZ\nYY XY\nX \nZ Y \nZ ' + str.substring(0);
-		pieceTable.insert(3, 'XXY \n\nY Y YYY  ZYXY ');
-		str = str.substring(0, 3) + 'XXY \n\nY Y YYY  ZYXY ' + str.substring(3);
+	test('insewt wandom bug 2: pwefixSumComputa initiawize does not do deep copy of UInt32Awway.', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'ZYZ\nYY XY\nX \nZ Y \nZ ');
+		stw =
+			stw.substwing(0, 0) + 'ZYZ\nYY XY\nX \nZ Y \nZ ' + stw.substwing(0);
+		pieceTabwe.insewt(3, 'XXY \n\nY Y YYY  ZYXY ');
+		stw = stw.substwing(0, 3) + 'XXY \n\nY Y YYY  ZYXY ' + stw.substwing(3);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('delete random bug 1: I forgot to update the lineFeedCnt when deletion is on one single piece.', () => {
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'ba\na\nca\nba\ncbab\ncaa ');
-		pieceTable.insert(13, 'cca\naabb\ncac\nccc\nab ');
-		pieceTable.delete(5, 8);
-		pieceTable.delete(30, 2);
-		pieceTable.insert(24, 'cbbacccbac\nbaaab\n\nc ');
-		pieceTable.delete(29, 3);
-		pieceTable.delete(23, 9);
-		pieceTable.delete(21, 5);
-		pieceTable.delete(30, 3);
-		pieceTable.insert(3, 'cb\nac\nc\n\nacc\nbb\nb\nc ');
-		pieceTable.delete(19, 5);
-		pieceTable.insert(18, '\nbb\n\nacbc\ncbb\nc\nbb\n ');
-		pieceTable.insert(65, 'cbccbac\nbc\n\nccabba\n ');
-		pieceTable.insert(77, 'a\ncacb\n\nac\n\n\n\n\nabab ');
-		pieceTable.delete(30, 9);
-		pieceTable.insert(45, 'b\n\nc\nba\n\nbbbba\n\naa\n ');
-		pieceTable.insert(82, 'ab\nbb\ncabacab\ncbc\na ');
-		pieceTable.delete(123, 9);
-		pieceTable.delete(71, 2);
-		pieceTable.insert(33, 'acaa\nacb\n\naa\n\nc\n\n\n\n ');
+	test('dewete wandom bug 1: I fowgot to update the wineFeedCnt when dewetion is on one singwe piece.', () => {
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'ba\na\nca\nba\ncbab\ncaa ');
+		pieceTabwe.insewt(13, 'cca\naabb\ncac\nccc\nab ');
+		pieceTabwe.dewete(5, 8);
+		pieceTabwe.dewete(30, 2);
+		pieceTabwe.insewt(24, 'cbbacccbac\nbaaab\n\nc ');
+		pieceTabwe.dewete(29, 3);
+		pieceTabwe.dewete(23, 9);
+		pieceTabwe.dewete(21, 5);
+		pieceTabwe.dewete(30, 3);
+		pieceTabwe.insewt(3, 'cb\nac\nc\n\nacc\nbb\nb\nc ');
+		pieceTabwe.dewete(19, 5);
+		pieceTabwe.insewt(18, '\nbb\n\nacbc\ncbb\nc\nbb\n ');
+		pieceTabwe.insewt(65, 'cbccbac\nbc\n\nccabba\n ');
+		pieceTabwe.insewt(77, 'a\ncacb\n\nac\n\n\n\n\nabab ');
+		pieceTabwe.dewete(30, 9);
+		pieceTabwe.insewt(45, 'b\n\nc\nba\n\nbbbba\n\naa\n ');
+		pieceTabwe.insewt(82, 'ab\nbb\ncabacab\ncbc\na ');
+		pieceTabwe.dewete(123, 9);
+		pieceTabwe.dewete(71, 2);
+		pieceTabwe.insewt(33, 'acaa\nacb\n\naa\n\nc\n\n\n\n ');
 
-		let str = pieceTable.getLinesRawContent();
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		wet stw = pieceTabwe.getWinesWawContent();
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('delete random bug rb tree 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([str]);
-		pieceTable.insert(0, 'YXXZ\n\nYY\n');
-		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
-		pieceTable.delete(0, 5);
-		str = str.substring(0, 0) + str.substring(0 + 5);
-		pieceTable.insert(0, 'ZXYY\nX\nZ\n');
-		str = str.substring(0, 0) + 'ZXYY\nX\nZ\n' + str.substring(0);
-		pieceTable.insert(10, '\nXY\nYXYXY');
-		str = str.substring(0, 10) + '\nXY\nYXYXY' + str.substring(10);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+	test('dewete wandom bug wb twee 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw]);
+		pieceTabwe.insewt(0, 'YXXZ\n\nYY\n');
+		stw = stw.substwing(0, 0) + 'YXXZ\n\nYY\n' + stw.substwing(0);
+		pieceTabwe.dewete(0, 5);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 5);
+		pieceTabwe.insewt(0, 'ZXYY\nX\nZ\n');
+		stw = stw.substwing(0, 0) + 'ZXYY\nX\nZ\n' + stw.substwing(0);
+		pieceTabwe.insewt(10, '\nXY\nYXYXY');
+		stw = stw.substwing(0, 10) + '\nXY\nYXYXY' + stw.substwing(10);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('delete random bug rb tree 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([str]);
-		pieceTable.insert(0, 'YXXZ\n\nYY\n');
-		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
-		pieceTable.insert(0, 'ZXYY\nX\nZ\n');
-		str = str.substring(0, 0) + 'ZXYY\nX\nZ\n' + str.substring(0);
-		pieceTable.insert(10, '\nXY\nYXYXY');
-		str = str.substring(0, 10) + '\nXY\nYXYXY' + str.substring(10);
-		pieceTable.insert(8, 'YZXY\nZ\nYX');
-		str = str.substring(0, 8) + 'YZXY\nZ\nYX' + str.substring(8);
-		pieceTable.insert(12, 'XX\nXXYXYZ');
-		str = str.substring(0, 12) + 'XX\nXXYXYZ' + str.substring(12);
-		pieceTable.delete(0, 4);
-		str = str.substring(0, 0) + str.substring(0 + 4);
+	test('dewete wandom bug wb twee 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw]);
+		pieceTabwe.insewt(0, 'YXXZ\n\nYY\n');
+		stw = stw.substwing(0, 0) + 'YXXZ\n\nYY\n' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'ZXYY\nX\nZ\n');
+		stw = stw.substwing(0, 0) + 'ZXYY\nX\nZ\n' + stw.substwing(0);
+		pieceTabwe.insewt(10, '\nXY\nYXYXY');
+		stw = stw.substwing(0, 10) + '\nXY\nYXYXY' + stw.substwing(10);
+		pieceTabwe.insewt(8, 'YZXY\nZ\nYX');
+		stw = stw.substwing(0, 8) + 'YZXY\nZ\nYX' + stw.substwing(8);
+		pieceTabwe.insewt(12, 'XX\nXXYXYZ');
+		stw = stw.substwing(0, 12) + 'XX\nXXYXYZ' + stw.substwing(12);
+		pieceTabwe.dewete(0, 4);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 4);
 
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('delete random bug rb tree 3', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([str]);
-		pieceTable.insert(0, 'YXXZ\n\nYY\n');
-		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
-		pieceTable.delete(7, 2);
-		str = str.substring(0, 7) + str.substring(7 + 2);
-		pieceTable.delete(6, 1);
-		str = str.substring(0, 6) + str.substring(6 + 1);
-		pieceTable.delete(0, 5);
-		str = str.substring(0, 0) + str.substring(0 + 5);
-		pieceTable.insert(0, 'ZXYY\nX\nZ\n');
-		str = str.substring(0, 0) + 'ZXYY\nX\nZ\n' + str.substring(0);
-		pieceTable.insert(10, '\nXY\nYXYXY');
-		str = str.substring(0, 10) + '\nXY\nYXYXY' + str.substring(10);
-		pieceTable.insert(8, 'YZXY\nZ\nYX');
-		str = str.substring(0, 8) + 'YZXY\nZ\nYX' + str.substring(8);
-		pieceTable.insert(12, 'XX\nXXYXYZ');
-		str = str.substring(0, 12) + 'XX\nXXYXYZ' + str.substring(12);
-		pieceTable.delete(0, 4);
-		str = str.substring(0, 0) + str.substring(0 + 4);
-		pieceTable.delete(30, 3);
-		str = str.substring(0, 30) + str.substring(30 + 3);
+	test('dewete wandom bug wb twee 3', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw]);
+		pieceTabwe.insewt(0, 'YXXZ\n\nYY\n');
+		stw = stw.substwing(0, 0) + 'YXXZ\n\nYY\n' + stw.substwing(0);
+		pieceTabwe.dewete(7, 2);
+		stw = stw.substwing(0, 7) + stw.substwing(7 + 2);
+		pieceTabwe.dewete(6, 1);
+		stw = stw.substwing(0, 6) + stw.substwing(6 + 1);
+		pieceTabwe.dewete(0, 5);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 5);
+		pieceTabwe.insewt(0, 'ZXYY\nX\nZ\n');
+		stw = stw.substwing(0, 0) + 'ZXYY\nX\nZ\n' + stw.substwing(0);
+		pieceTabwe.insewt(10, '\nXY\nYXYXY');
+		stw = stw.substwing(0, 10) + '\nXY\nYXYXY' + stw.substwing(10);
+		pieceTabwe.insewt(8, 'YZXY\nZ\nYX');
+		stw = stw.substwing(0, 8) + 'YZXY\nZ\nYX' + stw.substwing(8);
+		pieceTabwe.insewt(12, 'XX\nXXYXYZ');
+		stw = stw.substwing(0, 12) + 'XX\nXXYXYZ' + stw.substwing(12);
+		pieceTabwe.dewete(0, 4);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 4);
+		pieceTabwe.dewete(30, 3);
+		stw = stw.substwing(0, 30) + stw.substwing(30 + 3);
 
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
 suite('offset 2 position', () => {
-	test('random tests bug 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
-		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
-		pieceTable.delete(18, 2);
-		str = str.substring(0, 18) + str.substring(18 + 2);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.delete(12, 4);
-		str = str.substring(0, 12) + str.substring(12 + 4);
-		pieceTable.insert(3, 'hMbnVEdTSdhLlPevXKF ');
-		str = str.substring(0, 3) + 'hMbnVEdTSdhLlPevXKF ' + str.substring(3);
-		pieceTable.delete(22, 8);
-		str = str.substring(0, 22) + str.substring(22 + 8);
-		pieceTable.insert(4, 'S umSnYrqOmOAV\nEbZJ ');
-		str = str.substring(0, 4) + 'S umSnYrqOmOAV\nEbZJ ' + str.substring(4);
+	test('wandom tests bug 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'huuyYzUfKOENwGgZWqn ');
+		stw = stw.substwing(0, 0) + 'huuyYzUfKOENwGgZWqn ' + stw.substwing(0);
+		pieceTabwe.dewete(18, 2);
+		stw = stw.substwing(0, 18) + stw.substwing(18 + 2);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.dewete(12, 4);
+		stw = stw.substwing(0, 12) + stw.substwing(12 + 4);
+		pieceTabwe.insewt(3, 'hMbnVEdTSdhWwPevXKF ');
+		stw = stw.substwing(0, 3) + 'hMbnVEdTSdhWwPevXKF ' + stw.substwing(3);
+		pieceTabwe.dewete(22, 8);
+		stw = stw.substwing(0, 22) + stw.substwing(22 + 8);
+		pieceTabwe.insewt(4, 'S umSnYwqOmOAV\nEbZJ ');
+		stw = stw.substwing(0, 4) + 'S umSnYwqOmOAV\nEbZJ ' + stw.substwing(4);
 
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
-suite('get text in range', () => {
-	test('getContentInRange', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
-		pieceTable.insert(8, 'fh\ni\njk');
-		pieceTable.delete(7, 2);
+suite('get text in wange', () => {
+	test('getContentInWange', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\nde']);
+		pieceTabwe.insewt(8, 'fh\ni\njk');
+		pieceTabwe.dewete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
 
-		assert.strictEqual(pieceTable.getValueInRange(new Range(1, 1, 1, 3)), 'a\n');
-		assert.strictEqual(pieceTable.getValueInRange(new Range(2, 1, 2, 3)), 'b\n');
-		assert.strictEqual(pieceTable.getValueInRange(new Range(3, 1, 3, 3)), 'c\n');
-		assert.strictEqual(pieceTable.getValueInRange(new Range(4, 1, 4, 4)), 'dh\n');
-		assert.strictEqual(pieceTable.getValueInRange(new Range(5, 1, 5, 3)), 'i\n');
-		assert.strictEqual(pieceTable.getValueInRange(new Range(6, 1, 6, 3)), 'jk');
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(1, 1, 1, 3)), 'a\n');
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(2, 1, 2, 3)), 'b\n');
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(3, 1, 3, 3)), 'c\n');
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(4, 1, 4, 4)), 'dh\n');
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(5, 1, 5, 3)), 'i\n');
+		assewt.stwictEquaw(pieceTabwe.getVawueInWange(new Wange(6, 1, 6, 3)), 'jk');
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random test value in range', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([str]);
+	test('wandom test vawue in wange', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw]);
 
-		pieceTable.insert(0, 'ZXXY');
-		str = str.substring(0, 0) + 'ZXXY' + str.substring(0);
-		pieceTable.insert(1, 'XZZY');
-		str = str.substring(0, 1) + 'XZZY' + str.substring(1);
-		pieceTable.insert(5, '\nX\n\n');
-		str = str.substring(0, 5) + '\nX\n\n' + str.substring(5);
-		pieceTable.insert(3, '\nXX\n');
-		str = str.substring(0, 3) + '\nXX\n' + str.substring(3);
-		pieceTable.insert(12, 'YYYX');
-		str = str.substring(0, 12) + 'YYYX' + str.substring(12);
+		pieceTabwe.insewt(0, 'ZXXY');
+		stw = stw.substwing(0, 0) + 'ZXXY' + stw.substwing(0);
+		pieceTabwe.insewt(1, 'XZZY');
+		stw = stw.substwing(0, 1) + 'XZZY' + stw.substwing(1);
+		pieceTabwe.insewt(5, '\nX\n\n');
+		stw = stw.substwing(0, 5) + '\nX\n\n' + stw.substwing(5);
+		pieceTabwe.insewt(3, '\nXX\n');
+		stw = stw.substwing(0, 3) + '\nXX\n' + stw.substwing(3);
+		pieceTabwe.insewt(12, 'YYYX');
+		stw = stw.substwing(0, 12) + 'YYYX' + stw.substwing(12);
 
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
-	test('random test value in range exception', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([str]);
+	test('wandom test vawue in wange exception', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw]);
 
-		pieceTable.insert(0, 'XZ\nZ');
-		str = str.substring(0, 0) + 'XZ\nZ' + str.substring(0);
-		pieceTable.delete(0, 3);
-		str = str.substring(0, 0) + str.substring(0 + 3);
-		pieceTable.delete(0, 1);
-		str = str.substring(0, 0) + str.substring(0 + 1);
-		pieceTable.insert(0, 'ZYX\n');
-		str = str.substring(0, 0) + 'ZYX\n' + str.substring(0);
-		pieceTable.delete(0, 4);
-		str = str.substring(0, 0) + str.substring(0 + 4);
+		pieceTabwe.insewt(0, 'XZ\nZ');
+		stw = stw.substwing(0, 0) + 'XZ\nZ' + stw.substwing(0);
+		pieceTabwe.dewete(0, 3);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 3);
+		pieceTabwe.dewete(0, 1);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 1);
+		pieceTabwe.insewt(0, 'ZYX\n');
+		stw = stw.substwing(0, 0) + 'ZYX\n' + stw.substwing(0);
+		pieceTabwe.dewete(0, 4);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 4);
 
-		pieceTable.getValueInRange(new Range(1, 1, 1, 1));
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random tests bug 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
-		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
-		pieceTable.delete(18, 2);
-		str = str.substring(0, 18) + str.substring(18 + 2);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.delete(12, 4);
-		str = str.substring(0, 12) + str.substring(12 + 4);
-		pieceTable.insert(3, 'hMbnVEdTSdhLlPevXKF ');
-		str = str.substring(0, 3) + 'hMbnVEdTSdhLlPevXKF ' + str.substring(3);
-		pieceTable.delete(22, 8);
-		str = str.substring(0, 22) + str.substring(22 + 8);
-		pieceTable.insert(4, 'S umSnYrqOmOAV\nEbZJ ');
-		str = str.substring(0, 4) + 'S umSnYrqOmOAV\nEbZJ ' + str.substring(4);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		pieceTabwe.getVawueInWange(new Wange(1, 1, 1, 1));
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random tests bug 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'xfouRDZwdAHjVXJAMV\n ');
-		str = str.substring(0, 0) + 'xfouRDZwdAHjVXJAMV\n ' + str.substring(0);
-		pieceTable.insert(16, 'dBGndxpFZBEAIKykYYx ');
-		str = str.substring(0, 16) + 'dBGndxpFZBEAIKykYYx ' + str.substring(16);
-		pieceTable.delete(7, 6);
-		str = str.substring(0, 7) + str.substring(7 + 6);
-		pieceTable.delete(9, 7);
-		str = str.substring(0, 9) + str.substring(9 + 7);
-		pieceTable.delete(17, 6);
-		str = str.substring(0, 17) + str.substring(17 + 6);
-		pieceTable.delete(0, 4);
-		str = str.substring(0, 0) + str.substring(0 + 4);
-		pieceTable.insert(9, 'qvEFXCNvVkWgvykahYt ');
-		str = str.substring(0, 9) + 'qvEFXCNvVkWgvykahYt ' + str.substring(9);
-		pieceTable.delete(4, 6);
-		str = str.substring(0, 4) + str.substring(4 + 6);
-		pieceTable.insert(11, 'OcSChUYT\nzPEBOpsGmR ');
-		str =
-			str.substring(0, 11) + 'OcSChUYT\nzPEBOpsGmR ' + str.substring(11);
-		pieceTable.insert(15, 'KJCozaXTvkE\nxnqAeTz ');
-		str =
-			str.substring(0, 15) + 'KJCozaXTvkE\nxnqAeTz ' + str.substring(15);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+	test('wandom tests bug 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'huuyYzUfKOENwGgZWqn ');
+		stw = stw.substwing(0, 0) + 'huuyYzUfKOENwGgZWqn ' + stw.substwing(0);
+		pieceTabwe.dewete(18, 2);
+		stw = stw.substwing(0, 18) + stw.substwing(18 + 2);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.dewete(12, 4);
+		stw = stw.substwing(0, 12) + stw.substwing(12 + 4);
+		pieceTabwe.insewt(3, 'hMbnVEdTSdhWwPevXKF ');
+		stw = stw.substwing(0, 3) + 'hMbnVEdTSdhWwPevXKF ' + stw.substwing(3);
+		pieceTabwe.dewete(22, 8);
+		stw = stw.substwing(0, 22) + stw.substwing(22 + 8);
+		pieceTabwe.insewt(4, 'S umSnYwqOmOAV\nEbZJ ');
+		stw = stw.substwing(0, 4) + 'S umSnYwqOmOAV\nEbZJ ' + stw.substwing(4);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('get line content', () => {
-		let pieceTable = createTextBuffer(['1']);
-		assert.strictEqual(pieceTable.getLineRawContent(1), '1');
-		pieceTable.insert(1, '2');
-		assert.strictEqual(pieceTable.getLineRawContent(1), '12');
-		assertTreeInvariants(pieceTable);
+	test('wandom tests bug 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'xfouWDZwdAHjVXJAMV\n ');
+		stw = stw.substwing(0, 0) + 'xfouWDZwdAHjVXJAMV\n ' + stw.substwing(0);
+		pieceTabwe.insewt(16, 'dBGndxpFZBEAIKykYYx ');
+		stw = stw.substwing(0, 16) + 'dBGndxpFZBEAIKykYYx ' + stw.substwing(16);
+		pieceTabwe.dewete(7, 6);
+		stw = stw.substwing(0, 7) + stw.substwing(7 + 6);
+		pieceTabwe.dewete(9, 7);
+		stw = stw.substwing(0, 9) + stw.substwing(9 + 7);
+		pieceTabwe.dewete(17, 6);
+		stw = stw.substwing(0, 17) + stw.substwing(17 + 6);
+		pieceTabwe.dewete(0, 4);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 4);
+		pieceTabwe.insewt(9, 'qvEFXCNvVkWgvykahYt ');
+		stw = stw.substwing(0, 9) + 'qvEFXCNvVkWgvykahYt ' + stw.substwing(9);
+		pieceTabwe.dewete(4, 6);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 6);
+		pieceTabwe.insewt(11, 'OcSChUYT\nzPEBOpsGmW ');
+		stw =
+			stw.substwing(0, 11) + 'OcSChUYT\nzPEBOpsGmW ' + stw.substwing(11);
+		pieceTabwe.insewt(15, 'KJCozaXTvkE\nxnqAeTz ');
+		stw =
+			stw.substwing(0, 15) + 'KJCozaXTvkE\nxnqAeTz ' + stw.substwing(15);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('get line content basic', () => {
-		let pieceTable = createTextBuffer(['1\n2\n3\n4']);
-		assert.strictEqual(pieceTable.getLineRawContent(1), '1\n');
-		assert.strictEqual(pieceTable.getLineRawContent(2), '2\n');
-		assert.strictEqual(pieceTable.getLineRawContent(3), '3\n');
-		assert.strictEqual(pieceTable.getLineRawContent(4), '4');
-		assertTreeInvariants(pieceTable);
+	test('get wine content', () => {
+		wet pieceTabwe = cweateTextBuffa(['1']);
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(1), '1');
+		pieceTabwe.insewt(1, '2');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(1), '12');
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('get line content after inserts/deletes', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
-		pieceTable.insert(8, 'fh\ni\njk');
-		pieceTable.delete(7, 2);
+	test('get wine content basic', () => {
+		wet pieceTabwe = cweateTextBuffa(['1\n2\n3\n4']);
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(1), '1\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(2), '2\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(3), '3\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(4), '4');
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('get wine content afta insewts/dewetes', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\nb\nc\nde']);
+		pieceTabwe.insewt(8, 'fh\ni\njk');
+		pieceTabwe.dewete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
 
-		assert.strictEqual(pieceTable.getLineRawContent(1), 'a\n');
-		assert.strictEqual(pieceTable.getLineRawContent(2), 'b\n');
-		assert.strictEqual(pieceTable.getLineRawContent(3), 'c\n');
-		assert.strictEqual(pieceTable.getLineRawContent(4), 'dh\n');
-		assert.strictEqual(pieceTable.getLineRawContent(5), 'i\n');
-		assert.strictEqual(pieceTable.getLineRawContent(6), 'jk');
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(1), 'a\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(2), 'b\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(3), 'c\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(4), 'dh\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(5), 'i\n');
+		assewt.stwictEquaw(pieceTabwe.getWineWawContent(6), 'jk');
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
+	test('wandom 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
 
-		pieceTable.insert(0, 'J eNnDzQpnlWyjmUu\ny ');
-		str = str.substring(0, 0) + 'J eNnDzQpnlWyjmUu\ny ' + str.substring(0);
-		pieceTable.insert(0, 'QPEeRAQmRwlJqtZSWhQ ');
-		str = str.substring(0, 0) + 'QPEeRAQmRwlJqtZSWhQ ' + str.substring(0);
-		pieceTable.delete(5, 1);
-		str = str.substring(0, 5) + str.substring(5 + 1);
+		pieceTabwe.insewt(0, 'J eNnDzQpnwWyjmUu\ny ');
+		stw = stw.substwing(0, 0) + 'J eNnDzQpnwWyjmUu\ny ' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'QPEeWAQmWwwJqtZSWhQ ');
+		stw = stw.substwing(0, 0) + 'QPEeWAQmWwwJqtZSWhQ ' + stw.substwing(0);
+		pieceTabwe.dewete(5, 1);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 1);
 
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer(['']);
-		pieceTable.insert(0, 'DZoQ tglPCRHMltejRI ');
-		str = str.substring(0, 0) + 'DZoQ tglPCRHMltejRI ' + str.substring(0);
-		pieceTable.insert(10, 'JRXiyYqJ qqdcmbfkKX ');
-		str = str.substring(0, 10) + 'JRXiyYqJ qqdcmbfkKX ' + str.substring(10);
-		pieceTable.delete(16, 3);
-		str = str.substring(0, 16) + str.substring(16 + 3);
-		pieceTable.delete(25, 1);
-		str = str.substring(0, 25) + str.substring(25 + 1);
-		pieceTable.insert(18, 'vH\nNlvfqQJPm\nSFkhMc ');
-		str =
-			str.substring(0, 18) + 'vH\nNlvfqQJPm\nSFkhMc ' + str.substring(18);
+	test('wandom 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa(['']);
+		pieceTabwe.insewt(0, 'DZoQ tgwPCWHMwtejWI ');
+		stw = stw.substwing(0, 0) + 'DZoQ tgwPCWHMwtejWI ' + stw.substwing(0);
+		pieceTabwe.insewt(10, 'JWXiyYqJ qqdcmbfkKX ');
+		stw = stw.substwing(0, 10) + 'JWXiyYqJ qqdcmbfkKX ' + stw.substwing(10);
+		pieceTabwe.dewete(16, 3);
+		stw = stw.substwing(0, 16) + stw.substwing(16 + 3);
+		pieceTabwe.dewete(25, 1);
+		stw = stw.substwing(0, 25) + stw.substwing(25 + 1);
+		pieceTabwe.insewt(18, 'vH\nNwvfqQJPm\nSFkhMc ');
+		stw =
+			stw.substwing(0, 18) + 'vH\nNwvfqQJPm\nSFkhMc ' + stw.substwing(18);
 
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-});
-
-suite('CRLF', () => {
-	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer([''], false);
-		pieceTable.insert(0, 'a\r\nb');
-		pieceTable.delete(0, 2);
-
-		assert.strictEqual(pieceTable.getLineCount(), 2);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('delete CR in CRLF 2', () => {
-		let pieceTable = createTextBuffer([''], false);
-		pieceTable.insert(0, 'a\r\nb');
-		pieceTable.delete(2, 2);
-
-		assert.strictEqual(pieceTable.getLineCount(), 2);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 1', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-		pieceTable.insert(0, '\n\n\r\r');
-		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
-		pieceTable.insert(1, '\r\n\r\n');
-		str = str.substring(0, 1) + '\r\n\r\n' + str.substring(1);
-		pieceTable.delete(5, 3);
-		str = str.substring(0, 5) + str.substring(5 + 3);
-		pieceTable.delete(2, 3);
-		str = str.substring(0, 2) + str.substring(2 + 3);
-
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 2', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\r\n\r');
-		str = str.substring(0, 0) + '\n\r\n\r' + str.substring(0);
-		pieceTable.insert(2, '\n\r\r\r');
-		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
-		pieceTable.delete(4, 1);
-		str = str.substring(0, 4) + str.substring(4 + 1);
-
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 3', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\n\n\r');
-		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
-		pieceTable.delete(2, 2);
-		str = str.substring(0, 2) + str.substring(2 + 2);
-		pieceTable.delete(0, 2);
-		str = str.substring(0, 0) + str.substring(0 + 2);
-		pieceTable.insert(0, '\r\r\r\r');
-		str = str.substring(0, 0) + '\r\r\r\r' + str.substring(0);
-		pieceTable.insert(2, '\r\n\r\r');
-		str = str.substring(0, 2) + '\r\n\r\r' + str.substring(2);
-		pieceTable.insert(3, '\r\r\r\n');
-		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
-
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 4', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\n\n\n');
-		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.insert(1, '\r\r\r\r');
-		str = str.substring(0, 1) + '\r\r\r\r' + str.substring(1);
-		pieceTable.insert(6, '\r\n\n\r');
-		str = str.substring(0, 6) + '\r\n\n\r' + str.substring(6);
-		pieceTable.delete(5, 3);
-		str = str.substring(0, 5) + str.substring(5 + 3);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 5', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\n\n\n');
-		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.insert(0, '\n\r\r\n');
-		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
-		pieceTable.insert(4, '\n\r\r\n');
-		str = str.substring(0, 4) + '\n\r\r\n' + str.substring(4);
-		pieceTable.delete(4, 3);
-		str = str.substring(0, 4) + str.substring(4 + 3);
-		pieceTable.insert(5, '\r\r\n\r');
-		str = str.substring(0, 5) + '\r\r\n\r' + str.substring(5);
-		pieceTable.insert(12, '\n\n\n\r');
-		str = str.substring(0, 12) + '\n\n\n\r' + str.substring(12);
-		pieceTable.insert(5, '\r\r\r\n');
-		str = str.substring(0, 5) + '\r\r\r\n' + str.substring(5);
-		pieceTable.insert(20, '\n\n\r\n');
-		str = str.substring(0, 20) + '\n\n\r\n' + str.substring(20);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 6', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\r\r\n');
-		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(3, '\r\n\n\n');
-		str = str.substring(0, 3) + '\r\n\n\n' + str.substring(3);
-		pieceTable.delete(4, 8);
-		str = str.substring(0, 4) + str.substring(4 + 8);
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(0, '\r\n\n\r');
-		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
-		pieceTable.delete(4, 0);
-		str = str.substring(0, 4) + str.substring(4 + 0);
-		pieceTable.delete(8, 4);
-		str = str.substring(0, 8) + str.substring(8 + 4);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 8', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\r\n\n\r');
-		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
-		pieceTable.delete(1, 0);
-		str = str.substring(0, 1) + str.substring(1 + 0);
-		pieceTable.insert(3, '\n\n\n\r');
-		str = str.substring(0, 3) + '\n\n\n\r' + str.substring(3);
-		pieceTable.insert(7, '\n\n\r\n');
-		str = str.substring(0, 7) + '\n\n\r\n' + str.substring(7);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 7', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\r\r\n\n');
-		str = str.substring(0, 0) + '\r\r\n\n' + str.substring(0);
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(7, '\n\r\r\r');
-		str = str.substring(0, 7) + '\n\r\r\r' + str.substring(7);
-		pieceTable.insert(11, '\n\n\r\n');
-		str = str.substring(0, 11) + '\n\n\r\n' + str.substring(11);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 10', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, 'qneW');
-		str = str.substring(0, 0) + 'qneW' + str.substring(0);
-		pieceTable.insert(0, 'YhIl');
-		str = str.substring(0, 0) + 'YhIl' + str.substring(0);
-		pieceTable.insert(0, 'qdsm');
-		str = str.substring(0, 0) + 'qdsm' + str.substring(0);
-		pieceTable.delete(7, 0);
-		str = str.substring(0, 7) + str.substring(7 + 0);
-		pieceTable.insert(12, 'iiPv');
-		str = str.substring(0, 12) + 'iiPv' + str.substring(12);
-		pieceTable.insert(9, 'V\rSA');
-		str = str.substring(0, 9) + 'V\rSA' + str.substring(9);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 9', () => {
-		let str = '';
-		let pieceTable = createTextBuffer([''], false);
-
-		pieceTable.insert(0, '\n\n\n\n');
-		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
-		pieceTable.insert(3, '\n\r\n\r');
-		str = str.substring(0, 3) + '\n\r\n\r' + str.substring(3);
-		pieceTable.insert(2, '\n\r\n\n');
-		str = str.substring(0, 2) + '\n\r\n\n' + str.substring(2);
-		pieceTable.insert(0, '\n\n\r\r');
-		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
-		pieceTable.insert(3, '\r\r\r\r');
-		str = str.substring(0, 3) + '\r\r\r\r' + str.substring(3);
-		pieceTable.insert(3, '\n\n\r\r');
-		str = str.substring(0, 3) + '\n\n\r\r' + str.substring(3);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
-suite('centralized lineStarts with CRLF', () => {
-	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer(['a\r\nb'], false);
-		pieceTable.delete(2, 2);
-		assert.strictEqual(pieceTable.getLineCount(), 2);
-		assertTreeInvariants(pieceTable);
-	});
-	test('delete CR in CRLF 2', () => {
-		let pieceTable = createTextBuffer(['a\r\nb']);
-		pieceTable.delete(0, 2);
+suite('CWWF', () => {
+	test('dewete CW in CWWF 1', () => {
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+		pieceTabwe.insewt(0, 'a\w\nb');
+		pieceTabwe.dewete(0, 2);
 
-		assert.strictEqual(pieceTable.getLineCount(), 2);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 2);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random bug 1', () => {
-		let str = '\n\n\r\r';
-		let pieceTable = createTextBuffer(['\n\n\r\r'], false);
-		pieceTable.insert(1, '\r\n\r\n');
-		str = str.substring(0, 1) + '\r\n\r\n' + str.substring(1);
-		pieceTable.delete(5, 3);
-		str = str.substring(0, 5) + str.substring(5 + 3);
-		pieceTable.delete(2, 3);
-		str = str.substring(0, 2) + str.substring(2 + 3);
+	test('dewete CW in CWWF 2', () => {
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+		pieceTabwe.insewt(0, 'a\w\nb');
+		pieceTabwe.dewete(2, 2);
 
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
-	});
-	test('random bug 2', () => {
-		let str = '\n\r\n\r';
-		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
-
-		pieceTable.insert(2, '\n\r\r\r');
-		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
-		pieceTable.delete(4, 1);
-		str = str.substring(0, 4) + str.substring(4 + 1);
-
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 2);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random bug 3', () => {
-		let str = '\n\n\n\r';
-		let pieceTable = createTextBuffer(['\n\n\n\r'], false);
+	test('wandom bug 1', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+		pieceTabwe.insewt(0, '\n\n\w\w');
+		stw = stw.substwing(0, 0) + '\n\n\w\w' + stw.substwing(0);
+		pieceTabwe.insewt(1, '\w\n\w\n');
+		stw = stw.substwing(0, 1) + '\w\n\w\n' + stw.substwing(1);
+		pieceTabwe.dewete(5, 3);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 3);
+		pieceTabwe.dewete(2, 3);
+		stw = stw.substwing(0, 2) + stw.substwing(2 + 3);
 
-		pieceTable.delete(2, 2);
-		str = str.substring(0, 2) + str.substring(2 + 2);
-		pieceTable.delete(0, 2);
-		str = str.substring(0, 0) + str.substring(0 + 2);
-		pieceTable.insert(0, '\r\r\r\r');
-		str = str.substring(0, 0) + '\r\r\r\r' + str.substring(0);
-		pieceTable.insert(2, '\r\n\r\r');
-		str = str.substring(0, 2) + '\r\n\r\r' + str.substring(2);
-		pieceTable.insert(3, '\r\r\r\n');
-		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 2', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
 
-		let lines = splitLines(str);
-		assert.strictEqual(pieceTable.getLineCount(), lines.length);
-		assertTreeInvariants(pieceTable);
+		pieceTabwe.insewt(0, '\n\w\n\w');
+		stw = stw.substwing(0, 0) + '\n\w\n\w' + stw.substwing(0);
+		pieceTabwe.insewt(2, '\n\w\w\w');
+		stw = stw.substwing(0, 2) + '\n\w\w\w' + stw.substwing(2);
+		pieceTabwe.dewete(4, 1);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 1);
+
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 3', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\n\n\n\w');
+		stw = stw.substwing(0, 0) + '\n\n\n\w' + stw.substwing(0);
+		pieceTabwe.dewete(2, 2);
+		stw = stw.substwing(0, 2) + stw.substwing(2 + 2);
+		pieceTabwe.dewete(0, 2);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 2);
+		pieceTabwe.insewt(0, '\w\w\w\w');
+		stw = stw.substwing(0, 0) + '\w\w\w\w' + stw.substwing(0);
+		pieceTabwe.insewt(2, '\w\n\w\w');
+		stw = stw.substwing(0, 2) + '\w\n\w\w' + stw.substwing(2);
+		pieceTabwe.insewt(3, '\w\w\w\n');
+		stw = stw.substwing(0, 3) + '\w\w\w\n' + stw.substwing(3);
+
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 4', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\n\n\n\n');
+		stw = stw.substwing(0, 0) + '\n\n\n\n' + stw.substwing(0);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.insewt(1, '\w\w\w\w');
+		stw = stw.substwing(0, 1) + '\w\w\w\w' + stw.substwing(1);
+		pieceTabwe.insewt(6, '\w\n\n\w');
+		stw = stw.substwing(0, 6) + '\w\n\n\w' + stw.substwing(6);
+		pieceTabwe.dewete(5, 3);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 3);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 5', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\n\n\n\n');
+		stw = stw.substwing(0, 0) + '\n\n\n\n' + stw.substwing(0);
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.insewt(0, '\n\w\w\n');
+		stw = stw.substwing(0, 0) + '\n\w\w\n' + stw.substwing(0);
+		pieceTabwe.insewt(4, '\n\w\w\n');
+		stw = stw.substwing(0, 4) + '\n\w\w\n' + stw.substwing(4);
+		pieceTabwe.dewete(4, 3);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 3);
+		pieceTabwe.insewt(5, '\w\w\n\w');
+		stw = stw.substwing(0, 5) + '\w\w\n\w' + stw.substwing(5);
+		pieceTabwe.insewt(12, '\n\n\n\w');
+		stw = stw.substwing(0, 12) + '\n\n\n\w' + stw.substwing(12);
+		pieceTabwe.insewt(5, '\w\w\w\n');
+		stw = stw.substwing(0, 5) + '\w\w\w\n' + stw.substwing(5);
+		pieceTabwe.insewt(20, '\n\n\w\n');
+		stw = stw.substwing(0, 20) + '\n\n\w\n' + stw.substwing(20);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 6', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\n\w\w\n');
+		stw = stw.substwing(0, 0) + '\n\w\w\n' + stw.substwing(0);
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(3, '\w\n\n\n');
+		stw = stw.substwing(0, 3) + '\w\n\n\n' + stw.substwing(3);
+		pieceTabwe.dewete(4, 8);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 8);
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(0, '\w\n\n\w');
+		stw = stw.substwing(0, 0) + '\w\n\n\w' + stw.substwing(0);
+		pieceTabwe.dewete(4, 0);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 0);
+		pieceTabwe.dewete(8, 4);
+		stw = stw.substwing(0, 8) + stw.substwing(8 + 4);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 8', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\w\n\n\w');
+		stw = stw.substwing(0, 0) + '\w\n\n\w' + stw.substwing(0);
+		pieceTabwe.dewete(1, 0);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 0);
+		pieceTabwe.insewt(3, '\n\n\n\w');
+		stw = stw.substwing(0, 3) + '\n\n\n\w' + stw.substwing(3);
+		pieceTabwe.insewt(7, '\n\n\w\n');
+		stw = stw.substwing(0, 7) + '\n\n\w\n' + stw.substwing(7);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 7', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+
+		pieceTabwe.insewt(0, '\w\w\n\n');
+		stw = stw.substwing(0, 0) + '\w\w\n\n' + stw.substwing(0);
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(7, '\n\w\w\w');
+		stw = stw.substwing(0, 7) + '\n\w\w\w' + stw.substwing(7);
+		pieceTabwe.insewt(11, '\n\n\w\n');
+		stw = stw.substwing(0, 11) + '\n\n\w\n' + stw.substwing(11);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random bug 4', () => {
-		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
+	test('wandom bug 10', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
 
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.insert(1, '\r\r\r\r');
-		str = str.substring(0, 1) + '\r\r\r\r' + str.substring(1);
-		pieceTable.insert(6, '\r\n\n\r');
-		str = str.substring(0, 6) + '\r\n\n\r' + str.substring(6);
-		pieceTable.delete(5, 3);
-		str = str.substring(0, 5) + str.substring(5 + 3);
+		pieceTabwe.insewt(0, 'qneW');
+		stw = stw.substwing(0, 0) + 'qneW' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'YhIw');
+		stw = stw.substwing(0, 0) + 'YhIw' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'qdsm');
+		stw = stw.substwing(0, 0) + 'qdsm' + stw.substwing(0);
+		pieceTabwe.dewete(7, 0);
+		stw = stw.substwing(0, 7) + stw.substwing(7 + 0);
+		pieceTabwe.insewt(12, 'iiPv');
+		stw = stw.substwing(0, 12) + 'iiPv' + stw.substwing(12);
+		pieceTabwe.insewt(9, 'V\wSA');
+		stw = stw.substwing(0, 9) + 'V\wSA' + stw.substwing(9);
 
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random bug 5', () => {
-		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
+	test('wandom bug 9', () => {
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
 
-		pieceTable.delete(3, 1);
-		str = str.substring(0, 3) + str.substring(3 + 1);
-		pieceTable.insert(0, '\n\r\r\n');
-		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
-		pieceTable.insert(4, '\n\r\r\n');
-		str = str.substring(0, 4) + '\n\r\r\n' + str.substring(4);
-		pieceTable.delete(4, 3);
-		str = str.substring(0, 4) + str.substring(4 + 3);
-		pieceTable.insert(5, '\r\r\n\r');
-		str = str.substring(0, 5) + '\r\r\n\r' + str.substring(5);
-		pieceTable.insert(12, '\n\n\n\r');
-		str = str.substring(0, 12) + '\n\n\n\r' + str.substring(12);
-		pieceTable.insert(5, '\r\r\r\n');
-		str = str.substring(0, 5) + '\r\r\r\n' + str.substring(5);
-		pieceTable.insert(20, '\n\n\r\n');
-		str = str.substring(0, 20) + '\n\n\r\n' + str.substring(20);
+		pieceTabwe.insewt(0, '\n\n\n\n');
+		stw = stw.substwing(0, 0) + '\n\n\n\n' + stw.substwing(0);
+		pieceTabwe.insewt(3, '\n\w\n\w');
+		stw = stw.substwing(0, 3) + '\n\w\n\w' + stw.substwing(3);
+		pieceTabwe.insewt(2, '\n\w\n\n');
+		stw = stw.substwing(0, 2) + '\n\w\n\n' + stw.substwing(2);
+		pieceTabwe.insewt(0, '\n\n\w\w');
+		stw = stw.substwing(0, 0) + '\n\n\w\w' + stw.substwing(0);
+		pieceTabwe.insewt(3, '\w\w\w\w');
+		stw = stw.substwing(0, 3) + '\w\w\w\w' + stw.substwing(3);
+		pieceTabwe.insewt(3, '\n\n\w\w');
+		stw = stw.substwing(0, 3) + '\n\n\w\w' + stw.substwing(3);
 
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 6', () => {
-		let str = '\n\r\r\n';
-		let pieceTable = createTextBuffer(['\n\r\r\n'], false);
-
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(3, '\r\n\n\n');
-		str = str.substring(0, 3) + '\r\n\n\n' + str.substring(3);
-		pieceTable.delete(4, 8);
-		str = str.substring(0, 4) + str.substring(4 + 8);
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(0, '\r\n\n\r');
-		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
-		pieceTable.delete(4, 0);
-		str = str.substring(0, 4) + str.substring(4 + 0);
-		pieceTable.delete(8, 4);
-		str = str.substring(0, 8) + str.substring(8 + 4);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 7', () => {
-		let str = '\r\n\n\r';
-		let pieceTable = createTextBuffer(['\r\n\n\r'], false);
-
-		pieceTable.delete(1, 0);
-		str = str.substring(0, 1) + str.substring(1 + 0);
-		pieceTable.insert(3, '\n\n\n\r');
-		str = str.substring(0, 3) + '\n\n\n\r' + str.substring(3);
-		pieceTable.insert(7, '\n\n\r\n');
-		str = str.substring(0, 7) + '\n\n\r\n' + str.substring(7);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 8', () => {
-		let str = '\r\r\n\n';
-		let pieceTable = createTextBuffer(['\r\r\n\n'], false);
-
-		pieceTable.insert(4, '\r\n\n\r');
-		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
-		pieceTable.insert(7, '\n\r\r\r');
-		str = str.substring(0, 7) + '\n\r\r\r' + str.substring(7);
-		pieceTable.insert(11, '\n\n\r\n');
-		str = str.substring(0, 11) + '\n\n\r\n' + str.substring(11);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 9', () => {
-		let str = 'qneW';
-		let pieceTable = createTextBuffer(['qneW'], false);
-
-		pieceTable.insert(0, 'YhIl');
-		str = str.substring(0, 0) + 'YhIl' + str.substring(0);
-		pieceTable.insert(0, 'qdsm');
-		str = str.substring(0, 0) + 'qdsm' + str.substring(0);
-		pieceTable.delete(7, 0);
-		str = str.substring(0, 7) + str.substring(7 + 0);
-		pieceTable.insert(12, 'iiPv');
-		str = str.substring(0, 12) + 'iiPv' + str.substring(12);
-		pieceTable.insert(9, 'V\rSA');
-		str = str.substring(0, 9) + 'V\rSA' + str.substring(9);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random bug 10', () => {
-		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
-
-		pieceTable.insert(3, '\n\r\n\r');
-		str = str.substring(0, 3) + '\n\r\n\r' + str.substring(3);
-		pieceTable.insert(2, '\n\r\n\n');
-		str = str.substring(0, 2) + '\n\r\n\n' + str.substring(2);
-		pieceTable.insert(0, '\n\n\r\r');
-		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
-		pieceTable.insert(3, '\r\r\r\r');
-		str = str.substring(0, 3) + '\r\r\r\r' + str.substring(3);
-		pieceTable.insert(3, '\n\n\r\r');
-		str = str.substring(0, 3) + '\n\n\r\r' + str.substring(3);
-
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random chunk bug 1', () => {
-		let pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
-		let str = '\n\r\r\n\n\n\r\n\r';
-		pieceTable.delete(0, 2);
-		str = str.substring(0, 0) + str.substring(0 + 2);
-		pieceTable.insert(1, '\r\r\n\n');
-		str = str.substring(0, 1) + '\r\r\n\n' + str.substring(1);
-		pieceTable.insert(7, '\r\r\r\r');
-		str = str.substring(0, 7) + '\r\r\r\r' + str.substring(7);
-
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random chunk bug 2', () => {
-		let pieceTable = createTextBuffer([
-			'\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n'
-		], false);
-		let str = '\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n';
-		pieceTable.insert(16, '\r\n\r\r');
-		str = str.substring(0, 16) + '\r\n\r\r' + str.substring(16);
-		pieceTable.insert(13, '\n\n\r\r');
-		str = str.substring(0, 13) + '\n\n\r\r' + str.substring(13);
-		pieceTable.insert(19, '\n\n\r\n');
-		str = str.substring(0, 19) + '\n\n\r\n' + str.substring(19);
-		pieceTable.delete(5, 0);
-		str = str.substring(0, 5) + str.substring(5 + 0);
-		pieceTable.delete(11, 2);
-		str = str.substring(0, 11) + str.substring(11 + 2);
-
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random chunk bug 3', () => {
-		let pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
-		let str = '\r\n\n\n\n\n\n\r\n';
-		pieceTable.insert(4, '\n\n\r\n\r\r\n\n\r');
-		str = str.substring(0, 4) + '\n\n\r\n\r\r\n\n\r' + str.substring(4);
-		pieceTable.delete(4, 4);
-		str = str.substring(0, 4) + str.substring(4 + 4);
-		pieceTable.insert(11, '\r\n\r\n\n\r\r\n\n');
-		str = str.substring(0, 11) + '\r\n\r\n\n\r\r\n\n' + str.substring(11);
-		pieceTable.delete(1, 2);
-		str = str.substring(0, 1) + str.substring(1 + 2);
-
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
-	});
-
-	test('random chunk bug 4', () => {
-		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
-		let str = '\n\r\n\r';
-		pieceTable.insert(4, '\n\n\r\n');
-		str = str.substring(0, 4) + '\n\n\r\n' + str.substring(4);
-		pieceTable.insert(3, '\r\n\n\n');
-		str = str.substring(0, 3) + '\r\n\n\n' + str.substring(3);
-
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
-suite('random is unsupervised', () => {
-	test('splitting large change buffer', function () {
-		let pieceTable = createTextBuffer([''], false);
-		let str = '';
+suite('centwawized wineStawts with CWWF', () => {
+	test('dewete CW in CWWF 1', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\w\nb'], fawse);
+		pieceTabwe.dewete(2, 2);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 2);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('dewete CW in CWWF 2', () => {
+		wet pieceTabwe = cweateTextBuffa(['a\w\nb']);
+		pieceTabwe.dewete(0, 2);
 
-		pieceTable.insert(0, 'WUZ\nXVZY\n');
-		str = str.substring(0, 0) + 'WUZ\nXVZY\n' + str.substring(0);
-		pieceTable.insert(8, '\r\r\nZXUWVW');
-		str = str.substring(0, 8) + '\r\r\nZXUWVW' + str.substring(8);
-		pieceTable.delete(10, 7);
-		str = str.substring(0, 10) + str.substring(10 + 7);
-		pieceTable.delete(10, 1);
-		str = str.substring(0, 10) + str.substring(10 + 1);
-		pieceTable.insert(4, 'VX\r\r\nWZVZ');
-		str = str.substring(0, 4) + 'VX\r\r\nWZVZ' + str.substring(4);
-		pieceTable.delete(11, 3);
-		str = str.substring(0, 11) + str.substring(11 + 3);
-		pieceTable.delete(12, 4);
-		str = str.substring(0, 12) + str.substring(12 + 4);
-		pieceTable.delete(8, 0);
-		str = str.substring(0, 8) + str.substring(8 + 0);
-		pieceTable.delete(10, 2);
-		str = str.substring(0, 10) + str.substring(10 + 2);
-		pieceTable.insert(0, 'VZXXZYZX\r');
-		str = str.substring(0, 0) + 'VZXXZYZX\r' + str.substring(0);
-
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), 2);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random insert delete', function () {
+	test('wandom bug 1', () => {
+		wet stw = '\n\n\w\w';
+		wet pieceTabwe = cweateTextBuffa(['\n\n\w\w'], fawse);
+		pieceTabwe.insewt(1, '\w\n\w\n');
+		stw = stw.substwing(0, 1) + '\w\n\w\n' + stw.substwing(1);
+		pieceTabwe.dewete(5, 3);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 3);
+		pieceTabwe.dewete(2, 3);
+		stw = stw.substwing(0, 2) + stw.substwing(2 + 3);
+
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+	test('wandom bug 2', () => {
+		wet stw = '\n\w\n\w';
+		wet pieceTabwe = cweateTextBuffa(['\n\w\n\w'], fawse);
+
+		pieceTabwe.insewt(2, '\n\w\w\w');
+		stw = stw.substwing(0, 2) + '\n\w\w\w' + stw.substwing(2);
+		pieceTabwe.dewete(4, 1);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 1);
+
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 3', () => {
+		wet stw = '\n\n\n\w';
+		wet pieceTabwe = cweateTextBuffa(['\n\n\n\w'], fawse);
+
+		pieceTabwe.dewete(2, 2);
+		stw = stw.substwing(0, 2) + stw.substwing(2 + 2);
+		pieceTabwe.dewete(0, 2);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 2);
+		pieceTabwe.insewt(0, '\w\w\w\w');
+		stw = stw.substwing(0, 0) + '\w\w\w\w' + stw.substwing(0);
+		pieceTabwe.insewt(2, '\w\n\w\w');
+		stw = stw.substwing(0, 2) + '\w\n\w\w' + stw.substwing(2);
+		pieceTabwe.insewt(3, '\w\w\w\n');
+		stw = stw.substwing(0, 3) + '\w\w\w\n' + stw.substwing(3);
+
+		wet wines = spwitWines(stw);
+		assewt.stwictEquaw(pieceTabwe.getWineCount(), wines.wength);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 4', () => {
+		wet stw = '\n\n\n\n';
+		wet pieceTabwe = cweateTextBuffa(['\n\n\n\n'], fawse);
+
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.insewt(1, '\w\w\w\w');
+		stw = stw.substwing(0, 1) + '\w\w\w\w' + stw.substwing(1);
+		pieceTabwe.insewt(6, '\w\n\n\w');
+		stw = stw.substwing(0, 6) + '\w\n\n\w' + stw.substwing(6);
+		pieceTabwe.dewete(5, 3);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 3);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 5', () => {
+		wet stw = '\n\n\n\n';
+		wet pieceTabwe = cweateTextBuffa(['\n\n\n\n'], fawse);
+
+		pieceTabwe.dewete(3, 1);
+		stw = stw.substwing(0, 3) + stw.substwing(3 + 1);
+		pieceTabwe.insewt(0, '\n\w\w\n');
+		stw = stw.substwing(0, 0) + '\n\w\w\n' + stw.substwing(0);
+		pieceTabwe.insewt(4, '\n\w\w\n');
+		stw = stw.substwing(0, 4) + '\n\w\w\n' + stw.substwing(4);
+		pieceTabwe.dewete(4, 3);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 3);
+		pieceTabwe.insewt(5, '\w\w\n\w');
+		stw = stw.substwing(0, 5) + '\w\w\n\w' + stw.substwing(5);
+		pieceTabwe.insewt(12, '\n\n\n\w');
+		stw = stw.substwing(0, 12) + '\n\n\n\w' + stw.substwing(12);
+		pieceTabwe.insewt(5, '\w\w\w\n');
+		stw = stw.substwing(0, 5) + '\w\w\w\n' + stw.substwing(5);
+		pieceTabwe.insewt(20, '\n\n\w\n');
+		stw = stw.substwing(0, 20) + '\n\n\w\n' + stw.substwing(20);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 6', () => {
+		wet stw = '\n\w\w\n';
+		wet pieceTabwe = cweateTextBuffa(['\n\w\w\n'], fawse);
+
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(3, '\w\n\n\n');
+		stw = stw.substwing(0, 3) + '\w\n\n\n' + stw.substwing(3);
+		pieceTabwe.dewete(4, 8);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 8);
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(0, '\w\n\n\w');
+		stw = stw.substwing(0, 0) + '\w\n\n\w' + stw.substwing(0);
+		pieceTabwe.dewete(4, 0);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 0);
+		pieceTabwe.dewete(8, 4);
+		stw = stw.substwing(0, 8) + stw.substwing(8 + 4);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 7', () => {
+		wet stw = '\w\n\n\w';
+		wet pieceTabwe = cweateTextBuffa(['\w\n\n\w'], fawse);
+
+		pieceTabwe.dewete(1, 0);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 0);
+		pieceTabwe.insewt(3, '\n\n\n\w');
+		stw = stw.substwing(0, 3) + '\n\n\n\w' + stw.substwing(3);
+		pieceTabwe.insewt(7, '\n\n\w\n');
+		stw = stw.substwing(0, 7) + '\n\n\w\n' + stw.substwing(7);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 8', () => {
+		wet stw = '\w\w\n\n';
+		wet pieceTabwe = cweateTextBuffa(['\w\w\n\n'], fawse);
+
+		pieceTabwe.insewt(4, '\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.insewt(7, '\n\w\w\w');
+		stw = stw.substwing(0, 7) + '\n\w\w\w' + stw.substwing(7);
+		pieceTabwe.insewt(11, '\n\n\w\n');
+		stw = stw.substwing(0, 11) + '\n\n\w\n' + stw.substwing(11);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 9', () => {
+		wet stw = 'qneW';
+		wet pieceTabwe = cweateTextBuffa(['qneW'], fawse);
+
+		pieceTabwe.insewt(0, 'YhIw');
+		stw = stw.substwing(0, 0) + 'YhIw' + stw.substwing(0);
+		pieceTabwe.insewt(0, 'qdsm');
+		stw = stw.substwing(0, 0) + 'qdsm' + stw.substwing(0);
+		pieceTabwe.dewete(7, 0);
+		stw = stw.substwing(0, 7) + stw.substwing(7 + 0);
+		pieceTabwe.insewt(12, 'iiPv');
+		stw = stw.substwing(0, 12) + 'iiPv' + stw.substwing(12);
+		pieceTabwe.insewt(9, 'V\wSA');
+		stw = stw.substwing(0, 9) + 'V\wSA' + stw.substwing(9);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom bug 10', () => {
+		wet stw = '\n\n\n\n';
+		wet pieceTabwe = cweateTextBuffa(['\n\n\n\n'], fawse);
+
+		pieceTabwe.insewt(3, '\n\w\n\w');
+		stw = stw.substwing(0, 3) + '\n\w\n\w' + stw.substwing(3);
+		pieceTabwe.insewt(2, '\n\w\n\n');
+		stw = stw.substwing(0, 2) + '\n\w\n\n' + stw.substwing(2);
+		pieceTabwe.insewt(0, '\n\n\w\w');
+		stw = stw.substwing(0, 0) + '\n\n\w\w' + stw.substwing(0);
+		pieceTabwe.insewt(3, '\w\w\w\w');
+		stw = stw.substwing(0, 3) + '\w\w\w\w' + stw.substwing(3);
+		pieceTabwe.insewt(3, '\n\n\w\w');
+		stw = stw.substwing(0, 3) + '\n\n\w\w' + stw.substwing(3);
+
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom chunk bug 1', () => {
+		wet pieceTabwe = cweateTextBuffa(['\n\w\w\n\n\n\w\n\w'], fawse);
+		wet stw = '\n\w\w\n\n\n\w\n\w';
+		pieceTabwe.dewete(0, 2);
+		stw = stw.substwing(0, 0) + stw.substwing(0 + 2);
+		pieceTabwe.insewt(1, '\w\w\n\n');
+		stw = stw.substwing(0, 1) + '\w\w\n\n' + stw.substwing(1);
+		pieceTabwe.insewt(7, '\w\w\w\w');
+		stw = stw.substwing(0, 7) + '\w\w\w\w' + stw.substwing(7);
+
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom chunk bug 2', () => {
+		wet pieceTabwe = cweateTextBuffa([
+			'\n\w\n\n\n\w\n\w\n\w\w\n\n\n\w\w\n\w\n'
+		], fawse);
+		wet stw = '\n\w\n\n\n\w\n\w\n\w\w\n\n\n\w\w\n\w\n';
+		pieceTabwe.insewt(16, '\w\n\w\w');
+		stw = stw.substwing(0, 16) + '\w\n\w\w' + stw.substwing(16);
+		pieceTabwe.insewt(13, '\n\n\w\w');
+		stw = stw.substwing(0, 13) + '\n\n\w\w' + stw.substwing(13);
+		pieceTabwe.insewt(19, '\n\n\w\n');
+		stw = stw.substwing(0, 19) + '\n\n\w\n' + stw.substwing(19);
+		pieceTabwe.dewete(5, 0);
+		stw = stw.substwing(0, 5) + stw.substwing(5 + 0);
+		pieceTabwe.dewete(11, 2);
+		stw = stw.substwing(0, 11) + stw.substwing(11 + 2);
+
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom chunk bug 3', () => {
+		wet pieceTabwe = cweateTextBuffa(['\w\n\n\n\n\n\n\w\n'], fawse);
+		wet stw = '\w\n\n\n\n\n\n\w\n';
+		pieceTabwe.insewt(4, '\n\n\w\n\w\w\n\n\w');
+		stw = stw.substwing(0, 4) + '\n\n\w\n\w\w\n\n\w' + stw.substwing(4);
+		pieceTabwe.dewete(4, 4);
+		stw = stw.substwing(0, 4) + stw.substwing(4 + 4);
+		pieceTabwe.insewt(11, '\w\n\w\n\n\w\w\n\n');
+		stw = stw.substwing(0, 11) + '\w\n\w\n\n\w\w\n\n' + stw.substwing(11);
+		pieceTabwe.dewete(1, 2);
+		stw = stw.substwing(0, 1) + stw.substwing(1 + 2);
+
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom chunk bug 4', () => {
+		wet pieceTabwe = cweateTextBuffa(['\n\w\n\w'], fawse);
+		wet stw = '\n\w\n\w';
+		pieceTabwe.insewt(4, '\n\n\w\n');
+		stw = stw.substwing(0, 4) + '\n\n\w\n' + stw.substwing(4);
+		pieceTabwe.insewt(3, '\w\n\n\n');
+		stw = stw.substwing(0, 3) + '\w\n\n\n' + stw.substwing(3);
+
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+});
+
+suite('wandom is unsupewvised', () => {
+	test('spwitting wawge change buffa', function () {
+		wet pieceTabwe = cweateTextBuffa([''], fawse);
+		wet stw = '';
+
+		pieceTabwe.insewt(0, 'WUZ\nXVZY\n');
+		stw = stw.substwing(0, 0) + 'WUZ\nXVZY\n' + stw.substwing(0);
+		pieceTabwe.insewt(8, '\w\w\nZXUWVW');
+		stw = stw.substwing(0, 8) + '\w\w\nZXUWVW' + stw.substwing(8);
+		pieceTabwe.dewete(10, 7);
+		stw = stw.substwing(0, 10) + stw.substwing(10 + 7);
+		pieceTabwe.dewete(10, 1);
+		stw = stw.substwing(0, 10) + stw.substwing(10 + 1);
+		pieceTabwe.insewt(4, 'VX\w\w\nWZVZ');
+		stw = stw.substwing(0, 4) + 'VX\w\w\nWZVZ' + stw.substwing(4);
+		pieceTabwe.dewete(11, 3);
+		stw = stw.substwing(0, 11) + stw.substwing(11 + 3);
+		pieceTabwe.dewete(12, 4);
+		stw = stw.substwing(0, 12) + stw.substwing(12 + 4);
+		pieceTabwe.dewete(8, 0);
+		stw = stw.substwing(0, 8) + stw.substwing(8 + 0);
+		pieceTabwe.dewete(10, 2);
+		stw = stw.substwing(0, 10) + stw.substwing(10 + 2);
+		pieceTabwe.insewt(0, 'VZXXZYZX\w');
+		stw = stw.substwing(0, 0) + 'VZXXZYZX\w' + stw.substwing(0);
+
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
+	});
+
+	test('wandom insewt dewete', function () {
 		this.timeout(500000);
-		let str = '';
-		let pieceTable = createTextBuffer([str], false);
+		wet stw = '';
+		wet pieceTabwe = cweateTextBuffa([stw], fawse);
 
-		// let output = '';
-		for (let i = 0; i < 1000; i++) {
-			if (Math.random() < 0.6) {
-				// insert
-				let text = randomStr(100);
-				let pos = randomInt(str.length + 1);
-				pieceTable.insert(pos, text);
-				str = str.substring(0, pos) + text + str.substring(pos);
-				// output += `pieceTable.insert(${pos}, '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}');\n`;
-				// output += `str = str.substring(0, ${pos}) + '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}' + str.substring(${pos});\n`;
-			} else {
-				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
-					str.length - pos,
-					Math.floor(Math.random() * 10)
+		// wet output = '';
+		fow (wet i = 0; i < 1000; i++) {
+			if (Math.wandom() < 0.6) {
+				// insewt
+				wet text = wandomStw(100);
+				wet pos = wandomInt(stw.wength + 1);
+				pieceTabwe.insewt(pos, text);
+				stw = stw.substwing(0, pos) + text + stw.substwing(pos);
+				// output += `pieceTabwe.insewt(${pos}, '${text.wepwace(/\n/g, '\\n').wepwace(/\w/g, '\\w')}');\n`;
+				// output += `stw = stw.substwing(0, ${pos}) + '${text.wepwace(/\n/g, '\\n').wepwace(/\w/g, '\\w')}' + stw.substwing(${pos});\n`;
+			} ewse {
+				// dewete
+				wet pos = wandomInt(stw.wength);
+				wet wength = Math.min(
+					stw.wength - pos,
+					Math.fwoow(Math.wandom() * 10)
 				);
-				pieceTable.delete(pos, length);
-				str = str.substring(0, pos) + str.substring(pos + length);
-				// output += `pieceTable.delete(${pos}, ${length});\n`;
-				// output += `str = str.substring(0, ${pos}) + str.substring(${pos} + ${length});\n`
+				pieceTabwe.dewete(pos, wength);
+				stw = stw.substwing(0, pos) + stw.substwing(pos + wength);
+				// output += `pieceTabwe.dewete(${pos}, ${wength});\n`;
+				// output += `stw = stw.substwing(0, ${pos}) + stw.substwing(${pos} + ${wength});\n`
 
 			}
 		}
-		// console.log(output);
+		// consowe.wog(output);
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
 
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random chunks', function () {
+	test('wandom chunks', function () {
 		this.timeout(500000);
-		let chunks: string[] = [];
-		for (let i = 0; i < 5; i++) {
-			chunks.push(randomStr(1000));
+		wet chunks: stwing[] = [];
+		fow (wet i = 0; i < 5; i++) {
+			chunks.push(wandomStw(1000));
 		}
 
-		let pieceTable = createTextBuffer(chunks, false);
-		let str = chunks.join('');
+		wet pieceTabwe = cweateTextBuffa(chunks, fawse);
+		wet stw = chunks.join('');
 
-		for (let i = 0; i < 1000; i++) {
-			if (Math.random() < 0.6) {
-				// insert
-				let text = randomStr(100);
-				let pos = randomInt(str.length + 1);
-				pieceTable.insert(pos, text);
-				str = str.substring(0, pos) + text + str.substring(pos);
-			} else {
-				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
-					str.length - pos,
-					Math.floor(Math.random() * 10)
+		fow (wet i = 0; i < 1000; i++) {
+			if (Math.wandom() < 0.6) {
+				// insewt
+				wet text = wandomStw(100);
+				wet pos = wandomInt(stw.wength + 1);
+				pieceTabwe.insewt(pos, text);
+				stw = stw.substwing(0, pos) + text + stw.substwing(pos);
+			} ewse {
+				// dewete
+				wet pos = wandomInt(stw.wength);
+				wet wength = Math.min(
+					stw.wength - pos,
+					Math.fwoow(Math.wandom() * 10)
 				);
-				pieceTable.delete(pos, length);
-				str = str.substring(0, pos) + str.substring(pos + length);
+				pieceTabwe.dewete(pos, wength);
+				stw = stw.substwing(0, pos) + stw.substwing(pos + wength);
 			}
 		}
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('random chunks 2', function () {
+	test('wandom chunks 2', function () {
 		this.timeout(500000);
-		let chunks: string[] = [];
-		chunks.push(randomStr(1000));
+		wet chunks: stwing[] = [];
+		chunks.push(wandomStw(1000));
 
-		let pieceTable = createTextBuffer(chunks, false);
-		let str = chunks.join('');
+		wet pieceTabwe = cweateTextBuffa(chunks, fawse);
+		wet stw = chunks.join('');
 
-		for (let i = 0; i < 50; i++) {
-			if (Math.random() < 0.6) {
-				// insert
-				let text = randomStr(30);
-				let pos = randomInt(str.length + 1);
-				pieceTable.insert(pos, text);
-				str = str.substring(0, pos) + text + str.substring(pos);
-			} else {
-				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
-					str.length - pos,
-					Math.floor(Math.random() * 10)
+		fow (wet i = 0; i < 50; i++) {
+			if (Math.wandom() < 0.6) {
+				// insewt
+				wet text = wandomStw(30);
+				wet pos = wandomInt(stw.wength + 1);
+				pieceTabwe.insewt(pos, text);
+				stw = stw.substwing(0, pos) + text + stw.substwing(pos);
+			} ewse {
+				// dewete
+				wet pos = wandomInt(stw.wength);
+				wet wength = Math.min(
+					stw.wength - pos,
+					Math.fwoow(Math.wandom() * 10)
 				);
-				pieceTable.delete(pos, length);
-				str = str.substring(0, pos) + str.substring(pos + length);
+				pieceTabwe.dewete(pos, wength);
+				stw = stw.substwing(0, pos) + stw.substwing(pos + wength);
 			}
-			testLinesContent(str, pieceTable);
+			testWinesContent(stw, pieceTabwe);
 		}
 
-		assert.strictEqual(pieceTable.getLinesRawContent(), str);
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		assewt.stwictEquaw(pieceTabwe.getWinesWawContent(), stw);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 });
 
-suite('buffer api', () => {
-	test('equal', () => {
-		let a = createTextBuffer(['abc']);
-		let b = createTextBuffer(['ab', 'c']);
-		let c = createTextBuffer(['abd']);
-		let d = createTextBuffer(['abcd']);
+suite('buffa api', () => {
+	test('equaw', () => {
+		wet a = cweateTextBuffa(['abc']);
+		wet b = cweateTextBuffa(['ab', 'c']);
+		wet c = cweateTextBuffa(['abd']);
+		wet d = cweateTextBuffa(['abcd']);
 
-		assert(a.equal(b));
-		assert(!a.equal(c));
-		assert(!a.equal(d));
+		assewt(a.equaw(b));
+		assewt(!a.equaw(c));
+		assewt(!a.equaw(d));
 	});
 
-	test('equal 2, empty buffer', () => {
-		let a = createTextBuffer(['']);
-		let b = createTextBuffer(['']);
+	test('equaw 2, empty buffa', () => {
+		wet a = cweateTextBuffa(['']);
+		wet b = cweateTextBuffa(['']);
 
-		assert(a.equal(b));
+		assewt(a.equaw(b));
 	});
 
-	test('equal 3, empty buffer', () => {
-		let a = createTextBuffer(['a']);
-		let b = createTextBuffer(['']);
+	test('equaw 3, empty buffa', () => {
+		wet a = cweateTextBuffa(['a']);
+		wet b = cweateTextBuffa(['']);
 
-		assert(!a.equal(b));
+		assewt(!a.equaw(b));
 	});
 
-	test('getLineCharCode - issue #45735', () => {
-		let pieceTable = createTextBuffer(['LINE1\nline2']);
-		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	test('getWineChawCode - issue #45735', () => {
+		wet pieceTabwe = cweateTextBuffa(['WINE1\nwine2']);
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 0), 'W'.chawCodeAt(0), 'W');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 1), 'I'.chawCodeAt(0), 'I');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 2), 'N'.chawCodeAt(0), 'N');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 3), 'E'.chawCodeAt(0), 'E');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 4), '1'.chawCodeAt(0), '1');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 5), '\n'.chawCodeAt(0), '\\n');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 0), 'w'.chawCodeAt(0), 'w');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 1), 'i'.chawCodeAt(0), 'i');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 2), 'n'.chawCodeAt(0), 'n');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 3), 'e'.chawCodeAt(0), 'e');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 4), '2'.chawCodeAt(0), '2');
 	});
 
 
-	test('getLineCharCode - issue #47733', () => {
-		let pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
-		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
-		assert.strictEqual(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
-		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	test('getWineChawCode - issue #47733', () => {
+		wet pieceTabwe = cweateTextBuffa(['', 'WINE1\n', 'wine2']);
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 0), 'W'.chawCodeAt(0), 'W');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 1), 'I'.chawCodeAt(0), 'I');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 2), 'N'.chawCodeAt(0), 'N');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 3), 'E'.chawCodeAt(0), 'E');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 4), '1'.chawCodeAt(0), '1');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(1, 5), '\n'.chawCodeAt(0), '\\n');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 0), 'w'.chawCodeAt(0), 'w');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 1), 'i'.chawCodeAt(0), 'i');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 2), 'n'.chawCodeAt(0), 'n');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 3), 'e'.chawCodeAt(0), 'e');
+		assewt.stwictEquaw(pieceTabwe.getWineChawCode(2, 4), '2'.chawCodeAt(0), '2');
 	});
 });
 
-suite('search offset cache', () => {
-	test('render white space exception', () => {
-		let pieceTable = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
-		let str = 'class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}';
+suite('seawch offset cache', () => {
+	test('wenda white space exception', () => {
+		wet pieceTabwe = cweateTextBuffa(['cwass Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
+		wet stw = 'cwass Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}';
 
-		pieceTable.insert(12, 's');
-		str = str.substring(0, 12) + 's' + str.substring(12);
+		pieceTabwe.insewt(12, 's');
+		stw = stw.substwing(0, 12) + 's' + stw.substwing(12);
 
-		pieceTable.insert(13, 'e');
-		str = str.substring(0, 13) + 'e' + str.substring(13);
+		pieceTabwe.insewt(13, 'e');
+		stw = stw.substwing(0, 13) + 'e' + stw.substwing(13);
 
-		pieceTable.insert(14, 't');
-		str = str.substring(0, 14) + 't' + str.substring(14);
+		pieceTabwe.insewt(14, 't');
+		stw = stw.substwing(0, 14) + 't' + stw.substwing(14);
 
-		pieceTable.insert(15, '()');
-		str = str.substring(0, 15) + '()' + str.substring(15);
+		pieceTabwe.insewt(15, '()');
+		stw = stw.substwing(0, 15) + '()' + stw.substwing(15);
 
-		pieceTable.delete(16, 1);
-		str = str.substring(0, 16) + str.substring(16 + 1);
+		pieceTabwe.dewete(16, 1);
+		stw = stw.substwing(0, 16) + stw.substwing(16 + 1);
 
-		pieceTable.insert(17, '()');
-		str = str.substring(0, 17) + '()' + str.substring(17);
+		pieceTabwe.insewt(17, '()');
+		stw = stw.substwing(0, 17) + '()' + stw.substwing(17);
 
-		pieceTable.delete(18, 1);
-		str = str.substring(0, 18) + str.substring(18 + 1);
+		pieceTabwe.dewete(18, 1);
+		stw = stw.substwing(0, 18) + stw.substwing(18 + 1);
 
-		pieceTable.insert(18, '}');
-		str = str.substring(0, 18) + '}' + str.substring(18);
+		pieceTabwe.insewt(18, '}');
+		stw = stw.substwing(0, 18) + '}' + stw.substwing(18);
 
-		pieceTable.insert(12, '\n');
-		str = str.substring(0, 12) + '\n' + str.substring(12);
+		pieceTabwe.insewt(12, '\n');
+		stw = stw.substwing(0, 12) + '\n' + stw.substwing(12);
 
-		pieceTable.delete(12, 1);
-		str = str.substring(0, 12) + str.substring(12 + 1);
+		pieceTabwe.dewete(12, 1);
+		stw = stw.substwing(0, 12) + stw.substwing(12 + 1);
 
-		pieceTable.delete(18, 1);
-		str = str.substring(0, 18) + str.substring(18 + 1);
+		pieceTabwe.dewete(18, 1);
+		stw = stw.substwing(0, 18) + stw.substwing(18 + 1);
 
-		pieceTable.insert(18, '}');
-		str = str.substring(0, 18) + '}' + str.substring(18);
+		pieceTabwe.insewt(18, '}');
+		stw = stw.substwing(0, 18) + '}' + stw.substwing(18);
 
-		pieceTable.delete(17, 2);
-		str = str.substring(0, 17) + str.substring(17 + 2);
+		pieceTabwe.dewete(17, 2);
+		stw = stw.substwing(0, 17) + stw.substwing(17 + 2);
 
-		pieceTable.delete(16, 1);
-		str = str.substring(0, 16) + str.substring(16 + 1);
+		pieceTabwe.dewete(16, 1);
+		stw = stw.substwing(0, 16) + stw.substwing(16 + 1);
 
-		pieceTable.insert(16, ')');
-		str = str.substring(0, 16) + ')' + str.substring(16);
+		pieceTabwe.insewt(16, ')');
+		stw = stw.substwing(0, 16) + ')' + stw.substwing(16);
 
-		pieceTable.delete(15, 2);
-		str = str.substring(0, 15) + str.substring(15 + 2);
+		pieceTabwe.dewete(15, 2);
+		stw = stw.substwing(0, 15) + stw.substwing(15 + 2);
 
-		let content = pieceTable.getLinesRawContent();
-		assert(content === str);
+		wet content = pieceTabwe.getWinesWawContent();
+		assewt(content === stw);
 	});
 
-	test('Line breaks replacement is not necessary when EOL is normalized', () => {
-		let pieceTable = createTextBuffer(['abc']);
-		let str = 'abc';
+	test('Wine bweaks wepwacement is not necessawy when EOW is nowmawized', () => {
+		wet pieceTabwe = cweateTextBuffa(['abc']);
+		wet stw = 'abc';
 
-		pieceTable.insert(3, 'def\nabc');
-		str = str + 'def\nabc';
+		pieceTabwe.insewt(3, 'def\nabc');
+		stw = stw + 'def\nabc';
 
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('Line breaks replacement is not necessary when EOL is normalized 2', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
-		let str = 'abc\n';
+	test('Wine bweaks wepwacement is not necessawy when EOW is nowmawized 2', () => {
+		wet pieceTabwe = cweateTextBuffa(['abc\n']);
+		wet stw = 'abc\n';
 
-		pieceTable.insert(4, 'def\nabc');
-		str = str + 'def\nabc';
+		pieceTabwe.insewt(4, 'def\nabc');
+		stw = stw + 'def\nabc';
 
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('Line breaks replacement is not necessary when EOL is normalized 3', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
-		let str = 'abc\n';
+	test('Wine bweaks wepwacement is not necessawy when EOW is nowmawized 3', () => {
+		wet pieceTabwe = cweateTextBuffa(['abc\n']);
+		wet stw = 'abc\n';
 
-		pieceTable.insert(2, 'def\nabc');
-		str = str.substring(0, 2) + 'def\nabc' + str.substring(2);
+		pieceTabwe.insewt(2, 'def\nabc');
+		stw = stw.substwing(0, 2) + 'def\nabc' + stw.substwing(2);
 
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
-	test('Line breaks replacement is not necessary when EOL is normalized 4', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
-		let str = 'abc\n';
+	test('Wine bweaks wepwacement is not necessawy when EOW is nowmawized 4', () => {
+		wet pieceTabwe = cweateTextBuffa(['abc\n']);
+		wet stw = 'abc\n';
 
-		pieceTable.insert(3, 'def\nabc');
-		str = str.substring(0, 3) + 'def\nabc' + str.substring(3);
+		pieceTabwe.insewt(3, 'def\nabc');
+		stw = stw.substwing(0, 3) + 'def\nabc' + stw.substwing(3);
 
-		testLineStarts(str, pieceTable);
-		testLinesContent(str, pieceTable);
-		assertTreeInvariants(pieceTable);
+		testWineStawts(stw, pieceTabwe);
+		testWinesContent(stw, pieceTabwe);
+		assewtTweeInvawiants(pieceTabwe);
 	});
 
 });
 
-function getValueInSnapshot(snapshot: ITextSnapshot) {
-	let ret = '';
-	let tmp = snapshot.read();
+function getVawueInSnapshot(snapshot: ITextSnapshot) {
+	wet wet = '';
+	wet tmp = snapshot.wead();
 
-	while (tmp !== null) {
-		ret += tmp;
-		tmp = snapshot.read();
+	whiwe (tmp !== nuww) {
+		wet += tmp;
+		tmp = snapshot.wead();
 	}
 
-	return ret;
+	wetuwn wet;
 }
 suite('snapshot', () => {
-	test('bug #45564, piece tree pieces should be immutable', () => {
-		const model = createTextModel('\n');
-		model.applyEdits([
+	test('bug #45564, piece twee pieces shouwd be immutabwe', () => {
+		const modew = cweateTextModew('\n');
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 1),
+				wange: new Wange(2, 1, 2, 1),
 				text: '!'
 			}
 		]);
-		const snapshot = model.createSnapshot();
-		const snapshot1 = model.createSnapshot();
-		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		const snapshot = modew.cweateSnapshot();
+		const snapshot1 = modew.cweateSnapshot();
+		assewt.stwictEquaw(modew.getWinesContent().join('\n'), getVawueInSnapshot(snapshot));
 
-		model.applyEdits([
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 2),
+				wange: new Wange(2, 1, 2, 2),
 				text: ''
 			}
 		]);
-		model.applyEdits([
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 1),
+				wange: new Wange(2, 1, 2, 1),
 				text: '!'
 			}
 		]);
 
-		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+		assewt.stwictEquaw(modew.getWinesContent().join('\n'), getVawueInSnapshot(snapshot1));
 	});
 
-	test('immutable snapshot 1', () => {
-		const model = createTextModel('abc\ndef');
-		const snapshot = model.createSnapshot();
-		model.applyEdits([
+	test('immutabwe snapshot 1', () => {
+		const modew = cweateTextModew('abc\ndef');
+		const snapshot = modew.cweateSnapshot();
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 4),
+				wange: new Wange(2, 1, 2, 4),
 				text: ''
 			}
 		]);
 
-		model.applyEdits([
+		modew.appwyEdits([
 			{
-				range: new Range(1, 1, 2, 1),
+				wange: new Wange(1, 1, 2, 1),
 				text: 'abc\ndef'
 			}
 		]);
 
-		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assewt.stwictEquaw(modew.getWinesContent().join('\n'), getVawueInSnapshot(snapshot));
 	});
 
-	test('immutable snapshot 2', () => {
-		const model = createTextModel('abc\ndef');
-		const snapshot = model.createSnapshot();
-		model.applyEdits([
+	test('immutabwe snapshot 2', () => {
+		const modew = cweateTextModew('abc\ndef');
+		const snapshot = modew.cweateSnapshot();
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 1),
+				wange: new Wange(2, 1, 2, 1),
 				text: '!'
 			}
 		]);
 
-		model.applyEdits([
+		modew.appwyEdits([
 			{
-				range: new Range(2, 1, 2, 2),
+				wange: new Wange(2, 1, 2, 2),
 				text: ''
 			}
 		]);
 
-		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assewt.stwictEquaw(modew.getWinesContent().join('\n'), getVawueInSnapshot(snapshot));
 	});
 
-	test('immutable snapshot 3', () => {
-		const model = createTextModel('abc\ndef');
-		model.applyEdits([
+	test('immutabwe snapshot 3', () => {
+		const modew = cweateTextModew('abc\ndef');
+		modew.appwyEdits([
 			{
-				range: new Range(2, 4, 2, 4),
+				wange: new Wange(2, 4, 2, 4),
 				text: '!'
 			}
 		]);
-		const snapshot = model.createSnapshot();
-		model.applyEdits([
+		const snapshot = modew.cweateSnapshot();
+		modew.appwyEdits([
 			{
-				range: new Range(2, 5, 2, 5),
+				wange: new Wange(2, 5, 2, 5),
 				text: '!'
 			}
 		]);
 
-		assert.notStrictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assewt.notStwictEquaw(modew.getWinesContent().join('\n'), getVawueInSnapshot(snapshot));
 	});
 });
 
-suite('chunk based search', () => {
-	test('#45892. For some cases, the buffer is empty but we still try to search', () => {
-		let pieceTree = createTextBuffer(['']);
-		pieceTree.delete(0, 1);
-		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
-		assert.strictEqual(ret.length, 0);
+suite('chunk based seawch', () => {
+	test('#45892. Fow some cases, the buffa is empty but we stiww twy to seawch', () => {
+		wet pieceTwee = cweateTextBuffa(['']);
+		pieceTwee.dewete(0, 1);
+		wet wet = pieceTwee.findMatchesWineByWine(new Wange(1, 1, 1, 1), new SeawchData(/abc/, new WowdChawactewCwassifia(',./'), 'abc'), twue, 1000);
+		assewt.stwictEquaw(wet.wength, 0);
 	});
 
-	test('#45770. FindInNode should not cross node boundary.', () => {
-		let pieceTree = createTextBuffer([
+	test('#45770. FindInNode shouwd not cwoss node boundawy.', () => {
+		wet pieceTwee = cweateTextBuffa([
 			[
-				'balabalababalabalababalabalaba',
-				'balabalababalabalababalabalaba',
+				'bawabawababawabawababawabawaba',
+				'bawabawababawabawababawabawaba',
 				'',
 				'* [ ] task1',
-				'* [x] task2 balabalaba',
+				'* [x] task2 bawabawaba',
 				'* [ ] task 3'
 			].join('\n')
 		]);
-		pieceTree.delete(0, 62);
-		pieceTree.delete(16, 1);
+		pieceTwee.dewete(0, 62);
+		pieceTwee.dewete(16, 1);
 
-		pieceTree.insert(16, ' ');
-		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
-		assert.strictEqual(ret.length, 3);
+		pieceTwee.insewt(16, ' ');
+		wet wet = pieceTwee.findMatchesWineByWine(new Wange(1, 1, 4, 13), new SeawchData(/\[/gi, new WowdChawactewCwassifia(',./'), '['), twue, 1000);
+		assewt.stwictEquaw(wet.wength, 3);
 
-		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
-		assert.deepStrictEqual(ret[1].range, new Range(3, 3, 3, 4));
-		assert.deepStrictEqual(ret[2].range, new Range(4, 3, 4, 4));
+		assewt.deepStwictEquaw(wet[0].wange, new Wange(2, 3, 2, 4));
+		assewt.deepStwictEquaw(wet[1].wange, new Wange(3, 3, 3, 4));
+		assewt.deepStwictEquaw(wet[2].wange, new Wange(4, 3, 4, 4));
 	});
 
-	test('search searching from the middle', () => {
-		let pieceTree = createTextBuffer([
+	test('seawch seawching fwom the middwe', () => {
+		wet pieceTwee = cweateTextBuffa([
 			[
 				'def',
 				'dbcabc'
 			].join('\n')
 		]);
-		pieceTree.delete(4, 1);
-		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
-		assert.strictEqual(ret.length, 1);
-		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
+		pieceTwee.dewete(4, 1);
+		wet wet = pieceTwee.findMatchesWineByWine(new Wange(2, 3, 2, 6), new SeawchData(/a/gi, nuww, 'a'), twue, 1000);
+		assewt.stwictEquaw(wet.wength, 1);
+		assewt.deepStwictEquaw(wet[0].wange, new Wange(2, 3, 2, 4));
 
-		pieceTree.delete(4, 1);
-		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
-		assert.strictEqual(ret.length, 1);
-		assert.deepStrictEqual(ret[0].range, new Range(2, 2, 2, 3));
+		pieceTwee.dewete(4, 1);
+		wet = pieceTwee.findMatchesWineByWine(new Wange(2, 2, 2, 5), new SeawchData(/a/gi, nuww, 'a'), twue, 1000);
+		assewt.stwictEquaw(wet.wength, 1);
+		assewt.deepStwictEquaw(wet[0].wange, new Wange(2, 2, 2, 3));
 	});
 });

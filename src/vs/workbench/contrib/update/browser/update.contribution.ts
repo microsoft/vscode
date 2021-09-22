@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/common/update.config.contribution';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
-import { StateType } from 'vs/platform/update/common/update';
+impowt 'vs/pwatfowm/update/common/update.config.contwibution';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchActionWegistwy, Extensions as ActionExtensions } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow, MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ShowCuwwentWeweaseNotesAction, PwoductContwibution, UpdateContwibution, CheckFowVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchPwoductQuawityContwibution } fwom 'vs/wowkbench/contwib/update/bwowsa/update';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { StateType } fwom 'vs/pwatfowm/update/common/update';
 
-const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+const wowkbench = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
 
-workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
+wowkbench.wegistewWowkbenchContwibution(PwoductContwibution, WifecycwePhase.Westowed);
+wowkbench.wegistewWowkbenchContwibution(UpdateContwibution, WifecycwePhase.Westowed);
+wowkbench.wegistewWowkbenchContwibution(SwitchPwoductQuawityContwibution, WifecycwePhase.Westowed);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+const actionWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
 
-// Editor
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(ShowCurrentReleaseNotesAction), `${product.nameShort}: Show Release Notes`, product.nameShort);
+// Editow
+actionWegistwy
+	.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ShowCuwwentWeweaseNotesAction), `${pwoduct.nameShowt}: Show Wewease Notes`, pwoduct.nameShowt);
 
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(CheckForVSCodeUpdateAction), `${product.nameShort}: Check for Update`, product.nameShort, CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle));
+actionWegistwy
+	.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(CheckFowVSCodeUpdateAction), `${pwoduct.nameShowt}: Check fow Update`, pwoduct.nameShowt, CONTEXT_UPDATE_STATE.isEquawTo(StateType.Idwe));
 
 // Menu
-if (ShowCurrentReleaseNotesAction.AVAILABE) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '1_welcome',
+if (ShowCuwwentWeweaseNotesAction.AVAIWABE) {
+	MenuWegistwy.appendMenuItem(MenuId.MenubawHewpMenu, {
+		gwoup: '1_wewcome',
 		command: {
-			id: ShowCurrentReleaseNotesAction.ID,
-			title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+			id: ShowCuwwentWeweaseNotesAction.ID,
+			titwe: wocawize({ key: 'miWeweaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Wewease Notes")
 		},
-		order: 4
+		owda: 4
 	});
 }

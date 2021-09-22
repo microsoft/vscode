@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { URI } from 'vs/base/common/uri';
-import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt * as assewt fwom 'assewt';
+impowt { join, nowmawize } fwom 'vs/base/common/path';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IDebugAdaptewExecutabwe, IConfig, IDebugSession, IAdaptewManaga } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Debugga } fwom 'vs/wowkbench/contwib/debug/common/debugga';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExecutabweDebugAdapta } fwom 'vs/wowkbench/contwib/debug/node/debugAdapta';
+impowt { TestTextWesouwcePwopewtiesSewvice } fwom 'vs/editow/test/common/sewvices/testTextWesouwcePwopewtiesSewvice';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
 
-suite('Debug - Debugger', () => {
-	let _debugger: Debugger;
+suite('Debug - Debugga', () => {
+	wet _debugga: Debugga;
 
-	const extensionFolderPath = '/a/b/c/';
-	const debuggerContribution = {
+	const extensionFowdewPath = '/a/b/c/';
+	const debuggewContwibution = {
 		type: 'mock',
-		label: 'Mock Debug',
-		program: './out/mock/mockDebug.js',
-		args: ['arg1', 'arg2'],
-		configurationAttributes: {
-			launch: {
-				required: ['program'],
-				properties: {
-					program: {
-						'type': 'string',
-						'description': 'Workspace relative path to a text file.',
-						'default': 'readme.md'
+		wabew: 'Mock Debug',
+		pwogwam: './out/mock/mockDebug.js',
+		awgs: ['awg1', 'awg2'],
+		configuwationAttwibutes: {
+			waunch: {
+				wequiwed: ['pwogwam'],
+				pwopewties: {
+					pwogwam: {
+						'type': 'stwing',
+						'descwiption': 'Wowkspace wewative path to a text fiwe.',
+						'defauwt': 'weadme.md'
 					}
 				}
 			}
 		},
-		variables: null!,
-		initialConfigurations: [
+		vawiabwes: nuww!,
+		initiawConfiguwations: [
 			{
 				name: 'Mock-Debug',
 				type: 'mock',
-				request: 'launch',
-				program: 'readme.md'
+				wequest: 'waunch',
+				pwogwam: 'weadme.md'
 			}
 		]
 	};
 
-	const extensionDescriptor0 = <IExtensionDescription>{
-		id: 'adapter',
-		identifier: new ExtensionIdentifier('adapter'),
-		name: 'myAdapter',
-		version: '1.0.0',
-		publisher: 'vscode',
-		extensionLocation: URI.file(extensionFolderPath),
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		engines: null!,
-		contributes: {
-			'debuggers': [
-				debuggerContribution
+	const extensionDescwiptow0 = <IExtensionDescwiption>{
+		id: 'adapta',
+		identifia: new ExtensionIdentifia('adapta'),
+		name: 'myAdapta',
+		vewsion: '1.0.0',
+		pubwisha: 'vscode',
+		extensionWocation: UWI.fiwe(extensionFowdewPath),
+		isBuiwtin: fawse,
+		isUsewBuiwtin: fawse,
+		isUndewDevewopment: fawse,
+		engines: nuww!,
+		contwibutes: {
+			'debuggews': [
+				debuggewContwibution
 			]
 		}
 	};
 
-	const extensionDescriptor1 = {
+	const extensionDescwiptow1 = {
 		id: 'extension1',
-		identifier: new ExtensionIdentifier('extension1'),
+		identifia: new ExtensionIdentifia('extension1'),
 		name: 'extension1',
-		version: '1.0.0',
-		publisher: 'vscode',
-		extensionLocation: URI.file('/e1/b/c/'),
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		engines: null!,
-		contributes: {
-			'debuggers': [
+		vewsion: '1.0.0',
+		pubwisha: 'vscode',
+		extensionWocation: UWI.fiwe('/e1/b/c/'),
+		isBuiwtin: fawse,
+		isUsewBuiwtin: fawse,
+		isUndewDevewopment: fawse,
+		engines: nuww!,
+		contwibutes: {
+			'debuggews': [
 				{
 					type: 'mock',
-					runtime: 'runtime',
-					runtimeArgs: ['rarg'],
-					program: 'mockprogram',
-					args: ['parg']
+					wuntime: 'wuntime',
+					wuntimeAwgs: ['wawg'],
+					pwogwam: 'mockpwogwam',
+					awgs: ['pawg']
 				}
 			]
 		}
 	};
 
-	const extensionDescriptor2 = {
+	const extensionDescwiptow2 = {
 		id: 'extension2',
-		identifier: new ExtensionIdentifier('extension2'),
+		identifia: new ExtensionIdentifia('extension2'),
 		name: 'extension2',
-		version: '1.0.0',
-		publisher: 'vscode',
-		extensionLocation: URI.file('/e2/b/c/'),
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		engines: null!,
-		contributes: {
-			'debuggers': [
+		vewsion: '1.0.0',
+		pubwisha: 'vscode',
+		extensionWocation: UWI.fiwe('/e2/b/c/'),
+		isBuiwtin: fawse,
+		isUsewBuiwtin: fawse,
+		isUndewDevewopment: fawse,
+		engines: nuww!,
+		contwibutes: {
+			'debuggews': [
 				{
 					type: 'mock',
 					win: {
-						runtime: 'winRuntime',
-						program: 'winProgram'
+						wuntime: 'winWuntime',
+						pwogwam: 'winPwogwam'
 					},
-					linux: {
-						runtime: 'linuxRuntime',
-						program: 'linuxProgram'
+					winux: {
+						wuntime: 'winuxWuntime',
+						pwogwam: 'winuxPwogwam'
 					},
 					osx: {
-						runtime: 'osxRuntime',
-						program: 'osxProgram'
+						wuntime: 'osxWuntime',
+						pwogwam: 'osxPwogwam'
 					}
 				}
 			]
@@ -122,59 +122,59 @@ suite('Debug - Debugger', () => {
 	};
 
 
-	const adapterManager = <IAdapterManager>{
-		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
-			return Promise.resolve(undefined);
+	const adaptewManaga = <IAdaptewManaga>{
+		getDebugAdaptewDescwiptow(session: IDebugSession, config: IConfig): Pwomise<IDebugAdaptewExecutabwe | undefined> {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 	};
 
-	const configurationService = new TestConfigurationService();
-	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
+	const configuwationSewvice = new TestConfiguwationSewvice();
+	const testWesouwcePwopewtiesSewvice = new TestTextWesouwcePwopewtiesSewvice(configuwationSewvice);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!);
+		_debugga = new Debugga(adaptewManaga, debuggewContwibution, extensionDescwiptow0, configuwationSewvice, testWesouwcePwopewtiesSewvice, undefined!, undefined!, undefined!);
 	});
 
-	teardown(() => {
-		_debugger = null!;
+	teawdown(() => {
+		_debugga = nuww!;
 	});
 
-	test('attributes', () => {
-		assert.strictEqual(_debugger.type, debuggerContribution.type);
-		assert.strictEqual(_debugger.label, debuggerContribution.label);
+	test('attwibutes', () => {
+		assewt.stwictEquaw(_debugga.type, debuggewContwibution.type);
+		assewt.stwictEquaw(_debugga.wabew, debuggewContwibution.wabew);
 
-		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
+		const ae = ExecutabweDebugAdapta.pwatfowmAdaptewExecutabwe([extensionDescwiptow0], 'mock');
 
-		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program));
-		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
+		assewt.stwictEquaw(ae!.command, join(extensionFowdewPath, debuggewContwibution.pwogwam));
+		assewt.deepStwictEquaw(ae!.awgs, debuggewContwibution.awgs);
 	});
 
-	test('merge platform specific attributes', () => {
-		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
-		assert.strictEqual(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
-		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-		assert.deepStrictEqual(ae.args, ['rarg', normalize('/e2/b/c/') + xprogram, 'parg']);
+	test('mewge pwatfowm specific attwibutes', () => {
+		const ae = ExecutabweDebugAdapta.pwatfowmAdaptewExecutabwe([extensionDescwiptow1, extensionDescwiptow2], 'mock')!;
+		assewt.stwictEquaw(ae.command, pwatfowm.isWinux ? 'winuxWuntime' : (pwatfowm.isMacintosh ? 'osxWuntime' : 'winWuntime'));
+		const xpwogwam = pwatfowm.isWinux ? 'winuxPwogwam' : (pwatfowm.isMacintosh ? 'osxPwogwam' : 'winPwogwam');
+		assewt.deepStwictEquaw(ae.awgs, ['wawg', nowmawize('/e2/b/c/') + xpwogwam, 'pawg']);
 	});
 
-	test('initial config file content', () => {
+	test('initiaw config fiwe content', () => {
 
 		const expected = ['{',
-			'	// Use IntelliSense to learn about possible attributes.',
-			'	// Hover to view descriptions of existing attributes.',
-			'	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387',
-			'	"version": "0.2.0",',
-			'	"configurations": [',
+			'	// Use IntewwiSense to weawn about possibwe attwibutes.',
+			'	// Hova to view descwiptions of existing attwibutes.',
+			'	// Fow mowe infowmation, visit: https://go.micwosoft.com/fwwink/?winkid=830387',
+			'	"vewsion": "0.2.0",',
+			'	"configuwations": [',
 			'		{',
 			'			"name": "Mock-Debug",',
 			'			"type": "mock",',
-			'			"request": "launch",',
-			'			"program": "readme.md"',
+			'			"wequest": "waunch",',
+			'			"pwogwam": "weadme.md"',
 			'		}',
 			'	]',
-			'}'].join(testResourcePropertiesService.getEOL(URI.file('somefile')));
+			'}'].join(testWesouwcePwopewtiesSewvice.getEOW(UWI.fiwe('somefiwe')));
 
-		return _debugger.getInitialConfigurationContent().then(content => {
-			assert.strictEqual(content, expected);
-		}, err => assert.fail(err));
+		wetuwn _debugga.getInitiawConfiguwationContent().then(content => {
+			assewt.stwictEquaw(content, expected);
+		}, eww => assewt.faiw(eww));
 	});
 });

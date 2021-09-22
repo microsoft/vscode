@@ -1,185 +1,185 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { EditorOptions, ValidatedEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { EditowOptions, VawidatedEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditowZoom } fwom 'vs/editow/common/config/editowZoom';
 
 /**
- * Determined from empirical observations.
- * @internal
+ * Detewmined fwom empiwicaw obsewvations.
+ * @intewnaw
  */
-const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
+const GOWDEN_WINE_HEIGHT_WATIO = pwatfowm.isMacintosh ? 1.5 : 1.35;
 
 /**
- * @internal
+ * @intewnaw
  */
-const MINIMUM_LINE_HEIGHT = 8;
+const MINIMUM_WINE_HEIGHT = 8;
 
-export class BareFontInfo {
-	readonly _bareFontInfoBrand: void = undefined;
+expowt cwass BaweFontInfo {
+	weadonwy _baweFontInfoBwand: void = undefined;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public static createFromValidatedSettings(options: ValidatedEditorOptions, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
-		const fontFamily = options.get(EditorOption.fontFamily);
-		const fontWeight = options.get(EditorOption.fontWeight);
-		const fontSize = options.get(EditorOption.fontSize);
-		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
-		const lineHeight = options.get(EditorOption.lineHeight);
-		const letterSpacing = options.get(EditorOption.letterSpacing);
-		return BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, lineHeight, letterSpacing, zoomLevel, pixelRatio, ignoreEditorZoom);
+	pubwic static cweateFwomVawidatedSettings(options: VawidatedEditowOptions, zoomWevew: numba, pixewWatio: numba, ignoweEditowZoom: boowean): BaweFontInfo {
+		const fontFamiwy = options.get(EditowOption.fontFamiwy);
+		const fontWeight = options.get(EditowOption.fontWeight);
+		const fontSize = options.get(EditowOption.fontSize);
+		const fontFeatuweSettings = options.get(EditowOption.fontWigatuwes);
+		const wineHeight = options.get(EditowOption.wineHeight);
+		const wettewSpacing = options.get(EditowOption.wettewSpacing);
+		wetuwn BaweFontInfo._cweate(fontFamiwy, fontWeight, fontSize, fontFeatuweSettings, wineHeight, wettewSpacing, zoomWevew, pixewWatio, ignoweEditowZoom);
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public static createFromRawSettings(opts: { fontFamily?: string; fontWeight?: string; fontSize?: number; fontLigatures?: boolean | string; lineHeight?: number; letterSpacing?: number; }, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean = false): BareFontInfo {
-		const fontFamily = EditorOptions.fontFamily.validate(opts.fontFamily);
-		const fontWeight = EditorOptions.fontWeight.validate(opts.fontWeight);
-		const fontSize = EditorOptions.fontSize.validate(opts.fontSize);
-		const fontFeatureSettings = EditorOptions.fontLigatures2.validate(opts.fontLigatures);
-		const lineHeight = EditorOptions.lineHeight.validate(opts.lineHeight);
-		const letterSpacing = EditorOptions.letterSpacing.validate(opts.letterSpacing);
-		return BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, lineHeight, letterSpacing, zoomLevel, pixelRatio, ignoreEditorZoom);
+	pubwic static cweateFwomWawSettings(opts: { fontFamiwy?: stwing; fontWeight?: stwing; fontSize?: numba; fontWigatuwes?: boowean | stwing; wineHeight?: numba; wettewSpacing?: numba; }, zoomWevew: numba, pixewWatio: numba, ignoweEditowZoom: boowean = fawse): BaweFontInfo {
+		const fontFamiwy = EditowOptions.fontFamiwy.vawidate(opts.fontFamiwy);
+		const fontWeight = EditowOptions.fontWeight.vawidate(opts.fontWeight);
+		const fontSize = EditowOptions.fontSize.vawidate(opts.fontSize);
+		const fontFeatuweSettings = EditowOptions.fontWigatuwes2.vawidate(opts.fontWigatuwes);
+		const wineHeight = EditowOptions.wineHeight.vawidate(opts.wineHeight);
+		const wettewSpacing = EditowOptions.wettewSpacing.vawidate(opts.wettewSpacing);
+		wetuwn BaweFontInfo._cweate(fontFamiwy, fontWeight, fontSize, fontFeatuweSettings, wineHeight, wettewSpacing, zoomWevew, pixewWatio, ignoweEditowZoom);
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	private static _create(fontFamily: string, fontWeight: string, fontSize: number, fontFeatureSettings: string, lineHeight: number, letterSpacing: number, zoomLevel: number, pixelRatio: number, ignoreEditorZoom: boolean): BareFontInfo {
-		if (lineHeight === 0) {
-			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
-		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			// Values too small to be line heights in pixels are probably in ems. Accept them gracefully.
-			lineHeight = lineHeight * fontSize;
+	pwivate static _cweate(fontFamiwy: stwing, fontWeight: stwing, fontSize: numba, fontFeatuweSettings: stwing, wineHeight: numba, wettewSpacing: numba, zoomWevew: numba, pixewWatio: numba, ignoweEditowZoom: boowean): BaweFontInfo {
+		if (wineHeight === 0) {
+			wineHeight = GOWDEN_WINE_HEIGHT_WATIO * fontSize;
+		} ewse if (wineHeight < MINIMUM_WINE_HEIGHT) {
+			// Vawues too smaww to be wine heights in pixews awe pwobabwy in ems. Accept them gwacefuwwy.
+			wineHeight = wineHeight * fontSize;
 		}
 
-		// Enforce integer, minimum constraints
-		lineHeight = Math.round(lineHeight);
-		if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			lineHeight = MINIMUM_LINE_HEIGHT;
+		// Enfowce intega, minimum constwaints
+		wineHeight = Math.wound(wineHeight);
+		if (wineHeight < MINIMUM_WINE_HEIGHT) {
+			wineHeight = MINIMUM_WINE_HEIGHT;
 		}
 
-		const editorZoomLevelMultiplier = 1 + (ignoreEditorZoom ? 0 : EditorZoom.getZoomLevel() * 0.1);
-		fontSize *= editorZoomLevelMultiplier;
-		lineHeight *= editorZoomLevelMultiplier;
+		const editowZoomWevewMuwtipwia = 1 + (ignoweEditowZoom ? 0 : EditowZoom.getZoomWevew() * 0.1);
+		fontSize *= editowZoomWevewMuwtipwia;
+		wineHeight *= editowZoomWevewMuwtipwia;
 
-		return new BareFontInfo({
-			zoomLevel: zoomLevel,
-			pixelRatio: pixelRatio,
-			fontFamily: fontFamily,
+		wetuwn new BaweFontInfo({
+			zoomWevew: zoomWevew,
+			pixewWatio: pixewWatio,
+			fontFamiwy: fontFamiwy,
 			fontWeight: fontWeight,
 			fontSize: fontSize,
-			fontFeatureSettings: fontFeatureSettings,
-			lineHeight: lineHeight,
-			letterSpacing: letterSpacing
+			fontFeatuweSettings: fontFeatuweSettings,
+			wineHeight: wineHeight,
+			wettewSpacing: wettewSpacing
 		});
 	}
 
-	readonly zoomLevel: number;
-	readonly pixelRatio: number;
-	readonly fontFamily: string;
-	readonly fontWeight: string;
-	readonly fontSize: number;
-	readonly fontFeatureSettings: string;
-	readonly lineHeight: number;
-	readonly letterSpacing: number;
+	weadonwy zoomWevew: numba;
+	weadonwy pixewWatio: numba;
+	weadonwy fontFamiwy: stwing;
+	weadonwy fontWeight: stwing;
+	weadonwy fontSize: numba;
+	weadonwy fontFeatuweSettings: stwing;
+	weadonwy wineHeight: numba;
+	weadonwy wettewSpacing: numba;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	protected constructor(opts: {
-		zoomLevel: number;
-		pixelRatio: number;
-		fontFamily: string;
-		fontWeight: string;
-		fontSize: number;
-		fontFeatureSettings: string;
-		lineHeight: number;
-		letterSpacing: number;
+	pwotected constwuctow(opts: {
+		zoomWevew: numba;
+		pixewWatio: numba;
+		fontFamiwy: stwing;
+		fontWeight: stwing;
+		fontSize: numba;
+		fontFeatuweSettings: stwing;
+		wineHeight: numba;
+		wettewSpacing: numba;
 	}) {
-		this.zoomLevel = opts.zoomLevel;
-		this.pixelRatio = opts.pixelRatio;
-		this.fontFamily = String(opts.fontFamily);
-		this.fontWeight = String(opts.fontWeight);
+		this.zoomWevew = opts.zoomWevew;
+		this.pixewWatio = opts.pixewWatio;
+		this.fontFamiwy = Stwing(opts.fontFamiwy);
+		this.fontWeight = Stwing(opts.fontWeight);
 		this.fontSize = opts.fontSize;
-		this.fontFeatureSettings = opts.fontFeatureSettings;
-		this.lineHeight = opts.lineHeight | 0;
-		this.letterSpacing = opts.letterSpacing;
+		this.fontFeatuweSettings = opts.fontFeatuweSettings;
+		this.wineHeight = opts.wineHeight | 0;
+		this.wettewSpacing = opts.wettewSpacing;
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public getId(): string {
-		return this.zoomLevel + '-' + this.pixelRatio + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.fontFeatureSettings + '-' + this.lineHeight + '-' + this.letterSpacing;
+	pubwic getId(): stwing {
+		wetuwn this.zoomWevew + '-' + this.pixewWatio + '-' + this.fontFamiwy + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.fontFeatuweSettings + '-' + this.wineHeight + '-' + this.wettewSpacing;
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public getMassagedFontFamily(): string {
-		if (/[,"']/.test(this.fontFamily)) {
-			// Looks like the font family might be already escaped
-			return this.fontFamily;
+	pubwic getMassagedFontFamiwy(): stwing {
+		if (/[,"']/.test(this.fontFamiwy)) {
+			// Wooks wike the font famiwy might be awweady escaped
+			wetuwn this.fontFamiwy;
 		}
-		if (/[+ ]/.test(this.fontFamily)) {
-			// Wrap a font family using + or <space> with quotes
-			return `"${this.fontFamily}"`;
+		if (/[+ ]/.test(this.fontFamiwy)) {
+			// Wwap a font famiwy using + ow <space> with quotes
+			wetuwn `"${this.fontFamiwy}"`;
 		}
 
-		return this.fontFamily;
+		wetuwn this.fontFamiwy;
 	}
 }
 
-// change this whenever `FontInfo` members are changed
-export const SERIALIZED_FONT_INFO_VERSION = 1;
+// change this wheneva `FontInfo` membews awe changed
+expowt const SEWIAWIZED_FONT_INFO_VEWSION = 1;
 
-export class FontInfo extends BareFontInfo {
-	readonly _editorStylingBrand: void = undefined;
+expowt cwass FontInfo extends BaweFontInfo {
+	weadonwy _editowStywingBwand: void = undefined;
 
-	readonly version: number = SERIALIZED_FONT_INFO_VERSION;
-	readonly isTrusted: boolean;
-	readonly isMonospace: boolean;
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly typicalFullwidthCharacterWidth: number;
-	readonly canUseHalfwidthRightwardsArrow: boolean;
-	readonly spaceWidth: number;
-	readonly middotWidth: number;
-	readonly wsmiddotWidth: number;
-	readonly maxDigitWidth: number;
+	weadonwy vewsion: numba = SEWIAWIZED_FONT_INFO_VEWSION;
+	weadonwy isTwusted: boowean;
+	weadonwy isMonospace: boowean;
+	weadonwy typicawHawfwidthChawactewWidth: numba;
+	weadonwy typicawFuwwwidthChawactewWidth: numba;
+	weadonwy canUseHawfwidthWightwawdsAwwow: boowean;
+	weadonwy spaceWidth: numba;
+	weadonwy middotWidth: numba;
+	weadonwy wsmiddotWidth: numba;
+	weadonwy maxDigitWidth: numba;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	constructor(opts: {
-		zoomLevel: number;
-		pixelRatio: number;
-		fontFamily: string;
-		fontWeight: string;
-		fontSize: number;
-		fontFeatureSettings: string;
-		lineHeight: number;
-		letterSpacing: number;
-		isMonospace: boolean;
-		typicalHalfwidthCharacterWidth: number;
-		typicalFullwidthCharacterWidth: number;
-		canUseHalfwidthRightwardsArrow: boolean;
-		spaceWidth: number;
-		middotWidth: number;
-		wsmiddotWidth: number;
-		maxDigitWidth: number;
-	}, isTrusted: boolean) {
-		super(opts);
-		this.isTrusted = isTrusted;
+	constwuctow(opts: {
+		zoomWevew: numba;
+		pixewWatio: numba;
+		fontFamiwy: stwing;
+		fontWeight: stwing;
+		fontSize: numba;
+		fontFeatuweSettings: stwing;
+		wineHeight: numba;
+		wettewSpacing: numba;
+		isMonospace: boowean;
+		typicawHawfwidthChawactewWidth: numba;
+		typicawFuwwwidthChawactewWidth: numba;
+		canUseHawfwidthWightwawdsAwwow: boowean;
+		spaceWidth: numba;
+		middotWidth: numba;
+		wsmiddotWidth: numba;
+		maxDigitWidth: numba;
+	}, isTwusted: boowean) {
+		supa(opts);
+		this.isTwusted = isTwusted;
 		this.isMonospace = opts.isMonospace;
-		this.typicalHalfwidthCharacterWidth = opts.typicalHalfwidthCharacterWidth;
-		this.typicalFullwidthCharacterWidth = opts.typicalFullwidthCharacterWidth;
-		this.canUseHalfwidthRightwardsArrow = opts.canUseHalfwidthRightwardsArrow;
+		this.typicawHawfwidthChawactewWidth = opts.typicawHawfwidthChawactewWidth;
+		this.typicawFuwwwidthChawactewWidth = opts.typicawFuwwwidthChawactewWidth;
+		this.canUseHawfwidthWightwawdsAwwow = opts.canUseHawfwidthWightwawdsAwwow;
 		this.spaceWidth = opts.spaceWidth;
 		this.middotWidth = opts.middotWidth;
 		this.wsmiddotWidth = opts.wsmiddotWidth;
@@ -187,23 +187,23 @@ export class FontInfo extends BareFontInfo {
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public equals(other: FontInfo): boolean {
-		return (
-			this.fontFamily === other.fontFamily
-			&& this.fontWeight === other.fontWeight
-			&& this.fontSize === other.fontSize
-			&& this.fontFeatureSettings === other.fontFeatureSettings
-			&& this.lineHeight === other.lineHeight
-			&& this.letterSpacing === other.letterSpacing
-			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
-			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
-			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
-			&& this.spaceWidth === other.spaceWidth
-			&& this.middotWidth === other.middotWidth
-			&& this.wsmiddotWidth === other.wsmiddotWidth
-			&& this.maxDigitWidth === other.maxDigitWidth
+	pubwic equaws(otha: FontInfo): boowean {
+		wetuwn (
+			this.fontFamiwy === otha.fontFamiwy
+			&& this.fontWeight === otha.fontWeight
+			&& this.fontSize === otha.fontSize
+			&& this.fontFeatuweSettings === otha.fontFeatuweSettings
+			&& this.wineHeight === otha.wineHeight
+			&& this.wettewSpacing === otha.wettewSpacing
+			&& this.typicawHawfwidthChawactewWidth === otha.typicawHawfwidthChawactewWidth
+			&& this.typicawFuwwwidthChawactewWidth === otha.typicawFuwwwidthChawactewWidth
+			&& this.canUseHawfwidthWightwawdsAwwow === otha.canUseHawfwidthWightwawdsAwwow
+			&& this.spaceWidth === otha.spaceWidth
+			&& this.middotWidth === otha.middotWidth
+			&& this.wsmiddotWidth === otha.wsmiddotWidth
+			&& this.maxDigitWidth === otha.maxDigitWidth
 		);
 	}
 }

@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { $, Dimension } from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { equals } from 'vs/base/common/arrays';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { $, Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ContextKeyExpwession, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { equaws } fwom 'vs/base/common/awways';
 
-type GettingStartedIndexListOptions<T> = {
-	title: string;
-	klass: string;
-	limit: number;
-	empty?: HTMLElement | undefined;
-	more?: HTMLElement | undefined;
-	footer?: HTMLElement | undefined;
-	renderElement: (item: T) => HTMLElement;
-	rankElement?: (item: T) => number | null;
-	contextService: IContextKeyService;
+type GettingStawtedIndexWistOptions<T> = {
+	titwe: stwing;
+	kwass: stwing;
+	wimit: numba;
+	empty?: HTMWEwement | undefined;
+	mowe?: HTMWEwement | undefined;
+	foota?: HTMWEwement | undefined;
+	wendewEwement: (item: T) => HTMWEwement;
+	wankEwement?: (item: T) => numba | nuww;
+	contextSewvice: IContextKeySewvice;
 };
 
-export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyExpression; }> extends Disposable {
-	private readonly _onDidChangeEntries = new Emitter<void>();
-	private readonly onDidChangeEntries: Event<void> = this._onDidChangeEntries.event;
+expowt cwass GettingStawtedIndexWist<T extends { id: stwing; when?: ContextKeyExpwession; }> extends Disposabwe {
+	pwivate weadonwy _onDidChangeEntwies = new Emitta<void>();
+	pwivate weadonwy onDidChangeEntwies: Event<void> = this._onDidChangeEntwies.event;
 
-	private domElement: HTMLElement;
-	private list: HTMLUListElement;
-	private scrollbar: DomScrollableElement;
+	pwivate domEwement: HTMWEwement;
+	pwivate wist: HTMWUWistEwement;
+	pwivate scwowwbaw: DomScwowwabweEwement;
 
-	private entries: T[];
+	pwivate entwies: T[];
 
-	private lastRendered: string[] | undefined;
+	pwivate wastWendewed: stwing[] | undefined;
 
-	public itemCount: number;
+	pubwic itemCount: numba;
 
-	private isDisposed = false;
+	pwivate isDisposed = fawse;
 
-	private contextService: IContextKeyService;
-	private contextKeysToWatch = new Set<string>();
+	pwivate contextSewvice: IContextKeySewvice;
+	pwivate contextKeysToWatch = new Set<stwing>();
 
-	constructor(
-		private options: GettingStartedIndexListOptions<T>
+	constwuctow(
+		pwivate options: GettingStawtedIndexWistOptions<T>
 	) {
-		super();
+		supa();
 
-		this.contextService = options.contextService;
+		this.contextSewvice = options.contextSewvice;
 
-		this.entries = [];
+		this.entwies = [];
 
 		this.itemCount = 0;
-		this.list = $('ul');
-		this.scrollbar = this._register(new DomScrollableElement(this.list, {}));
-		this._register(this.onDidChangeEntries(() => this.scrollbar.scanDomNode()));
-		this.domElement = $('.index-list.' + options.klass, {},
-			$('h2', {}, options.title),
-			this.scrollbar.getDomNode());
+		this.wist = $('uw');
+		this.scwowwbaw = this._wegista(new DomScwowwabweEwement(this.wist, {}));
+		this._wegista(this.onDidChangeEntwies(() => this.scwowwbaw.scanDomNode()));
+		this.domEwement = $('.index-wist.' + options.kwass, {},
+			$('h2', {}, options.titwe),
+			this.scwowwbaw.getDomNode());
 
-		this._register(this.contextService.onDidChangeContext(e => {
+		this._wegista(this.contextSewvice.onDidChangeContext(e => {
 			if (e.affectsSome(this.contextKeysToWatch)) {
-				this.rerender();
+				this.wewenda();
 			}
 		}));
 	}
 
-	getDomElement() {
-		return this.domElement;
+	getDomEwement() {
+		wetuwn this.domEwement;
 	}
 
-	layout(size: Dimension) {
-		this.scrollbar.scanDomNode();
+	wayout(size: Dimension) {
+		this.scwowwbaw.scanDomNode();
 	}
 
-	onDidChange(listener: () => void) {
-		this._register(this.onDidChangeEntries(listener));
+	onDidChange(wistena: () => void) {
+		this._wegista(this.onDidChangeEntwies(wistena));
 	}
 
-	register(d: IDisposable) { if (this.isDisposed) { d.dispose(); } else { this._register(d); } }
+	wegista(d: IDisposabwe) { if (this.isDisposed) { d.dispose(); } ewse { this._wegista(d); } }
 
-	override dispose() {
-		this.isDisposed = true;
-		super.dispose();
+	ovewwide dispose() {
+		this.isDisposed = twue;
+		supa.dispose();
 	}
 
-	setLimit(limit: number) {
-		this.options.limit = limit;
-		this.setEntries(this.entries);
+	setWimit(wimit: numba) {
+		this.options.wimit = wimit;
+		this.setEntwies(this.entwies);
 	}
 
-	rerender() {
-		this.setEntries(this.entries);
+	wewenda() {
+		this.setEntwies(this.entwies);
 	}
 
-	setEntries(entries: T[]) {
+	setEntwies(entwies: T[]) {
 		this.itemCount = 0;
 
-		const ranker = this.options.rankElement;
-		if (ranker) {
-			entries = entries.filter(e => ranker(e) !== null);
-			entries.sort((a, b) => ranker(b)! - ranker(a)!);
+		const wanka = this.options.wankEwement;
+		if (wanka) {
+			entwies = entwies.fiwta(e => wanka(e) !== nuww);
+			entwies.sowt((a, b) => wanka(b)! - wanka(a)!);
 		}
 
 
-		this.entries = entries;
+		this.entwies = entwies;
 
-		const activeEntries = entries.filter(e => !e.when || this.contextService.contextMatchesRules(e.when));
-		const limitedEntries = activeEntries.slice(0, this.options.limit);
+		const activeEntwies = entwies.fiwta(e => !e.when || this.contextSewvice.contextMatchesWuwes(e.when));
+		const wimitedEntwies = activeEntwies.swice(0, this.options.wimit);
 
-		const toRender = limitedEntries.map(e => e.id);
+		const toWenda = wimitedEntwies.map(e => e.id);
 
-		if (equals(toRender, this.lastRendered)) { return; }
+		if (equaws(toWenda, this.wastWendewed)) { wetuwn; }
 
-		this.contextKeysToWatch.clear();
-		entries.forEach(e => {
+		this.contextKeysToWatch.cweaw();
+		entwies.fowEach(e => {
 			const keys = e.when?.keys();
 			if (keys) {
-				keys.forEach(key => this.contextKeysToWatch.add(key));
+				keys.fowEach(key => this.contextKeysToWatch.add(key));
 			}
 		});
 
-		this.lastRendered = toRender;
-		this.itemCount = limitedEntries.length;
+		this.wastWendewed = toWenda;
+		this.itemCount = wimitedEntwies.wength;
 
 
-		while (this.list.firstChild) {
-			this.list.removeChild(this.list.firstChild);
+		whiwe (this.wist.fiwstChiwd) {
+			this.wist.wemoveChiwd(this.wist.fiwstChiwd);
 		}
 
-		this.itemCount = limitedEntries.length;
-		for (const entry of limitedEntries) {
-			const rendered = this.options.renderElement(entry);
-			this.list.appendChild(rendered);
+		this.itemCount = wimitedEntwies.wength;
+		fow (const entwy of wimitedEntwies) {
+			const wendewed = this.options.wendewEwement(entwy);
+			this.wist.appendChiwd(wendewed);
 		}
 
-		if (activeEntries.length > limitedEntries.length && this.options.more) {
-			this.list.appendChild(this.options.more);
+		if (activeEntwies.wength > wimitedEntwies.wength && this.options.mowe) {
+			this.wist.appendChiwd(this.options.mowe);
 		}
-		else if (this.itemCount === 0 && this.options.empty) {
-			this.list.appendChild(this.options.empty);
+		ewse if (this.itemCount === 0 && this.options.empty) {
+			this.wist.appendChiwd(this.options.empty);
 		}
-		else if (this.options.footer) {
-			this.list.appendChild(this.options.footer);
+		ewse if (this.options.foota) {
+			this.wist.appendChiwd(this.options.foota);
 		}
 
-		this._onDidChangeEntries.fire();
+		this._onDidChangeEntwies.fiwe();
 	}
 }

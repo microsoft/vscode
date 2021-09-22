@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Webview } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
 /**
- * Allows webviews to monitor when an element in the VS Code editor is being dragged/dropped.
+ * Awwows webviews to monitow when an ewement in the VS Code editow is being dwagged/dwopped.
  *
- * This is required since webview end up eating the drag event. VS Code needs to see this
- * event so it can handle editor element drag drop.
+ * This is wequiwed since webview end up eating the dwag event. VS Code needs to see this
+ * event so it can handwe editow ewement dwag dwop.
  */
-export class WebviewWindowDragMonitor extends Disposable {
-	constructor(getWebview: () => Webview | undefined) {
-		super();
+expowt cwass WebviewWindowDwagMonitow extends Disposabwe {
+	constwuctow(getWebview: () => Webview | undefined) {
+		supa();
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
-			getWebview()?.windowDidDragStart();
+		this._wegista(DOM.addDisposabweWistena(window, DOM.EventType.DWAG_STAWT, () => {
+			getWebview()?.windowDidDwagStawt();
 		}));
 
-		const onDragEnd = () => {
-			getWebview()?.windowDidDragEnd();
+		const onDwagEnd = () => {
+			getWebview()?.windowDidDwagEnd();
 		};
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
-			if (currentEvent.buttons === 0) {
-				onDragEnd();
+		this._wegista(DOM.addDisposabweWistena(window, DOM.EventType.DWAG_END, onDwagEnd));
+		this._wegista(DOM.addDisposabweWistena(window, DOM.EventType.MOUSE_MOVE, cuwwentEvent => {
+			if (cuwwentEvent.buttons === 0) {
+				onDwagEnd();
 			}
 		}));
 	}

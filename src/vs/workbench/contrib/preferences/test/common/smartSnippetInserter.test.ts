@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { Position } from 'vs/editor/common/core/position';
+impowt * as assewt fwom 'assewt';
+impowt { SmawtSnippetInsewta } fwom 'vs/wowkbench/contwib/pwefewences/common/smawtSnippetInsewta';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
 
-suite('SmartSnippetInserter', () => {
+suite('SmawtSnippetInsewta', () => {
 
-	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
-		let model = createTextModel(text.join('\n'));
-		runner((desiredPos, pos, prepend, append) => {
-			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
-			let expected = {
+	function testSmawtSnippetInsewta(text: stwing[], wunna: (assewt: (desiwedPos: Position, pos: Position, pwepend: stwing, append: stwing) => void) => void): void {
+		wet modew = cweateTextModew(text.join('\n'));
+		wunna((desiwedPos, pos, pwepend, append) => {
+			wet actuaw = SmawtSnippetInsewta.insewtSnippet(modew, desiwedPos);
+			wet expected = {
 				position: pos,
-				prepend,
+				pwepend,
 				append
 			};
-			assert.deepStrictEqual(actual, expected);
+			assewt.deepStwictEquaw(actuaw, expected);
 		});
-		model.dispose();
+		modew.dispose();
 	}
 
 	test('empty text', () => {
-		testSmartSnippetInserter([
-		], (assert) => {
-			assert(new Position(1, 1), new Position(1, 1), '\n[', ']');
+		testSmawtSnippetInsewta([
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(1, 1), '\n[', ']');
 		});
 
-		testSmartSnippetInserter([
+		testSmawtSnippetInsewta([
 			' '
-		], (assert) => {
-			assert(new Position(1, 1), new Position(1, 2), '\n[', ']');
-			assert(new Position(1, 2), new Position(1, 2), '\n[', ']');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(1, 2), '\n[', ']');
+			assewt(new Position(1, 2), new Position(1, 2), '\n[', ']');
 		});
 
-		testSmartSnippetInserter([
+		testSmawtSnippetInsewta([
 			'// just some text'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(1, 18), '\n[', ']');
-			assert(new Position(1, 18), new Position(1, 18), '\n[', ']');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(1, 18), '\n[', ']');
+			assewt(new Position(1, 18), new Position(1, 18), '\n[', ']');
 		});
 
-		testSmartSnippetInserter([
+		testSmawtSnippetInsewta([
 			'// just some text',
 			''
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 1), '\n[', ']');
-			assert(new Position(1, 18), new Position(2, 1), '\n[', ']');
-			assert(new Position(2, 1), new Position(2, 1), '\n[', ']');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 1), '\n[', ']');
+			assewt(new Position(1, 18), new Position(2, 1), '\n[', ']');
+			assewt(new Position(2, 1), new Position(2, 1), '\n[', ']');
 		});
 	});
 
-	test('empty array 1', () => {
-		testSmartSnippetInserter([
+	test('empty awway 1', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[]'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 2), new Position(2, 2), '', '');
-			assert(new Position(2, 3), new Position(2, 2), '', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 2), new Position(2, 2), '', '');
+			assewt(new Position(2, 3), new Position(2, 2), '', '');
 		});
 	});
 
-	test('empty array 2', () => {
-		testSmartSnippetInserter([
+	test('empty awway 2', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[',
 			']'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 2), new Position(2, 2), '', '');
-			assert(new Position(3, 1), new Position(3, 1), '', '');
-			assert(new Position(3, 2), new Position(3, 1), '', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 2), new Position(2, 2), '', '');
+			assewt(new Position(3, 1), new Position(3, 1), '', '');
+			assewt(new Position(3, 2), new Position(3, 1), '', '');
 		});
 	});
 
-	test('empty array 3', () => {
-		testSmartSnippetInserter([
+	test('empty awway 3', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[',
 			'// just some text',
 			']'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 1), new Position(2, 2), '', '');
-			assert(new Position(2, 2), new Position(2, 2), '', '');
-			assert(new Position(3, 1), new Position(3, 1), '', '');
-			assert(new Position(3, 2), new Position(3, 1), '', '');
-			assert(new Position(4, 1), new Position(4, 1), '', '');
-			assert(new Position(4, 2), new Position(4, 1), '', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 1), new Position(2, 2), '', '');
+			assewt(new Position(2, 2), new Position(2, 2), '', '');
+			assewt(new Position(3, 1), new Position(3, 1), '', '');
+			assewt(new Position(3, 2), new Position(3, 1), '', '');
+			assewt(new Position(4, 1), new Position(4, 1), '', '');
+			assewt(new Position(4, 2), new Position(4, 1), '', '');
 		});
 	});
 
-	test('one element array 1', () => {
-		testSmartSnippetInserter([
+	test('one ewement awway 1', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[',
 			'{}',
 			']'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 2), new Position(2, 2), '', ',');
-			assert(new Position(3, 1), new Position(3, 1), '', ',');
-			assert(new Position(3, 2), new Position(3, 1), '', ',');
-			assert(new Position(3, 3), new Position(3, 3), ',', '');
-			assert(new Position(4, 1), new Position(4, 1), ',', '');
-			assert(new Position(4, 2), new Position(4, 1), ',', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 2), new Position(2, 2), '', ',');
+			assewt(new Position(3, 1), new Position(3, 1), '', ',');
+			assewt(new Position(3, 2), new Position(3, 1), '', ',');
+			assewt(new Position(3, 3), new Position(3, 3), ',', '');
+			assewt(new Position(4, 1), new Position(4, 1), ',', '');
+			assewt(new Position(4, 2), new Position(4, 1), ',', '');
 		});
 	});
 
-	test('two elements array 1', () => {
-		testSmartSnippetInserter([
+	test('two ewements awway 1', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[',
 			'{},',
 			'{}',
 			']'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 2), new Position(2, 2), '', ',');
-			assert(new Position(3, 1), new Position(3, 1), '', ',');
-			assert(new Position(3, 2), new Position(3, 1), '', ',');
-			assert(new Position(3, 3), new Position(3, 3), ',', '');
-			assert(new Position(3, 4), new Position(3, 4), '', ',');
-			assert(new Position(4, 1), new Position(4, 1), '', ',');
-			assert(new Position(4, 2), new Position(4, 1), '', ',');
-			assert(new Position(4, 3), new Position(4, 3), ',', '');
-			assert(new Position(5, 1), new Position(5, 1), ',', '');
-			assert(new Position(5, 2), new Position(5, 1), ',', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 2), new Position(2, 2), '', ',');
+			assewt(new Position(3, 1), new Position(3, 1), '', ',');
+			assewt(new Position(3, 2), new Position(3, 1), '', ',');
+			assewt(new Position(3, 3), new Position(3, 3), ',', '');
+			assewt(new Position(3, 4), new Position(3, 4), '', ',');
+			assewt(new Position(4, 1), new Position(4, 1), '', ',');
+			assewt(new Position(4, 2), new Position(4, 1), '', ',');
+			assewt(new Position(4, 3), new Position(4, 3), ',', '');
+			assewt(new Position(5, 1), new Position(5, 1), ',', '');
+			assewt(new Position(5, 2), new Position(5, 1), ',', '');
 		});
 	});
 
-	test('two elements array 2', () => {
-		testSmartSnippetInserter([
+	test('two ewements awway 2', () => {
+		testSmawtSnippetInsewta([
 			'// just some text',
 			'[',
 			'{},{}',
 			']'
-		], (assert) => {
-			assert(new Position(1, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 1), new Position(2, 2), '', ',');
-			assert(new Position(2, 2), new Position(2, 2), '', ',');
-			assert(new Position(3, 1), new Position(3, 1), '', ',');
-			assert(new Position(3, 2), new Position(3, 1), '', ',');
-			assert(new Position(3, 3), new Position(3, 3), ',', '');
-			assert(new Position(3, 4), new Position(3, 4), '', ',');
-			assert(new Position(3, 5), new Position(3, 4), '', ',');
-			assert(new Position(3, 6), new Position(3, 6), ',', '');
-			assert(new Position(4, 1), new Position(4, 1), ',', '');
-			assert(new Position(4, 2), new Position(4, 1), ',', '');
+		], (assewt) => {
+			assewt(new Position(1, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 1), new Position(2, 2), '', ',');
+			assewt(new Position(2, 2), new Position(2, 2), '', ',');
+			assewt(new Position(3, 1), new Position(3, 1), '', ',');
+			assewt(new Position(3, 2), new Position(3, 1), '', ',');
+			assewt(new Position(3, 3), new Position(3, 3), ',', '');
+			assewt(new Position(3, 4), new Position(3, 4), '', ',');
+			assewt(new Position(3, 5), new Position(3, 4), '', ',');
+			assewt(new Position(3, 6), new Position(3, 6), ',', '');
+			assewt(new Position(4, 1), new Position(4, 1), ',', '');
+			assewt(new Position(4, 2), new Position(4, 1), ',', '');
 		});
 	});
 

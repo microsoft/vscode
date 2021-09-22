@@ -1,245 +1,245 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./dnd';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DragAndDropCommand } from 'vs/editor/contrib/dnd/dragAndDropCommand';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt 'vs/css!./dnd';
+impowt { ICodeEditow, IEditowMouseEvent, IMouseTawget, IPawtiawEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { DwagAndDwopCommand } fwom 'vs/editow/contwib/dnd/dwagAndDwopCommand';
 
-function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
+function hasTwiggewModifia(e: IKeyboawdEvent | IMouseEvent): boowean {
 	if (isMacintosh) {
-		return e.altKey;
-	} else {
-		return e.ctrlKey;
+		wetuwn e.awtKey;
+	} ewse {
+		wetuwn e.ctwwKey;
 	}
 }
 
-export class DragAndDropController extends Disposable implements IEditorContribution {
+expowt cwass DwagAndDwopContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.dragAndDrop';
+	pubwic static weadonwy ID = 'editow.contwib.dwagAndDwop';
 
-	private readonly _editor: ICodeEditor;
-	private _dragSelection: Selection | null;
-	private _dndDecorationIds: string[];
-	private _mouseDown: boolean;
-	private _modifierPressed: boolean;
-	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _dwagSewection: Sewection | nuww;
+	pwivate _dndDecowationIds: stwing[];
+	pwivate _mouseDown: boowean;
+	pwivate _modifiewPwessed: boowean;
+	static weadonwy TWIGGEW_KEY_VAWUE = isMacintosh ? KeyCode.Awt : KeyCode.Ctww;
 
-	static get(editor: ICodeEditor): DragAndDropController {
-		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
+	static get(editow: ICodeEditow): DwagAndDwopContwowwa {
+		wetuwn editow.getContwibution<DwagAndDwopContwowwa>(DwagAndDwopContwowwa.ID);
 	}
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this._editor = editor;
-		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
-		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
-		this._register(this._editor.onMouseDropCanceled(() => this._onEditorMouseDropCanceled()));
-		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
-		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
-		this._register(this._editor.onDidBlurEditorText(() => this.onEditorBlur()));
-		this._dndDecorationIds = [];
-		this._mouseDown = false;
-		this._modifierPressed = false;
-		this._dragSelection = null;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this._editow = editow;
+		this._wegista(this._editow.onMouseDown((e: IEditowMouseEvent) => this._onEditowMouseDown(e)));
+		this._wegista(this._editow.onMouseUp((e: IEditowMouseEvent) => this._onEditowMouseUp(e)));
+		this._wegista(this._editow.onMouseDwag((e: IEditowMouseEvent) => this._onEditowMouseDwag(e)));
+		this._wegista(this._editow.onMouseDwop((e: IPawtiawEditowMouseEvent) => this._onEditowMouseDwop(e)));
+		this._wegista(this._editow.onMouseDwopCancewed(() => this._onEditowMouseDwopCancewed()));
+		this._wegista(this._editow.onKeyDown((e: IKeyboawdEvent) => this.onEditowKeyDown(e)));
+		this._wegista(this._editow.onKeyUp((e: IKeyboawdEvent) => this.onEditowKeyUp(e)));
+		this._wegista(this._editow.onDidBwuwEditowWidget(() => this.onEditowBwuw()));
+		this._wegista(this._editow.onDidBwuwEditowText(() => this.onEditowBwuw()));
+		this._dndDecowationIds = [];
+		this._mouseDown = fawse;
+		this._modifiewPwessed = fawse;
+		this._dwagSewection = nuww;
 	}
 
-	private onEditorBlur() {
-		this._removeDecoration();
-		this._dragSelection = null;
-		this._mouseDown = false;
-		this._modifierPressed = false;
+	pwivate onEditowBwuw() {
+		this._wemoveDecowation();
+		this._dwagSewection = nuww;
+		this._mouseDown = fawse;
+		this._modifiewPwessed = fawse;
 	}
 
-	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
-			return;
+	pwivate onEditowKeyDown(e: IKeyboawdEvent): void {
+		if (!this._editow.getOption(EditowOption.dwagAndDwop) || this._editow.getOption(EditowOption.cowumnSewection)) {
+			wetuwn;
 		}
 
-		if (hasTriggerModifier(e)) {
-			this._modifierPressed = true;
+		if (hasTwiggewModifia(e)) {
+			this._modifiewPwessed = twue;
 		}
 
-		if (this._mouseDown && hasTriggerModifier(e)) {
-			this._editor.updateOptions({
-				mouseStyle: 'copy'
+		if (this._mouseDown && hasTwiggewModifia(e)) {
+			this._editow.updateOptions({
+				mouseStywe: 'copy'
 			});
 		}
 	}
 
-	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
-			return;
+	pwivate onEditowKeyUp(e: IKeyboawdEvent): void {
+		if (!this._editow.getOption(EditowOption.dwagAndDwop) || this._editow.getOption(EditowOption.cowumnSewection)) {
+			wetuwn;
 		}
 
-		if (hasTriggerModifier(e)) {
-			this._modifierPressed = false;
+		if (hasTwiggewModifia(e)) {
+			this._modifiewPwessed = fawse;
 		}
 
-		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
-			this._editor.updateOptions({
-				mouseStyle: 'default'
+		if (this._mouseDown && e.keyCode === DwagAndDwopContwowwa.TWIGGEW_KEY_VAWUE) {
+			this._editow.updateOptions({
+				mouseStywe: 'defauwt'
 			});
 		}
 	}
 
-	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		this._mouseDown = true;
+	pwivate _onEditowMouseDown(mouseEvent: IEditowMouseEvent): void {
+		this._mouseDown = twue;
 	}
 
-	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
-		this._mouseDown = false;
-		// Whenever users release the mouse, the drag and drop operation should finish and the cursor should revert to text.
-		this._editor.updateOptions({
-			mouseStyle: 'text'
+	pwivate _onEditowMouseUp(mouseEvent: IEditowMouseEvent): void {
+		this._mouseDown = fawse;
+		// Wheneva usews wewease the mouse, the dwag and dwop opewation shouwd finish and the cuwsow shouwd wevewt to text.
+		this._editow.updateOptions({
+			mouseStywe: 'text'
 		});
 	}
 
-	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
-		let target = mouseEvent.target;
+	pwivate _onEditowMouseDwag(mouseEvent: IEditowMouseEvent): void {
+		wet tawget = mouseEvent.tawget;
 
-		if (this._dragSelection === null) {
-			const selections = this._editor.getSelections() || [];
-			let possibleSelections = selections.filter(selection => target.position && selection.containsPosition(target.position));
-			if (possibleSelections.length === 1) {
-				this._dragSelection = possibleSelections[0];
-			} else {
-				return;
+		if (this._dwagSewection === nuww) {
+			const sewections = this._editow.getSewections() || [];
+			wet possibweSewections = sewections.fiwta(sewection => tawget.position && sewection.containsPosition(tawget.position));
+			if (possibweSewections.wength === 1) {
+				this._dwagSewection = possibweSewections[0];
+			} ewse {
+				wetuwn;
 			}
 		}
 
-		if (hasTriggerModifier(mouseEvent.event)) {
-			this._editor.updateOptions({
-				mouseStyle: 'copy'
+		if (hasTwiggewModifia(mouseEvent.event)) {
+			this._editow.updateOptions({
+				mouseStywe: 'copy'
 			});
-		} else {
-			this._editor.updateOptions({
-				mouseStyle: 'default'
+		} ewse {
+			this._editow.updateOptions({
+				mouseStywe: 'defauwt'
 			});
 		}
 
-		if (target.position) {
-			if (this._dragSelection.containsPosition(target.position)) {
-				this._removeDecoration();
-			} else {
-				this.showAt(target.position);
+		if (tawget.position) {
+			if (this._dwagSewection.containsPosition(tawget.position)) {
+				this._wemoveDecowation();
+			} ewse {
+				this.showAt(tawget.position);
 			}
 		}
 	}
 
-	private _onEditorMouseDropCanceled() {
-		this._editor.updateOptions({
-			mouseStyle: 'text'
+	pwivate _onEditowMouseDwopCancewed() {
+		this._editow.updateOptions({
+			mouseStywe: 'text'
 		});
 
-		this._removeDecoration();
-		this._dragSelection = null;
-		this._mouseDown = false;
+		this._wemoveDecowation();
+		this._dwagSewection = nuww;
+		this._mouseDown = fawse;
 	}
 
-	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
-		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
-			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
+	pwivate _onEditowMouseDwop(mouseEvent: IPawtiawEditowMouseEvent): void {
+		if (mouseEvent.tawget && (this._hitContent(mouseEvent.tawget) || this._hitMawgin(mouseEvent.tawget)) && mouseEvent.tawget.position) {
+			wet newCuwsowPosition = new Position(mouseEvent.tawget.position.wineNumba, mouseEvent.tawget.position.cowumn);
 
-			if (this._dragSelection === null) {
-				let newSelections: Selection[] | null = null;
+			if (this._dwagSewection === nuww) {
+				wet newSewections: Sewection[] | nuww = nuww;
 				if (mouseEvent.event.shiftKey) {
-					let primarySelection = this._editor.getSelection();
-					if (primarySelection) {
-						const { selectionStartLineNumber, selectionStartColumn } = primarySelection;
-						newSelections = [new Selection(selectionStartLineNumber, selectionStartColumn, newCursorPosition.lineNumber, newCursorPosition.column)];
+					wet pwimawySewection = this._editow.getSewection();
+					if (pwimawySewection) {
+						const { sewectionStawtWineNumba, sewectionStawtCowumn } = pwimawySewection;
+						newSewections = [new Sewection(sewectionStawtWineNumba, sewectionStawtCowumn, newCuwsowPosition.wineNumba, newCuwsowPosition.cowumn)];
 					}
-				} else {
-					newSelections = (this._editor.getSelections() || []).map(selection => {
-						if (selection.containsPosition(newCursorPosition)) {
-							return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
-						} else {
-							return selection;
+				} ewse {
+					newSewections = (this._editow.getSewections() || []).map(sewection => {
+						if (sewection.containsPosition(newCuwsowPosition)) {
+							wetuwn new Sewection(newCuwsowPosition.wineNumba, newCuwsowPosition.cowumn, newCuwsowPosition.wineNumba, newCuwsowPosition.cowumn);
+						} ewse {
+							wetuwn sewection;
 						}
 					});
 				}
-				// Use `mouse` as the source instead of `api` and setting the reason to explicit (to behave like any other mouse operation).
-				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse', CursorChangeReason.Explicit);
-			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
+				// Use `mouse` as the souwce instead of `api` and setting the weason to expwicit (to behave wike any otha mouse opewation).
+				(<CodeEditowWidget>this._editow).setSewections(newSewections || [], 'mouse', CuwsowChangeWeason.Expwicit);
+			} ewse if (!this._dwagSewection.containsPosition(newCuwsowPosition) ||
 				(
 					(
-						hasTriggerModifier(mouseEvent.event) ||
-						this._modifierPressed
+						hasTwiggewModifia(mouseEvent.event) ||
+						this._modifiewPwessed
 					) && (
-						this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
-					) // we allow users to paste content beside the selection
+						this._dwagSewection.getEndPosition().equaws(newCuwsowPosition) || this._dwagSewection.getStawtPosition().equaws(newCuwsowPosition)
+					) // we awwow usews to paste content beside the sewection
 				)) {
-				this._editor.pushUndoStop();
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, hasTriggerModifier(mouseEvent.event) || this._modifierPressed));
-				this._editor.pushUndoStop();
+				this._editow.pushUndoStop();
+				this._editow.executeCommand(DwagAndDwopContwowwa.ID, new DwagAndDwopCommand(this._dwagSewection, newCuwsowPosition, hasTwiggewModifia(mouseEvent.event) || this._modifiewPwessed));
+				this._editow.pushUndoStop();
 			}
 		}
 
-		this._editor.updateOptions({
-			mouseStyle: 'text'
+		this._editow.updateOptions({
+			mouseStywe: 'text'
 		});
 
-		this._removeDecoration();
-		this._dragSelection = null;
-		this._mouseDown = false;
+		this._wemoveDecowation();
+		this._dwagSewection = nuww;
+		this._mouseDown = fawse;
 	}
 
-	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
-		description: 'dnd-target',
-		className: 'dnd-target'
+	pwivate static weadonwy _DECOWATION_OPTIONS = ModewDecowationOptions.wegista({
+		descwiption: 'dnd-tawget',
+		cwassName: 'dnd-tawget'
 	});
 
-	public showAt(position: Position): void {
-		let newDecorations: IModelDeltaDecoration[] = [{
-			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			options: DragAndDropController._DECORATION_OPTIONS
+	pubwic showAt(position: Position): void {
+		wet newDecowations: IModewDewtaDecowation[] = [{
+			wange: new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn),
+			options: DwagAndDwopContwowwa._DECOWATION_OPTIONS
 		}];
 
-		this._dndDecorationIds = this._editor.deltaDecorations(this._dndDecorationIds, newDecorations);
-		this._editor.revealPosition(position, ScrollType.Immediate);
+		this._dndDecowationIds = this._editow.dewtaDecowations(this._dndDecowationIds, newDecowations);
+		this._editow.weveawPosition(position, ScwowwType.Immediate);
 	}
 
-	private _removeDecoration(): void {
-		this._dndDecorationIds = this._editor.deltaDecorations(this._dndDecorationIds, []);
+	pwivate _wemoveDecowation(): void {
+		this._dndDecowationIds = this._editow.dewtaDecowations(this._dndDecowationIds, []);
 	}
 
-	private _hitContent(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.CONTENT_TEXT ||
-			target.type === MouseTargetType.CONTENT_EMPTY;
+	pwivate _hitContent(tawget: IMouseTawget): boowean {
+		wetuwn tawget.type === MouseTawgetType.CONTENT_TEXT ||
+			tawget.type === MouseTawgetType.CONTENT_EMPTY;
 	}
 
-	private _hitMargin(target: IMouseTarget): boolean {
-		return target.type === MouseTargetType.GUTTER_GLYPH_MARGIN ||
-			target.type === MouseTargetType.GUTTER_LINE_NUMBERS ||
-			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
+	pwivate _hitMawgin(tawget: IMouseTawget): boowean {
+		wetuwn tawget.type === MouseTawgetType.GUTTEW_GWYPH_MAWGIN ||
+			tawget.type === MouseTawgetType.GUTTEW_WINE_NUMBEWS ||
+			tawget.type === MouseTawgetType.GUTTEW_WINE_DECOWATIONS;
 	}
 
-	public override dispose(): void {
-		this._removeDecoration();
-		this._dragSelection = null;
-		this._mouseDown = false;
-		this._modifierPressed = false;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._wemoveDecowation();
+		this._dwagSewection = nuww;
+		this._mouseDown = fawse;
+		this._modifiewPwessed = fawse;
+		supa.dispose();
 	}
 }
 
-registerEditorContribution(DragAndDropController.ID, DragAndDropController);
+wegistewEditowContwibution(DwagAndDwopContwowwa.ID, DwagAndDwopContwowwa);

@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-xml",
-					"repositoryUrl": "https://github.com/atom/language-xml",
+					"name": "atom/wanguage-xmw",
+					"wepositowyUww": "https://github.com/atom/wanguage-xmw",
 					"commitHash": "7bc75dfe779ad5b35d9bf4013d9181864358cb49"
 				}
 			},
-			"license": "MIT",
-			"description": "The files syntaxes/xml.json and syntaxes/xsl.json were derived from the Atom package https://github.com/atom/language-xml which were originally converted from the TextMate bundle https://github.com/textmate/xml.tmbundle.",
-			"version": "0.35.2"
+			"wicense": "MIT",
+			"descwiption": "The fiwes syntaxes/xmw.json and syntaxes/xsw.json wewe dewived fwom the Atom package https://github.com/atom/wanguage-xmw which wewe owiginawwy convewted fwom the TextMate bundwe https://github.com/textmate/xmw.tmbundwe.",
+			"vewsion": "0.35.2"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

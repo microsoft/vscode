@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
+impowt * as nws fwom 'vs/nws';
+impowt { ExtensionsWegistwy, IExtensionPoint } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { wanguagesExtPoint } fwom 'vs/wowkbench/sewvices/mode/common/wowkbenchModeSewvice';
 
-export interface IEmbeddedLanguagesMap {
-	[scopeName: string]: string;
+expowt intewface IEmbeddedWanguagesMap {
+	[scopeName: stwing]: stwing;
 }
 
-export interface TokenTypesContribution {
-	[scopeName: string]: string;
+expowt intewface TokenTypesContwibution {
+	[scopeName: stwing]: stwing;
 }
 
-export interface ITMSyntaxExtensionPoint {
-	language: string;
-	scopeName: string;
-	path: string;
-	embeddedLanguages: IEmbeddedLanguagesMap;
-	tokenTypes: TokenTypesContribution;
-	injectTo: string[];
+expowt intewface ITMSyntaxExtensionPoint {
+	wanguage: stwing;
+	scopeName: stwing;
+	path: stwing;
+	embeddedWanguages: IEmbeddedWanguagesMap;
+	tokenTypes: TokenTypesContwibution;
+	injectTo: stwing[];
 }
 
-export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ITMSyntaxExtensionPoint[]>({
-	extensionPoint: 'grammars',
-	deps: [languagesExtPoint],
+expowt const gwammawsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = ExtensionsWegistwy.wegistewExtensionPoint<ITMSyntaxExtensionPoint[]>({
+	extensionPoint: 'gwammaws',
+	deps: [wanguagesExtPoint],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.grammars', 'Contributes textmate tokenizers.'),
-		type: 'array',
-		defaultSnippets: [{ body: [{ language: '${1:id}', scopeName: 'source.${2:id}', path: './syntaxes/${3:id}.tmLanguage.' }] }],
+		descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws', 'Contwibutes textmate tokenizews.'),
+		type: 'awway',
+		defauwtSnippets: [{ body: [{ wanguage: '${1:id}', scopeName: 'souwce.${2:id}', path: './syntaxes/${3:id}.tmWanguage.' }] }],
 		items: {
 			type: 'object',
-			defaultSnippets: [{ body: { language: '${1:id}', scopeName: 'source.${2:id}', path: './syntaxes/${3:id}.tmLanguage.' } }],
-			properties: {
-				language: {
-					description: nls.localize('vscode.extension.contributes.grammars.language', 'Language identifier for which this syntax is contributed to.'),
-					type: 'string'
+			defauwtSnippets: [{ body: { wanguage: '${1:id}', scopeName: 'souwce.${2:id}', path: './syntaxes/${3:id}.tmWanguage.' } }],
+			pwopewties: {
+				wanguage: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.wanguage', 'Wanguage identifia fow which this syntax is contwibuted to.'),
+					type: 'stwing'
 				},
 				scopeName: {
-					description: nls.localize('vscode.extension.contributes.grammars.scopeName', 'Textmate scope name used by the tmLanguage file.'),
-					type: 'string'
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.scopeName', 'Textmate scope name used by the tmWanguage fiwe.'),
+					type: 'stwing'
 				},
 				path: {
-					description: nls.localize('vscode.extension.contributes.grammars.path', 'Path of the tmLanguage file. The path is relative to the extension folder and typically starts with \'./syntaxes/\'.'),
-					type: 'string'
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.path', 'Path of the tmWanguage fiwe. The path is wewative to the extension fowda and typicawwy stawts with \'./syntaxes/\'.'),
+					type: 'stwing'
 				},
-				embeddedLanguages: {
-					description: nls.localize('vscode.extension.contributes.grammars.embeddedLanguages', 'A map of scope name to language id if this grammar contains embedded languages.'),
+				embeddedWanguages: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.embeddedWanguages', 'A map of scope name to wanguage id if this gwammaw contains embedded wanguages.'),
 					type: 'object'
 				},
 				tokenTypes: {
-					description: nls.localize('vscode.extension.contributes.grammars.tokenTypes', 'A map of scope name to token types.'),
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.tokenTypes', 'A map of scope name to token types.'),
 					type: 'object',
-					additionalProperties: {
-						enum: ['string', 'comment', 'other']
+					additionawPwopewties: {
+						enum: ['stwing', 'comment', 'otha']
 					}
 				},
 				injectTo: {
-					description: nls.localize('vscode.extension.contributes.grammars.injectTo', 'List of language scope names to which this grammar is injected to.'),
-					type: 'array',
+					descwiption: nws.wocawize('vscode.extension.contwibutes.gwammaws.injectTo', 'Wist of wanguage scope names to which this gwammaw is injected to.'),
+					type: 'awway',
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				}
 			},
-			required: ['scopeName', 'path']
+			wequiwed: ['scopeName', 'path']
 		}
 	}
 });

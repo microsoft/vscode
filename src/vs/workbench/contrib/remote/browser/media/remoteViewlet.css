@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item {
-	display: flex;
+.wemote-hewp-content .monaco-wist .monaco-wist-wow .wemote-hewp-twee-node-item {
+	dispway: fwex;
 	height: 22px;
-	line-height: 22px;
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	flex-wrap: nowrap;
+	wine-height: 22px;
+	fwex: 1;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	fwex-wwap: nowwap;
 }
 
-.remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item>.remote-help-tree-node-item-icon {
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-	padding-right: 6px;
+.wemote-hewp-content .monaco-wist .monaco-wist-wow .wemote-hewp-twee-node-item>.wemote-hewp-twee-node-item-icon {
+	backgwound-size: 16px;
+	backgwound-position: weft centa;
+	backgwound-wepeat: no-wepeat;
+	padding-wight: 6px;
 	padding-top: 3px;
 	width: 16px;
 	height: 22px;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
 }
 
-.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
-	width: 0px !important;
+.wemote-hewp-content .monaco-wist .monaco-wist-wow .monaco-tw-twistie {
+	width: 0px !impowtant;
 }
 
-.remote-help-tree-node-item-icon .monaco-icon-label-container > .monaco-icon-name-container {
-	padding-left: 22px;
+.wemote-hewp-twee-node-item-icon .monaco-icon-wabew-containa > .monaco-icon-name-containa {
+	padding-weft: 22px;
 }
 
-.remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
-	width: 0px !important;
+.wemote-hewp-content .monaco-wist .monaco-wist-wow .monaco-tw-twistie {
+	width: 0px !impowtant;
 }
 
-.monaco-workbench .part > .title > .title-actions .switch-remote {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .pawt > .titwe > .titwe-actions .switch-wemote {
+	dispway: fwex;
+	awign-items: centa;
 	font-size: 11px;
-	margin-right: 0.3em;
+	mawgin-wight: 0.3em;
 	height: 20px;
-	flex-shrink: 1;
+	fwex-shwink: 1;
 }
 
-.monaco-workbench.mac .part > .title > .title-actions .switch-remote {
-	border-radius: 4px;
+.monaco-wowkbench.mac .pawt > .titwe > .titwe-actions .switch-wemote {
+	bowda-wadius: 4px;
 }
 
-.switch-remote > .monaco-select-box {
-	border: none;
-	display: block;
+.switch-wemote > .monaco-sewect-box {
+	bowda: none;
+	dispway: bwock;
 }
 
-.monaco-workbench .part > .title > .title-actions .switch-remote > .monaco-select-box {
+.monaco-wowkbench .pawt > .titwe > .titwe-actions .switch-wemote > .monaco-sewect-box {
 	padding: 1px 22px 2px 6px;
 }

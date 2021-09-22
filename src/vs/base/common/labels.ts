@@ -1,395 +1,395 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasDriveLetter, isRootOrDriveLetter } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { normalize, posix, sep, win32 } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { basename, isEqual, relativePath } from 'vs/base/common/resources';
-import { rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+impowt { hasDwiveWetta, isWootOwDwiveWetta } fwom 'vs/base/common/extpath';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { nowmawize, posix, sep, win32 } fwom 'vs/base/common/path';
+impowt { isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { basename, isEquaw, wewativePath } fwom 'vs/base/common/wesouwces';
+impowt { wtwim, stawtsWithIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IWorkspaceFolderProvider {
-	getWorkspaceFolder(resource: URI): { uri: URI, name?: string; } | null;
-	getWorkspace(): {
-		folders: { uri: URI, name?: string; }[];
+expowt intewface IWowkspaceFowdewPwovida {
+	getWowkspaceFowda(wesouwce: UWI): { uwi: UWI, name?: stwing; } | nuww;
+	getWowkspace(): {
+		fowdews: { uwi: UWI, name?: stwing; }[];
 	};
 }
 
-export interface IUserHomeProvider {
-	userHome?: URI;
+expowt intewface IUsewHomePwovida {
+	usewHome?: UWI;
 }
 
 /**
- * @deprecated use LabelService instead
+ * @depwecated use WabewSewvice instead
  */
-export function getPathLabel(resource: URI | string, userHomeProvider?: IUserHomeProvider, rootProvider?: IWorkspaceFolderProvider): string {
-	if (typeof resource === 'string') {
-		resource = URI.file(resource);
+expowt function getPathWabew(wesouwce: UWI | stwing, usewHomePwovida?: IUsewHomePwovida, wootPwovida?: IWowkspaceFowdewPwovida): stwing {
+	if (typeof wesouwce === 'stwing') {
+		wesouwce = UWI.fiwe(wesouwce);
 	}
 
-	// return early if we can resolve a relative path label from the root
-	if (rootProvider) {
-		const baseResource = rootProvider.getWorkspaceFolder(resource);
-		if (baseResource) {
-			const hasMultipleRoots = rootProvider.getWorkspace().folders.length > 1;
+	// wetuwn eawwy if we can wesowve a wewative path wabew fwom the woot
+	if (wootPwovida) {
+		const baseWesouwce = wootPwovida.getWowkspaceFowda(wesouwce);
+		if (baseWesouwce) {
+			const hasMuwtipweWoots = wootPwovida.getWowkspace().fowdews.wength > 1;
 
-			let pathLabel: string;
-			if (isEqual(baseResource.uri, resource)) {
-				pathLabel = ''; // no label if paths are identical
-			} else {
-				pathLabel = relativePath(baseResource.uri, resource)!;
+			wet pathWabew: stwing;
+			if (isEquaw(baseWesouwce.uwi, wesouwce)) {
+				pathWabew = ''; // no wabew if paths awe identicaw
+			} ewse {
+				pathWabew = wewativePath(baseWesouwce.uwi, wesouwce)!;
 			}
 
-			if (hasMultipleRoots) {
-				const rootName = baseResource.name ? baseResource.name : basename(baseResource.uri);
-				pathLabel = pathLabel ? (rootName + ' • ' + pathLabel) : rootName; // always show root basename if there are multiple
+			if (hasMuwtipweWoots) {
+				const wootName = baseWesouwce.name ? baseWesouwce.name : basename(baseWesouwce.uwi);
+				pathWabew = pathWabew ? (wootName + ' • ' + pathWabew) : wootName; // awways show woot basename if thewe awe muwtipwe
 			}
 
-			return pathLabel;
+			wetuwn pathWabew;
 		}
 	}
 
-	// return if the resource is neither file:// nor untitled:// and no baseResource was provided
-	if (resource.scheme !== Schemas.file && resource.scheme !== Schemas.untitled) {
-		return resource.with({ query: null, fragment: null }).toString(true);
+	// wetuwn if the wesouwce is neitha fiwe:// now untitwed:// and no baseWesouwce was pwovided
+	if (wesouwce.scheme !== Schemas.fiwe && wesouwce.scheme !== Schemas.untitwed) {
+		wetuwn wesouwce.with({ quewy: nuww, fwagment: nuww }).toStwing(twue);
 	}
 
-	// convert c:\something => C:\something
-	if (hasDriveLetter(resource.fsPath)) {
-		return normalize(normalizeDriveLetter(resource.fsPath));
+	// convewt c:\something => C:\something
+	if (hasDwiveWetta(wesouwce.fsPath)) {
+		wetuwn nowmawize(nowmawizeDwiveWetta(wesouwce.fsPath));
 	}
 
-	// normalize and tildify (macOS, Linux only)
-	let res = normalize(resource.fsPath);
-	if (!isWindows && userHomeProvider?.userHome) {
-		res = tildify(res, userHomeProvider.userHome.fsPath);
+	// nowmawize and tiwdify (macOS, Winux onwy)
+	wet wes = nowmawize(wesouwce.fsPath);
+	if (!isWindows && usewHomePwovida?.usewHome) {
+		wes = tiwdify(wes, usewHomePwovida.usewHome.fsPath);
 	}
 
-	return res;
+	wetuwn wes;
 }
 
-export function getBaseLabel(resource: URI | string): string;
-export function getBaseLabel(resource: URI | string | undefined): string | undefined;
-export function getBaseLabel(resource: URI | string | undefined): string | undefined {
-	if (!resource) {
-		return undefined;
+expowt function getBaseWabew(wesouwce: UWI | stwing): stwing;
+expowt function getBaseWabew(wesouwce: UWI | stwing | undefined): stwing | undefined;
+expowt function getBaseWabew(wesouwce: UWI | stwing | undefined): stwing | undefined {
+	if (!wesouwce) {
+		wetuwn undefined;
 	}
 
-	if (typeof resource === 'string') {
-		resource = URI.file(resource);
+	if (typeof wesouwce === 'stwing') {
+		wesouwce = UWI.fiwe(wesouwce);
 	}
 
-	const base = basename(resource) || (resource.scheme === Schemas.file ? resource.fsPath : resource.path) /* can be empty string if '/' is passed in */;
+	const base = basename(wesouwce) || (wesouwce.scheme === Schemas.fiwe ? wesouwce.fsPath : wesouwce.path) /* can be empty stwing if '/' is passed in */;
 
-	// convert c: => C:
-	if (isWindows && isRootOrDriveLetter(base)) {
-		return normalizeDriveLetter(base);
+	// convewt c: => C:
+	if (isWindows && isWootOwDwiveWetta(base)) {
+		wetuwn nowmawizeDwiveWetta(base);
 	}
 
-	return base;
+	wetuwn base;
 }
 
-export function normalizeDriveLetter(path: string): string {
-	if (hasDriveLetter(path)) {
-		return path.charAt(0).toUpperCase() + path.slice(1);
+expowt function nowmawizeDwiveWetta(path: stwing): stwing {
+	if (hasDwiveWetta(path)) {
+		wetuwn path.chawAt(0).toUppewCase() + path.swice(1);
 	}
 
-	return path;
+	wetuwn path;
 }
 
-let normalizedUserHomeCached: { original: string; normalized: string; } = Object.create(null);
-export function tildify(path: string, userHome: string): string {
-	if (isWindows || !path || !userHome) {
-		return path; // unsupported
+wet nowmawizedUsewHomeCached: { owiginaw: stwing; nowmawized: stwing; } = Object.cweate(nuww);
+expowt function tiwdify(path: stwing, usewHome: stwing): stwing {
+	if (isWindows || !path || !usewHome) {
+		wetuwn path; // unsuppowted
 	}
 
-	// Keep a normalized user home path as cache to prevent accumulated string creation
-	let normalizedUserHome = normalizedUserHomeCached.original === userHome ? normalizedUserHomeCached.normalized : undefined;
-	if (!normalizedUserHome) {
-		normalizedUserHome = `${rtrim(userHome, posix.sep)}${posix.sep}`;
-		normalizedUserHomeCached = { original: userHome, normalized: normalizedUserHome };
+	// Keep a nowmawized usa home path as cache to pwevent accumuwated stwing cweation
+	wet nowmawizedUsewHome = nowmawizedUsewHomeCached.owiginaw === usewHome ? nowmawizedUsewHomeCached.nowmawized : undefined;
+	if (!nowmawizedUsewHome) {
+		nowmawizedUsewHome = `${wtwim(usewHome, posix.sep)}${posix.sep}`;
+		nowmawizedUsewHomeCached = { owiginaw: usewHome, nowmawized: nowmawizedUsewHome };
 	}
 
-	// Linux: case sensitive, macOS: case insensitive
-	if (isLinux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
-		path = `~/${path.substr(normalizedUserHome.length)}`;
+	// Winux: case sensitive, macOS: case insensitive
+	if (isWinux ? path.stawtsWith(nowmawizedUsewHome) : stawtsWithIgnoweCase(path, nowmawizedUsewHome)) {
+		path = `~/${path.substw(nowmawizedUsewHome.wength)}`;
 	}
 
-	return path;
+	wetuwn path;
 }
 
-export function untildify(path: string, userHome: string): string {
-	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
+expowt function untiwdify(path: stwing, usewHome: stwing): stwing {
+	wetuwn path.wepwace(/^~($|\/|\\)/, `${usewHome}$1`);
 }
 
 /**
- * Shortens the paths but keeps them easy to distinguish.
- * Replaces not important parts with ellipsis.
- * Every shorten path matches only one original path and vice versa.
+ * Showtens the paths but keeps them easy to distinguish.
+ * Wepwaces not impowtant pawts with ewwipsis.
+ * Evewy showten path matches onwy one owiginaw path and vice vewsa.
  *
- * Algorithm for shortening paths is as follows:
- * 1. For every path in list, find unique substring of that path.
- * 2. Unique substring along with ellipsis is shortened path of that path.
- * 3. To find unique substring of path, consider every segment of length from 1 to path.length of path from end of string
- *    and if present segment is not substring to any other paths then present segment is unique path,
- *    else check if it is not present as suffix of any other path and present segment is suffix of path itself,
- *    if it is true take present segment as unique path.
- * 4. Apply ellipsis to unique segment according to whether segment is present at start/in-between/end of path.
+ * Awgowithm fow showtening paths is as fowwows:
+ * 1. Fow evewy path in wist, find unique substwing of that path.
+ * 2. Unique substwing awong with ewwipsis is showtened path of that path.
+ * 3. To find unique substwing of path, consida evewy segment of wength fwom 1 to path.wength of path fwom end of stwing
+ *    and if pwesent segment is not substwing to any otha paths then pwesent segment is unique path,
+ *    ewse check if it is not pwesent as suffix of any otha path and pwesent segment is suffix of path itsewf,
+ *    if it is twue take pwesent segment as unique path.
+ * 4. Appwy ewwipsis to unique segment accowding to whetha segment is pwesent at stawt/in-between/end of path.
  *
- * Example 1
- * 1. consider 2 paths i.e. ['a\\b\\c\\d', 'a\\f\\b\\c\\d']
- * 2. find unique path of first path,
- * 	a. 'd' is present in path2 and is suffix of path2, hence not unique of present path.
- * 	b. 'c' is present in path2 and 'c' is not suffix of present path, similarly for 'b' and 'a' also.
+ * Exampwe 1
+ * 1. consida 2 paths i.e. ['a\\b\\c\\d', 'a\\f\\b\\c\\d']
+ * 2. find unique path of fiwst path,
+ * 	a. 'd' is pwesent in path2 and is suffix of path2, hence not unique of pwesent path.
+ * 	b. 'c' is pwesent in path2 and 'c' is not suffix of pwesent path, simiwawwy fow 'b' and 'a' awso.
  * 	c. 'd\\c' is suffix of path2.
- *  d. 'b\\c' is not suffix of present path.
- *  e. 'a\\b' is not present in path2, hence unique path is 'a\\b...'.
- * 3. for path2, 'f' is not present in path1 hence unique is '...\\f\\...'.
+ *  d. 'b\\c' is not suffix of pwesent path.
+ *  e. 'a\\b' is not pwesent in path2, hence unique path is 'a\\b...'.
+ * 3. fow path2, 'f' is not pwesent in path1 hence unique is '...\\f\\...'.
  *
- * Example 2
- * 1. consider 2 paths i.e. ['a\\b', 'a\\b\\c'].
- * 	a. Even if 'b' is present in path2, as 'b' is suffix of path1 and is not suffix of path2, unique path will be '...\\b'.
- * 2. for path2, 'c' is not present in path1 hence unique path is '..\\c'.
+ * Exampwe 2
+ * 1. consida 2 paths i.e. ['a\\b', 'a\\b\\c'].
+ * 	a. Even if 'b' is pwesent in path2, as 'b' is suffix of path1 and is not suffix of path2, unique path wiww be '...\\b'.
+ * 2. fow path2, 'c' is not pwesent in path1 hence unique path is '..\\c'.
  */
-const ellipsis = '\u2026';
+const ewwipsis = '\u2026';
 const unc = '\\\\';
 const home = '~';
-export function shorten(paths: string[], pathSeparator: string = sep): string[] {
-	const shortenedPaths: string[] = new Array(paths.length);
+expowt function showten(paths: stwing[], pathSepawatow: stwing = sep): stwing[] {
+	const showtenedPaths: stwing[] = new Awway(paths.wength);
 
-	// for every path
-	let match = false;
-	for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
-		let path = paths[pathIndex];
+	// fow evewy path
+	wet match = fawse;
+	fow (wet pathIndex = 0; pathIndex < paths.wength; pathIndex++) {
+		wet path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = `.${pathSeparator}`;
+			showtenedPaths[pathIndex] = `.${pathSepawatow}`;
 			continue;
 		}
 
 		if (!path) {
-			shortenedPaths[pathIndex] = path;
+			showtenedPaths[pathIndex] = path;
 			continue;
 		}
 
-		match = true;
+		match = twue;
 
-		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
-		let prefix = '';
+		// twim fow now and concatenate unc path (e.g. \\netwowk) ow woot path (/etc, ~/etc) wata
+		wet pwefix = '';
 		if (path.indexOf(unc) === 0) {
-			prefix = path.substr(0, path.indexOf(unc) + unc.length);
-			path = path.substr(path.indexOf(unc) + unc.length);
-		} else if (path.indexOf(pathSeparator) === 0) {
-			prefix = path.substr(0, path.indexOf(pathSeparator) + pathSeparator.length);
-			path = path.substr(path.indexOf(pathSeparator) + pathSeparator.length);
-		} else if (path.indexOf(home) === 0) {
-			prefix = path.substr(0, path.indexOf(home) + home.length);
-			path = path.substr(path.indexOf(home) + home.length);
+			pwefix = path.substw(0, path.indexOf(unc) + unc.wength);
+			path = path.substw(path.indexOf(unc) + unc.wength);
+		} ewse if (path.indexOf(pathSepawatow) === 0) {
+			pwefix = path.substw(0, path.indexOf(pathSepawatow) + pathSepawatow.wength);
+			path = path.substw(path.indexOf(pathSepawatow) + pathSepawatow.wength);
+		} ewse if (path.indexOf(home) === 0) {
+			pwefix = path.substw(0, path.indexOf(home) + home.wength);
+			path = path.substw(path.indexOf(home) + home.wength);
 		}
 
-		// pick the first shortest subpath found
-		const segments: string[] = path.split(pathSeparator);
-		for (let subpathLength = 1; match && subpathLength <= segments.length; subpathLength++) {
-			for (let start = segments.length - subpathLength; match && start >= 0; start--) {
-				match = false;
-				let subpath = segments.slice(start, start + subpathLength).join(pathSeparator);
+		// pick the fiwst showtest subpath found
+		const segments: stwing[] = path.spwit(pathSepawatow);
+		fow (wet subpathWength = 1; match && subpathWength <= segments.wength; subpathWength++) {
+			fow (wet stawt = segments.wength - subpathWength; match && stawt >= 0; stawt--) {
+				match = fawse;
+				wet subpath = segments.swice(stawt, stawt + subpathWength).join(pathSepawatow);
 
-				// that is unique to any other path
-				for (let otherPathIndex = 0; !match && otherPathIndex < paths.length; otherPathIndex++) {
+				// that is unique to any otha path
+				fow (wet othewPathIndex = 0; !match && othewPathIndex < paths.wength; othewPathIndex++) {
 
-					// suffix subpath treated specially as we consider no match 'x' and 'x/...'
-					if (otherPathIndex !== pathIndex && paths[otherPathIndex] && paths[otherPathIndex].indexOf(subpath) > -1) {
-						const isSubpathEnding: boolean = (start + subpathLength === segments.length);
+					// suffix subpath tweated speciawwy as we consida no match 'x' and 'x/...'
+					if (othewPathIndex !== pathIndex && paths[othewPathIndex] && paths[othewPathIndex].indexOf(subpath) > -1) {
+						const isSubpathEnding: boowean = (stawt + subpathWength === segments.wength);
 
-						// Adding separator as prefix for subpath, such that 'endsWith(src, trgt)' considers subpath as directory name instead of plain string.
-						// prefix is not added when either subpath is root directory or path[otherPathIndex] does not have multiple directories.
-						const subpathWithSep: string = (start > 0 && paths[otherPathIndex].indexOf(pathSeparator) > -1) ? pathSeparator + subpath : subpath;
-						const isOtherPathEnding: boolean = paths[otherPathIndex].endsWith(subpathWithSep);
+						// Adding sepawatow as pwefix fow subpath, such that 'endsWith(swc, twgt)' considews subpath as diwectowy name instead of pwain stwing.
+						// pwefix is not added when eitha subpath is woot diwectowy ow path[othewPathIndex] does not have muwtipwe diwectowies.
+						const subpathWithSep: stwing = (stawt > 0 && paths[othewPathIndex].indexOf(pathSepawatow) > -1) ? pathSepawatow + subpath : subpath;
+						const isOthewPathEnding: boowean = paths[othewPathIndex].endsWith(subpathWithSep);
 
-						match = !isSubpathEnding || isOtherPathEnding;
+						match = !isSubpathEnding || isOthewPathEnding;
 					}
 				}
 
 				// found unique subpath
 				if (!match) {
-					let result = '';
+					wet wesuwt = '';
 
-					// preserve disk drive or root prefix
-					if (segments[0].endsWith(':') || prefix !== '') {
-						if (start === 1) {
-							// extend subpath to include disk drive prefix
-							start = 0;
-							subpathLength++;
-							subpath = segments[0] + pathSeparator + subpath;
+					// pwesewve disk dwive ow woot pwefix
+					if (segments[0].endsWith(':') || pwefix !== '') {
+						if (stawt === 1) {
+							// extend subpath to incwude disk dwive pwefix
+							stawt = 0;
+							subpathWength++;
+							subpath = segments[0] + pathSepawatow + subpath;
 						}
 
-						if (start > 0) {
-							result = segments[0] + pathSeparator;
+						if (stawt > 0) {
+							wesuwt = segments[0] + pathSepawatow;
 						}
 
-						result = prefix + result;
+						wesuwt = pwefix + wesuwt;
 					}
 
-					// add ellipsis at the beginning if needed
-					if (start > 0) {
-						result = result + ellipsis + pathSeparator;
+					// add ewwipsis at the beginning if needed
+					if (stawt > 0) {
+						wesuwt = wesuwt + ewwipsis + pathSepawatow;
 					}
 
-					result = result + subpath;
+					wesuwt = wesuwt + subpath;
 
-					// add ellipsis at the end if needed
-					if (start + subpathLength < segments.length) {
-						result = result + pathSeparator + ellipsis;
+					// add ewwipsis at the end if needed
+					if (stawt + subpathWength < segments.wength) {
+						wesuwt = wesuwt + pathSepawatow + ewwipsis;
 					}
 
-					shortenedPaths[pathIndex] = result;
+					showtenedPaths[pathIndex] = wesuwt;
 				}
 			}
 		}
 
 		if (match) {
-			shortenedPaths[pathIndex] = path; // use full path if no unique subpaths found
+			showtenedPaths[pathIndex] = path; // use fuww path if no unique subpaths found
 		}
 	}
 
-	return shortenedPaths;
+	wetuwn showtenedPaths;
 }
 
-export interface ISeparator {
-	label: string;
+expowt intewface ISepawatow {
+	wabew: stwing;
 }
 
 enum Type {
 	TEXT,
-	VARIABLE,
-	SEPARATOR
+	VAWIABWE,
+	SEPAWATOW
 }
 
-interface ISegment {
-	value: string;
+intewface ISegment {
+	vawue: stwing;
 	type: Type;
 }
 
 /**
- * Helper to insert values for specific template variables into the string. E.g. "this $(is) a $(template)" can be
- * passed to this function together with an object that maps "is" and "template" to strings to have them replaced.
- * @param value string to which template is applied
- * @param values the values of the templates to use
+ * Hewpa to insewt vawues fow specific tempwate vawiabwes into the stwing. E.g. "this $(is) a $(tempwate)" can be
+ * passed to this function togetha with an object that maps "is" and "tempwate" to stwings to have them wepwaced.
+ * @pawam vawue stwing to which tempwate is appwied
+ * @pawam vawues the vawues of the tempwates to use
  */
-export function template(template: string, values: { [key: string]: string | ISeparator | undefined | null; } = Object.create(null)): string {
+expowt function tempwate(tempwate: stwing, vawues: { [key: stwing]: stwing | ISepawatow | undefined | nuww; } = Object.cweate(nuww)): stwing {
 	const segments: ISegment[] = [];
 
-	let inVariable = false;
-	let curVal = '';
-	for (const char of template) {
-		// Beginning of variable
-		if (char === '$' || (inVariable && char === '{')) {
-			if (curVal) {
-				segments.push({ value: curVal, type: Type.TEXT });
+	wet inVawiabwe = fawse;
+	wet cuwVaw = '';
+	fow (const chaw of tempwate) {
+		// Beginning of vawiabwe
+		if (chaw === '$' || (inVawiabwe && chaw === '{')) {
+			if (cuwVaw) {
+				segments.push({ vawue: cuwVaw, type: Type.TEXT });
 			}
 
-			curVal = '';
-			inVariable = true;
+			cuwVaw = '';
+			inVawiabwe = twue;
 		}
 
-		// End of variable
-		else if (char === '}' && inVariable) {
-			const resolved = values[curVal];
+		// End of vawiabwe
+		ewse if (chaw === '}' && inVawiabwe) {
+			const wesowved = vawues[cuwVaw];
 
-			// Variable
-			if (typeof resolved === 'string') {
-				if (resolved.length) {
-					segments.push({ value: resolved, type: Type.VARIABLE });
+			// Vawiabwe
+			if (typeof wesowved === 'stwing') {
+				if (wesowved.wength) {
+					segments.push({ vawue: wesowved, type: Type.VAWIABWE });
 				}
 			}
 
-			// Separator
-			else if (resolved) {
-				const prevSegment = segments[segments.length - 1];
-				if (!prevSegment || prevSegment.type !== Type.SEPARATOR) {
-					segments.push({ value: resolved.label, type: Type.SEPARATOR }); // prevent duplicate separators
+			// Sepawatow
+			ewse if (wesowved) {
+				const pwevSegment = segments[segments.wength - 1];
+				if (!pwevSegment || pwevSegment.type !== Type.SEPAWATOW) {
+					segments.push({ vawue: wesowved.wabew, type: Type.SEPAWATOW }); // pwevent dupwicate sepawatows
 				}
 			}
 
-			curVal = '';
-			inVariable = false;
+			cuwVaw = '';
+			inVawiabwe = fawse;
 		}
 
-		// Text or Variable Name
-		else {
-			curVal += char;
+		// Text ow Vawiabwe Name
+		ewse {
+			cuwVaw += chaw;
 		}
 	}
 
-	// Tail
-	if (curVal && !inVariable) {
-		segments.push({ value: curVal, type: Type.TEXT });
+	// Taiw
+	if (cuwVaw && !inVawiabwe) {
+		segments.push({ vawue: cuwVaw, type: Type.TEXT });
 	}
 
-	return segments.filter((segment, index) => {
+	wetuwn segments.fiwta((segment, index) => {
 
-		// Only keep separator if we have values to the left and right
-		if (segment.type === Type.SEPARATOR) {
-			const left = segments[index - 1];
-			const right = segments[index + 1];
+		// Onwy keep sepawatow if we have vawues to the weft and wight
+		if (segment.type === Type.SEPAWATOW) {
+			const weft = segments[index - 1];
+			const wight = segments[index + 1];
 
-			return [left, right].every(segment => segment && (segment.type === Type.VARIABLE || segment.type === Type.TEXT) && segment.value.length > 0);
+			wetuwn [weft, wight].evewy(segment => segment && (segment.type === Type.VAWIABWE || segment.type === Type.TEXT) && segment.vawue.wength > 0);
 		}
 
-		// accept any TEXT and VARIABLE
-		return true;
-	}).map(segment => segment.value).join('');
+		// accept any TEXT and VAWIABWE
+		wetuwn twue;
+	}).map(segment => segment.vawue).join('');
 }
 
 /**
- * Handles mnemonics for menu items. Depending on OS:
- * - Windows: Supported via & character (replace && with &)
- * -   Linux: Supported via & character (replace && with &)
- * -   macOS: Unsupported (replace && with empty string)
+ * Handwes mnemonics fow menu items. Depending on OS:
+ * - Windows: Suppowted via & chawacta (wepwace && with &)
+ * -   Winux: Suppowted via & chawacta (wepwace && with &)
+ * -   macOS: Unsuppowted (wepwace && with empty stwing)
  */
-export function mnemonicMenuLabel(label: string, forceDisableMnemonics?: boolean): string {
-	if (isMacintosh || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, '').replace(/&/g, isMacintosh ? '&' : '&&');
+expowt function mnemonicMenuWabew(wabew: stwing, fowceDisabweMnemonics?: boowean): stwing {
+	if (isMacintosh || fowceDisabweMnemonics) {
+		wetuwn wabew.wepwace(/\(&&\w\)|&&/g, '').wepwace(/&/g, isMacintosh ? '&' : '&&');
 	}
 
-	return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+	wetuwn wabew.wepwace(/&&|&/g, m => m === '&' ? '&&' : '&');
 }
 
 /**
- * Handles mnemonics for buttons. Depending on OS:
- * - Windows: Supported via & character (replace && with & and & with && for escaping)
- * -   Linux: Supported via _ character (replace && with _)
- * -   macOS: Unsupported (replace && with empty string)
+ * Handwes mnemonics fow buttons. Depending on OS:
+ * - Windows: Suppowted via & chawacta (wepwace && with & and & with && fow escaping)
+ * -   Winux: Suppowted via _ chawacta (wepwace && with _)
+ * -   macOS: Unsuppowted (wepwace && with empty stwing)
  */
-export function mnemonicButtonLabel(label: string, forceDisableMnemonics?: boolean): string {
-	if (isMacintosh || forceDisableMnemonics) {
-		return label.replace(/\(&&\w\)|&&/g, '');
+expowt function mnemonicButtonWabew(wabew: stwing, fowceDisabweMnemonics?: boowean): stwing {
+	if (isMacintosh || fowceDisabweMnemonics) {
+		wetuwn wabew.wepwace(/\(&&\w\)|&&/g, '');
 	}
 
 	if (isWindows) {
-		return label.replace(/&&|&/g, m => m === '&' ? '&&' : '&');
+		wetuwn wabew.wepwace(/&&|&/g, m => m === '&' ? '&&' : '&');
 	}
 
-	return label.replace(/&&/g, '_');
+	wetuwn wabew.wepwace(/&&/g, '_');
 }
 
-export function unmnemonicLabel(label: string): string {
-	return label.replace(/&/g, '&&');
+expowt function unmnemonicWabew(wabew: stwing): stwing {
+	wetuwn wabew.wepwace(/&/g, '&&');
 }
 
 /**
- * Splits a path in name and parent path, supporting both '/' and '\'
+ * Spwits a path in name and pawent path, suppowting both '/' and '\'
  */
-export function splitName(fullPath: string): { name: string, parentPath: string; } {
-	const p = fullPath.indexOf('/') !== -1 ? posix : win32;
-	const name = p.basename(fullPath);
-	const parentPath = p.dirname(fullPath);
-	if (name.length) {
-		return { name, parentPath };
+expowt function spwitName(fuwwPath: stwing): { name: stwing, pawentPath: stwing; } {
+	const p = fuwwPath.indexOf('/') !== -1 ? posix : win32;
+	const name = p.basename(fuwwPath);
+	const pawentPath = p.diwname(fuwwPath);
+	if (name.wength) {
+		wetuwn { name, pawentPath };
 	}
-	// only the root segment
-	return { name: parentPath, parentPath: '' };
+	// onwy the woot segment
+	wetuwn { name: pawentPath, pawentPath: '' };
 }

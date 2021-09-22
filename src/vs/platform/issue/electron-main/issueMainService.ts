@@ -1,421 +1,421 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Display, ipcMain, IpcMainEvent, screen } from 'electron';
-import { arch, release, type } from 'os';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { listProcesses } from 'vs/base/node/ps';
-import { localize } from 'vs/nls';
-import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonIssueService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+impowt { BwowsewWindow, Dispway, ipcMain, IpcMainEvent, scween } fwom 'ewectwon';
+impowt { awch, wewease, type } fwom 'os';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { IPwocessEnviwonment, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { wistPwocesses } fwom 'vs/base/node/ps';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDiagnosticsSewvice, isWemoteDiagnosticEwwow, PewfowmanceInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { IDiawogMainSewvice } fwom 'vs/pwatfowm/diawogs/ewectwon-main/diawogMainSewvice';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommonIssueSewvice, IssueWepowtewData, IssueWepowtewWindowConfiguwation, PwocessExpwowewData, PwocessExpwowewWindowConfiguwation } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { IWaunchMainSewvice } fwom 'vs/pwatfowm/waunch/ewectwon-main/waunchMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostMainSewvice } fwom 'vs/pwatfowm/native/ewectwon-main/nativeHostMainSewvice';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IIPCObjectUww, IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
+impowt { zoomWevewToZoomFactow } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IWindowState } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+expowt const IIssueMainSewvice = cweateDecowatow<IIssueMainSewvice>('issueMainSewvice');
 
-interface IBrowserWindowOptions {
-	backgroundColor: string | undefined;
-	title: string;
-	zoomLevel: number;
-	alwaysOnTop: boolean;
+intewface IBwowsewWindowOptions {
+	backgwoundCowow: stwing | undefined;
+	titwe: stwing;
+	zoomWevew: numba;
+	awwaysOnTop: boowean;
 }
 
-export interface IIssueMainService extends ICommonIssueService { }
+expowt intewface IIssueMainSewvice extends ICommonIssueSewvice { }
 
-export class IssueMainService implements ICommonIssueService {
+expowt cwass IssueMainSewvice impwements ICommonIssueSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
+	pwivate static weadonwy DEFAUWT_BACKGWOUND_COWOW = '#1E1E1E';
 
-	private issueReporterWindow: BrowserWindow | null = null;
-	private issueReporterParentWindow: BrowserWindow | null = null;
+	pwivate issueWepowtewWindow: BwowsewWindow | nuww = nuww;
+	pwivate issueWepowtewPawentWindow: BwowsewWindow | nuww = nuww;
 
-	private processExplorerWindow: BrowserWindow | null = null;
-	private processExplorerParentWindow: BrowserWindow | null = null;
+	pwivate pwocessExpwowewWindow: BwowsewWindow | nuww = nuww;
+	pwivate pwocessExpwowewPawentWindow: BwowsewWindow | nuww = nuww;
 
-	constructor(
-		private userEnv: IProcessEnvironment,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
-		@ILogService private readonly logService: ILogService,
-		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		pwivate usewEnv: IPwocessEnviwonment,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWaunchMainSewvice pwivate weadonwy waunchMainSewvice: IWaunchMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IDiagnosticsSewvice pwivate weadonwy diagnosticsSewvice: IDiagnosticsSewvice,
+		@IDiawogMainSewvice pwivate weadonwy diawogMainSewvice: IDiawogMainSewvice,
+		@INativeHostMainSewvice pwivate weadonwy nativeHostMainSewvice: INativeHostMainSewvice,
+		@IPwotocowMainSewvice pwivate weadonwy pwotocowMainSewvice: IPwotocowMainSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		ipcMain.on('vscode:issueSystemInfoRequest', async event => {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
-			const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
+	pwivate wegistewWistenews(): void {
+		ipcMain.on('vscode:issueSystemInfoWequest', async event => {
+			const [info, wemoteData] = await Pwomise.aww([this.waunchMainSewvice.getMainPwocessInfo(), this.waunchMainSewvice.getWemoteDiagnostics({ incwudePwocesses: fawse, incwudeWowkspaceMetadata: fawse })]);
+			const msg = await this.diagnosticsSewvice.getSystemInfo(info, wemoteData);
 
-			this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
+			this.safeSend(event, 'vscode:issueSystemInfoWesponse', msg);
 		});
 
-		ipcMain.on('vscode:listProcesses', async event => {
-			const processes = [];
+		ipcMain.on('vscode:wistPwocesses', async event => {
+			const pwocesses = [];
 
-			try {
-				const mainPid = await this.launchMainService.getMainProcessId();
-				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+			twy {
+				const mainPid = await this.waunchMainSewvice.getMainPwocessId();
+				pwocesses.push({ name: wocawize('wocaw', "Wocaw"), wootPwocess: await wistPwocesses(mainPid) });
 
-				const remoteDiagnostics = await this.launchMainService.getRemoteDiagnostics({ includeProcesses: true });
-				remoteDiagnostics.forEach(data => {
-					if (isRemoteDiagnosticError(data)) {
-						processes.push({
+				const wemoteDiagnostics = await this.waunchMainSewvice.getWemoteDiagnostics({ incwudePwocesses: twue });
+				wemoteDiagnostics.fowEach(data => {
+					if (isWemoteDiagnosticEwwow(data)) {
+						pwocesses.push({
 							name: data.hostName,
-							rootProcess: data
+							wootPwocess: data
 						});
-					} else {
-						if (data.processes) {
-							processes.push({
+					} ewse {
+						if (data.pwocesses) {
+							pwocesses.push({
 								name: data.hostName,
-								rootProcess: data.processes
+								wootPwocess: data.pwocesses
 							});
 						}
 					}
 				});
 			} catch (e) {
-				this.logService.error(`Listing processes failed: ${e}`);
+				this.wogSewvice.ewwow(`Wisting pwocesses faiwed: ${e}`);
 			}
 
-			this.safeSend(event, 'vscode:listProcessesResponse', processes);
+			this.safeSend(event, 'vscode:wistPwocessesWesponse', pwocesses);
 		});
 
-		ipcMain.on('vscode:issueReporterClipboard', async event => {
+		ipcMain.on('vscode:issueWepowtewCwipboawd', async event => {
 			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
-				type: 'warning',
+				titwe: this.pwoductSewvice.nameWong,
+				message: wocawize('issueWepowtewWwiteToCwipboawd', "Thewe is too much data to send to GitHub diwectwy. The data wiww be copied to the cwipboawd, pwease paste it into the GitHub issue page that is opened."),
+				type: 'wawning',
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+					mnemonicButtonWabew(wocawize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
+					mnemonicButtonWabew(wocawize({ key: 'cancew', comment: ['&& denotes a mnemonic'] }, "&&Cancew")),
 				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
+				defauwtId: 0,
+				cancewId: 1,
+				noWink: twue
 			};
 
-			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
+			if (this.issueWepowtewWindow) {
+				const wesuwt = await this.diawogMainSewvice.showMessageBox(messageOptions, this.issueWepowtewWindow);
+				this.safeSend(event, 'vscode:issueWepowtewCwipboawdWesponse', wesuwt.wesponse === 0);
 			}
 		});
 
-		ipcMain.on('vscode:issuePerformanceInfoRequest', async event => {
-			const performanceInfo = await this.getPerformanceInfo();
-			this.safeSend(event, 'vscode:issuePerformanceInfoResponse', performanceInfo);
+		ipcMain.on('vscode:issuePewfowmanceInfoWequest', async event => {
+			const pewfowmanceInfo = await this.getPewfowmanceInfo();
+			this.safeSend(event, 'vscode:issuePewfowmanceInfoWesponse', pewfowmanceInfo);
 		});
 
-		ipcMain.on('vscode:issueReporterConfirmClose', async () => {
+		ipcMain.on('vscode:issueWepowtewConfiwmCwose', async () => {
 			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
-				type: 'warning',
+				titwe: this.pwoductSewvice.nameWong,
+				message: wocawize('confiwmCwoseIssueWepowta', "Youw input wiww not be saved. Awe you suwe you want to cwose this window?"),
+				type: 'wawning',
 				buttons: [
-					mnemonicButtonLabel(localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+					mnemonicButtonWabew(wocawize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
+					mnemonicButtonWabew(wocawize({ key: 'cancew', comment: ['&& denotes a mnemonic'] }, "&&Cancew")),
 				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
+				defauwtId: 0,
+				cancewId: 1,
+				noWink: twue
 			};
 
-			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				if (result.response === 0) {
-					if (this.issueReporterWindow) {
-						this.issueReporterWindow.destroy();
-						this.issueReporterWindow = null;
+			if (this.issueWepowtewWindow) {
+				const wesuwt = await this.diawogMainSewvice.showMessageBox(messageOptions, this.issueWepowtewWindow);
+				if (wesuwt.wesponse === 0) {
+					if (this.issueWepowtewWindow) {
+						this.issueWepowtewWindow.destwoy();
+						this.issueWepowtewWindow = nuww;
 					}
 				}
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any; }) => {
-			const { id, from, args } = commandInfo;
+		ipcMain.on('vscode:wowkbenchCommand', (_: unknown, commandInfo: { id: any; fwom: any; awgs: any; }) => {
+			const { id, fwom, awgs } = commandInfo;
 
-			let parentWindow: BrowserWindow | null;
-			switch (from) {
-				case 'issueReporter':
-					parentWindow = this.issueReporterParentWindow;
-					break;
-				case 'processExplorer':
-					parentWindow = this.processExplorerParentWindow;
-					break;
-				default:
-					throw new Error(`Unexpected command source: ${from}`);
+			wet pawentWindow: BwowsewWindow | nuww;
+			switch (fwom) {
+				case 'issueWepowta':
+					pawentWindow = this.issueWepowtewPawentWindow;
+					bweak;
+				case 'pwocessExpwowa':
+					pawentWindow = this.pwocessExpwowewPawentWindow;
+					bweak;
+				defauwt:
+					thwow new Ewwow(`Unexpected command souwce: ${fwom}`);
 			}
 
-			if (parentWindow) {
-				parentWindow.webContents.send('vscode:runAction', { id, from, args });
-			}
-		});
-
-		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			this.nativeHostMainService.openExternal(undefined, arg);
-		});
-
-		ipcMain.on('vscode:closeIssueReporter', event => {
-			if (this.issueReporterWindow) {
-				this.issueReporterWindow.close();
+			if (pawentWindow) {
+				pawentWindow.webContents.send('vscode:wunAction', { id, fwom, awgs });
 			}
 		});
 
-		ipcMain.on('vscode:closeProcessExplorer', event => {
-			if (this.processExplorerWindow) {
-				this.processExplorerWindow.close();
+		ipcMain.on('vscode:openExtewnaw', (_: unknown, awg: stwing) => {
+			this.nativeHostMainSewvice.openExtewnaw(undefined, awg);
+		});
+
+		ipcMain.on('vscode:cwoseIssueWepowta', event => {
+			if (this.issueWepowtewWindow) {
+				this.issueWepowtewWindow.cwose();
 			}
 		});
 
-		ipcMain.on('vscode:windowsInfoRequest', async event => {
-			const mainProcessInfo = await this.launchMainService.getMainProcessInfo();
-			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
+		ipcMain.on('vscode:cwosePwocessExpwowa', event => {
+			if (this.pwocessExpwowewWindow) {
+				this.pwocessExpwowewWindow.cwose();
+			}
+		});
+
+		ipcMain.on('vscode:windowsInfoWequest', async event => {
+			const mainPwocessInfo = await this.waunchMainSewvice.getMainPwocessInfo();
+			this.safeSend(event, 'vscode:windowsInfoWesponse', mainPwocessInfo.windows);
 		});
 	}
 
-	private safeSend(event: IpcMainEvent, channel: string, ...args: unknown[]): void {
-		if (!event.sender.isDestroyed()) {
-			event.sender.send(channel, ...args);
+	pwivate safeSend(event: IpcMainEvent, channew: stwing, ...awgs: unknown[]): void {
+		if (!event.senda.isDestwoyed()) {
+			event.senda.send(channew, ...awgs);
 		}
 	}
 
-	async openReporter(data: IssueReporterData): Promise<void> {
-		if (!this.issueReporterWindow) {
-			this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
-			if (this.issueReporterParentWindow) {
-				const issueReporterDisposables = new DisposableStore();
+	async openWepowta(data: IssueWepowtewData): Pwomise<void> {
+		if (!this.issueWepowtewWindow) {
+			this.issueWepowtewPawentWindow = BwowsewWindow.getFocusedWindow();
+			if (this.issueWepowtewPawentWindow) {
+				const issueWepowtewDisposabwes = new DisposabweStowe();
 
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IssueReporterWindowConfiguration>());
-				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
+				const issueWepowtewWindowConfigUww = issueWepowtewDisposabwes.add(this.pwotocowMainSewvice.cweateIPCObjectUww<IssueWepowtewWindowConfiguwation>());
+				const position = this.getWindowPosition(this.issueWepowtewPawentWindow, 700, 800);
 
-				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, {
-					backgroundColor: data.styles.backgroundColor,
-					title: localize('issueReporter', "Issue Reporter"),
-					zoomLevel: data.zoomLevel,
-					alwaysOnTop: false
+				this.issueWepowtewWindow = this.cweateBwowsewWindow(position, issueWepowtewWindowConfigUww, {
+					backgwoundCowow: data.stywes.backgwoundCowow,
+					titwe: wocawize('issueWepowta', "Issue Wepowta"),
+					zoomWevew: data.zoomWevew,
+					awwaysOnTop: fawse
 				});
 
-				// Store into config object URL
-				issueReporterWindowConfigUrl.update({
-					appRoot: this.environmentMainService.appRoot,
-					windowId: this.issueReporterWindow.id,
-					userEnv: this.userEnv,
+				// Stowe into config object UWW
+				issueWepowtewWindowConfigUww.update({
+					appWoot: this.enviwonmentMainSewvice.appWoot,
+					windowId: this.issueWepowtewWindow.id,
+					usewEnv: this.usewEnv,
 					data,
-					disableExtensions: !!this.environmentMainService.disableExtensions,
+					disabweExtensions: !!this.enviwonmentMainSewvice.disabweExtensions,
 					os: {
 						type: type(),
-						arch: arch(),
-						release: release(),
+						awch: awch(),
+						wewease: wewease(),
 					},
-					product
+					pwoduct
 				});
 
-				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/issue/issueReporter.html', require).toString(true)
+				this.issueWepowtewWindow.woadUWW(
+					FiweAccess.asBwowsewUwi('vs/code/ewectwon-sandbox/issue/issueWepowta.htmw', wequiwe).toStwing(twue)
 				);
 
-				this.issueReporterWindow.on('close', () => {
-					this.issueReporterWindow = null;
+				this.issueWepowtewWindow.on('cwose', () => {
+					this.issueWepowtewWindow = nuww;
 
-					issueReporterDisposables.dispose();
+					issueWepowtewDisposabwes.dispose();
 				});
 
-				this.issueReporterParentWindow.on('closed', () => {
-					if (this.issueReporterWindow) {
-						this.issueReporterWindow.close();
-						this.issueReporterWindow = null;
+				this.issueWepowtewPawentWindow.on('cwosed', () => {
+					if (this.issueWepowtewWindow) {
+						this.issueWepowtewWindow.cwose();
+						this.issueWepowtewWindow = nuww;
 
-						issueReporterDisposables.dispose();
+						issueWepowtewDisposabwes.dispose();
 					}
 				});
 			}
 		}
 
-		this.issueReporterWindow?.focus();
+		this.issueWepowtewWindow?.focus();
 	}
 
-	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		if (!this.processExplorerWindow) {
-			this.processExplorerParentWindow = BrowserWindow.getFocusedWindow();
-			if (this.processExplorerParentWindow) {
-				const processExplorerDisposables = new DisposableStore();
+	async openPwocessExpwowa(data: PwocessExpwowewData): Pwomise<void> {
+		if (!this.pwocessExpwowewWindow) {
+			this.pwocessExpwowewPawentWindow = BwowsewWindow.getFocusedWindow();
+			if (this.pwocessExpwowewPawentWindow) {
+				const pwocessExpwowewDisposabwes = new DisposabweStowe();
 
-				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
-				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+				const pwocessExpwowewWindowConfigUww = pwocessExpwowewDisposabwes.add(this.pwotocowMainSewvice.cweateIPCObjectUww<PwocessExpwowewWindowConfiguwation>());
+				const position = this.getWindowPosition(this.pwocessExpwowewPawentWindow, 800, 500);
 
-				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
-					backgroundColor: data.styles.backgroundColor,
-					title: localize('processExplorer', "Process Explorer"),
-					zoomLevel: data.zoomLevel,
-					alwaysOnTop: true
+				this.pwocessExpwowewWindow = this.cweateBwowsewWindow(position, pwocessExpwowewWindowConfigUww, {
+					backgwoundCowow: data.stywes.backgwoundCowow,
+					titwe: wocawize('pwocessExpwowa', "Pwocess Expwowa"),
+					zoomWevew: data.zoomWevew,
+					awwaysOnTop: twue
 				});
 
-				// Store into config object URL
-				processExplorerWindowConfigUrl.update({
-					appRoot: this.environmentMainService.appRoot,
-					windowId: this.processExplorerWindow.id,
-					userEnv: this.userEnv,
+				// Stowe into config object UWW
+				pwocessExpwowewWindowConfigUww.update({
+					appWoot: this.enviwonmentMainSewvice.appWoot,
+					windowId: this.pwocessExpwowewWindow.id,
+					usewEnv: this.usewEnv,
 					data,
-					product
+					pwoduct
 				});
 
-				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/processExplorer/processExplorer.html', require).toString(true)
+				this.pwocessExpwowewWindow.woadUWW(
+					FiweAccess.asBwowsewUwi('vs/code/ewectwon-sandbox/pwocessExpwowa/pwocessExpwowa.htmw', wequiwe).toStwing(twue)
 				);
 
-				this.processExplorerWindow.on('close', () => {
-					this.processExplorerWindow = null;
-					processExplorerDisposables.dispose();
+				this.pwocessExpwowewWindow.on('cwose', () => {
+					this.pwocessExpwowewWindow = nuww;
+					pwocessExpwowewDisposabwes.dispose();
 				});
 
-				this.processExplorerParentWindow.on('close', () => {
-					if (this.processExplorerWindow) {
-						this.processExplorerWindow.close();
-						this.processExplorerWindow = null;
+				this.pwocessExpwowewPawentWindow.on('cwose', () => {
+					if (this.pwocessExpwowewWindow) {
+						this.pwocessExpwowewWindow.cwose();
+						this.pwocessExpwowewWindow = nuww;
 
-						processExplorerDisposables.dispose();
+						pwocessExpwowewDisposabwes.dispose();
 					}
 				});
 			}
 		}
 
-		this.processExplorerWindow?.focus();
+		this.pwocessExpwowewWindow?.focus();
 	}
 
-	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions): BrowserWindow {
-		const window = new BrowserWindow({
-			fullscreen: false,
-			skipTaskbar: true,
-			resizable: true,
+	pwivate cweateBwowsewWindow<T>(position: IWindowState, ipcObjectUww: IIPCObjectUww<T>, options: IBwowsewWindowOptions): BwowsewWindow {
+		const window = new BwowsewWindow({
+			fuwwscween: fawse,
+			skipTaskbaw: twue,
+			wesizabwe: twue,
 			width: position.width,
 			height: position.height,
 			minWidth: 300,
 			minHeight: 200,
 			x: position.x,
 			y: position.y,
-			title: options.title,
-			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-				enableWebSQL: false,
-				spellcheck: false,
-				nativeWindowOpen: true,
-				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
-				sandbox: true,
-				contextIsolation: true,
+			titwe: options.titwe,
+			backgwoundCowow: options.backgwoundCowow || IssueMainSewvice.DEFAUWT_BACKGWOUND_COWOW,
+			webPwefewences: {
+				pwewoad: FiweAccess.asFiweUwi('vs/base/pawts/sandbox/ewectwon-bwowsa/pwewoad.js', wequiwe).fsPath,
+				additionawAwguments: [`--vscode-window-config=${ipcObjectUww.wesouwce.toStwing()}`],
+				v8CacheOptions: this.enviwonmentMainSewvice.useCodeCache ? 'bypassHeatCheck' : 'none',
+				enabweWebSQW: fawse,
+				spewwcheck: fawse,
+				nativeWindowOpen: twue,
+				zoomFactow: zoomWevewToZoomFactow(options.zoomWevew),
+				sandbox: twue,
+				contextIsowation: twue,
 			},
-			alwaysOnTop: options.alwaysOnTop
+			awwaysOnTop: options.awwaysOnTop
 		});
 
-		window.setMenuBarVisibility(false);
+		window.setMenuBawVisibiwity(fawse);
 
-		return window;
+		wetuwn window;
 	}
 
-	async getSystemStatus(): Promise<string> {
-		const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+	async getSystemStatus(): Pwomise<stwing> {
+		const [info, wemoteData] = await Pwomise.aww([this.waunchMainSewvice.getMainPwocessInfo(), this.waunchMainSewvice.getWemoteDiagnostics({ incwudePwocesses: fawse, incwudeWowkspaceMetadata: fawse })]);
 
-		return this.diagnosticsService.getDiagnostics(info, remoteData);
+		wetuwn this.diagnosticsSewvice.getDiagnostics(info, wemoteData);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
+	pwivate getWindowPosition(pawentWindow: BwowsewWindow, defauwtWidth: numba, defauwtHeight: numba): IWindowState {
 
-		// We want the new window to open on the same display that the parent is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
+		// We want the new window to open on the same dispway that the pawent is in
+		wet dispwayToUse: Dispway | undefined;
+		const dispways = scween.getAwwDispways();
 
-		// Single Display
-		if (displays.length === 1) {
-			displayToUse = displays[0];
+		// Singwe Dispway
+		if (dispways.wength === 1) {
+			dispwayToUse = dispways[0];
 		}
 
-		// Multi Display
-		else {
+		// Muwti Dispway
+		ewse {
 
-			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
+			// on mac thewe is 1 menu pew window so we need to use the monitow whewe the cuwsow cuwwentwy is
 			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				const cuwsowPoint = scween.getCuwsowScweenPoint();
+				dispwayToUse = scween.getDispwayNeawestPoint(cuwsowPoint);
 			}
 
-			// if we have a last active window, use that display for the new window
-			if (!displayToUse && parentWindow) {
-				displayToUse = screen.getDisplayMatching(parentWindow.getBounds());
+			// if we have a wast active window, use that dispway fow the new window
+			if (!dispwayToUse && pawentWindow) {
+				dispwayToUse = scween.getDispwayMatching(pawentWindow.getBounds());
 			}
 
-			// fallback to primary display or first display
-			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
+			// fawwback to pwimawy dispway ow fiwst dispway
+			if (!dispwayToUse) {
+				dispwayToUse = scween.getPwimawyDispway() || dispways[0];
 			}
 		}
 
 		const state: IWindowState = {
-			width: defaultWidth,
-			height: defaultHeight
+			width: defauwtWidth,
+			height: defauwtHeight
 		};
 
-		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
+		const dispwayBounds = dispwayToUse.bounds;
+		state.x = dispwayBounds.x + (dispwayBounds.width / 2) - (state.width! / 2);
+		state.y = dispwayBounds.y + (dispwayBounds.height / 2) - (state.height! / 2);
 
-		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
-			if (state.x < displayBounds.x) {
-				state.x = displayBounds.x; // prevent window from falling out of the screen to the left
+		if (dispwayBounds.width > 0 && dispwayBounds.height > 0 /* Winux X11 sessions sometimes wepowt wwong dispway bounds */) {
+			if (state.x < dispwayBounds.x) {
+				state.x = dispwayBounds.x; // pwevent window fwom fawwing out of the scween to the weft
 			}
 
-			if (state.y < displayBounds.y) {
-				state.y = displayBounds.y; // prevent window from falling out of the screen to the top
+			if (state.y < dispwayBounds.y) {
+				state.y = dispwayBounds.y; // pwevent window fwom fawwing out of the scween to the top
 			}
 
-			if (state.x > (displayBounds.x + displayBounds.width)) {
-				state.x = displayBounds.x; // prevent window from falling out of the screen to the right
+			if (state.x > (dispwayBounds.x + dispwayBounds.width)) {
+				state.x = dispwayBounds.x; // pwevent window fwom fawwing out of the scween to the wight
 			}
 
-			if (state.y > (displayBounds.y + displayBounds.height)) {
-				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
+			if (state.y > (dispwayBounds.y + dispwayBounds.height)) {
+				state.y = dispwayBounds.y; // pwevent window fwom fawwing out of the scween to the bottom
 			}
 
-			if (state.width! > displayBounds.width) {
-				state.width = displayBounds.width; // prevent window from exceeding display bounds width
+			if (state.width! > dispwayBounds.width) {
+				state.width = dispwayBounds.width; // pwevent window fwom exceeding dispway bounds width
 			}
 
-			if (state.height! > displayBounds.height) {
-				state.height = displayBounds.height; // prevent window from exceeding display bounds height
+			if (state.height! > dispwayBounds.height) {
+				state.height = dispwayBounds.height; // pwevent window fwom exceeding dispway bounds height
 			}
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	private async getPerformanceInfo(): Promise<PerformanceInfo> {
-		try {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
-			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
-		} catch (error) {
-			this.logService.warn('issueService#getPerformanceInfo ', error.message);
+	pwivate async getPewfowmanceInfo(): Pwomise<PewfowmanceInfo> {
+		twy {
+			const [info, wemoteData] = await Pwomise.aww([this.waunchMainSewvice.getMainPwocessInfo(), this.waunchMainSewvice.getWemoteDiagnostics({ incwudePwocesses: twue, incwudeWowkspaceMetadata: twue })]);
+			wetuwn await this.diagnosticsSewvice.getPewfowmanceInfo(info, wemoteData);
+		} catch (ewwow) {
+			this.wogSewvice.wawn('issueSewvice#getPewfowmanceInfo ', ewwow.message);
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 }

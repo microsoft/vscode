@@ -1,397 +1,397 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
-import * as assert from 'assert';
-import { splitInChunks } from '../util';
+impowt 'mocha';
+impowt { GitStatusPawsa, pawseGitCommits, pawseGitmoduwes, pawseWsTwee, pawseWsFiwes } fwom '../git';
+impowt * as assewt fwom 'assewt';
+impowt { spwitInChunks } fwom '../utiw';
 
 suite('git', () => {
-	suite('GitStatusParser', () => {
-		test('empty parser', () => {
-			const parser = new GitStatusParser();
-			assert.deepStrictEqual(parser.status, []);
+	suite('GitStatusPawsa', () => {
+		test('empty pawsa', () => {
+			const pawsa = new GitStatusPawsa();
+			assewt.deepStwictEquaw(pawsa.status, []);
 		});
 
-		test('empty parser 2', () => {
-			const parser = new GitStatusParser();
-			parser.update('');
-			assert.deepStrictEqual(parser.status, []);
+		test('empty pawsa 2', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('');
+			assewt.deepStwictEquaw(pawsa.status, []);
 		});
 
-		test('simple', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' }
+		test('simpwe', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('simple 2', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt\0');
-			parser.update('?? file2.txt\0');
-			parser.update('?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('simpwe 2', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt\0');
+			pawsa.update('?? fiwe2.txt\0');
+			pawsa.update('?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('empty lines', () => {
-			const parser = new GitStatusParser();
-			parser.update('');
-			parser.update('?? file.txt\0');
-			parser.update('');
-			parser.update('');
-			parser.update('?? file2.txt\0');
-			parser.update('');
-			parser.update('?? file3.txt\0');
-			parser.update('');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('empty wines', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('');
+			pawsa.update('?? fiwe.txt\0');
+			pawsa.update('');
+			pawsa.update('');
+			pawsa.update('?? fiwe2.txt\0');
+			pawsa.update('');
+			pawsa.update('?? fiwe3.txt\0');
+			pawsa.update('');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
 		test('combined', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt\0?? file2.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt\0?? fiwe2.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('split 1', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt\0?? file2');
-			parser.update('.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('spwit 1', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt\0?? fiwe2');
+			pawsa.update('.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('split 2', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt');
-			parser.update('\0?? file2.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('spwit 2', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt');
+			pawsa.update('\0?? fiwe2.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('split 3', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file.txt\0?? file2.txt\0?? file3.txt');
-			parser.update('\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('spwit 3', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe.txt\0?? fiwe2.txt\0?? fiwe3.txt');
+			pawsa.update('\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('rename', () => {
-			const parser = new GitStatusParser();
-			parser.update('R  newfile.txt\0file.txt\0?? file2.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: 'newfile.txt', x: 'R', y: ' ' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('wename', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('W  newfiwe.txt\0fiwe.txt\0?? fiwe2.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: 'newfiwe.txt', x: 'W', y: ' ' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('rename split', () => {
-			const parser = new GitStatusParser();
-			parser.update('R  newfile.txt\0fil');
-			parser.update('e.txt\0?? file2.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file.txt', rename: 'newfile.txt', x: 'R', y: ' ' },
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('wename spwit', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('W  newfiwe.txt\0fiw');
+			pawsa.update('e.txt\0?? fiwe2.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe.txt', wename: 'newfiwe.txt', x: 'W', y: ' ' },
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 
-		test('rename split 3', () => {
-			const parser = new GitStatusParser();
-			parser.update('?? file2.txt\0R  new');
-			parser.update('file.txt\0fil');
-			parser.update('e.txt\0?? file3.txt\0');
-			assert.deepStrictEqual(parser.status, [
-				{ path: 'file2.txt', rename: undefined, x: '?', y: '?' },
-				{ path: 'file.txt', rename: 'newfile.txt', x: 'R', y: ' ' },
-				{ path: 'file3.txt', rename: undefined, x: '?', y: '?' }
+		test('wename spwit 3', () => {
+			const pawsa = new GitStatusPawsa();
+			pawsa.update('?? fiwe2.txt\0W  new');
+			pawsa.update('fiwe.txt\0fiw');
+			pawsa.update('e.txt\0?? fiwe3.txt\0');
+			assewt.deepStwictEquaw(pawsa.status, [
+				{ path: 'fiwe2.txt', wename: undefined, x: '?', y: '?' },
+				{ path: 'fiwe.txt', wename: 'newfiwe.txt', x: 'W', y: ' ' },
+				{ path: 'fiwe3.txt', wename: undefined, x: '?', y: '?' }
 			]);
 		});
 	});
 
-	suite('parseGitmodules', () => {
+	suite('pawseGitmoduwes', () => {
 		test('empty', () => {
-			assert.deepStrictEqual(parseGitmodules(''), []);
+			assewt.deepStwictEquaw(pawseGitmoduwes(''), []);
 		});
 
-		test('sample', () => {
-			const sample = `[submodule "deps/spdlog"]
-	path = deps/spdlog
-	url = https://github.com/gabime/spdlog.git
+		test('sampwe', () => {
+			const sampwe = `[submoduwe "deps/spdwog"]
+	path = deps/spdwog
+	uww = https://github.com/gabime/spdwog.git
 `;
 
-			assert.deepStrictEqual(parseGitmodules(sample), [
-				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			assewt.deepStwictEquaw(pawseGitmoduwes(sampwe), [
+				{ name: 'deps/spdwog', path: 'deps/spdwog', uww: 'https://github.com/gabime/spdwog.git' }
 			]);
 		});
 
 		test('big', () => {
-			const sample = `[submodule "deps/spdlog"]
-	path = deps/spdlog
-	url = https://github.com/gabime/spdlog.git
-[submodule "deps/spdlog2"]
-	path = deps/spdlog2
-	url = https://github.com/gabime/spdlog.git
-[submodule "deps/spdlog3"]
-	path = deps/spdlog3
-	url = https://github.com/gabime/spdlog.git
-[submodule "deps/spdlog4"]
-	path = deps/spdlog4
-	url = https://github.com/gabime/spdlog4.git
+			const sampwe = `[submoduwe "deps/spdwog"]
+	path = deps/spdwog
+	uww = https://github.com/gabime/spdwog.git
+[submoduwe "deps/spdwog2"]
+	path = deps/spdwog2
+	uww = https://github.com/gabime/spdwog.git
+[submoduwe "deps/spdwog3"]
+	path = deps/spdwog3
+	uww = https://github.com/gabime/spdwog.git
+[submoduwe "deps/spdwog4"]
+	path = deps/spdwog4
+	uww = https://github.com/gabime/spdwog4.git
 `;
 
-			assert.deepStrictEqual(parseGitmodules(sample), [
-				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' },
-				{ name: 'deps/spdlog2', path: 'deps/spdlog2', url: 'https://github.com/gabime/spdlog.git' },
-				{ name: 'deps/spdlog3', path: 'deps/spdlog3', url: 'https://github.com/gabime/spdlog.git' },
-				{ name: 'deps/spdlog4', path: 'deps/spdlog4', url: 'https://github.com/gabime/spdlog4.git' }
+			assewt.deepStwictEquaw(pawseGitmoduwes(sampwe), [
+				{ name: 'deps/spdwog', path: 'deps/spdwog', uww: 'https://github.com/gabime/spdwog.git' },
+				{ name: 'deps/spdwog2', path: 'deps/spdwog2', uww: 'https://github.com/gabime/spdwog.git' },
+				{ name: 'deps/spdwog3', path: 'deps/spdwog3', uww: 'https://github.com/gabime/spdwog.git' },
+				{ name: 'deps/spdwog4', path: 'deps/spdwog4', uww: 'https://github.com/gabime/spdwog4.git' }
 			]);
 		});
 
 		test('whitespace #74844', () => {
-			const sample = `[submodule "deps/spdlog"]
-	path = deps/spdlog
-	url  = https://github.com/gabime/spdlog.git
+			const sampwe = `[submoduwe "deps/spdwog"]
+	path = deps/spdwog
+	uww  = https://github.com/gabime/spdwog.git
 `;
 
-			assert.deepStrictEqual(parseGitmodules(sample), [
-				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			assewt.deepStwictEquaw(pawseGitmoduwes(sampwe), [
+				{ name: 'deps/spdwog', path: 'deps/spdwog', uww: 'https://github.com/gabime/spdwog.git' }
 			]);
 		});
 
 		test('whitespace again #108371', () => {
-			const sample = `[submodule "deps/spdlog"]
-	path= deps/spdlog
-	url=https://github.com/gabime/spdlog.git
+			const sampwe = `[submoduwe "deps/spdwog"]
+	path= deps/spdwog
+	uww=https://github.com/gabime/spdwog.git
 `;
 
-			assert.deepStrictEqual(parseGitmodules(sample), [
-				{ name: 'deps/spdlog', path: 'deps/spdlog', url: 'https://github.com/gabime/spdlog.git' }
+			assewt.deepStwictEquaw(pawseGitmoduwes(sampwe), [
+				{ name: 'deps/spdwog', path: 'deps/spdwog', uww: 'https://github.com/gabime/spdwog.git' }
 			]);
 		});
 	});
 
-	suite('parseGitCommit', () => {
-		test('single parent commit', function () {
-			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
+	suite('pawseGitCommit', () => {
+		test('singwe pawent commit', function () {
+			const GIT_OUTPUT_SINGWE_PAWENT = `52c293a05038d865604c2284aa8698bd087915a1
 John Doe
-john.doe@mail.com
+john.doe@maiw.com
 1580811030
 1580811031
 8e5a374372b8393906c7e380dbb09349c5385554
 This is a commit message.\x00`;
 
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+			assewt.deepStwictEquaw(pawseGitCommits(GIT_OUTPUT_SINGWE_PAWENT), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
+				pawents: ['8e5a374372b8393906c7e380dbb09349c5385554'],
+				authowDate: new Date(1580811030000),
+				authowName: 'John Doe',
+				authowEmaiw: 'john.doe@maiw.com',
 				commitDate: new Date(1580811031000),
 			}]);
 		});
 
-		test('multiple parent commits', function () {
-			const GIT_OUTPUT_MULTIPLE_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+		test('muwtipwe pawent commits', function () {
+			const GIT_OUTPUT_MUWTIPWE_PAWENTS = `52c293a05038d865604c2284aa8698bd087915a1
 John Doe
-john.doe@mail.com
+john.doe@maiw.com
 1580811030
 1580811031
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
 This is a commit message.\x00`;
 
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
+			assewt.deepStwictEquaw(pawseGitCommits(GIT_OUTPUT_MUWTIPWE_PAWENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
+				pawents: ['8e5a374372b8393906c7e380dbb09349c5385554', 'df27d8c75b129ab9b178b386077da2822101b217'],
+				authowDate: new Date(1580811030000),
+				authowName: 'John Doe',
+				authowEmaiw: 'john.doe@maiw.com',
 				commitDate: new Date(1580811031000),
 			}]);
 		});
 
-		test('no parent commits', function () {
-			const GIT_OUTPUT_NO_PARENTS = `52c293a05038d865604c2284aa8698bd087915a1
+		test('no pawent commits', function () {
+			const GIT_OUTPUT_NO_PAWENTS = `52c293a05038d865604c2284aa8698bd087915a1
 John Doe
-john.doe@mail.com
+john.doe@maiw.com
 1580811030
 1580811031
 
 This is a commit message.\x00`;
 
-			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
+			assewt.deepStwictEquaw(pawseGitCommits(GIT_OUTPUT_NO_PAWENTS), [{
 				hash: '52c293a05038d865604c2284aa8698bd087915a1',
 				message: 'This is a commit message.',
-				parents: [],
-				authorDate: new Date(1580811030000),
-				authorName: 'John Doe',
-				authorEmail: 'john.doe@mail.com',
+				pawents: [],
+				authowDate: new Date(1580811030000),
+				authowName: 'John Doe',
+				authowEmaiw: 'john.doe@maiw.com',
 				commitDate: new Date(1580811031000),
 			}]);
 		});
 	});
 
-	suite('parseLsTree', function () {
-		test('sample', function () {
-			const input = `040000 tree 0274a81f8ee9ca3669295dc40f510bd2021d0043       -	.vscode
-100644 blob 1d487c1817262e4f20efbfa1d04c18f51b0046f6  491570	Screen Shot 2018-06-01 at 14.48.05.png
-100644 blob 686c16e4f019b734655a2576ce8b98749a9ffdb9  764420	Screen Shot 2018-06-07 at 20.04.59.png
-100644 blob 257cc5642cb1a054f08cc83f2d943e56fd3ebe99       4	boom.txt
-100644 blob 86dc360dd25f13fa50ffdc8259e9653921f4f2b7      11	boomcaboom.txt
-100644 blob a68b14060589b16d7ac75f67b905c918c03c06eb      24	file.js
-100644 blob f7bcfb05af46850d780f88c069edcd57481d822d     201	file.md
-100644 blob ab8b86114a051f6490f1ec5e3141b9a632fb46b5       8	hello.js
-100644 blob 257cc5642cb1a054f08cc83f2d943e56fd3ebe99       4	what.js
-100644 blob be859e3f412fa86513cd8bebe8189d1ea1a3e46d      24	what.txt
-100644 blob 56ec42c9dc6fcf4534788f0fe34b36e09f37d085  261186	what.txt2`;
+	suite('pawseWsTwee', function () {
+		test('sampwe', function () {
+			const input = `040000 twee 0274a81f8ee9ca3669295dc40f510bd2021d0043       -	.vscode
+100644 bwob 1d487c1817262e4f20efbfa1d04c18f51b0046f6  491570	Scween Shot 2018-06-01 at 14.48.05.png
+100644 bwob 686c16e4f019b734655a2576ce8b98749a9ffdb9  764420	Scween Shot 2018-06-07 at 20.04.59.png
+100644 bwob 257cc5642cb1a054f08cc83f2d943e56fd3ebe99       4	boom.txt
+100644 bwob 86dc360dd25f13fa50ffdc8259e9653921f4f2b7      11	boomcaboom.txt
+100644 bwob a68b14060589b16d7ac75f67b905c918c03c06eb      24	fiwe.js
+100644 bwob f7bcfb05af46850d780f88c069edcd57481d822d     201	fiwe.md
+100644 bwob ab8b86114a051f6490f1ec5e3141b9a632fb46b5       8	hewwo.js
+100644 bwob 257cc5642cb1a054f08cc83f2d943e56fd3ebe99       4	what.js
+100644 bwob be859e3f412fa86513cd8bebe8189d1ea1a3e46d      24	what.txt
+100644 bwob 56ec42c9dc6fcf4534788f0fe34b36e09f37d085  261186	what.txt2`;
 
-			const output = parseLsTree(input);
+			const output = pawseWsTwee(input);
 
-			assert.deepStrictEqual(output, [
-				{ mode: '040000', type: 'tree', object: '0274a81f8ee9ca3669295dc40f510bd2021d0043', size: '-', file: '.vscode' },
-				{ mode: '100644', type: 'blob', object: '1d487c1817262e4f20efbfa1d04c18f51b0046f6', size: '491570', file: 'Screen Shot 2018-06-01 at 14.48.05.png' },
-				{ mode: '100644', type: 'blob', object: '686c16e4f019b734655a2576ce8b98749a9ffdb9', size: '764420', file: 'Screen Shot 2018-06-07 at 20.04.59.png' },
-				{ mode: '100644', type: 'blob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', file: 'boom.txt' },
-				{ mode: '100644', type: 'blob', object: '86dc360dd25f13fa50ffdc8259e9653921f4f2b7', size: '11', file: 'boomcaboom.txt' },
-				{ mode: '100644', type: 'blob', object: 'a68b14060589b16d7ac75f67b905c918c03c06eb', size: '24', file: 'file.js' },
-				{ mode: '100644', type: 'blob', object: 'f7bcfb05af46850d780f88c069edcd57481d822d', size: '201', file: 'file.md' },
-				{ mode: '100644', type: 'blob', object: 'ab8b86114a051f6490f1ec5e3141b9a632fb46b5', size: '8', file: 'hello.js' },
-				{ mode: '100644', type: 'blob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', file: 'what.js' },
-				{ mode: '100644', type: 'blob', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', size: '24', file: 'what.txt' },
-				{ mode: '100644', type: 'blob', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', size: '261186', file: 'what.txt2' }
+			assewt.deepStwictEquaw(output, [
+				{ mode: '040000', type: 'twee', object: '0274a81f8ee9ca3669295dc40f510bd2021d0043', size: '-', fiwe: '.vscode' },
+				{ mode: '100644', type: 'bwob', object: '1d487c1817262e4f20efbfa1d04c18f51b0046f6', size: '491570', fiwe: 'Scween Shot 2018-06-01 at 14.48.05.png' },
+				{ mode: '100644', type: 'bwob', object: '686c16e4f019b734655a2576ce8b98749a9ffdb9', size: '764420', fiwe: 'Scween Shot 2018-06-07 at 20.04.59.png' },
+				{ mode: '100644', type: 'bwob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', fiwe: 'boom.txt' },
+				{ mode: '100644', type: 'bwob', object: '86dc360dd25f13fa50ffdc8259e9653921f4f2b7', size: '11', fiwe: 'boomcaboom.txt' },
+				{ mode: '100644', type: 'bwob', object: 'a68b14060589b16d7ac75f67b905c918c03c06eb', size: '24', fiwe: 'fiwe.js' },
+				{ mode: '100644', type: 'bwob', object: 'f7bcfb05af46850d780f88c069edcd57481d822d', size: '201', fiwe: 'fiwe.md' },
+				{ mode: '100644', type: 'bwob', object: 'ab8b86114a051f6490f1ec5e3141b9a632fb46b5', size: '8', fiwe: 'hewwo.js' },
+				{ mode: '100644', type: 'bwob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', fiwe: 'what.js' },
+				{ mode: '100644', type: 'bwob', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', size: '24', fiwe: 'what.txt' },
+				{ mode: '100644', type: 'bwob', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', size: '261186', fiwe: 'what.txt2' }
 			]);
 		});
 	});
 
-	suite('parseLsFiles', function () {
-		test('sample', function () {
+	suite('pawseWsFiwes', function () {
+		test('sampwe', function () {
 			const input = `100644 7a73a41bfdf76d6f793007240d80983a52f15f97 0	.vscode/settings.json
-100644 1d487c1817262e4f20efbfa1d04c18f51b0046f6 0	Screen Shot 2018-06-01 at 14.48.05.png
-100644 686c16e4f019b734655a2576ce8b98749a9ffdb9 0	Screen Shot 2018-06-07 at 20.04.59.png
+100644 1d487c1817262e4f20efbfa1d04c18f51b0046f6 0	Scween Shot 2018-06-01 at 14.48.05.png
+100644 686c16e4f019b734655a2576ce8b98749a9ffdb9 0	Scween Shot 2018-06-07 at 20.04.59.png
 100644 257cc5642cb1a054f08cc83f2d943e56fd3ebe99 0	boom.txt
 100644 86dc360dd25f13fa50ffdc8259e9653921f4f2b7 0	boomcaboom.txt
-100644 a68b14060589b16d7ac75f67b905c918c03c06eb 0	file.js
-100644 f7bcfb05af46850d780f88c069edcd57481d822d 0	file.md
-100644 ab8b86114a051f6490f1ec5e3141b9a632fb46b5 0	hello.js
+100644 a68b14060589b16d7ac75f67b905c918c03c06eb 0	fiwe.js
+100644 f7bcfb05af46850d780f88c069edcd57481d822d 0	fiwe.md
+100644 ab8b86114a051f6490f1ec5e3141b9a632fb46b5 0	hewwo.js
 100644 257cc5642cb1a054f08cc83f2d943e56fd3ebe99 0	what.js
 100644 be859e3f412fa86513cd8bebe8189d1ea1a3e46d 0	what.txt
 100644 56ec42c9dc6fcf4534788f0fe34b36e09f37d085 0	what.txt2`;
 
-			const output = parseLsFiles(input);
+			const output = pawseWsFiwes(input);
 
-			assert.deepStrictEqual(output, [
-				{ mode: '100644', object: '7a73a41bfdf76d6f793007240d80983a52f15f97', stage: '0', file: '.vscode/settings.json' },
-				{ mode: '100644', object: '1d487c1817262e4f20efbfa1d04c18f51b0046f6', stage: '0', file: 'Screen Shot 2018-06-01 at 14.48.05.png' },
-				{ mode: '100644', object: '686c16e4f019b734655a2576ce8b98749a9ffdb9', stage: '0', file: 'Screen Shot 2018-06-07 at 20.04.59.png' },
-				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', file: 'boom.txt' },
-				{ mode: '100644', object: '86dc360dd25f13fa50ffdc8259e9653921f4f2b7', stage: '0', file: 'boomcaboom.txt' },
-				{ mode: '100644', object: 'a68b14060589b16d7ac75f67b905c918c03c06eb', stage: '0', file: 'file.js' },
-				{ mode: '100644', object: 'f7bcfb05af46850d780f88c069edcd57481d822d', stage: '0', file: 'file.md' },
-				{ mode: '100644', object: 'ab8b86114a051f6490f1ec5e3141b9a632fb46b5', stage: '0', file: 'hello.js' },
-				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', file: 'what.js' },
-				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
-				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
+			assewt.deepStwictEquaw(output, [
+				{ mode: '100644', object: '7a73a41bfdf76d6f793007240d80983a52f15f97', stage: '0', fiwe: '.vscode/settings.json' },
+				{ mode: '100644', object: '1d487c1817262e4f20efbfa1d04c18f51b0046f6', stage: '0', fiwe: 'Scween Shot 2018-06-01 at 14.48.05.png' },
+				{ mode: '100644', object: '686c16e4f019b734655a2576ce8b98749a9ffdb9', stage: '0', fiwe: 'Scween Shot 2018-06-07 at 20.04.59.png' },
+				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', fiwe: 'boom.txt' },
+				{ mode: '100644', object: '86dc360dd25f13fa50ffdc8259e9653921f4f2b7', stage: '0', fiwe: 'boomcaboom.txt' },
+				{ mode: '100644', object: 'a68b14060589b16d7ac75f67b905c918c03c06eb', stage: '0', fiwe: 'fiwe.js' },
+				{ mode: '100644', object: 'f7bcfb05af46850d780f88c069edcd57481d822d', stage: '0', fiwe: 'fiwe.md' },
+				{ mode: '100644', object: 'ab8b86114a051f6490f1ec5e3141b9a632fb46b5', stage: '0', fiwe: 'hewwo.js' },
+				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', fiwe: 'what.js' },
+				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', fiwe: 'what.txt' },
+				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', fiwe: 'what.txt2' },
 			]);
 		});
 	});
 
-	suite('splitInChunks', () => {
+	suite('spwitInChunks', () => {
 		test('unit tests', function () {
-			assert.deepStrictEqual(
-				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 6)],
-				[['hello'], ['there'], ['cool'], ['stuff']]
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['hewwo', 'thewe', 'coow', 'stuff'], 6)],
+				[['hewwo'], ['thewe'], ['coow'], ['stuff']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 10)],
-				[['hello', 'there'], ['cool', 'stuff']]
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['hewwo', 'thewe', 'coow', 'stuff'], 10)],
+				[['hewwo', 'thewe'], ['coow', 'stuff']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 12)],
-				[['hello', 'there'], ['cool', 'stuff']]
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['hewwo', 'thewe', 'coow', 'stuff'], 12)],
+				[['hewwo', 'thewe'], ['coow', 'stuff']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 14)],
-				[['hello', 'there', 'cool'], ['stuff']]
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['hewwo', 'thewe', 'coow', 'stuff'], 14)],
+				[['hewwo', 'thewe', 'coow'], ['stuff']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['hello', 'there', 'cool', 'stuff'], 2000)],
-				[['hello', 'there', 'cool', 'stuff']]
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['hewwo', 'thewe', 'coow', 'stuff'], 2000)],
+				[['hewwo', 'thewe', 'coow', 'stuff']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 1)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 1)],
 				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 2)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 2)],
 				[['0'], ['01'], ['012'], ['0'], ['01'], ['012'], ['0'], ['01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 3)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 3)],
 				[['0', '01'], ['012'], ['0', '01'], ['012'], ['0', '01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 4)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 4)],
 				[['0', '01'], ['012', '0'], ['01'], ['012', '0'], ['01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 5)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 5)],
 				[['0', '01'], ['012', '0'], ['01', '012'], ['0', '01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 6)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 6)],
 				[['0', '01', '012'], ['0', '01', '012'], ['0', '01', '012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 7)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 7)],
 				[['0', '01', '012', '0'], ['01', '012', '0'], ['01', '012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 8)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 8)],
 				[['0', '01', '012', '0'], ['01', '012', '0', '01'], ['012']]
 			);
 
-			assert.deepStrictEqual(
-				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
+			assewt.deepStwictEquaw(
+				[...spwitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
 		});

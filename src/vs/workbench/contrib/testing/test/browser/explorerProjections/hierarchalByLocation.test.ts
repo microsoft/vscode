@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
-import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { HiewawchicawByWocationPwojection } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/hiewawchawByWocation';
+impowt { TestDiffOpType, TestItemExpandState, TestWesuwtItem, TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestWesuwtItemChange, TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { Convewt, TestItemImpw } fwom 'vs/wowkbench/contwib/testing/common/testStubs';
+impowt { TestTweeTestHawness } fwom 'vs/wowkbench/contwib/testing/test/bwowsa/testObjectTwee';
 
-class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
+cwass TestHiewawchicawByWocationPwojection extends HiewawchicawByWocationPwojection {
 }
 
-suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
-	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
-	let onTestChanged: Emitter<TestResultItemChange>;
-	let resultsService: any;
+suite('Wowkbench - Testing Expwowa Hiewawchaw by Wocation Pwojection', () => {
+	wet hawness: TestTweeTestHawness<TestHiewawchicawByWocationPwojection>;
+	wet onTestChanged: Emitta<TestWesuwtItemChange>;
+	wet wesuwtsSewvice: any;
 
 	setup(() => {
-		onTestChanged = new Emitter();
-		resultsService = {
-			onResultsChanged: () => undefined,
+		onTestChanged = new Emitta();
+		wesuwtsSewvice = {
+			onWesuwtsChanged: () => undefined,
 			onTestChanged: onTestChanged.event,
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection(l, resultsService as any));
+		hawness = new TestTweeTestHawness(w => new TestHiewawchicawByWocationPwojection(w, wesuwtsSewvice as any));
 	});
 
-	teardown(() => {
-		harness.dispose();
+	teawdown(() => {
+		hawness.dispose();
 	});
 
-	test('renders initial tree', async () => {
-		harness.flush();
-		assert.deepStrictEqual(harness.tree.getRendered(), [
+	test('wendews initiaw twee', async () => {
+		hawness.fwush();
+		assewt.deepStwictEquaw(hawness.twee.getWendewed(), [
 			{ e: 'a' }, { e: 'b' }
 		]);
 	});
 
-	test('expands children', async () => {
-		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
+	test('expands chiwdwen', async () => {
+		hawness.fwush();
+		hawness.twee.expand(hawness.pwojection.getEwementByTestId(new TestId(['ctwwId', 'id-a']).toStwing())!);
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'a', chiwdwen: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
 		]);
 	});
 
-	test('updates render if second test provider appears', async () => {
-		harness.flush();
-		harness.pushDiff([
+	test('updates wenda if second test pwovida appeaws', async () => {
+		hawness.fwush();
+		hawness.pushDiff([
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
+			{ contwowwewId: 'ctww2', pawent: nuww, expand: TestItemExpandState.Expanded, item: Convewt.TestItem.fwom(new TestItemImpw('ctww2', 'c', 'c', undefined)) },
 		], [
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
+			{ contwowwewId: 'ctww2', pawent: new TestId(['ctww2', 'c']).toStwing(), expand: TestItemExpandState.NotExpandabwe, item: Convewt.TestItem.fwom(new TestItemImpw('ctww2', 'c-a', 'ca', undefined)) },
 		]);
 
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'c', children: [{ e: 'ca' }] },
-			{ e: 'root', children: [{ e: 'a' }, { e: 'b' }] }
-		]);
-	});
-
-	test('updates nodes if they add children', async () => {
-		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
-
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] },
-			{ e: 'b' }
-		]);
-
-		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ctrlId', 'ac', 'ac', undefined));
-
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
-			{ e: 'b' }
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'c', chiwdwen: [{ e: 'ca' }] },
+			{ e: 'woot', chiwdwen: [{ e: 'a' }, { e: 'b' }] }
 		]);
 	});
 
-	test('updates nodes if they remove children', async () => {
-		harness.flush();
-		harness.tree.expand(harness.projection.getElementByTestId(new TestId(['ctrlId', 'id-a']).toString())!);
+	test('updates nodes if they add chiwdwen', async () => {
+		hawness.fwush();
+		hawness.twee.expand(hawness.pwojection.getEwementByTestId(new TestId(['ctwwId', 'id-a']).toStwing())!);
 
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] },
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'a', chiwdwen: [{ e: 'aa' }, { e: 'ab' }] },
 			{ e: 'b' }
 		]);
 
-		harness.c.root.children.get('id-a')!.children.delete('id-ab');
+		hawness.c.woot.chiwdwen.get('id-a')!.chiwdwen.add(new TestItemImpw('ctwwId', 'ac', 'ac', undefined));
 
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'a', children: [{ e: 'aa' }] },
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'a', chiwdwen: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
 			{ e: 'b' }
 		]);
 	});
 
-	test('applies state changes', async () => {
-		harness.flush();
-		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
+	test('updates nodes if they wemove chiwdwen', async () => {
+		hawness.fwush();
+		hawness.twee.expand(hawness.pwojection.getEwementByTestId(new TestId(['ctwwId', 'id-a']).toStwing())!);
 
-		const resultInState = (state: TestResultState): TestResultItem => ({
-			item: Convert.TestItem.from(harness.c.tree.get(new TestId(['ctrlId', 'id-a']).toString())!.actual),
-			parent: 'id-root',
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'a', chiwdwen: [{ e: 'aa' }, { e: 'ab' }] },
+			{ e: 'b' }
+		]);
+
+		hawness.c.woot.chiwdwen.get('id-a')!.chiwdwen.dewete('id-ab');
+
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'a', chiwdwen: [{ e: 'aa' }] },
+			{ e: 'b' }
+		]);
+	});
+
+	test('appwies state changes', async () => {
+		hawness.fwush();
+		wesuwtsSewvice.getStateById = () => [undefined, wesuwtInState(TestWesuwtState.Faiwed)];
+
+		const wesuwtInState = (state: TestWesuwtState): TestWesuwtItem => ({
+			item: Convewt.TestItem.fwom(hawness.c.twee.get(new TestId(['ctwwId', 'id-a']).toStwing())!.actuaw),
+			pawent: 'id-woot',
 			tasks: [],
-			retired: false,
+			wetiwed: fawse,
 			ownComputedState: state,
 			computedState: state,
 			expand: 0,
-			controllerId: 'ctrl',
+			contwowwewId: 'ctww',
 		});
 
-		// Applies the change:
-		onTestChanged.fire({
-			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
-			previous: TestResultState.Unset,
-			item: resultInState(TestResultState.Queued),
+		// Appwies the change:
+		onTestChanged.fiwe({
+			weason: TestWesuwtItemChangeWeason.OwnStateChange,
+			wesuwt: nuww as any,
+			pwevious: TestWesuwtState.Unset,
+			item: wesuwtInState(TestWesuwtState.Queued),
 		});
-		harness.projection.applyTo(harness.tree);
+		hawness.pwojection.appwyTo(hawness.twee);
 
-		assert.deepStrictEqual(harness.tree.getRendered('state'), [
-			{ e: 'a', data: String(TestResultState.Queued) },
-			{ e: 'b', data: String(TestResultState.Unset) }
+		assewt.deepStwictEquaw(hawness.twee.getWendewed('state'), [
+			{ e: 'a', data: Stwing(TestWesuwtState.Queued) },
+			{ e: 'b', data: Stwing(TestWesuwtState.Unset) }
 		]);
 
-		// Falls back if moved into unset state:
-		onTestChanged.fire({
-			reason: TestResultItemChangeReason.OwnStateChange,
-			result: null as any,
-			previous: TestResultState.Queued,
-			item: resultInState(TestResultState.Unset),
+		// Fawws back if moved into unset state:
+		onTestChanged.fiwe({
+			weason: TestWesuwtItemChangeWeason.OwnStateChange,
+			wesuwt: nuww as any,
+			pwevious: TestWesuwtState.Queued,
+			item: wesuwtInState(TestWesuwtState.Unset),
 		});
-		harness.projection.applyTo(harness.tree);
+		hawness.pwojection.appwyTo(hawness.twee);
 
-		assert.deepStrictEqual(harness.tree.getRendered('state'), [
-			{ e: 'a', data: String(TestResultState.Failed) },
-			{ e: 'b', data: String(TestResultState.Unset) }
+		assewt.deepStwictEquaw(hawness.twee.getWendewed('state'), [
+			{ e: 'a', data: Stwing(TestWesuwtState.Faiwed) },
+			{ e: 'b', data: Stwing(TestWesuwtState.Unset) }
 		]);
 	});
 });

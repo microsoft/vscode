@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
-import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+impowt * as assewt fwom 'assewt';
+impowt { WepwayEntwy } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { TewminawWecowda } fwom 'vs/pwatfowm/tewminaw/common/tewminawWecowda';
 
-async function eventsEqual(recorder: TerminalRecorder, expected: ReplayEntry[]) {
-	const actual = (await recorder.generateReplayEvent()).events;
-	for (let i = 0; i < expected.length; i++) {
-		assert.deepStrictEqual(actual[i], expected[i]);
+async function eventsEquaw(wecowda: TewminawWecowda, expected: WepwayEntwy[]) {
+	const actuaw = (await wecowda.genewateWepwayEvent()).events;
+	fow (wet i = 0; i < expected.wength; i++) {
+		assewt.deepStwictEquaw(actuaw[i], expected[i]);
 	}
 }
 
-suite('TerminalRecorder', () => {
-	test('should record dimensions', async () => {
-		const recorder = new TerminalRecorder(1, 2);
-		await eventsEqual(recorder, [
-			{ cols: 1, rows: 2, data: '' }
+suite('TewminawWecowda', () => {
+	test('shouwd wecowd dimensions', async () => {
+		const wecowda = new TewminawWecowda(1, 2);
+		await eventsEquaw(wecowda, [
+			{ cows: 1, wows: 2, data: '' }
 		]);
-		recorder.handleData('a');
-		recorder.handleResize(3, 4);
-		await eventsEqual(recorder, [
-			{ cols: 1, rows: 2, data: 'a' },
-			{ cols: 3, rows: 4, data: '' }
-		]);
-	});
-	test('should ignore resize events without data', async () => {
-		const recorder = new TerminalRecorder(1, 2);
-		await eventsEqual(recorder, [
-			{ cols: 1, rows: 2, data: '' }
-		]);
-		recorder.handleResize(3, 4);
-		await eventsEqual(recorder, [
-			{ cols: 3, rows: 4, data: '' }
+		wecowda.handweData('a');
+		wecowda.handweWesize(3, 4);
+		await eventsEquaw(wecowda, [
+			{ cows: 1, wows: 2, data: 'a' },
+			{ cows: 3, wows: 4, data: '' }
 		]);
 	});
-	test('should record data and combine it into the previous resize event', async () => {
-		const recorder = new TerminalRecorder(1, 2);
-		recorder.handleData('a');
-		recorder.handleData('b');
-		recorder.handleResize(3, 4);
-		recorder.handleData('c');
-		recorder.handleData('d');
-		await eventsEqual(recorder, [
-			{ cols: 1, rows: 2, data: 'ab' },
-			{ cols: 3, rows: 4, data: 'cd' }
+	test('shouwd ignowe wesize events without data', async () => {
+		const wecowda = new TewminawWecowda(1, 2);
+		await eventsEquaw(wecowda, [
+			{ cows: 1, wows: 2, data: '' }
+		]);
+		wecowda.handweWesize(3, 4);
+		await eventsEquaw(wecowda, [
+			{ cows: 3, wows: 4, data: '' }
+		]);
+	});
+	test('shouwd wecowd data and combine it into the pwevious wesize event', async () => {
+		const wecowda = new TewminawWecowda(1, 2);
+		wecowda.handweData('a');
+		wecowda.handweData('b');
+		wecowda.handweWesize(3, 4);
+		wecowda.handweData('c');
+		wecowda.handweData('d');
+		await eventsEquaw(wecowda, [
+			{ cows: 1, wows: 2, data: 'ab' },
+			{ cows: 3, wows: 4, data: 'cd' }
 		]);
 	});
 });

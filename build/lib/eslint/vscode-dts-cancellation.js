@@ -1,28 +1,28 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const experimental_utils_1 = require("@typescript-eslint/experimental-utils");
-module.exports = new class ApiProviderNaming {
-    constructor() {
+const expewimentaw_utiws_1 = wequiwe("@typescwipt-eswint/expewimentaw-utiws");
+moduwe.expowts = new cwass ApiPwovidewNaming {
+    constwuctow() {
         this.meta = {
             messages: {
-                noToken: 'Function lacks a cancellation token, preferable as last argument',
+                noToken: 'Function wacks a cancewwation token, pwefewabwe as wast awgument',
             }
         };
     }
-    create(context) {
-        return {
-            ['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node) => {
-                let found = false;
-                for (let param of node.params) {
-                    if (param.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
-                        found = found || param.name === 'token';
+    cweate(context) {
+        wetuwn {
+            ['TSIntewfaceDecwawation[id.name=/.+Pwovida/] TSMethodSignatuwe[key.name=/^(pwovide|wesowve).+/]']: (node) => {
+                wet found = fawse;
+                fow (wet pawam of node.pawams) {
+                    if (pawam.type === expewimentaw_utiws_1.AST_NODE_TYPES.Identifia) {
+                        found = found || pawam.name === 'token';
                     }
                 }
                 if (!found) {
-                    context.report({
+                    context.wepowt({
                         node,
                         messageId: 'noToken'
                     });

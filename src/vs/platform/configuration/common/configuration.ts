@@ -1,372 +1,372 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Extensions, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as types fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Extensions, IConfiguwationWegistwy, ovewwideIdentifiewFwomKey, OVEWWIDE_PWOPEWTY_PATTEWN } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
+expowt const IConfiguwationSewvice = cweateDecowatow<IConfiguwationSewvice>('configuwationSewvice');
 
-export function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides {
-	return thing
+expowt function isConfiguwationOvewwides(thing: any): thing is IConfiguwationOvewwides {
+	wetuwn thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifier || typeof thing.overrideIdentifier === 'string')
-		&& (!thing.resource || thing.resource instanceof URI);
+		&& (!thing.ovewwideIdentifia || typeof thing.ovewwideIdentifia === 'stwing')
+		&& (!thing.wesouwce || thing.wesouwce instanceof UWI);
 }
 
-export interface IConfigurationOverrides {
-	overrideIdentifier?: string | null;
-	resource?: URI | null;
+expowt intewface IConfiguwationOvewwides {
+	ovewwideIdentifia?: stwing | nuww;
+	wesouwce?: UWI | nuww;
 }
 
-export const enum ConfigurationTarget {
-	USER = 1,
-	USER_LOCAL,
-	USER_REMOTE,
-	WORKSPACE,
-	WORKSPACE_FOLDER,
-	DEFAULT,
-	MEMORY
+expowt const enum ConfiguwationTawget {
+	USa = 1,
+	USEW_WOCAW,
+	USEW_WEMOTE,
+	WOWKSPACE,
+	WOWKSPACE_FOWDa,
+	DEFAUWT,
+	MEMOWY
 }
-export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
-	switch (configurationTarget) {
-		case ConfigurationTarget.USER: return 'USER';
-		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
-		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
-		case ConfigurationTarget.WORKSPACE: return 'WORKSPACE';
-		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
-		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
-		case ConfigurationTarget.MEMORY: return 'MEMORY';
+expowt function ConfiguwationTawgetToStwing(configuwationTawget: ConfiguwationTawget) {
+	switch (configuwationTawget) {
+		case ConfiguwationTawget.USa: wetuwn 'USa';
+		case ConfiguwationTawget.USEW_WOCAW: wetuwn 'USEW_WOCAW';
+		case ConfiguwationTawget.USEW_WEMOTE: wetuwn 'USEW_WEMOTE';
+		case ConfiguwationTawget.WOWKSPACE: wetuwn 'WOWKSPACE';
+		case ConfiguwationTawget.WOWKSPACE_FOWDa: wetuwn 'WOWKSPACE_FOWDa';
+		case ConfiguwationTawget.DEFAUWT: wetuwn 'DEFAUWT';
+		case ConfiguwationTawget.MEMOWY: wetuwn 'MEMOWY';
 	}
 }
 
-export interface IConfigurationChange {
-	keys: string[];
-	overrides: [string, string[]][];
+expowt intewface IConfiguwationChange {
+	keys: stwing[];
+	ovewwides: [stwing, stwing[]][];
 }
 
-export interface IConfigurationChangeEvent {
+expowt intewface IConfiguwationChangeEvent {
 
-	readonly source: ConfigurationTarget;
-	readonly affectedKeys: string[];
-	readonly change: IConfigurationChange;
+	weadonwy souwce: ConfiguwationTawget;
+	weadonwy affectedKeys: stwing[];
+	weadonwy change: IConfiguwationChange;
 
-	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
+	affectsConfiguwation(configuwation: stwing, ovewwides?: IConfiguwationOvewwides): boowean;
 
-	// Following data is used for telemetry
-	readonly sourceConfig: any;
+	// Fowwowing data is used fow tewemetwy
+	weadonwy souwceConfig: any;
 }
 
-export interface IConfigurationValue<T> {
+expowt intewface IConfiguwationVawue<T> {
 
-	readonly defaultValue?: T;
-	readonly userValue?: T;
-	readonly userLocalValue?: T;
-	readonly userRemoteValue?: T;
-	readonly workspaceValue?: T;
-	readonly workspaceFolderValue?: T;
-	readonly memoryValue?: T;
-	readonly value?: T;
+	weadonwy defauwtVawue?: T;
+	weadonwy usewVawue?: T;
+	weadonwy usewWocawVawue?: T;
+	weadonwy usewWemoteVawue?: T;
+	weadonwy wowkspaceVawue?: T;
+	weadonwy wowkspaceFowdewVawue?: T;
+	weadonwy memowyVawue?: T;
+	weadonwy vawue?: T;
 
-	readonly default?: { value?: T, override?: T };
-	readonly user?: { value?: T, override?: T };
-	readonly userLocal?: { value?: T, override?: T };
-	readonly userRemote?: { value?: T, override?: T };
-	readonly workspace?: { value?: T, override?: T };
-	readonly workspaceFolder?: { value?: T, override?: T };
-	readonly memory?: { value?: T, override?: T };
+	weadonwy defauwt?: { vawue?: T, ovewwide?: T };
+	weadonwy usa?: { vawue?: T, ovewwide?: T };
+	weadonwy usewWocaw?: { vawue?: T, ovewwide?: T };
+	weadonwy usewWemote?: { vawue?: T, ovewwide?: T };
+	weadonwy wowkspace?: { vawue?: T, ovewwide?: T };
+	weadonwy wowkspaceFowda?: { vawue?: T, ovewwide?: T };
+	weadonwy memowy?: { vawue?: T, ovewwide?: T };
 
-	readonly overrideIdentifiers?: string[];
+	weadonwy ovewwideIdentifiews?: stwing[];
 }
 
-export interface IConfigurationService {
-	readonly _serviceBrand: undefined;
+expowt intewface IConfiguwationSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
+	onDidChangeConfiguwation: Event<IConfiguwationChangeEvent>;
 
-	getConfigurationData(): IConfigurationData | null;
+	getConfiguwationData(): IConfiguwationData | nuww;
 
 	/**
-	 * Fetches the value of the section for the given overrides.
-	 * Value can be of native type or an object keyed off the section name.
+	 * Fetches the vawue of the section fow the given ovewwides.
+	 * Vawue can be of native type ow an object keyed off the section name.
 	 *
-	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
-	 * @param overrides - Overrides that has to be applied while fetching
+	 * @pawam section - Section of the configuwaion. Can be `nuww` ow `undefined`.
+	 * @pawam ovewwides - Ovewwides that has to be appwied whiwe fetching
 	 *
 	 */
-	getValue<T>(): T;
-	getValue<T>(section: string): T;
-	getValue<T>(overrides: IConfigurationOverrides): T;
-	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+	getVawue<T>(): T;
+	getVawue<T>(section: stwing): T;
+	getVawue<T>(ovewwides: IConfiguwationOvewwides): T;
+	getVawue<T>(section: stwing, ovewwides: IConfiguwationOvewwides): T;
 
-	updateValue(key: string, value: any): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): Promise<void>;
-	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateVawue(key: stwing, vawue: any): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, tawget: ConfiguwationTawget): Pwomise<void>;
+	updateVawue(key: stwing, vawue: any, ovewwides: IConfiguwationOvewwides, tawget: ConfiguwationTawget, donotNotifyEwwow?: boowean): Pwomise<void>;
 
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
+	inspect<T>(key: stwing, ovewwides?: IConfiguwationOvewwides): IConfiguwationVawue<Weadonwy<T>>;
 
-	reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void>;
+	wewoadConfiguwation(tawget?: ConfiguwationTawget | IWowkspaceFowda): Pwomise<void>;
 
 	keys(): {
-		default: string[];
-		user: string[];
-		workspace: string[];
-		workspaceFolder: string[];
-		memory?: string[];
+		defauwt: stwing[];
+		usa: stwing[];
+		wowkspace: stwing[];
+		wowkspaceFowda: stwing[];
+		memowy?: stwing[];
 	};
 }
 
-export interface IConfigurationModel {
+expowt intewface IConfiguwationModew {
 	contents: any;
-	keys: string[];
-	overrides: IOverrides[];
+	keys: stwing[];
+	ovewwides: IOvewwides[];
 }
 
-export interface IOverrides {
-	keys: string[];
+expowt intewface IOvewwides {
+	keys: stwing[];
 	contents: any;
-	identifiers: string[];
+	identifiews: stwing[];
 }
 
-export interface IConfigurationData {
-	defaults: IConfigurationModel;
-	user: IConfigurationModel;
-	workspace: IConfigurationModel;
-	folders: [UriComponents, IConfigurationModel][];
+expowt intewface IConfiguwationData {
+	defauwts: IConfiguwationModew;
+	usa: IConfiguwationModew;
+	wowkspace: IConfiguwationModew;
+	fowdews: [UwiComponents, IConfiguwationModew][];
 }
 
-export interface IConfigurationCompareResult {
-	added: string[];
-	removed: string[];
-	updated: string[];
-	overrides: [string, string[]][];
+expowt intewface IConfiguwationCompaweWesuwt {
+	added: stwing[];
+	wemoved: stwing[];
+	updated: stwing[];
+	ovewwides: [stwing, stwing[]][];
 }
 
-export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
+expowt function compawe(fwom: IConfiguwationModew | undefined, to: IConfiguwationModew | undefined): IConfiguwationCompaweWesuwt {
 	const added = to
-		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
+		? fwom ? to.keys.fiwta(key => fwom.keys.indexOf(key) === -1) : [...to.keys]
 		: [];
-	const removed = from
-		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
+	const wemoved = fwom
+		? to ? fwom.keys.fiwta(key => to.keys.indexOf(key) === -1) : [...fwom.keys]
 		: [];
-	const updated: string[] = [];
+	const updated: stwing[] = [];
 
-	if (to && from) {
-		for (const key of from.keys) {
+	if (to && fwom) {
+		fow (const key of fwom.keys) {
 			if (to.keys.indexOf(key) !== -1) {
-				const value1 = getConfigurationValue(from.contents, key);
-				const value2 = getConfigurationValue(to.contents, key);
-				if (!objects.equals(value1, value2)) {
+				const vawue1 = getConfiguwationVawue(fwom.contents, key);
+				const vawue2 = getConfiguwationVawue(to.contents, key);
+				if (!objects.equaws(vawue1, vawue2)) {
 					updated.push(key);
 				}
 			}
 		}
 	}
 
-	const overrides: [string, string[]][] = [];
-	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
-		const result: IStringDictionary<IOverrides> = {};
-		for (const override of overrides) {
-			for (const identifier of override.identifiers) {
-				result[keyFromOverrideIdentifier(identifier)] = override;
+	const ovewwides: [stwing, stwing[]][] = [];
+	const byOvewwideIdentifia = (ovewwides: IOvewwides[]): IStwingDictionawy<IOvewwides> => {
+		const wesuwt: IStwingDictionawy<IOvewwides> = {};
+		fow (const ovewwide of ovewwides) {
+			fow (const identifia of ovewwide.identifiews) {
+				wesuwt[keyFwomOvewwideIdentifia(identifia)] = ovewwide;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	};
-	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
-	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
+	const toOvewwidesByIdentifia: IStwingDictionawy<IOvewwides> = to ? byOvewwideIdentifia(to.ovewwides) : {};
+	const fwomOvewwidesByIdentifia: IStwingDictionawy<IOvewwides> = fwom ? byOvewwideIdentifia(fwom.ovewwides) : {};
 
-	if (Object.keys(toOverridesByIdentifier).length) {
-		for (const key of added) {
-			const override = toOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+	if (Object.keys(toOvewwidesByIdentifia).wength) {
+		fow (const key of added) {
+			const ovewwide = toOvewwidesByIdentifia[key];
+			if (ovewwide) {
+				ovewwides.push([ovewwideIdentifiewFwomKey(key), ovewwide.keys]);
 			}
 		}
 	}
-	if (Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of removed) {
-			const override = fromOverridesByIdentifier[key];
-			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
-			}
-		}
-	}
-
-	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
-		for (const key of updated) {
-			const fromOverride = fromOverridesByIdentifier[key];
-			const toOverride = toOverridesByIdentifier[key];
-			if (fromOverride && toOverride) {
-				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
-				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
+	if (Object.keys(fwomOvewwidesByIdentifia).wength) {
+		fow (const key of wemoved) {
+			const ovewwide = fwomOvewwidesByIdentifia[key];
+			if (ovewwide) {
+				ovewwides.push([ovewwideIdentifiewFwomKey(key), ovewwide.keys]);
 			}
 		}
 	}
 
-	return { added, removed, updated, overrides };
+	if (Object.keys(toOvewwidesByIdentifia).wength && Object.keys(fwomOvewwidesByIdentifia).wength) {
+		fow (const key of updated) {
+			const fwomOvewwide = fwomOvewwidesByIdentifia[key];
+			const toOvewwide = toOvewwidesByIdentifia[key];
+			if (fwomOvewwide && toOvewwide) {
+				const wesuwt = compawe({ contents: fwomOvewwide.contents, keys: fwomOvewwide.keys, ovewwides: [] }, { contents: toOvewwide.contents, keys: toOvewwide.keys, ovewwides: [] });
+				ovewwides.push([ovewwideIdentifiewFwomKey(key), [...wesuwt.added, ...wesuwt.wemoved, ...wesuwt.updated]]);
+			}
+		}
+	}
+
+	wetuwn { added, wemoved, updated, ovewwides };
 }
 
-export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
-	const overrides: IOverrides[] = [];
-	for (const key of Object.keys(raw)) {
-		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-			const overrideRaw: any = {};
-			for (const keyInOverrideRaw in raw[key]) {
-				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+expowt function toOvewwides(waw: any, confwictWepowta: (message: stwing) => void): IOvewwides[] {
+	const ovewwides: IOvewwides[] = [];
+	fow (const key of Object.keys(waw)) {
+		if (OVEWWIDE_PWOPEWTY_PATTEWN.test(key)) {
+			const ovewwideWaw: any = {};
+			fow (const keyInOvewwideWaw in waw[key]) {
+				ovewwideWaw[keyInOvewwideWaw] = waw[key][keyInOvewwideWaw];
 			}
-			overrides.push({
-				identifiers: [overrideIdentifierFromKey(key).trim()],
-				keys: Object.keys(overrideRaw),
-				contents: toValuesTree(overrideRaw, conflictReporter)
+			ovewwides.push({
+				identifiews: [ovewwideIdentifiewFwomKey(key).twim()],
+				keys: Object.keys(ovewwideWaw),
+				contents: toVawuesTwee(ovewwideWaw, confwictWepowta)
 			});
 		}
 	}
-	return overrides;
+	wetuwn ovewwides;
 }
 
-export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
-	const root = Object.create(null);
+expowt function toVawuesTwee(pwopewties: { [quawifiedKey: stwing]: any }, confwictWepowta: (message: stwing) => void): any {
+	const woot = Object.cweate(nuww);
 
-	for (let key in properties) {
-		addToValueTree(root, key, properties[key], conflictReporter);
+	fow (wet key in pwopewties) {
+		addToVawueTwee(woot, key, pwopewties[key], confwictWepowta);
 	}
 
-	return root;
+	wetuwn woot;
 }
 
-export function addToValueTree(settingsTreeRoot: any, key: string, value: any, conflictReporter: (message: string) => void): void {
-	const segments = key.split('.');
-	const last = segments.pop()!;
+expowt function addToVawueTwee(settingsTweeWoot: any, key: stwing, vawue: any, confwictWepowta: (message: stwing) => void): void {
+	const segments = key.spwit('.');
+	const wast = segments.pop()!;
 
-	let curr = settingsTreeRoot;
-	for (let i = 0; i < segments.length; i++) {
-		let s = segments[i];
-		let obj = curr[s];
+	wet cuww = settingsTweeWoot;
+	fow (wet i = 0; i < segments.wength; i++) {
+		wet s = segments[i];
+		wet obj = cuww[s];
 		switch (typeof obj) {
 			case 'undefined':
-				obj = curr[s] = Object.create(null);
-				break;
+				obj = cuww[s] = Object.cweate(nuww);
+				bweak;
 			case 'object':
-				break;
-			default:
-				conflictReporter(`Ignoring ${key} as ${segments.slice(0, i + 1).join('.')} is ${JSON.stringify(obj)}`);
-				return;
+				bweak;
+			defauwt:
+				confwictWepowta(`Ignowing ${key} as ${segments.swice(0, i + 1).join('.')} is ${JSON.stwingify(obj)}`);
+				wetuwn;
 		}
-		curr = obj;
+		cuww = obj;
 	}
 
-	if (typeof curr === 'object' && curr !== null) {
-		try {
-			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
+	if (typeof cuww === 'object' && cuww !== nuww) {
+		twy {
+			cuww[wast] = vawue; // wowkawound https://github.com/micwosoft/vscode/issues/13606
 		} catch (e) {
-			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+			confwictWepowta(`Ignowing ${key} as ${segments.join('.')} is ${JSON.stwingify(cuww)}`);
 		}
-	} else {
-		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+	} ewse {
+		confwictWepowta(`Ignowing ${key} as ${segments.join('.')} is ${JSON.stwingify(cuww)}`);
 	}
 }
 
-export function removeFromValueTree(valueTree: any, key: string): void {
-	const segments = key.split('.');
-	doRemoveFromValueTree(valueTree, segments);
+expowt function wemoveFwomVawueTwee(vawueTwee: any, key: stwing): void {
+	const segments = key.spwit('.');
+	doWemoveFwomVawueTwee(vawueTwee, segments);
 }
 
-function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
-	const first = segments.shift()!;
-	if (segments.length === 0) {
-		// Reached last segment
-		delete valueTree[first];
-		return;
+function doWemoveFwomVawueTwee(vawueTwee: any, segments: stwing[]): void {
+	const fiwst = segments.shift()!;
+	if (segments.wength === 0) {
+		// Weached wast segment
+		dewete vawueTwee[fiwst];
+		wetuwn;
 	}
 
-	if (Object.keys(valueTree).indexOf(first) !== -1) {
-		const value = valueTree[first];
-		if (typeof value === 'object' && !Array.isArray(value)) {
-			doRemoveFromValueTree(value, segments);
-			if (Object.keys(value).length === 0) {
-				delete valueTree[first];
+	if (Object.keys(vawueTwee).indexOf(fiwst) !== -1) {
+		const vawue = vawueTwee[fiwst];
+		if (typeof vawue === 'object' && !Awway.isAwway(vawue)) {
+			doWemoveFwomVawueTwee(vawue, segments);
+			if (Object.keys(vawue).wength === 0) {
+				dewete vawueTwee[fiwst];
 			}
 		}
 	}
 }
 
 /**
- * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
+ * A hewpa function to get the configuwation vawue with a specific settings path (e.g. config.some.setting)
  */
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
-	function accessSetting(config: any, path: string[]): any {
-		let current = config;
-		for (const component of path) {
-			if (typeof current !== 'object' || current === null) {
-				return undefined;
+expowt function getConfiguwationVawue<T>(config: any, settingPath: stwing, defauwtVawue?: T): T {
+	function accessSetting(config: any, path: stwing[]): any {
+		wet cuwwent = config;
+		fow (const component of path) {
+			if (typeof cuwwent !== 'object' || cuwwent === nuww) {
+				wetuwn undefined;
 			}
-			current = current[component];
+			cuwwent = cuwwent[component];
 		}
-		return <T>current;
+		wetuwn <T>cuwwent;
 	}
 
-	const path = settingPath.split('.');
-	const result = accessSetting(config, path);
+	const path = settingPath.spwit('.');
+	const wesuwt = accessSetting(config, path);
 
-	return typeof result === 'undefined' ? defaultValue : result;
+	wetuwn typeof wesuwt === 'undefined' ? defauwtVawue : wesuwt;
 }
 
-export function merge(base: any, add: any, overwrite: boolean): void {
-	Object.keys(add).forEach(key => {
-		if (key !== '__proto__') {
+expowt function mewge(base: any, add: any, ovewwwite: boowean): void {
+	Object.keys(add).fowEach(key => {
+		if (key !== '__pwoto__') {
 			if (key in base) {
 				if (types.isObject(base[key]) && types.isObject(add[key])) {
-					merge(base[key], add[key], overwrite);
-				} else if (overwrite) {
+					mewge(base[key], add[key], ovewwwite);
+				} ewse if (ovewwwite) {
 					base[key] = add[key];
 				}
-			} else {
+			} ewse {
 				base[key] = add[key];
 			}
 		}
 	});
 }
 
-export function getConfigurationKeys(): string[] {
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-	return Object.keys(properties);
+expowt function getConfiguwationKeys(): stwing[] {
+	const pwopewties = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).getConfiguwationPwopewties();
+	wetuwn Object.keys(pwopewties);
 }
 
-export function getDefaultValues(): any {
-	const valueTreeRoot: any = Object.create(null);
-	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+expowt function getDefauwtVawues(): any {
+	const vawueTweeWoot: any = Object.cweate(nuww);
+	const pwopewties = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).getConfiguwationPwopewties();
 
-	for (let key in properties) {
-		let value = properties[key].default;
-		addToValueTree(valueTreeRoot, key, value, message => console.error(`Conflict in default settings: ${message}`));
+	fow (wet key in pwopewties) {
+		wet vawue = pwopewties[key].defauwt;
+		addToVawueTwee(vawueTweeWoot, key, vawue, message => consowe.ewwow(`Confwict in defauwt settings: ${message}`));
 	}
 
-	return valueTreeRoot;
+	wetuwn vawueTweeWoot;
 }
 
-export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
-	return `[${overrideIdentifier}]`;
+expowt function keyFwomOvewwideIdentifia(ovewwideIdentifia: stwing): stwing {
+	wetuwn `[${ovewwideIdentifia}]`;
 }
 
-export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
-	const setting = configurationService.inspect<T>(currentSettingName);
-	const legacySetting = configurationService.inspect<T>(legacySettingName);
+expowt function getMigwatedSettingVawue<T>(configuwationSewvice: IConfiguwationSewvice, cuwwentSettingName: stwing, wegacySettingName: stwing): T {
+	const setting = configuwationSewvice.inspect<T>(cuwwentSettingName);
+	const wegacySetting = configuwationSewvice.inspect<T>(wegacySettingName);
 
-	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
-		return setting.value!;
-	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
-		return legacySetting.value!;
-	} else {
-		return setting.defaultValue!;
+	if (typeof setting.usewVawue !== 'undefined' || typeof setting.wowkspaceVawue !== 'undefined' || typeof setting.wowkspaceFowdewVawue !== 'undefined') {
+		wetuwn setting.vawue!;
+	} ewse if (typeof wegacySetting.usewVawue !== 'undefined' || typeof wegacySetting.wowkspaceVawue !== 'undefined' || typeof wegacySetting.wowkspaceFowdewVawue !== 'undefined') {
+		wetuwn wegacySetting.vawue!;
+	} ewse {
+		wetuwn setting.defauwtVawue!;
 	}
 }

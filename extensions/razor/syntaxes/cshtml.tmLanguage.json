@@ -1,339 +1,339 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/demyte/language-cshtml/blob/master/grammars/cshtml.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/demyte/wanguage-cshtmw/bwob/masta/gwammaws/cshtmw.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/demyte/language-cshtml/commit/e6e54d5a86a28cc1e44609a32aaa10a244cd3f81",
-	"name": "ASP.NET Razor",
-	"scopeName": "text.html.cshtml",
-	"patterns": [
+	"vewsion": "https://github.com/demyte/wanguage-cshtmw/commit/e6e54d5a86a28cc1e44609a32aaa10a244cd3f81",
+	"name": "ASP.NET Wazow",
+	"scopeName": "text.htmw.cshtmw",
+	"pattewns": [
 		{
-			"include": "#razor-directives"
+			"incwude": "#wazow-diwectives"
 		},
 		{
-			"include": "#razor-code-block"
+			"incwude": "#wazow-code-bwock"
 		},
 		{
-			"include": "#razor-else-if"
+			"incwude": "#wazow-ewse-if"
 		},
 		{
-			"include": "#razor-if"
+			"incwude": "#wazow-if"
 		},
 		{
-			"include": "#razor-else"
+			"incwude": "#wazow-ewse"
 		},
 		{
-			"include": "#razor-foreach"
+			"incwude": "#wazow-foweach"
 		},
 		{
-			"include": "#explicit-razor-expression"
+			"incwude": "#expwicit-wazow-expwession"
 		},
 		{
-			"include": "#implicit-razor-expression"
+			"incwude": "#impwicit-wazow-expwession"
 		},
 		{
-			"include": "text.html.basic"
+			"incwude": "text.htmw.basic"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"comments": {
 			"begin": "@\\*",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.definition.comment.source.cshtml"
+					"name": "punctuation.definition.comment.souwce.cshtmw"
 				}
 			},
 			"end": "\\*@",
-			"name": "comment.block.cshtml"
+			"name": "comment.bwock.cshtmw"
 		},
-		"razor-directives": {
-			"name": "meta.directive.cshtml",
-			"patterns": [
+		"wazow-diwectives": {
+			"name": "meta.diwective.cshtmw",
+			"pattewns": [
 				{
-					"include": "#using-directive"
+					"incwude": "#using-diwective"
 				},
 				{
-					"include": "#model-directive"
+					"incwude": "#modew-diwective"
 				},
 				{
-					"include": "#inherits-directive"
+					"incwude": "#inhewits-diwective"
 				},
 				{
-					"include": "#inject-directive"
+					"incwude": "#inject-diwective"
 				},
 				{
-					"include": "#implements-directive"
+					"incwude": "#impwements-diwective"
 				},
 				{
-					"include": "#layout-directive"
+					"incwude": "#wayout-diwective"
 				},
 				{
-					"include": "#page-directive"
+					"incwude": "#page-diwective"
 				},
 				{
-					"include": "#functions-directive"
+					"incwude": "#functions-diwective"
 				}
 			]
 		},
-		"explicit-razor-expression": {
-			"name": "meta.expression.explicit.cshtml",
+		"expwicit-wazow-expwession": {
+			"name": "meta.expwession.expwicit.cshtmw",
 			"begin": "(@)\\(",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "\\)"
 		},
-		"implicit-razor-expression": {
-			"name": "meta.expression.implicit.cshtml",
+		"impwicit-wazow-expwession": {
+			"name": "meta.expwession.impwicit.cshtmw",
 			"begin": "(@)([a-zA-Z0-9\\.\\_\\(\\)]+)",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
 			"end": "$"
 		},
-		"using-directive": {
-			"name": "meta.directive.using.cshtml",
+		"using-diwective": {
+			"name": "meta.diwective.using.cshtmw",
 			"begin": "(@using)\\s+",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-namespace-identifier"
+					"incwude": "#cshawp-namespace-identifia"
 				}
 			],
 			"end": "$"
 		},
-		"model-directive": {
-			"name": "meta.directive.model.cshtml",
-			"begin": "(@model)\\s+",
-			"captures": {
+		"modew-diwective": {
+			"name": "meta.diwective.modew.cshtmw",
+			"begin": "(@modew)\\s+",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-type-name"
+					"incwude": "#cshawp-type-name"
 				}
 			],
 			"end": "$"
 		},
-		"inherits-directive": {
-			"name": "meta.directive.inherits.cshtml",
-			"begin": "(@inherits)\\s+",
-			"captures": {
+		"inhewits-diwective": {
+			"name": "meta.diwective.inhewits.cshtmw",
+			"begin": "(@inhewits)\\s+",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-type-name"
+					"incwude": "#cshawp-type-name"
 				}
 			],
 			"end": "$"
 		},
-		"inject-directive": {
-			"name": "meta.directive.inject.cshtml",
+		"inject-diwective": {
+			"name": "meta.diwective.inject.cshtmw",
 			"begin": "(@inject)\\s+",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-type-name"
+					"incwude": "#cshawp-type-name"
 				}
 			],
 			"end": "$"
 		},
-		"implements-directive": {
-			"name": "meta.directive.implements.cshtml",
-			"begin": "(@implements)\\s+",
-			"captures": {
+		"impwements-diwective": {
+			"name": "meta.diwective.impwements.cshtmw",
+			"begin": "(@impwements)\\s+",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-type-name"
+					"incwude": "#cshawp-type-name"
 				}
 			],
 			"end": "$"
 		},
-		"layout-directive": {
-			"name": "meta.directive.layout.cshtml",
-			"begin": "(@layout)\\s+",
-			"captures": {
+		"wayout-diwective": {
+			"name": "meta.diwective.wayout.cshtmw",
+			"begin": "(@wayout)\\s+",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#csharp-type-name"
+					"incwude": "#cshawp-type-name"
 				}
 			],
 			"end": "$"
 		},
-		"page-directive": {
-			"name": "meta.directive.page.cshtml",
+		"page-diwective": {
+			"name": "meta.diwective.page.cshtmw",
 			"begin": "(@page)\\s+",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "$"
 		},
-		"functions-directive": {
-			"name": "meta.directive.functions.cshtml",
+		"functions-diwective": {
+			"name": "meta.diwective.functions.cshtmw",
 			"match": "(@functions)",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			}
 		},
-		"razor-if": {
+		"wazow-if": {
 			"begin": "(@if)",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "$"
 		},
-		"razor-else": {
-			"begin": "(else)",
-			"captures": {
+		"wazow-ewse": {
+			"begin": "(ewse)",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "$"
 		},
-		"razor-else-if": {
-			"begin": "(else\\s+if)",
-			"captures": {
+		"wazow-ewse-if": {
+			"begin": "(ewse\\s+if)",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "$"
 		},
-		"razor-foreach": {
-			"begin": "(@foreach)\\s+\\(",
-			"captures": {
+		"wazow-foweach": {
+			"begin": "(@foweach)\\s+\\(",
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "\\)"
 		},
-		"razor-code-block": {
+		"wazow-code-bwock": {
 			"begin": "@?\\{",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "keyword.control.cshtml"
+					"name": "keywowd.contwow.cshtmw"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "text.html.cshtml"
+					"incwude": "text.htmw.cshtmw"
 				},
 				{
-					"include": "source.cs"
+					"incwude": "souwce.cs"
 				}
 			],
 			"end": "\\}"
 		},
-		"csharp-namespace-identifier": {
-			"patterns": [
+		"cshawp-namespace-identifia": {
+			"pattewns": [
 				{
 					"name": "entity.name.type.namespace.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "[_[:awpha:]][_[:awnum:]]*"
 				}
 			]
 		},
-		"csharp-type-name": {
-			"patterns": [
+		"cshawp-type-name": {
+			"pattewns": [
 				{
-					"match": "([_[:alpha:]][_[:alnum:]]*)\\s*(\\:\\:)",
-					"captures": {
+					"match": "([_[:awpha:]][_[:awnum:]]*)\\s*(\\:\\:)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.alias.cs"
+							"name": "entity.name.type.awias.cs"
 						},
 						"2": {
-							"name": "punctuation.separator.coloncolon.cs"
+							"name": "punctuation.sepawatow.cowoncowon.cs"
 						}
 					}
 				},
 				{
-					"match": "([_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
-					"captures": {
+					"match": "([_[:awpha:]][_[:awnum:]]*)\\s*(\\.)",
+					"captuwes": {
 						"1": {
-							"name": "storage.type.cs"
+							"name": "stowage.type.cs"
 						},
 						"2": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						}
 					}
 				},
 				{
-					"match": "(\\.)\\s*([_[:alpha:]][_[:alnum:]]*)",
-					"captures": {
+					"match": "(\\.)\\s*([_[:awpha:]][_[:awnum:]]*)",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						},
 						"2": {
-							"name": "storage.type.cs"
+							"name": "stowage.type.cs"
 						}
 					}
 				},
 				{
-					"name": "storage.type.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"name": "stowage.type.cs",
+					"match": "[_[:awpha:]][_[:awnum:]]*"
 				}
 			]
 		}

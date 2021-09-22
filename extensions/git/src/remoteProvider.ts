@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event } from 'vscode';
-import { RemoteSourceProvider } from './api/git';
+impowt { Disposabwe, Event } fwom 'vscode';
+impowt { WemoteSouwcePwovida } fwom './api/git';
 
-export interface IRemoteSourceProviderRegistry {
-	readonly onDidAddRemoteSourceProvider: Event<RemoteSourceProvider>;
-	readonly onDidRemoveRemoteSourceProvider: Event<RemoteSourceProvider>;
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
-	getRemoteProviders(): RemoteSourceProvider[];
+expowt intewface IWemoteSouwcePwovidewWegistwy {
+	weadonwy onDidAddWemoteSouwcePwovida: Event<WemoteSouwcePwovida>;
+	weadonwy onDidWemoveWemoteSouwcePwovida: Event<WemoteSouwcePwovida>;
+	wegistewWemoteSouwcePwovida(pwovida: WemoteSouwcePwovida): Disposabwe;
+	getWemotePwovidews(): WemoteSouwcePwovida[];
 }

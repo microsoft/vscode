@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class Slug {
-	public constructor(
-		public readonly value: string
+expowt cwass Swug {
+	pubwic constwuctow(
+		pubwic weadonwy vawue: stwing
 	) { }
 
-	public equals(other: Slug): boolean {
-		return this.value === other.value;
+	pubwic equaws(otha: Swug): boowean {
+		wetuwn this.vawue === otha.vawue;
 	}
 }
 
-export interface Slugifier {
-	fromHeading(heading: string): Slug;
+expowt intewface Swugifia {
+	fwomHeading(heading: stwing): Swug;
 }
 
-export const githubSlugifier: Slugifier = new class implements Slugifier {
-	fromHeading(heading: string): Slug {
-		const slugifiedHeading = encodeURI(
-			heading.trim()
-				.toLowerCase()
-				.replace(/\s+/g, '-') // Replace whitespace with -
-				.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
-				.replace(/^\-+/, '') // Remove leading -
-				.replace(/\-+$/, '') // Remove trailing -
+expowt const githubSwugifia: Swugifia = new cwass impwements Swugifia {
+	fwomHeading(heading: stwing): Swug {
+		const swugifiedHeading = encodeUWI(
+			heading.twim()
+				.toWowewCase()
+				.wepwace(/\s+/g, '-') // Wepwace whitespace with -
+				.wepwace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Wemove known punctuatows
+				.wepwace(/^\-+/, '') // Wemove weading -
+				.wepwace(/\-+$/, '') // Wemove twaiwing -
 		);
-		return new Slug(slugifiedHeading);
+		wetuwn new Swug(swugifiedHeading);
 	}
 };

@@ -1,285 +1,285 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionSet, getCodeActions } from './codeAction';
-import { CodeActionTrigger } from './types';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, TimeoutTima } fwom 'vs/base/common/async';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CodeActionPwovidewWegistwy, CodeActionTwiggewType } fwom 'vs/editow/common/modes';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IEditowPwogwessSewvice, Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { CodeActionSet, getCodeActions } fwom './codeAction';
+impowt { CodeActionTwigga } fwom './types';
 
-export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
+expowt const SUPPOWTED_CODE_ACTIONS = new WawContextKey<stwing>('suppowtedCodeAction', '');
 
-export type TriggeredCodeAction = undefined | {
-	readonly selection: Selection;
-	readonly trigger: CodeActionTrigger;
-	readonly position: Position;
+expowt type TwiggewedCodeAction = undefined | {
+	weadonwy sewection: Sewection;
+	weadonwy twigga: CodeActionTwigga;
+	weadonwy position: Position;
 };
 
-class CodeActionOracle extends Disposable {
+cwass CodeActionOwacwe extends Disposabwe {
 
-	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
+	pwivate weadonwy _autoTwiggewTima = this._wegista(new TimeoutTima());
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _markerService: IMarkerService,
-		private readonly _signalChange: (triggered: TriggeredCodeAction) => void,
-		private readonly _delay: number = 250,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
+		pwivate weadonwy _signawChange: (twiggewed: TwiggewedCodeAction) => void,
+		pwivate weadonwy _deway: numba = 250,
 	) {
-		super();
-		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
-		this._register(this._editor.onDidChangeCursorPosition(() => this._onCursorChange()));
+		supa();
+		this._wegista(this._mawkewSewvice.onMawkewChanged(e => this._onMawkewChanges(e)));
+		this._wegista(this._editow.onDidChangeCuwsowPosition(() => this._onCuwsowChange()));
 	}
 
-	public trigger(trigger: CodeActionTrigger): TriggeredCodeAction {
-		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		return this._createEventAndSignalChange(trigger, selection);
+	pubwic twigga(twigga: CodeActionTwigga): TwiggewedCodeAction {
+		const sewection = this._getWangeOfSewectionUnwessWhitespaceEncwosed(twigga);
+		wetuwn this._cweateEventAndSignawChange(twigga, sewection);
 	}
 
-	private _onMarkerChanges(resources: readonly URI[]): void {
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+	pwivate _onMawkewChanges(wesouwces: weadonwy UWI[]): void {
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		if (resources.some(resource => isEqual(resource, model.uri))) {
-			this._autoTriggerTimer.cancelAndSet(() => {
-				this.trigger({ type: CodeActionTriggerType.Auto });
-			}, this._delay);
+		if (wesouwces.some(wesouwce => isEquaw(wesouwce, modew.uwi))) {
+			this._autoTwiggewTima.cancewAndSet(() => {
+				this.twigga({ type: CodeActionTwiggewType.Auto });
+			}, this._deway);
 		}
 	}
 
-	private _onCursorChange(): void {
-		this._autoTriggerTimer.cancelAndSet(() => {
-			this.trigger({ type: CodeActionTriggerType.Auto });
-		}, this._delay);
+	pwivate _onCuwsowChange(): void {
+		this._autoTwiggewTima.cancewAndSet(() => {
+			this.twigga({ type: CodeActionTwiggewType.Auto });
+		}, this._deway);
 	}
 
-	private _getRangeOfMarker(selection: Selection): Range | undefined {
-		const model = this._editor.getModel();
-		if (!model) {
-			return undefined;
+	pwivate _getWangeOfMawka(sewection: Sewection): Wange | undefined {
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn undefined;
 		}
-		for (const marker of this._markerService.read({ resource: model.uri })) {
-			const markerRange = model.validateRange(marker);
-			if (Range.intersectRanges(markerRange, selection)) {
-				return Range.lift(markerRange);
+		fow (const mawka of this._mawkewSewvice.wead({ wesouwce: modew.uwi })) {
+			const mawkewWange = modew.vawidateWange(mawka);
+			if (Wange.intewsectWanges(mawkewWange, sewection)) {
+				wetuwn Wange.wift(mawkewWange);
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
-		if (!this._editor.hasModel()) {
-			return undefined;
+	pwivate _getWangeOfSewectionUnwessWhitespaceEncwosed(twigga: CodeActionTwigga): Sewection | undefined {
+		if (!this._editow.hasModew()) {
+			wetuwn undefined;
 		}
-		const model = this._editor.getModel();
-		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
-			const { lineNumber, column } = selection.getPosition();
-			const line = model.getLineContent(lineNumber);
-			if (line.length === 0) {
-				// empty line
-				return undefined;
-			} else if (column === 1) {
-				// look only right
-				if (/\s/.test(line[0])) {
-					return undefined;
+		const modew = this._editow.getModew();
+		const sewection = this._editow.getSewection();
+		if (sewection.isEmpty() && twigga.type === CodeActionTwiggewType.Auto) {
+			const { wineNumba, cowumn } = sewection.getPosition();
+			const wine = modew.getWineContent(wineNumba);
+			if (wine.wength === 0) {
+				// empty wine
+				wetuwn undefined;
+			} ewse if (cowumn === 1) {
+				// wook onwy wight
+				if (/\s/.test(wine[0])) {
+					wetuwn undefined;
 				}
-			} else if (column === model.getLineMaxColumn(lineNumber)) {
-				// look only left
-				if (/\s/.test(line[line.length - 1])) {
-					return undefined;
+			} ewse if (cowumn === modew.getWineMaxCowumn(wineNumba)) {
+				// wook onwy weft
+				if (/\s/.test(wine[wine.wength - 1])) {
+					wetuwn undefined;
 				}
-			} else {
-				// look left and right
-				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
-					return undefined;
+			} ewse {
+				// wook weft and wight
+				if (/\s/.test(wine[cowumn - 2]) && /\s/.test(wine[cowumn - 1])) {
+					wetuwn undefined;
 				}
 			}
 		}
-		return selection;
+		wetuwn sewection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TriggeredCodeAction {
-		const model = this._editor.getModel();
-		if (!selection || !model) {
-			// cancel
-			this._signalChange(undefined);
-			return undefined;
+	pwivate _cweateEventAndSignawChange(twigga: CodeActionTwigga, sewection: Sewection | undefined): TwiggewedCodeAction {
+		const modew = this._editow.getModew();
+		if (!sewection || !modew) {
+			// cancew
+			this._signawChange(undefined);
+			wetuwn undefined;
 		}
 
-		const markerRange = this._getRangeOfMarker(selection);
-		const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+		const mawkewWange = this._getWangeOfMawka(sewection);
+		const position = mawkewWange ? mawkewWange.getStawtPosition() : sewection.getStawtPosition();
 
-		const e: TriggeredCodeAction = {
-			trigger,
-			selection,
+		const e: TwiggewedCodeAction = {
+			twigga,
+			sewection,
 			position
 		};
-		this._signalChange(e);
-		return e;
+		this._signawChange(e);
+		wetuwn e;
 	}
 }
 
-export namespace CodeActionsState {
+expowt namespace CodeActionsState {
 
-	export const enum Type {
+	expowt const enum Type {
 		Empty,
-		Triggered,
+		Twiggewed,
 	}
 
-	export const Empty = { type: Type.Empty } as const;
+	expowt const Empty = { type: Type.Empty } as const;
 
-	export class Triggered {
-		readonly type = Type.Triggered;
+	expowt cwass Twiggewed {
+		weadonwy type = Type.Twiggewed;
 
-		public readonly actions: Promise<CodeActionSet>;
+		pubwic weadonwy actions: Pwomise<CodeActionSet>;
 
-		constructor(
-			public readonly trigger: CodeActionTrigger,
-			public readonly rangeOrSelection: Range | Selection,
-			public readonly position: Position,
-			private readonly _cancellablePromise: CancelablePromise<CodeActionSet>,
+		constwuctow(
+			pubwic weadonwy twigga: CodeActionTwigga,
+			pubwic weadonwy wangeOwSewection: Wange | Sewection,
+			pubwic weadonwy position: Position,
+			pwivate weadonwy _cancewwabwePwomise: CancewabwePwomise<CodeActionSet>,
 		) {
-			this.actions = _cancellablePromise.catch((e): CodeActionSet => {
-				if (isPromiseCanceledError(e)) {
-					return emptyCodeActionSet;
+			this.actions = _cancewwabwePwomise.catch((e): CodeActionSet => {
+				if (isPwomiseCancewedEwwow(e)) {
+					wetuwn emptyCodeActionSet;
 				}
-				throw e;
+				thwow e;
 			});
 		}
 
-		public cancel() {
-			this._cancellablePromise.cancel();
+		pubwic cancew() {
+			this._cancewwabwePwomise.cancew();
 		}
 	}
 
-	export type State = typeof Empty | Triggered;
+	expowt type State = typeof Empty | Twiggewed;
 }
 
 const emptyCodeActionSet: CodeActionSet = {
-	allActions: [],
-	validActions: [],
+	awwActions: [],
+	vawidActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false
+	hasAutoFix: fawse
 };
 
-export class CodeActionModel extends Disposable {
+expowt cwass CodeActionModew extends Disposabwe {
 
-	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
-	private _state: CodeActionsState.State = CodeActionsState.Empty;
-	private readonly _supportedCodeActions: IContextKey<string>;
+	pwivate weadonwy _codeActionOwacwe = this._wegista(new MutabweDisposabwe<CodeActionOwacwe>());
+	pwivate _state: CodeActionsState.State = CodeActionsState.Empty;
+	pwivate weadonwy _suppowtedCodeActions: IContextKey<stwing>;
 
-	private readonly _onDidChangeState = this._register(new Emitter<CodeActionsState.State>());
-	public readonly onDidChangeState = this._onDidChangeState.event;
+	pwivate weadonwy _onDidChangeState = this._wegista(new Emitta<CodeActionsState.State>());
+	pubwic weadonwy onDidChangeState = this._onDidChangeState.event;
 
-	#isDisposed = false;
+	#isDisposed = fawse;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _markerService: IMarkerService,
-		contextKeyService: IContextKeyService,
-		private readonly _progressService?: IEditorProgressService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
+		contextKeySewvice: IContextKeySewvice,
+		pwivate weadonwy _pwogwessSewvice?: IEditowPwogwessSewvice
 	) {
-		super();
-		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
+		supa();
+		this._suppowtedCodeActions = SUPPOWTED_CODE_ACTIONS.bindTo(contextKeySewvice);
 
-		this._register(this._editor.onDidChangeModel(() => this._update()));
-		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
-		this._register(CodeActionProviderRegistry.onDidChange(() => this._update()));
+		this._wegista(this._editow.onDidChangeModew(() => this._update()));
+		this._wegista(this._editow.onDidChangeModewWanguage(() => this._update()));
+		this._wegista(CodeActionPwovidewWegistwy.onDidChange(() => this._update()));
 
 		this._update();
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		if (this.#isDisposed) {
-			return;
+			wetuwn;
 		}
-		this.#isDisposed = true;
+		this.#isDisposed = twue;
 
-		super.dispose();
-		this.setState(CodeActionsState.Empty, true);
+		supa.dispose();
+		this.setState(CodeActionsState.Empty, twue);
 	}
 
-	private _update(): void {
+	pwivate _update(): void {
 		if (this.#isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		this._codeActionOracle.value = undefined;
+		this._codeActionOwacwe.vawue = undefined;
 
 		this.setState(CodeActionsState.Empty);
 
-		const model = this._editor.getModel();
-		if (model
-			&& CodeActionProviderRegistry.has(model)
-			&& !this._editor.getOption(EditorOption.readOnly)
+		const modew = this._editow.getModew();
+		if (modew
+			&& CodeActionPwovidewWegistwy.has(modew)
+			&& !this._editow.getOption(EditowOption.weadOnwy)
 		) {
-			const supportedActions: string[] = [];
-			for (const provider of CodeActionProviderRegistry.all(model)) {
-				if (Array.isArray(provider.providedCodeActionKinds)) {
-					supportedActions.push(...provider.providedCodeActionKinds);
+			const suppowtedActions: stwing[] = [];
+			fow (const pwovida of CodeActionPwovidewWegistwy.aww(modew)) {
+				if (Awway.isAwway(pwovida.pwovidedCodeActionKinds)) {
+					suppowtedActions.push(...pwovida.pwovidedCodeActionKinds);
 				}
 			}
 
-			this._supportedCodeActions.set(supportedActions.join(' '));
+			this._suppowtedCodeActions.set(suppowtedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
-				if (!trigger) {
+			this._codeActionOwacwe.vawue = new CodeActionOwacwe(this._editow, this._mawkewSewvice, twigga => {
+				if (!twigga) {
 					this.setState(CodeActionsState.Empty);
-					return;
+					wetuwn;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, Progress.None, token));
-				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-					this._progressService?.showWhile(actions, 250);
+				const actions = cweateCancewabwePwomise(token => getCodeActions(modew, twigga.sewection, twigga.twigga, Pwogwess.None, token));
+				if (twigga.twigga.type === CodeActionTwiggewType.Invoke) {
+					this._pwogwessSewvice?.showWhiwe(actions, 250);
 				}
 
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
+				this.setState(new CodeActionsState.Twiggewed(twigga.twigga, twigga.sewection, twigga.position, actions));
 
 			}, undefined);
-			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto });
-		} else {
-			this._supportedCodeActions.reset();
+			this._codeActionOwacwe.vawue.twigga({ type: CodeActionTwiggewType.Auto });
+		} ewse {
+			this._suppowtedCodeActions.weset();
 		}
 	}
 
-	public trigger(trigger: CodeActionTrigger) {
-		if (this._codeActionOracle.value) {
-			this._codeActionOracle.value.trigger(trigger);
+	pubwic twigga(twigga: CodeActionTwigga) {
+		if (this._codeActionOwacwe.vawue) {
+			this._codeActionOwacwe.vawue.twigga(twigga);
 		}
 	}
 
-	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {
+	pwivate setState(newState: CodeActionsState.State, skipNotify?: boowean) {
 		if (newState === this._state) {
-			return;
+			wetuwn;
 		}
 
-		// Cancel old request
-		if (this._state.type === CodeActionsState.Type.Triggered) {
-			this._state.cancel();
+		// Cancew owd wequest
+		if (this._state.type === CodeActionsState.Type.Twiggewed) {
+			this._state.cancew();
 		}
 
 		this._state = newState;
 
 		if (!skipNotify && !this.#isDisposed) {
-			this._onDidChangeState.fire(newState);
+			this._onDidChangeState.fiwe(newState);
 		}
 	}
 }

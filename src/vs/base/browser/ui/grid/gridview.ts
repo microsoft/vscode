@@ -1,1360 +1,1360 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event, Relay } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { isUndefined } from 'vs/base/common/types';
-import 'vs/css!./gridview';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { Owientation, Sash } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { ISpwitViewStywes, IView as ISpwitView, WayoutPwiowity, Sizing, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { equaws as awwayEquaws, taiw2 as taiw } fwom 'vs/base/common/awways';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event, Weway } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { isUndefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./gwidview';
 
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
-export { LayoutPriority, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+expowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+expowt { WayoutPwiowity, Sizing } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
 
-export interface IViewSize {
-	readonly width: number;
-	readonly height: number;
+expowt intewface IViewSize {
+	weadonwy width: numba;
+	weadonwy height: numba;
 }
 
-interface IRelativeBoundarySashes {
-	readonly start?: Sash;
-	readonly end?: Sash;
-	readonly orthogonalStart?: Sash;
-	readonly orthogonalEnd?: Sash;
+intewface IWewativeBoundawySashes {
+	weadonwy stawt?: Sash;
+	weadonwy end?: Sash;
+	weadonwy owthogonawStawt?: Sash;
+	weadonwy owthogonawEnd?: Sash;
 }
 
-export interface IBoundarySashes {
-	readonly top?: Sash;
-	readonly right?: Sash;
-	readonly bottom?: Sash;
-	readonly left?: Sash;
+expowt intewface IBoundawySashes {
+	weadonwy top?: Sash;
+	weadonwy wight?: Sash;
+	weadonwy bottom?: Sash;
+	weadonwy weft?: Sash;
 }
 
-export interface IView {
-	readonly element: HTMLElement;
-	readonly minimumWidth: number;
-	readonly maximumWidth: number;
-	readonly minimumHeight: number;
-	readonly maximumHeight: number;
-	readonly onDidChange: Event<IViewSize | undefined>;
-	readonly priority?: LayoutPriority;
-	readonly snap?: boolean;
-	layout(width: number, height: number, top: number, left: number): void;
-	setVisible?(visible: boolean): void;
-	setBoundarySashes?(sashes: IBoundarySashes): void;
+expowt intewface IView {
+	weadonwy ewement: HTMWEwement;
+	weadonwy minimumWidth: numba;
+	weadonwy maximumWidth: numba;
+	weadonwy minimumHeight: numba;
+	weadonwy maximumHeight: numba;
+	weadonwy onDidChange: Event<IViewSize | undefined>;
+	weadonwy pwiowity?: WayoutPwiowity;
+	weadonwy snap?: boowean;
+	wayout(width: numba, height: numba, top: numba, weft: numba): void;
+	setVisibwe?(visibwe: boowean): void;
+	setBoundawySashes?(sashes: IBoundawySashes): void;
 }
 
-export interface ISerializableView extends IView {
+expowt intewface ISewiawizabweView extends IView {
 	toJSON(): object;
 }
 
-export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: any): T;
+expowt intewface IViewDesewiawiza<T extends ISewiawizabweView> {
+	fwomJSON(json: any): T;
 }
 
-export interface ISerializedLeafNode {
-	type: 'leaf';
+expowt intewface ISewiawizedWeafNode {
+	type: 'weaf';
 	data: any;
-	size: number;
-	visible?: boolean;
+	size: numba;
+	visibwe?: boowean;
 }
 
-export interface ISerializedBranchNode {
-	type: 'branch';
-	data: ISerializedNode[];
-	size: number;
+expowt intewface ISewiawizedBwanchNode {
+	type: 'bwanch';
+	data: ISewiawizedNode[];
+	size: numba;
 }
 
-export type ISerializedNode = ISerializedLeafNode | ISerializedBranchNode;
+expowt type ISewiawizedNode = ISewiawizedWeafNode | ISewiawizedBwanchNode;
 
-export interface ISerializedGridView {
-	root: ISerializedNode;
-	orientation: Orientation;
-	width: number;
-	height: number;
+expowt intewface ISewiawizedGwidView {
+	woot: ISewiawizedNode;
+	owientation: Owientation;
+	width: numba;
+	height: numba;
 }
 
-export function orthogonal(orientation: Orientation): Orientation {
-	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+expowt function owthogonaw(owientation: Owientation): Owientation {
+	wetuwn owientation === Owientation.VEWTICAW ? Owientation.HOWIZONTAW : Owientation.VEWTICAW;
 }
 
-export interface Box {
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
+expowt intewface Box {
+	weadonwy top: numba;
+	weadonwy weft: numba;
+	weadonwy width: numba;
+	weadonwy height: numba;
 }
 
-export interface GridLeafNode {
-	readonly view: IView;
-	readonly box: Box;
-	readonly cachedVisibleSize: number | undefined;
+expowt intewface GwidWeafNode {
+	weadonwy view: IView;
+	weadonwy box: Box;
+	weadonwy cachedVisibweSize: numba | undefined;
 }
 
-export interface GridBranchNode {
-	readonly children: GridNode[];
-	readonly box: Box;
+expowt intewface GwidBwanchNode {
+	weadonwy chiwdwen: GwidNode[];
+	weadonwy box: Box;
 }
 
-export type GridNode = GridLeafNode | GridBranchNode;
+expowt type GwidNode = GwidWeafNode | GwidBwanchNode;
 
-export function isGridBranchNode(node: GridNode): node is GridBranchNode {
-	return !!(node as any).children;
+expowt function isGwidBwanchNode(node: GwidNode): node is GwidBwanchNode {
+	wetuwn !!(node as any).chiwdwen;
 }
 
-export interface IGridViewStyles extends ISplitViewStyles { }
+expowt intewface IGwidViewStywes extends ISpwitViewStywes { }
 
-const defaultStyles: IGridViewStyles = {
-	separatorBorder: Color.transparent
+const defauwtStywes: IGwidViewStywes = {
+	sepawatowBowda: Cowow.twanspawent
 };
 
-export interface ILayoutController {
-	readonly isLayoutEnabled: boolean;
+expowt intewface IWayoutContwowwa {
+	weadonwy isWayoutEnabwed: boowean;
 }
 
-export class LayoutController implements ILayoutController {
-	constructor(public isLayoutEnabled: boolean) { }
+expowt cwass WayoutContwowwa impwements IWayoutContwowwa {
+	constwuctow(pubwic isWayoutEnabwed: boowean) { }
 }
 
-export class MultiplexLayoutController implements ILayoutController {
-	get isLayoutEnabled(): boolean { return this.layoutControllers.every(l => l.isLayoutEnabled); }
-	constructor(private layoutControllers: ILayoutController[]) { }
+expowt cwass MuwtipwexWayoutContwowwa impwements IWayoutContwowwa {
+	get isWayoutEnabwed(): boowean { wetuwn this.wayoutContwowwews.evewy(w => w.isWayoutEnabwed); }
+	constwuctow(pwivate wayoutContwowwews: IWayoutContwowwa[]) { }
 }
 
-export interface IGridViewOptions {
-	readonly styles?: IGridViewStyles;
-	readonly proportionalLayout?: boolean; // default true
-	readonly layoutController?: ILayoutController;
+expowt intewface IGwidViewOptions {
+	weadonwy stywes?: IGwidViewStywes;
+	weadonwy pwopowtionawWayout?: boowean; // defauwt twue
+	weadonwy wayoutContwowwa?: IWayoutContwowwa;
 }
 
-interface ILayoutContext {
-	readonly orthogonalSize: number;
-	readonly absoluteOffset: number;
-	readonly absoluteOrthogonalOffset: number;
-	readonly absoluteSize: number;
-	readonly absoluteOrthogonalSize: number;
+intewface IWayoutContext {
+	weadonwy owthogonawSize: numba;
+	weadonwy absowuteOffset: numba;
+	weadonwy absowuteOwthogonawOffset: numba;
+	weadonwy absowuteSize: numba;
+	weadonwy absowuteOwthogonawSize: numba;
 }
 
-function toAbsoluteBoundarySashes(sashes: IRelativeBoundarySashes, orientation: Orientation): IBoundarySashes {
-	if (orientation === Orientation.HORIZONTAL) {
-		return { left: sashes.start, right: sashes.end, top: sashes.orthogonalStart, bottom: sashes.orthogonalEnd };
-	} else {
-		return { top: sashes.start, bottom: sashes.end, left: sashes.orthogonalStart, right: sashes.orthogonalEnd };
-	}
-}
-
-function fromAbsoluteBoundarySashes(sashes: IBoundarySashes, orientation: Orientation): IRelativeBoundarySashes {
-	if (orientation === Orientation.HORIZONTAL) {
-		return { start: sashes.left, end: sashes.right, orthogonalStart: sashes.top, orthogonalEnd: sashes.bottom };
-	} else {
-		return { start: sashes.top, end: sashes.bottom, orthogonalStart: sashes.left, orthogonalEnd: sashes.right };
+function toAbsowuteBoundawySashes(sashes: IWewativeBoundawySashes, owientation: Owientation): IBoundawySashes {
+	if (owientation === Owientation.HOWIZONTAW) {
+		wetuwn { weft: sashes.stawt, wight: sashes.end, top: sashes.owthogonawStawt, bottom: sashes.owthogonawEnd };
+	} ewse {
+		wetuwn { top: sashes.stawt, bottom: sashes.end, weft: sashes.owthogonawStawt, wight: sashes.owthogonawEnd };
 	}
 }
 
-class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
+function fwomAbsowuteBoundawySashes(sashes: IBoundawySashes, owientation: Owientation): IWewativeBoundawySashes {
+	if (owientation === Owientation.HOWIZONTAW) {
+		wetuwn { stawt: sashes.weft, end: sashes.wight, owthogonawStawt: sashes.top, owthogonawEnd: sashes.bottom };
+	} ewse {
+		wetuwn { stawt: sashes.top, end: sashes.bottom, owthogonawStawt: sashes.weft, owthogonawEnd: sashes.wight };
+	}
+}
 
-	readonly element: HTMLElement;
-	readonly children: Node[] = [];
-	private splitview: SplitView<ILayoutContext>;
+cwass BwanchNode impwements ISpwitView<IWayoutContext>, IDisposabwe {
 
-	private _size: number;
-	get size(): number { return this._size; }
+	weadonwy ewement: HTMWEwement;
+	weadonwy chiwdwen: Node[] = [];
+	pwivate spwitview: SpwitView<IWayoutContext>;
 
-	private _orthogonalSize: number;
-	get orthogonalSize(): number { return this._orthogonalSize; }
+	pwivate _size: numba;
+	get size(): numba { wetuwn this._size; }
 
-	private absoluteOffset: number = 0;
-	private absoluteOrthogonalOffset: number = 0;
-	private absoluteOrthogonalSize: number = 0;
+	pwivate _owthogonawSize: numba;
+	get owthogonawSize(): numba { wetuwn this._owthogonawSize; }
 
-	private _styles: IGridViewStyles;
-	get styles(): IGridViewStyles { return this._styles; }
+	pwivate absowuteOffset: numba = 0;
+	pwivate absowuteOwthogonawOffset: numba = 0;
+	pwivate absowuteOwthogonawSize: numba = 0;
 
-	get width(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
+	pwivate _stywes: IGwidViewStywes;
+	get stywes(): IGwidViewStywes { wetuwn this._stywes; }
+
+	get width(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.size : this.owthogonawSize;
 	}
 
-	get height(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
+	get height(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.owthogonawSize : this.size;
 	}
 
-	get top(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOffset : this.absoluteOrthogonalOffset;
+	get top(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.absowuteOffset : this.absowuteOwthogonawOffset;
 	}
 
-	get left(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOrthogonalOffset : this.absoluteOffset;
+	get weft(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.absowuteOwthogonawOffset : this.absowuteOffset;
 	}
 
-	get minimumSize(): number {
-		return this.children.length === 0 ? 0 : Math.max(...this.children.map(c => c.minimumOrthogonalSize));
+	get minimumSize(): numba {
+		wetuwn this.chiwdwen.wength === 0 ? 0 : Math.max(...this.chiwdwen.map(c => c.minimumOwthogonawSize));
 	}
 
-	get maximumSize(): number {
-		return Math.min(...this.children.map(c => c.maximumOrthogonalSize));
+	get maximumSize(): numba {
+		wetuwn Math.min(...this.chiwdwen.map(c => c.maximumOwthogonawSize));
 	}
 
-	get priority(): LayoutPriority {
-		if (this.children.length === 0) {
-			return LayoutPriority.Normal;
+	get pwiowity(): WayoutPwiowity {
+		if (this.chiwdwen.wength === 0) {
+			wetuwn WayoutPwiowity.Nowmaw;
 		}
 
-		const priorities = this.children.map(c => typeof c.priority === 'undefined' ? LayoutPriority.Normal : c.priority);
+		const pwiowities = this.chiwdwen.map(c => typeof c.pwiowity === 'undefined' ? WayoutPwiowity.Nowmaw : c.pwiowity);
 
-		if (priorities.some(p => p === LayoutPriority.High)) {
-			return LayoutPriority.High;
-		} else if (priorities.some(p => p === LayoutPriority.Low)) {
-			return LayoutPriority.Low;
+		if (pwiowities.some(p => p === WayoutPwiowity.High)) {
+			wetuwn WayoutPwiowity.High;
+		} ewse if (pwiowities.some(p => p === WayoutPwiowity.Wow)) {
+			wetuwn WayoutPwiowity.Wow;
 		}
 
-		return LayoutPriority.Normal;
+		wetuwn WayoutPwiowity.Nowmaw;
 	}
 
-	get minimumOrthogonalSize(): number {
-		return this.splitview.minimumSize;
+	get minimumOwthogonawSize(): numba {
+		wetuwn this.spwitview.minimumSize;
 	}
 
-	get maximumOrthogonalSize(): number {
-		return this.splitview.maximumSize;
+	get maximumOwthogonawSize(): numba {
+		wetuwn this.spwitview.maximumSize;
 	}
 
-	get minimumWidth(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.minimumOrthogonalSize : this.minimumSize;
+	get minimumWidth(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.minimumOwthogonawSize : this.minimumSize;
 	}
 
-	get minimumHeight(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.minimumSize : this.minimumOrthogonalSize;
+	get minimumHeight(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.minimumSize : this.minimumOwthogonawSize;
 	}
 
-	get maximumWidth(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.maximumOrthogonalSize : this.maximumSize;
+	get maximumWidth(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.maximumOwthogonawSize : this.maximumSize;
 	}
 
-	get maximumHeight(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
+	get maximumHeight(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.maximumSize : this.maximumOwthogonawSize;
 	}
 
-	private readonly _onDidChange = new Emitter<number | undefined>();
-	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<numba | undefined>();
+	weadonwy onDidChange: Event<numba | undefined> = this._onDidChange.event;
 
-	private _onDidScroll = new Emitter<void>();
-	private onDidScrollDisposable: IDisposable = Disposable.None;
-	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	pwivate _onDidScwoww = new Emitta<void>();
+	pwivate onDidScwowwDisposabwe: IDisposabwe = Disposabwe.None;
+	weadonwy onDidScwoww: Event<void> = this._onDidScwoww.event;
 
-	private childrenChangeDisposable: IDisposable = Disposable.None;
+	pwivate chiwdwenChangeDisposabwe: IDisposabwe = Disposabwe.None;
 
-	private readonly _onDidSashReset = new Emitter<number[]>();
-	readonly onDidSashReset: Event<number[]> = this._onDidSashReset.event;
-	private splitviewSashResetDisposable: IDisposable = Disposable.None;
-	private childrenSashResetDisposable: IDisposable = Disposable.None;
+	pwivate weadonwy _onDidSashWeset = new Emitta<numba[]>();
+	weadonwy onDidSashWeset: Event<numba[]> = this._onDidSashWeset.event;
+	pwivate spwitviewSashWesetDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate chiwdwenSashWesetDisposabwe: IDisposabwe = Disposabwe.None;
 
-	private _boundarySashes: IRelativeBoundarySashes = {};
-	get boundarySashes(): IRelativeBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
-		this._boundarySashes = boundarySashes;
+	pwivate _boundawySashes: IWewativeBoundawySashes = {};
+	get boundawySashes(): IWewativeBoundawySashes { wetuwn this._boundawySashes; }
+	set boundawySashes(boundawySashes: IWewativeBoundawySashes) {
+		this._boundawySashes = boundawySashes;
 
-		this.splitview.orthogonalStartSash = boundarySashes.orthogonalStart;
-		this.splitview.orthogonalEndSash = boundarySashes.orthogonalEnd;
+		this.spwitview.owthogonawStawtSash = boundawySashes.owthogonawStawt;
+		this.spwitview.owthogonawEndSash = boundawySashes.owthogonawEnd;
 
-		for (let index = 0; index < this.children.length; index++) {
-			const child = this.children[index];
-			const first = index === 0;
-			const last = index === this.children.length - 1;
+		fow (wet index = 0; index < this.chiwdwen.wength; index++) {
+			const chiwd = this.chiwdwen[index];
+			const fiwst = index === 0;
+			const wast = index === this.chiwdwen.wength - 1;
 
-			child.boundarySashes = {
-				start: boundarySashes.orthogonalStart,
-				end: boundarySashes.orthogonalEnd,
-				orthogonalStart: first ? boundarySashes.start : child.boundarySashes.orthogonalStart,
-				orthogonalEnd: last ? boundarySashes.end : child.boundarySashes.orthogonalEnd,
+			chiwd.boundawySashes = {
+				stawt: boundawySashes.owthogonawStawt,
+				end: boundawySashes.owthogonawEnd,
+				owthogonawStawt: fiwst ? boundawySashes.stawt : chiwd.boundawySashes.owthogonawStawt,
+				owthogonawEnd: wast ? boundawySashes.end : chiwd.boundawySashes.owthogonawEnd,
 			};
 		}
 	}
 
-	private _edgeSnapping = false;
-	get edgeSnapping(): boolean { return this._edgeSnapping; }
-	set edgeSnapping(edgeSnapping: boolean) {
+	pwivate _edgeSnapping = fawse;
+	get edgeSnapping(): boowean { wetuwn this._edgeSnapping; }
+	set edgeSnapping(edgeSnapping: boowean) {
 		if (this._edgeSnapping === edgeSnapping) {
-			return;
+			wetuwn;
 		}
 
 		this._edgeSnapping = edgeSnapping;
 
-		for (const child of this.children) {
-			if (child instanceof BranchNode) {
-				child.edgeSnapping = edgeSnapping;
+		fow (const chiwd of this.chiwdwen) {
+			if (chiwd instanceof BwanchNode) {
+				chiwd.edgeSnapping = edgeSnapping;
 			}
 		}
 
-		this.updateSplitviewEdgeSnappingEnablement();
+		this.updateSpwitviewEdgeSnappingEnabwement();
 	}
 
-	constructor(
-		readonly orientation: Orientation,
-		readonly layoutController: ILayoutController,
-		styles: IGridViewStyles,
-		readonly proportionalLayout: boolean,
-		size: number = 0,
-		orthogonalSize: number = 0,
-		edgeSnapping: boolean = false,
-		childDescriptors?: INodeDescriptor[]
+	constwuctow(
+		weadonwy owientation: Owientation,
+		weadonwy wayoutContwowwa: IWayoutContwowwa,
+		stywes: IGwidViewStywes,
+		weadonwy pwopowtionawWayout: boowean,
+		size: numba = 0,
+		owthogonawSize: numba = 0,
+		edgeSnapping: boowean = fawse,
+		chiwdDescwiptows?: INodeDescwiptow[]
 	) {
-		this._styles = styles;
+		this._stywes = stywes;
 		this._size = size;
-		this._orthogonalSize = orthogonalSize;
+		this._owthogonawSize = owthogonawSize;
 
-		this.element = $('.monaco-grid-branch-node');
+		this.ewement = $('.monaco-gwid-bwanch-node');
 
-		if (!childDescriptors) {
-			// Normal behavior, we have no children yet, just set up the splitview
-			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
-			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
-		} else {
-			// Reconstruction behavior, we want to reconstruct a splitview
-			const descriptor = {
-				views: childDescriptors.map(childDescriptor => {
-					return {
-						view: childDescriptor.node,
-						size: childDescriptor.node.size,
-						visible: childDescriptor.node instanceof LeafNode && childDescriptor.visible !== undefined ? childDescriptor.visible : true
+		if (!chiwdDescwiptows) {
+			// Nowmaw behaviow, we have no chiwdwen yet, just set up the spwitview
+			this.spwitview = new SpwitView(this.ewement, { owientation, stywes, pwopowtionawWayout });
+			this.spwitview.wayout(size, { owthogonawSize, absowuteOffset: 0, absowuteOwthogonawOffset: 0, absowuteSize: size, absowuteOwthogonawSize: owthogonawSize });
+		} ewse {
+			// Weconstwuction behaviow, we want to weconstwuct a spwitview
+			const descwiptow = {
+				views: chiwdDescwiptows.map(chiwdDescwiptow => {
+					wetuwn {
+						view: chiwdDescwiptow.node,
+						size: chiwdDescwiptow.node.size,
+						visibwe: chiwdDescwiptow.node instanceof WeafNode && chiwdDescwiptow.visibwe !== undefined ? chiwdDescwiptow.visibwe : twue
 					};
 				}),
-				size: this.orthogonalSize
+				size: this.owthogonawSize
 			};
 
-			const options = { proportionalLayout, orientation, styles };
+			const options = { pwopowtionawWayout, owientation, stywes };
 
-			this.children = childDescriptors.map(c => c.node);
-			this.splitview = new SplitView(this.element, { ...options, descriptor });
+			this.chiwdwen = chiwdDescwiptows.map(c => c.node);
+			this.spwitview = new SpwitView(this.ewement, { ...options, descwiptow });
 
-			this.children.forEach((node, index) => {
-				const first = index === 0;
-				const last = index === this.children.length;
+			this.chiwdwen.fowEach((node, index) => {
+				const fiwst = index === 0;
+				const wast = index === this.chiwdwen.wength;
 
-				node.boundarySashes = {
-					start: this.boundarySashes.orthogonalStart,
-					end: this.boundarySashes.orthogonalEnd,
-					orthogonalStart: first ? this.boundarySashes.start : this.splitview.sashes[index - 1],
-					orthogonalEnd: last ? this.boundarySashes.end : this.splitview.sashes[index],
+				node.boundawySashes = {
+					stawt: this.boundawySashes.owthogonawStawt,
+					end: this.boundawySashes.owthogonawEnd,
+					owthogonawStawt: fiwst ? this.boundawySashes.stawt : this.spwitview.sashes[index - 1],
+					owthogonawEnd: wast ? this.boundawySashes.end : this.spwitview.sashes[index],
 				};
 			});
 		}
 
-		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
-		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+		const onDidSashWeset = Event.map(this.spwitview.onDidSashWeset, i => [i]);
+		this.spwitviewSashWesetDisposabwe = onDidSashWeset(this._onDidSashWeset.fiwe, this._onDidSashWeset);
 
-		this.updateChildrenEvents();
+		this.updateChiwdwenEvents();
 	}
 
-	style(styles: IGridViewStyles): void {
-		this._styles = styles;
-		this.splitview.style(styles);
+	stywe(stywes: IGwidViewStywes): void {
+		this._stywes = stywes;
+		this.spwitview.stywe(stywes);
 
-		for (const child of this.children) {
-			if (child instanceof BranchNode) {
-				child.style(styles);
+		fow (const chiwd of this.chiwdwen) {
+			if (chiwd instanceof BwanchNode) {
+				chiwd.stywe(stywes);
 			}
 		}
 	}
 
-	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
-		if (!this.layoutController.isLayoutEnabled) {
-			return;
+	wayout(size: numba, offset: numba, ctx: IWayoutContext | undefined): void {
+		if (!this.wayoutContwowwa.isWayoutEnabwed) {
+			wetuwn;
 		}
 
 		if (typeof ctx === 'undefined') {
-			throw new Error('Invalid state');
+			thwow new Ewwow('Invawid state');
 		}
 
-		// branch nodes should flip the normal/orthogonal directions
-		this._size = ctx.orthogonalSize;
-		this._orthogonalSize = size;
-		this.absoluteOffset = ctx.absoluteOffset + offset;
-		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
-		this.absoluteOrthogonalSize = ctx.absoluteOrthogonalSize;
+		// bwanch nodes shouwd fwip the nowmaw/owthogonaw diwections
+		this._size = ctx.owthogonawSize;
+		this._owthogonawSize = size;
+		this.absowuteOffset = ctx.absowuteOffset + offset;
+		this.absowuteOwthogonawOffset = ctx.absowuteOwthogonawOffset;
+		this.absowuteOwthogonawSize = ctx.absowuteOwthogonawSize;
 
-		this.splitview.layout(ctx.orthogonalSize, {
-			orthogonalSize: size,
-			absoluteOffset: this.absoluteOrthogonalOffset,
-			absoluteOrthogonalOffset: this.absoluteOffset,
-			absoluteSize: ctx.absoluteOrthogonalSize,
-			absoluteOrthogonalSize: ctx.absoluteSize
+		this.spwitview.wayout(ctx.owthogonawSize, {
+			owthogonawSize: size,
+			absowuteOffset: this.absowuteOwthogonawOffset,
+			absowuteOwthogonawOffset: this.absowuteOffset,
+			absowuteSize: ctx.absowuteOwthogonawSize,
+			absowuteOwthogonawSize: ctx.absowuteSize
 		});
 
-		this.updateSplitviewEdgeSnappingEnablement();
+		this.updateSpwitviewEdgeSnappingEnabwement();
 	}
 
-	setVisible(visible: boolean): void {
-		for (const child of this.children) {
-			child.setVisible(visible);
+	setVisibwe(visibwe: boowean): void {
+		fow (const chiwd of this.chiwdwen) {
+			chiwd.setVisibwe(visibwe);
 		}
 	}
 
-	addChild(node: Node, size: number | Sizing, index: number, skipLayout?: boolean): void {
-		if (index < 0 || index > this.children.length) {
-			throw new Error('Invalid index');
+	addChiwd(node: Node, size: numba | Sizing, index: numba, skipWayout?: boowean): void {
+		if (index < 0 || index > this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		this.splitview.addView(node, size, index, skipLayout);
-		this._addChild(node, index);
-		this.onDidChildrenChange();
+		this.spwitview.addView(node, size, index, skipWayout);
+		this._addChiwd(node, index);
+		this.onDidChiwdwenChange();
 	}
 
-	private _addChild(node: Node, index: number): void {
-		const first = index === 0;
-		const last = index === this.children.length;
-		this.children.splice(index, 0, node);
+	pwivate _addChiwd(node: Node, index: numba): void {
+		const fiwst = index === 0;
+		const wast = index === this.chiwdwen.wength;
+		this.chiwdwen.spwice(index, 0, node);
 
-		node.boundarySashes = {
-			start: this.boundarySashes.orthogonalStart,
-			end: this.boundarySashes.orthogonalEnd,
-			orthogonalStart: first ? this.boundarySashes.start : this.splitview.sashes[index - 1],
-			orthogonalEnd: last ? this.boundarySashes.end : this.splitview.sashes[index],
+		node.boundawySashes = {
+			stawt: this.boundawySashes.owthogonawStawt,
+			end: this.boundawySashes.owthogonawEnd,
+			owthogonawStawt: fiwst ? this.boundawySashes.stawt : this.spwitview.sashes[index - 1],
+			owthogonawEnd: wast ? this.boundawySashes.end : this.spwitview.sashes[index],
 		};
 
-		if (!first) {
-			this.children[index - 1].boundarySashes = {
-				...this.children[index - 1].boundarySashes,
-				orthogonalEnd: this.splitview.sashes[index - 1]
+		if (!fiwst) {
+			this.chiwdwen[index - 1].boundawySashes = {
+				...this.chiwdwen[index - 1].boundawySashes,
+				owthogonawEnd: this.spwitview.sashes[index - 1]
 			};
 		}
 
-		if (!last) {
-			this.children[index + 1].boundarySashes = {
-				...this.children[index + 1].boundarySashes,
-				orthogonalStart: this.splitview.sashes[index]
+		if (!wast) {
+			this.chiwdwen[index + 1].boundawySashes = {
+				...this.chiwdwen[index + 1].boundawySashes,
+				owthogonawStawt: this.spwitview.sashes[index]
 			};
 		}
 	}
 
-	removeChild(index: number, sizing?: Sizing): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	wemoveChiwd(index: numba, sizing?: Sizing): void {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		this.splitview.removeView(index, sizing);
-		this._removeChild(index);
-		this.onDidChildrenChange();
+		this.spwitview.wemoveView(index, sizing);
+		this._wemoveChiwd(index);
+		this.onDidChiwdwenChange();
 	}
 
-	private _removeChild(index: number): Node {
-		const first = index === 0;
-		const last = index === this.children.length - 1;
-		const [child] = this.children.splice(index, 1);
+	pwivate _wemoveChiwd(index: numba): Node {
+		const fiwst = index === 0;
+		const wast = index === this.chiwdwen.wength - 1;
+		const [chiwd] = this.chiwdwen.spwice(index, 1);
 
-		if (!first) {
-			this.children[index - 1].boundarySashes = {
-				...this.children[index - 1].boundarySashes,
-				orthogonalEnd: this.splitview.sashes[index - 1]
+		if (!fiwst) {
+			this.chiwdwen[index - 1].boundawySashes = {
+				...this.chiwdwen[index - 1].boundawySashes,
+				owthogonawEnd: this.spwitview.sashes[index - 1]
 			};
 		}
 
-		if (!last) { // [0,1,2,3] (2) => [0,1,3]
-			this.children[index].boundarySashes = {
-				...this.children[index].boundarySashes,
-				orthogonalStart: this.splitview.sashes[Math.max(index - 1, 0)]
+		if (!wast) { // [0,1,2,3] (2) => [0,1,3]
+			this.chiwdwen[index].boundawySashes = {
+				...this.chiwdwen[index].boundawySashes,
+				owthogonawStawt: this.spwitview.sashes[Math.max(index - 1, 0)]
 			};
 		}
 
-		return child;
+		wetuwn chiwd;
 	}
 
-	moveChild(from: number, to: number): void {
-		if (from === to) {
-			return;
+	moveChiwd(fwom: numba, to: numba): void {
+		if (fwom === to) {
+			wetuwn;
 		}
 
-		if (from < 0 || from >= this.children.length) {
-			throw new Error('Invalid from index');
+		if (fwom < 0 || fwom >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid fwom index');
 		}
 
-		to = clamp(to, 0, this.children.length);
+		to = cwamp(to, 0, this.chiwdwen.wength);
 
-		if (from < to) {
+		if (fwom < to) {
 			to--;
 		}
 
-		this.splitview.moveView(from, to);
+		this.spwitview.moveView(fwom, to);
 
-		const child = this._removeChild(from);
-		this._addChild(child, to);
+		const chiwd = this._wemoveChiwd(fwom);
+		this._addChiwd(chiwd, to);
 
-		this.onDidChildrenChange();
+		this.onDidChiwdwenChange();
 	}
 
-	swapChildren(from: number, to: number): void {
-		if (from === to) {
-			return;
+	swapChiwdwen(fwom: numba, to: numba): void {
+		if (fwom === to) {
+			wetuwn;
 		}
 
-		if (from < 0 || from >= this.children.length) {
-			throw new Error('Invalid from index');
+		if (fwom < 0 || fwom >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid fwom index');
 		}
 
-		to = clamp(to, 0, this.children.length);
+		to = cwamp(to, 0, this.chiwdwen.wength);
 
-		this.splitview.swapViews(from, to);
+		this.spwitview.swapViews(fwom, to);
 
-		// swap boundary sashes
-		[this.children[from].boundarySashes, this.children[to].boundarySashes]
-			= [this.children[from].boundarySashes, this.children[to].boundarySashes];
+		// swap boundawy sashes
+		[this.chiwdwen[fwom].boundawySashes, this.chiwdwen[to].boundawySashes]
+			= [this.chiwdwen[fwom].boundawySashes, this.chiwdwen[to].boundawySashes];
 
-		// swap children
-		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
+		// swap chiwdwen
+		[this.chiwdwen[fwom], this.chiwdwen[to]] = [this.chiwdwen[to], this.chiwdwen[fwom]];
 
-		this.onDidChildrenChange();
+		this.onDidChiwdwenChange();
 	}
 
-	resizeChild(index: number, size: number): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	wesizeChiwd(index: numba, size: numba): void {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		this.splitview.resizeView(index, size);
+		this.spwitview.wesizeView(index, size);
 	}
 
-	distributeViewSizes(recursive = false): void {
-		this.splitview.distributeViewSizes();
+	distwibuteViewSizes(wecuwsive = fawse): void {
+		this.spwitview.distwibuteViewSizes();
 
-		if (recursive) {
-			for (const child of this.children) {
-				if (child instanceof BranchNode) {
-					child.distributeViewSizes(true);
+		if (wecuwsive) {
+			fow (const chiwd of this.chiwdwen) {
+				if (chiwd instanceof BwanchNode) {
+					chiwd.distwibuteViewSizes(twue);
 				}
 			}
 		}
 	}
 
-	getChildSize(index: number): number {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	getChiwdSize(index: numba): numba {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		return this.splitview.getViewSize(index);
+		wetuwn this.spwitview.getViewSize(index);
 	}
 
-	isChildVisible(index: number): boolean {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	isChiwdVisibwe(index: numba): boowean {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		return this.splitview.isViewVisible(index);
+		wetuwn this.spwitview.isViewVisibwe(index);
 	}
 
-	setChildVisible(index: number, visible: boolean): void {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	setChiwdVisibwe(index: numba, visibwe: boowean): void {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		if (this.splitview.isViewVisible(index) === visible) {
-			return;
+		if (this.spwitview.isViewVisibwe(index) === visibwe) {
+			wetuwn;
 		}
 
-		this.splitview.setViewVisible(index, visible);
+		this.spwitview.setViewVisibwe(index, visibwe);
 	}
 
-	getChildCachedVisibleSize(index: number): number | undefined {
-		if (index < 0 || index >= this.children.length) {
-			throw new Error('Invalid index');
+	getChiwdCachedVisibweSize(index: numba): numba | undefined {
+		if (index < 0 || index >= this.chiwdwen.wength) {
+			thwow new Ewwow('Invawid index');
 		}
 
-		return this.splitview.getViewCachedVisibleSize(index);
+		wetuwn this.spwitview.getViewCachedVisibweSize(index);
 	}
 
-	private onDidChildrenChange(): void {
-		this.updateChildrenEvents();
-		this._onDidChange.fire(undefined);
+	pwivate onDidChiwdwenChange(): void {
+		this.updateChiwdwenEvents();
+		this._onDidChange.fiwe(undefined);
 	}
 
-	private updateChildrenEvents(): void {
-		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
-		this.childrenChangeDisposable.dispose();
-		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
+	pwivate updateChiwdwenEvents(): void {
+		const onDidChiwdwenChange = Event.map(Event.any(...this.chiwdwen.map(c => c.onDidChange)), () => undefined);
+		this.chiwdwenChangeDisposabwe.dispose();
+		this.chiwdwenChangeDisposabwe = onDidChiwdwenChange(this._onDidChange.fiwe, this._onDidChange);
 
-		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
-		this.childrenSashResetDisposable.dispose();
-		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+		const onDidChiwdwenSashWeset = Event.any(...this.chiwdwen.map((c, i) => Event.map(c.onDidSashWeset, wocation => [i, ...wocation])));
+		this.chiwdwenSashWesetDisposabwe.dispose();
+		this.chiwdwenSashWesetDisposabwe = onDidChiwdwenSashWeset(this._onDidSashWeset.fiwe, this._onDidSashWeset);
 
-		const onDidScroll = Event.any(Event.signal(this.splitview.onDidScroll), ...this.children.map(c => c.onDidScroll));
-		this.onDidScrollDisposable.dispose();
-		this.onDidScrollDisposable = onDidScroll(this._onDidScroll.fire, this._onDidScroll);
+		const onDidScwoww = Event.any(Event.signaw(this.spwitview.onDidScwoww), ...this.chiwdwen.map(c => c.onDidScwoww));
+		this.onDidScwowwDisposabwe.dispose();
+		this.onDidScwowwDisposabwe = onDidScwoww(this._onDidScwoww.fiwe, this._onDidScwoww);
 	}
 
-	trySet2x2(other: BranchNode): IDisposable {
-		if (this.children.length !== 2 || other.children.length !== 2) {
-			return Disposable.None;
+	twySet2x2(otha: BwanchNode): IDisposabwe {
+		if (this.chiwdwen.wength !== 2 || otha.chiwdwen.wength !== 2) {
+			wetuwn Disposabwe.None;
 		}
 
-		if (this.getChildSize(0) !== other.getChildSize(0)) {
-			return Disposable.None;
+		if (this.getChiwdSize(0) !== otha.getChiwdSize(0)) {
+			wetuwn Disposabwe.None;
 		}
 
-		const [firstChild, secondChild] = this.children;
-		const [otherFirstChild, otherSecondChild] = other.children;
+		const [fiwstChiwd, secondChiwd] = this.chiwdwen;
+		const [othewFiwstChiwd, othewSecondChiwd] = otha.chiwdwen;
 
-		if (!(firstChild instanceof LeafNode) || !(secondChild instanceof LeafNode)) {
-			return Disposable.None;
+		if (!(fiwstChiwd instanceof WeafNode) || !(secondChiwd instanceof WeafNode)) {
+			wetuwn Disposabwe.None;
 		}
 
-		if (!(otherFirstChild instanceof LeafNode) || !(otherSecondChild instanceof LeafNode)) {
-			return Disposable.None;
+		if (!(othewFiwstChiwd instanceof WeafNode) || !(othewSecondChiwd instanceof WeafNode)) {
+			wetuwn Disposabwe.None;
 		}
 
-		if (this.orientation === Orientation.VERTICAL) {
-			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = firstChild;
-			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = secondChild;
-			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = otherFirstChild;
-			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = otherSecondChild;
-		} else {
-			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = firstChild;
-			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = secondChild;
-			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = otherFirstChild;
-			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = otherSecondChild;
+		if (this.owientation === Owientation.VEWTICAW) {
+			secondChiwd.winkedWidthNode = othewFiwstChiwd.winkedHeightNode = fiwstChiwd;
+			fiwstChiwd.winkedWidthNode = othewSecondChiwd.winkedHeightNode = secondChiwd;
+			othewSecondChiwd.winkedWidthNode = fiwstChiwd.winkedHeightNode = othewFiwstChiwd;
+			othewFiwstChiwd.winkedWidthNode = secondChiwd.winkedHeightNode = othewSecondChiwd;
+		} ewse {
+			othewFiwstChiwd.winkedWidthNode = secondChiwd.winkedHeightNode = fiwstChiwd;
+			othewSecondChiwd.winkedWidthNode = fiwstChiwd.winkedHeightNode = secondChiwd;
+			fiwstChiwd.winkedWidthNode = othewSecondChiwd.winkedHeightNode = othewFiwstChiwd;
+			secondChiwd.winkedWidthNode = othewFiwstChiwd.winkedHeightNode = othewSecondChiwd;
 		}
 
-		const mySash = this.splitview.sashes[0];
-		const otherSash = other.splitview.sashes[0];
-		mySash.linkedSash = otherSash;
-		otherSash.linkedSash = mySash;
+		const mySash = this.spwitview.sashes[0];
+		const othewSash = otha.spwitview.sashes[0];
+		mySash.winkedSash = othewSash;
+		othewSash.winkedSash = mySash;
 
-		this._onDidChange.fire(undefined);
-		other._onDidChange.fire(undefined);
+		this._onDidChange.fiwe(undefined);
+		otha._onDidChange.fiwe(undefined);
 
-		return toDisposable(() => {
-			mySash.linkedSash = otherSash.linkedSash = undefined;
-			firstChild.linkedHeightNode = firstChild.linkedWidthNode = undefined;
-			secondChild.linkedHeightNode = secondChild.linkedWidthNode = undefined;
-			otherFirstChild.linkedHeightNode = otherFirstChild.linkedWidthNode = undefined;
-			otherSecondChild.linkedHeightNode = otherSecondChild.linkedWidthNode = undefined;
+		wetuwn toDisposabwe(() => {
+			mySash.winkedSash = othewSash.winkedSash = undefined;
+			fiwstChiwd.winkedHeightNode = fiwstChiwd.winkedWidthNode = undefined;
+			secondChiwd.winkedHeightNode = secondChiwd.winkedWidthNode = undefined;
+			othewFiwstChiwd.winkedHeightNode = othewFiwstChiwd.winkedWidthNode = undefined;
+			othewSecondChiwd.winkedHeightNode = othewSecondChiwd.winkedWidthNode = undefined;
 		});
 	}
 
-	private updateSplitviewEdgeSnappingEnablement(): void {
-		this.splitview.startSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset > 0;
-		this.splitview.endSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset + this._size < this.absoluteOrthogonalSize;
+	pwivate updateSpwitviewEdgeSnappingEnabwement(): void {
+		this.spwitview.stawtSnappingEnabwed = this._edgeSnapping || this.absowuteOwthogonawOffset > 0;
+		this.spwitview.endSnappingEnabwed = this._edgeSnapping || this.absowuteOwthogonawOffset + this._size < this.absowuteOwthogonawSize;
 	}
 
 	dispose(): void {
-		for (const child of this.children) {
-			child.dispose();
+		fow (const chiwd of this.chiwdwen) {
+			chiwd.dispose();
 		}
 
 		this._onDidChange.dispose();
-		this._onDidSashReset.dispose();
+		this._onDidSashWeset.dispose();
 
-		this.splitviewSashResetDisposable.dispose();
-		this.childrenSashResetDisposable.dispose();
-		this.childrenChangeDisposable.dispose();
-		this.splitview.dispose();
+		this.spwitviewSashWesetDisposabwe.dispose();
+		this.chiwdwenSashWesetDisposabwe.dispose();
+		this.chiwdwenChangeDisposabwe.dispose();
+		this.spwitview.dispose();
 	}
 }
 
 /**
- * Creates a latched event that avoids being fired when the view
- * constraints do not change at all.
+ * Cweates a watched event that avoids being fiwed when the view
+ * constwaints do not change at aww.
  */
-function createLatchedOnDidChangeViewEvent(view: IView): Event<IViewSize | undefined> {
-	const [onDidChangeViewConstraints, onDidSetViewSize] = Event.split<undefined, IViewSize>(view.onDidChange, isUndefined);
+function cweateWatchedOnDidChangeViewEvent(view: IView): Event<IViewSize | undefined> {
+	const [onDidChangeViewConstwaints, onDidSetViewSize] = Event.spwit<undefined, IViewSize>(view.onDidChange, isUndefined);
 
-	return Event.any(
+	wetuwn Event.any(
 		onDidSetViewSize,
 		Event.map(
-			Event.latch(
-				Event.map(onDidChangeViewConstraints, _ => ([view.minimumWidth, view.maximumWidth, view.minimumHeight, view.maximumHeight])),
-				arrayEquals
+			Event.watch(
+				Event.map(onDidChangeViewConstwaints, _ => ([view.minimumWidth, view.maximumWidth, view.minimumHeight, view.maximumHeight])),
+				awwayEquaws
 			),
 			_ => undefined
 		)
 	);
 }
 
-class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
+cwass WeafNode impwements ISpwitView<IWayoutContext>, IDisposabwe {
 
-	private _size: number = 0;
-	get size(): number { return this._size; }
+	pwivate _size: numba = 0;
+	get size(): numba { wetuwn this._size; }
 
-	private _orthogonalSize: number;
-	get orthogonalSize(): number { return this._orthogonalSize; }
+	pwivate _owthogonawSize: numba;
+	get owthogonawSize(): numba { wetuwn this._owthogonawSize; }
 
-	private absoluteOffset: number = 0;
-	private absoluteOrthogonalOffset: number = 0;
+	pwivate absowuteOffset: numba = 0;
+	pwivate absowuteOwthogonawOffset: numba = 0;
 
-	readonly onDidScroll: Event<void> = Event.None;
-	readonly onDidSashReset: Event<number[]> = Event.None;
+	weadonwy onDidScwoww: Event<void> = Event.None;
+	weadonwy onDidSashWeset: Event<numba[]> = Event.None;
 
-	private _onDidLinkedWidthNodeChange = new Relay<number | undefined>();
-	private _linkedWidthNode: LeafNode | undefined = undefined;
-	get linkedWidthNode(): LeafNode | undefined { return this._linkedWidthNode; }
-	set linkedWidthNode(node: LeafNode | undefined) {
-		this._onDidLinkedWidthNodeChange.input = node ? node._onDidViewChange : Event.None;
-		this._linkedWidthNode = node;
-		this._onDidSetLinkedNode.fire(undefined);
+	pwivate _onDidWinkedWidthNodeChange = new Weway<numba | undefined>();
+	pwivate _winkedWidthNode: WeafNode | undefined = undefined;
+	get winkedWidthNode(): WeafNode | undefined { wetuwn this._winkedWidthNode; }
+	set winkedWidthNode(node: WeafNode | undefined) {
+		this._onDidWinkedWidthNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._winkedWidthNode = node;
+		this._onDidSetWinkedNode.fiwe(undefined);
 	}
 
-	private _onDidLinkedHeightNodeChange = new Relay<number | undefined>();
-	private _linkedHeightNode: LeafNode | undefined = undefined;
-	get linkedHeightNode(): LeafNode | undefined { return this._linkedHeightNode; }
-	set linkedHeightNode(node: LeafNode | undefined) {
-		this._onDidLinkedHeightNodeChange.input = node ? node._onDidViewChange : Event.None;
-		this._linkedHeightNode = node;
-		this._onDidSetLinkedNode.fire(undefined);
+	pwivate _onDidWinkedHeightNodeChange = new Weway<numba | undefined>();
+	pwivate _winkedHeightNode: WeafNode | undefined = undefined;
+	get winkedHeightNode(): WeafNode | undefined { wetuwn this._winkedHeightNode; }
+	set winkedHeightNode(node: WeafNode | undefined) {
+		this._onDidWinkedHeightNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._winkedHeightNode = node;
+		this._onDidSetWinkedNode.fiwe(undefined);
 	}
 
-	private readonly _onDidSetLinkedNode = new Emitter<number | undefined>();
-	private _onDidViewChange: Event<number | undefined>;
-	readonly onDidChange: Event<number | undefined>;
+	pwivate weadonwy _onDidSetWinkedNode = new Emitta<numba | undefined>();
+	pwivate _onDidViewChange: Event<numba | undefined>;
+	weadonwy onDidChange: Event<numba | undefined>;
 
-	constructor(
-		readonly view: IView,
-		readonly orientation: Orientation,
-		readonly layoutController: ILayoutController,
-		orthogonalSize: number,
-		size: number = 0
+	constwuctow(
+		weadonwy view: IView,
+		weadonwy owientation: Owientation,
+		weadonwy wayoutContwowwa: IWayoutContwowwa,
+		owthogonawSize: numba,
+		size: numba = 0
 	) {
-		this._orthogonalSize = orthogonalSize;
+		this._owthogonawSize = owthogonawSize;
 		this._size = size;
 
-		const onDidChange = createLatchedOnDidChangeViewEvent(view);
-		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
-		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
+		const onDidChange = cweateWatchedOnDidChangeViewEvent(view);
+		this._onDidViewChange = Event.map(onDidChange, e => e && (this.owientation === Owientation.VEWTICAW ? e.width : e.height));
+		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetWinkedNode.event, this._onDidWinkedWidthNodeChange.event, this._onDidWinkedHeightNodeChange.event);
 	}
 
-	get width(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.orthogonalSize : this.size;
+	get width(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.owthogonawSize : this.size;
 	}
 
-	get height(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
+	get height(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.size : this.owthogonawSize;
 	}
 
-	get top(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOffset : this.absoluteOrthogonalOffset;
+	get top(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.absowuteOffset : this.absowuteOwthogonawOffset;
 	}
 
-	get left(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.absoluteOrthogonalOffset : this.absoluteOffset;
+	get weft(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.absowuteOwthogonawOffset : this.absowuteOffset;
 	}
 
-	get element(): HTMLElement {
-		return this.view.element;
+	get ewement(): HTMWEwement {
+		wetuwn this.view.ewement;
 	}
 
-	private get minimumWidth(): number {
-		return this.linkedWidthNode ? Math.max(this.linkedWidthNode.view.minimumWidth, this.view.minimumWidth) : this.view.minimumWidth;
+	pwivate get minimumWidth(): numba {
+		wetuwn this.winkedWidthNode ? Math.max(this.winkedWidthNode.view.minimumWidth, this.view.minimumWidth) : this.view.minimumWidth;
 	}
 
-	private get maximumWidth(): number {
-		return this.linkedWidthNode ? Math.min(this.linkedWidthNode.view.maximumWidth, this.view.maximumWidth) : this.view.maximumWidth;
+	pwivate get maximumWidth(): numba {
+		wetuwn this.winkedWidthNode ? Math.min(this.winkedWidthNode.view.maximumWidth, this.view.maximumWidth) : this.view.maximumWidth;
 	}
 
-	private get minimumHeight(): number {
-		return this.linkedHeightNode ? Math.max(this.linkedHeightNode.view.minimumHeight, this.view.minimumHeight) : this.view.minimumHeight;
+	pwivate get minimumHeight(): numba {
+		wetuwn this.winkedHeightNode ? Math.max(this.winkedHeightNode.view.minimumHeight, this.view.minimumHeight) : this.view.minimumHeight;
 	}
 
-	private get maximumHeight(): number {
-		return this.linkedHeightNode ? Math.min(this.linkedHeightNode.view.maximumHeight, this.view.maximumHeight) : this.view.maximumHeight;
+	pwivate get maximumHeight(): numba {
+		wetuwn this.winkedHeightNode ? Math.min(this.winkedHeightNode.view.maximumHeight, this.view.maximumHeight) : this.view.maximumHeight;
 	}
 
-	get minimumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.minimumHeight : this.minimumWidth;
+	get minimumSize(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.minimumHeight : this.minimumWidth;
 	}
 
-	get maximumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.maximumHeight : this.maximumWidth;
+	get maximumSize(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.maximumHeight : this.maximumWidth;
 	}
 
-	get priority(): LayoutPriority | undefined {
-		return this.view.priority;
+	get pwiowity(): WayoutPwiowity | undefined {
+		wetuwn this.view.pwiowity;
 	}
 
-	get snap(): boolean | undefined {
-		return this.view.snap;
+	get snap(): boowean | undefined {
+		wetuwn this.view.snap;
 	}
 
-	get minimumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.minimumWidth : this.minimumHeight;
+	get minimumOwthogonawSize(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.minimumWidth : this.minimumHeight;
 	}
 
-	get maximumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.maximumWidth : this.maximumHeight;
+	get maximumOwthogonawSize(): numba {
+		wetuwn this.owientation === Owientation.HOWIZONTAW ? this.maximumWidth : this.maximumHeight;
 	}
 
-	private _boundarySashes: IRelativeBoundarySashes = {};
-	get boundarySashes(): IRelativeBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IRelativeBoundarySashes) {
-		this._boundarySashes = boundarySashes;
+	pwivate _boundawySashes: IWewativeBoundawySashes = {};
+	get boundawySashes(): IWewativeBoundawySashes { wetuwn this._boundawySashes; }
+	set boundawySashes(boundawySashes: IWewativeBoundawySashes) {
+		this._boundawySashes = boundawySashes;
 
-		if (this.view.setBoundarySashes) {
-			this.view.setBoundarySashes(toAbsoluteBoundarySashes(boundarySashes, this.orientation));
+		if (this.view.setBoundawySashes) {
+			this.view.setBoundawySashes(toAbsowuteBoundawySashes(boundawySashes, this.owientation));
 		}
 	}
 
-	layout(size: number, offset: number, ctx: ILayoutContext | undefined): void {
-		if (!this.layoutController.isLayoutEnabled) {
-			return;
+	wayout(size: numba, offset: numba, ctx: IWayoutContext | undefined): void {
+		if (!this.wayoutContwowwa.isWayoutEnabwed) {
+			wetuwn;
 		}
 
 		if (typeof ctx === 'undefined') {
-			throw new Error('Invalid state');
+			thwow new Ewwow('Invawid state');
 		}
 
 		this._size = size;
-		this._orthogonalSize = ctx.orthogonalSize;
-		this.absoluteOffset = ctx.absoluteOffset + offset;
-		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
+		this._owthogonawSize = ctx.owthogonawSize;
+		this.absowuteOffset = ctx.absowuteOffset + offset;
+		this.absowuteOwthogonawOffset = ctx.absowuteOwthogonawOffset;
 
-		this._layout(this.width, this.height, this.top, this.left);
+		this._wayout(this.width, this.height, this.top, this.weft);
 	}
 
-	private cachedWidth: number = 0;
-	private cachedHeight: number = 0;
-	private cachedTop: number = 0;
-	private cachedLeft: number = 0;
+	pwivate cachedWidth: numba = 0;
+	pwivate cachedHeight: numba = 0;
+	pwivate cachedTop: numba = 0;
+	pwivate cachedWeft: numba = 0;
 
-	private _layout(width: number, height: number, top: number, left: number): void {
-		if (this.cachedWidth === width && this.cachedHeight === height && this.cachedTop === top && this.cachedLeft === left) {
-			return;
+	pwivate _wayout(width: numba, height: numba, top: numba, weft: numba): void {
+		if (this.cachedWidth === width && this.cachedHeight === height && this.cachedTop === top && this.cachedWeft === weft) {
+			wetuwn;
 		}
 
 		this.cachedWidth = width;
 		this.cachedHeight = height;
 		this.cachedTop = top;
-		this.cachedLeft = left;
-		this.view.layout(width, height, top, left);
+		this.cachedWeft = weft;
+		this.view.wayout(width, height, top, weft);
 	}
 
-	setVisible(visible: boolean): void {
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
+	setVisibwe(visibwe: boowean): void {
+		if (this.view.setVisibwe) {
+			this.view.setVisibwe(visibwe);
 		}
 	}
 
 	dispose(): void { }
 }
 
-type Node = BranchNode | LeafNode;
+type Node = BwanchNode | WeafNode;
 
-export interface INodeDescriptor {
+expowt intewface INodeDescwiptow {
 	node: Node;
-	visible?: boolean;
+	visibwe?: boowean;
 }
 
-function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
-	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize, node.edgeSnapping);
+function fwipNode<T extends Node>(node: T, size: numba, owthogonawSize: numba): T {
+	if (node instanceof BwanchNode) {
+		const wesuwt = new BwanchNode(owthogonaw(node.owientation), node.wayoutContwowwa, node.stywes, node.pwopowtionawWayout, size, owthogonawSize, node.edgeSnapping);
 
-		let totalSize = 0;
+		wet totawSize = 0;
 
-		for (let i = node.children.length - 1; i >= 0; i--) {
-			const child = node.children[i];
-			const childSize = child instanceof BranchNode ? child.orthogonalSize : child.size;
+		fow (wet i = node.chiwdwen.wength - 1; i >= 0; i--) {
+			const chiwd = node.chiwdwen[i];
+			const chiwdSize = chiwd instanceof BwanchNode ? chiwd.owthogonawSize : chiwd.size;
 
-			let newSize = node.size === 0 ? 0 : Math.round((size * childSize) / node.size);
-			totalSize += newSize;
+			wet newSize = node.size === 0 ? 0 : Math.wound((size * chiwdSize) / node.size);
+			totawSize += newSize;
 
-			// The last view to add should adjust to rounding errors
+			// The wast view to add shouwd adjust to wounding ewwows
 			if (i === 0) {
-				newSize += size - totalSize;
+				newSize += size - totawSize;
 			}
 
-			result.addChild(flipNode(child, orthogonalSize, newSize), newSize, 0, true);
+			wesuwt.addChiwd(fwipNode(chiwd, owthogonawSize, newSize), newSize, 0, twue);
 		}
 
-		return result as T;
-	} else {
-		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), node.layoutController, orthogonalSize) as T;
+		wetuwn wesuwt as T;
+	} ewse {
+		wetuwn new WeafNode((node as WeafNode).view, owthogonaw(node.owientation), node.wayoutContwowwa, owthogonawSize) as T;
 	}
 }
 
-export class GridView implements IDisposable {
+expowt cwass GwidView impwements IDisposabwe {
 
-	readonly element: HTMLElement;
-	private styles: IGridViewStyles;
-	private proportionalLayout: boolean;
+	weadonwy ewement: HTMWEwement;
+	pwivate stywes: IGwidViewStywes;
+	pwivate pwopowtionawWayout: boowean;
 
-	private _root!: BranchNode;
-	private onDidSashResetRelay = new Relay<number[]>();
-	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
+	pwivate _woot!: BwanchNode;
+	pwivate onDidSashWesetWeway = new Weway<numba[]>();
+	weadonwy onDidSashWeset: Event<numba[]> = this.onDidSashWesetWeway.event;
 
-	private disposable2x2: IDisposable = Disposable.None;
+	pwivate disposabwe2x2: IDisposabwe = Disposabwe.None;
 
-	private get root(): BranchNode {
-		return this._root;
+	pwivate get woot(): BwanchNode {
+		wetuwn this._woot;
 	}
 
-	private set root(root: BranchNode) {
-		const oldRoot = this._root;
+	pwivate set woot(woot: BwanchNode) {
+		const owdWoot = this._woot;
 
-		if (oldRoot) {
-			this.element.removeChild(oldRoot.element);
-			oldRoot.dispose();
+		if (owdWoot) {
+			this.ewement.wemoveChiwd(owdWoot.ewement);
+			owdWoot.dispose();
 		}
 
-		this._root = root;
-		this.element.appendChild(root.element);
-		this.onDidSashResetRelay.input = root.onDidSashReset;
-		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
-		this._onDidScroll.input = root.onDidScroll;
+		this._woot = woot;
+		this.ewement.appendChiwd(woot.ewement);
+		this.onDidSashWesetWeway.input = woot.onDidSashWeset;
+		this._onDidChange.input = Event.map(woot.onDidChange, () => undefined); // TODO
+		this._onDidScwoww.input = woot.onDidScwoww;
 	}
 
-	get orientation(): Orientation {
-		return this._root.orientation;
+	get owientation(): Owientation {
+		wetuwn this._woot.owientation;
 	}
 
-	set orientation(orientation: Orientation) {
-		if (this._root.orientation === orientation) {
-			return;
+	set owientation(owientation: Owientation) {
+		if (this._woot.owientation === owientation) {
+			wetuwn;
 		}
 
-		const { size, orthogonalSize } = this._root;
-		this.root = flipNode(this._root, orthogonalSize, size);
-		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
-		this.boundarySashes = this.boundarySashes;
+		const { size, owthogonawSize } = this._woot;
+		this.woot = fwipNode(this._woot, owthogonawSize, size);
+		this.woot.wayout(size, 0, { owthogonawSize, absowuteOffset: 0, absowuteOwthogonawOffset: 0, absowuteSize: size, absowuteOwthogonawSize: owthogonawSize });
+		this.boundawySashes = this.boundawySashes;
 	}
 
-	get width(): number { return this.root.width; }
-	get height(): number { return this.root.height; }
+	get width(): numba { wetuwn this.woot.width; }
+	get height(): numba { wetuwn this.woot.height; }
 
-	get minimumWidth(): number { return this.root.minimumWidth; }
-	get minimumHeight(): number { return this.root.minimumHeight; }
-	get maximumWidth(): number { return this.root.maximumHeight; }
-	get maximumHeight(): number { return this.root.maximumHeight; }
+	get minimumWidth(): numba { wetuwn this.woot.minimumWidth; }
+	get minimumHeight(): numba { wetuwn this.woot.minimumHeight; }
+	get maximumWidth(): numba { wetuwn this.woot.maximumHeight; }
+	get maximumHeight(): numba { wetuwn this.woot.maximumHeight; }
 
-	private _onDidScroll = new Relay<void>();
-	readonly onDidScroll = this._onDidScroll.event;
+	pwivate _onDidScwoww = new Weway<void>();
+	weadonwy onDidScwoww = this._onDidScwoww.event;
 
-	private _onDidChange = new Relay<IViewSize | undefined>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = new Weway<IViewSize | undefined>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private _boundarySashes: IBoundarySashes = {};
-	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IBoundarySashes) {
-		this._boundarySashes = boundarySashes;
-		this.root.boundarySashes = fromAbsoluteBoundarySashes(boundarySashes, this.orientation);
+	pwivate _boundawySashes: IBoundawySashes = {};
+	get boundawySashes(): IBoundawySashes { wetuwn this._boundawySashes; }
+	set boundawySashes(boundawySashes: IBoundawySashes) {
+		this._boundawySashes = boundawySashes;
+		this.woot.boundawySashes = fwomAbsowuteBoundawySashes(boundawySashes, this.owientation);
 	}
 
-	set edgeSnapping(edgeSnapping: boolean) {
-		this.root.edgeSnapping = edgeSnapping;
+	set edgeSnapping(edgeSnapping: boowean) {
+		this.woot.edgeSnapping = edgeSnapping;
 	}
 
 	/**
-	 * The first layout controller makes sure layout only propagates
-	 * to the views after the very first call to gridview.layout()
+	 * The fiwst wayout contwowwa makes suwe wayout onwy pwopagates
+	 * to the views afta the vewy fiwst caww to gwidview.wayout()
 	 */
-	private firstLayoutController: LayoutController;
-	private layoutController: LayoutController;
+	pwivate fiwstWayoutContwowwa: WayoutContwowwa;
+	pwivate wayoutContwowwa: WayoutContwowwa;
 
-	constructor(options: IGridViewOptions = {}) {
-		this.element = $('.monaco-grid-view');
-		this.styles = options.styles || defaultStyles;
-		this.proportionalLayout = typeof options.proportionalLayout !== 'undefined' ? !!options.proportionalLayout : true;
+	constwuctow(options: IGwidViewOptions = {}) {
+		this.ewement = $('.monaco-gwid-view');
+		this.stywes = options.stywes || defauwtStywes;
+		this.pwopowtionawWayout = typeof options.pwopowtionawWayout !== 'undefined' ? !!options.pwopowtionawWayout : twue;
 
-		this.firstLayoutController = new LayoutController(false);
-		this.layoutController = new MultiplexLayoutController([
-			this.firstLayoutController,
-			...(options.layoutController ? [options.layoutController] : [])
+		this.fiwstWayoutContwowwa = new WayoutContwowwa(fawse);
+		this.wayoutContwowwa = new MuwtipwexWayoutContwowwa([
+			this.fiwstWayoutContwowwa,
+			...(options.wayoutContwowwa ? [options.wayoutContwowwa] : [])
 		]);
 
-		this.root = new BranchNode(Orientation.VERTICAL, this.layoutController, this.styles, this.proportionalLayout);
+		this.woot = new BwanchNode(Owientation.VEWTICAW, this.wayoutContwowwa, this.stywes, this.pwopowtionawWayout);
 	}
 
-	getViewMap(map: Map<IView, HTMLElement>, node?: Node): void {
+	getViewMap(map: Map<IView, HTMWEwement>, node?: Node): void {
 		if (!node) {
-			node = this.root;
+			node = this.woot;
 		}
 
-		if (node instanceof BranchNode) {
-			node.children.forEach(child => this.getViewMap(map, child));
-		} else {
-			map.set(node.view, node.element);
+		if (node instanceof BwanchNode) {
+			node.chiwdwen.fowEach(chiwd => this.getViewMap(map, chiwd));
+		} ewse {
+			map.set(node.view, node.ewement);
 		}
 	}
 
-	style(styles: IGridViewStyles): void {
-		this.styles = styles;
-		this.root.style(styles);
+	stywe(stywes: IGwidViewStywes): void {
+		this.stywes = stywes;
+		this.woot.stywe(stywes);
 	}
 
-	layout(width: number, height: number): void {
-		this.firstLayoutController.isLayoutEnabled = true;
+	wayout(width: numba, height: numba): void {
+		this.fiwstWayoutContwowwa.isWayoutEnabwed = twue;
 
-		const [size, orthogonalSize] = this.root.orientation === Orientation.HORIZONTAL ? [height, width] : [width, height];
-		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+		const [size, owthogonawSize] = this.woot.owientation === Owientation.HOWIZONTAW ? [height, width] : [width, height];
+		this.woot.wayout(size, 0, { owthogonawSize, absowuteOffset: 0, absowuteOwthogonawOffset: 0, absowuteSize: size, absowuteOwthogonawSize: owthogonawSize });
 	}
 
-	addView(view: IView, size: number | Sizing, location: number[]): void {
-		this.disposable2x2.dispose();
-		this.disposable2x2 = Disposable.None;
+	addView(view: IView, size: numba | Sizing, wocation: numba[]): void {
+		this.disposabwe2x2.dispose();
+		this.disposabwe2x2 = Disposabwe.None;
 
-		const [rest, index] = tail(location);
-		const [pathToParent, parent] = this.getNode(rest);
+		const [west, index] = taiw(wocation);
+		const [pathToPawent, pawent] = this.getNode(west);
 
-		if (parent instanceof BranchNode) {
-			const node = new LeafNode(view, orthogonal(parent.orientation), this.layoutController, parent.orthogonalSize);
-			parent.addChild(node, size, index);
+		if (pawent instanceof BwanchNode) {
+			const node = new WeafNode(view, owthogonaw(pawent.owientation), this.wayoutContwowwa, pawent.owthogonawSize);
+			pawent.addChiwd(node, size, index);
 
-		} else {
-			const [, grandParent] = tail(pathToParent);
-			const [, parentIndex] = tail(rest);
+		} ewse {
+			const [, gwandPawent] = taiw(pathToPawent);
+			const [, pawentIndex] = taiw(west);
 
-			let newSiblingSize: number | Sizing = 0;
+			wet newSibwingSize: numba | Sizing = 0;
 
-			const newSiblingCachedVisibleSize = grandParent.getChildCachedVisibleSize(parentIndex);
-			if (typeof newSiblingCachedVisibleSize === 'number') {
-				newSiblingSize = Sizing.Invisible(newSiblingCachedVisibleSize);
+			const newSibwingCachedVisibweSize = gwandPawent.getChiwdCachedVisibweSize(pawentIndex);
+			if (typeof newSibwingCachedVisibweSize === 'numba') {
+				newSibwingSize = Sizing.Invisibwe(newSibwingCachedVisibweSize);
 			}
 
-			grandParent.removeChild(parentIndex);
+			gwandPawent.wemoveChiwd(pawentIndex);
 
-			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize, grandParent.edgeSnapping);
-			grandParent.addChild(newParent, parent.size, parentIndex);
+			const newPawent = new BwanchNode(pawent.owientation, pawent.wayoutContwowwa, this.stywes, this.pwopowtionawWayout, pawent.size, pawent.owthogonawSize, gwandPawent.edgeSnapping);
+			gwandPawent.addChiwd(newPawent, pawent.size, pawentIndex);
 
-			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
-			newParent.addChild(newSibling, newSiblingSize, 0);
+			const newSibwing = new WeafNode(pawent.view, gwandPawent.owientation, this.wayoutContwowwa, pawent.size);
+			newPawent.addChiwd(newSibwing, newSibwingSize, 0);
 
-			if (typeof size !== 'number' && size.type === 'split') {
-				size = Sizing.Split(0);
+			if (typeof size !== 'numba' && size.type === 'spwit') {
+				size = Sizing.Spwit(0);
 			}
 
-			const node = new LeafNode(view, grandParent.orientation, this.layoutController, parent.size);
-			newParent.addChild(node, size, index);
+			const node = new WeafNode(view, gwandPawent.owientation, this.wayoutContwowwa, pawent.size);
+			newPawent.addChiwd(node, size, index);
 		}
 	}
 
-	removeView(location: number[], sizing?: Sizing): IView {
-		this.disposable2x2.dispose();
-		this.disposable2x2 = Disposable.None;
+	wemoveView(wocation: numba[], sizing?: Sizing): IView {
+		this.disposabwe2x2.dispose();
+		this.disposabwe2x2 = Disposabwe.None;
 
-		const [rest, index] = tail(location);
-		const [pathToParent, parent] = this.getNode(rest);
+		const [west, index] = taiw(wocation);
+		const [pathToPawent, pawent] = this.getNode(west);
 
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid location');
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		const node = parent.children[index];
+		const node = pawent.chiwdwen[index];
 
-		if (!(node instanceof LeafNode)) {
-			throw new Error('Invalid location');
+		if (!(node instanceof WeafNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		parent.removeChild(index, sizing);
+		pawent.wemoveChiwd(index, sizing);
 
-		if (parent.children.length === 0) {
-			throw new Error('Invalid grid state');
+		if (pawent.chiwdwen.wength === 0) {
+			thwow new Ewwow('Invawid gwid state');
 		}
 
-		if (parent.children.length > 1) {
-			return node.view;
+		if (pawent.chiwdwen.wength > 1) {
+			wetuwn node.view;
 		}
 
-		if (pathToParent.length === 0) { // parent is root
-			const sibling = parent.children[0];
+		if (pathToPawent.wength === 0) { // pawent is woot
+			const sibwing = pawent.chiwdwen[0];
 
-			if (sibling instanceof LeafNode) {
-				return node.view;
+			if (sibwing instanceof WeafNode) {
+				wetuwn node.view;
 			}
 
-			// we must promote sibling to be the new root
-			parent.removeChild(0);
-			this.root = sibling;
-			this.boundarySashes = this.boundarySashes;
-			return node.view;
+			// we must pwomote sibwing to be the new woot
+			pawent.wemoveChiwd(0);
+			this.woot = sibwing;
+			this.boundawySashes = this.boundawySashes;
+			wetuwn node.view;
 		}
 
-		const [, grandParent] = tail(pathToParent);
-		const [, parentIndex] = tail(rest);
+		const [, gwandPawent] = taiw(pathToPawent);
+		const [, pawentIndex] = taiw(west);
 
-		const sibling = parent.children[0];
-		const isSiblingVisible = parent.isChildVisible(0);
-		parent.removeChild(0);
+		const sibwing = pawent.chiwdwen[0];
+		const isSibwingVisibwe = pawent.isChiwdVisibwe(0);
+		pawent.wemoveChiwd(0);
 
-		const sizes = grandParent.children.map((_, i) => grandParent.getChildSize(i));
-		grandParent.removeChild(parentIndex, sizing);
+		const sizes = gwandPawent.chiwdwen.map((_, i) => gwandPawent.getChiwdSize(i));
+		gwandPawent.wemoveChiwd(pawentIndex, sizing);
 
-		if (sibling instanceof BranchNode) {
-			sizes.splice(parentIndex, 1, ...sibling.children.map(c => c.size));
+		if (sibwing instanceof BwanchNode) {
+			sizes.spwice(pawentIndex, 1, ...sibwing.chiwdwen.map(c => c.size));
 
-			for (let i = 0; i < sibling.children.length; i++) {
-				const child = sibling.children[i];
-				grandParent.addChild(child, child.size, parentIndex + i);
+			fow (wet i = 0; i < sibwing.chiwdwen.wength; i++) {
+				const chiwd = sibwing.chiwdwen[i];
+				gwandPawent.addChiwd(chiwd, chiwd.size, pawentIndex + i);
 			}
-		} else {
-			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), this.layoutController, sibling.size);
-			const sizing = isSiblingVisible ? sibling.orthogonalSize : Sizing.Invisible(sibling.orthogonalSize);
-			grandParent.addChild(newSibling, sizing, parentIndex);
+		} ewse {
+			const newSibwing = new WeafNode(sibwing.view, owthogonaw(sibwing.owientation), this.wayoutContwowwa, sibwing.size);
+			const sizing = isSibwingVisibwe ? sibwing.owthogonawSize : Sizing.Invisibwe(sibwing.owthogonawSize);
+			gwandPawent.addChiwd(newSibwing, sizing, pawentIndex);
 		}
 
-		for (let i = 0; i < sizes.length; i++) {
-			grandParent.resizeChild(i, sizes[i]);
+		fow (wet i = 0; i < sizes.wength; i++) {
+			gwandPawent.wesizeChiwd(i, sizes[i]);
 		}
 
-		return node.view;
+		wetuwn node.view;
 	}
 
-	moveView(parentLocation: number[], from: number, to: number): void {
-		const [, parent] = this.getNode(parentLocation);
+	moveView(pawentWocation: numba[], fwom: numba, to: numba): void {
+		const [, pawent] = this.getNode(pawentWocation);
 
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid location');
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		parent.moveChild(from, to);
+		pawent.moveChiwd(fwom, to);
 	}
 
-	swapViews(from: number[], to: number[]): void {
-		const [fromRest, fromIndex] = tail(from);
-		const [, fromParent] = this.getNode(fromRest);
+	swapViews(fwom: numba[], to: numba[]): void {
+		const [fwomWest, fwomIndex] = taiw(fwom);
+		const [, fwomPawent] = this.getNode(fwomWest);
 
-		if (!(fromParent instanceof BranchNode)) {
-			throw new Error('Invalid from location');
+		if (!(fwomPawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid fwom wocation');
 		}
 
-		const fromSize = fromParent.getChildSize(fromIndex);
-		const fromNode = fromParent.children[fromIndex];
+		const fwomSize = fwomPawent.getChiwdSize(fwomIndex);
+		const fwomNode = fwomPawent.chiwdwen[fwomIndex];
 
-		if (!(fromNode instanceof LeafNode)) {
-			throw new Error('Invalid from location');
+		if (!(fwomNode instanceof WeafNode)) {
+			thwow new Ewwow('Invawid fwom wocation');
 		}
 
-		const [toRest, toIndex] = tail(to);
-		const [, toParent] = this.getNode(toRest);
+		const [toWest, toIndex] = taiw(to);
+		const [, toPawent] = this.getNode(toWest);
 
-		if (!(toParent instanceof BranchNode)) {
-			throw new Error('Invalid to location');
+		if (!(toPawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid to wocation');
 		}
 
-		const toSize = toParent.getChildSize(toIndex);
-		const toNode = toParent.children[toIndex];
+		const toSize = toPawent.getChiwdSize(toIndex);
+		const toNode = toPawent.chiwdwen[toIndex];
 
-		if (!(toNode instanceof LeafNode)) {
-			throw new Error('Invalid to location');
+		if (!(toNode instanceof WeafNode)) {
+			thwow new Ewwow('Invawid to wocation');
 		}
 
-		if (fromParent === toParent) {
-			fromParent.swapChildren(fromIndex, toIndex);
-		} else {
-			fromParent.removeChild(fromIndex);
-			toParent.removeChild(toIndex);
+		if (fwomPawent === toPawent) {
+			fwomPawent.swapChiwdwen(fwomIndex, toIndex);
+		} ewse {
+			fwomPawent.wemoveChiwd(fwomIndex);
+			toPawent.wemoveChiwd(toIndex);
 
-			fromParent.addChild(toNode, fromSize, fromIndex);
-			toParent.addChild(fromNode, toSize, toIndex);
+			fwomPawent.addChiwd(toNode, fwomSize, fwomIndex);
+			toPawent.addChiwd(fwomNode, toSize, toIndex);
 		}
 	}
 
-	resizeView(location: number[], { width, height }: Partial<IViewSize>): void {
-		const [rest, index] = tail(location);
-		const [pathToParent, parent] = this.getNode(rest);
+	wesizeView(wocation: numba[], { width, height }: Pawtiaw<IViewSize>): void {
+		const [west, index] = taiw(wocation);
+		const [pathToPawent, pawent] = this.getNode(west);
 
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid location');
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
 		if (!width && !height) {
-			return;
+			wetuwn;
 		}
 
-		const [parentSize, grandParentSize] = parent.orientation === Orientation.HORIZONTAL ? [width, height] : [height, width];
+		const [pawentSize, gwandPawentSize] = pawent.owientation === Owientation.HOWIZONTAW ? [width, height] : [height, width];
 
-		if (typeof grandParentSize === 'number' && pathToParent.length > 0) {
-			const [, grandParent] = tail(pathToParent);
-			const [, parentIndex] = tail(rest);
+		if (typeof gwandPawentSize === 'numba' && pathToPawent.wength > 0) {
+			const [, gwandPawent] = taiw(pathToPawent);
+			const [, pawentIndex] = taiw(west);
 
-			grandParent.resizeChild(parentIndex, grandParentSize);
+			gwandPawent.wesizeChiwd(pawentIndex, gwandPawentSize);
 		}
 
-		if (typeof parentSize === 'number') {
-			parent.resizeChild(index, parentSize);
-		}
-	}
-
-	getViewSize(location?: number[]): IViewSize {
-		if (!location) {
-			return { width: this.root.width, height: this.root.height };
-		}
-
-		const [, node] = this.getNode(location);
-		return { width: node.width, height: node.height };
-	}
-
-	getViewCachedVisibleSize(location: number[]): number | undefined {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
-
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid location');
-		}
-
-		return parent.getChildCachedVisibleSize(index);
-	}
-
-	maximizeViewSize(location: number[]): void {
-		const [ancestors, node] = this.getNode(location);
-
-		if (!(node instanceof LeafNode)) {
-			throw new Error('Invalid location');
-		}
-
-		for (let i = 0; i < ancestors.length; i++) {
-			ancestors[i].resizeChild(location[i], Number.POSITIVE_INFINITY);
+		if (typeof pawentSize === 'numba') {
+			pawent.wesizeChiwd(index, pawentSize);
 		}
 	}
 
-	distributeViewSizes(location?: number[]): void {
-		if (!location) {
-			this.root.distributeViewSizes(true);
-			return;
+	getViewSize(wocation?: numba[]): IViewSize {
+		if (!wocation) {
+			wetuwn { width: this.woot.width, height: this.woot.height };
 		}
 
-		const [, node] = this.getNode(location);
-
-		if (!(node instanceof BranchNode)) {
-			throw new Error('Invalid location');
-		}
-
-		node.distributeViewSizes();
+		const [, node] = this.getNode(wocation);
+		wetuwn { width: node.width, height: node.height };
 	}
 
-	isViewVisible(location: number[]): boolean {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
+	getViewCachedVisibweSize(wocation: numba[]): numba | undefined {
+		const [west, index] = taiw(wocation);
+		const [, pawent] = this.getNode(west);
 
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid from location');
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		return parent.isChildVisible(index);
+		wetuwn pawent.getChiwdCachedVisibweSize(index);
 	}
 
-	setViewVisible(location: number[], visible: boolean): void {
-		const [rest, index] = tail(location);
-		const [, parent] = this.getNode(rest);
+	maximizeViewSize(wocation: numba[]): void {
+		const [ancestows, node] = this.getNode(wocation);
 
-		if (!(parent instanceof BranchNode)) {
-			throw new Error('Invalid from location');
+		if (!(node instanceof WeafNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		parent.setChildVisible(index, visible);
+		fow (wet i = 0; i < ancestows.wength; i++) {
+			ancestows[i].wesizeChiwd(wocation[i], Numba.POSITIVE_INFINITY);
+		}
 	}
 
-	getView(): GridBranchNode;
-	getView(location?: number[]): GridNode;
-	getView(location?: number[]): GridNode {
-		const node = location ? this.getNode(location)[1] : this._root;
-		return this._getViews(node, this.orientation);
-	}
-
-	static deserialize<T extends ISerializableView>(json: ISerializedGridView, deserializer: IViewDeserializer<T>, options: IGridViewOptions = {}): GridView {
-		if (typeof json.orientation !== 'number') {
-			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
-		} else if (typeof json.width !== 'number') {
-			throw new Error('Invalid JSON: \'width\' property must be a number.');
-		} else if (typeof json.height !== 'number') {
-			throw new Error('Invalid JSON: \'height\' property must be a number.');
-		} else if (json.root?.type !== 'branch') {
-			throw new Error('Invalid JSON: \'root\' property must have \'type\' value of branch.');
+	distwibuteViewSizes(wocation?: numba[]): void {
+		if (!wocation) {
+			this.woot.distwibuteViewSizes(twue);
+			wetuwn;
 		}
 
-		const orientation = json.orientation;
+		const [, node] = this.getNode(wocation);
+
+		if (!(node instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
+		}
+
+		node.distwibuteViewSizes();
+	}
+
+	isViewVisibwe(wocation: numba[]): boowean {
+		const [west, index] = taiw(wocation);
+		const [, pawent] = this.getNode(west);
+
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid fwom wocation');
+		}
+
+		wetuwn pawent.isChiwdVisibwe(index);
+	}
+
+	setViewVisibwe(wocation: numba[], visibwe: boowean): void {
+		const [west, index] = taiw(wocation);
+		const [, pawent] = this.getNode(west);
+
+		if (!(pawent instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid fwom wocation');
+		}
+
+		pawent.setChiwdVisibwe(index, visibwe);
+	}
+
+	getView(): GwidBwanchNode;
+	getView(wocation?: numba[]): GwidNode;
+	getView(wocation?: numba[]): GwidNode {
+		const node = wocation ? this.getNode(wocation)[1] : this._woot;
+		wetuwn this._getViews(node, this.owientation);
+	}
+
+	static desewiawize<T extends ISewiawizabweView>(json: ISewiawizedGwidView, desewiawiza: IViewDesewiawiza<T>, options: IGwidViewOptions = {}): GwidView {
+		if (typeof json.owientation !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'owientation\' pwopewty must be a numba.');
+		} ewse if (typeof json.width !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'width\' pwopewty must be a numba.');
+		} ewse if (typeof json.height !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'height\' pwopewty must be a numba.');
+		} ewse if (json.woot?.type !== 'bwanch') {
+			thwow new Ewwow('Invawid JSON: \'woot\' pwopewty must have \'type\' vawue of bwanch.');
+		}
+
+		const owientation = json.owientation;
 		const height = json.height;
 
-		const result = new GridView(options);
-		result._deserialize(json.root as ISerializedBranchNode, orientation, deserializer, height);
+		const wesuwt = new GwidView(options);
+		wesuwt._desewiawize(json.woot as ISewiawizedBwanchNode, owientation, desewiawiza, height);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _deserialize(root: ISerializedBranchNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): void {
-		this.root = this._deserializeNode(root, orientation, deserializer, orthogonalSize) as BranchNode;
+	pwivate _desewiawize(woot: ISewiawizedBwanchNode, owientation: Owientation, desewiawiza: IViewDesewiawiza<ISewiawizabweView>, owthogonawSize: numba): void {
+		this.woot = this._desewiawizeNode(woot, owientation, desewiawiza, owthogonawSize) as BwanchNode;
 	}
 
-	private _deserializeNode(node: ISerializedNode, orientation: Orientation, deserializer: IViewDeserializer<ISerializableView>, orthogonalSize: number): Node {
-		let result: Node;
-		if (node.type === 'branch') {
-			const serializedChildren = node.data as ISerializedNode[];
-			const children = serializedChildren.map(serializedChild => {
-				return {
-					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),
-					visible: (serializedChild as { visible?: boolean }).visible
-				} as INodeDescriptor;
+	pwivate _desewiawizeNode(node: ISewiawizedNode, owientation: Owientation, desewiawiza: IViewDesewiawiza<ISewiawizabweView>, owthogonawSize: numba): Node {
+		wet wesuwt: Node;
+		if (node.type === 'bwanch') {
+			const sewiawizedChiwdwen = node.data as ISewiawizedNode[];
+			const chiwdwen = sewiawizedChiwdwen.map(sewiawizedChiwd => {
+				wetuwn {
+					node: this._desewiawizeNode(sewiawizedChiwd, owthogonaw(owientation), desewiawiza, node.size),
+					visibwe: (sewiawizedChiwd as { visibwe?: boowean }).visibwe
+				} as INodeDescwiptow;
 			});
 
-			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
-		} else {
-			result = new LeafNode(deserializer.fromJSON(node.data), orientation, this.layoutController, orthogonalSize, node.size);
+			wesuwt = new BwanchNode(owientation, this.wayoutContwowwa, this.stywes, this.pwopowtionawWayout, node.size, owthogonawSize, undefined, chiwdwen);
+		} ewse {
+			wesuwt = new WeafNode(desewiawiza.fwomJSON(node.data), owientation, this.wayoutContwowwa, owthogonawSize, node.size);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _getViews(node: Node, orientation: Orientation, cachedVisibleSize?: number): GridNode {
-		const box = { top: node.top, left: node.left, width: node.width, height: node.height };
+	pwivate _getViews(node: Node, owientation: Owientation, cachedVisibweSize?: numba): GwidNode {
+		const box = { top: node.top, weft: node.weft, width: node.width, height: node.height };
 
-		if (node instanceof LeafNode) {
-			return { view: node.view, box, cachedVisibleSize };
+		if (node instanceof WeafNode) {
+			wetuwn { view: node.view, box, cachedVisibweSize };
 		}
 
-		const children: GridNode[] = [];
+		const chiwdwen: GwidNode[] = [];
 
-		for (let i = 0; i < node.children.length; i++) {
-			const child = node.children[i];
-			const cachedVisibleSize = node.getChildCachedVisibleSize(i);
+		fow (wet i = 0; i < node.chiwdwen.wength; i++) {
+			const chiwd = node.chiwdwen[i];
+			const cachedVisibweSize = node.getChiwdCachedVisibweSize(i);
 
-			children.push(this._getViews(child, orthogonal(orientation), cachedVisibleSize));
+			chiwdwen.push(this._getViews(chiwd, owthogonaw(owientation), cachedVisibweSize));
 		}
 
-		return { children, box };
+		wetuwn { chiwdwen, box };
 	}
 
-	private getNode(location: number[], node: Node = this.root, path: BranchNode[] = []): [BranchNode[], Node] {
-		if (location.length === 0) {
-			return [path, node];
+	pwivate getNode(wocation: numba[], node: Node = this.woot, path: BwanchNode[] = []): [BwanchNode[], Node] {
+		if (wocation.wength === 0) {
+			wetuwn [path, node];
 		}
 
-		if (!(node instanceof BranchNode)) {
-			throw new Error('Invalid location');
+		if (!(node instanceof BwanchNode)) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		const [index, ...rest] = location;
+		const [index, ...west] = wocation;
 
-		if (index < 0 || index >= node.children.length) {
-			throw new Error('Invalid location');
+		if (index < 0 || index >= node.chiwdwen.wength) {
+			thwow new Ewwow('Invawid wocation');
 		}
 
-		const child = node.children[index];
+		const chiwd = node.chiwdwen[index];
 		path.push(node);
 
-		return this.getNode(rest, child, path);
+		wetuwn this.getNode(west, chiwd, path);
 	}
 
-	trySet2x2(): void {
-		this.disposable2x2.dispose();
-		this.disposable2x2 = Disposable.None;
+	twySet2x2(): void {
+		this.disposabwe2x2.dispose();
+		this.disposabwe2x2 = Disposabwe.None;
 
-		if (this.root.children.length !== 2) {
-			return;
+		if (this.woot.chiwdwen.wength !== 2) {
+			wetuwn;
 		}
 
-		const [first, second] = this.root.children;
+		const [fiwst, second] = this.woot.chiwdwen;
 
-		if (!(first instanceof BranchNode) || !(second instanceof BranchNode)) {
-			return;
+		if (!(fiwst instanceof BwanchNode) || !(second instanceof BwanchNode)) {
+			wetuwn;
 		}
 
-		this.disposable2x2 = first.trySet2x2(second);
+		this.disposabwe2x2 = fiwst.twySet2x2(second);
 	}
 
 	dispose(): void {
-		this.onDidSashResetRelay.dispose();
-		this.root.dispose();
+		this.onDidSashWesetWeway.dispose();
+		this.woot.dispose();
 
-		if (this.element && this.element.parentElement) {
-			this.element.parentElement.removeChild(this.element);
+		if (this.ewement && this.ewement.pawentEwement) {
+			this.ewement.pawentEwement.wemoveChiwd(this.ewement);
 		}
 	}
 }

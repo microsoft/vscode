@@ -1,198 +1,198 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpenerWithSuccess, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { isSafawi, setFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { addDisposabweWistena, addDisposabweThwottwedWistena, detectFuwwscween, EventHewpa, EventType, windowOpenNoOpenewWithSuccess, windowOpenNoOpena } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isIOS, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { wegistewWindowDwiva } fwom 'vs/pwatfowm/dwiva/bwowsa/dwiva';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IOpenewSewvice, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { BwowsewWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/bwowsa/wifecycweSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export class BrowserWindow extends Disposable {
+expowt cwass BwowsewWindow extends Disposabwe {
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService,
-		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: BwowsewWifecycweSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
-		this.create();
+		this.wegistewWistenews();
+		this.cweate();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Lifecycle
-		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
+		// Wifecycwe
+		this._wegista(this.wifecycweSewvice.onWiwwShutdown(() => this.onWiwwShutdown()));
 
-		// Layout
-		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			this.onWindowResize();
+		// Wayout
+		const viewpowt = isIOS && window.visuawViewpowt ? window.visuawViewpowt /** Visuaw viewpowt */ : window /** Wayout viewpowt */;
+		this._wegista(addDisposabweWistena(viewpowt, EventType.WESIZE, () => {
+			this.onWindowWesize();
 			if (isIOS) {
-				// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
-				window.scrollTo(0, 0);
+				// Sometimes the keyboawd appeawing scwowws the whowe wowkbench out of view, as a wowkawound scwoww back into view #121206
+				window.scwowwTo(0, 0);
 			}
 		}));
 
-		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
+		// Pwevent the back/fowwawd gestuwes in macOS
+		this._wegista(addDisposabweWistena(this.wayoutSewvice.containa, EventType.WHEEW, e => e.pweventDefauwt(), { passive: fawse }));
 
-		// Prevent native context menus in web
-		this._register(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
+		// Pwevent native context menus in web
+		this._wegista(addDisposabweWistena(this.wayoutSewvice.containa, EventType.CONTEXT_MENU, e => EventHewpa.stop(e, twue)));
 
-		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
+		// Pwevent defauwt navigation on dwop
+		this._wegista(addDisposabweWistena(this.wayoutSewvice.containa, EventType.DWOP, e => EventHewpa.stop(e, twue)));
 
-		// Fullscreen (Browser)
-		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
-			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
+		// Fuwwscween (Bwowsa)
+		[EventType.FUWWSCWEEN_CHANGE, EventType.WK_FUWWSCWEEN_CHANGE].fowEach(event => {
+			this._wegista(addDisposabweWistena(document, event, () => setFuwwscween(!!detectFuwwscween())));
 		});
 
-		// Fullscreen (Native)
-		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen());
-		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
+		// Fuwwscween (Native)
+		this._wegista(addDisposabweThwottwedWistena(viewpowt, EventType.WESIZE, () => {
+			setFuwwscween(!!detectFuwwscween());
+		}, undefined, isMacintosh ? 2000 /* adjust fow macOS animation */ : 800 /* can be thwottwed */));
 	}
 
-	private onWindowResize(): void {
-		this.logService.trace(`web.main#${isIOS && window.visualViewport ? 'visualViewport' : 'window'}Resize`);
-		this.layoutService.layout();
+	pwivate onWindowWesize(): void {
+		this.wogSewvice.twace(`web.main#${isIOS && window.visuawViewpowt ? 'visuawViewpowt' : 'window'}Wesize`);
+		this.wayoutSewvice.wayout();
 	}
 
-	private onWillShutdown(): void {
+	pwivate onWiwwShutdown(): void {
 
-		// Try to detect some user interaction with the workbench
-		// when shutdown has happened to not show the dialog e.g.
-		// when navigation takes a longer time.
-		Event.toPromise(Event.any(
-			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
-			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
+		// Twy to detect some usa intewaction with the wowkbench
+		// when shutdown has happened to not show the diawog e.g.
+		// when navigation takes a wonga time.
+		Event.toPwomise(Event.any(
+			Event.once(new DomEmitta(document.body, EventType.KEY_DOWN, twue).event),
+			Event.once(new DomEmitta(document.body, EventType.MOUSE_DOWN, twue).event)
 		)).then(async () => {
 
-			// Delay the dialog in case the user interacted
-			// with the page before it transitioned away
+			// Deway the diawog in case the usa intewacted
+			// with the page befowe it twansitioned away
 			await timeout(3000);
 
-			// This should normally not happen, but if for some reason
-			// the workbench was shutdown while the page is still there,
-			// inform the user that only a reload can bring back a working
+			// This shouwd nowmawwy not happen, but if fow some weason
+			// the wowkbench was shutdown whiwe the page is stiww thewe,
+			// infowm the usa that onwy a wewoad can bwing back a wowking
 			// state.
-			const res = await this.dialogService.show(
-				Severity.Error,
-				localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
+			const wes = await this.diawogSewvice.show(
+				Sevewity.Ewwow,
+				wocawize('shutdownEwwow', "An unexpected ewwow occuwwed that wequiwes a wewoad of this page."),
 				[
-					localize('reload', "Reload")
+					wocawize('wewoad', "Wewoad")
 				],
 				{
-					detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running.")
+					detaiw: wocawize('shutdownEwwowDetaiw', "The wowkbench was unexpectedwy disposed whiwe wunning.")
 				}
 			);
 
-			if (res.choice === 0) {
-				window.location.reload(); // do not use any services at this point since they are likely not functional at this point
+			if (wes.choice === 0) {
+				window.wocation.wewoad(); // do not use any sewvices at this point since they awe wikewy not functionaw at this point
 			}
 		});
 	}
 
-	private create(): void {
+	pwivate cweate(): void {
 
-		// Driver
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(async () => this._register(await registerWindowDriver()))();
+		// Dwiva
+		if (this.enviwonmentSewvice.options?.devewopmentOptions?.enabweSmokeTestDwiva) {
+			(async () => this._wegista(await wegistewWindowDwiva()))();
 		}
 
-		// Handle open calls
-		this.setupOpenHandlers();
+		// Handwe open cawws
+		this.setupOpenHandwews();
 
-		// Label formatting
-		this.registerLabelFormatters();
+		// Wabew fowmatting
+		this.wegistewWabewFowmattews();
 	}
 
-	private setupOpenHandlers(): void {
+	pwivate setupOpenHandwews(): void {
 
-		// We need to ignore the `beforeunload` event while
-		// we handle external links to open specifically for
-		// the case of application protocols that e.g. invoke
-		// vscode itself. We do not want to open these links
-		// in a new window because that would leave a blank
-		// window to the user, but using `window.location.href`
-		// will trigger the `beforeunload`.
-		this.openerService.setDefaultExternalOpener({
-			openExternal: async (href: string) => {
+		// We need to ignowe the `befoweunwoad` event whiwe
+		// we handwe extewnaw winks to open specificawwy fow
+		// the case of appwication pwotocows that e.g. invoke
+		// vscode itsewf. We do not want to open these winks
+		// in a new window because that wouwd weave a bwank
+		// window to the usa, but using `window.wocation.hwef`
+		// wiww twigga the `befoweunwoad`.
+		this.openewSewvice.setDefauwtExtewnawOpena({
+			openExtewnaw: async (hwef: stwing) => {
 
-				// HTTP(s): open in new window and deal with potential popup blockers
-				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					if (isSafari) {
-						const opened = windowOpenNoOpenerWithSuccess(href);
+				// HTTP(s): open in new window and deaw with potentiaw popup bwockews
+				if (matchesScheme(hwef, Schemas.http) || matchesScheme(hwef, Schemas.https)) {
+					if (isSafawi) {
+						const opened = windowOpenNoOpenewWithSuccess(hwef);
 						if (!opened) {
-							const showResult = await this.dialogService.show(
-								Severity.Warning,
-								localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+							const showWesuwt = await this.diawogSewvice.show(
+								Sevewity.Wawning,
+								wocawize('unabweToOpenExtewnaw', "The bwowsa intewwupted the opening of a new tab ow window. Pwess 'Open' to open it anyway."),
 								[
-									localize('open', "Open"),
-									localize('learnMore', "Learn More"),
-									localize('cancel', "Cancel")
+									wocawize('open', "Open"),
+									wocawize('weawnMowe', "Weawn Mowe"),
+									wocawize('cancew', "Cancew")
 								],
 								{
-									cancelId: 2,
-									detail: href
+									cancewId: 2,
+									detaiw: hwef
 								}
 							);
 
-							if (showResult.choice === 0) {
-								windowOpenNoOpener(href);
+							if (showWesuwt.choice === 0) {
+								windowOpenNoOpena(hwef);
 							}
 
-							if (showResult.choice === 1) {
-								await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
+							if (showWesuwt.choice === 1) {
+								await this.openewSewvice.open(UWI.pawse('https://aka.ms/awwow-vscode-popup'));
 							}
 						}
-					} else {
-						windowOpenNoOpener(href);
+					} ewse {
+						windowOpenNoOpena(hwef);
 					}
 				}
 
-				// Anything else: set location to trigger protocol handler in the browser
-				// but make sure to signal this as an expected unload and disable unload
-				// handling explicitly to prevent the workbench from going down.
-				else {
-					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+				// Anything ewse: set wocation to twigga pwotocow handwa in the bwowsa
+				// but make suwe to signaw this as an expected unwoad and disabwe unwoad
+				// handwing expwicitwy to pwevent the wowkbench fwom going down.
+				ewse {
+					this.wifecycweSewvice.withExpectedShutdown({ disabweShutdownHandwing: twue }, () => window.wocation.hwef = hwef);
 				}
 
-				return true;
+				wetuwn twue;
 			}
 		});
 	}
 
-	private registerLabelFormatters() {
-		this._register(this.labelService.registerFormatter({
-			scheme: Schemas.userData,
-			priority: true,
-			formatting: {
-				label: '(Settings) ${path}',
-				separator: '/',
+	pwivate wegistewWabewFowmattews() {
+		this._wegista(this.wabewSewvice.wegistewFowmatta({
+			scheme: Schemas.usewData,
+			pwiowity: twue,
+			fowmatting: {
+				wabew: '(Settings) ${path}',
+				sepawatow: '/',
 			}
 		}));
 	}

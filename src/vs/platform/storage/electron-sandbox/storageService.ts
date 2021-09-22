@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { mark } from 'vs/base/common/performance';
-import { joinPath } from 'vs/base/common/resources';
-import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IStowage, Stowage } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { AbstwactStowageSewvice, StowageScope, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { StowageDatabaseChannewCwient } fwom 'vs/pwatfowm/stowage/common/stowageIpc';
+impowt { IEmptyWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia, IWowkspaceInitiawizationPaywoad } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export class NativeStorageService extends AbstractStorageService {
+expowt cwass NativeStowageSewvice extends AbstwactStowageSewvice {
 
-	// Global Storage is readonly and shared across windows
-	private readonly globalStorage: IStorage;
+	// Gwobaw Stowage is weadonwy and shawed acwoss windows
+	pwivate weadonwy gwobawStowage: IStowage;
 
-	// Workspace Storage is scoped to a window but can change
-	// in the current window, when entering a workspace!
-	private workspaceStorage: IStorage | undefined = undefined;
-	private workspaceStorageId: string | undefined = undefined;
-	private workspaceStorageDisposable = this._register(new MutableDisposable());
+	// Wowkspace Stowage is scoped to a window but can change
+	// in the cuwwent window, when entewing a wowkspace!
+	pwivate wowkspaceStowage: IStowage | undefined = undefined;
+	pwivate wowkspaceStowageId: stwing | undefined = undefined;
+	pwivate wowkspaceStowageDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined,
-		private readonly mainProcessService: IMainProcessService,
-		private readonly environmentService: IEnvironmentService
+	constwuctow(
+		wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined,
+		pwivate weadonwy mainPwocessSewvice: IMainPwocessSewvice,
+		pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice
 	) {
-		super();
+		supa();
 
-		this.globalStorage = this.createGlobalStorage();
-		this.workspaceStorage = this.createWorkspaceStorage(workspace);
+		this.gwobawStowage = this.cweateGwobawStowage();
+		this.wowkspaceStowage = this.cweateWowkspaceStowage(wowkspace);
 	}
 
-	private createGlobalStorage(): IStorage {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), undefined);
+	pwivate cweateGwobawStowage(): IStowage {
+		const stowageDataBaseCwient = new StowageDatabaseChannewCwient(this.mainPwocessSewvice.getChannew('stowage'), undefined);
 
-		const globalStorage = new Storage(storageDataBaseClient.globalStorage);
+		const gwobawStowage = new Stowage(stowageDataBaseCwient.gwobawStowage);
 
-		this._register(globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._wegista(gwobawStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.GWOBAW, key)));
 
-		return globalStorage;
+		wetuwn gwobawStowage;
 	}
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorage;
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined;
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IStorage | undefined {
-		const storageDataBaseClient = new StorageDatabaseChannelClient(this.mainProcessService.getChannel('storage'), workspace);
+	pwivate cweateWowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia): IStowage;
+	pwivate cweateWowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined): IStowage | undefined;
+	pwivate cweateWowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined): IStowage | undefined {
+		const stowageDataBaseCwient = new StowageDatabaseChannewCwient(this.mainPwocessSewvice.getChannew('stowage'), wowkspace);
 
-		if (storageDataBaseClient.workspaceStorage) {
-			const workspaceStorage = new Storage(storageDataBaseClient.workspaceStorage);
+		if (stowageDataBaseCwient.wowkspaceStowage) {
+			const wowkspaceStowage = new Stowage(stowageDataBaseCwient.wowkspaceStowage);
 
-			this.workspaceStorageDisposable.value = workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key));
-			this.workspaceStorageId = workspace?.id;
+			this.wowkspaceStowageDisposabwe.vawue = wowkspaceStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.WOWKSPACE, key));
+			this.wowkspaceStowageId = wowkspace?.id;
 
-			return workspaceStorage;
-		} else {
-			this.workspaceStorageDisposable.clear();
-			this.workspaceStorageId = undefined;
+			wetuwn wowkspaceStowage;
+		} ewse {
+			this.wowkspaceStowageDisposabwe.cweaw();
+			this.wowkspaceStowageId = undefined;
 
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	protected async doInitialize(): Promise<void> {
+	pwotected async doInitiawize(): Pwomise<void> {
 
-		// Init all storage locations
-		mark('code/willInitStorage');
-		try {
-			await Promises.settled([
-				this.globalStorage.init(),
-				this.workspaceStorage?.init() ?? Promise.resolve()
+		// Init aww stowage wocations
+		mawk('code/wiwwInitStowage');
+		twy {
+			await Pwomises.settwed([
+				this.gwobawStowage.init(),
+				this.wowkspaceStowage?.init() ?? Pwomise.wesowve()
 			]);
-		} finally {
-			mark('code/didInitStorage');
+		} finawwy {
+			mawk('code/didInitStowage');
 		}
 	}
 
-	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	pwotected getStowage(scope: StowageScope): IStowage | undefined {
+		wetuwn scope === StowageScope.GWOBAW ? this.gwobawStowage : this.wowkspaceStowage;
 	}
 
-	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.environmentService.globalStorageHome.fsPath : this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+	pwotected getWogDetaiws(scope: StowageScope): stwing | undefined {
+		wetuwn scope === StowageScope.GWOBAW ? this.enviwonmentSewvice.gwobawStowageHome.fsPath : this.wowkspaceStowageId ? `${joinPath(this.enviwonmentSewvice.wowkspaceStowageHome, this.wowkspaceStowageId, 'state.vscdb').fsPath}` : undefined;
 	}
 
-	async close(): Promise<void> {
+	async cwose(): Pwomise<void> {
 
-		// Stop periodic scheduler and idle runner as we now collect state normally
-		this.stopFlushWhenIdle();
+		// Stop pewiodic scheduwa and idwe wunna as we now cowwect state nowmawwy
+		this.stopFwushWhenIdwe();
 
-		// Signal as event so that clients can still store data
-		this.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		// Signaw as event so that cwients can stiww stowe data
+		this.emitWiwwSaveState(WiwwSaveStateWeason.SHUTDOWN);
 
 		// Do it
-		await Promises.settled([
-			this.globalStorage.close(),
-			this.workspaceStorage?.close() ?? Promise.resolve()
+		await Pwomises.settwed([
+			this.gwobawStowage.cwose(),
+			this.wowkspaceStowage?.cwose() ?? Pwomise.wesowve()
 		]);
 	}
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+	async migwate(toWowkspace: IWowkspaceInitiawizationPaywoad): Pwomise<void> {
 
-		// Keep current workspace storage items around to restore
-		const oldWorkspaceStorage = this.workspaceStorage;
-		const oldItems = oldWorkspaceStorage?.items ?? new Map();
+		// Keep cuwwent wowkspace stowage items awound to westowe
+		const owdWowkspaceStowage = this.wowkspaceStowage;
+		const owdItems = owdWowkspaceStowage?.items ?? new Map();
 
-		// Close current which will change to new workspace storage
-		if (oldWorkspaceStorage) {
-			await oldWorkspaceStorage.close();
-			oldWorkspaceStorage.dispose();
+		// Cwose cuwwent which wiww change to new wowkspace stowage
+		if (owdWowkspaceStowage) {
+			await owdWowkspaceStowage.cwose();
+			owdWowkspaceStowage.dispose();
 		}
 
-		// Create new workspace storage & init
-		this.workspaceStorage = this.createWorkspaceStorage(toWorkspace);
-		await this.workspaceStorage.init();
+		// Cweate new wowkspace stowage & init
+		this.wowkspaceStowage = this.cweateWowkspaceStowage(toWowkspace);
+		await this.wowkspaceStowage.init();
 
-		// Copy over previous keys
-		for (const [key, value] of oldItems) {
-			this.workspaceStorage.set(key, value);
+		// Copy ova pwevious keys
+		fow (const [key, vawue] of owdItems) {
+			this.wowkspaceStowage.set(key, vawue);
 		}
 	}
 }

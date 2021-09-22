@@ -1,399 +1,399 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { Action, IAction } from 'vs/base/common/actions';
-import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/review';
-import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { COMMENTEDITOR_DECORATION_KEY, isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
-import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { coawesce, findFiwstInSowted } fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./media/weview';
+impowt { IActiveCodeEditow, ICodeEditow, IEditowMouseEvent, isCodeEditow, isDiffEditow, IViewZone } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, IModewChangedEvent } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationOptions } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { peekViewWesuwtsBackgwound, peekViewWesuwtsSewectionBackgwound, peekViewTitweBackgwound } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickInputSewvice, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { editowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { STATUS_BAW_ITEM_ACTIVE_BACKGWOUND, STATUS_BAW_ITEM_HOVEW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { ovewviewWuwewCommentingWangeFowegwound } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentGwyphWidget';
+impowt { ICommentInfo, ICommentSewvice } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentSewvice';
+impowt { COMMENTEDITOW_DECOWATION_KEY, isMouseUpEventMatchMouseDown, pawseMouseDownInfoFwomEvent, WeviewZoneWidget } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentThweadWidget';
+impowt { ctxCommentEditowFocused, SimpweCommentEditow } fwom 'vs/wowkbench/contwib/comments/bwowsa/simpweCommentEditow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-export const ID = 'editor.contrib.review';
+expowt const ID = 'editow.contwib.weview';
 
-export class ReviewViewZone implements IViewZone {
-	public readonly afterLineNumber: number;
-	public readonly domNode: HTMLElement;
-	private callback: (top: number) => void;
+expowt cwass WeviewViewZone impwements IViewZone {
+	pubwic weadonwy aftewWineNumba: numba;
+	pubwic weadonwy domNode: HTMWEwement;
+	pwivate cawwback: (top: numba) => void;
 
-	constructor(afterLineNumber: number, onDomNodeTop: (top: number) => void) {
-		this.afterLineNumber = afterLineNumber;
-		this.callback = onDomNodeTop;
+	constwuctow(aftewWineNumba: numba, onDomNodeTop: (top: numba) => void) {
+		this.aftewWineNumba = aftewWineNumba;
+		this.cawwback = onDomNodeTop;
 
-		this.domNode = $('.review-viewzone');
+		this.domNode = $('.weview-viewzone');
 	}
 
-	onDomNodeTop(top: number): void {
-		this.callback(top);
+	onDomNodeTop(top: numba): void {
+		this.cawwback(top);
 	}
 }
 
-class CommentingRangeDecoration {
-	private _decorationId: string;
+cwass CommentingWangeDecowation {
+	pwivate _decowationId: stwing;
 
-	public get id(): string {
-		return this._decorationId;
+	pubwic get id(): stwing {
+		wetuwn this._decowationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: modes.CommentingRanges) {
-		const startLineNumber = _range.startLineNumber;
-		const endLineNumber = _range.endLineNumber;
-		let commentingRangeDecorations = [{
-			range: {
-				startLineNumber: startLineNumber, startColumn: 1,
-				endLineNumber: endLineNumber, endColumn: 1
+	constwuctow(pwivate _editow: ICodeEditow, pwivate _ownewId: stwing, pwivate _extensionId: stwing | undefined, pwivate _wabew: stwing | undefined, pwivate _wange: IWange, commentingOptions: ModewDecowationOptions, pwivate commentingWangesInfo: modes.CommentingWanges) {
+		const stawtWineNumba = _wange.stawtWineNumba;
+		const endWineNumba = _wange.endWineNumba;
+		wet commentingWangeDecowations = [{
+			wange: {
+				stawtWineNumba: stawtWineNumba, stawtCowumn: 1,
+				endWineNumba: endWineNumba, endCowumn: 1
 			},
 			options: commentingOptions
 		}];
 
-		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
+		this._decowationId = this._editow.dewtaDecowations([], commentingWangeDecowations)[0];
 	}
 
-	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {
-		return {
+	pubwic getCommentAction(): { ownewId: stwing, extensionId: stwing | undefined, wabew: stwing | undefined, commentingWangesInfo: modes.CommentingWanges } {
+		wetuwn {
 			extensionId: this._extensionId,
-			label: this._label,
-			ownerId: this._ownerId,
-			commentingRangesInfo: this.commentingRangesInfo
+			wabew: this._wabew,
+			ownewId: this._ownewId,
+			commentingWangesInfo: this.commentingWangesInfo
 		};
 	}
 
-	public getOriginalRange() {
-		return this._range;
+	pubwic getOwiginawWange() {
+		wetuwn this._wange;
 	}
 
-	public getActiveRange() {
-		return this._editor.getModel()!.getDecorationRange(this._decorationId);
+	pubwic getActiveWange() {
+		wetuwn this._editow.getModew()!.getDecowationWange(this._decowationId);
 	}
 }
-class CommentingRangeDecorator {
+cwass CommentingWangeDecowatow {
 
-	private decorationOptions: ModelDecorationOptions;
-	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
+	pwivate decowationOptions: ModewDecowationOptions;
+	pwivate commentingWangeDecowations: CommentingWangeDecowation[] = [];
 
-	constructor() {
-		const decorationOptions: IModelDecorationOptions = {
-			description: 'commenting-range-decorator',
-			isWholeLine: true,
-			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
+	constwuctow() {
+		const decowationOptions: IModewDecowationOptions = {
+			descwiption: 'commenting-wange-decowatow',
+			isWhoweWine: twue,
+			winesDecowationsCwassName: 'comment-wange-gwyph comment-diff-added'
 		};
 
-		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+		this.decowationOptions = ModewDecowationOptions.cweateDynamic(decowationOptions);
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		let model = editor.getModel();
-		if (!model) {
-			return;
+	pubwic update(editow: ICodeEditow, commentInfos: ICommentInfo[]) {
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
-		for (const info of commentInfos) {
-			info.commentingRanges.ranges.forEach(range => {
-				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
+		wet commentingWangeDecowations: CommentingWangeDecowation[] = [];
+		fow (const info of commentInfos) {
+			info.commentingWanges.wanges.fowEach(wange => {
+				commentingWangeDecowations.push(new CommentingWangeDecowation(editow, info.owna, info.extensionId, info.wabew, wange, this.decowationOptions, info.commentingWanges));
 			});
 		}
 
-		let oldDecorations = this.commentingRangeDecorations.map(decoration => decoration.id);
-		editor.deltaDecorations(oldDecorations, []);
+		wet owdDecowations = this.commentingWangeDecowations.map(decowation => decowation.id);
+		editow.dewtaDecowations(owdDecowations, []);
 
-		this.commentingRangeDecorations = commentingRangeDecorations;
+		this.commentingWangeDecowations = commentingWangeDecowations;
 	}
 
-	public getMatchedCommentAction(line: number) {
-		let result = [];
-		for (const decoration of this.commentingRangeDecorations) {
-			const range = decoration.getActiveRange();
-			if (range && range.startLineNumber <= line && line <= range.endLineNumber) {
-				result.push(decoration.getCommentAction());
+	pubwic getMatchedCommentAction(wine: numba) {
+		wet wesuwt = [];
+		fow (const decowation of this.commentingWangeDecowations) {
+			const wange = decowation.getActiveWange();
+			if (wange && wange.stawtWineNumba <= wine && wine <= wange.endWineNumba) {
+				wesuwt.push(decowation.getCommentAction());
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public dispose(): void {
-		this.commentingRangeDecorations = [];
+	pubwic dispose(): void {
+		this.commentingWangeDecowations = [];
 	}
 }
 
-export class CommentController implements IEditorContribution {
-	private readonly globalToDispose = new DisposableStore();
-	private readonly localToDispose = new DisposableStore();
-	private editor!: ICodeEditor;
-	private _commentWidgets: ReviewZoneWidget[];
-	private _commentInfos: ICommentInfo[];
-	private _commentingRangeDecorator!: CommentingRangeDecorator;
-	private mouseDownInfo: { lineNumber: number } | null = null;
-	private _commentingRangeSpaceReserved = false;
-	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
-	private _addInProgress!: boolean;
-	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
-	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
-	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
+expowt cwass CommentContwowwa impwements IEditowContwibution {
+	pwivate weadonwy gwobawToDispose = new DisposabweStowe();
+	pwivate weadonwy wocawToDispose = new DisposabweStowe();
+	pwivate editow!: ICodeEditow;
+	pwivate _commentWidgets: WeviewZoneWidget[];
+	pwivate _commentInfos: ICommentInfo[];
+	pwivate _commentingWangeDecowatow!: CommentingWangeDecowatow;
+	pwivate mouseDownInfo: { wineNumba: numba } | nuww = nuww;
+	pwivate _commentingWangeSpaceWesewved = fawse;
+	pwivate _computePwomise: CancewabwePwomise<Awway<ICommentInfo | nuww>> | nuww;
+	pwivate _addInPwogwess!: boowean;
+	pwivate _emptyThweadsToAddQueue: [numba, IEditowMouseEvent | undefined][] = [];
+	pwivate _computeCommentingWangePwomise!: CancewabwePwomise<ICommentInfo[]> | nuww;
+	pwivate _computeCommentingWangeScheduwa!: Dewaya<Awway<ICommentInfo | nuww>> | nuww;
+	pwivate _pendingCommentCache: { [key: stwing]: { [key: stwing]: stwing } };
 
-	constructor(
-		editor: ICodeEditor,
-		@ICommentService private readonly commentService: ICommentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+	constwuctow(
+		editow: ICodeEditow,
+		@ICommentSewvice pwivate weadonwy commentSewvice: ICommentSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IContextMenuSewvice weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
-		this._computePromise = null;
+		this._computePwomise = nuww;
 
-		if (editor instanceof EmbeddedCodeEditorWidget) {
-			return;
+		if (editow instanceof EmbeddedCodeEditowWidget) {
+			wetuwn;
 		}
 
-		this.editor = editor;
+		this.editow = editow;
 
-		this._commentingRangeDecorator = new CommentingRangeDecorator();
+		this._commentingWangeDecowatow = new CommentingWangeDecowatow();
 
-		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
-			delete this._pendingCommentCache[ownerId];
+		this.gwobawToDispose.add(this.commentSewvice.onDidDeweteDataPwovida(ownewId => {
+			dewete this._pendingCommentCache[ownewId];
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
+		this.gwobawToDispose.add(this.commentSewvice.onDidSetDataPwovida(_ => this.beginCompute()));
 
-		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
-			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
-			if (editorURI && editorURI.toString() === e.resource.toString()) {
-				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
+		this.gwobawToDispose.add(this.commentSewvice.onDidSetWesouwceCommentInfos(e => {
+			const editowUWI = this.editow && this.editow.hasModew() && this.editow.getModew().uwi;
+			if (editowUWI && editowUWI.toStwing() === e.wesouwce.toStwing()) {
+				this.setComments(e.commentInfos.fiwta(commentInfo => commentInfo !== nuww));
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
-		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+		this.gwobawToDispose.add(this.editow.onDidChangeModew(e => this.onModewChanged(e)));
+		this.codeEditowSewvice.wegistewDecowationType('comment-contwowwa', COMMENTEDITOW_DECOWATION_KEY, {});
 		this.beginCompute();
 	}
 
-	private beginCompute(): Promise<void> {
-		this._computePromise = createCancelablePromise(token => {
-			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
+	pwivate beginCompute(): Pwomise<void> {
+		this._computePwomise = cweateCancewabwePwomise(token => {
+			const editowUWI = this.editow && this.editow.hasModew() && this.editow.getModew().uwi;
 
-			if (editorURI) {
-				return this.commentService.getComments(editorURI);
+			if (editowUWI) {
+				wetuwn this.commentSewvice.getComments(editowUWI);
 			}
 
-			return Promise.resolve([]);
+			wetuwn Pwomise.wesowve([]);
 		});
 
-		return this._computePromise.then(commentInfos => {
-			this.setComments(coalesce(commentInfos));
-			this._computePromise = null;
-		}, error => console.log(error));
+		wetuwn this._computePwomise.then(commentInfos => {
+			this.setComments(coawesce(commentInfos));
+			this._computePwomise = nuww;
+		}, ewwow => consowe.wog(ewwow));
 	}
 
-	private beginComputeCommentingRanges() {
-		if (this._computeCommentingRangeScheduler) {
-			if (this._computeCommentingRangePromise) {
-				this._computeCommentingRangePromise.cancel();
-				this._computeCommentingRangePromise = null;
+	pwivate beginComputeCommentingWanges() {
+		if (this._computeCommentingWangeScheduwa) {
+			if (this._computeCommentingWangePwomise) {
+				this._computeCommentingWangePwomise.cancew();
+				this._computeCommentingWangePwomise = nuww;
 			}
 
-			this._computeCommentingRangeScheduler.trigger(() => {
-				const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
+			this._computeCommentingWangeScheduwa.twigga(() => {
+				const editowUWI = this.editow && this.editow.hasModew() && this.editow.getModew().uwi;
 
-				if (editorURI) {
-					return this.commentService.getComments(editorURI);
+				if (editowUWI) {
+					wetuwn this.commentSewvice.getComments(editowUWI);
 				}
 
-				return Promise.resolve([]);
+				wetuwn Pwomise.wesowve([]);
 			}).then(commentInfos => {
-				const meaningfulCommentInfos = coalesce(commentInfos);
-				this._commentingRangeDecorator.update(this.editor, meaningfulCommentInfos);
-			}, (err) => {
-				onUnexpectedError(err);
-				return null;
+				const meaningfuwCommentInfos = coawesce(commentInfos);
+				this._commentingWangeDecowatow.update(this.editow, meaningfuwCommentInfos);
+			}, (eww) => {
+				onUnexpectedEwwow(eww);
+				wetuwn nuww;
 			});
 		}
 	}
 
-	public static get(editor: ICodeEditor): CommentController {
-		return editor.getContribution<CommentController>(ID);
+	pubwic static get(editow: ICodeEditow): CommentContwowwa {
+		wetuwn editow.getContwibution<CommentContwowwa>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
-		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
-		if (commentThreadWidget.length === 1) {
-			commentThreadWidget[0].reveal(commentUniqueId);
-		} else if (fetchOnceIfNotExist) {
-			if (this._computePromise) {
-				this._computePromise.then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+	pubwic weveawCommentThwead(thweadId: stwing, commentUniqueId: numba, fetchOnceIfNotExist: boowean): void {
+		const commentThweadWidget = this._commentWidgets.fiwta(widget => widget.commentThwead.thweadId === thweadId);
+		if (commentThweadWidget.wength === 1) {
+			commentThweadWidget[0].weveaw(commentUniqueId);
+		} ewse if (fetchOnceIfNotExist) {
+			if (this._computePwomise) {
+				this._computePwomise.then(_ => {
+					this.weveawCommentThwead(thweadId, commentUniqueId, fawse);
 				});
-			} else {
+			} ewse {
 				this.beginCompute().then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+					this.weveawCommentThwead(thweadId, commentUniqueId, fawse);
 				});
 			}
 		}
 	}
 
-	public nextCommentThread(): void {
-		if (!this._commentWidgets.length || !this.editor.hasModel()) {
-			return;
+	pubwic nextCommentThwead(): void {
+		if (!this._commentWidgets.wength || !this.editow.hasModew()) {
+			wetuwn;
 		}
 
-		const after = this.editor.getSelection().getEndPosition();
-		const sortedWidgets = this._commentWidgets.sort((a, b) => {
-			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
-				return -1;
+		const afta = this.editow.getSewection().getEndPosition();
+		const sowtedWidgets = this._commentWidgets.sowt((a, b) => {
+			if (a.commentThwead.wange.stawtWineNumba < b.commentThwead.wange.stawtWineNumba) {
+				wetuwn -1;
 			}
 
-			if (a.commentThread.range.startLineNumber > b.commentThread.range.startLineNumber) {
-				return 1;
+			if (a.commentThwead.wange.stawtWineNumba > b.commentThwead.wange.stawtWineNumba) {
+				wetuwn 1;
 			}
 
-			if (a.commentThread.range.startColumn < b.commentThread.range.startColumn) {
-				return -1;
+			if (a.commentThwead.wange.stawtCowumn < b.commentThwead.wange.stawtCowumn) {
+				wetuwn -1;
 			}
 
-			if (a.commentThread.range.startColumn > b.commentThread.range.startColumn) {
-				return 1;
+			if (a.commentThwead.wange.stawtCowumn > b.commentThwead.wange.stawtCowumn) {
+				wetuwn 1;
 			}
 
-			return 0;
+			wetuwn 0;
 		});
 
-		let idx = findFirstInSorted(sortedWidgets, widget => {
-			if (widget.commentThread.range.startLineNumber > after.lineNumber) {
-				return true;
+		wet idx = findFiwstInSowted(sowtedWidgets, widget => {
+			if (widget.commentThwead.wange.stawtWineNumba > afta.wineNumba) {
+				wetuwn twue;
 			}
 
-			if (widget.commentThread.range.startLineNumber < after.lineNumber) {
-				return false;
+			if (widget.commentThwead.wange.stawtWineNumba < afta.wineNumba) {
+				wetuwn fawse;
 			}
 
-			if (widget.commentThread.range.startColumn > after.column) {
-				return true;
+			if (widget.commentThwead.wange.stawtCowumn > afta.cowumn) {
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		});
 
-		if (idx === this._commentWidgets.length) {
-			this._commentWidgets[0].reveal();
-			this.editor.setSelection(this._commentWidgets[0].commentThread.range);
-		} else {
-			sortedWidgets[idx].reveal();
-			this.editor.setSelection(sortedWidgets[idx].commentThread.range);
+		if (idx === this._commentWidgets.wength) {
+			this._commentWidgets[0].weveaw();
+			this.editow.setSewection(this._commentWidgets[0].commentThwead.wange);
+		} ewse {
+			sowtedWidgets[idx].weveaw();
+			this.editow.setSewection(sowtedWidgets[idx].commentThwead.wange);
 		}
 	}
 
-	public dispose(): void {
-		this.globalToDispose.dispose();
-		this.localToDispose.dispose();
+	pubwic dispose(): void {
+		this.gwobawToDispose.dispose();
+		this.wocawToDispose.dispose();
 
-		this._commentWidgets.forEach(widget => widget.dispose());
+		this._commentWidgets.fowEach(widget => widget.dispose());
 
-		this.editor = null!; // Strict null override — nulling out in dispose
+		this.editow = nuww!; // Stwict nuww ovewwide — nuwwing out in dispose
 	}
 
-	public onModelChanged(e: IModelChangedEvent): void {
-		this.localToDispose.clear();
+	pubwic onModewChanged(e: IModewChangedEvent): void {
+		this.wocawToDispose.cweaw();
 
-		this.removeCommentWidgetsAndStoreCache();
+		this.wemoveCommentWidgetsAndStoweCache();
 
-		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.wocawToDispose.add(this.editow.onMouseDown(e => this.onEditowMouseDown(e)));
+		this.wocawToDispose.add(this.editow.onMouseUp(e => this.onEditowMouseUp(e)));
 
-		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
-		this.localToDispose.add({
+		this._computeCommentingWangeScheduwa = new Dewaya<ICommentInfo[]>(200);
+		this.wocawToDispose.add({
 			dispose: () => {
-				if (this._computeCommentingRangeScheduler) {
-					this._computeCommentingRangeScheduler.cancel();
+				if (this._computeCommentingWangeScheduwa) {
+					this._computeCommentingWangeScheduwa.cancew();
 				}
-				this._computeCommentingRangeScheduler = null;
+				this._computeCommentingWangeScheduwa = nuww;
 			}
 		});
-		this.localToDispose.add(this.editor.onDidChangeModelContent(async () => {
-			this.beginComputeCommentingRanges();
+		this.wocawToDispose.add(this.editow.onDidChangeModewContent(async () => {
+			this.beginComputeCommentingWanges();
 		}));
-		this.localToDispose.add(this.commentService.onDidUpdateCommentThreads(async e => {
-			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
-			if (!editorURI) {
-				return;
+		this.wocawToDispose.add(this.commentSewvice.onDidUpdateCommentThweads(async e => {
+			const editowUWI = this.editow && this.editow.hasModew() && this.editow.getModew().uwi;
+			if (!editowUWI) {
+				wetuwn;
 			}
 
-			if (this._computePromise) {
-				await this._computePromise;
+			if (this._computePwomise) {
+				await this._computePwomise;
 			}
 
-			let commentInfo = this._commentInfos.filter(info => info.owner === e.owner);
-			if (!commentInfo || !commentInfo.length) {
-				return;
+			wet commentInfo = this._commentInfos.fiwta(info => info.owna === e.owna);
+			if (!commentInfo || !commentInfo.wength) {
+				wetuwn;
 			}
 
-			let added = e.added.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			let removed = e.removed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			let changed = e.changed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			wet added = e.added.fiwta(thwead => thwead.wesouwce && thwead.wesouwce.toStwing() === editowUWI.toStwing());
+			wet wemoved = e.wemoved.fiwta(thwead => thwead.wesouwce && thwead.wesouwce.toStwing() === editowUWI.toStwing());
+			wet changed = e.changed.fiwta(thwead => thwead.wesouwce && thwead.wesouwce.toStwing() === editowUWI.toStwing());
 
-			removed.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId && zoneWidget.commentThread.threadId !== '');
-				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					let index = this._commentWidgets.indexOf(matchedZone);
-					this._commentWidgets.splice(index, 1);
+			wemoved.fowEach(thwead => {
+				wet matchedZones = this._commentWidgets.fiwta(zoneWidget => zoneWidget.owna === e.owna && zoneWidget.commentThwead.thweadId === thwead.thweadId && zoneWidget.commentThwead.thweadId !== '');
+				if (matchedZones.wength) {
+					wet matchedZone = matchedZones[0];
+					wet index = this._commentWidgets.indexOf(matchedZone);
+					this._commentWidgets.spwice(index, 1);
 					matchedZone.dispose();
 				}
 			});
 
-			changed.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					matchedZone.update(thread);
+			changed.fowEach(thwead => {
+				wet matchedZones = this._commentWidgets.fiwta(zoneWidget => zoneWidget.owna === e.owna && zoneWidget.commentThwead.thweadId === thwead.thweadId);
+				if (matchedZones.wength) {
+					wet matchedZone = matchedZones[0];
+					matchedZone.update(thwead);
 				}
 			});
-			added.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					return;
+			added.fowEach(thwead => {
+				wet matchedZones = this._commentWidgets.fiwta(zoneWidget => zoneWidget.owna === e.owna && zoneWidget.commentThwead.thweadId === thwead.thweadId);
+				if (matchedZones.wength) {
+					wetuwn;
 				}
 
-				let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+				wet matchedNewCommentThweadZones = this._commentWidgets.fiwta(zoneWidget => zoneWidget.owna === e.owna && (zoneWidget.commentThwead as any).commentThweadHandwe === -1 && Wange.equawsWange(zoneWidget.commentThwead.wange, thwead.wange));
 
-				if (matchedNewCommentThreadZones.length) {
-					matchedNewCommentThreadZones[0].update(thread);
-					return;
+				if (matchedNewCommentThweadZones.wength) {
+					matchedNewCommentThweadZones[0].update(thwead);
+					wetuwn;
 				}
 
-				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
-				this.displayCommentThread(e.owner, thread, pendingCommentText);
-				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
+				const pendingCommentText = this._pendingCommentCache[e.owna] && this._pendingCommentCache[e.owna][thwead.thweadId!];
+				this.dispwayCommentThwead(e.owna, thwead, pendingCommentText);
+				this._commentInfos.fiwta(info => info.owna === e.owna)[0].thweads.push(thwead);
 			});
 
 		}));
@@ -401,225 +401,225 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private displayCommentThread(owner: string, thread: modes.CommentThread, pendingComment: string | null): void {
-		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
-		zoneWidget.display(thread.range.startLineNumber);
+	pwivate dispwayCommentThwead(owna: stwing, thwead: modes.CommentThwead, pendingComment: stwing | nuww): void {
+		const zoneWidget = this.instantiationSewvice.cweateInstance(WeviewZoneWidget, this.editow, owna, thwead, pendingComment);
+		zoneWidget.dispway(thwead.wange.stawtWineNumba);
 		this._commentWidgets.push(zoneWidget);
 	}
 
-	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
+	pwivate onEditowMouseDown(e: IEditowMouseEvent): void {
+		this.mouseDownInfo = pawseMouseDownInfoFwomEvent(e);
 	}
 
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
-		this.mouseDownInfo = null;
+	pwivate onEditowMouseUp(e: IEditowMouseEvent): void {
+		const matchedWineNumba = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
+		this.mouseDownInfo = nuww;
 
-		if (matchedLineNumber === null || !e.target.element) {
-			return;
+		if (matchedWineNumba === nuww || !e.tawget.ewement) {
+			wetuwn;
 		}
 
-		if (e.target.element.className.indexOf('comment-diff-added') >= 0) {
-			const lineNumber = e.target.position!.lineNumber;
-			this.addOrToggleCommentAtLine(lineNumber, e);
+		if (e.tawget.ewement.cwassName.indexOf('comment-diff-added') >= 0) {
+			const wineNumba = e.tawget.position!.wineNumba;
+			this.addOwToggweCommentAtWine(wineNumba, e);
 		}
 	}
 
-	public async addOrToggleCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
-		// If an add is already in progress, queue the next add and process it after the current one finishes to
-		// prevent empty comment threads from being added to the same line.
-		if (!this._addInProgress) {
-			this._addInProgress = true;
-			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
-			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === lineNumber);
-			if (existingCommentsAtLine.length) {
-				existingCommentsAtLine.forEach(widget => widget.toggleExpand(lineNumber));
-				this.processNextThreadToAdd();
-				return;
-			} else {
-				this.addCommentAtLine(lineNumber, e);
+	pubwic async addOwToggweCommentAtWine(wineNumba: numba, e: IEditowMouseEvent | undefined): Pwomise<void> {
+		// If an add is awweady in pwogwess, queue the next add and pwocess it afta the cuwwent one finishes to
+		// pwevent empty comment thweads fwom being added to the same wine.
+		if (!this._addInPwogwess) {
+			this._addInPwogwess = twue;
+			// The widget's position is undefined untiw the widget has been dispwayed, so wewy on the gwyph position instead
+			const existingCommentsAtWine = this._commentWidgets.fiwta(widget => widget.getGwyphPosition() === wineNumba);
+			if (existingCommentsAtWine.wength) {
+				existingCommentsAtWine.fowEach(widget => widget.toggweExpand(wineNumba));
+				this.pwocessNextThweadToAdd();
+				wetuwn;
+			} ewse {
+				this.addCommentAtWine(wineNumba, e);
 			}
-		} else {
-			this._emptyThreadsToAddQueue.push([lineNumber, e]);
+		} ewse {
+			this._emptyThweadsToAddQueue.push([wineNumba, e]);
 		}
 	}
 
-	private processNextThreadToAdd(): void {
-		this._addInProgress = false;
-		const info = this._emptyThreadsToAddQueue.shift();
+	pwivate pwocessNextThweadToAdd(): void {
+		this._addInPwogwess = fawse;
+		const info = this._emptyThweadsToAddQueue.shift();
 		if (info) {
-			this.addOrToggleCommentAtLine(info[0], info[1]);
+			this.addOwToggweCommentAtWine(info[0], info[1]);
 		}
 	}
 
-	public addCommentAtLine(lineNumber: number, e: IEditorMouseEvent | undefined): Promise<void> {
-		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(lineNumber);
-		if (!newCommentInfos.length || !this.editor.hasModel()) {
-			return Promise.resolve();
+	pubwic addCommentAtWine(wineNumba: numba, e: IEditowMouseEvent | undefined): Pwomise<void> {
+		const newCommentInfos = this._commentingWangeDecowatow.getMatchedCommentAction(wineNumba);
+		if (!newCommentInfos.wength || !this.editow.hasModew()) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		if (newCommentInfos.length > 1) {
+		if (newCommentInfos.wength > 1) {
 			if (e) {
-				const anchor = { x: e.event.posx, y: e.event.posy };
+				const anchow = { x: e.event.posx, y: e.event.posy };
 
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => this.getContextMenuActions(newCommentInfos, lineNumber),
-					getActionsContext: () => newCommentInfos.length ? newCommentInfos[0] : undefined,
-					onHide: () => { this._addInProgress = false; }
+				this.contextMenuSewvice.showContextMenu({
+					getAnchow: () => anchow,
+					getActions: () => this.getContextMenuActions(newCommentInfos, wineNumba),
+					getActionsContext: () => newCommentInfos.wength ? newCommentInfos[0] : undefined,
+					onHide: () => { this._addInPwogwess = fawse; }
 				});
 
-				return Promise.resolve();
-			} else {
-				const picks = this.getCommentProvidersQuickPicks(newCommentInfos);
-				return this.quickInputService.pick(picks, { placeHolder: nls.localize('pickCommentService', "Select Comment Provider"), matchOnDescription: true }).then(pick => {
+				wetuwn Pwomise.wesowve();
+			} ewse {
+				const picks = this.getCommentPwovidewsQuickPicks(newCommentInfos);
+				wetuwn this.quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('pickCommentSewvice', "Sewect Comment Pwovida"), matchOnDescwiption: twue }).then(pick => {
 					if (!pick) {
-						return;
+						wetuwn;
 					}
 
-					const commentInfos = newCommentInfos.filter(info => info.ownerId === pick.id);
+					const commentInfos = newCommentInfos.fiwta(info => info.ownewId === pick.id);
 
-					if (commentInfos.length) {
-						const { ownerId } = commentInfos[0];
-						this.addCommentAtLine2(lineNumber, ownerId);
+					if (commentInfos.wength) {
+						const { ownewId } = commentInfos[0];
+						this.addCommentAtWine2(wineNumba, ownewId);
 					}
 				}).then(() => {
-					this._addInProgress = false;
+					this._addInPwogwess = fawse;
 				});
 			}
-		} else {
-			const { ownerId } = newCommentInfos[0]!;
-			this.addCommentAtLine2(lineNumber, ownerId);
+		} ewse {
+			const { ownewId } = newCommentInfos[0]!;
+			this.addCommentAtWine2(wineNumba, ownewId);
 		}
 
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
+	pwivate getCommentPwovidewsQuickPicks(commentInfos: { ownewId: stwing, extensionId: stwing | undefined, wabew: stwing | undefined, commentingWangesInfo: modes.CommentingWanges | undefined }[]) {
 		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
-			const { ownerId, extensionId, label } = commentInfo;
+			const { ownewId, extensionId, wabew } = commentInfo;
 
-			return <IQuickPickItem>{
-				label: label || extensionId,
-				id: ownerId
+			wetuwn <IQuickPickItem>{
+				wabew: wabew || extensionId,
+				id: ownewId
 			};
 		});
 
-		return picks;
+		wetuwn picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
+	pwivate getContextMenuActions(commentInfos: { ownewId: stwing, extensionId: stwing | undefined, wabew: stwing | undefined, commentingWangesInfo: modes.CommentingWanges }[], wineNumba: numba): IAction[] {
 		const actions: IAction[] = [];
 
-		commentInfos.forEach(commentInfo => {
-			const { ownerId, extensionId, label } = commentInfo;
+		commentInfos.fowEach(commentInfo => {
+			const { ownewId, extensionId, wabew } = commentInfo;
 
 			actions.push(new Action(
-				'addCommentThread',
-				`${label || extensionId}`,
+				'addCommentThwead',
+				`${wabew || extensionId}`,
 				undefined,
-				true,
+				twue,
 				() => {
-					this.addCommentAtLine2(lineNumber, ownerId);
-					return Promise.resolve();
+					this.addCommentAtWine2(wineNumba, ownewId);
+					wetuwn Pwomise.wesowve();
 				}
 			));
 		});
-		return actions;
+		wetuwn actions;
 	}
 
-	public addCommentAtLine2(lineNumber: number, ownerId: string) {
-		const range = new Range(lineNumber, 1, lineNumber, 1);
-		this.commentService.createCommentThreadTemplate(ownerId, this.editor.getModel()!.uri, range);
-		this.processNextThreadToAdd();
-		return;
+	pubwic addCommentAtWine2(wineNumba: numba, ownewId: stwing) {
+		const wange = new Wange(wineNumba, 1, wineNumba, 1);
+		this.commentSewvice.cweateCommentThweadTempwate(ownewId, this.editow.getModew()!.uwi, wange);
+		this.pwocessNextThweadToAdd();
+		wetuwn;
 	}
 
-	private setComments(commentInfos: ICommentInfo[]): void {
-		if (!this.editor) {
-			return;
+	pwivate setComments(commentInfos: ICommentInfo[]): void {
+		if (!this.editow) {
+			wetuwn;
 		}
 
 		this._commentInfos = commentInfos;
-		let lineDecorationsWidth: number = this.editor.getLayoutInfo().decorationsWidth;
+		wet wineDecowationsWidth: numba = this.editow.getWayoutInfo().decowationsWidth;
 
-		if (this._commentInfos.some(info => Boolean(info.commentingRanges && (Array.isArray(info.commentingRanges) ? info.commentingRanges : info.commentingRanges.ranges).length))) {
-			if (!this._commentingRangeSpaceReserved) {
-				this._commentingRangeSpaceReserved = true;
-				let extraEditorClassName: string[] = [];
-				const configuredExtraClassName = this.editor.getRawOptions().extraEditorClassName;
-				if (configuredExtraClassName) {
-					extraEditorClassName = configuredExtraClassName.split(' ');
+		if (this._commentInfos.some(info => Boowean(info.commentingWanges && (Awway.isAwway(info.commentingWanges) ? info.commentingWanges : info.commentingWanges.wanges).wength))) {
+			if (!this._commentingWangeSpaceWesewved) {
+				this._commentingWangeSpaceWesewved = twue;
+				wet extwaEditowCwassName: stwing[] = [];
+				const configuwedExtwaCwassName = this.editow.getWawOptions().extwaEditowCwassName;
+				if (configuwedExtwaCwassName) {
+					extwaEditowCwassName = configuwedExtwaCwassName.spwit(' ');
 				}
 
-				const options = this.editor.getOptions();
-				if (options.get(EditorOption.folding)) {
-					lineDecorationsWidth -= 16;
+				const options = this.editow.getOptions();
+				if (options.get(EditowOption.fowding)) {
+					wineDecowationsWidth -= 16;
 				}
-				lineDecorationsWidth += 9;
-				extraEditorClassName.push('inline-comment');
-				this.editor.updateOptions({
-					extraEditorClassName: extraEditorClassName.join(' '),
-					lineDecorationsWidth: lineDecorationsWidth
+				wineDecowationsWidth += 9;
+				extwaEditowCwassName.push('inwine-comment');
+				this.editow.updateOptions({
+					extwaEditowCwassName: extwaEditowCwassName.join(' '),
+					wineDecowationsWidth: wineDecowationsWidth
 				});
 
-				// we only update the lineDecorationsWidth property but keep the width of the whole editor.
-				const originalLayoutInfo = this.editor.getLayoutInfo();
+				// we onwy update the wineDecowationsWidth pwopewty but keep the width of the whowe editow.
+				const owiginawWayoutInfo = this.editow.getWayoutInfo();
 
-				this.editor.layout({
-					width: originalLayoutInfo.width,
-					height: originalLayoutInfo.height
+				this.editow.wayout({
+					width: owiginawWayoutInfo.width,
+					height: owiginawWayoutInfo.height
 				});
 			}
 		}
 
-		// create viewzones
-		this.removeCommentWidgetsAndStoreCache();
+		// cweate viewzones
+		this.wemoveCommentWidgetsAndStoweCache();
 
-		this._commentInfos.forEach(info => {
-			let providerCacheStore = this._pendingCommentCache[info.owner];
-			info.threads = info.threads.filter(thread => !thread.isDisposed);
-			info.threads.forEach(thread => {
-				let pendingComment: string | null = null;
-				if (providerCacheStore) {
-					pendingComment = providerCacheStore[thread.threadId!];
+		this._commentInfos.fowEach(info => {
+			wet pwovidewCacheStowe = this._pendingCommentCache[info.owna];
+			info.thweads = info.thweads.fiwta(thwead => !thwead.isDisposed);
+			info.thweads.fowEach(thwead => {
+				wet pendingComment: stwing | nuww = nuww;
+				if (pwovidewCacheStowe) {
+					pendingComment = pwovidewCacheStowe[thwead.thweadId!];
 				}
 
 				if (pendingComment) {
-					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+					thwead.cowwapsibweState = modes.CommentThweadCowwapsibweState.Expanded;
 				}
 
-				this.displayCommentThread(info.owner, thread, pendingComment);
+				this.dispwayCommentThwead(info.owna, thwead, pendingComment);
 			});
 		});
 
-		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
+		this._commentingWangeDecowatow.update(this.editow, this._commentInfos);
 	}
 
-	public closeWidget(): void {
+	pubwic cwoseWidget(): void {
 		if (this._commentWidgets) {
-			this._commentWidgets.forEach(widget => widget.hide());
+			this._commentWidgets.fowEach(widget => widget.hide());
 		}
 
-		this.editor.focus();
-		this.editor.revealRangeInCenter(this.editor.getSelection()!);
+		this.editow.focus();
+		this.editow.weveawWangeInCenta(this.editow.getSewection()!);
 	}
 
-	private removeCommentWidgetsAndStoreCache() {
+	pwivate wemoveCommentWidgetsAndStoweCache() {
 		if (this._commentWidgets) {
-			this._commentWidgets.forEach(zone => {
-				let pendingComment = zone.getPendingComment();
-				let providerCacheStore = this._pendingCommentCache[zone.owner];
+			this._commentWidgets.fowEach(zone => {
+				wet pendingComment = zone.getPendingComment();
+				wet pwovidewCacheStowe = this._pendingCommentCache[zone.owna];
 
 				if (pendingComment) {
-					if (!providerCacheStore) {
-						this._pendingCommentCache[zone.owner] = {};
+					if (!pwovidewCacheStowe) {
+						this._pendingCommentCache[zone.owna] = {};
 					}
 
-					this._pendingCommentCache[zone.owner][zone.commentThread.threadId!] = pendingComment;
-				} else {
-					if (providerCacheStore) {
-						delete providerCacheStore[zone.commentThread.threadId!];
+					this._pendingCommentCache[zone.owna][zone.commentThwead.thweadId!] = pendingComment;
+				} ewse {
+					if (pwovidewCacheStowe) {
+						dewete pwovidewCacheStowe[zone.commentThwead.thweadId!];
 					}
 				}
 
@@ -631,163 +631,163 @@ export class CommentController implements IEditorContribution {
 	}
 }
 
-export class NextCommentThreadAction extends EditorAction {
+expowt cwass NextCommentThweadAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.nextCommentThreadAction',
-			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
-			alias: 'Go to Next Comment Thread',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.nextCommentThweadAction',
+			wabew: nws.wocawize('nextCommentThweadAction', "Go to Next Comment Thwead"),
+			awias: 'Go to Next Comment Thwead',
+			pwecondition: undefined,
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = CommentController.get(editor);
-		if (controller) {
-			controller.nextCommentThread();
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwowwa = CommentContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.nextCommentThwead();
 		}
 	}
 }
 
 
-registerEditorContribution(ID, CommentController);
-registerEditorAction(NextCommentThreadAction);
+wegistewEditowContwibution(ID, CommentContwowwa);
+wegistewEditowAction(NextCommentThweadAction);
 
-CommandsRegistry.registerCommand({
-	id: 'workbench.action.addComment',
-	handler: (accessor) => {
-		const activeEditor = getActiveEditor(accessor);
-		if (!activeEditor) {
-			return Promise.resolve();
+CommandsWegistwy.wegistewCommand({
+	id: 'wowkbench.action.addComment',
+	handwa: (accessow) => {
+		const activeEditow = getActiveEditow(accessow);
+		if (!activeEditow) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const controller = CommentController.get(activeEditor);
-		if (!controller) {
-			return Promise.resolve();
+		const contwowwa = CommentContwowwa.get(activeEditow);
+		if (!contwowwa) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const position = activeEditor.getPosition();
-		return controller.addOrToggleCommentAtLine(position.lineNumber, undefined);
+		const position = activeEditow.getPosition();
+		wetuwn contwowwa.addOwToggweCommentAtWine(position.wineNumba, undefined);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.submitComment',
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	when: ctxCommentEditorFocused,
-	handler: (accessor, args) => {
-		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (activeCodeEditor instanceof SimpleCommentEditor) {
-			activeCodeEditor.getParentThread().submitComment();
-		}
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.hideComment',
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyCode.Escape,
-	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ctxCommentEditorFocused,
-	handler: (accessor, args) => {
-		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (activeCodeEditor instanceof SimpleCommentEditor) {
-			activeCodeEditor.getParentThread().collapse();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.submitComment',
+	weight: KeybindingWeight.EditowContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+	when: ctxCommentEditowFocused,
+	handwa: (accessow, awgs) => {
+		const activeCodeEditow = accessow.get(ICodeEditowSewvice).getFocusedCodeEditow();
+		if (activeCodeEditow instanceof SimpweCommentEditow) {
+			activeCodeEditow.getPawentThwead().submitComment();
 		}
 	}
 });
 
-export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
-	let activeTextEditorControl = accessor.get(IEditorService).activeTextEditorControl;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.hideComment',
+	weight: KeybindingWeight.EditowContwib,
+	pwimawy: KeyCode.Escape,
+	secondawy: [KeyMod.Shift | KeyCode.Escape],
+	when: ctxCommentEditowFocused,
+	handwa: (accessow, awgs) => {
+		const activeCodeEditow = accessow.get(ICodeEditowSewvice).getFocusedCodeEditow();
+		if (activeCodeEditow instanceof SimpweCommentEditow) {
+			activeCodeEditow.getPawentThwead().cowwapse();
+		}
+	}
+});
 
-	if (isDiffEditor(activeTextEditorControl)) {
-		if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
-			activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
-		} else {
-			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
+expowt function getActiveEditow(accessow: SewvicesAccessow): IActiveCodeEditow | nuww {
+	wet activeTextEditowContwow = accessow.get(IEditowSewvice).activeTextEditowContwow;
+
+	if (isDiffEditow(activeTextEditowContwow)) {
+		if (activeTextEditowContwow.getOwiginawEditow().hasTextFocus()) {
+			activeTextEditowContwow = activeTextEditowContwow.getOwiginawEditow();
+		} ewse {
+			activeTextEditowContwow = activeTextEditowContwow.getModifiedEditow();
 		}
 	}
 
-	if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
-		return null;
+	if (!isCodeEditow(activeTextEditowContwow) || !activeTextEditowContwow.hasModew()) {
+		wetuwn nuww;
 	}
 
-	return activeTextEditorControl;
+	wetuwn activeTextEditowContwow;
 }
 
-registerThemingParticipant((theme, collector) => {
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.monaco-editor .review-widget,` +
-			`.monaco-editor .review-widget {` +
-			`	background-color: ${peekViewBackground};` +
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const peekViewBackgwound = theme.getCowow(peekViewWesuwtsBackgwound);
+	if (peekViewBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .weview-widget,` +
+			`.monaco-editow .weview-widget {` +
+			`	backgwound-cowow: ${peekViewBackgwound};` +
 			`}`);
 	}
 
-	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
-	if (monacoEditorBackground) {
-		collector.addRule(
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
-			`	background-color: ${monacoEditorBackground}` +
+	const monacoEditowBackgwound = theme.getCowow(peekViewTitweBackgwound);
+	if (monacoEditowBackgwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .weview-widget .body .comment-fowm .weview-thwead-wepwy-button {` +
+			`	backgwound-cowow: ${monacoEditowBackgwound}` +
 			`}`
 		);
 	}
 
-	const monacoEditorForeground = theme.getColor(editorForeground);
-	if (monacoEditorForeground) {
-		collector.addRule(
-			`.monaco-editor .review-widget .body .monaco-editor {` +
-			`	color: ${monacoEditorForeground}` +
+	const monacoEditowFowegwound = theme.getCowow(editowFowegwound);
+	if (monacoEditowFowegwound) {
+		cowwectow.addWuwe(
+			`.monaco-editow .weview-widget .body .monaco-editow {` +
+			`	cowow: ${monacoEditowFowegwound}` +
 			`}` +
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
-			`	color: ${monacoEditorForeground};` +
-			`	font-size: inherit` +
+			`.monaco-editow .weview-widget .body .comment-fowm .weview-thwead-wepwy-button {` +
+			`	cowow: ${monacoEditowFowegwound};` +
+			`	font-size: inhewit` +
 			`}`
 		);
 	}
 
-	const selectionBackground = theme.getColor(peekViewResultsSelectionBackground);
+	const sewectionBackgwound = theme.getCowow(peekViewWesuwtsSewectionBackgwound);
 
-	if (selectionBackground) {
-		collector.addRule(
-			`@keyframes monaco-review-widget-focus {` +
-			`	0% { background: ${selectionBackground}; }` +
-			`	100% { background: transparent; }` +
+	if (sewectionBackgwound) {
+		cowwectow.addWuwe(
+			`@keyfwames monaco-weview-widget-focus {` +
+			`	0% { backgwound: ${sewectionBackgwound}; }` +
+			`	100% { backgwound: twanspawent; }` +
 			`}` +
-			`.monaco-editor .review-widget .body .review-comment.focus {` +
-			`	animation: monaco-review-widget-focus 3s ease 0s;` +
+			`.monaco-editow .weview-widget .body .weview-comment.focus {` +
+			`	animation: monaco-weview-widget-focus 3s ease 0s;` +
 			`}`
 		);
 	}
 
-	const commentingRangeForeground = theme.getColor(overviewRulerCommentingRangeForeground);
-	if (commentingRangeForeground) {
-		collector.addRule(`
-			.monaco-editor .comment-diff-added {
-				border-left: 3px solid ${commentingRangeForeground};
+	const commentingWangeFowegwound = theme.getCowow(ovewviewWuwewCommentingWangeFowegwound);
+	if (commentingWangeFowegwound) {
+		cowwectow.addWuwe(`
+			.monaco-editow .comment-diff-added {
+				bowda-weft: 3px sowid ${commentingWangeFowegwound};
 			}
-			.monaco-editor .comment-diff-added:before {
-				background: ${commentingRangeForeground};
+			.monaco-editow .comment-diff-added:befowe {
+				backgwound: ${commentingWangeFowegwound};
 			}
-			.monaco-editor .comment-thread {
-				border-left: 3px solid ${commentingRangeForeground};
+			.monaco-editow .comment-thwead {
+				bowda-weft: 3px sowid ${commentingWangeFowegwound};
 			}
-			.monaco-editor .comment-thread:before {
-				background: ${commentingRangeForeground};
+			.monaco-editow .comment-thwead:befowe {
+				backgwound: ${commentingWangeFowegwound};
 			}
 		`);
 	}
 
-	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
-	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
+	const statusBawItemHovewBackgwound = theme.getCowow(STATUS_BAW_ITEM_HOVEW_BACKGWOUND);
+	if (statusBawItemHovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew.active:hova { backgwound-cowow: ${statusBawItemHovewBackgwound};}`);
 	}
 
-	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
-	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
+	const statusBawItemActiveBackgwound = theme.getCowow(STATUS_BAW_ITEM_ACTIVE_BACKGWOUND);
+	if (statusBawItemActiveBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew:active { backgwound-cowow: ${statusBawItemActiveBackgwound}; bowda: 1px sowid twanspawent;}`);
 	}
 });

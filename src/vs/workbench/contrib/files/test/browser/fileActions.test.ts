@@ -1,327 +1,327 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
+impowt * as assewt fwom 'assewt';
+impowt { incwementFiweName } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions';
 
-suite('Files - Increment file name simple', () => {
+suite('Fiwes - Incwement fiwe name simpwe', () => {
 
-	test('Increment file name without any version', function () {
+	test('Incwement fiwe name without any vewsion', function () {
 		const name = 'test.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy.js');
 	});
 
-	test('Increment file name with suffix version', function () {
+	test('Incwement fiwe name with suffix vewsion', function () {
 		const name = 'test copy.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy 2.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 2.js');
 	});
 
-	test('Increment file name with suffix version with leading zeros', function () {
+	test('Incwement fiwe name with suffix vewsion with weading zewos', function () {
 		const name = 'test copy 005.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy 6.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 6.js');
 	});
 
-	test('Increment file name with suffix version, too big number', function () {
+	test('Incwement fiwe name with suffix vewsion, too big numba', function () {
 		const name = 'test copy 9007199254740992.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy 9007199254740992 copy.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 9007199254740992 copy.js');
 	});
 
-	test('Increment file name with just version in name', function () {
+	test('Incwement fiwe name with just vewsion in name', function () {
 		const name = 'copy.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'copy copy.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'copy copy.js');
 	});
 
-	test('Increment file name with just version in name, v2', function () {
+	test('Incwement fiwe name with just vewsion in name, v2', function () {
 		const name = 'copy 2.js';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'copy 2 copy.js');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'copy 2 copy.js');
 	});
 
-	test('Increment file name without any extension or version', function () {
+	test('Incwement fiwe name without any extension ow vewsion', function () {
 		const name = 'test';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy');
 	});
 
-	test('Increment file name without any extension or version, trailing dot', function () {
+	test('Incwement fiwe name without any extension ow vewsion, twaiwing dot', function () {
 		const name = 'test.';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy.');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy.');
 	});
 
-	test('Increment file name without any extension or version, leading dot', function () {
+	test('Incwement fiwe name without any extension ow vewsion, weading dot', function () {
 		const name = '.test';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, '.test copy');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, '.test copy');
 	});
 
-	test('Increment file name without any extension or version, leading dot v2', function () {
+	test('Incwement fiwe name without any extension ow vewsion, weading dot v2', function () {
 		const name = '..test';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, '. copy.test');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, '. copy.test');
 	});
 
-	test('Increment file name without any extension but with suffix version', function () {
+	test('Incwement fiwe name without any extension but with suffix vewsion', function () {
 		const name = 'test copy 5';
-		const result = incrementFileName(name, false, 'simple');
-		assert.strictEqual(result, 'test copy 6');
+		const wesuwt = incwementFiweName(name, fawse, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 6');
 	});
 
-	test('Increment folder name without any version', function () {
+	test('Incwement fowda name without any vewsion', function () {
 		const name = 'test';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy');
 	});
 
-	test('Increment folder name with suffix version', function () {
+	test('Incwement fowda name with suffix vewsion', function () {
 		const name = 'test copy';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy 2');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 2');
 	});
 
-	test('Increment folder name with suffix version, leading zeros', function () {
+	test('Incwement fowda name with suffix vewsion, weading zewos', function () {
 		const name = 'test copy 005';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy 6');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 6');
 	});
 
-	test('Increment folder name with suffix version, too big number', function () {
+	test('Incwement fowda name with suffix vewsion, too big numba', function () {
 		const name = 'test copy 9007199254740992';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy 9007199254740992 copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 9007199254740992 copy');
 	});
 
-	test('Increment folder name with just version in name', function () {
+	test('Incwement fowda name with just vewsion in name', function () {
 		const name = 'copy';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'copy copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'copy copy');
 	});
 
-	test('Increment folder name with just version in name, v2', function () {
+	test('Incwement fowda name with just vewsion in name, v2', function () {
 		const name = 'copy 2';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'copy 2 copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'copy 2 copy');
 	});
 
-	test('Increment folder name "with extension" but without any version', function () {
+	test('Incwement fowda name "with extension" but without any vewsion', function () {
 		const name = 'test.js';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test.js copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test.js copy');
 	});
 
-	test('Increment folder name "with extension" and with suffix version', function () {
+	test('Incwement fowda name "with extension" and with suffix vewsion', function () {
 		const name = 'test.js copy 5';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test.js copy 6');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test.js copy 6');
 	});
 
-	test('Increment file/folder name with suffix version, special case 1', function () {
+	test('Incwement fiwe/fowda name with suffix vewsion, speciaw case 1', function () {
 		const name = 'test copy 0';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy');
 	});
 
-	test('Increment file/folder name with suffix version, special case 2', function () {
+	test('Incwement fiwe/fowda name with suffix vewsion, speciaw case 2', function () {
 		const name = 'test copy 1';
-		const result = incrementFileName(name, true, 'simple');
-		assert.strictEqual(result, 'test copy 2');
+		const wesuwt = incwementFiweName(name, twue, 'simpwe');
+		assewt.stwictEquaw(wesuwt, 'test copy 2');
 	});
 
 });
 
-suite('Files - Increment file name smart', () => {
+suite('Fiwes - Incwement fiwe name smawt', () => {
 
-	test('Increment file name without any version', function () {
+	test('Incwement fiwe name without any vewsion', function () {
 		const name = 'test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test.1.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.1.js');
 	});
 
-	test('Increment folder name without any version', function () {
+	test('Incwement fowda name without any vewsion', function () {
 		const name = 'test';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test.1');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.1');
 	});
 
-	test('Increment file name with suffix version', function () {
+	test('Incwement fiwe name with suffix vewsion', function () {
 		const name = 'test.1.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test.2.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.2.js');
 	});
 
-	test('Increment file name with suffix version with trailing zeros', function () {
+	test('Incwement fiwe name with suffix vewsion with twaiwing zewos', function () {
 		const name = 'test.001.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test.002.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.002.js');
 	});
 
-	test('Increment file name with suffix version with trailing zeros, changing length', function () {
+	test('Incwement fiwe name with suffix vewsion with twaiwing zewos, changing wength', function () {
 		const name = 'test.009.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test.010.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.010.js');
 	});
 
-	test('Increment file name with suffix version with `-` as separator', function () {
+	test('Incwement fiwe name with suffix vewsion with `-` as sepawatow', function () {
 		const name = 'test-1.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test-2.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test-2.js');
 	});
 
-	test('Increment file name with suffix version with `-` as separator, trailing zeros', function () {
+	test('Incwement fiwe name with suffix vewsion with `-` as sepawatow, twaiwing zewos', function () {
 		const name = 'test-001.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test-002.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test-002.js');
 	});
 
-	test('Increment file name with suffix version with `-` as separator, trailing zeros, changnig length', function () {
+	test('Incwement fiwe name with suffix vewsion with `-` as sepawatow, twaiwing zewos, changnig wength', function () {
 		const name = 'test-099.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test-100.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test-100.js');
 	});
 
-	test('Increment file name with suffix version with `_` as separator', function () {
+	test('Incwement fiwe name with suffix vewsion with `_` as sepawatow', function () {
 		const name = 'test_1.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test_2.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test_2.js');
 	});
 
-	test('Increment folder name with suffix version', function () {
+	test('Incwement fowda name with suffix vewsion', function () {
 		const name = 'test.1';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test.2');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.2');
 	});
 
-	test('Increment folder name with suffix version, trailing zeros', function () {
+	test('Incwement fowda name with suffix vewsion, twaiwing zewos', function () {
 		const name = 'test.001';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test.002');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.002');
 	});
 
-	test('Increment folder name with suffix version with `-` as separator', function () {
+	test('Incwement fowda name with suffix vewsion with `-` as sepawatow', function () {
 		const name = 'test-1';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test-2');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test-2');
 	});
 
-	test('Increment folder name with suffix version with `_` as separator', function () {
+	test('Incwement fowda name with suffix vewsion with `_` as sepawatow', function () {
 		const name = 'test_1';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test_2');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test_2');
 	});
 
-	test('Increment file name with suffix version, too big number', function () {
+	test('Incwement fiwe name with suffix vewsion, too big numba', function () {
 		const name = 'test.9007199254740992.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'test.9007199254740992.1.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.9007199254740992.1.js');
 	});
 
-	test('Increment folder name with suffix version, too big number', function () {
+	test('Incwement fowda name with suffix vewsion, too big numba', function () {
 		const name = 'test.9007199254740992';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, 'test.9007199254740992.1');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'test.9007199254740992.1');
 	});
 
-	test('Increment file name with prefix version', function () {
+	test('Incwement fiwe name with pwefix vewsion', function () {
 		const name = '1.test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '2.test.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2.test.js');
 	});
 
-	test('Increment file name with just version in name', function () {
+	test('Incwement fiwe name with just vewsion in name', function () {
 		const name = '1.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '2.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2.js');
 	});
 
-	test('Increment file name with just version in name, too big number', function () {
+	test('Incwement fiwe name with just vewsion in name, too big numba', function () {
 		const name = '9007199254740992.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '9007199254740992.1.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '9007199254740992.1.js');
 	});
 
-	test('Increment file name with prefix version, trailing zeros', function () {
+	test('Incwement fiwe name with pwefix vewsion, twaiwing zewos', function () {
 		const name = '001.test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '002.test.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '002.test.js');
 	});
 
-	test('Increment file name with prefix version with `-` as separator', function () {
+	test('Incwement fiwe name with pwefix vewsion with `-` as sepawatow', function () {
 		const name = '1-test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '2-test.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2-test.js');
 	});
 
-	test('Increment file name with prefix version with `_` as separator', function () {
+	test('Incwement fiwe name with pwefix vewsion with `_` as sepawatow', function () {
 		const name = '1_test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '2_test.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2_test.js');
 	});
 
-	test('Increment file name with prefix version, too big number', function () {
+	test('Incwement fiwe name with pwefix vewsion, too big numba', function () {
 		const name = '9007199254740992.test.js';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '9007199254740992.test.1.js');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '9007199254740992.test.1.js');
 	});
 
-	test('Increment file name with just version and no extension', function () {
+	test('Incwement fiwe name with just vewsion and no extension', function () {
 		const name = '001004';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '001005');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '001005');
 	});
 
-	test('Increment file name with just version and no extension, too big number', function () {
+	test('Incwement fiwe name with just vewsion and no extension, too big numba', function () {
 		const name = '9007199254740992';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, '9007199254740992.1');
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, '9007199254740992.1');
 	});
 
-	test('Increment file name with no extension and no version', function () {
-		const name = 'file';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'file1');
+	test('Incwement fiwe name with no extension and no vewsion', function () {
+		const name = 'fiwe';
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'fiwe1');
 	});
 
-	test('Increment file name with no extension', function () {
-		const name = 'file1';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'file2');
+	test('Incwement fiwe name with no extension', function () {
+		const name = 'fiwe1';
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'fiwe2');
 	});
 
-	test('Increment file name with no extension, too big number', function () {
-		const name = 'file9007199254740992';
-		const result = incrementFileName(name, false, 'smart');
-		assert.strictEqual(result, 'file9007199254740992.1');
+	test('Incwement fiwe name with no extension, too big numba', function () {
+		const name = 'fiwe9007199254740992';
+		const wesuwt = incwementFiweName(name, fawse, 'smawt');
+		assewt.stwictEquaw(wesuwt, 'fiwe9007199254740992.1');
 	});
 
-	test('Increment folder name with prefix version', function () {
+	test('Incwement fowda name with pwefix vewsion', function () {
 		const name = '1.test';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, '2.test');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2.test');
 	});
 
-	test('Increment folder name with prefix version, too big number', function () {
+	test('Incwement fowda name with pwefix vewsion, too big numba', function () {
 		const name = '9007199254740992.test';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, '9007199254740992.test.1');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, '9007199254740992.test.1');
 	});
 
-	test('Increment folder name with prefix version, trailing zeros', function () {
+	test('Incwement fowda name with pwefix vewsion, twaiwing zewos', function () {
 		const name = '001.test';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, '002.test');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, '002.test');
 	});
 
-	test('Increment folder name with prefix version  with `-` as separator', function () {
+	test('Incwement fowda name with pwefix vewsion  with `-` as sepawatow', function () {
 		const name = '1-test';
-		const result = incrementFileName(name, true, 'smart');
-		assert.strictEqual(result, '2-test');
+		const wesuwt = incwementFiweName(name, twue, 'smawt');
+		assewt.stwictEquaw(wesuwt, '2-test');
 	});
 
 });

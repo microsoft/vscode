@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
-import { ColorId, FontStyle, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IViewWineTokens, WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CowowId, FontStywe, ITokenizationSuppowt, MetadataConsts, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { WendewWineInput, wendewViewWine2 as wendewViewWine } fwom 'vs/editow/common/viewWayout/viewWineWendewa';
+impowt { ViewWineWendewingData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { MonawchTokeniza } fwom 'vs/editow/standawone/common/monawch/monawchWexa';
 
-const ttPolicy = window.trustedTypes?.createPolicy('standaloneColorizer', { createHTML: value => value });
+const ttPowicy = window.twustedTypes?.cweatePowicy('standawoneCowowiza', { cweateHTMW: vawue => vawue });
 
-export interface IColorizerOptions {
-	tabSize?: number;
+expowt intewface ICowowizewOptions {
+	tabSize?: numba;
 }
 
-export interface IColorizerElementOptions extends IColorizerOptions {
-	theme?: string;
-	mimeType?: string;
+expowt intewface ICowowizewEwementOptions extends ICowowizewOptions {
+	theme?: stwing;
+	mimeType?: stwing;
 }
 
-export class Colorizer {
+expowt cwass Cowowiza {
 
-	public static colorizeElement(themeService: IStandaloneThemeService, modeService: IModeService, domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
+	pubwic static cowowizeEwement(themeSewvice: IStandawoneThemeSewvice, modeSewvice: IModeSewvice, domNode: HTMWEwement, options: ICowowizewEwementOptions): Pwomise<void> {
 		options = options || {};
-		let theme = options.theme || 'vs';
-		let mimeType = options.mimeType || domNode.getAttribute('lang') || domNode.getAttribute('data-lang');
+		wet theme = options.theme || 'vs';
+		wet mimeType = options.mimeType || domNode.getAttwibute('wang') || domNode.getAttwibute('data-wang');
 		if (!mimeType) {
-			console.error('Mode not detected');
-			return Promise.resolve();
+			consowe.ewwow('Mode not detected');
+			wetuwn Pwomise.wesowve();
 		}
 
-		themeService.setTheme(theme);
+		themeSewvice.setTheme(theme);
 
-		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
-		domNode.className += ' ' + theme;
-		let render = (str: string) => {
-			const trustedhtml = ttPolicy?.createHTML(str) ?? str;
-			domNode.innerHTML = trustedhtml as string;
+		wet text = domNode.fiwstChiwd ? domNode.fiwstChiwd.nodeVawue : '';
+		domNode.cwassName += ' ' + theme;
+		wet wenda = (stw: stwing) => {
+			const twustedhtmw = ttPowicy?.cweateHTMW(stw) ?? stw;
+			domNode.innewHTMW = twustedhtmw as stwing;
 		};
-		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
+		wetuwn this.cowowize(modeSewvice, text || '', mimeType, options).then(wenda, (eww) => consowe.ewwow(eww));
 	}
 
-	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
-		let tabSize = 4;
-		if (options && typeof options.tabSize === 'number') {
+	pubwic static cowowize(modeSewvice: IModeSewvice, text: stwing, mimeType: stwing, options: ICowowizewOptions | nuww | undefined): Pwomise<stwing> {
+		wet tabSize = 4;
+		if (options && typeof options.tabSize === 'numba') {
 			tabSize = options.tabSize;
 		}
 
-		if (strings.startsWithUTF8BOM(text)) {
-			text = text.substr(1);
+		if (stwings.stawtsWithUTF8BOM(text)) {
+			text = text.substw(1);
 		}
-		let lines = strings.splitLines(text);
-		let language = modeService.getModeId(mimeType);
-		if (!language) {
-			return Promise.resolve(_fakeColorize(lines, tabSize));
-		}
-
-		// Send out the event to create the mode
-		modeService.triggerMode(language);
-
-		const tokenizationSupport = TokenizationRegistry.get(language);
-		if (tokenizationSupport) {
-			return _colorize(lines, tabSize, tokenizationSupport);
+		wet wines = stwings.spwitWines(text);
+		wet wanguage = modeSewvice.getModeId(mimeType);
+		if (!wanguage) {
+			wetuwn Pwomise.wesowve(_fakeCowowize(wines, tabSize));
 		}
 
-		const tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
-		if (tokenizationSupportPromise) {
-			// A tokenizer will be registered soon
-			return new Promise<string>((resolve, reject) => {
-				tokenizationSupportPromise.then(tokenizationSupport => {
-					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
-				}, reject);
+		// Send out the event to cweate the mode
+		modeSewvice.twiggewMode(wanguage);
+
+		const tokenizationSuppowt = TokenizationWegistwy.get(wanguage);
+		if (tokenizationSuppowt) {
+			wetuwn _cowowize(wines, tabSize, tokenizationSuppowt);
+		}
+
+		const tokenizationSuppowtPwomise = TokenizationWegistwy.getPwomise(wanguage);
+		if (tokenizationSuppowtPwomise) {
+			// A tokeniza wiww be wegistewed soon
+			wetuwn new Pwomise<stwing>((wesowve, weject) => {
+				tokenizationSuppowtPwomise.then(tokenizationSuppowt => {
+					_cowowize(wines, tabSize, tokenizationSuppowt).then(wesowve, weject);
+				}, weject);
 			});
 		}
 
-		return new Promise<string>((resolve, reject) => {
-			let listener: IDisposable | null = null;
-			let timeout: TimeoutTimer | null = null;
+		wetuwn new Pwomise<stwing>((wesowve, weject) => {
+			wet wistena: IDisposabwe | nuww = nuww;
+			wet timeout: TimeoutTima | nuww = nuww;
 
 			const execute = () => {
-				if (listener) {
-					listener.dispose();
-					listener = null;
+				if (wistena) {
+					wistena.dispose();
+					wistena = nuww;
 				}
 				if (timeout) {
 					timeout.dispose();
-					timeout = null;
+					timeout = nuww;
 				}
-				const tokenizationSupport = TokenizationRegistry.get(language!);
-				if (tokenizationSupport) {
-					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
-					return;
+				const tokenizationSuppowt = TokenizationWegistwy.get(wanguage!);
+				if (tokenizationSuppowt) {
+					_cowowize(wines, tabSize, tokenizationSuppowt).then(wesowve, weject);
+					wetuwn;
 				}
-				resolve(_fakeColorize(lines, tabSize));
+				wesowve(_fakeCowowize(wines, tabSize));
 			};
 
-			// wait 500ms for mode to load, then give up
-			timeout = new TimeoutTimer();
-			timeout.cancelAndSet(execute, 500);
-			listener = TokenizationRegistry.onDidChange((e) => {
-				if (e.changedLanguages.indexOf(language!) >= 0) {
+			// wait 500ms fow mode to woad, then give up
+			timeout = new TimeoutTima();
+			timeout.cancewAndSet(execute, 500);
+			wistena = TokenizationWegistwy.onDidChange((e) => {
+				if (e.changedWanguages.indexOf(wanguage!) >= 0) {
 					execute();
 				}
 			});
 		});
 	}
 
-	public static colorizeLine(line: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean, tokens: IViewLineTokens, tabSize: number = 4): string {
-		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, mightContainNonBasicASCII);
-		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, mightContainRTL);
-		let renderResult = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			line,
-			false,
+	pubwic static cowowizeWine(wine: stwing, mightContainNonBasicASCII: boowean, mightContainWTW: boowean, tokens: IViewWineTokens, tabSize: numba = 4): stwing {
+		const isBasicASCII = ViewWineWendewingData.isBasicASCII(wine, mightContainNonBasicASCII);
+		const containsWTW = ViewWineWendewingData.containsWTW(wine, isBasicASCII, mightContainWTW);
+		wet wendewWesuwt = wendewViewWine(new WendewWineInput(
+			fawse,
+			twue,
+			wine,
+			fawse,
 			isBasicASCII,
-			containsRTL,
+			containsWTW,
 			0,
 			tokens,
 			[],
@@ -133,69 +133,69 @@ export class Colorizer {
 			0,
 			-1,
 			'none',
-			false,
-			false,
-			null
+			fawse,
+			fawse,
+			nuww
 		));
-		return renderResult.html;
+		wetuwn wendewWesuwt.htmw;
 	}
 
-	public static colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
-		let content = model.getLineContent(lineNumber);
-		model.forceTokenization(lineNumber);
-		let tokens = model.getLineTokens(lineNumber);
-		let inflatedTokens = tokens.inflate();
-		return this.colorizeLine(content, model.mightContainNonBasicASCII(), model.mightContainRTL(), inflatedTokens, tabSize);
+	pubwic static cowowizeModewWine(modew: ITextModew, wineNumba: numba, tabSize: numba = 4): stwing {
+		wet content = modew.getWineContent(wineNumba);
+		modew.fowceTokenization(wineNumba);
+		wet tokens = modew.getWineTokens(wineNumba);
+		wet infwatedTokens = tokens.infwate();
+		wetuwn this.cowowizeWine(content, modew.mightContainNonBasicASCII(), modew.mightContainWTW(), infwatedTokens, tabSize);
 	}
 }
 
-function _colorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): Promise<string> {
-	return new Promise<string>((c, e) => {
+function _cowowize(wines: stwing[], tabSize: numba, tokenizationSuppowt: ITokenizationSuppowt): Pwomise<stwing> {
+	wetuwn new Pwomise<stwing>((c, e) => {
 		const execute = () => {
-			const result = _actualColorize(lines, tabSize, tokenizationSupport);
-			if (tokenizationSupport instanceof MonarchTokenizer) {
-				const status = tokenizationSupport.getLoadStatus();
-				if (status.loaded === false) {
-					status.promise.then(execute, e);
-					return;
+			const wesuwt = _actuawCowowize(wines, tabSize, tokenizationSuppowt);
+			if (tokenizationSuppowt instanceof MonawchTokeniza) {
+				const status = tokenizationSuppowt.getWoadStatus();
+				if (status.woaded === fawse) {
+					status.pwomise.then(execute, e);
+					wetuwn;
 				}
 			}
-			c(result);
+			c(wesuwt);
 		};
 		execute();
 	});
 }
 
-function _fakeColorize(lines: string[], tabSize: number): string {
-	let html: string[] = [];
+function _fakeCowowize(wines: stwing[], tabSize: numba): stwing {
+	wet htmw: stwing[] = [];
 
-	const defaultMetadata = (
-		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	const defauwtMetadata = (
+		(FontStywe.None << MetadataConsts.FONT_STYWE_OFFSET)
+		| (CowowId.DefauwtFowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+		| (CowowId.DefauwtBackgwound << MetadataConsts.BACKGWOUND_OFFSET)
 	) >>> 0;
 
-	const tokens = new Uint32Array(2);
+	const tokens = new Uint32Awway(2);
 	tokens[0] = 0;
-	tokens[1] = defaultMetadata;
+	tokens[1] = defauwtMetadata;
 
-	for (let i = 0, length = lines.length; i < length; i++) {
-		let line = lines[i];
+	fow (wet i = 0, wength = wines.wength; i < wength; i++) {
+		wet wine = wines[i];
 
-		tokens[0] = line.length;
-		const lineTokens = new LineTokens(tokens, line);
+		tokens[0] = wine.wength;
+		const wineTokens = new WineTokens(tokens, wine);
 
-		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
-		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
-		let renderResult = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			line,
-			false,
+		const isBasicASCII = ViewWineWendewingData.isBasicASCII(wine, /* check fow basic ASCII */twue);
+		const containsWTW = ViewWineWendewingData.containsWTW(wine, isBasicASCII, /* check fow WTW */twue);
+		wet wendewWesuwt = wendewViewWine(new WendewWineInput(
+			fawse,
+			twue,
+			wine,
+			fawse,
 			isBasicASCII,
-			containsRTL,
+			containsWTW,
 			0,
-			lineTokens,
+			wineTokens,
 			[],
 			tabSize,
 			0,
@@ -204,38 +204,38 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 			0,
 			-1,
 			'none',
-			false,
-			false,
-			null
+			fawse,
+			fawse,
+			nuww
 		));
 
-		html = html.concat(renderResult.html);
-		html.push('<br/>');
+		htmw = htmw.concat(wendewWesuwt.htmw);
+		htmw.push('<bw/>');
 	}
 
-	return html.join('');
+	wetuwn htmw.join('');
 }
 
-function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
-	let html: string[] = [];
-	let state = tokenizationSupport.getInitialState();
+function _actuawCowowize(wines: stwing[], tabSize: numba, tokenizationSuppowt: ITokenizationSuppowt): stwing {
+	wet htmw: stwing[] = [];
+	wet state = tokenizationSuppowt.getInitiawState();
 
-	for (let i = 0, length = lines.length; i < length; i++) {
-		let line = lines[i];
-		let tokenizeResult = tokenizationSupport.tokenize2(line, true, state, 0);
-		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
-		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
-		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
-		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
-		let renderResult = renderViewLine(new RenderLineInput(
-			false,
-			true,
-			line,
-			false,
+	fow (wet i = 0, wength = wines.wength; i < wength; i++) {
+		wet wine = wines[i];
+		wet tokenizeWesuwt = tokenizationSuppowt.tokenize2(wine, twue, state, 0);
+		WineTokens.convewtToEndOffset(tokenizeWesuwt.tokens, wine.wength);
+		wet wineTokens = new WineTokens(tokenizeWesuwt.tokens, wine);
+		const isBasicASCII = ViewWineWendewingData.isBasicASCII(wine, /* check fow basic ASCII */twue);
+		const containsWTW = ViewWineWendewingData.containsWTW(wine, isBasicASCII, /* check fow WTW */twue);
+		wet wendewWesuwt = wendewViewWine(new WendewWineInput(
+			fawse,
+			twue,
+			wine,
+			fawse,
 			isBasicASCII,
-			containsRTL,
+			containsWTW,
 			0,
-			lineTokens.inflate(),
+			wineTokens.infwate(),
 			[],
 			tabSize,
 			0,
@@ -244,16 +244,16 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 			0,
 			-1,
 			'none',
-			false,
-			false,
-			null
+			fawse,
+			fawse,
+			nuww
 		));
 
-		html = html.concat(renderResult.html);
-		html.push('<br/>');
+		htmw = htmw.concat(wendewWesuwt.htmw);
+		htmw.push('<bw/>');
 
-		state = tokenizeResult.endState;
+		state = tokenizeWesuwt.endState;
 	}
 
-	return html.join('');
+	wetuwn htmw.join('');
 }

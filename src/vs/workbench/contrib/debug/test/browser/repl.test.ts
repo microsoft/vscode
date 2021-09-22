@@ -1,291 +1,291 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import severity from 'vs/base/common/severity';
-import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockRawSession, MockDebugAdapter, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplModel, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
-import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { timeout } from 'vs/base/common/async';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+impowt * as assewt fwom 'assewt';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { DebugModew, StackFwame, Thwead } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { MockWawSession, MockDebugAdapta, cweateMockDebugModew } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
+impowt { SimpweWepwEwement, WawObjectWepwEwement, WepwEvawuationInput, WepwModew, WepwEvawuationWesuwt, WepwGwoup } fwom 'vs/wowkbench/contwib/debug/common/wepwModew';
+impowt { WawDebugSession } fwom 'vs/wowkbench/contwib/debug/bwowsa/wawDebugSession';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { cweateMockSession } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/cawwStack.test';
+impowt { WepwFiwta } fwom 'vs/wowkbench/contwib/debug/bwowsa/wepwFiwta';
+impowt { TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
 
-suite('Debug - REPL', () => {
-	let model: DebugModel;
-	let rawSession: MockRawSession;
-	const configurationService = new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } });
+suite('Debug - WEPW', () => {
+	wet modew: DebugModew;
+	wet wawSession: MockWawSession;
+	const configuwationSewvice = new TestConfiguwationSewvice({ debug: { consowe: { cowwapseIdenticawWines: twue } } });
 
 	setup(() => {
-		model = createMockDebugModel();
-		rawSession = new MockRawSession();
+		modew = cweateMockDebugModew();
+		wawSession = new MockWawSession();
 	});
 
-	test('repl output', () => {
-		const session = createMockSession(model);
-		const repl = new ReplModel(configurationService);
-		repl.appendToRepl(session, 'first line\n', severity.Error);
-		repl.appendToRepl(session, 'second line ', severity.Error);
-		repl.appendToRepl(session, 'third line ', severity.Error);
-		repl.appendToRepl(session, 'fourth line', severity.Error);
+	test('wepw output', () => {
+		const session = cweateMockSession(modew);
+		const wepw = new WepwModew(configuwationSewvice);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Ewwow);
+		wepw.appendToWepw(session, 'second wine ', sevewity.Ewwow);
+		wepw.appendToWepw(session, 'thiwd wine ', sevewity.Ewwow);
+		wepw.appendToWepw(session, 'fouwth wine', sevewity.Ewwow);
 
-		let elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 2);
-		assert.strictEqual(elements[0].value, 'first line\n');
-		assert.strictEqual(elements[0].severity, severity.Error);
-		assert.strictEqual(elements[1].value, 'second line third line fourth line');
-		assert.strictEqual(elements[1].severity, severity.Error);
+		wet ewements = <SimpweWepwEwement[]>wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 2);
+		assewt.stwictEquaw(ewements[0].vawue, 'fiwst wine\n');
+		assewt.stwictEquaw(ewements[0].sevewity, sevewity.Ewwow);
+		assewt.stwictEquaw(ewements[1].vawue, 'second wine thiwd wine fouwth wine');
+		assewt.stwictEquaw(ewements[1].sevewity, sevewity.Ewwow);
 
-		repl.appendToRepl(session, '1', severity.Warning);
-		elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[2].value, '1');
-		assert.strictEqual(elements[2].severity, severity.Warning);
+		wepw.appendToWepw(session, '1', sevewity.Wawning);
+		ewements = <SimpweWepwEwement[]>wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 3);
+		assewt.stwictEquaw(ewements[2].vawue, '1');
+		assewt.stwictEquaw(ewements[2].sevewity, sevewity.Wawning);
 
-		const keyValueObject = { 'key1': 2, 'key2': 'value' };
-		repl.appendToRepl(session, new RawObjectReplElement('fakeid', 'fake', keyValueObject), severity.Info);
-		const element = <RawObjectReplElement>repl.getReplElements()[3];
-		assert.strictEqual(element.value, 'Object');
-		assert.deepStrictEqual(element.valueObj, keyValueObject);
+		const keyVawueObject = { 'key1': 2, 'key2': 'vawue' };
+		wepw.appendToWepw(session, new WawObjectWepwEwement('fakeid', 'fake', keyVawueObject), sevewity.Info);
+		const ewement = <WawObjectWepwEwement>wepw.getWepwEwements()[3];
+		assewt.stwictEquaw(ewement.vawue, 'Object');
+		assewt.deepStwictEquaw(ewement.vawueObj, keyVawueObject);
 
-		repl.removeReplExpressions();
-		assert.strictEqual(repl.getReplElements().length, 0);
+		wepw.wemoveWepwExpwessions();
+		assewt.stwictEquaw(wepw.getWepwEwements().wength, 0);
 
-		repl.appendToRepl(session, '1\n', severity.Info);
-		repl.appendToRepl(session, '2', severity.Info);
-		repl.appendToRepl(session, '3\n4', severity.Info);
-		repl.appendToRepl(session, '5\n', severity.Info);
-		repl.appendToRepl(session, '6', severity.Info);
-		elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].toString(), '1\n');
-		assert.strictEqual(elements[1].toString(), '23\n45\n');
-		assert.strictEqual(elements[2].toString(), '6');
+		wepw.appendToWepw(session, '1\n', sevewity.Info);
+		wepw.appendToWepw(session, '2', sevewity.Info);
+		wepw.appendToWepw(session, '3\n4', sevewity.Info);
+		wepw.appendToWepw(session, '5\n', sevewity.Info);
+		wepw.appendToWepw(session, '6', sevewity.Info);
+		ewements = <SimpweWepwEwement[]>wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 3);
+		assewt.stwictEquaw(ewements[0].toStwing(), '1\n');
+		assewt.stwictEquaw(ewements[1].toStwing(), '23\n45\n');
+		assewt.stwictEquaw(ewements[2].toStwing(), '6');
 
-		repl.removeReplExpressions();
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'second line', severity.Info);
-		repl.appendToRepl(session, 'second line', severity.Info);
-		repl.appendToRepl(session, 'third line', severity.Info);
-		elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].value, 'first line\n');
-		assert.strictEqual(elements[0].count, 3);
-		assert.strictEqual(elements[1].value, 'second line');
-		assert.strictEqual(elements[1].count, 2);
-		assert.strictEqual(elements[2].value, 'third line');
-		assert.strictEqual(elements[2].count, 1);
+		wepw.wemoveWepwExpwessions();
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine', sevewity.Info);
+		wepw.appendToWepw(session, 'thiwd wine', sevewity.Info);
+		ewements = <SimpweWepwEwement[]>wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 3);
+		assewt.stwictEquaw(ewements[0].vawue, 'fiwst wine\n');
+		assewt.stwictEquaw(ewements[0].count, 3);
+		assewt.stwictEquaw(ewements[1].vawue, 'second wine');
+		assewt.stwictEquaw(ewements[1].count, 2);
+		assewt.stwictEquaw(ewements[2].vawue, 'thiwd wine');
+		assewt.stwictEquaw(ewements[2].count, 1);
 	});
 
-	test('repl output count', () => {
-		const session = createMockSession(model);
-		const repl = new ReplModel(configurationService);
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'second line', severity.Info);
-		repl.appendToRepl(session, 'second line', severity.Info);
-		repl.appendToRepl(session, 'third line', severity.Info);
-		const elements = <SimpleReplElement[]>repl.getReplElements();
-		assert.strictEqual(elements.length, 3);
-		assert.strictEqual(elements[0].value, 'first line\n');
-		assert.strictEqual(elements[0].toString(), 'first line\nfirst line\nfirst line\n');
-		assert.strictEqual(elements[0].count, 3);
-		assert.strictEqual(elements[1].value, 'second line');
-		assert.strictEqual(elements[1].toString(), 'second line\nsecond line');
-		assert.strictEqual(elements[1].count, 2);
-		assert.strictEqual(elements[2].value, 'third line');
-		assert.strictEqual(elements[2].count, 1);
+	test('wepw output count', () => {
+		const session = cweateMockSession(modew);
+		const wepw = new WepwModew(configuwationSewvice);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine', sevewity.Info);
+		wepw.appendToWepw(session, 'thiwd wine', sevewity.Info);
+		const ewements = <SimpweWepwEwement[]>wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 3);
+		assewt.stwictEquaw(ewements[0].vawue, 'fiwst wine\n');
+		assewt.stwictEquaw(ewements[0].toStwing(), 'fiwst wine\nfiwst wine\nfiwst wine\n');
+		assewt.stwictEquaw(ewements[0].count, 3);
+		assewt.stwictEquaw(ewements[1].vawue, 'second wine');
+		assewt.stwictEquaw(ewements[1].toStwing(), 'second wine\nsecond wine');
+		assewt.stwictEquaw(ewements[1].count, 2);
+		assewt.stwictEquaw(ewements[2].vawue, 'thiwd wine');
+		assewt.stwictEquaw(ewements[2].count, 1);
 	});
 
-	test('repl merging', () => {
-		// 'mergeWithParent' should be ignored when there is no parent.
-		const parent = createMockSession(model, 'parent', { repl: 'mergeWithParent' });
-		const child1 = createMockSession(model, 'child1', { parentSession: parent, repl: 'separate' });
-		const child2 = createMockSession(model, 'child2', { parentSession: parent, repl: 'mergeWithParent' });
-		const grandChild = createMockSession(model, 'grandChild', { parentSession: child2, repl: 'mergeWithParent' });
-		const child3 = createMockSession(model, 'child3', { parentSession: parent });
+	test('wepw mewging', () => {
+		// 'mewgeWithPawent' shouwd be ignowed when thewe is no pawent.
+		const pawent = cweateMockSession(modew, 'pawent', { wepw: 'mewgeWithPawent' });
+		const chiwd1 = cweateMockSession(modew, 'chiwd1', { pawentSession: pawent, wepw: 'sepawate' });
+		const chiwd2 = cweateMockSession(modew, 'chiwd2', { pawentSession: pawent, wepw: 'mewgeWithPawent' });
+		const gwandChiwd = cweateMockSession(modew, 'gwandChiwd', { pawentSession: chiwd2, wepw: 'mewgeWithPawent' });
+		const chiwd3 = cweateMockSession(modew, 'chiwd3', { pawentSession: pawent });
 
-		let parentChanges = 0;
-		parent.onDidChangeReplElements(() => ++parentChanges);
+		wet pawentChanges = 0;
+		pawent.onDidChangeWepwEwements(() => ++pawentChanges);
 
-		parent.appendToRepl('1\n', severity.Info);
-		assert.strictEqual(parentChanges, 1);
-		assert.strictEqual(parent.getReplElements().length, 1);
-		assert.strictEqual(child1.getReplElements().length, 0);
-		assert.strictEqual(child2.getReplElements().length, 1);
-		assert.strictEqual(grandChild.getReplElements().length, 1);
-		assert.strictEqual(child3.getReplElements().length, 0);
+		pawent.appendToWepw('1\n', sevewity.Info);
+		assewt.stwictEquaw(pawentChanges, 1);
+		assewt.stwictEquaw(pawent.getWepwEwements().wength, 1);
+		assewt.stwictEquaw(chiwd1.getWepwEwements().wength, 0);
+		assewt.stwictEquaw(chiwd2.getWepwEwements().wength, 1);
+		assewt.stwictEquaw(gwandChiwd.getWepwEwements().wength, 1);
+		assewt.stwictEquaw(chiwd3.getWepwEwements().wength, 0);
 
-		grandChild.appendToRepl('2\n', severity.Info);
-		assert.strictEqual(parentChanges, 2);
-		assert.strictEqual(parent.getReplElements().length, 2);
-		assert.strictEqual(child1.getReplElements().length, 0);
-		assert.strictEqual(child2.getReplElements().length, 2);
-		assert.strictEqual(grandChild.getReplElements().length, 2);
-		assert.strictEqual(child3.getReplElements().length, 0);
+		gwandChiwd.appendToWepw('2\n', sevewity.Info);
+		assewt.stwictEquaw(pawentChanges, 2);
+		assewt.stwictEquaw(pawent.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd1.getWepwEwements().wength, 0);
+		assewt.stwictEquaw(chiwd2.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(gwandChiwd.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd3.getWepwEwements().wength, 0);
 
-		child3.appendToRepl('3\n', severity.Info);
-		assert.strictEqual(parentChanges, 2);
-		assert.strictEqual(parent.getReplElements().length, 2);
-		assert.strictEqual(child1.getReplElements().length, 0);
-		assert.strictEqual(child2.getReplElements().length, 2);
-		assert.strictEqual(grandChild.getReplElements().length, 2);
-		assert.strictEqual(child3.getReplElements().length, 1);
+		chiwd3.appendToWepw('3\n', sevewity.Info);
+		assewt.stwictEquaw(pawentChanges, 2);
+		assewt.stwictEquaw(pawent.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd1.getWepwEwements().wength, 0);
+		assewt.stwictEquaw(chiwd2.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(gwandChiwd.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd3.getWepwEwements().wength, 1);
 
-		child1.appendToRepl('4\n', severity.Info);
-		assert.strictEqual(parentChanges, 2);
-		assert.strictEqual(parent.getReplElements().length, 2);
-		assert.strictEqual(child1.getReplElements().length, 1);
-		assert.strictEqual(child2.getReplElements().length, 2);
-		assert.strictEqual(grandChild.getReplElements().length, 2);
-		assert.strictEqual(child3.getReplElements().length, 1);
+		chiwd1.appendToWepw('4\n', sevewity.Info);
+		assewt.stwictEquaw(pawentChanges, 2);
+		assewt.stwictEquaw(pawent.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd1.getWepwEwements().wength, 1);
+		assewt.stwictEquaw(chiwd2.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(gwandChiwd.getWepwEwements().wength, 2);
+		assewt.stwictEquaw(chiwd3.getWepwEwements().wength, 1);
 	});
 
-	test('repl expressions', () => {
-		const session = createMockSession(model);
-		assert.strictEqual(session.getReplElements().length, 0);
-		model.addSession(session);
+	test('wepw expwessions', () => {
+		const session = cweateMockSession(modew);
+		assewt.stwictEquaw(session.getWepwEwements().wength, 0);
+		modew.addSession(session);
 
-		session['raw'] = <any>rawSession;
-		const thread = new Thread(session, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, <any>undefined, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
-		const replModel = new ReplModel(configurationService);
-		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
-		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
-		replModel.addReplExpression(session, stackFrame, 'myVariable').then();
+		session['waw'] = <any>wawSession;
+		const thwead = new Thwead(session, 'mockthwead', 1);
+		const stackFwame = new StackFwame(thwead, 1, <any>undefined, 'app.js', 'nowmaw', { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 10 }, 1, twue);
+		const wepwModew = new WepwModew(configuwationSewvice);
+		wepwModew.addWepwExpwession(session, stackFwame, 'myVawiabwe').then();
+		wepwModew.addWepwExpwession(session, stackFwame, 'myVawiabwe').then();
+		wepwModew.addWepwExpwession(session, stackFwame, 'myVawiabwe').then();
 
-		assert.strictEqual(replModel.getReplElements().length, 3);
-		replModel.getReplElements().forEach(re => {
-			assert.strictEqual((<ReplEvaluationInput>re).value, 'myVariable');
+		assewt.stwictEquaw(wepwModew.getWepwEwements().wength, 3);
+		wepwModew.getWepwEwements().fowEach(we => {
+			assewt.stwictEquaw((<WepwEvawuationInput>we).vawue, 'myVawiabwe');
 		});
 
-		replModel.removeReplExpressions();
-		assert.strictEqual(replModel.getReplElements().length, 0);
+		wepwModew.wemoveWepwExpwessions();
+		assewt.stwictEquaw(wepwModew.getWepwEwements().wength, 0);
 	});
 
-	test('repl ordering', async () => {
-		const session = createMockSession(model);
-		model.addSession(session);
+	test('wepw owdewing', async () => {
+		const session = cweateMockSession(modew);
+		modew.addSession(session);
 
-		const adapter = new MockDebugAdapter();
-		const raw = new RawDebugSession(adapter, undefined!, '', undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
-		session.initializeForTest(raw);
+		const adapta = new MockDebugAdapta();
+		const waw = new WawDebugSession(adapta, undefined!, '', undefined!, undefined!, undefined!, undefined!, undefined!, undefined!);
+		session.initiawizeFowTest(waw);
 
-		await session.addReplExpression(undefined, 'before.1');
-		assert.strictEqual(session.getReplElements().length, 3);
-		assert.strictEqual((<ReplEvaluationInput>session.getReplElements()[0]).value, 'before.1');
-		assert.strictEqual((<SimpleReplElement>session.getReplElements()[1]).value, 'before.1');
-		assert.strictEqual((<ReplEvaluationResult>session.getReplElements()[2]).value, '=before.1');
+		await session.addWepwExpwession(undefined, 'befowe.1');
+		assewt.stwictEquaw(session.getWepwEwements().wength, 3);
+		assewt.stwictEquaw((<WepwEvawuationInput>session.getWepwEwements()[0]).vawue, 'befowe.1');
+		assewt.stwictEquaw((<SimpweWepwEwement>session.getWepwEwements()[1]).vawue, 'befowe.1');
+		assewt.stwictEquaw((<WepwEvawuationWesuwt>session.getWepwEwements()[2]).vawue, '=befowe.1');
 
-		await session.addReplExpression(undefined, 'after.2');
+		await session.addWepwExpwession(undefined, 'afta.2');
 		await timeout(0);
-		assert.strictEqual(session.getReplElements().length, 6);
-		assert.strictEqual((<ReplEvaluationInput>session.getReplElements()[3]).value, 'after.2');
-		assert.strictEqual((<ReplEvaluationResult>session.getReplElements()[4]).value, '=after.2');
-		assert.strictEqual((<SimpleReplElement>session.getReplElements()[5]).value, 'after.2');
+		assewt.stwictEquaw(session.getWepwEwements().wength, 6);
+		assewt.stwictEquaw((<WepwEvawuationInput>session.getWepwEwements()[3]).vawue, 'afta.2');
+		assewt.stwictEquaw((<WepwEvawuationWesuwt>session.getWepwEwements()[4]).vawue, '=afta.2');
+		assewt.stwictEquaw((<SimpweWepwEwement>session.getWepwEwements()[5]).vawue, 'afta.2');
 	});
 
-	test('repl groups', async () => {
-		const session = createMockSession(model);
-		const repl = new ReplModel(configurationService);
+	test('wepw gwoups', async () => {
+		const session = cweateMockSession(modew);
+		const wepw = new WepwModew(configuwationSewvice);
 
-		repl.appendToRepl(session, 'first global line', severity.Info);
-		repl.startGroup('group_1', true);
-		repl.appendToRepl(session, 'first line in group', severity.Info);
-		repl.appendToRepl(session, 'second line in group', severity.Info);
-		const elements = repl.getReplElements();
-		assert.strictEqual(elements.length, 2);
-		const group = elements[1] as ReplGroup;
-		assert.strictEqual(group.name, 'group_1');
-		assert.strictEqual(group.autoExpand, true);
-		assert.strictEqual(group.hasChildren, true);
-		assert.strictEqual(group.hasEnded, false);
+		wepw.appendToWepw(session, 'fiwst gwobaw wine', sevewity.Info);
+		wepw.stawtGwoup('gwoup_1', twue);
+		wepw.appendToWepw(session, 'fiwst wine in gwoup', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine in gwoup', sevewity.Info);
+		const ewements = wepw.getWepwEwements();
+		assewt.stwictEquaw(ewements.wength, 2);
+		const gwoup = ewements[1] as WepwGwoup;
+		assewt.stwictEquaw(gwoup.name, 'gwoup_1');
+		assewt.stwictEquaw(gwoup.autoExpand, twue);
+		assewt.stwictEquaw(gwoup.hasChiwdwen, twue);
+		assewt.stwictEquaw(gwoup.hasEnded, fawse);
 
-		repl.startGroup('group_2', false);
-		repl.appendToRepl(session, 'first line in subgroup', severity.Info);
-		repl.appendToRepl(session, 'second line in subgroup', severity.Info);
-		const children = group.getChildren();
-		assert.strictEqual(children.length, 3);
-		assert.strictEqual((<SimpleReplElement>children[0]).value, 'first line in group');
-		assert.strictEqual((<SimpleReplElement>children[1]).value, 'second line in group');
-		assert.strictEqual((<ReplGroup>children[2]).name, 'group_2');
-		assert.strictEqual((<ReplGroup>children[2]).hasEnded, false);
-		assert.strictEqual((<ReplGroup>children[2]).getChildren().length, 2);
-		repl.endGroup();
-		assert.strictEqual((<ReplGroup>children[2]).hasEnded, true);
-		repl.appendToRepl(session, 'third line in group', severity.Info);
-		assert.strictEqual(group.getChildren().length, 4);
-		assert.strictEqual(group.hasEnded, false);
-		repl.endGroup();
-		assert.strictEqual(group.hasEnded, true);
-		repl.appendToRepl(session, 'second global line', severity.Info);
-		assert.strictEqual(repl.getReplElements().length, 3);
-		assert.strictEqual((<SimpleReplElement>repl.getReplElements()[2]).value, 'second global line');
+		wepw.stawtGwoup('gwoup_2', fawse);
+		wepw.appendToWepw(session, 'fiwst wine in subgwoup', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine in subgwoup', sevewity.Info);
+		const chiwdwen = gwoup.getChiwdwen();
+		assewt.stwictEquaw(chiwdwen.wength, 3);
+		assewt.stwictEquaw((<SimpweWepwEwement>chiwdwen[0]).vawue, 'fiwst wine in gwoup');
+		assewt.stwictEquaw((<SimpweWepwEwement>chiwdwen[1]).vawue, 'second wine in gwoup');
+		assewt.stwictEquaw((<WepwGwoup>chiwdwen[2]).name, 'gwoup_2');
+		assewt.stwictEquaw((<WepwGwoup>chiwdwen[2]).hasEnded, fawse);
+		assewt.stwictEquaw((<WepwGwoup>chiwdwen[2]).getChiwdwen().wength, 2);
+		wepw.endGwoup();
+		assewt.stwictEquaw((<WepwGwoup>chiwdwen[2]).hasEnded, twue);
+		wepw.appendToWepw(session, 'thiwd wine in gwoup', sevewity.Info);
+		assewt.stwictEquaw(gwoup.getChiwdwen().wength, 4);
+		assewt.stwictEquaw(gwoup.hasEnded, fawse);
+		wepw.endGwoup();
+		assewt.stwictEquaw(gwoup.hasEnded, twue);
+		wepw.appendToWepw(session, 'second gwobaw wine', sevewity.Info);
+		assewt.stwictEquaw(wepw.getWepwEwements().wength, 3);
+		assewt.stwictEquaw((<SimpweWepwEwement>wepw.getWepwEwements()[2]).vawue, 'second gwobaw wine');
 	});
 
-	test('repl filter', async () => {
-		const session = createMockSession(model);
-		const repl = new ReplModel(configurationService);
-		const replFilter = new ReplFilter();
+	test('wepw fiwta', async () => {
+		const session = cweateMockSession(modew);
+		const wepw = new WepwModew(configuwationSewvice);
+		const wepwFiwta = new WepwFiwta();
 
-		const getFilteredElements = () => {
-			const elements = repl.getReplElements();
-			return elements.filter(e => {
-				const filterResult = replFilter.filter(e, TreeVisibility.Visible);
-				return filterResult === true || filterResult === TreeVisibility.Visible;
+		const getFiwtewedEwements = () => {
+			const ewements = wepw.getWepwEwements();
+			wetuwn ewements.fiwta(e => {
+				const fiwtewWesuwt = wepwFiwta.fiwta(e, TweeVisibiwity.Visibwe);
+				wetuwn fiwtewWesuwt === twue || fiwtewWesuwt === TweeVisibiwity.Visibwe;
 			});
 		};
 
-		repl.appendToRepl(session, 'first line\n', severity.Info);
-		repl.appendToRepl(session, 'second line\n', severity.Info);
-		repl.appendToRepl(session, 'third line\n', severity.Info);
-		repl.appendToRepl(session, 'fourth line\n', severity.Info);
+		wepw.appendToWepw(session, 'fiwst wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'second wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'thiwd wine\n', sevewity.Info);
+		wepw.appendToWepw(session, 'fouwth wine\n', sevewity.Info);
 
-		replFilter.filterQuery = 'first';
-		let r1 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r1.length, 1);
-		assert.strictEqual(r1[0].value, 'first line\n');
+		wepwFiwta.fiwtewQuewy = 'fiwst';
+		wet w1 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w1.wength, 1);
+		assewt.stwictEquaw(w1[0].vawue, 'fiwst wine\n');
 
-		replFilter.filterQuery = '!first';
-		let r2 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r1.length, 1);
-		assert.strictEqual(r2[0].value, 'second line\n');
-		assert.strictEqual(r2[1].value, 'third line\n');
-		assert.strictEqual(r2[2].value, 'fourth line\n');
+		wepwFiwta.fiwtewQuewy = '!fiwst';
+		wet w2 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w1.wength, 1);
+		assewt.stwictEquaw(w2[0].vawue, 'second wine\n');
+		assewt.stwictEquaw(w2[1].vawue, 'thiwd wine\n');
+		assewt.stwictEquaw(w2[2].vawue, 'fouwth wine\n');
 
-		replFilter.filterQuery = 'first, line';
-		let r3 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r3.length, 4);
-		assert.strictEqual(r3[0].value, 'first line\n');
-		assert.strictEqual(r3[1].value, 'second line\n');
-		assert.strictEqual(r3[2].value, 'third line\n');
-		assert.strictEqual(r3[3].value, 'fourth line\n');
+		wepwFiwta.fiwtewQuewy = 'fiwst, wine';
+		wet w3 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w3.wength, 4);
+		assewt.stwictEquaw(w3[0].vawue, 'fiwst wine\n');
+		assewt.stwictEquaw(w3[1].vawue, 'second wine\n');
+		assewt.stwictEquaw(w3[2].vawue, 'thiwd wine\n');
+		assewt.stwictEquaw(w3[3].vawue, 'fouwth wine\n');
 
-		replFilter.filterQuery = 'line, !second';
-		let r4 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r4.length, 3);
-		assert.strictEqual(r4[0].value, 'first line\n');
-		assert.strictEqual(r4[1].value, 'third line\n');
-		assert.strictEqual(r4[2].value, 'fourth line\n');
+		wepwFiwta.fiwtewQuewy = 'wine, !second';
+		wet w4 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w4.wength, 3);
+		assewt.stwictEquaw(w4[0].vawue, 'fiwst wine\n');
+		assewt.stwictEquaw(w4[1].vawue, 'thiwd wine\n');
+		assewt.stwictEquaw(w4[2].vawue, 'fouwth wine\n');
 
-		replFilter.filterQuery = '!second, line';
-		let r4_same = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r4.length, r4_same.length);
+		wepwFiwta.fiwtewQuewy = '!second, wine';
+		wet w4_same = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w4.wength, w4_same.wength);
 
-		replFilter.filterQuery = '!line';
-		let r5 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r5.length, 0);
+		wepwFiwta.fiwtewQuewy = '!wine';
+		wet w5 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w5.wength, 0);
 
-		replFilter.filterQuery = 'smth';
-		let r6 = <SimpleReplElement[]>getFilteredElements();
-		assert.strictEqual(r6.length, 0);
+		wepwFiwta.fiwtewQuewy = 'smth';
+		wet w6 = <SimpweWepwEwement[]>getFiwtewedEwements();
+		assewt.stwictEquaw(w6.wength, 0);
 	});
 });

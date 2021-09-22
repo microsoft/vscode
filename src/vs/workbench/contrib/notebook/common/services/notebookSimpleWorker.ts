@@ -1,277 +1,277 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+impowt { ISequence, WcsDiff } fwom 'vs/base/common/diff/diff';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWequestHandwa } fwom 'vs/base/common/wowka/simpweWowka';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { CewwKind, ICewwDto2, IMainCewwDto, INotebookDiffWesuwt, IOutputDto, NotebookCewwIntewnawMetadata, NotebookCewwMetadata, NotebookCewwsChangedEventDto, NotebookCewwsChangeType, NotebookCewwTextModewSpwice, NotebookData, NotebookDocumentMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowWowkewHost } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookWowkewSewviceImpw';
 
-class MirrorCell {
-	private _textBuffer!: model.IReadonlyTextBuffer;
+cwass MiwwowCeww {
+	pwivate _textBuffa!: modew.IWeadonwyTextBuffa;
 
-	get textBuffer() {
-		if (this._textBuffer) {
-			return this._textBuffer;
+	get textBuffa() {
+		if (this._textBuffa) {
+			wetuwn this._textBuffa;
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(Array.isArray(this._source) ? this._source.join('\n') : this._source);
-		const bufferFactory = builder.finish(true);
-		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF).textBuffer;
+		const buiwda = new PieceTweeTextBuffewBuiwda();
+		buiwda.acceptChunk(Awway.isAwway(this._souwce) ? this._souwce.join('\n') : this._souwce);
+		const buffewFactowy = buiwda.finish(twue);
+		this._textBuffa = buffewFactowy.cweate(modew.DefauwtEndOfWine.WF).textBuffa;
 
-		return this._textBuffer;
+		wetuwn this._textBuffa;
 	}
 
-	private _primaryKey?: number | null = null;
-	primaryKey(): number | null {
-		if (this._primaryKey === undefined) {
-			this._primaryKey = hash(this.getValue());
+	pwivate _pwimawyKey?: numba | nuww = nuww;
+	pwimawyKey(): numba | nuww {
+		if (this._pwimawyKey === undefined) {
+			this._pwimawyKey = hash(this.getVawue());
 		}
 
-		return this._primaryKey;
+		wetuwn this._pwimawyKey;
 	}
 
-	private _hash: number | null = null;
+	pwivate _hash: numba | nuww = nuww;
 
-	constructor(
-		readonly handle: number,
-		private _source: string | string[],
-		public language: string,
-		public cellKind: CellKind,
-		public outputs: IOutputDto[],
-		public metadata?: NotebookCellMetadata,
-		public internalMetadata?: NotebookCellInternalMetadata,
+	constwuctow(
+		weadonwy handwe: numba,
+		pwivate _souwce: stwing | stwing[],
+		pubwic wanguage: stwing,
+		pubwic cewwKind: CewwKind,
+		pubwic outputs: IOutputDto[],
+		pubwic metadata?: NotebookCewwMetadata,
+		pubwic intewnawMetadata?: NotebookCewwIntewnawMetadata,
 
 	) { }
 
-	getFullModelRange() {
-		const lineCount = this.textBuffer.getLineCount();
-		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
+	getFuwwModewWange() {
+		const wineCount = this.textBuffa.getWineCount();
+		wetuwn new Wange(1, 1, wineCount, this.textBuffa.getWineWength(wineCount) + 1);
 	}
 
-	getValue(): string {
-		const fullRange = this.getFullModelRange();
-		const eol = this.textBuffer.getEOL();
-		if (eol === '\n') {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
-		} else {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
+	getVawue(): stwing {
+		const fuwwWange = this.getFuwwModewWange();
+		const eow = this.textBuffa.getEOW();
+		if (eow === '\n') {
+			wetuwn this.textBuffa.getVawueInWange(fuwwWange, modew.EndOfWinePwefewence.WF);
+		} ewse {
+			wetuwn this.textBuffa.getVawueInWange(fuwwWange, modew.EndOfWinePwefewence.CWWF);
 		}
 	}
 
-	getComparisonValue(): number {
-		if (this._primaryKey !== null) {
-			return this._primaryKey!;
+	getCompawisonVawue(): numba {
+		if (this._pwimawyKey !== nuww) {
+			wetuwn this._pwimawyKey!;
 		}
 
-		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
+		this._hash = hash([hash(this.wanguage), hash(this.getVawue()), this.metadata, this.intewnawMetadata, this.outputs.map(op => ({
 			outputs: op.outputs.map(output => ({
 				mime: output.mime,
 				data: output.data
 			})),
 			metadata: op.metadata
 		}))]);
-		return this._hash;
+		wetuwn this._hash;
 	}
 
-	getHashValue() {
-		if (this._hash !== null) {
-			return this._hash;
+	getHashVawue() {
+		if (this._hash !== nuww) {
+			wetuwn this._hash;
 		}
 
-		this._hash = hash([hash(this.getValue()), this.language, this.metadata, this.internalMetadata]);
-		return this._hash;
+		this._hash = hash([hash(this.getVawue()), this.wanguage, this.metadata, this.intewnawMetadata]);
+		wetuwn this._hash;
 	}
 }
 
-class MirrorNotebookDocument {
-	constructor(
-		readonly uri: URI,
-		public cells: MirrorCell[],
-		public metadata: NotebookDocumentMetadata,
+cwass MiwwowNotebookDocument {
+	constwuctow(
+		weadonwy uwi: UWI,
+		pubwic cewws: MiwwowCeww[],
+		pubwic metadata: NotebookDocumentMetadata,
 	) {
 	}
 
-	acceptModelChanged(event: NotebookCellsChangedEventDto) {
-		// note that the cell content change is not applied to the MirrorCell
-		// but it's fine as if a cell content is modified after the first diff, its position will not change any more
-		// TODO@rebornix, but it might lead to interesting bugs in the future.
-		event.rawEvents.forEach(e => {
-			if (e.kind === NotebookCellsChangeType.ModelChange) {
-				this._spliceNotebookCells(e.changes);
-			} else if (e.kind === NotebookCellsChangeType.Move) {
-				const cells = this.cells.splice(e.index, 1);
-				this.cells.splice(e.newIdx, 0, ...cells);
-			} else if (e.kind === NotebookCellsChangeType.Output) {
-				const cell = this.cells[e.index];
-				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
-				const cell = this.cells[e.index];
-				cell.language = e.language;
-			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
-				const cell = this.cells[e.index];
-				cell.metadata = e.metadata;
-			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
-				const cell = this.cells[e.index];
-				cell.internalMetadata = e.internalMetadata;
+	acceptModewChanged(event: NotebookCewwsChangedEventDto) {
+		// note that the ceww content change is not appwied to the MiwwowCeww
+		// but it's fine as if a ceww content is modified afta the fiwst diff, its position wiww not change any mowe
+		// TODO@webownix, but it might wead to intewesting bugs in the futuwe.
+		event.wawEvents.fowEach(e => {
+			if (e.kind === NotebookCewwsChangeType.ModewChange) {
+				this._spwiceNotebookCewws(e.changes);
+			} ewse if (e.kind === NotebookCewwsChangeType.Move) {
+				const cewws = this.cewws.spwice(e.index, 1);
+				this.cewws.spwice(e.newIdx, 0, ...cewws);
+			} ewse if (e.kind === NotebookCewwsChangeType.Output) {
+				const ceww = this.cewws[e.index];
+				ceww.outputs = e.outputs;
+			} ewse if (e.kind === NotebookCewwsChangeType.ChangeWanguage) {
+				const ceww = this.cewws[e.index];
+				ceww.wanguage = e.wanguage;
+			} ewse if (e.kind === NotebookCewwsChangeType.ChangeCewwMetadata) {
+				const ceww = this.cewws[e.index];
+				ceww.metadata = e.metadata;
+			} ewse if (e.kind === NotebookCewwsChangeType.ChangeCewwIntewnawMetadata) {
+				const ceww = this.cewws[e.index];
+				ceww.intewnawMetadata = e.intewnawMetadata;
 			}
 		});
 	}
 
-	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
-		splices.reverse().forEach(splice => {
-			const cellDtos = splice[2];
-			const newCells = cellDtos.map(cell => {
-				return new MirrorCell(
-					(cell as unknown as IMainCellDto).handle,
-					cell.source,
-					cell.language,
-					cell.cellKind,
-					cell.outputs,
-					cell.metadata
+	_spwiceNotebookCewws(spwices: NotebookCewwTextModewSpwice<IMainCewwDto>[]) {
+		spwices.wevewse().fowEach(spwice => {
+			const cewwDtos = spwice[2];
+			const newCewws = cewwDtos.map(ceww => {
+				wetuwn new MiwwowCeww(
+					(ceww as unknown as IMainCewwDto).handwe,
+					ceww.souwce,
+					ceww.wanguage,
+					ceww.cewwKind,
+					ceww.outputs,
+					ceww.metadata
 				);
 			});
 
-			this.cells.splice(splice[0], splice[1], ...newCells);
+			this.cewws.spwice(spwice[0], spwice[1], ...newCewws);
 		});
 	}
 }
 
-export class CellSequence implements ISequence {
+expowt cwass CewwSequence impwements ISequence {
 
-	constructor(readonly textModel: MirrorNotebookDocument) {
+	constwuctow(weadonwy textModew: MiwwowNotebookDocument) {
 	}
 
-	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getComparisonValue();
+	getEwements(): stwing[] | numba[] | Int32Awway {
+		const hashVawue = new Int32Awway(this.textModew.cewws.wength);
+		fow (wet i = 0; i < this.textModew.cewws.wength; i++) {
+			hashVawue[i] = this.textModew.cewws[i].getCompawisonVawue();
 		}
 
-		return hashValue;
+		wetuwn hashVawue;
 	}
 
-	getCellHash(cell: ICellDto2) {
-		const source = Array.isArray(cell.source) ? cell.source.join('\n') : cell.source;
-		const hashVal = hash([hash(source), cell.metadata]);
-		return hashVal;
+	getCewwHash(ceww: ICewwDto2) {
+		const souwce = Awway.isAwway(ceww.souwce) ? ceww.souwce.join('\n') : ceww.souwce;
+		const hashVaw = hash([hash(souwce), ceww.metadata]);
+		wetuwn hashVaw;
 	}
 }
 
-export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
-	_requestHandlerBrand: any;
+expowt cwass NotebookEditowSimpweWowka impwements IWequestHandwa, IDisposabwe {
+	_wequestHandwewBwand: any;
 
-	private _models: { [uri: string]: MirrorNotebookDocument; };
+	pwivate _modews: { [uwi: stwing]: MiwwowNotebookDocument; };
 
-	constructor() {
-		this._models = Object.create(null);
+	constwuctow() {
+		this._modews = Object.cweate(nuww);
 	}
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookData): void {
-		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
-			(dto as unknown as IMainCellDto).handle,
-			dto.source,
-			dto.language,
-			dto.cellKind,
+	pubwic acceptNewModew(uwi: stwing, data: NotebookData): void {
+		this._modews[uwi] = new MiwwowNotebookDocument(UWI.pawse(uwi), data.cewws.map(dto => new MiwwowCeww(
+			(dto as unknown as IMainCewwDto).handwe,
+			dto.souwce,
+			dto.wanguage,
+			dto.cewwKind,
 			dto.outputs,
 			dto.metadata
 		)), data.metadata);
 	}
 
-	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
-		const model = this._models[strURL];
-		if (model) {
-			model.acceptModelChanged(event);
+	pubwic acceptModewChanged(stwUWW: stwing, event: NotebookCewwsChangedEventDto) {
+		const modew = this._modews[stwUWW];
+		if (modew) {
+			modew.acceptModewChanged(event);
 		}
 	}
 
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
+	pubwic acceptWemovedModew(stwUWW: stwing): void {
+		if (!this._modews[stwUWW]) {
+			wetuwn;
 		}
-		delete this._models[strURL];
+		dewete this._modews[stwUWW];
 	}
 
-	computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
-		const original = this._getModel(originalUrl);
-		const modified = this._getModel(modifiedUrl);
+	computeDiff(owiginawUww: stwing, modifiedUww: stwing): INotebookDiffWesuwt {
+		const owiginaw = this._getModew(owiginawUww);
+		const modified = this._getModew(modifiedUww);
 
-		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
-		const diffResult = diff.ComputeDiff(false);
+		const diff = new WcsDiff(new CewwSequence(owiginaw), new CewwSequence(modified));
+		const diffWesuwt = diff.ComputeDiff(fawse);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
+		/* wet cewwWineChanges: { owiginawCewwhandwe: numba, modifiedCewwhandwe: numba, wineChanges: editowCommon.IWineChange[] }[] = [];
 
-		diffResult.changes.forEach(change => {
-			if (change.modifiedLength === 0) {
-				// deletion ...
-				return;
+		diffWesuwt.changes.fowEach(change => {
+			if (change.modifiedWength === 0) {
+				// dewetion ...
+				wetuwn;
 			}
 
-			if (change.originalLength === 0) {
-				// insertion
-				return;
+			if (change.owiginawWength === 0) {
+				// insewtion
+				wetuwn;
 			}
 
-			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-				let originalIndex = change.originalStart + i;
-				let modifiedIndex = change.modifiedStart + i;
+			fow (wet i = 0, wen = Math.min(change.modifiedWength, change.owiginawWength); i < wen; i++) {
+				wet owiginawIndex = change.owiginawStawt + i;
+				wet modifiedIndex = change.modifiedStawt + i;
 
-				const originalCell = original.cells[originalIndex];
-				const modifiedCell = modified.cells[modifiedIndex];
+				const owiginawCeww = owiginaw.cewws[owiginawIndex];
+				const modifiedCeww = modified.cewws[modifiedIndex];
 
-				if (originalCell.getValue() !== modifiedCell.getValue()) {
-					// console.log(`original cell ${originalIndex} content change`);
-					const originalLines = originalCell.textBuffer.getLinesContent();
-					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-						shouldComputeCharChanges: true,
-						shouldPostProcessCharChanges: true,
-						shouldIgnoreTrimWhitespace: false,
-						shouldMakePrettyDiff: true,
+				if (owiginawCeww.getVawue() !== modifiedCeww.getVawue()) {
+					// consowe.wog(`owiginaw ceww ${owiginawIndex} content change`);
+					const owiginawWines = owiginawCeww.textBuffa.getWinesContent();
+					const modifiedWines = modifiedCeww.textBuffa.getWinesContent();
+					const diffComputa = new DiffComputa(owiginawWines, modifiedWines, {
+						shouwdComputeChawChanges: twue,
+						shouwdPostPwocessChawChanges: twue,
+						shouwdIgnoweTwimWhitespace: fawse,
+						shouwdMakePwettyDiff: twue,
 						maxComputationTime: 5000
 					});
 
-					const lineChanges = diffComputer.computeDiff().changes;
+					const wineChanges = diffComputa.computeDiff().changes;
 
-					cellLineChanges.push({
-						originalCellhandle: originalCell.handle,
-						modifiedCellhandle: modifiedCell.handle,
-						lineChanges
+					cewwWineChanges.push({
+						owiginawCewwhandwe: owiginawCeww.handwe,
+						modifiedCewwhandwe: modifiedCeww.handwe,
+						wineChanges
 					});
 
-					// console.log(lineDecorations);
+					// consowe.wog(wineDecowations);
 
-				} else {
-					// console.log(`original cell ${originalIndex} metadata change`);
+				} ewse {
+					// consowe.wog(`owiginaw ceww ${owiginawIndex} metadata change`);
 				}
 
 			}
 		});
  */
-		return {
-			cellsDiff: diffResult,
-			// linesDiff: cellLineChanges
+		wetuwn {
+			cewwsDiff: diffWesuwt,
+			// winesDiff: cewwWineChanges
 		};
 	}
 
-	protected _getModel(uri: string): MirrorNotebookDocument {
-		return this._models[uri];
+	pwotected _getModew(uwi: stwing): MiwwowNotebookDocument {
+		wetuwn this._modews[uwi];
 	}
 }
 
 /**
- * Called on the worker side
- * @internal
+ * Cawwed on the wowka side
+ * @intewnaw
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
-	return new NotebookEditorSimpleWorker();
+expowt function cweate(host: EditowWowkewHost): IWequestHandwa {
+	wetuwn new NotebookEditowSimpweWowka();
 }

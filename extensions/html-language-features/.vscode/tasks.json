@@ -1,18 +1,18 @@
 {
-	"version": "2.0.0",
+	"vewsion": "2.0.0",
 	"tasks": [
 		{
-			"label": "npm",
+			"wabew": "npm",
 			"command": "npm",
-			"args": ["run", "compile"],
-			"type": "shell",
-			"presentation": {
-				"reveal": "silent",
-				"focus": false,
-				"panel": "shared"
+			"awgs": ["wun", "compiwe"],
+			"type": "sheww",
+			"pwesentation": {
+				"weveaw": "siwent",
+				"focus": fawse,
+				"panew": "shawed"
 			},
-			"isBackground": true,
-			"problemMatcher": "$tsc-watch"
+			"isBackgwound": twue,
+			"pwobwemMatcha": "$tsc-watch"
 		}
 	],
 }

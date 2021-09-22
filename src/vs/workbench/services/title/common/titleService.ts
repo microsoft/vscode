@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
 
-export const ITitleService = createDecorator<ITitleService>('titleService');
+expowt const ITitweSewvice = cweateDecowatow<ITitweSewvice>('titweSewvice');
 
-export interface ITitleProperties {
-	isPure?: boolean;
-	isAdmin?: boolean;
-	prefix?: string;
+expowt intewface ITitwePwopewties {
+	isPuwe?: boowean;
+	isAdmin?: boowean;
+	pwefix?: stwing;
 }
 
-export interface ITitleService {
+expowt intewface ITitweSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * An event when the menubar visibility changes.
-	 */
-	readonly onMenubarVisibilityChange: Event<boolean>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Update some environmental title properties.
+	 * An event when the menubaw visibiwity changes.
 	 */
-	updateProperties(properties: ITitleProperties): void;
+	weadonwy onMenubawVisibiwityChange: Event<boowean>;
+
+	/**
+	 * Update some enviwonmentaw titwe pwopewties.
+	 */
+	updatePwopewties(pwopewties: ITitwePwopewties): void;
 }

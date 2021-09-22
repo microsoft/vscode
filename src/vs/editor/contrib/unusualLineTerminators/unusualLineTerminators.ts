@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as nws fwom 'vs/nws';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
+const ignoweUnusuawWineTewminatows = 'ignoweUnusuawWineTewminatows';
 
-function writeIgnoreState(codeEditorService: ICodeEditorService, model: ITextModel, state: boolean): void {
-	codeEditorService.setModelProperty(model.uri, ignoreUnusualLineTerminators, state);
+function wwiteIgnoweState(codeEditowSewvice: ICodeEditowSewvice, modew: ITextModew, state: boowean): void {
+	codeEditowSewvice.setModewPwopewty(modew.uwi, ignoweUnusuawWineTewminatows, state);
 }
 
-function readIgnoreState(codeEditorService: ICodeEditorService, model: ITextModel): boolean | undefined {
-	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators);
+function weadIgnoweState(codeEditowSewvice: ICodeEditowSewvice, modew: ITextModew): boowean | undefined {
+	wetuwn codeEditowSewvice.getModewPwopewty(modew.uwi, ignoweUnusuawWineTewminatows);
 }
 
-export class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
+expowt cwass UnusuawWineTewminatowsDetectow extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.unusualLineTerminatorsDetector';
+	pubwic static weadonwy ID = 'editow.contwib.unusuawWineTewminatowsDetectow';
 
-	private _config: 'auto' | 'off' | 'prompt';
+	pwivate _config: 'auto' | 'off' | 'pwompt';
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice
 	) {
-		super();
+		supa();
 
-		this._config = this._editor.getOption(EditorOption.unusualLineTerminators);
-		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.unusualLineTerminators)) {
-				this._config = this._editor.getOption(EditorOption.unusualLineTerminators);
-				this._checkForUnusualLineTerminators();
+		this._config = this._editow.getOption(EditowOption.unusuawWineTewminatows);
+		this._wegista(this._editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.unusuawWineTewminatows)) {
+				this._config = this._editow.getOption(EditowOption.unusuawWineTewminatows);
+				this._checkFowUnusuawWineTewminatows();
 			}
 		}));
 
-		this._register(this._editor.onDidChangeModel(() => {
-			this._checkForUnusualLineTerminators();
+		this._wegista(this._editow.onDidChangeModew(() => {
+			this._checkFowUnusuawWineTewminatows();
 		}));
 
-		this._register(this._editor.onDidChangeModelContent((e) => {
+		this._wegista(this._editow.onDidChangeModewContent((e) => {
 			if (e.isUndoing) {
 				// skip checking in case of undoing
-				return;
+				wetuwn;
 			}
-			this._checkForUnusualLineTerminators();
+			this._checkFowUnusuawWineTewminatows();
 		}));
 	}
 
-	private async _checkForUnusualLineTerminators(): Promise<void> {
+	pwivate async _checkFowUnusuawWineTewminatows(): Pwomise<void> {
 		if (this._config === 'off') {
-			return;
+			wetuwn;
 		}
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		const model = this._editor.getModel();
-		if (!model.mightContainUnusualLineTerminators()) {
-			return;
+		const modew = this._editow.getModew();
+		if (!modew.mightContainUnusuawWineTewminatows()) {
+			wetuwn;
 		}
-		const ignoreState = readIgnoreState(this._codeEditorService, model);
-		if (ignoreState === true) {
-			// this model should be ignored
-			return;
+		const ignoweState = weadIgnoweState(this._codeEditowSewvice, modew);
+		if (ignoweState === twue) {
+			// this modew shouwd be ignowed
+			wetuwn;
 		}
-		if (this._editor.getOption(EditorOption.readOnly)) {
-			// read only editor => sorry!
-			return;
+		if (this._editow.getOption(EditowOption.weadOnwy)) {
+			// wead onwy editow => sowwy!
+			wetuwn;
 		}
 
 		if (this._config === 'auto') {
 			// just do it!
-			model.removeUnusualLineTerminators(this._editor.getSelections());
-			return;
+			modew.wemoveUnusuawWineTewminatows(this._editow.getSewections());
+			wetuwn;
 		}
 
-		const result = await this._dialogService.confirm({
-			title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
-			message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
-			detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
-			primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
-			secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
+		const wesuwt = await this._diawogSewvice.confiwm({
+			titwe: nws.wocawize('unusuawWineTewminatows.titwe', "Unusuaw Wine Tewminatows"),
+			message: nws.wocawize('unusuawWineTewminatows.message', "Detected unusuaw wine tewminatows"),
+			detaiw: nws.wocawize('unusuawWineTewminatows.detaiw', "The fiwe '{0}' contains one ow mowe unusuaw wine tewminatow chawactews, wike Wine Sepawatow (WS) ow Pawagwaph Sepawatow (PS).\n\nIt is wecommended to wemove them fwom the fiwe. This can be configuwed via `editow.unusuawWineTewminatows`.", basename(modew.uwi)),
+			pwimawyButton: nws.wocawize('unusuawWineTewminatows.fix', "Wemove Unusuaw Wine Tewminatows"),
+			secondawyButton: nws.wocawize('unusuawWineTewminatows.ignowe', "Ignowe")
 		});
 
-		if (!result.confirmed) {
-			// this model should be ignored
-			writeIgnoreState(this._codeEditorService, model, true);
-			return;
+		if (!wesuwt.confiwmed) {
+			// this modew shouwd be ignowed
+			wwiteIgnoweState(this._codeEditowSewvice, modew, twue);
+			wetuwn;
 		}
 
-		model.removeUnusualLineTerminators(this._editor.getSelections());
+		modew.wemoveUnusuawWineTewminatows(this._editow.getSewections());
 	}
 }
 
-registerEditorContribution(UnusualLineTerminatorsDetector.ID, UnusualLineTerminatorsDetector);
+wegistewEditowContwibution(UnusuawWineTewminatowsDetectow.ID, UnusuawWineTewminatowsDetectow);

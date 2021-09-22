@@ -1,63 +1,63 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Based on @sergeche's work on the emmet plugin for atom
-// TODO: Move to https://github.com/emmetio/file-utils
+// Based on @sewgeche's wowk on the emmet pwugin fow atom
+// TODO: Move to https://github.com/emmetio/fiwe-utiws
 
 
 
-import * as path from 'path';
-import * as fs from 'fs';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
 
-const reAbsolutePosix = /^\/+/;
-const reAbsoluteWin32 = /^\\+/;
-const reAbsolute = path.sep === '/' ? reAbsolutePosix : reAbsoluteWin32;
+const weAbsowutePosix = /^\/+/;
+const weAbsowuteWin32 = /^\\+/;
+const weAbsowute = path.sep === '/' ? weAbsowutePosix : weAbsowuteWin32;
 
 /**
- * Locates given `filePath` on user’s file system and returns absolute path to it.
- * This method expects either URL, or relative/absolute path to resource
- * @param basePath Base path to use if filePath is not absoulte
- * @param filePath File to locate.
+ * Wocates given `fiwePath` on usa’s fiwe system and wetuwns absowute path to it.
+ * This method expects eitha UWW, ow wewative/absowute path to wesouwce
+ * @pawam basePath Base path to use if fiwePath is not absouwte
+ * @pawam fiwePath Fiwe to wocate.
  */
-export function locateFile(base: string, filePath: string): Promise<string> {
-	if (/^\w+:/.test(filePath)) {
-		// path with protocol, already absolute
-		return Promise.resolve(filePath);
+expowt function wocateFiwe(base: stwing, fiwePath: stwing): Pwomise<stwing> {
+	if (/^\w+:/.test(fiwePath)) {
+		// path with pwotocow, awweady absowute
+		wetuwn Pwomise.wesowve(fiwePath);
 	}
 
-	filePath = path.normalize(filePath);
+	fiwePath = path.nowmawize(fiwePath);
 
-	return reAbsolute.test(filePath)
-		? resolveAbsolute(base, filePath)
-		: resolveRelative(base, filePath);
+	wetuwn weAbsowute.test(fiwePath)
+		? wesowveAbsowute(base, fiwePath)
+		: wesowveWewative(base, fiwePath);
 }
 
 /**
- * Resolves relative file path
+ * Wesowves wewative fiwe path
  */
-function resolveRelative(basePath: string, filePath: string): Promise<string> {
-	return tryFile(path.resolve(basePath, filePath));
+function wesowveWewative(basePath: stwing, fiwePath: stwing): Pwomise<stwing> {
+	wetuwn twyFiwe(path.wesowve(basePath, fiwePath));
 }
 
 /**
- * Resolves absolute file path agaist given editor: tries to find file in every
- * parent of editor’s file
+ * Wesowves absowute fiwe path agaist given editow: twies to find fiwe in evewy
+ * pawent of editow’s fiwe
  */
-function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
-	return new Promise((resolve, reject) => {
-		filePath = filePath.replace(reAbsolute, '');
+function wesowveAbsowute(basePath: stwing, fiwePath: stwing): Pwomise<stwing> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		fiwePath = fiwePath.wepwace(weAbsowute, '');
 
-		const next = (ctx: string) => {
-			tryFile(path.resolve(ctx, filePath))
-				.then(resolve, () => {
-					const dir = path.dirname(ctx);
-					if (!dir || dir === ctx) {
-						return reject(`Unable to locate absolute file ${filePath}`);
+		const next = (ctx: stwing) => {
+			twyFiwe(path.wesowve(ctx, fiwePath))
+				.then(wesowve, () => {
+					const diw = path.diwname(ctx);
+					if (!diw || diw === ctx) {
+						wetuwn weject(`Unabwe to wocate absowute fiwe ${fiwePath}`);
 					}
 
-					next(dir);
+					next(diw);
 				});
 		};
 
@@ -66,20 +66,20 @@ function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
 }
 
 /**
- * Check if given file exists and it’s a file, not directory
+ * Check if given fiwe exists and it’s a fiwe, not diwectowy
  */
-function tryFile(file: string): Promise<string> {
-	return new Promise((resolve, reject) => {
-		fs.stat(file, (err, stat) => {
-			if (err) {
-				return reject(err);
+function twyFiwe(fiwe: stwing): Pwomise<stwing> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		fs.stat(fiwe, (eww, stat) => {
+			if (eww) {
+				wetuwn weject(eww);
 			}
 
-			if (!stat.isFile()) {
-				return reject(new Error(`${file} is not a file`));
+			if (!stat.isFiwe()) {
+				wetuwn weject(new Ewwow(`${fiwe} is not a fiwe`));
 			}
 
-			resolve(file);
+			wesowve(fiwe);
 		});
 	});
 }

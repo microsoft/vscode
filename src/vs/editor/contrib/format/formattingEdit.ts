@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, ISingleEditOperation } from 'vs/editor/common/model';
-import { TextEdit } from 'vs/editor/common/modes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWineSequence, ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { TextEdit } fwom 'vs/editow/common/modes';
 
-export class FormattingEdit {
+expowt cwass FowmattingEdit {
 
-	private static _handleEolEdits(editor: ICodeEditor, edits: TextEdit[]): ISingleEditOperation[] {
-		let newEol: EndOfLineSequence | undefined = undefined;
-		let singleEdits: ISingleEditOperation[] = [];
+	pwivate static _handweEowEdits(editow: ICodeEditow, edits: TextEdit[]): ISingweEditOpewation[] {
+		wet newEow: EndOfWineSequence | undefined = undefined;
+		wet singweEdits: ISingweEditOpewation[] = [];
 
-		for (let edit of edits) {
-			if (typeof edit.eol === 'number') {
-				newEol = edit.eol;
+		fow (wet edit of edits) {
+			if (typeof edit.eow === 'numba') {
+				newEow = edit.eow;
 			}
-			if (edit.range && typeof edit.text === 'string') {
-				singleEdits.push(edit);
-			}
-		}
-
-		if (typeof newEol === 'number') {
-			if (editor.hasModel()) {
-				editor.getModel().pushEOL(newEol);
+			if (edit.wange && typeof edit.text === 'stwing') {
+				singweEdits.push(edit);
 			}
 		}
 
-		return singleEdits;
+		if (typeof newEow === 'numba') {
+			if (editow.hasModew()) {
+				editow.getModew().pushEOW(newEow);
+			}
+		}
+
+		wetuwn singweEdits;
 	}
 
-	private static _isFullModelReplaceEdit(editor: ICodeEditor, edit: ISingleEditOperation): boolean {
-		if (!editor.hasModel()) {
-			return false;
+	pwivate static _isFuwwModewWepwaceEdit(editow: ICodeEditow, edit: ISingweEditOpewation): boowean {
+		if (!editow.hasModew()) {
+			wetuwn fawse;
 		}
-		const model = editor.getModel();
-		const editRange = model.validateRange(edit.range);
-		const fullModelRange = model.getFullModelRange();
-		return fullModelRange.equalsRange(editRange);
+		const modew = editow.getModew();
+		const editWange = modew.vawidateWange(edit.wange);
+		const fuwwModewWange = modew.getFuwwModewWange();
+		wetuwn fuwwModewWange.equawsWange(editWange);
 	}
 
-	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean) {
+	static execute(editow: ICodeEditow, _edits: TextEdit[], addUndoStops: boowean) {
 		if (addUndoStops) {
-			editor.pushUndoStop();
+			editow.pushUndoStop();
 		}
-		const edits = FormattingEdit._handleEolEdits(editor, _edits);
-		if (edits.length === 1 && FormattingEdit._isFullModelReplaceEdit(editor, edits[0])) {
-			// We use replace semantics and hope that markers stay put...
-			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-		} else {
-			editor.executeEdits('formatEditsCommand', edits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text)));
+		const edits = FowmattingEdit._handweEowEdits(editow, _edits);
+		if (edits.wength === 1 && FowmattingEdit._isFuwwModewWepwaceEdit(editow, edits[0])) {
+			// We use wepwace semantics and hope that mawkews stay put...
+			editow.executeEdits('fowmatEditsCommand', edits.map(edit => EditOpewation.wepwace(Wange.wift(edit.wange), edit.text)));
+		} ewse {
+			editow.executeEdits('fowmatEditsCommand', edits.map(edit => EditOpewation.wepwaceMove(Wange.wift(edit.wange), edit.text)));
 		}
 		if (addUndoStops) {
-			editor.pushUndoStop();
+			editow.pushUndoStop();
 		}
 	}
 }

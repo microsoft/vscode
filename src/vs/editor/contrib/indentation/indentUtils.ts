@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function getSpaceCnt(str: string, tabSize: number) {
-	let spacesCnt = 0;
+expowt function getSpaceCnt(stw: stwing, tabSize: numba) {
+	wet spacesCnt = 0;
 
-	for (let i = 0; i < str.length; i++) {
-		if (str.charAt(i) === '\t') {
+	fow (wet i = 0; i < stw.wength; i++) {
+		if (stw.chawAt(i) === '\t') {
 			spacesCnt += tabSize;
-		} else {
+		} ewse {
 			spacesCnt++;
 		}
 	}
 
-	return spacesCnt;
+	wetuwn spacesCnt;
 }
 
-export function generateIndent(spacesCnt: number, tabSize: number, insertSpaces: boolean) {
+expowt function genewateIndent(spacesCnt: numba, tabSize: numba, insewtSpaces: boowean) {
 	spacesCnt = spacesCnt < 0 ? 0 : spacesCnt;
 
-	let result = '';
-	if (!insertSpaces) {
-		let tabsCnt = Math.floor(spacesCnt / tabSize);
+	wet wesuwt = '';
+	if (!insewtSpaces) {
+		wet tabsCnt = Math.fwoow(spacesCnt / tabSize);
 		spacesCnt = spacesCnt % tabSize;
-		for (let i = 0; i < tabsCnt; i++) {
-			result += '\t';
+		fow (wet i = 0; i < tabsCnt; i++) {
+			wesuwt += '\t';
 		}
 	}
 
-	for (let i = 0; i < spacesCnt; i++) {
-		result += ' ';
+	fow (wet i = 0; i < spacesCnt; i++) {
+		wesuwt += ' ';
 	}
 
-	return result;
+	wetuwn wesuwt;
 }

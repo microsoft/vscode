@@ -1,415 +1,415 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { Emitter, Event } from 'vs/base/common/event';
-import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as platform from 'vs/base/common/platform';
-import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { localize } from 'vs/nls';
-import { generateUuid } from 'vs/base/common/uuid';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { Barrier } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
+impowt { DefauwtWowkewFactowy } fwom 'vs/base/wowka/defauwtWowkewFactowy';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { toDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { cweateMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostPwotocow';
+impowt { IInitData, UIKind } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionHost, ExtensionHostWogFiweName, ExtensionHostKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOutputChannewWegistwy, Extensions } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { wocawize } fwom 'vs/nws';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { cancewed, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { NewWowkewMessage, TewminateWowkewMessage } fwom 'vs/wowkbench/sewvices/extensions/common/powyfiwwNestedWowka.pwotocow';
 
-export interface IWebWorkerExtensionHostInitData {
-	readonly autoStart: boolean;
-	readonly extensions: IExtensionDescription[];
+expowt intewface IWebWowkewExtensionHostInitData {
+	weadonwy autoStawt: boowean;
+	weadonwy extensions: IExtensionDescwiption[];
 }
 
-export interface IWebWorkerExtensionHostDataProvider {
-	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
+expowt intewface IWebWowkewExtensionHostDataPwovida {
+	getInitData(): Pwomise<IWebWowkewExtensionHostInitData>;
 }
 
-const ttPolicyNestedWorker = window.trustedTypes?.createPolicy('webNestedWorkerExtensionHost', {
-	createScriptURL(value) {
-		if (value.startsWith('blob:')) {
-			return value;
+const ttPowicyNestedWowka = window.twustedTypes?.cweatePowicy('webNestedWowkewExtensionHost', {
+	cweateScwiptUWW(vawue) {
+		if (vawue.stawtsWith('bwob:')) {
+			wetuwn vawue;
 		}
-		throw new Error(value + ' is NOT allowed');
+		thwow new Ewwow(vawue + ' is NOT awwowed');
 	}
 });
 
-export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
+expowt cwass WebWowkewExtensionHost extends Disposabwe impwements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalWebWorker;
-	public readonly remoteAuthority = null;
-	public readonly lazyStart: boolean;
+	pubwic weadonwy kind = ExtensionHostKind.WocawWebWowka;
+	pubwic weadonwy wemoteAuthowity = nuww;
+	pubwic weadonwy wazyStawt: boowean;
 
-	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
-	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
+	pwivate weadonwy _onDidExit = this._wegista(new Emitta<[numba, stwing | nuww]>());
+	pubwic weadonwy onExit: Event<[numba, stwing | nuww]> = this._onDidExit.event;
 
-	private _isTerminating: boolean;
-	private _protocolPromise: Promise<IMessagePassingProtocol> | null;
-	private _protocol: IMessagePassingProtocol | null;
+	pwivate _isTewminating: boowean;
+	pwivate _pwotocowPwomise: Pwomise<IMessagePassingPwotocow> | nuww;
+	pwivate _pwotocow: IMessagePassingPwotocow | nuww;
 
-	private readonly _extensionHostLogsLocation: URI;
-	private readonly _extensionHostLogFile: URI;
+	pwivate weadonwy _extensionHostWogsWocation: UWI;
+	pwivate weadonwy _extensionHostWogFiwe: UWI;
 
-	constructor(
-		lazyStart: boolean,
-		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@ILogService private readonly _logService: ILogService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly _productService: IProductService,
-		@ILayoutService private readonly _layoutService: ILayoutService,
+	constwuctow(
+		wazyStawt: boowean,
+		pwivate weadonwy _initDataPwovida: IWebWowkewExtensionHostDataPwovida,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
+		@IWayoutSewvice pwivate weadonwy _wayoutSewvice: IWayoutSewvice,
 	) {
-		super();
-		this.lazyStart = lazyStart;
-		this._isTerminating = false;
-		this._protocolPromise = null;
-		this._protocol = null;
-		this._extensionHostLogsLocation = joinPath(this._environmentService.extHostLogsPath, 'webWorker');
-		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
+		supa();
+		this.wazyStawt = wazyStawt;
+		this._isTewminating = fawse;
+		this._pwotocowPwomise = nuww;
+		this._pwotocow = nuww;
+		this._extensionHostWogsWocation = joinPath(this._enviwonmentSewvice.extHostWogsPath, 'webWowka');
+		this._extensionHostWogFiwe = joinPath(this._extensionHostWogsWocation, `${ExtensionHostWogFiweName}.wog`);
 	}
 
-	private _webWorkerExtensionHostIframeSrc(): string | null {
-		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
-		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
-			return this._environmentService.options.webWorkerExtensionHostIframeSrc + suffix;
+	pwivate _webWowkewExtensionHostIfwameSwc(): stwing | nuww {
+		const suffix = this._enviwonmentSewvice.debugExtensionHost && this._enviwonmentSewvice.debugWendewa ? '?debugged=1' : '?';
+		if (this._enviwonmentSewvice.options && this._enviwonmentSewvice.options.webWowkewExtensionHostIfwameSwc) {
+			wetuwn this._enviwonmentSewvice.options.webWowkewExtensionHostIfwameSwc + suffix;
 		}
 
-		const forceHTTPS = (location.protocol === 'https:');
+		const fowceHTTPS = (wocation.pwotocow === 'https:');
 
-		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
-			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
-			const commit = this._productService.commit;
-			const quality = this._productService.quality;
-			if (webEndpointUrlTemplate && commit && quality) {
-				const baseUrl = (
-					webEndpointUrlTemplate
-						.replace('{{uuid}}', generateUuid())
-						.replace('{{commit}}', commit)
-						.replace('{{quality}}', quality)
+		if (this._enviwonmentSewvice.options && this._enviwonmentSewvice.options.__uniqueWebWowkewExtensionHostOwigin) {
+			const webEndpointUwwTempwate = this._pwoductSewvice.webEndpointUwwTempwate;
+			const commit = this._pwoductSewvice.commit;
+			const quawity = this._pwoductSewvice.quawity;
+			if (webEndpointUwwTempwate && commit && quawity) {
+				const baseUww = (
+					webEndpointUwwTempwate
+						.wepwace('{{uuid}}', genewateUuid())
+						.wepwace('{{commit}}', commit)
+						.wepwace('{{quawity}}', quawity)
 				);
 				const base = (
-					forceHTTPS
-						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
-						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+					fowceHTTPS
+						? `${baseUww}/out/vs/wowkbench/sewvices/extensions/wowka/httpsWebWowkewExtensionHostIfwame.htmw`
+						: `${baseUww}/out/vs/wowkbench/sewvices/extensions/wowka/httpWebWowkewExtensionHostIfwame.htmw`
 				);
 
-				return base + suffix;
+				wetuwn base + suffix;
 			}
 		}
 
-		if (this._productService.webEndpointUrl) {
-			let baseUrl = this._productService.webEndpointUrl;
-			if (this._productService.quality) {
-				baseUrl += `/${this._productService.quality}`;
+		if (this._pwoductSewvice.webEndpointUww) {
+			wet baseUww = this._pwoductSewvice.webEndpointUww;
+			if (this._pwoductSewvice.quawity) {
+				baseUww += `/${this._pwoductSewvice.quawity}`;
 			}
-			if (this._productService.commit) {
-				baseUrl += `/${this._productService.commit}`;
+			if (this._pwoductSewvice.commit) {
+				baseUww += `/${this._pwoductSewvice.commit}`;
 			}
 			const base = (
-				forceHTTPS
-					? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
-					: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+				fowceHTTPS
+					? `${baseUww}/out/vs/wowkbench/sewvices/extensions/wowka/httpsWebWowkewExtensionHostIfwame.htmw`
+					: `${baseUww}/out/vs/wowkbench/sewvices/extensions/wowka/httpWebWowkewExtensionHostIfwame.htmw`
 			);
 
-			return base + suffix;
+			wetuwn base + suffix;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public async start(): Promise<IMessagePassingProtocol> {
-		if (!this._protocolPromise) {
-			if (platform.isWeb) {
-				const webWorkerExtensionHostIframeSrc = this._webWorkerExtensionHostIframeSrc();
-				if (webWorkerExtensionHostIframeSrc) {
-					this._protocolPromise = this._startInsideIframe(webWorkerExtensionHostIframeSrc);
-				} else {
-					console.warn(`The web worker extension host is started without an iframe sandbox!`);
-					this._protocolPromise = this._startOutsideIframe();
+	pubwic async stawt(): Pwomise<IMessagePassingPwotocow> {
+		if (!this._pwotocowPwomise) {
+			if (pwatfowm.isWeb) {
+				const webWowkewExtensionHostIfwameSwc = this._webWowkewExtensionHostIfwameSwc();
+				if (webWowkewExtensionHostIfwameSwc) {
+					this._pwotocowPwomise = this._stawtInsideIfwame(webWowkewExtensionHostIfwameSwc);
+				} ewse {
+					consowe.wawn(`The web wowka extension host is stawted without an ifwame sandbox!`);
+					this._pwotocowPwomise = this._stawtOutsideIfwame();
 				}
-			} else {
-				this._protocolPromise = this._startOutsideIframe();
+			} ewse {
+				this._pwotocowPwomise = this._stawtOutsideIfwame();
 			}
-			this._protocolPromise.then(protocol => this._protocol = protocol);
+			this._pwotocowPwomise.then(pwotocow => this._pwotocow = pwotocow);
 		}
-		return this._protocolPromise;
+		wetuwn this._pwotocowPwomise;
 	}
 
-	private async _startInsideIframe(webWorkerExtensionHostIframeSrc: string): Promise<IMessagePassingProtocol> {
-		const emitter = this._register(new Emitter<VSBuffer>());
+	pwivate async _stawtInsideIfwame(webWowkewExtensionHostIfwameSwc: stwing): Pwomise<IMessagePassingPwotocow> {
+		const emitta = this._wegista(new Emitta<VSBuffa>());
 
-		const iframe = document.createElement('iframe');
-		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
-		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.style.display = 'none';
+		const ifwame = document.cweateEwement('ifwame');
+		ifwame.setAttwibute('cwass', 'web-wowka-ext-host-ifwame');
+		ifwame.setAttwibute('sandbox', 'awwow-scwipts awwow-same-owigin');
+		ifwame.stywe.dispway = 'none';
 
-		const vscodeWebWorkerExtHostId = generateUuid();
-		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
+		const vscodeWebWowkewExtHostId = genewateUuid();
+		ifwame.setAttwibute('swc', `${webWowkewExtensionHostIfwameSwc}&vscodeWebWowkewExtHostId=${vscodeWebWowkewExtHostId}`);
 
-		const barrier = new Barrier();
-		let port!: MessagePort;
-		let barrierError: Error | null = null;
-		let barrierHasError = false;
-		let startTimeout: any = null;
+		const bawwia = new Bawwia();
+		wet powt!: MessagePowt;
+		wet bawwiewEwwow: Ewwow | nuww = nuww;
+		wet bawwiewHasEwwow = fawse;
+		wet stawtTimeout: any = nuww;
 
-		const rejectBarrier = (exitCode: number, error: Error) => {
-			barrierError = error;
-			barrierHasError = true;
-			onUnexpectedError(barrierError);
-			clearTimeout(startTimeout);
-			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, barrierError.message]);
-			barrier.open();
+		const wejectBawwia = (exitCode: numba, ewwow: Ewwow) => {
+			bawwiewEwwow = ewwow;
+			bawwiewHasEwwow = twue;
+			onUnexpectedEwwow(bawwiewEwwow);
+			cweawTimeout(stawtTimeout);
+			this._onDidExit.fiwe([ExtensionHostExitCode.UnexpectedEwwow, bawwiewEwwow.message]);
+			bawwia.open();
 		};
 
-		const resolveBarrier = (messagePort: MessagePort) => {
-			port = messagePort;
-			clearTimeout(startTimeout);
-			barrier.open();
+		const wesowveBawwia = (messagePowt: MessagePowt) => {
+			powt = messagePowt;
+			cweawTimeout(stawtTimeout);
+			bawwia.open();
 		};
 
-		startTimeout = setTimeout(() => {
-			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
+		stawtTimeout = setTimeout(() => {
+			consowe.wawn(`The Web Wowka Extension Host did not stawt in 60s, that might be a pwobwem.`);
 		}, 60000);
 
-		this._register(dom.addDisposableListener(window, 'message', (event) => {
-			if (event.source !== iframe.contentWindow) {
-				return;
+		this._wegista(dom.addDisposabweWistena(window, 'message', (event) => {
+			if (event.souwce !== ifwame.contentWindow) {
+				wetuwn;
 			}
-			if (event.data.vscodeWebWorkerExtHostId !== vscodeWebWorkerExtHostId) {
-				return;
+			if (event.data.vscodeWebWowkewExtHostId !== vscodeWebWowkewExtHostId) {
+				wetuwn;
 			}
-			if (event.data.error) {
-				const { name, message, stack } = event.data.error;
-				const err = new Error();
-				err.message = message;
-				err.name = name;
-				err.stack = stack;
-				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+			if (event.data.ewwow) {
+				const { name, message, stack } = event.data.ewwow;
+				const eww = new Ewwow();
+				eww.message = message;
+				eww.name = name;
+				eww.stack = stack;
+				wetuwn wejectBawwia(ExtensionHostExitCode.UnexpectedEwwow, eww);
 			}
 			const { data } = event.data;
-			if (barrier.isOpen() || !(data instanceof MessagePort)) {
-				console.warn('UNEXPECTED message', event);
-				const err = new Error('UNEXPECTED message');
-				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
+			if (bawwia.isOpen() || !(data instanceof MessagePowt)) {
+				consowe.wawn('UNEXPECTED message', event);
+				const eww = new Ewwow('UNEXPECTED message');
+				wetuwn wejectBawwia(ExtensionHostExitCode.UnexpectedEwwow, eww);
 			}
-			resolveBarrier(data);
+			wesowveBawwia(data);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
-		this._register(toDisposable(() => iframe.remove()));
+		this._wayoutSewvice.containa.appendChiwd(ifwame);
+		this._wegista(toDisposabwe(() => ifwame.wemove()));
 
-		// await MessagePort and use it to directly communicate
-		// with the worker extension host
-		await barrier.wait();
+		// await MessagePowt and use it to diwectwy communicate
+		// with the wowka extension host
+		await bawwia.wait();
 
-		if (barrierHasError) {
-			throw barrierError;
+		if (bawwiewHasEwwow) {
+			thwow bawwiewEwwow;
 		}
 
-		port.onmessage = (event) => {
+		powt.onmessage = (event) => {
 			const { data } = event;
-			if (!(data instanceof ArrayBuffer)) {
-				console.warn('UNKNOWN data received', data);
-				this._onDidExit.fire([77, 'UNKNOWN data received']);
-				return;
+			if (!(data instanceof AwwayBuffa)) {
+				consowe.wawn('UNKNOWN data weceived', data);
+				this._onDidExit.fiwe([77, 'UNKNOWN data weceived']);
+				wetuwn;
 			}
-			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
+			emitta.fiwe(VSBuffa.wwap(new Uint8Awway(data, 0, data.byteWength)));
 		};
 
-		const protocol: IMessagePassingProtocol = {
-			onMessage: emitter.event,
+		const pwotocow: IMessagePassingPwotocow = {
+			onMessage: emitta.event,
 			send: vsbuf => {
-				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				port.postMessage(data, [data]);
+				const data = vsbuf.buffa.buffa.swice(vsbuf.buffa.byteOffset, vsbuf.buffa.byteOffset + vsbuf.buffa.byteWength);
+				powt.postMessage(data, [data]);
 			}
 		};
 
-		return this._performHandshake(protocol);
+		wetuwn this._pewfowmHandshake(pwotocow);
 	}
 
-	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
-		const emitter = new Emitter<VSBuffer>();
-		const barrier = new Barrier();
-		let port!: MessagePort;
+	pwivate async _stawtOutsideIfwame(): Pwomise<IMessagePassingPwotocow> {
+		const emitta = new Emitta<VSBuffa>();
+		const bawwia = new Bawwia();
+		wet powt!: MessagePowt;
 
-		const nestedWorker = new Map<string, Worker>();
+		const nestedWowka = new Map<stwing, Wowka>();
 
-		const name = this._environmentService.debugRenderer && this._environmentService.debugExtensionHost ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
-		const worker = new DefaultWorkerFactory(name).create(
-			'vs/workbench/services/extensions/worker/extensionHostWorker',
-			(data: MessagePort | NewWorkerMessage | TerminateWorkerMessage | any) => {
+		const name = this._enviwonmentSewvice.debugWendewa && this._enviwonmentSewvice.debugExtensionHost ? 'DebugWowkewExtensionHost' : 'WowkewExtensionHost';
+		const wowka = new DefauwtWowkewFactowy(name).cweate(
+			'vs/wowkbench/sewvices/extensions/wowka/extensionHostWowka',
+			(data: MessagePowt | NewWowkewMessage | TewminateWowkewMessage | any) => {
 
-				if (data instanceof MessagePort) {
-					// receiving a message port which is used to communicate
-					// with the web worker extension host
-					if (barrier.isOpen()) {
-						console.warn('UNEXPECTED message', data);
-						this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
-						return;
+				if (data instanceof MessagePowt) {
+					// weceiving a message powt which is used to communicate
+					// with the web wowka extension host
+					if (bawwia.isOpen()) {
+						consowe.wawn('UNEXPECTED message', data);
+						this._onDidExit.fiwe([ExtensionHostExitCode.UnexpectedEwwow, 'weceived a message powt AFTa opening the bawwia']);
+						wetuwn;
 					}
-					port = data;
-					barrier.open();
+					powt = data;
+					bawwia.open();
 
 
-				} else if (data?.type === '_newWorker') {
-					// receiving a message to create a new nested/child worker
-					const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
-					worker.postMessage(data.port, [data.port]);
-					worker.onerror = console.error.bind(console);
-					nestedWorker.set(data.id, worker);
+				} ewse if (data?.type === '_newWowka') {
+					// weceiving a message to cweate a new nested/chiwd wowka
+					const wowka = new Wowka((ttPowicyNestedWowka?.cweateScwiptUWW(data.uww) ?? data.uww) as stwing, data.options);
+					wowka.postMessage(data.powt, [data.powt]);
+					wowka.onewwow = consowe.ewwow.bind(consowe);
+					nestedWowka.set(data.id, wowka);
 
-				} else if (data?.type === '_terminateWorker') {
-					// receiving a message to terminate nested/child worker
-					if (nestedWorker.has(data.id)) {
-						nestedWorker.get(data.id)!.terminate();
-						nestedWorker.delete(data.id);
+				} ewse if (data?.type === '_tewminateWowka') {
+					// weceiving a message to tewminate nested/chiwd wowka
+					if (nestedWowka.has(data.id)) {
+						nestedWowka.get(data.id)!.tewminate();
+						nestedWowka.dewete(data.id);
 					}
 
-				} else {
-					// all other messages are an error
-					console.warn('UNEXPECTED message', data);
-					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
+				} ewse {
+					// aww otha messages awe an ewwow
+					consowe.wawn('UNEXPECTED message', data);
+					this._onDidExit.fiwe([ExtensionHostExitCode.UnexpectedEwwow, 'UNEXPECTED message']);
 				}
 			},
 			(event: any) => {
-				console.error(event.message, event.error);
+				consowe.ewwow(event.message, event.ewwow);
 
-				if (!barrier.isOpen()) {
-					// Only terminate the web worker extension host when an error occurs during handshake
-					// and setup. All other errors can be normal uncaught exceptions
-					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
+				if (!bawwia.isOpen()) {
+					// Onwy tewminate the web wowka extension host when an ewwow occuws duwing handshake
+					// and setup. Aww otha ewwows can be nowmaw uncaught exceptions
+					this._onDidExit.fiwe([ExtensionHostExitCode.UnexpectedEwwow, event.message || event.ewwow]);
 				}
 			}
 		);
 
-		// await MessagePort and use it to directly communicate
-		// with the worker extension host
-		await barrier.wait();
+		// await MessagePowt and use it to diwectwy communicate
+		// with the wowka extension host
+		await bawwia.wait();
 
-		port.onmessage = (event) => {
+		powt.onmessage = (event) => {
 			const { data } = event;
-			if (!(data instanceof ArrayBuffer)) {
-				console.warn('UNKNOWN data received', data);
-				this._onDidExit.fire([77, 'UNKNOWN data received']);
-				return;
+			if (!(data instanceof AwwayBuffa)) {
+				consowe.wawn('UNKNOWN data weceived', data);
+				this._onDidExit.fiwe([77, 'UNKNOWN data weceived']);
+				wetuwn;
 			}
 
-			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
+			emitta.fiwe(VSBuffa.wwap(new Uint8Awway(data, 0, data.byteWength)));
 		};
 
 
-		// keep for cleanup
-		this._register(emitter);
-		this._register(worker);
+		// keep fow cweanup
+		this._wegista(emitta);
+		this._wegista(wowka);
 
-		const protocol: IMessagePassingProtocol = {
-			onMessage: emitter.event,
+		const pwotocow: IMessagePassingPwotocow = {
+			onMessage: emitta.event,
 			send: vsbuf => {
-				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				port.postMessage(data, [data]);
+				const data = vsbuf.buffa.buffa.swice(vsbuf.buffa.byteOffset, vsbuf.buffa.byteOffset + vsbuf.buffa.byteWength);
+				powt.postMessage(data, [data]);
 			}
 		};
 
-		return this._performHandshake(protocol);
+		wetuwn this._pewfowmHandshake(pwotocow);
 	}
 
-	private async _performHandshake(protocol: IMessagePassingProtocol): Promise<IMessagePassingProtocol> {
-		// extension host handshake happens below
-		// (1) <== wait for: Ready
+	pwivate async _pewfowmHandshake(pwotocow: IMessagePassingPwotocow): Pwomise<IMessagePassingPwotocow> {
+		// extension host handshake happens bewow
+		// (1) <== wait fow: Weady
 		// (2) ==> send: init data
-		// (3) <== wait for: Initialized
+		// (3) <== wait fow: Initiawized
 
-		await Event.toPromise(Event.filter(protocol.onMessage, msg => isMessageOfType(msg, MessageType.Ready)));
-		if (this._isTerminating) {
-			throw canceled();
+		await Event.toPwomise(Event.fiwta(pwotocow.onMessage, msg => isMessageOfType(msg, MessageType.Weady)));
+		if (this._isTewminating) {
+			thwow cancewed();
 		}
-		protocol.send(VSBuffer.fromString(JSON.stringify(await this._createExtHostInitData())));
-		if (this._isTerminating) {
-			throw canceled();
+		pwotocow.send(VSBuffa.fwomStwing(JSON.stwingify(await this._cweateExtHostInitData())));
+		if (this._isTewminating) {
+			thwow cancewed();
 		}
-		await Event.toPromise(Event.filter(protocol.onMessage, msg => isMessageOfType(msg, MessageType.Initialized)));
-		if (this._isTerminating) {
-			throw canceled();
+		await Event.toPwomise(Event.fiwta(pwotocow.onMessage, msg => isMessageOfType(msg, MessageType.Initiawized)));
+		if (this._isTewminating) {
+			thwow cancewed();
 		}
 
-		// Register log channel for web worker exthost log
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'webWorkerExtHostLog', label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
+		// Wegista wog channew fow web wowka exthost wog
+		Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).wegistewChannew({ id: 'webWowkewExtHostWog', wabew: wocawize('name', "Wowka Extension Host"), fiwe: this._extensionHostWogFiwe, wog: twue });
 
-		return protocol;
+		wetuwn pwotocow;
 	}
 
-	public override dispose(): void {
-		if (this._isTerminating) {
-			return;
+	pubwic ovewwide dispose(): void {
+		if (this._isTewminating) {
+			wetuwn;
 		}
-		this._isTerminating = true;
-		if (this._protocol) {
-			this._protocol.send(createMessageOfType(MessageType.Terminate));
+		this._isTewminating = twue;
+		if (this._pwotocow) {
+			this._pwotocow.send(cweateMessageOfType(MessageType.Tewminate));
 		}
-		super.dispose();
+		supa.dispose();
 	}
 
-	getInspectPort(): number | undefined {
-		return undefined;
+	getInspectPowt(): numba | undefined {
+		wetuwn undefined;
 	}
 
-	enableInspectPort(): Promise<boolean> {
-		return Promise.resolve(false);
+	enabweInspectPowt(): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(fawse);
 	}
 
-	private async _createExtHostInitData(): Promise<IInitData> {
-		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
-		const workspace = this._contextService.getWorkspace();
-		return {
-			commit: this._productService.commit,
-			version: this._productService.version,
-			parentPid: -1,
-			environment: {
-				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
-				appName: this._productService.nameLong,
-				appHost: this._productService.embedderIdentifier || 'web',
-				appUriScheme: this._productService.urlProtocol,
-				appLanguage: platform.language,
-				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
-				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._environmentService.globalStorageHome,
-				workspaceStorageHome: this._environmentService.workspaceStorageHome,
+	pwivate async _cweateExtHostInitData(): Pwomise<IInitData> {
+		const [tewemetwyInfo, initData] = await Pwomise.aww([this._tewemetwySewvice.getTewemetwyInfo(), this._initDataPwovida.getInitData()]);
+		const wowkspace = this._contextSewvice.getWowkspace();
+		wetuwn {
+			commit: this._pwoductSewvice.commit,
+			vewsion: this._pwoductSewvice.vewsion,
+			pawentPid: -1,
+			enviwonment: {
+				isExtensionDevewopmentDebug: this._enviwonmentSewvice.debugWendewa,
+				appName: this._pwoductSewvice.nameWong,
+				appHost: this._pwoductSewvice.embeddewIdentifia || 'web',
+				appUwiScheme: this._pwoductSewvice.uwwPwotocow,
+				appWanguage: pwatfowm.wanguage,
+				extensionDevewopmentWocationUWI: this._enviwonmentSewvice.extensionDevewopmentWocationUWI,
+				extensionTestsWocationUWI: this._enviwonmentSewvice.extensionTestsWocationUWI,
+				gwobawStowageHome: this._enviwonmentSewvice.gwobawStowageHome,
+				wowkspaceStowageHome: this._enviwonmentSewvice.wowkspaceStowageHome,
 			},
-			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-				configuration: workspace.configuration || undefined,
-				id: workspace.id,
-				name: this._labelService.getWorkspaceLabel(workspace)
+			wowkspace: this._contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY ? undefined : {
+				configuwation: wowkspace.configuwation || undefined,
+				id: wowkspace.id,
+				name: this._wabewSewvice.getWowkspaceWabew(wowkspace)
 			},
-			resolvedExtensions: [],
+			wesowvedExtensions: [],
 			hostExtensions: [],
 			extensions: initData.extensions,
-			telemetryInfo,
-			logLevel: this._logService.getLevel(),
-			logsLocation: this._extensionHostLogsLocation,
-			logFile: this._extensionHostLogFile,
-			autoStart: initData.autoStart,
-			remote: {
-				authority: this._environmentService.remoteAuthority,
-				connectionData: null,
-				isRemote: false
+			tewemetwyInfo,
+			wogWevew: this._wogSewvice.getWevew(),
+			wogsWocation: this._extensionHostWogsWocation,
+			wogFiwe: this._extensionHostWogFiwe,
+			autoStawt: initData.autoStawt,
+			wemote: {
+				authowity: this._enviwonmentSewvice.wemoteAuthowity,
+				connectionData: nuww,
+				isWemote: fawse
 			},
-			uiKind: platform.isWeb ? UIKind.Web : UIKind.Desktop
+			uiKind: pwatfowm.isWeb ? UIKind.Web : UIKind.Desktop
 		};
 	}
 }

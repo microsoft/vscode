@@ -1,10 +1,10 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
+	"compiwewOptions": {
+		"outDiw": "./out",
 		"types": []
 	},
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

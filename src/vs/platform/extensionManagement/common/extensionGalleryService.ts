@@ -1,966 +1,966 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { getOrDefault } from 'vs/base/common/objects';
-import { IPager } from 'vs/base/common/paging';
-import { isWeb, platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed, getEwwowMessage, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { getOwDefauwt } fwom 'vs/base/common/objects';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { isWeb, pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { awch } fwom 'vs/base/common/pwocess';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IHeadews, IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { DefauwtIconPath, getFawwbackTawgetPwawfowms, getTawgetPwatfowm, IExtensionGawwewySewvice, IExtensionIdentifia, IExtensionIdentifiewWithVewsion, IGawwewyExtension, IGawwewyExtensionAsset, IGawwewyExtensionAssets, IGawwewyExtensionVewsion, InstawwOpewation, IQuewyOptions, IWepowtedExtension, isIExtensionIdentifia, isNotWebExtensionInWebTawgetPwatfowm, isTawgetPwatfowmCompatibwe, ITwanswation, SowtBy, SowtOwda, StatisticType, TawgetPwatfowm, toTawgetPwatfowm, WEB_EXTENSION_TAG } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { adoptToGawwewyExtensionId, aweSameExtensions, getGawwewyExtensionId, getGawwewyExtensionTewemetwyData } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { isEngineVawid } fwom 'vs/pwatfowm/extensions/common/extensionVawidatow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asJson, asText, IWequestSewvice, isSuccess } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { getTewemetwyWevew, suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
+const CUWWENT_TAWGET_PWATFOWM = isWeb ? TawgetPwatfowm.WEB : getTawgetPwatfowm(pwatfowm, awch);
 
-interface IRawGalleryExtensionFile {
-	readonly assetType: string;
-	readonly source: string;
+intewface IWawGawwewyExtensionFiwe {
+	weadonwy assetType: stwing;
+	weadonwy souwce: stwing;
 }
 
-interface IRawGalleryExtensionProperty {
-	readonly key: string;
-	readonly value: string;
+intewface IWawGawwewyExtensionPwopewty {
+	weadonwy key: stwing;
+	weadonwy vawue: stwing;
 }
 
-export interface IRawGalleryExtensionVersion {
-	readonly version: string;
-	readonly lastUpdated: string;
-	readonly assetUri: string;
-	readonly fallbackAssetUri: string;
-	readonly files: IRawGalleryExtensionFile[];
-	readonly properties?: IRawGalleryExtensionProperty[];
-	readonly targetPlatform?: string;
+expowt intewface IWawGawwewyExtensionVewsion {
+	weadonwy vewsion: stwing;
+	weadonwy wastUpdated: stwing;
+	weadonwy assetUwi: stwing;
+	weadonwy fawwbackAssetUwi: stwing;
+	weadonwy fiwes: IWawGawwewyExtensionFiwe[];
+	weadonwy pwopewties?: IWawGawwewyExtensionPwopewty[];
+	weadonwy tawgetPwatfowm?: stwing;
 }
 
-interface IRawGalleryExtensionStatistics {
-	readonly statisticName: string;
-	readonly value: number;
+intewface IWawGawwewyExtensionStatistics {
+	weadonwy statisticName: stwing;
+	weadonwy vawue: numba;
 }
 
-interface IRawGalleryExtension {
-	readonly extensionId: string;
-	readonly extensionName: string;
-	readonly displayName: string;
-	readonly shortDescription: string;
-	readonly publisher: { displayName: string, publisherId: string, publisherName: string; };
-	readonly versions: IRawGalleryExtensionVersion[];
-	readonly statistics: IRawGalleryExtensionStatistics[];
-	readonly tags: string[] | undefined;
-	readonly releaseDate: string;
-	readonly publishedDate: string;
-	readonly lastUpdated: string;
-	readonly categories: string[] | undefined;
-	readonly flags: string;
+intewface IWawGawwewyExtension {
+	weadonwy extensionId: stwing;
+	weadonwy extensionName: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy showtDescwiption: stwing;
+	weadonwy pubwisha: { dispwayName: stwing, pubwishewId: stwing, pubwishewName: stwing; };
+	weadonwy vewsions: IWawGawwewyExtensionVewsion[];
+	weadonwy statistics: IWawGawwewyExtensionStatistics[];
+	weadonwy tags: stwing[] | undefined;
+	weadonwy weweaseDate: stwing;
+	weadonwy pubwishedDate: stwing;
+	weadonwy wastUpdated: stwing;
+	weadonwy categowies: stwing[] | undefined;
+	weadonwy fwags: stwing;
 }
 
-interface IRawGalleryQueryResult {
-	readonly results: {
-		readonly extensions: IRawGalleryExtension[];
-		readonly resultMetadata: {
-			readonly metadataType: string;
-			readonly metadataItems: {
-				readonly name: string;
-				readonly count: number;
+intewface IWawGawwewyQuewyWesuwt {
+	weadonwy wesuwts: {
+		weadonwy extensions: IWawGawwewyExtension[];
+		weadonwy wesuwtMetadata: {
+			weadonwy metadataType: stwing;
+			weadonwy metadataItems: {
+				weadonwy name: stwing;
+				weadonwy count: numba;
 			}[];
 		}[]
 	}[];
 }
 
-enum Flags {
+enum Fwags {
 	None = 0x0,
-	IncludeVersions = 0x1,
-	IncludeFiles = 0x2,
-	IncludeCategoryAndTags = 0x4,
-	IncludeSharedAccounts = 0x8,
-	IncludeVersionProperties = 0x10,
-	ExcludeNonValidated = 0x20,
-	IncludeInstallationTargets = 0x40,
-	IncludeAssetUri = 0x80,
-	IncludeStatistics = 0x100,
-	IncludeLatestVersionOnly = 0x200,
-	Unpublished = 0x1000
+	IncwudeVewsions = 0x1,
+	IncwudeFiwes = 0x2,
+	IncwudeCategowyAndTags = 0x4,
+	IncwudeShawedAccounts = 0x8,
+	IncwudeVewsionPwopewties = 0x10,
+	ExcwudeNonVawidated = 0x20,
+	IncwudeInstawwationTawgets = 0x40,
+	IncwudeAssetUwi = 0x80,
+	IncwudeStatistics = 0x100,
+	IncwudeWatestVewsionOnwy = 0x200,
+	Unpubwished = 0x1000
 }
 
-function flagsToString(...flags: Flags[]): string {
-	return String(flags.reduce((r, f) => r | f, 0));
+function fwagsToStwing(...fwags: Fwags[]): stwing {
+	wetuwn Stwing(fwags.weduce((w, f) => w | f, 0));
 }
 
-enum FilterType {
+enum FiwtewType {
 	Tag = 1,
 	ExtensionId = 4,
-	Category = 5,
+	Categowy = 5,
 	ExtensionName = 7,
-	Target = 8,
-	Featured = 9,
-	SearchText = 10,
-	ExcludeWithFlags = 12
+	Tawget = 8,
+	Featuwed = 9,
+	SeawchText = 10,
+	ExcwudeWithFwags = 12
 }
 
 const AssetType = {
-	Icon: 'Microsoft.VisualStudio.Services.Icons.Default',
-	Details: 'Microsoft.VisualStudio.Services.Content.Details',
-	Changelog: 'Microsoft.VisualStudio.Services.Content.Changelog',
-	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
-	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
-	License: 'Microsoft.VisualStudio.Services.Content.License',
-	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
+	Icon: 'Micwosoft.VisuawStudio.Sewvices.Icons.Defauwt',
+	Detaiws: 'Micwosoft.VisuawStudio.Sewvices.Content.Detaiws',
+	Changewog: 'Micwosoft.VisuawStudio.Sewvices.Content.Changewog',
+	Manifest: 'Micwosoft.VisuawStudio.Code.Manifest',
+	VSIX: 'Micwosoft.VisuawStudio.Sewvices.VSIXPackage',
+	Wicense: 'Micwosoft.VisuawStudio.Sewvices.Content.Wicense',
+	Wepositowy: 'Micwosoft.VisuawStudio.Sewvices.Winks.Souwce'
 };
 
-const PropertyType = {
-	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies',
-	ExtensionPack: 'Microsoft.VisualStudio.Code.ExtensionPack',
-	Engine: 'Microsoft.VisualStudio.Code.Engine',
-	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
-	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension'
+const PwopewtyType = {
+	Dependency: 'Micwosoft.VisuawStudio.Code.ExtensionDependencies',
+	ExtensionPack: 'Micwosoft.VisuawStudio.Code.ExtensionPack',
+	Engine: 'Micwosoft.VisuawStudio.Code.Engine',
+	WocawizedWanguages: 'Micwosoft.VisuawStudio.Code.WocawizedWanguages',
+	WebExtension: 'Micwosoft.VisuawStudio.Code.WebExtension'
 };
 
-interface ICriterium {
-	readonly filterType: FilterType;
-	readonly value?: string;
+intewface ICwitewium {
+	weadonwy fiwtewType: FiwtewType;
+	weadonwy vawue?: stwing;
 }
 
-const DefaultPageSize = 10;
+const DefauwtPageSize = 10;
 
-interface IQueryState {
-	readonly pageNumber: number;
-	readonly pageSize: number;
-	readonly sortBy: SortBy;
-	readonly sortOrder: SortOrder;
-	readonly flags: Flags;
-	readonly criteria: ICriterium[];
-	readonly assetTypes: string[];
+intewface IQuewyState {
+	weadonwy pageNumba: numba;
+	weadonwy pageSize: numba;
+	weadonwy sowtBy: SowtBy;
+	weadonwy sowtOwda: SowtOwda;
+	weadonwy fwags: Fwags;
+	weadonwy cwitewia: ICwitewium[];
+	weadonwy assetTypes: stwing[];
 }
 
-const DefaultQueryState: IQueryState = {
-	pageNumber: 1,
-	pageSize: DefaultPageSize,
-	sortBy: SortBy.NoneOrRelevance,
-	sortOrder: SortOrder.Default,
-	flags: Flags.None,
-	criteria: [],
+const DefauwtQuewyState: IQuewyState = {
+	pageNumba: 1,
+	pageSize: DefauwtPageSize,
+	sowtBy: SowtBy.NoneOwWewevance,
+	sowtOwda: SowtOwda.Defauwt,
+	fwags: Fwags.None,
+	cwitewia: [],
 	assetTypes: []
 };
 
-type GalleryServiceQueryClassification = {
-	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type GawwewySewviceQuewyCwassification = {
+	weadonwy fiwtewTypes: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy sowtBy: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy sowtOwda: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy duwation: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', 'isMeasuwement': twue };
+	weadonwy success: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy wequestBodySize: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy wesponseBodySize?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy statusCode?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy ewwowCode?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weadonwy count?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-type QueryTelemetryData = {
-	readonly filterTypes: string[];
-	readonly sortBy: string;
-	readonly sortOrder: string;
+type QuewyTewemetwyData = {
+	weadonwy fiwtewTypes: stwing[];
+	weadonwy sowtBy: stwing;
+	weadonwy sowtOwda: stwing;
 };
 
-type GalleryServiceQueryEvent = QueryTelemetryData & {
-	readonly duration: number;
-	readonly success: boolean;
-	readonly requestBodySize: string;
-	readonly responseBodySize?: string;
-	readonly statusCode?: string;
-	readonly errorCode?: string;
-	readonly count?: string;
+type GawwewySewviceQuewyEvent = QuewyTewemetwyData & {
+	weadonwy duwation: numba;
+	weadonwy success: boowean;
+	weadonwy wequestBodySize: stwing;
+	weadonwy wesponseBodySize?: stwing;
+	weadonwy statusCode?: stwing;
+	weadonwy ewwowCode?: stwing;
+	weadonwy count?: stwing;
 };
 
-class Query {
+cwass Quewy {
 
-	constructor(private state = DefaultQueryState) { }
+	constwuctow(pwivate state = DefauwtQuewyState) { }
 
-	get pageNumber(): number { return this.state.pageNumber; }
-	get pageSize(): number { return this.state.pageSize; }
-	get sortBy(): number { return this.state.sortBy; }
-	get sortOrder(): number { return this.state.sortOrder; }
-	get flags(): number { return this.state.flags; }
+	get pageNumba(): numba { wetuwn this.state.pageNumba; }
+	get pageSize(): numba { wetuwn this.state.pageSize; }
+	get sowtBy(): numba { wetuwn this.state.sowtBy; }
+	get sowtOwda(): numba { wetuwn this.state.sowtOwda; }
+	get fwags(): numba { wetuwn this.state.fwags; }
 
-	withPage(pageNumber: number, pageSize: number = this.state.pageSize): Query {
-		return new Query({ ...this.state, pageNumber, pageSize });
+	withPage(pageNumba: numba, pageSize: numba = this.state.pageSize): Quewy {
+		wetuwn new Quewy({ ...this.state, pageNumba, pageSize });
 	}
 
-	withFilter(filterType: FilterType, ...values: string[]): Query {
-		const criteria = [
-			...this.state.criteria,
-			...values.length ? values.map(value => ({ filterType, value })) : [{ filterType }]
+	withFiwta(fiwtewType: FiwtewType, ...vawues: stwing[]): Quewy {
+		const cwitewia = [
+			...this.state.cwitewia,
+			...vawues.wength ? vawues.map(vawue => ({ fiwtewType, vawue })) : [{ fiwtewType }]
 		];
 
-		return new Query({ ...this.state, criteria });
+		wetuwn new Quewy({ ...this.state, cwitewia });
 	}
 
-	withSortBy(sortBy: SortBy): Query {
-		return new Query({ ...this.state, sortBy });
+	withSowtBy(sowtBy: SowtBy): Quewy {
+		wetuwn new Quewy({ ...this.state, sowtBy });
 	}
 
-	withSortOrder(sortOrder: SortOrder): Query {
-		return new Query({ ...this.state, sortOrder });
+	withSowtOwda(sowtOwda: SowtOwda): Quewy {
+		wetuwn new Quewy({ ...this.state, sowtOwda });
 	}
 
-	withFlags(...flags: Flags[]): Query {
-		return new Query({ ...this.state, flags: flags.reduce<number>((r, f) => r | f, 0) });
+	withFwags(...fwags: Fwags[]): Quewy {
+		wetuwn new Quewy({ ...this.state, fwags: fwags.weduce<numba>((w, f) => w | f, 0) });
 	}
 
-	withAssetTypes(...assetTypes: string[]): Query {
-		return new Query({ ...this.state, assetTypes });
+	withAssetTypes(...assetTypes: stwing[]): Quewy {
+		wetuwn new Quewy({ ...this.state, assetTypes });
 	}
 
-	get raw(): any {
-		const { criteria, pageNumber, pageSize, sortBy, sortOrder, flags, assetTypes } = this.state;
-		const filters = [{ criteria, pageNumber, pageSize, sortBy, sortOrder }];
-		return { filters, assetTypes, flags };
+	get waw(): any {
+		const { cwitewia, pageNumba, pageSize, sowtBy, sowtOwda, fwags, assetTypes } = this.state;
+		const fiwtews = [{ cwitewia, pageNumba, pageSize, sowtBy, sowtOwda }];
+		wetuwn { fiwtews, assetTypes, fwags };
 	}
 
-	get searchText(): string {
-		const criterium = this.state.criteria.filter(criterium => criterium.filterType === FilterType.SearchText)[0];
-		return criterium && criterium.value ? criterium.value : '';
+	get seawchText(): stwing {
+		const cwitewium = this.state.cwitewia.fiwta(cwitewium => cwitewium.fiwtewType === FiwtewType.SeawchText)[0];
+		wetuwn cwitewium && cwitewium.vawue ? cwitewium.vawue : '';
 	}
 
-	get telemetryData(): QueryTelemetryData {
-		return {
-			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
-			sortBy: String(this.sortBy),
-			sortOrder: String(this.sortOrder)
+	get tewemetwyData(): QuewyTewemetwyData {
+		wetuwn {
+			fiwtewTypes: this.state.cwitewia.map(cwitewium => Stwing(cwitewium.fiwtewType)),
+			sowtBy: Stwing(this.sowtBy),
+			sowtOwda: Stwing(this.sowtOwda)
 		};
 	}
 }
 
-function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string): number {
-	const result = (statistics || []).filter(s => s.statisticName === name)[0];
-	return result ? result.value : 0;
+function getStatistic(statistics: IWawGawwewyExtensionStatistics[], name: stwing): numba {
+	const wesuwt = (statistics || []).fiwta(s => s.statisticName === name)[0];
+	wetuwn wesuwt ? wesuwt.vawue : 0;
 }
 
-function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string, IGalleryExtensionAsset][] {
-	const coreTranslationAssetPrefix = 'Microsoft.VisualStudio.Code.Translation.';
-	const result = version.files.filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
-	return result.reduce<[string, IGalleryExtensionAsset][]>((result, file) => {
-		const asset = getVersionAsset(version, file.assetType);
+function getCoweTwanswationAssets(vewsion: IWawGawwewyExtensionVewsion): [stwing, IGawwewyExtensionAsset][] {
+	const coweTwanswationAssetPwefix = 'Micwosoft.VisuawStudio.Code.Twanswation.';
+	const wesuwt = vewsion.fiwes.fiwta(f => f.assetType.indexOf(coweTwanswationAssetPwefix) === 0);
+	wetuwn wesuwt.weduce<[stwing, IGawwewyExtensionAsset][]>((wesuwt, fiwe) => {
+		const asset = getVewsionAsset(vewsion, fiwe.assetType);
 		if (asset) {
-			result.push([file.assetType.substring(coreTranslationAssetPrefix.length), asset]);
+			wesuwt.push([fiwe.assetType.substwing(coweTwanswationAssetPwefix.wength), asset]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}, []);
 }
 
-function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset | null {
-	if (version.properties) {
-		const results = version.properties.filter(p => p.key === AssetType.Repository);
-		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\\w.]+))(:(//)?)([\\w.@:/\\-~]+)(.git)(/)?');
+function getWepositowyAsset(vewsion: IWawGawwewyExtensionVewsion): IGawwewyExtensionAsset | nuww {
+	if (vewsion.pwopewties) {
+		const wesuwts = vewsion.pwopewties.fiwta(p => p.key === AssetType.Wepositowy);
+		const gitWegExp = new WegExp('((git|ssh|http(s)?)|(git@[\\w.]+))(:(//)?)([\\w.@:/\\-~]+)(.git)(/)?');
 
-		const uri = results.filter(r => gitRegExp.test(r.value))[0];
-		return uri ? { uri: uri.value, fallbackUri: uri.value } : null;
+		const uwi = wesuwts.fiwta(w => gitWegExp.test(w.vawue))[0];
+		wetuwn uwi ? { uwi: uwi.vawue, fawwbackUwi: uwi.vawue } : nuww;
 	}
-	return getVersionAsset(version, AssetType.Repository);
+	wetuwn getVewsionAsset(vewsion, AssetType.Wepositowy);
 }
 
-function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
-	return {
-		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
-		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
+function getDownwoadAsset(vewsion: IWawGawwewyExtensionVewsion): IGawwewyExtensionAsset {
+	wetuwn {
+		uwi: `${vewsion.fawwbackAssetUwi}/${AssetType.VSIX}?wediwect=twue${vewsion.tawgetPwatfowm ? `&tawgetPwatfowm=${vewsion.tawgetPwatfowm}` : ''}`,
+		fawwbackUwi: `${vewsion.fawwbackAssetUwi}/${AssetType.VSIX}${vewsion.tawgetPwatfowm ? `?tawgetPwatfowm=${vewsion.tawgetPwatfowm}` : ''}`
 	};
 }
 
-function getIconAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
-	const asset = getVersionAsset(version, AssetType.Icon);
+function getIconAsset(vewsion: IWawGawwewyExtensionVewsion): IGawwewyExtensionAsset {
+	const asset = getVewsionAsset(vewsion, AssetType.Icon);
 	if (asset) {
-		return asset;
+		wetuwn asset;
 	}
-	const uri = DefaultIconPath;
-	return { uri, fallbackUri: uri };
+	const uwi = DefauwtIconPath;
+	wetuwn { uwi, fawwbackUwi: uwi };
 }
 
-function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset | null {
-	const result = version.files.filter(f => f.assetType === type)[0];
-	return result ? { uri: `${version.assetUri}/${type}`, fallbackUri: `${version.fallbackAssetUri}/${type}` } : null;
+function getVewsionAsset(vewsion: IWawGawwewyExtensionVewsion, type: stwing): IGawwewyExtensionAsset | nuww {
+	const wesuwt = vewsion.fiwes.fiwta(f => f.assetType === type)[0];
+	wetuwn wesuwt ? { uwi: `${vewsion.assetUwi}/${type}`, fawwbackUwi: `${vewsion.fawwbackAssetUwi}/${type}` } : nuww;
 }
 
-function getExtensions(version: IRawGalleryExtensionVersion, property: string): string[] {
-	const values = version.properties ? version.properties.filter(p => p.key === property) : [];
-	const value = values.length > 0 && values[0].value;
-	return value ? value.split(',').map(v => adoptToGalleryExtensionId(v)) : [];
+function getExtensions(vewsion: IWawGawwewyExtensionVewsion, pwopewty: stwing): stwing[] {
+	const vawues = vewsion.pwopewties ? vewsion.pwopewties.fiwta(p => p.key === pwopewty) : [];
+	const vawue = vawues.wength > 0 && vawues[0].vawue;
+	wetuwn vawue ? vawue.spwit(',').map(v => adoptToGawwewyExtensionId(v)) : [];
 }
 
-function getEngine(version: IRawGalleryExtensionVersion): string {
-	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.Engine) : [];
-	return (values.length > 0 && values[0].value) || '';
+function getEngine(vewsion: IWawGawwewyExtensionVewsion): stwing {
+	const vawues = vewsion.pwopewties ? vewsion.pwopewties.fiwta(p => p.key === PwopewtyType.Engine) : [];
+	wetuwn (vawues.wength > 0 && vawues[0].vawue) || '';
 }
 
-function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
-	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.LocalizedLanguages) : [];
-	const value = (values.length > 0 && values[0].value) || '';
-	return value ? value.split(',') : [];
+function getWocawizedWanguages(vewsion: IWawGawwewyExtensionVewsion): stwing[] {
+	const vawues = vewsion.pwopewties ? vewsion.pwopewties.fiwta(p => p.key === PwopewtyType.WocawizedWanguages) : [];
+	const vawue = (vawues.wength > 0 && vawues[0].vawue) || '';
+	wetuwn vawue ? vawue.spwit(',') : [];
 }
 
-function getIsPreview(flags: string): boolean {
-	return flags.indexOf('preview') !== -1;
+function getIsPweview(fwags: stwing): boowean {
+	wetuwn fwags.indexOf('pweview') !== -1;
 }
 
-function getTargetPlatformForExtensionVersion(version: IRawGalleryExtensionVersion): TargetPlatform {
-	return version.targetPlatform ? toTargetPlatform(version.targetPlatform) : TargetPlatform.UNDEFINED;
+function getTawgetPwatfowmFowExtensionVewsion(vewsion: IWawGawwewyExtensionVewsion): TawgetPwatfowm {
+	wetuwn vewsion.tawgetPwatfowm ? toTawgetPwatfowm(vewsion.tawgetPwatfowm) : TawgetPwatfowm.UNDEFINED;
 }
 
-function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): TargetPlatform[] {
-	const allTargetPlatforms = distinct(rawGalleryExtension.versions.map(getTargetPlatformForExtensionVersion));
+function getAwwTawgetPwatfowms(wawGawwewyExtension: IWawGawwewyExtension): TawgetPwatfowm[] {
+	const awwTawgetPwatfowms = distinct(wawGawwewyExtension.vewsions.map(getTawgetPwatfowmFowExtensionVewsion));
 
-	// Is a web extension only if it has WEB_EXTENSION_TAG
-	const isWebExtension = !!rawGalleryExtension.tags?.includes(WEB_EXTENSION_TAG);
+	// Is a web extension onwy if it has WEB_EXTENSION_TAG
+	const isWebExtension = !!wawGawwewyExtension.tags?.incwudes(WEB_EXTENSION_TAG);
 
-	// Include Web Target Platform only if it is a web extension
-	const webTargetPlatformIndex = allTargetPlatforms.indexOf(TargetPlatform.WEB);
+	// Incwude Web Tawget Pwatfowm onwy if it is a web extension
+	const webTawgetPwatfowmIndex = awwTawgetPwatfowms.indexOf(TawgetPwatfowm.WEB);
 	if (isWebExtension) {
-		if (webTargetPlatformIndex === -1) {
-			// Web extension but does not has web target platform -> add it
-			allTargetPlatforms.push(TargetPlatform.WEB);
+		if (webTawgetPwatfowmIndex === -1) {
+			// Web extension but does not has web tawget pwatfowm -> add it
+			awwTawgetPwatfowms.push(TawgetPwatfowm.WEB);
 		}
-	} else {
-		if (webTargetPlatformIndex !== -1) {
-			// Not a web extension but has web target platform -> remove it
-			allTargetPlatforms.splice(webTargetPlatformIndex, 1);
+	} ewse {
+		if (webTawgetPwatfowmIndex !== -1) {
+			// Not a web extension but has web tawget pwatfowm -> wemove it
+			awwTawgetPwatfowms.spwice(webTawgetPwatfowmIndex, 1);
 		}
 	}
 
-	return allTargetPlatforms;
+	wetuwn awwTawgetPwatfowms;
 }
 
-export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], preferredTargetPlatform: TargetPlatform): IRawGalleryExtensionVersion[] {
-	/* It is expected that versions from Marketplace are sorted by version. So we are just sorting by preferred targetPlatform */
-	const fallbackTargetPlatforms = getFallbackTargetPlarforms(preferredTargetPlatform);
-	for (let index = 0; index < versions.length; index++) {
-		const version = versions[index];
-		if (version.version === versions[index - 1]?.version) {
-			let insertionIndex = index;
-			const versionTargetPlatform = getTargetPlatformForExtensionVersion(version);
+expowt function sowtExtensionVewsions(vewsions: IWawGawwewyExtensionVewsion[], pwefewwedTawgetPwatfowm: TawgetPwatfowm): IWawGawwewyExtensionVewsion[] {
+	/* It is expected that vewsions fwom Mawketpwace awe sowted by vewsion. So we awe just sowting by pwefewwed tawgetPwatfowm */
+	const fawwbackTawgetPwatfowms = getFawwbackTawgetPwawfowms(pwefewwedTawgetPwatfowm);
+	fow (wet index = 0; index < vewsions.wength; index++) {
+		const vewsion = vewsions[index];
+		if (vewsion.vewsion === vewsions[index - 1]?.vewsion) {
+			wet insewtionIndex = index;
+			const vewsionTawgetPwatfowm = getTawgetPwatfowmFowExtensionVewsion(vewsion);
 			/* put it at the beginning */
-			if (versionTargetPlatform === preferredTargetPlatform) {
-				while (insertionIndex > 0 && versions[insertionIndex - 1].version === version.version) { insertionIndex--; }
+			if (vewsionTawgetPwatfowm === pwefewwedTawgetPwatfowm) {
+				whiwe (insewtionIndex > 0 && vewsions[insewtionIndex - 1].vewsion === vewsion.vewsion) { insewtionIndex--; }
 			}
-			/* put it after version with preferred targetPlatform or at the beginning */
-			else if (fallbackTargetPlatforms.includes(versionTargetPlatform)) {
-				while (insertionIndex > 0 && versions[insertionIndex - 1].version === version.version && getTargetPlatformForExtensionVersion(versions[insertionIndex - 1]) !== preferredTargetPlatform) { insertionIndex--; }
+			/* put it afta vewsion with pwefewwed tawgetPwatfowm ow at the beginning */
+			ewse if (fawwbackTawgetPwatfowms.incwudes(vewsionTawgetPwatfowm)) {
+				whiwe (insewtionIndex > 0 && vewsions[insewtionIndex - 1].vewsion === vewsion.vewsion && getTawgetPwatfowmFowExtensionVewsion(vewsions[insewtionIndex - 1]) !== pwefewwedTawgetPwatfowm) { insewtionIndex--; }
 			}
-			if (insertionIndex !== index) {
-				versions.splice(index, 1);
-				versions.splice(insertionIndex, 0, version);
+			if (insewtionIndex !== index) {
+				vewsions.spwice(index, 1);
+				vewsions.spwice(insewtionIndex, 0, vewsion);
 			}
 		}
 	}
-	return versions;
+	wetuwn vewsions;
 }
 
-function toExtensionWithLatestVersion(galleryExtension: IRawGalleryExtension, index: number, query: Query, querySource: string | undefined, targetPlatform: TargetPlatform): IGalleryExtension {
-	const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
-	let latestVersion = galleryExtension.versions[0];
-	latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(version), allTargetPlatforms, targetPlatform)) || latestVersion;
-	return toExtension(galleryExtension, latestVersion, allTargetPlatforms, index, query, querySource);
+function toExtensionWithWatestVewsion(gawwewyExtension: IWawGawwewyExtension, index: numba, quewy: Quewy, quewySouwce: stwing | undefined, tawgetPwatfowm: TawgetPwatfowm): IGawwewyExtension {
+	const awwTawgetPwatfowms = getAwwTawgetPwatfowms(gawwewyExtension);
+	wet watestVewsion = gawwewyExtension.vewsions[0];
+	watestVewsion = gawwewyExtension.vewsions.find(vewsion => vewsion.vewsion === watestVewsion.vewsion && isTawgetPwatfowmCompatibwe(getTawgetPwatfowmFowExtensionVewsion(vewsion), awwTawgetPwatfowms, tawgetPwatfowm)) || watestVewsion;
+	wetuwn toExtension(gawwewyExtension, watestVewsion, awwTawgetPwatfowms, index, quewy, quewySouwce);
 }
 
-function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], index: number, query: Query, querySource?: string): IGalleryExtension {
-	const assets = <IGalleryExtensionAssets>{
-		manifest: getVersionAsset(version, AssetType.Manifest),
-		readme: getVersionAsset(version, AssetType.Details),
-		changelog: getVersionAsset(version, AssetType.Changelog),
-		license: getVersionAsset(version, AssetType.License),
-		repository: getRepositoryAsset(version),
-		download: getDownloadAsset(version),
-		icon: getIconAsset(version),
-		coreTranslations: getCoreTranslationAssets(version)
+function toExtension(gawwewyExtension: IWawGawwewyExtension, vewsion: IWawGawwewyExtensionVewsion, awwTawgetPwatfowms: TawgetPwatfowm[], index: numba, quewy: Quewy, quewySouwce?: stwing): IGawwewyExtension {
+	const assets = <IGawwewyExtensionAssets>{
+		manifest: getVewsionAsset(vewsion, AssetType.Manifest),
+		weadme: getVewsionAsset(vewsion, AssetType.Detaiws),
+		changewog: getVewsionAsset(vewsion, AssetType.Changewog),
+		wicense: getVewsionAsset(vewsion, AssetType.Wicense),
+		wepositowy: getWepositowyAsset(vewsion),
+		downwoad: getDownwoadAsset(vewsion),
+		icon: getIconAsset(vewsion),
+		coweTwanswations: getCoweTwanswationAssets(vewsion)
 	};
 
-	return {
-		identifier: {
-			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
-			uuid: galleryExtension.extensionId
+	wetuwn {
+		identifia: {
+			id: getGawwewyExtensionId(gawwewyExtension.pubwisha.pubwishewName, gawwewyExtension.extensionName),
+			uuid: gawwewyExtension.extensionId
 		},
-		name: galleryExtension.extensionName,
-		version: version.version,
-		displayName: galleryExtension.displayName,
-		publisherId: galleryExtension.publisher.publisherId,
-		publisher: galleryExtension.publisher.publisherName,
-		publisherDisplayName: galleryExtension.publisher.displayName,
-		description: galleryExtension.shortDescription || '',
-		installCount: getStatistic(galleryExtension.statistics, 'install'),
-		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
-		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
-		categories: galleryExtension.categories || [],
-		tags: galleryExtension.tags || [],
-		releaseDate: Date.parse(galleryExtension.releaseDate),
-		lastUpdated: Date.parse(galleryExtension.lastUpdated),
-		allTargetPlatforms,
+		name: gawwewyExtension.extensionName,
+		vewsion: vewsion.vewsion,
+		dispwayName: gawwewyExtension.dispwayName,
+		pubwishewId: gawwewyExtension.pubwisha.pubwishewId,
+		pubwisha: gawwewyExtension.pubwisha.pubwishewName,
+		pubwishewDispwayName: gawwewyExtension.pubwisha.dispwayName,
+		descwiption: gawwewyExtension.showtDescwiption || '',
+		instawwCount: getStatistic(gawwewyExtension.statistics, 'instaww'),
+		wating: getStatistic(gawwewyExtension.statistics, 'avewagewating'),
+		watingCount: getStatistic(gawwewyExtension.statistics, 'watingcount'),
+		categowies: gawwewyExtension.categowies || [],
+		tags: gawwewyExtension.tags || [],
+		weweaseDate: Date.pawse(gawwewyExtension.weweaseDate),
+		wastUpdated: Date.pawse(gawwewyExtension.wastUpdated),
+		awwTawgetPwatfowms,
 		assets,
-		properties: {
-			dependencies: getExtensions(version, PropertyType.Dependency),
-			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
-			engine: getEngine(version),
-			localizedLanguages: getLocalizedLanguages(version),
-			targetPlatform: getTargetPlatformForExtensionVersion(version),
+		pwopewties: {
+			dependencies: getExtensions(vewsion, PwopewtyType.Dependency),
+			extensionPack: getExtensions(vewsion, PwopewtyType.ExtensionPack),
+			engine: getEngine(vewsion),
+			wocawizedWanguages: getWocawizedWanguages(vewsion),
+			tawgetPwatfowm: getTawgetPwatfowmFowExtensionVewsion(vewsion),
 		},
-		preview: getIsPreview(galleryExtension.flags),
-		/* __GDPR__FRAGMENT__
-			"GalleryExtensionTelemetryData2" : {
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"querySource": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		pweview: getIsPweview(gawwewyExtension.fwags),
+		/* __GDPW__FWAGMENT__
+			"GawwewyExtensionTewemetwyData2" : {
+				"index" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"quewySouwce": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		telemetryData: {
-			index: ((query.pageNumber - 1) * query.pageSize) + index,
-			querySource
+		tewemetwyData: {
+			index: ((quewy.pageNumba - 1) * quewy.pageSize) + index,
+			quewySouwce
 		},
 	};
 }
 
-interface IRawExtensionsReport {
-	malicious: string[];
-	slow: string[];
+intewface IWawExtensionsWepowt {
+	mawicious: stwing[];
+	swow: stwing[];
 }
 
-abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
+abstwact cwass AbstwactExtensionGawwewySewvice impwements IExtensionGawwewySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private extensionsGalleryUrl: string | undefined;
-	private extensionsControlUrl: string | undefined;
+	pwivate extensionsGawwewyUww: stwing | undefined;
+	pwivate extensionsContwowUww: stwing | undefined;
 
-	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
+	pwivate weadonwy commonHeadewsPwomise: Pwomise<{ [key: stwing]: stwing; }>;
 
-	constructor(
-		storageService: IStorageService | undefined,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		stowageSewvice: IStowageSewvice | undefined,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		const config = productService.extensionsGallery;
-		this.extensionsGalleryUrl = config && config.serviceUrl;
-		this.extensionsControlUrl = config && config.controlUrl;
-		this.commonHeadersPromise = resolveMarketplaceHeaders(productService.version, productService, this.environmentService, this.configurationService, this.fileService, storageService);
+		const config = pwoductSewvice.extensionsGawwewy;
+		this.extensionsGawwewyUww = config && config.sewviceUww;
+		this.extensionsContwowUww = config && config.contwowUww;
+		this.commonHeadewsPwomise = wesowveMawketpwaceHeadews(pwoductSewvice.vewsion, pwoductSewvice, this.enviwonmentSewvice, this.configuwationSewvice, this.fiweSewvice, stowageSewvice);
 	}
 
-	private api(path = ''): string {
-		return `${this.extensionsGalleryUrl}${path}`;
+	pwivate api(path = ''): stwing {
+		wetuwn `${this.extensionsGawwewyUww}${path}`;
 	}
 
-	isEnabled(): boolean {
-		return !!this.extensionsGalleryUrl;
+	isEnabwed(): boowean {
+		wetuwn !!this.extensionsGawwewyUww;
 	}
 
-	async getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]> {
-		const result: IGalleryExtension[] = [];
-		let query = new Query()
-			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
-			.withPage(1, identifiers.length)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExtensionName, ...identifiers.map(({ id }) => id.toLowerCase()));
+	async getExtensions(identifiews: WeadonwyAwway<IExtensionIdentifia | IExtensionIdentifiewWithVewsion>, token: CancewwationToken): Pwomise<IGawwewyExtension[]> {
+		const wesuwt: IGawwewyExtension[] = [];
+		wet quewy = new Quewy()
+			.withFwags(Fwags.IncwudeAssetUwi, Fwags.IncwudeStatistics, Fwags.IncwudeCategowyAndTags, Fwags.IncwudeFiwes, Fwags.IncwudeVewsionPwopewties)
+			.withPage(1, identifiews.wength)
+			.withFiwta(FiwtewType.Tawget, 'Micwosoft.VisuawStudio.Code')
+			.withFiwta(FiwtewType.ExtensionName, ...identifiews.map(({ id }) => id.toWowewCase()));
 
-		if (identifiers.every(identifier => !(<IExtensionIdentifierWithVersion>identifier).version)) {
-			query = query.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.IncludeLatestVersionOnly);
+		if (identifiews.evewy(identifia => !(<IExtensionIdentifiewWithVewsion>identifia).vewsion)) {
+			quewy = quewy.withFwags(Fwags.IncwudeAssetUwi, Fwags.IncwudeStatistics, Fwags.IncwudeCategowyAndTags, Fwags.IncwudeFiwes, Fwags.IncwudeVewsionPwopewties, Fwags.IncwudeWatestVewsionOnwy);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, CancellationToken.None);
-		for (let index = 0; index < galleryExtensions.length; index++) {
-			const galleryExtension = galleryExtensions[index];
-			if (!galleryExtension.versions.length) {
+		const { gawwewyExtensions } = await this.quewyGawwewy(quewy, CUWWENT_TAWGET_PWATFOWM, CancewwationToken.None);
+		fow (wet index = 0; index < gawwewyExtensions.wength; index++) {
+			const gawwewyExtension = gawwewyExtensions[index];
+			if (!gawwewyExtension.vewsions.wength) {
 				continue;
 			}
-			const id = getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName);
-			const version = (<IExtensionIdentifierWithVersion | undefined>identifiers.find(identifier => areSameExtensions(identifier, { id })))?.version;
-			if (version) {
-				const versionAsset = galleryExtension.versions.find(v => v.version === version);
-				if (versionAsset) {
-					result.push(toExtension(galleryExtension, versionAsset, getAllTargetPlatforms(galleryExtension), index, query));
+			const id = getGawwewyExtensionId(gawwewyExtension.pubwisha.pubwishewName, gawwewyExtension.extensionName);
+			const vewsion = (<IExtensionIdentifiewWithVewsion | undefined>identifiews.find(identifia => aweSameExtensions(identifia, { id })))?.vewsion;
+			if (vewsion) {
+				const vewsionAsset = gawwewyExtension.vewsions.find(v => v.vewsion === vewsion);
+				if (vewsionAsset) {
+					wesuwt.push(toExtension(gawwewyExtension, vewsionAsset, getAwwTawgetPwatfowms(gawwewyExtension), index, quewy));
 				}
-			} else {
-				result.push(toExtensionWithLatestVersion(galleryExtension, index, query, undefined, CURRENT_TARGET_PLATFORM));
+			} ewse {
+				wesuwt.push(toExtensionWithWatestVewsion(gawwewyExtension, index, quewy, undefined, CUWWENT_TAWGET_PWATFOWM));
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null> {
-		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
+	async getCompatibweExtension(awg1: IExtensionIdentifia | IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<IGawwewyExtension | nuww> {
+		const extension: IGawwewyExtension | nuww = isIExtensionIdentifia(awg1) ? nuww : awg1;
 		if (extension) {
-			if (isNotWebExtensionInWebTargetPlatform(extension.allTargetPlatforms, targetPlatform)) {
-				return null;
+			if (isNotWebExtensionInWebTawgetPwatfowm(extension.awwTawgetPwatfowms, tawgetPwatfowm)) {
+				wetuwn nuww;
 			}
-			if (await this.isExtensionCompatible(extension, targetPlatform)) {
-				return extension;
+			if (await this.isExtensionCompatibwe(extension, tawgetPwatfowm)) {
+				wetuwn extension;
 			}
 		}
-		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
-		let query = new Query()
-			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+		const { id, uuid } = extension ? extension.identifia : <IExtensionIdentifia>awg1;
+		wet quewy = new Quewy()
+			.withFwags(Fwags.IncwudeAssetUwi, Fwags.IncwudeStatistics, Fwags.IncwudeCategowyAndTags, Fwags.IncwudeFiwes, Fwags.IncwudeVewsionPwopewties)
 			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withFiwta(FiwtewType.Tawget, 'Micwosoft.VisuawStudio.Code');
 
 		if (uuid) {
-			query = query.withFilter(FilterType.ExtensionId, uuid);
-		} else {
-			query = query.withFilter(FilterType.ExtensionName, id);
+			quewy = quewy.withFiwta(FiwtewType.ExtensionId, uuid);
+		} ewse {
+			quewy = quewy.withFiwta(FiwtewType.ExtensionName, id);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
-		const [rawExtension] = galleryExtensions;
-		if (!rawExtension || !rawExtension.versions.length) {
-			return null;
+		const { gawwewyExtensions } = await this.quewyGawwewy(quewy, tawgetPwatfowm, CancewwationToken.None);
+		const [wawExtension] = gawwewyExtensions;
+		if (!wawExtension || !wawExtension.vewsions.wength) {
+			wetuwn nuww;
 		}
 
-		const allTargetPlatforms = getAllTargetPlatforms(rawExtension);
-		if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, targetPlatform)) {
-			return null;
+		const awwTawgetPwatfowms = getAwwTawgetPwatfowms(wawExtension);
+		if (isNotWebExtensionInWebTawgetPwatfowm(awwTawgetPwatfowms, tawgetPwatfowm)) {
+			wetuwn nuww;
 		}
 
-		for (let rawVersion of rawExtension.versions) {
-			// set engine property if does not exist
-			if (!getEngine(rawVersion)) {
-				const engine = await this.getEngine(rawVersion);
-				rawVersion = {
-					...rawVersion,
-					properties: [...(rawVersion.properties || []), { key: PropertyType.Engine, value: engine }]
+		fow (wet wawVewsion of wawExtension.vewsions) {
+			// set engine pwopewty if does not exist
+			if (!getEngine(wawVewsion)) {
+				const engine = await this.getEngine(wawVewsion);
+				wawVewsion = {
+					...wawVewsion,
+					pwopewties: [...(wawVewsion.pwopewties || []), { key: PwopewtyType.Engine, vawue: engine }]
 				};
 			}
-			if (await this.isRawExtensionVersionCompatible(rawVersion, allTargetPlatforms, targetPlatform)) {
-				return toExtension(rawExtension, rawVersion, allTargetPlatforms, 0, query);
+			if (await this.isWawExtensionVewsionCompatibwe(wawVewsion, awwTawgetPwatfowms, tawgetPwatfowm)) {
+				wetuwn toExtension(wawExtension, wawVewsion, awwTawgetPwatfowms, 0, quewy);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	async isExtensionCompatible(extension: IGalleryExtension, targetPlatform: TargetPlatform): Promise<boolean> {
-		if (!isTargetPlatformCompatible(extension.properties.targetPlatform, extension.allTargetPlatforms, targetPlatform)) {
-			return false;
+	async isExtensionCompatibwe(extension: IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<boowean> {
+		if (!isTawgetPwatfowmCompatibwe(extension.pwopewties.tawgetPwatfowm, extension.awwTawgetPwatfowms, tawgetPwatfowm)) {
+			wetuwn fawse;
 		}
 
-		let engine = extension.properties.engine;
+		wet engine = extension.pwopewties.engine;
 		if (!engine) {
-			const manifest = await this.getManifest(extension, CancellationToken.None);
+			const manifest = await this.getManifest(extension, CancewwationToken.None);
 			if (!manifest) {
-				throw new Error('Manifest was not found');
+				thwow new Ewwow('Manifest was not found');
 			}
 			engine = manifest.engines.vscode;
 		}
-		return isEngineValid(engine, this.productService.version, this.productService.date);
+		wetuwn isEngineVawid(engine, this.pwoductSewvice.vewsion, this.pwoductSewvice.date);
 	}
 
-	private async isRawExtensionVersionCompatible(rawExtensionVersion: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform): Promise<boolean> {
-		if (!isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawExtensionVersion), allTargetPlatforms, targetPlatform)) {
-			return false;
+	pwivate async isWawExtensionVewsionCompatibwe(wawExtensionVewsion: IWawGawwewyExtensionVewsion, awwTawgetPwatfowms: TawgetPwatfowm[], tawgetPwatfowm: TawgetPwatfowm): Pwomise<boowean> {
+		if (!isTawgetPwatfowmCompatibwe(getTawgetPwatfowmFowExtensionVewsion(wawExtensionVewsion), awwTawgetPwatfowms, tawgetPwatfowm)) {
+			wetuwn fawse;
 		}
 
-		const engine = await this.getEngine(rawExtensionVersion);
-		return isEngineValid(engine, this.productService.version, this.productService.date);
+		const engine = await this.getEngine(wawExtensionVewsion);
+		wetuwn isEngineVawid(engine, this.pwoductSewvice.vewsion, this.pwoductSewvice.date);
 	}
 
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	async query(arg1: any, arg2?: any): Promise<IPager<IGalleryExtension>> {
-		const options: IQueryOptions = CancellationToken.isCancellationToken(arg1) ? {} : arg1;
-		const token: CancellationToken = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2;
+	quewy(token: CancewwationToken): Pwomise<IPaga<IGawwewyExtension>>;
+	quewy(options: IQuewyOptions, token: CancewwationToken): Pwomise<IPaga<IGawwewyExtension>>;
+	async quewy(awg1: any, awg2?: any): Pwomise<IPaga<IGawwewyExtension>> {
+		const options: IQuewyOptions = CancewwationToken.isCancewwationToken(awg1) ? {} : awg1;
+		const token: CancewwationToken = CancewwationToken.isCancewwationToken(awg1) ? awg1 : awg2;
 
-		if (!this.isEnabled()) {
-			throw new Error('No extension gallery service configured.');
+		if (!this.isEnabwed()) {
+			thwow new Ewwow('No extension gawwewy sewvice configuwed.');
 		}
 
-		let text = options.text || '';
-		const pageSize = getOrDefault(options, o => o.pageSize, 50);
+		wet text = options.text || '';
+		const pageSize = getOwDefauwt(options, o => o.pageSize, 50);
 
-		let query = new Query()
-			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+		wet quewy = new Quewy()
+			.withFwags(Fwags.IncwudeWatestVewsionOnwy, Fwags.IncwudeAssetUwi, Fwags.IncwudeStatistics, Fwags.IncwudeCategowyAndTags, Fwags.IncwudeFiwes, Fwags.IncwudeVewsionPwopewties)
 			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withFiwta(FiwtewType.Tawget, 'Micwosoft.VisuawStudio.Code');
 
 		if (text) {
-			// Use category filter instead of "category:themes"
-			text = text.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
-				query = query.withFilter(FilterType.Category, category || quotedCategory);
-				return '';
+			// Use categowy fiwta instead of "categowy:themes"
+			text = text.wepwace(/\bcategowy:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategowy, categowy) => {
+				quewy = quewy.withFiwta(FiwtewType.Categowy, categowy || quotedCategowy);
+				wetuwn '';
 			});
 
-			// Use tag filter instead of "tag:debuggers"
-			text = text.replace(/\btag:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedTag, tag) => {
-				query = query.withFilter(FilterType.Tag, tag || quotedTag);
-				return '';
+			// Use tag fiwta instead of "tag:debuggews"
+			text = text.wepwace(/\btag:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedTag, tag) => {
+				quewy = quewy.withFiwta(FiwtewType.Tag, tag || quotedTag);
+				wetuwn '';
 			});
 
-			// Use featured filter
-			text = text.replace(/\bfeatured(\s+|\b|$)/g, () => {
-				query = query.withFilter(FilterType.Featured);
-				return '';
+			// Use featuwed fiwta
+			text = text.wepwace(/\bfeatuwed(\s+|\b|$)/g, () => {
+				quewy = quewy.withFiwta(FiwtewType.Featuwed);
+				wetuwn '';
 			});
 
-			text = text.trim();
+			text = text.twim();
 
 			if (text) {
-				text = text.length < 200 ? text : text.substring(0, 200);
-				query = query.withFilter(FilterType.SearchText, text);
+				text = text.wength < 200 ? text : text.substwing(0, 200);
+				quewy = quewy.withFiwta(FiwtewType.SeawchText, text);
 			}
 
-			query = query.withSortBy(SortBy.NoneOrRelevance);
-		} else if (options.ids) {
-			query = query.withFilter(FilterType.ExtensionId, ...options.ids);
-		} else if (options.names) {
-			query = query.withFilter(FilterType.ExtensionName, ...options.names);
-		} else {
-			query = query.withSortBy(SortBy.InstallCount);
+			quewy = quewy.withSowtBy(SowtBy.NoneOwWewevance);
+		} ewse if (options.ids) {
+			quewy = quewy.withFiwta(FiwtewType.ExtensionId, ...options.ids);
+		} ewse if (options.names) {
+			quewy = quewy.withFiwta(FiwtewType.ExtensionName, ...options.names);
+		} ewse {
+			quewy = quewy.withSowtBy(SowtBy.InstawwCount);
 		}
 
-		if (typeof options.sortBy === 'number') {
-			query = query.withSortBy(options.sortBy);
+		if (typeof options.sowtBy === 'numba') {
+			quewy = quewy.withSowtBy(options.sowtBy);
 		}
 
-		if (typeof options.sortOrder === 'number') {
-			query = query.withSortOrder(options.sortOrder);
+		if (typeof options.sowtOwda === 'numba') {
+			quewy = quewy.withSowtOwda(options.sowtOwda);
 		}
 
-		const { galleryExtensions, total } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, token);
-		const extensions = galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, query, options.source, CURRENT_TARGET_PLATFORM));
-		const getPage = async (pageIndex: number, ct: CancellationToken) => {
-			if (ct.isCancellationRequested) {
-				throw canceled();
+		const { gawwewyExtensions, totaw } = await this.quewyGawwewy(quewy, CUWWENT_TAWGET_PWATFOWM, token);
+		const extensions = gawwewyExtensions.map((e, index) => toExtensionWithWatestVewsion(e, index, quewy, options.souwce, CUWWENT_TAWGET_PWATFOWM));
+		const getPage = async (pageIndex: numba, ct: CancewwationToken) => {
+			if (ct.isCancewwationWequested) {
+				thwow cancewed();
 			}
-			const nextPageQuery = query.withPage(pageIndex + 1);
-			const { galleryExtensions } = await this.queryGallery(nextPageQuery, CURRENT_TARGET_PLATFORM, ct);
-			return galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, nextPageQuery, options.source, CURRENT_TARGET_PLATFORM));
+			const nextPageQuewy = quewy.withPage(pageIndex + 1);
+			const { gawwewyExtensions } = await this.quewyGawwewy(nextPageQuewy, CUWWENT_TAWGET_PWATFOWM, ct);
+			wetuwn gawwewyExtensions.map((e, index) => toExtensionWithWatestVewsion(e, index, nextPageQuewy, options.souwce, CUWWENT_TAWGET_PWATFOWM));
 		};
 
-		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
+		wetuwn { fiwstPage: extensions, totaw, pageSize: quewy.pageSize, getPage } as IPaga<IGawwewyExtension>;
 	}
 
-	private async queryGallery(query: Query, targetPlatform: TargetPlatform, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		if (!this.isEnabled()) {
-			throw new Error('No extension gallery service configured.');
+	pwivate async quewyGawwewy(quewy: Quewy, tawgetPwatfowm: TawgetPwatfowm, token: CancewwationToken): Pwomise<{ gawwewyExtensions: IWawGawwewyExtension[], totaw: numba; }> {
+		if (!this.isEnabwed()) {
+			thwow new Ewwow('No extension gawwewy sewvice configuwed.');
 		}
 
-		// Always exclude non validated and unpublished extensions
-		query = query
-			.withFlags(query.flags, Flags.ExcludeNonValidated)
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+		// Awways excwude non vawidated and unpubwished extensions
+		quewy = quewy
+			.withFwags(quewy.fwags, Fwags.ExcwudeNonVawidated)
+			.withFiwta(FiwtewType.ExcwudeWithFwags, fwagsToStwing(Fwags.Unpubwished));
 
-		const commonHeaders = await this.commonHeadersPromise;
-		const data = JSON.stringify(query.raw);
-		const headers = {
-			...commonHeaders,
-			'Content-Type': 'application/json',
-			'Accept': 'application/json;api-version=3.0-preview.1',
+		const commonHeadews = await this.commonHeadewsPwomise;
+		const data = JSON.stwingify(quewy.waw);
+		const headews = {
+			...commonHeadews,
+			'Content-Type': 'appwication/json',
+			'Accept': 'appwication/json;api-vewsion=3.0-pweview.1',
 			'Accept-Encoding': 'gzip',
-			'Content-Length': String(data.length)
+			'Content-Wength': Stwing(data.wength)
 		};
 
-		const startTime = new Date().getTime();
-		let context: IRequestContext | undefined, error: any, total: number = 0;
+		const stawtTime = new Date().getTime();
+		wet context: IWequestContext | undefined, ewwow: any, totaw: numba = 0;
 
-		try {
-			context = await this.requestService.request({
+		twy {
+			context = await this.wequestSewvice.wequest({
 				type: 'POST',
-				url: this.api('/extensionquery'),
+				uww: this.api('/extensionquewy'),
 				data,
-				headers
+				headews
 			}, token);
 
-			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
-				return { galleryExtensions: [], total };
+			if (context.wes.statusCode && context.wes.statusCode >= 400 && context.wes.statusCode < 500) {
+				wetuwn { gawwewyExtensions: [], totaw };
 			}
 
-			const result = await asJson<IRawGalleryQueryResult>(context);
-			if (result) {
-				const r = result.results[0];
-				const galleryExtensions = r.extensions;
-				galleryExtensions.forEach(e => sortExtensionVersions(e.versions, targetPlatform));
-				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-				total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+			const wesuwt = await asJson<IWawGawwewyQuewyWesuwt>(context);
+			if (wesuwt) {
+				const w = wesuwt.wesuwts[0];
+				const gawwewyExtensions = w.extensions;
+				gawwewyExtensions.fowEach(e => sowtExtensionVewsions(e.vewsions, tawgetPwatfowm));
+				const wesuwtCount = w.wesuwtMetadata && w.wesuwtMetadata.fiwta(m => m.metadataType === 'WesuwtCount')[0];
+				totaw = wesuwtCount && wesuwtCount.metadataItems.fiwta(i => i.name === 'TotawCount')[0].count || 0;
 
-				return { galleryExtensions, total };
+				wetuwn { gawwewyExtensions, totaw };
 			}
-			return { galleryExtensions: [], total };
+			wetuwn { gawwewyExtensions: [], totaw };
 
 		} catch (e) {
-			error = e;
-			throw e;
-		} finally {
-			this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', {
-				...query.telemetryData,
-				requestBodySize: String(data.length),
-				duration: new Date().getTime() - startTime,
+			ewwow = e;
+			thwow e;
+		} finawwy {
+			this.tewemetwySewvice.pubwicWog2<GawwewySewviceQuewyEvent, GawwewySewviceQuewyCwassification>('gawwewySewvice:quewy', {
+				...quewy.tewemetwyData,
+				wequestBodySize: Stwing(data.wength),
+				duwation: new Date().getTime() - stawtTime,
 				success: !!context && isSuccess(context),
-				responseBodySize: context?.res.headers['Content-Length'],
-				statusCode: context ? String(context.res.statusCode) : undefined,
-				errorCode: error
-					? isPromiseCanceledError(error) ? 'canceled' : getErrorMessage(error).startsWith('XHR timeout') ? 'timeout' : 'failed'
+				wesponseBodySize: context?.wes.headews['Content-Wength'],
+				statusCode: context ? Stwing(context.wes.statusCode) : undefined,
+				ewwowCode: ewwow
+					? isPwomiseCancewedEwwow(ewwow) ? 'cancewed' : getEwwowMessage(ewwow).stawtsWith('XHW timeout') ? 'timeout' : 'faiwed'
 					: undefined,
-				count: String(total)
+				count: Stwing(totaw)
 			});
 		}
 	}
 
-	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
-		if (!this.isEnabled()) {
-			return undefined;
+	async wepowtStatistic(pubwisha: stwing, name: stwing, vewsion: stwing, type: StatisticType): Pwomise<void> {
+		if (!this.isEnabwed()) {
+			wetuwn undefined;
 		}
 
-		const url = isWeb ? this.api(`/itemName/${publisher}.${name}/version/${version}/statType/${type === StatisticType.Install ? '1' : '3'}/vscodewebextension`) : this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`);
-		const Accept = isWeb ? 'api-version=6.1-preview.1' : '*/*;api-version=4.0-preview.1';
+		const uww = isWeb ? this.api(`/itemName/${pubwisha}.${name}/vewsion/${vewsion}/statType/${type === StatisticType.Instaww ? '1' : '3'}/vscodewebextension`) : this.api(`/pubwishews/${pubwisha}/extensions/${name}/${vewsion}/stats?statType=${type}`);
+		const Accept = isWeb ? 'api-vewsion=6.1-pweview.1' : '*/*;api-vewsion=4.0-pweview.1';
 
-		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept };
-		try {
-			await this.requestService.request({
+		const commonHeadews = await this.commonHeadewsPwomise;
+		const headews = { ...commonHeadews, Accept };
+		twy {
+			await this.wequestSewvice.wequest({
 				type: 'POST',
-				url,
-				headers
-			}, CancellationToken.None);
-		} catch (error) { /* Ignore */ }
+				uww,
+				headews
+			}, CancewwationToken.None);
+		} catch (ewwow) { /* Ignowe */ }
 	}
 
-	async download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void> {
-		this.logService.trace('ExtensionGalleryService#download', extension.identifier.id);
-		const data = getGalleryExtensionTelemetryData(extension);
-		const startTime = new Date().getTime();
-		/* __GDPR__
-			"galleryService:downloadVSIX" : {
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
+	async downwoad(extension: IGawwewyExtension, wocation: UWI, opewation: InstawwOpewation): Pwomise<void> {
+		this.wogSewvice.twace('ExtensionGawwewySewvice#downwoad', extension.identifia.id);
+		const data = getGawwewyExtensionTewemetwyData(extension);
+		const stawtTime = new Date().getTime();
+		/* __GDPW__
+			"gawwewySewvice:downwoadVSIX" : {
+				"duwation": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"${incwude}": [
+					"${GawwewyExtensionTewemetwyData}"
 				]
 			}
 		*/
-		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration });
+		const wog = (duwation: numba) => this.tewemetwySewvice.pubwicWog('gawwewySewvice:downwoadVSIX', { ...data, duwation });
 
-		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
-		const downloadAsset = operationParam ? {
-			uri: `${extension.assets.download.uri}${URI.parse(extension.assets.download.uri).query ? '&' : '?'}${operationParam}=true`,
-			fallbackUri: `${extension.assets.download.fallbackUri}${URI.parse(extension.assets.download.fallbackUri).query ? '&' : '?'}${operationParam}=true`
-		} : extension.assets.download;
+		const opewationPawam = opewation === InstawwOpewation.Instaww ? 'instaww' : opewation === InstawwOpewation.Update ? 'update' : '';
+		const downwoadAsset = opewationPawam ? {
+			uwi: `${extension.assets.downwoad.uwi}${UWI.pawse(extension.assets.downwoad.uwi).quewy ? '&' : '?'}${opewationPawam}=twue`,
+			fawwbackUwi: `${extension.assets.downwoad.fawwbackUwi}${UWI.pawse(extension.assets.downwoad.fawwbackUwi).quewy ? '&' : '?'}${opewationPawam}=twue`
+		} : extension.assets.downwoad;
 
-		const context = await this.getAsset(downloadAsset);
-		await this.fileService.writeFile(location, context.stream);
-		log(new Date().getTime() - startTime);
+		const context = await this.getAsset(downwoadAsset);
+		await this.fiweSewvice.wwiteFiwe(wocation, context.stweam);
+		wog(new Date().getTime() - stawtTime);
 	}
 
-	async getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		if (extension.assets.readme) {
-			const context = await this.getAsset(extension.assets.readme, {}, token);
+	async getWeadme(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<stwing> {
+		if (extension.assets.weadme) {
+			const context = await this.getAsset(extension.assets.weadme, {}, token);
 			const content = await asText(context);
-			return content || '';
+			wetuwn content || '';
 		}
-		return '';
+		wetuwn '';
 	}
 
-	async getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null> {
+	async getManifest(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<IExtensionManifest | nuww> {
 		if (extension.assets.manifest) {
 			const context = await this.getAsset(extension.assets.manifest, {}, token);
 			const text = await asText(context);
-			return text ? JSON.parse(text) : null;
+			wetuwn text ? JSON.pawse(text) : nuww;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private async getManifestFromRawExtensionVersion(rawExtensionVersion: IRawGalleryExtensionVersion, token: CancellationToken): Promise<IExtensionManifest | null> {
-		const manifestAsset = getVersionAsset(rawExtensionVersion, AssetType.Manifest);
+	pwivate async getManifestFwomWawExtensionVewsion(wawExtensionVewsion: IWawGawwewyExtensionVewsion, token: CancewwationToken): Pwomise<IExtensionManifest | nuww> {
+		const manifestAsset = getVewsionAsset(wawExtensionVewsion, AssetType.Manifest);
 		if (!manifestAsset) {
-			throw new Error('Manifest was not found');
+			thwow new Ewwow('Manifest was not found');
 		}
-		const headers = { 'Accept-Encoding': 'gzip' };
-		const context = await this.getAsset(manifestAsset, { headers });
-		return await asJson<IExtensionManifest>(context);
+		const headews = { 'Accept-Encoding': 'gzip' };
+		const context = await this.getAsset(manifestAsset, { headews });
+		wetuwn await asJson<IExtensionManifest>(context);
 	}
 
-	async getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null> {
-		const asset = extension.assets.coreTranslations.filter(t => t[0] === languageId.toUpperCase())[0];
+	async getCoweTwanswation(extension: IGawwewyExtension, wanguageId: stwing): Pwomise<ITwanswation | nuww> {
+		const asset = extension.assets.coweTwanswations.fiwta(t => t[0] === wanguageId.toUppewCase())[0];
 		if (asset) {
 			const context = await this.getAsset(asset[1]);
 			const text = await asText(context);
-			return text ? JSON.parse(text) : null;
+			wetuwn text ? JSON.pawse(text) : nuww;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string> {
-		if (extension.assets.changelog) {
-			const context = await this.getAsset(extension.assets.changelog, {}, token);
+	async getChangewog(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<stwing> {
+		if (extension.assets.changewog) {
+			const context = await this.getAsset(extension.assets.changewog, {}, token);
 			const content = await asText(context);
-			return content || '';
+			wetuwn content || '';
 		}
-		return '';
+		wetuwn '';
 	}
 
-	async getAllCompatibleVersions(extension: IGalleryExtension, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
-		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
+	async getAwwCompatibweVewsions(extension: IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<IGawwewyExtensionVewsion[]> {
+		wet quewy = new Quewy()
+			.withFwags(Fwags.IncwudeVewsions, Fwags.IncwudeCategowyAndTags, Fwags.IncwudeFiwes, Fwags.IncwudeVewsionPwopewties)
 			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
+			.withFiwta(FiwtewType.Tawget, 'Micwosoft.VisuawStudio.Code');
 
-		if (extension.identifier.uuid) {
-			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
-		} else {
-			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
+		if (extension.identifia.uuid) {
+			quewy = quewy.withFiwta(FiwtewType.ExtensionId, extension.identifia.uuid);
+		} ewse {
+			quewy = quewy.withFiwta(FiwtewType.ExtensionName, extension.identifia.id);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
-		if (!galleryExtensions.length) {
-			return [];
+		const { gawwewyExtensions } = await this.quewyGawwewy(quewy, tawgetPwatfowm, CancewwationToken.None);
+		if (!gawwewyExtensions.wength) {
+			wetuwn [];
 		}
 
-		const allTargetPlatforms = getAllTargetPlatforms(galleryExtensions[0]);
-		if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, targetPlatform)) {
-			return [];
+		const awwTawgetPwatfowms = getAwwTawgetPwatfowms(gawwewyExtensions[0]);
+		if (isNotWebExtensionInWebTawgetPwatfowm(awwTawgetPwatfowms, tawgetPwatfowm)) {
+			wetuwn [];
 		}
 
-		const result: IGalleryExtensionVersion[] = [];
-		for (const version of galleryExtensions[0].versions) {
-			try {
-				if (result[result.length - 1]?.version !== version.version && await this.isRawExtensionVersionCompatible(version, allTargetPlatforms, targetPlatform)) {
-					result.push({ version: version.version, date: version.lastUpdated });
+		const wesuwt: IGawwewyExtensionVewsion[] = [];
+		fow (const vewsion of gawwewyExtensions[0].vewsions) {
+			twy {
+				if (wesuwt[wesuwt.wength - 1]?.vewsion !== vewsion.vewsion && await this.isWawExtensionVewsionCompatibwe(vewsion, awwTawgetPwatfowms, tawgetPwatfowm)) {
+					wesuwt.push({ vewsion: vewsion.vewsion, date: vewsion.wastUpdated });
 				}
-			} catch (error) { /* Ignore error and skip version */ }
+			} catch (ewwow) { /* Ignowe ewwow and skip vewsion */ }
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
-		const commonHeaders = await this.commonHeadersPromise;
+	pwivate async getAsset(asset: IGawwewyExtensionAsset, options: IWequestOptions = {}, token: CancewwationToken = CancewwationToken.None): Pwomise<IWequestContext> {
+		const commonHeadews = await this.commonHeadewsPwomise;
 		const baseOptions = { type: 'GET' };
-		const headers = { ...commonHeaders, ...(options.headers || {}) };
-		options = { ...options, ...baseOptions, headers };
+		const headews = { ...commonHeadews, ...(options.headews || {}) };
+		options = { ...options, ...baseOptions, headews };
 
-		const url = asset.uri;
-		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url };
+		const uww = asset.uwi;
+		const fawwbackUww = asset.fawwbackUwi;
+		const fiwstOptions = { ...options, uww };
 
-		try {
-			const context = await this.requestService.request(firstOptions, token);
-			if (context.res.statusCode === 200) {
-				return context;
+		twy {
+			const context = await this.wequestSewvice.wequest(fiwstOptions, token);
+			if (context.wes.statusCode === 200) {
+				wetuwn context;
 			}
 			const message = await asText(context);
-			throw new Error(`Expected 200, got back ${context.res.statusCode} instead.\n\n${message}`);
-		} catch (err) {
-			if (isPromiseCanceledError(err)) {
-				throw err;
+			thwow new Ewwow(`Expected 200, got back ${context.wes.statusCode} instead.\n\n${message}`);
+		} catch (eww) {
+			if (isPwomiseCancewedEwwow(eww)) {
+				thwow eww;
 			}
 
-			const message = getErrorMessage(err);
-			type GalleryServiceCDNFallbackClassification = {
-				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			const message = getEwwowMessage(eww);
+			type GawwewySewviceCDNFawwbackCwassification = {
+				uww: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+				message: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 			};
-			type GalleryServiceCDNFallbackEvent = {
-				url: string;
-				message: string;
+			type GawwewySewviceCDNFawwbackEvent = {
+				uww: stwing;
+				message: stwing;
 			};
-			this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', { url, message });
+			this.tewemetwySewvice.pubwicWog2<GawwewySewviceCDNFawwbackEvent, GawwewySewviceCDNFawwbackCwassification>('gawwewySewvice:cdnFawwback', { uww, message });
 
-			const fallbackOptions = { ...options, url: fallbackUrl };
-			return this.requestService.request(fallbackOptions, token);
+			const fawwbackOptions = { ...options, uww: fawwbackUww };
+			wetuwn this.wequestSewvice.wequest(fawwbackOptions, token);
 		}
 	}
 
-	private async getEngine(rawExtensionVersion: IRawGalleryExtensionVersion): Promise<string> {
-		let engine = getEngine(rawExtensionVersion);
+	pwivate async getEngine(wawExtensionVewsion: IWawGawwewyExtensionVewsion): Pwomise<stwing> {
+		wet engine = getEngine(wawExtensionVewsion);
 		if (!engine) {
-			const manifest = await this.getManifestFromRawExtensionVersion(rawExtensionVersion, CancellationToken.None);
+			const manifest = await this.getManifestFwomWawExtensionVewsion(wawExtensionVewsion, CancewwationToken.None);
 			if (!manifest) {
-				throw new Error('Manifest was not found');
+				thwow new Ewwow('Manifest was not found');
 			}
 			engine = manifest.engines.vscode;
 		}
-		return engine;
+		wetuwn engine;
 	}
 
-	async getExtensionsReport(): Promise<IReportedExtension[]> {
-		if (!this.isEnabled()) {
-			throw new Error('No extension gallery service configured.');
+	async getExtensionsWepowt(): Pwomise<IWepowtedExtension[]> {
+		if (!this.isEnabwed()) {
+			thwow new Ewwow('No extension gawwewy sewvice configuwed.');
 		}
 
-		if (!this.extensionsControlUrl) {
-			return [];
+		if (!this.extensionsContwowUww) {
+			wetuwn [];
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None);
-		if (context.res.statusCode !== 200) {
-			throw new Error('Could not get extensions report.');
+		const context = await this.wequestSewvice.wequest({ type: 'GET', uww: this.extensionsContwowUww }, CancewwationToken.None);
+		if (context.wes.statusCode !== 200) {
+			thwow new Ewwow('Couwd not get extensions wepowt.');
 		}
 
-		const result = await asJson<IRawExtensionsReport>(context);
-		const map = new Map<string, IReportedExtension>();
+		const wesuwt = await asJson<IWawExtensionsWepowt>(context);
+		const map = new Map<stwing, IWepowtedExtension>();
 
-		if (result) {
-			for (const id of result.malicious) {
-				const ext = map.get(id) || { id: { id }, malicious: true, slow: false };
-				ext.malicious = true;
+		if (wesuwt) {
+			fow (const id of wesuwt.mawicious) {
+				const ext = map.get(id) || { id: { id }, mawicious: twue, swow: fawse };
+				ext.mawicious = twue;
 				map.set(id, ext);
 			}
 		}
 
-		return [...map.values()];
+		wetuwn [...map.vawues()];
 	}
 }
 
-export class ExtensionGalleryService extends AbstractExtensionGalleryService {
+expowt cwass ExtensionGawwewySewvice extends AbstwactExtensionGawwewySewvice {
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
+		supa(stowageSewvice, wequestSewvice, wogSewvice, enviwonmentSewvice, tewemetwySewvice, fiweSewvice, pwoductSewvice, configuwationSewvice);
 	}
 }
 
-export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensionGalleryService {
+expowt cwass ExtensionGawwewySewviceWithNoStowageSewvice extends AbstwactExtensionGawwewySewvice {
 
-	constructor(
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
+		supa(undefined, wequestSewvice, wogSewvice, enviwonmentSewvice, tewemetwySewvice, fiweSewvice, pwoductSewvice, configuwationSewvice);
 	}
 }
 
-export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, configurationService: IConfigurationService, fileService: IFileService, storageService: {
-	get: (key: string, scope: StorageScope) => string | undefined,
-	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
-} | undefined): Promise<{ [key: string]: string; }> {
-	const headers: IHeaders = {
-		'X-Market-Client-Id': `VSCode ${version}`,
-		'User-Agent': `VSCode ${version}`
+expowt async function wesowveMawketpwaceHeadews(vewsion: stwing, pwoductSewvice: IPwoductSewvice, enviwonmentSewvice: IEnviwonmentSewvice, configuwationSewvice: IConfiguwationSewvice, fiweSewvice: IFiweSewvice, stowageSewvice: {
+	get: (key: stwing, scope: StowageScope) => stwing | undefined,
+	stowe: (key: stwing, vawue: stwing, scope: StowageScope, tawget: StowageTawget) => void
+} | undefined): Pwomise<{ [key: stwing]: stwing; }> {
+	const headews: IHeadews = {
+		'X-Mawket-Cwient-Id': `VSCode ${vewsion}`,
+		'Usa-Agent': `VSCode ${vewsion}`
 	};
-	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (supportsTelemetry(productService, environmentService) && getTelemetryLevel(configurationService) === TelemetryLevel.USAGE) {
-		headers['X-Market-User-Id'] = uuid;
+	const uuid = await getSewviceMachineId(enviwonmentSewvice, fiweSewvice, stowageSewvice);
+	if (suppowtsTewemetwy(pwoductSewvice, enviwonmentSewvice) && getTewemetwyWevew(configuwationSewvice) === TewemetwyWevew.USAGE) {
+		headews['X-Mawket-Usa-Id'] = uuid;
 	}
-	return headers;
+	wetuwn headews;
 }

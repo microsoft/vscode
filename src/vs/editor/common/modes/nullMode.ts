@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token, TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ColorId, FontStyle, IState, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
+impowt { Token, TokenizationWesuwt, TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { CowowId, FontStywe, IState, WanguageId, WanguageIdentifia, MetadataConsts, StandawdTokenType } fwom 'vs/editow/common/modes';
 
-class NullStateImpl implements IState {
+cwass NuwwStateImpw impwements IState {
 
-	public clone(): IState {
-		return this;
+	pubwic cwone(): IState {
+		wetuwn this;
 	}
 
-	public equals(other: IState): boolean {
-		return (this === other);
+	pubwic equaws(otha: IState): boowean {
+		wetuwn (this === otha);
 	}
 }
 
-export const NULL_STATE: IState = new NullStateImpl();
+expowt const NUWW_STATE: IState = new NuwwStateImpw();
 
-export const NULL_MODE_ID = 'vs.editor.nullMode';
+expowt const NUWW_MODE_ID = 'vs.editow.nuwwMode';
 
-export const NULL_LANGUAGE_IDENTIFIER = new LanguageIdentifier(NULL_MODE_ID, LanguageId.Null);
+expowt const NUWW_WANGUAGE_IDENTIFIa = new WanguageIdentifia(NUWW_MODE_ID, WanguageId.Nuww);
 
-export function nullTokenize(modeId: string, buffer: string, state: IState, deltaOffset: number): TokenizationResult {
-	return new TokenizationResult([new Token(deltaOffset, '', modeId)], state);
+expowt function nuwwTokenize(modeId: stwing, buffa: stwing, state: IState, dewtaOffset: numba): TokenizationWesuwt {
+	wetuwn new TokenizationWesuwt([new Token(dewtaOffset, '', modeId)], state);
 }
 
-export function nullTokenize2(languageId: LanguageId, buffer: string, state: IState | null, deltaOffset: number): TokenizationResult2 {
-	let tokens = new Uint32Array(2);
-	tokens[0] = deltaOffset;
+expowt function nuwwTokenize2(wanguageId: WanguageId, buffa: stwing, state: IState | nuww, dewtaOffset: numba): TokenizationWesuwt2 {
+	wet tokens = new Uint32Awway(2);
+	tokens[0] = dewtaOffset;
 	tokens[1] = (
-		(languageId << MetadataConsts.LANGUAGEID_OFFSET)
-		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
-		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		(wanguageId << MetadataConsts.WANGUAGEID_OFFSET)
+		| (StandawdTokenType.Otha << MetadataConsts.TOKEN_TYPE_OFFSET)
+		| (FontStywe.None << MetadataConsts.FONT_STYWE_OFFSET)
+		| (CowowId.DefauwtFowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+		| (CowowId.DefauwtBackgwound << MetadataConsts.BACKGWOUND_OFFSET)
 	) >>> 0;
 
-	return new TokenizationResult2(tokens, state === null ? NULL_STATE : state);
+	wetuwn new TokenizationWesuwt2(tokens, state === nuww ? NUWW_STATE : state);
 }

@@ -1,557 +1,557 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+impowt { IStwingDictionawy, INumbewDictionawy } fwom 'vs/base/common/cowwections';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-import { IModelService } from 'vs/editor/common/services/modelService';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
 
-import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWindows } from 'vs/base/common/platform';
+impowt { IWineMatcha, cweateWineMatcha, PwobwemMatcha, PwobwemMatch, AppwyToKind, WatchingPattewn, getWesouwce } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { IMawkewSewvice, IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
 
-export const enum ProblemCollectorEventKind {
-	BackgroundProcessingBegins = 'backgroundProcessingBegins',
-	BackgroundProcessingEnds = 'backgroundProcessingEnds'
+expowt const enum PwobwemCowwectowEventKind {
+	BackgwoundPwocessingBegins = 'backgwoundPwocessingBegins',
+	BackgwoundPwocessingEnds = 'backgwoundPwocessingEnds'
 }
 
-export interface ProblemCollectorEvent {
-	kind: ProblemCollectorEventKind;
+expowt intewface PwobwemCowwectowEvent {
+	kind: PwobwemCowwectowEventKind;
 }
 
-namespace ProblemCollectorEvent {
-	export function create(kind: ProblemCollectorEventKind) {
-		return Object.freeze({ kind });
+namespace PwobwemCowwectowEvent {
+	expowt function cweate(kind: PwobwemCowwectowEventKind) {
+		wetuwn Object.fweeze({ kind });
 	}
 }
 
-export interface IProblemMatcher {
-	processLine(line: string): void;
+expowt intewface IPwobwemMatcha {
+	pwocessWine(wine: stwing): void;
 }
 
-export abstract class AbstractProblemCollector implements IDisposable {
+expowt abstwact cwass AbstwactPwobwemCowwectow impwements IDisposabwe {
 
-	private matchers: INumberDictionary<ILineMatcher[]>;
-	private activeMatcher: ILineMatcher | null;
-	private _numberOfMatches: number;
-	private _maxMarkerSeverity?: MarkerSeverity;
-	private buffer: string[];
-	private bufferLength: number;
-	private openModels: IStringDictionary<boolean>;
-	protected readonly modelListeners = new DisposableStore();
-	private tail: Promise<void> | undefined;
+	pwivate matchews: INumbewDictionawy<IWineMatcha[]>;
+	pwivate activeMatcha: IWineMatcha | nuww;
+	pwivate _numbewOfMatches: numba;
+	pwivate _maxMawkewSevewity?: MawkewSevewity;
+	pwivate buffa: stwing[];
+	pwivate buffewWength: numba;
+	pwivate openModews: IStwingDictionawy<boowean>;
+	pwotected weadonwy modewWistenews = new DisposabweStowe();
+	pwivate taiw: Pwomise<void> | undefined;
 
-	// [owner] -> ApplyToKind
-	protected applyToByOwner: Map<string, ApplyToKind>;
-	// [owner] -> [resource] -> URI
-	private resourcesToClean: Map<string, Map<string, URI>>;
-	// [owner] -> [resource] -> [markerkey] -> markerData
-	private markers: Map<string, Map<string, Map<string, IMarkerData>>>;
-	// [owner] -> [resource] -> number;
-	private deliveredMarkers: Map<string, Map<string, number>>;
+	// [owna] -> AppwyToKind
+	pwotected appwyToByOwna: Map<stwing, AppwyToKind>;
+	// [owna] -> [wesouwce] -> UWI
+	pwivate wesouwcesToCwean: Map<stwing, Map<stwing, UWI>>;
+	// [owna] -> [wesouwce] -> [mawkewkey] -> mawkewData
+	pwivate mawkews: Map<stwing, Map<stwing, Map<stwing, IMawkewData>>>;
+	// [owna] -> [wesouwce] -> numba;
+	pwivate dewivewedMawkews: Map<stwing, Map<stwing, numba>>;
 
-	protected _onDidStateChange: Emitter<ProblemCollectorEvent>;
+	pwotected _onDidStateChange: Emitta<PwobwemCowwectowEvent>;
 
-	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
-		this.matchers = Object.create(null);
-		this.bufferLength = 1;
-		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
-			let length = matcher.matchLength;
-			if (length > this.bufferLength) {
-				this.bufferLength = length;
+	constwuctow(pubwic weadonwy pwobwemMatchews: PwobwemMatcha[], pwotected mawkewSewvice: IMawkewSewvice, pwotected modewSewvice: IModewSewvice, fiweSewvice?: IFiweSewvice) {
+		this.matchews = Object.cweate(nuww);
+		this.buffewWength = 1;
+		pwobwemMatchews.map(ewem => cweateWineMatcha(ewem, fiweSewvice)).fowEach((matcha) => {
+			wet wength = matcha.matchWength;
+			if (wength > this.buffewWength) {
+				this.buffewWength = wength;
 			}
-			let value = this.matchers[length];
-			if (!value) {
-				value = [];
-				this.matchers[length] = value;
+			wet vawue = this.matchews[wength];
+			if (!vawue) {
+				vawue = [];
+				this.matchews[wength] = vawue;
 			}
-			value.push(matcher);
+			vawue.push(matcha);
 		});
-		this.buffer = [];
-		this.activeMatcher = null;
-		this._numberOfMatches = 0;
-		this._maxMarkerSeverity = undefined;
-		this.openModels = Object.create(null);
-		this.applyToByOwner = new Map<string, ApplyToKind>();
-		for (let problemMatcher of problemMatchers) {
-			let current = this.applyToByOwner.get(problemMatcher.owner);
-			if (current === undefined) {
-				this.applyToByOwner.set(problemMatcher.owner, problemMatcher.applyTo);
-			} else {
-				this.applyToByOwner.set(problemMatcher.owner, this.mergeApplyTo(current, problemMatcher.applyTo));
+		this.buffa = [];
+		this.activeMatcha = nuww;
+		this._numbewOfMatches = 0;
+		this._maxMawkewSevewity = undefined;
+		this.openModews = Object.cweate(nuww);
+		this.appwyToByOwna = new Map<stwing, AppwyToKind>();
+		fow (wet pwobwemMatcha of pwobwemMatchews) {
+			wet cuwwent = this.appwyToByOwna.get(pwobwemMatcha.owna);
+			if (cuwwent === undefined) {
+				this.appwyToByOwna.set(pwobwemMatcha.owna, pwobwemMatcha.appwyTo);
+			} ewse {
+				this.appwyToByOwna.set(pwobwemMatcha.owna, this.mewgeAppwyTo(cuwwent, pwobwemMatcha.appwyTo));
 			}
 		}
-		this.resourcesToClean = new Map<string, Map<string, URI>>();
-		this.markers = new Map<string, Map<string, Map<string, IMarkerData>>>();
-		this.deliveredMarkers = new Map<string, Map<string, number>>();
-		this.modelService.onModelAdded((model) => {
-			this.openModels[model.uri.toString()] = true;
-		}, this, this.modelListeners);
-		this.modelService.onModelRemoved((model) => {
-			delete this.openModels[model.uri.toString()];
-		}, this, this.modelListeners);
-		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
+		this.wesouwcesToCwean = new Map<stwing, Map<stwing, UWI>>();
+		this.mawkews = new Map<stwing, Map<stwing, Map<stwing, IMawkewData>>>();
+		this.dewivewedMawkews = new Map<stwing, Map<stwing, numba>>();
+		this.modewSewvice.onModewAdded((modew) => {
+			this.openModews[modew.uwi.toStwing()] = twue;
+		}, this, this.modewWistenews);
+		this.modewSewvice.onModewWemoved((modew) => {
+			dewete this.openModews[modew.uwi.toStwing()];
+		}, this, this.modewWistenews);
+		this.modewSewvice.getModews().fowEach(modew => this.openModews[modew.uwi.toStwing()] = twue);
 
-		this._onDidStateChange = new Emitter();
+		this._onDidStateChange = new Emitta();
 	}
 
-	public get onDidStateChange(): Event<ProblemCollectorEvent> {
-		return this._onDidStateChange.event;
+	pubwic get onDidStateChange(): Event<PwobwemCowwectowEvent> {
+		wetuwn this._onDidStateChange.event;
 	}
 
-	public processLine(line: string) {
-		if (this.tail) {
-			const oldTail = this.tail;
-			this.tail = oldTail.then(() => {
-				return this.processLineInternal(line);
+	pubwic pwocessWine(wine: stwing) {
+		if (this.taiw) {
+			const owdTaiw = this.taiw;
+			this.taiw = owdTaiw.then(() => {
+				wetuwn this.pwocessWineIntewnaw(wine);
 			});
-		} else {
-			this.tail = this.processLineInternal(line);
+		} ewse {
+			this.taiw = this.pwocessWineIntewnaw(wine);
 		}
 	}
 
-	protected abstract processLineInternal(line: string): Promise<void>;
+	pwotected abstwact pwocessWineIntewnaw(wine: stwing): Pwomise<void>;
 
-	public dispose() {
-		this.modelListeners.dispose();
+	pubwic dispose() {
+		this.modewWistenews.dispose();
 	}
 
-	public get numberOfMatches(): number {
-		return this._numberOfMatches;
+	pubwic get numbewOfMatches(): numba {
+		wetuwn this._numbewOfMatches;
 	}
 
-	public get maxMarkerSeverity(): MarkerSeverity | undefined {
-		return this._maxMarkerSeverity;
+	pubwic get maxMawkewSevewity(): MawkewSevewity | undefined {
+		wetuwn this._maxMawkewSevewity;
 	}
 
-	protected tryFindMarker(line: string): ProblemMatch | null {
-		let result: ProblemMatch | null = null;
-		if (this.activeMatcher) {
-			result = this.activeMatcher.next(line);
-			if (result) {
-				this.captureMatch(result);
-				return result;
+	pwotected twyFindMawka(wine: stwing): PwobwemMatch | nuww {
+		wet wesuwt: PwobwemMatch | nuww = nuww;
+		if (this.activeMatcha) {
+			wesuwt = this.activeMatcha.next(wine);
+			if (wesuwt) {
+				this.captuweMatch(wesuwt);
+				wetuwn wesuwt;
 			}
-			this.clearBuffer();
-			this.activeMatcher = null;
+			this.cweawBuffa();
+			this.activeMatcha = nuww;
 		}
-		if (this.buffer.length < this.bufferLength) {
-			this.buffer.push(line);
-		} else {
-			let end = this.buffer.length - 1;
-			for (let i = 0; i < end; i++) {
-				this.buffer[i] = this.buffer[i + 1];
+		if (this.buffa.wength < this.buffewWength) {
+			this.buffa.push(wine);
+		} ewse {
+			wet end = this.buffa.wength - 1;
+			fow (wet i = 0; i < end; i++) {
+				this.buffa[i] = this.buffa[i + 1];
 			}
-			this.buffer[end] = line;
+			this.buffa[end] = wine;
 		}
 
-		result = this.tryMatchers();
-		if (result) {
-			this.clearBuffer();
+		wesuwt = this.twyMatchews();
+		if (wesuwt) {
+			this.cweawBuffa();
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected async shouldApplyMatch(result: ProblemMatch): Promise<boolean> {
-		switch (result.description.applyTo) {
-			case ApplyToKind.allDocuments:
-				return true;
-			case ApplyToKind.openDocuments:
-				return !!this.openModels[(await result.resource).toString()];
-			case ApplyToKind.closedDocuments:
-				return !this.openModels[(await result.resource).toString()];
-			default:
-				return true;
+	pwotected async shouwdAppwyMatch(wesuwt: PwobwemMatch): Pwomise<boowean> {
+		switch (wesuwt.descwiption.appwyTo) {
+			case AppwyToKind.awwDocuments:
+				wetuwn twue;
+			case AppwyToKind.openDocuments:
+				wetuwn !!this.openModews[(await wesuwt.wesouwce).toStwing()];
+			case AppwyToKind.cwosedDocuments:
+				wetuwn !this.openModews[(await wesuwt.wesouwce).toStwing()];
+			defauwt:
+				wetuwn twue;
 		}
 	}
 
-	private mergeApplyTo(current: ApplyToKind, value: ApplyToKind): ApplyToKind {
-		if (current === value || current === ApplyToKind.allDocuments) {
-			return current;
+	pwivate mewgeAppwyTo(cuwwent: AppwyToKind, vawue: AppwyToKind): AppwyToKind {
+		if (cuwwent === vawue || cuwwent === AppwyToKind.awwDocuments) {
+			wetuwn cuwwent;
 		}
-		return ApplyToKind.allDocuments;
+		wetuwn AppwyToKind.awwDocuments;
 	}
 
-	private tryMatchers(): ProblemMatch | null {
-		this.activeMatcher = null;
-		let length = this.buffer.length;
-		for (let startIndex = 0; startIndex < length; startIndex++) {
-			let candidates = this.matchers[length - startIndex];
+	pwivate twyMatchews(): PwobwemMatch | nuww {
+		this.activeMatcha = nuww;
+		wet wength = this.buffa.wength;
+		fow (wet stawtIndex = 0; stawtIndex < wength; stawtIndex++) {
+			wet candidates = this.matchews[wength - stawtIndex];
 			if (!candidates) {
 				continue;
 			}
-			for (const matcher of candidates) {
-				let result = matcher.handle(this.buffer, startIndex);
-				if (result.match) {
-					this.captureMatch(result.match);
-					if (result.continue) {
-						this.activeMatcher = matcher;
+			fow (const matcha of candidates) {
+				wet wesuwt = matcha.handwe(this.buffa, stawtIndex);
+				if (wesuwt.match) {
+					this.captuweMatch(wesuwt.match);
+					if (wesuwt.continue) {
+						this.activeMatcha = matcha;
 					}
-					return result.match;
+					wetuwn wesuwt.match;
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private captureMatch(match: ProblemMatch): void {
-		this._numberOfMatches++;
-		if (this._maxMarkerSeverity === undefined || match.marker.severity > this._maxMarkerSeverity) {
-			this._maxMarkerSeverity = match.marker.severity;
+	pwivate captuweMatch(match: PwobwemMatch): void {
+		this._numbewOfMatches++;
+		if (this._maxMawkewSevewity === undefined || match.mawka.sevewity > this._maxMawkewSevewity) {
+			this._maxMawkewSevewity = match.mawka.sevewity;
 		}
 	}
 
-	private clearBuffer(): void {
-		if (this.buffer.length > 0) {
-			this.buffer = [];
+	pwivate cweawBuffa(): void {
+		if (this.buffa.wength > 0) {
+			this.buffa = [];
 		}
 	}
 
-	protected recordResourcesToClean(owner: string): void {
-		let resourceSetToClean = this.getResourceSetToClean(owner);
-		this.markerService.read({ owner: owner }).forEach(marker => resourceSetToClean.set(marker.resource.toString(), marker.resource));
+	pwotected wecowdWesouwcesToCwean(owna: stwing): void {
+		wet wesouwceSetToCwean = this.getWesouwceSetToCwean(owna);
+		this.mawkewSewvice.wead({ owna: owna }).fowEach(mawka => wesouwceSetToCwean.set(mawka.wesouwce.toStwing(), mawka.wesouwce));
 	}
 
-	protected recordResourceToClean(owner: string, resource: URI): void {
-		this.getResourceSetToClean(owner).set(resource.toString(), resource);
+	pwotected wecowdWesouwceToCwean(owna: stwing, wesouwce: UWI): void {
+		this.getWesouwceSetToCwean(owna).set(wesouwce.toStwing(), wesouwce);
 	}
 
-	protected removeResourceToClean(owner: string, resource: string): void {
-		let resourceSet = this.resourcesToClean.get(owner);
-		if (resourceSet) {
-			resourceSet.delete(resource);
+	pwotected wemoveWesouwceToCwean(owna: stwing, wesouwce: stwing): void {
+		wet wesouwceSet = this.wesouwcesToCwean.get(owna);
+		if (wesouwceSet) {
+			wesouwceSet.dewete(wesouwce);
 		}
 	}
 
-	private getResourceSetToClean(owner: string): Map<string, URI> {
-		let result = this.resourcesToClean.get(owner);
-		if (!result) {
-			result = new Map<string, URI>();
-			this.resourcesToClean.set(owner, result);
+	pwivate getWesouwceSetToCwean(owna: stwing): Map<stwing, UWI> {
+		wet wesuwt = this.wesouwcesToCwean.get(owna);
+		if (!wesuwt) {
+			wesuwt = new Map<stwing, UWI>();
+			this.wesouwcesToCwean.set(owna, wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected cleanAllMarkers(): void {
-		this.resourcesToClean.forEach((value, owner) => {
-			this._cleanMarkers(owner, value);
+	pwotected cweanAwwMawkews(): void {
+		this.wesouwcesToCwean.fowEach((vawue, owna) => {
+			this._cweanMawkews(owna, vawue);
 		});
-		this.resourcesToClean = new Map<string, Map<string, URI>>();
+		this.wesouwcesToCwean = new Map<stwing, Map<stwing, UWI>>();
 	}
 
-	protected cleanMarkers(owner: string): void {
-		let toClean = this.resourcesToClean.get(owner);
-		if (toClean) {
-			this._cleanMarkers(owner, toClean);
-			this.resourcesToClean.delete(owner);
+	pwotected cweanMawkews(owna: stwing): void {
+		wet toCwean = this.wesouwcesToCwean.get(owna);
+		if (toCwean) {
+			this._cweanMawkews(owna, toCwean);
+			this.wesouwcesToCwean.dewete(owna);
 		}
 	}
 
-	private _cleanMarkers(owner: string, toClean: Map<string, URI>): void {
-		let uris: URI[] = [];
-		let applyTo = this.applyToByOwner.get(owner);
-		toClean.forEach((uri, uriAsString) => {
+	pwivate _cweanMawkews(owna: stwing, toCwean: Map<stwing, UWI>): void {
+		wet uwis: UWI[] = [];
+		wet appwyTo = this.appwyToByOwna.get(owna);
+		toCwean.fowEach((uwi, uwiAsStwing) => {
 			if (
-				applyTo === ApplyToKind.allDocuments ||
-				(applyTo === ApplyToKind.openDocuments && this.openModels[uriAsString]) ||
-				(applyTo === ApplyToKind.closedDocuments && !this.openModels[uriAsString])
+				appwyTo === AppwyToKind.awwDocuments ||
+				(appwyTo === AppwyToKind.openDocuments && this.openModews[uwiAsStwing]) ||
+				(appwyTo === AppwyToKind.cwosedDocuments && !this.openModews[uwiAsStwing])
 			) {
-				uris.push(uri);
+				uwis.push(uwi);
 			}
 		});
-		this.markerService.remove(owner, uris);
+		this.mawkewSewvice.wemove(owna, uwis);
 	}
 
-	protected recordMarker(marker: IMarkerData, owner: string, resourceAsString: string): void {
-		let markersPerOwner = this.markers.get(owner);
-		if (!markersPerOwner) {
-			markersPerOwner = new Map<string, Map<string, IMarkerData>>();
-			this.markers.set(owner, markersPerOwner);
+	pwotected wecowdMawka(mawka: IMawkewData, owna: stwing, wesouwceAsStwing: stwing): void {
+		wet mawkewsPewOwna = this.mawkews.get(owna);
+		if (!mawkewsPewOwna) {
+			mawkewsPewOwna = new Map<stwing, Map<stwing, IMawkewData>>();
+			this.mawkews.set(owna, mawkewsPewOwna);
 		}
-		let markersPerResource = markersPerOwner.get(resourceAsString);
-		if (!markersPerResource) {
-			markersPerResource = new Map<string, IMarkerData>();
-			markersPerOwner.set(resourceAsString, markersPerResource);
+		wet mawkewsPewWesouwce = mawkewsPewOwna.get(wesouwceAsStwing);
+		if (!mawkewsPewWesouwce) {
+			mawkewsPewWesouwce = new Map<stwing, IMawkewData>();
+			mawkewsPewOwna.set(wesouwceAsStwing, mawkewsPewWesouwce);
 		}
-		let key = IMarkerData.makeKeyOptionalMessage(marker, false);
-		let existingMarker;
-		if (!markersPerResource.has(key)) {
-			markersPerResource.set(key, marker);
-		} else if (((existingMarker = markersPerResource.get(key)) !== undefined) && (existingMarker.message.length < marker.message.length) && isWindows) {
-			// Most likely https://github.com/microsoft/vscode/issues/77475
-			// Heuristic dictates that when the key is the same and message is smaller, we have hit this limitation.
-			markersPerResource.set(key, marker);
+		wet key = IMawkewData.makeKeyOptionawMessage(mawka, fawse);
+		wet existingMawka;
+		if (!mawkewsPewWesouwce.has(key)) {
+			mawkewsPewWesouwce.set(key, mawka);
+		} ewse if (((existingMawka = mawkewsPewWesouwce.get(key)) !== undefined) && (existingMawka.message.wength < mawka.message.wength) && isWindows) {
+			// Most wikewy https://github.com/micwosoft/vscode/issues/77475
+			// Heuwistic dictates that when the key is the same and message is smawwa, we have hit this wimitation.
+			mawkewsPewWesouwce.set(key, mawka);
 		}
 	}
 
-	protected reportMarkers(): void {
-		this.markers.forEach((markersPerOwner, owner) => {
-			let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
-			markersPerOwner.forEach((markers, resource) => {
-				this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markers, deliveredMarkersPerOwner);
+	pwotected wepowtMawkews(): void {
+		this.mawkews.fowEach((mawkewsPewOwna, owna) => {
+			wet dewivewedMawkewsPewOwna = this.getDewivewedMawkewsPewOwna(owna);
+			mawkewsPewOwna.fowEach((mawkews, wesouwce) => {
+				this.dewivewMawkewsPewOwnewAndWesouwceWesowved(owna, wesouwce, mawkews, dewivewedMawkewsPewOwna);
 			});
 		});
 	}
 
-	protected deliverMarkersPerOwnerAndResource(owner: string, resource: string): void {
-		let markersPerOwner = this.markers.get(owner);
-		if (!markersPerOwner) {
-			return;
+	pwotected dewivewMawkewsPewOwnewAndWesouwce(owna: stwing, wesouwce: stwing): void {
+		wet mawkewsPewOwna = this.mawkews.get(owna);
+		if (!mawkewsPewOwna) {
+			wetuwn;
 		}
-		let deliveredMarkersPerOwner = this.getDeliveredMarkersPerOwner(owner);
-		let markersPerResource = markersPerOwner.get(resource);
-		if (!markersPerResource) {
-			return;
+		wet dewivewedMawkewsPewOwna = this.getDewivewedMawkewsPewOwna(owna);
+		wet mawkewsPewWesouwce = mawkewsPewOwna.get(wesouwce);
+		if (!mawkewsPewWesouwce) {
+			wetuwn;
 		}
-		this.deliverMarkersPerOwnerAndResourceResolved(owner, resource, markersPerResource, deliveredMarkersPerOwner);
+		this.dewivewMawkewsPewOwnewAndWesouwceWesowved(owna, wesouwce, mawkewsPewWesouwce, dewivewedMawkewsPewOwna);
 	}
 
-	private deliverMarkersPerOwnerAndResourceResolved(owner: string, resource: string, markers: Map<string, IMarkerData>, reported: Map<string, number>): void {
-		if (markers.size !== reported.get(resource)) {
-			let toSet: IMarkerData[] = [];
-			markers.forEach(value => toSet.push(value));
-			this.markerService.changeOne(owner, URI.parse(resource), toSet);
-			reported.set(resource, markers.size);
+	pwivate dewivewMawkewsPewOwnewAndWesouwceWesowved(owna: stwing, wesouwce: stwing, mawkews: Map<stwing, IMawkewData>, wepowted: Map<stwing, numba>): void {
+		if (mawkews.size !== wepowted.get(wesouwce)) {
+			wet toSet: IMawkewData[] = [];
+			mawkews.fowEach(vawue => toSet.push(vawue));
+			this.mawkewSewvice.changeOne(owna, UWI.pawse(wesouwce), toSet);
+			wepowted.set(wesouwce, mawkews.size);
 		}
 	}
 
-	private getDeliveredMarkersPerOwner(owner: string): Map<string, number> {
-		let result = this.deliveredMarkers.get(owner);
-		if (!result) {
-			result = new Map<string, number>();
-			this.deliveredMarkers.set(owner, result);
+	pwivate getDewivewedMawkewsPewOwna(owna: stwing): Map<stwing, numba> {
+		wet wesuwt = this.dewivewedMawkews.get(owna);
+		if (!wesuwt) {
+			wesuwt = new Map<stwing, numba>();
+			this.dewivewedMawkews.set(owna, wesuwt);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected cleanMarkerCaches(): void {
-		this._numberOfMatches = 0;
-		this._maxMarkerSeverity = undefined;
-		this.markers.clear();
-		this.deliveredMarkers.clear();
+	pwotected cweanMawkewCaches(): void {
+		this._numbewOfMatches = 0;
+		this._maxMawkewSevewity = undefined;
+		this.mawkews.cweaw();
+		this.dewivewedMawkews.cweaw();
 	}
 
-	public done(): void {
-		this.reportMarkers();
-		this.cleanAllMarkers();
+	pubwic done(): void {
+		this.wepowtMawkews();
+		this.cweanAwwMawkews();
 	}
 }
 
-export const enum ProblemHandlingStrategy {
-	Clean
+expowt const enum PwobwemHandwingStwategy {
+	Cwean
 }
 
-export class StartStopProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
-	private owners: string[];
+expowt cwass StawtStopPwobwemCowwectow extends AbstwactPwobwemCowwectow impwements IPwobwemMatcha {
+	pwivate ownews: stwing[];
 
-	private currentOwner: string | undefined;
-	private currentResource: string | undefined;
+	pwivate cuwwentOwna: stwing | undefined;
+	pwivate cuwwentWesouwce: stwing | undefined;
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
-		super(problemMatchers, markerService, modelService, fileService);
-		let ownerSet: { [key: string]: boolean; } = Object.create(null);
-		problemMatchers.forEach(description => ownerSet[description.owner] = true);
-		this.owners = Object.keys(ownerSet);
-		this.owners.forEach((owner) => {
-			this.recordResourcesToClean(owner);
+	constwuctow(pwobwemMatchews: PwobwemMatcha[], mawkewSewvice: IMawkewSewvice, modewSewvice: IModewSewvice, _stwategy: PwobwemHandwingStwategy = PwobwemHandwingStwategy.Cwean, fiweSewvice?: IFiweSewvice) {
+		supa(pwobwemMatchews, mawkewSewvice, modewSewvice, fiweSewvice);
+		wet ownewSet: { [key: stwing]: boowean; } = Object.cweate(nuww);
+		pwobwemMatchews.fowEach(descwiption => ownewSet[descwiption.owna] = twue);
+		this.ownews = Object.keys(ownewSet);
+		this.ownews.fowEach((owna) => {
+			this.wecowdWesouwcesToCwean(owna);
 		});
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
-		let markerMatch = this.tryFindMarker(line);
-		if (!markerMatch) {
-			return;
+	pwotected async pwocessWineIntewnaw(wine: stwing): Pwomise<void> {
+		wet mawkewMatch = this.twyFindMawka(wine);
+		if (!mawkewMatch) {
+			wetuwn;
 		}
 
-		let owner = markerMatch.description.owner;
-		let resource = await markerMatch.resource;
-		let resourceAsString = resource.toString();
-		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
-		if (shouldApplyMatch) {
-			this.recordMarker(markerMatch.marker, owner, resourceAsString);
-			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
-				if (this.currentOwner && this.currentResource) {
-					this.deliverMarkersPerOwnerAndResource(this.currentOwner, this.currentResource);
+		wet owna = mawkewMatch.descwiption.owna;
+		wet wesouwce = await mawkewMatch.wesouwce;
+		wet wesouwceAsStwing = wesouwce.toStwing();
+		this.wemoveWesouwceToCwean(owna, wesouwceAsStwing);
+		wet shouwdAppwyMatch = await this.shouwdAppwyMatch(mawkewMatch);
+		if (shouwdAppwyMatch) {
+			this.wecowdMawka(mawkewMatch.mawka, owna, wesouwceAsStwing);
+			if (this.cuwwentOwna !== owna || this.cuwwentWesouwce !== wesouwceAsStwing) {
+				if (this.cuwwentOwna && this.cuwwentWesouwce) {
+					this.dewivewMawkewsPewOwnewAndWesouwce(this.cuwwentOwna, this.cuwwentWesouwce);
 				}
-				this.currentOwner = owner;
-				this.currentResource = resourceAsString;
+				this.cuwwentOwna = owna;
+				this.cuwwentWesouwce = wesouwceAsStwing;
 			}
 		}
 	}
 }
 
-interface BackgroundPatterns {
-	key: string;
-	matcher: ProblemMatcher;
-	begin: WatchingPattern;
-	end: WatchingPattern;
+intewface BackgwoundPattewns {
+	key: stwing;
+	matcha: PwobwemMatcha;
+	begin: WatchingPattewn;
+	end: WatchingPattewn;
 }
 
-export class WatchingProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
+expowt cwass WatchingPwobwemCowwectow extends AbstwactPwobwemCowwectow impwements IPwobwemMatcha {
 
-	private backgroundPatterns: BackgroundPatterns[];
+	pwivate backgwoundPattewns: BackgwoundPattewns[];
 
-	// workaround for https://github.com/microsoft/vscode/issues/44018
-	private _activeBackgroundMatchers: Set<string>;
+	// wowkawound fow https://github.com/micwosoft/vscode/issues/44018
+	pwivate _activeBackgwoundMatchews: Set<stwing>;
 
-	// Current State
-	private currentOwner: string | undefined;
-	private currentResource: string | undefined;
+	// Cuwwent State
+	pwivate cuwwentOwna: stwing | undefined;
+	pwivate cuwwentWesouwce: stwing | undefined;
 
-	private lines: string[] = [];
+	pwivate wines: stwing[] = [];
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, fileService?: IFileService) {
-		super(problemMatchers, markerService, modelService, fileService);
-		this.resetCurrentResource();
-		this.backgroundPatterns = [];
-		this._activeBackgroundMatchers = new Set<string>();
-		this.problemMatchers.forEach(matcher => {
-			if (matcher.watching) {
-				const key: string = generateUuid();
-				this.backgroundPatterns.push({
+	constwuctow(pwobwemMatchews: PwobwemMatcha[], mawkewSewvice: IMawkewSewvice, modewSewvice: IModewSewvice, fiweSewvice?: IFiweSewvice) {
+		supa(pwobwemMatchews, mawkewSewvice, modewSewvice, fiweSewvice);
+		this.wesetCuwwentWesouwce();
+		this.backgwoundPattewns = [];
+		this._activeBackgwoundMatchews = new Set<stwing>();
+		this.pwobwemMatchews.fowEach(matcha => {
+			if (matcha.watching) {
+				const key: stwing = genewateUuid();
+				this.backgwoundPattewns.push({
 					key,
-					matcher: matcher,
-					begin: matcher.watching.beginsPattern,
-					end: matcher.watching.endsPattern
+					matcha: matcha,
+					begin: matcha.watching.beginsPattewn,
+					end: matcha.watching.endsPattewn
 				});
 			}
 		});
 
-		this.modelListeners.add(this.modelService.onModelRemoved(modelEvent => {
-			let markerChanged: IDisposable | undefined =
-				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
-					return (last ?? []).concat(e);
-				}, 500)(async (markerEvent) => {
-					markerChanged?.dispose();
-					markerChanged = undefined;
-					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
-						return;
+		this.modewWistenews.add(this.modewSewvice.onModewWemoved(modewEvent => {
+			wet mawkewChanged: IDisposabwe | undefined =
+				Event.debounce(this.mawkewSewvice.onMawkewChanged, (wast: weadonwy UWI[] | undefined, e: weadonwy UWI[]) => {
+					wetuwn (wast ?? []).concat(e);
+				}, 500)(async (mawkewEvent) => {
+					mawkewChanged?.dispose();
+					mawkewChanged = undefined;
+					if (!mawkewEvent.incwudes(modewEvent.uwi) || (this.mawkewSewvice.wead({ wesouwce: modewEvent.uwi }).wength !== 0)) {
+						wetuwn;
 					}
-					const oldLines = Array.from(this.lines);
-					for (const line of oldLines) {
-						await this.processLineInternal(line);
+					const owdWines = Awway.fwom(this.wines);
+					fow (const wine of owdWines) {
+						await this.pwocessWineIntewnaw(wine);
 					}
 				});
 			setTimeout(async () => {
-				markerChanged?.dispose();
-				markerChanged = undefined;
+				mawkewChanged?.dispose();
+				mawkewChanged = undefined;
 			}, 600);
 		}));
 	}
 
-	public aboutToStart(): void {
-		for (let background of this.backgroundPatterns) {
-			if (background.matcher.watching && background.matcher.watching.activeOnStart) {
-				this._activeBackgroundMatchers.add(background.key);
-				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
-				this.recordResourcesToClean(background.matcher.owner);
+	pubwic aboutToStawt(): void {
+		fow (wet backgwound of this.backgwoundPattewns) {
+			if (backgwound.matcha.watching && backgwound.matcha.watching.activeOnStawt) {
+				this._activeBackgwoundMatchews.add(backgwound.key);
+				this._onDidStateChange.fiwe(PwobwemCowwectowEvent.cweate(PwobwemCowwectowEventKind.BackgwoundPwocessingBegins));
+				this.wecowdWesouwcesToCwean(backgwound.matcha.owna);
 			}
 		}
 	}
 
-	protected async processLineInternal(line: string): Promise<void> {
-		if (await this.tryBegin(line) || this.tryFinish(line)) {
-			return;
+	pwotected async pwocessWineIntewnaw(wine: stwing): Pwomise<void> {
+		if (await this.twyBegin(wine) || this.twyFinish(wine)) {
+			wetuwn;
 		}
-		this.lines.push(line);
-		let markerMatch = this.tryFindMarker(line);
-		if (!markerMatch) {
-			return;
+		this.wines.push(wine);
+		wet mawkewMatch = this.twyFindMawka(wine);
+		if (!mawkewMatch) {
+			wetuwn;
 		}
-		let resource = await markerMatch.resource;
-		let owner = markerMatch.description.owner;
-		let resourceAsString = resource.toString();
-		this.removeResourceToClean(owner, resourceAsString);
-		let shouldApplyMatch = await this.shouldApplyMatch(markerMatch);
-		if (shouldApplyMatch) {
-			this.recordMarker(markerMatch.marker, owner, resourceAsString);
-			if (this.currentOwner !== owner || this.currentResource !== resourceAsString) {
-				this.reportMarkersForCurrentResource();
-				this.currentOwner = owner;
-				this.currentResource = resourceAsString;
+		wet wesouwce = await mawkewMatch.wesouwce;
+		wet owna = mawkewMatch.descwiption.owna;
+		wet wesouwceAsStwing = wesouwce.toStwing();
+		this.wemoveWesouwceToCwean(owna, wesouwceAsStwing);
+		wet shouwdAppwyMatch = await this.shouwdAppwyMatch(mawkewMatch);
+		if (shouwdAppwyMatch) {
+			this.wecowdMawka(mawkewMatch.mawka, owna, wesouwceAsStwing);
+			if (this.cuwwentOwna !== owna || this.cuwwentWesouwce !== wesouwceAsStwing) {
+				this.wepowtMawkewsFowCuwwentWesouwce();
+				this.cuwwentOwna = owna;
+				this.cuwwentWesouwce = wesouwceAsStwing;
 			}
 		}
 	}
 
-	public forceDelivery(): void {
-		this.reportMarkersForCurrentResource();
+	pubwic fowceDewivewy(): void {
+		this.wepowtMawkewsFowCuwwentWesouwce();
 	}
 
-	private async tryBegin(line: string): Promise<boolean> {
-		let result = false;
-		for (const background of this.backgroundPatterns) {
-			let matches = background.begin.regexp.exec(line);
+	pwivate async twyBegin(wine: stwing): Pwomise<boowean> {
+		wet wesuwt = fawse;
+		fow (const backgwound of this.backgwoundPattewns) {
+			wet matches = backgwound.begin.wegexp.exec(wine);
 			if (matches) {
-				if (this._activeBackgroundMatchers.has(background.key)) {
+				if (this._activeBackgwoundMatchews.has(backgwound.key)) {
 					continue;
 				}
-				this._activeBackgroundMatchers.add(background.key);
-				result = true;
-				this.lines = [];
-				this.lines.push(line);
-				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
-				this.cleanMarkerCaches();
-				this.resetCurrentResource();
-				let owner = background.matcher.owner;
-				let file = matches[background.begin.file!];
-				if (file) {
-					let resource = getResource(file, background.matcher);
-					this.recordResourceToClean(owner, await resource);
-				} else {
-					this.recordResourcesToClean(owner);
+				this._activeBackgwoundMatchews.add(backgwound.key);
+				wesuwt = twue;
+				this.wines = [];
+				this.wines.push(wine);
+				this._onDidStateChange.fiwe(PwobwemCowwectowEvent.cweate(PwobwemCowwectowEventKind.BackgwoundPwocessingBegins));
+				this.cweanMawkewCaches();
+				this.wesetCuwwentWesouwce();
+				wet owna = backgwound.matcha.owna;
+				wet fiwe = matches[backgwound.begin.fiwe!];
+				if (fiwe) {
+					wet wesouwce = getWesouwce(fiwe, backgwound.matcha);
+					this.wecowdWesouwceToCwean(owna, await wesouwce);
+				} ewse {
+					this.wecowdWesouwcesToCwean(owna);
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private tryFinish(line: string): boolean {
-		let result = false;
-		for (const background of this.backgroundPatterns) {
-			let matches = background.end.regexp.exec(line);
+	pwivate twyFinish(wine: stwing): boowean {
+		wet wesuwt = fawse;
+		fow (const backgwound of this.backgwoundPattewns) {
+			wet matches = backgwound.end.wegexp.exec(wine);
 			if (matches) {
-				if (this._activeBackgroundMatchers.has(background.key)) {
-					this._activeBackgroundMatchers.delete(background.key);
-					this.resetCurrentResource();
-					this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
-					result = true;
-					this.lines.push(line);
-					let owner = background.matcher.owner;
-					this.cleanMarkers(owner);
-					this.cleanMarkerCaches();
+				if (this._activeBackgwoundMatchews.has(backgwound.key)) {
+					this._activeBackgwoundMatchews.dewete(backgwound.key);
+					this.wesetCuwwentWesouwce();
+					this._onDidStateChange.fiwe(PwobwemCowwectowEvent.cweate(PwobwemCowwectowEventKind.BackgwoundPwocessingEnds));
+					wesuwt = twue;
+					this.wines.push(wine);
+					wet owna = backgwound.matcha.owna;
+					this.cweanMawkews(owna);
+					this.cweanMawkewCaches();
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private resetCurrentResource(): void {
-		this.reportMarkersForCurrentResource();
-		this.currentOwner = undefined;
-		this.currentResource = undefined;
+	pwivate wesetCuwwentWesouwce(): void {
+		this.wepowtMawkewsFowCuwwentWesouwce();
+		this.cuwwentOwna = undefined;
+		this.cuwwentWesouwce = undefined;
 	}
 
-	private reportMarkersForCurrentResource(): void {
-		if (this.currentOwner && this.currentResource) {
-			this.deliverMarkersPerOwnerAndResource(this.currentOwner, this.currentResource);
+	pwivate wepowtMawkewsFowCuwwentWesouwce(): void {
+		if (this.cuwwentOwna && this.cuwwentWesouwce) {
+			this.dewivewMawkewsPewOwnewAndWesouwce(this.cuwwentOwna, this.cuwwentWesouwce);
 		}
 	}
 
-	public override done(): void {
-		[...this.applyToByOwner.keys()].forEach(owner => {
-			this.recordResourcesToClean(owner);
+	pubwic ovewwide done(): void {
+		[...this.appwyToByOwna.keys()].fowEach(owna => {
+			this.wecowdWesouwcesToCwean(owna);
 		});
-		super.done();
+		supa.done();
 	}
 
-	public isWatching(): boolean {
-		return this.backgroundPatterns.length > 0;
+	pubwic isWatching(): boowean {
+		wetuwn this.backgwoundPattewns.wength > 0;
 	}
 }

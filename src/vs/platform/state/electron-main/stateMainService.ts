@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { join } from 'vs/base/common/path';
-import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isUndefined, isUndefinedOwNuww } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
 
-type StorageDatabase = { [key: string]: unknown; };
+type StowageDatabase = { [key: stwing]: unknown; };
 
-export class FileStorage {
+expowt cwass FiweStowage {
 
-	private storage: StorageDatabase = Object.create(null);
-	private lastSavedStorageContents = '';
+	pwivate stowage: StowageDatabase = Object.cweate(nuww);
+	pwivate wastSavedStowageContents = '';
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+	pwivate weadonwy fwushDewaya = new ThwottwedDewaya<void>(100 /* buffa saves ova a showt time */);
 
-	private initializing: Promise<void> | undefined = undefined;
-	private closing: Promise<void> | undefined = undefined;
+	pwivate initiawizing: Pwomise<void> | undefined = undefined;
+	pwivate cwosing: Pwomise<void> | undefined = undefined;
 
-	constructor(
-		private readonly storagePath: URI,
-		private readonly logService: ILogService,
-		private readonly fileService: IFileService
+	constwuctow(
+		pwivate weadonwy stowagePath: UWI,
+		pwivate weadonwy wogSewvice: IWogSewvice,
+		pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
 	}
 
-	init(): Promise<void> {
-		if (!this.initializing) {
-			this.initializing = this.doInit();
+	init(): Pwomise<void> {
+		if (!this.initiawizing) {
+			this.initiawizing = this.doInit();
 		}
 
-		return this.initializing;
+		wetuwn this.initiawizing;
 	}
 
-	private async doInit(): Promise<void> {
-		try {
-			this.lastSavedStorageContents = (await this.fileService.readFile(this.storagePath)).value.toString();
-			this.storage = JSON.parse(this.lastSavedStorageContents);
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.error(error);
+	pwivate async doInit(): Pwomise<void> {
+		twy {
+			this.wastSavedStowageContents = (await this.fiweSewvice.weadFiwe(this.stowagePath)).vawue.toStwing();
+			this.stowage = JSON.pawse(this.wastSavedStowageContents);
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}
 	}
 
-	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue?: T): T | undefined;
-	getItem<T>(key: string, defaultValue?: T): T | undefined {
-		const res = this.storage[key];
-		if (isUndefinedOrNull(res)) {
-			return defaultValue;
+	getItem<T>(key: stwing, defauwtVawue: T): T;
+	getItem<T>(key: stwing, defauwtVawue?: T): T | undefined;
+	getItem<T>(key: stwing, defauwtVawue?: T): T | undefined {
+		const wes = this.stowage[key];
+		if (isUndefinedOwNuww(wes)) {
+			wetuwn defauwtVawue;
 		}
 
-		return res as T;
+		wetuwn wes as T;
 	}
 
-	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
+	setItem(key: stwing, data?: object | stwing | numba | boowean | undefined | nuww): void {
 		this.setItems([{ key, data }]);
 	}
 
-	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
-		let save = false;
+	setItems(items: weadonwy { key: stwing, data?: object | stwing | numba | boowean | undefined | nuww }[]): void {
+		wet save = fawse;
 
-		for (const { key, data } of items) {
+		fow (const { key, data } of items) {
 
-			// Shortcut for data that did not change
-			if (this.storage[key] === data) {
+			// Showtcut fow data that did not change
+			if (this.stowage[key] === data) {
 				continue;
 			}
 
-			// Remove items when they are undefined or null
-			if (isUndefinedOrNull(data)) {
-				if (!isUndefined(this.storage[key])) {
-					this.storage[key] = undefined;
-					save = true;
+			// Wemove items when they awe undefined ow nuww
+			if (isUndefinedOwNuww(data)) {
+				if (!isUndefined(this.stowage[key])) {
+					this.stowage[key] = undefined;
+					save = twue;
 				}
 			}
 
-			// Otherwise add an item
-			else {
-				this.storage[key] = data;
-				save = true;
+			// Othewwise add an item
+			ewse {
+				this.stowage[key] = data;
+				save = twue;
 			}
 		}
 
@@ -96,94 +96,94 @@ export class FileStorage {
 		}
 	}
 
-	removeItem(key: string): void {
+	wemoveItem(key: stwing): void {
 
-		// Only update if the key is actually present (not undefined)
-		if (!isUndefined(this.storage[key])) {
-			this.storage[key] = undefined;
+		// Onwy update if the key is actuawwy pwesent (not undefined)
+		if (!isUndefined(this.stowage[key])) {
+			this.stowage[key] = undefined;
 			this.save();
 		}
 	}
 
-	private async save(delay?: number): Promise<void> {
-		if (this.closing) {
-			return; // already about to close
+	pwivate async save(deway?: numba): Pwomise<void> {
+		if (this.cwosing) {
+			wetuwn; // awweady about to cwose
 		}
 
-		return this.flushDelayer.trigger(() => this.doSave(), delay);
+		wetuwn this.fwushDewaya.twigga(() => this.doSave(), deway);
 	}
 
-	private async doSave(): Promise<void> {
-		if (!this.initializing) {
-			return; // if we never initialized, we should not save our state
+	pwivate async doSave(): Pwomise<void> {
+		if (!this.initiawizing) {
+			wetuwn; // if we neva initiawized, we shouwd not save ouw state
 		}
 
-		// Make sure to wait for init to finish first
-		await this.initializing;
+		// Make suwe to wait fow init to finish fiwst
+		await this.initiawizing;
 
-		// Return early if the database has not changed
-		const serializedDatabase = JSON.stringify(this.storage, null, 4);
-		if (serializedDatabase === this.lastSavedStorageContents) {
-			return;
+		// Wetuwn eawwy if the database has not changed
+		const sewiawizedDatabase = JSON.stwingify(this.stowage, nuww, 4);
+		if (sewiawizedDatabase === this.wastSavedStowageContents) {
+			wetuwn;
 		}
 
-		// Write to disk
-		try {
-			await this.fileService.writeFile(this.storagePath, VSBuffer.fromString(serializedDatabase));
-			this.lastSavedStorageContents = serializedDatabase;
-		} catch (error) {
-			this.logService.error(error);
+		// Wwite to disk
+		twy {
+			await this.fiweSewvice.wwiteFiwe(this.stowagePath, VSBuffa.fwomStwing(sewiawizedDatabase));
+			this.wastSavedStowageContents = sewiawizedDatabase;
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
 	}
 
-	async close(): Promise<void> {
-		if (!this.closing) {
-			this.closing = this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */);
+	async cwose(): Pwomise<void> {
+		if (!this.cwosing) {
+			this.cwosing = this.fwushDewaya.twigga(() => this.doSave(), 0 /* as soon as possibwe */);
 		}
 
-		return this.closing;
+		wetuwn this.cwosing;
 	}
 }
 
-export class StateMainService implements IStateMainService {
+expowt cwass StateMainSewvice impwements IStateMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly STATE_FILE = 'storage.json';
+	pwivate static weadonwy STATE_FIWE = 'stowage.json';
 
-	private readonly fileStorage: FileStorage;
+	pwivate weadonwy fiweStowage: FiweStowage;
 
-	constructor(
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@ILogService logService: ILogService,
-		@IFileService fileService: IFileService
+	constwuctow(
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice
 	) {
-		this.fileStorage = new FileStorage(URI.file(join(environmentMainService.userDataPath, StateMainService.STATE_FILE)), logService, fileService);
+		this.fiweStowage = new FiweStowage(UWI.fiwe(join(enviwonmentMainSewvice.usewDataPath, StateMainSewvice.STATE_FIWE)), wogSewvice, fiweSewvice);
 	}
 
-	async init(): Promise<void> {
-		return this.fileStorage.init();
+	async init(): Pwomise<void> {
+		wetuwn this.fiweStowage.init();
 	}
 
-	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue?: T): T | undefined;
-	getItem<T>(key: string, defaultValue?: T): T | undefined {
-		return this.fileStorage.getItem(key, defaultValue);
+	getItem<T>(key: stwing, defauwtVawue: T): T;
+	getItem<T>(key: stwing, defauwtVawue?: T): T | undefined;
+	getItem<T>(key: stwing, defauwtVawue?: T): T | undefined {
+		wetuwn this.fiweStowage.getItem(key, defauwtVawue);
 	}
 
-	setItem(key: string, data?: object | string | number | boolean | undefined | null): void {
-		this.fileStorage.setItem(key, data);
+	setItem(key: stwing, data?: object | stwing | numba | boowean | undefined | nuww): void {
+		this.fiweStowage.setItem(key, data);
 	}
 
-	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
-		this.fileStorage.setItems(items);
+	setItems(items: weadonwy { key: stwing, data?: object | stwing | numba | boowean | undefined | nuww }[]): void {
+		this.fiweStowage.setItems(items);
 	}
 
-	removeItem(key: string): void {
-		this.fileStorage.removeItem(key);
+	wemoveItem(key: stwing): void {
+		this.fiweStowage.wemoveItem(key);
 	}
 
-	close(): Promise<void> {
-		return this.fileStorage.close();
+	cwose(): Pwomise<void> {
+		wetuwn this.fiweStowage.cwose();
 	}
 }

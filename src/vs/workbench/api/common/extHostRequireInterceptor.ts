@@ -1,296 +1,296 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import * as vscode from 'vscode';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { platform } from 'vs/base/common/process';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MainThweadTewemetwyShape, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostConfigPwovida, IExtHostConfiguwation } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt * as vscode fwom 'vscode';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IExtensionApiFactowy } fwom 'vs/wowkbench/api/common/extHost.api.impw';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 
-interface LoadFunction {
-	(request: string): any;
+intewface WoadFunction {
+	(wequest: stwing): any;
 }
 
-interface INodeModuleFactory {
-	readonly nodeModuleName: string | string[];
-	load(request: string, parent: URI, original: LoadFunction): any;
-	alternativeModuleName?(name: string): string | undefined;
+intewface INodeModuweFactowy {
+	weadonwy nodeModuweName: stwing | stwing[];
+	woad(wequest: stwing, pawent: UWI, owiginaw: WoadFunction): any;
+	awtewnativeModuweName?(name: stwing): stwing | undefined;
 }
 
-export abstract class RequireInterceptor {
+expowt abstwact cwass WequiweIntewceptow {
 
-	protected readonly _factories: Map<string, INodeModuleFactory>;
-	protected readonly _alternatives: ((moduleName: string) => string | undefined)[];
+	pwotected weadonwy _factowies: Map<stwing, INodeModuweFactowy>;
+	pwotected weadonwy _awtewnatives: ((moduweName: stwing) => stwing | undefined)[];
 
-	constructor(
-		private _apiFactory: IExtensionApiFactory,
-		private _extensionRegistry: ExtensionDescriptionRegistry,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
-		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
-		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		pwivate _apiFactowy: IExtensionApiFactowy,
+		pwivate _extensionWegistwy: ExtensionDescwiptionWegistwy,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IExtHostConfiguwation pwivate weadonwy _extHostConfiguwation: IExtHostConfiguwation,
+		@IExtHostExtensionSewvice pwivate weadonwy _extHostExtensionSewvice: IExtHostExtensionSewvice,
+		@IExtHostInitDataSewvice pwivate weadonwy _initData: IExtHostInitDataSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		this._factories = new Map<string, INodeModuleFactory>();
-		this._alternatives = [];
+		this._factowies = new Map<stwing, INodeModuweFactowy>();
+		this._awtewnatives = [];
 	}
 
-	async install(): Promise<void> {
+	async instaww(): Pwomise<void> {
 
-		this._installInterceptor();
+		this._instawwIntewceptow();
 
-		performance.mark('code/extHost/willWaitForConfig');
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		performance.mark('code/extHost/didWaitForConfig');
-		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
+		pewfowmance.mawk('code/extHost/wiwwWaitFowConfig');
+		const configPwovida = await this._extHostConfiguwation.getConfigPwovida();
+		pewfowmance.mawk('code/extHost/didWaitFowConfig');
+		const extensionPaths = await this._extHostExtensionSewvice.getExtensionPathIndex();
 
-		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
-		this.register(this._instaService.createInstance(KeytarNodeModuleFactory));
-		if (this._initData.remote.isRemote) {
-			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
+		this.wegista(new VSCodeNodeModuweFactowy(this._apiFactowy, extensionPaths, this._extensionWegistwy, configPwovida, this._wogSewvice));
+		this.wegista(this._instaSewvice.cweateInstance(KeytawNodeModuweFactowy));
+		if (this._initData.wemote.isWemote) {
+			this.wegista(this._instaSewvice.cweateInstance(OpenNodeModuweFactowy, extensionPaths, this._initData.enviwonment.appUwiScheme));
 		}
 	}
 
-	protected abstract _installInterceptor(): void;
+	pwotected abstwact _instawwIntewceptow(): void;
 
-	public register(interceptor: INodeModuleFactory): void {
-		if (Array.isArray(interceptor.nodeModuleName)) {
-			for (let moduleName of interceptor.nodeModuleName) {
-				this._factories.set(moduleName, interceptor);
+	pubwic wegista(intewceptow: INodeModuweFactowy): void {
+		if (Awway.isAwway(intewceptow.nodeModuweName)) {
+			fow (wet moduweName of intewceptow.nodeModuweName) {
+				this._factowies.set(moduweName, intewceptow);
 			}
-		} else {
-			this._factories.set(interceptor.nodeModuleName, interceptor);
+		} ewse {
+			this._factowies.set(intewceptow.nodeModuweName, intewceptow);
 		}
-		if (typeof interceptor.alternativeModuleName === 'function') {
-			this._alternatives.push((moduleName) => {
-				return interceptor.alternativeModuleName!(moduleName);
+		if (typeof intewceptow.awtewnativeModuweName === 'function') {
+			this._awtewnatives.push((moduweName) => {
+				wetuwn intewceptow.awtewnativeModuweName!(moduweName);
 			});
 		}
 	}
 }
 
-//#region --- vscode-module
+//#wegion --- vscode-moduwe
 
-class VSCodeNodeModuleFactory implements INodeModuleFactory {
-	public readonly nodeModuleName = 'vscode';
+cwass VSCodeNodeModuweFactowy impwements INodeModuweFactowy {
+	pubwic weadonwy nodeModuweName = 'vscode';
 
-	private readonly _extApiImpl = new Map<string, typeof vscode>();
-	private _defaultApiImpl?: typeof vscode;
+	pwivate weadonwy _extApiImpw = new Map<stwing, typeof vscode>();
+	pwivate _defauwtApiImpw?: typeof vscode;
 
-	constructor(
-		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
-		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
-		private readonly _configProvider: ExtHostConfigProvider,
-		private readonly _logService: ILogService,
+	constwuctow(
+		pwivate weadonwy _apiFactowy: IExtensionApiFactowy,
+		pwivate weadonwy _extensionPaths: TewnawySeawchTwee<stwing, IExtensionDescwiption>,
+		pwivate weadonwy _extensionWegistwy: ExtensionDescwiptionWegistwy,
+		pwivate weadonwy _configPwovida: ExtHostConfigPwovida,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
 	}
 
-	public load(_request: string, parent: URI): any {
+	pubwic woad(_wequest: stwing, pawent: UWI): any {
 
-		// get extension id from filename and api for extension
-		const ext = this._extensionPaths.findSubstr(parent.fsPath);
+		// get extension id fwom fiwename and api fow extension
+		const ext = this._extensionPaths.findSubstw(pawent.fsPath);
 		if (ext) {
-			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
-			if (!apiImpl) {
-				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
-				this._extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
+			wet apiImpw = this._extApiImpw.get(ExtensionIdentifia.toKey(ext.identifia));
+			if (!apiImpw) {
+				apiImpw = this._apiFactowy(ext, this._extensionWegistwy, this._configPwovida);
+				this._extApiImpw.set(ExtensionIdentifia.toKey(ext.identifia), apiImpw);
 			}
-			return apiImpl;
+			wetuwn apiImpw;
 		}
 
-		// fall back to a default implementation
-		if (!this._defaultApiImpl) {
-			let extensionPathsPretty = '';
-			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
-			this._logService.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
-			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
+		// faww back to a defauwt impwementation
+		if (!this._defauwtApiImpw) {
+			wet extensionPathsPwetty = '';
+			this._extensionPaths.fowEach((vawue, index) => extensionPathsPwetty += `\t${index} -> ${vawue.identifia.vawue}\n`);
+			this._wogSewvice.wawn(`Couwd not identify extension fow 'vscode' wequiwe caww fwom ${pawent.fsPath}. These awe the extension path mappings: \n${extensionPathsPwetty}`);
+			this._defauwtApiImpw = this._apiFactowy(nuwwExtensionDescwiption, this._extensionWegistwy, this._configPwovida);
 		}
-		return this._defaultApiImpl;
+		wetuwn this._defauwtApiImpw;
 	}
 }
 
-//#endregion
+//#endwegion
 
 
-//#region --- keytar-module
+//#wegion --- keytaw-moduwe
 
-interface IKeytarModule {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+intewface IKeytawModuwe {
+	getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww>;
+	setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void>;
+	dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean>;
+	findPasswowd(sewvice: stwing): Pwomise<stwing | nuww>;
+	findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>>;
 }
 
-class KeytarNodeModuleFactory implements INodeModuleFactory {
-	public readonly nodeModuleName: string = 'keytar';
+cwass KeytawNodeModuweFactowy impwements INodeModuweFactowy {
+	pubwic weadonwy nodeModuweName: stwing = 'keytaw';
 
-	private alternativeNames: Set<string> | undefined;
-	private _impl: IKeytarModule;
+	pwivate awtewnativeNames: Set<stwing> | undefined;
+	pwivate _impw: IKeytawModuwe;
 
-	constructor(
-		@IExtHostRpcService rpcService: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
+	constwuctow(
+		@IExtHostWpcSewvice wpcSewvice: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
 
 	) {
-		const { environment } = initData;
-		const mainThreadKeytar = rpcService.getProxy(MainContext.MainThreadKeytar);
+		const { enviwonment } = initData;
+		const mainThweadKeytaw = wpcSewvice.getPwoxy(MainContext.MainThweadKeytaw);
 
-		if (environment.appRoot) {
-			let appRoot = environment.appRoot.fsPath;
-			if (platform === 'win32') {
-				appRoot = appRoot.replace(/\\/g, '/');
+		if (enviwonment.appWoot) {
+			wet appWoot = enviwonment.appWoot.fsPath;
+			if (pwatfowm === 'win32') {
+				appWoot = appWoot.wepwace(/\\/g, '/');
 			}
-			if (appRoot[appRoot.length - 1] === '/') {
-				appRoot = appRoot.substr(0, appRoot.length - 1);
+			if (appWoot[appWoot.wength - 1] === '/') {
+				appWoot = appWoot.substw(0, appWoot.wength - 1);
 			}
-			this.alternativeNames = new Set();
-			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);
-			this.alternativeNames.add(`${appRoot}/node_modules/keytar`);
+			this.awtewnativeNames = new Set();
+			this.awtewnativeNames.add(`${appWoot}/node_moduwes.asaw/keytaw`);
+			this.awtewnativeNames.add(`${appWoot}/node_moduwes/keytaw`);
 		}
-		this._impl = {
-			getPassword: (service: string, account: string): Promise<string | null> => {
-				return mainThreadKeytar.$getPassword(service, account);
+		this._impw = {
+			getPasswowd: (sewvice: stwing, account: stwing): Pwomise<stwing | nuww> => {
+				wetuwn mainThweadKeytaw.$getPasswowd(sewvice, account);
 			},
-			setPassword: (service: string, account: string, password: string): Promise<void> => {
-				return mainThreadKeytar.$setPassword(service, account, password);
+			setPasswowd: (sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> => {
+				wetuwn mainThweadKeytaw.$setPasswowd(sewvice, account, passwowd);
 			},
-			deletePassword: (service: string, account: string): Promise<boolean> => {
-				return mainThreadKeytar.$deletePassword(service, account);
+			dewetePasswowd: (sewvice: stwing, account: stwing): Pwomise<boowean> => {
+				wetuwn mainThweadKeytaw.$dewetePasswowd(sewvice, account);
 			},
-			findPassword: (service: string): Promise<string | null> => {
-				return mainThreadKeytar.$findPassword(service);
+			findPasswowd: (sewvice: stwing): Pwomise<stwing | nuww> => {
+				wetuwn mainThweadKeytaw.$findPasswowd(sewvice);
 			},
-			findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-				return mainThreadKeytar.$findCredentials(service);
+			findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>> {
+				wetuwn mainThweadKeytaw.$findCwedentiaws(sewvice);
 			}
 		};
 	}
 
-	public load(_request: string, _parent: URI): any {
-		return this._impl;
+	pubwic woad(_wequest: stwing, _pawent: UWI): any {
+		wetuwn this._impw;
 	}
 
-	public alternativeModuleName(name: string): string | undefined {
-		const length = name.length;
-		// We need at least something like: `?/keytar` which requires
-		// more than 7 characters.
-		if (length <= 7 || !this.alternativeNames) {
-			return undefined;
+	pubwic awtewnativeModuweName(name: stwing): stwing | undefined {
+		const wength = name.wength;
+		// We need at weast something wike: `?/keytaw` which wequiwes
+		// mowe than 7 chawactews.
+		if (wength <= 7 || !this.awtewnativeNames) {
+			wetuwn undefined;
 		}
-		const sep = length - 7;
-		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
-			name = name.replace(/\\/g, '/');
-			if (this.alternativeNames.has(name)) {
-				return 'keytar';
+		const sep = wength - 7;
+		if ((name.chawAt(sep) === '/' || name.chawAt(sep) === '\\') && name.endsWith('keytaw')) {
+			name = name.wepwace(/\\/g, '/');
+			if (this.awtewnativeNames.has(name)) {
+				wetuwn 'keytaw';
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-//#endregion
+//#endwegion
 
 
-//#region --- opn/open-module
+//#wegion --- opn/open-moduwe
 
-interface OpenOptions {
-	wait: boolean;
-	app: string | string[];
+intewface OpenOptions {
+	wait: boowean;
+	app: stwing | stwing[];
 }
 
-interface IOriginalOpen {
-	(target: string, options?: OpenOptions): Thenable<any>;
+intewface IOwiginawOpen {
+	(tawget: stwing, options?: OpenOptions): Thenabwe<any>;
 }
 
-interface IOpenModule {
-	(target: string, options?: OpenOptions): Thenable<void>;
+intewface IOpenModuwe {
+	(tawget: stwing, options?: OpenOptions): Thenabwe<void>;
 }
 
-class OpenNodeModuleFactory implements INodeModuleFactory {
+cwass OpenNodeModuweFactowy impwements INodeModuweFactowy {
 
-	public readonly nodeModuleName: string[] = ['open', 'opn'];
+	pubwic weadonwy nodeModuweName: stwing[] = ['open', 'opn'];
 
-	private _extensionId: string | undefined;
-	private _original?: IOriginalOpen;
-	private _impl: IOpenModule;
-	private _mainThreadTelemetry: MainThreadTelemetryShape;
+	pwivate _extensionId: stwing | undefined;
+	pwivate _owiginaw?: IOwiginawOpen;
+	pwivate _impw: IOpenModuwe;
+	pwivate _mainThweadTewemetwy: MainThweadTewemetwyShape;
 
-	constructor(
-		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
-		private readonly _appUriScheme: string,
-		@IExtHostRpcService rpcService: IExtHostRpcService,
+	constwuctow(
+		pwivate weadonwy _extensionPaths: TewnawySeawchTwee<stwing, IExtensionDescwiption>,
+		pwivate weadonwy _appUwiScheme: stwing,
+		@IExtHostWpcSewvice wpcSewvice: IExtHostWpcSewvice,
 	) {
 
-		this._mainThreadTelemetry = rpcService.getProxy(MainContext.MainThreadTelemetry);
-		const mainThreadWindow = rpcService.getProxy(MainContext.MainThreadWindow);
+		this._mainThweadTewemetwy = wpcSewvice.getPwoxy(MainContext.MainThweadTewemetwy);
+		const mainThweadWindow = wpcSewvice.getPwoxy(MainContext.MainThweadWindow);
 
-		this._impl = (target, options) => {
-			const uri: URI = URI.parse(target);
-			// If we have options use the original method.
+		this._impw = (tawget, options) => {
+			const uwi: UWI = UWI.pawse(tawget);
+			// If we have options use the owiginaw method.
 			if (options) {
-				return this.callOriginal(target, options);
+				wetuwn this.cawwOwiginaw(tawget, options);
 			}
-			if (uri.scheme === 'http' || uri.scheme === 'https') {
-				return mainThreadWindow.$openUri(uri, target, { allowTunneling: true });
-			} else if (uri.scheme === 'mailto' || uri.scheme === this._appUriScheme) {
-				return mainThreadWindow.$openUri(uri, target, {});
+			if (uwi.scheme === 'http' || uwi.scheme === 'https') {
+				wetuwn mainThweadWindow.$openUwi(uwi, tawget, { awwowTunnewing: twue });
+			} ewse if (uwi.scheme === 'maiwto' || uwi.scheme === this._appUwiScheme) {
+				wetuwn mainThweadWindow.$openUwi(uwi, tawget, {});
 			}
-			return this.callOriginal(target, options);
+			wetuwn this.cawwOwiginaw(tawget, options);
 		};
 	}
 
-	public load(request: string, parent: URI, original: LoadFunction): any {
-		// get extension id from filename and api for extension
-		const extension = this._extensionPaths.findSubstr(parent.fsPath);
+	pubwic woad(wequest: stwing, pawent: UWI, owiginaw: WoadFunction): any {
+		// get extension id fwom fiwename and api fow extension
+		const extension = this._extensionPaths.findSubstw(pawent.fsPath);
 		if (extension) {
-			this._extensionId = extension.identifier.value;
-			this.sendShimmingTelemetry();
+			this._extensionId = extension.identifia.vawue;
+			this.sendShimmingTewemetwy();
 		}
 
-		this._original = original(request);
-		return this._impl;
+		this._owiginaw = owiginaw(wequest);
+		wetuwn this._impw;
 	}
 
-	private callOriginal(target: string, options: OpenOptions | undefined): Thenable<any> {
-		this.sendNoForwardTelemetry();
-		return this._original!(target, options);
+	pwivate cawwOwiginaw(tawget: stwing, options: OpenOptions | undefined): Thenabwe<any> {
+		this.sendNoFowwawdTewemetwy();
+		wetuwn this._owiginaw!(tawget, options);
 	}
 
-	private sendShimmingTelemetry(): void {
+	pwivate sendShimmingTewemetwy(): void {
 		if (!this._extensionId) {
-			return;
+			wetuwn;
 		}
-		type ShimmingOpenClassification = {
-			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		type ShimmingOpenCwassification = {
+			extension: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
-		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
+		this._mainThweadTewemetwy.$pubwicWog2<{ extension: stwing }, ShimmingOpenCwassification>('shimming.open', { extension: this._extensionId });
 	}
 
-	private sendNoForwardTelemetry(): void {
+	pwivate sendNoFowwawdTewemetwy(): void {
 		if (!this._extensionId) {
-			return;
+			wetuwn;
 		}
-		type ShimmingOpenCallNoForwardClassification = {
-			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		type ShimmingOpenCawwNoFowwawdCwassification = {
+			extension: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
-		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
+		this._mainThweadTewemetwy.$pubwicWog2<{ extension: stwing }, ShimmingOpenCawwNoFowwawdCwassification>('shimming.open.caww.noFowwawd', { extension: this._extensionId });
 	}
 }
 
-//#endregion
+//#endwegion

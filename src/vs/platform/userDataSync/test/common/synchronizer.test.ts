@@ -1,1084 +1,1084 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Barrier } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataManifest, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { AbstwactSynchwonisa, IAcceptWesuwt, IMewgeWesuwt, IWesouwcePweview } fwom 'vs/pwatfowm/usewDataSync/common/abstwactSynchwoniza';
+impowt { Change, IWemoteUsewData, IWesouwcePweview as IBaseWesouwcePweview, IUsewDataManifest, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, MewgeState, SyncWesouwce, SyncStatus, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
-interface ITestResourcePreview extends IResourcePreview {
-	ref: string;
+intewface ITestWesouwcePweview extends IWesouwcePweview {
+	wef: stwing;
 }
 
-class TestSynchroniser extends AbstractSynchroniser {
+cwass TestSynchwonisa extends AbstwactSynchwonisa {
 
-	syncBarrier: Barrier = new Barrier();
-	syncResult: { hasConflicts: boolean, hasError: boolean } = { hasConflicts: false, hasError: false };
-	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
-	failWhenGettingLatestRemoteUserData: boolean = false;
+	syncBawwia: Bawwia = new Bawwia();
+	syncWesuwt: { hasConfwicts: boowean, hasEwwow: boowean } = { hasConfwicts: fawse, hasEwwow: fawse };
+	onDoSyncCaww: Emitta<void> = this._wegista(new Emitta<void>());
+	faiwWhenGettingWatestWemoteUsewData: boowean = fawse;
 
-	override readonly resource: SyncResource = SyncResource.Settings;
-	protected readonly version: number = 1;
+	ovewwide weadonwy wesouwce: SyncWesouwce = SyncWesouwce.Settings;
+	pwotected weadonwy vewsion: numba = 1;
 
-	private cancelled: boolean = false;
-	readonly localResource = joinPath(this.environmentService.userRoamingDataHome, 'testResource.json');
+	pwivate cancewwed: boowean = fawse;
+	weadonwy wocawWesouwce = joinPath(this.enviwonmentSewvice.usewWoamingDataHome, 'testWesouwce.json');
 
-	protected override getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
-		if (this.failWhenGettingLatestRemoteUserData) {
-			throw new Error();
+	pwotected ovewwide getWatestWemoteUsewData(manifest: IUsewDataManifest | nuww, wastSyncUsewData: IWemoteUsewData | nuww): Pwomise<IWemoteUsewData> {
+		if (this.faiwWhenGettingWatestWemoteUsewData) {
+			thwow new Ewwow();
 		}
-		return super.getLatestRemoteUserData(manifest, lastSyncUserData);
+		wetuwn supa.getWatestWemoteUsewData(manifest, wastSyncUsewData);
 	}
 
-	protected override async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
-		this.cancelled = false;
-		this.onDoSyncCall.fire();
-		await this.syncBarrier.wait();
+	pwotected ovewwide async doSync(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, appwy: boowean): Pwomise<SyncStatus> {
+		this.cancewwed = fawse;
+		this.onDoSyncCaww.fiwe();
+		await this.syncBawwia.wait();
 
-		if (this.cancelled) {
-			return SyncStatus.Idle;
+		if (this.cancewwed) {
+			wetuwn SyncStatus.Idwe;
 		}
 
-		return super.doSync(remoteUserData, lastSyncUserData, apply);
+		wetuwn supa.doSync(wemoteUsewData, wastSyncUsewData, appwy);
 	}
 
-	protected override async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ITestResourcePreview[]> {
-		if (this.syncResult.hasError) {
-			throw new Error('failed');
+	pwotected ovewwide async genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<ITestWesouwcePweview[]> {
+		if (this.syncWesuwt.hasEwwow) {
+			thwow new Ewwow('faiwed');
 		}
 
-		let fileContent = null;
-		try {
-			fileContent = await this.fileService.readFile(this.localResource);
-		} catch (error) { }
+		wet fiweContent = nuww;
+		twy {
+			fiweContent = await this.fiweSewvice.weadFiwe(this.wocawWesouwce);
+		} catch (ewwow) { }
 
-		return [{
-			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
-			remoteResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' })),
-			remoteContent: remoteUserData.syncData ? remoteUserData.syncData.content : null,
-			previewResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'preview' })),
-			ref: remoteUserData.ref,
-			localChange: Change.Modified,
-			remoteChange: Change.Modified,
-			acceptedResource: this.localResource.with(({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })),
+		wetuwn [{
+			wocawWesouwce: this.wocawWesouwce,
+			wocawContent: fiweContent ? fiweContent.vawue.toStwing() : nuww,
+			wemoteWesouwce: this.wocawWesouwce.with(({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' })),
+			wemoteContent: wemoteUsewData.syncData ? wemoteUsewData.syncData.content : nuww,
+			pweviewWesouwce: this.wocawWesouwce.with(({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'pweview' })),
+			wef: wemoteUsewData.wef,
+			wocawChange: Change.Modified,
+			wemoteChange: Change.Modified,
+			acceptedWesouwce: this.wocawWesouwce.with(({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })),
 		}];
 	}
 
-	protected async getMergeResult(resourcePreview: ITestResourcePreview, token: CancellationToken): Promise<IMergeResult> {
-		return {
-			content: resourcePreview.ref,
-			localChange: Change.Modified,
-			remoteChange: Change.Modified,
-			hasConflicts: this.syncResult.hasConflicts,
+	pwotected async getMewgeWesuwt(wesouwcePweview: ITestWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt> {
+		wetuwn {
+			content: wesouwcePweview.wef,
+			wocawChange: Change.Modified,
+			wemoteChange: Change.Modified,
+			hasConfwicts: this.syncWesuwt.hasConfwicts,
 		};
 	}
 
-	protected async getAcceptResult(resourcePreview: ITestResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
+	pwotected async getAcceptWesuwt(wesouwcePweview: ITestWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IAcceptWesuwt> {
 
-		if (isEqual(resource, resourcePreview.localResource)) {
-			return {
-				content: resourcePreview.localContent,
-				localChange: Change.None,
-				remoteChange: resourcePreview.localContent === null ? Change.Deleted : Change.Modified,
+		if (isEquaw(wesouwce, wesouwcePweview.wocawWesouwce)) {
+			wetuwn {
+				content: wesouwcePweview.wocawContent,
+				wocawChange: Change.None,
+				wemoteChange: wesouwcePweview.wocawContent === nuww ? Change.Deweted : Change.Modified,
 			};
 		}
 
-		if (isEqual(resource, resourcePreview.remoteResource)) {
-			return {
-				content: resourcePreview.remoteContent,
-				localChange: resourcePreview.remoteContent === null ? Change.Deleted : Change.Modified,
-				remoteChange: Change.None,
+		if (isEquaw(wesouwce, wesouwcePweview.wemoteWesouwce)) {
+			wetuwn {
+				content: wesouwcePweview.wemoteContent,
+				wocawChange: wesouwcePweview.wemoteContent === nuww ? Change.Deweted : Change.Modified,
+				wemoteChange: Change.None,
 			};
 		}
 
-		if (isEqual(resource, resourcePreview.previewResource)) {
+		if (isEquaw(wesouwce, wesouwcePweview.pweviewWesouwce)) {
 			if (content === undefined) {
-				return {
-					content: resourcePreview.ref,
-					localChange: Change.Modified,
-					remoteChange: Change.Modified,
+				wetuwn {
+					content: wesouwcePweview.wef,
+					wocawChange: Change.Modified,
+					wemoteChange: Change.Modified,
 				};
-			} else {
-				return {
+			} ewse {
+				wetuwn {
 					content,
-					localChange: content === null ? resourcePreview.localContent !== null ? Change.Deleted : Change.None : Change.Modified,
-					remoteChange: content === null ? resourcePreview.remoteContent !== null ? Change.Deleted : Change.None : Change.Modified,
+					wocawChange: content === nuww ? wesouwcePweview.wocawContent !== nuww ? Change.Deweted : Change.None : Change.Modified,
+					wemoteChange: content === nuww ? wesouwcePweview.wemoteContent !== nuww ? Change.Deweted : Change.None : Change.Modified,
 				};
 			}
 		}
 
-		throw new Error(`Invalid Resource: ${resource.toString()}`);
+		thwow new Ewwow(`Invawid Wesouwce: ${wesouwce.toStwing()}`);
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
-		if (resourcePreviews[0][1].localChange === Change.Deleted) {
-			await this.fileService.del(this.localResource);
+	pwotected async appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesouwcePweviews: [IWesouwcePweview, IAcceptWesuwt][], fowce: boowean): Pwomise<void> {
+		if (wesouwcePweviews[0][1].wocawChange === Change.Deweted) {
+			await this.fiweSewvice.dew(this.wocawWesouwce);
 		}
 
-		if (resourcePreviews[0][1].localChange === Change.Added || resourcePreviews[0][1].localChange === Change.Modified) {
-			await this.fileService.writeFile(this.localResource, VSBuffer.fromString(resourcePreviews[0][1].content!));
+		if (wesouwcePweviews[0][1].wocawChange === Change.Added || wesouwcePweviews[0][1].wocawChange === Change.Modified) {
+			await this.fiweSewvice.wwiteFiwe(this.wocawWesouwce, VSBuffa.fwomStwing(wesouwcePweviews[0][1].content!));
 		}
 
-		if (resourcePreviews[0][1].remoteChange === Change.Deleted) {
-			await this.applyRef(null, remoteUserData.ref);
+		if (wesouwcePweviews[0][1].wemoteChange === Change.Deweted) {
+			await this.appwyWef(nuww, wemoteUsewData.wef);
 		}
 
-		if (resourcePreviews[0][1].remoteChange === Change.Added || resourcePreviews[0][1].remoteChange === Change.Modified) {
-			await this.applyRef(resourcePreviews[0][1].content, remoteUserData.ref);
+		if (wesouwcePweviews[0][1].wemoteChange === Change.Added || wesouwcePweviews[0][1].wemoteChange === Change.Modified) {
+			await this.appwyWef(wesouwcePweviews[0][1].content, wemoteUsewData.wef);
 		}
 	}
 
-	async applyRef(content: string | null, ref: string): Promise<void> {
-		const remoteUserData = await this.updateRemoteUserData(content === null ? '' : content, ref);
-		await this.updateLastSyncUserData(remoteUserData);
+	async appwyWef(content: stwing | nuww, wef: stwing): Pwomise<void> {
+		const wemoteUsewData = await this.updateWemoteUsewData(content === nuww ? '' : content, wef);
+		await this.updateWastSyncUsewData(wemoteUsewData);
 	}
 
-	override async stop(): Promise<void> {
-		this.cancelled = true;
-		this.syncBarrier.open();
-		super.stop();
+	ovewwide async stop(): Pwomise<void> {
+		this.cancewwed = twue;
+		this.syncBawwia.open();
+		supa.stop();
 	}
 
-	override async triggerLocalChange(): Promise<void> {
-		super.triggerLocalChange();
+	ovewwide async twiggewWocawChange(): Pwomise<void> {
+		supa.twiggewWocawChange();
 	}
 
-	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
-	protected override async doTriggerLocalChange(): Promise<void> {
-		await super.doTriggerLocalChange();
-		this.onDidTriggerLocalChangeCall.fire();
+	onDidTwiggewWocawChangeCaww: Emitta<void> = this._wegista(new Emitta<void>());
+	pwotected ovewwide async doTwiggewWocawChange(): Pwomise<void> {
+		await supa.doTwiggewWocawChange();
+		this.onDidTwiggewWocawChangeCaww.fiwe();
 	}
 
 }
 
-suite('TestSynchronizer - Auto Sync', () => {
+suite('TestSynchwoniza - Auto Sync', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let client: UserDataSyncClient;
-	let userDataSyncStoreService: IUserDataSyncStoreService;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet cwient: UsewDataSyncCwient;
+	wet usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice;
 
 	setup(async () => {
-		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp();
-		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
-		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
+		cwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient.setUp();
+		usewDataSyncStoweSewvice = cwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice);
+		disposabweStowe.add(toDisposabwe(() => usewDataSyncStoweSewvice.cweaw()));
+		cwient.instantiationSewvice.get(IFiweSewvice).wegistewPwovida(USEW_DATA_SYNC_SCHEME, new InMemowyFiweSystemPwovida());
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
 	test('status is syncing', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
 
-		const promise = Event.toPromise(testObject.onDoSyncCall.event);
+		const pwomise = Event.toPwomise(testObject.onDoSyncCaww.event);
 
-		testObject.sync(await client.manifest());
-		await promise;
+		testObject.sync(await cwient.manifest());
+		await pwomise;
 
-		assert.deepStrictEqual(actual, [SyncStatus.Syncing]);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
+		assewt.deepStwictEquaw(actuaw, [SyncStatus.Syncing]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
 
 		testObject.stop();
 	});
 
-	test('status is set correctly when sync is finished', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
+	test('status is set cowwectwy when sync is finished', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync(await client.manifest());
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		assewt.deepStwictEquaw(actuaw, [SyncStatus.Syncing, SyncStatus.Idwe]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
 	});
 
-	test('status is set correctly when sync has errors', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasError: true, hasConflicts: false };
-		testObject.syncBarrier.open();
+	test('status is set cowwectwy when sync has ewwows', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasEwwow: twue, hasConfwicts: fawse };
+		testObject.syncBawwia.open();
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
 
-		try {
-			await testObject.sync(await client.manifest());
-			assert.fail('Should fail');
+		twy {
+			await testObject.sync(await cwient.manifest());
+			assewt.faiw('Shouwd faiw');
 		} catch (e) {
-			assert.deepStrictEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
-			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+			assewt.deepStwictEquaw(actuaw, [SyncStatus.Syncing, SyncStatus.Idwe]);
+			assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
 		}
 	});
 
-	test('status is set to hasConflicts when asked to sync if there are conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('status is set to hasConfwicts when asked to sync if thewe awe confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assertConflicts(testObject.conflicts, [testObject.localResource]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewtConfwicts(testObject.confwicts, [testObject.wocawWesouwce]);
 	});
 
-	test('sync should not run if syncing already', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		const promise = Event.toPromise(testObject.onDoSyncCall.event);
+	test('sync shouwd not wun if syncing awweady', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		const pwomise = Event.toPwomise(testObject.onDoSyncCaww.event);
 
-		testObject.sync(await client.manifest());
-		await promise;
+		testObject.sync(await cwient.manifest());
+		await pwomise;
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync(await client.manifest());
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(actual, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
+		assewt.deepStwictEquaw(actuaw, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
 
 		await testObject.stop();
 	});
 
-	test('sync should not run if disabled', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		client.instantiationService.get(IUserDataSyncResourceEnablementService).setResourceEnablement(testObject.resource, false);
+	test('sync shouwd not wun if disabwed', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		cwient.instantiationSewvice.get(IUsewDataSyncWesouwceEnabwementSewvice).setWesouwceEnabwement(testObject.wesouwce, fawse);
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(actual, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
+		assewt.deepStwictEquaw(actuaw, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
 	});
 
-	test('sync should not run if there are conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('sync shouwd not wun if thewe awe confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const actual: SyncStatus[] = [];
-		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync(await client.manifest());
+		const actuaw: SyncStatus[] = [];
+		disposabweStowe.add(testObject.onDidChangeStatus(status => actuaw.push(status)));
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(actual, []);
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		assewt.deepStwictEquaw(actuaw, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 	});
 
-	test('accept preview during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('accept pweview duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].previewResource);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].pweviewWesouwce);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		const fileService = client.instantiationService.get(IFileService);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, (await fileService.readFile(testObject.localResource)).value.toString());
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, (await fiweSewvice.weadFiwe(testObject.wocawWesouwce)).vawue.toStwing());
 	});
 
-	test('accept remote during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		const fileService = client.instantiationService.get(IFileService);
-		const currentRemoteContent = (await testObject.getRemoteUserData(null)).syncData?.content;
-		const newLocalContent = 'conflict';
-		await fileService.writeFile(testObject.localResource, VSBuffer.fromString(newLocalContent));
+	test('accept wemote duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const cuwwentWemoteContent = (await testObject.getWemoteUsewData(nuww)).syncData?.content;
+		const newWocawContent = 'confwict';
+		await fiweSewvice.wwiteFiwe(testObject.wocawWesouwce, VSBuffa.fwomStwing(newWocawContent));
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].remoteResource);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].wemoteWesouwce);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, currentRemoteContent);
-		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), currentRemoteContent);
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, cuwwentWemoteContent);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), cuwwentWemoteContent);
 	});
 
-	test('accept local during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		const fileService = client.instantiationService.get(IFileService);
-		const newLocalContent = 'conflict';
-		await fileService.writeFile(testObject.localResource, VSBuffer.fromString(newLocalContent));
+	test('accept wocaw duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const newWocawContent = 'confwict';
+		await fiweSewvice.wwiteFiwe(testObject.wocawWesouwce, VSBuffa.fwomStwing(newWocawContent));
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].localResource);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].wocawWesouwce);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, newLocalContent);
-		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), newLocalContent);
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, newWocawContent);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), newWocawContent);
 	});
 
-	test('accept new content during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		const fileService = client.instantiationService.get(IFileService);
-		const newLocalContent = 'conflict';
-		await fileService.writeFile(testObject.localResource, VSBuffer.fromString(newLocalContent));
+	test('accept new content duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const newWocawContent = 'confwict';
+		await fiweSewvice.wwiteFiwe(testObject.wocawWesouwce, VSBuffa.fwomStwing(newWocawContent));
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		const mergeContent = 'newContent';
-		await testObject.accept(testObject.conflicts[0].previewResource, mergeContent);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		const mewgeContent = 'newContent';
+		await testObject.accept(testObject.confwicts[0].pweviewWesouwce, mewgeContent);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, mergeContent);
-		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), mergeContent);
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, mewgeContent);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), mewgeContent);
 	});
 
-	test('accept delete during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		const fileService = client.instantiationService.get(IFileService);
-		const newLocalContent = 'conflict';
-		await fileService.writeFile(testObject.localResource, VSBuffer.fromString(newLocalContent));
+	test('accept dewete duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const newWocawContent = 'confwict';
+		await fiweSewvice.wwiteFiwe(testObject.wocawWesouwce, VSBuffa.fwomStwing(newWocawContent));
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].previewResource, null);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].pweviewWesouwce, nuww);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, '');
-		assert.ok(!(await fileService.exists(testObject.localResource)));
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, '');
+		assewt.ok(!(await fiweSewvice.exists(testObject.wocawWesouwce)));
 	});
 
-	test('accept deleted local during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		const fileService = client.instantiationService.get(IFileService);
-		await fileService.del(testObject.localResource);
+	test('accept deweted wocaw duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		await fiweSewvice.dew(testObject.wocawWesouwce);
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].localResource);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].wocawWesouwce);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, '');
-		assert.ok(!(await fileService.exists(testObject.localResource)));
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, '');
+		assewt.ok(!(await fiweSewvice.exists(testObject.wocawWesouwce)));
 	});
 
-	test('accept deleted remote during conflicts', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		const fileService = client.instantiationService.get(IFileService);
-		await fileService.writeFile(testObject.localResource, VSBuffer.fromString('some content'));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
+	test('accept deweted wemote duwing confwicts', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		await fiweSewvice.wwiteFiwe(testObject.wocawWesouwce, VSBuffa.fwomStwing('some content'));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
 
-		await testObject.sync(await client.manifest());
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
+		await testObject.sync(await cwient.manifest());
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
 
-		await testObject.accept(testObject.conflicts[0].remoteResource);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertConflicts(testObject.conflicts, []);
+		await testObject.accept(testObject.confwicts[0].wemoteWesouwce);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtConfwicts(testObject.confwicts, []);
 
-		await testObject.apply(false);
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData, null);
-		assert.ok(!(await fileService.exists(testObject.localResource)));
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData, nuww);
+		assewt.ok(!(await fiweSewvice.exists(testObject.wocawWesouwce)));
 	});
 
-	test('request latest data on precondition failure', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
+	test('wequest watest data on pwecondition faiwuwe', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
 		// Sync once
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
-		testObject.syncBarrier = new Barrier();
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
+		testObject.syncBawwia = new Bawwia();
 
-		// update remote data before syncing so that 412 is thrown by server
-		const disposable = testObject.onDoSyncCall.event(async () => {
-			disposable.dispose();
-			await testObject.applyRef(ref, ref);
-			server.reset();
-			testObject.syncBarrier.open();
+		// update wemote data befowe syncing so that 412 is thwown by sewva
+		const disposabwe = testObject.onDoSyncCaww.event(async () => {
+			disposabwe.dispose();
+			await testObject.appwyWef(wef, wef);
+			sewva.weset();
+			testObject.syncBawwia.open();
 		});
 
-		// Start sycing
-		const manifest = await client.manifest();
-		const ref = manifest!.latest![testObject.resource];
-		await testObject.sync(await client.manifest());
+		// Stawt sycing
+		const manifest = await cwient.manifest();
+		const wef = manifest!.watest![testObject.wesouwce];
+		await testObject.sync(await cwient.manifest());
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': ref } },
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
-			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': `${parseInt(ref) + 1}` } },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'POST', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}`, headews: { 'If-Match': wef } },
+			{ type: 'GET', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}/watest`, headews: {} },
+			{ type: 'POST', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}`, headews: { 'If-Match': `${pawseInt(wef) + 1}` } },
 		]);
 	});
 
-	test('no requests are made to server when local change is triggered', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('no wequests awe made to sewva when wocaw change is twiggewed', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		server.reset();
-		const promise = Event.toPromise(testObject.onDidTriggerLocalChangeCall.event);
-		await testObject.triggerLocalChange();
+		sewva.weset();
+		const pwomise = Event.toPwomise(testObject.onDidTwiggewWocawChangeCaww.event);
+		await testObject.twiggewWocawChange();
 
-		await promise;
-		assert.deepStrictEqual(server.requests, []);
+		await pwomise;
+		assewt.deepStwictEquaw(sewva.wequests, []);
 	});
 
-	test('status is reset when getting latest remote data fails', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.failWhenGettingLatestRemoteUserData = true;
+	test('status is weset when getting watest wemote data faiws', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.faiwWhenGettingWatestWemoteUsewData = twue;
 
-		try {
-			await testObject.sync(await client.manifest());
-			assert.fail('Should throw an error');
-		} catch (error) {
+		twy {
+			await testObject.sync(await cwient.manifest());
+			assewt.faiw('Shouwd thwow an ewwow');
+		} catch (ewwow) {
 		}
 
-		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assewt.stwictEquaw(testObject.status, SyncStatus.Idwe);
 	});
 });
 
-suite('TestSynchronizer - Manual Sync', () => {
+suite('TestSynchwoniza - Manuaw Sync', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let client: UserDataSyncClient;
-	let userDataSyncStoreService: IUserDataSyncStoreService;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet cwient: UsewDataSyncCwient;
+	wet usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice;
 
 	setup(async () => {
-		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp();
-		userDataSyncStoreService = client.instantiationService.get(IUserDataSyncStoreService);
-		disposableStore.add(toDisposable(() => userDataSyncStoreService.clear()));
-		client.instantiationService.get(IFileService).registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
+		cwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient.setUp();
+		usewDataSyncStoweSewvice = cwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice);
+		disposabweStowe.add(toDisposabwe(() => usewDataSyncStoweSewvice.cweaw()));
+		cwient.instantiationSewvice.get(IFiweSewvice).wegistewPwovida(USEW_DATA_SYNC_SCHEME, new InMemowyFiweSystemPwovida());
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('preview', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweview', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		const preview = await testObject.preview(await client.manifest());
+		const pweview = await testObject.pweview(await cwient.manifest());
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preview -> merge', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweview -> mewge', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preview -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweview -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preview -> merge -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweview -> mewge -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preview -> merge -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweview -> mewge -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const manifest = await client.manifest();
-		let preview = await testObject.preview(manifest);
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		const manifest = await cwient.manifest();
+		wet pweview = await testObject.pweview(manifest);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		const expectedContent = manifest!.latest![testObject.resource];
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweview -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const manifest = await client.manifest();
-		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		const manifest = await cwient.manifest();
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		wet pweview = await testObject.pweview(manifest);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preview -> merge -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweview -> mewge -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const expectedContent = (await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing();
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preview -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweview -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweview -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const manifest = await client.manifest();
-		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		const manifest = await cwient.manifest();
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preivew -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> mewge -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> merge -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> mewge -> discawd -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> accept -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> accept -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> accept -> discawd -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> accept -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> accept -> discawd -> mewge', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> merge -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('pweivew -> mewge -> accept -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('preivew -> merge -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweivew -> mewge -> discawd -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const expectedContent = (await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing();
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preivew -> accept -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweivew -> accept -> discawd -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const expectedContent = (await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing();
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('preivew -> accept -> discard -> merge -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('pweivew -> accept -> discawd -> mewge -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const manifest = await client.manifest();
-		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.merge(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const manifest = await cwient.manifest();
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		wet pweview = await testObject.pweview(manifest);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('conflicts: preview', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweview', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		const preview = await testObject.preview(await client.manifest());
+		const pweview = await testObject.pweview(await cwient.manifest());
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preview -> merge', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweview -> mewge', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
-		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Confwict);
+		assewtConfwicts(testObject.confwicts, [pweview!.wesouwcePweviews[0].wocawWesouwce]);
 	});
 
-	test('conflicts: preview -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweview -> mewge -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		const preview = await testObject.preview(await client.manifest());
-		await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		const pweview = await testObject.pweview(await cwient.manifest());
+		await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preview -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweview -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		const content = await testObject.wesowveContent(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce, content);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.deepStrictEqual(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.deepStwictEquaw(testObject.confwicts, []);
 	});
 
-	test('conflicts: preview -> merge -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('confwicts: pweview -> mewge -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		const manifest = await client.manifest();
-		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		const manifest = await cwient.manifest();
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		wet pweview = await testObject.pweview(manifest);
 
-		await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('conflicts: preview -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweview -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		const content = await testObject.wesowveContent(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce, content);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preview -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('confwicts: pweview -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		const manifest = await client.manifest();
-		const expectedContent = manifest!.latest![testObject.resource];
-		let preview = await testObject.preview(manifest);
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		const manifest = await cwient.manifest();
+		const expectedContent = manifest!.watest![testObject.wesouwce];
+		wet pweview = await testObject.pweview(manifest);
 
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.apply(false);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
 
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('conflicts: preivew -> merge -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> mewge -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preivew -> merge -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> mewge -> discawd -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preivew -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> accept -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preivew -> accept -> discard -> accept', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> accept -> discawd -> accept', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Accepted);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preivew -> accept -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> accept -> discawd -> mewge', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
-		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Confwict);
+		assewtConfwicts(testObject.confwicts, [pweview!.wesouwcePweviews[0].wocawWesouwce]);
 	});
 
-	test('conflicts: preivew -> merge -> discard -> merge', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: true, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> mewge -> discawd -> mewge', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: twue, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].wemoteWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
-		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.HasConfwicts);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Confwict);
+		assewtConfwicts(testObject.confwicts, [pweview!.wesouwcePweviews[0].wocawWesouwce]);
 	});
 
-	test('conflicts: preivew -> merge -> accept -> discard', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
+	test('confwicts: pweivew -> mewge -> accept -> discawd', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
 
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
-		assertConflicts(testObject.conflicts, []);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Syncing);
+		assewtPweviews(pweview!.wesouwcePweviews, [testObject.wocawWesouwce]);
+		assewt.stwictEquaw(pweview!.wesouwcePweviews[0].mewgeState, MewgeState.Pweview);
+		assewtConfwicts(testObject.confwicts, []);
 	});
 
-	test('conflicts: preivew -> merge -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('confwicts: pweivew -> mewge -> discawd -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const expectedContent = (await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing();
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('conflicts: preivew -> accept -> discard -> accept -> apply', async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.manifest());
+	test('confwicts: pweivew -> accept -> discawd -> accept -> appwy', async () => {
+		const testObject: TestSynchwonisa = disposabweStowe.add(cwient.instantiationSewvice.cweateInstance(TestSynchwonisa, SyncWesouwce.Settings));
+		testObject.syncWesuwt = { hasConfwicts: fawse, hasEwwow: fawse };
+		testObject.syncBawwia.open();
+		await testObject.sync(await cwient.manifest());
 
-		const expectedContent = (await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString();
-		let preview = await testObject.preview(await client.manifest());
-		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
-		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
-		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
+		const expectedContent = (await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing();
+		wet pweview = await testObject.pweview(await cwient.manifest());
+		pweview = await testObject.mewge(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wemoteWesouwce);
+		pweview = await testObject.discawd(pweview!.wesouwcePweviews[0].pweviewWesouwce);
+		pweview = await testObject.accept(pweview!.wesouwcePweviews[0].wocawWesouwce);
+		pweview = await testObject.appwy(fawse);
 
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts, []);
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assewt.deepStwictEquaw(testObject.status, SyncStatus.Idwe);
+		assewt.stwictEquaw(pweview, nuww);
+		assewtConfwicts(testObject.confwicts, []);
+		assewt.stwictEquaw((await testObject.getWemoteUsewData(nuww)).syncData?.content, expectedContent);
+		assewt.stwictEquaw((await cwient.instantiationSewvice.get(IFiweSewvice).weadFiwe(testObject.wocawWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
 });
 
-function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {
-	assert.deepStrictEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
+function assewtConfwicts(actuaw: IBaseWesouwcePweview[], expected: UWI[]) {
+	assewt.deepStwictEquaw(actuaw.map(({ wocawWesouwce }) => wocawWesouwce.toStwing()), expected.map(uwi => uwi.toStwing()));
 }
 
-function assertPreviews(actual: IBaseResourcePreview[], expected: URI[]) {
-	assert.deepStrictEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
+function assewtPweviews(actuaw: IBaseWesouwcePweview[], expected: UWI[]) {
+	assewt.deepStwictEquaw(actuaw.map(({ wocawWesouwce }) => wocawWesouwce.toStwing()), expected.map(uwi => uwi.toStwing()));
 }

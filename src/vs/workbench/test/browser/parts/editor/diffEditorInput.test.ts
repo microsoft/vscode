@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { EditowWesouwceAccessow, isDiffEditowInput, isWesouwceDiffEditowInput, isWesouwceSideBySideEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('Diff editor input', () => {
+suite('Diff editow input', () => {
 
-	class MyEditorInput extends EditorInput {
+	cwass MyEditowInput extends EditowInput {
 
-		constructor(public resource: URI | undefined = undefined) {
-			super();
+		constwuctow(pubwic wesouwce: UWI | undefined = undefined) {
+			supa();
 		}
 
-		override get typeId(): string { return 'myEditorInput'; }
-		override resolve(): any { return null; }
+		ovewwide get typeId(): stwing { wetuwn 'myEditowInput'; }
+		ovewwide wesowve(): any { wetuwn nuww; }
 
-		override toUntyped() {
-			return { resource: this.resource, options: { override: this.typeId } };
+		ovewwide toUntyped() {
+			wetuwn { wesouwce: this.wesouwce, options: { ovewwide: this.typeId } };
 		}
 
-		override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-			if (super.matches(otherInput)) {
-				return true;
+		ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+			if (supa.matches(othewInput)) {
+				wetuwn twue;
 			}
 
-			const resource = EditorResourceAccessor.getCanonicalUri(otherInput);
-			return resource?.toString() === this.resource?.toString();
+			const wesouwce = EditowWesouwceAccessow.getCanonicawUwi(othewInput);
+			wetuwn wesouwce?.toStwing() === this.wesouwce?.toStwing();
 		}
 	}
 
 	test('basics', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		let counter = 0;
-		const input = new MyEditorInput();
-		input.onWillDispose(() => {
-			assert(true);
-			counter++;
+		wet counta = 0;
+		const input = new MyEditowInput();
+		input.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
-		const otherInput = new MyEditorInput();
-		otherInput.onWillDispose(() => {
-			assert(true);
-			counter++;
+		const othewInput = new MyEditowInput();
+		othewInput.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
-		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', input, othewInput, undefined);
 
-		assert.ok(isDiffEditorInput(diffInput));
-		assert.ok(!isDiffEditorInput(input));
+		assewt.ok(isDiffEditowInput(diffInput));
+		assewt.ok(!isDiffEditowInput(input));
 
-		assert.strictEqual(diffInput.original, input);
-		assert.strictEqual(diffInput.modified, otherInput);
-		assert(diffInput.matches(diffInput));
-		assert(!diffInput.matches(otherInput));
+		assewt.stwictEquaw(diffInput.owiginaw, input);
+		assewt.stwictEquaw(diffInput.modified, othewInput);
+		assewt(diffInput.matches(diffInput));
+		assewt(!diffInput.matches(othewInput));
 
 
 		diffInput.dispose();
-		assert.strictEqual(counter, 0);
+		assewt.stwictEquaw(counta, 0);
 	});
 
 	test('toUntyped', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		const input = new MyEditorInput(URI.file('foo/bar1'));
-		const otherInput = new MyEditorInput(URI.file('foo/bar2'));
+		const input = new MyEditowInput(UWI.fiwe('foo/baw1'));
+		const othewInput = new MyEditowInput(UWI.fiwe('foo/baw2'));
 
-		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
+		const diffInput = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', input, othewInput, undefined);
 
 		const untypedDiffInput = diffInput.toUntyped();
-		assert.ok(isResourceDiffEditorInput(untypedDiffInput));
-		assert.ok(!isResourceSideBySideEditorInput(untypedDiffInput));
-		assert.ok(diffInput.matches(untypedDiffInput));
+		assewt.ok(isWesouwceDiffEditowInput(untypedDiffInput));
+		assewt.ok(!isWesouwceSideBySideEditowInput(untypedDiffInput));
+		assewt.ok(diffInput.matches(untypedDiffInput));
 	});
 
 	test('disposes when input inside disposes', function () {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		let counter = 0;
-		let input = new MyEditorInput();
-		let otherInput = new MyEditorInput();
+		wet counta = 0;
+		wet input = new MyEditowInput();
+		wet othewInput = new MyEditowInput();
 
-		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
-		diffInput.onWillDispose(() => {
-			counter++;
-			assert(true);
+		wet diffInput = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', input, othewInput, undefined);
+		diffInput.onWiwwDispose(() => {
+			counta++;
+			assewt(twue);
 		});
 
 		input.dispose();
 
-		input = new MyEditorInput();
-		otherInput = new MyEditorInput();
+		input = new MyEditowInput();
+		othewInput = new MyEditowInput();
 
-		let diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
-		diffInput2.onWillDispose(() => {
-			counter++;
-			assert(true);
+		wet diffInput2 = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', input, othewInput, undefined);
+		diffInput2.onWiwwDispose(() => {
+			counta++;
+			assewt(twue);
 		});
 
-		otherInput.dispose();
-		assert.strictEqual(counter, 2);
+		othewInput.dispose();
+		assewt.stwictEquaw(counta, 2);
 	});
 });

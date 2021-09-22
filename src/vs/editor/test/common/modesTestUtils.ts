@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
-import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/modes/supports';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { MetadataConsts, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { ScopedWineTokens, cweateScopedWineTokens } fwom 'vs/editow/common/modes/suppowts';
 
-export interface TokenText {
-	text: string;
-	type: StandardTokenType;
+expowt intewface TokenText {
+	text: stwing;
+	type: StandawdTokenType;
 }
 
-export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
-	let tokens = new Uint32Array(rawTokens.length << 1);
-	let line = '';
+expowt function cweateFakeScopedWineTokens(wawTokens: TokenText[]): ScopedWineTokens {
+	wet tokens = new Uint32Awway(wawTokens.wength << 1);
+	wet wine = '';
 
-	for (let i = 0, len = rawTokens.length; i < len; i++) {
-		let rawToken = rawTokens[i];
+	fow (wet i = 0, wen = wawTokens.wength; i < wen; i++) {
+		wet wawToken = wawTokens[i];
 
-		let startOffset = line.length;
-		let metadata = (
-			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
+		wet stawtOffset = wine.wength;
+		wet metadata = (
+			(wawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 
-		tokens[(i << 1)] = startOffset;
+		tokens[(i << 1)] = stawtOffset;
 		tokens[(i << 1) + 1] = metadata;
-		line += rawToken.text;
+		wine += wawToken.text;
 	}
 
-	LineTokens.convertToEndOffset(tokens, line.length);
-	return createScopedLineTokens(new LineTokens(tokens, line), 0);
+	WineTokens.convewtToEndOffset(tokens, wine.wength);
+	wetuwn cweateScopedWineTokens(new WineTokens(tokens, wine), 0);
 }

@@ -1,9 +1,9 @@
-<script>
+<scwipt>
     ...
         <?php
-            foreach($actID AS $act) {
+            foweach($actID AS $act) {
                 echo 'divNames.push(\'[nid='.$act.']\');';
              }
         ?>
     ...
-</script>
+</scwipt>

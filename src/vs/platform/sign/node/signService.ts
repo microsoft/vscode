@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISignService } from 'vs/platform/sign/common/sign';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
 
-declare module vsda {
-	// the signer is a native module that for historical reasons uses a lower case class name
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	export class signer {
-		sign(arg: any): any;
+decwawe moduwe vsda {
+	// the signa is a native moduwe that fow histowicaw weasons uses a wowa case cwass name
+	// eswint-disabwe-next-wine @typescwipt-eswint/naming-convention
+	expowt cwass signa {
+		sign(awg: any): any;
 	}
 }
 
-export class SignService implements ISignService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass SignSewvice impwements ISignSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private vsda(): Promise<typeof vsda> {
-		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
+	pwivate vsda(): Pwomise<typeof vsda> {
+		wetuwn new Pwomise((wesowve, weject) => wequiwe(['vsda'], wesowve, weject));
 	}
 
-	async sign(value: string): Promise<string> {
-		try {
+	async sign(vawue: stwing): Pwomise<stwing> {
+		twy {
 			const vsda = await this.vsda();
-			const signer = new vsda.signer();
-			if (signer) {
-				return signer.sign(value);
+			const signa = new vsda.signa();
+			if (signa) {
+				wetuwn signa.sign(vawue);
 			}
 		} catch (e) {
-			// ignore errors silently
+			// ignowe ewwows siwentwy
 		}
-		return value;
+		wetuwn vawue;
 	}
 }

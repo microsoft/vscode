@@ -1,1448 +1,1448 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
-import { TextChange } from 'vs/editor/common/model/textChange';
-import { equals } from 'vs/base/common/objects';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IModewContentChange, IModewContentChangedEvent, IModewDecowationsChangedEvent, IModewWanguageChangedEvent, IModewWanguageConfiguwationChangedEvent, IModewOptionsChangedEvent, IModewTokensChangedEvent, ModewInjectedTextChangedEvent, ModewWawContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { SeawchData } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { WanguageId, WanguageIdentifia, FowmattingOptions } fwom 'vs/editow/common/modes';
+impowt { ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { MuwtiwineTokens, MuwtiwineTokens2 } fwom 'vs/editow/common/modew/tokensStowe';
+impowt { TextChange } fwom 'vs/editow/common/modew/textChange';
+impowt { equaws } fwom 'vs/base/common/objects';
 
 /**
- * Vertical Lane in the overview ruler of the editor.
+ * Vewticaw Wane in the ovewview wuwa of the editow.
  */
-export enum OverviewRulerLane {
-	Left = 1,
-	Center = 2,
-	Right = 4,
-	Full = 7
+expowt enum OvewviewWuwewWane {
+	Weft = 1,
+	Centa = 2,
+	Wight = 4,
+	Fuww = 7
 }
 
 /**
- * Position in the minimap to render the decoration.
+ * Position in the minimap to wenda the decowation.
  */
-export enum MinimapPosition {
-	Inline = 1,
-	Gutter = 2
+expowt enum MinimapPosition {
+	Inwine = 1,
+	Gutta = 2
 }
 
-export interface IDecorationOptions {
+expowt intewface IDecowationOptions {
 	/**
-	 * CSS color to render.
-	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
+	 * CSS cowow to wenda.
+	 * e.g.: wgba(100, 100, 100, 0.5) ow a cowow fwom the cowow wegistwy
 	 */
-	color: string | ThemeColor | undefined;
+	cowow: stwing | ThemeCowow | undefined;
 	/**
-	 * CSS color to render.
-	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
+	 * CSS cowow to wenda.
+	 * e.g.: wgba(100, 100, 100, 0.5) ow a cowow fwom the cowow wegistwy
 	 */
-	darkColor?: string | ThemeColor;
+	dawkCowow?: stwing | ThemeCowow;
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Options fow wendewing a modew decowation in the ovewview wuwa.
  */
-export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
+expowt intewface IModewDecowationOvewviewWuwewOptions extends IDecowationOptions {
 	/**
-	 * The position in the overview ruler.
+	 * The position in the ovewview wuwa.
 	 */
-	position: OverviewRulerLane;
+	position: OvewviewWuwewWane;
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Options fow wendewing a modew decowation in the ovewview wuwa.
  */
-export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+expowt intewface IModewDecowationMinimapOptions extends IDecowationOptions {
 	/**
-	 * The position in the overview ruler.
+	 * The position in the ovewview wuwa.
 	 */
 	position: MinimapPosition;
 }
 
 /**
- * Options for a model decoration.
+ * Options fow a modew decowation.
  */
-export interface IModelDecorationOptions {
+expowt intewface IModewDecowationOptions {
 	/**
-	 * A debug description that can be used for inspecting model decorations.
-	 * @internal
+	 * A debug descwiption that can be used fow inspecting modew decowations.
+	 * @intewnaw
 	 */
-	description: string;
+	descwiption: stwing;
 	/**
-	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
-	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	 * Customize the gwowing behaviow of the decowation when typing at the edges of the decowation.
+	 * Defauwts to TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges
 	 */
-	stickiness?: TrackedRangeStickiness;
+	stickiness?: TwackedWangeStickiness;
 	/**
-	 * CSS class name describing the decoration.
+	 * CSS cwass name descwibing the decowation.
 	 */
-	className?: string | null;
+	cwassName?: stwing | nuww;
 	/**
-	 * Message to be rendered when hovering over the glyph margin decoration.
+	 * Message to be wendewed when hovewing ova the gwyph mawgin decowation.
 	 */
-	glyphMarginHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+	gwyphMawginHovewMessage?: IMawkdownStwing | IMawkdownStwing[] | nuww;
 	/**
-	 * Array of MarkdownString to render as the decoration message.
+	 * Awway of MawkdownStwing to wenda as the decowation message.
 	 */
-	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
+	hovewMessage?: IMawkdownStwing | IMawkdownStwing[] | nuww;
 	/**
-	 * Should the decoration expand to encompass a whole line.
+	 * Shouwd the decowation expand to encompass a whowe wine.
 	 */
-	isWholeLine?: boolean;
+	isWhoweWine?: boowean;
 	/**
-	 * Always render the decoration (even when the range it encompasses is collapsed).
-	 * @internal
+	 * Awways wenda the decowation (even when the wange it encompasses is cowwapsed).
+	 * @intewnaw
 	 */
-	showIfCollapsed?: boolean;
+	showIfCowwapsed?: boowean;
 	/**
-	 * Collapse the decoration if its entire range is being replaced via an edit.
-	 * @internal
+	 * Cowwapse the decowation if its entiwe wange is being wepwaced via an edit.
+	 * @intewnaw
 	 */
-	collapseOnReplaceEdit?: boolean;
+	cowwapseOnWepwaceEdit?: boowean;
 	/**
-	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with
-	 * a lower stack order when the decorations are on the same line.
+	 * Specifies the stack owda of a decowation.
+	 * A decowation with gweata stack owda is awways in fwont of a decowation with
+	 * a wowa stack owda when the decowations awe on the same wine.
 	 */
-	zIndex?: number;
+	zIndex?: numba;
 	/**
-	 * If set, render this decoration in the overview ruler.
+	 * If set, wenda this decowation in the ovewview wuwa.
 	 */
-	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
+	ovewviewWuwa?: IModewDecowationOvewviewWuwewOptions | nuww;
 	/**
-	 * If set, render this decoration in the minimap.
+	 * If set, wenda this decowation in the minimap.
 	 */
-	minimap?: IModelDecorationMinimapOptions | null;
+	minimap?: IModewDecowationMinimapOptions | nuww;
 	/**
-	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
+	 * If set, the decowation wiww be wendewed in the gwyph mawgin with this CSS cwass name.
 	 */
-	glyphMarginClassName?: string | null;
+	gwyphMawginCwassName?: stwing | nuww;
 	/**
-	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
+	 * If set, the decowation wiww be wendewed in the wines decowations with this CSS cwass name.
 	 */
-	linesDecorationsClassName?: string | null;
+	winesDecowationsCwassName?: stwing | nuww;
 	/**
-	 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
+	 * If set, the decowation wiww be wendewed in the wines decowations with this CSS cwass name, but onwy fow the fiwst wine in case of wine wwapping.
 	 */
-	firstLineDecorationClassName?: string | null;
+	fiwstWineDecowationCwassName?: stwing | nuww;
 	/**
-	 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
+	 * If set, the decowation wiww be wendewed in the mawgin (covewing its fuww width) with this CSS cwass name.
 	 */
-	marginClassName?: string | null;
+	mawginCwassName?: stwing | nuww;
 	/**
-	 * If set, the decoration will be rendered inline with the text with this CSS class name.
-	 * Please use this only for CSS rules that must impact the text. For example, use `className`
-	 * to have a background color decoration.
+	 * If set, the decowation wiww be wendewed inwine with the text with this CSS cwass name.
+	 * Pwease use this onwy fow CSS wuwes that must impact the text. Fow exampwe, use `cwassName`
+	 * to have a backgwound cowow decowation.
 	 */
-	inlineClassName?: string | null;
+	inwineCwassName?: stwing | nuww;
 	/**
-	 * If there is an `inlineClassName` which affects letter spacing.
+	 * If thewe is an `inwineCwassName` which affects wetta spacing.
 	 */
-	inlineClassNameAffectsLetterSpacing?: boolean;
+	inwineCwassNameAffectsWettewSpacing?: boowean;
 	/**
-	 * If set, the decoration will be rendered before the text with this CSS class name.
+	 * If set, the decowation wiww be wendewed befowe the text with this CSS cwass name.
 	 */
-	beforeContentClassName?: string | null;
+	befoweContentCwassName?: stwing | nuww;
 	/**
-	 * If set, the decoration will be rendered after the text with this CSS class name.
+	 * If set, the decowation wiww be wendewed afta the text with this CSS cwass name.
 	 */
-	afterContentClassName?: string | null;
+	aftewContentCwassName?: stwing | nuww;
 	/**
-	 * If set, text will be injected in the view after the range.
+	 * If set, text wiww be injected in the view afta the wange.
 	 */
-	after?: InjectedTextOptions | null;
+	afta?: InjectedTextOptions | nuww;
 
 	/**
-	 * If set, text will be injected in the view before the range.
+	 * If set, text wiww be injected in the view befowe the wange.
 	 */
-	before?: InjectedTextOptions | null;
+	befowe?: InjectedTextOptions | nuww;
 }
 
 /**
- * Configures text that is injected into the view without changing the underlying document.
+ * Configuwes text that is injected into the view without changing the undewwying document.
 */
-export interface InjectedTextOptions {
+expowt intewface InjectedTextOptions {
 	/**
-	 * Sets the text to inject. Must be a single line.
+	 * Sets the text to inject. Must be a singwe wine.
 	 */
-	readonly content: string;
+	weadonwy content: stwing;
 
 	/**
-	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 * If set, the decowation wiww be wendewed inwine with the text with this CSS cwass name.
 	 */
-	readonly inlineClassName?: string | null;
+	weadonwy inwineCwassName?: stwing | nuww;
 
 	/**
-	 * If there is an `inlineClassName` which affects letter spacing.
+	 * If thewe is an `inwineCwassName` which affects wetta spacing.
 	 */
-	readonly inlineClassNameAffectsLetterSpacing?: boolean;
+	weadonwy inwineCwassNameAffectsWettewSpacing?: boowean;
 }
 
 /**
- * New model decorations.
+ * New modew decowations.
  */
-export interface IModelDeltaDecoration {
+expowt intewface IModewDewtaDecowation {
 	/**
-	 * Range that this decoration covers.
+	 * Wange that this decowation covews.
 	 */
-	range: IRange;
+	wange: IWange;
 	/**
-	 * Options associated with this decoration.
+	 * Options associated with this decowation.
 	 */
-	options: IModelDecorationOptions;
+	options: IModewDecowationOptions;
 }
 
 /**
- * A decoration in the model.
+ * A decowation in the modew.
  */
-export interface IModelDecoration {
+expowt intewface IModewDecowation {
 	/**
-	 * Identifier for a decoration.
+	 * Identifia fow a decowation.
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 	/**
-	 * Identifier for a decoration's owner.
+	 * Identifia fow a decowation's owna.
 	 */
-	readonly ownerId: number;
+	weadonwy ownewId: numba;
 	/**
-	 * Range that this decoration covers.
+	 * Wange that this decowation covews.
 	 */
-	readonly range: Range;
+	weadonwy wange: Wange;
 	/**
-	 * Options associated with this decoration.
+	 * Options associated with this decowation.
 	 */
-	readonly options: IModelDecorationOptions;
+	weadonwy options: IModewDecowationOptions;
 }
 
 /**
- * An accessor that can add, change or remove model decorations.
- * @internal
+ * An accessow that can add, change ow wemove modew decowations.
+ * @intewnaw
  */
-export interface IModelDecorationsChangeAccessor {
+expowt intewface IModewDecowationsChangeAccessow {
 	/**
-	 * Add a new decoration.
-	 * @param range Range that this decoration covers.
-	 * @param options Options associated with this decoration.
-	 * @return An unique identifier associated with this decoration.
+	 * Add a new decowation.
+	 * @pawam wange Wange that this decowation covews.
+	 * @pawam options Options associated with this decowation.
+	 * @wetuwn An unique identifia associated with this decowation.
 	 */
-	addDecoration(range: IRange, options: IModelDecorationOptions): string;
+	addDecowation(wange: IWange, options: IModewDecowationOptions): stwing;
 	/**
-	 * Change the range that an existing decoration covers.
-	 * @param id The unique identifier associated with the decoration.
-	 * @param newRange The new range that this decoration covers.
+	 * Change the wange that an existing decowation covews.
+	 * @pawam id The unique identifia associated with the decowation.
+	 * @pawam newWange The new wange that this decowation covews.
 	 */
-	changeDecoration(id: string, newRange: IRange): void;
+	changeDecowation(id: stwing, newWange: IWange): void;
 	/**
-	 * Change the options associated with an existing decoration.
-	 * @param id The unique identifier associated with the decoration.
-	 * @param newOptions The new options associated with this decoration.
+	 * Change the options associated with an existing decowation.
+	 * @pawam id The unique identifia associated with the decowation.
+	 * @pawam newOptions The new options associated with this decowation.
 	 */
-	changeDecorationOptions(id: string, newOptions: IModelDecorationOptions): void;
+	changeDecowationOptions(id: stwing, newOptions: IModewDecowationOptions): void;
 	/**
-	 * Remove an existing decoration.
-	 * @param id The unique identifier associated with the decoration.
+	 * Wemove an existing decowation.
+	 * @pawam id The unique identifia associated with the decowation.
 	 */
-	removeDecoration(id: string): void;
+	wemoveDecowation(id: stwing): void;
 	/**
-	 * Perform a minimum amount of operations, in order to transform the decorations
-	 * identified by `oldDecorations` to the decorations described by `newDecorations`
-	 * and returns the new identifiers associated with the resulting decorations.
+	 * Pewfowm a minimum amount of opewations, in owda to twansfowm the decowations
+	 * identified by `owdDecowations` to the decowations descwibed by `newDecowations`
+	 * and wetuwns the new identifiews associated with the wesuwting decowations.
 	 *
-	 * @param oldDecorations Array containing previous decorations identifiers.
-	 * @param newDecorations Array describing what decorations should result after the call.
-	 * @return An array containing the new decorations identifiers.
+	 * @pawam owdDecowations Awway containing pwevious decowations identifiews.
+	 * @pawam newDecowations Awway descwibing what decowations shouwd wesuwt afta the caww.
+	 * @wetuwn An awway containing the new decowations identifiews.
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[];
 }
 
 /**
- * Word inside a model.
+ * Wowd inside a modew.
  */
-export interface IWordAtPosition {
+expowt intewface IWowdAtPosition {
 	/**
-	 * The word.
+	 * The wowd.
 	 */
-	readonly word: string;
+	weadonwy wowd: stwing;
 	/**
-	 * The column where the word starts.
+	 * The cowumn whewe the wowd stawts.
 	 */
-	readonly startColumn: number;
+	weadonwy stawtCowumn: numba;
 	/**
-	 * The column where the word ends.
+	 * The cowumn whewe the wowd ends.
 	 */
-	readonly endColumn: number;
+	weadonwy endCowumn: numba;
 }
 
 /**
- * End of line character preference.
+ * End of wine chawacta pwefewence.
  */
-export const enum EndOfLinePreference {
+expowt const enum EndOfWinePwefewence {
 	/**
-	 * Use the end of line character identified in the text buffer.
+	 * Use the end of wine chawacta identified in the text buffa.
 	 */
 	TextDefined = 0,
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 1,
+	WF = 1,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 2
+	CWWF = 2
 }
 
 /**
- * The default end of line to use when instantiating models.
+ * The defauwt end of wine to use when instantiating modews.
  */
-export const enum DefaultEndOfLine {
+expowt const enum DefauwtEndOfWine {
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 1,
+	WF = 1,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 2
+	CWWF = 2
 }
 
 /**
- * End of line character preference.
+ * End of wine chawacta pwefewence.
  */
-export const enum EndOfLineSequence {
+expowt const enum EndOfWineSequence {
 	/**
-	 * Use line feed (\n) as the end of line character.
+	 * Use wine feed (\n) as the end of wine chawacta.
 	 */
-	LF = 0,
+	WF = 0,
 	/**
-	 * Use carriage return and line feed (\r\n) as the end of line character.
+	 * Use cawwiage wetuwn and wine feed (\w\n) as the end of wine chawacta.
 	 */
-	CRLF = 1
+	CWWF = 1
 }
 
 /**
- * An identifier for a single edit operation.
- * @internal
+ * An identifia fow a singwe edit opewation.
+ * @intewnaw
  */
-export interface ISingleEditOperationIdentifier {
+expowt intewface ISingweEditOpewationIdentifia {
 	/**
-	 * Identifier major
+	 * Identifia majow
 	 */
-	major: number;
+	majow: numba;
 	/**
-	 * Identifier minor
+	 * Identifia minow
 	 */
-	minor: number;
+	minow: numba;
 }
 
 /**
- * A single edit operation, that acts as a simple replace.
- * i.e. Replace text at `range` with `text` in model.
+ * A singwe edit opewation, that acts as a simpwe wepwace.
+ * i.e. Wepwace text at `wange` with `text` in modew.
  */
-export interface ISingleEditOperation {
+expowt intewface ISingweEditOpewation {
 	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
+	 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 	 */
-	range: IRange;
+	wange: IWange;
 	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
+	 * The text to wepwace with. This can be nuww to emuwate a simpwe dewete.
 	 */
-	text: string | null;
+	text: stwing | nuww;
 	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+	 * This indicates that this opewation has "insewt" semantics.
+	 * i.e. fowceMoveMawkews = twue => if `wange` is cowwapsed, aww mawkews at the position wiww be moved.
 	 */
-	forceMoveMarkers?: boolean;
+	fowceMoveMawkews?: boowean;
 }
 
 /**
- * A single edit operation, that has an identifier.
+ * A singwe edit opewation, that has an identifia.
  */
-export interface IIdentifiedSingleEditOperation {
+expowt intewface IIdentifiedSingweEditOpewation {
 	/**
-	 * An identifier associated with this single edit operation.
-	 * @internal
+	 * An identifia associated with this singwe edit opewation.
+	 * @intewnaw
 	 */
-	identifier?: ISingleEditOperationIdentifier | null;
+	identifia?: ISingweEditOpewationIdentifia | nuww;
 	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
+	 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 	 */
-	range: IRange;
+	wange: IWange;
 	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
+	 * The text to wepwace with. This can be nuww to emuwate a simpwe dewete.
 	 */
-	text: string | null;
+	text: stwing | nuww;
 	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+	 * This indicates that this opewation has "insewt" semantics.
+	 * i.e. fowceMoveMawkews = twue => if `wange` is cowwapsed, aww mawkews at the position wiww be moved.
 	 */
-	forceMoveMarkers?: boolean;
+	fowceMoveMawkews?: boowean;
 	/**
-	 * This indicates that this operation is inserting automatic whitespace
-	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
-	 * @internal
+	 * This indicates that this opewation is insewting automatic whitespace
+	 * that can be wemoved on next modew edit opewation if `config.twimAutoWhitespace` is twue.
+	 * @intewnaw
 	 */
-	isAutoWhitespaceEdit?: boolean;
+	isAutoWhitespaceEdit?: boowean;
 	/**
-	 * This indicates that this operation is in a set of operations that are tracked and should not be "simplified".
-	 * @internal
+	 * This indicates that this opewation is in a set of opewations that awe twacked and shouwd not be "simpwified".
+	 * @intewnaw
 	 */
-	_isTracked?: boolean;
+	_isTwacked?: boowean;
 }
 
-export interface IValidEditOperation {
+expowt intewface IVawidEditOpewation {
 	/**
-	 * An identifier associated with this single edit operation.
-	 * @internal
+	 * An identifia associated with this singwe edit opewation.
+	 * @intewnaw
 	 */
-	identifier: ISingleEditOperationIdentifier | null;
+	identifia: ISingweEditOpewationIdentifia | nuww;
 	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
+	 * The wange to wepwace. This can be empty to emuwate a simpwe insewt.
 	 */
-	range: Range;
+	wange: Wange;
 	/**
-	 * The text to replace with. This can be empty to emulate a simple delete.
+	 * The text to wepwace with. This can be empty to emuwate a simpwe dewete.
 	 */
-	text: string;
+	text: stwing;
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
 	textChange: TextChange;
 }
 
 /**
- * A callback that can compute the cursor state after applying a series of edit operations.
+ * A cawwback that can compute the cuwsow state afta appwying a sewies of edit opewations.
  */
-export interface ICursorStateComputer {
+expowt intewface ICuwsowStateComputa {
 	/**
-	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
+	 * A cawwback that can compute the wesuwting cuwsows state afta some edit opewations have been executed.
 	 */
-	(inverseEditOperations: IValidEditOperation[]): Selection[] | null;
+	(invewseEditOpewations: IVawidEditOpewation[]): Sewection[] | nuww;
 }
 
-export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void = undefined;
+expowt cwass TextModewWesowvedOptions {
+	_textModewWesowvedOptionsBwand: void = undefined;
 
-	readonly tabSize: number;
-	readonly indentSize: number;
-	readonly insertSpaces: boolean;
-	readonly defaultEOL: DefaultEndOfLine;
-	readonly trimAutoWhitespace: boolean;
-	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+	weadonwy tabSize: numba;
+	weadonwy indentSize: numba;
+	weadonwy insewtSpaces: boowean;
+	weadonwy defauwtEOW: DefauwtEndOfWine;
+	weadonwy twimAutoWhitespace: boowean;
+	weadonwy bwacketPaiwCowowizationOptions: BwacketPaiwCowowizationOptions;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	constructor(src: {
-		tabSize: number;
-		indentSize: number;
-		insertSpaces: boolean;
-		defaultEOL: DefaultEndOfLine;
-		trimAutoWhitespace: boolean;
-		bracketPairColorizationOptions: BracketPairColorizationOptions;
+	constwuctow(swc: {
+		tabSize: numba;
+		indentSize: numba;
+		insewtSpaces: boowean;
+		defauwtEOW: DefauwtEndOfWine;
+		twimAutoWhitespace: boowean;
+		bwacketPaiwCowowizationOptions: BwacketPaiwCowowizationOptions;
 	}) {
-		this.tabSize = Math.max(1, src.tabSize | 0);
-		this.indentSize = src.tabSize | 0;
-		this.insertSpaces = Boolean(src.insertSpaces);
-		this.defaultEOL = src.defaultEOL | 0;
-		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
-		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
+		this.tabSize = Math.max(1, swc.tabSize | 0);
+		this.indentSize = swc.tabSize | 0;
+		this.insewtSpaces = Boowean(swc.insewtSpaces);
+		this.defauwtEOW = swc.defauwtEOW | 0;
+		this.twimAutoWhitespace = Boowean(swc.twimAutoWhitespace);
+		this.bwacketPaiwCowowizationOptions = swc.bwacketPaiwCowowizationOptions;
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public equals(other: TextModelResolvedOptions): boolean {
-		return (
-			this.tabSize === other.tabSize
-			&& this.indentSize === other.indentSize
-			&& this.insertSpaces === other.insertSpaces
-			&& this.defaultEOL === other.defaultEOL
-			&& this.trimAutoWhitespace === other.trimAutoWhitespace
-			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
+	pubwic equaws(otha: TextModewWesowvedOptions): boowean {
+		wetuwn (
+			this.tabSize === otha.tabSize
+			&& this.indentSize === otha.indentSize
+			&& this.insewtSpaces === otha.insewtSpaces
+			&& this.defauwtEOW === otha.defauwtEOW
+			&& this.twimAutoWhitespace === otha.twimAutoWhitespace
+			&& equaws(this.bwacketPaiwCowowizationOptions, otha.bwacketPaiwCowowizationOptions)
 		);
 	}
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	public createChangeEvent(newOpts: TextModelResolvedOptions): IModelOptionsChangedEvent {
-		return {
+	pubwic cweateChangeEvent(newOpts: TextModewWesowvedOptions): IModewOptionsChangedEvent {
+		wetuwn {
 			tabSize: this.tabSize !== newOpts.tabSize,
 			indentSize: this.indentSize !== newOpts.indentSize,
-			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
-			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			insewtSpaces: this.insewtSpaces !== newOpts.insewtSpaces,
+			twimAutoWhitespace: this.twimAutoWhitespace !== newOpts.twimAutoWhitespace,
 		};
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITextModelCreationOptions {
-	tabSize: number;
-	indentSize: number;
-	insertSpaces: boolean;
-	detectIndentation: boolean;
-	trimAutoWhitespace: boolean;
-	defaultEOL: DefaultEndOfLine;
-	isForSimpleWidget: boolean;
-	largeFileOptimizations: boolean;
-	bracketPairColorizationOptions: BracketPairColorizationOptions;
+expowt intewface ITextModewCweationOptions {
+	tabSize: numba;
+	indentSize: numba;
+	insewtSpaces: boowean;
+	detectIndentation: boowean;
+	twimAutoWhitespace: boowean;
+	defauwtEOW: DefauwtEndOfWine;
+	isFowSimpweWidget: boowean;
+	wawgeFiweOptimizations: boowean;
+	bwacketPaiwCowowizationOptions: BwacketPaiwCowowizationOptions;
 }
 
-export interface BracketPairColorizationOptions {
-	enabled: boolean;
+expowt intewface BwacketPaiwCowowizationOptions {
+	enabwed: boowean;
 }
 
-export interface ITextModelUpdateOptions {
-	tabSize?: number;
-	indentSize?: number;
-	insertSpaces?: boolean;
-	trimAutoWhitespace?: boolean;
-	bracketColorizationOptions?: BracketPairColorizationOptions;
+expowt intewface ITextModewUpdateOptions {
+	tabSize?: numba;
+	indentSize?: numba;
+	insewtSpaces?: boowean;
+	twimAutoWhitespace?: boowean;
+	bwacketCowowizationOptions?: BwacketPaiwCowowizationOptions;
 }
 
-export class FindMatch {
-	_findMatchBrand: void = undefined;
+expowt cwass FindMatch {
+	_findMatchBwand: void = undefined;
 
-	public readonly range: Range;
-	public readonly matches: string[] | null;
+	pubwic weadonwy wange: Wange;
+	pubwic weadonwy matches: stwing[] | nuww;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	constructor(range: Range, matches: string[] | null) {
-		this.range = range;
+	constwuctow(wange: Wange, matches: stwing[] | nuww) {
+		this.wange = wange;
 		this.matches = matches;
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IFoundBracket {
-	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
+expowt intewface IFoundBwacket {
+	wange: Wange;
+	open: stwing[];
+	cwose: stwing[];
+	isOpen: boowean;
 }
 
 /**
- * Describes the behavior of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+ * Descwibes the behaviow of decowations when typing/editing neaw theiw edges.
+ * Note: Pwease do not edit the vawues, as they vewy cawefuwwy match `DecowationWangeBehaviow`
  */
-export const enum TrackedRangeStickiness {
-	AlwaysGrowsWhenTypingAtEdges = 0,
-	NeverGrowsWhenTypingAtEdges = 1,
-	GrowsOnlyWhenTypingBefore = 2,
-	GrowsOnlyWhenTypingAfter = 3,
+expowt const enum TwackedWangeStickiness {
+	AwwaysGwowsWhenTypingAtEdges = 0,
+	NevewGwowsWhenTypingAtEdges = 1,
+	GwowsOnwyWhenTypingBefowe = 2,
+	GwowsOnwyWhenTypingAfta = 3,
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IActiveIndentGuideInfo {
-	startLineNumber: number;
-	endLineNumber: number;
-	indent: number;
+expowt intewface IActiveIndentGuideInfo {
+	stawtWineNumba: numba;
+	endWineNumba: numba;
+	indent: numba;
 }
 
 /**
- * Text snapshot that works like an iterator.
- * Will try to return chunks of roughly ~64KB size.
- * Will return null when finished.
+ * Text snapshot that wowks wike an itewatow.
+ * Wiww twy to wetuwn chunks of woughwy ~64KB size.
+ * Wiww wetuwn nuww when finished.
  *
- * @internal
+ * @intewnaw
  */
-export interface ITextSnapshot {
-	read(): string | null;
+expowt intewface ITextSnapshot {
+	wead(): stwing | nuww;
 }
 
 /**
- * A model.
+ * A modew.
  */
-export interface ITextModel {
+expowt intewface ITextModew {
 
 	/**
-	 * Gets the resource associated with this editor model.
+	 * Gets the wesouwce associated with this editow modew.
 	 */
-	readonly uri: URI;
+	weadonwy uwi: UWI;
 
 	/**
-	 * A unique identifier associated with this model.
+	 * A unique identifia associated with this modew.
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 
 	/**
-	 * This model is constructed for a simple widget code editor.
-	 * @internal
+	 * This modew is constwucted fow a simpwe widget code editow.
+	 * @intewnaw
 	 */
-	readonly isForSimpleWidget: boolean;
+	weadonwy isFowSimpweWidget: boowean;
 
 	/**
-	 * If true, the text model might contain RTL.
-	 * If false, the text model **contains only** contain LTR.
-	 * @internal
+	 * If twue, the text modew might contain WTW.
+	 * If fawse, the text modew **contains onwy** contain WTW.
+	 * @intewnaw
 	 */
-	mightContainRTL(): boolean;
+	mightContainWTW(): boowean;
 
 	/**
-	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
-	 * If false, the text model definitely does not contain these.
-	 * @internal
+	 * If twue, the text modew might contain WINE SEPAWATOW (WS), PAWAGWAPH SEPAWATOW (PS).
+	 * If fawse, the text modew definitewy does not contain these.
+	 * @intewnaw
 	 */
-	mightContainUnusualLineTerminators(): boolean;
+	mightContainUnusuawWineTewminatows(): boowean;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	removeUnusualLineTerminators(selections?: Selection[]): void;
+	wemoveUnusuawWineTewminatows(sewections?: Sewection[]): void;
 
 	/**
-	 * If true, the text model might contain non basic ASCII.
-	 * If false, the text model **contains only** basic ASCII.
-	 * @internal
+	 * If twue, the text modew might contain non basic ASCII.
+	 * If fawse, the text modew **contains onwy** basic ASCII.
+	 * @intewnaw
 	 */
-	mightContainNonBasicASCII(): boolean;
+	mightContainNonBasicASCII(): boowean;
 
 	/**
-	 * Get the resolved options for this model.
+	 * Get the wesowved options fow this modew.
 	 */
-	getOptions(): TextModelResolvedOptions;
+	getOptions(): TextModewWesowvedOptions;
 
 	/**
-	 * Get the formatting options for this model.
-	 * @internal
+	 * Get the fowmatting options fow this modew.
+	 * @intewnaw
 	 */
-	getFormattingOptions(): FormattingOptions;
+	getFowmattingOptions(): FowmattingOptions;
 
 	/**
-	 * Get the current version id of the model.
-	 * Anytime a change happens to the model (even undo/redo),
-	 * the version id is incremented.
+	 * Get the cuwwent vewsion id of the modew.
+	 * Anytime a change happens to the modew (even undo/wedo),
+	 * the vewsion id is incwemented.
 	 */
-	getVersionId(): number;
+	getVewsionId(): numba;
 
 	/**
-	 * Get the alternative version id of the model.
-	 * This alternative version id is not always incremented,
-	 * it will return the same values in the case of undo-redo.
+	 * Get the awtewnative vewsion id of the modew.
+	 * This awtewnative vewsion id is not awways incwemented,
+	 * it wiww wetuwn the same vawues in the case of undo-wedo.
 	 */
-	getAlternativeVersionId(): number;
+	getAwtewnativeVewsionId(): numba;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
+	 * Wepwace the entiwe text buffa vawue contained in this modew.
 	 */
-	setValue(newValue: string): void;
+	setVawue(newVawue: stwing): void;
 
 	/**
-	 * Get the text stored in this model.
-	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
-	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
-	 * @return The text.
+	 * Get the text stowed in this modew.
+	 * @pawam eow The end of wine chawacta pwefewence. Defauwts to `EndOfWinePwefewence.TextDefined`.
+	 * @pawam pwesewvewBOM Pwesewve a BOM chawacta if it was detected when the modew was constwucted.
+	 * @wetuwn The text.
 	 */
-	getValue(eol?: EndOfLinePreference, preserveBOM?: boolean): string;
+	getVawue(eow?: EndOfWinePwefewence, pwesewveBOM?: boowean): stwing;
 
 	/**
-	 * Get the text stored in this model.
-	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
-	 * @return The text snapshot (it is safe to consume it asynchronously).
-	 * @internal
+	 * Get the text stowed in this modew.
+	 * @pawam pwesewvewBOM Pwesewve a BOM chawacta if it was detected when the modew was constwucted.
+	 * @wetuwn The text snapshot (it is safe to consume it asynchwonouswy).
+	 * @intewnaw
 	 */
-	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
+	cweateSnapshot(pwesewveBOM?: boowean): ITextSnapshot;
 
 	/**
-	 * Get the length of the text stored in this model.
+	 * Get the wength of the text stowed in this modew.
 	 */
-	getValueLength(eol?: EndOfLinePreference, preserveBOM?: boolean): number;
+	getVawueWength(eow?: EndOfWinePwefewence, pwesewveBOM?: boowean): numba;
 
 	/**
-	 * Check if the raw text stored in this model equals another raw text.
-	 * @internal
+	 * Check if the waw text stowed in this modew equaws anotha waw text.
+	 * @intewnaw
 	 */
-	equalsTextBuffer(other: ITextBuffer): boolean;
+	equawsTextBuffa(otha: ITextBuffa): boowean;
 
 	/**
-	 * Get the underling text buffer.
-	 * @internal
+	 * Get the undewwing text buffa.
+	 * @intewnaw
 	 */
-	getTextBuffer(): ITextBuffer;
+	getTextBuffa(): ITextBuffa;
 
 	/**
-	 * Get the text in a certain range.
-	 * @param range The range describing what text to get.
-	 * @param eol The end of line character preference. This will only be used for multiline ranges. Defaults to `EndOfLinePreference.TextDefined`.
-	 * @return The text.
+	 * Get the text in a cewtain wange.
+	 * @pawam wange The wange descwibing what text to get.
+	 * @pawam eow The end of wine chawacta pwefewence. This wiww onwy be used fow muwtiwine wanges. Defauwts to `EndOfWinePwefewence.TextDefined`.
+	 * @wetuwn The text.
 	 */
-	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
+	getVawueInWange(wange: IWange, eow?: EndOfWinePwefewence): stwing;
 
 	/**
-	 * Get the length of text in a certain range.
-	 * @param range The range describing what text length to get.
-	 * @return The text length.
+	 * Get the wength of text in a cewtain wange.
+	 * @pawam wange The wange descwibing what text wength to get.
+	 * @wetuwn The text wength.
 	 */
-	getValueLengthInRange(range: IRange): number;
+	getVawueWengthInWange(wange: IWange): numba;
 
 	/**
-	 * Get the character count of text in a certain range.
-	 * @param range The range describing what text length to get.
+	 * Get the chawacta count of text in a cewtain wange.
+	 * @pawam wange The wange descwibing what text wength to get.
 	 */
-	getCharacterCountInRange(range: IRange): number;
+	getChawactewCountInWange(wange: IWange): numba;
 
 	/**
-	 * Splits characters in two buckets. First bucket (A) is of characters that
-	 * sit in lines with length < `LONG_LINE_BOUNDARY`. Second bucket (B) is of
-	 * characters that sit in lines with length >= `LONG_LINE_BOUNDARY`.
-	 * If count(B) > count(A) return true. Returns false otherwise.
-	 * @internal
+	 * Spwits chawactews in two buckets. Fiwst bucket (A) is of chawactews that
+	 * sit in wines with wength < `WONG_WINE_BOUNDAWY`. Second bucket (B) is of
+	 * chawactews that sit in wines with wength >= `WONG_WINE_BOUNDAWY`.
+	 * If count(B) > count(A) wetuwn twue. Wetuwns fawse othewwise.
+	 * @intewnaw
 	 */
-	isDominatedByLongLines(): boolean;
+	isDominatedByWongWines(): boowean;
 
 	/**
-	 * Get the number of lines in the model.
+	 * Get the numba of wines in the modew.
 	 */
-	getLineCount(): number;
+	getWineCount(): numba;
 
 	/**
-	 * Get the text for a certain line.
+	 * Get the text fow a cewtain wine.
 	 */
-	getLineContent(lineNumber: number): string;
+	getWineContent(wineNumba: numba): stwing;
 
 	/**
-	 * Get the text length for a certain line.
+	 * Get the text wength fow a cewtain wine.
 	 */
-	getLineLength(lineNumber: number): number;
+	getWineWength(wineNumba: numba): numba;
 
 	/**
-	 * Get the text for all lines.
+	 * Get the text fow aww wines.
 	 */
-	getLinesContent(): string[];
+	getWinesContent(): stwing[];
 
 	/**
-	 * Get the end of line sequence predominantly used in the text buffer.
-	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
+	 * Get the end of wine sequence pwedominantwy used in the text buffa.
+	 * @wetuwn EOW chaw sequence (e.g.: '\n' ow '\w\n').
 	 */
-	getEOL(): string;
+	getEOW(): stwing;
 
 	/**
-	 * Get the end of line sequence predominantly used in the text buffer.
+	 * Get the end of wine sequence pwedominantwy used in the text buffa.
 	 */
-	getEndOfLineSequence(): EndOfLineSequence;
+	getEndOfWineSequence(): EndOfWineSequence;
 
 	/**
-	 * Get the minimum legal column for line at `lineNumber`
+	 * Get the minimum wegaw cowumn fow wine at `wineNumba`
 	 */
-	getLineMinColumn(lineNumber: number): number;
+	getWineMinCowumn(wineNumba: numba): numba;
 
 	/**
-	 * Get the maximum legal column for line at `lineNumber`
+	 * Get the maximum wegaw cowumn fow wine at `wineNumba`
 	 */
-	getLineMaxColumn(lineNumber: number): number;
+	getWineMaxCowumn(wineNumba: numba): numba;
 
 	/**
-	 * Returns the column before the first non whitespace character for line at `lineNumber`.
-	 * Returns 0 if line is empty or contains only whitespace.
+	 * Wetuwns the cowumn befowe the fiwst non whitespace chawacta fow wine at `wineNumba`.
+	 * Wetuwns 0 if wine is empty ow contains onwy whitespace.
 	 */
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba;
 
 	/**
-	 * Returns the column after the last non whitespace character for line at `lineNumber`.
-	 * Returns 0 if line is empty or contains only whitespace.
+	 * Wetuwns the cowumn afta the wast non whitespace chawacta fow wine at `wineNumba`.
+	 * Wetuwns 0 if wine is empty ow contains onwy whitespace.
 	 */
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	getWineWastNonWhitespaceCowumn(wineNumba: numba): numba;
 
 	/**
-	 * Create a valid position,
+	 * Cweate a vawid position,
 	 */
-	validatePosition(position: IPosition): Position;
+	vawidatePosition(position: IPosition): Position;
 
 	/**
-	 * Advances the given position by the given offset (negative offsets are also accepted)
-	 * and returns it as a new valid position.
+	 * Advances the given position by the given offset (negative offsets awe awso accepted)
+	 * and wetuwns it as a new vawid position.
 	 *
-	 * If the offset and position are such that their combination goes beyond the beginning or
-	 * end of the model, throws an exception.
+	 * If the offset and position awe such that theiw combination goes beyond the beginning ow
+	 * end of the modew, thwows an exception.
 	 *
-	 * If the offset is such that the new position would be in the middle of a multi-byte
-	 * line terminator, throws an exception.
+	 * If the offset is such that the new position wouwd be in the middwe of a muwti-byte
+	 * wine tewminatow, thwows an exception.
 	 */
-	modifyPosition(position: IPosition, offset: number): Position;
+	modifyPosition(position: IPosition, offset: numba): Position;
 
 	/**
-	 * Create a valid range.
+	 * Cweate a vawid wange.
 	 */
-	validateRange(range: IRange): Range;
+	vawidateWange(wange: IWange): Wange;
 
 	/**
-	 * Converts the position to a zero-based offset.
+	 * Convewts the position to a zewo-based offset.
 	 *
-	 * The position will be [adjusted](#TextDocument.validatePosition).
+	 * The position wiww be [adjusted](#TextDocument.vawidatePosition).
 	 *
-	 * @param position A position.
-	 * @return A valid zero-based offset.
+	 * @pawam position A position.
+	 * @wetuwn A vawid zewo-based offset.
 	 */
-	getOffsetAt(position: IPosition): number;
+	getOffsetAt(position: IPosition): numba;
 
 	/**
-	 * Converts a zero-based offset to a position.
+	 * Convewts a zewo-based offset to a position.
 	 *
-	 * @param offset A zero-based offset.
-	 * @return A valid [position](#Position).
+	 * @pawam offset A zewo-based offset.
+	 * @wetuwn A vawid [position](#Position).
 	 */
-	getPositionAt(offset: number): Position;
+	getPositionAt(offset: numba): Position;
 
 	/**
-	 * Get a range covering the entire model
+	 * Get a wange covewing the entiwe modew
 	 */
-	getFullModelRange(): Range;
+	getFuwwModewWange(): Wange;
 
 	/**
-	 * Returns if the model was disposed or not.
+	 * Wetuwns if the modew was disposed ow not.
 	 */
-	isDisposed(): boolean;
+	isDisposed(): boowean;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
+	tokenizeViewpowt(stawtWineNumba: numba, endWineNumba: numba): void;
 
 	/**
-	 * This model is so large that it would not be a good idea to sync it over
-	 * to web workers or other places.
-	 * @internal
+	 * This modew is so wawge that it wouwd not be a good idea to sync it ova
+	 * to web wowkews ow otha pwaces.
+	 * @intewnaw
 	 */
-	isTooLargeForSyncing(): boolean;
+	isTooWawgeFowSyncing(): boowean;
 
 	/**
-	 * The file is so large, that even tokenization is disabled.
-	 * @internal
+	 * The fiwe is so wawge, that even tokenization is disabwed.
+	 * @intewnaw
 	 */
-	isTooLargeForTokenization(): boolean;
+	isTooWawgeFowTokenization(): boowean;
 
 	/**
-	 * Search the model.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-	 * @param captureMatches The result will contain the captured groups.
-	 * @param limitResultCount Limit the number of results
-	 * @return The ranges where the matches are. It is empty if not matches have been found.
+	 * Seawch the modew.
+	 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+	 * @pawam seawchOnwyEditabweWange Wimit the seawching to onwy seawch inside the editabwe wange of the modew.
+	 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+	 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+	 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+	 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+	 * @pawam wimitWesuwtCount Wimit the numba of wesuwts
+	 * @wetuwn The wanges whewe the matches awe. It is empty if not matches have been found.
 	 */
-	findMatches(searchString: string, searchOnlyEditableRange: boolean, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(seawchStwing: stwing, seawchOnwyEditabweWange: boowean, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean, wimitWesuwtCount?: numba): FindMatch[];
 	/**
-	 * Search the model.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchScope Limit the searching to only search inside these ranges.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-	 * @param captureMatches The result will contain the captured groups.
-	 * @param limitResultCount Limit the number of results
-	 * @return The ranges where the matches are. It is empty if no matches have been found.
+	 * Seawch the modew.
+	 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+	 * @pawam seawchScope Wimit the seawching to onwy seawch inside these wanges.
+	 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+	 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+	 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+	 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+	 * @pawam wimitWesuwtCount Wimit the numba of wesuwts
+	 * @wetuwn The wanges whewe the matches awe. It is empty if no matches have been found.
 	 */
-	findMatches(searchString: string, searchScope: IRange | IRange[], isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(seawchStwing: stwing, seawchScope: IWange | IWange[], isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean, wimitWesuwtCount?: numba): FindMatch[];
 	/**
-	 * Search the model for the next match. Loops to the beginning of the model if needed.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchStart Start the searching at the specified position.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-	 * @param captureMatches The result will contain the captured groups.
-	 * @return The range where the next match is. It is null if no next match has been found.
+	 * Seawch the modew fow the next match. Woops to the beginning of the modew if needed.
+	 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+	 * @pawam seawchStawt Stawt the seawching at the specified position.
+	 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+	 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+	 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+	 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+	 * @wetuwn The wange whewe the next match is. It is nuww if no next match has been found.
 	 */
-	findNextMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+	findNextMatch(seawchStwing: stwing, seawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean): FindMatch | nuww;
 	/**
-	 * Search the model for the previous match. Loops to the end of the model if needed.
-	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchStart Start the searching at the specified position.
-	 * @param isRegex Used to indicate that `searchString` is a regular expression.
-	 * @param matchCase Force the matching to match lower/upper case exactly.
-	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
-	 * @param captureMatches The result will contain the captured groups.
-	 * @return The range where the previous match is. It is null if no previous match has been found.
+	 * Seawch the modew fow the pwevious match. Woops to the end of the modew if needed.
+	 * @pawam seawchStwing The stwing used to seawch. If it is a weguwaw expwession, set `isWegex` to twue.
+	 * @pawam seawchStawt Stawt the seawching at the specified position.
+	 * @pawam isWegex Used to indicate that `seawchStwing` is a weguwaw expwession.
+	 * @pawam matchCase Fowce the matching to match wowa/uppa case exactwy.
+	 * @pawam wowdSepawatows Fowce the matching to match entiwe wowds onwy. Pass nuww othewwise.
+	 * @pawam captuweMatches The wesuwt wiww contain the captuwed gwoups.
+	 * @wetuwn The wange whewe the pwevious match is. It is nuww if no pwevious match has been found.
 	 */
-	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
+	findPweviousMatch(seawchStwing: stwing, seawchStawt: IPosition, isWegex: boowean, matchCase: boowean, wowdSepawatows: stwing | nuww, captuweMatches: boowean): FindMatch | nuww;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	setTokens(tokens: MultilineTokens[]): void;
+	setTokens(tokens: MuwtiwineTokens[]): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void;
+	setSemanticTokens(tokens: MuwtiwineTokens2[] | nuww, isCompwete: boowean): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	setPartialSemanticTokens(range: Range, tokens: MultilineTokens2[] | null): void;
+	setPawtiawSemanticTokens(wange: Wange, tokens: MuwtiwineTokens2[] | nuww): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	hasCompleteSemanticTokens(): boolean;
+	hasCompweteSemanticTokens(): boowean;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	hasSomeSemanticTokens(): boolean;
+	hasSomeSemanticTokens(): boowean;
 
 	/**
-	 * Flush all tokenization state.
-	 * @internal
+	 * Fwush aww tokenization state.
+	 * @intewnaw
 	 */
-	resetTokenization(): void;
+	wesetTokenization(): void;
 
 	/**
-	 * Force tokenization information for `lineNumber` to be accurate.
-	 * @internal
+	 * Fowce tokenization infowmation fow `wineNumba` to be accuwate.
+	 * @intewnaw
 	 */
-	forceTokenization(lineNumber: number): void;
+	fowceTokenization(wineNumba: numba): void;
 
 	/**
-	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
-	 * This is based on a heuristic.
-	 * @internal
+	 * If it is cheap, fowce tokenization infowmation fow `wineNumba` to be accuwate.
+	 * This is based on a heuwistic.
+	 * @intewnaw
 	 */
-	tokenizeIfCheap(lineNumber: number): void;
+	tokenizeIfCheap(wineNumba: numba): void;
 
 	/**
-	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
-	 * This is based on a heuristic.
-	 * @internal
+	 * Check if cawwing `fowceTokenization` fow this `wineNumba` wiww be cheap (time-wise).
+	 * This is based on a heuwistic.
+	 * @intewnaw
 	 */
-	isCheapToTokenize(lineNumber: number): boolean;
+	isCheapToTokenize(wineNumba: numba): boowean;
 
 	/**
-	 * Get the tokens for the line `lineNumber`.
-	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
-	 * @internal
+	 * Get the tokens fow the wine `wineNumba`.
+	 * The tokens might be inaccuwate. Use `fowceTokenization` to ensuwe accuwate tokens.
+	 * @intewnaw
 	 */
-	getLineTokens(lineNumber: number): LineTokens;
+	getWineTokens(wineNumba: numba): WineTokens;
 
 	/**
-	 * Get the language associated with this model.
-	 * @internal
+	 * Get the wanguage associated with this modew.
+	 * @intewnaw
 	 */
-	getLanguageIdentifier(): LanguageIdentifier;
+	getWanguageIdentifia(): WanguageIdentifia;
 
 	/**
-	 * Get the language associated with this model.
+	 * Get the wanguage associated with this modew.
 	 */
-	getModeId(): string;
+	getModeId(): stwing;
 
 	/**
-	 * Set the current language mode associated with the model.
-	 * @internal
+	 * Set the cuwwent wanguage mode associated with the modew.
+	 * @intewnaw
 	 */
-	setMode(languageIdentifier: LanguageIdentifier): void;
+	setMode(wanguageIdentifia: WanguageIdentifia): void;
 
 	/**
-	 * Returns the real (inner-most) language mode at a given position.
-	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
-	 * @internal
+	 * Wetuwns the weaw (inna-most) wanguage mode at a given position.
+	 * The wesuwt might be inaccuwate. Use `fowceTokenization` to ensuwe accuwate tokens.
+	 * @intewnaw
 	 */
-	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
+	getWanguageIdAtPosition(wineNumba: numba, cowumn: numba): WanguageId;
 
 	/**
-	 * Get the word under or besides `position`.
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Might be null.
+	 * Get the wowd unda ow besides `position`.
+	 * @pawam position The position to wook fow a wowd.
+	 * @wetuwn The wowd unda ow besides `position`. Might be nuww.
 	 */
-	getWordAtPosition(position: IPosition): IWordAtPosition | null;
+	getWowdAtPosition(position: IPosition): IWowdAtPosition | nuww;
 
 	/**
-	 * Get the word under or besides `position` trimmed to `position`.column
-	 * @param position The position to look for a word.
-	 * @return The word under or besides `position`. Will never be null.
+	 * Get the wowd unda ow besides `position` twimmed to `position`.cowumn
+	 * @pawam position The position to wook fow a wowd.
+	 * @wetuwn The wowd unda ow besides `position`. Wiww neva be nuww.
 	 */
-	getWordUntilPosition(position: IPosition): IWordAtPosition;
+	getWowdUntiwPosition(position: IPosition): IWowdAtPosition;
 
 	/**
-	 * Find the matching bracket of `request` up, counting brackets.
-	 * @param request The bracket we're searching for
-	 * @param position The position at which to start the search.
-	 * @return The range of the matching bracket, or null if the bracket match was not found.
-	 * @internal
+	 * Find the matching bwacket of `wequest` up, counting bwackets.
+	 * @pawam wequest The bwacket we'we seawching fow
+	 * @pawam position The position at which to stawt the seawch.
+	 * @wetuwn The wange of the matching bwacket, ow nuww if the bwacket match was not found.
+	 * @intewnaw
 	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
+	findMatchingBwacketUp(bwacket: stwing, position: IPosition): Wange | nuww;
 
 	/**
-	 * Find the first bracket in the model before `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	 * @internal
+	 * Find the fiwst bwacket in the modew befowe `position`.
+	 * @pawam position The position at which to stawt the seawch.
+	 * @wetuwn The info fow the fiwst bwacket befowe `position`, ow nuww if thewe awe no mowe bwackets befowe `positions`.
+	 * @intewnaw
 	 */
-	findPrevBracket(position: IPosition): IFoundBracket | null;
+	findPwevBwacket(position: IPosition): IFoundBwacket | nuww;
 
 	/**
-	 * Find the first bracket in the model after `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	 * @internal
+	 * Find the fiwst bwacket in the modew afta `position`.
+	 * @pawam position The position at which to stawt the seawch.
+	 * @wetuwn The info fow the fiwst bwacket afta `position`, ow nuww if thewe awe no mowe bwackets afta `positions`.
+	 * @intewnaw
 	 */
-	findNextBracket(position: IPosition): IFoundBracket | null;
+	findNextBwacket(position: IPosition): IFoundBwacket | nuww;
 
 	/**
-	 * Find the enclosing brackets that contain `position`.
-	 * @param position The position at which to start the search.
-	 * @internal
+	 * Find the encwosing bwackets that contain `position`.
+	 * @pawam position The position at which to stawt the seawch.
+	 * @intewnaw
 	 */
-	findEnclosingBrackets(position: IPosition, maxDuration?: number): [Range, Range] | null;
+	findEncwosingBwackets(position: IPosition, maxDuwation?: numba): [Wange, Wange] | nuww;
 
 	/**
-	 * Given a `position`, if the position is on top or near a bracket,
-	 * find the matching bracket of that bracket and return the ranges of both brackets.
-	 * @param position The position at which to look for a bracket.
-	 * @internal
+	 * Given a `position`, if the position is on top ow neaw a bwacket,
+	 * find the matching bwacket of that bwacket and wetuwn the wanges of both bwackets.
+	 * @pawam position The position at which to wook fow a bwacket.
+	 * @intewnaw
 	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
+	matchBwacket(position: IPosition): [Wange, Wange] | nuww;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
+	getActiveIndentGuide(wineNumba: numba, minWineNumba: numba, maxWineNumba: numba): IActiveIndentGuideInfo;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
+	getWinesIndentGuides(stawtWineNumba: numba, endWineNumba: numba): numba[];
 
 	/**
-	 * Change the decorations. The callback will be called with a change accessor
-	 * that becomes invalid as soon as the callback finishes executing.
-	 * This allows for all events to be queued up until the change
-	 * is completed. Returns whatever the callback returns.
-	 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
-	 * @internal
+	 * Change the decowations. The cawwback wiww be cawwed with a change accessow
+	 * that becomes invawid as soon as the cawwback finishes executing.
+	 * This awwows fow aww events to be queued up untiw the change
+	 * is compweted. Wetuwns whateva the cawwback wetuwns.
+	 * @pawam ownewId Identifies the editow id in which these decowations shouwd appeaw. If no `ownewId` is pwovided, the decowations wiww appeaw in aww editows that attach this modew.
+	 * @intewnaw
 	 */
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T, ownerId?: number): T | null;
+	changeDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T, ownewId?: numba): T | nuww;
 
 	/**
-	 * Perform a minimum amount of operations, in order to transform the decorations
-	 * identified by `oldDecorations` to the decorations described by `newDecorations`
-	 * and returns the new identifiers associated with the resulting decorations.
+	 * Pewfowm a minimum amount of opewations, in owda to twansfowm the decowations
+	 * identified by `owdDecowations` to the decowations descwibed by `newDecowations`
+	 * and wetuwns the new identifiews associated with the wesuwting decowations.
 	 *
-	 * @param oldDecorations Array containing previous decorations identifiers.
-	 * @param newDecorations Array describing what decorations should result after the call.
-	 * @param ownerId Identifies the editor id in which these decorations should appear. If no `ownerId` is provided, the decorations will appear in all editors that attach this model.
-	 * @return An array containing the new decorations identifiers.
+	 * @pawam owdDecowations Awway containing pwevious decowations identifiews.
+	 * @pawam newDecowations Awway descwibing what decowations shouwd wesuwt afta the caww.
+	 * @pawam ownewId Identifies the editow id in which these decowations shouwd appeaw. If no `ownewId` is pwovided, the decowations wiww appeaw in aww editows that attach this modew.
+	 * @wetuwn An awway containing the new decowations identifiews.
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[], ownerId?: number): string[];
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[], ownewId?: numba): stwing[];
 
 	/**
-	 * Remove all decorations that have been added with this specific ownerId.
-	 * @param ownerId The owner id to search for.
-	 * @internal
+	 * Wemove aww decowations that have been added with this specific ownewId.
+	 * @pawam ownewId The owna id to seawch fow.
+	 * @intewnaw
 	 */
-	removeAllDecorationsWithOwnerId(ownerId: number): void;
+	wemoveAwwDecowationsWithOwnewId(ownewId: numba): void;
 
 	/**
-	 * Get the options associated with a decoration.
-	 * @param id The decoration id.
-	 * @return The decoration options or null if the decoration was not found.
+	 * Get the options associated with a decowation.
+	 * @pawam id The decowation id.
+	 * @wetuwn The decowation options ow nuww if the decowation was not found.
 	 */
-	getDecorationOptions(id: string): IModelDecorationOptions | null;
+	getDecowationOptions(id: stwing): IModewDecowationOptions | nuww;
 
 	/**
-	 * Get the range associated with a decoration.
-	 * @param id The decoration id.
-	 * @return The decoration range or null if the decoration was not found.
+	 * Get the wange associated with a decowation.
+	 * @pawam id The decowation id.
+	 * @wetuwn The decowation wange ow nuww if the decowation was not found.
 	 */
-	getDecorationRange(id: string): Range | null;
+	getDecowationWange(id: stwing): Wange | nuww;
 
 	/**
-	 * Gets all the decorations for the line `lineNumber` as an array.
-	 * @param lineNumber The line number
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-	 * @return An array with the decorations
+	 * Gets aww the decowations fow the wine `wineNumba` as an awway.
+	 * @pawam wineNumba The wine numba
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+	 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+	 * @wetuwn An awway with the decowations
 	 */
-	getLineDecorations(lineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getWineDecowations(wineNumba: numba, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 
 	/**
-	 * Gets all the decorations for the lines between `startLineNumber` and `endLineNumber` as an array.
-	 * @param startLineNumber The start line number
-	 * @param endLineNumber The end line number
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-	 * @return An array with the decorations
+	 * Gets aww the decowations fow the wines between `stawtWineNumba` and `endWineNumba` as an awway.
+	 * @pawam stawtWineNumba The stawt wine numba
+	 * @pawam endWineNumba The end wine numba
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+	 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+	 * @wetuwn An awway with the decowations
 	 */
-	getLinesDecorations(startLineNumber: number, endLineNumber: number, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getWinesDecowations(stawtWineNumba: numba, endWineNumba: numba, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 
 	/**
-	 * Gets all the decorations in a range as an array. Only `startLineNumber` and `endLineNumber` from `range` are used for filtering.
-	 * So for now it returns all the decorations on the same line as `range`.
-	 * @param range The range to search in
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
-	 * @return An array with the decorations
+	 * Gets aww the decowations in a wange as an awway. Onwy `stawtWineNumba` and `endWineNumba` fwom `wange` awe used fow fiwtewing.
+	 * So fow now it wetuwns aww the decowations on the same wine as `wange`.
+	 * @pawam wange The wange to seawch in
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+	 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
+	 * @wetuwn An awway with the decowations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getDecowationsInWange(wange: IWange, ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 
 	/**
-	 * Gets all the decorations as an array.
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * Gets aww the decowations as an awway.
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+	 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
 	 */
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getAwwDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 
 	/**
-	 * Gets all the decorations that should be rendered in the overview ruler as an array.
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
-	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * Gets aww the decowations that shouwd be wendewed in the ovewview wuwa as an awway.
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
+	 * @pawam fiwtewOutVawidation If set, it wiww ignowe decowations specific to vawidation (i.e. wawnings, ewwows).
 	 */
-	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getOvewviewWuwewDecowations(ownewId?: numba, fiwtewOutVawidation?: boowean): IModewDecowation[];
 
 	/**
-	 * Gets all the decorations that contain injected text.
-	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * Gets aww the decowations that contain injected text.
+	 * @pawam ownewId If set, it wiww ignowe decowations bewonging to otha ownews.
 	 */
-	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+	getInjectedTextDecowations(ownewId?: numba): IModewDecowation[];
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_getTrackedRange(id: string): Range | null;
+	_getTwackedWange(id: stwing): Wange | nuww;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_setTrackedRange(id: string | null, newRange: null, newStickiness: TrackedRangeStickiness): null;
+	_setTwackedWange(id: stwing | nuww, newWange: nuww, newStickiness: TwackedWangeStickiness): nuww;
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_setTrackedRange(id: string | null, newRange: Range, newStickiness: TrackedRangeStickiness): string;
+	_setTwackedWange(id: stwing | nuww, newWange: Wange, newStickiness: TwackedWangeStickiness): stwing;
 
 	/**
-	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
+	 * Nowmawize a stwing containing whitespace accowding to indentation wuwes (convewts to spaces ow to tabs).
 	 */
-	normalizeIndentation(str: string): string;
+	nowmawizeIndentation(stw: stwing): stwing;
 
 	/**
-	 * Change the options of this model.
+	 * Change the options of this modew.
 	 */
-	updateOptions(newOpts: ITextModelUpdateOptions): void;
+	updateOptions(newOpts: ITextModewUpdateOptions): void;
 
 	/**
-	 * Detect the indentation options for this model from its content.
+	 * Detect the indentation options fow this modew fwom its content.
 	 */
-	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
+	detectIndentation(defauwtInsewtSpaces: boowean, defauwtTabSize: numba): void;
 
 	/**
-	 * Close the current undo-redo element.
-	 * This offers a way to create an undo/redo stop point.
+	 * Cwose the cuwwent undo-wedo ewement.
+	 * This offews a way to cweate an undo/wedo stop point.
 	 */
-	pushStackElement(): void;
+	pushStackEwement(): void;
 
 	/**
-	 * Open the current undo-redo element.
-	 * This offers a way to remove the current undo/redo stop point.
+	 * Open the cuwwent undo-wedo ewement.
+	 * This offews a way to wemove the cuwwent undo/wedo stop point.
 	 */
-	popStackElement(): void;
+	popStackEwement(): void;
 
 	/**
-	 * Push edit operations, basically editing the model. This is the preferred way
-	 * of editing the model. The edit operations will land on the undo stack.
-	 * @param beforeCursorState The cursor state before the edit operations. This cursor state will be returned when `undo` or `redo` are invoked.
-	 * @param editOperations The edit operations.
-	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
-	 * @return The cursor state returned by the `cursorStateComputer`.
+	 * Push edit opewations, basicawwy editing the modew. This is the pwefewwed way
+	 * of editing the modew. The edit opewations wiww wand on the undo stack.
+	 * @pawam befoweCuwsowState The cuwsow state befowe the edit opewations. This cuwsow state wiww be wetuwned when `undo` ow `wedo` awe invoked.
+	 * @pawam editOpewations The edit opewations.
+	 * @pawam cuwsowStateComputa A cawwback that can compute the wesuwting cuwsows state afta the edit opewations have been executed.
+	 * @wetuwn The cuwsow state wetuwned by the `cuwsowStateComputa`.
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	pushEditOpewations(befoweCuwsowState: Sewection[] | nuww, editOpewations: IIdentifiedSingweEditOpewation[], cuwsowStateComputa: ICuwsowStateComputa): Sewection[] | nuww;
 
 	/**
-	 * Change the end of line sequence. This is the preferred way of
-	 * changing the eol sequence. This will land on the undo stack.
+	 * Change the end of wine sequence. This is the pwefewwed way of
+	 * changing the eow sequence. This wiww wand on the undo stack.
 	 */
-	pushEOL(eol: EndOfLineSequence): void;
+	pushEOW(eow: EndOfWineSequence): void;
 
 	/**
-	 * Edit the model without adding the edits to the undo stack.
-	 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
-	 * @param operations The edit operations.
-	 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
+	 * Edit the modew without adding the edits to the undo stack.
+	 * This can have diwe consequences on the undo stack! See @pushEditOpewations fow the pwefewwed way.
+	 * @pawam opewations The edit opewations.
+	 * @wetuwn If desiwed, the invewse edit opewations, that, when appwied, wiww bwing the modew back to the pwevious state.
 	 */
-	applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+	appwyEdits(opewations: IIdentifiedSingweEditOpewation[]): void;
+	appwyEdits(opewations: IIdentifiedSingweEditOpewation[], computeUndoEdits: fawse): void;
+	appwyEdits(opewations: IIdentifiedSingweEditOpewation[], computeUndoEdits: twue): IVawidEditOpewation[];
 
 	/**
-	 * Change the end of line sequence without recording in the undo stack.
-	 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
+	 * Change the end of wine sequence without wecowding in the undo stack.
+	 * This can have diwe consequences on the undo stack! See @pushEOW fow the pwefewwed way.
 	 */
-	setEOL(eol: EndOfLineSequence): void;
+	setEOW(eow: EndOfWineSequence): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_applyUndo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+	_appwyUndo(changes: TextChange[], eow: EndOfWineSequence, wesuwtingAwtewnativeVewsionId: numba, wesuwtingSewection: Sewection[] | nuww): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+	_appwyWedo(changes: TextChange[], eow: EndOfWineSequence, wesuwtingAwtewnativeVewsionId: numba, wesuwtingSewection: Sewection[] | nuww): void;
 
 	/**
-	 * Undo edit operations until the previous undo/redo point.
-	 * The inverse edit operations will be pushed on the redo stack.
-	 * @internal
+	 * Undo edit opewations untiw the pwevious undo/wedo point.
+	 * The invewse edit opewations wiww be pushed on the wedo stack.
+	 * @intewnaw
 	 */
-	undo(): void | Promise<void>;
+	undo(): void | Pwomise<void>;
 
 	/**
-	 * Is there anything in the undo stack?
-	 * @internal
+	 * Is thewe anything in the undo stack?
+	 * @intewnaw
 	 */
-	canUndo(): boolean;
+	canUndo(): boowean;
 
 	/**
-	 * Redo edit operations until the next undo/redo point.
-	 * The inverse edit operations will be pushed on the undo stack.
-	 * @internal
+	 * Wedo edit opewations untiw the next undo/wedo point.
+	 * The invewse edit opewations wiww be pushed on the undo stack.
+	 * @intewnaw
 	 */
-	redo(): void | Promise<void>;
+	wedo(): void | Pwomise<void>;
 
 	/**
-	 * Is there anything in the redo stack?
-	 * @internal
+	 * Is thewe anything in the wedo stack?
+	 * @intewnaw
 	 */
-	canRedo(): boolean;
+	canWedo(): boowean;
 
 	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
+	 * @depwecated Pwease use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the modew have changed.
+	 * @intewnaw
 	 * @event
 	 */
-	onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable;
+	onDidChangeContentOwInjectedText(wistena: (e: ModewWawContentChangedEvent | ModewInjectedTextChangedEvent) => void): IDisposabwe;
 	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
+	 * @depwecated Pwease use `onDidChangeContent` instead.
+	 * An event emitted when the contents of the modew have changed.
+	 * @intewnaw
 	 * @event
 	 */
-	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	onDidChangeWawContent(wistena: (e: ModewWawContentChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the contents of the model have changed.
+	 * An event emitted when the contents of the modew have changed.
 	 * @event
 	 */
-	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeContent(wistena: (e: IModewContentChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when decorations of the model have changed.
+	 * An event emitted when decowations of the modew have changed.
 	 * @event
 	 */
-	onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+	onDidChangeDecowations(wistena: (e: IModewDecowationsChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the model options have changed.
+	 * An event emitted when the modew options have changed.
 	 * @event
 	 */
-	onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	onDidChangeOptions(wistena: (e: IModewOptionsChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the language associated with the model has changed.
+	 * An event emitted when the wanguage associated with the modew has changed.
 	 * @event
 	 */
-	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	onDidChangeWanguage(wistena: (e: IModewWanguageChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the language configuration associated with the model has changed.
+	 * An event emitted when the wanguage configuwation associated with the modew has changed.
 	 * @event
 	 */
-	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	onDidChangeWanguageConfiguwation(wistena: (e: IModewWanguageConfiguwationChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the tokens associated with the model have changed.
+	 * An event emitted when the tokens associated with the modew have changed.
 	 * @event
-	 * @internal
+	 * @intewnaw
 	 */
-	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	onDidChangeTokens(wistena: (e: IModewTokensChangedEvent) => void): IDisposabwe;
 	/**
-	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
-	 * @event
-	 */
-	onDidChangeAttached(listener: () => void): IDisposable;
-	/**
-	 * An event emitted right before disposing the model.
+	 * An event emitted when the modew has been attached to the fiwst editow ow detached fwom the wast editow.
 	 * @event
 	 */
-	onWillDispose(listener: () => void): IDisposable;
+	onDidChangeAttached(wistena: () => void): IDisposabwe;
+	/**
+	 * An event emitted wight befowe disposing the modew.
+	 * @event
+	 */
+	onWiwwDispose(wistena: () => void): IDisposabwe;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destwoy this modew. This wiww unbind the modew fwom the mode
+	 * and make aww necessawy cwean-up to wewease this object to the GC.
 	 */
 	dispose(): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	onBeforeAttached(): void;
+	onBefoweAttached(): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	onBeforeDetached(): void;
+	onBefoweDetached(): void;
 
 	/**
-	 * Returns if this model is attached to an editor or not.
+	 * Wetuwns if this modew is attached to an editow ow not.
 	 */
-	isAttachedToEditor(): boolean;
+	isAttachedToEditow(): boowean;
 
 	/**
-	 * Returns the count of editors this model is attached to.
-	 * @internal
+	 * Wetuwns the count of editows this modew is attached to.
+	 * @intewnaw
 	 */
-	getAttachedEditorCount(): number;
+	getAttachedEditowCount(): numba;
 
 	/**
-	 * Among all positions that are projected to the same position in the underlying text model as
-	 * the given position, select a unique position as indicated by the affinity.
+	 * Among aww positions that awe pwojected to the same position in the undewwying text modew as
+	 * the given position, sewect a unique position as indicated by the affinity.
 	 *
-	 * PositionAffinity.Left:
-	 * The normalized position must be equal or left to the requested position.
+	 * PositionAffinity.Weft:
+	 * The nowmawized position must be equaw ow weft to the wequested position.
 	 *
-	 * PositionAffinity.Right:
-	 * The normalized position must be equal or right to the requested position.
+	 * PositionAffinity.Wight:
+	 * The nowmawized position must be equaw ow wight to the wequested position.
 	 *
-	 * @internal
+	 * @intewnaw
 	 */
-	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position;
 
 	/**
-	 * Gets the column at which indentation stops at a given line.
-	 * @internal
+	 * Gets the cowumn at which indentation stops at a given wine.
+	 * @intewnaw
 	*/
-	getLineIndentColumn(lineNumber: number): number;
+	getWineIndentCowumn(wineNumba: numba): numba;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const enum PositionAffinity {
+expowt const enum PositionAffinity {
 	/**
-	 * Prefers the left most position.
+	 * Pwefews the weft most position.
 	*/
-	Left = 0,
+	Weft = 0,
 
 	/**
-	 * Prefers the right most position.
+	 * Pwefews the wight most position.
 	*/
-	Right = 1,
+	Wight = 1,
 
 	/**
-	 * No preference.
+	 * No pwefewence.
 	*/
 	None = 2,
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITextBufferBuilder {
-	acceptChunk(chunk: string): void;
-	finish(): ITextBufferFactory;
+expowt intewface ITextBuffewBuiwda {
+	acceptChunk(chunk: stwing): void;
+	finish(): ITextBuffewFactowy;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
-	getFirstLineText(lengthLimit: number): string;
+expowt intewface ITextBuffewFactowy {
+	cweate(defauwtEOW: DefauwtEndOfWine): { textBuffa: ITextBuffa; disposabwe: IDisposabwe; };
+	getFiwstWineText(wengthWimit: numba): stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const enum ModelConstants {
-	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+expowt const enum ModewConstants {
+	FIWST_WINE_DETECTION_WENGTH_WIMIT = 1000
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperation {
-	constructor(
-		public readonly identifier: ISingleEditOperationIdentifier | null,
-		public readonly range: Range,
-		public readonly text: string | null,
-		public readonly forceMoveMarkers: boolean,
-		public readonly isAutoWhitespaceEdit: boolean,
-		public readonly _isTracked: boolean,
+expowt cwass VawidAnnotatedEditOpewation impwements IIdentifiedSingweEditOpewation {
+	constwuctow(
+		pubwic weadonwy identifia: ISingweEditOpewationIdentifia | nuww,
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy text: stwing | nuww,
+		pubwic weadonwy fowceMoveMawkews: boowean,
+		pubwic weadonwy isAutoWhitespaceEdit: boowean,
+		pubwic weadonwy _isTwacked: boowean,
 	) { }
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IReadonlyTextBuffer {
+expowt intewface IWeadonwyTextBuffa {
 	onDidChangeContent: Event<void>;
-	equals(other: ITextBuffer): boolean;
-	mightContainRTL(): boolean;
-	mightContainUnusualLineTerminators(): boolean;
-	resetMightContainUnusualLineTerminators(): void;
-	mightContainNonBasicASCII(): boolean;
-	getBOM(): string;
-	getEOL(): string;
+	equaws(otha: ITextBuffa): boowean;
+	mightContainWTW(): boowean;
+	mightContainUnusuawWineTewminatows(): boowean;
+	wesetMightContainUnusuawWineTewminatows(): void;
+	mightContainNonBasicASCII(): boowean;
+	getBOM(): stwing;
+	getEOW(): stwing;
 
-	getOffsetAt(lineNumber: number, column: number): number;
-	getPositionAt(offset: number): Position;
-	getRangeAt(offset: number, length: number): Range;
+	getOffsetAt(wineNumba: numba, cowumn: numba): numba;
+	getPositionAt(offset: numba): Position;
+	getWangeAt(offset: numba, wength: numba): Wange;
 
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	createSnapshot(preserveBOM: boolean): ITextSnapshot;
-	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
-	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
-	getLength(): number;
-	getLineCount(): number;
-	getLinesContent(): string[];
-	getLineContent(lineNumber: number): string;
-	getLineCharCode(lineNumber: number, index: number): number;
-	getCharCode(offset: number): number;
-	getLineLength(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+	getVawueInWange(wange: Wange, eow: EndOfWinePwefewence): stwing;
+	cweateSnapshot(pwesewveBOM: boowean): ITextSnapshot;
+	getVawueWengthInWange(wange: Wange, eow: EndOfWinePwefewence): numba;
+	getChawactewCountInWange(wange: Wange, eow: EndOfWinePwefewence): numba;
+	getWength(): numba;
+	getWineCount(): numba;
+	getWinesContent(): stwing[];
+	getWineContent(wineNumba: numba): stwing;
+	getWineChawCode(wineNumba: numba, index: numba): numba;
+	getChawCode(offset: numba): numba;
+	getWineWength(wineNumba: numba): numba;
+	getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba;
+	getWineWastNonWhitespaceCowumn(wineNumba: numba): numba;
+	findMatchesWineByWine(seawchWange: Wange, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[];
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITextBuffer extends IReadonlyTextBuffer {
-	setEOL(newEOL: '\r\n' | '\n'): void;
-	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
+expowt intewface ITextBuffa extends IWeadonwyTextBuffa {
+	setEOW(newEOW: '\w\n' | '\n'): void;
+	appwyEdits(wawOpewations: VawidAnnotatedEditOpewation[], wecowdTwimAutoWhitespace: boowean, computeUndoEdits: boowean): AppwyEditsWesuwt;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class ApplyEditsResult {
+expowt cwass AppwyEditsWesuwt {
 
-	constructor(
-		public readonly reverseEdits: IValidEditOperation[] | null,
-		public readonly changes: IInternalModelContentChange[],
-		public readonly trimAutoWhitespaceLineNumbers: number[] | null
+	constwuctow(
+		pubwic weadonwy wevewseEdits: IVawidEditOpewation[] | nuww,
+		pubwic weadonwy changes: IIntewnawModewContentChange[],
+		pubwic weadonwy twimAutoWhitespaceWineNumbews: numba[] | nuww
 	) { }
 
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IInternalModelContentChange extends IModelContentChange {
-	range: Range;
-	forceMoveMarkers: boolean;
+expowt intewface IIntewnawModewContentChange extends IModewContentChange {
+	wange: Wange;
+	fowceMoveMawkews: boowean;
 }

@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+impowt { IChannew, ISewvewChannew, PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow, SewviceIdentifia } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-type ChannelClientCtor<T> = { new(channel: IChannel): T };
-type Remote = { getChannel(channelName: string): IChannel; };
+type ChannewCwientCtow<T> = { new(channew: IChannew): T };
+type Wemote = { getChannew(channewName: stwing): IChannew; };
 
-abstract class RemoteServiceStub<T> {
-	constructor(
-		channelName: string,
-		options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined,
-		remote: Remote
+abstwact cwass WemoteSewviceStub<T> {
+	constwuctow(
+		channewName: stwing,
+		options: IWemoteSewviceWithChannewCwientOptions<T> | IWemoteSewviceWithPwoxyOptions | undefined,
+		wemote: Wemote
 	) {
-		const channel = remote.getChannel(channelName);
+		const channew = wemote.getChannew(channewName);
 
-		if (isRemoteServiceWithChannelClientOptions(options)) {
-			return new options.channelClientCtor(channel);
+		if (isWemoteSewviceWithChannewCwientOptions(options)) {
+			wetuwn new options.channewCwientCtow(channew);
 		}
 
-		return ProxyChannel.toService(channel, options?.proxyOptions);
+		wetuwn PwoxyChannew.toSewvice(channew, options?.pwoxyOptions);
 	}
 }
 
-export interface IBaseRemoteServiceOptions {
-	readonly supportsDelayedInstantiation?: boolean;
+expowt intewface IBaseWemoteSewviceOptions {
+	weadonwy suppowtsDewayedInstantiation?: boowean;
 }
 
-export interface IRemoteServiceWithChannelClientOptions<T> extends IBaseRemoteServiceOptions {
-	readonly channelClientCtor: ChannelClientCtor<T>;
+expowt intewface IWemoteSewviceWithChannewCwientOptions<T> extends IBaseWemoteSewviceOptions {
+	weadonwy channewCwientCtow: ChannewCwientCtow<T>;
 }
 
-export interface IRemoteServiceWithProxyOptions extends IBaseRemoteServiceOptions {
-	readonly proxyOptions?: ProxyChannel.ICreateProxyServiceOptions;
+expowt intewface IWemoteSewviceWithPwoxyOptions extends IBaseWemoteSewviceOptions {
+	weadonwy pwoxyOptions?: PwoxyChannew.ICweatePwoxySewviceOptions;
 }
 
-function isRemoteServiceWithChannelClientOptions<T>(obj: unknown): obj is IRemoteServiceWithChannelClientOptions<T> {
-	const candidate = obj as IRemoteServiceWithChannelClientOptions<T> | undefined;
+function isWemoteSewviceWithChannewCwientOptions<T>(obj: unknown): obj is IWemoteSewviceWithChannewCwientOptions<T> {
+	const candidate = obj as IWemoteSewviceWithChannewCwientOptions<T> | undefined;
 
-	return !!candidate?.channelClientCtor;
+	wetuwn !!candidate?.channewCwientCtow;
 }
 
-//#region Main Process
+//#wegion Main Pwocess
 
-export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
+expowt const IMainPwocessSewvice = cweateDecowatow<IMainPwocessSewvice>('mainPwocessSewvice');
 
-export interface IMainProcessService {
-	readonly _serviceBrand: undefined;
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+expowt intewface IMainPwocessSewvice {
+	weadonwy _sewviceBwand: undefined;
+	getChannew(channewName: stwing): IChannew;
+	wegistewChannew(channewName: stwing, channew: ISewvewChannew<stwing>): void;
 }
 
-class MainProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
-	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @IMainProcessService ipcService: IMainProcessService) {
-		super(channelName, options, ipcService);
+cwass MainPwocessWemoteSewviceStub<T> extends WemoteSewviceStub<T> {
+	constwuctow(channewName: stwing, options: IWemoteSewviceWithChannewCwientOptions<T> | IWemoteSewviceWithPwoxyOptions | undefined, @IMainPwocessSewvice ipcSewvice: IMainPwocessSewvice) {
+		supa(channewName, options, ipcSewvice);
 	}
 }
 
-export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
-	registerSingleton(id, new SyncDescriptor(MainProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
+expowt function wegistewMainPwocessWemoteSewvice<T>(id: SewviceIdentifia<T>, channewName: stwing, options?: IWemoteSewviceWithChannewCwientOptions<T> | IWemoteSewviceWithPwoxyOptions): void {
+	wegistewSingweton(id, new SyncDescwiptow(MainPwocessWemoteSewviceStub, [channewName, options], options?.suppowtsDewayedInstantiation));
 }
 
-//#endregion
+//#endwegion
 
-//#region Shared Process
+//#wegion Shawed Pwocess
 
-export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
+expowt const IShawedPwocessSewvice = cweateDecowatow<IShawedPwocessSewvice>('shawedPwocessSewvice');
 
-export interface ISharedProcessService {
-	readonly _serviceBrand: undefined;
-	getChannel(channelName: string): IChannel;
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+expowt intewface IShawedPwocessSewvice {
+	weadonwy _sewviceBwand: undefined;
+	getChannew(channewName: stwing): IChannew;
+	wegistewChannew(channewName: stwing, channew: ISewvewChannew<stwing>): void;
 }
 
-class SharedProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {
-	constructor(channelName: string, options: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions | undefined, @ISharedProcessService ipcService: ISharedProcessService) {
-		super(channelName, options, ipcService);
+cwass ShawedPwocessWemoteSewviceStub<T> extends WemoteSewviceStub<T> {
+	constwuctow(channewName: stwing, options: IWemoteSewviceWithChannewCwientOptions<T> | IWemoteSewviceWithPwoxyOptions | undefined, @IShawedPwocessSewvice ipcSewvice: IShawedPwocessSewvice) {
+		supa(channewName, options, ipcSewvice);
 	}
 }
 
-export function registerSharedProcessRemoteService<T>(id: ServiceIdentifier<T>, channelName: string, options?: IRemoteServiceWithChannelClientOptions<T> | IRemoteServiceWithProxyOptions): void {
-	registerSingleton(id, new SyncDescriptor(SharedProcessRemoteServiceStub, [channelName, options], options?.supportsDelayedInstantiation));
+expowt function wegistewShawedPwocessWemoteSewvice<T>(id: SewviceIdentifia<T>, channewName: stwing, options?: IWemoteSewviceWithChannewCwientOptions<T> | IWemoteSewviceWithPwoxyOptions): void {
+	wegistewSingweton(id, new SyncDescwiptow(ShawedPwocessWemoteSewviceStub, [channewName, options], options?.suppowtsDewayedInstantiation));
 }
 
-//#endregion
+//#endwegion

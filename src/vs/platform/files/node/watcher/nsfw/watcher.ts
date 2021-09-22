@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDiskFiweChange, IWogMessage, IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
 
-export interface IWatcherService {
-
-	/**
-	 * A normalized file change event from the raw events
-	 * the watcher emits.
-	 */
-	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+expowt intewface IWatchewSewvice {
 
 	/**
-	 * An event to indicate a message that should get logged.
+	 * A nowmawized fiwe change event fwom the waw events
+	 * the watcha emits.
 	 */
-	readonly onDidLogMessage: Event<ILogMessage>;
+	weadonwy onDidChangeFiwe: Event<IDiskFiweChange[]>;
 
 	/**
-	 * Configures the watcher service to watch according
-	 * to the requests. Any existing watched path that
-	 * is not in the array, will be removed from watching
-	 * and any new path will be added to watching.
+	 * An event to indicate a message that shouwd get wogged.
 	 */
-	watch(requests: IWatchRequest[]): Promise<void>;
+	weadonwy onDidWogMessage: Event<IWogMessage>;
 
 	/**
-	 * Enable verbose logging in the watcher.
+	 * Configuwes the watcha sewvice to watch accowding
+	 * to the wequests. Any existing watched path that
+	 * is not in the awway, wiww be wemoved fwom watching
+	 * and any new path wiww be added to watching.
 	 */
-	setVerboseLogging(enabled: boolean): Promise<void>;
+	watch(wequests: IWatchWequest[]): Pwomise<void>;
 
 	/**
-	 * Stop all watchers.
+	 * Enabwe vewbose wogging in the watcha.
 	 */
-	stop(): Promise<void>;
+	setVewboseWogging(enabwed: boowean): Pwomise<void>;
+
+	/**
+	 * Stop aww watchews.
+	 */
+	stop(): Pwomise<void>;
 }

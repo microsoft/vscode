@@ -1,208 +1,208 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWawkthwough } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-const titleTranslated = localize('title', "Title");
+const titweTwanswated = wocawize('titwe', "Titwe");
 
-export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWalkthrough[]>({
-	extensionPoint: 'walkthroughs',
+expowt const wawkthwoughsExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<IWawkthwough[]>({
+	extensionPoint: 'wawkthwoughs',
 	jsonSchema: {
-		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
-		type: 'array',
+		descwiption: wocawize('wawkthwoughs', "Contwibute wawkthwoughs to hewp usews getting stawted with youw extension."),
+		type: 'awway',
 		items: {
 			type: 'object',
-			required: ['id', 'title', 'description', 'steps'],
-			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3', 'steps': [] } }],
-			properties: {
+			wequiwed: ['id', 'titwe', 'descwiption', 'steps'],
+			defauwtSnippets: [{ body: { 'id': '$1', 'titwe': '$2', 'descwiption': '$3', 'steps': [] } }],
+			pwopewties: {
 				id: {
-					type: 'string',
-					description: localize('walkthroughs.id', "Unique identifier for this walkthrough."),
+					type: 'stwing',
+					descwiption: wocawize('wawkthwoughs.id', "Unique identifia fow this wawkthwough."),
 				},
-				title: {
-					type: 'string',
-					description: localize('walkthroughs.title', "Title of walkthrough.")
+				titwe: {
+					type: 'stwing',
+					descwiption: wocawize('wawkthwoughs.titwe', "Titwe of wawkthwough.")
 				},
-				description: {
-					type: 'string',
-					description: localize('walkthroughs.description', "Description of walkthrough.")
+				descwiption: {
+					type: 'stwing',
+					descwiption: wocawize('wawkthwoughs.descwiption', "Descwiption of wawkthwough.")
 				},
-				featuredFor: {
-					type: 'array',
-					description: localize('walkthroughs.featuredFor', "Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here."),
+				featuwedFow: {
+					type: 'awway',
+					descwiption: wocawize('wawkthwoughs.featuwedFow', "Wawkthwoughs that match one of these gwob pattewns appeaw as 'featuwed' in wowkspaces with the specified fiwes. Fow exampwe, a wawkthwough fow TypeScwipt pwojects might specify `tsconfig.json` hewe."),
 					items: {
-						type: 'string'
+						type: 'stwing'
 					},
 				},
 				when: {
-					type: 'string',
-					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
+					type: 'stwing',
+					descwiption: wocawize('wawkthwoughs.when', "Context key expwession to contwow the visibiwity of this wawkthwough.")
 				},
 				steps: {
-					type: 'array',
-					description: localize('walkthroughs.steps', "Steps to complete as part of this walkthrough."),
+					type: 'awway',
+					descwiption: wocawize('wawkthwoughs.steps', "Steps to compwete as pawt of this wawkthwough."),
 					items: {
 						type: 'object',
-						required: ['id', 'title', 'media'],
-						defaultSnippets: [{
+						wequiwed: ['id', 'titwe', 'media'],
+						defauwtSnippets: [{
 							body: {
-								'id': '$1', 'title': '$2', 'description': '$3',
-								'completionEvents': ['$5'],
+								'id': '$1', 'titwe': '$2', 'descwiption': '$3',
+								'compwetionEvents': ['$5'],
 								'media': {},
 							}
 						}],
-						properties: {
+						pwopewties: {
 							id: {
-								type: 'string',
-								description: localize('walkthroughs.steps.id', "Unique identifier for this step. This is used to keep track of which steps have been completed."),
+								type: 'stwing',
+								descwiption: wocawize('wawkthwoughs.steps.id', "Unique identifia fow this step. This is used to keep twack of which steps have been compweted."),
 							},
-							title: {
-								type: 'string',
-								description: localize('walkthroughs.steps.title', "Title of step.")
+							titwe: {
+								type: 'stwing',
+								descwiption: wocawize('wawkthwoughs.steps.titwe', "Titwe of step.")
 							},
-							description: {
-								type: 'string',
-								description: localize('walkthroughs.steps.description.interpolated', "Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: {0}, {1}, or {2}. Links on their own line will be rendered as buttons.", `[${titleTranslated}](command:myext.command)`, `[${titleTranslated}](command:toSide:myext.command)`, `[${titleTranslated}](https://aka.ms)`)
+							descwiption: {
+								type: 'stwing',
+								descwiption: wocawize('wawkthwoughs.steps.descwiption.intewpowated', "Descwiption of step. Suppowts ``pwefowmatted``, __itawic__, and **bowd** text. Use mawkdown-stywe winks fow commands ow extewnaw winks: {0}, {1}, ow {2}. Winks on theiw own wine wiww be wendewed as buttons.", `[${titweTwanswated}](command:myext.command)`, `[${titweTwanswated}](command:toSide:myext.command)`, `[${titweTwanswated}](https://aka.ms)`)
 							},
 							button: {
-								deprecationMessage: localize('walkthroughs.steps.button.deprecated.interpolated', "Deprecated. Use markdown links in the description instead, i.e. {0}, {1}, or {2}", `[${titleTranslated}](command:myext.command)`, `[${titleTranslated}](command:toSide:myext.command)`, `[${titleTranslated}](https://aka.ms)`),
+								depwecationMessage: wocawize('wawkthwoughs.steps.button.depwecated.intewpowated', "Depwecated. Use mawkdown winks in the descwiption instead, i.e. {0}, {1}, ow {2}", `[${titweTwanswated}](command:myext.command)`, `[${titweTwanswated}](command:toSide:myext.command)`, `[${titweTwanswated}](https://aka.ms)`),
 							},
 							media: {
 								type: 'object',
-								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
+								descwiption: wocawize('wawkthwoughs.steps.media', "Media to show awongside this step, eitha an image ow mawkdown content."),
 								oneOf: [
 									{
-										required: ['image', 'altText'],
-										additionalProperties: false,
-										properties: {
+										wequiwed: ['image', 'awtText'],
+										additionawPwopewties: fawse,
+										pwopewties: {
 											path: {
-												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+												depwecationMessage: wocawize('pathDepwecated', "Depwecated. Pwease use `image` ow `mawkdown` instead")
 											},
 											image: {
-												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
+												descwiption: wocawize('wawkthwoughs.steps.media.image.path.stwing', "Path to an image - ow object consisting of paths to wight, dawk, and hc images - wewative to extension diwectowy. Depending on context, the image wiww be dispwayed fwom 400px to 800px wide, with simiwaw bounds on height. To suppowt HIDPI dispways, the image wiww be wendewed at 1.5x scawing, fow exampwe a 900 physicaw pixews wide image wiww be dispwayed as 600 wogicaw pixews wide."),
 												oneOf: [
 													{
-														type: 'string',
+														type: 'stwing',
 													},
 													{
 														type: 'object',
-														required: ['dark', 'light', 'hc'],
-														properties: {
-															dark: {
-																description: localize('walkthroughs.steps.media.image.path.dark.string', "Path to the image for dark themes, relative to extension directory."),
-																type: 'string',
+														wequiwed: ['dawk', 'wight', 'hc'],
+														pwopewties: {
+															dawk: {
+																descwiption: wocawize('wawkthwoughs.steps.media.image.path.dawk.stwing', "Path to the image fow dawk themes, wewative to extension diwectowy."),
+																type: 'stwing',
 															},
-															light: {
-																description: localize('walkthroughs.steps.media.image.path.light.string', "Path to the image for light themes, relative to extension directory."),
-																type: 'string',
+															wight: {
+																descwiption: wocawize('wawkthwoughs.steps.media.image.path.wight.stwing', "Path to the image fow wight themes, wewative to extension diwectowy."),
+																type: 'stwing',
 															},
 															hc: {
-																description: localize('walkthroughs.steps.media.image.path.hc.string', "Path to the image for hc themes, relative to extension directory."),
-																type: 'string',
+																descwiption: wocawize('wawkthwoughs.steps.media.image.path.hc.stwing', "Path to the image fow hc themes, wewative to extension diwectowy."),
+																type: 'stwing',
 															}
 														}
 													}
 												]
 											},
-											altText: {
-												type: 'string',
-												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											awtText: {
+												type: 'stwing',
+												descwiption: wocawize('wawkthwoughs.steps.media.awtText', "Awtewnate text to dispway when the image cannot be woaded ow in scween weadews.")
 											}
 										}
 									},
 									{
-										required: ['svg', 'altText'],
-										additionalProperties: false,
-										properties: {
+										wequiwed: ['svg', 'awtText'],
+										additionawPwopewties: fawse,
+										pwopewties: {
 											svg: {
-												description: localize('walkthroughs.steps.media.image.path.svg', "Path to an svg, color tokens are supported in variables to support theming to match the workbench."),
-												type: 'string',
+												descwiption: wocawize('wawkthwoughs.steps.media.image.path.svg', "Path to an svg, cowow tokens awe suppowted in vawiabwes to suppowt theming to match the wowkbench."),
+												type: 'stwing',
 											},
-											altText: {
-												type: 'string',
-												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											awtText: {
+												type: 'stwing',
+												descwiption: wocawize('wawkthwoughs.steps.media.awtText', "Awtewnate text to dispway when the image cannot be woaded ow in scween weadews.")
 											},
 										}
 									},
 									{
-										required: ['markdown'],
-										additionalProperties: false,
-										properties: {
+										wequiwed: ['mawkdown'],
+										additionawPwopewties: fawse,
+										pwopewties: {
 											path: {
-												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+												depwecationMessage: wocawize('pathDepwecated', "Depwecated. Pwease use `image` ow `mawkdown` instead")
 											},
-											markdown: {
-												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
-												type: 'string',
+											mawkdown: {
+												descwiption: wocawize('wawkthwoughs.steps.media.mawkdown.path', "Path to the mawkdown document, wewative to extension diwectowy."),
+												type: 'stwing',
 											}
 										}
 									}
 								]
 							},
-							completionEvents: {
-								description: localize('walkthroughs.steps.completionEvents', "Events that should trigger this step to become checked off. If empty or not defined, the step will check off when any of the step's buttons or links are clicked; if the step has no buttons or links it will check on when it is selected."),
-								type: 'array',
+							compwetionEvents: {
+								descwiption: wocawize('wawkthwoughs.steps.compwetionEvents', "Events that shouwd twigga this step to become checked off. If empty ow not defined, the step wiww check off when any of the step's buttons ow winks awe cwicked; if the step has no buttons ow winks it wiww check on when it is sewected."),
+								type: 'awway',
 								items: {
-									type: 'string',
-									defaultSnippets: [
+									type: 'stwing',
+									defauwtSnippets: [
 										{
-											label: 'onCommand',
-											description: localize('walkthroughs.steps.completionEvents.onCommand', 'Check off step when a given command is executed anywhere in VS Code.'),
+											wabew: 'onCommand',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.onCommand', 'Check off step when a given command is executed anywhewe in VS Code.'),
 											body: 'onCommand:${1:commandId}'
 										},
 										{
-											label: 'onLink',
-											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a walkthrough step.'),
-											body: 'onLink:${2:linkId}'
+											wabew: 'onWink',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.onWink', 'Check off step when a given wink is opened via a wawkthwough step.'),
+											body: 'onWink:${2:winkId}'
 										},
 										{
-											label: 'onView',
-											description: localize('walkthroughs.steps.completionEvents.onView', 'Check off step when a given view is opened'),
+											wabew: 'onView',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.onView', 'Check off step when a given view is opened'),
 											body: 'onView:${2:viewId}'
 										},
 										{
-											label: 'onSettingChanged',
-											description: localize('walkthroughs.steps.completionEvents.onSettingChanged', 'Check off step when a given setting is changed'),
+											wabew: 'onSettingChanged',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.onSettingChanged', 'Check off step when a given setting is changed'),
 											body: 'onSettingChanged:${2:settingName}'
 										},
 										{
-											label: 'onContext',
-											description: localize('walkthroughs.steps.completionEvents.onContext', 'Check off step when a context key expression is true.'),
+											wabew: 'onContext',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.onContext', 'Check off step when a context key expwession is twue.'),
 											body: 'onContext:${2:key}'
 										},
 										{
-											label: 'onExtensionInstalled',
-											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
-											body: 'onExtensionInstalled:${3:extensionId}'
+											wabew: 'onExtensionInstawwed',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.extensionInstawwed', 'Check off step when an extension with the given id is instawwed. If the extension is awweady instawwed, the step wiww stawt off checked.'),
+											body: 'onExtensionInstawwed:${3:extensionId}'
 										},
 										{
-											label: 'onStepSelected',
-											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
-											body: 'onStepSelected'
+											wabew: 'onStepSewected',
+											descwiption: wocawize('wawkthwoughs.steps.compwetionEvents.stepSewected', 'Check off step as soon as it is sewected.'),
+											body: 'onStepSewected'
 										},
 									]
 								}
 							},
 							doneOn: {
-								description: localize('walkthroughs.steps.doneOn', "Signal to mark step as complete."),
-								deprecationMessage: localize('walkthroughs.steps.doneOn.deprecation', "doneOn is deprecated. By default steps will be checked off when their buttons are clicked, to configure further use completionEvents"),
+								descwiption: wocawize('wawkthwoughs.steps.doneOn', "Signaw to mawk step as compwete."),
+								depwecationMessage: wocawize('wawkthwoughs.steps.doneOn.depwecation', "doneOn is depwecated. By defauwt steps wiww be checked off when theiw buttons awe cwicked, to configuwe fuwtha use compwetionEvents"),
 								type: 'object',
-								required: ['command'],
-								defaultSnippets: [{ 'body': { command: '$1' } }],
-								properties: {
+								wequiwed: ['command'],
+								defauwtSnippets: [{ 'body': { command: '$1' } }],
+								pwopewties: {
 									'command': {
-										description: localize('walkthroughs.steps.oneOn.command', "Mark step done when the specified command is executed."),
-										type: 'string'
+										descwiption: wocawize('wawkthwoughs.steps.oneOn.command', "Mawk step done when the specified command is executed."),
+										type: 'stwing'
 									}
 								},
 							},
 							when: {
-								type: 'string',
-								description: localize('walkthroughs.steps.when', "Context key expression to control the visibility of this step.")
+								type: 'stwing',
+								descwiption: wocawize('wawkthwoughs.steps.when', "Context key expwession to contwow the visibiwity of this step.")
 							}
 						}
 					}

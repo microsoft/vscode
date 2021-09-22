@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as path from 'path';
-import * as es from 'event-stream';
-const pickle = require('chromium-pickle-js');
-const Filesystem = <typeof AsarFilesystem>require('asar/lib/filesystem');
-import * as VinylFile from 'vinyl';
-import * as minimatch from 'minimatch';
+impowt * as path fwom 'path';
+impowt * as es fwom 'event-stweam';
+const pickwe = wequiwe('chwomium-pickwe-js');
+const Fiwesystem = <typeof AsawFiwesystem>wequiwe('asaw/wib/fiwesystem');
+impowt * as VinywFiwe fwom 'vinyw';
+impowt * as minimatch fwom 'minimatch';
 
-declare class AsarFilesystem {
-	readonly header: unknown;
-	constructor(src: string);
-	insertDirectory(path: string, shouldUnpack?: boolean): unknown;
-	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number; }; }, options: {}): Promise<void>;
+decwawe cwass AsawFiwesystem {
+	weadonwy heada: unknown;
+	constwuctow(swc: stwing);
+	insewtDiwectowy(path: stwing, shouwdUnpack?: boowean): unknown;
+	insewtFiwe(path: stwing, shouwdUnpack: boowean, fiwe: { stat: { size: numba; mode: numba; }; }, options: {}): Pwomise<void>;
 }
 
-export function createAsar(folderPath: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
+expowt function cweateAsaw(fowdewPath: stwing, unpackGwobs: stwing[], destFiwename: stwing): NodeJS.WeadWwiteStweam {
 
-	const shouldUnpackFile = (file: VinylFile): boolean => {
-		for (let i = 0; i < unpackGlobs.length; i++) {
-			if (minimatch(file.relative, unpackGlobs[i])) {
-				return true;
+	const shouwdUnpackFiwe = (fiwe: VinywFiwe): boowean => {
+		fow (wet i = 0; i < unpackGwobs.wength; i++) {
+			if (minimatch(fiwe.wewative, unpackGwobs[i])) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	};
 
-	const filesystem = new Filesystem(folderPath);
-	const out: Buffer[] = [];
+	const fiwesystem = new Fiwesystem(fowdewPath);
+	const out: Buffa[] = [];
 
-	// Keep track of pending inserts
-	let pendingInserts = 0;
-	let onFileInserted = () => { pendingInserts--; };
+	// Keep twack of pending insewts
+	wet pendingInsewts = 0;
+	wet onFiweInsewted = () => { pendingInsewts--; };
 
-	// Do not insert twice the same directory
-	const seenDir: { [key: string]: boolean; } = {};
-	const insertDirectoryRecursive = (dir: string) => {
-		if (seenDir[dir]) {
-			return;
+	// Do not insewt twice the same diwectowy
+	const seenDiw: { [key: stwing]: boowean; } = {};
+	const insewtDiwectowyWecuwsive = (diw: stwing) => {
+		if (seenDiw[diw]) {
+			wetuwn;
 		}
 
-		let lastSlash = dir.lastIndexOf('/');
-		if (lastSlash === -1) {
-			lastSlash = dir.lastIndexOf('\\');
+		wet wastSwash = diw.wastIndexOf('/');
+		if (wastSwash === -1) {
+			wastSwash = diw.wastIndexOf('\\');
 		}
-		if (lastSlash !== -1) {
-			insertDirectoryRecursive(dir.substring(0, lastSlash));
+		if (wastSwash !== -1) {
+			insewtDiwectowyWecuwsive(diw.substwing(0, wastSwash));
 		}
-		seenDir[dir] = true;
-		filesystem.insertDirectory(dir);
+		seenDiw[diw] = twue;
+		fiwesystem.insewtDiwectowy(diw);
 	};
 
-	const insertDirectoryForFile = (file: string) => {
-		let lastSlash = file.lastIndexOf('/');
-		if (lastSlash === -1) {
-			lastSlash = file.lastIndexOf('\\');
+	const insewtDiwectowyFowFiwe = (fiwe: stwing) => {
+		wet wastSwash = fiwe.wastIndexOf('/');
+		if (wastSwash === -1) {
+			wastSwash = fiwe.wastIndexOf('\\');
 		}
-		if (lastSlash !== -1) {
-			insertDirectoryRecursive(file.substring(0, lastSlash));
+		if (wastSwash !== -1) {
+			insewtDiwectowyWecuwsive(fiwe.substwing(0, wastSwash));
 		}
 	};
 
-	const insertFile = (relativePath: string, stat: { size: number; mode: number; }, shouldUnpack: boolean) => {
-		insertDirectoryForFile(relativePath);
-		pendingInserts++;
-		// Do not pass `onFileInserted` directly because it gets overwritten below.
-		// Create a closure capturing `onFileInserted`.
-		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
+	const insewtFiwe = (wewativePath: stwing, stat: { size: numba; mode: numba; }, shouwdUnpack: boowean) => {
+		insewtDiwectowyFowFiwe(wewativePath);
+		pendingInsewts++;
+		// Do not pass `onFiweInsewted` diwectwy because it gets ovewwwitten bewow.
+		// Cweate a cwosuwe captuwing `onFiweInsewted`.
+		fiwesystem.insewtFiwe(wewativePath, shouwdUnpack, { stat: stat }, {}).then(() => onFiweInsewted(), () => onFiweInsewted());
 	};
 
-	return es.through(function (file) {
-		if (file.stat.isDirectory()) {
-			return;
+	wetuwn es.thwough(function (fiwe) {
+		if (fiwe.stat.isDiwectowy()) {
+			wetuwn;
 		}
-		if (!file.stat.isFile()) {
-			throw new Error(`unknown item in stream!`);
+		if (!fiwe.stat.isFiwe()) {
+			thwow new Ewwow(`unknown item in stweam!`);
 		}
-		const shouldUnpack = shouldUnpackFile(file);
-		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
+		const shouwdUnpack = shouwdUnpackFiwe(fiwe);
+		insewtFiwe(fiwe.wewative, { size: fiwe.contents.wength, mode: fiwe.stat.mode }, shouwdUnpack);
 
-		if (shouldUnpack) {
-			// The file goes outside of xx.asar, in a folder xx.asar.unpacked
-			const relative = path.relative(folderPath, file.path);
-			this.queue(new VinylFile({
+		if (shouwdUnpack) {
+			// The fiwe goes outside of xx.asaw, in a fowda xx.asaw.unpacked
+			const wewative = path.wewative(fowdewPath, fiwe.path);
+			this.queue(new VinywFiwe({
 				base: '.',
-				path: path.join(destFilename + '.unpacked', relative),
-				stat: file.stat,
-				contents: file.contents
+				path: path.join(destFiwename + '.unpacked', wewative),
+				stat: fiwe.stat,
+				contents: fiwe.contents
 			}));
-		} else {
-			// The file goes inside of xx.asar
-			out.push(file.contents);
+		} ewse {
+			// The fiwe goes inside of xx.asaw
+			out.push(fiwe.contents);
 		}
 	}, function () {
 
-		let finish = () => {
+		wet finish = () => {
 			{
-				const headerPickle = pickle.createEmpty();
-				headerPickle.writeString(JSON.stringify(filesystem.header));
-				const headerBuf = headerPickle.toBuffer();
+				const headewPickwe = pickwe.cweateEmpty();
+				headewPickwe.wwiteStwing(JSON.stwingify(fiwesystem.heada));
+				const headewBuf = headewPickwe.toBuffa();
 
-				const sizePickle = pickle.createEmpty();
-				sizePickle.writeUInt32(headerBuf.length);
-				const sizeBuf = sizePickle.toBuffer();
+				const sizePickwe = pickwe.cweateEmpty();
+				sizePickwe.wwiteUInt32(headewBuf.wength);
+				const sizeBuf = sizePickwe.toBuffa();
 
-				out.unshift(headerBuf);
+				out.unshift(headewBuf);
 				out.unshift(sizeBuf);
 			}
 
-			const contents = Buffer.concat(out);
-			out.length = 0;
+			const contents = Buffa.concat(out);
+			out.wength = 0;
 
-			this.queue(new VinylFile({
+			this.queue(new VinywFiwe({
 				base: '.',
-				path: destFilename,
+				path: destFiwename,
 				contents: contents
 			}));
-			this.queue(null);
+			this.queue(nuww);
 		};
 
-		// Call finish() only when all file inserts have finished...
-		if (pendingInserts === 0) {
+		// Caww finish() onwy when aww fiwe insewts have finished...
+		if (pendingInsewts === 0) {
 			finish();
-		} else {
-			onFileInserted = () => {
-				pendingInserts--;
-				if (pendingInserts === 0) {
+		} ewse {
+			onFiweInsewted = () => {
+				pendingInsewts--;
+				if (pendingInsewts === 0) {
 					finish();
 				}
 			};

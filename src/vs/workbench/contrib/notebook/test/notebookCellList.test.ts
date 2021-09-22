@@ -1,292 +1,292 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { CewwKind } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { cweateNotebookCewwWist, setupInstantiationSewvice, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-suite('NotebookCellList', () => {
-	const instantiationService = setupInstantiationService();
-	const notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
-	const topInsertToolbarHeight = notebookDefaultOptions.computeTopInserToolbarHeight();
+suite('NotebookCewwWist', () => {
+	const instantiationSewvice = setupInstantiationSewvice();
+	const notebookDefauwtOptions = new NotebookOptions(instantiationSewvice.get(IConfiguwationSewvice));
+	const topInsewtToowbawHeight = notebookDefauwtOptions.computeTopInsewToowbawHeight();
 
-	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
+	test('weveawEwementsInView: weveaw fuwwy visibwe ceww shouwd not scwoww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
-				// scroll a bit, scrollTop to bottom: 5, 215
-				cellList.scrollTop = 5;
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
+				// scwoww a bit, scwowwTop to bottom: 5, 215
+				cewwWist.scwowwTop = 5;
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				// reveal cell 1, top 50, bottom 150, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 1, end: 2 });
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// weveaw ceww 1, top 50, bottom 150, which is fuwwy visibwe in the viewpowt
+				cewwWist.weveawEwementsInView({ stawt: 1, end: 2 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				// reveal cell 2, top 150, bottom 200, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 2, end: 3 });
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// weveaw ceww 2, top 150, bottom 200, which is fuwwy visibwe in the viewpowt
+				cewwWist.weveawEwementsInView({ stawt: 2, end: 3 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
-				assert.deepStrictEqual(cellList.scrollTop, 90);
+				// weveaw ceww 3, top 200, bottom 300, which is pawtiawwy visibwe in the viewpowt
+				cewwWist.weveawEwementsInView({ stawt: 3, end: 4 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 90);
 			});
 	});
 
-	test('revealElementsInView: reveal partially visible cell', async function () {
+	test('weveawEwementsInView: weveaw pawtiawwy visibwe ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
-				assert.deepStrictEqual(cellList.scrollTop, 90);
+				// weveaw ceww 3, top 200, bottom 300, which is pawtiawwy visibwe in the viewpowt
+				cewwWist.weveawEwementsInView({ stawt: 3, end: 4 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 90);
 
-				// scroll to 5
-				cellList.scrollTop = 5;
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// scwoww to 5
+				cewwWist.scwowwTop = 5;
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				// reveal cell 0, top 0, bottom 50
-				cellList.revealElementsInView({ start: 0, end: 1 });
-				assert.deepStrictEqual(cellList.scrollTop, 0);
+				// weveaw ceww 0, top 0, bottom 50
+				cewwWist.weveawEwementsInView({ stawt: 0, end: 1 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
 			});
 	});
 
-	test('revealElementsInView: reveal cell out of viewport', async function () {
+	test('weveawEwementsInView: weveaw ceww out of viewpowt', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				// without additionalscrollheight, the last 20 px will always be hidden due to `topInsertToolbarHeight`
-				cellList.updateOptions({ additionalScrollHeight: 100 });
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				// without additionawscwowwheight, the wast 20 px wiww awways be hidden due to `topInsewtToowbawHeight`
+				cewwWist.updateOptions({ additionawScwowwHeight: 100 });
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				cellList.revealElementsInView({ start: 4, end: 5 });
-				assert.deepStrictEqual(cellList.scrollTop, 140);
-				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
+				cewwWist.weveawEwementsInView({ stawt: 4, end: 5 });
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 140);
+				// assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 330);
 			});
 	});
 
-	test('updateElementHeight', async function () {
+	test('updateEwementHeight', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				cellList.updateElementHeight(0, 60);
-				assert.deepStrictEqual(cellList.scrollTop, 0);
+				cewwWist.updateEwementHeight(0, 60);
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
 
-				// scroll to 5
-				cellList.scrollTop = 5;
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// scwoww to 5
+				cewwWist.scwowwTop = 5;
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				cellList.updateElementHeight(0, 80);
-				assert.deepStrictEqual(cellList.scrollTop, 5);
+				cewwWist.updateEwementHeight(0, 80);
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
 			});
 	});
 
-	test('updateElementHeight with anchor #121723', async function () {
+	test('updateEwementHeight with anchow #121723', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				// scroll to 5
-				cellList.scrollTop = 5;
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// scwoww to 5
+				cewwWist.scwowwTop = 5;
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				cellList.setFocus([1]);
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
-				assert.deepStrictEqual(cellList.scrollHeight, 400);
+				cewwWist.setFocus([1]);
+				cewwWist.updateEwementHeight2(viewModew.cewwAt(0)!, 100);
+				assewt.deepStwictEquaw(cewwWist.scwowwHeight, 400);
 
-				// the first cell grows, but it's partially visible, so we won't push down the focused cell
-				assert.deepStrictEqual(cellList.scrollTop, 55);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
+				// the fiwst ceww gwows, but it's pawtiawwy visibwe, so we won't push down the focused ceww
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 55);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 265);
 
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 50);
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				cewwWist.updateEwementHeight2(viewModew.cewwAt(0)!, 50);
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 5);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 215);
 
-				// focus won't be visible after cell 0 grow to 250, so let's try to keep the focused cell visible
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
-				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
+				// focus won't be visibwe afta ceww 0 gwow to 250, so wet's twy to keep the focused ceww visibwe
+				cewwWist.updateEwementHeight2(viewModew.cewwAt(0)!, 250);
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 250 + 100 - cewwWist.wendewHeight);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 250 + 100 - cewwWist.wendewHeight + 210);
 			});
 	});
 
-	test('updateElementHeight with anchor #121723: focus element out of viewport', async function () {
+	test('updateEwementHeight with anchow #121723: focus ewement out of viewpowt', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				cellList.setFocus([4]);
-				cellList.updateElementHeight2(viewModel.cellAt(1)!, 130);
-				// the focus cell is not in the viewport, the scrolltop should not change at all
-				assert.deepStrictEqual(cellList.scrollTop, 0);
+				cewwWist.setFocus([4]);
+				cewwWist.updateEwementHeight2(viewModew.cewwAt(1)!, 130);
+				// the focus ceww is not in the viewpowt, the scwowwtop shouwd not change at aww
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
 			});
 	});
 
-	test('updateElementHeight of cells out of viewport should not trigger scroll #121140', async function () {
+	test('updateEwementHeight of cewws out of viewpowt shouwd not twigga scwoww #121140', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['# header c', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada c', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			async (editor, viewModel) => {
-				viewModel.restoreEditorViewState({
-					editingCells: [false, false, false, false, false],
-					editorViewStates: [null, null, null, null, null],
-					cellTotalHeights: [50, 100, 50, 100, 50]
+			async (editow, viewModew) => {
+				viewModew.westoweEditowViewState({
+					editingCewws: [fawse, fawse, fawse, fawse, fawse],
+					editowViewStates: [nuww, nuww, nuww, nuww, nuww],
+					cewwTotawHeights: [50, 100, 50, 100, 50]
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
-				cellList.attachViewModel(viewModel);
+				const cewwWist = cweateNotebookCewwWist(instantiationSewvice);
+				cewwWist.attachViewModew(viewModew);
 
-				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				// wenda height 210, it can wenda 3 fuww cewws and 1 pawtiaw ceww
+				cewwWist.wayout(210 + topInsewtToowbawHeight, 100);
 
-				// init scrollTop and scrollBottom
-				assert.deepStrictEqual(cellList.scrollTop, 0);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
+				// init scwowwTop and scwowwBottom
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 0);
+				assewt.deepStwictEquaw(cewwWist.getViewScwowwBottom(), 210);
 
-				cellList.setFocus([1]);
-				cellList.scrollTop = 80;
-				assert.deepStrictEqual(cellList.scrollTop, 80);
+				cewwWist.setFocus([1]);
+				cewwWist.scwowwTop = 80;
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 80);
 
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
-				assert.deepStrictEqual(cellList.scrollTop, 60);
+				cewwWist.updateEwementHeight2(viewModew.cewwAt(0)!, 30);
+				assewt.deepStwictEquaw(cewwWist.scwowwTop, 60);
 			});
 	});
 });

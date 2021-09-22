@@ -1,352 +1,352 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDisposabwe, dispose, Disposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { IExtensionsWowkbenchSewvice, IExtension } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWistSewvice, WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IAsyncDataSouwce, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IWistViwtuawDewegate, IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { ICowowMapping } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { Dewegate, Wendewa } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWist';
+impowt { wistFocusFowegwound, wistFocusBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
 
-export class ExtensionsGridView extends Disposable {
+expowt cwass ExtensionsGwidView extends Disposabwe {
 
-	readonly element: HTMLElement;
-	private readonly renderer: Renderer;
-	private readonly delegate: Delegate;
-	private readonly disposableStore: DisposableStore;
+	weadonwy ewement: HTMWEwement;
+	pwivate weadonwy wendewa: Wendewa;
+	pwivate weadonwy dewegate: Dewegate;
+	pwivate weadonwy disposabweStowe: DisposabweStowe;
 
-	constructor(
-		parent: HTMLElement,
-		delegate: Delegate,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pawent: HTMWEwement,
+		dewegate: Dewegate,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
-		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
-		this.delegate = delegate;
-		this.disposableStore = this._register(new DisposableStore());
+		supa();
+		this.ewement = dom.append(pawent, dom.$('.extensions-gwid-view'));
+		this.wendewa = this.instantiationSewvice.cweateInstance(Wendewa, { onFocus: Event.None, onBwuw: Event.None }, { hovewOptions: { position() { wetuwn HovewPosition.BEWOW; } } });
+		this.dewegate = dewegate;
+		this.disposabweStowe = this._wegista(new DisposabweStowe());
 	}
 
 	setExtensions(extensions: IExtension[]): void {
-		this.disposableStore.clear();
-		extensions.forEach((e, index) => this.renderExtension(e, index));
+		this.disposabweStowe.cweaw();
+		extensions.fowEach((e, index) => this.wendewExtension(e, index));
 	}
 
-	private renderExtension(extension: IExtension, index: number): void {
-		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
-		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
-		extensionContainer.setAttribute('tabindex', '0');
+	pwivate wendewExtension(extension: IExtension, index: numba): void {
+		const extensionContaina = dom.append(this.ewement, dom.$('.extension-containa'));
+		extensionContaina.stywe.height = `${this.dewegate.getHeight()}px`;
+		extensionContaina.setAttwibute('tabindex', '0');
 
-		const template = this.renderer.renderTemplate(extensionContainer);
-		this.disposableStore.add(toDisposable(() => this.renderer.disposeTemplate(template)));
+		const tempwate = this.wendewa.wendewTempwate(extensionContaina);
+		this.disposabweStowe.add(toDisposabwe(() => this.wendewa.disposeTempwate(tempwate)));
 
-		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
+		const openExtensionAction = this.instantiationSewvice.cweateInstance(OpenExtensionAction);
 		openExtensionAction.extension = extension;
-		template.name.setAttribute('tabindex', '0');
+		tempwate.name.setAttwibute('tabindex', '0');
 
-		const handleEvent = (e: StandardMouseEvent | StandardKeyboardEvent) => {
-			if (e instanceof StandardKeyboardEvent && e.keyCode !== KeyCode.Enter) {
-				return;
+		const handweEvent = (e: StandawdMouseEvent | StandawdKeyboawdEvent) => {
+			if (e instanceof StandawdKeyboawdEvent && e.keyCode !== KeyCode.Enta) {
+				wetuwn;
 			}
-			openExtensionAction.run(e.ctrlKey || e.metaKey);
-			e.stopPropagation();
-			e.preventDefault();
+			openExtensionAction.wun(e.ctwwKey || e.metaKey);
+			e.stopPwopagation();
+			e.pweventDefauwt();
 		};
 
-		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(e))));
-		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
-		this.disposableStore.add(dom.addDisposableListener(extensionContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
+		this.disposabweStowe.add(dom.addDisposabweWistena(tempwate.name, dom.EventType.CWICK, (e: MouseEvent) => handweEvent(new StandawdMouseEvent(e))));
+		this.disposabweStowe.add(dom.addDisposabweWistena(tempwate.name, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => handweEvent(new StandawdKeyboawdEvent(e))));
+		this.disposabweStowe.add(dom.addDisposabweWistena(extensionContaina, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => handweEvent(new StandawdKeyboawdEvent(e))));
 
-		this.renderer.renderElement(extension, index, template);
+		this.wendewa.wendewEwement(extension, index, tempwate);
 	}
 }
 
-export interface IExtensionTemplateData {
-	icon: HTMLImageElement;
-	name: HTMLElement;
-	identifier: HTMLElement;
-	author: HTMLElement;
-	extensionDisposables: IDisposable[];
+expowt intewface IExtensionTempwateData {
+	icon: HTMWImageEwement;
+	name: HTMWEwement;
+	identifia: HTMWEwement;
+	authow: HTMWEwement;
+	extensionDisposabwes: IDisposabwe[];
 	extensionData: IExtensionData;
 }
 
-export interface IUnknownExtensionTemplateData {
-	identifier: HTMLElement;
+expowt intewface IUnknownExtensionTempwateData {
+	identifia: HTMWEwement;
 }
 
-export interface IExtensionData {
+expowt intewface IExtensionData {
 	extension: IExtension;
-	hasChildren: boolean;
-	getChildren: () => Promise<IExtensionData[] | null>;
-	parent: IExtensionData | null;
+	hasChiwdwen: boowean;
+	getChiwdwen: () => Pwomise<IExtensionData[] | nuww>;
+	pawent: IExtensionData | nuww;
 }
 
-export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
+expowt cwass AsyncDataSouwce impwements IAsyncDataSouwce<IExtensionData, any> {
 
-	public hasChildren({ hasChildren }: IExtensionData): boolean {
-		return hasChildren;
+	pubwic hasChiwdwen({ hasChiwdwen }: IExtensionData): boowean {
+		wetuwn hasChiwdwen;
 	}
 
-	public getChildren(extensionData: IExtensionData): Promise<any> {
-		return extensionData.getChildren();
+	pubwic getChiwdwen(extensionData: IExtensionData): Pwomise<any> {
+		wetuwn extensionData.getChiwdwen();
 	}
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+expowt cwass ViwuawDewegate impwements IWistViwtuawDewegate<IExtensionData> {
 
-	public getHeight(element: IExtensionData): number {
-		return 62;
+	pubwic getHeight(ewement: IExtensionData): numba {
+		wetuwn 62;
 	}
-	public getTemplateId({ extension }: IExtensionData): string {
-		return extension ? ExtensionRenderer.TEMPLATE_ID : UnknownExtensionRenderer.TEMPLATE_ID;
+	pubwic getTempwateId({ extension }: IExtensionData): stwing {
+		wetuwn extension ? ExtensionWendewa.TEMPWATE_ID : UnknownExtensionWendewa.TEMPWATE_ID;
 	}
 }
 
-export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
+expowt cwass ExtensionWendewa impwements IWistWendewa<ITweeNode<IExtensionData>, IExtensionTempwateData> {
 
-	static readonly TEMPLATE_ID = 'extension-template';
+	static weadonwy TEMPWATE_ID = 'extension-tempwate';
 
-	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
+	constwuctow(@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice) {
 	}
 
-	public get templateId(): string {
-		return ExtensionRenderer.TEMPLATE_ID;
+	pubwic get tempwateId(): stwing {
+		wetuwn ExtensionWendewa.TEMPWATE_ID;
 	}
 
-	public renderTemplate(container: HTMLElement): IExtensionTemplateData {
-		container.classList.add('extension');
+	pubwic wendewTempwate(containa: HTMWEwement): IExtensionTempwateData {
+		containa.cwassWist.add('extension');
 
-		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
-		const details = dom.append(container, dom.$('.details'));
+		const icon = dom.append(containa, dom.$<HTMWImageEwement>('img.icon'));
+		const detaiws = dom.append(containa, dom.$('.detaiws'));
 
-		const header = dom.append(details, dom.$('.header'));
-		const name = dom.append(header, dom.$('span.name'));
-		const openExtensionAction = this.instantiationService.createInstance(OpenExtensionAction);
-		const extensionDisposables = [dom.addDisposableListener(name, 'click', (e: MouseEvent) => {
-			openExtensionAction.run(e.ctrlKey || e.metaKey);
-			e.stopPropagation();
-			e.preventDefault();
+		const heada = dom.append(detaiws, dom.$('.heada'));
+		const name = dom.append(heada, dom.$('span.name'));
+		const openExtensionAction = this.instantiationSewvice.cweateInstance(OpenExtensionAction);
+		const extensionDisposabwes = [dom.addDisposabweWistena(name, 'cwick', (e: MouseEvent) => {
+			openExtensionAction.wun(e.ctwwKey || e.metaKey);
+			e.stopPwopagation();
+			e.pweventDefauwt();
 		})];
-		const identifier = dom.append(header, dom.$('span.identifier'));
+		const identifia = dom.append(heada, dom.$('span.identifia'));
 
-		const footer = dom.append(details, dom.$('.footer'));
-		const author = dom.append(footer, dom.$('.author'));
-		return {
+		const foota = dom.append(detaiws, dom.$('.foota'));
+		const authow = dom.append(foota, dom.$('.authow'));
+		wetuwn {
 			icon,
 			name,
-			identifier,
-			author,
-			extensionDisposables,
+			identifia,
+			authow,
+			extensionDisposabwes,
 			set extensionData(extensionData: IExtensionData) {
 				openExtensionAction.extension = extensionData.extension;
 			}
 		};
 	}
 
-	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
-		const extension = node.element.extension;
-		data.extensionDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
-		data.icon.src = extension.iconUrl;
+	pubwic wendewEwement(node: ITweeNode<IExtensionData>, index: numba, data: IExtensionTempwateData): void {
+		const extension = node.ewement.extension;
+		data.extensionDisposabwes.push(dom.addDisposabweWistena(data.icon, 'ewwow', () => data.icon.swc = extension.iconUwwFawwback, { once: twue }));
+		data.icon.swc = extension.iconUww;
 
-		if (!data.icon.complete) {
-			data.icon.style.visibility = 'hidden';
-			data.icon.onload = () => data.icon.style.visibility = 'inherit';
-		} else {
-			data.icon.style.visibility = 'inherit';
+		if (!data.icon.compwete) {
+			data.icon.stywe.visibiwity = 'hidden';
+			data.icon.onwoad = () => data.icon.stywe.visibiwity = 'inhewit';
+		} ewse {
+			data.icon.stywe.visibiwity = 'inhewit';
 		}
 
-		data.name.textContent = extension.displayName;
-		data.identifier.textContent = extension.identifier.id;
-		data.author.textContent = extension.publisherDisplayName;
-		data.extensionData = node.element;
+		data.name.textContent = extension.dispwayName;
+		data.identifia.textContent = extension.identifia.id;
+		data.authow.textContent = extension.pubwishewDispwayName;
+		data.extensionData = node.ewement;
 	}
 
-	public disposeTemplate(templateData: IExtensionTemplateData): void {
-		templateData.extensionDisposables = dispose((<IExtensionTemplateData>templateData).extensionDisposables);
-	}
-}
-
-export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
-
-	static readonly TEMPLATE_ID = 'unknown-extension-template';
-
-	public get templateId(): string {
-		return UnknownExtensionRenderer.TEMPLATE_ID;
-	}
-
-	public renderTemplate(container: HTMLElement): IUnknownExtensionTemplateData {
-		const messageContainer = dom.append(container, dom.$('div.unknown-extension'));
-		dom.append(messageContainer, dom.$('span.error-marker')).textContent = localize('error', "Error");
-		dom.append(messageContainer, dom.$('span.message')).textContent = localize('Unknown Extension', "Unknown Extension:");
-
-		const identifier = dom.append(messageContainer, dom.$('span.message'));
-		return { identifier };
-	}
-
-	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IUnknownExtensionTemplateData): void {
-		data.identifier.textContent = node.element.extension.identifier.id;
-	}
-
-	public disposeTemplate(data: IUnknownExtensionTemplateData): void {
+	pubwic disposeTempwate(tempwateData: IExtensionTempwateData): void {
+		tempwateData.extensionDisposabwes = dispose((<IExtensionTempwateData>tempwateData).extensionDisposabwes);
 	}
 }
 
-class OpenExtensionAction extends Action {
+expowt cwass UnknownExtensionWendewa impwements IWistWendewa<ITweeNode<IExtensionData>, IUnknownExtensionTempwateData> {
 
-	private _extension: IExtension | undefined;
+	static weadonwy TEMPWATE_ID = 'unknown-extension-tempwate';
 
-	constructor(@IExtensionsWorkbenchService private readonly extensionsWorkdbenchService: IExtensionsWorkbenchService) {
-		super('extensions.action.openExtension', '');
+	pubwic get tempwateId(): stwing {
+		wetuwn UnknownExtensionWendewa.TEMPWATE_ID;
 	}
 
-	public set extension(extension: IExtension) {
+	pubwic wendewTempwate(containa: HTMWEwement): IUnknownExtensionTempwateData {
+		const messageContaina = dom.append(containa, dom.$('div.unknown-extension'));
+		dom.append(messageContaina, dom.$('span.ewwow-mawka')).textContent = wocawize('ewwow', "Ewwow");
+		dom.append(messageContaina, dom.$('span.message')).textContent = wocawize('Unknown Extension', "Unknown Extension:");
+
+		const identifia = dom.append(messageContaina, dom.$('span.message'));
+		wetuwn { identifia };
+	}
+
+	pubwic wendewEwement(node: ITweeNode<IExtensionData>, index: numba, data: IUnknownExtensionTempwateData): void {
+		data.identifia.textContent = node.ewement.extension.identifia.id;
+	}
+
+	pubwic disposeTempwate(data: IUnknownExtensionTempwateData): void {
+	}
+}
+
+cwass OpenExtensionAction extends Action {
+
+	pwivate _extension: IExtension | undefined;
+
+	constwuctow(@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkdbenchSewvice: IExtensionsWowkbenchSewvice) {
+		supa('extensions.action.openExtension', '');
+	}
+
+	pubwic set extension(extension: IExtension) {
 		this._extension = extension;
 	}
 
-	override run(sideByside: boolean): Promise<any> {
+	ovewwide wun(sideByside: boowean): Pwomise<any> {
 		if (this._extension) {
-			return this.extensionsWorkdbenchService.open(this._extension, { sideByside });
+			wetuwn this.extensionsWowkdbenchSewvice.open(this._extension, { sideByside });
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExtensionData> {
+expowt cwass ExtensionsTwee extends WowkbenchAsyncDataTwee<IExtensionData, IExtensionData> {
 
-	constructor(
+	constwuctow(
 		input: IExtensionData,
-		container: HTMLElement,
-		overrideStyles: IColorMapping,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
+		containa: HTMWEwement,
+		ovewwideStywes: ICowowMapping,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IExtensionsWowkbenchSewvice extensionsWowkdbenchSewvice: IExtensionsWowkbenchSewvice
 	) {
-		const delegate = new VirualDelegate();
-		const dataSource = new AsyncDataSource();
-		const renderers = [instantiationService.createInstance(ExtensionRenderer), instantiationService.createInstance(UnknownExtensionRenderer)];
-		const identityProvider = {
-			getId({ extension, parent }: IExtensionData): string {
-				return parent ? this.getId(parent) + '/' + extension.identifier.id : extension.identifier.id;
+		const dewegate = new ViwuawDewegate();
+		const dataSouwce = new AsyncDataSouwce();
+		const wendewews = [instantiationSewvice.cweateInstance(ExtensionWendewa), instantiationSewvice.cweateInstance(UnknownExtensionWendewa)];
+		const identityPwovida = {
+			getId({ extension, pawent }: IExtensionData): stwing {
+				wetuwn pawent ? this.getId(pawent) + '/' + extension.identifia.id : extension.identifia.id;
 			}
 		};
 
-		super(
-			'ExtensionsTree',
-			container,
-			delegate,
-			renderers,
-			dataSource,
+		supa(
+			'ExtensionsTwee',
+			containa,
+			dewegate,
+			wendewews,
+			dataSouwce,
 			{
 				indent: 40,
-				identityProvider,
-				multipleSelectionSupport: false,
-				overrideStyles,
-				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
-					getAriaLabel(extensionData: IExtensionData): string {
+				identityPwovida,
+				muwtipweSewectionSuppowt: fawse,
+				ovewwideStywes,
+				accessibiwityPwovida: <IWistAccessibiwityPwovida<IExtensionData>>{
+					getAwiaWabew(extensionData: IExtensionData): stwing {
 						const extension = extensionData.extension;
-						return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
+						wetuwn wocawize('extension.awiawabew', "{0}, {1}, {2}, {3}", extension.dispwayName, extension.vewsion, extension.pubwishewDispwayName, extension.descwiption);
 					},
-					getWidgetAriaLabel(): string {
-						return localize('extensions', "Extensions");
+					getWidgetAwiaWabew(): stwing {
+						wetuwn wocawize('extensions', "Extensions");
 					}
 				}
 			},
-			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
+			contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice
 		);
 
 		this.setInput(input);
 
-		this.disposables.add(this.onDidChangeSelection(event => {
-			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
-				extensionsWorkdbenchService.open(event.elements[0].extension, { sideByside: false });
+		this.disposabwes.add(this.onDidChangeSewection(event => {
+			if (event.bwowsewEvent && event.bwowsewEvent instanceof KeyboawdEvent) {
+				extensionsWowkdbenchSewvice.open(event.ewements[0].extension, { sideByside: fawse });
 			}
 		}));
 	}
 }
 
-export class ExtensionData implements IExtensionData {
+expowt cwass ExtensionData impwements IExtensionData {
 
-	readonly extension: IExtension;
-	readonly parent: IExtensionData | null;
-	private readonly getChildrenExtensionIds: (extension: IExtension) => string[];
-	private readonly childrenExtensionIds: string[];
-	private readonly extensionsWorkbenchService: IExtensionsWorkbenchService;
+	weadonwy extension: IExtension;
+	weadonwy pawent: IExtensionData | nuww;
+	pwivate weadonwy getChiwdwenExtensionIds: (extension: IExtension) => stwing[];
+	pwivate weadonwy chiwdwenExtensionIds: stwing[];
+	pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice;
 
-	constructor(extension: IExtension, parent: IExtensionData | null, getChildrenExtensionIds: (extension: IExtension) => string[], extensionsWorkbenchService: IExtensionsWorkbenchService) {
+	constwuctow(extension: IExtension, pawent: IExtensionData | nuww, getChiwdwenExtensionIds: (extension: IExtension) => stwing[], extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice) {
 		this.extension = extension;
-		this.parent = parent;
-		this.getChildrenExtensionIds = getChildrenExtensionIds;
-		this.extensionsWorkbenchService = extensionsWorkbenchService;
-		this.childrenExtensionIds = this.getChildrenExtensionIds(extension);
+		this.pawent = pawent;
+		this.getChiwdwenExtensionIds = getChiwdwenExtensionIds;
+		this.extensionsWowkbenchSewvice = extensionsWowkbenchSewvice;
+		this.chiwdwenExtensionIds = this.getChiwdwenExtensionIds(extension);
 	}
 
-	get hasChildren(): boolean {
-		return isNonEmptyArray(this.childrenExtensionIds);
+	get hasChiwdwen(): boowean {
+		wetuwn isNonEmptyAwway(this.chiwdwenExtensionIds);
 	}
 
-	async getChildren(): Promise<IExtensionData[] | null> {
-		if (this.hasChildren) {
-			const result: IExtension[] = await getExtensions(this.childrenExtensionIds, this.extensionsWorkbenchService);
-			return result.map(extension => new ExtensionData(extension, this, this.getChildrenExtensionIds, this.extensionsWorkbenchService));
+	async getChiwdwen(): Pwomise<IExtensionData[] | nuww> {
+		if (this.hasChiwdwen) {
+			const wesuwt: IExtension[] = await getExtensions(this.chiwdwenExtensionIds, this.extensionsWowkbenchSewvice);
+			wetuwn wesuwt.map(extension => new ExtensionData(extension, this, this.getChiwdwenExtensionIds, this.extensionsWowkbenchSewvice));
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export async function getExtensions(extensions: string[], extensionsWorkbenchService: IExtensionsWorkbenchService): Promise<IExtension[]> {
-	const localById = extensionsWorkbenchService.local.reduce((result, e) => { result.set(e.identifier.id.toLowerCase(), e); return result; }, new Map<string, IExtension>());
-	const result: IExtension[] = [];
-	const toQuery: string[] = [];
-	for (const extensionId of extensions) {
-		const id = extensionId.toLowerCase();
-		const local = localById.get(id);
-		if (local) {
-			result.push(local);
-		} else {
-			toQuery.push(id);
+expowt async function getExtensions(extensions: stwing[], extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice): Pwomise<IExtension[]> {
+	const wocawById = extensionsWowkbenchSewvice.wocaw.weduce((wesuwt, e) => { wesuwt.set(e.identifia.id.toWowewCase(), e); wetuwn wesuwt; }, new Map<stwing, IExtension>());
+	const wesuwt: IExtension[] = [];
+	const toQuewy: stwing[] = [];
+	fow (const extensionId of extensions) {
+		const id = extensionId.toWowewCase();
+		const wocaw = wocawById.get(id);
+		if (wocaw) {
+			wesuwt.push(wocaw);
+		} ewse {
+			toQuewy.push(id);
 		}
 	}
-	if (toQuery.length) {
-		const galleryResult = await extensionsWorkbenchService.queryGallery({ names: toQuery, pageSize: toQuery.length }, CancellationToken.None);
-		result.push(...galleryResult.firstPage);
+	if (toQuewy.wength) {
+		const gawwewyWesuwt = await extensionsWowkbenchSewvice.quewyGawwewy({ names: toQuewy, pageSize: toQuewy.wength }, CancewwationToken.None);
+		wesuwt.push(...gawwewyWesuwt.fiwstPage);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const focusBackground = theme.getColor(listFocusBackground);
-	if (focusBackground) {
-		collector.addRule(`.extensions-grid-view .extension-container:focus { background-color: ${focusBackground}; outline: none; }`);
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	const focusBackgwound = theme.getCowow(wistFocusBackgwound);
+	if (focusBackgwound) {
+		cowwectow.addWuwe(`.extensions-gwid-view .extension-containa:focus { backgwound-cowow: ${focusBackgwound}; outwine: none; }`);
 	}
-	const focusForeground = theme.getColor(listFocusForeground);
-	if (focusForeground) {
-		collector.addRule(`.extensions-grid-view .extension-container:focus { color: ${focusForeground}; }`);
+	const focusFowegwound = theme.getCowow(wistFocusFowegwound);
+	if (focusFowegwound) {
+		cowwectow.addWuwe(`.extensions-gwid-view .extension-containa:focus { cowow: ${focusFowegwound}; }`);
 	}
 });

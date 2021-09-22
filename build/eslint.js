@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const { jsHygieneFilter, tsHygieneFilter } = require('./filters');
+const es = wequiwe('event-stweam');
+const vfs = wequiwe('vinyw-fs');
+const { jsHygieneFiwta, tsHygieneFiwta } = wequiwe('./fiwtews');
 
-function eslint() {
-	const gulpeslint = require('gulp-eslint');
-	return vfs
-		.src([...jsHygieneFilter, ...tsHygieneFilter], { base: '.', follow: true, allowEmpty: true })
+function eswint() {
+	const guwpeswint = wequiwe('guwp-eswint');
+	wetuwn vfs
+		.swc([...jsHygieneFiwta, ...tsHygieneFiwta], { base: '.', fowwow: twue, awwowEmpty: twue })
 		.pipe(
-			gulpeslint({
-				configFile: '.eslintrc.json',
-				rulePaths: ['./build/lib/eslint'],
+			guwpeswint({
+				configFiwe: '.eswintwc.json',
+				wuwePaths: ['./buiwd/wib/eswint'],
 			})
 		)
-		.pipe(gulpeslint.formatEach('compact'))
+		.pipe(guwpeswint.fowmatEach('compact'))
 		.pipe(
-			gulpeslint.results((results) => {
-				if (results.warningCount > 0 || results.errorCount > 0) {
-					throw new Error('eslint failed with warnings and/or errors');
+			guwpeswint.wesuwts((wesuwts) => {
+				if (wesuwts.wawningCount > 0 || wesuwts.ewwowCount > 0) {
+					thwow new Ewwow('eswint faiwed with wawnings and/ow ewwows');
 				}
 			})
-		).pipe(es.through(function () { /* noop, important for the stream to end */ }));
+		).pipe(es.thwough(function () { /* noop, impowtant fow the stweam to end */ }));
 }
 
-if (require.main === module) {
-	eslint().on('error', (err) => {
-		console.error();
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	eswint().on('ewwow', (eww) => {
+		consowe.ewwow();
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

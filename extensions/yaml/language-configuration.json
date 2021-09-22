@@ -1,35 +1,35 @@
 {
 	"comments": {
-		"lineComment": "#"
+		"wineComment": "#"
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"folding": {
-		"offSide": true,
-		"markers": {
-			"start": "^\\s*#\\s*region\\b",
-			"end": "^\\s*#\\s*endregion\\b"
+	"fowding": {
+		"offSide": twue,
+		"mawkews": {
+			"stawt": "^\\s*#\\s*wegion\\b",
+			"end": "^\\s*#\\s*endwegion\\b"
 		}
 	},
-	"indentationRules": {
-		"increaseIndentPattern": "^\\s*.*(:|-) ?(&amp;\\w+)?(\\{[^}\"']*|\\([^)\"']*)?$",
-		"decreaseIndentPattern": "^\\s+\\}$"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "^\\s*.*(:|-) ?(&amp;\\w+)?(\\{[^}\"']*|\\([^)\"']*)?$",
+		"decweaseIndentPattewn": "^\\s+\\}$"
 	}
 }

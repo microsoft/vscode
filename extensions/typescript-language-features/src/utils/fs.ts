@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export const exists = async (resource: vscode.Uri): Promise<boolean> => {
-	try {
-		const stat = await vscode.workspace.fs.stat(resource);
-		// stat.type is an enum flag
-		return !!(stat.type & vscode.FileType.File);
+expowt const exists = async (wesouwce: vscode.Uwi): Pwomise<boowean> => {
+	twy {
+		const stat = await vscode.wowkspace.fs.stat(wesouwce);
+		// stat.type is an enum fwag
+		wetuwn !!(stat.type & vscode.FiweType.Fiwe);
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
 };

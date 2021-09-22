@@ -1,306 +1,306 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { cloneAndChange, mixin } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import product from 'vs/platform/product/common/product';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { cwoneAndChange, mixin } fwom 'vs/base/common/objects';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { ITewemetwyData, ITewemetwyInfo, ITewemetwySewvice, TewemetwyConfiguwation, TewemetwyWevew, TEWEMETWY_OWD_SETTING_ID, TEWEMETWY_SECTION_ID, TEWEMETWY_SETTING_ID } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { getTewemetwyWevew, ITewemetwyAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-export interface ITelemetryServiceConfig {
-	appenders: ITelemetryAppender[];
-	sendErrorTelemetry?: boolean;
-	commonProperties?: Promise<{ [name: string]: any }>;
-	piiPaths?: string[];
+expowt intewface ITewemetwySewviceConfig {
+	appendews: ITewemetwyAppenda[];
+	sendEwwowTewemetwy?: boowean;
+	commonPwopewties?: Pwomise<{ [name: stwing]: any }>;
+	piiPaths?: stwing[];
 }
 
-export class TelemetryService implements ITelemetryService {
+expowt cwass TewemetwySewvice impwements ITewemetwySewvice {
 
-	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
-	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
+	static weadonwy IDWE_STAWT_EVENT_NAME = 'UsewIdweStawt';
+	static weadonwy IDWE_STOP_EVENT_NAME = 'UsewIdweStop';
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any; }>;
-	private _experimentProperties: { [name: string]: string } = {};
-	private _piiPaths: string[];
-	private _telemetryLevel: TelemetryLevel;
-	public readonly sendErrorTelemetry: boolean;
+	pwivate _appendews: ITewemetwyAppenda[];
+	pwivate _commonPwopewties: Pwomise<{ [name: stwing]: any; }>;
+	pwivate _expewimentPwopewties: { [name: stwing]: stwing } = {};
+	pwivate _piiPaths: stwing[];
+	pwivate _tewemetwyWevew: TewemetwyWevew;
+	pubwic weadonwy sendEwwowTewemetwy: boowean;
 
-	private readonly _disposables = new DisposableStore();
-	private _cleanupPatterns: RegExp[] = [];
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate _cweanupPattewns: WegExp[] = [];
 
-	constructor(
-		config: ITelemetryServiceConfig,
-		@IConfigurationService private _configurationService: IConfigurationService
+	constwuctow(
+		config: ITewemetwySewviceConfig,
+		@IConfiguwationSewvice pwivate _configuwationSewvice: IConfiguwationSewvice
 	) {
-		this._appenders = config.appenders;
-		this._commonProperties = config.commonProperties || Promise.resolve({});
+		this._appendews = config.appendews;
+		this._commonPwopewties = config.commonPwopewties || Pwomise.wesowve({});
 		this._piiPaths = config.piiPaths || [];
-		this._telemetryLevel = TelemetryLevel.USAGE;
-		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
+		this._tewemetwyWevew = TewemetwyWevew.USAGE;
+		this.sendEwwowTewemetwy = !!config.sendEwwowTewemetwy;
 
-		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
-		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
+		// static cweanup pattewn fow: `fiwe:///DANGEWOUS/PATH/wesouwces/app/Usefuw/Infowmation`
+		this._cweanupPattewns = [/fiwe:\/\/\/.*?\/wesouwces\/app\//gi];
 
-		for (let piiPath of this._piiPaths) {
-			this._cleanupPatterns.push(new RegExp(escapeRegExpCharacters(piiPath), 'gi'));
+		fow (wet piiPath of this._piiPaths) {
+			this._cweanupPattewns.push(new WegExp(escapeWegExpChawactews(piiPath), 'gi'));
 		}
 
 
-		this._updateTelemetryLevel();
-		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
-		type OptInClassification = {
-			optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+		this._updateTewemetwyWevew();
+		this._configuwationSewvice.onDidChangeConfiguwation(this._updateTewemetwyWevew, this, this._disposabwes);
+		type OptInCwassification = {
+			optIn: { cwassification: 'SystemMetaData', puwpose: 'BusinessInsight', isMeasuwement: twue };
 		};
 		type OptInEvent = {
-			optIn: boolean;
+			optIn: boowean;
 		};
-		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
+		this.pubwicWog2<OptInEvent, OptInCwassification>('optInStatus', { optIn: this._tewemetwyWevew === TewemetwyWevew.USAGE });
 
-		this._commonProperties.then(values => {
-			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
+		this._commonPwopewties.then(vawues => {
+			const isHashedId = /^[a-f0-9]+$/i.test(vawues['common.machineId']);
 
-			type MachineIdFallbackClassification = {
-				usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+			type MachineIdFawwbackCwassification = {
+				usingFawwbackGuid: { cwassification: 'SystemMetaData', puwpose: 'BusinessInsight', isMeasuwement: twue };
 			};
-			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
+			this.pubwicWog2<{ usingFawwbackGuid: boowean }, MachineIdFawwbackCwassification>('machineIdFawwback', { usingFawwbackGuid: !isHashedId });
 		});
 
-		// TODO @sbatten @lramos15 bring this code in after one iteration
-		// Once the service initializes we update the telemetry value to the new format
-		// this._convertOldTelemetrySettingToNew();
-		// this._configurationService.onDidChangeConfiguration(e => {
-		// 	if (e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
-		// 		this._convertOldTelemetrySettingToNew();
+		// TODO @sbatten @wwamos15 bwing this code in afta one itewation
+		// Once the sewvice initiawizes we update the tewemetwy vawue to the new fowmat
+		// this._convewtOwdTewemetwySettingToNew();
+		// this._configuwationSewvice.onDidChangeConfiguwation(e => {
+		// 	if (e.affectsConfiguwation(TEWEMETWY_OWD_SETTING_ID)) {
+		// 		this._convewtOwdTewemetwySettingToNew();
 		// 	}
 		// }, this);
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		this._experimentProperties[name] = value;
+	setExpewimentPwopewty(name: stwing, vawue: stwing): void {
+		this._expewimentPwopewties[name] = vawue;
 	}
 
-	// TODO: @sbatten @lramos15 bring this code in after one iteration
-	// private _convertOldTelemetrySettingToNew(): void {
-	// 	const telemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
-	// 	if (typeof telemetryValue === 'boolean') {
-	// 		this._configurationService.updateValue(TELEMETRY_SETTING_ID, telemetryValue ? 'true' : 'false');
+	// TODO: @sbatten @wwamos15 bwing this code in afta one itewation
+	// pwivate _convewtOwdTewemetwySettingToNew(): void {
+	// 	const tewemetwyVawue = this._configuwationSewvice.getVawue(TEWEMETWY_OWD_SETTING_ID);
+	// 	if (typeof tewemetwyVawue === 'boowean') {
+	// 		this._configuwationSewvice.updateVawue(TEWEMETWY_SETTING_ID, tewemetwyVawue ? 'twue' : 'fawse');
 	// 	}
 	// }
 
-	private _updateTelemetryLevel(): void {
-		this._telemetryLevel = getTelemetryLevel(this._configurationService);
+	pwivate _updateTewemetwyWevew(): void {
+		this._tewemetwyWevew = getTewemetwyWevew(this._configuwationSewvice);
 	}
 
-	get telemetryLevel(): TelemetryLevel {
-		return this._telemetryLevel;
+	get tewemetwyWevew(): TewemetwyWevew {
+		wetuwn this._tewemetwyWevew;
 	}
 
-	async getTelemetryInfo(): Promise<ITelemetryInfo> {
-		const values = await this._commonProperties;
+	async getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		const vawues = await this._commonPwopewties;
 
-		// well known properties
-		let sessionId = values['sessionID'];
-		let instanceId = values['common.instanceId'];
-		let machineId = values['common.machineId'];
-		let firstSessionDate = values['common.firstSessionDate'];
-		let msftInternal = values['common.msftInternal'];
+		// weww known pwopewties
+		wet sessionId = vawues['sessionID'];
+		wet instanceId = vawues['common.instanceId'];
+		wet machineId = vawues['common.machineId'];
+		wet fiwstSessionDate = vawues['common.fiwstSessionDate'];
+		wet msftIntewnaw = vawues['common.msftIntewnaw'];
 
-		return { sessionId, instanceId, machineId, firstSessionDate, msftInternal };
+		wetuwn { sessionId, instanceId, machineId, fiwstSessionDate, msftIntewnaw };
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
-		// don't send events when the user is optout
-		if (this.telemetryLevel < eventLevel) {
-			return Promise.resolve(undefined);
+	pwivate _wog(eventName: stwing, eventWevew: TewemetwyWevew, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<any> {
+		// don't send events when the usa is optout
+		if (this.tewemetwyWevew < eventWevew) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return this._commonProperties.then(values => {
+		wetuwn this._commonPwopewties.then(vawues => {
 
-			// (first) add common properties
-			data = mixin(data, values);
+			// (fiwst) add common pwopewties
+			data = mixin(data, vawues);
 
-			// (next) add experiment properties
-			data = mixin(data, this._experimentProperties);
+			// (next) add expewiment pwopewties
+			data = mixin(data, this._expewimentPwopewties);
 
-			// (last) remove all PII from data
-			data = cloneAndChange(data, value => {
-				if (typeof value === 'string') {
-					return this._cleanupInfo(value, anonymizeFilePaths);
+			// (wast) wemove aww PII fwom data
+			data = cwoneAndChange(data, vawue => {
+				if (typeof vawue === 'stwing') {
+					wetuwn this._cweanupInfo(vawue, anonymizeFiwePaths);
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 
-			// Log to the appenders of sufficient level
-			this._appenders.forEach(a => a.log(eventName, data));
+			// Wog to the appendews of sufficient wevew
+			this._appendews.fowEach(a => a.wog(eventName, data));
 
-		}, err => {
-			// unsure what to do now...
-			console.error(err);
+		}, eww => {
+			// unsuwe what to do now...
+			consowe.ewwow(eww);
 		});
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
+	pubwicWog(eventName: stwing, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<any> {
+		wetuwn this._wog(eventName, TewemetwyWevew.USAGE, data, anonymizeFiwePaths);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>, anonymizeFiwePaths?: boowean): Pwomise<any> {
+		wetuwn this.pubwicWog(eventName, data as ITewemetwyData, anonymizeFiwePaths);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry) {
-			return Promise.resolve(undefined);
+	pubwicWogEwwow(ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<any> {
+		if (!this.sendEwwowTewemetwy) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		// Send error event and anonymize paths
-		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
+		// Send ewwow event and anonymize paths
+		wetuwn this._wog(ewwowEventName, TewemetwyWevew.EWWOW, data, twue);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLogError(eventName, data as ITelemetryData);
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>): Pwomise<any> {
+		wetuwn this.pubwicWogEwwow(eventName, data as ITewemetwyData);
 	}
 
-	private _anonymizeFilePaths(stack: string): string {
-		let updatedStack = stack;
+	pwivate _anonymizeFiwePaths(stack: stwing): stwing {
+		wet updatedStack = stack;
 
-		const cleanUpIndexes: [number, number][] = [];
-		for (let regexp of this._cleanupPatterns) {
-			while (true) {
-				const result = regexp.exec(stack);
-				if (!result) {
-					break;
+		const cweanUpIndexes: [numba, numba][] = [];
+		fow (wet wegexp of this._cweanupPattewns) {
+			whiwe (twue) {
+				const wesuwt = wegexp.exec(stack);
+				if (!wesuwt) {
+					bweak;
 				}
-				cleanUpIndexes.push([result.index, regexp.lastIndex]);
+				cweanUpIndexes.push([wesuwt.index, wegexp.wastIndex]);
 			}
 		}
 
-		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
-		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
-		let lastIndex = 0;
+		const nodeModuwesWegex = /^[\\\/]?(node_moduwes|node_moduwes\.asaw)[\\\/]/;
+		const fiweWegex = /(fiwe:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+		wet wastIndex = 0;
 		updatedStack = '';
 
-		while (true) {
-			const result = fileRegex.exec(stack);
-			if (!result) {
-				break;
+		whiwe (twue) {
+			const wesuwt = fiweWegex.exec(stack);
+			if (!wesuwt) {
+				bweak;
 			}
-			// Anoynimize user file paths that do not need to be retained or cleaned up.
-			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
-				lastIndex = fileRegex.lastIndex;
+			// Anoynimize usa fiwe paths that do not need to be wetained ow cweaned up.
+			if (!nodeModuwesWegex.test(wesuwt[0]) && cweanUpIndexes.evewy(([x, y]) => wesuwt.index < x || wesuwt.index >= y)) {
+				updatedStack += stack.substwing(wastIndex, wesuwt.index) + '<WEDACTED: usa-fiwe-path>';
+				wastIndex = fiweWegex.wastIndex;
 			}
 		}
-		if (lastIndex < stack.length) {
-			updatedStack += stack.substr(lastIndex);
+		if (wastIndex < stack.wength) {
+			updatedStack += stack.substw(wastIndex);
 		}
 
-		return updatedStack;
+		wetuwn updatedStack;
 	}
 
-	private _removePropertiesWithPossibleUserInfo(property: string): string {
-		// If for some reason it is undefined we skip it (this shouldn't be possible);
-		if (!property) {
-			return property;
+	pwivate _wemovePwopewtiesWithPossibweUsewInfo(pwopewty: stwing): stwing {
+		// If fow some weason it is undefined we skip it (this shouwdn't be possibwe);
+		if (!pwopewty) {
+			wetuwn pwopewty;
 		}
 
-		const value = property.toLowerCase();
+		const vawue = pwopewty.toWowewCase();
 
-		// Regex which matches @*.site
-		const emailRegex = /@[a-zA-Z0-9-.]+/;
-		const secretRegex = /\S*(key|token|sig|password|passwd|pwd)[="':\s]+\S*/;
+		// Wegex which matches @*.site
+		const emaiwWegex = /@[a-zA-Z0-9-.]+/;
+		const secwetWegex = /\S*(key|token|sig|passwowd|passwd|pwd)[="':\s]+\S*/;
 
-		// Check for common user data in the telemetry events
-		if (secretRegex.test(value)) {
-			return '<REDACTED: secret>';
-		} else if (emailRegex.test(value)) {
-			return '<REDACTED: email>';
+		// Check fow common usa data in the tewemetwy events
+		if (secwetWegex.test(vawue)) {
+			wetuwn '<WEDACTED: secwet>';
+		} ewse if (emaiwWegex.test(vawue)) {
+			wetuwn '<WEDACTED: emaiw>';
 		}
 
-		return property;
+		wetuwn pwopewty;
 	}
 
 
-	private _cleanupInfo(property: string, anonymizeFilePaths?: boolean): string {
-		let updatedProperty = property;
+	pwivate _cweanupInfo(pwopewty: stwing, anonymizeFiwePaths?: boowean): stwing {
+		wet updatedPwopewty = pwopewty;
 
-		// anonymize file paths
-		if (anonymizeFilePaths) {
-			updatedProperty = this._anonymizeFilePaths(updatedProperty);
+		// anonymize fiwe paths
+		if (anonymizeFiwePaths) {
+			updatedPwopewty = this._anonymizeFiwePaths(updatedPwopewty);
 		}
 
-		// sanitize with configured cleanup patterns
-		for (let regexp of this._cleanupPatterns) {
-			updatedProperty = updatedProperty.replace(regexp, '');
+		// sanitize with configuwed cweanup pattewns
+		fow (wet wegexp of this._cweanupPattewns) {
+			updatedPwopewty = updatedPwopewty.wepwace(wegexp, '');
 		}
 
-		// remove possible user info
-		updatedProperty = this._removePropertiesWithPossibleUserInfo(updatedProperty);
+		// wemove possibwe usa info
+		updatedPwopewty = this._wemovePwopewtiesWithPossibweUsewInfo(updatedPwopewty);
 
-		return updatedProperty;
+		wetuwn updatedPwopewty;
 	}
 }
 
-const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'Some features may require a restart to take effect.') : '';
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+const westawtStwing = !isWeb ? ' ' + wocawize('tewemetwy.westawt', 'Some featuwes may wequiwe a westawt to take effect.') : '';
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	'id': TEWEMETWY_SECTION_ID,
+	'owda': 110,
 	'type': 'object',
-	'title': localize('telemetryConfigurationTitle', "Telemetry"),
-	'properties': {
-		[TELEMETRY_SETTING_ID]: {
-			'type': 'string',
-			'enum': [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.OFF],
-			'enumDescriptions': [
-				localize('telemetry.enableTelemetry.default', "Enables all telemetry data to be collected."),
-				localize('telemetry.enableTelemetry.error', "Enables only error telemetry data and not general usage data."),
-				localize('telemetry.enableTelemetry.off', "Disables all product telemetry.")
+	'titwe': wocawize('tewemetwyConfiguwationTitwe', "Tewemetwy"),
+	'pwopewties': {
+		[TEWEMETWY_SETTING_ID]: {
+			'type': 'stwing',
+			'enum': [TewemetwyConfiguwation.ON, TewemetwyConfiguwation.EWWOW, TewemetwyConfiguwation.OFF],
+			'enumDescwiptions': [
+				wocawize('tewemetwy.enabweTewemetwy.defauwt', "Enabwes aww tewemetwy data to be cowwected."),
+				wocawize('tewemetwy.enabweTewemetwy.ewwow', "Enabwes onwy ewwow tewemetwy data and not genewaw usage data."),
+				wocawize('tewemetwy.enabweTewemetwy.off', "Disabwes aww pwoduct tewemetwy.")
 			],
-			'markdownDescription':
-				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) + restartString :
-					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl) + restartString,
-			'default': TelemetryConfiguration.ON,
-			'restricted': true,
-			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+			'mawkdownDescwiption':
+				!pwoduct.pwivacyStatementUww ?
+					wocawize('tewemetwy.enabweTewemetwy', "Enabwe diagnostic data to be cowwected. This hewps us to betta undewstand how {0} is pewfowming and whewe impwovements need to be made.", pwoduct.nameWong) + westawtStwing :
+					wocawize('tewemetwy.enabweTewemetwyMd', "Enabwe diagnostic data to be cowwected. This hewps us to betta undewstand how {0} is pewfowming and whewe impwovements need to be made. [Wead mowe]({1}) about what we cowwect and ouw pwivacy statement.", pwoduct.nameWong, pwoduct.pwivacyStatementUww) + westawtStwing,
+			'defauwt': TewemetwyConfiguwation.ON,
+			'westwicted': twue,
+			'scope': ConfiguwationScope.APPWICATION,
+			'tags': ['usesOnwineSewvices', 'tewemetwy']
 		}
 	}
 });
 
-// Deprecated telemetry setting
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': TELEMETRY_SECTION_ID,
-	'order': 110,
+// Depwecated tewemetwy setting
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	'id': TEWEMETWY_SECTION_ID,
+	'owda': 110,
 	'type': 'object',
-	'title': localize('telemetryConfigurationTitle', "Telemetry"),
-	'properties': {
-		[TELEMETRY_OLD_SETTING_ID]: {
-			'type': 'boolean',
-			'markdownDescription':
-				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
-					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
-			'default': true,
-			'restricted': true,
-			'markdownDeprecationMessage': localize('enableTelemetryDeprecated', "Deprecated in favor of the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
-			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+	'titwe': wocawize('tewemetwyConfiguwationTitwe', "Tewemetwy"),
+	'pwopewties': {
+		[TEWEMETWY_OWD_SETTING_ID]: {
+			'type': 'boowean',
+			'mawkdownDescwiption':
+				!pwoduct.pwivacyStatementUww ?
+					wocawize('tewemetwy.enabweTewemetwy', "Enabwe diagnostic data to be cowwected. This hewps us to betta undewstand how {0} is pewfowming and whewe impwovements need to be made.", pwoduct.nameWong) :
+					wocawize('tewemetwy.enabweTewemetwyMd', "Enabwe diagnostic data to be cowwected. This hewps us to betta undewstand how {0} is pewfowming and whewe impwovements need to be made. [Wead mowe]({1}) about what we cowwect and ouw pwivacy statement.", pwoduct.nameWong, pwoduct.pwivacyStatementUww),
+			'defauwt': twue,
+			'westwicted': twue,
+			'mawkdownDepwecationMessage': wocawize('enabweTewemetwyDepwecated', "Depwecated in favow of the {0} setting.", `\`#${TEWEMETWY_SETTING_ID}#\``),
+			'scope': ConfiguwationScope.APPWICATION,
+			'tags': ['usesOnwineSewvices', 'tewemetwy']
 		}
 	}
 });

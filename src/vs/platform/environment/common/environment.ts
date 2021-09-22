@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow, wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
-export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
+expowt const IEnviwonmentSewvice = cweateDecowatow<IEnviwonmentSewvice>('enviwonmentSewvice');
+expowt const INativeEnviwonmentSewvice = wefineSewviceDecowatow<IEnviwonmentSewvice, INativeEnviwonmentSewvice>(IEnviwonmentSewvice);
 
-export interface IDebugParams {
-	port: number | null;
-	break: boolean;
+expowt intewface IDebugPawams {
+	powt: numba | nuww;
+	bweak: boowean;
 }
 
-export interface IExtensionHostDebugParams extends IDebugParams {
-	debugId?: string;
+expowt intewface IExtensionHostDebugPawams extends IDebugPawams {
+	debugId?: stwing;
 }
 
 /**
- * A basic environment service that can be used in various processes,
- * such as main, renderer and shared process. Use subclasses of this
- * service for specific environment.
+ * A basic enviwonment sewvice that can be used in vawious pwocesses,
+ * such as main, wendewa and shawed pwocess. Use subcwasses of this
+ * sewvice fow specific enviwonment.
  */
-export interface IEnvironmentService {
+expowt intewface IEnviwonmentSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE.
 	//
 	// AS SUCH:
-	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
-	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
-	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//   - PUT NON-WEB PWOPEWTIES INTO NATIVE ENVIWONMENT SEWVICE
+	//   - PUT WOWKBENCH ONWY PWOPEWTIES INTO WOWKBENCH ENVIWONMENT SEWVICE
+	//   - PUT EWECTWON-MAIN ONWY PWOPEWTIES INTO MAIN ENVIWONMENT SEWVICE
 	//
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	// --- user roaming data
-	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
-	keyboardLayoutResource: URI;
-	argvResource: URI;
-	snippetsHome: URI;
+	// --- usa woaming data
+	usewWoamingDataHome: UWI;
+	settingsWesouwce: UWI;
+	keybindingsWesouwce: UWI;
+	keyboawdWayoutWesouwce: UWI;
+	awgvWesouwce: UWI;
+	snippetsHome: UWI;
 
 	// --- data paths
-	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
-	workspaceStorageHome: URI;
+	untitwedWowkspacesHome: UWI;
+	gwobawStowageHome: UWI;
+	wowkspaceStowageHome: UWI;
 
 	// --- settings sync
-	userDataSyncHome: URI;
-	userDataSyncLogResource: URI;
+	usewDataSyncHome: UWI;
+	usewDataSyncWogWesouwce: UWI;
 	sync: 'on' | 'off' | undefined;
 
-	// --- extension development
-	debugExtensionHost: IExtensionHostDebugParams;
-	isExtensionDevelopment: boolean;
-	disableExtensions: boolean | string[];
-	enableExtensions?: readonly string[];
-	extensionDevelopmentLocationURI?: URI[];
-	extensionDevelopmentKind?: ExtensionKind[];
-	extensionTestsLocationURI?: URI;
+	// --- extension devewopment
+	debugExtensionHost: IExtensionHostDebugPawams;
+	isExtensionDevewopment: boowean;
+	disabweExtensions: boowean | stwing[];
+	enabweExtensions?: weadonwy stwing[];
+	extensionDevewopmentWocationUWI?: UWI[];
+	extensionDevewopmentKind?: ExtensionKind[];
+	extensionTestsWocationUWI?: UWI;
 
-	// --- workspace trust
-	disableWorkspaceTrust: boolean;
+	// --- wowkspace twust
+	disabweWowkspaceTwust: boowean;
 
-	// --- logging
-	logsPath: string;
-	logLevel?: string;
-	verbose: boolean;
-	isBuilt: boolean;
+	// --- wogging
+	wogsPath: stwing;
+	wogWevew?: stwing;
+	vewbose: boowean;
+	isBuiwt: boowean;
 
-	// --- telemetry
-	disableTelemetry: boolean;
-	telemetryLogResource: URI;
-	serviceMachineIdResource: URI;
+	// --- tewemetwy
+	disabweTewemetwy: boowean;
+	tewemetwyWogWesouwce: UWI;
+	sewviceMachineIdWesouwce: UWI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE.
 	//
 	// AS SUCH:
-	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
-	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
-	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//   - PUT NON-WEB PWOPEWTIES INTO NATIVE ENVIWONMENT SEWVICE
+	//   - PUT WOWKBENCH ONWY PWOPEWTIES INTO WOWKBENCH ENVIWONMENT SEWVICE
+	//   - PUT EWECTWON-MAIN ONWY PWOPEWTIES INTO MAIN ENVIWONMENT SEWVICE
 	//
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
 /**
- * A subclass of the `IEnvironmentService` to be used only in native
- * environments (Windows, Linux, macOS) but not e.g. web.
+ * A subcwass of the `IEnviwonmentSewvice` to be used onwy in native
+ * enviwonments (Windows, Winux, macOS) but not e.g. web.
  */
-export interface INativeEnvironmentService extends IEnvironmentService {
+expowt intewface INativeEnviwonmentSewvice extends IEnviwonmentSewvice {
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE.
 	//
 	// AS SUCH:
-	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
-	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//   - PUT WOWKBENCH ONWY PWOPEWTIES INTO WOWKBENCH ENVIWONMENT SEWVICE
+	//   - PUT EWECTWON-MAIN ONWY PWOPEWTIES INTO MAIN ENVIWONMENT SEWVICE
 	//
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	// --- CLI Arguments
-	args: NativeParsedArgs;
+	// --- CWI Awguments
+	awgs: NativePawsedAwgs;
 
 	// --- data paths
-	appRoot: string;
-	userHome: URI;
-	appSettingsHome: URI;
-	tmpDir: URI;
-	userDataPath: string;
-	machineSettingsResource: URI;
-	installSourcePath: string;
+	appWoot: stwing;
+	usewHome: UWI;
+	appSettingsHome: UWI;
+	tmpDiw: UWI;
+	usewDataPath: stwing;
+	machineSettingsWesouwce: UWI;
+	instawwSouwcePath: stwing;
 
 	// --- extensions
-	extensionsPath: string;
-	extensionsDownloadPath: string;
-	builtinExtensionsPath: string;
+	extensionsPath: stwing;
+	extensionsDownwoadPath: stwing;
+	buiwtinExtensionsPath: stwing;
 
-	// --- smoke test support
-	driverHandle?: string;
+	// --- smoke test suppowt
+	dwivewHandwe?: stwing;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE.
 	//
 	// AS SUCH:
-	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
-	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
-	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//   - PUT NON-WEB PWOPEWTIES INTO NATIVE ENVIWONMENT SEWVICE
+	//   - PUT WOWKBENCH ONWY PWOPEWTIES INTO WOWKBENCH ENVIWONMENT SEWVICE
+	//   - PUT EWECTWON-MAIN ONWY PWOPEWTIES INTO MAIN ENVIWONMENT SEWVICE
 	//
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

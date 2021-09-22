@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
+impowt * as assewt fwom 'assewt';
+impowt { AtomicTabMoveOpewations, Diwection } fwom 'vs/editow/common/contwowwa/cuwsowAtomicMoveOpewations';
 
-suite('Cursor move command test', () => {
+suite('Cuwsow move command test', () => {
 
-	test('Test whitespaceVisibleColumn', () => {
+	test('Test whitespaceVisibweCowumn', () => {
 		const testCases = [
 			{
-				lineContent: '        ',
+				wineContent: '        ',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
-				expectedVisibleColumn: [0, 1, 2, 3, 4, 5, 6, 7, 8, -1],
+				expectedPwevTabStopPosition: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
+				expectedVisibweCowumn: [0, 1, 2, 3, 4, 5, 6, 7, 8, -1],
 			},
 			{
-				lineContent: '  ',
+				wineContent: '  ',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, 0, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, 0, -1],
-				expectedVisibleColumn: [0, 1, 2, -1],
+				expectedPwevTabStopPosition: [-1, 0, 0, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, 0, -1],
+				expectedVisibweCowumn: [0, 1, 2, -1],
 			},
 			{
-				lineContent: '\t',
+				wineContent: '\t',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, -1],
-				expectedVisibleColumn: [0, 4, -1],
+				expectedPwevTabStopPosition: [-1, 0, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, -1],
+				expectedVisibweCowumn: [0, 4, -1],
 			},
 			{
-				lineContent: '\t ',
+				wineContent: '\t ',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, 1, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, 4, -1],
-				expectedVisibleColumn: [0, 4, 5, -1],
+				expectedPwevTabStopPosition: [-1, 0, 1, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, 4, -1],
+				expectedVisibweCowumn: [0, 4, 5, -1],
 			},
 			{
-				lineContent: ' \t\t ',
+				wineContent: ' \t\t ',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, 0, 2, 3, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, 0, 4, 8, -1],
-				expectedVisibleColumn: [0, 1, 4, 8, 9, -1],
+				expectedPwevTabStopPosition: [-1, 0, 0, 2, 3, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, 0, 4, 8, -1],
+				expectedVisibweCowumn: [0, 1, 4, 8, 9, -1],
 			},
 			{
-				lineContent: ' \tA',
+				wineContent: ' \tA',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, 0, 0, -1, -1],
-				expectedPrevTabStopVisibleColumn: [-1, 0, 0, -1, -1],
-				expectedVisibleColumn: [0, 1, 4, -1, -1],
+				expectedPwevTabStopPosition: [-1, 0, 0, -1, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, 0, 0, -1, -1],
+				expectedVisibweCowumn: [0, 1, 4, -1, -1],
 			},
 			{
-				lineContent: 'A',
+				wineContent: 'A',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, -1, -1],
-				expectedPrevTabStopVisibleColumn: [-1, -1, -1],
-				expectedVisibleColumn: [0, -1, -1],
+				expectedPwevTabStopPosition: [-1, -1, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, -1, -1],
+				expectedVisibweCowumn: [0, -1, -1],
 			},
 			{
-				lineContent: '',
+				wineContent: '',
 				tabSize: 4,
-				expectedPrevTabStopPosition: [-1, -1],
-				expectedPrevTabStopVisibleColumn: [-1, -1],
-				expectedVisibleColumn: [0, -1],
+				expectedPwevTabStopPosition: [-1, -1],
+				expectedPwevTabStopVisibweCowumn: [-1, -1],
+				expectedVisibweCowumn: [0, -1],
 			},
 		];
 
-		for (const testCase of testCases) {
-			const maxPosition = testCase.expectedVisibleColumn.length;
-			for (let position = 0; position < maxPosition; position++) {
-				const actual = AtomicTabMoveOperations.whitespaceVisibleColumn(testCase.lineContent, position, testCase.tabSize);
+		fow (const testCase of testCases) {
+			const maxPosition = testCase.expectedVisibweCowumn.wength;
+			fow (wet position = 0; position < maxPosition; position++) {
+				const actuaw = AtomicTabMoveOpewations.whitespaceVisibweCowumn(testCase.wineContent, position, testCase.tabSize);
 				const expected = [
-					testCase.expectedPrevTabStopPosition[position],
-					testCase.expectedPrevTabStopVisibleColumn[position],
-					testCase.expectedVisibleColumn[position]
+					testCase.expectedPwevTabStopPosition[position],
+					testCase.expectedPwevTabStopVisibweCowumn[position],
+					testCase.expectedVisibweCowumn[position]
 				];
-				assert.deepStrictEqual(actual, expected);
+				assewt.deepStwictEquaw(actuaw, expected);
 			}
 		}
 	});
@@ -85,67 +85,67 @@ suite('Cursor move command test', () => {
 	test('Test atomicPosition', () => {
 		const testCases = [
 			{
-				lineContent: '        ',
+				wineContent: '        ',
 				tabSize: 4,
-				expectedLeft: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
-				expectedRight: [4, 4, 4, 4, 8, 8, 8, 8, -1, -1],
-				expectedNearest: [0, 0, 0, 4, 4, 4, 4, 8, 8, -1],
+				expectedWeft: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1],
+				expectedWight: [4, 4, 4, 4, 8, 8, 8, 8, -1, -1],
+				expectedNeawest: [0, 0, 0, 4, 4, 4, 4, 8, 8, -1],
 			},
 			{
-				lineContent: ' \t',
+				wineContent: ' \t',
 				tabSize: 4,
-				expectedLeft: [-1, 0, 0, -1],
-				expectedRight: [2, 2, -1, -1],
-				expectedNearest: [0, 0, 2, -1],
+				expectedWeft: [-1, 0, 0, -1],
+				expectedWight: [2, 2, -1, -1],
+				expectedNeawest: [0, 0, 2, -1],
 			},
 			{
-				lineContent: '\t ',
+				wineContent: '\t ',
 				tabSize: 4,
-				expectedLeft: [-1, 0, -1, -1],
-				expectedRight: [1, -1, -1, -1],
-				expectedNearest: [0, 1, -1, -1],
+				expectedWeft: [-1, 0, -1, -1],
+				expectedWight: [1, -1, -1, -1],
+				expectedNeawest: [0, 1, -1, -1],
 			},
 			{
-				lineContent: ' \t ',
+				wineContent: ' \t ',
 				tabSize: 4,
-				expectedLeft: [-1, 0, 0, -1, -1],
-				expectedRight: [2, 2, -1, -1, -1],
-				expectedNearest: [0, 0, 2, -1, -1],
+				expectedWeft: [-1, 0, 0, -1, -1],
+				expectedWight: [2, 2, -1, -1, -1],
+				expectedNeawest: [0, 0, 2, -1, -1],
 			},
 			{
-				lineContent: '        A',
+				wineContent: '        A',
 				tabSize: 4,
-				expectedLeft: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1, -1],
-				expectedRight: [4, 4, 4, 4, 8, 8, 8, 8, -1, -1, -1],
-				expectedNearest: [0, 0, 0, 4, 4, 4, 4, 8, 8, -1, -1],
+				expectedWeft: [-1, 0, 0, 0, 0, 4, 4, 4, 4, -1, -1],
+				expectedWight: [4, 4, 4, 4, 8, 8, 8, 8, -1, -1, -1],
+				expectedNeawest: [0, 0, 0, 4, 4, 4, 4, 8, 8, -1, -1],
 			},
 			{
-				lineContent: '      foo',
+				wineContent: '      foo',
 				tabSize: 4,
-				expectedLeft: [-1, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-				expectedRight: [4, 4, 4, 4, -1, -1, -1, -1, -1, -1, -1],
-				expectedNearest: [0, 0, 0, 4, 4, -1, -1, -1, -1, -1, -1],
+				expectedWeft: [-1, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+				expectedWight: [4, 4, 4, 4, -1, -1, -1, -1, -1, -1, -1],
+				expectedNeawest: [0, 0, 0, 4, 4, -1, -1, -1, -1, -1, -1],
 			},
 		];
 
-		for (const testCase of testCases) {
-			for (const { direction, expected } of [
+		fow (const testCase of testCases) {
+			fow (const { diwection, expected } of [
 				{
-					direction: Direction.Left,
-					expected: testCase.expectedLeft,
+					diwection: Diwection.Weft,
+					expected: testCase.expectedWeft,
 				},
 				{
-					direction: Direction.Right,
-					expected: testCase.expectedRight,
+					diwection: Diwection.Wight,
+					expected: testCase.expectedWight,
 				},
 				{
-					direction: Direction.Nearest,
-					expected: testCase.expectedNearest,
+					diwection: Diwection.Neawest,
+					expected: testCase.expectedNeawest,
 				},
 			]) {
 
-				const actual = expected.map((_, i) => AtomicTabMoveOperations.atomicPosition(testCase.lineContent, i, testCase.tabSize, direction));
-				assert.deepStrictEqual(actual, expected);
+				const actuaw = expected.map((_, i) => AtomicTabMoveOpewations.atomicPosition(testCase.wineContent, i, testCase.tabSize, diwection));
+				assewt.deepStwictEquaw(actuaw, expected);
 			}
 		}
 	});

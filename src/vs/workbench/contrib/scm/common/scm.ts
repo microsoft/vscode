@@ -1,180 +1,180 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Command } from 'vs/editor/common/modes';
-import { ISequence } from 'vs/base/common/sequence';
-import { IAction } from 'vs/base/common/actions';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { ISequence } fwom 'vs/base/common/sequence';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
 
-export const VIEWLET_ID = 'workbench.view.scm';
-export const VIEW_PANE_ID = 'workbench.scm';
-export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
+expowt const VIEWWET_ID = 'wowkbench.view.scm';
+expowt const VIEW_PANE_ID = 'wowkbench.scm';
+expowt const WEPOSITOWIES_VIEW_PANE_ID = 'wowkbench.scm.wepositowies';
 
-export interface IBaselineResourceProvider {
-	getBaselineResource(resource: URI): Promise<URI>;
+expowt intewface IBasewineWesouwcePwovida {
+	getBasewineWesouwce(wesouwce: UWI): Pwomise<UWI>;
 }
 
-export const ISCMService = createDecorator<ISCMService>('scm');
+expowt const ISCMSewvice = cweateDecowatow<ISCMSewvice>('scm');
 
-export interface ISCMResourceDecorations {
-	icon?: URI | ThemeIcon;
-	iconDark?: URI | ThemeIcon;
-	tooltip?: string;
-	strikeThrough?: boolean;
-	faded?: boolean;
+expowt intewface ISCMWesouwceDecowations {
+	icon?: UWI | ThemeIcon;
+	iconDawk?: UWI | ThemeIcon;
+	toowtip?: stwing;
+	stwikeThwough?: boowean;
+	faded?: boowean;
 }
 
-export interface ISCMResource {
-	readonly resourceGroup: ISCMResourceGroup;
-	readonly sourceUri: URI;
-	readonly decorations: ISCMResourceDecorations;
-	readonly contextValue: string | undefined;
-	readonly command: Command | undefined;
-	open(preserveFocus: boolean): Promise<void>;
+expowt intewface ISCMWesouwce {
+	weadonwy wesouwceGwoup: ISCMWesouwceGwoup;
+	weadonwy souwceUwi: UWI;
+	weadonwy decowations: ISCMWesouwceDecowations;
+	weadonwy contextVawue: stwing | undefined;
+	weadonwy command: Command | undefined;
+	open(pwesewveFocus: boowean): Pwomise<void>;
 }
 
-export interface ISCMResourceGroup extends ISequence<ISCMResource> {
-	readonly provider: ISCMProvider;
-	readonly label: string;
-	readonly id: string;
-	readonly hideWhenEmpty: boolean;
-	readonly onDidChange: Event<void>;
+expowt intewface ISCMWesouwceGwoup extends ISequence<ISCMWesouwce> {
+	weadonwy pwovida: ISCMPwovida;
+	weadonwy wabew: stwing;
+	weadonwy id: stwing;
+	weadonwy hideWhenEmpty: boowean;
+	weadonwy onDidChange: Event<void>;
 }
 
-export interface ISCMProvider extends IDisposable {
-	readonly label: string;
-	readonly id: string;
-	readonly contextValue: string;
+expowt intewface ISCMPwovida extends IDisposabwe {
+	weadonwy wabew: stwing;
+	weadonwy id: stwing;
+	weadonwy contextVawue: stwing;
 
-	readonly groups: ISequence<ISCMResourceGroup>;
+	weadonwy gwoups: ISequence<ISCMWesouwceGwoup>;
 
-	// TODO@Joao: remove
-	readonly onDidChangeResources: Event<void>;
+	// TODO@Joao: wemove
+	weadonwy onDidChangeWesouwces: Event<void>;
 
-	readonly rootUri?: URI;
-	readonly count?: number;
-	readonly commitTemplate: string;
-	readonly onDidChangeCommitTemplate: Event<string>;
-	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
-	readonly acceptInputCommand?: Command;
-	readonly statusBarCommands?: Command[];
-	readonly onDidChange: Event<void>;
+	weadonwy wootUwi?: UWI;
+	weadonwy count?: numba;
+	weadonwy commitTempwate: stwing;
+	weadonwy onDidChangeCommitTempwate: Event<stwing>;
+	weadonwy onDidChangeStatusBawCommands?: Event<Command[]>;
+	weadonwy acceptInputCommand?: Command;
+	weadonwy statusBawCommands?: Command[];
+	weadonwy onDidChange: Event<void>;
 
-	getOriginalResource(uri: URI): Promise<URI | null>;
+	getOwiginawWesouwce(uwi: UWI): Pwomise<UWI | nuww>;
 }
 
-export const enum InputValidationType {
-	Error = 0,
-	Warning = 1,
-	Information = 2
+expowt const enum InputVawidationType {
+	Ewwow = 0,
+	Wawning = 1,
+	Infowmation = 2
 }
 
-export interface IInputValidation {
-	message: string | IMarkdownString;
-	type: InputValidationType;
+expowt intewface IInputVawidation {
+	message: stwing | IMawkdownStwing;
+	type: InputVawidationType;
 }
 
-export interface IInputValidator {
-	(value: string, cursorPosition: number): Promise<IInputValidation | undefined>;
+expowt intewface IInputVawidatow {
+	(vawue: stwing, cuwsowPosition: numba): Pwomise<IInputVawidation | undefined>;
 }
 
-export enum SCMInputChangeReason {
-	HistoryPrevious,
-	HistoryNext
+expowt enum SCMInputChangeWeason {
+	HistowyPwevious,
+	HistowyNext
 }
 
-export interface ISCMInputChangeEvent {
-	readonly value: string;
-	readonly reason?: SCMInputChangeReason;
+expowt intewface ISCMInputChangeEvent {
+	weadonwy vawue: stwing;
+	weadonwy weason?: SCMInputChangeWeason;
 }
 
-export interface ISCMInput {
-	readonly repository: ISCMRepository;
+expowt intewface ISCMInput {
+	weadonwy wepositowy: ISCMWepositowy;
 
-	readonly value: string;
-	setValue(value: string, fromKeyboard: boolean): void;
-	readonly onDidChange: Event<ISCMInputChangeEvent>;
+	weadonwy vawue: stwing;
+	setVawue(vawue: stwing, fwomKeyboawd: boowean): void;
+	weadonwy onDidChange: Event<ISCMInputChangeEvent>;
 
-	placeholder: string;
-	readonly onDidChangePlaceholder: Event<string>;
+	pwacehowda: stwing;
+	weadonwy onDidChangePwacehowda: Event<stwing>;
 
-	validateInput: IInputValidator;
-	readonly onDidChangeValidateInput: Event<void>;
+	vawidateInput: IInputVawidatow;
+	weadonwy onDidChangeVawidateInput: Event<void>;
 
-	visible: boolean;
-	readonly onDidChangeVisibility: Event<boolean>;
+	visibwe: boowean;
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
 
 	setFocus(): void;
-	readonly onDidChangeFocus: Event<void>;
+	weadonwy onDidChangeFocus: Event<void>;
 
-	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void;
-	readonly onDidChangeValidationMessage: Event<IInputValidation>;
+	showVawidationMessage(message: stwing | IMawkdownStwing, type: InputVawidationType): void;
+	weadonwy onDidChangeVawidationMessage: Event<IInputVawidation>;
 
-	showNextHistoryValue(): void;
-	showPreviousHistoryValue(): void;
+	showNextHistowyVawue(): void;
+	showPweviousHistowyVawue(): void;
 }
 
-export interface ISCMRepository extends IDisposable {
-	readonly provider: ISCMProvider;
-	readonly input: ISCMInput;
+expowt intewface ISCMWepositowy extends IDisposabwe {
+	weadonwy pwovida: ISCMPwovida;
+	weadonwy input: ISCMInput;
 }
 
-export interface ISCMService {
+expowt intewface ISCMSewvice {
 
-	readonly _serviceBrand: undefined;
-	readonly onDidAddRepository: Event<ISCMRepository>;
-	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidAddWepositowy: Event<ISCMWepositowy>;
+	weadonwy onDidWemoveWepositowy: Event<ISCMWepositowy>;
+	weadonwy wepositowies: ISCMWepositowy[];
 
-	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+	wegistewSCMPwovida(pwovida: ISCMPwovida): ISCMWepositowy;
 }
 
-export interface ISCMTitleMenu {
-	readonly actions: IAction[];
-	readonly secondaryActions: IAction[];
-	readonly onDidChangeTitle: Event<void>;
-	readonly menu: IMenu;
+expowt intewface ISCMTitweMenu {
+	weadonwy actions: IAction[];
+	weadonwy secondawyActions: IAction[];
+	weadonwy onDidChangeTitwe: Event<void>;
+	weadonwy menu: IMenu;
 }
 
-export interface ISCMRepositoryMenus {
-	readonly titleMenu: ISCMTitleMenu;
-	readonly repositoryMenu: IMenu;
-	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
-	getResourceMenu(resource: ISCMResource): IMenu;
-	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
+expowt intewface ISCMWepositowyMenus {
+	weadonwy titweMenu: ISCMTitweMenu;
+	weadonwy wepositowyMenu: IMenu;
+	getWesouwceGwoupMenu(gwoup: ISCMWesouwceGwoup): IMenu;
+	getWesouwceMenu(wesouwce: ISCMWesouwce): IMenu;
+	getWesouwceFowdewMenu(gwoup: ISCMWesouwceGwoup): IMenu;
 }
 
-export interface ISCMMenus {
-	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
+expowt intewface ISCMMenus {
+	getWepositowyMenus(pwovida: ISCMPwovida): ISCMWepositowyMenus;
 }
 
-export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
+expowt const ISCMViewSewvice = cweateDecowatow<ISCMViewSewvice>('scmView');
 
-export interface ISCMViewVisibleRepositoryChangeEvent {
-	readonly added: Iterable<ISCMRepository>;
-	readonly removed: Iterable<ISCMRepository>;
+expowt intewface ISCMViewVisibweWepositowyChangeEvent {
+	weadonwy added: Itewabwe<ISCMWepositowy>;
+	weadonwy wemoved: Itewabwe<ISCMWepositowy>;
 }
 
-export interface ISCMViewService {
-	readonly _serviceBrand: undefined;
+expowt intewface ISCMViewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly menus: ISCMMenus;
+	weadonwy menus: ISCMMenus;
 
-	visibleRepositories: ISCMRepository[];
-	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+	visibweWepositowies: ISCMWepositowy[];
+	weadonwy onDidChangeVisibweWepositowies: Event<ISCMViewVisibweWepositowyChangeEvent>;
 
-	isVisible(repository: ISCMRepository): boolean;
-	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+	isVisibwe(wepositowy: ISCMWepositowy): boowean;
+	toggweVisibiwity(wepositowy: ISCMWepositowy, visibwe?: boowean): void;
 
-	readonly focusedRepository: ISCMRepository | undefined;
-	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
-	focus(repository: ISCMRepository): void;
+	weadonwy focusedWepositowy: ISCMWepositowy | undefined;
+	weadonwy onDidFocusWepositowy: Event<ISCMWepositowy | undefined>;
+	focus(wepositowy: ISCMWepositowy): void;
 }

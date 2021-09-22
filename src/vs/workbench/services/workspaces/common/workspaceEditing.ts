@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceIdentifia, IWowkspaceFowdewCweationData } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
+expowt const IWowkspaceEditingSewvice = cweateDecowatow<IWowkspaceEditingSewvice>('wowkspaceEditingSewvice');
 
-export interface IWorkspaceEditingService {
+expowt intewface IWowkspaceEditingSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Add folders to the existing workspace.
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
-	 */
-	addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Remove folders from the existing workspace
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 * Add fowdews to the existing wowkspace.
+	 * When `donotNotifyEwwow` is `twue`, ewwow wiww be bubbwed up othewwise, the sewvice handwes the ewwow with pwopa message and action
 	 */
-	removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void>;
+	addFowdews(fowdews: IWowkspaceFowdewCweationData[], donotNotifyEwwow?: boowean): Pwomise<void>;
 
 	/**
-	 * Allows to add and remove folders to the existing workspace at once.
-	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 * Wemove fowdews fwom the existing wowkspace
+	 * When `donotNotifyEwwow` is `twue`, ewwow wiww be bubbwed up othewwise, the sewvice handwes the ewwow with pwopa message and action
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+	wemoveFowdews(fowdews: UWI[], donotNotifyEwwow?: boowean): Pwomise<void>;
 
 	/**
-	 * enters the workspace with the provided path.
+	 * Awwows to add and wemove fowdews to the existing wowkspace at once.
+	 * When `donotNotifyEwwow` is `twue`, ewwow wiww be bubbwed up othewwise, the sewvice handwes the ewwow with pwopa message and action
 	 */
-	enterWorkspace(path: URI): Promise<void>;
+	updateFowdews(index: numba, deweteCount?: numba, fowdewsToAdd?: IWowkspaceFowdewCweationData[], donotNotifyEwwow?: boowean): Pwomise<void>;
 
 	/**
-	 * creates a new workspace with the provided folders and opens it. if path is provided
-	 * the workspace will be saved into that location.
+	 * entews the wowkspace with the pwovided path.
 	 */
-	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void>;
+	entewWowkspace(path: UWI): Pwomise<void>;
 
 	/**
-	 * saves the current workspace to the provided path and opens it. requires a workspace to be opened.
+	 * cweates a new wowkspace with the pwovided fowdews and opens it. if path is pwovided
+	 * the wowkspace wiww be saved into that wocation.
 	 */
-	saveAndEnterWorkspace(path: URI): Promise<void>;
+	cweateAndEntewWowkspace(fowdews: IWowkspaceFowdewCweationData[], path?: UWI): Pwomise<void>;
 
 	/**
-	 * copies current workspace settings to the target workspace.
+	 * saves the cuwwent wowkspace to the pwovided path and opens it. wequiwes a wowkspace to be opened.
 	 */
-	copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void>;
+	saveAndEntewWowkspace(path: UWI): Pwomise<void>;
 
 	/**
-	 * picks a new workspace path
+	 * copies cuwwent wowkspace settings to the tawget wowkspace.
 	 */
-	pickNewWorkspacePath(): Promise<URI | undefined>;
+	copyWowkspaceSettings(toWowkspace: IWowkspaceIdentifia): Pwomise<void>;
+
+	/**
+	 * picks a new wowkspace path
+	 */
+	pickNewWowkspacePath(): Pwomise<UWI | undefined>;
 }

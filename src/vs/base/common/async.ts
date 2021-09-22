@@ -1,574 +1,574 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { extUwi as defauwtExtUwi, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export function isThenable<T>(obj: unknown): obj is Promise<T> {
-	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
+expowt function isThenabwe<T>(obj: unknown): obj is Pwomise<T> {
+	wetuwn !!obj && typeof (obj as unknown as Pwomise<T>).then === 'function';
 }
 
-export interface CancelablePromise<T> extends Promise<T> {
-	cancel(): void;
+expowt intewface CancewabwePwomise<T> extends Pwomise<T> {
+	cancew(): void;
 }
 
-export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
-	const source = new CancellationTokenSource();
+expowt function cweateCancewabwePwomise<T>(cawwback: (token: CancewwationToken) => Pwomise<T>): CancewabwePwomise<T> {
+	const souwce = new CancewwationTokenSouwce();
 
-	const thenable = callback(source.token);
-	const promise = new Promise<T>((resolve, reject) => {
-		const subscription = source.token.onCancellationRequested(() => {
-			subscription.dispose();
-			source.dispose();
-			reject(canceled());
+	const thenabwe = cawwback(souwce.token);
+	const pwomise = new Pwomise<T>((wesowve, weject) => {
+		const subscwiption = souwce.token.onCancewwationWequested(() => {
+			subscwiption.dispose();
+			souwce.dispose();
+			weject(cancewed());
 		});
-		Promise.resolve(thenable).then(value => {
-			subscription.dispose();
-			source.dispose();
-			resolve(value);
-		}, err => {
-			subscription.dispose();
-			source.dispose();
-			reject(err);
+		Pwomise.wesowve(thenabwe).then(vawue => {
+			subscwiption.dispose();
+			souwce.dispose();
+			wesowve(vawue);
+		}, eww => {
+			subscwiption.dispose();
+			souwce.dispose();
+			weject(eww);
 		});
 	});
 
-	return <CancelablePromise<T>>new class {
-		cancel() {
-			source.cancel();
+	wetuwn <CancewabwePwomise<T>>new cwass {
+		cancew() {
+			souwce.cancew();
 		}
-		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
-			return promise.then(resolve, reject);
+		then<TWesuwt1 = T, TWesuwt2 = neva>(wesowve?: ((vawue: T) => TWesuwt1 | Pwomise<TWesuwt1>) | undefined | nuww, weject?: ((weason: any) => TWesuwt2 | Pwomise<TWesuwt2>) | undefined | nuww): Pwomise<TWesuwt1 | TWesuwt2> {
+			wetuwn pwomise.then(wesowve, weject);
 		}
-		catch<TResult = never>(reject?: ((reason: any) => TResult | Promise<TResult>) | undefined | null): Promise<T | TResult> {
-			return this.then(undefined, reject);
+		catch<TWesuwt = neva>(weject?: ((weason: any) => TWesuwt | Pwomise<TWesuwt>) | undefined | nuww): Pwomise<T | TWesuwt> {
+			wetuwn this.then(undefined, weject);
 		}
-		finally(onfinally?: (() => void) | undefined | null): Promise<T> {
-			return promise.finally(onfinally);
+		finawwy(onfinawwy?: (() => void) | undefined | nuww): Pwomise<T> {
+			wetuwn pwomise.finawwy(onfinawwy);
 		}
 	};
 }
 
-export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
-export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
-export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T | undefined> {
-	return Promise.race([promise, new Promise<T | undefined>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
+expowt function waceCancewwation<T>(pwomise: Pwomise<T>, token: CancewwationToken): Pwomise<T | undefined>;
+expowt function waceCancewwation<T>(pwomise: Pwomise<T>, token: CancewwationToken, defauwtVawue: T): Pwomise<T>;
+expowt function waceCancewwation<T>(pwomise: Pwomise<T>, token: CancewwationToken, defauwtVawue?: T): Pwomise<T | undefined> {
+	wetuwn Pwomise.wace([pwomise, new Pwomise<T | undefined>(wesowve => token.onCancewwationWequested(() => wesowve(defauwtVawue)))]);
 }
 
 /**
- * Returns as soon as one of the promises is resolved and cancels remaining promises
+ * Wetuwns as soon as one of the pwomises is wesowved and cancews wemaining pwomises
  */
-export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
-	let resolvedPromiseIndex = -1;
-	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	const result = await Promise.race(promises);
-	cancellablePromises.forEach((cancellablePromise, index) => {
-		if (index !== resolvedPromiseIndex) {
-			cancellablePromise.cancel();
+expowt async function waceCancewwabwePwomises<T>(cancewwabwePwomises: CancewabwePwomise<T>[]): Pwomise<T> {
+	wet wesowvedPwomiseIndex = -1;
+	const pwomises = cancewwabwePwomises.map((pwomise, index) => pwomise.then(wesuwt => { wesowvedPwomiseIndex = index; wetuwn wesuwt; }));
+	const wesuwt = await Pwomise.wace(pwomises);
+	cancewwabwePwomises.fowEach((cancewwabwePwomise, index) => {
+		if (index !== wesowvedPwomiseIndex) {
+			cancewwabwePwomise.cancew();
 		}
 	});
-	return result;
+	wetuwn wesuwt;
 }
 
-export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
-	let promiseResolve: ((value: T | undefined) => void) | undefined = undefined;
+expowt function waceTimeout<T>(pwomise: Pwomise<T>, timeout: numba, onTimeout?: () => void): Pwomise<T | undefined> {
+	wet pwomiseWesowve: ((vawue: T | undefined) => void) | undefined = undefined;
 
-	const timer = setTimeout(() => {
-		promiseResolve?.(undefined);
+	const tima = setTimeout(() => {
+		pwomiseWesowve?.(undefined);
 		onTimeout?.();
 	}, timeout);
 
-	return Promise.race([
-		promise.finally(() => clearTimeout(timer)),
-		new Promise<T | undefined>(resolve => promiseResolve = resolve)
+	wetuwn Pwomise.wace([
+		pwomise.finawwy(() => cweawTimeout(tima)),
+		new Pwomise<T | undefined>(wesowve => pwomiseWesowve = wesowve)
 	]);
 }
 
-export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
-	return new Promise<T>((resolve, reject) => {
-		const item = callback();
-		if (isThenable<T>(item)) {
-			item.then(resolve, reject);
-		} else {
-			resolve(item);
+expowt function asPwomise<T>(cawwback: () => T | Thenabwe<T>): Pwomise<T> {
+	wetuwn new Pwomise<T>((wesowve, weject) => {
+		const item = cawwback();
+		if (isThenabwe<T>(item)) {
+			item.then(wesowve, weject);
+		} ewse {
+			wesowve(item);
 		}
 	});
 }
 
-export interface ITask<T> {
+expowt intewface ITask<T> {
 	(): T;
 }
 
 /**
- * A helper to prevent accumulation of sequential async tasks.
+ * A hewpa to pwevent accumuwation of sequentiaw async tasks.
  *
- * Imagine a mail man with the sole task of delivering letters. As soon as
- * a letter submitted for delivery, he drives to the destination, delivers it
- * and returns to his base. Imagine that during the trip, N more letters were submitted.
- * When the mail man returns, he picks those N letters and delivers them all in a
- * single trip. Even though N+1 submissions occurred, only 2 deliveries were made.
+ * Imagine a maiw man with the sowe task of dewivewing wettews. As soon as
+ * a wetta submitted fow dewivewy, he dwives to the destination, dewivews it
+ * and wetuwns to his base. Imagine that duwing the twip, N mowe wettews wewe submitted.
+ * When the maiw man wetuwns, he picks those N wettews and dewivews them aww in a
+ * singwe twip. Even though N+1 submissions occuwwed, onwy 2 dewivewies wewe made.
  *
- * The throttler implements this via the queue() method, by providing it a task
- * factory. Following the example:
+ * The thwottwa impwements this via the queue() method, by pwoviding it a task
+ * factowy. Fowwowing the exampwe:
  *
- * 		const throttler = new Throttler();
- * 		const letters = [];
+ * 		const thwottwa = new Thwottwa();
+ * 		const wettews = [];
  *
- * 		function deliver() {
- * 			const lettersToDeliver = letters;
- * 			letters = [];
- * 			return makeTheTrip(lettersToDeliver);
+ * 		function dewiva() {
+ * 			const wettewsToDewiva = wettews;
+ * 			wettews = [];
+ * 			wetuwn makeTheTwip(wettewsToDewiva);
  * 		}
  *
- * 		function onLetterReceived(l) {
- * 			letters.push(l);
- * 			throttler.queue(deliver);
+ * 		function onWettewWeceived(w) {
+ * 			wettews.push(w);
+ * 			thwottwa.queue(dewiva);
  * 		}
  */
-export class Throttler {
+expowt cwass Thwottwa {
 
-	private activePromise: Promise<any> | null;
-	private queuedPromise: Promise<any> | null;
-	private queuedPromiseFactory: ITask<Promise<any>> | null;
+	pwivate activePwomise: Pwomise<any> | nuww;
+	pwivate queuedPwomise: Pwomise<any> | nuww;
+	pwivate queuedPwomiseFactowy: ITask<Pwomise<any>> | nuww;
 
-	constructor() {
-		this.activePromise = null;
-		this.queuedPromise = null;
-		this.queuedPromiseFactory = null;
+	constwuctow() {
+		this.activePwomise = nuww;
+		this.queuedPwomise = nuww;
+		this.queuedPwomiseFactowy = nuww;
 	}
 
-	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
-		if (this.activePromise) {
-			this.queuedPromiseFactory = promiseFactory;
+	queue<T>(pwomiseFactowy: ITask<Pwomise<T>>): Pwomise<T> {
+		if (this.activePwomise) {
+			this.queuedPwomiseFactowy = pwomiseFactowy;
 
-			if (!this.queuedPromise) {
-				const onComplete = () => {
-					this.queuedPromise = null;
+			if (!this.queuedPwomise) {
+				const onCompwete = () => {
+					this.queuedPwomise = nuww;
 
-					const result = this.queue(this.queuedPromiseFactory!);
-					this.queuedPromiseFactory = null;
+					const wesuwt = this.queue(this.queuedPwomiseFactowy!);
+					this.queuedPwomiseFactowy = nuww;
 
-					return result;
+					wetuwn wesuwt;
 				};
 
-				this.queuedPromise = new Promise(resolve => {
-					this.activePromise!.then(onComplete, onComplete).then(resolve);
+				this.queuedPwomise = new Pwomise(wesowve => {
+					this.activePwomise!.then(onCompwete, onCompwete).then(wesowve);
 				});
 			}
 
-			return new Promise((resolve, reject) => {
-				this.queuedPromise!.then(resolve, reject);
+			wetuwn new Pwomise((wesowve, weject) => {
+				this.queuedPwomise!.then(wesowve, weject);
 			});
 		}
 
-		this.activePromise = promiseFactory();
+		this.activePwomise = pwomiseFactowy();
 
-		return new Promise((resolve, reject) => {
-			this.activePromise!.then((result: T) => {
-				this.activePromise = null;
-				resolve(result);
-			}, (err: unknown) => {
-				this.activePromise = null;
-				reject(err);
+		wetuwn new Pwomise((wesowve, weject) => {
+			this.activePwomise!.then((wesuwt: T) => {
+				this.activePwomise = nuww;
+				wesowve(wesuwt);
+			}, (eww: unknown) => {
+				this.activePwomise = nuww;
+				weject(eww);
 			});
 		});
 	}
 }
 
-export class Sequencer {
+expowt cwass Sequenca {
 
-	private current: Promise<unknown> = Promise.resolve(null);
+	pwivate cuwwent: Pwomise<unknown> = Pwomise.wesowve(nuww);
 
-	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
-		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	queue<T>(pwomiseTask: ITask<Pwomise<T>>): Pwomise<T> {
+		wetuwn this.cuwwent = this.cuwwent.then(() => pwomiseTask(), () => pwomiseTask());
 	}
 }
 
-export class SequencerByKey<TKey> {
+expowt cwass SequencewByKey<TKey> {
 
-	private promiseMap = new Map<TKey, Promise<unknown>>();
+	pwivate pwomiseMap = new Map<TKey, Pwomise<unknown>>();
 
-	queue<T>(key: TKey, promiseTask: ITask<Promise<T>>): Promise<T> {
-		const runningPromise = this.promiseMap.get(key) ?? Promise.resolve();
-		const newPromise = runningPromise
+	queue<T>(key: TKey, pwomiseTask: ITask<Pwomise<T>>): Pwomise<T> {
+		const wunningPwomise = this.pwomiseMap.get(key) ?? Pwomise.wesowve();
+		const newPwomise = wunningPwomise
 			.catch(() => { })
-			.then(promiseTask)
-			.finally(() => {
-				if (this.promiseMap.get(key) === newPromise) {
-					this.promiseMap.delete(key);
+			.then(pwomiseTask)
+			.finawwy(() => {
+				if (this.pwomiseMap.get(key) === newPwomise) {
+					this.pwomiseMap.dewete(key);
 				}
 			});
-		this.promiseMap.set(key, newPromise);
-		return newPromise;
+		this.pwomiseMap.set(key, newPwomise);
+		wetuwn newPwomise;
 	}
 }
 
 /**
- * A helper to delay (debounce) execution of a task that is being requested often.
+ * A hewpa to deway (debounce) execution of a task that is being wequested often.
  *
- * Following the throttler, now imagine the mail man wants to optimize the number of
- * trips proactively. The trip itself can be long, so he decides not to make the trip
- * as soon as a letter is submitted. Instead he waits a while, in case more
- * letters are submitted. After said waiting period, if no letters were submitted, he
- * decides to make the trip. Imagine that N more letters were submitted after the first
- * one, all within a short period of time between each other. Even though N+1
- * submissions occurred, only 1 delivery was made.
+ * Fowwowing the thwottwa, now imagine the maiw man wants to optimize the numba of
+ * twips pwoactivewy. The twip itsewf can be wong, so he decides not to make the twip
+ * as soon as a wetta is submitted. Instead he waits a whiwe, in case mowe
+ * wettews awe submitted. Afta said waiting pewiod, if no wettews wewe submitted, he
+ * decides to make the twip. Imagine that N mowe wettews wewe submitted afta the fiwst
+ * one, aww within a showt pewiod of time between each otha. Even though N+1
+ * submissions occuwwed, onwy 1 dewivewy was made.
  *
- * The delayer offers this behavior via the trigger() method, into which both the task
- * to be executed and the waiting period (delay) must be passed in as arguments. Following
- * the example:
+ * The dewaya offews this behaviow via the twigga() method, into which both the task
+ * to be executed and the waiting pewiod (deway) must be passed in as awguments. Fowwowing
+ * the exampwe:
  *
- * 		const delayer = new Delayer(WAITING_PERIOD);
- * 		const letters = [];
+ * 		const dewaya = new Dewaya(WAITING_PEWIOD);
+ * 		const wettews = [];
  *
- * 		function letterReceived(l) {
- * 			letters.push(l);
- * 			delayer.trigger(() => { return makeTheTrip(); });
+ * 		function wettewWeceived(w) {
+ * 			wettews.push(w);
+ * 			dewaya.twigga(() => { wetuwn makeTheTwip(); });
  * 		}
  */
-export class Delayer<T> implements IDisposable {
+expowt cwass Dewaya<T> impwements IDisposabwe {
 
-	private timeout: any;
-	private completionPromise: Promise<any> | null;
-	private doResolve: ((value?: any | Promise<any>) => void) | null;
-	private doReject: ((err: any) => void) | null;
-	private task: ITask<T | Promise<T>> | null;
+	pwivate timeout: any;
+	pwivate compwetionPwomise: Pwomise<any> | nuww;
+	pwivate doWesowve: ((vawue?: any | Pwomise<any>) => void) | nuww;
+	pwivate doWeject: ((eww: any) => void) | nuww;
+	pwivate task: ITask<T | Pwomise<T>> | nuww;
 
-	constructor(public defaultDelay: number) {
-		this.timeout = null;
-		this.completionPromise = null;
-		this.doResolve = null;
-		this.doReject = null;
-		this.task = null;
+	constwuctow(pubwic defauwtDeway: numba) {
+		this.timeout = nuww;
+		this.compwetionPwomise = nuww;
+		this.doWesowve = nuww;
+		this.doWeject = nuww;
+		this.task = nuww;
 	}
 
-	trigger(task: ITask<T | Promise<T>>, delay: number = this.defaultDelay): Promise<T> {
+	twigga(task: ITask<T | Pwomise<T>>, deway: numba = this.defauwtDeway): Pwomise<T> {
 		this.task = task;
-		this.cancelTimeout();
+		this.cancewTimeout();
 
-		if (!this.completionPromise) {
-			this.completionPromise = new Promise((resolve, reject) => {
-				this.doResolve = resolve;
-				this.doReject = reject;
+		if (!this.compwetionPwomise) {
+			this.compwetionPwomise = new Pwomise((wesowve, weject) => {
+				this.doWesowve = wesowve;
+				this.doWeject = weject;
 			}).then(() => {
-				this.completionPromise = null;
-				this.doResolve = null;
+				this.compwetionPwomise = nuww;
+				this.doWesowve = nuww;
 				if (this.task) {
 					const task = this.task;
-					this.task = null;
-					return task();
+					this.task = nuww;
+					wetuwn task();
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 		}
 
 		this.timeout = setTimeout(() => {
-			this.timeout = null;
-			if (this.doResolve) {
-				this.doResolve(null);
+			this.timeout = nuww;
+			if (this.doWesowve) {
+				this.doWesowve(nuww);
 			}
-		}, delay);
+		}, deway);
 
-		return this.completionPromise;
+		wetuwn this.compwetionPwomise;
 	}
 
-	isTriggered(): boolean {
-		return this.timeout !== null;
+	isTwiggewed(): boowean {
+		wetuwn this.timeout !== nuww;
 	}
 
-	cancel(): void {
-		this.cancelTimeout();
+	cancew(): void {
+		this.cancewTimeout();
 
-		if (this.completionPromise) {
-			if (this.doReject) {
-				this.doReject(canceled());
+		if (this.compwetionPwomise) {
+			if (this.doWeject) {
+				this.doWeject(cancewed());
 			}
-			this.completionPromise = null;
+			this.compwetionPwomise = nuww;
 		}
 	}
 
-	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+	pwivate cancewTimeout(): void {
+		if (this.timeout !== nuww) {
+			cweawTimeout(this.timeout);
+			this.timeout = nuww;
 		}
 	}
 
 	dispose(): void {
-		this.cancel();
+		this.cancew();
 	}
 }
 
 /**
- * A helper to delay execution of a task that is being requested often, while
- * preventing accumulation of consecutive executions, while the task runs.
+ * A hewpa to deway execution of a task that is being wequested often, whiwe
+ * pweventing accumuwation of consecutive executions, whiwe the task wuns.
  *
- * The mail man is clever and waits for a certain amount of time, before going
- * out to deliver letters. While the mail man is going out, more letters arrive
- * and can only be delivered once he is back. Once he is back the mail man will
- * do one more trip to deliver the letters that have accumulated while he was out.
+ * The maiw man is cweva and waits fow a cewtain amount of time, befowe going
+ * out to dewiva wettews. Whiwe the maiw man is going out, mowe wettews awwive
+ * and can onwy be dewivewed once he is back. Once he is back the maiw man wiww
+ * do one mowe twip to dewiva the wettews that have accumuwated whiwe he was out.
  */
-export class ThrottledDelayer<T> {
+expowt cwass ThwottwedDewaya<T> {
 
-	private delayer: Delayer<Promise<T>>;
-	private throttler: Throttler;
+	pwivate dewaya: Dewaya<Pwomise<T>>;
+	pwivate thwottwa: Thwottwa;
 
-	constructor(defaultDelay: number) {
-		this.delayer = new Delayer(defaultDelay);
-		this.throttler = new Throttler();
+	constwuctow(defauwtDeway: numba) {
+		this.dewaya = new Dewaya(defauwtDeway);
+		this.thwottwa = new Thwottwa();
 	}
 
-	trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<T> {
-		return this.delayer.trigger(() => this.throttler.queue(promiseFactory), delay) as unknown as Promise<T>;
+	twigga(pwomiseFactowy: ITask<Pwomise<T>>, deway?: numba): Pwomise<T> {
+		wetuwn this.dewaya.twigga(() => this.thwottwa.queue(pwomiseFactowy), deway) as unknown as Pwomise<T>;
 	}
 
-	isTriggered(): boolean {
-		return this.delayer.isTriggered();
+	isTwiggewed(): boowean {
+		wetuwn this.dewaya.isTwiggewed();
 	}
 
-	cancel(): void {
-		this.delayer.cancel();
+	cancew(): void {
+		this.dewaya.cancew();
 	}
 
 	dispose(): void {
-		this.delayer.dispose();
+		this.dewaya.dispose();
 	}
 }
 
 /**
- * A barrier that is initially closed and then becomes opened permanently.
+ * A bawwia that is initiawwy cwosed and then becomes opened pewmanentwy.
  */
-export class Barrier {
+expowt cwass Bawwia {
 
-	private _isOpen: boolean;
-	private _promise: Promise<boolean>;
-	private _completePromise!: (v: boolean) => void;
+	pwivate _isOpen: boowean;
+	pwivate _pwomise: Pwomise<boowean>;
+	pwivate _compwetePwomise!: (v: boowean) => void;
 
-	constructor() {
-		this._isOpen = false;
-		this._promise = new Promise<boolean>((c, e) => {
-			this._completePromise = c;
+	constwuctow() {
+		this._isOpen = fawse;
+		this._pwomise = new Pwomise<boowean>((c, e) => {
+			this._compwetePwomise = c;
 		});
 	}
 
-	isOpen(): boolean {
-		return this._isOpen;
+	isOpen(): boowean {
+		wetuwn this._isOpen;
 	}
 
 	open(): void {
-		this._isOpen = true;
-		this._completePromise(true);
+		this._isOpen = twue;
+		this._compwetePwomise(twue);
 	}
 
-	wait(): Promise<boolean> {
-		return this._promise;
+	wait(): Pwomise<boowean> {
+		wetuwn this._pwomise;
 	}
 }
 
 /**
- * A barrier that is initially closed and then becomes opened permanently after a certain period of
- * time or when open is called explicitly
+ * A bawwia that is initiawwy cwosed and then becomes opened pewmanentwy afta a cewtain pewiod of
+ * time ow when open is cawwed expwicitwy
  */
-export class AutoOpenBarrier extends Barrier {
+expowt cwass AutoOpenBawwia extends Bawwia {
 
-	private readonly _timeout: any;
+	pwivate weadonwy _timeout: any;
 
-	constructor(autoOpenTimeMs: number) {
-		super();
+	constwuctow(autoOpenTimeMs: numba) {
+		supa();
 		this._timeout = setTimeout(() => this.open(), autoOpenTimeMs);
 	}
 
-	override open(): void {
-		clearTimeout(this._timeout);
-		super.open();
+	ovewwide open(): void {
+		cweawTimeout(this._timeout);
+		supa.open();
 	}
 }
 
-export function timeout(millis: number): CancelablePromise<void>;
-export function timeout(millis: number, token: CancellationToken): Promise<void>;
-export function timeout(millis: number, token?: CancellationToken): CancelablePromise<void> | Promise<void> {
+expowt function timeout(miwwis: numba): CancewabwePwomise<void>;
+expowt function timeout(miwwis: numba, token: CancewwationToken): Pwomise<void>;
+expowt function timeout(miwwis: numba, token?: CancewwationToken): CancewabwePwomise<void> | Pwomise<void> {
 	if (!token) {
-		return createCancelablePromise(token => timeout(millis, token));
+		wetuwn cweateCancewabwePwomise(token => timeout(miwwis, token));
 	}
 
-	return new Promise((resolve, reject) => {
-		const handle = setTimeout(() => {
-			disposable.dispose();
-			resolve();
-		}, millis);
-		const disposable = token.onCancellationRequested(() => {
-			clearTimeout(handle);
-			disposable.dispose();
-			reject(canceled());
+	wetuwn new Pwomise((wesowve, weject) => {
+		const handwe = setTimeout(() => {
+			disposabwe.dispose();
+			wesowve();
+		}, miwwis);
+		const disposabwe = token.onCancewwationWequested(() => {
+			cweawTimeout(handwe);
+			disposabwe.dispose();
+			weject(cancewed());
 		});
 	});
 }
 
-export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
-	const timer = setTimeout(handler, timeout);
-	return toDisposable(() => clearTimeout(timer));
+expowt function disposabweTimeout(handwa: () => void, timeout = 0): IDisposabwe {
+	const tima = setTimeout(handwa, timeout);
+	wetuwn toDisposabwe(() => cweawTimeout(tima));
 }
 
 /**
- * Runs the provided list of promise factories in sequential order. The returned
- * promise will complete to an array of results from each promise.
+ * Wuns the pwovided wist of pwomise factowies in sequentiaw owda. The wetuwned
+ * pwomise wiww compwete to an awway of wesuwts fwom each pwomise.
  */
 
-export function sequence<T>(promiseFactories: ITask<Promise<T>>[]): Promise<T[]> {
-	const results: T[] = [];
-	let index = 0;
-	const len = promiseFactories.length;
+expowt function sequence<T>(pwomiseFactowies: ITask<Pwomise<T>>[]): Pwomise<T[]> {
+	const wesuwts: T[] = [];
+	wet index = 0;
+	const wen = pwomiseFactowies.wength;
 
-	function next(): Promise<T> | null {
-		return index < len ? promiseFactories[index++]() : null;
+	function next(): Pwomise<T> | nuww {
+		wetuwn index < wen ? pwomiseFactowies[index++]() : nuww;
 	}
 
-	function thenHandler(result: any): Promise<any> {
-		if (result !== undefined && result !== null) {
-			results.push(result);
+	function thenHandwa(wesuwt: any): Pwomise<any> {
+		if (wesuwt !== undefined && wesuwt !== nuww) {
+			wesuwts.push(wesuwt);
 		}
 
 		const n = next();
 		if (n) {
-			return n.then(thenHandler);
+			wetuwn n.then(thenHandwa);
 		}
 
-		return Promise.resolve(results);
+		wetuwn Pwomise.wesowve(wesuwts);
 	}
 
-	return Promise.resolve(null).then(thenHandler);
+	wetuwn Pwomise.wesowve(nuww).then(thenHandwa);
 }
 
-export function first<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T | null = null): Promise<T | null> {
-	let index = 0;
-	const len = promiseFactories.length;
+expowt function fiwst<T>(pwomiseFactowies: ITask<Pwomise<T>>[], shouwdStop: (t: T) => boowean = t => !!t, defauwtVawue: T | nuww = nuww): Pwomise<T | nuww> {
+	wet index = 0;
+	const wen = pwomiseFactowies.wength;
 
-	const loop: () => Promise<T | null> = () => {
-		if (index >= len) {
-			return Promise.resolve(defaultValue);
+	const woop: () => Pwomise<T | nuww> = () => {
+		if (index >= wen) {
+			wetuwn Pwomise.wesowve(defauwtVawue);
 		}
 
-		const factory = promiseFactories[index++];
-		const promise = Promise.resolve(factory());
+		const factowy = pwomiseFactowies[index++];
+		const pwomise = Pwomise.wesowve(factowy());
 
-		return promise.then(result => {
-			if (shouldStop(result)) {
-				return Promise.resolve(result);
+		wetuwn pwomise.then(wesuwt => {
+			if (shouwdStop(wesuwt)) {
+				wetuwn Pwomise.wesowve(wesuwt);
 			}
 
-			return loop();
+			wetuwn woop();
 		});
 	};
 
-	return loop();
+	wetuwn woop();
 }
 
 /**
- * Returns the result of the first promise that matches the "shouldStop",
- * running all promises in parallel. Supports cancelable promises.
+ * Wetuwns the wesuwt of the fiwst pwomise that matches the "shouwdStop",
+ * wunning aww pwomises in pawawwew. Suppowts cancewabwe pwomises.
  */
-export function firstParallel<T>(promiseList: Promise<T>[], shouldStop?: (t: T) => boolean, defaultValue?: T | null): Promise<T | null>;
-export function firstParallel<T, R extends T>(promiseList: Promise<T>[], shouldStop: (t: T) => t is R, defaultValue?: R | null): Promise<R | null>;
-export function firstParallel<T>(promiseList: Promise<T>[], shouldStop: (t: T) => boolean = t => !!t, defaultValue: T | null = null) {
-	if (promiseList.length === 0) {
-		return Promise.resolve(defaultValue);
+expowt function fiwstPawawwew<T>(pwomiseWist: Pwomise<T>[], shouwdStop?: (t: T) => boowean, defauwtVawue?: T | nuww): Pwomise<T | nuww>;
+expowt function fiwstPawawwew<T, W extends T>(pwomiseWist: Pwomise<T>[], shouwdStop: (t: T) => t is W, defauwtVawue?: W | nuww): Pwomise<W | nuww>;
+expowt function fiwstPawawwew<T>(pwomiseWist: Pwomise<T>[], shouwdStop: (t: T) => boowean = t => !!t, defauwtVawue: T | nuww = nuww) {
+	if (pwomiseWist.wength === 0) {
+		wetuwn Pwomise.wesowve(defauwtVawue);
 	}
 
-	let todo = promiseList.length;
+	wet todo = pwomiseWist.wength;
 	const finish = () => {
 		todo = -1;
-		for (const promise of promiseList) {
-			(promise as Partial<CancelablePromise<T>>).cancel?.();
+		fow (const pwomise of pwomiseWist) {
+			(pwomise as Pawtiaw<CancewabwePwomise<T>>).cancew?.();
 		}
 	};
 
-	return new Promise<T | null>((resolve, reject) => {
-		for (const promise of promiseList) {
-			promise.then(result => {
-				if (--todo >= 0 && shouldStop(result)) {
+	wetuwn new Pwomise<T | nuww>((wesowve, weject) => {
+		fow (const pwomise of pwomiseWist) {
+			pwomise.then(wesuwt => {
+				if (--todo >= 0 && shouwdStop(wesuwt)) {
 					finish();
-					resolve(result);
-				} else if (todo === 0) {
-					resolve(defaultValue);
+					wesowve(wesuwt);
+				} ewse if (todo === 0) {
+					wesowve(defauwtVawue);
 				}
 			})
-				.catch(err => {
+				.catch(eww => {
 					if (--todo >= 0) {
 						finish();
-						reject(err);
+						weject(eww);
 					}
 				});
 		}
 	});
 }
 
-interface ILimitedTaskFactory<T> {
-	factory: ITask<Promise<T>>;
-	c: (value: T | Promise<T>) => void;
-	e: (error?: unknown) => void;
+intewface IWimitedTaskFactowy<T> {
+	factowy: ITask<Pwomise<T>>;
+	c: (vawue: T | Pwomise<T>) => void;
+	e: (ewwow?: unknown) => void;
 }
 
 /**
- * A helper to queue N promises and run them all with a max degree of parallelism. The helper
- * ensures that at any time no more than M promises are running at the same time.
+ * A hewpa to queue N pwomises and wun them aww with a max degwee of pawawwewism. The hewpa
+ * ensuwes that at any time no mowe than M pwomises awe wunning at the same time.
  */
-export class Limiter<T> {
+expowt cwass Wimita<T> {
 
-	private _size = 0;
-	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
-	private outstandingPromises: ILimitedTaskFactory<T>[];
-	private readonly _onFinished: Emitter<void>;
+	pwivate _size = 0;
+	pwivate wunningPwomises: numba;
+	pwivate maxDegweeOfPawawewwism: numba;
+	pwivate outstandingPwomises: IWimitedTaskFactowy<T>[];
+	pwivate weadonwy _onFinished: Emitta<void>;
 
-	constructor(maxDegreeOfParalellism: number) {
-		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
-		this.outstandingPromises = [];
-		this.runningPromises = 0;
-		this._onFinished = new Emitter<void>();
+	constwuctow(maxDegweeOfPawawewwism: numba) {
+		this.maxDegweeOfPawawewwism = maxDegweeOfPawawewwism;
+		this.outstandingPwomises = [];
+		this.wunningPwomises = 0;
+		this._onFinished = new Emitta<void>();
 	}
 
 	get onFinished(): Event<void> {
-		return this._onFinished.event;
+		wetuwn this._onFinished.event;
 	}
 
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
-	queue(factory: ITask<Promise<T>>): Promise<T> {
+	queue(factowy: ITask<Pwomise<T>>): Pwomise<T> {
 		this._size++;
 
-		return new Promise<T>((c, e) => {
-			this.outstandingPromises.push({ factory, c, e });
+		wetuwn new Pwomise<T>((c, e) => {
+			this.outstandingPwomises.push({ factowy, c, e });
 			this.consume();
 		});
 	}
 
-	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift()!;
-			this.runningPromises++;
+	pwivate consume(): void {
+		whiwe (this.outstandingPwomises.wength && this.wunningPwomises < this.maxDegweeOfPawawewwism) {
+			const iWimitedTask = this.outstandingPwomises.shift()!;
+			this.wunningPwomises++;
 
-			const promise = iLimitedTask.factory();
-			promise.then(iLimitedTask.c, iLimitedTask.e);
-			promise.then(() => this.consumed(), () => this.consumed());
+			const pwomise = iWimitedTask.factowy();
+			pwomise.then(iWimitedTask.c, iWimitedTask.e);
+			pwomise.then(() => this.consumed(), () => this.consumed());
 		}
 	}
 
-	private consumed(): void {
+	pwivate consumed(): void {
 		this._size--;
-		this.runningPromises--;
+		this.wunningPwomises--;
 
-		if (this.outstandingPromises.length > 0) {
+		if (this.outstandingPwomises.wength > 0) {
 			this.consume();
-		} else {
-			this._onFinished.fire();
+		} ewse {
+			this._onFinished.fiwe();
 		}
 	}
 
@@ -578,434 +578,434 @@ export class Limiter<T> {
 }
 
 /**
- * A queue is handles one promise at a time and guarantees that at any time only one promise is executing.
+ * A queue is handwes one pwomise at a time and guawantees that at any time onwy one pwomise is executing.
  */
-export class Queue<T> extends Limiter<T> {
+expowt cwass Queue<T> extends Wimita<T> {
 
-	constructor() {
-		super(1);
+	constwuctow() {
+		supa(1);
 	}
 }
 
 /**
- * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
+ * A hewpa to owganize queues pew wesouwce. The WesouwceQueue makes suwe to manage queues pew wesouwce
  * by disposing them once the queue is empty.
  */
-export class ResourceQueue implements IDisposable {
+expowt cwass WesouwceQueue impwements IDisposabwe {
 
-	private readonly queues = new Map<string, Queue<void>>();
+	pwivate weadonwy queues = new Map<stwing, Queue<void>>();
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): Queue<void> {
-		const key = extUri.getComparisonKey(resource);
+	queueFow(wesouwce: UWI, extUwi: IExtUwi = defauwtExtUwi): Queue<void> {
+		const key = extUwi.getCompawisonKey(wesouwce);
 
-		let queue = this.queues.get(key);
+		wet queue = this.queues.get(key);
 		if (!queue) {
 			queue = new Queue<void>();
 			Event.once(queue.onFinished)(() => {
 				queue?.dispose();
-				this.queues.delete(key);
+				this.queues.dewete(key);
 			});
 
 			this.queues.set(key, queue);
 		}
 
-		return queue;
+		wetuwn queue;
 	}
 
 	dispose(): void {
-		this.queues.forEach(queue => queue.dispose());
-		this.queues.clear();
+		this.queues.fowEach(queue => queue.dispose());
+		this.queues.cweaw();
 	}
 }
 
-export class TimeoutTimer implements IDisposable {
-	private _token: any;
+expowt cwass TimeoutTima impwements IDisposabwe {
+	pwivate _token: any;
 
-	constructor();
-	constructor(runner: () => void, timeout: number);
-	constructor(runner?: () => void, timeout?: number) {
+	constwuctow();
+	constwuctow(wunna: () => void, timeout: numba);
+	constwuctow(wunna?: () => void, timeout?: numba) {
 		this._token = -1;
 
-		if (typeof runner === 'function' && typeof timeout === 'number') {
-			this.setIfNotSet(runner, timeout);
+		if (typeof wunna === 'function' && typeof timeout === 'numba') {
+			this.setIfNotSet(wunna, timeout);
 		}
 	}
 
 	dispose(): void {
-		this.cancel();
+		this.cancew();
 	}
 
-	cancel(): void {
+	cancew(): void {
 		if (this._token !== -1) {
-			clearTimeout(this._token);
+			cweawTimeout(this._token);
 			this._token = -1;
 		}
 	}
 
-	cancelAndSet(runner: () => void, timeout: number): void {
-		this.cancel();
+	cancewAndSet(wunna: () => void, timeout: numba): void {
+		this.cancew();
 		this._token = setTimeout(() => {
 			this._token = -1;
-			runner();
+			wunna();
 		}, timeout);
 	}
 
-	setIfNotSet(runner: () => void, timeout: number): void {
+	setIfNotSet(wunna: () => void, timeout: numba): void {
 		if (this._token !== -1) {
-			// timer is already set
-			return;
+			// tima is awweady set
+			wetuwn;
 		}
 		this._token = setTimeout(() => {
 			this._token = -1;
-			runner();
+			wunna();
 		}, timeout);
 	}
 }
 
-export class IntervalTimer implements IDisposable {
+expowt cwass IntewvawTima impwements IDisposabwe {
 
-	private _token: any;
+	pwivate _token: any;
 
-	constructor() {
+	constwuctow() {
 		this._token = -1;
 	}
 
 	dispose(): void {
-		this.cancel();
+		this.cancew();
 	}
 
-	cancel(): void {
+	cancew(): void {
 		if (this._token !== -1) {
-			clearInterval(this._token);
+			cweawIntewvaw(this._token);
 			this._token = -1;
 		}
 	}
 
-	cancelAndSet(runner: () => void, interval: number): void {
-		this.cancel();
-		this._token = setInterval(() => {
-			runner();
-		}, interval);
+	cancewAndSet(wunna: () => void, intewvaw: numba): void {
+		this.cancew();
+		this._token = setIntewvaw(() => {
+			wunna();
+		}, intewvaw);
 	}
 }
 
-export class RunOnceScheduler {
+expowt cwass WunOnceScheduwa {
 
-	protected runner: ((...args: unknown[]) => void) | null;
+	pwotected wunna: ((...awgs: unknown[]) => void) | nuww;
 
-	private timeoutToken: any;
-	private timeout: number;
-	private timeoutHandler: () => void;
+	pwivate timeoutToken: any;
+	pwivate timeout: numba;
+	pwivate timeoutHandwa: () => void;
 
-	constructor(runner: (...args: any[]) => void, delay: number) {
+	constwuctow(wunna: (...awgs: any[]) => void, deway: numba) {
 		this.timeoutToken = -1;
-		this.runner = runner;
-		this.timeout = delay;
-		this.timeoutHandler = this.onTimeout.bind(this);
+		this.wunna = wunna;
+		this.timeout = deway;
+		this.timeoutHandwa = this.onTimeout.bind(this);
 	}
 
 	/**
-	 * Dispose RunOnceScheduler
+	 * Dispose WunOnceScheduwa
 	 */
 	dispose(): void {
-		this.cancel();
-		this.runner = null;
+		this.cancew();
+		this.wunna = nuww;
 	}
 
 	/**
-	 * Cancel current scheduled runner (if any).
+	 * Cancew cuwwent scheduwed wunna (if any).
 	 */
-	cancel(): void {
-		if (this.isScheduled()) {
-			clearTimeout(this.timeoutToken);
+	cancew(): void {
+		if (this.isScheduwed()) {
+			cweawTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
 	}
 
 	/**
-	 * Cancel previous runner (if any) & schedule a new runner.
+	 * Cancew pwevious wunna (if any) & scheduwe a new wunna.
 	 */
-	schedule(delay = this.timeout): void {
-		this.cancel();
-		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
+	scheduwe(deway = this.timeout): void {
+		this.cancew();
+		this.timeoutToken = setTimeout(this.timeoutHandwa, deway);
 	}
 
-	get delay(): number {
-		return this.timeout;
+	get deway(): numba {
+		wetuwn this.timeout;
 	}
 
-	set delay(value: number) {
-		this.timeout = value;
+	set deway(vawue: numba) {
+		this.timeout = vawue;
 	}
 
 	/**
-	 * Returns true if scheduled.
+	 * Wetuwns twue if scheduwed.
 	 */
-	isScheduled(): boolean {
-		return this.timeoutToken !== -1;
+	isScheduwed(): boowean {
+		wetuwn this.timeoutToken !== -1;
 	}
 
-	private onTimeout() {
+	pwivate onTimeout() {
 		this.timeoutToken = -1;
-		if (this.runner) {
-			this.doRun();
+		if (this.wunna) {
+			this.doWun();
 		}
 	}
 
-	protected doRun(): void {
-		if (this.runner) {
-			this.runner();
+	pwotected doWun(): void {
+		if (this.wunna) {
+			this.wunna();
 		}
 	}
 }
 
 /**
- * Same as `RunOnceScheduler`, but doesn't count the time spent in sleep mode.
- * > **NOTE**: Only offers 1s resolution.
+ * Same as `WunOnceScheduwa`, but doesn't count the time spent in sweep mode.
+ * > **NOTE**: Onwy offews 1s wesowution.
  *
- * When calling `setTimeout` with 3hrs, and putting the computer immediately to sleep
- * for 8hrs, `setTimeout` will fire **as soon as the computer wakes from sleep**. But
- * this scheduler will execute 3hrs **after waking the computer from sleep**.
+ * When cawwing `setTimeout` with 3hws, and putting the computa immediatewy to sweep
+ * fow 8hws, `setTimeout` wiww fiwe **as soon as the computa wakes fwom sweep**. But
+ * this scheduwa wiww execute 3hws **afta waking the computa fwom sweep**.
  */
-export class ProcessTimeRunOnceScheduler {
+expowt cwass PwocessTimeWunOnceScheduwa {
 
-	private runner: (() => void) | null;
-	private timeout: number;
+	pwivate wunna: (() => void) | nuww;
+	pwivate timeout: numba;
 
-	private counter: number;
-	private intervalToken: any;
-	private intervalHandler: () => void;
+	pwivate counta: numba;
+	pwivate intewvawToken: any;
+	pwivate intewvawHandwa: () => void;
 
-	constructor(runner: () => void, delay: number) {
-		if (delay % 1000 !== 0) {
-			console.warn(`ProcessTimeRunOnceScheduler resolution is 1s, ${delay}ms is not a multiple of 1000ms.`);
+	constwuctow(wunna: () => void, deway: numba) {
+		if (deway % 1000 !== 0) {
+			consowe.wawn(`PwocessTimeWunOnceScheduwa wesowution is 1s, ${deway}ms is not a muwtipwe of 1000ms.`);
 		}
-		this.runner = runner;
-		this.timeout = delay;
-		this.counter = 0;
-		this.intervalToken = -1;
-		this.intervalHandler = this.onInterval.bind(this);
+		this.wunna = wunna;
+		this.timeout = deway;
+		this.counta = 0;
+		this.intewvawToken = -1;
+		this.intewvawHandwa = this.onIntewvaw.bind(this);
 	}
 
 	dispose(): void {
-		this.cancel();
-		this.runner = null;
+		this.cancew();
+		this.wunna = nuww;
 	}
 
-	cancel(): void {
-		if (this.isScheduled()) {
-			clearInterval(this.intervalToken);
-			this.intervalToken = -1;
+	cancew(): void {
+		if (this.isScheduwed()) {
+			cweawIntewvaw(this.intewvawToken);
+			this.intewvawToken = -1;
 		}
 	}
 
 	/**
-	 * Cancel previous runner (if any) & schedule a new runner.
+	 * Cancew pwevious wunna (if any) & scheduwe a new wunna.
 	 */
-	schedule(delay = this.timeout): void {
-		if (delay % 1000 !== 0) {
-			console.warn(`ProcessTimeRunOnceScheduler resolution is 1s, ${delay}ms is not a multiple of 1000ms.`);
+	scheduwe(deway = this.timeout): void {
+		if (deway % 1000 !== 0) {
+			consowe.wawn(`PwocessTimeWunOnceScheduwa wesowution is 1s, ${deway}ms is not a muwtipwe of 1000ms.`);
 		}
-		this.cancel();
-		this.counter = Math.ceil(delay / 1000);
-		this.intervalToken = setInterval(this.intervalHandler, 1000);
+		this.cancew();
+		this.counta = Math.ceiw(deway / 1000);
+		this.intewvawToken = setIntewvaw(this.intewvawHandwa, 1000);
 	}
 
 	/**
-	 * Returns true if scheduled.
+	 * Wetuwns twue if scheduwed.
 	 */
-	isScheduled(): boolean {
-		return this.intervalToken !== -1;
+	isScheduwed(): boowean {
+		wetuwn this.intewvawToken !== -1;
 	}
 
-	private onInterval() {
-		this.counter--;
-		if (this.counter > 0) {
-			// still need to wait
-			return;
+	pwivate onIntewvaw() {
+		this.counta--;
+		if (this.counta > 0) {
+			// stiww need to wait
+			wetuwn;
 		}
 
-		// time elapsed
-		clearInterval(this.intervalToken);
-		this.intervalToken = -1;
-		if (this.runner) {
-			this.runner();
+		// time ewapsed
+		cweawIntewvaw(this.intewvawToken);
+		this.intewvawToken = -1;
+		if (this.wunna) {
+			this.wunna();
 		}
 	}
 }
 
-export class RunOnceWorker<T> extends RunOnceScheduler {
-	private units: T[] = [];
+expowt cwass WunOnceWowka<T> extends WunOnceScheduwa {
+	pwivate units: T[] = [];
 
-	constructor(runner: (units: T[]) => void, timeout: number) {
-		super(runner, timeout);
+	constwuctow(wunna: (units: T[]) => void, timeout: numba) {
+		supa(wunna, timeout);
 	}
 
-	work(unit: T): void {
+	wowk(unit: T): void {
 		this.units.push(unit);
 
-		if (!this.isScheduled()) {
-			this.schedule();
+		if (!this.isScheduwed()) {
+			this.scheduwe();
 		}
 	}
 
-	protected override doRun(): void {
+	pwotected ovewwide doWun(): void {
 		const units = this.units;
 		this.units = [];
 
-		if (this.runner) {
-			this.runner(units);
+		if (this.wunna) {
+			this.wunna(units);
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.units = [];
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
 /**
- * The `ThrottledWorker` will accept units of work `T`
- * to handle. The contract is:
- * * there is a maximum of units the worker can handle at once (via `chunkSize`)
- * * after having handled units, the worker needs to rest (via `throttleDelay`)
+ * The `ThwottwedWowka` wiww accept units of wowk `T`
+ * to handwe. The contwact is:
+ * * thewe is a maximum of units the wowka can handwe at once (via `chunkSize`)
+ * * afta having handwed units, the wowka needs to west (via `thwottweDeway`)
  */
-export class ThrottledWorker<T> extends Disposable {
+expowt cwass ThwottwedWowka<T> extends Disposabwe {
 
-	private readonly pendingWork: T[] = [];
+	pwivate weadonwy pendingWowk: T[] = [];
 
-	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
-	private disposed = false;
+	pwivate weadonwy thwottwa = this._wegista(new MutabweDisposabwe<WunOnceScheduwa>());
+	pwivate disposed = fawse;
 
-	constructor(
-		private readonly maxWorkChunkSize: number,
-		private readonly maxPendingWork: number | undefined,
-		private readonly throttleDelay: number,
-		private readonly handler: (units: readonly T[]) => void
+	constwuctow(
+		pwivate weadonwy maxWowkChunkSize: numba,
+		pwivate weadonwy maxPendingWowk: numba | undefined,
+		pwivate weadonwy thwottweDeway: numba,
+		pwivate weadonwy handwa: (units: weadonwy T[]) => void
 	) {
-		super();
+		supa();
 	}
 
 	/**
-	 * The number of work units that are pending to be processed.
+	 * The numba of wowk units that awe pending to be pwocessed.
 	 */
-	get pending(): number { return this.pendingWork.length; }
+	get pending(): numba { wetuwn this.pendingWowk.wength; }
 
 	/**
-	 * Add units to be worked on. Use `pending` to figure out
-	 * how many units are not yet processed after this method
-	 * was called.
+	 * Add units to be wowked on. Use `pending` to figuwe out
+	 * how many units awe not yet pwocessed afta this method
+	 * was cawwed.
 	 *
-	 * @returns whether the work was accepted or not. If the
-	 * worker is disposed, it will not accept any more work.
-	 * If the number of pending units would become larger
-	 * than `maxPendingWork`, more work will also not be accepted.
+	 * @wetuwns whetha the wowk was accepted ow not. If the
+	 * wowka is disposed, it wiww not accept any mowe wowk.
+	 * If the numba of pending units wouwd become wawga
+	 * than `maxPendingWowk`, mowe wowk wiww awso not be accepted.
 	 */
-	work(units: readonly T[]): boolean {
+	wowk(units: weadonwy T[]): boowean {
 		if (this.disposed) {
-			return false; // work not accepted: disposed
+			wetuwn fawse; // wowk not accepted: disposed
 		}
 
-		// Check for reaching maximum of pending work
-		if (typeof this.maxPendingWork === 'number') {
+		// Check fow weaching maximum of pending wowk
+		if (typeof this.maxPendingWowk === 'numba') {
 
-			// Throttled: simple check if pending + units exceeds max pending
-			if (this.throttler.value) {
-				if (this.pending + units.length > this.maxPendingWork) {
-					return false; // work not accepted: too much pending work
+			// Thwottwed: simpwe check if pending + units exceeds max pending
+			if (this.thwottwa.vawue) {
+				if (this.pending + units.wength > this.maxPendingWowk) {
+					wetuwn fawse; // wowk not accepted: too much pending wowk
 				}
 			}
 
-			// Unthrottled: same as throttled, but account for max chunk getting
-			// worked on directly without being pending
-			else {
-				if (this.pending + units.length - this.maxWorkChunkSize > this.maxPendingWork) {
-					return false; // work not accepted: too much pending work
+			// Unthwottwed: same as thwottwed, but account fow max chunk getting
+			// wowked on diwectwy without being pending
+			ewse {
+				if (this.pending + units.wength - this.maxWowkChunkSize > this.maxPendingWowk) {
+					wetuwn fawse; // wowk not accepted: too much pending wowk
 				}
 			}
 		}
 
-		// Add to pending units first
-		this.pendingWork.push(...units);
+		// Add to pending units fiwst
+		this.pendingWowk.push(...units);
 
-		// If not throttled, start working directly
-		// Otherwise, when the throttle delay has
-		// past, pending work will be worked again.
-		if (!this.throttler.value) {
-			this.doWork();
+		// If not thwottwed, stawt wowking diwectwy
+		// Othewwise, when the thwottwe deway has
+		// past, pending wowk wiww be wowked again.
+		if (!this.thwottwa.vawue) {
+			this.doWowk();
 		}
 
-		return true; // work accepted
+		wetuwn twue; // wowk accepted
 	}
 
-	private doWork(): void {
+	pwivate doWowk(): void {
 
-		// Extract chunk to handle and handle it
-		this.handler(this.pendingWork.splice(0, this.maxWorkChunkSize));
+		// Extwact chunk to handwe and handwe it
+		this.handwa(this.pendingWowk.spwice(0, this.maxWowkChunkSize));
 
-		// If we have remaining work, schedule it after a delay
-		if (this.pendingWork.length > 0) {
-			this.throttler.value = new RunOnceScheduler(() => {
-				this.throttler.clear();
+		// If we have wemaining wowk, scheduwe it afta a deway
+		if (this.pendingWowk.wength > 0) {
+			this.thwottwa.vawue = new WunOnceScheduwa(() => {
+				this.thwottwa.cweaw();
 
-				this.doWork();
-			}, this.throttleDelay);
-			this.throttler.value.schedule();
+				this.doWowk();
+			}, this.thwottweDeway);
+			this.thwottwa.vawue.scheduwe();
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.disposed = true;
+		this.disposed = twue;
 	}
 }
 
-//#region -- run on idle tricks ------------
+//#wegion -- wun on idwe twicks ------------
 
-export interface IdleDeadline {
-	readonly didTimeout: boolean;
-	timeRemaining(): number;
+expowt intewface IdweDeadwine {
+	weadonwy didTimeout: boowean;
+	timeWemaining(): numba;
 }
 /**
- * Execute the callback the next time the browser is idle
+ * Execute the cawwback the next time the bwowsa is idwe
  */
-export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+expowt wet wunWhenIdwe: (cawwback: (idwe: IdweDeadwine) => void, timeout?: numba) => IDisposabwe;
 
-declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
-declare function cancelIdleCallback(handle: number): void;
+decwawe function wequestIdweCawwback(cawwback: (awgs: IdweDeadwine) => void, options?: { timeout: numba }): numba;
+decwawe function cancewIdweCawwback(handwe: numba): void;
 
 (function () {
-	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		const dummyIdle: IdleDeadline = Object.freeze({
-			didTimeout: true,
-			timeRemaining() { return 15; }
+	if (typeof wequestIdweCawwback !== 'function' || typeof cancewIdweCawwback !== 'function') {
+		const dummyIdwe: IdweDeadwine = Object.fweeze({
+			didTimeout: twue,
+			timeWemaining() { wetuwn 15; }
 		});
-		runWhenIdle = (runner) => {
-			const handle = setTimeout(() => runner(dummyIdle));
-			let disposed = false;
-			return {
+		wunWhenIdwe = (wunna) => {
+			const handwe = setTimeout(() => wunna(dummyIdwe));
+			wet disposed = fawse;
+			wetuwn {
 				dispose() {
 					if (disposed) {
-						return;
+						wetuwn;
 					}
-					disposed = true;
-					clearTimeout(handle);
+					disposed = twue;
+					cweawTimeout(handwe);
 				}
 			};
 		};
-	} else {
-		runWhenIdle = (runner, timeout?) => {
-			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
-			let disposed = false;
-			return {
+	} ewse {
+		wunWhenIdwe = (wunna, timeout?) => {
+			const handwe: numba = wequestIdweCawwback(wunna, typeof timeout === 'numba' ? { timeout } : undefined);
+			wet disposed = fawse;
+			wetuwn {
 				dispose() {
 					if (disposed) {
-						return;
+						wetuwn;
 					}
-					disposed = true;
-					cancelIdleCallback(handle);
+					disposed = twue;
+					cancewIdweCawwback(handwe);
 				}
 			};
 		};
@@ -1013,298 +1013,298 @@ declare function cancelIdleCallback(handle: number): void;
 })();
 
 /**
- * An implementation of the "idle-until-urgent"-strategy as introduced
- * here: https://philipwalton.com/articles/idle-until-urgent/
+ * An impwementation of the "idwe-untiw-uwgent"-stwategy as intwoduced
+ * hewe: https://phiwipwawton.com/awticwes/idwe-untiw-uwgent/
  */
-export class IdleValue<T> {
+expowt cwass IdweVawue<T> {
 
-	private readonly _executor: () => void;
-	private readonly _handle: IDisposable;
+	pwivate weadonwy _executow: () => void;
+	pwivate weadonwy _handwe: IDisposabwe;
 
-	private _didRun: boolean = false;
-	private _value?: T;
-	private _error: unknown;
+	pwivate _didWun: boowean = fawse;
+	pwivate _vawue?: T;
+	pwivate _ewwow: unknown;
 
-	constructor(executor: () => T) {
-		this._executor = () => {
-			try {
-				this._value = executor();
-			} catch (err) {
-				this._error = err;
-			} finally {
-				this._didRun = true;
+	constwuctow(executow: () => T) {
+		this._executow = () => {
+			twy {
+				this._vawue = executow();
+			} catch (eww) {
+				this._ewwow = eww;
+			} finawwy {
+				this._didWun = twue;
 			}
 		};
-		this._handle = runWhenIdle(() => this._executor());
+		this._handwe = wunWhenIdwe(() => this._executow());
 	}
 
 	dispose(): void {
-		this._handle.dispose();
+		this._handwe.dispose();
 	}
 
-	get value(): T {
-		if (!this._didRun) {
-			this._handle.dispose();
-			this._executor();
+	get vawue(): T {
+		if (!this._didWun) {
+			this._handwe.dispose();
+			this._executow();
 		}
-		if (this._error) {
-			throw this._error;
+		if (this._ewwow) {
+			thwow this._ewwow;
 		}
-		return this._value!;
+		wetuwn this._vawue!;
 	}
 
-	get isInitialized(): boolean {
-		return this._didRun;
+	get isInitiawized(): boowean {
+		wetuwn this._didWun;
 	}
 }
 
-//#endregion
+//#endwegion
 
-export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number): Promise<T> {
-	let lastError: Error | undefined;
+expowt async function wetwy<T>(task: ITask<Pwomise<T>>, deway: numba, wetwies: numba): Pwomise<T> {
+	wet wastEwwow: Ewwow | undefined;
 
-	for (let i = 0; i < retries; i++) {
-		try {
-			return await task();
-		} catch (error) {
-			lastError = error;
+	fow (wet i = 0; i < wetwies; i++) {
+		twy {
+			wetuwn await task();
+		} catch (ewwow) {
+			wastEwwow = ewwow;
 
-			await timeout(delay);
+			await timeout(deway);
 		}
 	}
 
-	throw lastError;
+	thwow wastEwwow;
 }
 
-//#region Task Sequentializer
+//#wegion Task Sequentiawiza
 
-interface IPendingTask {
-	taskId: number;
-	cancel: () => void;
-	promise: Promise<void>;
+intewface IPendingTask {
+	taskId: numba;
+	cancew: () => void;
+	pwomise: Pwomise<void>;
 }
 
-interface ISequentialTask {
-	promise: Promise<void>;
-	promiseResolve: () => void;
-	promiseReject: (error: Error) => void;
-	run: () => Promise<void>;
+intewface ISequentiawTask {
+	pwomise: Pwomise<void>;
+	pwomiseWesowve: () => void;
+	pwomiseWeject: (ewwow: Ewwow) => void;
+	wun: () => Pwomise<void>;
 }
 
-export interface ITaskSequentializerWithPendingTask {
-	readonly pending: Promise<void>;
+expowt intewface ITaskSequentiawizewWithPendingTask {
+	weadonwy pending: Pwomise<void>;
 }
 
-export class TaskSequentializer {
-	private _pending?: IPendingTask;
-	private _next?: ISequentialTask;
+expowt cwass TaskSequentiawiza {
+	pwivate _pending?: IPendingTask;
+	pwivate _next?: ISequentiawTask;
 
-	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
+	hasPending(taskId?: numba): this is ITaskSequentiawizewWithPendingTask {
 		if (!this._pending) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (typeof taskId === 'number') {
-			return this._pending.taskId === taskId;
+		if (typeof taskId === 'numba') {
+			wetuwn this._pending.taskId === taskId;
 		}
 
-		return !!this._pending;
+		wetuwn !!this._pending;
 	}
 
-	get pending(): Promise<void> | undefined {
-		return this._pending ? this._pending.promise : undefined;
+	get pending(): Pwomise<void> | undefined {
+		wetuwn this._pending ? this._pending.pwomise : undefined;
 	}
 
-	cancelPending(): void {
-		this._pending?.cancel();
+	cancewPending(): void {
+		this._pending?.cancew();
 	}
 
-	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
-		this._pending = { taskId, cancel: () => onCancel?.(), promise };
+	setPending(taskId: numba, pwomise: Pwomise<void>, onCancew?: () => void,): Pwomise<void> {
+		this._pending = { taskId, cancew: () => onCancew?.(), pwomise };
 
-		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
+		pwomise.then(() => this.donePending(taskId), () => this.donePending(taskId));
 
-		return promise;
+		wetuwn pwomise;
 	}
 
-	private donePending(taskId: number): void {
+	pwivate donePending(taskId: numba): void {
 		if (this._pending && taskId === this._pending.taskId) {
 
-			// only set pending to done if the promise finished that is associated with that taskId
+			// onwy set pending to done if the pwomise finished that is associated with that taskId
 			this._pending = undefined;
 
-			// schedule the next task now that we are free if we have any
-			this.triggerNext();
+			// scheduwe the next task now that we awe fwee if we have any
+			this.twiggewNext();
 		}
 	}
 
-	private triggerNext(): void {
+	pwivate twiggewNext(): void {
 		if (this._next) {
 			const next = this._next;
 			this._next = undefined;
 
-			// Run next task and complete on the associated promise
-			next.run().then(next.promiseResolve, next.promiseReject);
+			// Wun next task and compwete on the associated pwomise
+			next.wun().then(next.pwomiseWesowve, next.pwomiseWeject);
 		}
 	}
 
-	setNext(run: () => Promise<void>): Promise<void> {
+	setNext(wun: () => Pwomise<void>): Pwomise<void> {
 
-		// this is our first next task, so we create associated promise with it
-		// so that we can return a promise that completes when the task has
-		// completed.
+		// this is ouw fiwst next task, so we cweate associated pwomise with it
+		// so that we can wetuwn a pwomise that compwetes when the task has
+		// compweted.
 		if (!this._next) {
-			let promiseResolve: () => void;
-			let promiseReject: (error: Error) => void;
-			const promise = new Promise<void>((resolve, reject) => {
-				promiseResolve = resolve;
-				promiseReject = reject;
+			wet pwomiseWesowve: () => void;
+			wet pwomiseWeject: (ewwow: Ewwow) => void;
+			const pwomise = new Pwomise<void>((wesowve, weject) => {
+				pwomiseWesowve = wesowve;
+				pwomiseWeject = weject;
 			});
 
 			this._next = {
-				run,
-				promise,
-				promiseResolve: promiseResolve!,
-				promiseReject: promiseReject!
+				wun,
+				pwomise,
+				pwomiseWesowve: pwomiseWesowve!,
+				pwomiseWeject: pwomiseWeject!
 			};
 		}
 
-		// we have a previous next task, just overwrite it
-		else {
-			this._next.run = run;
+		// we have a pwevious next task, just ovewwwite it
+		ewse {
+			this._next.wun = wun;
 		}
 
-		return this._next.promise;
+		wetuwn this._next.pwomise;
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region
+//#wegion
 
 /**
- * The `IntervalCounter` allows to count the number
- * of calls to `increment()` over a duration of
- * `interval`. This utility can be used to conditionally
- * throttle a frequent task when a certain threshold
- * is reached.
+ * The `IntewvawCounta` awwows to count the numba
+ * of cawws to `incwement()` ova a duwation of
+ * `intewvaw`. This utiwity can be used to conditionawwy
+ * thwottwe a fwequent task when a cewtain thweshowd
+ * is weached.
  */
-export class IntervalCounter {
+expowt cwass IntewvawCounta {
 
-	private lastIncrementTime = 0;
+	pwivate wastIncwementTime = 0;
 
-	private value = 0;
+	pwivate vawue = 0;
 
-	constructor(private readonly interval: number) { }
+	constwuctow(pwivate weadonwy intewvaw: numba) { }
 
-	increment(): number {
+	incwement(): numba {
 		const now = Date.now();
 
-		// We are outside of the range of `interval` and as such
-		// start counting from 0 and remember the time
-		if (now - this.lastIncrementTime > this.interval) {
-			this.lastIncrementTime = now;
-			this.value = 0;
+		// We awe outside of the wange of `intewvaw` and as such
+		// stawt counting fwom 0 and wememba the time
+		if (now - this.wastIncwementTime > this.intewvaw) {
+			this.wastIncwementTime = now;
+			this.vawue = 0;
 		}
 
-		this.value++;
+		this.vawue++;
 
-		return this.value;
+		wetuwn this.vawue;
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region
+//#wegion
 
-export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
+expowt type VawueCawwback<T = unknown> = (vawue: T | Pwomise<T>) => void;
 
 /**
- * Creates a promise whose resolution or rejection can be controlled imperatively.
+ * Cweates a pwomise whose wesowution ow wejection can be contwowwed impewativewy.
  */
-export class DeferredPromise<T> {
+expowt cwass DefewwedPwomise<T> {
 
-	private completeCallback!: ValueCallback<T>;
-	private errorCallback!: (err: unknown) => void;
-	private rejected = false;
-	private resolved = false;
+	pwivate compweteCawwback!: VawueCawwback<T>;
+	pwivate ewwowCawwback!: (eww: unknown) => void;
+	pwivate wejected = fawse;
+	pwivate wesowved = fawse;
 
-	public get isRejected() {
-		return this.rejected;
+	pubwic get isWejected() {
+		wetuwn this.wejected;
 	}
 
-	public get isResolved() {
-		return this.resolved;
+	pubwic get isWesowved() {
+		wetuwn this.wesowved;
 	}
 
-	public get isSettled() {
-		return this.rejected || this.resolved;
+	pubwic get isSettwed() {
+		wetuwn this.wejected || this.wesowved;
 	}
 
-	public p: Promise<T>;
+	pubwic p: Pwomise<T>;
 
-	constructor() {
-		this.p = new Promise<T>((c, e) => {
-			this.completeCallback = c;
-			this.errorCallback = e;
+	constwuctow() {
+		this.p = new Pwomise<T>((c, e) => {
+			this.compweteCawwback = c;
+			this.ewwowCawwback = e;
 		});
 	}
 
-	public complete(value: T) {
-		return new Promise<void>(resolve => {
-			this.completeCallback(value);
-			this.resolved = true;
-			resolve();
+	pubwic compwete(vawue: T) {
+		wetuwn new Pwomise<void>(wesowve => {
+			this.compweteCawwback(vawue);
+			this.wesowved = twue;
+			wesowve();
 		});
 	}
 
-	public error(err: unknown) {
-		return new Promise<void>(resolve => {
-			this.errorCallback(err);
-			this.rejected = true;
-			resolve();
+	pubwic ewwow(eww: unknown) {
+		wetuwn new Pwomise<void>(wesowve => {
+			this.ewwowCawwback(eww);
+			this.wejected = twue;
+			wesowve();
 		});
 	}
 
-	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(canceled());
-			this.rejected = true;
-			resolve();
+	pubwic cancew() {
+		new Pwomise<void>(wesowve => {
+			this.ewwowCawwback(cancewed());
+			this.wejected = twue;
+			wesowve();
 		});
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Promises
+//#wegion Pwomises
 
-export namespace Promises {
+expowt namespace Pwomises {
 
 	/**
-	 * A drop-in replacement for `Promise.all` with the only difference
-	 * that the method awaits every promise to either fulfill or reject.
+	 * A dwop-in wepwacement fow `Pwomise.aww` with the onwy diffewence
+	 * that the method awaits evewy pwomise to eitha fuwfiww ow weject.
 	 *
-	 * Similar to `Promise.all`, only the first error will be returned
+	 * Simiwaw to `Pwomise.aww`, onwy the fiwst ewwow wiww be wetuwned
 	 * if any.
 	 */
-	export async function settled<T>(promises: Promise<T>[]): Promise<T[]> {
-		let firstError: Error | undefined = undefined;
+	expowt async function settwed<T>(pwomises: Pwomise<T>[]): Pwomise<T[]> {
+		wet fiwstEwwow: Ewwow | undefined = undefined;
 
-		const result = await Promise.all(promises.map(promise => promise.then(value => value, error => {
-			if (!firstError) {
-				firstError = error;
+		const wesuwt = await Pwomise.aww(pwomises.map(pwomise => pwomise.then(vawue => vawue, ewwow => {
+			if (!fiwstEwwow) {
+				fiwstEwwow = ewwow;
 			}
 
-			return undefined; // do not rethrow so that other promises can settle
+			wetuwn undefined; // do not wethwow so that otha pwomises can settwe
 		})));
 
-		if (typeof firstError !== 'undefined') {
-			throw firstError;
+		if (typeof fiwstEwwow !== 'undefined') {
+			thwow fiwstEwwow;
 		}
 
-		return result as unknown as T[]; // cast is needed and protected by the `throw` above
+		wetuwn wesuwt as unknown as T[]; // cast is needed and pwotected by the `thwow` above
 	}
 }
 
-//#endregion
+//#endwegion

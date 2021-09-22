@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData as NotebookData, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
+impowt { INotebookCewwStatusBawItemPwovida, INotebookContwibutionData, NotebookData as NotebookData, TwansientCewwMetadata, TwansientDocumentMetadata, TwansientOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookContentPwovida, INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThweadNotebookShape, NotebookExtensionDescwiption } fwom '../common/extHost.pwotocow';
 
-@extHostNamedCustomer(MainContext.MainThreadNotebook)
-export class MainThreadNotebooks implements MainThreadNotebookShape {
+@extHostNamedCustoma(MainContext.MainThweadNotebook)
+expowt cwass MainThweadNotebooks impwements MainThweadNotebookShape {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _notebookProviders = new Map<string, { controller: INotebookContentProvider, disposable: IDisposable }>();
-	private readonly _notebookSerializer = new Map<number, IDisposable>();
-	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
+	pwivate weadonwy _pwoxy: ExtHostNotebookShape;
+	pwivate weadonwy _notebookPwovidews = new Map<stwing, { contwowwa: INotebookContentPwovida, disposabwe: IDisposabwe }>();
+	pwivate weadonwy _notebookSewiawiza = new Map<numba, IDisposabwe>();
+	pwivate weadonwy _notebookCewwStatusBawWegistwations = new Map<numba, IDisposabwe>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@INotebookCewwStatusBawSewvice pwivate weadonwy _cewwStatusBawSewvice: INotebookCewwStatusBawSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostNotebook);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		// remove all notebook providers
-		for (const item of this._notebookProviders.values()) {
-			item.disposable.dispose();
+		this._disposabwes.dispose();
+		// wemove aww notebook pwovidews
+		fow (const item of this._notebookPwovidews.vawues()) {
+			item.disposabwe.dispose();
 		}
-		dispose(this._notebookSerializer.values());
+		dispose(this._notebookSewiawiza.vawues());
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): Promise<void> {
-		let contentOptions = { ...options };
+	async $wegistewNotebookPwovida(extension: NotebookExtensionDescwiption, viewType: stwing, options: TwansientOptions, data: INotebookContwibutionData | undefined): Pwomise<void> {
+		wet contentOptions = { ...options };
 
-		const controller: INotebookContentProvider = {
+		const contwowwa: INotebookContentPwovida = {
 			get options() {
-				return contentOptions;
+				wetuwn contentOptions;
 			},
 			set options(newOptions) {
-				contentOptions.transientCellMetadata = newOptions.transientCellMetadata;
-				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
-				contentOptions.transientOutputs = newOptions.transientOutputs;
+				contentOptions.twansientCewwMetadata = newOptions.twansientCewwMetadata;
+				contentOptions.twansientDocumentMetadata = newOptions.twansientDocumentMetadata;
+				contentOptions.twansientOutputs = newOptions.twansientOutputs;
 			},
-			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData, token);
-				return {
-					data: NotebookDto.fromNotebookDataDto(data.value),
-					transientOptions: contentOptions
+			open: async (uwi: UWI, backupId: stwing | undefined, untitwedDocumentData: VSBuffa | undefined, token: CancewwationToken) => {
+				const data = await this._pwoxy.$openNotebook(viewType, uwi, backupId, untitwedDocumentData, token);
+				wetuwn {
+					data: NotebookDto.fwomNotebookDataDto(data.vawue),
+					twansientOptions: contentOptions
 				};
 			},
-			save: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebook(viewType, uri, token);
+			save: async (uwi: UWI, token: CancewwationToken) => {
+				wetuwn this._pwoxy.$saveNotebook(viewType, uwi, token);
 			},
-			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebookAs(viewType, uri, target, token);
+			saveAs: async (uwi: UWI, tawget: UWI, token: CancewwationToken) => {
+				wetuwn this._pwoxy.$saveNotebookAs(viewType, uwi, tawget, token);
 			},
-			backup: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$backupNotebook(viewType, uri, token);
+			backup: async (uwi: UWI, token: CancewwationToken) => {
+				wetuwn this._pwoxy.$backupNotebook(viewType, uwi, token);
 			}
 		};
 
-		const disposable = new DisposableStore();
-		disposable.add(this._notebookService.registerNotebookController(viewType, extension, controller));
+		const disposabwe = new DisposabweStowe();
+		disposabwe.add(this._notebookSewvice.wegistewNotebookContwowwa(viewType, extension, contwowwa));
 		if (data) {
-			disposable.add(this._notebookService.registerContributedNotebookType(viewType, data));
+			disposabwe.add(this._notebookSewvice.wegistewContwibutedNotebookType(viewType, data));
 		}
-		this._notebookProviders.set(viewType, { controller, disposable });
+		this._notebookPwovidews.set(viewType, { contwowwa, disposabwe });
 	}
 
-	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
+	async $updateNotebookPwovidewOptions(viewType: stwing, options?: { twansientOutputs: boowean; twansientCewwMetadata: TwansientCewwMetadata; twansientDocumentMetadata: TwansientDocumentMetadata; }): Pwomise<void> {
+		const pwovida = this._notebookPwovidews.get(viewType);
 
-		if (provider && options) {
-			provider.controller.options = options;
-			this._notebookService.listNotebookDocuments().forEach(document => {
+		if (pwovida && options) {
+			pwovida.contwowwa.options = options;
+			this._notebookSewvice.wistNotebookDocuments().fowEach(document => {
 				if (document.viewType === viewType) {
-					document.transientOptions = provider.controller.options;
+					document.twansientOptions = pwovida.contwowwa.options;
 				}
 			});
 		}
 	}
 
-	async $unregisterNotebookProvider(viewType: string): Promise<void> {
-		const entry = this._notebookProviders.get(viewType);
-		if (entry) {
-			entry.disposable.dispose();
-			this._notebookProviders.delete(viewType);
+	async $unwegistewNotebookPwovida(viewType: stwing): Pwomise<void> {
+		const entwy = this._notebookPwovidews.get(viewType);
+		if (entwy) {
+			entwy.disposabwe.dispose();
+			this._notebookPwovidews.dewete(viewType);
 		}
 	}
 
 
-	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, data: INotebookContributionData | undefined): void {
-		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
+	$wegistewNotebookSewiawiza(handwe: numba, extension: NotebookExtensionDescwiption, viewType: stwing, options: TwansientOptions, data: INotebookContwibutionData | undefined): void {
+		const wegistwation = this._notebookSewvice.wegistewNotebookSewiawiza(viewType, extension, {
 			options,
-			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				return NotebookDto.fromNotebookDataDto(dto.value);
+			dataToNotebook: async (data: VSBuffa): Pwomise<NotebookData> => {
+				const dto = await this._pwoxy.$dataToNotebook(handwe, data, CancewwationToken.None);
+				wetuwn NotebookDto.fwomNotebookDataDto(dto.vawue);
 			},
-			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+			notebookToData: (data: NotebookData): Pwomise<VSBuffa> => {
+				wetuwn this._pwoxy.$notebookToData(handwe, new SewiawizabweObjectWithBuffews(NotebookDto.toNotebookDataDto(data)), CancewwationToken.None);
 			}
 		});
-		const disposables = new DisposableStore();
-		disposables.add(registration);
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(wegistwation);
 		if (data) {
-			disposables.add(this._notebookService.registerContributedNotebookType(viewType, data));
+			disposabwes.add(this._notebookSewvice.wegistewContwibutedNotebookType(viewType, data));
 		}
-		this._notebookSerializer.set(handle, disposables);
+		this._notebookSewiawiza.set(handwe, disposabwes);
 	}
 
-	$unregisterNotebookSerializer(handle: number): void {
-		this._notebookSerializer.get(handle)?.dispose();
-		this._notebookSerializer.delete(handle);
+	$unwegistewNotebookSewiawiza(handwe: numba): void {
+		this._notebookSewiawiza.get(handwe)?.dispose();
+		this._notebookSewiawiza.dewete(handwe);
 	}
 
-	$emitCellStatusBarEvent(eventHandle: number): void {
-		const emitter = this._notebookCellStatusBarRegistrations.get(eventHandle);
-		if (emitter instanceof Emitter) {
-			emitter.fire(undefined);
+	$emitCewwStatusBawEvent(eventHandwe: numba): void {
+		const emitta = this._notebookCewwStatusBawWegistwations.get(eventHandwe);
+		if (emitta instanceof Emitta) {
+			emitta.fiwe(undefined);
 		}
 	}
 
-	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void> {
+	async $wegistewNotebookCewwStatusBawItemPwovida(handwe: numba, eventHandwe: numba | undefined, viewType: stwing): Pwomise<void> {
 		const that = this;
-		const provider: INotebookCellStatusBarItemProvider = {
-			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
-				const result = await that._proxy.$provideNotebookCellStatusBarItems(handle, uri, index, token);
-				return {
-					items: result?.items ?? [],
+		const pwovida: INotebookCewwStatusBawItemPwovida = {
+			async pwovideCewwStatusBawItems(uwi: UWI, index: numba, token: CancewwationToken) {
+				const wesuwt = await that._pwoxy.$pwovideNotebookCewwStatusBawItems(handwe, uwi, index, token);
+				wetuwn {
+					items: wesuwt?.items ?? [],
 					dispose() {
-						if (result) {
-							that._proxy.$releaseNotebookCellStatusBarItems(result.cacheId);
+						if (wesuwt) {
+							that._pwoxy.$weweaseNotebookCewwStatusBawItems(wesuwt.cacheId);
 						}
 					}
 				};
@@ -151,27 +151,27 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			viewType
 		};
 
-		if (typeof eventHandle === 'number') {
-			const emitter = new Emitter<void>();
-			this._notebookCellStatusBarRegistrations.set(eventHandle, emitter);
-			provider.onDidChangeStatusBarItems = emitter.event;
+		if (typeof eventHandwe === 'numba') {
+			const emitta = new Emitta<void>();
+			this._notebookCewwStatusBawWegistwations.set(eventHandwe, emitta);
+			pwovida.onDidChangeStatusBawItems = emitta.event;
 		}
 
-		const disposable = this._cellStatusBarService.registerCellStatusBarItemProvider(provider);
-		this._notebookCellStatusBarRegistrations.set(handle, disposable);
+		const disposabwe = this._cewwStatusBawSewvice.wegistewCewwStatusBawItemPwovida(pwovida);
+		this._notebookCewwStatusBawWegistwations.set(handwe, disposabwe);
 	}
 
-	async $unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void> {
-		const unregisterThing = (handle: number) => {
-			const entry = this._notebookCellStatusBarRegistrations.get(handle);
-			if (entry) {
-				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
-				this._notebookCellStatusBarRegistrations.delete(handle);
+	async $unwegistewNotebookCewwStatusBawItemPwovida(handwe: numba, eventHandwe: numba | undefined): Pwomise<void> {
+		const unwegistewThing = (handwe: numba) => {
+			const entwy = this._notebookCewwStatusBawWegistwations.get(handwe);
+			if (entwy) {
+				this._notebookCewwStatusBawWegistwations.get(handwe)?.dispose();
+				this._notebookCewwStatusBawWegistwations.dewete(handwe);
 			}
 		};
-		unregisterThing(handle);
-		if (typeof eventHandle === 'number') {
-			unregisterThing(eventHandle);
+		unwegistewThing(handwe);
+		if (typeof eventHandwe === 'numba') {
+			unwegistewThing(eventHandwe);
 		}
 	}
 }

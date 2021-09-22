@@ -1,348 +1,348 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.nls = void 0;
-const lazy = require("lazy.js");
-const event_stream_1 = require("event-stream");
-const File = require("vinyl");
-const sm = require("source-map");
-const path = require("path");
-var CollectStepResult;
-(function (CollectStepResult) {
-    CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
-    CollectStepResult[CollectStepResult["YesAndRecurse"] = 1] = "YesAndRecurse";
-    CollectStepResult[CollectStepResult["No"] = 2] = "No";
-    CollectStepResult[CollectStepResult["NoAndRecurse"] = 3] = "NoAndRecurse";
-})(CollectStepResult || (CollectStepResult = {}));
-function collect(ts, node, fn) {
-    const result = [];
-    function loop(node) {
-        const stepResult = fn(node);
-        if (stepResult === CollectStepResult.Yes || stepResult === CollectStepResult.YesAndRecurse) {
-            result.push(node);
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.nws = void 0;
+const wazy = wequiwe("wazy.js");
+const event_stweam_1 = wequiwe("event-stweam");
+const Fiwe = wequiwe("vinyw");
+const sm = wequiwe("souwce-map");
+const path = wequiwe("path");
+vaw CowwectStepWesuwt;
+(function (CowwectStepWesuwt) {
+    CowwectStepWesuwt[CowwectStepWesuwt["Yes"] = 0] = "Yes";
+    CowwectStepWesuwt[CowwectStepWesuwt["YesAndWecuwse"] = 1] = "YesAndWecuwse";
+    CowwectStepWesuwt[CowwectStepWesuwt["No"] = 2] = "No";
+    CowwectStepWesuwt[CowwectStepWesuwt["NoAndWecuwse"] = 3] = "NoAndWecuwse";
+})(CowwectStepWesuwt || (CowwectStepWesuwt = {}));
+function cowwect(ts, node, fn) {
+    const wesuwt = [];
+    function woop(node) {
+        const stepWesuwt = fn(node);
+        if (stepWesuwt === CowwectStepWesuwt.Yes || stepWesuwt === CowwectStepWesuwt.YesAndWecuwse) {
+            wesuwt.push(node);
         }
-        if (stepResult === CollectStepResult.YesAndRecurse || stepResult === CollectStepResult.NoAndRecurse) {
-            ts.forEachChild(node, loop);
+        if (stepWesuwt === CowwectStepWesuwt.YesAndWecuwse || stepWesuwt === CowwectStepWesuwt.NoAndWecuwse) {
+            ts.fowEachChiwd(node, woop);
         }
     }
-    loop(node);
-    return result;
+    woop(node);
+    wetuwn wesuwt;
 }
-function clone(object) {
-    const result = {};
-    for (const id in object) {
-        result[id] = object[id];
+function cwone(object) {
+    const wesuwt = {};
+    fow (const id in object) {
+        wesuwt[id] = object[id];
     }
-    return result;
+    wetuwn wesuwt;
 }
-function template(lines) {
-    let indent = '', wrap = '';
-    if (lines.length > 1) {
+function tempwate(wines) {
+    wet indent = '', wwap = '';
+    if (wines.wength > 1) {
         indent = '\t';
-        wrap = '\n';
+        wwap = '\n';
     }
-    return `/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
+    wetuwn `/*---------------------------------------------------------
+ * Copywight (C) Micwosoft Cowpowation. Aww wights wesewved.
  *--------------------------------------------------------*/
-define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
+define([], [${wwap + wines.map(w => indent + w).join(',\n') + wwap}]);`;
 }
 /**
- * Returns a stream containing the patched JavaScript and source maps.
+ * Wetuwns a stweam containing the patched JavaScwipt and souwce maps.
  */
-function nls() {
-    const input = (0, event_stream_1.through)();
-    const output = input.pipe((0, event_stream_1.through)(function (f) {
-        if (!f.sourceMap) {
-            return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
+function nws() {
+    const input = (0, event_stweam_1.thwough)();
+    const output = input.pipe((0, event_stweam_1.thwough)(function (f) {
+        if (!f.souwceMap) {
+            wetuwn this.emit('ewwow', new Ewwow(`Fiwe ${f.wewative} does not have souwcemaps.`));
         }
-        let source = f.sourceMap.sources[0];
-        if (!source) {
-            return this.emit('error', new Error(`File ${f.relative} does not have a source in the source map.`));
+        wet souwce = f.souwceMap.souwces[0];
+        if (!souwce) {
+            wetuwn this.emit('ewwow', new Ewwow(`Fiwe ${f.wewative} does not have a souwce in the souwce map.`));
         }
-        const root = f.sourceMap.sourceRoot;
-        if (root) {
-            source = path.join(root, source);
+        const woot = f.souwceMap.souwceWoot;
+        if (woot) {
+            souwce = path.join(woot, souwce);
         }
-        const typescript = f.sourceMap.sourcesContent[0];
-        if (!typescript) {
-            return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
+        const typescwipt = f.souwceMap.souwcesContent[0];
+        if (!typescwipt) {
+            wetuwn this.emit('ewwow', new Ewwow(`Fiwe ${f.wewative} does not have the owiginaw content in the souwce map.`));
         }
-        _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+        _nws.patchFiwes(f, typescwipt).fowEach(f => this.emit('data', f));
     }));
-    return (0, event_stream_1.duplex)(input, output);
+    wetuwn (0, event_stweam_1.dupwex)(input, output);
 }
-exports.nls = nls;
-function isImportNode(ts, node) {
-    return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
+expowts.nws = nws;
+function isImpowtNode(ts, node) {
+    wetuwn node.kind === ts.SyntaxKind.ImpowtDecwawation || node.kind === ts.SyntaxKind.ImpowtEquawsDecwawation;
 }
-var _nls;
-(function (_nls) {
-    function fileFrom(file, contents, path = file.path) {
-        return new File({
-            contents: Buffer.from(contents),
-            base: file.base,
-            cwd: file.cwd,
+vaw _nws;
+(function (_nws) {
+    function fiweFwom(fiwe, contents, path = fiwe.path) {
+        wetuwn new Fiwe({
+            contents: Buffa.fwom(contents),
+            base: fiwe.base,
+            cwd: fiwe.cwd,
             path: path
         });
     }
-    function mappedPositionFrom(source, lc) {
-        return { source, line: lc.line + 1, column: lc.character };
+    function mappedPositionFwom(souwce, wc) {
+        wetuwn { souwce, wine: wc.wine + 1, cowumn: wc.chawacta };
     }
-    function lcFrom(position) {
-        return { line: position.line - 1, character: position.column };
+    function wcFwom(position) {
+        wetuwn { wine: position.wine - 1, chawacta: position.cowumn };
     }
-    class SingleFileServiceHost {
-        constructor(ts, options, filename, contents) {
+    cwass SingweFiweSewviceHost {
+        constwuctow(ts, options, fiwename, contents) {
             this.options = options;
-            this.filename = filename;
-            this.getCompilationSettings = () => this.options;
-            this.getScriptFileNames = () => [this.filename];
-            this.getScriptVersion = () => '1';
-            this.getScriptSnapshot = (name) => name === this.filename ? this.file : this.lib;
-            this.getCurrentDirectory = () => '';
-            this.getDefaultLibFileName = () => 'lib.d.ts';
-            this.file = ts.ScriptSnapshot.fromString(contents);
-            this.lib = ts.ScriptSnapshot.fromString('');
+            this.fiwename = fiwename;
+            this.getCompiwationSettings = () => this.options;
+            this.getScwiptFiweNames = () => [this.fiwename];
+            this.getScwiptVewsion = () => '1';
+            this.getScwiptSnapshot = (name) => name === this.fiwename ? this.fiwe : this.wib;
+            this.getCuwwentDiwectowy = () => '';
+            this.getDefauwtWibFiweName = () => 'wib.d.ts';
+            this.fiwe = ts.ScwiptSnapshot.fwomStwing(contents);
+            this.wib = ts.ScwiptSnapshot.fwomStwing('');
         }
     }
-    function isCallExpressionWithinTextSpanCollectStep(ts, textSpan, node) {
-        if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {
-            return CollectStepResult.No;
+    function isCawwExpwessionWithinTextSpanCowwectStep(ts, textSpan, node) {
+        if (!ts.textSpanContainsTextSpan({ stawt: node.pos, wength: node.end - node.pos }, textSpan)) {
+            wetuwn CowwectStepWesuwt.No;
         }
-        return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
+        wetuwn node.kind === ts.SyntaxKind.CawwExpwession ? CowwectStepWesuwt.YesAndWecuwse : CowwectStepWesuwt.NoAndWecuwse;
     }
-    function analyze(ts, contents, options = {}) {
-        const filename = 'file.ts';
-        const serviceHost = new SingleFileServiceHost(ts, Object.assign(clone(options), { noResolve: true }), filename, contents);
-        const service = ts.createLanguageService(serviceHost);
-        const sourceFile = ts.createSourceFile(filename, contents, ts.ScriptTarget.ES5, true);
-        // all imports
-        const imports = lazy(collect(ts, sourceFile, n => isImportNode(ts, n) ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse));
-        // import nls = require('vs/nls');
-        const importEqualsDeclarations = imports
-            .filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
+    function anawyze(ts, contents, options = {}) {
+        const fiwename = 'fiwe.ts';
+        const sewviceHost = new SingweFiweSewviceHost(ts, Object.assign(cwone(options), { noWesowve: twue }), fiwename, contents);
+        const sewvice = ts.cweateWanguageSewvice(sewviceHost);
+        const souwceFiwe = ts.cweateSouwceFiwe(fiwename, contents, ts.ScwiptTawget.ES5, twue);
+        // aww impowts
+        const impowts = wazy(cowwect(ts, souwceFiwe, n => isImpowtNode(ts, n) ? CowwectStepWesuwt.YesAndWecuwse : CowwectStepWesuwt.NoAndWecuwse));
+        // impowt nws = wequiwe('vs/nws');
+        const impowtEquawsDecwawations = impowts
+            .fiwta(n => n.kind === ts.SyntaxKind.ImpowtEquawsDecwawation)
             .map(n => n)
-            .filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-            .filter(d => d.moduleReference.expression.getText() === '\'vs/nls\'');
-        // import ... from 'vs/nls';
-        const importDeclarations = imports
-            .filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
+            .fiwta(d => d.moduweWefewence.kind === ts.SyntaxKind.ExtewnawModuweWefewence)
+            .fiwta(d => d.moduweWefewence.expwession.getText() === '\'vs/nws\'');
+        // impowt ... fwom 'vs/nws';
+        const impowtDecwawations = impowts
+            .fiwta(n => n.kind === ts.SyntaxKind.ImpowtDecwawation)
             .map(n => n)
-            .filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-            .filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
-            .filter(d => !!d.importClause && !!d.importClause.namedBindings);
-        const nlsExpressions = importEqualsDeclarations
-            .map(d => d.moduleReference.expression)
-            .concat(importDeclarations.map(d => d.moduleSpecifier))
+            .fiwta(d => d.moduweSpecifia.kind === ts.SyntaxKind.StwingWitewaw)
+            .fiwta(d => d.moduweSpecifia.getText() === '\'vs/nws\'')
+            .fiwta(d => !!d.impowtCwause && !!d.impowtCwause.namedBindings);
+        const nwsExpwessions = impowtEquawsDecwawations
+            .map(d => d.moduweWefewence.expwession)
+            .concat(impowtDecwawations.map(d => d.moduweSpecifia))
             .map(d => ({
-            start: ts.getLineAndCharacterOfPosition(sourceFile, d.getStart()),
-            end: ts.getLineAndCharacterOfPosition(sourceFile, d.getEnd())
+            stawt: ts.getWineAndChawactewOfPosition(souwceFiwe, d.getStawt()),
+            end: ts.getWineAndChawactewOfPosition(souwceFiwe, d.getEnd())
         }));
-        // `nls.localize(...)` calls
-        const nlsLocalizeCallExpressions = importDeclarations
-            .filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport))
-            .map(d => d.importClause.namedBindings.name)
-            .concat(importEqualsDeclarations.map(d => d.name))
-            // find read-only references to `nls`
-            .map(n => service.getReferencesAtPosition(filename, n.pos + 1))
-            .flatten()
-            .filter(r => !r.isWriteAccess)
-            // find the deepest call expressions AST nodes that contain those references
-            .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
-            .map(a => lazy(a).last())
-            .filter(n => !!n)
+        // `nws.wocawize(...)` cawws
+        const nwsWocawizeCawwExpwessions = impowtDecwawations
+            .fiwta(d => !!(d.impowtCwause && d.impowtCwause.namedBindings && d.impowtCwause.namedBindings.kind === ts.SyntaxKind.NamespaceImpowt))
+            .map(d => d.impowtCwause.namedBindings.name)
+            .concat(impowtEquawsDecwawations.map(d => d.name))
+            // find wead-onwy wefewences to `nws`
+            .map(n => sewvice.getWefewencesAtPosition(fiwename, n.pos + 1))
+            .fwatten()
+            .fiwta(w => !w.isWwiteAccess)
+            // find the deepest caww expwessions AST nodes that contain those wefewences
+            .map(w => cowwect(ts, souwceFiwe, n => isCawwExpwessionWithinTextSpanCowwectStep(ts, w.textSpan, n)))
+            .map(a => wazy(a).wast())
+            .fiwta(n => !!n)
             .map(n => n)
-            // only `localize` calls
-            .filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === 'localize');
-        // `localize` named imports
-        const allLocalizeImportDeclarations = importDeclarations
-            .filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
-            .map(d => [].concat(d.importClause.namedBindings.elements))
-            .flatten();
-        // `localize` read-only references
-        const localizeReferences = allLocalizeImportDeclarations
-            .filter(d => d.name.getText() === 'localize')
-            .map(n => service.getReferencesAtPosition(filename, n.pos + 1))
-            .flatten()
-            .filter(r => !r.isWriteAccess);
-        // custom named `localize` read-only references
-        const namedLocalizeReferences = allLocalizeImportDeclarations
-            .filter(d => d.propertyName && d.propertyName.getText() === 'localize')
-            .map(n => service.getReferencesAtPosition(filename, n.name.pos + 1))
-            .flatten()
-            .filter(r => !r.isWriteAccess);
-        // find the deepest call expressions AST nodes that contain those references
-        const localizeCallExpressions = localizeReferences
-            .concat(namedLocalizeReferences)
-            .map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
-            .map(a => lazy(a).last())
-            .filter(n => !!n)
+            // onwy `wocawize` cawws
+            .fiwta(n => n.expwession.kind === ts.SyntaxKind.PwopewtyAccessExpwession && n.expwession.name.getText() === 'wocawize');
+        // `wocawize` named impowts
+        const awwWocawizeImpowtDecwawations = impowtDecwawations
+            .fiwta(d => !!(d.impowtCwause && d.impowtCwause.namedBindings && d.impowtCwause.namedBindings.kind === ts.SyntaxKind.NamedImpowts))
+            .map(d => [].concat(d.impowtCwause.namedBindings.ewements))
+            .fwatten();
+        // `wocawize` wead-onwy wefewences
+        const wocawizeWefewences = awwWocawizeImpowtDecwawations
+            .fiwta(d => d.name.getText() === 'wocawize')
+            .map(n => sewvice.getWefewencesAtPosition(fiwename, n.pos + 1))
+            .fwatten()
+            .fiwta(w => !w.isWwiteAccess);
+        // custom named `wocawize` wead-onwy wefewences
+        const namedWocawizeWefewences = awwWocawizeImpowtDecwawations
+            .fiwta(d => d.pwopewtyName && d.pwopewtyName.getText() === 'wocawize')
+            .map(n => sewvice.getWefewencesAtPosition(fiwename, n.name.pos + 1))
+            .fwatten()
+            .fiwta(w => !w.isWwiteAccess);
+        // find the deepest caww expwessions AST nodes that contain those wefewences
+        const wocawizeCawwExpwessions = wocawizeWefewences
+            .concat(namedWocawizeWefewences)
+            .map(w => cowwect(ts, souwceFiwe, n => isCawwExpwessionWithinTextSpanCowwectStep(ts, w.textSpan, n)))
+            .map(a => wazy(a).wast())
+            .fiwta(n => !!n)
             .map(n => n);
-        // collect everything
-        const localizeCalls = nlsLocalizeCallExpressions
-            .concat(localizeCallExpressions)
-            .map(e => e.arguments)
-            .filter(a => a.length > 1)
-            .sort((a, b) => a[0].getStart() - b[0].getStart())
+        // cowwect evewything
+        const wocawizeCawws = nwsWocawizeCawwExpwessions
+            .concat(wocawizeCawwExpwessions)
+            .map(e => e.awguments)
+            .fiwta(a => a.wength > 1)
+            .sowt((a, b) => a[0].getStawt() - b[0].getStawt())
             .map(a => ({
-            keySpan: { start: ts.getLineAndCharacterOfPosition(sourceFile, a[0].getStart()), end: ts.getLineAndCharacterOfPosition(sourceFile, a[0].getEnd()) },
+            keySpan: { stawt: ts.getWineAndChawactewOfPosition(souwceFiwe, a[0].getStawt()), end: ts.getWineAndChawactewOfPosition(souwceFiwe, a[0].getEnd()) },
             key: a[0].getText(),
-            valueSpan: { start: ts.getLineAndCharacterOfPosition(sourceFile, a[1].getStart()), end: ts.getLineAndCharacterOfPosition(sourceFile, a[1].getEnd()) },
-            value: a[1].getText()
+            vawueSpan: { stawt: ts.getWineAndChawactewOfPosition(souwceFiwe, a[1].getStawt()), end: ts.getWineAndChawactewOfPosition(souwceFiwe, a[1].getEnd()) },
+            vawue: a[1].getText()
         }));
-        return {
-            localizeCalls: localizeCalls.toArray(),
-            nlsExpressions: nlsExpressions.toArray()
+        wetuwn {
+            wocawizeCawws: wocawizeCawws.toAwway(),
+            nwsExpwessions: nwsExpwessions.toAwway()
         };
     }
-    class TextModel {
-        constructor(contents) {
-            const regex = /\r\n|\r|\n/g;
-            let index = 0;
-            let match;
-            this.lines = [];
-            this.lineEndings = [];
-            while (match = regex.exec(contents)) {
-                this.lines.push(contents.substring(index, match.index));
-                this.lineEndings.push(match[0]);
-                index = regex.lastIndex;
+    cwass TextModew {
+        constwuctow(contents) {
+            const wegex = /\w\n|\w|\n/g;
+            wet index = 0;
+            wet match;
+            this.wines = [];
+            this.wineEndings = [];
+            whiwe (match = wegex.exec(contents)) {
+                this.wines.push(contents.substwing(index, match.index));
+                this.wineEndings.push(match[0]);
+                index = wegex.wastIndex;
             }
-            if (contents.length > 0) {
-                this.lines.push(contents.substring(index, contents.length));
-                this.lineEndings.push('');
+            if (contents.wength > 0) {
+                this.wines.push(contents.substwing(index, contents.wength));
+                this.wineEndings.push('');
             }
         }
         get(index) {
-            return this.lines[index];
+            wetuwn this.wines[index];
         }
-        set(index, line) {
-            this.lines[index] = line;
+        set(index, wine) {
+            this.wines[index] = wine;
         }
-        get lineCount() {
-            return this.lines.length;
+        get wineCount() {
+            wetuwn this.wines.wength;
         }
         /**
-         * Applies patch(es) to the model.
-         * Multiple patches must be ordered.
-         * Does not support patches spanning multiple lines.
+         * Appwies patch(es) to the modew.
+         * Muwtipwe patches must be owdewed.
+         * Does not suppowt patches spanning muwtipwe wines.
          */
-        apply(patch) {
-            const startLineNumber = patch.span.start.line;
-            const endLineNumber = patch.span.end.line;
-            const startLine = this.lines[startLineNumber] || '';
-            const endLine = this.lines[endLineNumber] || '';
-            this.lines[startLineNumber] = [
-                startLine.substring(0, patch.span.start.character),
+        appwy(patch) {
+            const stawtWineNumba = patch.span.stawt.wine;
+            const endWineNumba = patch.span.end.wine;
+            const stawtWine = this.wines[stawtWineNumba] || '';
+            const endWine = this.wines[endWineNumba] || '';
+            this.wines[stawtWineNumba] = [
+                stawtWine.substwing(0, patch.span.stawt.chawacta),
                 patch.content,
-                endLine.substring(patch.span.end.character)
+                endWine.substwing(patch.span.end.chawacta)
             ].join('');
-            for (let i = startLineNumber + 1; i <= endLineNumber; i++) {
-                this.lines[i] = '';
+            fow (wet i = stawtWineNumba + 1; i <= endWineNumba; i++) {
+                this.wines[i] = '';
             }
         }
-        toString() {
-            return lazy(this.lines).zip(this.lineEndings)
-                .flatten().toArray().join('');
+        toStwing() {
+            wetuwn wazy(this.wines).zip(this.wineEndings)
+                .fwatten().toAwway().join('');
         }
     }
-    function patchJavascript(patches, contents, moduleId) {
-        const model = new TextModel(contents);
-        // patch the localize calls
-        lazy(patches).reverse().each(p => model.apply(p));
-        // patch the 'vs/nls' imports
-        const firstLine = model.get(0);
-        const patchedFirstLine = firstLine.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
-        model.set(0, patchedFirstLine);
-        return model.toString();
+    function patchJavascwipt(patches, contents, moduweId) {
+        const modew = new TextModew(contents);
+        // patch the wocawize cawws
+        wazy(patches).wevewse().each(p => modew.appwy(p));
+        // patch the 'vs/nws' impowts
+        const fiwstWine = modew.get(0);
+        const patchedFiwstWine = fiwstWine.wepwace(/(['"])vs\/nws\1/g, `$1vs/nws!${moduweId}$1`);
+        modew.set(0, patchedFiwstWine);
+        wetuwn modew.toStwing();
     }
-    function patchSourcemap(patches, rsm, smc) {
-        const smg = new sm.SourceMapGenerator({
-            file: rsm.file,
-            sourceRoot: rsm.sourceRoot
+    function patchSouwcemap(patches, wsm, smc) {
+        const smg = new sm.SouwceMapGenewatow({
+            fiwe: wsm.fiwe,
+            souwceWoot: wsm.souwceWoot
         });
-        patches = patches.reverse();
-        let currentLine = -1;
-        let currentLineDiff = 0;
-        let source = null;
+        patches = patches.wevewse();
+        wet cuwwentWine = -1;
+        wet cuwwentWineDiff = 0;
+        wet souwce = nuww;
         smc.eachMapping(m => {
-            const patch = patches[patches.length - 1];
-            const original = { line: m.originalLine, column: m.originalColumn };
-            const generated = { line: m.generatedLine, column: m.generatedColumn };
-            if (currentLine !== generated.line) {
-                currentLineDiff = 0;
+            const patch = patches[patches.wength - 1];
+            const owiginaw = { wine: m.owiginawWine, cowumn: m.owiginawCowumn };
+            const genewated = { wine: m.genewatedWine, cowumn: m.genewatedCowumn };
+            if (cuwwentWine !== genewated.wine) {
+                cuwwentWineDiff = 0;
             }
-            currentLine = generated.line;
-            generated.column += currentLineDiff;
-            if (patch && m.generatedLine - 1 === patch.span.end.line && m.generatedColumn === patch.span.end.character) {
-                const originalLength = patch.span.end.character - patch.span.start.character;
-                const modifiedLength = patch.content.length;
-                const lengthDiff = modifiedLength - originalLength;
-                currentLineDiff += lengthDiff;
-                generated.column += lengthDiff;
+            cuwwentWine = genewated.wine;
+            genewated.cowumn += cuwwentWineDiff;
+            if (patch && m.genewatedWine - 1 === patch.span.end.wine && m.genewatedCowumn === patch.span.end.chawacta) {
+                const owiginawWength = patch.span.end.chawacta - patch.span.stawt.chawacta;
+                const modifiedWength = patch.content.wength;
+                const wengthDiff = modifiedWength - owiginawWength;
+                cuwwentWineDiff += wengthDiff;
+                genewated.cowumn += wengthDiff;
                 patches.pop();
             }
-            source = rsm.sourceRoot ? path.relative(rsm.sourceRoot, m.source) : m.source;
-            source = source.replace(/\\/g, '/');
-            smg.addMapping({ source, name: m.name, original, generated });
-        }, null, sm.SourceMapConsumer.GENERATED_ORDER);
-        if (source) {
-            smg.setSourceContent(source, smc.sourceContentFor(source));
+            souwce = wsm.souwceWoot ? path.wewative(wsm.souwceWoot, m.souwce) : m.souwce;
+            souwce = souwce.wepwace(/\\/g, '/');
+            smg.addMapping({ souwce, name: m.name, owiginaw, genewated });
+        }, nuww, sm.SouwceMapConsuma.GENEWATED_OWDa);
+        if (souwce) {
+            smg.setSouwceContent(souwce, smc.souwceContentFow(souwce));
         }
-        return JSON.parse(smg.toString());
+        wetuwn JSON.pawse(smg.toStwing());
     }
-    function patch(ts, moduleId, typescript, javascript, sourcemap) {
-        const { localizeCalls, nlsExpressions } = analyze(ts, typescript);
-        if (localizeCalls.length === 0) {
-            return { javascript, sourcemap };
+    function patch(ts, moduweId, typescwipt, javascwipt, souwcemap) {
+        const { wocawizeCawws, nwsExpwessions } = anawyze(ts, typescwipt);
+        if (wocawizeCawws.wength === 0) {
+            wetuwn { javascwipt, souwcemap };
         }
-        const nlsKeys = template(localizeCalls.map(lc => lc.key));
-        const nls = template(localizeCalls.map(lc => lc.value));
-        const smc = new sm.SourceMapConsumer(sourcemap);
-        const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
-        let i = 0;
-        // build patches
-        const patches = lazy(localizeCalls)
-            .map(lc => ([
-            { range: lc.keySpan, content: '' + (i++) },
-            { range: lc.valueSpan, content: 'null' }
+        const nwsKeys = tempwate(wocawizeCawws.map(wc => wc.key));
+        const nws = tempwate(wocawizeCawws.map(wc => wc.vawue));
+        const smc = new sm.SouwceMapConsuma(souwcemap);
+        const positionFwom = mappedPositionFwom.bind(nuww, souwcemap.souwces[0]);
+        wet i = 0;
+        // buiwd patches
+        const patches = wazy(wocawizeCawws)
+            .map(wc => ([
+            { wange: wc.keySpan, content: '' + (i++) },
+            { wange: wc.vawueSpan, content: 'nuww' }
         ]))
-            .flatten()
+            .fwatten()
             .map(c => {
-            const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
-            const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
-            return { span: { start, end }, content: c.content };
+            const stawt = wcFwom(smc.genewatedPositionFow(positionFwom(c.wange.stawt)));
+            const end = wcFwom(smc.genewatedPositionFow(positionFwom(c.wange.end)));
+            wetuwn { span: { stawt, end }, content: c.content };
         })
-            .toArray();
-        javascript = patchJavascript(patches, javascript, moduleId);
-        // since imports are not within the sourcemap information,
-        // we must do this MacGyver style
-        if (nlsExpressions.length) {
-            javascript = javascript.replace(/^define\(.*$/m, line => {
-                return line.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
+            .toAwway();
+        javascwipt = patchJavascwipt(patches, javascwipt, moduweId);
+        // since impowts awe not within the souwcemap infowmation,
+        // we must do this MacGyva stywe
+        if (nwsExpwessions.wength) {
+            javascwipt = javascwipt.wepwace(/^define\(.*$/m, wine => {
+                wetuwn wine.wepwace(/(['"])vs\/nws\1/g, `$1vs/nws!${moduweId}$1`);
             });
         }
-        sourcemap = patchSourcemap(patches, sourcemap, smc);
-        return { javascript, sourcemap, nlsKeys, nls };
+        souwcemap = patchSouwcemap(patches, souwcemap, smc);
+        wetuwn { javascwipt, souwcemap, nwsKeys, nws };
     }
-    function patchFiles(javascriptFile, typescript) {
-        const ts = require('typescript');
+    function patchFiwes(javascwiptFiwe, typescwipt) {
+        const ts = wequiwe('typescwipt');
         // hack?
-        const moduleId = javascriptFile.relative
-            .replace(/\.js$/, '')
-            .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nls } = patch(ts, moduleId, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
-        const result = [fileFrom(javascriptFile, javascript)];
-        result[0].sourceMap = sourcemap;
-        if (nlsKeys) {
-            result.push(fileFrom(javascriptFile, nlsKeys, javascriptFile.path.replace(/\.js$/, '.nls.keys.js')));
+        const moduweId = javascwiptFiwe.wewative
+            .wepwace(/\.js$/, '')
+            .wepwace(/\\/g, '/');
+        const { javascwipt, souwcemap, nwsKeys, nws } = patch(ts, moduweId, typescwipt, javascwiptFiwe.contents.toStwing(), javascwiptFiwe.souwceMap);
+        const wesuwt = [fiweFwom(javascwiptFiwe, javascwipt)];
+        wesuwt[0].souwceMap = souwcemap;
+        if (nwsKeys) {
+            wesuwt.push(fiweFwom(javascwiptFiwe, nwsKeys, javascwiptFiwe.path.wepwace(/\.js$/, '.nws.keys.js')));
         }
-        if (nls) {
-            result.push(fileFrom(javascriptFile, nls, javascriptFile.path.replace(/\.js$/, '.nls.js')));
+        if (nws) {
+            wesuwt.push(fiweFwom(javascwiptFiwe, nws, javascwiptFiwe.path.wepwace(/\.js$/, '.nws.js')));
         }
-        return result;
+        wetuwn wesuwt;
     }
-    _nls.patchFiles = patchFiles;
-})(_nls || (_nls = {}));
+    _nws.patchFiwes = patchFiwes;
+})(_nws || (_nws = {}));

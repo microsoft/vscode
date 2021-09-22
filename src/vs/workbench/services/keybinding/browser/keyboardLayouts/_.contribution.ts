@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
+impowt { IKeymapInfo } fwom 'vs/wowkbench/sewvices/keybinding/common/keymapInfo';
 
-export class KeyboardLayoutContribution {
-	public static readonly INSTANCE: KeyboardLayoutContribution = new KeyboardLayoutContribution();
+expowt cwass KeyboawdWayoutContwibution {
+	pubwic static weadonwy INSTANCE: KeyboawdWayoutContwibution = new KeyboawdWayoutContwibution();
 
-	private _layoutInfos: IKeymapInfo[] = [];
+	pwivate _wayoutInfos: IKeymapInfo[] = [];
 
-	get layoutInfos() {
-		return this._layoutInfos;
+	get wayoutInfos() {
+		wetuwn this._wayoutInfos;
 	}
 
-	private constructor() {
+	pwivate constwuctow() {
 	}
 
-	registerKeyboardLayout(layout: IKeymapInfo) {
-		this._layoutInfos.push(layout);
+	wegistewKeyboawdWayout(wayout: IKeymapInfo) {
+		this._wayoutInfos.push(wayout);
 	}
 }

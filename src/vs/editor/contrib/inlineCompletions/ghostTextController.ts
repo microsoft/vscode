@@ -1,272 +1,272 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/consts';
-import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActiveCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { inwineSuggestCommitId } fwom 'vs/editow/contwib/inwineCompwetions/consts';
+impowt { GhostTextModew } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextModew';
+impowt { GhostTextWidget } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextWidget';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export class GhostTextController extends Disposable {
-	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
-	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
+expowt cwass GhostTextContwowwa extends Disposabwe {
+	pubwic static weadonwy inwineSuggestionVisibwe = new WawContextKey<boowean>('inwineSuggestionVisibwe', fawse, nws.wocawize('inwineSuggestionVisibwe', "Whetha an inwine suggestion is visibwe"));
+	pubwic static weadonwy inwineSuggestionHasIndentation = new WawContextKey<boowean>('inwineSuggestionHasIndentation', fawse, nws.wocawize('inwineSuggestionHasIndentation', "Whetha the inwine suggestion stawts with whitespace"));
 
-	static ID = 'editor.contrib.ghostTextController';
+	static ID = 'editow.contwib.ghostTextContwowwa';
 
-	public static get(editor: ICodeEditor): GhostTextController {
-		return editor.getContribution<GhostTextController>(GhostTextController.ID);
+	pubwic static get(editow: ICodeEditow): GhostTextContwowwa {
+		wetuwn editow.getContwibution<GhostTextContwowwa>(GhostTextContwowwa.ID);
 	}
 
-	private triggeredExplicitly = false;
-	protected readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
-	public get activeModel(): GhostTextModel | undefined {
-		return this.activeController.value?.model;
+	pwivate twiggewedExpwicitwy = fawse;
+	pwotected weadonwy activeContwowwa = this._wegista(new MutabweDisposabwe<ActiveGhostTextContwowwa>());
+	pubwic get activeModew(): GhostTextModew | undefined {
+		wetuwn this.activeContwowwa.vawue?.modew;
 	}
 
-	constructor(
-		public readonly editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pubwic weadonwy editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this._register(this.editor.onDidChangeModel(() => {
-			this.updateModelController();
+		this._wegista(this.editow.onDidChangeModew(() => {
+			this.updateModewContwowwa();
 		}));
-		this._register(this.editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest)) {
-				this.updateModelController();
+		this._wegista(this.editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.suggest)) {
+				this.updateModewContwowwa();
 			}
-			if (e.hasChanged(EditorOption.inlineSuggest)) {
-				this.updateModelController();
+			if (e.hasChanged(EditowOption.inwineSuggest)) {
+				this.updateModewContwowwa();
 			}
 		}));
-		this.updateModelController();
+		this.updateModewContwowwa();
 	}
 
-	// Don't call this method when not neccessary. It will recreate the activeController.
-	private updateModelController(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+	// Don't caww this method when not neccessawy. It wiww wecweate the activeContwowwa.
+	pwivate updateModewContwowwa(): void {
+		const suggestOptions = this.editow.getOption(EditowOption.suggest);
+		const inwineSuggestOptions = this.editow.getOption(EditowOption.inwineSuggest);
 
-		this.activeController.value = undefined;
-		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
-		this.activeController.value =
-			this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly)
-				? this.instantiationService.createInstance(
-					ActiveGhostTextController,
-					this.editor
+		this.activeContwowwa.vawue = undefined;
+		// ActiveGhostTextContwowwa is onwy cweated if one of those settings is set ow if the inwine compwetions awe twiggewed expwicitwy.
+		this.activeContwowwa.vawue =
+			this.editow.hasModew() && (suggestOptions.pweview || inwineSuggestOptions.enabwed || this.twiggewedExpwicitwy)
+				? this.instantiationSewvice.cweateInstance(
+					ActiveGhostTextContwowwa,
+					this.editow
 				)
 				: undefined;
 	}
 
-	public shouldShowHoverAt(hoverRange: Range): boolean {
-		return this.activeModel?.shouldShowHoverAt(hoverRange) || false;
+	pubwic shouwdShowHovewAt(hovewWange: Wange): boowean {
+		wetuwn this.activeModew?.shouwdShowHovewAt(hovewWange) || fawse;
 	}
 
-	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return this.activeController.value?.widget?.shouldShowHoverAtViewZone(viewZoneId) || false;
+	pubwic shouwdShowHovewAtViewZone(viewZoneId: stwing): boowean {
+		wetuwn this.activeContwowwa.vawue?.widget?.shouwdShowHovewAtViewZone(viewZoneId) || fawse;
 	}
 
-	public trigger(): void {
-		this.triggeredExplicitly = true;
-		if (!this.activeController.value) {
-			this.updateModelController();
+	pubwic twigga(): void {
+		this.twiggewedExpwicitwy = twue;
+		if (!this.activeContwowwa.vawue) {
+			this.updateModewContwowwa();
 		}
-		this.activeModel?.triggerInlineCompletion();
+		this.activeModew?.twiggewInwineCompwetion();
 	}
 
-	public commit(): void {
-		this.activeModel?.commitInlineCompletion();
+	pubwic commit(): void {
+		this.activeModew?.commitInwineCompwetion();
 	}
 
-	public hide(): void {
-		this.activeModel?.hideInlineCompletion();
+	pubwic hide(): void {
+		this.activeModew?.hideInwineCompwetion();
 	}
 
-	public showNextInlineCompletion(): void {
-		this.activeModel?.showNextInlineCompletion();
+	pubwic showNextInwineCompwetion(): void {
+		this.activeModew?.showNextInwineCompwetion();
 	}
 
-	public showPreviousInlineCompletion(): void {
-		this.activeModel?.showPreviousInlineCompletion();
+	pubwic showPweviousInwineCompwetion(): void {
+		this.activeModew?.showPweviousInwineCompwetion();
 	}
 
-	public async hasMultipleInlineCompletions(): Promise<boolean> {
-		const result = await this.activeModel?.hasMultipleInlineCompletions();
-		return result !== undefined ? result : false;
+	pubwic async hasMuwtipweInwineCompwetions(): Pwomise<boowean> {
+		const wesuwt = await this.activeModew?.hasMuwtipweInwineCompwetions();
+		wetuwn wesuwt !== undefined ? wesuwt : fawse;
 	}
 }
 
-class GhostTextContextKeys {
-	public readonly inlineCompletionVisible = GhostTextController.inlineSuggestionVisible.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
+cwass GhostTextContextKeys {
+	pubwic weadonwy inwineCompwetionVisibwe = GhostTextContwowwa.inwineSuggestionVisibwe.bindTo(this.contextKeySewvice);
+	pubwic weadonwy inwineCompwetionSuggestsIndentation = GhostTextContwowwa.inwineSuggestionHasIndentation.bindTo(this.contextKeySewvice);
 
-	constructor(private readonly contextKeyService: IContextKeyService) {
+	constwuctow(pwivate weadonwy contextKeySewvice: IContextKeySewvice) {
 	}
 }
 
 /**
- * The controller for a text editor with an initialized text model.
- * Must be disposed as soon as the model detaches from the editor.
+ * The contwowwa fow a text editow with an initiawized text modew.
+ * Must be disposed as soon as the modew detaches fwom the editow.
 */
-export class ActiveGhostTextController extends Disposable {
-	private readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
-	public readonly model = this._register(this.instantiationService.createInstance(GhostTextModel, this.editor));
-	public readonly widget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, this.model));
+expowt cwass ActiveGhostTextContwowwa extends Disposabwe {
+	pwivate weadonwy contextKeys = new GhostTextContextKeys(this.contextKeySewvice);
+	pubwic weadonwy modew = this._wegista(this.instantiationSewvice.cweateInstance(GhostTextModew, this.editow));
+	pubwic weadonwy widget = this._wegista(this.instantiationSewvice.cweateInstance(GhostTextWidget, this.editow, this.modew));
 
-	constructor(
-		private readonly editor: IActiveCodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate weadonwy editow: IActiveCodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
 	) {
-		super();
+		supa();
 
-		this._register(toDisposable(() => {
-			this.contextKeys.inlineCompletionVisible.set(false);
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+		this._wegista(toDisposabwe(() => {
+			this.contextKeys.inwineCompwetionVisibwe.set(fawse);
+			this.contextKeys.inwineCompwetionSuggestsIndentation.set(fawse);
 		}));
 
-		this._register(this.model.onDidChange(() => {
+		this._wegista(this.modew.onDidChange(() => {
 			this.updateContextKeys();
 		}));
 		this.updateContextKeys();
 	}
 
-	private updateContextKeys(): void {
-		this.contextKeys.inlineCompletionVisible.set(
-			this.model.activeInlineCompletionsModel?.ghostText !== undefined
+	pwivate updateContextKeys(): void {
+		this.contextKeys.inwineCompwetionVisibwe.set(
+			this.modew.activeInwineCompwetionsModew?.ghostText !== undefined
 		);
 
-		const ghostText = this.model.inlineCompletionsModel.ghostText;
-		if (ghostText && ghostText.parts.length > 0) {
-			const { column, lines } = ghostText.parts[0];
-			const suggestionStartsWithWs = lines[0].startsWith(' ') || lines[0].startsWith('\t');
+		const ghostText = this.modew.inwineCompwetionsModew.ghostText;
+		if (ghostText && ghostText.pawts.wength > 0) {
+			const { cowumn, wines } = ghostText.pawts[0];
+			const suggestionStawtsWithWs = wines[0].stawtsWith(' ') || wines[0].stawtsWith('\t');
 
-			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(ghostText.lineNumber);
-			const inIndentation = column <= indentationEndColumn;
+			const indentationEndCowumn = this.editow.getModew().getWineIndentCowumn(ghostText.wineNumba);
+			const inIndentation = cowumn <= indentationEndCowumn;
 
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(
-				!!this.model.activeInlineCompletionsModel
-				&& suggestionStartsWithWs && inIndentation
+			this.contextKeys.inwineCompwetionSuggestsIndentation.set(
+				!!this.modew.activeInwineCompwetionsModew
+				&& suggestionStawtsWithWs && inIndentation
 			);
-		} else {
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+		} ewse {
+			this.contextKeys.inwineCompwetionSuggestsIndentation.set(fawse);
 		}
 	}
 }
 
-const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
+const GhostTextCommand = EditowCommand.bindToContwibution(GhostTextContwowwa.get);
 
-export const commitInlineSuggestionAction = new GhostTextCommand({
-	id: inlineSuggestCommitId,
-	precondition: GhostTextController.inlineSuggestionVisible,
-	handler(x) {
+expowt const commitInwineSuggestionAction = new GhostTextCommand({
+	id: inwineSuggestCommitId,
+	pwecondition: GhostTextContwowwa.inwineSuggestionVisibwe,
+	handwa(x) {
 		x.commit();
-		x.editor.focus();
+		x.editow.focus();
 	}
 });
-registerEditorCommand(commitInlineSuggestionAction);
-KeybindingsRegistry.registerKeybindingRule({
-	primary: KeyCode.Tab,
+wegistewEditowCommand(commitInwineSuggestionAction);
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	pwimawy: KeyCode.Tab,
 	weight: 200,
-	id: commitInlineSuggestionAction.id,
-	when: ContextKeyExpr.and(
-		commitInlineSuggestionAction.precondition,
-		EditorContextKeys.tabMovesFocus.toNegated(),
-		GhostTextController.inlineSuggestionHasIndentation.toNegated()
+	id: commitInwineSuggestionAction.id,
+	when: ContextKeyExpw.and(
+		commitInwineSuggestionAction.pwecondition,
+		EditowContextKeys.tabMovesFocus.toNegated(),
+		GhostTextContwowwa.inwineSuggestionHasIndentation.toNegated()
 	),
 });
 
-registerEditorCommand(new GhostTextCommand({
-	id: 'editor.action.inlineSuggest.hide',
-	precondition: GhostTextController.inlineSuggestionVisible,
+wegistewEditowCommand(new GhostTextCommand({
+	id: 'editow.action.inwineSuggest.hide',
+	pwecondition: GhostTextContwowwa.inwineSuggestionVisibwe,
 	kbOpts: {
 		weight: 100,
-		primary: KeyCode.Escape,
+		pwimawy: KeyCode.Escape,
 	},
-	handler(x) {
+	handwa(x) {
 		x.hide();
 	}
 }));
 
-export class ShowNextInlineSuggestionAction extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.showNext';
-	constructor() {
-		super({
-			id: ShowNextInlineSuggestionAction.ID,
-			label: nls.localize('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
-			alias: 'Show Next Inline Suggestion',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
+expowt cwass ShowNextInwineSuggestionAction extends EditowAction {
+	pubwic static ID = 'editow.action.inwineSuggest.showNext';
+	constwuctow() {
+		supa({
+			id: ShowNextInwineSuggestionAction.ID,
+			wabew: nws.wocawize('action.inwineSuggest.showNext', "Show Next Inwine Suggestion"),
+			awias: 'Show Next Inwine Suggestion',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, GhostTextContwowwa.inwineSuggestionVisibwe),
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				pwimawy: KeyMod.Awt | KeyCode.US_CWOSE_SQUAWE_BWACKET,
 			},
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = GhostTextController.get(editor);
-		if (controller) {
-			controller.showNextInlineCompletion();
-			editor.focus();
+	pubwic async wun(accessow: SewvicesAccessow | undefined, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = GhostTextContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.showNextInwineCompwetion();
+			editow.focus();
 		}
 	}
 }
 
-export class ShowPreviousInlineSuggestionAction extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.showPrevious';
-	constructor() {
-		super({
-			id: ShowPreviousInlineSuggestionAction.ID,
-			label: nls.localize('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
-			alias: 'Show Previous Inline Suggestion',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
+expowt cwass ShowPweviousInwineSuggestionAction extends EditowAction {
+	pubwic static ID = 'editow.action.inwineSuggest.showPwevious';
+	constwuctow() {
+		supa({
+			id: ShowPweviousInwineSuggestionAction.ID,
+			wabew: nws.wocawize('action.inwineSuggest.showPwevious', "Show Pwevious Inwine Suggestion"),
+			awias: 'Show Pwevious Inwine Suggestion',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, GhostTextContwowwa.inwineSuggestionVisibwe),
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
+				pwimawy: KeyMod.Awt | KeyCode.US_OPEN_SQUAWE_BWACKET,
 			},
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = GhostTextController.get(editor);
-		if (controller) {
-			controller.showPreviousInlineCompletion();
-			editor.focus();
+	pubwic async wun(accessow: SewvicesAccessow | undefined, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = GhostTextContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.showPweviousInwineCompwetion();
+			editow.focus();
 		}
 	}
 }
 
-export class TriggerInlineSuggestionAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.inlineSuggest.trigger',
-			label: nls.localize('action.inlineSuggest.trigger', "Trigger Inline Suggestion"),
-			alias: 'Trigger Inline Suggestion',
-			precondition: EditorContextKeys.writable
+expowt cwass TwiggewInwineSuggestionAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.inwineSuggest.twigga',
+			wabew: nws.wocawize('action.inwineSuggest.twigga', "Twigga Inwine Suggestion"),
+			awias: 'Twigga Inwine Suggestion',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = GhostTextController.get(editor);
-		if (controller) {
-			controller.trigger();
+	pubwic async wun(accessow: SewvicesAccessow | undefined, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = GhostTextContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.twigga();
 		}
 	}
 }
 
-registerEditorContribution(GhostTextController.ID, GhostTextController);
-registerEditorAction(TriggerInlineSuggestionAction);
-registerEditorAction(ShowNextInlineSuggestionAction);
-registerEditorAction(ShowPreviousInlineSuggestionAction);
+wegistewEditowContwibution(GhostTextContwowwa.ID, GhostTextContwowwa);
+wegistewEditowAction(TwiggewInwineSuggestionAction);
+wegistewEditowAction(ShowNextInwineSuggestionAction);
+wegistewEditowAction(ShowPweviousInwineSuggestionAction);

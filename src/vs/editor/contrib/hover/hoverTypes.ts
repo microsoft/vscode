@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowMouseEvent } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowation } fwom 'vs/editow/common/modew';
+impowt { CowowPickewWidget } fwom 'vs/editow/contwib/cowowPicka/cowowPickewWidget';
 
-export interface IHoverPart {
+expowt intewface IHovewPawt {
 	/**
-	 * The creator of this hover part.
+	 * The cweatow of this hova pawt.
 	 */
-	readonly owner: IEditorHoverParticipant;
+	weadonwy owna: IEditowHovewPawticipant;
 	/**
-	 * The range where this hover part applies.
+	 * The wange whewe this hova pawt appwies.
 	 */
-	readonly range: Range;
+	weadonwy wange: Wange;
 	/**
-	 * Force the hover to always be rendered at this specific range,
-	 * even in the case of multiple hover parts.
+	 * Fowce the hova to awways be wendewed at this specific wange,
+	 * even in the case of muwtipwe hova pawts.
 	 */
-	readonly forceShowAtRange?: boolean;
+	weadonwy fowceShowAtWange?: boowean;
 
-	isValidForHoverAnchor(anchor: HoverAnchor): boolean;
+	isVawidFowHovewAnchow(anchow: HovewAnchow): boowean;
 }
 
-export interface IEditorHover {
+expowt intewface IEditowHova {
 	hide(): void;
 	onContentsChanged(): void;
-	setColorPicker(widget: ColorPickerWidget): void;
+	setCowowPicka(widget: CowowPickewWidget): void;
 }
 
-export const enum HoverAnchorType {
-	Range = 1,
-	ForeignElement = 2
+expowt const enum HovewAnchowType {
+	Wange = 1,
+	FoweignEwement = 2
 }
 
-export class HoverRangeAnchor {
-	public readonly type = HoverAnchorType.Range;
-	constructor(
-		public readonly priority: number,
-		public readonly range: Range
+expowt cwass HovewWangeAnchow {
+	pubwic weadonwy type = HovewAnchowType.Wange;
+	constwuctow(
+		pubwic weadonwy pwiowity: numba,
+		pubwic weadonwy wange: Wange
 	) {
 	}
-	public equals(other: HoverAnchor) {
-		return (other.type === HoverAnchorType.Range && this.range.equalsRange(other.range));
+	pubwic equaws(otha: HovewAnchow) {
+		wetuwn (otha.type === HovewAnchowType.Wange && this.wange.equawsWange(otha.wange));
 	}
-	public canAdoptVisibleHover(lastAnchor: HoverAnchor, showAtPosition: Position): boolean {
-		return (lastAnchor.type === HoverAnchorType.Range && showAtPosition.lineNumber === this.range.startLineNumber);
+	pubwic canAdoptVisibweHova(wastAnchow: HovewAnchow, showAtPosition: Position): boowean {
+		wetuwn (wastAnchow.type === HovewAnchowType.Wange && showAtPosition.wineNumba === this.wange.stawtWineNumba);
 	}
 }
 
-export class HoverForeignElementAnchor {
-	public readonly type = HoverAnchorType.ForeignElement;
-	constructor(
-		public readonly priority: number,
-		public readonly owner: IEditorHoverParticipant,
-		public readonly range: Range
+expowt cwass HovewFoweignEwementAnchow {
+	pubwic weadonwy type = HovewAnchowType.FoweignEwement;
+	constwuctow(
+		pubwic weadonwy pwiowity: numba,
+		pubwic weadonwy owna: IEditowHovewPawticipant,
+		pubwic weadonwy wange: Wange
 	) {
 	}
-	public equals(other: HoverAnchor) {
-		return (other.type === HoverAnchorType.ForeignElement && this.owner === other.owner);
+	pubwic equaws(otha: HovewAnchow) {
+		wetuwn (otha.type === HovewAnchowType.FoweignEwement && this.owna === otha.owna);
 	}
-	public canAdoptVisibleHover(lastAnchor: HoverAnchor, showAtPosition: Position): boolean {
-		return (lastAnchor.type === HoverAnchorType.ForeignElement && this.owner === lastAnchor.owner);
+	pubwic canAdoptVisibweHova(wastAnchow: HovewAnchow, showAtPosition: Position): boowean {
+		wetuwn (wastAnchow.type === HovewAnchowType.FoweignEwement && this.owna === wastAnchow.owna);
 	}
 }
 
-export type HoverAnchor = HoverRangeAnchor | HoverForeignElementAnchor;
+expowt type HovewAnchow = HovewWangeAnchow | HovewFoweignEwementAnchow;
 
-export interface IEditorHoverStatusBar {
-	addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction;
-	append(element: HTMLElement): HTMLElement;
+expowt intewface IEditowHovewStatusBaw {
+	addAction(actionOptions: { wabew: stwing, iconCwass?: stwing, wun: (tawget: HTMWEwement) => void, commandId: stwing }): IEditowHovewAction;
+	append(ewement: HTMWEwement): HTMWEwement;
 }
 
-export interface IEditorHoverAction {
-	setEnabled(enabled: boolean): void;
+expowt intewface IEditowHovewAction {
+	setEnabwed(enabwed: boowean): void;
 }
 
-export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
-	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
-	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable;
+expowt intewface IEditowHovewPawticipant<T extends IHovewPawt = IHovewPawt> {
+	suggestHovewAnchow?(mouseEvent: IEditowMouseEvent): HovewAnchow | nuww;
+	computeSync(anchow: HovewAnchow, wineDecowations: IModewDecowation[]): T[];
+	computeAsync?(anchow: HovewAnchow, wineDecowations: IModewDecowation[], token: CancewwationToken): Pwomise<T[]>;
+	cweateWoadingMessage?(anchow: HovewAnchow): T | nuww;
+	wendewHovewPawts(hovewPawts: T[], fwagment: DocumentFwagment, statusBaw: IEditowHovewStatusBaw): IDisposabwe;
 }

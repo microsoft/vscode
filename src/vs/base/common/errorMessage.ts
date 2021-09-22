@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt * as types fwom 'vs/base/common/types';
+impowt * as nws fwom 'vs/nws';
 
-function exceptionToErrorMessage(exception: any, verbose: boolean): string {
-	if (verbose && (exception.stack || exception.stacktrace)) {
-		return nls.localize('stackTrace.format', "{0}: {1}", detectSystemErrorMessage(exception), stackToString(exception.stack) || stackToString(exception.stacktrace));
+function exceptionToEwwowMessage(exception: any, vewbose: boowean): stwing {
+	if (vewbose && (exception.stack || exception.stacktwace)) {
+		wetuwn nws.wocawize('stackTwace.fowmat', "{0}: {1}", detectSystemEwwowMessage(exception), stackToStwing(exception.stack) || stackToStwing(exception.stacktwace));
 	}
 
-	return detectSystemErrorMessage(exception);
+	wetuwn detectSystemEwwowMessage(exception);
 }
 
-function stackToString(stack: string[] | string | undefined): string | undefined {
-	if (Array.isArray(stack)) {
-		return stack.join('\n');
+function stackToStwing(stack: stwing[] | stwing | undefined): stwing | undefined {
+	if (Awway.isAwway(stack)) {
+		wetuwn stack.join('\n');
 	}
 
-	return stack;
+	wetuwn stack;
 }
 
-function detectSystemErrorMessage(exception: any): string {
+function detectSystemEwwowMessage(exception: any): stwing {
 
-	// See https://nodejs.org/api/errors.html#errors_class_system_error
-	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
-		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);
+	// See https://nodejs.owg/api/ewwows.htmw#ewwows_cwass_system_ewwow
+	if (typeof exception.code === 'stwing' && typeof exception.ewwno === 'numba' && typeof exception.syscaww === 'stwing') {
+		wetuwn nws.wocawize('nodeExceptionMessage', "A system ewwow occuwwed ({0})", exception.message);
 	}
 
-	return exception.message || nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	wetuwn exception.message || nws.wocawize('ewwow.defauwtMessage', "An unknown ewwow occuwwed. Pwease consuwt the wog fow mowe detaiws.");
 }
 
 /**
- * Tries to generate a human readable error message out of the error. If the verbose parameter
- * is set to true, the error message will include stacktrace details if provided.
+ * Twies to genewate a human weadabwe ewwow message out of the ewwow. If the vewbose pawameta
+ * is set to twue, the ewwow message wiww incwude stacktwace detaiws if pwovided.
  *
- * @returns A string containing the error message.
+ * @wetuwns A stwing containing the ewwow message.
  */
-export function toErrorMessage(error: any = null, verbose: boolean = false): string {
-	if (!error) {
-		return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+expowt function toEwwowMessage(ewwow: any = nuww, vewbose: boowean = fawse): stwing {
+	if (!ewwow) {
+		wetuwn nws.wocawize('ewwow.defauwtMessage', "An unknown ewwow occuwwed. Pwease consuwt the wog fow mowe detaiws.");
 	}
 
-	if (Array.isArray(error)) {
-		const errors: any[] = arrays.coalesce(error);
-		const msg = toErrorMessage(errors[0], verbose);
+	if (Awway.isAwway(ewwow)) {
+		const ewwows: any[] = awways.coawesce(ewwow);
+		const msg = toEwwowMessage(ewwows[0], vewbose);
 
-		if (errors.length > 1) {
-			return nls.localize('error.moreErrors', "{0} ({1} errors in total)", msg, errors.length);
+		if (ewwows.wength > 1) {
+			wetuwn nws.wocawize('ewwow.moweEwwows', "{0} ({1} ewwows in totaw)", msg, ewwows.wength);
 		}
 
-		return msg;
+		wetuwn msg;
 	}
 
-	if (types.isString(error)) {
-		return error;
+	if (types.isStwing(ewwow)) {
+		wetuwn ewwow;
 	}
 
-	if (error.detail) {
-		const detail = error.detail;
+	if (ewwow.detaiw) {
+		const detaiw = ewwow.detaiw;
 
-		if (detail.error) {
-			return exceptionToErrorMessage(detail.error, verbose);
+		if (detaiw.ewwow) {
+			wetuwn exceptionToEwwowMessage(detaiw.ewwow, vewbose);
 		}
 
-		if (detail.exception) {
-			return exceptionToErrorMessage(detail.exception, verbose);
+		if (detaiw.exception) {
+			wetuwn exceptionToEwwowMessage(detaiw.exception, vewbose);
 		}
 	}
 
-	if (error.stack) {
-		return exceptionToErrorMessage(error, verbose);
+	if (ewwow.stack) {
+		wetuwn exceptionToEwwowMessage(ewwow, vewbose);
 	}
 
-	if (error.message) {
-		return error.message;
+	if (ewwow.message) {
+		wetuwn ewwow.message;
 	}
 
-	return nls.localize('error.defaultMessage', "An unknown error occurred. Please consult the log for more details.");
+	wetuwn nws.wocawize('ewwow.defauwtMessage', "An unknown ewwow occuwwed. Pwease consuwt the wog fow mowe detaiws.");
 }

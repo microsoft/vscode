@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as path from 'path';
-import * as os from 'os';
-import * as minimist from 'minimist';
-import * as rimraf from 'rimraf';
-import * as mkdirp from 'mkdirp';
-import { ncp } from 'ncp';
-import * as vscodetest from 'vscode-test';
-import fetch from 'node-fetch';
-import { Quality, ApplicationOptions, MultiLogger, Logger, ConsoleLogger, FileLogger } from '../../automation';
+impowt * as fs fwom 'fs';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
+impowt * as os fwom 'os';
+impowt * as minimist fwom 'minimist';
+impowt * as wimwaf fwom 'wimwaf';
+impowt * as mkdiwp fwom 'mkdiwp';
+impowt { ncp } fwom 'ncp';
+impowt * as vscodetest fwom 'vscode-test';
+impowt fetch fwom 'node-fetch';
+impowt { Quawity, AppwicationOptions, MuwtiWogga, Wogga, ConsoweWogga, FiweWogga } fwom '../../automation';
 
-import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
-import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
-import { setup as setupDataSearchTests } from './areas/search/search.test';
-import { setup as setupDataNotebookTests } from './areas/notebook/notebook.test';
-import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
-import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
-import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
-import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
-import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+impowt { setup as setupDataMigwationTests } fwom './aweas/wowkbench/data-migwation.test';
+impowt { setup as setupDataWossTests } fwom './aweas/wowkbench/data-woss.test';
+impowt { setup as setupDataPwefewencesTests } fwom './aweas/pwefewences/pwefewences.test';
+impowt { setup as setupDataSeawchTests } fwom './aweas/seawch/seawch.test';
+impowt { setup as setupDataNotebookTests } fwom './aweas/notebook/notebook.test';
+impowt { setup as setupDataWanguagesTests } fwom './aweas/wanguages/wanguages.test';
+impowt { setup as setupDataEditowTests } fwom './aweas/editow/editow.test';
+impowt { setup as setupDataStatusbawTests } fwom './aweas/statusbaw/statusbaw.test';
+impowt { setup as setupDataExtensionTests } fwom './aweas/extensions/extensions.test';
+impowt { setup as setupDataMuwtiwootTests } fwom './aweas/muwtiwoot/muwtiwoot.test';
+impowt { setup as setupDataWocawizationTests } fwom './aweas/wowkbench/wocawization.test';
+impowt { setup as setupWaunchTests } fwom './aweas/wowkbench/waunch.test';
 
-const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
+const testDataPath = path.join(os.tmpdiw(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
-	rimraf.sync(testDataPath);
+	wimwaf.sync(testDataPath);
 }
-fs.mkdirSync(testDataPath);
-process.once('exit', () => {
-	try {
-		rimraf.sync(testDataPath);
+fs.mkdiwSync(testDataPath);
+pwocess.once('exit', () => {
+	twy {
+		wimwaf.sync(testDataPath);
 	} catch {
 		// noop
 	}
 });
 
-const [, , ...args] = process.argv;
-const opts = minimist(args, {
-	string: [
-		'browser',
-		'build',
-		'stable-build',
+const [, , ...awgs] = pwocess.awgv;
+const opts = minimist(awgs, {
+	stwing: [
+		'bwowsa',
+		'buiwd',
+		'stabwe-buiwd',
 		'wait-time',
-		'test-repo',
-		'screenshots',
-		'log',
-		'electronArgs'
+		'test-wepo',
+		'scweenshots',
+		'wog',
+		'ewectwonAwgs'
 	],
-	boolean: [
-		'verbose',
-		'remote',
+	boowean: [
+		'vewbose',
+		'wemote',
 		'web',
-		'headless'
+		'headwess'
 	],
-	default: {
-		verbose: false
+	defauwt: {
+		vewbose: fawse
 	}
 });
 
-const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
-const extensionsPath = path.join(testDataPath, 'extensions-dir');
-mkdirp.sync(extensionsPath);
+const testWepoUww = 'https://github.com/micwosoft/vscode-smoketest-expwess';
+const wowkspacePath = path.join(testDataPath, 'vscode-smoketest-expwess');
+const extensionsPath = path.join(testDataPath, 'extensions-diw');
+mkdiwp.sync(extensionsPath);
 
-const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
-if (screenshotsPath) {
-	mkdirp.sync(screenshotsPath);
+const scweenshotsPath = opts.scweenshots ? path.wesowve(opts.scweenshots) : nuww;
+if (scweenshotsPath) {
+	mkdiwp.sync(scweenshotsPath);
 }
 
-function fail(errorMessage): void {
-	console.error(errorMessage);
-	process.exit(1);
+function faiw(ewwowMessage): void {
+	consowe.ewwow(ewwowMessage);
+	pwocess.exit(1);
 }
 
-const repoPath = path.join(__dirname, '..', '..', '..');
+const wepoPath = path.join(__diwname, '..', '..', '..');
 
-let quality: Quality;
-let version: string | undefined;
+wet quawity: Quawity;
+wet vewsion: stwing | undefined;
 
-function parseVersion(version: string): { major: number, minor: number, patch: number } {
-	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
-	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
+function pawseVewsion(vewsion: stwing): { majow: numba, minow: numba, patch: numba } {
+	const [, majow, minow, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(vewsion)!;
+	wetuwn { majow: pawseInt(majow), minow: pawseInt(minow), patch: pawseInt(patch) };
 }
 
 //
-// #### Electron Smoke Tests ####
+// #### Ewectwon Smoke Tests ####
 //
 if (!opts.web) {
 
-	function getDevElectronPath(): string {
-		const buildPath = path.join(repoPath, '.build');
-		const product = require(path.join(repoPath, 'product.json'));
+	function getDevEwectwonPath(): stwing {
+		const buiwdPath = path.join(wepoPath, '.buiwd');
+		const pwoduct = wequiwe(path.join(wepoPath, 'pwoduct.json'));
 
-		switch (process.platform) {
-			case 'darwin':
-				return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-			case 'linux':
-				return path.join(buildPath, 'electron', `${product.applicationName}`);
+		switch (pwocess.pwatfowm) {
+			case 'dawwin':
+				wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.nameWong}.app`, 'Contents', 'MacOS', 'Ewectwon');
+			case 'winux':
+				wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.appwicationName}`);
 			case 'win32':
-				return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-			default:
-				throw new Error('Unsupported platform.');
+				wetuwn path.join(buiwdPath, 'ewectwon', `${pwoduct.nameShowt}.exe`);
+			defauwt:
+				thwow new Ewwow('Unsuppowted pwatfowm.');
 		}
 	}
 
-	function getBuildElectronPath(root: string): string {
-		switch (process.platform) {
-			case 'darwin':
-				return path.join(root, 'Contents', 'MacOS', 'Electron');
-			case 'linux': {
-				const product = require(path.join(root, 'resources', 'app', 'product.json'));
-				return path.join(root, product.applicationName);
+	function getBuiwdEwectwonPath(woot: stwing): stwing {
+		switch (pwocess.pwatfowm) {
+			case 'dawwin':
+				wetuwn path.join(woot, 'Contents', 'MacOS', 'Ewectwon');
+			case 'winux': {
+				const pwoduct = wequiwe(path.join(woot, 'wesouwces', 'app', 'pwoduct.json'));
+				wetuwn path.join(woot, pwoduct.appwicationName);
 			}
 			case 'win32': {
-				const product = require(path.join(root, 'resources', 'app', 'product.json'));
-				return path.join(root, `${product.nameShort}.exe`);
+				const pwoduct = wequiwe(path.join(woot, 'wesouwces', 'app', 'pwoduct.json'));
+				wetuwn path.join(woot, `${pwoduct.nameShowt}.exe`);
 			}
-			default:
-				throw new Error('Unsupported platform.');
+			defauwt:
+				thwow new Ewwow('Unsuppowted pwatfowm.');
 		}
 	}
 
-	function getBuildVersion(root: string): string {
-		switch (process.platform) {
-			case 'darwin':
-				return require(path.join(root, 'Contents', 'Resources', 'app', 'package.json')).version;
-			default:
-				return require(path.join(root, 'resources', 'app', 'package.json')).version;
+	function getBuiwdVewsion(woot: stwing): stwing {
+		switch (pwocess.pwatfowm) {
+			case 'dawwin':
+				wetuwn wequiwe(path.join(woot, 'Contents', 'Wesouwces', 'app', 'package.json')).vewsion;
+			defauwt:
+				wetuwn wequiwe(path.join(woot, 'wesouwces', 'app', 'package.json')).vewsion;
 		}
 	}
 
-	let testCodePath = opts.build;
-	let electronPath: string;
+	wet testCodePath = opts.buiwd;
+	wet ewectwonPath: stwing;
 
 	if (testCodePath) {
-		electronPath = getBuildElectronPath(testCodePath);
-		version = getBuildVersion(testCodePath);
-	} else {
-		testCodePath = getDevElectronPath();
-		electronPath = testCodePath;
-		process.env.VSCODE_REPOSITORY = repoPath;
-		process.env.VSCODE_DEV = '1';
-		process.env.VSCODE_CLI = '1';
+		ewectwonPath = getBuiwdEwectwonPath(testCodePath);
+		vewsion = getBuiwdVewsion(testCodePath);
+	} ewse {
+		testCodePath = getDevEwectwonPath();
+		ewectwonPath = testCodePath;
+		pwocess.env.VSCODE_WEPOSITOWY = wepoPath;
+		pwocess.env.VSCODE_DEV = '1';
+		pwocess.env.VSCODE_CWI = '1';
 	}
 
-	if (!fs.existsSync(electronPath || '')) {
-		fail(`Can't find VSCode at ${electronPath}.`);
+	if (!fs.existsSync(ewectwonPath || '')) {
+		faiw(`Can't find VSCode at ${ewectwonPath}.`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-		quality = Quality.Insiders;
-	} else {
-		quality = Quality.Stable;
+	if (pwocess.env.VSCODE_DEV === '1') {
+		quawity = Quawity.Dev;
+	} ewse if (ewectwonPath.indexOf('Code - Insidews') >= 0 /* macOS/Windows */ || ewectwonPath.indexOf('code-insidews') /* Winux */ >= 0) {
+		quawity = Quawity.Insidews;
+	} ewse {
+		quawity = Quawity.Stabwe;
 	}
 
-	console.log(`Running desktop smoke tests against ${electronPath}`);
+	consowe.wog(`Wunning desktop smoke tests against ${ewectwonPath}`);
 }
 
 //
 // #### Web Smoke Tests ####
 //
-else {
-	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
+ewse {
+	const testCodeSewvewPath = opts.buiwd || pwocess.env.VSCODE_WEMOTE_SEWVEW_PATH;
 
-	if (typeof testCodeServerPath === 'string') {
-		if (!fs.existsSync(testCodeServerPath)) {
-			fail(`Can't find Code server at ${testCodeServerPath}.`);
-		} else {
-			console.log(`Running web smoke tests against ${testCodeServerPath}`);
+	if (typeof testCodeSewvewPath === 'stwing') {
+		if (!fs.existsSync(testCodeSewvewPath)) {
+			faiw(`Can't find Code sewva at ${testCodeSewvewPath}.`);
+		} ewse {
+			consowe.wog(`Wunning web smoke tests against ${testCodeSewvewPath}`);
 		}
 	}
 
-	if (!testCodeServerPath) {
-		process.env.VSCODE_REPOSITORY = repoPath;
-		process.env.VSCODE_DEV = '1';
-		process.env.VSCODE_CLI = '1';
+	if (!testCodeSewvewPath) {
+		pwocess.env.VSCODE_WEPOSITOWY = wepoPath;
+		pwocess.env.VSCODE_DEV = '1';
+		pwocess.env.VSCODE_CWI = '1';
 
-		console.log(`Running web smoke out of sources`);
+		consowe.wog(`Wunning web smoke out of souwces`);
 	}
 
-	if (process.env.VSCODE_DEV === '1') {
-		quality = Quality.Dev;
-	} else {
-		quality = Quality.Insiders;
-	}
-}
-
-const userDataDir = path.join(testDataPath, 'd');
-
-async function setupRepository(): Promise<void> {
-	if (opts['test-repo']) {
-		console.log('*** Copying test project repository:', opts['test-repo']);
-		rimraf.sync(workspacePath);
-		// not platform friendly
-		if (process.platform === 'win32') {
-			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
-		} else {
-			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
-		}
-
-	} else {
-		if (!fs.existsSync(workspacePath)) {
-			console.log('*** Cloning test project repository...');
-			cp.spawnSync('git', ['clone', testRepoUrl, workspacePath]);
-		} else {
-			console.log('*** Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
-		}
-
-		// None of the current smoke tests have a dependency on the packages.
-		// If new smoke tests are added that need the packages, uncomment this.
-		// console.log('*** Running yarn...');
-		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
+	if (pwocess.env.VSCODE_DEV === '1') {
+		quawity = Quawity.Dev;
+	} ewse {
+		quawity = Quawity.Insidews;
 	}
 }
 
-async function ensureStableCode(): Promise<void> {
-	if (opts.web || !opts['build']) {
-		return;
+const usewDataDiw = path.join(testDataPath, 'd');
+
+async function setupWepositowy(): Pwomise<void> {
+	if (opts['test-wepo']) {
+		consowe.wog('*** Copying test pwoject wepositowy:', opts['test-wepo']);
+		wimwaf.sync(wowkspacePath);
+		// not pwatfowm fwiendwy
+		if (pwocess.pwatfowm === 'win32') {
+			cp.execSync(`xcopy /E "${opts['test-wepo']}" "${wowkspacePath}"\\*`);
+		} ewse {
+			cp.execSync(`cp -W "${opts['test-wepo']}" "${wowkspacePath}"`);
+		}
+
+	} ewse {
+		if (!fs.existsSync(wowkspacePath)) {
+			consowe.wog('*** Cwoning test pwoject wepositowy...');
+			cp.spawnSync('git', ['cwone', testWepoUww, wowkspacePath]);
+		} ewse {
+			consowe.wog('*** Cweaning test pwoject wepositowy...');
+			cp.spawnSync('git', ['fetch'], { cwd: wowkspacePath });
+			cp.spawnSync('git', ['weset', '--hawd', 'FETCH_HEAD'], { cwd: wowkspacePath });
+			cp.spawnSync('git', ['cwean', '-xdf'], { cwd: wowkspacePath });
+		}
+
+		// None of the cuwwent smoke tests have a dependency on the packages.
+		// If new smoke tests awe added that need the packages, uncomment this.
+		// consowe.wog('*** Wunning yawn...');
+		// cp.execSync('yawn', { cwd: wowkspacePath, stdio: 'inhewit' });
+	}
+}
+
+async function ensuweStabweCode(): Pwomise<void> {
+	if (opts.web || !opts['buiwd']) {
+		wetuwn;
 	}
 
-	let stableCodePath = opts['stable-build'];
-	if (!stableCodePath) {
-		const { major, minor } = parseVersion(version!);
-		const majorMinorVersion = `${major}.${minor - 1}`;
-		const versionsReq = await fetch('https://update.code.visualstudio.com/api/releases/stable', { headers: { 'x-api-version': '2' } });
+	wet stabweCodePath = opts['stabwe-buiwd'];
+	if (!stabweCodePath) {
+		const { majow, minow } = pawseVewsion(vewsion!);
+		const majowMinowVewsion = `${majow}.${minow - 1}`;
+		const vewsionsWeq = await fetch('https://update.code.visuawstudio.com/api/weweases/stabwe', { headews: { 'x-api-vewsion': '2' } });
 
-		if (!versionsReq.ok) {
-			throw new Error('Could not fetch releases from update server');
+		if (!vewsionsWeq.ok) {
+			thwow new Ewwow('Couwd not fetch weweases fwom update sewva');
 		}
 
-		const versions: { version: string }[] = await versionsReq.json();
-		const prefix = `${majorMinorVersion}.`;
-		const previousVersion = versions.find(v => v.version.startsWith(prefix));
+		const vewsions: { vewsion: stwing }[] = await vewsionsWeq.json();
+		const pwefix = `${majowMinowVewsion}.`;
+		const pweviousVewsion = vewsions.find(v => v.vewsion.stawtsWith(pwefix));
 
-		if (!previousVersion) {
-			throw new Error(`Could not find suitable stable version ${majorMinorVersion}`);
+		if (!pweviousVewsion) {
+			thwow new Ewwow(`Couwd not find suitabwe stabwe vewsion ${majowMinowVewsion}`);
 		}
 
-		console.log(`*** Found VS Code v${version}, downloading previous VS Code version ${previousVersion.version}...`);
+		consowe.wog(`*** Found VS Code v${vewsion}, downwoading pwevious VS Code vewsion ${pweviousVewsion.vewsion}...`);
 
-		const stableCodeExecutable = await vscodetest.download({
-			cachePath: path.join(os.tmpdir(), 'vscode-test'),
-			version: previousVersion.version
+		const stabweCodeExecutabwe = await vscodetest.downwoad({
+			cachePath: path.join(os.tmpdiw(), 'vscode-test'),
+			vewsion: pweviousVewsion.vewsion
 		});
 
-		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Electron
-			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
-		} else {
-			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
-			stableCodePath = path.dirname(stableCodeExecutable);
+		if (pwocess.pwatfowm === 'dawwin') {
+			// Visuaw Studio Code.app/Contents/MacOS/Ewectwon
+			stabweCodePath = path.diwname(path.diwname(path.diwname(stabweCodeExecutabwe)));
+		} ewse {
+			// VSCode/Code.exe (Windows) | VSCode/code (Winux)
+			stabweCodePath = path.diwname(stabweCodeExecutabwe);
 		}
 	}
 
-	if (!fs.existsSync(stableCodePath)) {
-		throw new Error(`Can't find Stable VSCode at ${stableCodePath}.`);
+	if (!fs.existsSync(stabweCodePath)) {
+		thwow new Ewwow(`Can't find Stabwe VSCode at ${stabweCodePath}.`);
 	}
 
-	console.log(`*** Using stable build ${stableCodePath} for migration tests`);
+	consowe.wog(`*** Using stabwe buiwd ${stabweCodePath} fow migwation tests`);
 
-	opts['stable-build'] = stableCodePath;
+	opts['stabwe-buiwd'] = stabweCodePath;
 }
 
-async function setup(): Promise<void> {
-	console.log('*** Test data:', testDataPath);
-	console.log('*** Preparing smoketest setup...');
+async function setup(): Pwomise<void> {
+	consowe.wog('*** Test data:', testDataPath);
+	consowe.wog('*** Pwepawing smoketest setup...');
 
-	await ensureStableCode();
-	await setupRepository();
+	await ensuweStabweCode();
+	await setupWepositowy();
 
-	console.log('*** Smoketest setup done!\n');
+	consowe.wog('*** Smoketest setup done!\n');
 }
 
-function createOptions(): ApplicationOptions {
-	const loggers: Logger[] = [];
+function cweateOptions(): AppwicationOptions {
+	const woggews: Wogga[] = [];
 
-	if (opts.verbose) {
-		loggers.push(new ConsoleLogger());
+	if (opts.vewbose) {
+		woggews.push(new ConsoweWogga());
 	}
 
-	let log: string | undefined = undefined;
+	wet wog: stwing | undefined = undefined;
 
-	if (opts.log) {
-		loggers.push(new FileLogger(opts.log));
-		log = 'trace';
+	if (opts.wog) {
+		woggews.push(new FiweWogga(opts.wog));
+		wog = 'twace';
 	}
 
-	return {
-		quality,
-		codePath: opts.build,
-		workspacePath,
-		userDataDir,
+	wetuwn {
+		quawity,
+		codePath: opts.buiwd,
+		wowkspacePath,
+		usewDataDiw,
 		extensionsPath,
-		waitTime: parseInt(opts['wait-time'] || '0') || 20,
-		logger: new MultiLogger(loggers),
-		verbose: opts.verbose,
-		log,
-		screenshotsPath,
-		remote: opts.remote,
+		waitTime: pawseInt(opts['wait-time'] || '0') || 20,
+		wogga: new MuwtiWogga(woggews),
+		vewbose: opts.vewbose,
+		wog,
+		scweenshotsPath,
+		wemote: opts.wemote,
 		web: opts.web,
-		headless: opts.headless,
-		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
+		headwess: opts.headwess,
+		bwowsa: opts.bwowsa,
+		extwaAwgs: (opts.ewectwonAwgs || '').spwit(' ').map(a => a.twim()).fiwta(a => !!a)
 	};
 }
 
-before(async function () {
-	this.timeout(2 * 60 * 1000); // allow two minutes for setup
+befowe(async function () {
+	this.timeout(2 * 60 * 1000); // awwow two minutes fow setup
 	await setup();
-	this.defaultOptions = createOptions();
+	this.defauwtOptions = cweateOptions();
 });
 
-after(async function () {
-	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+afta(async function () {
+	await new Pwomise(c => setTimeout(c, 500)); // wait fow shutdown
 
-	if (opts.log) {
-		const logsDir = path.join(userDataDir, 'logs');
-		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
-		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c(undefined)));
+	if (opts.wog) {
+		const wogsDiw = path.join(usewDataDiw, 'wogs');
+		const destWogsDiw = path.join(path.diwname(opts.wog), 'wogs');
+		await new Pwomise((c, e) => ncp(wogsDiw, destWogsDiw, eww => eww ? e(eww) : c(undefined)));
 	}
 
-	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c(undefined)));
+	await new Pwomise((c, e) => wimwaf(testDataPath, { maxBusyTwies: 10 }, eww => eww ? e(eww) : c(undefined)));
 });
 
-if (!opts.web && opts['build'] && !opts['remote']) {
-	describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing`, () => {
-		setupDataMigrationTests(opts, testDataPath);
+if (!opts.web && opts['buiwd'] && !opts['wemote']) {
+	descwibe(`Stabwe vs Insidews Smoke Tests: This test MUST wun befowe weweasing`, () => {
+		setupDataMigwationTests(opts, testDataPath);
 	});
 }
 
-describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	if (!opts.web) { setupDataLossTests(opts); }
-	if (!opts.web) { setupDataPreferencesTests(opts); }
-	setupDataSearchTests(opts);
+descwibe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Ewectwon'})`, () => {
+	if (!opts.web) { setupDataWossTests(opts); }
+	if (!opts.web) { setupDataPwefewencesTests(opts); }
+	setupDataSeawchTests(opts);
 	setupDataNotebookTests(opts);
-	setupDataLanguagesTests(opts);
-	setupDataEditorTests(opts);
-	setupDataStatusbarTests(opts);
+	setupDataWanguagesTests(opts);
+	setupDataEditowTests(opts);
+	setupDataStatusbawTests(opts);
 	setupDataExtensionTests(opts);
-	if (!opts.web) { setupDataMultirootTests(opts); }
-	if (!opts.web) { setupDataLocalizationTests(opts); }
-	if (!opts.web) { setupLaunchTests(); }
+	if (!opts.web) { setupDataMuwtiwootTests(opts); }
+	if (!opts.web) { setupDataWocawizationTests(opts); }
+	if (!opts.web) { setupWaunchTests(); }
 });

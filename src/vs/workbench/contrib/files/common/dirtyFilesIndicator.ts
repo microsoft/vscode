@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+impowt * as nws fwom 'vs/nws';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { VIEWWET_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IActivitySewvice, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
 
-export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
-	private readonly badgeHandle = this._register(new MutableDisposable());
+expowt cwass DiwtyFiwesIndicatow extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate weadonwy badgeHandwe = this._wegista(new MutabweDisposabwe());
 
-	private lastKnownDirtyCount = 0;
+	pwivate wastKnownDiwtyCount = 0;
 
-	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IActivityService private readonly activityService: IActivityService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+	constwuctow(
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice
 	) {
-		super();
+		supa();
 
 		this.updateActivityBadge();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Working copy dirty indicator
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onWorkingCopyDidChangeDirty(workingCopy)));
+		// Wowking copy diwty indicatow
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.onWowkingCopyDidChangeDiwty(wowkingCopy)));
 
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		// Wifecycwe
+		this.wifecycweSewvice.onDidShutdown(() => this.dispose());
 	}
 
-	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
-		const gotDirty = workingCopy.isDirty();
-		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return; // do not indicate dirty of working copies that are auto saved after short delay
+	pwivate onWowkingCopyDidChangeDiwty(wowkingCopy: IWowkingCopy): void {
+		const gotDiwty = wowkingCopy.isDiwty();
+		if (gotDiwty && !(wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed) && this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY) {
+			wetuwn; // do not indicate diwty of wowking copies that awe auto saved afta showt deway
 		}
 
-		if (gotDirty || this.lastKnownDirtyCount > 0) {
+		if (gotDiwty || this.wastKnownDiwtyCount > 0) {
 			this.updateActivityBadge();
 		}
 	}
 
-	private updateActivityBadge(): void {
-		const dirtyCount = this.lastKnownDirtyCount = this.workingCopyService.dirtyCount;
+	pwivate updateActivityBadge(): void {
+		const diwtyCount = this.wastKnownDiwtyCount = this.wowkingCopySewvice.diwtyCount;
 
-		// Indicate dirty count in badge if any
-		if (dirtyCount > 0) {
-			this.badgeHandle.value = this.activityService.showViewContainerActivity(
-				VIEWLET_ID,
+		// Indicate diwty count in badge if any
+		if (diwtyCount > 0) {
+			this.badgeHandwe.vawue = this.activitySewvice.showViewContainewActivity(
+				VIEWWET_ID,
 				{
-					badge: new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)),
-					clazz: 'explorer-viewlet-label'
+					badge: new NumbewBadge(diwtyCount, num => num === 1 ? nws.wocawize('diwtyFiwe', "1 unsaved fiwe") : nws.wocawize('diwtyFiwes', "{0} unsaved fiwes", diwtyCount)),
+					cwazz: 'expwowa-viewwet-wabew'
 				}
 			);
-		} else {
-			this.badgeHandle.clear();
+		} ewse {
+			this.badgeHandwe.cweaw();
 		}
 	}
 }

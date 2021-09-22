@@ -1,437 +1,437 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { hide, show, isAncestor } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter } from 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { hide, show, isAncestow } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice, StowageScope, IStowageVawueChangeEvent, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-export interface IStatusbarEntryPriority {
+expowt intewface IStatusbawEntwyPwiowity {
 
 	/**
-	 * The main priority of the entry that
-	 * defines the order of appearance:
-	 * either a number or a reference to
-	 * another status bar entry to position
-	 * relative to.
+	 * The main pwiowity of the entwy that
+	 * defines the owda of appeawance:
+	 * eitha a numba ow a wefewence to
+	 * anotha status baw entwy to position
+	 * wewative to.
 	 *
-	 * May not be unique across all entries.
+	 * May not be unique acwoss aww entwies.
 	 */
-	readonly primary: number | IStatusbarEntryLocation;
+	weadonwy pwimawy: numba | IStatusbawEntwyWocation;
 
 	/**
-	 * The secondary priority of the entry
-	 * is used in case the main priority
-	 * matches another one's priority.
+	 * The secondawy pwiowity of the entwy
+	 * is used in case the main pwiowity
+	 * matches anotha one's pwiowity.
 	 *
-	 * Should be unique across all entries.
+	 * Shouwd be unique acwoss aww entwies.
 	 */
-	readonly secondary: number;
+	weadonwy secondawy: numba;
 }
 
-export interface IStatusbarEntryLocation {
+expowt intewface IStatusbawEntwyWocation {
 
 	/**
-	 * The identifier of another status bar entry to
-	 * position relative to.
+	 * The identifia of anotha status baw entwy to
+	 * position wewative to.
 	 */
-	id: string;
+	id: stwing;
 
 	/**
-	 * The alignment of the status bar entry relative
-	 * to the referenced entry.
+	 * The awignment of the status baw entwy wewative
+	 * to the wefewenced entwy.
 	 */
-	alignment: StatusbarAlignment;
+	awignment: StatusbawAwignment;
 
 	/**
-	 * Whether to move the entry close to the location
-	 * so that it appears as if both this entry and
-	 * the location belong to each other.
+	 * Whetha to move the entwy cwose to the wocation
+	 * so that it appeaws as if both this entwy and
+	 * the wocation bewong to each otha.
 	 */
-	compact?: boolean;
+	compact?: boowean;
 }
 
-export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
-	const candidate = thing as IStatusbarEntryLocation | undefined;
+expowt function isStatusbawEntwyWocation(thing: unknown): thing is IStatusbawEntwyWocation {
+	const candidate = thing as IStatusbawEntwyWocation | undefined;
 
-	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
+	wetuwn typeof candidate?.id === 'stwing' && typeof candidate.awignment === 'numba';
 }
 
-export interface IStatusbarViewModelEntry {
-	readonly id: string;
-	readonly name: string;
-	readonly hasCommand: boolean;
-	readonly alignment: StatusbarAlignment;
-	readonly priority: IStatusbarEntryPriority;
-	readonly container: HTMLElement;
-	readonly labelContainer: HTMLElement;
+expowt intewface IStatusbawViewModewEntwy {
+	weadonwy id: stwing;
+	weadonwy name: stwing;
+	weadonwy hasCommand: boowean;
+	weadonwy awignment: StatusbawAwignment;
+	weadonwy pwiowity: IStatusbawEntwyPwiowity;
+	weadonwy containa: HTMWEwement;
+	weadonwy wabewContaina: HTMWEwement;
 }
 
-export class StatusbarViewModel extends Disposable {
+expowt cwass StatusbawViewModew extends Disposabwe {
 
-	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
+	pwivate static weadonwy HIDDEN_ENTWIES_KEY = 'wowkbench.statusbaw.hidden';
 
-	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
+	pwivate weadonwy _onDidChangeEntwyVisibiwity = this._wegista(new Emitta<{ id: stwing, visibwe: boowean }>());
+	weadonwy onDidChangeEntwyVisibiwity = this._onDidChangeEntwyVisibiwity.event;
 
-	private _entries: IStatusbarViewModelEntry[] = []; // Intentionally not using a map here since multiple entries can have the same ID
-	get entries(): IStatusbarViewModelEntry[] { return this._entries.slice(0); }
+	pwivate _entwies: IStatusbawViewModewEntwy[] = []; // Intentionawwy not using a map hewe since muwtipwe entwies can have the same ID
+	get entwies(): IStatusbawViewModewEntwy[] { wetuwn this._entwies.swice(0); }
 
-	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
-	get lastFocusedEntry(): IStatusbarViewModelEntry | undefined {
-		return this._lastFocusedEntry && !this.isHidden(this._lastFocusedEntry.id) ? this._lastFocusedEntry : undefined;
+	pwivate _wastFocusedEntwy: IStatusbawViewModewEntwy | undefined;
+	get wastFocusedEntwy(): IStatusbawViewModewEntwy | undefined {
+		wetuwn this._wastFocusedEntwy && !this.isHidden(this._wastFocusedEntwy.id) ? this._wastFocusedEntwy : undefined;
 	}
 
-	private hidden = new Set<string>();
+	pwivate hidden = new Set<stwing>();
 
-	constructor(private readonly storageService: IStorageService) {
-		super();
+	constwuctow(pwivate weadonwy stowageSewvice: IStowageSewvice) {
+		supa();
 
-		this.restoreState();
-		this.registerListeners();
+		this.westoweState();
+		this.wegistewWistenews();
 	}
 
-	private restoreState(): void {
-		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
-		if (hiddenRaw) {
-			try {
-				const hiddenArray: string[] = JSON.parse(hiddenRaw);
-				this.hidden = new Set(hiddenArray);
-			} catch (error) {
-				// ignore parsing errors
+	pwivate westoweState(): void {
+		const hiddenWaw = this.stowageSewvice.get(StatusbawViewModew.HIDDEN_ENTWIES_KEY, StowageScope.GWOBAW);
+		if (hiddenWaw) {
+			twy {
+				const hiddenAwway: stwing[] = JSON.pawse(hiddenWaw);
+				this.hidden = new Set(hiddenAwway);
+			} catch (ewwow) {
+				// ignowe pawsing ewwows
 			}
 		}
 	}
 
-	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.stowageSewvice.onDidChangeVawue(e => this.onDidStowageVawueChange(e)));
 	}
 
-	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
-		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
+	pwivate onDidStowageVawueChange(event: IStowageVawueChangeEvent): void {
+		if (event.key === StatusbawViewModew.HIDDEN_ENTWIES_KEY && event.scope === StowageScope.GWOBAW) {
 
-			// Keep current hidden entries
-			const currentlyHidden = new Set(this.hidden);
+			// Keep cuwwent hidden entwies
+			const cuwwentwyHidden = new Set(this.hidden);
 
-			// Load latest state of hidden entries
-			this.hidden.clear();
-			this.restoreState();
+			// Woad watest state of hidden entwies
+			this.hidden.cweaw();
+			this.westoweState();
 
-			const changed = new Set<string>();
+			const changed = new Set<stwing>();
 
-			// Check for each entry that is now visible
-			for (const id of currentlyHidden) {
+			// Check fow each entwy that is now visibwe
+			fow (const id of cuwwentwyHidden) {
 				if (!this.hidden.has(id)) {
 					changed.add(id);
 				}
 			}
 
-			// Check for each entry that is now hidden
-			for (const id of this.hidden) {
-				if (!currentlyHidden.has(id)) {
+			// Check fow each entwy that is now hidden
+			fow (const id of this.hidden) {
+				if (!cuwwentwyHidden.has(id)) {
 					changed.add(id);
 				}
 			}
 
-			// Update visibility for entries have changed
+			// Update visibiwity fow entwies have changed
 			if (changed.size > 0) {
-				for (const entry of this._entries) {
-					if (changed.has(entry.id)) {
-						this.updateVisibility(entry.id, true);
+				fow (const entwy of this._entwies) {
+					if (changed.has(entwy.id)) {
+						this.updateVisibiwity(entwy.id, twue);
 
-						changed.delete(entry.id);
+						changed.dewete(entwy.id);
 					}
 				}
 			}
 		}
 	}
 
-	add(entry: IStatusbarViewModelEntry): void {
+	add(entwy: IStatusbawViewModewEntwy): void {
 
-		// Add to set of entries
-		this._entries.push(entry);
+		// Add to set of entwies
+		this._entwies.push(entwy);
 
-		// Update visibility directly
-		this.updateVisibility(entry, false);
+		// Update visibiwity diwectwy
+		this.updateVisibiwity(entwy, fawse);
 
-		// Sort according to priority
-		this.sort();
+		// Sowt accowding to pwiowity
+		this.sowt();
 
-		// Mark first/last visible entry
-		this.markFirstLastVisibleEntry();
+		// Mawk fiwst/wast visibwe entwy
+		this.mawkFiwstWastVisibweEntwy();
 	}
 
-	remove(entry: IStatusbarViewModelEntry): void {
-		const index = this._entries.indexOf(entry);
+	wemove(entwy: IStatusbawViewModewEntwy): void {
+		const index = this._entwies.indexOf(entwy);
 		if (index >= 0) {
 
-			// Remove from entries
-			this._entries.splice(index, 1);
+			// Wemove fwom entwies
+			this._entwies.spwice(index, 1);
 
-			// Re-sort entries if this one was used
-			// as reference from other entries
-			if (this._entries.some(otherEntry => isStatusbarEntryLocation(otherEntry.priority.primary) && otherEntry.priority.primary.id === entry.id)) {
-				this.sort();
+			// We-sowt entwies if this one was used
+			// as wefewence fwom otha entwies
+			if (this._entwies.some(othewEntwy => isStatusbawEntwyWocation(othewEntwy.pwiowity.pwimawy) && othewEntwy.pwiowity.pwimawy.id === entwy.id)) {
+				this.sowt();
 			}
 
-			// Mark first/last visible entry
-			this.markFirstLastVisibleEntry();
+			// Mawk fiwst/wast visibwe entwy
+			this.mawkFiwstWastVisibweEntwy();
 		}
 	}
 
-	isHidden(id: string): boolean {
-		return this.hidden.has(id);
+	isHidden(id: stwing): boowean {
+		wetuwn this.hidden.has(id);
 	}
 
-	hide(id: string): void {
+	hide(id: stwing): void {
 		if (!this.hidden.has(id)) {
 			this.hidden.add(id);
 
-			this.updateVisibility(id, true);
+			this.updateVisibiwity(id, twue);
 
 			this.saveState();
 		}
 	}
 
-	show(id: string): void {
+	show(id: stwing): void {
 		if (this.hidden.has(id)) {
-			this.hidden.delete(id);
+			this.hidden.dewete(id);
 
-			this.updateVisibility(id, true);
+			this.updateVisibiwity(id, twue);
 
 			this.saveState();
 		}
 	}
 
-	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
-		return this._entries.find(entry => entry.container === container);
+	findEntwy(containa: HTMWEwement): IStatusbawViewModewEntwy | undefined {
+		wetuwn this._entwies.find(entwy => entwy.containa === containa);
 	}
 
-	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
-		return this._entries.filter(entry => entry.alignment === alignment);
+	getEntwies(awignment: StatusbawAwignment): IStatusbawViewModewEntwy[] {
+		wetuwn this._entwies.fiwta(entwy => entwy.awignment === awignment);
 	}
 
-	focusNextEntry(): void {
-		this.focusEntry(+1, 0);
+	focusNextEntwy(): void {
+		this.focusEntwy(+1, 0);
 	}
 
-	focusPreviousEntry(): void {
-		this.focusEntry(-1, this.entries.length - 1);
+	focusPweviousEntwy(): void {
+		this.focusEntwy(-1, this.entwies.wength - 1);
 	}
 
-	isEntryFocused(): boolean {
-		return !!this.getFocusedEntry();
+	isEntwyFocused(): boowean {
+		wetuwn !!this.getFocusedEntwy();
 	}
 
-	private getFocusedEntry(): IStatusbarViewModelEntry | undefined {
-		return this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+	pwivate getFocusedEntwy(): IStatusbawViewModewEntwy | undefined {
+		wetuwn this._entwies.find(entwy => isAncestow(document.activeEwement, entwy.containa));
 	}
 
-	private focusEntry(delta: number, restartPosition: number): void {
+	pwivate focusEntwy(dewta: numba, westawtPosition: numba): void {
 
-		const getVisibleEntry = (start: number) => {
-			let indexToFocus = start;
-			let entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
-			while (entry && this.isHidden(entry.id)) {
-				indexToFocus += delta;
-				entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
+		const getVisibweEntwy = (stawt: numba) => {
+			wet indexToFocus = stawt;
+			wet entwy = (indexToFocus >= 0 && indexToFocus < this._entwies.wength) ? this._entwies[indexToFocus] : undefined;
+			whiwe (entwy && this.isHidden(entwy.id)) {
+				indexToFocus += dewta;
+				entwy = (indexToFocus >= 0 && indexToFocus < this._entwies.wength) ? this._entwies[indexToFocus] : undefined;
 			}
 
-			return entry;
+			wetuwn entwy;
 		};
 
-		const focused = this.getFocusedEntry();
+		const focused = this.getFocusedEntwy();
 		if (focused) {
-			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
-			if (entry) {
-				this._lastFocusedEntry = entry;
+			const entwy = getVisibweEntwy(this._entwies.indexOf(focused) + dewta);
+			if (entwy) {
+				this._wastFocusedEntwy = entwy;
 
-				entry.labelContainer.focus();
+				entwy.wabewContaina.focus();
 
-				return;
+				wetuwn;
 			}
 		}
 
-		const entry = getVisibleEntry(restartPosition);
-		if (entry) {
-			this._lastFocusedEntry = entry;
-			entry.labelContainer.focus();
+		const entwy = getVisibweEntwy(westawtPosition);
+		if (entwy) {
+			this._wastFocusedEntwy = entwy;
+			entwy.wabewContaina.focus();
 		}
 	}
 
-	private updateVisibility(id: string, trigger: boolean): void;
-	private updateVisibility(entry: IStatusbarViewModelEntry, trigger: boolean): void;
-	private updateVisibility(arg1: string | IStatusbarViewModelEntry, trigger: boolean): void {
+	pwivate updateVisibiwity(id: stwing, twigga: boowean): void;
+	pwivate updateVisibiwity(entwy: IStatusbawViewModewEntwy, twigga: boowean): void;
+	pwivate updateVisibiwity(awg1: stwing | IStatusbawViewModewEntwy, twigga: boowean): void {
 
-		// By identifier
-		if (typeof arg1 === 'string') {
-			const id = arg1;
+		// By identifia
+		if (typeof awg1 === 'stwing') {
+			const id = awg1;
 
-			for (const entry of this._entries) {
-				if (entry.id === id) {
-					this.updateVisibility(entry, trigger);
+			fow (const entwy of this._entwies) {
+				if (entwy.id === id) {
+					this.updateVisibiwity(entwy, twigga);
 				}
 			}
 		}
 
-		// By entry
-		else {
-			const entry = arg1;
-			const isHidden = this.isHidden(entry.id);
+		// By entwy
+		ewse {
+			const entwy = awg1;
+			const isHidden = this.isHidden(entwy.id);
 
-			// Use CSS to show/hide item container
+			// Use CSS to show/hide item containa
 			if (isHidden) {
-				hide(entry.container);
-			} else {
-				show(entry.container);
+				hide(entwy.containa);
+			} ewse {
+				show(entwy.containa);
 			}
 
-			if (trigger) {
-				this._onDidChangeEntryVisibility.fire({ id: entry.id, visible: !isHidden });
+			if (twigga) {
+				this._onDidChangeEntwyVisibiwity.fiwe({ id: entwy.id, visibwe: !isHidden });
 			}
 
-			// Mark first/last visible entry
-			this.markFirstLastVisibleEntry();
+			// Mawk fiwst/wast visibwe entwy
+			this.mawkFiwstWastVisibweEntwy();
 		}
 	}
 
-	private saveState(): void {
+	pwivate saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
-		} else {
-			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+			this.stowageSewvice.stowe(StatusbawViewModew.HIDDEN_ENTWIES_KEY, JSON.stwingify(Awway.fwom(this.hidden.vawues())), StowageScope.GWOBAW, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(StatusbawViewModew.HIDDEN_ENTWIES_KEY, StowageScope.GWOBAW);
 		}
 	}
 
-	private sort(): void {
+	pwivate sowt(): void {
 
-		// Split up entries into 2 buckets:
-		// - those with `priority: number` that can be compared
-		// - those with `priority: string` that must be sorted
-		//   relative to another entry if possible
-		const mapEntryWithNumberedPriorityToIndex = new Map<IStatusbarViewModelEntry, number /* index of entry */>();
-		const mapEntryWithRelativePriority = new Map<string /* priority of entry */, IStatusbarViewModelEntry[]>();
-		for (let i = 0; i < this._entries.length; i++) {
-			const entry = this._entries[i];
-			if (typeof entry.priority.primary === 'number') {
-				mapEntryWithNumberedPriorityToIndex.set(entry, i);
-			} else {
-				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.id);
-				if (!entries) {
-					entries = [];
-					mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+		// Spwit up entwies into 2 buckets:
+		// - those with `pwiowity: numba` that can be compawed
+		// - those with `pwiowity: stwing` that must be sowted
+		//   wewative to anotha entwy if possibwe
+		const mapEntwyWithNumbewedPwiowityToIndex = new Map<IStatusbawViewModewEntwy, numba /* index of entwy */>();
+		const mapEntwyWithWewativePwiowity = new Map<stwing /* pwiowity of entwy */, IStatusbawViewModewEntwy[]>();
+		fow (wet i = 0; i < this._entwies.wength; i++) {
+			const entwy = this._entwies[i];
+			if (typeof entwy.pwiowity.pwimawy === 'numba') {
+				mapEntwyWithNumbewedPwiowityToIndex.set(entwy, i);
+			} ewse {
+				wet entwies = mapEntwyWithWewativePwiowity.get(entwy.pwiowity.pwimawy.id);
+				if (!entwies) {
+					entwies = [];
+					mapEntwyWithWewativePwiowity.set(entwy.pwiowity.pwimawy.id, entwies);
 				}
-				entries.push(entry);
+				entwies.push(entwy);
 			}
 		}
 
-		// Sort the entries with `priority: number` according to that
-		const sortedEntriesWithNumberedPriority = Array.from(mapEntryWithNumberedPriorityToIndex.keys());
-		sortedEntriesWithNumberedPriority.sort((entryA, entryB) => {
-			if (entryA.alignment === entryB.alignment) {
+		// Sowt the entwies with `pwiowity: numba` accowding to that
+		const sowtedEntwiesWithNumbewedPwiowity = Awway.fwom(mapEntwyWithNumbewedPwiowityToIndex.keys());
+		sowtedEntwiesWithNumbewedPwiowity.sowt((entwyA, entwyB) => {
+			if (entwyA.awignment === entwyB.awignment) {
 
-				// Sort by primary/secondary priority: higher values move towards the left
+				// Sowt by pwimawy/secondawy pwiowity: higha vawues move towawds the weft
 
-				if (entryA.priority.primary !== entryB.priority.primary) {
-					return Number(entryB.priority.primary) - Number(entryA.priority.primary);
+				if (entwyA.pwiowity.pwimawy !== entwyB.pwiowity.pwimawy) {
+					wetuwn Numba(entwyB.pwiowity.pwimawy) - Numba(entwyA.pwiowity.pwimawy);
 				}
 
-				if (entryA.priority.secondary !== entryB.priority.secondary) {
-					return entryB.priority.secondary - entryA.priority.secondary;
+				if (entwyA.pwiowity.secondawy !== entwyB.pwiowity.secondawy) {
+					wetuwn entwyB.pwiowity.secondawy - entwyA.pwiowity.secondawy;
 				}
 
-				// otherwise maintain stable order (both values known to be in map)
-				return mapEntryWithNumberedPriorityToIndex.get(entryA)! - mapEntryWithNumberedPriorityToIndex.get(entryB)!;
+				// othewwise maintain stabwe owda (both vawues known to be in map)
+				wetuwn mapEntwyWithNumbewedPwiowityToIndex.get(entwyA)! - mapEntwyWithNumbewedPwiowityToIndex.get(entwyB)!;
 			}
 
-			if (entryA.alignment === StatusbarAlignment.LEFT) {
-				return -1;
+			if (entwyA.awignment === StatusbawAwignment.WEFT) {
+				wetuwn -1;
 			}
 
-			if (entryB.alignment === StatusbarAlignment.LEFT) {
-				return 1;
+			if (entwyB.awignment === StatusbawAwignment.WEFT) {
+				wetuwn 1;
 			}
 
-			return 0;
+			wetuwn 0;
 		});
 
-		let sortedEntries: IStatusbarViewModelEntry[];
+		wet sowtedEntwies: IStatusbawViewModewEntwy[];
 
-		// Entries with location: sort in accordingly
-		if (mapEntryWithRelativePriority.size > 0) {
-			sortedEntries = [];
+		// Entwies with wocation: sowt in accowdingwy
+		if (mapEntwyWithWewativePwiowity.size > 0) {
+			sowtedEntwies = [];
 
-			for (const entry of sortedEntriesWithNumberedPriority) {
-				const relativeEntries = mapEntryWithRelativePriority.get(entry.id);
+			fow (const entwy of sowtedEntwiesWithNumbewedPwiowity) {
+				const wewativeEntwies = mapEntwyWithWewativePwiowity.get(entwy.id);
 
-				// Fill relative entries to LEFT
-				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT));
+				// Fiww wewative entwies to WEFT
+				if (wewativeEntwies) {
+					sowtedEntwies.push(...wewativeEntwies.fiwta(entwy => isStatusbawEntwyWocation(entwy.pwiowity.pwimawy) && entwy.pwiowity.pwimawy.awignment === StatusbawAwignment.WEFT));
 				}
 
-				// Fill referenced entry
-				sortedEntries.push(entry);
+				// Fiww wefewenced entwy
+				sowtedEntwies.push(entwy);
 
-				// Fill relative entries to RIGHT
-				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT));
+				// Fiww wewative entwies to WIGHT
+				if (wewativeEntwies) {
+					sowtedEntwies.push(...wewativeEntwies.fiwta(entwy => isStatusbawEntwyWocation(entwy.pwiowity.pwimawy) && entwy.pwiowity.pwimawy.awignment === StatusbawAwignment.WIGHT));
 				}
 
-				// Delete from map to mark as handled
-				mapEntryWithRelativePriority.delete(entry.id);
+				// Dewete fwom map to mawk as handwed
+				mapEntwyWithWewativePwiowity.dewete(entwy.id);
 			}
 
-			// Finally, just append all entries that reference another entry
-			// that does not exist to the end of the list
-			for (const [, entries] of mapEntryWithRelativePriority) {
-				sortedEntries.push(...entries);
+			// Finawwy, just append aww entwies that wefewence anotha entwy
+			// that does not exist to the end of the wist
+			fow (const [, entwies] of mapEntwyWithWewativePwiowity) {
+				sowtedEntwies.push(...entwies);
 			}
 		}
 
-		// No entries with relative priority: take sorted entries as is
-		else {
-			sortedEntries = sortedEntriesWithNumberedPriority;
+		// No entwies with wewative pwiowity: take sowted entwies as is
+		ewse {
+			sowtedEntwies = sowtedEntwiesWithNumbewedPwiowity;
 		}
 
-		// Take over as new truth of entries
-		this._entries = sortedEntries;
+		// Take ova as new twuth of entwies
+		this._entwies = sowtedEntwies;
 	}
 
-	private markFirstLastVisibleEntry(): void {
-		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.LEFT));
-		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.RIGHT));
+	pwivate mawkFiwstWastVisibweEntwy(): void {
+		this.doMawkFiwstWastVisibweStatusbawItem(this.getEntwies(StatusbawAwignment.WEFT));
+		this.doMawkFiwstWastVisibweStatusbawItem(this.getEntwies(StatusbawAwignment.WIGHT));
 	}
 
-	private doMarkFirstLastVisibleStatusbarItem(entries: IStatusbarViewModelEntry[]): void {
-		let firstVisibleItem: IStatusbarViewModelEntry | undefined;
-		let lastVisibleItem: IStatusbarViewModelEntry | undefined;
+	pwivate doMawkFiwstWastVisibweStatusbawItem(entwies: IStatusbawViewModewEntwy[]): void {
+		wet fiwstVisibweItem: IStatusbawViewModewEntwy | undefined;
+		wet wastVisibweItem: IStatusbawViewModewEntwy | undefined;
 
-		for (const entry of entries) {
+		fow (const entwy of entwies) {
 
-			// Clear previous first
-			entry.container.classList.remove('first-visible-item', 'last-visible-item');
+			// Cweaw pwevious fiwst
+			entwy.containa.cwassWist.wemove('fiwst-visibwe-item', 'wast-visibwe-item');
 
-			const isVisible = !this.isHidden(entry.id);
-			if (isVisible) {
-				if (!firstVisibleItem) {
-					firstVisibleItem = entry;
+			const isVisibwe = !this.isHidden(entwy.id);
+			if (isVisibwe) {
+				if (!fiwstVisibweItem) {
+					fiwstVisibweItem = entwy;
 				}
 
-				lastVisibleItem = entry;
+				wastVisibweItem = entwy;
 			}
 		}
 
-		// Mark: first visible item
-		if (firstVisibleItem) {
-			firstVisibleItem.container.classList.add('first-visible-item');
+		// Mawk: fiwst visibwe item
+		if (fiwstVisibweItem) {
+			fiwstVisibweItem.containa.cwassWist.add('fiwst-visibwe-item');
 		}
 
-		// Mark: last visible item
-		if (lastVisibleItem) {
-			lastVisibleItem.container.classList.add('last-visible-item');
+		// Mawk: wast visibwe item
+		if (wastVisibweItem) {
+			wastVisibweItem.containa.cwassWist.add('wast-visibwe-item');
 		}
 	}
 }

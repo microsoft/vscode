@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('Editor Model - Model Edit Operation', () => {
-	const LINE1 = 'My First Line';
-	const LINE2 = '\t\tMy Second Line';
-	const LINE3 = '    Third Line';
-	const LINE4 = '';
-	const LINE5 = '1';
+suite('Editow Modew - Modew Edit Opewation', () => {
+	const WINE1 = 'My Fiwst Wine';
+	const WINE2 = '\t\tMy Second Wine';
+	const WINE3 = '    Thiwd Wine';
+	const WINE4 = '';
+	const WINE5 = '1';
 
-	let model: TextModel;
+	wet modew: TextModew;
 
 	setup(() => {
 		const text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
-		model = createTextModel(text);
+			WINE1 + '\w\n' +
+			WINE2 + '\n' +
+			WINE3 + '\n' +
+			WINE4 + '\w\n' +
+			WINE5;
+		modew = cweateTextModew(text);
 	});
 
-	teardown(() => {
-		model.dispose();
+	teawdown(() => {
+		modew.dispose();
 	});
 
-	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-		let range = new Range(
-			selectionLineNumber,
-			selectionColumn,
-			positionLineNumber,
-			positionColumn
+	function cweateSingweEditOp(text: stwing, positionWineNumba: numba, positionCowumn: numba, sewectionWineNumba: numba = positionWineNumba, sewectionCowumn: numba = positionCowumn): IIdentifiedSingweEditOpewation {
+		wet wange = new Wange(
+			sewectionWineNumba,
+			sewectionCowumn,
+			positionWineNumba,
+			positionCowumn
 		);
 
-		return {
-			identifier: null,
-			range: range,
+		wetuwn {
+			identifia: nuww,
+			wange: wange,
 			text: text,
-			forceMoveMarkers: false
+			fowceMoveMawkews: fawse
 		};
 	}
 
-	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
-		let editOp = [singleEditOp];
+	function assewtSingweEditOp(singweEditOp: IIdentifiedSingweEditOpewation, editedWines: stwing[]) {
+		wet editOp = [singweEditOp];
 
-		let inverseEditOp = model.applyEdits(editOp, true);
+		wet invewseEditOp = modew.appwyEdits(editOp, twue);
 
-		assert.strictEqual(model.getLineCount(), editedLines.length);
-		for (let i = 0; i < editedLines.length; i++) {
-			assert.strictEqual(model.getLineContent(i + 1), editedLines[i]);
+		assewt.stwictEquaw(modew.getWineCount(), editedWines.wength);
+		fow (wet i = 0; i < editedWines.wength; i++) {
+			assewt.stwictEquaw(modew.getWineContent(i + 1), editedWines[i]);
 		}
 
-		let originalOp = model.applyEdits(inverseEditOp, true);
+		wet owiginawOp = modew.appwyEdits(invewseEditOp, twue);
 
-		assert.strictEqual(model.getLineCount(), 5);
-		assert.strictEqual(model.getLineContent(1), LINE1);
-		assert.strictEqual(model.getLineContent(2), LINE2);
-		assert.strictEqual(model.getLineContent(3), LINE3);
-		assert.strictEqual(model.getLineContent(4), LINE4);
-		assert.strictEqual(model.getLineContent(5), LINE5);
+		assewt.stwictEquaw(modew.getWineCount(), 5);
+		assewt.stwictEquaw(modew.getWineContent(1), WINE1);
+		assewt.stwictEquaw(modew.getWineContent(2), WINE2);
+		assewt.stwictEquaw(modew.getWineContent(3), WINE3);
+		assewt.stwictEquaw(modew.getWineContent(4), WINE4);
+		assewt.stwictEquaw(modew.getWineContent(5), WINE5);
 
-		const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
-			return {
-				identifier: edit.identifier,
-				range: edit.range,
+		const simpwifyEdit = (edit: IIdentifiedSingweEditOpewation) => {
+			wetuwn {
+				identifia: edit.identifia,
+				wange: edit.wange,
 				text: edit.text,
-				forceMoveMarkers: edit.forceMoveMarkers || false,
-				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
+				fowceMoveMawkews: edit.fowceMoveMawkews || fawse,
+				isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || fawse
 			};
 		};
-		assert.deepStrictEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
+		assewt.deepStwictEquaw(owiginawOp.map(simpwifyEdit), editOp.map(simpwifyEdit));
 	}
 
-	test('Insert inline', () => {
-		assertSingleEditOp(
-			createSingleEditOp('a', 1, 1),
+	test('Insewt inwine', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('a', 1, 1),
 			[
-				'aMy First Line',
-				LINE2,
-				LINE3,
-				LINE4,
-				LINE5
+				'aMy Fiwst Wine',
+				WINE2,
+				WINE3,
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/inline 1', () => {
-		assertSingleEditOp(
-			createSingleEditOp(' incredibly awesome', 1, 3),
+	test('Wepwace inwine/inwine 1', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp(' incwedibwy awesome', 1, 3),
 			[
-				'My incredibly awesome First Line',
-				LINE2,
-				LINE3,
-				LINE4,
-				LINE5
+				'My incwedibwy awesome Fiwst Wine',
+				WINE2,
+				WINE3,
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/inline 2', () => {
-		assertSingleEditOp(
-			createSingleEditOp(' with text at the end.', 1, 14),
+	test('Wepwace inwine/inwine 2', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp(' with text at the end.', 1, 14),
 			[
-				'My First Line with text at the end.',
-				LINE2,
-				LINE3,
-				LINE4,
-				LINE5
+				'My Fiwst Wine with text at the end.',
+				WINE2,
+				WINE3,
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/inline 3', () => {
-		assertSingleEditOp(
-			createSingleEditOp('My new First Line.', 1, 1, 1, 14),
+	test('Wepwace inwine/inwine 3', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('My new Fiwst Wine.', 1, 1, 1, 14),
 			[
-				'My new First Line.',
-				LINE2,
-				LINE3,
-				LINE4,
-				LINE5
+				'My new Fiwst Wine.',
+				WINE2,
+				WINE3,
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/multi line 1', () => {
-		assertSingleEditOp(
-			createSingleEditOp('My new First Line.', 1, 1, 3, 15),
+	test('Wepwace inwine/muwti wine 1', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('My new Fiwst Wine.', 1, 1, 3, 15),
 			[
-				'My new First Line.',
-				LINE4,
-				LINE5
+				'My new Fiwst Wine.',
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/multi line 2', () => {
-		assertSingleEditOp(
-			createSingleEditOp('My new First Line.', 1, 2, 3, 15),
+	test('Wepwace inwine/muwti wine 2', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('My new Fiwst Wine.', 1, 2, 3, 15),
 			[
-				'MMy new First Line.',
-				LINE4,
-				LINE5
+				'MMy new Fiwst Wine.',
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace inline/multi line 3', () => {
-		assertSingleEditOp(
-			createSingleEditOp('My new First Line.', 1, 2, 3, 2),
+	test('Wepwace inwine/muwti wine 3', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('My new Fiwst Wine.', 1, 2, 3, 2),
 			[
-				'MMy new First Line.   Third Line',
-				LINE4,
-				LINE5
+				'MMy new Fiwst Wine.   Thiwd Wine',
+				WINE4,
+				WINE5
 			]
 		);
 	});
 
-	test('Replace muli line/multi line', () => {
-		assertSingleEditOp(
-			createSingleEditOp('1\n2\n3\n4\n', 1, 1),
+	test('Wepwace muwi wine/muwti wine', () => {
+		assewtSingweEditOp(
+			cweateSingweEditOp('1\n2\n3\n4\n', 1, 1),
 			[
 				'1',
 				'2',
 				'3',
 				'4',
-				LINE1,
-				LINE2,
-				LINE3,
-				LINE4,
-				LINE5
+				WINE1,
+				WINE2,
+				WINE3,
+				WINE4,
+				WINE5
 			]
 		);
 	});

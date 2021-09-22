@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function clamp(value: number, min: number, max: number): number {
-	return Math.min(Math.max(value, min), max);
+expowt function cwamp(vawue: numba, min: numba, max: numba): numba {
+	wetuwn Math.min(Math.max(vawue, min), max);
 }
 
-export function rot(index: number, modulo: number): number {
-	return (modulo + (index % modulo)) % modulo;
+expowt function wot(index: numba, moduwo: numba): numba {
+	wetuwn (moduwo + (index % moduwo)) % moduwo;
 }
 
-export class Counter {
-	private _next = 0;
+expowt cwass Counta {
+	pwivate _next = 0;
 
-	getNext(): number {
-		return this._next++;
+	getNext(): numba {
+		wetuwn this._next++;
 	}
 }
 
-export class MovingAverage {
+expowt cwass MovingAvewage {
 
-	private _n = 1;
-	private _val = 0;
+	pwivate _n = 1;
+	pwivate _vaw = 0;
 
-	update(value: number): this {
-		this._val = this._val + (value - this._val) / this._n;
+	update(vawue: numba): this {
+		this._vaw = this._vaw + (vawue - this._vaw) / this._n;
 		this._n += 1;
-		return this;
+		wetuwn this;
 	}
 
-	get value(): number {
-		return this._val;
+	get vawue(): numba {
+		wetuwn this._vaw;
 	}
 }

@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MainThweadWebviews, weviveWebviewExtension } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviews';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IWebviewViewSewvice, WebviewView } fwom 'vs/wowkbench/contwib/webviewView/bwowsa/webviewViewSewvice';
 
 
-export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
+expowt cwass MainThweadWebviewsViews extends Disposabwe impwements extHostPwotocow.MainThweadWebviewViewsShape {
 
-	private readonly _proxy: extHostProtocol.ExtHostWebviewViewsShape;
+	pwivate weadonwy _pwoxy: extHostPwotocow.ExtHostWebviewViewsShape;
 
-	private readonly _webviewViews = new Map<string, WebviewView>();
-	private readonly _webviewViewProviders = new Map<string, IDisposable>();
+	pwivate weadonwy _webviewViews = new Map<stwing, WebviewView>();
+	pwivate weadonwy _webviewViewPwovidews = new Map<stwing, IDisposabwe>();
 
-	constructor(
-		context: extHostProtocol.IExtHostContext,
-		private readonly mainThreadWebviews: MainThreadWebviews,
-		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
+	constwuctow(
+		context: extHostPwotocow.IExtHostContext,
+		pwivate weadonwy mainThweadWebviews: MainThweadWebviews,
+		@IWebviewViewSewvice pwivate weadonwy _webviewViewSewvice: IWebviewViewSewvice,
 	) {
-		super();
+		supa();
 
-		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+		this._pwoxy = context.getPwoxy(extHostPwotocow.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		dispose(this._webviewViewProviders.values());
-		this._webviewViewProviders.clear();
+		dispose(this._webviewViewPwovidews.vawues());
+		this._webviewViewPwovidews.cweaw();
 
-		dispose(this._webviewViews.values());
+		dispose(this._webviewViews.vawues());
 	}
 
-	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
-		const webviewView = this.getWebviewView(handle);
-		webviewView.title = value;
+	pubwic $setWebviewViewTitwe(handwe: extHostPwotocow.WebviewHandwe, vawue: stwing | undefined): void {
+		const webviewView = this.getWebviewView(handwe);
+		webviewView.titwe = vawue;
 	}
 
-	public $setWebviewViewDescription(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
-		const webviewView = this.getWebviewView(handle);
-		webviewView.description = value;
+	pubwic $setWebviewViewDescwiption(handwe: extHostPwotocow.WebviewHandwe, vawue: stwing | undefined): void {
+		const webviewView = this.getWebviewView(handwe);
+		webviewView.descwiption = vawue;
 	}
 
-	public $show(handle: extHostProtocol.WebviewHandle, preserveFocus: boolean): void {
-		const webviewView = this.getWebviewView(handle);
-		webviewView.show(preserveFocus);
+	pubwic $show(handwe: extHostPwotocow.WebviewHandwe, pwesewveFocus: boowean): void {
+		const webviewView = this.getWebviewView(handwe);
+		webviewView.show(pwesewveFocus);
 	}
 
-	public $registerWebviewViewProvider(
-		extensionData: extHostProtocol.WebviewExtensionDescription,
-		viewType: string,
-		options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }
+	pubwic $wegistewWebviewViewPwovida(
+		extensionData: extHostPwotocow.WebviewExtensionDescwiption,
+		viewType: stwing,
+		options: { wetainContextWhenHidden?: boowean, sewiawizeBuffewsFowPostMessage: boowean }
 	): void {
-		if (this._webviewViewProviders.has(viewType)) {
-			throw new Error(`View provider for ${viewType} already registered`);
+		if (this._webviewViewPwovidews.has(viewType)) {
+			thwow new Ewwow(`View pwovida fow ${viewType} awweady wegistewed`);
 		}
 
-		const extension = reviveWebviewExtension(extensionData);
+		const extension = weviveWebviewExtension(extensionData);
 
-		const registration = this._webviewViewService.register(viewType, {
-			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
-				const handle = webviewView.webview.id;
+		const wegistwation = this._webviewViewSewvice.wegista(viewType, {
+			wesowve: async (webviewView: WebviewView, cancewwation: CancewwationToken) => {
+				const handwe = webviewView.webview.id;
 
-				this._webviewViews.set(handle, webviewView);
-				this.mainThreadWebviews.addWebview(handle, webviewView.webview, { serializeBuffersForPostMessage: options.serializeBuffersForPostMessage });
+				this._webviewViews.set(handwe, webviewView);
+				this.mainThweadWebviews.addWebview(handwe, webviewView.webview, { sewiawizeBuffewsFowPostMessage: options.sewiawizeBuffewsFowPostMessage });
 
-				let state = undefined;
+				wet state = undefined;
 				if (webviewView.webview.state) {
-					try {
-						state = JSON.parse(webviewView.webview.state);
+					twy {
+						state = JSON.pawse(webviewView.webview.state);
 					} catch (e) {
-						console.error('Could not load webview state', e, webviewView.webview.state);
+						consowe.ewwow('Couwd not woad webview state', e, webviewView.webview.state);
 					}
 				}
 
@@ -85,43 +85,43 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 					webviewView.webview.options = options;
 				}
 
-				webviewView.onDidChangeVisibility(visible => {
-					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
+				webviewView.onDidChangeVisibiwity(visibwe => {
+					this._pwoxy.$onDidChangeWebviewViewVisibiwity(handwe, visibwe);
 				});
 
 				webviewView.onDispose(() => {
-					this._proxy.$disposeWebviewView(handle);
-					this._webviewViews.delete(handle);
+					this._pwoxy.$disposeWebviewView(handwe);
+					this._webviewViews.dewete(handwe);
 				});
 
-				try {
-					await this._proxy.$resolveWebviewView(handle, viewType, webviewView.title, state, cancellation);
-				} catch (error) {
-					onUnexpectedError(error);
-					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+				twy {
+					await this._pwoxy.$wesowveWebviewView(handwe, viewType, webviewView.titwe, state, cancewwation);
+				} catch (ewwow) {
+					onUnexpectedEwwow(ewwow);
+					webviewView.webview.htmw = this.mainThweadWebviews.getWebviewWesowvedFaiwedContent(viewType);
 				}
 			}
 		});
 
-		this._webviewViewProviders.set(viewType, registration);
+		this._webviewViewPwovidews.set(viewType, wegistwation);
 	}
 
-	public $unregisterWebviewViewProvider(viewType: string): void {
-		const provider = this._webviewViewProviders.get(viewType);
-		if (!provider) {
-			throw new Error(`No view provider for ${viewType} registered`);
+	pubwic $unwegistewWebviewViewPwovida(viewType: stwing): void {
+		const pwovida = this._webviewViewPwovidews.get(viewType);
+		if (!pwovida) {
+			thwow new Ewwow(`No view pwovida fow ${viewType} wegistewed`);
 		}
 
-		provider.dispose();
-		this._webviewViewProviders.delete(viewType);
+		pwovida.dispose();
+		this._webviewViewPwovidews.dewete(viewType);
 	}
 
-	private getWebviewView(handle: string): WebviewView {
-		const webviewView = this._webviewViews.get(handle);
+	pwivate getWebviewView(handwe: stwing): WebviewView {
+		const webviewView = this._webviewViews.get(handwe);
 		if (!webviewView) {
-			throw new Error('unknown webview view');
+			thwow new Ewwow('unknown webview view');
 		}
-		return webviewView;
+		wetuwn webviewView;
 	}
 }
 

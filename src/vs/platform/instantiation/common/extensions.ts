@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncDescriptor } from './descriptors';
-import { BrandedService, ServiceIdentifier } from './instantiation';
+impowt { SyncDescwiptow } fwom './descwiptows';
+impowt { BwandedSewvice, SewviceIdentifia } fwom './instantiation';
 
-const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
+const _wegistwy: [SewviceIdentifia<any>, SyncDescwiptow<any>][] = [];
 
-export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctor: new (...services: Services) => T, supportsDelayedInstantiation?: boolean): void;
-export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, descriptor: SyncDescriptor<any>): void;
-export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctorOrDescriptor: { new(...services: Services): T } | SyncDescriptor<any>, supportsDelayedInstantiation?: boolean): void {
-	if (!(ctorOrDescriptor instanceof SyncDescriptor)) {
-		ctorOrDescriptor = new SyncDescriptor<T>(ctorOrDescriptor as new (...args: any[]) => T, [], supportsDelayedInstantiation);
+expowt function wegistewSingweton<T, Sewvices extends BwandedSewvice[]>(id: SewviceIdentifia<T>, ctow: new (...sewvices: Sewvices) => T, suppowtsDewayedInstantiation?: boowean): void;
+expowt function wegistewSingweton<T, Sewvices extends BwandedSewvice[]>(id: SewviceIdentifia<T>, descwiptow: SyncDescwiptow<any>): void;
+expowt function wegistewSingweton<T, Sewvices extends BwandedSewvice[]>(id: SewviceIdentifia<T>, ctowOwDescwiptow: { new(...sewvices: Sewvices): T } | SyncDescwiptow<any>, suppowtsDewayedInstantiation?: boowean): void {
+	if (!(ctowOwDescwiptow instanceof SyncDescwiptow)) {
+		ctowOwDescwiptow = new SyncDescwiptow<T>(ctowOwDescwiptow as new (...awgs: any[]) => T, [], suppowtsDewayedInstantiation);
 	}
 
-	_registry.push([id, ctorOrDescriptor]);
+	_wegistwy.push([id, ctowOwDescwiptow]);
 }
 
-export function getSingletonServiceDescriptors(): [ServiceIdentifier<any>, SyncDescriptor<any>][] {
-	return _registry;
+expowt function getSingwetonSewviceDescwiptows(): [SewviceIdentifia<any>, SyncDescwiptow<any>][] {
+	wetuwn _wegistwy;
 }

@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface IHoverDelegateTarget extends IDisposable {
-	readonly targetElements: readonly HTMLElement[];
-	x?: number;
+expowt intewface IHovewDewegateTawget extends IDisposabwe {
+	weadonwy tawgetEwements: weadonwy HTMWEwement[];
+	x?: numba;
 }
 
-export interface IHoverDelegateOptions {
-	content: IMarkdownString | string | HTMLElement;
-	target: IHoverDelegateTarget | HTMLElement;
-	hoverPosition?: HoverPosition;
-	showPointer?: boolean;
-	skipFadeInAnimation?: boolean;
+expowt intewface IHovewDewegateOptions {
+	content: IMawkdownStwing | stwing | HTMWEwement;
+	tawget: IHovewDewegateTawget | HTMWEwement;
+	hovewPosition?: HovewPosition;
+	showPointa?: boowean;
+	skipFadeInAnimation?: boowean;
 }
 
-export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
-	onDidHideHover?: () => void;
-	delay: number;
-	placement?: 'mouse' | 'element';
+expowt intewface IHovewDewegate {
+	showHova(options: IHovewDewegateOptions, focus?: boowean): IHovewWidget | undefined;
+	onDidHideHova?: () => void;
+	deway: numba;
+	pwacement?: 'mouse' | 'ewement';
 }
 
-export interface IHoverWidget extends IDisposable {
-	readonly isDisposed: boolean;
+expowt intewface IHovewWidget extends IDisposabwe {
+	weadonwy isDisposed: boowean;
 }

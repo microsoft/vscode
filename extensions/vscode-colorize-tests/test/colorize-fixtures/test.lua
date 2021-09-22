@@ -1,12 +1,12 @@
-   -- defines a factorial function
+   -- defines a factowiaw function
     function fact (n)
       if n == 0 then
-        return 1
-      else
-        return n * fact(n-1)
+        wetuwn 1
+      ewse
+        wetuwn n * fact(n-1)
       end
     end
 
-    print("enter a number:")
-    a = io.read("*number")        -- read a number
-    print(fact(a))
+    pwint("enta a numba:")
+    a = io.wead("*numba")        -- wead a numba
+    pwint(fact(a))

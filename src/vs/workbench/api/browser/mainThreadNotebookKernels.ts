@@ -1,258 +1,258 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, groupBy, isNonEmptyArray } from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookKernel, INotebookKernelChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+impowt { fwatten, gwoupBy, isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { combinedDisposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { INotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { INotebookCewwExecution, INotebookExecutionSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { INotebookKewnew, INotebookKewnewChangeEvent, INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { ExtHostContext, ExtHostNotebookKewnewsShape, ICewwExecuteUpdateDto, IExtHostContext, INotebookKewnewDto2, MainContext, MainThweadNotebookKewnewsShape } fwom '../common/extHost.pwotocow';
 
-abstract class MainThreadKernel implements INotebookKernel {
+abstwact cwass MainThweadKewnew impwements INotebookKewnew {
 
-	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI, provides: string[]; }[];
-	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<INotebookKewnewChangeEvent>();
+	pwivate weadonwy pwewoads: { uwi: UWI, pwovides: stwing[]; }[];
+	weadonwy onDidChange: Event<INotebookKewnewChangeEvent> = this._onDidChange.event;
 
-	readonly id: string;
-	readonly viewType: string;
-	readonly extension: ExtensionIdentifier;
+	weadonwy id: stwing;
+	weadonwy viewType: stwing;
+	weadonwy extension: ExtensionIdentifia;
 
-	implementsInterrupt: boolean;
-	label: string;
-	description?: string;
-	detail?: string;
-	supportedLanguages: string[];
-	implementsExecutionOrder: boolean;
-	localResourceRoot: URI;
+	impwementsIntewwupt: boowean;
+	wabew: stwing;
+	descwiption?: stwing;
+	detaiw?: stwing;
+	suppowtedWanguages: stwing[];
+	impwementsExecutionOwda: boowean;
+	wocawWesouwceWoot: UWI;
 
-	public get preloadUris() {
-		return this.preloads.map(p => p.uri);
+	pubwic get pwewoadUwis() {
+		wetuwn this.pwewoads.map(p => p.uwi);
 	}
 
-	public get preloadProvides() {
-		return flatten(this.preloads.map(p => p.provides));
+	pubwic get pwewoadPwovides() {
+		wetuwn fwatten(this.pwewoads.map(p => p.pwovides));
 	}
 
-	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
+	constwuctow(data: INotebookKewnewDto2, pwivate _modeSewvice: IModeSewvice) {
 		this.id = data.id;
 		this.viewType = data.notebookType;
 		this.extension = data.extensionId;
 
-		this.implementsInterrupt = data.supportsInterrupt ?? false;
-		this.label = data.label;
-		this.description = data.description;
-		this.detail = data.detail;
-		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
-		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
-		this.localResourceRoot = URI.revive(data.extensionLocation);
-		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
+		this.impwementsIntewwupt = data.suppowtsIntewwupt ?? fawse;
+		this.wabew = data.wabew;
+		this.descwiption = data.descwiption;
+		this.detaiw = data.detaiw;
+		this.suppowtedWanguages = isNonEmptyAwway(data.suppowtedWanguages) ? data.suppowtedWanguages : _modeSewvice.getWegistewedModes();
+		this.impwementsExecutionOwda = data.suppowtsExecutionOwda ?? fawse;
+		this.wocawWesouwceWoot = UWI.wevive(data.extensionWocation);
+		this.pwewoads = data.pwewoads?.map(u => ({ uwi: UWI.wevive(u.uwi), pwovides: u.pwovides })) ?? [];
 	}
 
 
-	update(data: Partial<INotebookKernelDto2>) {
+	update(data: Pawtiaw<INotebookKewnewDto2>) {
 
-		const event: INotebookKernelChangeEvent = Object.create(null);
-		if (data.label !== undefined) {
-			this.label = data.label;
-			event.label = true;
+		const event: INotebookKewnewChangeEvent = Object.cweate(nuww);
+		if (data.wabew !== undefined) {
+			this.wabew = data.wabew;
+			event.wabew = twue;
 		}
-		if (data.description !== undefined) {
-			this.description = data.description;
-			event.description = true;
+		if (data.descwiption !== undefined) {
+			this.descwiption = data.descwiption;
+			event.descwiption = twue;
 		}
-		if (data.detail !== undefined) {
-			this.detail = data.detail;
-			event.detail = true;
+		if (data.detaiw !== undefined) {
+			this.detaiw = data.detaiw;
+			event.detaiw = twue;
 		}
-		if (data.supportedLanguages !== undefined) {
-			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();
-			event.supportedLanguages = true;
+		if (data.suppowtedWanguages !== undefined) {
+			this.suppowtedWanguages = isNonEmptyAwway(data.suppowtedWanguages) ? data.suppowtedWanguages : this._modeSewvice.getWegistewedModes();
+			event.suppowtedWanguages = twue;
 		}
-		if (data.supportsExecutionOrder !== undefined) {
-			this.implementsExecutionOrder = data.supportsExecutionOrder;
-			event.hasExecutionOrder = true;
+		if (data.suppowtsExecutionOwda !== undefined) {
+			this.impwementsExecutionOwda = data.suppowtsExecutionOwda;
+			event.hasExecutionOwda = twue;
 		}
-		this._onDidChange.fire(event);
+		this._onDidChange.fiwe(event);
 	}
 
-	abstract executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
-	abstract cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	abstwact executeNotebookCewwsWequest(uwi: UWI, cewwHandwes: numba[]): Pwomise<void>;
+	abstwact cancewNotebookCewwExecution(uwi: UWI, cewwHandwes: numba[]): Pwomise<void>;
 }
 
-@extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
-export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape {
+@extHostNamedCustoma(MainContext.MainThweadNotebookKewnews)
+expowt cwass MainThweadNotebookKewnews impwements MainThweadNotebookKewnewsShape {
 
-	private readonly _editors = new Map<INotebookEditor, IDisposable>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _editows = new Map<INotebookEditow, IDisposabwe>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
-	private readonly _proxy: ExtHostNotebookKernelsShape;
+	pwivate weadonwy _kewnews = new Map<numba, [kewnew: MainThweadKewnew, wegistwaion: IDisposabwe]>();
+	pwivate weadonwy _pwoxy: ExtHostNotebookKewnewsShape;
 
-	private readonly _executions = new Map<number, INotebookCellExecution>();
+	pwivate weadonwy _executions = new Map<numba, INotebookCewwExecution>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IModeService private readonly _modeService: IModeService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@INotebookExecutionService private readonly _notebookExecutionService: INotebookExecutionService,
-		// @INotebookService private readonly _notebookService: INotebookService,
-		@INotebookEditorService notebookEditorService: INotebookEditorService
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@INotebookKewnewSewvice pwivate weadonwy _notebookKewnewSewvice: INotebookKewnewSewvice,
+		@INotebookExecutionSewvice pwivate weadonwy _notebookExecutionSewvice: INotebookExecutionSewvice,
+		// @INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@INotebookEditowSewvice notebookEditowSewvice: INotebookEditowSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostNotebookKewnews);
 
-		notebookEditorService.listNotebookEditors().forEach(this._onEditorAdd, this);
-		notebookEditorService.onDidAddNotebookEditor(this._onEditorAdd, this, this._disposables);
-		notebookEditorService.onDidRemoveNotebookEditor(this._onEditorRemove, this, this._disposables);
+		notebookEditowSewvice.wistNotebookEditows().fowEach(this._onEditowAdd, this);
+		notebookEditowSewvice.onDidAddNotebookEditow(this._onEditowAdd, this, this._disposabwes);
+		notebookEditowSewvice.onDidWemoveNotebookEditow(this._onEditowWemove, this, this._disposabwes);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		for (let [, registration] of this._kernels.values()) {
-			registration.dispose();
+		this._disposabwes.dispose();
+		fow (wet [, wegistwation] of this._kewnews.vawues()) {
+			wegistwation.dispose();
 		}
 	}
 
-	// --- kernel ipc
+	// --- kewnew ipc
 
-	private _onEditorAdd(editor: INotebookEditor) {
+	pwivate _onEditowAdd(editow: INotebookEditow) {
 
-		const ipcListener = editor.onDidReceiveMessage(e => {
-			if (!editor.hasModel()) {
-				return;
+		const ipcWistena = editow.onDidWeceiveMessage(e => {
+			if (!editow.hasModew()) {
+				wetuwn;
 			}
-			const { selected } = this._notebookKernelService.getMatchingKernel(editor.textModel);
-			if (!selected) {
-				return;
+			const { sewected } = this._notebookKewnewSewvice.getMatchingKewnew(editow.textModew);
+			if (!sewected) {
+				wetuwn;
 			}
-			for (let [handle, candidate] of this._kernels) {
-				if (candidate[0] === selected) {
-					this._proxy.$acceptKernelMessageFromRenderer(handle, editor.getId(), e.message);
-					break;
+			fow (wet [handwe, candidate] of this._kewnews) {
+				if (candidate[0] === sewected) {
+					this._pwoxy.$acceptKewnewMessageFwomWendewa(handwe, editow.getId(), e.message);
+					bweak;
 				}
 			}
 		});
-		this._editors.set(editor, ipcListener);
+		this._editows.set(editow, ipcWistena);
 	}
 
-	private _onEditorRemove(editor: INotebookEditor) {
-		this._editors.get(editor)?.dispose();
-		this._editors.delete(editor);
+	pwivate _onEditowWemove(editow: INotebookEditow) {
+		this._editows.get(editow)?.dispose();
+		this._editows.dewete(editow);
 	}
 
-	async $postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean> {
-		const tuple = this._kernels.get(handle);
-		if (!tuple) {
-			throw new Error('kernel already disposed');
+	async $postMessage(handwe: numba, editowId: stwing | undefined, message: any): Pwomise<boowean> {
+		const tupwe = this._kewnews.get(handwe);
+		if (!tupwe) {
+			thwow new Ewwow('kewnew awweady disposed');
 		}
-		const [kernel] = tuple;
-		let didSend = false;
-		for (const [editor] of this._editors) {
-			if (!editor.hasModel()) {
+		const [kewnew] = tupwe;
+		wet didSend = fawse;
+		fow (const [editow] of this._editows) {
+			if (!editow.hasModew()) {
 				continue;
 			}
-			if (this._notebookKernelService.getMatchingKernel(editor.textModel).selected !== kernel) {
-				// different kernel
+			if (this._notebookKewnewSewvice.getMatchingKewnew(editow.textModew).sewected !== kewnew) {
+				// diffewent kewnew
 				continue;
 			}
-			if (editorId === undefined) {
-				// all editors
-				editor.postMessage(message);
-				didSend = true;
-			} else if (editor.getId() === editorId) {
-				// selected editors
-				editor.postMessage(message);
-				didSend = true;
-				break;
+			if (editowId === undefined) {
+				// aww editows
+				editow.postMessage(message);
+				didSend = twue;
+			} ewse if (editow.getId() === editowId) {
+				// sewected editows
+				editow.postMessage(message);
+				didSend = twue;
+				bweak;
 			}
 		}
-		return didSend;
+		wetuwn didSend;
 	}
 
-	// --- kernel adding/updating/removal
+	// --- kewnew adding/updating/wemovaw
 
-	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
+	async $addKewnew(handwe: numba, data: INotebookKewnewDto2): Pwomise<void> {
 		const that = this;
-		const kernel = new class extends MainThreadKernel {
-			async executeNotebookCellsRequest(uri: URI, handles: number[]): Promise<void> {
-				await that._proxy.$executeCells(handle, uri, handles);
+		const kewnew = new cwass extends MainThweadKewnew {
+			async executeNotebookCewwsWequest(uwi: UWI, handwes: numba[]): Pwomise<void> {
+				await that._pwoxy.$executeCewws(handwe, uwi, handwes);
 			}
-			async cancelNotebookCellExecution(uri: URI, handles: number[]): Promise<void> {
-				await that._proxy.$cancelCells(handle, uri, handles);
+			async cancewNotebookCewwExecution(uwi: UWI, handwes: numba[]): Pwomise<void> {
+				await that._pwoxy.$cancewCewws(handwe, uwi, handwes);
 			}
-		}(data, this._modeService);
+		}(data, this._modeSewvice);
 
-		const listener = this._notebookKernelService.onDidChangeSelectedNotebooks(e => {
-			if (e.oldKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, false);
-			} else if (e.newKernel === kernel.id) {
-				this._proxy.$acceptNotebookAssociation(handle, e.notebook, true);
+		const wistena = this._notebookKewnewSewvice.onDidChangeSewectedNotebooks(e => {
+			if (e.owdKewnew === kewnew.id) {
+				this._pwoxy.$acceptNotebookAssociation(handwe, e.notebook, fawse);
+			} ewse if (e.newKewnew === kewnew.id) {
+				this._pwoxy.$acceptNotebookAssociation(handwe, e.notebook, twue);
 			}
 		});
 
-		const registration = this._notebookKernelService.registerKernel(kernel);
-		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
+		const wegistwation = this._notebookKewnewSewvice.wegistewKewnew(kewnew);
+		this._kewnews.set(handwe, [kewnew, combinedDisposabwe(wistena, wegistwation)]);
 	}
 
-	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
-		const tuple = this._kernels.get(handle);
-		if (tuple) {
-			tuple[0].update(data);
+	$updateKewnew(handwe: numba, data: Pawtiaw<INotebookKewnewDto2>): void {
+		const tupwe = this._kewnews.get(handwe);
+		if (tupwe) {
+			tupwe[0].update(data);
 		}
 	}
 
-	$removeKernel(handle: number): void {
-		const tuple = this._kernels.get(handle);
-		if (tuple) {
-			tuple[1].dispose();
-			this._kernels.delete(handle);
+	$wemoveKewnew(handwe: numba): void {
+		const tupwe = this._kewnews.get(handwe);
+		if (tupwe) {
+			tupwe[1].dispose();
+			this._kewnews.dewete(handwe);
 		}
 	}
 
-	$updateNotebookPriority(handle: number, notebook: UriComponents, value: number | undefined): void {
-		const tuple = this._kernels.get(handle);
-		if (tuple) {
-			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
+	$updateNotebookPwiowity(handwe: numba, notebook: UwiComponents, vawue: numba | undefined): void {
+		const tupwe = this._kewnews.get(handwe);
+		if (tupwe) {
+			this._notebookKewnewSewvice.updateKewnewNotebookAffinity(tupwe[0], UWI.wevive(notebook), vawue);
 		}
 	}
 
 	// --- execution
 
-	$addExecution(handle: number, uri: UriComponents, cellHandle: number): void {
-		const execution = this._notebookExecutionService.createNotebookCellExecution(URI.revive(uri), cellHandle);
-		this._executions.set(handle, execution);
+	$addExecution(handwe: numba, uwi: UwiComponents, cewwHandwe: numba): void {
+		const execution = this._notebookExecutionSewvice.cweateNotebookCewwExecution(UWI.wevive(uwi), cewwHandwe);
+		this._executions.set(handwe, execution);
 	}
 
-	$updateExecutions(data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void {
-		const updates = data.value;
-		const groupedUpdates = groupBy(updates, (a, b) => a.executionHandle - b.executionHandle);
-		groupedUpdates.forEach(datas => {
-			const first = datas[0];
-			const execution = this._executions.get(first.executionHandle);
+	$updateExecutions(data: SewiawizabweObjectWithBuffews<ICewwExecuteUpdateDto[]>): void {
+		const updates = data.vawue;
+		const gwoupedUpdates = gwoupBy(updates, (a, b) => a.executionHandwe - b.executionHandwe);
+		gwoupedUpdates.fowEach(datas => {
+			const fiwst = datas[0];
+			const execution = this._executions.get(fiwst.executionHandwe);
 			if (!execution) {
-				return;
+				wetuwn;
 			}
 
-			try {
-				execution.update(datas.map(NotebookDto.fromCellExecuteUpdateDto));
+			twy {
+				execution.update(datas.map(NotebookDto.fwomCewwExecuteUpdateDto));
 			} catch (e) {
-				onUnexpectedError(e);
+				onUnexpectedEwwow(e);
 			}
 		});
 	}
 
-	$removeExecution(handle: number): void {
-		this._executions.delete(handle);
+	$wemoveExecution(handwe: numba): void {
+		this._executions.dewete(handwe);
 	}
 }

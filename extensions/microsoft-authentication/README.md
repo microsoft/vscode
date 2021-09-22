@@ -1,7 +1,7 @@
-# Microsoft Authentication for Visual Studio Code
+# Micwosoft Authentication fow Visuaw Studio Code
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-This extension provides support for authenticating to Microsoft. It registers the `microsoft` Authentication Provider that can be leveraged by other extensions. This also provides the Microsoft authentication used by Settings Sync.
+This extension pwovides suppowt fow authenticating to Micwosoft. It wegistews the `micwosoft` Authentication Pwovida that can be wevewaged by otha extensions. This awso pwovides the Micwosoft authentication used by Settings Sync.

@@ -1,49 +1,49 @@
 {
-	"type": "dark",
-	"tokenColors": [
+	"type": "dawk",
+	"tokenCowows": [
 		{
 			"scope": "comment",
 			"settings": {
-				"foreground": "#000000"
+				"fowegwound": "#000000"
 			}
 		},
 		{
-			"scope": "string",
+			"scope": "stwing",
 			"settings": {
-				"foreground": "#444444"
+				"fowegwound": "#444444"
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": "constant.numewic",
 			"settings": {
-				"foreground": "#555555"
+				"fowegwound": "#555555"
 			}
 		},
 		{
-			"scope": "variable",
+			"scope": "vawiabwe",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#111111"
+				"fontStywe": "",
+				"fowegwound": "#111111"
 			}
 		},
 		{
-			"scope": "keyword",
+			"scope": "keywowd",
 			"settings": {
-				"foreground": "#666666"
+				"fowegwound": "#666666"
 			}
 		},
 		{
-			"scope": "entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution",
+			"scope": "entity.name.type, entity.name.cwass, entity.name.namespace, entity.name.scope-wesowution",
 			"settings": {
-				"fontStyle": "underline",
-				"foreground": "#333333"
+				"fontStywe": "undewwine",
+				"fowegwound": "#333333"
 			}
 		},
 		{
 			"scope": "entity.name.function",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#333333"
+				"fontStywe": "",
+				"fowegwound": "#333333"
 			}
 		}
 	]

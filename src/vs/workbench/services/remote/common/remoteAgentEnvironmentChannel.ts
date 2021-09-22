@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import * as performance from 'vs/base/common/performance';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IExtensionDescwiption, ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { IDiagnosticInfoOptions, IDiagnosticInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { ITewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-export interface IGetEnvironmentDataArguments {
-	remoteAuthority: string;
+expowt intewface IGetEnviwonmentDataAwguments {
+	wemoteAuthowity: stwing;
 }
 
-export interface IScanExtensionsArguments {
-	language: string;
-	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents[] | undefined;
-	skipExtensions: ExtensionIdentifier[];
+expowt intewface IScanExtensionsAwguments {
+	wanguage: stwing;
+	wemoteAuthowity: stwing;
+	extensionDevewopmentPath: UwiComponents[] | undefined;
+	skipExtensions: ExtensionIdentifia[];
 }
 
-export interface IScanSingleExtensionArguments {
-	language: string;
-	remoteAuthority: string;
-	isBuiltin: boolean;
-	extensionLocation: UriComponents;
+expowt intewface IScanSingweExtensionAwguments {
+	wanguage: stwing;
+	wemoteAuthowity: stwing;
+	isBuiwtin: boowean;
+	extensionWocation: UwiComponents;
 }
 
-export interface IRemoteAgentEnvironmentDTO {
-	pid: number;
-	connectionToken: string;
-	appRoot: UriComponents;
-	settingsPath: UriComponents;
-	logsPath: UriComponents;
-	extensionsPath: UriComponents;
-	extensionHostLogsPath: UriComponents;
-	globalStorageHome: UriComponents;
-	workspaceStorageHome: UriComponents;
-	userHome: UriComponents;
-	os: platform.OperatingSystem;
-	arch: string;
-	marks: performance.PerformanceMark[];
-	useHostProxy: boolean;
+expowt intewface IWemoteAgentEnviwonmentDTO {
+	pid: numba;
+	connectionToken: stwing;
+	appWoot: UwiComponents;
+	settingsPath: UwiComponents;
+	wogsPath: UwiComponents;
+	extensionsPath: UwiComponents;
+	extensionHostWogsPath: UwiComponents;
+	gwobawStowageHome: UwiComponents;
+	wowkspaceStowageHome: UwiComponents;
+	usewHome: UwiComponents;
+	os: pwatfowm.OpewatingSystem;
+	awch: stwing;
+	mawks: pewfowmance.PewfowmanceMawk[];
+	useHostPwoxy: boowean;
 }
 
-export class RemoteExtensionEnvironmentChannelClient {
+expowt cwass WemoteExtensionEnviwonmentChannewCwient {
 
-	static async getEnvironmentData(channel: IChannel, remoteAuthority: string): Promise<IRemoteAgentEnvironment> {
-		const args: IGetEnvironmentDataArguments = {
-			remoteAuthority
+	static async getEnviwonmentData(channew: IChannew, wemoteAuthowity: stwing): Pwomise<IWemoteAgentEnviwonment> {
+		const awgs: IGetEnviwonmentDataAwguments = {
+			wemoteAuthowity
 		};
 
-		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+		const data = await channew.caww<IWemoteAgentEnviwonmentDTO>('getEnviwonmentData', awgs);
 
-		return {
+		wetuwn {
 			pid: data.pid,
 			connectionToken: data.connectionToken,
-			appRoot: URI.revive(data.appRoot),
-			settingsPath: URI.revive(data.settingsPath),
-			logsPath: URI.revive(data.logsPath),
-			extensionsPath: URI.revive(data.extensionsPath),
-			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
-			globalStorageHome: URI.revive(data.globalStorageHome),
-			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
-			userHome: URI.revive(data.userHome),
+			appWoot: UWI.wevive(data.appWoot),
+			settingsPath: UWI.wevive(data.settingsPath),
+			wogsPath: UWI.wevive(data.wogsPath),
+			extensionsPath: UWI.wevive(data.extensionsPath),
+			extensionHostWogsPath: UWI.wevive(data.extensionHostWogsPath),
+			gwobawStowageHome: UWI.wevive(data.gwobawStowageHome),
+			wowkspaceStowageHome: UWI.wevive(data.wowkspaceStowageHome),
+			usewHome: UWI.wevive(data.usewHome),
 			os: data.os,
-			arch: data.arch,
-			marks: data.marks,
-			useHostProxy: data.useHostProxy
+			awch: data.awch,
+			mawks: data.mawks,
+			useHostPwoxy: data.useHostPwoxy
 		};
 	}
 
-	static async whenExtensionsReady(channel: IChannel): Promise<void> {
-		await channel.call<void>('whenExtensionsReady');
+	static async whenExtensionsWeady(channew: IChannew): Pwomise<void> {
+		await channew.caww<void>('whenExtensionsWeady');
 	}
 
-	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
-		const args: IScanExtensionsArguments = {
-			language: platform.language,
-			remoteAuthority,
-			extensionDevelopmentPath,
+	static async scanExtensions(channew: IChannew, wemoteAuthowity: stwing, extensionDevewopmentPath: UWI[] | undefined, skipExtensions: ExtensionIdentifia[]): Pwomise<IExtensionDescwiption[]> {
+		const awgs: IScanExtensionsAwguments = {
+			wanguage: pwatfowm.wanguage,
+			wemoteAuthowity,
+			extensionDevewopmentPath,
 			skipExtensions
 		};
 
-		const extensions = await channel.call<IExtensionDescription[]>('scanExtensions', args);
-		extensions.forEach(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); });
+		const extensions = await channew.caww<IExtensionDescwiption[]>('scanExtensions', awgs);
+		extensions.fowEach(ext => { (<any>ext).extensionWocation = UWI.wevive(ext.extensionWocation); });
 
-		return extensions;
+		wetuwn extensions;
 	}
 
-	static async scanSingleExtension(channel: IChannel, remoteAuthority: string, isBuiltin: boolean, extensionLocation: URI): Promise<IExtensionDescription | null> {
-		const args: IScanSingleExtensionArguments = {
-			language: platform.language,
-			remoteAuthority,
-			isBuiltin,
-			extensionLocation
+	static async scanSingweExtension(channew: IChannew, wemoteAuthowity: stwing, isBuiwtin: boowean, extensionWocation: UWI): Pwomise<IExtensionDescwiption | nuww> {
+		const awgs: IScanSingweExtensionAwguments = {
+			wanguage: pwatfowm.wanguage,
+			wemoteAuthowity,
+			isBuiwtin,
+			extensionWocation
 		};
 
-		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
+		const extension = await channew.caww<IExtensionDescwiption | nuww>('scanSingweExtension', awgs);
 		if (extension) {
-			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+			(<any>extension).extensionWocation = UWI.wevive(extension.extensionWocation);
 		}
-		return extension;
+		wetuwn extension;
 	}
 
-	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
-		return channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
+	static getDiagnosticInfo(channew: IChannew, options: IDiagnosticInfoOptions): Pwomise<IDiagnosticInfo> {
+		wetuwn channew.caww<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 
-	static disableTelemetry(channel: IChannel): Promise<void> {
-		return channel.call<void>('disableTelemetry');
+	static disabweTewemetwy(channew: IChannew): Pwomise<void> {
+		wetuwn channew.caww<void>('disabweTewemetwy');
 	}
 
-	static logTelemetry(channel: IChannel, eventName: string, data: ITelemetryData): Promise<void> {
-		return channel.call<void>('logTelemetry', { eventName, data });
+	static wogTewemetwy(channew: IChannew, eventName: stwing, data: ITewemetwyData): Pwomise<void> {
+		wetuwn channew.caww<void>('wogTewemetwy', { eventName, data });
 	}
 
-	static flushTelemetry(channel: IChannel): Promise<void> {
-		return channel.call<void>('flushTelemetry');
+	static fwushTewemetwy(channew: IChannew): Pwomise<void> {
+		wetuwn channew.caww<void>('fwushTewemetwy');
 	}
 }

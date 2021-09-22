@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { formatCellDuration, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { disposabweTimeout, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ICewwVisibiwityChangeEvent, NotebookVisibweCewwObsewva } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwStatusBaw/notebookVisibweCewwObsewva';
+impowt { fowmatCewwDuwation, ICewwViewModew, INotebookEditow, INotebookEditowContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { wegistewNotebookContwibution } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { cewwStatusIconEwwow, cewwStatusIconSuccess } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { CewwViewModew, NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { CewwStatusbawAwignment, INotebookCewwStatusBawItem, NotebookCewwExecutionState, NotebookCewwIntewnawMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export class NotebookStatusBarController extends Disposable {
-	private readonly _visibleCells = new Map<number, IDisposable>();
-	private readonly _observer: NotebookVisibleCellObserver;
+expowt cwass NotebookStatusBawContwowwa extends Disposabwe {
+	pwivate weadonwy _visibweCewws = new Map<numba, IDisposabwe>();
+	pwivate weadonwy _obsewva: NotebookVisibweCewwObsewva;
 
-	constructor(
-		private readonly _notebookEditor: INotebookEditor,
-		private readonly _itemFactory: (vm: NotebookViewModel, cell: CellViewModel) => IDisposable
+	constwuctow(
+		pwivate weadonwy _notebookEditow: INotebookEditow,
+		pwivate weadonwy _itemFactowy: (vm: NotebookViewModew, ceww: CewwViewModew) => IDisposabwe
 	) {
-		super();
-		this._observer = this._register(new NotebookVisibleCellObserver(this._notebookEditor));
-		this._register(this._observer.onDidChangeVisibleCells(this._updateVisibleCells, this));
+		supa();
+		this._obsewva = this._wegista(new NotebookVisibweCewwObsewva(this._notebookEditow));
+		this._wegista(this._obsewva.onDidChangeVisibweCewws(this._updateVisibweCewws, this));
 
-		this._updateEverything();
+		this._updateEvewything();
 	}
 
-	private _updateEverything(): void {
-		this._visibleCells.forEach(dispose);
-		this._visibleCells.clear();
-		this._updateVisibleCells({ added: this._observer.visibleCells, removed: [] });
+	pwivate _updateEvewything(): void {
+		this._visibweCewws.fowEach(dispose);
+		this._visibweCewws.cweaw();
+		this._updateVisibweCewws({ added: this._obsewva.visibweCewws, wemoved: [] });
 	}
 
-	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
-		const vm = this._notebookEditor._getViewModel();
+	pwivate _updateVisibweCewws(e: ICewwVisibiwityChangeEvent): void {
+		const vm = this._notebookEditow._getViewModew();
 		if (!vm) {
-			return;
+			wetuwn;
 		}
 
-		for (let newCell of e.added) {
-			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
+		fow (wet newCeww of e.added) {
+			this._visibweCewws.set(newCeww.handwe, this._itemFactowy(vm, newCeww));
 		}
 
-		for (let oldCell of e.removed) {
-			this._visibleCells.get(oldCell.handle)?.dispose();
-			this._visibleCells.delete(oldCell.handle);
+		fow (wet owdCeww of e.wemoved) {
+			this._visibweCewws.get(owdCeww.handwe)?.dispose();
+			this._visibweCewws.dewete(owdCeww.handwe);
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this._visibleCells.forEach(dispose);
-		this._visibleCells.clear();
-	}
-}
-
-export class ExecutionStateCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar.execState';
-
-	constructor(notebookEditor: INotebookEditor) {
-		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => new ExecutionStateCellStatusBarItem(vm, cell)));
+		this._visibweCewws.fowEach(dispose);
+		this._visibweCewws.cweaw();
 	}
 }
-registerNotebookContribution(ExecutionStateCellStatusBarContrib.id, ExecutionStateCellStatusBarContrib);
+
+expowt cwass ExecutionStateCewwStatusBawContwib extends Disposabwe impwements INotebookEditowContwibution {
+	static id: stwing = 'wowkbench.notebook.statusBaw.execState';
+
+	constwuctow(notebookEditow: INotebookEditow) {
+		supa();
+		this._wegista(new NotebookStatusBawContwowwa(notebookEditow, (vm, ceww) => new ExecutionStateCewwStatusBawItem(vm, ceww)));
+	}
+}
+wegistewNotebookContwibution(ExecutionStateCewwStatusBawContwib.id, ExecutionStateCewwStatusBawContwib);
 
 /**
- * Shows the cell's execution state in the cell status bar. When the "executing" state is shown, it will be shown for a minimum brief time.
+ * Shows the ceww's execution state in the ceww status baw. When the "executing" state is shown, it wiww be shown fow a minimum bwief time.
  */
-class ExecutionStateCellStatusBarItem extends Disposable {
-	private static readonly MIN_SPINNER_TIME = 500;
+cwass ExecutionStateCewwStatusBawItem extends Disposabwe {
+	pwivate static weadonwy MIN_SPINNEW_TIME = 500;
 
-	private _currentItemIds: string[] = [];
+	pwivate _cuwwentItemIds: stwing[] = [];
 
-	private _currentExecutingStateTimer: IDisposable | undefined;
+	pwivate _cuwwentExecutingStateTima: IDisposabwe | undefined;
 
-	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
-		private readonly _cell: ICellViewModel
+	constwuctow(
+		pwivate weadonwy _notebookViewModew: NotebookViewModew,
+		pwivate weadonwy _ceww: ICewwViewModew
 	) {
-		super();
+		supa();
 
 		this._update();
-		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
+		this._wegista(this._ceww.modew.onDidChangeIntewnawMetadata(() => this._update()));
 	}
 
-	private async _update() {
-		const items = this._getItemsForCell(this._cell);
-		if (Array.isArray(items)) {
-			this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+	pwivate async _update() {
+		const items = this._getItemsFowCeww(this._ceww);
+		if (Awway.isAwway(items)) {
+			this._cuwwentItemIds = this._notebookViewModew.dewtaCewwStatusBawItems(this._cuwwentItemIds, [{ handwe: this._ceww.handwe, items }]);
 		}
 	}
 
 	/**
-	 *	Returns undefined if there should be no change, and an empty array if all items should be removed.
+	 *	Wetuwns undefined if thewe shouwd be no change, and an empty awway if aww items shouwd be wemoved.
 	 */
-	private _getItemsForCell(cell: ICellViewModel): INotebookCellStatusBarItem[] | undefined {
-		if (this._currentExecutingStateTimer && !cell.internalMetadata.isPaused) {
-			return;
+	pwivate _getItemsFowCeww(ceww: ICewwViewModew): INotebookCewwStatusBawItem[] | undefined {
+		if (this._cuwwentExecutingStateTima && !ceww.intewnawMetadata.isPaused) {
+			wetuwn;
 		}
 
-		const item = this._getItemForState(cell.internalMetadata);
+		const item = this._getItemFowState(ceww.intewnawMetadata);
 
-		// Show the execution spinner for a minimum time
-		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-			this._currentExecutingStateTimer = this._register(disposableTimeout(() => {
-				this._currentExecutingStateTimer = undefined;
-				if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
+		// Show the execution spinna fow a minimum time
+		if (ceww.intewnawMetadata.wunState === NotebookCewwExecutionState.Executing) {
+			this._cuwwentExecutingStateTima = this._wegista(disposabweTimeout(() => {
+				this._cuwwentExecutingStateTima = undefined;
+				if (ceww.intewnawMetadata.wunState !== NotebookCewwExecutionState.Executing) {
 					this._update();
 				}
-			}, ExecutionStateCellStatusBarItem.MIN_SPINNER_TIME));
+			}, ExecutionStateCewwStatusBawItem.MIN_SPINNEW_TIME));
 		}
 
-		return item ? [item] : [];
+		wetuwn item ? [item] : [];
 	}
 
-	private _getItemForState(internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
-		const { runState, lastRunSuccess, isPaused } = internalMetadata;
-		if (!runState && lastRunSuccess) {
-			return <INotebookCellStatusBarItem>{
+	pwivate _getItemFowState(intewnawMetadata: NotebookCewwIntewnawMetadata): INotebookCewwStatusBawItem | undefined {
+		const { wunState, wastWunSuccess, isPaused } = intewnawMetadata;
+		if (!wunState && wastWunSuccess) {
+			wetuwn <INotebookCewwStatusBawItem>{
 				text: '$(notebook-state-success)',
-				color: themeColorFromId(cellStatusIconSuccess),
-				tooltip: localize('notebook.cell.status.success', "Success"),
-				alignment: CellStatusbarAlignment.Left,
-				priority: Number.MAX_SAFE_INTEGER
+				cowow: themeCowowFwomId(cewwStatusIconSuccess),
+				toowtip: wocawize('notebook.ceww.status.success', "Success"),
+				awignment: CewwStatusbawAwignment.Weft,
+				pwiowity: Numba.MAX_SAFE_INTEGa
 			};
-		} else if (!runState && lastRunSuccess === false) {
-			return <INotebookCellStatusBarItem>{
-				text: '$(notebook-state-error)',
-				color: themeColorFromId(cellStatusIconError),
-				tooltip: localize('notebook.cell.status.failed', "Failed"),
-				alignment: CellStatusbarAlignment.Left,
-				priority: Number.MAX_SAFE_INTEGER
+		} ewse if (!wunState && wastWunSuccess === fawse) {
+			wetuwn <INotebookCewwStatusBawItem>{
+				text: '$(notebook-state-ewwow)',
+				cowow: themeCowowFwomId(cewwStatusIconEwwow),
+				toowtip: wocawize('notebook.ceww.status.faiwed', "Faiwed"),
+				awignment: CewwStatusbawAwignment.Weft,
+				pwiowity: Numba.MAX_SAFE_INTEGa
 			};
-		} else if (runState === NotebookCellExecutionState.Pending) {
-			return <INotebookCellStatusBarItem>{
+		} ewse if (wunState === NotebookCewwExecutionState.Pending) {
+			wetuwn <INotebookCewwStatusBawItem>{
 				text: '$(notebook-state-pending)',
-				tooltip: localize('notebook.cell.status.pending', "Pending"),
-				alignment: CellStatusbarAlignment.Left,
-				priority: Number.MAX_SAFE_INTEGER
+				toowtip: wocawize('notebook.ceww.status.pending', "Pending"),
+				awignment: CewwStatusbawAwignment.Weft,
+				pwiowity: Numba.MAX_SAFE_INTEGa
 			};
-		} else if (runState === NotebookCellExecutionState.Executing) {
-			return <INotebookCellStatusBarItem>{
+		} ewse if (wunState === NotebookCewwExecutionState.Executing) {
+			wetuwn <INotebookCewwStatusBawItem>{
 				text: `$(notebook-state-executing${isPaused ? '' : '~spin'})`,
-				tooltip: localize('notebook.cell.status.executing', "Executing"),
-				alignment: CellStatusbarAlignment.Left,
-				priority: Number.MAX_SAFE_INTEGER
+				toowtip: wocawize('notebook.ceww.status.executing', "Executing"),
+				awignment: CewwStatusbawAwignment.Weft,
+				pwiowity: Numba.MAX_SAFE_INTEGa
 			};
 		}
 
-		return;
+		wetuwn;
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
-	}
-}
-
-export class TimerCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar.execTimer';
-
-	constructor(notebookEditor: INotebookEditor) {
-		super();
-		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => new TimerCellStatusBarItem(vm, cell)));
+		this._notebookViewModew.dewtaCewwStatusBawItems(this._cuwwentItemIds, [{ handwe: this._ceww.handwe, items: [] }]);
 	}
 }
-registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);
 
-class TimerCellStatusBarItem extends Disposable {
-	private static UPDATE_INTERVAL = 100;
-	private _currentItemIds: string[] = [];
+expowt cwass TimewCewwStatusBawContwib extends Disposabwe impwements INotebookEditowContwibution {
+	static id: stwing = 'wowkbench.notebook.statusBaw.execTima';
 
-	private _scheduler: RunOnceScheduler;
+	constwuctow(notebookEditow: INotebookEditow) {
+		supa();
+		this._wegista(new NotebookStatusBawContwowwa(notebookEditow, (vm, ceww) => new TimewCewwStatusBawItem(vm, ceww)));
+	}
+}
+wegistewNotebookContwibution(TimewCewwStatusBawContwib.id, TimewCewwStatusBawContwib);
 
-	constructor(
-		private readonly _notebookViewModel: NotebookViewModel,
-		private readonly _cell: ICellViewModel,
+cwass TimewCewwStatusBawItem extends Disposabwe {
+	pwivate static UPDATE_INTEWVAW = 100;
+	pwivate _cuwwentItemIds: stwing[] = [];
+
+	pwivate _scheduwa: WunOnceScheduwa;
+
+	constwuctow(
+		pwivate weadonwy _notebookViewModew: NotebookViewModew,
+		pwivate weadonwy _ceww: ICewwViewModew,
 	) {
-		super();
+		supa();
 
-		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarItem.UPDATE_INTERVAL));
+		this._scheduwa = this._wegista(new WunOnceScheduwa(() => this._update(), TimewCewwStatusBawItem.UPDATE_INTEWVAW));
 		this._update();
-		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
+		this._wegista(this._ceww.modew.onDidChangeIntewnawMetadata(() => this._update()));
 	}
 
-	private async _update() {
-		let item: INotebookCellStatusBarItem | undefined;
-		const state = this._cell.internalMetadata.runState;
-		if (this._cell.internalMetadata.isPaused) {
+	pwivate async _update() {
+		wet item: INotebookCewwStatusBawItem | undefined;
+		const state = this._ceww.intewnawMetadata.wunState;
+		if (this._ceww.intewnawMetadata.isPaused) {
 			item = undefined;
-		} else if (state === NotebookCellExecutionState.Executing) {
-			const startTime = this._cell.internalMetadata.runStartTime;
-			const adjustment = this._cell.internalMetadata.runStartTimeAdjustment;
-			if (typeof startTime === 'number') {
-				item = this._getTimeItem(startTime, Date.now(), adjustment);
-				this._scheduler.schedule();
+		} ewse if (state === NotebookCewwExecutionState.Executing) {
+			const stawtTime = this._ceww.intewnawMetadata.wunStawtTime;
+			const adjustment = this._ceww.intewnawMetadata.wunStawtTimeAdjustment;
+			if (typeof stawtTime === 'numba') {
+				item = this._getTimeItem(stawtTime, Date.now(), adjustment);
+				this._scheduwa.scheduwe();
 			}
-		} else if (!state) {
-			const startTime = this._cell.internalMetadata.runStartTime;
-			const endTime = this._cell.internalMetadata.runEndTime;
-			if (typeof startTime === 'number' && typeof endTime === 'number') {
-				item = this._getTimeItem(startTime, endTime);
+		} ewse if (!state) {
+			const stawtTime = this._ceww.intewnawMetadata.wunStawtTime;
+			const endTime = this._ceww.intewnawMetadata.wunEndTime;
+			if (typeof stawtTime === 'numba' && typeof endTime === 'numba') {
+				item = this._getTimeItem(stawtTime, endTime);
 			}
 		}
 
 		const items = item ? [item] : [];
-		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+		this._cuwwentItemIds = this._notebookViewModew.dewtaCewwStatusBawItems(this._cuwwentItemIds, [{ handwe: this._ceww.handwe, items }]);
 	}
 
-	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0): INotebookCellStatusBarItem {
-		const duration = endTime - startTime + adjustment;
-		return <INotebookCellStatusBarItem>{
-			text: formatCellDuration(duration),
-			alignment: CellStatusbarAlignment.Left,
-			priority: Number.MAX_SAFE_INTEGER - 1
+	pwivate _getTimeItem(stawtTime: numba, endTime: numba, adjustment: numba = 0): INotebookCewwStatusBawItem {
+		const duwation = endTime - stawtTime + adjustment;
+		wetuwn <INotebookCewwStatusBawItem>{
+			text: fowmatCewwDuwation(duwation),
+			awignment: CewwStatusbawAwignment.Weft,
+			pwiowity: Numba.MAX_SAFE_INTEGa - 1
 		};
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
+		this._notebookViewModew.dewtaCewwStatusBawItems(this._cuwwentItemIds, [{ handwe: this._ceww.handwe, items: [] }]);
 	}
 }

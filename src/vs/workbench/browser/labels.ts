@@ -1,590 +1,590 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
-import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
-import { Schemas } from 'vs/base/common/network';
-import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { ITextModel } from 'vs/editor/common/model';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { diwname, isEquaw, basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { IconWabew, IIconWabewVawueOptions, IIconWabewCweationOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IDecowation, IDecowationsSewvice, IWesouwceDecowationChangeEvent } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { FiweKind, FIWES_ASSOCIATIONS_CONFIG } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { Disposabwe, dispose, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { nowmawizeDwiveWetta } fwom 'vs/base/common/wabews';
 
-export interface IResourceLabelProps {
-	resource?: URI | { primary?: URI, secondary?: URI };
-	name?: string | string[];
-	description?: string;
+expowt intewface IWesouwceWabewPwops {
+	wesouwce?: UWI | { pwimawy?: UWI, secondawy?: UWI };
+	name?: stwing | stwing[];
+	descwiption?: stwing;
 }
 
-function toResource(props: IResourceLabelProps | undefined): URI | undefined {
-	if (!props || !props.resource) {
-		return undefined;
+function toWesouwce(pwops: IWesouwceWabewPwops | undefined): UWI | undefined {
+	if (!pwops || !pwops.wesouwce) {
+		wetuwn undefined;
 	}
 
-	if (URI.isUri(props.resource)) {
-		return props.resource;
+	if (UWI.isUwi(pwops.wesouwce)) {
+		wetuwn pwops.wesouwce;
 	}
 
-	return props.resource.primary;
+	wetuwn pwops.wesouwce.pwimawy;
 }
 
-export interface IResourceLabelOptions extends IIconLabelValueOptions {
+expowt intewface IWesouwceWabewOptions extends IIconWabewVawueOptions {
 
 	/**
-	 * A hint to the file kind of the resource.
+	 * A hint to the fiwe kind of the wesouwce.
 	 */
-	fileKind?: FileKind;
+	fiweKind?: FiweKind;
 
 	/**
-	 * File decorations to use for the label.
+	 * Fiwe decowations to use fow the wabew.
 	 */
-	readonly fileDecorations?: { colors: boolean, badges: boolean };
+	weadonwy fiweDecowations?: { cowows: boowean, badges: boowean };
 
 	/**
-	 * Will take the provided label as is and e.g. not override it for untitled files.
+	 * Wiww take the pwovided wabew as is and e.g. not ovewwide it fow untitwed fiwes.
 	 */
-	readonly forceLabel?: boolean;
+	weadonwy fowceWabew?: boowean;
 }
 
-export interface IFileLabelOptions extends IResourceLabelOptions {
-	hideLabel?: boolean;
-	hidePath?: boolean;
+expowt intewface IFiweWabewOptions extends IWesouwceWabewOptions {
+	hideWabew?: boowean;
+	hidePath?: boowean;
 }
 
-export interface IResourceLabel extends IDisposable {
+expowt intewface IWesouwceWabew extends IDisposabwe {
 
-	readonly element: HTMLElement;
+	weadonwy ewement: HTMWEwement;
 
-	readonly onDidRender: Event<void>;
+	weadonwy onDidWenda: Event<void>;
 
 	/**
-	 * Most generic way to apply a label with raw information.
+	 * Most genewic way to appwy a wabew with waw infowmation.
 	 */
-	setLabel(label?: string, description?: string, options?: IIconLabelValueOptions): void;
+	setWabew(wabew?: stwing, descwiption?: stwing, options?: IIconWabewVawueOptions): void;
 
 	/**
-	 * Convenient method to apply a label by passing a resource along.
+	 * Convenient method to appwy a wabew by passing a wesouwce awong.
 	 *
-	 * Note: for file resources consider to use the #setFile() method instead.
+	 * Note: fow fiwe wesouwces consida to use the #setFiwe() method instead.
 	 */
-	setResource(label: IResourceLabelProps, options?: IResourceLabelOptions): void;
+	setWesouwce(wabew: IWesouwceWabewPwops, options?: IWesouwceWabewOptions): void;
 
 	/**
-	 * Convenient method to render a file label based on a resource.
+	 * Convenient method to wenda a fiwe wabew based on a wesouwce.
 	 */
-	setFile(resource: URI, options?: IFileLabelOptions): void;
+	setFiwe(wesouwce: UWI, options?: IFiweWabewOptions): void;
 
 	/**
-	 * Resets the label to be empty.
+	 * Wesets the wabew to be empty.
 	 */
-	clear(): void;
+	cweaw(): void;
 }
 
-export interface IResourceLabelsContainer {
-	readonly onDidChangeVisibility: Event<boolean>;
+expowt intewface IWesouwceWabewsContaina {
+	weadonwy onDidChangeVisibiwity: Event<boowean>;
 }
 
-export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
-	onDidChangeVisibility: Event.None
+expowt const DEFAUWT_WABEWS_CONTAINa: IWesouwceWabewsContaina = {
+	onDidChangeVisibiwity: Event.None
 };
 
-export class ResourceLabels extends Disposable {
+expowt cwass WesouwceWabews extends Disposabwe {
 
-	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
-	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+	pwivate weadonwy _onDidChangeDecowations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDecowations = this._onDidChangeDecowations.event;
 
-	private widgets: ResourceLabelWidget[] = [];
-	private labels: IResourceLabel[] = [];
+	pwivate widgets: WesouwceWabewWidget[] = [];
+	pwivate wabews: IWesouwceWabew[] = [];
 
-	constructor(
-		container: IResourceLabelsContainer,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IThemeService private readonly themeService: IThemeService,
-		@ILabelService private readonly labelService: ILabelService,
-		@ITextFileService private readonly textFileService: ITextFileService
+	constwuctow(
+		containa: IWesouwceWabewsContaina,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IDecowationsSewvice pwivate weadonwy decowationsSewvice: IDecowationsSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners(container);
+		this.wegistewWistenews(containa);
 	}
 
-	private registerListeners(container: IResourceLabelsContainer): void {
+	pwivate wegistewWistenews(containa: IWesouwceWabewsContaina): void {
 
-		// notify when visibility changes
-		this._register(container.onDidChangeVisibility(visible => {
-			this.widgets.forEach(widget => widget.notifyVisibilityChanged(visible));
+		// notify when visibiwity changes
+		this._wegista(containa.onDidChangeVisibiwity(visibwe => {
+			this.widgets.fowEach(widget => widget.notifyVisibiwityChanged(visibwe));
 		}));
 
-		// notify when extensions are registered with potentially new languages
-		this._register(this.modeService.onLanguagesMaybeChanged(() => this.widgets.forEach(widget => widget.notifyExtensionsRegistered())));
+		// notify when extensions awe wegistewed with potentiawwy new wanguages
+		this._wegista(this.modeSewvice.onWanguagesMaybeChanged(() => this.widgets.fowEach(widget => widget.notifyExtensionsWegistewed())));
 
-		// notify when model mode changes
-		this._register(this.modelService.onModelModeChanged(e => {
-			if (!e.model.uri) {
-				return; // we need the resource to compare
+		// notify when modew mode changes
+		this._wegista(this.modewSewvice.onModewModeChanged(e => {
+			if (!e.modew.uwi) {
+				wetuwn; // we need the wesouwce to compawe
 			}
 
-			this.widgets.forEach(widget => widget.notifyModelModeChanged(e.model));
+			this.widgets.fowEach(widget => widget.notifyModewModeChanged(e.modew));
 		}));
 
-		// notify when model is added
-		this._register(this.modelService.onModelAdded(model => {
-			if (!model.uri) {
-				return; // we need the resource to compare
+		// notify when modew is added
+		this._wegista(this.modewSewvice.onModewAdded(modew => {
+			if (!modew.uwi) {
+				wetuwn; // we need the wesouwce to compawe
 			}
 
-			this.widgets.forEach(widget => widget.notifyModelAdded(model));
+			this.widgets.fowEach(widget => widget.notifyModewAdded(modew));
 		}));
 
-		// notify when file decoration changes
-		this._register(this.decorationsService.onDidChangeDecorations(e => {
-			let notifyDidChangeDecorations = false;
-			this.widgets.forEach(widget => {
-				if (widget.notifyFileDecorationsChanges(e)) {
-					notifyDidChangeDecorations = true;
+		// notify when fiwe decowation changes
+		this._wegista(this.decowationsSewvice.onDidChangeDecowations(e => {
+			wet notifyDidChangeDecowations = fawse;
+			this.widgets.fowEach(widget => {
+				if (widget.notifyFiweDecowationsChanges(e)) {
+					notifyDidChangeDecowations = twue;
 				}
 			});
 
-			if (notifyDidChangeDecorations) {
-				this._onDidChangeDecorations.fire();
+			if (notifyDidChangeDecowations) {
+				this._onDidChangeDecowations.fiwe();
 			}
 		}));
 
 		// notify when theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this.widgets.forEach(widget => widget.notifyThemeChange())));
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(() => this.widgets.fowEach(widget => widget.notifyThemeChange())));
 
-		// notify when files.associations changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
-				this.widgets.forEach(widget => widget.notifyFileAssociationsChange());
+		// notify when fiwes.associations changes
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(FIWES_ASSOCIATIONS_CONFIG)) {
+				this.widgets.fowEach(widget => widget.notifyFiweAssociationsChange());
 			}
 		}));
 
-		// notify when label formatters change
-		this._register(this.labelService.onDidChangeFormatters(e => {
-			this.widgets.forEach(widget => widget.notifyFormattersChange(e.scheme));
+		// notify when wabew fowmattews change
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(e => {
+			this.widgets.fowEach(widget => widget.notifyFowmattewsChange(e.scheme));
 		}));
 
-		// notify when untitled labels change
-		this._register(this.textFileService.untitled.onDidChangeLabel(model => {
-			this.widgets.forEach(widget => widget.notifyUntitledLabelChange(model.resource));
+		// notify when untitwed wabews change
+		this._wegista(this.textFiweSewvice.untitwed.onDidChangeWabew(modew => {
+			this.widgets.fowEach(widget => widget.notifyUntitwedWabewChange(modew.wesouwce));
 		}));
 	}
 
-	get(index: number): IResourceLabel {
-		return this.labels[index];
+	get(index: numba): IWesouwceWabew {
+		wetuwn this.wabews[index];
 	}
 
-	create(container: HTMLElement, options?: IIconLabelCreationOptions): IResourceLabel {
-		const widget = this.instantiationService.createInstance(ResourceLabelWidget, container, options);
+	cweate(containa: HTMWEwement, options?: IIconWabewCweationOptions): IWesouwceWabew {
+		const widget = this.instantiationSewvice.cweateInstance(WesouwceWabewWidget, containa, options);
 
-		// Only expose a handle to the outside
-		const label: IResourceLabel = {
-			element: widget.element,
-			onDidRender: widget.onDidRender,
-			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
-			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
-			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
-			clear: () => widget.clear(),
+		// Onwy expose a handwe to the outside
+		const wabew: IWesouwceWabew = {
+			ewement: widget.ewement,
+			onDidWenda: widget.onDidWenda,
+			setWabew: (wabew: stwing, descwiption?: stwing, options?: IIconWabewVawueOptions) => widget.setWabew(wabew, descwiption, options),
+			setWesouwce: (wabew: IWesouwceWabewPwops, options?: IWesouwceWabewOptions) => widget.setWesouwce(wabew, options),
+			setFiwe: (wesouwce: UWI, options?: IFiweWabewOptions) => widget.setFiwe(wesouwce, options),
+			cweaw: () => widget.cweaw(),
 			dispose: () => this.disposeWidget(widget)
 		};
 
-		// Store
-		this.labels.push(label);
+		// Stowe
+		this.wabews.push(wabew);
 		this.widgets.push(widget);
 
-		return label;
+		wetuwn wabew;
 	}
 
-	private disposeWidget(widget: ResourceLabelWidget): void {
+	pwivate disposeWidget(widget: WesouwceWabewWidget): void {
 		const index = this.widgets.indexOf(widget);
 		if (index > -1) {
-			this.widgets.splice(index, 1);
-			this.labels.splice(index, 1);
+			this.widgets.spwice(index, 1);
+			this.wabews.spwice(index, 1);
 		}
 
 		dispose(widget);
 	}
 
-	clear(): void {
+	cweaw(): void {
 		this.widgets = dispose(this.widgets);
-		this.labels = [];
+		this.wabews = [];
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.clear();
+		this.cweaw();
 	}
 }
 
 /**
- * Note: please consider to use `ResourceLabels` if you are in need
- * of more than one label for your widget.
+ * Note: pwease consida to use `WesouwceWabews` if you awe in need
+ * of mowe than one wabew fow youw widget.
  */
-export class ResourceLabel extends ResourceLabels {
+expowt cwass WesouwceWabew extends WesouwceWabews {
 
-	private label: IResourceLabel;
-	get element(): IResourceLabel { return this.label; }
+	pwivate wabew: IWesouwceWabew;
+	get ewement(): IWesouwceWabew { wetuwn this.wabew; }
 
-	constructor(
-		container: HTMLElement,
-		options: IIconLabelCreationOptions | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@IDecorationsService decorationsService: IDecorationsService,
-		@IThemeService themeService: IThemeService,
-		@ILabelService labelService: ILabelService,
-		@ITextFileService textFileService: ITextFileService
+	constwuctow(
+		containa: HTMWEwement,
+		options: IIconWabewCweationOptions | undefined,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, configurationService, modelService, modeService, decorationsService, themeService, labelService, textFileService);
+		supa(DEFAUWT_WABEWS_CONTAINa, instantiationSewvice, configuwationSewvice, modewSewvice, modeSewvice, decowationsSewvice, themeSewvice, wabewSewvice, textFiweSewvice);
 
-		this.label = this._register(this.create(container, options));
+		this.wabew = this._wegista(this.cweate(containa, options));
 	}
 }
 
-enum Redraw {
+enum Wedwaw {
 	Basic = 1,
-	Full = 2
+	Fuww = 2
 }
 
-class ResourceLabelWidget extends IconLabel {
+cwass WesouwceWabewWidget extends IconWabew {
 
-	private readonly _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender = this._onDidRender.event;
+	pwivate weadonwy _onDidWenda = this._wegista(new Emitta<void>());
+	weadonwy onDidWenda = this._onDidWenda.event;
 
-	private label?: IResourceLabelProps;
-	private decoration = this._register(new MutableDisposable<IDecoration>());
-	private options?: IResourceLabelOptions;
-	private computedIconClasses?: string[];
-	private lastKnownDetectedModeId?: string;
-	private computedPathLabel?: string;
+	pwivate wabew?: IWesouwceWabewPwops;
+	pwivate decowation = this._wegista(new MutabweDisposabwe<IDecowation>());
+	pwivate options?: IWesouwceWabewOptions;
+	pwivate computedIconCwasses?: stwing[];
+	pwivate wastKnownDetectedModeId?: stwing;
+	pwivate computedPathWabew?: stwing;
 
-	private needsRedraw?: Redraw;
-	private isHidden: boolean = false;
+	pwivate needsWedwaw?: Wedwaw;
+	pwivate isHidden: boowean = fawse;
 
-	constructor(
-		container: HTMLElement,
-		options: IIconLabelCreationOptions | undefined,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@ILabelService private readonly labelService: ILabelService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+	constwuctow(
+		containa: HTMWEwement,
+		options: IIconWabewCweationOptions | undefined,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IDecowationsSewvice pwivate weadonwy decowationsSewvice: IDecowationsSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice
 	) {
-		super(container, options);
+		supa(containa, options);
 	}
 
-	notifyVisibilityChanged(visible: boolean): void {
-		if (visible === this.isHidden) {
-			this.isHidden = !visible;
+	notifyVisibiwityChanged(visibwe: boowean): void {
+		if (visibwe === this.isHidden) {
+			this.isHidden = !visibwe;
 
-			if (visible && this.needsRedraw) {
-				this.render({
-					updateIcon: this.needsRedraw === Redraw.Full,
-					updateDecoration: this.needsRedraw === Redraw.Full
+			if (visibwe && this.needsWedwaw) {
+				this.wenda({
+					updateIcon: this.needsWedwaw === Wedwaw.Fuww,
+					updateDecowation: this.needsWedwaw === Wedwaw.Fuww
 				});
 
-				this.needsRedraw = undefined;
+				this.needsWedwaw = undefined;
 			}
 		}
 	}
 
-	notifyModelModeChanged(model: ITextModel): void {
-		this.handleModelEvent(model);
+	notifyModewModeChanged(modew: ITextModew): void {
+		this.handweModewEvent(modew);
 	}
 
-	notifyModelAdded(model: ITextModel): void {
-		this.handleModelEvent(model);
+	notifyModewAdded(modew: ITextModew): void {
+		this.handweModewEvent(modew);
 	}
 
-	private handleModelEvent(model: ITextModel): void {
-		const resource = toResource(this.label);
-		if (!resource) {
-			return; // only update if resource exists
+	pwivate handweModewEvent(modew: ITextModew): void {
+		const wesouwce = toWesouwce(this.wabew);
+		if (!wesouwce) {
+			wetuwn; // onwy update if wesouwce exists
 		}
 
-		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedModeId !== model.getModeId()) {
-				this.lastKnownDetectedModeId = model.getModeId();
-				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
+		if (isEquaw(modew.uwi, wesouwce)) {
+			if (this.wastKnownDetectedModeId !== modew.getModeId()) {
+				this.wastKnownDetectedModeId = modew.getModeId();
+				this.wenda({ updateIcon: twue, updateDecowation: fawse }); // update if the wanguage id of the modew has changed fwom ouw wast known state
 			}
 		}
 	}
 
-	notifyFileDecorationsChanges(e: IResourceDecorationChangeEvent): boolean {
+	notifyFiweDecowationsChanges(e: IWesouwceDecowationChangeEvent): boowean {
 		if (!this.options) {
-			return false;
+			wetuwn fawse;
 		}
 
-		const resource = toResource(this.label);
-		if (!resource) {
-			return false;
+		const wesouwce = toWesouwce(this.wabew);
+		if (!wesouwce) {
+			wetuwn fawse;
 		}
 
-		if (this.options.fileDecorations && e.affectsResource(resource)) {
-			return this.render({ updateIcon: false, updateDecoration: true });
+		if (this.options.fiweDecowations && e.affectsWesouwce(wesouwce)) {
+			wetuwn this.wenda({ updateIcon: fawse, updateDecowation: twue });
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	notifyExtensionsRegistered(): void {
-		this.render({ updateIcon: true, updateDecoration: false });
+	notifyExtensionsWegistewed(): void {
+		this.wenda({ updateIcon: twue, updateDecowation: fawse });
 	}
 
 	notifyThemeChange(): void {
-		this.render({ updateIcon: false, updateDecoration: false });
+		this.wenda({ updateIcon: fawse, updateDecowation: fawse });
 	}
 
-	notifyFileAssociationsChange(): void {
-		this.render({ updateIcon: true, updateDecoration: false });
+	notifyFiweAssociationsChange(): void {
+		this.wenda({ updateIcon: twue, updateDecowation: fawse });
 	}
 
-	notifyFormattersChange(scheme: string): void {
-		if (toResource(this.label)?.scheme === scheme) {
-			this.render({ updateIcon: false, updateDecoration: false });
+	notifyFowmattewsChange(scheme: stwing): void {
+		if (toWesouwce(this.wabew)?.scheme === scheme) {
+			this.wenda({ updateIcon: fawse, updateDecowation: fawse });
 		}
 	}
 
-	notifyUntitledLabelChange(resource: URI): void {
-		if (isEqual(resource, toResource(this.label))) {
-			this.render({ updateIcon: false, updateDecoration: false });
+	notifyUntitwedWabewChange(wesouwce: UWI): void {
+		if (isEquaw(wesouwce, toWesouwce(this.wabew))) {
+			this.wenda({ updateIcon: fawse, updateDecowation: fawse });
 		}
 	}
 
-	setFile(resource: URI, options?: IFileLabelOptions): void {
-		const hideLabel = options?.hideLabel;
-		let name: string | undefined;
-		if (!hideLabel) {
-			if (options?.fileKind === FileKind.ROOT_FOLDER) {
-				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-				if (workspaceFolder) {
-					name = workspaceFolder.name;
+	setFiwe(wesouwce: UWI, options?: IFiweWabewOptions): void {
+		const hideWabew = options?.hideWabew;
+		wet name: stwing | undefined;
+		if (!hideWabew) {
+			if (options?.fiweKind === FiweKind.WOOT_FOWDa) {
+				const wowkspaceFowda = this.contextSewvice.getWowkspaceFowda(wesouwce);
+				if (wowkspaceFowda) {
+					name = wowkspaceFowda.name;
 				}
 			}
 
 			if (!name) {
-				name = normalizeDriveLetter(basenameOrAuthority(resource));
+				name = nowmawizeDwiveWetta(basenameOwAuthowity(wesouwce));
 			}
 		}
 
-		let description: string | undefined;
+		wet descwiption: stwing | undefined;
 		if (!options?.hidePath) {
-			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
+			descwiption = this.wabewSewvice.getUwiWabew(diwname(wesouwce), { wewative: twue });
 		}
 
-		this.setResource({ resource, name, description }, options);
+		this.setWesouwce({ wesouwce, name, descwiption }, options);
 	}
 
-	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
-		const resource = toResource(label);
-		const isSideBySideEditor = label?.resource && !URI.isUri(label.resource);
+	setWesouwce(wabew: IWesouwceWabewPwops, options: IWesouwceWabewOptions = Object.cweate(nuww)): void {
+		const wesouwce = toWesouwce(wabew);
+		const isSideBySideEditow = wabew?.wesouwce && !UWI.isUwi(wabew.wesouwce);
 
-		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.untitled) {
-			// Untitled labels are very dynamic because they may change
-			// whenever the content changes (unless a path is associated).
-			// As such we always ask the actual editor for it's name and
-			// description to get latest in case name/description are
-			// provided. If they are not provided from the label we got
-			// we assume that the client does not want to display them
-			// and as such do not override.
+		if (!options.fowceWabew && !isSideBySideEditow && wesouwce?.scheme === Schemas.untitwed) {
+			// Untitwed wabews awe vewy dynamic because they may change
+			// wheneva the content changes (unwess a path is associated).
+			// As such we awways ask the actuaw editow fow it's name and
+			// descwiption to get watest in case name/descwiption awe
+			// pwovided. If they awe not pwovided fwom the wabew we got
+			// we assume that the cwient does not want to dispway them
+			// and as such do not ovewwide.
 			//
-			// We do not touch the label if it represents a primary-secondary
-			// because in that case we expect it to carry a proper label
-			// and description.
-			const untitledModel = this.textFileService.untitled.get(resource);
-			if (untitledModel && !untitledModel.hasAssociatedFilePath) {
-				if (typeof label.name === 'string') {
-					label.name = untitledModel.name;
+			// We do not touch the wabew if it wepwesents a pwimawy-secondawy
+			// because in that case we expect it to cawwy a pwopa wabew
+			// and descwiption.
+			const untitwedModew = this.textFiweSewvice.untitwed.get(wesouwce);
+			if (untitwedModew && !untitwedModew.hasAssociatedFiwePath) {
+				if (typeof wabew.name === 'stwing') {
+					wabew.name = untitwedModew.name;
 				}
 
-				if (typeof label.description === 'string') {
-					let untitledDescription = untitledModel.resource.path;
-					if (label.name !== untitledDescription) {
-						label.description = untitledDescription;
-					} else {
-						label.description = undefined;
+				if (typeof wabew.descwiption === 'stwing') {
+					wet untitwedDescwiption = untitwedModew.wesouwce.path;
+					if (wabew.name !== untitwedDescwiption) {
+						wabew.descwiption = untitwedDescwiption;
+					} ewse {
+						wabew.descwiption = undefined;
 					}
 				}
 
-				let untitledTitle = untitledModel.resource.path;
-				if (untitledModel.name !== untitledTitle) {
-					options.title = `${untitledModel.name} • ${untitledTitle}`;
-				} else {
-					options.title = untitledTitle;
+				wet untitwedTitwe = untitwedModew.wesouwce.path;
+				if (untitwedModew.name !== untitwedTitwe) {
+					options.titwe = `${untitwedModew.name} • ${untitwedTitwe}`;
+				} ewse {
+					options.titwe = untitwedTitwe;
 				}
 			}
 		}
 
-		const hasResourceChanged = this.hasResourceChanged(label);
-		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
-		const hasFileKindChanged = this.hasFileKindChanged(options);
+		const hasWesouwceChanged = this.hasWesouwceChanged(wabew);
+		const hasPathWabewChanged = hasWesouwceChanged || this.hasPathWabewChanged(wabew);
+		const hasFiweKindChanged = this.hasFiweKindChanged(options);
 
-		this.label = label;
+		this.wabew = wabew;
 		this.options = options;
 
-		if (hasPathLabelChanged) {
-			this.computedPathLabel = undefined; // reset path label due to resource change
+		if (hasPathWabewChanged) {
+			this.computedPathWabew = undefined; // weset path wabew due to wesouwce change
 		}
 
-		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
-			updateDecoration: hasResourceChanged || hasFileKindChanged
+		this.wenda({
+			updateIcon: hasWesouwceChanged || hasFiweKindChanged,
+			updateDecowation: hasWesouwceChanged || hasFiweKindChanged
 		});
 	}
 
-	private hasFileKindChanged(newOptions?: IResourceLabelOptions): boolean {
-		const newFileKind = newOptions?.fileKind;
-		const oldFileKind = this.options?.fileKind;
+	pwivate hasFiweKindChanged(newOptions?: IWesouwceWabewOptions): boowean {
+		const newFiweKind = newOptions?.fiweKind;
+		const owdFiweKind = this.options?.fiweKind;
 
-		return newFileKind !== oldFileKind; // same resource but different kind (file, folder)
+		wetuwn newFiweKind !== owdFiweKind; // same wesouwce but diffewent kind (fiwe, fowda)
 	}
 
-	private hasResourceChanged(newLabel: IResourceLabelProps): boolean {
-		const newResource = toResource(newLabel);
-		const oldResource = toResource(this.label);
+	pwivate hasWesouwceChanged(newWabew: IWesouwceWabewPwops): boowean {
+		const newWesouwce = toWesouwce(newWabew);
+		const owdWesouwce = toWesouwce(this.wabew);
 
-		if (newResource && oldResource) {
-			return newResource.toString() !== oldResource.toString();
+		if (newWesouwce && owdWesouwce) {
+			wetuwn newWesouwce.toStwing() !== owdWesouwce.toStwing();
 		}
 
-		if (!newResource && !oldResource) {
-			return false;
+		if (!newWesouwce && !owdWesouwce) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private hasPathLabelChanged(newLabel: IResourceLabelProps): boolean {
-		const newResource = toResource(newLabel);
+	pwivate hasPathWabewChanged(newWabew: IWesouwceWabewPwops): boowean {
+		const newWesouwce = toWesouwce(newWabew);
 
-		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
+		wetuwn !!newWesouwce && this.computedPathWabew !== this.wabewSewvice.getUwiWabew(newWesouwce);
 	}
 
-	clear(): void {
-		this.label = undefined;
+	cweaw(): void {
+		this.wabew = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
-		this.computedIconClasses = undefined;
-		this.computedPathLabel = undefined;
+		this.wastKnownDetectedModeId = undefined;
+		this.computedIconCwasses = undefined;
+		this.computedPathWabew = undefined;
 
-		this.setLabel('');
+		this.setWabew('');
 	}
 
-	private render(options: { updateIcon: boolean, updateDecoration: boolean }): boolean {
+	pwivate wenda(options: { updateIcon: boowean, updateDecowation: boowean }): boowean {
 		if (this.isHidden) {
-			if (this.needsRedraw !== Redraw.Full) {
-				this.needsRedraw = (options.updateIcon || options.updateDecoration) ? Redraw.Full : Redraw.Basic;
+			if (this.needsWedwaw !== Wedwaw.Fuww) {
+				this.needsWedwaw = (options.updateIcon || options.updateDecowation) ? Wedwaw.Fuww : Wedwaw.Basic;
 			}
 
-			return false;
+			wetuwn fawse;
 		}
 
 		if (options.updateIcon) {
-			this.computedIconClasses = undefined;
+			this.computedIconCwasses = undefined;
 		}
 
-		if (!this.label) {
-			return false;
+		if (!this.wabew) {
+			wetuwn fawse;
 		}
 
-		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
-			title: '',
-			italic: this.options?.italic,
-			strikethrough: this.options?.strikethrough,
+		const iconWabewOptions: IIconWabewVawueOptions & { extwaCwasses: stwing[] } = {
+			titwe: '',
+			itawic: this.options?.itawic,
+			stwikethwough: this.options?.stwikethwough,
 			matches: this.options?.matches,
-			descriptionMatches: this.options?.descriptionMatches,
-			extraClasses: [],
-			separator: this.options?.separator,
+			descwiptionMatches: this.options?.descwiptionMatches,
+			extwaCwasses: [],
+			sepawatow: this.options?.sepawatow,
 			domId: this.options?.domId
 		};
 
-		const resource = toResource(this.label);
-		const label = this.label.name;
+		const wesouwce = toWesouwce(this.wabew);
+		const wabew = this.wabew.name;
 
-		if (this.options?.title !== undefined) {
-			iconLabelOptions.title = this.options.title;
-		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
-			if (!this.computedPathLabel) {
-				this.computedPathLabel = this.labelService.getUriLabel(resource);
+		if (this.options?.titwe !== undefined) {
+			iconWabewOptions.titwe = this.options.titwe;
+		} ewse if (wesouwce && wesouwce.scheme !== Schemas.data /* do not accidentawwy inwine Data UWIs */) {
+			if (!this.computedPathWabew) {
+				this.computedPathWabew = this.wabewSewvice.getUwiWabew(wesouwce);
 			}
 
-			iconLabelOptions.title = this.computedPathLabel;
+			iconWabewOptions.titwe = this.computedPathWabew;
 		}
 
 		if (this.options && !this.options.hideIcon) {
-			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options.fileKind);
+			if (!this.computedIconCwasses) {
+				this.computedIconCwasses = getIconCwasses(this.modewSewvice, this.modeSewvice, wesouwce, this.options.fiweKind);
 			}
 
-			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
+			iconWabewOptions.extwaCwasses = this.computedIconCwasses.swice(0);
 		}
 
-		if (this.options?.extraClasses) {
-			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
+		if (this.options?.extwaCwasses) {
+			iconWabewOptions.extwaCwasses.push(...this.options.extwaCwasses);
 		}
 
-		if (this.options?.fileDecorations && resource) {
-			if (options.updateDecoration) {
-				this.decoration.value = this.decorationsService.getDecoration(resource, this.options.fileKind !== FileKind.FILE);
+		if (this.options?.fiweDecowations && wesouwce) {
+			if (options.updateDecowation) {
+				this.decowation.vawue = this.decowationsSewvice.getDecowation(wesouwce, this.options.fiweKind !== FiweKind.FIWE);
 			}
 
-			const decoration = this.decoration.value;
-			if (decoration) {
-				if (decoration.tooltip && (typeof iconLabelOptions.title === 'string')) {
-					iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+			const decowation = this.decowation.vawue;
+			if (decowation) {
+				if (decowation.toowtip && (typeof iconWabewOptions.titwe === 'stwing')) {
+					iconWabewOptions.titwe = `${iconWabewOptions.titwe} • ${decowation.toowtip}`;
 				}
 
-				if (decoration.strikethrough) {
-					iconLabelOptions.strikethrough = true;
+				if (decowation.stwikethwough) {
+					iconWabewOptions.stwikethwough = twue;
 				}
 
-				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(decoration.labelClassName);
+				if (this.options.fiweDecowations.cowows) {
+					iconWabewOptions.extwaCwasses.push(decowation.wabewCwassName);
 				}
 
-				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses.push(decoration.badgeClassName);
-					iconLabelOptions.extraClasses.push(decoration.iconClassName);
+				if (this.options.fiweDecowations.badges) {
+					iconWabewOptions.extwaCwasses.push(decowation.badgeCwassName);
+					iconWabewOptions.extwaCwasses.push(decowation.iconCwassName);
 				}
 			}
 		}
 
-		this.setLabel(label || '', this.label.description, iconLabelOptions);
+		this.setWabew(wabew || '', this.wabew.descwiption, iconWabewOptions);
 
-		this._onDidRender.fire();
+		this._onDidWenda.fiwe();
 
-		return true;
+		wetuwn twue;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.label = undefined;
+		this.wabew = undefined;
 		this.options = undefined;
-		this.lastKnownDetectedModeId = undefined;
-		this.computedIconClasses = undefined;
-		this.computedPathLabel = undefined;
+		this.wastKnownDetectedModeId = undefined;
+		this.computedIconCwasses = undefined;
+		this.computedPathWabew = undefined;
 	}
 }

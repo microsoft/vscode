@@ -1,402 +1,402 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { generateUuid } from 'vs/base/common/uuid';
-import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { nowmawize } fwom 'vs/base/common/path';
+impowt { isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { extUwi, extUwiIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { newWwiteabweStweam, WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { cweateFiweSystemPwovidewEwwow, FiweDeweteOptions, FiweOvewwwiteOptions, FiweWeadStweamOptions, FiweSystemPwovidewCapabiwities, FiweSystemPwovidewEwwow, FiweSystemPwovidewEwwowCode, FiweType, FiweWwiteOptions, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
+expowt cwass HTMWFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity {
 
-	//#region Events (unsupported)
+	//#wegion Events (unsuppowted)
 
-	readonly onDidChangeCapabilities = Event.None;
-	readonly onDidChangeFile = Event.None;
-	readonly onDidErrorOccur = Event.None;
+	weadonwy onDidChangeCapabiwities = Event.None;
+	weadonwy onDidChangeFiwe = Event.None;
+	weadonwy onDidEwwowOccuw = Event.None;
 
-	//#endregion
+	//#endwegion
 
-	//#region File Capabilities
+	//#wegion Fiwe Capabiwities
 
-	private extUri = isLinux ? extUri : extUriIgnorePathCase;
+	pwivate extUwi = isWinux ? extUwi : extUwiIgnowePathCase;
 
-	private _capabilities: FileSystemProviderCapabilities | undefined;
-	get capabilities(): FileSystemProviderCapabilities {
-		if (!this._capabilities) {
-			this._capabilities =
-				FileSystemProviderCapabilities.FileReadWrite |
-				FileSystemProviderCapabilities.FileReadStream;
+	pwivate _capabiwities: FiweSystemPwovidewCapabiwities | undefined;
+	get capabiwities(): FiweSystemPwovidewCapabiwities {
+		if (!this._capabiwities) {
+			this._capabiwities =
+				FiweSystemPwovidewCapabiwities.FiweWeadWwite |
+				FiweSystemPwovidewCapabiwities.FiweWeadStweam;
 
-			if (isLinux) {
-				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			if (isWinux) {
+				this._capabiwities |= FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 			}
 		}
 
-		return this._capabilities;
+		wetuwn this._capabiwities;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Metadata Resolving
+	//#wegion Fiwe Metadata Wesowving
 
-	async stat(resource: URI): Promise<IStat> {
-		try {
-			const handle = await this.getHandle(resource);
-			if (!handle) {
-				throw this.createFileSystemProviderError(resource, 'No such file or directory, stat', FileSystemProviderErrorCode.FileNotFound);
+	async stat(wesouwce: UWI): Pwomise<IStat> {
+		twy {
+			const handwe = await this.getHandwe(wesouwce);
+			if (!handwe) {
+				thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such fiwe ow diwectowy, stat', FiweSystemPwovidewEwwowCode.FiweNotFound);
 			}
 
-			if (handle.kind === 'file') {
-				const file = await handle.getFile();
+			if (handwe.kind === 'fiwe') {
+				const fiwe = await handwe.getFiwe();
 
-				return {
-					type: FileType.File,
-					mtime: file.lastModified,
+				wetuwn {
+					type: FiweType.Fiwe,
+					mtime: fiwe.wastModified,
 					ctime: 0,
-					size: file.size
+					size: fiwe.size
 				};
 			}
 
-			return {
-				type: FileType.Directory,
+			wetuwn {
+				type: FiweType.Diwectowy,
 				mtime: 0,
 				ctime: 0,
 				size: 0
 			};
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async readdir(resource: URI): Promise<[string, FileType][]> {
-		try {
-			const handle = await this.getDirectoryHandle(resource);
-			if (!handle) {
-				throw this.createFileSystemProviderError(resource, 'No such file or directory, readdir', FileSystemProviderErrorCode.FileNotFound);
+	async weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		twy {
+			const handwe = await this.getDiwectowyHandwe(wesouwce);
+			if (!handwe) {
+				thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such fiwe ow diwectowy, weaddiw', FiweSystemPwovidewEwwowCode.FiweNotFound);
 			}
 
-			const result: [string, FileType][] = [];
+			const wesuwt: [stwing, FiweType][] = [];
 
-			for await (const [name, child] of handle) {
-				result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
+			fow await (const [name, chiwd] of handwe) {
+				wesuwt.push([name, chiwd.kind === 'fiwe' ? FiweType.Fiwe : FiweType.Diwectowy]);
 			}
 
-			return result;
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			wetuwn wesuwt;
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Reading/Writing
+	//#wegion Fiwe Weading/Wwiting
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
-			// Set a highWaterMark to prevent the stream
-			// for file upload to produce large buffers
-			// in-memory
-			highWaterMark: 10
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> {
+		const stweam = newWwiteabweStweam<Uint8Awway>(data => VSBuffa.concat(data.map(data => VSBuffa.wwap(data))).buffa, {
+			// Set a highWatewMawk to pwevent the stweam
+			// fow fiwe upwoad to pwoduce wawge buffews
+			// in-memowy
+			highWatewMawk: 10
 		});
 
 		(async () => {
-			try {
-				const handle = await this.getFileHandle(resource);
-				if (!handle) {
-					throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
+			twy {
+				const handwe = await this.getFiweHandwe(wesouwce);
+				if (!handwe) {
+					thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such fiwe ow diwectowy, weadFiwe', FiweSystemPwovidewEwwowCode.FiweNotFound);
 				}
 
-				const file = await handle.getFile();
+				const fiwe = await handwe.getFiwe();
 
-				// Partial file: implemented simply via `readFile`
-				if (typeof opts.length === 'number' || typeof opts.position === 'number') {
-					let buffer = new Uint8Array(await file.arrayBuffer());
+				// Pawtiaw fiwe: impwemented simpwy via `weadFiwe`
+				if (typeof opts.wength === 'numba' || typeof opts.position === 'numba') {
+					wet buffa = new Uint8Awway(await fiwe.awwayBuffa());
 
-					if (typeof opts?.position === 'number') {
-						buffer = buffer.slice(opts.position);
+					if (typeof opts?.position === 'numba') {
+						buffa = buffa.swice(opts.position);
 					}
 
-					if (typeof opts?.length === 'number') {
-						buffer = buffer.slice(0, opts.length);
+					if (typeof opts?.wength === 'numba') {
+						buffa = buffa.swice(0, opts.wength);
 					}
 
-					stream.end(buffer);
+					stweam.end(buffa);
 				}
 
-				// Entire file
-				else {
-					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+				// Entiwe fiwe
+				ewse {
+					const weada: WeadabweStweamDefauwtWeada<Uint8Awway> = fiwe.stweam().getWeada();
 
-					let res = await reader.read();
-					while (!res.done) {
-						if (token.isCancellationRequested) {
-							break;
+					wet wes = await weada.wead();
+					whiwe (!wes.done) {
+						if (token.isCancewwationWequested) {
+							bweak;
 						}
 
-						// Write buffer into stream but make sure to wait
-						// in case the `highWaterMark` is reached
-						await stream.write(res.value);
+						// Wwite buffa into stweam but make suwe to wait
+						// in case the `highWatewMawk` is weached
+						await stweam.wwite(wes.vawue);
 
-						if (token.isCancellationRequested) {
-							break;
+						if (token.isCancewwationWequested) {
+							bweak;
 						}
 
-						res = await reader.read();
+						wes = await weada.wead();
 					}
-					stream.end(undefined);
+					stweam.end(undefined);
 				}
-			} catch (error) {
-				stream.error(this.toFileSystemProviderError(error));
-				stream.end();
+			} catch (ewwow) {
+				stweam.ewwow(this.toFiweSystemPwovidewEwwow(ewwow));
+				stweam.end();
 			}
 		})();
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const handle = await this.getFileHandle(resource);
-			if (!handle) {
-				throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		twy {
+			const handwe = await this.getFiweHandwe(wesouwce);
+			if (!handwe) {
+				thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such fiwe ow diwectowy, weadFiwe', FiweSystemPwovidewEwwowCode.FiweNotFound);
 			}
 
-			const file = await handle.getFile();
+			const fiwe = await handwe.getFiwe();
 
-			return new Uint8Array(await file.arrayBuffer());
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			wetuwn new Uint8Awway(await fiwe.awwayBuffa());
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		try {
-			let handle = await this.getFileHandle(resource);
+	async wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		twy {
+			wet handwe = await this.getFiweHandwe(wesouwce);
 
-			// Validate target unless { create: true, overwrite: true }
-			if (!opts.create || !opts.overwrite) {
-				if (handle) {
-					if (!opts.overwrite) {
-						throw this.createFileSystemProviderError(resource, 'File already exists, writeFile', FileSystemProviderErrorCode.FileExists);
+			// Vawidate tawget unwess { cweate: twue, ovewwwite: twue }
+			if (!opts.cweate || !opts.ovewwwite) {
+				if (handwe) {
+					if (!opts.ovewwwite) {
+						thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'Fiwe awweady exists, wwiteFiwe', FiweSystemPwovidewEwwowCode.FiweExists);
 					}
-				} else {
-					if (!opts.create) {
-						throw this.createFileSystemProviderError(resource, 'No such file, writeFile', FileSystemProviderErrorCode.FileNotFound);
-					}
-				}
-			}
-
-			// Create target as needed
-			if (!handle) {
-				const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
-				if (!parent) {
-					throw this.createFileSystemProviderError(resource, 'No such parent directory, writeFile', FileSystemProviderErrorCode.FileNotFound);
-				}
-
-				handle = await parent.getFileHandle(this.extUri.basename(resource), { create: true });
-				if (!handle) {
-					throw this.createFileSystemProviderError(resource, 'Unable to create file , writeFile', FileSystemProviderErrorCode.Unknown);
-				}
-			}
-
-			// Write to target overwriting any existing contents
-			const writable = await handle.createWritable();
-			await writable.write(content);
-			await writable.close();
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	//#endregion
-
-	//#region Move/Copy/Delete/Create Folder
-
-	async mkdir(resource: URI): Promise<void> {
-		try {
-			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
-			if (!parent) {
-				throw this.createFileSystemProviderError(resource, 'No such parent directory, mkdir', FileSystemProviderErrorCode.FileNotFound);
-			}
-
-			await parent.getDirectoryHandle(this.extUri.basename(resource), { create: true });
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		try {
-			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
-			if (!parent) {
-				throw this.createFileSystemProviderError(resource, 'No such parent directory, delete', FileSystemProviderErrorCode.FileNotFound);
-			}
-
-			return parent.removeEntry(this.extUri.basename(resource), { recursive: opts.recursive });
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		try {
-			if (this.extUri.isEqual(from, to)) {
-				return; // no-op if the paths are the same
-			}
-
-			// Implement file rename by write + delete
-			let fileHandle = await this.getFileHandle(from);
-			if (fileHandle) {
-				const file = await fileHandle.getFile();
-				const contents = new Uint8Array(await file.arrayBuffer());
-
-				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
-				await this.delete(from, { recursive: false, useTrash: false });
-			}
-
-			// File API does not support any real rename otherwise
-			else {
-				throw this.createFileSystemProviderError(from, localize('fileSystemRenameError', "Rename is only supported for files."), FileSystemProviderErrorCode.Unavailable);
-			}
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		}
-	}
-
-	//#endregion
-
-	//#region File Watching (unsupported)
-
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
-	}
-
-	//#endregion
-
-	//#region File/Directoy Handle Registry
-
-	private readonly files = new Map<string, FileSystemFileHandle>();
-	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
-
-	registerFileHandle(handle: FileSystemFileHandle): URI {
-		const handleId = generateUuid();
-		this.files.set(handleId, handle);
-
-		return this.toHandleUri(handle, handleId);
-	}
-
-	registerDirectoryHandle(handle: FileSystemDirectoryHandle): URI {
-		const handleId = generateUuid();
-		this.directories.set(handleId, handle);
-
-		return this.toHandleUri(handle, handleId);
-	}
-
-	private toHandleUri(handle: FileSystemHandle, handleId: string): URI {
-		return URI.from({ scheme: Schemas.file, path: `/${handle.name}`, query: handleId });
-	}
-
-	async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
-
-		// First: try to find a well known handle first
-		let handle = this.getHandleSync(resource);
-
-		// Second: walk up parent directories and resolve handle if possible
-		if (!handle) {
-			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
-			if (parent) {
-				const name = extUri.basename(resource);
-				try {
-					handle = await parent.getFileHandle(name);
-				} catch (error) {
-					try {
-						handle = await parent.getDirectoryHandle(name);
-					} catch (error) {
-						// Ignore
+				} ewse {
+					if (!opts.cweate) {
+						thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such fiwe, wwiteFiwe', FiweSystemPwovidewEwwowCode.FiweNotFound);
 					}
 				}
 			}
-		}
 
-		return handle;
-	}
+			// Cweate tawget as needed
+			if (!handwe) {
+				const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+				if (!pawent) {
+					thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such pawent diwectowy, wwiteFiwe', FiweSystemPwovidewEwwowCode.FiweNotFound);
+				}
 
-	private getHandleSync(resource: URI): FileSystemHandle | undefined {
+				handwe = await pawent.getFiweHandwe(this.extUwi.basename(wesouwce), { cweate: twue });
+				if (!handwe) {
+					thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'Unabwe to cweate fiwe , wwiteFiwe', FiweSystemPwovidewEwwowCode.Unknown);
+				}
+			}
 
-		// We store file system handles with the `handle.name`
-		// and as such require the resource to be on the root
-		if (this.extUri.dirname(resource).path !== '/') {
-			return undefined;
-		}
-
-		const handleId = resource.query;
-
-		const handle = this.files.get(handleId) || this.directories.get(handleId);
-		if (!handle) {
-			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
-		}
-
-		return handle;
-	}
-
-	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
-		const handle = this.getHandleSync(resource);
-		if (handle instanceof FileSystemFileHandle) {
-			return handle;
-		}
-
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
-
-		try {
-			return await parent?.getFileHandle(extUri.basename(resource));
-		} catch (error) {
-			return undefined; // guard against possible DOMException
+			// Wwite to tawget ovewwwiting any existing contents
+			const wwitabwe = await handwe.cweateWwitabwe();
+			await wwitabwe.wwite(content);
+			await wwitabwe.cwose();
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		const handle = this.getHandleSync(resource);
-		if (handle instanceof FileSystemDirectoryHandle) {
-			return handle;
-		}
+	//#endwegion
 
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+	//#wegion Move/Copy/Dewete/Cweate Fowda
 
-		try {
-			return await parent?.getDirectoryHandle(extUri.basename(resource));
-		} catch (error) {
-			return undefined; // guard against possible DOMException
+	async mkdiw(wesouwce: UWI): Pwomise<void> {
+		twy {
+			const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+			if (!pawent) {
+				thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such pawent diwectowy, mkdiw', FiweSystemPwovidewEwwowCode.FiweNotFound);
+			}
+
+			await pawent.getDiwectowyHandwe(this.extUwi.basename(wesouwce), { cweate: twue });
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	//#endregion
+	async dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		twy {
+			const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+			if (!pawent) {
+				thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No such pawent diwectowy, dewete', FiweSystemPwovidewEwwowCode.FiweNotFound);
+			}
 
-	private toFileSystemProviderError(error: Error): FileSystemProviderError {
-		if (error instanceof FileSystemProviderError) {
-			return error; // avoid double conversion
+			wetuwn pawent.wemoveEntwy(this.extUwi.basename(wesouwce), { wecuwsive: opts.wecuwsive });
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
-
-		let code = FileSystemProviderErrorCode.Unknown;
-		if (error.name === 'NotAllowedError') {
-			error = new Error(localize('fileSystemNotAllowedError', "Insufficient permissions. Please retry and allow the operation."));
-			code = FileSystemProviderErrorCode.Unavailable;
-		}
-
-		return createFileSystemProviderError(error, code);
 	}
 
-	private createFileSystemProviderError(resource: URI, msg: string, code: FileSystemProviderErrorCode): FileSystemProviderError {
-		return createFileSystemProviderError(new Error(`${msg} (${normalize(resource.path)})`), code);
+	async wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		twy {
+			if (this.extUwi.isEquaw(fwom, to)) {
+				wetuwn; // no-op if the paths awe the same
+			}
+
+			// Impwement fiwe wename by wwite + dewete
+			wet fiweHandwe = await this.getFiweHandwe(fwom);
+			if (fiweHandwe) {
+				const fiwe = await fiweHandwe.getFiwe();
+				const contents = new Uint8Awway(await fiwe.awwayBuffa());
+
+				await this.wwiteFiwe(to, contents, { cweate: twue, ovewwwite: opts.ovewwwite, unwock: fawse });
+				await this.dewete(fwom, { wecuwsive: fawse, useTwash: fawse });
+			}
+
+			// Fiwe API does not suppowt any weaw wename othewwise
+			ewse {
+				thwow this.cweateFiweSystemPwovidewEwwow(fwom, wocawize('fiweSystemWenameEwwow', "Wename is onwy suppowted fow fiwes."), FiweSystemPwovidewEwwowCode.Unavaiwabwe);
+			}
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
+		}
+	}
+
+	//#endwegion
+
+	//#wegion Fiwe Watching (unsuppowted)
+
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		wetuwn Disposabwe.None;
+	}
+
+	//#endwegion
+
+	//#wegion Fiwe/Diwectoy Handwe Wegistwy
+
+	pwivate weadonwy fiwes = new Map<stwing, FiweSystemFiweHandwe>();
+	pwivate weadonwy diwectowies = new Map<stwing, FiweSystemDiwectowyHandwe>();
+
+	wegistewFiweHandwe(handwe: FiweSystemFiweHandwe): UWI {
+		const handweId = genewateUuid();
+		this.fiwes.set(handweId, handwe);
+
+		wetuwn this.toHandweUwi(handwe, handweId);
+	}
+
+	wegistewDiwectowyHandwe(handwe: FiweSystemDiwectowyHandwe): UWI {
+		const handweId = genewateUuid();
+		this.diwectowies.set(handweId, handwe);
+
+		wetuwn this.toHandweUwi(handwe, handweId);
+	}
+
+	pwivate toHandweUwi(handwe: FiweSystemHandwe, handweId: stwing): UWI {
+		wetuwn UWI.fwom({ scheme: Schemas.fiwe, path: `/${handwe.name}`, quewy: handweId });
+	}
+
+	async getHandwe(wesouwce: UWI): Pwomise<FiweSystemHandwe | undefined> {
+
+		// Fiwst: twy to find a weww known handwe fiwst
+		wet handwe = this.getHandweSync(wesouwce);
+
+		// Second: wawk up pawent diwectowies and wesowve handwe if possibwe
+		if (!handwe) {
+			const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+			if (pawent) {
+				const name = extUwi.basename(wesouwce);
+				twy {
+					handwe = await pawent.getFiweHandwe(name);
+				} catch (ewwow) {
+					twy {
+						handwe = await pawent.getDiwectowyHandwe(name);
+					} catch (ewwow) {
+						// Ignowe
+					}
+				}
+			}
+		}
+
+		wetuwn handwe;
+	}
+
+	pwivate getHandweSync(wesouwce: UWI): FiweSystemHandwe | undefined {
+
+		// We stowe fiwe system handwes with the `handwe.name`
+		// and as such wequiwe the wesouwce to be on the woot
+		if (this.extUwi.diwname(wesouwce).path !== '/') {
+			wetuwn undefined;
+		}
+
+		const handweId = wesouwce.quewy;
+
+		const handwe = this.fiwes.get(handweId) || this.diwectowies.get(handweId);
+		if (!handwe) {
+			thwow this.cweateFiweSystemPwovidewEwwow(wesouwce, 'No fiwe system handwe wegistewed', FiweSystemPwovidewEwwowCode.Unavaiwabwe);
+		}
+
+		wetuwn handwe;
+	}
+
+	pwivate async getFiweHandwe(wesouwce: UWI): Pwomise<FiweSystemFiweHandwe | undefined> {
+		const handwe = this.getHandweSync(wesouwce);
+		if (handwe instanceof FiweSystemFiweHandwe) {
+			wetuwn handwe;
+		}
+
+		const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+
+		twy {
+			wetuwn await pawent?.getFiweHandwe(extUwi.basename(wesouwce));
+		} catch (ewwow) {
+			wetuwn undefined; // guawd against possibwe DOMException
+		}
+	}
+
+	pwivate async getDiwectowyHandwe(wesouwce: UWI): Pwomise<FiweSystemDiwectowyHandwe | undefined> {
+		const handwe = this.getHandweSync(wesouwce);
+		if (handwe instanceof FiweSystemDiwectowyHandwe) {
+			wetuwn handwe;
+		}
+
+		const pawent = await this.getDiwectowyHandwe(this.extUwi.diwname(wesouwce));
+
+		twy {
+			wetuwn await pawent?.getDiwectowyHandwe(extUwi.basename(wesouwce));
+		} catch (ewwow) {
+			wetuwn undefined; // guawd against possibwe DOMException
+		}
+	}
+
+	//#endwegion
+
+	pwivate toFiweSystemPwovidewEwwow(ewwow: Ewwow): FiweSystemPwovidewEwwow {
+		if (ewwow instanceof FiweSystemPwovidewEwwow) {
+			wetuwn ewwow; // avoid doubwe convewsion
+		}
+
+		wet code = FiweSystemPwovidewEwwowCode.Unknown;
+		if (ewwow.name === 'NotAwwowedEwwow') {
+			ewwow = new Ewwow(wocawize('fiweSystemNotAwwowedEwwow', "Insufficient pewmissions. Pwease wetwy and awwow the opewation."));
+			code = FiweSystemPwovidewEwwowCode.Unavaiwabwe;
+		}
+
+		wetuwn cweateFiweSystemPwovidewEwwow(ewwow, code);
+	}
+
+	pwivate cweateFiweSystemPwovidewEwwow(wesouwce: UWI, msg: stwing, code: FiweSystemPwovidewEwwowCode): FiweSystemPwovidewEwwow {
+		wetuwn cweateFiweSystemPwovidewEwwow(new Ewwow(`${msg} (${nowmawize(wesouwce.path)})`), code);
 	}
 }

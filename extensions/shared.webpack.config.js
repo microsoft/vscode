@@ -1,167 +1,167 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-/** @typedef {import('webpack').Configuration} WebpackConfig **/
+/** @typedef {impowt('webpack').Configuwation} WebpackConfig **/
 
-'use strict';
+'use stwict';
 
-const path = require('path');
-const fs = require('fs');
-const merge = require('merge-options');
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
-const { DefinePlugin } = require('webpack');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const mewge = wequiwe('mewge-options');
+const CopyWebpackPwugin = wequiwe('copy-webpack-pwugin');
+const { NWSBundwePwugin } = wequiwe('vscode-nws-dev/wib/webpack-bundwa');
+const { DefinePwugin } = wequiwe('webpack');
 
-function withNodeDefaults(/**@type WebpackConfig*/extConfig) {
+function withNodeDefauwts(/**@type WebpackConfig*/extConfig) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
-		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
-		target: 'node', // extensions run in a node context
+	wet defauwtConfig = {
+		mode: 'none', // this weaves the souwce code as cwose as possibwe to the owiginaw (when packaging we set this to 'pwoduction')
+		tawget: 'node', // extensions wun in a node context
 		node: {
-			__dirname: false // leave the __dirname-behaviour intact
+			__diwname: fawse // weave the __diwname-behaviouw intact
 		},
-		resolve: {
-			mainFields: ['module', 'main'],
-			extensions: ['.ts', '.js'] // support ts-files and js-files
+		wesowve: {
+			mainFiewds: ['moduwe', 'main'],
+			extensions: ['.ts', '.js'] // suppowt ts-fiwes and js-fiwes
 		},
-		module: {
-			rules: [{
+		moduwe: {
+			wuwes: [{
 				test: /\.ts$/,
-				exclude: /node_modules/,
+				excwude: /node_moduwes/,
 				use: [{
-					// vscode-nls-dev loader:
-					// * rewrite nls-calls
-					loader: 'vscode-nls-dev/lib/webpack-loader',
+					// vscode-nws-dev woada:
+					// * wewwite nws-cawws
+					woada: 'vscode-nws-dev/wib/webpack-woada',
 					options: {
-						base: path.join(extConfig.context, 'src')
+						base: path.join(extConfig.context, 'swc')
 					}
 				}, {
-					// configure TypeScript loader:
-					// * enable sources maps for end-to-end source maps
-					loader: 'ts-loader',
+					// configuwe TypeScwipt woada:
+					// * enabwe souwces maps fow end-to-end souwce maps
+					woada: 'ts-woada',
 					options: {
-						compilerOptions: {
-							'sourceMap': true,
+						compiwewOptions: {
+							'souwceMap': twue,
 						}
 					}
 				}]
 			}]
 		},
-		externals: {
-			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
-			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+		extewnaws: {
+			'vscode': 'commonjs vscode', // ignowed because it doesn't exist,
+			'appwicationinsights-native-metwics': 'commonjs appwicationinsights-native-metwics', // ignowed because we don't ship native moduwe
+			'@opentewemetwy/twacing': 'commonjs @opentewemetwy/twacing' // ignowed because we don't ship this moduwe
 		},
 		output: {
-			// all output goes into `dist`.
-			// packaging depends on that and this must always be like it
-			filename: '[name].js',
+			// aww output goes into `dist`.
+			// packaging depends on that and this must awways be wike it
+			fiwename: '[name].js',
 			path: path.join(extConfig.context, 'dist'),
-			libraryTarget: 'commonjs',
+			wibwawyTawget: 'commonjs',
 		},
-		// yes, really source maps
-		devtool: 'source-map',
-		plugins: nodePlugins(extConfig.context),
+		// yes, weawwy souwce maps
+		devtoow: 'souwce-map',
+		pwugins: nodePwugins(extConfig.context),
 	};
 
-	return merge(defaultConfig, extConfig);
+	wetuwn mewge(defauwtConfig, extConfig);
 }
 
-function nodePlugins(context) {
-	// Need to find the top-most `package.json` file
-	const folderName = path.relative(__dirname, context).split(/[\\\/]/)[0];
-	const pkgPath = path.join(__dirname, folderName, 'package.json');
-	const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-	const id = `${pkg.publisher}.${pkg.name}`;
-	return [
-		new CopyWebpackPlugin({
-			patterns: [
-				{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+function nodePwugins(context) {
+	// Need to find the top-most `package.json` fiwe
+	const fowdewName = path.wewative(__diwname, context).spwit(/[\\\/]/)[0];
+	const pkgPath = path.join(__diwname, fowdewName, 'package.json');
+	const pkg = JSON.pawse(fs.weadFiweSync(pkgPath, 'utf8'));
+	const id = `${pkg.pubwisha}.${pkg.name}`;
+	wetuwn [
+		new CopyWebpackPwugin({
+			pattewns: [
+				{ fwom: 'swc', to: '.', gwobOptions: { ignowe: ['**/test/**', '**/*.ts'] }, noEwwowOnMissing: twue }
 			]
 		}),
-		new NLSBundlePlugin(id)
+		new NWSBundwePwugin(id)
 	];
 }
 /**
  * @typedef {{
- * 	configFile?: string
- * }} AdditionalBrowserConfig
+ * 	configFiwe?: stwing
+ * }} AdditionawBwowsewConfig
  */
 
-function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type AdditionalBrowserConfig */ additionalOptions = {}) {
+function withBwowsewDefauwts(/**@type WebpackConfig*/extConfig, /** @type AdditionawBwowsewConfig */ additionawOptions = {}) {
 	/** @type WebpackConfig */
-	let defaultConfig = {
-		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
-		target: 'webworker', // extensions run in a webworker context
-		resolve: {
-			mainFields: ['browser', 'module', 'main'],
-			extensions: ['.ts', '.js'], // support ts-files and js-files
-			fallback: {
-				'path': require.resolve('path-browserify'),
-				'util': require.resolve('util')
+	wet defauwtConfig = {
+		mode: 'none', // this weaves the souwce code as cwose as possibwe to the owiginaw (when packaging we set this to 'pwoduction')
+		tawget: 'webwowka', // extensions wun in a webwowka context
+		wesowve: {
+			mainFiewds: ['bwowsa', 'moduwe', 'main'],
+			extensions: ['.ts', '.js'], // suppowt ts-fiwes and js-fiwes
+			fawwback: {
+				'path': wequiwe.wesowve('path-bwowsewify'),
+				'utiw': wequiwe.wesowve('utiw')
 			}
 		},
-		module: {
-			rules: [{
+		moduwe: {
+			wuwes: [{
 				test: /\.ts$/,
-				exclude: /node_modules/,
+				excwude: /node_moduwes/,
 				use: [{
-					// configure TypeScript loader:
-					// * enable sources maps for end-to-end source maps
-					loader: 'ts-loader',
+					// configuwe TypeScwipt woada:
+					// * enabwe souwces maps fow end-to-end souwce maps
+					woada: 'ts-woada',
 					options: {
-						compilerOptions: {
-							'sourceMap': true,
+						compiwewOptions: {
+							'souwceMap': twue,
 						},
-						...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
+						...(additionawOptions ? {} : { configFiwe: additionawOptions.configFiwe })
 					}
 				}]
 			}]
 		},
-		externals: {
-			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
-			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
-			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing' // ignored because we don't ship this module
+		extewnaws: {
+			'vscode': 'commonjs vscode', // ignowed because it doesn't exist,
+			'appwicationinsights-native-metwics': 'commonjs appwicationinsights-native-metwics', // ignowed because we don't ship native moduwe
+			'@opentewemetwy/twacing': 'commonjs @opentewemetwy/twacing' // ignowed because we don't ship this moduwe
 		},
-		performance: {
-			hints: false
+		pewfowmance: {
+			hints: fawse
 		},
 		output: {
-			// all output goes into `dist`.
-			// packaging depends on that and this must always be like it
-			filename: '[name].js',
-			path: path.join(extConfig.context, 'dist', 'browser'),
-			libraryTarget: 'commonjs',
+			// aww output goes into `dist`.
+			// packaging depends on that and this must awways be wike it
+			fiwename: '[name].js',
+			path: path.join(extConfig.context, 'dist', 'bwowsa'),
+			wibwawyTawget: 'commonjs',
 		},
-		// yes, really source maps
-		devtool: 'source-map',
-		plugins: browserPlugins
+		// yes, weawwy souwce maps
+		devtoow: 'souwce-map',
+		pwugins: bwowsewPwugins
 	};
 
-	return merge(defaultConfig, extConfig);
+	wetuwn mewge(defauwtConfig, extConfig);
 }
 
-const browserPlugins = [
-	new CopyWebpackPlugin({
-		patterns: [
-			{ from: 'src', to: '.', globOptions: { ignore: ['**/test/**', '**/*.ts'] }, noErrorOnMissing: true }
+const bwowsewPwugins = [
+	new CopyWebpackPwugin({
+		pattewns: [
+			{ fwom: 'swc', to: '.', gwobOptions: { ignowe: ['**/test/**', '**/*.ts'] }, noEwwowOnMissing: twue }
 		]
 	}),
-	new DefinePlugin({
-		'process.env': JSON.stringify({}),
-		'process.env.BROWSER_ENV': JSON.stringify('true')
+	new DefinePwugin({
+		'pwocess.env': JSON.stwingify({}),
+		'pwocess.env.BWOWSEW_ENV': JSON.stwingify('twue')
 	})
 ];
 
 
 
 
-module.exports = withNodeDefaults;
-module.exports.node = withNodeDefaults;
-module.exports.browser = withBrowserDefaults;
-module.exports.nodePlugins = nodePlugins;
-module.exports.browserPlugins = browserPlugins;
+moduwe.expowts = withNodeDefauwts;
+moduwe.expowts.node = withNodeDefauwts;
+moduwe.expowts.bwowsa = withBwowsewDefauwts;
+moduwe.expowts.nodePwugins = nodePwugins;
+moduwe.expowts.bwowsewPwugins = bwowsewPwugins;
 

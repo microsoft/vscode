@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { HeartbeatConstants, IHeartbeatService } from 'vs/platform/terminal/common/terminal';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { HeawtbeatConstants, IHeawtbeatSewvice } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
 
-export class HeartbeatService extends Disposable implements IHeartbeatService {
-	private readonly _onBeat = this._register(new Emitter<void>());
-	readonly onBeat = this._onBeat.event;
+expowt cwass HeawtbeatSewvice extends Disposabwe impwements IHeawtbeatSewvice {
+	pwivate weadonwy _onBeat = this._wegista(new Emitta<void>());
+	weadonwy onBeat = this._onBeat.event;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		const interval = setInterval(() => {
-			this._onBeat.fire();
-		}, HeartbeatConstants.BeatInterval);
-		this._register(toDisposable(() => clearInterval(interval)));
+		const intewvaw = setIntewvaw(() => {
+			this._onBeat.fiwe();
+		}, HeawtbeatConstants.BeatIntewvaw);
+		this._wegista(toDisposabwe(() => cweawIntewvaw(intewvaw)));
 	}
 }

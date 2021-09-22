@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
-import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext } from './languageModes';
-import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
+impowt { WanguageModewCache, getWanguageModewCache } fwom '../wanguageModewCache';
+impowt { Stywesheet, WanguageSewvice as CSSWanguageSewvice } fwom 'vscode-css-wanguagesewvice';
+impowt { WanguageMode, Wowkspace, Cowow, TextDocument, Position, Wange, CompwetionWist, DocumentContext } fwom './wanguageModes';
+impowt { HTMWDocumentWegions, CSS_STYWE_WUWE } fwom './embeddedSuppowt';
 
-export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
-	let embeddedCSSDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument('css'));
-	let cssStylesheets = getLanguageModelCache<Stylesheet>(10, 60, document => cssLanguageService.parseStylesheet(document));
+expowt function getCSSMode(cssWanguageSewvice: CSSWanguageSewvice, documentWegions: WanguageModewCache<HTMWDocumentWegions>, wowkspace: Wowkspace): WanguageMode {
+	wet embeddedCSSDocuments = getWanguageModewCache<TextDocument>(10, 60, document => documentWegions.get(document).getEmbeddedDocument('css'));
+	wet cssStywesheets = getWanguageModewCache<Stywesheet>(10, 60, document => cssWanguageSewvice.pawseStywesheet(document));
 
-	return {
+	wetuwn {
 		getId() {
-			return 'css';
+			wetuwn 'css';
 		},
-		async doValidation(document: TextDocument, settings = workspace.settings) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
+		async doVawidation(document: TextDocument, settings = wowkspace.settings) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.doVawidation(embedded, cssStywesheets.get(embedded), settings && settings.css);
 		},
-		async doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, _settings = workspace.settings) {
-			let embedded = embeddedCSSDocuments.get(document);
-			const stylesheet = cssStylesheets.get(embedded);
-			return cssLanguageService.doComplete2(embedded, position, stylesheet, documentContext, _settings?.css?.completion) || CompletionList.create();
+		async doCompwete(document: TextDocument, position: Position, documentContext: DocumentContext, _settings = wowkspace.settings) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			const stywesheet = cssStywesheets.get(embedded);
+			wetuwn cssWanguageSewvice.doCompwete2(embedded, position, stywesheet, documentContext, _settings?.css?.compwetion) || CompwetionWist.cweate();
 		},
-		async doHover(document: TextDocument, position: Position, settings = workspace.settings) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.doHover(embedded, position, cssStylesheets.get(embedded), settings?.css?.hover);
+		async doHova(document: TextDocument, position: Position, settings = wowkspace.settings) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.doHova(embedded, position, cssStywesheets.get(embedded), settings?.css?.hova);
 		},
-		async findDocumentHighlight(document: TextDocument, position: Position) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findDocumentHighlights(embedded, position, cssStylesheets.get(embedded));
+		async findDocumentHighwight(document: TextDocument, position: Position) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.findDocumentHighwights(embedded, position, cssStywesheets.get(embedded));
 		},
-		async findDocumentSymbols(document: TextDocument) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findDocumentSymbols(embedded, cssStylesheets.get(embedded)).filter(s => s.name !== CSS_STYLE_RULE);
+		async findDocumentSymbows(document: TextDocument) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.findDocumentSymbows(embedded, cssStywesheets.get(embedded)).fiwta(s => s.name !== CSS_STYWE_WUWE);
 		},
 		async findDefinition(document: TextDocument, position: Position) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findDefinition(embedded, position, cssStylesheets.get(embedded));
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.findDefinition(embedded, position, cssStywesheets.get(embedded));
 		},
-		async findReferences(document: TextDocument, position: Position) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findReferences(embedded, position, cssStylesheets.get(embedded));
+		async findWefewences(document: TextDocument, position: Position) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.findWefewences(embedded, position, cssStywesheets.get(embedded));
 		},
-		async findDocumentColors(document: TextDocument) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.findDocumentColors(embedded, cssStylesheets.get(embedded));
+		async findDocumentCowows(document: TextDocument) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.findDocumentCowows(embedded, cssStywesheets.get(embedded));
 		},
-		async getColorPresentations(document: TextDocument, color: Color, range: Range) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.getColorPresentations(embedded, cssStylesheets.get(embedded), color, range);
+		async getCowowPwesentations(document: TextDocument, cowow: Cowow, wange: Wange) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.getCowowPwesentations(embedded, cssStywesheets.get(embedded), cowow, wange);
 		},
-		async getFoldingRanges(document: TextDocument) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.getFoldingRanges(embedded, {});
+		async getFowdingWanges(document: TextDocument) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.getFowdingWanges(embedded, {});
 		},
-		async getSelectionRange(document: TextDocument, position: Position) {
-			let embedded = embeddedCSSDocuments.get(document);
-			return cssLanguageService.getSelectionRanges(embedded, [position], cssStylesheets.get(embedded))[0];
+		async getSewectionWange(document: TextDocument, position: Position) {
+			wet embedded = embeddedCSSDocuments.get(document);
+			wetuwn cssWanguageSewvice.getSewectionWanges(embedded, [position], cssStywesheets.get(embedded))[0];
 		},
-		onDocumentRemoved(document: TextDocument) {
-			embeddedCSSDocuments.onDocumentRemoved(document);
-			cssStylesheets.onDocumentRemoved(document);
+		onDocumentWemoved(document: TextDocument) {
+			embeddedCSSDocuments.onDocumentWemoved(document);
+			cssStywesheets.onDocumentWemoved(document);
 		},
 		dispose() {
 			embeddedCSSDocuments.dispose();
-			cssStylesheets.dispose();
+			cssStywesheets.dispose();
 		}
 	};
 }

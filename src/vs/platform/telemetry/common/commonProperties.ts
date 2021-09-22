@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
-import { env, platform as nodePlatform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { isWinuxSnap, pwatfowm, Pwatfowm, PwatfowmToStwing } fwom 'vs/base/common/pwatfowm';
+impowt { env, pwatfowm as nodePwatfowm } fwom 'vs/base/common/pwocess';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-function getPlatformDetail(hostname: string): string | undefined {
-	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {
-		return 'chromebook';
+function getPwatfowmDetaiw(hostname: stwing): stwing | undefined {
+	if (pwatfowm === Pwatfowm.Winux && /^penguin(\.|$)/i.test(hostname)) {
+		wetuwn 'chwomebook';
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export async function resolveCommonProperties(
-	fileService: IFileService,
-	release: string,
-	hostname: string,
-	arch: string,
-	commit: string | undefined,
-	version: string | undefined,
-	machineId: string | undefined,
-	msftInternalDomains: string[] | undefined,
-	installSourcePath: string,
-	product?: string
-): Promise<{ [name: string]: string | boolean | undefined; }> {
-	const result: { [name: string]: string | boolean | undefined; } = Object.create(null);
+expowt async function wesowveCommonPwopewties(
+	fiweSewvice: IFiweSewvice,
+	wewease: stwing,
+	hostname: stwing,
+	awch: stwing,
+	commit: stwing | undefined,
+	vewsion: stwing | undefined,
+	machineId: stwing | undefined,
+	msftIntewnawDomains: stwing[] | undefined,
+	instawwSouwcePath: stwing,
+	pwoduct?: stwing
+): Pwomise<{ [name: stwing]: stwing | boowean | undefined; }> {
+	const wesuwt: { [name: stwing]: stwing | boowean | undefined; } = Object.cweate(nuww);
 
-	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-	result['common.machineId'] = machineId;
-	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['sessionID'] = generateUuid() + Date.now();
-	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['commitHash'] = commit;
-	// __GDPR__COMMON__ "version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['version'] = version;
-	// __GDPR__COMMON__ "common.platformVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.platformVersion'] = (release || '').replace(/^(\d+)(\.\d+)?(\.\d+)?(.*)/, '$1$2$3');
-	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.platform'] = PlatformToString(platform);
-	// __GDPR__COMMON__ "common.nodePlatform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.nodePlatform'] = nodePlatform;
-	// __GDPR__COMMON__ "common.nodeArch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.nodeArch'] = arch;
-	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.product'] = product || 'desktop';
+	// __GDPW__COMMON__ "common.machineId" : { "endPoint": "MacAddwessHash", "cwassification": "EndUsewPseudonymizedInfowmation", "puwpose": "FeatuweInsight" }
+	wesuwt['common.machineId'] = machineId;
+	// __GDPW__COMMON__ "sessionID" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['sessionID'] = genewateUuid() + Date.now();
+	// __GDPW__COMMON__ "commitHash" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['commitHash'] = commit;
+	// __GDPW__COMMON__ "vewsion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['vewsion'] = vewsion;
+	// __GDPW__COMMON__ "common.pwatfowmVewsion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.pwatfowmVewsion'] = (wewease || '').wepwace(/^(\d+)(\.\d+)?(\.\d+)?(.*)/, '$1$2$3');
+	// __GDPW__COMMON__ "common.pwatfowm" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+	wesuwt['common.pwatfowm'] = PwatfowmToStwing(pwatfowm);
+	// __GDPW__COMMON__ "common.nodePwatfowm" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.nodePwatfowm'] = nodePwatfowm;
+	// __GDPW__COMMON__ "common.nodeAwch" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.nodeAwch'] = awch;
+	// __GDPW__COMMON__ "common.pwoduct" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
+	wesuwt['common.pwoduct'] = pwoduct || 'desktop';
 
-	const msftInternal = verifyMicrosoftInternalDomain(msftInternalDomains || []);
-	if (msftInternal) {
-		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		result['common.msftInternal'] = msftInternal;
+	const msftIntewnaw = vewifyMicwosoftIntewnawDomain(msftIntewnawDomains || []);
+	if (msftIntewnaw) {
+		// __GDPW__COMMON__ "common.msftIntewnaw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
+		wesuwt['common.msftIntewnaw'] = msftIntewnaw;
 	}
 
-	// dynamic properties which value differs on each call
-	let seq = 0;
-	const startTime = Date.now();
-	Object.defineProperties(result, {
-		// __GDPR__COMMON__ "timestamp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// dynamic pwopewties which vawue diffews on each caww
+	wet seq = 0;
+	const stawtTime = Date.now();
+	Object.definePwopewties(wesuwt, {
+		// __GDPW__COMMON__ "timestamp" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 		'timestamp': {
 			get: () => new Date(),
-			enumerable: true
+			enumewabwe: twue
 		},
-		// __GDPR__COMMON__ "common.timesincesessionstart" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		'common.timesincesessionstart': {
-			get: () => Date.now() - startTime,
-			enumerable: true
+		// __GDPW__COMMON__ "common.timesincesessionstawt" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
+		'common.timesincesessionstawt': {
+			get: () => Date.now() - stawtTime,
+			enumewabwe: twue
 		},
-		// __GDPR__COMMON__ "common.sequence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		// __GDPW__COMMON__ "common.sequence" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 		'common.sequence': {
 			get: () => seq++,
-			enumerable: true
+			enumewabwe: twue
 		}
 	});
 
-	if (isLinuxSnap) {
-		// __GDPR__COMMON__ "common.snap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.snap'] = 'true';
+	if (isWinuxSnap) {
+		// __GDPW__COMMON__ "common.snap" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+		wesuwt['common.snap'] = 'twue';
 	}
 
-	const platformDetail = getPlatformDetail(hostname);
+	const pwatfowmDetaiw = getPwatfowmDetaiw(hostname);
 
-	if (platformDetail) {
-		// __GDPR__COMMON__ "common.platformDetail" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.platformDetail'] = platformDetail;
+	if (pwatfowmDetaiw) {
+		// __GDPW__COMMON__ "common.pwatfowmDetaiw" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+		wesuwt['common.pwatfowmDetaiw'] = pwatfowmDetaiw;
 	}
 
-	try {
-		const contents = await fileService.readFile(URI.file(installSourcePath));
+	twy {
+		const contents = await fiweSewvice.weadFiwe(UWI.fiwe(instawwSouwcePath));
 
-		// __GDPR__COMMON__ "common.source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		result['common.source'] = contents.value.toString().slice(0, 30);
-	} catch (error) {
-		// ignore error
+		// __GDPW__COMMON__ "common.souwce" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
+		wesuwt['common.souwce'] = contents.vawue.toStwing().swice(0, 30);
+	} catch (ewwow) {
+		// ignowe ewwow
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
-	const userDnsDomain = env['USERDNSDOMAIN'];
-	if (!userDnsDomain) {
-		return false;
+expowt function vewifyMicwosoftIntewnawDomain(domainWist: weadonwy stwing[]): boowean {
+	const usewDnsDomain = env['USEWDNSDOMAIN'];
+	if (!usewDnsDomain) {
+		wetuwn fawse;
 	}
 
-	const domain = userDnsDomain.toLowerCase();
-	return domainList.some(msftDomain => domain === msftDomain);
+	const domain = usewDnsDomain.toWowewCase();
+	wetuwn domainWist.some(msftDomain => domain === msftDomain);
 }

@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ICodeEditow, IDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationOptions, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
+expowt const ICodeEditowSewvice = cweateDecowatow<ICodeEditowSewvice>('codeEditowSewvice');
 
-export interface ICodeEditorService {
-	readonly _serviceBrand: undefined;
+expowt intewface ICodeEditowSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onCodeEditorAdd: Event<ICodeEditor>;
-	readonly onCodeEditorRemove: Event<ICodeEditor>;
+	weadonwy onCodeEditowAdd: Event<ICodeEditow>;
+	weadonwy onCodeEditowWemove: Event<ICodeEditow>;
 
-	readonly onDiffEditorAdd: Event<IDiffEditor>;
-	readonly onDiffEditorRemove: Event<IDiffEditor>;
+	weadonwy onDiffEditowAdd: Event<IDiffEditow>;
+	weadonwy onDiffEditowWemove: Event<IDiffEditow>;
 
-	readonly onDidChangeTransientModelProperty: Event<ITextModel>;
-	readonly onDecorationTypeRegistered: Event<string>;
+	weadonwy onDidChangeTwansientModewPwopewty: Event<ITextModew>;
+	weadonwy onDecowationTypeWegistewed: Event<stwing>;
 
 
-	addCodeEditor(editor: ICodeEditor): void;
-	removeCodeEditor(editor: ICodeEditor): void;
-	listCodeEditors(): readonly ICodeEditor[];
+	addCodeEditow(editow: ICodeEditow): void;
+	wemoveCodeEditow(editow: ICodeEditow): void;
+	wistCodeEditows(): weadonwy ICodeEditow[];
 
-	addDiffEditor(editor: IDiffEditor): void;
-	removeDiffEditor(editor: IDiffEditor): void;
-	listDiffEditors(): readonly IDiffEditor[];
+	addDiffEditow(editow: IDiffEditow): void;
+	wemoveDiffEditow(editow: IDiffEditow): void;
+	wistDiffEditows(): weadonwy IDiffEditow[];
 
 	/**
-	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
+	 * Wetuwns the cuwwent focused code editow (if the focus is in the editow ow in an editow widget) ow nuww.
 	 */
-	getFocusedCodeEditor(): ICodeEditor | null;
+	getFocusedCodeEditow(): ICodeEditow | nuww;
 
-	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
-	removeDecorationType(key: string): void;
-	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
-	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
+	wegistewDecowationType(descwiption: stwing, key: stwing, options: IDecowationWendewOptions, pawentTypeKey?: stwing, editow?: ICodeEditow): void;
+	wemoveDecowationType(key: stwing): void;
+	wesowveDecowationOptions(typeKey: stwing, wwitabwe: boowean): IModewDecowationOptions;
+	wesowveDecowationCSSWuwes(decowationTypeKey: stwing): CSSWuweWist | nuww;
 
-	setModelProperty(resource: URI, key: string, value: any): void;
-	getModelProperty(resource: URI, key: string): any;
+	setModewPwopewty(wesouwce: UWI, key: stwing, vawue: any): void;
+	getModewPwopewty(wesouwce: UWI, key: stwing): any;
 
-	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
-	getTransientModelProperty(model: ITextModel, key: string): any;
-	getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
+	setTwansientModewPwopewty(modew: ITextModew, key: stwing, vawue: any): void;
+	getTwansientModewPwopewty(modew: ITextModew, key: stwing): any;
+	getTwansientModewPwopewties(modew: ITextModew): [stwing, any][] | undefined;
 
-	getActiveCodeEditor(): ICodeEditor | null;
-	openCodeEditor(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	getActiveCodeEditow(): ICodeEditow | nuww;
+	openCodeEditow(input: ITextWesouwceEditowInput, souwce: ICodeEditow | nuww, sideBySide?: boowean): Pwomise<ICodeEditow | nuww>;
 }

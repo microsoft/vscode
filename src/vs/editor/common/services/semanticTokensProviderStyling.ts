@@ -1,303 +1,303 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens, LanguageIdentifier } from 'vs/editor/common/modes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
+impowt { SemanticTokensWegend, TokenMetadata, FontStywe, MetadataConsts, SemanticTokens, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MuwtiwineTokens2, SpawseEncodedTokens } fwom 'vs/editow/common/modew/tokensStowe';
 
-export const enum SemanticTokensProviderStylingConstants {
-	NO_STYLING = 0b01111111111111111111111111111111
+expowt const enum SemanticTokensPwovidewStywingConstants {
+	NO_STYWING = 0b01111111111111111111111111111111
 }
 
-export class SemanticTokensProviderStyling {
+expowt cwass SemanticTokensPwovidewStywing {
 
-	private readonly _hashTable: HashTable;
-	private _hasWarnedOverlappingTokens: boolean;
+	pwivate weadonwy _hashTabwe: HashTabwe;
+	pwivate _hasWawnedOvewwappingTokens: boowean;
 
-	constructor(
-		private readonly _legend: SemanticTokensLegend,
-		private readonly _themeService: IThemeService,
-		private readonly _logService: ILogService
+	constwuctow(
+		pwivate weadonwy _wegend: SemanticTokensWegend,
+		pwivate weadonwy _themeSewvice: IThemeSewvice,
+		pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		this._hashTable = new HashTable();
-		this._hasWarnedOverlappingTokens = false;
+		this._hashTabwe = new HashTabwe();
+		this._hasWawnedOvewwappingTokens = fawse;
 	}
 
-	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: LanguageIdentifier): number {
-		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, languageId.id);
-		let metadata: number;
-		if (entry) {
-			metadata = entry.metadata;
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling [CACHED] ${tokenTypeIndex} / ${tokenModifierSet}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
+	pubwic getMetadata(tokenTypeIndex: numba, tokenModifiewSet: numba, wanguageId: WanguageIdentifia): numba {
+		const entwy = this._hashTabwe.get(tokenTypeIndex, tokenModifiewSet, wanguageId.id);
+		wet metadata: numba;
+		if (entwy) {
+			metadata = entwy.metadata;
+			if (this._wogSewvice.getWevew() === WogWevew.Twace) {
+				this._wogSewvice.twace(`SemanticTokensPwovidewStywing [CACHED] ${tokenTypeIndex} / ${tokenModifiewSet}: fowegwound ${TokenMetadata.getFowegwound(metadata)}, fontStywe ${TokenMetadata.getFontStywe(metadata).toStwing(2)}`);
 			}
-		} else {
-			let tokenType = this._legend.tokenTypes[tokenTypeIndex];
-			const tokenModifiers: string[] = [];
+		} ewse {
+			wet tokenType = this._wegend.tokenTypes[tokenTypeIndex];
+			const tokenModifiews: stwing[] = [];
 			if (tokenType) {
-				let modifierSet = tokenModifierSet;
-				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-					if (modifierSet & 1) {
-						tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+				wet modifiewSet = tokenModifiewSet;
+				fow (wet modifiewIndex = 0; modifiewSet > 0 && modifiewIndex < this._wegend.tokenModifiews.wength; modifiewIndex++) {
+					if (modifiewSet & 1) {
+						tokenModifiews.push(this._wegend.tokenModifiews[modifiewIndex]);
 					}
-					modifierSet = modifierSet >> 1;
+					modifiewSet = modifiewSet >> 1;
 				}
-				if (modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
-					tokenModifiers.push('not-in-legend');
+				if (modifiewSet > 0 && this._wogSewvice.getWevew() === WogWevew.Twace) {
+					this._wogSewvice.twace(`SemanticTokensPwovidewStywing: unknown token modifia index: ${tokenModifiewSet.toStwing(2)} fow wegend: ${JSON.stwingify(this._wegend.tokenModifiews)}`);
+					tokenModifiews.push('not-in-wegend');
 				}
 
-				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId.language);
-				if (typeof tokenStyle === 'undefined') {
-					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
-				} else {
+				const tokenStywe = this._themeSewvice.getCowowTheme().getTokenStyweMetadata(tokenType, tokenModifiews, wanguageId.wanguage);
+				if (typeof tokenStywe === 'undefined') {
+					metadata = SemanticTokensPwovidewStywingConstants.NO_STYWING;
+				} ewse {
 					metadata = 0;
-					if (typeof tokenStyle.italic !== 'undefined') {
-						const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
+					if (typeof tokenStywe.itawic !== 'undefined') {
+						const itawicBit = (tokenStywe.itawic ? FontStywe.Itawic : 0) << MetadataConsts.FONT_STYWE_OFFSET;
+						metadata |= itawicBit | MetadataConsts.SEMANTIC_USE_ITAWIC;
 					}
-					if (typeof tokenStyle.bold !== 'undefined') {
-						const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
+					if (typeof tokenStywe.bowd !== 'undefined') {
+						const bowdBit = (tokenStywe.bowd ? FontStywe.Bowd : 0) << MetadataConsts.FONT_STYWE_OFFSET;
+						metadata |= bowdBit | MetadataConsts.SEMANTIC_USE_BOWD;
 					}
-					if (typeof tokenStyle.underline !== 'undefined') {
-						const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+					if (typeof tokenStywe.undewwine !== 'undefined') {
+						const undewwineBit = (tokenStywe.undewwine ? FontStywe.Undewwine : 0) << MetadataConsts.FONT_STYWE_OFFSET;
+						metadata |= undewwineBit | MetadataConsts.SEMANTIC_USE_UNDEWWINE;
 					}
-					if (tokenStyle.foreground) {
-						const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
-						metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+					if (tokenStywe.fowegwound) {
+						const fowegwoundBits = (tokenStywe.fowegwound) << MetadataConsts.FOWEGWOUND_OFFSET;
+						metadata |= fowegwoundBits | MetadataConsts.SEMANTIC_USE_FOWEGWOUND;
 					}
 					if (metadata === 0) {
 						// Nothing!
-						metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
+						metadata = SemanticTokensPwovidewStywingConstants.NO_STYWING;
 					}
 				}
-			} else {
-				if (this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
+			} ewse {
+				if (this._wogSewvice.getWevew() === WogWevew.Twace) {
+					this._wogSewvice.twace(`SemanticTokensPwovidewStywing: unknown token type index: ${tokenTypeIndex} fow wegend: ${JSON.stwingify(this._wegend.tokenTypes)}`);
 				}
-				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
-				tokenType = 'not-in-legend';
+				metadata = SemanticTokensPwovidewStywingConstants.NO_STYWING;
+				tokenType = 'not-in-wegend';
 			}
-			this._hashTable.add(tokenTypeIndex, tokenModifierSet, languageId.id, metadata);
+			this._hashTabwe.add(tokenTypeIndex, tokenModifiewSet, wanguageId.id, metadata);
 
-			if (this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
+			if (this._wogSewvice.getWevew() === WogWevew.Twace) {
+				this._wogSewvice.twace(`SemanticTokensPwovidewStywing ${tokenTypeIndex} (${tokenType}) / ${tokenModifiewSet} (${tokenModifiews.join(' ')}): fowegwound ${TokenMetadata.getFowegwound(metadata)}, fontStywe ${TokenMetadata.getFontStywe(metadata).toStwing(2)}`);
 			}
 		}
 
-		return metadata;
+		wetuwn metadata;
 	}
 
-	public warnOverlappingSemanticTokens(lineNumber: number, startColumn: number): void {
-		if (!this._hasWarnedOverlappingTokens) {
-			this._hasWarnedOverlappingTokens = true;
-			console.warn(`Overlapping semantic tokens detected at lineNumber ${lineNumber}, column ${startColumn}`);
+	pubwic wawnOvewwappingSemanticTokens(wineNumba: numba, stawtCowumn: numba): void {
+		if (!this._hasWawnedOvewwappingTokens) {
+			this._hasWawnedOvewwappingTokens = twue;
+			consowe.wawn(`Ovewwapping semantic tokens detected at wineNumba ${wineNumba}, cowumn ${stawtCowumn}`);
 		}
 	}
 
 }
 
-const enum SemanticColoringConstants {
+const enum SemanticCowowingConstants {
 	/**
-	 * Let's aim at having 8KB buffers if possible...
-	 * So that would be 8192 / (5 * 4) = 409.6 tokens per area
+	 * Wet's aim at having 8KB buffews if possibwe...
+	 * So that wouwd be 8192 / (5 * 4) = 409.6 tokens pew awea
 	 */
-	DesiredTokensPerArea = 400,
+	DesiwedTokensPewAwea = 400,
 
 	/**
-	 * Try to keep the total number of areas under 1024 if possible,
-	 * simply compensate by having more tokens per area...
+	 * Twy to keep the totaw numba of aweas unda 1024 if possibwe,
+	 * simpwy compensate by having mowe tokens pew awea...
 	 */
-	DesiredMaxAreas = 1024,
+	DesiwedMaxAweas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: LanguageIdentifier): MultilineTokens2[] {
-	const srcData = tokens.data;
-	const tokenCount = (tokens.data.length / 5) | 0;
-	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
-	const result: MultilineTokens2[] = [];
+expowt function toMuwtiwineTokens2(tokens: SemanticTokens, stywing: SemanticTokensPwovidewStywing, wanguageId: WanguageIdentifia): MuwtiwineTokens2[] {
+	const swcData = tokens.data;
+	const tokenCount = (tokens.data.wength / 5) | 0;
+	const tokensPewAwea = Math.max(Math.ceiw(tokenCount / SemanticCowowingConstants.DesiwedMaxAweas), SemanticCowowingConstants.DesiwedTokensPewAwea);
+	const wesuwt: MuwtiwineTokens2[] = [];
 
-	let tokenIndex = 0;
-	let lastLineNumber = 1;
-	let lastStartCharacter = 0;
-	while (tokenIndex < tokenCount) {
-		const tokenStartIndex = tokenIndex;
-		let tokenEndIndex = Math.min(tokenStartIndex + tokensPerArea, tokenCount);
+	wet tokenIndex = 0;
+	wet wastWineNumba = 1;
+	wet wastStawtChawacta = 0;
+	whiwe (tokenIndex < tokenCount) {
+		const tokenStawtIndex = tokenIndex;
+		wet tokenEndIndex = Math.min(tokenStawtIndex + tokensPewAwea, tokenCount);
 
-		// Keep tokens on the same line in the same area...
+		// Keep tokens on the same wine in the same awea...
 		if (tokenEndIndex < tokenCount) {
 
-			let smallTokenEndIndex = tokenEndIndex;
-			while (smallTokenEndIndex - 1 > tokenStartIndex && srcData[5 * smallTokenEndIndex] === 0) {
-				smallTokenEndIndex--;
+			wet smawwTokenEndIndex = tokenEndIndex;
+			whiwe (smawwTokenEndIndex - 1 > tokenStawtIndex && swcData[5 * smawwTokenEndIndex] === 0) {
+				smawwTokenEndIndex--;
 			}
 
-			if (smallTokenEndIndex - 1 === tokenStartIndex) {
-				// there are so many tokens on this line that our area would be empty, we must now go right
-				let bigTokenEndIndex = tokenEndIndex;
-				while (bigTokenEndIndex + 1 < tokenCount && srcData[5 * bigTokenEndIndex] === 0) {
+			if (smawwTokenEndIndex - 1 === tokenStawtIndex) {
+				// thewe awe so many tokens on this wine that ouw awea wouwd be empty, we must now go wight
+				wet bigTokenEndIndex = tokenEndIndex;
+				whiwe (bigTokenEndIndex + 1 < tokenCount && swcData[5 * bigTokenEndIndex] === 0) {
 					bigTokenEndIndex++;
 				}
 				tokenEndIndex = bigTokenEndIndex;
-			} else {
-				tokenEndIndex = smallTokenEndIndex;
+			} ewse {
+				tokenEndIndex = smawwTokenEndIndex;
 			}
 		}
 
-		let destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
-		let destOffset = 0;
-		let areaLine = 0;
-		let prevLineNumber = 0;
-		let prevStartCharacter = 0;
-		let prevEndCharacter = 0;
-		while (tokenIndex < tokenEndIndex) {
-			const srcOffset = 5 * tokenIndex;
-			const deltaLine = srcData[srcOffset];
-			const deltaCharacter = srcData[srcOffset + 1];
-			const lineNumber = lastLineNumber + deltaLine;
-			const startCharacter = (deltaLine === 0 ? lastStartCharacter + deltaCharacter : deltaCharacter);
-			const length = srcData[srcOffset + 2];
-			const tokenTypeIndex = srcData[srcOffset + 3];
-			const tokenModifierSet = srcData[srcOffset + 4];
-			const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
+		wet destData = new Uint32Awway((tokenEndIndex - tokenStawtIndex) * 4);
+		wet destOffset = 0;
+		wet aweaWine = 0;
+		wet pwevWineNumba = 0;
+		wet pwevStawtChawacta = 0;
+		wet pwevEndChawacta = 0;
+		whiwe (tokenIndex < tokenEndIndex) {
+			const swcOffset = 5 * tokenIndex;
+			const dewtaWine = swcData[swcOffset];
+			const dewtaChawacta = swcData[swcOffset + 1];
+			const wineNumba = wastWineNumba + dewtaWine;
+			const stawtChawacta = (dewtaWine === 0 ? wastStawtChawacta + dewtaChawacta : dewtaChawacta);
+			const wength = swcData[swcOffset + 2];
+			const tokenTypeIndex = swcData[swcOffset + 3];
+			const tokenModifiewSet = swcData[swcOffset + 4];
+			const metadata = stywing.getMetadata(tokenTypeIndex, tokenModifiewSet, wanguageId);
 
-			if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
-				if (areaLine === 0) {
-					areaLine = lineNumber;
+			if (metadata !== SemanticTokensPwovidewStywingConstants.NO_STYWING) {
+				if (aweaWine === 0) {
+					aweaWine = wineNumba;
 				}
-				if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
-					styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
-					if (prevStartCharacter < startCharacter) {
-						// the previous token survives after the overlapping one
-						destData[destOffset - 4 + 2] = startCharacter;
-					} else {
-						// the previous token is entirely covered by the overlapping one
+				if (pwevWineNumba === wineNumba && pwevEndChawacta > stawtChawacta) {
+					stywing.wawnOvewwappingSemanticTokens(wineNumba, stawtChawacta + 1);
+					if (pwevStawtChawacta < stawtChawacta) {
+						// the pwevious token suwvives afta the ovewwapping one
+						destData[destOffset - 4 + 2] = stawtChawacta;
+					} ewse {
+						// the pwevious token is entiwewy covewed by the ovewwapping one
 						destOffset -= 4;
 					}
 				}
-				destData[destOffset] = lineNumber - areaLine;
-				destData[destOffset + 1] = startCharacter;
-				destData[destOffset + 2] = startCharacter + length;
+				destData[destOffset] = wineNumba - aweaWine;
+				destData[destOffset + 1] = stawtChawacta;
+				destData[destOffset + 2] = stawtChawacta + wength;
 				destData[destOffset + 3] = metadata;
 				destOffset += 4;
 
-				prevLineNumber = lineNumber;
-				prevStartCharacter = startCharacter;
-				prevEndCharacter = startCharacter + length;
+				pwevWineNumba = wineNumba;
+				pwevStawtChawacta = stawtChawacta;
+				pwevEndChawacta = stawtChawacta + wength;
 			}
 
-			lastLineNumber = lineNumber;
-			lastStartCharacter = startCharacter;
+			wastWineNumba = wineNumba;
+			wastStawtChawacta = stawtChawacta;
 			tokenIndex++;
 		}
 
-		if (destOffset !== destData.length) {
-			destData = destData.subarray(0, destOffset);
+		if (destOffset !== destData.wength) {
+			destData = destData.subawway(0, destOffset);
 		}
 
-		const tokens = new MultilineTokens2(areaLine, new SparseEncodedTokens(destData));
-		result.push(tokens);
+		const tokens = new MuwtiwineTokens2(aweaWine, new SpawseEncodedTokens(destData));
+		wesuwt.push(tokens);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-class HashTableEntry {
-	public readonly tokenTypeIndex: number;
-	public readonly tokenModifierSet: number;
-	public readonly languageId: number;
-	public readonly metadata: number;
-	public next: HashTableEntry | null;
+cwass HashTabweEntwy {
+	pubwic weadonwy tokenTypeIndex: numba;
+	pubwic weadonwy tokenModifiewSet: numba;
+	pubwic weadonwy wanguageId: numba;
+	pubwic weadonwy metadata: numba;
+	pubwic next: HashTabweEntwy | nuww;
 
-	constructor(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number) {
+	constwuctow(tokenTypeIndex: numba, tokenModifiewSet: numba, wanguageId: numba, metadata: numba) {
 		this.tokenTypeIndex = tokenTypeIndex;
-		this.tokenModifierSet = tokenModifierSet;
-		this.languageId = languageId;
+		this.tokenModifiewSet = tokenModifiewSet;
+		this.wanguageId = wanguageId;
 		this.metadata = metadata;
-		this.next = null;
+		this.next = nuww;
 	}
 }
 
-class HashTable {
+cwass HashTabwe {
 
-	private static _SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
+	pwivate static _SIZES = [3, 7, 13, 31, 61, 127, 251, 509, 1021, 2039, 4093, 8191, 16381, 32749, 65521, 131071, 262139, 524287, 1048573, 2097143];
 
-	private _elementsCount: number;
-	private _currentLengthIndex: number;
-	private _currentLength: number;
-	private _growCount: number;
-	private _elements: (HashTableEntry | null)[];
+	pwivate _ewementsCount: numba;
+	pwivate _cuwwentWengthIndex: numba;
+	pwivate _cuwwentWength: numba;
+	pwivate _gwowCount: numba;
+	pwivate _ewements: (HashTabweEntwy | nuww)[];
 
-	constructor() {
-		this._elementsCount = 0;
-		this._currentLengthIndex = 0;
-		this._currentLength = HashTable._SIZES[this._currentLengthIndex];
-		this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
-		this._elements = [];
-		HashTable._nullOutEntries(this._elements, this._currentLength);
+	constwuctow() {
+		this._ewementsCount = 0;
+		this._cuwwentWengthIndex = 0;
+		this._cuwwentWength = HashTabwe._SIZES[this._cuwwentWengthIndex];
+		this._gwowCount = Math.wound(this._cuwwentWengthIndex + 1 < HashTabwe._SIZES.wength ? 2 / 3 * this._cuwwentWength : 0);
+		this._ewements = [];
+		HashTabwe._nuwwOutEntwies(this._ewements, this._cuwwentWength);
 	}
 
-	private static _nullOutEntries(entries: (HashTableEntry | null)[], length: number): void {
-		for (let i = 0; i < length; i++) {
-			entries[i] = null;
+	pwivate static _nuwwOutEntwies(entwies: (HashTabweEntwy | nuww)[], wength: numba): void {
+		fow (wet i = 0; i < wength; i++) {
+			entwies[i] = nuww;
 		}
 	}
 
-	private _hash2(n1: number, n2: number): number {
-		return (((n1 << 5) - n1) + n2) | 0;  // n1 * 31 + n2, keep as int32
+	pwivate _hash2(n1: numba, n2: numba): numba {
+		wetuwn (((n1 << 5) - n1) + n2) | 0;  // n1 * 31 + n2, keep as int32
 	}
 
-	private _hashFunc(tokenTypeIndex: number, tokenModifierSet: number, languageId: number): number {
-		return this._hash2(this._hash2(tokenTypeIndex, tokenModifierSet), languageId) % this._currentLength;
+	pwivate _hashFunc(tokenTypeIndex: numba, tokenModifiewSet: numba, wanguageId: numba): numba {
+		wetuwn this._hash2(this._hash2(tokenTypeIndex, tokenModifiewSet), wanguageId) % this._cuwwentWength;
 	}
 
-	public get(tokenTypeIndex: number, tokenModifierSet: number, languageId: number): HashTableEntry | null {
-		const hash = this._hashFunc(tokenTypeIndex, tokenModifierSet, languageId);
+	pubwic get(tokenTypeIndex: numba, tokenModifiewSet: numba, wanguageId: numba): HashTabweEntwy | nuww {
+		const hash = this._hashFunc(tokenTypeIndex, tokenModifiewSet, wanguageId);
 
-		let p = this._elements[hash];
-		while (p) {
-			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifierSet === tokenModifierSet && p.languageId === languageId) {
-				return p;
+		wet p = this._ewements[hash];
+		whiwe (p) {
+			if (p.tokenTypeIndex === tokenTypeIndex && p.tokenModifiewSet === tokenModifiewSet && p.wanguageId === wanguageId) {
+				wetuwn p;
 			}
 			p = p.next;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public add(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number): void {
-		this._elementsCount++;
-		if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
+	pubwic add(tokenTypeIndex: numba, tokenModifiewSet: numba, wanguageId: numba, metadata: numba): void {
+		this._ewementsCount++;
+		if (this._gwowCount !== 0 && this._ewementsCount >= this._gwowCount) {
 			// expand!
-			const oldElements = this._elements;
+			const owdEwements = this._ewements;
 
-			this._currentLengthIndex++;
-			this._currentLength = HashTable._SIZES[this._currentLengthIndex];
-			this._growCount = Math.round(this._currentLengthIndex + 1 < HashTable._SIZES.length ? 2 / 3 * this._currentLength : 0);
-			this._elements = [];
-			HashTable._nullOutEntries(this._elements, this._currentLength);
+			this._cuwwentWengthIndex++;
+			this._cuwwentWength = HashTabwe._SIZES[this._cuwwentWengthIndex];
+			this._gwowCount = Math.wound(this._cuwwentWengthIndex + 1 < HashTabwe._SIZES.wength ? 2 / 3 * this._cuwwentWength : 0);
+			this._ewements = [];
+			HashTabwe._nuwwOutEntwies(this._ewements, this._cuwwentWength);
 
-			for (const first of oldElements) {
-				let p = first;
-				while (p) {
-					const oldNext = p.next;
-					p.next = null;
+			fow (const fiwst of owdEwements) {
+				wet p = fiwst;
+				whiwe (p) {
+					const owdNext = p.next;
+					p.next = nuww;
 					this._add(p);
-					p = oldNext;
+					p = owdNext;
 				}
 			}
 		}
-		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, languageId, metadata));
+		this._add(new HashTabweEntwy(tokenTypeIndex, tokenModifiewSet, wanguageId, metadata));
 	}
 
-	private _add(element: HashTableEntry): void {
-		const hash = this._hashFunc(element.tokenTypeIndex, element.tokenModifierSet, element.languageId);
-		element.next = this._elements[hash];
-		this._elements[hash] = element;
+	pwivate _add(ewement: HashTabweEntwy): void {
+		const hash = this._hashFunc(ewement.tokenTypeIndex, ewement.tokenModifiewSet, ewement.wanguageId);
+		ewement.next = this._ewements[hash];
+		this._ewements[hash] = ewement;
 	}
 }

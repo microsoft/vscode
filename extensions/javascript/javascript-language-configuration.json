@@ -1,24 +1,24 @@
 {
 	"comments": {
-		"lineComment": "//",
-		"blockComment": [ "/*", "*/" ]
+		"wineComment": "//",
+		"bwockComment": [ "/*", "*/" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["${", "}"],
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}" },
-		{ "open": "[", "close": "]" },
-		{ "open": "(", "close": ")" },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string"] },
-		{ "open": "`", "close": "`", "notIn": ["string", "comment"] },
-		{ "open": "/**", "close": " */", "notIn": ["string"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}" },
+		{ "open": "[", "cwose": "]" },
+		{ "open": "(", "cwose": ")" },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] },
+		{ "open": "`", "cwose": "`", "notIn": ["stwing", "comment"] },
+		{ "open": "/**", "cwose": " */", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
@@ -26,11 +26,11 @@
 		["\"", "\""],
 		["`", "`"]
 	],
-	"autoCloseBefore": ";:.,=}])>` \n\t",
-	"folding": {
-		"markers": {
-			"start": "^\\s*//\\s*#?region\\b",
-			"end": "^\\s*//\\s*#?endregion\\b"
+	"autoCwoseBefowe": ";:.,=}])>` \n\t",
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*//\\s*#?wegion\\b",
+			"end": "^\\s*//\\s*#?endwegion\\b"
 		}
 	}
 }

@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getMultiSelectedResources, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { isWindows, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyMod, KeyCode, KeyChowd } fwom 'vs/base/common/keyCodes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { getMuwtiSewectedWesouwces, IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { weveawWesouwcesInOS } fwom 'vs/wowkbench/contwib/fiwes/ewectwon-sandbox/fiweCommands';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { appendToCommandPawette, appendEditowTitweContextMenuItem } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions.contwibution';
+impowt { SideBySideEditow, EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData));
+const WEVEAW_IN_OS_COMMAND_ID = 'weveawFiweInOS';
+const WEVEAW_IN_OS_WABEW = isWindows ? nws.wocawize('weveawInWindows', "Weveaw in Fiwe Expwowa") : isMacintosh ? nws.wocawize('weveawInMac', "Weveaw in Finda") : nws.wocawize('openContaina', "Open Containing Fowda");
+const WEVEAW_IN_OS_WHEN_CONTEXT = ContextKeyExpw.ow(WesouwceContextKey.Scheme.isEquawTo(Schemas.fiwe), WesouwceContextKey.Scheme.isEquawTo(Schemas.usewData));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REVEAL_IN_OS_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: WEVEAW_IN_OS_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: EditowContextKeys.focus.toNegated(),
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W,
 	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
+		pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_W
 	},
-	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
+	handwa: (accessow: SewvicesAccessow, wesouwce: UWI | object) => {
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice), accessow.get(IExpwowewSewvice));
+		weveawWesouwcesInOS(wesouwces, accessow.get(INativeHostSewvice), accessow.get(IWowkspaceContextSewvice));
 	}
 });
 
-const REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID = 'workbench.action.files.revealActiveFileInWindows';
+const WEVEAW_ACTIVE_FIWE_IN_OS_COMMAND_ID = 'wowkbench.action.fiwes.weveawActiveFiweInWindows';
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_R),
-	id: REVEAL_ACTIVE_FILE_IN_OS_COMMAND_ID,
-	handler: (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeInput = editorService.activeEditor;
-		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { filterByScheme: Schemas.file, supportSideBySide: SideBySideEditor.PRIMARY });
-		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
+	pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_W),
+	id: WEVEAW_ACTIVE_FIWE_IN_OS_COMMAND_ID,
+	handwa: (accessow: SewvicesAccessow) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeInput = editowSewvice.activeEditow;
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeInput, { fiwtewByScheme: Schemas.fiwe, suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		const wesouwces = wesouwce ? [wesouwce] : [];
+		weveawWesouwcesInOS(wesouwces, accessow.get(INativeHostSewvice), accessow.get(IWowkspaceContextSewvice));
 	}
 });
 
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, REVEAL_IN_OS_WHEN_CONTEXT);
+appendEditowTitweContextMenuItem(WEVEAW_IN_OS_COMMAND_ID, WEVEAW_IN_OS_WABEW, WEVEAW_IN_OS_WHEN_CONTEXT);
 
-// Menu registration - open editors
+// Menu wegistwation - open editows
 
-const revealInOsCommand = {
-	id: REVEAL_IN_OS_COMMAND_ID,
-	title: REVEAL_IN_OS_LABEL
+const weveawInOsCommand = {
+	id: WEVEAW_IN_OS_COMMAND_ID,
+	titwe: WEVEAW_IN_OS_WABEW
 };
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInOsCommand,
-	when: REVEAL_IN_OS_WHEN_CONTEXT
+MenuWegistwy.appendMenuItem(MenuId.OpenEditowsContext, {
+	gwoup: 'navigation',
+	owda: 20,
+	command: weveawInOsCommand,
+	when: WEVEAW_IN_OS_WHEN_CONTEXT
 });
 
-// Menu registration - explorer
+// Menu wegistwation - expwowa
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInOsCommand,
-	when: REVEAL_IN_OS_WHEN_CONTEXT
+MenuWegistwy.appendMenuItem(MenuId.ExpwowewContext, {
+	gwoup: 'navigation',
+	owda: 20,
+	command: weveawInOsCommand,
+	when: WEVEAW_IN_OS_WHEN_CONTEXT
 });
 
-// Command Palette
+// Command Pawette
 
-const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
-appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category, REVEAL_IN_OS_WHEN_CONTEXT);
+const categowy = { vawue: nws.wocawize('fiwesCategowy', "Fiwe"), owiginaw: 'Fiwe' };
+appendToCommandPawette(WEVEAW_IN_OS_COMMAND_ID, { vawue: WEVEAW_IN_OS_WABEW, owiginaw: isWindows ? 'Weveaw in Fiwe Expwowa' : isMacintosh ? 'Weveaw in Finda' : 'Open Containing Fowda' }, categowy, WEVEAW_IN_OS_WHEN_CONTEXT);

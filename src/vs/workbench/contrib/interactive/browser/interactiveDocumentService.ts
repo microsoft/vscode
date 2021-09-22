@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IInteractiveDocumentService = createDecorator<IInteractiveDocumentService>('IInteractiveDocumentService');
+expowt const IIntewactiveDocumentSewvice = cweateDecowatow<IIntewactiveDocumentSewvice>('IIntewactiveDocumentSewvice');
 
-export interface IInteractiveDocumentService {
-	readonly _serviceBrand: undefined;
-	onWillAddInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; languageId: string; }>;
-	onWillRemoveInteractiveDocument: Event<{ notebookUri: URI; inputUri: URI; }>;
-	willCreateInteractiveDocument(notebookUri: URI, inputUri: URI, languageId: string): void;
-	willRemoveInteractiveDocument(notebookUri: URI, inputUri: URI): void;
+expowt intewface IIntewactiveDocumentSewvice {
+	weadonwy _sewviceBwand: undefined;
+	onWiwwAddIntewactiveDocument: Event<{ notebookUwi: UWI; inputUwi: UWI; wanguageId: stwing; }>;
+	onWiwwWemoveIntewactiveDocument: Event<{ notebookUwi: UWI; inputUwi: UWI; }>;
+	wiwwCweateIntewactiveDocument(notebookUwi: UWI, inputUwi: UWI, wanguageId: stwing): void;
+	wiwwWemoveIntewactiveDocument(notebookUwi: UWI, inputUwi: UWI): void;
 }
 
-export class InteractiveDocumentService extends Disposable implements IInteractiveDocumentService {
-	declare readonly _serviceBrand: undefined;
-	private readonly _onWillAddInteractiveDocument = this._register(new Emitter<{ notebookUri: URI; inputUri: URI; languageId: string; }>());
-	onWillAddInteractiveDocument = this._onWillAddInteractiveDocument.event;
-	private readonly _onWillRemoveInteractiveDocument = this._register(new Emitter<{ notebookUri: URI; inputUri: URI; }>());
-	onWillRemoveInteractiveDocument = this._onWillRemoveInteractiveDocument.event;
+expowt cwass IntewactiveDocumentSewvice extends Disposabwe impwements IIntewactiveDocumentSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate weadonwy _onWiwwAddIntewactiveDocument = this._wegista(new Emitta<{ notebookUwi: UWI; inputUwi: UWI; wanguageId: stwing; }>());
+	onWiwwAddIntewactiveDocument = this._onWiwwAddIntewactiveDocument.event;
+	pwivate weadonwy _onWiwwWemoveIntewactiveDocument = this._wegista(new Emitta<{ notebookUwi: UWI; inputUwi: UWI; }>());
+	onWiwwWemoveIntewactiveDocument = this._onWiwwWemoveIntewactiveDocument.event;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 	}
 
-	willCreateInteractiveDocument(notebookUri: URI, inputUri: URI, languageId: string) {
-		this._onWillAddInteractiveDocument.fire({
-			notebookUri,
-			inputUri,
-			languageId
+	wiwwCweateIntewactiveDocument(notebookUwi: UWI, inputUwi: UWI, wanguageId: stwing) {
+		this._onWiwwAddIntewactiveDocument.fiwe({
+			notebookUwi,
+			inputUwi,
+			wanguageId
 		});
 	}
 
-	willRemoveInteractiveDocument(notebookUri: URI, inputUri: URI) {
-		this._onWillRemoveInteractiveDocument.fire({
-			notebookUri,
-			inputUri
+	wiwwWemoveIntewactiveDocument(notebookUwi: UWI, inputUwi: UWI) {
+		this._onWiwwWemoveIntewactiveDocument.fiwe({
+			notebookUwi,
+			inputUwi
 		});
 	}
 }

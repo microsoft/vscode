@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, dirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { FileKind } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { IEditorPane } from 'vs/workbench/common/editor';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw, diwname } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { BweadcwumbsConfig } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbs';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IOutwine, IOutwineSewvice, OutwineTawget } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
 
-export class FileElement {
-	constructor(
-		readonly uri: URI,
-		readonly kind: FileKind
+expowt cwass FiweEwement {
+	constwuctow(
+		weadonwy uwi: UWI,
+		weadonwy kind: FiweKind
 	) { }
 }
 
-type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
+type FiweInfo = { path: FiweEwement[], fowda?: IWowkspaceFowda };
 
-export class OutlineElement2 {
-	constructor(
-		readonly element: IOutline<any> | any,
-		readonly outline: IOutline<any>
+expowt cwass OutwineEwement2 {
+	constwuctow(
+		weadonwy ewement: IOutwine<any> | any,
+		weadonwy outwine: IOutwine<any>
 	) { }
 }
 
-export class BreadcrumbsModel {
+expowt cwass BweadcwumbsModew {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _fileInfo: FileInfo;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _fiweInfo: FiweInfo;
 
-	private readonly _cfgEnabled: BreadcrumbsConfig<boolean>;
-	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
-	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
+	pwivate weadonwy _cfgEnabwed: BweadcwumbsConfig<boowean>;
+	pwivate weadonwy _cfgFiwePath: BweadcwumbsConfig<'on' | 'off' | 'wast'>;
+	pwivate weadonwy _cfgSymbowPath: BweadcwumbsConfig<'on' | 'off' | 'wast'>;
 
-	private readonly _currentOutline = new MutableDisposable<IOutline<any>>();
-	private readonly _outlineDisposables = new DisposableStore();
+	pwivate weadonwy _cuwwentOutwine = new MutabweDisposabwe<IOutwine<any>>();
+	pwivate weadonwy _outwineDisposabwes = new DisposabweStowe();
 
-	private readonly _onDidUpdate = new Emitter<this>();
-	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
+	pwivate weadonwy _onDidUpdate = new Emitta<this>();
+	weadonwy onDidUpdate: Event<this> = this._onDidUpdate.event;
 
-	constructor(
-		readonly resource: URI,
-		editor: IEditorPane | undefined,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
-		@IOutlineService private readonly _outlineService: IOutlineService,
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		editow: IEditowPane | undefined,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceSewvice: IWowkspaceContextSewvice,
+		@IOutwineSewvice pwivate weadonwy _outwineSewvice: IOutwineSewvice,
 	) {
-		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(configurationService);
-		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
-		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
+		this._cfgEnabwed = BweadcwumbsConfig.IsEnabwed.bindTo(configuwationSewvice);
+		this._cfgFiwePath = BweadcwumbsConfig.FiwePath.bindTo(configuwationSewvice);
+		this._cfgSymbowPath = BweadcwumbsConfig.SymbowPath.bindTo(configuwationSewvice);
 
-		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
-		this._fileInfo = this._initFilePathInfo(resource);
+		this._disposabwes.add(this._cfgFiwePath.onDidChange(_ => this._onDidUpdate.fiwe(this)));
+		this._disposabwes.add(this._cfgSymbowPath.onDidChange(_ => this._onDidUpdate.fiwe(this)));
+		this._fiweInfo = this._initFiwePathInfo(wesouwce);
 
-		if (editor) {
-			this._bindToEditor(editor);
-			this._disposables.add(_outlineService.onDidChange(() => this._bindToEditor(editor)));
+		if (editow) {
+			this._bindToEditow(editow);
+			this._disposabwes.add(_outwineSewvice.onDidChange(() => this._bindToEditow(editow)));
 		}
-		this._onDidUpdate.fire(this);
+		this._onDidUpdate.fiwe(this);
 	}
 
 	dispose(): void {
-		this._cfgEnabled.dispose();
-		this._cfgFilePath.dispose();
-		this._cfgSymbolPath.dispose();
-		this._currentOutline.dispose();
-		this._outlineDisposables.dispose();
-		this._disposables.dispose();
+		this._cfgEnabwed.dispose();
+		this._cfgFiwePath.dispose();
+		this._cfgSymbowPath.dispose();
+		this._cuwwentOutwine.dispose();
+		this._outwineDisposabwes.dispose();
+		this._disposabwes.dispose();
 		this._onDidUpdate.dispose();
 	}
 
-	isRelative(): boolean {
-		return Boolean(this._fileInfo.folder);
+	isWewative(): boowean {
+		wetuwn Boowean(this._fiweInfo.fowda);
 	}
 
-	getElements(): ReadonlyArray<FileElement | OutlineElement2> {
-		let result: (FileElement | OutlineElement2)[] = [];
+	getEwements(): WeadonwyAwway<FiweEwement | OutwineEwement2> {
+		wet wesuwt: (FiweEwement | OutwineEwement2)[] = [];
 
-		// file path elements
-		if (this._cfgFilePath.getValue() === 'on') {
-			result = result.concat(this._fileInfo.path);
-		} else if (this._cfgFilePath.getValue() === 'last' && this._fileInfo.path.length > 0) {
-			result = result.concat(this._fileInfo.path.slice(-1));
+		// fiwe path ewements
+		if (this._cfgFiwePath.getVawue() === 'on') {
+			wesuwt = wesuwt.concat(this._fiweInfo.path);
+		} ewse if (this._cfgFiwePath.getVawue() === 'wast' && this._fiweInfo.path.wength > 0) {
+			wesuwt = wesuwt.concat(this._fiweInfo.path.swice(-1));
 		}
 
-		if (this._cfgSymbolPath.getValue() === 'off') {
-			return result;
+		if (this._cfgSymbowPath.getVawue() === 'off') {
+			wetuwn wesuwt;
 		}
 
-		if (!this._currentOutline.value) {
-			return result;
+		if (!this._cuwwentOutwine.vawue) {
+			wetuwn wesuwt;
 		}
 
-		const breadcrumbsElements = this._currentOutline.value.config.breadcrumbsDataSource.getBreadcrumbElements();
-		for (let i = this._cfgSymbolPath.getValue() === 'last' && breadcrumbsElements.length > 0 ? breadcrumbsElements.length - 1 : 0; i < breadcrumbsElements.length; i++) {
-			result.push(new OutlineElement2(breadcrumbsElements[i], this._currentOutline.value));
+		const bweadcwumbsEwements = this._cuwwentOutwine.vawue.config.bweadcwumbsDataSouwce.getBweadcwumbEwements();
+		fow (wet i = this._cfgSymbowPath.getVawue() === 'wast' && bweadcwumbsEwements.wength > 0 ? bweadcwumbsEwements.wength - 1 : 0; i < bweadcwumbsEwements.wength; i++) {
+			wesuwt.push(new OutwineEwement2(bweadcwumbsEwements[i], this._cuwwentOutwine.vawue));
 		}
 
-		if (breadcrumbsElements.length === 0 && !this._currentOutline.value.isEmpty) {
-			result.push(new OutlineElement2(this._currentOutline.value, this._currentOutline.value));
+		if (bweadcwumbsEwements.wength === 0 && !this._cuwwentOutwine.vawue.isEmpty) {
+			wesuwt.push(new OutwineEwement2(this._cuwwentOutwine.vawue, this._cuwwentOutwine.vawue));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _initFilePathInfo(uri: URI): FileInfo {
+	pwivate _initFiwePathInfo(uwi: UWI): FiweInfo {
 
-		if (uri.scheme === Schemas.untitled) {
-			return {
-				folder: undefined,
+		if (uwi.scheme === Schemas.untitwed) {
+			wetuwn {
+				fowda: undefined,
 				path: []
 			};
 		}
 
-		let info: FileInfo = {
-			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
+		wet info: FiweInfo = {
+			fowda: withNuwwAsUndefined(this._wowkspaceSewvice.getWowkspaceFowda(uwi)),
 			path: []
 		};
 
-		let uriPrefix: URI | null = uri;
-		while (uriPrefix && uriPrefix.path !== '/') {
-			if (info.folder && isEqual(info.folder.uri, uriPrefix)) {
-				break;
+		wet uwiPwefix: UWI | nuww = uwi;
+		whiwe (uwiPwefix && uwiPwefix.path !== '/') {
+			if (info.fowda && isEquaw(info.fowda.uwi, uwiPwefix)) {
+				bweak;
 			}
-			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
-			let prevPathLength = uriPrefix.path.length;
-			uriPrefix = dirname(uriPrefix);
-			if (uriPrefix.path.length === prevPathLength) {
-				break;
+			info.path.unshift(new FiweEwement(uwiPwefix, info.path.wength === 0 ? FiweKind.FIWE : FiweKind.FOWDa));
+			wet pwevPathWength = uwiPwefix.path.wength;
+			uwiPwefix = diwname(uwiPwefix);
+			if (uwiPwefix.path.wength === pwevPathWength) {
+				bweak;
 			}
 		}
 
-		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
+		if (info.fowda && this._wowkspaceSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			info.path.unshift(new FiweEwement(info.fowda.uwi, FiweKind.WOOT_FOWDa));
 		}
-		return info;
+		wetuwn info;
 	}
 
-	private _bindToEditor(editor: IEditorPane): void {
-		const newCts = new CancellationTokenSource();
-		this._currentOutline.clear();
-		this._outlineDisposables.clear();
-		this._outlineDisposables.add(toDisposable(() => newCts.dispose(true)));
+	pwivate _bindToEditow(editow: IEditowPane): void {
+		const newCts = new CancewwationTokenSouwce();
+		this._cuwwentOutwine.cweaw();
+		this._outwineDisposabwes.cweaw();
+		this._outwineDisposabwes.add(toDisposabwe(() => newCts.dispose(twue)));
 
-		this._outlineService.createOutline(editor, OutlineTarget.Breadcrumbs, newCts.token).then(outline => {
-			if (newCts.token.isCancellationRequested) {
-				// cancelled: dispose new outline and reset
-				outline?.dispose();
-				outline = undefined;
+		this._outwineSewvice.cweateOutwine(editow, OutwineTawget.Bweadcwumbs, newCts.token).then(outwine => {
+			if (newCts.token.isCancewwationWequested) {
+				// cancewwed: dispose new outwine and weset
+				outwine?.dispose();
+				outwine = undefined;
 			}
-			this._currentOutline.value = outline;
-			this._onDidUpdate.fire(this);
-			if (outline) {
-				this._outlineDisposables.add(outline.onDidChange(() => this._onDidUpdate.fire(this)));
+			this._cuwwentOutwine.vawue = outwine;
+			this._onDidUpdate.fiwe(this);
+			if (outwine) {
+				this._outwineDisposabwes.add(outwine.onDidChange(() => this._onDidUpdate.fiwe(this)));
 			}
 
-		}).catch(err => {
-			this._onDidUpdate.fire(this);
-			onUnexpectedError(err);
+		}).catch(eww => {
+			this._onDidUpdate.fiwe(this);
+			onUnexpectedEwwow(eww);
 		});
 	}
 }

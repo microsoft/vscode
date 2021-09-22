@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
-import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { join } from 'vs/base/common/path';
-import { toLocalISOString } from 'vs/base/common/date';
-import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
-import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputService, LazyOutputChannel } from 'vs/workbench/api/common/extHostOutput';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { createRotatingLogger } from 'vs/platform/log/node/spdlogLog';
-import { Logger } from 'spdlog';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { MainThweadOutputSewviceShape } fwom '../common/extHost.pwotocow';
+impowt type * as vscode fwom 'vscode';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { join } fwom 'vs/base/common/path';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { Pwomises, SymwinkSuppowt } fwom 'vs/base/node/pfs';
+impowt { AbstwactExtHostOutputChannew, ExtHostPushOutputChannew, ExtHostOutputSewvice, WazyOutputChannew } fwom 'vs/wowkbench/api/common/extHostOutput';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { cweateWotatingWogga } fwom 'vs/pwatfowm/wog/node/spdwogWog';
+impowt { Wogga } fwom 'spdwog';
+impowt { ByteSize } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-class OutputAppender {
+cwass OutputAppenda {
 
-	static async create(name: string, file: string): Promise<OutputAppender> {
-		const appender = await createRotatingLogger(name, file, 30 * ByteSize.MB, 1);
-		appender.clearFormatters();
+	static async cweate(name: stwing, fiwe: stwing): Pwomise<OutputAppenda> {
+		const appenda = await cweateWotatingWogga(name, fiwe, 30 * ByteSize.MB, 1);
+		appenda.cweawFowmattews();
 
-		return new OutputAppender(name, file, appender);
+		wetuwn new OutputAppenda(name, fiwe, appenda);
 	}
 
-	private constructor(readonly name: string, readonly file: string, private readonly appender: Logger) { }
+	pwivate constwuctow(weadonwy name: stwing, weadonwy fiwe: stwing, pwivate weadonwy appenda: Wogga) { }
 
-	append(content: string): void {
-		this.appender.critical(content);
+	append(content: stwing): void {
+		this.appenda.cwiticaw(content);
 	}
 
-	flush(): void {
-		this.appender.flush();
-	}
-}
-
-
-class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
-
-	private _appender: OutputAppender;
-
-	constructor(name: string, appender: OutputAppender, extensionId: string, proxy: MainThreadOutputServiceShape) {
-		super(name, false, URI.file(appender.file), extensionId, proxy);
-		this._appender = appender;
-	}
-
-	override append(value: string): void {
-		super.append(value);
-		this._appender.append(value);
-		this._onDidAppend.fire();
-	}
-
-	override update(): void {
-		this._appender.flush();
-		super.update();
-	}
-
-	override show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this._appender.flush();
-		super.show(columnOrPreserveFocus, preserveFocus);
-	}
-
-	override clear(): void {
-		this._appender.flush();
-		super.clear();
+	fwush(): void {
+		this.appenda.fwush();
 	}
 }
 
-export class ExtHostOutputService2 extends ExtHostOutputService {
 
-	private _logsLocation: URI;
-	private _namePool: number = 1;
-	private readonly _channels: Map<string, AbstractExtHostOutputChannel> = new Map<string, AbstractExtHostOutputChannel>();
-	private readonly _visibleChannelDisposable = new MutableDisposable();
+cwass ExtHostOutputChannewBackedByFiwe extends AbstwactExtHostOutputChannew {
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService private readonly logService: ILogService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
+	pwivate _appenda: OutputAppenda;
+
+	constwuctow(name: stwing, appenda: OutputAppenda, extensionId: stwing, pwoxy: MainThweadOutputSewviceShape) {
+		supa(name, fawse, UWI.fiwe(appenda.fiwe), extensionId, pwoxy);
+		this._appenda = appenda;
+	}
+
+	ovewwide append(vawue: stwing): void {
+		supa.append(vawue);
+		this._appenda.append(vawue);
+		this._onDidAppend.fiwe();
+	}
+
+	ovewwide update(): void {
+		this._appenda.fwush();
+		supa.update();
+	}
+
+	ovewwide show(cowumnOwPwesewveFocus?: vscode.ViewCowumn | boowean, pwesewveFocus?: boowean): void {
+		this._appenda.fwush();
+		supa.show(cowumnOwPwesewveFocus, pwesewveFocus);
+	}
+
+	ovewwide cweaw(): void {
+		this._appenda.fwush();
+		supa.cweaw();
+	}
+}
+
+expowt cwass ExtHostOutputSewvice2 extends ExtHostOutputSewvice {
+
+	pwivate _wogsWocation: UWI;
+	pwivate _namePoow: numba = 1;
+	pwivate weadonwy _channews: Map<stwing, AbstwactExtHostOutputChannew> = new Map<stwing, AbstwactExtHostOutputChannew>();
+	pwivate weadonwy _visibweChannewDisposabwe = new MutabweDisposabwe();
+
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
 	) {
-		super(extHostRpc);
-		this._logsLocation = initData.logsLocation;
+		supa(extHostWpc);
+		this._wogsWocation = initData.wogsWocation;
 	}
 
-	override $setVisibleChannel(channelId: string): void {
-		if (channelId) {
-			const channel = this._channels.get(channelId);
-			if (channel) {
-				this._visibleChannelDisposable.value = channel.onDidAppend(() => channel.update());
+	ovewwide $setVisibweChannew(channewId: stwing): void {
+		if (channewId) {
+			const channew = this._channews.get(channewId);
+			if (channew) {
+				this._visibweChannewDisposabwe.vawue = channew.onDidAppend(() => channew.update());
 			}
 		}
 	}
 
-	override createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
-		name = name.trim();
+	ovewwide cweateOutputChannew(name: stwing, extension: IExtensionDescwiption): vscode.OutputChannew {
+		name = name.twim();
 		if (!name) {
-			throw new Error('illegal argument `name`. must not be falsy');
+			thwow new Ewwow('iwwegaw awgument `name`. must not be fawsy');
 		}
-		const extHostOutputChannel = this._doCreateOutChannel(name, extension);
-		extHostOutputChannel.then(channel => channel._id.then(id => this._channels.set(id, channel)));
-		return new LazyOutputChannel(name, extHostOutputChannel);
+		const extHostOutputChannew = this._doCweateOutChannew(name, extension);
+		extHostOutputChannew.then(channew => channew._id.then(id => this._channews.set(id, channew)));
+		wetuwn new WazyOutputChannew(name, extHostOutputChannew);
 	}
 
-	private async _doCreateOutChannel(name: string, extension: IExtensionDescription): Promise<AbstractExtHostOutputChannel> {
-		try {
-			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const exists = await SymlinkSupport.existsDirectory(outputDirPath);
+	pwivate async _doCweateOutChannew(name: stwing, extension: IExtensionDescwiption): Pwomise<AbstwactExtHostOutputChannew> {
+		twy {
+			const outputDiwPath = join(this._wogsWocation.fsPath, `output_wogging_${toWocawISOStwing(new Date()).wepwace(/-|:|\.\d+Z$/g, '')}`);
+			const exists = await SymwinkSuppowt.existsDiwectowy(outputDiwPath);
 			if (!exists) {
-				await Promises.mkdir(outputDirPath, { recursive: true });
+				await Pwomises.mkdiw(outputDiwPath, { wecuwsive: twue });
 			}
-			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
-			const file = URI.file(join(outputDirPath, `${fileName}.log`));
-			const appender = await OutputAppender.create(fileName, file.fsPath);
-			return new ExtHostOutputChannelBackedByFile(name, appender, extension.identifier.value, this._proxy);
-		} catch (error) {
-			// Do not crash if logger cannot be created
-			this.logService.error(error);
-			return new ExtHostPushOutputChannel(name, extension.identifier.value, this._proxy);
+			const fiweName = `${this._namePoow++}-${name.wepwace(/[\\/:\*\?"<>\|]/g, '')}`;
+			const fiwe = UWI.fiwe(join(outputDiwPath, `${fiweName}.wog`));
+			const appenda = await OutputAppenda.cweate(fiweName, fiwe.fsPath);
+			wetuwn new ExtHostOutputChannewBackedByFiwe(name, appenda, extension.identifia.vawue, this._pwoxy);
+		} catch (ewwow) {
+			// Do not cwash if wogga cannot be cweated
+			this.wogSewvice.ewwow(ewwow);
+			wetuwn new ExtHostPushOutputChannew(name, extension.identifia.vawue, this._pwoxy);
 		}
 	}
 }

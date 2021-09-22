@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListContextMenuEvent, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent } from 'vs/base/browser/ui/list/list';
-import { Event } from 'vs/base/common/event';
+impowt { IWistContextMenuEvent, IWistEvent, IWistGestuweEvent, IWistMouseEvent, IWistWendewa, IWistTouchEvent } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Event } fwom 'vs/base/common/event';
 
-export interface ITableColumn<TRow, TCell> {
-	readonly label: string;
-	readonly tooltip?: string;
-	readonly weight: number;
-	readonly templateId: string;
+expowt intewface ITabweCowumn<TWow, TCeww> {
+	weadonwy wabew: stwing;
+	weadonwy toowtip?: stwing;
+	weadonwy weight: numba;
+	weadonwy tempwateId: stwing;
 
-	readonly minimumWidth?: number;
-	readonly maximumWidth?: number;
-	readonly onDidChangeWidthConstraints?: Event<void>;
+	weadonwy minimumWidth?: numba;
+	weadonwy maximumWidth?: numba;
+	weadonwy onDidChangeWidthConstwaints?: Event<void>;
 
-	project(row: TRow): TCell;
+	pwoject(wow: TWow): TCeww;
 }
 
-export interface ITableVirtualDelegate<TRow> {
-	readonly headerRowHeight: number;
-	getHeight(row: TRow): number;
+expowt intewface ITabweViwtuawDewegate<TWow> {
+	weadonwy headewWowHeight: numba;
+	getHeight(wow: TWow): numba;
 }
 
-export interface ITableRenderer<TCell, TTemplateData> extends IListRenderer<TCell, TTemplateData> { }
+expowt intewface ITabweWendewa<TCeww, TTempwateData> extends IWistWendewa<TCeww, TTempwateData> { }
 
-export interface ITableEvent<TRow> extends IListEvent<TRow> { }
-export interface ITableMouseEvent<TRow> extends IListMouseEvent<TRow> { }
-export interface ITableTouchEvent<TRow> extends IListTouchEvent<TRow> { }
-export interface ITableGestureEvent<TRow> extends IListGestureEvent<TRow> { }
-export interface ITableContextMenuEvent<TRow> extends IListContextMenuEvent<TRow> { }
+expowt intewface ITabweEvent<TWow> extends IWistEvent<TWow> { }
+expowt intewface ITabweMouseEvent<TWow> extends IWistMouseEvent<TWow> { }
+expowt intewface ITabweTouchEvent<TWow> extends IWistTouchEvent<TWow> { }
+expowt intewface ITabweGestuweEvent<TWow> extends IWistGestuweEvent<TWow> { }
+expowt intewface ITabweContextMenuEvent<TWow> extends IWistContextMenuEvent<TWow> { }
 
-export class TableError extends Error {
+expowt cwass TabweEwwow extends Ewwow {
 
-	constructor(user: string, message: string) {
-		super(`TableError [${user}] ${message}`);
+	constwuctow(usa: stwing, message: stwing) {
+		supa(`TabweEwwow [${usa}] ${message}`);
 	}
 }

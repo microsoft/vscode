@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { Action, IAction } from 'vs/base/common/actions';
-import { MainThreadMessageServiceShape, MainContext, IExtHostContext, MainThreadMessageOptions } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Event } from 'vs/base/common/event';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt * as nws fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { MainThweadMessageSewviceShape, MainContext, IExtHostContext, MainThweadMessageOptions } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-@extHostNamedCustomer(MainContext.MainThreadMessageService)
-export class MainThreadMessageService implements MainThreadMessageServiceShape {
+@extHostNamedCustoma(MainContext.MainThweadMessageSewvice)
+expowt cwass MainThweadMessageSewvice impwements MainThweadMessageSewviceShape {
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice
 	) {
 		//
 	}
@@ -31,97 +31,97 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
-		if (options.modal) {
-			return this._showModalMessage(severity, message, options.detail, commands, options.useCustom);
-		} else {
-			return this._showMessage(severity, message, commands, options.extension);
+	$showMessage(sevewity: Sevewity, message: stwing, options: MainThweadMessageOptions, commands: { titwe: stwing; isCwoseAffowdance: boowean; handwe: numba; }[]): Pwomise<numba | undefined> {
+		if (options.modaw) {
+			wetuwn this._showModawMessage(sevewity, message, options.detaiw, commands, options.useCustom);
+		} ewse {
+			wetuwn this._showMessage(sevewity, message, commands, options.extension);
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription | undefined): Promise<number | undefined> {
+	pwivate _showMessage(sevewity: Sevewity, message: stwing, commands: { titwe: stwing; isCwoseAffowdance: boowean; handwe: numba; }[], extension: IExtensionDescwiption | undefined): Pwomise<numba | undefined> {
 
-		return new Promise<number | undefined>(resolve => {
+		wetuwn new Pwomise<numba | undefined>(wesowve => {
 
-			const primaryActions: MessageItemAction[] = [];
+			const pwimawyActions: MessageItemAction[] = [];
 
-			class MessageItemAction extends Action {
-				constructor(id: string, label: string, handle: number) {
-					super(id, label, undefined, true, () => {
-						resolve(handle);
-						return Promise.resolve();
+			cwass MessageItemAction extends Action {
+				constwuctow(id: stwing, wabew: stwing, handwe: numba) {
+					supa(id, wabew, undefined, twue, () => {
+						wesowve(handwe);
+						wetuwn Pwomise.wesowve();
 					});
 				}
 			}
 
-			class ManageExtensionAction extends Action {
-				constructor(id: ExtensionIdentifier, label: string, commandService: ICommandService) {
-					super(id.value, label, undefined, true, () => {
-						return commandService.executeCommand('_extensions.manage', id.value);
+			cwass ManageExtensionAction extends Action {
+				constwuctow(id: ExtensionIdentifia, wabew: stwing, commandSewvice: ICommandSewvice) {
+					supa(id.vawue, wabew, undefined, twue, () => {
+						wetuwn commandSewvice.executeCommand('_extensions.manage', id.vawue);
 					});
 				}
 			}
 
-			commands.forEach(command => {
-				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
+			commands.fowEach(command => {
+				pwimawyActions.push(new MessageItemAction('_extension_message_handwe_' + command.handwe, command.titwe, command.handwe));
 			});
 
-			let source: string | { label: string, id: string } | undefined;
+			wet souwce: stwing | { wabew: stwing, id: stwing } | undefined;
 			if (extension) {
-				source = {
-					label: nls.localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name),
-					id: extension.identifier.value
+				souwce = {
+					wabew: nws.wocawize('extensionSouwce', "{0} (Extension)", extension.dispwayName || extension.name),
+					id: extension.identifia.vawue
 				};
 			}
 
-			if (!source) {
-				source = nls.localize('defaultSource', "Extension");
+			if (!souwce) {
+				souwce = nws.wocawize('defauwtSouwce', "Extension");
 			}
 
-			const secondaryActions: IAction[] = [];
-			if (extension && !extension.isUnderDevelopment) {
-				secondaryActions.push(new ManageExtensionAction(extension.identifier, nls.localize('manageExtension', "Manage Extension"), this._commandService));
+			const secondawyActions: IAction[] = [];
+			if (extension && !extension.isUndewDevewopment) {
+				secondawyActions.push(new ManageExtensionAction(extension.identifia, nws.wocawize('manageExtension', "Manage Extension"), this._commandSewvice));
 			}
 
-			const messageHandle = this._notificationService.notify({
-				severity,
+			const messageHandwe = this._notificationSewvice.notify({
+				sevewity,
 				message,
-				actions: { primary: primaryActions, secondary: secondaryActions },
-				source
+				actions: { pwimawy: pwimawyActions, secondawy: secondawyActions },
+				souwce
 			});
 
-			// if promise has not been resolved yet, now is the time to ensure a return value
-			// otherwise if already resolved it means the user clicked one of the buttons
-			Event.once(messageHandle.onDidClose)(() => {
-				dispose(primaryActions);
-				dispose(secondaryActions);
-				resolve(undefined);
+			// if pwomise has not been wesowved yet, now is the time to ensuwe a wetuwn vawue
+			// othewwise if awweady wesowved it means the usa cwicked one of the buttons
+			Event.once(messageHandwe.onDidCwose)(() => {
+				dispose(pwimawyActions);
+				dispose(secondawyActions);
+				wesowve(undefined);
 			});
 		});
 	}
 
-	private async _showModalMessage(severity: Severity, message: string, detail: string | undefined, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], useCustom?: boolean): Promise<number | undefined> {
-		let cancelId: number | undefined = undefined;
+	pwivate async _showModawMessage(sevewity: Sevewity, message: stwing, detaiw: stwing | undefined, commands: { titwe: stwing; isCwoseAffowdance: boowean; handwe: numba; }[], useCustom?: boowean): Pwomise<numba | undefined> {
+		wet cancewId: numba | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {
-			if (command.isCloseAffordance === true) {
-				cancelId = index;
+			if (command.isCwoseAffowdance === twue) {
+				cancewId = index;
 			}
 
-			return command.title;
+			wetuwn command.titwe;
 		});
 
-		if (cancelId === undefined) {
-			if (buttons.length > 0) {
-				buttons.push(nls.localize('cancel', "Cancel"));
-			} else {
-				buttons.push(nls.localize('ok', "OK"));
+		if (cancewId === undefined) {
+			if (buttons.wength > 0) {
+				buttons.push(nws.wocawize('cancew', "Cancew"));
+			} ewse {
+				buttons.push(nws.wocawize('ok', "OK"));
 			}
 
-			cancelId = buttons.length - 1;
+			cancewId = buttons.wength - 1;
 		}
 
-		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId, custom: useCustom, detail });
-		return choice === commands.length ? undefined : commands[choice].handle;
+		const { choice } = await this._diawogSewvice.show(sevewity, message, buttons, { cancewId, custom: useCustom, detaiw });
+		wetuwn choice === commands.wength ? undefined : commands[choice].handwe;
 	}
 }

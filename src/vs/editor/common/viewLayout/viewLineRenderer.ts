@@ -1,1051 +1,1051 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IViewWineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { IStwingBuiwda, cweateStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { WineDecowation, WineDecowationsNowmawiza } fwom 'vs/editow/common/viewWayout/wineDecowations';
+impowt { InwineDecowationType } fwom 'vs/editow/common/viewModew/viewModew';
 
-export const enum RenderWhitespace {
+expowt const enum WendewWhitespace {
 	None = 0,
-	Boundary = 1,
-	Selection = 2,
-	Trailing = 3,
-	All = 4
+	Boundawy = 1,
+	Sewection = 2,
+	Twaiwing = 3,
+	Aww = 4
 }
 
-export const enum LinePartMetadata {
+expowt const enum WinePawtMetadata {
 	IS_WHITESPACE = 1,
-	PSEUDO_BEFORE = 2,
-	PSEUDO_AFTER = 4,
+	PSEUDO_BEFOWE = 2,
+	PSEUDO_AFTa = 4,
 
 	IS_WHITESPACE_MASK = 0b001,
-	PSEUDO_BEFORE_MASK = 0b010,
-	PSEUDO_AFTER_MASK = 0b100,
+	PSEUDO_BEFOWE_MASK = 0b010,
+	PSEUDO_AFTEW_MASK = 0b100,
 }
 
-class LinePart {
-	_linePartBrand: void = undefined;
+cwass WinePawt {
+	_winePawtBwand: void = undefined;
 
 	/**
-	 * last char index of this token (not inclusive).
+	 * wast chaw index of this token (not incwusive).
 	 */
-	public readonly endIndex: number;
-	public readonly type: string;
-	public readonly metadata: number;
+	pubwic weadonwy endIndex: numba;
+	pubwic weadonwy type: stwing;
+	pubwic weadonwy metadata: numba;
 
-	constructor(endIndex: number, type: string, metadata: number) {
+	constwuctow(endIndex: numba, type: stwing, metadata: numba) {
 		this.endIndex = endIndex;
 		this.type = type;
 		this.metadata = metadata;
 	}
 
-	public isWhitespace(): boolean {
-		return (this.metadata & LinePartMetadata.IS_WHITESPACE_MASK ? true : false);
+	pubwic isWhitespace(): boowean {
+		wetuwn (this.metadata & WinePawtMetadata.IS_WHITESPACE_MASK ? twue : fawse);
 	}
 
-	public isPseudoAfter(): boolean {
-		return (this.metadata & LinePartMetadata.PSEUDO_AFTER_MASK ? true : false);
+	pubwic isPseudoAfta(): boowean {
+		wetuwn (this.metadata & WinePawtMetadata.PSEUDO_AFTEW_MASK ? twue : fawse);
 	}
 }
 
-export class LineRange {
+expowt cwass WineWange {
 	/**
-	 * Zero-based offset on which the range starts, inclusive.
+	 * Zewo-based offset on which the wange stawts, incwusive.
 	 */
-	public readonly startOffset: number;
+	pubwic weadonwy stawtOffset: numba;
 
 	/**
-	 * Zero-based offset on which the range ends, inclusive.
+	 * Zewo-based offset on which the wange ends, incwusive.
 	 */
-	public readonly endOffset: number;
+	pubwic weadonwy endOffset: numba;
 
-	constructor(startIndex: number, endIndex: number) {
-		this.startOffset = startIndex;
+	constwuctow(stawtIndex: numba, endIndex: numba) {
+		this.stawtOffset = stawtIndex;
 		this.endOffset = endIndex;
 	}
 
-	public equals(otherLineRange: LineRange) {
-		return this.startOffset === otherLineRange.startOffset
-			&& this.endOffset === otherLineRange.endOffset;
+	pubwic equaws(othewWineWange: WineWange) {
+		wetuwn this.stawtOffset === othewWineWange.stawtOffset
+			&& this.endOffset === othewWineWange.endOffset;
 	}
 }
 
-export class RenderLineInput {
+expowt cwass WendewWineInput {
 
-	public readonly useMonospaceOptimizations: boolean;
-	public readonly canUseHalfwidthRightwardsArrow: boolean;
-	public readonly lineContent: string;
-	public readonly continuesWithWrappedLine: boolean;
-	public readonly isBasicASCII: boolean;
-	public readonly containsRTL: boolean;
-	public readonly fauxIndentLength: number;
-	public readonly lineTokens: IViewLineTokens;
-	public readonly lineDecorations: LineDecoration[];
-	public readonly tabSize: number;
-	public readonly startVisibleColumn: number;
-	public readonly spaceWidth: number;
-	public readonly renderSpaceWidth: number;
-	public readonly renderSpaceCharCode: number;
-	public readonly stopRenderingLineAfter: number;
-	public readonly renderWhitespace: RenderWhitespace;
-	public readonly renderControlCharacters: boolean;
-	public readonly fontLigatures: boolean;
+	pubwic weadonwy useMonospaceOptimizations: boowean;
+	pubwic weadonwy canUseHawfwidthWightwawdsAwwow: boowean;
+	pubwic weadonwy wineContent: stwing;
+	pubwic weadonwy continuesWithWwappedWine: boowean;
+	pubwic weadonwy isBasicASCII: boowean;
+	pubwic weadonwy containsWTW: boowean;
+	pubwic weadonwy fauxIndentWength: numba;
+	pubwic weadonwy wineTokens: IViewWineTokens;
+	pubwic weadonwy wineDecowations: WineDecowation[];
+	pubwic weadonwy tabSize: numba;
+	pubwic weadonwy stawtVisibweCowumn: numba;
+	pubwic weadonwy spaceWidth: numba;
+	pubwic weadonwy wendewSpaceWidth: numba;
+	pubwic weadonwy wendewSpaceChawCode: numba;
+	pubwic weadonwy stopWendewingWineAfta: numba;
+	pubwic weadonwy wendewWhitespace: WendewWhitespace;
+	pubwic weadonwy wendewContwowChawactews: boowean;
+	pubwic weadonwy fontWigatuwes: boowean;
 
 	/**
-	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
-	 * and ordered by position within the line.
+	 * Defined onwy when wendewWhitespace is 'sewection'. Sewections awe non-ovewwapping,
+	 * and owdewed by position within the wine.
 	 */
-	public readonly selectionsOnLine: LineRange[] | null;
+	pubwic weadonwy sewectionsOnWine: WineWange[] | nuww;
 
-	constructor(
-		useMonospaceOptimizations: boolean,
-		canUseHalfwidthRightwardsArrow: boolean,
-		lineContent: string,
-		continuesWithWrappedLine: boolean,
-		isBasicASCII: boolean,
-		containsRTL: boolean,
-		fauxIndentLength: number,
-		lineTokens: IViewLineTokens,
-		lineDecorations: LineDecoration[],
-		tabSize: number,
-		startVisibleColumn: number,
-		spaceWidth: number,
-		middotWidth: number,
-		wsmiddotWidth: number,
-		stopRenderingLineAfter: number,
-		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
-		renderControlCharacters: boolean,
-		fontLigatures: boolean,
-		selectionsOnLine: LineRange[] | null
+	constwuctow(
+		useMonospaceOptimizations: boowean,
+		canUseHawfwidthWightwawdsAwwow: boowean,
+		wineContent: stwing,
+		continuesWithWwappedWine: boowean,
+		isBasicASCII: boowean,
+		containsWTW: boowean,
+		fauxIndentWength: numba,
+		wineTokens: IViewWineTokens,
+		wineDecowations: WineDecowation[],
+		tabSize: numba,
+		stawtVisibweCowumn: numba,
+		spaceWidth: numba,
+		middotWidth: numba,
+		wsmiddotWidth: numba,
+		stopWendewingWineAfta: numba,
+		wendewWhitespace: 'none' | 'boundawy' | 'sewection' | 'twaiwing' | 'aww',
+		wendewContwowChawactews: boowean,
+		fontWigatuwes: boowean,
+		sewectionsOnWine: WineWange[] | nuww
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
-		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
-		this.lineContent = lineContent;
-		this.continuesWithWrappedLine = continuesWithWrappedLine;
+		this.canUseHawfwidthWightwawdsAwwow = canUseHawfwidthWightwawdsAwwow;
+		this.wineContent = wineContent;
+		this.continuesWithWwappedWine = continuesWithWwappedWine;
 		this.isBasicASCII = isBasicASCII;
-		this.containsRTL = containsRTL;
-		this.fauxIndentLength = fauxIndentLength;
-		this.lineTokens = lineTokens;
-		this.lineDecorations = lineDecorations.sort(LineDecoration.compare);
+		this.containsWTW = containsWTW;
+		this.fauxIndentWength = fauxIndentWength;
+		this.wineTokens = wineTokens;
+		this.wineDecowations = wineDecowations.sowt(WineDecowation.compawe);
 		this.tabSize = tabSize;
-		this.startVisibleColumn = startVisibleColumn;
+		this.stawtVisibweCowumn = stawtVisibweCowumn;
 		this.spaceWidth = spaceWidth;
-		this.stopRenderingLineAfter = stopRenderingLineAfter;
-		this.renderWhitespace = (
-			renderWhitespace === 'all'
-				? RenderWhitespace.All
-				: renderWhitespace === 'boundary'
-					? RenderWhitespace.Boundary
-					: renderWhitespace === 'selection'
-						? RenderWhitespace.Selection
-						: renderWhitespace === 'trailing'
-							? RenderWhitespace.Trailing
-							: RenderWhitespace.None
+		this.stopWendewingWineAfta = stopWendewingWineAfta;
+		this.wendewWhitespace = (
+			wendewWhitespace === 'aww'
+				? WendewWhitespace.Aww
+				: wendewWhitespace === 'boundawy'
+					? WendewWhitespace.Boundawy
+					: wendewWhitespace === 'sewection'
+						? WendewWhitespace.Sewection
+						: wendewWhitespace === 'twaiwing'
+							? WendewWhitespace.Twaiwing
+							: WendewWhitespace.None
 		);
-		this.renderControlCharacters = renderControlCharacters;
-		this.fontLigatures = fontLigatures;
-		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.startOffset < b.startOffset ? -1 : 1);
+		this.wendewContwowChawactews = wendewContwowChawactews;
+		this.fontWigatuwes = fontWigatuwes;
+		this.sewectionsOnWine = sewectionsOnWine && sewectionsOnWine.sowt((a, b) => a.stawtOffset < b.stawtOffset ? -1 : 1);
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
 		if (wsmiddotDiff < middotDiff) {
-			this.renderSpaceWidth = wsmiddotWidth;
-			this.renderSpaceCharCode = 0x2E31; // U+2E31 - WORD SEPARATOR MIDDLE DOT
-		} else {
-			this.renderSpaceWidth = middotWidth;
-			this.renderSpaceCharCode = 0xB7; // U+00B7 - MIDDLE DOT
+			this.wendewSpaceWidth = wsmiddotWidth;
+			this.wendewSpaceChawCode = 0x2E31; // U+2E31 - WOWD SEPAWATOW MIDDWE DOT
+		} ewse {
+			this.wendewSpaceWidth = middotWidth;
+			this.wendewSpaceChawCode = 0xB7; // U+00B7 - MIDDWE DOT
 		}
 	}
 
-	private sameSelection(otherSelections: LineRange[] | null): boolean {
-		if (this.selectionsOnLine === null) {
-			return otherSelections === null;
+	pwivate sameSewection(othewSewections: WineWange[] | nuww): boowean {
+		if (this.sewectionsOnWine === nuww) {
+			wetuwn othewSewections === nuww;
 		}
 
-		if (otherSelections === null) {
-			return false;
+		if (othewSewections === nuww) {
+			wetuwn fawse;
 		}
 
-		if (otherSelections.length !== this.selectionsOnLine.length) {
-			return false;
+		if (othewSewections.wength !== this.sewectionsOnWine.wength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < this.selectionsOnLine.length; i++) {
-			if (!this.selectionsOnLine[i].equals(otherSelections[i])) {
-				return false;
+		fow (wet i = 0; i < this.sewectionsOnWine.wength; i++) {
+			if (!this.sewectionsOnWine[i].equaws(othewSewections[i])) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public equals(other: RenderLineInput): boolean {
-		return (
-			this.useMonospaceOptimizations === other.useMonospaceOptimizations
-			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
-			&& this.lineContent === other.lineContent
-			&& this.continuesWithWrappedLine === other.continuesWithWrappedLine
-			&& this.isBasicASCII === other.isBasicASCII
-			&& this.containsRTL === other.containsRTL
-			&& this.fauxIndentLength === other.fauxIndentLength
-			&& this.tabSize === other.tabSize
-			&& this.startVisibleColumn === other.startVisibleColumn
-			&& this.spaceWidth === other.spaceWidth
-			&& this.renderSpaceWidth === other.renderSpaceWidth
-			&& this.renderSpaceCharCode === other.renderSpaceCharCode
-			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
-			&& this.renderWhitespace === other.renderWhitespace
-			&& this.renderControlCharacters === other.renderControlCharacters
-			&& this.fontLigatures === other.fontLigatures
-			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& this.lineTokens.equals(other.lineTokens)
-			&& this.sameSelection(other.selectionsOnLine)
+	pubwic equaws(otha: WendewWineInput): boowean {
+		wetuwn (
+			this.useMonospaceOptimizations === otha.useMonospaceOptimizations
+			&& this.canUseHawfwidthWightwawdsAwwow === otha.canUseHawfwidthWightwawdsAwwow
+			&& this.wineContent === otha.wineContent
+			&& this.continuesWithWwappedWine === otha.continuesWithWwappedWine
+			&& this.isBasicASCII === otha.isBasicASCII
+			&& this.containsWTW === otha.containsWTW
+			&& this.fauxIndentWength === otha.fauxIndentWength
+			&& this.tabSize === otha.tabSize
+			&& this.stawtVisibweCowumn === otha.stawtVisibweCowumn
+			&& this.spaceWidth === otha.spaceWidth
+			&& this.wendewSpaceWidth === otha.wendewSpaceWidth
+			&& this.wendewSpaceChawCode === otha.wendewSpaceChawCode
+			&& this.stopWendewingWineAfta === otha.stopWendewingWineAfta
+			&& this.wendewWhitespace === otha.wendewWhitespace
+			&& this.wendewContwowChawactews === otha.wendewContwowChawactews
+			&& this.fontWigatuwes === otha.fontWigatuwes
+			&& WineDecowation.equawsAww(this.wineDecowations, otha.wineDecowations)
+			&& this.wineTokens.equaws(otha.wineTokens)
+			&& this.sameSewection(otha.sewectionsOnWine)
 		);
 	}
 }
 
-export const enum CharacterMappingConstants {
-	PART_INDEX_MASK = 0b11111111111111110000000000000000,
-	CHAR_INDEX_MASK = 0b00000000000000001111111111111111,
+expowt const enum ChawactewMappingConstants {
+	PAWT_INDEX_MASK = 0b11111111111111110000000000000000,
+	CHAW_INDEX_MASK = 0b00000000000000001111111111111111,
 
-	CHAR_INDEX_OFFSET = 0,
-	PART_INDEX_OFFSET = 16
+	CHAW_INDEX_OFFSET = 0,
+	PAWT_INDEX_OFFSET = 16
 }
 
-export class DomPosition {
-	constructor(
-		public readonly partIndex: number,
-		public readonly charIndex: number
+expowt cwass DomPosition {
+	constwuctow(
+		pubwic weadonwy pawtIndex: numba,
+		pubwic weadonwy chawIndex: numba
 	) { }
 }
 
 /**
- * Provides a both direction mapping between a line's character and its rendered position.
+ * Pwovides a both diwection mapping between a wine's chawacta and its wendewed position.
  */
-export class CharacterMapping {
+expowt cwass ChawactewMapping {
 
-	private static getPartIndex(partData: number): number {
-		return (partData & CharacterMappingConstants.PART_INDEX_MASK) >>> CharacterMappingConstants.PART_INDEX_OFFSET;
+	pwivate static getPawtIndex(pawtData: numba): numba {
+		wetuwn (pawtData & ChawactewMappingConstants.PAWT_INDEX_MASK) >>> ChawactewMappingConstants.PAWT_INDEX_OFFSET;
 	}
 
-	private static getCharIndex(partData: number): number {
-		return (partData & CharacterMappingConstants.CHAR_INDEX_MASK) >>> CharacterMappingConstants.CHAR_INDEX_OFFSET;
+	pwivate static getChawIndex(pawtData: numba): numba {
+		wetuwn (pawtData & ChawactewMappingConstants.CHAW_INDEX_MASK) >>> ChawactewMappingConstants.CHAW_INDEX_OFFSET;
 	}
 
-	public readonly length: number;
-	private readonly _data: Uint32Array;
-	private readonly _absoluteOffsets: Uint32Array;
+	pubwic weadonwy wength: numba;
+	pwivate weadonwy _data: Uint32Awway;
+	pwivate weadonwy _absowuteOffsets: Uint32Awway;
 
-	constructor(length: number, partCount: number) {
-		this.length = length;
-		this._data = new Uint32Array(this.length);
-		this._absoluteOffsets = new Uint32Array(this.length);
+	constwuctow(wength: numba, pawtCount: numba) {
+		this.wength = wength;
+		this._data = new Uint32Awway(this.wength);
+		this._absowuteOffsets = new Uint32Awway(this.wength);
 	}
 
-	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
-		const partData = (
-			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
-			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
+	pubwic setCowumnInfo(cowumn: numba, pawtIndex: numba, chawIndex: numba, pawtAbsowuteOffset: numba): void {
+		const pawtData = (
+			(pawtIndex << ChawactewMappingConstants.PAWT_INDEX_OFFSET)
+			| (chawIndex << ChawactewMappingConstants.CHAW_INDEX_OFFSET)
 		) >>> 0;
-		this._data[column - 1] = partData;
-		this._absoluteOffsets[column - 1] = partAbsoluteOffset + charIndex;
+		this._data[cowumn - 1] = pawtData;
+		this._absowuteOffsets[cowumn - 1] = pawtAbsowuteOffset + chawIndex;
 	}
 
-	public getAbsoluteOffset(column: number): number {
-		if (this._absoluteOffsets.length === 0) {
-			// No characters on this line
-			return 0;
+	pubwic getAbsowuteOffset(cowumn: numba): numba {
+		if (this._absowuteOffsets.wength === 0) {
+			// No chawactews on this wine
+			wetuwn 0;
 		}
-		return this._absoluteOffsets[column - 1];
+		wetuwn this._absowuteOffsets[cowumn - 1];
 	}
 
-	private charOffsetToPartData(charOffset: number): number {
-		if (this.length === 0) {
-			return 0;
+	pwivate chawOffsetToPawtData(chawOffset: numba): numba {
+		if (this.wength === 0) {
+			wetuwn 0;
 		}
-		if (charOffset < 0) {
-			return this._data[0];
+		if (chawOffset < 0) {
+			wetuwn this._data[0];
 		}
-		if (charOffset >= this.length) {
-			return this._data[this.length - 1];
+		if (chawOffset >= this.wength) {
+			wetuwn this._data[this.wength - 1];
 		}
-		return this._data[charOffset];
+		wetuwn this._data[chawOffset];
 	}
 
-	public getDomPosition(column: number): DomPosition {
-		const partData = this.charOffsetToPartData(column - 1);
-		const partIndex = CharacterMapping.getPartIndex(partData);
-		const charIndex = CharacterMapping.getCharIndex(partData);
-		return new DomPosition(partIndex, charIndex);
+	pubwic getDomPosition(cowumn: numba): DomPosition {
+		const pawtData = this.chawOffsetToPawtData(cowumn - 1);
+		const pawtIndex = ChawactewMapping.getPawtIndex(pawtData);
+		const chawIndex = ChawactewMapping.getChawIndex(pawtData);
+		wetuwn new DomPosition(pawtIndex, chawIndex);
 	}
 
-	public getColumn(domPosition: DomPosition, partLength: number): number {
-		const charOffset = this.partDataToCharOffset(domPosition.partIndex, partLength, domPosition.charIndex);
-		return charOffset + 1;
+	pubwic getCowumn(domPosition: DomPosition, pawtWength: numba): numba {
+		const chawOffset = this.pawtDataToChawOffset(domPosition.pawtIndex, pawtWength, domPosition.chawIndex);
+		wetuwn chawOffset + 1;
 	}
 
-	private partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
-		if (this.length === 0) {
-			return 0;
+	pwivate pawtDataToChawOffset(pawtIndex: numba, pawtWength: numba, chawIndex: numba): numba {
+		if (this.wength === 0) {
+			wetuwn 0;
 		}
 
-		let searchEntry = (
-			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
-			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
+		wet seawchEntwy = (
+			(pawtIndex << ChawactewMappingConstants.PAWT_INDEX_OFFSET)
+			| (chawIndex << ChawactewMappingConstants.CHAW_INDEX_OFFSET)
 		) >>> 0;
 
-		let min = 0;
-		let max = this.length - 1;
-		while (min + 1 < max) {
-			let mid = ((min + max) >>> 1);
-			let midEntry = this._data[mid];
-			if (midEntry === searchEntry) {
-				return mid;
-			} else if (midEntry > searchEntry) {
+		wet min = 0;
+		wet max = this.wength - 1;
+		whiwe (min + 1 < max) {
+			wet mid = ((min + max) >>> 1);
+			wet midEntwy = this._data[mid];
+			if (midEntwy === seawchEntwy) {
+				wetuwn mid;
+			} ewse if (midEntwy > seawchEntwy) {
 				max = mid;
-			} else {
+			} ewse {
 				min = mid;
 			}
 		}
 
 		if (min === max) {
-			return min;
+			wetuwn min;
 		}
 
-		let minEntry = this._data[min];
-		let maxEntry = this._data[max];
+		wet minEntwy = this._data[min];
+		wet maxEntwy = this._data[max];
 
-		if (minEntry === searchEntry) {
-			return min;
+		if (minEntwy === seawchEntwy) {
+			wetuwn min;
 		}
-		if (maxEntry === searchEntry) {
-			return max;
-		}
-
-		let minPartIndex = CharacterMapping.getPartIndex(minEntry);
-		let minCharIndex = CharacterMapping.getCharIndex(minEntry);
-
-		let maxPartIndex = CharacterMapping.getPartIndex(maxEntry);
-		let maxCharIndex: number;
-
-		if (minPartIndex !== maxPartIndex) {
-			// sitting between parts
-			maxCharIndex = partLength;
-		} else {
-			maxCharIndex = CharacterMapping.getCharIndex(maxEntry);
+		if (maxEntwy === seawchEntwy) {
+			wetuwn max;
 		}
 
-		let minEntryDistance = charIndex - minCharIndex;
-		let maxEntryDistance = maxCharIndex - charIndex;
+		wet minPawtIndex = ChawactewMapping.getPawtIndex(minEntwy);
+		wet minChawIndex = ChawactewMapping.getChawIndex(minEntwy);
 
-		if (minEntryDistance <= maxEntryDistance) {
-			return min;
+		wet maxPawtIndex = ChawactewMapping.getPawtIndex(maxEntwy);
+		wet maxChawIndex: numba;
+
+		if (minPawtIndex !== maxPawtIndex) {
+			// sitting between pawts
+			maxChawIndex = pawtWength;
+		} ewse {
+			maxChawIndex = ChawactewMapping.getChawIndex(maxEntwy);
 		}
-		return max;
+
+		wet minEntwyDistance = chawIndex - minChawIndex;
+		wet maxEntwyDistance = maxChawIndex - chawIndex;
+
+		if (minEntwyDistance <= maxEntwyDistance) {
+			wetuwn min;
+		}
+		wetuwn max;
 	}
 }
 
-export const enum ForeignElementType {
+expowt const enum FoweignEwementType {
 	None = 0,
-	Before = 1,
-	After = 2
+	Befowe = 1,
+	Afta = 2
 }
 
-export class RenderLineOutput {
-	_renderLineOutputBrand: void = undefined;
+expowt cwass WendewWineOutput {
+	_wendewWineOutputBwand: void = undefined;
 
-	readonly characterMapping: CharacterMapping;
-	readonly containsRTL: boolean;
-	readonly containsForeignElements: ForeignElementType;
+	weadonwy chawactewMapping: ChawactewMapping;
+	weadonwy containsWTW: boowean;
+	weadonwy containsFoweignEwements: FoweignEwementType;
 
-	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
-		this.characterMapping = characterMapping;
-		this.containsRTL = containsRTL;
-		this.containsForeignElements = containsForeignElements;
+	constwuctow(chawactewMapping: ChawactewMapping, containsWTW: boowean, containsFoweignEwements: FoweignEwementType) {
+		this.chawactewMapping = chawactewMapping;
+		this.containsWTW = containsWTW;
+		this.containsFoweignEwements = containsFoweignEwements;
 	}
 }
 
-export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
-	if (input.lineContent.length === 0) {
+expowt function wendewViewWine(input: WendewWineInput, sb: IStwingBuiwda): WendewWineOutput {
+	if (input.wineContent.wength === 0) {
 
-		if (input.lineDecorations.length > 0) {
-			// This line is empty, but it contains inline decorations
-			sb.appendASCIIString(`<span>`);
+		if (input.wineDecowations.wength > 0) {
+			// This wine is empty, but it contains inwine decowations
+			sb.appendASCIIStwing(`<span>`);
 
-			let beforeCount = 0;
-			let afterCount = 0;
-			let containsForeignElements = ForeignElementType.None;
-			for (const lineDecoration of input.lineDecorations) {
-				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
-					sb.appendASCIIString(`<span class="`);
-					sb.appendASCIIString(lineDecoration.className);
-					sb.appendASCIIString(`"></span>`);
+			wet befoweCount = 0;
+			wet aftewCount = 0;
+			wet containsFoweignEwements = FoweignEwementType.None;
+			fow (const wineDecowation of input.wineDecowations) {
+				if (wineDecowation.type === InwineDecowationType.Befowe || wineDecowation.type === InwineDecowationType.Afta) {
+					sb.appendASCIIStwing(`<span cwass="`);
+					sb.appendASCIIStwing(wineDecowation.cwassName);
+					sb.appendASCIIStwing(`"></span>`);
 
-					if (lineDecoration.type === InlineDecorationType.Before) {
-						containsForeignElements |= ForeignElementType.Before;
-						beforeCount++;
+					if (wineDecowation.type === InwineDecowationType.Befowe) {
+						containsFoweignEwements |= FoweignEwementType.Befowe;
+						befoweCount++;
 					}
-					if (lineDecoration.type === InlineDecorationType.After) {
-						containsForeignElements |= ForeignElementType.After;
-						afterCount++;
+					if (wineDecowation.type === InwineDecowationType.Afta) {
+						containsFoweignEwements |= FoweignEwementType.Afta;
+						aftewCount++;
 					}
 				}
 			}
 
-			sb.appendASCIIString(`</span>`);
+			sb.appendASCIIStwing(`</span>`);
 
-			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
-			characterMapping.setColumnInfo(1, beforeCount, 0, 0);
+			const chawactewMapping = new ChawactewMapping(1, befoweCount + aftewCount);
+			chawactewMapping.setCowumnInfo(1, befoweCount, 0, 0);
 
-			return new RenderLineOutput(
-				characterMapping,
-				false,
-				containsForeignElements
+			wetuwn new WendewWineOutput(
+				chawactewMapping,
+				fawse,
+				containsFoweignEwements
 			);
 		}
 
-		// completely empty line
-		sb.appendASCIIString('<span><span></span></span>');
-		return new RenderLineOutput(
-			new CharacterMapping(0, 0),
-			false,
-			ForeignElementType.None
+		// compwetewy empty wine
+		sb.appendASCIIStwing('<span><span></span></span>');
+		wetuwn new WendewWineOutput(
+			new ChawactewMapping(0, 0),
+			fawse,
+			FoweignEwementType.None
 		);
 	}
 
-	return _renderLine(resolveRenderLineInput(input), sb);
+	wetuwn _wendewWine(wesowveWendewWineInput(input), sb);
 }
 
-export class RenderLineOutput2 {
-	constructor(
-		public readonly characterMapping: CharacterMapping,
-		public readonly html: string,
-		public readonly containsRTL: boolean,
-		public readonly containsForeignElements: ForeignElementType
+expowt cwass WendewWineOutput2 {
+	constwuctow(
+		pubwic weadonwy chawactewMapping: ChawactewMapping,
+		pubwic weadonwy htmw: stwing,
+		pubwic weadonwy containsWTW: boowean,
+		pubwic weadonwy containsFoweignEwements: FoweignEwementType
 	) {
 	}
 }
 
-export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
-	let sb = createStringBuilder(10000);
-	let out = renderViewLine(input, sb);
-	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
+expowt function wendewViewWine2(input: WendewWineInput): WendewWineOutput2 {
+	wet sb = cweateStwingBuiwda(10000);
+	wet out = wendewViewWine(input, sb);
+	wetuwn new WendewWineOutput2(out.chawactewMapping, sb.buiwd(), out.containsWTW, out.containsFoweignEwements);
 }
 
-class ResolvedRenderLineInput {
-	constructor(
-		public readonly fontIsMonospace: boolean,
-		public readonly canUseHalfwidthRightwardsArrow: boolean,
-		public readonly lineContent: string,
-		public readonly len: number,
-		public readonly isOverflowing: boolean,
-		public readonly parts: LinePart[],
-		public readonly containsForeignElements: ForeignElementType,
-		public readonly fauxIndentLength: number,
-		public readonly tabSize: number,
-		public readonly startVisibleColumn: number,
-		public readonly containsRTL: boolean,
-		public readonly spaceWidth: number,
-		public readonly renderSpaceCharCode: number,
-		public readonly renderWhitespace: RenderWhitespace,
-		public readonly renderControlCharacters: boolean,
+cwass WesowvedWendewWineInput {
+	constwuctow(
+		pubwic weadonwy fontIsMonospace: boowean,
+		pubwic weadonwy canUseHawfwidthWightwawdsAwwow: boowean,
+		pubwic weadonwy wineContent: stwing,
+		pubwic weadonwy wen: numba,
+		pubwic weadonwy isOvewfwowing: boowean,
+		pubwic weadonwy pawts: WinePawt[],
+		pubwic weadonwy containsFoweignEwements: FoweignEwementType,
+		pubwic weadonwy fauxIndentWength: numba,
+		pubwic weadonwy tabSize: numba,
+		pubwic weadonwy stawtVisibweCowumn: numba,
+		pubwic weadonwy containsWTW: boowean,
+		pubwic weadonwy spaceWidth: numba,
+		pubwic weadonwy wendewSpaceChawCode: numba,
+		pubwic weadonwy wendewWhitespace: WendewWhitespace,
+		pubwic weadonwy wendewContwowChawactews: boowean,
 	) {
 		//
 	}
 }
 
-function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
-	const lineContent = input.lineContent;
+function wesowveWendewWineInput(input: WendewWineInput): WesowvedWendewWineInput {
+	const wineContent = input.wineContent;
 
-	let isOverflowing: boolean;
-	let len: number;
+	wet isOvewfwowing: boowean;
+	wet wen: numba;
 
-	if (input.stopRenderingLineAfter !== -1 && input.stopRenderingLineAfter < lineContent.length) {
-		isOverflowing = true;
-		len = input.stopRenderingLineAfter;
-	} else {
-		isOverflowing = false;
-		len = lineContent.length;
+	if (input.stopWendewingWineAfta !== -1 && input.stopWendewingWineAfta < wineContent.wength) {
+		isOvewfwowing = twue;
+		wen = input.stopWendewingWineAfta;
+	} ewse {
+		isOvewfwowing = fawse;
+		wen = wineContent.wength;
 	}
 
-	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
-	if (input.renderWhitespace === RenderWhitespace.All ||
-		input.renderWhitespace === RenderWhitespace.Boundary ||
-		(input.renderWhitespace === RenderWhitespace.Selection && !!input.selectionsOnLine) ||
-		input.renderWhitespace === RenderWhitespace.Trailing) {
+	wet tokens = twansfowmAndWemoveOvewfwowing(input.wineTokens, input.fauxIndentWength, wen);
+	if (input.wendewWhitespace === WendewWhitespace.Aww ||
+		input.wendewWhitespace === WendewWhitespace.Boundawy ||
+		(input.wendewWhitespace === WendewWhitespace.Sewection && !!input.sewectionsOnWine) ||
+		input.wendewWhitespace === WendewWhitespace.Twaiwing) {
 
-		tokens = _applyRenderWhitespace(input, lineContent, len, tokens);
+		tokens = _appwyWendewWhitespace(input, wineContent, wen, tokens);
 	}
-	let containsForeignElements = ForeignElementType.None;
-	if (input.lineDecorations.length > 0) {
-		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
-			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.type === InlineDecorationType.RegularAffectingLetterSpacing) {
-				// Pretend there are foreign elements... although not 100% accurate.
-				containsForeignElements |= ForeignElementType.Before;
-			} else if (lineDecoration.type === InlineDecorationType.Before) {
-				containsForeignElements |= ForeignElementType.Before;
-			} else if (lineDecoration.type === InlineDecorationType.After) {
-				containsForeignElements |= ForeignElementType.After;
+	wet containsFoweignEwements = FoweignEwementType.None;
+	if (input.wineDecowations.wength > 0) {
+		fow (wet i = 0, wen = input.wineDecowations.wength; i < wen; i++) {
+			const wineDecowation = input.wineDecowations[i];
+			if (wineDecowation.type === InwineDecowationType.WeguwawAffectingWettewSpacing) {
+				// Pwetend thewe awe foweign ewements... awthough not 100% accuwate.
+				containsFoweignEwements |= FoweignEwementType.Befowe;
+			} ewse if (wineDecowation.type === InwineDecowationType.Befowe) {
+				containsFoweignEwements |= FoweignEwementType.Befowe;
+			} ewse if (wineDecowation.type === InwineDecowationType.Afta) {
+				containsFoweignEwements |= FoweignEwementType.Afta;
 			}
 		}
-		tokens = _applyInlineDecorations(lineContent, len, tokens, input.lineDecorations);
+		tokens = _appwyInwineDecowations(wineContent, wen, tokens, input.wineDecowations);
 	}
-	if (!input.containsRTL) {
-		// We can never split RTL text, as it ruins the rendering
-		tokens = splitLargeTokens(lineContent, tokens, !input.isBasicASCII || input.fontLigatures);
+	if (!input.containsWTW) {
+		// We can neva spwit WTW text, as it wuins the wendewing
+		tokens = spwitWawgeTokens(wineContent, tokens, !input.isBasicASCII || input.fontWigatuwes);
 	}
 
-	return new ResolvedRenderLineInput(
+	wetuwn new WesowvedWendewWineInput(
 		input.useMonospaceOptimizations,
-		input.canUseHalfwidthRightwardsArrow,
-		lineContent,
-		len,
-		isOverflowing,
+		input.canUseHawfwidthWightwawdsAwwow,
+		wineContent,
+		wen,
+		isOvewfwowing,
 		tokens,
-		containsForeignElements,
-		input.fauxIndentLength,
+		containsFoweignEwements,
+		input.fauxIndentWength,
 		input.tabSize,
-		input.startVisibleColumn,
-		input.containsRTL,
+		input.stawtVisibweCowumn,
+		input.containsWTW,
 		input.spaceWidth,
-		input.renderSpaceCharCode,
-		input.renderWhitespace,
-		input.renderControlCharacters
+		input.wendewSpaceChawCode,
+		input.wendewWhitespace,
+		input.wendewContwowChawactews
 	);
 }
 
 /**
- * In the rendering phase, characters are always looped until token.endIndex.
- * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
+ * In the wendewing phase, chawactews awe awways wooped untiw token.endIndex.
+ * Ensuwe that aww tokens end befowe `wen` and the wast one ends pwecisewy at `wen`.
  */
-function transformAndRemoveOverflowing(tokens: IViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
-	let result: LinePart[] = [], resultLen = 0;
+function twansfowmAndWemoveOvewfwowing(tokens: IViewWineTokens, fauxIndentWength: numba, wen: numba): WinePawt[] {
+	wet wesuwt: WinePawt[] = [], wesuwtWen = 0;
 
-	// The faux indent part of the line should have no token type
-	if (fauxIndentLength > 0) {
-		result[resultLen++] = new LinePart(fauxIndentLength, '', 0);
+	// The faux indent pawt of the wine shouwd have no token type
+	if (fauxIndentWength > 0) {
+		wesuwt[wesuwtWen++] = new WinePawt(fauxIndentWength, '', 0);
 	}
 
-	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+	fow (wet tokenIndex = 0, tokensWen = tokens.getCount(); tokenIndex < tokensWen; tokenIndex++) {
 		const endIndex = tokens.getEndOffset(tokenIndex);
-		if (endIndex <= fauxIndentLength) {
-			// The faux indent part of the line should have no token type
+		if (endIndex <= fauxIndentWength) {
+			// The faux indent pawt of the wine shouwd have no token type
 			continue;
 		}
-		const type = tokens.getClassName(tokenIndex);
-		if (endIndex >= len) {
-			result[resultLen++] = new LinePart(len, type, 0);
-			break;
+		const type = tokens.getCwassName(tokenIndex);
+		if (endIndex >= wen) {
+			wesuwt[wesuwtWen++] = new WinePawt(wen, type, 0);
+			bweak;
 		}
-		result[resultLen++] = new LinePart(endIndex, type, 0);
+		wesuwt[wesuwtWen++] = new WinePawt(endIndex, type, 0);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * written as a const enum to get value inlining.
+ * wwitten as a const enum to get vawue inwining.
  */
 const enum Constants {
-	LongToken = 50
+	WongToken = 50
 }
 
 /**
- * See https://github.com/microsoft/vscode/issues/6885.
- * It appears that having very large spans causes very slow reading of character positions.
- * So here we try to avoid that.
+ * See https://github.com/micwosoft/vscode/issues/6885.
+ * It appeaws that having vewy wawge spans causes vewy swow weading of chawacta positions.
+ * So hewe we twy to avoid that.
  */
-function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces: boolean): LinePart[] {
-	let lastTokenEndIndex = 0;
-	let result: LinePart[] = [], resultLen = 0;
+function spwitWawgeTokens(wineContent: stwing, tokens: WinePawt[], onwyAtSpaces: boowean): WinePawt[] {
+	wet wastTokenEndIndex = 0;
+	wet wesuwt: WinePawt[] = [], wesuwtWen = 0;
 
-	if (onlyAtSpaces) {
-		// Split only at spaces => we need to walk each character
-		for (let i = 0, len = tokens.length; i < len; i++) {
+	if (onwyAtSpaces) {
+		// Spwit onwy at spaces => we need to wawk each chawacta
+		fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
-			if (lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
+			if (wastTokenEndIndex + Constants.WongToken < tokenEndIndex) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
 
-				let lastSpaceOffset = -1;
-				let currTokenStart = lastTokenEndIndex;
-				for (let j = lastTokenEndIndex; j < tokenEndIndex; j++) {
-					if (lineContent.charCodeAt(j) === CharCode.Space) {
-						lastSpaceOffset = j;
+				wet wastSpaceOffset = -1;
+				wet cuwwTokenStawt = wastTokenEndIndex;
+				fow (wet j = wastTokenEndIndex; j < tokenEndIndex; j++) {
+					if (wineContent.chawCodeAt(j) === ChawCode.Space) {
+						wastSpaceOffset = j;
 					}
-					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
-						// Split at `lastSpaceOffset` + 1
-						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata);
-						currTokenStart = lastSpaceOffset + 1;
-						lastSpaceOffset = -1;
+					if (wastSpaceOffset !== -1 && j - cuwwTokenStawt >= Constants.WongToken) {
+						// Spwit at `wastSpaceOffset` + 1
+						wesuwt[wesuwtWen++] = new WinePawt(wastSpaceOffset + 1, tokenType, tokenMetadata);
+						cuwwTokenStawt = wastSpaceOffset + 1;
+						wastSpaceOffset = -1;
 					}
 				}
-				if (currTokenStart !== tokenEndIndex) {
-					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata);
+				if (cuwwTokenStawt !== tokenEndIndex) {
+					wesuwt[wesuwtWen++] = new WinePawt(tokenEndIndex, tokenType, tokenMetadata);
 				}
-			} else {
-				result[resultLen++] = token;
+			} ewse {
+				wesuwt[wesuwtWen++] = token;
 			}
 
-			lastTokenEndIndex = tokenEndIndex;
+			wastTokenEndIndex = tokenEndIndex;
 		}
-	} else {
-		// Split anywhere => we don't need to walk each character
-		for (let i = 0, len = tokens.length; i < len; i++) {
+	} ewse {
+		// Spwit anywhewe => we don't need to wawk each chawacta
+		fow (wet i = 0, wen = tokens.wength; i < wen; i++) {
 			const token = tokens[i];
 			const tokenEndIndex = token.endIndex;
-			let diff = (tokenEndIndex - lastTokenEndIndex);
-			if (diff > Constants.LongToken) {
+			wet diff = (tokenEndIndex - wastTokenEndIndex);
+			if (diff > Constants.WongToken) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
-				const piecesCount = Math.ceil(diff / Constants.LongToken);
-				for (let j = 1; j < piecesCount; j++) {
-					let pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata);
+				const piecesCount = Math.ceiw(diff / Constants.WongToken);
+				fow (wet j = 1; j < piecesCount; j++) {
+					wet pieceEndIndex = wastTokenEndIndex + (j * Constants.WongToken);
+					wesuwt[wesuwtWen++] = new WinePawt(pieceEndIndex, tokenType, tokenMetadata);
 				}
-				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata);
-			} else {
-				result[resultLen++] = token;
+				wesuwt[wesuwtWen++] = new WinePawt(tokenEndIndex, tokenType, tokenMetadata);
+			} ewse {
+				wesuwt[wesuwtWen++] = token;
 			}
-			lastTokenEndIndex = tokenEndIndex;
+			wastTokenEndIndex = tokenEndIndex;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Whitespace is rendered by "replacing" tokens with a special-purpose `mtkw` type that is later recognized in the rendering phase.
- * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
- * The rendering phase will generate `style="width:..."` for these tokens.
+ * Whitespace is wendewed by "wepwacing" tokens with a speciaw-puwpose `mtkw` type that is wata wecognized in the wendewing phase.
+ * Moweova, a token is cweated fow evewy visuaw indent because on some fonts the gwyphs used fow wendewing whitespace (&waww; ow &middot;) do not have the same width as &nbsp;.
+ * The wendewing phase wiww genewate `stywe="width:..."` fow these tokens.
  */
-function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len: number, tokens: LinePart[]): LinePart[] {
+function _appwyWendewWhitespace(input: WendewWineInput, wineContent: stwing, wen: numba, tokens: WinePawt[]): WinePawt[] {
 
-	const continuesWithWrappedLine = input.continuesWithWrappedLine;
-	const fauxIndentLength = input.fauxIndentLength;
+	const continuesWithWwappedWine = input.continuesWithWwappedWine;
+	const fauxIndentWength = input.fauxIndentWength;
 	const tabSize = input.tabSize;
-	const startVisibleColumn = input.startVisibleColumn;
+	const stawtVisibweCowumn = input.stawtVisibweCowumn;
 	const useMonospaceOptimizations = input.useMonospaceOptimizations;
-	const selections = input.selectionsOnLine;
-	const onlyBoundary = (input.renderWhitespace === RenderWhitespace.Boundary);
-	const onlyTrailing = (input.renderWhitespace === RenderWhitespace.Trailing);
-	const generateLinePartForEachWhitespace = (input.renderSpaceWidth !== input.spaceWidth);
+	const sewections = input.sewectionsOnWine;
+	const onwyBoundawy = (input.wendewWhitespace === WendewWhitespace.Boundawy);
+	const onwyTwaiwing = (input.wendewWhitespace === WendewWhitespace.Twaiwing);
+	const genewateWinePawtFowEachWhitespace = (input.wendewSpaceWidth !== input.spaceWidth);
 
-	let result: LinePart[] = [], resultLen = 0;
-	let tokenIndex = 0;
-	let tokenType = tokens[tokenIndex].type;
-	let tokenEndIndex = tokens[tokenIndex].endIndex;
-	const tokensLength = tokens.length;
+	wet wesuwt: WinePawt[] = [], wesuwtWen = 0;
+	wet tokenIndex = 0;
+	wet tokenType = tokens[tokenIndex].type;
+	wet tokenEndIndex = tokens[tokenIndex].endIndex;
+	const tokensWength = tokens.wength;
 
-	let lineIsEmptyOrWhitespace = false;
-	let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-	let lastNonWhitespaceIndex: number;
-	if (firstNonWhitespaceIndex === -1) {
-		lineIsEmptyOrWhitespace = true;
-		firstNonWhitespaceIndex = len;
-		lastNonWhitespaceIndex = len;
-	} else {
-		lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+	wet wineIsEmptyOwWhitespace = fawse;
+	wet fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(wineContent);
+	wet wastNonWhitespaceIndex: numba;
+	if (fiwstNonWhitespaceIndex === -1) {
+		wineIsEmptyOwWhitespace = twue;
+		fiwstNonWhitespaceIndex = wen;
+		wastNonWhitespaceIndex = wen;
+	} ewse {
+		wastNonWhitespaceIndex = stwings.wastNonWhitespaceIndex(wineContent);
 	}
 
-	let wasInWhitespace = false;
-	let currentSelectionIndex = 0;
-	let currentSelection = selections && selections[currentSelectionIndex];
-	let tmpIndent = startVisibleColumn % tabSize;
-	for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
-		const chCode = lineContent.charCodeAt(charIndex);
+	wet wasInWhitespace = fawse;
+	wet cuwwentSewectionIndex = 0;
+	wet cuwwentSewection = sewections && sewections[cuwwentSewectionIndex];
+	wet tmpIndent = stawtVisibweCowumn % tabSize;
+	fow (wet chawIndex = fauxIndentWength; chawIndex < wen; chawIndex++) {
+		const chCode = wineContent.chawCodeAt(chawIndex);
 
-		if (currentSelection && charIndex >= currentSelection.endOffset) {
-			currentSelectionIndex++;
-			currentSelection = selections && selections[currentSelectionIndex];
+		if (cuwwentSewection && chawIndex >= cuwwentSewection.endOffset) {
+			cuwwentSewectionIndex++;
+			cuwwentSewection = sewections && sewections[cuwwentSewectionIndex];
 		}
 
-		let isInWhitespace: boolean;
-		if (charIndex < firstNonWhitespaceIndex || charIndex > lastNonWhitespaceIndex) {
-			// in leading or trailing whitespace
-			isInWhitespace = true;
-		} else if (chCode === CharCode.Tab) {
-			// a tab character is rendered both in all and boundary cases
-			isInWhitespace = true;
-		} else if (chCode === CharCode.Space) {
-			// hit a space character
-			if (onlyBoundary) {
-				// rendering only boundary whitespace
+		wet isInWhitespace: boowean;
+		if (chawIndex < fiwstNonWhitespaceIndex || chawIndex > wastNonWhitespaceIndex) {
+			// in weading ow twaiwing whitespace
+			isInWhitespace = twue;
+		} ewse if (chCode === ChawCode.Tab) {
+			// a tab chawacta is wendewed both in aww and boundawy cases
+			isInWhitespace = twue;
+		} ewse if (chCode === ChawCode.Space) {
+			// hit a space chawacta
+			if (onwyBoundawy) {
+				// wendewing onwy boundawy whitespace
 				if (wasInWhitespace) {
-					isInWhitespace = true;
-				} else {
-					const nextChCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
-					isInWhitespace = (nextChCode === CharCode.Space || nextChCode === CharCode.Tab);
+					isInWhitespace = twue;
+				} ewse {
+					const nextChCode = (chawIndex + 1 < wen ? wineContent.chawCodeAt(chawIndex + 1) : ChawCode.Nuww);
+					isInWhitespace = (nextChCode === ChawCode.Space || nextChCode === ChawCode.Tab);
 				}
-			} else {
-				isInWhitespace = true;
+			} ewse {
+				isInWhitespace = twue;
 			}
-		} else {
-			isInWhitespace = false;
+		} ewse {
+			isInWhitespace = fawse;
 		}
 
-		// If rendering whitespace on selection, check that the charIndex falls within a selection
-		if (isInWhitespace && selections) {
-			isInWhitespace = !!currentSelection && currentSelection.startOffset <= charIndex && currentSelection.endOffset > charIndex;
+		// If wendewing whitespace on sewection, check that the chawIndex fawws within a sewection
+		if (isInWhitespace && sewections) {
+			isInWhitespace = !!cuwwentSewection && cuwwentSewection.stawtOffset <= chawIndex && cuwwentSewection.endOffset > chawIndex;
 		}
 
-		// If rendering only trailing whitespace, check that the charIndex points to trailing whitespace.
-		if (isInWhitespace && onlyTrailing) {
-			isInWhitespace = lineIsEmptyOrWhitespace || charIndex > lastNonWhitespaceIndex;
+		// If wendewing onwy twaiwing whitespace, check that the chawIndex points to twaiwing whitespace.
+		if (isInWhitespace && onwyTwaiwing) {
+			isInWhitespace = wineIsEmptyOwWhitespace || chawIndex > wastNonWhitespaceIndex;
 		}
 
 		if (wasInWhitespace) {
 			// was in whitespace token
 			if (!isInWhitespace || (!useMonospaceOptimizations && tmpIndent >= tabSize)) {
-				// leaving whitespace token or entering a new indent
-				if (generateLinePartForEachWhitespace) {
-					const lastEndIndex = (resultLen > 0 ? result[resultLen - 1].endIndex : fauxIndentLength);
-					for (let i = lastEndIndex + 1; i <= charIndex; i++) {
-						result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE);
+				// weaving whitespace token ow entewing a new indent
+				if (genewateWinePawtFowEachWhitespace) {
+					const wastEndIndex = (wesuwtWen > 0 ? wesuwt[wesuwtWen - 1].endIndex : fauxIndentWength);
+					fow (wet i = wastEndIndex + 1; i <= chawIndex; i++) {
+						wesuwt[wesuwtWen++] = new WinePawt(i, 'mtkw', WinePawtMetadata.IS_WHITESPACE);
 					}
-				} else {
-					result[resultLen++] = new LinePart(charIndex, 'mtkw', LinePartMetadata.IS_WHITESPACE);
+				} ewse {
+					wesuwt[wesuwtWen++] = new WinePawt(chawIndex, 'mtkw', WinePawtMetadata.IS_WHITESPACE);
 				}
 				tmpIndent = tmpIndent % tabSize;
 			}
-		} else {
-			// was in regular token
-			if (charIndex === tokenEndIndex || (isInWhitespace && charIndex > fauxIndentLength)) {
-				result[resultLen++] = new LinePart(charIndex, tokenType, 0);
+		} ewse {
+			// was in weguwaw token
+			if (chawIndex === tokenEndIndex || (isInWhitespace && chawIndex > fauxIndentWength)) {
+				wesuwt[wesuwtWen++] = new WinePawt(chawIndex, tokenType, 0);
 				tmpIndent = tmpIndent % tabSize;
 			}
 		}
 
-		if (chCode === CharCode.Tab) {
+		if (chCode === ChawCode.Tab) {
 			tmpIndent = tabSize;
-		} else if (strings.isFullWidthCharacter(chCode)) {
+		} ewse if (stwings.isFuwwWidthChawacta(chCode)) {
 			tmpIndent += 2;
-		} else {
+		} ewse {
 			tmpIndent++;
 		}
 
 		wasInWhitespace = isInWhitespace;
 
-		while (charIndex === tokenEndIndex) {
+		whiwe (chawIndex === tokenEndIndex) {
 			tokenIndex++;
-			if (tokenIndex < tokensLength) {
+			if (tokenIndex < tokensWength) {
 				tokenType = tokens[tokenIndex].type;
 				tokenEndIndex = tokens[tokenIndex].endIndex;
-			} else {
-				break;
+			} ewse {
+				bweak;
 			}
 		}
 	}
 
-	let generateWhitespace = false;
+	wet genewateWhitespace = fawse;
 	if (wasInWhitespace) {
 		// was in whitespace token
-		if (continuesWithWrappedLine && onlyBoundary) {
-			let lastCharCode = (len > 0 ? lineContent.charCodeAt(len - 1) : CharCode.Null);
-			let prevCharCode = (len > 1 ? lineContent.charCodeAt(len - 2) : CharCode.Null);
-			let isSingleTrailingSpace = (lastCharCode === CharCode.Space && (prevCharCode !== CharCode.Space && prevCharCode !== CharCode.Tab));
-			if (!isSingleTrailingSpace) {
-				generateWhitespace = true;
+		if (continuesWithWwappedWine && onwyBoundawy) {
+			wet wastChawCode = (wen > 0 ? wineContent.chawCodeAt(wen - 1) : ChawCode.Nuww);
+			wet pwevChawCode = (wen > 1 ? wineContent.chawCodeAt(wen - 2) : ChawCode.Nuww);
+			wet isSingweTwaiwingSpace = (wastChawCode === ChawCode.Space && (pwevChawCode !== ChawCode.Space && pwevChawCode !== ChawCode.Tab));
+			if (!isSingweTwaiwingSpace) {
+				genewateWhitespace = twue;
 			}
-		} else {
-			generateWhitespace = true;
+		} ewse {
+			genewateWhitespace = twue;
 		}
 	}
 
-	if (generateWhitespace) {
-		if (generateLinePartForEachWhitespace) {
-			const lastEndIndex = (resultLen > 0 ? result[resultLen - 1].endIndex : fauxIndentLength);
-			for (let i = lastEndIndex + 1; i <= len; i++) {
-				result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE);
+	if (genewateWhitespace) {
+		if (genewateWinePawtFowEachWhitespace) {
+			const wastEndIndex = (wesuwtWen > 0 ? wesuwt[wesuwtWen - 1].endIndex : fauxIndentWength);
+			fow (wet i = wastEndIndex + 1; i <= wen; i++) {
+				wesuwt[wesuwtWen++] = new WinePawt(i, 'mtkw', WinePawtMetadata.IS_WHITESPACE);
 			}
-		} else {
-			result[resultLen++] = new LinePart(len, 'mtkw', LinePartMetadata.IS_WHITESPACE);
+		} ewse {
+			wesuwt[wesuwtWen++] = new WinePawt(wen, 'mtkw', WinePawtMetadata.IS_WHITESPACE);
 		}
-	} else {
-		result[resultLen++] = new LinePart(len, tokenType, 0);
+	} ewse {
+		wesuwt[wesuwtWen++] = new WinePawt(wen, tokenType, 0);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Inline decorations are "merged" on top of tokens.
- * Special care must be taken when multiple inline decorations are at play and they overlap.
+ * Inwine decowations awe "mewged" on top of tokens.
+ * Speciaw cawe must be taken when muwtipwe inwine decowations awe at pway and they ovewwap.
  */
-function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] {
-	_lineDecorations.sort(LineDecoration.compare);
-	const lineDecorations = LineDecorationsNormalizer.normalize(lineContent, _lineDecorations);
-	const lineDecorationsLen = lineDecorations.length;
+function _appwyInwineDecowations(wineContent: stwing, wen: numba, tokens: WinePawt[], _wineDecowations: WineDecowation[]): WinePawt[] {
+	_wineDecowations.sowt(WineDecowation.compawe);
+	const wineDecowations = WineDecowationsNowmawiza.nowmawize(wineContent, _wineDecowations);
+	const wineDecowationsWen = wineDecowations.wength;
 
-	let lineDecorationIndex = 0;
-	let result: LinePart[] = [], resultLen = 0, lastResultEndIndex = 0;
-	for (let tokenIndex = 0, len = tokens.length; tokenIndex < len; tokenIndex++) {
+	wet wineDecowationIndex = 0;
+	wet wesuwt: WinePawt[] = [], wesuwtWen = 0, wastWesuwtEndIndex = 0;
+	fow (wet tokenIndex = 0, wen = tokens.wength; tokenIndex < wen; tokenIndex++) {
 		const token = tokens[tokenIndex];
 		const tokenEndIndex = token.endIndex;
 		const tokenType = token.type;
 		const tokenMetadata = token.metadata;
 
-		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset < tokenEndIndex) {
-			const lineDecoration = lineDecorations[lineDecorationIndex];
+		whiwe (wineDecowationIndex < wineDecowationsWen && wineDecowations[wineDecowationIndex].stawtOffset < tokenEndIndex) {
+			const wineDecowation = wineDecowations[wineDecowationIndex];
 
-			if (lineDecoration.startOffset > lastResultEndIndex) {
-				lastResultEndIndex = lineDecoration.startOffset;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata);
+			if (wineDecowation.stawtOffset > wastWesuwtEndIndex) {
+				wastWesuwtEndIndex = wineDecowation.stawtOffset;
+				wesuwt[wesuwtWen++] = new WinePawt(wastWesuwtEndIndex, tokenType, tokenMetadata);
 			}
 
-			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
-				// This line decoration ends before this token ends
-				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata);
-				lineDecorationIndex++;
-			} else {
-				// This line decoration continues on to the next token
-				lastResultEndIndex = tokenEndIndex;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata);
-				break;
+			if (wineDecowation.endOffset + 1 <= tokenEndIndex) {
+				// This wine decowation ends befowe this token ends
+				wastWesuwtEndIndex = wineDecowation.endOffset + 1;
+				wesuwt[wesuwtWen++] = new WinePawt(wastWesuwtEndIndex, tokenType + ' ' + wineDecowation.cwassName, tokenMetadata | wineDecowation.metadata);
+				wineDecowationIndex++;
+			} ewse {
+				// This wine decowation continues on to the next token
+				wastWesuwtEndIndex = tokenEndIndex;
+				wesuwt[wesuwtWen++] = new WinePawt(wastWesuwtEndIndex, tokenType + ' ' + wineDecowation.cwassName, tokenMetadata | wineDecowation.metadata);
+				bweak;
 			}
 		}
 
-		if (tokenEndIndex > lastResultEndIndex) {
-			lastResultEndIndex = tokenEndIndex;
-			result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata);
+		if (tokenEndIndex > wastWesuwtEndIndex) {
+			wastWesuwtEndIndex = tokenEndIndex;
+			wesuwt[wesuwtWen++] = new WinePawt(wastWesuwtEndIndex, tokenType, tokenMetadata);
 		}
 	}
 
-	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
-	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-			const lineDecoration = lineDecorations[lineDecorationIndex];
-			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata);
-			lineDecorationIndex++;
+	const wastTokenEndIndex = tokens[tokens.wength - 1].endIndex;
+	if (wineDecowationIndex < wineDecowationsWen && wineDecowations[wineDecowationIndex].stawtOffset === wastTokenEndIndex) {
+		whiwe (wineDecowationIndex < wineDecowationsWen && wineDecowations[wineDecowationIndex].stawtOffset === wastTokenEndIndex) {
+			const wineDecowation = wineDecowations[wineDecowationIndex];
+			wesuwt[wesuwtWen++] = new WinePawt(wastWesuwtEndIndex, wineDecowation.cwassName, wineDecowation.metadata);
+			wineDecowationIndex++;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * This function is on purpose not split up into multiple functions to allow runtime type inference (i.e. performance reasons).
- * Notice how all the needed data is fully resolved and passed in (i.e. no other calls).
+ * This function is on puwpose not spwit up into muwtipwe functions to awwow wuntime type infewence (i.e. pewfowmance weasons).
+ * Notice how aww the needed data is fuwwy wesowved and passed in (i.e. no otha cawws).
  */
-function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): RenderLineOutput {
+function _wendewWine(input: WesowvedWendewWineInput, sb: IStwingBuiwda): WendewWineOutput {
 	const fontIsMonospace = input.fontIsMonospace;
-	const canUseHalfwidthRightwardsArrow = input.canUseHalfwidthRightwardsArrow;
-	const containsForeignElements = input.containsForeignElements;
-	const lineContent = input.lineContent;
-	const len = input.len;
-	const isOverflowing = input.isOverflowing;
-	const parts = input.parts;
-	const fauxIndentLength = input.fauxIndentLength;
+	const canUseHawfwidthWightwawdsAwwow = input.canUseHawfwidthWightwawdsAwwow;
+	const containsFoweignEwements = input.containsFoweignEwements;
+	const wineContent = input.wineContent;
+	const wen = input.wen;
+	const isOvewfwowing = input.isOvewfwowing;
+	const pawts = input.pawts;
+	const fauxIndentWength = input.fauxIndentWength;
 	const tabSize = input.tabSize;
-	const startVisibleColumn = input.startVisibleColumn;
-	const containsRTL = input.containsRTL;
+	const stawtVisibweCowumn = input.stawtVisibweCowumn;
+	const containsWTW = input.containsWTW;
 	const spaceWidth = input.spaceWidth;
-	const renderSpaceCharCode = input.renderSpaceCharCode;
-	const renderWhitespace = input.renderWhitespace;
-	const renderControlCharacters = input.renderControlCharacters;
+	const wendewSpaceChawCode = input.wendewSpaceChawCode;
+	const wendewWhitespace = input.wendewWhitespace;
+	const wendewContwowChawactews = input.wendewContwowChawactews;
 
-	const characterMapping = new CharacterMapping(len + 1, parts.length);
-	let lastCharacterMappingDefined = false;
+	const chawactewMapping = new ChawactewMapping(wen + 1, pawts.wength);
+	wet wastChawactewMappingDefined = fawse;
 
-	let charIndex = 0;
-	let visibleColumn = startVisibleColumn;
-	let charOffsetInPart = 0;
+	wet chawIndex = 0;
+	wet visibweCowumn = stawtVisibweCowumn;
+	wet chawOffsetInPawt = 0;
 
-	let partDisplacement = 0;
-	let prevPartContentCnt = 0;
-	let partAbsoluteOffset = 0;
+	wet pawtDispwacement = 0;
+	wet pwevPawtContentCnt = 0;
+	wet pawtAbsowuteOffset = 0;
 
-	if (containsRTL) {
-		sb.appendASCIIString('<span dir="ltr">');
-	} else {
-		sb.appendASCIIString('<span>');
+	if (containsWTW) {
+		sb.appendASCIIStwing('<span diw="wtw">');
+	} ewse {
+		sb.appendASCIIStwing('<span>');
 	}
 
-	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
-		partAbsoluteOffset += prevPartContentCnt;
+	fow (wet pawtIndex = 0, tokensWen = pawts.wength; pawtIndex < tokensWen; pawtIndex++) {
+		pawtAbsowuteOffset += pwevPawtContentCnt;
 
-		const part = parts[partIndex];
-		const partEndIndex = part.endIndex;
-		const partType = part.type;
-		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
-		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
-		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
-		charOffsetInPart = 0;
+		const pawt = pawts[pawtIndex];
+		const pawtEndIndex = pawt.endIndex;
+		const pawtType = pawt.type;
+		const pawtWendewsWhitespace = (wendewWhitespace !== WendewWhitespace.None && pawt.isWhitespace());
+		const pawtWendewsWhitespaceWithWidth = pawtWendewsWhitespace && !fontIsMonospace && (pawtType === 'mtkw'/*onwy whitespace*/ || !containsFoweignEwements);
+		const pawtIsEmptyAndHasPseudoAfta = (chawIndex === pawtEndIndex && pawt.isPseudoAfta());
+		chawOffsetInPawt = 0;
 
-		sb.appendASCIIString('<span class="');
-		sb.appendASCIIString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
-		sb.appendASCII(CharCode.DoubleQuote);
+		sb.appendASCIIStwing('<span cwass="');
+		sb.appendASCIIStwing(pawtWendewsWhitespaceWithWidth ? 'mtkz' : pawtType);
+		sb.appendASCII(ChawCode.DoubweQuote);
 
-		if (partRendersWhitespace) {
+		if (pawtWendewsWhitespace) {
 
-			let partContentCnt = 0;
+			wet pawtContentCnt = 0;
 			{
-				let _charIndex = charIndex;
-				let _visibleColumn = visibleColumn;
+				wet _chawIndex = chawIndex;
+				wet _visibweCowumn = visibweCowumn;
 
-				for (; _charIndex < partEndIndex; _charIndex++) {
-					const charCode = lineContent.charCodeAt(_charIndex);
-					const charWidth = (charCode === CharCode.Tab ? (tabSize - (_visibleColumn % tabSize)) : 1) | 0;
-					partContentCnt += charWidth;
-					if (_charIndex >= fauxIndentLength) {
-						_visibleColumn += charWidth;
+				fow (; _chawIndex < pawtEndIndex; _chawIndex++) {
+					const chawCode = wineContent.chawCodeAt(_chawIndex);
+					const chawWidth = (chawCode === ChawCode.Tab ? (tabSize - (_visibweCowumn % tabSize)) : 1) | 0;
+					pawtContentCnt += chawWidth;
+					if (_chawIndex >= fauxIndentWength) {
+						_visibweCowumn += chawWidth;
 					}
 				}
 			}
 
-			if (partRendersWhitespaceWithWidth) {
-				sb.appendASCIIString(' style="width:');
-				sb.appendASCIIString(String(spaceWidth * partContentCnt));
-				sb.appendASCIIString('px"');
+			if (pawtWendewsWhitespaceWithWidth) {
+				sb.appendASCIIStwing(' stywe="width:');
+				sb.appendASCIIStwing(Stwing(spaceWidth * pawtContentCnt));
+				sb.appendASCIIStwing('px"');
 			}
-			sb.appendASCII(CharCode.GreaterThan);
+			sb.appendASCII(ChawCode.GweatewThan);
 
-			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
-				partDisplacement = 0;
-				const charCode = lineContent.charCodeAt(charIndex);
-				let charWidth: number;
+			fow (; chawIndex < pawtEndIndex; chawIndex++) {
+				chawactewMapping.setCowumnInfo(chawIndex + 1, pawtIndex - pawtDispwacement, chawOffsetInPawt, pawtAbsowuteOffset);
+				pawtDispwacement = 0;
+				const chawCode = wineContent.chawCodeAt(chawIndex);
+				wet chawWidth: numba;
 
-				if (charCode === CharCode.Tab) {
-					charWidth = (tabSize - (visibleColumn % tabSize)) | 0;
+				if (chawCode === ChawCode.Tab) {
+					chawWidth = (tabSize - (visibweCowumn % tabSize)) | 0;
 
-					if (!canUseHalfwidthRightwardsArrow || charWidth > 1) {
-						sb.write1(0x2192); // RIGHTWARDS ARROW
-					} else {
-						sb.write1(0xFFEB); // HALFWIDTH RIGHTWARDS ARROW
+					if (!canUseHawfwidthWightwawdsAwwow || chawWidth > 1) {
+						sb.wwite1(0x2192); // WIGHTWAWDS AWWOW
+					} ewse {
+						sb.wwite1(0xFFEB); // HAWFWIDTH WIGHTWAWDS AWWOW
 					}
-					for (let space = 2; space <= charWidth; space++) {
-						sb.write1(0xA0); // &nbsp;
+					fow (wet space = 2; space <= chawWidth; space++) {
+						sb.wwite1(0xA0); // &nbsp;
 					}
 
-				} else { // must be CharCode.Space
-					charWidth = 1;
+				} ewse { // must be ChawCode.Space
+					chawWidth = 1;
 
-					sb.write1(renderSpaceCharCode); // &middot; or word separator middle dot
+					sb.wwite1(wendewSpaceChawCode); // &middot; ow wowd sepawatow middwe dot
 				}
 
-				charOffsetInPart += charWidth;
-				if (charIndex >= fauxIndentLength) {
-					visibleColumn += charWidth;
-				}
-			}
-
-			prevPartContentCnt = partContentCnt;
-
-		} else {
-
-			let partContentCnt = 0;
-
-			sb.appendASCII(CharCode.GreaterThan);
-
-			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
-				partDisplacement = 0;
-				const charCode = lineContent.charCodeAt(charIndex);
-
-				let producedCharacters = 1;
-				let charWidth = 1;
-
-				switch (charCode) {
-					case CharCode.Tab:
-						producedCharacters = (tabSize - (visibleColumn % tabSize));
-						charWidth = producedCharacters;
-						for (let space = 1; space <= producedCharacters; space++) {
-							sb.write1(0xA0); // &nbsp;
-						}
-						break;
-
-					case CharCode.Space:
-						sb.write1(0xA0); // &nbsp;
-						break;
-
-					case CharCode.LessThan:
-						sb.appendASCIIString('&lt;');
-						break;
-
-					case CharCode.GreaterThan:
-						sb.appendASCIIString('&gt;');
-						break;
-
-					case CharCode.Ampersand:
-						sb.appendASCIIString('&amp;');
-						break;
-
-					case CharCode.Null:
-						if (renderControlCharacters) {
-							// See https://unicode-table.com/en/blocks/control-pictures/
-							sb.write1(9216);
-						} else {
-							sb.appendASCIIString('&#00;');
-						}
-						break;
-
-					case CharCode.UTF8_BOM:
-					case CharCode.LINE_SEPARATOR:
-					case CharCode.PARAGRAPH_SEPARATOR:
-					case CharCode.NEXT_LINE:
-						sb.write1(0xFFFD);
-						break;
-
-					default:
-						if (strings.isFullWidthCharacter(charCode)) {
-							charWidth++;
-						}
-						// See https://unicode-table.com/en/blocks/control-pictures/
-						if (renderControlCharacters && charCode < 32) {
-							sb.write1(9216 + charCode);
-						} else if (renderControlCharacters && charCode === 127) {
-							// DEL
-							sb.write1(9249);
-						} else {
-							sb.write1(charCode);
-						}
-				}
-
-				charOffsetInPart += producedCharacters;
-				partContentCnt += producedCharacters;
-				if (charIndex >= fauxIndentLength) {
-					visibleColumn += charWidth;
+				chawOffsetInPawt += chawWidth;
+				if (chawIndex >= fauxIndentWength) {
+					visibweCowumn += chawWidth;
 				}
 			}
 
-			prevPartContentCnt = partContentCnt;
+			pwevPawtContentCnt = pawtContentCnt;
+
+		} ewse {
+
+			wet pawtContentCnt = 0;
+
+			sb.appendASCII(ChawCode.GweatewThan);
+
+			fow (; chawIndex < pawtEndIndex; chawIndex++) {
+				chawactewMapping.setCowumnInfo(chawIndex + 1, pawtIndex - pawtDispwacement, chawOffsetInPawt, pawtAbsowuteOffset);
+				pawtDispwacement = 0;
+				const chawCode = wineContent.chawCodeAt(chawIndex);
+
+				wet pwoducedChawactews = 1;
+				wet chawWidth = 1;
+
+				switch (chawCode) {
+					case ChawCode.Tab:
+						pwoducedChawactews = (tabSize - (visibweCowumn % tabSize));
+						chawWidth = pwoducedChawactews;
+						fow (wet space = 1; space <= pwoducedChawactews; space++) {
+							sb.wwite1(0xA0); // &nbsp;
+						}
+						bweak;
+
+					case ChawCode.Space:
+						sb.wwite1(0xA0); // &nbsp;
+						bweak;
+
+					case ChawCode.WessThan:
+						sb.appendASCIIStwing('&wt;');
+						bweak;
+
+					case ChawCode.GweatewThan:
+						sb.appendASCIIStwing('&gt;');
+						bweak;
+
+					case ChawCode.Ampewsand:
+						sb.appendASCIIStwing('&amp;');
+						bweak;
+
+					case ChawCode.Nuww:
+						if (wendewContwowChawactews) {
+							// See https://unicode-tabwe.com/en/bwocks/contwow-pictuwes/
+							sb.wwite1(9216);
+						} ewse {
+							sb.appendASCIIStwing('&#00;');
+						}
+						bweak;
+
+					case ChawCode.UTF8_BOM:
+					case ChawCode.WINE_SEPAWATOW:
+					case ChawCode.PAWAGWAPH_SEPAWATOW:
+					case ChawCode.NEXT_WINE:
+						sb.wwite1(0xFFFD);
+						bweak;
+
+					defauwt:
+						if (stwings.isFuwwWidthChawacta(chawCode)) {
+							chawWidth++;
+						}
+						// See https://unicode-tabwe.com/en/bwocks/contwow-pictuwes/
+						if (wendewContwowChawactews && chawCode < 32) {
+							sb.wwite1(9216 + chawCode);
+						} ewse if (wendewContwowChawactews && chawCode === 127) {
+							// DEW
+							sb.wwite1(9249);
+						} ewse {
+							sb.wwite1(chawCode);
+						}
+				}
+
+				chawOffsetInPawt += pwoducedChawactews;
+				pawtContentCnt += pwoducedChawactews;
+				if (chawIndex >= fauxIndentWength) {
+					visibweCowumn += chawWidth;
+				}
+			}
+
+			pwevPawtContentCnt = pawtContentCnt;
 		}
 
-		if (partIsEmptyAndHasPseudoAfter) {
-			partDisplacement++;
-		} else {
-			partDisplacement = 0;
+		if (pawtIsEmptyAndHasPseudoAfta) {
+			pawtDispwacement++;
+		} ewse {
+			pawtDispwacement = 0;
 		}
 
-		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
-			lastCharacterMappingDefined = true;
-			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset);
+		if (chawIndex >= wen && !wastChawactewMappingDefined && pawt.isPseudoAfta()) {
+			wastChawactewMappingDefined = twue;
+			chawactewMapping.setCowumnInfo(chawIndex + 1, pawtIndex, chawOffsetInPawt, pawtAbsowuteOffset);
 		}
 
-		sb.appendASCIIString('</span>');
+		sb.appendASCIIStwing('</span>');
 
 	}
 
-	if (!lastCharacterMappingDefined) {
-		// When getting client rects for the last character, we will position the
-		// text range at the end of the span, insteaf of at the beginning of next span
-		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+	if (!wastChawactewMappingDefined) {
+		// When getting cwient wects fow the wast chawacta, we wiww position the
+		// text wange at the end of the span, insteaf of at the beginning of next span
+		chawactewMapping.setCowumnInfo(wen + 1, pawts.wength - 1, chawOffsetInPawt, pawtAbsowuteOffset);
 	}
 
-	if (isOverflowing) {
-		sb.appendASCIIString('<span>&hellip;</span>');
+	if (isOvewfwowing) {
+		sb.appendASCIIStwing('<span>&hewwip;</span>');
 	}
 
-	sb.appendASCIIString('</span>');
+	sb.appendASCIIStwing('</span>');
 
-	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
+	wetuwn new WendewWineOutput(chawactewMapping, containsWTW, containsFoweignEwements);
 }

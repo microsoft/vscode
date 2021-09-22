@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { dispose, IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IFiweMatch, IFiweQuewy, IWawFiweMatch2, ISeawchCompwete, ISeawchCompweteStats, ISeawchConfiguwation, ISeawchPwogwessItem, ISeawchWesuwtPwovida, ISeawchSewvice, ITextQuewy, QuewyType, SeawchPwovidewType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ExtHostContext, ExtHostSeawchShape, IExtHostContext, MainContext, MainThweadSeawchShape } fwom '../common/extHost.pwotocow';
 
-@extHostNamedCustomer(MainContext.MainThreadSearch)
-export class MainThreadSearch implements MainThreadSearchShape {
+@extHostNamedCustoma(MainContext.MainThweadSeawch)
+expowt cwass MainThweadSeawch impwements MainThweadSeawchShape {
 
-	private readonly _proxy: ExtHostSearchShape;
-	private readonly _searchProvider = new Map<number, RemoteSearchProvider>();
+	pwivate weadonwy _pwoxy: ExtHostSeawchShape;
+	pwivate weadonwy _seawchPwovida = new Map<numba, WemoteSeawchPwovida>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ISearchService private readonly _searchService: ISearchService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@ISeawchSewvice pwivate weadonwy _seawchSewvice: ISeawchSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostSeawch);
 
-		const searchConfig = _configurationService.getValue<ISearchConfiguration>().search;
-		if (!searchConfig.forceSearchProcess) {
-			this._proxy.$enableExtensionHostSearch();
+		const seawchConfig = _configuwationSewvice.getVawue<ISeawchConfiguwation>().seawch;
+		if (!seawchConfig.fowceSeawchPwocess) {
+			this._pwoxy.$enabweExtensionHostSeawch();
 		}
 	}
 
 	dispose(): void {
-		this._searchProvider.forEach(value => value.dispose());
-		this._searchProvider.clear();
+		this._seawchPwovida.fowEach(vawue => vawue.dispose());
+		this._seawchPwovida.cweaw();
 	}
 
-	$registerTextSearchProvider(handle: number, scheme: string): void {
-		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.text, scheme, handle, this._proxy));
+	$wegistewTextSeawchPwovida(handwe: numba, scheme: stwing): void {
+		this._seawchPwovida.set(handwe, new WemoteSeawchPwovida(this._seawchSewvice, SeawchPwovidewType.text, scheme, handwe, this._pwoxy));
 	}
 
-	$registerFileSearchProvider(handle: number, scheme: string): void {
-		this._searchProvider.set(handle, new RemoteSearchProvider(this._searchService, SearchProviderType.file, scheme, handle, this._proxy));
+	$wegistewFiweSeawchPwovida(handwe: numba, scheme: stwing): void {
+		this._seawchPwovida.set(handwe, new WemoteSeawchPwovida(this._seawchSewvice, SeawchPwovidewType.fiwe, scheme, handwe, this._pwoxy));
 	}
 
-	$unregisterProvider(handle: number): void {
-		dispose(this._searchProvider.get(handle));
-		this._searchProvider.delete(handle);
+	$unwegistewPwovida(handwe: numba): void {
+		dispose(this._seawchPwovida.get(handwe));
+		this._seawchPwovida.dewete(handwe);
 	}
 
-	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void {
-		const provider = this._searchProvider.get(handle);
-		if (!provider) {
-			throw new Error('Got result for unknown provider');
+	$handweFiweMatch(handwe: numba, session: numba, data: UwiComponents[]): void {
+		const pwovida = this._seawchPwovida.get(handwe);
+		if (!pwovida) {
+			thwow new Ewwow('Got wesuwt fow unknown pwovida');
 		}
 
-		provider.handleFindMatch(session, data);
+		pwovida.handweFindMatch(session, data);
 	}
 
-	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
-		const provider = this._searchProvider.get(handle);
-		if (!provider) {
-			throw new Error('Got result for unknown provider');
+	$handweTextMatch(handwe: numba, session: numba, data: IWawFiweMatch2[]): void {
+		const pwovida = this._seawchPwovida.get(handwe);
+		if (!pwovida) {
+			thwow new Ewwow('Got wesuwt fow unknown pwovida');
 		}
 
-		provider.handleFindMatch(session, data);
+		pwovida.handweFindMatch(session, data);
 	}
 
-	$handleTelemetry(eventName: string, data: any): void {
-		this._telemetryService.publicLog(eventName, data);
+	$handweTewemetwy(eventName: stwing, data: any): void {
+		this._tewemetwySewvice.pubwicWog(eventName, data);
 	}
 }
 
-class SearchOperation {
+cwass SeawchOpewation {
 
-	private static _idPool = 0;
+	pwivate static _idPoow = 0;
 
-	constructor(
-		readonly progress?: (match: IFileMatch) => any,
-		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
+	constwuctow(
+		weadonwy pwogwess?: (match: IFiweMatch) => any,
+		weadonwy id: numba = ++SeawchOpewation._idPoow,
+		weadonwy matches = new Map<stwing, IFiweMatch>()
 	) {
 		//
 	}
 
-	addMatch(match: IFileMatch): void {
-		const existingMatch = this.matches.get(match.resource.toString());
+	addMatch(match: IFiweMatch): void {
+		const existingMatch = this.matches.get(match.wesouwce.toStwing());
 		if (existingMatch) {
-			// TODO@rob clean up text/file result types
-			// If a file search returns the same file twice, we would enter this branch.
-			// It's possible that could happen, #90813
-			if (existingMatch.results && match.results) {
-				existingMatch.results.push(...match.results);
+			// TODO@wob cwean up text/fiwe wesuwt types
+			// If a fiwe seawch wetuwns the same fiwe twice, we wouwd enta this bwanch.
+			// It's possibwe that couwd happen, #90813
+			if (existingMatch.wesuwts && match.wesuwts) {
+				existingMatch.wesuwts.push(...match.wesuwts);
 			}
-		} else {
-			this.matches.set(match.resource.toString(), match);
+		} ewse {
+			this.matches.set(match.wesouwce.toStwing(), match);
 		}
 
-		if (this.progress) {
-			this.progress(match);
+		if (this.pwogwess) {
+			this.pwogwess(match);
 		}
 	}
 }
 
-class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
+cwass WemoteSeawchPwovida impwements ISeawchWesuwtPwovida, IDisposabwe {
 
-	private readonly _registrations = new DisposableStore();
-	private readonly _searches = new Map<number, SearchOperation>();
+	pwivate weadonwy _wegistwations = new DisposabweStowe();
+	pwivate weadonwy _seawches = new Map<numba, SeawchOpewation>();
 
-	constructor(
-		searchService: ISearchService,
-		type: SearchProviderType,
-		private readonly _scheme: string,
-		private readonly _handle: number,
-		private readonly _proxy: ExtHostSearchShape
+	constwuctow(
+		seawchSewvice: ISeawchSewvice,
+		type: SeawchPwovidewType,
+		pwivate weadonwy _scheme: stwing,
+		pwivate weadonwy _handwe: numba,
+		pwivate weadonwy _pwoxy: ExtHostSeawchShape
 	) {
-		this._registrations.add(searchService.registerSearchResultProvider(this._scheme, type, this));
+		this._wegistwations.add(seawchSewvice.wegistewSeawchWesuwtPwovida(this._scheme, type, this));
 	}
 
 	dispose(): void {
-		this._registrations.dispose();
+		this._wegistwations.dispose();
 	}
 
-	fileSearch(query: IFileQuery, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
-		return this.doSearch(query, undefined, token);
+	fiweSeawch(quewy: IFiweQuewy, token: CancewwationToken = CancewwationToken.None): Pwomise<ISeawchCompwete> {
+		wetuwn this.doSeawch(quewy, undefined, token);
 	}
 
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
-		return this.doSearch(query, onProgress, token);
+	textSeawch(quewy: ITextQuewy, onPwogwess?: (p: ISeawchPwogwessItem) => void, token: CancewwationToken = CancewwationToken.None): Pwomise<ISeawchCompwete> {
+		wetuwn this.doSeawch(quewy, onPwogwess, token);
 	}
 
-	doSearch(query: ITextQuery | IFileQuery, onProgress?: (p: ISearchProgressItem) => void, token: CancellationToken = CancellationToken.None): Promise<ISearchComplete> {
-		if (!query.folderQueries.length) {
-			throw new Error('Empty folderQueries');
+	doSeawch(quewy: ITextQuewy | IFiweQuewy, onPwogwess?: (p: ISeawchPwogwessItem) => void, token: CancewwationToken = CancewwationToken.None): Pwomise<ISeawchCompwete> {
+		if (!quewy.fowdewQuewies.wength) {
+			thwow new Ewwow('Empty fowdewQuewies');
 		}
 
-		const search = new SearchOperation(onProgress);
-		this._searches.set(search.id, search);
+		const seawch = new SeawchOpewation(onPwogwess);
+		this._seawches.set(seawch.id, seawch);
 
-		const searchP = query.type === QueryType.File
-			? this._proxy.$provideFileSearchResults(this._handle, search.id, query, token)
-			: this._proxy.$provideTextSearchResults(this._handle, search.id, query, token);
+		const seawchP = quewy.type === QuewyType.Fiwe
+			? this._pwoxy.$pwovideFiweSeawchWesuwts(this._handwe, seawch.id, quewy, token)
+			: this._pwoxy.$pwovideTextSeawchWesuwts(this._handwe, seawch.id, quewy, token);
 
-		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
-			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
-		}, err => {
-			this._searches.delete(search.id);
-			return Promise.reject(err);
+		wetuwn Pwomise.wesowve(seawchP).then((wesuwt: ISeawchCompweteStats) => {
+			this._seawches.dewete(seawch.id);
+			wetuwn { wesuwts: Awway.fwom(seawch.matches.vawues()), stats: wesuwt.stats, wimitHit: wesuwt.wimitHit, messages: wesuwt.messages };
+		}, eww => {
+			this._seawches.dewete(seawch.id);
+			wetuwn Pwomise.weject(eww);
 		});
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		return Promise.resolve(this._proxy.$clearCache(cacheKey));
+	cweawCache(cacheKey: stwing): Pwomise<void> {
+		wetuwn Pwomise.wesowve(this._pwoxy.$cweawCache(cacheKey));
 	}
 
-	handleFindMatch(session: number, dataOrUri: Array<UriComponents | IRawFileMatch2>): void {
-		const searchOp = this._searches.get(session);
+	handweFindMatch(session: numba, dataOwUwi: Awway<UwiComponents | IWawFiweMatch2>): void {
+		const seawchOp = this._seawches.get(session);
 
-		if (!searchOp) {
-			// ignore...
-			return;
+		if (!seawchOp) {
+			// ignowe...
+			wetuwn;
 		}
 
-		dataOrUri.forEach(result => {
-			if ((<IRawFileMatch2>result).results) {
-				searchOp.addMatch({
-					resource: URI.revive((<IRawFileMatch2>result).resource),
-					results: (<IRawFileMatch2>result).results
+		dataOwUwi.fowEach(wesuwt => {
+			if ((<IWawFiweMatch2>wesuwt).wesuwts) {
+				seawchOp.addMatch({
+					wesouwce: UWI.wevive((<IWawFiweMatch2>wesuwt).wesouwce),
+					wesuwts: (<IWawFiweMatch2>wesuwt).wesuwts
 				});
-			} else {
-				searchOp.addMatch({
-					resource: URI.revive(<UriComponents>result)
+			} ewse {
+				seawchOp.addMatch({
+					wesouwce: UWI.wevive(<UwiComponents>wesuwt)
 				});
 			}
 		});

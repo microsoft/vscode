@@ -1,7 +1,7 @@
-# Language Features for Markdown files
+# Wanguage Featuwes fow Mawkdown fiwes
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [Markdown in Visual Studio Code](https://code.visualstudio.com/docs/languages/markdown) to learn about the features of this extension.
+See [Mawkdown in Visuaw Studio Code](https://code.visuawstudio.com/docs/wanguages/mawkdown) to weawn about the featuwes of this extension.

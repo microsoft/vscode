@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+impowt { CosmosCwient } fwom '@azuwe/cosmos';
+impowt { wetwy } fwom './wetwy';
 
-function getEnv(name: string): string {
-	const result = process.env[name];
+function getEnv(name: stwing): stwing {
+	const wesuwt = pwocess.env[name];
 
-	if (typeof result === 'undefined') {
-		throw new Error('Missing env: ' + name);
+	if (typeof wesuwt === 'undefined') {
+		thwow new Ewwow('Missing env: ' + name);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-interface Config {
-	id: string;
-	frozen: boolean;
+intewface Config {
+	id: stwing;
+	fwozen: boowean;
 }
 
-function createDefaultConfig(quality: string): Config {
-	return {
-		id: quality,
-		frozen: false
+function cweateDefauwtConfig(quawity: stwing): Config {
+	wetuwn {
+		id: quawity,
+		fwozen: fawse
 	};
 }
 
-async function getConfig(client: CosmosClient, quality: string): Promise<Config> {
-	const query = `SELECT TOP 1 * FROM c WHERE c.id = "${quality}"`;
+async function getConfig(cwient: CosmosCwient, quawity: stwing): Pwomise<Config> {
+	const quewy = `SEWECT TOP 1 * FWOM c WHEWE c.id = "${quawity}"`;
 
-	const res = await client.database('builds').container('config').items.query(query).fetchAll();
+	const wes = await cwient.database('buiwds').containa('config').items.quewy(quewy).fetchAww();
 
-	if (res.resources.length === 0) {
-		return createDefaultConfig(quality);
+	if (wes.wesouwces.wength === 0) {
+		wetuwn cweateDefauwtConfig(quawity);
 	}
 
-	return res.resources[0] as Config;
+	wetuwn wes.wesouwces[0] as Config;
 }
 
-async function main(): Promise<void> {
-	const commit = getEnv('BUILD_SOURCEVERSION');
-	const quality = getEnv('VSCODE_QUALITY');
+async function main(): Pwomise<void> {
+	const commit = getEnv('BUIWD_SOUWCEVEWSION');
+	const quawity = getEnv('VSCODE_QUAWITY');
 
-	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-	const config = await getConfig(client, quality);
+	const cwient = new CosmosCwient({ endpoint: pwocess.env['AZUWE_DOCUMENTDB_ENDPOINT']!, key: pwocess.env['AZUWE_DOCUMENTDB_MASTEWKEY'] });
+	const config = await getConfig(cwient, quawity);
 
-	console.log('Quality config:', config);
+	consowe.wog('Quawity config:', config);
 
-	if (config.frozen) {
-		console.log(`Skipping release because quality ${quality} is frozen.`);
-		return;
+	if (config.fwozen) {
+		consowe.wog(`Skipping wewease because quawity ${quawity} is fwozen.`);
+		wetuwn;
 	}
 
-	console.log(`Releasing build ${commit}...`);
+	consowe.wog(`Weweasing buiwd ${commit}...`);
 
-	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+	const scwipts = cwient.database('buiwds').containa(quawity).scwipts;
+	await wetwy(() => scwipts.stowedPwoceduwe('weweaseBuiwd').execute('', [commit]));
 }
 
 main().then(() => {
-	console.log('Build successfully released');
-	process.exit(0);
-}, err => {
-	console.error(err);
-	process.exit(1);
+	consowe.wog('Buiwd successfuwwy weweased');
+	pwocess.exit(0);
+}, eww => {
+	consowe.ewwow(eww);
+	pwocess.exit(1);
 });

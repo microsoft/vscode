@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as Objects from 'vs/base/common/objects';
-import { UriComponents, URI } from 'vs/base/common/uri';
+impowt * as nws fwom 'vs/nws';
+impowt * as Types fwom 'vs/base/common/types';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
 
-import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
+impowt { PwobwemMatcha } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
+impowt { IWowkspaceFowda, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WawContextKey, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TaskDefinitionWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/taskDefinitionWegistwy';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { USEW_TASKS_GWOUP_KEY } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
 
-export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
-export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };
+expowt const TASK_WUNNING_STATE = new WawContextKey<boowean>('taskWunning', fawse, nws.wocawize('tasks.taskWunningContext', "Whetha a task is cuwwentwy wunning."));
+expowt const TASKS_CATEGOWY = { vawue: nws.wocawize('tasksCategowy', "Tasks"), owiginaw: 'Tasks' };
 
-export enum ShellQuoting {
+expowt enum ShewwQuoting {
 	/**
-	 * Use character escaping.
+	 * Use chawacta escaping.
 	 */
 	Escape = 1,
 
 	/**
-	 * Use strong quoting
+	 * Use stwong quoting
 	 */
-	Strong = 2,
+	Stwong = 2,
 
 	/**
 	 * Use weak quoting.
@@ -38,475 +38,475 @@ export enum ShellQuoting {
 	Weak = 3,
 }
 
-export const CUSTOMIZED_TASK_TYPE = '$customized';
+expowt const CUSTOMIZED_TASK_TYPE = '$customized';
 
-export namespace ShellQuoting {
-	export function from(this: void, value: string): ShellQuoting {
-		if (!value) {
-			return ShellQuoting.Strong;
+expowt namespace ShewwQuoting {
+	expowt function fwom(this: void, vawue: stwing): ShewwQuoting {
+		if (!vawue) {
+			wetuwn ShewwQuoting.Stwong;
 		}
-		switch (value.toLowerCase()) {
+		switch (vawue.toWowewCase()) {
 			case 'escape':
-				return ShellQuoting.Escape;
-			case 'strong':
-				return ShellQuoting.Strong;
+				wetuwn ShewwQuoting.Escape;
+			case 'stwong':
+				wetuwn ShewwQuoting.Stwong;
 			case 'weak':
-				return ShellQuoting.Weak;
-			default:
-				return ShellQuoting.Strong;
+				wetuwn ShewwQuoting.Weak;
+			defauwt:
+				wetuwn ShewwQuoting.Stwong;
 		}
 	}
 }
 
-export interface ShellQuotingOptions {
+expowt intewface ShewwQuotingOptions {
 	/**
-	 * The character used to do character escaping.
+	 * The chawacta used to do chawacta escaping.
 	 */
-	escape?: string | {
-		escapeChar: string;
-		charsToEscape: string;
+	escape?: stwing | {
+		escapeChaw: stwing;
+		chawsToEscape: stwing;
 	};
 
 	/**
-	 * The character used for string quoting.
+	 * The chawacta used fow stwing quoting.
 	 */
-	strong?: string;
+	stwong?: stwing;
 
 	/**
-	 * The character used for weak quoting.
+	 * The chawacta used fow weak quoting.
 	 */
-	weak?: string;
+	weak?: stwing;
 }
 
-export interface ShellConfiguration {
+expowt intewface ShewwConfiguwation {
 	/**
-	 * The shell executable.
+	 * The sheww executabwe.
 	 */
-	executable?: string;
+	executabwe?: stwing;
 
 	/**
-	 * The arguments to be passed to the shell executable.
+	 * The awguments to be passed to the sheww executabwe.
 	 */
-	args?: string[];
+	awgs?: stwing[];
 
 	/**
-	 * Which kind of quotes the shell supports.
+	 * Which kind of quotes the sheww suppowts.
 	 */
-	quoting?: ShellQuotingOptions;
+	quoting?: ShewwQuotingOptions;
 }
 
-export interface CommandOptions {
+expowt intewface CommandOptions {
 
 	/**
-	 * The shell to use if the task is a shell command.
+	 * The sheww to use if the task is a sheww command.
 	 */
-	shell?: ShellConfiguration;
+	sheww?: ShewwConfiguwation;
 
 	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
+	 * The cuwwent wowking diwectowy of the executed pwogwam ow sheww.
+	 * If omitted VSCode's cuwwent wowkspace woot is used.
 	 */
-	cwd?: string;
+	cwd?: stwing;
 
 	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
+	 * The enviwonment of the executed pwogwam ow sheww. If omitted
+	 * the pawent pwocess' enviwonment is used.
 	 */
-	env?: { [key: string]: string; };
+	env?: { [key: stwing]: stwing; };
 }
 
-export namespace CommandOptions {
-	export const defaults: CommandOptions = { cwd: '${workspaceFolder}' };
+expowt namespace CommandOptions {
+	expowt const defauwts: CommandOptions = { cwd: '${wowkspaceFowda}' };
 }
 
-export enum RevealKind {
+expowt enum WeveawKind {
 	/**
-	 * Always brings the terminal to front if the task is executed.
+	 * Awways bwings the tewminaw to fwont if the task is executed.
 	 */
-	Always = 1,
+	Awways = 1,
 
 	/**
-	 * Only brings the terminal to front if a problem is detected executing the task
-	 * e.g. the task couldn't be started,
-	 * the task ended with an exit code other than zero,
-	 * or the problem matcher found an error.
+	 * Onwy bwings the tewminaw to fwont if a pwobwem is detected executing the task
+	 * e.g. the task couwdn't be stawted,
+	 * the task ended with an exit code otha than zewo,
+	 * ow the pwobwem matcha found an ewwow.
 	 */
-	Silent = 2,
+	Siwent = 2,
 
 	/**
-	 * The terminal never comes to front when the task is executed.
+	 * The tewminaw neva comes to fwont when the task is executed.
 	 */
-	Never = 3
+	Neva = 3
 }
 
-export namespace RevealKind {
-	export function fromString(this: void, value: string): RevealKind {
-		switch (value.toLowerCase()) {
-			case 'always':
-				return RevealKind.Always;
-			case 'silent':
-				return RevealKind.Silent;
-			case 'never':
-				return RevealKind.Never;
-			default:
-				return RevealKind.Always;
+expowt namespace WeveawKind {
+	expowt function fwomStwing(this: void, vawue: stwing): WeveawKind {
+		switch (vawue.toWowewCase()) {
+			case 'awways':
+				wetuwn WeveawKind.Awways;
+			case 'siwent':
+				wetuwn WeveawKind.Siwent;
+			case 'neva':
+				wetuwn WeveawKind.Neva;
+			defauwt:
+				wetuwn WeveawKind.Awways;
 		}
 	}
 }
 
-export enum RevealProblemKind {
+expowt enum WeveawPwobwemKind {
 	/**
-	 * Never reveals the problems panel when this task is executed.
+	 * Neva weveaws the pwobwems panew when this task is executed.
 	 */
-	Never = 1,
+	Neva = 1,
 
 
 	/**
-	 * Only reveals the problems panel if a problem is found.
+	 * Onwy weveaws the pwobwems panew if a pwobwem is found.
 	 */
-	OnProblem = 2,
+	OnPwobwem = 2,
 
 	/**
-	 * Never reveals the problems panel when this task is executed.
+	 * Neva weveaws the pwobwems panew when this task is executed.
 	 */
-	Always = 3
+	Awways = 3
 }
 
-export namespace RevealProblemKind {
-	export function fromString(this: void, value: string): RevealProblemKind {
-		switch (value.toLowerCase()) {
-			case 'always':
-				return RevealProblemKind.Always;
-			case 'never':
-				return RevealProblemKind.Never;
-			case 'onproblem':
-				return RevealProblemKind.OnProblem;
-			default:
-				return RevealProblemKind.OnProblem;
+expowt namespace WeveawPwobwemKind {
+	expowt function fwomStwing(this: void, vawue: stwing): WeveawPwobwemKind {
+		switch (vawue.toWowewCase()) {
+			case 'awways':
+				wetuwn WeveawPwobwemKind.Awways;
+			case 'neva':
+				wetuwn WeveawPwobwemKind.Neva;
+			case 'onpwobwem':
+				wetuwn WeveawPwobwemKind.OnPwobwem;
+			defauwt:
+				wetuwn WeveawPwobwemKind.OnPwobwem;
 		}
 	}
 }
 
-export enum PanelKind {
+expowt enum PanewKind {
 
 	/**
-	 * Shares a panel with other tasks. This is the default.
+	 * Shawes a panew with otha tasks. This is the defauwt.
 	 */
-	Shared = 1,
+	Shawed = 1,
 
 	/**
-	 * Uses a dedicated panel for this tasks. The panel is not
-	 * shared with other tasks.
+	 * Uses a dedicated panew fow this tasks. The panew is not
+	 * shawed with otha tasks.
 	 */
 	Dedicated = 2,
 
 	/**
-	 * Creates a new panel whenever this task is executed.
+	 * Cweates a new panew wheneva this task is executed.
 	 */
 	New = 3
 }
 
-export namespace PanelKind {
-	export function fromString(value: string): PanelKind {
-		switch (value.toLowerCase()) {
-			case 'shared':
-				return PanelKind.Shared;
+expowt namespace PanewKind {
+	expowt function fwomStwing(vawue: stwing): PanewKind {
+		switch (vawue.toWowewCase()) {
+			case 'shawed':
+				wetuwn PanewKind.Shawed;
 			case 'dedicated':
-				return PanelKind.Dedicated;
+				wetuwn PanewKind.Dedicated;
 			case 'new':
-				return PanelKind.New;
-			default:
-				return PanelKind.Shared;
+				wetuwn PanewKind.New;
+			defauwt:
+				wetuwn PanewKind.Shawed;
 		}
 	}
 }
 
-export interface PresentationOptions {
+expowt intewface PwesentationOptions {
 	/**
-	 * Controls whether the task output is reveal in the user interface.
-	 * Defaults to `RevealKind.Always`.
+	 * Contwows whetha the task output is weveaw in the usa intewface.
+	 * Defauwts to `WeveawKind.Awways`.
 	 */
-	reveal: RevealKind;
+	weveaw: WeveawKind;
 
 	/**
-	 * Controls whether the problems pane is revealed when running this task or not.
-	 * Defaults to `RevealProblemKind.Never`.
+	 * Contwows whetha the pwobwems pane is weveawed when wunning this task ow not.
+	 * Defauwts to `WeveawPwobwemKind.Neva`.
 	 */
-	revealProblems: RevealProblemKind;
+	weveawPwobwems: WeveawPwobwemKind;
 
 	/**
-	 * Controls whether the command associated with the task is echoed
-	 * in the user interface.
+	 * Contwows whetha the command associated with the task is echoed
+	 * in the usa intewface.
 	 */
-	echo: boolean;
+	echo: boowean;
 
 	/**
-	 * Controls whether the panel showing the task output is taking focus.
+	 * Contwows whetha the panew showing the task output is taking focus.
 	 */
-	focus: boolean;
+	focus: boowean;
 
 	/**
-	 * Controls if the task panel is used for this task only (dedicated),
-	 * shared between tasks (shared) or if a new panel is created on
-	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
+	 * Contwows if the task panew is used fow this task onwy (dedicated),
+	 * shawed between tasks (shawed) ow if a new panew is cweated on
+	 * evewy task execution (new). Defauwts to `TaskInstanceKind.Shawed`
 	 */
-	panel: PanelKind;
+	panew: PanewKind;
 
 	/**
-	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 * Contwows whetha to show the "Tewminaw wiww be weused by tasks, pwess any key to cwose it" message.
 	 */
-	showReuseMessage: boolean;
+	showWeuseMessage: boowean;
 
 	/**
-	 * Controls whether to clear the terminal before executing the task.
+	 * Contwows whetha to cweaw the tewminaw befowe executing the task.
 	 */
-	clear: boolean;
+	cweaw: boowean;
 
 	/**
-	 * Controls whether the task is executed in a specific terminal group using split panes.
+	 * Contwows whetha the task is executed in a specific tewminaw gwoup using spwit panes.
 	 */
-	group?: string;
+	gwoup?: stwing;
 
 	/**
-	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 * Contwows whetha the tewminaw that the task wuns in is cwosed when the task compwetes.
 	 */
-	close?: boolean;
+	cwose?: boowean;
 }
 
-export namespace PresentationOptions {
-	export const defaults: PresentationOptions = {
-		echo: true, reveal: RevealKind.Always, revealProblems: RevealProblemKind.Never, focus: false, panel: PanelKind.Shared, showReuseMessage: true, clear: false
+expowt namespace PwesentationOptions {
+	expowt const defauwts: PwesentationOptions = {
+		echo: twue, weveaw: WeveawKind.Awways, weveawPwobwems: WeveawPwobwemKind.Neva, focus: fawse, panew: PanewKind.Shawed, showWeuseMessage: twue, cweaw: fawse
 	};
 }
 
-export enum RuntimeType {
-	Shell = 1,
-	Process = 2,
+expowt enum WuntimeType {
+	Sheww = 1,
+	Pwocess = 2,
 	CustomExecution = 3
 }
 
-export namespace RuntimeType {
-	export function fromString(value: string): RuntimeType {
-		switch (value.toLowerCase()) {
-			case 'shell':
-				return RuntimeType.Shell;
-			case 'process':
-				return RuntimeType.Process;
+expowt namespace WuntimeType {
+	expowt function fwomStwing(vawue: stwing): WuntimeType {
+		switch (vawue.toWowewCase()) {
+			case 'sheww':
+				wetuwn WuntimeType.Sheww;
+			case 'pwocess':
+				wetuwn WuntimeType.Pwocess;
 			case 'customExecution':
-				return RuntimeType.CustomExecution;
-			default:
-				return RuntimeType.Process;
+				wetuwn WuntimeType.CustomExecution;
+			defauwt:
+				wetuwn WuntimeType.Pwocess;
 		}
 	}
-	export function toString(value: RuntimeType): string {
-		switch (value) {
-			case RuntimeType.Shell: return 'shell';
-			case RuntimeType.Process: return 'process';
-			case RuntimeType.CustomExecution: return 'customExecution';
-			default: return 'process';
-		}
-	}
-}
-
-export interface QuotedString {
-	value: string;
-	quoting: ShellQuoting;
-}
-
-export type CommandString = string | QuotedString;
-
-export namespace CommandString {
-	export function value(value: CommandString): string {
-		if (Types.isString(value)) {
-			return value;
-		} else {
-			return value.value;
+	expowt function toStwing(vawue: WuntimeType): stwing {
+		switch (vawue) {
+			case WuntimeType.Sheww: wetuwn 'sheww';
+			case WuntimeType.Pwocess: wetuwn 'pwocess';
+			case WuntimeType.CustomExecution: wetuwn 'customExecution';
+			defauwt: wetuwn 'pwocess';
 		}
 	}
 }
 
-export interface CommandConfiguration {
+expowt intewface QuotedStwing {
+	vawue: stwing;
+	quoting: ShewwQuoting;
+}
+
+expowt type CommandStwing = stwing | QuotedStwing;
+
+expowt namespace CommandStwing {
+	expowt function vawue(vawue: CommandStwing): stwing {
+		if (Types.isStwing(vawue)) {
+			wetuwn vawue;
+		} ewse {
+			wetuwn vawue.vawue;
+		}
+	}
+}
+
+expowt intewface CommandConfiguwation {
 
 	/**
 	 * The task type
 	 */
-	runtime?: RuntimeType;
+	wuntime?: WuntimeType;
 
 	/**
 	 * The command to execute
 	 */
-	name?: CommandString;
+	name?: CommandStwing;
 
 	/**
-	 * Additional command options.
+	 * Additionaw command options.
 	 */
 	options?: CommandOptions;
 
 	/**
-	 * Command arguments.
+	 * Command awguments.
 	 */
-	args?: CommandString[];
+	awgs?: CommandStwing[];
 
 	/**
-	 * The task selector if needed.
+	 * The task sewectow if needed.
 	 */
-	taskSelector?: string;
+	taskSewectow?: stwing;
 
 	/**
-	 * Whether to suppress the task name when merging global args
+	 * Whetha to suppwess the task name when mewging gwobaw awgs
 	 *
 	 */
-	suppressTaskName?: boolean;
+	suppwessTaskName?: boowean;
 
 	/**
-	 * Describes how the task is presented in the UI.
+	 * Descwibes how the task is pwesented in the UI.
 	 */
-	presentation?: PresentationOptions;
+	pwesentation?: PwesentationOptions;
 }
 
-export namespace TaskGroup {
-	export const Clean: TaskGroup = { _id: 'clean', isDefault: false };
+expowt namespace TaskGwoup {
+	expowt const Cwean: TaskGwoup = { _id: 'cwean', isDefauwt: fawse };
 
-	export const Build: TaskGroup = { _id: 'build', isDefault: false };
+	expowt const Buiwd: TaskGwoup = { _id: 'buiwd', isDefauwt: fawse };
 
-	export const Rebuild: TaskGroup = { _id: 'rebuild', isDefault: false };
+	expowt const Webuiwd: TaskGwoup = { _id: 'webuiwd', isDefauwt: fawse };
 
-	export const Test: TaskGroup = { _id: 'test', isDefault: false };
+	expowt const Test: TaskGwoup = { _id: 'test', isDefauwt: fawse };
 
-	export function is(value: any): value is string {
-		return value === Clean._id || value === Build._id || value === Rebuild._id || value === Test._id;
+	expowt function is(vawue: any): vawue is stwing {
+		wetuwn vawue === Cwean._id || vawue === Buiwd._id || vawue === Webuiwd._id || vawue === Test._id;
 	}
 
-	export function from(value: string | TaskGroup | undefined): TaskGroup | undefined {
-		if (value === undefined) {
-			return undefined;
-		} else if (Types.isString(value)) {
-			if (is(value)) {
-				return { _id: value, isDefault: false };
+	expowt function fwom(vawue: stwing | TaskGwoup | undefined): TaskGwoup | undefined {
+		if (vawue === undefined) {
+			wetuwn undefined;
+		} ewse if (Types.isStwing(vawue)) {
+			if (is(vawue)) {
+				wetuwn { _id: vawue, isDefauwt: fawse };
 			}
-			return undefined;
-		} else {
-			return value;
+			wetuwn undefined;
+		} ewse {
+			wetuwn vawue;
 		}
 	}
 }
 
-export interface TaskGroup {
-	_id: string;
-	isDefault?: boolean;
+expowt intewface TaskGwoup {
+	_id: stwing;
+	isDefauwt?: boowean;
 }
 
-export const enum TaskScope {
-	Global = 1,
-	Workspace = 2,
-	Folder = 3
+expowt const enum TaskScope {
+	Gwobaw = 1,
+	Wowkspace = 2,
+	Fowda = 3
 }
 
-export namespace TaskSourceKind {
-	export const Workspace: 'workspace' = 'workspace';
-	export const Extension: 'extension' = 'extension';
-	export const InMemory: 'inMemory' = 'inMemory';
-	export const WorkspaceFile: 'workspaceFile' = 'workspaceFile';
-	export const User: 'user' = 'user';
+expowt namespace TaskSouwceKind {
+	expowt const Wowkspace: 'wowkspace' = 'wowkspace';
+	expowt const Extension: 'extension' = 'extension';
+	expowt const InMemowy: 'inMemowy' = 'inMemowy';
+	expowt const WowkspaceFiwe: 'wowkspaceFiwe' = 'wowkspaceFiwe';
+	expowt const Usa: 'usa' = 'usa';
 
-	export function toConfigurationTarget(kind: string): ConfigurationTarget {
+	expowt function toConfiguwationTawget(kind: stwing): ConfiguwationTawget {
 		switch (kind) {
-			case TaskSourceKind.User: return ConfigurationTarget.USER;
-			case TaskSourceKind.WorkspaceFile: return ConfigurationTarget.WORKSPACE;
-			default: return ConfigurationTarget.WORKSPACE_FOLDER;
+			case TaskSouwceKind.Usa: wetuwn ConfiguwationTawget.USa;
+			case TaskSouwceKind.WowkspaceFiwe: wetuwn ConfiguwationTawget.WOWKSPACE;
+			defauwt: wetuwn ConfiguwationTawget.WOWKSPACE_FOWDa;
 		}
 	}
 }
 
-export interface TaskSourceConfigElement {
-	workspaceFolder?: IWorkspaceFolder;
-	workspace?: IWorkspace;
-	file: string;
-	index: number;
-	element: any;
+expowt intewface TaskSouwceConfigEwement {
+	wowkspaceFowda?: IWowkspaceFowda;
+	wowkspace?: IWowkspace;
+	fiwe: stwing;
+	index: numba;
+	ewement: any;
 }
 
-interface BaseTaskSource {
-	readonly kind: string;
-	readonly label: string;
+intewface BaseTaskSouwce {
+	weadonwy kind: stwing;
+	weadonwy wabew: stwing;
 }
 
-export interface WorkspaceTaskSource extends BaseTaskSource {
-	readonly kind: 'workspace';
-	readonly config: TaskSourceConfigElement;
-	readonly customizes?: KeyedTaskIdentifier;
+expowt intewface WowkspaceTaskSouwce extends BaseTaskSouwce {
+	weadonwy kind: 'wowkspace';
+	weadonwy config: TaskSouwceConfigEwement;
+	weadonwy customizes?: KeyedTaskIdentifia;
 }
 
-export interface ExtensionTaskSource extends BaseTaskSource {
-	readonly kind: 'extension';
-	readonly extension?: string;
-	readonly scope: TaskScope;
-	readonly workspaceFolder: IWorkspaceFolder | undefined;
+expowt intewface ExtensionTaskSouwce extends BaseTaskSouwce {
+	weadonwy kind: 'extension';
+	weadonwy extension?: stwing;
+	weadonwy scope: TaskScope;
+	weadonwy wowkspaceFowda: IWowkspaceFowda | undefined;
 }
 
-export interface ExtensionTaskSourceTransfer {
-	__workspaceFolder: UriComponents;
-	__definition: { type: string;[name: string]: any };
+expowt intewface ExtensionTaskSouwceTwansfa {
+	__wowkspaceFowda: UwiComponents;
+	__definition: { type: stwing;[name: stwing]: any };
 }
 
-export interface InMemoryTaskSource extends BaseTaskSource {
-	readonly kind: 'inMemory';
+expowt intewface InMemowyTaskSouwce extends BaseTaskSouwce {
+	weadonwy kind: 'inMemowy';
 }
 
-export interface UserTaskSource extends BaseTaskSource {
-	readonly kind: 'user';
-	readonly config: TaskSourceConfigElement;
-	readonly customizes?: KeyedTaskIdentifier;
+expowt intewface UsewTaskSouwce extends BaseTaskSouwce {
+	weadonwy kind: 'usa';
+	weadonwy config: TaskSouwceConfigEwement;
+	weadonwy customizes?: KeyedTaskIdentifia;
 }
 
-export interface WorkspaceFileTaskSource extends BaseTaskSource {
-	readonly kind: 'workspaceFile';
-	readonly config: TaskSourceConfigElement;
-	readonly customizes?: KeyedTaskIdentifier;
+expowt intewface WowkspaceFiweTaskSouwce extends BaseTaskSouwce {
+	weadonwy kind: 'wowkspaceFiwe';
+	weadonwy config: TaskSouwceConfigEwement;
+	weadonwy customizes?: KeyedTaskIdentifia;
 }
 
-export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource | UserTaskSource | WorkspaceFileTaskSource;
-export type FileBasedTaskSource = WorkspaceTaskSource | UserTaskSource | WorkspaceFileTaskSource;
-export interface TaskIdentifier {
-	type: string;
-	[name: string]: any;
+expowt type TaskSouwce = WowkspaceTaskSouwce | ExtensionTaskSouwce | InMemowyTaskSouwce | UsewTaskSouwce | WowkspaceFiweTaskSouwce;
+expowt type FiweBasedTaskSouwce = WowkspaceTaskSouwce | UsewTaskSouwce | WowkspaceFiweTaskSouwce;
+expowt intewface TaskIdentifia {
+	type: stwing;
+	[name: stwing]: any;
 }
 
-export interface KeyedTaskIdentifier extends TaskIdentifier {
-	_key: string;
+expowt intewface KeyedTaskIdentifia extends TaskIdentifia {
+	_key: stwing;
 }
 
-export interface TaskDependency {
-	uri: URI | string;
-	task: string | KeyedTaskIdentifier | undefined;
+expowt intewface TaskDependency {
+	uwi: UWI | stwing;
+	task: stwing | KeyedTaskIdentifia | undefined;
 }
 
-export const enum DependsOrder {
-	parallel = 'parallel',
+expowt const enum DependsOwda {
+	pawawwew = 'pawawwew',
 	sequence = 'sequence'
 }
 
-export interface ConfigurationProperties {
+expowt intewface ConfiguwationPwopewties {
 
 	/**
 	 * The task's name
 	 */
-	name?: string;
+	name?: stwing;
 
 	/**
 	 * The task's name
 	 */
-	identifier?: string;
+	identifia?: stwing;
 
 	/**
-	 * The task's group;
+	 * The task's gwoup;
 	 */
-	group?: string | TaskGroup;
+	gwoup?: stwing | TaskGwoup;
 
 	/**
-	 * The presentation options
+	 * The pwesentation options
 	 */
-	presentation?: PresentationOptions;
+	pwesentation?: PwesentationOptions;
 
 	/**
 	 * The command options;
@@ -514,690 +514,690 @@ export interface ConfigurationProperties {
 	options?: CommandOptions;
 
 	/**
-	 * Whether the task is a background task or not.
+	 * Whetha the task is a backgwound task ow not.
 	 */
-	isBackground?: boolean;
+	isBackgwound?: boowean;
 
 	/**
-	 * Whether the task should prompt on close for confirmation if running.
+	 * Whetha the task shouwd pwompt on cwose fow confiwmation if wunning.
 	 */
-	promptOnClose?: boolean;
+	pwomptOnCwose?: boowean;
 
 	/**
-	 * The other tasks this task depends on.
+	 * The otha tasks this task depends on.
 	 */
 	dependsOn?: TaskDependency[];
 
 	/**
-	 * The order the dependsOn tasks should be executed in.
+	 * The owda the dependsOn tasks shouwd be executed in.
 	 */
-	dependsOrder?: DependsOrder;
+	dependsOwda?: DependsOwda;
 
 	/**
-	 * A description of the task.
+	 * A descwiption of the task.
 	 */
-	detail?: string;
+	detaiw?: stwing;
 
 	/**
-	 * The problem watchers to use for this task
+	 * The pwobwem watchews to use fow this task
 	 */
-	problemMatchers?: Array<string | ProblemMatcher>;
+	pwobwemMatchews?: Awway<stwing | PwobwemMatcha>;
 }
 
-export enum RunOnOptions {
-	default = 1,
-	folderOpen = 2
+expowt enum WunOnOptions {
+	defauwt = 1,
+	fowdewOpen = 2
 }
 
-export interface RunOptions {
-	reevaluateOnRerun?: boolean;
-	runOn?: RunOnOptions;
-	instanceLimit?: number;
+expowt intewface WunOptions {
+	weevawuateOnWewun?: boowean;
+	wunOn?: WunOnOptions;
+	instanceWimit?: numba;
 }
 
-export namespace RunOptions {
-	export const defaults: RunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1 };
+expowt namespace WunOptions {
+	expowt const defauwts: WunOptions = { weevawuateOnWewun: twue, wunOn: WunOnOptions.defauwt, instanceWimit: 1 };
 }
 
-export abstract class CommonTask {
+expowt abstwact cwass CommonTask {
 
 	/**
-	 * The task's internal id
+	 * The task's intewnaw id
 	 */
-	readonly _id: string;
+	weadonwy _id: stwing;
 
 	/**
-	 * The cached label.
+	 * The cached wabew.
 	 */
-	_label: string = '';
+	_wabew: stwing = '';
 
-	type?: string;
+	type?: stwing;
 
-	runOptions: RunOptions;
+	wunOptions: WunOptions;
 
-	configurationProperties: ConfigurationProperties;
+	configuwationPwopewties: ConfiguwationPwopewties;
 
-	_source: BaseTaskSource;
+	_souwce: BaseTaskSouwce;
 
-	private _taskLoadMessages: string[] | undefined;
+	pwivate _taskWoadMessages: stwing[] | undefined;
 
-	protected constructor(id: string, label: string | undefined, type: string | undefined, runOptions: RunOptions,
-		configurationProperties: ConfigurationProperties, source: BaseTaskSource) {
+	pwotected constwuctow(id: stwing, wabew: stwing | undefined, type: stwing | undefined, wunOptions: WunOptions,
+		configuwationPwopewties: ConfiguwationPwopewties, souwce: BaseTaskSouwce) {
 		this._id = id;
-		if (label) {
-			this._label = label;
+		if (wabew) {
+			this._wabew = wabew;
 		}
 		if (type) {
 			this.type = type;
 		}
-		this.runOptions = runOptions;
-		this.configurationProperties = configurationProperties;
-		this._source = source;
+		this.wunOptions = wunOptions;
+		this.configuwationPwopewties = configuwationPwopewties;
+		this._souwce = souwce;
 	}
 
-	public getDefinition(useSource?: boolean): KeyedTaskIdentifier | undefined {
-		return undefined;
+	pubwic getDefinition(useSouwce?: boowean): KeyedTaskIdentifia | undefined {
+		wetuwn undefined;
 	}
 
-	public getMapKey(): string {
-		return this._id;
+	pubwic getMapKey(): stwing {
+		wetuwn this._id;
 	}
 
-	public getRecentlyUsedKey(): string | undefined {
-		return undefined;
+	pubwic getWecentwyUsedKey(): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	protected abstract getFolderId(): string | undefined;
+	pwotected abstwact getFowdewId(): stwing | undefined;
 
-	public getCommonTaskId(): string {
-		interface RecentTaskKey {
-			folder: string | undefined;
-			id: string;
+	pubwic getCommonTaskId(): stwing {
+		intewface WecentTaskKey {
+			fowda: stwing | undefined;
+			id: stwing;
 		}
 
-		const key: RecentTaskKey = { folder: this.getFolderId(), id: this._id };
-		return JSON.stringify(key);
+		const key: WecentTaskKey = { fowda: this.getFowdewId(), id: this._id };
+		wetuwn JSON.stwingify(key);
 	}
 
-	public clone(): Task {
-		return this.fromObject(Object.assign({}, <any>this));
+	pubwic cwone(): Task {
+		wetuwn this.fwomObject(Object.assign({}, <any>this));
 	}
 
-	protected abstract fromObject(object: any): Task;
+	pwotected abstwact fwomObject(object: any): Task;
 
-	public getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return undefined;
+	pubwic getWowkspaceFowda(): IWowkspaceFowda | undefined {
+		wetuwn undefined;
 	}
 
-	public getWorkspaceFileName(): string | undefined {
-		return undefined;
+	pubwic getWowkspaceFiweName(): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	public getTelemetryKind(): string {
-		return 'unknown';
+	pubwic getTewemetwyKind(): stwing {
+		wetuwn 'unknown';
 	}
 
-	public matches(key: string | KeyedTaskIdentifier | undefined, compareId: boolean = false): boolean {
+	pubwic matches(key: stwing | KeyedTaskIdentifia | undefined, compaweId: boowean = fawse): boowean {
 		if (key === undefined) {
-			return false;
+			wetuwn fawse;
 		}
-		if (Types.isString(key)) {
-			return key === this._label || key === this.configurationProperties.identifier || (compareId && key === this._id);
+		if (Types.isStwing(key)) {
+			wetuwn key === this._wabew || key === this.configuwationPwopewties.identifia || (compaweId && key === this._id);
 		}
-		let identifier = this.getDefinition(true);
-		return identifier !== undefined && identifier._key === key._key;
+		wet identifia = this.getDefinition(twue);
+		wetuwn identifia !== undefined && identifia._key === key._key;
 	}
 
-	public getQualifiedLabel(): string {
-		let workspaceFolder = this.getWorkspaceFolder();
-		if (workspaceFolder) {
-			return `${this._label} (${workspaceFolder.name})`;
-		} else {
-			return this._label;
+	pubwic getQuawifiedWabew(): stwing {
+		wet wowkspaceFowda = this.getWowkspaceFowda();
+		if (wowkspaceFowda) {
+			wetuwn `${this._wabew} (${wowkspaceFowda.name})`;
+		} ewse {
+			wetuwn this._wabew;
 		}
 	}
 
-	public getTaskExecution(): TaskExecution {
-		let result: TaskExecution = {
+	pubwic getTaskExecution(): TaskExecution {
+		wet wesuwt: TaskExecution = {
 			id: this._id,
 			task: <any>this
 		};
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public addTaskLoadMessages(messages: string[] | undefined) {
-		if (this._taskLoadMessages === undefined) {
-			this._taskLoadMessages = [];
+	pubwic addTaskWoadMessages(messages: stwing[] | undefined) {
+		if (this._taskWoadMessages === undefined) {
+			this._taskWoadMessages = [];
 		}
 		if (messages) {
-			this._taskLoadMessages = this._taskLoadMessages.concat(messages);
+			this._taskWoadMessages = this._taskWoadMessages.concat(messages);
 		}
 	}
 
-	get taskLoadMessages(): string[] | undefined {
-		return this._taskLoadMessages;
+	get taskWoadMessages(): stwing[] | undefined {
+		wetuwn this._taskWoadMessages;
 	}
 }
 
-export class CustomTask extends CommonTask {
+expowt cwass CustomTask extends CommonTask {
 
-	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	ovewwide type!: '$customized'; // CUSTOMIZED_TASK_TYPE
 
-	instance: number | undefined;
-
-	/**
-	 * Indicated the source of the task (e.g. tasks.json or extension)
-	 */
-	override _source: FileBasedTaskSource;
-
-	hasDefinedMatchers: boolean;
+	instance: numba | undefined;
 
 	/**
-	 * The command configuration
+	 * Indicated the souwce of the task (e.g. tasks.json ow extension)
 	 */
-	command: CommandConfiguration = {};
+	ovewwide _souwce: FiweBasedTaskSouwce;
 
-	public constructor(id: string, source: FileBasedTaskSource, label: string, type: string, command: CommandConfiguration | undefined,
-		hasDefinedMatchers: boolean, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
-		super(id, label, undefined, runOptions, configurationProperties, source);
-		this._source = source;
-		this.hasDefinedMatchers = hasDefinedMatchers;
+	hasDefinedMatchews: boowean;
+
+	/**
+	 * The command configuwation
+	 */
+	command: CommandConfiguwation = {};
+
+	pubwic constwuctow(id: stwing, souwce: FiweBasedTaskSouwce, wabew: stwing, type: stwing, command: CommandConfiguwation | undefined,
+		hasDefinedMatchews: boowean, wunOptions: WunOptions, configuwationPwopewties: ConfiguwationPwopewties) {
+		supa(id, wabew, undefined, wunOptions, configuwationPwopewties, souwce);
+		this._souwce = souwce;
+		this.hasDefinedMatchews = hasDefinedMatchews;
 		if (command) {
 			this.command = command;
 		}
 	}
 
-	public override clone(): CustomTask {
-		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+	pubwic ovewwide cwone(): CustomTask {
+		wetuwn new CustomTask(this._id, this._souwce, this._wabew, this.type, this.command, this.hasDefinedMatchews, this.wunOptions, this.configuwationPwopewties);
 	}
 
-	public customizes(): KeyedTaskIdentifier | undefined {
-		if (this._source && this._source.customizes) {
-			return this._source.customizes;
+	pubwic customizes(): KeyedTaskIdentifia | undefined {
+		if (this._souwce && this._souwce.customizes) {
+			wetuwn this._souwce.customizes;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public override getDefinition(useSource: boolean = false): KeyedTaskIdentifier {
-		if (useSource && this._source.customizes !== undefined) {
-			return this._source.customizes;
-		} else {
-			let type: string;
-			const commandRuntime = this.command ? this.command.runtime : undefined;
-			switch (commandRuntime) {
-				case RuntimeType.Shell:
-					type = 'shell';
-					break;
+	pubwic ovewwide getDefinition(useSouwce: boowean = fawse): KeyedTaskIdentifia {
+		if (useSouwce && this._souwce.customizes !== undefined) {
+			wetuwn this._souwce.customizes;
+		} ewse {
+			wet type: stwing;
+			const commandWuntime = this.command ? this.command.wuntime : undefined;
+			switch (commandWuntime) {
+				case WuntimeType.Sheww:
+					type = 'sheww';
+					bweak;
 
-				case RuntimeType.Process:
-					type = 'process';
-					break;
+				case WuntimeType.Pwocess:
+					type = 'pwocess';
+					bweak;
 
-				case RuntimeType.CustomExecution:
+				case WuntimeType.CustomExecution:
 					type = 'customExecution';
-					break;
+					bweak;
 
 				case undefined:
 					type = '$composite';
-					break;
+					bweak;
 
-				default:
-					throw new Error('Unexpected task runtime');
+				defauwt:
+					thwow new Ewwow('Unexpected task wuntime');
 			}
 
-			let result: KeyedTaskIdentifier = {
+			wet wesuwt: KeyedTaskIdentifia = {
 				type,
 				_key: this._id,
 				id: this._id
 			};
-			return result;
+			wetuwn wesuwt;
 		}
 	}
 
-	public static is(value: any): value is CustomTask {
-		return value instanceof CustomTask;
+	pubwic static is(vawue: any): vawue is CustomTask {
+		wetuwn vawue instanceof CustomTask;
 	}
 
-	public override getMapKey(): string {
-		let workspaceFolder = this._source.config.workspaceFolder;
-		return workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`;
+	pubwic ovewwide getMapKey(): stwing {
+		wet wowkspaceFowda = this._souwce.config.wowkspaceFowda;
+		wetuwn wowkspaceFowda ? `${wowkspaceFowda.uwi.toStwing()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`;
 	}
 
-	protected getFolderId(): string | undefined {
-		return this._source.kind === TaskSourceKind.User ? USER_TASKS_GROUP_KEY : this._source.config.workspaceFolder?.uri.toString();
+	pwotected getFowdewId(): stwing | undefined {
+		wetuwn this._souwce.kind === TaskSouwceKind.Usa ? USEW_TASKS_GWOUP_KEY : this._souwce.config.wowkspaceFowda?.uwi.toStwing();
 	}
 
-	public override getCommonTaskId(): string {
-		return this._source.customizes ? super.getCommonTaskId() : (this.getRecentlyUsedKey() ?? super.getCommonTaskId());
+	pubwic ovewwide getCommonTaskId(): stwing {
+		wetuwn this._souwce.customizes ? supa.getCommonTaskId() : (this.getWecentwyUsedKey() ?? supa.getCommonTaskId());
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
-		interface CustomKey {
-			type: string;
-			folder: string;
-			id: string;
+	pubwic ovewwide getWecentwyUsedKey(): stwing | undefined {
+		intewface CustomKey {
+			type: stwing;
+			fowda: stwing;
+			id: stwing;
 		}
-		let workspaceFolder = this.getFolderId();
-		if (!workspaceFolder) {
-			return undefined;
+		wet wowkspaceFowda = this.getFowdewId();
+		if (!wowkspaceFowda) {
+			wetuwn undefined;
 		}
-		let id: string = this.configurationProperties.identifier!;
-		if (this._source.kind !== TaskSourceKind.Workspace) {
-			id += this._source.kind;
+		wet id: stwing = this.configuwationPwopewties.identifia!;
+		if (this._souwce.kind !== TaskSouwceKind.Wowkspace) {
+			id += this._souwce.kind;
 		}
-		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
-		return JSON.stringify(key);
+		wet key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, fowda: wowkspaceFowda, id };
+		wetuwn JSON.stwingify(key);
 	}
 
-	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return this._source.config.workspaceFolder;
+	pubwic ovewwide getWowkspaceFowda(): IWowkspaceFowda | undefined {
+		wetuwn this._souwce.config.wowkspaceFowda;
 	}
 
-	public override getWorkspaceFileName(): string | undefined {
-		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
+	pubwic ovewwide getWowkspaceFiweName(): stwing | undefined {
+		wetuwn (this._souwce.config.wowkspace && this._souwce.config.wowkspace.configuwation) ? wesouwces.basename(this._souwce.config.wowkspace.configuwation) : undefined;
 	}
 
-	public override getTelemetryKind(): string {
-		if (this._source.customizes) {
-			return 'workspace>extension';
-		} else {
-			return 'workspace';
+	pubwic ovewwide getTewemetwyKind(): stwing {
+		if (this._souwce.customizes) {
+			wetuwn 'wowkspace>extension';
+		} ewse {
+			wetuwn 'wowkspace';
 		}
 	}
 
-	protected fromObject(object: CustomTask): CustomTask {
-		return new CustomTask(object._id, object._source, object._label, object.type, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	pwotected fwomObject(object: CustomTask): CustomTask {
+		wetuwn new CustomTask(object._id, object._souwce, object._wabew, object.type, object.command, object.hasDefinedMatchews, object.wunOptions, object.configuwationPwopewties);
 	}
 }
 
-export class ConfiguringTask extends CommonTask {
+expowt cwass ConfiguwingTask extends CommonTask {
 
 	/**
-	 * Indicated the source of the task (e.g. tasks.json or extension)
+	 * Indicated the souwce of the task (e.g. tasks.json ow extension)
 	 */
-	override _source: FileBasedTaskSource;
+	ovewwide _souwce: FiweBasedTaskSouwce;
 
-	configures: KeyedTaskIdentifier;
+	configuwes: KeyedTaskIdentifia;
 
-	public constructor(id: string, source: FileBasedTaskSource, label: string | undefined, type: string | undefined,
-		configures: KeyedTaskIdentifier, runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
-		super(id, label, type, runOptions, configurationProperties, source);
-		this._source = source;
-		this.configures = configures;
+	pubwic constwuctow(id: stwing, souwce: FiweBasedTaskSouwce, wabew: stwing | undefined, type: stwing | undefined,
+		configuwes: KeyedTaskIdentifia, wunOptions: WunOptions, configuwationPwopewties: ConfiguwationPwopewties) {
+		supa(id, wabew, type, wunOptions, configuwationPwopewties, souwce);
+		this._souwce = souwce;
+		this.configuwes = configuwes;
 	}
 
-	public static is(value: any): value is ConfiguringTask {
-		return value instanceof ConfiguringTask;
+	pubwic static is(vawue: any): vawue is ConfiguwingTask {
+		wetuwn vawue instanceof ConfiguwingTask;
 	}
 
-	protected fromObject(object: any): Task {
-		return object;
+	pwotected fwomObject(object: any): Task {
+		wetuwn object;
 	}
 
-	public override getDefinition(): KeyedTaskIdentifier {
-		return this.configures;
+	pubwic ovewwide getDefinition(): KeyedTaskIdentifia {
+		wetuwn this.configuwes;
 	}
 
-	public override getWorkspaceFileName(): string | undefined {
-		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
+	pubwic ovewwide getWowkspaceFiweName(): stwing | undefined {
+		wetuwn (this._souwce.config.wowkspace && this._souwce.config.wowkspace.configuwation) ? wesouwces.basename(this._souwce.config.wowkspace.configuwation) : undefined;
 	}
 
-	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return this._source.config.workspaceFolder;
+	pubwic ovewwide getWowkspaceFowda(): IWowkspaceFowda | undefined {
+		wetuwn this._souwce.config.wowkspaceFowda;
 	}
 
-	protected getFolderId(): string | undefined {
-		return this._source.kind === TaskSourceKind.User ? USER_TASKS_GROUP_KEY : this._source.config.workspaceFolder?.uri.toString();
+	pwotected getFowdewId(): stwing | undefined {
+		wetuwn this._souwce.kind === TaskSouwceKind.Usa ? USEW_TASKS_GWOUP_KEY : this._souwce.config.wowkspaceFowda?.uwi.toStwing();
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
-		interface CustomKey {
-			type: string;
-			folder: string;
-			id: string;
+	pubwic ovewwide getWecentwyUsedKey(): stwing | undefined {
+		intewface CustomKey {
+			type: stwing;
+			fowda: stwing;
+			id: stwing;
 		}
-		let workspaceFolder = this.getFolderId();
-		if (!workspaceFolder) {
-			return undefined;
+		wet wowkspaceFowda = this.getFowdewId();
+		if (!wowkspaceFowda) {
+			wetuwn undefined;
 		}
-		let id: string = this.configurationProperties.identifier!;
-		if (this._source.kind !== TaskSourceKind.Workspace) {
-			id += this._source.kind;
+		wet id: stwing = this.configuwationPwopewties.identifia!;
+		if (this._souwce.kind !== TaskSouwceKind.Wowkspace) {
+			id += this._souwce.kind;
 		}
-		let key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, folder: workspaceFolder, id };
-		return JSON.stringify(key);
+		wet key: CustomKey = { type: CUSTOMIZED_TASK_TYPE, fowda: wowkspaceFowda, id };
+		wetuwn JSON.stwingify(key);
 	}
 }
 
-export class ContributedTask extends CommonTask {
+expowt cwass ContwibutedTask extends CommonTask {
 
 	/**
-	 * Indicated the source of the task (e.g. tasks.json or extension)
-	 * Set in the super constructor
+	 * Indicated the souwce of the task (e.g. tasks.json ow extension)
+	 * Set in the supa constwuctow
 	 */
-	override _source!: ExtensionTaskSource;
+	ovewwide _souwce!: ExtensionTaskSouwce;
 
-	instance: number | undefined;
+	instance: numba | undefined;
 
-	defines: KeyedTaskIdentifier;
+	defines: KeyedTaskIdentifia;
 
-	hasDefinedMatchers: boolean;
+	hasDefinedMatchews: boowean;
 
 	/**
-	 * The command configuration
+	 * The command configuwation
 	 */
-	command: CommandConfiguration;
+	command: CommandConfiguwation;
 
-	public constructor(id: string, source: ExtensionTaskSource, label: string, type: string | undefined, defines: KeyedTaskIdentifier,
-		command: CommandConfiguration, hasDefinedMatchers: boolean, runOptions: RunOptions,
-		configurationProperties: ConfigurationProperties) {
-		super(id, label, type, runOptions, configurationProperties, source);
+	pubwic constwuctow(id: stwing, souwce: ExtensionTaskSouwce, wabew: stwing, type: stwing | undefined, defines: KeyedTaskIdentifia,
+		command: CommandConfiguwation, hasDefinedMatchews: boowean, wunOptions: WunOptions,
+		configuwationPwopewties: ConfiguwationPwopewties) {
+		supa(id, wabew, type, wunOptions, configuwationPwopewties, souwce);
 		this.defines = defines;
-		this.hasDefinedMatchers = hasDefinedMatchers;
+		this.hasDefinedMatchews = hasDefinedMatchews;
 		this.command = command;
 	}
 
-	public override clone(): ContributedTask {
-		return new ContributedTask(this._id, this._source, this._label, this.type, this.defines, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+	pubwic ovewwide cwone(): ContwibutedTask {
+		wetuwn new ContwibutedTask(this._id, this._souwce, this._wabew, this.type, this.defines, this.command, this.hasDefinedMatchews, this.wunOptions, this.configuwationPwopewties);
 	}
 
-	public override getDefinition(): KeyedTaskIdentifier {
-		return this.defines;
+	pubwic ovewwide getDefinition(): KeyedTaskIdentifia {
+		wetuwn this.defines;
 	}
 
-	public static is(value: any): value is ContributedTask {
-		return value instanceof ContributedTask;
+	pubwic static is(vawue: any): vawue is ContwibutedTask {
+		wetuwn vawue instanceof ContwibutedTask;
 	}
 
-	public override getMapKey(): string {
-		let workspaceFolder = this._source.workspaceFolder;
-		return workspaceFolder
-			? `${this._source.scope.toString()}|${workspaceFolder.uri.toString()}|${this._id}|${this.instance}`
-			: `${this._source.scope.toString()}|${this._id}|${this.instance}`;
+	pubwic ovewwide getMapKey(): stwing {
+		wet wowkspaceFowda = this._souwce.wowkspaceFowda;
+		wetuwn wowkspaceFowda
+			? `${this._souwce.scope.toStwing()}|${wowkspaceFowda.uwi.toStwing()}|${this._id}|${this.instance}`
+			: `${this._souwce.scope.toStwing()}|${this._id}|${this.instance}`;
 	}
 
-	protected getFolderId(): string | undefined {
-		if (this._source.scope === TaskScope.Folder && this._source.workspaceFolder) {
-			return this._source.workspaceFolder.uri.toString();
+	pwotected getFowdewId(): stwing | undefined {
+		if (this._souwce.scope === TaskScope.Fowda && this._souwce.wowkspaceFowda) {
+			wetuwn this._souwce.wowkspaceFowda.uwi.toStwing();
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
-		interface ContributedKey {
-			type: string;
-			scope: number;
-			folder?: string;
-			id: string;
+	pubwic ovewwide getWecentwyUsedKey(): stwing | undefined {
+		intewface ContwibutedKey {
+			type: stwing;
+			scope: numba;
+			fowda?: stwing;
+			id: stwing;
 		}
 
-		let key: ContributedKey = { type: 'contributed', scope: this._source.scope, id: this._id };
-		key.folder = this.getFolderId();
-		return JSON.stringify(key);
+		wet key: ContwibutedKey = { type: 'contwibuted', scope: this._souwce.scope, id: this._id };
+		key.fowda = this.getFowdewId();
+		wetuwn JSON.stwingify(key);
 	}
 
-	public override getWorkspaceFolder(): IWorkspaceFolder | undefined {
-		return this._source.workspaceFolder;
+	pubwic ovewwide getWowkspaceFowda(): IWowkspaceFowda | undefined {
+		wetuwn this._souwce.wowkspaceFowda;
 	}
 
-	public override getTelemetryKind(): string {
-		return 'extension';
+	pubwic ovewwide getTewemetwyKind(): stwing {
+		wetuwn 'extension';
 	}
 
-	protected fromObject(object: ContributedTask): ContributedTask {
-		return new ContributedTask(object._id, object._source, object._label, object.type, object.defines, object.command, object.hasDefinedMatchers, object.runOptions, object.configurationProperties);
+	pwotected fwomObject(object: ContwibutedTask): ContwibutedTask {
+		wetuwn new ContwibutedTask(object._id, object._souwce, object._wabew, object.type, object.defines, object.command, object.hasDefinedMatchews, object.wunOptions, object.configuwationPwopewties);
 	}
 }
 
-export class InMemoryTask extends CommonTask {
+expowt cwass InMemowyTask extends CommonTask {
 	/**
-	 * Indicated the source of the task (e.g. tasks.json or extension)
+	 * Indicated the souwce of the task (e.g. tasks.json ow extension)
 	 */
-	override _source: InMemoryTaskSource;
+	ovewwide _souwce: InMemowyTaskSouwce;
 
-	instance: number | undefined;
+	instance: numba | undefined;
 
-	override type!: 'inMemory';
+	ovewwide type!: 'inMemowy';
 
-	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
-		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
-		super(id, label, type, runOptions, configurationProperties, source);
-		this._source = source;
+	pubwic constwuctow(id: stwing, souwce: InMemowyTaskSouwce, wabew: stwing, type: stwing,
+		wunOptions: WunOptions, configuwationPwopewties: ConfiguwationPwopewties) {
+		supa(id, wabew, type, wunOptions, configuwationPwopewties, souwce);
+		this._souwce = souwce;
 	}
 
-	public override clone(): InMemoryTask {
-		return new InMemoryTask(this._id, this._source, this._label, this.type, this.runOptions, this.configurationProperties);
+	pubwic ovewwide cwone(): InMemowyTask {
+		wetuwn new InMemowyTask(this._id, this._souwce, this._wabew, this.type, this.wunOptions, this.configuwationPwopewties);
 	}
 
-	public static is(value: any): value is InMemoryTask {
-		return value instanceof InMemoryTask;
+	pubwic static is(vawue: any): vawue is InMemowyTask {
+		wetuwn vawue instanceof InMemowyTask;
 	}
 
-	public override getTelemetryKind(): string {
-		return 'composite';
+	pubwic ovewwide getTewemetwyKind(): stwing {
+		wetuwn 'composite';
 	}
 
-	public override getMapKey(): string {
-		return `${this._id}|${this.instance}`;
+	pubwic ovewwide getMapKey(): stwing {
+		wetuwn `${this._id}|${this.instance}`;
 	}
 
-	protected getFolderId(): undefined {
-		return undefined;
+	pwotected getFowdewId(): undefined {
+		wetuwn undefined;
 	}
 
-	protected fromObject(object: InMemoryTask): InMemoryTask {
-		return new InMemoryTask(object._id, object._source, object._label, object.type, object.runOptions, object.configurationProperties);
+	pwotected fwomObject(object: InMemowyTask): InMemowyTask {
+		wetuwn new InMemowyTask(object._id, object._souwce, object._wabew, object.type, object.wunOptions, object.configuwationPwopewties);
 	}
 }
 
-export type Task = CustomTask | ContributedTask | InMemoryTask;
+expowt type Task = CustomTask | ContwibutedTask | InMemowyTask;
 
-export interface TaskExecution {
-	id: string;
+expowt intewface TaskExecution {
+	id: stwing;
 	task: Task;
 }
 
-export enum ExecutionEngine {
-	Process = 1,
-	Terminal = 2
+expowt enum ExecutionEngine {
+	Pwocess = 1,
+	Tewminaw = 2
 }
 
-export namespace ExecutionEngine {
-	export const _default: ExecutionEngine = ExecutionEngine.Terminal;
+expowt namespace ExecutionEngine {
+	expowt const _defauwt: ExecutionEngine = ExecutionEngine.Tewminaw;
 }
 
-export const enum JsonSchemaVersion {
+expowt const enum JsonSchemaVewsion {
 	V0_1_0 = 1,
 	V2_0_0 = 2
 }
 
-export interface TaskSet {
+expowt intewface TaskSet {
 	tasks: Task[];
-	extension?: IExtensionDescription;
+	extension?: IExtensionDescwiption;
 }
 
-export interface TaskDefinition {
-	extensionId: string;
-	taskType: string;
-	required: string[];
-	properties: IJSONSchemaMap;
-	when?: ContextKeyExpression;
+expowt intewface TaskDefinition {
+	extensionId: stwing;
+	taskType: stwing;
+	wequiwed: stwing[];
+	pwopewties: IJSONSchemaMap;
+	when?: ContextKeyExpwession;
 }
 
-export class TaskSorter {
+expowt cwass TaskSowta {
 
-	private _order: Map<string, number> = new Map();
+	pwivate _owda: Map<stwing, numba> = new Map();
 
-	constructor(workspaceFolders: IWorkspaceFolder[]) {
-		for (let i = 0; i < workspaceFolders.length; i++) {
-			this._order.set(workspaceFolders[i].uri.toString(), i);
+	constwuctow(wowkspaceFowdews: IWowkspaceFowda[]) {
+		fow (wet i = 0; i < wowkspaceFowdews.wength; i++) {
+			this._owda.set(wowkspaceFowdews[i].uwi.toStwing(), i);
 		}
 	}
 
-	public compare(a: Task | ConfiguringTask, b: Task | ConfiguringTask): number {
-		let aw = a.getWorkspaceFolder();
-		let bw = b.getWorkspaceFolder();
+	pubwic compawe(a: Task | ConfiguwingTask, b: Task | ConfiguwingTask): numba {
+		wet aw = a.getWowkspaceFowda();
+		wet bw = b.getWowkspaceFowda();
 		if (aw && bw) {
-			let ai = this._order.get(aw.uri.toString());
+			wet ai = this._owda.get(aw.uwi.toStwing());
 			ai = ai === undefined ? 0 : ai + 1;
-			let bi = this._order.get(bw.uri.toString());
+			wet bi = this._owda.get(bw.uwi.toStwing());
 			bi = bi === undefined ? 0 : bi + 1;
 			if (ai === bi) {
-				return a._label.localeCompare(b._label);
-			} else {
-				return ai - bi;
+				wetuwn a._wabew.wocaweCompawe(b._wabew);
+			} ewse {
+				wetuwn ai - bi;
 			}
-		} else if (!aw && bw) {
-			return -1;
-		} else if (aw && !bw) {
-			return +1;
-		} else {
-			return 0;
+		} ewse if (!aw && bw) {
+			wetuwn -1;
+		} ewse if (aw && !bw) {
+			wetuwn +1;
+		} ewse {
+			wetuwn 0;
 		}
 	}
 }
 
-export const enum TaskEventKind {
-	DependsOnStarted = 'dependsOnStarted',
-	AcquiredInput = 'acquiredInput',
-	Start = 'start',
-	ProcessStarted = 'processStarted',
+expowt const enum TaskEventKind {
+	DependsOnStawted = 'dependsOnStawted',
+	AcquiwedInput = 'acquiwedInput',
+	Stawt = 'stawt',
+	PwocessStawted = 'pwocessStawted',
 	Active = 'active',
 	Inactive = 'inactive',
 	Changed = 'changed',
-	Terminated = 'terminated',
-	ProcessEnded = 'processEnded',
+	Tewminated = 'tewminated',
+	PwocessEnded = 'pwocessEnded',
 	End = 'end'
 }
 
 
-export const enum TaskRunType {
-	SingleRun = 'singleRun',
-	Background = 'background'
+expowt const enum TaskWunType {
+	SingweWun = 'singweWun',
+	Backgwound = 'backgwound'
 }
 
-export interface TaskEvent {
+expowt intewface TaskEvent {
 	kind: TaskEventKind;
-	taskId?: string;
-	taskName?: string;
-	runType?: TaskRunType;
-	group?: string | TaskGroup;
-	processId?: number;
-	exitCode?: number;
-	terminalId?: number;
+	taskId?: stwing;
+	taskName?: stwing;
+	wunType?: TaskWunType;
+	gwoup?: stwing | TaskGwoup;
+	pwocessId?: numba;
+	exitCode?: numba;
+	tewminawId?: numba;
 	__task?: Task;
-	resolvedVariables?: Map<string, string>;
+	wesowvedVawiabwes?: Map<stwing, stwing>;
 }
 
-export const enum TaskRunSource {
+expowt const enum TaskWunSouwce {
 	System,
-	User,
-	FolderOpen,
-	ConfigurationChange
+	Usa,
+	FowdewOpen,
+	ConfiguwationChange
 }
 
-export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): TaskEvent;
-	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
-	export function create(kind: TaskEventKind.Changed): TaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent {
+expowt namespace TaskEvent {
+	expowt function cweate(kind: TaskEventKind.PwocessStawted | TaskEventKind.PwocessEnded, task: Task, pwocessIdOwExitCode?: numba): TaskEvent;
+	expowt function cweate(kind: TaskEventKind.Stawt, task: Task, tewminawId?: numba, wesowvedVawiabwes?: Map<stwing, stwing>): TaskEvent;
+	expowt function cweate(kind: TaskEventKind.AcquiwedInput | TaskEventKind.DependsOnStawted | TaskEventKind.Stawt | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Tewminated | TaskEventKind.End, task: Task): TaskEvent;
+	expowt function cweate(kind: TaskEventKind.Changed): TaskEvent;
+	expowt function cweate(kind: TaskEventKind, task?: Task, pwocessIdOwExitCodeOwTewminawId?: numba, wesowvedVawiabwes?: Map<stwing, stwing>): TaskEvent {
 		if (task) {
-			let result: TaskEvent = {
+			wet wesuwt: TaskEvent = {
 				kind: kind,
 				taskId: task._id,
-				taskName: task.configurationProperties.name,
-				runType: task.configurationProperties.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
-				group: task.configurationProperties.group,
-				processId: undefined as number | undefined,
-				exitCode: undefined as number | undefined,
-				terminalId: undefined as number | undefined,
+				taskName: task.configuwationPwopewties.name,
+				wunType: task.configuwationPwopewties.isBackgwound ? TaskWunType.Backgwound : TaskWunType.SingweWun,
+				gwoup: task.configuwationPwopewties.gwoup,
+				pwocessId: undefined as numba | undefined,
+				exitCode: undefined as numba | undefined,
+				tewminawId: undefined as numba | undefined,
 				__task: task,
 			};
-			if (kind === TaskEventKind.Start) {
-				result.terminalId = processIdOrExitCodeOrTerminalId;
-				result.resolvedVariables = resolvedVariables;
-			} else if (kind === TaskEventKind.ProcessStarted) {
-				result.processId = processIdOrExitCodeOrTerminalId;
-			} else if (kind === TaskEventKind.ProcessEnded) {
-				result.exitCode = processIdOrExitCodeOrTerminalId;
+			if (kind === TaskEventKind.Stawt) {
+				wesuwt.tewminawId = pwocessIdOwExitCodeOwTewminawId;
+				wesuwt.wesowvedVawiabwes = wesowvedVawiabwes;
+			} ewse if (kind === TaskEventKind.PwocessStawted) {
+				wesuwt.pwocessId = pwocessIdOwExitCodeOwTewminawId;
+			} ewse if (kind === TaskEventKind.PwocessEnded) {
+				wesuwt.exitCode = pwocessIdOwExitCodeOwTewminawId;
 			}
-			return Object.freeze(result);
-		} else {
-			return Object.freeze({ kind: TaskEventKind.Changed });
+			wetuwn Object.fweeze(wesuwt);
+		} ewse {
+			wetuwn Object.fweeze({ kind: TaskEventKind.Changed });
 		}
 	}
 }
 
-export namespace KeyedTaskIdentifier {
-	function sortedStringify(literal: any): string {
-		const keys = Object.keys(literal).sort();
-		let result: string = '';
-		for (const key of keys) {
-			let stringified = literal[key];
-			if (stringified instanceof Object) {
-				stringified = sortedStringify(stringified);
-			} else if (typeof stringified === 'string') {
-				stringified = stringified.replace(/,/g, ',,');
+expowt namespace KeyedTaskIdentifia {
+	function sowtedStwingify(witewaw: any): stwing {
+		const keys = Object.keys(witewaw).sowt();
+		wet wesuwt: stwing = '';
+		fow (const key of keys) {
+			wet stwingified = witewaw[key];
+			if (stwingified instanceof Object) {
+				stwingified = sowtedStwingify(stwingified);
+			} ewse if (typeof stwingified === 'stwing') {
+				stwingified = stwingified.wepwace(/,/g, ',,');
 			}
-			result += key + ',' + stringified + ',';
+			wesuwt += key + ',' + stwingified + ',';
 		}
-		return result;
+		wetuwn wesuwt;
 	}
-	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
-		const resultKey = sortedStringify(value);
-		let result = { _key: resultKey, type: value.taskType };
-		Object.assign(result, value);
-		return result;
+	expowt function cweate(vawue: TaskIdentifia): KeyedTaskIdentifia {
+		const wesuwtKey = sowtedStwingify(vawue);
+		wet wesuwt = { _key: wesuwtKey, type: vawue.taskType };
+		Object.assign(wesuwt, vawue);
+		wetuwn wesuwt;
 	}
 }
 
-export namespace TaskDefinition {
-	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void; }): KeyedTaskIdentifier | undefined {
-		let definition = TaskDefinitionRegistry.get(external.type);
+expowt namespace TaskDefinition {
+	expowt function cweateTaskIdentifia(extewnaw: TaskIdentifia, wepowta: { ewwow(message: stwing): void; }): KeyedTaskIdentifia | undefined {
+		wet definition = TaskDefinitionWegistwy.get(extewnaw.type);
 		if (definition === undefined) {
-			// We have no task definition so we can't sanitize the literal. Take it as is
-			let copy = Objects.deepClone(external);
-			delete copy._key;
-			return KeyedTaskIdentifier.create(copy);
+			// We have no task definition so we can't sanitize the witewaw. Take it as is
+			wet copy = Objects.deepCwone(extewnaw);
+			dewete copy._key;
+			wetuwn KeyedTaskIdentifia.cweate(copy);
 		}
 
-		let literal: { type: string;[name: string]: any } = Object.create(null);
-		literal.type = definition.taskType;
-		let required: Set<string> = new Set();
-		definition.required.forEach(element => required.add(element));
+		wet witewaw: { type: stwing;[name: stwing]: any } = Object.cweate(nuww);
+		witewaw.type = definition.taskType;
+		wet wequiwed: Set<stwing> = new Set();
+		definition.wequiwed.fowEach(ewement => wequiwed.add(ewement));
 
-		let properties = definition.properties;
-		for (let property of Object.keys(properties)) {
-			let value = external[property];
-			if (value !== undefined && value !== null) {
-				literal[property] = value;
-			} else if (required.has(property)) {
-				let schema = properties[property];
-				if (schema.default !== undefined) {
-					literal[property] = Objects.deepClone(schema.default);
-				} else {
+		wet pwopewties = definition.pwopewties;
+		fow (wet pwopewty of Object.keys(pwopewties)) {
+			wet vawue = extewnaw[pwopewty];
+			if (vawue !== undefined && vawue !== nuww) {
+				witewaw[pwopewty] = vawue;
+			} ewse if (wequiwed.has(pwopewty)) {
+				wet schema = pwopewties[pwopewty];
+				if (schema.defauwt !== undefined) {
+					witewaw[pwopewty] = Objects.deepCwone(schema.defauwt);
+				} ewse {
 					switch (schema.type) {
-						case 'boolean':
-							literal[property] = false;
-							break;
-						case 'number':
-						case 'integer':
-							literal[property] = 0;
-							break;
-						case 'string':
-							literal[property] = '';
-							break;
-						default:
-							reporter.error(nls.localize(
-								'TaskDefinition.missingRequiredProperty',
-								'Error: the task identifier \'{0}\' is missing the required property \'{1}\'. The task identifier will be ignored.', JSON.stringify(external, undefined, 0), property
+						case 'boowean':
+							witewaw[pwopewty] = fawse;
+							bweak;
+						case 'numba':
+						case 'intega':
+							witewaw[pwopewty] = 0;
+							bweak;
+						case 'stwing':
+							witewaw[pwopewty] = '';
+							bweak;
+						defauwt:
+							wepowta.ewwow(nws.wocawize(
+								'TaskDefinition.missingWequiwedPwopewty',
+								'Ewwow: the task identifia \'{0}\' is missing the wequiwed pwopewty \'{1}\'. The task identifia wiww be ignowed.', JSON.stwingify(extewnaw, undefined, 0), pwopewty
 							));
-							return undefined;
+							wetuwn undefined;
 					}
 				}
 			}
 		}
-		return KeyedTaskIdentifier.create(literal);
+		wetuwn KeyedTaskIdentifia.cweate(witewaw);
 	}
 }

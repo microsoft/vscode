@@ -1,987 +1,987 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
-import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as pwocess fwom 'vs/base/common/pwocess';
+impowt { IIPCWogga, IMessagePassingPwotocow, IPCCwient } fwom 'vs/base/pawts/ipc/common/ipc';
 
-export const enum SocketCloseEventType {
-	NodeSocketCloseEvent = 0,
-	WebSocketCloseEvent = 1
+expowt const enum SocketCwoseEventType {
+	NodeSocketCwoseEvent = 0,
+	WebSocketCwoseEvent = 1
 }
 
-export interface NodeSocketCloseEvent {
+expowt intewface NodeSocketCwoseEvent {
 	/**
 	 * The type of the event
 	 */
-	readonly type: SocketCloseEventType.NodeSocketCloseEvent;
+	weadonwy type: SocketCwoseEventType.NodeSocketCwoseEvent;
 	/**
-	 * `true` if the socket had a transmission error.
+	 * `twue` if the socket had a twansmission ewwow.
 	 */
-	readonly hadError: boolean;
+	weadonwy hadEwwow: boowean;
 	/**
-	 * Underlying error.
+	 * Undewwying ewwow.
 	 */
-	readonly error: Error | undefined
+	weadonwy ewwow: Ewwow | undefined
 }
 
-export interface WebSocketCloseEvent {
+expowt intewface WebSocketCwoseEvent {
 	/**
 	 * The type of the event
 	 */
-	readonly type: SocketCloseEventType.WebSocketCloseEvent;
+	weadonwy type: SocketCwoseEventType.WebSocketCwoseEvent;
 	/**
-	 * Returns the WebSocket connection close code provided by the server.
+	 * Wetuwns the WebSocket connection cwose code pwovided by the sewva.
 	 */
-	readonly code: number;
+	weadonwy code: numba;
 	/**
-	 * Returns the WebSocket connection close reason provided by the server.
+	 * Wetuwns the WebSocket connection cwose weason pwovided by the sewva.
 	 */
-	readonly reason: string;
+	weadonwy weason: stwing;
 	/**
-	 * Returns true if the connection closed cleanly; false otherwise.
+	 * Wetuwns twue if the connection cwosed cweanwy; fawse othewwise.
 	 */
-	readonly wasClean: boolean;
+	weadonwy wasCwean: boowean;
 	/**
-	 * Underlying event.
+	 * Undewwying event.
 	 */
-	readonly event: any | undefined;
+	weadonwy event: any | undefined;
 }
 
-export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
+expowt type SocketCwoseEvent = NodeSocketCwoseEvent | WebSocketCwoseEvent | undefined;
 
-export interface ISocket extends IDisposable {
-	onData(listener: (e: VSBuffer) => void): IDisposable;
-	onClose(listener: (e: SocketCloseEvent) => void): IDisposable;
-	onEnd(listener: () => void): IDisposable;
-	write(buffer: VSBuffer): void;
+expowt intewface ISocket extends IDisposabwe {
+	onData(wistena: (e: VSBuffa) => void): IDisposabwe;
+	onCwose(wistena: (e: SocketCwoseEvent) => void): IDisposabwe;
+	onEnd(wistena: () => void): IDisposabwe;
+	wwite(buffa: VSBuffa): void;
 	end(): void;
-	drain(): Promise<void>;
+	dwain(): Pwomise<void>;
 }
 
-let emptyBuffer: VSBuffer | null = null;
-function getEmptyBuffer(): VSBuffer {
-	if (!emptyBuffer) {
-		emptyBuffer = VSBuffer.alloc(0);
+wet emptyBuffa: VSBuffa | nuww = nuww;
+function getEmptyBuffa(): VSBuffa {
+	if (!emptyBuffa) {
+		emptyBuffa = VSBuffa.awwoc(0);
 	}
-	return emptyBuffer;
+	wetuwn emptyBuffa;
 }
 
-export class ChunkStream {
+expowt cwass ChunkStweam {
 
-	private _chunks: VSBuffer[];
-	private _totalLength: number;
+	pwivate _chunks: VSBuffa[];
+	pwivate _totawWength: numba;
 
-	public get byteLength() {
-		return this._totalLength;
+	pubwic get byteWength() {
+		wetuwn this._totawWength;
 	}
 
-	constructor() {
+	constwuctow() {
 		this._chunks = [];
-		this._totalLength = 0;
+		this._totawWength = 0;
 	}
 
-	public acceptChunk(buff: VSBuffer) {
+	pubwic acceptChunk(buff: VSBuffa) {
 		this._chunks.push(buff);
-		this._totalLength += buff.byteLength;
+		this._totawWength += buff.byteWength;
 	}
 
-	public read(byteCount: number): VSBuffer {
-		return this._read(byteCount, true);
+	pubwic wead(byteCount: numba): VSBuffa {
+		wetuwn this._wead(byteCount, twue);
 	}
 
-	public peek(byteCount: number): VSBuffer {
-		return this._read(byteCount, false);
+	pubwic peek(byteCount: numba): VSBuffa {
+		wetuwn this._wead(byteCount, fawse);
 	}
 
-	private _read(byteCount: number, advance: boolean): VSBuffer {
+	pwivate _wead(byteCount: numba, advance: boowean): VSBuffa {
 
 		if (byteCount === 0) {
-			return getEmptyBuffer();
+			wetuwn getEmptyBuffa();
 		}
 
-		if (byteCount > this._totalLength) {
-			throw new Error(`Cannot read so many bytes!`);
+		if (byteCount > this._totawWength) {
+			thwow new Ewwow(`Cannot wead so many bytes!`);
 		}
 
-		if (this._chunks[0].byteLength === byteCount) {
-			// super fast path, precisely first chunk must be returned
-			const result = this._chunks[0];
+		if (this._chunks[0].byteWength === byteCount) {
+			// supa fast path, pwecisewy fiwst chunk must be wetuwned
+			const wesuwt = this._chunks[0];
 			if (advance) {
 				this._chunks.shift();
-				this._totalLength -= byteCount;
+				this._totawWength -= byteCount;
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		if (this._chunks[0].byteLength > byteCount) {
-			// fast path, the reading is entirely within the first chunk
-			const result = this._chunks[0].slice(0, byteCount);
+		if (this._chunks[0].byteWength > byteCount) {
+			// fast path, the weading is entiwewy within the fiwst chunk
+			const wesuwt = this._chunks[0].swice(0, byteCount);
 			if (advance) {
-				this._chunks[0] = this._chunks[0].slice(byteCount);
-				this._totalLength -= byteCount;
+				this._chunks[0] = this._chunks[0].swice(byteCount);
+				this._totawWength -= byteCount;
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		let result = VSBuffer.alloc(byteCount);
-		let resultOffset = 0;
-		let chunkIndex = 0;
-		while (byteCount > 0) {
+		wet wesuwt = VSBuffa.awwoc(byteCount);
+		wet wesuwtOffset = 0;
+		wet chunkIndex = 0;
+		whiwe (byteCount > 0) {
 			const chunk = this._chunks[chunkIndex];
-			if (chunk.byteLength > byteCount) {
-				// this chunk will survive
-				const chunkPart = chunk.slice(0, byteCount);
-				result.set(chunkPart, resultOffset);
-				resultOffset += byteCount;
+			if (chunk.byteWength > byteCount) {
+				// this chunk wiww suwvive
+				const chunkPawt = chunk.swice(0, byteCount);
+				wesuwt.set(chunkPawt, wesuwtOffset);
+				wesuwtOffset += byteCount;
 
 				if (advance) {
-					this._chunks[chunkIndex] = chunk.slice(byteCount);
-					this._totalLength -= byteCount;
+					this._chunks[chunkIndex] = chunk.swice(byteCount);
+					this._totawWength -= byteCount;
 				}
 
 				byteCount -= byteCount;
-			} else {
-				// this chunk will be entirely read
-				result.set(chunk, resultOffset);
-				resultOffset += chunk.byteLength;
+			} ewse {
+				// this chunk wiww be entiwewy wead
+				wesuwt.set(chunk, wesuwtOffset);
+				wesuwtOffset += chunk.byteWength;
 
 				if (advance) {
 					this._chunks.shift();
-					this._totalLength -= chunk.byteLength;
-				} else {
+					this._totawWength -= chunk.byteWength;
+				} ewse {
 					chunkIndex++;
 				}
 
-				byteCount -= chunk.byteLength;
+				byteCount -= chunk.byteWength;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-const enum ProtocolMessageType {
+const enum PwotocowMessageType {
 	None = 0,
-	Regular = 1,
-	Control = 2,
+	Weguwaw = 1,
+	Contwow = 2,
 	Ack = 3,
-	KeepAlive = 4,
+	KeepAwive = 4,
 	Disconnect = 5,
-	ReplayRequest = 6
+	WepwayWequest = 6
 }
 
-export const enum ProtocolConstants {
-	HeaderLength = 13,
+expowt const enum PwotocowConstants {
+	HeadewWength = 13,
 	/**
-	 * Send an Acknowledge message at most 2 seconds later...
+	 * Send an Acknowwedge message at most 2 seconds wata...
 	 */
-	AcknowledgeTime = 2000, // 2 seconds
+	AcknowwedgeTime = 2000, // 2 seconds
 	/**
-	 * If there is a message that has been unacknowledged for 10 seconds, consider the connection closed...
+	 * If thewe is a message that has been unacknowwedged fow 10 seconds, consida the connection cwosed...
 	 */
-	AcknowledgeTimeoutTime = 20000, // 20 seconds
+	AcknowwedgeTimeoutTime = 20000, // 20 seconds
 	/**
-	 * Send at least a message every 5s for keep alive reasons.
+	 * Send at weast a message evewy 5s fow keep awive weasons.
 	 */
-	KeepAliveTime = 5000, // 5 seconds
+	KeepAwiveTime = 5000, // 5 seconds
 	/**
-	 * If there is no message received for 10 seconds, consider the connection closed...
+	 * If thewe is no message weceived fow 10 seconds, consida the connection cwosed...
 	 */
-	KeepAliveTimeoutTime = 20000, // 20 seconds
+	KeepAwiveTimeoutTime = 20000, // 20 seconds
 	/**
-	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
+	 * If thewe is no weconnection within this time-fwame, consida the connection pewmanentwy cwosed...
 	 */
-	ReconnectionGraceTime = 3 * 60 * 60 * 1000, // 3hrs
+	WeconnectionGwaceTime = 3 * 60 * 60 * 1000, // 3hws
 	/**
-	 * Maximal grace time between the first and the last reconnection...
+	 * Maximaw gwace time between the fiwst and the wast weconnection...
 	 */
-	ReconnectionShortGraceTime = 5 * 60 * 1000, // 5min
+	WeconnectionShowtGwaceTime = 5 * 60 * 1000, // 5min
 }
 
-class ProtocolMessage {
+cwass PwotocowMessage {
 
-	public writtenTime: number;
+	pubwic wwittenTime: numba;
 
-	constructor(
-		public readonly type: ProtocolMessageType,
-		public readonly id: number,
-		public readonly ack: number,
-		public readonly data: VSBuffer
+	constwuctow(
+		pubwic weadonwy type: PwotocowMessageType,
+		pubwic weadonwy id: numba,
+		pubwic weadonwy ack: numba,
+		pubwic weadonwy data: VSBuffa
 	) {
-		this.writtenTime = 0;
+		this.wwittenTime = 0;
 	}
 
-	public get size(): number {
-		return this.data.byteLength;
+	pubwic get size(): numba {
+		wetuwn this.data.byteWength;
 	}
 }
 
-class ProtocolReader extends Disposable {
+cwass PwotocowWeada extends Disposabwe {
 
-	private readonly _socket: ISocket;
-	private _isDisposed: boolean;
-	private readonly _incomingData: ChunkStream;
-	public lastReadTime: number;
+	pwivate weadonwy _socket: ISocket;
+	pwivate _isDisposed: boowean;
+	pwivate weadonwy _incomingData: ChunkStweam;
+	pubwic wastWeadTime: numba;
 
-	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
-	public readonly onMessage: Event<ProtocolMessage> = this._onMessage.event;
+	pwivate weadonwy _onMessage = this._wegista(new Emitta<PwotocowMessage>());
+	pubwic weadonwy onMessage: Event<PwotocowMessage> = this._onMessage.event;
 
-	private readonly _state = {
-		readHead: true,
-		readLen: ProtocolConstants.HeaderLength,
-		messageType: ProtocolMessageType.None,
+	pwivate weadonwy _state = {
+		weadHead: twue,
+		weadWen: PwotocowConstants.HeadewWength,
+		messageType: PwotocowMessageType.None,
 		id: 0,
 		ack: 0
 	};
 
-	constructor(socket: ISocket) {
-		super();
+	constwuctow(socket: ISocket) {
+		supa();
 		this._socket = socket;
-		this._isDisposed = false;
-		this._incomingData = new ChunkStream();
-		this._register(this._socket.onData(data => this.acceptChunk(data)));
-		this.lastReadTime = Date.now();
+		this._isDisposed = fawse;
+		this._incomingData = new ChunkStweam();
+		this._wegista(this._socket.onData(data => this.acceptChunk(data)));
+		this.wastWeadTime = Date.now();
 	}
 
-	public acceptChunk(data: VSBuffer | null): void {
-		if (!data || data.byteLength === 0) {
-			return;
+	pubwic acceptChunk(data: VSBuffa | nuww): void {
+		if (!data || data.byteWength === 0) {
+			wetuwn;
 		}
 
-		this.lastReadTime = Date.now();
+		this.wastWeadTime = Date.now();
 
 		this._incomingData.acceptChunk(data);
 
-		while (this._incomingData.byteLength >= this._state.readLen) {
+		whiwe (this._incomingData.byteWength >= this._state.weadWen) {
 
-			const buff = this._incomingData.read(this._state.readLen);
+			const buff = this._incomingData.wead(this._state.weadWen);
 
-			if (this._state.readHead) {
-				// buff is the header
+			if (this._state.weadHead) {
+				// buff is the heada
 
-				// save new state => next time will read the body
-				this._state.readHead = false;
-				this._state.readLen = buff.readUInt32BE(9);
-				this._state.messageType = buff.readUInt8(0);
-				this._state.id = buff.readUInt32BE(1);
-				this._state.ack = buff.readUInt32BE(5);
-			} else {
+				// save new state => next time wiww wead the body
+				this._state.weadHead = fawse;
+				this._state.weadWen = buff.weadUInt32BE(9);
+				this._state.messageType = buff.weadUInt8(0);
+				this._state.id = buff.weadUInt32BE(1);
+				this._state.ack = buff.weadUInt32BE(5);
+			} ewse {
 				// buff is the body
 				const messageType = this._state.messageType;
 				const id = this._state.id;
 				const ack = this._state.ack;
 
-				// save new state => next time will read the header
-				this._state.readHead = true;
-				this._state.readLen = ProtocolConstants.HeaderLength;
-				this._state.messageType = ProtocolMessageType.None;
+				// save new state => next time wiww wead the heada
+				this._state.weadHead = twue;
+				this._state.weadWen = PwotocowConstants.HeadewWength;
+				this._state.messageType = PwotocowMessageType.None;
 				this._state.id = 0;
 				this._state.ack = 0;
 
-				this._onMessage.fire(new ProtocolMessage(messageType, id, ack, buff));
+				this._onMessage.fiwe(new PwotocowMessage(messageType, id, ack, buff));
 
 				if (this._isDisposed) {
-					// check if an event listener lead to our disposal
-					break;
+					// check if an event wistena wead to ouw disposaw
+					bweak;
 				}
 			}
 		}
 	}
 
-	public readEntireBuffer(): VSBuffer {
-		return this._incomingData.read(this._incomingData.byteLength);
+	pubwic weadEntiweBuffa(): VSBuffa {
+		wetuwn this._incomingData.wead(this._incomingData.byteWength);
 	}
 
-	public override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 }
 
-class ProtocolWriter {
+cwass PwotocowWwita {
 
-	private _isDisposed: boolean;
-	private readonly _socket: ISocket;
-	private _data: VSBuffer[];
-	private _totalLength: number;
-	public lastWriteTime: number;
+	pwivate _isDisposed: boowean;
+	pwivate weadonwy _socket: ISocket;
+	pwivate _data: VSBuffa[];
+	pwivate _totawWength: numba;
+	pubwic wastWwiteTime: numba;
 
-	constructor(socket: ISocket) {
-		this._isDisposed = false;
+	constwuctow(socket: ISocket) {
+		this._isDisposed = fawse;
 		this._socket = socket;
 		this._data = [];
-		this._totalLength = 0;
-		this.lastWriteTime = 0;
+		this._totawWength = 0;
+		this.wastWwiteTime = 0;
 	}
 
-	public dispose(): void {
-		try {
-			this.flush();
-		} catch (err) {
-			// ignore error, since the socket could be already closed
+	pubwic dispose(): void {
+		twy {
+			this.fwush();
+		} catch (eww) {
+			// ignowe ewwow, since the socket couwd be awweady cwosed
 		}
-		this._isDisposed = true;
+		this._isDisposed = twue;
 	}
 
-	public drain(): Promise<void> {
-		this.flush();
-		return this._socket.drain();
+	pubwic dwain(): Pwomise<void> {
+		this.fwush();
+		wetuwn this._socket.dwain();
 	}
 
-	public flush(): void {
-		// flush
-		this._writeNow();
+	pubwic fwush(): void {
+		// fwush
+		this._wwiteNow();
 	}
 
-	public write(msg: ProtocolMessage) {
+	pubwic wwite(msg: PwotocowMessage) {
 		if (this._isDisposed) {
-			// ignore: there could be left-over promises which complete and then
-			// decide to write a response, etc...
-			return;
+			// ignowe: thewe couwd be weft-ova pwomises which compwete and then
+			// decide to wwite a wesponse, etc...
+			wetuwn;
 		}
-		msg.writtenTime = Date.now();
-		this.lastWriteTime = Date.now();
-		const header = VSBuffer.alloc(ProtocolConstants.HeaderLength);
-		header.writeUInt8(msg.type, 0);
-		header.writeUInt32BE(msg.id, 1);
-		header.writeUInt32BE(msg.ack, 5);
-		header.writeUInt32BE(msg.data.byteLength, 9);
-		this._writeSoon(header, msg.data);
+		msg.wwittenTime = Date.now();
+		this.wastWwiteTime = Date.now();
+		const heada = VSBuffa.awwoc(PwotocowConstants.HeadewWength);
+		heada.wwiteUInt8(msg.type, 0);
+		heada.wwiteUInt32BE(msg.id, 1);
+		heada.wwiteUInt32BE(msg.ack, 5);
+		heada.wwiteUInt32BE(msg.data.byteWength, 9);
+		this._wwiteSoon(heada, msg.data);
 	}
 
-	private _bufferAdd(head: VSBuffer, body: VSBuffer): boolean {
-		const wasEmpty = this._totalLength === 0;
+	pwivate _buffewAdd(head: VSBuffa, body: VSBuffa): boowean {
+		const wasEmpty = this._totawWength === 0;
 		this._data.push(head, body);
-		this._totalLength += head.byteLength + body.byteLength;
-		return wasEmpty;
+		this._totawWength += head.byteWength + body.byteWength;
+		wetuwn wasEmpty;
 	}
 
-	private _bufferTake(): VSBuffer {
-		const ret = VSBuffer.concat(this._data, this._totalLength);
-		this._data.length = 0;
-		this._totalLength = 0;
-		return ret;
+	pwivate _buffewTake(): VSBuffa {
+		const wet = VSBuffa.concat(this._data, this._totawWength);
+		this._data.wength = 0;
+		this._totawWength = 0;
+		wetuwn wet;
 	}
 
-	private _writeSoon(header: VSBuffer, data: VSBuffer): void {
-		if (this._bufferAdd(header, data)) {
-			platform.setImmediate(() => {
-				this._writeNow();
+	pwivate _wwiteSoon(heada: VSBuffa, data: VSBuffa): void {
+		if (this._buffewAdd(heada, data)) {
+			pwatfowm.setImmediate(() => {
+				this._wwiteNow();
 			});
 		}
 	}
 
-	private _writeNow(): void {
-		if (this._totalLength === 0) {
-			return;
+	pwivate _wwiteNow(): void {
+		if (this._totawWength === 0) {
+			wetuwn;
 		}
-		this._socket.write(this._bufferTake());
+		this._socket.wwite(this._buffewTake());
 	}
 }
 
 /**
- * A message has the following format:
+ * A message has the fowwowing fowmat:
  * ```
  *     /-------------------------------|------\
- *     |             HEADER            |      |
+ *     |             HEADa            |      |
  *     |-------------------------------| DATA |
- *     | TYPE | ID | ACK | DATA_LENGTH |      |
+ *     | TYPE | ID | ACK | DATA_WENGTH |      |
  *     \-------------------------------|------/
  * ```
- * The header is 9 bytes and consists of:
- *  - TYPE is 1 byte (ProtocolMessageType) - the message type
- *  - ID is 4 bytes (u32be) - the message id (can be 0 to indicate to be ignored)
- *  - ACK is 4 bytes (u32be) - the acknowledged message id (can be 0 to indicate to be ignored)
- *  - DATA_LENGTH is 4 bytes (u32be) - the length in bytes of DATA
+ * The heada is 9 bytes and consists of:
+ *  - TYPE is 1 byte (PwotocowMessageType) - the message type
+ *  - ID is 4 bytes (u32be) - the message id (can be 0 to indicate to be ignowed)
+ *  - ACK is 4 bytes (u32be) - the acknowwedged message id (can be 0 to indicate to be ignowed)
+ *  - DATA_WENGTH is 4 bytes (u32be) - the wength in bytes of DATA
  *
- * Only Regular messages are counted, other messages are not counted, nor acknowledged.
+ * Onwy Weguwaw messages awe counted, otha messages awe not counted, now acknowwedged.
  */
-export class Protocol extends Disposable implements IMessagePassingProtocol {
+expowt cwass Pwotocow extends Disposabwe impwements IMessagePassingPwotocow {
 
-	private _socket: ISocket;
-	private _socketWriter: ProtocolWriter;
-	private _socketReader: ProtocolReader;
+	pwivate _socket: ISocket;
+	pwivate _socketWwita: PwotocowWwita;
+	pwivate _socketWeada: PwotocowWeada;
 
-	private readonly _onMessage = new Emitter<VSBuffer>();
-	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
+	pwivate weadonwy _onMessage = new Emitta<VSBuffa>();
+	weadonwy onMessage: Event<VSBuffa> = this._onMessage.event;
 
-	private readonly _onDidDispose = new Emitter<void>();
-	readonly onDidDispose: Event<void> = this._onDidDispose.event;
+	pwivate weadonwy _onDidDispose = new Emitta<void>();
+	weadonwy onDidDispose: Event<void> = this._onDidDispose.event;
 
-	constructor(socket: ISocket) {
-		super();
+	constwuctow(socket: ISocket) {
+		supa();
 		this._socket = socket;
-		this._socketWriter = this._register(new ProtocolWriter(this._socket));
-		this._socketReader = this._register(new ProtocolReader(this._socket));
+		this._socketWwita = this._wegista(new PwotocowWwita(this._socket));
+		this._socketWeada = this._wegista(new PwotocowWeada(this._socket));
 
-		this._register(this._socketReader.onMessage((msg) => {
-			if (msg.type === ProtocolMessageType.Regular) {
-				this._onMessage.fire(msg.data);
+		this._wegista(this._socketWeada.onMessage((msg) => {
+			if (msg.type === PwotocowMessageType.Weguwaw) {
+				this._onMessage.fiwe(msg.data);
 			}
 		}));
 
-		this._register(this._socket.onClose(() => this._onDidDispose.fire()));
+		this._wegista(this._socket.onCwose(() => this._onDidDispose.fiwe()));
 	}
 
-	drain(): Promise<void> {
-		return this._socketWriter.drain();
+	dwain(): Pwomise<void> {
+		wetuwn this._socketWwita.dwain();
 	}
 
 	getSocket(): ISocket {
-		return this._socket;
+		wetuwn this._socket;
 	}
 
 	sendDisconnect(): void {
 		// Nothing to do...
 	}
 
-	send(buffer: VSBuffer): void {
-		this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.Regular, 0, 0, buffer));
+	send(buffa: VSBuffa): void {
+		this._socketWwita.wwite(new PwotocowMessage(PwotocowMessageType.Weguwaw, 0, 0, buffa));
 	}
 }
 
-export class Client<TContext = string> extends IPCClient<TContext> {
+expowt cwass Cwient<TContext = stwing> extends IPCCwient<TContext> {
 
-	static fromSocket<TContext = string>(socket: ISocket, id: TContext): Client<TContext> {
-		return new Client(new Protocol(socket), id);
+	static fwomSocket<TContext = stwing>(socket: ISocket, id: TContext): Cwient<TContext> {
+		wetuwn new Cwient(new Pwotocow(socket), id);
 	}
 
-	get onDidDispose(): Event<void> { return this.protocol.onDidDispose; }
+	get onDidDispose(): Event<void> { wetuwn this.pwotocow.onDidDispose; }
 
-	constructor(private protocol: Protocol | PersistentProtocol, id: TContext, ipcLogger: IIPCLogger | null = null) {
-		super(protocol, id, ipcLogger);
+	constwuctow(pwivate pwotocow: Pwotocow | PewsistentPwotocow, id: TContext, ipcWogga: IIPCWogga | nuww = nuww) {
+		supa(pwotocow, id, ipcWogga);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		const socket = this.protocol.getSocket();
-		this.protocol.sendDisconnect();
-		this.protocol.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
+		const socket = this.pwotocow.getSocket();
+		this.pwotocow.sendDisconnect();
+		this.pwotocow.dispose();
 		socket.end();
 	}
 }
 
 /**
- * Will ensure no messages are lost if there are no event listeners.
+ * Wiww ensuwe no messages awe wost if thewe awe no event wistenews.
  */
-export class BufferedEmitter<T> {
-	private _emitter: Emitter<T>;
-	public readonly event: Event<T>;
+expowt cwass BuffewedEmitta<T> {
+	pwivate _emitta: Emitta<T>;
+	pubwic weadonwy event: Event<T>;
 
-	private _hasListeners = false;
-	private _isDeliveringMessages = false;
-	private _bufferedMessages: T[] = [];
+	pwivate _hasWistenews = fawse;
+	pwivate _isDewivewingMessages = fawse;
+	pwivate _buffewedMessages: T[] = [];
 
-	constructor() {
-		this._emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
-				this._hasListeners = true;
-				// it is important to deliver these messages after this call, but before
-				// other messages have a chance to be received (to guarantee in order delivery)
-				// that's why we're using here nextTick and not other types of timeouts
-				process.nextTick(() => this._deliverMessages());
+	constwuctow() {
+		this._emitta = new Emitta<T>({
+			onFiwstWistenewAdd: () => {
+				this._hasWistenews = twue;
+				// it is impowtant to dewiva these messages afta this caww, but befowe
+				// otha messages have a chance to be weceived (to guawantee in owda dewivewy)
+				// that's why we'we using hewe nextTick and not otha types of timeouts
+				pwocess.nextTick(() => this._dewivewMessages());
 			},
-			onLastListenerRemove: () => {
-				this._hasListeners = false;
+			onWastWistenewWemove: () => {
+				this._hasWistenews = fawse;
 			}
 		});
 
-		this.event = this._emitter.event;
+		this.event = this._emitta.event;
 	}
 
-	private _deliverMessages(): void {
-		if (this._isDeliveringMessages) {
-			return;
+	pwivate _dewivewMessages(): void {
+		if (this._isDewivewingMessages) {
+			wetuwn;
 		}
-		this._isDeliveringMessages = true;
-		while (this._hasListeners && this._bufferedMessages.length > 0) {
-			this._emitter.fire(this._bufferedMessages.shift()!);
+		this._isDewivewingMessages = twue;
+		whiwe (this._hasWistenews && this._buffewedMessages.wength > 0) {
+			this._emitta.fiwe(this._buffewedMessages.shift()!);
 		}
-		this._isDeliveringMessages = false;
+		this._isDewivewingMessages = fawse;
 	}
 
-	public fire(event: T): void {
-		if (this._hasListeners) {
-			if (this._bufferedMessages.length > 0) {
-				this._bufferedMessages.push(event);
-			} else {
-				this._emitter.fire(event);
+	pubwic fiwe(event: T): void {
+		if (this._hasWistenews) {
+			if (this._buffewedMessages.wength > 0) {
+				this._buffewedMessages.push(event);
+			} ewse {
+				this._emitta.fiwe(event);
 			}
-		} else {
-			this._bufferedMessages.push(event);
+		} ewse {
+			this._buffewedMessages.push(event);
 		}
 	}
 
-	public flushBuffer(): void {
-		this._bufferedMessages = [];
+	pubwic fwushBuffa(): void {
+		this._buffewedMessages = [];
 	}
 }
 
-class QueueElement<T> {
-	public readonly data: T;
-	public next: QueueElement<T> | null;
+cwass QueueEwement<T> {
+	pubwic weadonwy data: T;
+	pubwic next: QueueEwement<T> | nuww;
 
-	constructor(data: T) {
+	constwuctow(data: T) {
 		this.data = data;
-		this.next = null;
+		this.next = nuww;
 	}
 }
 
-class Queue<T> {
+cwass Queue<T> {
 
-	private _first: QueueElement<T> | null;
-	private _last: QueueElement<T> | null;
+	pwivate _fiwst: QueueEwement<T> | nuww;
+	pwivate _wast: QueueEwement<T> | nuww;
 
-	constructor() {
-		this._first = null;
-		this._last = null;
+	constwuctow() {
+		this._fiwst = nuww;
+		this._wast = nuww;
 	}
 
-	public peek(): T | null {
-		if (!this._first) {
-			return null;
+	pubwic peek(): T | nuww {
+		if (!this._fiwst) {
+			wetuwn nuww;
 		}
-		return this._first.data;
+		wetuwn this._fiwst.data;
 	}
 
-	public toArray(): T[] {
-		let result: T[] = [], resultLen = 0;
-		let it = this._first;
-		while (it) {
-			result[resultLen++] = it.data;
+	pubwic toAwway(): T[] {
+		wet wesuwt: T[] = [], wesuwtWen = 0;
+		wet it = this._fiwst;
+		whiwe (it) {
+			wesuwt[wesuwtWen++] = it.data;
 			it = it.next;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public pop(): void {
-		if (!this._first) {
-			return;
+	pubwic pop(): void {
+		if (!this._fiwst) {
+			wetuwn;
 		}
-		if (this._first === this._last) {
-			this._first = null;
-			this._last = null;
-			return;
+		if (this._fiwst === this._wast) {
+			this._fiwst = nuww;
+			this._wast = nuww;
+			wetuwn;
 		}
-		this._first = this._first.next;
+		this._fiwst = this._fiwst.next;
 	}
 
-	public push(item: T): void {
-		const element = new QueueElement(item);
-		if (!this._first) {
-			this._first = element;
-			this._last = element;
-			return;
+	pubwic push(item: T): void {
+		const ewement = new QueueEwement(item);
+		if (!this._fiwst) {
+			this._fiwst = ewement;
+			this._wast = ewement;
+			wetuwn;
 		}
-		this._last!.next = element;
-		this._last = element;
+		this._wast!.next = ewement;
+		this._wast = ewement;
 	}
 }
 
-class LoadEstimator {
+cwass WoadEstimatow {
 
-	private static _HISTORY_LENGTH = 10;
-	private static _INSTANCE: LoadEstimator | null = null;
-	public static getInstance(): LoadEstimator {
-		if (!LoadEstimator._INSTANCE) {
-			LoadEstimator._INSTANCE = new LoadEstimator();
+	pwivate static _HISTOWY_WENGTH = 10;
+	pwivate static _INSTANCE: WoadEstimatow | nuww = nuww;
+	pubwic static getInstance(): WoadEstimatow {
+		if (!WoadEstimatow._INSTANCE) {
+			WoadEstimatow._INSTANCE = new WoadEstimatow();
 		}
-		return LoadEstimator._INSTANCE;
+		wetuwn WoadEstimatow._INSTANCE;
 	}
 
-	private lastRuns: number[];
+	pwivate wastWuns: numba[];
 
-	constructor() {
-		this.lastRuns = [];
+	constwuctow() {
+		this.wastWuns = [];
 		const now = Date.now();
-		for (let i = 0; i < LoadEstimator._HISTORY_LENGTH; i++) {
-			this.lastRuns[i] = now - 1000 * i;
+		fow (wet i = 0; i < WoadEstimatow._HISTOWY_WENGTH; i++) {
+			this.wastWuns[i] = now - 1000 * i;
 		}
-		setInterval(() => {
-			for (let i = LoadEstimator._HISTORY_LENGTH; i >= 1; i--) {
-				this.lastRuns[i] = this.lastRuns[i - 1];
+		setIntewvaw(() => {
+			fow (wet i = WoadEstimatow._HISTOWY_WENGTH; i >= 1; i--) {
+				this.wastWuns[i] = this.wastWuns[i - 1];
 			}
-			this.lastRuns[0] = Date.now();
+			this.wastWuns[0] = Date.now();
 		}, 1000);
 	}
 
 	/**
-	 * returns an estimative number, from 0 (low load) to 1 (high load)
+	 * wetuwns an estimative numba, fwom 0 (wow woad) to 1 (high woad)
 	 */
-	private load(): number {
+	pwivate woad(): numba {
 		const now = Date.now();
-		const historyLimit = (1 + LoadEstimator._HISTORY_LENGTH) * 1000;
-		let score = 0;
-		for (let i = 0; i < LoadEstimator._HISTORY_LENGTH; i++) {
-			if (now - this.lastRuns[i] <= historyLimit) {
-				score++;
+		const histowyWimit = (1 + WoadEstimatow._HISTOWY_WENGTH) * 1000;
+		wet scowe = 0;
+		fow (wet i = 0; i < WoadEstimatow._HISTOWY_WENGTH; i++) {
+			if (now - this.wastWuns[i] <= histowyWimit) {
+				scowe++;
 			}
 		}
-		return 1 - score / LoadEstimator._HISTORY_LENGTH;
+		wetuwn 1 - scowe / WoadEstimatow._HISTOWY_WENGTH;
 	}
 
-	public hasHighLoad(): boolean {
-		return this.load() >= 0.5;
+	pubwic hasHighWoad(): boowean {
+		wetuwn this.woad() >= 0.5;
 	}
 }
 
-export interface ILoadEstimator {
-	hasHighLoad(): boolean;
+expowt intewface IWoadEstimatow {
+	hasHighWoad(): boowean;
 }
 
 /**
- * Same as Protocol, but will actually track messages and acks.
- * Moreover, it will ensure no messages are lost if there are no event listeners.
+ * Same as Pwotocow, but wiww actuawwy twack messages and acks.
+ * Moweova, it wiww ensuwe no messages awe wost if thewe awe no event wistenews.
  */
-export class PersistentProtocol implements IMessagePassingProtocol {
+expowt cwass PewsistentPwotocow impwements IMessagePassingPwotocow {
 
-	private _isReconnecting: boolean;
+	pwivate _isWeconnecting: boowean;
 
-	private _outgoingUnackMsg: Queue<ProtocolMessage>;
-	private _outgoingMsgId: number;
-	private _outgoingAckId: number;
-	private _outgoingAckTimeout: any | null;
+	pwivate _outgoingUnackMsg: Queue<PwotocowMessage>;
+	pwivate _outgoingMsgId: numba;
+	pwivate _outgoingAckId: numba;
+	pwivate _outgoingAckTimeout: any | nuww;
 
-	private _incomingMsgId: number;
-	private _incomingAckId: number;
-	private _incomingMsgLastTime: number;
-	private _incomingAckTimeout: any | null;
+	pwivate _incomingMsgId: numba;
+	pwivate _incomingAckId: numba;
+	pwivate _incomingMsgWastTime: numba;
+	pwivate _incomingAckTimeout: any | nuww;
 
-	private _outgoingKeepAliveTimeout: any | null;
-	private _incomingKeepAliveTimeout: any | null;
+	pwivate _outgoingKeepAwiveTimeout: any | nuww;
+	pwivate _incomingKeepAwiveTimeout: any | nuww;
 
-	private _lastReplayRequestTime: number;
+	pwivate _wastWepwayWequestTime: numba;
 
-	private _socket: ISocket;
-	private _socketWriter: ProtocolWriter;
-	private _socketReader: ProtocolReader;
-	private _socketDisposables: IDisposable[];
+	pwivate _socket: ISocket;
+	pwivate _socketWwita: PwotocowWwita;
+	pwivate _socketWeada: PwotocowWeada;
+	pwivate _socketDisposabwes: IDisposabwe[];
 
-	private readonly _loadEstimator: ILoadEstimator;
+	pwivate weadonwy _woadEstimatow: IWoadEstimatow;
 
-	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
-	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
+	pwivate weadonwy _onContwowMessage = new BuffewedEmitta<VSBuffa>();
+	weadonwy onContwowMessage: Event<VSBuffa> = this._onContwowMessage.event;
 
-	private readonly _onMessage = new BufferedEmitter<VSBuffer>();
-	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
+	pwivate weadonwy _onMessage = new BuffewedEmitta<VSBuffa>();
+	weadonwy onMessage: Event<VSBuffa> = this._onMessage.event;
 
-	private readonly _onDidDispose = new BufferedEmitter<void>();
-	readonly onDidDispose: Event<void> = this._onDidDispose.event;
+	pwivate weadonwy _onDidDispose = new BuffewedEmitta<void>();
+	weadonwy onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onSocketClose = new BufferedEmitter<SocketCloseEvent>();
-	readonly onSocketClose: Event<SocketCloseEvent> = this._onSocketClose.event;
+	pwivate weadonwy _onSocketCwose = new BuffewedEmitta<SocketCwoseEvent>();
+	weadonwy onSocketCwose: Event<SocketCwoseEvent> = this._onSocketCwose.event;
 
-	private readonly _onSocketTimeout = new BufferedEmitter<void>();
-	readonly onSocketTimeout: Event<void> = this._onSocketTimeout.event;
+	pwivate weadonwy _onSocketTimeout = new BuffewedEmitta<void>();
+	weadonwy onSocketTimeout: Event<void> = this._onSocketTimeout.event;
 
-	public get unacknowledgedCount(): number {
-		return this._outgoingMsgId - this._outgoingAckId;
+	pubwic get unacknowwedgedCount(): numba {
+		wetuwn this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: ISocket, initialChunk: VSBuffer | null = null, loadEstimator: ILoadEstimator = LoadEstimator.getInstance()) {
-		this._loadEstimator = loadEstimator;
-		this._isReconnecting = false;
-		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
+	constwuctow(socket: ISocket, initiawChunk: VSBuffa | nuww = nuww, woadEstimatow: IWoadEstimatow = WoadEstimatow.getInstance()) {
+		this._woadEstimatow = woadEstimatow;
+		this._isWeconnecting = fawse;
+		this._outgoingUnackMsg = new Queue<PwotocowMessage>();
 		this._outgoingMsgId = 0;
 		this._outgoingAckId = 0;
-		this._outgoingAckTimeout = null;
+		this._outgoingAckTimeout = nuww;
 
 		this._incomingMsgId = 0;
 		this._incomingAckId = 0;
-		this._incomingMsgLastTime = 0;
-		this._incomingAckTimeout = null;
+		this._incomingMsgWastTime = 0;
+		this._incomingAckTimeout = nuww;
 
-		this._outgoingKeepAliveTimeout = null;
-		this._incomingKeepAliveTimeout = null;
+		this._outgoingKeepAwiveTimeout = nuww;
+		this._incomingKeepAwiveTimeout = nuww;
 
-		this._lastReplayRequestTime = 0;
+		this._wastWepwayWequestTime = 0;
 
-		this._socketDisposables = [];
+		this._socketDisposabwes = [];
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		if (initialChunk) {
-			this._socketReader.acceptChunk(initialChunk);
+		this._socketWwita = new PwotocowWwita(this._socket);
+		this._socketDisposabwes.push(this._socketWwita);
+		this._socketWeada = new PwotocowWeada(this._socket);
+		this._socketDisposabwes.push(this._socketWeada);
+		this._socketDisposabwes.push(this._socketWeada.onMessage(msg => this._weceiveMessage(msg)));
+		this._socketDisposabwes.push(this._socket.onCwose((e) => this._onSocketCwose.fiwe(e)));
+		if (initiawChunk) {
+			this._socketWeada.acceptChunk(initiawChunk);
 		}
 
-		this._sendKeepAliveCheck();
-		this._recvKeepAliveCheck();
+		this._sendKeepAwiveCheck();
+		this._wecvKeepAwiveCheck();
 	}
 
 	dispose(): void {
 		if (this._outgoingAckTimeout) {
-			clearTimeout(this._outgoingAckTimeout);
-			this._outgoingAckTimeout = null;
+			cweawTimeout(this._outgoingAckTimeout);
+			this._outgoingAckTimeout = nuww;
 		}
 		if (this._incomingAckTimeout) {
-			clearTimeout(this._incomingAckTimeout);
-			this._incomingAckTimeout = null;
+			cweawTimeout(this._incomingAckTimeout);
+			this._incomingAckTimeout = nuww;
 		}
-		if (this._outgoingKeepAliveTimeout) {
-			clearTimeout(this._outgoingKeepAliveTimeout);
-			this._outgoingKeepAliveTimeout = null;
+		if (this._outgoingKeepAwiveTimeout) {
+			cweawTimeout(this._outgoingKeepAwiveTimeout);
+			this._outgoingKeepAwiveTimeout = nuww;
 		}
-		if (this._incomingKeepAliveTimeout) {
-			clearTimeout(this._incomingKeepAliveTimeout);
-			this._incomingKeepAliveTimeout = null;
+		if (this._incomingKeepAwiveTimeout) {
+			cweawTimeout(this._incomingKeepAwiveTimeout);
+			this._incomingKeepAwiveTimeout = nuww;
 		}
-		this._socketDisposables = dispose(this._socketDisposables);
+		this._socketDisposabwes = dispose(this._socketDisposabwes);
 	}
 
-	drain(): Promise<void> {
-		return this._socketWriter.drain();
+	dwain(): Pwomise<void> {
+		wetuwn this._socketWwita.dwain();
 	}
 
 	sendDisconnect(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
-		this._socketWriter.write(msg);
-		this._socketWriter.flush();
+		const msg = new PwotocowMessage(PwotocowMessageType.Disconnect, 0, 0, getEmptyBuffa());
+		this._socketWwita.wwite(msg);
+		this._socketWwita.fwush();
 	}
 
-	private _sendKeepAliveCheck(): void {
-		if (this._outgoingKeepAliveTimeout) {
-			// there will be a check in the near future
-			return;
+	pwivate _sendKeepAwiveCheck(): void {
+		if (this._outgoingKeepAwiveTimeout) {
+			// thewe wiww be a check in the neaw futuwe
+			wetuwn;
 		}
 
-		const timeSinceLastOutgoingMsg = Date.now() - this._socketWriter.lastWriteTime;
-		if (timeSinceLastOutgoingMsg >= ProtocolConstants.KeepAliveTime) {
-			// sufficient time has passed since last message was written,
-			// and no message from our side needed to be sent in the meantime,
-			// so we will send a message containing only a keep alive.
-			const msg = new ProtocolMessage(ProtocolMessageType.KeepAlive, 0, 0, getEmptyBuffer());
-			this._socketWriter.write(msg);
-			this._sendKeepAliveCheck();
-			return;
+		const timeSinceWastOutgoingMsg = Date.now() - this._socketWwita.wastWwiteTime;
+		if (timeSinceWastOutgoingMsg >= PwotocowConstants.KeepAwiveTime) {
+			// sufficient time has passed since wast message was wwitten,
+			// and no message fwom ouw side needed to be sent in the meantime,
+			// so we wiww send a message containing onwy a keep awive.
+			const msg = new PwotocowMessage(PwotocowMessageType.KeepAwive, 0, 0, getEmptyBuffa());
+			this._socketWwita.wwite(msg);
+			this._sendKeepAwiveCheck();
+			wetuwn;
 		}
 
-		this._outgoingKeepAliveTimeout = setTimeout(() => {
-			this._outgoingKeepAliveTimeout = null;
-			this._sendKeepAliveCheck();
-		}, ProtocolConstants.KeepAliveTime - timeSinceLastOutgoingMsg + 5);
+		this._outgoingKeepAwiveTimeout = setTimeout(() => {
+			this._outgoingKeepAwiveTimeout = nuww;
+			this._sendKeepAwiveCheck();
+		}, PwotocowConstants.KeepAwiveTime - timeSinceWastOutgoingMsg + 5);
 	}
 
-	private _recvKeepAliveCheck(): void {
-		if (this._incomingKeepAliveTimeout) {
-			// there will be a check in the near future
-			return;
+	pwivate _wecvKeepAwiveCheck(): void {
+		if (this._incomingKeepAwiveTimeout) {
+			// thewe wiww be a check in the neaw futuwe
+			wetuwn;
 		}
 
-		const timeSinceLastIncomingMsg = Date.now() - this._socketReader.lastReadTime;
-		if (timeSinceLastIncomingMsg >= ProtocolConstants.KeepAliveTimeoutTime) {
-			// It's been a long time since we received a server message
-			// But this might be caused by the event loop being busy and failing to read messages
-			if (!this._loadEstimator.hasHighLoad()) {
-				// Trash the socket
-				this._onSocketTimeout.fire(undefined);
-				return;
+		const timeSinceWastIncomingMsg = Date.now() - this._socketWeada.wastWeadTime;
+		if (timeSinceWastIncomingMsg >= PwotocowConstants.KeepAwiveTimeoutTime) {
+			// It's been a wong time since we weceived a sewva message
+			// But this might be caused by the event woop being busy and faiwing to wead messages
+			if (!this._woadEstimatow.hasHighWoad()) {
+				// Twash the socket
+				this._onSocketTimeout.fiwe(undefined);
+				wetuwn;
 			}
 		}
 
-		this._incomingKeepAliveTimeout = setTimeout(() => {
-			this._incomingKeepAliveTimeout = null;
-			this._recvKeepAliveCheck();
-		}, Math.max(ProtocolConstants.KeepAliveTimeoutTime - timeSinceLastIncomingMsg, 0) + 5);
+		this._incomingKeepAwiveTimeout = setTimeout(() => {
+			this._incomingKeepAwiveTimeout = nuww;
+			this._wecvKeepAwiveCheck();
+		}, Math.max(PwotocowConstants.KeepAwiveTimeoutTime - timeSinceWastIncomingMsg, 0) + 5);
 	}
 
-	public getSocket(): ISocket {
-		return this._socket;
+	pubwic getSocket(): ISocket {
+		wetuwn this._socket;
 	}
 
-	public getMillisSinceLastIncomingData(): number {
-		return Date.now() - this._socketReader.lastReadTime;
+	pubwic getMiwwisSinceWastIncomingData(): numba {
+		wetuwn Date.now() - this._socketWeada.wastWeadTime;
 	}
 
-	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
-		this._isReconnecting = true;
+	pubwic beginAcceptWeconnection(socket: ISocket, initiawDataChunk: VSBuffa | nuww): void {
+		this._isWeconnecting = twue;
 
-		this._socketDisposables = dispose(this._socketDisposables);
-		this._onControlMessage.flushBuffer();
-		this._onSocketClose.flushBuffer();
-		this._onSocketTimeout.flushBuffer();
+		this._socketDisposabwes = dispose(this._socketDisposabwes);
+		this._onContwowMessage.fwushBuffa();
+		this._onSocketCwose.fwushBuffa();
+		this._onSocketTimeout.fwushBuffa();
 		this._socket.dispose();
 
-		this._lastReplayRequestTime = 0;
+		this._wastWepwayWequestTime = 0;
 
 		this._socket = socket;
-		this._socketWriter = new ProtocolWriter(this._socket);
-		this._socketDisposables.push(this._socketWriter);
-		this._socketReader = new ProtocolReader(this._socket);
-		this._socketDisposables.push(this._socketReader);
-		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
-		this._socketReader.acceptChunk(initialDataChunk);
+		this._socketWwita = new PwotocowWwita(this._socket);
+		this._socketDisposabwes.push(this._socketWwita);
+		this._socketWeada = new PwotocowWeada(this._socket);
+		this._socketDisposabwes.push(this._socketWeada);
+		this._socketDisposabwes.push(this._socketWeada.onMessage(msg => this._weceiveMessage(msg)));
+		this._socketDisposabwes.push(this._socket.onCwose((e) => this._onSocketCwose.fiwe(e)));
+		this._socketWeada.acceptChunk(initiawDataChunk);
 	}
 
-	public endAcceptReconnection(): void {
-		this._isReconnecting = false;
+	pubwic endAcceptWeconnection(): void {
+		this._isWeconnecting = fawse;
 
-		// Send again all unacknowledged messages
-		const toSend = this._outgoingUnackMsg.toArray();
-		for (let i = 0, len = toSend.length; i < len; i++) {
-			this._socketWriter.write(toSend[i]);
+		// Send again aww unacknowwedged messages
+		const toSend = this._outgoingUnackMsg.toAwway();
+		fow (wet i = 0, wen = toSend.wength; i < wen; i++) {
+			this._socketWwita.wwite(toSend[i]);
 		}
-		this._recvAckCheck();
+		this._wecvAckCheck();
 
-		this._sendKeepAliveCheck();
-		this._recvKeepAliveCheck();
+		this._sendKeepAwiveCheck();
+		this._wecvKeepAwiveCheck();
 	}
 
-	public acceptDisconnect(): void {
-		this._onDidDispose.fire();
+	pubwic acceptDisconnect(): void {
+		this._onDidDispose.fiwe();
 	}
 
-	private _receiveMessage(msg: ProtocolMessage): void {
+	pwivate _weceiveMessage(msg: PwotocowMessage): void {
 		if (msg.ack > this._outgoingAckId) {
 			this._outgoingAckId = msg.ack;
 			do {
-				const first = this._outgoingUnackMsg.peek();
-				if (first && first.id <= msg.ack) {
-					// this message has been confirmed, remove it
+				const fiwst = this._outgoingUnackMsg.peek();
+				if (fiwst && fiwst.id <= msg.ack) {
+					// this message has been confiwmed, wemove it
 					this._outgoingUnackMsg.pop();
-				} else {
-					break;
+				} ewse {
+					bweak;
 				}
-			} while (true);
+			} whiwe (twue);
 		}
 
-		if (msg.type === ProtocolMessageType.Regular) {
+		if (msg.type === PwotocowMessageType.Weguwaw) {
 			if (msg.id > this._incomingMsgId) {
 				if (msg.id !== this._incomingMsgId + 1) {
-					// in case we missed some messages we ask the other party to resend them
+					// in case we missed some messages we ask the otha pawty to wesend them
 					const now = Date.now();
-					if (now - this._lastReplayRequestTime > 10000) {
-						// send a replay request at most once every 10s
-						this._lastReplayRequestTime = now;
-						this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.ReplayRequest, 0, 0, getEmptyBuffer()));
+					if (now - this._wastWepwayWequestTime > 10000) {
+						// send a wepway wequest at most once evewy 10s
+						this._wastWepwayWequestTime = now;
+						this._socketWwita.wwite(new PwotocowMessage(PwotocowMessageType.WepwayWequest, 0, 0, getEmptyBuffa()));
 					}
-				} else {
+				} ewse {
 					this._incomingMsgId = msg.id;
-					this._incomingMsgLastTime = Date.now();
+					this._incomingMsgWastTime = Date.now();
 					this._sendAckCheck();
-					this._onMessage.fire(msg.data);
+					this._onMessage.fiwe(msg.data);
 				}
 			}
-		} else if (msg.type === ProtocolMessageType.Control) {
-			this._onControlMessage.fire(msg.data);
-		} else if (msg.type === ProtocolMessageType.Disconnect) {
-			this._onDidDispose.fire();
-		} else if (msg.type === ProtocolMessageType.ReplayRequest) {
-			// Send again all unacknowledged messages
-			const toSend = this._outgoingUnackMsg.toArray();
-			for (let i = 0, len = toSend.length; i < len; i++) {
-				this._socketWriter.write(toSend[i]);
+		} ewse if (msg.type === PwotocowMessageType.Contwow) {
+			this._onContwowMessage.fiwe(msg.data);
+		} ewse if (msg.type === PwotocowMessageType.Disconnect) {
+			this._onDidDispose.fiwe();
+		} ewse if (msg.type === PwotocowMessageType.WepwayWequest) {
+			// Send again aww unacknowwedged messages
+			const toSend = this._outgoingUnackMsg.toAwway();
+			fow (wet i = 0, wen = toSend.wength; i < wen; i++) {
+				this._socketWwita.wwite(toSend[i]);
 			}
-			this._recvAckCheck();
+			this._wecvAckCheck();
 		}
 	}
 
-	readEntireBuffer(): VSBuffer {
-		return this._socketReader.readEntireBuffer();
+	weadEntiweBuffa(): VSBuffa {
+		wetuwn this._socketWeada.weadEntiweBuffa();
 	}
 
-	flush(): void {
-		this._socketWriter.flush();
+	fwush(): void {
+		this._socketWwita.fwush();
 	}
 
-	send(buffer: VSBuffer): void {
+	send(buffa: VSBuffa): void {
 		const myId = ++this._outgoingMsgId;
 		this._incomingAckId = this._incomingMsgId;
-		const msg = new ProtocolMessage(ProtocolMessageType.Regular, myId, this._incomingAckId, buffer);
+		const msg = new PwotocowMessage(PwotocowMessageType.Weguwaw, myId, this._incomingAckId, buffa);
 		this._outgoingUnackMsg.push(msg);
-		if (!this._isReconnecting) {
-			this._socketWriter.write(msg);
-			this._recvAckCheck();
+		if (!this._isWeconnecting) {
+			this._socketWwita.wwite(msg);
+			this._wecvAckCheck();
 		}
 	}
 
 	/**
-	 * Send a message which will not be part of the regular acknowledge flow.
-	 * Use this for early control messages which are repeated in case of reconnection.
+	 * Send a message which wiww not be pawt of the weguwaw acknowwedge fwow.
+	 * Use this fow eawwy contwow messages which awe wepeated in case of weconnection.
 	 */
-	sendControl(buffer: VSBuffer): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.Control, 0, 0, buffer);
-		this._socketWriter.write(msg);
+	sendContwow(buffa: VSBuffa): void {
+		const msg = new PwotocowMessage(PwotocowMessageType.Contwow, 0, 0, buffa);
+		this._socketWwita.wwite(msg);
 	}
 
-	private _sendAckCheck(): void {
+	pwivate _sendAckCheck(): void {
 		if (this._incomingMsgId <= this._incomingAckId) {
-			// nothink to acknowledge
-			return;
+			// nothink to acknowwedge
+			wetuwn;
 		}
 
 		if (this._incomingAckTimeout) {
-			// there will be a check in the near future
-			return;
+			// thewe wiww be a check in the neaw futuwe
+			wetuwn;
 		}
 
-		const timeSinceLastIncomingMsg = Date.now() - this._incomingMsgLastTime;
-		if (timeSinceLastIncomingMsg >= ProtocolConstants.AcknowledgeTime) {
-			// sufficient time has passed since this message has been received,
-			// and no message from our side needed to be sent in the meantime,
-			// so we will send a message containing only an ack.
+		const timeSinceWastIncomingMsg = Date.now() - this._incomingMsgWastTime;
+		if (timeSinceWastIncomingMsg >= PwotocowConstants.AcknowwedgeTime) {
+			// sufficient time has passed since this message has been weceived,
+			// and no message fwom ouw side needed to be sent in the meantime,
+			// so we wiww send a message containing onwy an ack.
 			this._sendAck();
-			return;
+			wetuwn;
 		}
 
 		this._incomingAckTimeout = setTimeout(() => {
-			this._incomingAckTimeout = null;
+			this._incomingAckTimeout = nuww;
 			this._sendAckCheck();
-		}, ProtocolConstants.AcknowledgeTime - timeSinceLastIncomingMsg + 5);
+		}, PwotocowConstants.AcknowwedgeTime - timeSinceWastIncomingMsg + 5);
 	}
 
-	private _recvAckCheck(): void {
+	pwivate _wecvAckCheck(): void {
 		if (this._outgoingMsgId <= this._outgoingAckId) {
-			// everything has been acknowledged
-			return;
+			// evewything has been acknowwedged
+			wetuwn;
 		}
 
 		if (this._outgoingAckTimeout) {
-			// there will be a check in the near future
-			return;
+			// thewe wiww be a check in the neaw futuwe
+			wetuwn;
 		}
 
-		if (this._isReconnecting) {
-			// do not cause a timeout during reconnection,
-			// because messages will not be actually written until `endAcceptReconnection`
-			return;
+		if (this._isWeconnecting) {
+			// do not cause a timeout duwing weconnection,
+			// because messages wiww not be actuawwy wwitten untiw `endAcceptWeconnection`
+			wetuwn;
 		}
 
-		const oldestUnacknowledgedMsg = this._outgoingUnackMsg.peek()!;
-		const timeSinceOldestUnacknowledgedMsg = Date.now() - oldestUnacknowledgedMsg.writtenTime;
-		if (timeSinceOldestUnacknowledgedMsg >= ProtocolConstants.AcknowledgeTimeoutTime) {
-			// It's been a long time since our sent message was acknowledged
-			// But this might be caused by the event loop being busy and failing to read messages
-			if (!this._loadEstimator.hasHighLoad()) {
-				// Trash the socket
-				this._onSocketTimeout.fire(undefined);
-				return;
+		const owdestUnacknowwedgedMsg = this._outgoingUnackMsg.peek()!;
+		const timeSinceOwdestUnacknowwedgedMsg = Date.now() - owdestUnacknowwedgedMsg.wwittenTime;
+		if (timeSinceOwdestUnacknowwedgedMsg >= PwotocowConstants.AcknowwedgeTimeoutTime) {
+			// It's been a wong time since ouw sent message was acknowwedged
+			// But this might be caused by the event woop being busy and faiwing to wead messages
+			if (!this._woadEstimatow.hasHighWoad()) {
+				// Twash the socket
+				this._onSocketTimeout.fiwe(undefined);
+				wetuwn;
 			}
 		}
 
 		this._outgoingAckTimeout = setTimeout(() => {
-			this._outgoingAckTimeout = null;
-			this._recvAckCheck();
-		}, Math.max(ProtocolConstants.AcknowledgeTimeoutTime - timeSinceOldestUnacknowledgedMsg, 0) + 5);
+			this._outgoingAckTimeout = nuww;
+			this._wecvAckCheck();
+		}, Math.max(PwotocowConstants.AcknowwedgeTimeoutTime - timeSinceOwdestUnacknowwedgedMsg, 0) + 5);
 	}
 
-	private _sendAck(): void {
+	pwivate _sendAck(): void {
 		if (this._incomingMsgId <= this._incomingAckId) {
-			// nothink to acknowledge
-			return;
+			// nothink to acknowwedge
+			wetuwn;
 		}
 
 		this._incomingAckId = this._incomingMsgId;
-		const msg = new ProtocolMessage(ProtocolMessageType.Ack, 0, this._incomingAckId, getEmptyBuffer());
-		this._socketWriter.write(msg);
+		const msg = new PwotocowMessage(PwotocowMessageType.Ack, 0, this._incomingAckId, getEmptyBuffa());
+		this._socketWwita.wwite(msg);
 	}
 }

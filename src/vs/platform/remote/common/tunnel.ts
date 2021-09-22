@@ -1,363 +1,363 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWindows, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IAddwessPwovida } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
 
-export const ITunnelService = createDecorator<ITunnelService>('tunnelService');
+expowt const ITunnewSewvice = cweateDecowatow<ITunnewSewvice>('tunnewSewvice');
 
-export interface RemoteTunnel {
-	readonly tunnelRemotePort: number;
-	readonly tunnelRemoteHost: string;
-	readonly tunnelLocalPort?: number;
-	readonly localAddress: string;
-	readonly public: boolean;
-	readonly protocol?: string;
-	dispose(silent?: boolean): Promise<void>;
+expowt intewface WemoteTunnew {
+	weadonwy tunnewWemotePowt: numba;
+	weadonwy tunnewWemoteHost: stwing;
+	weadonwy tunnewWocawPowt?: numba;
+	weadonwy wocawAddwess: stwing;
+	weadonwy pubwic: boowean;
+	weadonwy pwotocow?: stwing;
+	dispose(siwent?: boowean): Pwomise<void>;
 }
 
-export interface TunnelOptions {
-	remoteAddress: { port: number, host: string; };
-	localAddressPort?: number;
-	label?: string;
-	public?: boolean;
-	protocol?: string;
+expowt intewface TunnewOptions {
+	wemoteAddwess: { powt: numba, host: stwing; };
+	wocawAddwessPowt?: numba;
+	wabew?: stwing;
+	pubwic?: boowean;
+	pwotocow?: stwing;
 }
 
-export enum TunnelProtocol {
+expowt enum TunnewPwotocow {
 	Http = 'http',
 	Https = 'https'
 }
 
-export interface TunnelCreationOptions {
-	elevationRequired?: boolean;
+expowt intewface TunnewCweationOptions {
+	ewevationWequiwed?: boowean;
 }
 
-export interface TunnelProviderFeatures {
-	elevation: boolean;
-	public: boolean;
+expowt intewface TunnewPwovidewFeatuwes {
+	ewevation: boowean;
+	pubwic: boowean;
 }
 
-export interface ITunnelProvider {
-	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined;
+expowt intewface ITunnewPwovida {
+	fowwawdPowt(tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<WemoteTunnew | undefined> | undefined;
 }
 
-export enum ProvidedOnAutoForward {
+expowt enum PwovidedOnAutoFowwawd {
 	Notify = 1,
-	OpenBrowser = 2,
-	OpenPreview = 3,
-	Silent = 4,
-	Ignore = 5,
-	OpenBrowserOnce = 6
+	OpenBwowsa = 2,
+	OpenPweview = 3,
+	Siwent = 4,
+	Ignowe = 5,
+	OpenBwowsewOnce = 6
 }
 
-export interface ProvidedPortAttributes {
-	port: number;
-	autoForwardAction: ProvidedOnAutoForward;
+expowt intewface PwovidedPowtAttwibutes {
+	powt: numba;
+	autoFowwawdAction: PwovidedOnAutoFowwawd;
 }
 
-export interface PortAttributesProvider {
-	providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): Promise<ProvidedPortAttributes[]>;
+expowt intewface PowtAttwibutesPwovida {
+	pwovidePowtAttwibutes(powts: numba[], pid: numba | undefined, commandWine: stwing | undefined, token: CancewwationToken): Pwomise<PwovidedPowtAttwibutes[]>;
 }
 
-export interface ITunnel {
-	remoteAddress: { port: number, host: string };
+expowt intewface ITunnew {
+	wemoteAddwess: { powt: numba, host: stwing };
 
 	/**
-	 * The complete local address(ex. localhost:1234)
+	 * The compwete wocaw addwess(ex. wocawhost:1234)
 	 */
-	localAddress: string;
+	wocawAddwess: stwing;
 
-	public?: boolean;
+	pubwic?: boowean;
 
-	protocol?: string;
+	pwotocow?: stwing;
 
 	/**
-	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
+	 * Impwementews of Tunnew shouwd fiwe onDidDispose when dispose is cawwed.
 	 */
 	onDidDispose: Event<void>;
 
-	dispose(): Promise<void> | void;
+	dispose(): Pwomise<void> | void;
 }
 
-export interface ITunnelService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITunnewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly tunnels: Promise<readonly RemoteTunnel[]>;
-	readonly canMakePublic: boolean;
-	readonly onTunnelOpened: Event<RemoteTunnel>;
-	readonly onTunnelClosed: Event<{ host: string, port: number; }>;
-	readonly canElevate: boolean;
-	readonly hasTunnelProvider: boolean;
-	readonly onAddedTunnelProvider: Event<void>;
+	weadonwy tunnews: Pwomise<weadonwy WemoteTunnew[]>;
+	weadonwy canMakePubwic: boowean;
+	weadonwy onTunnewOpened: Event<WemoteTunnew>;
+	weadonwy onTunnewCwosed: Event<{ host: stwing, powt: numba; }>;
+	weadonwy canEwevate: boowean;
+	weadonwy hasTunnewPwovida: boowean;
+	weadonwy onAddedTunnewPwovida: Event<void>;
 
-	canTunnel(uri: URI): boolean;
-	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, isPublic?: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
-	closeTunnel(remoteHost: string, remotePort: number): Promise<void>;
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable;
+	canTunnew(uwi: UWI): boowean;
+	openTunnew(addwessPwovida: IAddwessPwovida | undefined, wemoteHost: stwing | undefined, wemotePowt: numba, wocawPowt?: numba, ewevateIfNeeded?: boowean, isPubwic?: boowean, pwotocow?: stwing): Pwomise<WemoteTunnew | undefined> | undefined;
+	cwoseTunnew(wemoteHost: stwing, wemotePowt: numba): Pwomise<void>;
+	setTunnewPwovida(pwovida: ITunnewPwovida | undefined, featuwes: TunnewPwovidewFeatuwes): IDisposabwe;
 }
 
-export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string, port: number; } | undefined {
-	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-		return undefined;
+expowt function extwactWocawHostUwiMetaDataFowPowtMapping(uwi: UWI): { addwess: stwing, powt: numba; } | undefined {
+	if (uwi.scheme !== 'http' && uwi.scheme !== 'https') {
+		wetuwn undefined;
 	}
-	const localhostMatch = /^(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)$/.exec(uri.authority);
-	if (!localhostMatch) {
-		return undefined;
+	const wocawhostMatch = /^(wocawhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)$/.exec(uwi.authowity);
+	if (!wocawhostMatch) {
+		wetuwn undefined;
 	}
-	return {
-		address: localhostMatch[1],
-		port: +localhostMatch[2],
+	wetuwn {
+		addwess: wocawhostMatch[1],
+		powt: +wocawhostMatch[2],
 	};
 }
 
-export const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
-export function isLocalhost(host: string): boolean {
-	return LOCALHOST_ADDRESSES.indexOf(host) >= 0;
+expowt const WOCAWHOST_ADDWESSES = ['wocawhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
+expowt function isWocawhost(host: stwing): boowean {
+	wetuwn WOCAWHOST_ADDWESSES.indexOf(host) >= 0;
 }
 
-export const ALL_INTERFACES_ADDRESSES = ['0.0.0.0', '0:0:0:0:0:0:0:0', '::'];
-export function isAllInterfaces(host: string): boolean {
-	return ALL_INTERFACES_ADDRESSES.indexOf(host) >= 0;
+expowt const AWW_INTEWFACES_ADDWESSES = ['0.0.0.0', '0:0:0:0:0:0:0:0', '::'];
+expowt function isAwwIntewfaces(host: stwing): boowean {
+	wetuwn AWW_INTEWFACES_ADDWESSES.indexOf(host) >= 0;
 }
 
-export function isPortPrivileged(port: number, os?: OperatingSystem): boolean {
+expowt function isPowtPwiviweged(powt: numba, os?: OpewatingSystem): boowean {
 	if (os) {
-		return os !== OperatingSystem.Windows && (port < 1024);
-	} else {
-		return !isWindows && (port < 1024);
+		wetuwn os !== OpewatingSystem.Windows && (powt < 1024);
+	} ewse {
+		wetuwn !isWindows && (powt < 1024);
 	}
 }
 
-export abstract class AbstractTunnelService implements ITunnelService {
-	declare readonly _serviceBrand: undefined;
+expowt abstwact cwass AbstwactTunnewSewvice impwements ITunnewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
-	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;
-	private _onTunnelClosed: Emitter<{ host: string, port: number; }> = new Emitter();
-	public onTunnelClosed: Event<{ host: string, port: number; }> = this._onTunnelClosed.event;
-	private _onAddedTunnelProvider: Emitter<void> = new Emitter();
-	public onAddedTunnelProvider: Event<void> = this._onAddedTunnelProvider.event;
-	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number, readonly value: Promise<RemoteTunnel | undefined>; }>>();
-	protected _tunnelProvider: ITunnelProvider | undefined;
-	protected _canElevate: boolean = false;
-	private _canMakePublic: boolean = false;
+	pwivate _onTunnewOpened: Emitta<WemoteTunnew> = new Emitta();
+	pubwic onTunnewOpened: Event<WemoteTunnew> = this._onTunnewOpened.event;
+	pwivate _onTunnewCwosed: Emitta<{ host: stwing, powt: numba; }> = new Emitta();
+	pubwic onTunnewCwosed: Event<{ host: stwing, powt: numba; }> = this._onTunnewCwosed.event;
+	pwivate _onAddedTunnewPwovida: Emitta<void> = new Emitta();
+	pubwic onAddedTunnewPwovida: Event<void> = this._onAddedTunnewPwovida.event;
+	pwotected weadonwy _tunnews = new Map</*host*/ stwing, Map</* powt */ numba, { wefcount: numba, weadonwy vawue: Pwomise<WemoteTunnew | undefined>; }>>();
+	pwotected _tunnewPwovida: ITunnewPwovida | undefined;
+	pwotected _canEwevate: boowean = fawse;
+	pwivate _canMakePubwic: boowean = fawse;
 
-	public constructor(
-		@ILogService protected readonly logService: ILogService
+	pubwic constwuctow(
+		@IWogSewvice pwotected weadonwy wogSewvice: IWogSewvice
 	) { }
 
-	get hasTunnelProvider(): boolean {
-		return !!this._tunnelProvider;
+	get hasTunnewPwovida(): boowean {
+		wetuwn !!this._tunnewPwovida;
 	}
 
-	setTunnelProvider(provider: ITunnelProvider | undefined, features: TunnelProviderFeatures): IDisposable {
-		this._tunnelProvider = provider;
-		if (!provider) {
-			// clear features
-			this._canElevate = false;
-			this._canMakePublic = false;
-			this._onAddedTunnelProvider.fire();
-			return {
+	setTunnewPwovida(pwovida: ITunnewPwovida | undefined, featuwes: TunnewPwovidewFeatuwes): IDisposabwe {
+		this._tunnewPwovida = pwovida;
+		if (!pwovida) {
+			// cweaw featuwes
+			this._canEwevate = fawse;
+			this._canMakePubwic = fawse;
+			this._onAddedTunnewPwovida.fiwe();
+			wetuwn {
 				dispose: () => { }
 			};
 		}
-		this._canElevate = features.elevation;
-		this._canMakePublic = features.public;
-		this._onAddedTunnelProvider.fire();
-		return {
+		this._canEwevate = featuwes.ewevation;
+		this._canMakePubwic = featuwes.pubwic;
+		this._onAddedTunnewPwovida.fiwe();
+		wetuwn {
 			dispose: () => {
-				this._tunnelProvider = undefined;
-				this._canElevate = false;
-				this._canMakePublic = false;
+				this._tunnewPwovida = undefined;
+				this._canEwevate = fawse;
+				this._canMakePubwic = fawse;
 			}
 		};
 	}
 
-	public get canElevate(): boolean {
-		return this._canElevate;
+	pubwic get canEwevate(): boowean {
+		wetuwn this._canEwevate;
 	}
 
-	public get canMakePublic() {
-		return this._canMakePublic;
+	pubwic get canMakePubwic() {
+		wetuwn this._canMakePubwic;
 	}
 
-	public get tunnels(): Promise<readonly RemoteTunnel[]> {
-		return new Promise(async (resolve) => {
-			const tunnels: RemoteTunnel[] = [];
-			const tunnelArray = Array.from(this._tunnels.values());
-			for (let portMap of tunnelArray) {
-				const portArray = Array.from(portMap.values());
-				for (let x of portArray) {
-					const tunnelValue = await x.value;
-					if (tunnelValue) {
-						tunnels.push(tunnelValue);
+	pubwic get tunnews(): Pwomise<weadonwy WemoteTunnew[]> {
+		wetuwn new Pwomise(async (wesowve) => {
+			const tunnews: WemoteTunnew[] = [];
+			const tunnewAwway = Awway.fwom(this._tunnews.vawues());
+			fow (wet powtMap of tunnewAwway) {
+				const powtAwway = Awway.fwom(powtMap.vawues());
+				fow (wet x of powtAwway) {
+					const tunnewVawue = await x.vawue;
+					if (tunnewVawue) {
+						tunnews.push(tunnewVawue);
 					}
 				}
 			}
-			resolve(tunnels);
+			wesowve(tunnews);
 		});
 	}
 
-	async dispose(): Promise<void> {
-		for (const portMap of this._tunnels.values()) {
-			for (const { value } of portMap.values()) {
-				await value.then(tunnel => tunnel?.dispose());
+	async dispose(): Pwomise<void> {
+		fow (const powtMap of this._tunnews.vawues()) {
+			fow (const { vawue } of powtMap.vawues()) {
+				await vawue.then(tunnew => tunnew?.dispose());
 			}
-			portMap.clear();
+			powtMap.cweaw();
 		}
-		this._tunnels.clear();
+		this._tunnews.cweaw();
 	}
 
-	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded: boolean = false, isPublic: boolean = false, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
-		this.logService.trace(`ForwardedPorts: (TunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
-		if (!addressProvider) {
-			return undefined;
+	openTunnew(addwessPwovida: IAddwessPwovida | undefined, wemoteHost: stwing | undefined, wemotePowt: numba, wocawPowt?: numba, ewevateIfNeeded: boowean = fawse, isPubwic: boowean = fawse, pwotocow?: stwing): Pwomise<WemoteTunnew | undefined> | undefined {
+		this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) openTunnew wequest fow ${wemoteHost}:${wemotePowt} on wocaw powt ${wocawPowt}.`);
+		if (!addwessPwovida) {
+			wetuwn undefined;
 		}
 
-		if (!remoteHost) {
-			remoteHost = 'localhost';
+		if (!wemoteHost) {
+			wemoteHost = 'wocawhost';
 		}
 
-		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic, protocol);
-		if (!resolvedTunnel) {
-			this.logService.trace(`ForwardedPorts: (TunnelService) Tunnel was not created.`);
-			return resolvedTunnel;
+		const wesowvedTunnew = this.wetainOwCweateTunnew(addwessPwovida, wemoteHost, wemotePowt, wocawPowt, ewevateIfNeeded, isPubwic, pwotocow);
+		if (!wesowvedTunnew) {
+			this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) Tunnew was not cweated.`);
+			wetuwn wesowvedTunnew;
 		}
 
-		return resolvedTunnel.then(tunnel => {
-			if (!tunnel) {
-				this.logService.trace('ForwardedPorts: (TunnelService) New tunnel is undefined.');
-				this.removeEmptyTunnelFromMap(remoteHost!, remotePort);
-				return undefined;
+		wetuwn wesowvedTunnew.then(tunnew => {
+			if (!tunnew) {
+				this.wogSewvice.twace('FowwawdedPowts: (TunnewSewvice) New tunnew is undefined.');
+				this.wemoveEmptyTunnewFwomMap(wemoteHost!, wemotePowt);
+				wetuwn undefined;
 			}
-			this.logService.trace('ForwardedPorts: (TunnelService) New tunnel established.');
-			const newTunnel = this.makeTunnel(tunnel);
-			if (tunnel.tunnelRemoteHost !== remoteHost || tunnel.tunnelRemotePort !== remotePort) {
-				this.logService.warn('ForwardedPorts: (TunnelService) Created tunnel does not match requirements of requested tunnel. Host or port mismatch.');
+			this.wogSewvice.twace('FowwawdedPowts: (TunnewSewvice) New tunnew estabwished.');
+			const newTunnew = this.makeTunnew(tunnew);
+			if (tunnew.tunnewWemoteHost !== wemoteHost || tunnew.tunnewWemotePowt !== wemotePowt) {
+				this.wogSewvice.wawn('FowwawdedPowts: (TunnewSewvice) Cweated tunnew does not match wequiwements of wequested tunnew. Host ow powt mismatch.');
 			}
-			this._onTunnelOpened.fire(newTunnel);
-			return newTunnel;
+			this._onTunnewOpened.fiwe(newTunnew);
+			wetuwn newTunnew;
 		});
 	}
 
-	private makeTunnel(tunnel: RemoteTunnel): RemoteTunnel {
-		return {
-			tunnelRemotePort: tunnel.tunnelRemotePort,
-			tunnelRemoteHost: tunnel.tunnelRemoteHost,
-			tunnelLocalPort: tunnel.tunnelLocalPort,
-			localAddress: tunnel.localAddress,
-			public: tunnel.public,
-			protocol: tunnel.protocol,
+	pwivate makeTunnew(tunnew: WemoteTunnew): WemoteTunnew {
+		wetuwn {
+			tunnewWemotePowt: tunnew.tunnewWemotePowt,
+			tunnewWemoteHost: tunnew.tunnewWemoteHost,
+			tunnewWocawPowt: tunnew.tunnewWocawPowt,
+			wocawAddwess: tunnew.wocawAddwess,
+			pubwic: tunnew.pubwic,
+			pwotocow: tunnew.pwotocow,
 			dispose: async () => {
-				this.logService.trace(`ForwardedPorts: (TunnelService) dispose request for ${tunnel.tunnelRemoteHost}:${tunnel.tunnelRemotePort} `);
-				const existingHost = this._tunnels.get(tunnel.tunnelRemoteHost);
+				this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) dispose wequest fow ${tunnew.tunnewWemoteHost}:${tunnew.tunnewWemotePowt} `);
+				const existingHost = this._tunnews.get(tunnew.tunnewWemoteHost);
 				if (existingHost) {
-					const existing = existingHost.get(tunnel.tunnelRemotePort);
+					const existing = existingHost.get(tunnew.tunnewWemotePowt);
 					if (existing) {
-						existing.refcount--;
-						await this.tryDisposeTunnel(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort, existing);
+						existing.wefcount--;
+						await this.twyDisposeTunnew(tunnew.tunnewWemoteHost, tunnew.tunnewWemotePowt, existing);
 					}
 				}
 			}
 		};
 	}
 
-	private async tryDisposeTunnel(remoteHost: string, remotePort: number, tunnel: { refcount: number, readonly value: Promise<RemoteTunnel | undefined> }): Promise<void> {
-		if (tunnel.refcount <= 0) {
-			this.logService.trace(`ForwardedPorts: (TunnelService) Tunnel is being disposed ${remoteHost}:${remotePort}.`);
-			const disposePromise: Promise<void> = tunnel.value.then(async (tunnel) => {
-				if (tunnel) {
-					await tunnel.dispose(true);
-					this._onTunnelClosed.fire({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
+	pwivate async twyDisposeTunnew(wemoteHost: stwing, wemotePowt: numba, tunnew: { wefcount: numba, weadonwy vawue: Pwomise<WemoteTunnew | undefined> }): Pwomise<void> {
+		if (tunnew.wefcount <= 0) {
+			this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) Tunnew is being disposed ${wemoteHost}:${wemotePowt}.`);
+			const disposePwomise: Pwomise<void> = tunnew.vawue.then(async (tunnew) => {
+				if (tunnew) {
+					await tunnew.dispose(twue);
+					this._onTunnewCwosed.fiwe({ host: tunnew.tunnewWemoteHost, powt: tunnew.tunnewWemotePowt });
 				}
 			});
-			if (this._tunnels.has(remoteHost)) {
-				this._tunnels.get(remoteHost)!.delete(remotePort);
+			if (this._tunnews.has(wemoteHost)) {
+				this._tunnews.get(wemoteHost)!.dewete(wemotePowt);
 			}
-			return disposePromise;
+			wetuwn disposePwomise;
 		}
 	}
 
-	async closeTunnel(remoteHost: string, remotePort: number): Promise<void> {
-		this.logService.trace(`ForwardedPorts: (TunnelService) close request for ${remoteHost}:${remotePort} `);
-		const portMap = this._tunnels.get(remoteHost);
-		if (portMap && portMap.has(remotePort)) {
-			const value = portMap.get(remotePort)!;
-			value.refcount = 0;
-			await this.tryDisposeTunnel(remoteHost, remotePort, value);
+	async cwoseTunnew(wemoteHost: stwing, wemotePowt: numba): Pwomise<void> {
+		this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) cwose wequest fow ${wemoteHost}:${wemotePowt} `);
+		const powtMap = this._tunnews.get(wemoteHost);
+		if (powtMap && powtMap.has(wemotePowt)) {
+			const vawue = powtMap.get(wemotePowt)!;
+			vawue.wefcount = 0;
+			await this.twyDisposeTunnew(wemoteHost, wemotePowt, vawue);
 		}
 	}
 
-	protected addTunnelToMap(remoteHost: string, remotePort: number, tunnel: Promise<RemoteTunnel | undefined>) {
-		if (!this._tunnels.has(remoteHost)) {
-			this._tunnels.set(remoteHost, new Map());
+	pwotected addTunnewToMap(wemoteHost: stwing, wemotePowt: numba, tunnew: Pwomise<WemoteTunnew | undefined>) {
+		if (!this._tunnews.has(wemoteHost)) {
+			this._tunnews.set(wemoteHost, new Map());
 		}
-		this._tunnels.get(remoteHost)!.set(remotePort, { refcount: 1, value: tunnel });
+		this._tunnews.get(wemoteHost)!.set(wemotePowt, { wefcount: 1, vawue: tunnew });
 	}
 
-	private async removeEmptyTunnelFromMap(remoteHost: string, remotePort: number) {
-		const hostMap = this._tunnels.get(remoteHost);
+	pwivate async wemoveEmptyTunnewFwomMap(wemoteHost: stwing, wemotePowt: numba) {
+		const hostMap = this._tunnews.get(wemoteHost);
 		if (hostMap) {
-			const tunnel = hostMap.get(remotePort);
-			const tunnelResult = await tunnel;
-			if (!tunnelResult) {
-				hostMap.delete(remotePort);
+			const tunnew = hostMap.get(wemotePowt);
+			const tunnewWesuwt = await tunnew;
+			if (!tunnewWesuwt) {
+				hostMap.dewete(wemotePowt);
 			}
 			if (hostMap.size === 0) {
-				this._tunnels.delete(remoteHost);
+				this._tunnews.dewete(wemoteHost);
 			}
 		}
 	}
 
-	protected getTunnelFromMap(remoteHost: string, remotePort: number): { refcount: number, readonly value: Promise<RemoteTunnel | undefined> } | undefined {
-		let hosts = [remoteHost];
-		// Order matters. We want the original host to be first.
-		if (isLocalhost(remoteHost)) {
-			hosts.push(...LOCALHOST_ADDRESSES);
-			// For localhost, we add the all interfaces hosts because if the tunnel is already available at all interfaces,
-			// then of course it is available at localhost.
-			hosts.push(...ALL_INTERFACES_ADDRESSES);
-		} else if (isAllInterfaces(remoteHost)) {
-			hosts.push(...ALL_INTERFACES_ADDRESSES);
+	pwotected getTunnewFwomMap(wemoteHost: stwing, wemotePowt: numba): { wefcount: numba, weadonwy vawue: Pwomise<WemoteTunnew | undefined> } | undefined {
+		wet hosts = [wemoteHost];
+		// Owda mattews. We want the owiginaw host to be fiwst.
+		if (isWocawhost(wemoteHost)) {
+			hosts.push(...WOCAWHOST_ADDWESSES);
+			// Fow wocawhost, we add the aww intewfaces hosts because if the tunnew is awweady avaiwabwe at aww intewfaces,
+			// then of couwse it is avaiwabwe at wocawhost.
+			hosts.push(...AWW_INTEWFACES_ADDWESSES);
+		} ewse if (isAwwIntewfaces(wemoteHost)) {
+			hosts.push(...AWW_INTEWFACES_ADDWESSES);
 		}
 
-		const existingPortMaps = hosts.map(host => this._tunnels.get(host));
-		for (const map of existingPortMaps) {
-			const existingTunnel = map?.get(remotePort);
-			if (existingTunnel) {
-				return existingTunnel;
+		const existingPowtMaps = hosts.map(host => this._tunnews.get(host));
+		fow (const map of existingPowtMaps) {
+			const existingTunnew = map?.get(wemotePowt);
+			if (existingTunnew) {
+				wetuwn existingTunnew;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	canTunnel(uri: URI): boolean {
-		return !!extractLocalHostUriMetaDataForPortMapping(uri);
+	canTunnew(uwi: UWI): boowean {
+		wetuwn !!extwactWocawHostUwiMetaDataFowPowtMapping(uwi);
 	}
 
-	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	pwotected abstwact wetainOwCweateTunnew(addwessPwovida: IAddwessPwovida, wemoteHost: stwing, wemotePowt: numba, wocawPowt: numba | undefined, ewevateIfNeeded: boowean, isPubwic: boowean, pwotocow?: stwing): Pwomise<WemoteTunnew | undefined> | undefined;
 
-	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
-		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
+	pwotected cweateWithPwovida(tunnewPwovida: ITunnewPwovida, wemoteHost: stwing, wemotePowt: numba, wocawPowt: numba | undefined, ewevateIfNeeded: boowean, isPubwic: boowean, pwotocow?: stwing): Pwomise<WemoteTunnew | undefined> | undefined {
+		this.wogSewvice.twace(`FowwawdedPowts: (TunnewSewvice) Cweating tunnew with pwovida ${wemoteHost}:${wemotePowt} on wocaw powt ${wocawPowt}.`);
 
-		const preferredLocalPort = localPort === undefined ? remotePort : localPort;
-		const creationInfo = { elevationRequired: elevateIfNeeded ? isPortPrivileged(preferredLocalPort) : false };
-		const tunnelOptions: TunnelOptions = { remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort, public: isPublic, protocol };
-		const tunnel = tunnelProvider.forwardPort(tunnelOptions, creationInfo);
-		this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created by provider.');
-		if (tunnel) {
-			this.addTunnelToMap(remoteHost, remotePort, tunnel);
+		const pwefewwedWocawPowt = wocawPowt === undefined ? wemotePowt : wocawPowt;
+		const cweationInfo = { ewevationWequiwed: ewevateIfNeeded ? isPowtPwiviweged(pwefewwedWocawPowt) : fawse };
+		const tunnewOptions: TunnewOptions = { wemoteAddwess: { host: wemoteHost, powt: wemotePowt }, wocawAddwessPowt: wocawPowt, pubwic: isPubwic, pwotocow };
+		const tunnew = tunnewPwovida.fowwawdPowt(tunnewOptions, cweationInfo);
+		this.wogSewvice.twace('FowwawdedPowts: (TunnewSewvice) Tunnew cweated by pwovida.');
+		if (tunnew) {
+			this.addTunnewToMap(wemoteHost, wemotePowt, tunnew);
 		}
-		return tunnel;
+		wetuwn tunnew;
 	}
 }
 

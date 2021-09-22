@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Command } from 'vs/editor/common/modes';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IAccessibiwityInfowmation } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export function toKey(extension: ExtensionIdentifier | string, source: string) {
-	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
+expowt function toKey(extension: ExtensionIdentifia | stwing, souwce: stwing) {
+	wetuwn `${typeof extension === 'stwing' ? extension : ExtensionIdentifia.toKey(extension)}|${souwce}`;
 }
 
-export const TimelinePaneId = 'timeline';
+expowt const TimewinePaneId = 'timewine';
 
-export interface TimelineItem {
-	handle: string;
-	source: string;
+expowt intewface TimewineItem {
+	handwe: stwing;
+	souwce: stwing;
 
-	id?: string;
-	timestamp: number;
-	label: string;
-	accessibilityInformation?: IAccessibilityInformation;
-	icon?: URI,
-	iconDark?: URI,
+	id?: stwing;
+	timestamp: numba;
+	wabew: stwing;
+	accessibiwityInfowmation?: IAccessibiwityInfowmation;
+	icon?: UWI,
+	iconDawk?: UWI,
 	themeIcon?: ThemeIcon,
-	description?: string;
-	detail?: string;
+	descwiption?: stwing;
+	detaiw?: stwing;
 	command?: Command;
-	contextValue?: string;
+	contextVawue?: stwing;
 
-	relativeTime?: string;
-	hideRelativeTime?: boolean;
+	wewativeTime?: stwing;
+	hideWewativeTime?: boowean;
 }
 
-export interface TimelineChangeEvent {
-	id: string;
-	uri: URI | undefined;
-	reset: boolean
+expowt intewface TimewineChangeEvent {
+	id: stwing;
+	uwi: UWI | undefined;
+	weset: boowean
 }
 
-export interface TimelineOptions {
-	cursor?: string;
-	limit?: number | { timestamp: number; id?: string };
+expowt intewface TimewineOptions {
+	cuwsow?: stwing;
+	wimit?: numba | { timestamp: numba; id?: stwing };
 }
 
-export interface InternalTimelineOptions {
-	cacheResults: boolean;
-	resetCache: boolean;
+expowt intewface IntewnawTimewineOptions {
+	cacheWesuwts: boowean;
+	wesetCache: boowean;
 }
 
-export interface Timeline {
-	source: string;
-	items: TimelineItem[];
+expowt intewface Timewine {
+	souwce: stwing;
+	items: TimewineItem[];
 
 	paging?: {
-		cursor: string | undefined;
+		cuwsow: stwing | undefined;
 	}
 }
 
-export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
-	onDidChange?: Event<TimelineChangeEvent>;
+expowt intewface TimewinePwovida extends TimewinePwovidewDescwiptow, IDisposabwe {
+	onDidChange?: Event<TimewineChangeEvent>;
 
-	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: IntewnawTimewineOptions): Pwomise<Timewine | undefined>;
 }
 
-export interface TimelineSource {
-	id: string;
-	label: string;
+expowt intewface TimewineSouwce {
+	id: stwing;
+	wabew: stwing;
 }
 
-export interface TimelineProviderDescriptor {
-	id: string;
-	label: string;
-	scheme: string | string[];
+expowt intewface TimewinePwovidewDescwiptow {
+	id: stwing;
+	wabew: stwing;
+	scheme: stwing | stwing[];
 }
 
-export interface TimelineProvidersChangeEvent {
-	readonly added?: string[];
-	readonly removed?: string[];
+expowt intewface TimewinePwovidewsChangeEvent {
+	weadonwy added?: stwing[];
+	weadonwy wemoved?: stwing[];
 }
 
-export interface TimelineRequest {
-	readonly result: Promise<Timeline | undefined>;
-	readonly options: TimelineOptions;
-	readonly source: string;
-	readonly tokenSource: CancellationTokenSource;
-	readonly uri: URI;
+expowt intewface TimewineWequest {
+	weadonwy wesuwt: Pwomise<Timewine | undefined>;
+	weadonwy options: TimewineOptions;
+	weadonwy souwce: stwing;
+	weadonwy tokenSouwce: CancewwationTokenSouwce;
+	weadonwy uwi: UWI;
 }
 
-export interface ITimelineService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITimewineSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
-	onDidChangeTimeline: Event<TimelineChangeEvent>;
-	onDidChangeUri: Event<URI>;
+	onDidChangePwovidews: Event<TimewinePwovidewsChangeEvent>;
+	onDidChangeTimewine: Event<TimewineChangeEvent>;
+	onDidChangeUwi: Event<UWI>;
 
-	registerTimelineProvider(provider: TimelineProvider): IDisposable;
-	unregisterTimelineProvider(id: string): void;
+	wegistewTimewinePwovida(pwovida: TimewinePwovida): IDisposabwe;
+	unwegistewTimewinePwovida(id: stwing): void;
 
-	getSources(): TimelineSource[];
+	getSouwces(): TimewineSouwce[];
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
+	getTimewine(id: stwing, uwi: UWI, options: TimewineOptions, tokenSouwce: CancewwationTokenSouwce, intewnawOptions?: IntewnawTimewineOptions): TimewineWequest | undefined;
 
-	setUri(uri: URI): void;
+	setUwi(uwi: UWI): void;
 }
 
-const TIMELINE_SERVICE_ID = 'timeline';
-export const ITimelineService = createDecorator<ITimelineService>(TIMELINE_SERVICE_ID);
+const TIMEWINE_SEWVICE_ID = 'timewine';
+expowt const ITimewineSewvice = cweateDecowatow<ITimewineSewvice>(TIMEWINE_SEWVICE_ID);

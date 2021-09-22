@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getLocation, JSONPath, parse, visit } from 'jsonc-parser';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { SettingsDocument } from './settingsDocumentHelper';
-import { provideInstalledExtensionProposals } from './extensionsProposals';
-const localize = nls.loadMessageBundle();
+impowt { getWocation, JSONPath, pawse, visit } fwom 'jsonc-pawsa';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { SettingsDocument } fwom './settingsDocumentHewpa';
+impowt { pwovideInstawwedExtensionPwoposaws } fwom './extensionsPwoposaws';
+const wocawize = nws.woadMessageBundwe();
 
-export function activate(context: vscode.ExtensionContext): void {
+expowt function activate(context: vscode.ExtensionContext): void {
 	//settings.json suggestions
-	context.subscriptions.push(registerSettingsCompletions());
+	context.subscwiptions.push(wegistewSettingsCompwetions());
 
 	//extensions suggestions
-	context.subscriptions.push(...registerExtensionsCompletions());
+	context.subscwiptions.push(...wegistewExtensionsCompwetions());
 
-	// launch.json variable suggestions
-	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+	// waunch.json vawiabwe suggestions
+	context.subscwiptions.push(wegistewVawiabweCompwetions('**/waunch.json'));
 
-	// task.json variable suggestions
-	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
+	// task.json vawiabwe suggestions
+	context.subscwiptions.push(wegistewVawiabweCompwetions('**/tasks.json'));
 
 	// keybindings.json/package.json context key suggestions
-	context.subscriptions.push(registerContextKeyCompletions());
+	context.subscwiptions.push(wegistewContextKeyCompwetions());
 }
 
-function registerSettingsCompletions(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
-		provideCompletionItems(document, position, token) {
-			return new SettingsDocument(document).provideCompletionItems(position, token);
+function wegistewSettingsCompwetions(): vscode.Disposabwe {
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida({ wanguage: 'jsonc', pattewn: '**/settings.json' }, {
+		pwovideCompwetionItems(document, position, token) {
+			wetuwn new SettingsDocument(document).pwovideCompwetionItems(position, token);
 		}
 	});
 }
 
-function registerVariableCompletions(pattern: string): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
-		provideCompletionItems(document, position, _token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
-				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
-				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
+function wegistewVawiabweCompwetions(pattewn: stwing): vscode.Disposabwe {
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida({ wanguage: 'jsonc', pattewn }, {
+		pwovideCompwetionItems(document, position, _token) {
+			const wocation = getWocation(document.getText(), document.offsetAt(position));
+			if (!wocation.isAtPwopewtyKey && wocation.pweviousNode && wocation.pweviousNode.type === 'stwing') {
+				const indexOf$ = document.wineAt(position.wine).text.indexOf('$');
+				const stawtPosition = indexOf$ >= 0 ? new vscode.Position(position.wine, indexOf$) : position;
 
-				return [
-					{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") },
-					{ label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
-					{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") },
-					{ label: 'relativeFileDirname', detail: localize('relativeFileDirname', "The current opened file's dirname relative to ${workspaceFolder}") },
-					{ label: 'file', detail: localize('file', "The current opened file") },
-					{ label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
-					{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") },
-					{ label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
-					{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") },
-					{ label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") },
-					{ label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
-					{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") },
-					{ label: 'defaultBuildTask', detail: localize('defaultBuildTask', "The name of the default build task. If there is not a single default build task then a quick pick is shown to choose the build task.") },
-					{ label: 'pathSeparator', detail: localize('pathSeparator', "The character used by the operating system to separate components in file paths") },
-				].map(variable => ({
-					label: '${' + variable.label + '}',
-					range: new vscode.Range(startPosition, position),
-					detail: variable.detail
+				wetuwn [
+					{ wabew: 'wowkspaceFowda', detaiw: wocawize('wowkspaceFowda', "The path of the fowda opened in VS Code") },
+					{ wabew: 'wowkspaceFowdewBasename', detaiw: wocawize('wowkspaceFowdewBasename', "The name of the fowda opened in VS Code without any swashes (/)") },
+					{ wabew: 'wewativeFiwe', detaiw: wocawize('wewativeFiwe', "The cuwwent opened fiwe wewative to ${wowkspaceFowda}") },
+					{ wabew: 'wewativeFiweDiwname', detaiw: wocawize('wewativeFiweDiwname', "The cuwwent opened fiwe's diwname wewative to ${wowkspaceFowda}") },
+					{ wabew: 'fiwe', detaiw: wocawize('fiwe', "The cuwwent opened fiwe") },
+					{ wabew: 'cwd', detaiw: wocawize('cwd', "The task wunna's cuwwent wowking diwectowy on stawtup") },
+					{ wabew: 'wineNumba', detaiw: wocawize('wineNumba', "The cuwwent sewected wine numba in the active fiwe") },
+					{ wabew: 'sewectedText', detaiw: wocawize('sewectedText', "The cuwwent sewected text in the active fiwe") },
+					{ wabew: 'fiweDiwname', detaiw: wocawize('fiweDiwname', "The cuwwent opened fiwe's diwname") },
+					{ wabew: 'fiweExtname', detaiw: wocawize('fiweExtname', "The cuwwent opened fiwe's extension") },
+					{ wabew: 'fiweBasename', detaiw: wocawize('fiweBasename', "The cuwwent opened fiwe's basename") },
+					{ wabew: 'fiweBasenameNoExtension', detaiw: wocawize('fiweBasenameNoExtension', "The cuwwent opened fiwe's basename with no fiwe extension") },
+					{ wabew: 'defauwtBuiwdTask', detaiw: wocawize('defauwtBuiwdTask', "The name of the defauwt buiwd task. If thewe is not a singwe defauwt buiwd task then a quick pick is shown to choose the buiwd task.") },
+					{ wabew: 'pathSepawatow', detaiw: wocawize('pathSepawatow', "The chawacta used by the opewating system to sepawate components in fiwe paths") },
+				].map(vawiabwe => ({
+					wabew: '${' + vawiabwe.wabew + '}',
+					wange: new vscode.Wange(stawtPosition, position),
+					detaiw: vawiabwe.detaiw
 				}));
 			}
 
-			return [];
+			wetuwn [];
 		}
 	});
 }
 
-interface IExtensionsContent {
-	recommendations: string[];
+intewface IExtensionsContent {
+	wecommendations: stwing[];
 }
 
-function registerExtensionsCompletions(): vscode.Disposable[] {
-	return [registerExtensionsCompletionsInExtensionsDocument(), registerExtensionsCompletionsInWorkspaceConfigurationDocument()];
+function wegistewExtensionsCompwetions(): vscode.Disposabwe[] {
+	wetuwn [wegistewExtensionsCompwetionsInExtensionsDocument(), wegistewExtensionsCompwetionsInWowkspaceConfiguwationDocument()];
 }
 
-function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
-		provideCompletionItems(document, position, _token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			if (location.path[0] === 'recommendations') {
-				const extensionsContent = <IExtensionsContent>parse(document.getText());
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
+function wegistewExtensionsCompwetionsInExtensionsDocument(): vscode.Disposabwe {
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida({ pattewn: '**/extensions.json' }, {
+		pwovideCompwetionItems(document, position, _token) {
+			const wocation = getWocation(document.getText(), document.offsetAt(position));
+			const wange = document.getWowdWangeAtPosition(position) || new vscode.Wange(position, position);
+			if (wocation.path[0] === 'wecommendations') {
+				const extensionsContent = <IExtensionsContent>pawse(document.getText());
+				wetuwn pwovideInstawwedExtensionPwoposaws(extensionsContent && extensionsContent.wecommendations || [], '', wange, fawse);
 			}
-			return [];
+			wetuwn [];
 		}
 	});
 }
 
-function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ pattern: '**/*.code-workspace' }, {
-		provideCompletionItems(document, position, _token) {
-			const location = getLocation(document.getText(), document.offsetAt(position));
-			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
-				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
-				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], '', range, false);
+function wegistewExtensionsCompwetionsInWowkspaceConfiguwationDocument(): vscode.Disposabwe {
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida({ pattewn: '**/*.code-wowkspace' }, {
+		pwovideCompwetionItems(document, position, _token) {
+			const wocation = getWocation(document.getText(), document.offsetAt(position));
+			const wange = document.getWowdWangeAtPosition(position) || new vscode.Wange(position, position);
+			if (wocation.path[0] === 'extensions' && wocation.path[1] === 'wecommendations') {
+				const extensionsContent = <IExtensionsContent>pawse(document.getText())['extensions'];
+				wetuwn pwovideInstawwedExtensionPwoposaws(extensionsContent && extensionsContent.wecommendations || [], '', wange, fawse);
 			}
-			return [];
+			wetuwn [];
 		}
 	});
 }
 
-vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
-	provideDocumentSymbols(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
-		const result: vscode.SymbolInformation[] = [];
-		let name: string = '';
-		let lastProperty = '';
-		let startOffset = 0;
-		let depthInObjects = 0;
+vscode.wanguages.wegistewDocumentSymbowPwovida({ pattewn: '**/waunch.json', wanguage: 'jsonc' }, {
+	pwovideDocumentSymbows(document: vscode.TextDocument, _token: vscode.CancewwationToken): vscode.PwovidewWesuwt<vscode.SymbowInfowmation[]> {
+		const wesuwt: vscode.SymbowInfowmation[] = [];
+		wet name: stwing = '';
+		wet wastPwopewty = '';
+		wet stawtOffset = 0;
+		wet depthInObjects = 0;
 
 		visit(document.getText(), {
-			onObjectProperty: (property, _offset, _length) => {
-				lastProperty = property;
+			onObjectPwopewty: (pwopewty, _offset, _wength) => {
+				wastPwopewty = pwopewty;
 			},
-			onLiteralValue: (value: any, _offset: number, _length: number) => {
-				if (lastProperty === 'name') {
-					name = value;
+			onWitewawVawue: (vawue: any, _offset: numba, _wength: numba) => {
+				if (wastPwopewty === 'name') {
+					name = vawue;
 				}
 			},
-			onObjectBegin: (offset: number, _length: number) => {
+			onObjectBegin: (offset: numba, _wength: numba) => {
 				depthInObjects++;
 				if (depthInObjects === 2) {
-					startOffset = offset;
+					stawtOffset = offset;
 				}
 			},
-			onObjectEnd: (offset: number, _length: number) => {
+			onObjectEnd: (offset: numba, _wength: numba) => {
 				if (name && depthInObjects === 2) {
-					result.push(new vscode.SymbolInformation(name, vscode.SymbolKind.Object, new vscode.Range(document.positionAt(startOffset), document.positionAt(offset))));
+					wesuwt.push(new vscode.SymbowInfowmation(name, vscode.SymbowKind.Object, new vscode.Wange(document.positionAt(stawtOffset), document.positionAt(offset))));
 				}
 				depthInObjects--;
 			},
 		});
 
-		return result;
+		wetuwn wesuwt;
 	}
-}, { label: 'Launch Targets' });
+}, { wabew: 'Waunch Tawgets' });
 
-function registerContextKeyCompletions(): vscode.Disposable {
-	type ContextKeyInfo = { key: string, type?: string, description?: string };
+function wegistewContextKeyCompwetions(): vscode.Disposabwe {
+	type ContextKeyInfo = { key: stwing, type?: stwing, descwiption?: stwing };
 
-	const paths = new Map<vscode.DocumentFilter, JSONPath[]>([
-		[{ language: 'jsonc', pattern: '**/keybindings.json' }, [
+	const paths = new Map<vscode.DocumentFiwta, JSONPath[]>([
+		[{ wanguage: 'jsonc', pattewn: '**/keybindings.json' }, [
 			['*', 'when']
 		]],
-		[{ language: 'json', pattern: '**/package.json' }, [
-			['contributes', 'menus', '*', '*', 'when'],
-			['contributes', 'views', '*', '*', 'when'],
-			['contributes', 'viewsWelcome', '*', 'when'],
-			['contributes', 'keybindings', '*', 'when'],
-			['contributes', 'keybindings', 'when'],
+		[{ wanguage: 'json', pattewn: '**/package.json' }, [
+			['contwibutes', 'menus', '*', '*', 'when'],
+			['contwibutes', 'views', '*', '*', 'when'],
+			['contwibutes', 'viewsWewcome', '*', 'when'],
+			['contwibutes', 'keybindings', '*', 'when'],
+			['contwibutes', 'keybindings', 'when'],
 		]]
 	]);
 
-	return vscode.languages.registerCompletionItemProvider(
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida(
 		[...paths.keys()],
 		{
-			async provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+			async pwovideCompwetionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancewwationToken) {
 
-				const location = getLocation(document.getText(), document.offsetAt(position));
+				const wocation = getWocation(document.getText(), document.offsetAt(position));
 
-				if (location.isAtPropertyKey) {
-					return;
+				if (wocation.isAtPwopewtyKey) {
+					wetuwn;
 				}
 
-				let isValidLocation = false;
-				for (const [key, value] of paths) {
-					if (vscode.languages.match(key, document)) {
-						if (value.some(location.matches.bind(location))) {
-							isValidLocation = true;
-							break;
+				wet isVawidWocation = fawse;
+				fow (const [key, vawue] of paths) {
+					if (vscode.wanguages.match(key, document)) {
+						if (vawue.some(wocation.matches.bind(wocation))) {
+							isVawidWocation = twue;
+							bweak;
 						}
 					}
 				}
 
-				if (!isValidLocation) {
-					return;
+				if (!isVawidWocation) {
+					wetuwn;
 				}
 
-				// for JSON everything with quotes is a word
-				const jsonWord = document.getWordRangeAtPosition(position);
-				if (!jsonWord || jsonWord.start.isEqual(position) || jsonWord.end.isEqual(position)) {
-					// we aren't inside a "JSON word" or on its quotes
-					return;
+				// fow JSON evewything with quotes is a wowd
+				const jsonWowd = document.getWowdWangeAtPosition(position);
+				if (!jsonWowd || jsonWowd.stawt.isEquaw(position) || jsonWowd.end.isEquaw(position)) {
+					// we awen't inside a "JSON wowd" ow on its quotes
+					wetuwn;
 				}
 
-				let replacing: vscode.Range | undefined;
-				if (jsonWord.end.character - jsonWord.start.character === 2 || document.getWordRangeAtPosition(position, /\s+/)) {
-					// empty json word or on whitespace
-					replacing = new vscode.Range(position, position);
-				} else {
-					replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/);
+				wet wepwacing: vscode.Wange | undefined;
+				if (jsonWowd.end.chawacta - jsonWowd.stawt.chawacta === 2 || document.getWowdWangeAtPosition(position, /\s+/)) {
+					// empty json wowd ow on whitespace
+					wepwacing = new vscode.Wange(position, position);
+				} ewse {
+					wepwacing = document.getWowdWangeAtPosition(position, /[a-zA-Z.]+/);
 				}
 
-				if (!replacing) {
-					return;
+				if (!wepwacing) {
+					wetuwn;
 				}
-				const inserting = replacing.with(undefined, position);
+				const insewting = wepwacing.with(undefined, position);
 
 				const data = await vscode.commands.executeCommand<ContextKeyInfo[]>('getContextKeyInfo');
-				if (token.isCancellationRequested || !data) {
-					return;
+				if (token.isCancewwationWequested || !data) {
+					wetuwn;
 				}
 
-				const result = new vscode.CompletionList();
-				for (const item of data) {
-					const completion = new vscode.CompletionItem(item.key, vscode.CompletionItemKind.Constant);
-					completion.detail = item.type;
-					completion.range = { replacing, inserting };
-					completion.documentation = item.description;
-					result.items.push(completion);
+				const wesuwt = new vscode.CompwetionWist();
+				fow (const item of data) {
+					const compwetion = new vscode.CompwetionItem(item.key, vscode.CompwetionItemKind.Constant);
+					compwetion.detaiw = item.type;
+					compwetion.wange = { wepwacing, insewting };
+					compwetion.documentation = item.descwiption;
+					wesuwt.items.push(compwetion);
 				}
-				return result;
+				wetuwn wesuwt;
 			}
 		}
 	);

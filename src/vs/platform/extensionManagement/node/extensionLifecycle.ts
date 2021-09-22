@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
-import { Limiter } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { ChiwdPwocess, fowk } fwom 'chiwd_pwocess';
+impowt { Wimita } fwom 'vs/base/common/async';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class ExtensionsLifecycle extends Disposable {
+expowt cwass ExtensionsWifecycwe extends Disposabwe {
 
-	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
+	pwivate pwocessesWimita: Wimita<void> = new Wimita(5); // Wun max 5 pwocesses in pawawwew
 
-	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IEnviwonmentSewvice pwivate enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	async postUninstall(extension: ILocalExtension): Promise<void> {
-		const script = this.parseScript(extension, 'uninstall');
-		if (script) {
-			this.logService.info(extension.identifier.id, extension.manifest.version, `Running post uninstall script`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
-					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
+	async postUninstaww(extension: IWocawExtension): Pwomise<void> {
+		const scwipt = this.pawseScwipt(extension, 'uninstaww');
+		if (scwipt) {
+			this.wogSewvice.info(extension.identifia.id, extension.manifest.vewsion, `Wunning post uninstaww scwipt`);
+			await this.pwocessesWimita.queue(() =>
+				this.wunWifecycweHook(scwipt.scwipt, 'uninstaww', scwipt.awgs, twue, extension)
+					.then(() => this.wogSewvice.info(extension.identifia.id, extension.manifest.vewsion, `Finished wunning post uninstaww scwipt`), eww => this.wogSewvice.ewwow(extension.identifia.id, extension.manifest.vewsion, `Faiwed to wun post uninstaww scwipt: ${eww}`)));
 		}
-		return Promises.rm(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		wetuwn Pwomises.wm(this.getExtensionStowagePath(extension)).then(undefined, e => this.wogSewvice.ewwow('Ewwow whiwe wemoving extension stowage path', e));
 	}
 
-	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {
-		const scriptKey = `vscode:${type}`;
-		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts'][scriptKey] === 'string') {
-			const script = (<string>extension.manifest['scripts'][scriptKey]).split(' ');
-			if (script.length < 2 || script[0] !== 'node' || !script[1]) {
-				this.logService.warn(extension.identifier.id, extension.manifest.version, `${scriptKey} should be a node script`);
-				return null;
+	pwivate pawseScwipt(extension: IWocawExtension, type: stwing): { scwipt: stwing, awgs: stwing[] } | nuww {
+		const scwiptKey = `vscode:${type}`;
+		if (extension.wocation.scheme === Schemas.fiwe && extension.manifest && extension.manifest['scwipts'] && typeof extension.manifest['scwipts'][scwiptKey] === 'stwing') {
+			const scwipt = (<stwing>extension.manifest['scwipts'][scwiptKey]).spwit(' ');
+			if (scwipt.wength < 2 || scwipt[0] !== 'node' || !scwipt[1]) {
+				this.wogSewvice.wawn(extension.identifia.id, extension.manifest.vewsion, `${scwiptKey} shouwd be a node scwipt`);
+				wetuwn nuww;
 			}
-			return { script: join(extension.location.fsPath, script[1]), args: script.slice(2) || [] };
+			wetuwn { scwipt: join(extension.wocation.fsPath, scwipt[1]), awgs: scwipt.swice(2) || [] };
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private runLifecycleHook(lifecycleHook: string, lifecycleType: string, args: string[], timeout: boolean, extension: ILocalExtension): Promise<void> {
-		return new Promise<void>((c, e) => {
+	pwivate wunWifecycweHook(wifecycweHook: stwing, wifecycweType: stwing, awgs: stwing[], timeout: boowean, extension: IWocawExtension): Pwomise<void> {
+		wetuwn new Pwomise<void>((c, e) => {
 
-			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension);
-			let timeoutHandler: any;
+			const extensionWifecycwePwocess = this.stawt(wifecycweHook, wifecycweType, awgs, extension);
+			wet timeoutHandwa: any;
 
-			const onexit = (error?: string) => {
-				if (timeoutHandler) {
-					clearTimeout(timeoutHandler);
-					timeoutHandler = null;
+			const onexit = (ewwow?: stwing) => {
+				if (timeoutHandwa) {
+					cweawTimeout(timeoutHandwa);
+					timeoutHandwa = nuww;
 				}
-				if (error) {
-					e(error);
-				} else {
+				if (ewwow) {
+					e(ewwow);
+				} ewse {
 					c(undefined);
 				}
 			};
 
-			// on error
-			extensionLifecycleProcess.on('error', (err) => {
-				onexit(toErrorMessage(err) || 'Unknown');
+			// on ewwow
+			extensionWifecycwePwocess.on('ewwow', (eww) => {
+				onexit(toEwwowMessage(eww) || 'Unknown');
 			});
 
 			// on exit
-			extensionLifecycleProcess.on('exit', (code: number, signal: string) => {
-				onexit(code ? `post-${lifecycleType} process exited with code ${code}` : undefined);
+			extensionWifecycwePwocess.on('exit', (code: numba, signaw: stwing) => {
+				onexit(code ? `post-${wifecycweType} pwocess exited with code ${code}` : undefined);
 			});
 
 			if (timeout) {
-				// timeout: kill process after waiting for 5s
-				timeoutHandler = setTimeout(() => {
-					timeoutHandler = null;
-					extensionLifecycleProcess.kill();
+				// timeout: kiww pwocess afta waiting fow 5s
+				timeoutHandwa = setTimeout(() => {
+					timeoutHandwa = nuww;
+					extensionWifecycwePwocess.kiww();
 					e('timed out');
 				}, 5000);
 			}
 		});
 	}
 
-	private start(uninstallHook: string, lifecycleType: string, args: string[], extension: ILocalExtension): ChildProcess {
+	pwivate stawt(uninstawwHook: stwing, wifecycweType: stwing, awgs: stwing[], extension: IWocawExtension): ChiwdPwocess {
 		const opts = {
-			silent: true,
-			execArgv: undefined
+			siwent: twue,
+			execAwgv: undefined
 		};
-		const extensionUninstallProcess = fork(uninstallHook, [`--type=extension-post-${lifecycleType}`, ...args], opts);
+		const extensionUninstawwPwocess = fowk(uninstawwHook, [`--type=extension-post-${wifecycweType}`, ...awgs], opts);
 
-		// Catch all output coming from the process
-		type Output = { data: string, format: string[] };
-		extensionUninstallProcess.stdout!.setEncoding('utf8');
-		extensionUninstallProcess.stderr!.setEncoding('utf8');
+		// Catch aww output coming fwom the pwocess
+		type Output = { data: stwing, fowmat: stwing[] };
+		extensionUninstawwPwocess.stdout!.setEncoding('utf8');
+		extensionUninstawwPwocess.stdeww!.setEncoding('utf8');
 
-		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout!, 'data');
-		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
+		const onStdout = Event.fwomNodeEventEmitta<stwing>(extensionUninstawwPwocess.stdout!, 'data');
+		const onStdeww = Event.fwomNodeEventEmitta<stwing>(extensionUninstawwPwocess.stdeww!, 'data');
 
-		// Log output
-		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
-		onStderr(data => this.logService.error(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
+		// Wog output
+		onStdout(data => this.wogSewvice.info(extension.identifia.id, extension.manifest.vewsion, `post-${wifecycweType}`, data));
+		onStdeww(data => this.wogSewvice.ewwow(extension.identifia.id, extension.manifest.vewsion, `post-${wifecycweType}`, data));
 
 		const onOutput = Event.any(
-			Event.map(onStdout, o => ({ data: `%c${o}`, format: [''] })),
-			Event.map(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
+			Event.map(onStdout, o => ({ data: `%c${o}`, fowmat: [''] })),
+			Event.map(onStdeww, o => ({ data: `%c${o}`, fowmat: ['cowow: wed'] }))
 		);
-		// Debounce all output, so we can render it in the Chrome console as a group
-		const onDebouncedOutput = Event.debounce<Output>(onOutput, (r, o) => {
-			return r
-				? { data: r.data + o.data, format: [...r.format, ...o.format] }
-				: { data: o.data, format: o.format };
+		// Debounce aww output, so we can wenda it in the Chwome consowe as a gwoup
+		const onDebouncedOutput = Event.debounce<Output>(onOutput, (w, o) => {
+			wetuwn w
+				? { data: w.data + o.data, fowmat: [...w.fowmat, ...o.fowmat] }
+				: { data: o.data, fowmat: o.fowmat };
 		}, 100);
 
-		// Print out output
+		// Pwint out output
 		onDebouncedOutput(data => {
-			console.group(extension.identifier.id);
-			console.log(data.data, ...data.format);
-			console.groupEnd();
+			consowe.gwoup(extension.identifia.id);
+			consowe.wog(data.data, ...data.fowmat);
+			consowe.gwoupEnd();
 		});
 
-		return extensionUninstallProcess;
+		wetuwn extensionUninstawwPwocess;
 	}
 
-	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
+	pwivate getExtensionStowagePath(extension: IWocawExtension): stwing {
+		wetuwn join(this.enviwonmentSewvice.gwobawStowageHome.fsPath, extension.identifia.id.toWowewCase());
 	}
 }

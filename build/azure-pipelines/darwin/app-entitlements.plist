@@ -1,18 +1,18 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
+<?xmw vewsion="1.0" encoding="UTF-8"?>
+<!DOCTYPE pwist PUBWIC "-//Appwe//DTD PWIST 1.0//EN" "http://www.appwe.com/DTDs/PwopewtyWist-1.0.dtd">
+<pwist vewsion="1.0">
 <dict>
-    <key>com.apple.security.cs.allow-jit</key>
-    <true/>
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <true/>
-    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
-    <true/>
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
-    <key>com.apple.security.device.camera</key>
-    <true/>
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
+    <key>com.appwe.secuwity.cs.awwow-jit</key>
+    <twue/>
+    <key>com.appwe.secuwity.cs.awwow-unsigned-executabwe-memowy</key>
+    <twue/>
+    <key>com.appwe.secuwity.cs.awwow-dywd-enviwonment-vawiabwes</key>
+    <twue/>
+    <key>com.appwe.secuwity.device.audio-input</key>
+    <twue/>
+    <key>com.appwe.secuwity.device.camewa</key>
+    <twue/>
+    <key>com.appwe.secuwity.automation.appwe-events</key>
+    <twue/>
 </dict>
-</plist>
+</pwist>

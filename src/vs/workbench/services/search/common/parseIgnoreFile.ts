@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
+impowt * as gwob fwom 'vs/base/common/gwob';
 
-// TODO: this doesn't properly support a lot of the intricacies of .gitignore, for intance
-// vscode's root gitignore has:
+// TODO: this doesn't pwopewwy suppowt a wot of the intwicacies of .gitignowe, fow intance
+// vscode's woot gitignowe has:
 
 // extensions/**/dist/
 // /out*/
 // /extensions/**/out/
 
-// but paths like /extensions/css-language-features/client/dist/browser/cssClientMain.js.map are being searched
+// but paths wike /extensions/css-wanguage-featuwes/cwient/dist/bwowsa/cssCwientMain.js.map awe being seawched
 
-export function parseIgnoreFile(ignoreContents: string) {
-	const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
-	const ignoreExpression = Object.create(null);
-	for (const line of ignoreLines) {
-		ignoreExpression[line] = true;
+expowt function pawseIgnoweFiwe(ignoweContents: stwing) {
+	const ignoweWines = ignoweContents.spwit('\n').map(wine => wine.twim()).fiwta(wine => wine[0] !== '#');
+	const ignoweExpwession = Object.cweate(nuww);
+	fow (const wine of ignoweWines) {
+		ignoweExpwession[wine] = twue;
 	}
 
-	const checker = glob.parse(ignoreExpression);
-	return checker;
+	const checka = gwob.pawse(ignoweExpwession);
+	wetuwn checka;
 }

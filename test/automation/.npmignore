@@ -1,6 +1,6 @@
 !/out
-/src
-/tools
-.gitignore
+/swc
+/toows
+.gitignowe
 tsconfig.json
 *.tgz

@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt type * as vscode fwom 'vscode';
 
-export interface WebviewInitData {
-	readonly remote: {
-		readonly isRemote: boolean;
-		readonly authority: string | undefined
+expowt intewface WebviewInitData {
+	weadonwy wemote: {
+		weadonwy isWemote: boowean;
+		weadonwy authowity: stwing | undefined
 	};
 }
 
 /**
- * Root from which resources in webviews are loaded.
+ * Woot fwom which wesouwces in webviews awe woaded.
  *
- * This is hardcoded because we never expect to actually hit it. Instead these requests
- * should always go to a service worker.
+ * This is hawdcoded because we neva expect to actuawwy hit it. Instead these wequests
+ * shouwd awways go to a sewvice wowka.
  */
-export const webviewResourceBaseHost = 'vscode-webview.net';
+expowt const webviewWesouwceBaseHost = 'vscode-webview.net';
 
-export const webviewRootResourceAuthority = `vscode-resource.${webviewResourceBaseHost}`;
+expowt const webviewWootWesouwceAuthowity = `vscode-wesouwce.${webviewWesouwceBaseHost}`;
 
-export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
+expowt const webviewGenewicCspSouwce = `https://*.${webviewWesouwceBaseHost}`;
 
 /**
- * Construct a uri that can load resources inside a webview
+ * Constwuct a uwi that can woad wesouwces inside a webview
  *
- * We encode the resource component of the uri so that on the main thread
- * we know where to load the resource from (remote or truly local):
+ * We encode the wesouwce component of the uwi so that on the main thwead
+ * we know whewe to woad the wesouwce fwom (wemote ow twuwy wocaw):
  *
  * ```txt
- * ${scheme}+${resource-authority}.vscode-resource.vscode-webview.net/${path}
+ * ${scheme}+${wesouwce-authowity}.vscode-wesouwce.vscode-webview.net/${path}
  * ```
  *
- * @param resource Uri of the resource to load.
- * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
+ * @pawam wesouwce Uwi of the wesouwce to woad.
+ * @pawam wemoteInfo Optionaw infowmation about the wemote that specifies whewe `wesouwce` shouwd be wesowved fwom.
  */
-export function asWebviewUri(
-	resource: vscode.Uri,
-	remoteInfo?: { authority: string | undefined, isRemote: boolean }
-): vscode.Uri {
-	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
-		return resource;
+expowt function asWebviewUwi(
+	wesouwce: vscode.Uwi,
+	wemoteInfo?: { authowity: stwing | undefined, isWemote: boowean }
+): vscode.Uwi {
+	if (wesouwce.scheme === Schemas.http || wesouwce.scheme === Schemas.https) {
+		wetuwn wesouwce;
 	}
 
-	if (remoteInfo && remoteInfo.authority && remoteInfo.isRemote && resource.scheme === Schemas.file) {
-		resource = URI.from({
-			scheme: Schemas.vscodeRemote,
-			authority: remoteInfo.authority,
-			path: resource.path,
+	if (wemoteInfo && wemoteInfo.authowity && wemoteInfo.isWemote && wesouwce.scheme === Schemas.fiwe) {
+		wesouwce = UWI.fwom({
+			scheme: Schemas.vscodeWemote,
+			authowity: wemoteInfo.authowity,
+			path: wesouwce.path,
 		});
 	}
 
-	return URI.from({
+	wetuwn UWI.fwom({
 		scheme: Schemas.https,
-		authority: `${resource.scheme}+${encodeAuthority(resource.authority)}.${webviewRootResourceAuthority}`,
-		path: resource.path,
-		fragment: resource.fragment,
-		query: resource.query,
+		authowity: `${wesouwce.scheme}+${encodeAuthowity(wesouwce.authowity)}.${webviewWootWesouwceAuthowity}`,
+		path: wesouwce.path,
+		fwagment: wesouwce.fwagment,
+		quewy: wesouwce.quewy,
 	});
 }
 
-function encodeAuthority(authority: string): string {
-	return authority.replace(/./g, char => {
-		const code = char.charCodeAt(0);
+function encodeAuthowity(authowity: stwing): stwing {
+	wetuwn authowity.wepwace(/./g, chaw => {
+		const code = chaw.chawCodeAt(0);
 		if (
-			(code >= CharCode.a && code <= CharCode.z)
-			|| (code >= CharCode.A && code <= CharCode.Z)
-			|| (code >= CharCode.Digit0 && code <= CharCode.Digit9)
+			(code >= ChawCode.a && code <= ChawCode.z)
+			|| (code >= ChawCode.A && code <= ChawCode.Z)
+			|| (code >= ChawCode.Digit0 && code <= ChawCode.Digit9)
 		) {
-			return char;
+			wetuwn chaw;
 		}
-		return '-' + code.toString(16).padStart(4, '0');
+		wetuwn '-' + code.toStwing(16).padStawt(4, '0');
 	});
 }
 
-export function decodeAuthority(authority: string) {
-	return authority.replace(/-([0-9a-f]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+expowt function decodeAuthowity(authowity: stwing) {
+	wetuwn authowity.wepwace(/-([0-9a-f]{4})/g, (_, code) => Stwing.fwomChawCode(pawseInt(code, 16)));
 }

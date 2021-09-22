@@ -1,147 +1,147 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import * as objects from 'vs/base/common/objects';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageValue, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStowageVawue, SYNC_SEWVICE_UWW_TYPE } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-export interface IMergeResult {
-	local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
-	remote: IStringDictionary<IStorageValue> | null;
+expowt intewface IMewgeWesuwt {
+	wocaw: { added: IStwingDictionawy<IStowageVawue>, wemoved: stwing[], updated: IStwingDictionawy<IStowageVawue> };
+	wemote: IStwingDictionawy<IStowageVawue> | nuww;
 }
 
-export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: { machine: ReadonlyArray<string>, unregistered: ReadonlyArray<string> }, logService: ILogService): IMergeResult {
-	if (!remoteStorage) {
-		return { remote: Object.keys(localStorage).length > 0 ? localStorage : null, local: { added: {}, removed: [], updated: {} } };
+expowt function mewge(wocawStowage: IStwingDictionawy<IStowageVawue>, wemoteStowage: IStwingDictionawy<IStowageVawue> | nuww, baseStowage: IStwingDictionawy<IStowageVawue> | nuww, stowageKeys: { machine: WeadonwyAwway<stwing>, unwegistewed: WeadonwyAwway<stwing> }, wogSewvice: IWogSewvice): IMewgeWesuwt {
+	if (!wemoteStowage) {
+		wetuwn { wemote: Object.keys(wocawStowage).wength > 0 ? wocawStowage : nuww, wocaw: { added: {}, wemoved: [], updated: {} } };
 	}
 
-	const localToRemote = compare(localStorage, remoteStorage);
-	if (localToRemote.added.size === 0 && localToRemote.removed.size === 0 && localToRemote.updated.size === 0) {
-		// No changes found between local and remote.
-		return { remote: null, local: { added: {}, removed: [], updated: {} } };
+	const wocawToWemote = compawe(wocawStowage, wemoteStowage);
+	if (wocawToWemote.added.size === 0 && wocawToWemote.wemoved.size === 0 && wocawToWemote.updated.size === 0) {
+		// No changes found between wocaw and wemote.
+		wetuwn { wemote: nuww, wocaw: { added: {}, wemoved: [], updated: {} } };
 	}
 
-	const baseToRemote = baseStorage ? compare(baseStorage, remoteStorage) : { added: Object.keys(remoteStorage).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	const baseToLocal = baseStorage ? compare(baseStorage, localStorage) : { added: Object.keys(localStorage).reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+	const baseToWemote = baseStowage ? compawe(baseStowage, wemoteStowage) : { added: Object.keys(wemoteStowage).weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	const baseToWocaw = baseStowage ? compawe(baseStowage, wocawStowage) : { added: Object.keys(wocawStowage).weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
 
-	const local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> } = { added: {}, removed: [], updated: {} };
-	const remote: IStringDictionary<IStorageValue> = objects.deepClone(remoteStorage);
+	const wocaw: { added: IStwingDictionawy<IStowageVawue>, wemoved: stwing[], updated: IStwingDictionawy<IStowageVawue> } = { added: {}, wemoved: [], updated: {} };
+	const wemote: IStwingDictionawy<IStowageVawue> = objects.deepCwone(wemoteStowage);
 
-	const isFirstTimeSync = !baseStorage;
+	const isFiwstTimeSync = !baseStowage;
 
-	// Added in local
-	for (const key of baseToLocal.added.values()) {
-		// If syncing for first time remote value gets precedence always,
-		// except for sync service type key - local value takes precedence for this key
-		if (key !== SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToRemote.added.has(key)) {
+	// Added in wocaw
+	fow (const key of baseToWocaw.added.vawues()) {
+		// If syncing fow fiwst time wemote vawue gets pwecedence awways,
+		// except fow sync sewvice type key - wocaw vawue takes pwecedence fow this key
+		if (key !== SYNC_SEWVICE_UWW_TYPE && isFiwstTimeSync && baseToWemote.added.has(key)) {
 			continue;
 		}
 
-		remote[key] = localStorage[key];
+		wemote[key] = wocawStowage[key];
 	}
 
-	// Updated in local
-	for (const key of baseToLocal.updated.values()) {
-		remote[key] = localStorage[key];
+	// Updated in wocaw
+	fow (const key of baseToWocaw.updated.vawues()) {
+		wemote[key] = wocawStowage[key];
 	}
 
-	// Removed in local
-	for (const key of baseToLocal.removed.values()) {
-		// Do not remove from remote if key is not registered.
-		if (storageKeys.unregistered.includes(key)) {
+	// Wemoved in wocaw
+	fow (const key of baseToWocaw.wemoved.vawues()) {
+		// Do not wemove fwom wemote if key is not wegistewed.
+		if (stowageKeys.unwegistewed.incwudes(key)) {
 			continue;
 		}
-		delete remote[key];
+		dewete wemote[key];
 	}
 
-	// Added in remote
-	for (const key of baseToRemote.added.values()) {
-		const remoteValue = remoteStorage[key];
-		if (storageKeys.machine.includes(key)) {
-			logService.info(`GlobalState: Skipped adding ${key} in local storage because it is declared as machine scoped.`);
+	// Added in wemote
+	fow (const key of baseToWemote.added.vawues()) {
+		const wemoteVawue = wemoteStowage[key];
+		if (stowageKeys.machine.incwudes(key)) {
+			wogSewvice.info(`GwobawState: Skipped adding ${key} in wocaw stowage because it is decwawed as machine scoped.`);
 			continue;
 		}
-		// Skip if the value is also added in local from the time it is last synced
-		if (baseStorage && baseToLocal.added.has(key)) {
+		// Skip if the vawue is awso added in wocaw fwom the time it is wast synced
+		if (baseStowage && baseToWocaw.added.has(key)) {
 			continue;
 		}
-		const localValue = localStorage[key];
-		if (localValue && localValue.value === remoteValue.value) {
-			continue;
-		}
-
-		// Local sync service type value takes precedence if syncing for first time
-		if (key === SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToLocal.added.has(key)) {
+		const wocawVawue = wocawStowage[key];
+		if (wocawVawue && wocawVawue.vawue === wemoteVawue.vawue) {
 			continue;
 		}
 
-		if (localValue) {
-			local.updated[key] = remoteValue;
-		} else {
-			local.added[key] = remoteValue;
+		// Wocaw sync sewvice type vawue takes pwecedence if syncing fow fiwst time
+		if (key === SYNC_SEWVICE_UWW_TYPE && isFiwstTimeSync && baseToWocaw.added.has(key)) {
+			continue;
+		}
+
+		if (wocawVawue) {
+			wocaw.updated[key] = wemoteVawue;
+		} ewse {
+			wocaw.added[key] = wemoteVawue;
 		}
 	}
 
-	// Updated in Remote
-	for (const key of baseToRemote.updated.values()) {
-		const remoteValue = remoteStorage[key];
-		if (storageKeys.machine.includes(key)) {
-			logService.info(`GlobalState: Skipped updating ${key} in local storage because it is declared as machine scoped.`);
+	// Updated in Wemote
+	fow (const key of baseToWemote.updated.vawues()) {
+		const wemoteVawue = wemoteStowage[key];
+		if (stowageKeys.machine.incwudes(key)) {
+			wogSewvice.info(`GwobawState: Skipped updating ${key} in wocaw stowage because it is decwawed as machine scoped.`);
 			continue;
 		}
-		// Skip if the value is also updated or removed in local
-		if (baseToLocal.updated.has(key) || baseToLocal.removed.has(key)) {
+		// Skip if the vawue is awso updated ow wemoved in wocaw
+		if (baseToWocaw.updated.has(key) || baseToWocaw.wemoved.has(key)) {
 			continue;
 		}
-		const localValue = localStorage[key];
-		if (localValue && localValue.value === remoteValue.value) {
+		const wocawVawue = wocawStowage[key];
+		if (wocawVawue && wocawVawue.vawue === wemoteVawue.vawue) {
 			continue;
 		}
-		local.updated[key] = remoteValue;
+		wocaw.updated[key] = wemoteVawue;
 	}
 
-	// Removed in remote
-	for (const key of baseToRemote.removed.values()) {
-		if (storageKeys.machine.includes(key)) {
-			logService.trace(`GlobalState: Skipped removing ${key} in local storage because it is declared as machine scoped.`);
+	// Wemoved in wemote
+	fow (const key of baseToWemote.wemoved.vawues()) {
+		if (stowageKeys.machine.incwudes(key)) {
+			wogSewvice.twace(`GwobawState: Skipped wemoving ${key} in wocaw stowage because it is decwawed as machine scoped.`);
 			continue;
 		}
-		// Skip if the value is also updated or removed in local
-		if (baseToLocal.updated.has(key) || baseToLocal.removed.has(key)) {
+		// Skip if the vawue is awso updated ow wemoved in wocaw
+		if (baseToWocaw.updated.has(key) || baseToWocaw.wemoved.has(key)) {
 			continue;
 		}
-		local.removed.push(key);
+		wocaw.wemoved.push(key);
 	}
 
-	return { local, remote: areSame(remote, remoteStorage) ? null : remote };
+	wetuwn { wocaw, wemote: aweSame(wemote, wemoteStowage) ? nuww : wemote };
 }
 
-function compare(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = Object.keys(from);
+function compawe(fwom: IStwingDictionawy<any>, to: IStwingDictionawy<any>): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing> } {
+	const fwomKeys = Object.keys(fwom);
 	const toKeys = Object.keys(to);
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const value1 = from[key];
-		const value2 = to[key];
-		if (!objects.equals(value1, value2)) {
+		const vawue1 = fwom[key];
+		const vawue2 = to[key];
+		if (!objects.equaws(vawue1, vawue2)) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-function areSame(a: IStringDictionary<IStorageValue>, b: IStringDictionary<IStorageValue>): boolean {
-	const { added, removed, updated } = compare(a, b);
-	return added.size === 0 && removed.size === 0 && updated.size === 0;
+function aweSame(a: IStwingDictionawy<IStowageVawue>, b: IStwingDictionawy<IStowageVawue>): boowean {
+	const { added, wemoved, updated } = compawe(a, b);
+	wetuwn added.size === 0 && wemoved.size === 0 && updated.size === 0;
 }
 

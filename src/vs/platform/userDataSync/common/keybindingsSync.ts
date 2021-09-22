@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { isUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { isUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AbstwactInitiawiza, AbstwactJsonFiweSynchwonisa, IAcceptWesuwt, IFiweWesouwcePweview, IMewgeWesuwt } fwom 'vs/pwatfowm/usewDataSync/common/abstwactSynchwoniza';
+impowt { mewge } fwom 'vs/pwatfowm/usewDataSync/common/keybindingsMewge';
+impowt { Change, IWemoteUsewData, ISyncWesouwceHandwe, IUsewDataSyncBackupStoweSewvice, IUsewDataSynchwonisa, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, IUsewDataSyncUtiwSewvice, SyncWesouwce, UsewDataSyncEwwow, UsewDataSyncEwwowCode, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-interface ISyncContent {
-	mac?: string;
-	linux?: string;
-	windows?: string;
-	all?: string;
+intewface ISyncContent {
+	mac?: stwing;
+	winux?: stwing;
+	windows?: stwing;
+	aww?: stwing;
 }
 
-interface IKeybindingsResourcePreview extends IFileResourcePreview {
-	previewResult: IMergeResult;
+intewface IKeybindingsWesouwcePweview extends IFiweWesouwcePweview {
+	pweviewWesuwt: IMewgeWesuwt;
 }
 
-interface ILastSyncUserData extends IRemoteUserData {
-	platformSpecific?: boolean;
+intewface IWastSyncUsewData extends IWemoteUsewData {
+	pwatfowmSpecific?: boowean;
 }
 
-export function getKeybindingsContentFromSyncContent(syncContent: string, platformSpecific: boolean): string | null {
-	const parsed = <ISyncContent>JSON.parse(syncContent);
-	if (!platformSpecific) {
-		return isUndefined(parsed.all) ? null : parsed.all;
+expowt function getKeybindingsContentFwomSyncContent(syncContent: stwing, pwatfowmSpecific: boowean): stwing | nuww {
+	const pawsed = <ISyncContent>JSON.pawse(syncContent);
+	if (!pwatfowmSpecific) {
+		wetuwn isUndefined(pawsed.aww) ? nuww : pawsed.aww;
 	}
 	switch (OS) {
-		case OperatingSystem.Macintosh:
-			return isUndefined(parsed.mac) ? null : parsed.mac;
-		case OperatingSystem.Linux:
-			return isUndefined(parsed.linux) ? null : parsed.linux;
-		case OperatingSystem.Windows:
-			return isUndefined(parsed.windows) ? null : parsed.windows;
+		case OpewatingSystem.Macintosh:
+			wetuwn isUndefined(pawsed.mac) ? nuww : pawsed.mac;
+		case OpewatingSystem.Winux:
+			wetuwn isUndefined(pawsed.winux) ? nuww : pawsed.winux;
+		case OpewatingSystem.Windows:
+			wetuwn isUndefined(pawsed.windows) ? nuww : pawsed.windows;
 	}
 }
 
-export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
+expowt cwass KeybindingsSynchwonisa extends AbstwactJsonFiweSynchwonisa impwements IUsewDataSynchwonisa {
 
-	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
-	protected readonly version: number = 2;
-	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'keybindings.json');
-	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
-	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
-	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+	/* Vewsion 2: Change settings fwom `sync.${setting}` to `settingsSync.{setting}` */
+	pwotected weadonwy vewsion: numba = 2;
+	pwivate weadonwy pweviewWesouwce: UWI = this.extUwi.joinPath(this.syncPweviewFowda, 'keybindings.json');
+	pwivate weadonwy wocawWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' });
+	pwivate weadonwy wemoteWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' });
+	pwivate weadonwy acceptedWesouwce: UWI = this.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' });
 
-	constructor(
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncUtiwSewvice usewDataSyncUtiwSewvice: IUsewDataSyncUtiwSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
-		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.keybindingsPerPlatform'))(() => this.triggerLocalChange()));
+		supa(enviwonmentSewvice.keybindingsWesouwce, SyncWesouwce.Keybindings, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, usewDataSyncUtiwSewvice, configuwationSewvice);
+		this._wegista(Event.fiwta(configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('settingsSync.keybindingsPewPwatfowm'))(() => this.twiggewWocawChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IKeybindingsResourcePreview[]> {
-		const remoteContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
+	pwotected async genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWastSyncUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<IKeybindingsWesouwcePweview[]> {
+		const wemoteContent = wemoteUsewData.syncData ? this.getKeybindingsContentFwomSyncContent(wemoteUsewData.syncData.content) : nuww;
 
-		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
-		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
-		const lastSyncContent: string | null = lastSyncUserData ? this.getKeybindingsContentFromLastSyncUserData(lastSyncUserData) : null;
+		// Use wemote data as wast sync data if wast sync data does not exist and wemote data is fwom same machine
+		wastSyncUsewData = wastSyncUsewData === nuww && isWemoteDataFwomCuwwentMachine ? wemoteUsewData : wastSyncUsewData;
+		const wastSyncContent: stwing | nuww = wastSyncUsewData ? this.getKeybindingsContentFwomWastSyncUsewData(wastSyncUsewData) : nuww;
 
-		// Get file content last to get the latest
-		const fileContent = await this.getLocalFileContent();
-		const formattingOptions = await this.getFormattingOptions();
+		// Get fiwe content wast to get the watest
+		const fiweContent = await this.getWocawFiweContent();
+		const fowmattingOptions = await this.getFowmattingOptions();
 
-		let mergedContent: string | null = null;
-		let hasLocalChanged: boolean = false;
-		let hasRemoteChanged: boolean = false;
-		let hasConflicts: boolean = false;
+		wet mewgedContent: stwing | nuww = nuww;
+		wet hasWocawChanged: boowean = fawse;
+		wet hasWemoteChanged: boowean = fawse;
+		wet hasConfwicts: boowean = fawse;
 
-		if (remoteContent) {
-			let localContent: string = fileContent ? fileContent.value.toString() : '[]';
-			localContent = localContent || '[]';
-			if (this.hasErrors(localContent)) {
-				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
+		if (wemoteContent) {
+			wet wocawContent: stwing = fiweContent ? fiweContent.vawue.toStwing() : '[]';
+			wocawContent = wocawContent || '[]';
+			if (this.hasEwwows(wocawContent)) {
+				thwow new UsewDataSyncEwwow(wocawize('ewwowInvawidSettings', "Unabwe to sync keybindings because the content in the fiwe is not vawid. Pwease open the fiwe and cowwect it."), UsewDataSyncEwwowCode.WocawInvawidContent, this.wesouwce);
 			}
 
-			if (!lastSyncContent // First time sync
-				|| lastSyncContent !== localContent // Local has forwarded
-				|| lastSyncContent !== remoteContent // Remote has forwarded
+			if (!wastSyncContent // Fiwst time sync
+				|| wastSyncContent !== wocawContent // Wocaw has fowwawded
+				|| wastSyncContent !== wemoteContent // Wemote has fowwawded
 			) {
-				this.logService.trace(`${this.syncResourceLogLabel}: Merging remote keybindings with local keybindings...`);
-				const result = await merge(localContent, remoteContent, lastSyncContent, formattingOptions, this.userDataSyncUtilService);
-				// Sync only if there are changes
-				if (result.hasChanges) {
-					mergedContent = result.mergeContent;
-					hasConflicts = result.hasConflicts;
-					hasLocalChanged = hasConflicts || result.mergeContent !== localContent;
-					hasRemoteChanged = hasConflicts || result.mergeContent !== remoteContent;
+				this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Mewging wemote keybindings with wocaw keybindings...`);
+				const wesuwt = await mewge(wocawContent, wemoteContent, wastSyncContent, fowmattingOptions, this.usewDataSyncUtiwSewvice);
+				// Sync onwy if thewe awe changes
+				if (wesuwt.hasChanges) {
+					mewgedContent = wesuwt.mewgeContent;
+					hasConfwicts = wesuwt.hasConfwicts;
+					hasWocawChanged = hasConfwicts || wesuwt.mewgeContent !== wocawContent;
+					hasWemoteChanged = hasConfwicts || wesuwt.mewgeContent !== wemoteContent;
 				}
 			}
 		}
 
-		// First time syncing to remote
-		else if (fileContent) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote keybindings does not exist. Synchronizing keybindings for the first time.`);
-			mergedContent = fileContent.value.toString();
-			hasRemoteChanged = true;
+		// Fiwst time syncing to wemote
+		ewse if (fiweContent) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Wemote keybindings does not exist. Synchwonizing keybindings fow the fiwst time.`);
+			mewgedContent = fiweContent.vawue.toStwing();
+			hasWemoteChanged = twue;
 		}
 
-		const previewResult: IMergeResult = {
-			content: mergedContent,
-			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
-			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
-			hasConflicts
+		const pweviewWesuwt: IMewgeWesuwt = {
+			content: mewgedContent,
+			wocawChange: hasWocawChanged ? fiweContent ? Change.Modified : Change.Added : Change.None,
+			wemoteChange: hasWemoteChanged ? Change.Modified : Change.None,
+			hasConfwicts
 		};
 
-		return [{
-			fileContent,
-			localResource: this.localResource,
-			localContent: fileContent ? fileContent.value.toString() : null,
-			localChange: previewResult.localChange,
+		wetuwn [{
+			fiweContent,
+			wocawWesouwce: this.wocawWesouwce,
+			wocawContent: fiweContent ? fiweContent.vawue.toStwing() : nuww,
+			wocawChange: pweviewWesuwt.wocawChange,
 
-			remoteResource: this.remoteResource,
-			remoteContent,
-			remoteChange: previewResult.remoteChange,
+			wemoteWesouwce: this.wemoteWesouwce,
+			wemoteContent,
+			wemoteChange: pweviewWesuwt.wemoteChange,
 
-			previewResource: this.previewResource,
-			previewResult,
-			acceptedResource: this.acceptedResource,
+			pweviewWesouwce: this.pweviewWesouwce,
+			pweviewWesuwt,
+			acceptedWesouwce: this.acceptedWesouwce,
 		}];
 
 	}
 
-	protected async getMergeResult(resourcePreview: IKeybindingsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
-		return resourcePreview.previewResult;
+	pwotected async getMewgeWesuwt(wesouwcePweview: IKeybindingsWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt> {
+		wetuwn wesouwcePweview.pweviewWesuwt;
 	}
 
-	protected async getAcceptResult(resourcePreview: IKeybindingsResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
+	pwotected async getAcceptWesuwt(wesouwcePweview: IKeybindingsWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IAcceptWesuwt> {
 
-		/* Accept local resource */
-		if (this.extUri.isEqual(resource, this.localResource)) {
-			return {
-				content: resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : null,
-				localChange: Change.None,
-				remoteChange: Change.Modified,
+		/* Accept wocaw wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wocawWesouwce)) {
+			wetuwn {
+				content: wesouwcePweview.fiweContent ? wesouwcePweview.fiweContent.vawue.toStwing() : nuww,
+				wocawChange: Change.None,
+				wemoteChange: Change.Modified,
 			};
 		}
 
-		/* Accept remote resource */
-		if (this.extUri.isEqual(resource, this.remoteResource)) {
-			return {
-				content: resourcePreview.remoteContent,
-				localChange: Change.Modified,
-				remoteChange: Change.None,
+		/* Accept wemote wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.wemoteWesouwce)) {
+			wetuwn {
+				content: wesouwcePweview.wemoteContent,
+				wocawChange: Change.Modified,
+				wemoteChange: Change.None,
 			};
 		}
 
-		/* Accept preview resource */
-		if (this.extUri.isEqual(resource, this.previewResource)) {
+		/* Accept pweview wesouwce */
+		if (this.extUwi.isEquaw(wesouwce, this.pweviewWesouwce)) {
 			if (content === undefined) {
-				return {
-					content: resourcePreview.previewResult.content,
-					localChange: resourcePreview.previewResult.localChange,
-					remoteChange: resourcePreview.previewResult.remoteChange,
+				wetuwn {
+					content: wesouwcePweview.pweviewWesuwt.content,
+					wocawChange: wesouwcePweview.pweviewWesuwt.wocawChange,
+					wemoteChange: wesouwcePweview.pweviewWesuwt.wemoteChange,
 				};
-			} else {
-				return {
+			} ewse {
+				wetuwn {
 					content,
-					localChange: Change.Modified,
-					remoteChange: Change.Modified,
+					wocawChange: Change.Modified,
+					wemoteChange: Change.Modified,
 				};
 			}
 		}
 
-		throw new Error(`Invalid Resource: ${resource.toString()}`);
+		thwow new Ewwow(`Invawid Wesouwce: ${wesouwce.toStwing()}`);
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IKeybindingsResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
-		const { fileContent } = resourcePreviews[0][0];
-		let { content, localChange, remoteChange } = resourcePreviews[0][1];
+	pwotected async appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesouwcePweviews: [IKeybindingsWesouwcePweview, IAcceptWesuwt][], fowce: boowean): Pwomise<void> {
+		const { fiweContent } = wesouwcePweviews[0][0];
+		wet { content, wocawChange, wemoteChange } = wesouwcePweviews[0][1];
 
-		if (localChange === Change.None && remoteChange === Change.None) {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing keybindings.`);
+		if (wocawChange === Change.None && wemoteChange === Change.None) {
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: No changes found duwing synchwonizing keybindings.`);
 		}
 
-		if (content !== null) {
-			content = content.trim();
+		if (content !== nuww) {
+			content = content.twim();
 			content = content || '[]';
-			if (this.hasErrors(content)) {
-				throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync keybindings because the content in the file is not valid. Please open the file and correct it."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
+			if (this.hasEwwows(content)) {
+				thwow new UsewDataSyncEwwow(wocawize('ewwowInvawidSettings', "Unabwe to sync keybindings because the content in the fiwe is not vawid. Pwease open the fiwe and cowwect it."), UsewDataSyncEwwowCode.WocawInvawidContent, this.wesouwce);
 			}
 		}
 
-		if (localChange !== Change.None) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating local keybindings...`);
-			if (fileContent) {
-				await this.backupLocal(this.toSyncContent(fileContent.value.toString()));
+		if (wocawChange !== Change.None) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wocaw keybindings...`);
+			if (fiweContent) {
+				await this.backupWocaw(this.toSyncContent(fiweContent.vawue.toStwing()));
 			}
-			await this.updateLocalFileContent(content || '[]', fileContent, force);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated local keybindings`);
+			await this.updateWocawFiweContent(content || '[]', fiweContent, fowce);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wocaw keybindings`);
 		}
 
-		if (remoteChange !== Change.None) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote keybindings...`);
-			const remoteContents = this.toSyncContent(content || '[]', remoteUserData.syncData?.content);
-			remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote keybindings`);
+		if (wemoteChange !== Change.None) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wemote keybindings...`);
+			const wemoteContents = this.toSyncContent(content || '[]', wemoteUsewData.syncData?.content);
+			wemoteUsewData = await this.updateWemoteUsewData(wemoteContents, fowce ? nuww : wemoteUsewData.wef);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wemote keybindings`);
 		}
 
-		// Delete the preview
-		try {
-			await this.fileService.del(this.previewResource);
-		} catch (e) { /* ignore */ }
+		// Dewete the pweview
+		twy {
+			await this.fiweSewvice.dew(this.pweviewWesouwce);
+		} catch (e) { /* ignowe */ }
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
-			await this.updateLastSyncUserData(remoteUserData, { platformSpecific: this.syncKeybindingsPerPlatform() });
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized keybindings`);
+		if (wastSyncUsewData?.wef !== wemoteUsewData.wef) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wast synchwonized keybindings...`);
+			await this.updateWastSyncUsewData(wemoteUsewData, { pwatfowmSpecific: this.syncKeybindingsPewPwatfowm() });
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wast synchwonized keybindings`);
 		}
 
 	}
 
-	async hasLocalData(): Promise<boolean> {
-		try {
-			const localFileContent = await this.getLocalFileContent();
-			if (localFileContent) {
-				const keybindings = parse(localFileContent.value.toString());
-				if (isNonEmptyArray(keybindings)) {
-					return true;
+	async hasWocawData(): Pwomise<boowean> {
+		twy {
+			const wocawFiweContent = await this.getWocawFiweContent();
+			if (wocawFiweContent) {
+				const keybindings = pawse(wocawFiweContent.vawue.toStwing());
+				if (isNonEmptyAwway(keybindings)) {
+					wetuwn twue;
 				}
 			}
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				return true;
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: this.extUri.joinPath(uri, 'keybindings.json'), comparableResource }];
+	async getAssociatedWesouwces({ uwi }: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		const compawabweWesouwce = (await this.fiweSewvice.exists(this.fiwe)) ? this.fiwe : this.wocawWesouwce;
+		wetuwn [{ wesouwce: this.extUwi.joinPath(uwi, 'keybindings.json'), compawabweWesouwce }];
 	}
 
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
-			return this.resolvePreviewContent(uri);
+	ovewwide async wesowveContent(uwi: UWI): Pwomise<stwing | nuww> {
+		if (this.extUwi.isEquaw(this.wemoteWesouwce, uwi) || this.extUwi.isEquaw(this.wocawWesouwce, uwi) || this.extUwi.isEquaw(this.acceptedWesouwce, uwi)) {
+			wetuwn this.wesowvePweviewContent(uwi);
 		}
-		let content = await super.resolveContent(uri);
+		wet content = await supa.wesowveContent(uwi);
 		if (content) {
-			return content;
+			wetuwn content;
 		}
-		content = await super.resolveContent(this.extUri.dirname(uri));
+		content = await supa.wesowveContent(this.extUwi.diwname(uwi));
 		if (content) {
-			const syncData = this.parseSyncData(content);
+			const syncData = this.pawseSyncData(content);
 			if (syncData) {
-				switch (this.extUri.basename(uri)) {
+				switch (this.extUwi.basename(uwi)) {
 					case 'keybindings.json':
-						return this.getKeybindingsContentFromSyncContent(syncData.content);
+						wetuwn this.getKeybindingsContentFwomSyncContent(syncData.content);
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private getKeybindingsContentFromLastSyncUserData(lastSyncUserData: ILastSyncUserData): string | null {
-		if (!lastSyncUserData.syncData) {
-			return null;
+	pwivate getKeybindingsContentFwomWastSyncUsewData(wastSyncUsewData: IWastSyncUsewData): stwing | nuww {
+		if (!wastSyncUsewData.syncData) {
+			wetuwn nuww;
 		}
 
-		// Return null if there is a change in platform specific property from last time sync.
-		if (lastSyncUserData.platformSpecific !== undefined && lastSyncUserData.platformSpecific !== this.syncKeybindingsPerPlatform()) {
-			return null;
+		// Wetuwn nuww if thewe is a change in pwatfowm specific pwopewty fwom wast time sync.
+		if (wastSyncUsewData.pwatfowmSpecific !== undefined && wastSyncUsewData.pwatfowmSpecific !== this.syncKeybindingsPewPwatfowm()) {
+			wetuwn nuww;
 		}
 
-		return this.getKeybindingsContentFromSyncContent(lastSyncUserData.syncData.content);
+		wetuwn this.getKeybindingsContentFwomSyncContent(wastSyncUsewData.syncData.content);
 	}
 
-	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
-		try {
-			return getKeybindingsContentFromSyncContent(syncContent, this.syncKeybindingsPerPlatform());
+	pwivate getKeybindingsContentFwomSyncContent(syncContent: stwing): stwing | nuww {
+		twy {
+			wetuwn getKeybindingsContentFwomSyncContent(syncContent, this.syncKeybindingsPewPwatfowm());
 		} catch (e) {
-			this.logService.error(e);
-			return null;
+			this.wogSewvice.ewwow(e);
+			wetuwn nuww;
 		}
 	}
 
-	private toSyncContent(keybindingsContent: string, syncContent?: string): string {
-		let parsed: ISyncContent = {};
-		try {
-			parsed = JSON.parse(syncContent || '{}');
+	pwivate toSyncContent(keybindingsContent: stwing, syncContent?: stwing): stwing {
+		wet pawsed: ISyncContent = {};
+		twy {
+			pawsed = JSON.pawse(syncContent || '{}');
 		} catch (e) {
-			this.logService.error(e);
+			this.wogSewvice.ewwow(e);
 		}
-		if (this.syncKeybindingsPerPlatform()) {
-			delete parsed.all;
-		} else {
-			parsed.all = keybindingsContent;
+		if (this.syncKeybindingsPewPwatfowm()) {
+			dewete pawsed.aww;
+		} ewse {
+			pawsed.aww = keybindingsContent;
 		}
 		switch (OS) {
-			case OperatingSystem.Macintosh:
-				parsed.mac = keybindingsContent;
-				break;
-			case OperatingSystem.Linux:
-				parsed.linux = keybindingsContent;
-				break;
-			case OperatingSystem.Windows:
-				parsed.windows = keybindingsContent;
-				break;
+			case OpewatingSystem.Macintosh:
+				pawsed.mac = keybindingsContent;
+				bweak;
+			case OpewatingSystem.Winux:
+				pawsed.winux = keybindingsContent;
+				bweak;
+			case OpewatingSystem.Windows:
+				pawsed.windows = keybindingsContent;
+				bweak;
 		}
-		return JSON.stringify(parsed);
+		wetuwn JSON.stwingify(pawsed);
 	}
 
-	private syncKeybindingsPerPlatform(): boolean {
-		return !!this.configurationService.getValue('settingsSync.keybindingsPerPlatform');
+	pwivate syncKeybindingsPewPwatfowm(): boowean {
+		wetuwn !!this.configuwationSewvice.getVawue('settingsSync.keybindingsPewPwatfowm');
 	}
 
 }
 
-export class KeybindingsInitializer extends AbstractInitializer {
+expowt cwass KeybindingsInitiawiza extends AbstwactInitiawiza {
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super(SyncResource.Keybindings, environmentService, logService, fileService);
+		supa(SyncWesouwce.Keybindings, enviwonmentSewvice, wogSewvice, fiweSewvice);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const keybindingsContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
+	async doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void> {
+		const keybindingsContent = wemoteUsewData.syncData ? this.getKeybindingsContentFwomSyncContent(wemoteUsewData.syncData.content) : nuww;
 		if (!keybindingsContent) {
-			this.logService.info('Skipping initializing keybindings because remote keybindings does not exist.');
-			return;
+			this.wogSewvice.info('Skipping initiawizing keybindings because wemote keybindings does not exist.');
+			wetuwn;
 		}
 
 		const isEmpty = await this.isEmpty();
 		if (!isEmpty) {
-			this.logService.info('Skipping initializing keybindings because local keybindings exist.');
-			return;
+			this.wogSewvice.info('Skipping initiawizing keybindings because wocaw keybindings exist.');
+			wetuwn;
 		}
 
-		await this.fileService.writeFile(this.environmentService.keybindingsResource, VSBuffer.fromString(keybindingsContent));
+		await this.fiweSewvice.wwiteFiwe(this.enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(keybindingsContent));
 
-		await this.updateLastSyncUserData(remoteUserData);
+		await this.updateWastSyncUsewData(wemoteUsewData);
 	}
 
-	private async isEmpty(): Promise<boolean> {
-		try {
-			const fileContent = await this.fileService.readFile(this.environmentService.settingsResource);
-			const keybindings = parse(fileContent.value.toString());
-			return !isNonEmptyArray(keybindings);
-		} catch (error) {
-			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+	pwivate async isEmpty(): Pwomise<boowean> {
+		twy {
+			const fiweContent = await this.fiweSewvice.weadFiwe(this.enviwonmentSewvice.settingsWesouwce);
+			const keybindings = pawse(fiweContent.vawue.toStwing());
+			wetuwn !isNonEmptyAwway(keybindings);
+		} catch (ewwow) {
+			wetuwn (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND;
 		}
 	}
 
-	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
-		try {
-			return getKeybindingsContentFromSyncContent(syncContent, true);
+	pwivate getKeybindingsContentFwomSyncContent(syncContent: stwing): stwing | nuww {
+		twy {
+			wetuwn getKeybindingsContentFwomSyncContent(syncContent, twue);
 		} catch (e) {
-			this.logService.error(e);
-			return null;
+			this.wogSewvice.ewwow(e);
+			wetuwn nuww;
 		}
 	}
 

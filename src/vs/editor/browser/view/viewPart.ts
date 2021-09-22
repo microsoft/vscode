@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+impowt { FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
 
-export abstract class ViewPart extends ViewEventHandler {
+expowt abstwact cwass ViewPawt extends ViewEventHandwa {
 
 	_context: ViewContext;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
-		this._context.addEventHandler(this);
+		this._context.addEventHandwa(this);
 	}
 
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		supa.dispose();
 	}
 
-	public abstract prepareRender(ctx: RenderingContext): void;
-	public abstract render(ctx: RestrictedRenderingContext): void;
+	pubwic abstwact pwepaweWenda(ctx: WendewingContext): void;
+	pubwic abstwact wenda(ctx: WestwictedWendewingContext): void;
 }
 
-export const enum PartFingerprint {
+expowt const enum PawtFingewpwint {
 	None,
 	ContentWidgets,
-	OverflowingContentWidgets,
-	OverflowGuard,
-	OverlayWidgets,
-	ScrollableElement,
-	TextArea,
-	ViewLines,
+	OvewfwowingContentWidgets,
+	OvewfwowGuawd,
+	OvewwayWidgets,
+	ScwowwabweEwement,
+	TextAwea,
+	ViewWines,
 	Minimap
 }
 
-export class PartFingerprints {
+expowt cwass PawtFingewpwints {
 
-	public static write(target: Element | FastDomNode<HTMLElement>, partId: PartFingerprint) {
-		if (target instanceof FastDomNode) {
-			target.setAttribute('data-mprt', String(partId));
-		} else {
-			target.setAttribute('data-mprt', String(partId));
+	pubwic static wwite(tawget: Ewement | FastDomNode<HTMWEwement>, pawtId: PawtFingewpwint) {
+		if (tawget instanceof FastDomNode) {
+			tawget.setAttwibute('data-mpwt', Stwing(pawtId));
+		} ewse {
+			tawget.setAttwibute('data-mpwt', Stwing(pawtId));
 		}
 	}
 
-	public static read(target: Element): PartFingerprint {
-		const r = target.getAttribute('data-mprt');
-		if (r === null) {
-			return PartFingerprint.None;
+	pubwic static wead(tawget: Ewement): PawtFingewpwint {
+		const w = tawget.getAttwibute('data-mpwt');
+		if (w === nuww) {
+			wetuwn PawtFingewpwint.None;
 		}
-		return parseInt(r, 10);
+		wetuwn pawseInt(w, 10);
 	}
 
-	public static collect(child: Element | null, stopAt: Element): Uint8Array {
-		let result: PartFingerprint[] = [], resultLen = 0;
+	pubwic static cowwect(chiwd: Ewement | nuww, stopAt: Ewement): Uint8Awway {
+		wet wesuwt: PawtFingewpwint[] = [], wesuwtWen = 0;
 
-		while (child && child !== document.body) {
-			if (child === stopAt) {
-				break;
+		whiwe (chiwd && chiwd !== document.body) {
+			if (chiwd === stopAt) {
+				bweak;
 			}
-			if (child.nodeType === child.ELEMENT_NODE) {
-				result[resultLen++] = this.read(child);
+			if (chiwd.nodeType === chiwd.EWEMENT_NODE) {
+				wesuwt[wesuwtWen++] = this.wead(chiwd);
 			}
-			child = child.parentElement;
+			chiwd = chiwd.pawentEwement;
 		}
 
-		const r = new Uint8Array(resultLen);
-		for (let i = 0; i < resultLen; i++) {
-			r[i] = result[resultLen - i - 1];
+		const w = new Uint8Awway(wesuwtWen);
+		fow (wet i = 0; i < wesuwtWen; i++) {
+			w[i] = wesuwt[wesuwtWen - i - 1];
 		}
-		return r;
+		wetuwn w;
 	}
 }

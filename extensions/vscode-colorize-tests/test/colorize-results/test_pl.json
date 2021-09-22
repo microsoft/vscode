@@ -1,2312 +1,2312 @@
 [
 	{
 		"c": "use",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
-		"c": " strict;",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": " stwict;",
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my",
-		"t": "source.perl storage.modifier.perl",
-		"r": {
-			"dark_plus": "storage.modifier: #569CD6",
-			"light_plus": "storage.modifier: #0000FF",
-			"dark_vs": "storage.modifier: #569CD6",
-			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+		"t": "souwce.peww stowage.modifia.peww",
+		"w": {
+			"dawk_pwus": "stowage.modifia: #569CD6",
+			"wight_pwus": "stowage.modifia: #0000FF",
+			"dawk_vs": "stowage.modifia: #569CD6",
+			"wight_vs": "stowage.modifia: #0000FF",
+			"hc_bwack": "stowage.modifia: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "badfound",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": " = 0;",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "sub",
-		"t": "source.perl meta.function.perl storage.type.sub.perl",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.peww meta.function.peww stowage.type.sub.peww",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl meta.function.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.function.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "check_line",
-		"t": "source.perl meta.function.perl entity.name.function.perl",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "check_wine",
+		"t": "souwce.peww meta.function.peww entity.name.function.peww",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl meta.function.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.function.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my",
-		"t": "source.perl storage.modifier.perl",
-		"r": {
-			"dark_plus": "storage.modifier: #569CD6",
-			"light_plus": "storage.modifier: #0000FF",
-			"dark_vs": "storage.modifier: #569CD6",
-			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+		"t": "souwce.peww stowage.modifia.peww",
+		"w": {
+			"dawk_pwus": "stowage.modifia: #569CD6",
+			"wight_pwus": "stowage.modifia: #0000FF",
+			"dawk_vs": "stowage.modifia: #569CD6",
+			"wight_vs": "stowage.modifia: #0000FF",
+			"hc_bwack": "stowage.modifia: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ") = ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.perl variable.other.readwrite.global.special.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.speciaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "_",
-		"t": "source.perl variable.other.readwrite.global.special.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.speciaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl punctuation.whitespace.comment.leading.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww punctuation.whitespace.comment.weading.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " Check for that =.",
-		"t": "source.perl comment.line.number-sign.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " Check fow that =.",
+		"t": "souwce.peww comment.wine.numba-sign.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": " =~ ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "/",
-		"t": "source.perl string.regexp.find.perl punctuation.definition.string.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww punctuation.definition.stwing.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "^",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "\\s",
-		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.wegexp.find.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "*if",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "\\s",
-		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.wegexp.find.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "*",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "\\(",
-		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.wegexp.find.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": ".*[^!<>=]=([^=].*",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "\\)",
-		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.wegexp.find.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "|",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "\\)",
-		"t": "source.perl string.regexp.find.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.wegexp.find.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.perl string.regexp.find.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": "/",
-		"t": "source.perl string.regexp.find.perl punctuation.definition.string.perl",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+		"t": "souwce.peww stwing.wegexp.find.peww punctuation.definition.stwing.peww",
+		"w": {
+			"dawk_pwus": "stwing.wegexp: #D16969",
+			"wight_pwus": "stwing.wegexp: #811F3F",
+			"dawk_vs": "stwing.wegexp: #D16969",
+			"wight_vs": "stwing.wegexp: #811F3F",
+			"hc_bwack": "stwing.wegexp: #D16969"
 		}
 	},
 	{
 		"c": ") {",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(!",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "badfound",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ") {",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "print",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"c": "pwint",
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.begin.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.begin.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "The following suspicious lines were found:",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "The fowwowing suspicious wines wewe found:",
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\\n",
-		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.quoted.doubwe.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.end.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.end.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ");",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "badfound",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": " = 1;",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "print",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"c": "pwint",
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.begin.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.begin.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl string.quoted.double.perl variable.other.predefined.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.pwedefined.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.perl string.quoted.double.perl variable.other.predefined.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.pwedefined.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ": ",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "\\n",
-		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.quoted.doubwe.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.end.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.end.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " This function opens and reads one file, and calls",
-		"t": "source.perl comment.line.number-sign.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " check_line to analyze each line.  Call it with the",
-		"t": "source.perl comment.line.number-sign.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " This function opens and weads one fiwe, and cawws",
+		"t": "souwce.peww comment.wine.numba-sign.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " file name.",
-		"t": "source.perl comment.line.number-sign.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " check_wine to anawyze each wine.  Caww it with the",
+		"t": "souwce.peww comment.wine.numba-sign.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " fiwe name.",
+		"t": "souwce.peww comment.wine.numba-sign.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "#",
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "sub",
-		"t": "source.perl meta.function.perl storage.type.sub.perl",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "souwce.peww meta.function.peww stowage.type.sub.peww",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl meta.function.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.function.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "check_file",
-		"t": "source.perl meta.function.perl entity.name.function.perl",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "check_fiwe",
+		"t": "souwce.peww meta.function.peww entity.name.function.peww",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl meta.function.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.function.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my",
-		"t": "source.perl storage.modifier.perl",
-		"r": {
-			"dark_plus": "storage.modifier: #569CD6",
-			"light_plus": "storage.modifier: #0000FF",
-			"dark_vs": "storage.modifier: #569CD6",
-			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+		"t": "souwce.peww stowage.modifia.peww",
+		"w": {
+			"dawk_pwus": "stowage.modifia: #569CD6",
+			"wight_pwus": "stowage.modifia: #0000FF",
+			"dawk_vs": "stowage.modifia: #569CD6",
+			"wight_vs": "stowage.modifia: #0000FF",
+			"hc_bwack": "stowage.modifia: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ") = ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.perl variable.other.readwrite.global.special.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.speciaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "_",
-		"t": "source.perl variable.other.readwrite.global.special.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.speciaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(!",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "open",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "(IN, ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ")) {",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "print",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"c": "pwint",
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.begin.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.begin.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "Cannot read ",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "Cannot wead ",
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl string.quoted.double.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww stwing.quoted.doubwe.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\\n",
-		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.quoted.doubwe.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.end.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.end.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "return",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "wetuwn",
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my",
-		"t": "source.perl storage.modifier.perl",
-		"r": {
-			"dark_plus": "storage.modifier: #569CD6",
-			"light_plus": "storage.modifier: #0000FF",
-			"dark_vs": "storage.modifier: #569CD6",
-			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+		"t": "souwce.peww stowage.modifia.peww",
+		"w": {
+			"dawk_pwus": "stowage.modifia: #569CD6",
+			"wight_pwus": "stowage.modifia: #0000FF",
+			"dawk_vs": "stowage.modifia: #569CD6",
+			"wight_vs": "stowage.modifia: #0000FF",
+			"hc_bwack": "stowage.modifia: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ");",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "while",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "whiwe",
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": " = <IN>)",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "chomp",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.even-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.even-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "check_line(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "check_wine(",
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ",",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "line",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "wine",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ");",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "close",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"c": "cwose",
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " IN;",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " Go through the argument list and check each file",
-		"t": "source.perl comment.line.number-sign.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " Go thwough the awgument wist and check each fiwe",
+		"t": "souwce.peww comment.wine.numba-sign.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.perl comment.line.number-sign.perl punctuation.definition.comment.perl",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.peww comment.wine.numba-sign.peww punctuation.definition.comment.peww",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "while",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "whiwe",
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my",
-		"t": "source.perl storage.modifier.perl",
-		"r": {
-			"dark_plus": "storage.modifier: #569CD6",
-			"light_plus": "storage.modifier: #0000FF",
-			"dark_vs": "storage.modifier: #569CD6",
-			"light_vs": "storage.modifier: #0000FF",
-			"hc_black": "storage.modifier: #569CD6"
+		"t": "souwce.peww stowage.modifia.peww",
+		"w": {
+			"dawk_pwus": "stowage.modifia: #569CD6",
+			"wight_pwus": "stowage.modifia: #0000FF",
+			"dawk_vs": "stowage.modifia: #569CD6",
+			"wight_vs": "stowage.modifia: #0000FF",
+			"hc_bwack": "stowage.modifia: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": " = ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "shift",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
-		"c": "ARGV",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "AWGV",
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ") {",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.perl meta.leading-tabs meta.odd-tab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww meta.weading-tabs meta.odd-tab",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "check_file(",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "check_fiwe(",
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "fn",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ");",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "source.perl keyword.control.perl",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.peww keywowd.contwow.peww",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "(!",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "$",
-		"t": "source.perl variable.other.readwrite.global.perl punctuation.definition.variable.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww punctuation.definition.vawiabwe.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "badfound",
-		"t": "source.perl variable.other.readwrite.global.perl",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"t": "souwce.peww vawiabwe.otha.weadwwite.gwobaw.peww",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ") { ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "print",
-		"t": "source.perl support.function.perl",
-		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+		"c": "pwint",
+		"t": "souwce.peww suppowt.function.peww",
+		"w": {
+			"dawk_pwus": "suppowt.function: #DCDCAA",
+			"wight_pwus": "suppowt.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "suppowt.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.begin.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.begin.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "No suspicious lines were found.",
-		"t": "source.perl string.quoted.double.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "No suspicious wines wewe found.",
+		"t": "souwce.peww stwing.quoted.doubwe.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\\n",
-		"t": "source.perl string.quoted.double.perl constant.character.escape.perl",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #EE0000",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
+		"t": "souwce.peww stwing.quoted.doubwe.peww constant.chawacta.escape.peww",
+		"w": {
+			"dawk_pwus": "constant.chawacta.escape: #D7BA7D",
+			"wight_pwus": "constant.chawacta.escape: #EE0000",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "constant.chawacta: #569CD6"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.perl string.quoted.double.perl punctuation.definition.string.end.perl",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.peww stwing.quoted.doubwe.peww punctuation.definition.stwing.end.peww",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "; }",
-		"t": "source.perl",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.peww",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	}
 ]

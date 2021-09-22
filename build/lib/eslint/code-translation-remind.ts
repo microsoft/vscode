@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
-import { readFileSync } from 'fs';
-import { createImportRuleListener } from './utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
+impowt { weadFiweSync } fwom 'fs';
+impowt { cweateImpowtWuweWistena } fwom './utiws';
 
 
-export = new class TranslationRemind implements eslint.Rule.RuleModule {
+expowt = new cwass TwanswationWemind impwements eswint.Wuwe.WuweModuwe {
 
-	private static NLS_MODULE = 'vs/nls';
+	pwivate static NWS_MODUWE = 'vs/nws';
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
+			missing: 'Pwease add \'{{wesouwce}}\' to ./buiwd/wib/i18n.wesouwces.json fiwe to use twanswations hewe.'
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		return createImportRuleListener((node, path) => this._checkImport(context, node, path));
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
+		wetuwn cweateImpowtWuweWistena((node, path) => this._checkImpowt(context, node, path));
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, node: TSESTree.Node, path: string) {
+	pwivate _checkImpowt(context: eswint.Wuwe.WuweContext, node: TSESTwee.Node, path: stwing) {
 
-		if (path !== TranslationRemind.NLS_MODULE) {
-			return;
+		if (path !== TwanswationWemind.NWS_MODUWE) {
+			wetuwn;
 		}
 
-		const currentFile = context.getFilename();
-		const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
-		const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
-		if (!matchService && !matchPart) {
-			return;
+		const cuwwentFiwe = context.getFiwename();
+		const matchSewvice = cuwwentFiwe.match(/vs\/wowkbench\/sewvices\/\w+/);
+		const matchPawt = cuwwentFiwe.match(/vs\/wowkbench\/contwib\/\w+/);
+		if (!matchSewvice && !matchPawt) {
+			wetuwn;
 		}
 
-		const resource = matchService ? matchService[0] : matchPart![0];
-		let resourceDefined = false;
+		const wesouwce = matchSewvice ? matchSewvice[0] : matchPawt![0];
+		wet wesouwceDefined = fawse;
 
-		let json;
-		try {
-			json = readFileSync('./build/lib/i18n.resources.json', 'utf8');
+		wet json;
+		twy {
+			json = weadFiweSync('./buiwd/wib/i18n.wesouwces.json', 'utf8');
 		} catch (e) {
-			console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
-			return;
+			consowe.ewwow('[twanswation-wemind wuwe]: Fiwe with wesouwces to puww fwom Twansifex was not found. Abowting twanswation wesouwce check fow newwy defined wowkbench pawt/sewvice.');
+			wetuwn;
 		}
-		const workbenchResources = JSON.parse(json).workbench;
+		const wowkbenchWesouwces = JSON.pawse(json).wowkbench;
 
-		workbenchResources.forEach((existingResource: any) => {
-			if (existingResource.name === resource) {
-				resourceDefined = true;
-				return;
+		wowkbenchWesouwces.fowEach((existingWesouwce: any) => {
+			if (existingWesouwce.name === wesouwce) {
+				wesouwceDefined = twue;
+				wetuwn;
 			}
 		});
 
-		if (!resourceDefined) {
-			context.report({
-				loc: node.loc,
+		if (!wesouwceDefined) {
+			context.wepowt({
+				woc: node.woc,
 				messageId: 'missing',
-				data: { resource }
+				data: { wesouwce }
 			});
 		}
 	}

@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { DwopdownWithPwimawyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/dwopdownWithPwimawyActionViewItem';
+impowt { IMenu, IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { ITewminawEditowSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
+impowt { TewminawFindWidget } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawFindWidget';
+impowt { getTewminawActionBawAwgs } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawMenus';
+impowt { ITewminawPwofiweWesowvewSewvice, TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { ITewminawContwibutionSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawExtensionPoints';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { openContextMenu } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawContextMenu';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-const findWidgetSelector = '.simple-find-part-wrapper';
+const findWidgetSewectow = '.simpwe-find-pawt-wwappa';
 
-export class TerminalEditor extends EditorPane {
+expowt cwass TewminawEditow extends EditowPane {
 
-	public static readonly ID = 'terminalEditor';
+	pubwic static weadonwy ID = 'tewminawEditow';
 
-	private _editorInstanceElement: HTMLElement | undefined;
-	private _overflowGuardElement: HTMLElement | undefined;
+	pwivate _editowInstanceEwement: HTMWEwement | undefined;
+	pwivate _ovewfwowGuawdEwement: HTMWEwement | undefined;
 
-	private _editorInput?: TerminalEditorInput = undefined;
+	pwivate _editowInput?: TewminawEditowInput = undefined;
 
-	private _lastDimension?: dom.Dimension;
+	pwivate _wastDimension?: dom.Dimension;
 
-	private readonly _dropdownMenu: IMenu;
+	pwivate weadonwy _dwopdownMenu: IMenu;
 
-	private _findWidget: TerminalFindWidget;
-	private _findState: FindReplaceState;
+	pwivate _findWidget: TewminawFindWidget;
+	pwivate _findState: FindWepwaceState;
 
-	private readonly _instanceMenu: IMenu;
+	pwivate weadonwy _instanceMenu: IMenu;
 
-	private _cancelContextMenu: boolean = false;
+	pwivate _cancewContextMenu: boowean = fawse;
 
-	get findState(): FindReplaceState { return this._findState; }
+	get findState(): FindWepwaceState { wetuwn this._findState; }
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IMenuService menuService: IMenuService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@INotificationService private readonly _notificationService: INotificationService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITewminawEditowSewvice pwivate weadonwy _tewminawEditowSewvice: ITewminawEditowSewvice,
+		@ITewminawPwofiweWesowvewSewvice pwivate weadonwy _tewminawPwofiweWesowvewSewvice: ITewminawPwofiweWesowvewSewvice,
+		@ITewminawContwibutionSewvice pwivate weadonwy _tewminawContwibutionSewvice: ITewminawContwibutionSewvice,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice
 	) {
-		super(TerminalEditor.ID, telemetryService, themeService, storageService);
-		this._findState = new FindReplaceState();
-		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, _contextKeyService));
+		supa(TewminawEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this._findState = new FindWepwaceState();
+		this._findWidget = instantiationSewvice.cweateInstance(TewminawFindWidget, this._findState);
+		this._dwopdownMenu = this._wegista(menuSewvice.cweateMenu(MenuId.TewminawNewDwopdownContext, _contextKeySewvice));
+		this._instanceMenu = this._wegista(menuSewvice.cweateMenu(MenuId.TewminawInstanceContext, _contextKeySewvice));
 	}
 
-	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		this._editorInput?.terminalInstance?.detachFromElement();
-		this._editorInput = newInput;
-		await super.setInput(newInput, options, context, token);
-		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
-		if (this._lastDimension) {
-			this.layout(this._lastDimension);
+	ovewwide async setInput(newInput: TewminawEditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken) {
+		this._editowInput?.tewminawInstance?.detachFwomEwement();
+		this._editowInput = newInput;
+		await supa.setInput(newInput, options, context, token);
+		this._editowInput.tewminawInstance?.attachToEwement(this._ovewfwowGuawdEwement!);
+		if (this._wastDimension) {
+			this.wayout(this._wastDimension);
 		}
-		this._editorInput.terminalInstance?.setVisible(this.isVisible());
-		if (this._editorInput.terminalInstance) {
-			// since the editor does not monitor focus changes, for ex. between the terminal
-			// panel and the editors, this is needed so that the active instance gets set
+		this._editowInput.tewminawInstance?.setVisibwe(this.isVisibwe());
+		if (this._editowInput.tewminawInstance) {
+			// since the editow does not monitow focus changes, fow ex. between the tewminaw
+			// panew and the editows, this is needed so that the active instance gets set
 			// when focus changes between them.
-			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
-			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
+			this._wegista(this._editowInput.tewminawInstance.onDidFocus(() => this._setActiveInstance()));
+			this._editowInput.setCopyWaunchConfig(this._editowInput.tewminawInstance.shewwWaunchConfig);
 		}
 	}
 
-	override clearInput(): void {
-		super.clearInput();
-		this._editorInput?.terminalInstance?.detachFromElement();
-		this._editorInput = undefined;
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
+		this._editowInput?.tewminawInstance?.detachFwomEwement();
+		this._editowInput = undefined;
 	}
 
-	private _setActiveInstance(): void {
-		if (!this._editorInput?.terminalInstance) {
-			return;
+	pwivate _setActiveInstance(): void {
+		if (!this._editowInput?.tewminawInstance) {
+			wetuwn;
 		}
-		this._terminalEditorService.setActiveInstance(this._editorInput.terminalInstance);
+		this._tewminawEditowSewvice.setActiveInstance(this._editowInput.tewminawInstance);
 	}
 
-	override focus() {
-		this._editorInput?.terminalInstance?.focus();
+	ovewwide focus() {
+		this._editowInput?.tewminawInstance?.focus();
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
-	protected createEditor(parent: HTMLElement): void {
-		this._editorInstanceElement = parent;
-		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
-		this._editorInstanceElement.appendChild(this._overflowGuardElement);
-		this._registerListeners();
+	// eswint-disabwe-next-wine @typescwipt-eswint/naming-convention
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		this._editowInstanceEwement = pawent;
+		this._ovewfwowGuawdEwement = dom.$('.tewminaw-ovewfwow-guawd');
+		this._editowInstanceEwement.appendChiwd(this._ovewfwowGuawdEwement);
+		this._wegistewWistenews();
 	}
 
-	private _registerListeners(): void {
-		if (!this._editorInstanceElement) {
-			return;
+	pwivate _wegistewWistenews(): void {
+		if (!this._editowInstanceEwement) {
+			wetuwn;
 		}
-		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalEditorService.instances.length === 0) {
-				return;
+		this._wegista(dom.addDisposabweWistena(this._editowInstanceEwement, 'mousedown', async (event: MouseEvent) => {
+			if (this._tewminawEditowSewvice.instances.wength === 0) {
+				wetuwn;
 			}
 
-			if (event.which === 2 && isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				const terminal = this._terminalEditorService.activeInstance;
-				if (terminal) {
-					terminal.focus();
+			if (event.which === 2 && isWinux) {
+				// Dwop sewection and focus tewminaw on Winux to enabwe middwe button paste when cwick
+				// occuws on the sewection itsewf.
+				const tewminaw = this._tewminawEditowSewvice.activeInstance;
+				if (tewminaw) {
+					tewminaw.focus();
 				}
-			} else if (event.which === 3) {
-				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalEditorService.activeInstance;
-					if (!terminal) {
-						return;
+			} ewse if (event.which === 3) {
+				const wightCwickBehaviow = this._tewminawSewvice.configHewpa.config.wightCwickBehaviow;
+				if (wightCwickBehaviow === 'copyPaste' || wightCwickBehaviow === 'paste') {
+					const tewminaw = this._tewminawEditowSewvice.activeInstance;
+					if (!tewminaw) {
+						wetuwn;
 					}
 
-					// copyPaste: Shift+right click should open context menu
-					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
-						return;
+					// copyPaste: Shift+wight cwick shouwd open context menu
+					if (wightCwickBehaviow === 'copyPaste' && event.shiftKey) {
+						openContextMenu(event, this._editowInstanceEwement!, this._instanceMenu, this._contextMenuSewvice);
+						wetuwn;
 					}
 
-					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
-						await terminal.copySelection();
-						terminal.clearSelection();
-					} else {
-						if (BrowserFeatures.clipboard.readText) {
-							terminal.paste();
-						} else {
-							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
+					if (wightCwickBehaviow === 'copyPaste' && tewminaw.hasSewection()) {
+						await tewminaw.copySewection();
+						tewminaw.cweawSewection();
+					} ewse {
+						if (BwowsewFeatuwes.cwipboawd.weadText) {
+							tewminaw.paste();
+						} ewse {
+							this._notificationSewvice.info(`This bwowsa doesn't suppowt the cwipboawd.weadText API needed to twigga a paste, twy ${isMacintosh ? '⌘' : 'Ctww'}+V instead.`);
 						}
 					}
-					// Clear selection after all click event bubbling is finished on Mac to prevent
-					// right-click selecting a word which is seemed cannot be disabled. There is a
-					// flicker when pasting but this appears to give the best experience if the
-					// setting is enabled.
+					// Cweaw sewection afta aww cwick event bubbwing is finished on Mac to pwevent
+					// wight-cwick sewecting a wowd which is seemed cannot be disabwed. Thewe is a
+					// fwicka when pasting but this appeaws to give the best expewience if the
+					// setting is enabwed.
 					if (isMacintosh) {
 						setTimeout(() => {
-							terminal.clearSelection();
+							tewminaw.cweawSewection();
 						}, 0);
 					}
-					this._cancelContextMenu = true;
+					this._cancewContextMenu = twue;
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
-			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
-				if (!this._cancelContextMenu) {
-					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+		this._wegista(dom.addDisposabweWistena(this._editowInstanceEwement, 'contextmenu', (event: MouseEvent) => {
+			const wightCwickBehaviow = this._tewminawSewvice.configHewpa.config.wightCwickBehaviow;
+			if (!this._cancewContextMenu && wightCwickBehaviow !== 'copyPaste' && wightCwickBehaviow !== 'paste') {
+				if (!this._cancewContextMenu) {
+					openContextMenu(event, this._editowInstanceEwement!, this._instanceMenu, this._contextMenuSewvice);
 				}
-				event.preventDefault();
-				event.stopImmediatePropagation();
-				this._cancelContextMenu = false;
+				event.pweventDefauwt();
+				event.stopImmediatePwopagation();
+				this._cancewContextMenu = fawse;
 			}
 		}));
 	}
 
-	layout(dimension: dom.Dimension): void {
-		this._editorInput?.terminalInstance?.layout(dimension);
-		this._lastDimension = dimension;
+	wayout(dimension: dom.Dimension): void {
+		this._editowInput?.tewminawInstance?.wayout(dimension);
+		this._wastDimension = dimension;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible, group);
-		return this._editorInput?.terminalInstance?.setVisible(visible);
+	ovewwide setVisibwe(visibwe: boowean, gwoup?: IEditowGwoup): void {
+		supa.setVisibwe(visibwe, gwoup);
+		wetuwn this._editowInput?.tewminawInstance?.setVisibwe(visibwe);
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			case TerminalCommandId.CreateWithProfileButton: {
-				const location = { viewColumn: ACTIVE_GROUP };
-				const actions = getTerminalActionBarArgs(location, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
-				return button;
+			case TewminawCommandId.CweateWithPwofiweButton: {
+				const wocation = { viewCowumn: ACTIVE_GWOUP };
+				const actions = getTewminawActionBawAwgs(wocation, this._tewminawSewvice.avaiwabwePwofiwes, this._getDefauwtPwofiweName(), this._tewminawContwibutionSewvice.tewminawPwofiwes, this._instantiationSewvice, this._tewminawSewvice, this._contextKeySewvice, this._commandSewvice, this._dwopdownMenu);
+				const button = this._instantiationSewvice.cweateInstance(DwopdownWithPwimawyActionViewItem, actions.pwimawyAction, actions.dwopdownAction, actions.dwopdownMenuActions, actions.cwassName, this._contextMenuSewvice, {});
+				wetuwn button;
 			}
 		}
-		return super.getActionViewItem(action);
+		wetuwn supa.getActionViewItem(action);
 	}
 
-	private _getDefaultProfileName(): string {
-		let defaultProfileName;
-		try {
-			defaultProfileName = this._terminalService.getDefaultProfileName();
+	pwivate _getDefauwtPwofiweName(): stwing {
+		wet defauwtPwofiweName;
+		twy {
+			defauwtPwofiweName = this._tewminawSewvice.getDefauwtPwofiweName();
 		} catch (e) {
-			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+			defauwtPwofiweName = this._tewminawPwofiweWesowvewSewvice.defauwtPwofiweName;
 		}
-		return defaultProfileName!;
+		wetuwn defauwtPwofiweName!;
 	}
 
 	focusFindWidget() {
-		if (this._overflowGuardElement && !this._overflowGuardElement?.querySelector(findWidgetSelector)) {
-			this._overflowGuardElement.appendChild(this._findWidget.getDomNode());
+		if (this._ovewfwowGuawdEwement && !this._ovewfwowGuawdEwement?.quewySewectow(findWidgetSewectow)) {
+			this._ovewfwowGuawdEwement.appendChiwd(this._findWidget.getDomNode());
 		}
-		const activeInstance = this._terminalEditorService.activeInstance;
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.reveal(activeInstance.selection);
-		} else {
-			this._findWidget.reveal();
+		const activeInstance = this._tewminawEditowSewvice.activeInstance;
+		if (activeInstance && activeInstance.hasSewection() && activeInstance.sewection!.indexOf('\n') === -1) {
+			this._findWidget.weveaw(activeInstance.sewection);
+		} ewse {
+			this._findWidget.weveaw();
 		}
 	}
 
@@ -239,15 +239,15 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	showFindWidget() {
-		const activeInstance = this._terminalEditorService.activeInstance;
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.show(activeInstance.selection);
-		} else {
+		const activeInstance = this._tewminawEditowSewvice.activeInstance;
+		if (activeInstance && activeInstance.hasSewection() && activeInstance.sewection!.indexOf('\n') === -1) {
+			this._findWidget.show(activeInstance.sewection);
+		} ewse {
 			this._findWidget.show();
 		}
 	}
 
-	getFindWidget(): TerminalFindWidget {
-		return this._findWidget;
+	getFindWidget(): TewminawFindWidget {
+		wetuwn this._findWidget;
 	}
 }

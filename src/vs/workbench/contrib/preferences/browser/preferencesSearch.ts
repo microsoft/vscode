@@ -1,569 +1,569 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting } from 'vs/workbench/services/preferences/common/preferences';
-import { IRange } from 'vs/editor/common/core/range';
-import { distinct, top } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { ISettingsEditowModew, ISetting, ISettingsGwoup, IFiwtewMetadata, ISeawchWesuwt, IGwoupFiwta, ISettingMatcha, IScowedWesuwts, ISettingMatch, IWemoteSetting, IExtensionSetting } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { distinct, top } fwom 'vs/base/common/awways';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IMatch, ow, matchesContiguousSubStwing, matchesPwefix, matchesCamewCase, matchesWowds } fwom 'vs/base/common/fiwtews';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwefewencesSeawchSewvice, ISeawchPwovida, IWowkbenchSettingsConfiguwation } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { IWequestSewvice, asJson } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IExtensionManagementSewvice, IWocawExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { nuwwWange } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export interface IEndpointDetails {
-	urlBase?: string;
-	key?: string;
+expowt intewface IEndpointDetaiws {
+	uwwBase?: stwing;
+	key?: stwing;
 }
 
-export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass PwefewencesSeawchSewvice extends Disposabwe impwements IPwefewencesSeawchSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _installedExtensions: Promise<ILocalExtension[]>;
+	pwivate _instawwedExtensions: Pwomise<IWocawExtension[]>;
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice
 	) {
-		super();
+		supa();
 
-		// This request goes to the shared process but results won't change during a window's lifetime, so cache the results.
-		this._installedExtensions = this.extensionManagementService.getInstalled(ExtensionType.User).then(exts => {
-			// Filter to enabled extensions that have settings
-			return exts
-				.filter(ext => this.extensionEnablementService.isEnabled(ext))
-				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.filter(ext => !!ext.identifier.uuid);
+		// This wequest goes to the shawed pwocess but wesuwts won't change duwing a window's wifetime, so cache the wesuwts.
+		this._instawwedExtensions = this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa).then(exts => {
+			// Fiwta to enabwed extensions that have settings
+			wetuwn exts
+				.fiwta(ext => this.extensionEnabwementSewvice.isEnabwed(ext))
+				.fiwta(ext => ext.manifest && ext.manifest.contwibutes && ext.manifest.contwibutes.configuwation)
+				.fiwta(ext => !!ext.identifia.uuid);
 		});
 	}
 
-	private get remoteSearchAllowed(): boolean {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (!workbenchSettings.enableNaturalLanguageSearch) {
-			return false;
+	pwivate get wemoteSeawchAwwowed(): boowean {
+		const wowkbenchSettings = this.configuwationSewvice.getVawue<IWowkbenchSettingsConfiguwation>().wowkbench.settings;
+		if (!wowkbenchSettings.enabweNatuwawWanguageSeawch) {
+			wetuwn fawse;
 		}
 
-		return !!this._endpoint.urlBase;
+		wetuwn !!this._endpoint.uwwBase;
 	}
 
-	private get _endpoint(): IEndpointDetails {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (workbenchSettings.naturalLanguageSearchEndpoint) {
-			return {
-				urlBase: workbenchSettings.naturalLanguageSearchEndpoint,
-				key: workbenchSettings.naturalLanguageSearchKey
+	pwivate get _endpoint(): IEndpointDetaiws {
+		const wowkbenchSettings = this.configuwationSewvice.getVawue<IWowkbenchSettingsConfiguwation>().wowkbench.settings;
+		if (wowkbenchSettings.natuwawWanguageSeawchEndpoint) {
+			wetuwn {
+				uwwBase: wowkbenchSettings.natuwawWanguageSeawchEndpoint,
+				key: wowkbenchSettings.natuwawWanguageSeawchKey
 			};
-		} else {
-			return {
-				urlBase: this.productService.settingsSearchUrl
+		} ewse {
+			wetuwn {
+				uwwBase: this.pwoductSewvice.settingsSeawchUww
 			};
 		}
 	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
-		const opts: IRemoteSearchProviderOptions = {
-			filter,
-			newExtensionsOnly,
+	getWemoteSeawchPwovida(fiwta: stwing, newExtensionsOnwy = fawse): ISeawchPwovida | undefined {
+		const opts: IWemoteSeawchPwovidewOptions = {
+			fiwta,
+			newExtensionsOnwy,
 			endpoint: this._endpoint
 		};
 
-		return this.remoteSearchAllowed ? this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions) : undefined;
+		wetuwn this.wemoteSeawchAwwowed ? this.instantiationSewvice.cweateInstance(WemoteSeawchPwovida, opts, this._instawwedExtensions) : undefined;
 	}
 
-	getLocalSearchProvider(filter: string): LocalSearchProvider {
-		return this.instantiationService.createInstance(LocalSearchProvider, filter);
+	getWocawSeawchPwovida(fiwta: stwing): WocawSeawchPwovida {
+		wetuwn this.instantiationSewvice.cweateInstance(WocawSeawchPwovida, fiwta);
 	}
 }
 
-export class LocalSearchProvider implements ISearchProvider {
-	static readonly EXACT_MATCH_SCORE = 10000;
-	static readonly START_SCORE = 1000;
+expowt cwass WocawSeawchPwovida impwements ISeawchPwovida {
+	static weadonwy EXACT_MATCH_SCOWE = 10000;
+	static weadonwy STAWT_SCOWE = 1000;
 
-	constructor(private _filter: string) {
-		// Remove " and : which are likely to be copypasted as part of a setting name.
-		// Leave other special characters which the user might want to search for.
-		this._filter = this._filter
-			.replace(/[":]/g, ' ')
-			.replace(/  /g, ' ')
-			.trim();
+	constwuctow(pwivate _fiwta: stwing) {
+		// Wemove " and : which awe wikewy to be copypasted as pawt of a setting name.
+		// Weave otha speciaw chawactews which the usa might want to seawch fow.
+		this._fiwta = this._fiwta
+			.wepwace(/[":]/g, ' ')
+			.wepwace(/  /g, ' ')
+			.twim();
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
-		if (!this._filter) {
-			return Promise.resolve(null);
+	seawchModew(pwefewencesModew: ISettingsEditowModew, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww> {
+		if (!this._fiwta) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
-		const settingMatcher = (setting: ISetting) => {
-			const matches = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-			const score = this._filter === setting.key ?
-				LocalSearchProvider.EXACT_MATCH_SCORE :
-				orderedScore--;
+		wet owdewedScowe = WocawSeawchPwovida.STAWT_SCOWE; // Sowt is not stabwe
+		const settingMatcha = (setting: ISetting) => {
+			const matches = new SettingMatches(this._fiwta, setting, twue, twue, (fiwta, setting) => pwefewencesModew.findVawueMatches(fiwta, setting)).matches;
+			const scowe = this._fiwta === setting.key ?
+				WocawSeawchPwovida.EXACT_MATCH_SCOWE :
+				owdewedScowe--;
 
-			return matches && matches.length ?
+			wetuwn matches && matches.wength ?
 				{
 					matches,
-					score
+					scowe
 				} :
-				null;
+				nuww;
 		};
 
-		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
-			return Promise.resolve({
-				filterMatches: filterMatches.slice(0, 1),
-				exactMatch: true
+		const fiwtewMatches = pwefewencesModew.fiwtewSettings(this._fiwta, this.getGwoupFiwta(this._fiwta), settingMatcha);
+		if (fiwtewMatches[0] && fiwtewMatches[0].scowe === WocawSeawchPwovida.EXACT_MATCH_SCOWE) {
+			wetuwn Pwomise.wesowve({
+				fiwtewMatches: fiwtewMatches.swice(0, 1),
+				exactMatch: twue
 			});
-		} else {
-			return Promise.resolve({
-				filterMatches
+		} ewse {
+			wetuwn Pwomise.wesowve({
+				fiwtewMatches
 			});
 		}
 	}
 
-	private getGroupFilter(filter: string): IGroupFilter {
-		const regex = strings.createRegExp(filter, false, { global: true });
-		return (group: ISettingsGroup) => {
-			return regex.test(group.title);
+	pwivate getGwoupFiwta(fiwta: stwing): IGwoupFiwta {
+		const wegex = stwings.cweateWegExp(fiwta, fawse, { gwobaw: twue });
+		wetuwn (gwoup: ISettingsGwoup) => {
+			wetuwn wegex.test(gwoup.titwe);
 		};
 	}
 }
 
-interface IRemoteSearchProviderOptions {
-	filter: string;
-	endpoint: IEndpointDetails;
-	newExtensionsOnly: boolean;
+intewface IWemoteSeawchPwovidewOptions {
+	fiwta: stwing;
+	endpoint: IEndpointDetaiws;
+	newExtensionsOnwy: boowean;
 }
 
-interface IBingRequestDetails {
-	url: string;
-	body?: string;
-	hasMoreFilters?: boolean;
-	extensions?: ILocalExtension[];
+intewface IBingWequestDetaiws {
+	uww: stwing;
+	body?: stwing;
+	hasMoweFiwtews?: boowean;
+	extensions?: IWocawExtension[];
 }
 
-class RemoteSearchProvider implements ISearchProvider {
-	// Must keep extension filter size under 8kb. 42 filters puts us there.
-	private static readonly MAX_REQUEST_FILTERS = 42;
-	private static readonly MAX_REQUESTS = 10;
-	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
+cwass WemoteSeawchPwovida impwements ISeawchPwovida {
+	// Must keep extension fiwta size unda 8kb. 42 fiwtews puts us thewe.
+	pwivate static weadonwy MAX_WEQUEST_FIWTEWS = 42;
+	pwivate static weadonwy MAX_WEQUESTS = 10;
+	pwivate static weadonwy NEW_EXTENSIONS_MIN_SCOWE = 1;
 
-	private _remoteSearchP: Promise<IFilterMetadata | null>;
+	pwivate _wemoteSeawchP: Pwomise<IFiwtewMetadata | nuww>;
 
-	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
-		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(pwivate options: IWemoteSeawchPwovidewOptions, pwivate instawwedExtensions: Pwomise<IWocawExtension[]>,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this._remoteSearchP = this.options.filter ?
-			Promise.resolve(this.getSettingsForFilter(this.options.filter)) :
-			Promise.resolve(null);
+		this._wemoteSeawchP = this.options.fiwta ?
+			Pwomise.wesowve(this.getSettingsFowFiwta(this.options.fiwta)) :
+			Pwomise.wesowve(nuww);
 	}
 
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
-		return this._remoteSearchP.then<ISearchResult | null>((remoteResult) => {
-			if (!remoteResult) {
-				return null;
+	seawchModew(pwefewencesModew: ISettingsEditowModew, token?: CancewwationToken): Pwomise<ISeawchWesuwt | nuww> {
+		wetuwn this._wemoteSeawchP.then<ISeawchWesuwt | nuww>((wemoteWesuwt) => {
+			if (!wemoteWesuwt) {
+				wetuwn nuww;
 			}
 
-			if (token && token.isCancellationRequested) {
-				throw canceled();
+			if (token && token.isCancewwationWequested) {
+				thwow cancewed();
 			}
 
-			const resultKeys = Object.keys(remoteResult.scoredResults);
-			const highScoreKey = top(resultKeys, (a, b) => remoteResult.scoredResults[b].score - remoteResult.scoredResults[a].score, 1)[0];
-			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
-			const minScore = highScore / 5;
-			if (this.options.newExtensionsOnly) {
-				return this.installedExtensions.then(installedExtensions => {
-					const newExtsMinScore = Math.max(RemoteSearchProvider.NEW_EXTENSIONS_MIN_SCORE, minScore);
-					const passingScoreKeys = resultKeys
-						.filter(k => {
-							const result = remoteResult.scoredResults[k];
-							const resultExtId = (result.extensionPublisher + '.' + result.extensionName).toLowerCase();
-							return !installedExtensions.some(ext => ext.identifier.id.toLowerCase() === resultExtId);
+			const wesuwtKeys = Object.keys(wemoteWesuwt.scowedWesuwts);
+			const highScoweKey = top(wesuwtKeys, (a, b) => wemoteWesuwt.scowedWesuwts[b].scowe - wemoteWesuwt.scowedWesuwts[a].scowe, 1)[0];
+			const highScowe = highScoweKey ? wemoteWesuwt.scowedWesuwts[highScoweKey].scowe : 0;
+			const minScowe = highScowe / 5;
+			if (this.options.newExtensionsOnwy) {
+				wetuwn this.instawwedExtensions.then(instawwedExtensions => {
+					const newExtsMinScowe = Math.max(WemoteSeawchPwovida.NEW_EXTENSIONS_MIN_SCOWE, minScowe);
+					const passingScoweKeys = wesuwtKeys
+						.fiwta(k => {
+							const wesuwt = wemoteWesuwt.scowedWesuwts[k];
+							const wesuwtExtId = (wesuwt.extensionPubwisha + '.' + wesuwt.extensionName).toWowewCase();
+							wetuwn !instawwedExtensions.some(ext => ext.identifia.id.toWowewCase() === wesuwtExtId);
 						})
-						.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
+						.fiwta(k => wemoteWesuwt.scowedWesuwts[k].scowe >= newExtsMinScowe);
 
-					const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
-						const remoteSetting = remoteResult.scoredResults[k];
-						const setting = remoteSettingToISetting(remoteSetting);
-						return <ISettingMatch>{
+					const fiwtewMatches: ISettingMatch[] = passingScoweKeys.map(k => {
+						const wemoteSetting = wemoteWesuwt.scowedWesuwts[k];
+						const setting = wemoteSettingToISetting(wemoteSetting);
+						wetuwn <ISettingMatch>{
 							setting,
-							score: remoteSetting.score,
+							scowe: wemoteSetting.scowe,
 							matches: [] // TODO
 						};
 					});
 
-					return <ISearchResult>{
-						filterMatches,
-						metadata: remoteResult
+					wetuwn <ISeawchWesuwt>{
+						fiwtewMatches,
+						metadata: wemoteWesuwt
 					};
 				});
-			} else {
-				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
-				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
-				return <ISearchResult>{
-					filterMatches,
-					metadata: remoteResult
+			} ewse {
+				const settingMatcha = this.getWemoteSettingMatcha(wemoteWesuwt.scowedWesuwts, minScowe, pwefewencesModew);
+				const fiwtewMatches = pwefewencesModew.fiwtewSettings(this.options.fiwta, gwoup => nuww, settingMatcha);
+				wetuwn <ISeawchWesuwt>{
+					fiwtewMatches,
+					metadata: wemoteWesuwt
 				};
 			}
 		});
 	}
 
-	private async getSettingsForFilter(filter: string): Promise<IFilterMetadata> {
-		const allRequestDetails: IBingRequestDetails[] = [];
+	pwivate async getSettingsFowFiwta(fiwta: stwing): Pwomise<IFiwtewMetadata> {
+		const awwWequestDetaiws: IBingWequestDetaiws[] = [];
 
-		// Only send MAX_REQUESTS requests in total just to keep it sane
-		for (let i = 0; i < RemoteSearchProvider.MAX_REQUESTS; i++) {
-			const details = await this.prepareRequest(filter, i);
-			allRequestDetails.push(details);
-			if (!details.hasMoreFilters) {
-				break;
+		// Onwy send MAX_WEQUESTS wequests in totaw just to keep it sane
+		fow (wet i = 0; i < WemoteSeawchPwovida.MAX_WEQUESTS; i++) {
+			const detaiws = await this.pwepaweWequest(fiwta, i);
+			awwWequestDetaiws.push(detaiws);
+			if (!detaiws.hasMoweFiwtews) {
+				bweak;
 			}
 		}
 
-		return Promise.all(allRequestDetails.map(details => this.getSettingsFromBing(details))).then(allResponses => {
-			// Merge all IFilterMetadata
-			const metadata = allResponses[0];
-			metadata.requestCount = 1;
+		wetuwn Pwomise.aww(awwWequestDetaiws.map(detaiws => this.getSettingsFwomBing(detaiws))).then(awwWesponses => {
+			// Mewge aww IFiwtewMetadata
+			const metadata = awwWesponses[0];
+			metadata.wequestCount = 1;
 
-			for (const response of allResponses.slice(1)) {
-				metadata.requestCount++;
-				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
+			fow (const wesponse of awwWesponses.swice(1)) {
+				metadata.wequestCount++;
+				metadata.scowedWesuwts = { ...metadata.scowedWesuwts, ...wesponse.scowedWesuwts };
 			}
 
-			return metadata;
+			wetuwn metadata;
 		});
 	}
 
-	private getSettingsFromBing(details: IBingRequestDetails): Promise<IFilterMetadata> {
-		this.logService.debug(`Searching settings via ${details.url}`);
-		if (details.body) {
-			this.logService.debug(`Body: ${details.body}`);
+	pwivate getSettingsFwomBing(detaiws: IBingWequestDetaiws): Pwomise<IFiwtewMetadata> {
+		this.wogSewvice.debug(`Seawching settings via ${detaiws.uww}`);
+		if (detaiws.body) {
+			this.wogSewvice.debug(`Body: ${detaiws.body}`);
 		}
 
-		const requestType = details.body ? 'post' : 'get';
-		const headers: IStringDictionary<string> = {
-			'User-Agent': 'request',
-			'Content-Type': 'application/json; charset=utf-8',
+		const wequestType = detaiws.body ? 'post' : 'get';
+		const headews: IStwingDictionawy<stwing> = {
+			'Usa-Agent': 'wequest',
+			'Content-Type': 'appwication/json; chawset=utf-8',
 		};
 
 		if (this.options.endpoint.key) {
-			headers['api-key'] = this.options.endpoint.key;
+			headews['api-key'] = this.options.endpoint.key;
 		}
 
-		const start = Date.now();
-		return this.requestService.request({
-			type: requestType,
-			url: details.url,
-			data: details.body,
-			headers,
+		const stawt = Date.now();
+		wetuwn this.wequestSewvice.wequest({
+			type: wequestType,
+			uww: detaiws.uww,
+			data: detaiws.body,
+			headews,
 			timeout: 5000
-		}, CancellationToken.None).then(context => {
-			if (typeof context.res.statusCode === 'number' && context.res.statusCode >= 300) {
-				throw new Error(`${JSON.stringify(details)} returned status code: ${context.res.statusCode}`);
+		}, CancewwationToken.None).then(context => {
+			if (typeof context.wes.statusCode === 'numba' && context.wes.statusCode >= 300) {
+				thwow new Ewwow(`${JSON.stwingify(detaiws)} wetuwned status code: ${context.wes.statusCode}`);
 			}
 
-			return asJson(context);
-		}).then((result: any) => {
+			wetuwn asJson(context);
+		}).then((wesuwt: any) => {
 			const timestamp = Date.now();
-			const duration = timestamp - start;
-			const remoteSettings: IRemoteSetting[] = (result.value || [])
-				.map((r: any) => {
-					const key = JSON.parse(r.setting || r.Setting);
-					const packageId = r['packageid'];
+			const duwation = timestamp - stawt;
+			const wemoteSettings: IWemoteSetting[] = (wesuwt.vawue || [])
+				.map((w: any) => {
+					const key = JSON.pawse(w.setting || w.Setting);
+					const packageId = w['packageid'];
 					const id = getSettingKey(key, packageId);
 
-					const value = r['value'];
-					const defaultValue = value ? JSON.parse(value) : value;
+					const vawue = w['vawue'];
+					const defauwtVawue = vawue ? JSON.pawse(vawue) : vawue;
 
-					const packageName = r['packagename'];
-					let extensionName: string | undefined;
-					let extensionPublisher: string | undefined;
+					const packageName = w['packagename'];
+					wet extensionName: stwing | undefined;
+					wet extensionPubwisha: stwing | undefined;
 					if (packageName && packageName.indexOf('##') >= 0) {
-						[extensionPublisher, extensionName] = packageName.split('##');
+						[extensionPubwisha, extensionName] = packageName.spwit('##');
 					}
 
-					return <IRemoteSetting>{
+					wetuwn <IWemoteSetting>{
 						key,
 						id,
-						defaultValue,
-						score: r['@search.score'],
-						description: JSON.parse(r['details']),
+						defauwtVawue,
+						scowe: w['@seawch.scowe'],
+						descwiption: JSON.pawse(w['detaiws']),
 						packageId,
 						extensionName,
-						extensionPublisher
+						extensionPubwisha
 					};
 				});
 
-			const scoredResults = Object.create(null);
-			remoteSettings.forEach(s => {
-				scoredResults[s.id] = s;
+			const scowedWesuwts = Object.cweate(nuww);
+			wemoteSettings.fowEach(s => {
+				scowedWesuwts[s.id] = s;
 			});
 
-			return <IFilterMetadata>{
-				requestUrl: details.url,
-				requestBody: details.body,
-				duration,
+			wetuwn <IFiwtewMetadata>{
+				wequestUww: detaiws.uww,
+				wequestBody: detaiws.body,
+				duwation,
 				timestamp,
-				scoredResults,
-				context: result['@odata.context']
+				scowedWesuwts,
+				context: wesuwt['@odata.context']
 			};
 		});
 	}
 
-	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
-		return (setting: ISetting, group: ISettingsGroup) => {
-			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || // extension setting
-				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
-				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
-			if (remoteSetting && remoteSetting.score >= minScore) {
-				const settingMatches = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				return { matches: settingMatches, score: remoteSetting.score };
+	pwivate getWemoteSettingMatcha(scowedWesuwts: IScowedWesuwts, minScowe: numba, pwefewencesModew: ISettingsEditowModew): ISettingMatcha {
+		wetuwn (setting: ISetting, gwoup: ISettingsGwoup) => {
+			const wemoteSetting = scowedWesuwts[getSettingKey(setting.key, gwoup.id)] || // extension setting
+				scowedWesuwts[getSettingKey(setting.key, 'cowe')] || // cowe setting
+				scowedWesuwts[getSettingKey(setting.key)]; // cowe setting fwom owiginaw pwod endpoint
+			if (wemoteSetting && wemoteSetting.scowe >= minScowe) {
+				const settingMatches = new SettingMatches(this.options.fiwta, setting, fawse, twue, (fiwta, setting) => pwefewencesModew.findVawueMatches(fiwta, setting)).matches;
+				wetuwn { matches: settingMatches, scowe: wemoteSetting.scowe };
 			}
 
-			return null;
+			wetuwn nuww;
 		};
 	}
 
-	private async prepareRequest(query: string, filterPage = 0): Promise<IBingRequestDetails> {
-		const verbatimQuery = query;
-		query = escapeSpecialChars(query);
+	pwivate async pwepaweWequest(quewy: stwing, fiwtewPage = 0): Pwomise<IBingWequestDetaiws> {
+		const vewbatimQuewy = quewy;
+		quewy = escapeSpeciawChaws(quewy);
 		const boost = 10;
-		const boostedQuery = `(${query})^${boost}`;
+		const boostedQuewy = `(${quewy})^${boost}`;
 
-		// Appending Fuzzy after each word.
-		query = query.replace(/\ +/g, '~ ') + '~';
+		// Appending Fuzzy afta each wowd.
+		quewy = quewy.wepwace(/\ +/g, '~ ') + '~';
 
-		const encodedQuery = encodeURIComponent(boostedQuery + ' || ' + query);
-		let url = `${this.options.endpoint.urlBase}`;
+		const encodedQuewy = encodeUWIComponent(boostedQuewy + ' || ' + quewy);
+		wet uww = `${this.options.endpoint.uwwBase}`;
 
 		if (this.options.endpoint.key) {
-			url += `${API_VERSION}&${QUERY_TYPE}`;
+			uww += `${API_VEWSION}&${QUEWY_TYPE}`;
 		}
 
-		const extensions = await this.installedExtensions;
-		const filters = this.options.newExtensionsOnly ?
-			[`diminish eq 'latest'`] :
-			this.getVersionFilters(extensions, this.productService.settingsSearchBuildId);
+		const extensions = await this.instawwedExtensions;
+		const fiwtews = this.options.newExtensionsOnwy ?
+			[`diminish eq 'watest'`] :
+			this.getVewsionFiwtews(extensions, this.pwoductSewvice.settingsSeawchBuiwdId);
 
-		const filterStr = filters
-			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
-			.join(' or ');
-		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
+		const fiwtewStw = fiwtews
+			.swice(fiwtewPage * WemoteSeawchPwovida.MAX_WEQUEST_FIWTEWS, (fiwtewPage + 1) * WemoteSeawchPwovida.MAX_WEQUEST_FIWTEWS)
+			.join(' ow ');
+		const hasMoweFiwtews = fiwtews.wength > (fiwtewPage + 1) * WemoteSeawchPwovida.MAX_WEQUEST_FIWTEWS;
 
-		const body = JSON.stringify({
-			query: encodedQuery,
-			filters: encodeURIComponent(filterStr),
-			rawQuery: encodeURIComponent(verbatimQuery)
+		const body = JSON.stwingify({
+			quewy: encodedQuewy,
+			fiwtews: encodeUWIComponent(fiwtewStw),
+			wawQuewy: encodeUWIComponent(vewbatimQuewy)
 		});
 
-		return {
-			url,
+		wetuwn {
+			uww,
 			body,
-			hasMoreFilters
+			hasMoweFiwtews
 		};
 	}
 
-	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
-		// Only search extensions that contribute settings
-		const filters = exts
-			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-			.map(ext => this.getExtensionFilter(ext));
+	pwivate getVewsionFiwtews(exts: IWocawExtension[], buiwdNumba?: numba): stwing[] {
+		// Onwy seawch extensions that contwibute settings
+		const fiwtews = exts
+			.fiwta(ext => ext.manifest.contwibutes && ext.manifest.contwibutes.configuwation)
+			.map(ext => this.getExtensionFiwta(ext));
 
-		if (buildNumber) {
-			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
+		if (buiwdNumba) {
+			fiwtews.push(`(packageid eq 'cowe' and stawtbuiwdno we '${buiwdNumba}' and endbuiwdno ge '${buiwdNumba}')`);
 		}
 
-		return filters;
+		wetuwn fiwtews;
 	}
 
-	private getExtensionFilter(ext: ILocalExtension): string {
-		const uuid = ext.identifier.uuid;
-		const versionString = ext.manifest.version
-			.split('.')
-			.map(versionPart => String(versionPart).padStart(10), '0')
+	pwivate getExtensionFiwta(ext: IWocawExtension): stwing {
+		const uuid = ext.identifia.uuid;
+		const vewsionStwing = ext.manifest.vewsion
+			.spwit('.')
+			.map(vewsionPawt => Stwing(vewsionPawt).padStawt(10), '0')
 			.join('');
 
-		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
+		wetuwn `(packageid eq '${uuid}' and stawtbuiwdno we '${vewsionStwing}' and endbuiwdno ge '${vewsionStwing}')`;
 	}
 }
 
-function getSettingKey(name: string, packageId?: string): string {
-	return packageId ?
+function getSettingKey(name: stwing, packageId?: stwing): stwing {
+	wetuwn packageId ?
 		packageId + '##' + name :
 		name;
 }
 
-const API_VERSION = 'api-version=2016-09-01-Preview';
-const QUERY_TYPE = 'querytype=full';
+const API_VEWSION = 'api-vewsion=2016-09-01-Pweview';
+const QUEWY_TYPE = 'quewytype=fuww';
 
-function escapeSpecialChars(query: string): string {
-	return query.replace(/\./g, ' ')
-		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
-		.replace(/  /g, ' ') // collapse spaces
-		.trim();
+function escapeSpeciawChaws(quewy: stwing): stwing {
+	wetuwn quewy.wepwace(/\./g, ' ')
+		.wepwace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
+		.wepwace(/  /g, ' ') // cowwapse spaces
+		.twim();
 }
 
-function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
-	return {
-		description: remoteSetting.description.split('\n'),
-		descriptionIsMarkdown: false,
-		descriptionRanges: [],
-		key: remoteSetting.key,
-		keyRange: nullRange,
-		value: remoteSetting.defaultValue,
-		range: nullRange,
-		valueRange: nullRange,
-		overrides: [],
-		extensionName: remoteSetting.extensionName,
-		extensionPublisher: remoteSetting.extensionPublisher
+function wemoteSettingToISetting(wemoteSetting: IWemoteSetting): IExtensionSetting {
+	wetuwn {
+		descwiption: wemoteSetting.descwiption.spwit('\n'),
+		descwiptionIsMawkdown: fawse,
+		descwiptionWanges: [],
+		key: wemoteSetting.key,
+		keyWange: nuwwWange,
+		vawue: wemoteSetting.defauwtVawue,
+		wange: nuwwWange,
+		vawueWange: nuwwWange,
+		ovewwides: [],
+		extensionName: wemoteSetting.extensionName,
+		extensionPubwisha: wemoteSetting.extensionPubwisha
 	};
 }
 
-export class SettingMatches {
+expowt cwass SettingMatches {
 
-	private readonly descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+	pwivate weadonwy descwiptionMatchingWowds: Map<stwing, IWange[]> = new Map<stwing, IWange[]>();
+	pwivate weadonwy keyMatchingWowds: Map<stwing, IWange[]> = new Map<stwing, IWange[]>();
+	pwivate weadonwy vawueMatchingWowds: Map<stwing, IWange[]> = new Map<stwing, IWange[]>();
 
-	readonly matches: IRange[];
+	weadonwy matches: IWange[];
 
-	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
-		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
+	constwuctow(seawchStwing: stwing, setting: ISetting, pwivate wequiweFuwwQuewyMatch: boowean, pwivate seawchDescwiption: boowean, pwivate vawuesMatcha: (fiwta: stwing, setting: ISetting) => IWange[]) {
+		this.matches = distinct(this._findMatchesInSetting(seawchStwing, setting), (match) => `${match.stawtWineNumba}_${match.stawtCowumn}_${match.endWineNumba}_${match.endCowumn}_`);
 	}
 
-	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
-		const result = this._doFindMatchesInSetting(searchString, setting);
-		if (setting.overrides && setting.overrides.length) {
-			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
-				const words = searchString.split(' ');
-				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const subSettingKeyRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.keyMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const subSettingValueRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.valueMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.keyMatchingWords]);
-				result.push(...descriptionRanges, ...keyRanges, ...subSettingKeyRanges, ...subSettingValueRanges);
-				result.push(...subSettingMatches.matches);
+	pwivate _findMatchesInSetting(seawchStwing: stwing, setting: ISetting): IWange[] {
+		const wesuwt = this._doFindMatchesInSetting(seawchStwing, setting);
+		if (setting.ovewwides && setting.ovewwides.wength) {
+			fow (const subSetting of setting.ovewwides) {
+				const subSettingMatches = new SettingMatches(seawchStwing, subSetting, this.wequiweFuwwQuewyMatch, this.seawchDescwiption, this.vawuesMatcha);
+				const wowds = seawchStwing.spwit(' ');
+				const descwiptionWanges: IWange[] = this.getWangesFowWowds(wowds, this.descwiptionMatchingWowds, [subSettingMatches.descwiptionMatchingWowds, subSettingMatches.keyMatchingWowds, subSettingMatches.vawueMatchingWowds]);
+				const keyWanges: IWange[] = this.getWangesFowWowds(wowds, this.keyMatchingWowds, [subSettingMatches.descwiptionMatchingWowds, subSettingMatches.keyMatchingWowds, subSettingMatches.vawueMatchingWowds]);
+				const subSettingKeyWanges: IWange[] = this.getWangesFowWowds(wowds, subSettingMatches.keyMatchingWowds, [this.descwiptionMatchingWowds, this.keyMatchingWowds, subSettingMatches.vawueMatchingWowds]);
+				const subSettingVawueWanges: IWange[] = this.getWangesFowWowds(wowds, subSettingMatches.vawueMatchingWowds, [this.descwiptionMatchingWowds, this.keyMatchingWowds, subSettingMatches.keyMatchingWowds]);
+				wesuwt.push(...descwiptionWanges, ...keyWanges, ...subSettingKeyWanges, ...subSettingVawueWanges);
+				wesuwt.push(...subSettingMatches.matches);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
-		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const schema: IJSONSchema = registry[setting.key];
+	pwivate _doFindMatchesInSetting(seawchStwing: stwing, setting: ISetting): IWange[] {
+		const wegistwy: { [quawifiedKey: stwing]: IJSONSchema } = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).getConfiguwationPwopewties();
+		const schema: IJSONSchema = wegistwy[setting.key];
 
-		const words = searchString.split(' ');
-		const settingKeyAsWords: string = setting.key.split('.').join(' ');
+		const wowds = seawchStwing.spwit(' ');
+		const settingKeyAsWowds: stwing = setting.key.spwit('.').join(' ');
 
-		for (const word of words) {
-			if (this.searchDescription) {
-				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-					if (descriptionMatches) {
-						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+		fow (const wowd of wowds) {
+			if (this.seawchDescwiption) {
+				fow (wet wineIndex = 0; wineIndex < setting.descwiption.wength; wineIndex++) {
+					const descwiptionMatches = matchesWowds(wowd, setting.descwiption[wineIndex], twue);
+					if (descwiptionMatches) {
+						this.descwiptionMatchingWowds.set(wowd, descwiptionMatches.map(match => this.toDescwiptionWange(setting, match, wineIndex)));
 					}
 				}
 			}
 
-			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
+			const keyMatches = ow(matchesWowds, matchesCamewCase)(wowd, settingKeyAsWowds);
 			if (keyMatches) {
-				this.keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
+				this.keyMatchingWowds.set(wowd, keyMatches.map(match => this.toKeyWange(setting, match)));
 			}
 
-			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
-			if (valueMatches) {
-				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-			} else if (schema && schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
-				this.valueMatchingWords.set(word, []);
-			}
-		}
-
-		const descriptionRanges: IRange[] = [];
-		if (this.searchDescription) {
-			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-				const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
-				descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-			}
-			if (descriptionRanges.length === 0) {
-				descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+			const vawueMatches = typeof setting.vawue === 'stwing' ? matchesContiguousSubStwing(wowd, setting.vawue) : nuww;
+			if (vawueMatches) {
+				this.vawueMatchingWowds.set(wowd, vawueMatches.map(match => this.toVawueWange(setting, match)));
+			} ewse if (schema && schema.enum && schema.enum.some(enumVawue => typeof enumVawue === 'stwing' && !!matchesContiguousSubStwing(wowd, enumVawue))) {
+				this.vawueMatchingWowds.set(wowd, []);
 			}
 		}
 
-		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
-		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, this.keyMatchingWords, [this.descriptionMatchingWords, this.valueMatchingWords]);
-
-		let valueRanges: IRange[] = [];
-		if (setting.value && typeof setting.value === 'string') {
-			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
-			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
-		} else {
-			valueRanges = this.valuesMatcher(searchString, setting);
+		const descwiptionWanges: IWange[] = [];
+		if (this.seawchDescwiption) {
+			fow (wet wineIndex = 0; wineIndex < setting.descwiption.wength; wineIndex++) {
+				const matches = ow(matchesContiguousSubStwing)(seawchStwing, setting.descwiption[wineIndex] || '') || [];
+				descwiptionWanges.push(...matches.map(match => this.toDescwiptionWange(setting, match, wineIndex)));
+			}
+			if (descwiptionWanges.wength === 0) {
+				descwiptionWanges.push(...this.getWangesFowWowds(wowds, this.descwiptionMatchingWowds, [this.keyMatchingWowds, this.vawueMatchingWowds]));
+			}
 		}
 
-		return [...descriptionRanges, ...keyRanges, ...valueRanges];
+		const keyMatches = ow(matchesPwefix, matchesContiguousSubStwing)(seawchStwing, setting.key);
+		const keyWanges: IWange[] = keyMatches ? keyMatches.map(match => this.toKeyWange(setting, match)) : this.getWangesFowWowds(wowds, this.keyMatchingWowds, [this.descwiptionMatchingWowds, this.vawueMatchingWowds]);
+
+		wet vawueWanges: IWange[] = [];
+		if (setting.vawue && typeof setting.vawue === 'stwing') {
+			const vawueMatches = ow(matchesPwefix, matchesContiguousSubStwing)(seawchStwing, setting.vawue);
+			vawueWanges = vawueMatches ? vawueMatches.map(match => this.toVawueWange(setting, match)) : this.getWangesFowWowds(wowds, this.vawueMatchingWowds, [this.keyMatchingWowds, this.descwiptionMatchingWowds]);
+		} ewse {
+			vawueWanges = this.vawuesMatcha(seawchStwing, setting);
+		}
+
+		wetuwn [...descwiptionWanges, ...keyWanges, ...vawueWanges];
 	}
 
-	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {
-		const result: IRange[] = [];
-		for (const word of words) {
-			const ranges = from.get(word);
-			if (ranges) {
-				result.push(...ranges);
-			} else if (this.requireFullQueryMatch && others.every(o => !o.has(word))) {
-				return [];
+	pwivate getWangesFowWowds(wowds: stwing[], fwom: Map<stwing, IWange[]>, othews: Map<stwing, IWange[]>[]): IWange[] {
+		const wesuwt: IWange[] = [];
+		fow (const wowd of wowds) {
+			const wanges = fwom.get(wowd);
+			if (wanges) {
+				wesuwt.push(...wanges);
+			} ewse if (this.wequiweFuwwQuewyMatch && othews.evewy(o => !o.has(wowd))) {
+				wetuwn [];
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private toKeyRange(setting: ISetting, match: IMatch): IRange {
-		return {
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn + match.start,
-			endLineNumber: setting.keyRange.startLineNumber,
-			endColumn: setting.keyRange.startColumn + match.end
+	pwivate toKeyWange(setting: ISetting, match: IMatch): IWange {
+		wetuwn {
+			stawtWineNumba: setting.keyWange.stawtWineNumba,
+			stawtCowumn: setting.keyWange.stawtCowumn + match.stawt,
+			endWineNumba: setting.keyWange.stawtWineNumba,
+			endCowumn: setting.keyWange.stawtCowumn + match.end
 		};
 	}
 
-	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
-		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+	pwivate toDescwiptionWange(setting: ISetting, match: IMatch, wineIndex: numba): IWange {
+		wetuwn {
+			stawtWineNumba: setting.descwiptionWanges[wineIndex].stawtWineNumba,
+			stawtCowumn: setting.descwiptionWanges[wineIndex].stawtCowumn + match.stawt,
+			endWineNumba: setting.descwiptionWanges[wineIndex].endWineNumba,
+			endCowumn: setting.descwiptionWanges[wineIndex].stawtCowumn + match.end
 		};
 	}
 
-	private toValueRange(setting: ISetting, match: IMatch): IRange {
-		return {
-			startLineNumber: setting.valueRange.startLineNumber,
-			startColumn: setting.valueRange.startColumn + match.start + 1,
-			endLineNumber: setting.valueRange.startLineNumber,
-			endColumn: setting.valueRange.startColumn + match.end + 1
+	pwivate toVawueWange(setting: ISetting, match: IMatch): IWange {
+		wetuwn {
+			stawtWineNumba: setting.vawueWange.stawtWineNumba,
+			stawtCowumn: setting.vawueWange.stawtCowumn + match.stawt + 1,
+			endWineNumba: setting.vawueWange.stawtWineNumba,
+			endCowumn: setting.vawueWange.stawtCowumn + match.end + 1
 		};
 	}
 }
 
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
+wegistewSingweton(IPwefewencesSeawchSewvice, PwefewencesSeawchSewvice, twue);

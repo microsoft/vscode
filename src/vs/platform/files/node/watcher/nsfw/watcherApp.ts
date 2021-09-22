@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatcherService';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Sewva } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { NsfwWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nsfw/nsfwWatchewSewvice';
 
-const server = new Server('watcher');
-const service = new NsfwWatcherService();
-server.registerChannel('watcher', ProxyChannel.fromService(service));
+const sewva = new Sewva('watcha');
+const sewvice = new NsfwWatchewSewvice();
+sewva.wegistewChannew('watcha', PwoxyChannew.fwomSewvice(sewvice));

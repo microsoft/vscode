@@ -1,9 +1,9 @@
-# Language Features for CSS, SCSS, and LESS files
+# Wanguage Featuwes fow CSS, SCSS, and WESS fiwes
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [CSS, SCSS and Less in VS Code](https://code.visualstudio.com/docs/languages/css) to learn about the features of this extension.
+See [CSS, SCSS and Wess in VS Code](https://code.visuawstudio.com/docs/wanguages/css) to weawn about the featuwes of this extension.
 
-Please read the [CONTRIBUTING.md](https://github.com/microsoft/vscode/blob/master/extensions/css-language-features/CONTRIBUTING.md) file to learn how to contribute to this extension.
+Pwease wead the [CONTWIBUTING.md](https://github.com/micwosoft/vscode/bwob/masta/extensions/css-wanguage-featuwes/CONTWIBUTING.md) fiwe to weawn how to contwibute to this extension.

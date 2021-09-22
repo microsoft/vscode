@@ -1,377 +1,377 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
-import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt * as Types fwom 'vs/base/common/types';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { SideBySideEditow, EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { IStwingDictionawy, fowEach, fwomMap } fwom 'vs/base/common/cowwections';
+impowt { IConfiguwationSewvice, IConfiguwationOvewwides, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWowkspaceFowda, IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { AbstwactVawiabweWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/vawiabweWesowva';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IQuickInputSewvice, IInputOptions, IQuickPickItem, IPickOptions } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ConfiguwedInput } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
+expowt abstwact cwass BaseConfiguwationWesowvewSewvice extends AbstwactVawiabweWesowvewSewvice {
 
-	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
+	static weadonwy INPUT_OW_COMMAND_VAWIABWES_PATTEWN = /\${((input|command):(.*?))}/g;
 
-	constructor(
+	constwuctow(
 		context: {
-			getAppRoot: () => string | undefined,
-			getExecPath: () => string | undefined
+			getAppWoot: () => stwing | undefined,
+			getExecPath: () => stwing | undefined
 		},
-		envVariablesPromise: Promise<IProcessEnvironment>,
-		editorService: IEditorService,
-		private readonly configurationService: IConfigurationService,
-		private readonly commandService: ICommandService,
-		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly quickInputService: IQuickInputService,
-		private readonly labelService: ILabelService,
-		private readonly pathService: IPathService
+		envVawiabwesPwomise: Pwomise<IPwocessEnviwonment>,
+		editowSewvice: IEditowSewvice,
+		pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		pwivate weadonwy commandSewvice: ICommandSewvice,
+		pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		pwivate weadonwy wabewSewvice: IWabewSewvice,
+		pwivate weadonwy pathSewvice: IPathSewvice
 	) {
-		super({
-			getFolderUri: (folderName: string): uri | undefined => {
-				const folder = workspaceContextService.getWorkspace().folders.filter(f => f.name === folderName).pop();
-				return folder ? folder.uri : undefined;
+		supa({
+			getFowdewUwi: (fowdewName: stwing): uwi | undefined => {
+				const fowda = wowkspaceContextSewvice.getWowkspace().fowdews.fiwta(f => f.name === fowdewName).pop();
+				wetuwn fowda ? fowda.uwi : undefined;
 			},
-			getWorkspaceFolderCount: (): number => {
-				return workspaceContextService.getWorkspace().folders.length;
+			getWowkspaceFowdewCount: (): numba => {
+				wetuwn wowkspaceContextSewvice.getWowkspace().fowdews.wength;
 			},
-			getConfigurationValue: (folderUri: uri | undefined, suffix: string): string | undefined => {
-				return configurationService.getValue<string>(suffix, folderUri ? { resource: folderUri } : {});
+			getConfiguwationVawue: (fowdewUwi: uwi | undefined, suffix: stwing): stwing | undefined => {
+				wetuwn configuwationSewvice.getVawue<stwing>(suffix, fowdewUwi ? { wesouwce: fowdewUwi } : {});
 			},
-			getAppRoot: (): string | undefined => {
-				return context.getAppRoot();
+			getAppWoot: (): stwing | undefined => {
+				wetuwn context.getAppWoot();
 			},
-			getExecPath: (): string | undefined => {
-				return context.getExecPath();
+			getExecPath: (): stwing | undefined => {
+				wetuwn context.getExecPath();
 			},
-			getFilePath: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
+			getFiwePath: (): stwing | undefined => {
+				const fiweWesouwce = EditowWesouwceAccessow.getOwiginawUwi(editowSewvice.activeEditow, {
+					suppowtSideBySide: SideBySideEditow.PWIMAWY,
+					fiwtewByScheme: [Schemas.fiwe, Schemas.usewData, this.pathSewvice.defauwtUwiScheme]
 				});
-				if (!fileResource) {
-					return undefined;
+				if (!fiweWesouwce) {
+					wetuwn undefined;
 				}
-				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
+				wetuwn this.wabewSewvice.getUwiWabew(fiweWesouwce, { noPwefix: twue });
 			},
-			getWorkspaceFolderPathForFile: (): string | undefined => {
-				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
-					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, this.pathService.defaultUriScheme]
+			getWowkspaceFowdewPathFowFiwe: (): stwing | undefined => {
+				const fiweWesouwce = EditowWesouwceAccessow.getOwiginawUwi(editowSewvice.activeEditow, {
+					suppowtSideBySide: SideBySideEditow.PWIMAWY,
+					fiwtewByScheme: [Schemas.fiwe, Schemas.usewData, this.pathSewvice.defauwtUwiScheme]
 				});
-				if (!fileResource) {
-					return undefined;
+				if (!fiweWesouwce) {
+					wetuwn undefined;
 				}
-				const wsFolder = workspaceContextService.getWorkspaceFolder(fileResource);
-				if (!wsFolder) {
-					return undefined;
+				const wsFowda = wowkspaceContextSewvice.getWowkspaceFowda(fiweWesouwce);
+				if (!wsFowda) {
+					wetuwn undefined;
 				}
-				return this.labelService.getUriLabel(wsFolder.uri, { noPrefix: true });
+				wetuwn this.wabewSewvice.getUwiWabew(wsFowda.uwi, { noPwefix: twue });
 			},
-			getSelectedText: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const editorModel = activeTextEditorControl.getModel();
-					const editorSelection = activeTextEditorControl.getSelection();
-					if (editorModel && editorSelection) {
-						return editorModel.getValueInRange(editorSelection);
+			getSewectedText: (): stwing | undefined => {
+				const activeTextEditowContwow = editowSewvice.activeTextEditowContwow;
+				if (isCodeEditow(activeTextEditowContwow)) {
+					const editowModew = activeTextEditowContwow.getModew();
+					const editowSewection = activeTextEditowContwow.getSewection();
+					if (editowModew && editowSewection) {
+						wetuwn editowModew.getVawueInWange(editowSewection);
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			getLineNumber: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const selection = activeTextEditorControl.getSelection();
-					if (selection) {
-						const lineNumber = selection.positionLineNumber;
-						return String(lineNumber);
+			getWineNumba: (): stwing | undefined => {
+				const activeTextEditowContwow = editowSewvice.activeTextEditowContwow;
+				if (isCodeEditow(activeTextEditowContwow)) {
+					const sewection = activeTextEditowContwow.getSewection();
+					if (sewection) {
+						const wineNumba = sewection.positionWineNumba;
+						wetuwn Stwing(wineNumba);
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			}
-		}, labelService, envVariablesPromise);
+		}, wabewSewvice, envVawiabwesPwomise);
 	}
 
-	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
-		// resolve any non-interactive variables and any contributed variables
-		config = await this.resolveAnyAsync(folder, config);
+	pubwic ovewwide async wesowveWithIntewactionWepwace(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>, tawget?: ConfiguwationTawget): Pwomise<any> {
+		// wesowve any non-intewactive vawiabwes and any contwibuted vawiabwes
+		config = await this.wesowveAnyAsync(fowda, config);
 
-		// resolve input variables in the order in which they are encountered
-		return this.resolveWithInteraction(folder, config, section, variables, target).then(mapping => {
-			// finally substitute evaluated command variables (if there are any)
+		// wesowve input vawiabwes in the owda in which they awe encountewed
+		wetuwn this.wesowveWithIntewaction(fowda, config, section, vawiabwes, tawget).then(mapping => {
+			// finawwy substitute evawuated command vawiabwes (if thewe awe any)
 			if (!mapping) {
-				return null;
-			} else if (mapping.size > 0) {
-				return this.resolveAnyAsync(folder, config, fromMap(mapping));
-			} else {
-				return config;
+				wetuwn nuww;
+			} ewse if (mapping.size > 0) {
+				wetuwn this.wesowveAnyAsync(fowda, config, fwomMap(mapping));
+			} ewse {
+				wetuwn config;
 			}
 		});
 	}
 
-	public override async resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<Map<string, string> | undefined> {
-		// resolve any non-interactive variables and any contributed variables
-		const resolved = await this.resolveAnyMap(folder, config);
-		config = resolved.newConfig;
-		const allVariableMapping: Map<string, string> = resolved.resolvedVariables;
+	pubwic ovewwide async wesowveWithIntewaction(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>, tawget?: ConfiguwationTawget): Pwomise<Map<stwing, stwing> | undefined> {
+		// wesowve any non-intewactive vawiabwes and any contwibuted vawiabwes
+		const wesowved = await this.wesowveAnyMap(fowda, config);
+		config = wesowved.newConfig;
+		const awwVawiabweMapping: Map<stwing, stwing> = wesowved.wesowvedVawiabwes;
 
-		// resolve input and command variables in the order in which they are encountered
-		return this.resolveWithInputAndCommands(folder, config, variables, section, target).then(inputOrCommandMapping => {
-			if (this.updateMapping(inputOrCommandMapping, allVariableMapping)) {
-				return allVariableMapping;
+		// wesowve input and command vawiabwes in the owda in which they awe encountewed
+		wetuwn this.wesowveWithInputAndCommands(fowda, config, vawiabwes, section, tawget).then(inputOwCommandMapping => {
+			if (this.updateMapping(inputOwCommandMapping, awwVawiabweMapping)) {
+				wetuwn awwVawiabweMapping;
 			}
-			return undefined;
+			wetuwn undefined;
 		});
 	}
 
 	/**
-	 * Add all items from newMapping to fullMapping. Returns false if newMapping is undefined.
+	 * Add aww items fwom newMapping to fuwwMapping. Wetuwns fawse if newMapping is undefined.
 	 */
-	private updateMapping(newMapping: IStringDictionary<string> | undefined, fullMapping: Map<string, string>): boolean {
+	pwivate updateMapping(newMapping: IStwingDictionawy<stwing> | undefined, fuwwMapping: Map<stwing, stwing>): boowean {
 		if (!newMapping) {
-			return false;
+			wetuwn fawse;
 		}
-		forEach(newMapping, (entry) => {
-			fullMapping.set(entry.key, entry.value);
+		fowEach(newMapping, (entwy) => {
+			fuwwMapping.set(entwy.key, entwy.vawue);
 		});
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Finds and executes all input and command variables in the given configuration and returns their values as a dictionary.
-	 * Please note: this method does not substitute the input or command variables (so the configuration is not modified).
-	 * The returned dictionary can be passed to "resolvePlatform" for the actual substitution.
+	 * Finds and executes aww input and command vawiabwes in the given configuwation and wetuwns theiw vawues as a dictionawy.
+	 * Pwease note: this method does not substitute the input ow command vawiabwes (so the configuwation is not modified).
+	 * The wetuwned dictionawy can be passed to "wesowvePwatfowm" fow the actuaw substitution.
 	 * See #6569.
 	 *
-	 * @param variableToCommandMap Aliases for commands
+	 * @pawam vawiabweToCommandMap Awiases fow commands
 	 */
-	private async resolveWithInputAndCommands(folder: IWorkspaceFolder | undefined, configuration: any, variableToCommandMap?: IStringDictionary<string>, section?: string, target?: ConfigurationTarget): Promise<IStringDictionary<string> | undefined> {
+	pwivate async wesowveWithInputAndCommands(fowda: IWowkspaceFowda | undefined, configuwation: any, vawiabweToCommandMap?: IStwingDictionawy<stwing>, section?: stwing, tawget?: ConfiguwationTawget): Pwomise<IStwingDictionawy<stwing> | undefined> {
 
-		if (!configuration) {
-			return Promise.resolve(undefined);
+		if (!configuwation) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		// get all "inputs"
-		let inputs: ConfiguredInput[] = [];
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-			let result = this.configurationService.inspect(section, overrides);
-			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
-				switch (target) {
-					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
-					case ConfigurationTarget.WORKSPACE: inputs = (<any>result.workspaceValue)?.inputs; break;
-					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
+		// get aww "inputs"
+		wet inputs: ConfiguwedInput[] = [];
+		if (this.wowkspaceContextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY && section) {
+			const ovewwides: IConfiguwationOvewwides = fowda ? { wesouwce: fowda.uwi } : {};
+			wet wesuwt = this.configuwationSewvice.inspect(section, ovewwides);
+			if (wesuwt && (wesuwt.usewVawue || wesuwt.wowkspaceVawue || wesuwt.wowkspaceFowdewVawue)) {
+				switch (tawget) {
+					case ConfiguwationTawget.USa: inputs = (<any>wesuwt.usewVawue)?.inputs; bweak;
+					case ConfiguwationTawget.WOWKSPACE: inputs = (<any>wesuwt.wowkspaceVawue)?.inputs; bweak;
+					defauwt: inputs = (<any>wesuwt.wowkspaceFowdewVawue)?.inputs;
 				}
-			} else {
-				const valueResult = this.configurationService.getValue<any>(section, overrides);
-				if (valueResult) {
-					inputs = valueResult.inputs;
+			} ewse {
+				const vawueWesuwt = this.configuwationSewvice.getVawue<any>(section, ovewwides);
+				if (vawueWesuwt) {
+					inputs = vawueWesuwt.inputs;
 				}
 			}
 		}
 
-		// extract and dedupe all "input" and "command" variables and preserve their order in an array
-		const variables: string[] = [];
-		this.findVariables(configuration, variables);
+		// extwact and dedupe aww "input" and "command" vawiabwes and pwesewve theiw owda in an awway
+		const vawiabwes: stwing[] = [];
+		this.findVawiabwes(configuwation, vawiabwes);
 
-		const variableValues: IStringDictionary<string> = Object.create(null);
+		const vawiabweVawues: IStwingDictionawy<stwing> = Object.cweate(nuww);
 
-		for (const variable of variables) {
+		fow (const vawiabwe of vawiabwes) {
 
-			const [type, name] = variable.split(':', 2);
+			const [type, name] = vawiabwe.spwit(':', 2);
 
-			let result: string | undefined;
+			wet wesuwt: stwing | undefined;
 
 			switch (type) {
 
 				case 'input':
-					result = await this.showUserInput(name, inputs);
-					break;
+					wesuwt = await this.showUsewInput(name, inputs);
+					bweak;
 
 				case 'command':
 					// use the name as a command ID #12735
-					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
-					result = await this.commandService.executeCommand(commandId, configuration);
-					if (typeof result !== 'string' && !Types.isUndefinedOrNull(result)) {
-						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
+					const commandId = (vawiabweToCommandMap ? vawiabweToCommandMap[name] : undefined) || name;
+					wesuwt = await this.commandSewvice.executeCommand(commandId, configuwation);
+					if (typeof wesuwt !== 'stwing' && !Types.isUndefinedOwNuww(wesuwt)) {
+						thwow new Ewwow(nws.wocawize('commandVawiabwe.noStwingType', "Cannot substitute command vawiabwe '{0}' because command did not wetuwn a wesuwt of type stwing.", commandId));
 					}
-					break;
-				default:
-					// Try to resolve it as a contributed variable
-					if (this._contributedVariables.has(variable)) {
-						result = await this._contributedVariables.get(variable)!();
+					bweak;
+				defauwt:
+					// Twy to wesowve it as a contwibuted vawiabwe
+					if (this._contwibutedVawiabwes.has(vawiabwe)) {
+						wesuwt = await this._contwibutedVawiabwes.get(vawiabwe)!();
 					}
 			}
 
-			if (typeof result === 'string') {
-				variableValues[variable] = result;
-			} else {
-				return undefined;
+			if (typeof wesuwt === 'stwing') {
+				vawiabweVawues[vawiabwe] = wesuwt;
+			} ewse {
+				wetuwn undefined;
 			}
 		}
 
-		return variableValues;
+		wetuwn vawiabweVawues;
 	}
 
 	/**
-	 * Recursively finds all command or input variables in object and pushes them into variables.
-	 * @param object object is searched for variables.
-	 * @param variables All found variables are returned in variables.
+	 * Wecuwsivewy finds aww command ow input vawiabwes in object and pushes them into vawiabwes.
+	 * @pawam object object is seawched fow vawiabwes.
+	 * @pawam vawiabwes Aww found vawiabwes awe wetuwned in vawiabwes.
 	 */
-	private findVariables(object: any, variables: string[]) {
-		if (typeof object === 'string') {
-			let matches;
-			while ((matches = BaseConfigurationResolverService.INPUT_OR_COMMAND_VARIABLES_PATTERN.exec(object)) !== null) {
-				if (matches.length === 4) {
+	pwivate findVawiabwes(object: any, vawiabwes: stwing[]) {
+		if (typeof object === 'stwing') {
+			wet matches;
+			whiwe ((matches = BaseConfiguwationWesowvewSewvice.INPUT_OW_COMMAND_VAWIABWES_PATTEWN.exec(object)) !== nuww) {
+				if (matches.wength === 4) {
 					const command = matches[1];
-					if (variables.indexOf(command) < 0) {
-						variables.push(command);
+					if (vawiabwes.indexOf(command) < 0) {
+						vawiabwes.push(command);
 					}
 				}
 			}
-			this._contributedVariables.forEach((value, contributed: string) => {
-				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
-					variables.push(contributed);
+			this._contwibutedVawiabwes.fowEach((vawue, contwibuted: stwing) => {
+				if ((vawiabwes.indexOf(contwibuted) < 0) && (object.indexOf('${' + contwibuted + '}') >= 0)) {
+					vawiabwes.push(contwibuted);
 				}
 			});
-		} else if (Types.isArray(object)) {
-			object.forEach(value => {
-				this.findVariables(value, variables);
+		} ewse if (Types.isAwway(object)) {
+			object.fowEach(vawue => {
+				this.findVawiabwes(vawue, vawiabwes);
 			});
-		} else if (object) {
-			Object.keys(object).forEach(key => {
-				const value = object[key];
-				this.findVariables(value, variables);
+		} ewse if (object) {
+			Object.keys(object).fowEach(key => {
+				const vawue = object[key];
+				this.findVawiabwes(vawue, vawiabwes);
 			});
 		}
 	}
 
 	/**
-	 * Takes the provided input info and shows the quick pick so the user can provide the value for the input
-	 * @param variable Name of the input variable.
-	 * @param inputInfos Information about each possible input variable.
+	 * Takes the pwovided input info and shows the quick pick so the usa can pwovide the vawue fow the input
+	 * @pawam vawiabwe Name of the input vawiabwe.
+	 * @pawam inputInfos Infowmation about each possibwe input vawiabwe.
 	 */
-	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
+	pwivate showUsewInput(vawiabwe: stwing, inputInfos: ConfiguwedInput[]): Pwomise<stwing | undefined> {
 
 		if (!inputInfos) {
-			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'input')));
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('inputVawiabwe.noInputSection', "Vawiabwe '{0}' must be defined in an '{1}' section of the debug ow task configuwation.", vawiabwe, 'input')));
 		}
 
-		// find info for the given input variable
-		const info = inputInfos.filter(item => item.id === variable).pop();
+		// find info fow the given input vawiabwe
+		const info = inputInfos.fiwta(item => item.id === vawiabwe).pop();
 		if (info) {
 
-			const missingAttribute = (attrName: string) => {
-				throw new Error(nls.localize('inputVariable.missingAttribute', "Input variable '{0}' is of type '{1}' and must include '{2}'.", variable, info.type, attrName));
+			const missingAttwibute = (attwName: stwing) => {
+				thwow new Ewwow(nws.wocawize('inputVawiabwe.missingAttwibute', "Input vawiabwe '{0}' is of type '{1}' and must incwude '{2}'.", vawiabwe, info.type, attwName));
 			};
 
 			switch (info.type) {
 
-				case 'promptString': {
-					if (!Types.isString(info.description)) {
-						missingAttribute('description');
+				case 'pwomptStwing': {
+					if (!Types.isStwing(info.descwiption)) {
+						missingAttwibute('descwiption');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true };
-					if (info.default) {
-						inputOptions.value = info.default;
+					const inputOptions: IInputOptions = { pwompt: info.descwiption, ignoweFocusWost: twue };
+					if (info.defauwt) {
+						inputOptions.vawue = info.defauwt;
 					}
-					if (info.password) {
-						inputOptions.password = info.password;
+					if (info.passwowd) {
+						inputOptions.passwowd = info.passwowd;
 					}
-					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput;
+					wetuwn this.quickInputSewvice.input(inputOptions).then(wesowvedInput => {
+						wetuwn wesowvedInput;
 					});
 				}
 
-				case 'pickString': {
-					if (!Types.isString(info.description)) {
-						missingAttribute('description');
+				case 'pickStwing': {
+					if (!Types.isStwing(info.descwiption)) {
+						missingAttwibute('descwiption');
 					}
-					if (Types.isArray(info.options)) {
-						info.options.forEach(pickOption => {
-							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
-								missingAttribute('value');
+					if (Types.isAwway(info.options)) {
+						info.options.fowEach(pickOption => {
+							if (!Types.isStwing(pickOption) && !Types.isStwing(pickOption.vawue)) {
+								missingAttwibute('vawue');
 							}
 						});
-					} else {
-						missingAttribute('options');
+					} ewse {
+						missingAttwibute('options');
 					}
-					interface PickStringItem extends IQuickPickItem {
-						value: string;
+					intewface PickStwingItem extends IQuickPickItem {
+						vawue: stwing;
 					}
-					const picks = new Array<PickStringItem>();
-					info.options.forEach(pickOption => {
-						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
-						const label = Types.isString(pickOption) ? undefined : pickOption.label;
+					const picks = new Awway<PickStwingItem>();
+					info.options.fowEach(pickOption => {
+						const vawue = Types.isStwing(pickOption) ? pickOption : pickOption.vawue;
+						const wabew = Types.isStwing(pickOption) ? undefined : pickOption.wabew;
 
-						// If there is no label defined, use value as label
-						const item: PickStringItem = {
-							label: label ? `${label}: ${value}` : value,
-							value: value
+						// If thewe is no wabew defined, use vawue as wabew
+						const item: PickStwingItem = {
+							wabew: wabew ? `${wabew}: ${vawue}` : vawue,
+							vawue: vawue
 						};
 
-						if (value === info.default) {
-							item.description = nls.localize('inputVariable.defaultInputValue', "(Default)");
+						if (vawue === info.defauwt) {
+							item.descwiption = nws.wocawize('inputVawiabwe.defauwtInputVawue', "(Defauwt)");
 							picks.unshift(item);
-						} else {
+						} ewse {
 							picks.push(item);
 						}
 					});
-					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
-					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
-						if (resolvedInput) {
-							return resolvedInput.value;
+					const pickOptions: IPickOptions<PickStwingItem> = { pwaceHowda: info.descwiption, matchOnDetaiw: twue, ignoweFocusWost: twue };
+					wetuwn this.quickInputSewvice.pick(picks, pickOptions, undefined).then(wesowvedInput => {
+						if (wesowvedInput) {
+							wetuwn wesowvedInput.vawue;
 						}
-						return undefined;
+						wetuwn undefined;
 					});
 				}
 
 				case 'command': {
-					if (!Types.isString(info.command)) {
-						missingAttribute('command');
+					if (!Types.isStwing(info.command)) {
+						missingAttwibute('command');
 					}
-					return this.commandService.executeCommand<string>(info.command, info.args).then(result => {
-						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
-							return result;
+					wetuwn this.commandSewvice.executeCommand<stwing>(info.command, info.awgs).then(wesuwt => {
+						if (typeof wesuwt === 'stwing' || Types.isUndefinedOwNuww(wesuwt)) {
+							wetuwn wesuwt;
 						}
-						throw new Error(nls.localize('inputVariable.command.noStringType', "Cannot substitute input variable '{0}' because command '{1}' did not return a result of type string.", variable, info.command));
+						thwow new Ewwow(nws.wocawize('inputVawiabwe.command.noStwingType', "Cannot substitute input vawiabwe '{0}' because command '{1}' did not wetuwn a wesuwt of type stwing.", vawiabwe, info.command));
 					});
 				}
 
-				default:
-					throw new Error(nls.localize('inputVariable.unknownType', "Input variable '{0}' can only be of type 'promptString', 'pickString', or 'command'.", variable));
+				defauwt:
+					thwow new Ewwow(nws.wocawize('inputVawiabwe.unknownType', "Input vawiabwe '{0}' can onwy be of type 'pwomptStwing', 'pickStwing', ow 'command'.", vawiabwe));
 			}
 		}
-		return Promise.reject(new Error(nls.localize('inputVariable.undefinedVariable', "Undefined input variable '{0}' encountered. Remove or define '{0}' to continue.", variable)));
+		wetuwn Pwomise.weject(new Ewwow(nws.wocawize('inputVawiabwe.undefinedVawiabwe', "Undefined input vawiabwe '{0}' encountewed. Wemove ow define '{0}' to continue.", vawiabwe)));
 	}
 }
 
-export class ConfigurationResolverService extends BaseConfigurationResolverService {
+expowt cwass ConfiguwationWesowvewSewvice extends BaseConfiguwationWesowvewSewvice {
 
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService
+	constwuctow(
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IQuickInputSewvice quickInputSewvice: IQuickInputSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice
 	) {
-		super({ getAppRoot: () => undefined, getExecPath: () => undefined },
-			Promise.resolve(Object.create(null)), editorService, configurationService,
-			commandService, workspaceContextService, quickInputService, labelService, pathService);
+		supa({ getAppWoot: () => undefined, getExecPath: () => undefined },
+			Pwomise.wesowve(Object.cweate(nuww)), editowSewvice, configuwationSewvice,
+			commandSewvice, wowkspaceContextSewvice, quickInputSewvice, wabewSewvice, pathSewvice);
 	}
 }

@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { forEach } from 'vs/base/common/collections';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionTipsService, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, IRequestService } from 'vs/platform/request/common/request';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfigBasedExtensionTip as IWawConfigBasedExtensionTip } fwom 'vs/base/common/pwoduct';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getDomainsOfWemotes } fwom 'vs/pwatfowm/extensionManagement/common/configWemotes';
+impowt { IConfigBasedExtensionTip, IExecutabweBasedExtensionTip, IExtensionTipsSewvice, IWowkspaceTips } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { asJson, IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
 
-export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
+expowt cwass ExtensionTipsSewvice extends Disposabwe impwements IExtensionTipsSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly allConfigBasedTips: Map<string, IRawConfigBasedExtensionTip> = new Map<string, IRawConfigBasedExtensionTip>();
+	pwivate weadonwy awwConfigBasedTips: Map<stwing, IWawConfigBasedExtensionTip> = new Map<stwing, IWawConfigBasedExtensionTip>();
 
-	constructor(
-		@IFileService protected readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWequestSewvice pwivate weadonwy wequestSewvice: IWequestSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
-		if (this.productService.configBasedExtensionTips) {
-			forEach(this.productService.configBasedExtensionTips, ({ value }) => this.allConfigBasedTips.set(value.configPath, value));
+		supa();
+		if (this.pwoductSewvice.configBasedExtensionTips) {
+			fowEach(this.pwoductSewvice.configBasedExtensionTips, ({ vawue }) => this.awwConfigBasedTips.set(vawue.configPath, vawue));
 		}
 	}
 
-	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
-		return this.getValidConfigBasedTips(folder);
+	getConfigBasedTips(fowda: UWI): Pwomise<IConfigBasedExtensionTip[]> {
+		wetuwn this.getVawidConfigBasedTips(fowda);
 	}
 
-	getAllWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		return this.fetchWorkspacesTips();
+	getAwwWowkspacesTips(): Pwomise<IWowkspaceTips[]> {
+		wetuwn this.fetchWowkspacesTips();
 	}
 
-	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return [];
+	async getImpowtantExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		wetuwn [];
 	}
 
-	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return [];
+	async getOthewExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]> {
+		wetuwn [];
 	}
 
-	private async getValidConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
-		const result: IConfigBasedExtensionTip[] = [];
-		for (const [configPath, tip] of this.allConfigBasedTips) {
-			if (tip.configScheme && tip.configScheme !== folder.scheme) {
+	pwivate async getVawidConfigBasedTips(fowda: UWI): Pwomise<IConfigBasedExtensionTip[]> {
+		const wesuwt: IConfigBasedExtensionTip[] = [];
+		fow (const [configPath, tip] of this.awwConfigBasedTips) {
+			if (tip.configScheme && tip.configScheme !== fowda.scheme) {
 				continue;
 			}
-			try {
-				const content = await this.fileService.readFile(joinPath(folder, configPath));
-				const recommendationByRemote: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-				forEach(tip.recommendations, ({ key, value }) => {
-					if (isNonEmptyArray(value.remotes)) {
-						for (const remote of value.remotes) {
-							recommendationByRemote.set(remote, {
+			twy {
+				const content = await this.fiweSewvice.weadFiwe(joinPath(fowda, configPath));
+				const wecommendationByWemote: Map<stwing, IConfigBasedExtensionTip> = new Map<stwing, IConfigBasedExtensionTip>();
+				fowEach(tip.wecommendations, ({ key, vawue }) => {
+					if (isNonEmptyAwway(vawue.wemotes)) {
+						fow (const wemote of vawue.wemotes) {
+							wecommendationByWemote.set(wemote, {
 								extensionId: key,
-								extensionName: value.name,
+								extensionName: vawue.name,
 								configName: tip.configName,
-								important: !!value.important,
-								isExtensionPack: !!value.isExtensionPack
+								impowtant: !!vawue.impowtant,
+								isExtensionPack: !!vawue.isExtensionPack
 							});
 						}
-					} else {
-						result.push({
+					} ewse {
+						wesuwt.push({
 							extensionId: key,
-							extensionName: value.name,
+							extensionName: vawue.name,
 							configName: tip.configName,
-							important: !!value.important,
-							isExtensionPack: !!value.isExtensionPack
+							impowtant: !!vawue.impowtant,
+							isExtensionPack: !!vawue.isExtensionPack
 						});
 					}
 				});
-				const domains = getDomainsOfRemotes(content.value.toString(), [...recommendationByRemote.keys()]);
-				for (const domain of domains) {
-					const remote = recommendationByRemote.get(domain);
-					if (remote) {
-						result.push(remote);
+				const domains = getDomainsOfWemotes(content.vawue.toStwing(), [...wecommendationByWemote.keys()]);
+				fow (const domain of domains) {
+					const wemote = wecommendationByWemote.get(domain);
+					if (wemote) {
+						wesuwt.push(wemote);
 					}
 				}
-			} catch (error) { /* Ignore */ }
+			} catch (ewwow) { /* Ignowe */ }
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 
-	private async fetchWorkspacesTips(): Promise<IWorkspaceTips[]> {
-		if (!this.productService.extensionsGallery?.recommendationsUrl) {
-			return [];
+	pwivate async fetchWowkspacesTips(): Pwomise<IWowkspaceTips[]> {
+		if (!this.pwoductSewvice.extensionsGawwewy?.wecommendationsUww) {
+			wetuwn [];
 		}
-		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.extensionsGallery?.recommendationsUrl }, CancellationToken.None);
-			if (context.res.statusCode !== 200) {
-				return [];
+		twy {
+			const context = await this.wequestSewvice.wequest({ type: 'GET', uww: this.pwoductSewvice.extensionsGawwewy?.wecommendationsUww }, CancewwationToken.None);
+			if (context.wes.statusCode !== 200) {
+				wetuwn [];
 			}
-			const result = await asJson<{ workspaceRecommendations?: IWorkspaceTips[] }>(context);
-			if (!result) {
-				return [];
+			const wesuwt = await asJson<{ wowkspaceWecommendations?: IWowkspaceTips[] }>(context);
+			if (!wesuwt) {
+				wetuwn [];
 			}
-			return result.workspaceRecommendations || [];
-		} catch (error) {
-			this.logService.error(error);
-			return [];
+			wetuwn wesuwt.wowkspaceWecommendations || [];
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
+			wetuwn [];
 		}
 	}
 

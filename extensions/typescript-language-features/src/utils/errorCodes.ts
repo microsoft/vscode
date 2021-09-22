@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const variableDeclaredButNeverUsed = new Set([6196, 6133]);
-export const propertyDeclaretedButNeverUsed = new Set([6138]);
-export const allImportsAreUnused = new Set([6192]);
-export const unreachableCode = new Set([7027]);
-export const unusedLabel = new Set([7028]);
-export const fallThroughCaseInSwitch = new Set([7029]);
-export const notAllCodePathsReturnAValue = new Set([7030]);
-export const incorrectlyImplementsInterface = new Set([2420]);
-export const cannotFindName = new Set([2552, 2304]);
-export const extendsShouldBeImplements = new Set([2689]);
-export const asyncOnlyAllowedInAsyncFunctions = new Set([1308]);
+expowt const vawiabweDecwawedButNevewUsed = new Set([6196, 6133]);
+expowt const pwopewtyDecwawetedButNevewUsed = new Set([6138]);
+expowt const awwImpowtsAweUnused = new Set([6192]);
+expowt const unweachabweCode = new Set([7027]);
+expowt const unusedWabew = new Set([7028]);
+expowt const fawwThwoughCaseInSwitch = new Set([7029]);
+expowt const notAwwCodePathsWetuwnAVawue = new Set([7030]);
+expowt const incowwectwyImpwementsIntewface = new Set([2420]);
+expowt const cannotFindName = new Set([2552, 2304]);
+expowt const extendsShouwdBeImpwements = new Set([2689]);
+expowt const asyncOnwyAwwowedInAsyncFunctions = new Set([1308]);

@@ -1,500 +1,500 @@
 {
-	"name": "Solarized (dark)",
-	"tokenColors": [
+	"name": "Sowawized (dawk)",
+	"tokenCowows": [
 		{
 			"settings": {
-				"foreground": "#93A1A1"
+				"fowegwound": "#93A1A1"
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": ["meta.embedded", "souwce.gwoovy.embedded"],
 			"settings": {
-				"foreground": "#93A1A1"
+				"fowegwound": "#93A1A1"
 			}
 		},
 		{
 			"name": "Comment",
 			"scope": "comment",
 			"settings": {
-				"fontStyle": "italic",
-				"foreground": "#657B83"
+				"fontStywe": "itawic",
+				"fowegwound": "#657B83"
 			}
 		},
 		{
-			"name": "String",
-			"scope": "string",
+			"name": "Stwing",
+			"scope": "stwing",
 			"settings": {
-				"foreground": "#2AA198"
+				"fowegwound": "#2AA198"
 			}
 		},
 		{
-			"name": "Regexp",
-			"scope": "string.regexp",
+			"name": "Wegexp",
+			"scope": "stwing.wegexp",
 			"settings": {
-				"foreground": "#D30102"
+				"fowegwound": "#D30102"
 			}
 		},
 		{
-			"name": "Number",
-			"scope": "constant.numeric",
+			"name": "Numba",
+			"scope": "constant.numewic",
 			"settings": {
-				"foreground": "#D33682"
+				"fowegwound": "#D33682"
 			}
 		},
 		{
-			"name": "Variable",
+			"name": "Vawiabwe",
 			"scope": [
-				"variable.language",
-				"variable.other"
+				"vawiabwe.wanguage",
+				"vawiabwe.otha"
 			],
 			"settings": {
-				"foreground": "#268BD2"
+				"fowegwound": "#268BD2"
 			}
 		},
 		{
-			"name": "Keyword",
-			"scope": "keyword",
+			"name": "Keywowd",
+			"scope": "keywowd",
 			"settings": {
-				"foreground": "#859900"
+				"fowegwound": "#859900"
 			}
 		},
 		{
-			"name": "Storage",
-			"scope": "storage",
+			"name": "Stowage",
+			"scope": "stowage",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#93A1A1"
+				"fontStywe": "bowd",
+				"fowegwound": "#93A1A1"
 			}
 		},
 		{
-			"name": "Class name",
+			"name": "Cwass name",
 			"scope": [
-				"entity.name.class",
+				"entity.name.cwass",
 				"entity.name.type",
 				"entity.name.namespace",
-				"entity.name.scope-resolution"
+				"entity.name.scope-wesowution"
 			],
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#CB4B16"
+				"fontStywe": "",
+				"fowegwound": "#CB4B16"
 			}
 		},
 		{
 			"name": "Function name",
 			"scope": "entity.name.function",
 			"settings": {
-				"foreground": "#268BD2"
+				"fowegwound": "#268BD2"
 			}
 		},
 		{
-			"name": "Variable start",
-			"scope": "punctuation.definition.variable",
+			"name": "Vawiabwe stawt",
+			"scope": "punctuation.definition.vawiabwe",
 			"settings": {
-				"foreground": "#859900"
+				"fowegwound": "#859900"
 			}
 		},
 		{
-			"name": "Embedded code markers",
+			"name": "Embedded code mawkews",
 			"scope": [
 				"punctuation.section.embedded.begin",
 				"punctuation.section.embedded.end"
 			],
 			"settings": {
-				"foreground": "#D30102"
+				"fowegwound": "#D30102"
 			}
 		},
 		{
-			"name": "Built-in constant",
+			"name": "Buiwt-in constant",
 			"scope": [
-				"constant.language",
-				"meta.preprocessor"
+				"constant.wanguage",
+				"meta.pwepwocessow"
 			],
 			"settings": {
-				"foreground": "#B58900"
+				"fowegwound": "#B58900"
 			}
 		},
 		{
-			"name": "Support.construct",
+			"name": "Suppowt.constwuct",
 			"scope": [
-				"support.function.construct",
-				"keyword.other.new"
+				"suppowt.function.constwuct",
+				"keywowd.otha.new"
 			],
 			"settings": {
-				"foreground": "#CB4B16"
+				"fowegwound": "#CB4B16"
 			}
 		},
 		{
-			"name": "User-defined constant",
+			"name": "Usa-defined constant",
 			"scope": [
-				"constant.character",
-				"constant.other"
+				"constant.chawacta",
+				"constant.otha"
 			],
 			"settings": {
-				"foreground": "#CB4B16"
+				"fowegwound": "#CB4B16"
 			}
 		},
 		{
-			"name": "Inherited class",
-			"scope": "entity.other.inherited-class",
+			"name": "Inhewited cwass",
+			"scope": "entity.otha.inhewited-cwass",
 			"settings": {
-				"foreground": "#6C71C4"
+				"fowegwound": "#6C71C4"
 			}
 		},
 		{
-			"name": "Function argument",
-			"scope": "variable.parameter",
+			"name": "Function awgument",
+			"scope": "vawiabwe.pawameta",
 			"settings": {}
 		},
 		{
 			"name": "Tag name",
 			"scope": "entity.name.tag",
 			"settings": {
-				"foreground": "#268BD2"
+				"fowegwound": "#268BD2"
 			}
 		},
 		{
-			"name": "Tag start/end",
+			"name": "Tag stawt/end",
 			"scope": "punctuation.definition.tag",
 			"settings": {
-				"foreground": "#657B83"
+				"fowegwound": "#657B83"
 			}
 		},
 		{
-			"name": "Tag attribute",
-			"scope": "entity.other.attribute-name",
+			"name": "Tag attwibute",
+			"scope": "entity.otha.attwibute-name",
 			"settings": {
-				"foreground": "#93A1A1"
+				"fowegwound": "#93A1A1"
 			}
 		},
 		{
-			"name": "Library function",
-			"scope": "support.function",
+			"name": "Wibwawy function",
+			"scope": "suppowt.function",
 			"settings": {
-				"foreground": "#268BD2"
+				"fowegwound": "#268BD2"
 			}
 		},
 		{
 			"name": "Continuation",
-			"scope": "punctuation.separator.continuation",
+			"scope": "punctuation.sepawatow.continuation",
 			"settings": {
-				"foreground": "#D30102"
+				"fowegwound": "#D30102"
 			}
 		},
 		{
-			"name": "Library constant",
-			"scope": "support.constant",
+			"name": "Wibwawy constant",
+			"scope": "suppowt.constant",
 			"settings": {}
 		},
 		{
-			"name": "Library class/type",
+			"name": "Wibwawy cwass/type",
 			"scope": [
-				"support.type",
-				"support.class"
+				"suppowt.type",
+				"suppowt.cwass"
 			],
 			"settings": {
-				"foreground": "#859900"
+				"fowegwound": "#859900"
 			}
 		},
 		{
-			"name": "Library Exception",
-			"scope": "support.type.exception",
+			"name": "Wibwawy Exception",
+			"scope": "suppowt.type.exception",
 			"settings": {
-				"foreground": "#CB4B16"
+				"fowegwound": "#CB4B16"
 			}
 		},
 		{
-			"name": "Library variable",
-			"scope": "support.other.variable",
+			"name": "Wibwawy vawiabwe",
+			"scope": "suppowt.otha.vawiabwe",
 			"settings": {}
 		},
 		{
-			"name": "Invalid",
-			"scope": "invalid",
+			"name": "Invawid",
+			"scope": "invawid",
 			"settings": {
-				"foreground": "#D30102"
+				"fowegwound": "#D30102"
 			}
 		},
 		{
-			"name": "diff: header",
+			"name": "diff: heada",
 			"scope": [
 				"meta.diff",
-				"meta.diff.header"
+				"meta.diff.heada"
 			],
 			"settings": {
-				"fontStyle": "italic",
-				"foreground": "#E0EDDD"
+				"fontStywe": "itawic",
+				"fowegwound": "#E0EDDD"
 			}
 		},
 		{
-			"name": "diff: deleted",
-			"scope": "markup.deleted",
+			"name": "diff: deweted",
+			"scope": "mawkup.deweted",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#dc322f"
+				"fontStywe": "",
+				"fowegwound": "#dc322f"
 			}
 		},
 		{
 			"name": "diff: changed",
-			"scope": "markup.changed",
+			"scope": "mawkup.changed",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#cb4b16"
+				"fontStywe": "",
+				"fowegwound": "#cb4b16"
 			}
 		},
 		{
-			"name": "diff: inserted",
-			"scope": "markup.inserted",
+			"name": "diff: insewted",
+			"scope": "mawkup.insewted",
 			"settings": {
-				"foreground": "#219186"
+				"fowegwound": "#219186"
 			}
 		},
 		{
-			"name": "Markup Quote",
-			"scope": "markup.quote",
+			"name": "Mawkup Quote",
+			"scope": "mawkup.quote",
 			"settings": {
-				"foreground": "#859900"
+				"fowegwound": "#859900"
 			}
 		},
 		{
-			"name": "Markup Lists",
-			"scope": "markup.list",
+			"name": "Mawkup Wists",
+			"scope": "mawkup.wist",
 			"settings": {
-				"foreground": "#B58900"
+				"fowegwound": "#B58900"
 			}
 		},
 		{
-			"name": "Markup Styling",
+			"name": "Mawkup Stywing",
 			"scope": [
-				"markup.bold",
-				"markup.italic"
+				"mawkup.bowd",
+				"mawkup.itawic"
 			],
 			"settings": {
-				"foreground": "#D33682"
+				"fowegwound": "#D33682"
 			}
 		},
 		{
-			"name": "Markup: Strong",
-			"scope": "markup.bold",
+			"name": "Mawkup: Stwong",
+			"scope": "mawkup.bowd",
 			"settings": {
-				"fontStyle": "bold"
+				"fontStywe": "bowd"
 			}
 		},
 		{
-			"name": "Markup: Emphasis",
-			"scope": "markup.italic",
+			"name": "Mawkup: Emphasis",
+			"scope": "mawkup.itawic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStywe": "itawic"
 			}
 		},
 		{
-			"name": "Markup Inline",
-			"scope": "markup.inline.raw",
+			"name": "Mawkup Inwine",
+			"scope": "mawkup.inwine.waw",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#2AA198"
+				"fontStywe": "",
+				"fowegwound": "#2AA198"
 			}
 		},
 		{
-			"name": "Markup Headings",
-			"scope": "markup.heading",
+			"name": "Mawkup Headings",
+			"scope": "mawkup.heading",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#268BD2"
+				"fontStywe": "bowd",
+				"fowegwound": "#268BD2"
 			}
 		},
 		{
-			"name": "Markup Setext Header",
-			"scope": "markup.heading.setext",
+			"name": "Mawkup Setext Heada",
+			"scope": "mawkup.heading.setext",
 			"settings": {
-				"fontStyle": "",
-				"foreground": "#268BD2"
+				"fontStywe": "",
+				"fowegwound": "#268BD2"
 			}
 		}
 	],
-	"colors": {
+	"cowows": {
 
 		// Base
-		// "foreground": "",
-		"focusBorder": "#2AA19899",
-		// "contrastActiveBorder": "",
-		// "contrastBorder": "",
+		// "fowegwound": "",
+		"focusBowda": "#2AA19899",
+		// "contwastActiveBowda": "",
+		// "contwastBowda": "",
 
 		// "widget.shadow": "",
 
-		"selection.background": "#2AA19899",
+		"sewection.backgwound": "#2AA19899",
 
-		"input.background": "#003847",
-		"input.foreground": "#93A1A1",
-		"input.placeholderForeground": "#93A1A1AA",
-		// "input.border": "",
+		"input.backgwound": "#003847",
+		"input.fowegwound": "#93A1A1",
+		"input.pwacehowdewFowegwound": "#93A1A1AA",
+		// "input.bowda": "",
 
-		"inputOption.activeBorder": "#2AA19899",
-		"inputValidation.infoBorder": "#363b5f",
-		"inputValidation.infoBackground": "#052730",
-		"inputValidation.warningBackground": "#5d5938",
-		"inputValidation.warningBorder": "#9d8a5e",
-		"inputValidation.errorBackground": "#571b26",
-		"inputValidation.errorBorder": "#a92049",
+		"inputOption.activeBowda": "#2AA19899",
+		"inputVawidation.infoBowda": "#363b5f",
+		"inputVawidation.infoBackgwound": "#052730",
+		"inputVawidation.wawningBackgwound": "#5d5938",
+		"inputVawidation.wawningBowda": "#9d8a5e",
+		"inputVawidation.ewwowBackgwound": "#571b26",
+		"inputVawidation.ewwowBowda": "#a92049",
 
-		"errorForeground": "#ffeaea",
+		"ewwowFowegwound": "#ffeaea",
 
-		"badge.background": "#047aa6",
-		"progressBar.background": "#047aa6",
+		"badge.backgwound": "#047aa6",
+		"pwogwessBaw.backgwound": "#047aa6",
 
-		"dropdown.background": "#00212B",
-		"dropdown.border": "#2AA19899",
-		// "dropdown.foreground": "",
+		"dwopdown.backgwound": "#00212B",
+		"dwopdown.bowda": "#2AA19899",
+		// "dwopdown.fowegwound": "",
 
-		"button.background": "#2AA19899",
-		// "button.foreground": "",
+		"button.backgwound": "#2AA19899",
+		// "button.fowegwound": "",
 
-		"list.activeSelectionBackground": "#005A6F",
-		// "list.activeSelectionForeground": "",
-		"quickInputList.focusBackground": "#005A6F",
-		"list.hoverBackground": "#004454AA",
-		"list.inactiveSelectionBackground": "#00445488",
-		"list.dropBackground": "#00445488",
-		"list.highlightForeground": "#1ebcc5",
+		"wist.activeSewectionBackgwound": "#005A6F",
+		// "wist.activeSewectionFowegwound": "",
+		"quickInputWist.focusBackgwound": "#005A6F",
+		"wist.hovewBackgwound": "#004454AA",
+		"wist.inactiveSewectionBackgwound": "#00445488",
+		"wist.dwopBackgwound": "#00445488",
+		"wist.highwightFowegwound": "#1ebcc5",
 
-		// "scrollbar.shadow": "",
-		// "scrollbarSlider.activeBackground": "",
-		// "scrollbarSlider.background": "",
-		// "scrollbarSlider.hoverBackground": "",
+		// "scwowwbaw.shadow": "",
+		// "scwowwbawSwida.activeBackgwound": "",
+		// "scwowwbawSwida.backgwound": "",
+		// "scwowwbawSwida.hovewBackgwound": "",
 
-		// Editor
-		"editor.background": "#002B36",
-		// "editor.foreground": "#6688cc",
-		"editorWidget.background": "#00212B",
-		"editorCursor.foreground": "#D30102",
-		"editorWhitespace.foreground": "#93A1A180",
-		"editor.lineHighlightBackground": "#073642",
-		"editorLineNumber.activeForeground": "#949494",
-		"editor.selectionBackground": "#274642",
-		"minimap.selectionHighlight": "#274642",
-		"editorIndentGuide.background": "#93A1A180",
-		"editorIndentGuide.activeBackground": "#C3E1E180",
-		"editorHoverWidget.background": "#004052",
-		// "editorHoverWidget.border": "",
-		// "editorLineNumber.foreground": "",
-		// "editorMarkerNavigation.background": "",
-		"editorMarkerNavigationError.background": "#AB395B",
-		"editorMarkerNavigationWarning.background": "#5B7E7A",
-		// "editorLink.activeForeground": "",
-		// "editor.findMatchBackground": "",
-		// "editor.findMatchHighlightBackground": "",
-		// "editor.findRangeHighlightBackground": "",
-		// "editor.hoverHighlightBackground": "",
-		// "editor.inactiveSelectionBackground": "",
-		// "editor.lineHighlightBorder": "",
-		// "editor.rangeHighlightBackground": "",
-		"editor.selectionHighlightBackground": "#005A6FAA",
-		"editor.wordHighlightBackground": "#004454AA",
-		"editor.wordHighlightStrongBackground": "#005A6FAA",
+		// Editow
+		"editow.backgwound": "#002B36",
+		// "editow.fowegwound": "#6688cc",
+		"editowWidget.backgwound": "#00212B",
+		"editowCuwsow.fowegwound": "#D30102",
+		"editowWhitespace.fowegwound": "#93A1A180",
+		"editow.wineHighwightBackgwound": "#073642",
+		"editowWineNumba.activeFowegwound": "#949494",
+		"editow.sewectionBackgwound": "#274642",
+		"minimap.sewectionHighwight": "#274642",
+		"editowIndentGuide.backgwound": "#93A1A180",
+		"editowIndentGuide.activeBackgwound": "#C3E1E180",
+		"editowHovewWidget.backgwound": "#004052",
+		// "editowHovewWidget.bowda": "",
+		// "editowWineNumba.fowegwound": "",
+		// "editowMawkewNavigation.backgwound": "",
+		"editowMawkewNavigationEwwow.backgwound": "#AB395B",
+		"editowMawkewNavigationWawning.backgwound": "#5B7E7A",
+		// "editowWink.activeFowegwound": "",
+		// "editow.findMatchBackgwound": "",
+		// "editow.findMatchHighwightBackgwound": "",
+		// "editow.findWangeHighwightBackgwound": "",
+		// "editow.hovewHighwightBackgwound": "",
+		// "editow.inactiveSewectionBackgwound": "",
+		// "editow.wineHighwightBowda": "",
+		// "editow.wangeHighwightBackgwound": "",
+		"editow.sewectionHighwightBackgwound": "#005A6FAA",
+		"editow.wowdHighwightBackgwound": "#004454AA",
+		"editow.wowdHighwightStwongBackgwound": "#005A6FAA",
 
-		// Editor: Suggest
-		// "editorSuggestWidget.background": "",
-		// "editorSuggestWidget.border": "",
-		// "editorSuggestWidget.foreground": "",
-		// "editorSuggestWidget.highlightForeground": "",
-		// "editorSuggestWidget.selectedBackground": "",
+		// Editow: Suggest
+		// "editowSuggestWidget.backgwound": "",
+		// "editowSuggestWidget.bowda": "",
+		// "editowSuggestWidget.fowegwound": "",
+		// "editowSuggestWidget.highwightFowegwound": "",
+		// "editowSuggestWidget.sewectedBackgwound": "",
 
-		// Editor: Peek View
-		"peekViewResult.background": "#00212B",
-		// "peekViewResult.lineForeground": "",
-		// "peekViewResult.selectionBackground": "",
-		// "peekViewResult.selectionForeground": "",
-		"peekViewEditor.background": "#10192c",
-		"peekViewTitle.background": "#00212B",
-		"peekView.border": "#2b2b4a",
-		"peekViewEditor.matchHighlightBackground": "#7744AA40",
-		// "peekViewResult.fileForeground": "",
-		// "peekViewResult.matchHighlightBackground": "",
-		// "peekViewTitleLabel.foreground": "",
-		// "peekViewTitleDescription.foreground": "",
+		// Editow: Peek View
+		"peekViewWesuwt.backgwound": "#00212B",
+		// "peekViewWesuwt.wineFowegwound": "",
+		// "peekViewWesuwt.sewectionBackgwound": "",
+		// "peekViewWesuwt.sewectionFowegwound": "",
+		"peekViewEditow.backgwound": "#10192c",
+		"peekViewTitwe.backgwound": "#00212B",
+		"peekView.bowda": "#2b2b4a",
+		"peekViewEditow.matchHighwightBackgwound": "#7744AA40",
+		// "peekViewWesuwt.fiweFowegwound": "",
+		// "peekViewWesuwt.matchHighwightBackgwound": "",
+		// "peekViewTitweWabew.fowegwound": "",
+		// "peekViewTitweDescwiption.fowegwound": "",
 
-		// Editor: Diff
-		// "diffEditor.insertedTextBackground": "",
-		// "diffEditor.insertedTextBorder": "",
-		// "diffEditor.removedTextBackground": "",
-		// "diffEditor.removedTextBorder": "",
+		// Editow: Diff
+		// "diffEditow.insewtedTextBackgwound": "",
+		// "diffEditow.insewtedTextBowda": "",
+		// "diffEditow.wemovedTextBackgwound": "",
+		// "diffEditow.wemovedTextBowda": "",
 
-		// Workbench: Title
-		"titleBar.activeBackground": "#002C39",
-		// "titleBar.inactiveBackground": "",
-		// "titleBar.activeForeground": "",
-		// "titleBar.inactiveForeground": "",
+		// Wowkbench: Titwe
+		"titweBaw.activeBackgwound": "#002C39",
+		// "titweBaw.inactiveBackgwound": "",
+		// "titweBaw.activeFowegwound": "",
+		// "titweBaw.inactiveFowegwound": "",
 
-		// Workbench: Editors
-		// "editorGroupHeader.noTabsBackground": "",
-		"editorGroup.border": "#00212B",
-		"editorGroup.dropBackground": "#2AA19844",
-		"editorGroupHeader.tabsBackground": "#004052",
+		// Wowkbench: Editows
+		// "editowGwoupHeada.noTabsBackgwound": "",
+		"editowGwoup.bowda": "#00212B",
+		"editowGwoup.dwopBackgwound": "#2AA19844",
+		"editowGwoupHeada.tabsBackgwound": "#004052",
 
-		// Workbench: Tabs
-		"tab.activeForeground": "#d6dbdb",
-		"tab.activeBackground": "#002B37",
-		"tab.inactiveForeground": "#93A1A1",
-		"tab.inactiveBackground": "#004052",
-		"tab.border": "#003847",
-		"tab.lastPinnedBorder": "#2AA19844",
+		// Wowkbench: Tabs
+		"tab.activeFowegwound": "#d6dbdb",
+		"tab.activeBackgwound": "#002B37",
+		"tab.inactiveFowegwound": "#93A1A1",
+		"tab.inactiveBackgwound": "#004052",
+		"tab.bowda": "#003847",
+		"tab.wastPinnedBowda": "#2AA19844",
 
-		// Workbench: Activity Bar
-		"activityBar.background": "#003847",
-		// "activityBarBadge.background": "",
-		// "activityBar.foreground": "",
-		// "activityBarBadge.foreground": "",
+		// Wowkbench: Activity Baw
+		"activityBaw.backgwound": "#003847",
+		// "activityBawBadge.backgwound": "",
+		// "activityBaw.fowegwound": "",
+		// "activityBawBadge.fowegwound": "",
 
-		// Workbench: Panel
-		// "panel.background": "",
-		"panel.border": "#2b2b4a",
-		// "panelTitle.activeBorder": "",
-		// "panelTitle.activeForeground": "",
-		// "panelTitle.inactiveForeground": "",
+		// Wowkbench: Panew
+		// "panew.backgwound": "",
+		"panew.bowda": "#2b2b4a",
+		// "panewTitwe.activeBowda": "",
+		// "panewTitwe.activeFowegwound": "",
+		// "panewTitwe.inactiveFowegwound": "",
 
-		// Workbench: Side Bar
-		"sideBar.background": "#00212B",
-		"sideBarTitle.foreground": "#93A1A1",
-		// "sideBarSectionHeader.background": "",
+		// Wowkbench: Side Baw
+		"sideBaw.backgwound": "#00212B",
+		"sideBawTitwe.fowegwound": "#93A1A1",
+		// "sideBawSectionHeada.backgwound": "",
 
-		// Workbench: Status Bar
-		"statusBar.foreground": "#93A1A1",
-		"statusBar.background": "#00212B",
-		"statusBar.debuggingBackground": "#00212B",
-		"statusBar.noFolderBackground": "#00212B",
-		"statusBarItem.remoteBackground": "#2AA19899",
-		"ports.iconRunningProcessForeground": "#369432",
-		"statusBarItem.prominentBackground": "#003847",
-		"statusBarItem.prominentHoverBackground": "#003847",
-		// "statusBarItem.activeBackground": "",
-		// "statusBarItem.hoverBackground": "",
+		// Wowkbench: Status Baw
+		"statusBaw.fowegwound": "#93A1A1",
+		"statusBaw.backgwound": "#00212B",
+		"statusBaw.debuggingBackgwound": "#00212B",
+		"statusBaw.noFowdewBackgwound": "#00212B",
+		"statusBawItem.wemoteBackgwound": "#2AA19899",
+		"powts.iconWunningPwocessFowegwound": "#369432",
+		"statusBawItem.pwominentBackgwound": "#003847",
+		"statusBawItem.pwominentHovewBackgwound": "#003847",
+		// "statusBawItem.activeBackgwound": "",
+		// "statusBawItem.hovewBackgwound": "",
 
-		// Workbench: Debug
-		"debugToolBar.background": "#00212B",
-		"debugExceptionWidget.background": "#00212B",
-		"debugExceptionWidget.border": "#AB395B",
+		// Wowkbench: Debug
+		"debugToowBaw.backgwound": "#00212B",
+		"debugExceptionWidget.backgwound": "#00212B",
+		"debugExceptionWidget.bowda": "#AB395B",
 
-		// Workbench: Quick Open
-		"pickerGroup.foreground": "#2AA19899",
-		"pickerGroup.border": "#2AA19899",
+		// Wowkbench: Quick Open
+		"pickewGwoup.fowegwound": "#2AA19899",
+		"pickewGwoup.bowda": "#2AA19899",
 
-		// Workbench: Terminal
-		// Colors sourced from the official palette http://ethanschoonover.com/solarized
-		"terminal.ansiBlack": "#073642",
-		"terminal.ansiRed": "#dc322f",
-		"terminal.ansiGreen": "#859900",
-		"terminal.ansiYellow": "#b58900",
-		"terminal.ansiBlue": "#268bd2",
-		"terminal.ansiMagenta": "#d33682",
-		"terminal.ansiCyan": "#2aa198",
-		"terminal.ansiWhite": "#eee8d5",
-		"terminal.ansiBrightBlack": "#586e75",
-		"terminal.ansiBrightRed": "#cb4b16",
-		"terminal.ansiBrightGreen": "#586e75",
-		"terminal.ansiBrightYellow": "#657b83",
-		"terminal.ansiBrightBlue": "#839496",
-		"terminal.ansiBrightMagenta": "#6c71c4",
-		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#fdf6e3"
+		// Wowkbench: Tewminaw
+		// Cowows souwced fwom the officiaw pawette http://ethanschoonova.com/sowawized
+		"tewminaw.ansiBwack": "#073642",
+		"tewminaw.ansiWed": "#dc322f",
+		"tewminaw.ansiGween": "#859900",
+		"tewminaw.ansiYewwow": "#b58900",
+		"tewminaw.ansiBwue": "#268bd2",
+		"tewminaw.ansiMagenta": "#d33682",
+		"tewminaw.ansiCyan": "#2aa198",
+		"tewminaw.ansiWhite": "#eee8d5",
+		"tewminaw.ansiBwightBwack": "#586e75",
+		"tewminaw.ansiBwightWed": "#cb4b16",
+		"tewminaw.ansiBwightGween": "#586e75",
+		"tewminaw.ansiBwightYewwow": "#657b83",
+		"tewminaw.ansiBwightBwue": "#839496",
+		"tewminaw.ansiBwightMagenta": "#6c71c4",
+		"tewminaw.ansiBwightCyan": "#93a1a1",
+		"tewminaw.ansiBwightWhite": "#fdf6e3"
 	},
-	"semanticHighlighting": true
+	"semanticHighwighting": twue
 }

@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { DeleteWordContext, WordNavigationType, WordPartOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { DeleteWordCommand, MoveWordCommand } from 'vs/editor/contrib/wordOperations/wordOperations';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { DeweteWowdContext, WowdNavigationType, WowdPawtOpewations } fwom 'vs/editow/common/contwowwa/cuwsowWowdOpewations';
+impowt { WowdChawactewCwassifia } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DeweteWowdCommand, MoveWowdCommand } fwom 'vs/editow/contwib/wowdOpewations/wowdOpewations';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export class DeleteWordPartLeft extends DeleteWordCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'deleteWordPartLeft',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteWowdPawtWeft extends DeweteWowdCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'deweteWowdPawtWeft',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Backspace },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.Backspace },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartLeft(ctx);
-		if (r) {
-			return r;
+	pwotected _dewete(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange {
+		wet w = WowdPawtOpewations.deweteWowdPawtWeft(ctx);
+		if (w) {
+			wetuwn w;
 		}
-		return new Range(1, 1, 1, 1);
+		wetuwn new Wange(1, 1, 1, 1);
 	}
 }
 
-export class DeleteWordPartRight extends DeleteWordCommand {
-	constructor() {
-		super({
-			whitespaceHeuristics: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'deleteWordPartRight',
-			precondition: EditorContextKeys.writable,
+expowt cwass DeweteWowdPawtWight extends DeweteWowdCommand {
+	constwuctow() {
+		supa({
+			whitespaceHeuwistics: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'deweteWowdPawtWight',
+			pwecondition: EditowContextKeys.wwitabwe,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Delete },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.Dewete },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartRight(ctx);
-		if (r) {
-			return r;
+	pwotected _dewete(ctx: DeweteWowdContext, wowdNavigationType: WowdNavigationType): Wange {
+		wet w = WowdPawtOpewations.deweteWowdPawtWight(ctx);
+		if (w) {
+			wetuwn w;
 		}
-		const lineCount = ctx.model.getLineCount();
-		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
-		return new Range(lineCount, maxColumn, lineCount, maxColumn);
+		const wineCount = ctx.modew.getWineCount();
+		const maxCowumn = ctx.modew.getWineMaxCowumn(wineCount);
+		wetuwn new Wange(wineCount, maxCowumn, wineCount, maxCowumn);
 	}
 }
 
-export class WordPartLeftCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position);
+expowt cwass WowdPawtWeftCommand extends MoveWowdCommand {
+	pwotected _move(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn WowdPawtOpewations.moveWowdPawtWeft(wowdSepawatows, modew, position);
 	}
 }
-export class CursorWordPartLeft extends WordPartLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordPartLeft',
-			precondition: undefined,
+expowt cwass CuwsowWowdPawtWeft extends WowdPawtWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdPawtWeft',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.WeftAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
-// Register previous id for compatibility purposes
-CommandsRegistry.registerCommandAlias('cursorWordPartStartLeft', 'cursorWordPartLeft');
+// Wegista pwevious id fow compatibiwity puwposes
+CommandsWegistwy.wegistewCommandAwias('cuwsowWowdPawtStawtWeft', 'cuwsowWowdPawtWeft');
 
-export class CursorWordPartLeftSelect extends WordPartLeftCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordStart,
-			id: 'cursorWordPartLeftSelect',
-			precondition: undefined,
+expowt cwass CuwsowWowdPawtWeftSewect extends WowdPawtWeftCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdStawt,
+			id: 'cuwsowWowdPawtWeftSewect',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyMod.Shift | KeyCode.WeftAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
-// Register previous id for compatibility purposes
-CommandsRegistry.registerCommandAlias('cursorWordPartStartLeftSelect', 'cursorWordPartLeftSelect');
+// Wegista pwevious id fow compatibiwity puwposes
+CommandsWegistwy.wegistewCommandAwias('cuwsowWowdPawtStawtWeftSewect', 'cuwsowWowdPawtWeftSewect');
 
-export class WordPartRightCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartRight(wordSeparators, model, position);
+expowt cwass WowdPawtWightCommand extends MoveWowdCommand {
+	pwotected _move(wowdSepawatows: WowdChawactewCwassifia, modew: ITextModew, position: Position, wowdNavigationType: WowdNavigationType): Position {
+		wetuwn WowdPawtOpewations.moveWowdPawtWight(wowdSepawatows, modew, position);
 	}
 }
-export class CursorWordPartRight extends WordPartRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: false,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordPartRight',
-			precondition: undefined,
+expowt cwass CuwsowWowdPawtWight extends WowdPawtWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: fawse,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdPawtWight',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyCode.WightAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
-export class CursorWordPartRightSelect extends WordPartRightCommand {
-	constructor() {
-		super({
-			inSelectionMode: true,
-			wordNavigationType: WordNavigationType.WordEnd,
-			id: 'cursorWordPartRightSelect',
-			precondition: undefined,
+expowt cwass CuwsowWowdPawtWightSewect extends WowdPawtWightCommand {
+	constwuctow() {
+		supa({
+			inSewectionMode: twue,
+			wowdNavigationType: WowdNavigationType.WowdEnd,
+			id: 'cuwsowWowdPawtWightSewect',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow },
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.textInputFocus,
+				pwimawy: 0,
+				mac: { pwimawy: KeyMod.WinCtww | KeyMod.Awt | KeyMod.Shift | KeyCode.WightAwwow },
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 }
 
 
-registerEditorCommand(new DeleteWordPartLeft());
-registerEditorCommand(new DeleteWordPartRight());
-registerEditorCommand(new CursorWordPartLeft());
-registerEditorCommand(new CursorWordPartLeftSelect());
-registerEditorCommand(new CursorWordPartRight());
-registerEditorCommand(new CursorWordPartRightSelect());
+wegistewEditowCommand(new DeweteWowdPawtWeft());
+wegistewEditowCommand(new DeweteWowdPawtWight());
+wegistewEditowCommand(new CuwsowWowdPawtWeft());
+wegistewEditowCommand(new CuwsowWowdPawtWeftSewect());
+wegistewEditowCommand(new CuwsowWowdPawtWight());
+wegistewEditowCommand(new CuwsowWowdPawtWightSewect());

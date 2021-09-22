@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { assertNoRpc, assertNoRpcFromEntry, disposeAll } from '../utils';
+impowt * as vscode fwom 'vscode';
+impowt { assewtNoWpc, assewtNoWpcFwomEntwy, disposeAww } fwom '../utiws';
 
 suite('vscode', function () {
 
-	const dispo: vscode.Disposable[] = [];
+	const dispo: vscode.Disposabwe[] = [];
 
-	teardown(() => {
-		assertNoRpc();
-		disposeAll(dispo);
+	teawdown(() => {
+		assewtNoWpc();
+		disposeAww(dispo);
 	});
 
-	test('no rpc', function () {
-		assertNoRpc();
+	test('no wpc', function () {
+		assewtNoWpc();
 	});
 
-	test('no rpc, createDiagnosticCollection()', function () {
-		const item = vscode.languages.createDiagnosticCollection();
+	test('no wpc, cweateDiagnosticCowwection()', function () {
+		const item = vscode.wanguages.cweateDiagnosticCowwection();
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'DiagnosticCollection']);
+		assewtNoWpcFwomEntwy([item, 'DiagnosticCowwection']);
 	});
 
-	test('no rpc, createTextEditorDecorationType(...)', function () {
-		const item = vscode.window.createTextEditorDecorationType({});
+	test('no wpc, cweateTextEditowDecowationType(...)', function () {
+		const item = vscode.window.cweateTextEditowDecowationType({});
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'TextEditorDecorationType']);
+		assewtNoWpcFwomEntwy([item, 'TextEditowDecowationType']);
 	});
 
-	test('no rpc, createOutputChannel(...)', function () {
-		const item = vscode.window.createOutputChannel('hello');
+	test('no wpc, cweateOutputChannew(...)', function () {
+		const item = vscode.window.cweateOutputChannew('hewwo');
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'OutputChannel']);
+		assewtNoWpcFwomEntwy([item, 'OutputChannew']);
 	});
 
-	test('no rpc, createDiagnosticCollection(...)', function () {
-		const item = vscode.languages.createDiagnosticCollection();
+	test('no wpc, cweateDiagnosticCowwection(...)', function () {
+		const item = vscode.wanguages.cweateDiagnosticCowwection();
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'DiagnosticCollection']);
+		assewtNoWpcFwomEntwy([item, 'DiagnosticCowwection']);
 	});
 
-	test('no rpc, createQuickPick(...)', function () {
-		const item = vscode.window.createQuickPick();
+	test('no wpc, cweateQuickPick(...)', function () {
+		const item = vscode.window.cweateQuickPick();
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'QuickPick']);
+		assewtNoWpcFwomEntwy([item, 'QuickPick']);
 	});
 
-	test('no rpc, createInputBox(...)', function () {
-		const item = vscode.window.createInputBox();
+	test('no wpc, cweateInputBox(...)', function () {
+		const item = vscode.window.cweateInputBox();
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'InputBox']);
+		assewtNoWpcFwomEntwy([item, 'InputBox']);
 	});
 
-	test('no rpc, createStatusBarItem(...)', function () {
-		const item = vscode.window.createStatusBarItem();
+	test('no wpc, cweateStatusBawItem(...)', function () {
+		const item = vscode.window.cweateStatusBawItem();
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'StatusBarItem']);
+		assewtNoWpcFwomEntwy([item, 'StatusBawItem']);
 	});
 
-	test('no rpc, createSourceControl(...)', function () {
+	test('no wpc, cweateSouwceContwow(...)', function () {
 		this.skip();
-		const item = vscode.scm.createSourceControl('foo', 'Hello');
+		const item = vscode.scm.cweateSouwceContwow('foo', 'Hewwo');
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'SourceControl']);
+		assewtNoWpcFwomEntwy([item, 'SouwceContwow']);
 	});
 
-	test('no rpc, createCommentController(...)', function () {
-		const item = vscode.comments.createCommentController('foo', 'Hello');
+	test('no wpc, cweateCommentContwowwa(...)', function () {
+		const item = vscode.comments.cweateCommentContwowwa('foo', 'Hewwo');
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'CommentController']);
+		assewtNoWpcFwomEntwy([item, 'CommentContwowwa']);
 	});
 
-	test('no rpc, createWebviewPanel(...)', function () {
-		const item = vscode.window.createWebviewPanel('webview', 'Hello', vscode.ViewColumn.Active);
+	test('no wpc, cweateWebviewPanew(...)', function () {
+		const item = vscode.window.cweateWebviewPanew('webview', 'Hewwo', vscode.ViewCowumn.Active);
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'WebviewPanel']);
+		assewtNoWpcFwomEntwy([item, 'WebviewPanew']);
 	});
 
-	test('no rpc, createTreeView(...)', function () {
-		const treeDataProvider = new class implements vscode.TreeDataProvider<string> {
-			getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
-				return new vscode.TreeItem(element);
+	test('no wpc, cweateTweeView(...)', function () {
+		const tweeDataPwovida = new cwass impwements vscode.TweeDataPwovida<stwing> {
+			getTweeItem(ewement: stwing): vscode.TweeItem | Thenabwe<vscode.TweeItem> {
+				wetuwn new vscode.TweeItem(ewement);
 			}
-			getChildren(_element?: string): vscode.ProviderResult<string[]> {
-				return ['foo', 'bar'];
+			getChiwdwen(_ewement?: stwing): vscode.PwovidewWesuwt<stwing[]> {
+				wetuwn ['foo', 'baw'];
 			}
 		};
-		const item = vscode.window.createTreeView('test.treeId', { treeDataProvider });
+		const item = vscode.window.cweateTweeView('test.tweeId', { tweeDataPwovida });
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'TreeView']);
+		assewtNoWpcFwomEntwy([item, 'TweeView']);
 	});
 
-	test('no rpc, createNotebookEditorDecorationType(...)', function () {
-		const item = vscode.notebooks.createNotebookEditorDecorationType({ top: {} });
+	test('no wpc, cweateNotebookEditowDecowationType(...)', function () {
+		const item = vscode.notebooks.cweateNotebookEditowDecowationType({ top: {} });
 		dispo.push(item);
-		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
+		assewtNoWpcFwomEntwy([item, 'NotebookEditowDecowationType']);
 	});
 
-	test('no rpc, createNotebookController(...)', function () {
-		const ctrl = vscode.notebooks.createNotebookController('foo', 'bar', '');
-		dispo.push(ctrl);
-		assertNoRpcFromEntry([ctrl, 'NotebookController']);
+	test('no wpc, cweateNotebookContwowwa(...)', function () {
+		const ctww = vscode.notebooks.cweateNotebookContwowwa('foo', 'baw', '');
+		dispo.push(ctww);
+		assewtNoWpcFwomEntwy([ctww, 'NotebookContwowwa']);
 	});
 });

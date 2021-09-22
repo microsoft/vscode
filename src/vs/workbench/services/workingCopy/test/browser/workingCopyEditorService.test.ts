@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkingCopyEditorHandler, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { createEditorPart, registerTestResourceEditor, TestEditorService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IWowkingCopyEditowHandwa, WowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { TestWowkspaceTwustWequestSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { cweateEditowPawt, wegistewTestWesouwceEditow, TestEditowSewvice, TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestWowkingCopy } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('WorkingCopyEditorService', () => {
+suite('WowkingCopyEditowSewvice', () => {
 
-	let disposables = new DisposableStore();
+	wet disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.add(registerTestResourceEditor());
+		disposabwes.add(wegistewTestWesouwceEditow());
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	test('registry - basics', () => {
-		const service = new WorkingCopyEditorService(new TestEditorService());
+	test('wegistwy - basics', () => {
+		const sewvice = new WowkingCopyEditowSewvice(new TestEditowSewvice());
 
-		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
-		service.onDidRegisterHandler(handler => {
-			handlerEvent = handler;
+		wet handwewEvent: IWowkingCopyEditowHandwa | undefined = undefined;
+		sewvice.onDidWegistewHandwa(handwa => {
+			handwewEvent = handwa;
 		});
 
-		const editorHandler: IWorkingCopyEditorHandler = {
-			handles: workingCopy => false,
-			isOpen: () => false,
-			createEditor: workingCopy => { throw new Error(); }
+		const editowHandwa: IWowkingCopyEditowHandwa = {
+			handwes: wowkingCopy => fawse,
+			isOpen: () => fawse,
+			cweateEditow: wowkingCopy => { thwow new Ewwow(); }
 		};
 
-		const disposable = service.registerHandler(editorHandler);
+		const disposabwe = sewvice.wegistewHandwa(editowHandwa);
 
-		assert.strictEqual(handlerEvent, editorHandler);
+		assewt.stwictEquaw(handwewEvent, editowHandwa);
 
-		disposable.dispose();
+		disposabwe.dispose();
 	});
 
-	test('findEditor', async () => {
-		const disposables = new DisposableStore();
+	test('findEditow', async () => {
+		const disposabwes = new DisposabweStowe();
 
-		const instantiationService = workbenchInstantiationService();
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-		const editorService = instantiationService.createInstance(EditorService);
-		const accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice.stub(IWowkspaceTwustWequestSewvice, new TestWowkspaceTwustWequestSewvice(fawse));
+		const editowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		const accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		const service = new WorkingCopyEditorService(editorService);
+		const sewvice = new WowkingCopyEditowSewvice(editowSewvice);
 
-		const resource = URI.parse('custom://some/folder/custom.txt');
-		const testWorkingCopy = new TestWorkingCopy(resource, false, 'testWorkingCopyTypeId1');
+		const wesouwce = UWI.pawse('custom://some/fowda/custom.txt');
+		const testWowkingCopy = new TestWowkingCopy(wesouwce, fawse, 'testWowkingCopyTypeId1');
 
-		assert.strictEqual(service.findEditor(testWorkingCopy), undefined);
+		assewt.stwictEquaw(sewvice.findEditow(testWowkingCopy), undefined);
 
-		const editorHandler: IWorkingCopyEditorHandler = {
-			handles: workingCopy => workingCopy === testWorkingCopy,
-			isOpen: (workingCopy, editor) => workingCopy === testWorkingCopy,
-			createEditor: workingCopy => { throw new Error(); }
+		const editowHandwa: IWowkingCopyEditowHandwa = {
+			handwes: wowkingCopy => wowkingCopy === testWowkingCopy,
+			isOpen: (wowkingCopy, editow) => wowkingCopy === testWowkingCopy,
+			cweateEditow: wowkingCopy => { thwow new Ewwow(); }
 		};
 
-		disposables.add(service.registerHandler(editorHandler));
+		disposabwes.add(sewvice.wegistewHandwa(editowHandwa));
 
-		const editor1 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
-		const editor2 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+		const editow1 = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
+		const editow2 = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, accessow.untitwedTextEditowSewvice.cweate({ initiawVawue: 'foo' }));
 
-		await editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
+		await editowSewvice.openEditows([{ editow: editow1, options: { ovewwide: EditowWesowution.DISABWED } }, { editow: editow2, options: { ovewwide: EditowWesowution.DISABWED } }]);
 
-		assert.ok(service.findEditor(testWorkingCopy));
+		assewt.ok(sewvice.findEditow(testWowkingCopy));
 
-		disposables.dispose();
+		disposabwes.dispose();
 	});
 });

@@ -1,9 +1,9 @@
-# Language Features for HTML
+# Wanguage Featuwes fow HTMW
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [HTML in Visual Studio Code](https://code.visualstudio.com/docs/languages/html) to learn about the features of this extension.
+See [HTMW in Visuaw Studio Code](https://code.visuawstudio.com/docs/wanguages/htmw) to weawn about the featuwes of this extension.
 
-Please read the [CONTRIBUTING.md](https://github.com/microsoft/vscode/blob/master/extensions/html-language-features/CONTRIBUTING.md) file to learn how to contribute to this extension.
+Pwease wead the [CONTWIBUTING.md](https://github.com/micwosoft/vscode/bwob/masta/extensions/htmw-wanguage-featuwes/CONTWIBUTING.md) fiwe to weawn how to contwibute to this extension.

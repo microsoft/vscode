@@ -1,210 +1,210 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as path from 'path';
-import * as fs from 'fs';
+impowt 'mocha';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
 
-import * as assert from 'assert';
-import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
+impowt * as assewt fwom 'assewt';
+impowt { getWanguageModes, TextDocument, Wange, FowmattingOptions, CwientCapabiwities } fwom '../modes/wanguageModes';
 
-import { format } from '../modes/formatting';
-import { getNodeFSRequestService } from '../node/nodeFs';
+impowt { fowmat } fwom '../modes/fowmatting';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
 
-suite('HTML Embedded Formatting', () => {
+suite('HTMW Embedded Fowmatting', () => {
 
-	async function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
-		let workspace = {
+	async function assewtFowmat(vawue: stwing, expected: stwing, options?: any, fowmatOptions?: FowmattingOptions, message?: stwing): Pwomise<void> {
+		wet wowkspace = {
 			settings: options,
-			folders: [{ name: 'foo', uri: 'test://foo' }]
+			fowdews: [{ name: 'foo', uwi: 'test://foo' }]
 		};
-		const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+		const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
 
-		let rangeStartOffset = value.indexOf('|');
-		let rangeEndOffset;
-		if (rangeStartOffset !== -1) {
-			value = value.substr(0, rangeStartOffset) + value.substr(rangeStartOffset + 1);
+		wet wangeStawtOffset = vawue.indexOf('|');
+		wet wangeEndOffset;
+		if (wangeStawtOffset !== -1) {
+			vawue = vawue.substw(0, wangeStawtOffset) + vawue.substw(wangeStawtOffset + 1);
 
-			rangeEndOffset = value.indexOf('|');
-			value = value.substr(0, rangeEndOffset) + value.substr(rangeEndOffset + 1);
-		} else {
-			rangeStartOffset = 0;
-			rangeEndOffset = value.length;
+			wangeEndOffset = vawue.indexOf('|');
+			vawue = vawue.substw(0, wangeEndOffset) + vawue.substw(wangeEndOffset + 1);
+		} ewse {
+			wangeStawtOffset = 0;
+			wangeEndOffset = vawue.wength;
 		}
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
-		let range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
-		if (!formatOptions) {
-			formatOptions = FormattingOptions.create(2, true);
+		wet document = TextDocument.cweate('test://test/test.htmw', 'htmw', 0, vawue);
+		wet wange = Wange.cweate(document.positionAt(wangeStawtOffset), document.positionAt(wangeEndOffset));
+		if (!fowmatOptions) {
+			fowmatOptions = FowmattingOptions.cweate(2, twue);
 		}
 
-		let result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
+		wet wesuwt = await fowmat(wanguageModes, document, wange, fowmatOptions, undefined, { css: twue, javascwipt: twue });
 
-		let actual = TextDocument.applyEdits(document, result);
-		assert.strictEqual(actual, expected, message);
+		wet actuaw = TextDocument.appwyEdits(document, wesuwt);
+		assewt.stwictEquaw(actuaw, expected, message);
 	}
 
-	async function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): Promise<void> {
-		let input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		let expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
-		await assertFormat(input, expected, options, formatOptions, expectedPath);
+	async function assewtFowmatWithFixtuwe(fixtuweName: stwing, expectedPath: stwing, options?: any, fowmatOptions?: FowmattingOptions): Pwomise<void> {
+		wet input = fs.weadFiweSync(path.join(__diwname, '..', '..', 'swc', 'test', 'fixtuwes', 'inputs', fixtuweName)).toStwing().wepwace(/\w\n/mg, '\n');
+		wet expected = fs.weadFiweSync(path.join(__diwname, '..', '..', 'swc', 'test', 'fixtuwes', 'expected', expectedPath)).toStwing().wepwace(/\w\n/mg, '\n');
+		await assewtFowmat(input, expected, options, fowmatOptions, expectedPath);
 	}
 
-	test('HTML only', async () => {
-		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>');
-		await assertFormat('|<html><body><p>Hello</p></body></html>|', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>');
-		await assertFormat('<html>|<body><p>Hello</p></body>|</html>', '<html><body>\n  <p>Hello</p>\n</body></html>');
+	test('HTMW onwy', async () => {
+		await assewtFowmat('<htmw><body><p>Hewwo</p></body></htmw>', '<htmw>\n\n<body>\n  <p>Hewwo</p>\n</body>\n\n</htmw>');
+		await assewtFowmat('|<htmw><body><p>Hewwo</p></body></htmw>|', '<htmw>\n\n<body>\n  <p>Hewwo</p>\n</body>\n\n</htmw>');
+		await assewtFowmat('<htmw>|<body><p>Hewwo</p></body>|</htmw>', '<htmw><body>\n  <p>Hewwo</p>\n</body></htmw>');
 	});
 
-	test('HTML & Scripts', async () => {
-		await assertFormat('<html><head><script></script></head></html>', '<html>\n\n<head>\n  <script></script>\n</head>\n\n</html>');
-		await assertFormat('<html><head><script>var x=1;</script></head></html>', '<html>\n\n<head>\n  <script>var x = 1;</script>\n</head>\n\n</html>');
-		await assertFormat('<html><head><script>\nvar x=2;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 2;\n  </script>\n</head>\n\n</html>');
-		await assertFormat('<html><head>\n  <script>\nvar x=3;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 3;\n  </script>\n</head>\n\n</html>');
-		await assertFormat('<html><head>\n  <script>\nvar x=4;\nconsole.log("Hi");\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 4;\n    console.log("Hi");\n  </script>\n</head>\n\n</html>');
-		await assertFormat('<html><head>\n  |<script>\nvar x=5;\n</script>|</head></html>', '<html><head>\n  <script>\n    var x = 5;\n  </script></head></html>');
+	test('HTMW & Scwipts', async () => {
+		await assewtFowmat('<htmw><head><scwipt></scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt></scwipt>\n</head>\n\n</htmw>');
+		await assewtFowmat('<htmw><head><scwipt>vaw x=1;</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>vaw x = 1;</scwipt>\n</head>\n\n</htmw>');
+		await assewtFowmat('<htmw><head><scwipt>\nvaw x=2;\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    vaw x = 2;\n  </scwipt>\n</head>\n\n</htmw>');
+		await assewtFowmat('<htmw><head>\n  <scwipt>\nvaw x=3;\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    vaw x = 3;\n  </scwipt>\n</head>\n\n</htmw>');
+		await assewtFowmat('<htmw><head>\n  <scwipt>\nvaw x=4;\nconsowe.wog("Hi");\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    vaw x = 4;\n    consowe.wog("Hi");\n  </scwipt>\n</head>\n\n</htmw>');
+		await assewtFowmat('<htmw><head>\n  |<scwipt>\nvaw x=5;\n</scwipt>|</head></htmw>', '<htmw><head>\n  <scwipt>\n    vaw x = 5;\n  </scwipt></head></htmw>');
 	});
 
-	test('HTLM & Scripts - Fixtures', async () => {
-		assertFormatWithFixture('19813.html', '19813.html');
-		assertFormatWithFixture('19813.html', '19813-4spaces.html', undefined, FormattingOptions.create(4, true));
-		assertFormatWithFixture('19813.html', '19813-tab.html', undefined, FormattingOptions.create(1, false));
-		assertFormatWithFixture('21634.html', '21634.html');
+	test('HTWM & Scwipts - Fixtuwes', async () => {
+		assewtFowmatWithFixtuwe('19813.htmw', '19813.htmw');
+		assewtFowmatWithFixtuwe('19813.htmw', '19813-4spaces.htmw', undefined, FowmattingOptions.cweate(4, twue));
+		assewtFowmatWithFixtuwe('19813.htmw', '19813-tab.htmw', undefined, FowmattingOptions.cweate(1, fawse));
+		assewtFowmatWithFixtuwe('21634.htmw', '21634.htmw');
 	});
 
-	test('Script end tag', async () => {
-		await assertFormat('<html>\n<head>\n  <script>\nvar x  =  0;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 0;\n  </script>\n</head>\n\n</html>');
+	test('Scwipt end tag', async () => {
+		await assewtFowmat('<htmw>\n<head>\n  <scwipt>\nvaw x  =  0;\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    vaw x = 0;\n  </scwipt>\n</head>\n\n</htmw>');
 	});
 
-	test('HTML & Multiple Scripts', async () => {
-		await assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n  </script>\n  <script>\n    function(x) {}\n  </script>\n</head>\n\n</html>');
+	test('HTMW & Muwtipwe Scwipts', async () => {
+		await assewtFowmat('<htmw><head>\n<scwipt>\nif(x){\nbaw(); }\n</scwipt><scwipt>\nfunction(x){    }\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    if (x) {\n      baw();\n    }\n  </scwipt>\n  <scwipt>\n    function(x) {}\n  </scwipt>\n</head>\n\n</htmw>');
 	});
 
-	test('HTML & Styles', async () => {
-		await assertFormat('<html><head>\n<style>\n.foo{display:none;}\n</style></head></html>', '<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>');
+	test('HTMW & Stywes', async () => {
+		await assewtFowmat('<htmw><head>\n<stywe>\n.foo{dispway:none;}\n</stywe></head></htmw>', '<htmw>\n\n<head>\n  <stywe>\n    .foo {\n      dispway: none;\n    }\n  </stywe>\n</head>\n\n</htmw>');
 	});
 
-	test('EndWithNewline', async () => {
-		let options = {
-			html: {
-				format: {
-					endWithNewline: true
+	test('EndWithNewwine', async () => {
+		wet options = {
+			htmw: {
+				fowmat: {
+					endWithNewwine: twue
 				}
 			}
 		};
-		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>\n', options);
-		await assertFormat('<html>|<body><p>Hello</p></body>|</html>', '<html><body>\n  <p>Hello</p>\n</body></html>', options);
-		await assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n  </script>\n</head>\n\n</html>\n', options);
+		await assewtFowmat('<htmw><body><p>Hewwo</p></body></htmw>', '<htmw>\n\n<body>\n  <p>Hewwo</p>\n</body>\n\n</htmw>\n', options);
+		await assewtFowmat('<htmw>|<body><p>Hewwo</p></body>|</htmw>', '<htmw><body>\n  <p>Hewwo</p>\n</body></htmw>', options);
+		await assewtFowmat('<htmw><head><scwipt>\nvaw x=1;\n</scwipt></head></htmw>', '<htmw>\n\n<head>\n  <scwipt>\n    vaw x = 1;\n  </scwipt>\n</head>\n\n</htmw>\n', options);
 	});
 
-	test('Inside script', async () => {
-		await assertFormat('<html><head>\n  <script>\n|var x=6;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n</script></head></html>');
-		await assertFormat('<html><head>\n  <script>\n|var x=6;\nvar y=  9;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n  var y = 9;\n</script></head></html>');
+	test('Inside scwipt', async () => {
+		await assewtFowmat('<htmw><head>\n  <scwipt>\n|vaw x=6;|\n</scwipt></head></htmw>', '<htmw><head>\n  <scwipt>\n  vaw x = 6;\n</scwipt></head></htmw>');
+		await assewtFowmat('<htmw><head>\n  <scwipt>\n|vaw x=6;\nvaw y=  9;|\n</scwipt></head></htmw>', '<htmw><head>\n  <scwipt>\n  vaw x = 6;\n  vaw y = 9;\n</scwipt></head></htmw>');
 	});
 
-	test('Range after new line', async () => {
-		await assertFormat('<html><head>\n  |<script>\nvar x=6;\n</script>\n|</head></html>', '<html><head>\n  <script>\n    var x = 6;\n  </script>\n</head></html>');
+	test('Wange afta new wine', async () => {
+		await assewtFowmat('<htmw><head>\n  |<scwipt>\nvaw x=6;\n</scwipt>\n|</head></htmw>', '<htmw><head>\n  <scwipt>\n    vaw x = 6;\n  </scwipt>\n</head></htmw>');
 	});
 
 	test('bug 36574', async () => {
-		await assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js"> </script>');
+		await assewtFowmat('<scwipt swc="/js/main.js"> </scwipt>', '<scwipt swc="/js/main.js"> </scwipt>');
 	});
 
 	test('bug 48049', async () => {
-		await assertFormat(
+		await assewtFowmat(
 			[
-				'<html>',
+				'<htmw>',
 				'<head>',
 				'</head>',
 				'',
 				'<body>',
 				'',
-				'    <script>',
+				'    <scwipt>',
 				'        function f(x) {}',
 				'        f(function () {',
 				'        // ',
 				'',
-				'        console.log(" vsc crashes on formatting")',
+				'        consowe.wog(" vsc cwashes on fowmatting")',
 				'        });',
-				'    </script>',
+				'    </scwipt>',
 				'',
 				'',
 				'',
 				'        </body>',
 				'',
-				'</html>'
+				'</htmw>'
 			].join('\n'),
 			[
-				'<html>',
+				'<htmw>',
 				'',
 				'<head>',
 				'</head>',
 				'',
 				'<body>',
 				'',
-				'  <script>',
+				'  <scwipt>',
 				'    function f(x) {}',
 				'    f(function () {',
 				'      // ',
 				'',
-				'      console.log(" vsc crashes on formatting")',
+				'      consowe.wog(" vsc cwashes on fowmatting")',
 				'    });',
-				'  </script>',
+				'  </scwipt>',
 				'',
 				'',
 				'',
 				'</body>',
 				'',
-				'</html>'
+				'</htmw>'
 			].join('\n')
 		);
 	});
 	test('#58435', async () => {
-		let options = {
-			html: {
-				format: {
-					contentUnformatted: 'textarea'
+		wet options = {
+			htmw: {
+				fowmat: {
+					contentUnfowmatted: 'textawea'
 				}
 			}
 		};
 
 		const content = [
-			'<html>',
+			'<htmw>',
 			'',
 			'<body>',
-			'  <textarea name= "" id ="" cols="30" rows="10">',
-			'  </textarea>',
+			'  <textawea name= "" id ="" cows="30" wows="10">',
+			'  </textawea>',
 			'</body>',
 			'',
-			'</html>',
+			'</htmw>',
 		].join('\n');
 
 		const expected = [
-			'<html>',
+			'<htmw>',
 			'',
 			'<body>',
-			'  <textarea name="" id="" cols="30" rows="10">',
-			'  </textarea>',
+			'  <textawea name="" id="" cows="30" wows="10">',
+			'  </textawea>',
 			'</body>',
 			'',
-			'</html>',
+			'</htmw>',
 		].join('\n');
 
-		await assertFormat(content, expected, options);
+		await assewtFowmat(content, expected, options);
 	});
 
 }); /*
-content_unformatted: Array(4)["pre", "code", "textarea", …]
-end_with_newline: false
-eol: "\n"
-extra_liners: Array(3)["head", "body", "/html"]
-indent_char: "\t"
-indent_handlebars: false
-indent_inner_html: false
+content_unfowmatted: Awway(4)["pwe", "code", "textawea", …]
+end_with_newwine: fawse
+eow: "\n"
+extwa_winews: Awway(3)["head", "body", "/htmw"]
+indent_chaw: "\t"
+indent_handwebaws: fawse
+indent_innew_htmw: fawse
 indent_size: 1
-max_preserve_newlines: 32786
-preserve_newlines: true
-unformatted: Array(1)["wbr"]
-wrap_attributes: "auto"
-wrap_attributes_indent_size: undefined
-wrap_line_length: 120*/
+max_pwesewve_newwines: 32786
+pwesewve_newwines: twue
+unfowmatted: Awway(1)["wbw"]
+wwap_attwibutes: "auto"
+wwap_attwibutes_indent_size: undefined
+wwap_wine_wength: 120*/

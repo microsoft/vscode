@@ -1,373 +1,373 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-/// <reference no-default-lib="true"/>
-/// <reference lib="webworker" />
+/// <wefewence no-defauwt-wib="twue"/>
+/// <wefewence wib="webwowka" />
 
-const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
+const sw = /** @type {SewviceWowkewGwobawScope} */ (/** @type {any} */ (sewf));
 
-const VERSION = 2;
+const VEWSION = 2;
 
-const resourceCacheName = `vscode-resource-cache-${VERSION}`;
+const wesouwceCacheName = `vscode-wesouwce-cache-${VEWSION}`;
 
-const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
+const wootPath = sw.wocation.pathname.wepwace(/\/sewvice-wowka.js$/, '');
 
 
-const searchParams = new URL(location.toString()).searchParams;
+const seawchPawams = new UWW(wocation.toStwing()).seawchPawams;
 
 /**
- * Origin used for resources
+ * Owigin used fow wesouwces
  */
-const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
+const wesouwceBaseAuthowity = seawchPawams.get('vscode-wesouwce-base-authowity');
 
-const resolveTimeout = 30000;
+const wesowveTimeout = 30000;
 
 /**
- * @template T
+ * @tempwate T
  * @typedef {{
- *     resolve: (x: T) => void,
- *     promise: Promise<T>
- * }} RequestStoreEntry
+ *     wesowve: (x: T) => void,
+ *     pwomise: Pwomise<T>
+ * }} WequestStoweEntwy
  */
 
 /**
  * Caches
- * @template T
+ * @tempwate T
  */
-class RequestStore {
-	constructor() {
-		/** @type {Map<number, RequestStoreEntry<T>>} */
+cwass WequestStowe {
+	constwuctow() {
+		/** @type {Map<numba, WequestStoweEntwy<T>>} */
 		this.map = new Map();
 
-		this.requestPool = 0;
+		this.wequestPoow = 0;
 	}
 
 	/**
-	 * @param {number} requestId
-	 * @return {Promise<T> | undefined}
+	 * @pawam {numba} wequestId
+	 * @wetuwn {Pwomise<T> | undefined}
 	 */
-	get(requestId) {
-		const entry = this.map.get(requestId);
-		return entry && entry.promise;
+	get(wequestId) {
+		const entwy = this.map.get(wequestId);
+		wetuwn entwy && entwy.pwomise;
 	}
 
 	/**
-	 * @returns {{ requestId: number, promise: Promise<T> }}
+	 * @wetuwns {{ wequestId: numba, pwomise: Pwomise<T> }}
 	 */
-	create() {
-		const requestId = ++this.requestPool;
+	cweate() {
+		const wequestId = ++this.wequestPoow;
 
 		/** @type {undefined | ((x: T) => void)} */
-		let resolve;
+		wet wesowve;
 
-		/** @type {Promise<T>} */
-		const promise = new Promise(r => resolve = r);
+		/** @type {Pwomise<T>} */
+		const pwomise = new Pwomise(w => wesowve = w);
 
-		/** @type {RequestStoreEntry<T>} */
-		const entry = { resolve: /** @type {(x: T) => void} */ (resolve), promise };
+		/** @type {WequestStoweEntwy<T>} */
+		const entwy = { wesowve: /** @type {(x: T) => void} */ (wesowve), pwomise };
 
-		this.map.set(requestId, entry);
+		this.map.set(wequestId, entwy);
 
 		const dispose = () => {
-			clearTimeout(timeout);
-			const existingEntry = this.map.get(requestId);
-			if (existingEntry === entry) {
-				return this.map.delete(requestId);
+			cweawTimeout(timeout);
+			const existingEntwy = this.map.get(wequestId);
+			if (existingEntwy === entwy) {
+				wetuwn this.map.dewete(wequestId);
 			}
 		};
-		const timeout = setTimeout(dispose, resolveTimeout);
-		return { requestId, promise };
+		const timeout = setTimeout(dispose, wesowveTimeout);
+		wetuwn { wequestId, pwomise };
 	}
 
 	/**
-	 * @param {number} requestId
-	 * @param {T} result
-	 * @return {boolean}
+	 * @pawam {numba} wequestId
+	 * @pawam {T} wesuwt
+	 * @wetuwn {boowean}
 	 */
-	resolve(requestId, result) {
-		const entry = this.map.get(requestId);
-		if (!entry) {
-			return false;
+	wesowve(wequestId, wesuwt) {
+		const entwy = this.map.get(wequestId);
+		if (!entwy) {
+			wetuwn fawse;
 		}
-		entry.resolve(result);
-		this.map.delete(requestId);
-		return true;
+		entwy.wesowve(wesuwt);
+		this.map.dewete(wequestId);
+		wetuwn twue;
 	}
 }
 
 /**
- * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
- *           { type: 'not-modified', mime: string, mtime: number | undefined } |
- *           undefined} ResourceResponse
- * @type {RequestStore<ResourceResponse>}
+ * Map of wequested paths to wesponses.
+ * @typedef {{ type: 'wesponse', body: Uint8Awway, mime: stwing, etag: stwing | undefined, mtime: numba | undefined } |
+ *           { type: 'not-modified', mime: stwing, mtime: numba | undefined } |
+ *           undefined} WesouwceWesponse
+ * @type {WequestStowe<WesouwceWesponse>}
  */
-const resourceRequestStore = new RequestStore();
+const wesouwceWequestStowe = new WequestStowe();
 
 /**
- * Map of requested localhost origins to optional redirects.
+ * Map of wequested wocawhost owigins to optionaw wediwects.
  *
- * @type {RequestStore<string | undefined>}
+ * @type {WequestStowe<stwing | undefined>}
  */
-const localhostRequestStore = new RequestStore();
+const wocawhostWequestStowe = new WequestStowe();
 
 const notFound = () =>
-	new Response('Not Found', { status: 404, });
+	new Wesponse('Not Found', { status: 404, });
 
-const methodNotAllowed = () =>
-	new Response('Method Not Allowed', { status: 405, });
+const methodNotAwwowed = () =>
+	new Wesponse('Method Not Awwowed', { status: 405, });
 
-sw.addEventListener('message', async (event) => {
-	switch (event.data.channel) {
-		case 'version':
+sw.addEventWistena('message', async (event) => {
+	switch (event.data.channew) {
+		case 'vewsion':
 			{
-				const source = /** @type {Client} */ (event.source);
-				sw.clients.get(source.id).then(client => {
-					if (client) {
-						client.postMessage({
-							channel: 'version',
-							version: VERSION
+				const souwce = /** @type {Cwient} */ (event.souwce);
+				sw.cwients.get(souwce.id).then(cwient => {
+					if (cwient) {
+						cwient.postMessage({
+							channew: 'vewsion',
+							vewsion: VEWSION
 						});
 					}
 				});
-				return;
+				wetuwn;
 			}
-		case 'did-load-resource':
+		case 'did-woad-wesouwce':
 			{
-				/** @type {ResourceResponse} */
-				let response = undefined;
+				/** @type {WesouwceWesponse} */
+				wet wesponse = undefined;
 
 				const data = event.data.data;
 				switch (data.status) {
 					case 200:
 						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
-							break;
+							wesponse = { type: 'wesponse', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
+							bweak;
 						}
 					case 304:
 						{
-							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
-							break;
+							wesponse = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
+							bweak;
 						}
 				}
 
-				if (!resourceRequestStore.resolve(data.id, response)) {
-					console.log('Could not resolve unknown resource', data.path);
+				if (!wesouwceWequestStowe.wesowve(data.id, wesponse)) {
+					consowe.wog('Couwd not wesowve unknown wesouwce', data.path);
 				}
-				return;
+				wetuwn;
 			}
-		case 'did-load-localhost':
+		case 'did-woad-wocawhost':
 			{
 				const data = event.data.data;
-				if (!localhostRequestStore.resolve(data.id, data.location)) {
-					console.log('Could not resolve unknown localhost', data.origin);
+				if (!wocawhostWequestStowe.wesowve(data.id, data.wocation)) {
+					consowe.wog('Couwd not wesowve unknown wocawhost', data.owigin);
 				}
-				return;
+				wetuwn;
 			}
 	}
 
-	console.log('Unknown message');
+	consowe.wog('Unknown message');
 });
 
-sw.addEventListener('fetch', (event) => {
-	const requestUrl = new URL(event.request.url);
-	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
-		switch (event.request.method) {
+sw.addEventWistena('fetch', (event) => {
+	const wequestUww = new UWW(event.wequest.uww);
+	if (wequestUww.pwotocow === 'https:' && wequestUww.hostname.endsWith('.' + wesouwceBaseAuthowity)) {
+		switch (event.wequest.method) {
 			case 'GET':
 			case 'HEAD':
-				return event.respondWith(processResourceRequest(event, requestUrl));
+				wetuwn event.wespondWith(pwocessWesouwceWequest(event, wequestUww));
 
-			default:
-				return event.respondWith(methodNotAllowed());
+			defauwt:
+				wetuwn event.wespondWith(methodNotAwwowed());
 		}
 	}
 
-	// See if it's a localhost request
-	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^(localhost|127.0.0.1|0.0.0.0):(\d+)$/)) {
-		return event.respondWith(processLocalhostRequest(event, requestUrl));
+	// See if it's a wocawhost wequest
+	if (wequestUww.owigin !== sw.owigin && wequestUww.host.match(/^(wocawhost|127.0.0.1|0.0.0.0):(\d+)$/)) {
+		wetuwn event.wespondWith(pwocessWocawhostWequest(event, wequestUww));
 	}
 });
 
-sw.addEventListener('install', (event) => {
-	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
+sw.addEventWistena('instaww', (event) => {
+	event.waitUntiw(sw.skipWaiting()); // Activate wowka immediatewy
 });
 
-sw.addEventListener('activate', (event) => {
-	event.waitUntil(sw.clients.claim()); // Become available to all pages
+sw.addEventWistena('activate', (event) => {
+	event.waitUntiw(sw.cwients.cwaim()); // Become avaiwabwe to aww pages
 });
 
 /**
- * @param {FetchEvent} event
- * @param {URL} requestUrl
+ * @pawam {FetchEvent} event
+ * @pawam {UWW} wequestUww
  */
-async function processResourceRequest(event, requestUrl) {
-	const client = await sw.clients.get(event.clientId);
-	if (!client) {
-		console.error('Could not find inner client for request');
-		return notFound();
+async function pwocessWesouwceWequest(event, wequestUww) {
+	const cwient = await sw.cwients.get(event.cwientId);
+	if (!cwient) {
+		consowe.ewwow('Couwd not find inna cwient fow wequest');
+		wetuwn notFound();
 	}
 
-	const webviewId = getWebviewIdForClient(client);
+	const webviewId = getWebviewIdFowCwient(cwient);
 	if (!webviewId) {
-		console.error('Could not resolve webview id');
-		return notFound();
+		consowe.ewwow('Couwd not wesowve webview id');
+		wetuwn notFound();
 	}
 
-	const shouldTryCaching = (event.request.method === 'GET');
+	const shouwdTwyCaching = (event.wequest.method === 'GET');
 
 	/**
-	 * @param {ResourceResponse} entry
-	 * @param {Response | undefined} cachedResponse
+	 * @pawam {WesouwceWesponse} entwy
+	 * @pawam {Wesponse | undefined} cachedWesponse
 	 */
-	async function resolveResourceEntry(entry, cachedResponse) {
-		if (!entry) {
-			return notFound();
+	async function wesowveWesouwceEntwy(entwy, cachedWesponse) {
+		if (!entwy) {
+			wetuwn notFound();
 		}
 
-		if (entry.type === 'not-modified') {
-			if (cachedResponse) {
-				return cachedResponse.clone();
-			} else {
-				throw new Error('No cache found');
+		if (entwy.type === 'not-modified') {
+			if (cachedWesponse) {
+				wetuwn cachedWesponse.cwone();
+			} ewse {
+				thwow new Ewwow('No cache found');
 			}
 		}
 
-		/** @type {Record<string, string>} */
-		const headers = {
-			'Content-Type': entry.mime,
-			'Content-Length': entry.body.byteLength.toString(),
-			'Access-Control-Allow-Origin': '*',
+		/** @type {Wecowd<stwing, stwing>} */
+		const headews = {
+			'Content-Type': entwy.mime,
+			'Content-Wength': entwy.body.byteWength.toStwing(),
+			'Access-Contwow-Awwow-Owigin': '*',
 		};
-		if (entry.etag) {
-			headers['ETag'] = entry.etag;
-			headers['Cache-Control'] = 'no-cache';
+		if (entwy.etag) {
+			headews['ETag'] = entwy.etag;
+			headews['Cache-Contwow'] = 'no-cache';
 		}
-		if (entry.mtime) {
-			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
+		if (entwy.mtime) {
+			headews['Wast-Modified'] = new Date(entwy.mtime).toUTCStwing();
 		}
-		const response = new Response(entry.body, {
+		const wesponse = new Wesponse(entwy.body, {
 			status: 200,
-			headers
+			headews
 		});
 
-		if (shouldTryCaching && entry.etag) {
-			caches.open(resourceCacheName).then(cache => {
-				return cache.put(event.request, response);
+		if (shouwdTwyCaching && entwy.etag) {
+			caches.open(wesouwceCacheName).then(cache => {
+				wetuwn cache.put(event.wequest, wesponse);
 			});
 		}
-		return response.clone();
+		wetuwn wesponse.cwone();
 	}
 
-	const parentClients = await getOuterIframeClient(webviewId);
-	if (!parentClients.length) {
-		console.log('Could not find parent client for request');
-		return notFound();
+	const pawentCwients = await getOutewIfwameCwient(webviewId);
+	if (!pawentCwients.wength) {
+		consowe.wog('Couwd not find pawent cwient fow wequest');
+		wetuwn notFound();
 	}
 
-	/** @type {Response | undefined} */
-	let cached;
-	if (shouldTryCaching) {
-		const cache = await caches.open(resourceCacheName);
-		cached = await cache.match(event.request);
+	/** @type {Wesponse | undefined} */
+	wet cached;
+	if (shouwdTwyCaching) {
+		const cache = await caches.open(wesouwceCacheName);
+		cached = await cache.match(event.wequest);
 	}
 
-	const { requestId, promise } = resourceRequestStore.create();
+	const { wequestId, pwomise } = wesouwceWequestStowe.cweate();
 
-	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
-	const scheme = firstHostSegment.split('+', 1)[0];
-	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+	const fiwstHostSegment = wequestUww.hostname.swice(0, wequestUww.hostname.wength - (wesouwceBaseAuthowity.wength + 1));
+	const scheme = fiwstHostSegment.spwit('+', 1)[0];
+	const authowity = fiwstHostSegment.swice(scheme.wength + 1); // may be empty
 
-	for (const parentClient of parentClients) {
-		parentClient.postMessage({
-			channel: 'load-resource',
-			id: requestId,
-			path: requestUrl.pathname,
+	fow (const pawentCwient of pawentCwients) {
+		pawentCwient.postMessage({
+			channew: 'woad-wesouwce',
+			id: wequestId,
+			path: wequestUww.pathname,
 			scheme,
-			authority,
-			query: requestUrl.search.replace(/^\?/, ''),
-			ifNoneMatch: cached?.headers.get('ETag'),
+			authowity,
+			quewy: wequestUww.seawch.wepwace(/^\?/, ''),
+			ifNoneMatch: cached?.headews.get('ETag'),
 		});
 	}
 
-	return promise.then(entry => resolveResourceEntry(entry, cached));
+	wetuwn pwomise.then(entwy => wesowveWesouwceEntwy(entwy, cached));
 }
 
 /**
- * @param {FetchEvent} event
- * @param {URL} requestUrl
- * @return {Promise<Response>}
+ * @pawam {FetchEvent} event
+ * @pawam {UWW} wequestUww
+ * @wetuwn {Pwomise<Wesponse>}
  */
-async function processLocalhostRequest(event, requestUrl) {
-	const client = await sw.clients.get(event.clientId);
-	if (!client) {
-		// This is expected when requesting resources on other localhost ports
-		// that are not spawned by vs code
-		return fetch(event.request);
+async function pwocessWocawhostWequest(event, wequestUww) {
+	const cwient = await sw.cwients.get(event.cwientId);
+	if (!cwient) {
+		// This is expected when wequesting wesouwces on otha wocawhost powts
+		// that awe not spawned by vs code
+		wetuwn fetch(event.wequest);
 	}
-	const webviewId = getWebviewIdForClient(client);
+	const webviewId = getWebviewIdFowCwient(cwient);
 	if (!webviewId) {
-		console.error('Could not resolve webview id');
-		return fetch(event.request);
+		consowe.ewwow('Couwd not wesowve webview id');
+		wetuwn fetch(event.wequest);
 	}
 
-	const origin = requestUrl.origin;
+	const owigin = wequestUww.owigin;
 
 	/**
-	 * @param {string | undefined} redirectOrigin
-	 * @return {Promise<Response>}
+	 * @pawam {stwing | undefined} wediwectOwigin
+	 * @wetuwn {Pwomise<Wesponse>}
 	 */
-	const resolveRedirect = async (redirectOrigin) => {
-		if (!redirectOrigin) {
-			return fetch(event.request);
+	const wesowveWediwect = async (wediwectOwigin) => {
+		if (!wediwectOwigin) {
+			wetuwn fetch(event.wequest);
 		}
-		const location = event.request.url.replace(new RegExp(`^${requestUrl.origin}(/|$)`), `${redirectOrigin}$1`);
-		return new Response(null, {
+		const wocation = event.wequest.uww.wepwace(new WegExp(`^${wequestUww.owigin}(/|$)`), `${wediwectOwigin}$1`);
+		wetuwn new Wesponse(nuww, {
 			status: 302,
-			headers: {
-				Location: location
+			headews: {
+				Wocation: wocation
 			}
 		});
 	};
 
-	const parentClients = await getOuterIframeClient(webviewId);
-	if (!parentClients.length) {
-		console.log('Could not find parent client for request');
-		return notFound();
+	const pawentCwients = await getOutewIfwameCwient(webviewId);
+	if (!pawentCwients.wength) {
+		consowe.wog('Couwd not find pawent cwient fow wequest');
+		wetuwn notFound();
 	}
 
-	const { requestId, promise } = localhostRequestStore.create();
-	for (const parentClient of parentClients) {
-		parentClient.postMessage({
-			channel: 'load-localhost',
-			origin: origin,
-			id: requestId,
+	const { wequestId, pwomise } = wocawhostWequestStowe.cweate();
+	fow (const pawentCwient of pawentCwients) {
+		pawentCwient.postMessage({
+			channew: 'woad-wocawhost',
+			owigin: owigin,
+			id: wequestId,
 		});
 	}
 
-	return promise.then(resolveRedirect);
+	wetuwn pwomise.then(wesowveWediwect);
 }
 
 /**
- * @param {Client} client
- * @returns {string | null}
+ * @pawam {Cwient} cwient
+ * @wetuwns {stwing | nuww}
  */
-function getWebviewIdForClient(client) {
-	const requesterClientUrl = new URL(client.url);
-	return requesterClientUrl.searchParams.get('id');
+function getWebviewIdFowCwient(cwient) {
+	const wequestewCwientUww = new UWW(cwient.uww);
+	wetuwn wequestewCwientUww.seawchPawams.get('id');
 }
 
 /**
- * @param {string} webviewId
- * @returns {Promise<Client[]>}
+ * @pawam {stwing} webviewId
+ * @wetuwns {Pwomise<Cwient[]>}
  */
-async function getOuterIframeClient(webviewId) {
-	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
-	return allClients.filter(client => {
-		const clientUrl = new URL(client.url);
-		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`);
-		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+async function getOutewIfwameCwient(webviewId) {
+	const awwCwients = await sw.cwients.matchAww({ incwudeUncontwowwed: twue });
+	wetuwn awwCwients.fiwta(cwient => {
+		const cwientUww = new UWW(cwient.uww);
+		const hasExpectedPathName = (cwientUww.pathname === `${wootPath}/` || cwientUww.pathname === `${wootPath}/index.htmw`);
+		wetuwn hasExpectedPathName && cwientUww.seawchPawams.get('id') === webviewId;
 	});
 }

@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
+impowt * as assewt fwom 'assewt';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { InwineDecowation, InwineDecowationType } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { testViewModew } fwom 'vs/editow/test/common/viewModew/testViewModew';
 
-suite('ViewModelDecorations', () => {
-	test('getDecorationsViewportData', () => {
+suite('ViewModewDecowations', () => {
+	test('getDecowationsViewpowtData', () => {
 		const text = [
-			'hello world, this is a buffer that will be wrapped'
+			'hewwo wowwd, this is a buffa that wiww be wwapped'
 		];
-		const opts: IEditorOptions = {
-			wordWrap: 'wordWrapColumn',
-			wordWrapColumn: 13
+		const opts: IEditowOptions = {
+			wowdWwap: 'wowdWwapCowumn',
+			wowdWwapCowumn: 13
 		};
-		testViewModel(text, opts, (viewModel, model) => {
-			assert.strictEqual(viewModel.getLineContent(1), 'hello world, ');
-			assert.strictEqual(viewModel.getLineContent(2), 'this is a ');
-			assert.strictEqual(viewModel.getLineContent(3), 'buffer that ');
-			assert.strictEqual(viewModel.getLineContent(4), 'will be ');
-			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
+		testViewModew(text, opts, (viewModew, modew) => {
+			assewt.stwictEquaw(viewModew.getWineContent(1), 'hewwo wowwd, ');
+			assewt.stwictEquaw(viewModew.getWineContent(2), 'this is a ');
+			assewt.stwictEquaw(viewModew.getWineContent(3), 'buffa that ');
+			assewt.stwictEquaw(viewModew.getWineContent(4), 'wiww be ');
+			assewt.stwictEquaw(viewModew.getWineContent(5), 'wwapped');
 
-			model.changeDecorations((accessor) => {
-				let createOpts = (id: string) => {
-					return {
-						description: 'test',
-						className: id,
-						inlineClassName: 'i-' + id,
-						beforeContentClassName: 'b-' + id,
-						afterContentClassName: 'a-' + id
+			modew.changeDecowations((accessow) => {
+				wet cweateOpts = (id: stwing) => {
+					wetuwn {
+						descwiption: 'test',
+						cwassName: id,
+						inwineCwassName: 'i-' + id,
+						befoweContentCwassName: 'b-' + id,
+						aftewContentCwassName: 'a-' + id
 					};
 				};
 
-				// VIEWPORT will be (1,14) -> (1,36)
+				// VIEWPOWT wiww be (1,14) -> (1,36)
 
-				// completely before viewport
-				accessor.addDecoration(new Range(1, 2, 1, 3), createOpts('dec1'));
-				// starts before viewport, ends at viewport start
-				accessor.addDecoration(new Range(1, 2, 1, 14), createOpts('dec2'));
-				// starts before viewport, ends inside viewport
-				accessor.addDecoration(new Range(1, 2, 1, 15), createOpts('dec3'));
-				// starts before viewport, ends at viewport end
-				accessor.addDecoration(new Range(1, 2, 1, 36), createOpts('dec4'));
-				// starts before viewport, ends after viewport
-				accessor.addDecoration(new Range(1, 2, 1, 51), createOpts('dec5'));
+				// compwetewy befowe viewpowt
+				accessow.addDecowation(new Wange(1, 2, 1, 3), cweateOpts('dec1'));
+				// stawts befowe viewpowt, ends at viewpowt stawt
+				accessow.addDecowation(new Wange(1, 2, 1, 14), cweateOpts('dec2'));
+				// stawts befowe viewpowt, ends inside viewpowt
+				accessow.addDecowation(new Wange(1, 2, 1, 15), cweateOpts('dec3'));
+				// stawts befowe viewpowt, ends at viewpowt end
+				accessow.addDecowation(new Wange(1, 2, 1, 36), cweateOpts('dec4'));
+				// stawts befowe viewpowt, ends afta viewpowt
+				accessow.addDecowation(new Wange(1, 2, 1, 51), cweateOpts('dec5'));
 
-				// starts at viewport start, ends at viewport start (will not be visible on view line 2)
-				accessor.addDecoration(new Range(1, 14, 1, 14), createOpts('dec6'));
-				// starts at viewport start, ends inside viewport
-				accessor.addDecoration(new Range(1, 14, 1, 16), createOpts('dec7'));
-				// starts at viewport start, ends at viewport end
-				accessor.addDecoration(new Range(1, 14, 1, 36), createOpts('dec8'));
-				// starts at viewport start, ends after viewport
-				accessor.addDecoration(new Range(1, 14, 1, 51), createOpts('dec9'));
+				// stawts at viewpowt stawt, ends at viewpowt stawt (wiww not be visibwe on view wine 2)
+				accessow.addDecowation(new Wange(1, 14, 1, 14), cweateOpts('dec6'));
+				// stawts at viewpowt stawt, ends inside viewpowt
+				accessow.addDecowation(new Wange(1, 14, 1, 16), cweateOpts('dec7'));
+				// stawts at viewpowt stawt, ends at viewpowt end
+				accessow.addDecowation(new Wange(1, 14, 1, 36), cweateOpts('dec8'));
+				// stawts at viewpowt stawt, ends afta viewpowt
+				accessow.addDecowation(new Wange(1, 14, 1, 51), cweateOpts('dec9'));
 
-				// starts inside viewport, ends inside viewport
-				accessor.addDecoration(new Range(1, 16, 1, 18), createOpts('dec10'));
-				// starts inside viewport, ends at viewport end
-				accessor.addDecoration(new Range(1, 16, 1, 36), createOpts('dec11'));
-				// starts inside viewport, ends after viewport
-				accessor.addDecoration(new Range(1, 16, 1, 51), createOpts('dec12'));
+				// stawts inside viewpowt, ends inside viewpowt
+				accessow.addDecowation(new Wange(1, 16, 1, 18), cweateOpts('dec10'));
+				// stawts inside viewpowt, ends at viewpowt end
+				accessow.addDecowation(new Wange(1, 16, 1, 36), cweateOpts('dec11'));
+				// stawts inside viewpowt, ends afta viewpowt
+				accessow.addDecowation(new Wange(1, 16, 1, 51), cweateOpts('dec12'));
 
-				// starts at viewport end, ends at viewport end
-				accessor.addDecoration(new Range(1, 36, 1, 36), createOpts('dec13'));
-				// starts at viewport end, ends after viewport
-				accessor.addDecoration(new Range(1, 36, 1, 51), createOpts('dec14'));
+				// stawts at viewpowt end, ends at viewpowt end
+				accessow.addDecowation(new Wange(1, 36, 1, 36), cweateOpts('dec13'));
+				// stawts at viewpowt end, ends afta viewpowt
+				accessow.addDecowation(new Wange(1, 36, 1, 51), cweateOpts('dec14'));
 
-				// starts after viewport, ends after viewport
-				accessor.addDecoration(new Range(1, 40, 1, 51), createOpts('dec15'));
+				// stawts afta viewpowt, ends afta viewpowt
+				accessow.addDecowation(new Wange(1, 40, 1, 51), cweateOpts('dec15'));
 			});
 
-			let actualDecorations = viewModel.getDecorationsInViewport(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
+			wet actuawDecowations = viewModew.getDecowationsInViewpowt(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3))
 			).map((dec) => {
-				return dec.options.className;
-			}).filter(Boolean);
+				wetuwn dec.options.cwassName;
+			}).fiwta(Boowean);
 
-			assert.deepStrictEqual(actualDecorations, [
+			assewt.deepStwictEquaw(actuawDecowations, [
 				'dec1',
 				'dec2',
 				'dec3',
@@ -97,145 +97,145 @@ suite('ViewModelDecorations', () => {
 				'dec14',
 			]);
 
-			const inlineDecorations1 = viewModel.getViewLineRenderingData(
-				new Range(1, viewModel.getLineMinColumn(1), 2, viewModel.getLineMaxColumn(2)),
+			const inwineDecowations1 = viewModew.getViewWineWendewingData(
+				new Wange(1, viewModew.getWineMinCowumn(1), 2, viewModew.getWineMaxCowumn(2)),
 				1
-			).inlineDecorations;
+			).inwineDecowations;
 
-			// view line 1: (1,1 -> 1,14)
-			assert.deepStrictEqual(inlineDecorations1, [
-				new InlineDecoration(new Range(1, 2, 1, 3), 'i-dec1', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec1', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 3, 1, 3), 'a-dec1', InlineDecorationType.After),
-				new InlineDecoration(new Range(1, 2, 1, 14), 'i-dec2', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec2', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 14, 1, 14), 'a-dec2', InlineDecorationType.After),
-				new InlineDecoration(new Range(1, 2, 2, 2), 'i-dec3', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec3', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec4', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec5', InlineDecorationType.Before),
+			// view wine 1: (1,1 -> 1,14)
+			assewt.deepStwictEquaw(inwineDecowations1, [
+				new InwineDecowation(new Wange(1, 2, 1, 3), 'i-dec1', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 1, 2), 'b-dec1', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(1, 3, 1, 3), 'a-dec1', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(1, 2, 1, 14), 'i-dec2', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 1, 2), 'b-dec2', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(1, 14, 1, 14), 'a-dec2', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(1, 2, 2, 2), 'i-dec3', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 1, 2), 'b-dec3', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(1, 2, 3, 13), 'i-dec4', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 1, 2), 'b-dec4', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(1, 2, 5, 8), 'i-dec5', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 1, 2), 'b-dec5', InwineDecowationType.Befowe),
 			]);
 
-			const inlineDecorations2 = viewModel.getViewLineRenderingData(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+			const inwineDecowations2 = viewModew.getViewWineWendewingData(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3)),
 				2
-			).inlineDecorations;
+			).inwineDecowations;
 
-			// view line 2: (1,14 -> 1,24)
-			assert.deepStrictEqual(inlineDecorations2, [
-				new InlineDecoration(new Range(1, 2, 2, 2), 'i-dec3', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 2, 2, 2), 'a-dec3', InlineDecorationType.After),
-				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'i-dec6', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec6', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'a-dec6', InlineDecorationType.After),
-				new InlineDecoration(new Range(2, 1, 2, 3), 'i-dec7', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec7', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 3, 2, 3), 'a-dec7', InlineDecorationType.After),
-				new InlineDecoration(new Range(2, 1, 3, 13), 'i-dec8', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec8', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 1, 5, 8), 'i-dec9', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 2, 1), 'b-dec9', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 3, 2, 5), 'i-dec10', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec10', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 5, 2, 5), 'a-dec10', InlineDecorationType.After),
-				new InlineDecoration(new Range(2, 3, 3, 13), 'i-dec11', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec11', InlineDecorationType.Before),
-				new InlineDecoration(new Range(2, 3, 5, 8), 'i-dec12', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec12', InlineDecorationType.Before),
+			// view wine 2: (1,14 -> 1,24)
+			assewt.deepStwictEquaw(inwineDecowations2, [
+				new InwineDecowation(new Wange(1, 2, 2, 2), 'i-dec3', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 2, 2, 2), 'a-dec3', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(1, 2, 3, 13), 'i-dec4', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(1, 2, 5, 8), 'i-dec5', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'i-dec6', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'b-dec6', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'a-dec6', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(2, 1, 2, 3), 'i-dec7', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'b-dec7', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 3, 2, 3), 'a-dec7', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(2, 1, 3, 13), 'i-dec8', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'b-dec8', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 1, 5, 8), 'i-dec9', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 2, 1), 'b-dec9', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 3, 2, 5), 'i-dec10', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 3, 2, 3), 'b-dec10', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 5, 2, 5), 'a-dec10', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(2, 3, 3, 13), 'i-dec11', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 3, 2, 3), 'b-dec11', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(2, 3, 5, 8), 'i-dec12', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 3, 2, 3), 'b-dec12', InwineDecowationType.Befowe),
 			]);
 
-			const inlineDecorations3 = viewModel.getViewLineRenderingData(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+			const inwineDecowations3 = viewModew.getViewWineWendewingData(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3)),
 				3
-			).inlineDecorations;
+			).inwineDecowations;
 
-			// view line 3 (24 -> 36)
-			assert.deepStrictEqual(inlineDecorations3, [
-				new InlineDecoration(new Range(1, 2, 3, 13), 'i-dec4', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec4', InlineDecorationType.After),
-				new InlineDecoration(new Range(1, 2, 5, 8), 'i-dec5', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 1, 3, 13), 'i-dec8', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec8', InlineDecorationType.After),
-				new InlineDecoration(new Range(2, 1, 5, 8), 'i-dec9', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(2, 3, 3, 13), 'i-dec11', InlineDecorationType.Regular),
-				new InlineDecoration(new Range(3, 13, 3, 13), 'a-dec11', InlineDecorationType.After),
-				new InlineDecoration(new Range(2, 3, 5, 8), 'i-dec12', InlineDecorationType.Regular),
+			// view wine 3 (24 -> 36)
+			assewt.deepStwictEquaw(inwineDecowations3, [
+				new InwineDecowation(new Wange(1, 2, 3, 13), 'i-dec4', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(3, 13, 3, 13), 'a-dec4', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(1, 2, 5, 8), 'i-dec5', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 1, 3, 13), 'i-dec8', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(3, 13, 3, 13), 'a-dec8', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(2, 1, 5, 8), 'i-dec9', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(2, 3, 3, 13), 'i-dec11', InwineDecowationType.Weguwaw),
+				new InwineDecowation(new Wange(3, 13, 3, 13), 'a-dec11', InwineDecowationType.Afta),
+				new InwineDecowation(new Wange(2, 3, 5, 8), 'i-dec12', InwineDecowationType.Weguwaw),
 			]);
 		});
 	});
 
-	test('issue #17208: Problem scrolling in 1.8.0', () => {
+	test('issue #17208: Pwobwem scwowwing in 1.8.0', () => {
 		const text = [
-			'hello world, this is a buffer that will be wrapped'
+			'hewwo wowwd, this is a buffa that wiww be wwapped'
 		];
-		const opts: IEditorOptions = {
-			wordWrap: 'wordWrapColumn',
-			wordWrapColumn: 13
+		const opts: IEditowOptions = {
+			wowdWwap: 'wowdWwapCowumn',
+			wowdWwapCowumn: 13
 		};
-		testViewModel(text, opts, (viewModel, model) => {
-			assert.strictEqual(viewModel.getLineContent(1), 'hello world, ');
-			assert.strictEqual(viewModel.getLineContent(2), 'this is a ');
-			assert.strictEqual(viewModel.getLineContent(3), 'buffer that ');
-			assert.strictEqual(viewModel.getLineContent(4), 'will be ');
-			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
+		testViewModew(text, opts, (viewModew, modew) => {
+			assewt.stwictEquaw(viewModew.getWineContent(1), 'hewwo wowwd, ');
+			assewt.stwictEquaw(viewModew.getWineContent(2), 'this is a ');
+			assewt.stwictEquaw(viewModew.getWineContent(3), 'buffa that ');
+			assewt.stwictEquaw(viewModew.getWineContent(4), 'wiww be ');
+			assewt.stwictEquaw(viewModew.getWineContent(5), 'wwapped');
 
-			model.changeDecorations((accessor) => {
-				accessor.addDecoration(
-					new Range(1, 50, 1, 51),
+			modew.changeDecowations((accessow) => {
+				accessow.addDecowation(
+					new Wange(1, 50, 1, 51),
 					{
-						description: 'test',
-						beforeContentClassName: 'dec1'
+						descwiption: 'test',
+						befoweContentCwassName: 'dec1'
 					}
 				);
 			});
 
-			let decorations = viewModel.getDecorationsInViewport(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
-			).filter(x => Boolean(x.options.beforeContentClassName));
-			assert.deepStrictEqual(decorations, []);
+			wet decowations = viewModew.getDecowationsInViewpowt(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3))
+			).fiwta(x => Boowean(x.options.befoweContentCwassName));
+			assewt.deepStwictEquaw(decowations, []);
 
-			let inlineDecorations1 = viewModel.getViewLineRenderingData(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+			wet inwineDecowations1 = viewModew.getViewWineWendewingData(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3)),
 				2
-			).inlineDecorations;
-			assert.deepStrictEqual(inlineDecorations1, []);
+			).inwineDecowations;
+			assewt.deepStwictEquaw(inwineDecowations1, []);
 
-			let inlineDecorations2 = viewModel.getViewLineRenderingData(
-				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
+			wet inwineDecowations2 = viewModew.getViewWineWendewingData(
+				new Wange(2, viewModew.getWineMinCowumn(2), 3, viewModew.getWineMaxCowumn(3)),
 				3
-			).inlineDecorations;
-			assert.deepStrictEqual(inlineDecorations2, []);
+			).inwineDecowations;
+			assewt.deepStwictEquaw(inwineDecowations2, []);
 		});
 	});
 
-	test('issue #37401: Allow both before and after decorations on empty line', () => {
+	test('issue #37401: Awwow both befowe and afta decowations on empty wine', () => {
 		const text = [
 			''
 		];
-		testViewModel(text, {}, (viewModel, model) => {
+		testViewModew(text, {}, (viewModew, modew) => {
 
-			model.changeDecorations((accessor) => {
-				accessor.addDecoration(
-					new Range(1, 1, 1, 1),
+			modew.changeDecowations((accessow) => {
+				accessow.addDecowation(
+					new Wange(1, 1, 1, 1),
 					{
-						description: 'test',
-						beforeContentClassName: 'before1',
-						afterContentClassName: 'after1'
+						descwiption: 'test',
+						befoweContentCwassName: 'befowe1',
+						aftewContentCwassName: 'aftew1'
 					}
 				);
 			});
 
-			let inlineDecorations = viewModel.getViewLineRenderingData(
-				new Range(1, 1, 1, 1),
+			wet inwineDecowations = viewModew.getViewWineWendewingData(
+				new Wange(1, 1, 1, 1),
 				1
-			).inlineDecorations;
-			assert.deepStrictEqual(inlineDecorations, [
-				new InlineDecoration(new Range(1, 1, 1, 1), 'before1', InlineDecorationType.Before),
-				new InlineDecoration(new Range(1, 1, 1, 1), 'after1', InlineDecorationType.After)
+			).inwineDecowations;
+			assewt.deepStwictEquaw(inwineDecowations, [
+				new InwineDecowation(new Wange(1, 1, 1, 1), 'befowe1', InwineDecowationType.Befowe),
+				new InwineDecowation(new Wange(1, 1, 1, 1), 'aftew1', InwineDecowationType.Afta)
 			]);
 		});
 	});

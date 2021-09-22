@@ -1,170 +1,170 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/binaryeditor';
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Link } from 'vs/platform/opener/browser/link';
+impowt 'vs/css!./media/binawyeditow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { BinawyEditowModew } fwom 'vs/wowkbench/common/editow/binawyEditowModew';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Dimension, size, cweawNode } fwom 'vs/base/bwowsa/dom';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { assewtIsDefined, assewtAwwDefined } fwom 'vs/base/common/types';
+impowt { ByteSize } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
 
-export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
+expowt intewface IOpenCawwbacks {
+	openIntewnaw: (input: EditowInput, options: IEditowOptions | undefined) => Pwomise<void>;
 }
 
 /*
- * This class is only intended to be subclassed and not instantiated.
+ * This cwass is onwy intended to be subcwassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends EditorPane {
+expowt abstwact cwass BaseBinawyWesouwceEditow extends EditowPane {
 
-	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
-	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
+	pwivate weadonwy _onDidChangeMetadata = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeMetadata = this._onDidChangeMetadata.event;
 
-	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
-	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
+	pwivate weadonwy _onDidOpenInPwace = this._wegista(new Emitta<void>());
+	weadonwy onDidOpenInPwace = this._onDidOpenInPwace.event;
 
-	private metadata: string | undefined;
-	private binaryContainer: HTMLElement | undefined;
-	private scrollbar: DomScrollableElement | undefined;
-	private inputDisposable = this._register(new MutableDisposable());
+	pwivate metadata: stwing | undefined;
+	pwivate binawyContaina: HTMWEwement | undefined;
+	pwivate scwowwbaw: DomScwowwabweEwement | undefined;
+	pwivate inputDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		id: string,
-		private readonly callbacks: IOpenCallbacks,
-		telemetryService: ITelemetryService,
-		themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		id: stwing,
+		pwivate weadonwy cawwbacks: IOpenCawwbacks,
+		tewemetwySewvice: ITewemetwySewvice,
+		themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(id, telemetryService, themeService, storageService);
+		supa(id, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	override getTitle(): string {
-		return this.input ? this.input.getName() : localize('binaryEditor', "Binary Viewer");
+	ovewwide getTitwe(): stwing {
+		wetuwn this.input ? this.input.getName() : wocawize('binawyEditow', "Binawy Viewa");
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	pwotected cweateEditow(pawent: HTMWEwement): void {
 
-		// Container for Binary
-		this.binaryContainer = document.createElement('div');
-		this.binaryContainer.className = 'monaco-binary-resource-editor';
-		this.binaryContainer.style.outline = 'none';
-		this.binaryContainer.tabIndex = 0; // enable focus support from the editor part (do not remove)
+		// Containa fow Binawy
+		this.binawyContaina = document.cweateEwement('div');
+		this.binawyContaina.cwassName = 'monaco-binawy-wesouwce-editow';
+		this.binawyContaina.stywe.outwine = 'none';
+		this.binawyContaina.tabIndex = 0; // enabwe focus suppowt fwom the editow pawt (do not wemove)
 
-		// Custom Scrollbars
-		this.scrollbar = this._register(new DomScrollableElement(this.binaryContainer, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
-		parent.appendChild(this.scrollbar.getDomNode());
+		// Custom Scwowwbaws
+		this.scwowwbaw = this._wegista(new DomScwowwabweEwement(this.binawyContaina, { howizontaw: ScwowwbawVisibiwity.Auto, vewticaw: ScwowwbawVisibiwity.Auto }));
+		pawent.appendChiwd(this.scwowwbaw.getDomNode());
 	}
 
-	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
-		const model = await input.resolve();
+	ovewwide async setInput(input: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(input, options, context, token);
+		const modew = await input.wesowve();
 
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return;
+		// Check fow cancewwation
+		if (token.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		// Assert Model instance
-		if (!(model instanceof BinaryEditorModel)) {
-			throw new Error('Unable to open file as binary');
+		// Assewt Modew instance
+		if (!(modew instanceof BinawyEditowModew)) {
+			thwow new Ewwow('Unabwe to open fiwe as binawy');
 		}
 
-		// Render Input
-		this.inputDisposable.value = this.renderInput(input, options, model);
+		// Wenda Input
+		this.inputDisposabwe.vawue = this.wendewInput(input, options, modew);
 	}
 
-	private renderInput(input: EditorInput, options: IEditorOptions | undefined, model: BinaryEditorModel): IDisposable {
-		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
+	pwivate wendewInput(input: EditowInput, options: IEditowOptions | undefined, modew: BinawyEditowModew): IDisposabwe {
+		const [binawyContaina, scwowwbaw] = assewtAwwDefined(this.binawyContaina, this.scwowwbaw);
 
-		clearNode(binaryContainer);
+		cweawNode(binawyContaina);
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const label = document.createElement('p');
-		label.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
-		binaryContainer.appendChild(label);
+		const wabew = document.cweateEwement('p');
+		wabew.textContent = wocawize('nativeBinawyEwwow', "The fiwe is not dispwayed in the editow because it is eitha binawy ow uses an unsuppowted text encoding.");
+		binawyContaina.appendChiwd(wabew);
 
-		this._register(this.instantiationService.createInstance(Link, label, {
-			label: localize('openAsText', "Do you want to open it anyway?"),
-			href: ''
+		this._wegista(this.instantiationSewvice.cweateInstance(Wink, wabew, {
+			wabew: wocawize('openAsText', "Do you want to open it anyway?"),
+			hwef: ''
 		}, {
-			opener: async () => {
+			opena: async () => {
 
-				// Open in place
-				await this.callbacks.openInternal(input, options);
+				// Open in pwace
+				await this.cawwbacks.openIntewnaw(input, options);
 
-				// Signal to listeners that the binary editor has been opened in-place
-				this._onDidOpenInPlace.fire();
+				// Signaw to wistenews that the binawy editow has been opened in-pwace
+				this._onDidOpenInPwace.fiwe();
 			}
 		}));
 
-		scrollbar.scanDomNode();
+		scwowwbaw.scanDomNode();
 
 		// Update metadata
-		const size = model.getSize();
-		this.handleMetadataChanged(typeof size === 'number' ? ByteSize.formatSize(size) : '');
+		const size = modew.getSize();
+		this.handweMetadataChanged(typeof size === 'numba' ? ByteSize.fowmatSize(size) : '');
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private handleMetadataChanged(meta: string | undefined): void {
+	pwivate handweMetadataChanged(meta: stwing | undefined): void {
 		this.metadata = meta;
 
-		this._onDidChangeMetadata.fire();
+		this._onDidChangeMetadata.fiwe();
 	}
 
-	getMetadata(): string | undefined {
-		return this.metadata;
+	getMetadata(): stwing | undefined {
+		wetuwn this.metadata;
 	}
 
-	override clearInput(): void {
+	ovewwide cweawInput(): void {
 
-		// Clear Meta
-		this.handleMetadataChanged(undefined);
+		// Cweaw Meta
+		this.handweMetadataChanged(undefined);
 
-		// Clear the rest
-		if (this.binaryContainer) {
-			clearNode(this.binaryContainer);
+		// Cweaw the west
+		if (this.binawyContaina) {
+			cweawNode(this.binawyContaina);
 		}
-		this.inputDisposable.clear();
+		this.inputDisposabwe.cweaw();
 
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 
-		// Pass on to Binary Container
-		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
-		size(binaryContainer, dimension.width, dimension.height);
-		scrollbar.scanDomNode();
+		// Pass on to Binawy Containa
+		const [binawyContaina, scwowwbaw] = assewtAwwDefined(this.binawyContaina, this.scwowwbaw);
+		size(binawyContaina, dimension.width, dimension.height);
+		scwowwbaw.scanDomNode();
 	}
 
-	override focus(): void {
-		const binaryContainer = assertIsDefined(this.binaryContainer);
+	ovewwide focus(): void {
+		const binawyContaina = assewtIsDefined(this.binawyContaina);
 
-		binaryContainer.focus();
+		binawyContaina.focus();
 	}
 
-	override dispose(): void {
-		this.binaryContainer?.remove();
+	ovewwide dispose(): void {
+		this.binawyContaina?.wemove();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

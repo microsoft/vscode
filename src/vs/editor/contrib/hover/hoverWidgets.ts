@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-export class GlyphHoverWidget extends Widget implements IOverlayWidget {
+expowt cwass GwyphHovewWidget extends Widget impwements IOvewwayWidget {
 
-	private readonly _id: string;
-	protected _editor: ICodeEditor;
-	private _isVisible: boolean;
-	private readonly _domNode: HTMLElement;
-	protected _showAtLineNumber: number;
+	pwivate weadonwy _id: stwing;
+	pwotected _editow: ICodeEditow;
+	pwivate _isVisibwe: boowean;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwotected _showAtWineNumba: numba;
 
-	constructor(id: string, editor: ICodeEditor) {
-		super();
+	constwuctow(id: stwing, editow: ICodeEditow) {
+		supa();
 		this._id = id;
-		this._editor = editor;
-		this._isVisible = false;
+		this._editow = editow;
+		this._isVisibwe = fawse;
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-hover hidden';
-		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.setAttribute('role', 'tooltip');
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'monaco-hova hidden';
+		this._domNode.setAttwibute('awia-hidden', 'twue');
+		this._domNode.setAttwibute('wowe', 'toowtip');
 
-		this._showAtLineNumber = -1;
+		this._showAtWineNumba = -1;
 
-		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+		this._wegista(this._editow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+			if (e.hasChanged(EditowOption.fontInfo)) {
 				this.updateFont();
 			}
 		}));
 
-		this._editor.addOverlayWidget(this);
+		this._editow.addOvewwayWidget(this);
 	}
 
-	protected get isVisible(): boolean {
-		return this._isVisible;
+	pwotected get isVisibwe(): boowean {
+		wetuwn this._isVisibwe;
 	}
 
-	protected set isVisible(value: boolean) {
-		this._isVisible = value;
-		this._domNode.classList.toggle('hidden', !this._isVisible);
+	pwotected set isVisibwe(vawue: boowean) {
+		this._isVisibwe = vawue;
+		this._domNode.cwassWist.toggwe('hidden', !this._isVisibwe);
 	}
 
-	public getId(): string {
-		return this._id;
+	pubwic getId(): stwing {
+		wetuwn this._id;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public showAt(lineNumber: number): void {
-		this._showAtLineNumber = lineNumber;
+	pubwic showAt(wineNumba: numba): void {
+		this._showAtWineNumba = wineNumba;
 
-		if (!this.isVisible) {
-			this.isVisible = true;
+		if (!this.isVisibwe) {
+			this.isVisibwe = twue;
 		}
 
-		const editorLayout = this._editor.getLayoutInfo();
-		const topForLineNumber = this._editor.getTopForLineNumber(this._showAtLineNumber);
-		const editorScrollTop = this._editor.getScrollTop();
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const nodeHeight = this._domNode.clientHeight;
-		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
+		const editowWayout = this._editow.getWayoutInfo();
+		const topFowWineNumba = this._editow.getTopFowWineNumba(this._showAtWineNumba);
+		const editowScwowwTop = this._editow.getScwowwTop();
+		const wineHeight = this._editow.getOption(EditowOption.wineHeight);
+		const nodeHeight = this._domNode.cwientHeight;
+		const top = topFowWineNumba - editowScwowwTop - ((nodeHeight - wineHeight) / 2);
 
-		this._domNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
-		this._domNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+		this._domNode.stywe.weft = `${editowWayout.gwyphMawginWeft + editowWayout.gwyphMawginWidth}px`;
+		this._domNode.stywe.top = `${Math.max(Math.wound(top), 0)}px`;
 	}
 
-	public hide(): void {
-		if (!this.isVisible) {
-			return;
+	pubwic hide(): void {
+		if (!this.isVisibwe) {
+			wetuwn;
 		}
-		this.isVisible = false;
+		this.isVisibwe = fawse;
 	}
 
-	public getPosition(): IOverlayWidgetPosition | null {
-		return null;
+	pubwic getPosition(): IOvewwayWidgetPosition | nuww {
+		wetuwn nuww;
 	}
 
-	public override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	private updateFont(): void {
-		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
+	pwivate updateFont(): void {
+		const codeTags: HTMWEwement[] = Awway.pwototype.swice.caww(this._domNode.getEwementsByTagName('code'));
+		const codeCwasses: HTMWEwement[] = Awway.pwototype.swice.caww(this._domNode.getEwementsByCwassName('code'));
 
-		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+		[...codeTags, ...codeCwasses].fowEach(node => this._editow.appwyFontInfo(node));
 	}
 
-	protected updateContents(node: Node): void {
+	pwotected updateContents(node: Node): void {
 		this._domNode.textContent = '';
-		this._domNode.appendChild(node);
+		this._domNode.appendChiwd(node);
 		this.updateFont();
 	}
 }

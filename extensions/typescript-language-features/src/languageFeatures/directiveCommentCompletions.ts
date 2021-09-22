@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { DocumentSelector } from '../utils/documentSelector';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-interface Directive {
-	readonly value: string;
-	readonly description: string;
+intewface Diwective {
+	weadonwy vawue: stwing;
+	weadonwy descwiption: stwing;
 }
 
-const tsDirectives: Directive[] = [
+const tsDiwectives: Diwective[] = [
 	{
-		value: '@ts-check',
-		description: localize(
+		vawue: '@ts-check',
+		descwiption: wocawize(
 			'ts-check',
-			"Enables semantic checking in a JavaScript file. Must be at the top of a file.")
+			"Enabwes semantic checking in a JavaScwipt fiwe. Must be at the top of a fiwe.")
 	}, {
-		value: '@ts-nocheck',
-		description: localize(
+		vawue: '@ts-nocheck',
+		descwiption: wocawize(
 			'ts-nocheck',
-			"Disables semantic checking in a JavaScript file. Must be at the top of a file.")
+			"Disabwes semantic checking in a JavaScwipt fiwe. Must be at the top of a fiwe.")
 	}, {
-		value: '@ts-ignore',
-		description: localize(
-			'ts-ignore',
-			"Suppresses @ts-check errors on the next line of a file.")
+		vawue: '@ts-ignowe',
+		descwiption: wocawize(
+			'ts-ignowe',
+			"Suppwesses @ts-check ewwows on the next wine of a fiwe.")
 	}
 ];
 
-const tsDirectives390: Directive[] = [
-	...tsDirectives,
+const tsDiwectives390: Diwective[] = [
+	...tsDiwectives,
 	{
-		value: '@ts-expect-error',
-		description: localize(
-			'ts-expect-error',
-			"Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
+		vawue: '@ts-expect-ewwow',
+		descwiption: wocawize(
+			'ts-expect-ewwow',
+			"Suppwesses @ts-check ewwows on the next wine of a fiwe, expecting at weast one to exist.")
 	}
 ];
 
-class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvider {
+cwass DiwectiveCommentCompwetionPwovida impwements vscode.CompwetionItemPwovida {
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
 	) { }
 
-	public provideCompletionItems(
+	pubwic pwovideCompwetionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		_token: vscode.CancellationToken
-	): vscode.CompletionItem[] {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return [];
+		_token: vscode.CancewwationToken
+	): vscode.CompwetionItem[] {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn [];
 		}
 
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character);
-		const match = prefix.match(/^\s*\/\/+\s?(@[a-zA-Z\-]*)?$/);
+		const wine = document.wineAt(position.wine).text;
+		const pwefix = wine.swice(0, position.chawacta);
+		const match = pwefix.match(/^\s*\/\/+\s?(@[a-zA-Z\-]*)?$/);
 		if (match) {
-			const directives = this.client.apiVersion.gte(API.v390)
-				? tsDirectives390
-				: tsDirectives;
+			const diwectives = this.cwient.apiVewsion.gte(API.v390)
+				? tsDiwectives390
+				: tsDiwectives;
 
-			return directives.map(directive => {
-				const item = new vscode.CompletionItem(directive.value, vscode.CompletionItemKind.Snippet);
-				item.detail = directive.description;
-				item.range = new vscode.Range(position.line, Math.max(0, position.character - (match[1] ? match[1].length : 0)), position.line, position.character);
-				return item;
+			wetuwn diwectives.map(diwective => {
+				const item = new vscode.CompwetionItem(diwective.vawue, vscode.CompwetionItemKind.Snippet);
+				item.detaiw = diwective.descwiption;
+				item.wange = new vscode.Wange(position.wine, Math.max(0, position.chawacta - (match[1] ? match[1].wength : 0)), position.wine, position.chawacta);
+				wetuwn item;
 			});
 		}
-		return [];
+		wetuwn [];
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return vscode.languages.registerCompletionItemProvider(selector.syntax,
-		new DirectiveCommentCompletionProvider(client),
+	wetuwn vscode.wanguages.wegistewCompwetionItemPwovida(sewectow.syntax,
+		new DiwectiveCommentCompwetionPwovida(cwient),
 		'@');
 }

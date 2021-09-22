@@ -1,299 +1,299 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { Component } from 'vs/workbench/common/component';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { trackFocus, Dimension } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+impowt { IAction, IActionWunna, ActionWunna } fwom 'vs/base/common/actions';
+impowt { Component } fwom 'vs/wowkbench/common/component';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IComposite, ICompositeContwow } fwom 'vs/wowkbench/common/composite';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IConstwuctowSignatuwe0, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { twackFocus, Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
 
 /**
- * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
- * can be open in the sidebar, and only one composite can be open in the panel.
+ * Composites awe wayed out in the sidebaw and panew pawt of the wowkbench. At a time onwy one composite
+ * can be open in the sidebaw, and onwy one composite can be open in the panew.
  *
- * Each composite has a minimized representation that is good enough to provide some
- * information about the state of the composite data.
+ * Each composite has a minimized wepwesentation that is good enough to pwovide some
+ * infowmation about the state of the composite data.
  *
- * The workbench will keep a composite alive after it has been created and show/hide it based on
- * user interaction. The lifecycle of a composite goes in the order create(), setVisible(true|false),
- * layout(), focus(), dispose(). During use of the workbench, a composite will often receive a setVisible,
- * layout and focus call, but only one create and dispose call.
+ * The wowkbench wiww keep a composite awive afta it has been cweated and show/hide it based on
+ * usa intewaction. The wifecycwe of a composite goes in the owda cweate(), setVisibwe(twue|fawse),
+ * wayout(), focus(), dispose(). Duwing use of the wowkbench, a composite wiww often weceive a setVisibwe,
+ * wayout and focus caww, but onwy one cweate and dispose caww.
  */
-export abstract class Composite extends Component implements IComposite {
+expowt abstwact cwass Composite extends Component impwements IComposite {
 
-	private readonly _onTitleAreaUpdate = this._register(new Emitter<void>());
-	readonly onTitleAreaUpdate = this._onTitleAreaUpdate.event;
+	pwivate weadonwy _onTitweAweaUpdate = this._wegista(new Emitta<void>());
+	weadonwy onTitweAweaUpdate = this._onTitweAweaUpdate.event;
 
-	private _onDidFocus: Emitter<void> | undefined;
+	pwivate _onDidFocus: Emitta<void> | undefined;
 	get onDidFocus(): Event<void> {
 		if (!this._onDidFocus) {
-			this._onDidFocus = this.registerFocusTrackEvents().onDidFocus;
+			this._onDidFocus = this.wegistewFocusTwackEvents().onDidFocus;
 		}
 
-		return this._onDidFocus.event;
+		wetuwn this._onDidFocus.event;
 	}
 
-	protected fireOnDidFocus(): void {
+	pwotected fiweOnDidFocus(): void {
 		if (this._onDidFocus) {
-			this._onDidFocus.fire();
+			this._onDidFocus.fiwe();
 		}
 	}
 
-	private _onDidBlur: Emitter<void> | undefined;
-	get onDidBlur(): Event<void> {
-		if (!this._onDidBlur) {
-			this._onDidBlur = this.registerFocusTrackEvents().onDidBlur;
+	pwivate _onDidBwuw: Emitta<void> | undefined;
+	get onDidBwuw(): Event<void> {
+		if (!this._onDidBwuw) {
+			this._onDidBwuw = this.wegistewFocusTwackEvents().onDidBwuw;
 		}
 
-		return this._onDidBlur.event;
+		wetuwn this._onDidBwuw.event;
 	}
 
-	private _hasFocus = false;
-	hasFocus(): boolean {
-		return this._hasFocus;
+	pwivate _hasFocus = fawse;
+	hasFocus(): boowean {
+		wetuwn this._hasFocus;
 	}
 
-	private registerFocusTrackEvents(): { onDidFocus: Emitter<void>, onDidBlur: Emitter<void> } {
-		const container = assertIsDefined(this.getContainer());
-		const focusTracker = this._register(trackFocus(container));
+	pwivate wegistewFocusTwackEvents(): { onDidFocus: Emitta<void>, onDidBwuw: Emitta<void> } {
+		const containa = assewtIsDefined(this.getContaina());
+		const focusTwacka = this._wegista(twackFocus(containa));
 
-		const onDidFocus = this._onDidFocus = this._register(new Emitter<void>());
-		this._register(focusTracker.onDidFocus(() => {
-			this._hasFocus = true;
-			onDidFocus.fire();
+		const onDidFocus = this._onDidFocus = this._wegista(new Emitta<void>());
+		this._wegista(focusTwacka.onDidFocus(() => {
+			this._hasFocus = twue;
+			onDidFocus.fiwe();
 		}));
 
-		const onDidBlur = this._onDidBlur = this._register(new Emitter<void>());
-		this._register(focusTracker.onDidBlur(() => {
-			this._hasFocus = false;
-			onDidBlur.fire();
+		const onDidBwuw = this._onDidBwuw = this._wegista(new Emitta<void>());
+		this._wegista(focusTwacka.onDidBwuw(() => {
+			this._hasFocus = fawse;
+			onDidBwuw.fiwe();
 		}));
 
-		return { onDidFocus, onDidBlur };
+		wetuwn { onDidFocus, onDidBwuw };
 	}
 
-	protected actionRunner: IActionRunner | undefined;
+	pwotected actionWunna: IActionWunna | undefined;
 
-	private _telemetryService: ITelemetryService;
-	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
+	pwivate _tewemetwySewvice: ITewemetwySewvice;
+	pwotected get tewemetwySewvice(): ITewemetwySewvice { wetuwn this._tewemetwySewvice; }
 
-	private visible: boolean;
-	private parent: HTMLElement | undefined;
+	pwivate visibwe: boowean;
+	pwivate pawent: HTMWEwement | undefined;
 
-	constructor(
-		id: string,
-		telemetryService: ITelemetryService,
-		themeService: IThemeService,
-		storageService: IStorageService
+	constwuctow(
+		id: stwing,
+		tewemetwySewvice: ITewemetwySewvice,
+		themeSewvice: IThemeSewvice,
+		stowageSewvice: IStowageSewvice
 	) {
-		super(id, themeService, storageService);
+		supa(id, themeSewvice, stowageSewvice);
 
-		this._telemetryService = telemetryService;
-		this.visible = false;
+		this._tewemetwySewvice = tewemetwySewvice;
+		this.visibwe = fawse;
 	}
 
-	getTitle(): string | undefined {
-		return undefined;
-	}
-
-	/**
-	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
-	 *
-	 * Called to create this composite on the provided parent. This method is only
-	 * called once during the lifetime of the workbench.
-	 * Note that DOM-dependent calculations should be performed from the setVisible()
-	 * call. Only then the composite will be part of the DOM.
-	 */
-	create(parent: HTMLElement): void {
-		this.parent = parent;
+	getTitwe(): stwing | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns the container this composite is being build in.
+	 * Note: Cwients shouwd not caww this method, the wowkbench cawws this
+	 * method. Cawwing it othewwise may wesuwt in unexpected behaviow.
+	 *
+	 * Cawwed to cweate this composite on the pwovided pawent. This method is onwy
+	 * cawwed once duwing the wifetime of the wowkbench.
+	 * Note that DOM-dependent cawcuwations shouwd be pewfowmed fwom the setVisibwe()
+	 * caww. Onwy then the composite wiww be pawt of the DOM.
 	 */
-	getContainer(): HTMLElement | undefined {
-		return this.parent;
+	cweate(pawent: HTMWEwement): void {
+		this.pawent = pawent;
 	}
 
 	/**
-	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
-	 *
-	 * Called to indicate that the composite has become visible or hidden. This method
-	 * is called more than once during workbench lifecycle depending on the user interaction.
-	 * The composite will be on-DOM if visible is set to true and off-DOM otherwise.
-	 *
-	 * Typically this operation should be fast though because setVisible might be called many times during a session.
-	 * If there is a long running opertaion it is fine to have it running in the background asyncly and return before.
+	 * Wetuwns the containa this composite is being buiwd in.
 	 */
-	setVisible(visible: boolean): void {
-		if (this.visible !== !!visible) {
-			this.visible = visible;
+	getContaina(): HTMWEwement | undefined {
+		wetuwn this.pawent;
+	}
+
+	/**
+	 * Note: Cwients shouwd not caww this method, the wowkbench cawws this
+	 * method. Cawwing it othewwise may wesuwt in unexpected behaviow.
+	 *
+	 * Cawwed to indicate that the composite has become visibwe ow hidden. This method
+	 * is cawwed mowe than once duwing wowkbench wifecycwe depending on the usa intewaction.
+	 * The composite wiww be on-DOM if visibwe is set to twue and off-DOM othewwise.
+	 *
+	 * Typicawwy this opewation shouwd be fast though because setVisibwe might be cawwed many times duwing a session.
+	 * If thewe is a wong wunning opewtaion it is fine to have it wunning in the backgwound asyncwy and wetuwn befowe.
+	 */
+	setVisibwe(visibwe: boowean): void {
+		if (this.visibwe !== !!visibwe) {
+			this.visibwe = visibwe;
 		}
 	}
 
 	/**
-	 * Called when this composite should receive keyboard focus.
+	 * Cawwed when this composite shouwd weceive keyboawd focus.
 	 */
 	focus(): void {
-		// Subclasses can implement
+		// Subcwasses can impwement
 	}
 
 	/**
-	 * Layout the contents of this composite using the provided dimensions.
+	 * Wayout the contents of this composite using the pwovided dimensions.
 	 */
-	abstract layout(dimension: Dimension): void;
+	abstwact wayout(dimension: Dimension): void;
 
 	/**
-	 * Update the styles of the contents of this composite.
+	 * Update the stywes of the contents of this composite.
 	 */
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 	}
 
 	/**
-	 * Returns an array of actions to show in the action bar of the composite.
+	 * Wetuwns an awway of actions to show in the action baw of the composite.
 	 */
-	getActions(): readonly IAction[] {
-		return [];
+	getActions(): weadonwy IAction[] {
+		wetuwn [];
 	}
 
 	/**
-	 * Returns an array of actions to show in the action bar of the composite
-	 * in a less prominent way then action from getActions.
+	 * Wetuwns an awway of actions to show in the action baw of the composite
+	 * in a wess pwominent way then action fwom getActions.
 	 */
-	getSecondaryActions(): readonly IAction[] {
-		return [];
+	getSecondawyActions(): weadonwy IAction[] {
+		wetuwn [];
 	}
 
 	/**
-	 * Returns an array of actions to show in the context menu of the composite
+	 * Wetuwns an awway of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): readonly IAction[] {
-		return [];
+	getContextMenuActions(): weadonwy IAction[] {
+		wetuwn [];
 	}
 
 	/**
-	 * For any of the actions returned by this composite, provide an IActionViewItem in
-	 * cases where the implementor of the composite wants to override the presentation
-	 * of an action. Returns undefined to indicate that the action is not rendered through
+	 * Fow any of the actions wetuwned by this composite, pwovide an IActionViewItem in
+	 * cases whewe the impwementow of the composite wants to ovewwide the pwesentation
+	 * of an action. Wetuwns undefined to indicate that the action is not wendewed thwough
 	 * an action item.
 	 */
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * Provide a context to be passed to the toolbar.
+	 * Pwovide a context to be passed to the toowbaw.
 	 */
 	getActionsContext(): unknown {
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * Returns the instance of IActionRunner to use with this composite for the
-	 * composite tool bar.
+	 * Wetuwns the instance of IActionWunna to use with this composite fow the
+	 * composite toow baw.
 	 */
-	getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = this._register(new ActionRunner());
+	getActionWunna(): IActionWunna {
+		if (!this.actionWunna) {
+			this.actionWunna = this._wegista(new ActionWunna());
 		}
 
-		return this.actionRunner;
+		wetuwn this.actionWunna;
 	}
 
 	/**
-	 * Method for composite implementors to indicate to the composite container that the title or the actions
-	 * of the composite have changed. Calling this method will cause the container to ask for title (getTitle())
-	 * and actions (getActions(), getSecondaryActions()) if the composite is visible or the next time the composite
-	 * gets visible.
+	 * Method fow composite impwementows to indicate to the composite containa that the titwe ow the actions
+	 * of the composite have changed. Cawwing this method wiww cause the containa to ask fow titwe (getTitwe())
+	 * and actions (getActions(), getSecondawyActions()) if the composite is visibwe ow the next time the composite
+	 * gets visibwe.
 	 */
-	protected updateTitleArea(): void {
-		this._onTitleAreaUpdate.fire();
+	pwotected updateTitweAwea(): void {
+		this._onTitweAweaUpdate.fiwe();
 	}
 
 	/**
-	 * Returns true if this composite is currently visible and false otherwise.
+	 * Wetuwns twue if this composite is cuwwentwy visibwe and fawse othewwise.
 	 */
-	isVisible(): boolean {
-		return this.visible;
+	isVisibwe(): boowean {
+		wetuwn this.visibwe;
 	}
 
 	/**
-	 * Returns the underlying composite control or `undefined` if it is not accessible.
+	 * Wetuwns the undewwying composite contwow ow `undefined` if it is not accessibwe.
 	 */
-	getControl(): ICompositeControl | undefined {
-		return undefined;
+	getContwow(): ICompositeContwow | undefined {
+		wetuwn undefined;
 	}
 }
 
 /**
- * A composite descriptor is a leightweight descriptor of a composite in the workbench.
+ * A composite descwiptow is a weightweight descwiptow of a composite in the wowkbench.
  */
-export abstract class CompositeDescriptor<T extends Composite> {
+expowt abstwact cwass CompositeDescwiptow<T extends Composite> {
 
-	constructor(
-		private readonly ctor: IConstructorSignature0<T>,
-		readonly id: string,
-		readonly name: string,
-		readonly cssClass?: string,
-		readonly order?: number,
-		readonly requestedIndex?: number,
+	constwuctow(
+		pwivate weadonwy ctow: IConstwuctowSignatuwe0<T>,
+		weadonwy id: stwing,
+		weadonwy name: stwing,
+		weadonwy cssCwass?: stwing,
+		weadonwy owda?: numba,
+		weadonwy wequestedIndex?: numba,
 	) { }
 
-	instantiate(instantiationService: IInstantiationService): T {
-		return instantiationService.createInstance(this.ctor);
+	instantiate(instantiationSewvice: IInstantiationSewvice): T {
+		wetuwn instantiationSewvice.cweateInstance(this.ctow);
 	}
 }
 
-export abstract class CompositeRegistry<T extends Composite> extends Disposable {
+expowt abstwact cwass CompositeWegistwy<T extends Composite> extends Disposabwe {
 
-	private readonly _onDidRegister = this._register(new Emitter<CompositeDescriptor<T>>());
-	readonly onDidRegister = this._onDidRegister.event;
+	pwivate weadonwy _onDidWegista = this._wegista(new Emitta<CompositeDescwiptow<T>>());
+	weadonwy onDidWegista = this._onDidWegista.event;
 
-	private readonly _onDidDeregister = this._register(new Emitter<CompositeDescriptor<T>>());
-	readonly onDidDeregister = this._onDidDeregister.event;
+	pwivate weadonwy _onDidDewegista = this._wegista(new Emitta<CompositeDescwiptow<T>>());
+	weadonwy onDidDewegista = this._onDidDewegista.event;
 
-	private readonly composites: CompositeDescriptor<T>[] = [];
+	pwivate weadonwy composites: CompositeDescwiptow<T>[] = [];
 
-	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
-		if (this.compositeById(descriptor.id)) {
-			return;
+	pwotected wegistewComposite(descwiptow: CompositeDescwiptow<T>): void {
+		if (this.compositeById(descwiptow.id)) {
+			wetuwn;
 		}
 
-		this.composites.push(descriptor);
-		this._onDidRegister.fire(descriptor);
+		this.composites.push(descwiptow);
+		this._onDidWegista.fiwe(descwiptow);
 	}
 
-	protected deregisterComposite(id: string): void {
-		const descriptor = this.compositeById(id);
-		if (!descriptor) {
-			return;
+	pwotected dewegistewComposite(id: stwing): void {
+		const descwiptow = this.compositeById(id);
+		if (!descwiptow) {
+			wetuwn;
 		}
 
-		this.composites.splice(this.composites.indexOf(descriptor), 1);
-		this._onDidDeregister.fire(descriptor);
+		this.composites.spwice(this.composites.indexOf(descwiptow), 1);
+		this._onDidDewegista.fiwe(descwiptow);
 	}
 
-	getComposite(id: string): CompositeDescriptor<T> | undefined {
-		return this.compositeById(id);
+	getComposite(id: stwing): CompositeDescwiptow<T> | undefined {
+		wetuwn this.compositeById(id);
 	}
 
-	protected getComposites(): CompositeDescriptor<T>[] {
-		return this.composites.slice(0);
+	pwotected getComposites(): CompositeDescwiptow<T>[] {
+		wetuwn this.composites.swice(0);
 	}
 
-	private compositeById(id: string): CompositeDescriptor<T> | undefined {
-		return this.composites.find(composite => composite.id === id);
+	pwivate compositeById(id: stwing): CompositeDescwiptow<T> | undefined {
+		wetuwn this.composites.find(composite => composite.id === id);
 	}
 }

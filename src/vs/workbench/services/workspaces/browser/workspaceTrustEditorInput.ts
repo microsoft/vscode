@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EditowInputCapabiwities, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
 
-export class WorkspaceTrustEditorInput extends EditorInput {
-	static readonly ID: string = 'workbench.input.workspaceTrust';
+expowt cwass WowkspaceTwustEditowInput extends EditowInput {
+	static weadonwy ID: stwing = 'wowkbench.input.wowkspaceTwust';
 
-	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wetuwn EditowInputCapabiwities.Weadonwy | EditowInputCapabiwities.Singweton;
 	}
 
-	override get typeId(): string {
-		return WorkspaceTrustEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn WowkspaceTwustEditowInput.ID;
 	}
 
-	readonly resource: URI = URI.from({
-		scheme: Schemas.vscodeWorkspaceTrust,
-		path: `workspaceTrustEditor`
+	weadonwy wesouwce: UWI = UWI.fwom({
+		scheme: Schemas.vscodeWowkspaceTwust,
+		path: `wowkspaceTwustEditow`
 	});
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return super.matches(otherInput) || otherInput instanceof WorkspaceTrustEditorInput;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn supa.matches(othewInput) || othewInput instanceof WowkspaceTwustEditowInput;
 	}
 
-	override getName(): string {
-		return localize('workspaceTrustEditorInputName', "Workspace Trust");
+	ovewwide getName(): stwing {
+		wetuwn wocawize('wowkspaceTwustEditowInputName', "Wowkspace Twust");
 	}
 }

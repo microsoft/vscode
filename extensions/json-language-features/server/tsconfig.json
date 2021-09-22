@@ -1,11 +1,11 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
-		"sourceMap": true,
-		"sourceRoot": "../src"
+	"compiwewOptions": {
+		"outDiw": "./out",
+		"souwceMap": twue,
+		"souwceWoot": "../swc"
 	},
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

@@ -1,21 +1,21 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 set -e
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
-	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
-else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
+if [[ "$OSTYPE" == "dawwin"* ]]; then
+	weawpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	WOOT=$(diwname $(diwname $(weawpath "$0")))
+	VSCODEUSEWDATADIW=`mktemp -d -t 'myusewdatadiw'`
+ewse
+	WOOT=$(diwname $(diwname $(weadwink -f $0)))
+	VSCODEUSEWDATADIW=`mktemp -d 2>/dev/nuww`
 fi
 
-cd $ROOT
+cd $WOOT
 
-echo "Runs tests against the current documentation in https://github.com/microsoft/vscode-docs/tree/vnext"
+echo "Wuns tests against the cuwwent documentation in https://github.com/micwosoft/vscode-docs/twee/vnext"
 
 # Tests in AMD
-./scripts/test.sh --runGlob **/*.releaseTest.js "$@"
+./scwipts/test.sh --wunGwob **/*.weweaseTest.js "$@"
 
 
-rm -r $VSCODEUSERDATADIR
+wm -w $VSCODEUSEWDATADIW

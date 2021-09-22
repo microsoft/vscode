@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotSupportedError } from 'vs/base/common/errors';
+impowt { FiweSystemPwovidewCapabiwities, IStat, FiweType, FiweDeweteOptions, FiweOvewwwiteOptions, FiweWwiteOptions, FiweSystemPwovidewEwwow, FiweSystemPwovidewEwwowCode, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotSuppowtedEwwow } fwom 'vs/base/common/ewwows';
 
-export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
+expowt cwass FetchFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity {
 
-	readonly capabilities = FileSystemProviderCapabilities.Readonly + FileSystemProviderCapabilities.FileReadWrite + FileSystemProviderCapabilities.PathCaseSensitive;
-	readonly onDidChangeCapabilities = Event.None;
-	readonly onDidChangeFile = Event.None;
+	weadonwy capabiwities = FiweSystemPwovidewCapabiwities.Weadonwy + FiweSystemPwovidewCapabiwities.FiweWeadWwite + FiweSystemPwovidewCapabiwities.PathCaseSensitive;
+	weadonwy onDidChangeCapabiwities = Event.None;
+	weadonwy onDidChangeFiwe = Event.None;
 
-	// working implementations
-	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const res = await fetch(resource.toString(true));
-			if (res.status === 200) {
-				return new Uint8Array(await res.arrayBuffer());
+	// wowking impwementations
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		twy {
+			const wes = await fetch(wesouwce.toStwing(twue));
+			if (wes.status === 200) {
+				wetuwn new Uint8Awway(await wes.awwayBuffa());
 			}
-			throw new FileSystemProviderError(res.statusText, FileSystemProviderErrorCode.Unknown);
-		} catch (err) {
-			throw new FileSystemProviderError(err, FileSystemProviderErrorCode.Unknown);
+			thwow new FiweSystemPwovidewEwwow(wes.statusText, FiweSystemPwovidewEwwowCode.Unknown);
+		} catch (eww) {
+			thwow new FiweSystemPwovidewEwwow(eww, FiweSystemPwovidewEwwowCode.Unknown);
 		}
 	}
 
-	// fake implementations
-	async stat(_resource: URI): Promise<IStat> {
-		return {
-			type: FileType.File,
+	// fake impwementations
+	async stat(_wesouwce: UWI): Pwomise<IStat> {
+		wetuwn {
+			type: FiweType.Fiwe,
 			size: 0,
 			mtime: 0,
 			ctime: 0
 		};
 	}
 
-	watch(): IDisposable {
-		return Disposable.None;
+	watch(): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	// error implementations
-	writeFile(_resource: URI, _content: Uint8Array, _opts: FileWriteOptions): Promise<void> {
-		throw new NotSupportedError();
+	// ewwow impwementations
+	wwiteFiwe(_wesouwce: UWI, _content: Uint8Awway, _opts: FiweWwiteOptions): Pwomise<void> {
+		thwow new NotSuppowtedEwwow();
 	}
-	readdir(_resource: URI): Promise<[string, FileType][]> {
-		throw new NotSupportedError();
+	weaddiw(_wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		thwow new NotSuppowtedEwwow();
 	}
-	mkdir(_resource: URI): Promise<void> {
-		throw new NotSupportedError();
+	mkdiw(_wesouwce: UWI): Pwomise<void> {
+		thwow new NotSuppowtedEwwow();
 	}
-	delete(_resource: URI, _opts: FileDeleteOptions): Promise<void> {
-		throw new NotSupportedError();
+	dewete(_wesouwce: UWI, _opts: FiweDeweteOptions): Pwomise<void> {
+		thwow new NotSuppowtedEwwow();
 	}
-	rename(_from: URI, _to: URI, _opts: FileOverwriteOptions): Promise<void> {
-		throw new NotSupportedError();
+	wename(_fwom: UWI, _to: UWI, _opts: FiweOvewwwiteOptions): Pwomise<void> {
+		thwow new NotSuppowtedEwwow();
 	}
 }

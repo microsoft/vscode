@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Container */
+/* Containa */
 
-.monaco-workbench .part.editor > .content .editor-group-container {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty  {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty  {
 	opacity: 0.5; /* dimmed to indicate inactive state */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty.active,
-.monaco-workbench .part.editor > .content .editor-group-container.empty.dragged-over {
-	opacity: 1; /* indicate active/dragged-over group through undimmed state */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty.active,
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty.dwagged-ova {
+	opacity: 1; /* indicate active/dwagged-ova gwoup thwough undimmed state */
 }
 
-/* Letterpress */
+/* Wettewpwess */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-letterpress  {
-	display: none; /* only visible when empty */
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .editow-gwoup-wettewpwess  {
+	dispway: none; /* onwy visibwe when empty */
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty > .editor-group-letterpress  {
-	display: block;
-	margin: auto;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty > .editow-gwoup-wettewpwess  {
+	dispway: bwock;
+	mawgin: auto;
 	width: 100%;
-	height: calc(100% - 70px); /* centered below toolbar */
+	height: cawc(100% - 70px); /* centewed bewow toowbaw */
 	max-width: 260px;
-	background-repeat: no-repeat;
-	background-position: 50% 50%;
-	background-size: 70% 70%;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: 50% 50%;
+	backgwound-size: 70% 70%;
 }
 
-.monaco-workbench .part.editor > .content.empty .editor-group-container.empty > .editor-group-letterpress  {
-	background-size: 100% 100%; /* larger for empty editor part */
-	height: 100%; /* no toolbar in this case */
+.monaco-wowkbench .pawt.editow > .content.empty .editow-gwoup-containa.empty > .editow-gwoup-wettewpwess  {
+	backgwound-size: 100% 100%; /* wawga fow empty editow pawt */
+	height: 100%; /* no toowbaw in this case */
 }
 
-/* Title */
+/* Titwe */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title {
-	position: relative;
-	box-sizing:	border-box;
-	overflow: hidden;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe {
+	position: wewative;
+	box-sizing:	bowda-box;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {
-	display: flex; /* when tabs are not shown, use flex layout */
-	flex-wrap: nowrap;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe:not(.tabs) {
+	dispway: fwex; /* when tabs awe not shown, use fwex wayout */
+	fwex-wwap: nowwap;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.title-border-bottom::after {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .titwe.titwe-bowda-bottom::afta {
 	content: '';
-	position: absolute;
+	position: absowute;
 	bottom: 0;
-	left: 0;
+	weft: 0;
 	z-index: 5;
-	pointer-events: none;
-	background-color: var(--title-border-bottom-color);
+	pointa-events: none;
+	backgwound-cowow: vaw(--titwe-bowda-bottom-cowow);
 	width: 100%;
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty > .title {
-	display: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty > .titwe {
+	dispway: none;
 }
 
-/* Toolbar */
+/* Toowbaw */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
-	display: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .editow-gwoup-containa-toowbaw {
+	dispway: none;
 	height: 35px;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
-	display: block;
+.monaco-wowkbench .pawt.editow > .content:not(.empty) .editow-gwoup-containa.empty > .editow-gwoup-containa-toowbaw {
+	dispway: bwock;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .actions-container {
-	justify-content: flex-end;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .editow-gwoup-containa-toowbaw .actions-containa {
+	justify-content: fwex-end;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-item {
-	margin-right: 4px;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .editow-gwoup-containa-toowbaw .action-item {
+	mawgin-wight: 4px;
 }
 
-/* Editor */
+/* Editow */
 
-.monaco-workbench .part.editor > .content .editor-group-container.empty > .editor-container  {
-	display: none;
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa.empty > .editow-containa  {
+	dispway: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-container > .editor-instance {
+.monaco-wowkbench .pawt.editow > .content .editow-gwoup-containa > .editow-containa > .editow-instance {
 	height: 100%;
 }
 
-.monaco-workbench .part.editor > .content .grid-view-container {
+.monaco-wowkbench .pawt.editow > .content .gwid-view-containa {
 	width: 100%;
 	height: 100%;
 }

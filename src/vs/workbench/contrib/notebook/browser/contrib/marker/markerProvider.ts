@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IMarkerListProvider, MarkerList, IMarkerNavigationService } from 'vs/editor/contrib/gotoError/markerNavigationService';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IMawkewWistPwovida, MawkewWist, IMawkewNavigationSewvice } fwom 'vs/editow/contwib/gotoEwwow/mawkewNavigationSewvice';
+impowt { CewwUwi } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-class MarkerListProvider implements IMarkerListProvider {
+cwass MawkewWistPwovida impwements IMawkewWistPwovida {
 
-	private readonly _dispoables: IDisposable;
+	pwivate weadonwy _dispoabwes: IDisposabwe;
 
-	constructor(
-		@IMarkerService private readonly _markerService: IMarkerService,
-		@IMarkerNavigationService markerNavigation: IMarkerNavigationService,
+	constwuctow(
+		@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice,
+		@IMawkewNavigationSewvice mawkewNavigation: IMawkewNavigationSewvice,
 	) {
-		this._dispoables = markerNavigation.registerProvider(this);
+		this._dispoabwes = mawkewNavigation.wegistewPwovida(this);
 	}
 
 	dispose() {
-		this._dispoables.dispose();
+		this._dispoabwes.dispose();
 	}
 
-	getMarkerList(resource: URI | undefined): MarkerList | undefined {
-		if (!resource) {
-			return undefined;
+	getMawkewWist(wesouwce: UWI | undefined): MawkewWist | undefined {
+		if (!wesouwce) {
+			wetuwn undefined;
 		}
-		const data = CellUri.parse(resource);
+		const data = CewwUwi.pawse(wesouwce);
 		if (!data) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return new MarkerList(uri => {
-			const otherData = CellUri.parse(uri);
-			return otherData?.notebook.toString() === data.notebook.toString();
-		}, this._markerService);
+		wetuwn new MawkewWist(uwi => {
+			const othewData = CewwUwi.pawse(uwi);
+			wetuwn othewData?.notebook.toStwing() === data.notebook.toStwing();
+		}, this._mawkewSewvice);
 	}
 }
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MarkerListProvider, LifecyclePhase.Ready);
+Wegistwy
+	.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(MawkewWistPwovida, WifecycwePhase.Weady);

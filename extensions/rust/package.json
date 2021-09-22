@@ -1,40 +1,40 @@
 {
-  "name": "rust",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wust",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dustypomerleau/rust-syntax syntaxes/rust.tmLanguage.json ./syntaxes/rust.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin dustypomewweau/wust-syntax syntaxes/wust.tmWanguage.json ./syntaxes/wust.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "rust",
+        "id": "wust",
         "extensions": [
-          ".rs"
+          ".ws"
         ],
-        "aliases": [
-          "Rust",
-          "rust"
+        "awiases": [
+          "Wust",
+          "wust"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "rust",
-        "path": "./syntaxes/rust.tmLanguage.json",
-        "scopeName": "source.rust"
+        "wanguage": "wust",
+        "path": "./syntaxes/wust.tmWanguage.json",
+        "scopeName": "souwce.wust"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

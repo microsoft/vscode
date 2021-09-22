@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
-import { flatten } from 'vs/base/common/arrays';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
-import { URI } from 'vs/base/common/uri';
+impowt * as extensionsWegistwy fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { tewminawContwibutionsDescwiptow } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionTewminawPwofiwe, ITewminawContwibutions, ITewminawPwofiweContwibution } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-// terminal extension point
-export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
+// tewminaw extension point
+expowt const tewminawsExtPoint = extensionsWegistwy.ExtensionsWegistwy.wegistewExtensionPoint<ITewminawContwibutions>(tewminawContwibutionsDescwiptow);
 
-export interface ITerminalContributionService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITewminawContwibutionSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
+	weadonwy tewminawPwofiwes: WeadonwyAwway<IExtensionTewminawPwofiwe>;
 }
 
-export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
+expowt const ITewminawContwibutionSewvice = cweateDecowatow<ITewminawContwibutionSewvice>('tewminawContwibutionsSewvice');
 
-export class TerminalContributionService implements ITerminalContributionService {
-	declare _serviceBrand: undefined;
+expowt cwass TewminawContwibutionSewvice impwements ITewminawContwibutionSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
-	get terminalProfiles() { return this._terminalProfiles; }
+	pwivate _tewminawPwofiwes: WeadonwyAwway<IExtensionTewminawPwofiwe> = [];
+	get tewminawPwofiwes() { wetuwn this._tewminawPwofiwes; }
 
-	constructor() {
-		terminalsExtPoint.setHandler(contributions => {
-			this._terminalProfiles = flatten(contributions.map(c => {
-				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
-					return { ...e, extensionIdentifier: c.description.identifier.value };
+	constwuctow() {
+		tewminawsExtPoint.setHandwa(contwibutions => {
+			this._tewminawPwofiwes = fwatten(contwibutions.map(c => {
+				wetuwn c.vawue?.pwofiwes?.fiwta(p => hasVawidTewminawIcon(p)).map(e => {
+					wetuwn { ...e, extensionIdentifia: c.descwiption.identifia.vawue };
 				}) || [];
 			}));
 		});
 	}
 }
 
-function hasValidTerminalIcon(profile: ITerminalProfileContribution): boolean {
-	return !profile.icon ||
+function hasVawidTewminawIcon(pwofiwe: ITewminawPwofiweContwibution): boowean {
+	wetuwn !pwofiwe.icon ||
 		(
-			typeof profile.icon === 'string' ||
-			URI.isUri(profile.icon) ||
+			typeof pwofiwe.icon === 'stwing' ||
+			UWI.isUwi(pwofiwe.icon) ||
 			(
-				'light' in profile.icon && 'dark' in profile.icon &&
-				URI.isUri(profile.icon.light) && URI.isUri(profile.icon.dark)
+				'wight' in pwofiwe.icon && 'dawk' in pwofiwe.icon &&
+				UWI.isUwi(pwofiwe.icon.wight) && UWI.isUwi(pwofiwe.icon.dawk)
 			)
 		);
 }

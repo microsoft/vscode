@@ -1,152 +1,152 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { TypeConstwaint, vawidateConstwaints } fwom 'vs/base/common/types';
+impowt { cweateDecowatow, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ICommandService = createDecorator<ICommandService>('commandService');
+expowt const ICommandSewvice = cweateDecowatow<ICommandSewvice>('commandSewvice');
 
-export interface ICommandEvent {
-	commandId: string;
-	args: any[];
+expowt intewface ICommandEvent {
+	commandId: stwing;
+	awgs: any[];
 }
 
-export interface ICommandService {
-	readonly _serviceBrand: undefined;
-	onWillExecuteCommand: Event<ICommandEvent>;
+expowt intewface ICommandSewvice {
+	weadonwy _sewviceBwand: undefined;
+	onWiwwExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
-	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
+	executeCommand<T = any>(commandId: stwing, ...awgs: any[]): Pwomise<T | undefined>;
 }
 
-export type ICommandsMap = Map<string, ICommand>;
+expowt type ICommandsMap = Map<stwing, ICommand>;
 
-export interface ICommandHandler {
-	(accessor: ServicesAccessor, ...args: any[]): void;
+expowt intewface ICommandHandwa {
+	(accessow: SewvicesAccessow, ...awgs: any[]): void;
 }
 
-export interface ICommand {
-	id: string;
-	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+expowt intewface ICommand {
+	id: stwing;
+	handwa: ICommandHandwa;
+	descwiption?: ICommandHandwewDescwiption | nuww;
 }
 
-export interface ICommandHandlerDescription {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
-		readonly name: string;
-		readonly isOptional?: boolean;
-		readonly description?: string;
-		readonly constraint?: TypeConstraint;
-		readonly schema?: IJSONSchema;
+expowt intewface ICommandHandwewDescwiption {
+	weadonwy descwiption: stwing;
+	weadonwy awgs: WeadonwyAwway<{
+		weadonwy name: stwing;
+		weadonwy isOptionaw?: boowean;
+		weadonwy descwiption?: stwing;
+		weadonwy constwaint?: TypeConstwaint;
+		weadonwy schema?: IJSONSchema;
 	}>;
-	readonly returns?: string;
+	weadonwy wetuwns?: stwing;
 }
 
-export interface ICommandRegistry {
-	onDidRegisterCommand: Event<string>;
-	registerCommand(id: string, command: ICommandHandler): IDisposable;
-	registerCommand(command: ICommand): IDisposable;
-	registerCommandAlias(oldId: string, newId: string): IDisposable;
-	getCommand(id: string): ICommand | undefined;
+expowt intewface ICommandWegistwy {
+	onDidWegistewCommand: Event<stwing>;
+	wegistewCommand(id: stwing, command: ICommandHandwa): IDisposabwe;
+	wegistewCommand(command: ICommand): IDisposabwe;
+	wegistewCommandAwias(owdId: stwing, newId: stwing): IDisposabwe;
+	getCommand(id: stwing): ICommand | undefined;
 	getCommands(): ICommandsMap;
 }
 
-export const CommandsRegistry: ICommandRegistry = new class implements ICommandRegistry {
+expowt const CommandsWegistwy: ICommandWegistwy = new cwass impwements ICommandWegistwy {
 
-	private readonly _commands = new Map<string, LinkedList<ICommand>>();
+	pwivate weadonwy _commands = new Map<stwing, WinkedWist<ICommand>>();
 
-	private readonly _onDidRegisterCommand = new Emitter<string>();
-	readonly onDidRegisterCommand: Event<string> = this._onDidRegisterCommand.event;
+	pwivate weadonwy _onDidWegistewCommand = new Emitta<stwing>();
+	weadonwy onDidWegistewCommand: Event<stwing> = this._onDidWegistewCommand.event;
 
-	registerCommand(idOrCommand: string | ICommand, handler?: ICommandHandler): IDisposable {
+	wegistewCommand(idOwCommand: stwing | ICommand, handwa?: ICommandHandwa): IDisposabwe {
 
-		if (!idOrCommand) {
-			throw new Error(`invalid command`);
+		if (!idOwCommand) {
+			thwow new Ewwow(`invawid command`);
 		}
 
-		if (typeof idOrCommand === 'string') {
-			if (!handler) {
-				throw new Error(`invalid command`);
+		if (typeof idOwCommand === 'stwing') {
+			if (!handwa) {
+				thwow new Ewwow(`invawid command`);
 			}
-			return this.registerCommand({ id: idOrCommand, handler });
+			wetuwn this.wegistewCommand({ id: idOwCommand, handwa });
 		}
 
-		// add argument validation if rich command metadata is provided
-		if (idOrCommand.description) {
-			const constraints: Array<TypeConstraint | undefined> = [];
-			for (let arg of idOrCommand.description.args) {
-				constraints.push(arg.constraint);
+		// add awgument vawidation if wich command metadata is pwovided
+		if (idOwCommand.descwiption) {
+			const constwaints: Awway<TypeConstwaint | undefined> = [];
+			fow (wet awg of idOwCommand.descwiption.awgs) {
+				constwaints.push(awg.constwaint);
 			}
-			const actualHandler = idOrCommand.handler;
-			idOrCommand.handler = function (accessor, ...args: any[]) {
-				validateConstraints(args, constraints);
-				return actualHandler(accessor, ...args);
+			const actuawHandwa = idOwCommand.handwa;
+			idOwCommand.handwa = function (accessow, ...awgs: any[]) {
+				vawidateConstwaints(awgs, constwaints);
+				wetuwn actuawHandwa(accessow, ...awgs);
 			};
 		}
 
-		// find a place to store the command
-		const { id } = idOrCommand;
+		// find a pwace to stowe the command
+		const { id } = idOwCommand;
 
-		let commands = this._commands.get(id);
+		wet commands = this._commands.get(id);
 		if (!commands) {
-			commands = new LinkedList<ICommand>();
+			commands = new WinkedWist<ICommand>();
 			this._commands.set(id, commands);
 		}
 
-		let removeFn = commands.unshift(idOrCommand);
+		wet wemoveFn = commands.unshift(idOwCommand);
 
-		let ret = toDisposable(() => {
-			removeFn();
+		wet wet = toDisposabwe(() => {
+			wemoveFn();
 			const command = this._commands.get(id);
 			if (command?.isEmpty()) {
-				this._commands.delete(id);
+				this._commands.dewete(id);
 			}
 		});
 
-		// tell the world about this command
-		this._onDidRegisterCommand.fire(id);
+		// teww the wowwd about this command
+		this._onDidWegistewCommand.fiwe(id);
 
-		return ret;
+		wetuwn wet;
 	}
 
-	registerCommandAlias(oldId: string, newId: string): IDisposable {
-		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
+	wegistewCommandAwias(owdId: stwing, newId: stwing): IDisposabwe {
+		wetuwn CommandsWegistwy.wegistewCommand(owdId, (accessow, ...awgs) => accessow.get(ICommandSewvice).executeCommand(newId, ...awgs));
 	}
 
-	getCommand(id: string): ICommand | undefined {
-		const list = this._commands.get(id);
-		if (!list || list.isEmpty()) {
-			return undefined;
+	getCommand(id: stwing): ICommand | undefined {
+		const wist = this._commands.get(id);
+		if (!wist || wist.isEmpty()) {
+			wetuwn undefined;
 		}
-		return Iterable.first(list);
+		wetuwn Itewabwe.fiwst(wist);
 	}
 
 	getCommands(): ICommandsMap {
-		const result = new Map<string, ICommand>();
-		for (const key of this._commands.keys()) {
+		const wesuwt = new Map<stwing, ICommand>();
+		fow (const key of this._commands.keys()) {
 			const command = this.getCommand(key);
 			if (command) {
-				result.set(key, command);
+				wesuwt.set(key, command);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 };
 
-export const NullCommandService: ICommandService = {
-	_serviceBrand: undefined,
-	onWillExecuteCommand: () => Disposable.None,
-	onDidExecuteCommand: () => Disposable.None,
+expowt const NuwwCommandSewvice: ICommandSewvice = {
+	_sewviceBwand: undefined,
+	onWiwwExecuteCommand: () => Disposabwe.None,
+	onDidExecuteCommand: () => Disposabwe.None,
 	executeCommand() {
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 };
 
-CommandsRegistry.registerCommand('noop', () => { });
+CommandsWegistwy.wegistewCommand('noop', () => { });

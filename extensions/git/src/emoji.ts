@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-import { workspace, Uri } from 'vscode';
-import { getExtensionContext } from './main';
-import { TextDecoder } from 'util';
+'use stwict';
+impowt { wowkspace, Uwi } fwom 'vscode';
+impowt { getExtensionContext } fwom './main';
+impowt { TextDecoda } fwom 'utiw';
 
-const emojiRegex = /:([-+_a-z0-9]+):/g;
+const emojiWegex = /:([-+_a-z0-9]+):/g;
 
-let emojiMap: Record<string, string> | undefined;
-let emojiMapPromise: Promise<void> | undefined;
+wet emojiMap: Wecowd<stwing, stwing> | undefined;
+wet emojiMapPwomise: Pwomise<void> | undefined;
 
-export async function ensureEmojis() {
+expowt async function ensuweEmojis() {
 	if (emojiMap === undefined) {
-		if (emojiMapPromise === undefined) {
-			emojiMapPromise = loadEmojiMap();
+		if (emojiMapPwomise === undefined) {
+			emojiMapPwomise = woadEmojiMap();
 		}
-		await emojiMapPromise;
+		await emojiMapPwomise;
 	}
 }
 
-async function loadEmojiMap() {
+async function woadEmojiMap() {
 	const context = getExtensionContext();
-	const uri = (Uri as any).joinPath(context.extensionUri, 'resources', 'emojis.json');
-	emojiMap = JSON.parse(new TextDecoder('utf8').decode(await workspace.fs.readFile(uri)));
+	const uwi = (Uwi as any).joinPath(context.extensionUwi, 'wesouwces', 'emojis.json');
+	emojiMap = JSON.pawse(new TextDecoda('utf8').decode(await wowkspace.fs.weadFiwe(uwi)));
 }
 
-export function emojify(message: string) {
+expowt function emojify(message: stwing) {
 	if (emojiMap === undefined) {
-		return message;
+		wetuwn message;
 	}
 
-	return message.replace(emojiRegex, (s, code) => {
-		return emojiMap?.[code] || s;
+	wetuwn message.wepwace(emojiWegex, (s, code) => {
+		wetuwn emojiMap?.[code] || s;
 	});
 }

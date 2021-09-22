@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { createSerializedGrid, Direction, getRelativeLocation, Grid, GridNode, GridNodeDescriptor, ISerializableView, isGridBranchNode, IViewDeserializer, Orientation, sanitizeGridNodeDescriptor, SerializableGrid, Sizing } from 'vs/base/browser/ui/grid/grid';
-import { Event } from 'vs/base/common/event';
-import { deepClone } from 'vs/base/common/objects';
-import { nodesToArrays, TestView } from './util';
+impowt * as assewt fwom 'assewt';
+impowt { cweateSewiawizedGwid, Diwection, getWewativeWocation, Gwid, GwidNode, GwidNodeDescwiptow, ISewiawizabweView, isGwidBwanchNode, IViewDesewiawiza, Owientation, sanitizeGwidNodeDescwiptow, SewiawizabweGwid, Sizing } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { nodesToAwways, TestView } fwom './utiw';
 
-// Simple example:
+// Simpwe exampwe:
 //
 //  +-----+---------------+
 //  |  4  |      2        |
@@ -29,510 +29,510 @@ import { nodesToArrays, TestView } from './util';
 //    | +-5
 //    +-3
 
-suite('Grid', function () {
-	let container: HTMLElement;
+suite('Gwid', function () {
+	wet containa: HTMWEwement;
 
 	setup(function () {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${800}px`;
-		container.style.height = `${600}px`;
+		containa = document.cweateEwement('div');
+		containa.stywe.position = 'absowute';
+		containa.stywe.width = `${800}px`;
+		containa.stywe.height = `${600}px`;
 	});
 
-	test('getRelativeLocation', () => {
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Up), [0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Down), [1]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Left), [0, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Right), [0, 1]);
+	test('getWewativeWocation', () => {
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0], Diwection.Up), [0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0], Diwection.Down), [1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0], Diwection.Weft), [0, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0], Diwection.Wight), [0, 1]);
 
-		assert.deepStrictEqual(getRelativeLocation(Orientation.HORIZONTAL, [0], Direction.Up), [0, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.HORIZONTAL, [0], Direction.Down), [0, 1]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.HORIZONTAL, [0], Direction.Left), [0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.HORIZONTAL, [0], Direction.Right), [1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.HOWIZONTAW, [0], Diwection.Up), [0, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.HOWIZONTAW, [0], Diwection.Down), [0, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.HOWIZONTAW, [0], Diwection.Weft), [0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.HOWIZONTAW, [0], Diwection.Wight), [1]);
 
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [4], Direction.Up), [4]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [4], Direction.Down), [5]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [4], Direction.Left), [4, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [4], Direction.Right), [4, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [4], Diwection.Up), [4]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [4], Diwection.Down), [5]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [4], Diwection.Weft), [4, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [4], Diwection.Wight), [4, 1]);
 
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0, 0], Direction.Up), [0, 0, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0, 0], Direction.Down), [0, 0, 1]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0, 0], Direction.Left), [0, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [0, 0], Direction.Right), [0, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0, 0], Diwection.Up), [0, 0, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0, 0], Diwection.Down), [0, 0, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0, 0], Diwection.Weft), [0, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [0, 0], Diwection.Wight), [0, 1]);
 
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2], Direction.Up), [1, 2, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2], Direction.Down), [1, 2, 1]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2], Direction.Left), [1, 2]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2], Direction.Right), [1, 3]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2], Diwection.Up), [1, 2, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2], Diwection.Down), [1, 2, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2], Diwection.Weft), [1, 2]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2], Diwection.Wight), [1, 3]);
 
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2, 3], Direction.Up), [1, 2, 3]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2, 3], Direction.Down), [1, 2, 4]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2, 3], Direction.Left), [1, 2, 3, 0]);
-		assert.deepStrictEqual(getRelativeLocation(Orientation.VERTICAL, [1, 2, 3], Direction.Right), [1, 2, 3, 1]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2, 3], Diwection.Up), [1, 2, 3]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2, 3], Diwection.Down), [1, 2, 4]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2, 3], Diwection.Weft), [1, 2, 3, 0]);
+		assewt.deepStwictEquaw(getWewativeWocation(Owientation.VEWTICAW, [1, 2, 3], Diwection.Wight), [1, 2, 3, 1]);
 	});
 
 	test('empty', () => {
-		const view1 = new TestView(100, Number.MAX_VALUE, 100, Number.MAX_VALUE);
-		const gridview = new Grid(view1);
-		container.appendChild(gridview.element);
-		gridview.layout(800, 600);
+		const view1 = new TestView(100, Numba.MAX_VAWUE, 100, Numba.MAX_VAWUE);
+		const gwidview = new Gwid(view1);
+		containa.appendChiwd(gwidview.ewement);
+		gwidview.wayout(800, 600);
 
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 	});
 
-	test('two views vertically', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+	test('two views vewticawwy', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
-		assert.deepStrictEqual(view1.size, [800, 400]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
+		assewt.deepStwictEquaw(view1.size, [800, 400]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
 	});
 
-	test('two views horizontally', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('two views howizontawwy', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 300, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [500, 600]);
-		assert.deepStrictEqual(view2.size, [300, 600]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 300, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [500, 600]);
+		assewt.deepStwictEquaw(view2.size, [300, 600]);
 	});
 
-	test('simple layout', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('simpwe wayout', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
-		assert.deepStrictEqual(view1.size, [800, 400]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
+		assewt.deepStwictEquaw(view1.size, [800, 400]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [600, 400]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [600, 400]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
-		assert.deepStrictEqual(view1.size, [600, 400]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
+		assewt.deepStwictEquaw(view1.size, [600, 400]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
 
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
-		assert.deepStrictEqual(view1.size, [600, 300]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 100]);
+		const view5 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [600, 300]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 100]);
 	});
 
-	test('another simple layout with automatic size distribution', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('anotha simpwe wayout with automatic size distwibution', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Left);
-		assert.deepStrictEqual(view1.size, [400, 600]);
-		assert.deepStrictEqual(view2.size, [400, 600]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Weft);
+		assewt.deepStwictEquaw(view1.size, [400, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 600]);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [266, 600]);
-		assert.deepStrictEqual(view2.size, [266, 600]);
-		assert.deepStrictEqual(view3.size, [268, 600]);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [266, 600]);
+		assewt.deepStwictEquaw(view2.size, [266, 600]);
+		assewt.deepStwictEquaw(view3.size, [268, 600]);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, view2, Direction.Down);
-		assert.deepStrictEqual(view1.size, [266, 600]);
-		assert.deepStrictEqual(view2.size, [266, 300]);
-		assert.deepStrictEqual(view3.size, [268, 600]);
-		assert.deepStrictEqual(view4.size, [266, 300]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Distwibute, view2, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [266, 600]);
+		assewt.deepStwictEquaw(view2.size, [266, 300]);
+		assewt.deepStwictEquaw(view3.size, [268, 600]);
+		assewt.deepStwictEquaw(view4.size, [266, 300]);
 
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, Sizing.Distribute, view3, Direction.Up);
-		assert.deepStrictEqual(view1.size, [266, 600]);
-		assert.deepStrictEqual(view2.size, [266, 300]);
-		assert.deepStrictEqual(view3.size, [268, 300]);
-		assert.deepStrictEqual(view4.size, [266, 300]);
-		assert.deepStrictEqual(view5.size, [268, 300]);
+		const view5 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, Sizing.Distwibute, view3, Diwection.Up);
+		assewt.deepStwictEquaw(view1.size, [266, 600]);
+		assewt.deepStwictEquaw(view2.size, [266, 300]);
+		assewt.deepStwictEquaw(view3.size, [268, 300]);
+		assewt.deepStwictEquaw(view4.size, [266, 300]);
+		assewt.deepStwictEquaw(view5.size, [268, 300]);
 
-		const view6 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view6, Sizing.Distribute, view3, Direction.Down);
-		assert.deepStrictEqual(view1.size, [266, 600]);
-		assert.deepStrictEqual(view2.size, [266, 300]);
-		assert.deepStrictEqual(view3.size, [268, 200]);
-		assert.deepStrictEqual(view4.size, [266, 300]);
-		assert.deepStrictEqual(view5.size, [268, 200]);
-		assert.deepStrictEqual(view6.size, [268, 200]);
+		const view6 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view6, Sizing.Distwibute, view3, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [266, 600]);
+		assewt.deepStwictEquaw(view2.size, [266, 300]);
+		assewt.deepStwictEquaw(view3.size, [268, 200]);
+		assewt.deepStwictEquaw(view4.size, [266, 300]);
+		assewt.deepStwictEquaw(view5.size, [268, 200]);
+		assewt.deepStwictEquaw(view6.size, [268, 200]);
 	});
 
-	test('another simple layout with split size distribution', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('anotha simpwe wayout with spwit size distwibution', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Left);
-		assert.deepStrictEqual(view1.size, [400, 600]);
-		assert.deepStrictEqual(view2.size, [400, 600]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Weft);
+		assewt.deepStwictEquaw(view1.size, [400, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 600]);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Split, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [200, 600]);
-		assert.deepStrictEqual(view2.size, [400, 600]);
-		assert.deepStrictEqual(view3.size, [200, 600]);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Spwit, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [200, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 600]);
+		assewt.deepStwictEquaw(view3.size, [200, 600]);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Split, view2, Direction.Down);
-		assert.deepStrictEqual(view1.size, [200, 600]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [200, 600]);
-		assert.deepStrictEqual(view4.size, [400, 300]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Spwit, view2, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [200, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [200, 600]);
+		assewt.deepStwictEquaw(view4.size, [400, 300]);
 
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, Sizing.Split, view3, Direction.Up);
-		assert.deepStrictEqual(view1.size, [200, 600]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [200, 300]);
-		assert.deepStrictEqual(view4.size, [400, 300]);
-		assert.deepStrictEqual(view5.size, [200, 300]);
+		const view5 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, Sizing.Spwit, view3, Diwection.Up);
+		assewt.deepStwictEquaw(view1.size, [200, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [200, 300]);
+		assewt.deepStwictEquaw(view4.size, [400, 300]);
+		assewt.deepStwictEquaw(view5.size, [200, 300]);
 
-		const view6 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view6, Sizing.Split, view3, Direction.Down);
-		assert.deepStrictEqual(view1.size, [200, 600]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [200, 150]);
-		assert.deepStrictEqual(view4.size, [400, 300]);
-		assert.deepStrictEqual(view5.size, [200, 300]);
-		assert.deepStrictEqual(view6.size, [200, 150]);
+		const view6 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view6, Sizing.Spwit, view3, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [200, 600]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [200, 150]);
+		assewt.deepStwictEquaw(view4.size, [400, 300]);
+		assewt.deepStwictEquaw(view5.size, [200, 300]);
+		assewt.deepStwictEquaw(view6.size, [200, 150]);
 	});
 
-	test('3/2 layout with split', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('3/2 wayout with spwit', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
-		assert.deepStrictEqual(view1.size, [800, 600]);
+		gwid.wayout(800, 600);
+		assewt.deepStwictEquaw(view1.size, [800, 600]);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Down);
-		assert.deepStrictEqual(view1.size, [800, 300]);
-		assert.deepStrictEqual(view2.size, [800, 300]);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Down);
+		assewt.deepStwictEquaw(view1.size, [800, 300]);
+		assewt.deepStwictEquaw(view2.size, [800, 300]);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Split, view2, Direction.Right);
-		assert.deepStrictEqual(view1.size, [800, 300]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [400, 300]);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Spwit, view2, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [800, 300]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [400, 300]);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Split, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [400, 300]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [400, 300]);
-		assert.deepStrictEqual(view4.size, [400, 300]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Spwit, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [400, 300]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [400, 300]);
+		assewt.deepStwictEquaw(view4.size, [400, 300]);
 
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, Sizing.Split, view1, Direction.Right);
-		assert.deepStrictEqual(view1.size, [200, 300]);
-		assert.deepStrictEqual(view2.size, [400, 300]);
-		assert.deepStrictEqual(view3.size, [400, 300]);
-		assert.deepStrictEqual(view4.size, [400, 300]);
-		assert.deepStrictEqual(view5.size, [200, 300]);
+		const view5 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, Sizing.Spwit, view1, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [200, 300]);
+		assewt.deepStwictEquaw(view2.size, [400, 300]);
+		assewt.deepStwictEquaw(view3.size, [400, 300]);
+		assewt.deepStwictEquaw(view4.size, [400, 300]);
+		assewt.deepStwictEquaw(view5.size, [200, 300]);
 	});
 
-	test('sizing should be correct after branch demotion #50564', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('sizing shouwd be cowwect afta bwanch demotion #50564', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Right);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Wight);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Split, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Spwit, view2, Diwection.Down);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Split, view2, Direction.Right);
-		assert.deepStrictEqual(view1.size, [400, 600]);
-		assert.deepStrictEqual(view2.size, [200, 300]);
-		assert.deepStrictEqual(view3.size, [400, 300]);
-		assert.deepStrictEqual(view4.size, [200, 300]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Spwit, view2, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [400, 600]);
+		assewt.deepStwictEquaw(view2.size, [200, 300]);
+		assewt.deepStwictEquaw(view3.size, [400, 300]);
+		assewt.deepStwictEquaw(view4.size, [200, 300]);
 
-		grid.removeView(view3);
-		assert.deepStrictEqual(view1.size, [400, 600]);
-		assert.deepStrictEqual(view2.size, [200, 600]);
-		assert.deepStrictEqual(view4.size, [200, 600]);
+		gwid.wemoveView(view3);
+		assewt.deepStwictEquaw(view1.size, [400, 600]);
+		assewt.deepStwictEquaw(view2.size, [200, 600]);
+		assewt.deepStwictEquaw(view4.size, [200, 600]);
 	});
 
-	test('sizing should be correct after branch demotion #50675', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('sizing shouwd be cowwect afta bwanch demotion #50675', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Down);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view2, Diwection.Down);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, view3, Direction.Right);
-		assert.deepStrictEqual(view1.size, [800, 200]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
-		assert.deepStrictEqual(view3.size, [400, 200]);
-		assert.deepStrictEqual(view4.size, [400, 200]);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Distwibute, view3, Diwection.Wight);
+		assewt.deepStwictEquaw(view1.size, [800, 200]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
+		assewt.deepStwictEquaw(view3.size, [400, 200]);
+		assewt.deepStwictEquaw(view4.size, [400, 200]);
 
-		grid.removeView(view3, Sizing.Distribute);
-		assert.deepStrictEqual(view1.size, [800, 200]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
-		assert.deepStrictEqual(view4.size, [800, 200]);
+		gwid.wemoveView(view3, Sizing.Distwibute);
+		assewt.deepStwictEquaw(view1.size, [800, 200]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
+		assewt.deepStwictEquaw(view4.size, [800, 200]);
 	});
 
-	test('getNeighborViews should work on single view layout', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('getNeighbowViews shouwd wowk on singwe view wayout', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Up), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Down), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Left), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Up), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Down), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Weft), []);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Up, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Down, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Left, true), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Up, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Down, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Weft, twue), [view1]);
 	});
 
-	test('getNeighborViews should work on simple layout', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('getNeighbowViews shouwd wowk on simpwe wayout', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Down);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view2, Diwection.Down);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Up), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Down), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Left), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Up), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Down), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Weft), []);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Up, true), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Down, true), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Left, true), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Up, twue), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Down, twue), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Weft, twue), [view1]);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Up), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Down), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Left), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Up), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Down), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Weft), []);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Up, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Right, true), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Down, true), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Left, true), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Up, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Wight, twue), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Down, twue), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Weft, twue), [view2]);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Up), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Down), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Left), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Up), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Down), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Weft), []);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Up, true), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Right, true), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Down, true), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Left, true), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Up, twue), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Wight, twue), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Down, twue), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Weft, twue), [view3]);
 	});
 
-	test('getNeighborViews should work on a complex layout', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('getNeighbowViews shouwd wowk on a compwex wayout', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Down);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view2, Diwection.Down);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Distwibute, view2, Diwection.Wight);
 
-		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, Sizing.Distribute, view4, Direction.Down);
+		const view5 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, Sizing.Distwibute, view4, Diwection.Down);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Up), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Down), [view2, view4]);
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Left), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Up), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Right), [view4, view5]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Down), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view2, Direction.Left), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Up), [view1]);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Down), [view5]);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Left), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view5, Direction.Up), [view4]);
-		assert.deepStrictEqual(grid.getNeighborViews(view5, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view5, Direction.Down), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view5, Direction.Left), [view2]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Up), [view2, view5]);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Down), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view3, Direction.Left), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Up), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Down), [view2, view4]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Weft), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Up), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Wight), [view4, view5]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Down), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view2, Diwection.Weft), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Up), [view1]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Down), [view5]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Weft), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view5, Diwection.Up), [view4]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view5, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view5, Diwection.Down), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view5, Diwection.Weft), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Up), [view2, view5]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Down), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view3, Diwection.Weft), []);
 	});
 
-	test('getNeighborViews should work on another simple layout', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('getNeighbowViews shouwd wowk on anotha simpwe wayout', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Wight);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view2, Diwection.Down);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Distwibute, view2, Diwection.Wight);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Up), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Right), []);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Down), [view3]);
-		assert.deepStrictEqual(grid.getNeighborViews(view4, Direction.Left), [view2]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Up), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Wight), []);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Down), [view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view4, Diwection.Weft), [view2]);
 	});
 
-	test('getNeighborViews should only return immediate neighbors', function () {
-		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(view1);
-		container.appendChild(grid.element);
+	test('getNeighbowViews shouwd onwy wetuwn immediate neighbows', function () {
+		const view1 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new Gwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+		const view2 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Distwibute, view1, Diwection.Wight);
 
-		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+		const view3 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Distwibute, view2, Diwection.Down);
 
-		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+		const view4 = new TestView(50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Distwibute, view2, Diwection.Wight);
 
-		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right), [view2, view3]);
+		assewt.deepStwictEquaw(gwid.getNeighbowViews(view1, Diwection.Wight), [view2, view3]);
 	});
 });
 
-class TestSerializableView extends TestView implements ISerializableView {
+cwass TestSewiawizabweView extends TestView impwements ISewiawizabweView {
 
-	constructor(
-		readonly name: string,
-		minimumWidth: number,
-		maximumWidth: number,
-		minimumHeight: number,
-		maximumHeight: number
+	constwuctow(
+		weadonwy name: stwing,
+		minimumWidth: numba,
+		maximumWidth: numba,
+		minimumHeight: numba,
+		maximumHeight: numba
 	) {
-		super(minimumWidth, maximumWidth, minimumHeight, maximumHeight);
+		supa(minimumWidth, maximumWidth, minimumHeight, maximumHeight);
 	}
 
 	toJSON() {
-		return { name: this.name };
+		wetuwn { name: this.name };
 	}
 }
 
-class TestViewDeserializer implements IViewDeserializer<TestSerializableView> {
+cwass TestViewDesewiawiza impwements IViewDesewiawiza<TestSewiawizabweView> {
 
-	private views = new Map<string, TestSerializableView>();
+	pwivate views = new Map<stwing, TestSewiawizabweView>();
 
-	fromJSON(json: any): TestSerializableView {
-		const view = new TestSerializableView(json.name, 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+	fwomJSON(json: any): TestSewiawizabweView {
+		const view = new TestSewiawizabweView(json.name, 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
 		this.views.set(json.name, view);
-		return view;
+		wetuwn view;
 	}
 
-	getView(id: string): TestSerializableView {
+	getView(id: stwing): TestSewiawizabweView {
 		const view = this.views.get(id);
 		if (!view) {
-			throw new Error('Unknown view');
+			thwow new Ewwow('Unknown view');
 		}
-		return view;
+		wetuwn view;
 	}
 }
 
-function nodesToNames(node: GridNode<TestSerializableView>): any {
-	if (isGridBranchNode(node)) {
-		return node.children.map(nodesToNames);
-	} else {
-		return node.view.name;
+function nodesToNames(node: GwidNode<TestSewiawizabweView>): any {
+	if (isGwidBwanchNode(node)) {
+		wetuwn node.chiwdwen.map(nodesToNames);
+	} ewse {
+		wetuwn node.view.name;
 	}
 }
 
-suite('SerializableGrid', function () {
+suite('SewiawizabweGwid', function () {
 
-	let container: HTMLElement;
+	wet containa: HTMWEwement;
 
 	setup(function () {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${800}px`;
-		container.style.height = `${600}px`;
+		containa = document.cweateEwement('div');
+		containa.stywe.position = 'absowute';
+		containa.stywe.width = `${800}px`;
+		containa.stywe.height = `${600}px`;
 	});
 
-	test('serialize empty', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('sewiawize empty', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const actual = grid.serialize();
-		assert.deepStrictEqual(actual, {
-			orientation: 0,
+		const actuaw = gwid.sewiawize();
+		assewt.deepStwictEquaw(actuaw, {
+			owientation: 0,
 			width: 800,
 			height: 600,
-			root: {
-				type: 'branch',
+			woot: {
+				type: 'bwanch',
 				data: [
 					{
-						type: 'leaf',
+						type: 'weaf',
 						data: {
 							name: 'view1',
 						},
@@ -544,51 +544,51 @@ suite('SerializableGrid', function () {
 		});
 	});
 
-	test('serialize simple layout', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('sewiawize simpwe wayout', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
 
-		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
+		const view5 = new TestSewiawizabweView('view5', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
 
-		assert.deepStrictEqual(grid.serialize(), {
-			orientation: 0,
+		assewt.deepStwictEquaw(gwid.sewiawize(), {
+			owientation: 0,
 			width: 800,
 			height: 600,
-			root: {
-				type: 'branch',
+			woot: {
+				type: 'bwanch',
 				data: [
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
-							{ type: 'leaf', data: { name: 'view4' }, size: 200 },
-							{ type: 'leaf', data: { name: 'view2' }, size: 600 }
+							{ type: 'weaf', data: { name: 'view4' }, size: 200 },
+							{ type: 'weaf', data: { name: 'view2' }, size: 600 }
 						],
 						size: 200
 					},
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
 							{
-								type: 'branch',
+								type: 'bwanch',
 								data: [
-									{ type: 'leaf', data: { name: 'view1' }, size: 300 },
-									{ type: 'leaf', data: { name: 'view5' }, size: 100 }
+									{ type: 'weaf', data: { name: 'view1' }, size: 300 },
+									{ type: 'weaf', data: { name: 'view5' }, size: 100 }
 								],
 								size: 600
 							},
-							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
+							{ type: 'weaf', data: { name: 'view3' }, size: 200 }
 						],
 						size: 400
 					}
@@ -598,328 +598,328 @@ suite('SerializableGrid', function () {
 		});
 	});
 
-	test('deserialize empty', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('desewiawize empty', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
-		grid2.layout(800, 600);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
+		gwid2.wayout(800, 600);
 
-		assert.deepStrictEqual(nodesToNames(grid2.getViews()), ['view1']);
+		assewt.deepStwictEquaw(nodesToNames(gwid2.getViews()), ['view1']);
 	});
 
-	test('deserialize simple layout', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
+	test('desewiawize simpwe wayout', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
 
-		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
+		const view5 = new TestSewiawizabweView('view5', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
-		const view4Copy = deserializer.getView('view4');
-		const view5Copy = deserializer.getView('view5');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
+		const view4Copy = desewiawiza.getView('view4');
+		const view5Copy = desewiawiza.getView('view5');
 
-		assert.deepStrictEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
+		assewt.deepStwictEquaw(nodesToAwways(gwid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
 
-		grid2.layout(800, 600);
+		gwid2.wayout(800, 600);
 
-		assert.deepStrictEqual(view1Copy.size, [600, 300]);
-		assert.deepStrictEqual(view2Copy.size, [600, 200]);
-		assert.deepStrictEqual(view3Copy.size, [200, 400]);
-		assert.deepStrictEqual(view4Copy.size, [200, 200]);
-		assert.deepStrictEqual(view5Copy.size, [600, 100]);
+		assewt.deepStwictEquaw(view1Copy.size, [600, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [600, 200]);
+		assewt.deepStwictEquaw(view3Copy.size, [200, 400]);
+		assewt.deepStwictEquaw(view4Copy.size, [200, 200]);
+		assewt.deepStwictEquaw(view5Copy.size, [600, 100]);
 	});
 
-	test('deserialize simple layout with scaling', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
+	test('desewiawize simpwe wayout with scawing', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
 
-		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
+		const view5 = new TestSewiawizabweView('view5', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
-		const view4Copy = deserializer.getView('view4');
-		const view5Copy = deserializer.getView('view5');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
+		const view4Copy = desewiawiza.getView('view4');
+		const view5Copy = desewiawiza.getView('view5');
 
-		grid2.layout(400, 800); // [/2, *4/3]
-		assert.deepStrictEqual(view1Copy.size, [300, 400]);
-		assert.deepStrictEqual(view2Copy.size, [300, 267]);
-		assert.deepStrictEqual(view3Copy.size, [100, 533]);
-		assert.deepStrictEqual(view4Copy.size, [100, 267]);
-		assert.deepStrictEqual(view5Copy.size, [300, 133]);
+		gwid2.wayout(400, 800); // [/2, *4/3]
+		assewt.deepStwictEquaw(view1Copy.size, [300, 400]);
+		assewt.deepStwictEquaw(view2Copy.size, [300, 267]);
+		assewt.deepStwictEquaw(view3Copy.size, [100, 533]);
+		assewt.deepStwictEquaw(view4Copy.size, [100, 267]);
+		assewt.deepStwictEquaw(view5Copy.size, [300, 133]);
 	});
 
-	test('deserialize 4 view layout (ben issue #2)', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('desewiawize 4 view wayout (ben issue #2)', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Down);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Down);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Split, view2, Direction.Down);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Spwit, view2, Diwection.Down);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Split, view3, Direction.Right);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, Sizing.Spwit, view3, Diwection.Wight);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
-		const view4Copy = deserializer.getView('view4');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
+		const view4Copy = desewiawiza.getView('view4');
 
-		grid2.layout(800, 600);
+		gwid2.wayout(800, 600);
 
-		assert.deepStrictEqual(view1Copy.size, [800, 300]);
-		assert.deepStrictEqual(view2Copy.size, [800, 150]);
-		assert.deepStrictEqual(view3Copy.size, [400, 150]);
-		assert.deepStrictEqual(view4Copy.size, [400, 150]);
+		assewt.deepStwictEquaw(view1Copy.size, [800, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [800, 150]);
+		assewt.deepStwictEquaw(view3Copy.size, [400, 150]);
+		assewt.deepStwictEquaw(view4Copy.size, [400, 150]);
 	});
 
-	test('deserialize 2 view layout (ben issue #3)', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
+	test('desewiawize 2 view wayout (ben issue #3)', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Right);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Wight);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
 
-		grid2.layout(800, 600);
+		gwid2.wayout(800, 600);
 
-		assert.deepStrictEqual(view1Copy.size, [400, 600]);
-		assert.deepStrictEqual(view2Copy.size, [400, 600]);
+		assewt.deepStwictEquaw(view1Copy.size, [400, 600]);
+		assewt.deepStwictEquaw(view2Copy.size, [400, 600]);
 	});
 
-	test('deserialize simple view layout #50609', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
+	test('desewiawize simpwe view wayout #50609', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
 
-		grid.layout(800, 600);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Split, view1, Direction.Right);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, Sizing.Spwit, view1, Diwection.Wight);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Split, view2, Direction.Down);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, Sizing.Spwit, view2, Diwection.Down);
 
-		grid.removeView(view1, Sizing.Split);
+		gwid.wemoveView(view1, Sizing.Spwit);
 
-		const json = grid.serialize();
-		grid.dispose();
+		const json = gwid.sewiawize();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
 
-		grid2.layout(800, 600);
+		gwid2.wayout(800, 600);
 
-		assert.deepStrictEqual(view2Copy.size, [800, 300]);
-		assert.deepStrictEqual(view3Copy.size, [800, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [800, 300]);
+		assewt.deepStwictEquaw(view3Copy.size, [800, 300]);
 	});
 
-	test('sanitizeGridNodeDescriptor', () => {
-		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
-		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
-		sanitizeGridNodeDescriptor(nodeDescriptorCopy, true);
-		assert.deepStrictEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
+	test('sanitizeGwidNodeDescwiptow', () => {
+		const nodeDescwiptow = { gwoups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, gwoups: [{}, {}] }] };
+		const nodeDescwiptowCopy = deepCwone<GwidNodeDescwiptow>(nodeDescwiptow);
+		sanitizeGwidNodeDescwiptow(nodeDescwiptowCopy, twue);
+		assewt.deepStwictEquaw(nodeDescwiptowCopy, { gwoups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, gwoups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 
-	test('createSerializedGrid', () => {
-		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
-		const serializedGrid = createSerializedGrid(gridDescriptor);
-		assert.deepStrictEqual(serializedGrid, {
-			root: {
-				type: 'branch',
+	test('cweateSewiawizedGwid', () => {
+		const gwidDescwiptow = { owientation: Owientation.VEWTICAW, gwoups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, gwoups: [{}, {}] }] };
+		const sewiawizedGwid = cweateSewiawizedGwid(gwidDescwiptow);
+		assewt.deepStwictEquaw(sewiawizedGwid, {
+			woot: {
+				type: 'bwanch',
 				size: undefined,
 				data: [
-					{ type: 'leaf', size: 0.2, data: null },
-					{ type: 'leaf', size: 0.2, data: null },
+					{ type: 'weaf', size: 0.2, data: nuww },
+					{ type: 'weaf', size: 0.2, data: nuww },
 					{
-						type: 'branch', size: 0.6, data: [
-							{ type: 'leaf', size: 0.5, data: null },
-							{ type: 'leaf', size: 0.5, data: null }
+						type: 'bwanch', size: 0.6, data: [
+							{ type: 'weaf', size: 0.5, data: nuww },
+							{ type: 'weaf', size: 0.5, data: nuww }
 						]
 					}
 				]
 			},
-			orientation: Orientation.VERTICAL,
+			owientation: Owientation.VEWTICAW,
 			width: 1,
 			height: 1
 		});
 	});
 
-	test('createSerializedGrid - issue #85601, should not allow single children groups', () => {
-		const serializedGrid = createSerializedGrid({ orientation: Orientation.HORIZONTAL, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}], size: 0.5 }] });
-		const views: ISerializableView[] = [];
-		const deserializer = new class implements IViewDeserializer<ISerializableView> {
-			fromJSON(): ISerializableView {
-				const view: ISerializableView = {
-					element: document.createElement('div'),
-					layout: () => null,
+	test('cweateSewiawizedGwid - issue #85601, shouwd not awwow singwe chiwdwen gwoups', () => {
+		const sewiawizedGwid = cweateSewiawizedGwid({ owientation: Owientation.HOWIZONTAW, gwoups: [{ gwoups: [{}, {}], size: 0.5 }, { gwoups: [{}], size: 0.5 }] });
+		const views: ISewiawizabweView[] = [];
+		const desewiawiza = new cwass impwements IViewDesewiawiza<ISewiawizabweView> {
+			fwomJSON(): ISewiawizabweView {
+				const view: ISewiawizabweView = {
+					ewement: document.cweateEwement('div'),
+					wayout: () => nuww,
 					minimumWidth: 0,
-					maximumWidth: Number.POSITIVE_INFINITY,
+					maximumWidth: Numba.POSITIVE_INFINITY,
 					minimumHeight: 0,
-					maximumHeight: Number.POSITIVE_INFINITY,
+					maximumHeight: Numba.POSITIVE_INFINITY,
 					onDidChange: Event.None,
 					toJSON: () => ({})
 				};
 				views.push(view);
-				return view;
+				wetuwn view;
 			}
 		};
 
-		const grid = SerializableGrid.deserialize(serializedGrid, deserializer);
-		assert.strictEqual(views.length, 3);
+		const gwid = SewiawizabweGwid.desewiawize(sewiawizedGwid, desewiawiza);
+		assewt.stwictEquaw(views.wength, 3);
 
-		// should not throw
-		grid.removeView(views[2]);
+		// shouwd not thwow
+		gwid.wemoveView(views[2]);
 	});
 
-	test('serialize should store visibility and previous size', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('sewiawize shouwd stowe visibiwity and pwevious size', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
 
-		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
+		const view5 = new TestSewiawizabweView('view5', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
 
-		assert.deepStrictEqual(view1.size, [600, 300]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 100]);
+		assewt.deepStwictEquaw(view1.size, [600, 300]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 100]);
 
-		grid.setViewVisible(view5, false);
+		gwid.setViewVisibwe(view5, fawse);
 
-		assert.deepStrictEqual(view1.size, [600, 400]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 0]);
+		assewt.deepStwictEquaw(view1.size, [600, 400]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 0]);
 
-		grid.setViewVisible(view5, true);
+		gwid.setViewVisibwe(view5, twue);
 
-		assert.deepStrictEqual(view1.size, [600, 300]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 100]);
+		assewt.deepStwictEquaw(view1.size, [600, 300]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 100]);
 
-		grid.setViewVisible(view5, false);
+		gwid.setViewVisibwe(view5, fawse);
 
-		assert.deepStrictEqual(view1.size, [600, 400]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 0]);
+		assewt.deepStwictEquaw(view1.size, [600, 400]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 0]);
 
-		grid.setViewVisible(view5, false);
+		gwid.setViewVisibwe(view5, fawse);
 
-		const json = grid.serialize();
-		assert.deepStrictEqual(json, {
-			orientation: 0,
+		const json = gwid.sewiawize();
+		assewt.deepStwictEquaw(json, {
+			owientation: 0,
 			width: 800,
 			height: 600,
-			root: {
-				type: 'branch',
+			woot: {
+				type: 'bwanch',
 				data: [
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
-							{ type: 'leaf', data: { name: 'view4' }, size: 200 },
-							{ type: 'leaf', data: { name: 'view2' }, size: 600 }
+							{ type: 'weaf', data: { name: 'view4' }, size: 200 },
+							{ type: 'weaf', data: { name: 'view2' }, size: 600 }
 						],
 						size: 200
 					},
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
 							{
-								type: 'branch',
+								type: 'bwanch',
 								data: [
-									{ type: 'leaf', data: { name: 'view1' }, size: 400 },
-									{ type: 'leaf', data: { name: 'view5' }, size: 100, visible: false }
+									{ type: 'weaf', data: { name: 'view1' }, size: 400 },
+									{ type: 'weaf', data: { name: 'view5' }, size: 100, visibwe: fawse }
 								],
 								size: 600
 							},
-							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
+							{ type: 'weaf', data: { name: 'view3' }, size: 200 }
 						],
 						size: 400
 					}
@@ -928,107 +928,107 @@ suite('SerializableGrid', function () {
 			}
 		});
 
-		grid.dispose();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
-		const view4Copy = deserializer.getView('view4');
-		const view5Copy = deserializer.getView('view5');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
+		const view4Copy = desewiawiza.getView('view4');
+		const view5Copy = desewiawiza.getView('view5');
 
-		assert.deepStrictEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
+		assewt.deepStwictEquaw(nodesToAwways(gwid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
 
-		grid2.layout(800, 600);
-		assert.deepStrictEqual(view1Copy.size, [600, 400]);
-		assert.deepStrictEqual(view2Copy.size, [600, 200]);
-		assert.deepStrictEqual(view3Copy.size, [200, 400]);
-		assert.deepStrictEqual(view4Copy.size, [200, 200]);
-		assert.deepStrictEqual(view5Copy.size, [600, 0]);
+		gwid2.wayout(800, 600);
+		assewt.deepStwictEquaw(view1Copy.size, [600, 400]);
+		assewt.deepStwictEquaw(view2Copy.size, [600, 200]);
+		assewt.deepStwictEquaw(view3Copy.size, [200, 400]);
+		assewt.deepStwictEquaw(view4Copy.size, [200, 200]);
+		assewt.deepStwictEquaw(view5Copy.size, [600, 0]);
 
-		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), false);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view1Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view2Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view3Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view4Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view5Copy), fawse);
 
-		grid2.setViewVisible(view5Copy, true);
+		gwid2.setViewVisibwe(view5Copy, twue);
 
-		assert.deepStrictEqual(view1Copy.size, [600, 300]);
-		assert.deepStrictEqual(view2Copy.size, [600, 200]);
-		assert.deepStrictEqual(view3Copy.size, [200, 400]);
-		assert.deepStrictEqual(view4Copy.size, [200, 200]);
-		assert.deepStrictEqual(view5Copy.size, [600, 100]);
+		assewt.deepStwictEquaw(view1Copy.size, [600, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [600, 200]);
+		assewt.deepStwictEquaw(view3Copy.size, [200, 400]);
+		assewt.deepStwictEquaw(view4Copy.size, [200, 200]);
+		assewt.deepStwictEquaw(view5Copy.size, [600, 100]);
 
-		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), true);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view1Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view2Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view3Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view4Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view5Copy), twue);
 	});
 
-	test('serialize should store visibility and previous size even for first leaf', function () {
-		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(view1);
-		container.appendChild(grid.element);
-		grid.layout(800, 600);
+	test('sewiawize shouwd stowe visibiwity and pwevious size even fow fiwst weaf', function () {
+		const view1 = new TestSewiawizabweView('view1', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		const gwid = new SewiawizabweGwid(view1);
+		containa.appendChiwd(gwid.ewement);
+		gwid.wayout(800, 600);
 
-		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, view1, Direction.Up);
+		const view2 = new TestSewiawizabweView('view2', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view2, 200, view1, Diwection.Up);
 
-		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, view1, Direction.Right);
+		const view3 = new TestSewiawizabweView('view3', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view3, 200, view1, Diwection.Wight);
 
-		const view4 = new TestSerializableView('view4', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, view2, Direction.Left);
+		const view4 = new TestSewiawizabweView('view4', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view4, 200, view2, Diwection.Weft);
 
-		const view5 = new TestSerializableView('view5', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, view1, Direction.Down);
+		const view5 = new TestSewiawizabweView('view5', 50, Numba.MAX_VAWUE, 50, Numba.MAX_VAWUE);
+		gwid.addView(view5, 100, view1, Diwection.Down);
 
-		assert.deepStrictEqual(view1.size, [600, 300]);
-		assert.deepStrictEqual(view2.size, [600, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [200, 200]);
-		assert.deepStrictEqual(view5.size, [600, 100]);
+		assewt.deepStwictEquaw(view1.size, [600, 300]);
+		assewt.deepStwictEquaw(view2.size, [600, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [200, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 100]);
 
-		grid.setViewVisible(view4, false);
+		gwid.setViewVisibwe(view4, fawse);
 
-		assert.deepStrictEqual(view1.size, [600, 300]);
-		assert.deepStrictEqual(view2.size, [800, 200]);
-		assert.deepStrictEqual(view3.size, [200, 400]);
-		assert.deepStrictEqual(view4.size, [0, 200]);
-		assert.deepStrictEqual(view5.size, [600, 100]);
+		assewt.deepStwictEquaw(view1.size, [600, 300]);
+		assewt.deepStwictEquaw(view2.size, [800, 200]);
+		assewt.deepStwictEquaw(view3.size, [200, 400]);
+		assewt.deepStwictEquaw(view4.size, [0, 200]);
+		assewt.deepStwictEquaw(view5.size, [600, 100]);
 
-		const json = grid.serialize();
-		assert.deepStrictEqual(json, {
-			orientation: 0,
+		const json = gwid.sewiawize();
+		assewt.deepStwictEquaw(json, {
+			owientation: 0,
 			width: 800,
 			height: 600,
-			root: {
-				type: 'branch',
+			woot: {
+				type: 'bwanch',
 				data: [
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
-							{ type: 'leaf', data: { name: 'view4' }, size: 200, visible: false },
-							{ type: 'leaf', data: { name: 'view2' }, size: 800 }
+							{ type: 'weaf', data: { name: 'view4' }, size: 200, visibwe: fawse },
+							{ type: 'weaf', data: { name: 'view2' }, size: 800 }
 						],
 						size: 200
 					},
 					{
-						type: 'branch',
+						type: 'bwanch',
 						data: [
 							{
-								type: 'branch',
+								type: 'bwanch',
 								data: [
-									{ type: 'leaf', data: { name: 'view1' }, size: 300 },
-									{ type: 'leaf', data: { name: 'view5' }, size: 100 }
+									{ type: 'weaf', data: { name: 'view1' }, size: 300 },
+									{ type: 'weaf', data: { name: 'view5' }, size: 100 }
 								],
 								size: 600
 							},
-							{ type: 'leaf', data: { name: 'view3' }, size: 200 }
+							{ type: 'weaf', data: { name: 'view3' }, size: 200 }
 						],
 						size: 400
 					}
@@ -1037,44 +1037,44 @@ suite('SerializableGrid', function () {
 			}
 		});
 
-		grid.dispose();
+		gwid.dispose();
 
-		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(json, deserializer);
+		const desewiawiza = new TestViewDesewiawiza();
+		const gwid2 = SewiawizabweGwid.desewiawize(json, desewiawiza);
 
-		const view1Copy = deserializer.getView('view1');
-		const view2Copy = deserializer.getView('view2');
-		const view3Copy = deserializer.getView('view3');
-		const view4Copy = deserializer.getView('view4');
-		const view5Copy = deserializer.getView('view5');
+		const view1Copy = desewiawiza.getView('view1');
+		const view2Copy = desewiawiza.getView('view2');
+		const view3Copy = desewiawiza.getView('view3');
+		const view4Copy = desewiawiza.getView('view4');
+		const view5Copy = desewiawiza.getView('view5');
 
-		assert.deepStrictEqual(nodesToArrays(grid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
+		assewt.deepStwictEquaw(nodesToAwways(gwid2.getViews()), [[view4Copy, view2Copy], [[view1Copy, view5Copy], view3Copy]]);
 
-		grid2.layout(800, 600);
-		assert.deepStrictEqual(view1Copy.size, [600, 300]);
-		assert.deepStrictEqual(view2Copy.size, [800, 200]);
-		assert.deepStrictEqual(view3Copy.size, [200, 400]);
-		assert.deepStrictEqual(view4Copy.size, [0, 200]);
-		assert.deepStrictEqual(view5Copy.size, [600, 100]);
+		gwid2.wayout(800, 600);
+		assewt.deepStwictEquaw(view1Copy.size, [600, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [800, 200]);
+		assewt.deepStwictEquaw(view3Copy.size, [200, 400]);
+		assewt.deepStwictEquaw(view4Copy.size, [0, 200]);
+		assewt.deepStwictEquaw(view5Copy.size, [600, 100]);
 
-		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), false);
-		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), true);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view1Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view2Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view3Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view4Copy), fawse);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view5Copy), twue);
 
-		grid2.setViewVisible(view4Copy, true);
+		gwid2.setViewVisibwe(view4Copy, twue);
 
-		assert.deepStrictEqual(view1Copy.size, [600, 300]);
-		assert.deepStrictEqual(view2Copy.size, [600, 200]);
-		assert.deepStrictEqual(view3Copy.size, [200, 400]);
-		assert.deepStrictEqual(view4Copy.size, [200, 200]);
-		assert.deepStrictEqual(view5Copy.size, [600, 100]);
+		assewt.deepStwictEquaw(view1Copy.size, [600, 300]);
+		assewt.deepStwictEquaw(view2Copy.size, [600, 200]);
+		assewt.deepStwictEquaw(view3Copy.size, [200, 400]);
+		assewt.deepStwictEquaw(view4Copy.size, [200, 200]);
+		assewt.deepStwictEquaw(view5Copy.size, [600, 100]);
 
-		assert.deepStrictEqual(grid2.isViewVisible(view1Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view2Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view3Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view4Copy), true);
-		assert.deepStrictEqual(grid2.isViewVisible(view5Copy), true);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view1Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view2Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view3Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view4Copy), twue);
+		assewt.deepStwictEquaw(gwid2.isViewVisibwe(view5Copy), twue);
 	});
 });

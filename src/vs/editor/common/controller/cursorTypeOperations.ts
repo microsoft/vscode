@@ -1,1003 +1,1003 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WepwaceCommand, WepwaceCommandWithOffsetCuwsowState, WepwaceCommandWithoutChangingPosition, WepwaceCommandThatPwesewvesSewection } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { ShiftCommand } fwom 'vs/editow/common/commands/shiftCommand';
+impowt { SuwwoundSewectionCommand } fwom 'vs/editow/common/commands/suwwoundSewectionCommand';
+impowt { CuwsowCowumns, CuwsowConfiguwation, EditOpewationWesuwt, EditOpewationType, ICuwsowSimpweModew, isQuote } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { WowdChawactewCwass, getMapFowWowdSepawatows } fwom 'vs/editow/common/contwowwa/wowdChawactewCwassifia';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ICommand, ICuwsowStateComputewData } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { EntewAction, IndentAction, StandawdAutoCwosingPaiwConditionaw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { IEwectwicAction } fwom 'vs/editow/common/modes/suppowts/ewectwicChawacta';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
-export class TypeOperations {
+expowt cwass TypeOpewations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel | null, selections: Selection[] | null): ICommand[] {
-		if (model === null || selections === null) {
-			return [];
+	pubwic static indent(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew | nuww, sewections: Sewection[] | nuww): ICommand[] {
+		if (modew === nuww || sewections === nuww) {
+			wetuwn [];
 		}
 
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ShiftCommand(selections[i], {
-				isUnshift: false,
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new ShiftCommand(sewections[i], {
+				isUnshift: fawse,
 				tabSize: config.tabSize,
 				indentSize: config.indentSize,
-				insertSpaces: config.insertSpaces,
+				insewtSpaces: config.insewtSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
 			});
 		}
-		return commands;
+		wetuwn commands;
 	}
 
-	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): ICommand[] {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ShiftCommand(selections[i], {
-				isUnshift: true,
+	pubwic static outdent(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[]): ICommand[] {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new ShiftCommand(sewections[i], {
+				isUnshift: twue,
 				tabSize: config.tabSize,
 				indentSize: config.indentSize,
-				insertSpaces: config.insertSpaces,
+				insewtSpaces: config.insewtSpaces,
 				useTabStops: config.useTabStops,
 				autoIndent: config.autoIndent
 			});
 		}
-		return commands;
+		wetuwn commands;
 	}
 
-	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+	pubwic static shiftIndent(config: CuwsowConfiguwation, indentation: stwing, count?: numba): stwing {
 		count = count || 1;
-		return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
+		wetuwn ShiftCommand.shiftIndent(indentation, indentation.wength + count, config.tabSize, config.indentSize, config.insewtSpaces);
 	}
 
-	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+	pubwic static unshiftIndent(config: CuwsowConfiguwation, indentation: stwing, count?: numba): stwing {
 		count = count || 1;
-		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
+		wetuwn ShiftCommand.unshiftIndent(indentation, indentation.wength + count, config.tabSize, config.indentSize, config.insewtSpaces);
 	}
 
-	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], text[i]);
+	pwivate static _distwibutedPaste(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[], text: stwing[]): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new WepwaceCommand(sewections[i], text[i]);
 		}
-		return new EditOperationResult(EditOperationType.Other, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+		wetuwn new EditOpewationWesuwt(EditOpewationType.Otha, commands, {
+			shouwdPushStackEwementBefowe: twue,
+			shouwdPushStackEwementAfta: twue
 		});
 	}
 
-	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			let position = selection.getPosition();
+	pwivate static _simpwePaste(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[], text: stwing, pasteOnNewWine: boowean): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			wet position = sewection.getPosition();
 
-			if (pasteOnNewLine && !selection.isEmpty()) {
-				pasteOnNewLine = false;
+			if (pasteOnNewWine && !sewection.isEmpty()) {
+				pasteOnNewWine = fawse;
 			}
-			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-				pasteOnNewLine = false;
+			if (pasteOnNewWine && text.indexOf('\n') !== text.wength - 1) {
+				pasteOnNewWine = fawse;
 			}
 
-			if (pasteOnNewLine) {
-				// Paste entire line at the beginning of line
-				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
-			} else {
-				commands[i] = new ReplaceCommand(selection, text);
+			if (pasteOnNewWine) {
+				// Paste entiwe wine at the beginning of wine
+				wet typeSewection = new Wange(position.wineNumba, 1, position.wineNumba, 1);
+				commands[i] = new WepwaceCommandThatPwesewvesSewection(typeSewection, text, sewection, twue);
+			} ewse {
+				commands[i] = new WepwaceCommand(sewection, text);
 			}
 		}
-		return new EditOperationResult(EditOperationType.Other, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+		wetuwn new EditOpewationWesuwt(EditOpewationType.Otha, commands, {
+			shouwdPushStackEwementBefowe: twue,
+			shouwdPushStackEwementAfta: twue
 		});
 	}
 
-	private static _distributePasteToCursors(config: CursorConfiguration, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] | null {
-		if (pasteOnNewLine) {
-			return null;
+	pwivate static _distwibutePasteToCuwsows(config: CuwsowConfiguwation, sewections: Sewection[], text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[]): stwing[] | nuww {
+		if (pasteOnNewWine) {
+			wetuwn nuww;
 		}
 
-		if (selections.length === 1) {
-			return null;
+		if (sewections.wength === 1) {
+			wetuwn nuww;
 		}
 
-		if (multicursorText && multicursorText.length === selections.length) {
-			return multicursorText;
+		if (muwticuwsowText && muwticuwsowText.wength === sewections.wength) {
+			wetuwn muwticuwsowText;
 		}
 
-		if (config.multiCursorPaste === 'spread') {
-			// Try to spread the pasted text in case the line count matches the cursor count
-			// Remove trailing \n if present
-			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
-				text = text.substr(0, text.length - 1);
+		if (config.muwtiCuwsowPaste === 'spwead') {
+			// Twy to spwead the pasted text in case the wine count matches the cuwsow count
+			// Wemove twaiwing \n if pwesent
+			if (text.chawCodeAt(text.wength - 1) === ChawCode.WineFeed) {
+				text = text.substw(0, text.wength - 1);
 			}
-			// Remove trailing \r if present
-			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
-				text = text.substr(0, text.length - 1);
+			// Wemove twaiwing \w if pwesent
+			if (text.chawCodeAt(text.wength - 1) === ChawCode.CawwiageWetuwn) {
+				text = text.substw(0, text.wength - 1);
 			}
-			let lines = strings.splitLines(text);
-			if (lines.length === selections.length) {
-				return lines;
+			wet wines = stwings.spwitWines(text);
+			if (wines.wength === sewections.wength) {
+				wetuwn wines;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
-		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
+	pubwic static paste(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewections: Sewection[], text: stwing, pasteOnNewWine: boowean, muwticuwsowText: stwing[]): EditOpewationWesuwt {
+		const distwibutedPaste = this._distwibutePasteToCuwsows(config, sewections, text, pasteOnNewWine, muwticuwsowText);
 
-		if (distributedPaste) {
-			selections = selections.sort(Range.compareRangesUsingStarts);
-			return this._distributedPaste(config, model, selections, distributedPaste);
-		} else {
-			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
+		if (distwibutedPaste) {
+			sewections = sewections.sowt(Wange.compaweWangesUsingStawts);
+			wetuwn this._distwibutedPaste(config, modew, sewections, distwibutedPaste);
+		} ewse {
+			wetuwn this._simpwePaste(config, modew, sewections, text, pasteOnNewWine);
 		}
 	}
 
-	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
-		let action: IndentAction | EnterAction | null = null;
-		let indentation: string = '';
+	pwivate static _goodIndentFowWine(config: CuwsowConfiguwation, modew: ITextModew, wineNumba: numba): stwing | nuww {
+		wet action: IndentAction | EntewAction | nuww = nuww;
+		wet indentation: stwing = '';
 
-		const expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(config.autoIndent, model, lineNumber, false);
+		const expectedIndentAction = WanguageConfiguwationWegistwy.getInhewitIndentFowWine(config.autoIndent, modew, wineNumba, fawse);
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;
-		} else if (lineNumber > 1) {
-			let lastLineNumber: number;
-			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-				const lineText = model.getLineContent(lastLineNumber);
-				const nonWhitespaceIdx = strings.lastNonWhitespaceIndex(lineText);
+		} ewse if (wineNumba > 1) {
+			wet wastWineNumba: numba;
+			fow (wastWineNumba = wineNumba - 1; wastWineNumba >= 1; wastWineNumba--) {
+				const wineText = modew.getWineContent(wastWineNumba);
+				const nonWhitespaceIdx = stwings.wastNonWhitespaceIndex(wineText);
 				if (nonWhitespaceIdx >= 0) {
-					break;
+					bweak;
 				}
 			}
 
-			if (lastLineNumber < 1) {
-				// No previous line with content found
-				return null;
+			if (wastWineNumba < 1) {
+				// No pwevious wine with content found
+				wetuwn nuww;
 			}
 
-			const maxColumn = model.getLineMaxColumn(lastLineNumber);
-			const expectedEnterAction = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, new Range(lastLineNumber, maxColumn, lastLineNumber, maxColumn));
-			if (expectedEnterAction) {
-				indentation = expectedEnterAction.indentation + expectedEnterAction.appendText;
+			const maxCowumn = modew.getWineMaxCowumn(wastWineNumba);
+			const expectedEntewAction = WanguageConfiguwationWegistwy.getEntewAction(config.autoIndent, modew, new Wange(wastWineNumba, maxCowumn, wastWineNumba, maxCowumn));
+			if (expectedEntewAction) {
+				indentation = expectedEntewAction.indentation + expectedEntewAction.appendText;
 			}
 		}
 
 		if (action) {
 			if (action === IndentAction.Indent) {
-				indentation = TypeOperations.shiftIndent(config, indentation);
+				indentation = TypeOpewations.shiftIndent(config, indentation);
 			}
 
 			if (action === IndentAction.Outdent) {
-				indentation = TypeOperations.unshiftIndent(config, indentation);
+				indentation = TypeOpewations.unshiftIndent(config, indentation);
 			}
 
-			indentation = config.normalizeIndentation(indentation);
+			indentation = config.nowmawizeIndentation(indentation);
 		}
 
 		if (!indentation) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return indentation;
+		wetuwn indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
-		let typeText = '';
+	pwivate static _wepwaceJumpToNextIndent(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, sewection: Sewection, insewtsAutoWhitespace: boowean): WepwaceCommand {
+		wet typeText = '';
 
-		let position = selection.getStartPosition();
-		if (config.insertSpaces) {
-			let visibleColumnFromColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-			let indentSize = config.indentSize;
-			let spacesCnt = indentSize - (visibleColumnFromColumn % indentSize);
-			for (let i = 0; i < spacesCnt; i++) {
+		wet position = sewection.getStawtPosition();
+		if (config.insewtSpaces) {
+			wet visibweCowumnFwomCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, position);
+			wet indentSize = config.indentSize;
+			wet spacesCnt = indentSize - (visibweCowumnFwomCowumn % indentSize);
+			fow (wet i = 0; i < spacesCnt; i++) {
 				typeText += ' ';
 			}
-		} else {
+		} ewse {
 			typeText = '\t';
 		}
 
-		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
+		wetuwn new WepwaceCommand(sewection, typeText, insewtsAutoWhitespace);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+	pubwic static tab(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[]): ICommand[] {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			if (selection.isEmpty()) {
+			if (sewection.isEmpty()) {
 
-				let lineText = model.getLineContent(selection.startLineNumber);
+				wet wineText = modew.getWineContent(sewection.stawtWineNumba);
 
-				if (/^\s*$/.test(lineText) && model.isCheapToTokenize(selection.startLineNumber)) {
-					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
+				if (/^\s*$/.test(wineText) && modew.isCheapToTokenize(sewection.stawtWineNumba)) {
+					wet goodIndent = this._goodIndentFowWine(config, modew, sewection.stawtWineNumba);
 					goodIndent = goodIndent || '\t';
-					let possibleTypeText = config.normalizeIndentation(goodIndent);
-					if (!lineText.startsWith(possibleTypeText)) {
-						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
+					wet possibweTypeText = config.nowmawizeIndentation(goodIndent);
+					if (!wineText.stawtsWith(possibweTypeText)) {
+						commands[i] = new WepwaceCommand(new Wange(sewection.stawtWineNumba, 1, sewection.stawtWineNumba, wineText.wength + 1), possibweTypeText, twue);
 						continue;
 					}
 				}
 
-				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
-			} else {
-				if (selection.startLineNumber === selection.endLineNumber) {
-					let lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
-						// This is a single line selection that is not the entire line
-						commands[i] = this._replaceJumpToNextIndent(config, model, selection, false);
+				commands[i] = this._wepwaceJumpToNextIndent(config, modew, sewection, twue);
+			} ewse {
+				if (sewection.stawtWineNumba === sewection.endWineNumba) {
+					wet wineMaxCowumn = modew.getWineMaxCowumn(sewection.stawtWineNumba);
+					if (sewection.stawtCowumn !== 1 || sewection.endCowumn !== wineMaxCowumn) {
+						// This is a singwe wine sewection that is not the entiwe wine
+						commands[i] = this._wepwaceJumpToNextIndent(config, modew, sewection, fawse);
 						continue;
 					}
 				}
 
-				commands[i] = new ShiftCommand(selection, {
-					isUnshift: false,
+				commands[i] = new ShiftCommand(sewection, {
+					isUnshift: fawse,
 					tabSize: config.tabSize,
 					indentSize: config.indentSize,
-					insertSpaces: config.insertSpaces,
+					insewtSpaces: config.insewtSpaces,
 					useTabStops: config.useTabStops,
 					autoIndent: config.autoIndent
 				});
 			}
 		}
-		return commands;
+		wetuwn commands;
 	}
 
-	public static compositionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): EditOperationResult {
-		const commands = selections.map(selection => this._compositionType(model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
-		return new EditOperationResult(EditOperationType.TypingOther, commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, EditOperationType.TypingOther),
-			shouldPushStackElementAfter: false
+	pubwic static compositionType(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba): EditOpewationWesuwt {
+		const commands = sewections.map(sewection => this._compositionType(modew, sewection, text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta));
+		wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+			shouwdPushStackEwementBefowe: shouwdPushStackEwementBetween(pwevEditOpewationType, EditOpewationType.TypingOtha),
+			shouwdPushStackEwementAfta: fawse
 		});
 	}
 
-	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
-		if (!selection.isEmpty()) {
-			// looks like https://github.com/microsoft/vscode/issues/2773
-			// where a cursor operation occurred before a canceled composition
-			// => ignore composition
-			return null;
+	pwivate static _compositionType(modew: ITextModew, sewection: Sewection, text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba): ICommand | nuww {
+		if (!sewection.isEmpty()) {
+			// wooks wike https://github.com/micwosoft/vscode/issues/2773
+			// whewe a cuwsow opewation occuwwed befowe a cancewed composition
+			// => ignowe composition
+			wetuwn nuww;
 		}
-		const pos = selection.getPosition();
-		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
-		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
-		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-		const oldText = model.getValueInRange(range);
-		if (oldText === text && positionDelta === 0) {
-			// => ignore composition that doesn't do anything
-			return null;
+		const pos = sewection.getPosition();
+		const stawtCowumn = Math.max(1, pos.cowumn - wepwacePwevChawCnt);
+		const endCowumn = Math.min(modew.getWineMaxCowumn(pos.wineNumba), pos.cowumn + wepwaceNextChawCnt);
+		const wange = new Wange(pos.wineNumba, stawtCowumn, pos.wineNumba, endCowumn);
+		const owdText = modew.getVawueInWange(wange);
+		if (owdText === text && positionDewta === 0) {
+			// => ignowe composition that doesn't do anything
+			wetuwn nuww;
 		}
-		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
+		wetuwn new WepwaceCommandWithOffsetCuwsowState(wange, text, 0, positionDewta);
 	}
 
-	private static _typeCommand(range: Range, text: string, keepPosition: boolean): ICommand {
+	pwivate static _typeCommand(wange: Wange, text: stwing, keepPosition: boowean): ICommand {
 		if (keepPosition) {
-			return new ReplaceCommandWithoutChangingPosition(range, text, true);
-		} else {
-			return new ReplaceCommand(range, text, true);
+			wetuwn new WepwaceCommandWithoutChangingPosition(wange, text, twue);
+		} ewse {
+			wetuwn new WepwaceCommand(wange, text, twue);
 		}
 	}
 
-	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
-		if (config.autoIndent === EditorAutoIndentStrategy.None) {
-			return TypeOperations._typeCommand(range, '\n', keepPosition);
+	pwivate static _enta(config: CuwsowConfiguwation, modew: ITextModew, keepPosition: boowean, wange: Wange): ICommand {
+		if (config.autoIndent === EditowAutoIndentStwategy.None) {
+			wetuwn TypeOpewations._typeCommand(wange, '\n', keepPosition);
 		}
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
-			let lineText = model.getLineContent(range.startLineNumber);
-			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
-			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		if (!modew.isCheapToTokenize(wange.getStawtPosition().wineNumba) || config.autoIndent === EditowAutoIndentStwategy.Keep) {
+			wet wineText = modew.getWineContent(wange.stawtWineNumba);
+			wet indentation = stwings.getWeadingWhitespace(wineText).substwing(0, wange.stawtCowumn - 1);
+			wetuwn TypeOpewations._typeCommand(wange, '\n' + config.nowmawizeIndentation(indentation), keepPosition);
 		}
 
-		const r = LanguageConfigurationRegistry.getEnterAction(config.autoIndent, model, range);
-		if (r) {
-			if (r.indentAction === IndentAction.None) {
-				// Nothing special
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+		const w = WanguageConfiguwationWegistwy.getEntewAction(config.autoIndent, modew, wange);
+		if (w) {
+			if (w.indentAction === IndentAction.None) {
+				// Nothing speciaw
+				wetuwn TypeOpewations._typeCommand(wange, '\n' + config.nowmawizeIndentation(w.indentation + w.appendText), keepPosition);
 
-			} else if (r.indentAction === IndentAction.Indent) {
+			} ewse if (w.indentAction === IndentAction.Indent) {
 				// Indent once
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				wetuwn TypeOpewations._typeCommand(wange, '\n' + config.nowmawizeIndentation(w.indentation + w.appendText), keepPosition);
 
-			} else if (r.indentAction === IndentAction.IndentOutdent) {
-				// Ultra special
-				const normalIndent = config.normalizeIndentation(r.indentation);
-				const increasedIndent = config.normalizeIndentation(r.indentation + r.appendText);
+			} ewse if (w.indentAction === IndentAction.IndentOutdent) {
+				// Uwtwa speciaw
+				const nowmawIndent = config.nowmawizeIndentation(w.indentation);
+				const incweasedIndent = config.nowmawizeIndentation(w.indentation + w.appendText);
 
-				const typeText = '\n' + increasedIndent + '\n' + normalIndent;
+				const typeText = '\n' + incweasedIndent + '\n' + nowmawIndent;
 
 				if (keepPosition) {
-					return new ReplaceCommandWithoutChangingPosition(range, typeText, true);
-				} else {
-					return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
+					wetuwn new WepwaceCommandWithoutChangingPosition(wange, typeText, twue);
+				} ewse {
+					wetuwn new WepwaceCommandWithOffsetCuwsowState(wange, typeText, -1, incweasedIndent.wength - nowmawIndent.wength, twue);
 				}
-			} else if (r.indentAction === IndentAction.Outdent) {
-				const actualIndentation = TypeOperations.unshiftIndent(config, r.indentation);
-				return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
+			} ewse if (w.indentAction === IndentAction.Outdent) {
+				const actuawIndentation = TypeOpewations.unshiftIndent(config, w.indentation);
+				wetuwn TypeOpewations._typeCommand(wange, '\n' + config.nowmawizeIndentation(actuawIndentation + w.appendText), keepPosition);
 			}
 		}
 
-		const lineText = model.getLineContent(range.startLineNumber);
-		const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
+		const wineText = modew.getWineContent(wange.stawtWineNumba);
+		const indentation = stwings.getWeadingWhitespace(wineText).substwing(0, wange.stawtCowumn - 1);
 
-		if (config.autoIndent >= EditorAutoIndentStrategy.Full) {
-			const ir = LanguageConfigurationRegistry.getIndentForEnter(config.autoIndent, model, range, {
+		if (config.autoIndent >= EditowAutoIndentStwategy.Fuww) {
+			const iw = WanguageConfiguwationWegistwy.getIndentFowEnta(config.autoIndent, modew, wange, {
 				unshiftIndent: (indent) => {
-					return TypeOperations.unshiftIndent(config, indent);
+					wetuwn TypeOpewations.unshiftIndent(config, indent);
 				},
 				shiftIndent: (indent) => {
-					return TypeOperations.shiftIndent(config, indent);
+					wetuwn TypeOpewations.shiftIndent(config, indent);
 				},
-				normalizeIndentation: (indent) => {
-					return config.normalizeIndentation(indent);
+				nowmawizeIndentation: (indent) => {
+					wetuwn config.nowmawizeIndentation(indent);
 				}
 			});
 
-			if (ir) {
-				let oldEndViewColumn = CursorColumns.visibleColumnFromColumn2(config, model, range.getEndPosition());
-				const oldEndColumn = range.endColumn;
-				const newLineContent = model.getLineContent(range.endLineNumber);
-				const firstNonWhitespace = strings.firstNonWhitespaceIndex(newLineContent);
-				if (firstNonWhitespace >= 0) {
-					range = range.setEndPosition(range.endLineNumber, Math.max(range.endColumn, firstNonWhitespace + 1));
-				} else {
-					range = range.setEndPosition(range.endLineNumber, model.getLineMaxColumn(range.endLineNumber));
+			if (iw) {
+				wet owdEndViewCowumn = CuwsowCowumns.visibweCowumnFwomCowumn2(config, modew, wange.getEndPosition());
+				const owdEndCowumn = wange.endCowumn;
+				const newWineContent = modew.getWineContent(wange.endWineNumba);
+				const fiwstNonWhitespace = stwings.fiwstNonWhitespaceIndex(newWineContent);
+				if (fiwstNonWhitespace >= 0) {
+					wange = wange.setEndPosition(wange.endWineNumba, Math.max(wange.endCowumn, fiwstNonWhitespace + 1));
+				} ewse {
+					wange = wange.setEndPosition(wange.endWineNumba, modew.getWineMaxCowumn(wange.endWineNumba));
 				}
 
 				if (keepPosition) {
-					return new ReplaceCommandWithoutChangingPosition(range, '\n' + config.normalizeIndentation(ir.afterEnter), true);
-				} else {
-					let offset = 0;
-					if (oldEndColumn <= firstNonWhitespace + 1) {
-						if (!config.insertSpaces) {
-							oldEndViewColumn = Math.ceil(oldEndViewColumn / config.indentSize);
+					wetuwn new WepwaceCommandWithoutChangingPosition(wange, '\n' + config.nowmawizeIndentation(iw.aftewEnta), twue);
+				} ewse {
+					wet offset = 0;
+					if (owdEndCowumn <= fiwstNonWhitespace + 1) {
+						if (!config.insewtSpaces) {
+							owdEndViewCowumn = Math.ceiw(owdEndViewCowumn / config.indentSize);
 						}
-						offset = Math.min(oldEndViewColumn + 1 - config.normalizeIndentation(ir.afterEnter).length - 1, 0);
+						offset = Math.min(owdEndViewCowumn + 1 - config.nowmawizeIndentation(iw.aftewEnta).wength - 1, 0);
 					}
-					return new ReplaceCommandWithOffsetCursorState(range, '\n' + config.normalizeIndentation(ir.afterEnter), 0, offset, true);
+					wetuwn new WepwaceCommandWithOffsetCuwsowState(wange, '\n' + config.nowmawizeIndentation(iw.aftewEnta), 0, offset, twue);
 				}
 			}
 		}
 
-		return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		wetuwn TypeOpewations._typeCommand(wange, '\n' + config.nowmawizeIndentation(indentation), keepPosition);
 	}
 
-	private static _isAutoIndentType(config: CursorConfiguration, model: ITextModel, selections: Selection[]): boolean {
-		if (config.autoIndent < EditorAutoIndentStrategy.Full) {
-			return false;
+	pwivate static _isAutoIndentType(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[]): boowean {
+		if (config.autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			if (!model.isCheapToTokenize(selections[i].getEndPosition().lineNumber)) {
-				return false;
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			if (!modew.isCheapToTokenize(sewections[i].getEndPosition().wineNumba)) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
-		const currentIndentation = LanguageConfigurationRegistry.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		const actualIndentation = LanguageConfigurationRegistry.getIndentActionForType(config.autoIndent, model, range, ch, {
+	pwivate static _wunAutoIndentType(config: CuwsowConfiguwation, modew: ITextModew, wange: Wange, ch: stwing): ICommand | nuww {
+		const cuwwentIndentation = WanguageConfiguwationWegistwy.getIndentationAtPosition(modew, wange.stawtWineNumba, wange.stawtCowumn);
+		const actuawIndentation = WanguageConfiguwationWegistwy.getIndentActionFowType(config.autoIndent, modew, wange, ch, {
 			shiftIndent: (indentation) => {
-				return TypeOperations.shiftIndent(config, indentation);
+				wetuwn TypeOpewations.shiftIndent(config, indentation);
 			},
 			unshiftIndent: (indentation) => {
-				return TypeOperations.unshiftIndent(config, indentation);
+				wetuwn TypeOpewations.unshiftIndent(config, indentation);
 			},
 		});
 
-		if (actualIndentation === null) {
-			return null;
+		if (actuawIndentation === nuww) {
+			wetuwn nuww;
 		}
 
-		if (actualIndentation !== config.normalizeIndentation(currentIndentation)) {
-			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
-			if (firstNonWhitespace === 0) {
-				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
-					config.normalizeIndentation(actualIndentation) + ch,
-					false
+		if (actuawIndentation !== config.nowmawizeIndentation(cuwwentIndentation)) {
+			const fiwstNonWhitespace = modew.getWineFiwstNonWhitespaceCowumn(wange.stawtWineNumba);
+			if (fiwstNonWhitespace === 0) {
+				wetuwn TypeOpewations._typeCommand(
+					new Wange(wange.stawtWineNumba, 1, wange.endWineNumba, wange.endCowumn),
+					config.nowmawizeIndentation(actuawIndentation) + ch,
+					fawse
 				);
-			} else {
-				return TypeOperations._typeCommand(
-					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
-					config.normalizeIndentation(actualIndentation) +
-					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
-					false
+			} ewse {
+				wetuwn TypeOpewations._typeCommand(
+					new Wange(wange.stawtWineNumba, 1, wange.endWineNumba, wange.endCowumn),
+					config.nowmawizeIndentation(actuawIndentation) +
+					modew.getWineContent(wange.stawtWineNumba).substwing(fiwstNonWhitespace - 1, wange.stawtCowumn - 1) + ch,
+					fawse
 				);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private static _isAutoClosingOvertype(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): boolean {
-		if (config.autoClosingOvertype === 'never') {
-			return false;
+	pwivate static _isAutoCwosingOvewtype(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], autoCwosedChawactews: Wange[], ch: stwing): boowean {
+		if (config.autoCwosingOvewtype === 'neva') {
+			wetuwn fawse;
 		}
 
-		if (!config.autoClosingPairs.autoClosingPairsCloseSingleChar.has(ch)) {
-			return false;
+		if (!config.autoCwosingPaiws.autoCwosingPaiwsCwoseSingweChaw.has(ch)) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			if (!selection.isEmpty()) {
-				return false;
+			if (!sewection.isEmpty()) {
+				wetuwn fawse;
 			}
 
-			const position = selection.getPosition();
-			const lineText = model.getLineContent(position.lineNumber);
-			const afterCharacter = lineText.charAt(position.column - 1);
+			const position = sewection.getPosition();
+			const wineText = modew.getWineContent(position.wineNumba);
+			const aftewChawacta = wineText.chawAt(position.cowumn - 1);
 
-			if (afterCharacter !== ch) {
-				return false;
+			if (aftewChawacta !== ch) {
+				wetuwn fawse;
 			}
 
-			// Do not over-type quotes after a backslash
+			// Do not ova-type quotes afta a backswash
 			const chIsQuote = isQuote(ch);
-			const beforeCharacter = position.column > 2 ? lineText.charCodeAt(position.column - 2) : CharCode.Null;
-			if (beforeCharacter === CharCode.Backslash && chIsQuote) {
-				return false;
+			const befoweChawacta = position.cowumn > 2 ? wineText.chawCodeAt(position.cowumn - 2) : ChawCode.Nuww;
+			if (befoweChawacta === ChawCode.Backswash && chIsQuote) {
+				wetuwn fawse;
 			}
 
-			// Must over-type a closing character typed by the editor
-			if (config.autoClosingOvertype === 'auto') {
-				let found = false;
-				for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
-					const autoClosedCharacter = autoClosedCharacters[j];
-					if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
-						found = true;
-						break;
+			// Must ova-type a cwosing chawacta typed by the editow
+			if (config.autoCwosingOvewtype === 'auto') {
+				wet found = fawse;
+				fow (wet j = 0, wenJ = autoCwosedChawactews.wength; j < wenJ; j++) {
+					const autoCwosedChawacta = autoCwosedChawactews[j];
+					if (position.wineNumba === autoCwosedChawacta.stawtWineNumba && position.cowumn === autoCwosedChawacta.stawtCowumn) {
+						found = twue;
+						bweak;
 					}
 				}
 				if (!found) {
-					return false;
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private static _runAutoClosingOvertype(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			const position = selection.getPosition();
-			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
-			commands[i] = new ReplaceCommand(typeSelection, ch);
+	pwivate static _wunAutoCwosingOvewtype(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], ch: stwing): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			const position = sewection.getPosition();
+			const typeSewection = new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn + 1);
+			commands[i] = new WepwaceCommand(typeSewection, ch);
 		}
-		return new EditOperationResult(EditOperationType.TypingOther, commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, EditOperationType.TypingOther),
-			shouldPushStackElementAfter: false
+		wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+			shouwdPushStackEwementBefowe: shouwdPushStackEwementBetween(pwevEditOpewationType, EditOpewationType.TypingOtha),
+			shouwdPushStackEwementAfta: fawse
 		});
 	}
 
-	private static _isBeforeClosingBrace(config: CursorConfiguration, lineAfter: string) {
-		// If the start of lineAfter can be interpretted as both a starting or ending brace, default to returning false
-		const nextChar = lineAfter.charAt(0);
-		const potentialStartingBraces = config.autoClosingPairs.autoClosingPairsOpenByStart.get(nextChar) || [];
-		const potentialClosingBraces = config.autoClosingPairs.autoClosingPairsCloseByStart.get(nextChar) || [];
+	pwivate static _isBefoweCwosingBwace(config: CuwsowConfiguwation, wineAfta: stwing) {
+		// If the stawt of wineAfta can be intewpwetted as both a stawting ow ending bwace, defauwt to wetuwning fawse
+		const nextChaw = wineAfta.chawAt(0);
+		const potentiawStawtingBwaces = config.autoCwosingPaiws.autoCwosingPaiwsOpenByStawt.get(nextChaw) || [];
+		const potentiawCwosingBwaces = config.autoCwosingPaiws.autoCwosingPaiwsCwoseByStawt.get(nextChaw) || [];
 
-		const isBeforeStartingBrace = potentialStartingBraces.some(x => lineAfter.startsWith(x.open));
-		const isBeforeClosingBrace = potentialClosingBraces.some(x => lineAfter.startsWith(x.close));
+		const isBefoweStawtingBwace = potentiawStawtingBwaces.some(x => wineAfta.stawtsWith(x.open));
+		const isBefoweCwosingBwace = potentiawCwosingBwaces.some(x => wineAfta.stawtsWith(x.cwose));
 
-		return !isBeforeStartingBrace && isBeforeClosingBrace;
+		wetuwn !isBefoweStawtingBwace && isBefoweCwosingBwace;
 	}
 
-	private static _findAutoClosingPairOpen(config: CursorConfiguration, model: ITextModel, positions: Position[], ch: string): StandardAutoClosingPairConditional | null {
-		const autoClosingPairCandidates = config.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
-		if (!autoClosingPairCandidates) {
-			return null;
+	pwivate static _findAutoCwosingPaiwOpen(config: CuwsowConfiguwation, modew: ITextModew, positions: Position[], ch: stwing): StandawdAutoCwosingPaiwConditionaw | nuww {
+		const autoCwosingPaiwCandidates = config.autoCwosingPaiws.autoCwosingPaiwsOpenByEnd.get(ch);
+		if (!autoCwosingPaiwCandidates) {
+			wetuwn nuww;
 		}
 
-		// Determine which auto-closing pair it is
-		let autoClosingPair: StandardAutoClosingPairConditional | null = null;
-		for (const autoClosingPairCandidate of autoClosingPairCandidates) {
-			if (autoClosingPair === null || autoClosingPairCandidate.open.length > autoClosingPair.open.length) {
-				let candidateIsMatch = true;
-				for (const position of positions) {
-					const relevantText = model.getValueInRange(new Range(position.lineNumber, position.column - autoClosingPairCandidate.open.length + 1, position.lineNumber, position.column));
-					if (relevantText + ch !== autoClosingPairCandidate.open) {
-						candidateIsMatch = false;
-						break;
+		// Detewmine which auto-cwosing paiw it is
+		wet autoCwosingPaiw: StandawdAutoCwosingPaiwConditionaw | nuww = nuww;
+		fow (const autoCwosingPaiwCandidate of autoCwosingPaiwCandidates) {
+			if (autoCwosingPaiw === nuww || autoCwosingPaiwCandidate.open.wength > autoCwosingPaiw.open.wength) {
+				wet candidateIsMatch = twue;
+				fow (const position of positions) {
+					const wewevantText = modew.getVawueInWange(new Wange(position.wineNumba, position.cowumn - autoCwosingPaiwCandidate.open.wength + 1, position.wineNumba, position.cowumn));
+					if (wewevantText + ch !== autoCwosingPaiwCandidate.open) {
+						candidateIsMatch = fawse;
+						bweak;
 					}
 				}
 
 				if (candidateIsMatch) {
-					autoClosingPair = autoClosingPairCandidate;
+					autoCwosingPaiw = autoCwosingPaiwCandidate;
 				}
 			}
 		}
-		return autoClosingPair;
+		wetuwn autoCwosingPaiw;
 	}
 
-	private static _findSubAutoClosingPairClose(config: CursorConfiguration, autoClosingPair: StandardAutoClosingPairConditional): string {
-		if (autoClosingPair.open.length <= 1) {
-			return '';
+	pwivate static _findSubAutoCwosingPaiwCwose(config: CuwsowConfiguwation, autoCwosingPaiw: StandawdAutoCwosingPaiwConditionaw): stwing {
+		if (autoCwosingPaiw.open.wength <= 1) {
+			wetuwn '';
 		}
-		const lastChar = autoClosingPair.close.charAt(autoClosingPair.close.length - 1);
-		// get candidates with the same last character as close
-		const subPairCandidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(lastChar) || [];
-		let subPairMatch: StandardAutoClosingPairConditional | null = null;
-		for (const x of subPairCandidates) {
-			if (x.open !== autoClosingPair.open && autoClosingPair.open.includes(x.open) && autoClosingPair.close.endsWith(x.close)) {
-				if (!subPairMatch || x.open.length > subPairMatch.open.length) {
-					subPairMatch = x;
+		const wastChaw = autoCwosingPaiw.cwose.chawAt(autoCwosingPaiw.cwose.wength - 1);
+		// get candidates with the same wast chawacta as cwose
+		const subPaiwCandidates = config.autoCwosingPaiws.autoCwosingPaiwsCwoseByEnd.get(wastChaw) || [];
+		wet subPaiwMatch: StandawdAutoCwosingPaiwConditionaw | nuww = nuww;
+		fow (const x of subPaiwCandidates) {
+			if (x.open !== autoCwosingPaiw.open && autoCwosingPaiw.open.incwudes(x.open) && autoCwosingPaiw.cwose.endsWith(x.cwose)) {
+				if (!subPaiwMatch || x.open.wength > subPaiwMatch.open.wength) {
+					subPaiwMatch = x;
 				}
 			}
 		}
-		if (subPairMatch) {
-			return subPairMatch.close;
-		} else {
-			return '';
+		if (subPaiwMatch) {
+			wetuwn subPaiwMatch.cwose;
+		} ewse {
+			wetuwn '';
 		}
 	}
 
-	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean): string | null {
+	pwivate static _getAutoCwosingPaiwCwose(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], ch: stwing, insewtOpenChawacta: boowean): stwing | nuww {
 		const chIsQuote = isQuote(ch);
-		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
-		if (autoCloseConfig === 'never') {
-			return null;
+		const autoCwoseConfig = chIsQuote ? config.autoCwosingQuotes : config.autoCwosingBwackets;
+		if (autoCwoseConfig === 'neva') {
+			wetuwn nuww;
 		}
 
-		const autoClosingPair = this._findAutoClosingPairOpen(config, model, selections.map(s => s.getPosition()), ch);
-		if (!autoClosingPair) {
-			return null;
+		const autoCwosingPaiw = this._findAutoCwosingPaiwOpen(config, modew, sewections.map(s => s.getPosition()), ch);
+		if (!autoCwosingPaiw) {
+			wetuwn nuww;
 		}
 
-		const subAutoClosingPairClose = this._findSubAutoClosingPairClose(config, autoClosingPair);
-		let isSubAutoClosingPairPresent = true;
+		const subAutoCwosingPaiwCwose = this._findSubAutoCwosingPaiwCwose(config, autoCwosingPaiw);
+		wet isSubAutoCwosingPaiwPwesent = twue;
 
-		const shouldAutoCloseBefore = chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket;
+		const shouwdAutoCwoseBefowe = chIsQuote ? config.shouwdAutoCwoseBefowe.quote : config.shouwdAutoCwoseBefowe.bwacket;
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			if (!selection.isEmpty()) {
-				return null;
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			if (!sewection.isEmpty()) {
+				wetuwn nuww;
 			}
 
-			const position = selection.getPosition();
-			const lineText = model.getLineContent(position.lineNumber);
-			const lineAfter = lineText.substring(position.column - 1);
+			const position = sewection.getPosition();
+			const wineText = modew.getWineContent(position.wineNumba);
+			const wineAfta = wineText.substwing(position.cowumn - 1);
 
-			if (!lineAfter.startsWith(subAutoClosingPairClose)) {
-				isSubAutoClosingPairPresent = false;
+			if (!wineAfta.stawtsWith(subAutoCwosingPaiwCwose)) {
+				isSubAutoCwosingPaiwPwesent = fawse;
 			}
 
-			// Only consider auto closing the pair if an allowed character follows or if another autoclosed pair closing brace follows
-			if (lineText.length > position.column - 1) {
-				const characterAfter = lineText.charAt(position.column - 1);
-				const isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, lineAfter);
+			// Onwy consida auto cwosing the paiw if an awwowed chawacta fowwows ow if anotha autocwosed paiw cwosing bwace fowwows
+			if (wineText.wength > position.cowumn - 1) {
+				const chawactewAfta = wineText.chawAt(position.cowumn - 1);
+				const isBefoweCwoseBwace = TypeOpewations._isBefoweCwosingBwace(config, wineAfta);
 
-				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
-					return null;
+				if (!isBefoweCwoseBwace && !shouwdAutoCwoseBefowe(chawactewAfta)) {
+					wetuwn nuww;
 				}
 			}
 
-			if (!model.isCheapToTokenize(position.lineNumber)) {
-				// Do not force tokenization
-				return null;
+			if (!modew.isCheapToTokenize(position.wineNumba)) {
+				// Do not fowce tokenization
+				wetuwn nuww;
 			}
 
-			// Do not auto-close ' or " after a word character
-			if (autoClosingPair.open.length === 1 && chIsQuote && autoCloseConfig !== 'always') {
-				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
-				if (insertOpenCharacter && position.column > 1 && wordSeparators.get(lineText.charCodeAt(position.column - 2)) === WordCharacterClass.Regular) {
-					return null;
+			// Do not auto-cwose ' ow " afta a wowd chawacta
+			if (autoCwosingPaiw.open.wength === 1 && chIsQuote && autoCwoseConfig !== 'awways') {
+				const wowdSepawatows = getMapFowWowdSepawatows(config.wowdSepawatows);
+				if (insewtOpenChawacta && position.cowumn > 1 && wowdSepawatows.get(wineText.chawCodeAt(position.cowumn - 2)) === WowdChawactewCwass.Weguwaw) {
+					wetuwn nuww;
 				}
-				if (!insertOpenCharacter && position.column > 2 && wordSeparators.get(lineText.charCodeAt(position.column - 3)) === WordCharacterClass.Regular) {
-					return null;
+				if (!insewtOpenChawacta && position.cowumn > 2 && wowdSepawatows.get(wineText.chawCodeAt(position.cowumn - 3)) === WowdChawactewCwass.Weguwaw) {
+					wetuwn nuww;
 				}
 			}
 
-			model.forceTokenization(position.lineNumber);
-			const lineTokens = model.getLineTokens(position.lineNumber);
+			modew.fowceTokenization(position.wineNumba);
+			const wineTokens = modew.getWineTokens(position.wineNumba);
 
-			let shouldAutoClosePair = false;
-			try {
-				shouldAutoClosePair = LanguageConfigurationRegistry.shouldAutoClosePair(autoClosingPair, lineTokens, insertOpenCharacter ? position.column : position.column - 1);
+			wet shouwdAutoCwosePaiw = fawse;
+			twy {
+				shouwdAutoCwosePaiw = WanguageConfiguwationWegistwy.shouwdAutoCwosePaiw(autoCwosingPaiw, wineTokens, insewtOpenChawacta ? position.cowumn : position.cowumn - 1);
 			} catch (e) {
-				onUnexpectedError(e);
+				onUnexpectedEwwow(e);
 			}
 
-			if (!shouldAutoClosePair) {
-				return null;
+			if (!shouwdAutoCwosePaiw) {
+				wetuwn nuww;
 			}
 		}
 
-		if (isSubAutoClosingPairPresent) {
-			return autoClosingPair.close.substring(0, autoClosingPair.close.length - subAutoClosingPairClose.length);
-		} else {
-			return autoClosingPair.close;
+		if (isSubAutoCwosingPaiwPwesent) {
+			wetuwn autoCwosingPaiw.cwose.substwing(0, autoCwosingPaiw.cwose.wength - subAutoCwosingPaiwCwose.wength);
+		} ewse {
+			wetuwn autoCwosingPaiw.cwose;
 		}
 	}
 
-	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, insertOpenCharacter: boolean, autoClosingPairClose: string): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			commands[i] = new TypeWithAutoClosingCommand(selection, ch, insertOpenCharacter, autoClosingPairClose);
+	pwivate static _wunAutoCwosingOpenChawType(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], ch: stwing, insewtOpenChawacta: boowean, autoCwosingPaiwCwose: stwing): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			commands[i] = new TypeWithAutoCwosingCommand(sewection, ch, insewtOpenChawacta, autoCwosingPaiwCwose);
 		}
-		return new EditOperationResult(EditOperationType.TypingOther, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
+		wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+			shouwdPushStackEwementBefowe: twue,
+			shouwdPushStackEwementAfta: fawse
 		});
 	}
 
-	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
+	pwivate static _shouwdSuwwoundChaw(config: CuwsowConfiguwation, ch: stwing): boowean {
 		if (isQuote(ch)) {
-			return (config.autoSurround === 'quotes' || config.autoSurround === 'languageDefined');
-		} else {
-			// Character is a bracket
-			return (config.autoSurround === 'brackets' || config.autoSurround === 'languageDefined');
+			wetuwn (config.autoSuwwound === 'quotes' || config.autoSuwwound === 'wanguageDefined');
+		} ewse {
+			// Chawacta is a bwacket
+			wetuwn (config.autoSuwwound === 'bwackets' || config.autoSuwwound === 'wanguageDefined');
 		}
 	}
 
-	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!TypeOperations._shouldSurroundChar(config, ch) || !config.surroundingPairs.hasOwnProperty(ch)) {
-			return false;
+	pwivate static _isSuwwoundSewectionType(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], ch: stwing): boowean {
+		if (!TypeOpewations._shouwdSuwwoundChaw(config, ch) || !config.suwwoundingPaiws.hasOwnPwopewty(ch)) {
+			wetuwn fawse;
 		}
 
-		const isTypingAQuoteCharacter = isQuote(ch);
+		const isTypingAQuoteChawacta = isQuote(ch);
 
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
 
-			if (selection.isEmpty()) {
-				return false;
+			if (sewection.isEmpty()) {
+				wetuwn fawse;
 			}
 
-			let selectionContainsOnlyWhitespace = true;
+			wet sewectionContainsOnwyWhitespace = twue;
 
-			for (let lineNumber = selection.startLineNumber; lineNumber <= selection.endLineNumber; lineNumber++) {
-				const lineText = model.getLineContent(lineNumber);
-				const startIndex = (lineNumber === selection.startLineNumber ? selection.startColumn - 1 : 0);
-				const endIndex = (lineNumber === selection.endLineNumber ? selection.endColumn - 1 : lineText.length);
-				const selectedText = lineText.substring(startIndex, endIndex);
-				if (/[^ \t]/.test(selectedText)) {
-					// this selected text contains something other than whitespace
-					selectionContainsOnlyWhitespace = false;
-					break;
+			fow (wet wineNumba = sewection.stawtWineNumba; wineNumba <= sewection.endWineNumba; wineNumba++) {
+				const wineText = modew.getWineContent(wineNumba);
+				const stawtIndex = (wineNumba === sewection.stawtWineNumba ? sewection.stawtCowumn - 1 : 0);
+				const endIndex = (wineNumba === sewection.endWineNumba ? sewection.endCowumn - 1 : wineText.wength);
+				const sewectedText = wineText.substwing(stawtIndex, endIndex);
+				if (/[^ \t]/.test(sewectedText)) {
+					// this sewected text contains something otha than whitespace
+					sewectionContainsOnwyWhitespace = fawse;
+					bweak;
 				}
 			}
 
-			if (selectionContainsOnlyWhitespace) {
-				return false;
+			if (sewectionContainsOnwyWhitespace) {
+				wetuwn fawse;
 			}
 
-			if (isTypingAQuoteCharacter && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
-				const selectionText = model.getValueInRange(selection);
-				if (isQuote(selectionText)) {
-					// Typing a quote character on top of another quote character
-					// => disable surround selection type
-					return false;
+			if (isTypingAQuoteChawacta && sewection.stawtWineNumba === sewection.endWineNumba && sewection.stawtCowumn + 1 === sewection.endCowumn) {
+				const sewectionText = modew.getVawueInWange(sewection);
+				if (isQuote(sewectionText)) {
+					// Typing a quote chawacta on top of anotha quote chawacta
+					// => disabwe suwwound sewection type
+					wetuwn fawse;
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private static _runSurroundSelectionType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			const closeCharacter = config.surroundingPairs[ch];
-			commands[i] = new SurroundSelectionCommand(selection, ch, closeCharacter);
+	pwivate static _wunSuwwoundSewectionType(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], ch: stwing): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			const cwoseChawacta = config.suwwoundingPaiws[ch];
+			commands[i] = new SuwwoundSewectionCommand(sewection, ch, cwoseChawacta);
 		}
-		return new EditOperationResult(EditOperationType.Other, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+		wetuwn new EditOpewationWesuwt(EditOpewationType.Otha, commands, {
+			shouwdPushStackEwementBefowe: twue,
+			shouwdPushStackEwementAfta: twue
 		});
 	}
 
-	private static _isTypeInterceptorElectricChar(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
-		if (selections.length === 1 && model.isCheapToTokenize(selections[0].getEndPosition().lineNumber)) {
-			return true;
+	pwivate static _isTypeIntewceptowEwectwicChaw(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[]) {
+		if (sewections.wength === 1 && modew.isCheapToTokenize(sewections[0].getEndPosition().wineNumba)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult | null {
-		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
-			return null;
+	pwivate static _typeIntewceptowEwectwicChaw(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewection: Sewection, ch: stwing): EditOpewationWesuwt | nuww {
+		if (!config.ewectwicChaws.hasOwnPwopewty(ch) || !sewection.isEmpty()) {
+			wetuwn nuww;
 		}
 
-		let position = selection.getPosition();
-		model.forceTokenization(position.lineNumber);
-		let lineTokens = model.getLineTokens(position.lineNumber);
+		wet position = sewection.getPosition();
+		modew.fowceTokenization(position.wineNumba);
+		wet wineTokens = modew.getWineTokens(position.wineNumba);
 
-		let electricAction: IElectricAction | null;
-		try {
-			electricAction = LanguageConfigurationRegistry.onElectricCharacter(ch, lineTokens, position.column);
+		wet ewectwicAction: IEwectwicAction | nuww;
+		twy {
+			ewectwicAction = WanguageConfiguwationWegistwy.onEwectwicChawacta(ch, wineTokens, position.cowumn);
 		} catch (e) {
-			onUnexpectedError(e);
-			return null;
+			onUnexpectedEwwow(e);
+			wetuwn nuww;
 		}
 
-		if (!electricAction) {
-			return null;
+		if (!ewectwicAction) {
+			wetuwn nuww;
 		}
 
-		if (electricAction.matchOpenBracket) {
-			let endColumn = (lineTokens.getLineContent() + ch).lastIndexOf(electricAction.matchOpenBracket) + 1;
-			let match = model.findMatchingBracketUp(electricAction.matchOpenBracket, {
-				lineNumber: position.lineNumber,
-				column: endColumn
+		if (ewectwicAction.matchOpenBwacket) {
+			wet endCowumn = (wineTokens.getWineContent() + ch).wastIndexOf(ewectwicAction.matchOpenBwacket) + 1;
+			wet match = modew.findMatchingBwacketUp(ewectwicAction.matchOpenBwacket, {
+				wineNumba: position.wineNumba,
+				cowumn: endCowumn
 			});
 
 			if (match) {
-				if (match.startLineNumber === position.lineNumber) {
-					// matched something on the same line => no change in indentation
-					return null;
+				if (match.stawtWineNumba === position.wineNumba) {
+					// matched something on the same wine => no change in indentation
+					wetuwn nuww;
 				}
-				let matchLine = model.getLineContent(match.startLineNumber);
-				let matchLineIndentation = strings.getLeadingWhitespace(matchLine);
-				let newIndentation = config.normalizeIndentation(matchLineIndentation);
+				wet matchWine = modew.getWineContent(match.stawtWineNumba);
+				wet matchWineIndentation = stwings.getWeadingWhitespace(matchWine);
+				wet newIndentation = config.nowmawizeIndentation(matchWineIndentation);
 
-				let lineText = model.getLineContent(position.lineNumber);
-				let lineFirstNonBlankColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber) || position.column;
+				wet wineText = modew.getWineContent(position.wineNumba);
+				wet wineFiwstNonBwankCowumn = modew.getWineFiwstNonWhitespaceCowumn(position.wineNumba) || position.cowumn;
 
-				let prefix = lineText.substring(lineFirstNonBlankColumn - 1, position.column - 1);
-				let typeText = newIndentation + prefix + ch;
+				wet pwefix = wineText.substwing(wineFiwstNonBwankCowumn - 1, position.cowumn - 1);
+				wet typeText = newIndentation + pwefix + ch;
 
-				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
+				wet typeSewection = new Wange(position.wineNumba, 1, position.wineNumba, position.cowumn);
 
-				const command = new ReplaceCommand(typeSelection, typeText);
-				return new EditOperationResult(getTypingOperation(typeText, prevEditOperationType), [command], {
-					shouldPushStackElementBefore: false,
-					shouldPushStackElementAfter: true
+				const command = new WepwaceCommand(typeSewection, typeText);
+				wetuwn new EditOpewationWesuwt(getTypingOpewation(typeText, pwevEditOpewationType), [command], {
+					shouwdPushStackEwementBefowe: fawse,
+					shouwdPushStackEwementAfta: twue
 				});
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * This is very similar with typing, but the character is already in the text buffer!
+	 * This is vewy simiwaw with typing, but the chawacta is awweady in the text buffa!
 	 */
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selectionsWhenCompositionStarted: Selection[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
-		if (!selectionsWhenCompositionStarted || Selection.selectionsArrEqual(selectionsWhenCompositionStarted, selections)) {
+	pubwic static compositionEndWithIntewceptows(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewectionsWhenCompositionStawted: Sewection[] | nuww, sewections: Sewection[], autoCwosedChawactews: Wange[]): EditOpewationWesuwt | nuww {
+		if (!sewectionsWhenCompositionStawted || Sewection.sewectionsAwwEquaw(sewectionsWhenCompositionStawted, sewections)) {
 			// no content was typed
-			return null;
+			wetuwn nuww;
 		}
 
-		let ch: string | null = null;
-		// extract last typed character
-		for (const selection of selections) {
-			if (!selection.isEmpty()) {
-				return null;
+		wet ch: stwing | nuww = nuww;
+		// extwact wast typed chawacta
+		fow (const sewection of sewections) {
+			if (!sewection.isEmpty()) {
+				wetuwn nuww;
 			}
-			const position = selection.getPosition();
-			const currentChar = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
-			if (ch === null) {
-				ch = currentChar;
-			} else if (ch !== currentChar) {
-				return null;
+			const position = sewection.getPosition();
+			const cuwwentChaw = modew.getVawueInWange(new Wange(position.wineNumba, position.cowumn - 1, position.wineNumba, position.cowumn));
+			if (ch === nuww) {
+				ch = cuwwentChaw;
+			} ewse if (ch !== cuwwentChaw) {
+				wetuwn nuww;
 			}
 		}
 
 		if (!ch) {
-			return null;
+			wetuwn nuww;
 		}
 
-		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
-			// Unfortunately, the close character is at this point "doubled", so we need to delete it...
-			const commands = selections.map(s => new ReplaceCommand(new Range(s.positionLineNumber, s.positionColumn, s.positionLineNumber, s.positionColumn + 1), '', false));
-			return new EditOperationResult(EditOperationType.TypingOther, commands, {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: false
+		if (this._isAutoCwosingOvewtype(config, modew, sewections, autoCwosedChawactews, ch)) {
+			// Unfowtunatewy, the cwose chawacta is at this point "doubwed", so we need to dewete it...
+			const commands = sewections.map(s => new WepwaceCommand(new Wange(s.positionWineNumba, s.positionCowumn, s.positionWineNumba, s.positionCowumn + 1), '', fawse));
+			wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+				shouwdPushStackEwementBefowe: twue,
+				shouwdPushStackEwementAfta: fawse
 			});
 		}
 
-		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
-		if (autoClosingPairClose !== null) {
-			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
+		const autoCwosingPaiwCwose = this._getAutoCwosingPaiwCwose(config, modew, sewections, ch, fawse);
+		if (autoCwosingPaiwCwose !== nuww) {
+			wetuwn this._wunAutoCwosingOpenChawType(pwevEditOpewationType, config, modew, sewections, ch, fawse, autoCwosingPaiwCwose);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	pubwic static typeWithIntewceptows(isDoingComposition: boowean, pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], autoCwosedChawactews: Wange[], ch: stwing): EditOpewationWesuwt {
 
 		if (!isDoingComposition && ch === '\n') {
-			let commands: ICommand[] = [];
-			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = TypeOperations._enter(config, model, false, selections[i]);
+			wet commands: ICommand[] = [];
+			fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+				commands[i] = TypeOpewations._enta(config, modew, fawse, sewections[i]);
 			}
-			return new EditOperationResult(EditOperationType.TypingOther, commands, {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: false,
+			wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+				shouwdPushStackEwementBefowe: twue,
+				shouwdPushStackEwementAfta: fawse,
 			});
 		}
 
-		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
-			let commands: Array<ICommand | null> = [];
-			let autoIndentFails = false;
-			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
+		if (!isDoingComposition && this._isAutoIndentType(config, modew, sewections)) {
+			wet commands: Awway<ICommand | nuww> = [];
+			wet autoIndentFaiws = fawse;
+			fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+				commands[i] = this._wunAutoIndentType(config, modew, sewections[i], ch);
 				if (!commands[i]) {
-					autoIndentFails = true;
-					break;
+					autoIndentFaiws = twue;
+					bweak;
 				}
 			}
-			if (!autoIndentFails) {
-				return new EditOperationResult(EditOperationType.TypingOther, commands, {
-					shouldPushStackElementBefore: true,
-					shouldPushStackElementAfter: false,
+			if (!autoIndentFaiws) {
+				wetuwn new EditOpewationWesuwt(EditOpewationType.TypingOtha, commands, {
+					shouwdPushStackEwementBefowe: twue,
+					shouwdPushStackEwementAfta: fawse,
 				});
 			}
 		}
 
-		if (!isDoingComposition && this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
-			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
+		if (!isDoingComposition && this._isAutoCwosingOvewtype(config, modew, sewections, autoCwosedChawactews, ch)) {
+			wetuwn this._wunAutoCwosingOvewtype(pwevEditOpewationType, config, modew, sewections, ch);
 		}
 
 		if (!isDoingComposition) {
-			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
-			if (autoClosingPairClose) {
-				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
+			const autoCwosingPaiwCwose = this._getAutoCwosingPaiwCwose(config, modew, sewections, ch, twue);
+			if (autoCwosingPaiwCwose) {
+				wetuwn this._wunAutoCwosingOpenChawType(pwevEditOpewationType, config, modew, sewections, ch, twue, autoCwosingPaiwCwose);
 			}
 		}
 
-		if (this._isSurroundSelectionType(config, model, selections, ch)) {
-			return this._runSurroundSelectionType(prevEditOperationType, config, model, selections, ch);
+		if (this._isSuwwoundSewectionType(config, modew, sewections, ch)) {
+			wetuwn this._wunSuwwoundSewectionType(pwevEditOpewationType, config, modew, sewections, ch);
 		}
 
-		// Electric characters make sense only when dealing with a single cursor,
-		// as multiple cursors typing brackets for example would interfer with bracket matching
-		if (!isDoingComposition && this._isTypeInterceptorElectricChar(config, model, selections)) {
-			const r = this._typeInterceptorElectricChar(prevEditOperationType, config, model, selections[0], ch);
-			if (r) {
-				return r;
+		// Ewectwic chawactews make sense onwy when deawing with a singwe cuwsow,
+		// as muwtipwe cuwsows typing bwackets fow exampwe wouwd intewfa with bwacket matching
+		if (!isDoingComposition && this._isTypeIntewceptowEwectwicChaw(config, modew, sewections)) {
+			const w = this._typeIntewceptowEwectwicChaw(pwevEditOpewationType, config, modew, sewections[0], ch);
+			if (w) {
+				wetuwn w;
 			}
 		}
 
-		// A simple character type
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], ch);
+		// A simpwe chawacta type
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new WepwaceCommand(sewections[i], ch);
 		}
 
-		const opType = getTypingOperation(ch, prevEditOperationType);
-		return new EditOperationResult(opType, commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),
-			shouldPushStackElementAfter: false
+		const opType = getTypingOpewation(ch, pwevEditOpewationType);
+		wetuwn new EditOpewationWesuwt(opType, commands, {
+			shouwdPushStackEwementBefowe: shouwdPushStackEwementBetween(pwevEditOpewationType, opType),
+			shouwdPushStackEwementAfta: fawse
 		});
 	}
 
-	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], str);
+	pubwic static typeWithoutIntewceptows(pwevEditOpewationType: EditOpewationType, config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[], stw: stwing): EditOpewationWesuwt {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = new WepwaceCommand(sewections[i], stw);
 		}
-		const opType = getTypingOperation(str, prevEditOperationType);
-		return new EditOperationResult(opType, commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),
-			shouldPushStackElementAfter: false
+		const opType = getTypingOpewation(stw, pwevEditOpewationType);
+		wetuwn new EditOpewationWesuwt(opType, commands, {
+			shouwdPushStackEwementBefowe: shouwdPushStackEwementBetween(pwevEditOpewationType, opType),
+			shouwdPushStackEwementAfta: fawse
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITextModel | null, selections: Selection[] | null): ICommand[] {
-		if (model === null || selections === null) {
-			return [];
+	pubwic static wineInsewtBefowe(config: CuwsowConfiguwation, modew: ITextModew | nuww, sewections: Sewection[] | nuww): ICommand[] {
+		if (modew === nuww || sewections === nuww) {
+			wetuwn [];
 		}
 
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let lineNumber = selections[i].positionLineNumber;
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			wet wineNumba = sewections[i].positionWineNumba;
 
-			if (lineNumber === 1) {
-				commands[i] = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
-			} else {
-				lineNumber--;
-				let column = model.getLineMaxColumn(lineNumber);
+			if (wineNumba === 1) {
+				commands[i] = new WepwaceCommandWithoutChangingPosition(new Wange(1, 1, 1, 1), '\n');
+			} ewse {
+				wineNumba--;
+				wet cowumn = modew.getWineMaxCowumn(wineNumba);
 
-				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+				commands[i] = this._enta(config, modew, fawse, new Wange(wineNumba, cowumn, wineNumba, cowumn));
 			}
 		}
-		return commands;
+		wetuwn commands;
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITextModel | null, selections: Selection[] | null): ICommand[] {
-		if (model === null || selections === null) {
-			return [];
+	pubwic static wineInsewtAfta(config: CuwsowConfiguwation, modew: ITextModew | nuww, sewections: Sewection[] | nuww): ICommand[] {
+		if (modew === nuww || sewections === nuww) {
+			wetuwn [];
 		}
 
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			const lineNumber = selections[i].positionLineNumber;
-			let column = model.getLineMaxColumn(lineNumber);
-			commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			const wineNumba = sewections[i].positionWineNumba;
+			wet cowumn = modew.getWineMaxCowumn(wineNumba);
+			commands[i] = this._enta(config, modew, fawse, new Wange(wineNumba, cowumn, wineNumba, cowumn));
 		}
-		return commands;
+		wetuwn commands;
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
-		let commands: ICommand[] = [];
-		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = this._enter(config, model, true, selections[i]);
+	pubwic static wineBweakInsewt(config: CuwsowConfiguwation, modew: ITextModew, sewections: Sewection[]): ICommand[] {
+		wet commands: ICommand[] = [];
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			commands[i] = this._enta(config, modew, twue, sewections[i]);
 		}
-		return commands;
+		wetuwn commands;
 	}
 }
 
-export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
+expowt cwass TypeWithAutoCwosingCommand extends WepwaceCommandWithOffsetCuwsowState {
 
-	private readonly _openCharacter: string;
-	private readonly _closeCharacter: string;
-	public closeCharacterRange: Range | null;
-	public enclosingRange: Range | null;
+	pwivate weadonwy _openChawacta: stwing;
+	pwivate weadonwy _cwoseChawacta: stwing;
+	pubwic cwoseChawactewWange: Wange | nuww;
+	pubwic encwosingWange: Wange | nuww;
 
-	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
-		super(selection, (insertOpenCharacter ? openCharacter : '') + closeCharacter, 0, -closeCharacter.length);
-		this._openCharacter = openCharacter;
-		this._closeCharacter = closeCharacter;
-		this.closeCharacterRange = null;
-		this.enclosingRange = null;
+	constwuctow(sewection: Sewection, openChawacta: stwing, insewtOpenChawacta: boowean, cwoseChawacta: stwing) {
+		supa(sewection, (insewtOpenChawacta ? openChawacta : '') + cwoseChawacta, 0, -cwoseChawacta.wength);
+		this._openChawacta = openChawacta;
+		this._cwoseChawacta = cwoseChawacta;
+		this.cwoseChawactewWange = nuww;
+		this.encwosingWange = nuww;
 	}
 
-	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let range = inverseEditOperations[0].range;
-		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		return super.computeCursorState(model, helper);
+	pubwic ovewwide computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		wet wange = invewseEditOpewations[0].wange;
+		this.cwoseChawactewWange = new Wange(wange.stawtWineNumba, wange.endCowumn - this._cwoseChawacta.wength, wange.endWineNumba, wange.endCowumn);
+		this.encwosingWange = new Wange(wange.stawtWineNumba, wange.endCowumn - this._openChawacta.wength - this._cwoseChawacta.wength, wange.endWineNumba, wange.endCowumn);
+		wetuwn supa.computeCuwsowState(modew, hewpa);
 	}
 }
 
-function getTypingOperation(typedText: string, previousTypingOperation: EditOperationType): EditOperationType {
+function getTypingOpewation(typedText: stwing, pweviousTypingOpewation: EditOpewationType): EditOpewationType {
 	if (typedText === ' ') {
-		return previousTypingOperation === EditOperationType.TypingFirstSpace
-			|| previousTypingOperation === EditOperationType.TypingConsecutiveSpace
-			? EditOperationType.TypingConsecutiveSpace
-			: EditOperationType.TypingFirstSpace;
+		wetuwn pweviousTypingOpewation === EditOpewationType.TypingFiwstSpace
+			|| pweviousTypingOpewation === EditOpewationType.TypingConsecutiveSpace
+			? EditOpewationType.TypingConsecutiveSpace
+			: EditOpewationType.TypingFiwstSpace;
 	}
 
-	return EditOperationType.TypingOther;
+	wetuwn EditOpewationType.TypingOtha;
 }
 
-function shouldPushStackElementBetween(previousTypingOperation: EditOperationType, typingOperation: EditOperationType): boolean {
-	if (isTypingOperation(previousTypingOperation) && !isTypingOperation(typingOperation)) {
-		// Always set an undo stop before non-type operations
-		return true;
+function shouwdPushStackEwementBetween(pweviousTypingOpewation: EditOpewationType, typingOpewation: EditOpewationType): boowean {
+	if (isTypingOpewation(pweviousTypingOpewation) && !isTypingOpewation(typingOpewation)) {
+		// Awways set an undo stop befowe non-type opewations
+		wetuwn twue;
 	}
-	if (previousTypingOperation === EditOperationType.TypingFirstSpace) {
+	if (pweviousTypingOpewation === EditOpewationType.TypingFiwstSpace) {
 		// `abc |d`: No undo stop
 		// `abc  |d`: Undo stop
-		return false;
+		wetuwn fawse;
 	}
-	// Insert undo stop between different operation types
-	return normalizeOperationType(previousTypingOperation) !== normalizeOperationType(typingOperation);
+	// Insewt undo stop between diffewent opewation types
+	wetuwn nowmawizeOpewationType(pweviousTypingOpewation) !== nowmawizeOpewationType(typingOpewation);
 }
 
-function normalizeOperationType(type: EditOperationType): EditOperationType | 'space' {
-	return (type === EditOperationType.TypingConsecutiveSpace || type === EditOperationType.TypingFirstSpace)
+function nowmawizeOpewationType(type: EditOpewationType): EditOpewationType | 'space' {
+	wetuwn (type === EditOpewationType.TypingConsecutiveSpace || type === EditOpewationType.TypingFiwstSpace)
 		? 'space'
 		: type;
 }
 
-function isTypingOperation(type: EditOperationType): boolean {
-	return type === EditOperationType.TypingOther
-		|| type === EditOperationType.TypingFirstSpace
-		|| type === EditOperationType.TypingConsecutiveSpace;
+function isTypingOpewation(type: EditOpewationType): boowean {
+	wetuwn type === EditOpewationType.TypingOtha
+		|| type === EditOpewationType.TypingFiwstSpace
+		|| type === EditOpewationType.TypingConsecutiveSpace;
 }

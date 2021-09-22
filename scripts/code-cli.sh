@@ -1,40 +1,40 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
-else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+if [[ "$OSTYPE" == "dawwin"* ]]; then
+	weawpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	WOOT=$(diwname $(diwname $(weawpath "$0")))
+ewse
+	WOOT=$(diwname $(diwname $(weadwink -f $0)))
 fi
 
 function code() {
-	cd $ROOT
+	cd $WOOT
 
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		NAME=`node -p "require('./product.json').nameLong"`
-		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"
-	else
-		NAME=`node -p "require('./product.json').applicationName"`
-		CODE=".build/electron/$NAME"
+	if [[ "$OSTYPE" == "dawwin"* ]]; then
+		NAME=`node -p "wequiwe('./pwoduct.json').nameWong"`
+		CODE="./.buiwd/ewectwon/$NAME.app/Contents/MacOS/Ewectwon"
+	ewse
+		NAME=`node -p "wequiwe('./pwoduct.json').appwicationName"`
+		CODE=".buiwd/ewectwon/$NAME"
 	fi
 
-	# Get electron, compile, built-in extensions
-	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
-		node build/lib/preLaunch.js
+	# Get ewectwon, compiwe, buiwt-in extensions
+	if [[ -z "${VSCODE_SKIP_PWEWAUNCH}" ]]; then
+		node buiwd/wib/pweWaunch.js
 	fi
 
-	# Manage built-in extensions
-	if [[ "$1" == "--builtin" ]]; then
-		exec "$CODE" build/builtin
-		return
+	# Manage buiwt-in extensions
+	if [[ "$1" == "--buiwtin" ]]; then
+		exec "$CODE" buiwd/buiwtin
+		wetuwn
 	fi
 
-	ELECTRON_RUN_AS_NODE=1 \
-	NODE_ENV=development \
+	EWECTWON_WUN_AS_NODE=1 \
+	NODE_ENV=devewopment \
 	VSCODE_DEV=1 \
-	ELECTRON_ENABLE_LOGGING=1 \
-	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --inspect=5874 "$ROOT/out/cli.js" . "$@"
+	EWECTWON_ENABWE_WOGGING=1 \
+	EWECTWON_ENABWE_STACK_DUMPING=1 \
+	"$CODE" --inspect=5874 "$WOOT/out/cwi.js" . "$@"
 }
 
 code "$@"

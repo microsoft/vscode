@@ -1,17 +1,17 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "demyte/language-cshtml",
-					"repositoryUrl": "https://github.com/demyte/language-cshtml",
+					"name": "demyte/wanguage-cshtmw",
+					"wepositowyUww": "https://github.com/demyte/wanguage-cshtmw",
 					"commitHash": "e6e54d5a86a28cc1e44609a32aaa10a244cd3f81"
 				}
 			},
-			"license": "MIT",
-			"version": "0.3.0"
+			"wicense": "MIT",
+			"vewsion": "0.3.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

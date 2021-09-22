@@ -1,361 +1,361 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowInputCapabiwities, GwoupIdentifia, ISaveOptions, IWevewtOptions, EditowExtensions, IEditowFactowyWegistwy, IEditowSewiawiza, ISideBySideEditowInput, IUntypedEditowInput, isWesouwceSideBySideEditowInput, isDiffEditowInput, isWesouwceDiffEditowInput, IWesouwceSideBySideEditowInput, findViewStateFowEditow, IMoveWesuwt, isEditowInput, isWesouwceEditowInput, Vewbosity } fwom 'vs/wowkbench/common/editow';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 /**
- * Side by side editor inputs that have a primary and secondary side.
+ * Side by side editow inputs that have a pwimawy and secondawy side.
  */
-export class SideBySideEditorInput extends EditorInput implements ISideBySideEditorInput {
+expowt cwass SideBySideEditowInput extends EditowInput impwements ISideBySideEditowInput {
 
-	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
+	static weadonwy ID: stwing = 'wowkbench.editowinputs.sidebysideEditowInput';
 
-	override get typeId(): string {
-		return SideBySideEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn SideBySideEditowInput.ID;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
+	ovewwide get capabiwities(): EditowInputCapabiwities {
 
-		// Use primary capabilities as main capabilities...
-		let capabilities = this.primary.capabilities;
+		// Use pwimawy capabiwities as main capabiwities...
+		wet capabiwities = this.pwimawy.capabiwities;
 
-		// ...with the exception of `CanSplitInGroup` which
-		// is only relevant to single editors.
-		capabilities &= ~EditorInputCapabilities.CanSplitInGroup;
+		// ...with the exception of `CanSpwitInGwoup` which
+		// is onwy wewevant to singwe editows.
+		capabiwities &= ~EditowInputCapabiwities.CanSpwitInGwoup;
 
-		// Trust: should be considered for both sides
-		if (this.secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {
-			capabilities |= EditorInputCapabilities.RequiresTrust;
+		// Twust: shouwd be considewed fow both sides
+		if (this.secondawy.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust)) {
+			capabiwities |= EditowInputCapabiwities.WequiwesTwust;
 		}
 
-		// Singleton: should be considered for both sides
-		if (this.secondary.hasCapability(EditorInputCapabilities.Singleton)) {
-			capabilities |= EditorInputCapabilities.Singleton;
+		// Singweton: shouwd be considewed fow both sides
+		if (this.secondawy.hasCapabiwity(EditowInputCapabiwities.Singweton)) {
+			capabiwities |= EditowInputCapabiwities.Singweton;
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	get resource(): URI | undefined {
-		if (this.hasIdenticalSides) {
-			// pretend to be just primary side when being asked for a resource
-			// in case both sides are the same. this can help when components
-			// want to identify this input among others (e.g. in history).
-			return this.primary.resource;
+	get wesouwce(): UWI | undefined {
+		if (this.hasIdenticawSides) {
+			// pwetend to be just pwimawy side when being asked fow a wesouwce
+			// in case both sides awe the same. this can hewp when components
+			// want to identify this input among othews (e.g. in histowy).
+			wetuwn this.pwimawy.wesouwce;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private hasIdenticalSides = this.primary.matches(this.secondary);
+	pwivate hasIdenticawSides = this.pwimawy.matches(this.secondawy);
 
-	constructor(
-		protected readonly preferredName: string | undefined,
-		protected readonly preferredDescription: string | undefined,
-		readonly secondary: EditorInput,
-		readonly primary: EditorInput,
-		@IEditorService private readonly editorService: IEditorService
+	constwuctow(
+		pwotected weadonwy pwefewwedName: stwing | undefined,
+		pwotected weadonwy pwefewwedDescwiption: stwing | undefined,
+		weadonwy secondawy: EditowInput,
+		weadonwy pwimawy: EditowInput,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// When the primary or secondary input gets disposed, dispose this diff editor input
-		this._register(Event.once(Event.any(this.primary.onWillDispose, this.secondary.onWillDispose))(() => {
+		// When the pwimawy ow secondawy input gets disposed, dispose this diff editow input
+		this._wegista(Event.once(Event.any(this.pwimawy.onWiwwDispose, this.secondawy.onWiwwDispose))(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		// Re-emit some events from the primary side to the outside
-		this._register(this.primary.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		// We-emit some events fwom the pwimawy side to the outside
+		this._wegista(this.pwimawy.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe()));
 
-		// Re-emit some events from both sides to the outside
-		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
-		this._register(this.secondary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
-		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
-		this._register(this.secondary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+		// We-emit some events fwom both sides to the outside
+		this._wegista(this.pwimawy.onDidChangeCapabiwities(() => this._onDidChangeCapabiwities.fiwe()));
+		this._wegista(this.secondawy.onDidChangeCapabiwities(() => this._onDidChangeCapabiwities.fiwe()));
+		this._wegista(this.pwimawy.onDidChangeWabew(() => this._onDidChangeWabew.fiwe()));
+		this._wegista(this.secondawy.onDidChangeWabew(() => this._onDidChangeWabew.fiwe()));
 	}
 
-	override getName(): string {
-		const preferredName = this.getPreferredName();
-		if (preferredName) {
-			return preferredName;
+	ovewwide getName(): stwing {
+		const pwefewwedName = this.getPwefewwedName();
+		if (pwefewwedName) {
+			wetuwn pwefewwedName;
 		}
 
-		if (this.hasIdenticalSides) {
-			return this.primary.getName(); // keep name concise when same editor is opened side by side
+		if (this.hasIdenticawSides) {
+			wetuwn this.pwimawy.getName(); // keep name concise when same editow is opened side by side
 		}
 
-		return localize('sideBySideLabels', "{0} - {1}", this.secondary.getName(), this.primary.getName());
+		wetuwn wocawize('sideBySideWabews', "{0} - {1}", this.secondawy.getName(), this.pwimawy.getName());
 	}
 
-	getPreferredName(): string | undefined {
-		return this.preferredName;
+	getPwefewwedName(): stwing | undefined {
+		wetuwn this.pwefewwedName;
 	}
 
-	override getDescription(verbosity?: Verbosity): string | undefined {
-		const preferredDescription = this.getPreferredDescription();
-		if (preferredDescription) {
-			return preferredDescription;
+	ovewwide getDescwiption(vewbosity?: Vewbosity): stwing | undefined {
+		const pwefewwedDescwiption = this.getPwefewwedDescwiption();
+		if (pwefewwedDescwiption) {
+			wetuwn pwefewwedDescwiption;
 		}
 
-		if (this.hasIdenticalSides) {
-			return this.primary.getDescription(verbosity);
+		if (this.hasIdenticawSides) {
+			wetuwn this.pwimawy.getDescwiption(vewbosity);
 		}
 
-		return super.getDescription(verbosity);
+		wetuwn supa.getDescwiption(vewbosity);
 	}
 
-	getPreferredDescription(): string | undefined {
-		return this.preferredDescription;
+	getPwefewwedDescwiption(): stwing | undefined {
+		wetuwn this.pwefewwedDescwiption;
 	}
 
-	override getTitle(verbosity?: Verbosity): string {
-		if (this.hasIdenticalSides) {
-			return this.primary.getTitle(verbosity) ?? this.getName();
+	ovewwide getTitwe(vewbosity?: Vewbosity): stwing {
+		if (this.hasIdenticawSides) {
+			wetuwn this.pwimawy.getTitwe(vewbosity) ?? this.getName();
 		}
 
-		return super.getTitle(verbosity);
+		wetuwn supa.getTitwe(vewbosity);
 	}
 
-	override getLabelExtraClasses(): string[] {
-		if (this.hasIdenticalSides) {
-			return this.primary.getLabelExtraClasses();
+	ovewwide getWabewExtwaCwasses(): stwing[] {
+		if (this.hasIdenticawSides) {
+			wetuwn this.pwimawy.getWabewExtwaCwasses();
 		}
 
-		return super.getLabelExtraClasses();
+		wetuwn supa.getWabewExtwaCwasses();
 	}
 
-	override getAriaLabel(): string {
-		if (this.hasIdenticalSides) {
-			return this.primary.getAriaLabel();
+	ovewwide getAwiaWabew(): stwing {
+		if (this.hasIdenticawSides) {
+			wetuwn this.pwimawy.getAwiaWabew();
 		}
 
-		return super.getAriaLabel();
+		wetuwn supa.getAwiaWabew();
 	}
 
-	override getTelemetryDescriptor(): { [key: string]: unknown } {
-		const descriptor = this.primary.getTelemetryDescriptor();
+	ovewwide getTewemetwyDescwiptow(): { [key: stwing]: unknown } {
+		const descwiptow = this.pwimawy.getTewemetwyDescwiptow();
 
-		return { ...descriptor, ...super.getTelemetryDescriptor() };
+		wetuwn { ...descwiptow, ...supa.getTewemetwyDescwiptow() };
 	}
 
-	override isDirty(): boolean {
-		return this.primary.isDirty();
+	ovewwide isDiwty(): boowean {
+		wetuwn this.pwimawy.isDiwty();
 	}
 
-	override isSaving(): boolean {
-		return this.primary.isSaving();
+	ovewwide isSaving(): boowean {
+		wetuwn this.pwimawy.isSaving();
 	}
 
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		const editor = await this.primary.save(group, options);
-		if (!editor || !this.hasIdenticalSides) {
-			return editor;
+	ovewwide async save(gwoup: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		const editow = await this.pwimawy.save(gwoup, options);
+		if (!editow || !this.hasIdenticawSides) {
+			wetuwn editow;
 		}
 
-		return new SideBySideEditorInput(this.preferredName, this.preferredDescription, editor, editor, this.editorService);
+		wetuwn new SideBySideEditowInput(this.pwefewwedName, this.pwefewwedDescwiption, editow, editow, this.editowSewvice);
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		const editor = await this.primary.saveAs(group, options);
-		if (!editor || !this.hasIdenticalSides) {
-			return editor;
+	ovewwide async saveAs(gwoup: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		const editow = await this.pwimawy.saveAs(gwoup, options);
+		if (!editow || !this.hasIdenticawSides) {
+			wetuwn editow;
 		}
 
-		return new SideBySideEditorInput(this.preferredName, this.preferredDescription, editor, editor, this.editorService);
+		wetuwn new SideBySideEditowInput(this.pwefewwedName, this.pwefewwedDescwiption, editow, editow, this.editowSewvice);
 	}
 
-	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		return this.primary.revert(group, options);
+	ovewwide wevewt(gwoup: GwoupIdentifia, options?: IWevewtOptions): Pwomise<void> {
+		wetuwn this.pwimawy.wevewt(gwoup, options);
 	}
 
-	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
-		if (!this.hasIdenticalSides) {
-			return; // currently only enabled when both sides are identical
+	ovewwide async wename(gwoup: GwoupIdentifia, tawget: UWI): Pwomise<IMoveWesuwt | undefined> {
+		if (!this.hasIdenticawSides) {
+			wetuwn; // cuwwentwy onwy enabwed when both sides awe identicaw
 		}
 
-		// Forward rename to primary side
-		const renameResult = await this.primary.rename(group, target);
-		if (!renameResult) {
-			return undefined;
+		// Fowwawd wename to pwimawy side
+		const wenameWesuwt = await this.pwimawy.wename(gwoup, tawget);
+		if (!wenameWesuwt) {
+			wetuwn undefined;
 		}
 
-		// Build a side-by-side result from the rename result
+		// Buiwd a side-by-side wesuwt fwom the wename wesuwt
 
-		if (isEditorInput(renameResult.editor)) {
-			return {
-				editor: new SideBySideEditorInput(this.preferredName, this.preferredDescription, renameResult.editor, renameResult.editor, this.editorService),
+		if (isEditowInput(wenameWesuwt.editow)) {
+			wetuwn {
+				editow: new SideBySideEditowInput(this.pwefewwedName, this.pwefewwedDescwiption, wenameWesuwt.editow, wenameWesuwt.editow, this.editowSewvice),
 				options: {
-					...renameResult.options,
-					viewState: findViewStateForEditor(this, group, this.editorService)
+					...wenameWesuwt.options,
+					viewState: findViewStateFowEditow(this, gwoup, this.editowSewvice)
 				}
 			};
 		}
 
-		if (isResourceEditorInput(renameResult.editor)) {
-			return {
-				editor: {
-					label: this.preferredName,
-					description: this.preferredDescription,
-					primary: renameResult.editor,
-					secondary: renameResult.editor,
+		if (isWesouwceEditowInput(wenameWesuwt.editow)) {
+			wetuwn {
+				editow: {
+					wabew: this.pwefewwedName,
+					descwiption: this.pwefewwedDescwiption,
+					pwimawy: wenameWesuwt.editow,
+					secondawy: wenameWesuwt.editow,
 					options: {
-						...renameResult.options,
-						viewState: findViewStateForEditor(this, group, this.editorService)
+						...wenameWesuwt.options,
+						viewState: findViewStateFowEditow(this, gwoup, this.editowSewvice)
 					}
 				}
 			};
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
-		const primaryResourceEditorInput = this.primary.toUntyped(options);
-		const secondaryResourceEditorInput = this.secondary.toUntyped(options);
+	ovewwide toUntyped(options?: { pwesewveViewState: GwoupIdentifia }): IWesouwceSideBySideEditowInput | undefined {
+		const pwimawyWesouwceEditowInput = this.pwimawy.toUntyped(options);
+		const secondawyWesouwceEditowInput = this.secondawy.toUntyped(options);
 
-		// Prevent nested side by side editors which are unsupported
+		// Pwevent nested side by side editows which awe unsuppowted
 		if (
-			primaryResourceEditorInput && secondaryResourceEditorInput &&
-			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
-			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput)
+			pwimawyWesouwceEditowInput && secondawyWesouwceEditowInput &&
+			!isWesouwceDiffEditowInput(pwimawyWesouwceEditowInput) && !isWesouwceDiffEditowInput(secondawyWesouwceEditowInput) &&
+			!isWesouwceSideBySideEditowInput(pwimawyWesouwceEditowInput) && !isWesouwceSideBySideEditowInput(secondawyWesouwceEditowInput)
 		) {
-			const untypedInput: IResourceSideBySideEditorInput = {
-				label: this.preferredName,
-				description: this.preferredDescription,
-				primary: primaryResourceEditorInput,
-				secondary: secondaryResourceEditorInput
+			const untypedInput: IWesouwceSideBySideEditowInput = {
+				wabew: this.pwefewwedName,
+				descwiption: this.pwefewwedDescwiption,
+				pwimawy: pwimawyWesouwceEditowInput,
+				secondawy: secondawyWesouwceEditowInput
 			};
 
-			if (typeof options?.preserveViewState === 'number') {
+			if (typeof options?.pwesewveViewState === 'numba') {
 				untypedInput.options = {
-					viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+					viewState: findViewStateFowEditow(this, options.pwesewveViewState, this.editowSewvice)
 				};
 			}
 
-			return untypedInput;
+			wetuwn untypedInput;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (this === otherInput) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (this === othewInput) {
+			wetuwn twue;
 		}
 
-		if (isDiffEditorInput(otherInput) || isResourceDiffEditorInput(otherInput)) {
-			return false; // prevent subclass from matching
+		if (isDiffEditowInput(othewInput) || isWesouwceDiffEditowInput(othewInput)) {
+			wetuwn fawse; // pwevent subcwass fwom matching
 		}
 
-		if (otherInput instanceof SideBySideEditorInput) {
-			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
+		if (othewInput instanceof SideBySideEditowInput) {
+			wetuwn this.pwimawy.matches(othewInput.pwimawy) && this.secondawy.matches(othewInput.secondawy);
 		}
 
-		if (isResourceSideBySideEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
+		if (isWesouwceSideBySideEditowInput(othewInput)) {
+			wetuwn this.pwimawy.matches(othewInput.pwimawy) && this.secondawy.matches(othewInput.secondawy);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-// Register SideBySide/DiffEditor Input Serializer
-interface ISerializedSideBySideEditorInput {
-	name: string | undefined;
-	description: string | undefined;
+// Wegista SideBySide/DiffEditow Input Sewiawiza
+intewface ISewiawizedSideBySideEditowInput {
+	name: stwing | undefined;
+	descwiption: stwing | undefined;
 
-	primarySerialized: string;
-	secondarySerialized: string;
+	pwimawySewiawized: stwing;
+	secondawySewiawized: stwing;
 
-	primaryTypeId: string;
-	secondaryTypeId: string;
+	pwimawyTypeId: stwing;
+	secondawyTypeId: stwing;
 }
 
-export abstract class AbstractSideBySideEditorInputSerializer implements IEditorSerializer {
+expowt abstwact cwass AbstwactSideBySideEditowInputSewiawiza impwements IEditowSewiawiza {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
+	canSewiawize(editowInput: EditowInput): boowean {
+		const input = editowInput as SideBySideEditowInput | DiffEditowInput;
 
-		if (input.primary && input.secondary) {
-			const [secondaryInputSerializer, primaryInputSerializer] = this.getSerializers(input.secondary.typeId, input.primary.typeId);
+		if (input.pwimawy && input.secondawy) {
+			const [secondawyInputSewiawiza, pwimawyInputSewiawiza] = this.getSewiawizews(input.secondawy.typeId, input.pwimawy.typeId);
 
-			return !!(secondaryInputSerializer?.canSerialize(input.secondary) && primaryInputSerializer?.canSerialize(input.primary));
+			wetuwn !!(secondawyInputSewiawiza?.canSewiawize(input.secondawy) && pwimawyInputSewiawiza?.canSewiawize(input.pwimawy));
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	serialize(editorInput: EditorInput): string | undefined {
-		const input = editorInput as SideBySideEditorInput;
+	sewiawize(editowInput: EditowInput): stwing | undefined {
+		const input = editowInput as SideBySideEditowInput;
 
-		if (input.primary && input.secondary) {
-			const [secondaryInputSerializer, primaryInputSerializer] = this.getSerializers(input.secondary.typeId, input.primary.typeId);
-			if (primaryInputSerializer && secondaryInputSerializer) {
-				const primarySerialized = primaryInputSerializer.serialize(input.primary);
-				const secondarySerialized = secondaryInputSerializer.serialize(input.secondary);
+		if (input.pwimawy && input.secondawy) {
+			const [secondawyInputSewiawiza, pwimawyInputSewiawiza] = this.getSewiawizews(input.secondawy.typeId, input.pwimawy.typeId);
+			if (pwimawyInputSewiawiza && secondawyInputSewiawiza) {
+				const pwimawySewiawized = pwimawyInputSewiawiza.sewiawize(input.pwimawy);
+				const secondawySewiawized = secondawyInputSewiawiza.sewiawize(input.secondawy);
 
-				if (primarySerialized && secondarySerialized) {
-					const serializedEditorInput: ISerializedSideBySideEditorInput = {
-						name: input.getPreferredName(),
-						description: input.getPreferredDescription(),
-						primarySerialized: primarySerialized,
-						secondarySerialized: secondarySerialized,
-						primaryTypeId: input.primary.typeId,
-						secondaryTypeId: input.secondary.typeId
+				if (pwimawySewiawized && secondawySewiawized) {
+					const sewiawizedEditowInput: ISewiawizedSideBySideEditowInput = {
+						name: input.getPwefewwedName(),
+						descwiption: input.getPwefewwedDescwiption(),
+						pwimawySewiawized: pwimawySewiawized,
+						secondawySewiawized: secondawySewiawized,
+						pwimawyTypeId: input.pwimawy.typeId,
+						secondawyTypeId: input.secondawy.typeId
 					};
 
-					return JSON.stringify(serializedEditorInput);
+					wetuwn JSON.stwingify(sewiawizedEditowInput);
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
+	desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): EditowInput | undefined {
+		const desewiawized: ISewiawizedSideBySideEditowInput = JSON.pawse(sewiawizedEditowInput);
 
-		const [secondaryInputSerializer, primaryInputSerializer] = this.getSerializers(deserialized.secondaryTypeId, deserialized.primaryTypeId);
-		if (primaryInputSerializer && secondaryInputSerializer) {
-			const primaryInput = primaryInputSerializer.deserialize(instantiationService, deserialized.primarySerialized);
-			const secondaryInput = secondaryInputSerializer.deserialize(instantiationService, deserialized.secondarySerialized);
+		const [secondawyInputSewiawiza, pwimawyInputSewiawiza] = this.getSewiawizews(desewiawized.secondawyTypeId, desewiawized.pwimawyTypeId);
+		if (pwimawyInputSewiawiza && secondawyInputSewiawiza) {
+			const pwimawyInput = pwimawyInputSewiawiza.desewiawize(instantiationSewvice, desewiawized.pwimawySewiawized);
+			const secondawyInput = secondawyInputSewiawiza.desewiawize(instantiationSewvice, desewiawized.secondawySewiawized);
 
-			if (primaryInput instanceof EditorInput && secondaryInput instanceof EditorInput) {
-				return this.createEditorInput(instantiationService, deserialized.name, deserialized.description, secondaryInput, primaryInput);
+			if (pwimawyInput instanceof EditowInput && secondawyInput instanceof EditowInput) {
+				wetuwn this.cweateEditowInput(instantiationSewvice, desewiawized.name, desewiawized.descwiption, secondawyInput, pwimawyInput);
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getSerializers(secondaryEditorInputTypeId: string, primaryEditorInputTypeId: string): [IEditorSerializer | undefined, IEditorSerializer | undefined] {
-		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+	pwivate getSewiawizews(secondawyEditowInputTypeId: stwing, pwimawyEditowInputTypeId: stwing): [IEditowSewiawiza | undefined, IEditowSewiawiza | undefined] {
+		const wegistwy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy);
 
-		return [registry.getEditorSerializer(secondaryEditorInputTypeId), registry.getEditorSerializer(primaryEditorInputTypeId)];
+		wetuwn [wegistwy.getEditowSewiawiza(secondawyEditowInputTypeId), wegistwy.getEditowSewiawiza(pwimawyEditowInputTypeId)];
 	}
 
-	protected abstract createEditorInput(instantiationService: IInstantiationService, name: string | undefined, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
+	pwotected abstwact cweateEditowInput(instantiationSewvice: IInstantiationSewvice, name: stwing | undefined, descwiption: stwing | undefined, secondawyInput: EditowInput, pwimawyInput: EditowInput): EditowInput;
 }
 
-export class SideBySideEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
+expowt cwass SideBySideEditowInputSewiawiza extends AbstwactSideBySideEditowInputSewiawiza {
 
-	protected createEditorInput(instantiationService: IInstantiationService, name: string | undefined, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
-		return instantiationService.createInstance(SideBySideEditorInput, name, description, secondaryInput, primaryInput);
+	pwotected cweateEditowInput(instantiationSewvice: IInstantiationSewvice, name: stwing | undefined, descwiption: stwing | undefined, secondawyInput: EditowInput, pwimawyInput: EditowInput): EditowInput {
+		wetuwn instantiationSewvice.cweateInstance(SideBySideEditowInput, name, descwiption, secondawyInput, pwimawyInput);
 	}
 }

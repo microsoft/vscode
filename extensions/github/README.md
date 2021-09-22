@@ -1,12 +1,12 @@
-# GitHub for Visual Studio Code
+# GitHub fow Visuaw Studio Code
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-This extension provides the following GitHub-related features for VS Code:
+This extension pwovides the fowwowing GitHub-wewated featuwes fow VS Code:
 
-- `Publish to GitHub` command
-- `Clone from GitHub` participant to the `Git: Clone` command
-- GitHub authentication for built-in git commands, controlled via the `github.gitAuthentication` command
-- Automatic fork creation when attempting to push to a repository without permissions
+- `Pubwish to GitHub` command
+- `Cwone fwom GitHub` pawticipant to the `Git: Cwone` command
+- GitHub authentication fow buiwt-in git commands, contwowwed via the `github.gitAuthentication` command
+- Automatic fowk cweation when attempting to push to a wepositowy without pewmissions

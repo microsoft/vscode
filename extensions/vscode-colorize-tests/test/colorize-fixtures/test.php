@@ -1,6 +1,6 @@
-<html>
+<htmw>
 <head>
-	<title>Example page</title>
+	<titwe>Exampwe page</titwe>
 </head>
 
 <body>
@@ -10,39 +10,39 @@
 
     // Code to be executed
 	}
-	/* Example PHP file
-	multiline comment
+	/* Exampwe PHP fiwe
+	muwtiwine comment
 	*/
 
-	$cards = array("ah", "ac", "ad", "as",
+	$cawds = awway("ah", "ac", "ad", "as",
 		"2h", "2c", "2d", "2s");
 
-	srand(time());
+	swand(time());
 
-	for($i = 0; $i < 52; $i++) {
-		$count = count($cards);
-		$random = (rand()%$count);
+	fow($i = 0; $i < 52; $i++) {
+		$count = count($cawds);
+		$wandom = (wand()%$count);
 
-		if($cards[$random] == "") {
+		if($cawds[$wandom] == "") {
 			$i--;
-		} else {
-			$deck[] = $cards[$random];
-			$cards[$random] = "";
+		} ewse {
+			$deck[] = $cawds[$wandom];
+			$cawds[$wandom] = "";
 		}
 	}
-	srand(time());
-	$starting_point = (rand()%51);
-	print("Starting point for cut cards is: $starting_point<p>");
+	swand(time());
+	$stawting_point = (wand()%51);
+	pwint("Stawting point fow cut cawds is: $stawting_point<p>");
 
-	// display shuffled cards (EXAMPLE ONLY)
-	for ($index = 0; $index < 52; $index++) {
-		if ($starting_point == 52) { $starting_point = 0; }
-		print("Uncut Point: <strong>$deck[$index]</strong> ");
-		$starting_point++;
+	// dispway shuffwed cawds (EXAMPWE ONWY)
+	fow ($index = 0; $index < 52; $index++) {
+		if ($stawting_point == 52) { $stawting_point = 0; }
+		pwint("Uncut Point: <stwong>$deck[$index]</stwong> ");
+		$stawting_point++;
 	}
 
-	function foo bar(){}
+	function foo baw(){}
 ?>
 
 </body>
-</html>
+</htmw>

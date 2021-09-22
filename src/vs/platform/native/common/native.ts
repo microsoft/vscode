@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MessageBoxOptions, MessageBoxWetuwnVawue, MouseInputEvent, OpenDevToowsOptions, OpenDiawogOptions, OpenDiawogWetuwnVawue, SaveDiawogOptions, SaveDiawogWetuwnVawue } fwom 'vs/base/pawts/sandbox/common/ewectwonTypes';
+impowt { ISewiawizabweCommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { INativeOpenDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { ICowowScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPawtsSpwash, IWindowOpenabwe } fwom 'vs/pwatfowm/windows/common/windows';
 
-export interface ICPUProperties {
-	model: string;
-	speed: number;
+expowt intewface ICPUPwopewties {
+	modew: stwing;
+	speed: numba;
 }
 
-export interface IOSProperties {
-	type: string;
-	release: string;
-	arch: string;
-	platform: string;
-	cpus: ICPUProperties[];
+expowt intewface IOSPwopewties {
+	type: stwing;
+	wewease: stwing;
+	awch: stwing;
+	pwatfowm: stwing;
+	cpus: ICPUPwopewties[];
 }
 
-export interface IOSStatistics {
-	totalmem: number;
-	freemem: number;
-	loadavg: number[];
+expowt intewface IOSStatistics {
+	totawmem: numba;
+	fweemem: numba;
+	woadavg: numba[];
 }
 
-export interface ICommonNativeHostService {
+expowt intewface ICommonNativeHostSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	// Properties
-	readonly windowId: number;
+	// Pwopewties
+	weadonwy windowId: numba;
 
 	// Events
-	readonly onDidOpenWindow: Event<number>;
+	weadonwy onDidOpenWindow: Event<numba>;
 
-	readonly onDidMaximizeWindow: Event<number>;
-	readonly onDidUnmaximizeWindow: Event<number>;
+	weadonwy onDidMaximizeWindow: Event<numba>;
+	weadonwy onDidUnmaximizeWindow: Event<numba>;
 
-	readonly onDidFocusWindow: Event<number>;
-	readonly onDidBlurWindow: Event<number>;
+	weadonwy onDidFocusWindow: Event<numba>;
+	weadonwy onDidBwuwWindow: Event<numba>;
 
-	readonly onDidChangeDisplay: Event<void>;
+	weadonwy onDidChangeDispway: Event<void>;
 
-	readonly onDidResumeOS: Event<unknown>;
+	weadonwy onDidWesumeOS: Event<unknown>;
 
-	readonly onDidChangeColorScheme: Event<IColorScheme>;
+	weadonwy onDidChangeCowowScheme: Event<ICowowScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string, account: string }>;
+	weadonwy onDidChangePasswowd: Event<{ sewvice: stwing, account: stwing }>;
 
 	// Window
-	getWindows(): Promise<IOpenedWindow[]>;
-	getWindowCount(): Promise<number>;
-	getActiveWindowId(): Promise<number | undefined>;
+	getWindows(): Pwomise<IOpenedWindow[]>;
+	getWindowCount(): Pwomise<numba>;
+	getActiveWindowId(): Pwomise<numba | undefined>;
 
-	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(options?: IOpenEmptyWindowOptions): Pwomise<void>;
+	openWindow(toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void>;
 
-	toggleFullScreen(): Promise<void>;
+	toggweFuwwScween(): Pwomise<void>;
 
-	handleTitleDoubleClick(): Promise<void>;
+	handweTitweDoubweCwick(): Pwomise<void>;
 
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
+	isMaximized(): Pwomise<boowean>;
+	maximizeWindow(): Pwomise<void>;
+	unmaximizeWindow(): Pwomise<void>;
+	minimizeWindow(): Pwomise<void>;
 
-	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
+	setMinimumSize(width: numba | undefined, height: numba | undefined): Pwomise<void>;
 
-	saveWindowSplash(splash: IPartsSplash): Promise<void>;
+	saveWindowSpwash(spwash: IPawtsSpwash): Pwomise<void>;
 
 	/**
 	 * Make the window focused.
 	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode.
+	 * @pawam options Pass `fowce: twue` if you want to make the window take
+	 * focus even if the appwication does not have focus cuwwentwy. This option
+	 * shouwd onwy be used if it is necessawy to steaw focus fwom the cuwwent
+	 * focused appwication which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number, force?: boolean }): Promise<void>;
+	focusWindow(options?: { windowId?: numba, fowce?: boowean }): Pwomise<void>;
 
-	// Dialogs
-	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
-	showSaveDialog(options: SaveDialogOptions): Promise<SaveDialogReturnValue>;
-	showOpenDialog(options: OpenDialogOptions): Promise<OpenDialogReturnValue>;
+	// Diawogs
+	showMessageBox(options: MessageBoxOptions): Pwomise<MessageBoxWetuwnVawue>;
+	showSaveDiawog(options: SaveDiawogOptions): Pwomise<SaveDiawogWetuwnVawue>;
+	showOpenDiawog(options: OpenDiawogOptions): Pwomise<OpenDiawogWetuwnVawue>;
 
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
+	pickFiweFowdewAndOpen(options: INativeOpenDiawogOptions): Pwomise<void>;
+	pickFiweAndOpen(options: INativeOpenDiawogOptions): Pwomise<void>;
+	pickFowdewAndOpen(options: INativeOpenDiawogOptions): Pwomise<void>;
+	pickWowkspaceAndOpen(options: INativeOpenDiawogOptions): Pwomise<void>;
 
 	// OS
-	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string): Promise<void>;
-	setDocumentEdited(edited: boolean): Promise<void>;
-	openExternal(url: string): Promise<boolean>;
-	moveItemToTrash(fullPath: string): Promise<void>;
+	showItemInFowda(path: stwing): Pwomise<void>;
+	setWepwesentedFiwename(path: stwing): Pwomise<void>;
+	setDocumentEdited(edited: boowean): Pwomise<void>;
+	openExtewnaw(uww: stwing): Pwomise<boowean>;
+	moveItemToTwash(fuwwPath: stwing): Pwomise<void>;
 
-	isAdmin(): Promise<boolean>;
-	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
+	isAdmin(): Pwomise<boowean>;
+	wwiteEwevated(souwce: UWI, tawget: UWI, options?: { unwock?: boowean }): Pwomise<void>;
 
-	getOSProperties(): Promise<IOSProperties>;
-	getOSStatistics(): Promise<IOSStatistics>;
-	getOSVirtualMachineHint(): Promise<number>;
+	getOSPwopewties(): Pwomise<IOSPwopewties>;
+	getOSStatistics(): Pwomise<IOSStatistics>;
+	getOSViwtuawMachineHint(): Pwomise<numba>;
 
-	// Process
-	killProcess(pid: number, code: string): Promise<void>;
+	// Pwocess
+	kiwwPwocess(pid: numba, code: stwing): Pwomise<void>;
 
-	// Clipboard
-	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
-	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
-	readClipboardFindText(): Promise<string>;
-	writeClipboardFindText(text: string): Promise<void>;
-	writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void>;
-	readClipboardBuffer(format: string): Promise<Uint8Array>;
-	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
+	// Cwipboawd
+	weadCwipboawdText(type?: 'sewection' | 'cwipboawd'): Pwomise<stwing>;
+	wwiteCwipboawdText(text: stwing, type?: 'sewection' | 'cwipboawd'): Pwomise<void>;
+	weadCwipboawdFindText(): Pwomise<stwing>;
+	wwiteCwipboawdFindText(text: stwing): Pwomise<void>;
+	wwiteCwipboawdBuffa(fowmat: stwing, buffa: Uint8Awway, type?: 'sewection' | 'cwipboawd'): Pwomise<void>;
+	weadCwipboawdBuffa(fowmat: stwing): Pwomise<Uint8Awway>;
+	hasCwipboawd(fowmat: stwing, type?: 'sewection' | 'cwipboawd'): Pwomise<boowean>;
 
-	// macOS Touchbar
-	newWindowTab(): Promise<void>;
-	showPreviousWindowTab(): Promise<void>;
-	showNextWindowTab(): Promise<void>;
-	moveWindowTabToNewWindow(): Promise<void>;
-	mergeAllWindowTabs(): Promise<void>;
-	toggleWindowTabsBar(): Promise<void>;
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
+	// macOS Touchbaw
+	newWindowTab(): Pwomise<void>;
+	showPweviousWindowTab(): Pwomise<void>;
+	showNextWindowTab(): Pwomise<void>;
+	moveWindowTabToNewWindow(): Pwomise<void>;
+	mewgeAwwWindowTabs(): Pwomise<void>;
+	toggweWindowTabsBaw(): Pwomise<void>;
+	updateTouchBaw(items: ISewiawizabweCommandAction[][]): Pwomise<void>;
 
-	// macOS Shell command
-	installShellCommand(): Promise<void>;
-	uninstallShellCommand(): Promise<void>;
+	// macOS Sheww command
+	instawwShewwCommand(): Pwomise<void>;
+	uninstawwShewwCommand(): Pwomise<void>;
 
-	// Lifecycle
-	notifyReady(): Promise<void>
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
-	reload(options?: { disableExtensions?: boolean }): Promise<void>;
-	closeWindow(): Promise<void>;
-	closeWindowById(windowId: number): Promise<void>;
-	quit(): Promise<void>;
-	exit(code: number): Promise<void>;
+	// Wifecycwe
+	notifyWeady(): Pwomise<void>
+	wewaunch(options?: { addAwgs?: stwing[], wemoveAwgs?: stwing[] }): Pwomise<void>;
+	wewoad(options?: { disabweExtensions?: boowean }): Pwomise<void>;
+	cwoseWindow(): Pwomise<void>;
+	cwoseWindowById(windowId: numba): Pwomise<void>;
+	quit(): Pwomise<void>;
+	exit(code: numba): Pwomise<void>;
 
-	// Development
-	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
-	toggleDevTools(): Promise<void>;
-	toggleSharedProcessWindow(): Promise<void>;
-	sendInputEvent(event: MouseInputEvent): Promise<void>;
+	// Devewopment
+	openDevToows(options?: OpenDevToowsOptions): Pwomise<void>;
+	toggweDevToows(): Pwomise<void>;
+	toggweShawedPwocessWindow(): Pwomise<void>;
+	sendInputEvent(event: MouseInputEvent): Pwomise<void>;
 
 	// Connectivity
-	resolveProxy(url: string): Promise<string | undefined>;
+	wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined>;
 
-	// Registry (windows only)
-	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+	// Wegistwy (windows onwy)
+	windowsGetStwingWegKey(hive: 'HKEY_CUWWENT_USa' | 'HKEY_WOCAW_MACHINE' | 'HKEY_CWASSES_WOOT' | 'HKEY_USEWS' | 'HKEY_CUWWENT_CONFIG', path: stwing, name: stwing): Pwomise<stwing | undefined>;
 
-	// Credentials
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
+	// Cwedentiaws
+	getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww>;
+	setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void>;
+	dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean>;
+	findPasswowd(sewvice: stwing): Pwomise<stwing | nuww>;
+	findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>>
 }

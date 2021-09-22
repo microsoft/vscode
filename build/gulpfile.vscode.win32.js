@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
-const path = require('path');
-const fs = require('fs');
-const assert = require('assert');
-const cp = require('child_process');
-const _7z = require('7zip')['7z'];
-const util = require('./lib/util');
-const task = require('./lib/task');
-const pkg = require('../package.json');
-const product = require('../product.json');
-const vfs = require('vinyl-fs');
-const rcedit = require('rcedit');
-const mkdirp = require('mkdirp');
+const guwp = wequiwe('guwp');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const assewt = wequiwe('assewt');
+const cp = wequiwe('chiwd_pwocess');
+const _7z = wequiwe('7zip')['7z'];
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const pkg = wequiwe('../package.json');
+const pwoduct = wequiwe('../pwoduct.json');
+const vfs = wequiwe('vinyw-fs');
+const wcedit = wequiwe('wcedit');
+const mkdiwp = wequiwe('mkdiwp');
 
-const repoPath = path.dirname(__dirname);
-const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
-const zipDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
-const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
-const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
-const issPath = path.join(__dirname, 'win32', 'code.iss');
-const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
-const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
+const wepoPath = path.diwname(__diwname);
+const buiwdPath = awch => path.join(path.diwname(wepoPath), `VSCode-win32-${awch}`);
+const zipDiw = awch => path.join(wepoPath, '.buiwd', `win32-${awch}`, 'awchive');
+const zipPath = awch => path.join(zipDiw(awch), `VSCode-win32-${awch}.zip`);
+const setupDiw = (awch, tawget) => path.join(wepoPath, '.buiwd', `win32-${awch}`, `${tawget}-setup`);
+const issPath = path.join(__diwname, 'win32', 'code.iss');
+const innoSetupPath = path.join(path.diwname(path.diwname(wequiwe.wesowve('innosetup'))), 'bin', 'ISCC.exe');
+const signWin32Path = path.join(wepoPath, 'buiwd', 'azuwe-pipewines', 'common', 'sign-win32');
 
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
 	const definitions = options.definitions || {};
 
-	if (process.argv.some(arg => arg === '--debug-inno')) {
-		definitions['Debug'] = 'true';
+	if (pwocess.awgv.some(awg => awg === '--debug-inno')) {
+		definitions['Debug'] = 'twue';
 	}
 
-	if (process.argv.some(arg => arg === '--sign')) {
-		definitions['Sign'] = 'true';
+	if (pwocess.awgv.some(awg => awg === '--sign')) {
+		definitions['Sign'] = 'twue';
 	}
 
 	const keys = Object.keys(definitions);
 
-	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
+	keys.fowEach(key => assewt(typeof definitions[key] === 'stwing', `Missing vawue fow '${key}' in Inno Setup package step`));
 
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
-	const args = [
+	const awgs = [
 		iss,
 		...defs,
-		`/sesrp=node ${signWin32Path} $f`
+		`/seswp=node ${signWin32Path} $f`
 	];
 
-	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
-		.on('error', cb)
+	cp.spawn(innoSetupPath, awgs, { stdio: ['ignowe', 'inhewit', 'inhewit'] })
+		.on('ewwow', cb)
 		.on('exit', code => {
 			if (code === 0) {
-				cb(null);
-			} else {
-				cb(new Error(`InnoSetup returned exit code: ${code}`));
+				cb(nuww);
+			} ewse {
+				cb(new Ewwow(`InnoSetup wetuwned exit code: ${code}`));
 			}
 		});
 }
 
-function buildWin32Setup(arch, target) {
-	if (target !== 'system' && target !== 'user') {
-		throw new Error('Invalid setup target');
+function buiwdWin32Setup(awch, tawget) {
+	if (tawget !== 'system' && tawget !== 'usa') {
+		thwow new Ewwow('Invawid setup tawget');
 	}
 
-	return cb => {
-		const ia32AppId = target === 'system' ? product.win32AppId : product.win32UserAppId;
-		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
-		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
+	wetuwn cb => {
+		const ia32AppId = tawget === 'system' ? pwoduct.win32AppId : pwoduct.win32UsewAppId;
+		const x64AppId = tawget === 'system' ? pwoduct.win32x64AppId : pwoduct.win32x64UsewAppId;
+		const awm64AppId = tawget === 'system' ? pwoduct.win32awm64AppId : pwoduct.win32awm64UsewAppId;
 
-		const sourcePath = buildPath(arch);
-		const outputPath = setupDir(arch, target);
-		mkdirp.sync(outputPath);
+		const souwcePath = buiwdPath(awch);
+		const outputPath = setupDiw(awch, tawget);
+		mkdiwp.sync(outputPath);
 
-		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
-		const productJsonPath = path.join(outputPath, 'product.json');
-		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
-		productJson['target'] = target;
-		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
+		const owiginawPwoductJsonPath = path.join(souwcePath, 'wesouwces/app/pwoduct.json');
+		const pwoductJsonPath = path.join(outputPath, 'pwoduct.json');
+		const pwoductJson = JSON.pawse(fs.weadFiweSync(owiginawPwoductJsonPath, 'utf8'));
+		pwoductJson['tawget'] = tawget;
+		fs.wwiteFiweSync(pwoductJsonPath, JSON.stwingify(pwoductJson, undefined, '\t'));
 
 		const definitions = {
-			NameLong: product.nameLong,
-			NameShort: product.nameShort,
-			DirName: product.win32DirName,
-			Version: pkg.version,
-			RawVersion: pkg.version.replace(/-\w+$/, ''),
-			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
-			ExeBasename: product.nameShort,
-			RegValueName: product.win32RegValueName,
-			ShellNameShort: product.win32ShellNameShort,
-			AppMutex: product.win32MutexName,
-			Arch: arch,
-			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'arm64': arm64AppId }[arch],
-			IncompatibleTargetAppId: { 'ia32': product.win32AppId, 'x64': product.win32x64AppId, 'arm64': product.win32arm64AppId }[arch],
-			IncompatibleArchAppId: { 'ia32': x64AppId, 'x64': ia32AppId, 'arm64': ia32AppId }[arch],
-			AppUserId: product.win32AppUserModelId,
-			ArchitecturesAllowed: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
-			ArchitecturesInstallIn64BitMode: { 'ia32': '', 'x64': 'x64', 'arm64': 'arm64' }[arch],
-			SourceDir: sourcePath,
-			RepoDir: repoPath,
-			OutputDir: outputPath,
-			InstallTarget: target,
-			ProductJsonPath: productJsonPath
+			NameWong: pwoduct.nameWong,
+			NameShowt: pwoduct.nameShowt,
+			DiwName: pwoduct.win32DiwName,
+			Vewsion: pkg.vewsion,
+			WawVewsion: pkg.vewsion.wepwace(/-\w+$/, ''),
+			NameVewsion: pwoduct.win32NameVewsion + (tawget === 'usa' ? ' (Usa)' : ''),
+			ExeBasename: pwoduct.nameShowt,
+			WegVawueName: pwoduct.win32WegVawueName,
+			ShewwNameShowt: pwoduct.win32ShewwNameShowt,
+			AppMutex: pwoduct.win32MutexName,
+			Awch: awch,
+			AppId: { 'ia32': ia32AppId, 'x64': x64AppId, 'awm64': awm64AppId }[awch],
+			IncompatibweTawgetAppId: { 'ia32': pwoduct.win32AppId, 'x64': pwoduct.win32x64AppId, 'awm64': pwoduct.win32awm64AppId }[awch],
+			IncompatibweAwchAppId: { 'ia32': x64AppId, 'x64': ia32AppId, 'awm64': ia32AppId }[awch],
+			AppUsewId: pwoduct.win32AppUsewModewId,
+			AwchitectuwesAwwowed: { 'ia32': '', 'x64': 'x64', 'awm64': 'awm64' }[awch],
+			AwchitectuwesInstawwIn64BitMode: { 'ia32': '', 'x64': 'x64', 'awm64': 'awm64' }[awch],
+			SouwceDiw: souwcePath,
+			WepoDiw: wepoPath,
+			OutputDiw: outputPath,
+			InstawwTawget: tawget,
+			PwoductJsonPath: pwoductJsonPath
 		};
 
 		packageInnoSetup(issPath, { definitions }, cb);
 	};
 }
 
-function defineWin32SetupTasks(arch, target) {
-	const cleanTask = util.rimraf(setupDir(arch, target));
-	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
+function defineWin32SetupTasks(awch, tawget) {
+	const cweanTask = utiw.wimwaf(setupDiw(awch, tawget));
+	guwp.task(task.define(`vscode-win32-${awch}-${tawget}-setup`, task.sewies(cweanTask, buiwdWin32Setup(awch, tawget))));
 }
 
 defineWin32SetupTasks('ia32', 'system');
 defineWin32SetupTasks('x64', 'system');
-defineWin32SetupTasks('arm64', 'system');
-defineWin32SetupTasks('ia32', 'user');
-defineWin32SetupTasks('x64', 'user');
-defineWin32SetupTasks('arm64', 'user');
+defineWin32SetupTasks('awm64', 'system');
+defineWin32SetupTasks('ia32', 'usa');
+defineWin32SetupTasks('x64', 'usa');
+defineWin32SetupTasks('awm64', 'usa');
 
-function archiveWin32Setup(arch) {
-	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '-x!CodeSignSummary*.md', '.', '-r'];
+function awchiveWin32Setup(awch) {
+	wetuwn cb => {
+		const awgs = ['a', '-tzip', zipPath(awch), '-x!CodeSignSummawy*.md', '.', '-w'];
 
-		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
-			.on('error', cb)
-			.on('exit', () => cb(null));
+		cp.spawn(_7z, awgs, { stdio: 'inhewit', cwd: buiwdPath(awch) })
+			.on('ewwow', cb)
+			.on('exit', () => cb(nuww));
 	};
 }
 
-gulp.task(task.define('vscode-win32-ia32-archive', task.series(util.rimraf(zipDir('ia32')), archiveWin32Setup('ia32'))));
-gulp.task(task.define('vscode-win32-x64-archive', task.series(util.rimraf(zipDir('x64')), archiveWin32Setup('x64'))));
-gulp.task(task.define('vscode-win32-arm64-archive', task.series(util.rimraf(zipDir('arm64')), archiveWin32Setup('arm64'))));
+guwp.task(task.define('vscode-win32-ia32-awchive', task.sewies(utiw.wimwaf(zipDiw('ia32')), awchiveWin32Setup('ia32'))));
+guwp.task(task.define('vscode-win32-x64-awchive', task.sewies(utiw.wimwaf(zipDiw('x64')), awchiveWin32Setup('x64'))));
+guwp.task(task.define('vscode-win32-awm64-awchive', task.sewies(utiw.wimwaf(zipDiw('awm64')), awchiveWin32Setup('awm64'))));
 
-function copyInnoUpdater(arch) {
-	return () => {
-		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
-			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
+function copyInnoUpdata(awch) {
+	wetuwn () => {
+		wetuwn guwp.swc('buiwd/win32/{inno_updata.exe,vcwuntime140.dww}', { base: 'buiwd/win32' })
+			.pipe(vfs.dest(path.join(buiwdPath(awch), 'toows')));
 	};
 }
 
-function updateIcon(executablePath) {
-	return cb => {
-		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
-		rcedit(executablePath, { icon }, cb);
+function updateIcon(executabwePath) {
+	wetuwn cb => {
+		const icon = path.join(wepoPath, 'wesouwces', 'win32', 'code.ico');
+		wcedit(executabwePath, { icon }, cb);
 	};
 }
 
-gulp.task(task.define('vscode-win32-ia32-inno-updater', task.series(copyInnoUpdater('ia32'), updateIcon(path.join(buildPath('ia32'), 'tools', 'inno_updater.exe')))));
-gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
-gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
+guwp.task(task.define('vscode-win32-ia32-inno-updata', task.sewies(copyInnoUpdata('ia32'), updateIcon(path.join(buiwdPath('ia32'), 'toows', 'inno_updata.exe')))));
+guwp.task(task.define('vscode-win32-x64-inno-updata', task.sewies(copyInnoUpdata('x64'), updateIcon(path.join(buiwdPath('x64'), 'toows', 'inno_updata.exe')))));
+guwp.task(task.define('vscode-win32-awm64-inno-updata', task.sewies(copyInnoUpdata('awm64'), updateIcon(path.join(buiwdPath('awm64'), 'toows', 'inno_updata.exe')))));
 
-// CodeHelper.exe icon
+// CodeHewpa.exe icon
 
-gulp.task(task.define('vscode-win32-ia32-code-helper', task.series(updateIcon(path.join(buildPath('ia32'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
-gulp.task(task.define('vscode-win32-x64-code-helper', task.series(updateIcon(path.join(buildPath('x64'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
-gulp.task(task.define('vscode-win32-arm64-code-helper', task.series(updateIcon(path.join(buildPath('arm64'), 'resources', 'app', 'out', 'vs', 'platform', 'files', 'node', 'watcher', 'win32', 'CodeHelper.exe')))));
+guwp.task(task.define('vscode-win32-ia32-code-hewpa', task.sewies(updateIcon(path.join(buiwdPath('ia32'), 'wesouwces', 'app', 'out', 'vs', 'pwatfowm', 'fiwes', 'node', 'watcha', 'win32', 'CodeHewpa.exe')))));
+guwp.task(task.define('vscode-win32-x64-code-hewpa', task.sewies(updateIcon(path.join(buiwdPath('x64'), 'wesouwces', 'app', 'out', 'vs', 'pwatfowm', 'fiwes', 'node', 'watcha', 'win32', 'CodeHewpa.exe')))));
+guwp.task(task.define('vscode-win32-awm64-code-hewpa', task.sewies(updateIcon(path.join(buiwdPath('awm64'), 'wesouwces', 'app', 'out', 'vs', 'pwatfowm', 'fiwes', 'node', 'watcha', 'win32', 'CodeHewpa.exe')))));

@@ -1,238 +1,238 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import product from 'vs/platform/product/common/product';
-import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
+impowt { join } fwom 'vs/base/common/path';
+impowt { basename, isEquaw, isEquawOwPawent } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkspaceContextSewvice, IWowkspace, WowkbenchState, IWowkspaceFowda, IWowkspaceFowdewsChangeEvent, Wowkspace, IWowkspaceFowdewsWiwwChangeEvent } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { InMemowyStowageSewvice, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkingCopy, IWowkingCopyBackup, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { NuwwExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkingCopyFiweSewvice, IWowkingCopyFiweOpewationPawticipant, WowkingCopyFiweEvent, IDeweteOpewation, ICopyOpewation, IMoveOpewation, IFiweOpewationUndoWedoInfo, ICweateFiweOpewation, ICweateOpewation, IStowedFiweWowkingCopySavePawticipant } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiweStatWithMetadata } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ISaveOptions, IWevewtOptions, SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IActivity, IActivitySewvice } fwom 'vs/wowkbench/sewvices/activity/common/activity';
 
-export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
+expowt cwass TestTextWesouwcePwopewtiesSewvice impwements ITextWesouwcePwopewtiesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
 	}
 
-	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
-		if (eol && typeof eol === 'string' && eol !== 'auto') {
-			return eol;
+	getEOW(wesouwce: UWI, wanguage?: stwing): stwing {
+		const eow = this.configuwationSewvice.getVawue('fiwes.eow', { ovewwideIdentifia: wanguage, wesouwce });
+		if (eow && typeof eow === 'stwing' && eow !== 'auto') {
+			wetuwn eow;
 		}
-		return (isLinux || isMacintosh) ? '\n' : '\r\n';
+		wetuwn (isWinux || isMacintosh) ? '\n' : '\w\n';
 	}
 }
 
-export class TestContextService implements IWorkspaceContextService {
+expowt cwass TestContextSewvice impwements IWowkspaceContextSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private workspace: Workspace;
-	private options: object;
+	pwivate wowkspace: Wowkspace;
+	pwivate options: object;
 
-	private readonly _onDidChangeWorkspaceName: Emitter<void>;
-	get onDidChangeWorkspaceName(): Event<void> { return this._onDidChangeWorkspaceName.event; }
+	pwivate weadonwy _onDidChangeWowkspaceName: Emitta<void>;
+	get onDidChangeWowkspaceName(): Event<void> { wetuwn this._onDidChangeWowkspaceName.event; }
 
-	private readonly _onWillChangeWorkspaceFolders: Emitter<IWorkspaceFoldersWillChangeEvent>;
-	get onWillChangeWorkspaceFolders(): Event<IWorkspaceFoldersWillChangeEvent> { return this._onWillChangeWorkspaceFolders.event; }
+	pwivate weadonwy _onWiwwChangeWowkspaceFowdews: Emitta<IWowkspaceFowdewsWiwwChangeEvent>;
+	get onWiwwChangeWowkspaceFowdews(): Event<IWowkspaceFowdewsWiwwChangeEvent> { wetuwn this._onWiwwChangeWowkspaceFowdews.event; }
 
-	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
-	get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this._onDidChangeWorkspaceFolders.event; }
+	pwivate weadonwy _onDidChangeWowkspaceFowdews: Emitta<IWowkspaceFowdewsChangeEvent>;
+	get onDidChangeWowkspaceFowdews(): Event<IWowkspaceFowdewsChangeEvent> { wetuwn this._onDidChangeWowkspaceFowdews.event; }
 
-	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
-	get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this._onDidChangeWorkbenchState.event; }
+	pwivate weadonwy _onDidChangeWowkbenchState: Emitta<WowkbenchState>;
+	get onDidChangeWowkbenchState(): Event<WowkbenchState> { wetuwn this._onDidChangeWowkbenchState.event; }
 
-	constructor(workspace = TestWorkspace, options = null) {
-		this.workspace = workspace;
-		this.options = options || Object.create(null);
-		this._onDidChangeWorkspaceName = new Emitter<void>();
-		this._onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
-		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
-		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
+	constwuctow(wowkspace = TestWowkspace, options = nuww) {
+		this.wowkspace = wowkspace;
+		this.options = options || Object.cweate(nuww);
+		this._onDidChangeWowkspaceName = new Emitta<void>();
+		this._onWiwwChangeWowkspaceFowdews = new Emitta<IWowkspaceFowdewsWiwwChangeEvent>();
+		this._onDidChangeWowkspaceFowdews = new Emitta<IWowkspaceFowdewsChangeEvent>();
+		this._onDidChangeWowkbenchState = new Emitta<WowkbenchState>();
 	}
 
-	getFolders(): IWorkspaceFolder[] {
-		return this.workspace ? this.workspace.folders : [];
+	getFowdews(): IWowkspaceFowda[] {
+		wetuwn this.wowkspace ? this.wowkspace.fowdews : [];
 	}
 
-	getWorkbenchState(): WorkbenchState {
-		if (this.workspace.configuration) {
-			return WorkbenchState.WORKSPACE;
+	getWowkbenchState(): WowkbenchState {
+		if (this.wowkspace.configuwation) {
+			wetuwn WowkbenchState.WOWKSPACE;
 		}
 
-		if (this.workspace.folders.length) {
-			return WorkbenchState.FOLDER;
+		if (this.wowkspace.fowdews.wength) {
+			wetuwn WowkbenchState.FOWDa;
 		}
 
-		return WorkbenchState.EMPTY;
+		wetuwn WowkbenchState.EMPTY;
 	}
 
-	getCompleteWorkspace(): Promise<IWorkspace> {
-		return Promise.resolve(this.getWorkspace());
+	getCompweteWowkspace(): Pwomise<IWowkspace> {
+		wetuwn Pwomise.wesowve(this.getWowkspace());
 	}
 
-	getWorkspace(): IWorkspace {
-		return this.workspace;
+	getWowkspace(): IWowkspace {
+		wetuwn this.wowkspace;
 	}
 
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return this.workspace.getFolder(resource);
+	getWowkspaceFowda(wesouwce: UWI): IWowkspaceFowda | nuww {
+		wetuwn this.wowkspace.getFowda(wesouwce);
 	}
 
-	setWorkspace(workspace: any): void {
-		this.workspace = workspace;
+	setWowkspace(wowkspace: any): void {
+		this.wowkspace = wowkspace;
 	}
 
 	getOptions() {
-		return this.options;
+		wetuwn this.options;
 	}
 
 	updateOptions() { }
 
-	isInsideWorkspace(resource: URI): boolean {
-		if (resource && this.workspace) {
-			return isEqualOrParent(resource, this.workspace.folders[0].uri);
+	isInsideWowkspace(wesouwce: UWI): boowean {
+		if (wesouwce && this.wowkspace) {
+			wetuwn isEquawOwPawent(wesouwce, this.wowkspace.fowdews[0].uwi);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	toResource(workspaceRelativePath: string): URI {
-		return URI.file(join('C:\\', workspaceRelativePath));
+	toWesouwce(wowkspaceWewativePath: stwing): UWI {
+		wetuwn UWI.fiwe(join('C:\\', wowkspaceWewativePath));
 	}
 
-	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean {
-		return URI.isUri(workspaceIdOrFolder) && isEqual(this.workspace.folders[0].uri, workspaceIdOrFolder);
-	}
-}
-
-export class TestStorageService extends InMemoryStorageService {
-
-	override emitWillSaveState(reason: WillSaveStateReason): void {
-		super.emitWillSaveState(reason);
+	isCuwwentWowkspace(wowkspaceIdOwFowda: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI): boowean {
+		wetuwn UWI.isUwi(wowkspaceIdOwFowda) && isEquaw(this.wowkspace.fowdews[0].uwi, wowkspaceIdOwFowda);
 	}
 }
 
-export class TestWorkingCopy extends Disposable implements IWorkingCopy {
+expowt cwass TestStowageSewvice extends InMemowyStowageSewvice {
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	ovewwide emitWiwwSaveState(weason: WiwwSaveStateWeason): void {
+		supa.emitWiwwSaveState(weason);
+	}
+}
 
-	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+expowt cwass TestWowkingCopy extends Disposabwe impwements IWowkingCopy {
 
-	readonly capabilities = WorkingCopyCapabilities.None;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	readonly name = basename(this.resource);
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	private dirty = false;
+	weadonwy capabiwities = WowkingCopyCapabiwities.None;
 
-	constructor(readonly resource: URI, isDirty = false, readonly typeId = 'testWorkingCopyType') {
-		super();
+	weadonwy name = basename(this.wesouwce);
 
-		this.dirty = isDirty;
+	pwivate diwty = fawse;
+
+	constwuctow(weadonwy wesouwce: UWI, isDiwty = fawse, weadonwy typeId = 'testWowkingCopyType') {
+		supa();
+
+		this.diwty = isDiwty;
 	}
 
-	setDirty(dirty: boolean): void {
-		if (this.dirty !== dirty) {
-			this.dirty = dirty;
-			this._onDidChangeDirty.fire();
+	setDiwty(diwty: boowean): void {
+		if (this.diwty !== diwty) {
+			this.diwty = diwty;
+			this._onDidChangeDiwty.fiwe();
 		}
 	}
 
-	setContent(content: string): void {
-		this._onDidChangeContent.fire();
+	setContent(content: stwing): void {
+		this._onDidChangeContent.fiwe();
 	}
 
-	isDirty(): boolean {
-		return this.dirty;
+	isDiwty(): boowean {
+		wetuwn this.diwty;
 	}
 
-	async save(options?: ISaveOptions): Promise<boolean> {
-		return true;
+	async save(options?: ISaveOptions): Pwomise<boowean> {
+		wetuwn twue;
 	}
 
-	async revert(options?: IRevertOptions): Promise<void> {
-		this.setDirty(false);
+	async wevewt(options?: IWevewtOptions): Pwomise<void> {
+		this.setDiwty(fawse);
 	}
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		return {};
+	async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> {
+		wetuwn {};
 	}
 }
 
-export class TestWorkingCopyFileService implements IWorkingCopyFileService {
+expowt cwass TestWowkingCopyFiweSewvice impwements IWowkingCopyFiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	onWiwwWunWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent> = Event.None;
+	onDidFaiwWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent> = Event.None;
+	onDidWunWowkingCopyFiweOpewation: Event<WowkingCopyFiweEvent> = Event.None;
 
-	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
+	addFiweOpewationPawticipant(pawticipant: IWowkingCopyFiweOpewationPawticipant): IDisposabwe { wetuwn Disposabwe.None; }
 
-	readonly hasSaveParticipants = false;
-	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable { return Disposable.None; }
-	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> { }
+	weadonwy hasSavePawticipants = fawse;
+	addSavePawticipant(pawticipant: IStowedFiweWowkingCopySavePawticipant): IDisposabwe { wetuwn Disposabwe.None; }
+	async wunSavePawticipants(wowkingCopy: IWowkingCopy, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void> { }
 
-	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
+	async dewete(opewations: IDeweteOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<void> { }
 
-	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
+	wegistewWowkingCopyPwovida(pwovida: (wesouwceOwFowda: UWI) => IWowkingCopy[]): IDisposabwe { wetuwn Disposabwe.None; }
 
-	getDirty(resource: URI): IWorkingCopy[] { return []; }
+	getDiwty(wesouwce: UWI): IWowkingCopy[] { wetuwn []; }
 
-	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
-	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	cweate(opewations: ICweateFiweOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> { thwow new Ewwow('Method not impwemented.'); }
+	cweateFowda(opewations: ICweateOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> { thwow new Ewwow('Method not impwemented.'); }
 
-	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	move(opewations: IMoveOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> { thwow new Ewwow('Method not impwemented.'); }
 
-	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
+	copy(opewations: ICopyOpewation[], token: CancewwationToken, undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<IFiweStatWithMetadata[]> { thwow new Ewwow('Method not impwemented.'); }
 }
 
-export function mock<T>(): Ctor<T> {
-	return function () { } as any;
+expowt function mock<T>(): Ctow<T> {
+	wetuwn function () { } as any;
 }
 
-export interface Ctor<T> {
+expowt intewface Ctow<T> {
 	new(): T;
 }
 
-export class TestExtensionService extends NullExtensionService { }
+expowt cwass TestExtensionSewvice extends NuwwExtensionSewvice { }
 
-export const TestProductService = { _serviceBrand: undefined, ...product };
+expowt const TestPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
 
-export class TestActivityService implements IActivityService {
-	_serviceBrand: undefined;
-	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
-		return this;
+expowt cwass TestActivitySewvice impwements IActivitySewvice {
+	_sewviceBwand: undefined;
+	showViewContainewActivity(viewContainewId: stwing, badge: IActivity): IDisposabwe {
+		wetuwn this;
 	}
-	showViewActivity(viewId: string, badge: IActivity): IDisposable {
-		return this;
+	showViewActivity(viewId: stwing, badge: IActivity): IDisposabwe {
+		wetuwn this;
 	}
-	showAccountsActivity(activity: IActivity): IDisposable {
-		return this;
+	showAccountsActivity(activity: IActivity): IDisposabwe {
+		wetuwn this;
 	}
-	showGlobalActivity(activity: IActivity): IDisposable {
-		return this;
+	showGwobawActivity(activity: IActivity): IDisposabwe {
+		wetuwn this;
 	}
 
 	dispose() { }

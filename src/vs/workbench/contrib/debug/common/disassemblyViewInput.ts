@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { localize } from 'vs/nls';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { wocawize } fwom 'vs/nws';
 
-export class DisassemblyViewInput extends EditorInput {
+expowt cwass DisassembwyViewInput extends EditowInput {
 
-	static readonly ID = 'debug.disassemblyView.input';
+	static weadonwy ID = 'debug.disassembwyView.input';
 
-	override get typeId(): string {
-		return DisassemblyViewInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn DisassembwyViewInput.ID;
 	}
 
-	static _instance: DisassemblyViewInput;
+	static _instance: DisassembwyViewInput;
 	static get instance() {
-		if (!DisassemblyViewInput._instance || DisassemblyViewInput._instance.isDisposed()) {
-			DisassemblyViewInput._instance = new DisassemblyViewInput();
+		if (!DisassembwyViewInput._instance || DisassembwyViewInput._instance.isDisposed()) {
+			DisassembwyViewInput._instance = new DisassembwyViewInput();
 		}
 
-		return DisassemblyViewInput._instance;
+		wetuwn DisassembwyViewInput._instance;
 	}
 
-	readonly resource = undefined;
+	weadonwy wesouwce = undefined;
 
-	override getName(): string {
-		return localize('disassemblyInputName', "Disassembly");
+	ovewwide getName(): stwing {
+		wetuwn wocawize('disassembwyInputName', "Disassembwy");
 	}
 
-	override matches(other: unknown): boolean {
-		return other instanceof DisassemblyViewInput;
+	ovewwide matches(otha: unknown): boowean {
+		wetuwn otha instanceof DisassembwyViewInput;
 	}
 
 }

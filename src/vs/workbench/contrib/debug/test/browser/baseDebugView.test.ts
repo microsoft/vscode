@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { State } from 'vs/workbench/contrib/debug/common/debug';
-import { isWindows } from 'vs/base/common/platform';
-import { MockSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+impowt * as assewt fwom 'assewt';
+impowt { wendewExpwessionVawue, wendewVawiabwe, wendewViewTwee } fwom 'vs/wowkbench/contwib/debug/bwowsa/baseDebugView';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Expwession, Vawiabwe, Scope, StackFwame, Thwead } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { cweateMockSession } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/cawwStack.test';
+impowt { isStatusbawInDebugMode } fwom 'vs/wowkbench/contwib/debug/bwowsa/statusbawCowowPwovida';
+impowt { State } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { MockSession, cweateMockDebugModew } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
-	let linkDetector: LinkDetector;
+	wet winkDetectow: WinkDetectow;
 
 	/**
-	 * Instantiate services for use by the functions being tested.
+	 * Instantiate sewvices fow use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		linkDetector = instantiationService.createInstance(LinkDetector);
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		winkDetectow = instantiationSewvice.cweateInstance(WinkDetectow);
 	});
 
-	test('render view tree', () => {
-		const container = $('.container');
-		const treeContainer = renderViewTree(container);
+	test('wenda view twee', () => {
+		const containa = $('.containa');
+		const tweeContaina = wendewViewTwee(containa);
 
-		assert.strictEqual(treeContainer.className, 'debug-view-content');
-		assert.strictEqual(container.childElementCount, 1);
-		assert.strictEqual(container.firstChild, treeContainer);
-		assert.strictEqual(treeContainer instanceof HTMLDivElement, true);
+		assewt.stwictEquaw(tweeContaina.cwassName, 'debug-view-content');
+		assewt.stwictEquaw(containa.chiwdEwementCount, 1);
+		assewt.stwictEquaw(containa.fiwstChiwd, tweeContaina);
+		assewt.stwictEquaw(tweeContaina instanceof HTMWDivEwement, twue);
 	});
 
-	test('render expression value', () => {
-		let container = $('.container');
-		renderExpressionValue('render \n me', container, { showHover: true });
-		assert.strictEqual(container.className, 'value');
-		assert.strictEqual(container.title, 'render \n me');
-		assert.strictEqual(container.textContent, 'render \n me');
+	test('wenda expwession vawue', () => {
+		wet containa = $('.containa');
+		wendewExpwessionVawue('wenda \n me', containa, { showHova: twue });
+		assewt.stwictEquaw(containa.cwassName, 'vawue');
+		assewt.stwictEquaw(containa.titwe, 'wenda \n me');
+		assewt.stwictEquaw(containa.textContent, 'wenda \n me');
 
-		const expression = new Expression('console');
-		expression.value = 'Object';
-		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
-		assert.strictEqual(container.className, 'value unavailable error');
+		const expwession = new Expwession('consowe');
+		expwession.vawue = 'Object';
+		containa = $('.containa');
+		wendewExpwessionVawue(expwession, containa, { cowowize: twue });
+		assewt.stwictEquaw(containa.cwassName, 'vawue unavaiwabwe ewwow');
 
-		expression.available = true;
-		expression.value = '"string value"';
-		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
-		assert.strictEqual(container.className, 'value string');
-		assert.strictEqual(container.textContent, '"string value"');
+		expwession.avaiwabwe = twue;
+		expwession.vawue = '"stwing vawue"';
+		containa = $('.containa');
+		wendewExpwessionVawue(expwession, containa, { cowowize: twue, winkDetectow });
+		assewt.stwictEquaw(containa.cwassName, 'vawue stwing');
+		assewt.stwictEquaw(containa.textContent, '"stwing vawue"');
 
-		expression.type = 'boolean';
-		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true });
-		assert.strictEqual(container.className, 'value boolean');
-		assert.strictEqual(container.textContent, expression.value);
+		expwession.type = 'boowean';
+		containa = $('.containa');
+		wendewExpwessionVawue(expwession, containa, { cowowize: twue });
+		assewt.stwictEquaw(containa.cwassName, 'vawue boowean');
+		assewt.stwictEquaw(containa.textContent, expwession.vawue);
 
-		expression.value = 'this is a long string';
-		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, maxValueLength: 4, linkDetector });
-		assert.strictEqual(container.textContent, 'this...');
+		expwession.vawue = 'this is a wong stwing';
+		containa = $('.containa');
+		wendewExpwessionVawue(expwession, containa, { cowowize: twue, maxVawueWength: 4, winkDetectow });
+		assewt.stwictEquaw(containa.textContent, 'this...');
 
-		expression.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
-		container = $('.container');
-		renderExpressionValue(expression, container, { colorize: true, linkDetector });
-		assert.ok(container.querySelector('a'));
-		assert.strictEqual(container.querySelector('a')!.textContent, expression.value);
+		expwession.vawue = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
+		containa = $('.containa');
+		wendewExpwessionVawue(expwession, containa, { cowowize: twue, winkDetectow });
+		assewt.ok(containa.quewySewectow('a'));
+		assewt.stwictEquaw(containa.quewySewectow('a')!.textContent, expwession.vawue);
 	});
 
-	test('render variable', () => {
+	test('wenda vawiabwe', () => {
 		const session = new MockSession();
-		const thread = new Thread(session, 'mockthread', 1);
-		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined!, endColumn: undefined! }, 0, true);
-		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
+		const thwead = new Thwead(session, 'mockthwead', 1);
+		const stackFwame = new StackFwame(thwead, 1, nuww!, 'app.js', 'nowmaw', { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: undefined!, endCowumn: undefined! }, 0, twue);
+		const scope = new Scope(stackFwame, 1, 'wocaw', 1, fawse, 10, 10);
 
-		let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined!, 0, 0, {}, 'string');
-		let expression = $('.');
-		let name = $('.');
-		let value = $('.');
-		let label = new HighlightedLabel(name, false);
-		renderVariable(variable, { expression, name, value, label }, false, []);
+		wet vawiabwe = new Vawiabwe(session, 1, scope, 2, 'foo', 'baw.foo', undefined!, 0, 0, {}, 'stwing');
+		wet expwession = $('.');
+		wet name = $('.');
+		wet vawue = $('.');
+		wet wabew = new HighwightedWabew(name, fawse);
+		wendewVawiabwe(vawiabwe, { expwession, name, vawue, wabew }, fawse, []);
 
-		assert.strictEqual(label.element.textContent, 'foo');
-		assert.strictEqual(value.textContent, '');
-		assert.strictEqual(value.title, '');
+		assewt.stwictEquaw(wabew.ewement.textContent, 'foo');
+		assewt.stwictEquaw(vawue.textContent, '');
+		assewt.stwictEquaw(vawue.titwe, '');
 
-		variable.value = 'hey';
-		expression = $('.');
+		vawiabwe.vawue = 'hey';
+		expwession = $('.');
 		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
-		assert.strictEqual(value.textContent, 'hey');
-		assert.strictEqual(label.element.textContent, 'foo:');
-		assert.strictEqual(label.element.title, 'string');
+		vawue = $('.');
+		wendewVawiabwe(vawiabwe, { expwession, name, vawue, wabew }, fawse, [], winkDetectow);
+		assewt.stwictEquaw(vawue.textContent, 'hey');
+		assewt.stwictEquaw(wabew.ewement.textContent, 'foo:');
+		assewt.stwictEquaw(wabew.ewement.titwe, 'stwing');
 
-		variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
-		expression = $('.');
+		vawiabwe.vawue = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
+		expwession = $('.');
 		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
-		assert.ok(value.querySelector('a'));
-		assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
+		vawue = $('.');
+		wendewVawiabwe(vawiabwe, { expwession, name, vawue, wabew }, fawse, [], winkDetectow);
+		assewt.ok(vawue.quewySewectow('a'));
+		assewt.stwictEquaw(vawue.quewySewectow('a')!.textContent, vawiabwe.vawue);
 
-		variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, { kind: 'virtual' });
-		expression = $('.');
+		vawiabwe = new Vawiabwe(session, 1, scope, 2, 'consowe', 'consowe', '5', 0, 0, { kind: 'viwtuaw' });
+		expwession = $('.');
 		name = $('.');
-		value = $('.');
-		renderVariable(variable, { expression, name, value, label }, false, [], linkDetector);
-		assert.strictEqual(name.className, 'virtual');
-		assert.strictEqual(label.element.textContent, 'console:');
-		assert.strictEqual(label.element.title, 'console');
-		assert.strictEqual(value.className, 'value number');
+		vawue = $('.');
+		wendewVawiabwe(vawiabwe, { expwession, name, vawue, wabew }, fawse, [], winkDetectow);
+		assewt.stwictEquaw(name.cwassName, 'viwtuaw');
+		assewt.stwictEquaw(wabew.ewement.textContent, 'consowe:');
+		assewt.stwictEquaw(wabew.ewement.titwe, 'consowe');
+		assewt.stwictEquaw(vawue.cwassName, 'vawue numba');
 	});
 
-	test('statusbar in debug mode', () => {
-		const model = createMockDebugModel();
-		const session = createMockSession(model);
-		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, undefined), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, session), false);
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), true);
-		assert.strictEqual(isStatusbarInDebugMode(State.Stopped, session), true);
-		session.configuration.noDebug = true;
-		assert.strictEqual(isStatusbarInDebugMode(State.Running, session), false);
+	test('statusbaw in debug mode', () => {
+		const modew = cweateMockDebugModew();
+		const session = cweateMockSession(modew);
+		assewt.stwictEquaw(isStatusbawInDebugMode(State.Inactive, undefined), fawse);
+		assewt.stwictEquaw(isStatusbawInDebugMode(State.Initiawizing, session), fawse);
+		assewt.stwictEquaw(isStatusbawInDebugMode(State.Wunning, session), twue);
+		assewt.stwictEquaw(isStatusbawInDebugMode(State.Stopped, session), twue);
+		session.configuwation.noDebug = twue;
+		assewt.stwictEquaw(isStatusbawInDebugMode(State.Wunning, session), fawse);
 	});
 });

@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .feedback-form {
+.monaco-wowkbench .feedback-fowm {
 	width: 420px;
 	top: 30px;
-	right: 6px;
+	wight: 6px;
 	padding: 1em;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .feedback-form h2 {
-	margin: 0;
+.monaco-wowkbench .feedback-fowm h2 {
+	mawgin: 0;
 	padding: 0;
-	font-weight: normal;
+	font-weight: nowmaw;
 	font-size: 1.8em;
 }
 
-.monaco-workbench .feedback-form h3 {
-	margin: 1em 0 0;
+.monaco-wowkbench .feedback-fowm h3 {
+	mawgin: 1em 0 0;
 	padding: 0;
-	font-weight: normal;
+	font-weight: nowmaw;
 	font-size: 1.2em;
 }
 
-.monaco-workbench .feedback-form .content {
+.monaco-wowkbench .feedback-fowm .content {
 	font-size: 1.2em;
 }
 
-.monaco-workbench .feedback-form .content > div {
-	display: inline-block;
-	vertical-align: top;
-	margin-top: 20px;
+.monaco-wowkbench .feedback-fowm .content > div {
+	dispway: inwine-bwock;
+	vewticaw-awign: top;
+	mawgin-top: 20px;
 }
 
-.monaco-workbench .feedback-form .content .contactus {
+.monaco-wowkbench .feedback-fowm .content .contactus {
 	padding: 10px;
-	float: right;
+	fwoat: wight;
 }
 
-.monaco-workbench .feedback-form .content .channels {
-	margin-top: 5px;
+.monaco-wowkbench .feedback-fowm .content .channews {
+	mawgin-top: 5px;
 	font-size: 0.9em;
 }
 
-.monaco-workbench .char-counter {
-	padding-left: 3px;
+.monaco-wowkbench .chaw-counta {
+	padding-weft: 3px;
 }
 
-.monaco-workbench .feedback-form .content .channels a {
+.monaco-wowkbench .feedback-fowm .content .channews a {
 	padding: 2px 0;
 }
 
-.monaco-workbench .feedback-form .content .channels a:hover {
-	text-decoration: underline;
+.monaco-wowkbench .feedback-fowm .content .channews a:hova {
+	text-decowation: undewwine;
 }
 
-.monaco-workbench .feedback-form .feedback-alias, .monaco-workbench .feedback-form .feedback-description {
-	resize: none;
+.monaco-wowkbench .feedback-fowm .feedback-awias, .monaco-wowkbench .feedback-fowm .feedback-descwiption {
+	wesize: none;
 	font-size: 1.1em;
-	margin: 6px 0 0;
+	mawgin: 6px 0 0;
 	width: 100%;
 	padding: 3px 2px;
-	box-sizing:			border-box;
+	box-sizing:			bowda-box;
 }
 
-.monaco-workbench .feedback-form .feedback-empty {
-	margin-top: .2em;
+.monaco-wowkbench .feedback-fowm .feedback-empty {
+	mawgin-top: .2em;
 }
 
-.monaco-workbench .feedback-form .feedback-alias-checkbox {
-	display: inline-block;
-	vertical-align: text-top;
-	margin-left: 0;
+.monaco-wowkbench .feedback-fowm .feedback-awias-checkbox {
+	dispway: inwine-bwock;
+	vewticaw-awign: text-top;
+	mawgin-weft: 0;
 }
 
-.monaco-workbench .feedback-form .feedback-alias {
+.monaco-wowkbench .feedback-fowm .feedback-awias {
 	height: 26px;
 }
 
-.monaco-workbench .feedback-form .feedback-alias:disabled {
+.monaco-wowkbench .feedback-fowm .feedback-awias:disabwed {
 	opacity: 0.6;
 }
 
-.monaco-workbench .feedback-form .cancel {
-	position: absolute;
+.monaco-wowkbench .feedback-fowm .cancew {
+	position: absowute;
 	top: 0;
-	right: 0;
+	wight: 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
-	line-height: 22px;
-	border: none;
-	cursor: pointer;
+	wine-height: 22px;
+	bowda: none;
+	cuwsow: pointa;
 }
 
-.monaco-workbench .feedback-form .form-buttons {
-	margin-top: 18px;
-	text-align: right;
+.monaco-wowkbench .feedback-fowm .fowm-buttons {
+	mawgin-top: 18px;
+	text-awign: wight;
 }
 
-.monaco-workbench .feedback-form .sentiment {
+.monaco-wowkbench .feedback-fowm .sentiment {
 	height: 32px;
 	width: 32px;
-	display: inline-block;
-	margin: .5em 0;
-	cursor: pointer;
-	box-sizing:			border-box;
+	dispway: inwine-bwock;
+	mawgin: .5em 0;
+	cuwsow: pointa;
+	box-sizing:			bowda-box;
 }
 
-.monaco-workbench .feedback-form .sentiment:hover {
-	background-color: #eaeaea;
+.monaco-wowkbench .feedback-fowm .sentiment:hova {
+	backgwound-cowow: #eaeaea;
 }
 
 /* Theming */
-.monaco-workbench.vs .feedback-form .feedback-alias,
-.monaco-workbench.vs .feedback-form .feedback-description {
-	font-family: inherit;
-	border: 1px solid transparent;
+.monaco-wowkbench.vs .feedback-fowm .feedback-awias,
+.monaco-wowkbench.vs .feedback-fowm .feedback-descwiption {
+	font-famiwy: inhewit;
+	bowda: 1px sowid twanspawent;
 }
 
-.monaco-workbench .feedback-form .form-buttons {
-	display: flex;
+.monaco-wowkbench .feedback-fowm .fowm-buttons {
+	dispway: fwex;
 }
 
-.monaco-workbench .feedback-form .form-buttons .hide-button-container {
-	display: flex;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .hide-button-containa {
+	dispway: fwex;
 }
 
-.monaco-workbench .feedback-form .form-buttons .hide-button-container input,
-.monaco-workbench .feedback-form .form-buttons .hide-button-container label {
-	align-self: center;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .hide-button-containa input,
+.monaco-wowkbench .feedback-fowm .fowm-buttons .hide-button-containa wabew {
+	awign-sewf: centa;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send {
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send {
 	width: auto;
 	padding: 8px 12px;
-	margin-left: auto;
-	display: flex;
-	align-items: center;
-	transition: width 200ms ease-out;
+	mawgin-weft: auto;
+	dispway: fwex;
+	awign-items: centa;
+	twansition: width 200ms ease-out;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send .codicon {
-	color: currentColor;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send .codicon {
+	cowow: cuwwentCowow;
 	font-size: 20px;
-	padding-right: 8px;
+	padding-wight: 8px;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send.in-progress,
-.monaco-workbench .feedback-form .form-buttons .send:hover {
-	background-color: #006BB3;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send.in-pwogwess,
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send:hova {
+	backgwound-cowow: #006BB3;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send:disabled {
-	pointer-events: none;
-	cursor: not-allowed;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send:disabwed {
+	pointa-events: none;
+	cuwsow: not-awwowed;
 	opacity: .65;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send.success {
-	background-color: #2d883e;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send.success {
+	backgwound-cowow: #2d883e;
 }
 
-.monaco-workbench .feedback-form .form-buttons .send.error {
-	background-color: #E51400;
+.monaco-wowkbench .feedback-fowm .fowm-buttons .send.ewwow {
+	backgwound-cowow: #E51400;
 }
 
-.monaco-workbench.vs-dark .feedback-form h3 {
-	font-weight: normal;
+.monaco-wowkbench.vs-dawk .feedback-fowm h3 {
+	font-weight: nowmaw;
 	font-size: 1.2em;
 }
 
-.monaco-workbench.vs-dark .feedback-form .sentiment:hover {
-	background-color: rgba(30,30,30,0.8);
+.monaco-wowkbench.vs-dawk .feedback-fowm .sentiment:hova {
+	backgwound-cowow: wgba(30,30,30,0.8);
 }
 
-.monaco-workbench.vs-dark .feedback-form .feedback-alias,
-.monaco-workbench.vs-dark .feedback-form .feedback-description {
-	font-family: inherit;
+.monaco-wowkbench.vs-dawk .feedback-fowm .feedback-awias,
+.monaco-wowkbench.vs-dawk .feedback-fowm .feedback-descwiption {
+	font-famiwy: inhewit;
 }
 
-.monaco-workbench .feedback-form .sentiment.smile {
-	background-image: url('happy.svg');
-	background-position: center;
-	background-repeat: no-repeat;
+.monaco-wowkbench .feedback-fowm .sentiment.smiwe {
+	backgwound-image: uww('happy.svg');
+	backgwound-position: centa;
+	backgwound-wepeat: no-wepeat;
 }
 
-.monaco-workbench .feedback-form .sentiment.frown {
-	background-image: url('sad.svg');
-	background-position: center;
-	background-repeat: no-repeat;
+.monaco-wowkbench .feedback-fowm .sentiment.fwown {
+	backgwound-image: uww('sad.svg');
+	backgwound-position: centa;
+	backgwound-wepeat: no-wepeat;
 }
 
-/* High Contrast Theming */
-.monaco-workbench.hc-black .feedback-form {
-	outline: 2px solid #6fc3df;
-	outline-offset: -2px;
+/* High Contwast Theming */
+.monaco-wowkbench.hc-bwack .feedback-fowm {
+	outwine: 2px sowid #6fc3df;
+	outwine-offset: -2px;
 }
 
-.monaco-workbench.hc-black .feedback-form .feedback-alias,
-.monaco-workbench.hc-black .feedback-form .feedback-description {
-	font-family: inherit;
+.monaco-wowkbench.hc-bwack .feedback-fowm .feedback-awias,
+.monaco-wowkbench.hc-bwack .feedback-fowm .feedback-descwiption {
+	font-famiwy: inhewit;
 }
 
-.monaco-workbench.hc-black .feedback-form .content .contactus {
+.monaco-wowkbench.hc-bwack .feedback-fowm .content .contactus {
 	padding: 10px;
-	float: right;
+	fwoat: wight;
 }
 
-.monaco-workbench.hc-black .feedback-form .form-buttons .send,
-.monaco-workbench.hc-black .feedback-form .form-buttons .send.in-progress,
-.monaco-workbench.hc-black .feedback-form .form-buttons .send.success {
-	background-color: #0C141F;
-	color: #D4D4D4;
-	border: 1px solid #6FC3DF;
+.monaco-wowkbench.hc-bwack .feedback-fowm .fowm-buttons .send,
+.monaco-wowkbench.hc-bwack .feedback-fowm .fowm-buttons .send.in-pwogwess,
+.monaco-wowkbench.hc-bwack .feedback-fowm .fowm-buttons .send.success {
+	backgwound-cowow: #0C141F;
+	cowow: #D4D4D4;
+	bowda: 1px sowid #6FC3DF;
 }
 
-.monaco-workbench.hc-black .feedback-form .form-buttons .send:hover {
-	background-color: #0C141F;
+.monaco-wowkbench.hc-bwack .feedback-fowm .fowm-buttons .send:hova {
+	backgwound-cowow: #0C141F;
 }

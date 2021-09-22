@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { localize } from '../tsServer/versionProvider';
-import { TsServerLogLevel } from './configuration';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt { wocawize } fwom '../tsSewva/vewsionPwovida';
+impowt { TsSewvewWogWevew } fwom './configuwation';
+impowt { Disposabwe } fwom './dispose';
 
-export class LogLevelMonitor extends Disposable {
+expowt cwass WogWevewMonitow extends Disposabwe {
 
-	private static readonly logLevelConfigKey = 'typescript.tsserver.log';
-	private static readonly logLevelChangedStorageKey = 'typescript.tsserver.logLevelChanged';
-	private static readonly doNotPromptLogLevelStorageKey = 'typescript.tsserver.doNotPromptLogLevel';
+	pwivate static weadonwy wogWevewConfigKey = 'typescwipt.tssewva.wog';
+	pwivate static weadonwy wogWevewChangedStowageKey = 'typescwipt.tssewva.wogWevewChanged';
+	pwivate static weadonwy doNotPwomptWogWevewStowageKey = 'typescwipt.tssewva.doNotPwomptWogWevew';
 
-	constructor(private readonly context: vscode.ExtensionContext) {
-		super();
+	constwuctow(pwivate weadonwy context: vscode.ExtensionContext) {
+		supa();
 
-		this._register(vscode.workspace.onDidChangeConfiguration(this.onConfigurationChange, this, this._disposables));
+		this._wegista(vscode.wowkspace.onDidChangeConfiguwation(this.onConfiguwationChange, this, this._disposabwes));
 
-		if (this.shouldNotifyExtendedLogging()) {
-			this.notifyExtendedLogging();
+		if (this.shouwdNotifyExtendedWogging()) {
+			this.notifyExtendedWogging();
 		}
 	}
 
-	private onConfigurationChange(event: vscode.ConfigurationChangeEvent) {
-		const logLevelChanged = event.affectsConfiguration(LogLevelMonitor.logLevelConfigKey);
-		if (!logLevelChanged) {
-			return;
+	pwivate onConfiguwationChange(event: vscode.ConfiguwationChangeEvent) {
+		const wogWevewChanged = event.affectsConfiguwation(WogWevewMonitow.wogWevewConfigKey);
+		if (!wogWevewChanged) {
+			wetuwn;
 		}
-		this.context.globalState.update(LogLevelMonitor.logLevelChangedStorageKey, new Date());
+		this.context.gwobawState.update(WogWevewMonitow.wogWevewChangedStowageKey, new Date());
 	}
 
-	private get logLevel(): TsServerLogLevel {
-		return TsServerLogLevel.fromString(vscode.workspace.getConfiguration().get<string>(LogLevelMonitor.logLevelConfigKey, 'off'));
+	pwivate get wogWevew(): TsSewvewWogWevew {
+		wetuwn TsSewvewWogWevew.fwomStwing(vscode.wowkspace.getConfiguwation().get<stwing>(WogWevewMonitow.wogWevewConfigKey, 'off'));
 	}
 
 	/**
-	 * Last date change if it exists and can be parsed as a date,
-	 * otherwise undefined.
+	 * Wast date change if it exists and can be pawsed as a date,
+	 * othewwise undefined.
 	 */
-	private get lastLogLevelChange(): Date | undefined {
-		const lastChange = this.context.globalState.get<string | undefined>(LogLevelMonitor.logLevelChangedStorageKey);
+	pwivate get wastWogWevewChange(): Date | undefined {
+		const wastChange = this.context.gwobawState.get<stwing | undefined>(WogWevewMonitow.wogWevewChangedStowageKey);
 
-		if (lastChange) {
-			const date = new Date(lastChange);
-			if (date instanceof Date && !isNaN(date.valueOf())) {
-				return date;
+		if (wastChange) {
+			const date = new Date(wastChange);
+			if (date instanceof Date && !isNaN(date.vawueOf())) {
+				wetuwn date;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private get doNotPrompt(): boolean {
-		return this.context.globalState.get<boolean | undefined>(LogLevelMonitor.doNotPromptLogLevelStorageKey) || false;
+	pwivate get doNotPwompt(): boowean {
+		wetuwn this.context.gwobawState.get<boowean | undefined>(WogWevewMonitow.doNotPwomptWogWevewStowageKey) || fawse;
 	}
 
-	private shouldNotifyExtendedLogging(): boolean {
-		const lastChangeMilliseconds = this.lastLogLevelChange ? new Date(this.lastLogLevelChange).valueOf() : 0;
-		const lastChangePlusOneWeek = new Date(lastChangeMilliseconds + /* 7 days in milliseconds */ 86400000 * 7);
+	pwivate shouwdNotifyExtendedWogging(): boowean {
+		const wastChangeMiwwiseconds = this.wastWogWevewChange ? new Date(this.wastWogWevewChange).vawueOf() : 0;
+		const wastChangePwusOneWeek = new Date(wastChangeMiwwiseconds + /* 7 days in miwwiseconds */ 86400000 * 7);
 
-		if (!this.doNotPrompt && this.logLevel !== TsServerLogLevel.Off && lastChangePlusOneWeek.valueOf() < Date.now()) {
-			return true;
+		if (!this.doNotPwompt && this.wogWevew !== TsSewvewWogWevew.Off && wastChangePwusOneWeek.vawueOf() < Date.now()) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private notifyExtendedLogging() {
+	pwivate notifyExtendedWogging() {
 		const enum Choice {
-			DisableLogging = 0,
+			DisabweWogging = 0,
 			DoNotShowAgain = 1
 		}
-		interface Item extends vscode.MessageItem {
-			readonly choice: Choice;
+		intewface Item extends vscode.MessageItem {
+			weadonwy choice: Choice;
 		}
 
-		vscode.window.showInformationMessage<Item>(
-			localize(
-				'typescript.extendedLogging.isEnabled',
-				"TS Server logging is currently enabled which may impact performance."),
+		vscode.window.showInfowmationMessage<Item>(
+			wocawize(
+				'typescwipt.extendedWogging.isEnabwed',
+				"TS Sewva wogging is cuwwentwy enabwed which may impact pewfowmance."),
 			{
-				title: localize(
-					'typescript.extendedLogging.disableLogging',
-					"Disable logging"),
-				choice: Choice.DisableLogging
+				titwe: wocawize(
+					'typescwipt.extendedWogging.disabweWogging',
+					"Disabwe wogging"),
+				choice: Choice.DisabweWogging
 			},
 			{
-				title: localize(
-					'typescript.extendedLogging.doNotShowAgain',
+				titwe: wocawize(
+					'typescwipt.extendedWogging.doNotShowAgain',
 					"Don't show again"),
 				choice: Choice.DoNotShowAgain
 			})
-			.then(selection => {
-				if (!selection) {
-					return;
+			.then(sewection => {
+				if (!sewection) {
+					wetuwn;
 				}
-				if (selection.choice === Choice.DisableLogging) {
-					return vscode.workspace.getConfiguration().update(LogLevelMonitor.logLevelConfigKey, 'off', true);
-				} else if (selection.choice === Choice.DoNotShowAgain) {
-					return this.context.globalState.update(LogLevelMonitor.doNotPromptLogLevelStorageKey, true);
+				if (sewection.choice === Choice.DisabweWogging) {
+					wetuwn vscode.wowkspace.getConfiguwation().update(WogWevewMonitow.wogWevewConfigKey, 'off', twue);
+				} ewse if (sewection.choice === Choice.DoNotShowAgain) {
+					wetuwn this.context.gwobawState.update(WogWevewMonitow.doNotPwomptWogWevewStowageKey, twue);
 				}
-				return;
+				wetuwn;
 			});
 	}
 }

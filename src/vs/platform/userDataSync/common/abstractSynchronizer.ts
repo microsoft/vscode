@@ -1,874 +1,874 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse, ParseError } from 'vs/base/common/json';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { extUri, extUriIgnorePathCase, IExtUri } from 'vs/base/common/resources';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileChangesEvent, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileContent, IFileService } from 'vs/platform/files/common/files';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { pawse, PawseEwwow } fwom 'vs/base/common/json';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { extUwi, extUwiIgnowePathCase, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { uppewcaseFiwstWetta } fwom 'vs/base/common/stwings';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IHeadews } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweChangesEvent, FiweOpewationEwwow, FiweOpewationWesuwt, FiweSystemPwovidewCapabiwities, IFiweContent, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { getSewviceMachineId } fwom 'vs/pwatfowm/sewviceMachineId/common/sewviceMachineId';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Change, getWastSyncWesouwceUwi, IWemoteUsewData, IWesouwcePweview as IBaseWesouwcePweview, ISyncData, ISyncWesouwceHandwe, ISyncWesouwcePweview as IBaseSyncWesouwcePweview, IUsewData, IUsewDataInitiawiza, IUsewDataManifest, IUsewDataSyncBackupStoweSewvice, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, IUsewDataSyncUtiwSewvice, MewgeState, PWEVIEW_DIW_NAME, SyncWesouwce, SyncStatus, UsewDataSyncEwwow, UsewDataSyncEwwowCode, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-type SyncSourceClassification = {
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type SyncSouwceCwassification = {
+	souwce?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-export function isSyncData(thing: any): thing is ISyncData {
+expowt function isSyncData(thing: any): thing is ISyncData {
 	if (thing
-		&& (thing.version !== undefined && typeof thing.version === 'number')
-		&& (thing.content !== undefined && typeof thing.content === 'string')) {
+		&& (thing.vewsion !== undefined && typeof thing.vewsion === 'numba')
+		&& (thing.content !== undefined && typeof thing.content === 'stwing')) {
 
-		// backward compatibility
-		if (Object.keys(thing).length === 2) {
-			return true;
+		// backwawd compatibiwity
+		if (Object.keys(thing).wength === 2) {
+			wetuwn twue;
 		}
 
-		if (Object.keys(thing).length === 3
-			&& (thing.machineId !== undefined && typeof thing.machineId === 'string')) {
-			return true;
+		if (Object.keys(thing).wength === 3
+			&& (thing.machineId !== undefined && typeof thing.machineId === 'stwing')) {
+			wetuwn twue;
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-export interface IResourcePreview {
+expowt intewface IWesouwcePweview {
 
-	readonly remoteResource: URI;
-	readonly remoteContent: string | null;
-	readonly remoteChange: Change;
+	weadonwy wemoteWesouwce: UWI;
+	weadonwy wemoteContent: stwing | nuww;
+	weadonwy wemoteChange: Change;
 
-	readonly localResource: URI;
-	readonly localContent: string | null;
-	readonly localChange: Change;
+	weadonwy wocawWesouwce: UWI;
+	weadonwy wocawContent: stwing | nuww;
+	weadonwy wocawChange: Change;
 
-	readonly previewResource: URI;
-	readonly acceptedResource: URI;
+	weadonwy pweviewWesouwce: UWI;
+	weadonwy acceptedWesouwce: UWI;
 }
 
-export interface IAcceptResult {
-	readonly content: string | null;
-	readonly localChange: Change;
-	readonly remoteChange: Change;
+expowt intewface IAcceptWesuwt {
+	weadonwy content: stwing | nuww;
+	weadonwy wocawChange: Change;
+	weadonwy wemoteChange: Change;
 }
 
-export interface IMergeResult extends IAcceptResult {
-	readonly hasConflicts: boolean;
+expowt intewface IMewgeWesuwt extends IAcceptWesuwt {
+	weadonwy hasConfwicts: boowean;
 }
 
-interface IEditableResourcePreview extends IBaseResourcePreview, IResourcePreview {
-	localChange: Change;
-	remoteChange: Change;
-	mergeState: MergeState;
-	acceptResult?: IAcceptResult;
+intewface IEditabweWesouwcePweview extends IBaseWesouwcePweview, IWesouwcePweview {
+	wocawChange: Change;
+	wemoteChange: Change;
+	mewgeState: MewgeState;
+	acceptWesuwt?: IAcceptWesuwt;
 }
 
-interface ISyncResourcePreview extends IBaseSyncResourcePreview {
-	readonly remoteUserData: IRemoteUserData;
-	readonly lastSyncUserData: IRemoteUserData | null;
-	readonly resourcePreviews: IEditableResourcePreview[];
+intewface ISyncWesouwcePweview extends IBaseSyncWesouwcePweview {
+	weadonwy wemoteUsewData: IWemoteUsewData;
+	weadonwy wastSyncUsewData: IWemoteUsewData | nuww;
+	weadonwy wesouwcePweviews: IEditabweWesouwcePweview[];
 }
 
-export abstract class AbstractSynchroniser extends Disposable {
+expowt abstwact cwass AbstwactSynchwonisa extends Disposabwe {
 
-	private syncPreviewPromise: CancelablePromise<ISyncResourcePreview> | null = null;
+	pwivate syncPweviewPwomise: CancewabwePwomise<ISyncWesouwcePweview> | nuww = nuww;
 
-	protected readonly syncFolder: URI;
-	protected readonly syncPreviewFolder: URI;
-	protected readonly extUri: IExtUri;
-	private readonly currentMachineIdPromise: Promise<string>;
+	pwotected weadonwy syncFowda: UWI;
+	pwotected weadonwy syncPweviewFowda: UWI;
+	pwotected weadonwy extUwi: IExtUwi;
+	pwivate weadonwy cuwwentMachineIdPwomise: Pwomise<stwing>;
 
-	private _status: SyncStatus = SyncStatus.Idle;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
+	pwivate _status: SyncStatus = SyncStatus.Idwe;
+	get status(): SyncStatus { wetuwn this._status; }
+	pwivate _onDidChangStatus: Emitta<SyncStatus> = this._wegista(new Emitta<SyncStatus>());
+	weadonwy onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
 
-	private _conflicts: IBaseResourcePreview[] = [];
-	get conflicts(): IBaseResourcePreview[] { return this._conflicts; }
-	private _onDidChangeConflicts: Emitter<IBaseResourcePreview[]> = this._register(new Emitter<IBaseResourcePreview[]>());
-	readonly onDidChangeConflicts: Event<IBaseResourcePreview[]> = this._onDidChangeConflicts.event;
+	pwivate _confwicts: IBaseWesouwcePweview[] = [];
+	get confwicts(): IBaseWesouwcePweview[] { wetuwn this._confwicts; }
+	pwivate _onDidChangeConfwicts: Emitta<IBaseWesouwcePweview[]> = this._wegista(new Emitta<IBaseWesouwcePweview[]>());
+	weadonwy onDidChangeConfwicts: Event<IBaseWesouwcePweview[]> = this._onDidChangeConfwicts.event;
 
-	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
-	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
+	pwivate weadonwy wocawChangeTwiggewScheduwa = new WunOnceScheduwa(() => this.doTwiggewWocawChange(), 50);
+	pwivate weadonwy _onDidChangeWocaw: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWocaw: Event<void> = this._onDidChangeWocaw.event;
 
-	protected readonly lastSyncResource: URI;
-	private hasSyncResourceStateVersionChanged: boolean = false;
-	protected readonly syncResourceLogLabel: string;
+	pwotected weadonwy wastSyncWesouwce: UWI;
+	pwivate hasSyncWesouwceStateVewsionChanged: boowean = fawse;
+	pwotected weadonwy syncWesouwceWogWabew: stwing;
 
-	private syncHeaders: IHeaders = {};
+	pwivate syncHeadews: IHeadews = {};
 
-	constructor(
-		readonly resource: SyncResource,
-		@IFileService protected readonly fileService: IFileService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncResourceEnablementService protected readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+	constwuctow(
+		weadonwy wesouwce: SyncWesouwce,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice pwotected weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice pwotected weadonwy usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice pwotected weadonwy usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice pwotected weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataSyncWogSewvice pwotected weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
-		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
-		this.extUri = this.fileService.hasCapability(environmentService.userDataSyncHome, FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		this.syncFolder = this.extUri.joinPath(environmentService.userDataSyncHome, resource);
-		this.syncPreviewFolder = this.extUri.joinPath(this.syncFolder, PREVIEW_DIR_NAME);
-		this.lastSyncResource = getLastSyncResourceUri(resource, environmentService, this.extUri);
-		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
+		supa();
+		this.syncWesouwceWogWabew = uppewcaseFiwstWetta(this.wesouwce);
+		this.extUwi = this.fiweSewvice.hasCapabiwity(enviwonmentSewvice.usewDataSyncHome, FiweSystemPwovidewCapabiwities.PathCaseSensitive) ? extUwi : extUwiIgnowePathCase;
+		this.syncFowda = this.extUwi.joinPath(enviwonmentSewvice.usewDataSyncHome, wesouwce);
+		this.syncPweviewFowda = this.extUwi.joinPath(this.syncFowda, PWEVIEW_DIW_NAME);
+		this.wastSyncWesouwce = getWastSyncWesouwceUwi(wesouwce, enviwonmentSewvice, this.extUwi);
+		this.cuwwentMachineIdPwomise = getSewviceMachineId(enviwonmentSewvice, fiweSewvice, stowageSewvice);
 	}
 
-	protected isEnabled(): boolean { return this.userDataSyncResourceEnablementService.isResourceEnabled(this.resource); }
+	pwotected isEnabwed(): boowean { wetuwn this.usewDataSyncWesouwceEnabwementSewvice.isWesouwceEnabwed(this.wesouwce); }
 
-	protected async triggerLocalChange(): Promise<void> {
-		if (this.isEnabled()) {
-			this.localChangeTriggerScheduler.schedule();
+	pwotected async twiggewWocawChange(): Pwomise<void> {
+		if (this.isEnabwed()) {
+			this.wocawChangeTwiggewScheduwa.scheduwe();
 		}
 	}
 
-	protected async doTriggerLocalChange(): Promise<void> {
+	pwotected async doTwiggewWocawChange(): Pwomise<void> {
 
-		// Sync again if current status is in conflicts
-		if (this.status === SyncStatus.HasConflicts) {
-			this.logService.info(`${this.syncResourceLogLabel}: In conflicts state and local change detected. Syncing again...`);
-			const preview = await this.syncPreviewPromise!;
-			this.syncPreviewPromise = null;
-			const status = await this.performSync(preview.remoteUserData, preview.lastSyncUserData, true);
+		// Sync again if cuwwent status is in confwicts
+		if (this.status === SyncStatus.HasConfwicts) {
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: In confwicts state and wocaw change detected. Syncing again...`);
+			const pweview = await this.syncPweviewPwomise!;
+			this.syncPweviewPwomise = nuww;
+			const status = await this.pewfowmSync(pweview.wemoteUsewData, pweview.wastSyncUsewData, twue);
 			this.setStatus(status);
 		}
 
-		// Check if local change causes remote change
-		else {
-			this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const hasRemoteChanged = lastSyncUserData ? (await this.doGenerateSyncResourcePreview(lastSyncUserData, lastSyncUserData, true, CancellationToken.None)).resourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None) : true;
-			if (hasRemoteChanged) {
-				this._onDidChangeLocal.fire();
+		// Check if wocaw change causes wemote change
+		ewse {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Checking fow wocaw changes...`);
+			const wastSyncUsewData = await this.getWastSyncUsewData();
+			const hasWemoteChanged = wastSyncUsewData ? (await this.doGenewateSyncWesouwcePweview(wastSyncUsewData, wastSyncUsewData, twue, CancewwationToken.None)).wesouwcePweviews.some(({ wemoteChange }) => wemoteChange !== Change.None) : twue;
+			if (hasWemoteChanged) {
+				this._onDidChangeWocaw.fiwe();
 			}
 		}
 	}
 
-	protected setStatus(status: SyncStatus): void {
+	pwotected setStatus(status: SyncStatus): void {
 		if (this._status !== status) {
-			const oldStatus = this._status;
-			if (status === SyncStatus.HasConflicts) {
-				// Log to telemetry when there is a sync conflict
-				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsDetected', { source: this.resource });
+			const owdStatus = this._status;
+			if (status === SyncStatus.HasConfwicts) {
+				// Wog to tewemetwy when thewe is a sync confwict
+				this.tewemetwySewvice.pubwicWog2<{ souwce: stwing }, SyncSouwceCwassification>('sync/confwictsDetected', { souwce: this.wesouwce });
 			}
-			if (oldStatus === SyncStatus.HasConflicts && status === SyncStatus.Idle) {
-				// Log to telemetry when conflicts are resolved
-				this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/conflictsResolved', { source: this.resource });
+			if (owdStatus === SyncStatus.HasConfwicts && status === SyncStatus.Idwe) {
+				// Wog to tewemetwy when confwicts awe wesowved
+				this.tewemetwySewvice.pubwicWog2<{ souwce: stwing }, SyncSouwceCwassification>('sync/confwictsWesowved', { souwce: this.wesouwce });
 			}
 			this._status = status;
-			this._onDidChangStatus.fire(status);
+			this._onDidChangStatus.fiwe(status);
 		}
 	}
 
-	async sync(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<void> {
-		await this._sync(manifest, true, headers);
+	async sync(manifest: IUsewDataManifest | nuww, headews: IHeadews = {}): Pwomise<void> {
+		await this._sync(manifest, twue, headews);
 	}
 
-	async preview(manifest: IUserDataManifest | null, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
-		return this._sync(manifest, false, headers);
+	async pweview(manifest: IUsewDataManifest | nuww, headews: IHeadews = {}): Pwomise<ISyncWesouwcePweview | nuww> {
+		wetuwn this._sync(manifest, fawse, headews);
 	}
 
-	async apply(force: boolean, headers: IHeaders = {}): Promise<ISyncResourcePreview | null> {
-		try {
-			this.syncHeaders = { ...headers };
+	async appwy(fowce: boowean, headews: IHeadews = {}): Pwomise<ISyncWesouwcePweview | nuww> {
+		twy {
+			this.syncHeadews = { ...headews };
 
-			const status = await this.doApply(force);
+			const status = await this.doAppwy(fowce);
 			this.setStatus(status);
 
-			return this.syncPreviewPromise;
-		} finally {
-			this.syncHeaders = {};
+			wetuwn this.syncPweviewPwomise;
+		} finawwy {
+			this.syncHeadews = {};
 		}
 	}
 
-	private async _sync(manifest: IUserDataManifest | null, apply: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null> {
-		try {
-			this.syncHeaders = { ...headers };
+	pwivate async _sync(manifest: IUsewDataManifest | nuww, appwy: boowean, headews: IHeadews): Pwomise<ISyncWesouwcePweview | nuww> {
+		twy {
+			this.syncHeadews = { ...headews };
 
-			if (!this.isEnabled()) {
-				if (this.status !== SyncStatus.Idle) {
+			if (!this.isEnabwed()) {
+				if (this.status !== SyncStatus.Idwe) {
 					await this.stop();
 				}
-				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is disabled.`);
-				return null;
+				this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Skipped synchwonizing ${this.wesouwce.toWowewCase()} as it is disabwed.`);
+				wetuwn nuww;
 			}
 
-			if (this.status === SyncStatus.HasConflicts) {
-				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as there are conflicts.`);
-				return this.syncPreviewPromise;
+			if (this.status === SyncStatus.HasConfwicts) {
+				this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Skipped synchwonizing ${this.wesouwce.toWowewCase()} as thewe awe confwicts.`);
+				wetuwn this.syncPweviewPwomise;
 			}
 
 			if (this.status === SyncStatus.Syncing) {
-				this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing ${this.resource.toLowerCase()} as it is running already.`);
-				return this.syncPreviewPromise;
+				this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Skipped synchwonizing ${this.wesouwce.toWowewCase()} as it is wunning awweady.`);
+				wetuwn this.syncPweviewPwomise;
 			}
 
-			this.logService.trace(`${this.syncResourceLogLabel}: Started synchronizing ${this.resource.toLowerCase()}...`);
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Stawted synchwonizing ${this.wesouwce.toWowewCase()}...`);
 			this.setStatus(SyncStatus.Syncing);
 
-			let status: SyncStatus = SyncStatus.Idle;
-			try {
-				const lastSyncUserData = await this.getLastSyncUserData();
-				const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
-				status = await this.performSync(remoteUserData, lastSyncUserData, apply);
-				if (status === SyncStatus.HasConflicts) {
-					this.logService.info(`${this.syncResourceLogLabel}: Detected conflicts while synchronizing ${this.resource.toLowerCase()}.`);
-				} else if (status === SyncStatus.Idle) {
-					this.logService.trace(`${this.syncResourceLogLabel}: Finished synchronizing ${this.resource.toLowerCase()}.`);
+			wet status: SyncStatus = SyncStatus.Idwe;
+			twy {
+				const wastSyncUsewData = await this.getWastSyncUsewData();
+				const wemoteUsewData = await this.getWatestWemoteUsewData(manifest, wastSyncUsewData);
+				status = await this.pewfowmSync(wemoteUsewData, wastSyncUsewData, appwy);
+				if (status === SyncStatus.HasConfwicts) {
+					this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Detected confwicts whiwe synchwonizing ${this.wesouwce.toWowewCase()}.`);
+				} ewse if (status === SyncStatus.Idwe) {
+					this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Finished synchwonizing ${this.wesouwce.toWowewCase()}.`);
 				}
-				return this.syncPreviewPromise || null;
-			} finally {
+				wetuwn this.syncPweviewPwomise || nuww;
+			} finawwy {
 				this.setStatus(status);
 			}
-		} finally {
-			this.syncHeaders = {};
+		} finawwy {
+			this.syncHeadews = {};
 		}
 	}
 
-	async replace(uri: URI): Promise<boolean> {
-		const content = await this.resolveContent(uri);
+	async wepwace(uwi: UWI): Pwomise<boowean> {
+		const content = await this.wesowveContent(uwi);
 		if (!content) {
-			return false;
+			wetuwn fawse;
 		}
 
-		const syncData = this.parseSyncData(content);
+		const syncData = this.pawseSyncData(content);
 		if (!syncData) {
-			return false;
+			wetuwn fawse;
 		}
 
 		await this.stop();
 
-		try {
-			this.logService.trace(`${this.syncResourceLogLabel}: Started resetting ${this.resource.toLowerCase()}...`);
+		twy {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Stawted wesetting ${this.wesouwce.toWowewCase()}...`);
 			this.setStatus(SyncStatus.Syncing);
-			const lastSyncUserData = await this.getLastSyncUserData();
-			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
-			const isRemoteDataFromCurrentMachine = await this.isRemoteDataFromCurrentMachine(remoteUserData);
+			const wastSyncUsewData = await this.getWastSyncUsewData();
+			const wemoteUsewData = await this.getWatestWemoteUsewData(nuww, wastSyncUsewData);
+			const isWemoteDataFwomCuwwentMachine = await this.isWemoteDataFwomCuwwentMachine(wemoteUsewData);
 
-			/* use replace sync data */
-			const resourcePreviewResults = await this.generateSyncPreview({ ref: remoteUserData.ref, syncData }, lastSyncUserData, isRemoteDataFromCurrentMachine, CancellationToken.None);
+			/* use wepwace sync data */
+			const wesouwcePweviewWesuwts = await this.genewateSyncPweview({ wef: wemoteUsewData.wef, syncData }, wastSyncUsewData, isWemoteDataFwomCuwwentMachine, CancewwationToken.None);
 
-			const resourcePreviews: [IResourcePreview, IAcceptResult][] = [];
-			for (const resourcePreviewResult of resourcePreviewResults) {
-				/* Accept remote resource */
-				const acceptResult: IAcceptResult = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.remoteResource, undefined, CancellationToken.None);
-				/* compute remote change */
-				const { remoteChange } = await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.previewResource, resourcePreviewResult.remoteContent, CancellationToken.None);
-				resourcePreviews.push([resourcePreviewResult, { ...acceptResult, remoteChange: remoteChange !== Change.None ? remoteChange : Change.Modified }]);
+			const wesouwcePweviews: [IWesouwcePweview, IAcceptWesuwt][] = [];
+			fow (const wesouwcePweviewWesuwt of wesouwcePweviewWesuwts) {
+				/* Accept wemote wesouwce */
+				const acceptWesuwt: IAcceptWesuwt = await this.getAcceptWesuwt(wesouwcePweviewWesuwt, wesouwcePweviewWesuwt.wemoteWesouwce, undefined, CancewwationToken.None);
+				/* compute wemote change */
+				const { wemoteChange } = await this.getAcceptWesuwt(wesouwcePweviewWesuwt, wesouwcePweviewWesuwt.pweviewWesouwce, wesouwcePweviewWesuwt.wemoteContent, CancewwationToken.None);
+				wesouwcePweviews.push([wesouwcePweviewWesuwt, { ...acceptWesuwt, wemoteChange: wemoteChange !== Change.None ? wemoteChange : Change.Modified }]);
 			}
 
-			await this.applyResult(remoteUserData, lastSyncUserData, resourcePreviews, false);
-			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
-		} finally {
-			this.setStatus(SyncStatus.Idle);
+			await this.appwyWesuwt(wemoteUsewData, wastSyncUsewData, wesouwcePweviews, fawse);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Finished wesetting ${this.wesouwce.toWowewCase()}.`);
+		} finawwy {
+			this.setStatus(SyncStatus.Idwe);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async isRemoteDataFromCurrentMachine(remoteUserData: IRemoteUserData): Promise<boolean> {
-		const machineId = await this.currentMachineIdPromise;
-		return !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
+	pwivate async isWemoteDataFwomCuwwentMachine(wemoteUsewData: IWemoteUsewData): Pwomise<boowean> {
+		const machineId = await this.cuwwentMachineIdPwomise;
+		wetuwn !!wemoteUsewData.syncData?.machineId && wemoteUsewData.syncData.machineId === machineId;
 	}
 
-	protected async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
-		if (lastSyncUserData) {
+	pwotected async getWatestWemoteUsewData(manifest: IUsewDataManifest | nuww, wastSyncUsewData: IWemoteUsewData | nuww): Pwomise<IWemoteUsewData> {
+		if (wastSyncUsewData) {
 
-			const latestRef = manifest && manifest.latest ? manifest.latest[this.resource] : undefined;
+			const watestWef = manifest && manifest.watest ? manifest.watest[this.wesouwce] : undefined;
 
-			// Last time synced resource and latest resource on server are same
-			if (lastSyncUserData.ref === latestRef) {
-				return lastSyncUserData;
+			// Wast time synced wesouwce and watest wesouwce on sewva awe same
+			if (wastSyncUsewData.wef === watestWef) {
+				wetuwn wastSyncUsewData;
 			}
 
-			// There is no resource on server and last time it was synced with no resource
-			if (latestRef === undefined && lastSyncUserData.syncData === null) {
-				return lastSyncUserData;
+			// Thewe is no wesouwce on sewva and wast time it was synced with no wesouwce
+			if (watestWef === undefined && wastSyncUsewData.syncData === nuww) {
+				wetuwn wastSyncUsewData;
 			}
 		}
-		return this.getRemoteUserData(lastSyncUserData);
+		wetuwn this.getWemoteUsewData(wastSyncUsewData);
 	}
 
-	private async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
-		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
-			// current version is not compatible with cloud version
-			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.resource });
-			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.IncompatibleLocalContent, this.resource);
+	pwivate async pewfowmSync(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, appwy: boowean): Pwomise<SyncStatus> {
+		if (wemoteUsewData.syncData && wemoteUsewData.syncData.vewsion > this.vewsion) {
+			// cuwwent vewsion is not compatibwe with cwoud vewsion
+			this.tewemetwySewvice.pubwicWog2<{ souwce: stwing }, SyncSouwceCwassification>('sync/incompatibwe', { souwce: this.wesouwce });
+			thwow new UsewDataSyncEwwow(wocawize({ key: 'incompatibwe', comment: ['This is an ewwow whiwe syncing a wesouwce that its wocaw vewsion is not compatibwe with its wemote vewsion.'] }, "Cannot sync {0} as its wocaw vewsion {1} is not compatibwe with its wemote vewsion {2}", this.wesouwce, this.vewsion, wemoteUsewData.syncData.vewsion), UsewDataSyncEwwowCode.IncompatibweWocawContent, this.wesouwce);
 		}
 
-		try {
-			return await this.doSync(remoteUserData, lastSyncUserData, apply);
+		twy {
+			wetuwn await this.doSync(wemoteUsewData, wastSyncUsewData, appwy);
 		} catch (e) {
-			if (e instanceof UserDataSyncError) {
+			if (e instanceof UsewDataSyncEwwow) {
 				switch (e.code) {
 
-					case UserDataSyncErrorCode.LocalPreconditionFailed:
-						// Rejected as there is a new local version. Syncing again...
-						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize ${this.syncResourceLogLabel} as there is a new local version available. Synchronizing again...`);
-						return this.performSync(remoteUserData, lastSyncUserData, apply);
+					case UsewDataSyncEwwowCode.WocawPweconditionFaiwed:
+						// Wejected as thewe is a new wocaw vewsion. Syncing again...
+						this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Faiwed to synchwonize ${this.syncWesouwceWogWabew} as thewe is a new wocaw vewsion avaiwabwe. Synchwonizing again...`);
+						wetuwn this.pewfowmSync(wemoteUsewData, wastSyncUsewData, appwy);
 
-					case UserDataSyncErrorCode.Conflict:
-					case UserDataSyncErrorCode.PreconditionFailed:
-						// Rejected as there is a new remote version. Syncing again...
-						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
+					case UsewDataSyncEwwowCode.Confwict:
+					case UsewDataSyncEwwowCode.PweconditionFaiwed:
+						// Wejected as thewe is a new wemote vewsion. Syncing again...
+						this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Faiwed to synchwonize as thewe is a new wemote vewsion avaiwabwe. Synchwonizing again...`);
 
-						// Avoid cache and get latest remote user data - https://github.com/microsoft/vscode/issues/90624
-						remoteUserData = await this.getRemoteUserData(null);
+						// Avoid cache and get watest wemote usa data - https://github.com/micwosoft/vscode/issues/90624
+						wemoteUsewData = await this.getWemoteUsewData(nuww);
 
-						// Get the latest last sync user data. Because multiples parallel syncs (in Web) could share same last sync data
-						// and one of them successfully updated remote and last sync state.
-						lastSyncUserData = await this.getLastSyncUserData();
+						// Get the watest wast sync usa data. Because muwtipwes pawawwew syncs (in Web) couwd shawe same wast sync data
+						// and one of them successfuwwy updated wemote and wast sync state.
+						wastSyncUsewData = await this.getWastSyncUsewData();
 
-						return this.performSync(remoteUserData, lastSyncUserData, apply);
+						wetuwn this.pewfowmSync(wemoteUsewData, wastSyncUsewData, appwy);
 				}
 			}
-			throw e;
+			thwow e;
 		}
 	}
 
-	protected async doSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean): Promise<SyncStatus> {
-		try {
-			// generate or use existing preview
-			if (!this.syncPreviewPromise) {
-				this.syncPreviewPromise = createCancelablePromise(token => this.doGenerateSyncResourcePreview(remoteUserData, lastSyncUserData, apply, token));
+	pwotected async doSync(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, appwy: boowean): Pwomise<SyncStatus> {
+		twy {
+			// genewate ow use existing pweview
+			if (!this.syncPweviewPwomise) {
+				this.syncPweviewPwomise = cweateCancewabwePwomise(token => this.doGenewateSyncWesouwcePweview(wemoteUsewData, wastSyncUsewData, appwy, token));
 			}
 
-			const preview = await this.syncPreviewPromise;
-			this.updateConflicts(preview.resourcePreviews);
-			if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
-				return SyncStatus.HasConflicts;
+			const pweview = await this.syncPweviewPwomise;
+			this.updateConfwicts(pweview.wesouwcePweviews);
+			if (pweview.wesouwcePweviews.some(({ mewgeState }) => mewgeState === MewgeState.Confwict)) {
+				wetuwn SyncStatus.HasConfwicts;
 			}
 
-			if (apply) {
-				return await this.doApply(false);
+			if (appwy) {
+				wetuwn await this.doAppwy(fawse);
 			}
 
-			return SyncStatus.Syncing;
+			wetuwn SyncStatus.Syncing;
 
-		} catch (error) {
+		} catch (ewwow) {
 
-			// reset preview on error
-			this.syncPreviewPromise = null;
+			// weset pweview on ewwow
+			this.syncPweviewPwomise = nuww;
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	async merge(resource: URI): Promise<ISyncResourcePreview | null> {
-		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
-			const mergeResult = await this.getMergeResult(resourcePreview, CancellationToken.None);
-			await this.fileService.writeFile(resourcePreview.previewResource, VSBuffer.fromString(mergeResult?.content || ''));
-			const acceptResult: IAcceptResult | undefined = mergeResult && !mergeResult.hasConflicts
-				? await this.getAcceptResult(resourcePreview, resourcePreview.previewResource, undefined, CancellationToken.None)
+	async mewge(wesouwce: UWI): Pwomise<ISyncWesouwcePweview | nuww> {
+		await this.updateSyncWesouwcePweview(wesouwce, async (wesouwcePweview) => {
+			const mewgeWesuwt = await this.getMewgeWesuwt(wesouwcePweview, CancewwationToken.None);
+			await this.fiweSewvice.wwiteFiwe(wesouwcePweview.pweviewWesouwce, VSBuffa.fwomStwing(mewgeWesuwt?.content || ''));
+			const acceptWesuwt: IAcceptWesuwt | undefined = mewgeWesuwt && !mewgeWesuwt.hasConfwicts
+				? await this.getAcceptWesuwt(wesouwcePweview, wesouwcePweview.pweviewWesouwce, undefined, CancewwationToken.None)
 				: undefined;
-			resourcePreview.acceptResult = acceptResult;
-			resourcePreview.mergeState = mergeResult.hasConflicts ? MergeState.Conflict : acceptResult ? MergeState.Accepted : MergeState.Preview;
-			resourcePreview.localChange = acceptResult ? acceptResult.localChange : mergeResult.localChange;
-			resourcePreview.remoteChange = acceptResult ? acceptResult.remoteChange : mergeResult.remoteChange;
-			return resourcePreview;
+			wesouwcePweview.acceptWesuwt = acceptWesuwt;
+			wesouwcePweview.mewgeState = mewgeWesuwt.hasConfwicts ? MewgeState.Confwict : acceptWesuwt ? MewgeState.Accepted : MewgeState.Pweview;
+			wesouwcePweview.wocawChange = acceptWesuwt ? acceptWesuwt.wocawChange : mewgeWesuwt.wocawChange;
+			wesouwcePweview.wemoteChange = acceptWesuwt ? acceptWesuwt.wemoteChange : mewgeWesuwt.wemoteChange;
+			wetuwn wesouwcePweview;
 		});
-		return this.syncPreviewPromise;
+		wetuwn this.syncPweviewPwomise;
 	}
 
-	async accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null> {
-		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
-			const acceptResult = await this.getAcceptResult(resourcePreview, resource, content, CancellationToken.None);
-			resourcePreview.acceptResult = acceptResult;
-			resourcePreview.mergeState = MergeState.Accepted;
-			resourcePreview.localChange = acceptResult.localChange;
-			resourcePreview.remoteChange = acceptResult.remoteChange;
-			return resourcePreview;
+	async accept(wesouwce: UWI, content?: stwing | nuww): Pwomise<ISyncWesouwcePweview | nuww> {
+		await this.updateSyncWesouwcePweview(wesouwce, async (wesouwcePweview) => {
+			const acceptWesuwt = await this.getAcceptWesuwt(wesouwcePweview, wesouwce, content, CancewwationToken.None);
+			wesouwcePweview.acceptWesuwt = acceptWesuwt;
+			wesouwcePweview.mewgeState = MewgeState.Accepted;
+			wesouwcePweview.wocawChange = acceptWesuwt.wocawChange;
+			wesouwcePweview.wemoteChange = acceptWesuwt.wemoteChange;
+			wetuwn wesouwcePweview;
 		});
-		return this.syncPreviewPromise;
+		wetuwn this.syncPweviewPwomise;
 	}
 
-	async discard(resource: URI): Promise<ISyncResourcePreview | null> {
-		await this.updateSyncResourcePreview(resource, async (resourcePreview) => {
-			const mergeResult = await this.getMergeResult(resourcePreview, CancellationToken.None);
-			await this.fileService.writeFile(resourcePreview.previewResource, VSBuffer.fromString(mergeResult.content || ''));
-			resourcePreview.acceptResult = undefined;
-			resourcePreview.mergeState = MergeState.Preview;
-			resourcePreview.localChange = mergeResult.localChange;
-			resourcePreview.remoteChange = mergeResult.remoteChange;
-			return resourcePreview;
+	async discawd(wesouwce: UWI): Pwomise<ISyncWesouwcePweview | nuww> {
+		await this.updateSyncWesouwcePweview(wesouwce, async (wesouwcePweview) => {
+			const mewgeWesuwt = await this.getMewgeWesuwt(wesouwcePweview, CancewwationToken.None);
+			await this.fiweSewvice.wwiteFiwe(wesouwcePweview.pweviewWesouwce, VSBuffa.fwomStwing(mewgeWesuwt.content || ''));
+			wesouwcePweview.acceptWesuwt = undefined;
+			wesouwcePweview.mewgeState = MewgeState.Pweview;
+			wesouwcePweview.wocawChange = mewgeWesuwt.wocawChange;
+			wesouwcePweview.wemoteChange = mewgeWesuwt.wemoteChange;
+			wetuwn wesouwcePweview;
 		});
-		return this.syncPreviewPromise;
+		wetuwn this.syncPweviewPwomise;
 	}
 
-	private async updateSyncResourcePreview(resource: URI, updateResourcePreview: (resourcePreview: IEditableResourcePreview) => Promise<IEditableResourcePreview>): Promise<void> {
-		if (!this.syncPreviewPromise) {
-			return;
+	pwivate async updateSyncWesouwcePweview(wesouwce: UWI, updateWesouwcePweview: (wesouwcePweview: IEditabweWesouwcePweview) => Pwomise<IEditabweWesouwcePweview>): Pwomise<void> {
+		if (!this.syncPweviewPwomise) {
+			wetuwn;
 		}
 
-		let preview = await this.syncPreviewPromise;
-		const index = preview.resourcePreviews.findIndex(({ localResource, remoteResource, previewResource }) =>
-			this.extUri.isEqual(localResource, resource) || this.extUri.isEqual(remoteResource, resource) || this.extUri.isEqual(previewResource, resource));
+		wet pweview = await this.syncPweviewPwomise;
+		const index = pweview.wesouwcePweviews.findIndex(({ wocawWesouwce, wemoteWesouwce, pweviewWesouwce }) =>
+			this.extUwi.isEquaw(wocawWesouwce, wesouwce) || this.extUwi.isEquaw(wemoteWesouwce, wesouwce) || this.extUwi.isEquaw(pweviewWesouwce, wesouwce));
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
-		this.syncPreviewPromise = createCancelablePromise(async token => {
-			const resourcePreviews = [...preview.resourcePreviews];
-			resourcePreviews[index] = await updateResourcePreview(resourcePreviews[index]);
-			return {
-				...preview,
-				resourcePreviews
+		this.syncPweviewPwomise = cweateCancewabwePwomise(async token => {
+			const wesouwcePweviews = [...pweview.wesouwcePweviews];
+			wesouwcePweviews[index] = await updateWesouwcePweview(wesouwcePweviews[index]);
+			wetuwn {
+				...pweview,
+				wesouwcePweviews
 			};
 		});
 
-		preview = await this.syncPreviewPromise;
-		this.updateConflicts(preview.resourcePreviews);
-		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
-			this.setStatus(SyncStatus.HasConflicts);
-		} else {
+		pweview = await this.syncPweviewPwomise;
+		this.updateConfwicts(pweview.wesouwcePweviews);
+		if (pweview.wesouwcePweviews.some(({ mewgeState }) => mewgeState === MewgeState.Confwict)) {
+			this.setStatus(SyncStatus.HasConfwicts);
+		} ewse {
 			this.setStatus(SyncStatus.Syncing);
 		}
 	}
 
-	private async doApply(force: boolean): Promise<SyncStatus> {
-		if (!this.syncPreviewPromise) {
-			return SyncStatus.Idle;
+	pwivate async doAppwy(fowce: boowean): Pwomise<SyncStatus> {
+		if (!this.syncPweviewPwomise) {
+			wetuwn SyncStatus.Idwe;
 		}
 
-		const preview = await this.syncPreviewPromise;
+		const pweview = await this.syncPweviewPwomise;
 
-		// check for conflicts
-		if (preview.resourcePreviews.some(({ mergeState }) => mergeState === MergeState.Conflict)) {
-			return SyncStatus.HasConflicts;
+		// check fow confwicts
+		if (pweview.wesouwcePweviews.some(({ mewgeState }) => mewgeState === MewgeState.Confwict)) {
+			wetuwn SyncStatus.HasConfwicts;
 		}
 
-		// check if all are accepted
-		if (preview.resourcePreviews.some(({ mergeState }) => mergeState !== MergeState.Accepted)) {
-			return SyncStatus.Syncing;
+		// check if aww awe accepted
+		if (pweview.wesouwcePweviews.some(({ mewgeState }) => mewgeState !== MewgeState.Accepted)) {
+			wetuwn SyncStatus.Syncing;
 		}
 
-		// apply preview
-		await this.applyResult(preview.remoteUserData, preview.lastSyncUserData, preview.resourcePreviews.map(resourcePreview => ([resourcePreview, resourcePreview.acceptResult!])), force);
+		// appwy pweview
+		await this.appwyWesuwt(pweview.wemoteUsewData, pweview.wastSyncUsewData, pweview.wesouwcePweviews.map(wesouwcePweview => ([wesouwcePweview, wesouwcePweview.acceptWesuwt!])), fowce);
 
-		// reset preview
-		this.syncPreviewPromise = null;
+		// weset pweview
+		this.syncPweviewPwomise = nuww;
 
-		// reset preview folder
-		await this.clearPreviewFolder();
+		// weset pweview fowda
+		await this.cweawPweviewFowda();
 
-		return SyncStatus.Idle;
+		wetuwn SyncStatus.Idwe;
 	}
 
-	private async clearPreviewFolder(): Promise<void> {
-		try {
-			await this.fileService.del(this.syncPreviewFolder, { recursive: true });
-		} catch (error) { /* Ignore */ }
+	pwivate async cweawPweviewFowda(): Pwomise<void> {
+		twy {
+			await this.fiweSewvice.dew(this.syncPweviewFowda, { wecuwsive: twue });
+		} catch (ewwow) { /* Ignowe */ }
 	}
 
-	private updateConflicts(resourcePreviews: IEditableResourcePreview[]): void {
-		const conflicts = resourcePreviews.filter(({ mergeState }) => mergeState === MergeState.Conflict);
-		if (!equals(this._conflicts, conflicts, (a, b) => this.extUri.isEqual(a.previewResource, b.previewResource))) {
-			this._conflicts = conflicts;
-			this._onDidChangeConflicts.fire(conflicts);
+	pwivate updateConfwicts(wesouwcePweviews: IEditabweWesouwcePweview[]): void {
+		const confwicts = wesouwcePweviews.fiwta(({ mewgeState }) => mewgeState === MewgeState.Confwict);
+		if (!equaws(this._confwicts, confwicts, (a, b) => this.extUwi.isEquaw(a.pweviewWesouwce, b.pweviewWesouwce))) {
+			this._confwicts = confwicts;
+			this._onDidChangeConfwicts.fiwe(confwicts);
 		}
 	}
 
-	async hasPreviouslySynced(): Promise<boolean> {
-		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
+	async hasPweviouswySynced(): Pwomise<boowean> {
+		const wastSyncData = await this.getWastSyncUsewData();
+		wetuwn !!wastSyncData;
 	}
 
-	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncStoreService.getAllRefs(this.resource);
-		return handles.map(({ created, ref }) => ({ created, uri: this.toRemoteBackupResource(ref) }));
+	async getWemoteSyncWesouwceHandwes(): Pwomise<ISyncWesouwceHandwe[]> {
+		const handwes = await this.usewDataSyncStoweSewvice.getAwwWefs(this.wesouwce);
+		wetuwn handwes.map(({ cweated, wef }) => ({ cweated, uwi: this.toWemoteBackupWesouwce(wef) }));
 	}
 
-	async getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncBackupStoreService.getAllRefs(this.resource);
-		return handles.map(({ created, ref }) => ({ created, uri: this.toLocalBackupResource(ref) }));
+	async getWocawSyncWesouwceHandwes(): Pwomise<ISyncWesouwceHandwe[]> {
+		const handwes = await this.usewDataSyncBackupStoweSewvice.getAwwWefs(this.wesouwce);
+		wetuwn handwes.map(({ cweated, wef }) => ({ cweated, uwi: this.toWocawBackupWesouwce(wef) }));
 	}
 
-	private toRemoteBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote-backup', path: `/${this.resource}/${ref}` });
+	pwivate toWemoteBackupWesouwce(wef: stwing): UWI {
+		wetuwn UWI.fwom({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote-backup', path: `/${this.wesouwce}/${wef}` });
 	}
 
-	private toLocalBackupResource(ref: string): URI {
-		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.resource}/${ref}` });
+	pwivate toWocawBackupWesouwce(wef: stwing): UWI {
+		wetuwn UWI.fwom({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw-backup', path: `/${this.wesouwce}/${wef}` });
 	}
 
-	async getMachineId({ uri }: ISyncResourceHandle): Promise<string | undefined> {
-		const ref = this.extUri.basename(uri);
-		if (this.extUri.isEqual(uri, this.toRemoteBackupResource(ref))) {
-			const { content } = await this.getUserData(ref);
+	async getMachineId({ uwi }: ISyncWesouwceHandwe): Pwomise<stwing | undefined> {
+		const wef = this.extUwi.basename(uwi);
+		if (this.extUwi.isEquaw(uwi, this.toWemoteBackupWesouwce(wef))) {
+			const { content } = await this.getUsewData(wef);
 			if (content) {
-				const syncData = this.parseSyncData(content);
-				return syncData?.machineId;
+				const syncData = this.pawseSyncData(content);
+				wetuwn syncData?.machineId;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
-		const ref = this.extUri.basename(uri);
-		if (this.extUri.isEqual(uri, this.toRemoteBackupResource(ref))) {
-			const { content } = await this.getUserData(ref);
-			return content;
+	async wesowveContent(uwi: UWI): Pwomise<stwing | nuww> {
+		const wef = this.extUwi.basename(uwi);
+		if (this.extUwi.isEquaw(uwi, this.toWemoteBackupWesouwce(wef))) {
+			const { content } = await this.getUsewData(wef);
+			wetuwn content;
 		}
-		if (this.extUri.isEqual(uri, this.toLocalBackupResource(ref))) {
-			return this.userDataSyncBackupStoreService.resolveContent(this.resource, ref);
+		if (this.extUwi.isEquaw(uwi, this.toWocawBackupWesouwce(wef))) {
+			wetuwn this.usewDataSyncBackupStoweSewvice.wesowveContent(this.wesouwce, wef);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected async resolvePreviewContent(uri: URI): Promise<string | null> {
-		const syncPreview = this.syncPreviewPromise ? await this.syncPreviewPromise : null;
-		if (syncPreview) {
-			for (const resourcePreview of syncPreview.resourcePreviews) {
-				if (this.extUri.isEqual(resourcePreview.acceptedResource, uri)) {
-					return resourcePreview.acceptResult ? resourcePreview.acceptResult.content : null;
+	pwotected async wesowvePweviewContent(uwi: UWI): Pwomise<stwing | nuww> {
+		const syncPweview = this.syncPweviewPwomise ? await this.syncPweviewPwomise : nuww;
+		if (syncPweview) {
+			fow (const wesouwcePweview of syncPweview.wesouwcePweviews) {
+				if (this.extUwi.isEquaw(wesouwcePweview.acceptedWesouwce, uwi)) {
+					wetuwn wesouwcePweview.acceptWesuwt ? wesouwcePweview.acceptWesuwt.content : nuww;
 				}
-				if (this.extUri.isEqual(resourcePreview.remoteResource, uri)) {
-					return resourcePreview.remoteContent;
+				if (this.extUwi.isEquaw(wesouwcePweview.wemoteWesouwce, uwi)) {
+					wetuwn wesouwcePweview.wemoteContent;
 				}
-				if (this.extUri.isEqual(resourcePreview.localResource, uri)) {
-					return resourcePreview.localContent;
+				if (this.extUwi.isEquaw(wesouwcePweview.wocawWesouwce, uwi)) {
+					wetuwn wesouwcePweview.wocawContent;
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async resetLocal(): Promise<void> {
-		try {
-			await this.fileService.del(this.lastSyncResource);
-		} catch (e) { /* ignore */ }
+	async wesetWocaw(): Pwomise<void> {
+		twy {
+			await this.fiweSewvice.dew(this.wastSyncWesouwce);
+		} catch (e) { /* ignowe */ }
 	}
 
-	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
-		const isRemoteDataFromCurrentMachine = await this.isRemoteDataFromCurrentMachine(remoteUserData);
-		const resourcePreviewResults = await this.generateSyncPreview(remoteUserData, lastSyncUserData, isRemoteDataFromCurrentMachine, token);
+	pwivate async doGenewateSyncWesouwcePweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, appwy: boowean, token: CancewwationToken): Pwomise<ISyncWesouwcePweview> {
+		const isWemoteDataFwomCuwwentMachine = await this.isWemoteDataFwomCuwwentMachine(wemoteUsewData);
+		const wesouwcePweviewWesuwts = await this.genewateSyncPweview(wemoteUsewData, wastSyncUsewData, isWemoteDataFwomCuwwentMachine, token);
 
-		const resourcePreviews: IEditableResourcePreview[] = [];
-		for (const resourcePreviewResult of resourcePreviewResults) {
-			const acceptedResource = resourcePreviewResult.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
+		const wesouwcePweviews: IEditabweWesouwcePweview[] = [];
+		fow (const wesouwcePweviewWesuwt of wesouwcePweviewWesuwts) {
+			const acceptedWesouwce = wesouwcePweviewWesuwt.pweviewWesouwce.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' });
 
 			/* No change -> Accept */
-			if (resourcePreviewResult.localChange === Change.None && resourcePreviewResult.remoteChange === Change.None) {
-				resourcePreviews.push({
-					...resourcePreviewResult,
-					acceptedResource,
-					acceptResult: { content: null, localChange: Change.None, remoteChange: Change.None },
-					mergeState: MergeState.Accepted
+			if (wesouwcePweviewWesuwt.wocawChange === Change.None && wesouwcePweviewWesuwt.wemoteChange === Change.None) {
+				wesouwcePweviews.push({
+					...wesouwcePweviewWesuwt,
+					acceptedWesouwce,
+					acceptWesuwt: { content: nuww, wocawChange: Change.None, wemoteChange: Change.None },
+					mewgeState: MewgeState.Accepted
 				});
 			}
 
-			/* Changed -> Apply ? (Merge ? Conflict | Accept) : Preview */
-			else {
-				/* Merge */
-				const mergeResult = apply ? await this.getMergeResult(resourcePreviewResult, token) : undefined;
-				if (token.isCancellationRequested) {
-					break;
+			/* Changed -> Appwy ? (Mewge ? Confwict | Accept) : Pweview */
+			ewse {
+				/* Mewge */
+				const mewgeWesuwt = appwy ? await this.getMewgeWesuwt(wesouwcePweviewWesuwt, token) : undefined;
+				if (token.isCancewwationWequested) {
+					bweak;
 				}
-				await this.fileService.writeFile(resourcePreviewResult.previewResource, VSBuffer.fromString(mergeResult?.content || ''));
+				await this.fiweSewvice.wwiteFiwe(wesouwcePweviewWesuwt.pweviewWesouwce, VSBuffa.fwomStwing(mewgeWesuwt?.content || ''));
 
-				/* Conflict | Accept */
-				const acceptResult = mergeResult && !mergeResult.hasConflicts
-					/* Accept if merged and there are no conflicts */
-					? await this.getAcceptResult(resourcePreviewResult, resourcePreviewResult.previewResource, undefined, token)
+				/* Confwict | Accept */
+				const acceptWesuwt = mewgeWesuwt && !mewgeWesuwt.hasConfwicts
+					/* Accept if mewged and thewe awe no confwicts */
+					? await this.getAcceptWesuwt(wesouwcePweviewWesuwt, wesouwcePweviewWesuwt.pweviewWesouwce, undefined, token)
 					: undefined;
 
-				resourcePreviews.push({
-					...resourcePreviewResult,
-					acceptResult,
-					mergeState: mergeResult?.hasConflicts ? MergeState.Conflict : acceptResult ? MergeState.Accepted : MergeState.Preview,
-					localChange: acceptResult ? acceptResult.localChange : mergeResult ? mergeResult.localChange : resourcePreviewResult.localChange,
-					remoteChange: acceptResult ? acceptResult.remoteChange : mergeResult ? mergeResult.remoteChange : resourcePreviewResult.remoteChange
+				wesouwcePweviews.push({
+					...wesouwcePweviewWesuwt,
+					acceptWesuwt,
+					mewgeState: mewgeWesuwt?.hasConfwicts ? MewgeState.Confwict : acceptWesuwt ? MewgeState.Accepted : MewgeState.Pweview,
+					wocawChange: acceptWesuwt ? acceptWesuwt.wocawChange : mewgeWesuwt ? mewgeWesuwt.wocawChange : wesouwcePweviewWesuwt.wocawChange,
+					wemoteChange: acceptWesuwt ? acceptWesuwt.wemoteChange : mewgeWesuwt ? mewgeWesuwt.wemoteChange : wesouwcePweviewWesuwt.wemoteChange
 				});
 			}
 		}
 
-		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
+		wetuwn { wemoteUsewData, wastSyncUsewData, wesouwcePweviews, isWastSyncFwomCuwwentMachine: isWemoteDataFwomCuwwentMachine };
 	}
 
-	async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncResource);
-			const parsed = JSON.parse(content.value.toString());
-			const resourceSyncStateVersion = this.userDataSyncResourceEnablementService.getResourceSyncStateVersion(this.resource);
-			this.hasSyncResourceStateVersionChanged = parsed.version && resourceSyncStateVersion && parsed.version !== resourceSyncStateVersion;
-			if (this.hasSyncResourceStateVersionChanged) {
-				this.logService.info(`${this.syncResourceLogLabel}: Reset last sync state because last sync state version ${parsed.version} is not compatible with current sync state version ${resourceSyncStateVersion}.`);
-				await this.resetLocal();
-				return null;
+	async getWastSyncUsewData<T extends IWemoteUsewData>(): Pwomise<T | nuww> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(this.wastSyncWesouwce);
+			const pawsed = JSON.pawse(content.vawue.toStwing());
+			const wesouwceSyncStateVewsion = this.usewDataSyncWesouwceEnabwementSewvice.getWesouwceSyncStateVewsion(this.wesouwce);
+			this.hasSyncWesouwceStateVewsionChanged = pawsed.vewsion && wesouwceSyncStateVewsion && pawsed.vewsion !== wesouwceSyncStateVewsion;
+			if (this.hasSyncWesouwceStateVewsionChanged) {
+				this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Weset wast sync state because wast sync state vewsion ${pawsed.vewsion} is not compatibwe with cuwwent sync state vewsion ${wesouwceSyncStateVewsion}.`);
+				await this.wesetWocaw();
+				wetuwn nuww;
 			}
 
-			const userData: IUserData = parsed as IUserData;
-			if (userData.content === null) {
-				return { ref: parsed.ref, syncData: null } as T;
+			const usewData: IUsewData = pawsed as IUsewData;
+			if (usewData.content === nuww) {
+				wetuwn { wef: pawsed.wef, syncData: nuww } as T;
 			}
-			const syncData: ISyncData = JSON.parse(userData.content);
+			const syncData: ISyncData = JSON.pawse(usewData.content);
 
-			/* Check if syncData is of expected type. Return only if matches */
+			/* Check if syncData is of expected type. Wetuwn onwy if matches */
 			if (isSyncData(syncData)) {
-				return { ...parsed, ...{ syncData, content: undefined } };
+				wetuwn { ...pawsed, ...{ syncData, content: undefined } };
 			}
 
-		} catch (error) {
-			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-				// log error always except when file does not exist
-				this.logService.error(error);
+		} catch (ewwow) {
+			if (!(ewwow instanceof FiweOpewationEwwow && ewwow.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND)) {
+				// wog ewwow awways except when fiwe does not exist
+				this.wogSewvice.ewwow(ewwow);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
-		if (additionalProps['ref'] || additionalProps['content'] || additionalProps['version']) {
-			throw new Error('Cannot have core properties as additional');
+	pwotected async updateWastSyncUsewData(wastSyncWemoteUsewData: IWemoteUsewData, additionawPwops: IStwingDictionawy<any> = {}): Pwomise<void> {
+		if (additionawPwops['wef'] || additionawPwops['content'] || additionawPwops['vewsion']) {
+			thwow new Ewwow('Cannot have cowe pwopewties as additionaw');
 		}
 
-		const version = this.userDataSyncResourceEnablementService.getResourceSyncStateVersion(this.resource);
-		const lastSyncUserData = { ref: lastSyncRemoteUserData.ref, content: lastSyncRemoteUserData.syncData ? JSON.stringify(lastSyncRemoteUserData.syncData) : null, version, ...additionalProps };
-		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
+		const vewsion = this.usewDataSyncWesouwceEnabwementSewvice.getWesouwceSyncStateVewsion(this.wesouwce);
+		const wastSyncUsewData = { wef: wastSyncWemoteUsewData.wef, content: wastSyncWemoteUsewData.syncData ? JSON.stwingify(wastSyncWemoteUsewData.syncData) : nuww, vewsion, ...additionawPwops };
+		await this.fiweSewvice.wwiteFiwe(this.wastSyncWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wastSyncUsewData)));
 	}
 
-	async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
-		const { ref, content } = await this.getUserData(lastSyncData);
-		let syncData: ISyncData | null = null;
-		if (content !== null) {
-			syncData = this.parseSyncData(content);
+	async getWemoteUsewData(wastSyncData: IWemoteUsewData | nuww): Pwomise<IWemoteUsewData> {
+		const { wef, content } = await this.getUsewData(wastSyncData);
+		wet syncData: ISyncData | nuww = nuww;
+		if (content !== nuww) {
+			syncData = this.pawseSyncData(content);
 		}
-		return { ref, syncData };
+		wetuwn { wef, syncData };
 	}
 
-	protected parseSyncData(content: string): ISyncData {
-		try {
-			const syncData: ISyncData = JSON.parse(content);
+	pwotected pawseSyncData(content: stwing): ISyncData {
+		twy {
+			const syncData: ISyncData = JSON.pawse(content);
 			if (isSyncData(syncData)) {
-				return syncData;
+				wetuwn syncData;
 			}
-		} catch (error) {
-			this.logService.error(error);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
-		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with the current version."), UserDataSyncErrorCode.IncompatibleRemoteContent, this.resource);
+		thwow new UsewDataSyncEwwow(wocawize('incompatibwe sync data', "Cannot pawse sync data as it is not compatibwe with the cuwwent vewsion."), UsewDataSyncEwwowCode.IncompatibweWemoteContent, this.wesouwce);
 	}
 
-	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
-		if (isString(refOrLastSyncData)) {
-			const content = await this.userDataSyncStoreService.resolveContent(this.resource, refOrLastSyncData);
-			return { ref: refOrLastSyncData, content };
-		} else {
-			const lastSyncUserData: IUserData | null = refOrLastSyncData ? { ref: refOrLastSyncData.ref, content: refOrLastSyncData.syncData ? JSON.stringify(refOrLastSyncData.syncData) : null } : null;
-			return this.userDataSyncStoreService.read(this.resource, lastSyncUserData, this.syncHeaders);
+	pwivate async getUsewData(wefOwWastSyncData: stwing | IWemoteUsewData | nuww): Pwomise<IUsewData> {
+		if (isStwing(wefOwWastSyncData)) {
+			const content = await this.usewDataSyncStoweSewvice.wesowveContent(this.wesouwce, wefOwWastSyncData);
+			wetuwn { wef: wefOwWastSyncData, content };
+		} ewse {
+			const wastSyncUsewData: IUsewData | nuww = wefOwWastSyncData ? { wef: wefOwWastSyncData.wef, content: wefOwWastSyncData.syncData ? JSON.stwingify(wefOwWastSyncData.syncData) : nuww } : nuww;
+			wetuwn this.usewDataSyncStoweSewvice.wead(this.wesouwce, wastSyncUsewData, this.syncHeadews);
 		}
 	}
 
-	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
-		const machineId = await this.currentMachineIdPromise;
-		const syncData: ISyncData = { version: this.version, machineId, content };
-		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref, this.syncHeaders);
-		return { ref, syncData };
+	pwotected async updateWemoteUsewData(content: stwing, wef: stwing | nuww): Pwomise<IWemoteUsewData> {
+		const machineId = await this.cuwwentMachineIdPwomise;
+		const syncData: ISyncData = { vewsion: this.vewsion, machineId, content };
+		wef = await this.usewDataSyncStoweSewvice.wwite(this.wesouwce, JSON.stwingify(syncData), wef, this.syncHeadews);
+		wetuwn { wef, syncData };
 	}
 
-	protected async backupLocal(content: string): Promise<void> {
-		const syncData: ISyncData = { version: this.version, content };
-		return this.userDataSyncBackupStoreService.backup(this.resource, JSON.stringify(syncData));
+	pwotected async backupWocaw(content: stwing): Pwomise<void> {
+		const syncData: ISyncData = { vewsion: this.vewsion, content };
+		wetuwn this.usewDataSyncBackupStoweSewvice.backup(this.wesouwce, JSON.stwingify(syncData));
 	}
 
-	async stop(): Promise<void> {
-		if (this.status === SyncStatus.Idle) {
-			return;
-		}
-
-		this.logService.trace(`${this.syncResourceLogLabel}: Stopping synchronizing ${this.resource.toLowerCase()}.`);
-		if (this.syncPreviewPromise) {
-			this.syncPreviewPromise.cancel();
-			this.syncPreviewPromise = null;
+	async stop(): Pwomise<void> {
+		if (this.status === SyncStatus.Idwe) {
+			wetuwn;
 		}
 
-		this.updateConflicts([]);
-		await this.clearPreviewFolder();
+		this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Stopping synchwonizing ${this.wesouwce.toWowewCase()}.`);
+		if (this.syncPweviewPwomise) {
+			this.syncPweviewPwomise.cancew();
+			this.syncPweviewPwomise = nuww;
+		}
 
-		this.setStatus(SyncStatus.Idle);
-		this.logService.info(`${this.syncResourceLogLabel}: Stopped synchronizing ${this.resource.toLowerCase()}.`);
+		this.updateConfwicts([]);
+		await this.cweawPweviewFowda();
+
+		this.setStatus(SyncStatus.Idwe);
+		this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Stopped synchwonizing ${this.wesouwce.toWowewCase()}.`);
 	}
 
-	protected abstract readonly version: number;
-	protected abstract generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IResourcePreview[]>;
-	protected abstract getMergeResult(resourcePreview: IResourcePreview, token: CancellationToken): Promise<IMergeResult>;
-	protected abstract getAcceptResult(resourcePreview: IResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult>;
-	protected abstract applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, result: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void>;
+	pwotected abstwact weadonwy vewsion: numba;
+	pwotected abstwact genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<IWesouwcePweview[]>;
+	pwotected abstwact getMewgeWesuwt(wesouwcePweview: IWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt>;
+	pwotected abstwact getAcceptWesuwt(wesouwcePweview: IWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IAcceptWesuwt>;
+	pwotected abstwact appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesuwt: [IWesouwcePweview, IAcceptWesuwt][], fowce: boowean): Pwomise<void>;
 }
 
-export interface IFileResourcePreview extends IResourcePreview {
-	readonly fileContent: IFileContent | null;
+expowt intewface IFiweWesouwcePweview extends IWesouwcePweview {
+	weadonwy fiweContent: IFiweContent | nuww;
 }
 
-export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
+expowt abstwact cwass AbstwactFiweSynchwonisa extends AbstwactSynchwonisa {
 
-	constructor(
-		protected readonly file: URI,
-		resource: SyncResource,
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		pwotected weadonwy fiwe: UWI,
+		wesouwce: SyncWesouwce,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
-		this._register(this.fileService.watch(this.extUri.dirname(file)));
-		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
+		supa(wesouwce, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, configuwationSewvice);
+		this._wegista(this.fiweSewvice.watch(this.extUwi.diwname(fiwe)));
+		this._wegista(this.fiweSewvice.onDidFiwesChange(e => this.onFiweChanges(e)));
 	}
 
-	protected async getLocalFileContent(): Promise<IFileContent | null> {
-		try {
-			return await this.fileService.readFile(this.file);
-		} catch (error) {
-			return null;
+	pwotected async getWocawFiweContent(): Pwomise<IFiweContent | nuww> {
+		twy {
+			wetuwn await this.fiweSewvice.weadFiwe(this.fiwe);
+		} catch (ewwow) {
+			wetuwn nuww;
 		}
 	}
 
-	protected async updateLocalFileContent(newContent: string, oldContent: IFileContent | null, force: boolean): Promise<void> {
-		try {
-			if (oldContent) {
-				// file exists already
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(newContent), force ? undefined : oldContent);
-			} else {
-				// file does not exist
-				await this.fileService.createFile(this.file, VSBuffer.fromString(newContent), { overwrite: force });
+	pwotected async updateWocawFiweContent(newContent: stwing, owdContent: IFiweContent | nuww, fowce: boowean): Pwomise<void> {
+		twy {
+			if (owdContent) {
+				// fiwe exists awweady
+				await this.fiweSewvice.wwiteFiwe(this.fiwe, VSBuffa.fwomStwing(newContent), fowce ? undefined : owdContent);
+			} ewse {
+				// fiwe does not exist
+				await this.fiweSewvice.cweateFiwe(this.fiwe, VSBuffa.fwomStwing(newContent), { ovewwwite: fowce });
 			}
 		} catch (e) {
-			if ((e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) ||
-				(e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE)) {
-				throw new UserDataSyncError(e.message, UserDataSyncErrorCode.LocalPreconditionFailed);
-			} else {
-				throw e;
+			if ((e instanceof FiweOpewationEwwow && e.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND) ||
+				(e instanceof FiweOpewationEwwow && e.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_MODIFIED_SINCE)) {
+				thwow new UsewDataSyncEwwow(e.message, UsewDataSyncEwwowCode.WocawPweconditionFaiwed);
+			} ewse {
+				thwow e;
 			}
 		}
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
-		if (!e.contains(this.file)) {
-			return;
+	pwivate onFiweChanges(e: FiweChangesEvent): void {
+		if (!e.contains(this.fiwe)) {
+			wetuwn;
 		}
-		this.triggerLocalChange();
+		this.twiggewWocawChange();
 	}
 
 }
 
-export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroniser {
+expowt abstwact cwass AbstwactJsonFiweSynchwonisa extends AbstwactFiweSynchwonisa {
 
-	constructor(
-		file: URI,
-		resource: SyncResource,
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		fiwe: UWI,
+		wesouwce: SyncWesouwce,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IUsewDataSyncUtiwSewvice pwotected weadonwy usewDataSyncUtiwSewvice: IUsewDataSyncUtiwSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
+		supa(fiwe, wesouwce, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, configuwationSewvice);
 	}
 
-	protected hasErrors(content: string): boolean {
-		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors, { allowEmptyContent: true, allowTrailingComma: true });
-		return parseErrors.length > 0;
+	pwotected hasEwwows(content: stwing): boowean {
+		const pawseEwwows: PawseEwwow[] = [];
+		pawse(content, pawseEwwows, { awwowEmptyContent: twue, awwowTwaiwingComma: twue });
+		wetuwn pawseEwwows.wength > 0;
 	}
 
-	private _formattingOptions: Promise<FormattingOptions> | undefined = undefined;
-	protected getFormattingOptions(): Promise<FormattingOptions> {
-		if (!this._formattingOptions) {
-			this._formattingOptions = this.userDataSyncUtilService.resolveFormattingOptions(this.file);
+	pwivate _fowmattingOptions: Pwomise<FowmattingOptions> | undefined = undefined;
+	pwotected getFowmattingOptions(): Pwomise<FowmattingOptions> {
+		if (!this._fowmattingOptions) {
+			this._fowmattingOptions = this.usewDataSyncUtiwSewvice.wesowveFowmattingOptions(this.fiwe);
 		}
-		return this._formattingOptions;
+		wetuwn this._fowmattingOptions;
 	}
 
 }
 
-export abstract class AbstractInitializer implements IUserDataInitializer {
+expowt abstwact cwass AbstwactInitiawiza impwements IUsewDataInitiawiza {
 
-	protected readonly extUri: IExtUri;
-	private readonly lastSyncResource: URI;
+	pwotected weadonwy extUwi: IExtUwi;
+	pwivate weadonwy wastSyncWesouwce: UWI;
 
-	constructor(
-		readonly resource: SyncResource,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
-		@IFileService protected readonly fileService: IFileService,
+	constwuctow(
+		weadonwy wesouwce: SyncWesouwce,
+		@IEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice pwotected weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
 	) {
-		this.extUri = this.fileService.hasCapability(environmentService.userDataSyncHome, FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
-		this.lastSyncResource = getLastSyncResourceUri(this.resource, environmentService, extUri);
+		this.extUwi = this.fiweSewvice.hasCapabiwity(enviwonmentSewvice.usewDataSyncHome, FiweSystemPwovidewCapabiwities.PathCaseSensitive) ? extUwi : extUwiIgnowePathCase;
+		this.wastSyncWesouwce = getWastSyncWesouwceUwi(this.wesouwce, enviwonmentSewvice, extUwi);
 	}
 
-	async initialize({ ref, content }: IUserData): Promise<void> {
+	async initiawize({ wef, content }: IUsewData): Pwomise<void> {
 		if (!content) {
-			this.logService.info('Remote content does not exist.', this.resource);
-			return;
+			this.wogSewvice.info('Wemote content does not exist.', this.wesouwce);
+			wetuwn;
 		}
 
-		const syncData = this.parseSyncData(content);
+		const syncData = this.pawseSyncData(content);
 		if (!syncData) {
-			return;
+			wetuwn;
 		}
 
-		const isPreviouslySynced = await this.fileService.exists(this.lastSyncResource);
-		if (isPreviouslySynced) {
-			this.logService.info('Remote content does not exist.', this.resource);
-			return;
+		const isPweviouswySynced = await this.fiweSewvice.exists(this.wastSyncWesouwce);
+		if (isPweviouswySynced) {
+			this.wogSewvice.info('Wemote content does not exist.', this.wesouwce);
+			wetuwn;
 		}
 
-		try {
-			await this.doInitialize({ ref, syncData });
-		} catch (error) {
-			this.logService.error(error);
+		twy {
+			await this.doInitiawize({ wef, syncData });
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
 	}
 
-	private parseSyncData(content: string): ISyncData | undefined {
-		try {
-			const syncData: ISyncData = JSON.parse(content);
+	pwivate pawseSyncData(content: stwing): ISyncData | undefined {
+		twy {
+			const syncData: ISyncData = JSON.pawse(content);
 			if (isSyncData(syncData)) {
-				return syncData;
+				wetuwn syncData;
 			}
-		} catch (error) {
-			this.logService.error(error);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
-		this.logService.info('Cannot parse sync data as it is not compatible with the current version.', this.resource);
-		return undefined;
+		this.wogSewvice.info('Cannot pawse sync data as it is not compatibwe with the cuwwent vewsion.', this.wesouwce);
+		wetuwn undefined;
 	}
 
-	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
-		const lastSyncUserData: IUserData = { ref: lastSyncRemoteUserData.ref, content: lastSyncRemoteUserData.syncData ? JSON.stringify(lastSyncRemoteUserData.syncData) : null, ...additionalProps };
-		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
+	pwotected async updateWastSyncUsewData(wastSyncWemoteUsewData: IWemoteUsewData, additionawPwops: IStwingDictionawy<any> = {}): Pwomise<void> {
+		const wastSyncUsewData: IUsewData = { wef: wastSyncWemoteUsewData.wef, content: wastSyncWemoteUsewData.syncData ? JSON.stwingify(wastSyncWemoteUsewData.syncData) : nuww, ...additionawPwops };
+		await this.fiweSewvice.wwiteFiwe(this.wastSyncWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wastSyncUsewData)));
 	}
 
-	protected abstract doInitialize(remoteUserData: IRemoteUserData): Promise<void>;
+	pwotected abstwact doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void>;
 
 }

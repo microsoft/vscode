@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as glob from 'vs/base/common/glob';
-import * as resources from 'vs/base/common/resources';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { FileSearchProvider, FileSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
+impowt * as path fwom 'vs/base/common/path';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweMatch, IFiweSeawchPwovidewStats, IFowdewQuewy, ISeawchCompweteStats, IFiweQuewy, QuewyGwobTesta, wesowvePattewnsFowPwovida } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { FiweSeawchPwovida, FiweSeawchOptions } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
 
-export interface IInternalFileMatch {
-	base: URI;
-	original?: URI;
-	relativePath?: string; // Not present for extraFiles or absolute path matches
-	basename: string;
-	size?: number;
+expowt intewface IIntewnawFiweMatch {
+	base: UWI;
+	owiginaw?: UWI;
+	wewativePath?: stwing; // Not pwesent fow extwaFiwes ow absowute path matches
+	basename: stwing;
+	size?: numba;
 }
 
-export interface IDirectoryEntry {
-	base: URI;
-	relativePath: string;
-	basename: string;
+expowt intewface IDiwectowyEntwy {
+	base: UWI;
+	wewativePath: stwing;
+	basename: stwing;
 }
 
-export interface IDirectoryTree {
-	rootEntries: IDirectoryEntry[];
-	pathToEntries: { [relativePath: string]: IDirectoryEntry[] };
+expowt intewface IDiwectowyTwee {
+	wootEntwies: IDiwectowyEntwy[];
+	pathToEntwies: { [wewativePath: stwing]: IDiwectowyEntwy[] };
 }
 
-class FileSearchEngine {
-	private filePattern?: string;
-	private includePattern?: glob.ParsedExpression;
-	private maxResults?: number;
-	private exists?: boolean;
-	private isLimitHit = false;
-	private resultCount = 0;
-	private isCanceled = false;
+cwass FiweSeawchEngine {
+	pwivate fiwePattewn?: stwing;
+	pwivate incwudePattewn?: gwob.PawsedExpwession;
+	pwivate maxWesuwts?: numba;
+	pwivate exists?: boowean;
+	pwivate isWimitHit = fawse;
+	pwivate wesuwtCount = 0;
+	pwivate isCancewed = fawse;
 
-	private activeCancellationTokens: Set<CancellationTokenSource>;
+	pwivate activeCancewwationTokens: Set<CancewwationTokenSouwce>;
 
-	private globalExcludePattern?: glob.ParsedExpression;
+	pwivate gwobawExcwudePattewn?: gwob.PawsedExpwession;
 
-	constructor(private config: IFileQuery, private provider: FileSearchProvider, private sessionToken?: CancellationToken) {
-		this.filePattern = config.filePattern;
-		this.includePattern = config.includePattern && glob.parse(config.includePattern);
-		this.maxResults = config.maxResults || undefined;
+	constwuctow(pwivate config: IFiweQuewy, pwivate pwovida: FiweSeawchPwovida, pwivate sessionToken?: CancewwationToken) {
+		this.fiwePattewn = config.fiwePattewn;
+		this.incwudePattewn = config.incwudePattewn && gwob.pawse(config.incwudePattewn);
+		this.maxWesuwts = config.maxWesuwts || undefined;
 		this.exists = config.exists;
-		this.activeCancellationTokens = new Set<CancellationTokenSource>();
+		this.activeCancewwationTokens = new Set<CancewwationTokenSouwce>();
 
-		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
+		this.gwobawExcwudePattewn = config.excwudePattewn && gwob.pawse(config.excwudePattewn);
 	}
 
-	cancel(): void {
-		this.isCanceled = true;
-		this.activeCancellationTokens.forEach(t => t.cancel());
-		this.activeCancellationTokens = new Set();
+	cancew(): void {
+		this.isCancewed = twue;
+		this.activeCancewwationTokens.fowEach(t => t.cancew());
+		this.activeCancewwationTokens = new Set();
 	}
 
-	search(_onResult: (match: IInternalFileMatch) => void): Promise<IInternalSearchComplete> {
-		const folderQueries = this.config.folderQueries || [];
+	seawch(_onWesuwt: (match: IIntewnawFiweMatch) => void): Pwomise<IIntewnawSeawchCompwete> {
+		const fowdewQuewies = this.config.fowdewQuewies || [];
 
-		return new Promise((resolve, reject) => {
-			const onResult = (match: IInternalFileMatch) => {
-				this.resultCount++;
-				_onResult(match);
+		wetuwn new Pwomise((wesowve, weject) => {
+			const onWesuwt = (match: IIntewnawFiweMatch) => {
+				this.wesuwtCount++;
+				_onWesuwt(match);
 			};
 
-			// Support that the file pattern is a full path to a file that exists
-			if (this.isCanceled) {
-				return resolve({ limitHit: this.isLimitHit });
+			// Suppowt that the fiwe pattewn is a fuww path to a fiwe that exists
+			if (this.isCancewed) {
+				wetuwn wesowve({ wimitHit: this.isWimitHit });
 			}
 
-			// For each extra file
-			if (this.config.extraFileResources) {
-				this.config.extraFileResources
-					.forEach(extraFile => {
-						const extraFileStr = extraFile.toString(); // ?
-						const basename = path.basename(extraFileStr);
-						if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
-							return; // excluded
+			// Fow each extwa fiwe
+			if (this.config.extwaFiweWesouwces) {
+				this.config.extwaFiweWesouwces
+					.fowEach(extwaFiwe => {
+						const extwaFiweStw = extwaFiwe.toStwing(); // ?
+						const basename = path.basename(extwaFiweStw);
+						if (this.gwobawExcwudePattewn && this.gwobawExcwudePattewn(extwaFiweStw, basename)) {
+							wetuwn; // excwuded
 						}
 
-						// File: Check for match on file pattern and include pattern
-						this.matchFile(onResult, { base: extraFile, basename });
+						// Fiwe: Check fow match on fiwe pattewn and incwude pattewn
+						this.matchFiwe(onWesuwt, { base: extwaFiwe, basename });
 					});
 			}
 
-			// For each root folder
-			Promise.all(folderQueries.map(fq => {
-				return this.searchInFolder(fq, onResult);
+			// Fow each woot fowda
+			Pwomise.aww(fowdewQuewies.map(fq => {
+				wetuwn this.seawchInFowda(fq, onWesuwt);
 			})).then(stats => {
-				resolve({
-					limitHit: this.isLimitHit,
-					stats: stats[0] || undefined // Only looking at single-folder workspace stats...
+				wesowve({
+					wimitHit: this.isWimitHit,
+					stats: stats[0] || undefined // Onwy wooking at singwe-fowda wowkspace stats...
 				});
-			}, (err: Error) => {
-				reject(new Error(toErrorMessage(err)));
+			}, (eww: Ewwow) => {
+				weject(new Ewwow(toEwwowMessage(eww)));
 			});
 		});
 	}
 
-	private async searchInFolder(fq: IFolderQuery<URI>, onResult: (match: IInternalFileMatch) => void): Promise<IFileSearchProviderStats | null> {
-		const cancellation = new CancellationTokenSource();
-		const options = this.getSearchOptionsForFolder(fq);
-		const tree = this.initDirectoryTree();
+	pwivate async seawchInFowda(fq: IFowdewQuewy<UWI>, onWesuwt: (match: IIntewnawFiweMatch) => void): Pwomise<IFiweSeawchPwovidewStats | nuww> {
+		const cancewwation = new CancewwationTokenSouwce();
+		const options = this.getSeawchOptionsFowFowda(fq);
+		const twee = this.initDiwectowyTwee();
 
-		const queryTester = new QueryGlobTester(this.config, fq);
-		const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
+		const quewyTesta = new QuewyGwobTesta(this.config, fq);
+		const noSibwingsCwauses = !quewyTesta.hasSibwingExcwudeCwauses();
 
-		let providerSW: StopWatch;
+		wet pwovidewSW: StopWatch;
 
-		try {
-			this.activeCancellationTokens.add(cancellation);
+		twy {
+			this.activeCancewwationTokens.add(cancewwation);
 
-			providerSW = StopWatch.create();
-			const results = await this.provider.provideFileSearchResults(
+			pwovidewSW = StopWatch.cweate();
+			const wesuwts = await this.pwovida.pwovideFiweSeawchWesuwts(
 				{
-					pattern: this.config.filePattern || ''
+					pattewn: this.config.fiwePattewn || ''
 				},
 				options,
-				cancellation.token);
-			const providerTime = providerSW.elapsed();
-			const postProcessSW = StopWatch.create();
+				cancewwation.token);
+			const pwovidewTime = pwovidewSW.ewapsed();
+			const postPwocessSW = StopWatch.cweate();
 
-			if (this.isCanceled && !this.isLimitHit) {
-				return null;
+			if (this.isCancewed && !this.isWimitHit) {
+				wetuwn nuww;
 			}
 
-			if (results) {
-				results.forEach(result => {
-					const relativePath = path.posix.relative(fq.folder.path, result.path);
+			if (wesuwts) {
+				wesuwts.fowEach(wesuwt => {
+					const wewativePath = path.posix.wewative(fq.fowda.path, wesuwt.path);
 
-					if (noSiblingsClauses) {
-						const basename = path.basename(result.path);
-						this.matchFile(onResult, { base: fq.folder, relativePath, basename });
+					if (noSibwingsCwauses) {
+						const basename = path.basename(wesuwt.path);
+						this.matchFiwe(onWesuwt, { base: fq.fowda, wewativePath, basename });
 
-						return;
+						wetuwn;
 					}
 
-					// TODO: Optimize siblings clauses with ripgrep here.
-					this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
+					// TODO: Optimize sibwings cwauses with wipgwep hewe.
+					this.addDiwectowyEntwies(twee, fq.fowda, wewativePath, onWesuwt);
 				});
 			}
 
-			if (this.isCanceled && !this.isLimitHit) {
-				return null;
+			if (this.isCancewed && !this.isWimitHit) {
+				wetuwn nuww;
 			}
 
-			this.matchDirectoryTree(tree, queryTester, onResult);
-			return <IFileSearchProviderStats>{
-				providerTime,
-				postProcessTime: postProcessSW.elapsed()
+			this.matchDiwectowyTwee(twee, quewyTesta, onWesuwt);
+			wetuwn <IFiweSeawchPwovidewStats>{
+				pwovidewTime,
+				postPwocessTime: postPwocessSW.ewapsed()
 			};
-		} finally {
-			cancellation.dispose();
-			this.activeCancellationTokens.delete(cancellation);
+		} finawwy {
+			cancewwation.dispose();
+			this.activeCancewwationTokens.dewete(cancewwation);
 		}
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): FileSearchOptions {
-		const includes = resolvePatternsForProvider(this.config.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.config.excludePattern, fq.excludePattern);
+	pwivate getSeawchOptionsFowFowda(fq: IFowdewQuewy<UWI>): FiweSeawchOptions {
+		const incwudes = wesowvePattewnsFowPwovida(this.config.incwudePattewn, fq.incwudePattewn);
+		const excwudes = wesowvePattewnsFowPwovida(this.config.excwudePattewn, fq.excwudePattewn);
 
-		return {
-			folder: fq.folder,
-			excludes,
-			includes,
-			useIgnoreFiles: !fq.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
-			followSymlinks: !fq.ignoreSymlinks,
-			maxResults: this.config.maxResults,
+		wetuwn {
+			fowda: fq.fowda,
+			excwudes,
+			incwudes,
+			useIgnoweFiwes: !fq.diswegawdIgnoweFiwes,
+			useGwobawIgnoweFiwes: !fq.diswegawdGwobawIgnoweFiwes,
+			fowwowSymwinks: !fq.ignoweSymwinks,
+			maxWesuwts: this.config.maxWesuwts,
 			session: this.sessionToken
 		};
 	}
 
-	private initDirectoryTree(): IDirectoryTree {
-		const tree: IDirectoryTree = {
-			rootEntries: [],
-			pathToEntries: Object.create(null)
+	pwivate initDiwectowyTwee(): IDiwectowyTwee {
+		const twee: IDiwectowyTwee = {
+			wootEntwies: [],
+			pathToEntwies: Object.cweate(nuww)
 		};
-		tree.pathToEntries['.'] = tree.rootEntries;
-		return tree;
+		twee.pathToEntwies['.'] = twee.wootEntwies;
+		wetuwn twee;
 	}
 
-	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: URI, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
-		// Support relative paths to files from a root resource (ignores excludes)
-		if (relativeFile === this.filePattern) {
-			const basename = path.basename(this.filePattern);
-			this.matchFile(onResult, { base: base, relativePath: this.filePattern, basename });
+	pwivate addDiwectowyEntwies({ pathToEntwies }: IDiwectowyTwee, base: UWI, wewativeFiwe: stwing, onWesuwt: (wesuwt: IIntewnawFiweMatch) => void) {
+		// Suppowt wewative paths to fiwes fwom a woot wesouwce (ignowes excwudes)
+		if (wewativeFiwe === this.fiwePattewn) {
+			const basename = path.basename(this.fiwePattewn);
+			this.matchFiwe(onWesuwt, { base: base, wewativePath: this.fiwePattewn, basename });
 		}
 
-		function add(relativePath: string) {
-			const basename = path.basename(relativePath);
-			const dirname = path.dirname(relativePath);
-			let entries = pathToEntries[dirname];
-			if (!entries) {
-				entries = pathToEntries[dirname] = [];
-				add(dirname);
+		function add(wewativePath: stwing) {
+			const basename = path.basename(wewativePath);
+			const diwname = path.diwname(wewativePath);
+			wet entwies = pathToEntwies[diwname];
+			if (!entwies) {
+				entwies = pathToEntwies[diwname] = [];
+				add(diwname);
 			}
-			entries.push({
+			entwies.push({
 				base,
-				relativePath,
+				wewativePath,
 				basename
 			});
 		}
 
-		add(relativeFile);
+		add(wewativeFiwe);
 	}
 
-	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, queryTester: QueryGlobTester, onResult: (result: IInternalFileMatch) => void) {
-		const self = this;
-		const filePattern = this.filePattern;
-		function matchDirectory(entries: IDirectoryEntry[]) {
-			const hasSibling = glob.hasSiblingFn(() => entries.map(entry => entry.basename));
-			for (let i = 0, n = entries.length; i < n; i++) {
-				const entry = entries[i];
-				const { relativePath, basename } = entry;
+	pwivate matchDiwectowyTwee({ wootEntwies, pathToEntwies }: IDiwectowyTwee, quewyTesta: QuewyGwobTesta, onWesuwt: (wesuwt: IIntewnawFiweMatch) => void) {
+		const sewf = this;
+		const fiwePattewn = this.fiwePattewn;
+		function matchDiwectowy(entwies: IDiwectowyEntwy[]) {
+			const hasSibwing = gwob.hasSibwingFn(() => entwies.map(entwy => entwy.basename));
+			fow (wet i = 0, n = entwies.wength; i < n; i++) {
+				const entwy = entwies[i];
+				const { wewativePath, basename } = entwy;
 
-				// Check exclude pattern
-				// If the user searches for the exact file name, we adjust the glob matching
-				// to ignore filtering by siblings because the user seems to know what she
-				// is searching for and we want to include the result in that case anyway
-				if (!queryTester.includedInQuerySync(relativePath, basename, filePattern !== basename ? hasSibling : undefined)) {
+				// Check excwude pattewn
+				// If the usa seawches fow the exact fiwe name, we adjust the gwob matching
+				// to ignowe fiwtewing by sibwings because the usa seems to know what she
+				// is seawching fow and we want to incwude the wesuwt in that case anyway
+				if (!quewyTesta.incwudedInQuewySync(wewativePath, basename, fiwePattewn !== basename ? hasSibwing : undefined)) {
 					continue;
 				}
 
-				const sub = pathToEntries[relativePath];
+				const sub = pathToEntwies[wewativePath];
 				if (sub) {
-					matchDirectory(sub);
-				} else {
-					if (relativePath === filePattern) {
-						continue; // ignore file if its path matches with the file pattern because that is already matched above
+					matchDiwectowy(sub);
+				} ewse {
+					if (wewativePath === fiwePattewn) {
+						continue; // ignowe fiwe if its path matches with the fiwe pattewn because that is awweady matched above
 					}
 
-					self.matchFile(onResult, entry);
+					sewf.matchFiwe(onWesuwt, entwy);
 				}
 
-				if (self.isLimitHit) {
-					break;
+				if (sewf.isWimitHit) {
+					bweak;
 				}
 			}
 		}
-		matchDirectory(rootEntries);
+		matchDiwectowy(wootEntwies);
 	}
 
-	private matchFile(onResult: (result: IInternalFileMatch) => void, candidate: IInternalFileMatch): void {
-		if (!this.includePattern || (candidate.relativePath && this.includePattern(candidate.relativePath, candidate.basename))) {
-			if (this.exists || (this.maxResults && this.resultCount >= this.maxResults)) {
-				this.isLimitHit = true;
-				this.cancel();
+	pwivate matchFiwe(onWesuwt: (wesuwt: IIntewnawFiweMatch) => void, candidate: IIntewnawFiweMatch): void {
+		if (!this.incwudePattewn || (candidate.wewativePath && this.incwudePattewn(candidate.wewativePath, candidate.basename))) {
+			if (this.exists || (this.maxWesuwts && this.wesuwtCount >= this.maxWesuwts)) {
+				this.isWimitHit = twue;
+				this.cancew();
 			}
 
-			if (!this.isLimitHit) {
-				onResult(candidate);
+			if (!this.isWimitHit) {
+				onWesuwt(candidate);
 			}
 		}
 	}
 }
 
-interface IInternalSearchComplete {
-	limitHit: boolean;
-	stats?: IFileSearchProviderStats;
+intewface IIntewnawSeawchCompwete {
+	wimitHit: boowean;
+	stats?: IFiweSeawchPwovidewStats;
 }
 
-export class FileSearchManager {
+expowt cwass FiweSeawchManaga {
 
-	private static readonly BATCH_SIZE = 512;
+	pwivate static weadonwy BATCH_SIZE = 512;
 
-	private readonly sessions = new Map<string, CancellationTokenSource>();
+	pwivate weadonwy sessions = new Map<stwing, CancewwationTokenSouwce>();
 
-	fileSearch(config: IFileQuery, provider: FileSearchProvider, onBatch: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const sessionTokenSource = this.getSessionTokenSource(config.cacheKey);
-		const engine = new FileSearchEngine(config, provider, sessionTokenSource && sessionTokenSource.token);
+	fiweSeawch(config: IFiweQuewy, pwovida: FiweSeawchPwovida, onBatch: (matches: IFiweMatch[]) => void, token: CancewwationToken): Pwomise<ISeawchCompweteStats> {
+		const sessionTokenSouwce = this.getSessionTokenSouwce(config.cacheKey);
+		const engine = new FiweSeawchEngine(config, pwovida, sessionTokenSouwce && sessionTokenSouwce.token);
 
-		let resultCount = 0;
-		const onInternalResult = (batch: IInternalFileMatch[]) => {
-			resultCount += batch.length;
-			onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
+		wet wesuwtCount = 0;
+		const onIntewnawWesuwt = (batch: IIntewnawFiweMatch[]) => {
+			wesuwtCount += batch.wength;
+			onBatch(batch.map(m => this.wawMatchToSeawchItem(m)));
 		};
 
-		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).then(
-			result => {
-				return <ISearchCompleteStats>{
-					limitHit: result.limitHit,
+		wetuwn this.doSeawch(engine, FiweSeawchManaga.BATCH_SIZE, onIntewnawWesuwt, token).then(
+			wesuwt => {
+				wetuwn <ISeawchCompweteStats>{
+					wimitHit: wesuwt.wimitHit,
 					stats: {
-						fromCache: false,
-						type: 'fileSearchProvider',
-						resultCount,
-						detailStats: result.stats
+						fwomCache: fawse,
+						type: 'fiweSeawchPwovida',
+						wesuwtCount,
+						detaiwStats: wesuwt.stats
 					}
 				};
 			});
 	}
 
-	clearCache(cacheKey: string): void {
-		const sessionTokenSource = this.getSessionTokenSource(cacheKey);
-		if (sessionTokenSource) {
-			sessionTokenSource.cancel();
+	cweawCache(cacheKey: stwing): void {
+		const sessionTokenSouwce = this.getSessionTokenSouwce(cacheKey);
+		if (sessionTokenSouwce) {
+			sessionTokenSouwce.cancew();
 		}
 	}
 
-	private getSessionTokenSource(cacheKey: string | undefined): CancellationTokenSource | undefined {
+	pwivate getSessionTokenSouwce(cacheKey: stwing | undefined): CancewwationTokenSouwce | undefined {
 		if (!cacheKey) {
-			return undefined;
+			wetuwn undefined;
 		}
 
 		if (!this.sessions.has(cacheKey)) {
-			this.sessions.set(cacheKey, new CancellationTokenSource());
+			this.sessions.set(cacheKey, new CancewwationTokenSouwce());
 		}
 
-		return this.sessions.get(cacheKey);
+		wetuwn this.sessions.get(cacheKey);
 	}
 
-	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
-		if (match.relativePath) {
-			return {
-				resource: resources.joinPath(match.base, match.relativePath)
+	pwivate wawMatchToSeawchItem(match: IIntewnawFiweMatch): IFiweMatch {
+		if (match.wewativePath) {
+			wetuwn {
+				wesouwce: wesouwces.joinPath(match.base, match.wewativePath)
 			};
-		} else {
-			// extraFileResources
-			return {
-				resource: match.base
+		} ewse {
+			// extwaFiweWesouwces
+			wetuwn {
+				wesouwce: match.base
 			};
 		}
 	}
 
-	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): Promise<IInternalSearchComplete> {
-		token.onCancellationRequested(() => {
-			engine.cancel();
+	pwivate doSeawch(engine: FiweSeawchEngine, batchSize: numba, onWesuwtBatch: (matches: IIntewnawFiweMatch[]) => void, token: CancewwationToken): Pwomise<IIntewnawSeawchCompwete> {
+		token.onCancewwationWequested(() => {
+			engine.cancew();
 		});
 
-		const _onResult = (match: IInternalFileMatch) => {
+		const _onWesuwt = (match: IIntewnawFiweMatch) => {
 			if (match) {
 				batch.push(match);
-				if (batchSize > 0 && batch.length >= batchSize) {
-					onResultBatch(batch);
+				if (batchSize > 0 && batch.wength >= batchSize) {
+					onWesuwtBatch(batch);
 					batch = [];
 				}
 			}
 		};
 
-		let batch: IInternalFileMatch[] = [];
-		return engine.search(_onResult).then(result => {
-			if (batch.length) {
-				onResultBatch(batch);
+		wet batch: IIntewnawFiweMatch[] = [];
+		wetuwn engine.seawch(_onWesuwt).then(wesuwt => {
+			if (batch.wength) {
+				onWesuwtBatch(batch);
 			}
 
-			return result;
-		}, error => {
-			if (batch.length) {
-				onResultBatch(batch);
+			wetuwn wesuwt;
+		}, ewwow => {
+			if (batch.wength) {
+				onWesuwtBatch(batch);
 			}
 
-			return Promise.reject(error);
+			wetuwn Pwomise.weject(ewwow);
 		});
 	}
 }

@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function escapeRegExp(text: string) {
-	return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+expowt function escapeWegExp(text: stwing) {
+	wetuwn text.wepwace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
 }

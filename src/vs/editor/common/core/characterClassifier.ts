@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toUint8 } from 'vs/base/common/uint';
+impowt { toUint8 } fwom 'vs/base/common/uint';
 
 /**
- * A fast character classifier that uses a compact array for ASCII values.
+ * A fast chawacta cwassifia that uses a compact awway fow ASCII vawues.
  */
-export class CharacterClassifier<T extends number> {
+expowt cwass ChawactewCwassifia<T extends numba> {
 	/**
-	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
+	 * Maintain a compact (fuwwy initiawized ASCII map fow quickwy cwassifying ASCII chawactews - used mowe often in code).
 	 */
-	protected _asciiMap: Uint8Array;
+	pwotected _asciiMap: Uint8Awway;
 
 	/**
-	 * The entire map (sparse array).
+	 * The entiwe map (spawse awway).
 	 */
-	protected _map: Map<number, number>;
+	pwotected _map: Map<numba, numba>;
 
-	protected _defaultValue: number;
+	pwotected _defauwtVawue: numba;
 
-	constructor(_defaultValue: T) {
-		let defaultValue = toUint8(_defaultValue);
+	constwuctow(_defauwtVawue: T) {
+		wet defauwtVawue = toUint8(_defauwtVawue);
 
-		this._defaultValue = defaultValue;
-		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
-		this._map = new Map<number, number>();
+		this._defauwtVawue = defauwtVawue;
+		this._asciiMap = ChawactewCwassifia._cweateAsciiMap(defauwtVawue);
+		this._map = new Map<numba, numba>();
 	}
 
-	private static _createAsciiMap(defaultValue: number): Uint8Array {
-		let asciiMap: Uint8Array = new Uint8Array(256);
-		for (let i = 0; i < 256; i++) {
-			asciiMap[i] = defaultValue;
+	pwivate static _cweateAsciiMap(defauwtVawue: numba): Uint8Awway {
+		wet asciiMap: Uint8Awway = new Uint8Awway(256);
+		fow (wet i = 0; i < 256; i++) {
+			asciiMap[i] = defauwtVawue;
 		}
-		return asciiMap;
+		wetuwn asciiMap;
 	}
 
-	public set(charCode: number, _value: T): void {
-		let value = toUint8(_value);
+	pubwic set(chawCode: numba, _vawue: T): void {
+		wet vawue = toUint8(_vawue);
 
-		if (charCode >= 0 && charCode < 256) {
-			this._asciiMap[charCode] = value;
-		} else {
-			this._map.set(charCode, value);
+		if (chawCode >= 0 && chawCode < 256) {
+			this._asciiMap[chawCode] = vawue;
+		} ewse {
+			this._map.set(chawCode, vawue);
 		}
 	}
 
-	public get(charCode: number): T {
-		if (charCode >= 0 && charCode < 256) {
-			return <T>this._asciiMap[charCode];
-		} else {
-			return <T>(this._map.get(charCode) || this._defaultValue);
+	pubwic get(chawCode: numba): T {
+		if (chawCode >= 0 && chawCode < 256) {
+			wetuwn <T>this._asciiMap[chawCode];
+		} ewse {
+			wetuwn <T>(this._map.get(chawCode) || this._defauwtVawue);
 		}
 	}
 }
 
-const enum Boolean {
-	False = 0,
-	True = 1
+const enum Boowean {
+	Fawse = 0,
+	Twue = 1
 }
 
-export class CharacterSet {
+expowt cwass ChawactewSet {
 
-	private readonly _actual: CharacterClassifier<Boolean>;
+	pwivate weadonwy _actuaw: ChawactewCwassifia<Boowean>;
 
-	constructor() {
-		this._actual = new CharacterClassifier<Boolean>(Boolean.False);
+	constwuctow() {
+		this._actuaw = new ChawactewCwassifia<Boowean>(Boowean.Fawse);
 	}
 
-	public add(charCode: number): void {
-		this._actual.set(charCode, Boolean.True);
+	pubwic add(chawCode: numba): void {
+		this._actuaw.set(chawCode, Boowean.Twue);
 	}
 
-	public has(charCode: number): boolean {
-		return (this._actual.get(charCode) === Boolean.True);
+	pubwic has(chawCode: numba): boowean {
+		wetuwn (this._actuaw.get(chawCode) === Boowean.Twue);
 	}
 }

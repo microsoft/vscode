@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { CHANGE_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { CHANGE_CEWW_WANGUAGE } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
+impowt { CewwKind, CewwStatusbawAwignment, INotebookCewwStatusBawItem, INotebookCewwStatusBawItemWist, INotebookCewwStatusBawItemPwovida } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-class CellStatusBarLanguagePickerProvider implements INotebookCellStatusBarItemProvider {
+cwass CewwStatusBawWanguagePickewPwovida impwements INotebookCewwStatusBawItemPwovida {
 
-	readonly viewType = '*';
+	weadonwy viewType = '*';
 
-	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
-		@IModeService private readonly _modeService: IModeService,
+	constwuctow(
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
 	) { }
 
-	async provideCellStatusBarItems(uri: URI, index: number, _token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined> {
-		const doc = this._notebookService.getNotebookTextModel(uri);
-		const cell = doc?.cells[index];
-		if (!cell) {
-			return;
+	async pwovideCewwStatusBawItems(uwi: UWI, index: numba, _token: CancewwationToken): Pwomise<INotebookCewwStatusBawItemWist | undefined> {
+		const doc = this._notebookSewvice.getNotebookTextModew(uwi);
+		const ceww = doc?.cewws[index];
+		if (!ceww) {
+			wetuwn;
 		}
 
-		const modeId = cell.cellKind === CellKind.Markup ?
-			'markdown' :
-			(this._modeService.getModeIdForLanguageName(cell.language) || cell.language);
-		const text = this._modeService.getLanguageName(modeId) || this._modeService.getLanguageName('plaintext');
-		const item = <INotebookCellStatusBarItem>{
+		const modeId = ceww.cewwKind === CewwKind.Mawkup ?
+			'mawkdown' :
+			(this._modeSewvice.getModeIdFowWanguageName(ceww.wanguage) || ceww.wanguage);
+		const text = this._modeSewvice.getWanguageName(modeId) || this._modeSewvice.getWanguageName('pwaintext');
+		const item = <INotebookCewwStatusBawItem>{
 			text,
-			command: CHANGE_CELL_LANGUAGE,
-			tooltip: localize('notebook.cell.status.language', "Select Cell Language Mode"),
-			alignment: CellStatusbarAlignment.Right,
-			priority: -Number.MAX_SAFE_INTEGER
+			command: CHANGE_CEWW_WANGUAGE,
+			toowtip: wocawize('notebook.ceww.status.wanguage', "Sewect Ceww Wanguage Mode"),
+			awignment: CewwStatusbawAwignment.Wight,
+			pwiowity: -Numba.MAX_SAFE_INTEGa
 		};
-		return {
+		wetuwn {
 			items: [item]
 		};
 	}
 }
 
-class BuiltinCellStatusBarProviders extends Disposable {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookCellStatusBarService notebookCellStatusBarService: INotebookCellStatusBarService) {
-		super();
+cwass BuiwtinCewwStatusBawPwovidews extends Disposabwe {
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotebookCewwStatusBawSewvice notebookCewwStatusBawSewvice: INotebookCewwStatusBawSewvice) {
+		supa();
 
-		const builtinProviders = [
-			CellStatusBarLanguagePickerProvider,
+		const buiwtinPwovidews = [
+			CewwStatusBawWanguagePickewPwovida,
 		];
-		builtinProviders.forEach(p => {
-			this._register(notebookCellStatusBarService.registerCellStatusBarItemProvider(instantiationService.createInstance(p)));
+		buiwtinPwovidews.fowEach(p => {
+			this._wegista(notebookCewwStatusBawSewvice.wegistewCewwStatusBawItemPwovida(instantiationSewvice.cweateInstance(p)));
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinCellStatusBarProviders, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(BuiwtinCewwStatusBawPwovidews, WifecycwePhase.Westowed);

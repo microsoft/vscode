@@ -1,500 +1,500 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection, CompletionList, CancellationTokenSource, Position, CompletionTriggerKind } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandEmmetAbbreviation } from '../abbreviationActions';
-import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection, CompwetionWist, CancewwationTokenSouwce, Position, CompwetionTwiggewKind } fwom 'vscode';
+impowt { withWandomFiweEditow, cwoseAwwEditows } fwom './testUtiws';
+impowt { expandEmmetAbbweviation } fwom '../abbweviationActions';
+impowt { DefauwtCompwetionItemPwovida } fwom '../defauwtCompwetionPwovida';
 
-const completionProvider = new DefaultCompletionItemProvider();
+const compwetionPwovida = new DefauwtCompwetionItemPwovida();
 const cssContents = `
 .boo {
-	margin: 20px 10px;
+	mawgin: 20px 10px;
 	pos:f
-	background-image: url('tryme.png');
+	backgwound-image: uww('twyme.png');
 	pos:f
 }
 
 .boo .hoo {
-	margin: 10px;
+	mawgin: 10px;
 	ind
 }
 `;
 
 const scssContents = `
 .boo {
-	margin: 10px;
+	mawgin: 10px;
 	p10
 	.hoo {
 		p20
 	}
 }
-@include b(alert) {
+@incwude b(awewt) {
 
-	margin: 10px;
+	mawgin: 10px;
 	p30
 
-	@include b(alert) {
+	@incwude b(awewt) {
 		p40
 	}
 }
 .foo {
-	margin: 10px;
-	margin: a
+	mawgin: 10px;
+	mawgin: a
 	.hoo {
-		color: #000;
+		cowow: #000;
 	}
 }
 `;
 
 
-suite('Tests for Expand Abbreviations (CSS)', () => {
-	teardown(closeAllEditors);
+suite('Tests fow Expand Abbweviations (CSS)', () => {
+	teawdown(cwoseAwwEditows);
 
-	test('Expand abbreviation (CSS)', () => {
-		return withRandomFileEditor(cssContents, 'css', (editor, _) => {
-			editor.selections = [new Selection(3, 1, 3, 6), new Selection(5, 1, 5, 6)];
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), cssContents.replace(/pos:f/g, 'position: fixed;'));
-				return Promise.resolve();
+	test('Expand abbweviation (CSS)', () => {
+		wetuwn withWandomFiweEditow(cssContents, 'css', (editow, _) => {
+			editow.sewections = [new Sewection(3, 1, 3, 6), new Sewection(5, 1, 5, 6)];
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), cssContents.wepwace(/pos:f/g, 'position: fixed;'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('No emmet when cursor inside comment (CSS)', () => {
+	test('No emmet when cuwsow inside comment (CSS)', () => {
 		const testContent = `
 .foo {
-	/*margin: 10px;
+	/*mawgin: 10px;
 	m10
 	padding: 10px;*/
-	display: auto;
+	dispway: auto;
 }
 `;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(3, 4, 3, 4);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(3, 4, 3, 4);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('No emmet when cursor in selector of a rule (CSS)', () => {
+	test('No emmet when cuwsow in sewectow of a wuwe (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: 10px;
+	mawgin: 10px;
 }
 
 nav#
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(5, 4, 5, 4);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(5, 4, 5, 4);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Skip when typing property values when there is a property in the next line (CSS)', () => {
+	test('Skip when typing pwopewty vawues when thewe is a pwopewty in the next wine (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: a
-	margin: 10px;
+	mawgin: a
+	mawgin: 10px;
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(2, 10, 2, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(2, 10, 2, 10);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Skip when typing the last property value in single line rules (CSS)', () => {
-		const testContent = `.foo {padding: 10px; margin: a}`;
+	test('Skip when typing the wast pwopewty vawue in singwe wine wuwes (CSS)', () => {
+		const testContent = `.foo {padding: 10px; mawgin: a}`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(0, 30, 0, 30);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(0, 30), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(0, 30, 0, 30);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(0, 30), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Allow hex color or !important when typing property values when there is a property in the next line (CSS)', () => {
+	test('Awwow hex cowow ow !impowtant when typing pwopewty vawues when thewe is a pwopewty in the next wine (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: #12 !
-	margin: 10px;
+	mawgin: #12 !
+	mawgin: 10px;
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			const cancewSwc = new CancewwationTokenSouwce();
+			const compwetionPwomise1 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 12), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise2 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 14), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
 
-			if (!completionPromise1 || !completionPromise2) {
-				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
-				return Promise.resolve();
+			if (!compwetionPwomise1 || !compwetionPwomise2) {
+				assewt.stwictEquaw(1, 2, `Compwetion pwomise wasnt wetuwned`);
+				wetuwn Pwomise.wesowve();
 			}
 
-			const callBack = (completionList: CompletionList, expandedText: string) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.strictEqual(1, 2, `Empty Completions`);
-					return;
+			const cawwBack = (compwetionWist: CompwetionWist, expandedText: stwing) => {
+				if (!compwetionWist.items || !compwetionWist.items.wength) {
+					assewt.stwictEquaw(1, 2, `Empty Compwetions`);
+					wetuwn;
 				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+				const emmetCompwetionItem = compwetionWist.items[0];
+				assewt.stwictEquaw(emmetCompwetionItem.wabew, expandedText, `Wabew of compwetion item doesnt match.`);
+				assewt.stwictEquaw((<stwing>emmetCompwetionItem.documentation || '').wepwace(/\|/g, ''), expandedText, `Docs of compwetion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
-				callBack(result1, '#121212');
-				callBack(result2, '!important');
-				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
-				return expandEmmetAbbreviation(null).then(() => {
-					assert.strictEqual(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+			wetuwn Pwomise.aww<CompwetionWist>([compwetionPwomise1, compwetionPwomise2]).then(([wesuwt1, wesuwt2]) => {
+				cawwBack(wesuwt1, '#121212');
+				cawwBack(wesuwt2, '!impowtant');
+				editow.sewections = [new Sewection(2, 12, 2, 12), new Sewection(2, 14, 2, 14)];
+				wetuwn expandEmmetAbbweviation(nuww).then(() => {
+					assewt.stwictEquaw(editow.document.getText(), testContent.wepwace('#12', '#121212').wepwace('!', '!impowtant'));
 				});
 			});
 		});
 	});
 
-	test('Skip when typing property values when there is a property in the previous line (CSS)', () => {
+	test('Skip when typing pwopewty vawues when thewe is a pwopewty in the pwevious wine (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: 10px;
-	margin: a
+	mawgin: 10px;
+	mawgin: a
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(3, 10, 3, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(3, 10, 3, 10);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(3, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Allow hex color or !important when typing property values when there is a property in the previous line (CSS)', () => {
+	test('Awwow hex cowow ow !impowtant when typing pwopewty vawues when thewe is a pwopewty in the pwevious wine (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: 10px;
-	margin: #12 !
+	mawgin: 10px;
+	mawgin: #12 !
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(3, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			const cancewSwc = new CancewwationTokenSouwce();
+			const compwetionPwomise1 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(3, 12), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise2 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(3, 14), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
 
-			if (!completionPromise1 || !completionPromise2) {
-				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
-				return Promise.resolve();
+			if (!compwetionPwomise1 || !compwetionPwomise2) {
+				assewt.stwictEquaw(1, 2, `Compwetion pwomise wasnt wetuwned`);
+				wetuwn Pwomise.wesowve();
 			}
 
-			const callBack = (completionList: CompletionList, expandedText: string) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.strictEqual(1, 2, `Empty Completions`);
-					return;
+			const cawwBack = (compwetionWist: CompwetionWist, expandedText: stwing) => {
+				if (!compwetionWist.items || !compwetionWist.items.wength) {
+					assewt.stwictEquaw(1, 2, `Empty Compwetions`);
+					wetuwn;
 				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+				const emmetCompwetionItem = compwetionWist.items[0];
+				assewt.stwictEquaw(emmetCompwetionItem.wabew, expandedText, `Wabew of compwetion item doesnt match.`);
+				assewt.stwictEquaw((<stwing>emmetCompwetionItem.documentation || '').wepwace(/\|/g, ''), expandedText, `Docs of compwetion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
-				callBack(result1, '#121212');
-				callBack(result2, '!important');
-				editor.selections = [new Selection(3, 12, 3, 12), new Selection(3, 14, 3, 14)];
-				return expandEmmetAbbreviation(null).then(() => {
-					assert.strictEqual(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+			wetuwn Pwomise.aww<CompwetionWist>([compwetionPwomise1, compwetionPwomise2]).then(([wesuwt1, wesuwt2]) => {
+				cawwBack(wesuwt1, '#121212');
+				cawwBack(wesuwt2, '!impowtant');
+				editow.sewections = [new Sewection(3, 12, 3, 12), new Sewection(3, 14, 3, 14)];
+				wetuwn expandEmmetAbbweviation(nuww).then(() => {
+					assewt.stwictEquaw(editow.document.getText(), testContent.wepwace('#12', '#121212').wepwace('!', '!impowtant'));
 				});
 			});
 		});
 	});
 
-	test('Skip when typing property values when it is the only property in the rule (CSS)', () => {
+	test('Skip when typing pwopewty vawues when it is the onwy pwopewty in the wuwe (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: a
+	mawgin: a
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(2, 10, 2, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(2, 10, 2, 10);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Allow hex colors or !important when typing property values when it is the only property in the rule (CSS)', () => {
+	test('Awwow hex cowows ow !impowtant when typing pwopewty vawues when it is the onwy pwopewty in the wuwe (CSS)', () => {
 		const testContent = `
 .foo {
-	margin: #12 !
+	mawgin: #12 !
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			const cancewSwc = new CancewwationTokenSouwce();
+			const compwetionPwomise1 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 12), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise2 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 14), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
 
-			if (!completionPromise1 || !completionPromise2) {
-				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
-				return Promise.resolve();
+			if (!compwetionPwomise1 || !compwetionPwomise2) {
+				assewt.stwictEquaw(1, 2, `Compwetion pwomise wasnt wetuwned`);
+				wetuwn Pwomise.wesowve();
 			}
 
-			const callBack = (completionList: CompletionList, expandedText: string) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.strictEqual(1, 2, `Empty Completions`);
-					return;
+			const cawwBack = (compwetionWist: CompwetionWist, expandedText: stwing) => {
+				if (!compwetionWist.items || !compwetionWist.items.wength) {
+					assewt.stwictEquaw(1, 2, `Empty Compwetions`);
+					wetuwn;
 				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
+				const emmetCompwetionItem = compwetionWist.items[0];
+				assewt.stwictEquaw(emmetCompwetionItem.wabew, expandedText, `Wabew of compwetion item doesnt match.`);
+				assewt.stwictEquaw((<stwing>emmetCompwetionItem.documentation || '').wepwace(/\|/g, ''), expandedText, `Docs of compwetion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
-				callBack(result1, '#121212');
-				callBack(result2, '!important');
-				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
-				return expandEmmetAbbreviation(null).then(() => {
-					assert.strictEqual(editor.document.getText(), testContent.replace('#12', '#121212').replace('!', '!important'));
+			wetuwn Pwomise.aww<CompwetionWist>([compwetionPwomise1, compwetionPwomise2]).then(([wesuwt1, wesuwt2]) => {
+				cawwBack(wesuwt1, '#121212');
+				cawwBack(wesuwt2, '!impowtant');
+				editow.sewections = [new Sewection(2, 12, 2, 12), new Sewection(2, 14, 2, 14)];
+				wetuwn expandEmmetAbbweviation(nuww).then(() => {
+					assewt.stwictEquaw(editow.document.getText(), testContent.wepwace('#12', '#121212').wepwace('!', '!impowtant'));
 				});
 			});
 		});
 	});
 
-	test('# shouldnt expand to hex color when in selector (CSS)', () => {
+	test('# shouwdnt expand to hex cowow when in sewectow (CSS)', () => {
 		const testContent = `
 .foo {
 	#
 }
 		`;
 
-		return withRandomFileEditor(testContent, 'css', (editor, _) => {
-			editor.selection = new Selection(2, 2, 2, 2);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), testContent);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 2), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion of hex color at property name`);
+		wetuwn withWandomFiweEditow(testContent, 'css', (editow, _) => {
+			editow.sewection = new Sewection(2, 2, 2, 2);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), testContent);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(2, 2), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion of hex cowow at pwopewty name`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
 
-	test('Expand abbreviation in completion list (CSS)', () => {
-		const abbreviation = 'pos:f';
+	test('Expand abbweviation in compwetion wist (CSS)', () => {
+		const abbweviation = 'pos:f';
 		const expandedText = 'position: fixed;';
 
-		return withRandomFileEditor(cssContents, 'css', (editor, _) => {
-			editor.selection = new Selection(3, 1, 3, 6);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 6), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 6), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			if (!completionPromise1 || !completionPromise2) {
-				assert.strictEqual(1, 2, `Problem with expanding pos:f`);
-				return Promise.resolve();
+		wetuwn withWandomFiweEditow(cssContents, 'css', (editow, _) => {
+			editow.sewection = new Sewection(3, 1, 3, 6);
+			const cancewSwc = new CancewwationTokenSouwce();
+			const compwetionPwomise1 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(3, 6), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise2 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(5, 6), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			if (!compwetionPwomise1 || !compwetionPwomise2) {
+				assewt.stwictEquaw(1, 2, `Pwobwem with expanding pos:f`);
+				wetuwn Pwomise.wesowve();
 			}
 
-			const callBack = (completionList: CompletionList) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.strictEqual(1, 2, `Problem with expanding pos:f`);
-					return;
+			const cawwBack = (compwetionWist: CompwetionWist) => {
+				if (!compwetionWist.items || !compwetionWist.items.wength) {
+					assewt.stwictEquaw(1, 2, `Pwobwem with expanding pos:f`);
+					wetuwn;
 				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+				const emmetCompwetionItem = compwetionWist.items[0];
+				assewt.stwictEquaw(emmetCompwetionItem.wabew, expandedText, `Wabew of compwetion item doesnt match.`);
+				assewt.stwictEquaw((<stwing>emmetCompwetionItem.documentation || '').wepwace(/\|/g, ''), expandedText, `Docs of compwetion item doesnt match.`);
+				assewt.stwictEquaw(emmetCompwetionItem.fiwtewText, abbweviation, `FiwtewText of compwetion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
-				callBack(result1);
-				callBack(result2);
-				return Promise.resolve();
+			wetuwn Pwomise.aww<CompwetionWist>([compwetionPwomise1, compwetionPwomise2]).then(([wesuwt1, wesuwt2]) => {
+				cawwBack(wesuwt1);
+				cawwBack(wesuwt2);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Expand abbreviation (SCSS)', () => {
-		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
-			editor.selections = [
-				new Selection(3, 4, 3, 4),
-				new Selection(5, 5, 5, 5),
-				new Selection(11, 4, 11, 4),
-				new Selection(14, 5, 14, 5)
+	test('Expand abbweviation (SCSS)', () => {
+		wetuwn withWandomFiweEditow(scssContents, 'scss', (editow, _) => {
+			editow.sewections = [
+				new Sewection(3, 4, 3, 4),
+				new Sewection(5, 5, 5, 5),
+				new Sewection(11, 4, 11, 4),
+				new Sewection(14, 5, 14, 5)
 			];
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), scssContents.replace(/p(\d\d)/g, 'padding: $1px;'));
-				return Promise.resolve();
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), scssContents.wepwace(/p(\d\d)/g, 'padding: $1px;'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Expand abbreviation in completion list (SCSS)', () => {
+	test('Expand abbweviation in compwetion wist (SCSS)', () => {
 
-		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
-			editor.selection = new Selection(3, 4, 3, 4);
-			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 5), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise3 = completionProvider.provideCompletionItems(editor.document, new Position(11, 4), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise4 = completionProvider.provideCompletionItems(editor.document, new Position(14, 5), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			if (!completionPromise1) {
-				assert.strictEqual(1, 2, `Problem with expanding padding abbreviations at line 3 col 4`);
+		wetuwn withWandomFiweEditow(scssContents, 'scss', (editow, _) => {
+			editow.sewection = new Sewection(3, 4, 3, 4);
+			const cancewSwc = new CancewwationTokenSouwce();
+			const compwetionPwomise1 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(3, 4), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise2 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(5, 5), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise3 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(11, 4), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			const compwetionPwomise4 = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(14, 5), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			if (!compwetionPwomise1) {
+				assewt.stwictEquaw(1, 2, `Pwobwem with expanding padding abbweviations at wine 3 cow 4`);
 			}
-			if (!completionPromise2) {
-				assert.strictEqual(1, 2, `Problem with expanding padding abbreviations at line 5 col 5`);
+			if (!compwetionPwomise2) {
+				assewt.stwictEquaw(1, 2, `Pwobwem with expanding padding abbweviations at wine 5 cow 5`);
 			}
-			if (!completionPromise3) {
-				assert.strictEqual(1, 2, `Problem with expanding padding abbreviations at line 11 col 4`);
+			if (!compwetionPwomise3) {
+				assewt.stwictEquaw(1, 2, `Pwobwem with expanding padding abbweviations at wine 11 cow 4`);
 			}
-			if (!completionPromise4) {
-				assert.strictEqual(1, 2, `Problem with expanding padding abbreviations at line 14 col 5`);
-			}
-
-			if (!completionPromise1 || !completionPromise2 || !completionPromise3 || !completionPromise4) {
-				return Promise.resolve();
+			if (!compwetionPwomise4) {
+				assewt.stwictEquaw(1, 2, `Pwobwem with expanding padding abbweviations at wine 14 cow 5`);
 			}
 
-			const callBack = (completionList: CompletionList, abbreviation: string, expandedText: string) => {
-				if (!completionList.items || !completionList.items.length) {
-					assert.strictEqual(1, 2, `Problem with expanding m10`);
-					return;
+			if (!compwetionPwomise1 || !compwetionPwomise2 || !compwetionPwomise3 || !compwetionPwomise4) {
+				wetuwn Pwomise.wesowve();
+			}
+
+			const cawwBack = (compwetionWist: CompwetionWist, abbweviation: stwing, expandedText: stwing) => {
+				if (!compwetionWist.items || !compwetionWist.items.wength) {
+					assewt.stwictEquaw(1, 2, `Pwobwem with expanding m10`);
+					wetuwn;
 				}
-				const emmetCompletionItem = completionList.items[0];
-				assert.strictEqual(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
-				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
+				const emmetCompwetionItem = compwetionWist.items[0];
+				assewt.stwictEquaw(emmetCompwetionItem.wabew, expandedText, `Wabew of compwetion item doesnt match.`);
+				assewt.stwictEquaw((<stwing>emmetCompwetionItem.documentation || '').wepwace(/\|/g, ''), expandedText, `Docs of compwetion item doesnt match.`);
+				assewt.stwictEquaw(emmetCompwetionItem.fiwtewText, abbweviation, `FiwtewText of compwetion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
-				callBack(result1, 'p10', 'padding: 10px;');
-				callBack(result2, 'p20', 'padding: 20px;');
-				callBack(result3, 'p30', 'padding: 30px;');
-				callBack(result4, 'p40', 'padding: 40px;');
-				return Promise.resolve();
+			wetuwn Pwomise.aww<CompwetionWist>([compwetionPwomise1, compwetionPwomise2, compwetionPwomise3, compwetionPwomise4]).then(([wesuwt1, wesuwt2, wesuwt3, wesuwt4]) => {
+				cawwBack(wesuwt1, 'p10', 'padding: 10px;');
+				cawwBack(wesuwt2, 'p20', 'padding: 20px;');
+				cawwBack(wesuwt3, 'p30', 'padding: 30px;');
+				cawwBack(wesuwt4, 'p40', 'padding: 40px;');
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
 
-	test('Invalid locations for abbreviations in scss', () => {
+	test('Invawid wocations fow abbweviations in scss', () => {
 		const scssContentsNoExpand = `
 m10
 		.boo {
-			margin: 10px;
+			mawgin: 10px;
 			.hoo {
-				background:
+				backgwound:
 			}
 		}
 		`;
 
-		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, _) => {
-			editor.selections = [
-				new Selection(1, 3, 1, 3), // outside rule
-				new Selection(5, 15, 5, 15) // in the value part of property value
+		wetuwn withWandomFiweEditow(scssContentsNoExpand, 'scss', (editow, _) => {
+			editow.sewections = [
+				new Sewection(1, 3, 1, 3), // outside wuwe
+				new Sewection(5, 15, 5, 15) // in the vawue pawt of pwopewty vawue
 			];
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), scssContentsNoExpand);
-				return Promise.resolve();
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), scssContentsNoExpand);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Invalid locations for abbreviations in scss in completion list', () => {
+	test('Invawid wocations fow abbweviations in scss in compwetion wist', () => {
 		const scssContentsNoExpand = `
 m10
 		.boo {
-			margin: 10px;
+			mawgin: 10px;
 			.hoo {
-				background:
+				backgwound:
 			}
 		}
 		`;
 
-		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, _) => {
-			editor.selection = new Selection(1, 3, 1, 3); // outside rule
-			const cancelSrc = new CancellationTokenSource();
-			let completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			if (completionPromise) {
-				assert.strictEqual(1, 2, `m10 gets expanded in invalid location (outside rule)`);
+		wetuwn withWandomFiweEditow(scssContentsNoExpand, 'scss', (editow, _) => {
+			editow.sewection = new Sewection(1, 3, 1, 3); // outside wuwe
+			const cancewSwc = new CancewwationTokenSouwce();
+			wet compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, editow.sewection.active, cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			if (compwetionPwomise) {
+				assewt.stwictEquaw(1, 2, `m10 gets expanded in invawid wocation (outside wuwe)`);
 			}
 
-			editor.selection = new Selection(5, 15, 5, 15); // in the value part of property value
-			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			if (completionPromise) {
-				return completionPromise.then((completionList: CompletionList | undefined) => {
-					if (completionList && completionList.items && completionList.items.length > 0) {
-						assert.strictEqual(1, 2, `m10 gets expanded in invalid location (n the value part of property value)`);
+			editow.sewection = new Sewection(5, 15, 5, 15); // in the vawue pawt of pwopewty vawue
+			compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, editow.sewection.active, cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+			if (compwetionPwomise) {
+				wetuwn compwetionPwomise.then((compwetionWist: CompwetionWist | undefined) => {
+					if (compwetionWist && compwetionWist.items && compwetionWist.items.wength > 0) {
+						assewt.stwictEquaw(1, 2, `m10 gets expanded in invawid wocation (n the vawue pawt of pwopewty vawue)`);
 					}
-					return Promise.resolve();
+					wetuwn Pwomise.wesowve();
 				});
 			}
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
-		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
-			editor.selection = new Selection(19, 10, 19, 10);
-			return expandEmmetAbbreviation(null).then(() => {
-				assert.strictEqual(editor.document.getText(), scssContents);
-				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-				if (completionPromise) {
-					assert.strictEqual(1, 2, `Invalid completion at property value`);
+	test('Skip when typing pwopewty vawues when thewe is a nested wuwe in the next wine (SCSS)', () => {
+		wetuwn withWandomFiweEditow(scssContents, 'scss', (editow, _) => {
+			editow.sewection = new Sewection(19, 10, 19, 10);
+			wetuwn expandEmmetAbbweviation(nuww).then(() => {
+				assewt.stwictEquaw(editow.document.getText(), scssContents);
+				const cancewSwc = new CancewwationTokenSouwce();
+				const compwetionPwomise = compwetionPwovida.pwovideCompwetionItems(editow.document, new Position(19, 10), cancewSwc.token, { twiggewKind: CompwetionTwiggewKind.Invoke });
+				if (compwetionPwomise) {
+					assewt.stwictEquaw(1, 2, `Invawid compwetion at pwopewty vawue`);
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});

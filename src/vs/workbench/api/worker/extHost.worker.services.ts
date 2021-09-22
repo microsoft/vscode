@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtensionStoragePaths, IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtHostExtensionService } from 'vs/workbench/api/worker/extHostExtensionService';
-import { ExtHostLogService } from 'vs/workbench/api/worker/extHostLogService';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { ExtensionStowagePaths, IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { ExtHostExtensionSewvice } fwom 'vs/wowkbench/api/wowka/extHostExtensionSewvice';
+impowt { ExtHostWogSewvice } fwom 'vs/wowkbench/api/wowka/extHostWogSewvice';
 
 // #########################################################################
 // ###                                                                   ###
-// ### !!! PLEASE ADD COMMON IMPORTS INTO extHost.common.services.ts !!! ###
+// ### !!! PWEASE ADD COMMON IMPOWTS INTO extHost.common.sewvices.ts !!! ###
 // ###                                                                   ###
 // #########################################################################
 
-registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
-registerSingleton(ILogService, ExtHostLogService);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
+wegistewSingweton(IExtHostExtensionSewvice, ExtHostExtensionSewvice);
+wegistewSingweton(IWogSewvice, ExtHostWogSewvice);
+wegistewSingweton(IExtensionStowagePaths, ExtensionStowagePaths);

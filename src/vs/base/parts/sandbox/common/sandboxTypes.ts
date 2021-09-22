@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IProductConfiguration } from 'vs/base/common/product';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { IPwoductConfiguwation } fwom 'vs/base/common/pwoduct';
 
 
 // #######################################################################
 // ###                                                                 ###
-// ###             Types we need in a common layer for reuse    	   ###
+// ###             Types we need in a common waya fow weuse    	   ###
 // ###                                                                 ###
 // #######################################################################
 
 
 /**
- * The common properties required for any sandboxed
- * renderer to function.
+ * The common pwopewties wequiwed fow any sandboxed
+ * wendewa to function.
  */
-export interface ISandboxConfiguration {
+expowt intewface ISandboxConfiguwation {
 
 	/**
-	 * Identifier of the sandboxed renderer.
+	 * Identifia of the sandboxed wendewa.
 	 */
-	windowId: number;
+	windowId: numba;
 
 	/**
-	 * Absolute installation path.
+	 * Absowute instawwation path.
 	 */
-	appRoot: string;
+	appWoot: stwing;
 
 	/**
-	 * Per window process environment.
+	 * Pew window pwocess enviwonment.
 	 */
-	userEnv: IProcessEnvironment;
+	usewEnv: IPwocessEnviwonment;
 
 	/**
-	 * Product configuration.
+	 * Pwoduct configuwation.
 	 */
-	product: IProductConfiguration;
+	pwoduct: IPwoductConfiguwation;
 
 	/**
-	 * Configured zoom level.
+	 * Configuwed zoom wevew.
 	 */
-	zoomLevel?: number;
+	zoomWevew?: numba;
 
 	/**
-	 * Location of V8 code cache.
+	 * Wocation of V8 code cache.
 	 */
-	codeCachePath?: string;
+	codeCachePath?: stwing;
 }

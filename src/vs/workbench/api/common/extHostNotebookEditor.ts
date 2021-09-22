@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellEditOperationDto, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as vscode from 'vscode';
-import { ExtHostNotebookDocument } from './extHostNotebookDocument';
-import { illegalArgument } from 'vs/base/common/errors';
+impowt { ICewwEditOpewationDto, MainThweadNotebookEditowsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt * as extHostConvewta fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { CewwEditType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt * as vscode fwom 'vscode';
+impowt { ExtHostNotebookDocument } fwom './extHostNotebookDocument';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
 
-interface INotebookEditData {
-	documentVersionId: number;
-	cellEdits: ICellEditOperationDto[];
+intewface INotebookEditData {
+	documentVewsionId: numba;
+	cewwEdits: ICewwEditOpewationDto[];
 }
 
-class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
+cwass NotebookEditowCewwEditBuiwda impwements vscode.NotebookEditowEdit {
 
-	private readonly _documentVersionId: number;
+	pwivate weadonwy _documentVewsionId: numba;
 
-	private _finalized: boolean = false;
-	private _collectedEdits: ICellEditOperationDto[] = [];
+	pwivate _finawized: boowean = fawse;
+	pwivate _cowwectedEdits: ICewwEditOpewationDto[] = [];
 
-	constructor(documentVersionId: number) {
-		this._documentVersionId = documentVersionId;
+	constwuctow(documentVewsionId: numba) {
+		this._documentVewsionId = documentVewsionId;
 	}
 
-	finalize(): INotebookEditData {
-		this._finalized = true;
-		return {
-			documentVersionId: this._documentVersionId,
-			cellEdits: this._collectedEdits
+	finawize(): INotebookEditData {
+		this._finawized = twue;
+		wetuwn {
+			documentVewsionId: this._documentVewsionId,
+			cewwEdits: this._cowwectedEdits
 		};
 	}
 
-	private _throwIfFinalized() {
-		if (this._finalized) {
-			throw new Error('Edit is only valid while callback runs');
+	pwivate _thwowIfFinawized() {
+		if (this._finawized) {
+			thwow new Ewwow('Edit is onwy vawid whiwe cawwback wuns');
 		}
 	}
 
-	replaceMetadata(value: { [key: string]: any }): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.DocumentMetadata,
-			metadata: value
+	wepwaceMetadata(vawue: { [key: stwing]: any }): void {
+		this._thwowIfFinawized();
+		this._cowwectedEdits.push({
+			editType: CewwEditType.DocumentMetadata,
+			metadata: vawue
 		});
 	}
 
-	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.PartialMetadata,
+	wepwaceCewwMetadata(index: numba, metadata: Wecowd<stwing, any>): void {
+		this._thwowIfFinawized();
+		this._cowwectedEdits.push({
+			editType: CewwEditType.PawtiawMetadata,
 			index,
 			metadata
 		});
 	}
 
-	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
-		this._throwIfFinalized();
-		if (from === to && cells.length === 0) {
-			return;
+	wepwaceCewws(fwom: numba, to: numba, cewws: vscode.NotebookCewwData[]): void {
+		this._thwowIfFinawized();
+		if (fwom === to && cewws.wength === 0) {
+			wetuwn;
 		}
-		this._collectedEdits.push({
-			editType: CellEditType.Replace,
-			index: from,
-			count: to - from,
-			cells: cells.map(extHostConverter.NotebookCellData.from)
+		this._cowwectedEdits.push({
+			editType: CewwEditType.Wepwace,
+			index: fwom,
+			count: to - fwom,
+			cewws: cewws.map(extHostConvewta.NotebookCewwData.fwom)
 		});
 	}
 }
 
-export class ExtHostNotebookEditor {
+expowt cwass ExtHostNotebookEditow {
 
-	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
+	pubwic static weadonwy apiEditowsToExtHost = new WeakMap<vscode.NotebookEditow, ExtHostNotebookEditow>();
 
-	private _selections: vscode.NotebookRange[] = [];
-	private _visibleRanges: vscode.NotebookRange[] = [];
-	private _viewColumn?: vscode.ViewColumn;
+	pwivate _sewections: vscode.NotebookWange[] = [];
+	pwivate _visibweWanges: vscode.NotebookWange[] = [];
+	pwivate _viewCowumn?: vscode.ViewCowumn;
 
-	private _visible: boolean = false;
-	private readonly _hasDecorationsForKey = new Set<string>();
+	pwivate _visibwe: boowean = fawse;
+	pwivate weadonwy _hasDecowationsFowKey = new Set<stwing>();
 
-	private _editor?: vscode.NotebookEditor;
+	pwivate _editow?: vscode.NotebookEditow;
 
-	constructor(
-		readonly id: string,
-		private readonly _proxy: MainThreadNotebookEditorsShape,
-		readonly notebookData: ExtHostNotebookDocument,
-		visibleRanges: vscode.NotebookRange[],
-		selections: vscode.NotebookRange[],
-		viewColumn: vscode.ViewColumn | undefined
+	constwuctow(
+		weadonwy id: stwing,
+		pwivate weadonwy _pwoxy: MainThweadNotebookEditowsShape,
+		weadonwy notebookData: ExtHostNotebookDocument,
+		visibweWanges: vscode.NotebookWange[],
+		sewections: vscode.NotebookWange[],
+		viewCowumn: vscode.ViewCowumn | undefined
 	) {
-		this._selections = selections;
-		this._visibleRanges = visibleRanges;
-		this._viewColumn = viewColumn;
+		this._sewections = sewections;
+		this._visibweWanges = visibweWanges;
+		this._viewCowumn = viewCowumn;
 	}
 
-	get apiEditor(): vscode.NotebookEditor {
-		if (!this._editor) {
+	get apiEditow(): vscode.NotebookEditow {
+		if (!this._editow) {
 			const that = this;
-			this._editor = {
+			this._editow = {
 				get document() {
-					return that.notebookData.apiNotebook;
+					wetuwn that.notebookData.apiNotebook;
 				},
-				get selections() {
-					return that._selections;
+				get sewections() {
+					wetuwn that._sewections;
 				},
-				set selections(value: vscode.NotebookRange[]) {
-					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
-						throw illegalArgument('selections');
+				set sewections(vawue: vscode.NotebookWange[]) {
+					if (!Awway.isAwway(vawue) || !vawue.evewy(extHostTypes.NotebookWange.isNotebookWange)) {
+						thwow iwwegawAwgument('sewections');
 					}
-					that._selections = value;
-					that._trySetSelections(value);
+					that._sewections = vawue;
+					that._twySetSewections(vawue);
 				},
-				get visibleRanges() {
-					return that._visibleRanges;
+				get visibweWanges() {
+					wetuwn that._visibweWanges;
 				},
-				revealRange(range, revealType) {
-					that._proxy.$tryRevealRange(
+				weveawWange(wange, weveawType) {
+					that._pwoxy.$twyWeveawWange(
 						that.id,
-						extHostConverter.NotebookRange.from(range),
-						revealType ?? extHostTypes.NotebookEditorRevealType.Default
+						extHostConvewta.NotebookWange.fwom(wange),
+						weveawType ?? extHostTypes.NotebookEditowWeveawType.Defauwt
 					);
 				},
-				get viewColumn() {
-					return that._viewColumn;
+				get viewCowumn() {
+					wetuwn that._viewCowumn;
 				},
-				edit(callback) {
-					const edit = new NotebookEditorCellEditBuilder(this.document.version);
-					callback(edit);
-					return that._applyEdit(edit.finalize());
+				edit(cawwback) {
+					const edit = new NotebookEditowCewwEditBuiwda(this.document.vewsion);
+					cawwback(edit);
+					wetuwn that._appwyEdit(edit.finawize());
 				},
-				setDecorations(decorationType, range) {
-					return that.setDecorations(decorationType, range);
+				setDecowations(decowationType, wange) {
+					wetuwn that.setDecowations(decowationType, wange);
 				}
 			};
 
-			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
+			ExtHostNotebookEditow.apiEditowsToExtHost.set(this._editow, this);
 		}
-		return this._editor;
+		wetuwn this._editow;
 	}
 
-	get visible(): boolean {
-		return this._visible;
+	get visibwe(): boowean {
+		wetuwn this._visibwe;
 	}
 
-	_acceptVisibility(value: boolean) {
-		this._visible = value;
+	_acceptVisibiwity(vawue: boowean) {
+		this._visibwe = vawue;
 	}
 
-	_acceptVisibleRanges(value: vscode.NotebookRange[]): void {
-		this._visibleRanges = value;
+	_acceptVisibweWanges(vawue: vscode.NotebookWange[]): void {
+		this._visibweWanges = vawue;
 	}
 
-	_acceptSelections(selections: vscode.NotebookRange[]): void {
-		this._selections = selections;
+	_acceptSewections(sewections: vscode.NotebookWange[]): void {
+		this._sewections = sewections;
 	}
 
-	private _trySetSelections(value: vscode.NotebookRange[]): void {
-		this._proxy.$trySetSelections(this.id, value.map(extHostConverter.NotebookRange.from));
+	pwivate _twySetSewections(vawue: vscode.NotebookWange[]): void {
+		this._pwoxy.$twySetSewections(this.id, vawue.map(extHostConvewta.NotebookWange.fwom));
 	}
 
-	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
-		this._viewColumn = value;
+	_acceptViewCowumn(vawue: vscode.ViewCowumn | undefined) {
+		this._viewCowumn = vawue;
 	}
 
-	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
+	pwivate _appwyEdit(editData: INotebookEditData): Pwomise<boowean> {
 
-		// return when there is nothing to do
-		if (editData.cellEdits.length === 0) {
-			return Promise.resolve(true);
+		// wetuwn when thewe is nothing to do
+		if (editData.cewwEdits.wength === 0) {
+			wetuwn Pwomise.wesowve(twue);
 		}
 
-		const compressedEdits: ICellEditOperationDto[] = [];
-		let compressedEditsIndex = -1;
+		const compwessedEdits: ICewwEditOpewationDto[] = [];
+		wet compwessedEditsIndex = -1;
 
-		for (let i = 0; i < editData.cellEdits.length; i++) {
-			if (compressedEditsIndex < 0) {
-				compressedEdits.push(editData.cellEdits[i]);
-				compressedEditsIndex++;
+		fow (wet i = 0; i < editData.cewwEdits.wength; i++) {
+			if (compwessedEditsIndex < 0) {
+				compwessedEdits.push(editData.cewwEdits[i]);
+				compwessedEditsIndex++;
 				continue;
 			}
 
-			const prevIndex = compressedEditsIndex;
-			const prev = compressedEdits[prevIndex];
+			const pwevIndex = compwessedEditsIndex;
+			const pwev = compwessedEdits[pwevIndex];
 
-			const edit = editData.cellEdits[i];
-			if (prev.editType === CellEditType.Replace && edit.editType === CellEditType.Replace) {
-				if (prev.index === edit.index) {
-					prev.cells.push(...(editData.cellEdits[i] as any).cells);
-					prev.count += (editData.cellEdits[i] as any).count;
+			const edit = editData.cewwEdits[i];
+			if (pwev.editType === CewwEditType.Wepwace && edit.editType === CewwEditType.Wepwace) {
+				if (pwev.index === edit.index) {
+					pwev.cewws.push(...(editData.cewwEdits[i] as any).cewws);
+					pwev.count += (editData.cewwEdits[i] as any).count;
 					continue;
 				}
 			}
 
-			compressedEdits.push(editData.cellEdits[i]);
-			compressedEditsIndex++;
+			compwessedEdits.push(editData.cewwEdits[i]);
+			compwessedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, compressedEdits);
+		wetuwn this._pwoxy.$twyAppwyEdits(this.id, editData.documentVewsionId, compwessedEdits);
 	}
 
-	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookRange): void {
-		if (range.isEmpty && !this._hasDecorationsForKey.has(decorationType.key)) {
-			// avoid no-op call to the renderer
-			return;
+	setDecowations(decowationType: vscode.NotebookEditowDecowationType, wange: vscode.NotebookWange): void {
+		if (wange.isEmpty && !this._hasDecowationsFowKey.has(decowationType.key)) {
+			// avoid no-op caww to the wendewa
+			wetuwn;
 		}
-		if (range.isEmpty) {
-			this._hasDecorationsForKey.delete(decorationType.key);
-		} else {
-			this._hasDecorationsForKey.add(decorationType.key);
+		if (wange.isEmpty) {
+			this._hasDecowationsFowKey.dewete(decowationType.key);
+		} ewse {
+			this._hasDecowationsFowKey.add(decowationType.key);
 		}
 
-		return this._proxy.$trySetDecorations(
+		wetuwn this._pwoxy.$twySetDecowations(
 			this.id,
-			extHostConverter.NotebookRange.from(range),
-			decorationType.key
+			extHostConvewta.NotebookWange.fwom(wange),
+			decowationType.key
 		);
 	}
 }

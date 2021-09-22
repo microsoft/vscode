@@ -1,397 +1,397 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
-import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { Workbench } from 'vs/workbench/browser/workbench';
-import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IFileService, IFileSystemProvider } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { setFullscreen } from 'vs/base/browser/browser';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/browser/signService';
-import type { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
-import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { FileLogger } from 'vs/platform/log/common/fileLog';
-import { toLocalISOString } from 'vs/base/common/date';
-import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { coalesce } from 'vs/base/common/arrays';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IIndexedDBFileSystemProvider, IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { BrowserWindow } from 'vs/workbench/browser/window';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { safeStringify } from 'vs/base/common/objects';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { domContentWoaded, detectFuwwscween, getCookieVawue, WebFiweSystemAccess } fwom 'vs/base/bwowsa/dom';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWogSewvice, ConsoweWogga, MuwtipwexWogSewvice, getWogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ConsoweWogInAutomationWogga } fwom 'vs/pwatfowm/wog/bwowsa/wog';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
+impowt { Wowkbench } fwom 'vs/wowkbench/bwowsa/wowkbench';
+impowt { WemoteFiweSystemPwovida } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentFiweSystemChannew';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/bwowsa/wemoteAgentSewviceImpw';
+impowt { WemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/bwowsa/wemoteAuthowityWesowvewSewvice';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IFiweSewvice, IFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { setFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceInitiawizationPaywoad } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { ConfiguwationCache } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationCache';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { SignSewvice } fwom 'vs/pwatfowm/sign/bwowsa/signSewvice';
+impowt type { IWowkbenchConstwuctionOptions, IWowkspace, IWowkbench } fwom 'vs/wowkbench/wowkbench.web.api';
+impowt { BwowsewStowageSewvice } fwom 'vs/pwatfowm/stowage/bwowsa/stowageSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { BuffewWogSewvice } fwom 'vs/pwatfowm/wog/common/buffewWog';
+impowt { FiweWogga } fwom 'vs/pwatfowm/wog/common/fiweWog';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { isWowkspaceToOpen, isFowdewToOpen } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { getSingweFowdewWowkspaceIdentifia, getWowkspaceIdentifia } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/wowkspaces';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IIndexedDBFiweSystemPwovida, IndexedDB, INDEXEDDB_WOGS_OBJECT_STOWE, INDEXEDDB_USEWDATA_OBJECT_STOWE } fwom 'vs/pwatfowm/fiwes/bwowsa/indexedDBFiweSystemPwovida';
+impowt { BwowsewWequestSewvice } fwom 'vs/wowkbench/sewvices/wequest/bwowsa/wequestSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { IUsewDataInitiawizationSewvice, UsewDataInitiawizationSewvice } fwom 'vs/wowkbench/sewvices/usewData/bwowsa/usewDataInit';
+impowt { UsewDataSyncStoweManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncStoweSewvice';
+impowt { IUsewDataSyncStoweManagementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { BwowsewWindow } fwom 'vs/wowkbench/bwowsa/window';
+impowt { ITimewSewvice } fwom 'vs/wowkbench/sewvices/tima/bwowsa/timewSewvice';
+impowt { WowkspaceTwustEnabwementSewvice, WowkspaceTwustManagementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { HTMWFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/bwowsa/htmwFiweSystemPwovida';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { safeStwingify } fwom 'vs/base/common/objects';
 
-class BrowserMain extends Disposable {
+cwass BwowsewMain extends Disposabwe {
 
-	constructor(
-		private readonly domElement: HTMLElement,
-		private readonly configuration: IWorkbenchConstructionOptions
+	constwuctow(
+		pwivate weadonwy domEwement: HTMWEwement,
+		pwivate weadonwy configuwation: IWowkbenchConstwuctionOptions
 	) {
-		super();
+		supa();
 
 		this.init();
 	}
 
-	private init(): void {
+	pwivate init(): void {
 
-		// Browser config
-		setFullscreen(!!detectFullscreen());
+		// Bwowsa config
+		setFuwwscween(!!detectFuwwscween());
 	}
 
-	async open(): Promise<IWorkbench> {
+	async open(): Pwomise<IWowkbench> {
 
-		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
+		// Init sewvices and wait fow DOM to be weady in pawawwew
+		const [sewvices] = await Pwomise.aww([this.initSewvices(), domContentWoaded()]);
 
-		// Create Workbench
-		const workbench = new Workbench(this.domElement, services.serviceCollection, services.logService);
+		// Cweate Wowkbench
+		const wowkbench = new Wowkbench(this.domEwement, sewvices.sewviceCowwection, sewvices.wogSewvice);
 
-		// Listeners
-		this.registerListeners(workbench, services.storageService, services.logService);
+		// Wistenews
+		this.wegistewWistenews(wowkbench, sewvices.stowageSewvice, sewvices.wogSewvice);
 
-		// Startup
-		const instantiationService = workbench.startup();
+		// Stawtup
+		const instantiationSewvice = wowkbench.stawtup();
 
 		// Window
-		this._register(instantiationService.createInstance(BrowserWindow));
+		this._wegista(instantiationSewvice.cweateInstance(BwowsewWindow));
 
-		// Logging
-		services.logService.trace('workbench configuration', safeStringify(this.configuration));
+		// Wogging
+		sewvices.wogSewvice.twace('wowkbench configuwation', safeStwingify(this.configuwation));
 
-		// Return API Facade
-		return instantiationService.invokeFunction(accessor => {
-			const commandService = accessor.get(ICommandService);
-			const lifecycleService = accessor.get(ILifecycleService);
-			const timerService = accessor.get(ITimerService);
-			const openerService = accessor.get(IOpenerService);
-			const productService = accessor.get(IProductService);
+		// Wetuwn API Facade
+		wetuwn instantiationSewvice.invokeFunction(accessow => {
+			const commandSewvice = accessow.get(ICommandSewvice);
+			const wifecycweSewvice = accessow.get(IWifecycweSewvice);
+			const timewSewvice = accessow.get(ITimewSewvice);
+			const openewSewvice = accessow.get(IOpenewSewvice);
+			const pwoductSewvice = accessow.get(IPwoductSewvice);
 
-			return {
+			wetuwn {
 				commands: {
-					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+					executeCommand: (command, ...awgs) => commandSewvice.executeCommand(command, ...awgs)
 				},
 				env: {
-					uriScheme: productService.urlProtocol,
-					async retrievePerformanceMarks() {
-						await timerService.whenReady();
+					uwiScheme: pwoductSewvice.uwwPwotocow,
+					async wetwievePewfowmanceMawks() {
+						await timewSewvice.whenWeady();
 
-						return timerService.getPerformanceMarks();
+						wetuwn timewSewvice.getPewfowmanceMawks();
 					},
-					async openUri(uri: URI): Promise<boolean> {
-						return openerService.open(uri, {});
+					async openUwi(uwi: UWI): Pwomise<boowean> {
+						wetuwn openewSewvice.open(uwi, {});
 					}
 				},
-				shutdown: () => lifecycleService.shutdown()
+				shutdown: () => wifecycweSewvice.shutdown()
 			};
 		});
 	}
 
-	private registerListeners(workbench: Workbench, storageService: BrowserStorageService, logService: ILogService): void {
+	pwivate wegistewWistenews(wowkbench: Wowkbench, stowageSewvice: BwowsewStowageSewvice, wogSewvice: IWogSewvice): void {
 
-		// Workbench Lifecycle
-		this._register(workbench.onBeforeShutdown(event => {
-			if (storageService.hasPendingUpdate) {
-				event.veto(true, 'veto.pendingStorageUpdate'); // prevent data loss from pending storage update
+		// Wowkbench Wifecycwe
+		this._wegista(wowkbench.onBefoweShutdown(event => {
+			if (stowageSewvice.hasPendingUpdate) {
+				event.veto(twue, 'veto.pendingStowageUpdate'); // pwevent data woss fwom pending stowage update
 			}
 		}));
-		this._register(workbench.onWillShutdown(() => storageService.close()));
-		this._register(workbench.onDidShutdown(() => this.dispose()));
+		this._wegista(wowkbench.onWiwwShutdown(() => stowageSewvice.cwose()));
+		this._wegista(wowkbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {
-		const serviceCollection = new ServiceCollection();
+	pwivate async initSewvices(): Pwomise<{ sewviceCowwection: SewviceCowwection, configuwationSewvice: IWowkbenchConfiguwationSewvice, wogSewvice: IWogSewvice, stowageSewvice: BwowsewStowageSewvice }> {
+		const sewviceCowwection = new SewviceCowwection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
+		// NOTE: DO NOT ADD ANY OTHa SEWVICE INTO THE COWWECTION HEWE.
+		// CONTWIBUTE IT VIA WOWKBENCH.WEB.MAIN.TS AND wegistewSingweton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		const payload = this.resolveWorkspaceInitializationPayload();
+		const paywoad = this.wesowveWowkspaceInitiawizationPaywoad();
 
-		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
-		serviceCollection.set(IProductService, productService);
+		// Pwoduct
+		const pwoductSewvice: IPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct, ...this.configuwation.pwoductConfiguwation };
+		sewviceCowwection.set(IPwoductSewvice, pwoductSewvice);
 
-		// Environment
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration }, productService);
-		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
+		// Enviwonment
+		const wogsPath = UWI.fiwe(toWocawISOStwing(new Date()).wepwace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-wog' });
+		const enviwonmentSewvice = new BwowsewWowkbenchEnviwonmentSewvice({ wowkspaceId: paywoad.id, wogsPath, ...this.configuwation }, pwoductSewvice);
+		sewviceCowwection.set(IWowkbenchEnviwonmentSewvice, enviwonmentSewvice);
 
-		// Log
-		const logService = new BufferLogService(getLogLevel(environmentService));
-		serviceCollection.set(ILogService, logService);
+		// Wog
+		const wogSewvice = new BuffewWogSewvice(getWogWevew(enviwonmentSewvice));
+		sewviceCowwection.set(IWogSewvice, wogSewvice);
 
-		// Remote
-		const connectionToken = environmentService.options.connectionToken || getCookieValue('vscode-tkn');
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(connectionToken, this.configuration.resourceUriProvider);
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+		// Wemote
+		const connectionToken = enviwonmentSewvice.options.connectionToken || getCookieVawue('vscode-tkn');
+		const wemoteAuthowityWesowvewSewvice = new WemoteAuthowityWesowvewSewvice(connectionToken, this.configuwation.wesouwceUwiPwovida);
+		sewviceCowwection.set(IWemoteAuthowityWesowvewSewvice, wemoteAuthowityWesowvewSewvice);
 
 		// Signing
-		const signService = new SignService(connectionToken);
-		serviceCollection.set(ISignService, signService);
+		const signSewvice = new SignSewvice(connectionToken);
+		sewviceCowwection.set(ISignSewvice, signSewvice);
 
-		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.configuration.webSocketFactory, environmentService, productService, remoteAuthorityResolverService, signService, logService));
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+		// Wemote Agent
+		const wemoteAgentSewvice = this._wegista(new WemoteAgentSewvice(this.configuwation.webSocketFactowy, enviwonmentSewvice, pwoductSewvice, wemoteAuthowityWesowvewSewvice, signSewvice, wogSewvice));
+		sewviceCowwection.set(IWemoteAgentSewvice, wemoteAgentSewvice);
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IFileService, fileService);
-		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
+		// Fiwes
+		const fiweSewvice = this._wegista(new FiweSewvice(wogSewvice));
+		sewviceCowwection.set(IFiweSewvice, fiweSewvice);
+		await this.wegistewFiweSystemPwovidews(enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, wogSewvice, wogsPath);
 
-		// URI Identity
-		const uriIdentityService = new UriIdentityService(fileService);
-		serviceCollection.set(IUriIdentityService, uriIdentityService);
+		// UWI Identity
+		const uwiIdentitySewvice = new UwiIdentitySewvice(fiweSewvice);
+		sewviceCowwection.set(IUwiIdentitySewvice, uwiIdentitySewvice);
 
-		// Long running services (workspace, config, storage)
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+		// Wong wunning sewvices (wowkspace, config, stowage)
+		const [configuwationSewvice, stowageSewvice] = await Pwomise.aww([
+			this.cweateWowkspaceSewvice(paywoad, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, uwiIdentitySewvice, wogSewvice).then(sewvice => {
 
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+				// Wowkspace
+				sewviceCowwection.set(IWowkspaceContextSewvice, sewvice);
 
-				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
+				// Configuwation
+				sewviceCowwection.set(IWowkbenchConfiguwationSewvice, sewvice);
 
-				return service;
+				wetuwn sewvice;
 			}),
 
-			this.createStorageService(payload, logService).then(service => {
+			this.cweateStowageSewvice(paywoad, wogSewvice).then(sewvice => {
 
-				// Storage
-				serviceCollection.set(IStorageService, service);
+				// Stowage
+				sewviceCowwection.set(IStowageSewvice, sewvice);
 
-				return service;
+				wetuwn sewvice;
 			})
 		]);
 
-		// Workspace Trust Service
-		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
-		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
+		// Wowkspace Twust Sewvice
+		const wowkspaceTwustEnabwementSewvice = new WowkspaceTwustEnabwementSewvice(configuwationSewvice, enviwonmentSewvice);
+		sewviceCowwection.set(IWowkspaceTwustEnabwementSewvice, wowkspaceTwustEnabwementSewvice);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
-		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		const wowkspaceTwustManagementSewvice = new WowkspaceTwustManagementSewvice(configuwationSewvice, wemoteAuthowityWesowvewSewvice, stowageSewvice, uwiIdentitySewvice, enviwonmentSewvice, configuwationSewvice, wowkspaceTwustEnabwementSewvice);
+		sewviceCowwection.set(IWowkspaceTwustManagementSewvice, wowkspaceTwustManagementSewvice);
 
-		// Update workspace trust so that configuration is updated accordingly
-		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
+		// Update wowkspace twust so that configuwation is updated accowdingwy
+		configuwationSewvice.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+		this._wegista(wowkspaceTwustManagementSewvice.onDidChangeTwust(() => configuwationSewvice.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted())));
 
-		// Request Service
-		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
-		serviceCollection.set(IRequestService, requestService);
+		// Wequest Sewvice
+		const wequestSewvice = new BwowsewWequestSewvice(wemoteAgentSewvice, configuwationSewvice, wogSewvice);
+		sewviceCowwection.set(IWequestSewvice, wequestSewvice);
 
-		// Userdata Sync Store Management Service
-		const userDataSyncStoreManagementService = new UserDataSyncStoreManagementService(productService, configurationService, storageService);
-		serviceCollection.set(IUserDataSyncStoreManagementService, userDataSyncStoreManagementService);
+		// Usewdata Sync Stowe Management Sewvice
+		const usewDataSyncStoweManagementSewvice = new UsewDataSyncStoweManagementSewvice(pwoductSewvice, configuwationSewvice, stowageSewvice);
+		sewviceCowwection.set(IUsewDataSyncStoweManagementSewvice, usewDataSyncStoweManagementSewvice);
 
-		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService);
-		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
+		// Usewdata Initiawize Sewvice
+		const usewDataInitiawizationSewvice = new UsewDataInitiawizationSewvice(enviwonmentSewvice, usewDataSyncStoweManagementSewvice, fiweSewvice, stowageSewvice, pwoductSewvice, wequestSewvice, wogSewvice);
+		sewviceCowwection.set(IUsewDataInitiawizationSewvice, usewDataInitiawizationSewvice);
 
-		if (await userDataInitializationService.requiresInitialization()) {
-			mark('code/willInitRequiredUserData');
+		if (await usewDataInitiawizationSewvice.wequiwesInitiawization()) {
+			mawk('code/wiwwInitWequiwedUsewData');
 
-			// Initialize required resources - settings & global state
-			await userDataInitializationService.initializeRequiredResources();
+			// Initiawize wequiwed wesouwces - settings & gwobaw state
+			await usewDataInitiawizationSewvice.initiawizeWequiwedWesouwces();
 
-			// Important: Reload only local user configuration after initializing
-			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
-			await configurationService.reloadLocalUserConfiguration();
+			// Impowtant: Wewoad onwy wocaw usa configuwation afta initiawizing
+			// Wewoading compwete configuwaiton bwocks wowkbench untiw wemote configuwation is woaded.
+			await configuwationSewvice.wewoadWocawUsewConfiguwation();
 
-			mark('code/didInitRequiredUserData');
+			mawk('code/didInitWequiwedUsewData');
 		}
 
-		return { serviceCollection, configurationService, logService, storageService };
+		wetuwn { sewviceCowwection, configuwationSewvice, wogSewvice, stowageSewvice };
 	}
 
-	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
+	pwivate async wegistewFiweSystemPwovidews(enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, fiweSewvice: IFiweSewvice, wemoteAgentSewvice: IWemoteAgentSewvice, wogSewvice: BuffewWogSewvice, wogsPath: UWI): Pwomise<void> {
 		const indexedDB = new IndexedDB();
 
-		// Logger
+		// Wogga
 		(async () => {
-			let indexedDBLogProvider: IFileSystemProvider | null = null;
-			try {
-				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE, false);
-			} catch (error) {
-				onUnexpectedError(error);
+			wet indexedDBWogPwovida: IFiweSystemPwovida | nuww = nuww;
+			twy {
+				indexedDBWogPwovida = await indexedDB.cweateFiweSystemPwovida(wogsPath.scheme, INDEXEDDB_WOGS_OBJECT_STOWE, fawse);
+			} catch (ewwow) {
+				onUnexpectedEwwow(ewwow);
 			}
 
-			if (indexedDBLogProvider) {
-				fileService.registerProvider(logsPath.scheme, indexedDBLogProvider);
-			} else {
-				fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
+			if (indexedDBWogPwovida) {
+				fiweSewvice.wegistewPwovida(wogsPath.scheme, indexedDBWogPwovida);
+			} ewse {
+				fiweSewvice.wegistewPwovida(wogsPath.scheme, new InMemowyFiweSystemPwovida());
 			}
 
-			logService.logger = new MultiplexLogService(coalesce([
-				new ConsoleLogger(logService.getLevel()),
-				new FileLogger('window', environmentService.logFile, logService.getLevel(), false, fileService),
-				// Extension development test CLI: forward everything to test runner
-				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationLogger(logService.getLevel()) : undefined
+			wogSewvice.wogga = new MuwtipwexWogSewvice(coawesce([
+				new ConsoweWogga(wogSewvice.getWevew()),
+				new FiweWogga('window', enviwonmentSewvice.wogFiwe, wogSewvice.getWevew(), fawse, fiweSewvice),
+				// Extension devewopment test CWI: fowwawd evewything to test wunna
+				enviwonmentSewvice.isExtensionDevewopment && !!enviwonmentSewvice.extensionTestsWocationUWI ? new ConsoweWogInAutomationWogga(wogSewvice.getWevew()) : undefined
 			]));
 		})();
 
-		const connection = remoteAgentService.getConnection();
+		const connection = wemoteAgentSewvice.getConnection();
 		if (connection) {
 
-			// Remote file system
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+			// Wemote fiwe system
+			const wemoteFiweSystemPwovida = this._wegista(new WemoteFiweSystemPwovida(wemoteAgentSewvice));
+			fiweSewvice.wegistewPwovida(Schemas.vscodeWemote, wemoteFiweSystemPwovida);
 		}
 
-		// User data
-		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
-		try {
-			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE, true);
-		} catch (error) {
-			onUnexpectedError(error);
+		// Usa data
+		wet indexedDBUsewDataPwovida: IIndexedDBFiweSystemPwovida | nuww = nuww;
+		twy {
+			indexedDBUsewDataPwovida = await indexedDB.cweateFiweSystemPwovida(Schemas.usewData, INDEXEDDB_USEWDATA_OBJECT_STOWE, twue);
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 
-		let userDataProvider: IFileSystemProvider | undefined;
-		if (indexedDBUserDataProvider) {
-			userDataProvider = indexedDBUserDataProvider;
-		} else {
-			logService.info('using in-memory user data provider');
-			userDataProvider = new InMemoryFileSystemProvider();
+		wet usewDataPwovida: IFiweSystemPwovida | undefined;
+		if (indexedDBUsewDataPwovida) {
+			usewDataPwovida = indexedDBUsewDataPwovida;
+		} ewse {
+			wogSewvice.info('using in-memowy usa data pwovida');
+			usewDataPwovida = new InMemowyFiweSystemPwovida();
 		}
 
-		fileService.registerProvider(Schemas.userData, userDataProvider);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, usewDataPwovida);
 
-		if (indexedDBUserDataProvider) {
-			registerAction2(class ResetUserDataAction extends Action2 {
-				constructor() {
-					super({
-						id: 'workbench.action.resetUserData',
-						title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
-						category: CATEGORIES.Developer,
+		if (indexedDBUsewDataPwovida) {
+			wegistewAction2(cwass WesetUsewDataAction extends Action2 {
+				constwuctow() {
+					supa({
+						id: 'wowkbench.action.wesetUsewData',
+						titwe: { owiginaw: 'Weset Usa Data', vawue: wocawize('weset', "Weset Usa Data") },
+						categowy: CATEGOWIES.Devewopa,
 						menu: {
-							id: MenuId.CommandPalette
+							id: MenuId.CommandPawette
 						}
 					});
 				}
 
-				async run(accessor: ServicesAccessor): Promise<void> {
-					const dialogService = accessor.get(IDialogService);
-					const hostService = accessor.get(IHostService);
-					const storageService = accessor.get(IStorageService);
-					const result = await dialogService.confirm({
-						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
+				async wun(accessow: SewvicesAccessow): Pwomise<void> {
+					const diawogSewvice = accessow.get(IDiawogSewvice);
+					const hostSewvice = accessow.get(IHostSewvice);
+					const stowageSewvice = accessow.get(IStowageSewvice);
+					const wesuwt = await diawogSewvice.confiwm({
+						message: wocawize('weset usa data message', "Wouwd you wike to weset youw data (settings, keybindings, extensions, snippets and UI State) and wewoad?")
 					});
 
-					if (result.confirmed) {
-						await indexedDBUserDataProvider?.reset();
-						if (storageService instanceof BrowserStorageService) {
-							await storageService.clear();
+					if (wesuwt.confiwmed) {
+						await indexedDBUsewDataPwovida?.weset();
+						if (stowageSewvice instanceof BwowsewStowageSewvice) {
+							await stowageSewvice.cweaw();
 						}
 					}
 
-					hostService.reload();
+					hostSewvice.wewoad();
 				}
 			});
 		}
 
-		if (WebFileSystemAccess.supported(window)) {
-			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+		if (WebFiweSystemAccess.suppowted(window)) {
+			fiweSewvice.wegistewPwovida(Schemas.fiwe, new HTMWFiweSystemPwovida());
 		}
-		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
+		fiweSewvice.wegistewPwovida(Schemas.tmp, new InMemowyFiweSystemPwovida());
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, logService);
+	pwivate async cweateStowageSewvice(paywoad: IWowkspaceInitiawizationPaywoad, wogSewvice: IWogSewvice): Pwomise<BwowsewStowageSewvice> {
+		const stowageSewvice = new BwowsewStowageSewvice(paywoad, wogSewvice);
 
-		try {
-			await storageService.initialize();
+		twy {
+			await stowageSewvice.initiawize();
 
-			return storageService;
-		} catch (error) {
-			onUnexpectedError(error);
-			logService.error(error);
+			wetuwn stowageSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
+			wogSewvice.ewwow(ewwow);
 
-			return storageService;
-		}
-	}
-
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
-
-		try {
-			await workspaceService.initialize(payload);
-
-			return workspaceService;
-		} catch (error) {
-			onUnexpectedError(error);
-			logService.error(error);
-
-			return workspaceService;
+			wetuwn stowageSewvice;
 		}
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
-		let workspace: IWorkspace | undefined = undefined;
-		if (this.configuration.workspaceProvider) {
-			workspace = this.configuration.workspaceProvider.workspace;
+	pwivate async cweateWowkspaceSewvice(paywoad: IWowkspaceInitiawizationPaywoad, enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, fiweSewvice: FiweSewvice, wemoteAgentSewvice: IWemoteAgentSewvice, uwiIdentitySewvice: IUwiIdentitySewvice, wogSewvice: IWogSewvice): Pwomise<WowkspaceSewvice> {
+		const wowkspaceSewvice = new WowkspaceSewvice({ wemoteAuthowity: this.configuwation.wemoteAuthowity, configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, uwiIdentitySewvice, wogSewvice);
+
+		twy {
+			await wowkspaceSewvice.initiawize(paywoad);
+
+			wetuwn wowkspaceSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
+			wogSewvice.ewwow(ewwow);
+
+			wetuwn wowkspaceSewvice;
+		}
+	}
+
+	pwivate wesowveWowkspaceInitiawizationPaywoad(): IWowkspaceInitiawizationPaywoad {
+		wet wowkspace: IWowkspace | undefined = undefined;
+		if (this.configuwation.wowkspacePwovida) {
+			wowkspace = this.configuwation.wowkspacePwovida.wowkspace;
 		}
 
-		// Multi-root workspace
-		if (workspace && isWorkspaceToOpen(workspace)) {
-			return getWorkspaceIdentifier(workspace.workspaceUri);
+		// Muwti-woot wowkspace
+		if (wowkspace && isWowkspaceToOpen(wowkspace)) {
+			wetuwn getWowkspaceIdentifia(wowkspace.wowkspaceUwi);
 		}
 
-		// Single-folder workspace
-		if (workspace && isFolderToOpen(workspace)) {
-			return getSingleFolderWorkspaceIdentifier(workspace.folderUri);
+		// Singwe-fowda wowkspace
+		if (wowkspace && isFowdewToOpen(wowkspace)) {
+			wetuwn getSingweFowdewWowkspaceIdentifia(wowkspace.fowdewUwi);
 		}
 
-		return { id: 'empty-window' };
+		wetuwn { id: 'empty-window' };
 	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
-	const workbench = new BrowserMain(domElement, options);
+expowt function main(domEwement: HTMWEwement, options: IWowkbenchConstwuctionOptions): Pwomise<IWowkbench> {
+	const wowkbench = new BwowsewMain(domEwement, options);
 
-	return workbench.open();
+	wetuwn wowkbench.open();
 }

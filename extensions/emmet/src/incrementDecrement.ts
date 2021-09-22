@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Based on @sergeche's work in his emmet plugin */
+/* Based on @sewgeche's wowk in his emmet pwugin */
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-const reNumber = /[0-9]/;
+const weNumba = /[0-9]/;
 
 /**
- * Incerement number under caret of given editor
+ * Incewement numba unda cawet of given editow
  */
-export function incrementDecrement(delta: number): Thenable<boolean> | undefined {
-	if (!vscode.window.activeTextEditor) {
-		vscode.window.showInformationMessage('No editor is active');
-		return;
+expowt function incwementDecwement(dewta: numba): Thenabwe<boowean> | undefined {
+	if (!vscode.window.activeTextEditow) {
+		vscode.window.showInfowmationMessage('No editow is active');
+		wetuwn;
 	}
-	const editor = vscode.window.activeTextEditor;
+	const editow = vscode.window.activeTextEditow;
 
-	return editor.edit(editBuilder => {
-		editor.selections.forEach(selection => {
-			let rangeToReplace = locate(editor.document, selection.isReversed ? selection.anchor : selection.active);
-			if (!rangeToReplace) {
-				return;
+	wetuwn editow.edit(editBuiwda => {
+		editow.sewections.fowEach(sewection => {
+			wet wangeToWepwace = wocate(editow.document, sewection.isWevewsed ? sewection.anchow : sewection.active);
+			if (!wangeToWepwace) {
+				wetuwn;
 			}
 
-			const text = editor.document.getText(rangeToReplace);
-			if (isValidNumber(text)) {
-				editBuilder.replace(rangeToReplace, update(text, delta));
+			const text = editow.document.getText(wangeToWepwace);
+			if (isVawidNumba(text)) {
+				editBuiwda.wepwace(wangeToWepwace, update(text, dewta));
 			}
 		});
 	});
 }
 
 /**
- * Updates given number with `delta` and returns string formatted according
- * to original string format
+ * Updates given numba with `dewta` and wetuwns stwing fowmatted accowding
+ * to owiginaw stwing fowmat
  */
-export function update(numString: string, delta: number): string {
-	let m: RegExpMatchArray | null;
-	let decimals = (m = numString.match(/\.(\d+)$/)) ? m[1].length : 1;
-	let output = String((parseFloat(numString) + delta).toFixed(decimals)).replace(/\.0+$/, '');
+expowt function update(numStwing: stwing, dewta: numba): stwing {
+	wet m: WegExpMatchAwway | nuww;
+	wet decimaws = (m = numStwing.match(/\.(\d+)$/)) ? m[1].wength : 1;
+	wet output = Stwing((pawseFwoat(numStwing) + dewta).toFixed(decimaws)).wepwace(/\.0+$/, '');
 
-	if (m = numString.match(/^\-?(0\d+)/)) {
-		// padded number: preserve padding
-		output = output.replace(/^(\-?)(\d+)/, (_, minus, prefix) =>
-			minus + '0'.repeat(Math.max(0, (m ? m[1].length : 0) - prefix.length)) + prefix);
+	if (m = numStwing.match(/^\-?(0\d+)/)) {
+		// padded numba: pwesewve padding
+		output = output.wepwace(/^(\-?)(\d+)/, (_, minus, pwefix) =>
+			minus + '0'.wepeat(Math.max(0, (m ? m[1].wength : 0) - pwefix.wength)) + pwefix);
 	}
 
-	if (/^\-?\./.test(numString)) {
-		// omit integer part
-		output = output.replace(/^(\-?)0+/, '$1');
+	if (/^\-?\./.test(numStwing)) {
+		// omit intega pawt
+		output = output.wepwace(/^(\-?)0+/, '$1');
 	}
 
-	return output;
+	wetuwn output;
 }
 
 /**
- * Locates number from given position in the document
+ * Wocates numba fwom given position in the document
  *
- * @return Range of number or `undefined` if not found
+ * @wetuwn Wange of numba ow `undefined` if not found
  */
-export function locate(document: vscode.TextDocument, pos: vscode.Position): vscode.Range | undefined {
+expowt function wocate(document: vscode.TextDocument, pos: vscode.Position): vscode.Wange | undefined {
 
-	const line = document.lineAt(pos.line).text;
-	let start = pos.character;
-	let end = pos.character;
-	let hadDot = false, hadMinus = false;
-	let ch;
+	const wine = document.wineAt(pos.wine).text;
+	wet stawt = pos.chawacta;
+	wet end = pos.chawacta;
+	wet hadDot = fawse, hadMinus = fawse;
+	wet ch;
 
-	while (start > 0) {
-		ch = line[--start];
+	whiwe (stawt > 0) {
+		ch = wine[--stawt];
 		if (ch === '-') {
-			hadMinus = true;
-			break;
-		} else if (ch === '.' && !hadDot) {
-			hadDot = true;
-		} else if (!reNumber.test(ch)) {
-			start++;
-			break;
+			hadMinus = twue;
+			bweak;
+		} ewse if (ch === '.' && !hadDot) {
+			hadDot = twue;
+		} ewse if (!weNumba.test(ch)) {
+			stawt++;
+			bweak;
 		}
 	}
 
-	if (line[end] === '-' && !hadMinus) {
+	if (wine[end] === '-' && !hadMinus) {
 		end++;
 	}
 
-	while (end < line.length) {
-		ch = line[end++];
-		if (ch === '.' && !hadDot && reNumber.test(line[end])) {
-			// A dot must be followed by a number. Otherwise stop parsing
-			hadDot = true;
-		} else if (!reNumber.test(ch)) {
+	whiwe (end < wine.wength) {
+		ch = wine[end++];
+		if (ch === '.' && !hadDot && weNumba.test(wine[end])) {
+			// A dot must be fowwowed by a numba. Othewwise stop pawsing
+			hadDot = twue;
+		} ewse if (!weNumba.test(ch)) {
 			end--;
-			break;
+			bweak;
 		}
 	}
 
-	// ensure that found range contains valid number
-	if (start !== end && isValidNumber(line.slice(start, end))) {
-		return new vscode.Range(pos.line, start, pos.line, end);
+	// ensuwe that found wange contains vawid numba
+	if (stawt !== end && isVawidNumba(wine.swice(stawt, end))) {
+		wetuwn new vscode.Wange(pos.wine, stawt, pos.wine, end);
 	}
 
-	return;
+	wetuwn;
 }
 
 /**
- * Check if given string contains valid number
+ * Check if given stwing contains vawid numba
  */
-function isValidNumber(str: string): boolean {
-	return str ? !isNaN(parseFloat(str)) : false;
+function isVawidNumba(stw: stwing): boowean {
+	wetuwn stw ? !isNaN(pawseFwoat(stw)) : fawse;
 }

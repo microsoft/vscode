@@ -1,1078 +1,1078 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
-import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import * as platform from 'vs/base/common/platform';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { CursorsController } from 'vs/editor/common/controller/cursor';
-import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ConfiguwationChangedEvent, EDITOW_FONT_DEFAUWTS, EditowOption, fiwtewVawidationDecowations } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IConfiguwation, IViewState, ScwowwType, ICuwsowState, ICommand, INewScwowwPosition } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence, IActiveIndentGuideInfo, ITextModew, TwackedWangeStickiness, TextModewWesowvedOptions, IIdentifiedSingweEditOpewation, ICuwsowStateComputa, PositionAffinity } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOvewviewWuwewOptions, ModewDecowationMinimapOptions } fwom 'vs/editow/common/modew/textModew';
+impowt * as textModewEvents fwom 'vs/editow/common/modew/textModewEvents';
+impowt { CowowId, WanguageId, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { tokenizeWineToHTMW } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { MinimapTokensCowowTwacka } fwom 'vs/editow/common/viewModew/minimapTokensCowowTwacka';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewWayout } fwom 'vs/editow/common/viewWayout/viewWayout';
+impowt { IViewModewWinesCowwection, IdentityWinesCowwection, SpwitWinesCowwection, IWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { ICoowdinatesConvewta, InjectedText, IWineBweaksComputa, IOvewviewWuwewDecowations, IViewModew, MinimapWinesWendewingData, ViewWineData, ViewWineWendewingData, ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { ViewModewDecowations } fwom 'vs/editow/common/viewModew/viewModewDecowations';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { EditowTheme } fwom 'vs/editow/common/view/viewContext';
+impowt { CuwsowsContwowwa } fwom 'vs/editow/common/contwowwa/cuwsow';
+impowt { PawtiawCuwsowState, CuwsowState, ICowumnSewectData, EditOpewationType, CuwsowConfiguwation } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { IWhitespaceChangeAccessow } fwom 'vs/editow/common/viewWayout/winesWayout';
+impowt { ViewModewEventDispatcha, OutgoingViewModewEvent, FocusChangedEvent, ScwowwChangedEvent, ViewZonesChangedEvent, ViewModewEventsCowwectow, WeadOnwyEditAttemptEvent } fwom 'vs/editow/common/viewModew/viewModewEventDispatcha';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
 
-const USE_IDENTITY_LINES_COLLECTION = true;
+const USE_IDENTITY_WINES_COWWECTION = twue;
 
-export class ViewModel extends Disposable implements IViewModel {
+expowt cwass ViewModew extends Disposabwe impwements IViewModew {
 
-	private readonly _editorId: number;
-	private readonly _configuration: IConfiguration;
-	public readonly model: ITextModel;
-	private readonly _eventDispatcher: ViewModelEventDispatcher;
-	public readonly onEvent: Event<OutgoingViewModelEvent>;
-	public cursorConfig: CursorConfiguration;
-	private readonly _tokenizeViewportSoon: RunOnceScheduler;
-	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
-	private _hasFocus: boolean;
-	private _viewportStartLine: number;
-	private _viewportStartLineTrackedRange: string | null;
-	private _viewportStartLineDelta: number;
-	private readonly _lines: IViewModelLinesCollection;
-	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly viewLayout: ViewLayout;
-	private readonly _cursor: CursorsController;
-	private readonly _decorations: ViewModelDecorations;
+	pwivate weadonwy _editowId: numba;
+	pwivate weadonwy _configuwation: IConfiguwation;
+	pubwic weadonwy modew: ITextModew;
+	pwivate weadonwy _eventDispatcha: ViewModewEventDispatcha;
+	pubwic weadonwy onEvent: Event<OutgoingViewModewEvent>;
+	pubwic cuwsowConfig: CuwsowConfiguwation;
+	pwivate weadonwy _tokenizeViewpowtSoon: WunOnceScheduwa;
+	pwivate weadonwy _updateConfiguwationViewWineCount: WunOnceScheduwa;
+	pwivate _hasFocus: boowean;
+	pwivate _viewpowtStawtWine: numba;
+	pwivate _viewpowtStawtWineTwackedWange: stwing | nuww;
+	pwivate _viewpowtStawtWineDewta: numba;
+	pwivate weadonwy _wines: IViewModewWinesCowwection;
+	pubwic weadonwy coowdinatesConvewta: ICoowdinatesConvewta;
+	pubwic weadonwy viewWayout: ViewWayout;
+	pwivate weadonwy _cuwsow: CuwsowsContwowwa;
+	pwivate weadonwy _decowations: ViewModewDecowations;
 
-	constructor(
-		editorId: number,
-		configuration: IConfiguration,
-		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable
+	constwuctow(
+		editowId: numba,
+		configuwation: IConfiguwation,
+		modew: ITextModew,
+		domWineBweaksComputewFactowy: IWineBweaksComputewFactowy,
+		monospaceWineBweaksComputewFactowy: IWineBweaksComputewFactowy,
+		scheduweAtNextAnimationFwame: (cawwback: () => void) => IDisposabwe
 	) {
-		super();
+		supa();
 
-		this._editorId = editorId;
-		this._configuration = configuration;
-		this.model = model;
-		this._eventDispatcher = new ViewModelEventDispatcher();
-		this.onEvent = this._eventDispatcher.onEvent;
-		this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
-		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
-		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
-		this._hasFocus = false;
-		this._viewportStartLine = -1;
-		this._viewportStartLineTrackedRange = null;
-		this._viewportStartLineDelta = 0;
+		this._editowId = editowId;
+		this._configuwation = configuwation;
+		this.modew = modew;
+		this._eventDispatcha = new ViewModewEventDispatcha();
+		this.onEvent = this._eventDispatcha.onEvent;
+		this.cuwsowConfig = new CuwsowConfiguwation(this.modew.getWanguageIdentifia(), this.modew.getOptions(), this._configuwation);
+		this._tokenizeViewpowtSoon = this._wegista(new WunOnceScheduwa(() => this.tokenizeViewpowt(), 50));
+		this._updateConfiguwationViewWineCount = this._wegista(new WunOnceScheduwa(() => this._updateConfiguwationViewWineCountNow(), 0));
+		this._hasFocus = fawse;
+		this._viewpowtStawtWine = -1;
+		this._viewpowtStawtWineTwackedWange = nuww;
+		this._viewpowtStawtWineDewta = 0;
 
-		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
+		if (USE_IDENTITY_WINES_COWWECTION && this.modew.isTooWawgeFowTokenization()) {
 
-			this._lines = new IdentityLinesCollection(this.model);
+			this._wines = new IdentityWinesCowwection(this.modew);
 
-		} else {
-			const options = this._configuration.options;
-			const fontInfo = options.get(EditorOption.fontInfo);
-			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
-			const wrappingInfo = options.get(EditorOption.wrappingInfo);
-			const wrappingIndent = options.get(EditorOption.wrappingIndent);
+		} ewse {
+			const options = this._configuwation.options;
+			const fontInfo = options.get(EditowOption.fontInfo);
+			const wwappingStwategy = options.get(EditowOption.wwappingStwategy);
+			const wwappingInfo = options.get(EditowOption.wwappingInfo);
+			const wwappingIndent = options.get(EditowOption.wwappingIndent);
 
-			this._lines = new SplitLinesCollection(
-				this._editorId,
-				this.model,
-				domLineBreaksComputerFactory,
-				monospaceLineBreaksComputerFactory,
+			this._wines = new SpwitWinesCowwection(
+				this._editowId,
+				this.modew,
+				domWineBweaksComputewFactowy,
+				monospaceWineBweaksComputewFactowy,
 				fontInfo,
-				this.model.getOptions().tabSize,
-				wrappingStrategy,
-				wrappingInfo.wrappingColumn,
-				wrappingIndent
+				this.modew.getOptions().tabSize,
+				wwappingStwategy,
+				wwappingInfo.wwappingCowumn,
+				wwappingIndent
 			);
 		}
 
-		this.coordinatesConverter = this._lines.createCoordinatesConverter();
+		this.coowdinatesConvewta = this._wines.cweateCoowdinatesConvewta();
 
-		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
+		this._cuwsow = this._wegista(new CuwsowsContwowwa(modew, this, this.coowdinatesConvewta, this.cuwsowConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
+		this.viewWayout = this._wegista(new ViewWayout(this._configuwation, this.getWineCount(), scheduweAtNextAnimationFwame));
 
-		this._register(this.viewLayout.onDidScroll((e) => {
-			if (e.scrollTopChanged) {
-				this._tokenizeViewportSoon.schedule();
+		this._wegista(this.viewWayout.onDidScwoww((e) => {
+			if (e.scwowwTopChanged) {
+				this._tokenizeViewpowtSoon.scheduwe();
 			}
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
-			this._eventDispatcher.emitOutgoingEvent(new ScrollChangedEvent(
-				e.oldScrollWidth, e.oldScrollLeft, e.oldScrollHeight, e.oldScrollTop,
-				e.scrollWidth, e.scrollLeft, e.scrollHeight, e.scrollTop
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewScwowwChangedEvent(e));
+			this._eventDispatcha.emitOutgoingEvent(new ScwowwChangedEvent(
+				e.owdScwowwWidth, e.owdScwowwWeft, e.owdScwowwHeight, e.owdScwowwTop,
+				e.scwowwWidth, e.scwowwWeft, e.scwowwHeight, e.scwowwTop
 			));
 		}));
 
-		this._register(this.viewLayout.onDidContentSizeChange((e) => {
-			this._eventDispatcher.emitOutgoingEvent(e);
+		this._wegista(this.viewWayout.onDidContentSizeChange((e) => {
+			this._eventDispatcha.emitOutgoingEvent(e);
 		}));
 
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._decowations = new ViewModewDecowations(this._editowId, this.modew, this._configuwation, this._wines, this.coowdinatesConvewta);
 
-		this._registerModelEvents();
+		this._wegistewModewEvents();
 
-		this._register(this._configuration.onDidChangeFast((e) => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				this._onConfigurationChanged(eventsCollector, e);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
+		this._wegista(this._configuwation.onDidChangeFast((e) => {
+			twy {
+				const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
+				this._onConfiguwationChanged(eventsCowwectow, e);
+			} finawwy {
+				this._eventDispatcha.endEmitViewEvents();
 			}
 		}));
 
-		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
+		this._wegista(MinimapTokensCowowTwacka.getInstance().onDidChange(() => {
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewTokensCowowsChangedEvent());
 		}));
 
-		this._updateConfigurationViewLineCountNow();
+		this._updateConfiguwationViewWineCountNow();
 	}
 
-	public override dispose(): void {
-		// First remove listeners, as disposing the lines might end up sending
-		// model decoration changed events ... and we no longer care about them ...
-		super.dispose();
-		this._decorations.dispose();
-		this._lines.dispose();
-		this.invalidateMinimapColorCache();
-		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		this._eventDispatcher.dispose();
+	pubwic ovewwide dispose(): void {
+		// Fiwst wemove wistenews, as disposing the wines might end up sending
+		// modew decowation changed events ... and we no wonga cawe about them ...
+		supa.dispose();
+		this._decowations.dispose();
+		this._wines.dispose();
+		this.invawidateMinimapCowowCache();
+		this._viewpowtStawtWineTwackedWange = this.modew._setTwackedWange(this._viewpowtStawtWineTwackedWange, nuww, TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges);
+		this._eventDispatcha.dispose();
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		return this._lines.createLineBreaksComputer();
+	pubwic cweateWineBweaksComputa(): IWineBweaksComputa {
+		wetuwn this._wines.cweateWineBweaksComputa();
 	}
 
-	public addViewEventHandler(eventHandler: ViewEventHandler): void {
-		this._eventDispatcher.addViewEventHandler(eventHandler);
+	pubwic addViewEventHandwa(eventHandwa: ViewEventHandwa): void {
+		this._eventDispatcha.addViewEventHandwa(eventHandwa);
 	}
 
-	public removeViewEventHandler(eventHandler: ViewEventHandler): void {
-		this._eventDispatcher.removeViewEventHandler(eventHandler);
+	pubwic wemoveViewEventHandwa(eventHandwa: ViewEventHandwa): void {
+		this._eventDispatcha.wemoveViewEventHandwa(eventHandwa);
 	}
 
-	private _updateConfigurationViewLineCountNow(): void {
-		this._configuration.setViewLineCount(this._lines.getViewLineCount());
+	pwivate _updateConfiguwationViewWineCountNow(): void {
+		this._configuwation.setViewWineCount(this._wines.getViewWineCount());
 	}
 
-	public tokenizeViewport(): void {
-		const linesViewportData = this.viewLayout.getLinesViewportData();
-		const startPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-		const endPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-		this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
+	pubwic tokenizeViewpowt(): void {
+		const winesViewpowtData = this.viewWayout.getWinesViewpowtData();
+		const stawtPosition = this.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(winesViewpowtData.stawtWineNumba, 1));
+		const endPosition = this.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(winesViewpowtData.endWineNumba, 1));
+		this.modew.tokenizeViewpowt(stawtPosition.wineNumba, endPosition.wineNumba);
 	}
 
-	public setHasFocus(hasFocus: boolean): void {
+	pubwic setHasFocus(hasFocus: boowean): void {
 		this._hasFocus = hasFocus;
-		this._cursor.setHasFocus(hasFocus);
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
-		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
+		this._cuwsow.setHasFocus(hasFocus);
+		this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
+		this._eventDispatcha.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
 	}
 
-	public onCompositionStart(): void {
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionStartEvent());
+	pubwic onCompositionStawt(): void {
+		this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewCompositionStawtEvent());
 	}
 
-	public onCompositionEnd(): void {
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
+	pubwic onCompositionEnd(): void {
+		this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewCompositionEndEvent());
 	}
 
-	public onDidColorThemeChange(): void {
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent());
+	pubwic onDidCowowThemeChange(): void {
+		this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewThemeChangedEvent());
 	}
 
-	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
+	pwivate _onConfiguwationChanged(eventsCowwectow: ViewModewEventsCowwectow, e: ConfiguwationChangedEvent): void {
 
-		// We might need to restore the current centered view range, so save it (if available)
-		let previousViewportStartModelPosition: Position | null = null;
-		if (this._viewportStartLine !== -1) {
-			let previousViewportStartViewPosition = new Position(this._viewportStartLine, this.getLineMinColumn(this._viewportStartLine));
-			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
+		// We might need to westowe the cuwwent centewed view wange, so save it (if avaiwabwe)
+		wet pweviousViewpowtStawtModewPosition: Position | nuww = nuww;
+		if (this._viewpowtStawtWine !== -1) {
+			wet pweviousViewpowtStawtViewPosition = new Position(this._viewpowtStawtWine, this.getWineMinCowumn(this._viewpowtStawtWine));
+			pweviousViewpowtStawtModewPosition = this.coowdinatesConvewta.convewtViewPositionToModewPosition(pweviousViewpowtStawtViewPosition);
 		}
-		let restorePreviousViewportStart = false;
+		wet westowePweviousViewpowtStawt = fawse;
 
-		const options = this._configuration.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		const wrappingIndent = options.get(EditorOption.wrappingIndent);
+		const options = this._configuwation.options;
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const wwappingStwategy = options.get(EditowOption.wwappingStwategy);
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
+		const wwappingIndent = options.get(EditowOption.wwappingIndent);
 
-		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
-			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
-			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-			this._cursor.onLineMappingChanged(eventsCollector);
-			this._decorations.onLineMappingChanged();
-			this.viewLayout.onFlushed(this.getLineCount());
+		if (this._wines.setWwappingSettings(fontInfo, wwappingStwategy, wwappingInfo.wwappingCowumn, wwappingIndent)) {
+			eventsCowwectow.emitViewEvent(new viewEvents.ViewFwushedEvent());
+			eventsCowwectow.emitViewEvent(new viewEvents.ViewWineMappingChangedEvent());
+			eventsCowwectow.emitViewEvent(new viewEvents.ViewDecowationsChangedEvent(nuww));
+			this._cuwsow.onWineMappingChanged(eventsCowwectow);
+			this._decowations.onWineMappingChanged();
+			this.viewWayout.onFwushed(this.getWineCount());
 
-			if (this.viewLayout.getCurrentScrollTop() !== 0) {
-				// Never change the scroll position from 0 to something else...
-				restorePreviousViewportStart = true;
+			if (this.viewWayout.getCuwwentScwowwTop() !== 0) {
+				// Neva change the scwoww position fwom 0 to something ewse...
+				westowePweviousViewpowtStawt = twue;
 			}
 
-			this._updateConfigurationViewLineCount.schedule();
+			this._updateConfiguwationViewWineCount.scheduwe();
 		}
 
-		if (e.hasChanged(EditorOption.readOnly)) {
-			// Must read again all decorations due to readOnly filtering
-			this._decorations.reset();
-			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+		if (e.hasChanged(EditowOption.weadOnwy)) {
+			// Must wead again aww decowations due to weadOnwy fiwtewing
+			this._decowations.weset();
+			eventsCowwectow.emitViewEvent(new viewEvents.ViewDecowationsChangedEvent(nuww));
 		}
 
-		eventsCollector.emitViewEvent(new viewEvents.ViewConfigurationChangedEvent(e));
-		this.viewLayout.onConfigurationChanged(e);
+		eventsCowwectow.emitViewEvent(new viewEvents.ViewConfiguwationChangedEvent(e));
+		this.viewWayout.onConfiguwationChanged(e);
 
-		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
-			const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(previousViewportStartModelPosition);
-			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-			this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStartLineDelta }, ScrollType.Immediate);
+		if (westowePweviousViewpowtStawt && pweviousViewpowtStawtModewPosition) {
+			const viewPosition = this.coowdinatesConvewta.convewtModewPositionToViewPosition(pweviousViewpowtStawtModewPosition);
+			const viewPositionTop = this.viewWayout.getVewticawOffsetFowWineNumba(viewPosition.wineNumba);
+			this.viewWayout.setScwowwPosition({ scwowwTop: viewPositionTop + this._viewpowtStawtWineDewta }, ScwowwType.Immediate);
 		}
 
-		if (CursorConfiguration.shouldRecreate(e)) {
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
-			this._cursor.updateConfiguration(this.cursorConfig);
+		if (CuwsowConfiguwation.shouwdWecweate(e)) {
+			this.cuwsowConfig = new CuwsowConfiguwation(this.modew.getWanguageIdentifia(), this.modew.getOptions(), this._configuwation);
+			this._cuwsow.updateConfiguwation(this.cuwsowConfig);
 		}
 	}
 
-	private _registerModelEvents(): void {
+	pwivate _wegistewModewEvents(): void {
 
-		this._register(this.model.onDidChangeContentOrInjectedText((e) => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+		this._wegista(this.modew.onDidChangeContentOwInjectedText((e) => {
+			twy {
+				const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
 
-				let hadOtherModelChange = false;
-				let hadModelLineChangeThatChangedLineMapping = false;
+				wet hadOthewModewChange = fawse;
+				wet hadModewWineChangeThatChangedWineMapping = fawse;
 
 				const changes = e.changes;
-				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
+				const vewsionId = (e instanceof textModewEvents.ModewWawContentChangedEvent ? e.vewsionId : nuww);
 
-				// Do a first pass to compute line mappings, and a second pass to actually interpret them
-				const lineBreaksComputer = this._lines.createLineBreaksComputer();
-				for (const change of changes) {
+				// Do a fiwst pass to compute wine mappings, and a second pass to actuawwy intewpwet them
+				const wineBweaksComputa = this._wines.cweateWineBweaksComputa();
+				fow (const change of changes) {
 					switch (change.changeType) {
-						case textModelEvents.RawContentChangedType.LinesInserted: {
-							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
-								const line = change.detail[lineIdx];
-								let injectedText = change.injectedTexts[lineIdx];
+						case textModewEvents.WawContentChangedType.WinesInsewted: {
+							fow (wet wineIdx = 0; wineIdx < change.detaiw.wength; wineIdx++) {
+								const wine = change.detaiw[wineIdx];
+								wet injectedText = change.injectedTexts[wineIdx];
 								if (injectedText) {
-									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+									injectedText = injectedText.fiwta(ewement => (!ewement.ownewId || ewement.ownewId === this._editowId));
 								}
-								lineBreaksComputer.addRequest(line, injectedText, null);
+								wineBweaksComputa.addWequest(wine, injectedText, nuww);
 							}
-							break;
+							bweak;
 						}
-						case textModelEvents.RawContentChangedType.LineChanged: {
-							let injectedText: textModelEvents.LineInjectedText[] | null = null;
+						case textModewEvents.WawContentChangedType.WineChanged: {
+							wet injectedText: textModewEvents.WineInjectedText[] | nuww = nuww;
 							if (change.injectedText) {
-								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								injectedText = change.injectedText.fiwta(ewement => (!ewement.ownewId || ewement.ownewId === this._editowId));
 							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, null);
-							break;
+							wineBweaksComputa.addWequest(change.detaiw, injectedText, nuww);
+							bweak;
 						}
 					}
 				}
-				const lineBreaks = lineBreaksComputer.finalize();
-				let lineBreaksOffset = 0;
+				const wineBweaks = wineBweaksComputa.finawize();
+				wet wineBweaksOffset = 0;
 
-				for (const change of changes) {
+				fow (const change of changes) {
 
 					switch (change.changeType) {
-						case textModelEvents.RawContentChangedType.Flush: {
-							this._lines.onModelFlushed();
-							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
-							this._decorations.reset();
-							this.viewLayout.onFlushed(this.getLineCount());
-							hadOtherModelChange = true;
-							break;
+						case textModewEvents.WawContentChangedType.Fwush: {
+							this._wines.onModewFwushed();
+							eventsCowwectow.emitViewEvent(new viewEvents.ViewFwushedEvent());
+							this._decowations.weset();
+							this.viewWayout.onFwushed(this.getWineCount());
+							hadOthewModewChange = twue;
+							bweak;
 						}
-						case textModelEvents.RawContentChangedType.LinesDeleted: {
-							const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
-							if (linesDeletedEvent !== null) {
-								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+						case textModewEvents.WawContentChangedType.WinesDeweted: {
+							const winesDewetedEvent = this._wines.onModewWinesDeweted(vewsionId, change.fwomWineNumba, change.toWineNumba);
+							if (winesDewetedEvent !== nuww) {
+								eventsCowwectow.emitViewEvent(winesDewetedEvent);
+								this.viewWayout.onWinesDeweted(winesDewetedEvent.fwomWineNumba, winesDewetedEvent.toWineNumba);
 							}
-							hadOtherModelChange = true;
-							break;
+							hadOthewModewChange = twue;
+							bweak;
 						}
-						case textModelEvents.RawContentChangedType.LinesInserted: {
-							const insertedLineBreaks = lineBreaks.slice(lineBreaksOffset, lineBreaksOffset + change.detail.length);
-							lineBreaksOffset += change.detail.length;
+						case textModewEvents.WawContentChangedType.WinesInsewted: {
+							const insewtedWineBweaks = wineBweaks.swice(wineBweaksOffset, wineBweaksOffset + change.detaiw.wength);
+							wineBweaksOffset += change.detaiw.wength;
 
-							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
-							if (linesInsertedEvent !== null) {
-								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							const winesInsewtedEvent = this._wines.onModewWinesInsewted(vewsionId, change.fwomWineNumba, change.toWineNumba, insewtedWineBweaks);
+							if (winesInsewtedEvent !== nuww) {
+								eventsCowwectow.emitViewEvent(winesInsewtedEvent);
+								this.viewWayout.onWinesInsewted(winesInsewtedEvent.fwomWineNumba, winesInsewtedEvent.toWineNumba);
 							}
-							hadOtherModelChange = true;
-							break;
+							hadOthewModewChange = twue;
+							bweak;
 						}
-						case textModelEvents.RawContentChangedType.LineChanged: {
-							const changedLineBreakData = lineBreaks[lineBreaksOffset];
-							lineBreaksOffset++;
+						case textModewEvents.WawContentChangedType.WineChanged: {
+							const changedWineBweakData = wineBweaks[wineBweaksOffset];
+							wineBweaksOffset++;
 
-							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this._lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
-							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
-							if (linesChangedEvent) {
-								eventsCollector.emitViewEvent(linesChangedEvent);
+							const [wineMappingChanged, winesChangedEvent, winesInsewtedEvent, winesDewetedEvent] = this._wines.onModewWineChanged(vewsionId, change.wineNumba, changedWineBweakData);
+							hadModewWineChangeThatChangedWineMapping = wineMappingChanged;
+							if (winesChangedEvent) {
+								eventsCowwectow.emitViewEvent(winesChangedEvent);
 							}
-							if (linesInsertedEvent) {
-								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+							if (winesInsewtedEvent) {
+								eventsCowwectow.emitViewEvent(winesInsewtedEvent);
+								this.viewWayout.onWinesInsewted(winesInsewtedEvent.fwomWineNumba, winesInsewtedEvent.toWineNumba);
 							}
-							if (linesDeletedEvent) {
-								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+							if (winesDewetedEvent) {
+								eventsCowwectow.emitViewEvent(winesDewetedEvent);
+								this.viewWayout.onWinesDeweted(winesDewetedEvent.fwomWineNumba, winesDewetedEvent.toWineNumba);
 							}
-							break;
+							bweak;
 						}
-						case textModelEvents.RawContentChangedType.EOLChanged: {
-							// Nothing to do. The new version will be accepted below
-							break;
+						case textModewEvents.WawContentChangedType.EOWChanged: {
+							// Nothing to do. The new vewsion wiww be accepted bewow
+							bweak;
 						}
 					}
 				}
 
-				if (versionId !== null) {
-					this._lines.acceptVersionId(versionId);
+				if (vewsionId !== nuww) {
+					this._wines.acceptVewsionId(vewsionId);
 				}
-				this.viewLayout.onHeightMaybeChanged();
+				this.viewWayout.onHeightMaybeChanged();
 
-				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
+				if (!hadOthewModewChange && hadModewWineChangeThatChangedWineMapping) {
+					eventsCowwectow.emitViewEvent(new viewEvents.ViewWineMappingChangedEvent());
+					eventsCowwectow.emitViewEvent(new viewEvents.ViewDecowationsChangedEvent(nuww));
+					this._cuwsow.onWineMappingChanged(eventsCowwectow);
+					this._decowations.onWineMappingChanged();
 				}
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
+			} finawwy {
+				this._eventDispatcha.endEmitViewEvents();
 			}
 
-			// Update the configuration and reset the centered view line
-			this._viewportStartLine = -1;
-			this._configuration.setMaxLineNumber(this.model.getLineCount());
-			this._updateConfigurationViewLineCountNow();
+			// Update the configuwation and weset the centewed view wine
+			this._viewpowtStawtWine = -1;
+			this._configuwation.setMaxWineNumba(this.modew.getWineCount());
+			this._updateConfiguwationViewWineCountNow();
 
-			// Recover viewport
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && this._viewportStartLineTrackedRange) {
-				const modelRange = this.model._getTrackedRange(this._viewportStartLineTrackedRange);
-				if (modelRange) {
-					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
-					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStartLineDelta }, ScrollType.Immediate);
+			// Wecova viewpowt
+			if (!this._hasFocus && this.modew.getAttachedEditowCount() >= 2 && this._viewpowtStawtWineTwackedWange) {
+				const modewWange = this.modew._getTwackedWange(this._viewpowtStawtWineTwackedWange);
+				if (modewWange) {
+					const viewPosition = this.coowdinatesConvewta.convewtModewPositionToViewPosition(modewWange.getStawtPosition());
+					const viewPositionTop = this.viewWayout.getVewticawOffsetFowWineNumba(viewPosition.wineNumba);
+					this.viewWayout.setScwowwPosition({ scwowwTop: viewPositionTop + this._viewpowtStawtWineDewta }, ScwowwType.Immediate);
 				}
 			}
 
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				this._cursor.onModelContentChanged(eventsCollector, e);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
+			twy {
+				const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
+				this._cuwsow.onModewContentChanged(eventsCowwectow, e);
+			} finawwy {
+				this._eventDispatcha.endEmitViewEvents();
 			}
 		}));
 
-		this._register(this.model.onDidChangeTokens((e) => {
-			let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
-			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
-				const modelRange = e.ranges[j];
-				const viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
-				const viewEndLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.toLineNumber, this.model.getLineMaxColumn(modelRange.toLineNumber))).lineNumber;
-				viewRanges[j] = {
-					fromLineNumber: viewStartLineNumber,
-					toLineNumber: viewEndLineNumber
+		this._wegista(this.modew.onDidChangeTokens((e) => {
+			wet viewWanges: { fwomWineNumba: numba; toWineNumba: numba; }[] = [];
+			fow (wet j = 0, wenJ = e.wanges.wength; j < wenJ; j++) {
+				const modewWange = e.wanges[j];
+				const viewStawtWineNumba = this.coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewWange.fwomWineNumba, 1)).wineNumba;
+				const viewEndWineNumba = this.coowdinatesConvewta.convewtModewPositionToViewPosition(new Position(modewWange.toWineNumba, this.modew.getWineMaxCowumn(modewWange.toWineNumba))).wineNumba;
+				viewWanges[j] = {
+					fwomWineNumba: viewStawtWineNumba,
+					toWineNumba: viewEndWineNumba
 				};
 			}
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensChangedEvent(viewRanges));
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewTokensChangedEvent(viewWanges));
 
-			if (e.tokenizationSupportChanged) {
-				this._tokenizeViewportSoon.schedule();
+			if (e.tokenizationSuppowtChanged) {
+				this._tokenizeViewpowtSoon.scheduwe();
 			}
 		}));
 
-		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
-			this._cursor.updateConfiguration(this.cursorConfig);
+		this._wegista(this.modew.onDidChangeWanguageConfiguwation((e) => {
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewWanguageConfiguwationEvent());
+			this.cuwsowConfig = new CuwsowConfiguwation(this.modew.getWanguageIdentifia(), this.modew.getOptions(), this._configuwation);
+			this._cuwsow.updateConfiguwation(this.cuwsowConfig);
 		}));
 
-		this._register(this.model.onDidChangeLanguage((e) => {
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
-			this._cursor.updateConfiguration(this.cursorConfig);
+		this._wegista(this.modew.onDidChangeWanguage((e) => {
+			this.cuwsowConfig = new CuwsowConfiguwation(this.modew.getWanguageIdentifia(), this.modew.getOptions(), this._configuwation);
+			this._cuwsow.updateConfiguwation(this.cuwsowConfig);
 		}));
 
-		this._register(this.model.onDidChangeOptions((e) => {
-			// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
-			if (this._lines.setTabSize(this.model.getOptions().tabSize)) {
-				try {
-					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-					eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
-					this.viewLayout.onFlushed(this.getLineCount());
-				} finally {
-					this._eventDispatcher.endEmitViewEvents();
+		this._wegista(this.modew.onDidChangeOptions((e) => {
+			// A tab size change causes a wine mapping changed event => aww view pawts wiww wepaint OK, no fuwtha event needed hewe
+			if (this._wines.setTabSize(this.modew.getOptions().tabSize)) {
+				twy {
+					const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
+					eventsCowwectow.emitViewEvent(new viewEvents.ViewFwushedEvent());
+					eventsCowwectow.emitViewEvent(new viewEvents.ViewWineMappingChangedEvent());
+					eventsCowwectow.emitViewEvent(new viewEvents.ViewDecowationsChangedEvent(nuww));
+					this._cuwsow.onWineMappingChanged(eventsCowwectow);
+					this._decowations.onWineMappingChanged();
+					this.viewWayout.onFwushed(this.getWineCount());
+				} finawwy {
+					this._eventDispatcha.endEmitViewEvents();
 				}
-				this._updateConfigurationViewLineCount.schedule();
+				this._updateConfiguwationViewWineCount.scheduwe();
 			}
 
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
-			this._cursor.updateConfiguration(this.cursorConfig);
+			this.cuwsowConfig = new CuwsowConfiguwation(this.modew.getWanguageIdentifia(), this.modew.getOptions(), this._configuwation);
+			this._cuwsow.updateConfiguwation(this.cuwsowConfig);
 		}));
 
-		this._register(this.model.onDidChangeDecorations((e) => {
-			this._decorations.onModelDecorationsChanged();
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
+		this._wegista(this.modew.onDidChangeDecowations((e) => {
+			this._decowations.onModewDecowationsChanged();
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewDecowationsChangedEvent(e));
 		}));
 	}
 
-	public setHiddenAreas(ranges: Range[]): void {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			let lineMappingChanged = this._lines.setHiddenAreas(ranges);
-			if (lineMappingChanged) {
-				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
-				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-				this._cursor.onLineMappingChanged(eventsCollector);
-				this._decorations.onLineMappingChanged();
-				this.viewLayout.onFlushed(this.getLineCount());
-				this.viewLayout.onHeightMaybeChanged();
+	pubwic setHiddenAweas(wanges: Wange[]): void {
+		twy {
+			const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
+			wet wineMappingChanged = this._wines.setHiddenAweas(wanges);
+			if (wineMappingChanged) {
+				eventsCowwectow.emitViewEvent(new viewEvents.ViewFwushedEvent());
+				eventsCowwectow.emitViewEvent(new viewEvents.ViewWineMappingChangedEvent());
+				eventsCowwectow.emitViewEvent(new viewEvents.ViewDecowationsChangedEvent(nuww));
+				this._cuwsow.onWineMappingChanged(eventsCowwectow);
+				this._decowations.onWineMappingChanged();
+				this.viewWayout.onFwushed(this.getWineCount());
+				this.viewWayout.onHeightMaybeChanged();
 			}
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
+		} finawwy {
+			this._eventDispatcha.endEmitViewEvents();
 		}
-		this._updateConfigurationViewLineCount.schedule();
+		this._updateConfiguwationViewWineCount.scheduwe();
 	}
 
-	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
-		const layoutInfo = this._configuration.options.get(EditorOption.layoutInfo);
-		const lineHeight = this._configuration.options.get(EditorOption.lineHeight);
-		const linesAround = Math.max(20, Math.round(layoutInfo.height / lineHeight));
-		const partialData = this.viewLayout.getLinesViewportData();
-		const startViewLineNumber = Math.max(1, partialData.completelyVisibleStartLineNumber - linesAround);
-		const endViewLineNumber = Math.min(this.getLineCount(), partialData.completelyVisibleEndLineNumber + linesAround);
+	pubwic getVisibweWangesPwusViewpowtAboveBewow(): Wange[] {
+		const wayoutInfo = this._configuwation.options.get(EditowOption.wayoutInfo);
+		const wineHeight = this._configuwation.options.get(EditowOption.wineHeight);
+		const winesAwound = Math.max(20, Math.wound(wayoutInfo.height / wineHeight));
+		const pawtiawData = this.viewWayout.getWinesViewpowtData();
+		const stawtViewWineNumba = Math.max(1, pawtiawData.compwetewyVisibweStawtWineNumba - winesAwound);
+		const endViewWineNumba = Math.min(this.getWineCount(), pawtiawData.compwetewyVisibweEndWineNumba + winesAwound);
 
-		return this._toModelVisibleRanges(new Range(
-			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
-			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		wetuwn this._toModewVisibweWanges(new Wange(
+			stawtViewWineNumba, this.getWineMinCowumn(stawtViewWineNumba),
+			endViewWineNumba, this.getWineMaxCowumn(endViewWineNumba)
 		));
 	}
 
-	public getVisibleRanges(): Range[] {
-		const visibleViewRange = this.getCompletelyVisibleViewRange();
-		return this._toModelVisibleRanges(visibleViewRange);
+	pubwic getVisibweWanges(): Wange[] {
+		const visibweViewWange = this.getCompwetewyVisibweViewWange();
+		wetuwn this._toModewVisibweWanges(visibweViewWange);
 	}
 
-	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
-		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
-		const hiddenAreas = this._lines.getHiddenAreas();
+	pwivate _toModewVisibweWanges(visibweViewWange: Wange): Wange[] {
+		const visibweWange = this.coowdinatesConvewta.convewtViewWangeToModewWange(visibweViewWange);
+		const hiddenAweas = this._wines.getHiddenAweas();
 
-		if (hiddenAreas.length === 0) {
-			return [visibleRange];
+		if (hiddenAweas.wength === 0) {
+			wetuwn [visibweWange];
 		}
 
-		let result: Range[] = [], resultLen = 0;
-		let startLineNumber = visibleRange.startLineNumber;
-		let startColumn = visibleRange.startColumn;
-		let endLineNumber = visibleRange.endLineNumber;
-		let endColumn = visibleRange.endColumn;
-		for (let i = 0, len = hiddenAreas.length; i < len; i++) {
-			const hiddenStartLineNumber = hiddenAreas[i].startLineNumber;
-			const hiddenEndLineNumber = hiddenAreas[i].endLineNumber;
+		wet wesuwt: Wange[] = [], wesuwtWen = 0;
+		wet stawtWineNumba = visibweWange.stawtWineNumba;
+		wet stawtCowumn = visibweWange.stawtCowumn;
+		wet endWineNumba = visibweWange.endWineNumba;
+		wet endCowumn = visibweWange.endCowumn;
+		fow (wet i = 0, wen = hiddenAweas.wength; i < wen; i++) {
+			const hiddenStawtWineNumba = hiddenAweas[i].stawtWineNumba;
+			const hiddenEndWineNumba = hiddenAweas[i].endWineNumba;
 
-			if (hiddenEndLineNumber < startLineNumber) {
+			if (hiddenEndWineNumba < stawtWineNumba) {
 				continue;
 			}
-			if (hiddenStartLineNumber > endLineNumber) {
+			if (hiddenStawtWineNumba > endWineNumba) {
 				continue;
 			}
 
-			if (startLineNumber < hiddenStartLineNumber) {
-				result[resultLen++] = new Range(
-					startLineNumber, startColumn,
-					hiddenStartLineNumber - 1, this.model.getLineMaxColumn(hiddenStartLineNumber - 1)
+			if (stawtWineNumba < hiddenStawtWineNumba) {
+				wesuwt[wesuwtWen++] = new Wange(
+					stawtWineNumba, stawtCowumn,
+					hiddenStawtWineNumba - 1, this.modew.getWineMaxCowumn(hiddenStawtWineNumba - 1)
 				);
 			}
-			startLineNumber = hiddenEndLineNumber + 1;
-			startColumn = 1;
+			stawtWineNumba = hiddenEndWineNumba + 1;
+			stawtCowumn = 1;
 		}
 
-		if (startLineNumber < endLineNumber || (startLineNumber === endLineNumber && startColumn < endColumn)) {
-			result[resultLen++] = new Range(
-				startLineNumber, startColumn,
-				endLineNumber, endColumn
+		if (stawtWineNumba < endWineNumba || (stawtWineNumba === endWineNumba && stawtCowumn < endCowumn)) {
+			wesuwt[wesuwtWen++] = new Wange(
+				stawtWineNumba, stawtCowumn,
+				endWineNumba, endCowumn
 			);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getCompletelyVisibleViewRange(): Range {
-		const partialData = this.viewLayout.getLinesViewportData();
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+	pubwic getCompwetewyVisibweViewWange(): Wange {
+		const pawtiawData = this.viewWayout.getWinesViewpowtData();
+		const stawtViewWineNumba = pawtiawData.compwetewyVisibweStawtWineNumba;
+		const endViewWineNumba = pawtiawData.compwetewyVisibweEndWineNumba;
 
-		return new Range(
-			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
-			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		wetuwn new Wange(
+			stawtViewWineNumba, this.getWineMinCowumn(stawtViewWineNumba),
+			endViewWineNumba, this.getWineMaxCowumn(endViewWineNumba)
 		);
 	}
 
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		const partialData = this.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+	pubwic getCompwetewyVisibweViewWangeAtScwowwTop(scwowwTop: numba): Wange {
+		const pawtiawData = this.viewWayout.getWinesViewpowtDataAtScwowwTop(scwowwTop);
+		const stawtViewWineNumba = pawtiawData.compwetewyVisibweStawtWineNumba;
+		const endViewWineNumba = pawtiawData.compwetewyVisibweEndWineNumba;
 
-		return new Range(
-			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
-			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		wetuwn new Wange(
+			stawtViewWineNumba, this.getWineMinCowumn(stawtViewWineNumba),
+			endViewWineNumba, this.getWineMaxCowumn(endViewWineNumba)
 		);
 	}
 
-	public saveState(): IViewState {
-		const compatViewState = this.viewLayout.saveState();
+	pubwic saveState(): IViewState {
+		const compatViewState = this.viewWayout.saveState();
 
-		const scrollTop = compatViewState.scrollTop;
-		const firstViewLineNumber = this.viewLayout.getLineNumberAtVerticalOffset(scrollTop);
-		const firstPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(firstViewLineNumber, this.getLineMinColumn(firstViewLineNumber)));
-		const firstPositionDeltaTop = this.viewLayout.getVerticalOffsetForLineNumber(firstViewLineNumber) - scrollTop;
+		const scwowwTop = compatViewState.scwowwTop;
+		const fiwstViewWineNumba = this.viewWayout.getWineNumbewAtVewticawOffset(scwowwTop);
+		const fiwstPosition = this.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(fiwstViewWineNumba, this.getWineMinCowumn(fiwstViewWineNumba)));
+		const fiwstPositionDewtaTop = this.viewWayout.getVewticawOffsetFowWineNumba(fiwstViewWineNumba) - scwowwTop;
 
-		return {
-			scrollLeft: compatViewState.scrollLeft,
-			firstPosition: firstPosition,
-			firstPositionDeltaTop: firstPositionDeltaTop
+		wetuwn {
+			scwowwWeft: compatViewState.scwowwWeft,
+			fiwstPosition: fiwstPosition,
+			fiwstPositionDewtaTop: fiwstPositionDewtaTop
 		};
 	}
 
-	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
-		if (typeof state.firstPosition === 'undefined') {
-			// This is a view state serialized by an older version
-			return this._reduceRestoreStateCompatibility(state);
+	pubwic weduceWestoweState(state: IViewState): { scwowwWeft: numba; scwowwTop: numba; } {
+		if (typeof state.fiwstPosition === 'undefined') {
+			// This is a view state sewiawized by an owda vewsion
+			wetuwn this._weduceWestoweStateCompatibiwity(state);
 		}
 
-		const modelPosition = this.model.validatePosition(state.firstPosition);
-		const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		const scrollTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber) - state.firstPositionDeltaTop;
-		return {
-			scrollLeft: state.scrollLeft,
-			scrollTop: scrollTop
+		const modewPosition = this.modew.vawidatePosition(state.fiwstPosition);
+		const viewPosition = this.coowdinatesConvewta.convewtModewPositionToViewPosition(modewPosition);
+		const scwowwTop = this.viewWayout.getVewticawOffsetFowWineNumba(viewPosition.wineNumba) - state.fiwstPositionDewtaTop;
+		wetuwn {
+			scwowwWeft: state.scwowwWeft,
+			scwowwTop: scwowwTop
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
-		return {
-			scrollLeft: state.scrollLeft,
-			scrollTop: state.scrollTopWithoutViewZones!
+	pwivate _weduceWestoweStateCompatibiwity(state: IViewState): { scwowwWeft: numba; scwowwTop: numba; } {
+		wetuwn {
+			scwowwWeft: state.scwowwWeft,
+			scwowwTop: state.scwowwTopWithoutViewZones!
 		};
 	}
 
-	private getTabSize(): number {
-		return this.model.getOptions().tabSize;
+	pwivate getTabSize(): numba {
+		wetuwn this.modew.getOptions().tabSize;
 	}
 
-	public getTextModelOptions(): TextModelResolvedOptions {
-		return this.model.getOptions();
+	pubwic getTextModewOptions(): TextModewWesowvedOptions {
+		wetuwn this.modew.getOptions();
 	}
 
-	public getLineCount(): number {
-		return this._lines.getViewLineCount();
+	pubwic getWineCount(): numba {
+		wetuwn this._wines.getViewWineCount();
 	}
 
 	/**
-	 * Gives a hint that a lot of requests are about to come in for these line numbers.
+	 * Gives a hint that a wot of wequests awe about to come in fow these wine numbews.
 	 */
-	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
-		this._viewportStartLine = startLineNumber;
-		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
-		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
-		const viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
-		const scrollTop = this.viewLayout.getCurrentScrollTop();
-		this._viewportStartLineDelta = scrollTop - viewportStartLineTop;
+	pubwic setViewpowt(stawtWineNumba: numba, endWineNumba: numba, centewedWineNumba: numba): void {
+		this._viewpowtStawtWine = stawtWineNumba;
+		wet position = this.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(stawtWineNumba, this.getWineMinCowumn(stawtWineNumba)));
+		this._viewpowtStawtWineTwackedWange = this.modew._setTwackedWange(this._viewpowtStawtWineTwackedWange, new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn), TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges);
+		const viewpowtStawtWineTop = this.viewWayout.getVewticawOffsetFowWineNumba(stawtWineNumba);
+		const scwowwTop = this.viewWayout.getCuwwentScwowwTop();
+		this._viewpowtStawtWineDewta = scwowwTop - viewpowtStawtWineTop;
 	}
 
-	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
-		return this._lines.getActiveIndentGuide(lineNumber, minLineNumber, maxLineNumber);
+	pubwic getActiveIndentGuide(wineNumba: numba, minWineNumba: numba, maxWineNumba: numba): IActiveIndentGuideInfo {
+		wetuwn this._wines.getActiveIndentGuide(wineNumba, minWineNumba, maxWineNumba);
 	}
 
-	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
-		return this._lines.getViewLinesIndentGuides(startLineNumber, endLineNumber);
+	pubwic getWinesIndentGuides(stawtWineNumba: numba, endWineNumba: numba): numba[] {
+		wetuwn this._wines.getViewWinesIndentGuides(stawtWineNumba, endWineNumba);
 	}
 
-	public getLineContent(lineNumber: number): string {
-		return this._lines.getViewLineContent(lineNumber);
+	pubwic getWineContent(wineNumba: numba): stwing {
+		wetuwn this._wines.getViewWineContent(wineNumba);
 	}
 
-	public getLineLength(lineNumber: number): number {
-		return this._lines.getViewLineLength(lineNumber);
+	pubwic getWineWength(wineNumba: numba): numba {
+		wetuwn this._wines.getViewWineWength(wineNumba);
 	}
 
-	public getLineMinColumn(lineNumber: number): number {
-		return this._lines.getViewLineMinColumn(lineNumber);
+	pubwic getWineMinCowumn(wineNumba: numba): numba {
+		wetuwn this._wines.getViewWineMinCowumn(wineNumba);
 	}
 
-	public getLineMaxColumn(lineNumber: number): number {
-		return this._lines.getViewLineMaxColumn(lineNumber);
+	pubwic getWineMaxCowumn(wineNumba: numba): numba {
+		wetuwn this._wines.getViewWineMaxCowumn(wineNumba);
 	}
 
-	public getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.firstNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
+	pubwic getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba {
+		const wesuwt = stwings.fiwstNonWhitespaceIndex(this.getWineContent(wineNumba));
+		if (wesuwt === -1) {
+			wetuwn 0;
 		}
-		return result + 1;
+		wetuwn wesuwt + 1;
 	}
 
-	public getLineLastNonWhitespaceColumn(lineNumber: number): number {
-		const result = strings.lastNonWhitespaceIndex(this.getLineContent(lineNumber));
-		if (result === -1) {
-			return 0;
+	pubwic getWineWastNonWhitespaceCowumn(wineNumba: numba): numba {
+		const wesuwt = stwings.wastNonWhitespaceIndex(this.getWineContent(wineNumba));
+		if (wesuwt === -1) {
+			wetuwn 0;
 		}
-		return result + 2;
+		wetuwn wesuwt + 2;
 	}
 
-	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
-		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
+	pubwic getDecowationsInViewpowt(visibweWange: Wange): ViewModewDecowation[] {
+		wetuwn this._decowations.getDecowationsViewpowtData(visibweWange).decowations;
 	}
 
-	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
-		return this._lines.getInjectedTextAt(viewPosition);
+	pubwic getInjectedTextAt(viewPosition: Position): InjectedText | nuww {
+		wetuwn this._wines.getInjectedTextAt(viewPosition);
 	}
 
-	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
-		let mightContainRTL = this.model.mightContainRTL();
-		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
-		let tabSize = this.getTabSize();
-		let lineData = this._lines.getViewLineData(lineNumber);
-		let allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
-		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
+	pubwic getViewWineWendewingData(visibweWange: Wange, wineNumba: numba): ViewWineWendewingData {
+		wet mightContainWTW = this.modew.mightContainWTW();
+		wet mightContainNonBasicASCII = this.modew.mightContainNonBasicASCII();
+		wet tabSize = this.getTabSize();
+		wet wineData = this._wines.getViewWineData(wineNumba);
+		wet awwInwineDecowations = this._decowations.getDecowationsViewpowtData(visibweWange).inwineDecowations;
+		wet inwineDecowations = awwInwineDecowations[wineNumba - visibweWange.stawtWineNumba];
 
-		if (lineData.inlineDecorations) {
-			inlineDecorations = [
-				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
+		if (wineData.inwineDecowations) {
+			inwineDecowations = [
+				...inwineDecowations,
+				...wineData.inwineDecowations.map(d =>
+					d.toInwineDecowation(wineNumba)
 				)
 			];
 		}
 
-		return new ViewLineRenderingData(
-			lineData.minColumn,
-			lineData.maxColumn,
-			lineData.content,
-			lineData.continuesWithWrappedLine,
-			mightContainRTL,
+		wetuwn new ViewWineWendewingData(
+			wineData.minCowumn,
+			wineData.maxCowumn,
+			wineData.content,
+			wineData.continuesWithWwappedWine,
+			mightContainWTW,
 			mightContainNonBasicASCII,
-			lineData.tokens,
-			inlineDecorations,
+			wineData.tokens,
+			inwineDecowations,
 			tabSize,
-			lineData.startVisibleColumn
+			wineData.stawtVisibweCowumn
 		);
 	}
 
-	public getViewLineData(lineNumber: number): ViewLineData {
-		return this._lines.getViewLineData(lineNumber);
+	pubwic getViewWineData(wineNumba: numba): ViewWineData {
+		wetuwn this._wines.getViewWineData(wineNumba);
 	}
 
-	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
-		let result = this._lines.getViewLinesData(startLineNumber, endLineNumber, needed);
-		return new MinimapLinesRenderingData(
+	pubwic getMinimapWinesWendewingData(stawtWineNumba: numba, endWineNumba: numba, needed: boowean[]): MinimapWinesWendewingData {
+		wet wesuwt = this._wines.getViewWinesData(stawtWineNumba, endWineNumba, needed);
+		wetuwn new MinimapWinesWendewingData(
 			this.getTabSize(),
-			result
+			wesuwt
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
-		return this._lines.getAllOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options), theme);
+	pubwic getAwwOvewviewWuwewDecowations(theme: EditowTheme): IOvewviewWuwewDecowations {
+		wetuwn this._wines.getAwwOvewviewWuwewDecowations(this._editowId, fiwtewVawidationDecowations(this._configuwation.options), theme);
 	}
 
-	public invalidateOverviewRulerColorCache(): void {
-		const decorations = this.model.getOverviewRulerDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+	pubwic invawidateOvewviewWuwewCowowCache(): void {
+		const decowations = this.modew.getOvewviewWuwewDecowations();
+		fow (const decowation of decowations) {
+			const opts = <ModewDecowationOvewviewWuwewOptions>decowation.options.ovewviewWuwa;
 			if (opts) {
-				opts.invalidateCachedColor();
+				opts.invawidateCachedCowow();
 			}
 		}
 	}
 
-	public invalidateMinimapColorCache(): void {
-		const decorations = this.model.getAllDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationMinimapOptions>decoration.options.minimap;
+	pubwic invawidateMinimapCowowCache(): void {
+		const decowations = this.modew.getAwwDecowations();
+		fow (const decowation of decowations) {
+			const opts = <ModewDecowationMinimapOptions>decowation.options.minimap;
 			if (opts) {
-				opts.invalidateCachedColor();
+				opts.invawidateCachedCowow();
 			}
 		}
 	}
 
-	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
-		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
-		return this.model.getValueInRange(modelRange, eol);
+	pubwic getVawueInWange(wange: Wange, eow: EndOfWinePwefewence): stwing {
+		const modewWange = this.coowdinatesConvewta.convewtViewWangeToModewWange(wange);
+		wetuwn this.modew.getVawueInWange(modewWange, eow);
 	}
 
-	public getModelLineMaxColumn(modelLineNumber: number): number {
-		return this.model.getLineMaxColumn(modelLineNumber);
+	pubwic getModewWineMaxCowumn(modewWineNumba: numba): numba {
+		wetuwn this.modew.getWineMaxCowumn(modewWineNumba);
 	}
 
-	public validateModelPosition(position: IPosition): Position {
-		return this.model.validatePosition(position);
+	pubwic vawidateModewPosition(position: IPosition): Position {
+		wetuwn this.modew.vawidatePosition(position);
 	}
 
-	public validateModelRange(range: IRange): Range {
-		return this.model.validateRange(range);
+	pubwic vawidateModewWange(wange: IWange): Wange {
+		wetuwn this.modew.vawidateWange(wange);
 	}
 
-	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
-		const modelAnchor = this.coordinatesConverter.convertViewPositionToModelPosition(viewAnchorPosition);
-		if (this.model.getEOL().length === 2) {
-			// This model uses CRLF, so the delta must take that into account
-			if (deltaOffset < 0) {
-				deltaOffset -= lineFeedCnt;
-			} else {
-				deltaOffset += lineFeedCnt;
+	pubwic deduceModewPositionWewativeToViewPosition(viewAnchowPosition: Position, dewtaOffset: numba, wineFeedCnt: numba): Position {
+		const modewAnchow = this.coowdinatesConvewta.convewtViewPositionToModewPosition(viewAnchowPosition);
+		if (this.modew.getEOW().wength === 2) {
+			// This modew uses CWWF, so the dewta must take that into account
+			if (dewtaOffset < 0) {
+				dewtaOffset -= wineFeedCnt;
+			} ewse {
+				dewtaOffset += wineFeedCnt;
 			}
 		}
 
-		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
-		const resultOffset = modelAnchorOffset + deltaOffset;
-		return this.model.getPositionAt(resultOffset);
+		const modewAnchowOffset = this.modew.getOffsetAt(modewAnchow);
+		const wesuwtOffset = modewAnchowOffset + dewtaOffset;
+		wetuwn this.modew.getPositionAt(wesuwtOffset);
 	}
 
-	public getEOL(): string {
-		return this.model.getEOL();
+	pubwic getEOW(): stwing {
+		wetuwn this.modew.getEOW();
 	}
 
-	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
-		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
+	pubwic getPwainTextToCopy(modewWanges: Wange[], emptySewectionCwipboawd: boowean, fowceCWWF: boowean): stwing | stwing[] {
+		const newWineChawacta = fowceCWWF ? '\w\n' : this.modew.getEOW();
 
-		modelRanges = modelRanges.slice(0);
-		modelRanges.sort(Range.compareRangesUsingStarts);
+		modewWanges = modewWanges.swice(0);
+		modewWanges.sowt(Wange.compaweWangesUsingStawts);
 
-		let hasEmptyRange = false;
-		let hasNonEmptyRange = false;
-		for (const range of modelRanges) {
-			if (range.isEmpty()) {
-				hasEmptyRange = true;
-			} else {
-				hasNonEmptyRange = true;
+		wet hasEmptyWange = fawse;
+		wet hasNonEmptyWange = fawse;
+		fow (const wange of modewWanges) {
+			if (wange.isEmpty()) {
+				hasEmptyWange = twue;
+			} ewse {
+				hasNonEmptyWange = twue;
 			}
 		}
 
-		if (!hasNonEmptyRange) {
-			// all ranges are empty
-			if (!emptySelectionClipboard) {
-				return '';
+		if (!hasNonEmptyWange) {
+			// aww wanges awe empty
+			if (!emptySewectionCwipboawd) {
+				wetuwn '';
 			}
 
-			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
+			const modewWineNumbews = modewWanges.map((w) => w.stawtWineNumba);
 
-			let result = '';
-			for (let i = 0; i < modelLineNumbers.length; i++) {
-				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
+			wet wesuwt = '';
+			fow (wet i = 0; i < modewWineNumbews.wength; i++) {
+				if (i > 0 && modewWineNumbews[i - 1] === modewWineNumbews[i]) {
 					continue;
 				}
-				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
+				wesuwt += this.modew.getWineContent(modewWineNumbews[i]) + newWineChawacta;
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		if (hasEmptyRange && emptySelectionClipboard) {
-			// mixed empty selections and non-empty selections
-			let result: string[] = [];
-			let prevModelLineNumber = 0;
-			for (const modelRange of modelRanges) {
-				const modelLineNumber = modelRange.startLineNumber;
-				if (modelRange.isEmpty()) {
-					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber));
+		if (hasEmptyWange && emptySewectionCwipboawd) {
+			// mixed empty sewections and non-empty sewections
+			wet wesuwt: stwing[] = [];
+			wet pwevModewWineNumba = 0;
+			fow (const modewWange of modewWanges) {
+				const modewWineNumba = modewWange.stawtWineNumba;
+				if (modewWange.isEmpty()) {
+					if (modewWineNumba !== pwevModewWineNumba) {
+						wesuwt.push(this.modew.getWineContent(modewWineNumba));
 					}
-				} else {
-					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+				} ewse {
+					wesuwt.push(this.modew.getVawueInWange(modewWange, fowceCWWF ? EndOfWinePwefewence.CWWF : EndOfWinePwefewence.TextDefined));
 				}
-				prevModelLineNumber = modelLineNumber;
+				pwevModewWineNumba = modewWineNumba;
 			}
-			return result.length === 1 ? result[0] : result;
+			wetuwn wesuwt.wength === 1 ? wesuwt[0] : wesuwt;
 		}
 
-		let result: string[] = [];
-		for (const modelRange of modelRanges) {
-			if (!modelRange.isEmpty()) {
-				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		wet wesuwt: stwing[] = [];
+		fow (const modewWange of modewWanges) {
+			if (!modewWange.isEmpty()) {
+				wesuwt.push(this.modew.getVawueInWange(modewWange, fowceCWWF ? EndOfWinePwefewence.CWWF : EndOfWinePwefewence.TextDefined));
 			}
 		}
-		return result.length === 1 ? result[0] : result;
+		wetuwn wesuwt.wength === 1 ? wesuwt[0] : wesuwt;
 	}
 
-	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
-		const languageId = this.model.getLanguageIdentifier();
-		if (languageId.id === LanguageId.PlainText) {
-			return null;
+	pubwic getWichTextToCopy(modewWanges: Wange[], emptySewectionCwipboawd: boowean): { htmw: stwing, mode: stwing } | nuww {
+		const wanguageId = this.modew.getWanguageIdentifia();
+		if (wanguageId.id === WanguageId.PwainText) {
+			wetuwn nuww;
 		}
 
-		if (modelRanges.length !== 1) {
-			// no multiple selection support at this time
-			return null;
+		if (modewWanges.wength !== 1) {
+			// no muwtipwe sewection suppowt at this time
+			wetuwn nuww;
 		}
 
-		let range = modelRanges[0];
-		if (range.isEmpty()) {
-			if (!emptySelectionClipboard) {
+		wet wange = modewWanges[0];
+		if (wange.isEmpty()) {
+			if (!emptySewectionCwipboawd) {
 				// nothing to copy
-				return null;
+				wetuwn nuww;
 			}
-			const lineNumber = range.startLineNumber;
-			range = new Range(lineNumber, this.model.getLineMinColumn(lineNumber), lineNumber, this.model.getLineMaxColumn(lineNumber));
+			const wineNumba = wange.stawtWineNumba;
+			wange = new Wange(wineNumba, this.modew.getWineMinCowumn(wineNumba), wineNumba, this.modew.getWineMaxCowumn(wineNumba));
 		}
 
-		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
-		const colorMap = this._getColorMap();
-		const hasBadChars = (/[:;\\\/<>]/.test(fontInfo.fontFamily));
-		const useDefaultFontFamily = (hasBadChars || fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily);
-		let fontFamily: string;
-		if (useDefaultFontFamily) {
-			fontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
-		} else {
-			fontFamily = fontInfo.fontFamily;
-			fontFamily = fontFamily.replace(/"/g, '\'');
-			const hasQuotesOrIsList = /[,']/.test(fontFamily);
-			if (!hasQuotesOrIsList) {
-				const needsQuotes = /[+ ]/.test(fontFamily);
+		const fontInfo = this._configuwation.options.get(EditowOption.fontInfo);
+		const cowowMap = this._getCowowMap();
+		const hasBadChaws = (/[:;\\\/<>]/.test(fontInfo.fontFamiwy));
+		const useDefauwtFontFamiwy = (hasBadChaws || fontInfo.fontFamiwy === EDITOW_FONT_DEFAUWTS.fontFamiwy);
+		wet fontFamiwy: stwing;
+		if (useDefauwtFontFamiwy) {
+			fontFamiwy = EDITOW_FONT_DEFAUWTS.fontFamiwy;
+		} ewse {
+			fontFamiwy = fontInfo.fontFamiwy;
+			fontFamiwy = fontFamiwy.wepwace(/"/g, '\'');
+			const hasQuotesOwIsWist = /[,']/.test(fontFamiwy);
+			if (!hasQuotesOwIsWist) {
+				const needsQuotes = /[+ ]/.test(fontFamiwy);
 				if (needsQuotes) {
-					fontFamily = `'${fontFamily}'`;
+					fontFamiwy = `'${fontFamiwy}'`;
 				}
 			}
-			fontFamily = `${fontFamily}, ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+			fontFamiwy = `${fontFamiwy}, ${EDITOW_FONT_DEFAUWTS.fontFamiwy}`;
 		}
 
-		return {
-			mode: languageId.language,
-			html: (
-				`<div style="`
-				+ `color: ${colorMap[ColorId.DefaultForeground]};`
-				+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
-				+ `font-family: ${fontFamily};`
+		wetuwn {
+			mode: wanguageId.wanguage,
+			htmw: (
+				`<div stywe="`
+				+ `cowow: ${cowowMap[CowowId.DefauwtFowegwound]};`
+				+ `backgwound-cowow: ${cowowMap[CowowId.DefauwtBackgwound]};`
+				+ `font-famiwy: ${fontFamiwy};`
 				+ `font-weight: ${fontInfo.fontWeight};`
 				+ `font-size: ${fontInfo.fontSize}px;`
-				+ `line-height: ${fontInfo.lineHeight}px;`
-				+ `white-space: pre;`
+				+ `wine-height: ${fontInfo.wineHeight}px;`
+				+ `white-space: pwe;`
 				+ `">`
-				+ this._getHTMLToCopy(range, colorMap)
+				+ this._getHTMWToCopy(wange, cowowMap)
 				+ '</div>'
 			)
 		};
 	}
 
-	private _getHTMLToCopy(modelRange: Range, colorMap: string[]): string {
-		const startLineNumber = modelRange.startLineNumber;
-		const startColumn = modelRange.startColumn;
-		const endLineNumber = modelRange.endLineNumber;
-		const endColumn = modelRange.endColumn;
+	pwivate _getHTMWToCopy(modewWange: Wange, cowowMap: stwing[]): stwing {
+		const stawtWineNumba = modewWange.stawtWineNumba;
+		const stawtCowumn = modewWange.stawtCowumn;
+		const endWineNumba = modewWange.endWineNumba;
+		const endCowumn = modewWange.endCowumn;
 
 		const tabSize = this.getTabSize();
 
-		let result = '';
+		wet wesuwt = '';
 
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineTokens = this.model.getLineTokens(lineNumber);
-			const lineContent = lineTokens.getLineContent();
-			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
-			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			const wineTokens = this.modew.getWineTokens(wineNumba);
+			const wineContent = wineTokens.getWineContent();
+			const stawtOffset = (wineNumba === stawtWineNumba ? stawtCowumn - 1 : 0);
+			const endOffset = (wineNumba === endWineNumba ? endCowumn - 1 : wineContent.wength);
 
-			if (lineContent === '') {
-				result += '<br>';
-			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
+			if (wineContent === '') {
+				wesuwt += '<bw>';
+			} ewse {
+				wesuwt += tokenizeWineToHTMW(wineContent, wineTokens.infwate(), cowowMap, stawtOffset, endOffset, tabSize, pwatfowm.isWindows);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _getColorMap(): string[] {
-		let colorMap = TokenizationRegistry.getColorMap();
-		let result: string[] = ['#000000'];
-		if (colorMap) {
-			for (let i = 1, len = colorMap.length; i < len; i++) {
-				result[i] = Color.Format.CSS.formatHex(colorMap[i]);
+	pwivate _getCowowMap(): stwing[] {
+		wet cowowMap = TokenizationWegistwy.getCowowMap();
+		wet wesuwt: stwing[] = ['#000000'];
+		if (cowowMap) {
+			fow (wet i = 1, wen = cowowMap.wength; i < wen; i++) {
+				wesuwt[i] = Cowow.Fowmat.CSS.fowmatHex(cowowMap[i]);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	//#region model
+	//#wegion modew
 
-	public pushStackElement(): void {
-		this.model.pushStackElement();
-	}
-
-	//#endregion
-
-	//#region cursor operations
-
-	public getPrimaryCursorState(): CursorState {
-		return this._cursor.getPrimaryCursorState();
-	}
-	public getLastAddedCursorIndex(): number {
-		return this._cursor.getLastAddedCursorIndex();
-	}
-	public getCursorStates(): CursorState[] {
-		return this._cursor.getCursorStates();
-	}
-	public setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.setStates(eventsCollector, source, reason, states));
-	}
-	public getCursorColumnSelectData(): IColumnSelectData {
-		return this._cursor.getCursorColumnSelectData();
-	}
-	public getCursorAutoClosedCharacters(): Range[] {
-		return this._cursor.getAutoClosedCharacters();
-	}
-	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
-		this._cursor.setCursorColumnSelectData(columnSelectData);
-	}
-	public getPrevEditOperationType(): EditOperationType {
-		return this._cursor.getPrevEditOperationType();
-	}
-	public setPrevEditOperationType(type: EditOperationType): void {
-		this._cursor.setPrevEditOperationType(type);
-	}
-	public getSelection(): Selection {
-		return this._cursor.getSelection();
-	}
-	public getSelections(): Selection[] {
-		return this._cursor.getSelections();
-	}
-	public getPosition(): Position {
-		return this._cursor.getPrimaryCursorState().modelState.position;
-	}
-	public setSelections(source: string | null | undefined, selections: readonly ISelection[], reason = CursorChangeReason.NotSet): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.setSelections(eventsCollector, source, selections, reason));
-	}
-	public saveCursorState(): ICursorState[] {
-		return this._cursor.saveState();
-	}
-	public restoreCursorState(states: ICursorState[]): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.restoreState(eventsCollector, states));
+	pubwic pushStackEwement(): void {
+		this.modew.pushStackEwement();
 	}
 
-	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
-		if (this._cursor.context.cursorConfig.readOnly) {
-			// we cannot edit when read only...
-			this._eventDispatcher.emitOutgoingEvent(new ReadOnlyEditAttemptEvent());
-			return;
+	//#endwegion
+
+	//#wegion cuwsow opewations
+
+	pubwic getPwimawyCuwsowState(): CuwsowState {
+		wetuwn this._cuwsow.getPwimawyCuwsowState();
+	}
+	pubwic getWastAddedCuwsowIndex(): numba {
+		wetuwn this._cuwsow.getWastAddedCuwsowIndex();
+	}
+	pubwic getCuwsowStates(): CuwsowState[] {
+		wetuwn this._cuwsow.getCuwsowStates();
+	}
+	pubwic setCuwsowStates(souwce: stwing | nuww | undefined, weason: CuwsowChangeWeason, states: PawtiawCuwsowState[] | nuww): void {
+		this._withViewEventsCowwectow(eventsCowwectow => this._cuwsow.setStates(eventsCowwectow, souwce, weason, states));
+	}
+	pubwic getCuwsowCowumnSewectData(): ICowumnSewectData {
+		wetuwn this._cuwsow.getCuwsowCowumnSewectData();
+	}
+	pubwic getCuwsowAutoCwosedChawactews(): Wange[] {
+		wetuwn this._cuwsow.getAutoCwosedChawactews();
+	}
+	pubwic setCuwsowCowumnSewectData(cowumnSewectData: ICowumnSewectData): void {
+		this._cuwsow.setCuwsowCowumnSewectData(cowumnSewectData);
+	}
+	pubwic getPwevEditOpewationType(): EditOpewationType {
+		wetuwn this._cuwsow.getPwevEditOpewationType();
+	}
+	pubwic setPwevEditOpewationType(type: EditOpewationType): void {
+		this._cuwsow.setPwevEditOpewationType(type);
+	}
+	pubwic getSewection(): Sewection {
+		wetuwn this._cuwsow.getSewection();
+	}
+	pubwic getSewections(): Sewection[] {
+		wetuwn this._cuwsow.getSewections();
+	}
+	pubwic getPosition(): Position {
+		wetuwn this._cuwsow.getPwimawyCuwsowState().modewState.position;
+	}
+	pubwic setSewections(souwce: stwing | nuww | undefined, sewections: weadonwy ISewection[], weason = CuwsowChangeWeason.NotSet): void {
+		this._withViewEventsCowwectow(eventsCowwectow => this._cuwsow.setSewections(eventsCowwectow, souwce, sewections, weason));
+	}
+	pubwic saveCuwsowState(): ICuwsowState[] {
+		wetuwn this._cuwsow.saveState();
+	}
+	pubwic westoweCuwsowState(states: ICuwsowState[]): void {
+		this._withViewEventsCowwectow(eventsCowwectow => this._cuwsow.westoweState(eventsCowwectow, states));
+	}
+
+	pwivate _executeCuwsowEdit(cawwback: (eventsCowwectow: ViewModewEventsCowwectow) => void): void {
+		if (this._cuwsow.context.cuwsowConfig.weadOnwy) {
+			// we cannot edit when wead onwy...
+			this._eventDispatcha.emitOutgoingEvent(new WeadOnwyEditAttemptEvent());
+			wetuwn;
 		}
-		this._withViewEventsCollector(callback);
+		this._withViewEventsCowwectow(cawwback);
 	}
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
+	pubwic executeEdits(souwce: stwing | nuww | undefined, edits: IIdentifiedSingweEditOpewation[], cuwsowStateComputa: ICuwsowStateComputa): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.executeEdits(eventsCowwectow, souwce, edits, cuwsowStateComputa));
 	}
-	public startComposition(): void {
-		this._cursor.setIsDoingComposition(true);
-		this._executeCursorEdit(eventsCollector => this._cursor.startComposition(eventsCollector));
+	pubwic stawtComposition(): void {
+		this._cuwsow.setIsDoingComposition(twue);
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.stawtComposition(eventsCowwectow));
 	}
-	public endComposition(source?: string | null | undefined): void {
-		this._cursor.setIsDoingComposition(false);
-		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source));
+	pubwic endComposition(souwce?: stwing | nuww | undefined): void {
+		this._cuwsow.setIsDoingComposition(fawse);
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.endComposition(eventsCowwectow, souwce));
 	}
-	public type(text: string, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));
+	pubwic type(text: stwing, souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.type(eventsCowwectow, text, souwce));
 	}
-	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
+	pubwic compositionType(text: stwing, wepwacePwevChawCnt: numba, wepwaceNextChawCnt: numba, positionDewta: numba, souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.compositionType(eventsCowwectow, text, wepwacePwevChawCnt, wepwaceNextChawCnt, positionDewta, souwce));
 	}
-	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
+	pubwic paste(text: stwing, pasteOnNewWine: boowean, muwticuwsowText?: stwing[] | nuww | undefined, souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.paste(eventsCowwectow, text, pasteOnNewWine, muwticuwsowText, souwce));
 	}
-	public cut(source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.cut(eventsCollector, source));
+	pubwic cut(souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.cut(eventsCowwectow, souwce));
 	}
-	public executeCommand(command: ICommand, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.executeCommand(eventsCollector, command, source));
+	pubwic executeCommand(command: ICommand, souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.executeCommand(eventsCowwectow, command, souwce));
 	}
-	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
+	pubwic executeCommands(commands: ICommand[], souwce?: stwing | nuww | undefined): void {
+		this._executeCuwsowEdit(eventsCowwectow => this._cuwsow.executeCommands(eventsCowwectow, commands, souwce));
 	}
-	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, revealHorizontal, ScrollType.Smooth));
+	pubwic weveawPwimawyCuwsow(souwce: stwing | nuww | undefined, weveawHowizontaw: boowean): void {
+		this._withViewEventsCowwectow(eventsCowwectow => this._cuwsow.weveawPwimawy(eventsCowwectow, souwce, weveawHowizontaw, ScwowwType.Smooth));
 	}
-	public revealTopMostCursor(source: string | null | undefined): void {
-		const viewPosition = this._cursor.getTopMostViewPosition();
-		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+	pubwic weveawTopMostCuwsow(souwce: stwing | nuww | undefined): void {
+		const viewPosition = this._cuwsow.getTopMostViewPosition();
+		const viewWange = new Wange(viewPosition.wineNumba, viewPosition.cowumn, viewPosition.wineNumba, viewPosition.cowumn);
+		this._withViewEventsCowwectow(eventsCowwectow => eventsCowwectow.emitViewEvent(new viewEvents.ViewWeveawWangeWequestEvent(souwce, viewWange, nuww, viewEvents.VewticawWeveawType.Simpwe, twue, ScwowwType.Smooth)));
 	}
-	public revealBottomMostCursor(source: string | null | undefined): void {
-		const viewPosition = this._cursor.getBottomMostViewPosition();
-		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+	pubwic weveawBottomMostCuwsow(souwce: stwing | nuww | undefined): void {
+		const viewPosition = this._cuwsow.getBottomMostViewPosition();
+		const viewWange = new Wange(viewPosition.wineNumba, viewPosition.cowumn, viewPosition.wineNumba, viewPosition.cowumn);
+		this._withViewEventsCowwectow(eventsCowwectow => eventsCowwectow.emitViewEvent(new viewEvents.ViewWeveawWangeWequestEvent(souwce, viewWange, nuww, viewEvents.VewticawWeveawType.Simpwe, twue, ScwowwType.Smooth)));
 	}
-	public revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: ScrollType): void {
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
+	pubwic weveawWange(souwce: stwing | nuww | undefined, weveawHowizontaw: boowean, viewWange: Wange, vewticawType: viewEvents.VewticawWeveawType, scwowwType: ScwowwType): void {
+		this._withViewEventsCowwectow(eventsCowwectow => eventsCowwectow.emitViewEvent(new viewEvents.ViewWeveawWangeWequestEvent(souwce, viewWange, nuww, vewticawType, weveawHowizontaw, scwowwType)));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region viewLayout
-	public getVerticalOffsetForLineNumber(viewLineNumber: number): number {
-		return this.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
+	//#wegion viewWayout
+	pubwic getVewticawOffsetFowWineNumba(viewWineNumba: numba): numba {
+		wetuwn this.viewWayout.getVewticawOffsetFowWineNumba(viewWineNumba);
 	}
-	public getScrollTop(): number {
-		return this.viewLayout.getCurrentScrollTop();
+	pubwic getScwowwTop(): numba {
+		wetuwn this.viewWayout.getCuwwentScwowwTop();
 	}
-	public setScrollTop(newScrollTop: number, scrollType: ScrollType): void {
-		this.viewLayout.setScrollPosition({ scrollTop: newScrollTop }, scrollType);
+	pubwic setScwowwTop(newScwowwTop: numba, scwowwType: ScwowwType): void {
+		this.viewWayout.setScwowwPosition({ scwowwTop: newScwowwTop }, scwowwType);
 	}
-	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
-		this.viewLayout.setScrollPosition(position, type);
+	pubwic setScwowwPosition(position: INewScwowwPosition, type: ScwowwType): void {
+		this.viewWayout.setScwowwPosition(position, type);
 	}
-	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
-		this.viewLayout.deltaScrollNow(deltaScrollLeft, deltaScrollTop);
+	pubwic dewtaScwowwNow(dewtaScwowwWeft: numba, dewtaScwowwTop: numba): void {
+		this.viewWayout.dewtaScwowwNow(dewtaScwowwWeft, dewtaScwowwTop);
 	}
-	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
-		const hadAChange = this.viewLayout.changeWhitespace(callback);
+	pubwic changeWhitespace(cawwback: (accessow: IWhitespaceChangeAccessow) => void): void {
+		const hadAChange = this.viewWayout.changeWhitespace(cawwback);
 		if (hadAChange) {
-			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewZonesChangedEvent());
-			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
+			this._eventDispatcha.emitSingweViewEvent(new viewEvents.ViewZonesChangedEvent());
+			this._eventDispatcha.emitOutgoingEvent(new ViewZonesChangedEvent());
 		}
 	}
-	public setMaxLineWidth(maxLineWidth: number): void {
-		this.viewLayout.setMaxLineWidth(maxLineWidth);
+	pubwic setMaxWineWidth(maxWineWidth: numba): void {
+		this.viewWayout.setMaxWineWidth(maxWineWidth);
 	}
-	//#endregion
+	//#endwegion
 
-	private _withViewEventsCollector(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			callback(eventsCollector);
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
+	pwivate _withViewEventsCowwectow(cawwback: (eventsCowwectow: ViewModewEventsCowwectow) => void): void {
+		twy {
+			const eventsCowwectow = this._eventDispatcha.beginEmitViewEvents();
+			cawwback(eventsCowwectow);
+		} finawwy {
+			this._eventDispatcha.endEmitViewEvents();
 		}
 	}
 
-	normalizePosition(position: Position, affinity: PositionAffinity): Position {
-		return this._lines.normalizePosition(position, affinity);
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position {
+		wetuwn this._wines.nowmawizePosition(position, affinity);
 	}
 
 	/**
-	 * Gets the column at which indentation stops at a given line.
-	 * @internal
+	 * Gets the cowumn at which indentation stops at a given wine.
+	 * @intewnaw
 	*/
-	getLineIndentColumn(lineNumber: number): number {
-		return this._lines.getLineIndentColumn(lineNumber);
+	getWineIndentCowumn(wineNumba: numba): numba {
+		wetuwn this._wines.getWineIndentCowumn(wineNumba);
 	}
 }

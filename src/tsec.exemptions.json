@@ -1,36 +1,36 @@
 {
-	"ban-eval-calls": [
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain"
+	"ban-evaw-cawws": [
+		"vs/wowkbench/api/wowka/extHostExtensionSewvice.ts",
+		"vs/base/wowka/wowkewMain"
 	],
-	"ban-function-calls": [
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/base/worker/workerMain",
-		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils.ts"
+	"ban-function-cawws": [
+		"vs/wowkbench/api/wowka/extHostExtensionSewvice.ts",
+		"vs/base/wowka/wowkewMain",
+		"vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewPwewoads.ts",
+		"vs/wowkbench/sewvices/keybinding/test/ewectwon-bwowsa/keyboawdMappewTestUtiws.ts"
 	],
-	"ban-trustedtypes-createpolicy": [
-		"vs/base/browser/dom.ts",
-		"vs/base/browser/markdownRenderer.ts",
-		"vs/base/worker/defaultWorkerFactory.ts",
-		"vs/base/worker/workerMain.ts",
-		"vs/editor/browser/core/markdownRenderer.ts",
-		"vs/editor/browser/view/domLineBreaksComputer.ts",
-		"vs/editor/browser/view/viewLayer.ts",
-		"vs/editor/browser/widget/diffEditorWidget.ts",
-		"vs/editor/contrib/inlineCompletions/ghostTextWidget.ts",
-		"vs/editor/browser/widget/diffReview.ts",
-		"vs/editor/standalone/browser/colorizer.ts",
-		"vs/workbench/api/worker/extHostExtensionService.ts",
-		"vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts",
-		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+	"ban-twustedtypes-cweatepowicy": [
+		"vs/base/bwowsa/dom.ts",
+		"vs/base/bwowsa/mawkdownWendewa.ts",
+		"vs/base/wowka/defauwtWowkewFactowy.ts",
+		"vs/base/wowka/wowkewMain.ts",
+		"vs/editow/bwowsa/cowe/mawkdownWendewa.ts",
+		"vs/editow/bwowsa/view/domWineBweaksComputa.ts",
+		"vs/editow/bwowsa/view/viewWaya.ts",
+		"vs/editow/bwowsa/widget/diffEditowWidget.ts",
+		"vs/editow/contwib/inwineCompwetions/ghostTextWidget.ts",
+		"vs/editow/bwowsa/widget/diffWeview.ts",
+		"vs/editow/standawone/bwowsa/cowowiza.ts",
+		"vs/wowkbench/api/wowka/extHostExtensionSewvice.ts",
+		"vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwWendewa.ts",
+		"vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/webviewPwewoads.ts",
+		"vs/wowkbench/sewvices/extensions/bwowsa/webWowkewExtensionHost.ts"
 	],
-	"ban-worker-calls": [
-		"vs/base/worker/defaultWorkerFactory.ts",
-		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+	"ban-wowka-cawws": [
+		"vs/base/wowka/defauwtWowkewFactowy.ts",
+		"vs/wowkbench/sewvices/extensions/bwowsa/webWowkewExtensionHost.ts"
 	],
-	"ban-domparser-parsefromstring": [
-		"vs/base/test/browser/markdownRenderer.test.ts"
+	"ban-dompawsa-pawsefwomstwing": [
+		"vs/base/test/bwowsa/mawkdownWendewa.test.ts"
 	]
 }

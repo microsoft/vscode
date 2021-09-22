@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthenticationSession, authentication, window } from 'vscode';
-import { Agent, globalAgent } from 'https';
-import { Octokit } from '@octokit/rest';
-import { httpsOverHttp } from 'tunnel';
-import { URL } from 'url';
+impowt { AuthenticationSession, authentication, window } fwom 'vscode';
+impowt { Agent, gwobawAgent } fwom 'https';
+impowt { Octokit } fwom '@octokit/west';
+impowt { httpsOvewHttp } fwom 'tunnew';
+impowt { UWW } fwom 'uww';
 
-function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
-	if (!url) {
-		return globalAgent;
+function getAgent(uww: stwing | undefined = pwocess.env.HTTPS_PWOXY): Agent {
+	if (!uww) {
+		wetuwn gwobawAgent;
 	}
 
-	try {
-		const { hostname, port, username, password } = new URL(url);
-		const auth = username && password && `${username}:${password}`;
-		return httpsOverHttp({ proxy: { host: hostname, port, proxyAuth: auth } });
+	twy {
+		const { hostname, powt, usewname, passwowd } = new UWW(uww);
+		const auth = usewname && passwowd && `${usewname}:${passwowd}`;
+		wetuwn httpsOvewHttp({ pwoxy: { host: hostname, powt, pwoxyAuth: auth } });
 	} catch (e) {
-		window.showErrorMessage(`HTTPS_PROXY environment variable ignored: ${e.message}`);
-		return globalAgent;
+		window.showEwwowMessage(`HTTPS_PWOXY enviwonment vawiabwe ignowed: ${e.message}`);
+		wetuwn gwobawAgent;
 	}
 }
 
-const scopes = ['repo', 'workflow'];
+const scopes = ['wepo', 'wowkfwow'];
 
-export async function getSession(): Promise<AuthenticationSession> {
-	return await authentication.getSession('github', scopes, { createIfNone: true });
+expowt async function getSession(): Pwomise<AuthenticationSession> {
+	wetuwn await authentication.getSession('github', scopes, { cweateIfNone: twue });
 }
 
-let _octokit: Promise<Octokit> | undefined;
+wet _octokit: Pwomise<Octokit> | undefined;
 
-export function getOctokit(): Promise<Octokit> {
+expowt function getOctokit(): Pwomise<Octokit> {
 	if (!_octokit) {
 		_octokit = getSession().then(async session => {
 			const token = session.accessToken;
 			const agent = getAgent();
 
-			const { Octokit } = await import('@octokit/rest');
+			const { Octokit } = await impowt('@octokit/west');
 
-			return new Octokit({
-				request: { agent },
-				userAgent: 'GitHub VSCode',
+			wetuwn new Octokit({
+				wequest: { agent },
+				usewAgent: 'GitHub VSCode',
 				auth: `token ${token}`
 			});
-		}).then(null, async err => {
+		}).then(nuww, async eww => {
 			_octokit = undefined;
-			throw err;
+			thwow eww;
 		});
 	}
 
-	return _octokit;
+	wetuwn _octokit;
 }
 

@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const compilation = require('./lib/compilation');
+const guwp = wequiwe('guwp');
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const compiwation = wequiwe('./wib/compiwation');
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-const compileBuildTask = task.define('compile-build',
-	task.series(
-		util.rimraf('out-build'),
-		util.buildWebNodePaths('out-build'),
-		compilation.compileTask('src', 'out-build', true)
+// Fuww compiwe, incwuding nws and inwine souwces in souwcemaps, fow buiwd
+const compiweBuiwdTask = task.define('compiwe-buiwd',
+	task.sewies(
+		utiw.wimwaf('out-buiwd'),
+		utiw.buiwdWebNodePaths('out-buiwd'),
+		compiwation.compiweTask('swc', 'out-buiwd', twue)
 	)
 );
-gulp.task(compileBuildTask);
-exports.compileBuildTask = compileBuildTask;
+guwp.task(compiweBuiwdTask);
+expowts.compiweBuiwdTask = compiweBuiwdTask;

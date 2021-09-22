@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 //
-import * as errors from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WemoteAuthowities } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWemoteAuthowityWesowvewSewvice, IWemoteConnectionData, WesowvedAuthowity, WesowvedOptions, WesowvewWesuwt } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
 
-class PendingPromise<I, R> {
-	public readonly promise: Promise<R>;
-	public readonly input: I;
-	public result: R | null;
-	private _resolve!: (value: R) => void;
-	private _reject!: (err: any) => void;
+cwass PendingPwomise<I, W> {
+	pubwic weadonwy pwomise: Pwomise<W>;
+	pubwic weadonwy input: I;
+	pubwic wesuwt: W | nuww;
+	pwivate _wesowve!: (vawue: W) => void;
+	pwivate _weject!: (eww: any) => void;
 
-	constructor(request: I) {
-		this.input = request;
-		this.promise = new Promise<R>((resolve, reject) => {
-			this._resolve = resolve;
-			this._reject = reject;
+	constwuctow(wequest: I) {
+		this.input = wequest;
+		this.pwomise = new Pwomise<W>((wesowve, weject) => {
+			this._wesowve = wesowve;
+			this._weject = weject;
 		});
-		this.result = null;
+		this.wesuwt = nuww;
 	}
 
-	resolve(result: R): void {
-		this.result = result;
-		this._resolve(this.result);
+	wesowve(wesuwt: W): void {
+		this.wesuwt = wesuwt;
+		this._wesowve(this.wesuwt);
 	}
 
-	reject(err: any): void {
-		this._reject(err);
+	weject(eww: any): void {
+		this._weject(eww);
 	}
 }
 
-export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
+expowt cwass WemoteAuthowityWesowvewSewvice extends Disposabwe impwements IWemoteAuthowityWesowvewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeConnectionData = this._register(new Emitter<void>());
-	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
+	pwivate weadonwy _onDidChangeConnectionData = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
-	private readonly _resolveAuthorityRequests: Map<string, PendingPromise<string, ResolverResult>>;
-	private readonly _connectionTokens: Map<string, string>;
-	private readonly _canonicalURIRequests: Map<string, PendingPromise<URI, URI>>;
-	private _canonicalURIProvider: ((uri: URI) => Promise<URI>) | null;
+	pwivate weadonwy _wesowveAuthowityWequests: Map<stwing, PendingPwomise<stwing, WesowvewWesuwt>>;
+	pwivate weadonwy _connectionTokens: Map<stwing, stwing>;
+	pwivate weadonwy _canonicawUWIWequests: Map<stwing, PendingPwomise<UWI, UWI>>;
+	pwivate _canonicawUWIPwovida: ((uwi: UWI) => Pwomise<UWI>) | nuww;
 
-	constructor() {
-		super();
-		this._resolveAuthorityRequests = new Map<string, PendingPromise<string, ResolverResult>>();
-		this._connectionTokens = new Map<string, string>();
-		this._canonicalURIRequests = new Map<string, PendingPromise<URI, URI>>();
-		this._canonicalURIProvider = null;
+	constwuctow() {
+		supa();
+		this._wesowveAuthowityWequests = new Map<stwing, PendingPwomise<stwing, WesowvewWesuwt>>();
+		this._connectionTokens = new Map<stwing, stwing>();
+		this._canonicawUWIWequests = new Map<stwing, PendingPwomise<UWI, UWI>>();
+		this._canonicawUWIPwovida = nuww;
 	}
 
-	resolveAuthority(authority: string): Promise<ResolverResult> {
-		if (!this._resolveAuthorityRequests.has(authority)) {
-			this._resolveAuthorityRequests.set(authority, new PendingPromise<string, ResolverResult>(authority));
+	wesowveAuthowity(authowity: stwing): Pwomise<WesowvewWesuwt> {
+		if (!this._wesowveAuthowityWequests.has(authowity)) {
+			this._wesowveAuthowityWequests.set(authowity, new PendingPwomise<stwing, WesowvewWesuwt>(authowity));
 		}
-		return this._resolveAuthorityRequests.get(authority)!.promise;
+		wetuwn this._wesowveAuthowityWequests.get(authowity)!.pwomise;
 	}
 
-	async getCanonicalURI(uri: URI): Promise<URI> {
-		const key = uri.toString();
-		if (!this._canonicalURIRequests.has(key)) {
-			const request = new PendingPromise<URI, URI>(uri);
-			if (this._canonicalURIProvider) {
-				this._canonicalURIProvider(request.input).then((uri) => request.resolve(uri), (err) => request.reject(err));
+	async getCanonicawUWI(uwi: UWI): Pwomise<UWI> {
+		const key = uwi.toStwing();
+		if (!this._canonicawUWIWequests.has(key)) {
+			const wequest = new PendingPwomise<UWI, UWI>(uwi);
+			if (this._canonicawUWIPwovida) {
+				this._canonicawUWIPwovida(wequest.input).then((uwi) => wequest.wesowve(uwi), (eww) => wequest.weject(eww));
 			}
-			this._canonicalURIRequests.set(key, request);
+			this._canonicawUWIWequests.set(key, wequest);
 		}
-		return this._canonicalURIRequests.get(key)!.promise;
+		wetuwn this._canonicawUWIWequests.get(key)!.pwomise;
 	}
 
-	getConnectionData(authority: string): IRemoteConnectionData | null {
-		if (!this._resolveAuthorityRequests.has(authority)) {
-			return null;
+	getConnectionData(authowity: stwing): IWemoteConnectionData | nuww {
+		if (!this._wesowveAuthowityWequests.has(authowity)) {
+			wetuwn nuww;
 		}
-		const request = this._resolveAuthorityRequests.get(authority)!;
-		if (!request.result) {
-			return null;
+		const wequest = this._wesowveAuthowityWequests.get(authowity)!;
+		if (!wequest.wesuwt) {
+			wetuwn nuww;
 		}
-		const connectionToken = this._connectionTokens.get(authority);
-		return {
-			host: request.result.authority.host,
-			port: request.result.authority.port,
+		const connectionToken = this._connectionTokens.get(authowity);
+		wetuwn {
+			host: wequest.wesuwt.authowity.host,
+			powt: wequest.wesuwt.authowity.powt,
 			connectionToken: connectionToken
 		};
 	}
 
-	_clearResolvedAuthority(authority: string): void {
-		if (this._resolveAuthorityRequests.has(authority)) {
-			this._resolveAuthorityRequests.get(authority)!.reject(errors.canceled());
-			this._resolveAuthorityRequests.delete(authority);
+	_cweawWesowvedAuthowity(authowity: stwing): void {
+		if (this._wesowveAuthowityWequests.has(authowity)) {
+			this._wesowveAuthowityWequests.get(authowity)!.weject(ewwows.cancewed());
+			this._wesowveAuthowityWequests.dewete(authowity);
 		}
 	}
 
-	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, options?: ResolvedOptions): void {
-		if (this._resolveAuthorityRequests.has(resolvedAuthority.authority)) {
-			const request = this._resolveAuthorityRequests.get(resolvedAuthority.authority)!;
-			RemoteAuthorities.set(resolvedAuthority.authority, resolvedAuthority.host, resolvedAuthority.port);
-			if (resolvedAuthority.connectionToken) {
-				RemoteAuthorities.setConnectionToken(resolvedAuthority.authority, resolvedAuthority.connectionToken);
+	_setWesowvedAuthowity(wesowvedAuthowity: WesowvedAuthowity, options?: WesowvedOptions): void {
+		if (this._wesowveAuthowityWequests.has(wesowvedAuthowity.authowity)) {
+			const wequest = this._wesowveAuthowityWequests.get(wesowvedAuthowity.authowity)!;
+			WemoteAuthowities.set(wesowvedAuthowity.authowity, wesowvedAuthowity.host, wesowvedAuthowity.powt);
+			if (wesowvedAuthowity.connectionToken) {
+				WemoteAuthowities.setConnectionToken(wesowvedAuthowity.authowity, wesowvedAuthowity.connectionToken);
 			}
-			request.resolve({ authority: resolvedAuthority, options });
-			this._onDidChangeConnectionData.fire();
+			wequest.wesowve({ authowity: wesowvedAuthowity, options });
+			this._onDidChangeConnectionData.fiwe();
 		}
 	}
 
-	_setResolvedAuthorityError(authority: string, err: any): void {
-		if (this._resolveAuthorityRequests.has(authority)) {
-			const request = this._resolveAuthorityRequests.get(authority)!;
-			request.reject(err);
+	_setWesowvedAuthowityEwwow(authowity: stwing, eww: any): void {
+		if (this._wesowveAuthowityWequests.has(authowity)) {
+			const wequest = this._wesowveAuthowityWequests.get(authowity)!;
+			wequest.weject(eww);
 		}
 	}
 
-	_setAuthorityConnectionToken(authority: string, connectionToken: string): void {
-		this._connectionTokens.set(authority, connectionToken);
-		RemoteAuthorities.setConnectionToken(authority, connectionToken);
-		this._onDidChangeConnectionData.fire();
+	_setAuthowityConnectionToken(authowity: stwing, connectionToken: stwing): void {
+		this._connectionTokens.set(authowity, connectionToken);
+		WemoteAuthowities.setConnectionToken(authowity, connectionToken);
+		this._onDidChangeConnectionData.fiwe();
 	}
 
-	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
-		this._canonicalURIProvider = provider;
-		this._canonicalURIRequests.forEach((value) => {
-			this._canonicalURIProvider!(value.input).then((uri) => value.resolve(uri), (err) => value.reject(err));
+	_setCanonicawUWIPwovida(pwovida: (uwi: UWI) => Pwomise<UWI>): void {
+		this._canonicawUWIPwovida = pwovida;
+		this._canonicawUWIWequests.fowEach((vawue) => {
+			this._canonicawUWIPwovida!(vawue.input).then((uwi) => vawue.wesowve(uwi), (eww) => vawue.weject(eww));
 		});
 	}
 }

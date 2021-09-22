@@ -1,152 +1,152 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient, SewvewWesponse } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class TypeScriptRenameProvider implements vscode.RenameProvider {
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager
+cwass TypeScwiptWenamePwovida impwements vscode.WenamePwovida {
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga
 	) { }
 
-	public async prepareRename(
+	pubwic async pwepaweWename(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.Range | null> {
-		if (this.client.apiVersion.lt(API.v310)) {
-			return null;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.Wange | nuww> {
+		if (this.cwient.apiVewsion.wt(API.v310)) {
+			wetuwn nuww;
 		}
 
-		const response = await this.execRename(document, position, token);
-		if (response?.type !== 'response' || !response.body) {
-			return null;
+		const wesponse = await this.execWename(document, position, token);
+		if (wesponse?.type !== 'wesponse' || !wesponse.body) {
+			wetuwn nuww;
 		}
 
-		const renameInfo = response.body.info;
-		if (!renameInfo.canRename) {
-			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
+		const wenameInfo = wesponse.body.info;
+		if (!wenameInfo.canWename) {
+			wetuwn Pwomise.weject<vscode.Wange>(wenameInfo.wocawizedEwwowMessage);
 		}
 
-		return typeConverters.Range.fromTextSpan(renameInfo.triggerSpan);
+		wetuwn typeConvewtews.Wange.fwomTextSpan(wenameInfo.twiggewSpan);
 	}
 
-	public async provideRenameEdits(
+	pubwic async pwovideWenameEdits(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		newName: string,
-		token: vscode.CancellationToken
-	): Promise<vscode.WorkspaceEdit | null> {
-		const response = await this.execRename(document, position, token);
-		if (!response || response.type !== 'response' || !response.body) {
-			return null;
+		newName: stwing,
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.WowkspaceEdit | nuww> {
+		const wesponse = await this.execWename(document, position, token);
+		if (!wesponse || wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn nuww;
 		}
 
-		const renameInfo = response.body.info;
-		if (!renameInfo.canRename) {
-			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
+		const wenameInfo = wesponse.body.info;
+		if (!wenameInfo.canWename) {
+			wetuwn Pwomise.weject<vscode.WowkspaceEdit>(wenameInfo.wocawizedEwwowMessage);
 		}
 
-		if (renameInfo.fileToRename) {
-			const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
+		if (wenameInfo.fiweToWename) {
+			const edits = await this.wenameFiwe(wenameInfo.fiweToWename, newName, token);
 			if (edits) {
-				return edits;
-			} else {
-				return Promise.reject<vscode.WorkspaceEdit>(localize('fileRenameFail', "An error occurred while renaming file"));
+				wetuwn edits;
+			} ewse {
+				wetuwn Pwomise.weject<vscode.WowkspaceEdit>(wocawize('fiweWenameFaiw', "An ewwow occuwwed whiwe wenaming fiwe"));
 			}
 		}
 
-		return this.updateLocs(response.body.locs, newName);
+		wetuwn this.updateWocs(wesponse.body.wocs, newName);
 	}
 
-	public async execRename(
+	pubwic async execWename(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<ServerResponse.Response<Proto.RenameResponse> | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<SewvewWesponse.Wesponse<Pwoto.WenameWesponse> | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		const args: Proto.RenameRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(file, position),
-			findInStrings: false,
-			findInComments: false
+		const awgs: Pwoto.WenameWequestAwgs = {
+			...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position),
+			findInStwings: fawse,
+			findInComments: fawse
 		};
 
-		return this.client.interruptGetErr(() => {
-			this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
-			return this.client.execute('rename', args, token);
+		wetuwn this.cwient.intewwuptGetEww(() => {
+			this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(document, token);
+			wetuwn this.cwient.execute('wename', awgs, token);
 		});
 	}
 
-	private updateLocs(
-		locations: ReadonlyArray<Proto.SpanGroup>,
-		newName: string
+	pwivate updateWocs(
+		wocations: WeadonwyAwway<Pwoto.SpanGwoup>,
+		newName: stwing
 	) {
-		const edit = new vscode.WorkspaceEdit();
-		for (const spanGroup of locations) {
-			const resource = this.client.toResource(spanGroup.file);
-			for (const textSpan of spanGroup.locs) {
-				edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan),
-					(textSpan.prefixText || '') + newName + (textSpan.suffixText || ''));
+		const edit = new vscode.WowkspaceEdit();
+		fow (const spanGwoup of wocations) {
+			const wesouwce = this.cwient.toWesouwce(spanGwoup.fiwe);
+			fow (const textSpan of spanGwoup.wocs) {
+				edit.wepwace(wesouwce, typeConvewtews.Wange.fwomTextSpan(textSpan),
+					(textSpan.pwefixText || '') + newName + (textSpan.suffixText || ''));
 			}
 		}
-		return edit;
+		wetuwn edit;
 	}
 
-	private async renameFile(
-		fileToRename: string,
-		newName: string,
-		token: vscode.CancellationToken,
-	): Promise<vscode.WorkspaceEdit | undefined> {
-		// Make sure we preserve file extension if none provided
+	pwivate async wenameFiwe(
+		fiweToWename: stwing,
+		newName: stwing,
+		token: vscode.CancewwationToken,
+	): Pwomise<vscode.WowkspaceEdit | undefined> {
+		// Make suwe we pwesewve fiwe extension if none pwovided
 		if (!path.extname(newName)) {
-			newName += path.extname(fileToRename);
+			newName += path.extname(fiweToWename);
 		}
 
-		const dirname = path.dirname(fileToRename);
-		const newFilePath = path.join(dirname, newName);
+		const diwname = path.diwname(fiweToWename);
+		const newFiwePath = path.join(diwname, newName);
 
-		const args: Proto.GetEditsForFileRenameRequestArgs & { file: string } = {
-			file: fileToRename,
-			oldFilePath: fileToRename,
-			newFilePath: newFilePath,
+		const awgs: Pwoto.GetEditsFowFiweWenameWequestAwgs & { fiwe: stwing } = {
+			fiwe: fiweToWename,
+			owdFiwePath: fiweToWename,
+			newFiwePath: newFiwePath,
 		};
-		const response = await this.client.execute('getEditsForFileRename', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const wesponse = await this.cwient.execute('getEditsFowFiweWename', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		edits.renameFile(vscode.Uri.file(fileToRename), vscode.Uri.file(newFilePath));
-		return edits;
+		const edits = typeConvewtews.WowkspaceEdit.fwomFiweCodeEdits(this.cwient, wesponse.body);
+		edits.wenameFiwe(vscode.Uwi.fiwe(fiweToWename), vscode.Uwi.fiwe(newFiwePath));
+		wetuwn edits;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
 ) {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerRenameProvider(selector.semantic,
-			new TypeScriptRenameProvider(client, fileConfigurationManager));
+		wetuwn vscode.wanguages.wegistewWenamePwovida(sewectow.semantic,
+			new TypeScwiptWenamePwovida(cwient, fiweConfiguwationManaga));
 	});
 }

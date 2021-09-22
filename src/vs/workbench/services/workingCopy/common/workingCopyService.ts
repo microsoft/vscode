@@ -1,261 +1,261 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Disposabwe, IDisposabwe, toDisposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IWowkingCopy, IWowkingCopyIdentifia } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
+expowt const IWowkingCopySewvice = cweateDecowatow<IWowkingCopySewvice>('wowkingCopySewvice');
 
-export interface IWorkingCopyService {
+expowt intewface IWowkingCopySewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 
-	//#region Events
+	//#wegion Events
 
 	/**
-	 * An event for when a working copy was registered.
+	 * An event fow when a wowking copy was wegistewed.
 	 */
-	readonly onDidRegister: Event<IWorkingCopy>;
+	weadonwy onDidWegista: Event<IWowkingCopy>;
 
 	/**
-	 * An event for when a working copy was unregistered.
+	 * An event fow when a wowking copy was unwegistewed.
 	 */
-	readonly onDidUnregister: Event<IWorkingCopy>;
+	weadonwy onDidUnwegista: Event<IWowkingCopy>;
 
 	/**
-	 * An event for when a working copy dirty state changed.
+	 * An event fow when a wowking copy diwty state changed.
 	 */
-	readonly onDidChangeDirty: Event<IWorkingCopy>;
+	weadonwy onDidChangeDiwty: Event<IWowkingCopy>;
 
 	/**
-	 * An event for when a working copy's content changed.
+	 * An event fow when a wowking copy's content changed.
 	 */
-	readonly onDidChangeContent: Event<IWorkingCopy>;
+	weadonwy onDidChangeContent: Event<IWowkingCopy>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dirty Tracking
+	//#wegion Diwty Twacking
 
 	/**
-	 * The number of dirty working copies that are registered.
+	 * The numba of diwty wowking copies that awe wegistewed.
 	 */
-	readonly dirtyCount: number;
+	weadonwy diwtyCount: numba;
 
 	/**
-	 * All dirty working copies that are registered.
+	 * Aww diwty wowking copies that awe wegistewed.
 	 */
-	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
+	weadonwy diwtyWowkingCopies: weadonwy IWowkingCopy[];
 
 	/**
-	 * Whether there is any registered working copy that is dirty.
+	 * Whetha thewe is any wegistewed wowking copy that is diwty.
 	 */
-	readonly hasDirty: boolean;
+	weadonwy hasDiwty: boowean;
 
 	/**
-	 * Figure out if working copies with the given
-	 * resource are dirty or not.
+	 * Figuwe out if wowking copies with the given
+	 * wesouwce awe diwty ow not.
 	 *
-	 * @param resource the URI of the working copy
-	 * @param typeId optional type identifier to only
-	 * consider working copies of that type.
+	 * @pawam wesouwce the UWI of the wowking copy
+	 * @pawam typeId optionaw type identifia to onwy
+	 * consida wowking copies of that type.
 	 */
-	isDirty(resource: URI, typeId?: string): boolean;
+	isDiwty(wesouwce: UWI, typeId?: stwing): boowean;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Registry
+	//#wegion Wegistwy
 
 	/**
-	 * All working copies that are registered.
+	 * Aww wowking copies that awe wegistewed.
 	 */
-	readonly workingCopies: readonly IWorkingCopy[];
+	weadonwy wowkingCopies: weadonwy IWowkingCopy[];
 
 	/**
-	 * Register a new working copy with the service. This method will
-	 * throw if you try to register a working copy on a resource that
-	 * has already been registered.
+	 * Wegista a new wowking copy with the sewvice. This method wiww
+	 * thwow if you twy to wegista a wowking copy on a wesouwce that
+	 * has awweady been wegistewed.
 	 *
-	 * Overall there can only ever be 1 working copy with the same
-	 * resource.
+	 * Ovewaww thewe can onwy eva be 1 wowking copy with the same
+	 * wesouwce.
 	 */
-	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable;
+	wegistewWowkingCopy(wowkingCopy: IWowkingCopy): IDisposabwe;
 
 	/**
-	 * Whether a working copy with the given resource or identifier
+	 * Whetha a wowking copy with the given wesouwce ow identifia
 	 * exists.
 	 */
-	has(identifier: IWorkingCopyIdentifier): boolean;
-	has(resource: URI): boolean;
+	has(identifia: IWowkingCopyIdentifia): boowean;
+	has(wesouwce: UWI): boowean;
 
 	/**
-	 * Returns a working copy with the given identifier or `undefined`
-	 * if no such working copy exists.
+	 * Wetuwns a wowking copy with the given identifia ow `undefined`
+	 * if no such wowking copy exists.
 	 */
-	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined;
+	get(identifia: IWowkingCopyIdentifia): IWowkingCopy | undefined;
 
-	//#endregion
+	//#endwegion
 }
 
-export class WorkingCopyService extends Disposable implements IWorkingCopyService {
+expowt cwass WowkingCopySewvice extends Disposabwe impwements IWowkingCopySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidRegister = this._register(new Emitter<IWorkingCopy>());
-	readonly onDidRegister = this._onDidRegister.event;
+	pwivate weadonwy _onDidWegista = this._wegista(new Emitta<IWowkingCopy>());
+	weadonwy onDidWegista = this._onDidWegista.event;
 
-	private readonly _onDidUnregister = this._register(new Emitter<IWorkingCopy>());
-	readonly onDidUnregister = this._onDidUnregister.event;
+	pwivate weadonwy _onDidUnwegista = this._wegista(new Emitta<IWowkingCopy>());
+	weadonwy onDidUnwegista = this._onDidUnwegista.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<IWorkingCopy>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<IWowkingCopy>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
-	readonly onDidChangeContent = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<IWowkingCopy>());
+	weadonwy onDidChangeContent = this._onDidChangeContent.event;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Registry
+	//#wegion Wegistwy
 
-	get workingCopies(): IWorkingCopy[] { return Array.from(this._workingCopies.values()); }
-	private _workingCopies = new Set<IWorkingCopy>();
+	get wowkingCopies(): IWowkingCopy[] { wetuwn Awway.fwom(this._wowkingCopies.vawues()); }
+	pwivate _wowkingCopies = new Set<IWowkingCopy>();
 
-	private readonly mapResourceToWorkingCopies = new ResourceMap<Map<string, IWorkingCopy>>();
+	pwivate weadonwy mapWesouwceToWowkingCopies = new WesouwceMap<Map<stwing, IWowkingCopy>>();
 
-	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
-		let workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
-		if (workingCopiesForResource?.has(workingCopy.typeId)) {
-			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)} and type ${workingCopy.typeId}.`);
+	wegistewWowkingCopy(wowkingCopy: IWowkingCopy): IDisposabwe {
+		wet wowkingCopiesFowWesouwce = this.mapWesouwceToWowkingCopies.get(wowkingCopy.wesouwce);
+		if (wowkingCopiesFowWesouwce?.has(wowkingCopy.typeId)) {
+			thwow new Ewwow(`Cannot wegista mowe than one wowking copy with the same wesouwce ${wowkingCopy.wesouwce.toStwing(twue)} and type ${wowkingCopy.typeId}.`);
 		}
 
-		// Registry (all)
-		this._workingCopies.add(workingCopy);
+		// Wegistwy (aww)
+		this._wowkingCopies.add(wowkingCopy);
 
-		// Registry (type based)
-		if (!workingCopiesForResource) {
-			workingCopiesForResource = new Map();
-			this.mapResourceToWorkingCopies.set(workingCopy.resource, workingCopiesForResource);
+		// Wegistwy (type based)
+		if (!wowkingCopiesFowWesouwce) {
+			wowkingCopiesFowWesouwce = new Map();
+			this.mapWesouwceToWowkingCopies.set(wowkingCopy.wesouwce, wowkingCopiesFowWesouwce);
 		}
-		workingCopiesForResource.set(workingCopy.typeId, workingCopy);
+		wowkingCopiesFowWesouwce.set(wowkingCopy.typeId, wowkingCopy);
 
-		// Wire in Events
-		const disposables = new DisposableStore();
-		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
-		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+		// Wiwe in Events
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(wowkingCopy.onDidChangeContent(() => this._onDidChangeContent.fiwe(wowkingCopy)));
+		disposabwes.add(wowkingCopy.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe(wowkingCopy)));
 
-		// Send some initial events
-		this._onDidRegister.fire(workingCopy);
-		if (workingCopy.isDirty()) {
-			this._onDidChangeDirty.fire(workingCopy);
+		// Send some initiaw events
+		this._onDidWegista.fiwe(wowkingCopy);
+		if (wowkingCopy.isDiwty()) {
+			this._onDidChangeDiwty.fiwe(wowkingCopy);
 		}
 
-		return toDisposable(() => {
-			this.unregisterWorkingCopy(workingCopy);
-			dispose(disposables);
+		wetuwn toDisposabwe(() => {
+			this.unwegistewWowkingCopy(wowkingCopy);
+			dispose(disposabwes);
 
-			// Signal as event
-			this._onDidUnregister.fire(workingCopy);
+			// Signaw as event
+			this._onDidUnwegista.fiwe(wowkingCopy);
 		});
 	}
 
-	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
+	pwivate unwegistewWowkingCopy(wowkingCopy: IWowkingCopy): void {
 
-		// Registry (all)
-		this._workingCopies.delete(workingCopy);
+		// Wegistwy (aww)
+		this._wowkingCopies.dewete(wowkingCopy);
 
-		// Registry (type based)
-		const workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
-		if (workingCopiesForResource?.delete(workingCopy.typeId) && workingCopiesForResource.size === 0) {
-			this.mapResourceToWorkingCopies.delete(workingCopy.resource);
+		// Wegistwy (type based)
+		const wowkingCopiesFowWesouwce = this.mapWesouwceToWowkingCopies.get(wowkingCopy.wesouwce);
+		if (wowkingCopiesFowWesouwce?.dewete(wowkingCopy.typeId) && wowkingCopiesFowWesouwce.size === 0) {
+			this.mapWesouwceToWowkingCopies.dewete(wowkingCopy.wesouwce);
 		}
 
-		// If copy is dirty, ensure to fire an event to signal the dirty change
-		// (a disposed working copy cannot account for being dirty in our model)
-		if (workingCopy.isDirty()) {
-			this._onDidChangeDirty.fire(workingCopy);
+		// If copy is diwty, ensuwe to fiwe an event to signaw the diwty change
+		// (a disposed wowking copy cannot account fow being diwty in ouw modew)
+		if (wowkingCopy.isDiwty()) {
+			this._onDidChangeDiwty.fiwe(wowkingCopy);
 		}
 	}
 
-	has(identifier: IWorkingCopyIdentifier): boolean;
-	has(resource: URI): boolean;
-	has(resourceOrIdentifier: URI | IWorkingCopyIdentifier): boolean {
-		if (URI.isUri(resourceOrIdentifier)) {
-			return this.mapResourceToWorkingCopies.has(resourceOrIdentifier);
+	has(identifia: IWowkingCopyIdentifia): boowean;
+	has(wesouwce: UWI): boowean;
+	has(wesouwceOwIdentifia: UWI | IWowkingCopyIdentifia): boowean {
+		if (UWI.isUwi(wesouwceOwIdentifia)) {
+			wetuwn this.mapWesouwceToWowkingCopies.has(wesouwceOwIdentifia);
 		}
 
-		return this.mapResourceToWorkingCopies.get(resourceOrIdentifier.resource)?.has(resourceOrIdentifier.typeId) ?? false;
+		wetuwn this.mapWesouwceToWowkingCopies.get(wesouwceOwIdentifia.wesouwce)?.has(wesouwceOwIdentifia.typeId) ?? fawse;
 	}
 
-	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined {
-		return this.mapResourceToWorkingCopies.get(identifier.resource)?.get(identifier.typeId);
+	get(identifia: IWowkingCopyIdentifia): IWowkingCopy | undefined {
+		wetuwn this.mapWesouwceToWowkingCopies.get(identifia.wesouwce)?.get(identifia.typeId);
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dirty Tracking
+	//#wegion Diwty Twacking
 
-	get hasDirty(): boolean {
-		for (const workingCopy of this._workingCopies) {
-			if (workingCopy.isDirty()) {
-				return true;
+	get hasDiwty(): boowean {
+		fow (const wowkingCopy of this._wowkingCopies) {
+			if (wowkingCopy.isDiwty()) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	get dirtyCount(): number {
-		let totalDirtyCount = 0;
+	get diwtyCount(): numba {
+		wet totawDiwtyCount = 0;
 
-		for (const workingCopy of this._workingCopies) {
-			if (workingCopy.isDirty()) {
-				totalDirtyCount++;
+		fow (const wowkingCopy of this._wowkingCopies) {
+			if (wowkingCopy.isDiwty()) {
+				totawDiwtyCount++;
 			}
 		}
 
-		return totalDirtyCount;
+		wetuwn totawDiwtyCount;
 	}
 
-	get dirtyWorkingCopies(): IWorkingCopy[] {
-		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
+	get diwtyWowkingCopies(): IWowkingCopy[] {
+		wetuwn this.wowkingCopies.fiwta(wowkingCopy => wowkingCopy.isDiwty());
 	}
 
-	isDirty(resource: URI, typeId?: string): boolean {
-		const workingCopies = this.mapResourceToWorkingCopies.get(resource);
-		if (workingCopies) {
+	isDiwty(wesouwce: UWI, typeId?: stwing): boowean {
+		const wowkingCopies = this.mapWesouwceToWowkingCopies.get(wesouwce);
+		if (wowkingCopies) {
 
-			// For a specific type
-			if (typeof typeId === 'string') {
-				return workingCopies.get(typeId)?.isDirty() ?? false;
+			// Fow a specific type
+			if (typeof typeId === 'stwing') {
+				wetuwn wowkingCopies.get(typeId)?.isDiwty() ?? fawse;
 			}
 
-			// Across all working copies
-			else {
-				for (const [, workingCopy] of workingCopies) {
-					if (workingCopy.isDirty()) {
-						return true;
+			// Acwoss aww wowking copies
+			ewse {
+				fow (const [, wowkingCopy] of wowkingCopies) {
+					if (wowkingCopy.isDiwty()) {
+						wetuwn twue;
 					}
 				}
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-registerSingleton(IWorkingCopyService, WorkingCopyService, true);
+wegistewSingweton(IWowkingCopySewvice, WowkingCopySewvice, twue);

@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-// --- other interested parties
-import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValidationExtensionPoint';
-import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
-import { IconExtensionPoint, IconFontExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
-import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
+// --- otha intewested pawties
+impowt { JSONVawidationExtensionPoint } fwom 'vs/wowkbench/api/common/jsonVawidationExtensionPoint';
+impowt { CowowExtensionPoint } fwom 'vs/wowkbench/sewvices/themes/common/cowowExtensionPoint';
+impowt { IconExtensionPoint, IconFontExtensionPoint } fwom 'vs/wowkbench/sewvices/themes/common/iconExtensionPoint';
+impowt { TokenCwassificationExtensionPoints } fwom 'vs/wowkbench/sewvices/themes/common/tokenCwassificationExtensionPoint';
+impowt { WanguageConfiguwationFiweHandwa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/wanguageConfiguwationExtensionPoint';
 
-// --- mainThread participants
-import './mainThreadBulkEdits';
-import './mainThreadCodeInsets';
-import './mainThreadCLICommands';
-import './mainThreadClipboard';
-import './mainThreadCommands';
-import './mainThreadConfiguration';
-import './mainThreadConsole';
-import './mainThreadDebugService';
-import './mainThreadDecorations';
-import './mainThreadDiagnostics';
-import './mainThreadDialogs';
-import './mainThreadDocumentContentProviders';
-import './mainThreadDocuments';
-import './mainThreadDocumentsAndEditors';
-import './mainThreadEditor';
-import './mainThreadEditors';
-import './mainThreadEditorTabs';
-import './mainThreadErrors';
-import './mainThreadExtensionService';
-import './mainThreadFileSystem';
-import './mainThreadFileSystemEventService';
-import './mainThreadKeytar';
-import './mainThreadLanguageFeatures';
-import './mainThreadLanguages';
-import './mainThreadLogService';
-import './mainThreadMessageService';
-import './mainThreadOutputService';
-import './mainThreadProgress';
-import './mainThreadQuickOpen';
-import './mainThreadRemoteConnectionData';
-import './mainThreadSaveParticipant';
-import './mainThreadSCM';
-import './mainThreadSearch';
-import './mainThreadStatusBar';
-import './mainThreadStorage';
-import './mainThreadTelemetry';
-import './mainThreadTerminalService';
-import './mainThreadTheming';
-import './mainThreadTreeViews';
-import './mainThreadDownloadService';
-import './mainThreadUrls';
-import './mainThreadUriOpeners';
-import './mainThreadWindow';
-import './mainThreadWebviewManager';
-import './mainThreadWorkspace';
-import './mainThreadComments';
-import './mainThreadNotebook';
-import './mainThreadNotebookKernels';
-import './mainThreadNotebookDocumentsAndEditors';
-import './mainThreadNotebookRenderers';
-import './mainThreadInteractive';
-import './mainThreadTask';
-import './mainThreadLabelService';
-import './mainThreadTunnelService';
-import './mainThreadAuthentication';
-import './mainThreadTimeline';
-import './mainThreadTesting';
-import './mainThreadSecretState';
+// --- mainThwead pawticipants
+impowt './mainThweadBuwkEdits';
+impowt './mainThweadCodeInsets';
+impowt './mainThweadCWICommands';
+impowt './mainThweadCwipboawd';
+impowt './mainThweadCommands';
+impowt './mainThweadConfiguwation';
+impowt './mainThweadConsowe';
+impowt './mainThweadDebugSewvice';
+impowt './mainThweadDecowations';
+impowt './mainThweadDiagnostics';
+impowt './mainThweadDiawogs';
+impowt './mainThweadDocumentContentPwovidews';
+impowt './mainThweadDocuments';
+impowt './mainThweadDocumentsAndEditows';
+impowt './mainThweadEditow';
+impowt './mainThweadEditows';
+impowt './mainThweadEditowTabs';
+impowt './mainThweadEwwows';
+impowt './mainThweadExtensionSewvice';
+impowt './mainThweadFiweSystem';
+impowt './mainThweadFiweSystemEventSewvice';
+impowt './mainThweadKeytaw';
+impowt './mainThweadWanguageFeatuwes';
+impowt './mainThweadWanguages';
+impowt './mainThweadWogSewvice';
+impowt './mainThweadMessageSewvice';
+impowt './mainThweadOutputSewvice';
+impowt './mainThweadPwogwess';
+impowt './mainThweadQuickOpen';
+impowt './mainThweadWemoteConnectionData';
+impowt './mainThweadSavePawticipant';
+impowt './mainThweadSCM';
+impowt './mainThweadSeawch';
+impowt './mainThweadStatusBaw';
+impowt './mainThweadStowage';
+impowt './mainThweadTewemetwy';
+impowt './mainThweadTewminawSewvice';
+impowt './mainThweadTheming';
+impowt './mainThweadTweeViews';
+impowt './mainThweadDownwoadSewvice';
+impowt './mainThweadUwws';
+impowt './mainThweadUwiOpenews';
+impowt './mainThweadWindow';
+impowt './mainThweadWebviewManaga';
+impowt './mainThweadWowkspace';
+impowt './mainThweadComments';
+impowt './mainThweadNotebook';
+impowt './mainThweadNotebookKewnews';
+impowt './mainThweadNotebookDocumentsAndEditows';
+impowt './mainThweadNotebookWendewews';
+impowt './mainThweadIntewactive';
+impowt './mainThweadTask';
+impowt './mainThweadWabewSewvice';
+impowt './mainThweadTunnewSewvice';
+impowt './mainThweadAuthentication';
+impowt './mainThweadTimewine';
+impowt './mainThweadTesting';
+impowt './mainThweadSecwetState';
 
-export class ExtensionPoints implements IWorkbenchContribution {
+expowt cwass ExtensionPoints impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		// Classes that handle extension points...
-		this.instantiationService.createInstance(JSONValidationExtensionPoint);
-		this.instantiationService.createInstance(ColorExtensionPoint);
-		this.instantiationService.createInstance(IconExtensionPoint);
-		this.instantiationService.createInstance(IconFontExtensionPoint);
-		this.instantiationService.createInstance(TokenClassificationExtensionPoints);
-		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
+		// Cwasses that handwe extension points...
+		this.instantiationSewvice.cweateInstance(JSONVawidationExtensionPoint);
+		this.instantiationSewvice.cweateInstance(CowowExtensionPoint);
+		this.instantiationSewvice.cweateInstance(IconExtensionPoint);
+		this.instantiationSewvice.cweateInstance(IconFontExtensionPoint);
+		this.instantiationSewvice.cweateInstance(TokenCwassificationExtensionPoints);
+		this.instantiationSewvice.cweateInstance(WanguageConfiguwationFiweHandwa);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(ExtensionPoints, WifecycwePhase.Stawting);

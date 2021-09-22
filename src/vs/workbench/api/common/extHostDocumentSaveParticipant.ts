@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
-import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { SaveReason } from 'vs/workbench/common/editor';
-import type * as vscode from 'vscode';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { iwwegawState } fwom 'vs/base/common/ewwows';
+impowt { ExtHostDocumentSavePawticipantShape, IWowkspaceEditDto, WowkspaceEditType, MainThweadBuwkEditsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { TextEdit } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { Wange, TextDocumentSaveWeason, EndOfWine } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt type * as vscode fwom 'vscode';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-type Listener = [Function, any, IExtensionDescription];
+type Wistena = [Function, any, IExtensionDescwiption];
 
-export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
+expowt cwass ExtHostDocumentSavePawticipant impwements ExtHostDocumentSavePawticipantShape {
 
-	private readonly _callbacks = new LinkedList<Listener>();
-	private readonly _badListeners = new WeakMap<Function, number>();
+	pwivate weadonwy _cawwbacks = new WinkedWist<Wistena>();
+	pwivate weadonwy _badWistenews = new WeakMap<Function, numba>();
 
-	constructor(
-		private readonly _logService: ILogService,
-		private readonly _documents: ExtHostDocuments,
-		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
-		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
+	constwuctow(
+		pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _documents: ExtHostDocuments,
+		pwivate weadonwy _mainThweadBuwkEdits: MainThweadBuwkEditsShape,
+		pwivate weadonwy _thweshowds: { timeout: numba; ewwows: numba; } = { timeout: 1500, ewwows: 3 }
 	) {
 		//
 	}
 
 	dispose(): void {
-		this._callbacks.clear();
+		this._cawwbacks.cweaw();
 	}
 
-	getOnWillSaveTextDocumentEvent(extension: IExtensionDescription): Event<vscode.TextDocumentWillSaveEvent> {
-		return (listener, thisArg, disposables) => {
-			const remove = this._callbacks.push([listener, thisArg, extension]);
-			const result = { dispose: remove };
-			if (Array.isArray(disposables)) {
-				disposables.push(result);
+	getOnWiwwSaveTextDocumentEvent(extension: IExtensionDescwiption): Event<vscode.TextDocumentWiwwSaveEvent> {
+		wetuwn (wistena, thisAwg, disposabwes) => {
+			const wemove = this._cawwbacks.push([wistena, thisAwg, extension]);
+			const wesuwt = { dispose: wemove };
+			if (Awway.isAwway(disposabwes)) {
+				disposabwes.push(wesuwt);
 			}
-			return result;
+			wetuwn wesuwt;
 		};
 	}
 
-	async $participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
-		const resource = URI.revive(data);
+	async $pawticipateInSave(data: UwiComponents, weason: SaveWeason): Pwomise<boowean[]> {
+		const wesouwce = UWI.wevive(data);
 
-		let didTimeout = false;
-		const didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
+		wet didTimeout = fawse;
+		const didTimeoutHandwe = setTimeout(() => didTimeout = twue, this._thweshowds.timeout);
 
-		const results: boolean[] = [];
-		try {
-			for (let listener of [...this._callbacks]) { // copy to prevent concurrent modifications
+		const wesuwts: boowean[] = [];
+		twy {
+			fow (wet wistena of [...this._cawwbacks]) { // copy to pwevent concuwwent modifications
 				if (didTimeout) {
-					// timeout - no more listeners
-					break;
+					// timeout - no mowe wistenews
+					bweak;
 				}
-				const document = this._documents.getDocument(resource);
-				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
-				results.push(success);
+				const document = this._documents.getDocument(wesouwce);
+				const success = await this._dewivewEventAsyncAndBwameBadWistenews(wistena, <any>{ document, weason: TextDocumentSaveWeason.to(weason) });
+				wesuwts.push(success);
 			}
-		} finally {
-			clearTimeout(didTimeoutHandle);
+		} finawwy {
+			cweawTimeout(didTimeoutHandwe);
 		}
-		return results;
+		wetuwn wesuwts;
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
-		const errors = this._badListeners.get(listener);
-		if (typeof errors === 'number' && errors > this._thresholds.errors) {
-			// bad listener - ignore
-			return Promise.resolve(false);
+	pwivate _dewivewEventAsyncAndBwameBadWistenews([wistena, thisAwg, extension]: Wistena, stubEvent: vscode.TextDocumentWiwwSaveEvent): Pwomise<any> {
+		const ewwows = this._badWistenews.get(wistena);
+		if (typeof ewwows === 'numba' && ewwows > this._thweshowds.ewwows) {
+			// bad wistena - ignowe
+			wetuwn Pwomise.wesowve(fawse);
 		}
 
-		return this._deliverEventAsync(extension, listener, thisArg, stubEvent).then(() => {
-			// don't send result across the wire
-			return true;
+		wetuwn this._dewivewEventAsync(extension, wistena, thisAwg, stubEvent).then(() => {
+			// don't send wesuwt acwoss the wiwe
+			wetuwn twue;
 
-		}, err => {
+		}, eww => {
 
-			this._logService.error(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' threw ERROR`);
-			this._logService.error(err);
+			this._wogSewvice.ewwow(`onWiwwSaveTextDocument-wistena fwom extension '${extension.identifia.vawue}' thwew EWWOW`);
+			this._wogSewvice.ewwow(eww);
 
-			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
-				const errors = this._badListeners.get(listener);
-				this._badListeners.set(listener, !errors ? 1 : errors + 1);
+			if (!(eww instanceof Ewwow) || (<Ewwow>eww).message !== 'concuwwent_edits') {
+				const ewwows = this._badWistenews.get(wistena);
+				this._badWistenews.set(wistena, !ewwows ? 1 : ewwows + 1);
 
-				if (typeof errors === 'number' && errors > this._thresholds.errors) {
-					this._logService.info(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' will now be IGNORED because of timeouts and/or errors`);
+				if (typeof ewwows === 'numba' && ewwows > this._thweshowds.ewwows) {
+					this._wogSewvice.info(`onWiwwSaveTextDocument-wistena fwom extension '${extension.identifia.vawue}' wiww now be IGNOWED because of timeouts and/ow ewwows`);
 				}
 			}
-			return false;
+			wetuwn fawse;
 		});
 	}
 
-	private _deliverEventAsync(extension: IExtensionDescription, listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	pwivate _dewivewEventAsync(extension: IExtensionDescwiption, wistena: Function, thisAwg: any, stubEvent: vscode.TextDocumentWiwwSaveEvent): Pwomise<any> {
 
-		const promises: Promise<vscode.TextEdit[]>[] = [];
+		const pwomises: Pwomise<vscode.TextEdit[]>[] = [];
 
 		const t1 = Date.now();
-		const { document, reason } = stubEvent;
-		const { version } = document;
+		const { document, weason } = stubEvent;
+		const { vewsion } = document;
 
-		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
+		const event = Object.fweeze(<vscode.TextDocumentWiwwSaveEvent>{
 			document,
-			reason,
-			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
-				if (Object.isFrozen(promises)) {
-					throw illegalState('waitUntil can not be called async');
+			weason,
+			waitUntiw(p: Pwomise<any | vscode.TextEdit[]>) {
+				if (Object.isFwozen(pwomises)) {
+					thwow iwwegawState('waitUntiw can not be cawwed async');
 				}
-				promises.push(Promise.resolve(p));
+				pwomises.push(Pwomise.wesowve(p));
 			}
 		});
 
-		try {
-			// fire event
-			listener.apply(thisArg, [event]);
-		} catch (err) {
-			return Promise.reject(err);
+		twy {
+			// fiwe event
+			wistena.appwy(thisAwg, [event]);
+		} catch (eww) {
+			wetuwn Pwomise.weject(eww);
 		}
 
-		// freeze promises after event call
-		Object.freeze(promises);
+		// fweeze pwomises afta event caww
+		Object.fweeze(pwomises);
 
-		return new Promise<vscode.TextEdit[][]>((resolve, reject) => {
-			// join on all listener promises, reject after timeout
-			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
+		wetuwn new Pwomise<vscode.TextEdit[][]>((wesowve, weject) => {
+			// join on aww wistena pwomises, weject afta timeout
+			const handwe = setTimeout(() => weject(new Ewwow('timeout')), this._thweshowds.timeout);
 
-			return Promise.all(promises).then(edits => {
-				this._logService.debug(`onWillSaveTextDocument-listener from extension '${extension.identifier.value}' finished after ${(Date.now() - t1)}ms`);
-				clearTimeout(handle);
-				resolve(edits);
-			}).catch(err => {
-				clearTimeout(handle);
-				reject(err);
+			wetuwn Pwomise.aww(pwomises).then(edits => {
+				this._wogSewvice.debug(`onWiwwSaveTextDocument-wistena fwom extension '${extension.identifia.vawue}' finished afta ${(Date.now() - t1)}ms`);
+				cweawTimeout(handwe);
+				wesowve(edits);
+			}).catch(eww => {
+				cweawTimeout(handwe);
+				weject(eww);
 			});
 
-		}).then(values => {
-			const dto: IWorkspaceEditDto = { edits: [] };
-			for (const value of values) {
-				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
-					for (const { newText, newEol, range } of value) {
+		}).then(vawues => {
+			const dto: IWowkspaceEditDto = { edits: [] };
+			fow (const vawue of vawues) {
+				if (Awway.isAwway(vawue) && (<vscode.TextEdit[]>vawue).evewy(e => e instanceof TextEdit)) {
+					fow (const { newText, newEow, wange } of vawue) {
 						dto.edits.push({
-							_type: WorkspaceEditType.Text,
-							resource: document.uri,
+							_type: WowkspaceEditType.Text,
+							wesouwce: document.uwi,
 							edit: {
-								range: range && Range.from(range),
+								wange: wange && Wange.fwom(wange),
 								text: newText,
-								eol: newEol && EndOfLine.from(newEol)
+								eow: newEow && EndOfWine.fwom(newEow)
 							}
 						});
 					}
 				}
 			}
 
-			// apply edits if any and if document
+			// appwy edits if any and if document
 			// didn't change somehow in the meantime
-			if (dto.edits.length === 0) {
-				return undefined;
+			if (dto.edits.wength === 0) {
+				wetuwn undefined;
 			}
 
-			if (version === document.version) {
-				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+			if (vewsion === document.vewsion) {
+				wetuwn this._mainThweadBuwkEdits.$twyAppwyWowkspaceEdit(dto);
 			}
 
-			return Promise.reject(new Error('concurrent_edits'));
+			wetuwn Pwomise.weject(new Ewwow('concuwwent_edits'));
 		});
 	}
 }

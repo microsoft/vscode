@@ -1,31 +1,31 @@
-<?xml version='1.0' standalone='no' ?>
-<svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='10px' height='10px'>
-	<style>
-    circle {
-      animation: ball 0.6s linear infinite;
+<?xmw vewsion='1.0' standawone='no' ?>
+<svg xmwns='http://www.w3.owg/2000/svg' vewsion='1.1' width='10px' height='10px'>
+	<stywe>
+    ciwcwe {
+      animation: baww 0.6s wineaw infinite;
     }
 
-    circle:nth-child(2) { animation-delay: 0.075s; }
-    circle:nth-child(3) { animation-delay: 0.15s; }
-    circle:nth-child(4) { animation-delay: 0.225s; }
-    circle:nth-child(5) { animation-delay: 0.3s; }
-    circle:nth-child(6) { animation-delay: 0.375s; }
-    circle:nth-child(7) { animation-delay: 0.45s; }
-    circle:nth-child(8) { animation-delay: 0.525s; }
+    ciwcwe:nth-chiwd(2) { animation-deway: 0.075s; }
+    ciwcwe:nth-chiwd(3) { animation-deway: 0.15s; }
+    ciwcwe:nth-chiwd(4) { animation-deway: 0.225s; }
+    ciwcwe:nth-chiwd(5) { animation-deway: 0.3s; }
+    ciwcwe:nth-chiwd(6) { animation-deway: 0.375s; }
+    ciwcwe:nth-chiwd(7) { animation-deway: 0.45s; }
+    ciwcwe:nth-chiwd(8) { animation-deway: 0.525s; }
 
-    @keyframes ball {
-      from { opacity: 1; }
+    @keyfwames baww {
+      fwom { opacity: 1; }
       to { opacity: 0.3; }
     }
-	</style>
-	<g style="fill:grey;">
-		<circle cx='5' cy='1' r='1' style='opacity:0.3;' />
-		<circle cx='7.8284' cy='2.1716' r='1' style='opacity:0.3;' />
-		<circle cx='9' cy='5' r='1' style='opacity:0.3;' />
-		<circle cx='7.8284' cy='7.8284' r='1' style='opacity:0.3;' />
-		<circle cx='5' cy='9' r='1' style='opacity:0.3;' />
-		<circle cx='2.1716' cy='7.8284' r='1' style='opacity:0.3;' />
-		<circle cx='1' cy='5' r='1' style='opacity:0.3;' />
-		<circle cx='2.1716' cy='2.1716' r='1' style='opacity:0.3;' />
+	</stywe>
+	<g stywe="fiww:gwey;">
+		<ciwcwe cx='5' cy='1' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='7.8284' cy='2.1716' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='9' cy='5' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='7.8284' cy='7.8284' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='5' cy='9' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='2.1716' cy='7.8284' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='1' cy='5' w='1' stywe='opacity:0.3;' />
+		<ciwcwe cx='2.1716' cy='2.1716' w='1' stywe='opacity:0.3;' />
 	</g>
 </svg>

@@ -1,302 +1,302 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+impowt * as assewt fwom 'assewt';
+impowt { WwappingIndent, EditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { MonospaceWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/monospaceWineBweaksComputa';
+impowt { IWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { WineBweakData } fwom 'vs/editow/common/viewModew/viewModew';
 
-function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
-	let text = '';
-	let currentLineIndex = 0;
-	let indices: number[] = [];
-	for (let i = 0, len = annotatedText.length; i < len; i++) {
-		if (annotatedText.charAt(i) === '|') {
-			currentLineIndex++;
-		} else {
-			text += annotatedText.charAt(i);
-			indices[text.length - 1] = currentLineIndex;
+function pawseAnnotatedText(annotatedText: stwing): { text: stwing; indices: numba[]; } {
+	wet text = '';
+	wet cuwwentWineIndex = 0;
+	wet indices: numba[] = [];
+	fow (wet i = 0, wen = annotatedText.wength; i < wen; i++) {
+		if (annotatedText.chawAt(i) === '|') {
+			cuwwentWineIndex++;
+		} ewse {
+			text += annotatedText.chawAt(i);
+			indices[text.wength - 1] = cuwwentWineIndex;
 		}
 	}
-	return { text: text, indices: indices };
+	wetuwn { text: text, indices: indices };
 }
 
-function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): string {
-	// Insert line break markers again, according to algorithm
-	let actualAnnotatedText = '';
-	if (lineBreakData) {
-		let previousLineIndex = 0;
-		for (let i = 0, len = text.length; i < len; i++) {
-			let r = lineBreakData.getOutputPositionOfInputOffset(i);
-			if (previousLineIndex !== r.outputLineIndex) {
-				previousLineIndex = r.outputLineIndex;
-				actualAnnotatedText += '|';
+function toAnnotatedText(text: stwing, wineBweakData: WineBweakData | nuww): stwing {
+	// Insewt wine bweak mawkews again, accowding to awgowithm
+	wet actuawAnnotatedText = '';
+	if (wineBweakData) {
+		wet pweviousWineIndex = 0;
+		fow (wet i = 0, wen = text.wength; i < wen; i++) {
+			wet w = wineBweakData.getOutputPositionOfInputOffset(i);
+			if (pweviousWineIndex !== w.outputWineIndex) {
+				pweviousWineIndex = w.outputWineIndex;
+				actuawAnnotatedText += '|';
 			}
-			actualAnnotatedText += text.charAt(i);
+			actuawAnnotatedText += text.chawAt(i);
 		}
-	} else {
-		// No wrapping
-		actualAnnotatedText = text;
+	} ewse {
+		// No wwapping
+		actuawAnnotatedText = text;
 	}
-	return actualAnnotatedText;
+	wetuwn actuawAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, text: string, previousLineBreakData: LineBreakData | null): LineBreakData | null {
+function getWineBweakData(factowy: IWineBweaksComputewFactowy, tabSize: numba, bweakAfta: numba, cowumnsFowFuwwWidthChaw: numba, wwappingIndent: WwappingIndent, text: stwing, pweviousWineBweakData: WineBweakData | nuww): WineBweakData | nuww {
 	const fontInfo = new FontInfo({
-		zoomLevel: 0,
-		pixelRatio: 1,
-		fontFamily: 'testFontFamily',
-		fontWeight: 'normal',
+		zoomWevew: 0,
+		pixewWatio: 1,
+		fontFamiwy: 'testFontFamiwy',
+		fontWeight: 'nowmaw',
 		fontSize: 14,
-		fontFeatureSettings: '',
-		lineHeight: 19,
-		letterSpacing: 0,
-		isMonospace: true,
-		typicalHalfwidthCharacterWidth: 7,
-		typicalFullwidthCharacterWidth: 7 * columnsForFullWidthChar,
-		canUseHalfwidthRightwardsArrow: true,
+		fontFeatuweSettings: '',
+		wineHeight: 19,
+		wettewSpacing: 0,
+		isMonospace: twue,
+		typicawHawfwidthChawactewWidth: 7,
+		typicawFuwwwidthChawactewWidth: 7 * cowumnsFowFuwwWidthChaw,
+		canUseHawfwidthWightwawdsAwwow: twue,
 		spaceWidth: 7,
 		middotWidth: 7,
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
-	}, false);
-	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);
-	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength, null, null) : null;
-	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
-	return lineBreaksComputer.finalize()[0];
+	}, fawse);
+	const wineBweaksComputa = factowy.cweateWineBweaksComputa(fontInfo, tabSize, bweakAfta, wwappingIndent);
+	const pweviousWineBweakDataCwone = pweviousWineBweakData ? new WineBweakData(pweviousWineBweakData.bweakOffsets.swice(0), pweviousWineBweakData.bweakOffsetsVisibweCowumn.swice(0), pweviousWineBweakData.wwappedTextIndentWength, nuww, nuww) : nuww;
+	wineBweaksComputa.addWequest(text, nuww, pweviousWineBweakDataCwone);
+	wetuwn wineBweaksComputa.finawize()[0];
 }
 
-function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None): LineBreakData | null {
-	// Create version of `annotatedText` with line break markers removed
-	const text = parseAnnotatedText(annotatedText).text;
-	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, text, null);
-	const actualAnnotatedText = toAnnotatedText(text, lineBreakData);
+function assewtWineBweaks(factowy: IWineBweaksComputewFactowy, tabSize: numba, bweakAfta: numba, annotatedText: stwing, wwappingIndent = WwappingIndent.None): WineBweakData | nuww {
+	// Cweate vewsion of `annotatedText` with wine bweak mawkews wemoved
+	const text = pawseAnnotatedText(annotatedText).text;
+	const wineBweakData = getWineBweakData(factowy, tabSize, bweakAfta, 2, wwappingIndent, text, nuww);
+	const actuawAnnotatedText = toAnnotatedText(text, wineBweakData);
 
-	assert.strictEqual(actualAnnotatedText, annotatedText);
+	assewt.stwictEquaw(actuawAnnotatedText, annotatedText);
 
-	return lineBreakData;
+	wetuwn wineBweakData;
 }
 
-suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
-	test('MonospaceLineBreaksComputer', () => {
+suite('Editow ViewModew - MonospaceWineBweaksComputa', () => {
+	test('MonospaceWineBweaksComputa', () => {
 
-		let factory = new MonospaceLineBreaksComputerFactory('(', '\t).');
+		wet factowy = new MonospaceWineBweaksComputewFactowy('(', '\t).');
 
-		// Empty string
-		assertLineBreaks(factory, 4, 5, '');
+		// Empty stwing
+		assewtWineBweaks(factowy, 4, 5, '');
 
-		// No wrapping if not necessary
-		assertLineBreaks(factory, 4, 5, 'aaa');
-		assertLineBreaks(factory, 4, 5, 'aaaaa');
-		assertLineBreaks(factory, 4, -1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+		// No wwapping if not necessawy
+		assewtWineBweaks(factowy, 4, 5, 'aaa');
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa');
+		assewtWineBweaks(factowy, 4, -1, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 
-		// Acts like hard wrapping if no char found
-		assertLineBreaks(factory, 4, 5, 'aaaaa|a');
+		// Acts wike hawd wwapping if no chaw found
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|a');
 
-		// Honors wrapping character
-		assertLineBreaks(factory, 4, 5, 'aaaaa|.');
-		assertLineBreaks(factory, 4, 5, 'aaaaa|a.|aaa.|aa');
-		assertLineBreaks(factory, 4, 5, 'aaaaa|a..|aaa.|aa');
-		assertLineBreaks(factory, 4, 5, 'aaaaa|a...|aaa.|aa');
-		assertLineBreaks(factory, 4, 5, 'aaaaa|a....|aaa.|aa');
+		// Honows wwapping chawacta
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|.');
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|a.|aaa.|aa');
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|a..|aaa.|aa');
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|a...|aaa.|aa');
+		assewtWineBweaks(factowy, 4, 5, 'aaaaa|a....|aaa.|aa');
 
-		// Honors tabs when computing wrapping position
-		assertLineBreaks(factory, 4, 5, '\t');
-		assertLineBreaks(factory, 4, 5, '\t|aaa');
-		assertLineBreaks(factory, 4, 5, '\t|a\t|aa');
-		assertLineBreaks(factory, 4, 5, 'aa\ta');
-		assertLineBreaks(factory, 4, 5, 'aa\t|aa');
+		// Honows tabs when computing wwapping position
+		assewtWineBweaks(factowy, 4, 5, '\t');
+		assewtWineBweaks(factowy, 4, 5, '\t|aaa');
+		assewtWineBweaks(factowy, 4, 5, '\t|a\t|aa');
+		assewtWineBweaks(factowy, 4, 5, 'aa\ta');
+		assewtWineBweaks(factowy, 4, 5, 'aa\t|aa');
 
-		// Honors wrapping before characters (& gives it priority)
-		assertLineBreaks(factory, 4, 5, 'aaa.|aa');
-		assertLineBreaks(factory, 4, 5, 'aaa(.|aa');
+		// Honows wwapping befowe chawactews (& gives it pwiowity)
+		assewtWineBweaks(factowy, 4, 5, 'aaa.|aa');
+		assewtWineBweaks(factowy, 4, 5, 'aaa(.|aa');
 
-		// Honors wrapping after characters (& gives it priority)
-		assertLineBreaks(factory, 4, 5, 'aaa))|).aaa');
-		assertLineBreaks(factory, 4, 5, 'aaa))|).|aaaa');
-		assertLineBreaks(factory, 4, 5, 'aaa)|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aaa(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(|().|aaa');
-		assertLineBreaks(factory, 4, 5, 'aa.(.|).aaa');
+		// Honows wwapping afta chawactews (& gives it pwiowity)
+		assewtWineBweaks(factowy, 4, 5, 'aaa))|).aaa');
+		assewtWineBweaks(factowy, 4, 5, 'aaa))|).|aaaa');
+		assewtWineBweaks(factowy, 4, 5, 'aaa)|().|aaa');
+		assewtWineBweaks(factowy, 4, 5, 'aaa(|().|aaa');
+		assewtWineBweaks(factowy, 4, 5, 'aa.(|().|aaa');
+		assewtWineBweaks(factowy, 4, 5, 'aa.(.|).aaa');
 	});
 
-	function assertLineBreakDataEqual(a: LineBreakData | null, b: LineBreakData | null): void {
+	function assewtWineBweakDataEquaw(a: WineBweakData | nuww, b: WineBweakData | nuww): void {
 		if (!a || !b) {
-			assert.deepStrictEqual(a, b);
-			return;
+			assewt.deepStwictEquaw(a, b);
+			wetuwn;
 		}
-		assert.deepStrictEqual(a.breakOffsets, b.breakOffsets);
-		assert.deepStrictEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
-		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
-			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
-			assert.ok(diff < 0.001);
+		assewt.deepStwictEquaw(a.bweakOffsets, b.bweakOffsets);
+		assewt.deepStwictEquaw(a.wwappedTextIndentWength, b.wwappedTextIndentWength);
+		fow (wet i = 0; i < a.bweakOffsetsVisibweCowumn.wength; i++) {
+			const diff = a.bweakOffsetsVisibweCowumn[i] - b.bweakOffsetsVisibweCowumn[i];
+			assewt.ok(diff < 0.001);
 		}
 	}
 
-	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2): void {
+	function assewtIncwementawWineBweaks(factowy: IWineBweaksComputewFactowy, text: stwing, tabSize: numba, bweakAftew1: numba, annotatedText1: stwing, bweakAftew2: numba, annotatedText2: stwing, wwappingIndent = WwappingIndent.None, cowumnsFowFuwwWidthChaw: numba = 2): void {
 		// sanity check the test
-		assert.strictEqual(text, parseAnnotatedText(annotatedText1).text);
-		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
+		assewt.stwictEquaw(text, pawseAnnotatedText(annotatedText1).text);
+		assewt.stwictEquaw(text, pawseAnnotatedText(annotatedText2).text);
 
-		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, null);
-		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
+		// check that the diwect mapping is ok fow 1
+		const diwectWineBweakData1 = getWineBweakData(factowy, tabSize, bweakAftew1, cowumnsFowFuwwWidthChaw, wwappingIndent, text, nuww);
+		assewt.stwictEquaw(toAnnotatedText(text, diwectWineBweakData1), annotatedText1);
 
-		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, null);
-		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
+		// check that the diwect mapping is ok fow 2
+		const diwectWineBweakData2 = getWineBweakData(factowy, tabSize, bweakAftew2, cowumnsFowFuwwWidthChaw, wwappingIndent, text, nuww);
+		assewt.stwictEquaw(toAnnotatedText(text, diwectWineBweakData2), annotatedText2);
 
-		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData1);
-		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
-		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
+		// check that going fwom 1 to 2 is ok
+		const wineBweakData2fwom1 = getWineBweakData(factowy, tabSize, bweakAftew2, cowumnsFowFuwwWidthChaw, wwappingIndent, text, diwectWineBweakData1);
+		assewt.stwictEquaw(toAnnotatedText(text, wineBweakData2fwom1), annotatedText2);
+		assewtWineBweakDataEquaw(wineBweakData2fwom1, diwectWineBweakData2);
 
-		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData2);
-		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
-		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
+		// check that going fwom 2 to 1 is ok
+		const wineBweakData1fwom2 = getWineBweakData(factowy, tabSize, bweakAftew1, cowumnsFowFuwwWidthChaw, wwappingIndent, text, diwectWineBweakData2);
+		assewt.stwictEquaw(toAnnotatedText(text, wineBweakData1fwom2), annotatedText1);
+		assewtWineBweakDataEquaw(wineBweakData1fwom2, diwectWineBweakData1);
 	}
 
-	test('MonospaceLineBreaksComputer incremental 1', () => {
+	test('MonospaceWineBweaksComputa incwementaw 1', () => {
 
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
 
-		assertIncrementalLineBreaks(
-			factory, 'just some text and more', 4,
-			10, 'just some |text and |more',
-			15, 'just some text |and more'
+		assewtIncwementawWineBweaks(
+			factowy, 'just some text and mowe', 4,
+			10, 'just some |text and |mowe',
+			15, 'just some text |and mowe'
 		);
 
-		assertIncrementalLineBreaks(
-			factory, 'Cu scripserit suscipiantur eos, in affert pericula contentiones sed, cetero sanctus et pro. Ius vidit magna regione te, sit ei elaboraret liberavisse. Mundi verear eu mea, eam vero scriptorem in, vix in menandri assueverit. Natum definiebas cu vim. Vim doming vocibus efficiantur id. In indoctum deseruisse voluptatum vim, ad debitis verterem sed.', 4,
-			47, 'Cu scripserit suscipiantur eos, in affert |pericula contentiones sed, cetero sanctus et |pro. Ius vidit magna regione te, sit ei |elaboraret liberavisse. Mundi verear eu mea, |eam vero scriptorem in, vix in menandri |assueverit. Natum definiebas cu vim. Vim |doming vocibus efficiantur id. In indoctum |deseruisse voluptatum vim, ad debitis verterem |sed.',
-			142, 'Cu scripserit suscipiantur eos, in affert pericula contentiones sed, cetero sanctus et pro. Ius vidit magna regione te, sit ei elaboraret |liberavisse. Mundi verear eu mea, eam vero scriptorem in, vix in menandri assueverit. Natum definiebas cu vim. Vim doming vocibus efficiantur |id. In indoctum deseruisse voluptatum vim, ad debitis verterem sed.',
+		assewtIncwementawWineBweaks(
+			factowy, 'Cu scwipsewit suscipiantuw eos, in affewt pewicuwa contentiones sed, cetewo sanctus et pwo. Ius vidit magna wegione te, sit ei ewabowawet wibewavisse. Mundi veweaw eu mea, eam vewo scwiptowem in, vix in menandwi assuevewit. Natum definiebas cu vim. Vim doming vocibus efficiantuw id. In indoctum desewuisse vowuptatum vim, ad debitis vewtewem sed.', 4,
+			47, 'Cu scwipsewit suscipiantuw eos, in affewt |pewicuwa contentiones sed, cetewo sanctus et |pwo. Ius vidit magna wegione te, sit ei |ewabowawet wibewavisse. Mundi veweaw eu mea, |eam vewo scwiptowem in, vix in menandwi |assuevewit. Natum definiebas cu vim. Vim |doming vocibus efficiantuw id. In indoctum |desewuisse vowuptatum vim, ad debitis vewtewem |sed.',
+			142, 'Cu scwipsewit suscipiantuw eos, in affewt pewicuwa contentiones sed, cetewo sanctus et pwo. Ius vidit magna wegione te, sit ei ewabowawet |wibewavisse. Mundi veweaw eu mea, eam vewo scwiptowem in, vix in menandwi assuevewit. Natum definiebas cu vim. Vim doming vocibus efficiantuw |id. In indoctum desewuisse vowuptatum vim, ad debitis vewtewem sed.',
 		);
 
-		assertIncrementalLineBreaks(
-			factory, 'An his legere persecuti, oblique delicata efficiantur ex vix, vel at graecis officiis maluisset. Et per impedit voluptua, usu discere maiorum at. Ut assum ornatus temporibus vis, an sea melius pericula. Ea dicunt oblique phaedrum nam, eu duo movet nobis. His melius facilis eu, vim malorum temporibus ne. Nec no sale regione, meliore civibus placerat id eam. Mea alii fabulas definitionem te, agam volutpat ad vis, et per bonorum nonumes repudiandae.', 4,
-			57, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt |oblique phaedrum nam, eu duo movet nobis. His melius |facilis eu, vim malorum temporibus ne. Nec no sale |regione, meliore civibus placerat id eam. Mea alii |fabulas definitionem te, agam volutpat ad vis, et per |bonorum nonumes repudiandae.',
-			58, 'An his legere persecuti, oblique delicata efficiantur ex |vix, vel at graecis officiis maluisset. Et per impedit |voluptua, usu discere maiorum at. Ut assum ornatus |temporibus vis, an sea melius pericula. Ea dicunt oblique |phaedrum nam, eu duo movet nobis. His melius facilis eu, |vim malorum temporibus ne. Nec no sale regione, meliore |civibus placerat id eam. Mea alii fabulas definitionem |te, agam volutpat ad vis, et per bonorum nonumes |repudiandae.'
+		assewtIncwementawWineBweaks(
+			factowy, 'An his wegewe pewsecuti, obwique dewicata efficiantuw ex vix, vew at gwaecis officiis mawuisset. Et pew impedit vowuptua, usu discewe maiowum at. Ut assum ownatus tempowibus vis, an sea mewius pewicuwa. Ea dicunt obwique phaedwum nam, eu duo movet nobis. His mewius faciwis eu, vim mawowum tempowibus ne. Nec no sawe wegione, mewiowe civibus pwacewat id eam. Mea awii fabuwas definitionem te, agam vowutpat ad vis, et pew bonowum nonumes wepudiandae.', 4,
+			57, 'An his wegewe pewsecuti, obwique dewicata efficiantuw ex |vix, vew at gwaecis officiis mawuisset. Et pew impedit |vowuptua, usu discewe maiowum at. Ut assum ownatus |tempowibus vis, an sea mewius pewicuwa. Ea dicunt |obwique phaedwum nam, eu duo movet nobis. His mewius |faciwis eu, vim mawowum tempowibus ne. Nec no sawe |wegione, mewiowe civibus pwacewat id eam. Mea awii |fabuwas definitionem te, agam vowutpat ad vis, et pew |bonowum nonumes wepudiandae.',
+			58, 'An his wegewe pewsecuti, obwique dewicata efficiantuw ex |vix, vew at gwaecis officiis mawuisset. Et pew impedit |vowuptua, usu discewe maiowum at. Ut assum ownatus |tempowibus vis, an sea mewius pewicuwa. Ea dicunt obwique |phaedwum nam, eu duo movet nobis. His mewius faciwis eu, |vim mawowum tempowibus ne. Nec no sawe wegione, mewiowe |civibus pwacewat id eam. Mea awii fabuwas definitionem |te, agam vowutpat ad vis, et pew bonowum nonumes |wepudiandae.'
 		);
 
-		assertIncrementalLineBreaks(
-			factory, '\t\t"owner": "vscode",', 4,
-			14, '\t\t"owner|": |"vscod|e",',
-			16, '\t\t"owner":| |"vscode"|,',
-			WrappingIndent.Same
+		assewtIncwementawWineBweaks(
+			factowy, '\t\t"owna": "vscode",', 4,
+			14, '\t\t"owna|": |"vscod|e",',
+			16, '\t\t"owna":| |"vscode"|,',
+			WwappingIndent.Same
 		);
 
-		assertIncrementalLineBreaks(
-			factory, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇&👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', 4,
+		assewtIncwementawWineBweaks(
+			factowy, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇&👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬', 4,
 			51, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇&|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬',
 			50, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇|&|👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬',
-			WrappingIndent.Same
+			WwappingIndent.Same
 		);
 
-		assertIncrementalLineBreaks(
-			factory, '🐇👬&🌞🌖', 4,
+		assewtIncwementawWineBweaks(
+			factowy, '🐇👬&🌞🌖', 4,
 			5, '🐇👬&|🌞🌖',
 			4, '🐇👬|&|🌞🌖',
-			WrappingIndent.Same
+			WwappingIndent.Same
 		);
 
-		assertIncrementalLineBreaks(
-			factory, '\t\tfunc(\'🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬\', WrappingIndent.Same);', 4,
-			26, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WrappingIndent.|Same);',
-			27, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WrappingIndent.|Same);',
-			WrappingIndent.Same
+		assewtIncwementawWineBweaks(
+			factowy, '\t\tfunc(\'🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬\', WwappingIndent.Same);', 4,
+			26, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WwappingIndent.|Same);',
+			27, '\t\tfunc|(\'🌞🏇🍼🌞🏇🍼🐇&|👬🌖🌞👬🌖🌞🏇🍼🐇|👬\', |WwappingIndent.|Same);',
+			WwappingIndent.Same
 		);
 
-		assertIncrementalLineBreaks(
-			factory, 'factory, "xtxtfunc(x"🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬x"', 4,
-			16, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼|🐇&|👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
-			17, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
-			WrappingIndent.Same
-		);
-	});
-
-	test('issue #95686: CRITICAL: loop forever on the monospaceLineBreaksComputer', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertIncrementalLineBreaks(
-			factory,
-			'						<tr dmx-class:table-danger="(alt <= 50)" dmx-class:table-warning="(alt <= 200)" dmx-class:table-primary="(alt <= 400)" dmx-class:table-info="(alt <= 800)" dmx-class:table-success="(alt >= 400)">',
-			4,
-			179, '						<tr dmx-class:table-danger="(alt <= 50)" dmx-class:table-warning="(alt <= 200)" dmx-class:table-primary="(alt <= 400)" dmx-class:table-info="(alt <= 800)" |dmx-class:table-success="(alt >= 400)">',
-			1, '	|	|	|	|	|	|<|t|r| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|d|a|n|g|e|r|=|"|(|a|l|t| |<|=| |5|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|w|a|r|n|i|n|g|=|"|(|a|l|t| |<|=| |2|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|p|r|i|m|a|r|y|=|"|(|a|l|t| |<|=| |4|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|i|n|f|o|=|"|(|a|l|t| |<|=| |8|0|0|)|"| |d|m|x|-|c|l|a|s|s|:|t|a|b|l|e|-|s|u|c|c|e|s|s|=|"|(|a|l|t| |>|=| |4|0|0|)|"|>',
-			WrappingIndent.Same
+		assewtIncwementawWineBweaks(
+			factowy, 'factowy, "xtxtfunc(x"🌞🏇🍼🌞🏇🍼🐇&👬🌖🌞👬🌖🌞🏇🍼🐇👬x"', 4,
+			16, 'factowy, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼|🐇&|👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
+			17, 'factowy, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"',
+			WwappingIndent.Same
 		);
 	});
 
-	test('issue #110392: Occasional crash when resize with panel on the right', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertIncrementalLineBreaks(
-			factory,
-			'你好 **hello** **hello** **hello-world** hey there!',
+	test('issue #95686: CWITICAW: woop foweva on the monospaceWineBweaksComputa', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtIncwementawWineBweaks(
+			factowy,
+			'						<tw dmx-cwass:tabwe-danga="(awt <= 50)" dmx-cwass:tabwe-wawning="(awt <= 200)" dmx-cwass:tabwe-pwimawy="(awt <= 400)" dmx-cwass:tabwe-info="(awt <= 800)" dmx-cwass:tabwe-success="(awt >= 400)">',
 			4,
-			15, '你好 **hello** |**hello** |**hello-world**| hey there!',
-			1, '你|好| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|*|*| |*|*|h|e|l|l|o|-|w|o|r|l|d|*|*| |h|e|y| |t|h|e|r|e|!',
-			WrappingIndent.Same,
+			179, '						<tw dmx-cwass:tabwe-danga="(awt <= 50)" dmx-cwass:tabwe-wawning="(awt <= 200)" dmx-cwass:tabwe-pwimawy="(awt <= 400)" dmx-cwass:tabwe-info="(awt <= 800)" |dmx-cwass:tabwe-success="(awt >= 400)">',
+			1, '	|	|	|	|	|	|<|t|w| |d|m|x|-|c|w|a|s|s|:|t|a|b|w|e|-|d|a|n|g|e|w|=|"|(|a|w|t| |<|=| |5|0|)|"| |d|m|x|-|c|w|a|s|s|:|t|a|b|w|e|-|w|a|w|n|i|n|g|=|"|(|a|w|t| |<|=| |2|0|0|)|"| |d|m|x|-|c|w|a|s|s|:|t|a|b|w|e|-|p|w|i|m|a|w|y|=|"|(|a|w|t| |<|=| |4|0|0|)|"| |d|m|x|-|c|w|a|s|s|:|t|a|b|w|e|-|i|n|f|o|=|"|(|a|w|t| |<|=| |8|0|0|)|"| |d|m|x|-|c|w|a|s|s|:|t|a|b|w|e|-|s|u|c|c|e|s|s|=|"|(|a|w|t| |>|=| |4|0|0|)|"|>',
+			WwappingIndent.Same
+		);
+	});
+
+	test('issue #110392: Occasionaw cwash when wesize with panew on the wight', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtIncwementawWineBweaks(
+			factowy,
+			'你好 **hewwo** **hewwo** **hewwo-wowwd** hey thewe!',
+			4,
+			15, '你好 **hewwo** |**hewwo** |**hewwo-wowwd**| hey thewe!',
+			1, '你|好| |*|*|h|e|w|w|o|*|*| |*|*|h|e|w|w|o|*|*| |*|*|h|e|w|w|o|-|w|o|w|w|d|*|*| |h|e|y| |t|h|e|w|e|!',
+			WwappingIndent.Same,
 			1.6605405405405405
 		);
 	});
 
-	test('MonospaceLineBreaksComputer - CJK and Kinsoku Shori', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('(', '\t)');
-		assertLineBreaks(factory, 4, 5, 'aa \u5b89|\u5b89');
-		assertLineBreaks(factory, 4, 5, '\u3042 \u5b89|\u5b89');
-		assertLineBreaks(factory, 4, 5, '\u3042\u3042|\u5b89\u5b89');
-		assertLineBreaks(factory, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
-		assertLineBreaks(factory, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
-		assertLineBreaks(factory, 4, 5, 'aa |(\u5b89aa|\u5b89');
+	test('MonospaceWineBweaksComputa - CJK and Kinsoku Showi', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('(', '\t)');
+		assewtWineBweaks(factowy, 4, 5, 'aa \u5b89|\u5b89');
+		assewtWineBweaks(factowy, 4, 5, '\u3042 \u5b89|\u5b89');
+		assewtWineBweaks(factowy, 4, 5, '\u3042\u3042|\u5b89\u5b89');
+		assewtWineBweaks(factowy, 4, 5, 'aa |\u5b89)\u5b89|\u5b89');
+		assewtWineBweaks(factowy, 4, 5, 'aa \u3042|\u5b89\u3042)|\u5b89');
+		assewtWineBweaks(factowy, 4, 5, 'aa |(\u5b89aa|\u5b89');
 	});
 
-	test('MonospaceLineBreaksComputer - WrappingIndent.Same', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		assertLineBreaks(factory, 4, 38, ' *123456789012345678901234567890123456|7890', WrappingIndent.Same);
+	test('MonospaceWineBweaksComputa - WwappingIndent.Same', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('', '\t ');
+		assewtWineBweaks(factowy, 4, 38, ' *123456789012345678901234567890123456|7890', WwappingIndent.Same);
 	});
 
-	test('issue #16332: Scroll bar overlaying on top of text', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		assertLineBreaks(factory, 4, 24, 'a/ very/long/line/of/tex|t/that/expands/beyon|d/your/typical/line/|of/code/', WrappingIndent.Indent);
+	test('issue #16332: Scwoww baw ovewwaying on top of text', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('', '\t ');
+		assewtWineBweaks(factowy, 4, 24, 'a/ vewy/wong/wine/of/tex|t/that/expands/beyon|d/youw/typicaw/wine/|of/code/', WwappingIndent.Indent);
 	});
 
-	test('issue #35162: wrappingIndent not consistently working', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		let mapper = assertLineBreaks(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
-		assert.strictEqual(mapper!.wrappedTextIndentLength, '                    '.length);
+	test('issue #35162: wwappingIndent not consistentwy wowking', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('', '\t ');
+		wet mappa = assewtWineBweaks(factowy, 4, 24, '                t h i s |i s |a w |o n |g w |i n |e', WwappingIndent.Indent);
+		assewt.stwictEquaw(mappa!.wwappedTextIndentWength, '                    '.wength);
 	});
 
-	test('issue #75494: surrogate pairs', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('\t', ' ');
-		assertLineBreaks(factory, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬', WrappingIndent.Same);
+	test('issue #75494: suwwogate paiws', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('\t', ' ');
+		assewtWineBweaks(factowy, 4, 49, '🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼🐇👬🌖🌞🏇🍼|🐇👬', WwappingIndent.Same);
 	});
 
-	test('issue #75494: surrogate pairs overrun 1', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertLineBreaks(factory, 4, 4, '🐇👬|&|🌞🌖', WrappingIndent.Same);
+	test('issue #75494: suwwogate paiws ovewwun 1', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtWineBweaks(factowy, 4, 4, '🐇👬|&|🌞🌖', WwappingIndent.Same);
 	});
 
-	test('issue #75494: surrogate pairs overrun 2', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertLineBreaks(factory, 4, 17, 'factory, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"', WrappingIndent.Same);
+	test('issue #75494: suwwogate paiws ovewwun 2', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtWineBweaks(factowy, 4, 17, 'factowy, |"xtxtfunc|(x"🌞🏇🍼🌞🏇🍼🐇|&👬🌖🌞👬🌖🌞🏇🍼|🐇👬x"', WwappingIndent.Same);
 	});
 
-	test('MonospaceLineBreaksComputer - WrappingIndent.DeepIndent', () => {
-		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
-		let mapper = assertLineBreaks(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
-		assert.strictEqual(mapper!.wrappedTextIndentLength, '                '.length);
+	test('MonospaceWineBweaksComputa - WwappingIndent.DeepIndent', () => {
+		wet factowy = new MonospaceWineBweaksComputewFactowy('', '\t ');
+		wet mappa = assewtWineBweaks(factowy, 4, 26, '        W e A w e T e s t |i n g D e |e p I n d |e n t a t |i o n', WwappingIndent.DeepIndent);
+		assewt.stwictEquaw(mappa!.wwappedTextIndentWength, '                '.wength);
 	});
 
-	test('issue #33366: Word wrap algorithm behaves differently around punctuation', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertLineBreaks(factory, 4, 23, 'this is a line of |text, text that sits |on a line', WrappingIndent.Same);
+	test('issue #33366: Wowd wwap awgowithm behaves diffewentwy awound punctuation', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtWineBweaks(factowy, 4, 23, 'this is a wine of |text, text that sits |on a wine', WwappingIndent.Same);
 	});
 
-	test('issue #112382: Word wrap doesn\'t work well with control characters', () => {
-		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
-		assertLineBreaks(factory, 4, 6, '\x06\x06\x06|\x06\x06\x06', WrappingIndent.Same);
+	test('issue #112382: Wowd wwap doesn\'t wowk weww with contwow chawactews', () => {
+		const factowy = new MonospaceWineBweaksComputewFactowy(EditowOptions.wowdWwapBweakBefoweChawactews.defauwtVawue, EditowOptions.wowdWwapBweakAftewChawactews.defauwtVawue);
+		assewtWineBweaks(factowy, 4, 6, '\x06\x06\x06|\x06\x06\x06', WwappingIndent.Same);
 	});
 });

@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
-import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
-import * as path from 'vs/base/common/path';
-import * as performance from 'vs/base/common/performance';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { isMessageOfType, MessageType, cweateMessageOfType } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostPwotocow';
+impowt { IInitData } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtensionHostMain } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostMain';
+impowt { IHostUtiws } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { NestedWowka } fwom 'vs/wowkbench/sewvices/extensions/wowka/powyfiwwNestedWowka';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
 
-import 'vs/workbench/api/common/extHost.common.services';
-import 'vs/workbench/api/worker/extHost.worker.services';
-import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/wowkbench/api/common/extHost.common.sewvices';
+impowt 'vs/wowkbench/api/wowka/extHost.wowka.sewvices';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-//#region --- Define, capture, and override some globals
+//#wegion --- Define, captuwe, and ovewwide some gwobaws
 
-declare function postMessage(data: any, transferables?: Transferable[]): void;
+decwawe function postMessage(data: any, twansfewabwes?: Twansfewabwe[]): void;
 
-declare type _Fetch = typeof fetch;
+decwawe type _Fetch = typeof fetch;
 
-declare namespace self {
-	let close: any;
-	let postMessage: any;
-	let addEventListener: any;
-	let removeEventListener: any;
-	let dispatchEvent: any;
-	let indexedDB: { open: any, [k: string]: any };
-	let caches: { open: any, [k: string]: any };
-	let importScripts: any;
-	let fetch: _Fetch;
-	let XMLHttpRequest: any;
-	let trustedTypes: any;
+decwawe namespace sewf {
+	wet cwose: any;
+	wet postMessage: any;
+	wet addEventWistena: any;
+	wet wemoveEventWistena: any;
+	wet dispatchEvent: any;
+	wet indexedDB: { open: any, [k: stwing]: any };
+	wet caches: { open: any, [k: stwing]: any };
+	wet impowtScwipts: any;
+	wet fetch: _Fetch;
+	wet XMWHttpWequest: any;
+	wet twustedTypes: any;
 }
 
-const nativeClose = self.close.bind(self);
-self.close = () => console.trace(`'close' has been blocked`);
+const nativeCwose = sewf.cwose.bind(sewf);
+sewf.cwose = () => consowe.twace(`'cwose' has been bwocked`);
 
-const nativePostMessage = postMessage.bind(self);
-self.postMessage = () => console.trace(`'postMessage' has been blocked`);
+const nativePostMessage = postMessage.bind(sewf);
+sewf.postMessage = () => consowe.twace(`'postMessage' has been bwocked`);
 
-const nativeFetch = fetch.bind(self);
-self.fetch = function (input, init) {
-	if (input instanceof Request) {
-		// Request object - massage not supported
-		return nativeFetch(input, init);
+const nativeFetch = fetch.bind(sewf);
+sewf.fetch = function (input, init) {
+	if (input instanceof Wequest) {
+		// Wequest object - massage not suppowted
+		wetuwn nativeFetch(input, init);
 	}
-	if (/^file:/i.test(String(input))) {
-		input = FileAccess.asBrowserUri(URI.parse(String(input))).toString(true);
+	if (/^fiwe:/i.test(Stwing(input))) {
+		input = FiweAccess.asBwowsewUwi(UWI.pawse(Stwing(input))).toStwing(twue);
 	}
-	return nativeFetch(input, init);
+	wetuwn nativeFetch(input, init);
 };
 
-self.XMLHttpRequest = class extends XMLHttpRequest {
-	override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
-		if (/^file:/i.test(url.toString())) {
-			url = FileAccess.asBrowserUri(URI.parse(url.toString())).toString(true);
+sewf.XMWHttpWequest = cwass extends XMWHttpWequest {
+	ovewwide open(method: stwing, uww: stwing | UWW, async?: boowean, usewname?: stwing | nuww, passwowd?: stwing | nuww): void {
+		if (/^fiwe:/i.test(uww.toStwing())) {
+			uww = FiweAccess.asBwowsewUwi(UWI.pawse(uww.toStwing())).toStwing(twue);
 		}
-		return super.open(method, url, async ?? true, username, password);
+		wetuwn supa.open(method, uww, async ?? twue, usewname, passwowd);
 	}
 };
 
-self.importScripts = () => { throw new Error(`'importScripts' has been blocked`); };
+sewf.impowtScwipts = () => { thwow new Ewwow(`'impowtScwipts' has been bwocked`); };
 
-// const nativeAddEventListener = addEventListener.bind(self);
-self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
+// const nativeAddEventWistena = addEventWistena.bind(sewf);
+sewf.addEventWistena = () => consowe.twace(`'addEventWistena' has been bwocked`);
 
-(<any>self)['AMDLoader'] = undefined;
-(<any>self)['NLSLoaderPlugin'] = undefined;
-(<any>self)['define'] = undefined;
-(<any>self)['require'] = undefined;
-(<any>self)['webkitRequestFileSystem'] = undefined;
-(<any>self)['webkitRequestFileSystemSync'] = undefined;
-(<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
-(<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
+(<any>sewf)['AMDWoada'] = undefined;
+(<any>sewf)['NWSWoadewPwugin'] = undefined;
+(<any>sewf)['define'] = undefined;
+(<any>sewf)['wequiwe'] = undefined;
+(<any>sewf)['webkitWequestFiweSystem'] = undefined;
+(<any>sewf)['webkitWequestFiweSystemSync'] = undefined;
+(<any>sewf)['webkitWesowveWocawFiweSystemSyncUWW'] = undefined;
+(<any>sewf)['webkitWesowveWocawFiweSystemUWW'] = undefined;
 
-if ((<any>self).Worker) {
-	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
+if ((<any>sewf).Wowka) {
+	const ttPowicy = (<any>sewf).twustedTypes?.cweatePowicy('extensionHostWowka', { cweateScwiptUWW: (vawue: stwing) => vawue });
 
-	// make sure new Worker(...) always uses blob: (to maintain current origin)
-	const _Worker = (<any>self).Worker;
-	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		if (/^file:/i.test(stringUrl.toString())) {
-			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+	// make suwe new Wowka(...) awways uses bwob: (to maintain cuwwent owigin)
+	const _Wowka = (<any>sewf).Wowka;
+	Wowka = <any>function (stwingUww: stwing | UWW, options?: WowkewOptions) {
+		if (/^fiwe:/i.test(stwingUww.toStwing())) {
+			stwingUww = FiweAccess.asBwowsewUwi(UWI.pawse(stwingUww.toStwing())).toStwing(twue);
 		}
 
-		// IMPORTANT: bootstrapFn is stringified and injected as worker blob-url. Because of that it CANNOT
-		// have dependencies on other functions or variables. Only constant values are supported. Due to
-		// that logic of FileAccess.asBrowserUri had to be copied, see `asWorkerBrowserUrl` (below).
-		const bootstrapFnSource = (function bootstrapFn(workerUrl: string) {
-			function asWorkerBrowserUrl(url: string | URL | TrustedScriptURL): any {
-				if (typeof url === 'string' || url instanceof URL) {
-					return String(url).replace(/^file:\/\//i, 'vscode-file://vscode-app');
+		// IMPOWTANT: bootstwapFn is stwingified and injected as wowka bwob-uww. Because of that it CANNOT
+		// have dependencies on otha functions ow vawiabwes. Onwy constant vawues awe suppowted. Due to
+		// that wogic of FiweAccess.asBwowsewUwi had to be copied, see `asWowkewBwowsewUww` (bewow).
+		const bootstwapFnSouwce = (function bootstwapFn(wowkewUww: stwing) {
+			function asWowkewBwowsewUww(uww: stwing | UWW | TwustedScwiptUWW): any {
+				if (typeof uww === 'stwing' || uww instanceof UWW) {
+					wetuwn Stwing(uww).wepwace(/^fiwe:\/\//i, 'vscode-fiwe://vscode-app');
 				}
-				return url;
+				wetuwn uww;
 			}
 
-			const nativeFetch = fetch.bind(self);
-			self.fetch = function (input, init) {
-				if (input instanceof Request) {
-					// Request object - massage not supported
-					return nativeFetch(input, init);
+			const nativeFetch = fetch.bind(sewf);
+			sewf.fetch = function (input, init) {
+				if (input instanceof Wequest) {
+					// Wequest object - massage not suppowted
+					wetuwn nativeFetch(input, init);
 				}
-				return nativeFetch(asWorkerBrowserUrl(input), init);
+				wetuwn nativeFetch(asWowkewBwowsewUww(input), init);
 			};
-			self.XMLHttpRequest = class extends XMLHttpRequest {
-				override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
-					return super.open(method, asWorkerBrowserUrl(url), async ?? true, username, password);
+			sewf.XMWHttpWequest = cwass extends XMWHttpWequest {
+				ovewwide open(method: stwing, uww: stwing | UWW, async?: boowean, usewname?: stwing | nuww, passwowd?: stwing | nuww): void {
+					wetuwn supa.open(method, asWowkewBwowsewUww(uww), async ?? twue, usewname, passwowd);
 				}
 			};
-			const nativeImportScripts = importScripts.bind(self);
-			self.importScripts = (...urls: string[]) => {
-				nativeImportScripts(...urls.map(asWorkerBrowserUrl));
+			const nativeImpowtScwipts = impowtScwipts.bind(sewf);
+			sewf.impowtScwipts = (...uwws: stwing[]) => {
+				nativeImpowtScwipts(...uwws.map(asWowkewBwowsewUww));
 			};
 
-			const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value }) : undefined;
-			nativeImportScripts(ttPolicy ? ttPolicy.createScriptURL(workerUrl) : workerUrl);
-		}).toString();
+			const ttPowicy = sewf.twustedTypes ? sewf.twustedTypes.cweatePowicy('extensionHostWowka', { cweateScwiptUWW: (vawue: stwing) => vawue }) : undefined;
+			nativeImpowtScwipts(ttPowicy ? ttPowicy.cweateScwiptUWW(wowkewUww) : wowkewUww);
+		}).toStwing();
 
-		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
+		const js = `(${bootstwapFnSouwce}('${stwingUww}'))`;
 		options = options || {};
-		options.name = options.name || path.basename(stringUrl.toString());
-		const blob = new Blob([js], { type: 'application/javascript' });
-		const blobUrl = URL.createObjectURL(blob);
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
+		options.name = options.name || path.basename(stwingUww.toStwing());
+		const bwob = new Bwob([js], { type: 'appwication/javascwipt' });
+		const bwobUww = UWW.cweateObjectUWW(bwob);
+		wetuwn new _Wowka(ttPowicy ? ttPowicy.cweateScwiptUWW(bwobUww) : bwobUww, options);
 	};
 
-} else {
-	(<any>self).Worker = class extends NestedWorker {
-		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
-			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });
+} ewse {
+	(<any>sewf).Wowka = cwass extends NestedWowka {
+		constwuctow(stwingOwUww: stwing | UWW, options?: WowkewOptions) {
+			supa(nativePostMessage, stwingOwUww, { name: path.basename(stwingOwUww.toStwing()), ...options });
 		}
 	};
 }
 
-//#endregion ---
+//#endwegion ---
 
-const hostUtil = new class implements IHostUtils {
-	declare readonly _serviceBrand: undefined;
-	exit(_code?: number | undefined): void {
-		nativeClose();
+const hostUtiw = new cwass impwements IHostUtiws {
+	decwawe weadonwy _sewviceBwand: undefined;
+	exit(_code?: numba | undefined): void {
+		nativeCwose();
 	}
-	async exists(_path: string): Promise<boolean> {
-		return true;
+	async exists(_path: stwing): Pwomise<boowean> {
+		wetuwn twue;
 	}
-	async realpath(path: string): Promise<string> {
-		return path;
+	async weawpath(path: stwing): Pwomise<stwing> {
+		wetuwn path;
 	}
 };
 
 
-class ExtensionWorker {
+cwass ExtensionWowka {
 
-	// protocol
-	readonly protocol: IMessagePassingProtocol;
+	// pwotocow
+	weadonwy pwotocow: IMessagePassingPwotocow;
 
-	constructor() {
+	constwuctow() {
 
-		const channel = new MessageChannel();
-		const emitter = new Emitter<VSBuffer>();
-		let terminating = false;
+		const channew = new MessageChannew();
+		const emitta = new Emitta<VSBuffa>();
+		wet tewminating = fawse;
 
-		// send over port2, keep port1
-		nativePostMessage(channel.port2, [channel.port2]);
+		// send ova powt2, keep powt1
+		nativePostMessage(channew.powt2, [channew.powt2]);
 
-		channel.port1.onmessage = event => {
+		channew.powt1.onmessage = event => {
 			const { data } = event;
-			if (!(data instanceof ArrayBuffer)) {
-				console.warn('UNKNOWN data received', data);
-				return;
+			if (!(data instanceof AwwayBuffa)) {
+				consowe.wawn('UNKNOWN data weceived', data);
+				wetuwn;
 			}
 
-			const msg = VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength));
-			if (isMessageOfType(msg, MessageType.Terminate)) {
-				// handle terminate-message right here
-				terminating = true;
-				onTerminate('received terminate message from renderer');
-				return;
+			const msg = VSBuffa.wwap(new Uint8Awway(data, 0, data.byteWength));
+			if (isMessageOfType(msg, MessageType.Tewminate)) {
+				// handwe tewminate-message wight hewe
+				tewminating = twue;
+				onTewminate('weceived tewminate message fwom wendewa');
+				wetuwn;
 			}
 
-			// emit non-terminate messages to the outside
-			emitter.fire(msg);
+			// emit non-tewminate messages to the outside
+			emitta.fiwe(msg);
 		};
 
-		this.protocol = {
-			onMessage: emitter.event,
+		this.pwotocow = {
+			onMessage: emitta.event,
 			send: vsbuf => {
-				if (!terminating) {
-					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					channel.port1.postMessage(data, [data]);
+				if (!tewminating) {
+					const data = vsbuf.buffa.buffa.swice(vsbuf.buffa.byteOffset, vsbuf.buffa.byteOffset + vsbuf.buffa.byteWength);
+					channew.powt1.postMessage(data, [data]);
 				}
 			}
 		};
 	}
 }
 
-interface IRendererConnection {
-	protocol: IMessagePassingProtocol;
+intewface IWendewewConnection {
+	pwotocow: IMessagePassingPwotocow;
 	initData: IInitData;
 }
-function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>(resolve => {
-		const once = protocol.onMessage(raw => {
+function connectToWendewa(pwotocow: IMessagePassingPwotocow): Pwomise<IWendewewConnection> {
+	wetuwn new Pwomise<IWendewewConnection>(wesowve => {
+		const once = pwotocow.onMessage(waw => {
 			once.dispose();
-			const initData = <IInitData>JSON.parse(raw.toString());
-			protocol.send(createMessageOfType(MessageType.Initialized));
-			resolve({ protocol, initData });
+			const initData = <IInitData>JSON.pawse(waw.toStwing());
+			pwotocow.send(cweateMessageOfType(MessageType.Initiawized));
+			wesowve({ pwotocow, initData });
 		});
-		protocol.send(createMessageOfType(MessageType.Ready));
+		pwotocow.send(cweateMessageOfType(MessageType.Weady));
 	});
 }
 
-let onTerminate = (reason: string) => nativeClose();
+wet onTewminate = (weason: stwing) => nativeCwose();
 
-export function create(): void {
-	const res = new ExtensionWorker();
-	performance.mark(`code/extHost/willConnectToRenderer`);
-	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`code/extHost/didWaitForInitData`);
+expowt function cweate(): void {
+	const wes = new ExtensionWowka();
+	pewfowmance.mawk(`code/extHost/wiwwConnectToWendewa`);
+	connectToWendewa(wes.pwotocow).then(data => {
+		pewfowmance.mawk(`code/extHost/didWaitFowInitData`);
 		const extHostMain = new ExtensionHostMain(
-			data.protocol,
+			data.pwotocow,
 			data.initData,
-			hostUtil,
-			null,
+			hostUtiw,
+			nuww,
 		);
 
-		onTerminate = (reason: string) => extHostMain.terminate(reason);
+		onTewminate = (weason: stwing) => extHostMain.tewminate(weason);
 	});
 }

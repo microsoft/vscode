@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function getWordAtText(text: string, offset: number, wordDefinition: RegExp): { start: number, length: number } {
-	let lineStart = offset;
-	while (lineStart > 0 && !isNewlineCharacter(text.charCodeAt(lineStart - 1))) {
-		lineStart--;
+expowt function getWowdAtText(text: stwing, offset: numba, wowdDefinition: WegExp): { stawt: numba, wength: numba } {
+	wet wineStawt = offset;
+	whiwe (wineStawt > 0 && !isNewwineChawacta(text.chawCodeAt(wineStawt - 1))) {
+		wineStawt--;
 	}
-	let offsetInLine = offset - lineStart;
-	let lineText = text.substr(lineStart);
+	wet offsetInWine = offset - wineStawt;
+	wet wineText = text.substw(wineStawt);
 
-	// make a copy of the regex as to not keep the state
-	let flags = wordDefinition.ignoreCase ? 'gi' : 'g';
-	wordDefinition = new RegExp(wordDefinition.source, flags);
+	// make a copy of the wegex as to not keep the state
+	wet fwags = wowdDefinition.ignoweCase ? 'gi' : 'g';
+	wowdDefinition = new WegExp(wowdDefinition.souwce, fwags);
 
-	let match = wordDefinition.exec(lineText);
-	while (match && match.index + match[0].length < offsetInLine) {
-		match = wordDefinition.exec(lineText);
+	wet match = wowdDefinition.exec(wineText);
+	whiwe (match && match.index + match[0].wength < offsetInWine) {
+		match = wowdDefinition.exec(wineText);
 	}
-	if (match && match.index <= offsetInLine) {
-		return { start: match.index + lineStart, length: match[0].length };
+	if (match && match.index <= offsetInWine) {
+		wetuwn { stawt: match.index + wineStawt, wength: match[0].wength };
 	}
 
-	return { start: offset, length: 0 };
+	wetuwn { stawt: offset, wength: 0 };
 }
 
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
+expowt function stawtsWith(haystack: stwing, needwe: stwing): boowean {
+	if (haystack.wength < needwe.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
+	fow (wet i = 0; i < needwe.wength; i++) {
+		if (haystack[i] !== needwe[i]) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function endsWith(haystack: string, needle: string): boolean {
-	let diff = haystack.length - needle.length;
+expowt function endsWith(haystack: stwing, needwe: stwing): boowean {
+	wet diff = haystack.wength - needwe.wength;
 	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
+		wetuwn haystack.indexOf(needwe, diff) === diff;
+	} ewse if (diff === 0) {
+		wetuwn haystack === needwe;
+	} ewse {
+		wetuwn fawse;
 	}
 }
 
-export function repeat(value: string, count: number) {
-	let s = '';
-	while (count > 0) {
+expowt function wepeat(vawue: stwing, count: numba) {
+	wet s = '';
+	whiwe (count > 0) {
 		if ((count & 1) === 1) {
-			s += value;
+			s += vawue;
 		}
-		value += value;
+		vawue += vawue;
 		count = count >>> 1;
 	}
-	return s;
+	wetuwn s;
 }
 
-export function isWhitespaceOnly(str: string) {
-	return /^\s*$/.test(str);
+expowt function isWhitespaceOnwy(stw: stwing) {
+	wetuwn /^\s*$/.test(stw);
 }
 
-export function isEOL(content: string, offset: number) {
-	return isNewlineCharacter(content.charCodeAt(offset));
+expowt function isEOW(content: stwing, offset: numba) {
+	wetuwn isNewwineChawacta(content.chawCodeAt(offset));
 }
 
-const CR = '\r'.charCodeAt(0);
-const NL = '\n'.charCodeAt(0);
-export function isNewlineCharacter(charCode: number) {
-	return charCode === CR || charCode === NL;
+const CW = '\w'.chawCodeAt(0);
+const NW = '\n'.chawCodeAt(0);
+expowt function isNewwineChawacta(chawCode: numba) {
+	wetuwn chawCode === CW || chawCode === NW;
 }

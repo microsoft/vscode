@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, EditPresentationTypes, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, EditPwesentationTypes, IConfiguwationExtensionInfo } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { EditowWesowution, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { Settings2EditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
 
-export enum SettingValueType {
-	Null = 'null',
+expowt enum SettingVawueType {
+	Nuww = 'nuww',
 	Enum = 'enum',
-	String = 'string',
-	MultilineString = 'multiline-string',
-	Integer = 'integer',
-	Number = 'number',
-	Boolean = 'boolean',
-	StringOrEnumArray = 'string-or-enum-array',
-	Exclude = 'exclude',
-	Complex = 'complex',
-	NullableInteger = 'nullable-integer',
-	NullableNumber = 'nullable-number',
+	Stwing = 'stwing',
+	MuwtiwineStwing = 'muwtiwine-stwing',
+	Intega = 'intega',
+	Numba = 'numba',
+	Boowean = 'boowean',
+	StwingOwEnumAwway = 'stwing-ow-enum-awway',
+	Excwude = 'excwude',
+	Compwex = 'compwex',
+	NuwwabweIntega = 'nuwwabwe-intega',
+	NuwwabweNumba = 'nuwwabwe-numba',
 	Object = 'object',
-	BooleanObject = 'boolean-object'
+	BooweanObject = 'boowean-object'
 }
 
-export interface ISettingsGroup {
-	id: string;
-	range: IRange;
-	title: string;
-	titleRange: IRange;
-	order: number;
+expowt intewface ISettingsGwoup {
+	id: stwing;
+	wange: IWange;
+	titwe: stwing;
+	titweWange: IWange;
+	owda: numba;
 	sections: ISettingsSection[];
-	extensionInfo?: IConfigurationExtensionInfo;
+	extensionInfo?: IConfiguwationExtensionInfo;
 }
 
-export interface ISettingsSection {
-	titleRange?: IRange;
-	title?: string;
+expowt intewface ISettingsSection {
+	titweWange?: IWange;
+	titwe?: stwing;
 	settings: ISetting[];
 }
 
-export interface ISetting {
-	range: IRange;
-	key: string;
-	keyRange: IRange;
-	value: any;
-	valueRange: IRange;
-	description: string[];
-	descriptionIsMarkdown?: boolean;
-	descriptionRanges: IRange[];
-	overrides?: ISetting[];
-	overrideOf?: ISetting;
-	deprecationMessage?: string;
-	deprecationMessageIsMarkdown?: boolean;
+expowt intewface ISetting {
+	wange: IWange;
+	key: stwing;
+	keyWange: IWange;
+	vawue: any;
+	vawueWange: IWange;
+	descwiption: stwing[];
+	descwiptionIsMawkdown?: boowean;
+	descwiptionWanges: IWange[];
+	ovewwides?: ISetting[];
+	ovewwideOf?: ISetting;
+	depwecationMessage?: stwing;
+	depwecationMessageIsMawkdown?: boowean;
 
-	scope?: ConfigurationScope;
-	type?: string | string[];
-	arrayItemType?: string;
-	objectProperties?: IJSONSchemaMap,
-	objectPatternProperties?: IJSONSchemaMap,
-	objectAdditionalProperties?: boolean | IJSONSchema,
-	enum?: string[];
-	enumDescriptions?: string[];
-	enumDescriptionsAreMarkdown?: boolean;
-	uniqueItems?: boolean;
-	tags?: string[];
-	disallowSyncIgnore?: boolean;
-	restricted?: boolean;
-	extensionInfo?: IConfigurationExtensionInfo;
-	validator?: (value: any) => string | null;
-	enumItemLabels?: string[];
-	allKeysAreBoolean?: boolean;
-	editPresentation?: EditPresentationTypes;
+	scope?: ConfiguwationScope;
+	type?: stwing | stwing[];
+	awwayItemType?: stwing;
+	objectPwopewties?: IJSONSchemaMap,
+	objectPattewnPwopewties?: IJSONSchemaMap,
+	objectAdditionawPwopewties?: boowean | IJSONSchema,
+	enum?: stwing[];
+	enumDescwiptions?: stwing[];
+	enumDescwiptionsAweMawkdown?: boowean;
+	uniqueItems?: boowean;
+	tags?: stwing[];
+	disawwowSyncIgnowe?: boowean;
+	westwicted?: boowean;
+	extensionInfo?: IConfiguwationExtensionInfo;
+	vawidatow?: (vawue: any) => stwing | nuww;
+	enumItemWabews?: stwing[];
+	awwKeysAweBoowean?: boowean;
+	editPwesentation?: EditPwesentationTypes;
 }
 
-export interface IExtensionSetting extends ISetting {
-	extensionName?: string;
-	extensionPublisher?: string;
+expowt intewface IExtensionSetting extends ISetting {
+	extensionName?: stwing;
+	extensionPubwisha?: stwing;
 }
 
-export interface ISearchResult {
-	filterMatches: ISettingMatch[];
-	exactMatch?: boolean;
-	metadata?: IFilterMetadata;
+expowt intewface ISeawchWesuwt {
+	fiwtewMatches: ISettingMatch[];
+	exactMatch?: boowean;
+	metadata?: IFiwtewMetadata;
 }
 
-export interface ISearchResultGroup {
-	id: string;
-	label: string;
-	result: ISearchResult;
-	order: number;
+expowt intewface ISeawchWesuwtGwoup {
+	id: stwing;
+	wabew: stwing;
+	wesuwt: ISeawchWesuwt;
+	owda: numba;
 }
 
-export interface IFilterResult {
-	query?: string;
-	filteredGroups: ISettingsGroup[];
-	allGroups: ISettingsGroup[];
-	matches: IRange[];
-	metadata?: IStringDictionary<IFilterMetadata>;
-	exactMatch?: boolean;
+expowt intewface IFiwtewWesuwt {
+	quewy?: stwing;
+	fiwtewedGwoups: ISettingsGwoup[];
+	awwGwoups: ISettingsGwoup[];
+	matches: IWange[];
+	metadata?: IStwingDictionawy<IFiwtewMetadata>;
+	exactMatch?: boowean;
 }
 
-export interface ISettingMatch {
+expowt intewface ISettingMatch {
 	setting: ISetting;
-	matches: IRange[] | null;
-	score: number;
+	matches: IWange[] | nuww;
+	scowe: numba;
 }
 
-export interface IScoredResults {
-	[key: string]: IRemoteSetting;
+expowt intewface IScowedWesuwts {
+	[key: stwing]: IWemoteSetting;
 }
 
-export interface IRemoteSetting {
-	score: number;
-	key: string;
-	id: string;
-	defaultValue: string;
-	description: string;
-	packageId: string;
-	extensionName?: string;
-	extensionPublisher?: string;
+expowt intewface IWemoteSetting {
+	scowe: numba;
+	key: stwing;
+	id: stwing;
+	defauwtVawue: stwing;
+	descwiption: stwing;
+	packageId: stwing;
+	extensionName?: stwing;
+	extensionPubwisha?: stwing;
 }
 
-export interface IFilterMetadata {
-	requestUrl: string;
-	requestBody: string;
-	timestamp: number;
-	duration: number;
-	scoredResults: IScoredResults;
+expowt intewface IFiwtewMetadata {
+	wequestUww: stwing;
+	wequestBody: stwing;
+	timestamp: numba;
+	duwation: numba;
+	scowedWesuwts: IScowedWesuwts;
 
-	/** The number of requests made, since requests are split by number of filters */
-	requestCount?: number;
+	/** The numba of wequests made, since wequests awe spwit by numba of fiwtews */
+	wequestCount?: numba;
 
-	/** The name of the server that actually served the request */
-	context: string;
+	/** The name of the sewva that actuawwy sewved the wequest */
+	context: stwing;
 }
 
-export interface IPreferencesEditorModel<T> {
-	uri?: URI;
-	getPreference(key: string): T | undefined;
+expowt intewface IPwefewencesEditowModew<T> {
+	uwi?: UWI;
+	getPwefewence(key: stwing): T | undefined;
 	dispose(): void;
 }
 
-export type IGroupFilter = (group: ISettingsGroup) => boolean | null;
-export type ISettingMatcher = (setting: ISetting, group: ISettingsGroup) => { matches: IRange[], score: number } | null;
+expowt type IGwoupFiwta = (gwoup: ISettingsGwoup) => boowean | nuww;
+expowt type ISettingMatcha = (setting: ISetting, gwoup: ISettingsGwoup) => { matches: IWange[], scowe: numba } | nuww;
 
-export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
-	readonly onDidChangeGroups: Event<void>;
-	settingsGroups: ISettingsGroup[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[];
-	findValueMatches(filter: string, setting: ISetting): IRange[];
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined;
+expowt intewface ISettingsEditowModew extends IPwefewencesEditowModew<ISetting> {
+	weadonwy onDidChangeGwoups: Event<void>;
+	settingsGwoups: ISettingsGwoup[];
+	fiwtewSettings(fiwta: stwing, gwoupFiwta: IGwoupFiwta, settingMatcha: ISettingMatcha): ISettingMatch[];
+	findVawueMatches(fiwta: stwing, setting: ISetting): IWange[];
+	updateWesuwtGwoup(id: stwing, wesuwtGwoup: ISeawchWesuwtGwoup | undefined): IFiwtewWesuwt | undefined;
 }
 
-export interface ISettingsEditorOptions extends IEditorOptions {
-	target?: ConfigurationTarget;
-	folderUri?: URI;
-	query?: string;
-	revealSetting?: {
-		key: string;
-		edit?: boolean;
+expowt intewface ISettingsEditowOptions extends IEditowOptions {
+	tawget?: ConfiguwationTawget;
+	fowdewUwi?: UWI;
+	quewy?: stwing;
+	weveawSetting?: {
+		key: stwing;
+		edit?: boowean;
 	};
-	focusSearch?: boolean;
+	focusSeawch?: boowean;
 }
 
-export interface IOpenSettingsOptions extends ISettingsEditorOptions {
-	jsonEditor?: boolean;
-	openToSide?: boolean;
+expowt intewface IOpenSettingsOptions extends ISettingsEditowOptions {
+	jsonEditow?: boowean;
+	openToSide?: boowean;
 }
 
-export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
-	return {
-		// Inherit provided options
+expowt function vawidateSettingsEditowOptions(options: ISettingsEditowOptions): ISettingsEditowOptions {
+	wetuwn {
+		// Inhewit pwovided options
 		...options,
 
-		// Enforce some options for settings specifically
-		override: EditorResolution.DISABLED,
-		pinned: true
+		// Enfowce some options fow settings specificawwy
+		ovewwide: EditowWesowution.DISABWED,
+		pinned: twue
 	};
 }
 
-export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
+expowt intewface IKeybindingsEditowModew<T> extends IPwefewencesEditowModew<T> {
 }
 
-export interface IKeybindingsEditorOptions extends IEditorOptions {
-	query?: string;
+expowt intewface IKeybindingsEditowOptions extends IEditowOptions {
+	quewy?: stwing;
 }
 
-export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');
+expowt const IPwefewencesSewvice = cweateDecowatow<IPwefewencesSewvice>('pwefewencesSewvice');
 
-export interface IPreferencesService {
-	readonly _serviceBrand: undefined;
+expowt intewface IPwefewencesSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	userSettingsResource: URI;
-	workspaceSettingsResource: URI | null;
-	getFolderSettingsResource(resource: URI): URI | null;
+	usewSettingsWesouwce: UWI;
+	wowkspaceSettingsWesouwce: UWI | nuww;
+	getFowdewSettingsWesouwce(wesouwce: UWI): UWI | nuww;
 
-	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
-	resolveModel(uri: URI): ITextModel | null;
-	createSettings2EditorModel(): Settings2EditorModel; // TODO
+	cweatePwefewencesEditowModew(uwi: UWI): Pwomise<IPwefewencesEditowModew<ISetting> | nuww>;
+	wesowveModew(uwi: UWI): ITextModew | nuww;
+	cweateSettings2EditowModew(): Settings2EditowModew; // TODO
 
-	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
-	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
-	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
-	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
-	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
-	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
+	openWawDefauwtSettings(): Pwomise<IEditowPane | undefined>;
+	openSettings(options?: IOpenSettingsOptions): Pwomise<IEditowPane | undefined>;
+	openUsewSettings(options?: IOpenSettingsOptions): Pwomise<IEditowPane | undefined>;
+	openWemoteSettings(options?: IOpenSettingsOptions): Pwomise<IEditowPane | undefined>;
+	openWowkspaceSettings(options?: IOpenSettingsOptions): Pwomise<IEditowPane | undefined>;
+	openFowdewSettings(options: IOpenSettingsOptions & { fowdewUwi: IOpenSettingsOptions['fowdewUwi'] }): Pwomise<IEditowPane | undefined>;
+	openGwobawKeybindingSettings(textuaw: boowean, options?: IKeybindingsEditowOptions): Pwomise<void>;
+	openDefauwtKeybindingsFiwe(): Pwomise<IEditowPane | undefined>;
+	getEditabweSettingsUWI(configuwationTawget: ConfiguwationTawget, wesouwce?: UWI): Pwomise<UWI | nuww>;
 
-	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;
+	cweateSpwitJsonEditowInput(configuwationTawget: ConfiguwationTawget, wesouwce: UWI): EditowInput;
 }
 
-export interface KeybindingMatch {
-	ctrlKey?: boolean;
-	shiftKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
-	keyCode?: boolean;
+expowt intewface KeybindingMatch {
+	ctwwKey?: boowean;
+	shiftKey?: boowean;
+	awtKey?: boowean;
+	metaKey?: boowean;
+	keyCode?: boowean;
 }
 
-export interface KeybindingMatches {
-	firstPart: KeybindingMatch;
-	chordPart: KeybindingMatch;
+expowt intewface KeybindingMatches {
+	fiwstPawt: KeybindingMatch;
+	chowdPawt: KeybindingMatch;
 }
 
-export interface IKeybindingItemEntry {
-	id: string;
-	templateId: string;
+expowt intewface IKeybindingItemEntwy {
+	id: stwing;
+	tempwateId: stwing;
 	keybindingItem: IKeybindingItem;
 	commandIdMatches?: IMatch[];
-	commandLabelMatches?: IMatch[];
-	commandDefaultLabelMatches?: IMatch[];
-	sourceMatches?: IMatch[];
+	commandWabewMatches?: IMatch[];
+	commandDefauwtWabewMatches?: IMatch[];
+	souwceMatches?: IMatch[];
 	whenMatches?: IMatch[];
 	keybindingMatches?: KeybindingMatches;
 }
 
-export interface IKeybindingItem {
-	keybinding: ResolvedKeybinding;
-	keybindingItem: ResolvedKeybindingItem;
-	commandLabel: string;
-	commandDefaultLabel: string;
-	command: string;
-	source: string;
-	when: string;
+expowt intewface IKeybindingItem {
+	keybinding: WesowvedKeybinding;
+	keybindingItem: WesowvedKeybindingItem;
+	commandWabew: stwing;
+	commandDefauwtWabew: stwing;
+	command: stwing;
+	souwce: stwing;
+	when: stwing;
 }
 
-export interface IKeybindingsEditorPane extends IEditorPane {
+expowt intewface IKeybindingsEditowPane extends IEditowPane {
 
-	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
-	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
-	readonly onLayout: Event<void>;
+	weadonwy activeKeybindingEntwy: IKeybindingItemEntwy | nuww;
+	weadonwy onDefineWhenExpwession: Event<IKeybindingItemEntwy>;
+	weadonwy onWayout: Event<void>;
 
-	search(filter: string): void;
-	focusSearch(): void;
-	clearSearchResults(): void;
+	seawch(fiwta: stwing): void;
+	focusSeawch(): void;
+	cweawSeawchWesuwts(): void;
 	focusKeybindings(): void;
-	recordSearchKeys(): void;
-	toggleSortByPrecedence(): void;
-	selectKeybinding(keybindingEntry: IKeybindingItemEntry): void;
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<void>;
-	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void;
-	updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined): Promise<any>;
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any>;
-	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
-	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
+	wecowdSeawchKeys(): void;
+	toggweSowtByPwecedence(): void;
+	sewectKeybinding(keybindingEntwy: IKeybindingItemEntwy): void;
+	defineKeybinding(keybindingEntwy: IKeybindingItemEntwy, add: boowean): Pwomise<void>;
+	defineWhenExpwession(keybindingEntwy: IKeybindingItemEntwy): void;
+	updateKeybinding(keybindingEntwy: IKeybindingItemEntwy, key: stwing, when: stwing | undefined): Pwomise<any>;
+	wemoveKeybinding(keybindingEntwy: IKeybindingItemEntwy): Pwomise<any>;
+	wesetKeybinding(keybindingEntwy: IKeybindingItemEntwy): Pwomise<any>;
+	copyKeybinding(keybindingEntwy: IKeybindingItemEntwy): Pwomise<void>;
+	copyKeybindingCommand(keybindingEntwy: IKeybindingItemEntwy): Pwomise<void>;
+	showSimiwawKeybindings(keybindingEntwy: IKeybindingItemEntwy): void;
 }
 
-export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
-export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
-export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
+expowt const FOWDEW_SETTINGS_PATH = '.vscode/settings.json';
+expowt const DEFAUWT_SETTINGS_EDITOW_SETTING = 'wowkbench.settings.openDefauwtSettings';
+expowt const USE_SPWIT_JSON_SETTING = 'wowkbench.settings.useSpwitJSON';

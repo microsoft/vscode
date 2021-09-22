@@ -1,322 +1,322 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /* --------------------------------------------------------------------------------------------
- * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * Incwudes code fwom typescwipt-subwime-pwugin pwoject, obtained fwom
+ * https://github.com/micwosoft/TypeScwipt-Subwime-Pwugin/bwob/masta/TypeScwipt%20Indent.tmPwefewences
  * ------------------------------------------------------------------------------------------ */
 
-import * as vscode from 'vscode';
-import { CommandManager } from './commands/commandManager';
-import { DiagnosticKind } from './languageFeatures/diagnostics';
-import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
-import LanguageProvider from './languageProvider';
-import * as Proto from './protocol';
-import * as PConst from './protocol.const';
-import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { TsServerProcessFactory } from './tsServer/server';
-import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
-import TypeScriptServiceClient from './typescriptServiceClient';
-import { CapabilitiesStatus } from './ui/capabilitiesStatus';
-import { ProjectStatus } from './ui/projectStatus';
-import { VersionStatus } from './ui/versionStatus';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { coalesce, flatten } from './utils/arrays';
-import { ServiceConfigurationProvider } from './utils/configuration';
-import { Disposable } from './utils/dispose';
-import * as errorCodes from './utils/errorCodes';
-import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
-import * as LargeProjectStatus from './utils/largeProjectStatus';
-import { LogLevelMonitor } from './utils/logLevelMonitor';
-import { PluginManager } from './utils/plugins';
-import * as typeConverters from './utils/typeConverters';
-import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
+impowt * as vscode fwom 'vscode';
+impowt { CommandManaga } fwom './commands/commandManaga';
+impowt { DiagnosticKind } fwom './wanguageFeatuwes/diagnostics';
+impowt FiweConfiguwationManaga fwom './wanguageFeatuwes/fiweConfiguwationManaga';
+impowt WanguagePwovida fwom './wanguagePwovida';
+impowt * as Pwoto fwom './pwotocow';
+impowt * as PConst fwom './pwotocow.const';
+impowt { OngoingWequestCancewwewFactowy } fwom './tsSewva/cancewwation';
+impowt { IWogDiwectowyPwovida } fwom './tsSewva/wogDiwectowyPwovida';
+impowt { TsSewvewPwocessFactowy } fwom './tsSewva/sewva';
+impowt { ITypeScwiptVewsionPwovida } fwom './tsSewva/vewsionPwovida';
+impowt TypeScwiptSewviceCwient fwom './typescwiptSewviceCwient';
+impowt { CapabiwitiesStatus } fwom './ui/capabiwitiesStatus';
+impowt { PwojectStatus } fwom './ui/pwojectStatus';
+impowt { VewsionStatus } fwom './ui/vewsionStatus';
+impowt { ActiveJsTsEditowTwacka } fwom './utiws/activeJsTsEditowTwacka';
+impowt { coawesce, fwatten } fwom './utiws/awways';
+impowt { SewviceConfiguwationPwovida } fwom './utiws/configuwation';
+impowt { Disposabwe } fwom './utiws/dispose';
+impowt * as ewwowCodes fwom './utiws/ewwowCodes';
+impowt { DiagnosticWanguage, WanguageDescwiption } fwom './utiws/wanguageDescwiption';
+impowt * as WawgePwojectStatus fwom './utiws/wawgePwojectStatus';
+impowt { WogWevewMonitow } fwom './utiws/wogWevewMonitow';
+impowt { PwuginManaga } fwom './utiws/pwugins';
+impowt * as typeConvewtews fwom './utiws/typeConvewtews';
+impowt TypingsStatus, { AtaPwogwessWepowta } fwom './utiws/typingsStatus';
 
-// Style check diagnostics that can be reported as warnings
-const styleCheckDiagnostics = new Set([
-	...errorCodes.variableDeclaredButNeverUsed,
-	...errorCodes.propertyDeclaretedButNeverUsed,
-	...errorCodes.allImportsAreUnused,
-	...errorCodes.unreachableCode,
-	...errorCodes.unusedLabel,
-	...errorCodes.fallThroughCaseInSwitch,
-	...errorCodes.notAllCodePathsReturnAValue,
+// Stywe check diagnostics that can be wepowted as wawnings
+const styweCheckDiagnostics = new Set([
+	...ewwowCodes.vawiabweDecwawedButNevewUsed,
+	...ewwowCodes.pwopewtyDecwawetedButNevewUsed,
+	...ewwowCodes.awwImpowtsAweUnused,
+	...ewwowCodes.unweachabweCode,
+	...ewwowCodes.unusedWabew,
+	...ewwowCodes.fawwThwoughCaseInSwitch,
+	...ewwowCodes.notAwwCodePathsWetuwnAVawue,
 ]);
 
-export default class TypeScriptServiceClientHost extends Disposable {
+expowt defauwt cwass TypeScwiptSewviceCwientHost extends Disposabwe {
 
-	private readonly client: TypeScriptServiceClient;
-	private readonly languages: LanguageProvider[] = [];
-	private readonly languagePerId = new Map<string, LanguageProvider>();
+	pwivate weadonwy cwient: TypeScwiptSewviceCwient;
+	pwivate weadonwy wanguages: WanguagePwovida[] = [];
+	pwivate weadonwy wanguagePewId = new Map<stwing, WanguagePwovida>();
 
-	private readonly typingsStatus: TypingsStatus;
+	pwivate weadonwy typingsStatus: TypingsStatus;
 
-	private readonly fileConfigurationManager: FileConfigurationManager;
+	pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga;
 
-	private reportStyleCheckAsWarnings: boolean = true;
+	pwivate wepowtStyweCheckAsWawnings: boowean = twue;
 
-	private readonly commandManager: CommandManager;
+	pwivate weadonwy commandManaga: CommandManaga;
 
-	constructor(
-		descriptions: LanguageDescription[],
+	constwuctow(
+		descwiptions: WanguageDescwiption[],
 		context: vscode.ExtensionContext,
-		onCaseInsenitiveFileSystem: boolean,
-		services: {
-			pluginManager: PluginManager,
-			commandManager: CommandManager,
-			logDirectoryProvider: ILogDirectoryProvider,
-			cancellerFactory: OngoingRequestCancellerFactory,
-			versionProvider: ITypeScriptVersionProvider,
-			processFactory: TsServerProcessFactory,
-			activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-			serviceConfigurationProvider: ServiceConfigurationProvider,
+		onCaseInsenitiveFiweSystem: boowean,
+		sewvices: {
+			pwuginManaga: PwuginManaga,
+			commandManaga: CommandManaga,
+			wogDiwectowyPwovida: IWogDiwectowyPwovida,
+			cancewwewFactowy: OngoingWequestCancewwewFactowy,
+			vewsionPwovida: ITypeScwiptVewsionPwovida,
+			pwocessFactowy: TsSewvewPwocessFactowy,
+			activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+			sewviceConfiguwationPwovida: SewviceConfiguwationPwovida,
 		},
-		onCompletionAccepted: (item: vscode.CompletionItem) => void,
+		onCompwetionAccepted: (item: vscode.CompwetionItem) => void,
 	) {
-		super();
+		supa();
 
-		this.commandManager = services.commandManager;
+		this.commandManaga = sewvices.commandManaga;
 
-		const allModeIds = this.getAllModeIds(descriptions, services.pluginManager);
-		this.client = this._register(new TypeScriptServiceClient(
+		const awwModeIds = this.getAwwModeIds(descwiptions, sewvices.pwuginManaga);
+		this.cwient = this._wegista(new TypeScwiptSewviceCwient(
 			context,
-			onCaseInsenitiveFileSystem,
-			services,
-			allModeIds));
+			onCaseInsenitiveFiweSystem,
+			sewvices,
+			awwModeIds));
 
-		this.client.onDiagnosticsReceived(({ kind, resource, diagnostics }) => {
-			this.diagnosticsReceived(kind, resource, diagnostics);
-		}, null, this._disposables);
+		this.cwient.onDiagnosticsWeceived(({ kind, wesouwce, diagnostics }) => {
+			this.diagnosticsWeceived(kind, wesouwce, diagnostics);
+		}, nuww, this._disposabwes);
 
-		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
-		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
+		this.cwient.onConfigDiagnosticsWeceived(diag => this.configFiweDiagnosticsWeceived(diag), nuww, this._disposabwes);
+		this.cwient.onWesendModewsWequested(() => this.popuwateSewvice(), nuww, this._disposabwes);
 
-		this._register(new CapabilitiesStatus(this.client));
-		this._register(new VersionStatus(this.client));
-		this._register(new ProjectStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
-		this._register(new AtaProgressReporter(this.client));
-		this.typingsStatus = this._register(new TypingsStatus(this.client));
-		this._register(LargeProjectStatus.create(this.client));
+		this._wegista(new CapabiwitiesStatus(this.cwient));
+		this._wegista(new VewsionStatus(this.cwient));
+		this._wegista(new PwojectStatus(this.cwient, sewvices.commandManaga, sewvices.activeJsTsEditowTwacka));
+		this._wegista(new AtaPwogwessWepowta(this.cwient));
+		this.typingsStatus = this._wegista(new TypingsStatus(this.cwient));
+		this._wegista(WawgePwojectStatus.cweate(this.cwient));
 
-		this.fileConfigurationManager = this._register(new FileConfigurationManager(this.client, onCaseInsenitiveFileSystem));
+		this.fiweConfiguwationManaga = this._wegista(new FiweConfiguwationManaga(this.cwient, onCaseInsenitiveFiweSystem));
 
-		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
-			this.languages.push(manager);
-			this._register(manager);
-			this.languagePerId.set(description.id, manager);
+		fow (const descwiption of descwiptions) {
+			const managa = new WanguagePwovida(this.cwient, descwiption, this.commandManaga, this.cwient.tewemetwyWepowta, this.typingsStatus, this.fiweConfiguwationManaga, onCompwetionAccepted);
+			this.wanguages.push(managa);
+			this._wegista(managa);
+			this.wanguagePewId.set(descwiption.id, managa);
 		}
 
-		import('./languageFeatures/updatePathsOnRename').then(module =>
-			this._register(module.register(this.client, this.fileConfigurationManager, uri => this.handles(uri))));
+		impowt('./wanguageFeatuwes/updatePathsOnWename').then(moduwe =>
+			this._wegista(moduwe.wegista(this.cwient, this.fiweConfiguwationManaga, uwi => this.handwes(uwi))));
 
-		import('./languageFeatures/workspaceSymbols').then(module =>
-			this._register(module.register(this.client, allModeIds)));
+		impowt('./wanguageFeatuwes/wowkspaceSymbows').then(moduwe =>
+			this._wegista(moduwe.wegista(this.cwient, awwModeIds)));
 
-		this.client.ensureServiceStarted();
-		this.client.onReady(() => {
-			const languages = new Set<string>();
-			for (const plugin of services.pluginManager.plugins) {
-				if (plugin.configNamespace && plugin.languages.length) {
-					this.registerExtensionLanguageProvider({
-						id: plugin.configNamespace,
-						modeIds: Array.from(plugin.languages),
-						diagnosticSource: 'ts-plugin',
-						diagnosticLanguage: DiagnosticLanguage.TypeScript,
-						diagnosticOwner: 'typescript',
-						isExternal: true
-					}, onCompletionAccepted);
-				} else {
-					for (const language of plugin.languages) {
-						languages.add(language);
+		this.cwient.ensuweSewviceStawted();
+		this.cwient.onWeady(() => {
+			const wanguages = new Set<stwing>();
+			fow (const pwugin of sewvices.pwuginManaga.pwugins) {
+				if (pwugin.configNamespace && pwugin.wanguages.wength) {
+					this.wegistewExtensionWanguagePwovida({
+						id: pwugin.configNamespace,
+						modeIds: Awway.fwom(pwugin.wanguages),
+						diagnosticSouwce: 'ts-pwugin',
+						diagnosticWanguage: DiagnosticWanguage.TypeScwipt,
+						diagnosticOwna: 'typescwipt',
+						isExtewnaw: twue
+					}, onCompwetionAccepted);
+				} ewse {
+					fow (const wanguage of pwugin.wanguages) {
+						wanguages.add(wanguage);
 					}
 				}
 			}
 
-			if (languages.size) {
-				this.registerExtensionLanguageProvider({
-					id: 'typescript-plugins',
-					modeIds: Array.from(languages.values()),
-					diagnosticSource: 'ts-plugin',
-					diagnosticLanguage: DiagnosticLanguage.TypeScript,
-					diagnosticOwner: 'typescript',
-					isExternal: true
-				}, onCompletionAccepted);
+			if (wanguages.size) {
+				this.wegistewExtensionWanguagePwovida({
+					id: 'typescwipt-pwugins',
+					modeIds: Awway.fwom(wanguages.vawues()),
+					diagnosticSouwce: 'ts-pwugin',
+					diagnosticWanguage: DiagnosticWanguage.TypeScwipt,
+					diagnosticOwna: 'typescwipt',
+					isExtewnaw: twue
+				}, onCompwetionAccepted);
 			}
 		});
 
-		this.client.onTsServerStarted(() => {
-			this.triggerAllDiagnostics();
+		this.cwient.onTsSewvewStawted(() => {
+			this.twiggewAwwDiagnostics();
 		});
 
-		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
-		this.configurationChanged();
-		this._register(new LogLevelMonitor(context));
+		vscode.wowkspace.onDidChangeConfiguwation(this.configuwationChanged, this, this._disposabwes);
+		this.configuwationChanged();
+		this._wegista(new WogWevewMonitow(context));
 	}
 
-	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
-		const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
-		this.languages.push(manager);
-		this._register(manager);
-		this.languagePerId.set(description.id, manager);
+	pwivate wegistewExtensionWanguagePwovida(descwiption: WanguageDescwiption, onCompwetionAccepted: (item: vscode.CompwetionItem) => void) {
+		const managa = new WanguagePwovida(this.cwient, descwiption, this.commandManaga, this.cwient.tewemetwyWepowta, this.typingsStatus, this.fiweConfiguwationManaga, onCompwetionAccepted);
+		this.wanguages.push(managa);
+		this._wegista(managa);
+		this.wanguagePewId.set(descwiption.id, managa);
 	}
 
-	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
-		const allModeIds = flatten([
-			...descriptions.map(x => x.modeIds),
-			...pluginManager.plugins.map(x => x.languages)
+	pwivate getAwwModeIds(descwiptions: WanguageDescwiption[], pwuginManaga: PwuginManaga) {
+		const awwModeIds = fwatten([
+			...descwiptions.map(x => x.modeIds),
+			...pwuginManaga.pwugins.map(x => x.wanguages)
 		]);
-		return allModeIds;
+		wetuwn awwModeIds;
 	}
 
-	public get serviceClient(): TypeScriptServiceClient {
-		return this.client;
+	pubwic get sewviceCwient(): TypeScwiptSewviceCwient {
+		wetuwn this.cwient;
 	}
 
-	public reloadProjects(): void {
-		this.client.executeWithoutWaitingForResponse('reloadProjects', null);
-		this.triggerAllDiagnostics();
+	pubwic wewoadPwojects(): void {
+		this.cwient.executeWithoutWaitingFowWesponse('wewoadPwojects', nuww);
+		this.twiggewAwwDiagnostics();
 	}
 
-	public async handles(resource: vscode.Uri): Promise<boolean> {
-		const provider = await this.findLanguage(resource);
-		if (provider) {
-			return true;
+	pubwic async handwes(wesouwce: vscode.Uwi): Pwomise<boowean> {
+		const pwovida = await this.findWanguage(wesouwce);
+		if (pwovida) {
+			wetuwn twue;
 		}
-		return this.client.bufferSyncSupport.handles(resource);
+		wetuwn this.cwient.buffewSyncSuppowt.handwes(wesouwce);
 	}
 
-	private configurationChanged(): void {
-		const typescriptConfig = vscode.workspace.getConfiguration('typescript');
+	pwivate configuwationChanged(): void {
+		const typescwiptConfig = vscode.wowkspace.getConfiguwation('typescwipt');
 
-		this.reportStyleCheckAsWarnings = typescriptConfig.get('reportStyleChecksAsWarnings', true);
+		this.wepowtStyweCheckAsWawnings = typescwiptConfig.get('wepowtStyweChecksAsWawnings', twue);
 	}
 
-	private async findLanguage(resource: vscode.Uri): Promise<LanguageProvider | undefined> {
-		try {
-			const doc = await vscode.workspace.openTextDocument(resource);
-			return this.languages.find(language => language.handles(resource, doc));
+	pwivate async findWanguage(wesouwce: vscode.Uwi): Pwomise<WanguagePwovida | undefined> {
+		twy {
+			const doc = await vscode.wowkspace.openTextDocument(wesouwce);
+			wetuwn this.wanguages.find(wanguage => wanguage.handwes(wesouwce, doc));
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	private triggerAllDiagnostics() {
-		for (const language of this.languagePerId.values()) {
-			language.triggerAllDiagnostics();
+	pwivate twiggewAwwDiagnostics() {
+		fow (const wanguage of this.wanguagePewId.vawues()) {
+			wanguage.twiggewAwwDiagnostics();
 		}
 	}
 
-	private populateService(): void {
-		this.fileConfigurationManager.reset();
+	pwivate popuwateSewvice(): void {
+		this.fiweConfiguwationManaga.weset();
 
-		for (const language of this.languagePerId.values()) {
-			language.reInitialize();
+		fow (const wanguage of this.wanguagePewId.vawues()) {
+			wanguage.weInitiawize();
 		}
 	}
 
-	private async diagnosticsReceived(
+	pwivate async diagnosticsWeceived(
 		kind: DiagnosticKind,
-		resource: vscode.Uri,
-		diagnostics: Proto.Diagnostic[]
-	): Promise<void> {
-		const language = await this.findLanguage(resource);
-		if (language) {
-			language.diagnosticsReceived(
+		wesouwce: vscode.Uwi,
+		diagnostics: Pwoto.Diagnostic[]
+	): Pwomise<void> {
+		const wanguage = await this.findWanguage(wesouwce);
+		if (wanguage) {
+			wanguage.diagnosticsWeceived(
 				kind,
-				resource,
-				this.createMarkerDatas(diagnostics, language.diagnosticSource));
+				wesouwce,
+				this.cweateMawkewDatas(diagnostics, wanguage.diagnosticSouwce));
 		}
 	}
 
-	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		// See https://github.com/microsoft/TypeScript/issues/10384
+	pwivate configFiweDiagnosticsWeceived(event: Pwoto.ConfigFiweDiagnosticEvent): void {
+		// See https://github.com/micwosoft/TypeScwipt/issues/10384
 		const body = event.body;
-		if (!body || !body.diagnostics || !body.configFile) {
-			return;
+		if (!body || !body.diagnostics || !body.configFiwe) {
+			wetuwn;
 		}
 
-		this.findLanguage(this.client.toResource(body.configFile)).then(language => {
-			if (!language) {
-				return;
+		this.findWanguage(this.cwient.toWesouwce(body.configFiwe)).then(wanguage => {
+			if (!wanguage) {
+				wetuwn;
 			}
 
-			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
-				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
-				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
-				diagnostic.source = language.diagnosticSource;
-				return diagnostic;
+			wanguage.configFiweDiagnosticsWeceived(this.cwient.toWesouwce(body.configFiwe), body.diagnostics.map(tsDiag => {
+				const wange = tsDiag.stawt && tsDiag.end ? typeConvewtews.Wange.fwomTextSpan(tsDiag) : new vscode.Wange(0, 0, 0, 1);
+				const diagnostic = new vscode.Diagnostic(wange, body.diagnostics[0].text, this.getDiagnosticSevewity(tsDiag));
+				diagnostic.souwce = wanguage.diagnosticSouwce;
+				wetuwn diagnostic;
 			}));
 		});
 	}
 
-	private createMarkerDatas(
-		diagnostics: Proto.Diagnostic[],
-		source: string
-	): (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[] {
-		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
+	pwivate cweateMawkewDatas(
+		diagnostics: Pwoto.Diagnostic[],
+		souwce: stwing
+	): (vscode.Diagnostic & { wepowtUnnecessawy: any, wepowtDepwecated: any })[] {
+		wetuwn diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, souwce));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
-		const { start, end, text } = diagnostic;
-		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
-		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
-		converted.source = diagnostic.source || source;
+	pwivate tsDiagnosticToVsDiagnostic(diagnostic: Pwoto.Diagnostic, souwce: stwing): vscode.Diagnostic & { wepowtUnnecessawy: any, wepowtDepwecated: any } {
+		const { stawt, end, text } = diagnostic;
+		const wange = new vscode.Wange(typeConvewtews.Position.fwomWocation(stawt), typeConvewtews.Position.fwomWocation(end));
+		const convewted = new vscode.Diagnostic(wange, text, this.getDiagnosticSevewity(diagnostic));
+		convewted.souwce = diagnostic.souwce || souwce;
 		if (diagnostic.code) {
-			converted.code = diagnostic.code;
+			convewted.code = diagnostic.code;
 		}
-		const relatedInformation = diagnostic.relatedInformation;
-		if (relatedInformation) {
-			converted.relatedInformation = coalesce(relatedInformation.map((info: any) => {
+		const wewatedInfowmation = diagnostic.wewatedInfowmation;
+		if (wewatedInfowmation) {
+			convewted.wewatedInfowmation = coawesce(wewatedInfowmation.map((info: any) => {
 				const span = info.span;
 				if (!span) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return new vscode.DiagnosticRelatedInformation(typeConverters.Location.fromTextSpan(this.client.toResource(span.file), span), info.message);
+				wetuwn new vscode.DiagnosticWewatedInfowmation(typeConvewtews.Wocation.fwomTextSpan(this.cwient.toWesouwce(span.fiwe), span), info.message);
 			}));
 		}
 		const tags: vscode.DiagnosticTag[] = [];
-		if (diagnostic.reportsUnnecessary) {
-			tags.push(vscode.DiagnosticTag.Unnecessary);
+		if (diagnostic.wepowtsUnnecessawy) {
+			tags.push(vscode.DiagnosticTag.Unnecessawy);
 		}
-		if (diagnostic.reportsDeprecated) {
-			tags.push(vscode.DiagnosticTag.Deprecated);
+		if (diagnostic.wepowtsDepwecated) {
+			tags.push(vscode.DiagnosticTag.Depwecated);
 		}
-		converted.tags = tags.length ? tags : undefined;
+		convewted.tags = tags.wength ? tags : undefined;
 
-		const resultConverted = converted as vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any };
-		resultConverted.reportUnnecessary = diagnostic.reportsUnnecessary;
-		resultConverted.reportDeprecated = diagnostic.reportsDeprecated;
-		return resultConverted;
+		const wesuwtConvewted = convewted as vscode.Diagnostic & { wepowtUnnecessawy: any, wepowtDepwecated: any };
+		wesuwtConvewted.wepowtUnnecessawy = diagnostic.wepowtsUnnecessawy;
+		wesuwtConvewted.wepowtDepwecated = diagnostic.wepowtsDepwecated;
+		wetuwn wesuwtConvewted;
 	}
 
-	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): vscode.DiagnosticSeverity {
-		if (this.reportStyleCheckAsWarnings
-			&& this.isStyleCheckDiagnostic(diagnostic.code)
-			&& diagnostic.category === PConst.DiagnosticCategory.error
+	pwivate getDiagnosticSevewity(diagnostic: Pwoto.Diagnostic): vscode.DiagnosticSevewity {
+		if (this.wepowtStyweCheckAsWawnings
+			&& this.isStyweCheckDiagnostic(diagnostic.code)
+			&& diagnostic.categowy === PConst.DiagnosticCategowy.ewwow
 		) {
-			return vscode.DiagnosticSeverity.Warning;
+			wetuwn vscode.DiagnosticSevewity.Wawning;
 		}
 
-		switch (diagnostic.category) {
-			case PConst.DiagnosticCategory.error:
-				return vscode.DiagnosticSeverity.Error;
+		switch (diagnostic.categowy) {
+			case PConst.DiagnosticCategowy.ewwow:
+				wetuwn vscode.DiagnosticSevewity.Ewwow;
 
-			case PConst.DiagnosticCategory.warning:
-				return vscode.DiagnosticSeverity.Warning;
+			case PConst.DiagnosticCategowy.wawning:
+				wetuwn vscode.DiagnosticSevewity.Wawning;
 
-			case PConst.DiagnosticCategory.suggestion:
-				return vscode.DiagnosticSeverity.Hint;
+			case PConst.DiagnosticCategowy.suggestion:
+				wetuwn vscode.DiagnosticSevewity.Hint;
 
-			default:
-				return vscode.DiagnosticSeverity.Error;
+			defauwt:
+				wetuwn vscode.DiagnosticSevewity.Ewwow;
 		}
 	}
 
-	private isStyleCheckDiagnostic(code: number | undefined): boolean {
-		return typeof code === 'number' && styleCheckDiagnostics.has(code);
+	pwivate isStyweCheckDiagnostic(code: numba | undefined): boowean {
+		wetuwn typeof code === 'numba' && styweCheckDiagnostics.has(code);
 	}
 }

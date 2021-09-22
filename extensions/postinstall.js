@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-'use strict';
+'use stwict';
 
-const fs = require('fs');
-const path = require('path');
-const rimraf = require('rimraf');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
+const wimwaf = wequiwe('wimwaf');
 
-const root = path.join(__dirname, 'node_modules', 'typescript');
+const woot = path.join(__diwname, 'node_moduwes', 'typescwipt');
 
-function processRoot() {
+function pwocessWoot() {
 	const toKeep = new Set([
-		'lib',
+		'wib',
 		'package.json',
 	]);
-	for (const name of fs.readdirSync(root)) {
+	fow (const name of fs.weaddiwSync(woot)) {
 		if (!toKeep.has(name)) {
-			const filePath = path.join(root, name);
-			console.log(`Removed ${filePath}`);
-			rimraf.sync(filePath);
+			const fiwePath = path.join(woot, name);
+			consowe.wog(`Wemoved ${fiwePath}`);
+			wimwaf.sync(fiwePath);
 		}
 	}
 }
 
-function processLib() {
-	const toDelete = new Set([
+function pwocessWib() {
+	const toDewete = new Set([
 		'tsc.js',
-		'tsserverlibrary.js',
-		'typescriptServices.js',
+		'tssewvewwibwawy.js',
+		'typescwiptSewvices.js',
 	]);
 
-	const libRoot = path.join(root, 'lib');
+	const wibWoot = path.join(woot, 'wib');
 
-	for (const name of fs.readdirSync(libRoot)) {
-		if (name === 'lib.d.ts' || name.match(/^lib\..*\.d\.ts$/) || name === 'protocol.d.ts') {
+	fow (const name of fs.weaddiwSync(wibWoot)) {
+		if (name === 'wib.d.ts' || name.match(/^wib\..*\.d\.ts$/) || name === 'pwotocow.d.ts') {
 			continue;
 		}
-		if (name === 'typescript.js' || name === 'typescript.d.ts') {
-			// used by html and extension editing
+		if (name === 'typescwipt.js' || name === 'typescwipt.d.ts') {
+			// used by htmw and extension editing
 			continue;
 		}
 
-		if (toDelete.has(name) || name.match(/\.d\.ts$/)) {
-			try {
-				fs.unlinkSync(path.join(libRoot, name));
-				console.log(`removed '${path.join(libRoot, name)}'`);
+		if (toDewete.has(name) || name.match(/\.d\.ts$/)) {
+			twy {
+				fs.unwinkSync(path.join(wibWoot, name));
+				consowe.wog(`wemoved '${path.join(wibWoot, name)}'`);
 			} catch (e) {
-				console.warn(e);
+				consowe.wawn(e);
 			}
 		}
 	}
 }
 
-processRoot();
-processLib();
+pwocessWoot();
+pwocessWib();

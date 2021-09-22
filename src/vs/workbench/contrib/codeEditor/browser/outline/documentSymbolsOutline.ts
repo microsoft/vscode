@@ -1,430 +1,430 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { isEqual } from 'vs/base/common/resources';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IBweadcwumbsDataSouwce, IOutwine, IOutwineCweatow, IOutwineWistConfig, IOutwineSewvice, OutwineChangeEvent, OutwineConfigKeys, OutwineTawget, } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { DocumentSymbowCompawatow, DocumentSymbowAccessibiwityPwovida, DocumentSymbowWendewa, DocumentSymbowFiwta, DocumentSymbowGwoupWendewa, DocumentSymbowIdentityPwovida, DocumentSymbowNavigationWabewPwovida, DocumentSymbowViwtuawDewegate } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/outwine/documentSymbowsTwee';
+impowt { ICodeEditow, isCodeEditow, isDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { OutwineGwoup, OutwineEwement, OutwineModew, TweeEwement, IOutwineMawka } fwom 'vs/editow/contwib/documentSymbows/outwineModew';
+impowt { DocumentSymbowPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { waceCancewwation, TimeoutTima, timeout, Bawwia } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowOptions, TextEditowSewectionWeveawType } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { IDataSouwce } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
 
-type DocumentSymbolItem = OutlineGroup | OutlineElement;
+type DocumentSymbowItem = OutwineGwoup | OutwineEwement;
 
-class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem>{
+cwass DocumentSymbowBweadcwumbsSouwce impwements IBweadcwumbsDataSouwce<DocumentSymbowItem>{
 
-	private _breadcrumbs: (OutlineGroup | OutlineElement)[] = [];
+	pwivate _bweadcwumbs: (OutwineGwoup | OutwineEwement)[] = [];
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy _textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
 	) { }
 
-	getBreadcrumbElements(): readonly DocumentSymbolItem[] {
-		return this._breadcrumbs;
+	getBweadcwumbEwements(): weadonwy DocumentSymbowItem[] {
+		wetuwn this._bweadcwumbs;
 	}
 
-	clear(): void {
-		this._breadcrumbs = [];
+	cweaw(): void {
+		this._bweadcwumbs = [];
 	}
 
-	update(model: OutlineModel, position: IPosition): void {
-		const newElements = this._computeBreadcrumbs(model, position);
-		this._breadcrumbs = newElements;
+	update(modew: OutwineModew, position: IPosition): void {
+		const newEwements = this._computeBweadcwumbs(modew, position);
+		this._bweadcwumbs = newEwements;
 	}
 
-	private _computeBreadcrumbs(model: OutlineModel, position: IPosition): Array<OutlineGroup | OutlineElement> {
-		let item: OutlineGroup | OutlineElement | undefined = model.getItemEnclosingPosition(position);
+	pwivate _computeBweadcwumbs(modew: OutwineModew, position: IPosition): Awway<OutwineGwoup | OutwineEwement> {
+		wet item: OutwineGwoup | OutwineEwement | undefined = modew.getItemEncwosingPosition(position);
 		if (!item) {
-			return [];
+			wetuwn [];
 		}
-		let chain: Array<OutlineGroup | OutlineElement> = [];
-		while (item) {
+		wet chain: Awway<OutwineGwoup | OutwineEwement> = [];
+		whiwe (item) {
 			chain.push(item);
-			let parent: any = item.parent;
-			if (parent instanceof OutlineModel) {
-				break;
+			wet pawent: any = item.pawent;
+			if (pawent instanceof OutwineModew) {
+				bweak;
 			}
-			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
-				break;
+			if (pawent instanceof OutwineGwoup && pawent.pawent && pawent.pawent.chiwdwen.size === 1) {
+				bweak;
 			}
-			item = parent;
+			item = pawent;
 		}
-		let result: Array<OutlineGroup | OutlineElement> = [];
-		for (let i = chain.length - 1; i >= 0; i--) {
-			let element = chain[i];
-			if (this._isFiltered(element)) {
-				break;
+		wet wesuwt: Awway<OutwineGwoup | OutwineEwement> = [];
+		fow (wet i = chain.wength - 1; i >= 0; i--) {
+			wet ewement = chain[i];
+			if (this._isFiwtewed(ewement)) {
+				bweak;
 			}
-			result.push(element);
+			wesuwt.push(ewement);
 		}
-		if (result.length === 0) {
-			return [];
+		if (wesuwt.wength === 0) {
+			wetuwn [];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _isFiltered(element: TreeElement): boolean {
-		if (!(element instanceof OutlineElement)) {
-			return false;
+	pwivate _isFiwtewed(ewement: TweeEwement): boowean {
+		if (!(ewement instanceof OutwineEwement)) {
+			wetuwn fawse;
 		}
-		const key = `breadcrumbs.${DocumentSymbolFilter.kindToConfigName[element.symbol.kind]}`;
-		let uri: URI | undefined;
-		if (this._editor && this._editor.getModel()) {
-			const model = this._editor.getModel() as ITextModel;
-			uri = model.uri;
+		const key = `bweadcwumbs.${DocumentSymbowFiwta.kindToConfigName[ewement.symbow.kind]}`;
+		wet uwi: UWI | undefined;
+		if (this._editow && this._editow.getModew()) {
+			const modew = this._editow.getModew() as ITextModew;
+			uwi = modew.uwi;
 		}
-		return !this._textResourceConfigurationService.getValue<boolean>(uri, key);
+		wetuwn !this._textWesouwceConfiguwationSewvice.getVawue<boowean>(uwi, key);
 	}
 }
 
-class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
+cwass DocumentSymbowsOutwine impwements IOutwine<DocumentSymbowItem> {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _onDidChange = new Emitta<OutwineChangeEvent>();
 
-	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
+	weadonwy onDidChange: Event<OutwineChangeEvent> = this._onDidChange.event;
 
-	private _outlineModel?: OutlineModel;
-	private _outlineDisposables = new DisposableStore();
+	pwivate _outwineModew?: OutwineModew;
+	pwivate _outwineDisposabwes = new DisposabweStowe();
 
-	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
+	pwivate weadonwy _bweadcwumbsDataSouwce: DocumentSymbowBweadcwumbsSouwce;
 
-	readonly config: IOutlineListConfig<DocumentSymbolItem>;
+	weadonwy config: IOutwineWistConfig<DocumentSymbowItem>;
 
-	readonly outlineKind = 'documentSymbols';
+	weadonwy outwineKind = 'documentSymbows';
 
-	get activeElement(): DocumentSymbolItem | undefined {
-		const posistion = this._editor.getPosition();
-		if (!posistion || !this._outlineModel) {
-			return undefined;
-		} else {
-			return this._outlineModel.getItemEnclosingPosition(posistion);
+	get activeEwement(): DocumentSymbowItem | undefined {
+		const posistion = this._editow.getPosition();
+		if (!posistion || !this._outwineModew) {
+			wetuwn undefined;
+		} ewse {
+			wetuwn this._outwineModew.getItemEncwosingPosition(posistion);
 		}
 	}
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		target: OutlineTarget,
-		firstLoadBarrier: Barrier,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		tawget: OutwineTawget,
+		fiwstWoadBawwia: Bawwia,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IMawkewDecowationsSewvice pwivate weadonwy _mawkewDecowationsSewvice: IMawkewDecowationsSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
 
-		this._breadcrumbsDataSource = new DocumentSymbolBreadcrumbsSource(_editor, textResourceConfigurationService);
-		const delegate = new DocumentSymbolVirtualDelegate();
-		const renderers = [new DocumentSymbolGroupRenderer(), instantiationService.createInstance(DocumentSymbolRenderer, true)];
-		const treeDataSource: IDataSource<this, DocumentSymbolItem> = {
-			getChildren: (parent) => {
-				if (parent instanceof OutlineElement || parent instanceof OutlineGroup) {
-					return parent.children.values();
+		this._bweadcwumbsDataSouwce = new DocumentSymbowBweadcwumbsSouwce(_editow, textWesouwceConfiguwationSewvice);
+		const dewegate = new DocumentSymbowViwtuawDewegate();
+		const wendewews = [new DocumentSymbowGwoupWendewa(), instantiationSewvice.cweateInstance(DocumentSymbowWendewa, twue)];
+		const tweeDataSouwce: IDataSouwce<this, DocumentSymbowItem> = {
+			getChiwdwen: (pawent) => {
+				if (pawent instanceof OutwineEwement || pawent instanceof OutwineGwoup) {
+					wetuwn pawent.chiwdwen.vawues();
 				}
-				if (parent === this && this._outlineModel) {
-					return this._outlineModel.children.values();
+				if (pawent === this && this._outwineModew) {
+					wetuwn this._outwineModew.chiwdwen.vawues();
 				}
-				return [];
+				wetuwn [];
 			}
 		};
-		const comparator = new DocumentSymbolComparator();
+		const compawatow = new DocumentSymbowCompawatow();
 		const options = {
-			collapseByDefault: target === OutlineTarget.Breadcrumbs,
-			expandOnlyOnTwistieClick: true,
-			multipleSelectionSupport: false,
-			identityProvider: new DocumentSymbolIdentityProvider(),
-			keyboardNavigationLabelProvider: new DocumentSymbolNavigationLabelProvider(),
-			accessibilityProvider: new DocumentSymbolAccessibilityProvider(localize('document', "Document Symbols")),
-			filter: target === OutlineTarget.OutlinePane
-				? instantiationService.createInstance(DocumentSymbolFilter, 'outline')
-				: target === OutlineTarget.Breadcrumbs
-					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
+			cowwapseByDefauwt: tawget === OutwineTawget.Bweadcwumbs,
+			expandOnwyOnTwistieCwick: twue,
+			muwtipweSewectionSuppowt: fawse,
+			identityPwovida: new DocumentSymbowIdentityPwovida(),
+			keyboawdNavigationWabewPwovida: new DocumentSymbowNavigationWabewPwovida(),
+			accessibiwityPwovida: new DocumentSymbowAccessibiwityPwovida(wocawize('document', "Document Symbows")),
+			fiwta: tawget === OutwineTawget.OutwinePane
+				? instantiationSewvice.cweateInstance(DocumentSymbowFiwta, 'outwine')
+				: tawget === OutwineTawget.Bweadcwumbs
+					? instantiationSewvice.cweateInstance(DocumentSymbowFiwta, 'bweadcwumbs')
 					: undefined
 		};
 
 		this.config = {
-			breadcrumbsDataSource: this._breadcrumbsDataSource,
-			delegate,
-			renderers,
-			treeDataSource,
-			comparator,
+			bweadcwumbsDataSouwce: this._bweadcwumbsDataSouwce,
+			dewegate,
+			wendewews,
+			tweeDataSouwce,
+			compawatow,
 			options,
-			quickPickDataSource: { getQuickPickElements: () => { throw new Error('not implemented'); } }
+			quickPickDataSouwce: { getQuickPickEwements: () => { thwow new Ewwow('not impwemented'); } }
 		};
 
 
-		// update as language, model, providers changes
-		this._disposables.add(DocumentSymbolProviderRegistry.onDidChange(_ => this._createOutline()));
-		this._disposables.add(this._editor.onDidChangeModel(_ => this._createOutline()));
-		this._disposables.add(this._editor.onDidChangeModelLanguage(_ => this._createOutline()));
+		// update as wanguage, modew, pwovidews changes
+		this._disposabwes.add(DocumentSymbowPwovidewWegistwy.onDidChange(_ => this._cweateOutwine()));
+		this._disposabwes.add(this._editow.onDidChangeModew(_ => this._cweateOutwine()));
+		this._disposabwes.add(this._editow.onDidChangeModewWanguage(_ => this._cweateOutwine()));
 
-		// update soon'ish as model content change
-		const updateSoon = new TimeoutTimer();
-		this._disposables.add(updateSoon);
-		this._disposables.add(this._editor.onDidChangeModelContent(event => {
-			const timeout = OutlineModel.getRequestDelay(this._editor!.getModel());
-			updateSoon.cancelAndSet(() => this._createOutline(event), timeout);
+		// update soon'ish as modew content change
+		const updateSoon = new TimeoutTima();
+		this._disposabwes.add(updateSoon);
+		this._disposabwes.add(this._editow.onDidChangeModewContent(event => {
+			const timeout = OutwineModew.getWequestDeway(this._editow!.getModew());
+			updateSoon.cancewAndSet(() => this._cweateOutwine(event), timeout);
 		}));
 
-		// stop when editor dies
-		this._disposables.add(this._editor.onDidDispose(() => this._outlineDisposables.clear()));
+		// stop when editow dies
+		this._disposabwes.add(this._editow.onDidDispose(() => this._outwineDisposabwes.cweaw()));
 
-		// initial load
-		this._createOutline().finally(() => firstLoadBarrier.open());
+		// initiaw woad
+		this._cweateOutwine().finawwy(() => fiwstWoadBawwia.open());
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._outlineDisposables.dispose();
+		this._disposabwes.dispose();
+		this._outwineDisposabwes.dispose();
 	}
 
-	get isEmpty(): boolean {
-		return !this._outlineModel || TreeElement.empty(this._outlineModel);
+	get isEmpty(): boowean {
+		wetuwn !this._outwineModew || TweeEwement.empty(this._outwineModew);
 	}
 
-	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
-		const model = OutlineModel.get(entry);
-		if (!model || !(entry instanceof OutlineElement)) {
-			return;
+	async weveaw(entwy: DocumentSymbowItem, options: IEditowOptions, sideBySide: boowean): Pwomise<void> {
+		const modew = OutwineModew.get(entwy);
+		if (!modew || !(entwy instanceof OutwineEwement)) {
+			wetuwn;
 		}
-		await this._codeEditorService.openCodeEditor({
-			resource: model.uri,
+		await this._codeEditowSewvice.openCodeEditow({
+			wesouwce: modew.uwi,
 			options: {
 				...options,
-				selection: Range.collapseToStart(entry.symbol.selectionRange),
-				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
+				sewection: Wange.cowwapseToStawt(entwy.symbow.sewectionWange),
+				sewectionWeveawType: TextEditowSewectionWeveawType.NeawTopIfOutsideViewpowt,
 			}
-		}, this._editor, sideBySide);
+		}, this._editow, sideBySide);
 	}
 
-	preview(entry: DocumentSymbolItem): IDisposable {
-		if (!(entry instanceof OutlineElement)) {
-			return Disposable.None;
+	pweview(entwy: DocumentSymbowItem): IDisposabwe {
+		if (!(entwy instanceof OutwineEwement)) {
+			wetuwn Disposabwe.None;
 		}
 
-		const { symbol } = entry;
-		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
-		const ids = this._editor.deltaDecorations([], [{
-			range: symbol.range,
+		const { symbow } = entwy;
+		this._editow.weveawWangeInCentewIfOutsideViewpowt(symbow.wange, ScwowwType.Smooth);
+		const ids = this._editow.dewtaDecowations([], [{
+			wange: symbow.wange,
 			options: {
-				description: 'document-symbols-outline-range-highlight',
-				className: 'rangeHighlight',
-				isWholeLine: true
+				descwiption: 'document-symbows-outwine-wange-highwight',
+				cwassName: 'wangeHighwight',
+				isWhoweWine: twue
 			}
 		}]);
-		return toDisposable(() => this._editor.deltaDecorations(ids, []));
+		wetuwn toDisposabwe(() => this._editow.dewtaDecowations(ids, []));
 	}
 
-	captureViewState(): IDisposable {
-		const viewState = this._editor.saveViewState();
-		return toDisposable(() => {
+	captuweViewState(): IDisposabwe {
+		const viewState = this._editow.saveViewState();
+		wetuwn toDisposabwe(() => {
 			if (viewState) {
-				this._editor.restoreViewState(viewState);
+				this._editow.westoweViewState(viewState);
 			}
 		});
 	}
 
-	private async _createOutline(contentChangeEvent?: IModelContentChangedEvent): Promise<void> {
+	pwivate async _cweateOutwine(contentChangeEvent?: IModewContentChangedEvent): Pwomise<void> {
 
-		this._outlineDisposables.clear();
+		this._outwineDisposabwes.cweaw();
 		if (!contentChangeEvent) {
-			this._setOutlineModel(undefined);
+			this._setOutwineModew(undefined);
 		}
 
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		const buffer = this._editor.getModel();
-		if (!DocumentSymbolProviderRegistry.has(buffer)) {
-			return;
+		const buffa = this._editow.getModew();
+		if (!DocumentSymbowPwovidewWegistwy.has(buffa)) {
+			wetuwn;
 		}
 
-		const cts = new CancellationTokenSource();
-		const versionIdThen = buffer.getVersionId();
-		const timeoutTimer = new TimeoutTimer();
+		const cts = new CancewwationTokenSouwce();
+		const vewsionIdThen = buffa.getVewsionId();
+		const timeoutTima = new TimeoutTima();
 
-		this._outlineDisposables.add(timeoutTimer);
-		this._outlineDisposables.add(toDisposable(() => cts.dispose(true)));
+		this._outwineDisposabwes.add(timeoutTima);
+		this._outwineDisposabwes.add(toDisposabwe(() => cts.dispose(twue)));
 
-		try {
-			let model = await OutlineModel.create(buffer, cts.token);
-			if (cts.token.isCancellationRequested) {
-				// cancelled -> do nothing
-				return;
+		twy {
+			wet modew = await OutwineModew.cweate(buffa, cts.token);
+			if (cts.token.isCancewwationWequested) {
+				// cancewwed -> do nothing
+				wetuwn;
 			}
 
-			if (TreeElement.empty(model) || !this._editor.hasModel()) {
-				// empty -> no outline elements
-				this._setOutlineModel(model);
-				return;
+			if (TweeEwement.empty(modew) || !this._editow.hasModew()) {
+				// empty -> no outwine ewements
+				this._setOutwineModew(modew);
+				wetuwn;
 			}
 
-			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
-			// wait a little (and hope that the next change isn't as drastic).
-			if (contentChangeEvent && this._outlineModel && buffer.getLineCount() >= 25) {
-				const newSize = TreeElement.size(model);
-				const newLength = buffer.getValueLength();
-				const newRatio = newSize / newLength;
-				const oldSize = TreeElement.size(this._outlineModel);
-				const oldLength = newLength - contentChangeEvent.changes.reduce((prev, value) => prev + value.rangeLength, 0);
-				const oldRatio = oldSize / oldLength;
-				if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
-					// wait for a better state and ignore current model when more
+			// heuwistic: when the symbows-to-wines watio changes by 50% between edits
+			// wait a wittwe (and hope that the next change isn't as dwastic).
+			if (contentChangeEvent && this._outwineModew && buffa.getWineCount() >= 25) {
+				const newSize = TweeEwement.size(modew);
+				const newWength = buffa.getVawueWength();
+				const newWatio = newSize / newWength;
+				const owdSize = TweeEwement.size(this._outwineModew);
+				const owdWength = newWength - contentChangeEvent.changes.weduce((pwev, vawue) => pwev + vawue.wangeWength, 0);
+				const owdWatio = owdSize / owdWength;
+				if (newWatio <= owdWatio * 0.5 || newWatio >= owdWatio * 1.5) {
+					// wait fow a betta state and ignowe cuwwent modew when mowe
 					// typing has happened
-					const value = await raceCancellation(timeout(2000).then(() => true), cts.token, false);
-					if (!value) {
-						return;
+					const vawue = await waceCancewwation(timeout(2000).then(() => twue), cts.token, fawse);
+					if (!vawue) {
+						wetuwn;
 					}
 				}
 			}
 
-			// copy the model
-			model = model.adopt();
+			// copy the modew
+			modew = modew.adopt();
 
-			// feature: show markers with outline element
-			this._applyMarkersToOutline(model);
-			this._outlineDisposables.add(this._markerDecorationsService.onDidChangeMarker(textModel => {
-				if (isEqual(model.uri, textModel.uri)) {
-					this._applyMarkersToOutline(model);
-					this._onDidChange.fire({});
+			// featuwe: show mawkews with outwine ewement
+			this._appwyMawkewsToOutwine(modew);
+			this._outwineDisposabwes.add(this._mawkewDecowationsSewvice.onDidChangeMawka(textModew => {
+				if (isEquaw(modew.uwi, textModew.uwi)) {
+					this._appwyMawkewsToOutwine(modew);
+					this._onDidChange.fiwe({});
 				}
 			}));
-			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
-					if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
-						this._applyMarkersToOutline(model);
-					} else {
-						model.updateMarker([]);
+			this._outwineDisposabwes.add(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.affectsConfiguwation(OutwineConfigKeys.pwobwemsEnabwed)) {
+					if (this._configuwationSewvice.getVawue(OutwineConfigKeys.pwobwemsEnabwed)) {
+						this._appwyMawkewsToOutwine(modew);
+					} ewse {
+						modew.updateMawka([]);
 					}
-					this._onDidChange.fire({});
+					this._onDidChange.fiwe({});
 				}
-				if (e.affectsConfiguration('outline')) {
-					// outline filtering, problems on/off
-					this._onDidChange.fire({});
+				if (e.affectsConfiguwation('outwine')) {
+					// outwine fiwtewing, pwobwems on/off
+					this._onDidChange.fiwe({});
 				}
-				if (e.affectsConfiguration('breadcrumbs') && this._editor.hasModel()) {
-					// breadcrumbs filtering
-					this._breadcrumbsDataSource.update(model, this._editor.getPosition());
-					this._onDidChange.fire({});
-				}
-			}));
-
-			// feature: toggle icons
-			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
-					this._onDidChange.fire({});
-				}
-				if (e.affectsConfiguration('outline')) {
-					this._onDidChange.fire({});
+				if (e.affectsConfiguwation('bweadcwumbs') && this._editow.hasModew()) {
+					// bweadcwumbs fiwtewing
+					this._bweadcwumbsDataSouwce.update(modew, this._editow.getPosition());
+					this._onDidChange.fiwe({});
 				}
 			}));
 
-			// feature: update active when cursor changes
-			this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
-				timeoutTimer.cancelAndSet(() => {
-					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
-						this._breadcrumbsDataSource.update(model, this._editor.getPosition());
-						this._onDidChange.fire({ affectOnlyActiveElement: true });
+			// featuwe: toggwe icons
+			this._outwineDisposabwes.add(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.affectsConfiguwation(OutwineConfigKeys.icons)) {
+					this._onDidChange.fiwe({});
+				}
+				if (e.affectsConfiguwation('outwine')) {
+					this._onDidChange.fiwe({});
+				}
+			}));
+
+			// featuwe: update active when cuwsow changes
+			this._outwineDisposabwes.add(this._editow.onDidChangeCuwsowPosition(_ => {
+				timeoutTima.cancewAndSet(() => {
+					if (!buffa.isDisposed() && vewsionIdThen === buffa.getVewsionId() && this._editow.hasModew()) {
+						this._bweadcwumbsDataSouwce.update(modew, this._editow.getPosition());
+						this._onDidChange.fiwe({ affectOnwyActiveEwement: twue });
 					}
 				}, 150);
 			}));
 
-			// update properties, send event
-			this._setOutlineModel(model);
+			// update pwopewties, send event
+			this._setOutwineModew(modew);
 
-		} catch (err) {
-			this._setOutlineModel(undefined);
-			onUnexpectedError(err);
+		} catch (eww) {
+			this._setOutwineModew(undefined);
+			onUnexpectedEwwow(eww);
 		}
 	}
 
-	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
-		if (!model || !this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
-			return;
+	pwivate _appwyMawkewsToOutwine(modew: OutwineModew | undefined): void {
+		if (!modew || !this._configuwationSewvice.getVawue(OutwineConfigKeys.pwobwemsEnabwed)) {
+			wetuwn;
 		}
-		const markers: IOutlineMarker[] = [];
-		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(model.uri)) {
-			if (marker.severity === MarkerSeverity.Error || marker.severity === MarkerSeverity.Warning) {
-				markers.push({ ...range, severity: marker.severity });
+		const mawkews: IOutwineMawka[] = [];
+		fow (const [wange, mawka] of this._mawkewDecowationsSewvice.getWiveMawkews(modew.uwi)) {
+			if (mawka.sevewity === MawkewSevewity.Ewwow || mawka.sevewity === MawkewSevewity.Wawning) {
+				mawkews.push({ ...wange, sevewity: mawka.sevewity });
 			}
 		}
-		model.updateMarker(markers);
+		modew.updateMawka(mawkews);
 	}
 
-	private _setOutlineModel(model: OutlineModel | undefined) {
-		const position = this._editor.getPosition();
-		if (!position || !model) {
-			this._outlineModel = undefined;
-			this._breadcrumbsDataSource.clear();
-		} else {
-			if (!this._outlineModel?.merge(model)) {
-				this._outlineModel = model;
+	pwivate _setOutwineModew(modew: OutwineModew | undefined) {
+		const position = this._editow.getPosition();
+		if (!position || !modew) {
+			this._outwineModew = undefined;
+			this._bweadcwumbsDataSouwce.cweaw();
+		} ewse {
+			if (!this._outwineModew?.mewge(modew)) {
+				this._outwineModew = modew;
 			}
-			this._breadcrumbsDataSource.update(model, position);
+			this._bweadcwumbsDataSouwce.update(modew, position);
 		}
-		this._onDidChange.fire({});
+		this._onDidChange.fiwe({});
 	}
 }
 
-class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, DocumentSymbolItem> {
+cwass DocumentSymbowsOutwineCweatow impwements IOutwineCweatow<IEditowPane, DocumentSymbowItem> {
 
-	readonly dispose: () => void;
+	weadonwy dispose: () => void;
 
-	constructor(
-		@IOutlineService outlineService: IOutlineService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		@IOutwineSewvice outwineSewvice: IOutwineSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		const reg = outlineService.registerOutlineCreator(this);
-		this.dispose = () => reg.dispose();
+		const weg = outwineSewvice.wegistewOutwineCweatow(this);
+		this.dispose = () => weg.dispose();
 	}
 
-	matches(candidate: IEditorPane): candidate is IEditorPane {
-		const ctrl = candidate.getControl();
-		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
+	matches(candidate: IEditowPane): candidate is IEditowPane {
+		const ctww = candidate.getContwow();
+		wetuwn isCodeEditow(ctww) || isDiffEditow(ctww);
 	}
 
-	async createOutline(pane: IEditorPane, target: OutlineTarget, _token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
-		const control = pane.getControl();
-		let editor: ICodeEditor | undefined;
-		if (isCodeEditor(control)) {
-			editor = control;
-		} else if (isDiffEditor(control)) {
-			editor = control.getModifiedEditor();
+	async cweateOutwine(pane: IEditowPane, tawget: OutwineTawget, _token: CancewwationToken): Pwomise<IOutwine<DocumentSymbowItem> | undefined> {
+		const contwow = pane.getContwow();
+		wet editow: ICodeEditow | undefined;
+		if (isCodeEditow(contwow)) {
+			editow = contwow;
+		} ewse if (isDiffEditow(contwow)) {
+			editow = contwow.getModifiedEditow();
 		}
-		if (!editor) {
-			return undefined;
+		if (!editow) {
+			wetuwn undefined;
 		}
-		const firstLoadBarrier = new Barrier();
-		const result = this._instantiationService.createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier);
-		await firstLoadBarrier.wait();
-		return result;
+		const fiwstWoadBawwia = new Bawwia();
+		const wesuwt = this._instantiationSewvice.cweateInstance(DocumentSymbowsOutwine, editow, tawget, fiwstWoadBawwia);
+		await fiwstWoadBawwia.wait();
+		wetuwn wesuwt;
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DocumentSymbolsOutlineCreator, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DocumentSymbowsOutwineCweatow, WifecycwePhase.Eventuawwy);

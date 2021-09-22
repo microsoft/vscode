@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const INTERACTIVE_INPUT_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('interactiveInputCursorAtBoundary', 'none');
+expowt const INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY = new WawContextKey<'none' | 'top' | 'bottom' | 'both'>('intewactiveInputCuwsowAtBoundawy', 'none');

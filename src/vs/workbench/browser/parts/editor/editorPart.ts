@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
-import { Event, Emitter, Relay } from 'vs/base/common/event';
-import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IEditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
-import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
-import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { Color } from 'vs/base/common/color';
-import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
-import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { Promises } from 'vs/base/common/async';
-import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { Dimension, isAncestow, $, EventHewpa, addDisposabweGenewicMouseDownWistna } fwom 'vs/base/bwowsa/dom';
+impowt { Event, Emitta, Weway } fwom 'vs/base/common/event';
+impowt { contwastBowda, editowBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { GwoupDiwection, IAddGwoupOptions, GwoupsAwwangement, GwoupOwientation, IMewgeGwoupOptions, MewgeGwoupMode, GwoupsOwda, GwoupChangeKind, GwoupWocation, IFindGwoupScope, EditowGwoupWayout, GwoupWayoutAwgument, IEditowGwoupsSewvice, IEditowSideGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IView, owthogonaw, WayoutPwiowity, IViewSize, Diwection, SewiawizabweGwid, Sizing, ISewiawizedGwid, Owientation, GwidBwanchNode, isGwidBwanchNode, GwidNode, cweateSewiawizedGwid, Gwid } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { GwoupIdentifia, IEditowInputWithOptions, IEditowPawtOptions, IEditowPawtOptionsChangeEvent } fwom 'vs/wowkbench/common/editow';
+impowt { EDITOW_GWOUP_BOWDa, EDITOW_PANE_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { distinct, coawesce, fiwstOwDefauwt } fwom 'vs/base/common/awways';
+impowt { IEditowGwoupsAccessow, IEditowGwoupView, getEditowPawtOptions, impactsEditowPawtOptions, IEditowPawtCweationOptions } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { EditowGwoupView } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowGwoupView';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDisposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ISewiawizedEditowGwoupModew, isSewiawizedEditowGwoupModew } fwom 'vs/wowkbench/common/editow/editowGwoupModew';
+impowt { EditowDwopTawget, IEditowDwopTawgetDewegate } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowDwopTawget';
+impowt { IEditowDwopSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowDwopSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { CentewedViewWayout } fwom 'vs/base/bwowsa/ui/centewed/centewedViewWayout';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Pawts, IWowkbenchWayoutSewvice, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IBoundawySashes } fwom 'vs/base/bwowsa/ui/gwid/gwidview';
+impowt { CompositeDwagAndDwopObsewva } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { findGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupFinda';
+impowt { SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-interface IEditorPartUIState {
-	serializedGrid: ISerializedGrid;
-	activeGroup: GroupIdentifier;
-	mostRecentActiveGroups: GroupIdentifier[];
+intewface IEditowPawtUIState {
+	sewiawizedGwid: ISewiawizedGwid;
+	activeGwoup: GwoupIdentifia;
+	mostWecentActiveGwoups: GwoupIdentifia[];
 }
 
-class GridWidgetView<T extends IView> implements IView {
+cwass GwidWidgetView<T extends IView> impwements IView {
 
-	readonly element: HTMLElement = $('.grid-view-container');
+	weadonwy ewement: HTMWEwement = $('.gwid-view-containa');
 
-	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
-	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
-	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
-	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+	get minimumWidth(): numba { wetuwn this.gwidWidget ? this.gwidWidget.minimumWidth : 0; }
+	get maximumWidth(): numba { wetuwn this.gwidWidget ? this.gwidWidget.maximumWidth : Numba.POSITIVE_INFINITY; }
+	get minimumHeight(): numba { wetuwn this.gwidWidget ? this.gwidWidget.minimumHeight : 0; }
+	get maximumHeight(): numba { wetuwn this.gwidWidget ? this.gwidWidget.maximumHeight : Numba.POSITIVE_INFINITY; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = new Weway<{ width: numba; height: numba; } | undefined>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private _gridWidget: Grid<T> | undefined;
+	pwivate _gwidWidget: Gwid<T> | undefined;
 
-	get gridWidget(): Grid<T> | undefined {
-		return this._gridWidget;
+	get gwidWidget(): Gwid<T> | undefined {
+		wetuwn this._gwidWidget;
 	}
 
-	set gridWidget(grid: Grid<T> | undefined) {
-		this.element.innerText = '';
+	set gwidWidget(gwid: Gwid<T> | undefined) {
+		this.ewement.innewText = '';
 
-		if (grid) {
-			this.element.appendChild(grid.element);
-			this._onDidChange.input = grid.onDidChange;
-		} else {
+		if (gwid) {
+			this.ewement.appendChiwd(gwid.ewement);
+			this._onDidChange.input = gwid.onDidChange;
+		} ewse {
 			this._onDidChange.input = Event.None;
 		}
 
-		this._gridWidget = grid;
+		this._gwidWidget = gwid;
 	}
 
-	layout(width: number, height: number): void {
-		if (this.gridWidget) {
-			this.gridWidget.layout(width, height);
+	wayout(width: numba, height: numba): void {
+		if (this.gwidWidget) {
+			this.gwidWidget.wayout(width, height);
 		}
 	}
 
@@ -82,1107 +82,1107 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor, IEditorDropService {
+expowt cwass EditowPawt extends Pawt impwements IEditowGwoupsSewvice, IEditowGwoupsAccessow, IEditowDwopSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
-	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
+	pwivate static weadonwy EDITOW_PAWT_UI_STATE_STOWAGE_KEY = 'editowpawt.state';
+	pwivate static weadonwy EDITOW_PAWT_CENTEWED_VIEW_STOWAGE_KEY = 'editowpawt.centewedview';
 
-	//#region Events
+	//#wegion Events
 
-	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
-	readonly onDidLayout = this._onDidLayout.event;
+	pwivate weadonwy _onDidWayout = this._wegista(new Emitta<Dimension>());
+	weadonwy onDidWayout = this._onDidWayout.event;
 
-	private readonly _onDidChangeActiveGroup = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
+	pwivate weadonwy _onDidChangeActiveGwoup = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidChangeActiveGwoup = this._onDidChangeActiveGwoup.event;
 
-	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
+	pwivate weadonwy _onDidChangeGwoupIndex = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidChangeGwoupIndex = this._onDidChangeGwoupIndex.event;
 
-	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
+	pwivate weadonwy _onDidChangeGwoupWocked = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidChangeGwoupWocked = this._onDidChangeGwoupWocked.event;
 
-	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActivateGroup = this._onDidActivateGroup.event;
+	pwivate weadonwy _onDidActivateGwoup = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidActivateGwoup = this._onDidActivateGwoup.event;
 
-	private readonly _onDidAddGroup = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidAddGroup = this._onDidAddGroup.event;
+	pwivate weadonwy _onDidAddGwoup = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidAddGwoup = this._onDidAddGwoup.event;
 
-	private readonly _onDidRemoveGroup = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidRemoveGroup = this._onDidRemoveGroup.event;
+	pwivate weadonwy _onDidWemoveGwoup = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidWemoveGwoup = this._onDidWemoveGwoup.event;
 
-	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidMoveGroup = this._onDidMoveGroup.event;
+	pwivate weadonwy _onDidMoveGwoup = this._wegista(new Emitta<IEditowGwoupView>());
+	weadonwy onDidMoveGwoup = this._onDidMoveGwoup.event;
 
-	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	pwivate weadonwy onDidSetGwidWidget = this._wegista(new Emitta<{ width: numba; height: numba; } | undefined>());
 
-	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
+	pwivate weadonwy _onDidChangeSizeConstwaints = this._wegista(new Weway<{ width: numba; height: numba; } | undefined>());
+	weadonwy onDidChangeSizeConstwaints = Event.any(this.onDidSetGwidWidget.event, this._onDidChangeSizeConstwaints.event);
 
-	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
-	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
+	pwivate weadonwy _onDidChangeEditowPawtOptions = this._wegista(new Emitta<IEditowPawtOptionsChangeEvent>());
+	weadonwy onDidChangeEditowPawtOptions = this._onDidChangeEditowPawtOptions.event;
 
-	//#endregion
+	//#endwegion
 
-	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	private readonly globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate weadonwy wowkspaceMemento = this.getMemento(StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+	pwivate weadonwy gwobawMemento = this.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
-	private mostRecentActiveGroups: GroupIdentifier[] = [];
+	pwivate weadonwy gwoupViews = new Map<GwoupIdentifia, IEditowGwoupView>();
+	pwivate mostWecentActiveGwoups: GwoupIdentifia[] = [];
 
-	private container: HTMLElement | undefined;
+	pwivate containa: HTMWEwement | undefined;
 
-	private centeredLayoutWidget!: CenteredViewLayout;
+	pwivate centewedWayoutWidget!: CentewedViewWayout;
 
-	private gridWidget!: SerializableGrid<IEditorGroupView>;
-	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
+	pwivate gwidWidget!: SewiawizabweGwid<IEditowGwoupView>;
+	pwivate weadonwy gwidWidgetView = this._wegista(new GwidWidgetView<IEditowGwoupView>());
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		supa(Pawts.EDITOW_PAWT, { hasTitwe: fawse }, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(e)));
+		this._wegista(this.themeSewvice.onDidFiweIconThemeChange(() => this.handweChangedPawtOptions()));
 	}
 
-	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (impactsEditorPartOptions(event)) {
-			this.handleChangedPartOptions();
+	pwivate onConfiguwationUpdated(event: IConfiguwationChangeEvent): void {
+		if (impactsEditowPawtOptions(event)) {
+			this.handweChangedPawtOptions();
 		}
 	}
 
-	private handleChangedPartOptions(): void {
-		const oldPartOptions = this._partOptions;
-		const newPartOptions = getEditorPartOptions(this.configurationService, this.themeService);
+	pwivate handweChangedPawtOptions(): void {
+		const owdPawtOptions = this._pawtOptions;
+		const newPawtOptions = getEditowPawtOptions(this.configuwationSewvice, this.themeSewvice);
 
-		for (const enforcedPartOptions of this.enforcedPartOptions) {
-			Object.assign(newPartOptions, enforcedPartOptions); // check for overrides
+		fow (const enfowcedPawtOptions of this.enfowcedPawtOptions) {
+			Object.assign(newPawtOptions, enfowcedPawtOptions); // check fow ovewwides
 		}
 
-		this._partOptions = newPartOptions;
+		this._pawtOptions = newPawtOptions;
 
-		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
+		this._onDidChangeEditowPawtOptions.fiwe({ owdPawtOptions, newPawtOptions });
 	}
 
-	//#region IEditorGroupsService
+	//#wegion IEditowGwoupsSewvice
 
-	private enforcedPartOptions: IEditorPartOptions[] = [];
+	pwivate enfowcedPawtOptions: IEditowPawtOptions[] = [];
 
-	private _partOptions = getEditorPartOptions(this.configurationService, this.themeService);
-	get partOptions(): IEditorPartOptions { return this._partOptions; }
+	pwivate _pawtOptions = getEditowPawtOptions(this.configuwationSewvice, this.themeSewvice);
+	get pawtOptions(): IEditowPawtOptions { wetuwn this._pawtOptions; }
 
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		this.enforcedPartOptions.push(options);
-		this.handleChangedPartOptions();
+	enfowcePawtOptions(options: IEditowPawtOptions): IDisposabwe {
+		this.enfowcedPawtOptions.push(options);
+		this.handweChangedPawtOptions();
 
-		return toDisposable(() => {
-			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
-			this.handleChangedPartOptions();
+		wetuwn toDisposabwe(() => {
+			this.enfowcedPawtOptions.spwice(this.enfowcedPawtOptions.indexOf(options), 1);
+			this.handweChangedPawtOptions();
 		});
 	}
 
-	private _contentDimension!: Dimension;
-	get contentDimension(): Dimension { return this._contentDimension; }
+	pwivate _contentDimension!: Dimension;
+	get contentDimension(): Dimension { wetuwn this._contentDimension; }
 
-	private _activeGroup!: IEditorGroupView;
-	get activeGroup(): IEditorGroupView {
-		return this._activeGroup;
+	pwivate _activeGwoup!: IEditowGwoupView;
+	get activeGwoup(): IEditowGwoupView {
+		wetuwn this._activeGwoup;
 	}
 
-	readonly sideGroup: IEditorSideGroup = {
-		openEditor: (editor, options) => {
-			const [group] = this.instantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+	weadonwy sideGwoup: IEditowSideGwoup = {
+		openEditow: (editow, options) => {
+			const [gwoup] = this.instantiationSewvice.invokeFunction(accessow => findGwoup(accessow, { editow, options }, SIDE_GWOUP));
 
-			return group.openEditor(editor, options);
+			wetuwn gwoup.openEditow(editow, options);
 		}
 	};
 
-	get groups(): IEditorGroupView[] {
-		return Array.from(this.groupViews.values());
+	get gwoups(): IEditowGwoupView[] {
+		wetuwn Awway.fwom(this.gwoupViews.vawues());
 	}
 
-	get count(): number {
-		return this.groupViews.size;
+	get count(): numba {
+		wetuwn this.gwoupViews.size;
 	}
 
-	get orientation(): GroupOrientation {
-		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
+	get owientation(): GwoupOwientation {
+		wetuwn (this.gwidWidget && this.gwidWidget.owientation === Owientation.VEWTICAW) ? GwoupOwientation.VEWTICAW : GwoupOwientation.HOWIZONTAW;
 	}
 
-	private _isReady = false;
-	get isReady(): boolean { return this._isReady; }
+	pwivate _isWeady = fawse;
+	get isWeady(): boowean { wetuwn this._isWeady; }
 
-	private whenReadyResolve: (() => void) | undefined;
-	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	pwivate whenWeadyWesowve: (() => void) | undefined;
+	weadonwy whenWeady = new Pwomise<void>(wesowve => (this.whenWeadyWesowve = wesowve));
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	pwivate whenWestowedWesowve: (() => void) | undefined;
+	weadonwy whenWestowed = new Pwomise<void>(wesowve => (this.whenWestowedWesowve = wesowve));
 
-	get hasRestorableState(): boolean {
-		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+	get hasWestowabweState(): boowean {
+		wetuwn !!this.wowkspaceMemento[EditowPawt.EDITOW_PAWT_UI_STATE_STOWAGE_KEY];
 	}
 
-	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
-		switch (order) {
-			case GroupsOrder.CREATION_TIME:
-				return this.groups;
+	getGwoups(owda = GwoupsOwda.CWEATION_TIME): IEditowGwoupView[] {
+		switch (owda) {
+			case GwoupsOwda.CWEATION_TIME:
+				wetuwn this.gwoups;
 
-			case GroupsOrder.MOST_RECENTLY_ACTIVE:
-				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
+			case GwoupsOwda.MOST_WECENTWY_ACTIVE:
+				const mostWecentActive = coawesce(this.mostWecentActiveGwoups.map(gwoupId => this.getGwoup(gwoupId)));
 
-				// there can be groups that got never active, even though they exist. in this case
-				// make sure to just append them at the end so that all groups are returned properly
-				return distinct([...mostRecentActive, ...this.groups]);
+				// thewe can be gwoups that got neva active, even though they exist. in this case
+				// make suwe to just append them at the end so that aww gwoups awe wetuwned pwopewwy
+				wetuwn distinct([...mostWecentActive, ...this.gwoups]);
 
-			case GroupsOrder.GRID_APPEARANCE:
-				const views: IEditorGroupView[] = [];
-				if (this.gridWidget) {
-					this.fillGridNodes(views, this.gridWidget.getViews());
+			case GwoupsOwda.GWID_APPEAWANCE:
+				const views: IEditowGwoupView[] = [];
+				if (this.gwidWidget) {
+					this.fiwwGwidNodes(views, this.gwidWidget.getViews());
 				}
 
-				return views;
+				wetuwn views;
 		}
 	}
 
-	private fillGridNodes(target: IEditorGroupView[], node: GridBranchNode<IEditorGroupView> | GridNode<IEditorGroupView>): void {
-		if (isGridBranchNode(node)) {
-			node.children.forEach(child => this.fillGridNodes(target, child));
-		} else {
-			target.push(node.view);
+	pwivate fiwwGwidNodes(tawget: IEditowGwoupView[], node: GwidBwanchNode<IEditowGwoupView> | GwidNode<IEditowGwoupView>): void {
+		if (isGwidBwanchNode(node)) {
+			node.chiwdwen.fowEach(chiwd => this.fiwwGwidNodes(tawget, chiwd));
+		} ewse {
+			tawget.push(node.view);
 		}
 	}
 
-	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined {
-		return this.groupViews.get(identifier);
+	getGwoup(identifia: GwoupIdentifia): IEditowGwoupView | undefined {
+		wetuwn this.gwoupViews.get(identifia);
 	}
 
-	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup, wrap?: boolean): IEditorGroupView | undefined {
+	findGwoup(scope: IFindGwoupScope, souwce: IEditowGwoupView | GwoupIdentifia = this.activeGwoup, wwap?: boowean): IEditowGwoupView | undefined {
 
-		// by direction
-		if (typeof scope.direction === 'number') {
-			return this.doFindGroupByDirection(scope.direction, source, wrap);
+		// by diwection
+		if (typeof scope.diwection === 'numba') {
+			wetuwn this.doFindGwoupByDiwection(scope.diwection, souwce, wwap);
 		}
 
-		// by location
-		if (typeof scope.location === 'number') {
-			return this.doFindGroupByLocation(scope.location, source, wrap);
+		// by wocation
+		if (typeof scope.wocation === 'numba') {
+			wetuwn this.doFindGwoupByWocation(scope.wocation, souwce, wwap);
 		}
 
-		throw new Error('invalid arguments');
+		thwow new Ewwow('invawid awguments');
 	}
 
-	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
-		const sourceGroupView = this.assertGroupView(source);
+	pwivate doFindGwoupByDiwection(diwection: GwoupDiwection, souwce: IEditowGwoupView | GwoupIdentifia, wwap?: boowean): IEditowGwoupView | undefined {
+		const souwceGwoupView = this.assewtGwoupView(souwce);
 
-		// Find neighbours and sort by our MRU list
-		const neighbours = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction), wrap);
-		neighbours.sort(((n1, n2) => this.mostRecentActiveGroups.indexOf(n1.id) - this.mostRecentActiveGroups.indexOf(n2.id)));
+		// Find neighbouws and sowt by ouw MWU wist
+		const neighbouws = this.gwidWidget.getNeighbowViews(souwceGwoupView, this.toGwidViewDiwection(diwection), wwap);
+		neighbouws.sowt(((n1, n2) => this.mostWecentActiveGwoups.indexOf(n1.id) - this.mostWecentActiveGwoups.indexOf(n2.id)));
 
-		return neighbours[0];
+		wetuwn neighbouws[0];
 	}
 
-	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
-		const sourceGroupView = this.assertGroupView(source);
-		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
-		const index = groups.indexOf(sourceGroupView);
+	pwivate doFindGwoupByWocation(wocation: GwoupWocation, souwce: IEditowGwoupView | GwoupIdentifia, wwap?: boowean): IEditowGwoupView | undefined {
+		const souwceGwoupView = this.assewtGwoupView(souwce);
+		const gwoups = this.getGwoups(GwoupsOwda.GWID_APPEAWANCE);
+		const index = gwoups.indexOf(souwceGwoupView);
 
-		switch (location) {
-			case GroupLocation.FIRST:
-				return groups[0];
-			case GroupLocation.LAST:
-				return groups[groups.length - 1];
-			case GroupLocation.NEXT:
-				let nextGroup: IEditorGroupView | undefined = groups[index + 1];
-				if (!nextGroup && wrap) {
-					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
+		switch (wocation) {
+			case GwoupWocation.FIWST:
+				wetuwn gwoups[0];
+			case GwoupWocation.WAST:
+				wetuwn gwoups[gwoups.wength - 1];
+			case GwoupWocation.NEXT:
+				wet nextGwoup: IEditowGwoupView | undefined = gwoups[index + 1];
+				if (!nextGwoup && wwap) {
+					nextGwoup = this.doFindGwoupByWocation(GwoupWocation.FIWST, souwce);
 				}
 
-				return nextGroup;
-			case GroupLocation.PREVIOUS:
-				let previousGroup: IEditorGroupView | undefined = groups[index - 1];
-				if (!previousGroup && wrap) {
-					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
+				wetuwn nextGwoup;
+			case GwoupWocation.PWEVIOUS:
+				wet pweviousGwoup: IEditowGwoupView | undefined = gwoups[index - 1];
+				if (!pweviousGwoup && wwap) {
+					pweviousGwoup = this.doFindGwoupByWocation(GwoupWocation.WAST, souwce);
 				}
 
-				return previousGroup;
+				wetuwn pweviousGwoup;
 		}
 	}
 
-	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
-		const groupView = this.assertGroupView(group);
-		this.doSetGroupActive(groupView);
+	activateGwoup(gwoup: IEditowGwoupView | GwoupIdentifia): IEditowGwoupView {
+		const gwoupView = this.assewtGwoupView(gwoup);
+		this.doSetGwoupActive(gwoupView);
 
-		this._onDidActivateGroup.fire(groupView);
-		return groupView;
+		this._onDidActivateGwoup.fiwe(gwoupView);
+		wetuwn gwoupView;
 	}
 
-	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
-		const groupView = this.assertGroupView(group);
-		this.doRestoreGroup(groupView);
+	westoweGwoup(gwoup: IEditowGwoupView | GwoupIdentifia): IEditowGwoupView {
+		const gwoupView = this.assewtGwoupView(gwoup);
+		this.doWestoweGwoup(gwoupView);
 
-		return groupView;
+		wetuwn gwoupView;
 	}
 
-	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
-		const groupView = this.assertGroupView(group);
+	getSize(gwoup: IEditowGwoupView | GwoupIdentifia): { width: numba, height: numba } {
+		const gwoupView = this.assewtGwoupView(gwoup);
 
-		return this.gridWidget.getViewSize(groupView);
+		wetuwn this.gwidWidget.getViewSize(gwoupView);
 	}
 
-	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number, height: number }): void {
-		const groupView = this.assertGroupView(group);
+	setSize(gwoup: IEditowGwoupView | GwoupIdentifia, size: { width: numba, height: numba }): void {
+		const gwoupView = this.assewtGwoupView(gwoup);
 
-		this.gridWidget.resizeView(groupView, size);
+		this.gwidWidget.wesizeView(gwoupView, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, target = this.activeGroup): void {
+	awwangeGwoups(awwangement: GwoupsAwwangement, tawget = this.activeGwoup): void {
 		if (this.count < 2) {
-			return; // require at least 2 groups to show
+			wetuwn; // wequiwe at weast 2 gwoups to show
 		}
 
-		if (!this.gridWidget) {
-			return; // we have not been created yet
+		if (!this.gwidWidget) {
+			wetuwn; // we have not been cweated yet
 		}
 
-		switch (arrangement) {
-			case GroupsArrangement.EVEN:
-				this.gridWidget.distributeViewSizes();
-				break;
-			case GroupsArrangement.MINIMIZE_OTHERS:
-				this.gridWidget.maximizeViewSize(target);
-				break;
-			case GroupsArrangement.TOGGLE:
-				if (this.isGroupMaximized(target)) {
-					this.arrangeGroups(GroupsArrangement.EVEN);
-				} else {
-					this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
+		switch (awwangement) {
+			case GwoupsAwwangement.EVEN:
+				this.gwidWidget.distwibuteViewSizes();
+				bweak;
+			case GwoupsAwwangement.MINIMIZE_OTHEWS:
+				this.gwidWidget.maximizeViewSize(tawget);
+				bweak;
+			case GwoupsAwwangement.TOGGWE:
+				if (this.isGwoupMaximized(tawget)) {
+					this.awwangeGwoups(GwoupsAwwangement.EVEN);
+				} ewse {
+					this.awwangeGwoups(GwoupsAwwangement.MINIMIZE_OTHEWS);
 				}
 
-				break;
+				bweak;
 		}
 	}
 
-	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
-		for (const group of this.groups) {
-			if (group === targetGroup) {
-				continue; // ignore target group
+	pwivate isGwoupMaximized(tawgetGwoup: IEditowGwoupView): boowean {
+		fow (const gwoup of this.gwoups) {
+			if (gwoup === tawgetGwoup) {
+				continue; // ignowe tawget gwoup
 			}
 
-			if (!group.isMinimized) {
-				return false; // target cannot be maximized if one group is not minimized
+			if (!gwoup.isMinimized) {
+				wetuwn fawse; // tawget cannot be maximized if one gwoup is not minimized
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	setGroupOrientation(orientation: GroupOrientation): void {
-		if (!this.gridWidget) {
-			return; // we have not been created yet
+	setGwoupOwientation(owientation: GwoupOwientation): void {
+		if (!this.gwidWidget) {
+			wetuwn; // we have not been cweated yet
 		}
 
-		const newOrientation = (orientation === GroupOrientation.HORIZONTAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-		if (this.gridWidget.orientation !== newOrientation) {
-			this.gridWidget.orientation = newOrientation;
+		const newOwientation = (owientation === GwoupOwientation.HOWIZONTAW) ? Owientation.HOWIZONTAW : Owientation.VEWTICAW;
+		if (this.gwidWidget.owientation !== newOwientation) {
+			this.gwidWidget.owientation = newOwientation;
 		}
 	}
 
-	applyLayout(layout: EditorGroupLayout): void {
-		const restoreFocus = this.shouldRestoreFocus(this.container);
+	appwyWayout(wayout: EditowGwoupWayout): void {
+		const westoweFocus = this.shouwdWestoweFocus(this.containa);
 
-		// Determine how many groups we need overall
-		let layoutGroupsCount = 0;
-		function countGroups(groups: GroupLayoutArgument[]): void {
-			for (const group of groups) {
-				if (Array.isArray(group.groups)) {
-					countGroups(group.groups);
-				} else {
-					layoutGroupsCount++;
+		// Detewmine how many gwoups we need ovewaww
+		wet wayoutGwoupsCount = 0;
+		function countGwoups(gwoups: GwoupWayoutAwgument[]): void {
+			fow (const gwoup of gwoups) {
+				if (Awway.isAwway(gwoup.gwoups)) {
+					countGwoups(gwoup.gwoups);
+				} ewse {
+					wayoutGwoupsCount++;
 				}
 			}
 		}
-		countGroups(layout.groups);
+		countGwoups(wayout.gwoups);
 
-		// If we currently have too many groups, merge them into the last one
-		let currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
-		if (layoutGroupsCount < currentGroupViews.length) {
-			const lastGroupInLayout = currentGroupViews[layoutGroupsCount - 1];
-			currentGroupViews.forEach((group, index) => {
-				if (index >= layoutGroupsCount) {
-					this.mergeGroup(group, lastGroupInLayout);
+		// If we cuwwentwy have too many gwoups, mewge them into the wast one
+		wet cuwwentGwoupViews = this.getGwoups(GwoupsOwda.GWID_APPEAWANCE);
+		if (wayoutGwoupsCount < cuwwentGwoupViews.wength) {
+			const wastGwoupInWayout = cuwwentGwoupViews[wayoutGwoupsCount - 1];
+			cuwwentGwoupViews.fowEach((gwoup, index) => {
+				if (index >= wayoutGwoupsCount) {
+					this.mewgeGwoup(gwoup, wastGwoupInWayout);
 				}
 			});
 
-			currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+			cuwwentGwoupViews = this.getGwoups(GwoupsOwda.GWID_APPEAWANCE);
 		}
 
-		const activeGroup = this.activeGroup;
+		const activeGwoup = this.activeGwoup;
 
-		// Prepare grid descriptor to create new grid from
-		const gridDescriptor = createSerializedGrid({
-			orientation: this.toGridViewOrientation(
-				layout.orientation,
-				this.isTwoDimensionalGrid() ?
-					this.gridWidget.orientation :			// preserve original orientation for 2-dimensional grids
-					orthogonal(this.gridWidget.orientation) // otherwise flip (fix https://github.com/microsoft/vscode/issues/52975)
+		// Pwepawe gwid descwiptow to cweate new gwid fwom
+		const gwidDescwiptow = cweateSewiawizedGwid({
+			owientation: this.toGwidViewOwientation(
+				wayout.owientation,
+				this.isTwoDimensionawGwid() ?
+					this.gwidWidget.owientation :			// pwesewve owiginaw owientation fow 2-dimensionaw gwids
+					owthogonaw(this.gwidWidget.owientation) // othewwise fwip (fix https://github.com/micwosoft/vscode/issues/52975)
 			),
-			groups: layout.groups
+			gwoups: wayout.gwoups
 		});
 
-		// Recreate gridwidget with descriptor
-		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
+		// Wecweate gwidwidget with descwiptow
+		this.doCweateGwidContwowWithState(gwidDescwiptow, activeGwoup.id, cuwwentGwoupViews);
 
-		// Layout
-		this.doLayout(this._contentDimension);
+		// Wayout
+		this.doWayout(this._contentDimension);
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
-		// Events for groups that got added
-		for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-			if (!currentGroupViews.includes(groupView)) {
-				this._onDidAddGroup.fire(groupView);
+		// Events fow gwoups that got added
+		fow (const gwoupView of this.getGwoups(GwoupsOwda.GWID_APPEAWANCE)) {
+			if (!cuwwentGwoupViews.incwudes(gwoupView)) {
+				this._onDidAddGwoup.fiwe(gwoupView);
 			}
 		}
 
-		// Notify group index change given layout has changed
-		this.notifyGroupIndexChange();
+		// Notify gwoup index change given wayout has changed
+		this.notifyGwoupIndexChange();
 
-		// Restore focus as needed
-		if (restoreFocus) {
-			this._activeGroup.focus();
+		// Westowe focus as needed
+		if (westoweFocus) {
+			this._activeGwoup.focus();
 		}
 	}
 
-	private shouldRestoreFocus(target: Element | undefined): boolean {
-		if (!target) {
-			return false;
+	pwivate shouwdWestoweFocus(tawget: Ewement | undefined): boowean {
+		if (!tawget) {
+			wetuwn fawse;
 		}
 
-		const activeElement = document.activeElement;
+		const activeEwement = document.activeEwement;
 
-		if (activeElement === document.body) {
-			return true; // always restore focus if nothing is focused currently
+		if (activeEwement === document.body) {
+			wetuwn twue; // awways westowe focus if nothing is focused cuwwentwy
 		}
 
-		// otherwise check for the active element being an ancestor of the target
-		return isAncestor(activeElement, target);
+		// othewwise check fow the active ewement being an ancestow of the tawget
+		wetuwn isAncestow(activeEwement, tawget);
 	}
 
-	private isTwoDimensionalGrid(): boolean {
-		const views = this.gridWidget.getViews();
-		if (isGridBranchNode(views)) {
-			// the grid is 2-dimensional if any children
-			// of the grid is a branch node
-			return views.children.some(child => isGridBranchNode(child));
+	pwivate isTwoDimensionawGwid(): boowean {
+		const views = this.gwidWidget.getViews();
+		if (isGwidBwanchNode(views)) {
+			// the gwid is 2-dimensionaw if any chiwdwen
+			// of the gwid is a bwanch node
+			wetuwn views.chiwdwen.some(chiwd => isGwidBwanchNode(chiwd));
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
-		const locationView = this.assertGroupView(location);
+	addGwoup(wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection, options?: IAddGwoupOptions): IEditowGwoupView {
+		const wocationView = this.assewtGwoupView(wocation);
 
-		const group = this.doAddGroup(locationView, direction);
+		const gwoup = this.doAddGwoup(wocationView, diwection);
 
 		if (options?.activate) {
-			this.doSetGroupActive(group);
+			this.doSetGwoupActive(gwoup);
 		}
 
-		return group;
+		wetuwn gwoup;
 	}
 
-	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
-		const newGroupView = this.doCreateGroupView(groupToCopy);
+	pwivate doAddGwoup(wocationView: IEditowGwoupView, diwection: GwoupDiwection, gwoupToCopy?: IEditowGwoupView): IEditowGwoupView {
+		const newGwoupView = this.doCweateGwoupView(gwoupToCopy);
 
-		// Add to grid widget
-		this.gridWidget.addView(
-			newGroupView,
-			this.getSplitSizingStyle(),
-			locationView,
-			this.toGridViewDirection(direction),
+		// Add to gwid widget
+		this.gwidWidget.addView(
+			newGwoupView,
+			this.getSpwitSizingStywe(),
+			wocationView,
+			this.toGwidViewDiwection(diwection),
 		);
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
 		// Event
-		this._onDidAddGroup.fire(newGroupView);
+		this._onDidAddGwoup.fiwe(newGwoupView);
 
-		// Notify group index change given a new group was added
-		this.notifyGroupIndexChange();
+		// Notify gwoup index change given a new gwoup was added
+		this.notifyGwoupIndexChange();
 
-		return newGroupView;
+		wetuwn newGwoupView;
 	}
 
-	private getSplitSizingStyle(): Sizing {
-		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
+	pwivate getSpwitSizingStywe(): Sizing {
+		wetuwn this._pawtOptions.spwitSizing === 'spwit' ? Sizing.Spwit : Sizing.Distwibute;
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
+	pwivate doCweateGwoupView(fwom?: IEditowGwoupView | ISewiawizedEditowGwoupModew | nuww): IEditowGwoupView {
 
-		// Create group view
-		let groupView: IEditorGroupView;
-		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
-		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
-		} else {
-			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
+		// Cweate gwoup view
+		wet gwoupView: IEditowGwoupView;
+		if (fwom instanceof EditowGwoupView) {
+			gwoupView = EditowGwoupView.cweateCopy(fwom, this, this.count, this.instantiationSewvice);
+		} ewse if (isSewiawizedEditowGwoupModew(fwom)) {
+			gwoupView = EditowGwoupView.cweateFwomSewiawized(fwom, this, this.count, this.instantiationSewvice);
+		} ewse {
+			gwoupView = EditowGwoupView.cweateNew(this, this.count, this.instantiationSewvice);
 		}
 
 		// Keep in map
-		this.groupViews.set(groupView.id, groupView);
+		this.gwoupViews.set(gwoupView.id, gwoupView);
 
-		// Track focus
-		const groupDisposables = new DisposableStore();
-		groupDisposables.add(groupView.onDidFocus(() => {
-			this.doSetGroupActive(groupView);
+		// Twack focus
+		const gwoupDisposabwes = new DisposabweStowe();
+		gwoupDisposabwes.add(gwoupView.onDidFocus(() => {
+			this.doSetGwoupActive(gwoupView);
 		}));
 
-		// Track editor change
-		groupDisposables.add(groupView.onDidGroupChange(e => {
+		// Twack editow change
+		gwoupDisposabwes.add(gwoupView.onDidGwoupChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					this.updateContainer();
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._onDidChangeGroupIndex.fire(groupView);
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
-					this._onDidChangeGroupLocked.fire(groupView);
-					break;
+				case GwoupChangeKind.EDITOW_ACTIVE:
+					this.updateContaina();
+					bweak;
+				case GwoupChangeKind.GWOUP_INDEX:
+					this._onDidChangeGwoupIndex.fiwe(gwoupView);
+					bweak;
+				case GwoupChangeKind.GWOUP_WOCKED:
+					this._onDidChangeGwoupWocked.fiwe(gwoupView);
+					bweak;
 			}
 		}));
 
-		// Track dispose
-		Event.once(groupView.onWillDispose)(() => {
-			dispose(groupDisposables);
-			this.groupViews.delete(groupView.id);
-			this.doUpdateMostRecentActive(groupView);
+		// Twack dispose
+		Event.once(gwoupView.onWiwwDispose)(() => {
+			dispose(gwoupDisposabwes);
+			this.gwoupViews.dewete(gwoupView.id);
+			this.doUpdateMostWecentActive(gwoupView);
 		});
 
-		return groupView;
+		wetuwn gwoupView;
 	}
 
-	private doSetGroupActive(group: IEditorGroupView): void {
-		if (this._activeGroup === group) {
-			return; // return if this is already the active group
+	pwivate doSetGwoupActive(gwoup: IEditowGwoupView): void {
+		if (this._activeGwoup === gwoup) {
+			wetuwn; // wetuwn if this is awweady the active gwoup
 		}
 
-		const previousActiveGroup = this._activeGroup;
-		this._activeGroup = group;
+		const pweviousActiveGwoup = this._activeGwoup;
+		this._activeGwoup = gwoup;
 
-		// Update list of most recently active groups
-		this.doUpdateMostRecentActive(group, true);
+		// Update wist of most wecentwy active gwoups
+		this.doUpdateMostWecentActive(gwoup, twue);
 
-		// Mark previous one as inactive
-		if (previousActiveGroup) {
-			previousActiveGroup.setActive(false);
+		// Mawk pwevious one as inactive
+		if (pweviousActiveGwoup) {
+			pweviousActiveGwoup.setActive(fawse);
 		}
 
-		// Mark group as new active
-		group.setActive(true);
+		// Mawk gwoup as new active
+		gwoup.setActive(twue);
 
-		// Maximize the group if it is currently minimized
-		this.doRestoreGroup(group);
+		// Maximize the gwoup if it is cuwwentwy minimized
+		this.doWestoweGwoup(gwoup);
 
 		// Event
-		this._onDidChangeActiveGroup.fire(group);
+		this._onDidChangeActiveGwoup.fiwe(gwoup);
 	}
 
-	private doRestoreGroup(group: IEditorGroupView): void {
-		if (this.gridWidget) {
-			const viewSize = this.gridWidget.getViewSize(group);
-			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
-				this.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, group);
+	pwivate doWestoweGwoup(gwoup: IEditowGwoupView): void {
+		if (this.gwidWidget) {
+			const viewSize = this.gwidWidget.getViewSize(gwoup);
+			if (viewSize.width === gwoup.minimumWidth || viewSize.height === gwoup.minimumHeight) {
+				this.awwangeGwoups(GwoupsAwwangement.MINIMIZE_OTHEWS, gwoup);
 			}
 		}
 	}
 
-	private doUpdateMostRecentActive(group: IEditorGroupView, makeMostRecentlyActive?: boolean): void {
-		const index = this.mostRecentActiveGroups.indexOf(group.id);
+	pwivate doUpdateMostWecentActive(gwoup: IEditowGwoupView, makeMostWecentwyActive?: boowean): void {
+		const index = this.mostWecentActiveGwoups.indexOf(gwoup.id);
 
-		// Remove from MRU list
+		// Wemove fwom MWU wist
 		if (index !== -1) {
-			this.mostRecentActiveGroups.splice(index, 1);
+			this.mostWecentActiveGwoups.spwice(index, 1);
 		}
 
-		// Add to front as needed
-		if (makeMostRecentlyActive) {
-			this.mostRecentActiveGroups.unshift(group.id);
-		}
-	}
-
-	private toGridViewDirection(direction: GroupDirection): Direction {
-		switch (direction) {
-			case GroupDirection.UP: return Direction.Up;
-			case GroupDirection.DOWN: return Direction.Down;
-			case GroupDirection.LEFT: return Direction.Left;
-			case GroupDirection.RIGHT: return Direction.Right;
+		// Add to fwont as needed
+		if (makeMostWecentwyActive) {
+			this.mostWecentActiveGwoups.unshift(gwoup.id);
 		}
 	}
 
-	private toGridViewOrientation(orientation: GroupOrientation, fallback: Orientation): Orientation {
-		if (typeof orientation === 'number') {
-			return orientation === GroupOrientation.HORIZONTAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+	pwivate toGwidViewDiwection(diwection: GwoupDiwection): Diwection {
+		switch (diwection) {
+			case GwoupDiwection.UP: wetuwn Diwection.Up;
+			case GwoupDiwection.DOWN: wetuwn Diwection.Down;
+			case GwoupDiwection.WEFT: wetuwn Diwection.Weft;
+			case GwoupDiwection.WIGHT: wetuwn Diwection.Wight;
 		}
-
-		return fallback;
 	}
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
-		const groupView = this.assertGroupView(group);
+	pwivate toGwidViewOwientation(owientation: GwoupOwientation, fawwback: Owientation): Owientation {
+		if (typeof owientation === 'numba') {
+			wetuwn owientation === GwoupOwientation.HOWIZONTAW ? Owientation.HOWIZONTAW : Owientation.VEWTICAW;
+		}
+
+		wetuwn fawwback;
+	}
+
+	wemoveGwoup(gwoup: IEditowGwoupView | GwoupIdentifia): void {
+		const gwoupView = this.assewtGwoupView(gwoup);
 		if (this.count === 1) {
-			return; // Cannot remove the last root group
+			wetuwn; // Cannot wemove the wast woot gwoup
 		}
 
-		// Remove empty group
-		if (groupView.isEmpty) {
-			return this.doRemoveEmptyGroup(groupView);
+		// Wemove empty gwoup
+		if (gwoupView.isEmpty) {
+			wetuwn this.doWemoveEmptyGwoup(gwoupView);
 		}
 
-		// Remove group with editors
-		this.doRemoveGroupWithEditors(groupView);
+		// Wemove gwoup with editows
+		this.doWemoveGwoupWithEditows(gwoupView);
 	}
 
-	private doRemoveGroupWithEditors(groupView: IEditorGroupView): void {
-		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+	pwivate doWemoveGwoupWithEditows(gwoupView: IEditowGwoupView): void {
+		const mostWecentwyActiveGwoups = this.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
 
-		let lastActiveGroup: IEditorGroupView;
-		if (this._activeGroup === groupView) {
-			lastActiveGroup = mostRecentlyActiveGroups[1];
-		} else {
-			lastActiveGroup = mostRecentlyActiveGroups[0];
+		wet wastActiveGwoup: IEditowGwoupView;
+		if (this._activeGwoup === gwoupView) {
+			wastActiveGwoup = mostWecentwyActiveGwoups[1];
+		} ewse {
+			wastActiveGwoup = mostWecentwyActiveGwoups[0];
 		}
 
-		// Removing a group with editors should merge these editors into the
-		// last active group and then remove this group.
-		this.mergeGroup(groupView, lastActiveGroup);
+		// Wemoving a gwoup with editows shouwd mewge these editows into the
+		// wast active gwoup and then wemove this gwoup.
+		this.mewgeGwoup(gwoupView, wastActiveGwoup);
 	}
 
-	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const restoreFocus = this.shouldRestoreFocus(this.container);
+	pwivate doWemoveEmptyGwoup(gwoupView: IEditowGwoupView): void {
+		const westoweFocus = this.shouwdWestoweFocus(this.containa);
 
-		// Activate next group if the removed one was active
-		if (this._activeGroup === groupView) {
-			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-			this.activateGroup(nextActiveGroup);
+		// Activate next gwoup if the wemoved one was active
+		if (this._activeGwoup === gwoupView) {
+			const mostWecentwyActiveGwoups = this.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
+			const nextActiveGwoup = mostWecentwyActiveGwoups[1]; // [0] wiww be the cuwwent gwoup we awe about to dispose
+			this.activateGwoup(nextActiveGwoup);
 		}
 
-		// Remove from grid widget & dispose
-		this.gridWidget.removeView(groupView, this.getSplitSizingStyle());
-		groupView.dispose();
+		// Wemove fwom gwid widget & dispose
+		this.gwidWidget.wemoveView(gwoupView, this.getSpwitSizingStywe());
+		gwoupView.dispose();
 
-		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
-		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
-		if (restoreFocus) {
-			this._activeGroup.focus();
+		// Westowe focus if we had it pweviouswy (we wun this afta gwidWidget.wemoveView() is cawwed
+		// because wemoving a view can mean to wepawent it and thus focus wouwd be wemoved othewwise)
+		if (westoweFocus) {
+			this._activeGwoup.focus();
 		}
 
-		// Notify group index change given a group was removed
-		this.notifyGroupIndexChange();
+		// Notify gwoup index change given a gwoup was wemoved
+		this.notifyGwoupIndexChange();
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
-		// Update locked state: clear when we are at just 1 group
+		// Update wocked state: cweaw when we awe at just 1 gwoup
 		if (this.count === 1) {
-			firstOrDefault(this.groups)?.lock(false);
+			fiwstOwDefauwt(this.gwoups)?.wock(fawse);
 		}
 
 		// Event
-		this._onDidRemoveGroup.fire(groupView);
+		this._onDidWemoveGwoup.fiwe(gwoupView);
 	}
 
-	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
-		const sourceView = this.assertGroupView(group);
-		const targetView = this.assertGroupView(location);
+	moveGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoupView {
+		const souwceView = this.assewtGwoupView(gwoup);
+		const tawgetView = this.assewtGwoupView(wocation);
 
-		if (sourceView.id === targetView.id) {
-			throw new Error('Cannot move group into its own');
+		if (souwceView.id === tawgetView.id) {
+			thwow new Ewwow('Cannot move gwoup into its own');
 		}
 
-		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
+		const westoweFocus = this.shouwdWestoweFocus(souwceView.ewement);
 
-		// Move through grid widget API
-		this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
+		// Move thwough gwid widget API
+		this.gwidWidget.moveView(souwceView, this.getSpwitSizingStywe(), tawgetView, this.toGwidViewDiwection(diwection));
 
-		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
-		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
-		if (restoreFocus) {
-			sourceView.focus();
+		// Westowe focus if we had it pweviouswy (we wun this afta gwidWidget.wemoveView() is cawwed
+		// because wemoving a view can mean to wepawent it and thus focus wouwd be wemoved othewwise)
+		if (westoweFocus) {
+			souwceView.focus();
 		}
 
 		// Event
-		this._onDidMoveGroup.fire(sourceView);
+		this._onDidMoveGwoup.fiwe(souwceView);
 
-		// Notify group index change given a group was moved
-		this.notifyGroupIndexChange();
+		// Notify gwoup index change given a gwoup was moved
+		this.notifyGwoupIndexChange();
 
-		return sourceView;
+		wetuwn souwceView;
 	}
 
-	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
-		const groupView = this.assertGroupView(group);
-		const locationView = this.assertGroupView(location);
+	copyGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, wocation: IEditowGwoupView | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoupView {
+		const gwoupView = this.assewtGwoupView(gwoup);
+		const wocationView = this.assewtGwoupView(wocation);
 
-		const restoreFocus = this.shouldRestoreFocus(groupView.element);
+		const westoweFocus = this.shouwdWestoweFocus(gwoupView.ewement);
 
-		// Copy the group view
-		const copiedGroupView = this.doAddGroup(locationView, direction, groupView);
+		// Copy the gwoup view
+		const copiedGwoupView = this.doAddGwoup(wocationView, diwection, gwoupView);
 
-		// Restore focus if we had it
-		if (restoreFocus) {
-			copiedGroupView.focus();
+		// Westowe focus if we had it
+		if (westoweFocus) {
+			copiedGwoupView.focus();
 		}
 
-		return copiedGroupView;
+		wetuwn copiedGwoupView;
 	}
 
-	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
-		const sourceView = this.assertGroupView(group);
-		const targetView = this.assertGroupView(target);
+	mewgeGwoup(gwoup: IEditowGwoupView | GwoupIdentifia, tawget: IEditowGwoupView | GwoupIdentifia, options?: IMewgeGwoupOptions): IEditowGwoupView {
+		const souwceView = this.assewtGwoupView(gwoup);
+		const tawgetView = this.assewtGwoupView(tawget);
 
-		// Collect editors to move/copy
-		const editors: IEditorInputWithOptions[] = [];
-		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
-		for (const editor of sourceView.editors) {
-			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
-			const sticky = sourceView.isSticky(editor);
-			const options = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
+		// Cowwect editows to move/copy
+		const editows: IEditowInputWithOptions[] = [];
+		wet index = (options && typeof options.index === 'numba') ? options.index : tawgetView.count;
+		fow (const editow of souwceView.editows) {
+			const inactive = !souwceView.isActive(editow) || this._activeGwoup !== souwceView;
+			const sticky = souwceView.isSticky(editow);
+			const options = { index: !sticky ? index : undefined /* do not set index to pwesewve sticky fwag */, inactive, pwesewveFocus: inactive };
 
-			editors.push({ editor, options });
+			editows.push({ editow, options });
 
 			index++;
 		}
 
-		// Move/Copy editors over into target
-		if (options?.mode === MergeGroupMode.COPY_EDITORS) {
-			sourceView.copyEditors(editors, targetView);
-		} else {
-			sourceView.moveEditors(editors, targetView);
+		// Move/Copy editows ova into tawget
+		if (options?.mode === MewgeGwoupMode.COPY_EDITOWS) {
+			souwceView.copyEditows(editows, tawgetView);
+		} ewse {
+			souwceView.moveEditows(editows, tawgetView);
 		}
 
-		// Remove source if the view is now empty and not already removed
-		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
-			this.removeGroup(sourceView);
+		// Wemove souwce if the view is now empty and not awweady wemoved
+		if (souwceView.isEmpty && !souwceView.disposed /* couwd have been disposed awweady via wowkbench.editow.cwoseEmptyGwoups setting */) {
+			this.wemoveGwoup(souwceView);
 		}
 
-		return targetView;
+		wetuwn tawgetView;
 	}
 
-	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
-		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (group === target) {
-				continue; // keep target
+	mewgeAwwGwoups(tawget = this.activeGwoup): IEditowGwoupView {
+		fow (const gwoup of this.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE)) {
+			if (gwoup === tawget) {
+				continue; // keep tawget
 			}
 
-			this.mergeGroup(group, target);
+			this.mewgeGwoup(gwoup, tawget);
 		}
 
-		return target;
+		wetuwn tawget;
 	}
 
-	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
-		let groupView: IEditorGroupView | undefined;
-		if (typeof group === 'number') {
-			groupView = this.getGroup(group);
-		} else {
-			groupView = group;
+	pwivate assewtGwoupView(gwoup: IEditowGwoupView | GwoupIdentifia): IEditowGwoupView {
+		wet gwoupView: IEditowGwoupView | undefined;
+		if (typeof gwoup === 'numba') {
+			gwoupView = this.getGwoup(gwoup);
+		} ewse {
+			gwoupView = gwoup;
 		}
 
-		if (!groupView) {
-			throw new Error('Invalid editor group provided!');
+		if (!gwoupView) {
+			thwow new Ewwow('Invawid editow gwoup pwovided!');
 		}
 
-		return groupView;
+		wetuwn gwoupView;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region IEditorDropService
+	//#wegion IEditowDwopSewvice
 
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
-		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+	cweateEditowDwopTawget(containa: HTMWEwement, dewegate: IEditowDwopTawgetDewegate): IDisposabwe {
+		wetuwn this.instantiationSewvice.cweateInstance(EditowDwopTawget, this, containa, dewegate);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Part
+	//#wegion Pawt
 
-	// TODO @sbatten @joao find something better to prevent editor taking over #79897
-	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
-	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
-	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
+	// TODO @sbatten @joao find something betta to pwevent editow taking ova #79897
+	get minimumWidth(): numba { wetuwn Math.min(this.centewedWayoutWidget.minimumWidth, this.wayoutSewvice.getMaximumEditowDimensions().width); }
+	get maximumWidth(): numba { wetuwn this.centewedWayoutWidget.maximumWidth; }
+	get minimumHeight(): numba { wetuwn Math.min(this.centewedWayoutWidget.minimumHeight, this.wayoutSewvice.getMaximumEditowDimensions().height); }
+	get maximumHeight(): numba { wetuwn this.centewedWayoutWidget.maximumHeight; }
 
-	readonly snap = true;
+	weadonwy snap = twue;
 
-	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
-	readonly priority: LayoutPriority = LayoutPriority.High;
+	ovewwide get onDidChange(): Event<IViewSize | undefined> { wetuwn Event.any(this.centewedWayoutWidget.onDidChange, this.onDidSetGwidWidget.event); }
+	weadonwy pwiowity: WayoutPwiowity = WayoutPwiowity.High;
 
-	private get gridSeparatorBorder(): Color {
-		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
+	pwivate get gwidSepawatowBowda(): Cowow {
+		wetuwn this.theme.getCowow(EDITOW_GWOUP_BOWDa) || this.theme.getCowow(contwastBowda) || Cowow.twanspawent;
 	}
 
-	override updateStyles(): void {
-		const container = assertIsDefined(this.container);
-		container.style.backgroundColor = this.getColor(editorBackground) || '';
+	ovewwide updateStywes(): void {
+		const containa = assewtIsDefined(this.containa);
+		containa.stywe.backgwoundCowow = this.getCowow(editowBackgwound) || '';
 
-		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder, background: this.theme.getColor(EDITOR_PANE_BACKGROUND) || Color.transparent };
-		this.gridWidget.style(separatorBorderStyle);
-		this.centeredLayoutWidget.styles(separatorBorderStyle);
+		const sepawatowBowdewStywe = { sepawatowBowda: this.gwidSepawatowBowda, backgwound: this.theme.getCowow(EDITOW_PANE_BACKGWOUND) || Cowow.twanspawent };
+		this.gwidWidget.stywe(sepawatowBowdewStywe);
+		this.centewedWayoutWidget.stywes(sepawatowBowdewStywe);
 	}
 
-	override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
+	ovewwide cweateContentAwea(pawent: HTMWEwement, options?: IEditowPawtCweationOptions): HTMWEwement {
 
-		// Container
-		this.element = parent;
-		this.container = document.createElement('div');
-		this.container.classList.add('content');
-		parent.appendChild(this.container);
+		// Containa
+		this.ewement = pawent;
+		this.containa = document.cweateEwement('div');
+		this.containa.cwassWist.add('content');
+		pawent.appendChiwd(this.containa);
 
-		// Grid control
-		this.doCreateGridControl(options);
+		// Gwid contwow
+		this.doCweateGwidContwow(options);
 
-		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		// Centewed wayout widget
+		this.centewedWayoutWidget = this._wegista(new CentewedViewWayout(this.containa, this.gwidWidgetView, this.gwobawMemento[EditowPawt.EDITOW_PAWT_CENTEWED_VIEW_STOWAGE_KEY]));
 
-		// Drag & Drop support
-		this.setupDragAndDropSupport(parent, this.container);
+		// Dwag & Dwop suppowt
+		this.setupDwagAndDwopSuppowt(pawent, this.containa);
 
-		// Signal ready
-		this.whenReadyResolve?.();
-		this._isReady = true;
+		// Signaw weady
+		this.whenWeadyWesowve?.();
+		this._isWeady = twue;
 
-		// Signal restored
-		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.whenRestoredResolve?.();
+		// Signaw westowed
+		Pwomises.settwed(this.gwoups.map(gwoup => gwoup.whenWestowed)).finawwy(() => {
+			this.whenWestowedWesowve?.();
 		});
 
-		return this.container;
+		wetuwn this.containa;
 	}
 
-	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {
+	pwivate setupDwagAndDwopSuppowt(pawent: HTMWEwement, containa: HTMWEwement): void {
 
-		// Editor drop target
-		this._register(this.createEditorDropTarget(container, Object.create(null)));
+		// Editow dwop tawget
+		this._wegista(this.cweateEditowDwopTawget(containa, Object.cweate(nuww)));
 
-		// No drop in the editor
-		const overlay = document.createElement('div');
-		overlay.classList.add('drop-block-overlay');
-		parent.appendChild(overlay);
+		// No dwop in the editow
+		const ovewway = document.cweateEwement('div');
+		ovewway.cwassWist.add('dwop-bwock-ovewway');
+		pawent.appendChiwd(ovewway);
 
-		// Hide the block if a mouse down event occurs #99065
-		this._register(addDisposableGenericMouseDownListner(overlay, () => overlay.classList.remove('visible')));
+		// Hide the bwock if a mouse down event occuws #99065
+		this._wegista(addDisposabweGenewicMouseDownWistna(ovewway, () => ovewway.cwassWist.wemove('visibwe')));
 
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
-			onDragStart: e => overlay.classList.add('visible'),
-			onDragEnd: e => overlay.classList.remove('visible')
+		this._wegista(CompositeDwagAndDwopObsewva.INSTANCE.wegistewTawget(this.ewement, {
+			onDwagStawt: e => ovewway.cwassWist.add('visibwe'),
+			onDwagEnd: e => ovewway.cwassWist.wemove('visibwe')
 		}));
 
-		let panelOpenerTimeout: any;
-		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(overlay, {
-			onDragOver: e => {
-				EventHelper.stop(e.eventData, true);
-				if (e.eventData.dataTransfer) {
-					e.eventData.dataTransfer.dropEffect = 'none';
+		wet panewOpenewTimeout: any;
+		this._wegista(CompositeDwagAndDwopObsewva.INSTANCE.wegistewTawget(ovewway, {
+			onDwagOva: e => {
+				EventHewpa.stop(e.eventData, twue);
+				if (e.eventData.dataTwansfa) {
+					e.eventData.dataTwansfa.dwopEffect = 'none';
 				}
 
-				if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-					const boundingRect = overlay.getBoundingClientRect();
+				if (!this.wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT)) {
+					const boundingWect = ovewway.getBoundingCwientWect();
 
-					let openPanel = false;
-					const proximity = 100;
-					switch (this.layoutService.getPanelPosition()) {
+					wet openPanew = fawse;
+					const pwoximity = 100;
+					switch (this.wayoutSewvice.getPanewPosition()) {
 						case Position.BOTTOM:
-							if (e.eventData.clientY > boundingRect.bottom - proximity) {
-								openPanel = true;
+							if (e.eventData.cwientY > boundingWect.bottom - pwoximity) {
+								openPanew = twue;
 							}
-							break;
-						case Position.LEFT:
-							if (e.eventData.clientX < boundingRect.left + proximity) {
-								openPanel = true;
+							bweak;
+						case Position.WEFT:
+							if (e.eventData.cwientX < boundingWect.weft + pwoximity) {
+								openPanew = twue;
 							}
-							break;
-						case Position.RIGHT:
-							if (e.eventData.clientX > boundingRect.right - proximity) {
-								openPanel = true;
+							bweak;
+						case Position.WIGHT:
+							if (e.eventData.cwientX > boundingWect.wight - pwoximity) {
+								openPanew = twue;
 							}
-							break;
+							bweak;
 					}
 
-					if (!panelOpenerTimeout && openPanel) {
-						panelOpenerTimeout = setTimeout(() => this.layoutService.setPartHidden(false, Parts.PANEL_PART), 200);
-					} else if (panelOpenerTimeout && !openPanel) {
-						clearTimeout(panelOpenerTimeout);
-						panelOpenerTimeout = undefined;
+					if (!panewOpenewTimeout && openPanew) {
+						panewOpenewTimeout = setTimeout(() => this.wayoutSewvice.setPawtHidden(fawse, Pawts.PANEW_PAWT), 200);
+					} ewse if (panewOpenewTimeout && !openPanew) {
+						cweawTimeout(panewOpenewTimeout);
+						panewOpenewTimeout = undefined;
 					}
 				}
 			},
-			onDragLeave: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
+			onDwagWeave: () => {
+				if (panewOpenewTimeout) {
+					cweawTimeout(panewOpenewTimeout);
+					panewOpenewTimeout = undefined;
 				}
 			},
-			onDragEnd: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
+			onDwagEnd: () => {
+				if (panewOpenewTimeout) {
+					cweawTimeout(panewOpenewTimeout);
+					panewOpenewTimeout = undefined;
 				}
 			},
-			onDrop: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
+			onDwop: () => {
+				if (panewOpenewTimeout) {
+					cweawTimeout(panewOpenewTimeout);
+					panewOpenewTimeout = undefined;
 				}
 			}
 		}));
 	}
 
-	centerLayout(active: boolean): void {
-		this.centeredLayoutWidget.activate(active);
+	centewWayout(active: boowean): void {
+		this.centewedWayoutWidget.activate(active);
 
-		this._activeGroup.focus();
+		this._activeGwoup.focus();
 	}
 
-	isLayoutCentered(): boolean {
-		if (this.centeredLayoutWidget) {
-			return this.centeredLayoutWidget.isActive();
+	isWayoutCentewed(): boowean {
+		if (this.centewedWayoutWidget) {
+			wetuwn this.centewedWayoutWidget.isActive();
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private doCreateGridControl(options?: IEditorPartCreationOptions): void {
+	pwivate doCweateGwidContwow(options?: IEditowPawtCweationOptions): void {
 
-		// Grid Widget (with previous UI state)
-		let restoreError = false;
-		if (!options || options.restorePreviousState) {
-			restoreError = !this.doCreateGridControlWithPreviousState();
+		// Gwid Widget (with pwevious UI state)
+		wet westoweEwwow = fawse;
+		if (!options || options.westowePweviousState) {
+			westoweEwwow = !this.doCweateGwidContwowWithPweviousState();
 		}
 
-		// Grid Widget (no previous UI state or failed to restore)
-		if (!this.gridWidget || restoreError) {
-			const initialGroup = this.doCreateGroupView();
-			this.doSetGridWidget(new SerializableGrid(initialGroup));
+		// Gwid Widget (no pwevious UI state ow faiwed to westowe)
+		if (!this.gwidWidget || westoweEwwow) {
+			const initiawGwoup = this.doCweateGwoupView();
+			this.doSetGwidWidget(new SewiawizabweGwid(initiawGwoup));
 
-			// Ensure a group is active
-			this.doSetGroupActive(initialGroup);
+			// Ensuwe a gwoup is active
+			this.doSetGwoupActive(initiawGwoup);
 		}
 
-		// Update container
-		this.updateContainer();
+		// Update containa
+		this.updateContaina();
 
-		// Notify group index change we created the entire grid
-		this.notifyGroupIndexChange();
+		// Notify gwoup index change we cweated the entiwe gwid
+		this.notifyGwoupIndexChange();
 	}
 
-	private doCreateGridControlWithPreviousState(): boolean {
-		const uiState: IEditorPartUIState = this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
-		if (uiState?.serializedGrid) {
-			try {
+	pwivate doCweateGwidContwowWithPweviousState(): boowean {
+		const uiState: IEditowPawtUIState = this.wowkspaceMemento[EditowPawt.EDITOW_PAWT_UI_STATE_STOWAGE_KEY];
+		if (uiState?.sewiawizedGwid) {
+			twy {
 
-				// MRU
-				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+				// MWU
+				this.mostWecentActiveGwoups = uiState.mostWecentActiveGwoups;
 
-				// Grid Widget
-				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
+				// Gwid Widget
+				this.doCweateGwidContwowWithState(uiState.sewiawizedGwid, uiState.activeGwoup);
 
-				// Ensure last active group has focus
-				this._activeGroup.focus();
-			} catch (error) {
+				// Ensuwe wast active gwoup has focus
+				this._activeGwoup.focus();
+			} catch (ewwow) {
 
-				// Log error
-				onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(uiState)})`));
+				// Wog ewwow
+				onUnexpectedEwwow(new Ewwow(`Ewwow westowing editow gwid widget: ${ewwow} (with state: ${JSON.stwingify(uiState)})`));
 
-				// Clear any state we have from the failing restore
-				this.groupViews.forEach(group => group.dispose());
-				this.groupViews.clear();
-				this.mostRecentActiveGroups = [];
+				// Cweaw any state we have fwom the faiwing westowe
+				this.gwoupViews.fowEach(gwoup => gwoup.dispose());
+				this.gwoupViews.cweaw();
+				this.mostWecentActiveGwoups = [];
 
-				return false; // failure
+				wetuwn fawse; // faiwuwe
 			}
 		}
 
-		return true; // success
+		wetuwn twue; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	pwivate doCweateGwidContwowWithState(sewiawizedGwid: ISewiawizedGwid, activeGwoupId: GwoupIdentifia, editowGwoupViewsToWeuse?: IEditowGwoupView[]): void {
 
-		// Determine group views to reuse if any
-		let reuseGroupViews: IEditorGroupView[];
-		if (editorGroupViewsToReuse) {
-			reuseGroupViews = editorGroupViewsToReuse.slice(0); // do not modify original array
-		} else {
-			reuseGroupViews = [];
+		// Detewmine gwoup views to weuse if any
+		wet weuseGwoupViews: IEditowGwoupView[];
+		if (editowGwoupViewsToWeuse) {
+			weuseGwoupViews = editowGwoupViewsToWeuse.swice(0); // do not modify owiginaw awway
+		} ewse {
+			weuseGwoupViews = [];
 		}
 
-		// Create new
-		const groupViews: IEditorGroupView[] = [];
-		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
-			fromJSON: (serializedEditorGroup: ISerializedEditorGroupModel | null) => {
-				let groupView: IEditorGroupView;
-				if (reuseGroupViews.length > 0) {
-					groupView = reuseGroupViews.shift()!;
-				} else {
-					groupView = this.doCreateGroupView(serializedEditorGroup);
+		// Cweate new
+		const gwoupViews: IEditowGwoupView[] = [];
+		const gwidWidget = SewiawizabweGwid.desewiawize(sewiawizedGwid, {
+			fwomJSON: (sewiawizedEditowGwoup: ISewiawizedEditowGwoupModew | nuww) => {
+				wet gwoupView: IEditowGwoupView;
+				if (weuseGwoupViews.wength > 0) {
+					gwoupView = weuseGwoupViews.shift()!;
+				} ewse {
+					gwoupView = this.doCweateGwoupView(sewiawizedEditowGwoup);
 				}
 
-				groupViews.push(groupView);
+				gwoupViews.push(gwoupView);
 
-				if (groupView.id === activeGroupId) {
-					this.doSetGroupActive(groupView);
+				if (gwoupView.id === activeGwoupId) {
+					this.doSetGwoupActive(gwoupView);
 				}
 
-				return groupView;
+				wetuwn gwoupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+		}, { stywes: { sepawatowBowda: this.gwidSepawatowBowda } });
 
-		// If the active group was not found when restoring the grid
-		// make sure to make at least one group active. We always need
-		// an active group.
-		if (!this._activeGroup) {
-			this.doSetGroupActive(groupViews[0]);
+		// If the active gwoup was not found when westowing the gwid
+		// make suwe to make at weast one gwoup active. We awways need
+		// an active gwoup.
+		if (!this._activeGwoup) {
+			this.doSetGwoupActive(gwoupViews[0]);
 		}
 
-		// Validate MRU group views matches grid widget state
-		if (this.mostRecentActiveGroups.some(groupId => !this.getGroup(groupId))) {
-			this.mostRecentActiveGroups = groupViews.map(group => group.id);
+		// Vawidate MWU gwoup views matches gwid widget state
+		if (this.mostWecentActiveGwoups.some(gwoupId => !this.getGwoup(gwoupId))) {
+			this.mostWecentActiveGwoups = gwoupViews.map(gwoup => gwoup.id);
 		}
 
 		// Set it
-		this.doSetGridWidget(gridWidget);
+		this.doSetGwidWidget(gwidWidget);
 	}
 
-	private doSetGridWidget(gridWidget: SerializableGrid<IEditorGroupView>): void {
-		let boundarySashes: IBoundarySashes = {};
+	pwivate doSetGwidWidget(gwidWidget: SewiawizabweGwid<IEditowGwoupView>): void {
+		wet boundawySashes: IBoundawySashes = {};
 
-		if (this.gridWidget) {
-			boundarySashes = this.gridWidget.boundarySashes;
-			this.gridWidget.dispose();
+		if (this.gwidWidget) {
+			boundawySashes = this.gwidWidget.boundawySashes;
+			this.gwidWidget.dispose();
 		}
 
-		this.gridWidget = gridWidget;
-		this.gridWidget.boundarySashes = boundarySashes;
-		this.gridWidgetView.gridWidget = gridWidget;
+		this.gwidWidget = gwidWidget;
+		this.gwidWidget.boundawySashes = boundawySashes;
+		this.gwidWidgetView.gwidWidget = gwidWidget;
 
-		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
+		this._onDidChangeSizeConstwaints.input = gwidWidget.onDidChange;
 
-		this.onDidSetGridWidget.fire(undefined);
+		this.onDidSetGwidWidget.fiwe(undefined);
 	}
 
-	private updateContainer(): void {
-		const container = assertIsDefined(this.container);
-		container.classList.toggle('empty', this.isEmpty);
+	pwivate updateContaina(): void {
+		const containa = assewtIsDefined(this.containa);
+		containa.cwassWist.toggwe('empty', this.isEmpty);
 	}
 
-	private notifyGroupIndexChange(): void {
-		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
+	pwivate notifyGwoupIndexChange(): void {
+		this.getGwoups(GwoupsOwda.GWID_APPEAWANCE).fowEach((gwoup, index) => gwoup.notifyIndexChanged(index));
 	}
 
-	private get isEmpty(): boolean {
-		return this.count === 1 && this._activeGroup.isEmpty;
+	pwivate get isEmpty(): boowean {
+		wetuwn this.count === 1 && this._activeGwoup.isEmpty;
 	}
 
-	setBoundarySashes(sashes: IBoundarySashes): void {
-		this.gridWidget.boundarySashes = sashes;
-		this.centeredLayoutWidget.boundarySashes = sashes;
+	setBoundawySashes(sashes: IBoundawySashes): void {
+		this.gwidWidget.boundawySashes = sashes;
+		this.centewedWayoutWidget.boundawySashes = sashes;
 	}
 
-	override layout(width: number, height: number): void {
+	ovewwide wayout(width: numba, height: numba): void {
 
-		// Layout contents
-		const contentAreaSize = super.layoutContents(width, height).contentSize;
+		// Wayout contents
+		const contentAweaSize = supa.wayoutContents(width, height).contentSize;
 
-		// Layout editor container
-		this.doLayout(Dimension.lift(contentAreaSize));
+		// Wayout editow containa
+		this.doWayout(Dimension.wift(contentAweaSize));
 	}
 
-	private doLayout(dimension: Dimension): void {
+	pwivate doWayout(dimension: Dimension): void {
 		this._contentDimension = dimension;
 
-		// Layout Grid
-		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height);
+		// Wayout Gwid
+		this.centewedWayoutWidget.wayout(this._contentDimension.width, this._contentDimension.height);
 
 		// Event
-		this._onDidLayout.fire(dimension);
+		this._onDidWayout.fiwe(dimension);
 	}
 
-	protected override saveState(): void {
+	pwotected ovewwide saveState(): void {
 
-		// Persist grid UI state
-		if (this.gridWidget) {
-			const uiState: IEditorPartUIState = {
-				serializedGrid: this.gridWidget.serialize(),
-				activeGroup: this._activeGroup.id,
-				mostRecentActiveGroups: this.mostRecentActiveGroups
+		// Pewsist gwid UI state
+		if (this.gwidWidget) {
+			const uiState: IEditowPawtUIState = {
+				sewiawizedGwid: this.gwidWidget.sewiawize(),
+				activeGwoup: this._activeGwoup.id,
+				mostWecentActiveGwoups: this.mostWecentActiveGwoups
 			};
 
 			if (this.isEmpty) {
-				delete this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
-			} else {
-				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+				dewete this.wowkspaceMemento[EditowPawt.EDITOW_PAWT_UI_STATE_STOWAGE_KEY];
+			} ewse {
+				this.wowkspaceMemento[EditowPawt.EDITOW_PAWT_UI_STATE_STOWAGE_KEY] = uiState;
 			}
 		}
 
-		// Persist centered view state
-		if (this.centeredLayoutWidget) {
-			const centeredLayoutState = this.centeredLayoutWidget.state;
-			if (this.centeredLayoutWidget.isDefault(centeredLayoutState)) {
-				delete this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY];
-			} else {
-				this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = centeredLayoutState;
+		// Pewsist centewed view state
+		if (this.centewedWayoutWidget) {
+			const centewedWayoutState = this.centewedWayoutWidget.state;
+			if (this.centewedWayoutWidget.isDefauwt(centewedWayoutState)) {
+				dewete this.gwobawMemento[EditowPawt.EDITOW_PAWT_CENTEWED_VIEW_STOWAGE_KEY];
+			} ewse {
+				this.gwobawMemento[EditowPawt.EDITOW_PAWT_CENTEWED_VIEW_STOWAGE_KEY] = centewedWayoutState;
 			}
 		}
 
-		super.saveState();
+		supa.saveState();
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.EDITOR_PART
+		wetuwn {
+			type: Pawts.EDITOW_PAWT
 		};
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// Forward to all groups
-		this.groupViews.forEach(group => group.dispose());
-		this.groupViews.clear();
+		// Fowwawd to aww gwoups
+		this.gwoupViews.fowEach(gwoup => gwoup.dispose());
+		this.gwoupViews.cweaw();
 
-		// Grid widget
-		this.gridWidget?.dispose();
+		// Gwid widget
+		this.gwidWidget?.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-class EditorDropService implements IEditorDropService {
+cwass EditowDwopSewvice impwements IEditowDwopSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(@IEditorGroupsService private readonly editorPart: EditorPart) { }
+	constwuctow(@IEditowGwoupsSewvice pwivate weadonwy editowPawt: EditowPawt) { }
 
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
-		return this.editorPart.createEditorDropTarget(container, delegate);
+	cweateEditowDwopTawget(containa: HTMWEwement, dewegate: IEditowDwopTawgetDewegate): IDisposabwe {
+		wetuwn this.editowPawt.cweateEditowDwopTawget(containa, dewegate);
 	}
 }
 
-registerSingleton(IEditorGroupsService, EditorPart);
-registerSingleton(IEditorDropService, EditorDropService);
+wegistewSingweton(IEditowGwoupsSewvice, EditowPawt);
+wegistewSingweton(IEditowDwopSewvice, EditowDwopSewvice);

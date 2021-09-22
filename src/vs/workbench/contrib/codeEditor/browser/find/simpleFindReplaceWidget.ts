@@ -1,468 +1,468 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IReplaceInputStyles, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Delayer } from 'vs/base/common/async';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./simpleFindReplaceWidget';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
-import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/findWidget';
-import * as nls from 'vs/nls';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FindInput, IFindInputStywes } fwom 'vs/base/bwowsa/ui/findinput/findInput';
+impowt { IWepwaceInputStywes, WepwaceInput } fwom 'vs/base/bwowsa/ui/findinput/wepwaceInput';
+impowt { IMessage as InputBoxMessage } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt 'vs/css!./simpweFindWepwaceWidget';
+impowt { FindWepwaceState, FindWepwaceStateChangedEvent } fwom 'vs/editow/contwib/find/findState';
+impowt { findNextMatchIcon, findPweviousMatchIcon, findWepwaceAwwIcon, findWepwaceIcon, SimpweButton } fwom 'vs/editow/contwib/find/findWidget';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextScopedFindInput, ContextScopedWepwaceInput } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { editowWidgetBackgwound, editowWidgetFowegwound, inputActiveOptionBackgwound, inputActiveOptionBowda, inputActiveOptionFowegwound, inputBackgwound, inputBowda, inputFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound, inputVawidationInfoBackgwound, inputVawidationInfoBowda, inputVawidationInfoFowegwound, inputVawidationWawningBackgwound, inputVawidationWawningBowda, inputVawidationWawningFowegwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { widgetCwose } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
-const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
-const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
-const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
-
-
-export abstract class SimpleFindReplaceWidget extends Widget {
-	protected readonly _findInput: FindInput;
-	private readonly _domNode: HTMLElement;
-	private readonly _innerFindDomNode: HTMLElement;
-	private readonly _focusTracker: dom.IFocusTracker;
-	private readonly _findInputFocusTracker: dom.IFocusTracker;
-	private readonly _updateHistoryDelayer: Delayer<void>;
-	protected readonly _matchesCount!: HTMLElement;
-	private readonly prevBtn: SimpleButton;
-	private readonly nextBtn: SimpleButton;
-
-	protected readonly _replaceInput!: ReplaceInput;
-	private readonly _innerReplaceDomNode!: HTMLElement;
-	private _toggleReplaceBtn!: SimpleButton;
-	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
-	private _replaceBtn!: SimpleButton;
-	private _replaceAllBtn!: SimpleButton;
+const NWS_FIND_INPUT_WABEW = nws.wocawize('wabew.find', "Find");
+const NWS_FIND_INPUT_PWACEHOWDa = nws.wocawize('pwacehowda.find', "Find");
+const NWS_PWEVIOUS_MATCH_BTN_WABEW = nws.wocawize('wabew.pweviousMatchButton', "Pwevious Match");
+const NWS_NEXT_MATCH_BTN_WABEW = nws.wocawize('wabew.nextMatchButton', "Next Match");
+const NWS_CWOSE_BTN_WABEW = nws.wocawize('wabew.cwoseButton', "Cwose");
+const NWS_TOGGWE_WEPWACE_MODE_BTN_WABEW = nws.wocawize('wabew.toggweWepwaceButton', "Toggwe Wepwace");
+const NWS_WEPWACE_INPUT_WABEW = nws.wocawize('wabew.wepwace', "Wepwace");
+const NWS_WEPWACE_INPUT_PWACEHOWDa = nws.wocawize('pwacehowda.wepwace', "Wepwace");
+const NWS_WEPWACE_BTN_WABEW = nws.wocawize('wabew.wepwaceButton', "Wepwace");
+const NWS_WEPWACE_AWW_BTN_WABEW = nws.wocawize('wabew.wepwaceAwwButton', "Wepwace Aww");
 
 
-	private _isVisible: boolean = false;
-	private _isReplaceVisible: boolean = false;
-	private foundMatch: boolean = false;
+expowt abstwact cwass SimpweFindWepwaceWidget extends Widget {
+	pwotected weadonwy _findInput: FindInput;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwivate weadonwy _innewFindDomNode: HTMWEwement;
+	pwivate weadonwy _focusTwacka: dom.IFocusTwacka;
+	pwivate weadonwy _findInputFocusTwacka: dom.IFocusTwacka;
+	pwivate weadonwy _updateHistowyDewaya: Dewaya<void>;
+	pwotected weadonwy _matchesCount!: HTMWEwement;
+	pwivate weadonwy pwevBtn: SimpweButton;
+	pwivate weadonwy nextBtn: SimpweButton;
 
-	protected _progressBar!: ProgressBar;
+	pwotected weadonwy _wepwaceInput!: WepwaceInput;
+	pwivate weadonwy _innewWepwaceDomNode!: HTMWEwement;
+	pwivate _toggweWepwaceBtn!: SimpweButton;
+	pwivate weadonwy _wepwaceInputFocusTwacka!: dom.IFocusTwacka;
+	pwivate _wepwaceBtn!: SimpweButton;
+	pwivate _wepwaceAwwBtn!: SimpweButton;
 
 
-	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService,
-		protected readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+	pwivate _isVisibwe: boowean = fawse;
+	pwivate _isWepwaceVisibwe: boowean = fawse;
+	pwivate foundMatch: boowean = fawse;
+
+	pwotected _pwogwessBaw!: PwogwessBaw;
+
+
+	constwuctow(
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		pwotected weadonwy _state: FindWepwaceState = new FindWepwaceState(),
+		showOptionButtons?: boowean
 	) {
-		super();
+		supa();
 
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('simple-fr-find-part-wrapper');
-		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassWist.add('simpwe-fw-find-pawt-wwappa');
+		this._wegista(this._state.onFindWepwaceStateChange((e) => this._onStateChanged(e)));
 
-		let progressContainer = dom.$('.find-replace-progress');
-		this._progressBar = new ProgressBar(progressContainer);
-		this._register(attachProgressBarStyler(this._progressBar, this._themeService));
-		this._domNode.appendChild(progressContainer);
+		wet pwogwessContaina = dom.$('.find-wepwace-pwogwess');
+		this._pwogwessBaw = new PwogwessBaw(pwogwessContaina);
+		this._wegista(attachPwogwessBawStywa(this._pwogwessBaw, this._themeSewvice));
+		this._domNode.appendChiwd(pwogwessContaina);
 
-		// Toggle replace button
-		this._toggleReplaceBtn = this._register(new SimpleButton({
-			label: NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
-			className: 'codicon toggle left',
-			onTrigger: () => {
-				this._isReplaceVisible = !this._isReplaceVisible;
-				this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-				if (this._isReplaceVisible) {
-					this._innerReplaceDomNode.style.display = 'flex';
-				} else {
-					this._innerReplaceDomNode.style.display = 'none';
+		// Toggwe wepwace button
+		this._toggweWepwaceBtn = this._wegista(new SimpweButton({
+			wabew: NWS_TOGGWE_WEPWACE_MODE_BTN_WABEW,
+			cwassName: 'codicon toggwe weft',
+			onTwigga: () => {
+				this._isWepwaceVisibwe = !this._isWepwaceVisibwe;
+				this._state.change({ isWepwaceWeveawed: this._isWepwaceVisibwe }, fawse);
+				if (this._isWepwaceVisibwe) {
+					this._innewWepwaceDomNode.stywe.dispway = 'fwex';
+				} ewse {
+					this._innewWepwaceDomNode.stywe.dispway = 'none';
 				}
 			}
 		}));
-		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
-		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
+		this._toggweWepwaceBtn.setExpanded(this._isWepwaceVisibwe);
+		this._domNode.appendChiwd(this._toggweWepwaceBtn.domNode);
 
 
-		this._innerFindDomNode = document.createElement('div');
-		this._innerFindDomNode.classList.add('simple-fr-find-part');
+		this._innewFindDomNode = document.cweateEwement('div');
+		this._innewFindDomNode.cwassWist.add('simpwe-fw-find-pawt');
 
-		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
-			label: NLS_FIND_INPUT_LABEL,
-			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-			validation: (value: string): InputBoxMessage | null => {
-				if (value.length === 0 || !this._findInput.getRegex()) {
-					return null;
+		this._findInput = this._wegista(new ContextScopedFindInput(nuww, this._contextViewSewvice, {
+			wabew: NWS_FIND_INPUT_WABEW,
+			pwacehowda: NWS_FIND_INPUT_PWACEHOWDa,
+			vawidation: (vawue: stwing): InputBoxMessage | nuww => {
+				if (vawue.wength === 0 || !this._findInput.getWegex()) {
+					wetuwn nuww;
 				}
-				try {
-					new RegExp(value);
-					return null;
+				twy {
+					new WegExp(vawue);
+					wetuwn nuww;
 				} catch (e) {
-					this.foundMatch = false;
+					this.foundMatch = fawse;
 					this.updateButtons(this.foundMatch);
-					return { content: e.message };
+					wetuwn { content: e.message };
 				}
 			}
-		}, contextKeyService, showOptionButtons));
+		}, contextKeySewvice, showOptionButtons));
 
-		// Find History with update delayer
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		// Find Histowy with update dewaya
+		this._updateHistowyDewaya = new Dewaya<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
 			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
+			this._dewayedUpdateHistowy();
 		});
 
-		this._findInput.setRegex(!!this._state.isRegex);
+		this._findInput.setWegex(!!this._state.isWegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
-		this._findInput.setWholeWords(!!this._state.wholeWord);
+		this._findInput.setWhoweWowds(!!this._state.whoweWowd);
 
-		this._register(this._findInput.onDidOptionChange(() => {
+		this._wegista(this._findInput.onDidOptionChange(() => {
 			this._state.change({
-				isRegex: this._findInput.getRegex(),
-				wholeWord: this._findInput.getWholeWords(),
+				isWegex: this._findInput.getWegex(),
+				whoweWowd: this._findInput.getWhoweWowds(),
 				matchCase: this._findInput.getCaseSensitive()
-			}, true);
+			}, twue);
 		}));
 
-		this._register(this._state.onFindReplaceStateChange(() => {
-			this._findInput.setRegex(this._state.isRegex);
-			this._findInput.setWholeWords(this._state.wholeWord);
+		this._wegista(this._state.onFindWepwaceStateChange(() => {
+			this._findInput.setWegex(this._state.isWegex);
+			this._findInput.setWhoweWowds(this._state.whoweWowd);
 			this._findInput.setCaseSensitive(this._state.matchCase);
-			this._replaceInput.setPreserveCase(this._state.preserveCase);
-			this.findFirst();
+			this._wepwaceInput.setPwesewveCase(this._state.pwesewveCase);
+			this.findFiwst();
 		}));
 
-		this._matchesCount = document.createElement('div');
-		this._matchesCount.className = 'matchesCount';
+		this._matchesCount = document.cweateEwement('div');
+		this._matchesCount.cwassName = 'matchesCount';
 		this._updateMatchesCount();
 
-		this.prevBtn = this._register(new SimpleButton({
-			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			icon: findPreviousMatchIcon,
-			onTrigger: () => {
-				this.find(true);
+		this.pwevBtn = this._wegista(new SimpweButton({
+			wabew: NWS_PWEVIOUS_MATCH_BTN_WABEW,
+			icon: findPweviousMatchIcon,
+			onTwigga: () => {
+				this.find(twue);
 			}
 		}));
 
-		this.nextBtn = this._register(new SimpleButton({
-			label: NLS_NEXT_MATCH_BTN_LABEL,
+		this.nextBtn = this._wegista(new SimpweButton({
+			wabew: NWS_NEXT_MATCH_BTN_WABEW,
 			icon: findNextMatchIcon,
-			onTrigger: () => {
-				this.find(false);
+			onTwigga: () => {
+				this.find(fawse);
 			}
 		}));
 
-		const closeBtn = this._register(new SimpleButton({
-			label: NLS_CLOSE_BTN_LABEL,
-			icon: widgetClose,
-			onTrigger: () => {
+		const cwoseBtn = this._wegista(new SimpweButton({
+			wabew: NWS_CWOSE_BTN_WABEW,
+			icon: widgetCwose,
+			onTwigga: () => {
 				this.hide();
 			}
 		}));
 
-		this._innerFindDomNode.appendChild(this._findInput.domNode);
-		this._innerFindDomNode.appendChild(this._matchesCount);
-		this._innerFindDomNode.appendChild(this.prevBtn.domNode);
-		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
-		this._innerFindDomNode.appendChild(closeBtn.domNode);
+		this._innewFindDomNode.appendChiwd(this._findInput.domNode);
+		this._innewFindDomNode.appendChiwd(this._matchesCount);
+		this._innewFindDomNode.appendChiwd(this.pwevBtn.domNode);
+		this._innewFindDomNode.appendChiwd(this.nextBtn.domNode);
+		this._innewFindDomNode.appendChiwd(cwoseBtn.domNode);
 
-		// _domNode wraps _innerDomNode, ensuring that
-		this._domNode.appendChild(this._innerFindDomNode);
+		// _domNode wwaps _innewDomNode, ensuwing that
+		this._domNode.appendChiwd(this._innewFindDomNode);
 
-		this.onkeyup(this._innerFindDomNode, e => {
-			if (e.equals(KeyCode.Escape)) {
+		this.onkeyup(this._innewFindDomNode, e => {
+			if (e.equaws(KeyCode.Escape)) {
 				this.hide();
-				e.preventDefault();
-				return;
+				e.pweventDefauwt();
+				wetuwn;
 			}
 		});
 
-		this._focusTracker = this._register(dom.trackFocus(this._innerFindDomNode));
-		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
-		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
+		this._focusTwacka = this._wegista(dom.twackFocus(this._innewFindDomNode));
+		this._wegista(this._focusTwacka.onDidFocus(this.onFocusTwackewFocus.bind(this)));
+		this._wegista(this._focusTwacka.onDidBwuw(this.onFocusTwackewBwuw.bind(this)));
 
-		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
+		this._findInputFocusTwacka = this._wegista(dom.twackFocus(this._findInput.domNode));
+		this._wegista(this._findInputFocusTwacka.onDidFocus(this.onFindInputFocusTwackewFocus.bind(this)));
+		this._wegista(this._findInputFocusTwacka.onDidBwuw(this.onFindInputFocusTwackewBwuw.bind(this)));
 
-		this._register(dom.addDisposableListener(this._innerFindDomNode, 'click', (event) => {
-			event.stopPropagation();
+		this._wegista(dom.addDisposabweWistena(this._innewFindDomNode, 'cwick', (event) => {
+			event.stopPwopagation();
 		}));
 
-		// Replace
-		this._innerReplaceDomNode = document.createElement('div');
-		this._innerReplaceDomNode.classList.add('simple-fr-replace-part');
+		// Wepwace
+		this._innewWepwaceDomNode = document.cweateEwement('div');
+		this._innewWepwaceDomNode.cwassWist.add('simpwe-fw-wepwace-pawt');
 
-		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
-			label: NLS_REPLACE_INPUT_LABEL,
-			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: []
-		}, contextKeyService, false));
-		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
-		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
-		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
-		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
+		this._wepwaceInput = this._wegista(new ContextScopedWepwaceInput(nuww, undefined, {
+			wabew: NWS_WEPWACE_INPUT_WABEW,
+			pwacehowda: NWS_WEPWACE_INPUT_PWACEHOWDa,
+			histowy: []
+		}, contextKeySewvice, fawse));
+		this._innewWepwaceDomNode.appendChiwd(this._wepwaceInput.domNode);
+		this._wepwaceInputFocusTwacka = this._wegista(dom.twackFocus(this._wepwaceInput.domNode));
+		this._wegista(this._wepwaceInputFocusTwacka.onDidFocus(this.onWepwaceInputFocusTwackewFocus.bind(this)));
+		this._wegista(this._wepwaceInputFocusTwacka.onDidBwuw(this.onWepwaceInputFocusTwackewBwuw.bind(this)));
 
-		this._domNode.appendChild(this._innerReplaceDomNode);
+		this._domNode.appendChiwd(this._innewWepwaceDomNode);
 
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
+		if (this._isWepwaceVisibwe) {
+			this._innewWepwaceDomNode.stywe.dispway = 'fwex';
+		} ewse {
+			this._innewWepwaceDomNode.stywe.dispway = 'none';
 		}
 
-		this._replaceBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_BTN_LABEL,
-			icon: findReplaceIcon,
-			onTrigger: () => {
-				this.replaceOne();
+		this._wepwaceBtn = this._wegista(new SimpweButton({
+			wabew: NWS_WEPWACE_BTN_WABEW,
+			icon: findWepwaceIcon,
+			onTwigga: () => {
+				this.wepwaceOne();
 			}
 		}));
 
-		// Replace all button
-		this._replaceAllBtn = this._register(new SimpleButton({
-			label: NLS_REPLACE_ALL_BTN_LABEL,
-			icon: findReplaceAllIcon,
-			onTrigger: () => {
-				this.replaceAll();
+		// Wepwace aww button
+		this._wepwaceAwwBtn = this._wegista(new SimpweButton({
+			wabew: NWS_WEPWACE_AWW_BTN_WABEW,
+			icon: findWepwaceAwwIcon,
+			onTwigga: () => {
+				this.wepwaceAww();
 			}
 		}));
 
-		this._innerReplaceDomNode.appendChild(this._replaceBtn.domNode);
-		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
+		this._innewWepwaceDomNode.appendChiwd(this._wepwaceBtn.domNode);
+		this._innewWepwaceDomNode.appendChiwd(this._wepwaceAwwBtn.domNode);
 
 
 	}
 
-	protected abstract onInputChanged(): boolean;
-	protected abstract find(previous: boolean): void;
-	protected abstract findFirst(): void;
-	protected abstract replaceOne(): void;
-	protected abstract replaceAll(): void;
-	protected abstract onFocusTrackerFocus(): void;
-	protected abstract onFocusTrackerBlur(): void;
-	protected abstract onFindInputFocusTrackerFocus(): void;
-	protected abstract onFindInputFocusTrackerBlur(): void;
-	protected abstract onReplaceInputFocusTrackerFocus(): void;
-	protected abstract onReplaceInputFocusTrackerBlur(): void;
+	pwotected abstwact onInputChanged(): boowean;
+	pwotected abstwact find(pwevious: boowean): void;
+	pwotected abstwact findFiwst(): void;
+	pwotected abstwact wepwaceOne(): void;
+	pwotected abstwact wepwaceAww(): void;
+	pwotected abstwact onFocusTwackewFocus(): void;
+	pwotected abstwact onFocusTwackewBwuw(): void;
+	pwotected abstwact onFindInputFocusTwackewFocus(): void;
+	pwotected abstwact onFindInputFocusTwackewBwuw(): void;
+	pwotected abstwact onWepwaceInputFocusTwackewFocus(): void;
+	pwotected abstwact onWepwaceInputFocusTwackewBwuw(): void;
 
-	protected get inputValue() {
-		return this._findInput.getValue();
+	pwotected get inputVawue() {
+		wetuwn this._findInput.getVawue();
 	}
 
-	protected get replaceValue() {
-		return this._replaceInput.getValue();
+	pwotected get wepwaceVawue() {
+		wetuwn this._wepwaceInput.getVawue();
 	}
 
-	public get focusTracker(): dom.IFocusTracker {
-		return this._focusTracker;
+	pubwic get focusTwacka(): dom.IFocusTwacka {
+		wetuwn this._focusTwacka;
 	}
 
-	public updateTheme(theme: IColorTheme): void {
-		const inputStyles: IFindInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
+	pubwic updateTheme(theme: ICowowTheme): void {
+		const inputStywes: IFindInputStywes = {
+			inputActiveOptionBowda: theme.getCowow(inputActiveOptionBowda),
+			inputActiveOptionFowegwound: theme.getCowow(inputActiveOptionFowegwound),
+			inputActiveOptionBackgwound: theme.getCowow(inputActiveOptionBackgwound),
+			inputBackgwound: theme.getCowow(inputBackgwound),
+			inputFowegwound: theme.getCowow(inputFowegwound),
+			inputBowda: theme.getCowow(inputBowda),
+			inputVawidationInfoBackgwound: theme.getCowow(inputVawidationInfoBackgwound),
+			inputVawidationInfoFowegwound: theme.getCowow(inputVawidationInfoFowegwound),
+			inputVawidationInfoBowda: theme.getCowow(inputVawidationInfoBowda),
+			inputVawidationWawningBackgwound: theme.getCowow(inputVawidationWawningBackgwound),
+			inputVawidationWawningFowegwound: theme.getCowow(inputVawidationWawningFowegwound),
+			inputVawidationWawningBowda: theme.getCowow(inputVawidationWawningBowda),
+			inputVawidationEwwowBackgwound: theme.getCowow(inputVawidationEwwowBackgwound),
+			inputVawidationEwwowFowegwound: theme.getCowow(inputVawidationEwwowFowegwound),
+			inputVawidationEwwowBowda: theme.getCowow(inputVawidationEwwowBowda),
 		};
-		this._findInput.style(inputStyles);
-		const replaceStyles: IReplaceInputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
-			inputBackground: theme.getColor(inputBackground),
-			inputForeground: theme.getColor(inputForeground),
-			inputBorder: theme.getColor(inputBorder),
-			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
-			inputValidationInfoForeground: theme.getColor(inputValidationInfoForeground),
-			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
-			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
-			inputValidationWarningForeground: theme.getColor(inputValidationWarningForeground),
-			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
-			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
-			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
+		this._findInput.stywe(inputStywes);
+		const wepwaceStywes: IWepwaceInputStywes = {
+			inputActiveOptionBowda: theme.getCowow(inputActiveOptionBowda),
+			inputActiveOptionFowegwound: theme.getCowow(inputActiveOptionFowegwound),
+			inputActiveOptionBackgwound: theme.getCowow(inputActiveOptionBackgwound),
+			inputBackgwound: theme.getCowow(inputBackgwound),
+			inputFowegwound: theme.getCowow(inputFowegwound),
+			inputBowda: theme.getCowow(inputBowda),
+			inputVawidationInfoBackgwound: theme.getCowow(inputVawidationInfoBackgwound),
+			inputVawidationInfoFowegwound: theme.getCowow(inputVawidationInfoFowegwound),
+			inputVawidationInfoBowda: theme.getCowow(inputVawidationInfoBowda),
+			inputVawidationWawningBackgwound: theme.getCowow(inputVawidationWawningBackgwound),
+			inputVawidationWawningFowegwound: theme.getCowow(inputVawidationWawningFowegwound),
+			inputVawidationWawningBowda: theme.getCowow(inputVawidationWawningBowda),
+			inputVawidationEwwowBackgwound: theme.getCowow(inputVawidationEwwowBackgwound),
+			inputVawidationEwwowFowegwound: theme.getCowow(inputVawidationEwwowFowegwound),
+			inputVawidationEwwowBowda: theme.getCowow(inputVawidationEwwowBowda),
 		};
-		this._replaceInput.style(replaceStyles);
+		this._wepwaceInput.stywe(wepwaceStywes);
 	}
 
-	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
+	pwivate _onStateChanged(e: FindWepwaceStateChangedEvent): void {
 		this._updateButtons();
 		this._updateMatchesCount();
 	}
 
-	private _updateButtons(): void {
-		this._findInput.setEnabled(this._isVisible);
-		this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
-		let findInputIsNonEmpty = (this._state.searchString.length > 0);
-		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
-		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
+	pwivate _updateButtons(): void {
+		this._findInput.setEnabwed(this._isVisibwe);
+		this._wepwaceInput.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe);
+		wet findInputIsNonEmpty = (this._state.seawchStwing.wength > 0);
+		this._wepwaceBtn.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe && findInputIsNonEmpty);
+		this._wepwaceAwwBtn.setEnabwed(this._isVisibwe && this._isWepwaceVisibwe && findInputIsNonEmpty);
 
-		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
-		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
+		this._domNode.cwassWist.toggwe('wepwaceToggwed', this._isWepwaceVisibwe);
+		this._toggweWepwaceBtn.setExpanded(this._isWepwaceVisibwe);
 	}
 
-	protected _updateMatchesCount(): void {
+	pwotected _updateMatchesCount(): void {
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		if (this._domNode && this._domNode.parentElement) {
-			this._domNode.parentElement.removeChild(this._domNode);
+		if (this._domNode && this._domNode.pawentEwement) {
+			this._domNode.pawentEwement.wemoveChiwd(this._domNode);
 		}
 	}
 
-	public getDomNode() {
-		return this._domNode;
+	pubwic getDomNode() {
+		wetuwn this._domNode;
 	}
 
-	public reveal(initialInput?: string): void {
-		if (initialInput) {
-			this._findInput.setValue(initialInput);
+	pubwic weveaw(initiawInput?: stwing): void {
+		if (initiawInput) {
+			this._findInput.setVawue(initiawInput);
 		}
 
-		if (this._isVisible) {
-			this._findInput.select();
-			return;
+		if (this._isVisibwe) {
+			this._findInput.sewect();
+			wetuwn;
 		}
 
-		this._isVisible = true;
+		this._isVisibwe = twue;
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			this._domNode.classList.add('visible', 'visible-transition');
-			this._domNode.setAttribute('aria-hidden', 'false');
-			this._findInput.select();
+			this._domNode.cwassWist.add('visibwe', 'visibwe-twansition');
+			this._domNode.setAttwibute('awia-hidden', 'fawse');
+			this._findInput.sewect();
 		}, 0);
 	}
 
-	public focus(): void {
+	pubwic focus(): void {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string): void {
-		if (initialInput && !this._isVisible) {
-			this._findInput.setValue(initialInput);
+	pubwic show(initiawInput?: stwing): void {
+		if (initiawInput && !this._isVisibwe) {
+			this._findInput.setVawue(initiawInput);
 		}
 
-		this._isVisible = true;
+		this._isVisibwe = twue;
 
 		setTimeout(() => {
-			this._domNode.classList.add('visible', 'visible-transition');
-			this._domNode.setAttribute('aria-hidden', 'false');
+			this._domNode.cwassWist.add('visibwe', 'visibwe-twansition');
+			this._domNode.setAttwibute('awia-hidden', 'fawse');
 
 			this.focus();
 		}, 0);
 	}
 
-	public showWithReplace(initialInput?: string, replaceInput?: string): void {
-		if (initialInput && !this._isVisible) {
-			this._findInput.setValue(initialInput);
+	pubwic showWithWepwace(initiawInput?: stwing, wepwaceInput?: stwing): void {
+		if (initiawInput && !this._isVisibwe) {
+			this._findInput.setVawue(initiawInput);
 		}
 
-		if (replaceInput && !this._isVisible) {
-			this._replaceInput.setValue(replaceInput);
+		if (wepwaceInput && !this._isVisibwe) {
+			this._wepwaceInput.setVawue(wepwaceInput);
 		}
 
-		this._isVisible = true;
-		this._isReplaceVisible = true;
-		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
+		this._isVisibwe = twue;
+		this._isWepwaceVisibwe = twue;
+		this._state.change({ isWepwaceWeveawed: this._isWepwaceVisibwe }, fawse);
+		if (this._isWepwaceVisibwe) {
+			this._innewWepwaceDomNode.stywe.dispway = 'fwex';
+		} ewse {
+			this._innewWepwaceDomNode.stywe.dispway = 'none';
 		}
 
 		setTimeout(() => {
-			this._domNode.classList.add('visible', 'visible-transition');
-			this._domNode.setAttribute('aria-hidden', 'false');
+			this._domNode.cwassWist.add('visibwe', 'visibwe-twansition');
+			this._domNode.setAttwibute('awia-hidden', 'fawse');
 			this._updateButtons();
 
-			this._replaceInput.focus();
+			this._wepwaceInput.focus();
 		}, 0);
 	}
 
-	public hide(): void {
-		if (this._isVisible) {
-			this._domNode.classList.remove('visible-transition');
-			this._domNode.setAttribute('aria-hidden', 'true');
-			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
+	pubwic hide(): void {
+		if (this._isVisibwe) {
+			this._domNode.cwassWist.wemove('visibwe-twansition');
+			this._domNode.setAttwibute('awia-hidden', 'twue');
+			// Need to deway toggwing visibiwity untiw afta Twansition, then visibiwity hidden - wemoves fwom tabIndex wist
 			setTimeout(() => {
-				this._isVisible = false;
+				this._isVisibwe = fawse;
 				this.updateButtons(this.foundMatch);
-				this._domNode.classList.remove('visible');
+				this._domNode.cwassWist.wemove('visibwe');
 			}, 200);
 		}
 	}
 
-	protected _delayedUpdateHistory() {
-		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
+	pwotected _dewayedUpdateHistowy() {
+		this._updateHistowyDewaya.twigga(this._updateHistowy.bind(this));
 	}
 
-	protected _updateHistory() {
-		this._findInput.inputBox.addToHistory();
+	pwotected _updateHistowy() {
+		this._findInput.inputBox.addToHistowy();
 	}
 
-	protected _getRegexValue(): boolean {
-		return this._findInput.getRegex();
+	pwotected _getWegexVawue(): boowean {
+		wetuwn this._findInput.getWegex();
 	}
 
-	protected _getWholeWordValue(): boolean {
-		return this._findInput.getWholeWords();
+	pwotected _getWhoweWowdVawue(): boowean {
+		wetuwn this._findInput.getWhoweWowds();
 	}
 
-	protected _getCaseSensitiveValue(): boolean {
-		return this._findInput.getCaseSensitive();
+	pwotected _getCaseSensitiveVawue(): boowean {
+		wetuwn this._findInput.getCaseSensitive();
 	}
 
-	protected updateButtons(foundMatch: boolean) {
-		const hasInput = this.inputValue.length > 0;
-		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
-		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+	pwotected updateButtons(foundMatch: boowean) {
+		const hasInput = this.inputVawue.wength > 0;
+		this.pwevBtn.setEnabwed(this._isVisibwe && hasInput && foundMatch);
+		this.nextBtn.setEnabwed(this._isVisibwe && hasInput && foundMatch);
 	}
 }
 
 // theming
-registerThemingParticipant((theme, collector) => {
-	const findWidgetBGColor = theme.getColor(editorWidgetBackground);
-	if (findWidgetBGColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { background-color: ${findWidgetBGColor} !important; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const findWidgetBGCowow = theme.getCowow(editowWidgetBackgwound);
+	if (findWidgetBGCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .simpwe-fw-find-pawt-wwappa { backgwound-cowow: ${findWidgetBGCowow} !impowtant; }`);
 	}
 
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { color: ${widgetForeground}; }`);
+	const widgetFowegwound = theme.getCowow(editowWidgetFowegwound);
+	if (widgetFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .simpwe-fw-find-pawt-wwappa { cowow: ${widgetFowegwound}; }`);
 	}
 
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .simpwe-fw-find-pawt-wwappa { box-shadow: 0 0 8px 2px ${widgetShadowCowow}; }`);
 	}
 });

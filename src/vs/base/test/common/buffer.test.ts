@@ -1,415 +1,415 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
-import { peekStream } from 'vs/base/common/stream';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { buffewedStweamToBuffa, buffewToWeadabwe, buffewToStweam, newWwiteabweBuffewStweam, weadabweToBuffa, stweamToBuffa, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { peekStweam } fwom 'vs/base/common/stweam';
 
-suite('Buffer', () => {
+suite('Buffa', () => {
 
-	test('issue #71993 - VSBuffer#toString returns numbers', () => {
-		const data = new Uint8Array([1, 2, 3, 'h'.charCodeAt(0), 'i'.charCodeAt(0), 4, 5]).buffer;
-		const buffer = VSBuffer.wrap(new Uint8Array(data, 3, 2));
-		assert.deepStrictEqual(buffer.toString(), 'hi');
+	test('issue #71993 - VSBuffa#toStwing wetuwns numbews', () => {
+		const data = new Uint8Awway([1, 2, 3, 'h'.chawCodeAt(0), 'i'.chawCodeAt(0), 4, 5]).buffa;
+		const buffa = VSBuffa.wwap(new Uint8Awway(data, 3, 2));
+		assewt.deepStwictEquaw(buffa.toStwing(), 'hi');
 	});
 
-	test('bufferToReadable / readableToBuffer', () => {
-		const content = 'Hello World';
-		const readable = bufferToReadable(VSBuffer.fromString(content));
+	test('buffewToWeadabwe / weadabweToBuffa', () => {
+		const content = 'Hewwo Wowwd';
+		const weadabwe = buffewToWeadabwe(VSBuffa.fwomStwing(content));
 
-		assert.strictEqual(readableToBuffer(readable).toString(), content);
+		assewt.stwictEquaw(weadabweToBuffa(weadabwe).toStwing(), content);
 	});
 
-	test('bufferToStream / streamToBuffer', async () => {
-		const content = 'Hello World';
-		const stream = bufferToStream(VSBuffer.fromString(content));
+	test('buffewToStweam / stweamToBuffa', async () => {
+		const content = 'Hewwo Wowwd';
+		const stweam = buffewToStweam(VSBuffa.fwomStwing(content));
 
-		assert.strictEqual((await streamToBuffer(stream)).toString(), content);
+		assewt.stwictEquaw((await stweamToBuffa(stweam)).toStwing(), content);
 	});
 
-	test('bufferedStreamToBuffer', async () => {
-		const content = 'Hello World';
-		const stream = await peekStream(bufferToStream(VSBuffer.fromString(content)), 1);
+	test('buffewedStweamToBuffa', async () => {
+		const content = 'Hewwo Wowwd';
+		const stweam = await peekStweam(buffewToStweam(VSBuffa.fwomStwing(content)), 1);
 
-		assert.strictEqual((await bufferedStreamToBuffer(stream)).toString(), content);
+		assewt.stwictEquaw((await buffewedStweamToBuffa(stweam)).toStwing(), content);
 	});
 
-	test('bufferWriteableStream - basics (no error)', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - basics (no ewwow)', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		assert.strictEqual(chunks.length, 2);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(chunks[1].toString(), 'World');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 2);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(chunks[1].toStwing(), 'Wowwd');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('bufferWriteableStream - basics (error)', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - basics (ewwow)', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.error(new Error());
-		stream.end();
+		stweam.ewwow(new Ewwow());
+		stweam.end();
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 1);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 1);
 	});
 
-	test('bufferWriteableStream - buffers data when no listener', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - buffews data when no wistena', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'HewwoWowwd');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('bufferWriteableStream - buffers errors when no listener', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - buffews ewwows when no wistena', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.error(new Error());
+		stweam.ewwow(new Ewwow());
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		stream.end();
+		stweam.end();
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 1);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 1);
 	});
 
-	test('bufferWriteableStream - buffers end when no listener', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - buffews end when no wistena', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'HewwoWowwd');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('bufferWriteableStream - nothing happens after end()', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - nothing happens afta end()', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		let dataCalledAfterEnd = false;
-		stream.on('data', data => {
-			dataCalledAfterEnd = true;
+		wet dataCawwedAftewEnd = fawse;
+		stweam.on('data', data => {
+			dataCawwedAftewEnd = twue;
 		});
 
-		let errorCalledAfterEnd = false;
-		stream.on('error', error => {
-			errorCalledAfterEnd = true;
+		wet ewwowCawwedAftewEnd = fawse;
+		stweam.on('ewwow', ewwow => {
+			ewwowCawwedAftewEnd = twue;
 		});
 
-		let endCalledAfterEnd = false;
-		stream.on('end', () => {
-			endCalledAfterEnd = true;
+		wet endCawwedAftewEnd = fawse;
+		stweam.on('end', () => {
+			endCawwedAftewEnd = twue;
 		});
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.error(new Error());
+		stweam.ewwow(new Ewwow());
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		assert.strictEqual(dataCalledAfterEnd, false);
-		assert.strictEqual(errorCalledAfterEnd, false);
-		assert.strictEqual(endCalledAfterEnd, false);
+		assewt.stwictEquaw(dataCawwedAftewEnd, fawse);
+		assewt.stwictEquaw(ewwowCawwedAftewEnd, fawse);
+		assewt.stwictEquaw(endCawwedAftewEnd, fawse);
 
-		assert.strictEqual(chunks.length, 2);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(chunks[1].toString(), 'World');
+		assewt.stwictEquaw(chunks.wength, 2);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(chunks[1].toStwing(), 'Wowwd');
 	});
 
-	test('bufferWriteableStream - pause/resume (simple)', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - pause/wesume (simpwe)', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		stream.pause();
+		stweam.pause();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		assert.strictEqual(chunks.length, 0);
-		assert.strictEqual(errors.length, 0);
-		assert.strictEqual(ended, false);
+		assewt.stwictEquaw(chunks.wength, 0);
+		assewt.stwictEquaw(ewwows.wength, 0);
+		assewt.stwictEquaw(ended, fawse);
 
-		stream.resume();
+		stweam.wesume();
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'HelloWorld');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'HewwoWowwd');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('bufferWriteableStream - pause/resume (pause after first write)', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - pause/wesume (pause afta fiwst wwite)', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 
-		stream.pause();
+		stweam.pause();
 
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(errors.length, 0);
-		assert.strictEqual(ended, false);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(ewwows.wength, 0);
+		assewt.stwictEquaw(ended, fawse);
 
-		stream.resume();
+		stweam.wesume();
 
-		assert.strictEqual(chunks.length, 2);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(chunks[1].toString(), 'World');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 2);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(chunks[1].toStwing(), 'Wowwd');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('bufferWriteableStream - pause/resume (error)', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - pause/wesume (ewwow)', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		stream.pause();
+		stweam.pause();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.error(new Error());
-		stream.end();
+		stweam.ewwow(new Ewwow());
+		stweam.end();
 
-		assert.strictEqual(chunks.length, 0);
-		assert.strictEqual(ended, false);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 0);
+		assewt.stwictEquaw(ended, fawse);
+		assewt.stwictEquaw(ewwows.wength, 0);
 
-		stream.resume();
+		stweam.wesume();
 
-		assert.strictEqual(chunks.length, 1);
-		assert.strictEqual(chunks[0].toString(), 'Hello');
-		assert.strictEqual(ended, true);
-		assert.strictEqual(errors.length, 1);
+		assewt.stwictEquaw(chunks.wength, 1);
+		assewt.stwictEquaw(chunks[0].toStwing(), 'Hewwo');
+		assewt.stwictEquaw(ended, twue);
+		assewt.stwictEquaw(ewwows.wength, 1);
 	});
 
-	test('bufferWriteableStream - destroy', async () => {
-		const stream = newWriteableBufferStream();
+	test('buffewWwiteabweStweam - destwoy', async () => {
+		const stweam = newWwiteabweBuffewStweam();
 
-		let chunks: VSBuffer[] = [];
-		stream.on('data', data => {
+		wet chunks: VSBuffa[] = [];
+		stweam.on('data', data => {
 			chunks.push(data);
 		});
 
-		let ended = false;
-		stream.on('end', () => {
-			ended = true;
+		wet ended = fawse;
+		stweam.on('end', () => {
+			ended = twue;
 		});
 
-		let errors: Error[] = [];
-		stream.on('error', error => {
-			errors.push(error);
+		wet ewwows: Ewwow[] = [];
+		stweam.on('ewwow', ewwow => {
+			ewwows.push(ewwow);
 		});
 
-		stream.destroy();
+		stweam.destwoy();
 
 		await timeout(0);
-		stream.write(VSBuffer.fromString('Hello'));
+		stweam.wwite(VSBuffa.fwomStwing('Hewwo'));
 		await timeout(0);
-		stream.end(VSBuffer.fromString('World'));
+		stweam.end(VSBuffa.fwomStwing('Wowwd'));
 
-		assert.strictEqual(chunks.length, 0);
-		assert.strictEqual(ended, false);
-		assert.strictEqual(errors.length, 0);
+		assewt.stwictEquaw(chunks.wength, 0);
+		assewt.stwictEquaw(ended, fawse);
+		assewt.stwictEquaw(ewwows.wength, 0);
 	});
 
-	test('Performance issue with VSBuffer#slice #76076', function () { // TODO@alexdima this test seems to fail in web (https://github.com/microsoft/vscode/issues/114042)
-		// Buffer#slice creates a view
-		if (typeof Buffer !== 'undefined') {
-			const buff = Buffer.from([10, 20, 30, 40]);
-			const b2 = buff.slice(1, 3);
-			assert.strictEqual(buff[1], 20);
-			assert.strictEqual(b2[0], 20);
+	test('Pewfowmance issue with VSBuffa#swice #76076', function () { // TODO@awexdima this test seems to faiw in web (https://github.com/micwosoft/vscode/issues/114042)
+		// Buffa#swice cweates a view
+		if (typeof Buffa !== 'undefined') {
+			const buff = Buffa.fwom([10, 20, 30, 40]);
+			const b2 = buff.swice(1, 3);
+			assewt.stwictEquaw(buff[1], 20);
+			assewt.stwictEquaw(b2[0], 20);
 
 			buff[1] = 17; // modify buff AND b2
-			assert.strictEqual(buff[1], 17);
-			assert.strictEqual(b2[0], 17);
+			assewt.stwictEquaw(buff[1], 17);
+			assewt.stwictEquaw(b2[0], 17);
 		}
 
-		// TypedArray#slice creates a copy
+		// TypedAwway#swice cweates a copy
 		{
-			const unit = new Uint8Array([10, 20, 30, 40]);
-			const u2 = unit.slice(1, 3);
-			assert.strictEqual(unit[1], 20);
-			assert.strictEqual(u2[0], 20);
+			const unit = new Uint8Awway([10, 20, 30, 40]);
+			const u2 = unit.swice(1, 3);
+			assewt.stwictEquaw(unit[1], 20);
+			assewt.stwictEquaw(u2[0], 20);
 
 			unit[1] = 17; // modify unit, NOT b2
-			assert.strictEqual(unit[1], 17);
-			assert.strictEqual(u2[0], 20);
+			assewt.stwictEquaw(unit[1], 17);
+			assewt.stwictEquaw(u2[0], 20);
 		}
 
-		// TypedArray#subarray creates a view
+		// TypedAwway#subawway cweates a view
 		{
-			const unit = new Uint8Array([10, 20, 30, 40]);
-			const u2 = unit.subarray(1, 3);
-			assert.strictEqual(unit[1], 20);
-			assert.strictEqual(u2[0], 20);
+			const unit = new Uint8Awway([10, 20, 30, 40]);
+			const u2 = unit.subawway(1, 3);
+			assewt.stwictEquaw(unit[1], 20);
+			assewt.stwictEquaw(u2[0], 20);
 
 			unit[1] = 17; // modify unit AND b2
-			assert.strictEqual(unit[1], 17);
-			assert.strictEqual(u2[0], 17);
+			assewt.stwictEquaw(unit[1], 17);
+			assewt.stwictEquaw(u2[0], 17);
 		}
 	});
 });

@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getSettings } from './settings';
+impowt { getSettings } fwom './settings';
 
-export interface MessagePoster {
+expowt intewface MessagePosta {
 	/**
-	 * Post a message to the markdown extension
+	 * Post a message to the mawkdown extension
 	 */
-	postMessage(type: string, body: object): void;
+	postMessage(type: stwing, body: object): void;
 }
 
-export const createPosterForVsCode = (vscode: any) => {
-	return new class implements MessagePoster {
-		postMessage(type: string, body: object): void {
+expowt const cweatePostewFowVsCode = (vscode: any) => {
+	wetuwn new cwass impwements MessagePosta {
+		postMessage(type: stwing, body: object): void {
 			vscode.postMessage({
 				type,
-				source: getSettings().source,
+				souwce: getSettings().souwce,
 				body
 			});
 		}

@@ -1,305 +1,305 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./documentSymbolsTree';
-import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { Range } from 'vs/editor/common/core/range';
-import { SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
-import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { localize } from 'vs/nls';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IdleValue } from 'vs/base/common/async';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+impowt 'vs/css!./documentSymbowsTwee';
+impowt 'vs/editow/contwib/symbowIcons/symbowIcons'; // The codicon symbow cowows awe defined hewe and must be woaded to get cowows
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IIdentityPwovida, IKeyboawdNavigationWabewPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeNode, ITweeWendewa, ITweeFiwta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { cweateMatches, FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { SymbowKind, SymbowKinds, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { OutwineEwement, OutwineGwoup, OutwineModew } fwom 'vs/editow/contwib/documentSymbows/outwineModew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IconWabew, IIconWabewVawueOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wistEwwowFowegwound, wistWawningFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IOutwineCompawatow, OutwineConfigKeys } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
 
-export type DocumentSymbolItem = OutlineGroup | OutlineElement;
+expowt type DocumentSymbowItem = OutwineGwoup | OutwineEwement;
 
-export class DocumentSymbolNavigationLabelProvider implements IKeyboardNavigationLabelProvider<DocumentSymbolItem> {
+expowt cwass DocumentSymbowNavigationWabewPwovida impwements IKeyboawdNavigationWabewPwovida<DocumentSymbowItem> {
 
-	getKeyboardNavigationLabel(element: DocumentSymbolItem): { toString(): string; } {
-		if (element instanceof OutlineGroup) {
-			return element.label;
-		} else {
-			return element.symbol.name;
+	getKeyboawdNavigationWabew(ewement: DocumentSymbowItem): { toStwing(): stwing; } {
+		if (ewement instanceof OutwineGwoup) {
+			wetuwn ewement.wabew;
+		} ewse {
+			wetuwn ewement.symbow.name;
 		}
 	}
 }
 
-export class DocumentSymbolAccessibilityProvider implements IListAccessibilityProvider<DocumentSymbolItem> {
+expowt cwass DocumentSymbowAccessibiwityPwovida impwements IWistAccessibiwityPwovida<DocumentSymbowItem> {
 
-	constructor(private readonly _ariaLabel: string) { }
+	constwuctow(pwivate weadonwy _awiaWabew: stwing) { }
 
-	getWidgetAriaLabel(): string {
-		return this._ariaLabel;
+	getWidgetAwiaWabew(): stwing {
+		wetuwn this._awiaWabew;
 	}
-	getAriaLabel(element: DocumentSymbolItem): string | null {
-		if (element instanceof OutlineGroup) {
-			return element.label;
-		} else {
-			return element.symbol.name;
+	getAwiaWabew(ewement: DocumentSymbowItem): stwing | nuww {
+		if (ewement instanceof OutwineGwoup) {
+			wetuwn ewement.wabew;
+		} ewse {
+			wetuwn ewement.symbow.name;
 		}
 	}
 }
 
-export class DocumentSymbolIdentityProvider implements IIdentityProvider<DocumentSymbolItem> {
-	getId(element: DocumentSymbolItem): { toString(): string; } {
-		return element.id;
+expowt cwass DocumentSymbowIdentityPwovida impwements IIdentityPwovida<DocumentSymbowItem> {
+	getId(ewement: DocumentSymbowItem): { toStwing(): stwing; } {
+		wetuwn ewement.id;
 	}
 }
 
-class DocumentSymbolGroupTemplate {
-	static readonly id = 'DocumentSymbolGroupTemplate';
-	constructor(
-		readonly labelContainer: HTMLElement,
-		readonly label: HighlightedLabel,
+cwass DocumentSymbowGwoupTempwate {
+	static weadonwy id = 'DocumentSymbowGwoupTempwate';
+	constwuctow(
+		weadonwy wabewContaina: HTMWEwement,
+		weadonwy wabew: HighwightedWabew,
 	) { }
 }
 
-class DocumentSymbolTemplate {
-	static readonly id = 'DocumentSymbolTemplate';
-	constructor(
-		readonly container: HTMLElement,
-		readonly iconLabel: IconLabel,
-		readonly iconClass: HTMLElement,
-		readonly decoration: HTMLElement,
+cwass DocumentSymbowTempwate {
+	static weadonwy id = 'DocumentSymbowTempwate';
+	constwuctow(
+		weadonwy containa: HTMWEwement,
+		weadonwy iconWabew: IconWabew,
+		weadonwy iconCwass: HTMWEwement,
+		weadonwy decowation: HTMWEwement,
 	) { }
 }
 
-export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem> {
+expowt cwass DocumentSymbowViwtuawDewegate impwements IWistViwtuawDewegate<DocumentSymbowItem> {
 
-	getHeight(_element: DocumentSymbolItem): number {
-		return 22;
+	getHeight(_ewement: DocumentSymbowItem): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: DocumentSymbolItem): string {
-		return element instanceof OutlineGroup
-			? DocumentSymbolGroupTemplate.id
-			: DocumentSymbolTemplate.id;
+	getTempwateId(ewement: DocumentSymbowItem): stwing {
+		wetuwn ewement instanceof OutwineGwoup
+			? DocumentSymbowGwoupTempwate.id
+			: DocumentSymbowTempwate.id;
 	}
 }
 
-export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzyScore, DocumentSymbolGroupTemplate> {
+expowt cwass DocumentSymbowGwoupWendewa impwements ITweeWendewa<OutwineGwoup, FuzzyScowe, DocumentSymbowGwoupTempwate> {
 
-	readonly templateId: string = DocumentSymbolGroupTemplate.id;
+	weadonwy tempwateId: stwing = DocumentSymbowGwoupTempwate.id;
 
-	renderTemplate(container: HTMLElement): DocumentSymbolGroupTemplate {
-		const labelContainer = dom.$('.outline-element-label');
-		container.classList.add('outline-element');
-		dom.append(container, labelContainer);
-		return new DocumentSymbolGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
+	wendewTempwate(containa: HTMWEwement): DocumentSymbowGwoupTempwate {
+		const wabewContaina = dom.$('.outwine-ewement-wabew');
+		containa.cwassWist.add('outwine-ewement');
+		dom.append(containa, wabewContaina);
+		wetuwn new DocumentSymbowGwoupTempwate(wabewContaina, new HighwightedWabew(wabewContaina, twue));
 	}
 
-	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, _index: number, template: DocumentSymbolGroupTemplate): void {
-		template.label.set(node.element.label, createMatches(node.filterData));
+	wendewEwement(node: ITweeNode<OutwineGwoup, FuzzyScowe>, _index: numba, tempwate: DocumentSymbowGwoupTempwate): void {
+		tempwate.wabew.set(node.ewement.wabew, cweateMatches(node.fiwtewData));
 	}
 
-	disposeTemplate(_template: DocumentSymbolGroupTemplate): void {
+	disposeTempwate(_tempwate: DocumentSymbowGwoupTempwate): void {
 		// nothing
 	}
 }
 
-export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
+expowt cwass DocumentSymbowWendewa impwements ITweeWendewa<OutwineEwement, FuzzyScowe, DocumentSymbowTempwate> {
 
-	readonly templateId: string = DocumentSymbolTemplate.id;
+	weadonwy tempwateId: stwing = DocumentSymbowTempwate.id;
 
-	constructor(
-		private _renderMarker: boolean,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
+	constwuctow(
+		pwivate _wendewMawka: boowean,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {
-		container.classList.add('outline-element');
-		const iconLabel = new IconLabel(container, { supportHighlights: true });
-		const iconClass = dom.$('.outline-element-icon');
-		const decoration = dom.$('.outline-element-decoration');
-		container.prepend(iconClass);
-		container.appendChild(decoration);
-		return new DocumentSymbolTemplate(container, iconLabel, iconClass, decoration);
+	wendewTempwate(containa: HTMWEwement): DocumentSymbowTempwate {
+		containa.cwassWist.add('outwine-ewement');
+		const iconWabew = new IconWabew(containa, { suppowtHighwights: twue });
+		const iconCwass = dom.$('.outwine-ewement-icon');
+		const decowation = dom.$('.outwine-ewement-decowation');
+		containa.pwepend(iconCwass);
+		containa.appendChiwd(decowation);
+		wetuwn new DocumentSymbowTempwate(containa, iconWabew, iconCwass, decowation);
 	}
 
-	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
-		const { element } = node;
-		const options: IIconLabelValueOptions = {
-			matches: createMatches(node.filterData),
-			labelEscapeNewLines: true,
-			extraClasses: ['nowrap'],
-			title: localize('title.template', "{0} ({1})", element.symbol.name, DocumentSymbolRenderer._symbolKindNames[element.symbol.kind])
+	wendewEwement(node: ITweeNode<OutwineEwement, FuzzyScowe>, _index: numba, tempwate: DocumentSymbowTempwate): void {
+		const { ewement } = node;
+		const options: IIconWabewVawueOptions = {
+			matches: cweateMatches(node.fiwtewData),
+			wabewEscapeNewWines: twue,
+			extwaCwasses: ['nowwap'],
+			titwe: wocawize('titwe.tempwate', "{0} ({1})", ewement.symbow.name, DocumentSymbowWendewa._symbowKindNames[ewement.symbow.kind])
 		};
-		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
-			// add styles for the icons
-			template.iconClass.className = '';
-			template.iconClass.classList.add(`outline-element-icon`, ...SymbolKinds.toCssClassName(element.symbol.kind, true).split(' '));
+		if (this._configuwationSewvice.getVawue(OutwineConfigKeys.icons)) {
+			// add stywes fow the icons
+			tempwate.iconCwass.cwassName = '';
+			tempwate.iconCwass.cwassWist.add(`outwine-ewement-icon`, ...SymbowKinds.toCssCwassName(ewement.symbow.kind, twue).spwit(' '));
 		}
-		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
-			options.extraClasses!.push(`deprecated`);
+		if (ewement.symbow.tags.indexOf(SymbowTag.Depwecated) >= 0) {
+			options.extwaCwasses!.push(`depwecated`);
 			options.matches = [];
 		}
-		template.iconLabel.setLabel(element.symbol.name, element.symbol.detail, options);
+		tempwate.iconWabew.setWabew(ewement.symbow.name, ewement.symbow.detaiw, options);
 
-		if (this._renderMarker) {
-			this._renderMarkerInfo(element, template);
+		if (this._wendewMawka) {
+			this._wendewMawkewInfo(ewement, tempwate);
 		}
 	}
 
-	private _renderMarkerInfo(element: OutlineElement, template: DocumentSymbolTemplate): void {
+	pwivate _wendewMawkewInfo(ewement: OutwineEwement, tempwate: DocumentSymbowTempwate): void {
 
-		if (!element.marker) {
-			dom.hide(template.decoration);
-			template.container.style.removeProperty('--outline-element-color');
-			return;
+		if (!ewement.mawka) {
+			dom.hide(tempwate.decowation);
+			tempwate.containa.stywe.wemovePwopewty('--outwine-ewement-cowow');
+			wetuwn;
 		}
 
-		const { count, topSev } = element.marker;
-		const color = this._themeService.getColorTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-		const cssColor = color ? color.toString() : 'inherit';
+		const { count, topSev } = ewement.mawka;
+		const cowow = this._themeSewvice.getCowowTheme().getCowow(topSev === MawkewSevewity.Ewwow ? wistEwwowFowegwound : wistWawningFowegwound);
+		const cssCowow = cowow ? cowow.toStwing() : 'inhewit';
 
-		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
-			template.container.style.setProperty('--outline-element-color', cssColor);
-		} else {
-			template.container.style.removeProperty('--outline-element-color');
+		// cowow of the wabew
+		if (this._configuwationSewvice.getVawue(OutwineConfigKeys.pwobwemsCowows)) {
+			tempwate.containa.stywe.setPwopewty('--outwine-ewement-cowow', cssCowow);
+		} ewse {
+			tempwate.containa.stywe.wemovePwopewty('--outwine-ewement-cowow');
 		}
 
-		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
-			dom.hide(template.decoration);
+		// badge with cowow/wowwup
+		if (!this._configuwationSewvice.getVawue(OutwineConfigKeys.pwobwemsBadges)) {
+			dom.hide(tempwate.decowation);
 
-		} else if (count > 0) {
-			dom.show(template.decoration);
-			template.decoration.classList.remove('bubble');
-			template.decoration.innerText = count < 10 ? count.toString() : '+9';
-			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
-			template.decoration.style.setProperty('--outline-element-color', cssColor);
+		} ewse if (count > 0) {
+			dom.show(tempwate.decowation);
+			tempwate.decowation.cwassWist.wemove('bubbwe');
+			tempwate.decowation.innewText = count < 10 ? count.toStwing() : '+9';
+			tempwate.decowation.titwe = count === 1 ? wocawize('1.pwobwem', "1 pwobwem in this ewement") : wocawize('N.pwobwem', "{0} pwobwems in this ewement", count);
+			tempwate.decowation.stywe.setPwopewty('--outwine-ewement-cowow', cssCowow);
 
-		} else {
-			dom.show(template.decoration);
-			template.decoration.classList.add('bubble');
-			template.decoration.innerText = '\uea71';
-			template.decoration.title = localize('deep.problem', "Contains elements with problems");
-			template.decoration.style.setProperty('--outline-element-color', cssColor);
+		} ewse {
+			dom.show(tempwate.decowation);
+			tempwate.decowation.cwassWist.add('bubbwe');
+			tempwate.decowation.innewText = '\uea71';
+			tempwate.decowation.titwe = wocawize('deep.pwobwem', "Contains ewements with pwobwems");
+			tempwate.decowation.stywe.setPwopewty('--outwine-ewement-cowow', cssCowow);
 		}
 	}
 
-	private static _symbolKindNames: { [symbol: number]: string } = {
-		[SymbolKind.Array]: localize('Array', "array"),
-		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
-		[SymbolKind.Class]: localize('Class', "class"),
-		[SymbolKind.Constant]: localize('Constant', "constant"),
-		[SymbolKind.Constructor]: localize('Constructor', "constructor"),
-		[SymbolKind.Enum]: localize('Enum', "enumeration"),
-		[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
-		[SymbolKind.Event]: localize('Event', "event"),
-		[SymbolKind.Field]: localize('Field', "field"),
-		[SymbolKind.File]: localize('File', "file"),
-		[SymbolKind.Function]: localize('Function', "function"),
-		[SymbolKind.Interface]: localize('Interface', "interface"),
-		[SymbolKind.Key]: localize('Key', "key"),
-		[SymbolKind.Method]: localize('Method', "method"),
-		[SymbolKind.Module]: localize('Module', "module"),
-		[SymbolKind.Namespace]: localize('Namespace', "namespace"),
-		[SymbolKind.Null]: localize('Null', "null"),
-		[SymbolKind.Number]: localize('Number', "number"),
-		[SymbolKind.Object]: localize('Object', "object"),
-		[SymbolKind.Operator]: localize('Operator', "operator"),
-		[SymbolKind.Package]: localize('Package', "package"),
-		[SymbolKind.Property]: localize('Property', "property"),
-		[SymbolKind.String]: localize('String', "string"),
-		[SymbolKind.Struct]: localize('Struct', "struct"),
-		[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
-		[SymbolKind.Variable]: localize('Variable', "variable"),
+	pwivate static _symbowKindNames: { [symbow: numba]: stwing } = {
+		[SymbowKind.Awway]: wocawize('Awway', "awway"),
+		[SymbowKind.Boowean]: wocawize('Boowean', "boowean"),
+		[SymbowKind.Cwass]: wocawize('Cwass', "cwass"),
+		[SymbowKind.Constant]: wocawize('Constant', "constant"),
+		[SymbowKind.Constwuctow]: wocawize('Constwuctow', "constwuctow"),
+		[SymbowKind.Enum]: wocawize('Enum', "enumewation"),
+		[SymbowKind.EnumMemba]: wocawize('EnumMemba', "enumewation memba"),
+		[SymbowKind.Event]: wocawize('Event', "event"),
+		[SymbowKind.Fiewd]: wocawize('Fiewd', "fiewd"),
+		[SymbowKind.Fiwe]: wocawize('Fiwe', "fiwe"),
+		[SymbowKind.Function]: wocawize('Function', "function"),
+		[SymbowKind.Intewface]: wocawize('Intewface', "intewface"),
+		[SymbowKind.Key]: wocawize('Key', "key"),
+		[SymbowKind.Method]: wocawize('Method', "method"),
+		[SymbowKind.Moduwe]: wocawize('Moduwe', "moduwe"),
+		[SymbowKind.Namespace]: wocawize('Namespace', "namespace"),
+		[SymbowKind.Nuww]: wocawize('Nuww', "nuww"),
+		[SymbowKind.Numba]: wocawize('Numba', "numba"),
+		[SymbowKind.Object]: wocawize('Object', "object"),
+		[SymbowKind.Opewatow]: wocawize('Opewatow', "opewatow"),
+		[SymbowKind.Package]: wocawize('Package', "package"),
+		[SymbowKind.Pwopewty]: wocawize('Pwopewty', "pwopewty"),
+		[SymbowKind.Stwing]: wocawize('Stwing', "stwing"),
+		[SymbowKind.Stwuct]: wocawize('Stwuct', "stwuct"),
+		[SymbowKind.TypePawameta]: wocawize('TypePawameta', "type pawameta"),
+		[SymbowKind.Vawiabwe]: wocawize('Vawiabwe', "vawiabwe"),
 	};
 
-	disposeTemplate(_template: DocumentSymbolTemplate): void {
-		_template.iconLabel.dispose();
+	disposeTempwate(_tempwate: DocumentSymbowTempwate): void {
+		_tempwate.iconWabew.dispose();
 	}
 }
 
-export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
+expowt cwass DocumentSymbowFiwta impwements ITweeFiwta<DocumentSymbowItem> {
 
-	static readonly kindToConfigName = Object.freeze({
-		[SymbolKind.File]: 'showFiles',
-		[SymbolKind.Module]: 'showModules',
-		[SymbolKind.Namespace]: 'showNamespaces',
-		[SymbolKind.Package]: 'showPackages',
-		[SymbolKind.Class]: 'showClasses',
-		[SymbolKind.Method]: 'showMethods',
-		[SymbolKind.Property]: 'showProperties',
-		[SymbolKind.Field]: 'showFields',
-		[SymbolKind.Constructor]: 'showConstructors',
-		[SymbolKind.Enum]: 'showEnums',
-		[SymbolKind.Interface]: 'showInterfaces',
-		[SymbolKind.Function]: 'showFunctions',
-		[SymbolKind.Variable]: 'showVariables',
-		[SymbolKind.Constant]: 'showConstants',
-		[SymbolKind.String]: 'showStrings',
-		[SymbolKind.Number]: 'showNumbers',
-		[SymbolKind.Boolean]: 'showBooleans',
-		[SymbolKind.Array]: 'showArrays',
-		[SymbolKind.Object]: 'showObjects',
-		[SymbolKind.Key]: 'showKeys',
-		[SymbolKind.Null]: 'showNull',
-		[SymbolKind.EnumMember]: 'showEnumMembers',
-		[SymbolKind.Struct]: 'showStructs',
-		[SymbolKind.Event]: 'showEvents',
-		[SymbolKind.Operator]: 'showOperators',
-		[SymbolKind.TypeParameter]: 'showTypeParameters',
+	static weadonwy kindToConfigName = Object.fweeze({
+		[SymbowKind.Fiwe]: 'showFiwes',
+		[SymbowKind.Moduwe]: 'showModuwes',
+		[SymbowKind.Namespace]: 'showNamespaces',
+		[SymbowKind.Package]: 'showPackages',
+		[SymbowKind.Cwass]: 'showCwasses',
+		[SymbowKind.Method]: 'showMethods',
+		[SymbowKind.Pwopewty]: 'showPwopewties',
+		[SymbowKind.Fiewd]: 'showFiewds',
+		[SymbowKind.Constwuctow]: 'showConstwuctows',
+		[SymbowKind.Enum]: 'showEnums',
+		[SymbowKind.Intewface]: 'showIntewfaces',
+		[SymbowKind.Function]: 'showFunctions',
+		[SymbowKind.Vawiabwe]: 'showVawiabwes',
+		[SymbowKind.Constant]: 'showConstants',
+		[SymbowKind.Stwing]: 'showStwings',
+		[SymbowKind.Numba]: 'showNumbews',
+		[SymbowKind.Boowean]: 'showBooweans',
+		[SymbowKind.Awway]: 'showAwways',
+		[SymbowKind.Object]: 'showObjects',
+		[SymbowKind.Key]: 'showKeys',
+		[SymbowKind.Nuww]: 'showNuww',
+		[SymbowKind.EnumMemba]: 'showEnumMembews',
+		[SymbowKind.Stwuct]: 'showStwucts',
+		[SymbowKind.Event]: 'showEvents',
+		[SymbowKind.Opewatow]: 'showOpewatows',
+		[SymbowKind.TypePawameta]: 'showTypePawametews',
 	});
 
-	constructor(
-		private readonly _prefix: 'breadcrumbs' | 'outline',
-		@ITextResourceConfigurationService private readonly _textResourceConfigService: ITextResourceConfigurationService,
+	constwuctow(
+		pwivate weadonwy _pwefix: 'bweadcwumbs' | 'outwine',
+		@ITextWesouwceConfiguwationSewvice pwivate weadonwy _textWesouwceConfigSewvice: ITextWesouwceConfiguwationSewvice,
 	) { }
 
-	filter(element: DocumentSymbolItem): boolean {
-		const outline = OutlineModel.get(element);
-		if (!(element instanceof OutlineElement)) {
-			return true;
+	fiwta(ewement: DocumentSymbowItem): boowean {
+		const outwine = OutwineModew.get(ewement);
+		if (!(ewement instanceof OutwineEwement)) {
+			wetuwn twue;
 		}
-		const configName = DocumentSymbolFilter.kindToConfigName[element.symbol.kind];
-		const configKey = `${this._prefix}.${configName}`;
-		return this._textResourceConfigService.getValue(outline?.uri, configKey);
+		const configName = DocumentSymbowFiwta.kindToConfigName[ewement.symbow.kind];
+		const configKey = `${this._pwefix}.${configName}`;
+		wetuwn this._textWesouwceConfigSewvice.getVawue(outwine?.uwi, configKey);
 	}
 }
 
-export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
+expowt cwass DocumentSymbowCompawatow impwements IOutwineCompawatow<DocumentSymbowItem> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	pwivate weadonwy _cowwatow = new IdweVawue<Intw.Cowwatow>(() => new Intw.Cowwatow(undefined, { numewic: twue }));
 
-	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
-		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.order - b.order;
-		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range) || this._collator.value.compare(a.symbol.name, b.symbol.name);
+	compaweByPosition(a: DocumentSymbowItem, b: DocumentSymbowItem): numba {
+		if (a instanceof OutwineGwoup && b instanceof OutwineGwoup) {
+			wetuwn a.owda - b.owda;
+		} ewse if (a instanceof OutwineEwement && b instanceof OutwineEwement) {
+			wetuwn Wange.compaweWangesUsingStawts(a.symbow.wange, b.symbow.wange) || this._cowwatow.vawue.compawe(a.symbow.name, b.symbow.name);
 		}
-		return 0;
+		wetuwn 0;
 	}
-	compareByType(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
-		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.order - b.order;
-		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return a.symbol.kind - b.symbol.kind || this._collator.value.compare(a.symbol.name, b.symbol.name);
+	compaweByType(a: DocumentSymbowItem, b: DocumentSymbowItem): numba {
+		if (a instanceof OutwineGwoup && b instanceof OutwineGwoup) {
+			wetuwn a.owda - b.owda;
+		} ewse if (a instanceof OutwineEwement && b instanceof OutwineEwement) {
+			wetuwn a.symbow.kind - b.symbow.kind || this._cowwatow.vawue.compawe(a.symbow.name, b.symbow.name);
 		}
-		return 0;
+		wetuwn 0;
 	}
-	compareByName(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
-		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.order - b.order;
-		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
-			return this._collator.value.compare(a.symbol.name, b.symbol.name) || Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
+	compaweByName(a: DocumentSymbowItem, b: DocumentSymbowItem): numba {
+		if (a instanceof OutwineGwoup && b instanceof OutwineGwoup) {
+			wetuwn a.owda - b.owda;
+		} ewse if (a instanceof OutwineEwement && b instanceof OutwineEwement) {
+			wetuwn this._cowwatow.vawue.compawe(a.symbow.name, b.symbow.name) || Wange.compaweWangesUsingStawts(a.symbow.wange, b.symbow.wange);
 		}
-		return 0;
+		wetuwn 0;
 	}
 }

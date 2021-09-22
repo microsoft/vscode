@@ -1,180 +1,180 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { asArray } from 'vs/base/common/arrays';
-import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { asAwway } fwom 'vs/base/common/awways';
+impowt { IMawkdownStwing, isEmptyMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { HovewOpewation, HovewStawtMode, IHovewComputa } fwom 'vs/editow/contwib/hova/hovewOpewation';
+impowt { GwyphHovewWidget } fwom 'vs/editow/contwib/hova/hovewWidgets';
+impowt { IOpenewSewvice, NuwwOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
 
-export interface IHoverMessage {
-	value: IMarkdownString;
+expowt intewface IHovewMessage {
+	vawue: IMawkdownStwing;
 }
 
-class MarginComputer implements IHoverComputer<IHoverMessage[]> {
+cwass MawginComputa impwements IHovewComputa<IHovewMessage[]> {
 
-	private readonly _editor: ICodeEditor;
-	private _lineNumber: number;
-	private _result: IHoverMessage[];
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _wineNumba: numba;
+	pwivate _wesuwt: IHovewMessage[];
 
-	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-		this._lineNumber = -1;
-		this._result = [];
+	constwuctow(editow: ICodeEditow) {
+		this._editow = editow;
+		this._wineNumba = -1;
+		this._wesuwt = [];
 	}
 
-	public setLineNumber(lineNumber: number): void {
-		this._lineNumber = lineNumber;
-		this._result = [];
+	pubwic setWineNumba(wineNumba: numba): void {
+		this._wineNumba = wineNumba;
+		this._wesuwt = [];
 	}
 
-	public clearResult(): void {
-		this._result = [];
+	pubwic cweawWesuwt(): void {
+		this._wesuwt = [];
 	}
 
-	public computeSync(): IHoverMessage[] {
+	pubwic computeSync(): IHovewMessage[] {
 
-		const toHoverMessage = (contents: IMarkdownString): IHoverMessage => {
-			return {
-				value: contents
+		const toHovewMessage = (contents: IMawkdownStwing): IHovewMessage => {
+			wetuwn {
+				vawue: contents
 			};
 		};
 
-		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
+		const wineDecowations = this._editow.getWineDecowations(this._wineNumba);
 
-		const result: IHoverMessage[] = [];
-		if (!lineDecorations) {
-			return result;
+		const wesuwt: IHovewMessage[] = [];
+		if (!wineDecowations) {
+			wetuwn wesuwt;
 		}
 
-		for (const d of lineDecorations) {
-			if (!d.options.glyphMarginClassName) {
+		fow (const d of wineDecowations) {
+			if (!d.options.gwyphMawginCwassName) {
 				continue;
 			}
 
-			const hoverMessage = d.options.glyphMarginHoverMessage;
-			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
+			const hovewMessage = d.options.gwyphMawginHovewMessage;
+			if (!hovewMessage || isEmptyMawkdownStwing(hovewMessage)) {
 				continue;
 			}
 
-			result.push(...asArray(hoverMessage).map(toHoverMessage));
+			wesuwt.push(...asAwway(hovewMessage).map(toHovewMessage));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public onResult(result: IHoverMessage[], isFromSynchronousComputation: boolean): void {
-		this._result = this._result.concat(result);
+	pubwic onWesuwt(wesuwt: IHovewMessage[], isFwomSynchwonousComputation: boowean): void {
+		this._wesuwt = this._wesuwt.concat(wesuwt);
 	}
 
-	public getResult(): IHoverMessage[] {
-		return this._result;
+	pubwic getWesuwt(): IHovewMessage[] {
+		wetuwn this._wesuwt;
 	}
 
-	public getResultWithLoadingMessage(): IHoverMessage[] {
-		return this.getResult();
+	pubwic getWesuwtWithWoadingMessage(): IHovewMessage[] {
+		wetuwn this.getWesuwt();
 	}
 }
 
-export class ModesGlyphHoverWidget extends GlyphHoverWidget {
+expowt cwass ModesGwyphHovewWidget extends GwyphHovewWidget {
 
-	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
-	private _messages: IHoverMessage[];
-	private _lastLineNumber: number;
+	pubwic static weadonwy ID = 'editow.contwib.modesGwyphHovewWidget';
+	pwivate _messages: IHovewMessage[];
+	pwivate _wastWineNumba: numba;
 
-	private readonly _markdownRenderer: MarkdownRenderer;
-	private readonly _computer: MarginComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverMessage[]>;
-	private readonly _renderDisposeables = this._register(new DisposableStore());
+	pwivate weadonwy _mawkdownWendewa: MawkdownWendewa;
+	pwivate weadonwy _computa: MawginComputa;
+	pwivate weadonwy _hovewOpewation: HovewOpewation<IHovewMessage[]>;
+	pwivate weadonwy _wendewDisposeabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		editor: ICodeEditor,
-		modeService: IModeService,
-		openerService: IOpenerService = NullOpenerService,
+	constwuctow(
+		editow: ICodeEditow,
+		modeSewvice: IModeSewvice,
+		openewSewvice: IOpenewSewvice = NuwwOpenewSewvice,
 	) {
-		super(ModesGlyphHoverWidget.ID, editor);
+		supa(ModesGwyphHovewWidget.ID, editow);
 
 		this._messages = [];
-		this._lastLineNumber = -1;
+		this._wastWineNumba = -1;
 
-		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
-		this._computer = new MarginComputer(this._editor);
+		this._mawkdownWendewa = this._wegista(new MawkdownWendewa({ editow: this._editow }, modeSewvice, openewSewvice));
+		this._computa = new MawginComputa(this._editow);
 
-		this._hoverOperation = new HoverOperation(
-			this._computer,
-			(result: IHoverMessage[]) => this._withResult(result),
+		this._hovewOpewation = new HovewOpewation(
+			this._computa,
+			(wesuwt: IHovewMessage[]) => this._withWesuwt(wesuwt),
 			undefined,
-			(result: any) => this._withResult(result),
+			(wesuwt: any) => this._withWesuwt(wesuwt),
 			300
 		);
 
 	}
 
-	public override dispose(): void {
-		this._hoverOperation.cancel();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._hovewOpewation.cancew();
+		supa.dispose();
 	}
 
-	public onModelDecorationsChanged(): void {
-		if (this.isVisible) {
-			// The decorations have changed and the hover is visible,
-			// we need to recompute the displayed text
-			this._hoverOperation.cancel();
-			this._computer.clearResult();
-			this._hoverOperation.start(HoverStartMode.Delayed);
+	pubwic onModewDecowationsChanged(): void {
+		if (this.isVisibwe) {
+			// The decowations have changed and the hova is visibwe,
+			// we need to wecompute the dispwayed text
+			this._hovewOpewation.cancew();
+			this._computa.cweawWesuwt();
+			this._hovewOpewation.stawt(HovewStawtMode.Dewayed);
 		}
 	}
 
-	public startShowingAt(lineNumber: number): void {
-		if (this._lastLineNumber === lineNumber) {
-			// We have to show the widget at the exact same line number as before, so no work is needed
-			return;
+	pubwic stawtShowingAt(wineNumba: numba): void {
+		if (this._wastWineNumba === wineNumba) {
+			// We have to show the widget at the exact same wine numba as befowe, so no wowk is needed
+			wetuwn;
 		}
 
-		this._hoverOperation.cancel();
+		this._hovewOpewation.cancew();
 
 		this.hide();
 
-		this._lastLineNumber = lineNumber;
-		this._computer.setLineNumber(lineNumber);
-		this._hoverOperation.start(HoverStartMode.Delayed);
+		this._wastWineNumba = wineNumba;
+		this._computa.setWineNumba(wineNumba);
+		this._hovewOpewation.stawt(HovewStawtMode.Dewayed);
 	}
 
-	public override hide(): void {
-		this._lastLineNumber = -1;
-		this._hoverOperation.cancel();
-		super.hide();
+	pubwic ovewwide hide(): void {
+		this._wastWineNumba = -1;
+		this._hovewOpewation.cancew();
+		supa.hide();
 	}
 
-	public _withResult(result: IHoverMessage[]): void {
-		this._messages = result;
+	pubwic _withWesuwt(wesuwt: IHovewMessage[]): void {
+		this._messages = wesuwt;
 
-		if (this._messages.length > 0) {
-			this._renderMessages(this._lastLineNumber, this._messages);
-		} else {
+		if (this._messages.wength > 0) {
+			this._wendewMessages(this._wastWineNumba, this._messages);
+		} ewse {
 			this.hide();
 		}
 	}
 
-	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
-		this._renderDisposeables.clear();
+	pwivate _wendewMessages(wineNumba: numba, messages: IHovewMessage[]): void {
+		this._wendewDisposeabwes.cweaw();
 
-		const fragment = document.createDocumentFragment();
+		const fwagment = document.cweateDocumentFwagment();
 
-		for (const msg of messages) {
-			const renderedContents = this._markdownRenderer.render(msg.value);
-			this._renderDisposeables.add(renderedContents);
-			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
+		fow (const msg of messages) {
+			const wendewedContents = this._mawkdownWendewa.wenda(msg.vawue);
+			this._wendewDisposeabwes.add(wendewedContents);
+			fwagment.appendChiwd($('div.hova-wow', undefined, wendewedContents.ewement));
 		}
 
-		this.updateContents(fragment);
-		this.showAt(lineNumber);
+		this.updateContents(fwagment);
+		this.showAt(wineNumba);
 	}
 }

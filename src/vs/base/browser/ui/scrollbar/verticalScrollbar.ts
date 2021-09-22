@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+impowt { StandawdWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { AbstwactScwowwbaw, ISimpwifiedMouseEvent, ScwowwbawHost } fwom 'vs/base/bwowsa/ui/scwowwbaw/abstwactScwowwbaw';
+impowt { ScwowwabweEwementWesowvedOptions } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwementOptions';
+impowt { AWWOW_IMG_SIZE } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawAwwow';
+impowt { ScwowwbawState } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawState';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { INewScwowwPosition, Scwowwabwe, ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
 
-const scrollbarButtonUpIcon = registerCodicon('scrollbar-button-up', Codicon.triangleUp);
-const scrollbarButtonDownIcon = registerCodicon('scrollbar-button-down', Codicon.triangleDown);
+const scwowwbawButtonUpIcon = wegistewCodicon('scwowwbaw-button-up', Codicon.twiangweUp);
+const scwowwbawButtonDownIcon = wegistewCodicon('scwowwbaw-button-down', Codicon.twiangweDown);
 
-export class VerticalScrollbar extends AbstractScrollbar {
+expowt cwass VewticawScwowwbaw extends AbstwactScwowwbaw {
 
-	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
-		const scrollDimensions = scrollable.getScrollDimensions();
-		const scrollPosition = scrollable.getCurrentScrollPosition();
-		super({
-			lazyRender: options.lazyRender,
+	constwuctow(scwowwabwe: Scwowwabwe, options: ScwowwabweEwementWesowvedOptions, host: ScwowwbawHost) {
+		const scwowwDimensions = scwowwabwe.getScwowwDimensions();
+		const scwowwPosition = scwowwabwe.getCuwwentScwowwPosition();
+		supa({
+			wazyWenda: options.wazyWenda,
 			host: host,
-			scrollbarState: new ScrollbarState(
-				(options.verticalHasArrows ? options.arrowSize : 0),
-				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
-				// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
+			scwowwbawState: new ScwowwbawState(
+				(options.vewticawHasAwwows ? options.awwowSize : 0),
+				(options.vewticaw === ScwowwbawVisibiwity.Hidden ? 0 : options.vewticawScwowwbawSize),
+				// give pwiowity to vewticaw scwoww baw ova howizontaw and wet it scwoww aww the way to the bottom
 				0,
-				scrollDimensions.height,
-				scrollDimensions.scrollHeight,
-				scrollPosition.scrollTop
+				scwowwDimensions.height,
+				scwowwDimensions.scwowwHeight,
+				scwowwPosition.scwowwTop
 			),
-			visibility: options.vertical,
-			extraScrollbarClassName: 'vertical',
-			scrollable: scrollable,
-			scrollByPage: options.scrollByPage
+			visibiwity: options.vewticaw,
+			extwaScwowwbawCwassName: 'vewticaw',
+			scwowwabwe: scwowwabwe,
+			scwowwByPage: options.scwowwByPage
 		});
 
-		if (options.verticalHasArrows) {
-			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			const scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
+		if (options.vewticawHasAwwows) {
+			const awwowDewta = (options.awwowSize - AWWOW_IMG_SIZE) / 2;
+			const scwowwbawDewta = (options.vewticawScwowwbawSize - AWWOW_IMG_SIZE) / 2;
 
-			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonUpIcon,
-				top: arrowDelta,
-				left: scrollbarDelta,
+			this._cweateAwwow({
+				cwassName: 'scwa',
+				icon: scwowwbawButtonUpIcon,
+				top: awwowDewta,
+				weft: scwowwbawDewta,
 				bottom: undefined,
-				right: undefined,
-				bgWidth: options.verticalScrollbarSize,
-				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
+				wight: undefined,
+				bgWidth: options.vewticawScwowwbawSize,
+				bgHeight: options.awwowSize,
+				onActivate: () => this._host.onMouseWheew(new StandawdWheewEvent(nuww, 0, 1)),
 			});
 
-			this._createArrow({
-				className: 'scra',
-				icon: scrollbarButtonDownIcon,
+			this._cweateAwwow({
+				cwassName: 'scwa',
+				icon: scwowwbawButtonDownIcon,
 				top: undefined,
-				left: scrollbarDelta,
-				bottom: arrowDelta,
-				right: undefined,
-				bgWidth: options.verticalScrollbarSize,
-				bgHeight: options.arrowSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),
+				weft: scwowwbawDewta,
+				bottom: awwowDewta,
+				wight: undefined,
+				bgWidth: options.vewticawScwowwbawSize,
+				bgHeight: options.awwowSize,
+				onActivate: () => this._host.onMouseWheew(new StandawdWheewEvent(nuww, 0, -1)),
 			});
 		}
 
-		this._createSlider(0, Math.floor((options.verticalScrollbarSize - options.verticalSliderSize) / 2), options.verticalSliderSize, undefined);
+		this._cweateSwida(0, Math.fwoow((options.vewticawScwowwbawSize - options.vewticawSwidewSize) / 2), options.vewticawSwidewSize, undefined);
 	}
 
-	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
-		this.slider.setHeight(sliderSize);
-		this.slider.setTop(sliderPosition);
+	pwotected _updateSwida(swidewSize: numba, swidewPosition: numba): void {
+		this.swida.setHeight(swidewSize);
+		this.swida.setTop(swidewPosition);
 	}
 
-	protected _renderDomNode(largeSize: number, smallSize: number): void {
-		this.domNode.setWidth(smallSize);
-		this.domNode.setHeight(largeSize);
-		this.domNode.setRight(0);
+	pwotected _wendewDomNode(wawgeSize: numba, smawwSize: numba): void {
+		this.domNode.setWidth(smawwSize);
+		this.domNode.setHeight(wawgeSize);
+		this.domNode.setWight(0);
 		this.domNode.setTop(0);
 	}
 
-	public onDidScroll(e: ScrollEvent): boolean {
-		this._shouldRender = this._onElementScrollSize(e.scrollHeight) || this._shouldRender;
-		this._shouldRender = this._onElementScrollPosition(e.scrollTop) || this._shouldRender;
-		this._shouldRender = this._onElementSize(e.height) || this._shouldRender;
-		return this._shouldRender;
+	pubwic onDidScwoww(e: ScwowwEvent): boowean {
+		this._shouwdWenda = this._onEwementScwowwSize(e.scwowwHeight) || this._shouwdWenda;
+		this._shouwdWenda = this._onEwementScwowwPosition(e.scwowwTop) || this._shouwdWenda;
+		this._shouwdWenda = this._onEwementSize(e.height) || this._shouwdWenda;
+		wetuwn this._shouwdWenda;
 	}
 
-	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
-		return offsetY;
+	pwotected _mouseDownWewativePosition(offsetX: numba, offsetY: numba): numba {
+		wetuwn offsetY;
 	}
 
-	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posy;
+	pwotected _swidewMousePosition(e: ISimpwifiedMouseEvent): numba {
+		wetuwn e.posy;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
-		return e.posx;
+	pwotected _swidewOwthogonawMousePosition(e: ISimpwifiedMouseEvent): numba {
+		wetuwn e.posx;
 	}
 
-	protected _updateScrollbarSize(size: number): void {
-		this.slider.setWidth(size);
+	pwotected _updateScwowwbawSize(size: numba): void {
+		this.swida.setWidth(size);
 	}
 
-	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
-		target.scrollTop = scrollPosition;
+	pubwic wwiteScwowwPosition(tawget: INewScwowwPosition, scwowwPosition: numba): void {
+		tawget.scwowwTop = scwowwPosition;
 	}
 
-	public updateOptions(options: ScrollableElementResolvedOptions): void {
-		this.updateScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
-		// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
-		this._scrollbarState.setOppositeScrollbarSize(0);
-		this._visibilityController.setVisibility(options.vertical);
-		this._scrollByPage = options.scrollByPage;
+	pubwic updateOptions(options: ScwowwabweEwementWesowvedOptions): void {
+		this.updateScwowwbawSize(options.vewticaw === ScwowwbawVisibiwity.Hidden ? 0 : options.vewticawScwowwbawSize);
+		// give pwiowity to vewticaw scwoww baw ova howizontaw and wet it scwoww aww the way to the bottom
+		this._scwowwbawState.setOppositeScwowwbawSize(0);
+		this._visibiwityContwowwa.setVisibiwity(options.vewticaw);
+		this._scwowwByPage = options.scwowwByPage;
 	}
 
 }

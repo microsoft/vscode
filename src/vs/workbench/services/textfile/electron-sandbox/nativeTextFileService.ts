@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IReadTextFileOptions, TextFileEditorModelState, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, ByteSize, getPlatformLimits, Arch } from 'vs/platform/files/common/files';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+impowt { pwocess } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { AbstwactTextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/bwowsa/textFiweSewvice';
+impowt { ITextFiweSewvice, ITextFiweStweamContent, ITextFiweContent, IWeadTextFiweOptions, TextFiweEditowModewState, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice, ByteSize, getPwatfowmWimits, Awch } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IDiawogSewvice, IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
 
-export class NativeTextFileService extends AbstractTextFileService {
+expowt cwass NativeTextFiweSewvice extends AbstwactTextFiweSewvice {
 
-	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
+	pwotected ovewwide weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice;
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModelService modelService: IModelService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IDialogService dialogService: IDialogService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IPathService pathService: IPathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@ILogService logService: ILogService,
-		@IDecorationsService decorationsService: IDecorationsService
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IUntitwedTextEditowSewvice untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IFiwesConfiguwationSewvice fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IEwevatedFiweSewvice ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService, decorationsService);
+		supa(fiweSewvice, untitwedTextEditowSewvice, wifecycweSewvice, instantiationSewvice, modewSewvice, enviwonmentSewvice, diawogSewvice, fiweDiawogSewvice, textWesouwceConfiguwationSewvice, fiwesConfiguwationSewvice, textModewSewvice, codeEditowSewvice, pathSewvice, wowkingCopyFiweSewvice, uwiIdentitySewvice, modeSewvice, wogSewvice, ewevatedFiweSewvice, decowationsSewvice);
 
-		this.environmentService = environmentService;
+		this.enviwonmentSewvice = enviwonmentSewvice;
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Lifecycle
-		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.textFiles'));
+		// Wifecycwe
+		this.wifecycweSewvice.onWiwwShutdown(event => event.join(this.onWiwwShutdown(), 'join.textFiwes'));
 	}
 
-	private async onWillShutdown(): Promise<void> {
-		let modelsPendingToSave: ITextFileEditorModel[];
+	pwivate async onWiwwShutdown(): Pwomise<void> {
+		wet modewsPendingToSave: ITextFiweEditowModew[];
 
-		// As long as models are pending to be saved, we prolong the shutdown
-		// until that has happened to ensure we are not shutting down in the
-		// middle of writing to the file
-		// (https://github.com/microsoft/vscode/issues/116600)
-		while ((modelsPendingToSave = this.files.models.filter(model => model.hasState(TextFileEditorModelState.PENDING_SAVE))).length > 0) {
-			await Promises.settled(modelsPendingToSave.map(model => model.joinState(TextFileEditorModelState.PENDING_SAVE)));
+		// As wong as modews awe pending to be saved, we pwowong the shutdown
+		// untiw that has happened to ensuwe we awe not shutting down in the
+		// middwe of wwiting to the fiwe
+		// (https://github.com/micwosoft/vscode/issues/116600)
+		whiwe ((modewsPendingToSave = this.fiwes.modews.fiwta(modew => modew.hasState(TextFiweEditowModewState.PENDING_SAVE))).wength > 0) {
+			await Pwomises.settwed(modewsPendingToSave.map(modew => modew.joinState(TextFiweEditowModewState.PENDING_SAVE)));
 		}
 	}
 
-	override async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+	ovewwide async wead(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweContent> {
 
-		// ensure size & memory limits
-		options = this.ensureLimits(options);
+		// ensuwe size & memowy wimits
+		options = this.ensuweWimits(options);
 
-		return super.read(resource, options);
+		wetuwn supa.wead(wesouwce, options);
 	}
 
-	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	ovewwide async weadStweam(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweStweamContent> {
 
-		// ensure size & memory limits
-		options = this.ensureLimits(options);
+		// ensuwe size & memowy wimits
+		options = this.ensuweWimits(options);
 
-		return super.readStream(resource, options);
+		wetuwn supa.weadStweam(wesouwce, options);
 	}
 
-	private ensureLimits(options?: IReadTextFileOptions): IReadTextFileOptions {
-		let ensuredOptions: IReadTextFileOptions;
+	pwivate ensuweWimits(options?: IWeadTextFiweOptions): IWeadTextFiweOptions {
+		wet ensuwedOptions: IWeadTextFiweOptions;
 		if (!options) {
-			ensuredOptions = Object.create(null);
-		} else {
-			ensuredOptions = options;
+			ensuwedOptions = Object.cweate(nuww);
+		} ewse {
+			ensuwedOptions = options;
 		}
 
-		let ensuredLimits: { size?: number; memory?: number; };
-		if (!ensuredOptions.limits) {
-			ensuredLimits = Object.create(null);
-			ensuredOptions.limits = ensuredLimits;
-		} else {
-			ensuredLimits = ensuredOptions.limits;
+		wet ensuwedWimits: { size?: numba; memowy?: numba; };
+		if (!ensuwedOptions.wimits) {
+			ensuwedWimits = Object.cweate(nuww);
+			ensuwedOptions.wimits = ensuwedWimits;
+		} ewse {
+			ensuwedWimits = ensuwedOptions.wimits;
 		}
 
-		if (typeof ensuredLimits.size !== 'number') {
-			ensuredLimits.size = getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
+		if (typeof ensuwedWimits.size !== 'numba') {
+			ensuwedWimits.size = getPwatfowmWimits(pwocess.awch === 'ia32' ? Awch.IA32 : Awch.OTHa).maxFiweSize;
 		}
 
-		if (typeof ensuredLimits.memory !== 'number') {
-			const maxMemory = this.environmentService.args['max-memory'];
-			ensuredLimits.memory = Math.max(typeof maxMemory === 'string' ? parseInt(maxMemory) * ByteSize.MB || 0 : 0, getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxHeapSize);
+		if (typeof ensuwedWimits.memowy !== 'numba') {
+			const maxMemowy = this.enviwonmentSewvice.awgs['max-memowy'];
+			ensuwedWimits.memowy = Math.max(typeof maxMemowy === 'stwing' ? pawseInt(maxMemowy) * ByteSize.MB || 0 : 0, getPwatfowmWimits(pwocess.awch === 'ia32' ? Awch.IA32 : Awch.OTHa).maxHeapSize);
 		}
 
-		return ensuredOptions;
+		wetuwn ensuwedOptions;
 	}
 }
 
-registerSingleton(ITextFileService, NativeTextFileService);
+wegistewSingweton(ITextFiweSewvice, NativeTextFiweSewvice);

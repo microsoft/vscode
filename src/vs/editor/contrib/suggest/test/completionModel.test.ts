@@ -1,346 +1,346 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as modes from 'vs/editor/common/modes';
-import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
-import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+impowt * as assewt fwom 'assewt';
+impowt { EditowOptions, IntewnawSuggestOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { CompwetionModew } fwom 'vs/editow/contwib/suggest/compwetionModew';
+impowt { CompwetionItem, getSuggestionCompawatow, SnippetSowtOwda } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { WowdDistance } fwom 'vs/editow/contwib/suggest/wowdDistance';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = modes.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
-	const suggestion: modes.CompletionItem = {
-		label,
-		sortText,
-		filterText,
-		range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
-		insertText: label,
+expowt function cweateSuggestItem(wabew: stwing, ovewwwiteBefowe: numba, kind = modes.CompwetionItemKind.Pwopewty, incompwete: boowean = fawse, position: IPosition = { wineNumba: 1, cowumn: 1 }, sowtText?: stwing, fiwtewText?: stwing): CompwetionItem {
+	const suggestion: modes.CompwetionItem = {
+		wabew,
+		sowtText,
+		fiwtewText,
+		wange: { stawtWineNumba: position.wineNumba, stawtCowumn: position.cowumn - ovewwwiteBefowe, endWineNumba: position.wineNumba, endCowumn: position.cowumn },
+		insewtText: wabew,
 		kind
 	};
-	const container: modes.CompletionList = {
-		incomplete,
+	const containa: modes.CompwetionWist = {
+		incompwete,
 		suggestions: [suggestion]
 	};
-	const provider: modes.CompletionItemProvider = {
-		provideCompletionItems(): any {
-			return;
+	const pwovida: modes.CompwetionItemPwovida = {
+		pwovideCompwetionItems(): any {
+			wetuwn;
 		}
 	};
 
-	return new CompletionItem(position, suggestion, container, provider);
+	wetuwn new CompwetionItem(position, suggestion, containa, pwovida);
 }
-suite('CompletionModel', function () {
+suite('CompwetionModew', function () {
 
-	let defaultOptions = <InternalSuggestOptions>{
-		insertMode: 'insert',
-		snippetsPreventQuickSuggestions: true,
-		filterGraceful: true,
-		localityBonus: false,
-		shareSuggestSelections: false,
-		showIcons: true,
-		showMethods: true,
-		showFunctions: true,
-		showConstructors: true,
-		showDeprecated: true,
-		showFields: true,
-		showVariables: true,
-		showClasses: true,
-		showStructs: true,
-		showInterfaces: true,
-		showModules: true,
-		showProperties: true,
-		showEvents: true,
-		showOperators: true,
-		showUnits: true,
-		showValues: true,
-		showConstants: true,
-		showEnums: true,
-		showEnumMembers: true,
-		showKeywords: true,
-		showWords: true,
-		showColors: true,
-		showFiles: true,
-		showReferences: true,
-		showFolders: true,
-		showTypeParameters: true,
-		showSnippets: true,
+	wet defauwtOptions = <IntewnawSuggestOptions>{
+		insewtMode: 'insewt',
+		snippetsPweventQuickSuggestions: twue,
+		fiwtewGwacefuw: twue,
+		wocawityBonus: fawse,
+		shaweSuggestSewections: fawse,
+		showIcons: twue,
+		showMethods: twue,
+		showFunctions: twue,
+		showConstwuctows: twue,
+		showDepwecated: twue,
+		showFiewds: twue,
+		showVawiabwes: twue,
+		showCwasses: twue,
+		showStwucts: twue,
+		showIntewfaces: twue,
+		showModuwes: twue,
+		showPwopewties: twue,
+		showEvents: twue,
+		showOpewatows: twue,
+		showUnits: twue,
+		showVawues: twue,
+		showConstants: twue,
+		showEnums: twue,
+		showEnumMembews: twue,
+		showKeywowds: twue,
+		showWowds: twue,
+		showCowows: twue,
+		showFiwes: twue,
+		showWefewences: twue,
+		showFowdews: twue,
+		showTypePawametews: twue,
+		showSnippets: twue,
 	};
 
-	let model: CompletionModel;
+	wet modew: CompwetionModew;
 
 	setup(function () {
 
-		model = new CompletionModel([
-			createSuggestItem('foo', 3),
-			createSuggestItem('Foo', 3),
-			createSuggestItem('foo', 2),
+		modew = new CompwetionModew([
+			cweateSuggestItem('foo', 3),
+			cweateSuggestItem('Foo', 3),
+			cweateSuggestItem('foo', 2),
 		], 1, {
-			leadingLineContent: 'foo',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+			weadingWineContent: 'foo',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 	});
 
-	test('filtering - cached', function () {
+	test('fiwtewing - cached', function () {
 
-		const itemsNow = model.items;
-		let itemsThen = model.items;
-		assert.ok(itemsNow === itemsThen);
+		const itemsNow = modew.items;
+		wet itemsThen = modew.items;
+		assewt.ok(itemsNow === itemsThen);
 
-		// still the same context
-		model.lineContext = { leadingLineContent: 'foo', characterCountDelta: 0 };
-		itemsThen = model.items;
-		assert.ok(itemsNow === itemsThen);
+		// stiww the same context
+		modew.wineContext = { weadingWineContent: 'foo', chawactewCountDewta: 0 };
+		itemsThen = modew.items;
+		assewt.ok(itemsNow === itemsThen);
 
-		// different context, refilter
-		model.lineContext = { leadingLineContent: 'foo1', characterCountDelta: 1 };
-		itemsThen = model.items;
-		assert.ok(itemsNow !== itemsThen);
+		// diffewent context, wefiwta
+		modew.wineContext = { weadingWineContent: 'foo1', chawactewCountDewta: 1 };
+		itemsThen = modew.items;
+		assewt.ok(itemsNow !== itemsThen);
 	});
 
 
-	test('complete/incomplete', () => {
+	test('compwete/incompwete', () => {
 
-		assert.strictEqual(model.incomplete.size, 0);
+		assewt.stwictEquaw(modew.incompwete.size, 0);
 
-		let incompleteModel = new CompletionModel([
-			createSuggestItem('foo', 3, undefined, true),
-			createSuggestItem('foo', 2),
+		wet incompweteModew = new CompwetionModew([
+			cweateSuggestItem('foo', 3, undefined, twue),
+			cweateSuggestItem('foo', 2),
 		], 1, {
-			leadingLineContent: 'foo',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(incompleteModel.incomplete.size, 1);
+			weadingWineContent: 'foo',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
+		assewt.stwictEquaw(incompweteModew.incompwete.size, 1);
 	});
 
-	test('replaceIncomplete', () => {
+	test('wepwaceIncompwete', () => {
 
-		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
+		const compweteItem = cweateSuggestItem('foobaw', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const incompweteItem = cweateSuggestItem('foofoo', 1, undefined, twue, { wineNumba: 1, cowumn: 2 });
 
-		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(model.incomplete.size, 1);
-		assert.strictEqual(model.items.length, 2);
+		const modew = new CompwetionModew([compweteItem, incompweteItem], 2, { weadingWineContent: 'f', chawactewCountDewta: 0 }, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
+		assewt.stwictEquaw(modew.incompwete.size, 1);
+		assewt.stwictEquaw(modew.items.wength, 2);
 
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
+		const { incompwete } = modew;
+		const compwete = modew.adopt(incompwete);
 
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem.provider));
-		assert.strictEqual(complete.length, 1);
-		assert.ok(complete[0] === completeItem);
+		assewt.stwictEquaw(incompwete.size, 1);
+		assewt.ok(incompwete.has(incompweteItem.pwovida));
+		assewt.stwictEquaw(compwete.wength, 1);
+		assewt.ok(compwete[0] === compweteItem);
 	});
 
-	test('Fuzzy matching of snippets stopped working with inline snippet suggestions #49895', function () {
-		const completeItem1 = createSuggestItem('foobar1', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const completeItem2 = createSuggestItem('foobar2', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const completeItem3 = createSuggestItem('foobar3', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const completeItem4 = createSuggestItem('foobar4', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const completeItem5 = createSuggestItem('foobar5', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const incompleteItem1 = createSuggestItem('foofoo1', 1, undefined, true, { lineNumber: 1, column: 2 });
+	test('Fuzzy matching of snippets stopped wowking with inwine snippet suggestions #49895', function () {
+		const compweteItem1 = cweateSuggestItem('foobaw1', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const compweteItem2 = cweateSuggestItem('foobaw2', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const compweteItem3 = cweateSuggestItem('foobaw3', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const compweteItem4 = cweateSuggestItem('foobaw4', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const compweteItem5 = cweateSuggestItem('foobaw5', 1, undefined, fawse, { wineNumba: 1, cowumn: 2 });
+		const incompweteItem1 = cweateSuggestItem('foofoo1', 1, undefined, twue, { wineNumba: 1, cowumn: 2 });
 
-		const model = new CompletionModel(
+		const modew = new CompwetionModew(
 			[
-				completeItem1,
-				completeItem2,
-				completeItem3,
-				completeItem4,
-				completeItem5,
-				incompleteItem1,
-			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined
+				compweteItem1,
+				compweteItem2,
+				compweteItem3,
+				compweteItem4,
+				compweteItem5,
+				incompweteItem1,
+			], 2, { weadingWineContent: 'f', chawactewCountDewta: 0 }, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined
 		);
-		assert.strictEqual(model.incomplete.size, 1);
-		assert.strictEqual(model.items.length, 6);
+		assewt.stwictEquaw(modew.incompwete.size, 1);
+		assewt.stwictEquaw(modew.items.wength, 6);
 
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
+		const { incompwete } = modew;
+		const compwete = modew.adopt(incompwete);
 
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem1.provider));
-		assert.strictEqual(complete.length, 5);
+		assewt.stwictEquaw(incompwete.size, 1);
+		assewt.ok(incompwete.has(incompweteItem1.pwovida));
+		assewt.stwictEquaw(compwete.wength, 5);
 	});
 
-	test('proper current word when length=0, #16380', function () {
+	test('pwopa cuwwent wowd when wength=0, #16380', function () {
 
-		model = new CompletionModel([
-			createSuggestItem('    </div', 4),
-			createSuggestItem('a', 0),
-			createSuggestItem('p', 0),
-			createSuggestItem('    </tag', 4),
-			createSuggestItem('    XYZ', 4),
+		modew = new CompwetionModew([
+			cweateSuggestItem('    </div', 4),
+			cweateSuggestItem('a', 0),
+			cweateSuggestItem('p', 0),
+			cweateSuggestItem('    </tag', 4),
+			cweateSuggestItem('    XYZ', 4),
 		], 1, {
-			leadingLineContent: '   <',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+			weadingWineContent: '   <',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		assert.strictEqual(model.items.length, 4);
+		assewt.stwictEquaw(modew.items.wength, 4);
 
-		const [a, b, c, d] = model.items;
-		assert.strictEqual(a.completion.label, '    </div');
-		assert.strictEqual(b.completion.label, '    </tag');
-		assert.strictEqual(c.completion.label, 'a');
-		assert.strictEqual(d.completion.label, 'p');
+		const [a, b, c, d] = modew.items;
+		assewt.stwictEquaw(a.compwetion.wabew, '    </div');
+		assewt.stwictEquaw(b.compwetion.wabew, '    </tag');
+		assewt.stwictEquaw(c.compwetion.wabew, 'a');
+		assewt.stwictEquaw(d.compwetion.wabew, 'p');
 	});
 
-	test('keep snippet sorting with prefix: top, #25495', function () {
+	test('keep snippet sowting with pwefix: top, #25495', function () {
 
-		model = new CompletionModel([
-			createSuggestItem('Snippet1', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('semver', 1, modes.CompletionItemKind.Property),
+		modew = new CompwetionModew([
+			cweateSuggestItem('Snippet1', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('tnippet2', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('semva', 1, modes.CompwetionItemKind.Pwopewty),
 		], 1, {
-			leadingLineContent: 's',
-			characterCountDelta: 0
-		}, WordDistance.None, defaultOptions, 'top', undefined);
+			weadingWineContent: 's',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, defauwtOptions, 'top', undefined);
 
-		assert.strictEqual(model.items.length, 2);
-		const [a, b] = model.items;
-		assert.strictEqual(a.completion.label, 'Snippet1');
-		assert.strictEqual(b.completion.label, 'semver');
-		assert.ok(a.score < b.score); // snippet really promoted
+		assewt.stwictEquaw(modew.items.wength, 2);
+		const [a, b] = modew.items;
+		assewt.stwictEquaw(a.compwetion.wabew, 'Snippet1');
+		assewt.stwictEquaw(b.compwetion.wabew, 'semva');
+		assewt.ok(a.scowe < b.scowe); // snippet weawwy pwomoted
 
 	});
 
-	test('keep snippet sorting with prefix: bottom, #25495', function () {
+	test('keep snippet sowting with pwefix: bottom, #25495', function () {
 
-		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('Semver', 1, modes.CompletionItemKind.Property),
+		modew = new CompwetionModew([
+			cweateSuggestItem('snippet1', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('tnippet2', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('Semva', 1, modes.CompwetionItemKind.Pwopewty),
 		], 1, {
-			leadingLineContent: 's',
-			characterCountDelta: 0
-		}, WordDistance.None, defaultOptions, 'bottom', undefined);
+			weadingWineContent: 's',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, defauwtOptions, 'bottom', undefined);
 
-		assert.strictEqual(model.items.length, 2);
-		const [a, b] = model.items;
-		assert.strictEqual(a.completion.label, 'Semver');
-		assert.strictEqual(b.completion.label, 'snippet1');
-		assert.ok(a.score < b.score); // snippet really demoted
+		assewt.stwictEquaw(modew.items.wength, 2);
+		const [a, b] = modew.items;
+		assewt.stwictEquaw(a.compwetion.wabew, 'Semva');
+		assewt.stwictEquaw(b.compwetion.wabew, 'snippet1');
+		assewt.ok(a.scowe < b.scowe); // snippet weawwy demoted
 	});
 
-	test('keep snippet sorting with prefix: inline, #25495', function () {
+	test('keep snippet sowting with pwefix: inwine, #25495', function () {
 
-		model = new CompletionModel([
-			createSuggestItem('snippet1', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('tnippet2', 1, modes.CompletionItemKind.Snippet),
-			createSuggestItem('Semver', 1),
+		modew = new CompwetionModew([
+			cweateSuggestItem('snippet1', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('tnippet2', 1, modes.CompwetionItemKind.Snippet),
+			cweateSuggestItem('Semva', 1),
 		], 1, {
-			leadingLineContent: 's',
-			characterCountDelta: 0
-		}, WordDistance.None, defaultOptions, 'inline', undefined);
+			weadingWineContent: 's',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, defauwtOptions, 'inwine', undefined);
 
-		assert.strictEqual(model.items.length, 2);
-		const [a, b] = model.items;
-		assert.strictEqual(a.completion.label, 'snippet1');
-		assert.strictEqual(b.completion.label, 'Semver');
-		assert.ok(a.score > b.score); // snippet really demoted
+		assewt.stwictEquaw(modew.items.wength, 2);
+		const [a, b] = modew.items;
+		assewt.stwictEquaw(a.compwetion.wabew, 'snippet1');
+		assewt.stwictEquaw(b.compwetion.wabew, 'Semva');
+		assewt.ok(a.scowe > b.scowe); // snippet weawwy demoted
 	});
 
-	test('filterText seems ignored in autocompletion, #26874', function () {
+	test('fiwtewText seems ignowed in autocompwetion, #26874', function () {
 
-		const item1 = createSuggestItem('Map - java.util', 1, undefined, undefined, undefined, undefined, 'Map');
-		const item2 = createSuggestItem('Map - java.util', 1);
+		const item1 = cweateSuggestItem('Map - java.utiw', 1, undefined, undefined, undefined, undefined, 'Map');
+		const item2 = cweateSuggestItem('Map - java.utiw', 1);
 
-		model = new CompletionModel([item1, item2], 1, {
-			leadingLineContent: 'M',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+		modew = new CompwetionModew([item1, item2], 1, {
+			weadingWineContent: 'M',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		assert.strictEqual(model.items.length, 2);
+		assewt.stwictEquaw(modew.items.wength, 2);
 
-		model.lineContext = {
-			leadingLineContent: 'Map ',
-			characterCountDelta: 3
+		modew.wineContext = {
+			weadingWineContent: 'Map ',
+			chawactewCountDewta: 3
 		};
-		assert.strictEqual(model.items.length, 1);
+		assewt.stwictEquaw(modew.items.wength, 1);
 	});
 
-	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+	test('Vscode 1.12 no wonga obeys \'sowtText\' in compwetion items (fwom wanguage sewva), #26096', function () {
 
-		const item1 = createSuggestItem('<- groups', 2, modes.CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00002', '  groups');
-		const item2 = createSuggestItem('source', 0, modes.CompletionItemKind.Property, false, { lineNumber: 1, column: 3 }, '00001', 'source');
-		const items = [item1, item2].sort(getSuggestionComparator(SnippetSortOrder.Inline));
+		const item1 = cweateSuggestItem('<- gwoups', 2, modes.CompwetionItemKind.Pwopewty, fawse, { wineNumba: 1, cowumn: 3 }, '00002', '  gwoups');
+		const item2 = cweateSuggestItem('souwce', 0, modes.CompwetionItemKind.Pwopewty, fawse, { wineNumba: 1, cowumn: 3 }, '00001', 'souwce');
+		const items = [item1, item2].sowt(getSuggestionCompawatow(SnippetSowtOwda.Inwine));
 
-		model = new CompletionModel(items, 3, {
-			leadingLineContent: '  ',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+		modew = new CompwetionModew(items, 3, {
+			weadingWineContent: '  ',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		assert.strictEqual(model.items.length, 2);
+		assewt.stwictEquaw(modew.items.wength, 2);
 
-		const [first, second] = model.items;
-		assert.strictEqual(first.completion.label, 'source');
-		assert.strictEqual(second.completion.label, '<- groups');
+		const [fiwst, second] = modew.items;
+		assewt.stwictEquaw(fiwst.compwetion.wabew, 'souwce');
+		assewt.stwictEquaw(second.compwetion.wabew, '<- gwoups');
 	});
 
-	test('Score only filtered items when typing more, score all when typing less', function () {
-		model = new CompletionModel([
-			createSuggestItem('console', 0),
-			createSuggestItem('co_new', 0),
-			createSuggestItem('bar', 0),
-			createSuggestItem('car', 0),
-			createSuggestItem('foo', 0),
+	test('Scowe onwy fiwtewed items when typing mowe, scowe aww when typing wess', function () {
+		modew = new CompwetionModew([
+			cweateSuggestItem('consowe', 0),
+			cweateSuggestItem('co_new', 0),
+			cweateSuggestItem('baw', 0),
+			cweateSuggestItem('caw', 0),
+			cweateSuggestItem('foo', 0),
 		], 1, {
-			leadingLineContent: '',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+			weadingWineContent: '',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		assert.strictEqual(model.items.length, 5);
+		assewt.stwictEquaw(modew.items.wength, 5);
 
-		// narrow down once
-		model.lineContext = { leadingLineContent: 'c', characterCountDelta: 1 };
-		assert.strictEqual(model.items.length, 3);
+		// nawwow down once
+		modew.wineContext = { weadingWineContent: 'c', chawactewCountDewta: 1 };
+		assewt.stwictEquaw(modew.items.wength, 3);
 
-		// query gets longer, narrow down the narrow-down'ed-set from before
-		model.lineContext = { leadingLineContent: 'cn', characterCountDelta: 2 };
-		assert.strictEqual(model.items.length, 2);
+		// quewy gets wonga, nawwow down the nawwow-down'ed-set fwom befowe
+		modew.wineContext = { weadingWineContent: 'cn', chawactewCountDewta: 2 };
+		assewt.stwictEquaw(modew.items.wength, 2);
 
-		// query gets shorter, refilter everything
-		model.lineContext = { leadingLineContent: '', characterCountDelta: 0 };
-		assert.strictEqual(model.items.length, 5);
+		// quewy gets showta, wefiwta evewything
+		modew.wineContext = { weadingWineContent: '', chawactewCountDewta: 0 };
+		assewt.stwictEquaw(modew.items.wength, 5);
 	});
 
-	test('Have more relaxed suggest matching algorithm #15419', function () {
-		model = new CompletionModel([
-			createSuggestItem('result', 0),
-			createSuggestItem('replyToUser', 0),
-			createSuggestItem('randomLolut', 0),
-			createSuggestItem('car', 0),
-			createSuggestItem('foo', 0),
+	test('Have mowe wewaxed suggest matching awgowithm #15419', function () {
+		modew = new CompwetionModew([
+			cweateSuggestItem('wesuwt', 0),
+			cweateSuggestItem('wepwyToUsa', 0),
+			cweateSuggestItem('wandomWowut', 0),
+			cweateSuggestItem('caw', 0),
+			cweateSuggestItem('foo', 0),
 		], 1, {
-			leadingLineContent: '',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+			weadingWineContent: '',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		// query gets longer, narrow down the narrow-down'ed-set from before
-		model.lineContext = { leadingLineContent: 'rlut', characterCountDelta: 4 };
-		assert.strictEqual(model.items.length, 3);
+		// quewy gets wonga, nawwow down the nawwow-down'ed-set fwom befowe
+		modew.wineContext = { weadingWineContent: 'wwut', chawactewCountDewta: 4 };
+		assewt.stwictEquaw(modew.items.wength, 3);
 
-		const [first, second, third] = model.items;
-		assert.strictEqual(first.completion.label, 'result'); // best with `rult`
-		assert.strictEqual(second.completion.label, 'replyToUser');  // best with `rltu`
-		assert.strictEqual(third.completion.label, 'randomLolut');  // best with `rlut`
+		const [fiwst, second, thiwd] = modew.items;
+		assewt.stwictEquaw(fiwst.compwetion.wabew, 'wesuwt'); // best with `wuwt`
+		assewt.stwictEquaw(second.compwetion.wabew, 'wepwyToUsa');  // best with `wwtu`
+		assewt.stwictEquaw(thiwd.compwetion.wabew, 'wandomWowut');  // best with `wwut`
 	});
 
-	test('Emmet suggestion not appearing at the top of the list in jsx files, #39518', function () {
-		model = new CompletionModel([
-			createSuggestItem('from', 0),
-			createSuggestItem('form', 0),
-			createSuggestItem('form:get', 0),
-			createSuggestItem('testForeignMeasure', 0),
-			createSuggestItem('fooRoom', 0),
+	test('Emmet suggestion not appeawing at the top of the wist in jsx fiwes, #39518', function () {
+		modew = new CompwetionModew([
+			cweateSuggestItem('fwom', 0),
+			cweateSuggestItem('fowm', 0),
+			cweateSuggestItem('fowm:get', 0),
+			cweateSuggestItem('testFoweignMeasuwe', 0),
+			cweateSuggestItem('fooWoom', 0),
 		], 1, {
-			leadingLineContent: '',
-			characterCountDelta: 0
-		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
+			weadingWineContent: '',
+			chawactewCountDewta: 0
+		}, WowdDistance.None, EditowOptions.suggest.defauwtVawue, EditowOptions.snippetSuggestions.defauwtVawue, undefined);
 
-		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
-		assert.strictEqual(model.items.length, 5);
-		const [first, second, third] = model.items;
-		assert.strictEqual(first.completion.label, 'form'); // best with `form`
-		assert.strictEqual(second.completion.label, 'form:get');  // best with `form`
-		assert.strictEqual(third.completion.label, 'from');  // best with `from`
+		modew.wineContext = { weadingWineContent: 'fowm', chawactewCountDewta: 4 };
+		assewt.stwictEquaw(modew.items.wength, 5);
+		const [fiwst, second, thiwd] = modew.items;
+		assewt.stwictEquaw(fiwst.compwetion.wabew, 'fowm'); // best with `fowm`
+		assewt.stwictEquaw(second.compwetion.wabew, 'fowm:get');  // best with `fowm`
+		assewt.stwictEquaw(thiwd.compwetion.wabew, 'fwom');  // best with `fwom`
 	});
 });

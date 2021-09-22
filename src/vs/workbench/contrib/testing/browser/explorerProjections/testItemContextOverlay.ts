@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { capabilityContextKeys } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+impowt { IntewnawTestItem } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { capabiwityContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
 
-export const getTestItemContextOverlay = (test: InternalTestItem | undefined, capabilities: number): [string, unknown][] => {
+expowt const getTestItemContextOvewway = (test: IntewnawTestItem | undefined, capabiwities: numba): [stwing, unknown][] => {
 	if (!test) {
-		return [];
+		wetuwn [];
 	}
 
-	const testId = TestId.fromString(test.item.extId);
+	const testId = TestId.fwomStwing(test.item.extId);
 
-	return [
-		[TestingContextKeys.testItemExtId.key, testId.localId],
-		[TestingContextKeys.controllerId.key, test.controllerId],
-		[TestingContextKeys.testItemHasUri.key, !!test.item.uri],
-		...capabilityContextKeys(capabilities),
+	wetuwn [
+		[TestingContextKeys.testItemExtId.key, testId.wocawId],
+		[TestingContextKeys.contwowwewId.key, test.contwowwewId],
+		[TestingContextKeys.testItemHasUwi.key, !!test.item.uwi],
+		...capabiwityContextKeys(capabiwities),
 	];
 };

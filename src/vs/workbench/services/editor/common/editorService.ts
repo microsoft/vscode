@@ -1,289 +1,289 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Event } from 'vs/base/common/event';
-import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement, IGroupChangeEvent, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { URI } from 'vs/base/common/uri';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWesouwceEditowInput, IEditowOptions, IWesouwceEditowInputIdentifia, ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowPane, GwoupIdentifia, IUntitwedTextWesouwceEditowInput, IWesouwceDiffEditowInput, ITextDiffEditowPane, IEditowIdentifia, ISaveOptions, IWevewtOptions, EditowsOwda, IVisibweEditowPane, IEditowCwoseEvent, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IEditow, IDiffEditow } fwom 'vs/editow/common/editowCommon';
+impowt { IEditowGwoup, IEditowWepwacement, IGwoupChangeEvent, isEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IEditorService = createDecorator<IEditorService>('editorService');
-
-/**
- * Open an editor in the currently active group.
- */
-export const ACTIVE_GROUP = -1;
-export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
+expowt const IEditowSewvice = cweateDecowatow<IEditowSewvice>('editowSewvice');
 
 /**
- * Open an editor to the side of the active group.
+ * Open an editow in the cuwwentwy active gwoup.
  */
-export const SIDE_GROUP = -2;
-export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
+expowt const ACTIVE_GWOUP = -1;
+expowt type ACTIVE_GWOUP_TYPE = typeof ACTIVE_GWOUP;
 
-export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+/**
+ * Open an editow to the side of the active gwoup.
+ */
+expowt const SIDE_GWOUP = -2;
+expowt type SIDE_GWOUP_TYPE = typeof SIDE_GWOUP;
 
-export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
-	const candidate = obj as PreferredGroup | undefined;
+expowt type PwefewwedGwoup = IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE;
 
-	return typeof obj === 'number' || isEditorGroup(candidate);
+expowt function isPwefewwedGwoup(obj: unknown): obj is PwefewwedGwoup {
+	const candidate = obj as PwefewwedGwoup | undefined;
+
+	wetuwn typeof obj === 'numba' || isEditowGwoup(candidate);
 }
 
-export interface ISaveEditorsOptions extends ISaveOptions {
+expowt intewface ISaveEditowsOptions extends ISaveOptions {
 
 	/**
-	 * If true, will ask for a location of the editor to save to.
+	 * If twue, wiww ask fow a wocation of the editow to save to.
 	 */
-	readonly saveAs?: boolean;
+	weadonwy saveAs?: boowean;
 }
 
-export interface IUntypedEditorReplacement {
-	readonly editor: EditorInput;
-	readonly replacement: IUntypedEditorInput;
+expowt intewface IUntypedEditowWepwacement {
+	weadonwy editow: EditowInput;
+	weadonwy wepwacement: IUntypedEditowInput;
 
 	/**
-	 * Skips asking the user for confirmation and doesn't
-	 * save the document. Only use this if you really need to!
+	 * Skips asking the usa fow confiwmation and doesn't
+	 * save the document. Onwy use this if you weawwy need to!
 	*/
-	forceReplaceDirty?: boolean;
+	fowceWepwaceDiwty?: boowean;
 }
 
-export interface IBaseSaveRevertAllEditorOptions {
+expowt intewface IBaseSaveWevewtAwwEditowOptions {
 
 	/**
-	 * Whether to include untitled editors as well.
+	 * Whetha to incwude untitwed editows as weww.
 	 */
-	readonly includeUntitled?: boolean;
+	weadonwy incwudeUntitwed?: boowean;
 
 	/**
-	 * Whether to exclude sticky editors.
+	 * Whetha to excwude sticky editows.
 	 */
-	readonly excludeSticky?: boolean;
+	weadonwy excwudeSticky?: boowean;
 }
 
-export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
+expowt intewface ISaveAwwEditowsOptions extends ISaveEditowsOptions, IBaseSaveWevewtAwwEditowOptions { }
 
-export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
+expowt intewface IWevewtAwwEditowsOptions extends IWevewtOptions, IBaseSaveWevewtAwwEditowOptions { }
 
-export interface IOpenEditorsOptions {
+expowt intewface IOpenEditowsOptions {
 
 	/**
-	 * Whether to validate trust when opening editors
-	 * that are potentially not inside the workspace.
+	 * Whetha to vawidate twust when opening editows
+	 * that awe potentiawwy not inside the wowkspace.
 	 */
-	readonly validateTrust?: boolean;
+	weadonwy vawidateTwust?: boowean;
 }
 
-export interface IEditorsChangeEvent extends IGroupChangeEvent {
-	groupId: GroupIdentifier;
+expowt intewface IEditowsChangeEvent extends IGwoupChangeEvent {
+	gwoupId: GwoupIdentifia;
 }
 
-export interface IEditorService {
+expowt intewface IEditowSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Emitted when the currently active editor changes.
+	 * Emitted when the cuwwentwy active editow changes.
 	 *
-	 * @see {@link IEditorService.activeEditorPane}
+	 * @see {@wink IEditowSewvice.activeEditowPane}
 	 */
-	readonly onDidActiveEditorChange: Event<void>;
+	weadonwy onDidActiveEditowChange: Event<void>;
 
 	/**
-	 * Emitted when any of the current visible editors changes.
+	 * Emitted when any of the cuwwent visibwe editows changes.
 	 *
-	 * @see {@link IEditorService.visibleEditorPanes}
+	 * @see {@wink IEditowSewvice.visibweEditowPanes}
 	 */
-	readonly onDidVisibleEditorsChange: Event<void>;
+	weadonwy onDidVisibweEditowsChange: Event<void>;
 
 	/**
-	 * An aggregated event for any change to any editor across
-	 * all groups.
+	 * An aggwegated event fow any change to any editow acwoss
+	 * aww gwoups.
 	 */
-	readonly onDidEditorsChange: Event<IEditorsChangeEvent[]>;
+	weadonwy onDidEditowsChange: Event<IEditowsChangeEvent[]>;
 
 	/**
-	 * Emitted when an editor is closed.
+	 * Emitted when an editow is cwosed.
 	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+	weadonwy onDidCwoseEditow: Event<IEditowCwoseEvent>;
 
 	/**
-	 * The currently active editor pane or `undefined` if none. The editor pane is
-	 * the workbench container for editors of any kind.
+	 * The cuwwentwy active editow pane ow `undefined` if none. The editow pane is
+	 * the wowkbench containa fow editows of any kind.
 	 *
-	 * @see {@link IEditorService.activeEditor} for access to the active editor input
+	 * @see {@wink IEditowSewvice.activeEditow} fow access to the active editow input
 	 */
-	readonly activeEditorPane: IVisibleEditorPane | undefined;
+	weadonwy activeEditowPane: IVisibweEditowPane | undefined;
 
 	/**
-	 * The currently active editor or `undefined` if none. An editor is active when it is
-	 * located in the currently active editor group. It will be `undefined` if the active
-	 * editor group has no editors open.
+	 * The cuwwentwy active editow ow `undefined` if none. An editow is active when it is
+	 * wocated in the cuwwentwy active editow gwoup. It wiww be `undefined` if the active
+	 * editow gwoup has no editows open.
 	 */
-	readonly activeEditor: EditorInput | undefined;
+	weadonwy activeEditow: EditowInput | undefined;
 
 	/**
-	 * The currently active text editor control or `undefined` if there is currently no active
-	 * editor or the active editor widget is neither a text nor a diff editor.
+	 * The cuwwentwy active text editow contwow ow `undefined` if thewe is cuwwentwy no active
+	 * editow ow the active editow widget is neitha a text now a diff editow.
 	 *
-	 * @see {@link IEditorService.activeEditor}
+	 * @see {@wink IEditowSewvice.activeEditow}
 	 */
-	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
+	weadonwy activeTextEditowContwow: IEditow | IDiffEditow | undefined;
 
 	/**
-	 * The currently active text editor mode or `undefined` if there is currently no active
-	 * editor or the active editor control is neither a text nor a diff editor. If the active
-	 * editor is a diff editor, the modified side's mode will be taken.
+	 * The cuwwentwy active text editow mode ow `undefined` if thewe is cuwwentwy no active
+	 * editow ow the active editow contwow is neitha a text now a diff editow. If the active
+	 * editow is a diff editow, the modified side's mode wiww be taken.
 	 */
-	readonly activeTextEditorMode: string | undefined;
+	weadonwy activeTextEditowMode: stwing | undefined;
 
 	/**
-	 * All editor panes that are currently visible across all editor groups.
+	 * Aww editow panes that awe cuwwentwy visibwe acwoss aww editow gwoups.
 	 *
-	 * @see {@link IEditorService.visibleEditors} for access to the visible editor inputs
+	 * @see {@wink IEditowSewvice.visibweEditows} fow access to the visibwe editow inputs
 	 */
-	readonly visibleEditorPanes: readonly IVisibleEditorPane[];
+	weadonwy visibweEditowPanes: weadonwy IVisibweEditowPane[];
 
 	/**
-	 * All editors that are currently visible. An editor is visible when it is opened in an
-	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
+	 * Aww editows that awe cuwwentwy visibwe. An editow is visibwe when it is opened in an
+	 * editow gwoup and active in that gwoup. Muwtipwe editow gwoups can be opened at the same time.
 	 */
-	readonly visibleEditors: readonly EditorInput[];
+	weadonwy visibweEditows: weadonwy EditowInput[];
 
 	/**
-	 * All text editor widgets that are currently visible across all editor groups. A text editor
-	 * widget is either a text or a diff editor.
+	 * Aww text editow widgets that awe cuwwentwy visibwe acwoss aww editow gwoups. A text editow
+	 * widget is eitha a text ow a diff editow.
 	 */
-	readonly visibleTextEditorControls: readonly (IEditor | IDiffEditor)[];
+	weadonwy visibweTextEditowContwows: weadonwy (IEditow | IDiffEditow)[];
 
 	/**
-	 * All editors that are opened across all editor groups in sequential order
-	 * of appearance.
+	 * Aww editows that awe opened acwoss aww editow gwoups in sequentiaw owda
+	 * of appeawance.
 	 *
-	 * This includes active as well as inactive editors in each editor group.
+	 * This incwudes active as weww as inactive editows in each editow gwoup.
 	 */
-	readonly editors: readonly EditorInput[];
+	weadonwy editows: weadonwy EditowInput[];
 
 	/**
-	 * The total number of editors that are opened either inactive or active.
+	 * The totaw numba of editows that awe opened eitha inactive ow active.
 	 */
-	readonly count: number;
+	weadonwy count: numba;
 
 	/**
-	 * All editors that are opened across all editor groups with their group
-	 * identifier.
+	 * Aww editows that awe opened acwoss aww editow gwoups with theiw gwoup
+	 * identifia.
 	 *
-	 * @param order the order of the editors to use
-	 * @param options whether to exclude sticky editors or not
+	 * @pawam owda the owda of the editows to use
+	 * @pawam options whetha to excwude sticky editows ow not
 	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[];
+	getEditows(owda: EditowsOwda, options?: { excwudeSticky?: boowean }): weadonwy IEditowIdentifia[];
 
 	/**
-	 * Open an editor in an editor group.
+	 * Open an editow in an editow gwoup.
 	 *
-	 * @param editor the editor to open
-	 * @param options the options to use for the editor
-	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
-	 * of the currently active group.
+	 * @pawam editow the editow to open
+	 * @pawam options the options to use fow the editow
+	 * @pawam gwoup the tawget gwoup. If unspecified, the editow wiww open in the cuwwentwy
+	 * active gwoup. Use `SIDE_GWOUP_TYPE` to open the editow in a new editow gwoup to the side
+	 * of the cuwwentwy active gwoup.
 	 *
-	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
+	 * @wetuwns the editow that opened ow `undefined` if the opewation faiwed ow the editow was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditow(editow: IWesouwceEditowInput, gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: ITextWesouwceEditowInput | IUntitwedTextWesouwceEditowInput, gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: IWesouwceDiffEditowInput, gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE): Pwomise<ITextDiffEditowPane | undefined>;
+	openEditow(editow: IUntypedEditowInput, gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE): Pwomise<IEditowPane | undefined>;
+	openEditow(editow: EditowInput, options?: IEditowOptions, gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE): Pwomise<IEditowPane | undefined>;
 
 	/**
-	 * Open editors in an editor group.
+	 * Open editows in an editow gwoup.
 	 *
-	 * @param editors the editors to open with associated options
-	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
-	 * of the currently active group.
+	 * @pawam editows the editows to open with associated options
+	 * @pawam gwoup the tawget gwoup. If unspecified, the editow wiww open in the cuwwentwy
+	 * active gwoup. Use `SIDE_GWOUP_TYPE` to open the editow in a new editow gwoup to the side
+	 * of the cuwwentwy active gwoup.
 	 *
-	 * @returns the editors that opened. The array can be empty or have less elements for editors
-	 * that failed to open or were instructed to open as inactive.
+	 * @wetuwns the editows that opened. The awway can be empty ow have wess ewements fow editows
+	 * that faiwed to open ow wewe instwucted to open as inactive.
 	 */
-	openEditors(editors: IUntypedEditorInput[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
+	openEditows(editows: IUntypedEditowInput[], gwoup?: IEditowGwoup | GwoupIdentifia | SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE, options?: IOpenEditowsOptions): Pwomise<weadonwy IEditowPane[]>;
 
 	/**
-	 * Replaces editors in an editor group with the provided replacement.
+	 * Wepwaces editows in an editow gwoup with the pwovided wepwacement.
 	 *
-	 * @param replacements the editors to replace
-	 * @param group the editor group
+	 * @pawam wepwacements the editows to wepwace
+	 * @pawam gwoup the editow gwoup
 	 *
-	 * @returns a promise that is resolved when the replaced active
-	 * editor (if any) has finished loading.
+	 * @wetuwns a pwomise that is wesowved when the wepwaced active
+	 * editow (if any) has finished woading.
 	 */
-	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	wepwaceEditows(wepwacements: IUntypedEditowWepwacement[], gwoup: IEditowGwoup | GwoupIdentifia): Pwomise<void>;
 
 	/**
-	 * @deprecated when using `EditorInput`, please call `group.replaceEditors` directly.
+	 * @depwecated when using `EditowInput`, pwease caww `gwoup.wepwaceEditows` diwectwy.
 	 */
-	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	wepwaceEditows(wepwacements: IEditowWepwacement[], gwoup: IEditowGwoup | GwoupIdentifia): Pwomise<void>;
 
 	/**
-	 * Find out if the provided editor is opened in any editor group.
+	 * Find out if the pwovided editow is opened in any editow gwoup.
 	 *
-	 * Note: An editor can be opened but not actively visible.
+	 * Note: An editow can be opened but not activewy visibwe.
 	 *
-	 * Note: This method will return `true` if a side by side editor
-	 * is opened where the `primary` editor matches too.
+	 * Note: This method wiww wetuwn `twue` if a side by side editow
+	 * is opened whewe the `pwimawy` editow matches too.
 	 */
-	isOpened(editor: IResourceEditorInputIdentifier): boolean;
+	isOpened(editow: IWesouwceEditowInputIdentifia): boowean;
 
 	/**
-	 * Find out if the provided editor is visible in any editor group.
+	 * Find out if the pwovided editow is visibwe in any editow gwoup.
 	 */
-	isVisible(editor: EditorInput): boolean;
+	isVisibwe(editow: EditowInput): boowean;
 
 	/**
-	 * This method will return an entry for each editor that reports
-	 * a `resource` that matches the provided one in the group or
-	 * across all groups.
+	 * This method wiww wetuwn an entwy fow each editow that wepowts
+	 * a `wesouwce` that matches the pwovided one in the gwoup ow
+	 * acwoss aww gwoups.
 	 *
-	 * It is possible that multiple editors are returned in case the
-	 * same resource is opened in different editors. To find the specific
-	 * editor, use the `IResourceEditorInputIdentifier` as input.
+	 * It is possibwe that muwtipwe editows awe wetuwned in case the
+	 * same wesouwce is opened in diffewent editows. To find the specific
+	 * editow, use the `IWesouwceEditowInputIdentifia` as input.
 	 */
-	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly EditorInput[];
-	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): EditorInput | undefined;
+	findEditows(wesouwce: UWI): weadonwy IEditowIdentifia[];
+	findEditows(editow: IWesouwceEditowInputIdentifia): weadonwy IEditowIdentifia[];
+	findEditows(wesouwce: UWI, gwoup: IEditowGwoup | GwoupIdentifia): weadonwy EditowInput[];
+	findEditows(editow: IWesouwceEditowInputIdentifia, gwoup: IEditowGwoup | GwoupIdentifia): EditowInput | undefined;
 
 	/**
-	 * Save the provided list of editors.
+	 * Save the pwovided wist of editows.
 	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
+	 * @wetuwns `twue` if aww editows saved and `fawse` othewwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editows: IEditowIdentifia | IEditowIdentifia[], options?: ISaveEditowsOptions): Pwomise<boowean>;
 
 	/**
-	 * Save all editors.
+	 * Save aww editows.
 	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
+	 * @wetuwns `twue` if aww editows saved and `fawse` othewwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAww(options?: ISaveAwwEditowsOptions): Pwomise<boowean>;
 
 	/**
-	 * Reverts the provided list of editors.
+	 * Wevewts the pwovided wist of editows.
 	 *
-	 * @returns `true` if all editors reverted and `false` otherwise.
+	 * @wetuwns `twue` if aww editows wevewted and `fawse` othewwise.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+	wevewt(editows: IEditowIdentifia | IEditowIdentifia[], options?: IWevewtOptions): Pwomise<boowean>;
 
 	/**
-	 * Reverts all editors.
+	 * Wevewts aww editows.
 	 *
-	 * @returns `true` if all editors reverted and `false` otherwise.
+	 * @wetuwns `twue` if aww editows wevewted and `fawse` othewwise.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+	wevewtAww(options?: IWevewtAwwEditowsOptions): Pwomise<boowean>;
 }

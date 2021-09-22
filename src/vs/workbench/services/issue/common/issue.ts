@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IssueWepowtewData } fwom 'vs/pwatfowm/issue/common/issue';
 
-export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');
+expowt const IWowkbenchIssueSewvice = cweateDecowatow<IWowkbenchIssueSewvice>('wowkbenchIssueSewvice');
 
-export interface IWorkbenchIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
-	openProcessExplorer(): Promise<void>;
+expowt intewface IWowkbenchIssueSewvice {
+	weadonwy _sewviceBwand: undefined;
+	openWepowta(dataOvewwides?: Pawtiaw<IssueWepowtewData>): Pwomise<void>;
+	openPwocessExpwowa(): Pwomise<void>;
 }

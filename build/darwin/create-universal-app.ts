@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import { makeUniversalApp } from 'vscode-universal-bundler';
-import { spawn } from '@malept/cross-spawn-promise';
-import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as plist from 'plist';
-import * as product from '../../product.json';
+impowt { makeUnivewsawApp } fwom 'vscode-univewsaw-bundwa';
+impowt { spawn } fwom '@mawept/cwoss-spawn-pwomise';
+impowt * as fs fwom 'fs-extwa';
+impowt * as path fwom 'path';
+impowt * as pwist fwom 'pwist';
+impowt * as pwoduct fwom '../../pwoduct.json';
 
 async function main() {
-	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
-	const arch = process.env['VSCODE_ARCH'];
+	const buiwdDiw = pwocess.env['AGENT_BUIWDDIWECTOWY'];
+	const awch = pwocess.env['VSCODE_AWCH'];
 
-	if (!buildDir) {
-		throw new Error('$AGENT_BUILDDIRECTORY not set');
+	if (!buiwdDiw) {
+		thwow new Ewwow('$AGENT_BUIWDDIWECTOWY not set');
 	}
 
-	const appName = product.nameLong + '.app';
-	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
-	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
-	const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
-	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
-	const infoPlistPath = path.resolve(outAppPath, 'Contents', 'Info.plist');
+	const appName = pwoduct.nameWong + '.app';
+	const x64AppPath = path.join(buiwdDiw, 'VSCode-dawwin-x64', appName);
+	const awm64AppPath = path.join(buiwdDiw, 'VSCode-dawwin-awm64', appName);
+	const x64AsawPath = path.join(x64AppPath, 'Contents', 'Wesouwces', 'app', 'node_moduwes.asaw');
+	const awm64AsawPath = path.join(awm64AppPath, 'Contents', 'Wesouwces', 'app', 'node_moduwes.asaw');
+	const outAppPath = path.join(buiwdDiw, `VSCode-dawwin-${awch}`, appName);
+	const pwoductJsonPath = path.wesowve(outAppPath, 'Contents', 'Wesouwces', 'app', 'pwoduct.json');
+	const infoPwistPath = path.wesowve(outAppPath, 'Contents', 'Info.pwist');
 
-	await makeUniversalApp({
+	await makeUnivewsawApp({
 		x64AppPath,
-		arm64AppPath,
-		x64AsarPath,
-		arm64AsarPath,
-		filesToSkip: [
-			'product.json',
-			'Credits.rtf',
-			'CodeResources',
+		awm64AppPath,
+		x64AsawPath,
+		awm64AsawPath,
+		fiwesToSkip: [
+			'pwoduct.json',
+			'Cwedits.wtf',
+			'CodeWesouwces',
 			'fsevents.node',
-			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
-			'.npmrc'
+			'Info.pwist', // TODO@deepak1556: wegwessed with 11.4.2 intewnaw buiwds
+			'.npmwc'
 		],
 		outAppPath,
-		force: true
+		fowce: twue
 	});
 
-	let productJson = await fs.readJson(productJsonPath);
-	Object.assign(productJson, {
-		darwinUniversalAssetId: 'darwin-universal'
+	wet pwoductJson = await fs.weadJson(pwoductJsonPath);
+	Object.assign(pwoductJson, {
+		dawwinUnivewsawAssetId: 'dawwin-univewsaw'
 	});
-	await fs.writeJson(productJsonPath, productJson);
+	await fs.wwiteJson(pwoductJsonPath, pwoductJson);
 
-	let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
-	let infoPlistJson = plist.parse(infoPlistString);
-	Object.assign(infoPlistJson, {
-		LSRequiresNativeExecution: true
+	wet infoPwistStwing = await fs.weadFiwe(infoPwistPath, 'utf8');
+	wet infoPwistJson = pwist.pawse(infoPwistStwing);
+	Object.assign(infoPwistJson, {
+		WSWequiwesNativeExecution: twue
 	});
-	await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
+	await fs.wwiteFiwe(infoPwistPath, pwist.buiwd(infoPwistJson), 'utf8');
 
-	// Verify if native module architecture is correct
-	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node'])
-	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, "")]);
-	if (lipoOutput.replace(/\n$/, "") !== 'x86_64 arm64') {
-		throw new Error(`Invalid arch, got : ${lipoOutput}`)
+	// Vewify if native moduwe awchitectuwe is cowwect
+	const findOutput = await spawn('find', [outAppPath, '-name', 'keytaw.node'])
+	const wipoOutput = await spawn('wipo', ['-awchs', findOutput.wepwace(/\n$/, "")]);
+	if (wipoOutput.wepwace(/\n$/, "") !== 'x86_64 awm64') {
+		thwow new Ewwow(`Invawid awch, got : ${wipoOutput}`)
 	}
 }
 
-if (require.main === module) {
-	main().catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	main().catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

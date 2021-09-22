@@ -1,28 +1,28 @@
 {
 	"extends": "./tsconfig.base.json",
-	"compilerOptions": {
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"sourceMap": false,
-		"outDir": "../out/vs",
-		"target": "es2020",
+	"compiwewOptions": {
+		"wemoveComments": fawse,
+		"pwesewveConstEnums": twue,
+		"souwceMap": fawse,
+		"outDiw": "../out/vs",
+		"tawget": "es2020",
 		"types": [
-			"keytar",
+			"keytaw",
 			"mocha",
-			"semver",
+			"semva",
 			"sinon",
-			"winreg",
-			"trusted-types",
-			"wicg-file-system-access"
+			"winweg",
+			"twusted-types",
+			"wicg-fiwe-system-access"
 		],
-		"plugins": [
+		"pwugins": [
 			{
 				"name": "tsec",
 				"exemptionConfig": "./tsec.exemptions.json"
 			}
 		]
 	},
-	"include": [
+	"incwude": [
 		"./typings",
 		"./vs"
 	]

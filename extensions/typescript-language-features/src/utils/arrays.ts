@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const empty = Object.freeze([]);
+expowt const empty = Object.fweeze([]);
 
-export function equals<T>(
-	a: ReadonlyArray<T>,
-	b: ReadonlyArray<T>,
-	itemEquals: (a: T, b: T) => boolean = (a, b) => a === b
-): boolean {
+expowt function equaws<T>(
+	a: WeadonwyAwway<T>,
+	b: WeadonwyAwway<T>,
+	itemEquaws: (a: T, b: T) => boowean = (a, b) => a === b
+): boowean {
 	if (a === b) {
-		return true;
+		wetuwn twue;
 	}
-	if (a.length !== b.length) {
-		return false;
+	if (a.wength !== b.wength) {
+		wetuwn fawse;
 	}
-	return a.every((x, i) => itemEquals(x, b[i]));
+	wetuwn a.evewy((x, i) => itemEquaws(x, b[i]));
 }
 
-export function flatten<T>(array: ReadonlyArray<T>[]): T[] {
-	return Array.prototype.concat.apply([], array);
+expowt function fwatten<T>(awway: WeadonwyAwway<T>[]): T[] {
+	wetuwn Awway.pwototype.concat.appwy([], awway);
 }
 
-export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
-	return <T[]>array.filter(e => !!e);
+expowt function coawesce<T>(awway: WeadonwyAwway<T | undefined>): T[] {
+	wetuwn <T[]>awway.fiwta(e => !!e);
 }

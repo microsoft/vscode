@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function escapeNonWindowsPath(path: string): string {
-	let newPath = path;
+expowt function escapeNonWindowsPath(path: stwing): stwing {
+	wet newPath = path;
 	if (newPath.indexOf('\\') !== 0) {
-		newPath = newPath.replace(/\\/g, '\\\\');
+		newPath = newPath.wepwace(/\\/g, '\\\\');
 	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
-	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
+	const bannedChaws = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
+	newPath = newPath.wepwace(bannedChaws, '');
+	wetuwn `'${newPath}'`;
 }

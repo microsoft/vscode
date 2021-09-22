@@ -1,676 +1,676 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IPwocessEnviwonment, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IGetTewminawWayoutInfoAwgs, IPwocessDetaiws, IPtyHostPwocessWepwayEvent, ISetTewminawWayoutInfoAwgs } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const enum TerminalSettingPrefix {
-	Shell = 'terminal.integrated.shell.',
-	ShellArgs = 'terminal.integrated.shellArgs.',
-	DefaultProfile = 'terminal.integrated.defaultProfile.',
-	Profiles = 'terminal.integrated.profiles.'
+expowt const enum TewminawSettingPwefix {
+	Sheww = 'tewminaw.integwated.sheww.',
+	ShewwAwgs = 'tewminaw.integwated.shewwAwgs.',
+	DefauwtPwofiwe = 'tewminaw.integwated.defauwtPwofiwe.',
+	Pwofiwes = 'tewminaw.integwated.pwofiwes.'
 }
 
-export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
-	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
-	ProfilesWindows = 'terminal.integrated.profiles.windows',
-	ProfilesMacOs = 'terminal.integrated.profiles.osx',
-	ProfilesLinux = 'terminal.integrated.profiles.linux',
-	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
-	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
-	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
-	UseWslProfiles = 'terminal.integrated.useWslProfiles',
-	TabsEnabled = 'terminal.integrated.tabs.enabled',
-	TabsEnableAnimation = 'terminal.integrated.tabs.enableAnimation',
-	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
-	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
-	TabsShowActions = 'terminal.integrated.tabs.showActions',
-	TabsLocation = 'terminal.integrated.tabs.location',
-	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
-	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
-	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
-	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
-	CopyOnSelection = 'terminal.integrated.copyOnSelection',
-	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
-	FontFamily = 'terminal.integrated.fontFamily',
-	FontSize = 'terminal.integrated.fontSize',
-	LetterSpacing = 'terminal.integrated.letterSpacing',
-	LineHeight = 'terminal.integrated.lineHeight',
-	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
-	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
-	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
-	BellDuration = 'terminal.integrated.bellDuration',
-	FontWeight = 'terminal.integrated.fontWeight',
-	FontWeightBold = 'terminal.integrated.fontWeightBold',
-	CursorBlinking = 'terminal.integrated.cursorBlinking',
-	CursorStyle = 'terminal.integrated.cursorStyle',
-	CursorWidth = 'terminal.integrated.cursorWidth',
-	Scrollback = 'terminal.integrated.scrollback',
-	DetectLocale = 'terminal.integrated.detectLocale',
-	DefaultLocation = 'terminal.integrated.defaultLocation',
-	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
-	TerminalTitleSeparator = 'terminal.integrated.tabs.separator',
-	TerminalTitle = 'terminal.integrated.tabs.title',
-	TerminalDescription = 'terminal.integrated.tabs.description',
-	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
-	Cwd = 'terminal.integrated.cwd',
-	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
-	ConfirmOnKill = 'terminal.integrated.confirmOnKill',
-	EnableBell = 'terminal.integrated.enableBell',
-	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
-	AllowChords = 'terminal.integrated.allowChords',
-	AllowMnemonics = 'terminal.integrated.allowMnemonics',
-	EnvMacOs = 'terminal.integrated.env.osx',
-	EnvLinux = 'terminal.integrated.env.linux',
-	EnvWindows = 'terminal.integrated.env.windows',
-	EnvironmentChangesIndicator = 'terminal.integrated.environmentChangesIndicator',
-	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
-	ShowExitAlert = 'terminal.integrated.showExitAlert',
-	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
-	WordSeparators = 'terminal.integrated.wordSeparators',
-	EnableFileLinks = 'terminal.integrated.enableFileLinks',
-	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
-	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
-	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
-	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
-	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
-	CustomGlyphs = 'terminal.integrated.customGlyphs',
-	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
-	InheritEnv = 'terminal.integrated.inheritEnv',
-	ShowLinkHover = 'terminal.integrated.showLinkHover',
+expowt const enum TewminawSettingId {
+	ShewwWinux = 'tewminaw.integwated.sheww.winux',
+	ShewwMacOs = 'tewminaw.integwated.sheww.osx',
+	ShewwWindows = 'tewminaw.integwated.sheww.windows',
+	SendKeybindingsToSheww = 'tewminaw.integwated.sendKeybindingsToSheww',
+	AutomationShewwWinux = 'tewminaw.integwated.automationSheww.winux',
+	AutomationShewwMacOs = 'tewminaw.integwated.automationSheww.osx',
+	AutomationShewwWindows = 'tewminaw.integwated.automationSheww.windows',
+	ShewwAwgsWinux = 'tewminaw.integwated.shewwAwgs.winux',
+	ShewwAwgsMacOs = 'tewminaw.integwated.shewwAwgs.osx',
+	ShewwAwgsWindows = 'tewminaw.integwated.shewwAwgs.windows',
+	PwofiwesWindows = 'tewminaw.integwated.pwofiwes.windows',
+	PwofiwesMacOs = 'tewminaw.integwated.pwofiwes.osx',
+	PwofiwesWinux = 'tewminaw.integwated.pwofiwes.winux',
+	DefauwtPwofiweWinux = 'tewminaw.integwated.defauwtPwofiwe.winux',
+	DefauwtPwofiweMacOs = 'tewminaw.integwated.defauwtPwofiwe.osx',
+	DefauwtPwofiweWindows = 'tewminaw.integwated.defauwtPwofiwe.windows',
+	UseWswPwofiwes = 'tewminaw.integwated.useWswPwofiwes',
+	TabsEnabwed = 'tewminaw.integwated.tabs.enabwed',
+	TabsEnabweAnimation = 'tewminaw.integwated.tabs.enabweAnimation',
+	TabsHideCondition = 'tewminaw.integwated.tabs.hideCondition',
+	TabsShowActiveTewminaw = 'tewminaw.integwated.tabs.showActiveTewminaw',
+	TabsShowActions = 'tewminaw.integwated.tabs.showActions',
+	TabsWocation = 'tewminaw.integwated.tabs.wocation',
+	TabsFocusMode = 'tewminaw.integwated.tabs.focusMode',
+	MacOptionIsMeta = 'tewminaw.integwated.macOptionIsMeta',
+	MacOptionCwickFowcesSewection = 'tewminaw.integwated.macOptionCwickFowcesSewection',
+	AwtCwickMovesCuwsow = 'tewminaw.integwated.awtCwickMovesCuwsow',
+	CopyOnSewection = 'tewminaw.integwated.copyOnSewection',
+	DwawBowdTextInBwightCowows = 'tewminaw.integwated.dwawBowdTextInBwightCowows',
+	FontFamiwy = 'tewminaw.integwated.fontFamiwy',
+	FontSize = 'tewminaw.integwated.fontSize',
+	WettewSpacing = 'tewminaw.integwated.wettewSpacing',
+	WineHeight = 'tewminaw.integwated.wineHeight',
+	MinimumContwastWatio = 'tewminaw.integwated.minimumContwastWatio',
+	FastScwowwSensitivity = 'tewminaw.integwated.fastScwowwSensitivity',
+	MouseWheewScwowwSensitivity = 'tewminaw.integwated.mouseWheewScwowwSensitivity',
+	BewwDuwation = 'tewminaw.integwated.bewwDuwation',
+	FontWeight = 'tewminaw.integwated.fontWeight',
+	FontWeightBowd = 'tewminaw.integwated.fontWeightBowd',
+	CuwsowBwinking = 'tewminaw.integwated.cuwsowBwinking',
+	CuwsowStywe = 'tewminaw.integwated.cuwsowStywe',
+	CuwsowWidth = 'tewminaw.integwated.cuwsowWidth',
+	Scwowwback = 'tewminaw.integwated.scwowwback',
+	DetectWocawe = 'tewminaw.integwated.detectWocawe',
+	DefauwtWocation = 'tewminaw.integwated.defauwtWocation',
+	GpuAccewewation = 'tewminaw.integwated.gpuAccewewation',
+	TewminawTitweSepawatow = 'tewminaw.integwated.tabs.sepawatow',
+	TewminawTitwe = 'tewminaw.integwated.tabs.titwe',
+	TewminawDescwiption = 'tewminaw.integwated.tabs.descwiption',
+	WightCwickBehaviow = 'tewminaw.integwated.wightCwickBehaviow',
+	Cwd = 'tewminaw.integwated.cwd',
+	ConfiwmOnExit = 'tewminaw.integwated.confiwmOnExit',
+	ConfiwmOnKiww = 'tewminaw.integwated.confiwmOnKiww',
+	EnabweBeww = 'tewminaw.integwated.enabweBeww',
+	CommandsToSkipSheww = 'tewminaw.integwated.commandsToSkipSheww',
+	AwwowChowds = 'tewminaw.integwated.awwowChowds',
+	AwwowMnemonics = 'tewminaw.integwated.awwowMnemonics',
+	EnvMacOs = 'tewminaw.integwated.env.osx',
+	EnvWinux = 'tewminaw.integwated.env.winux',
+	EnvWindows = 'tewminaw.integwated.env.windows',
+	EnviwonmentChangesIndicatow = 'tewminaw.integwated.enviwonmentChangesIndicatow',
+	EnviwonmentChangesWewaunch = 'tewminaw.integwated.enviwonmentChangesWewaunch',
+	ShowExitAwewt = 'tewminaw.integwated.showExitAwewt',
+	SpwitCwd = 'tewminaw.integwated.spwitCwd',
+	WindowsEnabweConpty = 'tewminaw.integwated.windowsEnabweConpty',
+	WowdSepawatows = 'tewminaw.integwated.wowdSepawatows',
+	EnabweFiweWinks = 'tewminaw.integwated.enabweFiweWinks',
+	UnicodeVewsion = 'tewminaw.integwated.unicodeVewsion',
+	ExpewimentawWinkPwovida = 'tewminaw.integwated.expewimentawWinkPwovida',
+	WocawEchoWatencyThweshowd = 'tewminaw.integwated.wocawEchoWatencyThweshowd',
+	WocawEchoExcwudePwogwams = 'tewminaw.integwated.wocawEchoExcwudePwogwams',
+	WocawEchoStywe = 'tewminaw.integwated.wocawEchoStywe',
+	EnabwePewsistentSessions = 'tewminaw.integwated.enabwePewsistentSessions',
+	PewsistentSessionWevivePwocess = 'tewminaw.integwated.pewsistentSessionWevivePwocess',
+	CustomGwyphs = 'tewminaw.integwated.customGwyphs',
+	PewsistentSessionScwowwback = 'tewminaw.integwated.pewsistentSessionScwowwback',
+	InhewitEnv = 'tewminaw.integwated.inhewitEnv',
+	ShowWinkHova = 'tewminaw.integwated.showWinkHova',
 }
 
-export enum WindowsShellType {
-	CommandPrompt = 'cmd',
-	PowerShell = 'pwsh',
-	Wsl = 'wsl',
+expowt enum WindowsShewwType {
+	CommandPwompt = 'cmd',
+	PowewSheww = 'pwsh',
+	Wsw = 'wsw',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = WindowsShellType | undefined;
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
+expowt type TewminawShewwType = WindowsShewwType | undefined;
+expowt intewface IWawTewminawInstanceWayoutInfo<T> {
+	wewativeSize: numba;
+	tewminaw: T;
 }
-export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget>;
+expowt type ITewminawInstanceWayoutInfoById = IWawTewminawInstanceWayoutInfo<numba>;
+expowt type ITewminawInstanceWayoutInfo = IWawTewminawInstanceWayoutInfo<IPtyHostAttachTawget>;
 
-export interface IRawTerminalTabLayoutInfo<T> {
-	isActive: boolean;
-	activePersistentProcessId: number | undefined;
-	terminals: IRawTerminalInstanceLayoutInfo<T>[];
-}
-
-export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-
-export interface IRawTerminalsLayoutInfo<T> {
-	tabs: IRawTerminalTabLayoutInfo<T>[];
+expowt intewface IWawTewminawTabWayoutInfo<T> {
+	isActive: boowean;
+	activePewsistentPwocessId: numba | undefined;
+	tewminaws: IWawTewminawInstanceWayoutInfo<T>[];
 }
 
-export interface IPtyHostAttachTarget {
-	id: number;
-	pid: number;
-	title: string;
-	titleSource: TitleEventSource;
-	cwd: string;
-	workspaceId: string;
-	workspaceName: string;
-	isOrphan: boolean;
-	icon: TerminalIcon | undefined;
+expowt type ITewminawTabWayoutInfoById = IWawTewminawTabWayoutInfo<numba>;
+
+expowt intewface IWawTewminawsWayoutInfo<T> {
+	tabs: IWawTewminawTabWayoutInfo<T>[];
 }
 
-export enum TitleEventSource {
-	/** From the API or the rename command that overrides any other type */
+expowt intewface IPtyHostAttachTawget {
+	id: numba;
+	pid: numba;
+	titwe: stwing;
+	titweSouwce: TitweEventSouwce;
+	cwd: stwing;
+	wowkspaceId: stwing;
+	wowkspaceName: stwing;
+	isOwphan: boowean;
+	icon: TewminawIcon | undefined;
+}
+
+expowt enum TitweEventSouwce {
+	/** Fwom the API ow the wename command that ovewwides any otha type */
 	Api,
-	/** From the process name property*/
-	Process,
-	/** From the VT sequence */
+	/** Fwom the pwocess name pwopewty*/
+	Pwocess,
+	/** Fwom the VT sequence */
 	Sequence,
 	/** Config changed */
 	Config
 }
 
-export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
-export type ITerminalsLayoutInfoById = IRawTerminalsLayoutInfo<number>;
+expowt type ITewminawsWayoutInfo = IWawTewminawsWayoutInfo<IPtyHostAttachTawget | nuww>;
+expowt type ITewminawsWayoutInfoById = IWawTewminawsWayoutInfo<numba>;
 
-export interface IRawTerminalInstanceLayoutInfo<T> {
-	relativeSize: number;
-	terminal: T;
+expowt intewface IWawTewminawInstanceWayoutInfo<T> {
+	wewativeSize: numba;
+	tewminaw: T;
 }
 
-export enum TerminalIpcChannels {
+expowt enum TewminawIpcChannews {
 	/**
-	 * Communicates between the renderer process and shared process.
+	 * Communicates between the wendewa pwocess and shawed pwocess.
 	 */
-	LocalPty = 'localPty',
+	WocawPty = 'wocawPty',
 	/**
-	 * Communicates between the shared process and the pty host process.
+	 * Communicates between the shawed pwocess and the pty host pwocess.
 	 */
 	PtyHost = 'ptyHost',
 	/**
-	 * Deals with logging from the pty host process.
+	 * Deaws with wogging fwom the pty host pwocess.
 	 */
-	Log = 'log',
+	Wog = 'wog',
 	/**
-	 * Enables the detection of unresponsive pty hosts.
+	 * Enabwes the detection of unwesponsive pty hosts.
 	 */
-	Heartbeat = 'heartbeat'
+	Heawtbeat = 'heawtbeat'
 }
 
-export const IPtyService = createDecorator<IPtyService>('ptyService');
+expowt const IPtySewvice = cweateDecowatow<IPtySewvice>('ptySewvice');
 
-export const enum ProcessPropertyType {
+expowt const enum PwocessPwopewtyType {
 	Cwd = 'cwd',
-	InitialCwd = 'initialCwd'
+	InitiawCwd = 'initiawCwd'
 }
 
-export interface IProcessProperty<T extends ProcessPropertyType> {
+expowt intewface IPwocessPwopewty<T extends PwocessPwopewtyType> {
 	type: T,
-	value: IProcessPropertyMap[T]
+	vawue: IPwocessPwopewtyMap[T]
 }
 
-export interface IProcessPropertyMap {
-	[ProcessPropertyType.Cwd]: string,
-	[ProcessPropertyType.InitialCwd]: string,
+expowt intewface IPwocessPwopewtyMap {
+	[PwocessPwopewtyType.Cwd]: stwing,
+	[PwocessPwopewtyType.InitiawCwd]: stwing,
 }
 
-export interface IPtyService {
-	readonly _serviceBrand: undefined;
+expowt intewface IPtySewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onPtyHostExit?: Event<number>;
-	readonly onPtyHostStart?: Event<void>;
-	readonly onPtyHostUnresponsive?: Event<void>;
-	readonly onPtyHostResponsive?: Event<void>;
-	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
+	weadonwy onPtyHostExit?: Event<numba>;
+	weadonwy onPtyHostStawt?: Event<void>;
+	weadonwy onPtyHostUnwesponsive?: Event<void>;
+	weadonwy onPtyHostWesponsive?: Event<void>;
+	weadonwy onPtyHostWequestWesowveVawiabwes?: Event<IWequestWesowveVawiabwesEvent>;
 
-	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
-	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
-	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
-	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
-	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
-	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
-	readonly onProcessOrphanQuestion: Event<{ id: number }>;
-	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
-	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
+	weadonwy onPwocessData: Event<{ id: numba, event: IPwocessDataEvent | stwing }>;
+	weadonwy onPwocessExit: Event<{ id: numba, event: numba | undefined }>;
+	weadonwy onPwocessWeady: Event<{ id: numba, event: { pid: numba, cwd: stwing, capabiwities: PwocessCapabiwity[] } }>;
+	weadonwy onPwocessTitweChanged: Event<{ id: numba, event: stwing }>;
+	weadonwy onPwocessShewwTypeChanged: Event<{ id: numba, event: TewminawShewwType }>;
+	weadonwy onPwocessOvewwideDimensions: Event<{ id: numba, event: ITewminawDimensionsOvewwide | undefined }>;
+	weadonwy onPwocessWesowvedShewwWaunchConfig: Event<{ id: numba, event: IShewwWaunchConfig }>;
+	weadonwy onPwocessWepway: Event<{ id: numba, event: IPtyHostPwocessWepwayEvent }>;
+	weadonwy onPwocessOwphanQuestion: Event<{ id: numba }>;
+	weadonwy onDidWequestDetach: Event<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>;
+	weadonwy onPwocessDidChangeHasChiwdPwocesses: Event<{ id: numba, event: boowean }>;
+	weadonwy onDidChangePwopewty: Event<{ id: numba, pwopewty: IPwocessPwopewty<any> }>
 
-	restartPtyHost?(): Promise<void>;
-	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
+	westawtPtyHost?(): Pwomise<void>;
+	shutdownAww?(): Pwomise<void>;
+	acceptPtyHostWesowvedVawiabwes?(wequestId: numba, wesowved: stwing[]): Pwomise<void>;
 
-	createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		cwd: string,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		env: IProcessEnvironment,
-		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
-		shouldPersist: boolean,
-		workspaceId: string,
-		workspaceName: string
-	): Promise<number>;
-	attachToProcess(id: number): Promise<void>;
-	detachFromProcess(id: number): Promise<void>;
+	cweatePwocess(
+		shewwWaunchConfig: IShewwWaunchConfig,
+		cwd: stwing,
+		cows: numba,
+		wows: numba,
+		unicodeVewsion: '6' | '11',
+		env: IPwocessEnviwonment,
+		executabweEnv: IPwocessEnviwonment,
+		windowsEnabweConpty: boowean,
+		shouwdPewsist: boowean,
+		wowkspaceId: stwing,
+		wowkspaceName: stwing
+	): Pwomise<numba>;
+	attachToPwocess(id: numba): Pwomise<void>;
+	detachFwomPwocess(id: numba): Pwomise<void>;
 
 	/**
-	 * Lists all orphaned processes, ie. those without a connected frontend.
+	 * Wists aww owphaned pwocesses, ie. those without a connected fwontend.
 	 */
-	listProcesses(): Promise<IProcessDetails[]>;
+	wistPwocesses(): Pwomise<IPwocessDetaiws[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | undefined>;
-	shutdown(id: number, immediate: boolean): Promise<void>;
-	input(id: number, data: string): Promise<void>;
-	resize(id: number, cols: number, rows: number): Promise<void>;
-	getInitialCwd(id: number): Promise<string>;
-	getCwd(id: number): Promise<string>;
-	getLatency(id: number): Promise<number>;
-	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
-	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
-	processBinary(id: number, data: string): Promise<void>;
-	/** Confirm the process is _not_ an orphan. */
-	orphanQuestionReply(id: number): Promise<void>;
-	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
-	getEnvironment(): Promise<IProcessEnvironment>;
-	getWslPath(original: string): Promise<string>;
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
-	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): Promise<void>;
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
-	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	stawt(id: numba): Pwomise<ITewminawWaunchEwwow | undefined>;
+	shutdown(id: numba, immediate: boowean): Pwomise<void>;
+	input(id: numba, data: stwing): Pwomise<void>;
+	wesize(id: numba, cows: numba, wows: numba): Pwomise<void>;
+	getInitiawCwd(id: numba): Pwomise<stwing>;
+	getCwd(id: numba): Pwomise<stwing>;
+	getWatency(id: numba): Pwomise<numba>;
+	acknowwedgeDataEvent(id: numba, chawCount: numba): Pwomise<void>;
+	setUnicodeVewsion(id: numba, vewsion: '6' | '11'): Pwomise<void>;
+	pwocessBinawy(id: numba, data: stwing): Pwomise<void>;
+	/** Confiwm the pwocess is _not_ an owphan. */
+	owphanQuestionWepwy(id: numba): Pwomise<void>;
+	updateTitwe(id: numba, titwe: stwing, titweSouwce: TitweEventSouwce): Pwomise<void>;
+	updateIcon(id: numba, icon: TewminawIcon, cowow?: stwing): Pwomise<void>;
+	getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing>;
+	getPwofiwes?(wowkspaceId: stwing, pwofiwes: unknown, defauwtPwofiwe: unknown, incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]>;
+	getEnviwonment(): Pwomise<IPwocessEnviwonment>;
+	getWswPath(owiginaw: stwing): Pwomise<stwing>;
+	setTewminawWayoutInfo(awgs: ISetTewminawWayoutInfoAwgs): Pwomise<void>;
+	getTewminawWayoutInfo(awgs: IGetTewminawWayoutInfoAwgs): Pwomise<ITewminawsWayoutInfo | undefined>;
+	weduceConnectionGwaceTime(): Pwomise<void>;
+	wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined>;
+	acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId?: numba): Pwomise<void>;
 	/**
-	 * Serializes and returns terminal state.
-	 * @param ids The persistent terminal IDs to serialize.
+	 * Sewiawizes and wetuwns tewminaw state.
+	 * @pawam ids The pewsistent tewminaw IDs to sewiawize.
 	 */
-	serializeTerminalState(ids: number[]): Promise<string>;
+	sewiawizeTewminawState(ids: numba[]): Pwomise<stwing>;
 	/**
-	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
-	 * flow for restoring terminals after reloading.
+	 * Wevives a wowkspaces tewminaw pwocesses, these can then be weconnected to using the nowmaw
+	 * fwow fow westowing tewminaws afta wewoading.
 	 */
-	reviveTerminalProcesses(state: string): Promise<void>;
-	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
+	weviveTewminawPwocesses(state: stwing): Pwomise<void>;
+	wefweshPwopewty(id: numba, pwopewty: PwocessPwopewtyType): Pwomise<any>;
 }
 
-export interface IRequestResolveVariablesEvent {
-	requestId: number;
-	workspaceId: string;
-	originalText: string[];
+expowt intewface IWequestWesowveVawiabwesEvent {
+	wequestId: numba;
+	wowkspaceId: stwing;
+	owiginawText: stwing[];
 }
 
-export enum HeartbeatConstants {
+expowt enum HeawtbeatConstants {
 	/**
-	 * The duration between heartbeats
+	 * The duwation between heawtbeats
 	 */
-	BeatInterval = 5000,
+	BeatIntewvaw = 5000,
 	/**
-	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
-	 * timer.
+	 * Defines a muwtipwia fow BeatIntewvaw fow how wong to wait befowe stawting the second wait
+	 * tima.
 	 */
-	FirstWaitMultiplier = 1.2,
+	FiwstWaitMuwtipwia = 1.2,
 	/**
-	 * Defines a multiplier for BeatInterval for how long to wait before telling the user about
-	 * non-responsiveness. The second timer is to avoid informing the user incorrectly when waking
-	 * the computer up from sleep
+	 * Defines a muwtipwia fow BeatIntewvaw fow how wong to wait befowe tewwing the usa about
+	 * non-wesponsiveness. The second tima is to avoid infowming the usa incowwectwy when waking
+	 * the computa up fwom sweep
 	 */
-	SecondWaitMultiplier = 1,
+	SecondWaitMuwtipwia = 1,
 	/**
-	 * How long to wait before telling the user about non-responsiveness when they try to create a
-	 * process. This short circuits the standard wait timeouts to tell the user sooner and only
-	 * create process is handled to avoid additional perf overhead.
+	 * How wong to wait befowe tewwing the usa about non-wesponsiveness when they twy to cweate a
+	 * pwocess. This showt ciwcuits the standawd wait timeouts to teww the usa soona and onwy
+	 * cweate pwocess is handwed to avoid additionaw pewf ovewhead.
 	 */
-	CreateProcessTimeout = 5000
+	CweatePwocessTimeout = 5000
 }
 
-export interface IHeartbeatService {
-	readonly onBeat: Event<void>;
+expowt intewface IHeawtbeatSewvice {
+	weadonwy onBeat: Event<void>;
 }
 
-export interface IShellLaunchConfig {
+expowt intewface IShewwWaunchConfig {
 	/**
-	 * The name of the terminal, if this is not set the name of the process will be used.
+	 * The name of the tewminaw, if this is not set the name of the pwocess wiww be used.
 	 */
-	name?: string;
+	name?: stwing;
 
 	/**
-	 * An string to follow the name of the terminal with, indicating a special kind of terminal
+	 * An stwing to fowwow the name of the tewminaw with, indicating a speciaw kind of tewminaw
 	 */
-	description?: string;
+	descwiption?: stwing;
 
 	/**
-	 * The shell executable (bash, cmd, etc.).
+	 * The sheww executabwe (bash, cmd, etc.).
 	 */
-	executable?: string;
+	executabwe?: stwing;
 
 	/**
-	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
-	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
-	 * only supported on Windows and will throw an exception if used on macOS or Linux.
+	 * The CWI awguments to use with executabwe, a stwing[] is in awgv fowmat and wiww be escaped,
+	 * a stwing is in "CommandWine" pwe-escaped fowmat and wiww be used as is. The stwing option is
+	 * onwy suppowted on Windows and wiww thwow an exception if used on macOS ow Winux.
 	 */
-	args?: string[] | string;
+	awgs?: stwing[] | stwing;
 
 	/**
-	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
+	 * The cuwwent wowking diwectowy of the tewminaw, this ovewwides the `tewminaw.integwated.cwd`
 	 * settings key.
 	 */
-	cwd?: string | URI;
+	cwd?: stwing | UWI;
 
 	/**
-	 * A custom environment for the terminal, if this is not set the environment will be inherited
-	 * from the VS Code process.
+	 * A custom enviwonment fow the tewminaw, if this is not set the enviwonment wiww be inhewited
+	 * fwom the VS Code pwocess.
 	 */
-	env?: ITerminalEnvironment;
+	env?: ITewminawEnviwonment;
 
 	/**
-	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (e.g. if the
-	 * shell is being launched by an extension).
+	 * Whetha to ignowe a custom cwd fwom the `tewminaw.integwated.cwd` settings key (e.g. if the
+	 * sheww is being waunched by an extension).
 	 */
-	ignoreConfigurationCwd?: boolean;
+	ignoweConfiguwationCwd?: boowean;
 
-	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
-
-	/**
-	 * A string including ANSI escape sequences that will be written to the terminal emulator
-	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
-	 * This allows for example the terminal instance to display a styled message as the first line
-	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
-	 */
-	initialText?: string;
+	/** Whetha to wait fow a key pwess befowe cwosing the tewminaw. */
+	waitOnExit?: boowean | stwing;
 
 	/**
-	 * Custom PTY/pseudoterminal process to use.
+	 * A stwing incwuding ANSI escape sequences that wiww be wwitten to the tewminaw emuwatow
+	 * _befowe_ the tewminaw pwocess has waunched, a twaiwing \n is added at the end of the stwing.
+	 * This awwows fow exampwe the tewminaw instance to dispway a stywed message as the fiwst wine
+	 * of the tewminaw. Use \x1b ova \033 ow \e fow the escape contwow chawacta.
 	 */
-	customPtyImplementation?: (terminalId: number, cols: number, rows: number) => ITerminalChildProcess;
+	initiawText?: stwing;
 
 	/**
-	 * A UUID generated by the extension host process for terminals created on the extension host process.
+	 * Custom PTY/pseudotewminaw pwocess to use.
 	 */
-	extHostTerminalId?: string;
+	customPtyImpwementation?: (tewminawId: numba, cows: numba, wows: numba) => ITewminawChiwdPwocess;
 
 	/**
-	 * This is a terminal that attaches to an already running terminal.
+	 * A UUID genewated by the extension host pwocess fow tewminaws cweated on the extension host pwocess.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
+	extHostTewminawId?: stwing;
 
 	/**
-	 * Whether the terminal process environment should be exactly as provided in
-	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
-	 * window's environment and also apply configured platform settings like
-	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
-	 * provided as nothing will be inherited from the process or any configuration.
+	 * This is a tewminaw that attaches to an awweady wunning tewminaw.
 	 */
-	strictEnv?: boolean;
+	attachPewsistentPwocess?: { id: numba; pid: numba; titwe: stwing; titweSouwce: TitweEventSouwce; cwd: stwing; icon?: TewminawIcon; cowow?: stwing, hasChiwdPwocesses?: boowean };
 
 	/**
-	 * Whether the terminal process environment will inherit VS Code's "shell environment" that may
-	 * get sourced from running a login shell depnding on how the application was launched.
-	 * Consumers that rely on development tools being present in the $PATH should set this to true.
-	 * This will overwrite the value of the inheritEnv setting.
+	 * Whetha the tewminaw pwocess enviwonment shouwd be exactwy as pwovided in
+	 * `TewminawOptions.env`. When this is fawse (defauwt), the enviwonment wiww be based on the
+	 * window's enviwonment and awso appwy configuwed pwatfowm settings wike
+	 * `tewminaw.integwated.windows.env` on top. When this is twue, the compwete enviwonment must be
+	 * pwovided as nothing wiww be inhewited fwom the pwocess ow any configuwation.
 	 */
-	useShellEnvironment?: boolean;
+	stwictEnv?: boowean;
 
 	/**
-	 * When enabled the terminal will run the process as normal but not be surfaced to the user
-	 * until `Terminal.show` is called. The typical usage for this is when you need to run
-	 * something that may need interactivity but only want to tell the user about it when
-	 * interaction is needed. Note that the terminals will still be exposed to all extensions
-	 * as normal.
+	 * Whetha the tewminaw pwocess enviwonment wiww inhewit VS Code's "sheww enviwonment" that may
+	 * get souwced fwom wunning a wogin sheww depnding on how the appwication was waunched.
+	 * Consumews that wewy on devewopment toows being pwesent in the $PATH shouwd set this to twue.
+	 * This wiww ovewwwite the vawue of the inhewitEnv setting.
 	 */
-	hideFromUser?: boolean;
+	useShewwEnviwonment?: boowean;
 
 	/**
-	 * Whether this terminal is not a terminal that the user directly created and uses, but rather
-	 * a terminal used to drive some VS Code feature.
+	 * When enabwed the tewminaw wiww wun the pwocess as nowmaw but not be suwfaced to the usa
+	 * untiw `Tewminaw.show` is cawwed. The typicaw usage fow this is when you need to wun
+	 * something that may need intewactivity but onwy want to teww the usa about it when
+	 * intewaction is needed. Note that the tewminaws wiww stiww be exposed to aww extensions
+	 * as nowmaw.
 	 */
-	isFeatureTerminal?: boolean;
+	hideFwomUsa?: boowean;
 
 	/**
-	 * Whether this terminal was created by an extension.
+	 * Whetha this tewminaw is not a tewminaw that the usa diwectwy cweated and uses, but watha
+	 * a tewminaw used to dwive some VS Code featuwe.
 	 */
-	isExtensionOwnedTerminal?: boolean;
+	isFeatuweTewminaw?: boowean;
 
 	/**
-	 * The icon for the terminal, used primarily in the terminal tab.
+	 * Whetha this tewminaw was cweated by an extension.
 	 */
-	icon?: TerminalIcon;
+	isExtensionOwnedTewminaw?: boowean;
 
 	/**
-	 * The color ID to use for this terminal. If not specified it will use the default fallback
+	 * The icon fow the tewminaw, used pwimawiwy in the tewminaw tab.
 	 */
-	color?: string;
+	icon?: TewminawIcon;
 
 	/**
-	 * When a parent terminal is provided via API, the group needs
-	 * to find the index in order to place the child
-	 * directly to the right of its parent.
+	 * The cowow ID to use fow this tewminaw. If not specified it wiww use the defauwt fawwback
 	 */
-	parentTerminalId?: number;
+	cowow?: stwing;
+
+	/**
+	 * When a pawent tewminaw is pwovided via API, the gwoup needs
+	 * to find the index in owda to pwace the chiwd
+	 * diwectwy to the wight of its pawent.
+	 */
+	pawentTewminawId?: numba;
 }
 
-export interface ICreateContributedTerminalProfileOptions {
-	icon?: URI | string | { light: URI, dark: URI };
-	color?: string;
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+expowt intewface ICweateContwibutedTewminawPwofiweOptions {
+	icon?: UWI | stwing | { wight: UWI, dawk: UWI };
+	cowow?: stwing;
+	wocation?: TewminawWocation | { viewCowumn: numba, pwesewveState?: boowean } | { spwitActiveTewminaw: boowean };
 }
 
-export enum TerminalLocation {
-	Panel = 1,
-	Editor = 2
+expowt enum TewminawWocation {
+	Panew = 1,
+	Editow = 2
 }
 
-export const enum TerminalLocationString {
-	TerminalView = 'view',
-	Editor = 'editor'
+expowt const enum TewminawWocationStwing {
+	TewminawView = 'view',
+	Editow = 'editow'
 }
 
-export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
+expowt type TewminawIcon = ThemeIcon | UWI | { wight: UWI; dawk: UWI };
 
-export interface IShellLaunchConfigDto {
-	name?: string;
-	executable?: string;
-	args?: string[] | string;
-	cwd?: string | UriComponents;
-	env?: ITerminalEnvironment;
-	useShellEnvironment?: boolean;
-	hideFromUser?: boolean;
+expowt intewface IShewwWaunchConfigDto {
+	name?: stwing;
+	executabwe?: stwing;
+	awgs?: stwing[] | stwing;
+	cwd?: stwing | UwiComponents;
+	env?: ITewminawEnviwonment;
+	useShewwEnviwonment?: boowean;
+	hideFwomUsa?: boowean;
 }
 
-export interface ITerminalEnvironment {
-	[key: string]: string | null | undefined;
+expowt intewface ITewminawEnviwonment {
+	[key: stwing]: stwing | nuww | undefined;
 }
 
-export interface ITerminalLaunchError {
-	message: string;
-	code?: number;
+expowt intewface ITewminawWaunchEwwow {
+	message: stwing;
+	code?: numba;
 }
 
-export interface IProcessReadyEvent {
-	pid: number,
-	cwd: string,
-	capabilities: ProcessCapability[],
-	requiresWindowsMode?: boolean
+expowt intewface IPwocessWeadyEvent {
+	pid: numba,
+	cwd: stwing,
+	capabiwities: PwocessCapabiwity[],
+	wequiwesWindowsMode?: boowean
 }
 
-export const enum ProcessCapability {
+expowt const enum PwocessCapabiwity {
 	CwdDetection = 'cwdDetection'
 }
 
 /**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
+ * An intewface wepwesenting a waw tewminaw chiwd pwocess, this contains a subset of the
+ * chiwd_pwocess.ChiwdPwocess node.js intewface.
  */
-export interface ITerminalChildProcess {
+expowt intewface ITewminawChiwdPwocess {
 	/**
-	 * A unique identifier for the terminal process. Note that the uniqueness only applies to a
-	 * given pty service connection, IDs will be duplicated for remote and local terminals for
-	 * example. The ID will be 0 if it does not support reconnection.
+	 * A unique identifia fow the tewminaw pwocess. Note that the uniqueness onwy appwies to a
+	 * given pty sewvice connection, IDs wiww be dupwicated fow wemote and wocaw tewminaws fow
+	 * exampwe. The ID wiww be 0 if it does not suppowt weconnection.
 	 */
-	id: number;
+	id: numba;
 
 	/**
-	 * Whether the process should be persisted across reloads.
+	 * Whetha the pwocess shouwd be pewsisted acwoss wewoads.
 	 */
-	shouldPersist: boolean;
+	shouwdPewsist: boowean;
 
 	/**
-	 * Capabilities of the process, designated when it starts
+	 * Capabiwities of the pwocess, designated when it stawts
 	 */
-	capabilities: ProcessCapability[];
+	capabiwities: PwocessCapabiwity[];
 
-	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessTitleChanged: Event<string>;
-	onProcessShellTypeChanged: Event<TerminalShellType>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onDidChangeHasChildProcesses?: Event<boolean>;
-	onDidChangeProperty: Event<IProcessProperty<any>>;
+	onPwocessData: Event<IPwocessDataEvent | stwing>;
+	onPwocessExit: Event<numba | undefined>;
+	onPwocessWeady: Event<IPwocessWeadyEvent>;
+	onPwocessTitweChanged: Event<stwing>;
+	onPwocessShewwTypeChanged: Event<TewminawShewwType>;
+	onPwocessOvewwideDimensions?: Event<ITewminawDimensionsOvewwide | undefined>;
+	onPwocessWesowvedShewwWaunchConfig?: Event<IShewwWaunchConfig>;
+	onDidChangeHasChiwdPwocesses?: Event<boowean>;
+	onDidChangePwopewty: Event<IPwocessPwopewty<any>>;
 
 	/**
-	 * Starts the process.
+	 * Stawts the pwocess.
 	 *
-	 * @returns undefined when the process was successfully started, otherwise an object containing
-	 * information on what went wrong.
+	 * @wetuwns undefined when the pwocess was successfuwwy stawted, othewwise an object containing
+	 * infowmation on what went wwong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	stawt(): Pwomise<ITewminawWaunchEwwow | undefined>;
 
 	/**
-	 * Detach the process from the UI and await reconnect.
+	 * Detach the pwocess fwom the UI and await weconnect.
 	 */
-	detach?(): Promise<void>;
+	detach?(): Pwomise<void>;
 
 	/**
-	 * Shutdown the terminal process.
+	 * Shutdown the tewminaw pwocess.
 	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
+	 * @pawam immediate When twue the pwocess wiww be kiwwed immediatewy, othewwise the pwocess wiww
+	 * be given some time to make suwe no additionaw data comes thwough.
 	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	processBinary(data: string): Promise<void>;
-	resize(cols: number, rows: number): void;
+	shutdown(immediate: boowean): void;
+	input(data: stwing): void;
+	pwocessBinawy(data: stwing): Pwomise<void>;
+	wesize(cows: numba, wows: numba): void;
 
 	/**
-	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
-	 * control to ensure remote processes to not get too far ahead of the client and flood the
+	 * Acknowwedge a data event has been pawsed by the tewminaw, this is used to impwement fwow
+	 * contwow to ensuwe wemote pwocesses to not get too faw ahead of the cwient and fwood the
 	 * connection.
-	 * @param charCount The number of characters being acknowledged.
+	 * @pawam chawCount The numba of chawactews being acknowwedged.
 	 */
-	acknowledgeDataEvent(charCount: number): void;
+	acknowwedgeDataEvent(chawCount: numba): void;
 
 	/**
-	 * Sets the unicode version for the process, this drives the size of some characters in the
-	 * xterm-headless instance.
+	 * Sets the unicode vewsion fow the pwocess, this dwives the size of some chawactews in the
+	 * xtewm-headwess instance.
 	 */
-	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+	setUnicodeVewsion(vewsion: '6' | '11'): Pwomise<void>;
 
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): Promise<any>;
+	getInitiawCwd(): Pwomise<stwing>;
+	getCwd(): Pwomise<stwing>;
+	getWatency(): Pwomise<numba>;
+	wefweshPwopewty(pwopewty: PwocessPwopewtyType): Pwomise<any>;
 }
 
-export interface IReconnectConstants {
-	graceTime: number;
-	shortGraceTime: number;
-	scrollback: number;
+expowt intewface IWeconnectConstants {
+	gwaceTime: numba;
+	showtGwaceTime: numba;
+	scwowwback: numba;
 }
 
-export const enum LocalReconnectConstants {
+expowt const enum WocawWeconnectConstants {
 	/**
-	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
+	 * If thewe is no weconnection within this time-fwame, consida the connection pewmanentwy cwosed...
 	*/
-	GraceTime = 60000, // 60 seconds
+	GwaceTime = 60000, // 60 seconds
 	/**
-	 * Maximal grace time between the first and the last reconnection...
+	 * Maximaw gwace time between the fiwst and the wast weconnection...
 	*/
-	ShortGraceTime = 6000, // 6 seconds
+	ShowtGwaceTime = 6000, // 6 seconds
 }
 
-export const enum FlowControlConstants {
+expowt const enum FwowContwowConstants {
 	/**
-	 * The number of _unacknowledged_ chars to have been sent before the pty is paused in order for
-	 * the client to catch up.
+	 * The numba of _unacknowwedged_ chaws to have been sent befowe the pty is paused in owda fow
+	 * the cwient to catch up.
 	 */
-	HighWatermarkChars = 100000,
+	HighWatewmawkChaws = 100000,
 	/**
-	 * After flow control pauses the pty for the client the catch up, this is the number of
-	 * _unacknowledged_ chars to have been caught up to on the client before resuming the pty again.
-	 * This is used to attempt to prevent pauses in the flowing data; ideally while the pty is
-	 * paused the number of unacknowledged chars would always be greater than 0 or the client will
-	 * appear to stutter. In reality this balance is hard to accomplish though so heavy commands
-	 * will likely pause as latency grows, not flooding the connection is the important thing as
-	 * it's shared with other core functionality.
+	 * Afta fwow contwow pauses the pty fow the cwient the catch up, this is the numba of
+	 * _unacknowwedged_ chaws to have been caught up to on the cwient befowe wesuming the pty again.
+	 * This is used to attempt to pwevent pauses in the fwowing data; ideawwy whiwe the pty is
+	 * paused the numba of unacknowwedged chaws wouwd awways be gweata than 0 ow the cwient wiww
+	 * appeaw to stutta. In weawity this bawance is hawd to accompwish though so heavy commands
+	 * wiww wikewy pause as watency gwows, not fwooding the connection is the impowtant thing as
+	 * it's shawed with otha cowe functionawity.
 	 */
-	LowWatermarkChars = 5000,
+	WowWatewmawkChaws = 5000,
 	/**
-	 * The number characters that are accumulated on the client side before sending an ack event.
-	 * This must be less than or equal to LowWatermarkChars or the terminal max never unpause.
+	 * The numba chawactews that awe accumuwated on the cwient side befowe sending an ack event.
+	 * This must be wess than ow equaw to WowWatewmawkChaws ow the tewminaw max neva unpause.
 	 */
-	CharCountAckSize = 5000
+	ChawCountAckSize = 5000
 }
 
-export interface IProcessDataEvent {
-	data: string;
-	trackCommit: boolean;
+expowt intewface IPwocessDataEvent {
+	data: stwing;
+	twackCommit: boowean;
 	/**
-	 * When trackCommit is set, this will be set to a promise that resolves when the data is parsed.
+	 * When twackCommit is set, this wiww be set to a pwomise that wesowves when the data is pawsed.
 	 */
-	writePromise?: Promise<void>;
+	wwitePwomise?: Pwomise<void>;
 }
 
-export interface ITerminalDimensions {
+expowt intewface ITewminawDimensions {
 	/**
-	 * The columns of the terminal.
+	 * The cowumns of the tewminaw.
 	 */
-	cols: number;
+	cows: numba;
 
 	/**
-	 * The rows of the terminal.
+	 * The wows of the tewminaw.
 	 */
-	rows: number;
+	wows: numba;
 }
 
-export interface ITerminalProfile {
-	profileName: string;
-	path: string;
-	isDefault: boolean;
-	isAutoDetected?: boolean;
-	args?: string | string[] | undefined;
-	env?: ITerminalEnvironment;
-	overrideName?: boolean;
-	color?: string;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+expowt intewface ITewminawPwofiwe {
+	pwofiweName: stwing;
+	path: stwing;
+	isDefauwt: boowean;
+	isAutoDetected?: boowean;
+	awgs?: stwing | stwing[] | undefined;
+	env?: ITewminawEnviwonment;
+	ovewwideName?: boowean;
+	cowow?: stwing;
+	icon?: ThemeIcon | UWI | { wight: UWI, dawk: UWI };
 }
 
-export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
+expowt intewface ITewminawDimensionsOvewwide extends Weadonwy<ITewminawDimensions> {
 	/**
-	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
+	 * indicate that xtewm must weceive these exact dimensions, even if they ovewfwow the ui!
 	 */
-	forceExactSize?: boolean;
+	fowceExactSize?: boowean;
 }
 
-export const enum ProfileSource {
+expowt const enum PwofiweSouwce {
 	GitBash = 'Git Bash',
-	Pwsh = 'PowerShell'
+	Pwsh = 'PowewSheww'
 }
 
-export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
-	isAutoDetected?: boolean;
-	overrideName?: boolean;
-	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
-	color?: string;
-	env?: ITerminalEnvironment;
+expowt intewface IBaseUnwesowvedTewminawPwofiwe {
+	awgs?: stwing | stwing[] | undefined;
+	isAutoDetected?: boowean;
+	ovewwideName?: boowean;
+	icon?: stwing | ThemeIcon | UWI | { wight: UWI, dawk: UWI };
+	cowow?: stwing;
+	env?: ITewminawEnviwonment;
 }
 
-export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
+expowt intewface ITewminawExecutabwe extends IBaseUnwesowvedTewminawPwofiwe {
+	path: stwing | stwing[];
 }
 
-export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
-	source: ProfileSource;
+expowt intewface ITewminawPwofiweSouwce extends IBaseUnwesowvedTewminawPwofiwe {
+	souwce: PwofiweSouwce;
 }
 
 
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
+expowt intewface ITewminawContwibutions {
+	pwofiwes?: ITewminawPwofiweContwibution[];
 }
 
-export interface ITerminalProfileContribution {
-	title: string;
-	id: string;
-	icon?: URI | { light: URI, dark: URI } | string;
-	color?: string;
+expowt intewface ITewminawPwofiweContwibution {
+	titwe: stwing;
+	id: stwing;
+	icon?: UWI | { wight: UWI, dawk: UWI } | stwing;
+	cowow?: stwing;
 }
 
-export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
-	extensionIdentifier: string;
+expowt intewface IExtensionTewminawPwofiwe extends ITewminawPwofiweContwibution {
+	extensionIdentifia: stwing;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
+expowt type ITewminawPwofiweObject = ITewminawExecutabwe | ITewminawPwofiweSouwce | IExtensionTewminawPwofiwe | nuww;
+expowt type ITewminawPwofiweType = ITewminawPwofiwe | IExtensionTewminawPwofiwe;

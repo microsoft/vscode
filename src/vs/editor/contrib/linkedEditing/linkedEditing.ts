@@ -1,452 +1,452 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { isPromiseCanceledError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya, fiwst } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { isPwomiseCancewedEwwow, onUnexpectedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, wegistewModewAndPositionCommand, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IIdentifiedSingweEditOpewation, IModewDewtaDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { WinkedEditingWangePwovidewWegistwy, WinkedEditingWanges } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
+expowt const CONTEXT_ONTYPE_WENAME_INPUT_VISIBWE = new WawContextKey<boowean>('WinkedEditingInputVisibwe', fawse);
 
-const DECORATION_CLASS_NAME = 'linked-editing-decoration';
+const DECOWATION_CWASS_NAME = 'winked-editing-decowation';
 
-export class LinkedEditingContribution extends Disposable implements IEditorContribution {
+expowt cwass WinkedEditingContwibution extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.linkedEditing';
+	pubwic static weadonwy ID = 'editow.contwib.winkedEditing';
 
-	private static readonly DECORATION = ModelDecorationOptions.register({
-		description: 'linked-editing',
-		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		className: DECORATION_CLASS_NAME
+	pwivate static weadonwy DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'winked-editing',
+		stickiness: TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges,
+		cwassName: DECOWATION_CWASS_NAME
 	});
 
-	static get(editor: ICodeEditor): LinkedEditingContribution {
-		return editor.getContribution<LinkedEditingContribution>(LinkedEditingContribution.ID);
+	static get(editow: ICodeEditow): WinkedEditingContwibution {
+		wetuwn editow.getContwibution<WinkedEditingContwibution>(WinkedEditingContwibution.ID);
 	}
 
-	private _debounceDuration = 200;
+	pwivate _debounceDuwation = 200;
 
-	private readonly _editor: ICodeEditor;
-	private _enabled: boolean;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate _enabwed: boowean;
 
-	private readonly _visibleContextKey: IContextKey<boolean>;
+	pwivate weadonwy _visibweContextKey: IContextKey<boowean>;
 
-	private _rangeUpdateTriggerPromise: Promise<any> | null;
-	private _rangeSyncTriggerPromise: Promise<any> | null;
+	pwivate _wangeUpdateTwiggewPwomise: Pwomise<any> | nuww;
+	pwivate _wangeSyncTwiggewPwomise: Pwomise<any> | nuww;
 
-	private _currentRequest: CancelablePromise<any> | null;
-	private _currentRequestPosition: Position | null;
-	private _currentRequestModelVersion: number | null;
+	pwivate _cuwwentWequest: CancewabwePwomise<any> | nuww;
+	pwivate _cuwwentWequestPosition: Position | nuww;
+	pwivate _cuwwentWequestModewVewsion: numba | nuww;
 
-	private _currentDecorations: string[]; // The one at index 0 is the reference one
-	private _languageWordPattern: RegExp | null;
-	private _currentWordPattern: RegExp | null;
-	private _ignoreChangeEvent: boolean;
+	pwivate _cuwwentDecowations: stwing[]; // The one at index 0 is the wefewence one
+	pwivate _wanguageWowdPattewn: WegExp | nuww;
+	pwivate _cuwwentWowdPattewn: WegExp | nuww;
+	pwivate _ignoweChangeEvent: boowean;
 
-	private readonly _localToDispose = this._register(new DisposableStore());
+	pwivate weadonwy _wocawToDispose = this._wegista(new DisposabweStowe());
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super();
-		this._editor = editor;
-		this._enabled = false;
-		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+		supa();
+		this._editow = editow;
+		this._enabwed = fawse;
+		this._visibweContextKey = CONTEXT_ONTYPE_WENAME_INPUT_VISIBWE.bindTo(contextKeySewvice);
 
-		this._currentDecorations = [];
-		this._languageWordPattern = null;
-		this._currentWordPattern = null;
-		this._ignoreChangeEvent = false;
-		this._localToDispose = this._register(new DisposableStore());
+		this._cuwwentDecowations = [];
+		this._wanguageWowdPattewn = nuww;
+		this._cuwwentWowdPattewn = nuww;
+		this._ignoweChangeEvent = fawse;
+		this._wocawToDispose = this._wegista(new DisposabweStowe());
 
-		this._rangeUpdateTriggerPromise = null;
-		this._rangeSyncTriggerPromise = null;
+		this._wangeUpdateTwiggewPwomise = nuww;
+		this._wangeSyncTwiggewPwomise = nuww;
 
-		this._currentRequest = null;
-		this._currentRequestPosition = null;
-		this._currentRequestModelVersion = null;
+		this._cuwwentWequest = nuww;
+		this._cuwwentWequestPosition = nuww;
+		this._cuwwentWequestModewVewsion = nuww;
 
-		this._register(this._editor.onDidChangeModel(() => this.reinitialize(true)));
+		this._wegista(this._editow.onDidChangeModew(() => this.weinitiawize(twue)));
 
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.linkedEditing) || e.hasChanged(EditorOption.renameOnType)) {
-				this.reinitialize(false);
+		this._wegista(this._editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.winkedEditing) || e.hasChanged(EditowOption.wenameOnType)) {
+				this.weinitiawize(fawse);
 			}
 		}));
-		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize(false)));
-		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize(true)));
+		this._wegista(WinkedEditingWangePwovidewWegistwy.onDidChange(() => this.weinitiawize(fawse)));
+		this._wegista(this._editow.onDidChangeModewWanguage(() => this.weinitiawize(twue)));
 
-		this.reinitialize(true);
+		this.weinitiawize(twue);
 	}
 
-	private reinitialize(forceRefresh: boolean) {
-		const model = this._editor.getModel();
-		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && LinkedEditingRangeProviderRegistry.has(model);
-		if (isEnabled === this._enabled && !forceRefresh) {
-			return;
+	pwivate weinitiawize(fowceWefwesh: boowean) {
+		const modew = this._editow.getModew();
+		const isEnabwed = modew !== nuww && (this._editow.getOption(EditowOption.winkedEditing) || this._editow.getOption(EditowOption.wenameOnType)) && WinkedEditingWangePwovidewWegistwy.has(modew);
+		if (isEnabwed === this._enabwed && !fowceWefwesh) {
+			wetuwn;
 		}
 
-		this._enabled = isEnabled;
+		this._enabwed = isEnabwed;
 
-		this.clearRanges();
-		this._localToDispose.clear();
+		this.cweawWanges();
+		this._wocawToDispose.cweaw();
 
-		if (!isEnabled || model === null) {
-			return;
+		if (!isEnabwed || modew === nuww) {
+			wetuwn;
 		}
 
-		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
-		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
-			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		this._wanguageWowdPattewn = WanguageConfiguwationWegistwy.getWowdDefinition(modew.getWanguageIdentifia().id);
+		this._wocawToDispose.add(modew.onDidChangeWanguageConfiguwation(() => {
+			this._wanguageWowdPattewn = WanguageConfiguwationWegistwy.getWowdDefinition(modew.getWanguageIdentifia().id);
 		}));
 
-		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
-		const triggerRangeUpdate = () => {
-			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration);
+		const wangeUpdateScheduwa = new Dewaya(this._debounceDuwation);
+		const twiggewWangeUpdate = () => {
+			this._wangeUpdateTwiggewPwomise = wangeUpdateScheduwa.twigga(() => this.updateWanges(), this._debounceDuwation);
 		};
-		const rangeSyncScheduler = new Delayer(0);
-		const triggerRangeSync = (decorations: string[]) => {
-			this._rangeSyncTriggerPromise = rangeSyncScheduler.trigger(() => this._syncRanges(decorations));
+		const wangeSyncScheduwa = new Dewaya(0);
+		const twiggewWangeSync = (decowations: stwing[]) => {
+			this._wangeSyncTwiggewPwomise = wangeSyncScheduwa.twigga(() => this._syncWanges(decowations));
 		};
-		this._localToDispose.add(this._editor.onDidChangeCursorPosition(() => {
-			triggerRangeUpdate();
+		this._wocawToDispose.add(this._editow.onDidChangeCuwsowPosition(() => {
+			twiggewWangeUpdate();
 		}));
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
-			if (!this._ignoreChangeEvent) {
-				if (this._currentDecorations.length > 0) {
-					const referenceRange = model.getDecorationRange(this._currentDecorations[0]);
-					if (referenceRange && e.changes.every(c => referenceRange.intersectRanges(c.range))) {
-						triggerRangeSync(this._currentDecorations);
-						return;
+		this._wocawToDispose.add(this._editow.onDidChangeModewContent((e) => {
+			if (!this._ignoweChangeEvent) {
+				if (this._cuwwentDecowations.wength > 0) {
+					const wefewenceWange = modew.getDecowationWange(this._cuwwentDecowations[0]);
+					if (wefewenceWange && e.changes.evewy(c => wefewenceWange.intewsectWanges(c.wange))) {
+						twiggewWangeSync(this._cuwwentDecowations);
+						wetuwn;
 					}
 				}
 			}
-			triggerRangeUpdate();
+			twiggewWangeUpdate();
 		}));
-		this._localToDispose.add({
+		this._wocawToDispose.add({
 			dispose: () => {
-				rangeUpdateScheduler.cancel();
-				rangeSyncScheduler.cancel();
+				wangeUpdateScheduwa.cancew();
+				wangeSyncScheduwa.cancew();
 			}
 		});
-		this.updateRanges();
+		this.updateWanges();
 	}
 
-	private _syncRanges(decorations: string[]): void {
-		// dalayed invocation, make sure we're still on
-		if (!this._editor.hasModel() || decorations !== this._currentDecorations || decorations.length === 0) {
+	pwivate _syncWanges(decowations: stwing[]): void {
+		// dawayed invocation, make suwe we'we stiww on
+		if (!this._editow.hasModew() || decowations !== this._cuwwentDecowations || decowations.wength === 0) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
 
-		const model = this._editor.getModel();
-		const referenceRange = model.getDecorationRange(decorations[0]);
+		const modew = this._editow.getModew();
+		const wefewenceWange = modew.getDecowationWange(decowations[0]);
 
-		if (!referenceRange || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
-			return this.clearRanges();
+		if (!wefewenceWange || wefewenceWange.stawtWineNumba !== wefewenceWange.endWineNumba) {
+			wetuwn this.cweawWanges();
 		}
 
-		const referenceValue = model.getValueInRange(referenceRange);
-		if (this._currentWordPattern) {
-			const match = referenceValue.match(this._currentWordPattern);
-			const matchLength = match ? match[0].length : 0;
-			if (matchLength !== referenceValue.length) {
-				return this.clearRanges();
+		const wefewenceVawue = modew.getVawueInWange(wefewenceWange);
+		if (this._cuwwentWowdPattewn) {
+			const match = wefewenceVawue.match(this._cuwwentWowdPattewn);
+			const matchWength = match ? match[0].wength : 0;
+			if (matchWength !== wefewenceVawue.wength) {
+				wetuwn this.cweawWanges();
 			}
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
-		for (let i = 1, len = decorations.length; i < len; i++) {
-			const mirrorRange = model.getDecorationRange(decorations[i]);
-			if (!mirrorRange) {
+		wet edits: IIdentifiedSingweEditOpewation[] = [];
+		fow (wet i = 1, wen = decowations.wength; i < wen; i++) {
+			const miwwowWange = modew.getDecowationWange(decowations[i]);
+			if (!miwwowWange) {
 				continue;
 			}
-			if (mirrorRange.startLineNumber !== mirrorRange.endLineNumber) {
+			if (miwwowWange.stawtWineNumba !== miwwowWange.endWineNumba) {
 				edits.push({
-					range: mirrorRange,
-					text: referenceValue
+					wange: miwwowWange,
+					text: wefewenceVawue
 				});
-			} else {
-				let oldValue = model.getValueInRange(mirrorRange);
-				let newValue = referenceValue;
-				let rangeStartColumn = mirrorRange.startColumn;
-				let rangeEndColumn = mirrorRange.endColumn;
+			} ewse {
+				wet owdVawue = modew.getVawueInWange(miwwowWange);
+				wet newVawue = wefewenceVawue;
+				wet wangeStawtCowumn = miwwowWange.stawtCowumn;
+				wet wangeEndCowumn = miwwowWange.endCowumn;
 
-				const commonPrefixLength = strings.commonPrefixLength(oldValue, newValue);
-				rangeStartColumn += commonPrefixLength;
-				oldValue = oldValue.substr(commonPrefixLength);
-				newValue = newValue.substr(commonPrefixLength);
+				const commonPwefixWength = stwings.commonPwefixWength(owdVawue, newVawue);
+				wangeStawtCowumn += commonPwefixWength;
+				owdVawue = owdVawue.substw(commonPwefixWength);
+				newVawue = newVawue.substw(commonPwefixWength);
 
-				const commonSuffixLength = strings.commonSuffixLength(oldValue, newValue);
-				rangeEndColumn -= commonSuffixLength;
-				oldValue = oldValue.substr(0, oldValue.length - commonSuffixLength);
-				newValue = newValue.substr(0, newValue.length - commonSuffixLength);
+				const commonSuffixWength = stwings.commonSuffixWength(owdVawue, newVawue);
+				wangeEndCowumn -= commonSuffixWength;
+				owdVawue = owdVawue.substw(0, owdVawue.wength - commonSuffixWength);
+				newVawue = newVawue.substw(0, newVawue.wength - commonSuffixWength);
 
-				if (rangeStartColumn !== rangeEndColumn || newValue.length !== 0) {
+				if (wangeStawtCowumn !== wangeEndCowumn || newVawue.wength !== 0) {
 					edits.push({
-						range: new Range(mirrorRange.startLineNumber, rangeStartColumn, mirrorRange.endLineNumber, rangeEndColumn),
-						text: newValue
+						wange: new Wange(miwwowWange.stawtWineNumba, wangeStawtCowumn, miwwowWange.endWineNumba, wangeEndCowumn),
+						text: newVawue
 					});
 				}
 			}
 		}
 
-		if (edits.length === 0) {
-			return;
+		if (edits.wength === 0) {
+			wetuwn;
 		}
 
-		try {
-			this._editor.popUndoStop();
-			this._ignoreChangeEvent = true;
-			const prevEditOperationType = this._editor._getViewModel().getPrevEditOperationType();
-			this._editor.executeEdits('linkedEditing', edits);
-			this._editor._getViewModel().setPrevEditOperationType(prevEditOperationType);
-		} finally {
-			this._ignoreChangeEvent = false;
-		}
-	}
-
-	public override dispose(): void {
-		this.clearRanges();
-		super.dispose();
-	}
-
-	public clearRanges(): void {
-		this._visibleContextKey.set(false);
-		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
-		if (this._currentRequest) {
-			this._currentRequest.cancel();
-			this._currentRequest = null;
-			this._currentRequestPosition = null;
+		twy {
+			this._editow.popUndoStop();
+			this._ignoweChangeEvent = twue;
+			const pwevEditOpewationType = this._editow._getViewModew().getPwevEditOpewationType();
+			this._editow.executeEdits('winkedEditing', edits);
+			this._editow._getViewModew().setPwevEditOpewationType(pwevEditOpewationType);
+		} finawwy {
+			this._ignoweChangeEvent = fawse;
 		}
 	}
 
-	public get currentUpdateTriggerPromise(): Promise<any> {
-		return this._rangeUpdateTriggerPromise || Promise.resolve();
+	pubwic ovewwide dispose(): void {
+		this.cweawWanges();
+		supa.dispose();
 	}
 
-	public get currentSyncTriggerPromise(): Promise<any> {
-		return this._rangeSyncTriggerPromise || Promise.resolve();
+	pubwic cweawWanges(): void {
+		this._visibweContextKey.set(fawse);
+		this._cuwwentDecowations = this._editow.dewtaDecowations(this._cuwwentDecowations, []);
+		if (this._cuwwentWequest) {
+			this._cuwwentWequest.cancew();
+			this._cuwwentWequest = nuww;
+			this._cuwwentWequestPosition = nuww;
+		}
 	}
 
-	public async updateRanges(force = false): Promise<void> {
-		if (!this._editor.hasModel()) {
-			this.clearRanges();
-			return;
+	pubwic get cuwwentUpdateTwiggewPwomise(): Pwomise<any> {
+		wetuwn this._wangeUpdateTwiggewPwomise || Pwomise.wesowve();
+	}
+
+	pubwic get cuwwentSyncTwiggewPwomise(): Pwomise<any> {
+		wetuwn this._wangeSyncTwiggewPwomise || Pwomise.wesowve();
+	}
+
+	pubwic async updateWanges(fowce = fawse): Pwomise<void> {
+		if (!this._editow.hasModew()) {
+			this.cweawWanges();
+			wetuwn;
 		}
 
-		const position = this._editor.getPosition();
-		if (!this._enabled && !force || this._editor.getSelections().length > 1) {
-			// disabled or multicursor
-			this.clearRanges();
-			return;
+		const position = this._editow.getPosition();
+		if (!this._enabwed && !fowce || this._editow.getSewections().wength > 1) {
+			// disabwed ow muwticuwsow
+			this.cweawWanges();
+			wetuwn;
 		}
 
-		const model = this._editor.getModel();
-		const modelVersionId = model.getVersionId();
-		if (this._currentRequestPosition && this._currentRequestModelVersion === modelVersionId) {
-			if (position.equals(this._currentRequestPosition)) {
-				return; // same position
+		const modew = this._editow.getModew();
+		const modewVewsionId = modew.getVewsionId();
+		if (this._cuwwentWequestPosition && this._cuwwentWequestModewVewsion === modewVewsionId) {
+			if (position.equaws(this._cuwwentWequestPosition)) {
+				wetuwn; // same position
 			}
-			if (this._currentDecorations && this._currentDecorations.length > 0) {
-				const range = model.getDecorationRange(this._currentDecorations[0]);
-				if (range && range.containsPosition(position)) {
-					return; // just moving inside the existing primary range
+			if (this._cuwwentDecowations && this._cuwwentDecowations.wength > 0) {
+				const wange = modew.getDecowationWange(this._cuwwentDecowations[0]);
+				if (wange && wange.containsPosition(position)) {
+					wetuwn; // just moving inside the existing pwimawy wange
 				}
 			}
 		}
 
-		this._currentRequestPosition = position;
-		this._currentRequestModelVersion = modelVersionId;
-		const request = createCancelablePromise(async token => {
-			try {
-				const response = await getLinkedEditingRanges(model, position, token);
-				if (request !== this._currentRequest) {
-					return;
+		this._cuwwentWequestPosition = position;
+		this._cuwwentWequestModewVewsion = modewVewsionId;
+		const wequest = cweateCancewabwePwomise(async token => {
+			twy {
+				const wesponse = await getWinkedEditingWanges(modew, position, token);
+				if (wequest !== this._cuwwentWequest) {
+					wetuwn;
 				}
-				this._currentRequest = null;
-				if (modelVersionId !== model.getVersionId()) {
-					return;
-				}
-
-				let ranges: IRange[] = [];
-				if (response?.ranges) {
-					ranges = response.ranges;
+				this._cuwwentWequest = nuww;
+				if (modewVewsionId !== modew.getVewsionId()) {
+					wetuwn;
 				}
 
-				this._currentWordPattern = response?.wordPattern || this._languageWordPattern;
+				wet wanges: IWange[] = [];
+				if (wesponse?.wanges) {
+					wanges = wesponse.wanges;
+				}
 
-				let foundReferenceRange = false;
-				for (let i = 0, len = ranges.length; i < len; i++) {
-					if (Range.containsPosition(ranges[i], position)) {
-						foundReferenceRange = true;
+				this._cuwwentWowdPattewn = wesponse?.wowdPattewn || this._wanguageWowdPattewn;
+
+				wet foundWefewenceWange = fawse;
+				fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+					if (Wange.containsPosition(wanges[i], position)) {
+						foundWefewenceWange = twue;
 						if (i !== 0) {
-							const referenceRange = ranges[i];
-							ranges.splice(i, 1);
-							ranges.unshift(referenceRange);
+							const wefewenceWange = wanges[i];
+							wanges.spwice(i, 1);
+							wanges.unshift(wefewenceWange);
 						}
-						break;
+						bweak;
 					}
 				}
 
-				if (!foundReferenceRange) {
-					// Cannot do linked editing if the ranges are not where the cursor is...
-					this.clearRanges();
-					return;
+				if (!foundWefewenceWange) {
+					// Cannot do winked editing if the wanges awe not whewe the cuwsow is...
+					this.cweawWanges();
+					wetuwn;
 				}
 
-				const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: LinkedEditingContribution.DECORATION }));
-				this._visibleContextKey.set(true);
-				this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
-			} catch (err) {
-				if (!isPromiseCanceledError(err)) {
-					onUnexpectedError(err);
+				const decowations: IModewDewtaDecowation[] = wanges.map(wange => ({ wange: wange, options: WinkedEditingContwibution.DECOWATION }));
+				this._visibweContextKey.set(twue);
+				this._cuwwentDecowations = this._editow.dewtaDecowations(this._cuwwentDecowations, decowations);
+			} catch (eww) {
+				if (!isPwomiseCancewedEwwow(eww)) {
+					onUnexpectedEwwow(eww);
 				}
-				if (this._currentRequest === request || !this._currentRequest) {
-					// stop if we are still the latest request
-					this.clearRanges();
+				if (this._cuwwentWequest === wequest || !this._cuwwentWequest) {
+					// stop if we awe stiww the watest wequest
+					this.cweawWanges();
 				}
 			}
 		});
-		this._currentRequest = request;
-		return request;
+		this._cuwwentWequest = wequest;
+		wetuwn wequest;
 	}
 
-	// for testing
-	public setDebounceDuration(timeInMS: number) {
-		this._debounceDuration = timeInMS;
+	// fow testing
+	pubwic setDebounceDuwation(timeInMS: numba) {
+		this._debounceDuwation = timeInMS;
 	}
 
-	// private printDecorators(model: ITextModel) {
-	// 	return this._currentDecorations.map(d => {
-	// 		const range = model.getDecorationRange(d);
-	// 		if (range) {
-	// 			return this.printRange(range);
+	// pwivate pwintDecowatows(modew: ITextModew) {
+	// 	wetuwn this._cuwwentDecowations.map(d => {
+	// 		const wange = modew.getDecowationWange(d);
+	// 		if (wange) {
+	// 			wetuwn this.pwintWange(wange);
 	// 		}
-	// 		return 'invalid';
+	// 		wetuwn 'invawid';
 	// 	}).join(',');
 	// }
 
-	// private printChanges(changes: IModelContentChange[]) {
-	// 	return changes.map(c => {
-	// 		return `${this.printRange(c.range)} - ${c.text}`;
+	// pwivate pwintChanges(changes: IModewContentChange[]) {
+	// 	wetuwn changes.map(c => {
+	// 		wetuwn `${this.pwintWange(c.wange)} - ${c.text}`;
 	// 	}
 	// 	).join(',');
 	// }
 
-	// private printRange(range: IRange) {
-	// 	return `${range.startLineNumber},${range.startColumn}/${range.endLineNumber},${range.endColumn}`;
+	// pwivate pwintWange(wange: IWange) {
+	// 	wetuwn `${wange.stawtWineNumba},${wange.stawtCowumn}/${wange.endWineNumba},${wange.endCowumn}`;
 	// }
 }
 
-export class LinkedEditingAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.linkedEditing',
-			label: nls.localize('linkedEditing.label', "Start Linked Editing"),
-			alias: 'Start Linked Editing',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
+expowt cwass WinkedEditingAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.winkedEditing',
+			wabew: nws.wocawize('winkedEditing.wabew', "Stawt Winked Editing"),
+			awias: 'Stawt Winked Editing',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasWenamePwovida),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F2,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.F2,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	override runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
-		const editorService = accessor.get(ICodeEditorService);
-		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
+	ovewwide wunCommand(accessow: SewvicesAccessow, awgs: [UWI, IPosition]): void | Pwomise<void> {
+		const editowSewvice = accessow.get(ICodeEditowSewvice);
+		const [uwi, pos] = Awway.isAwway(awgs) && awgs || [undefined, undefined];
 
-		if (URI.isUri(uri) && Position.isIPosition(pos)) {
-			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
-				if (!editor) {
-					return;
+		if (UWI.isUwi(uwi) && Position.isIPosition(pos)) {
+			wetuwn editowSewvice.openCodeEditow({ wesouwce: uwi }, editowSewvice.getActiveCodeEditow()).then(editow => {
+				if (!editow) {
+					wetuwn;
 				}
-				editor.setPosition(pos);
-				editor.invokeWithinContext(accessor => {
-					this.reportTelemetry(accessor, editor);
-					return this.run(accessor, editor);
+				editow.setPosition(pos);
+				editow.invokeWithinContext(accessow => {
+					this.wepowtTewemetwy(accessow, editow);
+					wetuwn this.wun(accessow, editow);
 				});
-			}, onUnexpectedError);
+			}, onUnexpectedEwwow);
 		}
 
-		return super.runCommand(accessor, args);
+		wetuwn supa.wunCommand(accessow, awgs);
 	}
 
-	run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const controller = LinkedEditingContribution.get(editor);
-		if (controller) {
-			return Promise.resolve(controller.updateRanges(true));
+	wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwowwa = WinkedEditingContwibution.get(editow);
+		if (contwowwa) {
+			wetuwn Pwomise.wesowve(contwowwa.updateWanges(twue));
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-const LinkedEditingCommand = EditorCommand.bindToContribution<LinkedEditingContribution>(LinkedEditingContribution.get);
-registerEditorCommand(new LinkedEditingCommand({
-	id: 'cancelLinkedEditingInput',
-	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
-	handler: x => x.clearRanges(),
+const WinkedEditingCommand = EditowCommand.bindToContwibution<WinkedEditingContwibution>(WinkedEditingContwibution.get);
+wegistewEditowCommand(new WinkedEditingCommand({
+	id: 'cancewWinkedEditingInput',
+	pwecondition: CONTEXT_ONTYPE_WENAME_INPUT_VISIBWE,
+	handwa: x => x.cweawWanges(),
 	kbOpts: {
-		kbExpr: EditorContextKeys.editorTextFocus,
-		weight: KeybindingWeight.EditorContrib + 99,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		kbExpw: EditowContextKeys.editowTextFocus,
+		weight: KeybindingWeight.EditowContwib + 99,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
 
-function getLinkedEditingRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<LinkedEditingRanges | undefined | null> {
-	const orderedByScore = LinkedEditingRangeProviderRegistry.ordered(model);
+function getWinkedEditingWanges(modew: ITextModew, position: Position, token: CancewwationToken): Pwomise<WinkedEditingWanges | undefined | nuww> {
+	const owdewedByScowe = WinkedEditingWangePwovidewWegistwy.owdewed(modew);
 
-	// in order of score ask the linked editing range provider
-	// until someone response with a good result
-	// (good = not null)
-	return first<LinkedEditingRanges | undefined | null>(orderedByScore.map(provider => async () => {
-		try {
-			return await provider.provideLinkedEditingRanges(model, position, token);
+	// in owda of scowe ask the winked editing wange pwovida
+	// untiw someone wesponse with a good wesuwt
+	// (good = not nuww)
+	wetuwn fiwst<WinkedEditingWanges | undefined | nuww>(owdewedByScowe.map(pwovida => async () => {
+		twy {
+			wetuwn await pwovida.pwovideWinkedEditingWanges(modew, position, token);
 		} catch (e) {
-			onUnexpectedExternalError(e);
-			return undefined;
+			onUnexpectedExtewnawEwwow(e);
+			wetuwn undefined;
 		}
-	}), result => !!result && arrays.isNonEmptyArray(result?.ranges));
+	}), wesuwt => !!wesuwt && awways.isNonEmptyAwway(wesuwt?.wanges));
 }
 
-export const editorLinkedEditingBackground = registerColor('editor.linkedEditingBackground', { dark: Color.fromHex('#f00').transparent(0.3), light: Color.fromHex('#f00').transparent(0.3), hc: Color.fromHex('#f00').transparent(0.3) }, nls.localize('editorLinkedEditingBackground', 'Background color when the editor auto renames on type.'));
-registerThemingParticipant((theme, collector) => {
-	const editorLinkedEditingBackgroundColor = theme.getColor(editorLinkedEditingBackground);
-	if (editorLinkedEditingBackgroundColor) {
-		collector.addRule(`.monaco-editor .${DECORATION_CLASS_NAME} { background: ${editorLinkedEditingBackgroundColor}; border-left-color: ${editorLinkedEditingBackgroundColor}; }`);
+expowt const editowWinkedEditingBackgwound = wegistewCowow('editow.winkedEditingBackgwound', { dawk: Cowow.fwomHex('#f00').twanspawent(0.3), wight: Cowow.fwomHex('#f00').twanspawent(0.3), hc: Cowow.fwomHex('#f00').twanspawent(0.3) }, nws.wocawize('editowWinkedEditingBackgwound', 'Backgwound cowow when the editow auto wenames on type.'));
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const editowWinkedEditingBackgwoundCowow = theme.getCowow(editowWinkedEditingBackgwound);
+	if (editowWinkedEditingBackgwoundCowow) {
+		cowwectow.addWuwe(`.monaco-editow .${DECOWATION_CWASS_NAME} { backgwound: ${editowWinkedEditingBackgwoundCowow}; bowda-weft-cowow: ${editowWinkedEditingBackgwoundCowow}; }`);
 	}
 });
 
-registerModelAndPositionCommand('_executeLinkedEditingProvider', (model, position) => getLinkedEditingRanges(model, position, CancellationToken.None));
+wegistewModewAndPositionCommand('_executeWinkedEditingPwovida', (modew, position) => getWinkedEditingWanges(modew, position, CancewwationToken.None));
 
-registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution);
-registerEditorAction(LinkedEditingAction);
+wegistewEditowContwibution(WinkedEditingContwibution.ID, WinkedEditingContwibution);
+wegistewEditowAction(WinkedEditingAction);

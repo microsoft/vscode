@@ -1,593 +1,593 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows, isLinux, isWeb } from 'vs/base/common/platform';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt { wocawize } fwom 'vs/nws';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { MenuId, MenuWegistwy, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeyMod, KeyCode, KeyChowd } fwom 'vs/base/common/keyCodes';
+impowt { isWindows, isWinux, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IsMacNativeContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { InEditowZenModeContext, IsCentewedWayoutContext, EditowAweaVisibweContext } fwom 'vs/wowkbench/common/editow';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SideBawVisibweContext } fwom 'vs/wowkbench/common/viewwet';
+impowt { IViewDescwiptowSewvice, IViewsSewvice, FocusedViewContext, ViewContainewWocation, IViewDescwiptow, ViewContainewWocationToStwing } fwom 'vs/wowkbench/common/views';
+impowt { IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-// --- Close Side Bar
+// --- Cwose Side Baw
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.closeSidebar',
-			title: { value: localize('closeSidebar', "Close Side Bar"), original: 'Close Side Bar' },
-			category: CATEGORIES.View,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.cwoseSidebaw',
+			titwe: { vawue: wocawize('cwoseSidebaw', "Cwose Side Baw"), owiginaw: 'Cwose Side Baw' },
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.SIDEBAR_PART);
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IWowkbenchWayoutSewvice).setPawtHidden(twue, Pawts.SIDEBAW_PAWT);
 	}
 });
 
-// --- Toggle Activity Bar
+// --- Toggwe Activity Baw
 
-export class ToggleActivityBarVisibilityAction extends Action2 {
+expowt cwass ToggweActivityBawVisibiwityAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
+	static weadonwy ID = 'wowkbench.action.toggweActivityBawVisibiwity';
 
-	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
+	pwivate static weadonwy activityBawVisibweKey = 'wowkbench.activityBaw.visibwe';
 
-	constructor() {
-		super({
-			id: ToggleActivityBarVisibilityAction.ID,
-			title: {
-				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar"),
-				original: 'Toggle Activity Bar Visibility'
+	constwuctow() {
+		supa({
+			id: ToggweActivityBawVisibiwityAction.ID,
+			titwe: {
+				vawue: wocawize('toggweActivityBaw', "Toggwe Activity Baw Visibiwity"),
+				mnemonicTitwe: wocawize({ key: 'miShowActivityBaw', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Baw"),
+				owiginaw: 'Toggwe Activity Baw Visibiwity'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: ContextKeyExpw.equaws('config.wowkbench.activityBaw.visibwe', twue),
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 4
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '2_wowkbench_wayout',
+				owda: 4
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const configurationService = accessor.get(IConfigurationService);
+	wun(accessow: SewvicesAccessow): void {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const visibility = layoutService.isVisible(Parts.ACTIVITYBAR_PART);
-		const newVisibilityValue = !visibility;
+		const visibiwity = wayoutSewvice.isVisibwe(Pawts.ACTIVITYBAW_PAWT);
+		const newVisibiwityVawue = !visibiwity;
 
-		configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue);
+		configuwationSewvice.updateVawue(ToggweActivityBawVisibiwityAction.activityBawVisibweKey, newVisibiwityVawue);
 	}
 }
 
-registerAction2(ToggleActivityBarVisibilityAction);
+wegistewAction2(ToggweActivityBawVisibiwityAction);
 
-// --- Toggle Centered Layout
+// --- Toggwe Centewed Wayout
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleCenteredLayout',
-			title: {
-				value: localize('toggleCenteredLayout', "Toggle Centered Layout"),
-				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
-				original: 'Toggle Centered Layout'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweCentewedWayout',
+			titwe: {
+				vawue: wocawize('toggweCentewedWayout', "Toggwe Centewed Wayout"),
+				mnemonicTitwe: wocawize({ key: 'miToggweCentewedWayout', comment: ['&& denotes a mnemonic'] }, "&&Centewed Wayout"),
+				owiginaw: 'Toggwe Centewed Wayout'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: IsCenteredLayoutContext,
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: IsCentewedWayoutContext,
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '1_toggle_view',
-				order: 3
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '1_toggwe_view',
+				owda: 3
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+	wun(accessow: SewvicesAccessow): void {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
 
-		layoutService.centerEditorLayout(!layoutService.isEditorLayoutCentered());
+		wayoutSewvice.centewEditowWayout(!wayoutSewvice.isEditowWayoutCentewed());
 	}
 });
 
-// --- Toggle Sidebar Position
+// --- Toggwe Sidebaw Position
 
-export class ToggleSidebarPositionAction extends Action2 {
+expowt cwass ToggweSidebawPositionAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleSidebarPosition';
-	static readonly LABEL = localize('toggleSidebarPosition', "Toggle Side Bar Position");
+	static weadonwy ID = 'wowkbench.action.toggweSidebawPosition';
+	static weadonwy WABEW = wocawize('toggweSidebawPosition', "Toggwe Side Baw Position");
 
-	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	pwivate static weadonwy sidebawPositionConfiguwationKey = 'wowkbench.sideBaw.wocation';
 
-	static getLabel(layoutService: IWorkbenchLayoutService): string {
-		return layoutService.getSideBarPosition() === Position.LEFT ? localize('moveSidebarRight', "Move Side Bar Right") : localize('moveSidebarLeft', "Move Side Bar Left");
+	static getWabew(wayoutSewvice: IWowkbenchWayoutSewvice): stwing {
+		wetuwn wayoutSewvice.getSideBawPosition() === Position.WEFT ? wocawize('moveSidebawWight', "Move Side Baw Wight") : wocawize('moveSidebawWeft', "Move Side Baw Weft");
 	}
 
-	constructor() {
-		super({
-			id: ToggleSidebarPositionAction.ID,
-			title: { value: localize('toggleSidebarPosition', "Toggle Side Bar Position"), original: 'Toggle Side Bar Position' },
-			category: CATEGORIES.View,
-			f1: true
+	constwuctow() {
+		supa({
+			id: ToggweSidebawPositionAction.ID,
+			titwe: { vawue: wocawize('toggweSidebawPosition', "Toggwe Side Baw Position"), owiginaw: 'Toggwe Side Baw Position' },
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const configurationService = accessor.get(IConfigurationService);
+	wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const position = layoutService.getSideBarPosition();
-		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
+		const position = wayoutSewvice.getSideBawPosition();
+		const newPositionVawue = (position === Position.WEFT) ? 'wight' : 'weft';
 
-		return configurationService.updateValue(ToggleSidebarPositionAction.sidebarPositionConfigurationKey, newPositionValue);
+		wetuwn configuwationSewvice.updateVawue(ToggweSidebawPositionAction.sidebawPositionConfiguwationKey, newPositionVawue);
 	}
 }
 
-registerAction2(ToggleSidebarPositionAction);
+wegistewAction2(ToggweSidebawPositionAction);
 
-MenuRegistry.appendMenuItems([{
-	id: MenuId.ViewContainerTitleContext,
+MenuWegistwy.appendMenuItems([{
+	id: MenuId.ViewContainewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Side Bar Right")
+			id: ToggweSidebawPositionAction.ID,
+			titwe: wocawize('move sidebaw wight', "Move Side Baw Wight")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
+		when: ContextKeyExpw.and(ContextKeyExpw.notEquaws('config.wowkbench.sideBaw.wocation', 'wight'), ContextKeyExpw.equaws('viewContainewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Side Bar Right")
+			id: ToggweSidebawPositionAction.ID,
+			titwe: wocawize('move sidebaw wight', "Move Side Baw Wight")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
+		when: ContextKeyExpw.and(ContextKeyExpw.notEquaws('config.wowkbench.sideBaw.wocation', 'wight'), ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 1
 	}
 }, {
-	id: MenuId.ViewContainerTitleContext,
+	id: MenuId.ViewContainewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Side Bar Left")
+			id: ToggweSidebawPositionAction.ID,
+			titwe: wocawize('move sidebaw weft', "Move Side Baw Weft")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
+		when: ContextKeyExpw.and(ContextKeyExpw.equaws('config.wowkbench.sideBaw.wocation', 'wight'), ContextKeyExpw.equaws('viewContainewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 1
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Side Bar Left")
+			id: ToggweSidebawPositionAction.ID,
+			titwe: wocawize('move sidebaw weft', "Move Side Baw Weft")
 		},
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 1
+		when: ContextKeyExpw.and(ContextKeyExpw.equaws('config.wowkbench.sideBaw.wocation', 'wight'), ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 1
 	}
 }]);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '3_workbench_layout_move',
+MenuWegistwy.appendMenuItem(MenuId.MenubawAppeawanceMenu, {
+	gwoup: '3_wowkbench_wayout_move',
 	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right")
+		id: ToggweSidebawPositionAction.ID,
+		titwe: wocawize({ key: 'miMoveSidebawWight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Baw Wight")
 	},
-	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
-	order: 2
+	when: ContextKeyExpw.notEquaws('config.wowkbench.sideBaw.wocation', 'wight'),
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
-	group: '3_workbench_layout_move',
+MenuWegistwy.appendMenuItem(MenuId.MenubawAppeawanceMenu, {
+	gwoup: '3_wowkbench_wayout_move',
 	command: {
-		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left")
+		id: ToggweSidebawPositionAction.ID,
+		titwe: wocawize({ key: 'miMoveSidebawWeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Baw Weft")
 	},
-	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
-	order: 2
+	when: ContextKeyExpw.equaws('config.wowkbench.sideBaw.wocation', 'wight'),
+	owda: 2
 });
 
-// --- Toggle Editor Visibility
+// --- Toggwe Editow Visibiwity
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleEditorVisibility',
-			title: {
-				value: localize('toggleEditor', "Toggle Editor Area Visibility"),
-				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
-				original: 'Toggle Editor Area Visibility'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweEditowVisibiwity',
+			titwe: {
+				vawue: wocawize('toggweEditow', "Toggwe Editow Awea Visibiwity"),
+				mnemonicTitwe: wocawize({ key: 'miShowEditowAwea', comment: ['&& denotes a mnemonic'] }, "Show &&Editow Awea"),
+				owiginaw: 'Toggwe Editow Awea Visibiwity'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: EditorAreaVisibleContext,
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: EditowAweaVisibweContext,
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 5
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '2_wowkbench_wayout',
+				owda: 5
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).toggleMaximizedPanel();
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IWowkbenchWayoutSewvice).toggweMaximizedPanew();
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '2_appearance',
-	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
-	submenu: MenuId.MenubarAppearanceMenu,
-	order: 1
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '2_appeawance',
+	titwe: wocawize({ key: 'miAppeawance', comment: ['&& denotes a mnemonic'] }, "&&Appeawance"),
+	submenu: MenuId.MenubawAppeawanceMenu,
+	owda: 1
 });
 
-// Toggle Sidebar Visibility
+// Toggwe Sidebaw Visibiwity
 
-class ToggleSidebarVisibilityAction extends Action2 {
+cwass ToggweSidebawVisibiwityAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleSidebarVisibility';
+	static weadonwy ID = 'wowkbench.action.toggweSidebawVisibiwity';
 
-	constructor() {
-		super({
-			id: ToggleSidebarVisibilityAction.ID,
-			title: { value: localize('toggleSidebar', "Toggle Side Bar Visibility"), original: 'Toggle Side Bar Visibility' },
-			category: CATEGORIES.View,
-			f1: true,
+	constwuctow() {
+		supa({
+			id: ToggweSidebawVisibiwityAction.ID,
+			titwe: { vawue: wocawize('toggweSidebaw', "Toggwe Side Baw Visibiwity"), owiginaw: 'Toggwe Side Baw Visibiwity' },
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_B
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_B
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+	wun(accessow: SewvicesAccessow): void {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
 
-		layoutService.setPartHidden(layoutService.isVisible(Parts.SIDEBAR_PART), Parts.SIDEBAR_PART);
+		wayoutSewvice.setPawtHidden(wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT), Pawts.SIDEBAW_PAWT);
 	}
 }
 
-registerAction2(ToggleSidebarVisibilityAction);
+wegistewAction2(ToggweSidebawVisibiwityAction);
 
-MenuRegistry.appendMenuItems([{
-	id: MenuId.ViewContainerTitleContext,
+MenuWegistwy.appendMenuItems([{
+	id: MenuId.ViewContainewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			id: ToggweSidebawVisibiwityAction.ID,
+			titwe: wocawize('compositePawt.hideSideBawWabew', "Hide Side Baw"),
 		},
-		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 2
+		when: ContextKeyExpw.and(SideBawVisibweContext, ContextKeyExpw.equaws('viewContainewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 2
 	}
 }, {
-	id: MenuId.ViewTitleContext,
+	id: MenuId.ViewTitweContext,
 	item: {
-		group: '3_workbench_layout_move',
+		gwoup: '3_wowkbench_wayout_move',
 		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			id: ToggweSidebawVisibiwityAction.ID,
+			titwe: wocawize('compositePawt.hideSideBawWabew', "Hide Side Baw"),
 		},
-		when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
-		order: 2
+		when: ContextKeyExpw.and(SideBawVisibweContext, ContextKeyExpw.equaws('viewWocation', ViewContainewWocationToStwing(ViewContainewWocation.Sidebaw))),
+		owda: 2
 	}
 }, {
-	id: MenuId.MenubarAppearanceMenu,
+	id: MenuId.MenubawAppeawanceMenu,
 	item: {
-		group: '2_workbench_layout',
+		gwoup: '2_wowkbench_wayout',
 		command: {
-			id: ToggleSidebarVisibilityAction.ID,
-			title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
-			toggled: SideBarVisibleContext
+			id: ToggweSidebawVisibiwityAction.ID,
+			titwe: wocawize({ key: 'miShowSidebaw', comment: ['&& denotes a mnemonic'] }, "Show &&Side Baw"),
+			toggwed: SideBawVisibweContext
 		},
-		order: 1
+		owda: 1
 	}
 }]);
 
-// --- Toggle Statusbar Visibility
+// --- Toggwe Statusbaw Visibiwity
 
-export class ToggleStatusbarVisibilityAction extends Action2 {
+expowt cwass ToggweStatusbawVisibiwityAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleStatusbarVisibility';
+	static weadonwy ID = 'wowkbench.action.toggweStatusbawVisibiwity';
 
-	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
+	pwivate static weadonwy statusbawVisibweKey = 'wowkbench.statusBaw.visibwe';
 
-	constructor() {
-		super({
-			id: ToggleStatusbarVisibilityAction.ID,
-			title: {
-				value: localize('toggleStatusbar', "Toggle Status Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Bar"),
-				original: 'Toggle Status Bar Visibility'
+	constwuctow() {
+		supa({
+			id: ToggweStatusbawVisibiwityAction.ID,
+			titwe: {
+				vawue: wocawize('toggweStatusbaw', "Toggwe Status Baw Visibiwity"),
+				mnemonicTitwe: wocawize({ key: 'miShowStatusbaw', comment: ['&& denotes a mnemonic'] }, "Show S&&tatus Baw"),
+				owiginaw: 'Toggwe Status Baw Visibiwity'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: ContextKeyExpw.equaws('config.wowkbench.statusBaw.visibwe', twue),
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 3
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '2_wowkbench_wayout',
+				owda: 3
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const configurationService = accessor.get(IConfigurationService);
+	wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const visibility = layoutService.isVisible(Parts.STATUSBAR_PART);
-		const newVisibilityValue = !visibility;
+		const visibiwity = wayoutSewvice.isVisibwe(Pawts.STATUSBAW_PAWT);
+		const newVisibiwityVawue = !visibiwity;
 
-		return configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue);
+		wetuwn configuwationSewvice.updateVawue(ToggweStatusbawVisibiwityAction.statusbawVisibweKey, newVisibiwityVawue);
 	}
 }
 
-registerAction2(ToggleStatusbarVisibilityAction);
+wegistewAction2(ToggweStatusbawVisibiwityAction);
 
-// --- Toggle Tabs Visibility
+// --- Toggwe Tabs Visibiwity
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleTabsVisibility',
-			title: {
-				value: localize('toggleTabs', "Toggle Tab Visibility"),
-				original: 'Toggle Tab Visibility'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweTabsVisibiwity',
+			titwe: {
+				vawue: wocawize('toggweTabs', "Toggwe Tab Visibiwity"),
+				owiginaw: 'Toggwe Tab Visibiwity'
 			},
-			category: CATEGORIES.View,
-			f1: true,
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: undefined,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: undefined,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_W, },
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.KEY_W, }
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const visibility = configurationService.getValue<string>('workbench.editor.showTabs');
-		const newVisibilityValue = !visibility;
+		const visibiwity = configuwationSewvice.getVawue<stwing>('wowkbench.editow.showTabs');
+		const newVisibiwityVawue = !visibiwity;
 
-		return configurationService.updateValue('workbench.editor.showTabs', newVisibilityValue);
+		wetuwn configuwationSewvice.updateVawue('wowkbench.editow.showTabs', newVisibiwityVawue);
 	}
 });
 
-// --- Toggle Zen Mode
+// --- Toggwe Zen Mode
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleZenMode',
-			title: {
-				value: localize('toggleZenMode', "Toggle Zen Mode"),
-				mnemonicTitle: localize('miToggleZenMode', "Zen Mode"),
-				original: 'Toggle Zen Mode'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweZenMode',
+			titwe: {
+				vawue: wocawize('toggweZenMode', "Toggwe Zen Mode"),
+				mnemonicTitwe: wocawize('miToggweZenMode', "Zen Mode"),
+				owiginaw: 'Toggwe Zen Mode'
 			},
-			category: CATEGORIES.View,
-			f1: true,
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z)
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_Z)
 			},
-			toggled: InEditorZenModeContext,
+			toggwed: InEditowZenModeContext,
 			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '1_toggle_view',
-				order: 2
+				id: MenuId.MenubawAppeawanceMenu,
+				gwoup: '1_toggwe_view',
+				owda: 2
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		return accessor.get(IWorkbenchLayoutService).toggleZenMode();
+	wun(accessow: SewvicesAccessow): void {
+		wetuwn accessow.get(IWowkbenchWayoutSewvice).toggweZenMode();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.exitZenMode',
-	weight: KeybindingWeight.EditorContrib - 1000,
-	handler(accessor: ServicesAccessor) {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.toggleZenMode();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'wowkbench.action.exitZenMode',
+	weight: KeybindingWeight.EditowContwib - 1000,
+	handwa(accessow: SewvicesAccessow) {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		wayoutSewvice.toggweZenMode();
 	},
-	when: InEditorZenModeContext,
-	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
+	when: InEditowZenModeContext,
+	pwimawy: KeyChowd(KeyCode.Escape, KeyCode.Escape)
 });
 
-// --- Toggle Menu Bar
+// --- Toggwe Menu Baw
 
-if (isWindows || isLinux || isWeb) {
-	registerAction2(class extends Action2 {
+if (isWindows || isWinux || isWeb) {
+	wegistewAction2(cwass extends Action2 {
 
-		constructor() {
-			super({
-				id: 'workbench.action.toggleMenuBar',
-				title: {
-					value: localize('toggleMenuBar', "Toggle Menu Bar"),
-					mnemonicTitle: localize({ key: 'miShowMenuBar', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Bar"),
-					original: 'Toggle Menu Bar'
+		constwuctow() {
+			supa({
+				id: 'wowkbench.action.toggweMenuBaw',
+				titwe: {
+					vawue: wocawize('toggweMenuBaw', "Toggwe Menu Baw"),
+					mnemonicTitwe: wocawize({ key: 'miShowMenuBaw', comment: ['&& denotes a mnemonic'] }, "Show Menu &&Baw"),
+					owiginaw: 'Toggwe Menu Baw'
 				},
-				category: CATEGORIES.View,
-				f1: true,
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
+				categowy: CATEGOWIES.View,
+				f1: twue,
+				toggwed: ContextKeyExpw.and(IsMacNativeContext.toNegated(), ContextKeyExpw.notEquaws('config.window.menuBawVisibiwity', 'hidden'), ContextKeyExpw.notEquaws('config.window.menuBawVisibiwity', 'toggwe'), ContextKeyExpw.notEquaws('config.window.menuBawVisibiwity', 'compact')),
 				menu: {
-					id: MenuId.MenubarAppearanceMenu,
-					group: '2_workbench_layout',
-					order: 0
+					id: MenuId.MenubawAppeawanceMenu,
+					gwoup: '2_wowkbench_wayout',
+					owda: 0
 				}
 			});
 		}
 
-		run(accessor: ServicesAccessor): void {
-			return accessor.get(IWorkbenchLayoutService).toggleMenuBar();
+		wun(accessow: SewvicesAccessow): void {
+			wetuwn accessow.get(IWowkbenchWayoutSewvice).toggweMenuBaw();
 		}
 	});
 }
 
-// --- Reset View Locations
+// --- Weset View Wocations
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.resetViewLocations',
-			title: {
-				value: localize('resetViewLocations', "Reset View Locations"),
-				original: 'Reset View Locations'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.wesetViewWocations',
+			titwe: {
+				vawue: wocawize('wesetViewWocations', "Weset View Wocations"),
+				owiginaw: 'Weset View Wocations'
 			},
-			category: CATEGORIES.View,
-			f1: true
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		return accessor.get(IViewDescriptorService).reset();
+	wun(accessow: SewvicesAccessow): void {
+		wetuwn accessow.get(IViewDescwiptowSewvice).weset();
 	}
 });
 
 // --- Move View
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.moveView',
-			title: {
-				value: localize('moveView', "Move View"),
-				original: 'Move View'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.moveView',
+			titwe: {
+				vawue: wocawize('moveView', "Move View"),
+				owiginaw: 'Move View'
 			},
-			category: CATEGORIES.View,
-			f1: true
+			categowy: CATEGOWIES.View,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const paneCompositePartService = accessor.get(IPaneCompositePartService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewDescwiptowSewvice = accessow.get(IViewDescwiptowSewvice);
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const paneCompositePawtSewvice = accessow.get(IPaneCompositePawtSewvice);
 
-		const focusedViewId = FocusedViewContext.getValue(contextKeyService);
-		let viewId: string;
+		const focusedViewId = FocusedViewContext.getVawue(contextKeySewvice);
+		wet viewId: stwing;
 
-		if (focusedViewId && viewDescriptorService.getViewDescriptorById(focusedViewId)?.canMoveView) {
+		if (focusedViewId && viewDescwiptowSewvice.getViewDescwiptowById(focusedViewId)?.canMoveView) {
 			viewId = focusedViewId;
 		}
 
-		viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
+		viewId = await this.getView(quickInputSewvice, viewDescwiptowSewvice, paneCompositePawtSewvice, viewId!);
 
 		if (!viewId) {
-			return;
+			wetuwn;
 		}
 
 		const moveFocusedViewAction = new MoveFocusedViewAction();
-		instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
+		instantiationSewvice.invokeFunction(accessow => moveFocusedViewAction.wun(accessow, viewId));
 	}
 
-	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<IQuickPickItem | IQuickPickSeparator> {
-		const results: Array<IQuickPickItem | IQuickPickSeparator> = [];
+	pwivate getViewItems(viewDescwiptowSewvice: IViewDescwiptowSewvice, paneCompositePawtSewvice: IPaneCompositePawtSewvice): Awway<IQuickPickItem | IQuickPickSepawatow> {
+		const wesuwts: Awway<IQuickPickItem | IQuickPickSepawatow> = [];
 
-		const viewlets = paneCompositePartService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
-		viewlets.forEach(viewletId => {
-			const container = viewDescriptorService.getViewContainerById(viewletId)!;
-			const containerModel = viewDescriptorService.getViewContainerModel(container);
+		const viewwets = paneCompositePawtSewvice.getVisibwePaneCompositeIds(ViewContainewWocation.Sidebaw);
+		viewwets.fowEach(viewwetId => {
+			const containa = viewDescwiptowSewvice.getViewContainewById(viewwetId)!;
+			const containewModew = viewDescwiptowSewvice.getViewContainewModew(containa);
 
-			let hasAddedView = false;
-			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
-				if (viewDescriptor.canMoveView) {
+			wet hasAddedView = fawse;
+			containewModew.visibweViewDescwiptows.fowEach(viewDescwiptow => {
+				if (viewDescwiptow.canMoveView) {
 					if (!hasAddedView) {
-						results.push({
-							type: 'separator',
-							label: localize('sidebarContainer', "Side Bar / {0}", containerModel.title)
+						wesuwts.push({
+							type: 'sepawatow',
+							wabew: wocawize('sidebawContaina', "Side Baw / {0}", containewModew.titwe)
 						});
-						hasAddedView = true;
+						hasAddedView = twue;
 					}
 
-					results.push({
-						id: viewDescriptor.id,
-						label: viewDescriptor.name
+					wesuwts.push({
+						id: viewDescwiptow.id,
+						wabew: viewDescwiptow.name
 					});
 				}
 			});
 		});
 
-		const panels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
-		panels.forEach(panel => {
-			const container = viewDescriptorService.getViewContainerById(panel)!;
-			const containerModel = viewDescriptorService.getViewContainerModel(container);
+		const panews = paneCompositePawtSewvice.getPinnedPaneCompositeIds(ViewContainewWocation.Panew);
+		panews.fowEach(panew => {
+			const containa = viewDescwiptowSewvice.getViewContainewById(panew)!;
+			const containewModew = viewDescwiptowSewvice.getViewContainewModew(containa);
 
-			let hasAddedView = false;
-			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
-				if (viewDescriptor.canMoveView) {
+			wet hasAddedView = fawse;
+			containewModew.visibweViewDescwiptows.fowEach(viewDescwiptow => {
+				if (viewDescwiptow.canMoveView) {
 					if (!hasAddedView) {
-						results.push({
-							type: 'separator',
-							label: localize('panelContainer', "Panel / {0}", containerModel.title)
+						wesuwts.push({
+							type: 'sepawatow',
+							wabew: wocawize('panewContaina', "Panew / {0}", containewModew.titwe)
 						});
-						hasAddedView = true;
+						hasAddedView = twue;
 					}
 
-					results.push({
-						id: viewDescriptor.id,
-						label: viewDescriptor.name
+					wesuwts.push({
+						id: viewDescwiptow.id,
+						wabew: viewDescwiptow.name
 					});
 				}
 			});
 		});
 
-		return results;
+		wetuwn wesuwts;
 	}
 
-	private async getView(quickInputService: IQuickInputService, viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService, viewId?: string): Promise<string> {
-		const quickPick = quickInputService.createQuickPick();
-		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
-		quickPick.items = this.getViewItems(viewDescriptorService, paneCompositePartService);
-		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
+	pwivate async getView(quickInputSewvice: IQuickInputSewvice, viewDescwiptowSewvice: IViewDescwiptowSewvice, paneCompositePawtSewvice: IPaneCompositePawtSewvice, viewId?: stwing): Pwomise<stwing> {
+		const quickPick = quickInputSewvice.cweateQuickPick();
+		quickPick.pwacehowda = wocawize('moveFocusedView.sewectView', "Sewect a View to Move");
+		quickPick.items = this.getViewItems(viewDescwiptowSewvice, paneCompositePawtSewvice);
+		quickPick.sewectedItems = quickPick.items.fiwta(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
 
-		return new Promise((resolve, reject) => {
+		wetuwn new Pwomise((wesowve, weject) => {
 			quickPick.onDidAccept(() => {
-				const viewId = quickPick.selectedItems[0];
+				const viewId = quickPick.sewectedItems[0];
 				if (viewId.id) {
-					resolve(viewId.id);
-				} else {
-					reject();
+					wesowve(viewId.id);
+				} ewse {
+					weject();
 				}
 
 				quickPick.hide();
 			});
 
-			quickPick.onDidHide(() => reject());
+			quickPick.onDidHide(() => weject());
 
 			quickPick.show();
 		});
@@ -596,121 +596,121 @@ registerAction2(class extends Action2 {
 
 // --- Move Focused View
 
-class MoveFocusedViewAction extends Action2 {
+cwass MoveFocusedViewAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.moveFocusedView',
-			title: {
-				value: localize('moveFocusedView', "Move Focused View"),
-				original: 'Move Focused View'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.moveFocusedView',
+			titwe: {
+				vawue: wocawize('moveFocusedView', "Move Focused View"),
+				owiginaw: 'Move Focused View'
 			},
-			category: CATEGORIES.View,
-			precondition: FocusedViewContext.notEqualsTo(''),
-			f1: true
+			categowy: CATEGOWIES.View,
+			pwecondition: FocusedViewContext.notEquawsTo(''),
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor, viewId?: string): void {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const viewsService = accessor.get(IViewsService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const dialogService = accessor.get(IDialogService);
-		const paneCompositePartService = accessor.get(IPaneCompositePartService);
+	wun(accessow: SewvicesAccessow, viewId?: stwing): void {
+		const viewDescwiptowSewvice = accessow.get(IViewDescwiptowSewvice);
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
+		const paneCompositePawtSewvice = accessow.get(IPaneCompositePawtSewvice);
 
-		const focusedViewId = viewId || FocusedViewContext.getValue(contextKeyService);
+		const focusedViewId = viewId || FocusedViewContext.getVawue(contextKeySewvice);
 
-		if (focusedViewId === undefined || focusedViewId.trim() === '') {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
-			return;
+		if (focusedViewId === undefined || focusedViewId.twim() === '') {
+			diawogSewvice.show(Sevewity.Ewwow, wocawize('moveFocusedView.ewwow.noFocusedView', "Thewe is no view cuwwentwy focused."));
+			wetuwn;
 		}
 
-		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
-		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
-			return;
+		const viewDescwiptow = viewDescwiptowSewvice.getViewDescwiptowById(focusedViewId);
+		if (!viewDescwiptow || !viewDescwiptow.canMoveView) {
+			diawogSewvice.show(Sevewity.Ewwow, wocawize('moveFocusedView.ewwow.nonMovabweView', "The cuwwentwy focused view is not movabwe."));
+			wetuwn;
 		}
 
-		const quickPick = quickInputService.createQuickPick();
-		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
-		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
+		const quickPick = quickInputSewvice.cweateQuickPick();
+		quickPick.pwacehowda = wocawize('moveFocusedView.sewectDestination', "Sewect a Destination fow the View");
+		quickPick.titwe = wocawize({ key: 'moveFocusedView.titwe', comment: ['{0} indicates the titwe of the view the usa has sewected to move.'] }, "View: Move {0}", viewDescwiptow.name);
 
-		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
-		const currentContainer = viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
-		const currentLocation = viewDescriptorService.getViewLocationById(focusedViewId)!;
-		const isViewSolo = viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
+		const items: Awway<IQuickPickItem | IQuickPickSepawatow> = [];
+		const cuwwentContaina = viewDescwiptowSewvice.getViewContainewByViewId(focusedViewId)!;
+		const cuwwentWocation = viewDescwiptowSewvice.getViewWocationById(focusedViewId)!;
+		const isViewSowo = viewDescwiptowSewvice.getViewContainewModew(cuwwentContaina).awwViewDescwiptows.wength === 1;
 
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+		if (!(isViewSowo && cuwwentWocation === ViewContainewWocation.Panew)) {
 			items.push({
-				id: '_.panel.newcontainer',
-				label: localize({ key: 'moveFocusedView.newContainerInPanel', comment: ['Creates a new top-level tab in the panel.'] }, "New Panel Entry"),
+				id: '_.panew.newcontaina',
+				wabew: wocawize({ key: 'moveFocusedView.newContainewInPanew', comment: ['Cweates a new top-wevew tab in the panew.'] }, "New Panew Entwy"),
 			});
 		}
 
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+		if (!(isViewSowo && cuwwentWocation === ViewContainewWocation.Sidebaw)) {
 			items.push({
-				id: '_.sidebar.newcontainer',
-				label: localize('moveFocusedView.newContainerInSidebar', "New Side Bar Entry")
+				id: '_.sidebaw.newcontaina',
+				wabew: wocawize('moveFocusedView.newContainewInSidebaw', "New Side Baw Entwy")
 			});
 		}
 
 		items.push({
-			type: 'separator',
-			label: localize('sidebar', "Side Bar")
+			type: 'sepawatow',
+			wabew: wocawize('sidebaw', "Side Baw")
 		});
 
-		const pinnedViewlets = paneCompositePartService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
-		items.push(...pinnedViewlets
-			.filter(viewletId => {
-				if (viewletId === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
-					return false;
+		const pinnedViewwets = paneCompositePawtSewvice.getVisibwePaneCompositeIds(ViewContainewWocation.Sidebaw);
+		items.push(...pinnedViewwets
+			.fiwta(viewwetId => {
+				if (viewwetId === viewDescwiptowSewvice.getViewContainewByViewId(focusedViewId)!.id) {
+					wetuwn fawse;
 				}
 
-				return !viewDescriptorService.getViewContainerById(viewletId)!.rejectAddedViews;
+				wetuwn !viewDescwiptowSewvice.getViewContainewById(viewwetId)!.wejectAddedViews;
 			})
-			.map(viewletId => {
-				return {
-					id: viewletId,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!)!.title
+			.map(viewwetId => {
+				wetuwn {
+					id: viewwetId,
+					wabew: viewDescwiptowSewvice.getViewContainewModew(viewDescwiptowSewvice.getViewContainewById(viewwetId)!)!.titwe
 				};
 			}));
 
 		items.push({
-			type: 'separator',
-			label: localize('panel', "Panel")
+			type: 'sepawatow',
+			wabew: wocawize('panew', "Panew")
 		});
 
-		const pinnedPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
-		items.push(...pinnedPanels
-			.filter(panel => {
-				if (panel === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
-					return false;
+		const pinnedPanews = paneCompositePawtSewvice.getPinnedPaneCompositeIds(ViewContainewWocation.Panew);
+		items.push(...pinnedPanews
+			.fiwta(panew => {
+				if (panew === viewDescwiptowSewvice.getViewContainewByViewId(focusedViewId)!.id) {
+					wetuwn fawse;
 				}
 
-				return !viewDescriptorService.getViewContainerById(panel)!.rejectAddedViews;
+				wetuwn !viewDescwiptowSewvice.getViewContainewById(panew)!.wejectAddedViews;
 			})
-			.map(panel => {
-				return {
-					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+			.map(panew => {
+				wetuwn {
+					id: panew,
+					wabew: viewDescwiptowSewvice.getViewContainewModew(viewDescwiptowSewvice.getViewContainewById(panew)!)!.titwe
 				};
 			}));
 
 		quickPick.items = items;
 
 		quickPick.onDidAccept(() => {
-			const destination = quickPick.selectedItems[0];
+			const destination = quickPick.sewectedItems[0];
 
-			if (destination.id === '_.panel.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel);
-				viewsService.openView(focusedViewId, true);
-			} else if (destination.id === '_.sidebar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
-				viewsService.openView(focusedViewId, true);
-			} else if (destination.id) {
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!);
-				viewsService.openView(focusedViewId, true);
+			if (destination.id === '_.panew.newcontaina') {
+				viewDescwiptowSewvice.moveViewToWocation(viewDescwiptow!, ViewContainewWocation.Panew);
+				viewsSewvice.openView(focusedViewId, twue);
+			} ewse if (destination.id === '_.sidebaw.newcontaina') {
+				viewDescwiptowSewvice.moveViewToWocation(viewDescwiptow!, ViewContainewWocation.Sidebaw);
+				viewsSewvice.openView(focusedViewId, twue);
+			} ewse if (destination.id) {
+				viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptow], viewDescwiptowSewvice.getViewContainewById(destination.id)!);
+				viewsSewvice.openView(focusedViewId, twue);
 			}
 
 			quickPick.hide();
@@ -720,177 +720,177 @@ class MoveFocusedViewAction extends Action2 {
 	}
 }
 
-registerAction2(MoveFocusedViewAction);
+wegistewAction2(MoveFocusedViewAction);
 
-// --- Reset Focused View Location
+// --- Weset Focused View Wocation
 
-registerAction2(class extends Action2 {
+wegistewAction2(cwass extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.resetFocusedViewLocation',
-			title: {
-				value: localize('resetFocusedViewLocation', "Reset Focused View Location"),
-				original: 'Reset Focused View Location'
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.wesetFocusedViewWocation',
+			titwe: {
+				vawue: wocawize('wesetFocusedViewWocation', "Weset Focused View Wocation"),
+				owiginaw: 'Weset Focused View Wocation'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			precondition: FocusedViewContext.notEqualsTo('')
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			pwecondition: FocusedViewContext.notEquawsTo('')
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const dialogService = accessor.get(IDialogService);
-		const viewsService = accessor.get(IViewsService);
+	wun(accessow: SewvicesAccessow): void {
+		const viewDescwiptowSewvice = accessow.get(IViewDescwiptowSewvice);
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
+		const viewsSewvice = accessow.get(IViewsSewvice);
 
-		const focusedViewId = FocusedViewContext.getValue(contextKeyService);
+		const focusedViewId = FocusedViewContext.getVawue(contextKeySewvice);
 
-		let viewDescriptor: IViewDescriptor | null = null;
-		if (focusedViewId !== undefined && focusedViewId.trim() !== '') {
-			viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
+		wet viewDescwiptow: IViewDescwiptow | nuww = nuww;
+		if (focusedViewId !== undefined && focusedViewId.twim() !== '') {
+			viewDescwiptow = viewDescwiptowSewvice.getViewDescwiptowById(focusedViewId);
 		}
 
-		if (!viewDescriptor) {
-			dialogService.show(Severity.Error, localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
-			return;
+		if (!viewDescwiptow) {
+			diawogSewvice.show(Sevewity.Ewwow, wocawize('wesetFocusedView.ewwow.noFocusedView', "Thewe is no view cuwwentwy focused."));
+			wetuwn;
 		}
 
-		const defaultContainer = viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
-		if (!defaultContainer || defaultContainer === viewDescriptorService.getViewContainerByViewId(viewDescriptor.id)) {
-			return;
+		const defauwtContaina = viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptow.id);
+		if (!defauwtContaina || defauwtContaina === viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptow.id)) {
+			wetuwn;
 		}
 
-		viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
-		viewsService.openView(viewDescriptor.id, true);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptow], defauwtContaina);
+		viewsSewvice.openView(viewDescwiptow.id, twue);
 	}
 });
 
-// --- Resize View
+// --- Wesize View
 
-abstract class BaseResizeViewAction extends Action2 {
+abstwact cwass BaseWesizeViewAction extends Action2 {
 
-	protected static readonly RESIZE_INCREMENT = 6.5; // This is a media-size percentage
+	pwotected static weadonwy WESIZE_INCWEMENT = 6.5; // This is a media-size pewcentage
 
-	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+	pwotected wesizePawt(widthChange: numba, heightChange: numba, wayoutSewvice: IWowkbenchWayoutSewvice, pawtToWesize?: Pawts): void {
 
-		let part: Parts | undefined;
-		if (partToResize === undefined) {
-			const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
-			const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
-			const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
+		wet pawt: Pawts | undefined;
+		if (pawtToWesize === undefined) {
+			const isEditowFocus = wayoutSewvice.hasFocus(Pawts.EDITOW_PAWT);
+			const isSidebawFocus = wayoutSewvice.hasFocus(Pawts.SIDEBAW_PAWT);
+			const isPanewFocus = wayoutSewvice.hasFocus(Pawts.PANEW_PAWT);
 
-			if (isSidebarFocus) {
-				part = Parts.SIDEBAR_PART;
-			} else if (isPanelFocus) {
-				part = Parts.PANEL_PART;
-			} else if (isEditorFocus) {
-				part = Parts.EDITOR_PART;
+			if (isSidebawFocus) {
+				pawt = Pawts.SIDEBAW_PAWT;
+			} ewse if (isPanewFocus) {
+				pawt = Pawts.PANEW_PAWT;
+			} ewse if (isEditowFocus) {
+				pawt = Pawts.EDITOW_PAWT;
 			}
-		} else {
-			part = partToResize;
+		} ewse {
+			pawt = pawtToWesize;
 		}
 
-		if (part) {
-			layoutService.resizePart(part, widthChange, heightChange);
+		if (pawt) {
+			wayoutSewvice.wesizePawt(pawt, widthChange, heightChange);
 		}
 	}
 }
 
-class IncreaseViewSizeAction extends BaseResizeViewAction {
+cwass IncweaseViewSizeAction extends BaseWesizeViewAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.increaseViewSize',
-			title: { value: localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.incweaseViewSize',
+			titwe: { vawue: wocawize('incweaseViewSize', "Incwease Cuwwent View Size"), owiginaw: 'Incwease Cuwwent View Size' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(BaseWesizeViewAction.WESIZE_INCWEMENT, BaseWesizeViewAction.WESIZE_INCWEMENT, accessow.get(IWowkbenchWayoutSewvice));
 	}
 }
 
-class IncreaseViewWidthAction extends BaseResizeViewAction {
+cwass IncweaseViewWidthAction extends BaseWesizeViewAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.increaseViewWidth',
-			title: { value: localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.incweaseViewWidth',
+			titwe: { vawue: wocawize('incweaseEditowWidth', "Incwease Editow Width"), owiginaw: 'Incwease Editow Width' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(BaseWesizeViewAction.WESIZE_INCWEMENT, 0, accessow.get(IWowkbenchWayoutSewvice), Pawts.EDITOW_PAWT);
 	}
 }
 
-class IncreaseViewHeightAction extends BaseResizeViewAction {
+cwass IncweaseViewHeightAction extends BaseWesizeViewAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.increaseViewHeight',
-			title: { value: localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.incweaseViewHeight',
+			titwe: { vawue: wocawize('incweaseEditowHeight', "Incwease Editow Height"), owiginaw: 'Incwease Editow Height' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(0, BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(0, BaseWesizeViewAction.WESIZE_INCWEMENT, accessow.get(IWowkbenchWayoutSewvice), Pawts.EDITOW_PAWT);
 	}
 }
 
-class DecreaseViewSizeAction extends BaseResizeViewAction {
+cwass DecweaseViewSizeAction extends BaseWesizeViewAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.decreaseViewSize',
-			title: { value: localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.decweaseViewSize',
+			titwe: { vawue: wocawize('decweaseViewSize', "Decwease Cuwwent View Size"), owiginaw: 'Decwease Cuwwent View Size' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService));
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(-BaseWesizeViewAction.WESIZE_INCWEMENT, -BaseWesizeViewAction.WESIZE_INCWEMENT, accessow.get(IWowkbenchWayoutSewvice));
 	}
 }
 
-class DecreaseViewWidthAction extends BaseResizeViewAction {
-	constructor() {
-		super({
-			id: 'workbench.action.decreaseViewWidth',
-			title: { value: localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
-			f1: true
+cwass DecweaseViewWidthAction extends BaseWesizeViewAction {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.decweaseViewWidth',
+			titwe: { vawue: wocawize('decweaseEditowWidth', "Decwease Editow Width"), owiginaw: 'Decwease Editow Width' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT, 0, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(-BaseWesizeViewAction.WESIZE_INCWEMENT, 0, accessow.get(IWowkbenchWayoutSewvice), Pawts.EDITOW_PAWT);
 	}
 }
 
-class DecreaseViewHeightAction extends BaseResizeViewAction {
+cwass DecweaseViewHeightAction extends BaseWesizeViewAction {
 
-	constructor() {
-		super({
-			id: 'workbench.action.decreaseViewHeight',
-			title: { value: localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.decweaseViewHeight',
+			titwe: { vawue: wocawize('decweaseEditowHeight', "Decwease Editow Height"), owiginaw: 'Decwease Editow Height' },
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		this.resizePart(0, -BaseResizeViewAction.RESIZE_INCREMENT, accessor.get(IWorkbenchLayoutService), Parts.EDITOR_PART);
+	wun(accessow: SewvicesAccessow): void {
+		this.wesizePawt(0, -BaseWesizeViewAction.WESIZE_INCWEMENT, accessow.get(IWowkbenchWayoutSewvice), Pawts.EDITOW_PAWT);
 	}
 }
 
-registerAction2(IncreaseViewSizeAction);
-registerAction2(IncreaseViewWidthAction);
-registerAction2(IncreaseViewHeightAction);
+wegistewAction2(IncweaseViewSizeAction);
+wegistewAction2(IncweaseViewWidthAction);
+wegistewAction2(IncweaseViewHeightAction);
 
-registerAction2(DecreaseViewSizeAction);
-registerAction2(DecreaseViewWidthAction);
-registerAction2(DecreaseViewHeightAction);
+wegistewAction2(DecweaseViewSizeAction);
+wegistewAction2(DecweaseViewWidthAction);
+wegistewAction2(DecweaseViewHeightAction);

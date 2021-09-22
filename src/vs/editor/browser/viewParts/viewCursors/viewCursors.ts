@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewCursors';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { editorCursorBackground, editorCursorForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt 'vs/css!./viewCuwsows';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IntewvawTima, TimeoutTima } fwom 'vs/base/common/async';
+impowt { ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { IViewCuwsowWendewData, ViewCuwsow } fwom 'vs/editow/bwowsa/viewPawts/viewCuwsows/viewCuwsow';
+impowt { TextEditowCuwsowBwinkingStywe, TextEditowCuwsowStywe, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { editowCuwsowBackgwound, editowCuwsowFowegwound } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class ViewCursors extends ViewPart {
+expowt cwass ViewCuwsows extends ViewPawt {
 
-	static readonly BLINK_INTERVAL = 500;
+	static weadonwy BWINK_INTEWVAW = 500;
 
-	private _readOnly: boolean;
-	private _cursorBlinking: TextEditorCursorBlinkingStyle;
-	private _cursorStyle: TextEditorCursorStyle;
-	private _cursorSmoothCaretAnimation: boolean;
-	private _selectionIsEmpty: boolean;
-	private _isComposingInput: boolean;
+	pwivate _weadOnwy: boowean;
+	pwivate _cuwsowBwinking: TextEditowCuwsowBwinkingStywe;
+	pwivate _cuwsowStywe: TextEditowCuwsowStywe;
+	pwivate _cuwsowSmoothCawetAnimation: boowean;
+	pwivate _sewectionIsEmpty: boowean;
+	pwivate _isComposingInput: boowean;
 
-	private _isVisible: boolean;
+	pwivate _isVisibwe: boowean;
 
-	private readonly _domNode: FastDomNode<HTMLElement>;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
 
-	private readonly _startCursorBlinkAnimation: TimeoutTimer;
-	private readonly _cursorFlatBlinkInterval: IntervalTimer;
-	private _blinkingEnabled: boolean;
+	pwivate weadonwy _stawtCuwsowBwinkAnimation: TimeoutTima;
+	pwivate weadonwy _cuwsowFwatBwinkIntewvaw: IntewvawTima;
+	pwivate _bwinkingEnabwed: boowean;
 
-	private _editorHasFocus: boolean;
+	pwivate _editowHasFocus: boowean;
 
-	private readonly _primaryCursor: ViewCursor;
-	private readonly _secondaryCursors: ViewCursor[];
-	private _renderData: IViewCursorRenderData[];
+	pwivate weadonwy _pwimawyCuwsow: ViewCuwsow;
+	pwivate weadonwy _secondawyCuwsows: ViewCuwsow[];
+	pwivate _wendewData: IViewCuwsowWendewData[];
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		const options = this._context.configuration.options;
-		this._readOnly = options.get(EditorOption.readOnly);
-		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
-		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
-		this._selectionIsEmpty = true;
-		this._isComposingInput = false;
+		const options = this._context.configuwation.options;
+		this._weadOnwy = options.get(EditowOption.weadOnwy);
+		this._cuwsowBwinking = options.get(EditowOption.cuwsowBwinking);
+		this._cuwsowStywe = options.get(EditowOption.cuwsowStywe);
+		this._cuwsowSmoothCawetAnimation = options.get(EditowOption.cuwsowSmoothCawetAnimation);
+		this._sewectionIsEmpty = twue;
+		this._isComposingInput = fawse;
 
-		this._isVisible = false;
+		this._isVisibwe = fawse;
 
-		this._primaryCursor = new ViewCursor(this._context);
-		this._secondaryCursors = [];
-		this._renderData = [];
+		this._pwimawyCuwsow = new ViewCuwsow(this._context);
+		this._secondawyCuwsows = [];
+		this._wendewData = [];
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
-		this._updateDomClassName();
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
+		this._updateDomCwassName();
 
-		this._domNode.appendChild(this._primaryCursor.getDomNode());
+		this._domNode.appendChiwd(this._pwimawyCuwsow.getDomNode());
 
-		this._startCursorBlinkAnimation = new TimeoutTimer();
-		this._cursorFlatBlinkInterval = new IntervalTimer();
+		this._stawtCuwsowBwinkAnimation = new TimeoutTima();
+		this._cuwsowFwatBwinkIntewvaw = new IntewvawTima();
 
-		this._blinkingEnabled = false;
+		this._bwinkingEnabwed = fawse;
 
-		this._editorHasFocus = false;
-		this._updateBlinking();
+		this._editowHasFocus = fawse;
+		this._updateBwinking();
 	}
 
-	public override dispose(): void {
-		super.dispose();
-		this._startCursorBlinkAnimation.dispose();
-		this._cursorFlatBlinkInterval.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
+		this._stawtCuwsowBwinkAnimation.dispose();
+		this._cuwsowFwatBwinkIntewvaw.dispose();
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._domNode;
 	}
 
-	// --- begin event handlers
-	public override onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
-		this._isComposingInput = true;
-		this._updateBlinking();
-		return true;
+	// --- begin event handwews
+	pubwic ovewwide onCompositionStawt(e: viewEvents.ViewCompositionStawtEvent): boowean {
+		this._isComposingInput = twue;
+		this._updateBwinking();
+		wetuwn twue;
 	}
-	public override onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boolean {
-		this._isComposingInput = false;
-		this._updateBlinking();
-		return true;
+	pubwic ovewwide onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boowean {
+		this._isComposingInput = fawse;
+		this._updateBwinking();
+		wetuwn twue;
 	}
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
 
-		this._readOnly = options.get(EditorOption.readOnly);
-		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
-		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
+		this._weadOnwy = options.get(EditowOption.weadOnwy);
+		this._cuwsowBwinking = options.get(EditowOption.cuwsowBwinking);
+		this._cuwsowStywe = options.get(EditowOption.cuwsowStywe);
+		this._cuwsowSmoothCawetAnimation = options.get(EditowOption.cuwsowSmoothCawetAnimation);
 
-		this._updateBlinking();
-		this._updateDomClassName();
+		this._updateBwinking();
+		this._updateDomCwassName();
 
-		this._primaryCursor.onConfigurationChanged(e);
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].onConfigurationChanged(e);
+		this._pwimawyCuwsow.onConfiguwationChanged(e);
+		fow (wet i = 0, wen = this._secondawyCuwsows.wength; i < wen; i++) {
+			this._secondawyCuwsows[i].onConfiguwationChanged(e);
 		}
-		return true;
+		wetuwn twue;
 	}
-	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
-		this._primaryCursor.onCursorPositionChanged(position);
-		this._updateBlinking();
+	pwivate _onCuwsowPositionChanged(position: Position, secondawyPositions: Position[]): void {
+		this._pwimawyCuwsow.onCuwsowPositionChanged(position);
+		this._updateBwinking();
 
-		if (this._secondaryCursors.length < secondaryPositions.length) {
-			// Create new cursors
-			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
-			for (let i = 0; i < addCnt; i++) {
-				const newCursor = new ViewCursor(this._context);
-				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
-				this._secondaryCursors.push(newCursor);
+		if (this._secondawyCuwsows.wength < secondawyPositions.wength) {
+			// Cweate new cuwsows
+			const addCnt = secondawyPositions.wength - this._secondawyCuwsows.wength;
+			fow (wet i = 0; i < addCnt; i++) {
+				const newCuwsow = new ViewCuwsow(this._context);
+				this._domNode.domNode.insewtBefowe(newCuwsow.getDomNode().domNode, this._pwimawyCuwsow.getDomNode().domNode.nextSibwing);
+				this._secondawyCuwsows.push(newCuwsow);
 			}
-		} else if (this._secondaryCursors.length > secondaryPositions.length) {
-			// Remove some cursors
-			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
-			for (let i = 0; i < removeCnt; i++) {
-				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
-				this._secondaryCursors.splice(0, 1);
+		} ewse if (this._secondawyCuwsows.wength > secondawyPositions.wength) {
+			// Wemove some cuwsows
+			const wemoveCnt = this._secondawyCuwsows.wength - secondawyPositions.wength;
+			fow (wet i = 0; i < wemoveCnt; i++) {
+				this._domNode.wemoveChiwd(this._secondawyCuwsows[0].getDomNode());
+				this._secondawyCuwsows.spwice(0, 1);
 			}
 		}
 
-		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
+		fow (wet i = 0; i < secondawyPositions.wength; i++) {
+			this._secondawyCuwsows[i].onCuwsowPositionChanged(secondawyPositions[i]);
 		}
 
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
 		const positions: Position[] = [];
-		for (let i = 0, len = e.selections.length; i < len; i++) {
-			positions[i] = e.selections[i].getPosition();
+		fow (wet i = 0, wen = e.sewections.wength; i < wen; i++) {
+			positions[i] = e.sewections[i].getPosition();
 		}
-		this._onCursorPositionChanged(positions[0], positions.slice(1));
+		this._onCuwsowPositionChanged(positions[0], positions.swice(1));
 
-		const selectionIsEmpty = e.selections[0].isEmpty();
-		if (this._selectionIsEmpty !== selectionIsEmpty) {
-			this._selectionIsEmpty = selectionIsEmpty;
-			this._updateDomClassName();
+		const sewectionIsEmpty = e.sewections[0].isEmpty();
+		if (this._sewectionIsEmpty !== sewectionIsEmpty) {
+			this._sewectionIsEmpty = sewectionIsEmpty;
+			this._updateDomCwassName();
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		// twue fow inwine decowations that can end up wewayouting text
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this._editorHasFocus = e.isFocused;
-		this._updateBlinking();
-		return false;
+	pubwic ovewwide onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boowean {
+		this._editowHasFocus = e.isFocused;
+		this._updateBwinking();
+		wetuwn fawse;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		const shouldRender = (position: Position) => {
-			for (let i = 0, len = e.ranges.length; i < len; i++) {
-				if (e.ranges[i].fromLineNumber <= position.lineNumber && position.lineNumber <= e.ranges[i].toLineNumber) {
-					return true;
+	pubwic ovewwide onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		const shouwdWenda = (position: Position) => {
+			fow (wet i = 0, wen = e.wanges.wength; i < wen; i++) {
+				if (e.wanges[i].fwomWineNumba <= position.wineNumba && position.wineNumba <= e.wanges[i].toWineNumba) {
+					wetuwn twue;
 				}
 			}
-			return false;
+			wetuwn fawse;
 		};
-		if (shouldRender(this._primaryCursor.getPosition())) {
-			return true;
+		if (shouwdWenda(this._pwimawyCuwsow.getPosition())) {
+			wetuwn twue;
 		}
-		for (const secondaryCursor of this._secondaryCursors) {
-			if (shouldRender(secondaryCursor.getPosition())) {
-				return true;
+		fow (const secondawyCuwsow of this._secondawyCuwsows) {
+			if (shouwdWenda(secondawyCuwsow.getPosition())) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	// ---- blinking logic
+	// ---- bwinking wogic
 
-	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
+	pwivate _getCuwsowBwinking(): TextEditowCuwsowBwinkingStywe {
 		if (this._isComposingInput) {
-			// avoid double cursors
-			return TextEditorCursorBlinkingStyle.Hidden;
+			// avoid doubwe cuwsows
+			wetuwn TextEditowCuwsowBwinkingStywe.Hidden;
 		}
-		if (!this._editorHasFocus) {
-			return TextEditorCursorBlinkingStyle.Hidden;
+		if (!this._editowHasFocus) {
+			wetuwn TextEditowCuwsowBwinkingStywe.Hidden;
 		}
-		if (this._readOnly) {
-			return TextEditorCursorBlinkingStyle.Solid;
+		if (this._weadOnwy) {
+			wetuwn TextEditowCuwsowBwinkingStywe.Sowid;
 		}
-		return this._cursorBlinking;
+		wetuwn this._cuwsowBwinking;
 	}
 
-	private _updateBlinking(): void {
-		this._startCursorBlinkAnimation.cancel();
-		this._cursorFlatBlinkInterval.cancel();
+	pwivate _updateBwinking(): void {
+		this._stawtCuwsowBwinkAnimation.cancew();
+		this._cuwsowFwatBwinkIntewvaw.cancew();
 
-		const blinkingStyle = this._getCursorBlinking();
+		const bwinkingStywe = this._getCuwsowBwinking();
 
-		// hidden and solid are special as they involve no animations
-		const isHidden = (blinkingStyle === TextEditorCursorBlinkingStyle.Hidden);
-		const isSolid = (blinkingStyle === TextEditorCursorBlinkingStyle.Solid);
+		// hidden and sowid awe speciaw as they invowve no animations
+		const isHidden = (bwinkingStywe === TextEditowCuwsowBwinkingStywe.Hidden);
+		const isSowid = (bwinkingStywe === TextEditowCuwsowBwinkingStywe.Sowid);
 
 		if (isHidden) {
 			this._hide();
-		} else {
+		} ewse {
 			this._show();
 		}
 
-		this._blinkingEnabled = false;
-		this._updateDomClassName();
+		this._bwinkingEnabwed = fawse;
+		this._updateDomCwassName();
 
-		if (!isHidden && !isSolid) {
-			if (blinkingStyle === TextEditorCursorBlinkingStyle.Blink) {
-				// flat blinking is handled by JavaScript to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
-				this._cursorFlatBlinkInterval.cancelAndSet(() => {
-					if (this._isVisible) {
+		if (!isHidden && !isSowid) {
+			if (bwinkingStywe === TextEditowCuwsowBwinkingStywe.Bwink) {
+				// fwat bwinking is handwed by JavaScwipt to save battewy wife due to Chwomium step timing issue https://bugs.chwomium.owg/p/chwomium/issues/detaiw?id=361587
+				this._cuwsowFwatBwinkIntewvaw.cancewAndSet(() => {
+					if (this._isVisibwe) {
 						this._hide();
-					} else {
+					} ewse {
 						this._show();
 					}
-				}, ViewCursors.BLINK_INTERVAL);
-			} else {
-				this._startCursorBlinkAnimation.setIfNotSet(() => {
-					this._blinkingEnabled = true;
-					this._updateDomClassName();
-				}, ViewCursors.BLINK_INTERVAL);
+				}, ViewCuwsows.BWINK_INTEWVAW);
+			} ewse {
+				this._stawtCuwsowBwinkAnimation.setIfNotSet(() => {
+					this._bwinkingEnabwed = twue;
+					this._updateDomCwassName();
+				}, ViewCuwsows.BWINK_INTEWVAW);
 			}
 		}
 	}
-	// --- end blinking logic
+	// --- end bwinking wogic
 
-	private _updateDomClassName(): void {
-		this._domNode.setClassName(this._getClassName());
+	pwivate _updateDomCwassName(): void {
+		this._domNode.setCwassName(this._getCwassName());
 	}
 
-	private _getClassName(): string {
-		let result = 'cursors-layer';
-		if (!this._selectionIsEmpty) {
-			result += ' has-selection';
+	pwivate _getCwassName(): stwing {
+		wet wesuwt = 'cuwsows-waya';
+		if (!this._sewectionIsEmpty) {
+			wesuwt += ' has-sewection';
 		}
-		switch (this._cursorStyle) {
-			case TextEditorCursorStyle.Line:
-				result += ' cursor-line-style';
-				break;
-			case TextEditorCursorStyle.Block:
-				result += ' cursor-block-style';
-				break;
-			case TextEditorCursorStyle.Underline:
-				result += ' cursor-underline-style';
-				break;
-			case TextEditorCursorStyle.LineThin:
-				result += ' cursor-line-thin-style';
-				break;
-			case TextEditorCursorStyle.BlockOutline:
-				result += ' cursor-block-outline-style';
-				break;
-			case TextEditorCursorStyle.UnderlineThin:
-				result += ' cursor-underline-thin-style';
-				break;
-			default:
-				result += ' cursor-line-style';
+		switch (this._cuwsowStywe) {
+			case TextEditowCuwsowStywe.Wine:
+				wesuwt += ' cuwsow-wine-stywe';
+				bweak;
+			case TextEditowCuwsowStywe.Bwock:
+				wesuwt += ' cuwsow-bwock-stywe';
+				bweak;
+			case TextEditowCuwsowStywe.Undewwine:
+				wesuwt += ' cuwsow-undewwine-stywe';
+				bweak;
+			case TextEditowCuwsowStywe.WineThin:
+				wesuwt += ' cuwsow-wine-thin-stywe';
+				bweak;
+			case TextEditowCuwsowStywe.BwockOutwine:
+				wesuwt += ' cuwsow-bwock-outwine-stywe';
+				bweak;
+			case TextEditowCuwsowStywe.UndewwineThin:
+				wesuwt += ' cuwsow-undewwine-thin-stywe';
+				bweak;
+			defauwt:
+				wesuwt += ' cuwsow-wine-stywe';
 		}
-		if (this._blinkingEnabled) {
-			switch (this._getCursorBlinking()) {
-				case TextEditorCursorBlinkingStyle.Blink:
-					result += ' cursor-blink';
-					break;
-				case TextEditorCursorBlinkingStyle.Smooth:
-					result += ' cursor-smooth';
-					break;
-				case TextEditorCursorBlinkingStyle.Phase:
-					result += ' cursor-phase';
-					break;
-				case TextEditorCursorBlinkingStyle.Expand:
-					result += ' cursor-expand';
-					break;
-				case TextEditorCursorBlinkingStyle.Solid:
-					result += ' cursor-solid';
-					break;
-				default:
-					result += ' cursor-solid';
+		if (this._bwinkingEnabwed) {
+			switch (this._getCuwsowBwinking()) {
+				case TextEditowCuwsowBwinkingStywe.Bwink:
+					wesuwt += ' cuwsow-bwink';
+					bweak;
+				case TextEditowCuwsowBwinkingStywe.Smooth:
+					wesuwt += ' cuwsow-smooth';
+					bweak;
+				case TextEditowCuwsowBwinkingStywe.Phase:
+					wesuwt += ' cuwsow-phase';
+					bweak;
+				case TextEditowCuwsowBwinkingStywe.Expand:
+					wesuwt += ' cuwsow-expand';
+					bweak;
+				case TextEditowCuwsowBwinkingStywe.Sowid:
+					wesuwt += ' cuwsow-sowid';
+					bweak;
+				defauwt:
+					wesuwt += ' cuwsow-sowid';
 			}
-		} else {
-			result += ' cursor-solid';
+		} ewse {
+			wesuwt += ' cuwsow-sowid';
 		}
-		if (this._cursorSmoothCaretAnimation) {
-			result += ' cursor-smooth-caret-animation';
+		if (this._cuwsowSmoothCawetAnimation) {
+			wesuwt += ' cuwsow-smooth-cawet-animation';
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _show(): void {
-		this._primaryCursor.show();
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].show();
+	pwivate _show(): void {
+		this._pwimawyCuwsow.show();
+		fow (wet i = 0, wen = this._secondawyCuwsows.wength; i < wen; i++) {
+			this._secondawyCuwsows[i].show();
 		}
-		this._isVisible = true;
+		this._isVisibwe = twue;
 	}
 
-	private _hide(): void {
-		this._primaryCursor.hide();
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].hide();
+	pwivate _hide(): void {
+		this._pwimawyCuwsow.hide();
+		fow (wet i = 0, wen = this._secondawyCuwsows.wength; i < wen; i++) {
+			this._secondawyCuwsows[i].hide();
 		}
-		this._isVisible = false;
+		this._isVisibwe = fawse;
 	}
 
-	// ---- IViewPart implementation
+	// ---- IViewPawt impwementation
 
-	public prepareRender(ctx: RenderingContext): void {
-		this._primaryCursor.prepareRender(ctx);
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._secondaryCursors[i].prepareRender(ctx);
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		this._pwimawyCuwsow.pwepaweWenda(ctx);
+		fow (wet i = 0, wen = this._secondawyCuwsows.wength; i < wen; i++) {
+			this._secondawyCuwsows[i].pwepaweWenda(ctx);
 		}
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		wet wendewData: IViewCuwsowWendewData[] = [], wendewDataWen = 0;
 
-		const primaryRenderData = this._primaryCursor.render(ctx);
-		if (primaryRenderData) {
-			renderData[renderDataLen++] = primaryRenderData;
+		const pwimawyWendewData = this._pwimawyCuwsow.wenda(ctx);
+		if (pwimawyWendewData) {
+			wendewData[wendewDataWen++] = pwimawyWendewData;
 		}
 
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			const secondaryRenderData = this._secondaryCursors[i].render(ctx);
-			if (secondaryRenderData) {
-				renderData[renderDataLen++] = secondaryRenderData;
+		fow (wet i = 0, wen = this._secondawyCuwsows.wength; i < wen; i++) {
+			const secondawyWendewData = this._secondawyCuwsows[i].wenda(ctx);
+			if (secondawyWendewData) {
+				wendewData[wendewDataWen++] = secondawyWendewData;
 			}
 		}
 
-		this._renderData = renderData;
+		this._wendewData = wendewData;
 	}
 
-	public getLastRenderData(): IViewCursorRenderData[] {
-		return this._renderData;
+	pubwic getWastWendewData(): IViewCuwsowWendewData[] {
+		wetuwn this._wendewData;
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const caret = theme.getColor(editorCursorForeground);
-	if (caret) {
-		let caretBackground = theme.getColor(editorCursorBackground);
-		if (!caretBackground) {
-			caretBackground = caret.opposite();
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const cawet = theme.getCowow(editowCuwsowFowegwound);
+	if (cawet) {
+		wet cawetBackgwound = theme.getCowow(editowCuwsowBackgwound);
+		if (!cawetBackgwound) {
+			cawetBackgwound = cawet.opposite();
 		}
-		collector.addRule(`.monaco-editor .cursors-layer .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
+		cowwectow.addWuwe(`.monaco-editow .cuwsows-waya .cuwsow { backgwound-cowow: ${cawet}; bowda-cowow: ${cawet}; cowow: ${cawetBackgwound}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
+			cowwectow.addWuwe(`.monaco-editow .cuwsows-waya.has-sewection .cuwsow { bowda-weft: 1px sowid ${cawetBackgwound}; bowda-wight: 1px sowid ${cawetBackgwound}; }`);
 		}
 	}
 

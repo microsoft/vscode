@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextBufferFactory } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { Mimes } from 'vs/base/common/mime';
-import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestAccessibilityService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { ITextBuffewFactowy } fwom 'vs/editow/common/modew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestTextWesouwcePwopewtiesSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { WanguageDetectionSewvice } fwom 'vs/wowkbench/sewvices/wanguageDetection/bwowsa/wanguageDetectionWowkewSewviceImpw';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { TestAccessibiwitySewvice, TestEnviwonmentSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('EditorModel', () => {
+suite('EditowModew', () => {
 
-	class MyEditorModel extends EditorModel { }
-	class MyTextEditorModel extends BaseTextEditorModel {
-		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-			return super.createTextEditorModel(value, resource, preferredMode);
+	cwass MyEditowModew extends EditowModew { }
+	cwass MyTextEditowModew extends BaseTextEditowModew {
+		ovewwide cweateTextEditowModew(vawue: ITextBuffewFactowy, wesouwce?: UWI, pwefewwedMode?: stwing) {
+			wetuwn supa.cweateTextEditowModew(vawue, wesouwce, pwefewwedMode);
 		}
 
-		override isReadonly(): boolean {
-			return false;
+		ovewwide isWeadonwy(): boowean {
+			wetuwn fawse;
 		}
 	}
 
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
-		instantiationService.stub(IDialogService, dialogService);
-		instantiationService.stub(INotificationService, notificationService);
-		instantiationService.stub(IUndoRedoService, undoRedoService);
-		instantiationService.stub(IThemeService, new TestThemeService());
+	function stubModewSewvice(instantiationSewvice: TestInstantiationSewvice): IModewSewvice {
+		const diawogSewvice = new TestDiawogSewvice();
+		const notificationSewvice = new TestNotificationSewvice();
+		const undoWedoSewvice = new UndoWedoSewvice(diawogSewvice, notificationSewvice);
+		instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, TestEnviwonmentSewvice);
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+		instantiationSewvice.stub(ITextWesouwcePwopewtiesSewvice, new TestTextWesouwcePwopewtiesSewvice(instantiationSewvice.get(IConfiguwationSewvice)));
+		instantiationSewvice.stub(IDiawogSewvice, diawogSewvice);
+		instantiationSewvice.stub(INotificationSewvice, notificationSewvice);
+		instantiationSewvice.stub(IUndoWedoSewvice, undoWedoSewvice);
+		instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
 
-		return instantiationService.createInstance(ModelServiceImpl);
+		wetuwn instantiationSewvice.cweateInstance(ModewSewviceImpw);
 	}
 
-	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet modeSewvice: IModeSewvice;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
-		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
+		instantiationSewvice = new TestInstantiationSewvice();
+		modeSewvice = instantiationSewvice.stub(IModeSewvice, ModeSewviceImpw);
 	});
 
 	test('basics', async () => {
-		let counter = 0;
+		wet counta = 0;
 
-		const model = new MyEditorModel();
+		const modew = new MyEditowModew();
 
-		model.onWillDispose(() => {
-			assert(true);
-			counter++;
+		modew.onWiwwDispose(() => {
+			assewt(twue);
+			counta++;
 		});
 
-		await model.resolve();
-		assert.strictEqual(model.isDisposed(), false);
-		assert.strictEqual(model.isResolved(), true);
-		model.dispose();
-		assert.strictEqual(counter, 1);
-		assert.strictEqual(model.isDisposed(), true);
+		await modew.wesowve();
+		assewt.stwictEquaw(modew.isDisposed(), fawse);
+		assewt.stwictEquaw(modew.isWesowved(), twue);
+		modew.dispose();
+		assewt.stwictEquaw(counta, 1);
+		assewt.stwictEquaw(modew.isDisposed(), twue);
 	});
 
-	test('BaseTextEditorModel', async () => {
-		let modelService = stubModelService(instantiationService);
+	test('BaseTextEditowModew', async () => {
+		wet modewSewvice = stubModewSewvice(instantiationSewvice);
 
-		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
-		await model.resolve();
+		const modew = new MyTextEditowModew(modewSewvice, modeSewvice, instantiationSewvice.cweateInstance(WanguageDetectionSewvice), instantiationSewvice.cweateInstance(TestAccessibiwitySewvice));
+		await modew.wesowve();
 
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
-		assert.strictEqual(model.isResolved(), true);
-		model.dispose();
+		modew.cweateTextEditowModew(cweateTextBuffewFactowy('foo'), nuww!, Mimes.text);
+		assewt.stwictEquaw(modew.isWesowved(), twue);
+		modew.dispose();
 	});
 });

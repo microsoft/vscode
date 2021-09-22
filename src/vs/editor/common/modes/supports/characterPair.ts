@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
+impowt { IAutoCwosingPaiw, StandawdAutoCwosingPaiwConditionaw, WanguageConfiguwation, ChawactewPaiw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { ScopedWineTokens } fwom 'vs/editow/common/modes/suppowts';
 
-export class CharacterPairSupport {
+expowt cwass ChawactewPaiwSuppowt {
 
-	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED = ';:.,=}])> \n\t';
-	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
+	static weadonwy DEFAUWT_AUTOCWOSE_BEFOWE_WANGUAGE_DEFINED = ';:.,=}])> \n\t';
+	static weadonwy DEFAUWT_AUTOCWOSE_BEFOWE_WHITESPACE = ' \n\t';
 
-	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
-	private readonly _surroundingPairs: IAutoClosingPair[];
-	private readonly _autoCloseBefore: string;
-	private readonly _colorizedBracketPairs: CharacterPair[];
+	pwivate weadonwy _autoCwosingPaiws: StandawdAutoCwosingPaiwConditionaw[];
+	pwivate weadonwy _suwwoundingPaiws: IAutoCwosingPaiw[];
+	pwivate weadonwy _autoCwoseBefowe: stwing;
+	pwivate weadonwy _cowowizedBwacketPaiws: ChawactewPaiw[];
 
-	constructor(config: LanguageConfiguration) {
-		if (config.autoClosingPairs) {
-			this._autoClosingPairs = config.autoClosingPairs.map(el => new StandardAutoClosingPairConditional(el));
-		} else if (config.brackets) {
-			this._autoClosingPairs = config.brackets.map(b => new StandardAutoClosingPairConditional({ open: b[0], close: b[1] }));
-		} else {
-			this._autoClosingPairs = [];
+	constwuctow(config: WanguageConfiguwation) {
+		if (config.autoCwosingPaiws) {
+			this._autoCwosingPaiws = config.autoCwosingPaiws.map(ew => new StandawdAutoCwosingPaiwConditionaw(ew));
+		} ewse if (config.bwackets) {
+			this._autoCwosingPaiws = config.bwackets.map(b => new StandawdAutoCwosingPaiwConditionaw({ open: b[0], cwose: b[1] }));
+		} ewse {
+			this._autoCwosingPaiws = [];
 		}
 
-		if (config.colorizedBracketPairs) {
-			this._colorizedBracketPairs = config.colorizedBracketPairs.map(b => [b[0], b[1]]);
-		} else if (config.brackets) {
-			this._colorizedBracketPairs = config.brackets
-				.map((b) => [b[0], b[1]] as [string, string])
-				// Many languages set < ... > as bracket pair, even though they also use it as comparison operator.
-				// This leads to problems when colorizing this bracket, so we exclude it by default.
-				// Languages can still override this by configuring `colorizedBracketPairs`
-				// https://github.com/microsoft/vscode/issues/132476
-				.filter((p) => !(p[0] === '<' && p[1] === '>'));
-		} else {
-			this._colorizedBracketPairs = [];
+		if (config.cowowizedBwacketPaiws) {
+			this._cowowizedBwacketPaiws = config.cowowizedBwacketPaiws.map(b => [b[0], b[1]]);
+		} ewse if (config.bwackets) {
+			this._cowowizedBwacketPaiws = config.bwackets
+				.map((b) => [b[0], b[1]] as [stwing, stwing])
+				// Many wanguages set < ... > as bwacket paiw, even though they awso use it as compawison opewatow.
+				// This weads to pwobwems when cowowizing this bwacket, so we excwude it by defauwt.
+				// Wanguages can stiww ovewwide this by configuwing `cowowizedBwacketPaiws`
+				// https://github.com/micwosoft/vscode/issues/132476
+				.fiwta((p) => !(p[0] === '<' && p[1] === '>'));
+		} ewse {
+			this._cowowizedBwacketPaiws = [];
 		}
 
-		if (config.__electricCharacterSupport && config.__electricCharacterSupport.docComment) {
-			const docComment = config.__electricCharacterSupport.docComment;
-			// IDocComment is legacy, only partially supported
-			this._autoClosingPairs.push(new StandardAutoClosingPairConditional({ open: docComment.open, close: docComment.close || '' }));
+		if (config.__ewectwicChawactewSuppowt && config.__ewectwicChawactewSuppowt.docComment) {
+			const docComment = config.__ewectwicChawactewSuppowt.docComment;
+			// IDocComment is wegacy, onwy pawtiawwy suppowted
+			this._autoCwosingPaiws.push(new StandawdAutoCwosingPaiwConditionaw({ open: docComment.open, cwose: docComment.cwose || '' }));
 		}
 
-		this._autoCloseBefore = typeof config.autoCloseBefore === 'string' ? config.autoCloseBefore : CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+		this._autoCwoseBefowe = typeof config.autoCwoseBefowe === 'stwing' ? config.autoCwoseBefowe : ChawactewPaiwSuppowt.DEFAUWT_AUTOCWOSE_BEFOWE_WANGUAGE_DEFINED;
 
-		this._surroundingPairs = config.surroundingPairs || this._autoClosingPairs;
+		this._suwwoundingPaiws = config.suwwoundingPaiws || this._autoCwosingPaiws;
 	}
 
-	public getAutoClosingPairs(): StandardAutoClosingPairConditional[] {
-		return this._autoClosingPairs;
+	pubwic getAutoCwosingPaiws(): StandawdAutoCwosingPaiwConditionaw[] {
+		wetuwn this._autoCwosingPaiws;
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this._autoCloseBefore;
+	pubwic getAutoCwoseBefoweSet(): stwing {
+		wetuwn this._autoCwoseBefowe;
 	}
 
-	public static shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: ScopedLineTokens, column: number): boolean {
-		// Always complete on empty line
+	pubwic static shouwdAutoCwosePaiw(autoCwosingPaiw: StandawdAutoCwosingPaiwConditionaw, context: ScopedWineTokens, cowumn: numba): boowean {
+		// Awways compwete on empty wine
 		if (context.getTokenCount() === 0) {
-			return true;
+			wetuwn twue;
 		}
 
-		const tokenIndex = context.findTokenIndexAtOffset(column - 2);
-		const standardTokenType = context.getStandardTokenType(tokenIndex);
-		return autoClosingPair.isOK(standardTokenType);
+		const tokenIndex = context.findTokenIndexAtOffset(cowumn - 2);
+		const standawdTokenType = context.getStandawdTokenType(tokenIndex);
+		wetuwn autoCwosingPaiw.isOK(standawdTokenType);
 	}
 
-	public getSurroundingPairs(): IAutoClosingPair[] {
-		return this._surroundingPairs;
+	pubwic getSuwwoundingPaiws(): IAutoCwosingPaiw[] {
+		wetuwn this._suwwoundingPaiws;
 	}
 
-	public getColorizedBrackets(): CharacterPair[] {
-		return this._colorizedBracketPairs;
+	pubwic getCowowizedBwackets(): ChawactewPaiw[] {
+		wetuwn this._cowowizedBwacketPaiws;
 	}
 }

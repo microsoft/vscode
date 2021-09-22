@@ -1,423 +1,423 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Composite } from 'vs/workbench/browser/composite';
-import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext, isEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { LRUCache, Touch } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEmptyObject } from 'vs/base/common/types';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { MementoObject } from 'vs/workbench/common/memento';
-import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
-import { indexOfPath } from 'vs/base/common/extpath';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+impowt { Composite } fwom 'vs/wowkbench/bwowsa/composite';
+impowt { IEditowPane, GwoupIdentifia, IEditowMemento, IEditowOpenContext, isEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { WWUCache, Touch } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { DEFAUWT_EDITOW_MIN_DIMENSIONS, DEFAUWT_EDITOW_MAX_DIMENSIONS } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { joinPath, IExtUwi, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { indexOfPath } fwom 'vs/base/common/extpath';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
 
 /**
- * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
- * Editors are layed out in the editor part of the workbench in editor groups. Multiple editors can be
- * open at the same time. Each editor has a minimized representation that is good enough to provide some
- * information about the state of the editor data.
+ * The base cwass of editows in the wowkbench. Editows wegista themsewves fow specific editow inputs.
+ * Editows awe wayed out in the editow pawt of the wowkbench in editow gwoups. Muwtipwe editows can be
+ * open at the same time. Each editow has a minimized wepwesentation that is good enough to pwovide some
+ * infowmation about the state of the editow data.
  *
- * The workbench will keep an editor alive after it has been created and show/hide it based on
- * user interaction. The lifecycle of a editor goes in the order:
+ * The wowkbench wiww keep an editow awive afta it has been cweated and show/hide it based on
+ * usa intewaction. The wifecycwe of a editow goes in the owda:
  *
- * - `createEditor()`
- * - `setEditorVisible()`
- * - `layout()`
+ * - `cweateEditow()`
+ * - `setEditowVisibwe()`
+ * - `wayout()`
  * - `setInput()`
  * - `focus()`
- * - `dispose()`: when the editor group the editor is in closes
+ * - `dispose()`: when the editow gwoup the editow is in cwoses
  *
- * During use of the workbench, a editor will often receive a `clearInput()`, `setEditorVisible()`, `layout()` and
- * `focus()` calls, but only one `create()` and `dispose()` call.
+ * Duwing use of the wowkbench, a editow wiww often weceive a `cweawInput()`, `setEditowVisibwe()`, `wayout()` and
+ * `focus()` cawws, but onwy one `cweate()` and `dispose()` caww.
  *
- * This class is only intended to be subclassed and not instantiated.
+ * This cwass is onwy intended to be subcwassed and not instantiated.
  */
-export abstract class EditorPane extends Composite implements IEditorPane {
+expowt abstwact cwass EditowPane extends Composite impwements IEditowPane {
 
-	//#region Events
+	//#wegion Events
 
-	readonly onDidChangeSizeConstraints = Event.None;
+	weadonwy onDidChangeSizeConstwaints = Event.None;
 
-	protected readonly _onDidChangeControl = this._register(new Emitter<void>());
-	readonly onDidChangeControl = this._onDidChangeControl.event;
+	pwotected weadonwy _onDidChangeContwow = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeContwow = this._onDidChangeContwow.event;
 
-	//#endregion
+	//#endwegion
 
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
+	pwivate static weadonwy EDITOW_MEMENTOS = new Map<stwing, EditowMemento<any>>();
 
-	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+	get minimumWidth() { wetuwn DEFAUWT_EDITOW_MIN_DIMENSIONS.width; }
+	get maximumWidth() { wetuwn DEFAUWT_EDITOW_MAX_DIMENSIONS.width; }
+	get minimumHeight() { wetuwn DEFAUWT_EDITOW_MIN_DIMENSIONS.height; }
+	get maximumHeight() { wetuwn DEFAUWT_EDITOW_MAX_DIMENSIONS.height; }
 
-	protected _input: EditorInput | undefined;
-	get input(): EditorInput | undefined { return this._input; }
+	pwotected _input: EditowInput | undefined;
+	get input(): EditowInput | undefined { wetuwn this._input; }
 
-	protected _options: IEditorOptions | undefined;
-	get options(): IEditorOptions | undefined { return this._options; }
+	pwotected _options: IEditowOptions | undefined;
+	get options(): IEditowOptions | undefined { wetuwn this._options; }
 
-	private _group: IEditorGroup | undefined;
-	get group(): IEditorGroup | undefined { return this._group; }
+	pwivate _gwoup: IEditowGwoup | undefined;
+	get gwoup(): IEditowGwoup | undefined { wetuwn this._gwoup; }
 
 	/**
-	 * Should be overridden by editors that have their own ScopedContextKeyService
+	 * Shouwd be ovewwidden by editows that have theiw own ScopedContextKeySewvice
 	 */
-	get scopedContextKeyService(): IContextKeyService | undefined { return undefined; }
+	get scopedContextKeySewvice(): IContextKeySewvice | undefined { wetuwn undefined; }
 
-	constructor(
-		id: string,
-		telemetryService: ITelemetryService,
-		themeService: IThemeService,
-		storageService: IStorageService
+	constwuctow(
+		id: stwing,
+		tewemetwySewvice: ITewemetwySewvice,
+		themeSewvice: IThemeSewvice,
+		stowageSewvice: IStowageSewvice
 	) {
-		super(id, telemetryService, themeService, storageService);
+		supa(id, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	override create(parent: HTMLElement): void {
-		super.create(parent);
+	ovewwide cweate(pawent: HTMWEwement): void {
+		supa.cweate(pawent);
 
-		// Create Editor
-		this.createEditor(parent);
+		// Cweate Editow
+		this.cweateEditow(pawent);
 	}
 
 	/**
-	 * Called to create the editor in the parent HTMLElement. Subclasses implement
-	 * this method to construct the editor widget.
+	 * Cawwed to cweate the editow in the pawent HTMWEwement. Subcwasses impwement
+	 * this method to constwuct the editow widget.
 	 */
-	protected abstract createEditor(parent: HTMLElement): void;
+	pwotected abstwact cweateEditow(pawent: HTMWEwement): void;
 
 	/**
-	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * Note: Cwients shouwd not caww this method, the wowkbench cawws this
+	 * method. Cawwing it othewwise may wesuwt in unexpected behaviow.
 	 *
-	 * Sets the given input with the options to the editor. The input is guaranteed
-	 * to be different from the previous input that was set using the `input.matches()`
+	 * Sets the given input with the options to the editow. The input is guawanteed
+	 * to be diffewent fwom the pwevious input that was set using the `input.matches()`
 	 * method.
 	 *
-	 * The provided context gives more information around how the editor was opened.
+	 * The pwovided context gives mowe infowmation awound how the editow was opened.
 	 *
-	 * The provided cancellation token should be used to test if the operation
-	 * was cancelled.
+	 * The pwovided cancewwation token shouwd be used to test if the opewation
+	 * was cancewwed.
 	 */
-	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async setInput(input: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 		this._input = input;
 		this._options = options;
 	}
 
 	/**
-	 * Called to indicate to the editor that the input should be cleared and
-	 * resources associated with the input should be freed.
+	 * Cawwed to indicate to the editow that the input shouwd be cweawed and
+	 * wesouwces associated with the input shouwd be fweed.
 	 *
-	 * This method can be called based on different contexts, e.g. when opening
-	 * a different editor control or when closing all editors in a group.
+	 * This method can be cawwed based on diffewent contexts, e.g. when opening
+	 * a diffewent editow contwow ow when cwosing aww editows in a gwoup.
 	 *
-	 * To monitor the lifecycle of editor inputs, you should not rely on this
-	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
+	 * To monitow the wifecycwe of editow inputs, you shouwd not wewy on this
+	 * method, watha wefa to the wistenews on `IEditowGwoup` via `IEditowGwoupSewvice`.
 	 */
-	clearInput(): void {
+	cweawInput(): void {
 		this._input = undefined;
 		this._options = undefined;
 	}
 
 	/**
-	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * Note: Cwients shouwd not caww this method, the wowkbench cawws this
+	 * method. Cawwing it othewwise may wesuwt in unexpected behaviow.
 	 *
-	 * Sets the given options to the editor. Clients should apply the options
-	 * to the current input.
+	 * Sets the given options to the editow. Cwients shouwd appwy the options
+	 * to the cuwwent input.
 	 */
-	setOptions(options: IEditorOptions | undefined): void {
+	setOptions(options: IEditowOptions | undefined): void {
 		this._options = options;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible);
+	ovewwide setVisibwe(visibwe: boowean, gwoup?: IEditowGwoup): void {
+		supa.setVisibwe(visibwe);
 
-		// Propagate to Editor
-		this.setEditorVisible(visible, group);
+		// Pwopagate to Editow
+		this.setEditowVisibwe(visibwe, gwoup);
 	}
 
 	/**
-	 * Indicates that the editor control got visible or hidden in a specific group. A
-	 * editor instance will only ever be visible in one editor group.
+	 * Indicates that the editow contwow got visibwe ow hidden in a specific gwoup. A
+	 * editow instance wiww onwy eva be visibwe in one editow gwoup.
 	 *
-	 * @param visible the state of visibility of this editor
-	 * @param group the editor group this editor is in.
+	 * @pawam visibwe the state of visibiwity of this editow
+	 * @pawam gwoup the editow gwoup this editow is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		this._group = group;
+	pwotected setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
+		this._gwoup = gwoup;
 	}
 
-	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, configurationService: ITextResourceConfigurationService, key: string, limit: number = 10): IEditorMemento<T> {
+	pwotected getEditowMemento<T>(editowGwoupSewvice: IEditowGwoupsSewvice, configuwationSewvice: ITextWesouwceConfiguwationSewvice, key: stwing, wimit: numba = 10): IEditowMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 
-		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
-		if (!editorMemento) {
-			editorMemento = this._register(new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE), limit, editorGroupService, configurationService));
-			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
+		wet editowMemento = EditowPane.EDITOW_MEMENTOS.get(mementoKey);
+		if (!editowMemento) {
+			editowMemento = this._wegista(new EditowMemento(this.getId(), key, this.getMemento(StowageScope.WOWKSPACE, StowageTawget.MACHINE), wimit, editowGwoupSewvice, configuwationSewvice));
+			EditowPane.EDITOW_MEMENTOS.set(mementoKey, editowMemento);
 		}
 
-		return editorMemento;
+		wetuwn editowMemento;
 	}
 
 	getViewState(): object | undefined {
 
-		// Subclasses to override
-		return undefined;
+		// Subcwasses to ovewwide
+		wetuwn undefined;
 	}
 
-	protected override saveState(): void {
+	pwotected ovewwide saveState(): void {
 
-		// Save all editor memento for this editor type
-		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
-			if (editorMemento.id === this.getId()) {
-				editorMemento.saveState();
+		// Save aww editow memento fow this editow type
+		fow (const [, editowMemento] of EditowPane.EDITOW_MEMENTOS) {
+			if (editowMemento.id === this.getId()) {
+				editowMemento.saveState();
 			}
 		}
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this._input = undefined;
 		this._options = undefined;
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-interface MapGroupToMemento<T> {
-	[group: GroupIdentifier]: T;
+intewface MapGwoupToMemento<T> {
+	[gwoup: GwoupIdentifia]: T;
 }
 
-export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
+expowt cwass EditowMemento<T> extends Disposabwe impwements IEditowMemento<T> {
 
-	private static readonly SHARED_EDITOR_STATE = -1; // pick a number < 0 to be outside group id range
+	pwivate static weadonwy SHAWED_EDITOW_STATE = -1; // pick a numba < 0 to be outside gwoup id wange
 
-	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
-	private cleanedUp = false;
-	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
-	private shareEditorState = false;
+	pwivate cache: WWUCache<stwing, MapGwoupToMemento<T>> | undefined;
+	pwivate cweanedUp = fawse;
+	pwivate editowDisposabwes: Map<EditowInput, IDisposabwe> | undefined;
+	pwivate shaweEditowState = fawse;
 
-	constructor(
-		readonly id: string,
-		private key: string,
-		private memento: MementoObject,
-		private limit: number,
-		private editorGroupService: IEditorGroupsService,
-		private configurationService: ITextResourceConfigurationService
+	constwuctow(
+		weadonwy id: stwing,
+		pwivate key: stwing,
+		pwivate memento: MementoObject,
+		pwivate wimit: numba,
+		pwivate editowGwoupSewvice: IEditowGwoupsSewvice,
+		pwivate configuwationSewvice: ITextWesouwceConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this.updateConfiguration();
-		this.registerListeners();
+		this.updateConfiguwation();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => this.updateConfiguwation()));
 	}
 
-	private updateConfiguration(): void {
-		this.shareEditorState = this.configurationService.getValue(undefined, 'workbench.editor.sharedViewState') === true;
+	pwivate updateConfiguwation(): void {
+		this.shaweEditowState = this.configuwationSewvice.getVawue(undefined, 'wowkbench.editow.shawedViewState') === twue;
 	}
 
-	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
-	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
-	saveEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
-		const resource = this.doGetResource(resourceOrEditor);
-		if (!resource || !group) {
-			return; // we are not in a good state to save any state for a resource
+	saveEditowState(gwoup: IEditowGwoup, wesouwce: UWI, state: T): void;
+	saveEditowState(gwoup: IEditowGwoup, editow: EditowInput, state: T): void;
+	saveEditowState(gwoup: IEditowGwoup, wesouwceOwEditow: UWI | EditowInput, state: T): void {
+		const wesouwce = this.doGetWesouwce(wesouwceOwEditow);
+		if (!wesouwce || !gwoup) {
+			wetuwn; // we awe not in a good state to save any state fow a wesouwce
 		}
 
-		const cache = this.doLoad();
+		const cache = this.doWoad();
 
-		// Ensure mementos for resource map
-		let mementosForResource = cache.get(resource.toString());
-		if (!mementosForResource) {
-			mementosForResource = Object.create(null) as MapGroupToMemento<T>;
-			cache.set(resource.toString(), mementosForResource);
+		// Ensuwe mementos fow wesouwce map
+		wet mementosFowWesouwce = cache.get(wesouwce.toStwing());
+		if (!mementosFowWesouwce) {
+			mementosFowWesouwce = Object.cweate(nuww) as MapGwoupToMemento<T>;
+			cache.set(wesouwce.toStwing(), mementosFowWesouwce);
 		}
 
-		// Store state for group
-		mementosForResource[group.id] = state;
+		// Stowe state fow gwoup
+		mementosFowWesouwce[gwoup.id] = state;
 
-		// Store state as most recent one based on settings
-		if (this.shareEditorState) {
-			mementosForResource[EditorMemento.SHARED_EDITOR_STATE] = state;
+		// Stowe state as most wecent one based on settings
+		if (this.shaweEditowState) {
+			mementosFowWesouwce[EditowMemento.SHAWED_EDITOW_STATE] = state;
 		}
 
-		// Automatically clear when editor input gets disposed if any
-		if (isEditorInput(resourceOrEditor)) {
-			this.clearEditorStateOnDispose(resource, resourceOrEditor);
+		// Automaticawwy cweaw when editow input gets disposed if any
+		if (isEditowInput(wesouwceOwEditow)) {
+			this.cweawEditowStateOnDispose(wesouwce, wesouwceOwEditow);
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
-		const resource = this.doGetResource(resourceOrEditor);
-		if (!resource || !group) {
-			return; // we are not in a good state to load any state for a resource
+	woadEditowState(gwoup: IEditowGwoup, wesouwce: UWI): T | undefined;
+	woadEditowState(gwoup: IEditowGwoup, editow: EditowInput): T | undefined;
+	woadEditowState(gwoup: IEditowGwoup, wesouwceOwEditow: UWI | EditowInput): T | undefined {
+		const wesouwce = this.doGetWesouwce(wesouwceOwEditow);
+		if (!wesouwce || !gwoup) {
+			wetuwn; // we awe not in a good state to woad any state fow a wesouwce
 		}
 
-		const cache = this.doLoad();
+		const cache = this.doWoad();
 
-		const mementosForResource = cache.get(resource.toString());
-		if (mementosForResource) {
-			let mementoForResourceAndGroup = mementosForResource[group.id];
+		const mementosFowWesouwce = cache.get(wesouwce.toStwing());
+		if (mementosFowWesouwce) {
+			wet mementoFowWesouwceAndGwoup = mementosFowWesouwce[gwoup.id];
 
-			// Return state for group if present
-			if (mementoForResourceAndGroup) {
-				return mementoForResourceAndGroup;
+			// Wetuwn state fow gwoup if pwesent
+			if (mementoFowWesouwceAndGwoup) {
+				wetuwn mementoFowWesouwceAndGwoup;
 			}
 
-			// Return most recent state based on settings otherwise
-			if (this.shareEditorState) {
-				return mementosForResource[EditorMemento.SHARED_EDITOR_STATE];
+			// Wetuwn most wecent state based on settings othewwise
+			if (this.shaweEditowState) {
+				wetuwn mementosFowWesouwce[EditowMemento.SHAWED_EDITOW_STATE];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	clearEditorState(resource: URI, group?: IEditorGroup): void;
-	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
-	clearEditorState(resourceOrEditor: URI | EditorInput, group?: IEditorGroup): void {
-		if (isEditorInput(resourceOrEditor)) {
-			this.editorDisposables?.delete(resourceOrEditor);
+	cweawEditowState(wesouwce: UWI, gwoup?: IEditowGwoup): void;
+	cweawEditowState(editow: EditowInput, gwoup?: IEditowGwoup): void;
+	cweawEditowState(wesouwceOwEditow: UWI | EditowInput, gwoup?: IEditowGwoup): void {
+		if (isEditowInput(wesouwceOwEditow)) {
+			this.editowDisposabwes?.dewete(wesouwceOwEditow);
 		}
 
-		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
+		const wesouwce = this.doGetWesouwce(wesouwceOwEditow);
+		if (wesouwce) {
+			const cache = this.doWoad();
 
-			// Clear state for group
-			if (group) {
-				const mementosForResource = cache.get(resource.toString());
-				if (mementosForResource) {
-					delete mementosForResource[group.id];
+			// Cweaw state fow gwoup
+			if (gwoup) {
+				const mementosFowWesouwce = cache.get(wesouwce.toStwing());
+				if (mementosFowWesouwce) {
+					dewete mementosFowWesouwce[gwoup.id];
 
-					if (isEmptyObject(mementosForResource)) {
-						cache.delete(resource.toString());
+					if (isEmptyObject(mementosFowWesouwce)) {
+						cache.dewete(wesouwce.toStwing());
 					}
 				}
 			}
 
-			// Clear state across all groups for resource
-			else {
-				cache.delete(resource.toString());
+			// Cweaw state acwoss aww gwoups fow wesouwce
+			ewse {
+				cache.dewete(wesouwce.toStwing());
 			}
 		}
 	}
 
-	clearEditorStateOnDispose(resource: URI, editor: EditorInput): void {
-		if (!this.editorDisposables) {
-			this.editorDisposables = new Map<EditorInput, IDisposable>();
+	cweawEditowStateOnDispose(wesouwce: UWI, editow: EditowInput): void {
+		if (!this.editowDisposabwes) {
+			this.editowDisposabwes = new Map<EditowInput, IDisposabwe>();
 		}
 
-		if (!this.editorDisposables.has(editor)) {
-			this.editorDisposables.set(editor, Event.once(editor.onWillDispose)(() => {
-				this.clearEditorState(resource);
-				this.editorDisposables?.delete(editor);
+		if (!this.editowDisposabwes.has(editow)) {
+			this.editowDisposabwes.set(editow, Event.once(editow.onWiwwDispose)(() => {
+				this.cweawEditowState(wesouwce);
+				this.editowDisposabwes?.dewete(editow);
 			}));
 		}
 	}
 
-	moveEditorState(source: URI, target: URI, comparer: IExtUri): void {
-		const cache = this.doLoad();
+	moveEditowState(souwce: UWI, tawget: UWI, compawa: IExtUwi): void {
+		const cache = this.doWoad();
 
-		// We need a copy of the keys to not iterate over
-		// newly inserted elements.
+		// We need a copy of the keys to not itewate ova
+		// newwy insewted ewements.
 		const cacheKeys = [...cache.keys()];
-		for (const cacheKey of cacheKeys) {
-			const resource = URI.parse(cacheKey);
+		fow (const cacheKey of cacheKeys) {
+			const wesouwce = UWI.pawse(cacheKey);
 
-			if (!comparer.isEqualOrParent(resource, source)) {
-				continue; // not matching our resource
+			if (!compawa.isEquawOwPawent(wesouwce, souwce)) {
+				continue; // not matching ouw wesouwce
 			}
 
-			// Determine new resulting target resource
-			let targetResource: URI;
-			if (isEqual(source, resource)) {
-				targetResource = target; // file got moved
-			} else {
-				const index = indexOfPath(resource.path, source.path);
-				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
+			// Detewmine new wesuwting tawget wesouwce
+			wet tawgetWesouwce: UWI;
+			if (isEquaw(souwce, wesouwce)) {
+				tawgetWesouwce = tawget; // fiwe got moved
+			} ewse {
+				const index = indexOfPath(wesouwce.path, souwce.path);
+				tawgetWesouwce = joinPath(tawget, wesouwce.path.substw(index + souwce.path.wength + 1)); // pawent fowda got moved
 			}
 
-			// Don't modify LRU state
-			const value = cache.get(cacheKey, Touch.None);
-			if (value) {
-				cache.delete(cacheKey);
-				cache.set(targetResource.toString(), value);
+			// Don't modify WWU state
+			const vawue = cache.get(cacheKey, Touch.None);
+			if (vawue) {
+				cache.dewete(cacheKey);
+				cache.set(tawgetWesouwce.toStwing(), vawue);
 			}
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
-		if (isEditorInput(resourceOrEditor)) {
-			return resourceOrEditor.resource;
+	pwivate doGetWesouwce(wesouwceOwEditow: UWI | EditowInput): UWI | undefined {
+		if (isEditowInput(wesouwceOwEditow)) {
+			wetuwn wesouwceOwEditow.wesouwce;
 		}
 
-		return resourceOrEditor;
+		wetuwn wesouwceOwEditow;
 	}
 
-	private doLoad(): LRUCache<string, MapGroupToMemento<T>> {
+	pwivate doWoad(): WWUCache<stwing, MapGwoupToMemento<T>> {
 		if (!this.cache) {
-			this.cache = new LRUCache<string, MapGroupToMemento<T>>(this.limit);
+			this.cache = new WWUCache<stwing, MapGwoupToMemento<T>>(this.wimit);
 
-			// Restore from serialized map state
-			const rawEditorMemento = this.memento[this.key];
-			if (Array.isArray(rawEditorMemento)) {
-				this.cache.fromJSON(rawEditorMemento);
+			// Westowe fwom sewiawized map state
+			const wawEditowMemento = this.memento[this.key];
+			if (Awway.isAwway(wawEditowMemento)) {
+				this.cache.fwomJSON(wawEditowMemento);
 			}
 		}
 
-		return this.cache;
+		wetuwn this.cache;
 	}
 
 	saveState(): void {
-		const cache = this.doLoad();
+		const cache = this.doWoad();
 
-		// Cleanup once during session
-		if (!this.cleanedUp) {
-			this.cleanUp();
-			this.cleanedUp = true;
+		// Cweanup once duwing session
+		if (!this.cweanedUp) {
+			this.cweanUp();
+			this.cweanedUp = twue;
 		}
 
 		this.memento[this.key] = cache.toJSON();
 	}
 
-	private cleanUp(): void {
-		const cache = this.doLoad();
+	pwivate cweanUp(): void {
+		const cache = this.doWoad();
 
-		// Remove groups from states that no longer exist. Since we modify the
-		// cache and its is a LRU cache make a copy to ensure iteration succeeds
-		const entries = [...cache.entries()];
-		for (const [resource, mapGroupToMementos] of entries) {
-			for (const group of Object.keys(mapGroupToMementos)) {
-				const groupId: GroupIdentifier = Number(group);
-				if (groupId === EditorMemento.SHARED_EDITOR_STATE && this.shareEditorState) {
-					continue; // skip over shared entries if sharing is enabled
+		// Wemove gwoups fwom states that no wonga exist. Since we modify the
+		// cache and its is a WWU cache make a copy to ensuwe itewation succeeds
+		const entwies = [...cache.entwies()];
+		fow (const [wesouwce, mapGwoupToMementos] of entwies) {
+			fow (const gwoup of Object.keys(mapGwoupToMementos)) {
+				const gwoupId: GwoupIdentifia = Numba(gwoup);
+				if (gwoupId === EditowMemento.SHAWED_EDITOW_STATE && this.shaweEditowState) {
+					continue; // skip ova shawed entwies if shawing is enabwed
 				}
 
-				if (!this.editorGroupService.getGroup(groupId)) {
-					delete mapGroupToMementos[groupId];
-					if (isEmptyObject(mapGroupToMementos)) {
-						cache.delete(resource);
+				if (!this.editowGwoupSewvice.getGwoup(gwoupId)) {
+					dewete mapGwoupToMementos[gwoupId];
+					if (isEmptyObject(mapGwoupToMementos)) {
+						cache.dewete(wesouwce);
 					}
 				}
 			}

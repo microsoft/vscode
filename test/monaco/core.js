@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as monaco from 'monaco-editor-core';
+impowt * as monaco fwom 'monaco-editow-cowe';
 
-self.MonacoEnvironment = {
-	getWorkerUrl: function (moduleId, label) {
-		return './editor.worker.bundle.js';
+sewf.MonacoEnviwonment = {
+	getWowkewUww: function (moduweId, wabew) {
+		wetuwn './editow.wowka.bundwe.js';
 	}
 }
 
-window.instance = monaco.editor.create(document.getElementById('container'), {
-	value: [
-		'from banana import *',
+window.instance = monaco.editow.cweate(document.getEwementById('containa'), {
+	vawue: [
+		'fwom banana impowt *',
 		'',
-		'class Monkey:',
+		'cwass Monkey:',
 		'	# Bananas the monkey can eat.',
 		'	capacity = 10',
-		'	def eat(self, N):',
+		'	def eat(sewf, N):',
 		'		\'\'\'Make the monkey eat N bananas!\'\'\'',
 		'		capacity = capacity - N*banana.size',
 		'',
-		'	def feeding_frenzy(self):',
+		'	def feeding_fwenzy(sewf):',
 		'		eat(9.25)',
-		'		return "Yum yum"',
+		'		wetuwn "Yum yum"',
 	].join('\n'),
-	language: 'python'
+	wanguage: 'python'
 });

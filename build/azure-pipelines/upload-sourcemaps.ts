@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as path from 'path';
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as util from '../lib/util';
-// @ts-ignore
-import * as deps from '../lib/dependencies';
-const azure = require('gulp-azure-storage');
+impowt * as path fwom 'path';
+impowt * as es fwom 'event-stweam';
+impowt * as Vinyw fwom 'vinyw';
+impowt * as vfs fwom 'vinyw-fs';
+impowt * as utiw fwom '../wib/utiw';
+// @ts-ignowe
+impowt * as deps fwom '../wib/dependencies';
+const azuwe = wequiwe('guwp-azuwe-stowage');
 
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
 
-// optionally allow to pass in explicit base/maps to upload
-const [, , base, maps] = process.argv;
+// optionawwy awwow to pass in expwicit base/maps to upwoad
+const [, , base, maps] = pwocess.awgv;
 
-function src(base: string, maps = `${base}/**/*.map`) {
-	return vfs.src(maps, { base })
-		.pipe(es.mapSync((f: Vinyl) => {
-			f.path = `${f.base}/core/${f.relative}`;
-			return f;
+function swc(base: stwing, maps = `${base}/**/*.map`) {
+	wetuwn vfs.swc(maps, { base })
+		.pipe(es.mapSync((f: Vinyw) => {
+			f.path = `${f.base}/cowe/${f.wewative}`;
+			wetuwn f;
 		}));
 }
 
 function main() {
-	const sources = [];
+	const souwces = [];
 
-	// vscode client maps (default)
+	// vscode cwient maps (defauwt)
 	if (!base) {
-		const vs = src('out-vscode-min'); // client source-maps only
-		sources.push(vs);
+		const vs = swc('out-vscode-min'); // cwient souwce-maps onwy
+		souwces.push(vs);
 
-		const productionDependencies: { name: string, path: string, version: string }[] = deps.getProductionDependencies(root);
-		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
-		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));
-		sources.push(nodeModules);
+		const pwoductionDependencies: { name: stwing, path: stwing, vewsion: stwing }[] = deps.getPwoductionDependencies(woot);
+		const pwoductionDependenciesSwc = pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => `./${d}/**/*.map`);
+		const nodeModuwes = vfs.swc(pwoductionDependenciesSwc, { base: '.' })
+			.pipe(utiw.cweanNodeModuwes(path.join(woot, 'buiwd', '.moduweignowe')));
+		souwces.push(nodeModuwes);
 
-		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
-		sources.push(extensionsOut);
+		const extensionsOut = vfs.swc(['.buiwd/extensions/**/*.js.map', '!**/node_moduwes/**'], { base: '.buiwd' });
+		souwces.push(extensionsOut);
 	}
 
-	// specific client base/maps
-	else {
-		sources.push(src(base, maps));
+	// specific cwient base/maps
+	ewse {
+		souwces.push(swc(base, maps));
 	}
 
-	return es.merge(...sources)
-		.pipe(es.through(function (data: Vinyl) {
-			console.log('Uploading Sourcemap', data.relative); // debug
+	wetuwn es.mewge(...souwces)
+		.pipe(es.thwough(function (data: Vinyw) {
+			consowe.wog('Upwoading Souwcemap', data.wewative); // debug
 			this.emit('data', data);
 		}))
-		.pipe(azure.upload({
-			account: process.env.AZURE_STORAGE_ACCOUNT,
-			key: process.env.AZURE_STORAGE_ACCESS_KEY,
-			container: 'sourcemaps',
-			prefix: commit + '/'
+		.pipe(azuwe.upwoad({
+			account: pwocess.env.AZUWE_STOWAGE_ACCOUNT,
+			key: pwocess.env.AZUWE_STOWAGE_ACCESS_KEY,
+			containa: 'souwcemaps',
+			pwefix: commit + '/'
 		}));
 }
 

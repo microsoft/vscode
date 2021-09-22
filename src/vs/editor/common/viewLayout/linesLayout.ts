@@ -1,926 +1,926 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
-import * as strings from 'vs/base/common/strings';
+impowt { IPawtiawViewWinesViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { IViewWhitespaceViewpowtData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt * as stwings fwom 'vs/base/common/stwings';
 
-export interface IEditorWhitespace {
-	readonly id: string;
-	readonly afterLineNumber: number;
-	readonly height: number;
+expowt intewface IEditowWhitespace {
+	weadonwy id: stwing;
+	weadonwy aftewWineNumba: numba;
+	weadonwy height: numba;
 }
 
 /**
- * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ * An accessow that awwows fow whtiespace to be added, wemoved ow changed in buwk.
  */
-export interface IWhitespaceChangeAccessor {
-	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
-	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
-	removeWhitespace(id: string): void;
+expowt intewface IWhitespaceChangeAccessow {
+	insewtWhitespace(aftewWineNumba: numba, owdinaw: numba, heightInPx: numba, minWidth: numba): stwing;
+	changeOneWhitespace(id: stwing, newAftewWineNumba: numba, newHeight: numba): void;
+	wemoveWhitespace(id: stwing): void;
 }
 
-interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number; }
-interface IPendingRemove { id: string; }
+intewface IPendingChange { id: stwing; newAftewWineNumba: numba; newHeight: numba; }
+intewface IPendingWemove { id: stwing; }
 
-class PendingChanges {
-	private _hasPending: boolean;
-	private _inserts: EditorWhitespace[];
-	private _changes: IPendingChange[];
-	private _removes: IPendingRemove[];
+cwass PendingChanges {
+	pwivate _hasPending: boowean;
+	pwivate _insewts: EditowWhitespace[];
+	pwivate _changes: IPendingChange[];
+	pwivate _wemoves: IPendingWemove[];
 
-	constructor() {
-		this._hasPending = false;
-		this._inserts = [];
+	constwuctow() {
+		this._hasPending = fawse;
+		this._insewts = [];
 		this._changes = [];
-		this._removes = [];
+		this._wemoves = [];
 	}
 
-	public insert(x: EditorWhitespace): void {
-		this._hasPending = true;
-		this._inserts.push(x);
+	pubwic insewt(x: EditowWhitespace): void {
+		this._hasPending = twue;
+		this._insewts.push(x);
 	}
 
-	public change(x: IPendingChange): void {
-		this._hasPending = true;
+	pubwic change(x: IPendingChange): void {
+		this._hasPending = twue;
 		this._changes.push(x);
 	}
 
-	public remove(x: IPendingRemove): void {
-		this._hasPending = true;
-		this._removes.push(x);
+	pubwic wemove(x: IPendingWemove): void {
+		this._hasPending = twue;
+		this._wemoves.push(x);
 	}
 
-	public mustCommit(): boolean {
-		return this._hasPending;
+	pubwic mustCommit(): boowean {
+		wetuwn this._hasPending;
 	}
 
-	public commit(linesLayout: LinesLayout): void {
+	pubwic commit(winesWayout: WinesWayout): void {
 		if (!this._hasPending) {
-			return;
+			wetuwn;
 		}
 
-		const inserts = this._inserts;
+		const insewts = this._insewts;
 		const changes = this._changes;
-		const removes = this._removes;
+		const wemoves = this._wemoves;
 
-		this._hasPending = false;
-		this._inserts = [];
+		this._hasPending = fawse;
+		this._insewts = [];
 		this._changes = [];
-		this._removes = [];
+		this._wemoves = [];
 
-		linesLayout._commitPendingChanges(inserts, changes, removes);
+		winesWayout._commitPendingChanges(insewts, changes, wemoves);
 	}
 }
 
-export class EditorWhitespace implements IEditorWhitespace {
-	public id: string;
-	public afterLineNumber: number;
-	public ordinal: number;
-	public height: number;
-	public minWidth: number;
-	public prefixSum: number;
+expowt cwass EditowWhitespace impwements IEditowWhitespace {
+	pubwic id: stwing;
+	pubwic aftewWineNumba: numba;
+	pubwic owdinaw: numba;
+	pubwic height: numba;
+	pubwic minWidth: numba;
+	pubwic pwefixSum: numba;
 
-	constructor(id: string, afterLineNumber: number, ordinal: number, height: number, minWidth: number) {
+	constwuctow(id: stwing, aftewWineNumba: numba, owdinaw: numba, height: numba, minWidth: numba) {
 		this.id = id;
-		this.afterLineNumber = afterLineNumber;
-		this.ordinal = ordinal;
+		this.aftewWineNumba = aftewWineNumba;
+		this.owdinaw = owdinaw;
 		this.height = height;
 		this.minWidth = minWidth;
-		this.prefixSum = 0;
+		this.pwefixSum = 0;
 	}
 }
 
 /**
- * Layouting of objects that take vertical space (by having a height) and push down other objects.
+ * Wayouting of objects that take vewticaw space (by having a height) and push down otha objects.
  *
- * These objects are basically either text (lines) or spaces between those lines (whitespaces).
- * This provides commodity operations for working with lines that contain whitespace that pushes lines lower (vertically).
+ * These objects awe basicawwy eitha text (wines) ow spaces between those wines (whitespaces).
+ * This pwovides commodity opewations fow wowking with wines that contain whitespace that pushes wines wowa (vewticawwy).
  */
-export class LinesLayout {
+expowt cwass WinesWayout {
 
-	private static INSTANCE_COUNT = 0;
+	pwivate static INSTANCE_COUNT = 0;
 
-	private readonly _instanceId: string;
-	private readonly _pendingChanges: PendingChanges;
-	private _lastWhitespaceId: number;
-	private _arr: EditorWhitespace[];
-	private _prefixSumValidIndex: number;
-	private _minWidth: number;
-	private _lineCount: number;
-	private _lineHeight: number;
-	private _paddingTop: number;
-	private _paddingBottom: number;
+	pwivate weadonwy _instanceId: stwing;
+	pwivate weadonwy _pendingChanges: PendingChanges;
+	pwivate _wastWhitespaceId: numba;
+	pwivate _aww: EditowWhitespace[];
+	pwivate _pwefixSumVawidIndex: numba;
+	pwivate _minWidth: numba;
+	pwivate _wineCount: numba;
+	pwivate _wineHeight: numba;
+	pwivate _paddingTop: numba;
+	pwivate _paddingBottom: numba;
 
-	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
-		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
+	constwuctow(wineCount: numba, wineHeight: numba, paddingTop: numba, paddingBottom: numba) {
+		this._instanceId = stwings.singweWettewHash(++WinesWayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
-		this._lastWhitespaceId = 0;
-		this._arr = [];
-		this._prefixSumValidIndex = -1;
-		this._minWidth = -1; /* marker for not being computed */
-		this._lineCount = lineCount;
-		this._lineHeight = lineHeight;
+		this._wastWhitespaceId = 0;
+		this._aww = [];
+		this._pwefixSumVawidIndex = -1;
+		this._minWidth = -1; /* mawka fow not being computed */
+		this._wineCount = wineCount;
+		this._wineHeight = wineHeight;
 		this._paddingTop = paddingTop;
 		this._paddingBottom = paddingBottom;
 	}
 
 	/**
-	 * Find the insertion index for a new value inside a sorted array of values.
-	 * If the value is already present in the sorted array, the insertion index will be after the already existing value.
+	 * Find the insewtion index fow a new vawue inside a sowted awway of vawues.
+	 * If the vawue is awweady pwesent in the sowted awway, the insewtion index wiww be afta the awweady existing vawue.
 	 */
-	public static findInsertionIndex(arr: EditorWhitespace[], afterLineNumber: number, ordinal: number): number {
-		let low = 0;
-		let high = arr.length;
+	pubwic static findInsewtionIndex(aww: EditowWhitespace[], aftewWineNumba: numba, owdinaw: numba): numba {
+		wet wow = 0;
+		wet high = aww.wength;
 
-		while (low < high) {
-			const mid = ((low + high) >>> 1);
+		whiwe (wow < high) {
+			const mid = ((wow + high) >>> 1);
 
-			if (afterLineNumber === arr[mid].afterLineNumber) {
-				if (ordinal < arr[mid].ordinal) {
+			if (aftewWineNumba === aww[mid].aftewWineNumba) {
+				if (owdinaw < aww[mid].owdinaw) {
 					high = mid;
-				} else {
-					low = mid + 1;
+				} ewse {
+					wow = mid + 1;
 				}
-			} else if (afterLineNumber < arr[mid].afterLineNumber) {
+			} ewse if (aftewWineNumba < aww[mid].aftewWineNumba) {
 				high = mid;
-			} else {
-				low = mid + 1;
+			} ewse {
+				wow = mid + 1;
 			}
 		}
 
-		return low;
+		wetuwn wow;
 	}
 
 	/**
-	 * Change the height of a line in pixels.
+	 * Change the height of a wine in pixews.
 	 */
-	public setLineHeight(lineHeight: number): void {
+	pubwic setWineHeight(wineHeight: numba): void {
 		this._checkPendingChanges();
-		this._lineHeight = lineHeight;
+		this._wineHeight = wineHeight;
 	}
 
 	/**
-	 * Changes the padding used to calculate vertical offsets.
+	 * Changes the padding used to cawcuwate vewticaw offsets.
 	 */
-	public setPadding(paddingTop: number, paddingBottom: number): void {
+	pubwic setPadding(paddingTop: numba, paddingBottom: numba): void {
 		this._paddingTop = paddingTop;
 		this._paddingBottom = paddingBottom;
 	}
 
 	/**
-	 * Set the number of lines.
+	 * Set the numba of wines.
 	 *
-	 * @param lineCount New number of lines.
+	 * @pawam wineCount New numba of wines.
 	 */
-	public onFlushed(lineCount: number): void {
+	pubwic onFwushed(wineCount: numba): void {
 		this._checkPendingChanges();
-		this._lineCount = lineCount;
+		this._wineCount = wineCount;
 	}
 
-	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
-		let hadAChange = false;
-		try {
-			const accessor: IWhitespaceChangeAccessor = {
-				insertWhitespace: (afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string => {
-					hadAChange = true;
-					afterLineNumber = afterLineNumber | 0;
-					ordinal = ordinal | 0;
+	pubwic changeWhitespace(cawwback: (accessow: IWhitespaceChangeAccessow) => void): boowean {
+		wet hadAChange = fawse;
+		twy {
+			const accessow: IWhitespaceChangeAccessow = {
+				insewtWhitespace: (aftewWineNumba: numba, owdinaw: numba, heightInPx: numba, minWidth: numba): stwing => {
+					hadAChange = twue;
+					aftewWineNumba = aftewWineNumba | 0;
+					owdinaw = owdinaw | 0;
 					heightInPx = heightInPx | 0;
 					minWidth = minWidth | 0;
-					const id = this._instanceId + (++this._lastWhitespaceId);
-					this._pendingChanges.insert(new EditorWhitespace(id, afterLineNumber, ordinal, heightInPx, minWidth));
-					return id;
+					const id = this._instanceId + (++this._wastWhitespaceId);
+					this._pendingChanges.insewt(new EditowWhitespace(id, aftewWineNumba, owdinaw, heightInPx, minWidth));
+					wetuwn id;
 				},
-				changeOneWhitespace: (id: string, newAfterLineNumber: number, newHeight: number): void => {
-					hadAChange = true;
-					newAfterLineNumber = newAfterLineNumber | 0;
+				changeOneWhitespace: (id: stwing, newAftewWineNumba: numba, newHeight: numba): void => {
+					hadAChange = twue;
+					newAftewWineNumba = newAftewWineNumba | 0;
 					newHeight = newHeight | 0;
-					this._pendingChanges.change({ id, newAfterLineNumber, newHeight });
+					this._pendingChanges.change({ id, newAftewWineNumba, newHeight });
 				},
-				removeWhitespace: (id: string): void => {
-					hadAChange = true;
-					this._pendingChanges.remove({ id });
+				wemoveWhitespace: (id: stwing): void => {
+					hadAChange = twue;
+					this._pendingChanges.wemove({ id });
 				}
 			};
-			callback(accessor);
-		} finally {
+			cawwback(accessow);
+		} finawwy {
 			this._pendingChanges.commit(this);
 		}
-		return hadAChange;
+		wetuwn hadAChange;
 	}
 
-	public _commitPendingChanges(inserts: EditorWhitespace[], changes: IPendingChange[], removes: IPendingRemove[]): void {
-		if (inserts.length > 0 || removes.length > 0) {
-			this._minWidth = -1; /* marker for not being computed */
+	pubwic _commitPendingChanges(insewts: EditowWhitespace[], changes: IPendingChange[], wemoves: IPendingWemove[]): void {
+		if (insewts.wength > 0 || wemoves.wength > 0) {
+			this._minWidth = -1; /* mawka fow not being computed */
 		}
 
-		if (inserts.length + changes.length + removes.length <= 1) {
-			// when only one thing happened, handle it "delicately"
-			for (const insert of inserts) {
-				this._insertWhitespace(insert);
+		if (insewts.wength + changes.wength + wemoves.wength <= 1) {
+			// when onwy one thing happened, handwe it "dewicatewy"
+			fow (const insewt of insewts) {
+				this._insewtWhitespace(insewt);
 			}
-			for (const change of changes) {
-				this._changeOneWhitespace(change.id, change.newAfterLineNumber, change.newHeight);
+			fow (const change of changes) {
+				this._changeOneWhitespace(change.id, change.newAftewWineNumba, change.newHeight);
 			}
-			for (const remove of removes) {
-				const index = this._findWhitespaceIndex(remove.id);
+			fow (const wemove of wemoves) {
+				const index = this._findWhitespaceIndex(wemove.id);
 				if (index === -1) {
 					continue;
 				}
-				this._removeWhitespace(index);
+				this._wemoveWhitespace(index);
 			}
-			return;
+			wetuwn;
 		}
 
-		// simply rebuild the entire datastructure
+		// simpwy webuiwd the entiwe datastwuctuwe
 
-		const toRemove = new Set<string>();
-		for (const remove of removes) {
-			toRemove.add(remove.id);
+		const toWemove = new Set<stwing>();
+		fow (const wemove of wemoves) {
+			toWemove.add(wemove.id);
 		}
 
-		const toChange = new Map<string, IPendingChange>();
-		for (const change of changes) {
+		const toChange = new Map<stwing, IPendingChange>();
+		fow (const change of changes) {
 			toChange.set(change.id, change);
 		}
 
-		const applyRemoveAndChange = (whitespaces: EditorWhitespace[]): EditorWhitespace[] => {
-			let result: EditorWhitespace[] = [];
-			for (const whitespace of whitespaces) {
-				if (toRemove.has(whitespace.id)) {
+		const appwyWemoveAndChange = (whitespaces: EditowWhitespace[]): EditowWhitespace[] => {
+			wet wesuwt: EditowWhitespace[] = [];
+			fow (const whitespace of whitespaces) {
+				if (toWemove.has(whitespace.id)) {
 					continue;
 				}
 				if (toChange.has(whitespace.id)) {
 					const change = toChange.get(whitespace.id)!;
-					whitespace.afterLineNumber = change.newAfterLineNumber;
+					whitespace.aftewWineNumba = change.newAftewWineNumba;
 					whitespace.height = change.newHeight;
 				}
-				result.push(whitespace);
+				wesuwt.push(whitespace);
 			}
-			return result;
+			wetuwn wesuwt;
 		};
 
-		const result = applyRemoveAndChange(this._arr).concat(applyRemoveAndChange(inserts));
-		result.sort((a, b) => {
-			if (a.afterLineNumber === b.afterLineNumber) {
-				return a.ordinal - b.ordinal;
+		const wesuwt = appwyWemoveAndChange(this._aww).concat(appwyWemoveAndChange(insewts));
+		wesuwt.sowt((a, b) => {
+			if (a.aftewWineNumba === b.aftewWineNumba) {
+				wetuwn a.owdinaw - b.owdinaw;
 			}
-			return a.afterLineNumber - b.afterLineNumber;
+			wetuwn a.aftewWineNumba - b.aftewWineNumba;
 		});
 
-		this._arr = result;
-		this._prefixSumValidIndex = -1;
+		this._aww = wesuwt;
+		this._pwefixSumVawidIndex = -1;
 	}
 
-	private _checkPendingChanges(): void {
+	pwivate _checkPendingChanges(): void {
 		if (this._pendingChanges.mustCommit()) {
 			this._pendingChanges.commit(this);
 		}
 	}
 
-	private _insertWhitespace(whitespace: EditorWhitespace): void {
-		const insertIndex = LinesLayout.findInsertionIndex(this._arr, whitespace.afterLineNumber, whitespace.ordinal);
-		this._arr.splice(insertIndex, 0, whitespace);
-		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, insertIndex - 1);
+	pwivate _insewtWhitespace(whitespace: EditowWhitespace): void {
+		const insewtIndex = WinesWayout.findInsewtionIndex(this._aww, whitespace.aftewWineNumba, whitespace.owdinaw);
+		this._aww.spwice(insewtIndex, 0, whitespace);
+		this._pwefixSumVawidIndex = Math.min(this._pwefixSumVawidIndex, insewtIndex - 1);
 	}
 
-	private _findWhitespaceIndex(id: string): number {
-		const arr = this._arr;
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i].id === id) {
-				return i;
+	pwivate _findWhitespaceIndex(id: stwing): numba {
+		const aww = this._aww;
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			if (aww[i].id === id) {
+				wetuwn i;
 			}
 		}
-		return -1;
+		wetuwn -1;
 	}
 
-	private _changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void {
+	pwivate _changeOneWhitespace(id: stwing, newAftewWineNumba: numba, newHeight: numba): void {
 		const index = this._findWhitespaceIndex(id);
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
-		if (this._arr[index].height !== newHeight) {
-			this._arr[index].height = newHeight;
-			this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, index - 1);
+		if (this._aww[index].height !== newHeight) {
+			this._aww[index].height = newHeight;
+			this._pwefixSumVawidIndex = Math.min(this._pwefixSumVawidIndex, index - 1);
 		}
-		if (this._arr[index].afterLineNumber !== newAfterLineNumber) {
-			// `afterLineNumber` changed for this whitespace
+		if (this._aww[index].aftewWineNumba !== newAftewWineNumba) {
+			// `aftewWineNumba` changed fow this whitespace
 
-			// Record old whitespace
-			const whitespace = this._arr[index];
+			// Wecowd owd whitespace
+			const whitespace = this._aww[index];
 
-			// Since changing `afterLineNumber` can trigger a reordering, we're gonna remove this whitespace
-			this._removeWhitespace(index);
+			// Since changing `aftewWineNumba` can twigga a weowdewing, we'we gonna wemove this whitespace
+			this._wemoveWhitespace(index);
 
-			whitespace.afterLineNumber = newAfterLineNumber;
+			whitespace.aftewWineNumba = newAftewWineNumba;
 
 			// And add it again
-			this._insertWhitespace(whitespace);
+			this._insewtWhitespace(whitespace);
 		}
 	}
 
-	private _removeWhitespace(removeIndex: number): void {
-		this._arr.splice(removeIndex, 1);
-		this._prefixSumValidIndex = Math.min(this._prefixSumValidIndex, removeIndex - 1);
+	pwivate _wemoveWhitespace(wemoveIndex: numba): void {
+		this._aww.spwice(wemoveIndex, 1);
+		this._pwefixSumVawidIndex = Math.min(this._pwefixSumVawidIndex, wemoveIndex - 1);
 	}
 
 	/**
-	 * Notify the layouter that lines have been deleted (a continuous zone of lines).
+	 * Notify the wayouta that wines have been deweted (a continuous zone of wines).
 	 *
-	 * @param fromLineNumber The line number at which the deletion started, inclusive
-	 * @param toLineNumber The line number at which the deletion ended, inclusive
+	 * @pawam fwomWineNumba The wine numba at which the dewetion stawted, incwusive
+	 * @pawam toWineNumba The wine numba at which the dewetion ended, incwusive
 	 */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	pubwic onWinesDeweted(fwomWineNumba: numba, toWineNumba: numba): void {
 		this._checkPendingChanges();
-		fromLineNumber = fromLineNumber | 0;
-		toLineNumber = toLineNumber | 0;
+		fwomWineNumba = fwomWineNumba | 0;
+		toWineNumba = toWineNumba | 0;
 
-		this._lineCount -= (toLineNumber - fromLineNumber + 1);
-		for (let i = 0, len = this._arr.length; i < len; i++) {
-			const afterLineNumber = this._arr[i].afterLineNumber;
+		this._wineCount -= (toWineNumba - fwomWineNumba + 1);
+		fow (wet i = 0, wen = this._aww.wength; i < wen; i++) {
+			const aftewWineNumba = this._aww[i].aftewWineNumba;
 
-			if (fromLineNumber <= afterLineNumber && afterLineNumber <= toLineNumber) {
-				// The line this whitespace was after has been deleted
-				//  => move whitespace to before first deleted line
-				this._arr[i].afterLineNumber = fromLineNumber - 1;
-			} else if (afterLineNumber > toLineNumber) {
-				// The line this whitespace was after has been moved up
+			if (fwomWineNumba <= aftewWineNumba && aftewWineNumba <= toWineNumba) {
+				// The wine this whitespace was afta has been deweted
+				//  => move whitespace to befowe fiwst deweted wine
+				this._aww[i].aftewWineNumba = fwomWineNumba - 1;
+			} ewse if (aftewWineNumba > toWineNumba) {
+				// The wine this whitespace was afta has been moved up
 				//  => move whitespace up
-				this._arr[i].afterLineNumber -= (toLineNumber - fromLineNumber + 1);
+				this._aww[i].aftewWineNumba -= (toWineNumba - fwomWineNumba + 1);
 			}
 		}
 	}
 
 	/**
-	 * Notify the layouter that lines have been inserted (a continuous zone of lines).
+	 * Notify the wayouta that wines have been insewted (a continuous zone of wines).
 	 *
-	 * @param fromLineNumber The line number at which the insertion started, inclusive
-	 * @param toLineNumber The line number at which the insertion ended, inclusive.
+	 * @pawam fwomWineNumba The wine numba at which the insewtion stawted, incwusive
+	 * @pawam toWineNumba The wine numba at which the insewtion ended, incwusive.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+	pubwic onWinesInsewted(fwomWineNumba: numba, toWineNumba: numba): void {
 		this._checkPendingChanges();
-		fromLineNumber = fromLineNumber | 0;
-		toLineNumber = toLineNumber | 0;
+		fwomWineNumba = fwomWineNumba | 0;
+		toWineNumba = toWineNumba | 0;
 
-		this._lineCount += (toLineNumber - fromLineNumber + 1);
-		for (let i = 0, len = this._arr.length; i < len; i++) {
-			const afterLineNumber = this._arr[i].afterLineNumber;
+		this._wineCount += (toWineNumba - fwomWineNumba + 1);
+		fow (wet i = 0, wen = this._aww.wength; i < wen; i++) {
+			const aftewWineNumba = this._aww[i].aftewWineNumba;
 
-			if (fromLineNumber <= afterLineNumber) {
-				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
+			if (fwomWineNumba <= aftewWineNumba) {
+				this._aww[i].aftewWineNumba += (toWineNumba - fwomWineNumba + 1);
 			}
 		}
 	}
 
 	/**
-	 * Get the sum of all the whitespaces.
+	 * Get the sum of aww the whitespaces.
 	 */
-	public getWhitespacesTotalHeight(): number {
+	pubwic getWhitespacesTotawHeight(): numba {
 		this._checkPendingChanges();
-		if (this._arr.length === 0) {
-			return 0;
+		if (this._aww.wength === 0) {
+			wetuwn 0;
 		}
-		return this.getWhitespacesAccumulatedHeight(this._arr.length - 1);
+		wetuwn this.getWhitespacesAccumuwatedHeight(this._aww.wength - 1);
 	}
 
 	/**
-	 * Return the sum of the heights of the whitespaces at [0..index].
-	 * This includes the whitespace at `index`.
+	 * Wetuwn the sum of the heights of the whitespaces at [0..index].
+	 * This incwudes the whitespace at `index`.
 	 *
-	 * @param index The index of the whitespace.
-	 * @return The sum of the heights of all whitespaces before the one at `index`, including the one at `index`.
+	 * @pawam index The index of the whitespace.
+	 * @wetuwn The sum of the heights of aww whitespaces befowe the one at `index`, incwuding the one at `index`.
 	 */
-	public getWhitespacesAccumulatedHeight(index: number): number {
+	pubwic getWhitespacesAccumuwatedHeight(index: numba): numba {
 		this._checkPendingChanges();
 		index = index | 0;
 
-		let startIndex = Math.max(0, this._prefixSumValidIndex + 1);
-		if (startIndex === 0) {
-			this._arr[0].prefixSum = this._arr[0].height;
-			startIndex++;
+		wet stawtIndex = Math.max(0, this._pwefixSumVawidIndex + 1);
+		if (stawtIndex === 0) {
+			this._aww[0].pwefixSum = this._aww[0].height;
+			stawtIndex++;
 		}
 
-		for (let i = startIndex; i <= index; i++) {
-			this._arr[i].prefixSum = this._arr[i - 1].prefixSum + this._arr[i].height;
+		fow (wet i = stawtIndex; i <= index; i++) {
+			this._aww[i].pwefixSum = this._aww[i - 1].pwefixSum + this._aww[i].height;
 		}
-		this._prefixSumValidIndex = Math.max(this._prefixSumValidIndex, index);
-		return this._arr[index].prefixSum;
+		this._pwefixSumVawidIndex = Math.max(this._pwefixSumVawidIndex, index);
+		wetuwn this._aww[index].pwefixSum;
 	}
 
 	/**
-	 * Get the sum of heights for all objects.
+	 * Get the sum of heights fow aww objects.
 	 *
-	 * @return The sum of heights for all objects.
+	 * @wetuwn The sum of heights fow aww objects.
 	 */
-	public getLinesTotalHeight(): number {
+	pubwic getWinesTotawHeight(): numba {
 		this._checkPendingChanges();
-		const linesHeight = this._lineHeight * this._lineCount;
-		const whitespacesHeight = this.getWhitespacesTotalHeight();
+		const winesHeight = this._wineHeight * this._wineCount;
+		const whitespacesHeight = this.getWhitespacesTotawHeight();
 
-		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
+		wetuwn winesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
 	}
 
 	/**
-	 * Returns the accumulated height of whitespaces before the given line number.
+	 * Wetuwns the accumuwated height of whitespaces befowe the given wine numba.
 	 *
-	 * @param lineNumber The line number
+	 * @pawam wineNumba The wine numba
 	 */
-	public getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber: number): number {
+	pubwic getWhitespaceAccumuwatedHeightBefoweWineNumba(wineNumba: numba): numba {
 		this._checkPendingChanges();
-		lineNumber = lineNumber | 0;
+		wineNumba = wineNumba | 0;
 
-		const lastWhitespaceBeforeLineNumber = this._findLastWhitespaceBeforeLineNumber(lineNumber);
+		const wastWhitespaceBefoweWineNumba = this._findWastWhitespaceBefoweWineNumba(wineNumba);
 
-		if (lastWhitespaceBeforeLineNumber === -1) {
-			return 0;
+		if (wastWhitespaceBefoweWineNumba === -1) {
+			wetuwn 0;
 		}
 
-		return this.getWhitespacesAccumulatedHeight(lastWhitespaceBeforeLineNumber);
+		wetuwn this.getWhitespacesAccumuwatedHeight(wastWhitespaceBefoweWineNumba);
 	}
 
-	private _findLastWhitespaceBeforeLineNumber(lineNumber: number): number {
-		lineNumber = lineNumber | 0;
+	pwivate _findWastWhitespaceBefoweWineNumba(wineNumba: numba): numba {
+		wineNumba = wineNumba | 0;
 
-		// Find the whitespace before line number
-		const arr = this._arr;
-		let low = 0;
-		let high = arr.length - 1;
+		// Find the whitespace befowe wine numba
+		const aww = this._aww;
+		wet wow = 0;
+		wet high = aww.wength - 1;
 
-		while (low <= high) {
-			const delta = (high - low) | 0;
-			const halfDelta = (delta / 2) | 0;
-			const mid = (low + halfDelta) | 0;
+		whiwe (wow <= high) {
+			const dewta = (high - wow) | 0;
+			const hawfDewta = (dewta / 2) | 0;
+			const mid = (wow + hawfDewta) | 0;
 
-			if (arr[mid].afterLineNumber < lineNumber) {
-				if (mid + 1 >= arr.length || arr[mid + 1].afterLineNumber >= lineNumber) {
-					return mid;
-				} else {
-					low = (mid + 1) | 0;
+			if (aww[mid].aftewWineNumba < wineNumba) {
+				if (mid + 1 >= aww.wength || aww[mid + 1].aftewWineNumba >= wineNumba) {
+					wetuwn mid;
+				} ewse {
+					wow = (mid + 1) | 0;
 				}
-			} else {
+			} ewse {
 				high = (mid - 1) | 0;
 			}
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 
-	private _findFirstWhitespaceAfterLineNumber(lineNumber: number): number {
-		lineNumber = lineNumber | 0;
+	pwivate _findFiwstWhitespaceAftewWineNumba(wineNumba: numba): numba {
+		wineNumba = wineNumba | 0;
 
-		const lastWhitespaceBeforeLineNumber = this._findLastWhitespaceBeforeLineNumber(lineNumber);
-		const firstWhitespaceAfterLineNumber = lastWhitespaceBeforeLineNumber + 1;
+		const wastWhitespaceBefoweWineNumba = this._findWastWhitespaceBefoweWineNumba(wineNumba);
+		const fiwstWhitespaceAftewWineNumba = wastWhitespaceBefoweWineNumba + 1;
 
-		if (firstWhitespaceAfterLineNumber < this._arr.length) {
-			return firstWhitespaceAfterLineNumber;
+		if (fiwstWhitespaceAftewWineNumba < this._aww.wength) {
+			wetuwn fiwstWhitespaceAftewWineNumba;
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 
 	/**
-	 * Find the index of the first whitespace which has `afterLineNumber` >= `lineNumber`.
-	 * @return The index of the first whitespace with `afterLineNumber` >= `lineNumber` or -1 if no whitespace is found.
+	 * Find the index of the fiwst whitespace which has `aftewWineNumba` >= `wineNumba`.
+	 * @wetuwn The index of the fiwst whitespace with `aftewWineNumba` >= `wineNumba` ow -1 if no whitespace is found.
 	 */
-	public getFirstWhitespaceIndexAfterLineNumber(lineNumber: number): number {
+	pubwic getFiwstWhitespaceIndexAftewWineNumba(wineNumba: numba): numba {
 		this._checkPendingChanges();
-		lineNumber = lineNumber | 0;
+		wineNumba = wineNumba | 0;
 
-		return this._findFirstWhitespaceAfterLineNumber(lineNumber);
+		wetuwn this._findFiwstWhitespaceAftewWineNumba(wineNumba);
 	}
 
 	/**
-	 * Get the vertical offset (the sum of heights for all objects above) a certain line number.
+	 * Get the vewticaw offset (the sum of heights fow aww objects above) a cewtain wine numba.
 	 *
-	 * @param lineNumber The line number
-	 * @return The sum of heights for all objects above `lineNumber`.
+	 * @pawam wineNumba The wine numba
+	 * @wetuwn The sum of heights fow aww objects above `wineNumba`.
 	 */
-	public getVerticalOffsetForLineNumber(lineNumber: number): number {
+	pubwic getVewticawOffsetFowWineNumba(wineNumba: numba): numba {
 		this._checkPendingChanges();
-		lineNumber = lineNumber | 0;
+		wineNumba = wineNumba | 0;
 
-		let previousLinesHeight: number;
-		if (lineNumber > 1) {
-			previousLinesHeight = this._lineHeight * (lineNumber - 1);
-		} else {
-			previousLinesHeight = 0;
+		wet pweviousWinesHeight: numba;
+		if (wineNumba > 1) {
+			pweviousWinesHeight = this._wineHeight * (wineNumba - 1);
+		} ewse {
+			pweviousWinesHeight = 0;
 		}
 
-		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber);
+		const pweviousWhitespacesHeight = this.getWhitespaceAccumuwatedHeightBefoweWineNumba(wineNumba);
 
-		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+		wetuwn pweviousWinesHeight + pweviousWhitespacesHeight + this._paddingTop;
 	}
 
 	/**
-	 * Returns if there is any whitespace in the document.
+	 * Wetuwns if thewe is any whitespace in the document.
 	 */
-	public hasWhitespace(): boolean {
+	pubwic hasWhitespace(): boowean {
 		this._checkPendingChanges();
-		return this.getWhitespacesCount() > 0;
+		wetuwn this.getWhitespacesCount() > 0;
 	}
 
 	/**
-	 * The maximum min width for all whitespaces.
+	 * The maximum min width fow aww whitespaces.
 	 */
-	public getWhitespaceMinWidth(): number {
+	pubwic getWhitespaceMinWidth(): numba {
 		this._checkPendingChanges();
 		if (this._minWidth === -1) {
-			let minWidth = 0;
-			for (let i = 0, len = this._arr.length; i < len; i++) {
-				minWidth = Math.max(minWidth, this._arr[i].minWidth);
+			wet minWidth = 0;
+			fow (wet i = 0, wen = this._aww.wength; i < wen; i++) {
+				minWidth = Math.max(minWidth, this._aww[i].minWidth);
 			}
 			this._minWidth = minWidth;
 		}
-		return this._minWidth;
+		wetuwn this._minWidth;
 	}
 
 	/**
-	 * Check if `verticalOffset` is below all lines.
+	 * Check if `vewticawOffset` is bewow aww wines.
 	 */
-	public isAfterLines(verticalOffset: number): boolean {
+	pubwic isAftewWines(vewticawOffset: numba): boowean {
 		this._checkPendingChanges();
-		const totalHeight = this.getLinesTotalHeight();
-		return verticalOffset > totalHeight;
+		const totawHeight = this.getWinesTotawHeight();
+		wetuwn vewticawOffset > totawHeight;
 	}
 
-	public isInTopPadding(verticalOffset: number): boolean {
+	pubwic isInTopPadding(vewticawOffset: numba): boowean {
 		if (this._paddingTop === 0) {
-			return false;
+			wetuwn fawse;
 		}
 		this._checkPendingChanges();
-		return (verticalOffset < this._paddingTop);
+		wetuwn (vewticawOffset < this._paddingTop);
 	}
 
-	public isInBottomPadding(verticalOffset: number): boolean {
+	pubwic isInBottomPadding(vewticawOffset: numba): boowean {
 		if (this._paddingBottom === 0) {
-			return false;
+			wetuwn fawse;
 		}
 		this._checkPendingChanges();
-		const totalHeight = this.getLinesTotalHeight();
-		return (verticalOffset >= totalHeight - this._paddingBottom);
+		const totawHeight = this.getWinesTotawHeight();
+		wetuwn (vewticawOffset >= totawHeight - this._paddingBottom);
 	}
 
 	/**
-	 * Find the first line number that is at or after vertical offset `verticalOffset`.
-	 * i.e. if getVerticalOffsetForLine(line) is x and getVerticalOffsetForLine(line + 1) is y, then
-	 * getLineNumberAtOrAfterVerticalOffset(i) = line, x <= i < y.
+	 * Find the fiwst wine numba that is at ow afta vewticaw offset `vewticawOffset`.
+	 * i.e. if getVewticawOffsetFowWine(wine) is x and getVewticawOffsetFowWine(wine + 1) is y, then
+	 * getWineNumbewAtOwAftewVewticawOffset(i) = wine, x <= i < y.
 	 *
-	 * @param verticalOffset The vertical offset to search at.
-	 * @return The line number at or after vertical offset `verticalOffset`.
+	 * @pawam vewticawOffset The vewticaw offset to seawch at.
+	 * @wetuwn The wine numba at ow afta vewticaw offset `vewticawOffset`.
 	 */
-	public getLineNumberAtOrAfterVerticalOffset(verticalOffset: number): number {
+	pubwic getWineNumbewAtOwAftewVewticawOffset(vewticawOffset: numba): numba {
 		this._checkPendingChanges();
-		verticalOffset = verticalOffset | 0;
+		vewticawOffset = vewticawOffset | 0;
 
-		if (verticalOffset < 0) {
-			return 1;
+		if (vewticawOffset < 0) {
+			wetuwn 1;
 		}
 
-		const linesCount = this._lineCount | 0;
-		const lineHeight = this._lineHeight;
-		let minLineNumber = 1;
-		let maxLineNumber = linesCount;
+		const winesCount = this._wineCount | 0;
+		const wineHeight = this._wineHeight;
+		wet minWineNumba = 1;
+		wet maxWineNumba = winesCount;
 
-		while (minLineNumber < maxLineNumber) {
-			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
+		whiwe (minWineNumba < maxWineNumba) {
+			const midWineNumba = ((minWineNumba + maxWineNumba) / 2) | 0;
 
-			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
+			const midWineNumbewVewticawOffset = this.getVewticawOffsetFowWineNumba(midWineNumba) | 0;
 
-			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
-				// vertical offset is after mid line number
-				minLineNumber = midLineNumber + 1;
-			} else if (verticalOffset >= midLineNumberVerticalOffset) {
+			if (vewticawOffset >= midWineNumbewVewticawOffset + wineHeight) {
+				// vewticaw offset is afta mid wine numba
+				minWineNumba = midWineNumba + 1;
+			} ewse if (vewticawOffset >= midWineNumbewVewticawOffset) {
 				// Hit
-				return midLineNumber;
-			} else {
-				// vertical offset is before mid line number, but mid line number could still be what we're searching for
-				maxLineNumber = midLineNumber;
+				wetuwn midWineNumba;
+			} ewse {
+				// vewticaw offset is befowe mid wine numba, but mid wine numba couwd stiww be what we'we seawching fow
+				maxWineNumba = midWineNumba;
 			}
 		}
 
-		if (minLineNumber > linesCount) {
-			return linesCount;
+		if (minWineNumba > winesCount) {
+			wetuwn winesCount;
 		}
 
-		return minLineNumber;
+		wetuwn minWineNumba;
 	}
 
 	/**
-	 * Get all the lines and their relative vertical offsets that are positioned between `verticalOffset1` and `verticalOffset2`.
+	 * Get aww the wines and theiw wewative vewticaw offsets that awe positioned between `vewticawOffset1` and `vewticawOffset2`.
 	 *
-	 * @param verticalOffset1 The beginning of the viewport.
-	 * @param verticalOffset2 The end of the viewport.
-	 * @return A structure describing the lines positioned between `verticalOffset1` and `verticalOffset2`.
+	 * @pawam vewticawOffset1 The beginning of the viewpowt.
+	 * @pawam vewticawOffset2 The end of the viewpowt.
+	 * @wetuwn A stwuctuwe descwibing the wines positioned between `vewticawOffset1` and `vewticawOffset2`.
 	 */
-	public getLinesViewportData(verticalOffset1: number, verticalOffset2: number): IPartialViewLinesViewportData {
+	pubwic getWinesViewpowtData(vewticawOffset1: numba, vewticawOffset2: numba): IPawtiawViewWinesViewpowtData {
 		this._checkPendingChanges();
-		verticalOffset1 = verticalOffset1 | 0;
-		verticalOffset2 = verticalOffset2 | 0;
-		const lineHeight = this._lineHeight;
+		vewticawOffset1 = vewticawOffset1 | 0;
+		vewticawOffset2 = vewticawOffset2 | 0;
+		const wineHeight = this._wineHeight;
 
-		// Find first line number
-		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
-		const startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1) | 0;
-		const startLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(startLineNumber) | 0;
+		// Find fiwst wine numba
+		// We don't wive in a pewfect wowwd, so the wine numba might stawt befowe ow afta vewticawOffset1
+		const stawtWineNumba = this.getWineNumbewAtOwAftewVewticawOffset(vewticawOffset1) | 0;
+		const stawtWineNumbewVewticawOffset = this.getVewticawOffsetFowWineNumba(stawtWineNumba) | 0;
 
-		let endLineNumber = this._lineCount | 0;
+		wet endWineNumba = this._wineCount | 0;
 
-		// Also keep track of what whitespace we've got
-		let whitespaceIndex = this.getFirstWhitespaceIndexAfterLineNumber(startLineNumber) | 0;
+		// Awso keep twack of what whitespace we've got
+		wet whitespaceIndex = this.getFiwstWhitespaceIndexAftewWineNumba(stawtWineNumba) | 0;
 		const whitespaceCount = this.getWhitespacesCount() | 0;
-		let currentWhitespaceHeight: number;
-		let currentWhitespaceAfterLineNumber: number;
+		wet cuwwentWhitespaceHeight: numba;
+		wet cuwwentWhitespaceAftewWineNumba: numba;
 
 		if (whitespaceIndex === -1) {
 			whitespaceIndex = whitespaceCount;
-			currentWhitespaceAfterLineNumber = endLineNumber + 1;
-			currentWhitespaceHeight = 0;
-		} else {
-			currentWhitespaceAfterLineNumber = this.getAfterLineNumberForWhitespaceIndex(whitespaceIndex) | 0;
-			currentWhitespaceHeight = this.getHeightForWhitespaceIndex(whitespaceIndex) | 0;
+			cuwwentWhitespaceAftewWineNumba = endWineNumba + 1;
+			cuwwentWhitespaceHeight = 0;
+		} ewse {
+			cuwwentWhitespaceAftewWineNumba = this.getAftewWineNumbewFowWhitespaceIndex(whitespaceIndex) | 0;
+			cuwwentWhitespaceHeight = this.getHeightFowWhitespaceIndex(whitespaceIndex) | 0;
 		}
 
-		let currentVerticalOffset = startLineNumberVerticalOffset;
-		let currentLineRelativeOffset = currentVerticalOffset;
+		wet cuwwentVewticawOffset = stawtWineNumbewVewticawOffset;
+		wet cuwwentWineWewativeOffset = cuwwentVewticawOffset;
 
-		// IE (all versions) cannot handle units above about 1,533,908 px, so every 500k pixels bring numbers down
+		// IE (aww vewsions) cannot handwe units above about 1,533,908 px, so evewy 500k pixews bwing numbews down
 		const STEP_SIZE = 500000;
-		let bigNumbersDelta = 0;
-		if (startLineNumberVerticalOffset >= STEP_SIZE) {
-			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
-			bigNumbersDelta = Math.floor(startLineNumberVerticalOffset / STEP_SIZE) * STEP_SIZE;
-			bigNumbersDelta = Math.floor(bigNumbersDelta / lineHeight) * lineHeight;
+		wet bigNumbewsDewta = 0;
+		if (stawtWineNumbewVewticawOffset >= STEP_SIZE) {
+			// Compute a dewta that guawantees that wines awe positioned at `wineHeight` incwements
+			bigNumbewsDewta = Math.fwoow(stawtWineNumbewVewticawOffset / STEP_SIZE) * STEP_SIZE;
+			bigNumbewsDewta = Math.fwoow(bigNumbewsDewta / wineHeight) * wineHeight;
 
-			currentLineRelativeOffset -= bigNumbersDelta;
+			cuwwentWineWewativeOffset -= bigNumbewsDewta;
 		}
 
-		const linesOffsets: number[] = [];
+		const winesOffsets: numba[] = [];
 
-		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
-		let centeredLineNumber = -1;
+		const vewticawCenta = vewticawOffset1 + (vewticawOffset2 - vewticawOffset1) / 2;
+		wet centewedWineNumba = -1;
 
-		// Figure out how far the lines go
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		// Figuwe out how faw the wines go
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
 
-			if (centeredLineNumber === -1) {
-				const currentLineTop = currentVerticalOffset;
-				const currentLineBottom = currentVerticalOffset + lineHeight;
-				if ((currentLineTop <= verticalCenter && verticalCenter < currentLineBottom) || currentLineTop > verticalCenter) {
-					centeredLineNumber = lineNumber;
+			if (centewedWineNumba === -1) {
+				const cuwwentWineTop = cuwwentVewticawOffset;
+				const cuwwentWineBottom = cuwwentVewticawOffset + wineHeight;
+				if ((cuwwentWineTop <= vewticawCenta && vewticawCenta < cuwwentWineBottom) || cuwwentWineTop > vewticawCenta) {
+					centewedWineNumba = wineNumba;
 				}
 			}
 
-			// Count current line height in the vertical offsets
-			currentVerticalOffset += lineHeight;
-			linesOffsets[lineNumber - startLineNumber] = currentLineRelativeOffset;
+			// Count cuwwent wine height in the vewticaw offsets
+			cuwwentVewticawOffset += wineHeight;
+			winesOffsets[wineNumba - stawtWineNumba] = cuwwentWineWewativeOffset;
 
-			// Next line starts immediately after this one
-			currentLineRelativeOffset += lineHeight;
-			while (currentWhitespaceAfterLineNumber === lineNumber) {
-				// Push down next line with the height of the current whitespace
-				currentLineRelativeOffset += currentWhitespaceHeight;
+			// Next wine stawts immediatewy afta this one
+			cuwwentWineWewativeOffset += wineHeight;
+			whiwe (cuwwentWhitespaceAftewWineNumba === wineNumba) {
+				// Push down next wine with the height of the cuwwent whitespace
+				cuwwentWineWewativeOffset += cuwwentWhitespaceHeight;
 
-				// Count current whitespace in the vertical offsets
-				currentVerticalOffset += currentWhitespaceHeight;
+				// Count cuwwent whitespace in the vewticaw offsets
+				cuwwentVewticawOffset += cuwwentWhitespaceHeight;
 				whitespaceIndex++;
 
 				if (whitespaceIndex >= whitespaceCount) {
-					currentWhitespaceAfterLineNumber = endLineNumber + 1;
-				} else {
-					currentWhitespaceAfterLineNumber = this.getAfterLineNumberForWhitespaceIndex(whitespaceIndex) | 0;
-					currentWhitespaceHeight = this.getHeightForWhitespaceIndex(whitespaceIndex) | 0;
+					cuwwentWhitespaceAftewWineNumba = endWineNumba + 1;
+				} ewse {
+					cuwwentWhitespaceAftewWineNumba = this.getAftewWineNumbewFowWhitespaceIndex(whitespaceIndex) | 0;
+					cuwwentWhitespaceHeight = this.getHeightFowWhitespaceIndex(whitespaceIndex) | 0;
 				}
 			}
 
-			if (currentVerticalOffset >= verticalOffset2) {
-				// We have covered the entire viewport area, time to stop
-				endLineNumber = lineNumber;
-				break;
+			if (cuwwentVewticawOffset >= vewticawOffset2) {
+				// We have covewed the entiwe viewpowt awea, time to stop
+				endWineNumba = wineNumba;
+				bweak;
 			}
 		}
 
-		if (centeredLineNumber === -1) {
-			centeredLineNumber = endLineNumber;
+		if (centewedWineNumba === -1) {
+			centewedWineNumba = endWineNumba;
 		}
 
-		const endLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(endLineNumber) | 0;
+		const endWineNumbewVewticawOffset = this.getVewticawOffsetFowWineNumba(endWineNumba) | 0;
 
-		let completelyVisibleStartLineNumber = startLineNumber;
-		let completelyVisibleEndLineNumber = endLineNumber;
+		wet compwetewyVisibweStawtWineNumba = stawtWineNumba;
+		wet compwetewyVisibweEndWineNumba = endWineNumba;
 
-		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			if (startLineNumberVerticalOffset < verticalOffset1) {
-				completelyVisibleStartLineNumber++;
+		if (compwetewyVisibweStawtWineNumba < compwetewyVisibweEndWineNumba) {
+			if (stawtWineNumbewVewticawOffset < vewticawOffset1) {
+				compwetewyVisibweStawtWineNumba++;
 			}
 		}
-		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			if (endLineNumberVerticalOffset + lineHeight > verticalOffset2) {
-				completelyVisibleEndLineNumber--;
+		if (compwetewyVisibweStawtWineNumba < compwetewyVisibweEndWineNumba) {
+			if (endWineNumbewVewticawOffset + wineHeight > vewticawOffset2) {
+				compwetewyVisibweEndWineNumba--;
 			}
 		}
 
-		return {
-			bigNumbersDelta: bigNumbersDelta,
-			startLineNumber: startLineNumber,
-			endLineNumber: endLineNumber,
-			relativeVerticalOffset: linesOffsets,
-			centeredLineNumber: centeredLineNumber,
-			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
-			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber
+		wetuwn {
+			bigNumbewsDewta: bigNumbewsDewta,
+			stawtWineNumba: stawtWineNumba,
+			endWineNumba: endWineNumba,
+			wewativeVewticawOffset: winesOffsets,
+			centewedWineNumba: centewedWineNumba,
+			compwetewyVisibweStawtWineNumba: compwetewyVisibweStawtWineNumba,
+			compwetewyVisibweEndWineNumba: compwetewyVisibweEndWineNumba
 		};
 	}
 
-	public getVerticalOffsetForWhitespaceIndex(whitespaceIndex: number): number {
+	pubwic getVewticawOffsetFowWhitespaceIndex(whitespaceIndex: numba): numba {
 		this._checkPendingChanges();
 		whitespaceIndex = whitespaceIndex | 0;
 
-		const afterLineNumber = this.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
+		const aftewWineNumba = this.getAftewWineNumbewFowWhitespaceIndex(whitespaceIndex);
 
-		let previousLinesHeight: number;
-		if (afterLineNumber >= 1) {
-			previousLinesHeight = this._lineHeight * afterLineNumber;
-		} else {
-			previousLinesHeight = 0;
+		wet pweviousWinesHeight: numba;
+		if (aftewWineNumba >= 1) {
+			pweviousWinesHeight = this._wineHeight * aftewWineNumba;
+		} ewse {
+			pweviousWinesHeight = 0;
 		}
 
-		let previousWhitespacesHeight: number;
+		wet pweviousWhitespacesHeight: numba;
 		if (whitespaceIndex > 0) {
-			previousWhitespacesHeight = this.getWhitespacesAccumulatedHeight(whitespaceIndex - 1);
-		} else {
-			previousWhitespacesHeight = 0;
+			pweviousWhitespacesHeight = this.getWhitespacesAccumuwatedHeight(whitespaceIndex - 1);
+		} ewse {
+			pweviousWhitespacesHeight = 0;
 		}
-		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
+		wetuwn pweviousWinesHeight + pweviousWhitespacesHeight + this._paddingTop;
 	}
 
-	public getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset: number): number {
+	pubwic getWhitespaceIndexAtOwAftewVewticawwOffset(vewticawOffset: numba): numba {
 		this._checkPendingChanges();
-		verticalOffset = verticalOffset | 0;
+		vewticawOffset = vewticawOffset | 0;
 
-		let minWhitespaceIndex = 0;
-		let maxWhitespaceIndex = this.getWhitespacesCount() - 1;
+		wet minWhitespaceIndex = 0;
+		wet maxWhitespaceIndex = this.getWhitespacesCount() - 1;
 
 		if (maxWhitespaceIndex < 0) {
-			return -1;
+			wetuwn -1;
 		}
 
-		// Special case: nothing to be found
-		const maxWhitespaceVerticalOffset = this.getVerticalOffsetForWhitespaceIndex(maxWhitespaceIndex);
-		const maxWhitespaceHeight = this.getHeightForWhitespaceIndex(maxWhitespaceIndex);
-		if (verticalOffset >= maxWhitespaceVerticalOffset + maxWhitespaceHeight) {
-			return -1;
+		// Speciaw case: nothing to be found
+		const maxWhitespaceVewticawOffset = this.getVewticawOffsetFowWhitespaceIndex(maxWhitespaceIndex);
+		const maxWhitespaceHeight = this.getHeightFowWhitespaceIndex(maxWhitespaceIndex);
+		if (vewticawOffset >= maxWhitespaceVewticawOffset + maxWhitespaceHeight) {
+			wetuwn -1;
 		}
 
-		while (minWhitespaceIndex < maxWhitespaceIndex) {
-			const midWhitespaceIndex = Math.floor((minWhitespaceIndex + maxWhitespaceIndex) / 2);
+		whiwe (minWhitespaceIndex < maxWhitespaceIndex) {
+			const midWhitespaceIndex = Math.fwoow((minWhitespaceIndex + maxWhitespaceIndex) / 2);
 
-			const midWhitespaceVerticalOffset = this.getVerticalOffsetForWhitespaceIndex(midWhitespaceIndex);
-			const midWhitespaceHeight = this.getHeightForWhitespaceIndex(midWhitespaceIndex);
+			const midWhitespaceVewticawOffset = this.getVewticawOffsetFowWhitespaceIndex(midWhitespaceIndex);
+			const midWhitespaceHeight = this.getHeightFowWhitespaceIndex(midWhitespaceIndex);
 
-			if (verticalOffset >= midWhitespaceVerticalOffset + midWhitespaceHeight) {
-				// vertical offset is after whitespace
+			if (vewticawOffset >= midWhitespaceVewticawOffset + midWhitespaceHeight) {
+				// vewticaw offset is afta whitespace
 				minWhitespaceIndex = midWhitespaceIndex + 1;
-			} else if (verticalOffset >= midWhitespaceVerticalOffset) {
+			} ewse if (vewticawOffset >= midWhitespaceVewticawOffset) {
 				// Hit
-				return midWhitespaceIndex;
-			} else {
-				// vertical offset is before whitespace, but midWhitespaceIndex might still be what we're searching for
+				wetuwn midWhitespaceIndex;
+			} ewse {
+				// vewticaw offset is befowe whitespace, but midWhitespaceIndex might stiww be what we'we seawching fow
 				maxWhitespaceIndex = midWhitespaceIndex;
 			}
 		}
-		return minWhitespaceIndex;
+		wetuwn minWhitespaceIndex;
 	}
 
 	/**
-	 * Get exactly the whitespace that is layouted at `verticalOffset`.
+	 * Get exactwy the whitespace that is wayouted at `vewticawOffset`.
 	 *
-	 * @param verticalOffset The vertical offset.
-	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
+	 * @pawam vewticawOffset The vewticaw offset.
+	 * @wetuwn Pwecisewy the whitespace that is wayouted at `vewticawoffset` ow nuww.
 	 */
-	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null {
+	pubwic getWhitespaceAtVewticawOffset(vewticawOffset: numba): IViewWhitespaceViewpowtData | nuww {
 		this._checkPendingChanges();
-		verticalOffset = verticalOffset | 0;
+		vewticawOffset = vewticawOffset | 0;
 
-		const candidateIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset);
+		const candidateIndex = this.getWhitespaceIndexAtOwAftewVewticawwOffset(vewticawOffset);
 
 		if (candidateIndex < 0) {
-			return null;
+			wetuwn nuww;
 		}
 
 		if (candidateIndex >= this.getWhitespacesCount()) {
-			return null;
+			wetuwn nuww;
 		}
 
-		const candidateTop = this.getVerticalOffsetForWhitespaceIndex(candidateIndex);
+		const candidateTop = this.getVewticawOffsetFowWhitespaceIndex(candidateIndex);
 
-		if (candidateTop > verticalOffset) {
-			return null;
+		if (candidateTop > vewticawOffset) {
+			wetuwn nuww;
 		}
 
-		const candidateHeight = this.getHeightForWhitespaceIndex(candidateIndex);
-		const candidateId = this.getIdForWhitespaceIndex(candidateIndex);
-		const candidateAfterLineNumber = this.getAfterLineNumberForWhitespaceIndex(candidateIndex);
+		const candidateHeight = this.getHeightFowWhitespaceIndex(candidateIndex);
+		const candidateId = this.getIdFowWhitespaceIndex(candidateIndex);
+		const candidateAftewWineNumba = this.getAftewWineNumbewFowWhitespaceIndex(candidateIndex);
 
-		return {
+		wetuwn {
 			id: candidateId,
-			afterLineNumber: candidateAfterLineNumber,
-			verticalOffset: candidateTop,
+			aftewWineNumba: candidateAftewWineNumba,
+			vewticawOffset: candidateTop,
 			height: candidateHeight
 		};
 	}
 
 	/**
-	 * Get a list of whitespaces that are positioned between `verticalOffset1` and `verticalOffset2`.
+	 * Get a wist of whitespaces that awe positioned between `vewticawOffset1` and `vewticawOffset2`.
 	 *
-	 * @param verticalOffset1 The beginning of the viewport.
-	 * @param verticalOffset2 The end of the viewport.
-	 * @return An array with all the whitespaces in the viewport. If no whitespace is in viewport, the array is empty.
+	 * @pawam vewticawOffset1 The beginning of the viewpowt.
+	 * @pawam vewticawOffset2 The end of the viewpowt.
+	 * @wetuwn An awway with aww the whitespaces in the viewpowt. If no whitespace is in viewpowt, the awway is empty.
 	 */
-	public getWhitespaceViewportData(verticalOffset1: number, verticalOffset2: number): IViewWhitespaceViewportData[] {
+	pubwic getWhitespaceViewpowtData(vewticawOffset1: numba, vewticawOffset2: numba): IViewWhitespaceViewpowtData[] {
 		this._checkPendingChanges();
-		verticalOffset1 = verticalOffset1 | 0;
-		verticalOffset2 = verticalOffset2 | 0;
+		vewticawOffset1 = vewticawOffset1 | 0;
+		vewticawOffset2 = vewticawOffset2 | 0;
 
-		const startIndex = this.getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset1);
+		const stawtIndex = this.getWhitespaceIndexAtOwAftewVewticawwOffset(vewticawOffset1);
 		const endIndex = this.getWhitespacesCount() - 1;
 
-		if (startIndex < 0) {
-			return [];
+		if (stawtIndex < 0) {
+			wetuwn [];
 		}
 
-		let result: IViewWhitespaceViewportData[] = [];
-		for (let i = startIndex; i <= endIndex; i++) {
-			const top = this.getVerticalOffsetForWhitespaceIndex(i);
-			const height = this.getHeightForWhitespaceIndex(i);
-			if (top >= verticalOffset2) {
-				break;
+		wet wesuwt: IViewWhitespaceViewpowtData[] = [];
+		fow (wet i = stawtIndex; i <= endIndex; i++) {
+			const top = this.getVewticawOffsetFowWhitespaceIndex(i);
+			const height = this.getHeightFowWhitespaceIndex(i);
+			if (top >= vewticawOffset2) {
+				bweak;
 			}
 
-			result.push({
-				id: this.getIdForWhitespaceIndex(i),
-				afterLineNumber: this.getAfterLineNumberForWhitespaceIndex(i),
-				verticalOffset: top,
+			wesuwt.push({
+				id: this.getIdFowWhitespaceIndex(i),
+				aftewWineNumba: this.getAftewWineNumbewFowWhitespaceIndex(i),
+				vewticawOffset: top,
 				height: height
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Get all whitespaces.
+	 * Get aww whitespaces.
 	 */
-	public getWhitespaces(): IEditorWhitespace[] {
+	pubwic getWhitespaces(): IEditowWhitespace[] {
 		this._checkPendingChanges();
-		return this._arr.slice(0);
+		wetuwn this._aww.swice(0);
 	}
 
 	/**
-	 * The number of whitespaces.
+	 * The numba of whitespaces.
 	 */
-	public getWhitespacesCount(): number {
+	pubwic getWhitespacesCount(): numba {
 		this._checkPendingChanges();
-		return this._arr.length;
+		wetuwn this._aww.wength;
 	}
 
 	/**
-	 * Get the `id` for whitespace at index `index`.
+	 * Get the `id` fow whitespace at index `index`.
 	 *
-	 * @param index The index of the whitespace.
-	 * @return `id` of whitespace at `index`.
+	 * @pawam index The index of the whitespace.
+	 * @wetuwn `id` of whitespace at `index`.
 	 */
-	public getIdForWhitespaceIndex(index: number): string {
+	pubwic getIdFowWhitespaceIndex(index: numba): stwing {
 		this._checkPendingChanges();
 		index = index | 0;
 
-		return this._arr[index].id;
+		wetuwn this._aww[index].id;
 	}
 
 	/**
-	 * Get the `afterLineNumber` for whitespace at index `index`.
+	 * Get the `aftewWineNumba` fow whitespace at index `index`.
 	 *
-	 * @param index The index of the whitespace.
-	 * @return `afterLineNumber` of whitespace at `index`.
+	 * @pawam index The index of the whitespace.
+	 * @wetuwn `aftewWineNumba` of whitespace at `index`.
 	 */
-	public getAfterLineNumberForWhitespaceIndex(index: number): number {
+	pubwic getAftewWineNumbewFowWhitespaceIndex(index: numba): numba {
 		this._checkPendingChanges();
 		index = index | 0;
 
-		return this._arr[index].afterLineNumber;
+		wetuwn this._aww[index].aftewWineNumba;
 	}
 
 	/**
-	 * Get the `height` for whitespace at index `index`.
+	 * Get the `height` fow whitespace at index `index`.
 	 *
-	 * @param index The index of the whitespace.
-	 * @return `height` of whitespace at `index`.
+	 * @pawam index The index of the whitespace.
+	 * @wetuwn `height` of whitespace at `index`.
 	 */
-	public getHeightForWhitespaceIndex(index: number): number {
+	pubwic getHeightFowWhitespaceIndex(index: numba): numba {
 		this._checkPendingChanges();
 		index = index | 0;
 
-		return this._arr[index].height;
+		wetuwn this._aww[index].height;
 	}
 }

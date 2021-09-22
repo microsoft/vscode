@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
 
 /**
- * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * resolves from a file system retrieve content and may allow for saving it back or reverting it.
- * Editor models are typically cached for some while because they are expensive to construct.
+ * The editow modew is the heavyweight countewpawt of editow input. Depending on the editow input, it
+ * wesowves fwom a fiwe system wetwieve content and may awwow fow saving it back ow wevewting it.
+ * Editow modews awe typicawwy cached fow some whiwe because they awe expensive to constwuct.
  */
-export class EditorModel extends Disposable implements IEditorModel {
+expowt cwass EditowModew extends Disposabwe impwements IEditowModew {
 
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	private disposed = false;
-	private resolved = false;
+	pwivate disposed = fawse;
+	pwivate wesowved = fawse;
 
 	/**
-	 * Causes this model to resolve returning a promise when loading is completed.
+	 * Causes this modew to wesowve wetuwning a pwomise when woading is compweted.
 	 */
-	async resolve(): Promise<void> {
-		this.resolved = true;
+	async wesowve(): Pwomise<void> {
+		this.wesowved = twue;
 	}
 
 	/**
-	 * Returns whether this model was loaded or not.
+	 * Wetuwns whetha this modew was woaded ow not.
 	 */
-	isResolved(): boolean {
-		return this.resolved;
+	isWesowved(): boowean {
+		wetuwn this.wesowved;
 	}
 
 	/**
-	 * Find out if this model has been disposed.
+	 * Find out if this modew has been disposed.
 	 */
-	isDisposed(): boolean {
-		return this.disposed;
+	isDisposed(): boowean {
+		wetuwn this.disposed;
 	}
 
 	/**
-	 * Subclasses should implement to free resources that have been claimed through loading.
+	 * Subcwasses shouwd impwement to fwee wesouwces that have been cwaimed thwough woading.
 	 */
-	override dispose(): void {
-		this.disposed = true;
-		this._onWillDispose.fire();
+	ovewwide dispose(): void {
+		this.disposed = twue;
+		this._onWiwwDispose.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

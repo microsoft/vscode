@@ -1,739 +1,739 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
-import { tail } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { extUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
-import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { BweadcwumbsItem, BweadcwumbsWidget, IBweadcwumbsItemEvent } fwom 'vs/base/bwowsa/ui/bweadcwumbs/bweadcwumbsWidget';
+impowt { taiw } fwom 'vs/base/common/awways';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { combinedDisposabwe, DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { extUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/bweadcwumbscontwow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { FiweKind, IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWistSewvice, WowkbenchDataTwee, WowkbenchWistFocusContextKey } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { CowowIdentifia, CowowTwansfowm } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachBweadcwumbsStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { WesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { BweadcwumbsConfig, IBweadcwumbsSewvice } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbs';
+impowt { BweadcwumbsModew, FiweEwement, OutwineEwement2 } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsModew';
+impowt { BweadcwumbsFiwePicka, BweadcwumbsOutwinePicka, BweadcwumbsPicka } fwom 'vs/wowkbench/bwowsa/pawts/editow/bweadcwumbsPicka';
+impowt { IEditowPawtOptions, EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { ACTIVE_GWOUP, ACTIVE_GWOUP_TYPE, IEditowSewvice, SIDE_GWOUP, SIDE_GWOUP_TYPE } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IEditowGwoupView } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { onDidChangeZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IOutwine } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
 
-class OutlineItem extends BreadcrumbsItem {
+cwass OutwineItem extends BweadcwumbsItem {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
-		readonly model: BreadcrumbsModel,
-		readonly element: OutlineElement2,
-		readonly options: IBreadcrumbsControlOptions
+	constwuctow(
+		weadonwy modew: BweadcwumbsModew,
+		weadonwy ewement: OutwineEwement2,
+		weadonwy options: IBweadcwumbsContwowOptions
 	) {
-		super();
+		supa();
 	}
 
-	override dispose(): void {
-		this._disposables.dispose();
+	ovewwide dispose(): void {
+		this._disposabwes.dispose();
 	}
 
-	equals(other: BreadcrumbsItem): boolean {
-		if (!(other instanceof OutlineItem)) {
-			return false;
+	equaws(otha: BweadcwumbsItem): boowean {
+		if (!(otha instanceof OutwineItem)) {
+			wetuwn fawse;
 		}
-		return this.element === other.element &&
-			this.options.showFileIcons === other.options.showFileIcons &&
-			this.options.showSymbolIcons === other.options.showSymbolIcons;
+		wetuwn this.ewement === otha.ewement &&
+			this.options.showFiweIcons === otha.options.showFiweIcons &&
+			this.options.showSymbowIcons === otha.options.showSymbowIcons;
 	}
 
-	render(container: HTMLElement): void {
-		const { element, outline } = this.element;
+	wenda(containa: HTMWEwement): void {
+		const { ewement, outwine } = this.ewement;
 
-		if (element === outline) {
-			const element = dom.$('span', undefined, '…');
-			container.appendChild(element);
-			return;
+		if (ewement === outwine) {
+			const ewement = dom.$('span', undefined, '…');
+			containa.appendChiwd(ewement);
+			wetuwn;
 		}
 
-		const templateId = outline.config.delegate.getTemplateId(element);
-		const renderer = outline.config.renderers.find(renderer => renderer.templateId === templateId);
-		if (!renderer) {
-			container.innerText = '<<NO RENDERER>>';
-			return;
+		const tempwateId = outwine.config.dewegate.getTempwateId(ewement);
+		const wendewa = outwine.config.wendewews.find(wendewa => wendewa.tempwateId === tempwateId);
+		if (!wendewa) {
+			containa.innewText = '<<NO WENDEWa>>';
+			wetuwn;
 		}
 
-		const template = renderer.renderTemplate(container);
-		renderer.renderElement(<ITreeNode<any, any>>{
-			element,
-			children: [],
+		const tempwate = wendewa.wendewTempwate(containa);
+		wendewa.wendewEwement(<ITweeNode<any, any>>{
+			ewement,
+			chiwdwen: [],
 			depth: 0,
-			visibleChildrenCount: 0,
-			visibleChildIndex: 0,
-			collapsible: false,
-			collapsed: false,
-			visible: true,
-			filterData: undefined
-		}, 0, template, undefined);
+			visibweChiwdwenCount: 0,
+			visibweChiwdIndex: 0,
+			cowwapsibwe: fawse,
+			cowwapsed: fawse,
+			visibwe: twue,
+			fiwtewData: undefined
+		}, 0, tempwate, undefined);
 
-		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
+		this._disposabwes.add(toDisposabwe(() => { wendewa.disposeTempwate(tempwate); }));
 	}
 
 }
 
-class FileItem extends BreadcrumbsItem {
+cwass FiweItem extends BweadcwumbsItem {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
-		readonly model: BreadcrumbsModel,
-		readonly element: FileElement,
-		readonly options: IBreadcrumbsControlOptions,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	constwuctow(
+		weadonwy modew: BweadcwumbsModew,
+		weadonwy ewement: FiweEwement,
+		weadonwy options: IBweadcwumbsContwowOptions,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	override dispose(): void {
-		this._disposables.dispose();
+	ovewwide dispose(): void {
+		this._disposabwes.dispose();
 	}
 
-	equals(other: BreadcrumbsItem): boolean {
-		if (!(other instanceof FileItem)) {
-			return false;
+	equaws(otha: BweadcwumbsItem): boowean {
+		if (!(otha instanceof FiweItem)) {
+			wetuwn fawse;
 		}
-		return (extUri.isEqual(this.element.uri, other.element.uri) &&
-			this.options.showFileIcons === other.options.showFileIcons &&
-			this.options.showSymbolIcons === other.options.showSymbolIcons);
+		wetuwn (extUwi.isEquaw(this.ewement.uwi, otha.ewement.uwi) &&
+			this.options.showFiweIcons === otha.options.showFiweIcons &&
+			this.options.showSymbowIcons === otha.options.showSymbowIcons);
 
 	}
 
-	render(container: HTMLElement): void {
-		// file/folder
-		let label = this._instantiationService.createInstance(ResourceLabel, container, {});
-		label.element.setFile(this.element.uri, {
-			hidePath: true,
-			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
-			fileKind: this.element.kind,
-			fileDecorations: { colors: this.options.showDecorationColors, badges: false },
+	wenda(containa: HTMWEwement): void {
+		// fiwe/fowda
+		wet wabew = this._instantiationSewvice.cweateInstance(WesouwceWabew, containa, {});
+		wabew.ewement.setFiwe(this.ewement.uwi, {
+			hidePath: twue,
+			hideIcon: this.ewement.kind === FiweKind.FOWDa || !this.options.showFiweIcons,
+			fiweKind: this.ewement.kind,
+			fiweDecowations: { cowows: this.options.showDecowationCowows, badges: fawse },
 		});
-		container.classList.add(FileKind[this.element.kind].toLowerCase());
-		this._disposables.add(label);
+		containa.cwassWist.add(FiweKind[this.ewement.kind].toWowewCase());
+		this._disposabwes.add(wabew);
 	}
 }
 
-export interface IBreadcrumbsControlOptions {
-	showFileIcons: boolean;
-	showSymbolIcons: boolean;
-	showDecorationColors: boolean;
-	breadcrumbsBackground: ColorIdentifier | ColorTransform;
-	showPlaceholder: boolean;
+expowt intewface IBweadcwumbsContwowOptions {
+	showFiweIcons: boowean;
+	showSymbowIcons: boowean;
+	showDecowationCowows: boowean;
+	bweadcwumbsBackgwound: CowowIdentifia | CowowTwansfowm;
+	showPwacehowda: boowean;
 }
 
-export class BreadcrumbsControl {
+expowt cwass BweadcwumbsContwow {
 
-	static readonly HEIGHT = 22;
+	static weadonwy HEIGHT = 22;
 
-	private static readonly SCROLLBAR_SIZES = {
-		default: 3,
-		large: 8
+	pwivate static weadonwy SCWOWWBAW_SIZES = {
+		defauwt: 3,
+		wawge: 8
 	};
 
-	static readonly Payload_Reveal = {};
-	static readonly Payload_RevealAside = {};
-	static readonly Payload_Pick = {};
+	static weadonwy Paywoad_Weveaw = {};
+	static weadonwy Paywoad_WeveawAside = {};
+	static weadonwy Paywoad_Pick = {};
 
-	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false, localize('breadcrumbsPossible', "Whether the editor can show breadcrumbs"));
-	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false, localize('breadcrumbsVisible', "Whether breadcrumbs are currently visible"));
-	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false, localize('breadcrumbsActive', "Whether breadcrumbs have focus"));
+	static weadonwy CK_BweadcwumbsPossibwe = new WawContextKey('bweadcwumbsPossibwe', fawse, wocawize('bweadcwumbsPossibwe', "Whetha the editow can show bweadcwumbs"));
+	static weadonwy CK_BweadcwumbsVisibwe = new WawContextKey('bweadcwumbsVisibwe', fawse, wocawize('bweadcwumbsVisibwe', "Whetha bweadcwumbs awe cuwwentwy visibwe"));
+	static weadonwy CK_BweadcwumbsActive = new WawContextKey('bweadcwumbsActive', fawse, wocawize('bweadcwumbsActive', "Whetha bweadcwumbs have focus"));
 
-	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
-	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
-	private readonly _ckBreadcrumbsActive: IContextKey<boolean>;
+	pwivate weadonwy _ckBweadcwumbsPossibwe: IContextKey<boowean>;
+	pwivate weadonwy _ckBweadcwumbsVisibwe: IContextKey<boowean>;
+	pwivate weadonwy _ckBweadcwumbsActive: IContextKey<boowean>;
 
-	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
-	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
-	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
+	pwivate weadonwy _cfUseQuickPick: BweadcwumbsConfig<boowean>;
+	pwivate weadonwy _cfShowIcons: BweadcwumbsConfig<boowean>;
+	pwivate weadonwy _cfTitweScwowwbawSizing: BweadcwumbsConfig<IEditowPawtOptions['titweScwowwbawSizing']>;
 
-	readonly domNode: HTMLDivElement;
-	private readonly _widget: BreadcrumbsWidget;
+	weadonwy domNode: HTMWDivEwement;
+	pwivate weadonwy _widget: BweadcwumbsWidget;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _breadcrumbsDisposables = new DisposableStore();
-	private _breadcrumbsPickerShowing = false;
-	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _bweadcwumbsDisposabwes = new DisposabweStowe();
+	pwivate _bweadcwumbsPickewShowing = fawse;
+	pwivate _bweadcwumbsPickewIgnoweOnceItem: BweadcwumbsItem | undefined;
 
-	constructor(
-		container: HTMLElement,
-		private readonly _options: IBreadcrumbsControlOptions,
-		private readonly _editorGroup: IEditorGroupView,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IFileService private readonly _fileService: IFileService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
+	constwuctow(
+		containa: HTMWEwement,
+		pwivate weadonwy _options: IBweadcwumbsContwowOptions,
+		pwivate weadonwy _editowGwoup: IEditowGwoupView,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IQuickInputSewvice pwivate weadonwy _quickInputSewvice: IQuickInputSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IBweadcwumbsSewvice bweadcwumbsSewvice: IBweadcwumbsSewvice,
 	) {
-		this.domNode = document.createElement('div');
-		this.domNode.classList.add('breadcrumbs-control');
-		dom.append(container, this.domNode);
+		this.domNode = document.cweateEwement('div');
+		this.domNode.cwassWist.add('bweadcwumbs-contwow');
+		dom.append(containa, this.domNode);
 
-		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
-		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
-		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
+		this._cfUseQuickPick = BweadcwumbsConfig.UseQuickPick.bindTo(configuwationSewvice);
+		this._cfShowIcons = BweadcwumbsConfig.Icons.bindTo(configuwationSewvice);
+		this._cfTitweScwowwbawSizing = BweadcwumbsConfig.TitweScwowwbawSizing.bindTo(configuwationSewvice);
 
-		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
-		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
-		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
-		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
-		this._disposables.add(attachBreadcrumbsStyler(this._widget, this._themeService, { breadcrumbsBackground: _options.breadcrumbsBackground }));
+		const sizing = this._cfTitweScwowwbawSizing.getVawue() ?? 'defauwt';
+		this._widget = new BweadcwumbsWidget(this.domNode, BweadcwumbsContwow.SCWOWWBAW_SIZES[sizing]);
+		this._widget.onDidSewectItem(this._onSewectEvent, this, this._disposabwes);
+		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposabwes);
+		this._widget.onDidChangeFocus(this._updateCkBweadcwumbsActive, this, this._disposabwes);
+		this._disposabwes.add(attachBweadcwumbsStywa(this._widget, this._themeSewvice, { bweadcwumbsBackgwound: _options.bweadcwumbsBackgwound }));
 
-		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
-		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
-		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
+		this._ckBweadcwumbsPossibwe = BweadcwumbsContwow.CK_BweadcwumbsPossibwe.bindTo(this._contextKeySewvice);
+		this._ckBweadcwumbsVisibwe = BweadcwumbsContwow.CK_BweadcwumbsVisibwe.bindTo(this._contextKeySewvice);
+		this._ckBweadcwumbsActive = BweadcwumbsContwow.CK_BweadcwumbsActive.bindTo(this._contextKeySewvice);
 
-		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this._disposabwes.add(bweadcwumbsSewvice.wegista(this._editowGwoup.id, this._widget));
 		this.hide();
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._breadcrumbsDisposables.dispose();
-		this._ckBreadcrumbsPossible.reset();
-		this._ckBreadcrumbsVisible.reset();
-		this._ckBreadcrumbsActive.reset();
+		this._disposabwes.dispose();
+		this._bweadcwumbsDisposabwes.dispose();
+		this._ckBweadcwumbsPossibwe.weset();
+		this._ckBweadcwumbsVisibwe.weset();
+		this._ckBweadcwumbsActive.weset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._widget.dispose();
-		this.domNode.remove();
+		this.domNode.wemove();
 	}
 
-	layout(dim: dom.Dimension | undefined): void {
-		this._widget.layout(dim);
+	wayout(dim: dom.Dimension | undefined): void {
+		this._widget.wayout(dim);
 	}
 
-	isHidden(): boolean {
-		return this.domNode.classList.contains('hidden');
+	isHidden(): boowean {
+		wetuwn this.domNode.cwassWist.contains('hidden');
 	}
 
 	hide(): void {
-		this._breadcrumbsDisposables.clear();
-		this._ckBreadcrumbsVisible.set(false);
-		this.domNode.classList.toggle('hidden', true);
+		this._bweadcwumbsDisposabwes.cweaw();
+		this._ckBweadcwumbsVisibwe.set(fawse);
+		this.domNode.cwassWist.toggwe('hidden', twue);
 	}
 
-	update(): boolean {
-		this._breadcrumbsDisposables.clear();
+	update(): boowean {
+		this._bweadcwumbsDisposabwes.cweaw();
 
-		// honor diff editors and such
-		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		// honow diff editows and such
+		const uwi = EditowWesouwceAccessow.getCanonicawUwi(this._editowGwoup.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.canHandleResource(uri)) {
-			// cleanup and return when there is no input or when
-			// we cannot handle this input
-			this._ckBreadcrumbsPossible.set(false);
+		if (!uwi || !this._fiweSewvice.canHandweWesouwce(uwi)) {
+			// cweanup and wetuwn when thewe is no input ow when
+			// we cannot handwe this input
+			this._ckBweadcwumbsPossibwe.set(fawse);
 			if (!wasHidden) {
 				this.hide();
-				return true;
-			} else {
-				return false;
+				wetuwn twue;
+			} ewse {
+				wetuwn fawse;
 			}
 		}
 
-		// display uri which can be derived from certain inputs
-		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		// dispway uwi which can be dewived fwom cewtain inputs
+		const fiweInfoUwi = EditowWesouwceAccessow.getOwiginawUwi(this._editowGwoup.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-		this.domNode.classList.toggle('hidden', false);
-		this._ckBreadcrumbsVisible.set(true);
-		this._ckBreadcrumbsPossible.set(true);
+		this.domNode.cwassWist.toggwe('hidden', fawse);
+		this._ckBweadcwumbsVisibwe.set(twue);
+		this._ckBweadcwumbsPossibwe.set(twue);
 
-		const model = this._instantiationService.createInstance(BreadcrumbsModel,
-			fileInfoUri ?? uri,
-			this._editorGroup.activeEditorPane
+		const modew = this._instantiationSewvice.cweateInstance(BweadcwumbsModew,
+			fiweInfoUwi ?? uwi,
+			this._editowGwoup.activeEditowPane
 		);
 
-		this.domNode.classList.toggle('relative-path', model.isRelative());
-		this.domNode.classList.toggle('backslash-path', this._labelService.getSeparator(uri.scheme, uri.authority) === '\\');
+		this.domNode.cwassWist.toggwe('wewative-path', modew.isWewative());
+		this.domNode.cwassWist.toggwe('backswash-path', this._wabewSewvice.getSepawatow(uwi.scheme, uwi.authowity) === '\\');
 
-		const updateBreadcrumbs = () => {
-			const showIcons = this._cfShowIcons.getValue();
-			const options: IBreadcrumbsControlOptions = {
+		const updateBweadcwumbs = () => {
+			const showIcons = this._cfShowIcons.getVawue();
+			const options: IBweadcwumbsContwowOptions = {
 				...this._options,
-				showFileIcons: this._options.showFileIcons && showIcons,
-				showSymbolIcons: this._options.showSymbolIcons && showIcons
+				showFiweIcons: this._options.showFiweIcons && showIcons,
+				showSymbowIcons: this._options.showSymbowIcons && showIcons
 			};
-			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
-			if (items.length === 0) {
-				this._widget.setEnabled(false);
-				this._widget.setItems([new class extends BreadcrumbsItem {
-					render(container: HTMLElement): void {
-						container.innerText = localize('empty', "no elements");
+			const items = modew.getEwements().map(ewement => ewement instanceof FiweEwement ? new FiweItem(modew, ewement, options, this._instantiationSewvice) : new OutwineItem(modew, ewement, options));
+			if (items.wength === 0) {
+				this._widget.setEnabwed(fawse);
+				this._widget.setItems([new cwass extends BweadcwumbsItem {
+					wenda(containa: HTMWEwement): void {
+						containa.innewText = wocawize('empty', "no ewements");
 					}
-					equals(other: BreadcrumbsItem): boolean {
-						return other === this;
+					equaws(otha: BweadcwumbsItem): boowean {
+						wetuwn otha === this;
 					}
 				}]);
-			} else {
-				this._widget.setEnabled(true);
+			} ewse {
+				this._widget.setEnabwed(twue);
 				this._widget.setItems(items);
-				this._widget.reveal(items[items.length - 1]);
+				this._widget.weveaw(items[items.wength - 1]);
 			}
 		};
-		const listener = model.onDidUpdate(updateBreadcrumbs);
-		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
-		updateBreadcrumbs();
-		this._breadcrumbsDisposables.clear();
-		this._breadcrumbsDisposables.add(model);
-		this._breadcrumbsDisposables.add(listener);
-		this._breadcrumbsDisposables.add(configListener);
-		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
+		const wistena = modew.onDidUpdate(updateBweadcwumbs);
+		const configWistena = this._cfShowIcons.onDidChange(updateBweadcwumbs);
+		updateBweadcwumbs();
+		this._bweadcwumbsDisposabwes.cweaw();
+		this._bweadcwumbsDisposabwes.add(modew);
+		this._bweadcwumbsDisposabwes.add(wistena);
+		this._bweadcwumbsDisposabwes.add(configWistena);
+		this._bweadcwumbsDisposabwes.add(toDisposabwe(() => this._widget.setItems([])));
 
-		const updateScrollbarSizing = () => {
-			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-			this._widget.setHorizontalScrollbarSize(BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+		const updateScwowwbawSizing = () => {
+			const sizing = this._cfTitweScwowwbawSizing.getVawue() ?? 'defauwt';
+			this._widget.setHowizontawScwowwbawSize(BweadcwumbsContwow.SCWOWWBAW_SIZES[sizing]);
 		};
-		updateScrollbarSizing();
-		const updateScrollbarSizeListener = this._cfTitleScrollbarSizing.onDidChange(updateScrollbarSizing);
-		this._breadcrumbsDisposables.add(updateScrollbarSizeListener);
+		updateScwowwbawSizing();
+		const updateScwowwbawSizeWistena = this._cfTitweScwowwbawSizing.onDidChange(updateScwowwbawSizing);
+		this._bweadcwumbsDisposabwes.add(updateScwowwbawSizeWistena);
 
-		// close picker on hide/update
-		this._breadcrumbsDisposables.add({
+		// cwose picka on hide/update
+		this._bweadcwumbsDisposabwes.add({
 			dispose: () => {
-				if (this._breadcrumbsPickerShowing) {
-					this._contextViewService.hideContextView({ source: this });
+				if (this._bweadcwumbsPickewShowing) {
+					this._contextViewSewvice.hideContextView({ souwce: this });
 				}
 			}
 		});
 
-		return wasHidden !== this.isHidden();
+		wetuwn wasHidden !== this.isHidden();
 	}
 
-	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {
-		if (event.item && this._breadcrumbsPickerShowing) {
-			this._breadcrumbsPickerIgnoreOnceItem = undefined;
-			this._widget.setSelection(event.item);
+	pwivate _onFocusEvent(event: IBweadcwumbsItemEvent): void {
+		if (event.item && this._bweadcwumbsPickewShowing) {
+			this._bweadcwumbsPickewIgnoweOnceItem = undefined;
+			this._widget.setSewection(event.item);
 		}
 	}
 
-	private _onSelectEvent(event: IBreadcrumbsItemEvent): void {
+	pwivate _onSewectEvent(event: IBweadcwumbsItemEvent): void {
 		if (!event.item) {
-			return;
+			wetuwn;
 		}
 
-		if (event.item === this._breadcrumbsPickerIgnoreOnceItem) {
-			this._breadcrumbsPickerIgnoreOnceItem = undefined;
+		if (event.item === this._bweadcwumbsPickewIgnoweOnceItem) {
+			this._bweadcwumbsPickewIgnoweOnceItem = undefined;
 			this._widget.setFocused(undefined);
-			this._widget.setSelection(undefined);
-			return;
+			this._widget.setSewection(undefined);
+			wetuwn;
 		}
 
-		const { element } = event.item as FileItem | OutlineItem;
-		this._editorGroup.focus();
+		const { ewement } = event.item as FiweItem | OutwineItem;
+		this._editowGwoup.focus();
 
-		type BreadcrumbSelect = { type: string };
-		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
-		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
+		type BweadcwumbSewect = { type: stwing };
+		type BweadcwumbSewectCwassification = { type: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' }; };
+		this._tewemetwySewvice.pubwicWog2<BweadcwumbSewect, BweadcwumbSewectCwassification>('bweadcwumbs/sewect', { type: event.item instanceof OutwineItem ? 'symbow' : 'fiwe' });
 
-		const group = this._getEditorGroup(event.payload);
-		if (group !== undefined) {
-			// reveal the item
+		const gwoup = this._getEditowGwoup(event.paywoad);
+		if (gwoup !== undefined) {
+			// weveaw the item
 			this._widget.setFocused(undefined);
-			this._widget.setSelection(undefined);
-			this._revealInEditor(event, element, group);
-			return;
+			this._widget.setSewection(undefined);
+			this._weveawInEditow(event, ewement, gwoup);
+			wetuwn;
 		}
 
-		if (this._cfUseQuickPick.getValue()) {
+		if (this._cfUseQuickPick.getVawue()) {
 			// using quick pick
 			this._widget.setFocused(undefined);
-			this._widget.setSelection(undefined);
-			this._quickInputService.quickAccess.show(element instanceof OutlineElement2 ? '@' : '');
-			return;
+			this._widget.setSewection(undefined);
+			this._quickInputSewvice.quickAccess.show(ewement instanceof OutwineEwement2 ? '@' : '');
+			wetuwn;
 		}
 
-		// show picker
-		let picker: BreadcrumbsPicker;
-		let pickerAnchor: { x: number; y: number };
+		// show picka
+		wet picka: BweadcwumbsPicka;
+		wet pickewAnchow: { x: numba; y: numba };
 
-		interface IHideData { didPick?: boolean, source?: BreadcrumbsControl }
+		intewface IHideData { didPick?: boowean, souwce?: BweadcwumbsContwow }
 
-		this._contextViewService.showContextView({
-			render: (parent: HTMLElement) => {
-				if (event.item instanceof FileItem) {
-					picker = this._instantiationService.createInstance(BreadcrumbsFilePicker, parent, event.item.model.resource);
-				} else if (event.item instanceof OutlineItem) {
-					picker = this._instantiationService.createInstance(BreadcrumbsOutlinePicker, parent, event.item.model.resource);
+		this._contextViewSewvice.showContextView({
+			wenda: (pawent: HTMWEwement) => {
+				if (event.item instanceof FiweItem) {
+					picka = this._instantiationSewvice.cweateInstance(BweadcwumbsFiwePicka, pawent, event.item.modew.wesouwce);
+				} ewse if (event.item instanceof OutwineItem) {
+					picka = this._instantiationSewvice.cweateInstance(BweadcwumbsOutwinePicka, pawent, event.item.modew.wesouwce);
 				}
 
-				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
+				wet sewectWistena = picka.onWiwwPickEwement(() => this._contextViewSewvice.hideContextView({ souwce: this, didPick: twue }));
+				wet zoomWistena = onDidChangeZoomWevew(() => this._contextViewSewvice.hideContextView({ souwce: this }));
 
-				let focusTracker = dom.trackFocus(parent);
-				let blurListener = focusTracker.onDidBlur(() => {
-					this._breadcrumbsPickerIgnoreOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
-					this._contextViewService.hideContextView({ source: this });
+				wet focusTwacka = dom.twackFocus(pawent);
+				wet bwuwWistena = focusTwacka.onDidBwuw(() => {
+					this._bweadcwumbsPickewIgnoweOnceItem = this._widget.isDOMFocused() ? event.item : undefined;
+					this._contextViewSewvice.hideContextView({ souwce: this });
 				});
 
-				this._breadcrumbsPickerShowing = true;
-				this._updateCkBreadcrumbsActive();
+				this._bweadcwumbsPickewShowing = twue;
+				this._updateCkBweadcwumbsActive();
 
-				return combinedDisposable(
-					picker,
-					selectListener,
-					zoomListener,
-					focusTracker,
-					blurListener
+				wetuwn combinedDisposabwe(
+					picka,
+					sewectWistena,
+					zoomWistena,
+					focusTwacka,
+					bwuwWistena
 				);
 			},
-			getAnchor: () => {
-				if (!pickerAnchor) {
-					let maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
-					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
+			getAnchow: () => {
+				if (!pickewAnchow) {
+					wet maxInnewWidth = window.innewWidth - 8 /*a wittwe wess the fuww widget*/;
+					wet maxHeight = Math.min(window.innewHeight * 0.7, 300);
 
-					let pickerWidth = Math.min(maxInnerWidth, Math.max(240, maxInnerWidth / 4.17));
-					let pickerArrowSize = 8;
-					let pickerArrowOffset: number;
+					wet pickewWidth = Math.min(maxInnewWidth, Math.max(240, maxInnewWidth / 4.17));
+					wet pickewAwwowSize = 8;
+					wet pickewAwwowOffset: numba;
 
-					let data = dom.getDomNodePagePosition(event.node.firstChild as HTMLElement);
-					let y = data.top + data.height + pickerArrowSize;
-					if (y + maxHeight >= window.innerHeight) {
-						maxHeight = window.innerHeight - y - 30 /* room for shadow and status bar*/;
+					wet data = dom.getDomNodePagePosition(event.node.fiwstChiwd as HTMWEwement);
+					wet y = data.top + data.height + pickewAwwowSize;
+					if (y + maxHeight >= window.innewHeight) {
+						maxHeight = window.innewHeight - y - 30 /* woom fow shadow and status baw*/;
 					}
-					let x = data.left;
-					if (x + pickerWidth >= maxInnerWidth) {
-						x = maxInnerWidth - pickerWidth;
+					wet x = data.weft;
+					if (x + pickewWidth >= maxInnewWidth) {
+						x = maxInnewWidth - pickewWidth;
 					}
-					if (event.payload instanceof StandardMouseEvent) {
-						let maxPickerArrowOffset = pickerWidth - 2 * pickerArrowSize;
-						pickerArrowOffset = event.payload.posx - x;
-						if (pickerArrowOffset > maxPickerArrowOffset) {
-							x = Math.min(maxInnerWidth - pickerWidth, x + pickerArrowOffset - maxPickerArrowOffset);
-							pickerArrowOffset = maxPickerArrowOffset;
+					if (event.paywoad instanceof StandawdMouseEvent) {
+						wet maxPickewAwwowOffset = pickewWidth - 2 * pickewAwwowSize;
+						pickewAwwowOffset = event.paywoad.posx - x;
+						if (pickewAwwowOffset > maxPickewAwwowOffset) {
+							x = Math.min(maxInnewWidth - pickewWidth, x + pickewAwwowOffset - maxPickewAwwowOffset);
+							pickewAwwowOffset = maxPickewAwwowOffset;
 						}
-					} else {
-						pickerArrowOffset = (data.left + (data.width * 0.3)) - x;
+					} ewse {
+						pickewAwwowOffset = (data.weft + (data.width * 0.3)) - x;
 					}
-					picker.show(element, maxHeight, pickerWidth, pickerArrowSize, Math.max(0, pickerArrowOffset));
-					pickerAnchor = { x, y };
+					picka.show(ewement, maxHeight, pickewWidth, pickewAwwowSize, Math.max(0, pickewAwwowOffset));
+					pickewAnchow = { x, y };
 				}
-				return pickerAnchor;
+				wetuwn pickewAnchow;
 			},
 			onHide: (data?: IHideData) => {
 				if (!data?.didPick) {
-					picker.restoreViewState();
+					picka.westoweViewState();
 				}
-				this._breadcrumbsPickerShowing = false;
-				this._updateCkBreadcrumbsActive();
-				if (data?.source === this) {
+				this._bweadcwumbsPickewShowing = fawse;
+				this._updateCkBweadcwumbsActive();
+				if (data?.souwce === this) {
 					this._widget.setFocused(undefined);
-					this._widget.setSelection(undefined);
+					this._widget.setSewection(undefined);
 				}
-				picker.dispose();
+				picka.dispose();
 			}
 		});
 	}
 
-	private _updateCkBreadcrumbsActive(): void {
-		const value = this._widget.isDOMFocused() || this._breadcrumbsPickerShowing;
-		this._ckBreadcrumbsActive.set(value);
+	pwivate _updateCkBweadcwumbsActive(): void {
+		const vawue = this._widget.isDOMFocused() || this._bweadcwumbsPickewShowing;
+		this._ckBweadcwumbsActive.set(vawue);
 	}
 
-	private async _revealInEditor(event: IBreadcrumbsItemEvent, element: FileElement | OutlineElement2, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined, pinned: boolean = false): Promise<void> {
+	pwivate async _weveawInEditow(event: IBweadcwumbsItemEvent, ewement: FiweEwement | OutwineEwement2, gwoup: SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE | undefined, pinned: boowean = fawse): Pwomise<void> {
 
-		if (element instanceof FileElement) {
-			if (element.kind === FileKind.FILE) {
-				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
-			} else {
-				// show next picker
-				let items = this._widget.getItems();
-				let idx = items.indexOf(event.item);
+		if (ewement instanceof FiweEwement) {
+			if (ewement.kind === FiweKind.FIWE) {
+				await this._editowSewvice.openEditow({ wesouwce: ewement.uwi, options: { pinned } }, gwoup);
+			} ewse {
+				// show next picka
+				wet items = this._widget.getItems();
+				wet idx = items.indexOf(event.item);
 				this._widget.setFocused(items[idx + 1]);
-				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
+				this._widget.setSewection(items[idx + 1], BweadcwumbsContwow.Paywoad_Pick);
 			}
-		} else {
-			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
+		} ewse {
+			ewement.outwine.weveaw(ewement, { pinned }, gwoup === SIDE_GWOUP);
 		}
 	}
 
-	private _getEditorGroup(data: object): SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | undefined {
-		if (data === BreadcrumbsControl.Payload_RevealAside) {
-			return SIDE_GROUP;
-		} else if (data === BreadcrumbsControl.Payload_Reveal) {
-			return ACTIVE_GROUP;
-		} else {
-			return undefined;
+	pwivate _getEditowGwoup(data: object): SIDE_GWOUP_TYPE | ACTIVE_GWOUP_TYPE | undefined {
+		if (data === BweadcwumbsContwow.Paywoad_WeveawAside) {
+			wetuwn SIDE_GWOUP;
+		} ewse if (data === BweadcwumbsContwow.Paywoad_Weveaw) {
+			wetuwn ACTIVE_GWOUP;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-//#region commands
+//#wegion commands
 
-// toggle command
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+// toggwe command
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: CATEGORIES.View
+		id: 'bweadcwumbs.toggwe',
+		titwe: { vawue: wocawize('cmd.toggwe', "Toggwe Bweadcwumbs"), owiginaw: 'Toggwe Bweadcwumbs' },
+		categowy: CATEGOWIES.View
 	}
 });
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '5_editor',
-	order: 3,
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '5_editow',
+	owda: 3,
 	command: {
-		id: 'breadcrumbs.toggle',
-		title: localize('miShowBreadcrumbs', "Show &&Breadcrumbs"),
-		toggled: ContextKeyExpr.equals('config.breadcrumbs.enabled', true)
+		id: 'bweadcwumbs.toggwe',
+		titwe: wocawize('miShowBweadcwumbs', "Show &&Bweadcwumbs"),
+		toggwed: ContextKeyExpw.equaws('config.bweadcwumbs.enabwed', twue)
 	}
 });
-CommandsRegistry.registerCommand('breadcrumbs.toggle', accessor => {
-	let config = accessor.get(IConfigurationService);
-	let value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-	BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+CommandsWegistwy.wegistewCommand('bweadcwumbs.toggwe', accessow => {
+	wet config = accessow.get(IConfiguwationSewvice);
+	wet vawue = BweadcwumbsConfig.IsEnabwed.bindTo(config).getVawue();
+	BweadcwumbsConfig.IsEnabwed.bindTo(config).updateVawue(!vawue);
 });
 
-// focus/focus-and-select
-function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): void {
-	// find widget and focus/select
-	const groups = accessor.get(IEditorGroupsService);
-	const breadcrumbs = accessor.get(IBreadcrumbsService);
-	const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+// focus/focus-and-sewect
+function focusAndSewectHandwa(accessow: SewvicesAccessow, sewect: boowean): void {
+	// find widget and focus/sewect
+	const gwoups = accessow.get(IEditowGwoupsSewvice);
+	const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+	const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 	if (widget) {
-		const item = tail(widget.getItems());
+		const item = taiw(widget.getItems());
 		widget.setFocused(item);
-		if (select) {
-			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);
+		if (sewect) {
+			widget.setSewection(item, BweadcwumbsContwow.Paywoad_Pick);
 		}
 	}
 }
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: 'breadcrumbs.focusAndSelect',
-		title: { value: localize('cmd.focus', "Focus Breadcrumbs"), original: 'Focus Breadcrumbs' },
-		precondition: BreadcrumbsControl.CK_BreadcrumbsVisible
+		id: 'bweadcwumbs.focusAndSewect',
+		titwe: { vawue: wocawize('cmd.focus', "Focus Bweadcwumbs"), owiginaw: 'Focus Bweadcwumbs' },
+		pwecondition: BweadcwumbsContwow.CK_BweadcwumbsVisibwe
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusAndSelect',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, true)
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focusAndSewect',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_DOT,
+	when: BweadcwumbsContwow.CK_BweadcwumbsPossibwe,
+	handwa: accessow => focusAndSewectHandwa(accessow, twue)
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focus',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
-	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
-	handler: accessor => focusAndSelectHandler(accessor, false)
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focus',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_SEMICOWON,
+	when: BweadcwumbsContwow.CK_BweadcwumbsPossibwe,
+	handwa: accessow => focusAndSewectHandwa(accessow, fawse)
 });
 
-// this commands is only enabled when breadcrumbs are
-// disabled which it then enables and focuses
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.toggleToOn',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
-	when: ContextKeyExpr.not('config.breadcrumbs.enabled'),
-	handler: async accessor => {
-		const instant = accessor.get(IInstantiationService);
-		const config = accessor.get(IConfigurationService);
-		// check if enabled and iff not enable
-		const isEnabled = BreadcrumbsConfig.IsEnabled.bindTo(config);
-		if (!isEnabled.getValue()) {
-			await isEnabled.updateValue(true);
-			await timeout(50); // hacky - the widget might not be ready yet...
+// this commands is onwy enabwed when bweadcwumbs awe
+// disabwed which it then enabwes and focuses
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.toggweToOn',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_DOT,
+	when: ContextKeyExpw.not('config.bweadcwumbs.enabwed'),
+	handwa: async accessow => {
+		const instant = accessow.get(IInstantiationSewvice);
+		const config = accessow.get(IConfiguwationSewvice);
+		// check if enabwed and iff not enabwe
+		const isEnabwed = BweadcwumbsConfig.IsEnabwed.bindTo(config);
+		if (!isEnabwed.getVawue()) {
+			await isEnabwed.updateVawue(twue);
+			await timeout(50); // hacky - the widget might not be weady yet...
 		}
-		return instant.invokeFunction(focusAndSelectHandler, true);
+		wetuwn instant.invokeFunction(focusAndSewectHandwa, twue);
 	}
 });
 
 // navigation
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusNext',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.RightArrow,
-	secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow],
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focusNext',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.WightAwwow,
+	secondawy: [KeyMod.CtwwCmd | KeyCode.WightAwwow],
 	mac: {
-		primary: KeyCode.RightArrow,
-		secondary: [KeyMod.Alt | KeyCode.RightArrow],
+		pwimawy: KeyCode.WightAwwow,
+		secondawy: [KeyMod.Awt | KeyCode.WightAwwow],
 	},
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 		widget.focusNext();
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusPrevious',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.LeftArrow,
-	secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow],
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focusPwevious',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.WeftAwwow,
+	secondawy: [KeyMod.CtwwCmd | KeyCode.WeftAwwow],
 	mac: {
-		primary: KeyCode.LeftArrow,
-		secondary: [KeyMod.Alt | KeyCode.LeftArrow],
+		pwimawy: KeyCode.WeftAwwow,
+		secondawy: [KeyMod.Awt | KeyCode.WeftAwwow],
 	},
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
-		widget.focusPrev();
+		widget.focusPwev();
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusNextWithPicker',
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focusNextWithPicka',
+	weight: KeybindingWeight.WowkbenchContwib + 1,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.WightAwwow,
 	mac: {
-		primary: KeyMod.Alt | KeyCode.RightArrow,
+		pwimawy: KeyMod.Awt | KeyCode.WightAwwow,
 	},
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive, WowkbenchWistFocusContextKey),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 		widget.focusNext();
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.focusPreviousWithPicker',
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.focusPweviousWithPicka',
+	weight: KeybindingWeight.WowkbenchContwib + 1,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.WeftAwwow,
 	mac: {
-		primary: KeyMod.Alt | KeyCode.LeftArrow,
+		pwimawy: KeyMod.Awt | KeyCode.WeftAwwow,
 	},
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive, WowkbenchWistFocusContextKey),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
-		widget.focusPrev();
+		widget.focusPwev();
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.selectFocused',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.Enter,
-	secondary: [KeyCode.DownArrow],
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.sewectFocused',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.Enta,
+	secondawy: [KeyCode.DownAwwow],
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
-		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Pick);
+		widget.setSewection(widget.getFocused(), BweadcwumbsContwow.Paywoad_Pick);
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.revealFocused',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.Space,
-	secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.weveawFocused',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.Space,
+	secondawy: [KeyMod.CtwwCmd | KeyCode.Enta],
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
-		widget.setSelection(widget.getFocused(), BreadcrumbsControl.Payload_Reveal);
+		widget.setSewection(widget.getFocused(), BweadcwumbsContwow.Paywoad_Weveaw);
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.selectEditor',
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	primary: KeyCode.Escape,
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
-	handler(accessor) {
-		const groups = accessor.get(IEditorGroupsService);
-		const breadcrumbs = accessor.get(IBreadcrumbsService);
-		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.sewectEditow',
+	weight: KeybindingWeight.WowkbenchContwib + 1,
+	pwimawy: KeyCode.Escape,
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive),
+	handwa(accessow) {
+		const gwoups = accessow.get(IEditowGwoupsSewvice);
+		const bweadcwumbs = accessow.get(IBweadcwumbsSewvice);
+		const widget = bweadcwumbs.getWidget(gwoups.activeGwoup.id);
 		if (!widget) {
-			return;
+			wetuwn;
 		}
 		widget.setFocused(undefined);
-		widget.setSelection(undefined);
-		if (groups.activeGroup.activeEditorPane) {
-			groups.activeGroup.activeEditorPane.focus();
+		widget.setSewection(undefined);
+		if (gwoups.activeGwoup.activeEditowPane) {
+			gwoups.activeGwoup.activeEditowPane.focus();
 		}
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'breadcrumbs.revealFocusedFromTreeAside',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive, WorkbenchListFocusContextKey),
-	handler(accessor) {
-		const editors = accessor.get(IEditorService);
-		const lists = accessor.get(IListService);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'bweadcwumbs.weveawFocusedFwomTweeAside',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+	when: ContextKeyExpw.and(BweadcwumbsContwow.CK_BweadcwumbsVisibwe, BweadcwumbsContwow.CK_BweadcwumbsActive, WowkbenchWistFocusContextKey),
+	handwa(accessow) {
+		const editows = accessow.get(IEditowSewvice);
+		const wists = accessow.get(IWistSewvice);
 
-		const tree = lists.lastFocusedList;
-		if (!(tree instanceof WorkbenchDataTree)) {
-			return;
+		const twee = wists.wastFocusedWist;
+		if (!(twee instanceof WowkbenchDataTwee)) {
+			wetuwn;
 		}
 
-		const element = <IFileStat | unknown>tree.getFocus()[0];
+		const ewement = <IFiweStat | unknown>twee.getFocus()[0];
 
-		if (URI.isUri((<IFileStat>element)?.resource)) {
-			// IFileStat: open file in editor
-			return editors.openEditor({
-				resource: (<IFileStat>element).resource,
-				options: { pinned: true }
-			}, SIDE_GROUP);
+		if (UWI.isUwi((<IFiweStat>ewement)?.wesouwce)) {
+			// IFiweStat: open fiwe in editow
+			wetuwn editows.openEditow({
+				wesouwce: (<IFiweStat>ewement).wesouwce,
+				options: { pinned: twue }
+			}, SIDE_GWOUP);
 		}
 
-		// IOutline: check if this the outline and iff so reveal element
-		const input = tree.getInput();
-		if (input && typeof (<IOutline<any>>input).outlineKind === 'string') {
-			return (<IOutline<any>>input).reveal(element, {
-				pinned: true,
-				preserveFocus: false
-			}, true);
+		// IOutwine: check if this the outwine and iff so weveaw ewement
+		const input = twee.getInput();
+		if (input && typeof (<IOutwine<any>>input).outwineKind === 'stwing') {
+			wetuwn (<IOutwine<any>>input).weveaw(ewement, {
+				pinned: twue,
+				pwesewveFocus: fawse
+			}, twue);
 		}
 	}
 });
-//#endregion
+//#endwegion

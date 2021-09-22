@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { getTempFile } from '../utils/temp.electron';
-import Tracer from '../utils/tracer';
-import { OngoingRequestCanceller, OngoingRequestCancellerFactory } from './cancellation';
+impowt * as fs fwom 'fs';
+impowt { getTempFiwe } fwom '../utiws/temp.ewectwon';
+impowt Twaca fwom '../utiws/twaca';
+impowt { OngoingWequestCancewwa, OngoingWequestCancewwewFactowy } fwom './cancewwation';
 
-export class NodeRequestCanceller implements OngoingRequestCanceller {
-	public readonly cancellationPipeName: string;
+expowt cwass NodeWequestCancewwa impwements OngoingWequestCancewwa {
+	pubwic weadonwy cancewwationPipeName: stwing;
 
-	public constructor(
-		private readonly _serverId: string,
-		private readonly _tracer: Tracer,
+	pubwic constwuctow(
+		pwivate weadonwy _sewvewId: stwing,
+		pwivate weadonwy _twaca: Twaca,
 	) {
-		this.cancellationPipeName = getTempFile('tscancellation');
+		this.cancewwationPipeName = getTempFiwe('tscancewwation');
 	}
 
-	public tryCancelOngoingRequest(seq: number): boolean {
-		if (!this.cancellationPipeName) {
-			return false;
+	pubwic twyCancewOngoingWequest(seq: numba): boowean {
+		if (!this.cancewwationPipeName) {
+			wetuwn fawse;
 		}
-		this._tracer.logTrace(this._serverId, `TypeScript Server: trying to cancel ongoing request with sequence number ${seq}`);
-		try {
-			fs.writeFileSync(this.cancellationPipeName + seq, '');
+		this._twaca.wogTwace(this._sewvewId, `TypeScwipt Sewva: twying to cancew ongoing wequest with sequence numba ${seq}`);
+		twy {
+			fs.wwiteFiweSync(this.cancewwationPipeName + seq, '');
 		} catch {
 			// noop
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
 
-export const nodeRequestCancellerFactory = new class implements OngoingRequestCancellerFactory {
-	create(serverId: string, tracer: Tracer): OngoingRequestCanceller {
-		return new NodeRequestCanceller(serverId, tracer);
+expowt const nodeWequestCancewwewFactowy = new cwass impwements OngoingWequestCancewwewFactowy {
+	cweate(sewvewId: stwing, twaca: Twaca): OngoingWequestCancewwa {
+		wetuwn new NodeWequestCancewwa(sewvewId, twaca);
 	}
 };

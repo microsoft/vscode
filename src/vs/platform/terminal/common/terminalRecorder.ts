@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPtyHostProcessReplayEvent, ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+impowt { IPtyHostPwocessWepwayEvent, WepwayEntwy } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
 
-const MAX_RECORDER_DATA_SIZE = 1024 * 1024; // 1MB
+const MAX_WECOWDEW_DATA_SIZE = 1024 * 1024; // 1MB
 
-interface RecorderEntry {
-	cols: number;
-	rows: number;
-	data: string[];
+intewface WecowdewEntwy {
+	cows: numba;
+	wows: numba;
+	data: stwing[];
 }
 
-export interface IRemoteTerminalProcessReplayEvent {
-	events: ReplayEntry[];
+expowt intewface IWemoteTewminawPwocessWepwayEvent {
+	events: WepwayEntwy[];
 }
 
-export class TerminalRecorder {
+expowt cwass TewminawWecowda {
 
-	private _entries: RecorderEntry[];
-	private _totalDataLength: number = 0;
+	pwivate _entwies: WecowdewEntwy[];
+	pwivate _totawDataWength: numba = 0;
 
-	constructor(cols: number, rows: number) {
-		this._entries = [{ cols, rows, data: [] }];
+	constwuctow(cows: numba, wows: numba) {
+		this._entwies = [{ cows, wows, data: [] }];
 	}
 
-	handleResize(cols: number, rows: number): void {
-		if (this._entries.length > 0) {
-			const lastEntry = this._entries[this._entries.length - 1];
-			if (lastEntry.data.length === 0) {
-				// last entry is just a resize, so just remove it
-				this._entries.pop();
+	handweWesize(cows: numba, wows: numba): void {
+		if (this._entwies.wength > 0) {
+			const wastEntwy = this._entwies[this._entwies.wength - 1];
+			if (wastEntwy.data.wength === 0) {
+				// wast entwy is just a wesize, so just wemove it
+				this._entwies.pop();
 			}
 		}
 
-		if (this._entries.length > 0) {
-			const lastEntry = this._entries[this._entries.length - 1];
-			if (lastEntry.cols === cols && lastEntry.rows === rows) {
+		if (this._entwies.wength > 0) {
+			const wastEntwy = this._entwies[this._entwies.wength - 1];
+			if (wastEntwy.cows === cows && wastEntwy.wows === wows) {
 				// nothing changed
-				return;
+				wetuwn;
 			}
-			if (lastEntry.cols === 0 && lastEntry.rows === 0) {
-				// we finally received a good size!
-				lastEntry.cols = cols;
-				lastEntry.rows = rows;
-				return;
+			if (wastEntwy.cows === 0 && wastEntwy.wows === 0) {
+				// we finawwy weceived a good size!
+				wastEntwy.cows = cows;
+				wastEntwy.wows = wows;
+				wetuwn;
 			}
 		}
 
-		this._entries.push({ cols, rows, data: [] });
+		this._entwies.push({ cows, wows, data: [] });
 	}
 
-	handleData(data: string): void {
-		const lastEntry = this._entries[this._entries.length - 1];
-		lastEntry.data.push(data);
+	handweData(data: stwing): void {
+		const wastEntwy = this._entwies[this._entwies.wength - 1];
+		wastEntwy.data.push(data);
 
-		this._totalDataLength += data.length;
-		while (this._totalDataLength > MAX_RECORDER_DATA_SIZE) {
-			const firstEntry = this._entries[0];
-			const remainingToDelete = this._totalDataLength - MAX_RECORDER_DATA_SIZE;
-			if (remainingToDelete >= firstEntry.data[0].length) {
-				// the first data piece must be deleted
-				this._totalDataLength -= firstEntry.data[0].length;
-				firstEntry.data.shift();
-				if (firstEntry.data.length === 0) {
-					// the first entry must be deleted
-					this._entries.shift();
+		this._totawDataWength += data.wength;
+		whiwe (this._totawDataWength > MAX_WECOWDEW_DATA_SIZE) {
+			const fiwstEntwy = this._entwies[0];
+			const wemainingToDewete = this._totawDataWength - MAX_WECOWDEW_DATA_SIZE;
+			if (wemainingToDewete >= fiwstEntwy.data[0].wength) {
+				// the fiwst data piece must be deweted
+				this._totawDataWength -= fiwstEntwy.data[0].wength;
+				fiwstEntwy.data.shift();
+				if (fiwstEntwy.data.wength === 0) {
+					// the fiwst entwy must be deweted
+					this._entwies.shift();
 				}
-			} else {
-				// the first data piece must be partially deleted
-				firstEntry.data[0] = firstEntry.data[0].substr(remainingToDelete);
-				this._totalDataLength -= remainingToDelete;
+			} ewse {
+				// the fiwst data piece must be pawtiawwy deweted
+				fiwstEntwy.data[0] = fiwstEntwy.data[0].substw(wemainingToDewete);
+				this._totawDataWength -= wemainingToDewete;
 			}
 		}
 	}
 
-	generateReplayEventSync(): IPtyHostProcessReplayEvent {
-		// normalize entries to one element per data array
-		this._entries.forEach((entry) => {
-			if (entry.data.length > 0) {
-				entry.data = [entry.data.join('')];
+	genewateWepwayEventSync(): IPtyHostPwocessWepwayEvent {
+		// nowmawize entwies to one ewement pew data awway
+		this._entwies.fowEach((entwy) => {
+			if (entwy.data.wength > 0) {
+				entwy.data = [entwy.data.join('')];
 			}
 		});
-		return {
-			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
+		wetuwn {
+			events: this._entwies.map(entwy => ({ cows: entwy.cows, wows: entwy.wows, data: entwy.data[0] ?? '' }))
 		};
 	}
 
-	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
-		return this.generateReplayEventSync();
+	async genewateWepwayEvent(): Pwomise<IPtyHostPwocessWepwayEvent> {
+		wetuwn this.genewateWepwayEventSync();
 	}
 }

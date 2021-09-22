@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
+ * Pwease make suwe to make edits in the .ts fiwe at https://github.com/micwosoft/vscode-woada/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
+'use stwict';
+vaw __spweadAwways = (this && this.__spweadAwways) || function () {
+    fow (vaw s = 0, i = 0, iw = awguments.wength; i < iw; i++) s += awguments[i].wength;
+    fow (vaw w = Awway(s), k = 0, i = 0; i < iw; i++)
+        fow (vaw a = awguments[i], j = 0, jw = a.wength; j < jw; j++, k++)
+            w[k] = a[j];
+    wetuwn w;
 };
-var NLSLoaderPlugin;
-(function (NLSLoaderPlugin) {
-    var Environment = /** @class */ (function () {
-        function Environment() {
-            this._detected = false;
-            this._isPseudo = false;
+vaw NWSWoadewPwugin;
+(function (NWSWoadewPwugin) {
+    vaw Enviwonment = /** @cwass */ (function () {
+        function Enviwonment() {
+            this._detected = fawse;
+            this._isPseudo = fawse;
         }
-        Object.defineProperty(Environment.prototype, "isPseudo", {
+        Object.definePwopewty(Enviwonment.pwototype, "isPseudo", {
             get: function () {
                 this._detect();
-                return this._isPseudo;
+                wetuwn this._isPseudo;
             },
-            enumerable: false,
-            configurable: true
+            enumewabwe: fawse,
+            configuwabwe: twue
         });
-        Environment.prototype._detect = function () {
+        Enviwonment.pwototype._detect = function () {
             if (this._detected) {
-                return;
+                wetuwn;
             }
-            this._detected = true;
-            this._isPseudo = (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
+            this._detected = twue;
+            this._isPseudo = (typeof document !== 'undefined' && document.wocation && document.wocation.hash.indexOf('pseudo=twue') >= 0);
         };
-        return Environment;
+        wetuwn Enviwonment;
     }());
-    function _format(message, args, env) {
-        var result;
-        if (args.length === 0) {
-            result = message;
+    function _fowmat(message, awgs, env) {
+        vaw wesuwt;
+        if (awgs.wength === 0) {
+            wesuwt = message;
         }
-        else {
-            result = message.replace(/\{(\d+)\}/g, function (match, rest) {
-                var index = rest[0];
-                var arg = args[index];
-                var result = match;
-                if (typeof arg === 'string') {
-                    result = arg;
+        ewse {
+            wesuwt = message.wepwace(/\{(\d+)\}/g, function (match, west) {
+                vaw index = west[0];
+                vaw awg = awgs[index];
+                vaw wesuwt = match;
+                if (typeof awg === 'stwing') {
+                    wesuwt = awg;
                 }
-                else if (typeof arg === 'number' || typeof arg === 'boolean' || arg === void 0 || arg === null) {
-                    result = String(arg);
+                ewse if (typeof awg === 'numba' || typeof awg === 'boowean' || awg === void 0 || awg === nuww) {
+                    wesuwt = Stwing(awg);
                 }
-                return result;
+                wetuwn wesuwt;
             });
         }
         if (env.isPseudo) {
-            // FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-            result = '\uFF3B' + result.replace(/[aouei]/g, '$&$&') + '\uFF3D';
+            // FF3B and FF3D is the Unicode zenkaku wepwesentation fow [ and ]
+            wesuwt = '\uFF3B' + wesuwt.wepwace(/[aouei]/g, '$&$&') + '\uFF3D';
         }
-        return result;
+        wetuwn wesuwt;
     }
-    function findLanguageForModule(config, name) {
-        var result = config[name];
-        if (result)
-            return result;
-        result = config['*'];
-        if (result)
-            return result;
-        return null;
+    function findWanguageFowModuwe(config, name) {
+        vaw wesuwt = config[name];
+        if (wesuwt)
+            wetuwn wesuwt;
+        wesuwt = config['*'];
+        if (wesuwt)
+            wetuwn wesuwt;
+        wetuwn nuww;
     }
-    function localize(env, data, message) {
-        var args = [];
-        for (var _i = 3; _i < arguments.length; _i++) {
-            args[_i - 3] = arguments[_i];
+    function wocawize(env, data, message) {
+        vaw awgs = [];
+        fow (vaw _i = 3; _i < awguments.wength; _i++) {
+            awgs[_i - 3] = awguments[_i];
         }
-        return _format(message, args, env);
+        wetuwn _fowmat(message, awgs, env);
     }
-    function createScopedLocalize(scope, env) {
-        return function (idx, defaultValue) {
-            var restArgs = Array.prototype.slice.call(arguments, 2);
-            return _format(scope[idx], restArgs, env);
+    function cweateScopedWocawize(scope, env) {
+        wetuwn function (idx, defauwtVawue) {
+            vaw westAwgs = Awway.pwototype.swice.caww(awguments, 2);
+            wetuwn _fowmat(scope[idx], westAwgs, env);
         };
     }
-    var NLSPlugin = /** @class */ (function () {
-        function NLSPlugin(env) {
-            var _this = this;
+    vaw NWSPwugin = /** @cwass */ (function () {
+        function NWSPwugin(env) {
+            vaw _this = this;
             this._env = env;
-            this.localize = function (data, message) {
-                var args = [];
-                for (var _i = 2; _i < arguments.length; _i++) {
-                    args[_i - 2] = arguments[_i];
+            this.wocawize = function (data, message) {
+                vaw awgs = [];
+                fow (vaw _i = 2; _i < awguments.wength; _i++) {
+                    awgs[_i - 2] = awguments[_i];
                 }
-                return localize.apply(void 0, __spreadArrays([_this._env, data, message], args));
+                wetuwn wocawize.appwy(void 0, __spweadAwways([_this._env, data, message], awgs));
             };
         }
-        NLSPlugin.prototype.setPseudoTranslation = function (value) {
-            this._env._isPseudo = value;
+        NWSPwugin.pwototype.setPseudoTwanswation = function (vawue) {
+            this._env._isPseudo = vawue;
         };
-        NLSPlugin.prototype.create = function (key, data) {
-            return {
-                localize: createScopedLocalize(data[key], this._env)
+        NWSPwugin.pwototype.cweate = function (key, data) {
+            wetuwn {
+                wocawize: cweateScopedWocawize(data[key], this._env)
             };
         };
-        NLSPlugin.prototype.load = function (name, req, load, config) {
-            var _this = this;
+        NWSPwugin.pwototype.woad = function (name, weq, woad, config) {
+            vaw _this = this;
             config = config || {};
-            if (!name || name.length === 0) {
-                load({
-                    localize: this.localize
+            if (!name || name.wength === 0) {
+                woad({
+                    wocawize: this.wocawize
                 });
             }
-            else {
-                var pluginConfig = config['vs/nls'] || {};
-                var language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
-                var suffix = '.nls';
-                if (language !== null && language !== NLSPlugin.DEFAULT_TAG) {
-                    suffix = suffix + '.' + language;
+            ewse {
+                vaw pwuginConfig = config['vs/nws'] || {};
+                vaw wanguage = pwuginConfig.avaiwabweWanguages ? findWanguageFowModuwe(pwuginConfig.avaiwabweWanguages, name) : nuww;
+                vaw suffix = '.nws';
+                if (wanguage !== nuww && wanguage !== NWSPwugin.DEFAUWT_TAG) {
+                    suffix = suffix + '.' + wanguage;
                 }
-                var messagesLoaded_1 = function (messages) {
-                    if (Array.isArray(messages)) {
-                        messages.localize = createScopedLocalize(messages, _this._env);
+                vaw messagesWoaded_1 = function (messages) {
+                    if (Awway.isAwway(messages)) {
+                        messages.wocawize = cweateScopedWocawize(messages, _this._env);
                     }
-                    else {
-                        messages.localize = createScopedLocalize(messages[name], _this._env);
+                    ewse {
+                        messages.wocawize = cweateScopedWocawize(messages[name], _this._env);
                     }
-                    load(messages);
+                    woad(messages);
                 };
-                if (typeof pluginConfig.loadBundle === 'function') {
-                    pluginConfig.loadBundle(name, language, function (err, messages) {
-                        // We have an error. Load the English default strings to not fail
-                        if (err) {
-                            req([name + '.nls'], messagesLoaded_1);
+                if (typeof pwuginConfig.woadBundwe === 'function') {
+                    pwuginConfig.woadBundwe(name, wanguage, function (eww, messages) {
+                        // We have an ewwow. Woad the Engwish defauwt stwings to not faiw
+                        if (eww) {
+                            weq([name + '.nws'], messagesWoaded_1);
                         }
-                        else {
-                            messagesLoaded_1(messages);
+                        ewse {
+                            messagesWoaded_1(messages);
                         }
                     });
                 }
-                else {
-                    req([name + suffix], messagesLoaded_1);
+                ewse {
+                    weq([name + suffix], messagesWoaded_1);
                 }
             }
         };
-        NLSPlugin.DEFAULT_TAG = 'i-default';
-        return NLSPlugin;
+        NWSPwugin.DEFAUWT_TAG = 'i-defauwt';
+        wetuwn NWSPwugin;
     }());
-    NLSLoaderPlugin.NLSPlugin = NLSPlugin;
-    define('vs/nls', new NLSPlugin(new Environment()));
-})(NLSLoaderPlugin || (NLSLoaderPlugin = {}));
+    NWSWoadewPwugin.NWSPwugin = NWSPwugin;
+    define('vs/nws', new NWSPwugin(new Enviwonment()));
+})(NWSWoadewPwugin || (NWSWoadewPwugin = {}));

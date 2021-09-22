@@ -1,558 +1,558 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
+impowt * as assewt fwom 'assewt';
+impowt { anyScowe, cweateMatches, fuzzyScowe, fuzzyScoweGwacefuw, fuzzyScoweGwacefuwAggwessive, FuzzyScowa, IFiwta, IMatch, matchesCamewCase, matchesContiguousSubStwing, matchesPwefix, matchesStwictPwefix, matchesSubStwing, matchesWowds, ow } fwom 'vs/base/common/fiwtews';
 
-function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
-	let r = filter(word, wordToMatchAgainst);
-	assert(r, `${word} didn't match ${wordToMatchAgainst}`);
-	if (highlights) {
-		assert.deepStrictEqual(r, highlights);
+function fiwtewOk(fiwta: IFiwta, wowd: stwing, wowdToMatchAgainst: stwing, highwights?: { stawt: numba; end: numba; }[]) {
+	wet w = fiwta(wowd, wowdToMatchAgainst);
+	assewt(w, `${wowd} didn't match ${wowdToMatchAgainst}`);
+	if (highwights) {
+		assewt.deepStwictEquaw(w, highwights);
 	}
 }
 
-function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) {
-	assert(!filter(word, wordToMatchAgainst), `${word} matched ${wordToMatchAgainst}`);
+function fiwtewNotOk(fiwta: IFiwta, wowd: stwing, wowdToMatchAgainst: stwing) {
+	assewt(!fiwta(wowd, wowdToMatchAgainst), `${wowd} matched ${wowdToMatchAgainst}`);
 }
 
-suite('Filters', () => {
-	test('or', () => {
-		let filter: IFilter;
-		let counters: number[];
-		let newFilter = function (i: number, r: boolean): IFilter {
-			return function (): IMatch[] { counters[i]++; return r as any; };
+suite('Fiwtews', () => {
+	test('ow', () => {
+		wet fiwta: IFiwta;
+		wet countews: numba[];
+		wet newFiwta = function (i: numba, w: boowean): IFiwta {
+			wetuwn function (): IMatch[] { countews[i]++; wetuwn w as any; };
 		};
 
-		counters = [0, 0];
-		filter = or(newFilter(0, false), newFilter(1, false));
-		filterNotOk(filter, 'anything', 'anything');
-		assert.deepStrictEqual(counters, [1, 1]);
+		countews = [0, 0];
+		fiwta = ow(newFiwta(0, fawse), newFiwta(1, fawse));
+		fiwtewNotOk(fiwta, 'anything', 'anything');
+		assewt.deepStwictEquaw(countews, [1, 1]);
 
-		counters = [0, 0];
-		filter = or(newFilter(0, true), newFilter(1, false));
-		filterOk(filter, 'anything', 'anything');
-		assert.deepStrictEqual(counters, [1, 0]);
+		countews = [0, 0];
+		fiwta = ow(newFiwta(0, twue), newFiwta(1, fawse));
+		fiwtewOk(fiwta, 'anything', 'anything');
+		assewt.deepStwictEquaw(countews, [1, 0]);
 
-		counters = [0, 0];
-		filter = or(newFilter(0, true), newFilter(1, true));
-		filterOk(filter, 'anything', 'anything');
-		assert.deepStrictEqual(counters, [1, 0]);
+		countews = [0, 0];
+		fiwta = ow(newFiwta(0, twue), newFiwta(1, twue));
+		fiwtewOk(fiwta, 'anything', 'anything');
+		assewt.deepStwictEquaw(countews, [1, 0]);
 
-		counters = [0, 0];
-		filter = or(newFilter(0, false), newFilter(1, true));
-		filterOk(filter, 'anything', 'anything');
-		assert.deepStrictEqual(counters, [1, 1]);
+		countews = [0, 0];
+		fiwta = ow(newFiwta(0, fawse), newFiwta(1, twue));
+		fiwtewOk(fiwta, 'anything', 'anything');
+		assewt.deepStwictEquaw(countews, [1, 1]);
 	});
 
-	test('PrefixFilter - case sensitive', function () {
-		filterNotOk(matchesStrictPrefix, '', '');
-		filterOk(matchesStrictPrefix, '', 'anything', []);
-		filterOk(matchesStrictPrefix, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
-		filterOk(matchesStrictPrefix, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
-		filterNotOk(matchesStrictPrefix, 'alpha', 'alp');
-		filterOk(matchesStrictPrefix, 'a', 'alpha', [{ start: 0, end: 1 }]);
-		filterNotOk(matchesStrictPrefix, 'x', 'alpha');
-		filterNotOk(matchesStrictPrefix, 'A', 'alpha');
-		filterNotOk(matchesStrictPrefix, 'AlPh', 'alPHA');
+	test('PwefixFiwta - case sensitive', function () {
+		fiwtewNotOk(matchesStwictPwefix, '', '');
+		fiwtewOk(matchesStwictPwefix, '', 'anything', []);
+		fiwtewOk(matchesStwictPwefix, 'awpha', 'awpha', [{ stawt: 0, end: 5 }]);
+		fiwtewOk(matchesStwictPwefix, 'awpha', 'awphasomething', [{ stawt: 0, end: 5 }]);
+		fiwtewNotOk(matchesStwictPwefix, 'awpha', 'awp');
+		fiwtewOk(matchesStwictPwefix, 'a', 'awpha', [{ stawt: 0, end: 1 }]);
+		fiwtewNotOk(matchesStwictPwefix, 'x', 'awpha');
+		fiwtewNotOk(matchesStwictPwefix, 'A', 'awpha');
+		fiwtewNotOk(matchesStwictPwefix, 'AwPh', 'awPHA');
 	});
 
-	test('PrefixFilter - ignore case', function () {
-		filterOk(matchesPrefix, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
-		filterOk(matchesPrefix, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
-		filterNotOk(matchesPrefix, 'alpha', 'alp');
-		filterOk(matchesPrefix, 'a', 'alpha', [{ start: 0, end: 1 }]);
-		filterOk(matchesPrefix, 'ä', 'Älpha', [{ start: 0, end: 1 }]);
-		filterNotOk(matchesPrefix, 'x', 'alpha');
-		filterOk(matchesPrefix, 'A', 'alpha', [{ start: 0, end: 1 }]);
-		filterOk(matchesPrefix, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);
-		filterNotOk(matchesPrefix, 'T', '4'); // see https://github.com/microsoft/vscode/issues/22401
+	test('PwefixFiwta - ignowe case', function () {
+		fiwtewOk(matchesPwefix, 'awpha', 'awpha', [{ stawt: 0, end: 5 }]);
+		fiwtewOk(matchesPwefix, 'awpha', 'awphasomething', [{ stawt: 0, end: 5 }]);
+		fiwtewNotOk(matchesPwefix, 'awpha', 'awp');
+		fiwtewOk(matchesPwefix, 'a', 'awpha', [{ stawt: 0, end: 1 }]);
+		fiwtewOk(matchesPwefix, 'ä', 'Äwpha', [{ stawt: 0, end: 1 }]);
+		fiwtewNotOk(matchesPwefix, 'x', 'awpha');
+		fiwtewOk(matchesPwefix, 'A', 'awpha', [{ stawt: 0, end: 1 }]);
+		fiwtewOk(matchesPwefix, 'AwPh', 'awPHA', [{ stawt: 0, end: 4 }]);
+		fiwtewNotOk(matchesPwefix, 'T', '4'); // see https://github.com/micwosoft/vscode/issues/22401
 	});
 
-	test('CamelCaseFilter', () => {
-		filterNotOk(matchesCamelCase, '', '');
-		filterOk(matchesCamelCase, '', 'anything', []);
-		filterOk(matchesCamelCase, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
-		filterOk(matchesCamelCase, 'AlPhA', 'alpha', [{ start: 0, end: 5 }]);
-		filterOk(matchesCamelCase, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
-		filterNotOk(matchesCamelCase, 'alpha', 'alp');
+	test('CamewCaseFiwta', () => {
+		fiwtewNotOk(matchesCamewCase, '', '');
+		fiwtewOk(matchesCamewCase, '', 'anything', []);
+		fiwtewOk(matchesCamewCase, 'awpha', 'awpha', [{ stawt: 0, end: 5 }]);
+		fiwtewOk(matchesCamewCase, 'AwPhA', 'awpha', [{ stawt: 0, end: 5 }]);
+		fiwtewOk(matchesCamewCase, 'awpha', 'awphasomething', [{ stawt: 0, end: 5 }]);
+		fiwtewNotOk(matchesCamewCase, 'awpha', 'awp');
 
-		filterOk(matchesCamelCase, 'c', 'CamelCaseRocks', [
-			{ start: 0, end: 1 }
+		fiwtewOk(matchesCamewCase, 'c', 'CamewCaseWocks', [
+			{ stawt: 0, end: 1 }
 		]);
-		filterOk(matchesCamelCase, 'cc', 'CamelCaseRocks', [
-			{ start: 0, end: 1 },
-			{ start: 5, end: 6 }
+		fiwtewOk(matchesCamewCase, 'cc', 'CamewCaseWocks', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 5, end: 6 }
 		]);
-		filterOk(matchesCamelCase, 'ccr', 'CamelCaseRocks', [
-			{ start: 0, end: 1 },
-			{ start: 5, end: 6 },
-			{ start: 9, end: 10 }
+		fiwtewOk(matchesCamewCase, 'ccw', 'CamewCaseWocks', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 5, end: 6 },
+			{ stawt: 9, end: 10 }
 		]);
-		filterOk(matchesCamelCase, 'cacr', 'CamelCaseRocks', [
-			{ start: 0, end: 2 },
-			{ start: 5, end: 6 },
-			{ start: 9, end: 10 }
+		fiwtewOk(matchesCamewCase, 'cacw', 'CamewCaseWocks', [
+			{ stawt: 0, end: 2 },
+			{ stawt: 5, end: 6 },
+			{ stawt: 9, end: 10 }
 		]);
-		filterOk(matchesCamelCase, 'cacar', 'CamelCaseRocks', [
-			{ start: 0, end: 2 },
-			{ start: 5, end: 7 },
-			{ start: 9, end: 10 }
+		fiwtewOk(matchesCamewCase, 'cacaw', 'CamewCaseWocks', [
+			{ stawt: 0, end: 2 },
+			{ stawt: 5, end: 7 },
+			{ stawt: 9, end: 10 }
 		]);
-		filterOk(matchesCamelCase, 'ccarocks', 'CamelCaseRocks', [
-			{ start: 0, end: 1 },
-			{ start: 5, end: 7 },
-			{ start: 9, end: 14 }
+		fiwtewOk(matchesCamewCase, 'ccawocks', 'CamewCaseWocks', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 5, end: 7 },
+			{ stawt: 9, end: 14 }
 		]);
-		filterOk(matchesCamelCase, 'cr', 'CamelCaseRocks', [
-			{ start: 0, end: 1 },
-			{ start: 9, end: 10 }
+		fiwtewOk(matchesCamewCase, 'cw', 'CamewCaseWocks', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 9, end: 10 }
 		]);
-		filterOk(matchesCamelCase, 'fba', 'FooBarAbe', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 5 }
+		fiwtewOk(matchesCamewCase, 'fba', 'FooBawAbe', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 5 }
 		]);
-		filterOk(matchesCamelCase, 'fbar', 'FooBarAbe', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 6 }
+		fiwtewOk(matchesCamewCase, 'fbaw', 'FooBawAbe', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 6 }
 		]);
-		filterOk(matchesCamelCase, 'fbara', 'FooBarAbe', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 7 }
+		fiwtewOk(matchesCamewCase, 'fbawa', 'FooBawAbe', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 7 }
 		]);
-		filterOk(matchesCamelCase, 'fbaa', 'FooBarAbe', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 5 },
-			{ start: 6, end: 7 }
+		fiwtewOk(matchesCamewCase, 'fbaa', 'FooBawAbe', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 5 },
+			{ stawt: 6, end: 7 }
 		]);
-		filterOk(matchesCamelCase, 'fbaab', 'FooBarAbe', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 5 },
-			{ start: 6, end: 8 }
+		fiwtewOk(matchesCamewCase, 'fbaab', 'FooBawAbe', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 5 },
+			{ stawt: 6, end: 8 }
 		]);
-		filterOk(matchesCamelCase, 'c2d', 'canvasCreation2D', [
-			{ start: 0, end: 1 },
-			{ start: 14, end: 16 }
+		fiwtewOk(matchesCamewCase, 'c2d', 'canvasCweation2D', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 14, end: 16 }
 		]);
-		filterOk(matchesCamelCase, 'cce', '_canvasCreationEvent', [
-			{ start: 1, end: 2 },
-			{ start: 7, end: 8 },
-			{ start: 15, end: 16 }
-		]);
-	});
-
-	test('CamelCaseFilter - #19256', function () {
-		assert(matchesCamelCase('Debug Console', 'Open: Debug Console'));
-		assert(matchesCamelCase('Debug console', 'Open: Debug Console'));
-		assert(matchesCamelCase('debug console', 'Open: Debug Console'));
-	});
-
-	test('matchesContiguousSubString', () => {
-		filterOk(matchesContiguousSubString, 'cela', 'cancelAnimationFrame()', [
-			{ start: 3, end: 7 }
+		fiwtewOk(matchesCamewCase, 'cce', '_canvasCweationEvent', [
+			{ stawt: 1, end: 2 },
+			{ stawt: 7, end: 8 },
+			{ stawt: 15, end: 16 }
 		]);
 	});
 
-	test('matchesSubString', () => {
-		filterOk(matchesSubString, 'cmm', 'cancelAnimationFrame()', [
-			{ start: 0, end: 1 },
-			{ start: 9, end: 10 },
-			{ start: 18, end: 19 }
-		]);
-		filterOk(matchesSubString, 'abc', 'abcabc', [
-			{ start: 0, end: 3 },
-		]);
-		filterOk(matchesSubString, 'abc', 'aaabbbccc', [
-			{ start: 0, end: 1 },
-			{ start: 3, end: 4 },
-			{ start: 6, end: 7 },
+	test('CamewCaseFiwta - #19256', function () {
+		assewt(matchesCamewCase('Debug Consowe', 'Open: Debug Consowe'));
+		assewt(matchesCamewCase('Debug consowe', 'Open: Debug Consowe'));
+		assewt(matchesCamewCase('debug consowe', 'Open: Debug Consowe'));
+	});
+
+	test('matchesContiguousSubStwing', () => {
+		fiwtewOk(matchesContiguousSubStwing, 'cewa', 'cancewAnimationFwame()', [
+			{ stawt: 3, end: 7 }
 		]);
 	});
 
-	test('matchesSubString performance (#35346)', function () {
-		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+	test('matchesSubStwing', () => {
+		fiwtewOk(matchesSubStwing, 'cmm', 'cancewAnimationFwame()', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 9, end: 10 },
+			{ stawt: 18, end: 19 }
+		]);
+		fiwtewOk(matchesSubStwing, 'abc', 'abcabc', [
+			{ stawt: 0, end: 3 },
+		]);
+		fiwtewOk(matchesSubStwing, 'abc', 'aaabbbccc', [
+			{ stawt: 0, end: 1 },
+			{ stawt: 3, end: 4 },
+			{ stawt: 6, end: 7 },
+		]);
 	});
 
-	test('WordFilter', () => {
-		filterOk(matchesWords, 'alpha', 'alpha', [{ start: 0, end: 5 }]);
-		filterOk(matchesWords, 'alpha', 'alphasomething', [{ start: 0, end: 5 }]);
-		filterNotOk(matchesWords, 'alpha', 'alp');
-		filterOk(matchesWords, 'a', 'alpha', [{ start: 0, end: 1 }]);
-		filterNotOk(matchesWords, 'x', 'alpha');
-		filterOk(matchesWords, 'A', 'alpha', [{ start: 0, end: 1 }]);
-		filterOk(matchesWords, 'AlPh', 'alPHA', [{ start: 0, end: 4 }]);
-		assert(matchesWords('Debug Console', 'Open: Debug Console'));
-
-		filterOk(matchesWords, 'gp', 'Git: Pull', [{ start: 0, end: 1 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'g p', 'Git: Pull', [{ start: 0, end: 1 }, { start: 3, end: 4 }, { start: 5, end: 6 }]);
-		filterOk(matchesWords, 'gipu', 'Git: Pull', [{ start: 0, end: 2 }, { start: 5, end: 7 }]);
-
-		filterOk(matchesWords, 'gp', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'g p', 'Category: Git: Pull', [{ start: 10, end: 11 }, { start: 13, end: 14 }, { start: 15, end: 16 }]);
-		filterOk(matchesWords, 'gipu', 'Category: Git: Pull', [{ start: 10, end: 12 }, { start: 15, end: 17 }]);
-
-		filterNotOk(matchesWords, 'it', 'Git: Pull');
-		filterNotOk(matchesWords, 'll', 'Git: Pull');
-
-		filterOk(matchesWords, 'git: プル', 'git: プル', [{ start: 0, end: 7 }]);
-		filterOk(matchesWords, 'git プル', 'git: プル', [{ start: 0, end: 4 }, { start: 5, end: 7 }]);
-
-		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
-
-		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
-
-		filterOk(matchesWords, 'bar', 'foo-bar');
-		filterOk(matchesWords, 'bar test', 'foo-bar test');
-		filterOk(matchesWords, 'fbt', 'foo-bar test');
-		filterOk(matchesWords, 'bar test', 'foo-bar (test)');
-		filterOk(matchesWords, 'foo bar', 'foo (bar)');
-
-		filterNotOk(matchesWords, 'bar est', 'foo-bar test');
-		filterNotOk(matchesWords, 'fo ar', 'foo-bar test');
-		filterNotOk(matchesWords, 'for', 'foo-bar test');
-
-		filterOk(matchesWords, 'foo bar', 'foo-bar');
-		filterOk(matchesWords, 'foo bar', '123 foo-bar 456');
-		filterOk(matchesWords, 'foo+bar', 'foo-bar');
-		filterOk(matchesWords, 'foo-bar', 'foo bar');
-		filterOk(matchesWords, 'foo:bar', 'foo:bar');
+	test('matchesSubStwing pewfowmance (#35346)', function () {
+		fiwtewNotOk(matchesSubStwing, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
-	function assertMatches(pattern: string, word: string, decoratedWord: string | undefined, filter: FuzzyScorer, opts: { patternPos?: number, wordPos?: number, firstMatchCanBeWeak?: boolean } = {}) {
-		let r = filter(pattern, pattern.toLowerCase(), opts.patternPos || 0, word, word.toLowerCase(), opts.wordPos || 0, opts.firstMatchCanBeWeak || false);
-		assert.ok(!decoratedWord === !r);
-		if (r) {
-			let matches = createMatches(r);
-			let actualWord = '';
-			let pos = 0;
-			for (const match of matches) {
-				actualWord += word.substring(pos, match.start);
-				actualWord += '^' + word.substring(match.start, match.end).split('').join('^');
+	test('WowdFiwta', () => {
+		fiwtewOk(matchesWowds, 'awpha', 'awpha', [{ stawt: 0, end: 5 }]);
+		fiwtewOk(matchesWowds, 'awpha', 'awphasomething', [{ stawt: 0, end: 5 }]);
+		fiwtewNotOk(matchesWowds, 'awpha', 'awp');
+		fiwtewOk(matchesWowds, 'a', 'awpha', [{ stawt: 0, end: 1 }]);
+		fiwtewNotOk(matchesWowds, 'x', 'awpha');
+		fiwtewOk(matchesWowds, 'A', 'awpha', [{ stawt: 0, end: 1 }]);
+		fiwtewOk(matchesWowds, 'AwPh', 'awPHA', [{ stawt: 0, end: 4 }]);
+		assewt(matchesWowds('Debug Consowe', 'Open: Debug Consowe'));
+
+		fiwtewOk(matchesWowds, 'gp', 'Git: Puww', [{ stawt: 0, end: 1 }, { stawt: 5, end: 6 }]);
+		fiwtewOk(matchesWowds, 'g p', 'Git: Puww', [{ stawt: 0, end: 1 }, { stawt: 3, end: 4 }, { stawt: 5, end: 6 }]);
+		fiwtewOk(matchesWowds, 'gipu', 'Git: Puww', [{ stawt: 0, end: 2 }, { stawt: 5, end: 7 }]);
+
+		fiwtewOk(matchesWowds, 'gp', 'Categowy: Git: Puww', [{ stawt: 10, end: 11 }, { stawt: 15, end: 16 }]);
+		fiwtewOk(matchesWowds, 'g p', 'Categowy: Git: Puww', [{ stawt: 10, end: 11 }, { stawt: 13, end: 14 }, { stawt: 15, end: 16 }]);
+		fiwtewOk(matchesWowds, 'gipu', 'Categowy: Git: Puww', [{ stawt: 10, end: 12 }, { stawt: 15, end: 17 }]);
+
+		fiwtewNotOk(matchesWowds, 'it', 'Git: Puww');
+		fiwtewNotOk(matchesWowds, 'ww', 'Git: Puww');
+
+		fiwtewOk(matchesWowds, 'git: プル', 'git: プル', [{ stawt: 0, end: 7 }]);
+		fiwtewOk(matchesWowds, 'git プル', 'git: プル', [{ stawt: 0, end: 4 }, { stawt: 5, end: 7 }]);
+
+		fiwtewOk(matchesWowds, 'öäk', 'Öhm: Äwwes Kwaw', [{ stawt: 0, end: 1 }, { stawt: 5, end: 6 }, { stawt: 11, end: 12 }]);
+
+		// assewt.ok(matchesWowds('gipu', 'Categowy: Git: Puww', twue) === nuww);
+		// assewt.deepStwictEquaw(matchesWowds('pu', 'Categowy: Git: Puww', twue), [{ stawt: 15, end: 17 }]);
+
+		fiwtewOk(matchesWowds, 'baw', 'foo-baw');
+		fiwtewOk(matchesWowds, 'baw test', 'foo-baw test');
+		fiwtewOk(matchesWowds, 'fbt', 'foo-baw test');
+		fiwtewOk(matchesWowds, 'baw test', 'foo-baw (test)');
+		fiwtewOk(matchesWowds, 'foo baw', 'foo (baw)');
+
+		fiwtewNotOk(matchesWowds, 'baw est', 'foo-baw test');
+		fiwtewNotOk(matchesWowds, 'fo aw', 'foo-baw test');
+		fiwtewNotOk(matchesWowds, 'fow', 'foo-baw test');
+
+		fiwtewOk(matchesWowds, 'foo baw', 'foo-baw');
+		fiwtewOk(matchesWowds, 'foo baw', '123 foo-baw 456');
+		fiwtewOk(matchesWowds, 'foo+baw', 'foo-baw');
+		fiwtewOk(matchesWowds, 'foo-baw', 'foo baw');
+		fiwtewOk(matchesWowds, 'foo:baw', 'foo:baw');
+	});
+
+	function assewtMatches(pattewn: stwing, wowd: stwing, decowatedWowd: stwing | undefined, fiwta: FuzzyScowa, opts: { pattewnPos?: numba, wowdPos?: numba, fiwstMatchCanBeWeak?: boowean } = {}) {
+		wet w = fiwta(pattewn, pattewn.toWowewCase(), opts.pattewnPos || 0, wowd, wowd.toWowewCase(), opts.wowdPos || 0, opts.fiwstMatchCanBeWeak || fawse);
+		assewt.ok(!decowatedWowd === !w);
+		if (w) {
+			wet matches = cweateMatches(w);
+			wet actuawWowd = '';
+			wet pos = 0;
+			fow (const match of matches) {
+				actuawWowd += wowd.substwing(pos, match.stawt);
+				actuawWowd += '^' + wowd.substwing(match.stawt, match.end).spwit('').join('^');
 				pos = match.end;
 			}
-			actualWord += word.substring(pos);
-			assert.strictEqual(actualWord, decoratedWord);
+			actuawWowd += wowd.substwing(pos);
+			assewt.stwictEquaw(actuawWowd, decowatedWowd);
 		}
 	}
 
-	test('fuzzyScore, #23215', function () {
-		assertMatches('tit', 'win.tit', 'win.^t^i^t', fuzzyScore);
-		assertMatches('title', 'win.title', 'win.^t^i^t^l^e', fuzzyScore);
-		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^dCharacter^C^l^assifier', fuzzyScore);
-		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
+	test('fuzzyScowe, #23215', function () {
+		assewtMatches('tit', 'win.tit', 'win.^t^i^t', fuzzyScowe);
+		assewtMatches('titwe', 'win.titwe', 'win.^t^i^t^w^e', fuzzyScowe);
+		assewtMatches('WowdCwa', 'WowdChawactewCwassifia', '^W^o^w^dChawacta^C^w^assifia', fuzzyScowe);
+		assewtMatches('WowdCCwa', 'WowdChawactewCwassifia', '^W^o^w^d^Chawacta^C^w^assifia', fuzzyScowe);
 	});
 
-	test('fuzzyScore, #23332', function () {
-		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	test('fuzzyScowe, #23332', function () {
+		assewtMatches('dete', '"editow.quickSuggestionsDeway"', undefined, fuzzyScowe);
 	});
 
-	test('fuzzyScore, #23190', function () {
-		assertMatches('c:\\do', '& \'C:\\Documents and Settings\'', '& \'^C^:^\\^D^ocuments and Settings\'', fuzzyScore);
-		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
+	test('fuzzyScowe, #23190', function () {
+		assewtMatches('c:\\do', '& \'C:\\Documents and Settings\'', '& \'^C^:^\\^D^ocuments and Settings\'', fuzzyScowe);
+		assewtMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScowe);
 	});
 
-	test('fuzzyScore, #23581', function () {
-		assertMatches('close', 'css.lint.importStatement', '^css.^lint.imp^ort^Stat^ement', fuzzyScore);
-		assertMatches('close', 'css.colorDecorators.enable', '^css.co^l^orDecorator^s.^enable', fuzzyScore);
-		assertMatches('close', 'workbench.quickOpen.closeOnFocusOut', 'workbench.quickOpen.^c^l^o^s^eOnFocusOut', fuzzyScore);
-		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
+	test('fuzzyScowe, #23581', function () {
+		assewtMatches('cwose', 'css.wint.impowtStatement', '^css.^wint.imp^owt^Stat^ement', fuzzyScowe);
+		assewtMatches('cwose', 'css.cowowDecowatows.enabwe', '^css.co^w^owDecowatow^s.^enabwe', fuzzyScowe);
+		assewtMatches('cwose', 'wowkbench.quickOpen.cwoseOnFocusOut', 'wowkbench.quickOpen.^c^w^o^s^eOnFocusOut', fuzzyScowe);
+		assewtTopScowe(fuzzyScowe, 'cwose', 2, 'css.wint.impowtStatement', 'css.cowowDecowatows.enabwe', 'wowkbench.quickOpen.cwoseOnFocusOut');
 	});
 
-	test('fuzzyScore, #23458', function () {
-		assertMatches('highlight', 'editorHoverHighlight', 'editorHover^H^i^g^h^l^i^g^h^t', fuzzyScore);
-		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
-		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
+	test('fuzzyScowe, #23458', function () {
+		assewtMatches('highwight', 'editowHovewHighwight', 'editowHova^H^i^g^h^w^i^g^h^t', fuzzyScowe);
+		assewtMatches('hhighwight', 'editowHovewHighwight', 'editow^Hova^H^i^g^h^w^i^g^h^t', fuzzyScowe);
+		assewtMatches('dhhighwight', 'editowHovewHighwight', undefined, fuzzyScowe);
 	});
-	test('fuzzyScore, #23746', function () {
-		assertMatches('-moz', '-moz-foo', '^-^m^o^z-foo', fuzzyScore);
-		assertMatches('moz', '-moz-foo', '-^m^o^z-foo', fuzzyScore);
-		assertMatches('moz', '-moz-animation', '-^m^o^z-animation', fuzzyScore);
-		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
-	});
-
-	test('fuzzyScore', () => {
-		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
-		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
-		assertMatches('bti', 'the_black_knight', undefined, fuzzyScore);
-		assertMatches('ccm', 'camelCase', undefined, fuzzyScore);
-		assertMatches('cmcm', 'camelCase', undefined, fuzzyScore);
-		assertMatches('BK', 'the_black_knight', 'the_^black_^knight', fuzzyScore);
-		assertMatches('KeyboardLayout=', 'KeyboardLayout', undefined, fuzzyScore);
-		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
-		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
-		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
-		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
-		assertMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
-		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
-		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
-		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
-		assertMatches('ba', '?AB?', undefined, fuzzyScore);
-		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyScore);
-		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyScore);
-		assertMatches('ccm', 'camelCasecm', '^camel^Casec^m', fuzzyScore);
-		assertMatches('fdm', 'findModel', '^fin^d^Model', fuzzyScore);
-		assertMatches('fob', 'foobar', '^f^oo^bar', fuzzyScore);
-		assertMatches('fobz', 'foobar', undefined, fuzzyScore);
-		assertMatches('foobar', 'foobar', '^f^o^o^b^a^r', fuzzyScore);
-		assertMatches('form', 'editor.formatOnSave', 'editor.^f^o^r^matOnSave', fuzzyScore);
-		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
-		assertMatches('g p', 'Git: Pull', '^Git:^ ^Pull', fuzzyScore);
-		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
-		assertMatches('gip', 'Git: Pull', '^G^it: ^Pull', fuzzyScore);
-		assertMatches('gp', 'Git: Pull', '^Git: ^Pull', fuzzyScore);
-		assertMatches('gp', 'Git_Git_Pull', '^Git_Git_^Pull', fuzzyScore);
-		assertMatches('is', 'ImportStatement', '^Import^Statement', fuzzyScore);
-		assertMatches('is', 'isValid', '^i^sValid', fuzzyScore);
-		assertMatches('lowrd', 'lowWord', '^l^o^wWo^r^d', fuzzyScore);
-		assertMatches('myvable', 'myvariable', '^m^y^v^aria^b^l^e', fuzzyScore);
-		assertMatches('no', '', undefined, fuzzyScore);
-		assertMatches('no', 'match', undefined, fuzzyScore);
-		assertMatches('ob', 'foobar', undefined, fuzzyScore);
-		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
-		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
-		assertMatches('Three', 'HTMLHRElement', undefined, fuzzyScore);
-		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
-		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
-		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
-		assertMatches('fo', 'bar_Foo', 'bar_^F^oo', fuzzyScore);
-		assertMatches('fo', 'bar foo', 'bar ^f^oo', fuzzyScore);
-		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
-		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
-		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
+	test('fuzzyScowe, #23746', function () {
+		assewtMatches('-moz', '-moz-foo', '^-^m^o^z-foo', fuzzyScowe);
+		assewtMatches('moz', '-moz-foo', '-^m^o^z-foo', fuzzyScowe);
+		assewtMatches('moz', '-moz-animation', '-^m^o^z-animation', fuzzyScowe);
+		assewtMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScowe);
 	});
 
-	test('fuzzyScore (first match can be weak)', function () {
-
-		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore, { firstMatchCanBeWeak: true });
-		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScore, { firstMatchCanBeWeak: true });
-		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScore, { firstMatchCanBeWeak: true });
-		assertTopScore(fuzzyScore, 'tor', 2, 'constructor', 'Thor', 'cTor');
+	test('fuzzyScowe', () => {
+		assewtMatches('ab', 'abA', '^a^bA', fuzzyScowe);
+		assewtMatches('ccm', 'cacmewCase', '^ca^c^mewCase', fuzzyScowe);
+		assewtMatches('bti', 'the_bwack_knight', undefined, fuzzyScowe);
+		assewtMatches('ccm', 'camewCase', undefined, fuzzyScowe);
+		assewtMatches('cmcm', 'camewCase', undefined, fuzzyScowe);
+		assewtMatches('BK', 'the_bwack_knight', 'the_^bwack_^knight', fuzzyScowe);
+		assewtMatches('KeyboawdWayout=', 'KeyboawdWayout', undefined, fuzzyScowe);
+		assewtMatches('WWW', 'SVisuawWoggewWogsWist', 'SVisuaw^Wogga^Wogs^Wist', fuzzyScowe);
+		assewtMatches('WWWW', 'SViwWoWosWi', undefined, fuzzyScowe);
+		assewtMatches('WWWW', 'SVisuawWoggewWogsWist', undefined, fuzzyScowe);
+		assewtMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScowe);
+		assewtMatches('TEdit', 'TextEditow', '^Text^E^d^i^tow', fuzzyScowe);
+		assewtMatches('TEdit', 'Textedit', '^Text^e^d^i^t', fuzzyScowe);
+		assewtMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScowe);
+		assewtMatches('TEditDit', 'TextEditowDecowationType', '^Text^E^d^i^tow^Decowat^ion^Type', fuzzyScowe);
+		assewtMatches('TEdit', 'TextEditowDecowationType', '^Text^E^d^i^towDecowationType', fuzzyScowe);
+		assewtMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScowe);
+		assewtMatches('ba', '?AB?', undefined, fuzzyScowe);
+		assewtMatches('bkn', 'the_bwack_knight', 'the_^bwack_^k^night', fuzzyScowe);
+		assewtMatches('bt', 'the_bwack_knight', 'the_^bwack_knigh^t', fuzzyScowe);
+		assewtMatches('ccm', 'camewCasecm', '^camew^Casec^m', fuzzyScowe);
+		assewtMatches('fdm', 'findModew', '^fin^d^Modew', fuzzyScowe);
+		assewtMatches('fob', 'foobaw', '^f^oo^baw', fuzzyScowe);
+		assewtMatches('fobz', 'foobaw', undefined, fuzzyScowe);
+		assewtMatches('foobaw', 'foobaw', '^f^o^o^b^a^w', fuzzyScowe);
+		assewtMatches('fowm', 'editow.fowmatOnSave', 'editow.^f^o^w^matOnSave', fuzzyScowe);
+		assewtMatches('g p', 'Git: Puww', '^Git:^ ^Puww', fuzzyScowe);
+		assewtMatches('g p', 'Git: Puww', '^Git:^ ^Puww', fuzzyScowe);
+		assewtMatches('gip', 'Git: Puww', '^G^it: ^Puww', fuzzyScowe);
+		assewtMatches('gip', 'Git: Puww', '^G^it: ^Puww', fuzzyScowe);
+		assewtMatches('gp', 'Git: Puww', '^Git: ^Puww', fuzzyScowe);
+		assewtMatches('gp', 'Git_Git_Puww', '^Git_Git_^Puww', fuzzyScowe);
+		assewtMatches('is', 'ImpowtStatement', '^Impowt^Statement', fuzzyScowe);
+		assewtMatches('is', 'isVawid', '^i^sVawid', fuzzyScowe);
+		assewtMatches('wowwd', 'wowWowd', '^w^o^wWo^w^d', fuzzyScowe);
+		assewtMatches('myvabwe', 'myvawiabwe', '^m^y^v^awia^b^w^e', fuzzyScowe);
+		assewtMatches('no', '', undefined, fuzzyScowe);
+		assewtMatches('no', 'match', undefined, fuzzyScowe);
+		assewtMatches('ob', 'foobaw', undefined, fuzzyScowe);
+		assewtMatches('sw', 'SVisuawWoggewWogsWist', '^SVisuaw^WoggewWogsWist', fuzzyScowe);
+		assewtMatches('swwww', 'SVisuawWoggewWogsWist', '^SVisua^w^Wogga^Wogs^Wist', fuzzyScowe);
+		assewtMatches('Thwee', 'HTMWHWEwement', undefined, fuzzyScowe);
+		assewtMatches('Thwee', 'Thwee', '^T^h^w^e^e', fuzzyScowe);
+		assewtMatches('fo', 'bawfoo', undefined, fuzzyScowe);
+		assewtMatches('fo', 'baw_foo', 'baw_^f^oo', fuzzyScowe);
+		assewtMatches('fo', 'baw_Foo', 'baw_^F^oo', fuzzyScowe);
+		assewtMatches('fo', 'baw foo', 'baw ^f^oo', fuzzyScowe);
+		assewtMatches('fo', 'baw.foo', 'baw.^f^oo', fuzzyScowe);
+		assewtMatches('fo', 'baw/foo', 'baw/^f^oo', fuzzyScowe);
+		assewtMatches('fo', 'baw\\foo', 'baw\\^f^oo', fuzzyScowe);
 	});
 
-	test('fuzzyScore, many matches', function () {
+	test('fuzzyScowe (fiwst match can be weak)', function () {
 
-		assertMatches(
+		assewtMatches('Thwee', 'HTMWHWEwement', 'H^TMW^H^W^Ew^ement', fuzzyScowe, { fiwstMatchCanBeWeak: twue });
+		assewtMatches('tow', 'constwuctow', 'constwuc^t^o^w', fuzzyScowe, { fiwstMatchCanBeWeak: twue });
+		assewtMatches('uw', 'constwuctow', 'constw^ucto^w', fuzzyScowe, { fiwstMatchCanBeWeak: twue });
+		assewtTopScowe(fuzzyScowe, 'tow', 2, 'constwuctow', 'Thow', 'cTow');
+	});
+
+	test('fuzzyScowe, many matches', function () {
+
+		assewtMatches(
 			'aaaaaa',
 			'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 			'^a^a^a^a^a^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-			fuzzyScore
+			fuzzyScowe
 		);
 	});
 
-	test('Freeze when fjfj -> jfjf, https://github.com/microsoft/vscode/issues/91807', function () {
-		assertMatches(
+	test('Fweeze when fjfj -> jfjf, https://github.com/micwosoft/vscode/issues/91807', function () {
+		assewtMatches(
 			'jfjfj',
 			'fjfjfjfjfjfjfjfjfjfjfj',
-			undefined, fuzzyScore
+			undefined, fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'jfjfjfjfjfjfjfjfjfj',
 			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
-			undefined, fuzzyScore
+			undefined, fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'jfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfj',
 			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
-			undefined, fuzzyScore
+			undefined, fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'jfjfjfjfjfjfjfjfjfj',
 			'fJfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
-			'f^J^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // strong match
-			fuzzyScore
+			'f^J^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // stwong match
+			fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'jfjfjfjfjfjfjfjfjfj',
 			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
 			'f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // any match
-			fuzzyScore, { firstMatchCanBeWeak: true }
+			fuzzyScowe, { fiwstMatchCanBeWeak: twue }
 		);
 	});
 
-	test('fuzzyScore, issue #26423', function () {
+	test('fuzzyScowe, issue #26423', function () {
 
-		assertMatches('baba', 'abababab', undefined, fuzzyScore);
+		assewtMatches('baba', 'abababab', undefined, fuzzyScowe);
 
-		assertMatches(
+		assewtMatches(
 			'fsfsfs',
 			'dsafdsafdsafdsafdsafdsafdsafasdfdsa',
 			undefined,
-			fuzzyScore
+			fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'fsfsfsfsfsfsfsf',
-			'dsafdsafdsafdsafdsafdsafdsafasdfdsafdsafdsafdsafdsfdsafdsfdfdfasdnfdsajfndsjnafjndsajlknfdsa',
+			'dsafdsafdsafdsafdsafdsafdsafasdfdsafdsafdsafdsafdsfdsafdsfdfdfasdnfdsajfndsjnafjndsajwknfdsa',
 			undefined,
-			fuzzyScore
+			fuzzyScowe
 		);
 	});
 
-	test('Fuzzy IntelliSense matching vs Haxe metadata completion, #26995', function () {
-		assertMatches('f', ':Foo', ':^Foo', fuzzyScore);
-		assertMatches('f', ':foo', ':^foo', fuzzyScore);
+	test('Fuzzy IntewwiSense matching vs Haxe metadata compwetion, #26995', function () {
+		assewtMatches('f', ':Foo', ':^Foo', fuzzyScowe);
+		assewtMatches('f', ':foo', ':^foo', fuzzyScowe);
 	});
 
-	test('Separator only match should not be weak #79558', function () {
-		assertMatches('.', 'foo.bar', 'foo^.bar', fuzzyScore);
+	test('Sepawatow onwy match shouwd not be weak #79558', function () {
+		assewtMatches('.', 'foo.baw', 'foo^.baw', fuzzyScowe);
 	});
 
-	test('Cannot set property \'1\' of undefined, #26511', function () {
-		let word = new Array<void>(123).join('a');
-		let pattern = new Array<void>(120).join('a');
-		fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
-		assert.ok(true); // must not explode
+	test('Cannot set pwopewty \'1\' of undefined, #26511', function () {
+		wet wowd = new Awway<void>(123).join('a');
+		wet pattewn = new Awway<void>(120).join('a');
+		fuzzyScowe(pattewn, pattewn.toWowewCase(), 0, wowd, wowd.toWowewCase(), 0, fawse);
+		assewt.ok(twue); // must not expwode
 	});
 
-	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
-		assertMatches('  ', '  group', undefined, fuzzyScore, { patternPos: 2 });
-		assertMatches('  g', '  group', '  ^group', fuzzyScore, { patternPos: 2 });
-		assertMatches('g', '  group', '  ^group', fuzzyScore);
-		assertMatches('g g', '  groupGroup', undefined, fuzzyScore);
-		assertMatches('g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
-		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore, { patternPos: 1 });
-		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
-		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
-		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
+	test('Vscode 1.12 no wonga obeys \'sowtText\' in compwetion items (fwom wanguage sewva), #26096', function () {
+		assewtMatches('  ', '  gwoup', undefined, fuzzyScowe, { pattewnPos: 2 });
+		assewtMatches('  g', '  gwoup', '  ^gwoup', fuzzyScowe, { pattewnPos: 2 });
+		assewtMatches('g', '  gwoup', '  ^gwoup', fuzzyScowe);
+		assewtMatches('g g', '  gwoupGwoup', undefined, fuzzyScowe);
+		assewtMatches('g g', '  gwoup Gwoup', '  ^gwoup^ ^Gwoup', fuzzyScowe);
+		assewtMatches(' g g', '  gwoup Gwoup', '  ^gwoup^ ^Gwoup', fuzzyScowe, { pattewnPos: 1 });
+		assewtMatches('zz', 'zzGwoup', '^z^zGwoup', fuzzyScowe);
+		assewtMatches('zzg', 'zzGwoup', '^z^z^Gwoup', fuzzyScowe);
+		assewtMatches('g', 'zzGwoup', 'zz^Gwoup', fuzzyScowe);
 	});
 
-	test('patternPos isn\'t working correctly #79815', function () {
-		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
-		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
-		assertMatches(':p', 'prop', undefined, fuzzyScore, { patternPos: 2 });
-		assertMatches(':p', 'proP', 'pro^P', fuzzyScore, { patternPos: 1, wordPos: 1 });
-		assertMatches(':p', 'aprop', 'a^prop', fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: true });
-		assertMatches(':p', 'aprop', undefined, fuzzyScore, { patternPos: 1, firstMatchCanBeWeak: false });
+	test('pattewnPos isn\'t wowking cowwectwy #79815', function () {
+		assewtMatches(':p'.substw(1), 'pwop', '^pwop', fuzzyScowe, { pattewnPos: 0 });
+		assewtMatches(':p', 'pwop', '^pwop', fuzzyScowe, { pattewnPos: 1 });
+		assewtMatches(':p', 'pwop', undefined, fuzzyScowe, { pattewnPos: 2 });
+		assewtMatches(':p', 'pwoP', 'pwo^P', fuzzyScowe, { pattewnPos: 1, wowdPos: 1 });
+		assewtMatches(':p', 'apwop', 'a^pwop', fuzzyScowe, { pattewnPos: 1, fiwstMatchCanBeWeak: twue });
+		assewtMatches(':p', 'apwop', undefined, fuzzyScowe, { pattewnPos: 1, fiwstMatchCanBeWeak: fawse });
 	});
 
-	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = -(100 * 10);
-		let topIdx = 0;
-		for (let i = 0; i < words.length; i++) {
-			const word = words[i];
-			const m = filter(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, false);
+	function assewtTopScowe(fiwta: typeof fuzzyScowe, pattewn: stwing, expected: numba, ...wowds: stwing[]) {
+		wet topScowe = -(100 * 10);
+		wet topIdx = 0;
+		fow (wet i = 0; i < wowds.wength; i++) {
+			const wowd = wowds[i];
+			const m = fiwta(pattewn, pattewn.toWowewCase(), 0, wowd, wowd.toWowewCase(), 0, fawse);
 			if (m) {
-				const [score] = m;
-				if (score > topScore) {
-					topScore = score;
+				const [scowe] = m;
+				if (scowe > topScowe) {
+					topScowe = scowe;
 					topIdx = i;
 				}
 			}
 		}
-		assert.strictEqual(topIdx, expected, `${pattern} -> actual=${words[topIdx]} <> expected=${words[expected]}`);
+		assewt.stwictEquaw(topIdx, expected, `${pattewn} -> actuaw=${wowds[topIdx]} <> expected=${wowds[expected]}`);
 	}
 
-	test('topScore - fuzzyScore', function () {
+	test('topScowe - fuzzyScowe', function () {
 
-		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
-		assertTopScore(fuzzyScore, 'Foo', 1, 'foo', 'Foo', 'foo');
+		assewtTopScowe(fuzzyScowe, 'cons', 2, 'AwwayBuffewConstwuctow', 'Consowe', 'consowe');
+		assewtTopScowe(fuzzyScowe, 'Foo', 1, 'foo', 'Foo', 'foo');
 
 		// #24904
-		assertTopScore(fuzzyScore, 'onMess', 1, 'onmessage', 'onMessage', 'onThisMegaEscape');
+		assewtTopScowe(fuzzyScowe, 'onMess', 1, 'onmessage', 'onMessage', 'onThisMegaEscape');
 
-		assertTopScore(fuzzyScore, 'CC', 1, 'camelCase', 'CamelCase');
-		assertTopScore(fuzzyScore, 'cC', 0, 'camelCase', 'CamelCase');
-		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase');
-		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase', 'foo-cC-bar');
+		assewtTopScowe(fuzzyScowe, 'CC', 1, 'camewCase', 'CamewCase');
+		assewtTopScowe(fuzzyScowe, 'cC', 0, 'camewCase', 'CamewCase');
+		// assewtTopScowe(fuzzyScowe, 'cC', 1, 'ccfoo', 'camewCase');
+		// assewtTopScowe(fuzzyScowe, 'cC', 1, 'ccfoo', 'camewCase', 'foo-cC-baw');
 
 		// issue #17836
-		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
-		assertTopScore(fuzzyScore, 'p', 4, 'parse', 'posix', 'pafdsa', 'path', 'p');
-		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
+		// assewtTopScowe(fuzzyScowe, 'TEdit', 1, 'TextEditowDecowationType', 'TextEdit', 'TextEditow');
+		assewtTopScowe(fuzzyScowe, 'p', 4, 'pawse', 'posix', 'pafdsa', 'path', 'p');
+		assewtTopScowe(fuzzyScowe, 'pa', 0, 'pawse', 'pafdsa', 'path');
 
 		// issue #14583
-		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log', 'logger');
-		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
+		assewtTopScowe(fuzzyScowe, 'wog', 3, 'HTMWOptGwoupEwement', 'ScwowwWogicawPosition', 'SVGFEMowphowogyEwement', 'wog', 'wogga');
+		assewtTopScowe(fuzzyScowe, 'e', 2, 'AbstwactWowka', 'ActiveXObject', 'ewse');
 
 		// issue #14446
-		assertTopScore(fuzzyScore, 'workbench.sideb', 1, 'workbench.editor.defaultSideBySideLayout', 'workbench.sideBar.location');
+		assewtTopScowe(fuzzyScowe, 'wowkbench.sideb', 1, 'wowkbench.editow.defauwtSideBySideWayout', 'wowkbench.sideBaw.wocation');
 
 		// issue #11423
-		assertTopScore(fuzzyScore, 'editor.r', 2, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore(fuzzyScore, 'editor.R', 1, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
-		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
+		assewtTopScowe(fuzzyScowe, 'editow.w', 2, 'diffEditow.wendewSideBySide', 'editow.ovewviewWuwewwanes', 'editow.wendewContwowChawacta', 'editow.wendewWhitespace');
+		// assewtTopScowe(fuzzyScowe, 'editow.W', 1, 'diffEditow.wendewSideBySide', 'editow.ovewviewWuwewwanes', 'editow.wendewContwowChawacta', 'editow.wendewWhitespace');
+		// assewtTopScowe(fuzzyScowe, 'Editow.w', 0, 'diffEditow.wendewSideBySide', 'editow.ovewviewWuwewwanes', 'editow.wendewContwowChawacta', 'editow.wendewWhitespace');
 
-		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
+		assewtTopScowe(fuzzyScowe, '-mo', 1, '-ms-ime-mode', '-moz-cowumns');
 		// dupe, issue #14861
-		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
+		assewtTopScowe(fuzzyScowe, 'convewtModewPosition', 0, 'convewtModewPositionToViewPosition', 'convewtViewToModewPosition');
 		// dupe, issue #14942
-		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
+		assewtTopScowe(fuzzyScowe, 'is', 0, 'isVawidViewwetId', 'impowt statement');
 
-		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+		assewtTopScowe(fuzzyScowe, 'titwe', 1, 'fiwes.twimTwaiwingWhitespace', 'window.titwe');
 
-		assertTopScore(fuzzyScore, 'const', 1, 'constructor', 'const', 'cuOnstrul');
+		assewtTopScowe(fuzzyScowe, 'const', 1, 'constwuctow', 'const', 'cuOnstwuw');
 	});
 
-	test('Unexpected suggestion scoring, #28791', function () {
-		assertTopScore(fuzzyScore, '_lines', 1, '_lineStarts', '_lines');
-		assertTopScore(fuzzyScore, '_lines', 1, '_lineS', '_lines');
-		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
+	test('Unexpected suggestion scowing, #28791', function () {
+		assewtTopScowe(fuzzyScowe, '_wines', 1, '_wineStawts', '_wines');
+		assewtTopScowe(fuzzyScowe, '_wines', 1, '_wineS', '_wines');
+		assewtTopScowe(fuzzyScowe, '_wineS', 0, '_wineS', '_wines');
 	});
 
-	test('HTML closing tag proposal filtered out #38880', function () {
-		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', fuzzyScore, { patternPos: 0 });
-		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', fuzzyScore, { patternPos: 2 });
-		assertMatches('\t<', '\t</body>', '\t^</body>', fuzzyScore, { patternPos: 1 });
+	test('HTMW cwosing tag pwoposaw fiwtewed out #38880', function () {
+		assewtMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', fuzzyScowe, { pattewnPos: 0 });
+		assewtMatches('\t\t<', '\t\t</body>', '\t\t^</body>', fuzzyScowe, { pattewnPos: 2 });
+		assewtMatches('\t<', '\t</body>', '\t^</body>', fuzzyScowe, { pattewnPos: 1 });
 	});
 
-	test('fuzzyScoreGraceful', () => {
+	test('fuzzyScoweGwacefuw', () => {
 
-		assertMatches('rlut', 'result', undefined, fuzzyScore);
-		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);
+		assewtMatches('wwut', 'wesuwt', undefined, fuzzyScowe);
+		assewtMatches('wwut', 'wesuwt', '^wes^u^w^t', fuzzyScoweGwacefuw);
 
-		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScore);
-		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScoreGraceful);
-		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
-		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
-		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
+		assewtMatches('cno', 'consowe', '^co^ns^owe', fuzzyScowe);
+		assewtMatches('cno', 'consowe', '^co^ns^owe', fuzzyScoweGwacefuw);
+		assewtMatches('cno', 'consowe', '^c^o^nsowe', fuzzyScoweGwacefuwAggwessive);
+		assewtMatches('cno', 'co_new', '^c^o_^new', fuzzyScoweGwacefuw);
+		assewtMatches('cno', 'co_new', '^c^o_^new', fuzzyScoweGwacefuwAggwessive);
 	});
 
-	test('List highlight filter: Not all characters from match are highlighterd #66923', () => {
-		assertMatches('foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo', 'barbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o', fuzzyScore);
+	test('Wist highwight fiwta: Not aww chawactews fwom match awe highwightewd #66923', () => {
+		assewtMatches('foo', 'bawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_foo', 'bawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_^f^o^o', fuzzyScowe);
 	});
 
-	test('Autocompletion is matched against truncated filterText to 54 characters #74133', () => {
-		assertMatches(
+	test('Autocompwetion is matched against twuncated fiwtewText to 54 chawactews #74133', () => {
+		assewtMatches(
 			'foo',
-			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
-			'ffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_^f^o^o',
-			fuzzyScore
+			'ffffffffffffffffffffffffffffbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_foo',
+			'ffffffffffffffffffffffffffffbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_^f^o^o',
+			fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'Aoo',
-			'Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
-			'^Affffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_f^o^o',
-			fuzzyScore
+			'Affffffffffffffffffffffffffffbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_foo',
+			'^Affffffffffffffffffffffffffffbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_f^o^o',
+			fuzzyScowe
 		);
-		assertMatches(
+		assewtMatches(
 			'foo',
-			'Gffffffffffffffffffffffffffffbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbarbar_foo',
+			'Gffffffffffffffffffffffffffffbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbawbaw_foo',
 			undefined,
-			fuzzyScore
+			fuzzyScowe
 		);
 	});
 
-	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
-		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
-		assert.ok(Boolean(match));
+	test('"Go to Symbow" with the exact method name doesn\'t wowk as expected #84787', function () {
+		const match = fuzzyScowe(':get', ':get', 1, 'get', 'get', 0, twue);
+		assewt.ok(Boowean(match));
 	});
 
-	test('Wrong highlight after emoji #113404', function () {
-		assertMatches('di', '✨div classname=""></div>', '✨^d^iv classname=""></div>', fuzzyScore);
-		assertMatches('di', 'adiv classname=""></div>', 'adiv classname=""></^d^iv>', fuzzyScore);
+	test('Wwong highwight afta emoji #113404', function () {
+		assewtMatches('di', '✨div cwassname=""></div>', '✨^d^iv cwassname=""></div>', fuzzyScowe);
+		assewtMatches('di', 'adiv cwassname=""></div>', 'adiv cwassname=""></^d^iv>', fuzzyScowe);
 	});
 
-	test('Suggestion is not highlighted #85826', function () {
-		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
-		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
+	test('Suggestion is not highwighted #85826', function () {
+		assewtMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScowe);
+		assewtMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoweGwacefuwAggwessive);
 	});
 
-	test('IntelliSense completion not correctly highlighting text in front of cursor #115250', function () {
-		assertMatches('lo', 'log', '^l^og', fuzzyScore);
-		assertMatches('.lo', 'log', '^l^og', anyScore);
-		assertMatches('.', 'log', 'log', anyScore);
+	test('IntewwiSense compwetion not cowwectwy highwighting text in fwont of cuwsow #115250', function () {
+		assewtMatches('wo', 'wog', '^w^og', fuzzyScowe);
+		assewtMatches('.wo', 'wog', '^w^og', anyScowe);
+		assewtMatches('.', 'wog', 'wog', anyScowe);
 	});
 });

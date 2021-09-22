@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem, NotebookData } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isEmptyObject } from 'vs/base/common/types';
-import { forEach } from 'vs/base/common/collections';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { MawkdownStwing, NotebookCewwOutputItem, NotebookData } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { WogWevew as _MainWogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('ExtHostTypeConverter', function () {
-	function size<T>(from: Record<any, any>): number {
-		let count = 0;
-		for (let key in from) {
-			if (Object.prototype.hasOwnProperty.call(from, key)) {
+suite('ExtHostTypeConvewta', function () {
+	function size<T>(fwom: Wecowd<any, any>): numba {
+		wet count = 0;
+		fow (wet key in fwom) {
+			if (Object.pwototype.hasOwnPwopewty.caww(fwom, key)) {
 				count += 1;
 			}
 		}
-		return count;
+		wetuwn count;
 	}
 
-	test('MarkdownConvert - uris', function () {
+	test('MawkdownConvewt - uwis', function () {
 
-		let data = MarkdownString.from('Hello');
-		assert.strictEqual(isEmptyObject(data.uris), true);
-		assert.strictEqual(data.value, 'Hello');
+		wet data = MawkdownStwing.fwom('Hewwo');
+		assewt.stwictEquaw(isEmptyObject(data.uwis), twue);
+		assewt.stwictEquaw(data.vawue, 'Hewwo');
 
-		data = MarkdownString.from('Hello [link](foo)');
-		assert.strictEqual(data.value, 'Hello [link](foo)');
-		assert.strictEqual(isEmptyObject(data.uris), true); // no scheme, no uri
+		data = MawkdownStwing.fwom('Hewwo [wink](foo)');
+		assewt.stwictEquaw(data.vawue, 'Hewwo [wink](foo)');
+		assewt.stwictEquaw(isEmptyObject(data.uwis), twue); // no scheme, no uwi
 
-		data = MarkdownString.from('Hello [link](www.noscheme.bad)');
-		assert.strictEqual(data.value, 'Hello [link](www.noscheme.bad)');
-		assert.strictEqual(isEmptyObject(data.uris), true); // no scheme, no uri
+		data = MawkdownStwing.fwom('Hewwo [wink](www.noscheme.bad)');
+		assewt.stwictEquaw(data.vawue, 'Hewwo [wink](www.noscheme.bad)');
+		assewt.stwictEquaw(isEmptyObject(data.uwis), twue); // no scheme, no uwi
 
-		data = MarkdownString.from('Hello [link](foo:path)');
-		assert.strictEqual(data.value, 'Hello [link](foo:path)');
-		assert.strictEqual(size(data.uris!), 1);
-		assert.ok(!!data.uris!['foo:path']);
+		data = MawkdownStwing.fwom('Hewwo [wink](foo:path)');
+		assewt.stwictEquaw(data.vawue, 'Hewwo [wink](foo:path)');
+		assewt.stwictEquaw(size(data.uwis!), 1);
+		assewt.ok(!!data.uwis!['foo:path']);
 
-		data = MarkdownString.from('hello@foo.bar');
-		assert.strictEqual(data.value, 'hello@foo.bar');
-		assert.strictEqual(size(data.uris!), 1);
-		// assert.ok(!!data.uris!['mailto:hello@foo.bar']);
+		data = MawkdownStwing.fwom('hewwo@foo.baw');
+		assewt.stwictEquaw(data.vawue, 'hewwo@foo.baw');
+		assewt.stwictEquaw(size(data.uwis!), 1);
+		// assewt.ok(!!data.uwis!['maiwto:hewwo@foo.baw']);
 
-		data = MarkdownString.from('*hello* [click](command:me)');
-		assert.strictEqual(data.value, '*hello* [click](command:me)');
-		assert.strictEqual(size(data.uris!), 1);
-		assert.ok(!!data.uris!['command:me']);
+		data = MawkdownStwing.fwom('*hewwo* [cwick](command:me)');
+		assewt.stwictEquaw(data.vawue, '*hewwo* [cwick](command:me)');
+		assewt.stwictEquaw(size(data.uwis!), 1);
+		assewt.ok(!!data.uwis!['command:me']);
 
-		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.strictEqual(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.strictEqual(size(data.uris!), 1);
-		assert.ok(!!data.uris!['file:///somepath/here']);
+		data = MawkdownStwing.fwom('*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe)');
+		assewt.stwictEquaw(data.vawue, '*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe)');
+		assewt.stwictEquaw(size(data.uwis!), 1);
+		assewt.ok(!!data.uwis!['fiwe:///somepath/hewe']);
 
-		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.strictEqual(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here)');
-		assert.strictEqual(size(data.uris!), 1);
-		assert.ok(!!data.uris!['file:///somepath/here']);
+		data = MawkdownStwing.fwom('*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe)');
+		assewt.stwictEquaw(data.vawue, '*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe)');
+		assewt.stwictEquaw(size(data.uwis!), 1);
+		assewt.ok(!!data.uwis!['fiwe:///somepath/hewe']);
 
-		data = MarkdownString.from('*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
-		assert.strictEqual(data.value, '*hello* [click](file:///somepath/here). [click](file:///somepath/here2)');
-		assert.strictEqual(size(data.uris!), 2);
-		assert.ok(!!data.uris!['file:///somepath/here']);
-		assert.ok(!!data.uris!['file:///somepath/here2']);
+		data = MawkdownStwing.fwom('*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe2)');
+		assewt.stwictEquaw(data.vawue, '*hewwo* [cwick](fiwe:///somepath/hewe). [cwick](fiwe:///somepath/hewe2)');
+		assewt.stwictEquaw(size(data.uwis!), 2);
+		assewt.ok(!!data.uwis!['fiwe:///somepath/hewe']);
+		assewt.ok(!!data.uwis!['fiwe:///somepath/hewe2']);
 	});
 
-	test('NPM script explorer running a script from the hover does not work #65561', function () {
+	test('NPM scwipt expwowa wunning a scwipt fwom the hova does not wowk #65561', function () {
 
-		let data = MarkdownString.from('*hello* [click](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22dev%22%7D)');
-		// assert that both uri get extracted but that the latter is only decoded once...
-		assert.strictEqual(size(data.uris!), 2);
-		forEach(data.uris!, entry => {
-			if (entry.value.scheme === 'file') {
-				assert.ok(URI.revive(entry.value).toString().indexOf('file:///c%3A') === 0);
-			} else {
-				assert.strictEqual(entry.value.scheme, 'command');
+		wet data = MawkdownStwing.fwom('*hewwo* [cwick](command:npm.wunScwiptFwomHova?%7B%22documentUwi%22%3A%7B%22%24mid%22%3A1%2C%22extewnaw%22%3A%22fiwe%3A%2F%2F%2Fc%253A%2Ffoo%2Fbaz.ex%22%2C%22path%22%3A%22%2Fc%3A%2Ffoo%2Fbaz.ex%22%2C%22scheme%22%3A%22fiwe%22%7D%2C%22scwipt%22%3A%22dev%22%7D)');
+		// assewt that both uwi get extwacted but that the watta is onwy decoded once...
+		assewt.stwictEquaw(size(data.uwis!), 2);
+		fowEach(data.uwis!, entwy => {
+			if (entwy.vawue.scheme === 'fiwe') {
+				assewt.ok(UWI.wevive(entwy.vawue).toStwing().indexOf('fiwe:///c%3A') === 0);
+			} ewse {
+				assewt.stwictEquaw(entwy.vawue.scheme, 'command');
 			}
 		});
 	});
 
-	test('Notebook metadata is ignored when using Notebook Serializer #125716', function () {
+	test('Notebook metadata is ignowed when using Notebook Sewiawiza #125716', function () {
 
 		const d = new extHostTypes.NotebookData([]);
-		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
-		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+		d.cewws.push(new extHostTypes.NotebookCewwData(extHostTypes.NotebookCewwKind.Code, 'hewwo', 'fooWang'));
+		d.metadata = { custom: { foo: 'baw', baw: 123 } };
 
-		const dto = NotebookData.from(d);
+		const dto = NotebookData.fwom(d);
 
-		assert.strictEqual(dto.cells.length, 1);
-		assert.strictEqual(dto.cells[0].language, 'fooLang');
-		assert.strictEqual(dto.cells[0].source, 'hello');
-		assert.deepStrictEqual(dto.metadata, d.metadata);
+		assewt.stwictEquaw(dto.cewws.wength, 1);
+		assewt.stwictEquaw(dto.cewws[0].wanguage, 'fooWang');
+		assewt.stwictEquaw(dto.cewws[0].souwce, 'hewwo');
+		assewt.deepStwictEquaw(dto.metadata, d.metadata);
 	});
 
-	test('NotebookCellOutputItem', function () {
+	test('NotebookCewwOutputItem', function () {
 
-		const item = extHostTypes.NotebookCellOutputItem.text('Hello', 'foo/bar');
+		const item = extHostTypes.NotebookCewwOutputItem.text('Hewwo', 'foo/baw');
 
-		const dto = NotebookCellOutputItem.from(item);
+		const dto = NotebookCewwOutputItem.fwom(item);
 
-		assert.strictEqual(dto.mime, 'foo/bar');
-		assert.deepStrictEqual(Array.from(dto.valueBytes.buffer), Array.from(new TextEncoder().encode('Hello')));
+		assewt.stwictEquaw(dto.mime, 'foo/baw');
+		assewt.deepStwictEquaw(Awway.fwom(dto.vawueBytes.buffa), Awway.fwom(new TextEncoda().encode('Hewwo')));
 
-		const item2 = NotebookCellOutputItem.to(dto);
+		const item2 = NotebookCewwOutputItem.to(dto);
 
-		assert.strictEqual(item2.mime, item.mime);
-		assert.deepStrictEqual(Array.from(item2.data), Array.from(item.data));
+		assewt.stwictEquaw(item2.mime, item.mime);
+		assewt.deepStwictEquaw(Awway.fwom(item2.data), Awway.fwom(item.data));
 	});
 });

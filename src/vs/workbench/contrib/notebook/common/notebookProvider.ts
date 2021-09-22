@@ -1,141 +1,141 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/path';
-import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { INotebookExcwusiveDocumentFiwta, isDocumentExcwudePattewn, TwansientOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
+type NotebookSewectow = stwing | gwob.IWewativePattewn | INotebookExcwusiveDocumentFiwta;
 
-export interface NotebookEditorDescriptor {
-	readonly extension?: ExtensionIdentifier,
-	readonly id: string;
-	readonly displayName: string;
-	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
-	readonly priority: RegisteredEditorPriority;
-	readonly providerDisplayName: string;
-	readonly exclusive: boolean;
+expowt intewface NotebookEditowDescwiptow {
+	weadonwy extension?: ExtensionIdentifia,
+	weadonwy id: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy sewectows: weadonwy { fiwenamePattewn?: stwing; excwudeFiweNamePattewn?: stwing; }[];
+	weadonwy pwiowity: WegistewedEditowPwiowity;
+	weadonwy pwovidewDispwayName: stwing;
+	weadonwy excwusive: boowean;
 }
 
-export class NotebookProviderInfo {
+expowt cwass NotebookPwovidewInfo {
 
-	readonly extension?: ExtensionIdentifier;
-	readonly id: string;
-	readonly displayName: string;
-	readonly priority: RegisteredEditorPriority;
-	readonly providerDisplayName: string;
-	readonly exclusive: boolean;
+	weadonwy extension?: ExtensionIdentifia;
+	weadonwy id: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy pwiowity: WegistewedEditowPwiowity;
+	weadonwy pwovidewDispwayName: stwing;
+	weadonwy excwusive: boowean;
 
-	private _selectors: NotebookSelector[];
-	get selectors() {
-		return this._selectors;
+	pwivate _sewectows: NotebookSewectow[];
+	get sewectows() {
+		wetuwn this._sewectows;
 	}
-	private _options: TransientOptions;
+	pwivate _options: TwansientOptions;
 	get options() {
-		return this._options;
+		wetuwn this._options;
 	}
 
-	constructor(descriptor: NotebookEditorDescriptor) {
-		this.extension = descriptor.extension;
-		this.id = descriptor.id;
-		this.displayName = descriptor.displayName;
-		this._selectors = descriptor.selectors?.map(selector => ({
-			include: selector.filenamePattern,
-			exclude: selector.excludeFileNamePattern || ''
+	constwuctow(descwiptow: NotebookEditowDescwiptow) {
+		this.extension = descwiptow.extension;
+		this.id = descwiptow.id;
+		this.dispwayName = descwiptow.dispwayName;
+		this._sewectows = descwiptow.sewectows?.map(sewectow => ({
+			incwude: sewectow.fiwenamePattewn,
+			excwude: sewectow.excwudeFiweNamePattewn || ''
 		})) || [];
-		this.priority = descriptor.priority;
-		this.providerDisplayName = descriptor.providerDisplayName;
-		this.exclusive = descriptor.exclusive;
+		this.pwiowity = descwiptow.pwiowity;
+		this.pwovidewDispwayName = descwiptow.pwovidewDispwayName;
+		this.excwusive = descwiptow.excwusive;
 		this._options = {
-			transientCellMetadata: {},
-			transientDocumentMetadata: {},
-			transientOutputs: false
+			twansientCewwMetadata: {},
+			twansientDocumentMetadata: {},
+			twansientOutputs: fawse
 		};
 	}
 
-	update(args: { selectors?: NotebookSelector[]; options?: TransientOptions }) {
-		if (args.selectors) {
-			this._selectors = args.selectors;
+	update(awgs: { sewectows?: NotebookSewectow[]; options?: TwansientOptions }) {
+		if (awgs.sewectows) {
+			this._sewectows = awgs.sewectows;
 		}
 
-		if (args.options) {
-			this._options = args.options;
+		if (awgs.options) {
+			this._options = awgs.options;
 		}
 	}
 
-	matches(resource: URI): boolean {
-		return this.selectors?.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
+	matches(wesouwce: UWI): boowean {
+		wetuwn this.sewectows?.some(sewectow => NotebookPwovidewInfo.sewectowMatches(sewectow, wesouwce));
 	}
 
-	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
-		if (typeof selector === 'string') {
-			// filenamePattern
-			if (glob.match(selector.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
-				return true;
+	static sewectowMatches(sewectow: NotebookSewectow, wesouwce: UWI): boowean {
+		if (typeof sewectow === 'stwing') {
+			// fiwenamePattewn
+			if (gwob.match(sewectow.toWowewCase(), basename(wesouwce.fsPath).toWowewCase())) {
+				wetuwn twue;
 			}
 		}
 
-		if (glob.isRelativePattern(selector)) {
-			if (glob.match(selector, basename(resource.fsPath).toLowerCase())) {
-				return true;
+		if (gwob.isWewativePattewn(sewectow)) {
+			if (gwob.match(sewectow, basename(wesouwce.fsPath).toWowewCase())) {
+				wetuwn twue;
 			}
 		}
 
-		if (!isDocumentExcludePattern(selector)) {
-			return false;
+		if (!isDocumentExcwudePattewn(sewectow)) {
+			wetuwn fawse;
 		}
 
-		let filenamePattern = selector.include;
-		let excludeFilenamePattern = selector.exclude;
+		wet fiwenamePattewn = sewectow.incwude;
+		wet excwudeFiwenamePattewn = sewectow.excwude;
 
-		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
-			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
-					return false;
+		if (gwob.match(fiwenamePattewn, basename(wesouwce.fsPath).toWowewCase())) {
+			if (excwudeFiwenamePattewn) {
+				if (gwob.match(excwudeFiwenamePattewn, basename(wesouwce.fsPath).toWowewCase())) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
-		for (let selector of selectors) {
-			const ending = NotebookProviderInfo._possibleFileEnding(selector);
+	static possibweFiweEnding(sewectows: NotebookSewectow[]): stwing | undefined {
+		fow (wet sewectow of sewectows) {
+			const ending = NotebookPwovidewInfo._possibweFiweEnding(sewectow);
 			if (ending) {
-				return ending;
+				wetuwn ending;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static _possibleFileEnding(selector: NotebookSelector): string | undefined {
+	pwivate static _possibweFiweEnding(sewectow: NotebookSewectow): stwing | undefined {
 
-		const pattern = /^.*(\.[a-zA-Z0-9_-]+)$/;
+		const pattewn = /^.*(\.[a-zA-Z0-9_-]+)$/;
 
-		let candidate: string | undefined;
+		wet candidate: stwing | undefined;
 
-		if (typeof selector === 'string') {
-			candidate = selector;
-		} else if (glob.isRelativePattern(selector)) {
-			candidate = selector.pattern;
-		} else if (selector.include) {
-			return NotebookProviderInfo._possibleFileEnding(selector.include);
+		if (typeof sewectow === 'stwing') {
+			candidate = sewectow;
+		} ewse if (gwob.isWewativePattewn(sewectow)) {
+			candidate = sewectow.pattewn;
+		} ewse if (sewectow.incwude) {
+			wetuwn NotebookPwovidewInfo._possibweFiweEnding(sewectow.incwude);
 		}
 
 		if (candidate) {
-			const match = pattern.exec(candidate);
+			const match = pattewn.exec(candidate);
 			if (match) {
-				return match[1];
+				wetuwn match[1];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

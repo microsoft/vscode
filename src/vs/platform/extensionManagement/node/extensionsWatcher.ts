@@ -1,143 +1,143 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileChangeType, FileSystemProviderCapabilities, IFileChange, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { DidUninstawwExtensionEvent, IExtensionManagementSewvice, IWocawExtension, InstawwExtensionEvent, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { ExtensionType, IExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { FiweChangeType, FiweSystemPwovidewCapabiwities, IFiweChange, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class ExtensionsWatcher extends Disposable {
+expowt cwass ExtensionsWatcha extends Disposabwe {
 
-	private readonly _onDidChangeExtensionsByAnotherSource = this._register(new Emitter<{ added: ILocalExtension[], removed: IExtensionIdentifier[] }>());
-	readonly onDidChangeExtensionsByAnotherSource = this._onDidChangeExtensionsByAnotherSource.event;
+	pwivate weadonwy _onDidChangeExtensionsByAnothewSouwce = this._wegista(new Emitta<{ added: IWocawExtension[], wemoved: IExtensionIdentifia[] }>());
+	weadonwy onDidChangeExtensionsByAnothewSouwce = this._onDidChangeExtensionsByAnothewSouwce.event;
 
-	private startTimestamp = 0;
-	private installingExtensions: IExtensionIdentifier[] = [];
-	private installedExtensions: IExtensionIdentifier[] | undefined;
+	pwivate stawtTimestamp = 0;
+	pwivate instawwingExtensions: IExtensionIdentifia[] = [];
+	pwivate instawwedExtensions: IExtensionIdentifia[] | undefined;
 
-	constructor(
-		private readonly extensionsManagementService: IExtensionManagementService,
-		@IFileService fileService: IFileService,
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		pwivate weadonwy extensionsManagementSewvice: IExtensionManagementSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@INativeEnviwonmentSewvice enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
-		this.extensionsManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			this.installedExtensions = extensions.map(e => e.identifier);
-			this.startTimestamp = Date.now();
+		supa();
+		this.extensionsManagementSewvice.getInstawwed(ExtensionType.Usa).then(extensions => {
+			this.instawwedExtensions = extensions.map(e => e.identifia);
+			this.stawtTimestamp = Date.now();
 		});
-		this._register(extensionsManagementService.onInstallExtension(e => this.onInstallExtension(e)));
-		this._register(extensionsManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
-		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
+		this._wegista(extensionsManagementSewvice.onInstawwExtension(e => this.onInstawwExtension(e)));
+		this._wegista(extensionsManagementSewvice.onDidInstawwExtensions(e => this.onDidInstawwExtensions(e)));
+		this._wegista(extensionsManagementSewvice.onDidUninstawwExtension(e => this.onDidUninstawwExtension(e)));
 
-		const extensionsResource = URI.file(environmentService.extensionsPath);
-		const extUri = new ExtUri(resource => !fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
-		this._register(fileService.watch(extensionsResource));
-		this._register(Event.filter(fileService.onDidChangeFilesRaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource, extUri)))(() => this.onDidChange()));
+		const extensionsWesouwce = UWI.fiwe(enviwonmentSewvice.extensionsPath);
+		const extUwi = new ExtUwi(wesouwce => !fiweSewvice.hasCapabiwity(wesouwce, FiweSystemPwovidewCapabiwities.PathCaseSensitive));
+		this._wegista(fiweSewvice.watch(extensionsWesouwce));
+		this._wegista(Event.fiwta(fiweSewvice.onDidChangeFiwesWaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsWesouwce, extUwi)))(() => this.onDidChange()));
 	}
 
-	private doesChangeAffects(change: IFileChange, extensionsResource: URI, extUri: ExtUri): boolean {
-		// Is not immediate child of extensions resource
-		if (!extUri.isEqual(extUri.dirname(change.resource), extensionsResource)) {
-			return false;
+	pwivate doesChangeAffects(change: IFiweChange, extensionsWesouwce: UWI, extUwi: ExtUwi): boowean {
+		// Is not immediate chiwd of extensions wesouwce
+		if (!extUwi.isEquaw(extUwi.diwname(change.wesouwce), extensionsWesouwce)) {
+			wetuwn fawse;
 		}
 
-		// .obsolete file changed
-		if (extUri.isEqual(change.resource, extUri.joinPath(extensionsResource, '.obsolete'))) {
-			return true;
+		// .obsowete fiwe changed
+		if (extUwi.isEquaw(change.wesouwce, extUwi.joinPath(extensionsWesouwce, '.obsowete'))) {
+			wetuwn twue;
 		}
 
-		// Only interested in added/deleted changes
-		if (change.type !== FileChangeType.ADDED && change.type !== FileChangeType.DELETED) {
-			return false;
+		// Onwy intewested in added/deweted changes
+		if (change.type !== FiweChangeType.ADDED && change.type !== FiweChangeType.DEWETED) {
+			wetuwn fawse;
 		}
 
-		// Ingore changes to files starting with `.`
-		if (extUri.basename(change.resource).startsWith('.')) {
-			return false;
+		// Ingowe changes to fiwes stawting with `.`
+		if (extUwi.basename(change.wesouwce).stawtsWith('.')) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private onInstallExtension(e: InstallExtensionEvent): void {
-		this.addInstallingExtension(e.identifier);
+	pwivate onInstawwExtension(e: InstawwExtensionEvent): void {
+		this.addInstawwingExtension(e.identifia);
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
-		for (const e of results) {
-			this.removeInstallingExtension(e.identifier);
-			if (e.local) {
-				this.addInstalledExtension(e.identifier);
+	pwivate onDidInstawwExtensions(wesuwts: weadonwy InstawwExtensionWesuwt[]): void {
+		fow (const e of wesuwts) {
+			this.wemoveInstawwingExtension(e.identifia);
+			if (e.wocaw) {
+				this.addInstawwedExtension(e.identifia);
 			}
 		}
 	}
 
-	private onDidUninstallExtension(e: DidUninstallExtensionEvent): void {
-		if (!e.error) {
-			this.removeInstalledExtension(e.identifier);
+	pwivate onDidUninstawwExtension(e: DidUninstawwExtensionEvent): void {
+		if (!e.ewwow) {
+			this.wemoveInstawwedExtension(e.identifia);
 		}
 	}
 
-	private addInstallingExtension(extension: IExtensionIdentifier) {
-		this.removeInstallingExtension(extension);
-		this.installingExtensions.push(extension);
+	pwivate addInstawwingExtension(extension: IExtensionIdentifia) {
+		this.wemoveInstawwingExtension(extension);
+		this.instawwingExtensions.push(extension);
 	}
 
-	private removeInstallingExtension(identifier: IExtensionIdentifier) {
-		this.installingExtensions = this.installingExtensions.filter(e => !areSameExtensions(e, identifier));
+	pwivate wemoveInstawwingExtension(identifia: IExtensionIdentifia) {
+		this.instawwingExtensions = this.instawwingExtensions.fiwta(e => !aweSameExtensions(e, identifia));
 	}
 
-	private addInstalledExtension(extension: IExtensionIdentifier): void {
-		if (this.installedExtensions) {
-			this.removeInstalledExtension(extension);
-			this.installedExtensions.push(extension);
+	pwivate addInstawwedExtension(extension: IExtensionIdentifia): void {
+		if (this.instawwedExtensions) {
+			this.wemoveInstawwedExtension(extension);
+			this.instawwedExtensions.push(extension);
 		}
 	}
 
-	private removeInstalledExtension(identifier: IExtensionIdentifier): void {
-		if (this.installedExtensions) {
-			this.installedExtensions = this.installedExtensions.filter(e => !areSameExtensions(e, identifier));
+	pwivate wemoveInstawwedExtension(identifia: IExtensionIdentifia): void {
+		if (this.instawwedExtensions) {
+			this.instawwedExtensions = this.instawwedExtensions.fiwta(e => !aweSameExtensions(e, identifia));
 		}
 	}
 
-	private async onDidChange(): Promise<void> {
-		if (this.installedExtensions) {
-			const extensions = await this.extensionsManagementService.getInstalled(ExtensionType.User);
-			const added = extensions.filter(e => {
-				if ([...this.installingExtensions, ...this.installedExtensions!].some(identifier => areSameExtensions(identifier, e.identifier))) {
-					return false;
+	pwivate async onDidChange(): Pwomise<void> {
+		if (this.instawwedExtensions) {
+			const extensions = await this.extensionsManagementSewvice.getInstawwed(ExtensionType.Usa);
+			const added = extensions.fiwta(e => {
+				if ([...this.instawwingExtensions, ...this.instawwedExtensions!].some(identifia => aweSameExtensions(identifia, e.identifia))) {
+					wetuwn fawse;
 				}
-				if (e.installedTimestamp && e.installedTimestamp > this.startTimestamp) {
-					this.logService.info('Detected extension installed from another source', e.identifier.id);
-					return true;
-				} else {
-					this.logService.info('Ignored extension installed by another source because of invalid timestamp', e.identifier.id);
-					return false;
+				if (e.instawwedTimestamp && e.instawwedTimestamp > this.stawtTimestamp) {
+					this.wogSewvice.info('Detected extension instawwed fwom anotha souwce', e.identifia.id);
+					wetuwn twue;
+				} ewse {
+					this.wogSewvice.info('Ignowed extension instawwed by anotha souwce because of invawid timestamp', e.identifia.id);
+					wetuwn fawse;
 				}
 			});
-			const removed = this.installedExtensions.filter(identifier => {
-				// Extension being installed
-				if (this.installingExtensions.some(installingExtension => areSameExtensions(installingExtension, identifier))) {
-					return false;
+			const wemoved = this.instawwedExtensions.fiwta(identifia => {
+				// Extension being instawwed
+				if (this.instawwingExtensions.some(instawwingExtension => aweSameExtensions(instawwingExtension, identifia))) {
+					wetuwn fawse;
 				}
-				if (extensions.every(e => !areSameExtensions(e.identifier, identifier))) {
-					this.logService.info('Detected extension removed from another source', identifier.id);
-					return true;
+				if (extensions.evewy(e => !aweSameExtensions(e.identifia, identifia))) {
+					this.wogSewvice.info('Detected extension wemoved fwom anotha souwce', identifia.id);
+					wetuwn twue;
 				}
-				return false;
+				wetuwn fawse;
 			});
-			this.installedExtensions = extensions.map(e => e.identifier);
-			if (added.length || removed.length) {
-				this._onDidChangeExtensionsByAnotherSource.fire({ added, removed });
+			this.instawwedExtensions = extensions.map(e => e.identifia);
+			if (added.wength || wemoved.wength) {
+				this._onDidChangeExtensionsByAnothewSouwce.fiwe({ added, wemoved });
 			}
 		}
 	}

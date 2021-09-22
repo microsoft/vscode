@@ -1,509 +1,509 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAncestor, show } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { ISimpleCheckboxStyles, SimpleCheckbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Action } from 'vs/base/common/actions';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./dialog';
-import * as nls from 'vs/nls';
+impowt { $, addDisposabweWistena, cweawNode, EventHewpa, EventType, hide, isAncestow, show } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ButtonBaw, ButtonWithDescwiption, IButtonStywes } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { ISimpweCheckboxStywes, SimpweCheckbox } fwom 'vs/base/bwowsa/ui/checkbox/checkbox';
+impowt { InputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt 'vs/css!./diawog';
+impowt * as nws fwom 'vs/nws';
 
-export interface IDialogInputOptions {
-	readonly placeholder?: string;
-	readonly type?: 'text' | 'password';
-	readonly value?: string;
+expowt intewface IDiawogInputOptions {
+	weadonwy pwacehowda?: stwing;
+	weadonwy type?: 'text' | 'passwowd';
+	weadonwy vawue?: stwing;
 }
 
-export interface IDialogOptions {
-	readonly cancelId?: number;
-	readonly detail?: string;
-	readonly checkboxLabel?: string;
-	readonly checkboxChecked?: boolean;
-	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
-	readonly inputs?: IDialogInputOptions[];
-	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
-	readonly renderBody?: (container: HTMLElement) => void;
-	readonly icon?: Codicon;
-	readonly buttonDetails?: string[];
-	readonly disableCloseAction?: boolean;
+expowt intewface IDiawogOptions {
+	weadonwy cancewId?: numba;
+	weadonwy detaiw?: stwing;
+	weadonwy checkboxWabew?: stwing;
+	weadonwy checkboxChecked?: boowean;
+	weadonwy type?: 'none' | 'info' | 'ewwow' | 'question' | 'wawning' | 'pending';
+	weadonwy inputs?: IDiawogInputOptions[];
+	weadonwy keyEventPwocessow?: (event: StandawdKeyboawdEvent) => void;
+	weadonwy wendewBody?: (containa: HTMWEwement) => void;
+	weadonwy icon?: Codicon;
+	weadonwy buttonDetaiws?: stwing[];
+	weadonwy disabweCwoseAction?: boowean;
 }
 
-export interface IDialogResult {
-	readonly button: number;
-	readonly checkboxChecked?: boolean;
-	readonly values?: string[];
+expowt intewface IDiawogWesuwt {
+	weadonwy button: numba;
+	weadonwy checkboxChecked?: boowean;
+	weadonwy vawues?: stwing[];
 }
 
-export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
-	readonly dialogForeground?: Color;
-	readonly dialogBackground?: Color;
-	readonly dialogShadow?: Color;
-	readonly dialogBorder?: Color;
-	readonly errorIconForeground?: Color;
-	readonly warningIconForeground?: Color;
-	readonly infoIconForeground?: Color;
-	readonly inputBackground?: Color;
-	readonly inputForeground?: Color;
-	readonly inputBorder?: Color;
-	readonly textLinkForeground?: Color;
+expowt intewface IDiawogStywes extends IButtonStywes, ISimpweCheckboxStywes {
+	weadonwy diawogFowegwound?: Cowow;
+	weadonwy diawogBackgwound?: Cowow;
+	weadonwy diawogShadow?: Cowow;
+	weadonwy diawogBowda?: Cowow;
+	weadonwy ewwowIconFowegwound?: Cowow;
+	weadonwy wawningIconFowegwound?: Cowow;
+	weadonwy infoIconFowegwound?: Cowow;
+	weadonwy inputBackgwound?: Cowow;
+	weadonwy inputFowegwound?: Cowow;
+	weadonwy inputBowda?: Cowow;
+	weadonwy textWinkFowegwound?: Cowow;
 
 }
 
-interface ButtonMapEntry {
-	readonly label: string;
-	readonly index: number;
+intewface ButtonMapEntwy {
+	weadonwy wabew: stwing;
+	weadonwy index: numba;
 }
 
-const dialogErrorIcon = registerCodicon('dialog-error', Codicon.error);
-const dialogWarningIcon = registerCodicon('dialog-warning', Codicon.warning);
-const dialogInfoIcon = registerCodicon('dialog-info', Codicon.info);
-const dialogCloseIcon = registerCodicon('dialog-close', Codicon.close);
+const diawogEwwowIcon = wegistewCodicon('diawog-ewwow', Codicon.ewwow);
+const diawogWawningIcon = wegistewCodicon('diawog-wawning', Codicon.wawning);
+const diawogInfoIcon = wegistewCodicon('diawog-info', Codicon.info);
+const diawogCwoseIcon = wegistewCodicon('diawog-cwose', Codicon.cwose);
 
-export class Dialog extends Disposable {
-	private readonly element: HTMLElement;
-	private readonly shadowElement: HTMLElement;
-	private modalElement: HTMLElement | undefined;
-	private readonly buttonsContainer: HTMLElement;
-	private readonly messageDetailElement: HTMLElement;
-	private readonly messageContainer: HTMLElement;
-	private readonly iconElement: HTMLElement;
-	private readonly checkbox: SimpleCheckbox | undefined;
-	private readonly toolbarContainer: HTMLElement;
-	private buttonBar: ButtonBar | undefined;
-	private styles: IDialogStyles | undefined;
-	private focusToReturn: HTMLElement | undefined;
-	private readonly inputs: InputBox[];
-	private readonly buttons: string[];
+expowt cwass Diawog extends Disposabwe {
+	pwivate weadonwy ewement: HTMWEwement;
+	pwivate weadonwy shadowEwement: HTMWEwement;
+	pwivate modawEwement: HTMWEwement | undefined;
+	pwivate weadonwy buttonsContaina: HTMWEwement;
+	pwivate weadonwy messageDetaiwEwement: HTMWEwement;
+	pwivate weadonwy messageContaina: HTMWEwement;
+	pwivate weadonwy iconEwement: HTMWEwement;
+	pwivate weadonwy checkbox: SimpweCheckbox | undefined;
+	pwivate weadonwy toowbawContaina: HTMWEwement;
+	pwivate buttonBaw: ButtonBaw | undefined;
+	pwivate stywes: IDiawogStywes | undefined;
+	pwivate focusToWetuwn: HTMWEwement | undefined;
+	pwivate weadonwy inputs: InputBox[];
+	pwivate weadonwy buttons: stwing[];
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
-		super();
+	constwuctow(pwivate containa: HTMWEwement, pwivate message: stwing, buttons: stwing[] | undefined, pwivate options: IDiawogOptions) {
+		supa();
 
-		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
-		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
-		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
-		this.element.setAttribute('role', 'dialog');
-		this.element.tabIndex = -1;
-		hide(this.element);
+		this.modawEwement = this.containa.appendChiwd($(`.monaco-diawog-modaw-bwock.dimmed`));
+		this.shadowEwement = this.modawEwement.appendChiwd($('.diawog-shadow'));
+		this.ewement = this.shadowEwement.appendChiwd($('.monaco-diawog-box'));
+		this.ewement.setAttwibute('wowe', 'diawog');
+		this.ewement.tabIndex = -1;
+		hide(this.ewement);
 
-		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
-		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
-		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
+		this.buttons = Awway.isAwway(buttons) && buttons.wength ? buttons : [nws.wocawize('ok', "OK")]; // If no button is pwovided, defauwt to OK
+		const buttonsWowEwement = this.ewement.appendChiwd($('.diawog-buttons-wow'));
+		this.buttonsContaina = buttonsWowEwement.appendChiwd($('.diawog-buttons'));
 
-		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
-		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
-		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
-		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
+		const messageWowEwement = this.ewement.appendChiwd($('.diawog-message-wow'));
+		this.iconEwement = messageWowEwement.appendChiwd($('#monaco-diawog-icon.diawog-icon'));
+		this.iconEwement.setAttwibute('awia-wabew', this.getIconAwiaWabew());
+		this.messageContaina = messageWowEwement.appendChiwd($('.diawog-message-containa'));
 
-		if (this.options.detail || this.options.renderBody) {
-			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
-			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
-			messageTextElement.innerText = this.message;
+		if (this.options.detaiw || this.options.wendewBody) {
+			const messageEwement = this.messageContaina.appendChiwd($('.diawog-message'));
+			const messageTextEwement = messageEwement.appendChiwd($('#monaco-diawog-message-text.diawog-message-text'));
+			messageTextEwement.innewText = this.message;
 		}
 
-		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
-		if (this.options.detail || !this.options.renderBody) {
-			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
-		} else {
-			this.messageDetailElement.style.display = 'none';
+		this.messageDetaiwEwement = this.messageContaina.appendChiwd($('#monaco-diawog-message-detaiw.diawog-message-detaiw'));
+		if (this.options.detaiw || !this.options.wendewBody) {
+			this.messageDetaiwEwement.innewText = this.options.detaiw ? this.options.detaiw : message;
+		} ewse {
+			this.messageDetaiwEwement.stywe.dispway = 'none';
 		}
 
-		if (this.options.renderBody) {
-			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
-			this.options.renderBody(customBody);
+		if (this.options.wendewBody) {
+			const customBody = this.messageContaina.appendChiwd($('#monaco-diawog-message-body.diawog-message-body'));
+			this.options.wendewBody(customBody);
 
-			for (const el of this.messageContainer.querySelectorAll('a')) {
-				el.tabIndex = 0;
+			fow (const ew of this.messageContaina.quewySewectowAww('a')) {
+				ew.tabIndex = 0;
 			}
 		}
 
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
-				const inputRowElement = this.messageContainer.appendChild($('.dialog-message-input'));
+				const inputWowEwement = this.messageContaina.appendChiwd($('.diawog-message-input'));
 
-				const inputBox = this._register(new InputBox(inputRowElement, undefined, {
-					placeholder: input.placeholder,
+				const inputBox = this._wegista(new InputBox(inputWowEwement, undefined, {
+					pwacehowda: input.pwacehowda,
 					type: input.type ?? 'text',
 				}));
 
-				if (input.value) {
-					inputBox.value = input.value;
+				if (input.vawue) {
+					inputBox.vawue = input.vawue;
 				}
 
-				return inputBox;
+				wetuwn inputBox;
 			});
-		} else {
+		} ewse {
 			this.inputs = [];
 		}
 
-		if (this.options.checkboxLabel) {
-			const checkboxRowElement = this.messageContainer.appendChild($('.dialog-checkbox-row'));
+		if (this.options.checkboxWabew) {
+			const checkboxWowEwement = this.messageContaina.appendChiwd($('.diawog-checkbox-wow'));
 
-			const checkbox = this.checkbox = this._register(new SimpleCheckbox(this.options.checkboxLabel, !!this.options.checkboxChecked));
+			const checkbox = this.checkbox = this._wegista(new SimpweCheckbox(this.options.checkboxWabew, !!this.options.checkboxChecked));
 
-			checkboxRowElement.appendChild(checkbox.domNode);
+			checkboxWowEwement.appendChiwd(checkbox.domNode);
 
-			const checkboxMessageElement = checkboxRowElement.appendChild($('.dialog-checkbox-message'));
-			checkboxMessageElement.innerText = this.options.checkboxLabel;
-			this._register(addDisposableListener(checkboxMessageElement, EventType.CLICK, () => checkbox.checked = !checkbox.checked));
+			const checkboxMessageEwement = checkboxWowEwement.appendChiwd($('.diawog-checkbox-message'));
+			checkboxMessageEwement.innewText = this.options.checkboxWabew;
+			this._wegista(addDisposabweWistena(checkboxMessageEwement, EventType.CWICK, () => checkbox.checked = !checkbox.checked));
 		}
 
-		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
-		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
+		const toowbawWowEwement = this.ewement.appendChiwd($('.diawog-toowbaw-wow'));
+		this.toowbawContaina = toowbawWowEwement.appendChiwd($('.diawog-toowbaw'));
 	}
 
-	private getIconAriaLabel(): string {
-		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+	pwivate getIconAwiaWabew(): stwing {
+		wet typeWabew = nws.wocawize('diawogInfoMessage', 'Info');
 		switch (this.options.type) {
-			case 'error':
-				nls.localize('dialogErrorMessage', 'Error');
-				break;
-			case 'warning':
-				nls.localize('dialogWarningMessage', 'Warning');
-				break;
+			case 'ewwow':
+				nws.wocawize('diawogEwwowMessage', 'Ewwow');
+				bweak;
+			case 'wawning':
+				nws.wocawize('diawogWawningMessage', 'Wawning');
+				bweak;
 			case 'pending':
-				nls.localize('dialogPendingMessage', 'In Progress');
-				break;
+				nws.wocawize('diawogPendingMessage', 'In Pwogwess');
+				bweak;
 			case 'none':
 			case 'info':
 			case 'question':
-			default:
-				break;
+			defauwt:
+				bweak;
 		}
 
-		return typeLabel;
+		wetuwn typeWabew;
 	}
 
-	updateMessage(message: string): void {
-		this.messageDetailElement.innerText = message;
+	updateMessage(message: stwing): void {
+		this.messageDetaiwEwement.innewText = message;
 	}
 
-	async show(): Promise<IDialogResult> {
-		this.focusToReturn = document.activeElement as HTMLElement;
+	async show(): Pwomise<IDiawogWesuwt> {
+		this.focusToWetuwn = document.activeEwement as HTMWEwement;
 
-		return new Promise<IDialogResult>((resolve) => {
-			clearNode(this.buttonsContainer);
+		wetuwn new Pwomise<IDiawogWesuwt>((wesowve) => {
+			cweawNode(this.buttonsContaina);
 
-			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
-			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
-			this.buttonsContainer.classList.toggle('centered');
+			const buttonBaw = this.buttonBaw = this._wegista(new ButtonBaw(this.buttonsContaina));
+			const buttonMap = this.weawwangeButtons(this.buttons, this.options.cancewId);
+			this.buttonsContaina.cwassWist.toggwe('centewed');
 
-			// Handle button clicks
-			buttonMap.forEach((entry, index) => {
-				const primary = buttonMap[index].index === 0;
-				const button = this.options.buttonDetails ? this._register(buttonBar.addButtonWithDescription({ title: true, secondary: !primary })) : this._register(buttonBar.addButton({ title: true, secondary: !primary }));
-				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
-				if (button instanceof ButtonWithDescription) {
-					button.description = this.options.buttonDetails![buttonMap[index].index];
+			// Handwe button cwicks
+			buttonMap.fowEach((entwy, index) => {
+				const pwimawy = buttonMap[index].index === 0;
+				const button = this.options.buttonDetaiws ? this._wegista(buttonBaw.addButtonWithDescwiption({ titwe: twue, secondawy: !pwimawy })) : this._wegista(buttonBaw.addButton({ titwe: twue, secondawy: !pwimawy }));
+				button.wabew = mnemonicButtonWabew(buttonMap[index].wabew, twue);
+				if (button instanceof ButtonWithDescwiption) {
+					button.descwiption = this.options.buttonDetaiws![buttonMap[index].index];
 				}
-				this._register(button.onDidClick(e => {
+				this._wegista(button.onDidCwick(e => {
 					if (e) {
-						EventHelper.stop(e);
+						EventHewpa.stop(e);
 					}
 
-					resolve({
+					wesowve({
 						button: buttonMap[index].index,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
-						values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+						vawues: this.inputs.wength > 0 ? this.inputs.map(input => input.vawue) : undefined
 					});
 				}));
 			});
 
-			// Handle keyboard events globally: Tab, Arrow-Left/Right
-			this._register(addDisposableListener(window, 'keydown', e => {
-				const evt = new StandardKeyboardEvent(e);
+			// Handwe keyboawd events gwobawwy: Tab, Awwow-Weft/Wight
+			this._wegista(addDisposabweWistena(window, 'keydown', e => {
+				const evt = new StandawdKeyboawdEvent(e);
 
-				if (evt.equals(KeyMod.Alt)) {
-					evt.preventDefault();
+				if (evt.equaws(KeyMod.Awt)) {
+					evt.pweventDefauwt();
 				}
 
-				if (evt.equals(KeyCode.Enter)) {
+				if (evt.equaws(KeyCode.Enta)) {
 
-					// Enter in input field should OK the dialog
+					// Enta in input fiewd shouwd OK the diawog
 					if (this.inputs.some(input => input.hasFocus())) {
-						EventHelper.stop(e);
+						EventHewpa.stop(e);
 
-						resolve({
-							button: buttonMap.find(button => button.index !== this.options.cancelId)?.index ?? 0,
+						wesowve({
+							button: buttonMap.find(button => button.index !== this.options.cancewId)?.index ?? 0,
 							checkboxChecked: this.checkbox ? this.checkbox.checked : undefined,
-							values: this.inputs.length > 0 ? this.inputs.map(input => input.value) : undefined
+							vawues: this.inputs.wength > 0 ? this.inputs.map(input => input.vawue) : undefined
 						});
 					}
 
-					return; // leave default handling
+					wetuwn; // weave defauwt handwing
 				}
 
-				if (evt.equals(KeyCode.Space)) {
-					return; // leave default handling
+				if (evt.equaws(KeyCode.Space)) {
+					wetuwn; // weave defauwt handwing
 				}
 
-				let eventHandled = false;
+				wet eventHandwed = fawse;
 
-				// Focus: Next / Previous
-				if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow) || evt.equals(KeyMod.Shift | KeyCode.Tab) || evt.equals(KeyCode.LeftArrow)) {
+				// Focus: Next / Pwevious
+				if (evt.equaws(KeyCode.Tab) || evt.equaws(KeyCode.WightAwwow) || evt.equaws(KeyMod.Shift | KeyCode.Tab) || evt.equaws(KeyCode.WeftAwwow)) {
 
-					// Build a list of focusable elements in their visual order
-					const focusableElements: { focus: () => void }[] = [];
-					let focusedIndex = -1;
+					// Buiwd a wist of focusabwe ewements in theiw visuaw owda
+					const focusabweEwements: { focus: () => void }[] = [];
+					wet focusedIndex = -1;
 
-					if (this.messageContainer) {
-						const links = this.messageContainer.querySelectorAll('a');
-						for (const link of links) {
-							focusableElements.push(link);
-							if (link === document.activeElement) {
-								focusedIndex = focusableElements.length - 1;
+					if (this.messageContaina) {
+						const winks = this.messageContaina.quewySewectowAww('a');
+						fow (const wink of winks) {
+							focusabweEwements.push(wink);
+							if (wink === document.activeEwement) {
+								focusedIndex = focusabweEwements.wength - 1;
 							}
 						}
 					}
 
-					for (const input of this.inputs) {
-						focusableElements.push(input);
+					fow (const input of this.inputs) {
+						focusabweEwements.push(input);
 						if (input.hasFocus()) {
-							focusedIndex = focusableElements.length - 1;
+							focusedIndex = focusabweEwements.wength - 1;
 						}
 					}
 
 					if (this.checkbox) {
-						focusableElements.push(this.checkbox);
+						focusabweEwements.push(this.checkbox);
 						if (this.checkbox.hasFocus()) {
-							focusedIndex = focusableElements.length - 1;
+							focusedIndex = focusabweEwements.wength - 1;
 						}
 					}
 
-					if (this.buttonBar) {
-						for (const button of this.buttonBar.buttons) {
-							focusableElements.push(button);
+					if (this.buttonBaw) {
+						fow (const button of this.buttonBaw.buttons) {
+							focusabweEwements.push(button);
 							if (button.hasFocus()) {
-								focusedIndex = focusableElements.length - 1;
+								focusedIndex = focusabweEwements.wength - 1;
 							}
 						}
 					}
 
-					// Focus next element (with wrapping)
-					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
+					// Focus next ewement (with wwapping)
+					if (evt.equaws(KeyCode.Tab) || evt.equaws(KeyCode.WightAwwow)) {
 						if (focusedIndex === -1) {
-							focusedIndex = 0; // default to focus first element if none have focus
+							focusedIndex = 0; // defauwt to focus fiwst ewement if none have focus
 						}
 
-						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
-						focusableElements[newFocusedIndex].focus();
+						const newFocusedIndex = (focusedIndex + 1) % focusabweEwements.wength;
+						focusabweEwements[newFocusedIndex].focus();
 					}
 
-					// Focus previous element (with wrapping)
-					else {
+					// Focus pwevious ewement (with wwapping)
+					ewse {
 						if (focusedIndex === -1) {
-							focusedIndex = focusableElements.length; // default to focus last element if none have focus
+							focusedIndex = focusabweEwements.wength; // defauwt to focus wast ewement if none have focus
 						}
 
-						let newFocusedIndex = focusedIndex - 1;
+						wet newFocusedIndex = focusedIndex - 1;
 						if (newFocusedIndex === -1) {
-							newFocusedIndex = focusableElements.length - 1;
+							newFocusedIndex = focusabweEwements.wength - 1;
 						}
 
-						focusableElements[newFocusedIndex].focus();
+						focusabweEwements[newFocusedIndex].focus();
 					}
 
-					eventHandled = true;
+					eventHandwed = twue;
 				}
 
-				if (eventHandled) {
-					EventHelper.stop(e, true);
-				} else if (this.options.keyEventProcessor) {
-					this.options.keyEventProcessor(evt);
+				if (eventHandwed) {
+					EventHewpa.stop(e, twue);
+				} ewse if (this.options.keyEventPwocessow) {
+					this.options.keyEventPwocessow(evt);
 				}
-			}, true));
+			}, twue));
 
-			this._register(addDisposableListener(window, 'keyup', e => {
-				EventHelper.stop(e, true);
-				const evt = new StandardKeyboardEvent(e);
+			this._wegista(addDisposabweWistena(window, 'keyup', e => {
+				EventHewpa.stop(e, twue);
+				const evt = new StandawdKeyboawdEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
-					resolve({
-						button: this.options.cancelId || 0,
+				if (!this.options.disabweCwoseAction && evt.equaws(KeyCode.Escape)) {
+					wesowve({
+						button: this.options.cancewId || 0,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
 					});
 				}
-			}, true));
+			}, twue));
 
 			// Detect focus out
-			this._register(addDisposableListener(this.element, 'focusout', e => {
-				if (!!e.relatedTarget && !!this.element) {
-					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
-						this.focusToReturn = e.relatedTarget as HTMLElement;
+			this._wegista(addDisposabweWistena(this.ewement, 'focusout', e => {
+				if (!!e.wewatedTawget && !!this.ewement) {
+					if (!isAncestow(e.wewatedTawget as HTMWEwement, this.ewement)) {
+						this.focusToWetuwn = e.wewatedTawget as HTMWEwement;
 
-						if (e.target) {
-							(e.target as HTMLElement).focus();
-							EventHelper.stop(e, true);
+						if (e.tawget) {
+							(e.tawget as HTMWEwement).focus();
+							EventHewpa.stop(e, twue);
 						}
 					}
 				}
-			}, false));
+			}, fawse));
 
-			const spinModifierClassName = 'codicon-modifier-spin';
+			const spinModifiewCwassName = 'codicon-modifia-spin';
 
-			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
+			this.iconEwement.cwassWist.wemove(...diawogEwwowIcon.cwassNamesAwway, ...diawogWawningIcon.cwassNamesAwway, ...diawogInfoIcon.cwassNamesAwway, ...Codicon.woading.cwassNamesAwway, spinModifiewCwassName);
 
 			if (this.options.icon) {
-				this.iconElement.classList.add(...this.options.icon.classNamesArray);
-			} else {
+				this.iconEwement.cwassWist.add(...this.options.icon.cwassNamesAwway);
+			} ewse {
 				switch (this.options.type) {
-					case 'error':
-						this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
-						break;
-					case 'warning':
-						this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
-						break;
+					case 'ewwow':
+						this.iconEwement.cwassWist.add(...diawogEwwowIcon.cwassNamesAwway);
+						bweak;
+					case 'wawning':
+						this.iconEwement.cwassWist.add(...diawogWawningIcon.cwassNamesAwway);
+						bweak;
 					case 'pending':
-						this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
-						break;
+						this.iconEwement.cwassWist.add(...Codicon.woading.cwassNamesAwway, spinModifiewCwassName);
+						bweak;
 					case 'none':
 					case 'info':
 					case 'question':
-					default:
-						this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
-						break;
+					defauwt:
+						this.iconEwement.cwassWist.add(...diawogInfoIcon.cwassNamesAwway);
+						bweak;
 				}
 			}
 
 
-			if (!this.options.disableCloseAction) {
-				const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
+			if (!this.options.disabweCwoseAction) {
+				const actionBaw = this._wegista(new ActionBaw(this.toowbawContaina, {}));
 
-				const action = this._register(new Action('dialog.close', nls.localize('dialogClose', "Close Dialog"), dialogCloseIcon.classNames, true, async () => {
-					resolve({
-						button: this.options.cancelId || 0,
+				const action = this._wegista(new Action('diawog.cwose', nws.wocawize('diawogCwose', "Cwose Diawog"), diawogCwoseIcon.cwassNames, twue, async () => {
+					wesowve({
+						button: this.options.cancewId || 0,
 						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
 					});
 				}));
 
-				actionBar.push(action, { icon: true, label: false, });
+				actionBaw.push(action, { icon: twue, wabew: fawse, });
 			}
 
-			this.applyStyles();
+			this.appwyStywes();
 
-			this.element.setAttribute('aria-modal', 'true');
-			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
-			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
-			show(this.element);
+			this.ewement.setAttwibute('awia-modaw', 'twue');
+			this.ewement.setAttwibute('awia-wabewwedby', 'monaco-diawog-icon monaco-diawog-message-text');
+			this.ewement.setAttwibute('awia-descwibedby', 'monaco-diawog-icon monaco-diawog-message-text monaco-diawog-message-detaiw monaco-diawog-message-body');
+			show(this.ewement);
 
-			// Focus first element (input or button)
-			if (this.inputs.length > 0) {
+			// Focus fiwst ewement (input ow button)
+			if (this.inputs.wength > 0) {
 				this.inputs[0].focus();
-				this.inputs[0].select();
-			} else {
-				buttonMap.forEach((value, index) => {
-					if (value.index === 0) {
-						buttonBar.buttons[index].focus();
+				this.inputs[0].sewect();
+			} ewse {
+				buttonMap.fowEach((vawue, index) => {
+					if (vawue.index === 0) {
+						buttonBaw.buttons[index].focus();
 					}
 				});
 			}
 		});
 	}
 
-	private applyStyles() {
-		if (this.styles) {
-			const style = this.styles;
+	pwivate appwyStywes() {
+		if (this.stywes) {
+			const stywe = this.stywes;
 
-			const fgColor = style.dialogForeground;
-			const bgColor = style.dialogBackground;
-			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
-			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
-			const linkFgColor = style.textLinkForeground;
+			const fgCowow = stywe.diawogFowegwound;
+			const bgCowow = stywe.diawogBackgwound;
+			const shadowCowow = stywe.diawogShadow ? `0 0px 8px ${stywe.diawogShadow}` : '';
+			const bowda = stywe.diawogBowda ? `1px sowid ${stywe.diawogBowda}` : '';
+			const winkFgCowow = stywe.textWinkFowegwound;
 
-			this.shadowElement.style.boxShadow = shadowColor;
+			this.shadowEwement.stywe.boxShadow = shadowCowow;
 
-			this.element.style.color = fgColor?.toString() ?? '';
-			this.element.style.backgroundColor = bgColor?.toString() ?? '';
-			this.element.style.border = border;
+			this.ewement.stywe.cowow = fgCowow?.toStwing() ?? '';
+			this.ewement.stywe.backgwoundCowow = bgCowow?.toStwing() ?? '';
+			this.ewement.stywe.bowda = bowda;
 
-			if (this.buttonBar) {
-				this.buttonBar.buttons.forEach(button => button.style(style));
+			if (this.buttonBaw) {
+				this.buttonBaw.buttons.fowEach(button => button.stywe(stywe));
 			}
 
 			if (this.checkbox) {
-				this.checkbox.style(style);
+				this.checkbox.stywe(stywe);
 			}
 
-			if (fgColor && bgColor) {
-				const messageDetailColor = fgColor.transparent(.9);
-				this.messageDetailElement.style.color = messageDetailColor.makeOpaque(bgColor).toString();
+			if (fgCowow && bgCowow) {
+				const messageDetaiwCowow = fgCowow.twanspawent(.9);
+				this.messageDetaiwEwement.stywe.cowow = messageDetaiwCowow.makeOpaque(bgCowow).toStwing();
 			}
 
-			if (linkFgColor) {
-				for (const el of this.messageContainer.getElementsByTagName('a')) {
-					el.style.color = linkFgColor.toString();
+			if (winkFgCowow) {
+				fow (const ew of this.messageContaina.getEwementsByTagName('a')) {
+					ew.stywe.cowow = winkFgCowow.toStwing();
 				}
 			}
 
-			let color;
+			wet cowow;
 			switch (this.options.type) {
-				case 'error':
-					color = style.errorIconForeground;
-					break;
-				case 'warning':
-					color = style.warningIconForeground;
-					break;
-				default:
-					color = style.infoIconForeground;
-					break;
+				case 'ewwow':
+					cowow = stywe.ewwowIconFowegwound;
+					bweak;
+				case 'wawning':
+					cowow = stywe.wawningIconFowegwound;
+					bweak;
+				defauwt:
+					cowow = stywe.infoIconFowegwound;
+					bweak;
 			}
-			if (color) {
-				this.iconElement.style.color = color.toString();
+			if (cowow) {
+				this.iconEwement.stywe.cowow = cowow.toStwing();
 			}
 
-			for (const input of this.inputs) {
-				input.style(style);
+			fow (const input of this.inputs) {
+				input.stywe(stywe);
 			}
 		}
 	}
 
-	style(style: IDialogStyles): void {
-		this.styles = style;
+	stywe(stywe: IDiawogStywes): void {
+		this.stywes = stywe;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		if (this.modalElement) {
-			this.modalElement.remove();
-			this.modalElement = undefined;
+		if (this.modawEwement) {
+			this.modawEwement.wemove();
+			this.modawEwement = undefined;
 		}
 
-		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
-			this.focusToReturn.focus();
-			this.focusToReturn = undefined;
+		if (this.focusToWetuwn && isAncestow(this.focusToWetuwn, document.body)) {
+			this.focusToWetuwn.focus();
+			this.focusToWetuwn = undefined;
 		}
 	}
 
-	private rearrangeButtons(buttons: Array<string>, cancelId: number | undefined): ButtonMapEntry[] {
-		const buttonMap: ButtonMapEntry[] = [];
+	pwivate weawwangeButtons(buttons: Awway<stwing>, cancewId: numba | undefined): ButtonMapEntwy[] {
+		const buttonMap: ButtonMapEntwy[] = [];
 
-		// Maps each button to its current label and old index so that when we move them around it's not a problem
-		buttons.forEach((button, index) => {
-			buttonMap.push({ label: button, index });
+		// Maps each button to its cuwwent wabew and owd index so that when we move them awound it's not a pwobwem
+		buttons.fowEach((button, index) => {
+			buttonMap.push({ wabew: button, index });
 		});
 
-		// macOS/linux: reverse button order if `cancelId` is defined
-		if (isMacintosh || isLinux) {
-			if (cancelId !== undefined && cancelId < buttons.length) {
-				const cancelButton = buttonMap.splice(cancelId, 1)[0];
-				buttonMap.reverse();
-				buttonMap.splice(buttonMap.length - 1, 0, cancelButton);
+		// macOS/winux: wevewse button owda if `cancewId` is defined
+		if (isMacintosh || isWinux) {
+			if (cancewId !== undefined && cancewId < buttons.wength) {
+				const cancewButton = buttonMap.spwice(cancewId, 1)[0];
+				buttonMap.wevewse();
+				buttonMap.spwice(buttonMap.wength - 1, 0, cancewButton);
 			}
 		}
 
-		return buttonMap;
+		wetuwn buttonMap;
 	}
 }

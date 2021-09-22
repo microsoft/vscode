@@ -1,305 +1,305 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as resources from 'vs/base/common/resources';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mock } from 'vs/base/test/common/mock';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt * as assewt fwom 'assewt';
+impowt { DecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/bwowsa/decowationsSewvice';
+impowt { IDecowationsPwovida, IDecowationData } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-suite('DecorationsService', function () {
+suite('DecowationsSewvice', function () {
 
-	let service: DecorationsService;
+	wet sewvice: DecowationsSewvice;
 
 	setup(function () {
-		if (service) {
-			service.dispose();
+		if (sewvice) {
+			sewvice.dispose();
 		}
-		service = new DecorationsService(
-			new TestThemeService(),
-			new class extends mock<IUriIdentityService>() {
-				override extUri = resources.extUri;
+		sewvice = new DecowationsSewvice(
+			new TestThemeSewvice(),
+			new cwass extends mock<IUwiIdentitySewvice>() {
+				ovewwide extUwi = wesouwces.extUwi;
 			}
 		);
 	});
 
-	test('Async provider, async/evented result', function () {
+	test('Async pwovida, async/evented wesuwt', function () {
 
-		let uri = URI.parse('foo:bar');
-		let callCounter = 0;
+		wet uwi = UWI.pawse('foo:baw');
+		wet cawwCounta = 0;
 
-		service.registerDecorationsProvider(new class implements IDecorationsProvider {
-			readonly label: string = 'Test';
-			readonly onDidChange: Event<readonly URI[]> = Event.None;
-			provideDecorations(uri: URI) {
-				callCounter += 1;
-				return new Promise<IDecorationData>(resolve => {
-					setTimeout(() => resolve({
-						color: 'someBlue',
-						tooltip: 'T',
-						strikethrough: true
+		sewvice.wegistewDecowationsPwovida(new cwass impwements IDecowationsPwovida {
+			weadonwy wabew: stwing = 'Test';
+			weadonwy onDidChange: Event<weadonwy UWI[]> = Event.None;
+			pwovideDecowations(uwi: UWI) {
+				cawwCounta += 1;
+				wetuwn new Pwomise<IDecowationData>(wesowve => {
+					setTimeout(() => wesowve({
+						cowow: 'someBwue',
+						toowtip: 'T',
+						stwikethwough: twue
 					}));
 				});
 			}
 		});
 
-		// trigger -> async
-		assert.strictEqual(service.getDecoration(uri, false), undefined);
-		assert.strictEqual(callCounter, 1);
+		// twigga -> async
+		assewt.stwictEquaw(sewvice.getDecowation(uwi, fawse), undefined);
+		assewt.stwictEquaw(cawwCounta, 1);
 
-		// event when result is computed
-		return Event.toPromise(service.onDidChangeDecorations).then(e => {
-			assert.strictEqual(e.affectsResource(uri), true);
+		// event when wesuwt is computed
+		wetuwn Event.toPwomise(sewvice.onDidChangeDecowations).then(e => {
+			assewt.stwictEquaw(e.affectsWesouwce(uwi), twue);
 
-			// sync result
-			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'T');
-			assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, true);
-			assert.strictEqual(callCounter, 1);
+			// sync wesuwt
+			assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse)!.toowtip, 'T');
+			assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse)!.stwikethwough, twue);
+			assewt.stwictEquaw(cawwCounta, 1);
 		});
 	});
 
-	test('Sync provider, sync result', function () {
+	test('Sync pwovida, sync wesuwt', function () {
 
-		let uri = URI.parse('foo:bar');
-		let callCounter = 0;
+		wet uwi = UWI.pawse('foo:baw');
+		wet cawwCounta = 0;
 
-		service.registerDecorationsProvider(new class implements IDecorationsProvider {
-			readonly label: string = 'Test';
-			readonly onDidChange: Event<readonly URI[]> = Event.None;
-			provideDecorations(uri: URI) {
-				callCounter += 1;
-				return { color: 'someBlue', tooltip: 'Z' };
+		sewvice.wegistewDecowationsPwovida(new cwass impwements IDecowationsPwovida {
+			weadonwy wabew: stwing = 'Test';
+			weadonwy onDidChange: Event<weadonwy UWI[]> = Event.None;
+			pwovideDecowations(uwi: UWI) {
+				cawwCounta += 1;
+				wetuwn { cowow: 'someBwue', toowtip: 'Z' };
 			}
 		});
 
-		// trigger -> sync
-		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
-		assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, false);
-		assert.strictEqual(callCounter, 1);
+		// twigga -> sync
+		assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse)!.toowtip, 'Z');
+		assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse)!.stwikethwough, fawse);
+		assewt.stwictEquaw(cawwCounta, 1);
 	});
 
-	test('Clear decorations on provider dispose', async function () {
-		let uri = URI.parse('foo:bar');
-		let callCounter = 0;
+	test('Cweaw decowations on pwovida dispose', async function () {
+		wet uwi = UWI.pawse('foo:baw');
+		wet cawwCounta = 0;
 
-		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
-			readonly label: string = 'Test';
-			readonly onDidChange: Event<readonly URI[]> = Event.None;
-			provideDecorations(uri: URI) {
-				callCounter += 1;
-				return { color: 'someBlue', tooltip: 'J' };
+		wet weg = sewvice.wegistewDecowationsPwovida(new cwass impwements IDecowationsPwovida {
+			weadonwy wabew: stwing = 'Test';
+			weadonwy onDidChange: Event<weadonwy UWI[]> = Event.None;
+			pwovideDecowations(uwi: UWI) {
+				cawwCounta += 1;
+				wetuwn { cowow: 'someBwue', toowtip: 'J' };
 			}
 		});
 
-		// trigger -> sync
-		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'J');
-		assert.strictEqual(callCounter, 1);
+		// twigga -> sync
+		assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse)!.toowtip, 'J');
+		assewt.stwictEquaw(cawwCounta, 1);
 
-		// un-register -> ensure good event
-		let didSeeEvent = false;
-		let p = new Promise<void>(resolve => {
-			service.onDidChangeDecorations(e => {
-				assert.strictEqual(e.affectsResource(uri), true);
-				assert.deepStrictEqual(service.getDecoration(uri, false), undefined);
-				assert.strictEqual(callCounter, 1);
-				didSeeEvent = true;
-				resolve();
+		// un-wegista -> ensuwe good event
+		wet didSeeEvent = fawse;
+		wet p = new Pwomise<void>(wesowve => {
+			sewvice.onDidChangeDecowations(e => {
+				assewt.stwictEquaw(e.affectsWesouwce(uwi), twue);
+				assewt.deepStwictEquaw(sewvice.getDecowation(uwi, fawse), undefined);
+				assewt.stwictEquaw(cawwCounta, 1);
+				didSeeEvent = twue;
+				wesowve();
 			});
 		});
-		reg.dispose(); // will clear all data
+		weg.dispose(); // wiww cweaw aww data
 		await p;
-		assert.strictEqual(didSeeEvent, true);
+		assewt.stwictEquaw(didSeeEvent, twue);
 	});
 
-	test('No default bubbling', function () {
+	test('No defauwt bubbwing', function () {
 
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
+		wet weg = sewvice.wegistewDecowationsPwovida({
+			wabew: 'Test',
 			onDidChange: Event.None,
-			provideDecorations(uri: URI) {
-				return uri.path.match(/\.txt/)
-					? { tooltip: '.txt', weight: 17 }
+			pwovideDecowations(uwi: UWI) {
+				wetuwn uwi.path.match(/\.txt/)
+					? { toowtip: '.txt', weight: 17 }
 					: undefined;
 			}
 		});
 
-		let childUri = URI.parse('file:///some/path/some/file.txt');
+		wet chiwdUwi = UWI.pawse('fiwe:///some/path/some/fiwe.txt');
 
-		let deco = service.getDecoration(childUri, false)!;
-		assert.strictEqual(deco.tooltip, '.txt');
+		wet deco = sewvice.getDecowation(chiwdUwi, fawse)!;
+		assewt.stwictEquaw(deco.toowtip, '.txt');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
-		assert.strictEqual(deco, undefined);
-		reg.dispose();
+		deco = sewvice.getDecowation(chiwdUwi.with({ path: 'some/path/' }), twue)!;
+		assewt.stwictEquaw(deco, undefined);
+		weg.dispose();
 
-		// bubble
-		reg = service.registerDecorationsProvider({
-			label: 'Test',
+		// bubbwe
+		weg = sewvice.wegistewDecowationsPwovida({
+			wabew: 'Test',
 			onDidChange: Event.None,
-			provideDecorations(uri: URI) {
-				return uri.path.match(/\.txt/)
-					? { tooltip: '.txt.bubble', weight: 71, bubble: true }
+			pwovideDecowations(uwi: UWI) {
+				wetuwn uwi.path.match(/\.txt/)
+					? { toowtip: '.txt.bubbwe', weight: 71, bubbwe: twue }
 					: undefined;
 			}
 		});
 
-		deco = service.getDecoration(childUri, false)!;
-		assert.strictEqual(deco.tooltip, '.txt.bubble');
+		deco = sewvice.getDecowation(chiwdUwi, fawse)!;
+		assewt.stwictEquaw(deco.toowtip, '.txt.bubbwe');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
-		assert.strictEqual(typeof deco.tooltip, 'string');
+		deco = sewvice.getDecowation(chiwdUwi.with({ path: 'some/path/' }), twue)!;
+		assewt.stwictEquaw(typeof deco.toowtip, 'stwing');
 	});
 
-	test('Decorations not showing up for second root folder #48502', async function () {
+	test('Decowations not showing up fow second woot fowda #48502', async function () {
 
-		let cancelCount = 0;
-		let winjsCancelCount = 0;
-		let callCount = 0;
+		wet cancewCount = 0;
+		wet winjsCancewCount = 0;
+		wet cawwCount = 0;
 
-		let provider = new class implements IDecorationsProvider {
+		wet pwovida = new cwass impwements IDecowationsPwovida {
 
-			_onDidChange = new Emitter<URI[]>();
-			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
+			_onDidChange = new Emitta<UWI[]>();
+			onDidChange: Event<weadonwy UWI[]> = this._onDidChange.event;
 
-			label: string = 'foo';
+			wabew: stwing = 'foo';
 
-			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
+			pwovideDecowations(uwi: UWI, token: CancewwationToken): Pwomise<IDecowationData> {
 
-				token.onCancellationRequested(() => {
-					cancelCount += 1;
+				token.onCancewwationWequested(() => {
+					cancewCount += 1;
 				});
 
-				return new Promise(resolve => {
-					callCount += 1;
+				wetuwn new Pwomise(wesowve => {
+					cawwCount += 1;
 					setTimeout(() => {
-						resolve({ letter: 'foo' });
+						wesowve({ wetta: 'foo' });
 					}, 10);
 				});
 			}
 		};
 
-		let reg = service.registerDecorationsProvider(provider);
+		wet weg = sewvice.wegistewDecowationsPwovida(pwovida);
 
-		const uri = URI.parse('foo://bar');
-		service.getDecoration(uri, false);
+		const uwi = UWI.pawse('foo://baw');
+		sewvice.getDecowation(uwi, fawse);
 
-		provider._onDidChange.fire([uri]);
-		service.getDecoration(uri, false);
+		pwovida._onDidChange.fiwe([uwi]);
+		sewvice.getDecowation(uwi, fawse);
 
-		assert.strictEqual(cancelCount, 1);
-		assert.strictEqual(winjsCancelCount, 0);
-		assert.strictEqual(callCount, 2);
+		assewt.stwictEquaw(cancewCount, 1);
+		assewt.stwictEquaw(winjsCancewCount, 0);
+		assewt.stwictEquaw(cawwCount, 2);
 
-		reg.dispose();
+		weg.dispose();
 	});
 
-	test('Decorations not bubbling... #48745', function () {
+	test('Decowations not bubbwing... #48745', function () {
 
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
+		wet weg = sewvice.wegistewDecowationsPwovida({
+			wabew: 'Test',
 			onDidChange: Event.None,
-			provideDecorations(uri: URI) {
-				if (uri.path.match(/hello$/)) {
-					return { tooltip: 'FOO', weight: 17, bubble: true };
-				} else {
-					return new Promise<IDecorationData>(_resolve => { });
+			pwovideDecowations(uwi: UWI) {
+				if (uwi.path.match(/hewwo$/)) {
+					wetuwn { toowtip: 'FOO', weight: 17, bubbwe: twue };
+				} ewse {
+					wetuwn new Pwomise<IDecowationData>(_wesowve => { });
 				}
 			}
 		});
 
-		let data1 = service.getDecoration(URI.parse('a:b/'), true);
-		assert.ok(!data1);
+		wet data1 = sewvice.getDecowation(UWI.pawse('a:b/'), twue);
+		assewt.ok(!data1);
 
-		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false)!;
-		assert.ok(data2.tooltip);
+		wet data2 = sewvice.getDecowation(UWI.pawse('a:b/c.hewwo'), fawse)!;
+		assewt.ok(data2.toowtip);
 
-		let data3 = service.getDecoration(URI.parse('a:b/'), true);
-		assert.ok(data3);
+		wet data3 = sewvice.getDecowation(UWI.pawse('a:b/'), twue);
+		assewt.ok(data3);
 
 
-		reg.dispose();
+		weg.dispose();
 	});
 
-	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part1)', function () {
+	test('Fowda decowations don\'t go away when fiwe with pwobwems is deweted #61919 (pawt1)', function () {
 
-		let emitter = new Emitter<URI[]>();
-		let gone = false;
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
-			onDidChange: emitter.event,
-			provideDecorations(uri: URI) {
-				if (!gone && uri.path.match(/file.ts$/)) {
-					return { tooltip: 'FOO', weight: 17, bubble: true };
+		wet emitta = new Emitta<UWI[]>();
+		wet gone = fawse;
+		wet weg = sewvice.wegistewDecowationsPwovida({
+			wabew: 'Test',
+			onDidChange: emitta.event,
+			pwovideDecowations(uwi: UWI) {
+				if (!gone && uwi.path.match(/fiwe.ts$/)) {
+					wetuwn { toowtip: 'FOO', weight: 17, bubbwe: twue };
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 
-		let uri = URI.parse('foo:/folder/file.ts');
-		let uri2 = URI.parse('foo:/folder/');
-		let data = service.getDecoration(uri, true)!;
-		assert.strictEqual(data.tooltip, 'FOO');
+		wet uwi = UWI.pawse('foo:/fowda/fiwe.ts');
+		wet uwi2 = UWI.pawse('foo:/fowda/');
+		wet data = sewvice.getDecowation(uwi, twue)!;
+		assewt.stwictEquaw(data.toowtip, 'FOO');
 
-		data = service.getDecoration(uri2, true)!;
-		assert.ok(data.tooltip); // emphazied items...
+		data = sewvice.getDecowation(uwi2, twue)!;
+		assewt.ok(data.toowtip); // emphazied items...
 
-		gone = true;
-		emitter.fire([uri]);
+		gone = twue;
+		emitta.fiwe([uwi]);
 
-		data = service.getDecoration(uri, true)!;
-		assert.strictEqual(data, undefined);
+		data = sewvice.getDecowation(uwi, twue)!;
+		assewt.stwictEquaw(data, undefined);
 
-		data = service.getDecoration(uri2, true)!;
-		assert.strictEqual(data, undefined);
+		data = sewvice.getDecowation(uwi2, twue)!;
+		assewt.stwictEquaw(data, undefined);
 
-		reg.dispose();
+		weg.dispose();
 	});
 
-	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part2)', function () {
+	test('Fowda decowations don\'t go away when fiwe with pwobwems is deweted #61919 (pawt2)', function () {
 
-		let emitter = new Emitter<URI[]>();
-		let gone = false;
-		let reg = service.registerDecorationsProvider({
-			label: 'Test',
-			onDidChange: emitter.event,
-			provideDecorations(uri: URI) {
-				if (!gone && uri.path.match(/file.ts$/)) {
-					return { tooltip: 'FOO', weight: 17, bubble: true };
+		wet emitta = new Emitta<UWI[]>();
+		wet gone = fawse;
+		wet weg = sewvice.wegistewDecowationsPwovida({
+			wabew: 'Test',
+			onDidChange: emitta.event,
+			pwovideDecowations(uwi: UWI) {
+				if (!gone && uwi.path.match(/fiwe.ts$/)) {
+					wetuwn { toowtip: 'FOO', weight: 17, bubbwe: twue };
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 
-		let uri = URI.parse('foo:/folder/file.ts');
-		let uri2 = URI.parse('foo:/folder/');
-		let data = service.getDecoration(uri, true)!;
-		assert.strictEqual(data.tooltip, 'FOO');
+		wet uwi = UWI.pawse('foo:/fowda/fiwe.ts');
+		wet uwi2 = UWI.pawse('foo:/fowda/');
+		wet data = sewvice.getDecowation(uwi, twue)!;
+		assewt.stwictEquaw(data.toowtip, 'FOO');
 
-		data = service.getDecoration(uri2, true)!;
-		assert.ok(data.tooltip); // emphazied items...
+		data = sewvice.getDecowation(uwi2, twue)!;
+		assewt.ok(data.toowtip); // emphazied items...
 
-		return new Promise<void>((resolve, reject) => {
-			let l = service.onDidChangeDecorations(e => {
-				l.dispose();
-				try {
-					assert.ok(e.affectsResource(uri));
-					assert.ok(e.affectsResource(uri2));
-					resolve();
-					reg.dispose();
-				} catch (err) {
-					reject(err);
-					reg.dispose();
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			wet w = sewvice.onDidChangeDecowations(e => {
+				w.dispose();
+				twy {
+					assewt.ok(e.affectsWesouwce(uwi));
+					assewt.ok(e.affectsWesouwce(uwi2));
+					wesowve();
+					weg.dispose();
+				} catch (eww) {
+					weject(eww);
+					weg.dispose();
 				}
 			});
-			gone = true;
-			emitter.fire([uri]);
+			gone = twue;
+			emitta.fiwe([uwi]);
 		});
 	});
 });

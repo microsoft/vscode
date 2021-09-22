@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ExtHostTreeViewsShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/base/test/common/mock';
-import { ITreeItem, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, ITreeViewDescriptor, ITreeView, ViewContainer, IViewDescriptorService, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadTreeViews } from 'vs/workbench/api/browser/mainThreadTreeViews';
-import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
-import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+impowt * as assewt fwom 'assewt';
+impowt { ExtHostTweeViewsShape, IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { ITweeItem, IViewsWegistwy, Extensions, ViewContainewWocation, IViewContainewsWegistwy, ITweeViewDescwiptow, ITweeView, ViewContaina, IViewDescwiptowSewvice, TweeItemCowwapsibweState } fwom 'vs/wowkbench/common/views';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MainThweadTweeViews } fwom 'vs/wowkbench/api/bwowsa/mainThweadTweeViews';
+impowt { TestViewsSewvice, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestExtensionSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ViewDescwiptowSewvice } fwom 'vs/wowkbench/sewvices/views/bwowsa/viewDescwiptowSewvice';
+impowt { CustomTweeView } fwom 'vs/wowkbench/bwowsa/pawts/views/tweeView';
+impowt { ExtensionHostKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-suite('MainThreadHostTreeView', function () {
-	const testTreeViewId = 'testTreeView';
-	const customValue = 'customValue';
-	const ViewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+suite('MainThweadHostTweeView', function () {
+	const testTweeViewId = 'testTweeView';
+	const customVawue = 'customVawue';
+	const ViewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
 
-	interface CustomTreeItem extends ITreeItem {
-		customProp: string;
+	intewface CustomTweeItem extends ITweeItem {
+		customPwop: stwing;
 	}
 
-	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
-		override async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
-			return [<CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }];
+	cwass MockExtHostTweeViewsShape extends mock<ExtHostTweeViewsShape>() {
+		ovewwide async $getChiwdwen(tweeViewId: stwing, tweeItemHandwe?: stwing): Pwomise<ITweeItem[]> {
+			wetuwn [<CustomTweeItem>{ handwe: 'testItem1', cowwapsibweState: TweeItemCowwapsibweState.Expanded, customPwop: customVawue }];
 		}
 
-		override async $hasResolve(): Promise<boolean> {
-			return false;
+		ovewwide async $hasWesowve(): Pwomise<boowean> {
+			wetuwn fawse;
 		}
 
-		override $setVisible(): void { }
+		ovewwide $setVisibwe(): void { }
 	}
 
-	let container: ViewContainer;
-	let mainThreadTreeViews: MainThreadTreeViews;
-	let extHostTreeViewsShape: MockExtHostTreeViewsShape;
+	wet containa: ViewContaina;
+	wet mainThweadTweeViews: MainThweadTweeViews;
+	wet extHostTweeViewsShape: MockExtHostTweeViewsShape;
 
 	setup(async () => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
-		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const viewDescriptor: ITreeViewDescriptor = {
-			id: testTreeViewId,
-			ctorDescriptor: null!,
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		const viewDescwiptowSewvice = instantiationSewvice.cweateInstance(ViewDescwiptowSewvice);
+		instantiationSewvice.stub(IViewDescwiptowSewvice, viewDescwiptowSewvice);
+		containa = Wegistwy.as<IViewContainewsWegistwy>(Extensions.ViewContainewsWegistwy).wegistewViewContaina({ id: 'testContaina', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const viewDescwiptow: ITweeViewDescwiptow = {
+			id: testTweeViewId,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title'),
+			tweeView: instantiationSewvice.cweateInstance(CustomTweeView, 'testTwee', 'Test Titwe'),
 		};
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		const testExtensionService = new TestExtensionService();
-		extHostTreeViewsShape = new MockExtHostTreeViewsShape();
-		mainThreadTreeViews = new MainThreadTreeViews(
-			new class implements IExtHostContext {
-				remoteAuthority = '';
-				extensionHostKind = ExtensionHostKind.LocalProcess;
-				assertRegistered() { }
-				set(v: any): any { return null; }
-				getProxy(): any {
-					return extHostTreeViewsShape;
+		const testExtensionSewvice = new TestExtensionSewvice();
+		extHostTweeViewsShape = new MockExtHostTweeViewsShape();
+		mainThweadTweeViews = new MainThweadTweeViews(
+			new cwass impwements IExtHostContext {
+				wemoteAuthowity = '';
+				extensionHostKind = ExtensionHostKind.WocawPwocess;
+				assewtWegistewed() { }
+				set(v: any): any { wetuwn nuww; }
+				getPwoxy(): any {
+					wetuwn extHostTweeViewsShape;
 				}
-				drain(): any { return null; }
-			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, canDragAndDrop: false });
-		await testExtensionService.whenInstalledExtensionsRegistered();
+				dwain(): any { wetuwn nuww; }
+			}, new TestViewsSewvice(), new TestNotificationSewvice(), testExtensionSewvice, new NuwwWogSewvice());
+		mainThweadTweeViews.$wegistewTweeViewDataPwovida(testTweeViewId, { showCowwapseAww: fawse, canSewectMany: fawse, canDwagAndDwop: fawse });
+		await testExtensionSewvice.whenInstawwedExtensionsWegistewed();
 	});
 
-	teardown(() => {
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
+	teawdown(() => {
+		ViewsWegistwy.dewegistewViews(ViewsWegistwy.getViews(containa), containa);
 	});
 
-	test('getChildren keeps custom properties', async () => {
-		const treeView: ITreeView = (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView;
-		const children = await treeView.dataProvider?.getChildren({ handle: 'root', collapsibleState: TreeItemCollapsibleState.Expanded });
-		assert(children!.length === 1, 'Exactly one child should be returned');
-		assert((<CustomTreeItem>children![0]).customProp === customValue, 'Tree Items should keep custom properties');
+	test('getChiwdwen keeps custom pwopewties', async () => {
+		const tweeView: ITweeView = (<ITweeViewDescwiptow>ViewsWegistwy.getView(testTweeViewId)).tweeView;
+		const chiwdwen = await tweeView.dataPwovida?.getChiwdwen({ handwe: 'woot', cowwapsibweState: TweeItemCowwapsibweState.Expanded });
+		assewt(chiwdwen!.wength === 1, 'Exactwy one chiwd shouwd be wetuwned');
+		assewt((<CustomTweeItem>chiwdwen![0]).customPwop === customVawue, 'Twee Items shouwd keep custom pwopewties');
 	});
 
 

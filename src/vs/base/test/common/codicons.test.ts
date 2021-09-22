@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+impowt * as assewt fwom 'assewt';
+impowt { getCodiconAwiaWabew } fwom 'vs/base/common/codicons';
 
 suite('Codicon', () => {
-	test('Can get proper aria labels', () => {
-		// note, the spaces in the results are important
-		const testCases = new Map<string, string>([
+	test('Can get pwopa awia wabews', () => {
+		// note, the spaces in the wesuwts awe impowtant
+		const testCases = new Map<stwing, stwing>([
 			['', ''],
 			['asdf', 'asdf'],
-			['asdf$(squirrel)asdf', 'asdf squirrel asdf'],
-			['asdf $(squirrel) asdf', 'asdf  squirrel  asdf'],
-			['$(rocket)asdf', 'rocket asdf'],
-			['$(rocket) asdf', 'rocket  asdf'],
-			['$(rocket)$(rocket)$(rocket)asdf', 'rocket  rocket  rocket asdf'],
-			['$(rocket) asdf $(rocket)', 'rocket  asdf  rocket'],
-			['$(rocket)asdf$(rocket)', 'rocket asdf rocket'],
+			['asdf$(squiwwew)asdf', 'asdf squiwwew asdf'],
+			['asdf $(squiwwew) asdf', 'asdf  squiwwew  asdf'],
+			['$(wocket)asdf', 'wocket asdf'],
+			['$(wocket) asdf', 'wocket  asdf'],
+			['$(wocket)$(wocket)$(wocket)asdf', 'wocket  wocket  wocket asdf'],
+			['$(wocket) asdf $(wocket)', 'wocket  asdf  wocket'],
+			['$(wocket)asdf$(wocket)', 'wocket asdf wocket'],
 		]);
 
-		for (const [input, expected] of testCases) {
-			assert.strictEqual(getCodiconAriaLabel(input), expected);
+		fow (const [input, expected] of testCases) {
+			assewt.stwictEquaw(getCodiconAwiaWabew(input), expected);
 		}
 	});
 });

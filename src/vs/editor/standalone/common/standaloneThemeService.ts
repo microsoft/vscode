@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { ITokenThemeRule, TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { ITokenThemeWuwe, TokenTheme } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICowowTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
+expowt const IStandawoneThemeSewvice = cweateDecowatow<IStandawoneThemeSewvice>('themeSewvice');
 
-export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
-export type IColors = { [colorId: string]: string; };
+expowt type BuiwtinTheme = 'vs' | 'vs-dawk' | 'hc-bwack';
+expowt type ICowows = { [cowowId: stwing]: stwing; };
 
-export interface IStandaloneThemeData {
-	base: BuiltinTheme;
-	inherit: boolean;
-	rules: ITokenThemeRule[];
-	encodedTokensColors?: string[];
-	colors: IColors;
+expowt intewface IStandawoneThemeData {
+	base: BuiwtinTheme;
+	inhewit: boowean;
+	wuwes: ITokenThemeWuwe[];
+	encodedTokensCowows?: stwing[];
+	cowows: ICowows;
 }
 
-export interface IStandaloneTheme extends IColorTheme {
+expowt intewface IStandawoneTheme extends ICowowTheme {
 	tokenTheme: TokenTheme;
-	themeName: string;
+	themeName: stwing;
 }
 
-export interface IStandaloneThemeService extends IThemeService {
-	readonly _serviceBrand: undefined;
+expowt intewface IStandawoneThemeSewvice extends IThemeSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	setTheme(themeName: string): void;
+	setTheme(themeName: stwing): void;
 
-	setAutoDetectHighContrast(autoDetectHighContrast: boolean): void;
+	setAutoDetectHighContwast(autoDetectHighContwast: boowean): void;
 
-	defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
+	defineTheme(themeName: stwing, themeData: IStandawoneThemeData): void;
 
-	getColorTheme(): IStandaloneTheme;
+	getCowowTheme(): IStandawoneTheme;
 
-	setColorMapOverride(colorMapOverride: Color[] | null): void;
+	setCowowMapOvewwide(cowowMapOvewwide: Cowow[] | nuww): void;
 
 }

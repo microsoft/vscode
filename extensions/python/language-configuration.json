@@ -1,38 +1,38 @@
 {
 	"comments": {
-		"lineComment": "#",
-		"blockComment": [ "\"\"\"", "\"\"\"" ]
+		"wineComment": "#",
+		"bwockComment": [ "\"\"\"", "\"\"\"" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}" },
-		{ "open": "[", "close": "]" },
-		{ "open": "(", "close": ")" },
-		{ "open": "\"", "close": "\"", "notIn": ["string"] },
-		{ "open": "r\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "R\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "u\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "U\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "f\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "F\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "b\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "B\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "r'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "R'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "u'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "U'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "f'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "F'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "b'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "B'", "close": "'", "notIn": ["string", "comment"] },
-		{ "open": "`", "close": "`", "notIn": ["string"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}" },
+		{ "open": "[", "cwose": "]" },
+		{ "open": "(", "cwose": ")" },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] },
+		{ "open": "w\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "W\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "u\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "U\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "f\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "F\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "b\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "B\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "w'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "W'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "u'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "U'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "f'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "F'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "b'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "B'", "cwose": "'", "notIn": ["stwing", "comment"] },
+		{ "open": "`", "cwose": "`", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
@@ -40,16 +40,16 @@
 		["'", "'"],
 		["`", "`"]
 	],
-	"folding": {
-		"offSide": true,
-		"markers": {
-			"start": "^\\s*#\\s*region\\b",
-			"end": "^\\s*#\\s*endregion\\b"
+	"fowding": {
+		"offSide": twue,
+		"mawkews": {
+			"stawt": "^\\s*#\\s*wegion\\b",
+			"end": "^\\s*#\\s*endwegion\\b"
 		}
 	},
-	"onEnterRules": [
+	"onEntewWuwes": [
 		{
-			"beforeText": "^\\s*(?:def|class|for|if|elif|else|while|try|with|finally|except|async).*?:\\s*$",
+			"befoweText": "^\\s*(?:def|cwass|fow|if|ewif|ewse|whiwe|twy|with|finawwy|except|async).*?:\\s*$",
 			"action": { "indent": "indent" }
 		}
 	]

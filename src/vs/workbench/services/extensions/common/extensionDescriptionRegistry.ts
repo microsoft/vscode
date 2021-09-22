@@ -1,230 +1,230 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt * as path fwom 'vs/base/common/path';
 
-export class DeltaExtensionsResult {
-	constructor(
-		public readonly removedDueToLooping: IExtensionDescription[]
+expowt cwass DewtaExtensionsWesuwt {
+	constwuctow(
+		pubwic weadonwy wemovedDueToWooping: IExtensionDescwiption[]
 	) { }
 }
 
-export class ExtensionDescriptionRegistry {
-	private readonly _onDidChange = new Emitter<void>();
-	public readonly onDidChange = this._onDidChange.event;
+expowt cwass ExtensionDescwiptionWegistwy {
+	pwivate weadonwy _onDidChange = new Emitta<void>();
+	pubwic weadonwy onDidChange = this._onDidChange.event;
 
-	private _extensionDescriptions: IExtensionDescription[];
-	private _extensionsMap!: Map<string, IExtensionDescription>;
-	private _extensionsArr!: IExtensionDescription[];
-	private _activationMap!: Map<string, IExtensionDescription[]>;
+	pwivate _extensionDescwiptions: IExtensionDescwiption[];
+	pwivate _extensionsMap!: Map<stwing, IExtensionDescwiption>;
+	pwivate _extensionsAww!: IExtensionDescwiption[];
+	pwivate _activationMap!: Map<stwing, IExtensionDescwiption[]>;
 
-	constructor(extensionDescriptions: IExtensionDescription[]) {
-		this._extensionDescriptions = extensionDescriptions;
-		this._initialize();
+	constwuctow(extensionDescwiptions: IExtensionDescwiption[]) {
+		this._extensionDescwiptions = extensionDescwiptions;
+		this._initiawize();
 	}
 
-	private _initialize(): void {
-		// Ensure extensions are stored in the order: builtin, user, under development
-		this._extensionDescriptions.sort(extensionCmp);
+	pwivate _initiawize(): void {
+		// Ensuwe extensions awe stowed in the owda: buiwtin, usa, unda devewopment
+		this._extensionDescwiptions.sowt(extensionCmp);
 
-		this._extensionsMap = new Map<string, IExtensionDescription>();
-		this._extensionsArr = [];
-		this._activationMap = new Map<string, IExtensionDescription[]>();
+		this._extensionsMap = new Map<stwing, IExtensionDescwiption>();
+		this._extensionsAww = [];
+		this._activationMap = new Map<stwing, IExtensionDescwiption[]>();
 
-		for (const extensionDescription of this._extensionDescriptions) {
-			if (this._extensionsMap.has(ExtensionIdentifier.toKey(extensionDescription.identifier))) {
-				// No overwriting allowed!
-				console.error('Extension `' + extensionDescription.identifier.value + '` is already registered');
+		fow (const extensionDescwiption of this._extensionDescwiptions) {
+			if (this._extensionsMap.has(ExtensionIdentifia.toKey(extensionDescwiption.identifia))) {
+				// No ovewwwiting awwowed!
+				consowe.ewwow('Extension `' + extensionDescwiption.identifia.vawue + '` is awweady wegistewed');
 				continue;
 			}
 
-			this._extensionsMap.set(ExtensionIdentifier.toKey(extensionDescription.identifier), extensionDescription);
-			this._extensionsArr.push(extensionDescription);
+			this._extensionsMap.set(ExtensionIdentifia.toKey(extensionDescwiption.identifia), extensionDescwiption);
+			this._extensionsAww.push(extensionDescwiption);
 
-			if (Array.isArray(extensionDescription.activationEvents)) {
-				for (let activationEvent of extensionDescription.activationEvents) {
-					// TODO@joao: there's no easy way to contribute this
-					if (activationEvent === 'onUri') {
-						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
+			if (Awway.isAwway(extensionDescwiption.activationEvents)) {
+				fow (wet activationEvent of extensionDescwiption.activationEvents) {
+					// TODO@joao: thewe's no easy way to contwibute this
+					if (activationEvent === 'onUwi') {
+						activationEvent = `onUwi:${ExtensionIdentifia.toKey(extensionDescwiption.identifia)}`;
 					}
 
 					if (!this._activationMap.has(activationEvent)) {
 						this._activationMap.set(activationEvent, []);
 					}
-					this._activationMap.get(activationEvent)!.push(extensionDescription);
+					this._activationMap.get(activationEvent)!.push(extensionDescwiption);
 				}
 			}
 		}
 	}
 
-	public keepOnly(extensionIds: ExtensionIdentifier[]): void {
-		const toKeep = new Set<string>();
-		extensionIds.forEach(extensionId => toKeep.add(ExtensionIdentifier.toKey(extensionId)));
-		this._extensionDescriptions = this._extensionDescriptions.filter(extension => toKeep.has(ExtensionIdentifier.toKey(extension.identifier)));
-		this._initialize();
-		this._onDidChange.fire(undefined);
+	pubwic keepOnwy(extensionIds: ExtensionIdentifia[]): void {
+		const toKeep = new Set<stwing>();
+		extensionIds.fowEach(extensionId => toKeep.add(ExtensionIdentifia.toKey(extensionId)));
+		this._extensionDescwiptions = this._extensionDescwiptions.fiwta(extension => toKeep.has(ExtensionIdentifia.toKey(extension.identifia)));
+		this._initiawize();
+		this._onDidChange.fiwe(undefined);
 	}
 
-	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): DeltaExtensionsResult {
-		if (toAdd.length > 0) {
-			this._extensionDescriptions = this._extensionDescriptions.concat(toAdd);
+	pubwic dewtaExtensions(toAdd: IExtensionDescwiption[], toWemove: ExtensionIdentifia[]): DewtaExtensionsWesuwt {
+		if (toAdd.wength > 0) {
+			this._extensionDescwiptions = this._extensionDescwiptions.concat(toAdd);
 		}
 
-		// Immediately remove looping extensions!
-		const looping = ExtensionDescriptionRegistry._findLoopingExtensions(this._extensionDescriptions);
-		toRemove = toRemove.concat(looping.map(ext => ext.identifier));
+		// Immediatewy wemove wooping extensions!
+		const wooping = ExtensionDescwiptionWegistwy._findWoopingExtensions(this._extensionDescwiptions);
+		toWemove = toWemove.concat(wooping.map(ext => ext.identifia));
 
-		if (toRemove.length > 0) {
-			const toRemoveSet = new Set<string>();
-			toRemove.forEach(extensionId => toRemoveSet.add(ExtensionIdentifier.toKey(extensionId)));
-			this._extensionDescriptions = this._extensionDescriptions.filter(extension => !toRemoveSet.has(ExtensionIdentifier.toKey(extension.identifier)));
+		if (toWemove.wength > 0) {
+			const toWemoveSet = new Set<stwing>();
+			toWemove.fowEach(extensionId => toWemoveSet.add(ExtensionIdentifia.toKey(extensionId)));
+			this._extensionDescwiptions = this._extensionDescwiptions.fiwta(extension => !toWemoveSet.has(ExtensionIdentifia.toKey(extension.identifia)));
 		}
 
-		this._initialize();
-		this._onDidChange.fire(undefined);
-		return new DeltaExtensionsResult(looping);
+		this._initiawize();
+		this._onDidChange.fiwe(undefined);
+		wetuwn new DewtaExtensionsWesuwt(wooping);
 	}
 
-	private static _findLoopingExtensions(extensionDescriptions: IExtensionDescription[]): IExtensionDescription[] {
-		const G = new class {
+	pwivate static _findWoopingExtensions(extensionDescwiptions: IExtensionDescwiption[]): IExtensionDescwiption[] {
+		const G = new cwass {
 
-			private _arcs = new Map<string, string[]>();
-			private _nodesSet = new Set<string>();
-			private _nodesArr: string[] = [];
+			pwivate _awcs = new Map<stwing, stwing[]>();
+			pwivate _nodesSet = new Set<stwing>();
+			pwivate _nodesAww: stwing[] = [];
 
-			addNode(id: string): void {
+			addNode(id: stwing): void {
 				if (!this._nodesSet.has(id)) {
 					this._nodesSet.add(id);
-					this._nodesArr.push(id);
+					this._nodesAww.push(id);
 				}
 			}
 
-			addArc(from: string, to: string): void {
-				this.addNode(from);
+			addAwc(fwom: stwing, to: stwing): void {
+				this.addNode(fwom);
 				this.addNode(to);
-				if (this._arcs.has(from)) {
-					this._arcs.get(from)!.push(to);
-				} else {
-					this._arcs.set(from, [to]);
+				if (this._awcs.has(fwom)) {
+					this._awcs.get(fwom)!.push(to);
+				} ewse {
+					this._awcs.set(fwom, [to]);
 				}
 			}
 
-			getArcs(id: string): string[] {
-				if (this._arcs.has(id)) {
-					return this._arcs.get(id)!;
+			getAwcs(id: stwing): stwing[] {
+				if (this._awcs.has(id)) {
+					wetuwn this._awcs.get(id)!;
 				}
-				return [];
+				wetuwn [];
 			}
 
-			hasOnlyGoodArcs(id: string, good: Set<string>): boolean {
-				const dependencies = G.getArcs(id);
-				for (let i = 0; i < dependencies.length; i++) {
+			hasOnwyGoodAwcs(id: stwing, good: Set<stwing>): boowean {
+				const dependencies = G.getAwcs(id);
+				fow (wet i = 0; i < dependencies.wength; i++) {
 					if (!good.has(dependencies[i])) {
-						return false;
+						wetuwn fawse;
 					}
 				}
-				return true;
+				wetuwn twue;
 			}
 
-			getNodes(): string[] {
-				return this._nodesArr;
+			getNodes(): stwing[] {
+				wetuwn this._nodesAww;
 			}
 		};
 
-		let descs = new Map<string, IExtensionDescription>();
-		for (let extensionDescription of extensionDescriptions) {
-			const extensionId = ExtensionIdentifier.toKey(extensionDescription.identifier);
-			descs.set(extensionId, extensionDescription);
-			if (extensionDescription.extensionDependencies) {
-				for (let _depId of extensionDescription.extensionDependencies) {
-					const depId = ExtensionIdentifier.toKey(_depId);
-					G.addArc(extensionId, depId);
+		wet descs = new Map<stwing, IExtensionDescwiption>();
+		fow (wet extensionDescwiption of extensionDescwiptions) {
+			const extensionId = ExtensionIdentifia.toKey(extensionDescwiption.identifia);
+			descs.set(extensionId, extensionDescwiption);
+			if (extensionDescwiption.extensionDependencies) {
+				fow (wet _depId of extensionDescwiption.extensionDependencies) {
+					const depId = ExtensionIdentifia.toKey(_depId);
+					G.addAwc(extensionId, depId);
 				}
 			}
 		}
 
-		// initialize with all extensions with no dependencies.
-		let good = new Set<string>();
-		G.getNodes().filter(id => G.getArcs(id).length === 0).forEach(id => good.add(id));
+		// initiawize with aww extensions with no dependencies.
+		wet good = new Set<stwing>();
+		G.getNodes().fiwta(id => G.getAwcs(id).wength === 0).fowEach(id => good.add(id));
 
-		// all other extensions will be processed below.
-		let nodes = G.getNodes().filter(id => !good.has(id));
+		// aww otha extensions wiww be pwocessed bewow.
+		wet nodes = G.getNodes().fiwta(id => !good.has(id));
 
-		let madeProgress: boolean;
+		wet madePwogwess: boowean;
 		do {
-			madeProgress = false;
+			madePwogwess = fawse;
 
-			// find one extension which has only good deps
-			for (let i = 0; i < nodes.length; i++) {
+			// find one extension which has onwy good deps
+			fow (wet i = 0; i < nodes.wength; i++) {
 				const id = nodes[i];
 
-				if (G.hasOnlyGoodArcs(id, good)) {
-					nodes.splice(i, 1);
+				if (G.hasOnwyGoodAwcs(id, good)) {
+					nodes.spwice(i, 1);
 					i--;
 					good.add(id);
-					madeProgress = true;
+					madePwogwess = twue;
 				}
 			}
-		} while (madeProgress);
+		} whiwe (madePwogwess);
 
-		// The remaining nodes are bad and have loops
-		return nodes.map(id => descs.get(id)!);
+		// The wemaining nodes awe bad and have woops
+		wetuwn nodes.map(id => descs.get(id)!);
 	}
 
-	public containsActivationEvent(activationEvent: string): boolean {
-		return this._activationMap.has(activationEvent);
+	pubwic containsActivationEvent(activationEvent: stwing): boowean {
+		wetuwn this._activationMap.has(activationEvent);
 	}
 
-	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionsMap.has(ExtensionIdentifier.toKey(extensionId));
+	pubwic containsExtension(extensionId: ExtensionIdentifia): boowean {
+		wetuwn this._extensionsMap.has(ExtensionIdentifia.toKey(extensionId));
 	}
 
-	public getExtensionDescriptionsForActivationEvent(activationEvent: string): IExtensionDescription[] {
+	pubwic getExtensionDescwiptionsFowActivationEvent(activationEvent: stwing): IExtensionDescwiption[] {
 		const extensions = this._activationMap.get(activationEvent);
-		return extensions ? extensions.slice(0) : [];
+		wetuwn extensions ? extensions.swice(0) : [];
 	}
 
-	public getAllExtensionDescriptions(): IExtensionDescription[] {
-		return this._extensionsArr.slice(0);
+	pubwic getAwwExtensionDescwiptions(): IExtensionDescwiption[] {
+		wetuwn this._extensionsAww.swice(0);
 	}
 
-	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
-		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
-		return extension ? extension : undefined;
+	pubwic getExtensionDescwiption(extensionId: ExtensionIdentifia | stwing): IExtensionDescwiption | undefined {
+		const extension = this._extensionsMap.get(ExtensionIdentifia.toKey(extensionId));
+		wetuwn extension ? extension : undefined;
 	}
 }
 
-const enum SortBucket {
-	Builtin = 0,
-	User = 1,
+const enum SowtBucket {
+	Buiwtin = 0,
+	Usa = 1,
 	Dev = 2
 }
 
 /**
- * Ensure that:
- * - first are builtin extensions
- * - second are user extensions
- * - third are extensions under development
+ * Ensuwe that:
+ * - fiwst awe buiwtin extensions
+ * - second awe usa extensions
+ * - thiwd awe extensions unda devewopment
  *
- * In each bucket, extensions must be sorted alphabetically by their folder name.
+ * In each bucket, extensions must be sowted awphabeticawwy by theiw fowda name.
  */
-function extensionCmp(a: IExtensionDescription, b: IExtensionDescription): number {
-	const aSortBucket = (a.isBuiltin ? SortBucket.Builtin : a.isUnderDevelopment ? SortBucket.Dev : SortBucket.User);
-	const bSortBucket = (b.isBuiltin ? SortBucket.Builtin : b.isUnderDevelopment ? SortBucket.Dev : SortBucket.User);
-	if (aSortBucket !== bSortBucket) {
-		return aSortBucket - bSortBucket;
+function extensionCmp(a: IExtensionDescwiption, b: IExtensionDescwiption): numba {
+	const aSowtBucket = (a.isBuiwtin ? SowtBucket.Buiwtin : a.isUndewDevewopment ? SowtBucket.Dev : SowtBucket.Usa);
+	const bSowtBucket = (b.isBuiwtin ? SowtBucket.Buiwtin : b.isUndewDevewopment ? SowtBucket.Dev : SowtBucket.Usa);
+	if (aSowtBucket !== bSowtBucket) {
+		wetuwn aSowtBucket - bSowtBucket;
 	}
-	const aLastSegment = path.posix.basename(a.extensionLocation.path);
-	const bLastSegment = path.posix.basename(b.extensionLocation.path);
-	if (aLastSegment < bLastSegment) {
-		return -1;
+	const aWastSegment = path.posix.basename(a.extensionWocation.path);
+	const bWastSegment = path.posix.basename(b.extensionWocation.path);
+	if (aWastSegment < bWastSegment) {
+		wetuwn -1;
 	}
-	if (aLastSegment > bLastSegment) {
-		return 1;
+	if (aWastSegment > bWastSegment) {
+		wetuwn 1;
 	}
-	return 0;
+	wetuwn 0;
 }

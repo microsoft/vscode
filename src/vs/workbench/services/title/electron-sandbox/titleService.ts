@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { TitlebarPart } from 'vs/workbench/electron-sandbox/parts/titlebar/titlebarPart';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { TitwebawPawt } fwom 'vs/wowkbench/ewectwon-sandbox/pawts/titwebaw/titwebawPawt';
+impowt { ITitweSewvice } fwom 'vs/wowkbench/sewvices/titwe/common/titweSewvice';
 
-registerSingleton(ITitleService, TitlebarPart);
+wegistewSingweton(ITitweSewvice, TitwebawPawt);

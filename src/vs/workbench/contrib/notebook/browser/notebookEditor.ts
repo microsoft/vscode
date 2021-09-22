@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/notebook';
-import { localize } from 'vs/nls';
-import { extname } from 'vs/base/common/resources';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInputCapabilities, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./media/notebook';
+impowt { wocawize } fwom 'vs/nws';
+impowt { extname } fwom 'vs/base/common/wesouwces';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { EditowInputCapabiwities, IEditowMemento, IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { INotebookEditowViewState } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { IEditowDwopSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowDwopSewvice';
+impowt { IEditowGwoup, IEditowGwoupsSewvice, GwoupsOwda } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { INotebookEditowOptions, NOTEBOOK_EDITOW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { IBowwowVawue, INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { cweawMawks, getAndCweawMawks, mawk } fwom 'vs/wowkbench/contwib/notebook/common/notebookPewfowmance';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { SEWECT_KEWNEW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { NotebooKewnewActionViewItem } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewPawts/notebookKewnewActionViewItem';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
 
-const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
+const NOTEBOOK_EDITOW_VIEW_STATE_PWEFEWENCE_KEY = 'NotebookEditowViewState';
 
-export class NotebookEditor extends EditorPane {
-	static readonly ID: string = NOTEBOOK_EDITOR_ID;
+expowt cwass NotebookEditow extends EditowPane {
+	static weadonwy ID: stwing = NOTEBOOK_EDITOW_ID;
 
-	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
-	private readonly _groupListener = this._register(new DisposableStore());
-	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
-	private _widget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
-	private _rootElement!: HTMLElement;
-	private _dimension?: DOM.Dimension;
+	pwivate weadonwy _editowMemento: IEditowMemento<INotebookEditowViewState>;
+	pwivate weadonwy _gwoupWistena = this._wegista(new DisposabweStowe());
+	pwivate weadonwy _widgetDisposabweStowe: DisposabweStowe = this._wegista(new DisposabweStowe());
+	pwivate _widget: IBowwowVawue<NotebookEditowWidget> = { vawue: undefined };
+	pwivate _wootEwement!: HTMWEwement;
+	pwivate _dimension?: DOM.Dimension;
 
-	private readonly inputListener = this._register(new MutableDisposable());
+	pwivate weadonwy inputWistena = this._wegista(new MutabweDisposabwe());
 
-	// override onDidFocus and onDidBlur to be based on the NotebookEditorWidget element
-	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
-	private readonly _onDidBlurWidget = this._register(new Emitter<void>());
-	override get onDidBlur(): Event<void> { return this._onDidBlurWidget.event; }
+	// ovewwide onDidFocus and onDidBwuw to be based on the NotebookEditowWidget ewement
+	pwivate weadonwy _onDidFocusWidget = this._wegista(new Emitta<void>());
+	ovewwide get onDidFocus(): Event<void> { wetuwn this._onDidFocusWidget.event; }
+	pwivate weadonwy _onDidBwuwWidget = this._wegista(new Emitta<void>());
+	ovewwide get onDidBwuw(): Event<void> { wetuwn this._onDidBwuwWidget.event; }
 
-	private readonly _onDidChangeModel = this._register(new Emitter<void>());
-	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	pwivate weadonwy _onDidChangeModew = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeModew: Event<void> = this._onDidChangeModew.event;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IEditorDropService private readonly _editorDropService: IEditorDropService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowDwopSewvice pwivate weadonwy _editowDwopSewvice: IEditowDwopSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@INotebookEditowSewvice pwivate weadonwy _notebookWidgetSewvice: INotebookEditowSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITextWesouwceConfiguwationSewvice configuwationSewvice: ITextWesouwceConfiguwationSewvice
 	) {
-		super(NotebookEditor.ID, telemetryService, themeService, storageService);
-		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		supa(NotebookEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this._editowMemento = this.getEditowMemento<INotebookEditowViewState>(_editowGwoupSewvice, configuwationSewvice, NOTEBOOK_EDITOW_VIEW_STATE_PWEFEWENCE_KEY);
 
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProvider(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onDidChangeFiweSystemPwovida(e.scheme)));
 	}
 
-	private onDidChangeFileSystemProvider(scheme: string): void {
-		if (this.input instanceof NotebookEditorInput && this.input.resource?.scheme === scheme) {
-			this.updateReadonly(this.input);
+	pwivate onDidChangeFiweSystemPwovida(scheme: stwing): void {
+		if (this.input instanceof NotebookEditowInput && this.input.wesouwce?.scheme === scheme) {
+			this.updateWeadonwy(this.input);
 		}
 	}
 
-	private onDidChangeInputCapabilities(input: NotebookEditorInput): void {
+	pwivate onDidChangeInputCapabiwities(input: NotebookEditowInput): void {
 		if (this.input === input) {
-			this.updateReadonly(input);
+			this.updateWeadonwy(input);
 		}
 	}
 
-	private updateReadonly(input: NotebookEditorInput): void {
-		if (this._widget.value) {
-			this._widget.value.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
+	pwivate updateWeadonwy(input: NotebookEditowInput): void {
+		if (this._widget.vawue) {
+			this._widget.vawue.setOptions({ isWeadOnwy: input.hasCapabiwity(EditowInputCapabiwities.Weadonwy) });
 		}
 	}
 
-	get textModel(): NotebookTextModel | undefined {
-		return this._widget.value?.textModel;
+	get textModew(): NotebookTextModew | undefined {
+		wetuwn this._widget.vawue?.textModew;
 	}
 
-	override get minimumWidth(): number { return 375; }
-	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	ovewwide get minimumWidth(): numba { wetuwn 375; }
+	ovewwide get maximumWidth(): numba { wetuwn Numba.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from EditorPane
-	override set minimumWidth(value: number) { /*noop*/ }
-	override set maximumWidth(value: number) { /*noop*/ }
+	// these settews need to exist because this extends fwom EditowPane
+	ovewwide set minimumWidth(vawue: numba) { /*noop*/ }
+	ovewwide set maximumWidth(vawue: numba) { /*noop*/ }
 
-	//#region Editor Core
-	override get scopedContextKeyService(): IContextKeyService | undefined {
-		return this._widget.value?.scopedContextKeyService;
+	//#wegion Editow Cowe
+	ovewwide get scopedContextKeySewvice(): IContextKeySewvice | undefined {
+		wetuwn this._widget.vawue?.scopedContextKeySewvice;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		this._wootEwement = DOM.append(pawent, DOM.$('.notebook-editow'));
 
-		// this._widget.createEditor();
-		this._register(this.onDidFocus(() => this._widget.value?.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this._widget.value?.updateEditorFocus()));
+		// this._widget.cweateEditow();
+		this._wegista(this.onDidFocus(() => this._widget.vawue?.updateEditowFocus()));
+		this._wegista(this.onDidBwuw(() => this._widget.vawue?.updateEditowFocus()));
 	}
 
 	getDomNode() {
-		return this._rootElement;
+		wetuwn this._wootEwement;
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === SELECT_KERNEL_ID) {
-			// this is being disposed by the consumer
-			return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this);
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === SEWECT_KEWNEW_ID) {
+			// this is being disposed by the consuma
+			wetuwn this.instantiationSewvice.cweateInstance(NotebooKewnewActionViewItem, action, this);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override getControl(): NotebookEditorWidget | undefined {
-		return this._widget.value;
+	ovewwide getContwow(): NotebookEditowWidget | undefined {
+		wetuwn this._widget.vawue;
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
-		if (group) {
-			this._groupListener.clear();
-			this._groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
-			this._groupListener.add(group.onDidGroupChange(() => {
-				if (this._editorGroupService.activeGroup !== group) {
-					this._widget?.value?.updateEditorFocus();
+	ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
+		supa.setEditowVisibwe(visibwe, gwoup);
+		if (gwoup) {
+			this._gwoupWistena.cweaw();
+			this._gwoupWistena.add(gwoup.onWiwwCwoseEditow(e => this._saveEditowViewState(e.editow)));
+			this._gwoupWistena.add(gwoup.onDidGwoupChange(() => {
+				if (this._editowGwoupSewvice.activeGwoup !== gwoup) {
+					this._widget?.vawue?.updateEditowFocus();
 				}
 			}));
 		}
 
-		if (!visible) {
-			this._saveEditorViewState(this.input);
-			if (this.input && this._widget.value) {
-				// the widget is not transfered to other editor inputs
-				this._widget.value.onWillHide();
+		if (!visibwe) {
+			this._saveEditowViewState(this.input);
+			if (this.input && this._widget.vawue) {
+				// the widget is not twansfewed to otha editow inputs
+				this._widget.vawue.onWiwwHide();
 			}
 		}
 	}
 
-	override focus() {
-		super.focus();
-		this._widget.value?.focus();
+	ovewwide focus() {
+		supa.focus();
+		this._widget.vawue?.focus();
 	}
 
-	override hasFocus(): boolean {
-		const activeElement = document.activeElement;
-		const value = this._widget.value;
+	ovewwide hasFocus(): boowean {
+		const activeEwement = document.activeEwement;
+		const vawue = this._widget.vawue;
 
-		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
+		wetuwn !!vawue && (DOM.isAncestow(activeEwement, vawue.getDomNode() || DOM.isAncestow(activeEwement, vawue.getOvewfwowContainewDomNode())));
 	}
 
-	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		clearMarks(input.resource);
-		mark(input.resource, 'startTime');
-		const group = this.group!;
+	ovewwide async setInput(input: NotebookEditowInput, options: INotebookEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		cweawMawks(input.wesouwce);
+		mawk(input.wesouwce, 'stawtTime');
+		const gwoup = this.gwoup!;
 
-		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+		this.inputWistena.vawue = input.onDidChangeCapabiwities(() => this.onDidChangeInputCapabiwities(input));
 
-		this._saveEditorViewState(this.input);
+		this._saveEditowViewState(this.input);
 
-		this._widgetDisposableStore.clear();
+		this._widgetDisposabweStowe.cweaw();
 
-		// there currently is a widget which we still own so
-		// we need to hide it before getting a new widget
-		if (this._widget.value) {
-			this._widget.value.onWillHide();
+		// thewe cuwwentwy is a widget which we stiww own so
+		// we need to hide it befowe getting a new widget
+		if (this._widget.vawue) {
+			this._widget.vawue.onWiwwHide();
 		}
 
-		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
-		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
+		this._widget = this.instantiationSewvice.invokeFunction(this._notebookWidgetSewvice.wetwieveWidget, gwoup, input);
+		this._widgetDisposabweStowe.add(this._widget.vawue!.onDidChangeModew(() => this._onDidChangeModew.fiwe()));
 
 		if (this._dimension) {
-			this._widget.value!.layout(this._dimension, this._rootElement);
+			this._widget.vawue!.wayout(this._dimension, this._wootEwement);
 		}
 
-		// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
-		// so that others synchronously receive a notebook editor with the correct widget being set
-		await super.setInput(input, options, context, token);
-		const model = await input.resolve();
-		mark(input.resource, 'inputLoaded');
+		// onwy now `setInput` and yiewd/await. this is AFTa the actuaw widget is weady. This is vewy impowtant
+		// so that othews synchwonouswy weceive a notebook editow with the cowwect widget being set
+		await supa.setInput(input, options, context, token);
+		const modew = await input.wesowve();
+		mawk(input.wesouwce, 'inputWoaded');
 
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return undefined;
+		// Check fow cancewwation
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 
-		if (model === null) {
-			this._notificationService.prompt(
-				Severity.Error,
-				localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed or enabled.", input.viewType),
+		if (modew === nuww) {
+			this._notificationSewvice.pwompt(
+				Sevewity.Ewwow,
+				wocawize('faiw.noEditow', "Cannot open wesouwce with notebook editow type '{0}', pwease check if you have the wight extension instawwed ow enabwed.", input.viewType),
 				[{
-					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
-					run: async () => {
-						await this._editorService.openEditor({ resource: input.resource, options: { ...options, override: EditorResolution.DISABLED } });
+					wabew: wocawize('faiw.weOpen', "Weopen fiwe with VS Code standawd text editow"),
+					wun: async () => {
+						await this._editowSewvice.openEditow({ wesouwce: input.wesouwce, options: { ...options, ovewwide: EditowWesowution.DISABWED } });
 					}
 				}]
 			);
-			return;
+			wetuwn;
 		}
 
 
 
-		const viewState = this._loadNotebookEditorViewState(input);
+		const viewState = this._woadNotebookEditowViewState(input);
 
-		this._widget.value?.setParentContextKeyService(this._contextKeyService);
-		await this._widget.value!.setModel(model.notebook, viewState);
-		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
-		await this._widget.value!.setOptions({ ...options, isReadOnly });
-		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
-		this._widgetDisposableStore.add(this._widget.value!.onDidBlur(() => this._onDidBlurWidget.fire()));
+		this._widget.vawue?.setPawentContextKeySewvice(this._contextKeySewvice);
+		await this._widget.vawue!.setModew(modew.notebook, viewState);
+		const isWeadOnwy = input.hasCapabiwity(EditowInputCapabiwities.Weadonwy);
+		await this._widget.vawue!.setOptions({ ...options, isWeadOnwy });
+		this._widgetDisposabweStowe.add(this._widget.vawue!.onDidFocus(() => this._onDidFocusWidget.fiwe()));
+		this._widgetDisposabweStowe.add(this._widget.vawue!.onDidBwuw(() => this._onDidBwuwWidget.fiwe()));
 
-		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
-			containsGroup: (group) => this.group?.id === group.id
+		this._widgetDisposabweStowe.add(this._editowDwopSewvice.cweateEditowDwopTawget(this._widget.vawue!.getDomNode(), {
+			containsGwoup: (gwoup) => this.gwoup?.id === gwoup.id
 		}));
 
-		mark(input.resource, 'editorLoaded');
+		mawk(input.wesouwce, 'editowWoaded');
 
-		type WorkbenchNotebookOpenClassification = {
-			scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			extensionActivated: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			inputLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			webviewCommLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			customMarkdownLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			editorLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+		type WowkbenchNotebookOpenCwassification = {
+			scheme: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			ext: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			viewType: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			extensionActivated: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			inputWoaded: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			webviewCommWoaded: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			customMawkdownWoaded: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			editowWoaded: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 		};
 
-		type WorkbenchNotebookOpenEvent = {
-			scheme: string;
-			ext: string;
-			viewType: string;
-			extensionActivated: number;
-			inputLoaded: number;
-			webviewCommLoaded: number;
-			customMarkdownLoaded: number;
-			editorLoaded: number;
+		type WowkbenchNotebookOpenEvent = {
+			scheme: stwing;
+			ext: stwing;
+			viewType: stwing;
+			extensionActivated: numba;
+			inputWoaded: numba;
+			webviewCommWoaded: numba;
+			customMawkdownWoaded: numba;
+			editowWoaded: numba;
 		};
 
-		const perfMarks = getAndClearMarks(input.resource);
+		const pewfMawks = getAndCweawMawks(input.wesouwce);
 
-		if (perfMarks) {
-			const startTime = perfMarks['startTime'];
-			const extensionActivated = perfMarks['extensionActivated'];
-			const inputLoaded = perfMarks['inputLoaded'];
-			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
-			const editorLoaded = perfMarks['editorLoaded'];
+		if (pewfMawks) {
+			const stawtTime = pewfMawks['stawtTime'];
+			const extensionActivated = pewfMawks['extensionActivated'];
+			const inputWoaded = pewfMawks['inputWoaded'];
+			const customMawkdownWoaded = pewfMawks['customMawkdownWoaded'];
+			const editowWoaded = pewfMawks['editowWoaded'];
 
 			if (
-				startTime !== undefined
+				stawtTime !== undefined
 				&& extensionActivated !== undefined
-				&& inputLoaded !== undefined
-				&& customMarkdownLoaded !== undefined
-				&& editorLoaded !== undefined
+				&& inputWoaded !== undefined
+				&& customMawkdownWoaded !== undefined
+				&& editowWoaded !== undefined
 			) {
-				this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
-					scheme: model.notebook.uri.scheme,
-					ext: extname(model.notebook.uri),
-					viewType: model.notebook.viewType,
-					extensionActivated: extensionActivated - startTime,
-					inputLoaded: inputLoaded - startTime,
-					webviewCommLoaded: inputLoaded - startTime,
-					customMarkdownLoaded: customMarkdownLoaded - startTime,
-					editorLoaded: editorLoaded - startTime
+				this.tewemetwySewvice.pubwicWog2<WowkbenchNotebookOpenEvent, WowkbenchNotebookOpenCwassification>('notebook/editowOpenPewf', {
+					scheme: modew.notebook.uwi.scheme,
+					ext: extname(modew.notebook.uwi),
+					viewType: modew.notebook.viewType,
+					extensionActivated: extensionActivated - stawtTime,
+					inputWoaded: inputWoaded - stawtTime,
+					webviewCommWoaded: inputWoaded - stawtTime,
+					customMawkdownWoaded: customMawkdownWoaded - stawtTime,
+					editowWoaded: editowWoaded - stawtTime
 				});
-			} else {
-				console.warn('notebook file open perf marks are broken');
+			} ewse {
+				consowe.wawn('notebook fiwe open pewf mawks awe bwoken');
 			}
 		}
 	}
 
-	override clearInput(): void {
-		this.inputListener.clear();
+	ovewwide cweawInput(): void {
+		this.inputWistena.cweaw();
 
-		if (this._widget.value) {
-			this._saveEditorViewState(this.input);
-			this._widget.value.onWillHide();
+		if (this._widget.vawue) {
+			this._saveEditowViewState(this.input);
+			this._widget.vawue.onWiwwHide();
 		}
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	override setOptions(options: INotebookEditorOptions | undefined): void {
-		this._widget.value?.setOptions(options);
-		super.setOptions(options);
+	ovewwide setOptions(options: INotebookEditowOptions | undefined): void {
+		this._widget.vawue?.setOptions(options);
+		supa.setOptions(options);
 	}
 
-	protected override saveState(): void {
-		this._saveEditorViewState(this.input);
-		super.saveState();
+	pwotected ovewwide saveState(): void {
+		this._saveEditowViewState(this.input);
+		supa.saveState();
 	}
 
-	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this.group && this._widget.value && input instanceof NotebookEditorInput) {
-			if (this._widget.value.isDisposed) {
-				return;
+	pwivate _saveEditowViewState(input: EditowInput | undefined): void {
+		if (this.gwoup && this._widget.vawue && input instanceof NotebookEditowInput) {
+			if (this._widget.vawue.isDisposed) {
+				wetuwn;
 			}
 
-			const state = this._widget.value.getEditorViewState();
-			this._editorMemento.saveEditorState(this.group, input.resource, state);
+			const state = this._widget.vawue.getEditowViewState();
+			this._editowMemento.saveEditowState(this.gwoup, input.wesouwce, state);
 		}
 	}
 
-	private _loadNotebookEditorViewState(input: NotebookEditorInput): INotebookEditorViewState | undefined {
-		let result: INotebookEditorViewState | undefined;
-		if (this.group) {
-			result = this._editorMemento.loadEditorState(this.group, input.resource);
+	pwivate _woadNotebookEditowViewState(input: NotebookEditowInput): INotebookEditowViewState | undefined {
+		wet wesuwt: INotebookEditowViewState | undefined;
+		if (this.gwoup) {
+			wesuwt = this._editowMemento.woadEditowState(this.gwoup, input.wesouwce);
 		}
-		if (result) {
-			return result;
+		if (wesuwt) {
+			wetuwn wesuwt;
 		}
-		// when we don't have a view state for the group/input-tuple then we try to use an existing
-		// editor for the same resource.
-		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (group.activeEditorPane !== this && group.activeEditorPane instanceof NotebookEditor && group.activeEditor?.matches(input)) {
-				return group.activeEditorPane._widget.value?.getEditorViewState();
+		// when we don't have a view state fow the gwoup/input-tupwe then we twy to use an existing
+		// editow fow the same wesouwce.
+		fow (const gwoup of this._editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE)) {
+			if (gwoup.activeEditowPane !== this && gwoup.activeEditowPane instanceof NotebookEditow && gwoup.activeEditow?.matches(input)) {
+				wetuwn gwoup.activeEditowPane._widget.vawue?.getEditowViewState();
 			}
 		}
-		return;
+		wetuwn;
 	}
 
-	layout(dimension: DOM.Dimension): void {
-		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
+	wayout(dimension: DOM.Dimension): void {
+		this._wootEwement.cwassWist.toggwe('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this._wootEwement.cwassWist.toggwe('nawwow-width', dimension.width < 600);
 		this._dimension = dimension;
 
-		if (!this._widget.value || !(this._input instanceof NotebookEditorInput)) {
-			return;
+		if (!this._widget.vawue || !(this._input instanceof NotebookEditowInput)) {
+			wetuwn;
 		}
 
-		if (this._input.resource.toString() !== this._widget.value.textModel?.uri.toString() && this._widget.value?.hasModel()) {
+		if (this._input.wesouwce.toStwing() !== this._widget.vawue.textModew?.uwi.toStwing() && this._widget.vawue?.hasModew()) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
 			// 2. open document B
-			// 3. close document B
-			// 4. a layout is triggered
-			return;
+			// 3. cwose document B
+			// 4. a wayout is twiggewed
+			wetuwn;
 		}
 
-		this._widget.value.layout(this._dimension, this._rootElement);
+		this._widget.vawue.wayout(this._dimension, this._wootEwement);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Editor Features
+	//#wegion Editow Featuwes
 
-	//#endregion
+	//#endwegion
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 	}
 
 	// toJSON(): object {
-	// 	return {
-	// 		notebookHandle: this.viewModel?.handle
+	// 	wetuwn {
+	// 		notebookHandwe: this.viewModew?.handwe
 	// 	};
 	// }
 }

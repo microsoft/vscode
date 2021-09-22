@@ -1,170 +1,170 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IUndoRedoService = createDecorator<IUndoRedoService>('undoRedoService');
+expowt const IUndoWedoSewvice = cweateDecowatow<IUndoWedoSewvice>('undoWedoSewvice');
 
-export const enum UndoRedoElementType {
-	Resource,
-	Workspace
+expowt const enum UndoWedoEwementType {
+	Wesouwce,
+	Wowkspace
 }
 
-export interface IResourceUndoRedoElement {
-	readonly type: UndoRedoElementType.Resource;
-	readonly resource: URI;
-	readonly label: string;
+expowt intewface IWesouwceUndoWedoEwement {
+	weadonwy type: UndoWedoEwementType.Wesouwce;
+	weadonwy wesouwce: UWI;
+	weadonwy wabew: stwing;
 	/**
-	 * Show a message to the user confirming when trying to undo this element
+	 * Show a message to the usa confiwming when twying to undo this ewement
 	 */
-	readonly confirmBeforeUndo?: boolean;
-	undo(): Promise<void> | void;
-	redo(): Promise<void> | void;
+	weadonwy confiwmBefoweUndo?: boowean;
+	undo(): Pwomise<void> | void;
+	wedo(): Pwomise<void> | void;
 }
 
-export interface IWorkspaceUndoRedoElement {
-	readonly type: UndoRedoElementType.Workspace;
-	readonly resources: readonly URI[];
-	readonly label: string;
+expowt intewface IWowkspaceUndoWedoEwement {
+	weadonwy type: UndoWedoEwementType.Wowkspace;
+	weadonwy wesouwces: weadonwy UWI[];
+	weadonwy wabew: stwing;
 	/**
-	 * Show a message to the user confirming when trying to undo this element
+	 * Show a message to the usa confiwming when twying to undo this ewement
 	 */
-	readonly confirmBeforeUndo?: boolean;
-	undo(): Promise<void> | void;
-	redo(): Promise<void> | void;
-
-	/**
-	 * If implemented, indicates that this undo/redo element can be split into multiple per resource elements.
-	 */
-	split?(): IResourceUndoRedoElement[];
+	weadonwy confiwmBefoweUndo?: boowean;
+	undo(): Pwomise<void> | void;
+	wedo(): Pwomise<void> | void;
 
 	/**
-	 * If implemented, will be invoked before calling `undo()` or `redo()`.
-	 * This is a good place to prepare everything such that the calls to `undo()` or `redo()` are synchronous.
-	 * If a disposable is returned, it will be invoked to clean things up.
+	 * If impwemented, indicates that this undo/wedo ewement can be spwit into muwtipwe pew wesouwce ewements.
 	 */
-	prepareUndoRedo?(): Promise<IDisposable> | IDisposable | void;
+	spwit?(): IWesouwceUndoWedoEwement[];
+
+	/**
+	 * If impwemented, wiww be invoked befowe cawwing `undo()` ow `wedo()`.
+	 * This is a good pwace to pwepawe evewything such that the cawws to `undo()` ow `wedo()` awe synchwonous.
+	 * If a disposabwe is wetuwned, it wiww be invoked to cwean things up.
+	 */
+	pwepaweUndoWedo?(): Pwomise<IDisposabwe> | IDisposabwe | void;
 }
 
-export type IUndoRedoElement = IResourceUndoRedoElement | IWorkspaceUndoRedoElement;
+expowt type IUndoWedoEwement = IWesouwceUndoWedoEwement | IWowkspaceUndoWedoEwement;
 
-export interface IPastFutureElements {
-	past: IUndoRedoElement[];
-	future: IUndoRedoElement[];
+expowt intewface IPastFutuweEwements {
+	past: IUndoWedoEwement[];
+	futuwe: IUndoWedoEwement[];
 }
 
-export interface UriComparisonKeyComputer {
-	getComparisonKey(uri: URI): string;
+expowt intewface UwiCompawisonKeyComputa {
+	getCompawisonKey(uwi: UWI): stwing;
 }
 
-export class ResourceEditStackSnapshot {
-	constructor(
-		public readonly resource: URI,
-		public readonly elements: number[]
+expowt cwass WesouwceEditStackSnapshot {
+	constwuctow(
+		pubwic weadonwy wesouwce: UWI,
+		pubwic weadonwy ewements: numba[]
 	) { }
 }
 
-export class UndoRedoGroup {
-	private static _ID = 0;
+expowt cwass UndoWedoGwoup {
+	pwivate static _ID = 0;
 
-	public readonly id: number;
-	private order: number;
+	pubwic weadonwy id: numba;
+	pwivate owda: numba;
 
-	constructor() {
-		this.id = UndoRedoGroup._ID++;
-		this.order = 1;
+	constwuctow() {
+		this.id = UndoWedoGwoup._ID++;
+		this.owda = 1;
 	}
 
-	public nextOrder(): number {
+	pubwic nextOwda(): numba {
 		if (this.id === 0) {
-			return 0;
+			wetuwn 0;
 		}
-		return this.order++;
+		wetuwn this.owda++;
 	}
 
-	public static None = new UndoRedoGroup();
+	pubwic static None = new UndoWedoGwoup();
 }
 
-export class UndoRedoSource {
-	private static _ID = 0;
+expowt cwass UndoWedoSouwce {
+	pwivate static _ID = 0;
 
-	public readonly id: number;
-	private order: number;
+	pubwic weadonwy id: numba;
+	pwivate owda: numba;
 
-	constructor() {
-		this.id = UndoRedoSource._ID++;
-		this.order = 1;
+	constwuctow() {
+		this.id = UndoWedoSouwce._ID++;
+		this.owda = 1;
 	}
 
-	public nextOrder(): number {
+	pubwic nextOwda(): numba {
 		if (this.id === 0) {
-			return 0;
+			wetuwn 0;
 		}
-		return this.order++;
+		wetuwn this.owda++;
 	}
 
-	public static None = new UndoRedoSource();
+	pubwic static None = new UndoWedoSouwce();
 }
 
-export interface IUndoRedoService {
-	readonly _serviceBrand: undefined;
+expowt intewface IUndoWedoSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Register an URI -> string hasher.
-	 * This is useful for making multiple URIs share the same undo-redo stack.
+	 * Wegista an UWI -> stwing hasha.
+	 * This is usefuw fow making muwtipwe UWIs shawe the same undo-wedo stack.
 	 */
-	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+	wegistewUwiCompawisonKeyComputa(scheme: stwing, uwiCompawisonKeyComputa: UwiCompawisonKeyComputa): IDisposabwe;
 
 	/**
-	 * Get the hash used internally for a certain URI.
-	 * This uses any registered `UriComparisonKeyComputer`.
+	 * Get the hash used intewnawwy fow a cewtain UWI.
+	 * This uses any wegistewed `UwiCompawisonKeyComputa`.
 	 */
-	getUriComparisonKey(resource: URI): string;
+	getUwiCompawisonKey(wesouwce: UWI): stwing;
 
 	/**
-	 * Add a new element to the `undo` stack.
-	 * This will destroy the `redo` stack.
+	 * Add a new ewement to the `undo` stack.
+	 * This wiww destwoy the `wedo` stack.
 	 */
-	pushElement(element: IUndoRedoElement, group?: UndoRedoGroup, source?: UndoRedoSource): void;
+	pushEwement(ewement: IUndoWedoEwement, gwoup?: UndoWedoGwoup, souwce?: UndoWedoSouwce): void;
 
 	/**
-	 * Get the last pushed element for a resource.
-	 * If the last pushed element has been undone, returns null.
+	 * Get the wast pushed ewement fow a wesouwce.
+	 * If the wast pushed ewement has been undone, wetuwns nuww.
 	 */
-	getLastElement(resource: URI): IUndoRedoElement | null;
+	getWastEwement(wesouwce: UWI): IUndoWedoEwement | nuww;
 
 	/**
-	 * Get all the elements associated with a resource.
-	 * This includes the past and the future.
+	 * Get aww the ewements associated with a wesouwce.
+	 * This incwudes the past and the futuwe.
 	 */
-	getElements(resource: URI): IPastFutureElements;
+	getEwements(wesouwce: UWI): IPastFutuweEwements;
 
 	/**
-	 * Validate or invalidate stack elements associated with a resource.
+	 * Vawidate ow invawidate stack ewements associated with a wesouwce.
 	 */
-	setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void;
+	setEwementsVawidFwag(wesouwce: UWI, isVawid: boowean, fiwta: (ewement: IUndoWedoEwement) => boowean): void;
 
 	/**
-	 * Remove elements that target `resource`.
+	 * Wemove ewements that tawget `wesouwce`.
 	 */
-	removeElements(resource: URI): void;
+	wemoveEwements(wesouwce: UWI): void;
 
 	/**
-	 * Create a snapshot of the current elements on the undo-redo stack for a resource.
+	 * Cweate a snapshot of the cuwwent ewements on the undo-wedo stack fow a wesouwce.
 	 */
-	createSnapshot(resource: URI): ResourceEditStackSnapshot;
+	cweateSnapshot(wesouwce: UWI): WesouwceEditStackSnapshot;
 	/**
-	 * Attempt (as best as possible) to restore a certain snapshot previously created with `createSnapshot` for a resource.
+	 * Attempt (as best as possibwe) to westowe a cewtain snapshot pweviouswy cweated with `cweateSnapshot` fow a wesouwce.
 	 */
-	restoreSnapshot(snapshot: ResourceEditStackSnapshot): void;
+	westoweSnapshot(snapshot: WesouwceEditStackSnapshot): void;
 
-	canUndo(resource: URI | UndoRedoSource): boolean;
-	undo(resource: URI | UndoRedoSource): Promise<void> | void;
+	canUndo(wesouwce: UWI | UndoWedoSouwce): boowean;
+	undo(wesouwce: UWI | UndoWedoSouwce): Pwomise<void> | void;
 
-	canRedo(resource: URI | UndoRedoSource): boolean;
-	redo(resource: URI | UndoRedoSource): Promise<void> | void;
+	canWedo(wesouwce: UWI | UndoWedoSouwce): boowean;
+	wedo(wesouwce: UWI | UndoWedoSouwce): Pwomise<void> | void;
 }

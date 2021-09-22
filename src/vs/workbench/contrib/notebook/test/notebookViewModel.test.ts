@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { insewtCewwAtIndex, wunDeweteAction } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/cewwOpewations';
+impowt { NotebookEventDispatcha } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/eventDispatcha';
+impowt { NotebookViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwKind, diff } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { NotebookEditowTestModew, setupInstantiationSewvice, withTestNotebook } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
-suite('NotebookViewModel', () => {
-	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
-	const bulkEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.get(IUndoRedoService);
-	const modelService = instantiationService.get(IModelService);
-	const modeService = instantiationService.get(IModeService);
+suite('NotebookViewModew', () => {
+	const instantiationSewvice = setupInstantiationSewvice();
+	const textModewSewvice = instantiationSewvice.get(ITextModewSewvice);
+	const buwkEditSewvice = instantiationSewvice.get(IBuwkEditSewvice);
+	const undoWedoSewvice = instantiationSewvice.get(IUndoWedoSewvice);
+	const modewSewvice = instantiationSewvice.get(IModewSewvice);
+	const modeSewvice = instantiationSewvice.get(IModeSewvice);
 
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IThemeService, new TestThemeService());
+	instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+	instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
 
-	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
-		const model = new NotebookEditorTestModel(notebook);
-		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
-		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);
-		assert.strictEqual(viewModel.viewType, 'notebook');
+	test('ctow', function () {
+		const notebook = new NotebookTextModew('notebook', UWI.pawse('test'), [], {}, { twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse }, undoWedoSewvice, modewSewvice, modeSewvice);
+		const modew = new NotebookEditowTestModew(notebook);
+		const viewContext = new ViewContext(new NotebookOptions(instantiationSewvice.get(IConfiguwationSewvice)), new NotebookEventDispatcha());
+		const viewModew = new NotebookViewModew('notebook', modew.notebook, viewContext, nuww, { isWeadOnwy: fawse }, instantiationSewvice, buwkEditSewvice, undoWedoSewvice, textModewSewvice);
+		assewt.stwictEquaw(viewModew.viewType, 'notebook');
 	});
 
-	test('insert/delete', async function () {
+	test('insewt/dewete', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
-				assert.strictEqual(viewModel.length, 3);
-				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
-				assert.strictEqual(viewModel.getCellIndex(cell), 1);
+			(editow, viewModew) => {
+				const ceww = insewtCewwAtIndex(viewModew, 1, 'vaw c = 3', 'javascwipt', CewwKind.Code, {}, [], twue, twue);
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.stwictEquaw(viewModew.notebookDocument.cewws.wength, 3);
+				assewt.stwictEquaw(viewModew.getCewwIndex(ceww), 1);
 
-				runDeleteAction(editor, viewModel.cellAt(1)!);
-				assert.strictEqual(viewModel.length, 2);
-				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
-				assert.strictEqual(viewModel.getCellIndex(cell), -1);
+				wunDeweteAction(editow, viewModew.cewwAt(1)!);
+				assewt.stwictEquaw(viewModew.wength, 2);
+				assewt.stwictEquaw(viewModew.notebookDocument.cewws.wength, 2);
+				assewt.stwictEquaw(viewModew.getCewwIndex(ceww), -1);
 			}
 		);
 	});
@@ -67,104 +67,104 @@ suite('NotebookViewModel', () => {
 	test('index', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}]
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const firstViewCell = viewModel.cellAt(0)!;
-				const lastViewCell = viewModel.cellAt(viewModel.length - 1)!;
+			(editow, viewModew) => {
+				const fiwstViewCeww = viewModew.cewwAt(0)!;
+				const wastViewCeww = viewModew.cewwAt(viewModew.wength - 1)!;
 
-				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
-				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
+				const insewtIndex = viewModew.getCewwIndex(fiwstViewCeww) + 1;
+				const ceww = insewtCewwAtIndex(viewModew, insewtIndex, 'vaw c = 3;', 'javascwipt', CewwKind.Code, {}, [], twue);
 
-				const addedCellIndex = viewModel.getCellIndex(cell);
-				runDeleteAction(editor, viewModel.cellAt(addedCellIndex)!);
+				const addedCewwIndex = viewModew.getCewwIndex(ceww);
+				wunDeweteAction(editow, viewModew.cewwAt(addedCewwIndex)!);
 
-				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
-				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
+				const secondInsewtIndex = viewModew.getCewwIndex(wastViewCeww) + 1;
+				const ceww2 = insewtCewwAtIndex(viewModew, secondInsewtIndex, 'vaw d = 4;', 'javascwipt', CewwKind.Code, {}, [], twue);
 
-				assert.strictEqual(viewModel.length, 3);
-				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
-				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
+				assewt.stwictEquaw(viewModew.wength, 3);
+				assewt.stwictEquaw(viewModew.notebookDocument.cewws.wength, 3);
+				assewt.stwictEquaw(viewModew.getCewwIndex(ceww2), 2);
 			}
 		);
 	});
 });
 
-function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
-	if (!hiddenRanges.length) {
-		return cells;
+function getVisibweCewws<T>(cewws: T[], hiddenWanges: ICewwWange[]) {
+	if (!hiddenWanges.wength) {
+		wetuwn cewws;
 	}
 
-	let start = 0;
-	let hiddenRangeIndex = 0;
-	const result: T[] = [];
+	wet stawt = 0;
+	wet hiddenWangeIndex = 0;
+	const wesuwt: T[] = [];
 
-	while (start < cells.length && hiddenRangeIndex < hiddenRanges.length) {
-		if (start < hiddenRanges[hiddenRangeIndex].start) {
-			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
+	whiwe (stawt < cewws.wength && hiddenWangeIndex < hiddenWanges.wength) {
+		if (stawt < hiddenWanges[hiddenWangeIndex].stawt) {
+			wesuwt.push(...cewws.swice(stawt, hiddenWanges[hiddenWangeIndex].stawt));
 		}
 
-		start = hiddenRanges[hiddenRangeIndex].end + 1;
-		hiddenRangeIndex++;
+		stawt = hiddenWanges[hiddenWangeIndex].end + 1;
+		hiddenWangeIndex++;
 	}
 
-	if (start < cells.length) {
-		result.push(...cells.slice(start));
+	if (stawt < cewws.wength) {
+		wesuwt.push(...cewws.swice(stawt));
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-suite('NotebookViewModel Decorations', () => {
-	test('tracking range', async function () {
+suite('NotebookViewModew Decowations', () => {
+	test('twacking wange', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+			(editow, viewModew) => {
+				const twackedId = viewModew.setTwackedWange('test', { stawt: 1, end: 2 }, TwackedWangeStickiness.GwowsOnwyWhenTypingAfta);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 2,
 				});
 
-				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 2,
+				insewtCewwAtIndex(viewModew, 0, 'vaw d = 6;', 'javascwipt', CewwKind.Code, {}, [], twue);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 2,
 
 					end: 3
 				});
 
-				runDeleteAction(editor, viewModel.cellAt(0)!);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+				wunDeweteAction(editow, viewModew.cewwAt(0)!);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 2
 				});
 
-				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+				insewtCewwAtIndex(viewModew, 3, 'vaw d = 7;', 'javascwipt', CewwKind.Code, {}, [], twue);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 3
 				});
 
-				runDeleteAction(editor, viewModel.cellAt(3)!);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+				wunDeweteAction(editow, viewModew.cewwAt(3)!);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 2
 				});
 
-				runDeleteAction(editor, viewModel.cellAt(1)!);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 0,
+				wunDeweteAction(editow, viewModew.cewwAt(1)!);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 0,
 
 					end: 1
 				});
@@ -172,35 +172,35 @@ suite('NotebookViewModel Decorations', () => {
 		);
 	});
 
-	test('tracking range 2', async function () {
+	test('twacking wange 2', async function () {
 		await withTestNotebook(
 			[
-				['var a = 1;', 'javascript', CellKind.Code, [], {}],
-				['var b = 2;', 'javascript', CellKind.Code, [], {}],
-				['var c = 3;', 'javascript', CellKind.Code, [], {}],
-				['var d = 4;', 'javascript', CellKind.Code, [], {}],
-				['var e = 5;', 'javascript', CellKind.Code, [], {}],
-				['var e = 6;', 'javascript', CellKind.Code, [], {}],
-				['var e = 7;', 'javascript', CellKind.Code, [], {}],
+				['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 6;', 'javascwipt', CewwKind.Code, [], {}],
+				['vaw e = 7;', 'javascwipt', CewwKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+			(editow, viewModew) => {
+				const twackedId = viewModew.setTwackedWange('test', { stawt: 1, end: 3 }, TwackedWangeStickiness.GwowsOnwyWhenTypingAfta);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 3
 				});
 
-				insertCellAtIndex(viewModel, 5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+				insewtCewwAtIndex(viewModew, 5, 'vaw d = 9;', 'javascwipt', CewwKind.Code, {}, [], twue);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 3
 				});
 
-				insertCellAtIndex(viewModel, 4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
-					start: 1,
+				insewtCewwAtIndex(viewModew, 4, 'vaw d = 10;', 'javascwipt', CewwKind.Code, {}, [], twue);
+				assewt.deepStwictEquaw(viewModew.getTwackedWange(twackedId!), {
+					stawt: 1,
 
 					end: 4
 				});
@@ -208,110 +208,110 @@ suite('NotebookViewModel Decorations', () => {
 		);
 	});
 
-	test('diff hidden ranges', async function () {
-		assert.deepStrictEqual(getVisibleCells<number>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
+	test('diff hidden wanges', async function () {
+		assewt.deepStwictEquaw(getVisibweCewws<numba>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
 
-		assert.deepStrictEqual(
-			getVisibleCells<number>(
+		assewt.deepStwictEquaw(
+			getVisibweCewws<numba>(
 				[1, 2, 3, 4, 5],
-				[{ start: 1, end: 2 }]
+				[{ stawt: 1, end: 2 }]
 			),
 			[1, 4, 5]
 		);
 
-		assert.deepStrictEqual(
-			getVisibleCells<number>(
+		assewt.deepStwictEquaw(
+			getVisibweCewws<numba>(
 				[1, 2, 3, 4, 5, 6, 7, 8, 9],
 				[
-					{ start: 1, end: 2 },
-					{ start: 4, end: 5 }
+					{ stawt: 1, end: 2 },
+					{ stawt: 4, end: 5 }
 				]
 			),
 			[1, 4, 7, 8, 9]
 		);
 
-		const original = getVisibleCells<number>(
+		const owiginaw = getVisibweCewws<numba>(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
-				{ start: 1, end: 2 },
-				{ start: 4, end: 5 }
+				{ stawt: 1, end: 2 },
+				{ stawt: 4, end: 5 }
 			]
 		);
 
-		const modified = getVisibleCells<number>(
+		const modified = getVisibweCewws<numba>(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
-				{ start: 2, end: 4 }
+				{ stawt: 2, end: 4 }
 			]
 		);
 
-		assert.deepStrictEqual(diff<number>(original, modified, (a) => {
-			return original.indexOf(a) >= 0;
-		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
+		assewt.deepStwictEquaw(diff<numba>(owiginaw, modified, (a) => {
+			wetuwn owiginaw.indexOf(a) >= 0;
+		}), [{ stawt: 1, deweteCount: 1, toInsewt: [2, 6] }]);
 	});
 
-	test('hidden ranges', async function () {
+	test('hidden wanges', async function () {
 
 	});
 });
 
-suite('NotebookViewModel API', () => {
-	test('#115432, get nearest code cell', async function () {
+suite('NotebookViewModew API', () => {
+	test('#115432, get neawest code ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}],
-				['b = 2;', 'python', CellKind.Code, [], {}],
-				['var c = 3', 'javascript', CellKind.Code, [], {}],
-				['# header d', 'markdown', CellKind.Markup, [], {}],
-				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
-				['# header f', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['b = 2;', 'python', CewwKind.Code, [], {}],
+				['vaw c = 3', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada d', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw e = 4;', 'TypeScwipt', CewwKind.Code, [], {}],
+				['# heada f', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			(editor, viewModel) => {
-				assert.strictEqual(viewModel.nearestCodeCellIndex(0), 1);
-				// find the nearest code cell from above
-				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
-				assert.strictEqual(viewModel.nearestCodeCellIndex(4), 3);
-				assert.strictEqual(viewModel.nearestCodeCellIndex(5), 4);
-				assert.strictEqual(viewModel.nearestCodeCellIndex(6), 4);
+			(editow, viewModew) => {
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(0), 1);
+				// find the neawest code ceww fwom above
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(2), 1);
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(4), 3);
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(5), 4);
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(6), 4);
 			}
 		);
 	});
 
-	test('#108464, get nearest code cell', async function () {
+	test('#108464, get neawest code ceww', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			(editor, viewModel) => {
-				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
+			(editow, viewModew) => {
+				assewt.stwictEquaw(viewModew.neawestCodeCewwIndex(2), 1);
 			}
 		);
 	});
 
-	test('getCells', async () => {
+	test('getCewws', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markup, [], {}],
-				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markup, [], {}]
+				['# heada a', 'mawkdown', CewwKind.Mawkup, [], {}],
+				['vaw b = 1;', 'javascwipt', CewwKind.Code, [], {}],
+				['# heada b', 'mawkdown', CewwKind.Mawkup, [], {}]
 			],
-			(editor, viewModel) => {
-				assert.strictEqual(viewModel.getCellsInRange().length, 3);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 4 }).map(cell => cell.getText()), []);
+			(editow, viewModew) => {
+				assewt.stwictEquaw(viewModew.getCewwsInWange().wength, 3);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 0, end: 1 }).map(ceww => ceww.getText()), ['# heada a']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 0, end: 2 }).map(ceww => ceww.getText()), ['# heada a', 'vaw b = 1;']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 0, end: 3 }).map(ceww => ceww.getText()), ['# heada a', 'vaw b = 1;', '# heada b']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 0, end: 4 }).map(ceww => ceww.getText()), ['# heada a', 'vaw b = 1;', '# heada b']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 1, end: 4 }).map(ceww => ceww.getText()), ['vaw b = 1;', '# heada b']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 2, end: 4 }).map(ceww => ceww.getText()), ['# heada b']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 3, end: 4 }).map(ceww => ceww.getText()), []);
 
-				// no one should use an invalid range but `getCells` should be able to handle that.
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				// no one shouwd use an invawid wange but `getCewws` shouwd be abwe to handwe that.
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: -1, end: 1 }).map(ceww => ceww.getText()), ['# heada a']);
+				assewt.deepStwictEquaw(viewModew.getCewwsInWange({ stawt: 3, end: 0 }).map(ceww => ceww.getText()), ['# heada a', 'vaw b = 1;', '# heada b']);
 			}
 		);
 	});

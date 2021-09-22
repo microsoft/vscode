@@ -2,23 +2,23 @@
 
 <div id="comments">
   {{#each comments}}
-  <h2><a href="/posts/{{../permalink}}#{{id}}">{{title}}</a></h2>
+  <h2><a hwef="/posts/{{../pewmawink}}#{{id}}">{{titwe}}</a></h2>
   <div>{{body}}</div>
   {{/each}}
-  <p>{{./name}} or {{this/name}} or {{this.name}}</p>
+  <p>{{./name}} ow {{this/name}} ow {{this.name}}</p>
 </div>
-<div class="entry">
-  {{!-- only output author name if an author exists --}}
-  {{#if author}}
-    <h1>{{firstName}} {{lastName}}</h1>
+<div cwass="entwy">
+  {{!-- onwy output authow name if an authow exists --}}
+  {{#if authow}}
+    <h1>{{fiwstName}} {{wastName}}</h1>
   {{/if}}
 </div>
-<div class="post">
-  {{> userMessage tagName="h1" }}
+<div cwass="post">
+  {{> usewMessage tagName="h1" }}
 
   <h1>Comments</h1>
 
   {{#each comments}}
-    {{> userMessage tagName="h2" }}
+    {{> usewMessage tagName="h2" }}
   {{/each}}
 </div>

@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-diff-editor .diff-review-line-number {
-	text-align: right;
-	display: inline-block;
+.monaco-diff-editow .diff-weview-wine-numba {
+	text-awign: wight;
+	dispway: inwine-bwock;
 }
 
-.monaco-diff-editor .diff-review {
-	position: absolute;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-diff-editow .diff-weview {
+	position: absowute;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-.monaco-diff-editor .diff-review-summary {
-	padding-left: 10px;
+.monaco-diff-editow .diff-weview-summawy {
+	padding-weft: 10px;
 }
 
-.monaco-diff-editor .diff-review-shadow {
-	position: absolute;
+.monaco-diff-editow .diff-weview-shadow {
+	position: absowute;
 }
 
-.monaco-diff-editor .diff-review-row {
-	white-space: pre;
+.monaco-diff-editow .diff-weview-wow {
+	white-space: pwe;
 }
 
-.monaco-diff-editor .diff-review-table {
-	display: table;
+.monaco-diff-editow .diff-weview-tabwe {
+	dispway: tabwe;
 	min-width: 100%;
 }
 
-.monaco-diff-editor .diff-review-row {
-	display: table-row;
+.monaco-diff-editow .diff-weview-wow {
+	dispway: tabwe-wow;
 	width: 100%;
 }
 
-.monaco-diff-editor .diff-review-spacer {
-	display: inline-block;
+.monaco-diff-editow .diff-weview-spaca {
+	dispway: inwine-bwock;
 	width: 10px;
-	vertical-align: middle;
+	vewticaw-awign: middwe;
 }
 
-.monaco-diff-editor .diff-review-spacer > .codicon {
-	font-size: 9px !important;
+.monaco-diff-editow .diff-weview-spaca > .codicon {
+	font-size: 9px !impowtant;
 }
 
-.monaco-diff-editor .diff-review-actions {
-	display: inline-block;
-	position: absolute;
-	right: 10px;
+.monaco-diff-editow .diff-weview-actions {
+	dispway: inwine-bwock;
+	position: absowute;
+	wight: 10px;
 	top: 2px;
 }
 
-.monaco-diff-editor .diff-review-actions .action-label {
+.monaco-diff-editow .diff-weview-actions .action-wabew {
 	width: 16px;
 	height: 16px;
-	margin: 2px 0;
+	mawgin: 2px 0;
 }

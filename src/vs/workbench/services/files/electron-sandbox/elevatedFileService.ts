@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { join } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice, IFiweStatWithMetadata, IWwiteFiweOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
 
-export class NativeElevatedFileService implements IElevatedFileService {
+expowt cwass NativeEwevatedFiweSewvice impwements IEwevatedFiweSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IFileService private readonly fileService: IFileService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+	constwuctow(
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice
 	) { }
 
-	isSupported(resource: URI): boolean {
-		// Saving elevated is currently only supported for local
-		// files for as long as we have no generic support from
-		// the file service
-		// (https://github.com/microsoft/vscode/issues/48659)
-		return resource.scheme === Schemas.file;
+	isSuppowted(wesouwce: UWI): boowean {
+		// Saving ewevated is cuwwentwy onwy suppowted fow wocaw
+		// fiwes fow as wong as we have no genewic suppowt fwom
+		// the fiwe sewvice
+		// (https://github.com/micwosoft/vscode/issues/48659)
+		wetuwn wesouwce.scheme === Schemas.fiwe;
 	}
 
-	async writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		const source = URI.file(join(this.environmentService.userDataPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`));
-		try {
-			// write into a tmp file first
-			await this.fileService.writeFile(source, value, options);
+	async wwiteFiweEwevated(wesouwce: UWI, vawue: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata> {
+		const souwce = UWI.fiwe(join(this.enviwonmentSewvice.usewDataPath, `code-ewevated-${Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 6)}`));
+		twy {
+			// wwite into a tmp fiwe fiwst
+			await this.fiweSewvice.wwiteFiwe(souwce, vawue, options);
 
-			// then sudo prompt copy
-			await this.nativeHostService.writeElevated(source, resource, options);
-		} finally {
+			// then sudo pwompt copy
+			await this.nativeHostSewvice.wwiteEwevated(souwce, wesouwce, options);
+		} finawwy {
 
-			// clean up
-			await this.fileService.del(source);
+			// cwean up
+			await this.fiweSewvice.dew(souwce);
 		}
 
-		return this.fileService.resolve(resource, { resolveMetadata: true });
+		wetuwn this.fiweSewvice.wesowve(wesouwce, { wesowveMetadata: twue });
 	}
 }
 
-registerSingleton(IElevatedFileService, NativeElevatedFileService);
+wegistewSingweton(IEwevatedFiweSewvice, NativeEwevatedFiweSewvice);

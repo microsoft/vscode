@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { fromNow } from 'vs/base/common/date';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfirmation, IConfirmationResult, IDialogHandler, IDialogOptions, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+impowt { wocawize } fwom 'vs/nws';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { isWinux, isWinuxSnap, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { MessageBoxOptions } fwom 'vs/base/pawts/sandbox/common/ewectwonTypes';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IConfiwmation, IConfiwmationWesuwt, IDiawogHandwa, IDiawogOptions, IShowWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { pwocess } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
 
-interface IMassagedMessageBoxOptions {
+intewface IMassagedMessageBoxOptions {
 
 	/**
 	 * OS massaged message box options.
@@ -24,186 +24,186 @@ interface IMassagedMessageBoxOptions {
 	options: MessageBoxOptions;
 
 	/**
-	 * Since the massaged result of the message box options potentially
-	 * changes the order of buttons, we have to keep a map of these
-	 * changes so that we can still return the correct index to the caller.
+	 * Since the massaged wesuwt of the message box options potentiawwy
+	 * changes the owda of buttons, we have to keep a map of these
+	 * changes so that we can stiww wetuwn the cowwect index to the cawwa.
 	 */
-	buttonIndexMap: number[];
+	buttonIndexMap: numba[];
 }
 
-export class NativeDialogHandler implements IDialogHandler {
+expowt cwass NativeDiawogHandwa impwements IDiawogHandwa {
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IProductService private readonly productService: IProductService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@ICwipboawdSewvice pwivate weadonwy cwipboawdSewvice: ICwipboawdSewvice
 	) {
 	}
 
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		this.logService.trace('DialogService#confirm', confirmation.message);
+	async confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt> {
+		this.wogSewvice.twace('DiawogSewvice#confiwm', confiwmation.message);
 
-		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfirmOptions(confirmation));
+		const { options, buttonIndexMap } = this.massageMessageBoxOptions(this.getConfiwmOptions(confiwmation));
 
-		const result = await this.nativeHostService.showMessageBox(options);
-		return {
-			confirmed: buttonIndexMap[result.response] === 0 ? true : false,
-			checkboxChecked: result.checkboxChecked
+		const wesuwt = await this.nativeHostSewvice.showMessageBox(options);
+		wetuwn {
+			confiwmed: buttonIndexMap[wesuwt.wesponse] === 0 ? twue : fawse,
+			checkboxChecked: wesuwt.checkboxChecked
 		};
 	}
 
-	private getConfirmOptions(confirmation: IConfirmation): MessageBoxOptions {
-		const buttons: string[] = [];
-		if (confirmation.primaryButton) {
-			buttons.push(confirmation.primaryButton);
-		} else {
-			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+	pwivate getConfiwmOptions(confiwmation: IConfiwmation): MessageBoxOptions {
+		const buttons: stwing[] = [];
+		if (confiwmation.pwimawyButton) {
+			buttons.push(confiwmation.pwimawyButton);
+		} ewse {
+			buttons.push(wocawize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
 
-		if (confirmation.secondaryButton) {
-			buttons.push(confirmation.secondaryButton);
-		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(localize('cancelButton', "Cancel"));
+		if (confiwmation.secondawyButton) {
+			buttons.push(confiwmation.secondawyButton);
+		} ewse if (typeof confiwmation.secondawyButton === 'undefined') {
+			buttons.push(wocawize('cancewButton', "Cancew"));
 		}
 
 		const opts: MessageBoxOptions = {
-			title: confirmation.title,
-			message: confirmation.message,
+			titwe: confiwmation.titwe,
+			message: confiwmation.message,
 			buttons,
-			cancelId: 1
+			cancewId: 1
 		};
 
-		if (confirmation.detail) {
-			opts.detail = confirmation.detail;
+		if (confiwmation.detaiw) {
+			opts.detaiw = confiwmation.detaiw;
 		}
 
-		if (confirmation.type) {
-			opts.type = confirmation.type;
+		if (confiwmation.type) {
+			opts.type = confiwmation.type;
 		}
 
-		if (confirmation.checkbox) {
-			opts.checkboxLabel = confirmation.checkbox.label;
-			opts.checkboxChecked = confirmation.checkbox.checked;
+		if (confiwmation.checkbox) {
+			opts.checkboxWabew = confiwmation.checkbox.wabew;
+			opts.checkboxChecked = confiwmation.checkbox.checked;
 		}
 
-		return opts;
+		wetuwn opts;
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
-		this.logService.trace('DialogService#show', message);
+	async show(sevewity: Sevewity, message: stwing, buttons?: stwing[], diawogOptions?: IDiawogOptions): Pwomise<IShowWesuwt> {
+		this.wogSewvice.twace('DiawogSewvice#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({
 			message,
 			buttons,
-			type: (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none',
-			cancelId: dialogOptions ? dialogOptions.cancelId : undefined,
-			detail: dialogOptions ? dialogOptions.detail : undefined,
-			checkboxLabel: dialogOptions?.checkbox?.label ?? undefined,
-			checkboxChecked: dialogOptions?.checkbox?.checked ?? undefined
+			type: (sevewity === Sevewity.Info) ? 'question' : (sevewity === Sevewity.Ewwow) ? 'ewwow' : (sevewity === Sevewity.Wawning) ? 'wawning' : 'none',
+			cancewId: diawogOptions ? diawogOptions.cancewId : undefined,
+			detaiw: diawogOptions ? diawogOptions.detaiw : undefined,
+			checkboxWabew: diawogOptions?.checkbox?.wabew ?? undefined,
+			checkboxChecked: diawogOptions?.checkbox?.checked ?? undefined
 		});
 
-		const result = await this.nativeHostService.showMessageBox(options);
-		return { choice: buttonIndexMap[result.response], checkboxChecked: result.checkboxChecked };
+		const wesuwt = await this.nativeHostSewvice.showMessageBox(options);
+		wetuwn { choice: buttonIndexMap[wesuwt.wesponse], checkboxChecked: wesuwt.checkboxChecked };
 	}
 
-	private massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {
-		let buttonIndexMap = (options.buttons || []).map((button, index) => index);
-		let buttons = (options.buttons || []).map(button => mnemonicButtonLabel(button));
-		let cancelId = options.cancelId;
+	pwivate massageMessageBoxOptions(options: MessageBoxOptions): IMassagedMessageBoxOptions {
+		wet buttonIndexMap = (options.buttons || []).map((button, index) => index);
+		wet buttons = (options.buttons || []).map(button => mnemonicButtonWabew(button));
+		wet cancewId = options.cancewId;
 
-		// Linux: order of buttons is reverse
-		// macOS: also reverse, but the OS handles this for us!
-		if (isLinux) {
-			buttons = buttons.reverse();
-			buttonIndexMap = buttonIndexMap.reverse();
+		// Winux: owda of buttons is wevewse
+		// macOS: awso wevewse, but the OS handwes this fow us!
+		if (isWinux) {
+			buttons = buttons.wevewse();
+			buttonIndexMap = buttonIndexMap.wevewse();
 		}
 
-		// Default Button (always first one)
-		options.defaultId = buttonIndexMap[0];
+		// Defauwt Button (awways fiwst one)
+		options.defauwtId = buttonIndexMap[0];
 
-		// Cancel Button
-		if (typeof cancelId === 'number') {
+		// Cancew Button
+		if (typeof cancewId === 'numba') {
 
-			// Ensure the cancelId is the correct one from our mapping
-			cancelId = buttonIndexMap[cancelId];
+			// Ensuwe the cancewId is the cowwect one fwom ouw mapping
+			cancewId = buttonIndexMap[cancewId];
 
-			// macOS/Linux: the cancel button should always be to the left of the primary action
-			// if we see more than 2 buttons, move the cancel one to the left of the primary
-			if (!isWindows && buttons.length > 2 && cancelId !== 1) {
-				const cancelButton = buttons[cancelId];
-				buttons.splice(cancelId, 1);
-				buttons.splice(1, 0, cancelButton);
+			// macOS/Winux: the cancew button shouwd awways be to the weft of the pwimawy action
+			// if we see mowe than 2 buttons, move the cancew one to the weft of the pwimawy
+			if (!isWindows && buttons.wength > 2 && cancewId !== 1) {
+				const cancewButton = buttons[cancewId];
+				buttons.spwice(cancewId, 1);
+				buttons.spwice(1, 0, cancewButton);
 
-				const cancelButtonIndex = buttonIndexMap[cancelId];
-				buttonIndexMap.splice(cancelId, 1);
-				buttonIndexMap.splice(1, 0, cancelButtonIndex);
+				const cancewButtonIndex = buttonIndexMap[cancewId];
+				buttonIndexMap.spwice(cancewId, 1);
+				buttonIndexMap.spwice(1, 0, cancewButtonIndex);
 
-				cancelId = 1;
+				cancewId = 1;
 			}
 		}
 
 		options.buttons = buttons;
-		options.cancelId = cancelId;
-		options.noLink = true;
-		options.title = options.title || this.productService.nameLong;
+		options.cancewId = cancewId;
+		options.noWink = twue;
+		options.titwe = options.titwe || this.pwoductSewvice.nameWong;
 
-		return { options, buttonIndexMap };
+		wetuwn { options, buttonIndexMap };
 	}
 
-	input(): never {
-		throw new Error('Unsupported'); // we have no native API for password dialogs in Electron
+	input(): neva {
+		thwow new Ewwow('Unsuppowted'); // we have no native API fow passwowd diawogs in Ewectwon
 	}
 
-	async about(): Promise<void> {
-		let version = this.productService.version;
-		if (this.productService.target) {
-			version = `${version} (${this.productService.target} setup)`;
-		} else if (this.productService.darwinUniversalAssetId) {
-			version = `${version} (Universal)`;
+	async about(): Pwomise<void> {
+		wet vewsion = this.pwoductSewvice.vewsion;
+		if (this.pwoductSewvice.tawget) {
+			vewsion = `${vewsion} (${this.pwoductSewvice.tawget} setup)`;
+		} ewse if (this.pwoductSewvice.dawwinUnivewsawAssetId) {
+			vewsion = `${vewsion} (Univewsaw)`;
 		}
 
-		const osProps = await this.nativeHostService.getOSProperties();
+		const osPwops = await this.nativeHostSewvice.getOSPwopewties();
 
-		const detailString = (useAgo: boolean): string => {
-			return localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
-				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
-				version,
-				this.productService.commit || 'Unknown',
-				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
-				process.versions['electron'],
-				process.versions['chrome'],
-				process.versions['node'],
-				process.versions['v8'],
-				`${osProps.type} ${osProps.arch} ${osProps.release}${isLinuxSnap ? ' snap' : ''}`
+		const detaiwStwing = (useAgo: boowean): stwing => {
+			wetuwn wocawize({ key: 'aboutDetaiw', comment: ['Ewectwon, Chwome, Node.js and V8 awe pwoduct names that need no twanswation'] },
+				"Vewsion: {0}\nCommit: {1}\nDate: {2}\nEwectwon: {3}\nChwome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+				vewsion,
+				this.pwoductSewvice.commit || 'Unknown',
+				this.pwoductSewvice.date ? `${this.pwoductSewvice.date}${useAgo ? ' (' + fwomNow(new Date(this.pwoductSewvice.date), twue) + ')' : ''}` : 'Unknown',
+				pwocess.vewsions['ewectwon'],
+				pwocess.vewsions['chwome'],
+				pwocess.vewsions['node'],
+				pwocess.vewsions['v8'],
+				`${osPwops.type} ${osPwops.awch} ${osPwops.wewease}${isWinuxSnap ? ' snap' : ''}`
 			);
 		};
 
-		const detail = detailString(true);
-		const detailToCopy = detailString(false);
+		const detaiw = detaiwStwing(twue);
+		const detaiwToCopy = detaiwStwing(fawse);
 
-		const ok = localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
-		let buttons: string[];
-		if (isLinux) {
+		const ok = wocawize('okButton', "OK");
+		const copy = mnemonicButtonWabew(wocawize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		wet buttons: stwing[];
+		if (isWinux) {
 			buttons = [copy, ok];
-		} else {
+		} ewse {
 			buttons = [ok, copy];
 		}
 
-		const result = await this.nativeHostService.showMessageBox({
-			title: this.productService.nameLong,
+		const wesuwt = await this.nativeHostSewvice.showMessageBox({
+			titwe: this.pwoductSewvice.nameWong,
 			type: 'info',
-			message: this.productService.nameLong,
-			detail: `\n${detail}`,
+			message: this.pwoductSewvice.nameWong,
+			detaiw: `\n${detaiw}`,
 			buttons,
-			noLink: true,
-			defaultId: buttons.indexOf(ok),
-			cancelId: buttons.indexOf(ok)
+			noWink: twue,
+			defauwtId: buttons.indexOf(ok),
+			cancewId: buttons.indexOf(ok)
 		});
 
-		if (buttons[result.response] === copy) {
-			this.clipboardService.writeText(detailToCopy);
+		if (buttons[wesuwt.wesponse] === copy) {
+			this.cwipboawdSewvice.wwiteText(detaiwToCopy);
 		}
 	}
 }

@@ -1,226 +1,226 @@
 {
-	"replace(dir: …, includes: …, token: …, value: …)": {
-		"prefix": "replace",
-		"body": "replace(dir:\"${1:dirName}\", includes:\"${2:*.*}\", token:\"${3:tokenName}\", value:\"\\${${4:value}}\")$0",
-		"description": "Replace(...)"
+	"wepwace(diw: …, incwudes: …, token: …, vawue: …)": {
+		"pwefix": "wepwace",
+		"body": "wepwace(diw:\"${1:diwName}\", incwudes:\"${2:*.*}\", token:\"${3:tokenName}\", vawue:\"\\${${4:vawue}}\")$0",
+		"descwiption": "Wepwace(...)"
 	},
-	"Doc Block": {
-		"prefix": "doc",
+	"Doc Bwock": {
+		"pwefix": "doc",
 		"body": [
 			"/**",
 			" * $0",
 			" */"
 		],
-		"description": "Doc block comment"
+		"descwiption": "Doc bwock comment"
 	},
-	"key: \"value\" (Hash Pair)": {
-		"prefix": "key",
-		"body": "${1:key}: ${2:\"${3:value}\"}"
+	"key: \"vawue\" (Hash Paiw)": {
+		"pwefix": "key",
+		"body": "${1:key}: ${2:\"${3:vawue}\"}"
 	},
-	"Thread.start { … }": {
-		"prefix": "thread",
+	"Thwead.stawt { … }": {
+		"pwefix": "thwead",
 		"body": [
-			"Thread.start {",
+			"Thwead.stawt {",
 			"\t$0",
 			"}"
 		],
-		"description": "Thread.start { ... }"
+		"descwiption": "Thwead.stawt { ... }"
 	},
-	"Thread.startDaemon { … }": {
-		"prefix": "thread",
+	"Thwead.stawtDaemon { … }": {
+		"pwefix": "thwead",
 		"body": [
-			"Thread.startDaemon {",
+			"Thwead.stawtDaemon {",
 			"\t$0",
 			"}"
 		],
-		"description": "Thread.startDaemon { ... }"
+		"descwiption": "Thwead.stawtDaemon { ... }"
 	},
-	"case … break": {
-		"prefix": "case",
+	"case … bweak": {
+		"pwefix": "case",
 		"body": [
 			"case ${1:CASE_NAME}:",
 			"\t$2",
-			"break$0"
+			"bweak$0"
 		],
-		"description": "case ... break"
+		"descwiption": "case ... bweak"
 	},
-	"instance … (Singleton)": {
-		"prefix": "instance",
+	"instance … (Singweton)": {
+		"pwefix": "instance",
 		"body": [
-			"private static $1 instance",
+			"pwivate static $1 instance",
 			"",
-			"static $1 getInstance(${2:args}) { ",
-			"\tif (!instance) instance = new $1(${2:args})",
-			"\treturn instance",
+			"static $1 getInstance(${2:awgs}) { ",
+			"\tif (!instance) instance = new $1(${2:awgs})",
+			"\twetuwn instance",
 			"}"
 		],
-		"description": "Singleton instance + Getter"
+		"descwiption": "Singweton instance + Getta"
 	},
-	"class … extends GroovyTestCase { … }": {
-		"prefix": "tc",
+	"cwass … extends GwoovyTestCase { … }": {
+		"pwefix": "tc",
 		"body": [
-			"class $1 extends GroovyTestCase {",
+			"cwass $1 extends GwoovyTestCase {",
 			"",
 			"\t$0",
 			"}"
 		],
-		"description": "GroovyTestCase class"
+		"descwiption": "GwoovyTestCase cwass"
 	},
-	"copy(file: …, tofile: …) ": {
-		"prefix": "copy",
-		"body": "copy(file:\"${1:sourceFile}\", tofile:\"${2:targetFile}\")",
-		"description": "Copy file"
+	"copy(fiwe: …, tofiwe: …) ": {
+		"pwefix": "copy",
+		"body": "copy(fiwe:\"${1:souwceFiwe}\", tofiwe:\"${2:tawgetFiwe}\")",
+		"descwiption": "Copy fiwe"
 	},
-	"copy(todir: …) { fileset(dir: …) { include … exclude }": {
-		"prefix": "copy",
+	"copy(todiw: …) { fiweset(diw: …) { incwude … excwude }": {
+		"pwefix": "copy",
 		"body": [
-			"copy(todir:\"${1:targetDir}\") {",
-			"\tfileset(dir:\"${2:sourceDir}\") {",
-			"\t\tinclude(name:\"${3:includeName}\")",
-			"\t\texclude(name:\"${4:excludeName}\")",
+			"copy(todiw:\"${1:tawgetDiw}\") {",
+			"\tfiweset(diw:\"${2:souwceDiw}\") {",
+			"\t\tincwude(name:\"${3:incwudeName}\")",
+			"\t\texcwude(name:\"${4:excwudeName}\")",
 			"\t}",
 			"}"
 		],
-		"description": "Copy fileset todir w/ include/exclude"
+		"descwiption": "Copy fiweset todiw w/ incwude/excwude"
 	},
-	"copy(todir: …) { fileset:dir …) }": {
-		"prefix": "copy",
+	"copy(todiw: …) { fiweset:diw …) }": {
+		"pwefix": "copy",
 		"body": [
-			"copy(todir:\"${1:targetDir}\") {",
-			"\tfileset(dir:\"${2:sourceDir}\")",
+			"copy(todiw:\"${1:tawgetDiw}\") {",
+			"\tfiweset(diw:\"${2:souwceDiw}\")",
 			"}"
 		],
-		"description": "Copy fileset todir"
+		"descwiption": "Copy fiweset todiw"
 	},
-	"closure = { … } ": {
-		"prefix": "cv",
+	"cwosuwe = { … } ": {
+		"pwefix": "cv",
 		"body": [
-			"def ${1:closureName} = { ${2:args} ->",
+			"def ${1:cwosuweName} = { ${2:awgs} ->",
 			"\t$0",
 			"}"
 		],
-		"description": "Closure block"
+		"descwiption": "Cwosuwe bwock"
 	},
-	"for(… in …) { … }": {
-		"prefix": "forin",
+	"fow(… in …) { … }": {
+		"pwefix": "fowin",
 		"body": [
-			"for (${1:element} in ${2:collection}) {",
+			"fow (${1:ewement} in ${2:cowwection}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "For-loop"
+		"descwiption": "Fow-woop"
 	},
-	"mkdir(dir: …)": {
-		"prefix": "mkdir",
-		"body": "mkdir(dir:\"${1:dirName}\")",
-		"description": "mkdir"
+	"mkdiw(diw: …)": {
+		"pwefix": "mkdiw",
+		"body": "mkdiw(diw:\"${1:diwName}\")",
+		"descwiption": "mkdiw"
 	},
-	"print": {
-		"prefix": "p",
-		"body": "print $0",
-		"description": "print"
+	"pwint": {
+		"pwefix": "p",
+		"body": "pwint $0",
+		"descwiption": "pwint"
 	},
-	"println ": {
-		"prefix": "pl",
-		"body": "println $0",
-		"description": "println"
+	"pwintwn ": {
+		"pwefix": "pw",
+		"body": "pwintwn $0",
+		"descwiption": "pwintwn"
 	},
-	"runAfter() { … }": {
-		"prefix": "runa",
+	"wunAfta() { … }": {
+		"pwefix": "wuna",
 		"body": [
-			"runAfter(${1:delay}) {",
+			"wunAfta(${1:deway}) {",
 			"\t$0",
 			"}"
 		],
-		"description": "runAfter()  { ... }"
+		"descwiption": "wunAfta()  { ... }"
 	},
 	"setUp() { … }": {
-		"prefix": "setup",
+		"pwefix": "setup",
 		"body": [
 			"void setUp() {",
 			"\t$0",
 			"}"
 		],
-		"description": "setup() { ... }"
+		"descwiption": "setup() { ... }"
 	},
-	"sleep(secs) { … // on interrupt do }": {
-		"prefix": "sleep",
+	"sweep(secs) { … // on intewwupt do }": {
+		"pwefix": "sweep",
 		"body": [
-			"sleep(${1:secs}) {",
-			"\t${2:// on interrupt do}",
+			"sweep(${1:secs}) {",
+			"\t${2:// on intewwupt do}",
 			"}"
 		],
-		"description": "sleep with interrupt"
+		"descwiption": "sweep with intewwupt"
 	},
-	"sleep(secs)": {
-		"prefix": "sleep",
-		"body": "sleep(${1:secs})",
-		"description": "sleep"
+	"sweep(secs)": {
+		"pwefix": "sweep",
+		"body": "sweep(${1:secs})",
+		"descwiption": "sweep"
 	},
-	"sort { … }": {
-		"prefix": "sort",
+	"sowt { … }": {
+		"pwefix": "sowt",
 		"body": [
-			"sort { ",
+			"sowt { ",
 			"\t$0",
 			"}"
 		],
-		"description": "sort"
+		"descwiption": "sowt"
 	},
 	"static main() { … }": {
-		"prefix": "main",
+		"pwefix": "main",
 		"body": [
-			"static main(args) {",
+			"static main(awgs) {",
 			"\t$0",
 			"}"
 		],
-		"description": "main method"
+		"descwiption": "main method"
 	},
 	"switch … case": {
-		"prefix": "switch",
+		"pwefix": "switch",
 		"body": [
-			"switch(${1:value}) {",
+			"switch(${1:vawue}) {",
 			"\tcase ${2:CASE}:",
 			"\t\t$3",
-			"\tbreak$0",
+			"\tbweak$0",
 			"}"
 		],
-		"description": "Switch-Case block"
+		"descwiption": "Switch-Case bwock"
 	},
-	"switch … case … default": {
-		"prefix": "switch",
+	"switch … case … defauwt": {
+		"pwefix": "switch",
 		"body": [
-			"switch(${1:value}) {",
+			"switch(${1:vawue}) {",
 			"\tcase ${3:CASE}:",
 			"\t\t$4",
-			"\tbreak$0",
-			"\tdefault:",
+			"\tbweak$0",
+			"\tdefauwt:",
 			"\t\t$2",
-			"\tbreak",
+			"\tbweak",
 			"}"
 		],
-		"description": "Switch-Case-Default block"
+		"descwiption": "Switch-Case-Defauwt bwock"
 	},
-	"tearDown() { … }": {
-		"prefix": "tear",
+	"teawDown() { … }": {
+		"pwefix": "teaw",
 		"body": [
-			"void tearDown() {",
+			"void teawDown() {",
 			"\t$0",
 			"}"
 		],
-		"description": "tearDown() { ... }"
+		"descwiption": "teawDown() { ... }"
 	},
 	"test()": {
-		"prefix": "t",
+		"pwefix": "t",
 		"body": [
 			"void test$1() {",
 			"\t$0",
 			"}"
 		],
-		"description": "test method"
+		"descwiption": "test method"
 	},
-	"var": {
-		"prefix": "v",
-		"body": "${1:def} ${2:var}${3: = ${0:null}}",
-		"description": "var"
+	"vaw": {
+		"pwefix": "v",
+		"body": "${1:def} ${2:vaw}${3: = ${0:nuww}}",
+		"descwiption": "vaw"
 	}
 }

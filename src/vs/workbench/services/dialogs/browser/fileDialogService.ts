@@ -1,254 +1,254 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
-import { Schemas } from 'vs/base/common/network';
-import { memoize } from 'vs/base/common/decorators';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { localize } from 'vs/nls';
-import { getMediaOrTextMime } from 'vs/base/common/mime';
-import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
-import Severity from 'vs/base/common/severity';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+impowt { IPickAndOpenOptions, ISaveDiawogOptions, IOpenDiawogOptions, IFiweDiawogSewvice, FiweFiwta } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AbstwactFiweDiawogSewvice } fwom 'vs/wowkbench/sewvices/diawogs/bwowsa/abstwactFiweDiawogSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { HTMWFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/bwowsa/htmwFiweSystemPwovida';
+impowt { wocawize } fwom 'vs/nws';
+impowt { getMediaOwTextMime } fwom 'vs/base/common/mime';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { twiggewDownwoad, twiggewUpwoad, WebFiweSystemAccess } fwom 'vs/base/bwowsa/dom';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { extwactFiwesDwopData } fwom 'vs/wowkbench/bwowsa/dnd';
 
-export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
+expowt cwass FiweDiawogSewvice extends AbstwactFiweDiawogSewvice impwements IFiweDiawogSewvice {
 
 	@memoize
-	private get fileSystemProvider(): HTMLFileSystemProvider {
-		return this.fileService.getProvider(Schemas.file) as HTMLFileSystemProvider;
+	pwivate get fiweSystemPwovida(): HTMWFiweSystemPwovida {
+		wetuwn this.fiweSewvice.getPwovida(Schemas.fiwe) as HTMWFiweSystemPwovida;
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFiweFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFilePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFiwePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileFolderAndOpenSimplified(schema, options, false);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.pickFiweFowdewAndOpenSimpwified(schema, options, fawse);
 		}
 
-		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
+		thwow new Ewwow(wocawize('pickFowdewAndOpen', "Can't open fowdews, twy adding a fowda to the wowkspace instead."));
 	}
 
-	protected override addFileSchemaIfNeeded(schema: string, isFolder: boolean): string[] {
-		return (schema === Schemas.untitled) ? [Schemas.file]
-			: (((schema !== Schemas.file) && (!isFolder || (schema !== Schemas.vscodeRemote))) ? [schema, Schemas.file] : [schema]);
+	pwotected ovewwide addFiweSchemaIfNeeded(schema: stwing, isFowda: boowean): stwing[] {
+		wetuwn (schema === Schemas.untitwed) ? [Schemas.fiwe]
+			: (((schema !== Schemas.fiwe) && (!isFowda || (schema !== Schemas.vscodeWemote))) ? [schema, Schemas.fiwe] : [schema]);
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFiweAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFilePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFiwePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileAndOpenSimplified(schema, options, false);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.pickFiweAndOpenSimpwified(schema, options, fawse);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning('open');
+		if (!WebFiweSystemAccess.suppowted(window)) {
+			wetuwn this.showUnsuppowtedBwowsewWawning('open');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
-		try {
-			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
-		} catch (error) {
-			return; // `showOpenFilePicker` will throw an error when the user cancels
+		wet fiweHandwe: FiweSystemHandwe | undefined = undefined;
+		twy {
+			([fiweHandwe] = await window.showOpenFiwePicka({ muwtipwe: fawse }));
+		} catch (ewwow) {
+			wetuwn; // `showOpenFiwePicka` wiww thwow an ewwow when the usa cancews
 		}
 
-		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
+		const uwi = this.fiweSystemPwovida.wegistewFiweHandwe(fiweHandwe);
 
-		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
+		await this.openewSewvice.open(uwi, { fwomUsewGestuwe: twue, editowOptions: { pinned: twue } });
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFolderPath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFowdewPath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.pickFolderAndOpenSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.pickFowdewAndOpenSimpwified(schema, options);
 		}
 
-		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
+		thwow new Ewwow(wocawize('pickFowdewAndOpen', "Can't open fowdews, twy adding a fowda to the wowkspace instead."));
 	}
 
-	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
-		const schema = this.getFileSystemSchema(options);
+	async pickWowkspaceAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		options.avaiwabweFiweSystems = this.getWowkspaceAvaiwabweFiweSystems(options);
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultWorkspacePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtWowkspacePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.pickWorkspaceAndOpenSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.pickWowkspaceAndOpenSimpwified(schema, options);
 		}
 
-		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
+		thwow new Ewwow(wocawize('pickWowkspaceAndOpen', "Can't open wowkspaces, twy adding a fowda to the wowkspace instead."));
 	}
 
-	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
+	async pickFiweToSave(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): Pwomise<UWI | undefined> {
+		const schema = this.getFiweSystemSchema({ defauwtUwi, avaiwabweFiweSystems });
 
-		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
-		if (this.shouldUseSimplified(schema)) {
-			return this.pickFileToSaveSimplified(schema, options);
+		const options = this.getPickFiweToSaveDiawogOptions(defauwtUwi, avaiwabweFiweSystems);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.pickFiweToSaveSimpwified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning('save');
+		if (!WebFiweSystemAccess.suppowted(window)) {
+			wetuwn this.showUnsuppowtedBwowsewWawning('save');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
-		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
-		} catch (error) {
-			return; // `showSaveFilePicker` will throw an error when the user cancels
+		wet fiweHandwe: FiweSystemHandwe | undefined = undefined;
+		twy {
+			fiweHandwe = await window.showSaveFiwePicka({ types: this.getFiwePickewTypes(options.fiwtews), ...{ suggestedName: basename(defauwtUwi) } });
+		} catch (ewwow) {
+			wetuwn; // `showSaveFiwePicka` wiww thwow an ewwow when the usa cancews
 		}
 
-		return this.fileSystemProvider.registerFileHandle(fileHandle);
+		wetuwn this.fiweSystemPwovida.wegistewFiweHandwe(fiweHandwe);
 	}
 
-	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
-		return filters?.filter(filter => {
-			return !((filter.extensions.length === 1) && ((filter.extensions[0] === '*') || filter.extensions[0] === ''));
-		}).map(filter => {
-			const accept: Record<string, string[]> = {};
-			const extensions = filter.extensions.filter(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
-			accept[getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain'] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`);
-			return {
-				description: filter.name,
+	pwivate getFiwePickewTypes(fiwtews?: FiweFiwta[]): FiwePickewAcceptType[] | undefined {
+		wetuwn fiwtews?.fiwta(fiwta => {
+			wetuwn !((fiwta.extensions.wength === 1) && ((fiwta.extensions[0] === '*') || fiwta.extensions[0] === ''));
+		}).map(fiwta => {
+			const accept: Wecowd<stwing, stwing[]> = {};
+			const extensions = fiwta.extensions.fiwta(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
+			accept[getMediaOwTextMime(`fiweName.${fiwta.extensions[0]}`) ?? 'text/pwain'] = extensions.map(ext => ext.stawtsWith('.') ? ext : `.${ext}`);
+			wetuwn {
+				descwiption: fiwta.name,
 				accept
 			};
 		});
 	}
 
-	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
+	async showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.showSaveDialogSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.showSaveDiawogSimpwified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning('save');
+		if (!WebFiweSystemAccess.suppowted(window)) {
+			wetuwn this.showUnsuppowtedBwowsewWawning('save');
 		}
 
-		let fileHandle: FileSystemHandle | undefined = undefined;
-		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
-		} catch (error) {
-			return; // `showSaveFilePicker` will throw an error when the user cancels
+		wet fiweHandwe: FiweSystemHandwe | undefined = undefined;
+		twy {
+			fiweHandwe = await window.showSaveFiwePicka({ types: this.getFiwePickewTypes(options.fiwtews), ...options.defauwtUwi ? { suggestedName: basename(options.defauwtUwi) } : undefined });
+		} catch (ewwow) {
+			wetuwn; // `showSaveFiwePicka` wiww thwow an ewwow when the usa cancews
 		}
 
-		return this.fileSystemProvider.registerFileHandle(fileHandle);
+		wetuwn this.fiweSystemPwovida.wegistewFiweHandwe(fiweHandwe);
 	}
 
-	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		const schema = this.getFileSystemSchema(options);
+	async showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI[] | undefined> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (this.shouldUseSimplified(schema)) {
-			return this.showOpenDialogSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema)) {
+			wetuwn this.showOpenDiawogSimpwified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning('open');
+		if (!WebFiweSystemAccess.suppowted(window)) {
+			wetuwn this.showUnsuppowtedBwowsewWawning('open');
 		}
 
-		let uri: URI | undefined;
-		try {
-			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
-				if (handle.length === 1) {
-					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+		wet uwi: UWI | undefined;
+		twy {
+			if (options.canSewectFiwes) {
+				const handwe = await window.showOpenFiwePicka({ muwtipwe: fawse, types: this.getFiwePickewTypes(options.fiwtews) });
+				if (handwe.wength === 1) {
+					uwi = this.fiweSystemPwovida.wegistewFiweHandwe(handwe[0]);
 				}
-			} else {
-				const handle = await window.showDirectoryPicker();
-				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
+			} ewse {
+				const handwe = await window.showDiwectowyPicka();
+				uwi = this.fiweSystemPwovida.wegistewDiwectowyHandwe(handwe);
 			}
-		} catch (error) {
-			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
+		} catch (ewwow) {
+			// ignowe - `showOpenFiwePicka` / `showDiwectowyPicka` wiww thwow an ewwow when the usa cancews
 		}
 
-		return uri ? [uri] : undefined;
+		wetuwn uwi ? [uwi] : undefined;
 	}
 
-	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {
+	pwivate async showUnsuppowtedBwowsewWawning(context: 'save' | 'open'): Pwomise<undefined> {
 
-		// When saving, try to just download the contents
-		// of the active text editor if any as a workaround
+		// When saving, twy to just downwoad the contents
+		// of the active text editow if any as a wowkawound
 		if (context === 'save') {
-			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
-			if (activeTextModel) {
-				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
-				return;
+			const activeTextModew = this.codeEditowSewvice.getActiveCodeEditow()?.getModew();
+			if (activeTextModew) {
+				twiggewDownwoad(VSBuffa.fwomStwing(activeTextModew.getVawue()).buffa, basename(activeTextModew.uwi));
+				wetuwn;
 			}
 		}
 
-		// Otherwise inform the user about options
+		// Othewwise infowm the usa about options
 
 		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")];
+			[wocawize('openWemote', "Open Wemote..."), wocawize('upwoad', "Upwoad..."), wocawize('weawnMowe', "Weawn Mowe"), wocawize('cancew', "Cancew")] :
+			[wocawize('openWemote', "Open Wemote..."), wocawize('weawnMowe', "Weawn Mowe"), wocawize('cancew', "Cancew")];
 
-		const cancelId = context === 'open' ? 3 : 2;
+		const cancewId = context === 'open' ? 3 : 2;
 
-		const res = await this.dialogService.show(
-			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
+		const wes = await this.diawogSewvice.show(
+			Sevewity.Wawning,
+			wocawize('unsuppowtedBwowsewMessage', "Accessing wocaw fiwes is unsuppowted in youw cuwwent bwowsa."),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
-				cancelId
+				detaiw: wocawize('unsuppowtedBwowsewDetaiw', "Cwick 'Weawn Mowe' to see a wist of suppowted bwowsews."),
+				cancewId
 			}
 		);
 
-		switch (res.choice) {
+		switch (wes.choice) {
 
-			// Open Remote...
+			// Open Wemote...
 			case 0:
-				this.commandService.executeCommand('workbench.action.remote.showMenu');
-				break;
+				this.commandSewvice.executeCommand('wowkbench.action.wemote.showMenu');
+				bweak;
 
-			// Upload... (context === 'open')
+			// Upwoad... (context === 'open')
 			case 1:
 				if (context === 'open') {
-					const files = await triggerUpload();
-					if (files) {
-						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
+					const fiwes = await twiggewUpwoad();
+					if (fiwes) {
+						this.instantiationSewvice.invokeFunction(accessow => extwactFiwesDwopData(accessow, fiwes, ({ name, data }) => {
+							this.editowSewvice.openEditow({ wesouwce: UWI.fwom({ scheme: Schemas.untitwed, path: name }), contents: data.toStwing() });
 						}));
 					}
-					break;
-				} else {
-					// Fallthrough for "Learn More"
+					bweak;
+				} ewse {
+					// Fawwthwough fow "Weawn Mowe"
 				}
 
-			// Learn More
+			// Weawn Mowe
 			case 2:
-				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
-				break;
+				this.openewSewvice.open('https://aka.ms/VSCodeWebWocawFiweSystemAccess');
+				bweak;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private shouldUseSimplified(scheme: string): boolean {
-		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
+	pwivate shouwdUseSimpwified(scheme: stwing): boowean {
+		wetuwn ![Schemas.fiwe, Schemas.usewData, Schemas.tmp].incwudes(scheme);
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+wegistewSingweton(IFiweDiawogSewvice, FiweDiawogSewvice, twue);

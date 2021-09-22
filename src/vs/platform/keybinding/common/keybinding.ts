@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Keybinding, KeyCode, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { IContextKeySewvice, IContextKeySewviceTawget } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWesowveWesuwt } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
 
-export interface IUserFriendlyKeybinding {
-	key: string;
-	command: string;
-	args?: any;
-	when?: string;
+expowt intewface IUsewFwiendwyKeybinding {
+	key: stwing;
+	command: stwing;
+	awgs?: any;
+	when?: stwing;
 }
 
-export const enum KeybindingSource {
-	Default = 1,
-	User
+expowt const enum KeybindingSouwce {
+	Defauwt = 1,
+	Usa
 }
 
-export interface IKeybindingEvent {
-	source: KeybindingSource;
-	keybindings?: IUserFriendlyKeybinding[];
+expowt intewface IKeybindingEvent {
+	souwce: KeybindingSouwce;
+	keybindings?: IUsewFwiendwyKeybinding[];
 }
 
-export interface IKeyboardEvent {
-	readonly _standardKeyboardEventBrand: true;
+expowt intewface IKeyboawdEvent {
+	weadonwy _standawdKeyboawdEventBwand: twue;
 
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
-	readonly keyCode: KeyCode;
-	readonly code: string;
+	weadonwy ctwwKey: boowean;
+	weadonwy shiftKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy metaKey: boowean;
+	weadonwy keyCode: KeyCode;
+	weadonwy code: stwing;
 }
 
-export interface KeybindingsSchemaContribution {
-	readonly onDidChange?: Event<void>;
+expowt intewface KeybindingsSchemaContwibution {
+	weadonwy onDidChange?: Event<void>;
 
 	getSchemaAdditions(): IJSONSchema[];
 }
 
-export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
+expowt const IKeybindingSewvice = cweateDecowatow<IKeybindingSewvice>('keybindingSewvice');
 
-export interface IKeybindingService {
-	readonly _serviceBrand: undefined;
+expowt intewface IKeybindingSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly inChordMode: boolean;
+	weadonwy inChowdMode: boowean;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
 	/**
-	 * Returns none, one or many (depending on keyboard layout)!
+	 * Wetuwns none, one ow many (depending on keyboawd wayout)!
 	 */
-	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
+	wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[];
 
-	resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
+	wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding;
 
-	resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+	wesowveUsewBinding(usewBinding: stwing): WesowvedKeybinding[];
 
 	/**
-	 * Resolve and dispatch `keyboardEvent` and invoke the command.
+	 * Wesowve and dispatch `keyboawdEvent` and invoke the command.
 	 */
-	dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean;
+	dispatchEvent(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): boowean;
 
 	/**
-	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
+	 * Wesowve and dispatch `keyboawdEvent`, but do not invoke the command ow change inna state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
+	softDispatch(keyboawdEvent: IKeyboawdEvent, tawget: IContextKeySewviceTawget): IWesowveWesuwt | nuww;
 
-	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
+	dispatchByUsewSettingsWabew(usewSettingsWabew: stwing, tawget: IContextKeySewviceTawget): void;
 
 	/**
-	 * Look up keybindings for a command.
-	 * Use `lookupKeybinding` if you are interested in the preferred keybinding.
+	 * Wook up keybindings fow a command.
+	 * Use `wookupKeybinding` if you awe intewested in the pwefewwed keybinding.
 	 */
-	lookupKeybindings(commandId: string): ResolvedKeybinding[];
+	wookupKeybindings(commandId: stwing): WesowvedKeybinding[];
 
 	/**
-	 * Look up the preferred (last defined) keybinding for a command.
-	 * @returns The preferred keybinding or null if the command is not bound.
+	 * Wook up the pwefewwed (wast defined) keybinding fow a command.
+	 * @wetuwns The pwefewwed keybinding ow nuww if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined;
+	wookupKeybinding(commandId: stwing, context?: IContextKeySewvice): WesowvedKeybinding | undefined;
 
-	getDefaultKeybindingsContent(): string;
+	getDefauwtKeybindingsContent(): stwing;
 
-	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
+	getDefauwtKeybindings(): weadonwy WesowvedKeybindingItem[];
 
-	getKeybindings(): readonly ResolvedKeybindingItem[];
+	getKeybindings(): weadonwy WesowvedKeybindingItem[];
 
-	customKeybindingsCount(): number;
+	customKeybindingsCount(): numba;
 
 	/**
-	 * Will the given key event produce a character that's rendered on screen, e.g. in a
-	 * text box. *Note* that the results of this function can be incorrect.
+	 * Wiww the given key event pwoduce a chawacta that's wendewed on scween, e.g. in a
+	 * text box. *Note* that the wesuwts of this function can be incowwect.
 	 */
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+	mightPwoducePwintabweChawacta(event: IKeyboawdEvent): boowean;
 
-	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+	wegistewSchemaContwibution(contwibution: KeybindingsSchemaContwibution): void;
 
-	toggleLogging(): boolean;
+	toggweWogging(): boowean;
 
-	_dumpDebugInfo(): string;
-	_dumpDebugInfoJSON(): string;
+	_dumpDebugInfo(): stwing;
+	_dumpDebugInfoJSON(): stwing;
 }
 

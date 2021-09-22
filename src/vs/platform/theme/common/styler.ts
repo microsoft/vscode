@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IThemable, styleFn } from 'vs/base/common/styler';
-import { activeContrastBorder, badgeBackground, badgeForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, breadcrumbsFocusForeground, breadcrumbsForeground, buttonBackground, buttonBorder, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, ColorIdentifier, ColorTransform, ColorValue, contrastBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, menuBackground, menuBorder, menuForeground, menuSelectionBackground, menuSelectionBorder, menuSelectionForeground, menuSeparatorBackground, pickerGroupForeground, problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground, progressBarBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, resolveColorValue, selectBackground, selectBorder, selectForeground, selectListBackground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, tableColumnsBorder, textLinkForeground, treeIndentGuidesStroke, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IThemabwe, styweFn } fwom 'vs/base/common/stywa';
+impowt { activeContwastBowda, badgeBackgwound, badgeFowegwound, bweadcwumbsActiveSewectionFowegwound, bweadcwumbsBackgwound, bweadcwumbsFocusFowegwound, bweadcwumbsFowegwound, buttonBackgwound, buttonBowda, buttonFowegwound, buttonHovewBackgwound, buttonSecondawyBackgwound, buttonSecondawyFowegwound, buttonSecondawyHovewBackgwound, CowowIdentifia, CowowTwansfowm, CowowVawue, contwastBowda, editowWidgetBackgwound, editowWidgetBowda, editowWidgetFowegwound, focusBowda, inputActiveOptionBackgwound, inputActiveOptionBowda, inputActiveOptionFowegwound, inputBackgwound, inputBowda, inputFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound, inputVawidationInfoBackgwound, inputVawidationInfoBowda, inputVawidationInfoFowegwound, inputVawidationWawningBackgwound, inputVawidationWawningBowda, inputVawidationWawningFowegwound, keybindingWabewBackgwound, keybindingWabewBowda, keybindingWabewBottomBowda, keybindingWabewFowegwound, wistActiveSewectionBackgwound, wistActiveSewectionFowegwound, wistActiveSewectionIconFowegwound, wistDwopBackgwound, wistFiwtewWidgetBackgwound, wistFiwtewWidgetNoMatchesOutwine, wistFiwtewWidgetOutwine, wistFocusBackgwound, wistFocusFowegwound, wistFocusOutwine, wistHovewBackgwound, wistHovewFowegwound, wistInactiveFocusBackgwound, wistInactiveFocusOutwine, wistInactiveSewectionBackgwound, wistInactiveSewectionFowegwound, wistInactiveSewectionIconFowegwound, menuBackgwound, menuBowda, menuFowegwound, menuSewectionBackgwound, menuSewectionBowda, menuSewectionFowegwound, menuSepawatowBackgwound, pickewGwoupFowegwound, pwobwemsEwwowIconFowegwound, pwobwemsInfoIconFowegwound, pwobwemsWawningIconFowegwound, pwogwessBawBackgwound, quickInputWistFocusBackgwound, quickInputWistFocusFowegwound, quickInputWistFocusIconFowegwound, wesowveCowowVawue, sewectBackgwound, sewectBowda, sewectFowegwound, sewectWistBackgwound, simpweCheckboxBackgwound, simpweCheckboxBowda, simpweCheckboxFowegwound, tabweCowumnsBowda, textWinkFowegwound, tweeIndentGuidesStwoke, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { ICowowTheme, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface IStyleOverrides {
-	[color: string]: ColorIdentifier | undefined;
+expowt intewface IStyweOvewwides {
+	[cowow: stwing]: CowowIdentifia | undefined;
 }
 
-export interface IColorMapping {
-	[optionsKey: string]: ColorValue | undefined;
+expowt intewface ICowowMapping {
+	[optionsKey: stwing]: CowowVawue | undefined;
 }
 
-export interface IComputedStyles {
-	[color: string]: Color | undefined;
+expowt intewface IComputedStywes {
+	[cowow: stwing]: Cowow | undefined;
 }
 
-export function computeStyles(theme: IColorTheme, styleMap: IColorMapping): IComputedStyles {
-	const styles = Object.create(null) as IComputedStyles;
-	for (let key in styleMap) {
-		const value = styleMap[key];
-		if (value) {
-			styles[key] = resolveColorValue(value, theme);
+expowt function computeStywes(theme: ICowowTheme, styweMap: ICowowMapping): IComputedStywes {
+	const stywes = Object.cweate(nuww) as IComputedStywes;
+	fow (wet key in styweMap) {
+		const vawue = styweMap[key];
+		if (vawue) {
+			stywes[key] = wesowveCowowVawue(vawue, theme);
 		}
 	}
 
-	return styles;
+	wetuwn stywes;
 }
 
-export function attachStyler<T extends IColorMapping>(themeService: IThemeService, styleMap: T, widgetOrCallback: IThemable | styleFn): IDisposable {
-	function applyStyles(): void {
-		const styles = computeStyles(themeService.getColorTheme(), styleMap);
+expowt function attachStywa<T extends ICowowMapping>(themeSewvice: IThemeSewvice, styweMap: T, widgetOwCawwback: IThemabwe | styweFn): IDisposabwe {
+	function appwyStywes(): void {
+		const stywes = computeStywes(themeSewvice.getCowowTheme(), styweMap);
 
-		if (typeof widgetOrCallback === 'function') {
-			widgetOrCallback(styles);
-		} else {
-			widgetOrCallback.style(styles);
+		if (typeof widgetOwCawwback === 'function') {
+			widgetOwCawwback(stywes);
+		} ewse {
+			widgetOwCawwback.stywe(stywes);
 		}
 	}
 
-	applyStyles();
+	appwyStywes();
 
-	return themeService.onDidColorThemeChange(applyStyles);
+	wetuwn themeSewvice.onDidCowowThemeChange(appwyStywes);
 }
 
-export interface ICheckboxStyleOverrides extends IStyleOverrides {
-	inputActiveOptionBorderColor?: ColorIdentifier;
-	inputActiveOptionForegroundColor?: ColorIdentifier;
-	inputActiveOptionBackgroundColor?: ColorIdentifier;
+expowt intewface ICheckboxStyweOvewwides extends IStyweOvewwides {
+	inputActiveOptionBowdewCowow?: CowowIdentifia;
+	inputActiveOptionFowegwoundCowow?: CowowIdentifia;
+	inputActiveOptionBackgwoundCowow?: CowowIdentifia;
 }
 
-export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: ICheckboxStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputActiveOptionBorder: style?.inputActiveOptionBorderColor || inputActiveOptionBorder,
-		inputActiveOptionForeground: style?.inputActiveOptionForegroundColor || inputActiveOptionForeground,
-		inputActiveOptionBackground: style?.inputActiveOptionBackgroundColor || inputActiveOptionBackground
-	} as ICheckboxStyleOverrides, widget);
+expowt function attachCheckboxStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: ICheckboxStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		inputActiveOptionBowda: stywe?.inputActiveOptionBowdewCowow || inputActiveOptionBowda,
+		inputActiveOptionFowegwound: stywe?.inputActiveOptionFowegwoundCowow || inputActiveOptionFowegwound,
+		inputActiveOptionBackgwound: stywe?.inputActiveOptionBackgwoundCowow || inputActiveOptionBackgwound
+	} as ICheckboxStyweOvewwides, widget);
 }
 
-export interface IBadgeStyleOverrides extends IStyleOverrides {
-	badgeBackground?: ColorIdentifier;
-	badgeForeground?: ColorIdentifier;
+expowt intewface IBadgeStyweOvewwides extends IStyweOvewwides {
+	badgeBackgwound?: CowowIdentifia;
+	badgeFowegwound?: CowowIdentifia;
 }
 
-export function attachBadgeStyler(widget: IThemable, themeService: IThemeService, style?: IBadgeStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		badgeBackground: style?.badgeBackground || badgeBackground,
-		badgeForeground: style?.badgeForeground || badgeForeground,
-		badgeBorder: contrastBorder
-	} as IBadgeStyleOverrides, widget);
+expowt function attachBadgeStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IBadgeStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		badgeBackgwound: stywe?.badgeBackgwound || badgeBackgwound,
+		badgeFowegwound: stywe?.badgeFowegwound || badgeFowegwound,
+		badgeBowda: contwastBowda
+	} as IBadgeStyweOvewwides, widget);
 }
 
-export interface IInputBoxStyleOverrides extends IStyleOverrides {
-	inputBackground?: ColorIdentifier;
-	inputForeground?: ColorIdentifier;
-	inputBorder?: ColorIdentifier;
-	inputActiveOptionBorder?: ColorIdentifier;
-	inputActiveOptionForeground?: ColorIdentifier;
-	inputActiveOptionBackground?: ColorIdentifier;
-	inputValidationInfoBorder?: ColorIdentifier;
-	inputValidationInfoBackground?: ColorIdentifier;
-	inputValidationInfoForeground?: ColorIdentifier;
-	inputValidationWarningBorder?: ColorIdentifier;
-	inputValidationWarningBackground?: ColorIdentifier;
-	inputValidationWarningForeground?: ColorIdentifier;
-	inputValidationErrorBorder?: ColorIdentifier;
-	inputValidationErrorBackground?: ColorIdentifier;
-	inputValidationErrorForeground?: ColorIdentifier;
+expowt intewface IInputBoxStyweOvewwides extends IStyweOvewwides {
+	inputBackgwound?: CowowIdentifia;
+	inputFowegwound?: CowowIdentifia;
+	inputBowda?: CowowIdentifia;
+	inputActiveOptionBowda?: CowowIdentifia;
+	inputActiveOptionFowegwound?: CowowIdentifia;
+	inputActiveOptionBackgwound?: CowowIdentifia;
+	inputVawidationInfoBowda?: CowowIdentifia;
+	inputVawidationInfoBackgwound?: CowowIdentifia;
+	inputVawidationInfoFowegwound?: CowowIdentifia;
+	inputVawidationWawningBowda?: CowowIdentifia;
+	inputVawidationWawningBackgwound?: CowowIdentifia;
+	inputVawidationWawningFowegwound?: CowowIdentifia;
+	inputVawidationEwwowBowda?: CowowIdentifia;
+	inputVawidationEwwowBackgwound?: CowowIdentifia;
+	inputVawidationEwwowFowegwound?: CowowIdentifia;
 }
 
-export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: IInputBoxStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputValidationInfoBorder: style?.inputValidationInfoBorder || inputValidationInfoBorder,
-		inputValidationInfoBackground: style?.inputValidationInfoBackground || inputValidationInfoBackground,
-		inputValidationInfoForeground: style?.inputValidationInfoForeground || inputValidationInfoForeground,
-		inputValidationWarningBorder: style?.inputValidationWarningBorder || inputValidationWarningBorder,
-		inputValidationWarningBackground: style?.inputValidationWarningBackground || inputValidationWarningBackground,
-		inputValidationWarningForeground: style?.inputValidationWarningForeground || inputValidationWarningForeground,
-		inputValidationErrorBorder: style?.inputValidationErrorBorder || inputValidationErrorBorder,
-		inputValidationErrorBackground: style?.inputValidationErrorBackground || inputValidationErrorBackground,
-		inputValidationErrorForeground: style?.inputValidationErrorForeground || inputValidationErrorForeground
-	} as IInputBoxStyleOverrides, widget);
+expowt function attachInputBoxStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IInputBoxStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		inputBackgwound: stywe?.inputBackgwound || inputBackgwound,
+		inputFowegwound: stywe?.inputFowegwound || inputFowegwound,
+		inputBowda: stywe?.inputBowda || inputBowda,
+		inputVawidationInfoBowda: stywe?.inputVawidationInfoBowda || inputVawidationInfoBowda,
+		inputVawidationInfoBackgwound: stywe?.inputVawidationInfoBackgwound || inputVawidationInfoBackgwound,
+		inputVawidationInfoFowegwound: stywe?.inputVawidationInfoFowegwound || inputVawidationInfoFowegwound,
+		inputVawidationWawningBowda: stywe?.inputVawidationWawningBowda || inputVawidationWawningBowda,
+		inputVawidationWawningBackgwound: stywe?.inputVawidationWawningBackgwound || inputVawidationWawningBackgwound,
+		inputVawidationWawningFowegwound: stywe?.inputVawidationWawningFowegwound || inputVawidationWawningFowegwound,
+		inputVawidationEwwowBowda: stywe?.inputVawidationEwwowBowda || inputVawidationEwwowBowda,
+		inputVawidationEwwowBackgwound: stywe?.inputVawidationEwwowBackgwound || inputVawidationEwwowBackgwound,
+		inputVawidationEwwowFowegwound: stywe?.inputVawidationEwwowFowegwound || inputVawidationEwwowFowegwound
+	} as IInputBoxStyweOvewwides, widget);
 }
 
-export interface ISelectBoxStyleOverrides extends IStyleOverrides, IListStyleOverrides {
-	selectBackground?: ColorIdentifier;
-	selectListBackground?: ColorIdentifier;
-	selectForeground?: ColorIdentifier;
-	decoratorRightForeground?: ColorIdentifier;
-	selectBorder?: ColorIdentifier;
-	focusBorder?: ColorIdentifier;
+expowt intewface ISewectBoxStyweOvewwides extends IStyweOvewwides, IWistStyweOvewwides {
+	sewectBackgwound?: CowowIdentifia;
+	sewectWistBackgwound?: CowowIdentifia;
+	sewectFowegwound?: CowowIdentifia;
+	decowatowWightFowegwound?: CowowIdentifia;
+	sewectBowda?: CowowIdentifia;
+	focusBowda?: CowowIdentifia;
 }
 
-export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISelectBoxStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		selectBackground: style?.selectBackground || selectBackground,
-		selectListBackground: style?.selectListBackground || selectListBackground,
-		selectForeground: style?.selectForeground || selectForeground,
-		decoratorRightForeground: style?.pickerGroupForeground || pickerGroupForeground,
-		selectBorder: style?.selectBorder || selectBorder,
-		focusBorder: style?.focusBorder || focusBorder,
-		listFocusBackground: style?.listFocusBackground || quickInputListFocusBackground,
-		listInactiveSelectionIconForeground: style?.listInactiveSelectionIconForeground || quickInputListFocusIconForeground,
-		listFocusForeground: style?.listFocusForeground || quickInputListFocusForeground,
-		listFocusOutline: style?.listFocusOutline || ((theme: IColorTheme) => theme.type === ColorScheme.HIGH_CONTRAST ? activeContrastBorder : Color.transparent),
-		listHoverBackground: style?.listHoverBackground || listHoverBackground,
-		listHoverForeground: style?.listHoverForeground || listHoverForeground,
-		listHoverOutline: style?.listFocusOutline || activeContrastBorder,
-		selectListBorder: style?.selectListBorder || editorWidgetBorder
-	} as ISelectBoxStyleOverrides, widget);
+expowt function attachSewectBoxStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: ISewectBoxStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		sewectBackgwound: stywe?.sewectBackgwound || sewectBackgwound,
+		sewectWistBackgwound: stywe?.sewectWistBackgwound || sewectWistBackgwound,
+		sewectFowegwound: stywe?.sewectFowegwound || sewectFowegwound,
+		decowatowWightFowegwound: stywe?.pickewGwoupFowegwound || pickewGwoupFowegwound,
+		sewectBowda: stywe?.sewectBowda || sewectBowda,
+		focusBowda: stywe?.focusBowda || focusBowda,
+		wistFocusBackgwound: stywe?.wistFocusBackgwound || quickInputWistFocusBackgwound,
+		wistInactiveSewectionIconFowegwound: stywe?.wistInactiveSewectionIconFowegwound || quickInputWistFocusIconFowegwound,
+		wistFocusFowegwound: stywe?.wistFocusFowegwound || quickInputWistFocusFowegwound,
+		wistFocusOutwine: stywe?.wistFocusOutwine || ((theme: ICowowTheme) => theme.type === CowowScheme.HIGH_CONTWAST ? activeContwastBowda : Cowow.twanspawent),
+		wistHovewBackgwound: stywe?.wistHovewBackgwound || wistHovewBackgwound,
+		wistHovewFowegwound: stywe?.wistHovewFowegwound || wistHovewFowegwound,
+		wistHovewOutwine: stywe?.wistFocusOutwine || activeContwastBowda,
+		sewectWistBowda: stywe?.sewectWistBowda || editowWidgetBowda
+	} as ISewectBoxStyweOvewwides, widget);
 }
 
-export function attachFindReplaceInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: IInputBoxStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputActiveOptionBorder: style?.inputActiveOptionBorder || inputActiveOptionBorder,
-		inputActiveOptionForeground: style?.inputActiveOptionForeground || inputActiveOptionForeground,
-		inputActiveOptionBackground: style?.inputActiveOptionBackground || inputActiveOptionBackground,
-		inputValidationInfoBorder: style?.inputValidationInfoBorder || inputValidationInfoBorder,
-		inputValidationInfoBackground: style?.inputValidationInfoBackground || inputValidationInfoBackground,
-		inputValidationInfoForeground: style?.inputValidationInfoForeground || inputValidationInfoForeground,
-		inputValidationWarningBorder: style?.inputValidationWarningBorder || inputValidationWarningBorder,
-		inputValidationWarningBackground: style?.inputValidationWarningBackground || inputValidationWarningBackground,
-		inputValidationWarningForeground: style?.inputValidationWarningForeground || inputValidationWarningForeground,
-		inputValidationErrorBorder: style?.inputValidationErrorBorder || inputValidationErrorBorder,
-		inputValidationErrorBackground: style?.inputValidationErrorBackground || inputValidationErrorBackground,
-		inputValidationErrorForeground: style?.inputValidationErrorForeground || inputValidationErrorForeground
-	} as IInputBoxStyleOverrides, widget);
+expowt function attachFindWepwaceInputBoxStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IInputBoxStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		inputBackgwound: stywe?.inputBackgwound || inputBackgwound,
+		inputFowegwound: stywe?.inputFowegwound || inputFowegwound,
+		inputBowda: stywe?.inputBowda || inputBowda,
+		inputActiveOptionBowda: stywe?.inputActiveOptionBowda || inputActiveOptionBowda,
+		inputActiveOptionFowegwound: stywe?.inputActiveOptionFowegwound || inputActiveOptionFowegwound,
+		inputActiveOptionBackgwound: stywe?.inputActiveOptionBackgwound || inputActiveOptionBackgwound,
+		inputVawidationInfoBowda: stywe?.inputVawidationInfoBowda || inputVawidationInfoBowda,
+		inputVawidationInfoBackgwound: stywe?.inputVawidationInfoBackgwound || inputVawidationInfoBackgwound,
+		inputVawidationInfoFowegwound: stywe?.inputVawidationInfoFowegwound || inputVawidationInfoFowegwound,
+		inputVawidationWawningBowda: stywe?.inputVawidationWawningBowda || inputVawidationWawningBowda,
+		inputVawidationWawningBackgwound: stywe?.inputVawidationWawningBackgwound || inputVawidationWawningBackgwound,
+		inputVawidationWawningFowegwound: stywe?.inputVawidationWawningFowegwound || inputVawidationWawningFowegwound,
+		inputVawidationEwwowBowda: stywe?.inputVawidationEwwowBowda || inputVawidationEwwowBowda,
+		inputVawidationEwwowBackgwound: stywe?.inputVawidationEwwowBackgwound || inputVawidationEwwowBackgwound,
+		inputVawidationEwwowFowegwound: stywe?.inputVawidationEwwowFowegwound || inputVawidationEwwowFowegwound
+	} as IInputBoxStyweOvewwides, widget);
 }
 
-export interface IListStyleOverrides extends IStyleOverrides {
-	listBackground?: ColorIdentifier;
-	listFocusBackground?: ColorIdentifier;
-	listFocusForeground?: ColorIdentifier;
-	listFocusOutline?: ColorIdentifier;
-	listActiveSelectionBackground?: ColorIdentifier;
-	listActiveSelectionForeground?: ColorIdentifier;
-	listActiveSelectionIconForeground?: ColorIdentifier;
-	listFocusAndSelectionBackground?: ColorIdentifier;
-	listFocusAndSelectionForeground?: ColorIdentifier;
-	listInactiveSelectionBackground?: ColorIdentifier;
-	listInactiveSelectionIconForeground?: ColorIdentifier;
-	listInactiveSelectionForeground?: ColorIdentifier;
-	listInactiveFocusBackground?: ColorIdentifier;
-	listInactiveFocusOutline?: ColorIdentifier;
-	listHoverBackground?: ColorIdentifier;
-	listHoverForeground?: ColorIdentifier;
-	listDropBackground?: ColorIdentifier;
-	listSelectionOutline?: ColorIdentifier;
-	listHoverOutline?: ColorIdentifier;
-	listFilterWidgetBackground?: ColorIdentifier;
-	listFilterWidgetOutline?: ColorIdentifier;
-	listFilterWidgetNoMatchesOutline?: ColorIdentifier;
-	listMatchesShadow?: ColorIdentifier;
-	treeIndentGuidesStroke?: ColorIdentifier;
-	tableColumnsBorder?: ColorIdentifier;
+expowt intewface IWistStyweOvewwides extends IStyweOvewwides {
+	wistBackgwound?: CowowIdentifia;
+	wistFocusBackgwound?: CowowIdentifia;
+	wistFocusFowegwound?: CowowIdentifia;
+	wistFocusOutwine?: CowowIdentifia;
+	wistActiveSewectionBackgwound?: CowowIdentifia;
+	wistActiveSewectionFowegwound?: CowowIdentifia;
+	wistActiveSewectionIconFowegwound?: CowowIdentifia;
+	wistFocusAndSewectionBackgwound?: CowowIdentifia;
+	wistFocusAndSewectionFowegwound?: CowowIdentifia;
+	wistInactiveSewectionBackgwound?: CowowIdentifia;
+	wistInactiveSewectionIconFowegwound?: CowowIdentifia;
+	wistInactiveSewectionFowegwound?: CowowIdentifia;
+	wistInactiveFocusBackgwound?: CowowIdentifia;
+	wistInactiveFocusOutwine?: CowowIdentifia;
+	wistHovewBackgwound?: CowowIdentifia;
+	wistHovewFowegwound?: CowowIdentifia;
+	wistDwopBackgwound?: CowowIdentifia;
+	wistSewectionOutwine?: CowowIdentifia;
+	wistHovewOutwine?: CowowIdentifia;
+	wistFiwtewWidgetBackgwound?: CowowIdentifia;
+	wistFiwtewWidgetOutwine?: CowowIdentifia;
+	wistFiwtewWidgetNoMatchesOutwine?: CowowIdentifia;
+	wistMatchesShadow?: CowowIdentifia;
+	tweeIndentGuidesStwoke?: CowowIdentifia;
+	tabweCowumnsBowda?: CowowIdentifia;
 }
 
-export function attachListStyler(widget: IThemable, themeService: IThemeService, overrides?: IColorMapping): IDisposable {
-	return attachStyler(themeService, { ...defaultListStyles, ...(overrides || {}) }, widget);
+expowt function attachWistStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, ovewwides?: ICowowMapping): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, { ...defauwtWistStywes, ...(ovewwides || {}) }, widget);
 }
 
-export const defaultListStyles: IColorMapping = {
-	listFocusBackground,
-	listFocusForeground,
-	listFocusOutline,
-	listActiveSelectionBackground,
-	listActiveSelectionForeground,
-	listActiveSelectionIconForeground,
-	listFocusAndSelectionBackground: listActiveSelectionBackground,
-	listFocusAndSelectionForeground: listActiveSelectionForeground,
-	listInactiveSelectionBackground,
-	listInactiveSelectionIconForeground,
-	listInactiveSelectionForeground,
-	listInactiveFocusBackground,
-	listInactiveFocusOutline,
-	listHoverBackground,
-	listHoverForeground,
-	listDropBackground,
-	listSelectionOutline: activeContrastBorder,
-	listHoverOutline: activeContrastBorder,
-	listFilterWidgetBackground,
-	listFilterWidgetOutline,
-	listFilterWidgetNoMatchesOutline,
-	listMatchesShadow: widgetShadow,
-	treeIndentGuidesStroke,
-	tableColumnsBorder
+expowt const defauwtWistStywes: ICowowMapping = {
+	wistFocusBackgwound,
+	wistFocusFowegwound,
+	wistFocusOutwine,
+	wistActiveSewectionBackgwound,
+	wistActiveSewectionFowegwound,
+	wistActiveSewectionIconFowegwound,
+	wistFocusAndSewectionBackgwound: wistActiveSewectionBackgwound,
+	wistFocusAndSewectionFowegwound: wistActiveSewectionFowegwound,
+	wistInactiveSewectionBackgwound,
+	wistInactiveSewectionIconFowegwound,
+	wistInactiveSewectionFowegwound,
+	wistInactiveFocusBackgwound,
+	wistInactiveFocusOutwine,
+	wistHovewBackgwound,
+	wistHovewFowegwound,
+	wistDwopBackgwound,
+	wistSewectionOutwine: activeContwastBowda,
+	wistHovewOutwine: activeContwastBowda,
+	wistFiwtewWidgetBackgwound,
+	wistFiwtewWidgetOutwine,
+	wistFiwtewWidgetNoMatchesOutwine,
+	wistMatchesShadow: widgetShadow,
+	tweeIndentGuidesStwoke,
+	tabweCowumnsBowda
 };
 
-export interface IButtonStyleOverrides extends IStyleOverrides {
-	buttonForeground?: ColorIdentifier;
-	buttonBackground?: ColorIdentifier;
-	buttonHoverBackground?: ColorIdentifier;
-	buttonSecondaryForeground?: ColorIdentifier;
-	buttonSecondaryBackground?: ColorIdentifier;
-	buttonSecondaryHoverBackground?: ColorIdentifier;
-	buttonBorder?: ColorIdentifier;
+expowt intewface IButtonStyweOvewwides extends IStyweOvewwides {
+	buttonFowegwound?: CowowIdentifia;
+	buttonBackgwound?: CowowIdentifia;
+	buttonHovewBackgwound?: CowowIdentifia;
+	buttonSecondawyFowegwound?: CowowIdentifia;
+	buttonSecondawyBackgwound?: CowowIdentifia;
+	buttonSecondawyHovewBackgwound?: CowowIdentifia;
+	buttonBowda?: CowowIdentifia;
 }
 
-export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: IButtonStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		buttonForeground: style?.buttonForeground || buttonForeground,
-		buttonBackground: style?.buttonBackground || buttonBackground,
-		buttonHoverBackground: style?.buttonHoverBackground || buttonHoverBackground,
-		buttonSecondaryForeground: style?.buttonSecondaryForeground || buttonSecondaryForeground,
-		buttonSecondaryBackground: style?.buttonSecondaryBackground || buttonSecondaryBackground,
-		buttonSecondaryHoverBackground: style?.buttonSecondaryHoverBackground || buttonSecondaryHoverBackground,
-		buttonBorder: style?.buttonBorder || buttonBorder,
-	} as IButtonStyleOverrides, widget);
+expowt function attachButtonStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IButtonStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		buttonFowegwound: stywe?.buttonFowegwound || buttonFowegwound,
+		buttonBackgwound: stywe?.buttonBackgwound || buttonBackgwound,
+		buttonHovewBackgwound: stywe?.buttonHovewBackgwound || buttonHovewBackgwound,
+		buttonSecondawyFowegwound: stywe?.buttonSecondawyFowegwound || buttonSecondawyFowegwound,
+		buttonSecondawyBackgwound: stywe?.buttonSecondawyBackgwound || buttonSecondawyBackgwound,
+		buttonSecondawyHovewBackgwound: stywe?.buttonSecondawyHovewBackgwound || buttonSecondawyHovewBackgwound,
+		buttonBowda: stywe?.buttonBowda || buttonBowda,
+	} as IButtonStyweOvewwides, widget);
 }
 
-export interface IKeybindingLabelStyleOverrides extends IStyleOverrides {
-	keybindingLabelBackground?: ColorIdentifier;
-	keybindingLabelForeground?: ColorIdentifier;
-	keybindingLabelBorder?: ColorIdentifier;
-	keybindingLabelBottomBorder?: ColorIdentifier;
-	keybindingLabelShadow?: ColorIdentifier;
+expowt intewface IKeybindingWabewStyweOvewwides extends IStyweOvewwides {
+	keybindingWabewBackgwound?: CowowIdentifia;
+	keybindingWabewFowegwound?: CowowIdentifia;
+	keybindingWabewBowda?: CowowIdentifia;
+	keybindingWabewBottomBowda?: CowowIdentifia;
+	keybindingWabewShadow?: CowowIdentifia;
 }
 
-export function attachKeybindingLabelStyler(widget: IThemable, themeService: IThemeService, style?: IKeybindingLabelStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		keybindingLabelBackground: (style && style.keybindingLabelBackground) || keybindingLabelBackground,
-		keybindingLabelForeground: (style && style.keybindingLabelForeground) || keybindingLabelForeground,
-		keybindingLabelBorder: (style && style.keybindingLabelBorder) || keybindingLabelBorder,
-		keybindingLabelBottomBorder: (style && style.keybindingLabelBottomBorder) || keybindingLabelBottomBorder,
-		keybindingLabelShadow: (style && style.keybindingLabelShadow) || widgetShadow
-	} as IKeybindingLabelStyleOverrides, widget);
+expowt function attachKeybindingWabewStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IKeybindingWabewStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		keybindingWabewBackgwound: (stywe && stywe.keybindingWabewBackgwound) || keybindingWabewBackgwound,
+		keybindingWabewFowegwound: (stywe && stywe.keybindingWabewFowegwound) || keybindingWabewFowegwound,
+		keybindingWabewBowda: (stywe && stywe.keybindingWabewBowda) || keybindingWabewBowda,
+		keybindingWabewBottomBowda: (stywe && stywe.keybindingWabewBottomBowda) || keybindingWabewBottomBowda,
+		keybindingWabewShadow: (stywe && stywe.keybindingWabewShadow) || widgetShadow
+	} as IKeybindingWabewStyweOvewwides, widget);
 }
 
-export interface IProgressBarStyleOverrides extends IStyleOverrides {
-	progressBarBackground?: ColorIdentifier;
+expowt intewface IPwogwessBawStyweOvewwides extends IStyweOvewwides {
+	pwogwessBawBackgwound?: CowowIdentifia;
 }
 
-export function attachProgressBarStyler(widget: IThemable, themeService: IThemeService, style?: IProgressBarStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		progressBarBackground: style?.progressBarBackground || progressBarBackground
-	} as IProgressBarStyleOverrides, widget);
+expowt function attachPwogwessBawStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IPwogwessBawStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, {
+		pwogwessBawBackgwound: stywe?.pwogwessBawBackgwound || pwogwessBawBackgwound
+	} as IPwogwessBawStyweOvewwides, widget);
 }
 
-export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
-	return attachStyler(themeService, colors, callback);
+expowt function attachStywewCawwback(themeSewvice: IThemeSewvice, cowows: { [name: stwing]: CowowIdentifia }, cawwback: styweFn): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, cowows, cawwback);
 }
 
-export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
-	breadcrumbsBackground?: ColorIdentifier | ColorTransform;
-	breadcrumbsForeground?: ColorIdentifier;
-	breadcrumbsHoverForeground?: ColorIdentifier;
-	breadcrumbsFocusForeground?: ColorIdentifier;
-	breadcrumbsFocusAndSelectionForeground?: ColorIdentifier;
+expowt intewface IBweadcwumbsWidgetStyweOvewwides extends ICowowMapping {
+	bweadcwumbsBackgwound?: CowowIdentifia | CowowTwansfowm;
+	bweadcwumbsFowegwound?: CowowIdentifia;
+	bweadcwumbsHovewFowegwound?: CowowIdentifia;
+	bweadcwumbsFocusFowegwound?: CowowIdentifia;
+	bweadcwumbsFocusAndSewectionFowegwound?: CowowIdentifia;
 }
 
-export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
-	breadcrumbsBackground: breadcrumbsBackground,
-	breadcrumbsForeground: breadcrumbsForeground,
-	breadcrumbsHoverForeground: breadcrumbsFocusForeground,
-	breadcrumbsFocusForeground: breadcrumbsFocusForeground,
-	breadcrumbsFocusAndSelectionForeground: breadcrumbsActiveSelectionForeground,
+expowt const defauwtBweadcwumbsStywes = <IBweadcwumbsWidgetStyweOvewwides>{
+	bweadcwumbsBackgwound: bweadcwumbsBackgwound,
+	bweadcwumbsFowegwound: bweadcwumbsFowegwound,
+	bweadcwumbsHovewFowegwound: bweadcwumbsFocusFowegwound,
+	bweadcwumbsFocusFowegwound: bweadcwumbsFocusFowegwound,
+	bweadcwumbsFocusAndSewectionFowegwound: bweadcwumbsActiveSewectionFowegwound,
 };
 
-export function attachBreadcrumbsStyler(widget: IThemable, themeService: IThemeService, style?: IBreadcrumbsWidgetStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultBreadcrumbsStyles, ...style }, widget);
+expowt function attachBweadcwumbsStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IBweadcwumbsWidgetStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, { ...defauwtBweadcwumbsStywes, ...stywe }, widget);
 }
 
-export interface IMenuStyleOverrides extends IColorMapping {
-	shadowColor?: ColorIdentifier;
-	borderColor?: ColorIdentifier;
-	foregroundColor?: ColorIdentifier;
-	backgroundColor?: ColorIdentifier;
-	selectionForegroundColor?: ColorIdentifier;
-	selectionBackgroundColor?: ColorIdentifier;
-	selectionBorderColor?: ColorIdentifier;
-	separatorColor?: ColorIdentifier;
+expowt intewface IMenuStyweOvewwides extends ICowowMapping {
+	shadowCowow?: CowowIdentifia;
+	bowdewCowow?: CowowIdentifia;
+	fowegwoundCowow?: CowowIdentifia;
+	backgwoundCowow?: CowowIdentifia;
+	sewectionFowegwoundCowow?: CowowIdentifia;
+	sewectionBackgwoundCowow?: CowowIdentifia;
+	sewectionBowdewCowow?: CowowIdentifia;
+	sepawatowCowow?: CowowIdentifia;
 }
 
-export const defaultMenuStyles = <IMenuStyleOverrides>{
-	shadowColor: widgetShadow,
-	borderColor: menuBorder,
-	foregroundColor: menuForeground,
-	backgroundColor: menuBackground,
-	selectionForegroundColor: menuSelectionForeground,
-	selectionBackgroundColor: menuSelectionBackground,
-	selectionBorderColor: menuSelectionBorder,
-	separatorColor: menuSeparatorBackground
+expowt const defauwtMenuStywes = <IMenuStyweOvewwides>{
+	shadowCowow: widgetShadow,
+	bowdewCowow: menuBowda,
+	fowegwoundCowow: menuFowegwound,
+	backgwoundCowow: menuBackgwound,
+	sewectionFowegwoundCowow: menuSewectionFowegwound,
+	sewectionBackgwoundCowow: menuSewectionBackgwound,
+	sewectionBowdewCowow: menuSewectionBowda,
+	sepawatowCowow: menuSepawatowBackgwound
 };
 
-export function attachMenuStyler(widget: IThemable, themeService: IThemeService, style?: IMenuStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultMenuStyles, ...style }, widget);
+expowt function attachMenuStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IMenuStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, { ...defauwtMenuStywes, ...stywe }, widget);
 }
 
-export interface IDialogStyleOverrides extends IButtonStyleOverrides {
-	dialogForeground?: ColorIdentifier;
-	dialogBackground?: ColorIdentifier;
-	dialogShadow?: ColorIdentifier;
-	dialogBorder?: ColorIdentifier;
-	checkboxBorder?: ColorIdentifier;
-	checkboxBackground?: ColorIdentifier;
-	checkboxForeground?: ColorIdentifier;
-	errorIconForeground?: ColorIdentifier;
-	warningIconForeground?: ColorIdentifier;
-	infoIconForeground?: ColorIdentifier;
-	inputBackground?: ColorIdentifier;
-	inputForeground?: ColorIdentifier;
-	inputBorder?: ColorIdentifier;
+expowt intewface IDiawogStyweOvewwides extends IButtonStyweOvewwides {
+	diawogFowegwound?: CowowIdentifia;
+	diawogBackgwound?: CowowIdentifia;
+	diawogShadow?: CowowIdentifia;
+	diawogBowda?: CowowIdentifia;
+	checkboxBowda?: CowowIdentifia;
+	checkboxBackgwound?: CowowIdentifia;
+	checkboxFowegwound?: CowowIdentifia;
+	ewwowIconFowegwound?: CowowIdentifia;
+	wawningIconFowegwound?: CowowIdentifia;
+	infoIconFowegwound?: CowowIdentifia;
+	inputBackgwound?: CowowIdentifia;
+	inputFowegwound?: CowowIdentifia;
+	inputBowda?: CowowIdentifia;
 }
 
-export const defaultDialogStyles = <IDialogStyleOverrides>{
-	dialogBackground: editorWidgetBackground,
-	dialogForeground: editorWidgetForeground,
-	dialogShadow: widgetShadow,
-	dialogBorder: contrastBorder,
-	buttonForeground: buttonForeground,
-	buttonBackground: buttonBackground,
-	buttonSecondaryBackground: buttonSecondaryBackground,
-	buttonSecondaryForeground: buttonSecondaryForeground,
-	buttonSecondaryHoverBackground: buttonSecondaryHoverBackground,
-	buttonHoverBackground: buttonHoverBackground,
-	buttonBorder: buttonBorder,
-	checkboxBorder: simpleCheckboxBorder,
-	checkboxBackground: simpleCheckboxBackground,
-	checkboxForeground: simpleCheckboxForeground,
-	errorIconForeground: problemsErrorIconForeground,
-	warningIconForeground: problemsWarningIconForeground,
-	infoIconForeground: problemsInfoIconForeground,
-	inputBackground: inputBackground,
-	inputForeground: inputForeground,
-	inputBorder: inputBorder,
-	textLinkForeground: textLinkForeground
+expowt const defauwtDiawogStywes = <IDiawogStyweOvewwides>{
+	diawogBackgwound: editowWidgetBackgwound,
+	diawogFowegwound: editowWidgetFowegwound,
+	diawogShadow: widgetShadow,
+	diawogBowda: contwastBowda,
+	buttonFowegwound: buttonFowegwound,
+	buttonBackgwound: buttonBackgwound,
+	buttonSecondawyBackgwound: buttonSecondawyBackgwound,
+	buttonSecondawyFowegwound: buttonSecondawyFowegwound,
+	buttonSecondawyHovewBackgwound: buttonSecondawyHovewBackgwound,
+	buttonHovewBackgwound: buttonHovewBackgwound,
+	buttonBowda: buttonBowda,
+	checkboxBowda: simpweCheckboxBowda,
+	checkboxBackgwound: simpweCheckboxBackgwound,
+	checkboxFowegwound: simpweCheckboxFowegwound,
+	ewwowIconFowegwound: pwobwemsEwwowIconFowegwound,
+	wawningIconFowegwound: pwobwemsWawningIconFowegwound,
+	infoIconFowegwound: pwobwemsInfoIconFowegwound,
+	inputBackgwound: inputBackgwound,
+	inputFowegwound: inputFowegwound,
+	inputBowda: inputBowda,
+	textWinkFowegwound: textWinkFowegwound
 };
 
 
-export function attachDialogStyler(widget: IThemable, themeService: IThemeService, style?: IDialogStyleOverrides): IDisposable {
-	return attachStyler(themeService, { ...defaultDialogStyles, ...style }, widget);
+expowt function attachDiawogStywa(widget: IThemabwe, themeSewvice: IThemeSewvice, stywe?: IDiawogStyweOvewwides): IDisposabwe {
+	wetuwn attachStywa(themeSewvice, { ...defauwtDiawogStywes, ...stywe }, widget);
 }

@@ -1,528 +1,528 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri, isEqualOrParent, joinPath } from 'vs/base/common/resources';
-import { isArray, isObject, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IHeaders } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtUwi, isEquawOwPawent, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { isAwway, isObject, isStwing } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IHeadews } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { awwSettings, ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { EXTENSION_IDENTIFIEW_PATTEWN, IExtensionIdentifia } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
+expowt const CONFIGUWATION_SYNC_STOWE_KEY = 'configuwationSync.stowe';
 
-export function getDisallowedIgnoredSettings(): string[] {
-	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-	return Object.keys(allSettings).filter(setting => !!allSettings[setting].disallowSyncIgnore);
+expowt function getDisawwowedIgnowedSettings(): stwing[] {
+	const awwSettings = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+	wetuwn Object.keys(awwSettings).fiwta(setting => !!awwSettings[setting].disawwowSyncIgnowe);
 }
 
-export function getDefaultIgnoredSettings(): string[] {
-	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
-	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
-	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+expowt function getDefauwtIgnowedSettings(): stwing[] {
+	const awwSettings = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+	const ignoweSyncSettings = Object.keys(awwSettings).fiwta(setting => !!awwSettings[setting].ignoweSync);
+	const machineSettings = Object.keys(awwSettings).fiwta(setting => awwSettings[setting].scope === ConfiguwationScope.MACHINE || awwSettings[setting].scope === ConfiguwationScope.MACHINE_OVEWWIDABWE);
+	const disawwowedSettings = getDisawwowedIgnowedSettings();
+	wetuwn distinct([CONFIGUWATION_SYNC_STOWE_KEY, ...ignoweSyncSettings, ...machineSettings, ...disawwowedSettings]);
 }
 
-export function registerConfiguration(): IDisposable {
-	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	configurationRegistry.registerConfiguration({
+expowt function wegistewConfiguwation(): IDisposabwe {
+	const ignowedSettingsSchemaId = 'vscode://schemas/ignowedSettings';
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	configuwationWegistwy.wegistewConfiguwation({
 		id: 'settingsSync',
-		order: 30,
-		title: localize('settings sync', "Settings Sync"),
+		owda: 30,
+		titwe: wocawize('settings sync', "Settings Sync"),
 		type: 'object',
-		properties: {
-			'settingsSync.keybindingsPerPlatform': {
-				type: 'boolean',
-				description: localize('settingsSync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
-				default: true,
-				scope: ConfigurationScope.APPLICATION,
-				tags: ['sync', 'usesOnlineServices']
+		pwopewties: {
+			'settingsSync.keybindingsPewPwatfowm': {
+				type: 'boowean',
+				descwiption: wocawize('settingsSync.keybindingsPewPwatfowm', "Synchwonize keybindings fow each pwatfowm."),
+				defauwt: twue,
+				scope: ConfiguwationScope.APPWICATION,
+				tags: ['sync', 'usesOnwineSewvices']
 			},
-			'settingsSync.ignoredExtensions': {
-				'type': 'array',
-				markdownDescription: localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always `${publisher}.${name}`. For example: `vscode.csharp`."),
+			'settingsSync.ignowedExtensions': {
+				'type': 'awway',
+				mawkdownDescwiption: wocawize('settingsSync.ignowedExtensions', "Wist of extensions to be ignowed whiwe synchwonizing. The identifia of an extension is awways `${pubwisha}.${name}`. Fow exampwe: `vscode.cshawp`."),
 				items: [{
-					type: 'string',
-					pattern: EXTENSION_IDENTIFIER_PATTERN,
-					errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+					type: 'stwing',
+					pattewn: EXTENSION_IDENTIFIEW_PATTEWN,
+					ewwowMessage: wocawize('app.extension.identifia.ewwowMessage', "Expected fowmat '${pubwisha}.${name}'. Exampwe: 'vscode.cshawp'.")
 				}],
-				'default': [],
-				'scope': ConfigurationScope.APPLICATION,
-				uniqueItems: true,
-				disallowSyncIgnore: true,
-				tags: ['sync', 'usesOnlineServices']
+				'defauwt': [],
+				'scope': ConfiguwationScope.APPWICATION,
+				uniqueItems: twue,
+				disawwowSyncIgnowe: twue,
+				tags: ['sync', 'usesOnwineSewvices']
 			},
-			'settingsSync.ignoredSettings': {
-				'type': 'array',
-				description: localize('settingsSync.ignoredSettings', "Configure settings to be ignored while synchronizing."),
-				'default': [],
-				'scope': ConfigurationScope.APPLICATION,
-				$ref: ignoredSettingsSchemaId,
-				additionalProperties: true,
-				uniqueItems: true,
-				disallowSyncIgnore: true,
-				tags: ['sync', 'usesOnlineServices']
+			'settingsSync.ignowedSettings': {
+				'type': 'awway',
+				descwiption: wocawize('settingsSync.ignowedSettings', "Configuwe settings to be ignowed whiwe synchwonizing."),
+				'defauwt': [],
+				'scope': ConfiguwationScope.APPWICATION,
+				$wef: ignowedSettingsSchemaId,
+				additionawPwopewties: twue,
+				uniqueItems: twue,
+				disawwowSyncIgnowe: twue,
+				tags: ['sync', 'usesOnwineSewvices']
 			}
 		}
 	});
-	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-	const registerIgnoredSettingsSchema = () => {
-		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
-		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
-		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
-		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
-		const ignoredSettingsSchema: IJSONSchema = {
+	const jsonWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
+	const wegistewIgnowedSettingsSchema = () => {
+		const disawwowedIgnowedSettings = getDisawwowedIgnowedSettings();
+		const defauwtIgnowedSettings = getDefauwtIgnowedSettings().fiwta(s => s !== CONFIGUWATION_SYNC_STOWE_KEY);
+		const settings = Object.keys(awwSettings.pwopewties).fiwta(setting => defauwtIgnowedSettings.indexOf(setting) === -1);
+		const ignowedSettings = defauwtIgnowedSettings.fiwta(setting => disawwowedIgnowedSettings.indexOf(setting) === -1);
+		const ignowedSettingsSchema: IJSONSchema = {
 			items: {
-				type: 'string',
-				enum: [...settings, ...ignoredSettings.map(setting => `-${setting}`)]
+				type: 'stwing',
+				enum: [...settings, ...ignowedSettings.map(setting => `-${setting}`)]
 			},
 		};
-		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
+		jsonWegistwy.wegistewSchema(ignowedSettingsSchemaId, ignowedSettingsSchema);
 	};
-	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
+	wetuwn configuwationWegistwy.onDidUpdateConfiguwation(() => wegistewIgnowedSettingsSchema());
 }
 
-// #region User Data Sync Store
+// #wegion Usa Data Sync Stowe
 
-export interface IUserData {
-	ref: string;
-	content: string | null;
+expowt intewface IUsewData {
+	wef: stwing;
+	content: stwing | nuww;
 }
 
-export type IAuthenticationProvider = { id: string, scopes: string[] };
+expowt type IAuthenticationPwovida = { id: stwing, scopes: stwing[] };
 
-export interface IUserDataSyncStore {
-	readonly url: URI;
-	readonly type: UserDataSyncStoreType;
-	readonly defaultUrl: URI;
-	readonly stableUrl: URI;
-	readonly insidersUrl: URI;
-	readonly canSwitch: boolean;
-	readonly authenticationProviders: IAuthenticationProvider[];
+expowt intewface IUsewDataSyncStowe {
+	weadonwy uww: UWI;
+	weadonwy type: UsewDataSyncStoweType;
+	weadonwy defauwtUww: UWI;
+	weadonwy stabweUww: UWI;
+	weadonwy insidewsUww: UWI;
+	weadonwy canSwitch: boowean;
+	weadonwy authenticationPwovidews: IAuthenticationPwovida[];
 }
 
-export function isAuthenticationProvider(thing: any): thing is IAuthenticationProvider {
-	return thing
+expowt function isAuthenticationPwovida(thing: any): thing is IAuthenticationPwovida {
+	wetuwn thing
 		&& isObject(thing)
-		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& isStwing(thing.id)
+		&& isAwway(thing.scopes);
 }
 
-export const enum SyncResource {
+expowt const enum SyncWesouwce {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
 	Extensions = 'extensions',
-	GlobalState = 'globalState'
+	GwobawState = 'gwobawState'
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
+expowt const AWW_SYNC_WESOUWCES: SyncWesouwce[] = [SyncWesouwce.Settings, SyncWesouwce.Keybindings, SyncWesouwce.Snippets, SyncWesouwce.Extensions, SyncWesouwce.GwobawState];
 
-export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
-	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
-}
-
-export interface IUserDataManifest {
-	readonly latest?: Record<ServerResource, string>
-	readonly session: string;
-	readonly ref: string;
+expowt function getWastSyncWesouwceUwi(syncWesouwce: SyncWesouwce, enviwonmentSewvice: IEnviwonmentSewvice, extUwi: IExtUwi): UWI {
+	wetuwn extUwi.joinPath(enviwonmentSewvice.usewDataSyncHome, syncWesouwce, `wastSync${syncWesouwce}.json`);
 }
 
-export interface IResourceRefHandle {
-	ref: string;
-	created: number;
+expowt intewface IUsewDataManifest {
+	weadonwy watest?: Wecowd<SewvewWesouwce, stwing>
+	weadonwy session: stwing;
+	weadonwy wef: stwing;
 }
 
-export type ServerResource = SyncResource | 'machines';
-export type UserDataSyncStoreType = 'insiders' | 'stable';
-
-export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
-export interface IUserDataSyncStoreManagementService {
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeUserDataSyncStore: Event<void>;
-	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	switch(type: UserDataSyncStoreType): Promise<void>;
-	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
+expowt intewface IWesouwceWefHandwe {
+	wef: stwing;
+	cweated: numba;
 }
 
-export interface IUserDataSyncStoreClient {
-	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
-	readonly donotMakeRequestsUntil: Date | undefined;
+expowt type SewvewWesouwce = SyncWesouwce | 'machines';
+expowt type UsewDataSyncStoweType = 'insidews' | 'stabwe';
 
-	readonly onTokenFailed: Event<void>;
-	readonly onTokenSucceed: Event<void>;
-	setAuthToken(token: string, type: string): void;
-
-	// Sync requests
-	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
-	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
-	clear(): Promise<void>;
-	delete(resource: ServerResource): Promise<void>;
-
-	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+expowt const IUsewDataSyncStoweManagementSewvice = cweateDecowatow<IUsewDataSyncStoweManagementSewvice>('IUsewDataSyncStoweManagementSewvice');
+expowt intewface IUsewDataSyncStoweManagementSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidChangeUsewDataSyncStowe: Event<void>;
+	weadonwy usewDataSyncStowe: IUsewDataSyncStowe | undefined;
+	switch(type: UsewDataSyncStoweType): Pwomise<void>;
+	getPweviousUsewDataSyncStowe(): Pwomise<IUsewDataSyncStowe | undefined>;
 }
 
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
-	readonly _serviceBrand: undefined;
+expowt intewface IUsewDataSyncStoweCwient {
+	weadonwy onDidChangeDonotMakeWequestsUntiw: Event<void>;
+	weadonwy donotMakeWequestsUntiw: Date | undefined;
+
+	weadonwy onTokenFaiwed: Event<void>;
+	weadonwy onTokenSucceed: Event<void>;
+	setAuthToken(token: stwing, type: stwing): void;
+
+	// Sync wequests
+	manifest(owdVawue: IUsewDataManifest | nuww, headews?: IHeadews): Pwomise<IUsewDataManifest | nuww>;
+	wead(wesouwce: SewvewWesouwce, owdVawue: IUsewData | nuww, headews?: IHeadews): Pwomise<IUsewData>;
+	wwite(wesouwce: SewvewWesouwce, content: stwing, wef: stwing | nuww, headews?: IHeadews): Pwomise<stwing>;
+	cweaw(): Pwomise<void>;
+	dewete(wesouwce: SewvewWesouwce): Pwomise<void>;
+
+	getAwwWefs(wesouwce: SewvewWesouwce): Pwomise<IWesouwceWefHandwe[]>;
+	wesowveContent(wesouwce: SewvewWesouwce, wef: stwing): Pwomise<stwing | nuww>;
 }
 
-export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
-export interface IUserDataSyncBackupStoreService {
-	readonly _serviceBrand: undefined;
-	backup(resource: SyncResource, content: string): Promise<void>;
-	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: SyncResource, ref?: string): Promise<string | null>;
+expowt const IUsewDataSyncStoweSewvice = cweateDecowatow<IUsewDataSyncStoweSewvice>('IUsewDataSyncStoweSewvice');
+expowt intewface IUsewDataSyncStoweSewvice extends IUsewDataSyncStoweCwient {
+	weadonwy _sewviceBwand: undefined;
 }
 
-//#endregion
-
-// #region User Data Sync Headers
-
-export const HEADER_OPERATION_ID = 'x-operation-id';
-export const HEADER_EXECUTION_ID = 'X-Execution-Id';
-
-export function createSyncHeaders(executionId: string): IHeaders {
-	const headers: IHeaders = {};
-	headers[HEADER_EXECUTION_ID] = executionId;
-	return headers;
+expowt const IUsewDataSyncBackupStoweSewvice = cweateDecowatow<IUsewDataSyncBackupStoweSewvice>('IUsewDataSyncBackupStoweSewvice');
+expowt intewface IUsewDataSyncBackupStoweSewvice {
+	weadonwy _sewviceBwand: undefined;
+	backup(wesouwce: SyncWesouwce, content: stwing): Pwomise<void>;
+	getAwwWefs(wesouwce: SyncWesouwce): Pwomise<IWesouwceWefHandwe[]>;
+	wesowveContent(wesouwce: SyncWesouwce, wef?: stwing): Pwomise<stwing | nuww>;
 }
 
-//#endregion
+//#endwegion
 
-// #region User Data Sync Error
+// #wegion Usa Data Sync Headews
 
-export const enum UserDataSyncErrorCode {
-	// Client Errors (>= 400 )
-	Unauthorized = 'Unauthorized', /* 401 */
-	Conflict = 'Conflict', /* 409 */
+expowt const HEADEW_OPEWATION_ID = 'x-opewation-id';
+expowt const HEADEW_EXECUTION_ID = 'X-Execution-Id';
+
+expowt function cweateSyncHeadews(executionId: stwing): IHeadews {
+	const headews: IHeadews = {};
+	headews[HEADEW_EXECUTION_ID] = executionId;
+	wetuwn headews;
+}
+
+//#endwegion
+
+// #wegion Usa Data Sync Ewwow
+
+expowt const enum UsewDataSyncEwwowCode {
+	// Cwient Ewwows (>= 400 )
+	Unauthowized = 'Unauthowized', /* 401 */
+	Confwict = 'Confwict', /* 409 */
 	Gone = 'Gone', /* 410 */
-	PreconditionFailed = 'PreconditionFailed', /* 412 */
-	TooLarge = 'TooLarge', /* 413 */
-	UpgradeRequired = 'UpgradeRequired', /* 426 */
-	PreconditionRequired = 'PreconditionRequired', /* 428 */
-	TooManyRequests = 'RemoteTooManyRequests', /* 429 */
-	TooManyRequestsAndRetryAfter = 'TooManyRequestsAndRetryAfter', /* 429 + Retry-After */
+	PweconditionFaiwed = 'PweconditionFaiwed', /* 412 */
+	TooWawge = 'TooWawge', /* 413 */
+	UpgwadeWequiwed = 'UpgwadeWequiwed', /* 426 */
+	PweconditionWequiwed = 'PweconditionWequiwed', /* 428 */
+	TooManyWequests = 'WemoteTooManyWequests', /* 429 */
+	TooManyWequestsAndWetwyAfta = 'TooManyWequestsAndWetwyAfta', /* 429 + Wetwy-Afta */
 
-	// Local Errors
-	RequestFailed = 'RequestFailed',
-	RequestCanceled = 'RequestCanceled',
-	RequestTimeout = 'RequestTimeout',
-	RequestProtocolNotSupported = 'RequestProtocolNotSupported',
-	RequestPathNotEscaped = 'RequestPathNotEscaped',
-	RequestHeadersNotObject = 'RequestHeadersNotObject',
-	NoRef = 'NoRef',
-	EmptyResponse = 'EmptyResponse',
-	TurnedOff = 'TurnedOff',
-	SessionExpired = 'SessionExpired',
-	ServiceChanged = 'ServiceChanged',
-	DefaultServiceChanged = 'DefaultServiceChanged',
-	LocalTooManyRequests = 'LocalTooManyRequests',
-	LocalPreconditionFailed = 'LocalPreconditionFailed',
-	LocalInvalidContent = 'LocalInvalidContent',
-	LocalError = 'LocalError',
-	IncompatibleLocalContent = 'IncompatibleLocalContent',
-	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
-	UnresolvedConflicts = 'UnresolvedConflicts',
+	// Wocaw Ewwows
+	WequestFaiwed = 'WequestFaiwed',
+	WequestCancewed = 'WequestCancewed',
+	WequestTimeout = 'WequestTimeout',
+	WequestPwotocowNotSuppowted = 'WequestPwotocowNotSuppowted',
+	WequestPathNotEscaped = 'WequestPathNotEscaped',
+	WequestHeadewsNotObject = 'WequestHeadewsNotObject',
+	NoWef = 'NoWef',
+	EmptyWesponse = 'EmptyWesponse',
+	TuwnedOff = 'TuwnedOff',
+	SessionExpiwed = 'SessionExpiwed',
+	SewviceChanged = 'SewviceChanged',
+	DefauwtSewviceChanged = 'DefauwtSewviceChanged',
+	WocawTooManyWequests = 'WocawTooManyWequests',
+	WocawPweconditionFaiwed = 'WocawPweconditionFaiwed',
+	WocawInvawidContent = 'WocawInvawidContent',
+	WocawEwwow = 'WocawEwwow',
+	IncompatibweWocawContent = 'IncompatibweWocawContent',
+	IncompatibweWemoteContent = 'IncompatibweWemoteContent',
+	UnwesowvedConfwicts = 'UnwesowvedConfwicts',
 
 	Unknown = 'Unknown',
 }
 
-export class UserDataSyncError extends Error {
+expowt cwass UsewDataSyncEwwow extends Ewwow {
 
-	constructor(
-		message: string,
-		readonly code: UserDataSyncErrorCode,
-		readonly resource?: SyncResource,
-		readonly operationId?: string
+	constwuctow(
+		message: stwing,
+		weadonwy code: UsewDataSyncEwwowCode,
+		weadonwy wesouwce?: SyncWesouwce,
+		weadonwy opewationId?: stwing
 	) {
-		super(message);
-		this.name = `${this.code} (UserDataSyncError) syncResource:${this.resource || 'unknown'} operationId:${this.operationId || 'unknown'}`;
+		supa(message);
+		this.name = `${this.code} (UsewDataSyncEwwow) syncWesouwce:${this.wesouwce || 'unknown'} opewationId:${this.opewationId || 'unknown'}`;
 	}
 
 }
 
-export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, readonly serverCode: number | undefined, operationId: string | undefined) {
-		super(message, code, undefined, operationId);
+expowt cwass UsewDataSyncStoweEwwow extends UsewDataSyncEwwow {
+	constwuctow(message: stwing, weadonwy uww: stwing, code: UsewDataSyncEwwowCode, weadonwy sewvewCode: numba | undefined, opewationId: stwing | undefined) {
+		supa(message, code, undefined, opewationId);
 	}
 }
 
-export class UserDataAutoSyncError extends UserDataSyncError {
-	constructor(message: string, code: UserDataSyncErrorCode) {
-		super(message, code);
+expowt cwass UsewDataAutoSyncEwwow extends UsewDataSyncEwwow {
+	constwuctow(message: stwing, code: UsewDataSyncEwwowCode) {
+		supa(message, code);
 	}
 }
 
-export namespace UserDataSyncError {
+expowt namespace UsewDataSyncEwwow {
 
-	export function toUserDataSyncError(error: Error): UserDataSyncError {
-		if (error instanceof UserDataSyncError) {
-			return error;
+	expowt function toUsewDataSyncEwwow(ewwow: Ewwow): UsewDataSyncEwwow {
+		if (ewwow instanceof UsewDataSyncEwwow) {
+			wetuwn ewwow;
 		}
-		const match = /^(.+) \(UserDataSyncError\) syncResource:(.+) operationId:(.+)$/.exec(error.name);
+		const match = /^(.+) \(UsewDataSyncEwwow\) syncWesouwce:(.+) opewationId:(.+)$/.exec(ewwow.name);
 		if (match && match[1]) {
-			const syncResource = match[2] === 'unknown' ? undefined : match[2] as SyncResource;
-			const operationId = match[3] === 'unknown' ? undefined : match[3];
-			return new UserDataSyncError(error.message, <UserDataSyncErrorCode>match[1], syncResource, operationId);
+			const syncWesouwce = match[2] === 'unknown' ? undefined : match[2] as SyncWesouwce;
+			const opewationId = match[3] === 'unknown' ? undefined : match[3];
+			wetuwn new UsewDataSyncEwwow(ewwow.message, <UsewDataSyncEwwowCode>match[1], syncWesouwce, opewationId);
 		}
-		return new UserDataSyncError(error.message, UserDataSyncErrorCode.Unknown);
+		wetuwn new UsewDataSyncEwwow(ewwow.message, UsewDataSyncEwwowCode.Unknown);
 	}
 
 }
 
-//#endregion
+//#endwegion
 
-// #region User Data Synchroniser
+// #wegion Usa Data Synchwonisa
 
-export interface ISyncExtension {
-	identifier: IExtensionIdentifier;
-	version?: string;
-	disabled?: boolean;
-	installed?: boolean;
-	state?: IStringDictionary<any>;
+expowt intewface ISyncExtension {
+	identifia: IExtensionIdentifia;
+	vewsion?: stwing;
+	disabwed?: boowean;
+	instawwed?: boowean;
+	state?: IStwingDictionawy<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
-	version: string;
+expowt intewface ISyncExtensionWithVewsion extends ISyncExtension {
+	vewsion: stwing;
 }
 
-export interface IStorageValue {
-	version: number;
-	value: string;
+expowt intewface IStowageVawue {
+	vewsion: numba;
+	vawue: stwing;
 }
 
-export interface IGlobalState {
-	storage: IStringDictionary<IStorageValue>;
+expowt intewface IGwobawState {
+	stowage: IStwingDictionawy<IStowageVawue>;
 }
 
-export const enum SyncStatus {
-	Uninitialized = 'uninitialized',
-	Idle = 'idle',
+expowt const enum SyncStatus {
+	Uninitiawized = 'uninitiawized',
+	Idwe = 'idwe',
 	Syncing = 'syncing',
-	HasConflicts = 'hasConflicts',
+	HasConfwicts = 'hasConfwicts',
 }
 
-export interface ISyncResourceHandle {
-	created: number;
-	uri: URI;
+expowt intewface ISyncWesouwceHandwe {
+	cweated: numba;
+	uwi: UWI;
 }
 
-export interface IRemoteUserData {
-	ref: string;
-	syncData: ISyncData | null;
+expowt intewface IWemoteUsewData {
+	wef: stwing;
+	syncData: ISyncData | nuww;
 }
 
-export interface ISyncData {
-	version: number;
-	machineId?: string;
-	content: string;
+expowt intewface ISyncData {
+	vewsion: numba;
+	machineId?: stwing;
+	content: stwing;
 }
 
-export const enum Change {
+expowt const enum Change {
 	None,
 	Added,
 	Modified,
-	Deleted,
+	Deweted,
 }
 
-export const enum MergeState {
-	Preview = 'preview',
-	Conflict = 'conflict',
+expowt const enum MewgeState {
+	Pweview = 'pweview',
+	Confwict = 'confwict',
 	Accepted = 'accepted',
 }
 
-export interface IResourcePreview {
-	readonly remoteResource: URI;
-	readonly localResource: URI;
-	readonly previewResource: URI;
-	readonly acceptedResource: URI;
-	readonly localChange: Change;
-	readonly remoteChange: Change;
-	readonly mergeState: MergeState;
+expowt intewface IWesouwcePweview {
+	weadonwy wemoteWesouwce: UWI;
+	weadonwy wocawWesouwce: UWI;
+	weadonwy pweviewWesouwce: UWI;
+	weadonwy acceptedWesouwce: UWI;
+	weadonwy wocawChange: Change;
+	weadonwy wemoteChange: Change;
+	weadonwy mewgeState: MewgeState;
 }
 
-export interface ISyncResourcePreview {
-	readonly isLastSyncFromCurrentMachine: boolean;
-	readonly resourcePreviews: IResourcePreview[];
+expowt intewface ISyncWesouwcePweview {
+	weadonwy isWastSyncFwomCuwwentMachine: boowean;
+	weadonwy wesouwcePweviews: IWesouwcePweview[];
 }
 
-export interface IUserDataInitializer {
-	initialize(userData: IUserData): Promise<void>;
+expowt intewface IUsewDataInitiawiza {
+	initiawize(usewData: IUsewData): Pwomise<void>;
 }
 
-export interface IUserDataSynchroniser {
+expowt intewface IUsewDataSynchwonisa {
 
-	readonly resource: SyncResource;
-	readonly status: SyncStatus;
-	readonly onDidChangeStatus: Event<SyncStatus>;
+	weadonwy wesouwce: SyncWesouwce;
+	weadonwy status: SyncStatus;
+	weadonwy onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflicts: IResourcePreview[];
-	readonly onDidChangeConflicts: Event<IResourcePreview[]>;
+	weadonwy confwicts: IWesouwcePweview[];
+	weadonwy onDidChangeConfwicts: Event<IWesouwcePweview[]>;
 
-	readonly onDidChangeLocal: Event<void>;
+	weadonwy onDidChangeWocaw: Event<void>;
 
-	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
-	replace(uri: URI): Promise<boolean>;
-	stop(): Promise<void>;
+	sync(manifest: IUsewDataManifest | nuww, headews: IHeadews): Pwomise<void>;
+	wepwace(uwi: UWI): Pwomise<boowean>;
+	stop(): Pwomise<void>;
 
-	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null>;
-	merge(resource: URI): Promise<ISyncResourcePreview | null>;
-	discard(resource: URI): Promise<ISyncResourcePreview | null>;
-	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	pweview(manifest: IUsewDataManifest | nuww, headews: IHeadews): Pwomise<ISyncWesouwcePweview | nuww>;
+	accept(wesouwce: UWI, content?: stwing | nuww): Pwomise<ISyncWesouwcePweview | nuww>;
+	mewge(wesouwce: UWI): Pwomise<ISyncWesouwcePweview | nuww>;
+	discawd(wesouwce: UWI): Pwomise<ISyncWesouwcePweview | nuww>;
+	appwy(fowce: boowean, headews: IHeadews): Pwomise<ISyncWesouwcePweview | nuww>;
 
-	hasPreviouslySynced(): Promise<boolean>;
-	hasLocalData(): Promise<boolean>;
-	resetLocal(): Promise<void>;
+	hasPweviouswySynced(): Pwomise<boowean>;
+	hasWocawData(): Pwomise<boowean>;
+	wesetWocaw(): Pwomise<void>;
 
-	resolveContent(resource: URI): Promise<string | null>;
-	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	wesowveContent(wesouwce: UWI): Pwomise<stwing | nuww>;
+	getWemoteSyncWesouwceHandwes(): Pwomise<ISyncWesouwceHandwe[]>;
+	getWocawSyncWesouwceHandwes(): Pwomise<ISyncWesouwceHandwe[]>;
+	getAssociatedWesouwces(syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]>;
+	getMachineId(syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<stwing | undefined>;
 }
 
-//#endregion
+//#endwegion
 
-// #region keys synced only in web
+// #wegion keys synced onwy in web
 
-export const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
-export function getEnablementKey(resource: SyncResource) { return `sync.enable.${resource}`; }
+expowt const SYNC_SEWVICE_UWW_TYPE = 'sync.stowe.uww.type';
+expowt function getEnabwementKey(wesouwce: SyncWesouwce) { wetuwn `sync.enabwe.${wesouwce}`; }
 
-// #endregion
+// #endwegion
 
-// #region User Data Sync Services
+// #wegion Usa Data Sync Sewvices
 
-export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
-export interface IUserDataSyncResourceEnablementService {
-	_serviceBrand: any;
+expowt const IUsewDataSyncWesouwceEnabwementSewvice = cweateDecowatow<IUsewDataSyncWesouwceEnabwementSewvice>('IUsewDataSyncWesouwceEnabwementSewvice');
+expowt intewface IUsewDataSyncWesouwceEnabwementSewvice {
+	_sewviceBwand: any;
 
-	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
-	isResourceEnabled(resource: SyncResource): boolean;
-	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
+	weadonwy onDidChangeWesouwceEnabwement: Event<[SyncWesouwce, boowean]>;
+	isWesouwceEnabwed(wesouwce: SyncWesouwce): boowean;
+	setWesouwceEnabwement(wesouwce: SyncWesouwce, enabwed: boowean): void;
 
-	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
+	getWesouwceSyncStateVewsion(wesouwce: SyncWesouwce): stwing | undefined;
 }
 
-export interface ISyncTask {
-	readonly manifest: IUserDataManifest | null;
-	run(): Promise<void>;
-	stop(): Promise<void>;
+expowt intewface ISyncTask {
+	weadonwy manifest: IUsewDataManifest | nuww;
+	wun(): Pwomise<void>;
+	stop(): Pwomise<void>;
 }
 
-export interface IManualSyncTask extends IDisposable {
-	readonly id: string;
-	readonly status: SyncStatus;
-	readonly manifest: IUserDataManifest | null;
-	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
-	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
-	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
-	discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	pull(): Promise<void>;
-	push(): Promise<void>;
-	stop(): Promise<void>;
+expowt intewface IManuawSyncTask extends IDisposabwe {
+	weadonwy id: stwing;
+	weadonwy status: SyncStatus;
+	weadonwy manifest: IUsewDataManifest | nuww;
+	weadonwy onSynchwonizeWesouwces: Event<[SyncWesouwce, UWI[]][]>;
+	pweview(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	accept(wesouwce: UWI, content?: stwing | nuww): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	mewge(wesouwce?: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	discawd(wesouwce: UWI): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	discawdConfwicts(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	appwy(): Pwomise<[SyncWesouwce, ISyncWesouwcePweview][]>;
+	puww(): Pwomise<void>;
+	push(): Pwomise<void>;
+	stop(): Pwomise<void>;
 }
 
-export const IUserDataSyncService = createDecorator<IUserDataSyncService>('IUserDataSyncService');
-export interface IUserDataSyncService {
-	_serviceBrand: any;
+expowt const IUsewDataSyncSewvice = cweateDecowatow<IUsewDataSyncSewvice>('IUsewDataSyncSewvice');
+expowt intewface IUsewDataSyncSewvice {
+	_sewviceBwand: any;
 
-	readonly status: SyncStatus;
-	readonly onDidChangeStatus: Event<SyncStatus>;
+	weadonwy status: SyncStatus;
+	weadonwy onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflicts: [SyncResource, IResourcePreview[]][];
-	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]>;
+	weadonwy confwicts: [SyncWesouwce, IWesouwcePweview[]][];
+	weadonwy onDidChangeConfwicts: Event<[SyncWesouwce, IWesouwcePweview[]][]>;
 
-	readonly onDidChangeLocal: Event<SyncResource>;
-	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]>;
+	weadonwy onDidChangeWocaw: Event<SyncWesouwce>;
+	weadonwy onSyncEwwows: Event<[SyncWesouwce, UsewDataSyncEwwow][]>;
 
-	readonly lastSyncTime: number | undefined;
-	readonly onDidChangeLastSyncTime: Event<number>;
+	weadonwy wastSyncTime: numba | undefined;
+	weadonwy onDidChangeWastSyncTime: Event<numba>;
 
-	readonly onDidResetRemote: Event<void>;
-	readonly onDidResetLocal: Event<void>;
+	weadonwy onDidWesetWemote: Event<void>;
+	weadonwy onDidWesetWocaw: Event<void>;
 
-	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<ISyncTask>;
-	createManualSyncTask(): Promise<IManualSyncTask>;
+	cweateSyncTask(manifest: IUsewDataManifest | nuww, disabweCache?: boowean): Pwomise<ISyncTask>;
+	cweateManuawSyncTask(): Pwomise<IManuawSyncTask>;
 
-	replace(uri: URI): Promise<void>;
-	reset(): Promise<void>;
-	resetRemote(): Promise<void>;
-	resetLocal(): Promise<void>;
+	wepwace(uwi: UWI): Pwomise<void>;
+	weset(): Pwomise<void>;
+	wesetWemote(): Pwomise<void>;
+	wesetWocaw(): Pwomise<void>;
 
-	hasLocalData(): Promise<boolean>;
-	hasPreviouslySynced(): Promise<boolean>;
-	resolveContent(resource: URI): Promise<string | null>;
-	accept(resource: SyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
+	hasWocawData(): Pwomise<boowean>;
+	hasPweviouswySynced(): Pwomise<boowean>;
+	wesowveContent(wesouwce: UWI): Pwomise<stwing | nuww>;
+	accept(wesouwce: SyncWesouwce, confwictWesouwce: UWI, content: stwing | nuww | undefined, appwy: boowean): Pwomise<void>;
 
-	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
-	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	getWocawSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]>;
+	getWemoteSyncWesouwceHandwes(wesouwce: SyncWesouwce): Pwomise<ISyncWesouwceHandwe[]>;
+	getAssociatedWesouwces(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]>;
+	getMachineId(wesouwce: SyncWesouwce, syncWesouwceHandwe: ISyncWesouwceHandwe): Pwomise<stwing | undefined>;
 }
 
-export const IUserDataAutoSyncEnablementService = createDecorator<IUserDataAutoSyncEnablementService>('IUserDataAutoSyncEnablementService');
-export interface IUserDataAutoSyncEnablementService {
-	_serviceBrand: any;
-	readonly onDidChangeEnablement: Event<boolean>;
-	isEnabled(): boolean;
-	canToggleEnablement(): boolean;
+expowt const IUsewDataAutoSyncEnabwementSewvice = cweateDecowatow<IUsewDataAutoSyncEnabwementSewvice>('IUsewDataAutoSyncEnabwementSewvice');
+expowt intewface IUsewDataAutoSyncEnabwementSewvice {
+	_sewviceBwand: any;
+	weadonwy onDidChangeEnabwement: Event<boowean>;
+	isEnabwed(): boowean;
+	canToggweEnabwement(): boowean;
 }
 
-export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
-export interface IUserDataAutoSyncService {
-	_serviceBrand: any;
-	readonly onError: Event<UserDataSyncError>;
-	turnOn(): Promise<void>;
-	turnOff(everywhere: boolean): Promise<void>;
-	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void>;
+expowt const IUsewDataAutoSyncSewvice = cweateDecowatow<IUsewDataAutoSyncSewvice>('IUsewDataAutoSyncSewvice');
+expowt intewface IUsewDataAutoSyncSewvice {
+	_sewviceBwand: any;
+	weadonwy onEwwow: Event<UsewDataSyncEwwow>;
+	tuwnOn(): Pwomise<void>;
+	tuwnOff(evewywhewe: boowean): Pwomise<void>;
+	twiggewSync(souwces: stwing[], hasToWimitSync: boowean, disabweCache: boowean): Pwomise<void>;
 }
 
-export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');
-export interface IUserDataSyncUtilService {
-	readonly _serviceBrand: undefined;
-	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
-	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-	resolveDefaultIgnoredSettings(): Promise<string[]>;
+expowt const IUsewDataSyncUtiwSewvice = cweateDecowatow<IUsewDataSyncUtiwSewvice>('IUsewDataSyncUtiwSewvice');
+expowt intewface IUsewDataSyncUtiwSewvice {
+	weadonwy _sewviceBwand: undefined;
+	wesowveUsewBindings(usewbindings: stwing[]): Pwomise<IStwingDictionawy<stwing>>;
+	wesowveFowmattingOptions(wesouwce: UWI): Pwomise<FowmattingOptions>;
+	wesowveDefauwtIgnowedSettings(): Pwomise<stwing[]>;
 }
 
-export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');
-export interface IUserDataSyncLogService extends ILogService { }
+expowt const IUsewDataSyncWogSewvice = cweateDecowatow<IUsewDataSyncWogSewvice>('IUsewDataSyncWogSewvice');
+expowt intewface IUsewDataSyncWogSewvice extends IWogSewvice { }
 
-export interface IConflictSetting {
-	key: string;
-	localValue: any | undefined;
-	remoteValue: any | undefined;
+expowt intewface IConfwictSetting {
+	key: stwing;
+	wocawVawue: any | undefined;
+	wemoteVawue: any | undefined;
 }
 
-//#endregion
+//#endwegion
 
-export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export const PREVIEW_DIR_NAME = 'preview';
-export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
-	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
-		return undefined;
+expowt const USEW_DATA_SYNC_SCHEME = 'vscode-usewdata-sync';
+expowt const PWEVIEW_DIW_NAME = 'pweview';
+expowt function getSyncWesouwceFwomWocawPweview(wocawPweview: UWI, enviwonmentSewvice: IEnviwonmentSewvice): SyncWesouwce | undefined {
+	if (wocawPweview.scheme === USEW_DATA_SYNC_SCHEME) {
+		wetuwn undefined;
 	}
-	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
-	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
+	wocawPweview = wocawPweview.with({ scheme: enviwonmentSewvice.usewDataSyncHome.scheme });
+	wetuwn AWW_SYNC_WESOUWCES.fiwta(syncWesouwce => isEquawOwPawent(wocawPweview, joinPath(enviwonmentSewvice.usewDataSyncHome, syncWesouwce, PWEVIEW_DIW_NAME)))[0];
 }

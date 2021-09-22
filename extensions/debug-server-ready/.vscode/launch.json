@@ -1,15 +1,15 @@
 {
-	"version": "0.2.0",
-	"configurations": [
+	"vewsion": "0.2.0",
+	"configuwations": [
 		{
-			"name": "Run Server Ready Extension",
+			"name": "Wun Sewva Weady Extension",
 			"type": "extensionHost",
-			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+			"wequest": "waunch",
+			"awgs": [
+				"--extensionDevewopmentPath=${wowkspaceFowda}"
 			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+			"outFiwes": [
+				"${wowkspaceFowda}/out/**/*.js"
 			]
 		}
 	]

@@ -1,112 +1,112 @@
 [
 	{
 		"c": "#",
-		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp keywowd.contwow.diwective.conditionaw.ifndef.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "ifndef",
-		"t": "source.cpp keyword.control.directive.conditional.ifndef.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp keywowd.contwow.diwective.conditionaw.ifndef.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.conditional.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.conditionaw.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
-		"c": "_UCRT",
-		"t": "source.cpp meta.preprocessor.conditional.cpp entity.name.function.preprocessor.cpp",
-		"r": {
-			"dark_plus": "entity.name.function.preprocessor: #569CD6",
-			"light_plus": "entity.name.function.preprocessor: #0000FF",
-			"dark_vs": "entity.name.function.preprocessor: #569CD6",
-			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "_UCWT",
+		"t": "souwce.cpp meta.pwepwocessow.conditionaw.cpp entity.name.function.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_pwus": "entity.name.function.pwepwocessow: #0000FF",
+			"dawk_vs": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_vs": "entity.name.function.pwepwocessow: #0000FF",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "define",
-		"t": "source.cpp meta.preprocessor.macro.cpp keyword.control.directive.define.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp keywowd.contwow.diwective.define.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp",
-		"r": {
-			"dark_plus": "meta.preprocessor: #569CD6",
-			"light_plus": "meta.preprocessor: #0000FF",
-			"dark_vs": "meta.preprocessor: #569CD6",
-			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp",
+		"w": {
+			"dawk_pwus": "meta.pwepwocessow: #569CD6",
+			"wight_pwus": "meta.pwepwocessow: #0000FF",
+			"dawk_vs": "meta.pwepwocessow: #569CD6",
+			"wight_vs": "meta.pwepwocessow: #0000FF",
+			"hc_bwack": "meta.pwepwocessow: #569CD6"
 		}
 	},
 	{
-		"c": "_UCRT",
-		"t": "source.cpp meta.preprocessor.macro.cpp entity.name.function.preprocessor.cpp",
-		"r": {
-			"dark_plus": "entity.name.function.preprocessor: #569CD6",
-			"light_plus": "entity.name.function.preprocessor: #0000FF",
-			"dark_vs": "entity.name.function.preprocessor: #569CD6",
-			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "_UCWT",
+		"t": "souwce.cpp meta.pwepwocessow.macwo.cpp entity.name.function.pwepwocessow.cpp",
+		"w": {
+			"dawk_pwus": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_pwus": "entity.name.function.pwepwocessow: #0000FF",
+			"dawk_vs": "entity.name.function.pwepwocessow: #569CD6",
+			"wight_vs": "entity.name.function.pwepwocessow: #0000FF",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "#",
-		"t": "source.cpp keyword.control.directive.endif.cpp punctuation.definition.directive.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp keywowd.contwow.diwective.endif.cpp punctuation.definition.diwective.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": "endif",
-		"t": "source.cpp keyword.control.directive.endif.cpp",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cpp keywowd.contwow.diwective.endif.cpp",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	}
 ]

@@ -1,305 +1,305 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
-export { ProviderResult } from 'vscode';
+impowt { Uwi, Event, Disposabwe, PwovidewWesuwt } fwom 'vscode';
+expowt { PwovidewWesuwt } fwom 'vscode';
 
-export interface Git {
-	readonly path: string;
+expowt intewface Git {
+	weadonwy path: stwing;
 }
 
-export interface InputBox {
-	value: string;
+expowt intewface InputBox {
+	vawue: stwing;
 }
 
-export const enum RefType {
+expowt const enum WefType {
 	Head,
-	RemoteHead,
+	WemoteHead,
 	Tag
 }
 
-export interface Ref {
-	readonly type: RefType;
-	readonly name?: string;
-	readonly commit?: string;
-	readonly remote?: string;
+expowt intewface Wef {
+	weadonwy type: WefType;
+	weadonwy name?: stwing;
+	weadonwy commit?: stwing;
+	weadonwy wemote?: stwing;
 }
 
-export interface UpstreamRef {
-	readonly remote: string;
-	readonly name: string;
+expowt intewface UpstweamWef {
+	weadonwy wemote: stwing;
+	weadonwy name: stwing;
 }
 
-export interface Branch extends Ref {
-	readonly upstream?: UpstreamRef;
-	readonly ahead?: number;
-	readonly behind?: number;
+expowt intewface Bwanch extends Wef {
+	weadonwy upstweam?: UpstweamWef;
+	weadonwy ahead?: numba;
+	weadonwy behind?: numba;
 }
 
-export interface Commit {
-	readonly hash: string;
-	readonly message: string;
-	readonly parents: string[];
-	readonly authorDate?: Date;
-	readonly authorName?: string;
-	readonly authorEmail?: string;
-	readonly commitDate?: Date;
+expowt intewface Commit {
+	weadonwy hash: stwing;
+	weadonwy message: stwing;
+	weadonwy pawents: stwing[];
+	weadonwy authowDate?: Date;
+	weadonwy authowName?: stwing;
+	weadonwy authowEmaiw?: stwing;
+	weadonwy commitDate?: Date;
 }
 
-export interface Submodule {
-	readonly name: string;
-	readonly path: string;
-	readonly url: string;
+expowt intewface Submoduwe {
+	weadonwy name: stwing;
+	weadonwy path: stwing;
+	weadonwy uww: stwing;
 }
 
-export interface Remote {
-	readonly name: string;
-	readonly fetchUrl?: string;
-	readonly pushUrl?: string;
-	readonly isReadOnly: boolean;
+expowt intewface Wemote {
+	weadonwy name: stwing;
+	weadonwy fetchUww?: stwing;
+	weadonwy pushUww?: stwing;
+	weadonwy isWeadOnwy: boowean;
 }
 
-export const enum Status {
+expowt const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
-	INDEX_DELETED,
-	INDEX_RENAMED,
+	INDEX_DEWETED,
+	INDEX_WENAMED,
 	INDEX_COPIED,
 
 	MODIFIED,
-	DELETED,
-	UNTRACKED,
-	IGNORED,
+	DEWETED,
+	UNTWACKED,
+	IGNOWED,
 	INTENT_TO_ADD,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
-	DELETED_BY_US,
-	DELETED_BY_THEM,
+	DEWETED_BY_US,
+	DEWETED_BY_THEM,
 	BOTH_ADDED,
-	BOTH_DELETED,
+	BOTH_DEWETED,
 	BOTH_MODIFIED
 }
 
-export interface Change {
+expowt intewface Change {
 
 	/**
-	 * Returns either `originalUri` or `renameUri`, depending
-	 * on whether this change is a rename change. When
-	 * in doubt always use `uri` over the other two alternatives.
+	 * Wetuwns eitha `owiginawUwi` ow `wenameUwi`, depending
+	 * on whetha this change is a wename change. When
+	 * in doubt awways use `uwi` ova the otha two awtewnatives.
 	 */
-	readonly uri: Uri;
-	readonly originalUri: Uri;
-	readonly renameUri: Uri | undefined;
-	readonly status: Status;
+	weadonwy uwi: Uwi;
+	weadonwy owiginawUwi: Uwi;
+	weadonwy wenameUwi: Uwi | undefined;
+	weadonwy status: Status;
 }
 
-export interface RepositoryState {
-	readonly HEAD: Branch | undefined;
-	readonly refs: Ref[];
-	readonly remotes: Remote[];
-	readonly submodules: Submodule[];
-	readonly rebaseCommit: Commit | undefined;
+expowt intewface WepositowyState {
+	weadonwy HEAD: Bwanch | undefined;
+	weadonwy wefs: Wef[];
+	weadonwy wemotes: Wemote[];
+	weadonwy submoduwes: Submoduwe[];
+	weadonwy webaseCommit: Commit | undefined;
 
-	readonly mergeChanges: Change[];
-	readonly indexChanges: Change[];
-	readonly workingTreeChanges: Change[];
+	weadonwy mewgeChanges: Change[];
+	weadonwy indexChanges: Change[];
+	weadonwy wowkingTweeChanges: Change[];
 
-	readonly onDidChange: Event<void>;
+	weadonwy onDidChange: Event<void>;
 }
 
-export interface RepositoryUIState {
-	readonly selected: boolean;
-	readonly onDidChange: Event<void>;
+expowt intewface WepositowyUIState {
+	weadonwy sewected: boowean;
+	weadonwy onDidChange: Event<void>;
 }
 
 /**
- * Log options.
+ * Wog options.
  */
-export interface LogOptions {
-	/** Max number of log entries to retrieve. If not specified, the default is 32. */
-	readonly maxEntries?: number;
-	readonly path?: string;
+expowt intewface WogOptions {
+	/** Max numba of wog entwies to wetwieve. If not specified, the defauwt is 32. */
+	weadonwy maxEntwies?: numba;
+	weadonwy path?: stwing;
 }
 
-export interface CommitOptions {
-	all?: boolean | 'tracked';
-	amend?: boolean;
-	signoff?: boolean;
-	signCommit?: boolean;
-	empty?: boolean;
-	noVerify?: boolean;
+expowt intewface CommitOptions {
+	aww?: boowean | 'twacked';
+	amend?: boowean;
+	signoff?: boowean;
+	signCommit?: boowean;
+	empty?: boowean;
+	noVewify?: boowean;
 }
 
-export interface BranchQuery {
-	readonly remote?: boolean;
-	readonly pattern?: string;
-	readonly count?: number;
-	readonly contains?: string;
+expowt intewface BwanchQuewy {
+	weadonwy wemote?: boowean;
+	weadonwy pattewn?: stwing;
+	weadonwy count?: numba;
+	weadonwy contains?: stwing;
 }
 
-export interface Repository {
+expowt intewface Wepositowy {
 
-	readonly rootUri: Uri;
-	readonly inputBox: InputBox;
-	readonly state: RepositoryState;
-	readonly ui: RepositoryUIState;
+	weadonwy wootUwi: Uwi;
+	weadonwy inputBox: InputBox;
+	weadonwy state: WepositowyState;
+	weadonwy ui: WepositowyUIState;
 
-	getConfigs(): Promise<{ key: string; value: string; }[]>;
-	getConfig(key: string): Promise<string>;
-	setConfig(key: string, value: string): Promise<string>;
-	getGlobalConfig(key: string): Promise<string>;
+	getConfigs(): Pwomise<{ key: stwing; vawue: stwing; }[]>;
+	getConfig(key: stwing): Pwomise<stwing>;
+	setConfig(key: stwing, vawue: stwing): Pwomise<stwing>;
+	getGwobawConfig(key: stwing): Pwomise<stwing>;
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }>;
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }>;
-	buffer(ref: string, path: string): Promise<Buffer>;
-	show(ref: string, path: string): Promise<string>;
-	getCommit(ref: string): Promise<Commit>;
+	getObjectDetaiws(tweeish: stwing, path: stwing): Pwomise<{ mode: stwing, object: stwing, size: numba }>;
+	detectObjectType(object: stwing): Pwomise<{ mimetype: stwing, encoding?: stwing }>;
+	buffa(wef: stwing, path: stwing): Pwomise<Buffa>;
+	show(wef: stwing, path: stwing): Pwomise<stwing>;
+	getCommit(wef: stwing): Pwomise<Commit>;
 
-	clean(paths: string[]): Promise<void>;
+	cwean(paths: stwing[]): Pwomise<void>;
 
-	apply(patch: string, reverse?: boolean): Promise<void>;
-	diff(cached?: boolean): Promise<string>;
-	diffWithHEAD(): Promise<Change[]>;
-	diffWithHEAD(path: string): Promise<string>;
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffIndexWithHEAD(): Promise<Change[]>;
-	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWith(ref: string): Promise<Change[]>;
-	diffIndexWith(ref: string, path: string): Promise<string>;
-	diffBlobs(object1: string, object2: string): Promise<string>;
-	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	appwy(patch: stwing, wevewse?: boowean): Pwomise<void>;
+	diff(cached?: boowean): Pwomise<stwing>;
+	diffWithHEAD(): Pwomise<Change[]>;
+	diffWithHEAD(path: stwing): Pwomise<stwing>;
+	diffWith(wef: stwing): Pwomise<Change[]>;
+	diffWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffIndexWithHEAD(): Pwomise<Change[]>;
+	diffIndexWithHEAD(path: stwing): Pwomise<stwing>;
+	diffIndexWith(wef: stwing): Pwomise<Change[]>;
+	diffIndexWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffBwobs(object1: stwing, object2: stwing): Pwomise<stwing>;
+	diffBetween(wef1: stwing, wef2: stwing): Pwomise<Change[]>;
+	diffBetween(wef1: stwing, wef2: stwing, path: stwing): Pwomise<stwing>;
 
-	hashObject(data: string): Promise<string>;
+	hashObject(data: stwing): Pwomise<stwing>;
 
-	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
-	deleteBranch(name: string, force?: boolean): Promise<void>;
-	getBranch(name: string): Promise<Branch>;
-	getBranches(query: BranchQuery): Promise<Ref[]>;
-	setBranchUpstream(name: string, upstream: string): Promise<void>;
+	cweateBwanch(name: stwing, checkout: boowean, wef?: stwing): Pwomise<void>;
+	deweteBwanch(name: stwing, fowce?: boowean): Pwomise<void>;
+	getBwanch(name: stwing): Pwomise<Bwanch>;
+	getBwanches(quewy: BwanchQuewy): Pwomise<Wef[]>;
+	setBwanchUpstweam(name: stwing, upstweam: stwing): Pwomise<void>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMewgeBase(wef1: stwing, wef2: stwing): Pwomise<stwing>;
 
-	status(): Promise<void>;
-	checkout(treeish: string): Promise<void>;
+	status(): Pwomise<void>;
+	checkout(tweeish: stwing): Pwomise<void>;
 
-	addRemote(name: string, url: string): Promise<void>;
-	removeRemote(name: string): Promise<void>;
-	renameRemote(name: string, newName: string): Promise<void>;
+	addWemote(name: stwing, uww: stwing): Pwomise<void>;
+	wemoveWemote(name: stwing): Pwomise<void>;
+	wenameWemote(name: stwing, newName: stwing): Pwomise<void>;
 
-	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
-	pull(unshallow?: boolean): Promise<void>;
-	push(remoteName?: string, branchName?: string, setUpstream?: boolean): Promise<void>;
+	fetch(wemote?: stwing, wef?: stwing, depth?: numba): Pwomise<void>;
+	puww(unshawwow?: boowean): Pwomise<void>;
+	push(wemoteName?: stwing, bwanchName?: stwing, setUpstweam?: boowean): Pwomise<void>;
 
-	blame(path: string): Promise<string>;
-	log(options?: LogOptions): Promise<Commit[]>;
+	bwame(path: stwing): Pwomise<stwing>;
+	wog(options?: WogOptions): Pwomise<Commit[]>;
 
-	commit(message: string, opts?: CommitOptions): Promise<void>;
+	commit(message: stwing, opts?: CommitOptions): Pwomise<void>;
 }
 
-export interface RemoteSource {
-	readonly name: string;
-	readonly description?: string;
-	readonly url: string | string[];
+expowt intewface WemoteSouwce {
+	weadonwy name: stwing;
+	weadonwy descwiption?: stwing;
+	weadonwy uww: stwing | stwing[];
 }
 
-export interface RemoteSourceProvider {
-	readonly name: string;
-	readonly icon?: string; // codicon name
-	readonly supportsQuery?: boolean;
-	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
-	getBranches?(url: string): ProviderResult<string[]>;
-	publishRepository?(repository: Repository): Promise<void>;
+expowt intewface WemoteSouwcePwovida {
+	weadonwy name: stwing;
+	weadonwy icon?: stwing; // codicon name
+	weadonwy suppowtsQuewy?: boowean;
+	getWemoteSouwces(quewy?: stwing): PwovidewWesuwt<WemoteSouwce[]>;
+	getBwanches?(uww: stwing): PwovidewWesuwt<stwing[]>;
+	pubwishWepositowy?(wepositowy: Wepositowy): Pwomise<void>;
 }
 
-export interface Credentials {
-	readonly username: string;
-	readonly password: string;
+expowt intewface Cwedentiaws {
+	weadonwy usewname: stwing;
+	weadonwy passwowd: stwing;
 }
 
-export interface CredentialsProvider {
-	getCredentials(host: Uri): ProviderResult<Credentials>;
+expowt intewface CwedentiawsPwovida {
+	getCwedentiaws(host: Uwi): PwovidewWesuwt<Cwedentiaws>;
 }
 
-export interface PushErrorHandler {
-	handlePushError(repository: Repository, remote: Remote, refspec: string, error: Error & { gitErrorCode: GitErrorCodes }): Promise<boolean>;
+expowt intewface PushEwwowHandwa {
+	handwePushEwwow(wepositowy: Wepositowy, wemote: Wemote, wefspec: stwing, ewwow: Ewwow & { gitEwwowCode: GitEwwowCodes }): Pwomise<boowean>;
 }
 
-export type APIState = 'uninitialized' | 'initialized';
+expowt type APIState = 'uninitiawized' | 'initiawized';
 
-export interface API {
-	readonly state: APIState;
-	readonly onDidChangeState: Event<APIState>;
-	readonly git: Git;
-	readonly repositories: Repository[];
-	readonly onDidOpenRepository: Event<Repository>;
-	readonly onDidCloseRepository: Event<Repository>;
+expowt intewface API {
+	weadonwy state: APIState;
+	weadonwy onDidChangeState: Event<APIState>;
+	weadonwy git: Git;
+	weadonwy wepositowies: Wepositowy[];
+	weadonwy onDidOpenWepositowy: Event<Wepositowy>;
+	weadonwy onDidCwoseWepositowy: Event<Wepositowy>;
 
-	toGitUri(uri: Uri, ref: string): Uri;
-	getRepository(uri: Uri): Repository | null;
-	init(root: Uri): Promise<Repository | null>;
+	toGitUwi(uwi: Uwi, wef: stwing): Uwi;
+	getWepositowy(uwi: Uwi): Wepositowy | nuww;
+	init(woot: Uwi): Pwomise<Wepositowy | nuww>;
 
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
-	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
-	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
+	wegistewWemoteSouwcePwovida(pwovida: WemoteSouwcePwovida): Disposabwe;
+	wegistewCwedentiawsPwovida(pwovida: CwedentiawsPwovida): Disposabwe;
+	wegistewPushEwwowHandwa(handwa: PushEwwowHandwa): Disposabwe;
 }
 
-export interface GitExtension {
+expowt intewface GitExtension {
 
-	readonly enabled: boolean;
-	readonly onDidChangeEnablement: Event<boolean>;
+	weadonwy enabwed: boowean;
+	weadonwy onDidChangeEnabwement: Event<boowean>;
 
 	/**
-	 * Returns a specific API version.
+	 * Wetuwns a specific API vewsion.
 	 *
-	 * Throws error if git extension is disabled. You can listed to the
-	 * [GitExtension.onDidChangeEnablement](#GitExtension.onDidChangeEnablement) event
-	 * to know when the extension becomes enabled/disabled.
+	 * Thwows ewwow if git extension is disabwed. You can wisted to the
+	 * [GitExtension.onDidChangeEnabwement](#GitExtension.onDidChangeEnabwement) event
+	 * to know when the extension becomes enabwed/disabwed.
 	 *
-	 * @param version Version number.
-	 * @returns API instance
+	 * @pawam vewsion Vewsion numba.
+	 * @wetuwns API instance
 	 */
-	getAPI(version: 1): API;
+	getAPI(vewsion: 1): API;
 }
 
-export const enum GitErrorCodes {
-	BadConfigFile = 'BadConfigFile',
-	AuthenticationFailed = 'AuthenticationFailed',
-	NoUserNameConfigured = 'NoUserNameConfigured',
-	NoUserEmailConfigured = 'NoUserEmailConfigured',
-	NoRemoteRepositorySpecified = 'NoRemoteRepositorySpecified',
-	NotAGitRepository = 'NotAGitRepository',
-	NotAtRepositoryRoot = 'NotAtRepositoryRoot',
-	Conflict = 'Conflict',
-	StashConflict = 'StashConflict',
-	UnmergedChanges = 'UnmergedChanges',
-	PushRejected = 'PushRejected',
-	RemoteConnectionError = 'RemoteConnectionError',
-	DirtyWorkTree = 'DirtyWorkTree',
-	CantOpenResource = 'CantOpenResource',
+expowt const enum GitEwwowCodes {
+	BadConfigFiwe = 'BadConfigFiwe',
+	AuthenticationFaiwed = 'AuthenticationFaiwed',
+	NoUsewNameConfiguwed = 'NoUsewNameConfiguwed',
+	NoUsewEmaiwConfiguwed = 'NoUsewEmaiwConfiguwed',
+	NoWemoteWepositowySpecified = 'NoWemoteWepositowySpecified',
+	NotAGitWepositowy = 'NotAGitWepositowy',
+	NotAtWepositowyWoot = 'NotAtWepositowyWoot',
+	Confwict = 'Confwict',
+	StashConfwict = 'StashConfwict',
+	UnmewgedChanges = 'UnmewgedChanges',
+	PushWejected = 'PushWejected',
+	WemoteConnectionEwwow = 'WemoteConnectionEwwow',
+	DiwtyWowkTwee = 'DiwtyWowkTwee',
+	CantOpenWesouwce = 'CantOpenWesouwce',
 	GitNotFound = 'GitNotFound',
-	CantCreatePipe = 'CantCreatePipe',
-	PermissionDenied = 'PermissionDenied',
-	CantAccessRemote = 'CantAccessRemote',
-	RepositoryNotFound = 'RepositoryNotFound',
-	RepositoryIsLocked = 'RepositoryIsLocked',
-	BranchNotFullyMerged = 'BranchNotFullyMerged',
-	NoRemoteReference = 'NoRemoteReference',
-	InvalidBranchName = 'InvalidBranchName',
-	BranchAlreadyExists = 'BranchAlreadyExists',
-	NoLocalChanges = 'NoLocalChanges',
+	CantCweatePipe = 'CantCweatePipe',
+	PewmissionDenied = 'PewmissionDenied',
+	CantAccessWemote = 'CantAccessWemote',
+	WepositowyNotFound = 'WepositowyNotFound',
+	WepositowyIsWocked = 'WepositowyIsWocked',
+	BwanchNotFuwwyMewged = 'BwanchNotFuwwyMewged',
+	NoWemoteWefewence = 'NoWemoteWefewence',
+	InvawidBwanchName = 'InvawidBwanchName',
+	BwanchAwweadyExists = 'BwanchAwweadyExists',
+	NoWocawChanges = 'NoWocawChanges',
 	NoStashFound = 'NoStashFound',
-	LocalChangesOverwritten = 'LocalChangesOverwritten',
-	NoUpstreamBranch = 'NoUpstreamBranch',
-	IsInSubmodule = 'IsInSubmodule',
-	WrongCase = 'WrongCase',
-	CantLockRef = 'CantLockRef',
-	CantRebaseMultipleBranches = 'CantRebaseMultipleBranches',
-	PatchDoesNotApply = 'PatchDoesNotApply',
+	WocawChangesOvewwwitten = 'WocawChangesOvewwwitten',
+	NoUpstweamBwanch = 'NoUpstweamBwanch',
+	IsInSubmoduwe = 'IsInSubmoduwe',
+	WwongCase = 'WwongCase',
+	CantWockWef = 'CantWockWef',
+	CantWebaseMuwtipweBwanches = 'CantWebaseMuwtipweBwanches',
+	PatchDoesNotAppwy = 'PatchDoesNotAppwy',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
 }

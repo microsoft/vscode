@@ -1,483 +1,483 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLens, CodeLensProviderRegistry, Command } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
-import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/codelensWidget';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, disposabweTimeout, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow, onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StabweEditowScwowwState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { IActiveCodeEditow, ICodeEditow, IViewZoneChangeAccessow, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IModewDecowationsChangeAccessow } fwom 'vs/editow/common/modew';
+impowt { CodeWens, CodeWensPwovidewWegistwy, Command } fwom 'vs/editow/common/modes';
+impowt { WanguageFeatuweWequestDeways } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { CodeWensItem, CodeWensModew, getCodeWensModew } fwom 'vs/editow/contwib/codewens/codewens';
+impowt { ICodeWensCache } fwom 'vs/editow/contwib/codewens/codeWensCache';
+impowt { CodeWensHewpa, CodeWensWidget } fwom 'vs/editow/contwib/codewens/codewensWidget';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export class CodeLensContribution implements IEditorContribution {
+expowt cwass CodeWensContwibution impwements IEditowContwibution {
 
-	static readonly ID: string = 'css.editor.codeLens';
+	static weadonwy ID: stwing = 'css.editow.codeWens';
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _localToDispose = new DisposableStore();
-	private readonly _styleElement: HTMLStyleElement;
-	private readonly _styleClassName: string;
-	private readonly _lenses: CodeLensWidget[] = [];
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _wocawToDispose = new DisposabweStowe();
+	pwivate weadonwy _styweEwement: HTMWStyweEwement;
+	pwivate weadonwy _styweCwassName: stwing;
+	pwivate weadonwy _wenses: CodeWensWidget[] = [];
 
-	private readonly _getCodeLensModelDelays = new LanguageFeatureRequestDelays(CodeLensProviderRegistry, 250, 2500);
-	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
-	private _oldCodeLensModels = new DisposableStore();
-	private _currentCodeLensModel: CodeLensModel | undefined;
-	private readonly _resolveCodeLensesDelays = new LanguageFeatureRequestDelays(CodeLensProviderRegistry, 250, 2500);
-	private readonly _resolveCodeLensesScheduler = new RunOnceScheduler(() => this._resolveCodeLensesInViewport(), this._resolveCodeLensesDelays.min);
-	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
+	pwivate weadonwy _getCodeWensModewDeways = new WanguageFeatuweWequestDeways(CodeWensPwovidewWegistwy, 250, 2500);
+	pwivate _getCodeWensModewPwomise: CancewabwePwomise<CodeWensModew> | undefined;
+	pwivate _owdCodeWensModews = new DisposabweStowe();
+	pwivate _cuwwentCodeWensModew: CodeWensModew | undefined;
+	pwivate weadonwy _wesowveCodeWensesDeways = new WanguageFeatuweWequestDeways(CodeWensPwovidewWegistwy, 250, 2500);
+	pwivate weadonwy _wesowveCodeWensesScheduwa = new WunOnceScheduwa(() => this._wesowveCodeWensesInViewpowt(), this._wesowveCodeWensesDeways.min);
+	pwivate _wesowveCodeWensesPwomise: CancewabwePwomise<any> | undefined;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@ICodeWensCache pwivate weadonwy _codeWensCache: ICodeWensCache
 	) {
 
-		this._disposables.add(this._editor.onDidChangeModel(() => this._onModelChange()));
-		this._disposables.add(this._editor.onDidChangeModelLanguage(() => this._onModelChange()));
-		this._disposables.add(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.codeLensFontSize) || e.hasChanged(EditorOption.codeLensFontFamily)) {
-				this._updateLensStyle();
+		this._disposabwes.add(this._editow.onDidChangeModew(() => this._onModewChange()));
+		this._disposabwes.add(this._editow.onDidChangeModewWanguage(() => this._onModewChange()));
+		this._disposabwes.add(this._editow.onDidChangeConfiguwation((e) => {
+			if (e.hasChanged(EditowOption.fontInfo) || e.hasChanged(EditowOption.codeWensFontSize) || e.hasChanged(EditowOption.codeWensFontFamiwy)) {
+				this._updateWensStywe();
 			}
-			if (e.hasChanged(EditorOption.codeLens)) {
-				this._onModelChange();
+			if (e.hasChanged(EditowOption.codeWens)) {
+				this._onModewChange();
 			}
 		}));
-		this._disposables.add(CodeLensProviderRegistry.onDidChange(this._onModelChange, this));
-		this._onModelChange();
+		this._disposabwes.add(CodeWensPwovidewWegistwy.onDidChange(this._onModewChange, this));
+		this._onModewChange();
 
-		this._styleClassName = '_' + hash(this._editor.getId()).toString(16);
-		this._styleElement = dom.createStyleSheet(
-			dom.isInShadowDOM(this._editor.getContainerDomNode())
-				? this._editor.getContainerDomNode()
+		this._styweCwassName = '_' + hash(this._editow.getId()).toStwing(16);
+		this._styweEwement = dom.cweateStyweSheet(
+			dom.isInShadowDOM(this._editow.getContainewDomNode())
+				? this._editow.getContainewDomNode()
 				: undefined
 		);
-		this._updateLensStyle();
+		this._updateWensStywe();
 	}
 
 	dispose(): void {
-		this._localDispose();
-		this._disposables.dispose();
-		this._oldCodeLensModels.dispose();
-		this._currentCodeLensModel?.dispose();
-		this._styleElement.remove();
+		this._wocawDispose();
+		this._disposabwes.dispose();
+		this._owdCodeWensModews.dispose();
+		this._cuwwentCodeWensModew?.dispose();
+		this._styweEwement.wemove();
 	}
 
-	private _getLayoutInfo() {
-		let fontSize = this._editor.getOption(EditorOption.codeLensFontSize);
-		let codeLensHeight: number;
+	pwivate _getWayoutInfo() {
+		wet fontSize = this._editow.getOption(EditowOption.codeWensFontSize);
+		wet codeWensHeight: numba;
 		if (!fontSize || fontSize < 5) {
-			fontSize = (this._editor.getOption(EditorOption.fontSize) * .9) | 0;
-			codeLensHeight = this._editor.getOption(EditorOption.lineHeight);
-		} else {
-			codeLensHeight = (fontSize * Math.max(1.3, this._editor.getOption(EditorOption.lineHeight) / this._editor.getOption(EditorOption.fontSize))) | 0;
+			fontSize = (this._editow.getOption(EditowOption.fontSize) * .9) | 0;
+			codeWensHeight = this._editow.getOption(EditowOption.wineHeight);
+		} ewse {
+			codeWensHeight = (fontSize * Math.max(1.3, this._editow.getOption(EditowOption.wineHeight) / this._editow.getOption(EditowOption.fontSize))) | 0;
 		}
-		return { codeLensHeight, fontSize };
+		wetuwn { codeWensHeight, fontSize };
 	}
 
-	private _updateLensStyle(): void {
+	pwivate _updateWensStywe(): void {
 
-		const { codeLensHeight, fontSize } = this._getLayoutInfo();
-		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
-		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const { codeWensHeight, fontSize } = this._getWayoutInfo();
+		const fontFamiwy = this._editow.getOption(EditowOption.codeWensFontFamiwy);
+		const editowFontInfo = this._editow.getOption(EditowOption.fontInfo);
 
-		const fontFamilyVar = `--codelens-font-family${this._styleClassName}`;
-		const fontFeaturesVar = `--codelens-font-features${this._styleClassName}`;
+		const fontFamiwyVaw = `--codewens-font-famiwy${this._styweCwassName}`;
+		const fontFeatuwesVaw = `--codewens-font-featuwes${this._styweCwassName}`;
 
-		let newStyle = `
-		.monaco-editor .codelens-decoration.${this._styleClassName} { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontSize * 0.5)}px; font-feature-settings: var(${fontFeaturesVar}) }
-		.monaco-editor .codelens-decoration.${this._styleClassName} span.codicon { line-height: ${codeLensHeight}px; font-size: ${fontSize}px; }
+		wet newStywe = `
+		.monaco-editow .codewens-decowation.${this._styweCwassName} { wine-height: ${codeWensHeight}px; font-size: ${fontSize}px; padding-wight: ${Math.wound(fontSize * 0.5)}px; font-featuwe-settings: vaw(${fontFeatuwesVaw}) }
+		.monaco-editow .codewens-decowation.${this._styweCwassName} span.codicon { wine-height: ${codeWensHeight}px; font-size: ${fontSize}px; }
 		`;
-		if (fontFamily) {
-			newStyle += `.monaco-editor .codelens-decoration.${this._styleClassName} { font-family: var(${fontFamilyVar})}`;
+		if (fontFamiwy) {
+			newStywe += `.monaco-editow .codewens-decowation.${this._styweCwassName} { font-famiwy: vaw(${fontFamiwyVaw})}`;
 		}
-		this._styleElement.textContent = newStyle;
-		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily ?? 'inherit');
-		this._editor.getContainerDomNode().style.setProperty(fontFeaturesVar, editorFontInfo.fontFeatureSettings);
+		this._styweEwement.textContent = newStywe;
+		this._editow.getContainewDomNode().stywe.setPwopewty(fontFamiwyVaw, fontFamiwy ?? 'inhewit');
+		this._editow.getContainewDomNode().stywe.setPwopewty(fontFeatuwesVaw, editowFontInfo.fontFeatuweSettings);
 
 		//
-		this._editor.changeViewZones(accessor => {
-			for (let lens of this._lenses) {
-				lens.updateHeight(codeLensHeight, accessor);
+		this._editow.changeViewZones(accessow => {
+			fow (wet wens of this._wenses) {
+				wens.updateHeight(codeWensHeight, accessow);
 			}
 		});
 	}
 
-	private _localDispose(): void {
-		this._getCodeLensModelPromise?.cancel();
-		this._getCodeLensModelPromise = undefined;
-		this._resolveCodeLensesPromise?.cancel();
-		this._resolveCodeLensesPromise = undefined;
-		this._localToDispose.clear();
-		this._oldCodeLensModels.clear();
-		this._currentCodeLensModel?.dispose();
+	pwivate _wocawDispose(): void {
+		this._getCodeWensModewPwomise?.cancew();
+		this._getCodeWensModewPwomise = undefined;
+		this._wesowveCodeWensesPwomise?.cancew();
+		this._wesowveCodeWensesPwomise = undefined;
+		this._wocawToDispose.cweaw();
+		this._owdCodeWensModews.cweaw();
+		this._cuwwentCodeWensModew?.dispose();
 	}
 
-	private _onModelChange(): void {
+	pwivate _onModewChange(): void {
 
-		this._localDispose();
+		this._wocawDispose();
 
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		if (!this._editor.getOption(EditorOption.codeLens)) {
-			return;
+		if (!this._editow.getOption(EditowOption.codeWens)) {
+			wetuwn;
 		}
 
-		const cachedLenses = this._codeLensCache.get(model);
-		if (cachedLenses) {
-			this._renderCodeLensSymbols(cachedLenses);
+		const cachedWenses = this._codeWensCache.get(modew);
+		if (cachedWenses) {
+			this._wendewCodeWensSymbows(cachedWenses);
 		}
 
-		if (!CodeLensProviderRegistry.has(model)) {
-			// no provider -> return but check with
-			// cached lenses. they expire after 30 seconds
-			if (cachedLenses) {
-				this._localToDispose.add(disposableTimeout(() => {
-					const cachedLensesNow = this._codeLensCache.get(model);
-					if (cachedLenses === cachedLensesNow) {
-						this._codeLensCache.delete(model);
-						this._onModelChange();
+		if (!CodeWensPwovidewWegistwy.has(modew)) {
+			// no pwovida -> wetuwn but check with
+			// cached wenses. they expiwe afta 30 seconds
+			if (cachedWenses) {
+				this._wocawToDispose.add(disposabweTimeout(() => {
+					const cachedWensesNow = this._codeWensCache.get(modew);
+					if (cachedWenses === cachedWensesNow) {
+						this._codeWensCache.dewete(modew);
+						this._onModewChange();
 					}
 				}, 30 * 1000));
 			}
-			return;
+			wetuwn;
 		}
 
-		for (const provider of CodeLensProviderRegistry.all(model)) {
-			if (typeof provider.onDidChange === 'function') {
-				let registration = provider.onDidChange(() => scheduler.schedule());
-				this._localToDispose.add(registration);
+		fow (const pwovida of CodeWensPwovidewWegistwy.aww(modew)) {
+			if (typeof pwovida.onDidChange === 'function') {
+				wet wegistwation = pwovida.onDidChange(() => scheduwa.scheduwe());
+				this._wocawToDispose.add(wegistwation);
 			}
 		}
 
-		const scheduler = new RunOnceScheduler(() => {
+		const scheduwa = new WunOnceScheduwa(() => {
 			const t1 = Date.now();
 
-			this._getCodeLensModelPromise?.cancel();
-			this._getCodeLensModelPromise = createCancelablePromise(token => getCodeLensModel(model, token));
+			this._getCodeWensModewPwomise?.cancew();
+			this._getCodeWensModewPwomise = cweateCancewabwePwomise(token => getCodeWensModew(modew, token));
 
-			this._getCodeLensModelPromise.then(result => {
-				if (this._currentCodeLensModel) {
-					this._oldCodeLensModels.add(this._currentCodeLensModel);
+			this._getCodeWensModewPwomise.then(wesuwt => {
+				if (this._cuwwentCodeWensModew) {
+					this._owdCodeWensModews.add(this._cuwwentCodeWensModew);
 				}
-				this._currentCodeLensModel = result;
+				this._cuwwentCodeWensModew = wesuwt;
 
-				// cache model to reduce flicker
-				this._codeLensCache.put(model, result);
+				// cache modew to weduce fwicka
+				this._codeWensCache.put(modew, wesuwt);
 
-				// update moving average
-				const newDelay = this._getCodeLensModelDelays.update(model, Date.now() - t1);
-				scheduler.delay = newDelay;
+				// update moving avewage
+				const newDeway = this._getCodeWensModewDeways.update(modew, Date.now() - t1);
+				scheduwa.deway = newDeway;
 
-				// render lenses
-				this._renderCodeLensSymbols(result);
-				// dom.scheduleAtNextAnimationFrame(() => this._resolveCodeLensesInViewport());
-				this._resolveCodeLensesInViewportSoon();
-			}, onUnexpectedError);
+				// wenda wenses
+				this._wendewCodeWensSymbows(wesuwt);
+				// dom.scheduweAtNextAnimationFwame(() => this._wesowveCodeWensesInViewpowt());
+				this._wesowveCodeWensesInViewpowtSoon();
+			}, onUnexpectedEwwow);
 
-		}, this._getCodeLensModelDelays.get(model));
+		}, this._getCodeWensModewDeways.get(modew));
 
-		this._localToDispose.add(scheduler);
-		this._localToDispose.add(toDisposable(() => this._resolveCodeLensesScheduler.cancel()));
-		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
-			this._editor.changeDecorations(decorationsAccessor => {
-				this._editor.changeViewZones(viewZonesAccessor => {
-					let toDispose: CodeLensWidget[] = [];
-					let lastLensLineNumber: number = -1;
+		this._wocawToDispose.add(scheduwa);
+		this._wocawToDispose.add(toDisposabwe(() => this._wesowveCodeWensesScheduwa.cancew()));
+		this._wocawToDispose.add(this._editow.onDidChangeModewContent(() => {
+			this._editow.changeDecowations(decowationsAccessow => {
+				this._editow.changeViewZones(viewZonesAccessow => {
+					wet toDispose: CodeWensWidget[] = [];
+					wet wastWensWineNumba: numba = -1;
 
-					this._lenses.forEach((lens) => {
-						if (!lens.isValid() || lastLensLineNumber === lens.getLineNumber()) {
-							// invalid -> lens collapsed, attach range doesn't exist anymore
-							// line_number -> lenses should never be on the same line
-							toDispose.push(lens);
+					this._wenses.fowEach((wens) => {
+						if (!wens.isVawid() || wastWensWineNumba === wens.getWineNumba()) {
+							// invawid -> wens cowwapsed, attach wange doesn't exist anymowe
+							// wine_numba -> wenses shouwd neva be on the same wine
+							toDispose.push(wens);
 
-						} else {
-							lens.update(viewZonesAccessor);
-							lastLensLineNumber = lens.getLineNumber();
+						} ewse {
+							wens.update(viewZonesAccessow);
+							wastWensWineNumba = wens.getWineNumba();
 						}
 					});
 
-					let helper = new CodeLensHelper();
-					toDispose.forEach((l) => {
-						l.dispose(helper, viewZonesAccessor);
-						this._lenses.splice(this._lenses.indexOf(l), 1);
+					wet hewpa = new CodeWensHewpa();
+					toDispose.fowEach((w) => {
+						w.dispose(hewpa, viewZonesAccessow);
+						this._wenses.spwice(this._wenses.indexOf(w), 1);
 					});
-					helper.commit(decorationsAccessor);
+					hewpa.commit(decowationsAccessow);
 				});
 			});
 
-			// Ask for all references again
-			scheduler.schedule();
+			// Ask fow aww wefewences again
+			scheduwa.scheduwe();
 		}));
-		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
-			scheduler.schedule();
+		this._wocawToDispose.add(this._editow.onDidFocusEditowWidget(() => {
+			scheduwa.scheduwe();
 		}));
-		this._localToDispose.add(this._editor.onDidScrollChange(e => {
-			if (e.scrollTopChanged && this._lenses.length > 0) {
-				this._resolveCodeLensesInViewportSoon();
+		this._wocawToDispose.add(this._editow.onDidScwowwChange(e => {
+			if (e.scwowwTopChanged && this._wenses.wength > 0) {
+				this._wesowveCodeWensesInViewpowtSoon();
 			}
 		}));
-		this._localToDispose.add(this._editor.onDidLayoutChange(() => {
-			this._resolveCodeLensesInViewportSoon();
+		this._wocawToDispose.add(this._editow.onDidWayoutChange(() => {
+			this._wesowveCodeWensesInViewpowtSoon();
 		}));
-		this._localToDispose.add(toDisposable(() => {
-			if (this._editor.getModel()) {
-				const scrollState = StableEditorScrollState.capture(this._editor);
-				this._editor.changeDecorations(decorationsAccessor => {
-					this._editor.changeViewZones(viewZonesAccessor => {
-						this._disposeAllLenses(decorationsAccessor, viewZonesAccessor);
+		this._wocawToDispose.add(toDisposabwe(() => {
+			if (this._editow.getModew()) {
+				const scwowwState = StabweEditowScwowwState.captuwe(this._editow);
+				this._editow.changeDecowations(decowationsAccessow => {
+					this._editow.changeViewZones(viewZonesAccessow => {
+						this._disposeAwwWenses(decowationsAccessow, viewZonesAccessow);
 					});
 				});
-				scrollState.restore(this._editor);
-			} else {
-				// No accessors available
-				this._disposeAllLenses(undefined, undefined);
+				scwowwState.westowe(this._editow);
+			} ewse {
+				// No accessows avaiwabwe
+				this._disposeAwwWenses(undefined, undefined);
 			}
 		}));
-		this._localToDispose.add(this._editor.onMouseDown(e => {
-			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
-				return;
+		this._wocawToDispose.add(this._editow.onMouseDown(e => {
+			if (e.tawget.type !== MouseTawgetType.CONTENT_WIDGET) {
+				wetuwn;
 			}
-			let target = e.target.element;
-			if (target?.tagName === 'SPAN') {
-				target = target.parentElement;
+			wet tawget = e.tawget.ewement;
+			if (tawget?.tagName === 'SPAN') {
+				tawget = tawget.pawentEwement;
 			}
-			if (target?.tagName === 'A') {
-				for (const lens of this._lenses) {
-					let command = lens.getCommand(target as HTMLLinkElement);
+			if (tawget?.tagName === 'A') {
+				fow (const wens of this._wenses) {
+					wet command = wens.getCommand(tawget as HTMWWinkEwement);
 					if (command) {
-						this._commandService.executeCommand(command.id, ...(command.arguments || [])).catch(err => this._notificationService.error(err));
-						break;
+						this._commandSewvice.executeCommand(command.id, ...(command.awguments || [])).catch(eww => this._notificationSewvice.ewwow(eww));
+						bweak;
 					}
 				}
 			}
 		}));
-		scheduler.schedule();
+		scheduwa.scheduwe();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: IViewZoneChangeAccessor | undefined): void {
-		const helper = new CodeLensHelper();
-		for (const lens of this._lenses) {
-			lens.dispose(helper, viewZoneChangeAccessor);
+	pwivate _disposeAwwWenses(decChangeAccessow: IModewDecowationsChangeAccessow | undefined, viewZoneChangeAccessow: IViewZoneChangeAccessow | undefined): void {
+		const hewpa = new CodeWensHewpa();
+		fow (const wens of this._wenses) {
+			wens.dispose(hewpa, viewZoneChangeAccessow);
 		}
-		if (decChangeAccessor) {
-			helper.commit(decChangeAccessor);
+		if (decChangeAccessow) {
+			hewpa.commit(decChangeAccessow);
 		}
-		this._lenses.length = 0;
+		this._wenses.wength = 0;
 	}
 
-	private _renderCodeLensSymbols(symbols: CodeLensModel): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate _wendewCodeWensSymbows(symbows: CodeWensModew): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		let maxLineNumber = this._editor.getModel().getLineCount();
-		let groups: CodeLensItem[][] = [];
-		let lastGroup: CodeLensItem[] | undefined;
+		wet maxWineNumba = this._editow.getModew().getWineCount();
+		wet gwoups: CodeWensItem[][] = [];
+		wet wastGwoup: CodeWensItem[] | undefined;
 
-		for (let symbol of symbols.lenses) {
-			let line = symbol.symbol.range.startLineNumber;
-			if (line < 1 || line > maxLineNumber) {
-				// invalid code lens
+		fow (wet symbow of symbows.wenses) {
+			wet wine = symbow.symbow.wange.stawtWineNumba;
+			if (wine < 1 || wine > maxWineNumba) {
+				// invawid code wens
 				continue;
-			} else if (lastGroup && lastGroup[lastGroup.length - 1].symbol.range.startLineNumber === line) {
-				// on same line as previous
-				lastGroup.push(symbol);
-			} else {
-				// on later line as previous
-				lastGroup = [symbol];
-				groups.push(lastGroup);
+			} ewse if (wastGwoup && wastGwoup[wastGwoup.wength - 1].symbow.wange.stawtWineNumba === wine) {
+				// on same wine as pwevious
+				wastGwoup.push(symbow);
+			} ewse {
+				// on wata wine as pwevious
+				wastGwoup = [symbow];
+				gwoups.push(wastGwoup);
 			}
 		}
 
-		const scrollState = StableEditorScrollState.capture(this._editor);
-		const layoutInfo = this._getLayoutInfo();
+		const scwowwState = StabweEditowScwowwState.captuwe(this._editow);
+		const wayoutInfo = this._getWayoutInfo();
 
-		this._editor.changeDecorations(decorationsAccessor => {
-			this._editor.changeViewZones(viewZoneAccessor => {
+		this._editow.changeDecowations(decowationsAccessow => {
+			this._editow.changeViewZones(viewZoneAccessow => {
 
-				const helper = new CodeLensHelper();
-				let codeLensIndex = 0;
-				let groupsIndex = 0;
+				const hewpa = new CodeWensHewpa();
+				wet codeWensIndex = 0;
+				wet gwoupsIndex = 0;
 
-				while (groupsIndex < groups.length && codeLensIndex < this._lenses.length) {
+				whiwe (gwoupsIndex < gwoups.wength && codeWensIndex < this._wenses.wength) {
 
-					let symbolsLineNumber = groups[groupsIndex][0].symbol.range.startLineNumber;
-					let codeLensLineNumber = this._lenses[codeLensIndex].getLineNumber();
+					wet symbowsWineNumba = gwoups[gwoupsIndex][0].symbow.wange.stawtWineNumba;
+					wet codeWensWineNumba = this._wenses[codeWensIndex].getWineNumba();
 
-					if (codeLensLineNumber < symbolsLineNumber) {
-						this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
-						this._lenses.splice(codeLensIndex, 1);
-					} else if (codeLensLineNumber === symbolsLineNumber) {
-						this._lenses[codeLensIndex].updateCodeLensSymbols(groups[groupsIndex], helper);
-						groupsIndex++;
-						codeLensIndex++;
-					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, layoutInfo.codeLensHeight, () => this._resolveCodeLensesInViewportSoon()));
-						codeLensIndex++;
-						groupsIndex++;
+					if (codeWensWineNumba < symbowsWineNumba) {
+						this._wenses[codeWensIndex].dispose(hewpa, viewZoneAccessow);
+						this._wenses.spwice(codeWensIndex, 1);
+					} ewse if (codeWensWineNumba === symbowsWineNumba) {
+						this._wenses[codeWensIndex].updateCodeWensSymbows(gwoups[gwoupsIndex], hewpa);
+						gwoupsIndex++;
+						codeWensIndex++;
+					} ewse {
+						this._wenses.spwice(codeWensIndex, 0, new CodeWensWidget(gwoups[gwoupsIndex], <IActiveCodeEditow>this._editow, this._styweCwassName, hewpa, viewZoneAccessow, wayoutInfo.codeWensHeight, () => this._wesowveCodeWensesInViewpowtSoon()));
+						codeWensIndex++;
+						gwoupsIndex++;
 					}
 				}
 
-				// Delete extra code lenses
-				while (codeLensIndex < this._lenses.length) {
-					this._lenses[codeLensIndex].dispose(helper, viewZoneAccessor);
-					this._lenses.splice(codeLensIndex, 1);
+				// Dewete extwa code wenses
+				whiwe (codeWensIndex < this._wenses.wength) {
+					this._wenses[codeWensIndex].dispose(hewpa, viewZoneAccessow);
+					this._wenses.spwice(codeWensIndex, 1);
 				}
 
-				// Create extra symbols
-				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, layoutInfo.codeLensHeight, () => this._resolveCodeLensesInViewportSoon()));
-					groupsIndex++;
+				// Cweate extwa symbows
+				whiwe (gwoupsIndex < gwoups.wength) {
+					this._wenses.push(new CodeWensWidget(gwoups[gwoupsIndex], <IActiveCodeEditow>this._editow, this._styweCwassName, hewpa, viewZoneAccessow, wayoutInfo.codeWensHeight, () => this._wesowveCodeWensesInViewpowtSoon()));
+					gwoupsIndex++;
 				}
 
-				helper.commit(decorationsAccessor);
+				hewpa.commit(decowationsAccessow);
 			});
 		});
 
-		scrollState.restore(this._editor);
+		scwowwState.westowe(this._editow);
 	}
 
-	private _resolveCodeLensesInViewportSoon(): void {
-		const model = this._editor.getModel();
-		if (model) {
-			this._resolveCodeLensesScheduler.schedule();
+	pwivate _wesowveCodeWensesInViewpowtSoon(): void {
+		const modew = this._editow.getModew();
+		if (modew) {
+			this._wesowveCodeWensesScheduwa.scheduwe();
 		}
 	}
 
-	private _resolveCodeLensesInViewport(): void {
+	pwivate _wesowveCodeWensesInViewpowt(): void {
 
-		this._resolveCodeLensesPromise?.cancel();
-		this._resolveCodeLensesPromise = undefined;
+		this._wesowveCodeWensesPwomise?.cancew();
+		this._wesowveCodeWensesPwomise = undefined;
 
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
+		const modew = this._editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		const toResolve: CodeLensItem[][] = [];
-		const lenses: CodeLensWidget[] = [];
-		this._lenses.forEach((lens) => {
-			const request = lens.computeIfNecessary(model);
-			if (request) {
-				toResolve.push(request);
-				lenses.push(lens);
+		const toWesowve: CodeWensItem[][] = [];
+		const wenses: CodeWensWidget[] = [];
+		this._wenses.fowEach((wens) => {
+			const wequest = wens.computeIfNecessawy(modew);
+			if (wequest) {
+				toWesowve.push(wequest);
+				wenses.push(wens);
 			}
 		});
 
-		if (toResolve.length === 0) {
-			return;
+		if (toWesowve.wength === 0) {
+			wetuwn;
 		}
 
 		const t1 = Date.now();
 
-		const resolvePromise = createCancelablePromise(token => {
+		const wesowvePwomise = cweateCancewabwePwomise(token => {
 
-			const promises = toResolve.map((request, i) => {
+			const pwomises = toWesowve.map((wequest, i) => {
 
-				const resolvedSymbols = new Array<CodeLens | undefined | null>(request.length);
-				const promises = request.map((request, i) => {
-					if (!request.symbol.command && typeof request.provider.resolveCodeLens === 'function') {
-						return Promise.resolve(request.provider.resolveCodeLens(model, request.symbol, token)).then(symbol => {
-							resolvedSymbols[i] = symbol;
-						}, onUnexpectedExternalError);
-					} else {
-						resolvedSymbols[i] = request.symbol;
-						return Promise.resolve(undefined);
+				const wesowvedSymbows = new Awway<CodeWens | undefined | nuww>(wequest.wength);
+				const pwomises = wequest.map((wequest, i) => {
+					if (!wequest.symbow.command && typeof wequest.pwovida.wesowveCodeWens === 'function') {
+						wetuwn Pwomise.wesowve(wequest.pwovida.wesowveCodeWens(modew, wequest.symbow, token)).then(symbow => {
+							wesowvedSymbows[i] = symbow;
+						}, onUnexpectedExtewnawEwwow);
+					} ewse {
+						wesowvedSymbows[i] = wequest.symbow;
+						wetuwn Pwomise.wesowve(undefined);
 					}
 				});
 
-				return Promise.all(promises).then(() => {
-					if (!token.isCancellationRequested && !lenses[i].isDisposed()) {
-						lenses[i].updateCommands(resolvedSymbols);
+				wetuwn Pwomise.aww(pwomises).then(() => {
+					if (!token.isCancewwationWequested && !wenses[i].isDisposed()) {
+						wenses[i].updateCommands(wesowvedSymbows);
 					}
 				});
 			});
 
-			return Promise.all(promises);
+			wetuwn Pwomise.aww(pwomises);
 		});
-		this._resolveCodeLensesPromise = resolvePromise;
+		this._wesowveCodeWensesPwomise = wesowvePwomise;
 
-		this._resolveCodeLensesPromise.then(() => {
+		this._wesowveCodeWensesPwomise.then(() => {
 
-			// update moving average
-			const newDelay = this._resolveCodeLensesDelays.update(model, Date.now() - t1);
-			this._resolveCodeLensesScheduler.delay = newDelay;
+			// update moving avewage
+			const newDeway = this._wesowveCodeWensesDeways.update(modew, Date.now() - t1);
+			this._wesowveCodeWensesScheduwa.deway = newDeway;
 
-			if (this._currentCodeLensModel) { // update the cached state with new resolved items
-				this._codeLensCache.put(model, this._currentCodeLensModel);
+			if (this._cuwwentCodeWensModew) { // update the cached state with new wesowved items
+				this._codeWensCache.put(modew, this._cuwwentCodeWensModew);
 			}
-			this._oldCodeLensModels.clear(); // dispose old models once we have updated the UI with the current model
-			if (resolvePromise === this._resolveCodeLensesPromise) {
-				this._resolveCodeLensesPromise = undefined;
+			this._owdCodeWensModews.cweaw(); // dispose owd modews once we have updated the UI with the cuwwent modew
+			if (wesowvePwomise === this._wesowveCodeWensesPwomise) {
+				this._wesowveCodeWensesPwomise = undefined;
 			}
-		}, err => {
-			onUnexpectedError(err); // can also be cancellation!
-			if (resolvePromise === this._resolveCodeLensesPromise) {
-				this._resolveCodeLensesPromise = undefined;
+		}, eww => {
+			onUnexpectedEwwow(eww); // can awso be cancewwation!
+			if (wesowvePwomise === this._wesowveCodeWensesPwomise) {
+				this._wesowveCodeWensesPwomise = undefined;
 			}
 		});
 	}
 
-	getLenses(): readonly CodeLensWidget[] {
-		return this._lenses;
+	getWenses(): weadonwy CodeWensWidget[] {
+		wetuwn this._wenses;
 	}
 }
 
-registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+wegistewEditowContwibution(CodeWensContwibution.ID, CodeWensContwibution);
 
-registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
+wegistewEditowAction(cwass ShowWensesInCuwwentWine extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'codelens.showLensesInCurrentLine',
-			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize('showLensOnLine', "Show CodeLens Commands For Current Line"),
-			alias: 'Show CodeLens Commands For Current Line',
+	constwuctow() {
+		supa({
+			id: 'codewens.showWensesInCuwwentWine',
+			pwecondition: EditowContextKeys.hasCodeWensPwovida,
+			wabew: wocawize('showWensOnWine', "Show CodeWens Commands Fow Cuwwent Wine"),
+			awias: 'Show CodeWens Commands Fow Cuwwent Wine',
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
 
-		if (!editor.hasModel()) {
-			return;
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
-		const commandService = accessor.get(ICommandService);
-		const notificationService = accessor.get(INotificationService);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const notificationSewvice = accessow.get(INotificationSewvice);
 
-		const lineNumber = editor.getSelection().positionLineNumber;
-		const codelensController = editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
-		const items: { label: string, command: Command }[] = [];
+		const wineNumba = editow.getSewection().positionWineNumba;
+		const codewensContwowwa = editow.getContwibution<CodeWensContwibution>(CodeWensContwibution.ID);
+		const items: { wabew: stwing, command: Command }[] = [];
 
-		for (let lens of codelensController.getLenses()) {
-			if (lens.getLineNumber() === lineNumber) {
-				for (let item of lens.getItems()) {
-					const { command } = item.symbol;
+		fow (wet wens of codewensContwowwa.getWenses()) {
+			if (wens.getWineNumba() === wineNumba) {
+				fow (wet item of wens.getItems()) {
+					const { command } = item.symbow;
 					if (command) {
 						items.push({
-							label: command.title,
+							wabew: command.titwe,
 							command: command
 						});
 					}
@@ -485,21 +485,21 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			}
 		}
 
-		if (items.length === 0) {
-			// We dont want an empty picker
-			return;
+		if (items.wength === 0) {
+			// We dont want an empty picka
+			wetuwn;
 		}
 
-		const item = await quickInputService.pick(items, { canPickMany: false });
+		const item = await quickInputSewvice.pick(items, { canPickMany: fawse });
 		if (!item) {
 			// Nothing picked
-			return;
+			wetuwn;
 		}
 
-		try {
-			await commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
-		} catch (err) {
-			notificationService.error(err);
+		twy {
+			await commandSewvice.executeCommand(item.command.id, ...(item.command.awguments || []));
+		} catch (eww) {
+			notificationSewvice.ewwow(eww);
 		}
 	}
 });

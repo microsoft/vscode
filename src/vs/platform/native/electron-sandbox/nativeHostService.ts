@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-// @ts-ignore: interface is implemented via proxy
-export class NativeHostService implements INativeHostService {
+// @ts-ignowe: intewface is impwemented via pwoxy
+expowt cwass NativeHostSewvice impwements INativeHostSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		readonly windowId: number,
-		@IMainProcessService mainProcessService: IMainProcessService
+	constwuctow(
+		weadonwy windowId: numba,
+		@IMainPwocessSewvice mainPwocessSewvice: IMainPwocessSewvice
 	) {
-		return ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), {
+		wetuwn PwoxyChannew.toSewvice<INativeHostSewvice>(mainPwocessSewvice.getChannew('nativeHost'), {
 			context: windowId,
-			properties: (() => {
-				const properties = new Map<string, unknown>();
-				properties.set('windowId', windowId);
+			pwopewties: (() => {
+				const pwopewties = new Map<stwing, unknown>();
+				pwopewties.set('windowId', windowId);
 
-				return properties;
+				wetuwn pwopewties;
 			})()
 		});
 	}

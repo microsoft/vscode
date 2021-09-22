@@ -1,366 +1,366 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import 'vs/css!./goToDefinitionAtPosition';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IFoundBracket, IModelDeltaDecoration, ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/link/clickLinkGesture';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { DefinitionAction } from '../goToCommands';
-import { getDefinitionsAtPosition } from '../goToSymbol';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./goToDefinitionAtPosition';
+impowt { CodeEditowStateFwag, EditowState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IFoundBwacket, IModewDewtaDecowation, ITextModew, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { DefinitionPwovidewWegistwy, WocationWink } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { CwickWinkGestuwe, CwickWinkKeyboawdEvent, CwickWinkMouseEvent } fwom 'vs/editow/contwib/gotoSymbow/wink/cwickWinkGestuwe';
+impowt { PeekContext } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { editowActiveWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DefinitionAction } fwom '../goToCommands';
+impowt { getDefinitionsAtPosition } fwom '../goToSymbow';
 
-export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
+expowt cwass GotoDefinitionAtPositionEditowContwibution impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.gotodefinitionatposition';
-	static readonly MAX_SOURCE_PREVIEW_LINES = 8;
+	pubwic static weadonwy ID = 'editow.contwib.gotodefinitionatposition';
+	static weadonwy MAX_SOUWCE_PWEVIEW_WINES = 8;
 
-	private readonly editor: ICodeEditor;
-	private readonly toUnhook = new DisposableStore();
-	private readonly toUnhookForKeyboard = new DisposableStore();
-	private linkDecorations: string[] = [];
-	private currentWordAtPosition: IWordAtPosition | null = null;
-	private previousPromise: CancelablePromise<LocationLink[] | null> | null = null;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate weadonwy toUnhook = new DisposabweStowe();
+	pwivate weadonwy toUnhookFowKeyboawd = new DisposabweStowe();
+	pwivate winkDecowations: stwing[] = [];
+	pwivate cuwwentWowdAtPosition: IWowdAtPosition | nuww = nuww;
+	pwivate pweviousPwomise: CancewabwePwomise<WocationWink[] | nuww> | nuww = nuww;
 
-	constructor(
-		editor: ICodeEditor,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService
+	constwuctow(
+		editow: ICodeEditow,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice
 	) {
-		this.editor = editor;
+		this.editow = editow;
 
-		let linkGesture = new ClickLinkGesture(editor);
-		this.toUnhook.add(linkGesture);
+		wet winkGestuwe = new CwickWinkGestuwe(editow);
+		this.toUnhook.add(winkGestuwe);
 
-		this.toUnhook.add(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
-			this.startFindDefinitionFromMouse(mouseEvent, withNullAsUndefined(keyboardEvent));
+		this.toUnhook.add(winkGestuwe.onMouseMoveOwWewevantKeyDown(([mouseEvent, keyboawdEvent]) => {
+			this.stawtFindDefinitionFwomMouse(mouseEvent, withNuwwAsUndefined(keyboawdEvent));
 		}));
 
-		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
-			if (this.isEnabled(mouseEvent)) {
-				this.gotoDefinition(mouseEvent.target.position!, mouseEvent.hasSideBySideModifier).then(() => {
-					this.removeLinkDecorations();
-				}, (error: Error) => {
-					this.removeLinkDecorations();
-					onUnexpectedError(error);
+		this.toUnhook.add(winkGestuwe.onExecute((mouseEvent: CwickWinkMouseEvent) => {
+			if (this.isEnabwed(mouseEvent)) {
+				this.gotoDefinition(mouseEvent.tawget.position!, mouseEvent.hasSideBySideModifia).then(() => {
+					this.wemoveWinkDecowations();
+				}, (ewwow: Ewwow) => {
+					this.wemoveWinkDecowations();
+					onUnexpectedEwwow(ewwow);
 				});
 			}
 		}));
 
-		this.toUnhook.add(linkGesture.onCancel(() => {
-			this.removeLinkDecorations();
-			this.currentWordAtPosition = null;
+		this.toUnhook.add(winkGestuwe.onCancew(() => {
+			this.wemoveWinkDecowations();
+			this.cuwwentWowdAtPosition = nuww;
 		}));
 	}
 
-	static get(editor: ICodeEditor): GotoDefinitionAtPositionEditorContribution {
-		return editor.getContribution<GotoDefinitionAtPositionEditorContribution>(GotoDefinitionAtPositionEditorContribution.ID);
+	static get(editow: ICodeEditow): GotoDefinitionAtPositionEditowContwibution {
+		wetuwn editow.getContwibution<GotoDefinitionAtPositionEditowContwibution>(GotoDefinitionAtPositionEditowContwibution.ID);
 	}
 
-	startFindDefinitionFromCursor(position: Position) {
-		// For issue: https://github.com/microsoft/vscode/issues/46257
-		// equivalent to mouse move with meta/ctrl key
+	stawtFindDefinitionFwomCuwsow(position: Position) {
+		// Fow issue: https://github.com/micwosoft/vscode/issues/46257
+		// equivawent to mouse move with meta/ctww key
 
-		// First find the definition and add decorations
-		// to the editor to be shown with the content hover widget
-		return this.startFindDefinition(position).then(() => {
+		// Fiwst find the definition and add decowations
+		// to the editow to be shown with the content hova widget
+		wetuwn this.stawtFindDefinition(position).then(() => {
 
-			// Add listeners for editor cursor move and key down events
-			// Dismiss the "extended" editor decorations when the user hides
-			// the hover widget. There is no event for the widget itself so these
-			// serve as a best effort. After removing the link decorations, the hover
-			// widget is clean and will only show declarations per next request.
-			this.toUnhookForKeyboard.add(this.editor.onDidChangeCursorPosition(() => {
-				this.currentWordAtPosition = null;
-				this.removeLinkDecorations();
-				this.toUnhookForKeyboard.clear();
+			// Add wistenews fow editow cuwsow move and key down events
+			// Dismiss the "extended" editow decowations when the usa hides
+			// the hova widget. Thewe is no event fow the widget itsewf so these
+			// sewve as a best effowt. Afta wemoving the wink decowations, the hova
+			// widget is cwean and wiww onwy show decwawations pew next wequest.
+			this.toUnhookFowKeyboawd.add(this.editow.onDidChangeCuwsowPosition(() => {
+				this.cuwwentWowdAtPosition = nuww;
+				this.wemoveWinkDecowations();
+				this.toUnhookFowKeyboawd.cweaw();
 			}));
 
-			this.toUnhookForKeyboard.add(this.editor.onKeyDown((e: IKeyboardEvent) => {
+			this.toUnhookFowKeyboawd.add(this.editow.onKeyDown((e: IKeyboawdEvent) => {
 				if (e) {
-					this.currentWordAtPosition = null;
-					this.removeLinkDecorations();
-					this.toUnhookForKeyboard.clear();
+					this.cuwwentWowdAtPosition = nuww;
+					this.wemoveWinkDecowations();
+					this.toUnhookFowKeyboawd.cweaw();
 				}
 			}));
 		});
 	}
 
-	private startFindDefinitionFromMouse(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
+	pwivate stawtFindDefinitionFwomMouse(mouseEvent: CwickWinkMouseEvent, withKey?: CwickWinkKeyboawdEvent): void {
 
-		// check if we are active and on a content widget
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_WIDGET && this.linkDecorations.length > 0) {
-			return;
+		// check if we awe active and on a content widget
+		if (mouseEvent.tawget.type === MouseTawgetType.CONTENT_WIDGET && this.winkDecowations.wength > 0) {
+			wetuwn;
 		}
 
-		if (!this.editor.hasModel() || !this.isEnabled(mouseEvent, withKey)) {
-			this.currentWordAtPosition = null;
-			this.removeLinkDecorations();
-			return;
+		if (!this.editow.hasModew() || !this.isEnabwed(mouseEvent, withKey)) {
+			this.cuwwentWowdAtPosition = nuww;
+			this.wemoveWinkDecowations();
+			wetuwn;
 		}
 
-		const position = mouseEvent.target.position!;
+		const position = mouseEvent.tawget.position!;
 
-		this.startFindDefinition(position);
+		this.stawtFindDefinition(position);
 	}
 
-	private startFindDefinition(position: Position): Promise<number | undefined> {
+	pwivate stawtFindDefinition(position: Position): Pwomise<numba | undefined> {
 
-		// Dispose listeners for updating decorations when using keyboard to show definition hover
-		this.toUnhookForKeyboard.clear();
+		// Dispose wistenews fow updating decowations when using keyboawd to show definition hova
+		this.toUnhookFowKeyboawd.cweaw();
 
-		// Find word at mouse position
-		const word = position ? this.editor.getModel()?.getWordAtPosition(position) : null;
-		if (!word) {
-			this.currentWordAtPosition = null;
-			this.removeLinkDecorations();
-			return Promise.resolve(0);
+		// Find wowd at mouse position
+		const wowd = position ? this.editow.getModew()?.getWowdAtPosition(position) : nuww;
+		if (!wowd) {
+			this.cuwwentWowdAtPosition = nuww;
+			this.wemoveWinkDecowations();
+			wetuwn Pwomise.wesowve(0);
 		}
 
-		// Return early if word at position is still the same
-		if (this.currentWordAtPosition && this.currentWordAtPosition.startColumn === word.startColumn && this.currentWordAtPosition.endColumn === word.endColumn && this.currentWordAtPosition.word === word.word) {
-			return Promise.resolve(0);
+		// Wetuwn eawwy if wowd at position is stiww the same
+		if (this.cuwwentWowdAtPosition && this.cuwwentWowdAtPosition.stawtCowumn === wowd.stawtCowumn && this.cuwwentWowdAtPosition.endCowumn === wowd.endCowumn && this.cuwwentWowdAtPosition.wowd === wowd.wowd) {
+			wetuwn Pwomise.wesowve(0);
 		}
 
-		this.currentWordAtPosition = word;
+		this.cuwwentWowdAtPosition = wowd;
 
-		// Find definition and decorate word if found
-		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+		// Find definition and decowate wowd if found
+		wet state = new EditowState(this.editow, CodeEditowStateFwag.Position | CodeEditowStateFwag.Vawue | CodeEditowStateFwag.Sewection | CodeEditowStateFwag.Scwoww);
 
-		if (this.previousPromise) {
-			this.previousPromise.cancel();
-			this.previousPromise = null;
+		if (this.pweviousPwomise) {
+			this.pweviousPwomise.cancew();
+			this.pweviousPwomise = nuww;
 		}
 
-		this.previousPromise = createCancelablePromise(token => this.findDefinition(position, token));
+		this.pweviousPwomise = cweateCancewabwePwomise(token => this.findDefinition(position, token));
 
-		return this.previousPromise.then(results => {
-			if (!results || !results.length || !state.validate(this.editor)) {
-				this.removeLinkDecorations();
-				return;
+		wetuwn this.pweviousPwomise.then(wesuwts => {
+			if (!wesuwts || !wesuwts.wength || !state.vawidate(this.editow)) {
+				this.wemoveWinkDecowations();
+				wetuwn;
 			}
 
-			// Multiple results
-			if (results.length > 1) {
-				this.addDecoration(
-					new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
-					new MarkdownString().appendText(nls.localize('multipleResults', "Click to show {0} definitions.", results.length))
+			// Muwtipwe wesuwts
+			if (wesuwts.wength > 1) {
+				this.addDecowation(
+					new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, wowd.endCowumn),
+					new MawkdownStwing().appendText(nws.wocawize('muwtipweWesuwts', "Cwick to show {0} definitions.", wesuwts.wength))
 				);
 			}
 
-			// Single result
-			else {
-				let result = results[0];
+			// Singwe wesuwt
+			ewse {
+				wet wesuwt = wesuwts[0];
 
-				if (!result.uri) {
-					return;
+				if (!wesuwt.uwi) {
+					wetuwn;
 				}
 
-				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+				this.textModewWesowvewSewvice.cweateModewWefewence(wesuwt.uwi).then(wef => {
 
-					if (!ref.object || !ref.object.textEditorModel) {
-						ref.dispose();
-						return;
+					if (!wef.object || !wef.object.textEditowModew) {
+						wef.dispose();
+						wetuwn;
 					}
 
-					const { object: { textEditorModel } } = ref;
-					const { startLineNumber } = result.range;
+					const { object: { textEditowModew } } = wef;
+					const { stawtWineNumba } = wesuwt.wange;
 
-					if (startLineNumber < 1 || startLineNumber > textEditorModel.getLineCount()) {
-						// invalid range
-						ref.dispose();
-						return;
+					if (stawtWineNumba < 1 || stawtWineNumba > textEditowModew.getWineCount()) {
+						// invawid wange
+						wef.dispose();
+						wetuwn;
 					}
 
-					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber, result);
+					const pweviewVawue = this.getPweviewVawue(textEditowModew, stawtWineNumba, wesuwt);
 
-					let wordRange: Range;
-					if (result.originSelectionRange) {
-						wordRange = Range.lift(result.originSelectionRange);
-					} else {
-						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+					wet wowdWange: Wange;
+					if (wesuwt.owiginSewectionWange) {
+						wowdWange = Wange.wift(wesuwt.owiginSewectionWange);
+					} ewse {
+						wowdWange = new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, wowd.endCowumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
-					this.addDecoration(
-						wordRange,
-						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
+					const modeId = this.modeSewvice.getModeIdByFiwepathOwFiwstWine(textEditowModew.uwi);
+					this.addDecowation(
+						wowdWange,
+						new MawkdownStwing().appendCodebwock(modeId ? modeId : '', pweviewVawue)
 					);
-					ref.dispose();
+					wef.dispose();
 				});
 			}
-		}).then(undefined, onUnexpectedError);
+		}).then(undefined, onUnexpectedEwwow);
 	}
 
-	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number, result: LocationLink) {
-		let rangeToUse = result.targetSelectionRange ? result.range : this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
-		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
-		if (numberOfLinesInRange >= GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
-			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
+	pwivate getPweviewVawue(textEditowModew: ITextModew, stawtWineNumba: numba, wesuwt: WocationWink) {
+		wet wangeToUse = wesuwt.tawgetSewectionWange ? wesuwt.wange : this.getPweviewWangeBasedOnBwackets(textEditowModew, stawtWineNumba);
+		const numbewOfWinesInWange = wangeToUse.endWineNumba - wangeToUse.stawtWineNumba;
+		if (numbewOfWinesInWange >= GotoDefinitionAtPositionEditowContwibution.MAX_SOUWCE_PWEVIEW_WINES) {
+			wangeToUse = this.getPweviewWangeBasedOnIndentation(textEditowModew, stawtWineNumba);
 		}
 
-		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
-		return previewValue;
+		const pweviewVawue = this.stwipIndentationFwomPweviewWange(textEditowModew, stawtWineNumba, wangeToUse);
+		wetuwn pweviewVawue;
 	}
 
-	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
-		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		let minIndent = startIndent;
+	pwivate stwipIndentationFwomPweviewWange(textEditowModew: ITextModew, stawtWineNumba: numba, pweviewWange: IWange) {
+		const stawtIndent = textEditowModew.getWineFiwstNonWhitespaceCowumn(stawtWineNumba);
+		wet minIndent = stawtIndent;
 
-		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
-			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+		fow (wet endWineNumba = stawtWineNumba + 1; endWineNumba < pweviewWange.endWineNumba; endWineNumba++) {
+			const endIndent = textEditowModew.getWineFiwstNonWhitespaceCowumn(endWineNumba);
 			minIndent = Math.min(minIndent, endIndent);
 		}
 
-		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
-		return previewValue;
+		const pweviewVawue = textEditowModew.getVawueInWange(pweviewWange).wepwace(new WegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').twim();
+		wetuwn pweviewVawue;
 	}
 
-	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
-		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-		let endLineNumber = startLineNumber + 1;
+	pwivate getPweviewWangeBasedOnIndentation(textEditowModew: ITextModew, stawtWineNumba: numba) {
+		const stawtIndent = textEditowModew.getWineFiwstNonWhitespaceCowumn(stawtWineNumba);
+		const maxWineNumba = Math.min(textEditowModew.getWineCount(), stawtWineNumba + GotoDefinitionAtPositionEditowContwibution.MAX_SOUWCE_PWEVIEW_WINES);
+		wet endWineNumba = stawtWineNumba + 1;
 
-		for (; endLineNumber < maxLineNumber; endLineNumber++) {
-			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+		fow (; endWineNumba < maxWineNumba; endWineNumba++) {
+			wet endIndent = textEditowModew.getWineFiwstNonWhitespaceCowumn(endWineNumba);
 
-			if (startIndent === endIndent) {
-				break;
+			if (stawtIndent === endIndent) {
+				bweak;
 			}
 		}
 
-		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+		wetuwn new Wange(stawtWineNumba, 1, endWineNumba + 1, 1);
 	}
 
-	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
-		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionAtPositionEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+	pwivate getPweviewWangeBasedOnBwackets(textEditowModew: ITextModew, stawtWineNumba: numba) {
+		const maxWineNumba = Math.min(textEditowModew.getWineCount(), stawtWineNumba + GotoDefinitionAtPositionEditowContwibution.MAX_SOUWCE_PWEVIEW_WINES);
 
-		const brackets: IFoundBracket[] = [];
+		const bwackets: IFoundBwacket[] = [];
 
-		let ignoreFirstEmpty = true;
-		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
-		while (currentBracket !== null) {
+		wet ignoweFiwstEmpty = twue;
+		wet cuwwentBwacket = textEditowModew.findNextBwacket(new Position(stawtWineNumba, 1));
+		whiwe (cuwwentBwacket !== nuww) {
 
-			if (brackets.length === 0) {
-				brackets.push(currentBracket);
-			} else {
-				const lastBracket = brackets[brackets.length - 1];
-				if (lastBracket.open[0] === currentBracket.open[0] && lastBracket.isOpen && !currentBracket.isOpen) {
-					brackets.pop();
-				} else {
-					brackets.push(currentBracket);
+			if (bwackets.wength === 0) {
+				bwackets.push(cuwwentBwacket);
+			} ewse {
+				const wastBwacket = bwackets[bwackets.wength - 1];
+				if (wastBwacket.open[0] === cuwwentBwacket.open[0] && wastBwacket.isOpen && !cuwwentBwacket.isOpen) {
+					bwackets.pop();
+				} ewse {
+					bwackets.push(cuwwentBwacket);
 				}
 
-				if (brackets.length === 0) {
-					if (ignoreFirstEmpty) {
-						ignoreFirstEmpty = false;
-					} else {
-						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
+				if (bwackets.wength === 0) {
+					if (ignoweFiwstEmpty) {
+						ignoweFiwstEmpty = fawse;
+					} ewse {
+						wetuwn new Wange(stawtWineNumba, 1, cuwwentBwacket.wange.endWineNumba + 1, 1);
 					}
 				}
 			}
 
-			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
-			let nextLineNumber = currentBracket.range.endLineNumber;
-			let nextColumn = currentBracket.range.endColumn;
-			if (maxColumn === currentBracket.range.endColumn) {
-				nextLineNumber++;
-				nextColumn = 1;
+			const maxCowumn = textEditowModew.getWineMaxCowumn(stawtWineNumba);
+			wet nextWineNumba = cuwwentBwacket.wange.endWineNumba;
+			wet nextCowumn = cuwwentBwacket.wange.endCowumn;
+			if (maxCowumn === cuwwentBwacket.wange.endCowumn) {
+				nextWineNumba++;
+				nextCowumn = 1;
 			}
 
-			if (nextLineNumber > maxLineNumber) {
-				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
+			if (nextWineNumba > maxWineNumba) {
+				wetuwn new Wange(stawtWineNumba, 1, maxWineNumba + 1, 1);
 			}
 
-			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
+			cuwwentBwacket = textEditowModew.findNextBwacket(new Position(nextWineNumba, nextCowumn));
 		}
 
-		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
+		wetuwn new Wange(stawtWineNumba, 1, maxWineNumba + 1, 1);
 	}
 
-	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
+	pwivate addDecowation(wange: Wange, hovewMessage: MawkdownStwing): void {
 
-		const newDecorations: IModelDeltaDecoration = {
-			range: range,
+		const newDecowations: IModewDewtaDecowation = {
+			wange: wange,
 			options: {
-				description: 'goto-definition-link',
-				inlineClassName: 'goto-definition-link',
-				hoverMessage
+				descwiption: 'goto-definition-wink',
+				inwineCwassName: 'goto-definition-wink',
+				hovewMessage
 			}
 		};
 
-		this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, [newDecorations]);
+		this.winkDecowations = this.editow.dewtaDecowations(this.winkDecowations, [newDecowations]);
 	}
 
-	private removeLinkDecorations(): void {
-		if (this.linkDecorations.length > 0) {
-			this.linkDecorations = this.editor.deltaDecorations(this.linkDecorations, []);
+	pwivate wemoveWinkDecowations(): void {
+		if (this.winkDecowations.wength > 0) {
+			this.winkDecowations = this.editow.dewtaDecowations(this.winkDecowations, []);
 		}
 	}
 
-	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): boolean {
-		return this.editor.hasModel() &&
-			mouseEvent.isNoneOrSingleMouseDown &&
-			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
-			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
-			DefinitionProviderRegistry.has(this.editor.getModel());
+	pwivate isEnabwed(mouseEvent: CwickWinkMouseEvent, withKey?: CwickWinkKeyboawdEvent): boowean {
+		wetuwn this.editow.hasModew() &&
+			mouseEvent.isNoneOwSingweMouseDown &&
+			(mouseEvent.tawget.type === MouseTawgetType.CONTENT_TEXT) &&
+			(mouseEvent.hasTwiggewModifia || (withKey ? withKey.keyCodeIsTwiggewKey : fawse)) &&
+			DefinitionPwovidewWegistwy.has(this.editow.getModew());
 	}
 
-	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
-		const model = this.editor.getModel();
-		if (!model) {
-			return Promise.resolve(null);
+	pwivate findDefinition(position: Position, token: CancewwationToken): Pwomise<WocationWink[] | nuww> {
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		return getDefinitionsAtPosition(model, position, token);
+		wetuwn getDefinitionsAtPosition(modew, position, token);
 	}
 
-	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {
-		this.editor.setPosition(position);
-		return this.editor.invokeWithinContext((accessor) => {
-			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
-			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
-			return action.run(accessor, this.editor);
+	pwivate gotoDefinition(position: Position, openToSide: boowean): Pwomise<any> {
+		this.editow.setPosition(position);
+		wetuwn this.editow.invokeWithinContext((accessow) => {
+			const canPeek = !openToSide && this.editow.getOption(EditowOption.definitionWinkOpensInPeek) && !this.isInPeekEditow(accessow);
+			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: twue }, { awias: '', wabew: '', id: '', pwecondition: undefined });
+			wetuwn action.wun(accessow, this.editow);
 		});
 	}
 
-	private isInPeekEditor(accessor: ServicesAccessor): boolean | undefined {
-		const contextKeyService = accessor.get(IContextKeyService);
-		return PeekContext.inPeekEditor.getValue(contextKeyService);
+	pwivate isInPeekEditow(accessow: SewvicesAccessow): boowean | undefined {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		wetuwn PeekContext.inPeekEditow.getVawue(contextKeySewvice);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this.toUnhook.dispose();
 	}
 }
 
-registerEditorContribution(GotoDefinitionAtPositionEditorContribution.ID, GotoDefinitionAtPositionEditorContribution);
+wegistewEditowContwibution(GotoDefinitionAtPositionEditowContwibution.ID, GotoDefinitionAtPositionEditowContwibution);
 
-registerThemingParticipant((theme, collector) => {
-	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
-	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const activeWinkFowegwound = theme.getCowow(editowActiveWinkFowegwound);
+	if (activeWinkFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .goto-definition-wink { cowow: ${activeWinkFowegwound} !impowtant; }`);
 	}
 });

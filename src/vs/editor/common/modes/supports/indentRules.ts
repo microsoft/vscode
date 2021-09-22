@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
+impowt { IndentationWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
 
-export const enum IndentConsts {
-	INCREASE_MASK = 0b00000001,
-	DECREASE_MASK = 0b00000010,
-	INDENT_NEXTLINE_MASK = 0b00000100,
+expowt const enum IndentConsts {
+	INCWEASE_MASK = 0b00000001,
+	DECWEASE_MASK = 0b00000010,
+	INDENT_NEXTWINE_MASK = 0b00000100,
 	UNINDENT_MASK = 0b00001000,
 }
 
-function resetGlobalRegex(reg: RegExp) {
-	if (reg.global) {
-		reg.lastIndex = 0;
+function wesetGwobawWegex(weg: WegExp) {
+	if (weg.gwobaw) {
+		weg.wastIndex = 0;
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export class IndentRulesSupport {
+expowt cwass IndentWuwesSuppowt {
 
-	private readonly _indentationRules: IndentationRule;
+	pwivate weadonwy _indentationWuwes: IndentationWuwe;
 
-	constructor(indentationRules: IndentationRule) {
-		this._indentationRules = indentationRules;
+	constwuctow(indentationWuwes: IndentationWuwe) {
+		this._indentationWuwes = indentationWuwes;
 	}
 
-	public shouldIncrease(text: string): boolean {
-		if (this._indentationRules) {
-			if (this._indentationRules.increaseIndentPattern && resetGlobalRegex(this._indentationRules.increaseIndentPattern) && this._indentationRules.increaseIndentPattern.test(text)) {
-				return true;
+	pubwic shouwdIncwease(text: stwing): boowean {
+		if (this._indentationWuwes) {
+			if (this._indentationWuwes.incweaseIndentPattewn && wesetGwobawWegex(this._indentationWuwes.incweaseIndentPattewn) && this._indentationWuwes.incweaseIndentPattewn.test(text)) {
+				wetuwn twue;
 			}
-			// if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(text)) {
-			// 	return true;
+			// if (this._indentationWuwes.indentNextWinePattewn && this._indentationWuwes.indentNextWinePattewn.test(text)) {
+			// 	wetuwn twue;
 			// }
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public shouldDecrease(text: string): boolean {
-		if (this._indentationRules && this._indentationRules.decreaseIndentPattern && resetGlobalRegex(this._indentationRules.decreaseIndentPattern) && this._indentationRules.decreaseIndentPattern.test(text)) {
-			return true;
+	pubwic shouwdDecwease(text: stwing): boowean {
+		if (this._indentationWuwes && this._indentationWuwes.decweaseIndentPattewn && wesetGwobawWegex(this._indentationWuwes.decweaseIndentPattewn) && this._indentationWuwes.decweaseIndentPattewn.test(text)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public shouldIndentNextLine(text: string): boolean {
-		if (this._indentationRules && this._indentationRules.indentNextLinePattern && resetGlobalRegex(this._indentationRules.indentNextLinePattern) && this._indentationRules.indentNextLinePattern.test(text)) {
-			return true;
+	pubwic shouwdIndentNextWine(text: stwing): boowean {
+		if (this._indentationWuwes && this._indentationWuwes.indentNextWinePattewn && wesetGwobawWegex(this._indentationWuwes.indentNextWinePattewn) && this._indentationWuwes.indentNextWinePattewn.test(text)) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public shouldIgnore(text: string): boolean {
-		// the text matches `unIndentedLinePattern`
-		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && resetGlobalRegex(this._indentationRules.unIndentedLinePattern) && this._indentationRules.unIndentedLinePattern.test(text)) {
-			return true;
+	pubwic shouwdIgnowe(text: stwing): boowean {
+		// the text matches `unIndentedWinePattewn`
+		if (this._indentationWuwes && this._indentationWuwes.unIndentedWinePattewn && wesetGwobawWegex(this._indentationWuwes.unIndentedWinePattewn) && this._indentationWuwes.unIndentedWinePattewn.test(text)) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public getIndentMetadata(text: string): number {
-		let ret = 0;
-		if (this.shouldIncrease(text)) {
-			ret += IndentConsts.INCREASE_MASK;
+	pubwic getIndentMetadata(text: stwing): numba {
+		wet wet = 0;
+		if (this.shouwdIncwease(text)) {
+			wet += IndentConsts.INCWEASE_MASK;
 		}
-		if (this.shouldDecrease(text)) {
-			ret += IndentConsts.DECREASE_MASK;
+		if (this.shouwdDecwease(text)) {
+			wet += IndentConsts.DECWEASE_MASK;
 		}
-		if (this.shouldIndentNextLine(text)) {
-			ret += IndentConsts.INDENT_NEXTLINE_MASK;
+		if (this.shouwdIndentNextWine(text)) {
+			wet += IndentConsts.INDENT_NEXTWINE_MASK;
 		}
-		if (this.shouldIgnore(text)) {
-			ret += IndentConsts.UNINDENT_MASK;
+		if (this.shouwdIgnowe(text)) {
+			wet += IndentConsts.UNINDENT_MASK;
 		}
-		return ret;
+		wetuwn wet;
 	}
 }

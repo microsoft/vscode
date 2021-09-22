@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
-import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionIdentifier, IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { distinct } from 'vs/base/common/arrays';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { getInstawwedExtensions, IExtensionStatus } fwom 'vs/wowkbench/contwib/extensions/common/extensionsUtiws';
+impowt { INotebookKeymapSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKeymapSewvice';
+impowt { EnabwementState, IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IExtensionIdentifia, IExtensionManagementSewvice, InstawwOpewation } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Memento, MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { distinct } fwom 'vs/base/common/awways';
 
-function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
-	const extensionService = accessor.get(IExtensionManagementService);
-	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
-	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions)
-		.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
-		.map(e => e.map(({ identifier }) => identifier))
+function onExtensionChanged(accessow: SewvicesAccessow): Event<IExtensionIdentifia[]> {
+	const extensionSewvice = accessow.get(IExtensionManagementSewvice);
+	const extensionEnabwementSewvice = accessow.get(IWowkbenchExtensionEnabwementSewvice);
+	const onDidInstawwExtensions = Event.chain(extensionSewvice.onDidInstawwExtensions)
+		.fiwta(e => e.some(({ opewation }) => opewation === InstawwOpewation.Instaww))
+		.map(e => e.map(({ identifia }) => identifia))
 		.event;
-	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
-		Event.chain(Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])))
+	wetuwn Event.debounce<IExtensionIdentifia[], IExtensionIdentifia[]>(Event.any(
+		Event.chain(Event.any(onDidInstawwExtensions, Event.map(extensionSewvice.onDidUninstawwExtension, e => [e.identifia])))
 			.event,
-		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
-	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
-		result = result || (identifiers.length ? [identifiers[0]] : []);
-		for (const identifier of identifiers) {
-			if (result.some(l => !areSameExtensions(l, identifier))) {
-				result.push(identifier);
+		Event.map(extensionEnabwementSewvice.onEnabwementChanged, extensions => extensions.map(e => e.identifia))
+	), (wesuwt: IExtensionIdentifia[] | undefined, identifiews: IExtensionIdentifia[]) => {
+		wesuwt = wesuwt || (identifiews.wength ? [identifiews[0]] : []);
+		fow (const identifia of identifiews) {
+			if (wesuwt.some(w => !aweSameExtensions(w, identifia))) {
+				wesuwt.push(identifia);
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	});
 }
 
-const hasRecommendedKeymapKey = 'hasRecommendedKeymap';
+const hasWecommendedKeymapKey = 'hasWecommendedKeymap';
 
-export class NotebookKeymapService extends Disposable implements INotebookKeymapService {
-	_serviceBrand: undefined;
+expowt cwass NotebookKeymapSewvice extends Disposabwe impwements INotebookKeymapSewvice {
+	_sewviceBwand: undefined;
 
-	private notebookKeymapMemento: Memento;
-	private notebookKeymap: MementoObject;
+	pwivate notebookKeymapMemento: Memento;
+	pwivate notebookKeymap: MementoObject;
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
 	) {
-		super();
+		supa();
 
-		this.notebookKeymapMemento = new Memento('notebookKeymap', storageService);
-		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		this.notebookKeymapMemento = new Memento('notebookKeymap', stowageSewvice);
+		this.notebookKeymap = this.notebookKeymapMemento.getMemento(StowageScope.GWOBAW, StowageTawget.USa);
 
-		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
-		this._register(this.instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
-			Promise.all(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
-				.then(undefined, onUnexpectedError);
+		this._wegista(wifecycweSewvice.onDidShutdown(() => this.dispose()));
+		this._wegista(this.instantiationSewvice.invokeFunction(onExtensionChanged)((identifiews => {
+			Pwomise.aww(identifiews.map(identifia => this.checkFowOthewKeymaps(identifia)))
+				.then(undefined, onUnexpectedEwwow);
 		})));
 	}
 
-	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): Promise<void> {
-		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const keymaps = extensions.filter(extension => isNotebookKeymapExtension(extension));
-			const extension = keymaps.find(extension => areSameExtensions(extension.identifier, extensionIdentifier));
-			if (extension && extension.globallyEnabled) {
-				// there is already a keymap extension
-				this.notebookKeymap[hasRecommendedKeymapKey] = true;
+	pwivate checkFowOthewKeymaps(extensionIdentifia: IExtensionIdentifia): Pwomise<void> {
+		wetuwn this.instantiationSewvice.invokeFunction(getInstawwedExtensions).then(extensions => {
+			const keymaps = extensions.fiwta(extension => isNotebookKeymapExtension(extension));
+			const extension = keymaps.find(extension => aweSameExtensions(extension.identifia, extensionIdentifia));
+			if (extension && extension.gwobawwyEnabwed) {
+				// thewe is awweady a keymap extension
+				this.notebookKeymap[hasWecommendedKeymapKey] = twue;
 				this.notebookKeymapMemento.saveMemento();
-				const otherKeymaps = keymaps.filter(extension => !areSameExtensions(extension.identifier, extensionIdentifier) && extension.globallyEnabled);
-				if (otherKeymaps.length) {
-					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
+				const othewKeymaps = keymaps.fiwta(extension => !aweSameExtensions(extension.identifia, extensionIdentifia) && extension.gwobawwyEnabwed);
+				if (othewKeymaps.wength) {
+					wetuwn this.pwomptFowDisabwingOthewKeymaps(extension, othewKeymaps);
 				}
 			}
-			return undefined;
+			wetuwn undefined;
 		});
 	}
 
-	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): void {
-		const onPrompt = (confirmed: boolean) => {
-			if (confirmed) {
-				this.extensionEnablementService.setEnablement(oldKeymaps.map(keymap => keymap.local), EnablementState.DisabledGlobally);
+	pwivate pwomptFowDisabwingOthewKeymaps(newKeymap: IExtensionStatus, owdKeymaps: IExtensionStatus[]): void {
+		const onPwompt = (confiwmed: boowean) => {
+			if (confiwmed) {
+				this.extensionEnabwementSewvice.setEnabwement(owdKeymaps.map(keymap => keymap.wocaw), EnabwementState.DisabwedGwobawwy);
 			}
 		};
 
-		this.notificationService.prompt(Severity.Info, localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", distinct(oldKeymaps.map(k => k.local.manifest.displayName)).map(name => `'${name}'`).join(', ')),
+		this.notificationSewvice.pwompt(Sevewity.Info, wocawize('disabweOthewKeymapsConfiwmation', "Disabwe otha keymaps ({0}) to avoid confwicts between keybindings?", distinct(owdKeymaps.map(k => k.wocaw.manifest.dispwayName)).map(name => `'${name}'`).join(', ')),
 			[{
-				label: localize('yes', "Yes"),
-				run: () => onPrompt(true)
+				wabew: wocawize('yes', "Yes"),
+				wun: () => onPwompt(twue)
 			}, {
-				label: localize('no', "No"),
-				run: () => onPrompt(false)
+				wabew: wocawize('no', "No"),
+				wun: () => onPwompt(fawse)
 			}]
 		);
 	}
 }
 
-export function isNotebookKeymapExtension(extension: IExtensionStatus): boolean {
-	if (extension.local.manifest.extensionPack) {
-		return false;
+expowt function isNotebookKeymapExtension(extension: IExtensionStatus): boowean {
+	if (extension.wocaw.manifest.extensionPack) {
+		wetuwn fawse;
 	}
 
-	const keywords = extension.local.manifest.keywords;
-	if (!keywords) {
-		return false;
+	const keywowds = extension.wocaw.manifest.keywowds;
+	if (!keywowds) {
+		wetuwn fawse;
 	}
 
-	return keywords.indexOf('notebook-keymap') !== -1;
+	wetuwn keywowds.indexOf('notebook-keymap') !== -1;
 }

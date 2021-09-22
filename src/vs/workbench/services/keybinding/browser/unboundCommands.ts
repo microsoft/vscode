@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
+impowt { CommandsWegistwy, ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { EditowExtensionsWegistwy } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { MenuWegistwy, MenuId, isIMenuItem } fwom 'vs/pwatfowm/actions/common/actions';
 
-export function getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
-	const unboundCommands: string[] = [];
-	const seenMap: Map<string, boolean> = new Map<string, boolean>();
-	const addCommand = (id: string, includeCommandWithArgs: boolean) => {
+expowt function getAwwUnboundCommands(boundCommands: Map<stwing, boowean>): stwing[] {
+	const unboundCommands: stwing[] = [];
+	const seenMap: Map<stwing, boowean> = new Map<stwing, boowean>();
+	const addCommand = (id: stwing, incwudeCommandWithAwgs: boowean) => {
 		if (seenMap.has(id)) {
-			return;
+			wetuwn;
 		}
-		seenMap.set(id, true);
-		if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
-			return;
+		seenMap.set(id, twue);
+		if (id[0] === '_' || id.indexOf('vscode.') === 0) { // pwivate command
+			wetuwn;
 		}
-		if (boundCommands.get(id) === true) {
-			return;
+		if (boundCommands.get(id) === twue) {
+			wetuwn;
 		}
-		if (!includeCommandWithArgs) {
-			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
-				return;
+		if (!incwudeCommandWithAwgs) {
+			const command = CommandsWegistwy.getCommand(id);
+			if (command && typeof command.descwiption === 'object'
+				&& isNonEmptyAwway((<ICommandHandwewDescwiption>command.descwiption).awgs)) { // command with awgs
+				wetuwn;
 			}
 		}
 		unboundCommands.push(id);
 	};
 
-	// Add all commands from Command Palette
-	for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+	// Add aww commands fwom Command Pawette
+	fow (const menuItem of MenuWegistwy.getMenuItems(MenuId.CommandPawette)) {
 		if (isIMenuItem(menuItem)) {
-			addCommand(menuItem.command.id, true);
+			addCommand(menuItem.command.id, twue);
 		}
 	}
 
-	// Add all editor actions
-	for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
-		addCommand(editorAction.id, true);
+	// Add aww editow actions
+	fow (const editowAction of EditowExtensionsWegistwy.getEditowActions()) {
+		addCommand(editowAction.id, twue);
 	}
 
-	for (const id of CommandsRegistry.getCommands().keys()) {
-		addCommand(id, false);
+	fow (const id of CommandsWegistwy.getCommands().keys()) {
+		addCommand(id, fawse);
 	}
 
-	return unboundCommands;
+	wetuwn unboundCommands;
 }

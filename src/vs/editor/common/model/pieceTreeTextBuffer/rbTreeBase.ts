@@ -1,426 +1,426 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Piece, PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
+impowt { Piece, PieceTweeBase } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeBase';
 
-export class TreeNode {
-	parent: TreeNode;
-	left: TreeNode;
-	right: TreeNode;
-	color: NodeColor;
+expowt cwass TweeNode {
+	pawent: TweeNode;
+	weft: TweeNode;
+	wight: TweeNode;
+	cowow: NodeCowow;
 
 	// Piece
 	piece: Piece;
-	size_left: number; // size of the left subtree (not inorder)
-	lf_left: number; // line feeds cnt in the left subtree (not in order)
+	size_weft: numba; // size of the weft subtwee (not inowda)
+	wf_weft: numba; // wine feeds cnt in the weft subtwee (not in owda)
 
-	constructor(piece: Piece, color: NodeColor) {
+	constwuctow(piece: Piece, cowow: NodeCowow) {
 		this.piece = piece;
-		this.color = color;
-		this.size_left = 0;
-		this.lf_left = 0;
-		this.parent = this;
-		this.left = this;
-		this.right = this;
+		this.cowow = cowow;
+		this.size_weft = 0;
+		this.wf_weft = 0;
+		this.pawent = this;
+		this.weft = this;
+		this.wight = this;
 	}
 
-	public next(): TreeNode {
-		if (this.right !== SENTINEL) {
-			return leftest(this.right);
+	pubwic next(): TweeNode {
+		if (this.wight !== SENTINEW) {
+			wetuwn weftest(this.wight);
 		}
 
-		let node: TreeNode = this;
+		wet node: TweeNode = this;
 
-		while (node.parent !== SENTINEL) {
-			if (node.parent.left === node) {
-				break;
+		whiwe (node.pawent !== SENTINEW) {
+			if (node.pawent.weft === node) {
+				bweak;
 			}
 
-			node = node.parent;
+			node = node.pawent;
 		}
 
-		if (node.parent === SENTINEL) {
-			return SENTINEL;
-		} else {
-			return node.parent;
+		if (node.pawent === SENTINEW) {
+			wetuwn SENTINEW;
+		} ewse {
+			wetuwn node.pawent;
 		}
 	}
 
-	public prev(): TreeNode {
-		if (this.left !== SENTINEL) {
-			return righttest(this.left);
+	pubwic pwev(): TweeNode {
+		if (this.weft !== SENTINEW) {
+			wetuwn wighttest(this.weft);
 		}
 
-		let node: TreeNode = this;
+		wet node: TweeNode = this;
 
-		while (node.parent !== SENTINEL) {
-			if (node.parent.right === node) {
-				break;
+		whiwe (node.pawent !== SENTINEW) {
+			if (node.pawent.wight === node) {
+				bweak;
 			}
 
-			node = node.parent;
+			node = node.pawent;
 		}
 
-		if (node.parent === SENTINEL) {
-			return SENTINEL;
-		} else {
-			return node.parent;
+		if (node.pawent === SENTINEW) {
+			wetuwn SENTINEW;
+		} ewse {
+			wetuwn node.pawent;
 		}
 	}
 
-	public detach(): void {
-		this.parent = null!;
-		this.left = null!;
-		this.right = null!;
+	pubwic detach(): void {
+		this.pawent = nuww!;
+		this.weft = nuww!;
+		this.wight = nuww!;
 	}
 }
 
-export const enum NodeColor {
-	Black = 0,
-	Red = 1,
+expowt const enum NodeCowow {
+	Bwack = 0,
+	Wed = 1,
 }
 
-export const SENTINEL: TreeNode = new TreeNode(null!, NodeColor.Black);
-SENTINEL.parent = SENTINEL;
-SENTINEL.left = SENTINEL;
-SENTINEL.right = SENTINEL;
-SENTINEL.color = NodeColor.Black;
+expowt const SENTINEW: TweeNode = new TweeNode(nuww!, NodeCowow.Bwack);
+SENTINEW.pawent = SENTINEW;
+SENTINEW.weft = SENTINEW;
+SENTINEW.wight = SENTINEW;
+SENTINEW.cowow = NodeCowow.Bwack;
 
-export function leftest(node: TreeNode): TreeNode {
-	while (node.left !== SENTINEL) {
-		node = node.left;
+expowt function weftest(node: TweeNode): TweeNode {
+	whiwe (node.weft !== SENTINEW) {
+		node = node.weft;
 	}
-	return node;
+	wetuwn node;
 }
 
-export function righttest(node: TreeNode): TreeNode {
-	while (node.right !== SENTINEL) {
-		node = node.right;
+expowt function wighttest(node: TweeNode): TweeNode {
+	whiwe (node.wight !== SENTINEW) {
+		node = node.wight;
 	}
-	return node;
+	wetuwn node;
 }
 
-export function calculateSize(node: TreeNode): number {
-	if (node === SENTINEL) {
-		return 0;
+expowt function cawcuwateSize(node: TweeNode): numba {
+	if (node === SENTINEW) {
+		wetuwn 0;
 	}
 
-	return node.size_left + node.piece.length + calculateSize(node.right);
+	wetuwn node.size_weft + node.piece.wength + cawcuwateSize(node.wight);
 }
 
-export function calculateLF(node: TreeNode): number {
-	if (node === SENTINEL) {
-		return 0;
+expowt function cawcuwateWF(node: TweeNode): numba {
+	if (node === SENTINEW) {
+		wetuwn 0;
 	}
 
-	return node.lf_left + node.piece.lineFeedCnt + calculateLF(node.right);
+	wetuwn node.wf_weft + node.piece.wineFeedCnt + cawcuwateWF(node.wight);
 }
 
-export function resetSentinel(): void {
-	SENTINEL.parent = SENTINEL;
+expowt function wesetSentinew(): void {
+	SENTINEW.pawent = SENTINEW;
 }
 
-export function leftRotate(tree: PieceTreeBase, x: TreeNode) {
-	let y = x.right;
+expowt function weftWotate(twee: PieceTweeBase, x: TweeNode) {
+	wet y = x.wight;
 
-	// fix size_left
-	y.size_left += x.size_left + (x.piece ? x.piece.length : 0);
-	y.lf_left += x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
-	x.right = y.left;
+	// fix size_weft
+	y.size_weft += x.size_weft + (x.piece ? x.piece.wength : 0);
+	y.wf_weft += x.wf_weft + (x.piece ? x.piece.wineFeedCnt : 0);
+	x.wight = y.weft;
 
-	if (y.left !== SENTINEL) {
-		y.left.parent = x;
+	if (y.weft !== SENTINEW) {
+		y.weft.pawent = x;
 	}
-	y.parent = x.parent;
-	if (x.parent === SENTINEL) {
-		tree.root = y;
-	} else if (x.parent.left === x) {
-		x.parent.left = y;
-	} else {
-		x.parent.right = y;
+	y.pawent = x.pawent;
+	if (x.pawent === SENTINEW) {
+		twee.woot = y;
+	} ewse if (x.pawent.weft === x) {
+		x.pawent.weft = y;
+	} ewse {
+		x.pawent.wight = y;
 	}
-	y.left = x;
-	x.parent = y;
+	y.weft = x;
+	x.pawent = y;
 }
 
-export function rightRotate(tree: PieceTreeBase, y: TreeNode) {
-	let x = y.left;
-	y.left = x.right;
-	if (x.right !== SENTINEL) {
-		x.right.parent = y;
+expowt function wightWotate(twee: PieceTweeBase, y: TweeNode) {
+	wet x = y.weft;
+	y.weft = x.wight;
+	if (x.wight !== SENTINEW) {
+		x.wight.pawent = y;
 	}
-	x.parent = y.parent;
+	x.pawent = y.pawent;
 
-	// fix size_left
-	y.size_left -= x.size_left + (x.piece ? x.piece.length : 0);
-	y.lf_left -= x.lf_left + (x.piece ? x.piece.lineFeedCnt : 0);
+	// fix size_weft
+	y.size_weft -= x.size_weft + (x.piece ? x.piece.wength : 0);
+	y.wf_weft -= x.wf_weft + (x.piece ? x.piece.wineFeedCnt : 0);
 
-	if (y.parent === SENTINEL) {
-		tree.root = x;
-	} else if (y === y.parent.right) {
-		y.parent.right = x;
-	} else {
-		y.parent.left = x;
+	if (y.pawent === SENTINEW) {
+		twee.woot = x;
+	} ewse if (y === y.pawent.wight) {
+		y.pawent.wight = x;
+	} ewse {
+		y.pawent.weft = x;
 	}
 
-	x.right = y;
-	y.parent = x;
+	x.wight = y;
+	y.pawent = x;
 }
 
-export function rbDelete(tree: PieceTreeBase, z: TreeNode) {
-	let x: TreeNode;
-	let y: TreeNode;
+expowt function wbDewete(twee: PieceTweeBase, z: TweeNode) {
+	wet x: TweeNode;
+	wet y: TweeNode;
 
-	if (z.left === SENTINEL) {
+	if (z.weft === SENTINEW) {
 		y = z;
-		x = y.right;
-	} else if (z.right === SENTINEL) {
+		x = y.wight;
+	} ewse if (z.wight === SENTINEW) {
 		y = z;
-		x = y.left;
-	} else {
-		y = leftest(z.right);
-		x = y.right;
+		x = y.weft;
+	} ewse {
+		y = weftest(z.wight);
+		x = y.wight;
 	}
 
-	if (y === tree.root) {
-		tree.root = x;
+	if (y === twee.woot) {
+		twee.woot = x;
 
-		// if x is null, we are removing the only node
-		x.color = NodeColor.Black;
+		// if x is nuww, we awe wemoving the onwy node
+		x.cowow = NodeCowow.Bwack;
 		z.detach();
-		resetSentinel();
-		tree.root.parent = SENTINEL;
+		wesetSentinew();
+		twee.woot.pawent = SENTINEW;
 
-		return;
+		wetuwn;
 	}
 
-	let yWasRed = (y.color === NodeColor.Red);
+	wet yWasWed = (y.cowow === NodeCowow.Wed);
 
-	if (y === y.parent.left) {
-		y.parent.left = x;
-	} else {
-		y.parent.right = x;
+	if (y === y.pawent.weft) {
+		y.pawent.weft = x;
+	} ewse {
+		y.pawent.wight = x;
 	}
 
 	if (y === z) {
-		x.parent = y.parent;
-		recomputeTreeMetadata(tree, x);
-	} else {
-		if (y.parent === z) {
-			x.parent = y;
-		} else {
-			x.parent = y.parent;
+		x.pawent = y.pawent;
+		wecomputeTweeMetadata(twee, x);
+	} ewse {
+		if (y.pawent === z) {
+			x.pawent = y;
+		} ewse {
+			x.pawent = y.pawent;
 		}
 
-		// as we make changes to x's hierarchy, update size_left of subtree first
-		recomputeTreeMetadata(tree, x);
+		// as we make changes to x's hiewawchy, update size_weft of subtwee fiwst
+		wecomputeTweeMetadata(twee, x);
 
-		y.left = z.left;
-		y.right = z.right;
-		y.parent = z.parent;
-		y.color = z.color;
+		y.weft = z.weft;
+		y.wight = z.wight;
+		y.pawent = z.pawent;
+		y.cowow = z.cowow;
 
-		if (z === tree.root) {
-			tree.root = y;
-		} else {
-			if (z === z.parent.left) {
-				z.parent.left = y;
-			} else {
-				z.parent.right = y;
+		if (z === twee.woot) {
+			twee.woot = y;
+		} ewse {
+			if (z === z.pawent.weft) {
+				z.pawent.weft = y;
+			} ewse {
+				z.pawent.wight = y;
 			}
 		}
 
-		if (y.left !== SENTINEL) {
-			y.left.parent = y;
+		if (y.weft !== SENTINEW) {
+			y.weft.pawent = y;
 		}
-		if (y.right !== SENTINEL) {
-			y.right.parent = y;
+		if (y.wight !== SENTINEW) {
+			y.wight.pawent = y;
 		}
 		// update metadata
-		// we replace z with y, so in this sub tree, the length change is z.item.length
-		y.size_left = z.size_left;
-		y.lf_left = z.lf_left;
-		recomputeTreeMetadata(tree, y);
+		// we wepwace z with y, so in this sub twee, the wength change is z.item.wength
+		y.size_weft = z.size_weft;
+		y.wf_weft = z.wf_weft;
+		wecomputeTweeMetadata(twee, y);
 	}
 
 	z.detach();
 
-	if (x.parent.left === x) {
-		let newSizeLeft = calculateSize(x);
-		let newLFLeft = calculateLF(x);
-		if (newSizeLeft !== x.parent.size_left || newLFLeft !== x.parent.lf_left) {
-			let delta = newSizeLeft - x.parent.size_left;
-			let lf_delta = newLFLeft - x.parent.lf_left;
-			x.parent.size_left = newSizeLeft;
-			x.parent.lf_left = newLFLeft;
-			updateTreeMetadata(tree, x.parent, delta, lf_delta);
+	if (x.pawent.weft === x) {
+		wet newSizeWeft = cawcuwateSize(x);
+		wet newWFWeft = cawcuwateWF(x);
+		if (newSizeWeft !== x.pawent.size_weft || newWFWeft !== x.pawent.wf_weft) {
+			wet dewta = newSizeWeft - x.pawent.size_weft;
+			wet wf_dewta = newWFWeft - x.pawent.wf_weft;
+			x.pawent.size_weft = newSizeWeft;
+			x.pawent.wf_weft = newWFWeft;
+			updateTweeMetadata(twee, x.pawent, dewta, wf_dewta);
 		}
 	}
 
-	recomputeTreeMetadata(tree, x.parent);
+	wecomputeTweeMetadata(twee, x.pawent);
 
-	if (yWasRed) {
-		resetSentinel();
-		return;
+	if (yWasWed) {
+		wesetSentinew();
+		wetuwn;
 	}
 
-	// RB-DELETE-FIXUP
-	let w: TreeNode;
-	while (x !== tree.root && x.color === NodeColor.Black) {
-		if (x === x.parent.left) {
-			w = x.parent.right;
+	// WB-DEWETE-FIXUP
+	wet w: TweeNode;
+	whiwe (x !== twee.woot && x.cowow === NodeCowow.Bwack) {
+		if (x === x.pawent.weft) {
+			w = x.pawent.wight;
 
-			if (w.color === NodeColor.Red) {
-				w.color = NodeColor.Black;
-				x.parent.color = NodeColor.Red;
-				leftRotate(tree, x.parent);
-				w = x.parent.right;
+			if (w.cowow === NodeCowow.Wed) {
+				w.cowow = NodeCowow.Bwack;
+				x.pawent.cowow = NodeCowow.Wed;
+				weftWotate(twee, x.pawent);
+				w = x.pawent.wight;
 			}
 
-			if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-				w.color = NodeColor.Red;
-				x = x.parent;
-			} else {
-				if (w.right.color === NodeColor.Black) {
-					w.left.color = NodeColor.Black;
-					w.color = NodeColor.Red;
-					rightRotate(tree, w);
-					w = x.parent.right;
+			if (w.weft.cowow === NodeCowow.Bwack && w.wight.cowow === NodeCowow.Bwack) {
+				w.cowow = NodeCowow.Wed;
+				x = x.pawent;
+			} ewse {
+				if (w.wight.cowow === NodeCowow.Bwack) {
+					w.weft.cowow = NodeCowow.Bwack;
+					w.cowow = NodeCowow.Wed;
+					wightWotate(twee, w);
+					w = x.pawent.wight;
 				}
 
-				w.color = x.parent.color;
-				x.parent.color = NodeColor.Black;
-				w.right.color = NodeColor.Black;
-				leftRotate(tree, x.parent);
-				x = tree.root;
+				w.cowow = x.pawent.cowow;
+				x.pawent.cowow = NodeCowow.Bwack;
+				w.wight.cowow = NodeCowow.Bwack;
+				weftWotate(twee, x.pawent);
+				x = twee.woot;
 			}
-		} else {
-			w = x.parent.left;
+		} ewse {
+			w = x.pawent.weft;
 
-			if (w.color === NodeColor.Red) {
-				w.color = NodeColor.Black;
-				x.parent.color = NodeColor.Red;
-				rightRotate(tree, x.parent);
-				w = x.parent.left;
+			if (w.cowow === NodeCowow.Wed) {
+				w.cowow = NodeCowow.Bwack;
+				x.pawent.cowow = NodeCowow.Wed;
+				wightWotate(twee, x.pawent);
+				w = x.pawent.weft;
 			}
 
-			if (w.left.color === NodeColor.Black && w.right.color === NodeColor.Black) {
-				w.color = NodeColor.Red;
-				x = x.parent;
+			if (w.weft.cowow === NodeCowow.Bwack && w.wight.cowow === NodeCowow.Bwack) {
+				w.cowow = NodeCowow.Wed;
+				x = x.pawent;
 
-			} else {
-				if (w.left.color === NodeColor.Black) {
-					w.right.color = NodeColor.Black;
-					w.color = NodeColor.Red;
-					leftRotate(tree, w);
-					w = x.parent.left;
+			} ewse {
+				if (w.weft.cowow === NodeCowow.Bwack) {
+					w.wight.cowow = NodeCowow.Bwack;
+					w.cowow = NodeCowow.Wed;
+					weftWotate(twee, w);
+					w = x.pawent.weft;
 				}
 
-				w.color = x.parent.color;
-				x.parent.color = NodeColor.Black;
-				w.left.color = NodeColor.Black;
-				rightRotate(tree, x.parent);
-				x = tree.root;
+				w.cowow = x.pawent.cowow;
+				x.pawent.cowow = NodeCowow.Bwack;
+				w.weft.cowow = NodeCowow.Bwack;
+				wightWotate(twee, x.pawent);
+				x = twee.woot;
 			}
 		}
 	}
-	x.color = NodeColor.Black;
-	resetSentinel();
+	x.cowow = NodeCowow.Bwack;
+	wesetSentinew();
 }
 
-export function fixInsert(tree: PieceTreeBase, x: TreeNode) {
-	recomputeTreeMetadata(tree, x);
+expowt function fixInsewt(twee: PieceTweeBase, x: TweeNode) {
+	wecomputeTweeMetadata(twee, x);
 
-	while (x !== tree.root && x.parent.color === NodeColor.Red) {
-		if (x.parent === x.parent.parent.left) {
-			const y = x.parent.parent.right;
+	whiwe (x !== twee.woot && x.pawent.cowow === NodeCowow.Wed) {
+		if (x.pawent === x.pawent.pawent.weft) {
+			const y = x.pawent.pawent.wight;
 
-			if (y.color === NodeColor.Red) {
-				x.parent.color = NodeColor.Black;
-				y.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
-				x = x.parent.parent;
-			} else {
-				if (x === x.parent.right) {
-					x = x.parent;
-					leftRotate(tree, x);
+			if (y.cowow === NodeCowow.Wed) {
+				x.pawent.cowow = NodeCowow.Bwack;
+				y.cowow = NodeCowow.Bwack;
+				x.pawent.pawent.cowow = NodeCowow.Wed;
+				x = x.pawent.pawent;
+			} ewse {
+				if (x === x.pawent.wight) {
+					x = x.pawent;
+					weftWotate(twee, x);
 				}
 
-				x.parent.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
-				rightRotate(tree, x.parent.parent);
+				x.pawent.cowow = NodeCowow.Bwack;
+				x.pawent.pawent.cowow = NodeCowow.Wed;
+				wightWotate(twee, x.pawent.pawent);
 			}
-		} else {
-			const y = x.parent.parent.left;
+		} ewse {
+			const y = x.pawent.pawent.weft;
 
-			if (y.color === NodeColor.Red) {
-				x.parent.color = NodeColor.Black;
-				y.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
-				x = x.parent.parent;
-			} else {
-				if (x === x.parent.left) {
-					x = x.parent;
-					rightRotate(tree, x);
+			if (y.cowow === NodeCowow.Wed) {
+				x.pawent.cowow = NodeCowow.Bwack;
+				y.cowow = NodeCowow.Bwack;
+				x.pawent.pawent.cowow = NodeCowow.Wed;
+				x = x.pawent.pawent;
+			} ewse {
+				if (x === x.pawent.weft) {
+					x = x.pawent;
+					wightWotate(twee, x);
 				}
-				x.parent.color = NodeColor.Black;
-				x.parent.parent.color = NodeColor.Red;
-				leftRotate(tree, x.parent.parent);
+				x.pawent.cowow = NodeCowow.Bwack;
+				x.pawent.pawent.cowow = NodeCowow.Wed;
+				weftWotate(twee, x.pawent.pawent);
 			}
 		}
 	}
 
-	tree.root.color = NodeColor.Black;
+	twee.woot.cowow = NodeCowow.Bwack;
 }
 
-export function updateTreeMetadata(tree: PieceTreeBase, x: TreeNode, delta: number, lineFeedCntDelta: number): void {
-	// node length change or line feed count change
-	while (x !== tree.root && x !== SENTINEL) {
-		if (x.parent.left === x) {
-			x.parent.size_left += delta;
-			x.parent.lf_left += lineFeedCntDelta;
+expowt function updateTweeMetadata(twee: PieceTweeBase, x: TweeNode, dewta: numba, wineFeedCntDewta: numba): void {
+	// node wength change ow wine feed count change
+	whiwe (x !== twee.woot && x !== SENTINEW) {
+		if (x.pawent.weft === x) {
+			x.pawent.size_weft += dewta;
+			x.pawent.wf_weft += wineFeedCntDewta;
 		}
 
-		x = x.parent;
+		x = x.pawent;
 	}
 }
 
-export function recomputeTreeMetadata(tree: PieceTreeBase, x: TreeNode) {
-	let delta = 0;
-	let lf_delta = 0;
-	if (x === tree.root) {
-		return;
+expowt function wecomputeTweeMetadata(twee: PieceTweeBase, x: TweeNode) {
+	wet dewta = 0;
+	wet wf_dewta = 0;
+	if (x === twee.woot) {
+		wetuwn;
 	}
 
-	if (delta === 0) {
-		// go upwards till the node whose left subtree is changed.
-		while (x !== tree.root && x === x.parent.right) {
-			x = x.parent;
+	if (dewta === 0) {
+		// go upwawds tiww the node whose weft subtwee is changed.
+		whiwe (x !== twee.woot && x === x.pawent.wight) {
+			x = x.pawent;
 		}
 
-		if (x === tree.root) {
-			// well, it means we add a node to the end (inorder)
-			return;
+		if (x === twee.woot) {
+			// weww, it means we add a node to the end (inowda)
+			wetuwn;
 		}
 
-		// x is the node whose right subtree is changed.
-		x = x.parent;
+		// x is the node whose wight subtwee is changed.
+		x = x.pawent;
 
-		delta = calculateSize(x.left) - x.size_left;
-		lf_delta = calculateLF(x.left) - x.lf_left;
-		x.size_left += delta;
-		x.lf_left += lf_delta;
+		dewta = cawcuwateSize(x.weft) - x.size_weft;
+		wf_dewta = cawcuwateWF(x.weft) - x.wf_weft;
+		x.size_weft += dewta;
+		x.wf_weft += wf_dewta;
 	}
 
-	// go upwards till root. O(logN)
-	while (x !== tree.root && (delta !== 0 || lf_delta !== 0)) {
-		if (x.parent.left === x) {
-			x.parent.size_left += delta;
-			x.parent.lf_left += lf_delta;
+	// go upwawds tiww woot. O(wogN)
+	whiwe (x !== twee.woot && (dewta !== 0 || wf_dewta !== 0)) {
+		if (x.pawent.weft === x) {
+			x.pawent.size_weft += dewta;
+			x.pawent.wf_weft += wf_dewta;
 		}
 
-		x = x.parent;
+		x = x.pawent;
 	}
 }

@@ -1,551 +1,551 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, coalesce } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONVisitor, visit } from 'vs/base/common/json';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined, isArray } from 'vs/base/common/types';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
+impowt { fwatten, taiw, coawesce } fwom 'vs/base/common/awways';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { JSONVisitow, visit } fwom 'vs/base/common/json';
+impowt { Disposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, Extensions, IConfiguwationNode, IConfiguwationPwopewtySchema, IConfiguwationWegistwy, OVEWWIDE_PWOPEWTY_PATTEWN, IConfiguwationExtensionInfo } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { IFiwtewMetadata, IFiwtewWesuwt, IGwoupFiwta, IKeybindingsEditowModew, ISeawchWesuwtGwoup, ISetting, ISettingMatch, ISettingMatcha, ISettingsEditowModew, ISettingsGwoup } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { withNuwwAsUndefined, isAwway } fwom 'vs/base/common/types';
+impowt { FOWDEW_SCOPES, WOWKSPACE_SCOPES } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { cweateVawidatow } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesVawidation';
 
-export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
-export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
+expowt const nuwwWange: IWange = { stawtWineNumba: -1, stawtCowumn: -1, endWineNumba: -1, endCowumn: -1 };
+expowt function isNuwwWange(wange: IWange): boowean { wetuwn wange.stawtWineNumba === -1 && wange.stawtCowumn === -1 && wange.endWineNumba === -1 && wange.endCowumn === -1; }
 
-export abstract class AbstractSettingsModel extends EditorModel {
+expowt abstwact cwass AbstwactSettingsModew extends EditowModew {
 
-	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
+	pwotected _cuwwentWesuwtGwoups = new Map<stwing, ISeawchWesuwtGwoup>();
 
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined {
-		if (resultGroup) {
-			this._currentResultGroups.set(id, resultGroup);
-		} else {
-			this._currentResultGroups.delete(id);
+	updateWesuwtGwoup(id: stwing, wesuwtGwoup: ISeawchWesuwtGwoup | undefined): IFiwtewWesuwt | undefined {
+		if (wesuwtGwoup) {
+			this._cuwwentWesuwtGwoups.set(id, wesuwtGwoup);
+		} ewse {
+			this._cuwwentWesuwtGwoups.dewete(id);
 		}
 
-		this.removeDuplicateResults();
-		return this.update();
+		this.wemoveDupwicateWesuwts();
+		wetuwn this.update();
 	}
 
 	/**
-	 * Remove duplicates between result groups, preferring results in earlier groups
+	 * Wemove dupwicates between wesuwt gwoups, pwefewwing wesuwts in eawwia gwoups
 	 */
-	private removeDuplicateResults(): void {
-		const settingKeys = new Set<string>();
-		[...this._currentResultGroups.keys()]
-			.sort((a, b) => this._currentResultGroups.get(a)!.order - this._currentResultGroups.get(b)!.order)
-			.forEach(groupId => {
-				const group = this._currentResultGroups.get(groupId)!;
-				group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
-				group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
+	pwivate wemoveDupwicateWesuwts(): void {
+		const settingKeys = new Set<stwing>();
+		[...this._cuwwentWesuwtGwoups.keys()]
+			.sowt((a, b) => this._cuwwentWesuwtGwoups.get(a)!.owda - this._cuwwentWesuwtGwoups.get(b)!.owda)
+			.fowEach(gwoupId => {
+				const gwoup = this._cuwwentWesuwtGwoups.get(gwoupId)!;
+				gwoup.wesuwt.fiwtewMatches = gwoup.wesuwt.fiwtewMatches.fiwta(s => !settingKeys.has(s.setting.key));
+				gwoup.wesuwt.fiwtewMatches.fowEach(s => settingKeys.add(s.setting.key));
 			});
 	}
 
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
-		const allGroups = this.filterGroups;
+	fiwtewSettings(fiwta: stwing, gwoupFiwta: IGwoupFiwta, settingMatcha: ISettingMatcha): ISettingMatch[] {
+		const awwGwoups = this.fiwtewGwoups;
 
-		const filterMatches: ISettingMatch[] = [];
-		for (const group of allGroups) {
-			const groupMatched = groupFilter(group);
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					const settingMatchResult = settingMatcher(setting, group);
+		const fiwtewMatches: ISettingMatch[] = [];
+		fow (const gwoup of awwGwoups) {
+			const gwoupMatched = gwoupFiwta(gwoup);
+			fow (const section of gwoup.sections) {
+				fow (const setting of section.settings) {
+					const settingMatchWesuwt = settingMatcha(setting, gwoup);
 
-					if (groupMatched || settingMatchResult) {
-						filterMatches.push({
+					if (gwoupMatched || settingMatchWesuwt) {
+						fiwtewMatches.push({
 							setting,
-							matches: settingMatchResult && settingMatchResult.matches,
-							score: settingMatchResult ? settingMatchResult.score : 0
+							matches: settingMatchWesuwt && settingMatchWesuwt.matches,
+							scowe: settingMatchWesuwt ? settingMatchWesuwt.scowe : 0
 						});
 					}
 				}
 			}
 		}
 
-		return filterMatches.sort((a, b) => b.score - a.score);
+		wetuwn fiwtewMatches.sowt((a, b) => b.scowe - a.scowe);
 	}
 
-	getPreference(key: string): ISetting | undefined {
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
+	getPwefewence(key: stwing): ISetting | undefined {
+		fow (const gwoup of this.settingsGwoups) {
+			fow (const section of gwoup.sections) {
+				fow (const setting of section.settings) {
 					if (key === setting.key) {
-						return setting;
+						wetuwn setting;
 					}
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> {
-		const metadata = Object.create(null);
-		let hasMetadata = false;
-		groups.forEach(g => {
-			if (g.result.metadata) {
-				metadata[g.id] = g.result.metadata;
-				hasMetadata = true;
+	pwotected cowwectMetadata(gwoups: ISeawchWesuwtGwoup[]): IStwingDictionawy<IFiwtewMetadata> {
+		const metadata = Object.cweate(nuww);
+		wet hasMetadata = fawse;
+		gwoups.fowEach(g => {
+			if (g.wesuwt.metadata) {
+				metadata[g.id] = g.wesuwt.metadata;
+				hasMetadata = twue;
 			}
 		});
 
-		return hasMetadata ? metadata : null;
+		wetuwn hasMetadata ? metadata : nuww;
 	}
 
 
-	protected get filterGroups(): ISettingsGroup[] {
-		return this.settingsGroups;
+	pwotected get fiwtewGwoups(): ISettingsGwoup[] {
+		wetuwn this.settingsGwoups;
 	}
 
-	abstract settingsGroups: ISettingsGroup[];
+	abstwact settingsGwoups: ISettingsGwoup[];
 
-	abstract findValueMatches(filter: string, setting: ISetting): IRange[];
+	abstwact findVawueMatches(fiwta: stwing, setting: ISetting): IWange[];
 
-	protected abstract update(): IFilterResult | undefined;
+	pwotected abstwact update(): IFiwtewWesuwt | undefined;
 }
 
-export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+expowt cwass SettingsEditowModew extends AbstwactSettingsModew impwements ISettingsEditowModew {
 
-	private _settingsGroups: ISettingsGroup[] | undefined;
-	protected settingsModel: ITextModel;
+	pwivate _settingsGwoups: ISettingsGwoup[] | undefined;
+	pwotected settingsModew: ITextModew;
 
-	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+	pwivate weadonwy _onDidChangeGwoups: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeGwoups: Event<void> = this._onDidChangeGwoups.event;
 
-	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
-		super();
-		this.settingsModel = reference.object.textEditorModel!;
-		this._register(this.onWillDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => {
-			this._settingsGroups = undefined;
-			this._onDidChangeGroups.fire();
+	constwuctow(wefewence: IWefewence<ITextEditowModew>, pwivate _configuwationTawget: ConfiguwationTawget) {
+		supa();
+		this.settingsModew = wefewence.object.textEditowModew!;
+		this._wegista(this.onWiwwDispose(() => wefewence.dispose()));
+		this._wegista(this.settingsModew.onDidChangeContent(() => {
+			this._settingsGwoups = undefined;
+			this._onDidChangeGwoups.fiwe();
 		}));
 	}
 
-	get uri(): URI {
-		return this.settingsModel.uri;
+	get uwi(): UWI {
+		wetuwn this.settingsModew.uwi;
 	}
 
-	get configurationTarget(): ConfigurationTarget {
-		return this._configurationTarget;
+	get configuwationTawget(): ConfiguwationTawget {
+		wetuwn this._configuwationTawget;
 	}
 
-	get settingsGroups(): ISettingsGroup[] {
-		if (!this._settingsGroups) {
-			this.parse();
+	get settingsGwoups(): ISettingsGwoup[] {
+		if (!this._settingsGwoups) {
+			this.pawse();
 		}
-		return this._settingsGroups!;
+		wetuwn this._settingsGwoups!;
 	}
 
-	get content(): string {
-		return this.settingsModel.getValue();
+	get content(): stwing {
+		wetuwn this.settingsModew.getVawue();
 	}
 
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return this.settingsModel.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
+	findVawueMatches(fiwta: stwing, setting: ISetting): IWange[] {
+		wetuwn this.settingsModew.findMatches(fiwta, setting.vawueWange, fawse, fawse, nuww, fawse).map(match => match.wange);
 	}
 
-	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
-		return previousParents.length === 0; // Settings is root
+	pwotected isSettingsPwopewty(pwopewty: stwing, pweviousPawents: stwing[]): boowean {
+		wetuwn pweviousPawents.wength === 0; // Settings is woot
 	}
 
-	protected parse(): void {
-		this._settingsGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => this.isSettingsProperty(property, previousParents));
+	pwotected pawse(): void {
+		this._settingsGwoups = pawse(this.settingsModew, (pwopewty: stwing, pweviousPawents: stwing[]): boowean => this.isSettingsPwopewty(pwopewty, pweviousPawents));
 	}
 
-	protected update(): IFilterResult | undefined {
-		const resultGroups = [...this._currentResultGroups.values()];
-		if (!resultGroups.length) {
-			return undefined;
+	pwotected update(): IFiwtewWesuwt | undefined {
+		const wesuwtGwoups = [...this._cuwwentWesuwtGwoups.vawues()];
+		if (!wesuwtGwoups.wength) {
+			wetuwn undefined;
 		}
 
-		// Transform resultGroups into IFilterResult - ISetting ranges are already correct here
-		const filteredSettings: ISetting[] = [];
-		const matches: IRange[] = [];
-		resultGroups.forEach(group => {
-			group.result.filterMatches.forEach(filterMatch => {
-				filteredSettings.push(filterMatch.setting);
-				if (filterMatch.matches) {
-					matches.push(...filterMatch.matches);
+		// Twansfowm wesuwtGwoups into IFiwtewWesuwt - ISetting wanges awe awweady cowwect hewe
+		const fiwtewedSettings: ISetting[] = [];
+		const matches: IWange[] = [];
+		wesuwtGwoups.fowEach(gwoup => {
+			gwoup.wesuwt.fiwtewMatches.fowEach(fiwtewMatch => {
+				fiwtewedSettings.push(fiwtewMatch.setting);
+				if (fiwtewMatch.matches) {
+					matches.push(...fiwtewMatch.matches);
 				}
 			});
 		});
 
-		let filteredGroup: ISettingsGroup | undefined;
-		const modelGroup = this.settingsGroups[0]; // Editable model has one or zero groups
-		if (modelGroup) {
-			filteredGroup = {
-				id: modelGroup.id,
-				range: modelGroup.range,
+		wet fiwtewedGwoup: ISettingsGwoup | undefined;
+		const modewGwoup = this.settingsGwoups[0]; // Editabwe modew has one ow zewo gwoups
+		if (modewGwoup) {
+			fiwtewedGwoup = {
+				id: modewGwoup.id,
+				wange: modewGwoup.wange,
 				sections: [{
-					settings: filteredSettings
+					settings: fiwtewedSettings
 				}],
-				title: modelGroup.title,
-				titleRange: modelGroup.titleRange,
-				order: modelGroup.order,
-				extensionInfo: modelGroup.extensionInfo
+				titwe: modewGwoup.titwe,
+				titweWange: modewGwoup.titweWange,
+				owda: modewGwoup.owda,
+				extensionInfo: modewGwoup.extensionInfo
 			};
 		}
 
-		const metadata = this.collectMetadata(resultGroups);
-		return {
-			allGroups: this.settingsGroups,
-			filteredGroups: filteredGroup ? [filteredGroup] : [],
+		const metadata = this.cowwectMetadata(wesuwtGwoups);
+		wetuwn {
+			awwGwoups: this.settingsGwoups,
+			fiwtewedGwoups: fiwtewedGwoup ? [fiwtewedGwoup] : [],
 			matches,
 			metadata
 		};
 	}
 }
 
-export class Settings2EditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
-	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+expowt cwass Settings2EditowModew extends AbstwactSettingsModew impwements ISettingsEditowModew {
+	pwivate weadonwy _onDidChangeGwoups: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeGwoups: Event<void> = this._onDidChangeGwoups.event;
 
-	private dirty = false;
+	pwivate diwty = fawse;
 
-	constructor(
-		private _defaultSettings: DefaultSettings,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		pwivate _defauwtSettings: DefauwtSettings,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.source === ConfigurationTarget.DEFAULT) {
-				this.dirty = true;
-				this._onDidChangeGroups.fire();
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.souwce === ConfiguwationTawget.DEFAUWT) {
+				this.diwty = twue;
+				this._onDidChangeGwoups.fiwe();
 			}
 		}));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidSchemaChange(e => {
-			this.dirty = true;
-			this._onDidChangeGroups.fire();
+		this._wegista(Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).onDidSchemaChange(e => {
+			this.diwty = twue;
+			this._onDidChangeGwoups.fiwe();
 		}));
 	}
 
-	protected override get filterGroups(): ISettingsGroup[] {
-		// Don't filter "commonly used"
-		return this.settingsGroups.slice(1);
+	pwotected ovewwide get fiwtewGwoups(): ISettingsGwoup[] {
+		// Don't fiwta "commonwy used"
+		wetuwn this.settingsGwoups.swice(1);
 	}
 
-	get settingsGroups(): ISettingsGroup[] {
-		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
-		this.dirty = false;
-		return groups;
+	get settingsGwoups(): ISettingsGwoup[] {
+		const gwoups = this._defauwtSettings.getSettingsGwoups(this.diwty);
+		this.diwty = fawse;
+		wetuwn gwoups;
 	}
 
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		// TODO @roblou
-		return [];
+	findVawueMatches(fiwta: stwing, setting: ISetting): IWange[] {
+		// TODO @wobwou
+		wetuwn [];
 	}
 
-	protected update(): IFilterResult {
-		throw new Error('Not supported');
+	pwotected update(): IFiwtewWesuwt {
+		thwow new Ewwow('Not suppowted');
 	}
 }
 
-function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
+function pawse(modew: ITextModew, isSettingsPwopewty: (cuwwentPwopewty: stwing, pweviousPawents: stwing[]) => boowean): ISettingsGwoup[] {
 	const settings: ISetting[] = [];
-	let overrideSetting: ISetting | null = null;
+	wet ovewwideSetting: ISetting | nuww = nuww;
 
-	let currentProperty: string | null = null;
-	let currentParent: any = [];
-	const previousParents: any[] = [];
-	let settingsPropertyIndex: number = -1;
-	const range = {
-		startLineNumber: 0,
-		startColumn: 0,
-		endLineNumber: 0,
-		endColumn: 0
+	wet cuwwentPwopewty: stwing | nuww = nuww;
+	wet cuwwentPawent: any = [];
+	const pweviousPawents: any[] = [];
+	wet settingsPwopewtyIndex: numba = -1;
+	const wange = {
+		stawtWineNumba: 0,
+		stawtCowumn: 0,
+		endWineNumba: 0,
+		endCowumn: 0
 	};
 
-	function onValue(value: any, offset: number, length: number) {
-		if (Array.isArray(currentParent)) {
-			(<any[]>currentParent).push(value);
-		} else if (currentProperty) {
-			currentParent[currentProperty] = value;
+	function onVawue(vawue: any, offset: numba, wength: numba) {
+		if (Awway.isAwway(cuwwentPawent)) {
+			(<any[]>cuwwentPawent).push(vawue);
+		} ewse if (cuwwentPwopewty) {
+			cuwwentPawent[cuwwentPwopewty] = vawue;
 		}
-		if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
-			// settings value started
-			const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
+		if (pweviousPawents.wength === settingsPwopewtyIndex + 1 || (pweviousPawents.wength === settingsPwopewtyIndex + 2 && ovewwideSetting !== nuww)) {
+			// settings vawue stawted
+			const setting = pweviousPawents.wength === settingsPwopewtyIndex + 1 ? settings[settings.wength - 1] : ovewwideSetting!.ovewwides![ovewwideSetting!.ovewwides!.wength - 1];
 			if (setting) {
-				const valueStartPosition = model.getPositionAt(offset);
-				const valueEndPosition = model.getPositionAt(offset + length);
-				setting.value = value;
-				setting.valueRange = {
-					startLineNumber: valueStartPosition.lineNumber,
-					startColumn: valueStartPosition.column,
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
+				const vawueStawtPosition = modew.getPositionAt(offset);
+				const vawueEndPosition = modew.getPositionAt(offset + wength);
+				setting.vawue = vawue;
+				setting.vawueWange = {
+					stawtWineNumba: vawueStawtPosition.wineNumba,
+					stawtCowumn: vawueStawtPosition.cowumn,
+					endWineNumba: vawueEndPosition.wineNumba,
+					endCowumn: vawueEndPosition.cowumn
 				};
-				setting.range = Object.assign(setting.range, {
-					endLineNumber: valueEndPosition.lineNumber,
-					endColumn: valueEndPosition.column
+				setting.wange = Object.assign(setting.wange, {
+					endWineNumba: vawueEndPosition.wineNumba,
+					endCowumn: vawueEndPosition.cowumn
 				});
 			}
 		}
 	}
-	const visitor: JSONVisitor = {
-		onObjectBegin: (offset: number, length: number) => {
-			if (isSettingsProperty(currentProperty!, previousParents)) {
-				// Settings started
-				settingsPropertyIndex = previousParents.length;
-				const position = model.getPositionAt(offset);
-				range.startLineNumber = position.lineNumber;
-				range.startColumn = position.column;
+	const visitow: JSONVisitow = {
+		onObjectBegin: (offset: numba, wength: numba) => {
+			if (isSettingsPwopewty(cuwwentPwopewty!, pweviousPawents)) {
+				// Settings stawted
+				settingsPwopewtyIndex = pweviousPawents.wength;
+				const position = modew.getPositionAt(offset);
+				wange.stawtWineNumba = position.wineNumba;
+				wange.stawtCowumn = position.cowumn;
 			}
 			const object = {};
-			onValue(object, offset, length);
-			currentParent = object;
-			currentProperty = null;
-			previousParents.push(currentParent);
+			onVawue(object, offset, wength);
+			cuwwentPawent = object;
+			cuwwentPwopewty = nuww;
+			pweviousPawents.push(cuwwentPawent);
 		},
-		onObjectProperty: (name: string, offset: number, length: number) => {
-			currentProperty = name;
-			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
-				// setting started
-				const settingStartPosition = model.getPositionAt(offset);
+		onObjectPwopewty: (name: stwing, offset: numba, wength: numba) => {
+			cuwwentPwopewty = name;
+			if (pweviousPawents.wength === settingsPwopewtyIndex + 1 || (pweviousPawents.wength === settingsPwopewtyIndex + 2 && ovewwideSetting !== nuww)) {
+				// setting stawted
+				const settingStawtPosition = modew.getPositionAt(offset);
 				const setting: ISetting = {
-					description: [],
-					descriptionIsMarkdown: false,
+					descwiption: [],
+					descwiptionIsMawkdown: fawse,
 					key: name,
-					keyRange: {
-						startLineNumber: settingStartPosition.lineNumber,
-						startColumn: settingStartPosition.column + 1,
-						endLineNumber: settingStartPosition.lineNumber,
-						endColumn: settingStartPosition.column + length
+					keyWange: {
+						stawtWineNumba: settingStawtPosition.wineNumba,
+						stawtCowumn: settingStawtPosition.cowumn + 1,
+						endWineNumba: settingStawtPosition.wineNumba,
+						endCowumn: settingStawtPosition.cowumn + wength
 					},
-					range: {
-						startLineNumber: settingStartPosition.lineNumber,
-						startColumn: settingStartPosition.column,
-						endLineNumber: 0,
-						endColumn: 0
+					wange: {
+						stawtWineNumba: settingStawtPosition.wineNumba,
+						stawtCowumn: settingStawtPosition.cowumn,
+						endWineNumba: 0,
+						endCowumn: 0
 					},
-					value: null,
-					valueRange: nullRange,
-					descriptionRanges: [],
-					overrides: [],
-					overrideOf: withNullAsUndefined(overrideSetting)
+					vawue: nuww,
+					vawueWange: nuwwWange,
+					descwiptionWanges: [],
+					ovewwides: [],
+					ovewwideOf: withNuwwAsUndefined(ovewwideSetting)
 				};
-				if (previousParents.length === settingsPropertyIndex + 1) {
+				if (pweviousPawents.wength === settingsPwopewtyIndex + 1) {
 					settings.push(setting);
-					if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
-						overrideSetting = setting;
+					if (OVEWWIDE_PWOPEWTY_PATTEWN.test(name)) {
+						ovewwideSetting = setting;
 					}
-				} else {
-					overrideSetting!.overrides!.push(setting);
+				} ewse {
+					ovewwideSetting!.ovewwides!.push(setting);
 				}
 			}
 		},
-		onObjectEnd: (offset: number, length: number) => {
-			currentParent = previousParents.pop();
-			if (settingsPropertyIndex !== -1 && (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null))) {
+		onObjectEnd: (offset: numba, wength: numba) => {
+			cuwwentPawent = pweviousPawents.pop();
+			if (settingsPwopewtyIndex !== -1 && (pweviousPawents.wength === settingsPwopewtyIndex + 1 || (pweviousPawents.wength === settingsPwopewtyIndex + 2 && ovewwideSetting !== nuww))) {
 				// setting ended
-				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
+				const setting = pweviousPawents.wength === settingsPwopewtyIndex + 1 ? settings[settings.wength - 1] : ovewwideSetting!.ovewwides![ovewwideSetting!.ovewwides!.wength - 1];
 				if (setting) {
-					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = Object.assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
+					const vawueEndPosition = modew.getPositionAt(offset + wength);
+					setting.vawueWange = Object.assign(setting.vawueWange, {
+						endWineNumba: vawueEndPosition.wineNumba,
+						endCowumn: vawueEndPosition.cowumn
 					});
-					setting.range = Object.assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
+					setting.wange = Object.assign(setting.wange, {
+						endWineNumba: vawueEndPosition.wineNumba,
+						endCowumn: vawueEndPosition.cowumn
 					});
 				}
 
-				if (previousParents.length === settingsPropertyIndex + 1) {
-					overrideSetting = null;
+				if (pweviousPawents.wength === settingsPwopewtyIndex + 1) {
+					ovewwideSetting = nuww;
 				}
 			}
-			if (previousParents.length === settingsPropertyIndex) {
+			if (pweviousPawents.wength === settingsPwopewtyIndex) {
 				// settings ended
-				const position = model.getPositionAt(offset);
-				range.endLineNumber = position.lineNumber;
-				range.endColumn = position.column;
-				settingsPropertyIndex = -1;
+				const position = modew.getPositionAt(offset);
+				wange.endWineNumba = position.wineNumba;
+				wange.endCowumn = position.cowumn;
+				settingsPwopewtyIndex = -1;
 			}
 		},
-		onArrayBegin: (offset: number, length: number) => {
-			const array: any[] = [];
-			onValue(array, offset, length);
-			previousParents.push(currentParent);
-			currentParent = array;
-			currentProperty = null;
+		onAwwayBegin: (offset: numba, wength: numba) => {
+			const awway: any[] = [];
+			onVawue(awway, offset, wength);
+			pweviousPawents.push(cuwwentPawent);
+			cuwwentPawent = awway;
+			cuwwentPwopewty = nuww;
 		},
-		onArrayEnd: (offset: number, length: number) => {
-			currentParent = previousParents.pop();
-			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
-				// setting value ended
-				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
+		onAwwayEnd: (offset: numba, wength: numba) => {
+			cuwwentPawent = pweviousPawents.pop();
+			if (pweviousPawents.wength === settingsPwopewtyIndex + 1 || (pweviousPawents.wength === settingsPwopewtyIndex + 2 && ovewwideSetting !== nuww)) {
+				// setting vawue ended
+				const setting = pweviousPawents.wength === settingsPwopewtyIndex + 1 ? settings[settings.wength - 1] : ovewwideSetting!.ovewwides![ovewwideSetting!.ovewwides!.wength - 1];
 				if (setting) {
-					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = Object.assign(setting.valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
+					const vawueEndPosition = modew.getPositionAt(offset + wength);
+					setting.vawueWange = Object.assign(setting.vawueWange, {
+						endWineNumba: vawueEndPosition.wineNumba,
+						endCowumn: vawueEndPosition.cowumn
 					});
-					setting.range = Object.assign(setting.range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
+					setting.wange = Object.assign(setting.wange, {
+						endWineNumba: vawueEndPosition.wineNumba,
+						endCowumn: vawueEndPosition.cowumn
 					});
 				}
 			}
 		},
-		onLiteralValue: onValue,
-		onError: (error) => {
-			const setting = settings[settings.length - 1];
-			if (setting && (isNullRange(setting.range) || isNullRange(setting.keyRange) || isNullRange(setting.valueRange))) {
+		onWitewawVawue: onVawue,
+		onEwwow: (ewwow) => {
+			const setting = settings[settings.wength - 1];
+			if (setting && (isNuwwWange(setting.wange) || isNuwwWange(setting.keyWange) || isNuwwWange(setting.vawueWange))) {
 				settings.pop();
 			}
 		}
 	};
-	if (!model.isDisposed()) {
-		visit(model.getValue(), visitor);
+	if (!modew.isDisposed()) {
+		visit(modew.getVawue(), visitow);
 	}
-	return settings.length > 0 ? [<ISettingsGroup>{
+	wetuwn settings.wength > 0 ? [<ISettingsGwoup>{
 		sections: [
 			{
 				settings
 			}
 		],
-		title: '',
-		titleRange: nullRange,
-		range
+		titwe: '',
+		titweWange: nuwwWange,
+		wange
 	}] : [];
 }
 
-export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
+expowt cwass WowkspaceConfiguwationEditowModew extends SettingsEditowModew {
 
-	private _configurationGroups: ISettingsGroup[] = [];
+	pwivate _configuwationGwoups: ISettingsGwoup[] = [];
 
-	get configurationGroups(): ISettingsGroup[] {
-		return this._configurationGroups;
+	get configuwationGwoups(): ISettingsGwoup[] {
+		wetuwn this._configuwationGwoups;
 	}
 
-	protected override parse(): void {
-		super.parse();
-		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
+	pwotected ovewwide pawse(): void {
+		supa.pawse();
+		this._configuwationGwoups = pawse(this.settingsModew, (pwopewty: stwing, pweviousPawents: stwing[]): boowean => pweviousPawents.wength === 0);
 	}
 
-	protected override isSettingsProperty(property: string, previousParents: string[]): boolean {
-		return property === 'settings' && previousParents.length === 1;
+	pwotected ovewwide isSettingsPwopewty(pwopewty: stwing, pweviousPawents: stwing[]): boowean {
+		wetuwn pwopewty === 'settings' && pweviousPawents.wength === 1;
 	}
 
 }
 
-export class DefaultSettings extends Disposable {
+expowt cwass DefauwtSettings extends Disposabwe {
 
-	private _allSettingsGroups: ISettingsGroup[] | undefined;
-	private _content: string | undefined;
-	private _settingsByName = new Map<string, ISetting>();
+	pwivate _awwSettingsGwoups: ISettingsGwoup[] | undefined;
+	pwivate _content: stwing | undefined;
+	pwivate _settingsByName = new Map<stwing, ISetting>();
 
-	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(
-		private _mostCommonlyUsedSettingsKeys: string[],
-		readonly target: ConfigurationTarget,
+	constwuctow(
+		pwivate _mostCommonwyUsedSettingsKeys: stwing[],
+		weadonwy tawget: ConfiguwationTawget,
 	) {
-		super();
+		supa();
 	}
 
-	getContent(forceUpdate = false): string {
-		if (!this._content || forceUpdate) {
-			this.initialize();
+	getContent(fowceUpdate = fawse): stwing {
+		if (!this._content || fowceUpdate) {
+			this.initiawize();
 		}
 
-		return this._content!;
+		wetuwn this._content!;
 	}
 
-	getSettingsGroups(forceUpdate = false): ISettingsGroup[] {
-		if (!this._allSettingsGroups || forceUpdate) {
-			this.initialize();
+	getSettingsGwoups(fowceUpdate = fawse): ISettingsGwoup[] {
+		if (!this._awwSettingsGwoups || fowceUpdate) {
+			this.initiawize();
 		}
 
-		return this._allSettingsGroups!;
+		wetuwn this._awwSettingsGwoups!;
 	}
 
-	private initialize(): void {
-		this._allSettingsGroups = this.parse();
-		this._content = this.toContent(this._allSettingsGroups);
+	pwivate initiawize(): void {
+		this._awwSettingsGwoups = this.pawse();
+		this._content = this.toContent(this._awwSettingsGwoups);
 	}
 
-	private parse(): ISettingsGroup[] {
-		const settingsGroups = this.getRegisteredGroups();
-		this.initAllSettingsMap(settingsGroups);
-		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
-		return [mostCommonlyUsed, ...settingsGroups];
+	pwivate pawse(): ISettingsGwoup[] {
+		const settingsGwoups = this.getWegistewedGwoups();
+		this.initAwwSettingsMap(settingsGwoups);
+		const mostCommonwyUsed = this.getMostCommonwyUsedSettings(settingsGwoups);
+		wetuwn [mostCommonwyUsed, ...settingsGwoups];
 	}
 
-	getRegisteredGroups(): ISettingsGroup[] {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const groups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
-			.reduce<ISettingsGroup[]>((result, config, index, array) => this.parseConfig(config, result, array), []));
+	getWegistewedGwoups(): ISettingsGwoup[] {
+		const configuwations = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).getConfiguwations().swice();
+		const gwoups = this.wemoveEmptySettingsGwoups(configuwations.sowt(this.compaweConfiguwationNodes)
+			.weduce<ISettingsGwoup[]>((wesuwt, config, index, awway) => this.pawseConfig(config, wesuwt, awway), []));
 
-		return this.sortGroups(groups);
+		wetuwn this.sowtGwoups(gwoups);
 	}
 
-	private sortGroups(groups: ISettingsGroup[]): ISettingsGroup[] {
-		groups.forEach(group => {
-			group.sections.forEach(section => {
-				section.settings.sort((a, b) => a.key.localeCompare(b.key));
+	pwivate sowtGwoups(gwoups: ISettingsGwoup[]): ISettingsGwoup[] {
+		gwoups.fowEach(gwoup => {
+			gwoup.sections.fowEach(section => {
+				section.settings.sowt((a, b) => a.key.wocaweCompawe(b.key));
 			});
 		});
 
-		return groups;
+		wetuwn gwoups;
 	}
 
-	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
-		this._settingsByName = new Map<string, ISetting>();
-		for (const group of allSettingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
+	pwivate initAwwSettingsMap(awwSettingsGwoups: ISettingsGwoup[]): void {
+		this._settingsByName = new Map<stwing, ISetting>();
+		fow (const gwoup of awwSettingsGwoups) {
+			fow (const section of gwoup.sections) {
+				fow (const setting of section.settings) {
 					this._settingsByName.set(setting.key, setting);
 				}
 			}
 		}
 	}
 
-	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
-		const settings = coalesce(this._mostCommonlyUsedSettingsKeys.map(key => {
+	pwivate getMostCommonwyUsedSettings(awwSettingsGwoups: ISettingsGwoup[]): ISettingsGwoup {
+		const settings = coawesce(this._mostCommonwyUsedSettingsKeys.map(key => {
 			const setting = this._settingsByName.get(key);
 			if (setting) {
-				return <ISetting>{
-					description: setting.description,
+				wetuwn <ISetting>{
+					descwiption: setting.descwiption,
 					key: setting.key,
-					value: setting.value,
-					keyRange: nullRange,
-					range: nullRange,
-					valueRange: nullRange,
-					overrides: [],
-					scope: ConfigurationScope.RESOURCE,
+					vawue: setting.vawue,
+					keyWange: nuwwWange,
+					wange: nuwwWange,
+					vawueWange: nuwwWange,
+					ovewwides: [],
+					scope: ConfiguwationScope.WESOUWCE,
 					type: setting.type,
 					enum: setting.enum,
-					enumDescriptions: setting.enumDescriptions,
-					descriptionRanges: []
+					enumDescwiptions: setting.enumDescwiptions,
+					descwiptionWanges: []
 				};
 			}
-			return null;
+			wetuwn nuww;
 		}));
 
-		return <ISettingsGroup>{
-			id: 'mostCommonlyUsed',
-			range: nullRange,
-			title: nls.localize('commonlyUsed', "Commonly Used"),
-			titleRange: nullRange,
+		wetuwn <ISettingsGwoup>{
+			id: 'mostCommonwyUsed',
+			wange: nuwwWange,
+			titwe: nws.wocawize('commonwyUsed', "Commonwy Used"),
+			titweWange: nuwwWange,
 			sections: [
 				{
 					settings
@@ -554,242 +554,242 @@ export class DefaultSettings extends Disposable {
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
+	pwivate pawseConfig(config: IConfiguwationNode, wesuwt: ISettingsGwoup[], configuwations: IConfiguwationNode[], settingsGwoup?: ISettingsGwoup, seenSettings?: { [key: stwing]: boowean }): ISettingsGwoup[] {
 		seenSettings = seenSettings ? seenSettings : {};
-		let title = config.title;
-		if (!title) {
-			const configWithTitleAndSameId = configurations.find(c => (c.id === config.id) && c.title);
-			if (configWithTitleAndSameId) {
-				title = configWithTitleAndSameId.title;
+		wet titwe = config.titwe;
+		if (!titwe) {
+			const configWithTitweAndSameId = configuwations.find(c => (c.id === config.id) && c.titwe);
+			if (configWithTitweAndSameId) {
+				titwe = configWithTitweAndSameId.titwe;
 			}
 		}
-		if (title) {
-			if (!settingsGroup) {
-				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
-				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
-					result.push(settingsGroup);
+		if (titwe) {
+			if (!settingsGwoup) {
+				settingsGwoup = wesuwt.find(g => g.titwe === titwe && g.extensionInfo?.id === config.extensionInfo?.id);
+				if (!settingsGwoup) {
+					settingsGwoup = { sections: [{ settings: [] }], id: config.id || '', titwe: titwe || '', titweWange: nuwwWange, owda: config.owda ?? 0, wange: nuwwWange, extensionInfo: config.extensionInfo };
+					wesuwt.push(settingsGwoup);
 				}
-			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
+			} ewse {
+				settingsGwoup.sections[settingsGwoup.sections.wength - 1].titwe = titwe;
 			}
 		}
-		if (config.properties) {
-			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
-				result.push(settingsGroup);
+		if (config.pwopewties) {
+			if (!settingsGwoup) {
+				settingsGwoup = { sections: [{ settings: [] }], id: config.id || '', titwe: config.id || '', titweWange: nuwwWange, owda: config.owda ?? 0, wange: nuwwWange, extensionInfo: config.extensionInfo };
+				wesuwt.push(settingsGwoup);
 			}
-			const configurationSettings: ISetting[] = [];
-			for (const setting of [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties, config.extensionInfo)]) {
+			const configuwationSettings: ISetting[] = [];
+			fow (const setting of [...settingsGwoup.sections[settingsGwoup.sections.wength - 1].settings, ...this.pawseSettings(config.pwopewties, config.extensionInfo)]) {
 				if (!seenSettings[setting.key]) {
-					configurationSettings.push(setting);
-					seenSettings[setting.key] = true;
+					configuwationSettings.push(setting);
+					seenSettings[setting.key] = twue;
 				}
 			}
-			if (configurationSettings.length) {
-				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
+			if (configuwationSettings.wength) {
+				settingsGwoup.sections[settingsGwoup.sections.wength - 1].settings = configuwationSettings;
 			}
 		}
-		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup, seenSettings));
+		if (config.awwOf) {
+			config.awwOf.fowEach(c => this.pawseConfig(c, wesuwt, configuwations, settingsGwoup, seenSettings));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
-		const result: ISettingsGroup[] = [];
-		for (const settingsGroup of settingsGroups) {
-			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
-			if (settingsGroup.sections.length) {
-				result.push(settingsGroup);
+	pwivate wemoveEmptySettingsGwoups(settingsGwoups: ISettingsGwoup[]): ISettingsGwoup[] {
+		const wesuwt: ISettingsGwoup[] = [];
+		fow (const settingsGwoup of settingsGwoups) {
+			settingsGwoup.sections = settingsGwoup.sections.fiwta(section => section.settings.wength > 0);
+			if (settingsGwoup.sections.wength) {
+				wesuwt.push(settingsGwoup);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }, extensionInfo?: IConfigurationExtensionInfo): ISetting[] {
-		const result: ISetting[] = [];
-		for (const key in settingsObject) {
-			const prop = settingsObject[key];
-			if (this.matchesScope(prop)) {
-				const value = prop.default;
-				let description = (prop.description || prop.markdownDescription || '');
-				if (typeof description !== 'string') {
-					description = '';
+	pwivate pawseSettings(settingsObject: { [path: stwing]: IConfiguwationPwopewtySchema; }, extensionInfo?: IConfiguwationExtensionInfo): ISetting[] {
+		const wesuwt: ISetting[] = [];
+		fow (const key in settingsObject) {
+			const pwop = settingsObject[key];
+			if (this.matchesScope(pwop)) {
+				const vawue = pwop.defauwt;
+				wet descwiption = (pwop.descwiption || pwop.mawkdownDescwiption || '');
+				if (typeof descwiption !== 'stwing') {
+					descwiption = '';
 				}
-				const descriptionLines = description.split('\n');
-				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				let listItemType: string | undefined;
-				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
-					if (prop.items.enum) {
-						listItemType = 'enum';
-					} else if (!isArray(prop.items.type)) {
-						listItemType = prop.items.type;
+				const descwiptionWines = descwiption.spwit('\n');
+				const ovewwides = OVEWWIDE_PWOPEWTY_PATTEWN.test(key) ? this.pawseOvewwideSettings(pwop.defauwt) : [];
+				wet wistItemType: stwing | undefined;
+				if (pwop.type === 'awway' && pwop.items && !isAwway(pwop.items) && pwop.items.type) {
+					if (pwop.items.enum) {
+						wistItemType = 'enum';
+					} ewse if (!isAwway(pwop.items.type)) {
+						wistItemType = pwop.items.type;
 					}
 				}
 
-				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
-				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
-				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+				const objectPwopewties = pwop.type === 'object' ? pwop.pwopewties : undefined;
+				const objectPattewnPwopewties = pwop.type === 'object' ? pwop.pattewnPwopewties : undefined;
+				const objectAdditionawPwopewties = pwop.type === 'object' ? pwop.additionawPwopewties : undefined;
 
-				let enumToUse = prop.enum;
-				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
-				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
-				if (listItemType === 'enum' && !isArray(prop.items)) {
-					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
-					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
+				wet enumToUse = pwop.enum;
+				wet enumDescwiptions = pwop.enumDescwiptions ?? pwop.mawkdownEnumDescwiptions;
+				wet enumDescwiptionsAweMawkdown = !pwop.enumDescwiptions;
+				if (wistItemType === 'enum' && !isAwway(pwop.items)) {
+					enumToUse = pwop.items!.enum;
+					enumDescwiptions = pwop.items!.enumDescwiptions ?? pwop.items!.mawkdownEnumDescwiptions;
+					enumDescwiptionsAweMawkdown = enumDescwiptionsAweMawkdown && !pwop.items!.enumDescwiptions;
 				}
 
-				let allKeysAreBoolean = false;
-				if (prop.type === 'object' && !prop.additionalProperties && prop.properties && Object.keys(prop.properties).length) {
-					allKeysAreBoolean = Object.keys(prop.properties).every(key => {
-						return prop.properties![key].type === 'boolean';
+				wet awwKeysAweBoowean = fawse;
+				if (pwop.type === 'object' && !pwop.additionawPwopewties && pwop.pwopewties && Object.keys(pwop.pwopewties).wength) {
+					awwKeysAweBoowean = Object.keys(pwop.pwopewties).evewy(key => {
+						wetuwn pwop.pwopewties![key].type === 'boowean';
 					});
 				}
 
-				result.push({
+				wesuwt.push({
 					key,
-					value,
-					description: descriptionLines,
-					descriptionIsMarkdown: !prop.description,
-					range: nullRange,
-					keyRange: nullRange,
-					valueRange: nullRange,
-					descriptionRanges: [],
-					overrides,
-					scope: prop.scope,
-					type: prop.type,
-					arrayItemType: listItemType,
-					objectProperties,
-					objectPatternProperties,
-					objectAdditionalProperties,
+					vawue,
+					descwiption: descwiptionWines,
+					descwiptionIsMawkdown: !pwop.descwiption,
+					wange: nuwwWange,
+					keyWange: nuwwWange,
+					vawueWange: nuwwWange,
+					descwiptionWanges: [],
+					ovewwides,
+					scope: pwop.scope,
+					type: pwop.type,
+					awwayItemType: wistItemType,
+					objectPwopewties,
+					objectPattewnPwopewties,
+					objectAdditionawPwopewties,
 					enum: enumToUse,
-					enumDescriptions: enumDescriptions,
-					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
-					uniqueItems: prop.uniqueItems,
-					tags: prop.tags,
-					disallowSyncIgnore: prop.disallowSyncIgnore,
-					restricted: prop.restricted,
+					enumDescwiptions: enumDescwiptions,
+					enumDescwiptionsAweMawkdown: enumDescwiptionsAweMawkdown,
+					uniqueItems: pwop.uniqueItems,
+					tags: pwop.tags,
+					disawwowSyncIgnowe: pwop.disawwowSyncIgnowe,
+					westwicted: pwop.westwicted,
 					extensionInfo: extensionInfo,
-					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
-					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
-					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels,
-					allKeysAreBoolean,
-					editPresentation: prop.editPresentation
+					depwecationMessage: pwop.mawkdownDepwecationMessage || pwop.depwecationMessage,
+					depwecationMessageIsMawkdown: !!pwop.mawkdownDepwecationMessage,
+					vawidatow: cweateVawidatow(pwop),
+					enumItemWabews: pwop.enumItemWabews,
+					awwKeysAweBoowean,
+					editPwesentation: pwop.editPwesentation
 				});
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private parseOverrideSettings(overrideSettings: any): ISetting[] {
-		return Object.keys(overrideSettings).map((key) => ({
+	pwivate pawseOvewwideSettings(ovewwideSettings: any): ISetting[] {
+		wetuwn Object.keys(ovewwideSettings).map((key) => ({
 			key,
-			value: overrideSettings[key],
-			description: [],
-			descriptionIsMarkdown: false,
-			range: nullRange,
-			keyRange: nullRange,
-			valueRange: nullRange,
-			descriptionRanges: [],
-			overrides: []
+			vawue: ovewwideSettings[key],
+			descwiption: [],
+			descwiptionIsMawkdown: fawse,
+			wange: nuwwWange,
+			keyWange: nuwwWange,
+			vawueWange: nuwwWange,
+			descwiptionWanges: [],
+			ovewwides: []
 		}));
 	}
 
-	private matchesScope(property: IConfigurationNode): boolean {
-		if (!property.scope) {
-			return true;
+	pwivate matchesScope(pwopewty: IConfiguwationNode): boowean {
+		if (!pwopewty.scope) {
+			wetuwn twue;
 		}
-		if (this.target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			return FOLDER_SCOPES.indexOf(property.scope) !== -1;
+		if (this.tawget === ConfiguwationTawget.WOWKSPACE_FOWDa) {
+			wetuwn FOWDEW_SCOPES.indexOf(pwopewty.scope) !== -1;
 		}
-		if (this.target === ConfigurationTarget.WORKSPACE) {
-			return WORKSPACE_SCOPES.indexOf(property.scope) !== -1;
+		if (this.tawget === ConfiguwationTawget.WOWKSPACE) {
+			wetuwn WOWKSPACE_SCOPES.indexOf(pwopewty.scope) !== -1;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
-		if (typeof c1.order !== 'number') {
-			return 1;
+	pwivate compaweConfiguwationNodes(c1: IConfiguwationNode, c2: IConfiguwationNode): numba {
+		if (typeof c1.owda !== 'numba') {
+			wetuwn 1;
 		}
-		if (typeof c2.order !== 'number') {
-			return -1;
+		if (typeof c2.owda !== 'numba') {
+			wetuwn -1;
 		}
-		if (c1.order === c2.order) {
-			const title1 = c1.title || '';
-			const title2 = c2.title || '';
-			return title1.localeCompare(title2);
+		if (c1.owda === c2.owda) {
+			const titwe1 = c1.titwe || '';
+			const titwe2 = c2.titwe || '';
+			wetuwn titwe1.wocaweCompawe(titwe2);
 		}
-		return c1.order - c2.order;
+		wetuwn c1.owda - c2.owda;
 	}
 
-	private toContent(settingsGroups: ISettingsGroup[]): string {
-		const builder = new SettingsContentBuilder();
-		settingsGroups.forEach((settingsGroup, i) => {
-			builder.pushGroup(settingsGroup, i === 0, i === settingsGroups.length - 1);
+	pwivate toContent(settingsGwoups: ISettingsGwoup[]): stwing {
+		const buiwda = new SettingsContentBuiwda();
+		settingsGwoups.fowEach((settingsGwoup, i) => {
+			buiwda.pushGwoup(settingsGwoup, i === 0, i === settingsGwoups.wength - 1);
 		});
-		return builder.getContent();
+		wetuwn buiwda.getContent();
 	}
 
 }
 
-export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+expowt cwass DefauwtSettingsEditowModew extends AbstwactSettingsModew impwements ISettingsEditowModew {
 
-	private _model: ITextModel;
+	pwivate _modew: ITextModew;
 
-	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+	pwivate weadonwy _onDidChangeGwoups: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeGwoups: Event<void> = this._onDidChangeGwoups.event;
 
-	constructor(
-		private _uri: URI,
-		reference: IReference<ITextEditorModel>,
-		private readonly defaultSettings: DefaultSettings
+	constwuctow(
+		pwivate _uwi: UWI,
+		wefewence: IWefewence<ITextEditowModew>,
+		pwivate weadonwy defauwtSettings: DefauwtSettings
 	) {
-		super();
+		supa();
 
-		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
-		this._model = reference.object.textEditorModel!;
-		this._register(this.onWillDispose(() => reference.dispose()));
+		this._wegista(defauwtSettings.onDidChange(() => this._onDidChangeGwoups.fiwe()));
+		this._modew = wefewence.object.textEditowModew!;
+		this._wegista(this.onWiwwDispose(() => wefewence.dispose()));
 	}
 
-	get uri(): URI {
-		return this._uri;
+	get uwi(): UWI {
+		wetuwn this._uwi;
 	}
 
-	get target(): ConfigurationTarget {
-		return this.defaultSettings.target;
+	get tawget(): ConfiguwationTawget {
+		wetuwn this.defauwtSettings.tawget;
 	}
 
-	get settingsGroups(): ISettingsGroup[] {
-		return this.defaultSettings.getSettingsGroups();
+	get settingsGwoups(): ISettingsGwoup[] {
+		wetuwn this.defauwtSettings.getSettingsGwoups();
 	}
 
-	protected override get filterGroups(): ISettingsGroup[] {
-		// Don't look at "commonly used" for filter
-		return this.settingsGroups.slice(1);
+	pwotected ovewwide get fiwtewGwoups(): ISettingsGwoup[] {
+		// Don't wook at "commonwy used" fow fiwta
+		wetuwn this.settingsGwoups.swice(1);
 	}
 
-	protected update(): IFilterResult | undefined {
-		if (this._model.isDisposed()) {
-			return undefined;
+	pwotected update(): IFiwtewWesuwt | undefined {
+		if (this._modew.isDisposed()) {
+			wetuwn undefined;
 		}
 
-		// Grab current result groups, only render non-empty groups
-		const resultGroups = [...this._currentResultGroups.values()]
-			.sort((a, b) => a.order - b.order);
-		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
+		// Gwab cuwwent wesuwt gwoups, onwy wenda non-empty gwoups
+		const wesuwtGwoups = [...this._cuwwentWesuwtGwoups.vawues()]
+			.sowt((a, b) => a.owda - b.owda);
+		const nonEmptyWesuwtGwoups = wesuwtGwoups.fiwta(gwoup => gwoup.wesuwt.fiwtewMatches.wength);
 
-		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
-		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
+		const stawtWine = taiw(this.settingsGwoups).wange.endWineNumba + 2;
+		const { settingsGwoups: fiwtewedGwoups, matches } = this.wwiteWesuwtGwoups(nonEmptyWesuwtGwoups, stawtWine);
 
-		const metadata = this.collectMetadata(resultGroups);
-		return resultGroups.length ?
-			<IFilterResult>{
-				allGroups: this.settingsGroups,
-				filteredGroups,
+		const metadata = this.cowwectMetadata(wesuwtGwoups);
+		wetuwn wesuwtGwoups.wength ?
+			<IFiwtewWesuwt>{
+				awwGwoups: this.settingsGwoups,
+				fiwtewedGwoups,
 				matches,
 				metadata
 			} :
@@ -797,342 +797,342 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	/**
-	 * Translate the ISearchResultGroups to text, and write it to the editor model
+	 * Twanswate the ISeawchWesuwtGwoups to text, and wwite it to the editow modew
 	 */
-	private writeResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[], settingsGroups: ISettingsGroup[] } {
-		const contentBuilderOffset = startLine - 1;
-		const builder = new SettingsContentBuilder(contentBuilderOffset);
+	pwivate wwiteWesuwtGwoups(gwoups: ISeawchWesuwtGwoup[], stawtWine: numba): { matches: IWange[], settingsGwoups: ISettingsGwoup[] } {
+		const contentBuiwdewOffset = stawtWine - 1;
+		const buiwda = new SettingsContentBuiwda(contentBuiwdewOffset);
 
-		const settingsGroups: ISettingsGroup[] = [];
-		const matches: IRange[] = [];
-		if (groups.length) {
-			builder.pushLine(',');
-			groups.forEach(resultGroup => {
-				const settingsGroup = this.getGroup(resultGroup);
-				settingsGroups.push(settingsGroup);
-				matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
+		const settingsGwoups: ISettingsGwoup[] = [];
+		const matches: IWange[] = [];
+		if (gwoups.wength) {
+			buiwda.pushWine(',');
+			gwoups.fowEach(wesuwtGwoup => {
+				const settingsGwoup = this.getGwoup(wesuwtGwoup);
+				settingsGwoups.push(settingsGwoup);
+				matches.push(...this.wwiteSettingsGwoupToBuiwda(buiwda, settingsGwoup, wesuwtGwoup.wesuwt.fiwtewMatches));
 			});
 		}
 
-		// note: 1-indexed line numbers here
-		const groupContent = builder.getContent() + '\n';
-		const groupEndLine = this._model.getLineCount();
-		const cursorPosition = new Selection(startLine, 1, startLine, 1);
-		const edit: IIdentifiedSingleEditOperation = {
-			text: groupContent,
-			forceMoveMarkers: true,
-			range: new Range(startLine, 1, groupEndLine, 1),
-			identifier: { major: 1, minor: 0 }
+		// note: 1-indexed wine numbews hewe
+		const gwoupContent = buiwda.getContent() + '\n';
+		const gwoupEndWine = this._modew.getWineCount();
+		const cuwsowPosition = new Sewection(stawtWine, 1, stawtWine, 1);
+		const edit: IIdentifiedSingweEditOpewation = {
+			text: gwoupContent,
+			fowceMoveMawkews: twue,
+			wange: new Wange(stawtWine, 1, gwoupEndWine, 1),
+			identifia: { majow: 1, minow: 0 }
 		};
 
-		this._model.pushEditOperations([cursorPosition], [edit], () => [cursorPosition]);
+		this._modew.pushEditOpewations([cuwsowPosition], [edit], () => [cuwsowPosition]);
 
-		// Force tokenization now - otherwise it may be slightly delayed, causing a flash of white text
-		const tokenizeTo = Math.min(startLine + 60, this._model.getLineCount());
-		this._model.forceTokenization(tokenizeTo);
+		// Fowce tokenization now - othewwise it may be swightwy dewayed, causing a fwash of white text
+		const tokenizeTo = Math.min(stawtWine + 60, this._modew.getWineCount());
+		this._modew.fowceTokenization(tokenizeTo);
 
-		return { matches, settingsGroups };
+		wetuwn { matches, settingsGwoups };
 	}
 
-	private writeSettingsGroupToBuilder(builder: SettingsContentBuilder, settingsGroup: ISettingsGroup, filterMatches: ISettingMatch[]): IRange[] {
-		filterMatches = filterMatches
-			.map(filteredMatch => {
-				// Fix match ranges to offset from setting start line
-				return <ISettingMatch>{
-					setting: filteredMatch.setting,
-					score: filteredMatch.score,
-					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
-						return new Range(
-							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
-							match.startColumn,
-							match.endLineNumber - filteredMatch.setting.range.startLineNumber,
-							match.endColumn);
+	pwivate wwiteSettingsGwoupToBuiwda(buiwda: SettingsContentBuiwda, settingsGwoup: ISettingsGwoup, fiwtewMatches: ISettingMatch[]): IWange[] {
+		fiwtewMatches = fiwtewMatches
+			.map(fiwtewedMatch => {
+				// Fix match wanges to offset fwom setting stawt wine
+				wetuwn <ISettingMatch>{
+					setting: fiwtewedMatch.setting,
+					scowe: fiwtewedMatch.scowe,
+					matches: fiwtewedMatch.matches && fiwtewedMatch.matches.map(match => {
+						wetuwn new Wange(
+							match.stawtWineNumba - fiwtewedMatch.setting.wange.stawtWineNumba,
+							match.stawtCowumn,
+							match.endWineNumba - fiwtewedMatch.setting.wange.stawtWineNumba,
+							match.endCowumn);
 					})
 				};
 			});
 
-		builder.pushGroup(settingsGroup);
+		buiwda.pushGwoup(settingsGwoup);
 
-		// builder has rewritten settings ranges, fix match ranges
-		const fixedMatches = flatten(
-			filterMatches
+		// buiwda has wewwitten settings wanges, fix match wanges
+		const fixedMatches = fwatten(
+			fiwtewMatches
 				.map(m => m.matches || [])
 				.map((settingMatches, i) => {
-					const setting = settingsGroup.sections[0].settings[i];
-					return settingMatches.map(range => {
-						return new Range(
-							range.startLineNumber + setting.range.startLineNumber,
-							range.startColumn,
-							range.endLineNumber + setting.range.startLineNumber,
-							range.endColumn);
+					const setting = settingsGwoup.sections[0].settings[i];
+					wetuwn settingMatches.map(wange => {
+						wetuwn new Wange(
+							wange.stawtWineNumba + setting.wange.stawtWineNumba,
+							wange.stawtCowumn,
+							wange.endWineNumba + setting.wange.stawtWineNumba,
+							wange.endCowumn);
 					});
 				}));
 
-		return fixedMatches;
+		wetuwn fixedMatches;
 	}
 
-	private copySetting(setting: ISetting): ISetting {
-		return {
-			description: setting.description,
+	pwivate copySetting(setting: ISetting): ISetting {
+		wetuwn {
+			descwiption: setting.descwiption,
 			scope: setting.scope,
 			type: setting.type,
 			enum: setting.enum,
-			enumDescriptions: setting.enumDescriptions,
+			enumDescwiptions: setting.enumDescwiptions,
 			key: setting.key,
-			value: setting.value,
-			range: setting.range,
-			overrides: [],
-			overrideOf: setting.overrideOf,
+			vawue: setting.vawue,
+			wange: setting.wange,
+			ovewwides: [],
+			ovewwideOf: setting.ovewwideOf,
 			tags: setting.tags,
-			deprecationMessage: setting.deprecationMessage,
-			keyRange: nullRange,
-			valueRange: nullRange,
-			descriptionIsMarkdown: undefined,
-			descriptionRanges: []
+			depwecationMessage: setting.depwecationMessage,
+			keyWange: nuwwWange,
+			vawueWange: nuwwWange,
+			descwiptionIsMawkdown: undefined,
+			descwiptionWanges: []
 		};
 	}
 
-	findValueMatches(filter: string, setting: ISetting): IRange[] {
-		return [];
+	findVawueMatches(fiwta: stwing, setting: ISetting): IWange[] {
+		wetuwn [];
 	}
 
-	override getPreference(key: string): ISetting | undefined {
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
+	ovewwide getPwefewence(key: stwing): ISetting | undefined {
+		fow (const gwoup of this.settingsGwoups) {
+			fow (const section of gwoup.sections) {
+				fow (const setting of section.settings) {
 					if (setting.key === key) {
-						return setting;
+						wetuwn setting;
 					}
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
-		return <ISettingsGroup>{
-			id: resultGroup.id,
-			range: nullRange,
-			title: resultGroup.label,
-			titleRange: nullRange,
+	pwivate getGwoup(wesuwtGwoup: ISeawchWesuwtGwoup): ISettingsGwoup {
+		wetuwn <ISettingsGwoup>{
+			id: wesuwtGwoup.id,
+			wange: nuwwWange,
+			titwe: wesuwtGwoup.wabew,
+			titweWange: nuwwWange,
 			sections: [
 				{
-					settings: resultGroup.result.filterMatches.map(m => this.copySetting(m.setting))
+					settings: wesuwtGwoup.wesuwt.fiwtewMatches.map(m => this.copySetting(m.setting))
 				}
 			]
 		};
 	}
 }
 
-class SettingsContentBuilder {
-	private _contentByLines: string[];
+cwass SettingsContentBuiwda {
+	pwivate _contentByWines: stwing[];
 
-	private get lineCountWithOffset(): number {
-		return this._contentByLines.length + this._rangeOffset;
+	pwivate get wineCountWithOffset(): numba {
+		wetuwn this._contentByWines.wength + this._wangeOffset;
 	}
 
-	private get lastLine(): string {
-		return this._contentByLines[this._contentByLines.length - 1] || '';
+	pwivate get wastWine(): stwing {
+		wetuwn this._contentByWines[this._contentByWines.wength - 1] || '';
 	}
 
-	constructor(private _rangeOffset = 0) {
-		this._contentByLines = [];
+	constwuctow(pwivate _wangeOffset = 0) {
+		this._contentByWines = [];
 	}
 
-	pushLine(...lineText: string[]): void {
-		this._contentByLines.push(...lineText);
+	pushWine(...wineText: stwing[]): void {
+		this._contentByWines.push(...wineText);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup, isFirst?: boolean, isLast?: boolean): void {
-		this._contentByLines.push(isFirst ? '[{' : '{');
-		const lastSetting = this._pushGroup(settingsGroups, '  ');
+	pushGwoup(settingsGwoups: ISettingsGwoup, isFiwst?: boowean, isWast?: boowean): void {
+		this._contentByWines.push(isFiwst ? '[{' : '{');
+		const wastSetting = this._pushGwoup(settingsGwoups, '  ');
 
-		if (lastSetting) {
-			// Strip the comma from the last setting
-			const lineIdx = lastSetting.range.endLineNumber - this._rangeOffset;
-			const content = this._contentByLines[lineIdx - 2];
-			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
+		if (wastSetting) {
+			// Stwip the comma fwom the wast setting
+			const wineIdx = wastSetting.wange.endWineNumba - this._wangeOffset;
+			const content = this._contentByWines[wineIdx - 2];
+			this._contentByWines[wineIdx - 2] = content.substwing(0, content.wength - 1);
 		}
 
-		this._contentByLines.push(isLast ? '}]' : '},');
+		this._contentByWines.push(isWast ? '}]' : '},');
 	}
 
-	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting | null {
-		let lastSetting: ISetting | null = null;
-		const groupStart = this.lineCountWithOffset + 1;
-		for (const section of group.sections) {
-			if (section.title) {
-				const sectionTitleStart = this.lineCountWithOffset + 1;
-				this.addDescription([section.title], indent, this._contentByLines);
-				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	pwotected _pushGwoup(gwoup: ISettingsGwoup, indent: stwing): ISetting | nuww {
+		wet wastSetting: ISetting | nuww = nuww;
+		const gwoupStawt = this.wineCountWithOffset + 1;
+		fow (const section of gwoup.sections) {
+			if (section.titwe) {
+				const sectionTitweStawt = this.wineCountWithOffset + 1;
+				this.addDescwiption([section.titwe], indent, this._contentByWines);
+				section.titweWange = { stawtWineNumba: sectionTitweStawt, stawtCowumn: 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength };
 			}
 
-			if (section.settings.length) {
-				for (const setting of section.settings) {
+			if (section.settings.wength) {
+				fow (const setting of section.settings) {
 					this.pushSetting(setting, indent);
-					lastSetting = setting;
+					wastSetting = setting;
 				}
 			}
 
 		}
-		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
-		return lastSetting;
+		gwoup.wange = { stawtWineNumba: gwoupStawt, stawtCowumn: 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength };
+		wetuwn wastSetting;
 	}
 
-	getContent(): string {
-		return this._contentByLines.join('\n');
+	getContent(): stwing {
+		wetuwn this._contentByWines.join('\n');
 	}
 
-	private pushSetting(setting: ISetting, indent: string): void {
-		const settingStart = this.lineCountWithOffset + 1;
+	pwivate pushSetting(setting: ISetting, indent: stwing): void {
+		const settingStawt = this.wineCountWithOffset + 1;
 
-		this.pushSettingDescription(setting, indent);
+		this.pushSettingDescwiption(setting, indent);
 
-		let preValueContent = indent;
-		const keyString = JSON.stringify(setting.key);
-		preValueContent += keyString;
-		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueContent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+		wet pweVawueContent = indent;
+		const keyStwing = JSON.stwingify(setting.key);
+		pweVawueContent += keyStwing;
+		setting.keyWange = { stawtWineNumba: this.wineCountWithOffset + 1, stawtCowumn: pweVawueContent.indexOf(setting.key) + 1, endWineNumba: this.wineCountWithOffset + 1, endCowumn: setting.key.wength };
 
-		preValueContent += ': ';
-		const valueStart = this.lineCountWithOffset + 1;
-		this.pushValue(setting, preValueContent, indent);
+		pweVawueContent += ': ';
+		const vawueStawt = this.wineCountWithOffset + 1;
+		this.pushVawue(setting, pweVawueContent, indent);
 
-		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueContent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
-		this._contentByLines[this._contentByLines.length - 1] += ',';
-		this._contentByLines.push('');
-		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+		setting.vawueWange = { stawtWineNumba: vawueStawt, stawtCowumn: pweVawueContent.wength + 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength + 1 };
+		this._contentByWines[this._contentByWines.wength - 1] += ',';
+		this._contentByWines.push('');
+		setting.wange = { stawtWineNumba: settingStawt, stawtCowumn: 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength };
 	}
 
-	private pushSettingDescription(setting: ISetting, indent: string): void {
-		const fixSettingLink = (line: string) => line.replace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
+	pwivate pushSettingDescwiption(setting: ISetting, indent: stwing): void {
+		const fixSettingWink = (wine: stwing) => wine.wepwace(/`#(.*)#`/g, (match, settingName) => `\`${settingName}\``);
 
-		setting.descriptionRanges = [];
-		const descriptionPreValue = indent + '// ';
-		for (let line of (setting.deprecationMessage ? [setting.deprecationMessage, ...setting.description] : setting.description)) {
-			line = fixSettingLink(line);
+		setting.descwiptionWanges = [];
+		const descwiptionPweVawue = indent + '// ';
+		fow (wet wine of (setting.depwecationMessage ? [setting.depwecationMessage, ...setting.descwiption] : setting.descwiption)) {
+			wine = fixSettingWink(wine);
 
-			this._contentByLines.push(descriptionPreValue + line);
-			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+			this._contentByWines.push(descwiptionPweVawue + wine);
+			setting.descwiptionWanges.push({ stawtWineNumba: this.wineCountWithOffset, stawtCowumn: this.wastWine.indexOf(wine) + 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength });
 		}
 
-		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
-			setting.enumDescriptions.forEach((desc, i) => {
-				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
-				const line = desc ?
-					`${displayEnum}: ${fixSettingLink(desc)}` :
-					displayEnum;
+		if (setting.enumDescwiptions && setting.enumDescwiptions.some(desc => !!desc)) {
+			setting.enumDescwiptions.fowEach((desc, i) => {
+				const dispwayEnum = escapeInvisibweChaws(Stwing(setting.enum![i]));
+				const wine = desc ?
+					`${dispwayEnum}: ${fixSettingWink(desc)}` :
+					dispwayEnum;
 
-				const lines = line.split(/\n/g);
-				lines[0] = ' - ' + lines[0];
-				this._contentByLines.push(...lines.map(l => `${indent}// ${l}`));
+				const wines = wine.spwit(/\n/g);
+				wines[0] = ' - ' + wines[0];
+				this._contentByWines.push(...wines.map(w => `${indent}// ${w}`));
 
-				setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+				setting.descwiptionWanges.push({ stawtWineNumba: this.wineCountWithOffset, stawtCowumn: this.wastWine.indexOf(wine) + 1, endWineNumba: this.wineCountWithOffset, endCowumn: this.wastWine.wength });
 			});
 		}
 	}
 
-	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
-		const valueString = JSON.stringify(setting.value, null, indent);
-		if (valueString && (typeof setting.value === 'object')) {
-			if (setting.overrides && setting.overrides.length) {
-				this._contentByLines.push(preValueConent + ' {');
-				for (const subSetting of setting.overrides) {
+	pwivate pushVawue(setting: ISetting, pweVawueConent: stwing, indent: stwing): void {
+		const vawueStwing = JSON.stwingify(setting.vawue, nuww, indent);
+		if (vawueStwing && (typeof setting.vawue === 'object')) {
+			if (setting.ovewwides && setting.ovewwides.wength) {
+				this._contentByWines.push(pweVawueConent + ' {');
+				fow (const subSetting of setting.ovewwides) {
 					this.pushSetting(subSetting, indent + indent);
-					this._contentByLines.pop();
+					this._contentByWines.pop();
 				}
-				const lastSetting = setting.overrides[setting.overrides.length - 1];
-				const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
-				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
-				this._contentByLines.push(indent + '}');
-			} else {
-				const mulitLineValue = valueString.split('\n');
-				this._contentByLines.push(preValueConent + mulitLineValue[0]);
-				for (let i = 1; i < mulitLineValue.length; i++) {
-					this._contentByLines.push(indent + mulitLineValue[i]);
+				const wastSetting = setting.ovewwides[setting.ovewwides.wength - 1];
+				const content = this._contentByWines[wastSetting.wange.endWineNumba - 2];
+				this._contentByWines[wastSetting.wange.endWineNumba - 2] = content.substwing(0, content.wength - 1);
+				this._contentByWines.push(indent + '}');
+			} ewse {
+				const muwitWineVawue = vawueStwing.spwit('\n');
+				this._contentByWines.push(pweVawueConent + muwitWineVawue[0]);
+				fow (wet i = 1; i < muwitWineVawue.wength; i++) {
+					this._contentByWines.push(indent + muwitWineVawue[i]);
 				}
 			}
-		} else {
-			this._contentByLines.push(preValueConent + valueString);
+		} ewse {
+			this._contentByWines.push(pweVawueConent + vawueStwing);
 		}
 	}
 
-	private addDescription(description: string[], indent: string, result: string[]) {
-		for (const line of description) {
-			result.push(indent + '// ' + line);
+	pwivate addDescwiption(descwiption: stwing[], indent: stwing, wesuwt: stwing[]) {
+		fow (const wine of descwiption) {
+			wesuwt.push(indent + '// ' + wine);
 		}
 	}
 }
 
-class RawSettingsContentBuilder extends SettingsContentBuilder {
+cwass WawSettingsContentBuiwda extends SettingsContentBuiwda {
 
-	constructor(private indent: string = '\t') {
-		super(0);
+	constwuctow(pwivate indent: stwing = '\t') {
+		supa(0);
 	}
 
-	override pushGroup(settingsGroups: ISettingsGroup): void {
-		this._pushGroup(settingsGroups, this.indent);
+	ovewwide pushGwoup(settingsGwoups: ISettingsGwoup): void {
+		this._pushGwoup(settingsGwoups, this.indent);
 	}
 
 }
 
-export class DefaultRawSettingsEditorModel extends Disposable {
+expowt cwass DefauwtWawSettingsEditowModew extends Disposabwe {
 
-	private _content: string | null = null;
+	pwivate _content: stwing | nuww = nuww;
 
-	constructor(private defaultSettings: DefaultSettings) {
-		super();
-		this._register(defaultSettings.onDidChange(() => this._content = null));
+	constwuctow(pwivate defauwtSettings: DefauwtSettings) {
+		supa();
+		this._wegista(defauwtSettings.onDidChange(() => this._content = nuww));
 	}
 
-	get content(): string {
-		if (this._content === null) {
-			const builder = new RawSettingsContentBuilder();
-			builder.pushLine('{');
-			for (const settingsGroup of this.defaultSettings.getRegisteredGroups()) {
-				builder.pushGroup(settingsGroup);
+	get content(): stwing {
+		if (this._content === nuww) {
+			const buiwda = new WawSettingsContentBuiwda();
+			buiwda.pushWine('{');
+			fow (const settingsGwoup of this.defauwtSettings.getWegistewedGwoups()) {
+				buiwda.pushGwoup(settingsGwoup);
 			}
-			builder.pushLine('}');
-			this._content = builder.getContent();
+			buiwda.pushWine('}');
+			this._content = buiwda.getContent();
 		}
-		return this._content;
+		wetuwn this._content;
 	}
 }
 
-function escapeInvisibleChars(enumValue: string): string {
-	return enumValue && enumValue
-		.replace(/\n/g, '\\n')
-		.replace(/\r/g, '\\r');
+function escapeInvisibweChaws(enumVawue: stwing): stwing {
+	wetuwn enumVawue && enumVawue
+		.wepwace(/\n/g, '\\n')
+		.wepwace(/\w/g, '\\w');
 }
 
-export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
-	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Override key bindings by placing them into your key bindings file.");
-	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
+expowt function defauwtKeybindingsContents(keybindingSewvice: IKeybindingSewvice): stwing {
+	const defauwtsHeada = '// ' + nws.wocawize('defauwtKeybindingsHeada', "Ovewwide key bindings by pwacing them into youw key bindings fiwe.");
+	wetuwn defauwtsHeada + '\n' + keybindingSewvice.getDefauwtKeybindingsContent();
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
+expowt cwass DefauwtKeybindingsEditowModew impwements IKeybindingsEditowModew<any> {
 
-	private _content: string | undefined;
+	pwivate _content: stwing | undefined;
 
-	constructor(private _uri: URI,
-		@IKeybindingService private readonly keybindingService: IKeybindingService) {
+	constwuctow(pwivate _uwi: UWI,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice) {
 	}
 
-	get uri(): URI {
-		return this._uri;
+	get uwi(): UWI {
+		wetuwn this._uwi;
 	}
 
-	get content(): string {
+	get content(): stwing {
 		if (!this._content) {
-			this._content = defaultKeybindingsContents(this.keybindingService);
+			this._content = defauwtKeybindingsContents(this.keybindingSewvice);
 		}
-		return this._content;
+		wetuwn this._content;
 	}
 
-	getPreference(): any {
-		return null;
+	getPwefewence(): any {
+		wetuwn nuww;
 	}
 
 	dispose(): void {
-		// Not disposable
+		// Not disposabwe
 	}
 }

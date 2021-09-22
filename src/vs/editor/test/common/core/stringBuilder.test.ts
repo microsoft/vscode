@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { writeUInt16LE } from 'vs/base/common/buffer';
-import { decodeUTF16LE } from 'vs/editor/common/core/stringBuilder';
+impowt * as assewt fwom 'assewt';
+impowt { wwiteUInt16WE } fwom 'vs/base/common/buffa';
+impowt { decodeUTF16WE } fwom 'vs/editow/common/cowe/stwingBuiwda';
 
-suite('decodeUTF16LE', () => {
+suite('decodeUTF16WE', () => {
 
-	test('issue #118041: unicode character undo bug 1', () => {
-		const buff = new Uint8Array(2);
-		writeUInt16LE(buff, '﻿'.charCodeAt(0), 0);
-		const actual = decodeUTF16LE(buff, 0, 1);
-		assert.deepStrictEqual(actual, '﻿');
+	test('issue #118041: unicode chawacta undo bug 1', () => {
+		const buff = new Uint8Awway(2);
+		wwiteUInt16WE(buff, '﻿'.chawCodeAt(0), 0);
+		const actuaw = decodeUTF16WE(buff, 0, 1);
+		assewt.deepStwictEquaw(actuaw, '﻿');
 	});
 
-	test('issue #118041: unicode character undo bug 2', () => {
-		const buff = new Uint8Array(4);
-		writeUInt16LE(buff, 'a﻿'.charCodeAt(0), 0);
-		writeUInt16LE(buff, 'a﻿'.charCodeAt(1), 2);
-		const actual = decodeUTF16LE(buff, 0, 2);
-		assert.deepStrictEqual(actual, 'a﻿');
+	test('issue #118041: unicode chawacta undo bug 2', () => {
+		const buff = new Uint8Awway(4);
+		wwiteUInt16WE(buff, 'a﻿'.chawCodeAt(0), 0);
+		wwiteUInt16WE(buff, 'a﻿'.chawCodeAt(1), 2);
+		const actuaw = decodeUTF16WE(buff, 0, 2);
+		assewt.deepStwictEquaw(actuaw, 'a﻿');
 	});
 
-	test('issue #118041: unicode character undo bug 3', () => {
-		const buff = new Uint8Array(6);
-		writeUInt16LE(buff, 'a﻿b'.charCodeAt(0), 0);
-		writeUInt16LE(buff, 'a﻿b'.charCodeAt(1), 2);
-		writeUInt16LE(buff, 'a﻿b'.charCodeAt(2), 4);
-		const actual = decodeUTF16LE(buff, 0, 3);
-		assert.deepStrictEqual(actual, 'a﻿b');
+	test('issue #118041: unicode chawacta undo bug 3', () => {
+		const buff = new Uint8Awway(6);
+		wwiteUInt16WE(buff, 'a﻿b'.chawCodeAt(0), 0);
+		wwiteUInt16WE(buff, 'a﻿b'.chawCodeAt(1), 2);
+		wwiteUInt16WE(buff, 'a﻿b'.chawCodeAt(2), 4);
+		const actuaw = decodeUTF16WE(buff, 0, 3);
+		assewt.deepStwictEquaw(actuaw, 'a﻿b');
 	});
 
 });

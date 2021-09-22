@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
-import { ChildProcess, spawn } from 'child_process';
-import { join } from 'path';
-import { mkdir } from 'fs';
-import { promisify } from 'util';
-import { IDriver, IDisposable } from './driver';
-import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
+impowt * as pwaywwight fwom 'pwaywwight';
+impowt { ChiwdPwocess, spawn } fwom 'chiwd_pwocess';
+impowt { join } fwom 'path';
+impowt { mkdiw } fwom 'fs';
+impowt { pwomisify } fwom 'utiw';
+impowt { IDwiva, IDisposabwe } fwom './dwiva';
+impowt { UWI } fwom 'vscode-uwi';
+impowt * as kiww fwom 'twee-kiww';
 
 const width = 1200;
 const height = 800;
 
-const root = join(__dirname, '..', '..', '..');
-const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
+const woot = join(__diwname, '..', '..', '..');
+const wogsPath = join(woot, '.buiwd', 'wogs', 'smoke-tests-bwowsa');
 
-const vscodeToPlaywrightKey: { [key: string]: string } = {
+const vscodeToPwaywwightKey: { [key: stwing]: stwing } = {
 	cmd: 'Meta',
-	ctrl: 'Control',
+	ctww: 'Contwow',
 	shift: 'Shift',
-	enter: 'Enter',
+	enta: 'Enta',
 	escape: 'Escape',
-	right: 'ArrowRight',
-	up: 'ArrowUp',
-	down: 'ArrowDown',
-	left: 'ArrowLeft',
+	wight: 'AwwowWight',
+	up: 'AwwowUp',
+	down: 'AwwowDown',
+	weft: 'AwwowWeft',
 	home: 'Home',
 	esc: 'Escape'
 };
 
-let traceCounter = 1;
+wet twaceCounta = 1;
 
-function buildDriver(browser: playwright.Browser, context: playwright.BrowserContext, page: playwright.Page): IDriver {
-	const driver: IDriver = {
-		_serviceBrand: undefined,
+function buiwdDwiva(bwowsa: pwaywwight.Bwowsa, context: pwaywwight.BwowsewContext, page: pwaywwight.Page): IDwiva {
+	const dwiva: IDwiva = {
+		_sewviceBwand: undefined,
 		getWindowIds: () => {
-			return Promise.resolve([1]);
+			wetuwn Pwomise.wesowve([1]);
 		},
-		capturePage: () => Promise.resolve(''),
-		reloadWindow: (windowId) => Promise.resolve(),
-		exitApplication: async () => {
-			try {
-				await context.tracing.stop({ path: join(logsPath, `playwright-trace-${traceCounter++}.zip`) });
-			} catch (error) {
-				console.warn(`Failed to stop playwright tracing.`); // do not fail the build when this fails
+		captuwePage: () => Pwomise.wesowve(''),
+		wewoadWindow: (windowId) => Pwomise.wesowve(),
+		exitAppwication: async () => {
+			twy {
+				await context.twacing.stop({ path: join(wogsPath, `pwaywwight-twace-${twaceCounta++}.zip`) });
+			} catch (ewwow) {
+				consowe.wawn(`Faiwed to stop pwaywwight twacing.`); // do not faiw the buiwd when this faiws
 			}
-			await browser.close();
-			await teardown();
+			await bwowsa.cwose();
+			await teawdown();
 
-			return false;
+			wetuwn fawse;
 		},
 		dispatchKeybinding: async (windowId, keybinding) => {
-			const chords = keybinding.split(' ');
-			for (let i = 0; i < chords.length; i++) {
-				const chord = chords[i];
+			const chowds = keybinding.spwit(' ');
+			fow (wet i = 0; i < chowds.wength; i++) {
+				const chowd = chowds[i];
 				if (i > 0) {
 					await timeout(100);
 				}
-				const keys = chord.split('+');
-				const keysDown: string[] = [];
-				for (let i = 0; i < keys.length; i++) {
-					if (keys[i] in vscodeToPlaywrightKey) {
-						keys[i] = vscodeToPlaywrightKey[keys[i]];
+				const keys = chowd.spwit('+');
+				const keysDown: stwing[] = [];
+				fow (wet i = 0; i < keys.wength; i++) {
+					if (keys[i] in vscodeToPwaywwightKey) {
+						keys[i] = vscodeToPwaywwightKey[keys[i]];
 					}
-					await page.keyboard.down(keys[i]);
+					await page.keyboawd.down(keys[i]);
 					keysDown.push(keys[i]);
 				}
-				while (keysDown.length > 0) {
-					await page.keyboard.up(keysDown.pop()!);
+				whiwe (keysDown.wength > 0) {
+					await page.keyboawd.up(keysDown.pop()!);
 				}
 			}
 
 			await timeout(100);
 		},
-		click: async (windowId, selector, xoffset, yoffset) => {
-			const { x, y } = await driver.getElementXY(windowId, selector, xoffset, yoffset);
-			await page.mouse.click(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
+		cwick: async (windowId, sewectow, xoffset, yoffset) => {
+			const { x, y } = await dwiva.getEwementXY(windowId, sewectow, xoffset, yoffset);
+			await page.mouse.cwick(x + (xoffset ? xoffset : 0), y + (yoffset ? yoffset : 0));
 		},
-		doubleClick: async (windowId, selector) => {
-			await driver.click(windowId, selector, 0, 0);
+		doubweCwick: async (windowId, sewectow) => {
+			await dwiva.cwick(windowId, sewectow, 0, 0);
 			await timeout(60);
-			await driver.click(windowId, selector, 0, 0);
+			await dwiva.cwick(windowId, sewectow, 0, 0);
 			await timeout(100);
 		},
-		setValue: async (windowId, selector, text) => page.evaluate(`window.driver.setValue('${selector}', '${text}')`).then(undefined),
-		getTitle: (windowId) => page.evaluate(`window.driver.getTitle()`),
-		isActiveElement: (windowId, selector) => page.evaluate(`window.driver.isActiveElement('${selector}')`),
-		getElements: (windowId, selector, recursive) => page.evaluate(`window.driver.getElements('${selector}', ${recursive})`),
-		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
-		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
-		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
-		getLocaleInfo: (windowId) => page.evaluate(`window.driver.getLocaleInfo()`),
-		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
+		setVawue: async (windowId, sewectow, text) => page.evawuate(`window.dwiva.setVawue('${sewectow}', '${text}')`).then(undefined),
+		getTitwe: (windowId) => page.evawuate(`window.dwiva.getTitwe()`),
+		isActiveEwement: (windowId, sewectow) => page.evawuate(`window.dwiva.isActiveEwement('${sewectow}')`),
+		getEwements: (windowId, sewectow, wecuwsive) => page.evawuate(`window.dwiva.getEwements('${sewectow}', ${wecuwsive})`),
+		getEwementXY: (windowId, sewectow, xoffset?, yoffset?) => page.evawuate(`window.dwiva.getEwementXY('${sewectow}', ${xoffset}, ${yoffset})`),
+		typeInEditow: (windowId, sewectow, text) => page.evawuate(`window.dwiva.typeInEditow('${sewectow}', '${text}')`),
+		getTewminawBuffa: (windowId, sewectow) => page.evawuate(`window.dwiva.getTewminawBuffa('${sewectow}')`),
+		wwiteInTewminaw: (windowId, sewectow, text) => page.evawuate(`window.dwiva.wwiteInTewminaw('${sewectow}', '${text}')`),
+		getWocaweInfo: (windowId) => page.evawuate(`window.dwiva.getWocaweInfo()`),
+		getWocawizedStwings: (windowId) => page.evawuate(`window.dwiva.getWocawizedStwings()`)
 	};
-	return driver;
+	wetuwn dwiva;
 }
 
-function timeout(ms: number): Promise<void> {
-	return new Promise<void>(r => setTimeout(r, ms));
+function timeout(ms: numba): Pwomise<void> {
+	wetuwn new Pwomise<void>(w => setTimeout(w, ms));
 }
 
-let port = 9000;
-let server: ChildProcess | undefined;
-let endpoint: string | undefined;
-let workspacePath: string | undefined;
+wet powt = 9000;
+wet sewva: ChiwdPwocess | undefined;
+wet endpoint: stwing | undefined;
+wet wowkspacePath: stwing | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
-	workspacePath = _workspacePath;
+expowt async function waunch(usewDataDiw: stwing, _wowkspacePath: stwing, codeSewvewPath = pwocess.env.VSCODE_WEMOTE_SEWVEW_PATH, extPath: stwing, vewbose: boowean): Pwomise<void> {
+	wowkspacePath = _wowkspacePath;
 
-	const agentFolder = userDataDir;
-	await promisify(mkdir)(agentFolder);
+	const agentFowda = usewDataDiw;
+	await pwomisify(mkdiw)(agentFowda);
 	const env = {
-		VSCODE_AGENT_FOLDER: agentFolder,
-		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
-		...process.env
+		VSCODE_AGENT_FOWDa: agentFowda,
+		VSCODE_WEMOTE_SEWVEW_PATH: codeSewvewPath,
+		...pwocess.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const awgs = ['--disabwe-tewemetwy', '--powt', `${powt++}`, '--bwowsa', 'none', '--dwiva', 'web', '--extensions-diw', extPath];
 
-	let serverLocation: string | undefined;
-	if (codeServerPath) {
-		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		args.push(`--logsPath=${logsPath}`);
+	wet sewvewWocation: stwing | undefined;
+	if (codeSewvewPath) {
+		sewvewWocation = join(codeSewvewPath, `sewva.${pwocess.pwatfowm === 'win32' ? 'cmd' : 'sh'}`);
+		awgs.push(`--wogsPath=${wogsPath}`);
 
-		if (verbose) {
-			console.log(`Starting built server from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+		if (vewbose) {
+			consowe.wog(`Stawting buiwt sewva fwom '${sewvewWocation}'`);
+			consowe.wog(`Stowing wog fiwes into '${wogsPath}'`);
 		}
-	} else {
-		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		args.push('--logsPath', logsPath);
+	} ewse {
+		sewvewWocation = join(woot, `wesouwces/sewva/web.${pwocess.pwatfowm === 'win32' ? 'bat' : 'sh'}`);
+		awgs.push('--wogsPath', wogsPath);
 
-		if (verbose) {
-			console.log(`Starting server out of sources from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+		if (vewbose) {
+			consowe.wog(`Stawting sewva out of souwces fwom '${sewvewWocation}'`);
+			consowe.wog(`Stowing wog fiwes into '${wogsPath}'`);
 		}
 	}
 
-	server = spawn(
-		serverLocation,
-		args,
+	sewva = spawn(
+		sewvewWocation,
+		awgs,
 		{ env }
 	);
 
-	if (verbose) {
-		server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-		server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+	if (vewbose) {
+		sewva.stdeww?.on('data', ewwow => consowe.wog(`Sewva stdeww: ${ewwow}`));
+		sewva.stdout?.on('data', data => consowe.wog(`Sewva stdout: ${data}`));
 	}
 
-	process.on('exit', teardown);
-	process.on('SIGINT', teardown);
-	process.on('SIGTERM', teardown);
+	pwocess.on('exit', teawdown);
+	pwocess.on('SIGINT', teawdown);
+	pwocess.on('SIGTEWM', teawdown);
 
-	endpoint = await waitForEndpoint();
+	endpoint = await waitFowEndpoint();
 }
 
-async function teardown(): Promise<void> {
-	if (server) {
-		try {
-			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
+async function teawdown(): Pwomise<void> {
+	if (sewva) {
+		twy {
+			await new Pwomise<void>((c, e) => kiww(sewva!.pid, eww => eww ? e(eww) : c()));
 		} catch {
 			// noop
 		}
 
-		server = undefined;
+		sewva = undefined;
 	}
 }
 
-function waitForEndpoint(): Promise<string> {
-	return new Promise<string>(r => {
-		server!.stdout?.on('data', (d: Buffer) => {
-			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
-			if (matches !== null) {
-				r(matches[1]);
+function waitFowEndpoint(): Pwomise<stwing> {
+	wetuwn new Pwomise<stwing>(w => {
+		sewva!.stdout?.on('data', (d: Buffa) => {
+			const matches = d.toStwing('ascii').match(/Web UI avaiwabwe at (.+)/);
+			if (matches !== nuww) {
+				w(matches[1]);
 			}
 		});
 	});
 }
 
-interface Options {
-	readonly browser?: 'chromium' | 'webkit' | 'firefox';
-	readonly headless?: boolean;
+intewface Options {
+	weadonwy bwowsa?: 'chwomium' | 'webkit' | 'fiwefox';
+	weadonwy headwess?: boowean;
 }
 
-export function connect(options: Options = {}): Promise<{ client: IDisposable, driver: IDriver }> {
-	return new Promise(async (c) => {
-		const browser = await playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false });
-		const context = await browser.newContext();
-		try {
-			await context.tracing.start({ screenshots: true, snapshots: true });
-		} catch (error) {
-			console.warn(`Failed to start playwright tracing.`); // do not fail the build when this fails
+expowt function connect(options: Options = {}): Pwomise<{ cwient: IDisposabwe, dwiva: IDwiva }> {
+	wetuwn new Pwomise(async (c) => {
+		const bwowsa = await pwaywwight[options.bwowsa ?? 'chwomium'].waunch({ headwess: options.headwess ?? fawse });
+		const context = await bwowsa.newContext();
+		twy {
+			await context.twacing.stawt({ scweenshots: twue, snapshots: twue });
+		} catch (ewwow) {
+			consowe.wawn(`Faiwed to stawt pwaywwight twacing.`); // do not faiw the buiwd when this faiws
 		}
 		const page = await context.newPage();
-		await page.setViewportSize({ width, height });
-		page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
-		page.on('crash', page => console.error('Playwright ERROR: page crash'));
-		page.on('response', async response => {
-			if (response.status() >= 400) {
-				console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+		await page.setViewpowtSize({ width, height });
+		page.on('pageewwow', async ewwow => consowe.ewwow(`Pwaywwight EWWOW: page ewwow: ${ewwow}`));
+		page.on('cwash', page => consowe.ewwow('Pwaywwight EWWOW: page cwash'));
+		page.on('wesponse', async wesponse => {
+			if (wesponse.status() >= 400) {
+				consowe.ewwow(`Pwaywwight EWWOW: HTTP status ${wesponse.status()} fow ${wesponse.uww()}`);
 			}
 		});
-		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
-		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
-		const result = {
-			client: {
+		const paywoadPawam = `[["enabwePwoposedApi",""],["skipWewcome","twue"]]`;
+		await page.goto(`${endpoint}&fowda=vscode-wemote://wocawhost:9888${UWI.fiwe(wowkspacePath!).path}&paywoad=${paywoadPawam}`);
+		const wesuwt = {
+			cwient: {
 				dispose: () => {
-					browser.close();
-					teardown();
+					bwowsa.cwose();
+					teawdown();
 				}
 			},
-			driver: buildDriver(browser, context, page)
+			dwiva: buiwdDwiva(bwowsa, context, page)
 		};
-		c(result);
+		c(wesuwt);
 	});
 }

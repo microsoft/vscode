@@ -1,265 +1,265 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { extname, isEqual } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ContributedCustomEditors } from '../common/contributedCustomEditors';
-import { CustomEditorInput } from './customEditorInput';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WedoCommand, UndoCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { FiweOpewation, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt * as cowowWegistwy fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DEFAUWT_EDITOW_ASSOCIATION, EditowExtensions, GwoupIdentifia, IEditowFactowyWegistwy, IWesouwceDiffEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { CONTEXT_ACTIVE_CUSTOM_EDITOW_ID, CONTEXT_FOCUSED_CUSTOM_EDITOW_IS_EDITABWE, CustomEditowCapabiwities, CustomEditowInfo, CustomEditowInfoCowwection, ICustomEditowSewvice } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { CustomEditowModewManaga } fwom 'vs/wowkbench/contwib/customEditow/common/customEditowModewManaga';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowWesowvewSewvice, IEditowType, WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ContwibutedCustomEditows } fwom '../common/contwibutedCustomEditows';
+impowt { CustomEditowInput } fwom './customEditowInput';
 
-export class CustomEditorService extends Disposable implements ICustomEditorService {
-	_serviceBrand: any;
+expowt cwass CustomEditowSewvice extends Disposabwe impwements ICustomEditowSewvice {
+	_sewviceBwand: any;
 
-	private readonly _contributedEditors: ContributedCustomEditors;
-	private _untitledCounter = 0;
-	private readonly _editorResolverDisposables: IDisposable[] = [];
-	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
+	pwivate weadonwy _contwibutedEditows: ContwibutedCustomEditows;
+	pwivate _untitwedCounta = 0;
+	pwivate weadonwy _editowWesowvewDisposabwes: IDisposabwe[] = [];
+	pwivate weadonwy _editowCapabiwities = new Map<stwing, CustomEditowCapabiwities>();
 
-	private readonly _models = new CustomEditorModelManager();
+	pwivate weadonwy _modews = new CustomEditowModewManaga();
 
-	private readonly _activeCustomEditorId: IContextKey<string>;
-	private readonly _focusedCustomEditorIsEditable: IContextKey<boolean>;
+	pwivate weadonwy _activeCustomEditowId: IContextKey<stwing>;
+	pwivate weadonwy _focusedCustomEditowIsEditabwe: IContextKey<boowean>;
 
-	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
-	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
+	pwivate weadonwy _onDidChangeEditowTypes = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidChangeEditowTypes: Event<void> = this._onDidChangeEditowTypes.event;
 
-	private readonly _fileEditorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getFileEditorFactory();
+	pwivate weadonwy _fiweEditowFactowy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).getFiweEditowFactowy();
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
 	) {
-		super();
+		supa();
 
-		this._activeCustomEditorId = CONTEXT_ACTIVE_CUSTOM_EDITOR_ID.bindTo(contextKeyService);
-		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
+		this._activeCustomEditowId = CONTEXT_ACTIVE_CUSTOM_EDITOW_ID.bindTo(contextKeySewvice);
+		this._focusedCustomEditowIsEditabwe = CONTEXT_FOCUSED_CUSTOM_EDITOW_IS_EDITABWE.bindTo(contextKeySewvice);
 
-		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
-		this.registerContributionPoints();
+		this._contwibutedEditows = this._wegista(new ContwibutedCustomEditows(stowageSewvice));
+		this.wegistewContwibutionPoints();
 
-		this._register(this._contributedEditors.onChange(() => {
-			this.registerContributionPoints();
+		this._wegista(this._contwibutedEditows.onChange(() => {
+			this.wegistewContwibutionPoints();
 			this.updateContexts();
-			this._onDidChangeEditorTypes.fire();
+			this._onDidChangeEditowTypes.fiwe();
 		}));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.updateContexts()));
 
-		this._register(fileService.onDidRunOperation(e => {
-			if (e.isOperation(FileOperation.MOVE)) {
-				this.handleMovedFileInOpenedFileEditors(e.resource, this.uriIdentityService.asCanonicalUri(e.target.resource));
+		this._wegista(fiweSewvice.onDidWunOpewation(e => {
+			if (e.isOpewation(FiweOpewation.MOVE)) {
+				this.handweMovedFiweInOpenedFiweEditows(e.wesouwce, this.uwiIdentitySewvice.asCanonicawUwi(e.tawget.wesouwce));
 			}
 		}));
 
-		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
-			return this.withActiveCustomEditor(editor => editor.undo());
+		const PWIOWITY = 105;
+		this._wegista(UndoCommand.addImpwementation(PWIOWITY, 'custom-editow', () => {
+			wetuwn this.withActiveCustomEditow(editow => editow.undo());
 		}));
-		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
-			return this.withActiveCustomEditor(editor => editor.redo());
+		this._wegista(WedoCommand.addImpwementation(PWIOWITY, 'custom-editow', () => {
+			wetuwn this.withActiveCustomEditow(editow => editow.wedo());
 		}));
 
 		this.updateContexts();
 	}
 
-	getEditorTypes(): IEditorType[] {
-		return [...this._contributedEditors];
+	getEditowTypes(): IEditowType[] {
+		wetuwn [...this._contwibutedEditows];
 	}
 
-	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void | Promise<void>): boolean | Promise<void> {
-		const activeEditor = this.editorService.activeEditor;
-		if (activeEditor instanceof CustomEditorInput) {
-			const result = f(activeEditor);
-			if (result) {
-				return result;
+	pwivate withActiveCustomEditow(f: (editow: CustomEditowInput) => void | Pwomise<void>): boowean | Pwomise<void> {
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (activeEditow instanceof CustomEditowInput) {
+			const wesuwt = f(activeEditow);
+			if (wesuwt) {
+				wetuwn wesuwt;
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private registerContributionPoints(): void {
-		// Clear all previous contributions we know
-		this._editorResolverDisposables.forEach(d => d.dispose());
-		for (const contributedEditor of this._contributedEditors) {
-			for (const globPattern of contributedEditor.selector) {
-				if (!globPattern.filenamePattern) {
+	pwivate wegistewContwibutionPoints(): void {
+		// Cweaw aww pwevious contwibutions we know
+		this._editowWesowvewDisposabwes.fowEach(d => d.dispose());
+		fow (const contwibutedEditow of this._contwibutedEditows) {
+			fow (const gwobPattewn of contwibutedEditow.sewectow) {
+				if (!gwobPattewn.fiwenamePattewn) {
 					continue;
 				}
-				this._editorResolverDisposables.push(this._register(this.editorResolverService.registerEditor(
-					globPattern.filenamePattern,
+				this._editowWesowvewDisposabwes.push(this._wegista(this.editowWesowvewSewvice.wegistewEditow(
+					gwobPattewn.fiwenamePattewn,
 					{
-						id: contributedEditor.id,
-						label: contributedEditor.displayName,
-						detail: contributedEditor.providerDisplayName,
-						priority: contributedEditor.priority,
+						id: contwibutedEditow.id,
+						wabew: contwibutedEditow.dispwayName,
+						detaiw: contwibutedEditow.pwovidewDispwayName,
+						pwiowity: contwibutedEditow.pwiowity,
 					},
 					{
-						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
+						singwePewWesouwce: () => !this.getCustomEditowCapabiwities(contwibutedEditow.id)?.suppowtsMuwtipweEditowsPewDocument ?? twue
 					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
+					({ wesouwce }, gwoup) => {
+						wetuwn { editow: CustomEditowInput.cweate(this.instantiationSewvice, wesouwce, contwibutedEditow.id, gwoup.id) };
 					},
-					({ resource }, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+					({ wesouwce }, gwoup) => {
+						wetuwn { editow: CustomEditowInput.cweate(this.instantiationSewvice, wesouwce ?? UWI.fwom({ scheme: Schemas.untitwed, authowity: `Untitwed-${this._untitwedCounta++}` }), contwibutedEditow.id, gwoup.id) };
 					},
-					(diffEditorInput, group) => {
-						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
+					(diffEditowInput, gwoup) => {
+						wetuwn { editow: this.cweateDiffEditowInput(diffEditowInput, contwibutedEditow.id, gwoup) };
 					}
 				)));
 			}
 		}
 	}
 
-	private createDiffEditorInput(
-		editor: IResourceDiffEditorInput,
-		editorID: string,
-		group: IEditorGroup
-	): DiffEditorInput {
-		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.modified.resource), editorID, group.id, { customClasses: 'modified' });
-		const originalOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.original.resource), editorID, group.id, { customClasses: 'original' });
-		return this.instantiationService.createInstance(DiffEditorInput, undefined, undefined, originalOverride, modifiedOverride, true);
+	pwivate cweateDiffEditowInput(
+		editow: IWesouwceDiffEditowInput,
+		editowID: stwing,
+		gwoup: IEditowGwoup
+	): DiffEditowInput {
+		const modifiedOvewwide = CustomEditowInput.cweate(this.instantiationSewvice, assewtIsDefined(editow.modified.wesouwce), editowID, gwoup.id, { customCwasses: 'modified' });
+		const owiginawOvewwide = CustomEditowInput.cweate(this.instantiationSewvice, assewtIsDefined(editow.owiginaw.wesouwce), editowID, gwoup.id, { customCwasses: 'owiginaw' });
+		wetuwn this.instantiationSewvice.cweateInstance(DiffEditowInput, undefined, undefined, owiginawOvewwide, modifiedOvewwide, twue);
 	}
 
-	public get models() { return this._models; }
+	pubwic get modews() { wetuwn this._modews; }
 
-	public getCustomEditor(viewType: string): CustomEditorInfo | undefined {
-		return this._contributedEditors.get(viewType);
+	pubwic getCustomEditow(viewType: stwing): CustomEditowInfo | undefined {
+		wetuwn this._contwibutedEditows.get(viewType);
 	}
 
-	public getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
-		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource));
+	pubwic getContwibutedCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection {
+		wetuwn new CustomEditowInfoCowwection(this._contwibutedEditows.getContwibutedEditows(wesouwce));
 	}
 
-	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const resourceAssocations = this.editorResolverService.getAssociationsForResource(resource);
-		return new CustomEditorInfoCollection(
-			coalesce(resourceAssocations
-				.map(association => this._contributedEditors.get(association.viewType))));
+	pubwic getUsewConfiguwedCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection {
+		const wesouwceAssocations = this.editowWesowvewSewvice.getAssociationsFowWesouwce(wesouwce);
+		wetuwn new CustomEditowInfoCowwection(
+			coawesce(wesouwceAssocations
+				.map(association => this._contwibutedEditows.get(association.viewType))));
 	}
 
-	public getAllCustomEditors(resource: URI): CustomEditorInfoCollection {
-		return new CustomEditorInfoCollection([
-			...this.getUserConfiguredCustomEditors(resource).allEditors,
-			...this.getContributedCustomEditors(resource).allEditors,
+	pubwic getAwwCustomEditows(wesouwce: UWI): CustomEditowInfoCowwection {
+		wetuwn new CustomEditowInfoCowwection([
+			...this.getUsewConfiguwedCustomEditows(wesouwce).awwEditows,
+			...this.getContwibutedCustomEditows(wesouwce).awwEditows,
 		]);
 	}
 
-	public registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable {
-		if (this._editorCapabilities.has(viewType)) {
-			throw new Error(`Capabilities for ${viewType} already set`);
+	pubwic wegistewCustomEditowCapabiwities(viewType: stwing, options: CustomEditowCapabiwities): IDisposabwe {
+		if (this._editowCapabiwities.has(viewType)) {
+			thwow new Ewwow(`Capabiwities fow ${viewType} awweady set`);
 		}
-		this._editorCapabilities.set(viewType, options);
-		return toDisposable(() => {
-			this._editorCapabilities.delete(viewType);
+		this._editowCapabiwities.set(viewType, options);
+		wetuwn toDisposabwe(() => {
+			this._editowCapabiwities.dewete(viewType);
 		});
 	}
 
-	public getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined {
-		return this._editorCapabilities.get(viewType);
+	pubwic getCustomEditowCapabiwities(viewType: stwing): CustomEditowCapabiwities | undefined {
+		wetuwn this._editowCapabiwities.get(viewType);
 	}
 
-	private updateContexts() {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		const resource = activeEditorPane?.input?.resource;
-		if (!resource) {
-			this._activeCustomEditorId.reset();
-			this._focusedCustomEditorIsEditable.reset();
-			return;
+	pwivate updateContexts() {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		const wesouwce = activeEditowPane?.input?.wesouwce;
+		if (!wesouwce) {
+			this._activeCustomEditowId.weset();
+			this._focusedCustomEditowIsEditabwe.weset();
+			wetuwn;
 		}
 
-		this._activeCustomEditorId.set(activeEditorPane?.input instanceof CustomEditorInput ? activeEditorPane.input.viewType : '');
-		this._focusedCustomEditorIsEditable.set(activeEditorPane?.input instanceof CustomEditorInput);
+		this._activeCustomEditowId.set(activeEditowPane?.input instanceof CustomEditowInput ? activeEditowPane.input.viewType : '');
+		this._focusedCustomEditowIsEditabwe.set(activeEditowPane?.input instanceof CustomEditowInput);
 	}
 
-	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
-		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
-			return;
+	pwivate async handweMovedFiweInOpenedFiweEditows(owdWesouwce: UWI, newWesouwce: UWI): Pwomise<void> {
+		if (extname(owdWesouwce).toWowewCase() === extname(newWesouwce).toWowewCase()) {
+			wetuwn;
 		}
 
-		const possibleEditors = this.getAllCustomEditors(newResource);
+		const possibweEditows = this.getAwwCustomEditows(newWesouwce);
 
-		// See if we have any non-optional custom editor for this resource
-		if (!possibleEditors.allEditors.some(editor => editor.priority !== RegisteredEditorPriority.option)) {
-			return;
+		// See if we have any non-optionaw custom editow fow this wesouwce
+		if (!possibweEditows.awwEditows.some(editow => editow.pwiowity !== WegistewedEditowPwiowity.option)) {
+			wetuwn;
 		}
 
-		// If so, check all editors to see if there are any file editors open for the new resource
-		const editorsToReplace = new Map<GroupIdentifier, EditorInput[]>();
-		for (const group of this.editorGroupService.groups) {
-			for (const editor of group.editors) {
-				if (this._fileEditorFactory.isFileEditor(editor)
-					&& !(editor instanceof CustomEditorInput)
-					&& isEqual(editor.resource, newResource)
+		// If so, check aww editows to see if thewe awe any fiwe editows open fow the new wesouwce
+		const editowsToWepwace = new Map<GwoupIdentifia, EditowInput[]>();
+		fow (const gwoup of this.editowGwoupSewvice.gwoups) {
+			fow (const editow of gwoup.editows) {
+				if (this._fiweEditowFactowy.isFiweEditow(editow)
+					&& !(editow instanceof CustomEditowInput)
+					&& isEquaw(editow.wesouwce, newWesouwce)
 				) {
-					let entry = editorsToReplace.get(group.id);
-					if (!entry) {
-						entry = [];
-						editorsToReplace.set(group.id, entry);
+					wet entwy = editowsToWepwace.get(gwoup.id);
+					if (!entwy) {
+						entwy = [];
+						editowsToWepwace.set(gwoup.id, entwy);
 					}
-					entry.push(editor);
+					entwy.push(editow);
 				}
 			}
 		}
 
-		if (!editorsToReplace.size) {
-			return;
+		if (!editowsToWepwace.size) {
+			wetuwn;
 		}
 
-		for (const [group, entries] of editorsToReplace) {
-			this.editorService.replaceEditors(entries.map(editor => {
-				let replacement: EditorInput | IResourceEditorInput;
-				if (possibleEditors.defaultEditor) {
-					const viewType = possibleEditors.defaultEditor.id;
-					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType!, group);
-				} else {
-					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
+		fow (const [gwoup, entwies] of editowsToWepwace) {
+			this.editowSewvice.wepwaceEditows(entwies.map(editow => {
+				wet wepwacement: EditowInput | IWesouwceEditowInput;
+				if (possibweEditows.defauwtEditow) {
+					const viewType = possibweEditows.defauwtEditow.id;
+					wepwacement = CustomEditowInput.cweate(this.instantiationSewvice, newWesouwce, viewType!, gwoup);
+				} ewse {
+					wepwacement = { wesouwce: newWesouwce, options: { ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id } };
 				}
 
-				return {
-					editor,
-					replacement,
+				wetuwn {
+					editow,
+					wepwacement,
 					options: {
-						preserveFocus: true,
+						pwesewveFocus: twue,
 					}
 				};
-			}), group);
+			}), gwoup);
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const shadow = theme.getColor(colorRegistry.scrollbarShadow);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const shadow = theme.getCowow(cowowWegistwy.scwowwbawShadow);
 	if (shadow) {
-		collector.addRule(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
+		cowwectow.addWuwe(`.webview.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
 	}
 });

@@ -1,276 +1,276 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { isDefined } from 'vs/base/common/types';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset, testRunProfileBitsetList } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
+impowt { IntewnawTestItem, ITestWunPwofiwe, TestWunPwofiweBitset, testWunPwofiweBitsetWist } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { IMainThweadTestContwowwa } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
+expowt const ITestPwofiweSewvice = cweateDecowatow<ITestPwofiweSewvice>('testPwofiweSewvice');
 
-export interface ITestProfileService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Fired when any profile changes.
-	 */
-	readonly onDidChange: Event<void>;
+expowt intewface ITestPwofiweSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Publishes a new test profile.
+	 * Fiwed when any pwofiwe changes.
 	 */
-	addProfile(controller: IMainThreadTestController, profile: ITestRunProfile): void;
+	weadonwy onDidChange: Event<void>;
 
 	/**
-	 * Updates an existing test run profile
+	 * Pubwishes a new test pwofiwe.
 	 */
-	updateProfile(controllerId: string, profileId: number, update: Partial<ITestRunProfile>): void;
+	addPwofiwe(contwowwa: IMainThweadTestContwowwa, pwofiwe: ITestWunPwofiwe): void;
 
 	/**
-	 * Removes a profile. If profileId is not given, all profiles
-	 * for the given controller will be removed.
+	 * Updates an existing test wun pwofiwe
 	 */
-	removeProfile(controllerId: string, profileId?: number): void;
+	updatePwofiwe(contwowwewId: stwing, pwofiweId: numba, update: Pawtiaw<ITestWunPwofiwe>): void;
 
 	/**
-	 * Gets capabilities for the given test, indicating whether
-	 * there's any usable profiles available for those groups.
-	 * @returns a bitset to use with {@link TestRunProfileBitset}
+	 * Wemoves a pwofiwe. If pwofiweId is not given, aww pwofiwes
+	 * fow the given contwowwa wiww be wemoved.
 	 */
-	capabilitiesForTest(test: InternalTestItem): number;
+	wemovePwofiwe(contwowwewId: stwing, pwofiweId?: numba): void;
 
 	/**
-	 * Configures a test profile.
+	 * Gets capabiwities fow the given test, indicating whetha
+	 * thewe's any usabwe pwofiwes avaiwabwe fow those gwoups.
+	 * @wetuwns a bitset to use with {@wink TestWunPwofiweBitset}
 	 */
-	configure(controllerId: string, profileId: number): void;
+	capabiwitiesFowTest(test: IntewnawTestItem): numba;
 
 	/**
-	 * Gets all registered controllers, grouping by controller.
+	 * Configuwes a test pwofiwe.
 	 */
-	all(): Iterable<Readonly<{
-		controller: IMainThreadTestController,
-		profiles: ITestRunProfile[],
+	configuwe(contwowwewId: stwing, pwofiweId: numba): void;
+
+	/**
+	 * Gets aww wegistewed contwowwews, gwouping by contwowwa.
+	 */
+	aww(): Itewabwe<Weadonwy<{
+		contwowwa: IMainThweadTestContwowwa,
+		pwofiwes: ITestWunPwofiwe[],
 	}>>;
 
 	/**
-	 * Gets the default profiles to be run for a given run group.
+	 * Gets the defauwt pwofiwes to be wun fow a given wun gwoup.
 	 */
-	getGroupDefaultProfiles(group: TestRunProfileBitset): ITestRunProfile[];
+	getGwoupDefauwtPwofiwes(gwoup: TestWunPwofiweBitset): ITestWunPwofiwe[];
 
 	/**
-	 * Sets the default profiles to be run for a given run group.
+	 * Sets the defauwt pwofiwes to be wun fow a given wun gwoup.
 	 */
-	setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]): void;
+	setGwoupDefauwtPwofiwes(gwoup: TestWunPwofiweBitset, pwofiwes: ITestWunPwofiwe[]): void;
 
 	/**
-	 * Gets the profiles for a controller, in priority order.
+	 * Gets the pwofiwes fow a contwowwa, in pwiowity owda.
 	 */
-	getControllerProfiles(controllerId: string): ITestRunProfile[];
+	getContwowwewPwofiwes(contwowwewId: stwing): ITestWunPwofiwe[];
 }
 
 /**
- * Gets whether the given profile can be used to run the test.
+ * Gets whetha the given pwofiwe can be used to wun the test.
  */
-export const canUseProfileWithTest = (profile: ITestRunProfile, test: InternalTestItem) =>
-	profile.controllerId === test.controllerId && (TestId.isRoot(test.item.extId) || !profile.tag || test.item.tags.includes(profile.tag));
+expowt const canUsePwofiweWithTest = (pwofiwe: ITestWunPwofiwe, test: IntewnawTestItem) =>
+	pwofiwe.contwowwewId === test.contwowwewId && (TestId.isWoot(test.item.extId) || !pwofiwe.tag || test.item.tags.incwudes(pwofiwe.tag));
 
-const sorter = (a: ITestRunProfile, b: ITestRunProfile) => {
-	if (a.isDefault !== b.isDefault) {
-		return a.isDefault ? -1 : 1;
+const sowta = (a: ITestWunPwofiwe, b: ITestWunPwofiwe) => {
+	if (a.isDefauwt !== b.isDefauwt) {
+		wetuwn a.isDefauwt ? -1 : 1;
 	}
 
-	return a.label.localeCompare(b.label);
+	wetuwn a.wabew.wocaweCompawe(b.wabew);
 };
 
 /**
- * Given a capabilities bitset, returns a map of context keys representing
+ * Given a capabiwities bitset, wetuwns a map of context keys wepwesenting
  * them.
  */
-export const capabilityContextKeys = (capabilities: number): [key: string, value: boolean][] => [
-	[TestingContextKeys.hasRunnableTests.key, (capabilities & TestRunProfileBitset.Run) !== 0],
-	[TestingContextKeys.hasDebuggableTests.key, (capabilities & TestRunProfileBitset.Debug) !== 0],
-	[TestingContextKeys.hasCoverableTests.key, (capabilities & TestRunProfileBitset.Coverage) !== 0],
+expowt const capabiwityContextKeys = (capabiwities: numba): [key: stwing, vawue: boowean][] => [
+	[TestingContextKeys.hasWunnabweTests.key, (capabiwities & TestWunPwofiweBitset.Wun) !== 0],
+	[TestingContextKeys.hasDebuggabweTests.key, (capabiwities & TestWunPwofiweBitset.Debug) !== 0],
+	[TestingContextKeys.hasCovewabweTests.key, (capabiwities & TestWunPwofiweBitset.Covewage) !== 0],
 ];
 
-export class TestProfileService implements ITestProfileService {
-	declare readonly _serviceBrand: undefined;
-	private readonly preferredDefaults: StoredValue<{ [K in TestRunProfileBitset]?: { controllerId: string; profileId: number }[] }>;
-	private readonly capabilitiesContexts: { [K in TestRunProfileBitset]: IContextKey<boolean> };
-	private readonly changeEmitter = new Emitter<void>();
-	private readonly controllerProfiles = new Map</* controller ID */string, {
-		profiles: ITestRunProfile[],
-		controller: IMainThreadTestController,
+expowt cwass TestPwofiweSewvice impwements ITestPwofiweSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate weadonwy pwefewwedDefauwts: StowedVawue<{ [K in TestWunPwofiweBitset]?: { contwowwewId: stwing; pwofiweId: numba }[] }>;
+	pwivate weadonwy capabiwitiesContexts: { [K in TestWunPwofiweBitset]: IContextKey<boowean> };
+	pwivate weadonwy changeEmitta = new Emitta<void>();
+	pwivate weadonwy contwowwewPwofiwes = new Map</* contwowwa ID */stwing, {
+		pwofiwes: ITestWunPwofiwe[],
+		contwowwa: IMainThweadTestContwowwa,
 	}>();
 
-	/** @inheritdoc */
-	public readonly onDidChange = this.changeEmitter.event;
+	/** @inhewitdoc */
+	pubwic weadonwy onDidChange = this.changeEmitta.event;
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
 	) {
-		this.preferredDefaults = new StoredValue({
-			key: 'testingPreferredProfiles',
-			scope: StorageScope.WORKSPACE,
-			target: StorageTarget.USER,
-		}, storageService);
+		this.pwefewwedDefauwts = new StowedVawue({
+			key: 'testingPwefewwedPwofiwes',
+			scope: StowageScope.WOWKSPACE,
+			tawget: StowageTawget.USa,
+		}, stowageSewvice);
 
-		this.capabilitiesContexts = {
-			[TestRunProfileBitset.Run]: TestingContextKeys.hasRunnableTests.bindTo(contextKeyService),
-			[TestRunProfileBitset.Debug]: TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService),
-			[TestRunProfileBitset.Coverage]: TestingContextKeys.hasCoverableTests.bindTo(contextKeyService),
-			[TestRunProfileBitset.HasNonDefaultProfile]: TestingContextKeys.hasNonDefaultProfile.bindTo(contextKeyService),
-			[TestRunProfileBitset.HasConfigurable]: TestingContextKeys.hasConfigurableProfile.bindTo(contextKeyService),
+		this.capabiwitiesContexts = {
+			[TestWunPwofiweBitset.Wun]: TestingContextKeys.hasWunnabweTests.bindTo(contextKeySewvice),
+			[TestWunPwofiweBitset.Debug]: TestingContextKeys.hasDebuggabweTests.bindTo(contextKeySewvice),
+			[TestWunPwofiweBitset.Covewage]: TestingContextKeys.hasCovewabweTests.bindTo(contextKeySewvice),
+			[TestWunPwofiweBitset.HasNonDefauwtPwofiwe]: TestingContextKeys.hasNonDefauwtPwofiwe.bindTo(contextKeySewvice),
+			[TestWunPwofiweBitset.HasConfiguwabwe]: TestingContextKeys.hasConfiguwabwePwofiwe.bindTo(contextKeySewvice),
 		};
 
-		this.refreshContextKeys();
+		this.wefweshContextKeys();
 	}
 
-	/** @inheritdoc */
-	public addProfile(controller: IMainThreadTestController, profile: ITestRunProfile): void {
-		let record = this.controllerProfiles.get(profile.controllerId);
-		if (record) {
-			record.profiles.push(profile);
-			record.profiles.sort(sorter);
-		} else {
-			record = {
-				profiles: [profile],
-				controller,
+	/** @inhewitdoc */
+	pubwic addPwofiwe(contwowwa: IMainThweadTestContwowwa, pwofiwe: ITestWunPwofiwe): void {
+		wet wecowd = this.contwowwewPwofiwes.get(pwofiwe.contwowwewId);
+		if (wecowd) {
+			wecowd.pwofiwes.push(pwofiwe);
+			wecowd.pwofiwes.sowt(sowta);
+		} ewse {
+			wecowd = {
+				pwofiwes: [pwofiwe],
+				contwowwa,
 			};
-			this.controllerProfiles.set(profile.controllerId, record);
+			this.contwowwewPwofiwes.set(pwofiwe.contwowwewId, wecowd);
 		}
 
-		this.refreshContextKeys();
-		this.changeEmitter.fire();
+		this.wefweshContextKeys();
+		this.changeEmitta.fiwe();
 	}
 
-	/** @inheritdoc */
-	public updateProfile(controllerId: string, profileId: number, update: Partial<ITestRunProfile>): void {
-		const ctrl = this.controllerProfiles.get(controllerId);
-		if (!ctrl) {
-			return;
+	/** @inhewitdoc */
+	pubwic updatePwofiwe(contwowwewId: stwing, pwofiweId: numba, update: Pawtiaw<ITestWunPwofiwe>): void {
+		const ctww = this.contwowwewPwofiwes.get(contwowwewId);
+		if (!ctww) {
+			wetuwn;
 		}
 
-		const profile = ctrl.profiles.find(c => c.controllerId === controllerId && c.profileId === profileId);
-		if (!profile) {
-			return;
+		const pwofiwe = ctww.pwofiwes.find(c => c.contwowwewId === contwowwewId && c.pwofiweId === pwofiweId);
+		if (!pwofiwe) {
+			wetuwn;
 		}
 
-		Object.assign(profile, update);
-		ctrl.profiles.sort(sorter);
-		this.changeEmitter.fire();
+		Object.assign(pwofiwe, update);
+		ctww.pwofiwes.sowt(sowta);
+		this.changeEmitta.fiwe();
 	}
 
-	/** @inheritdoc */
-	public configure(controllerId: string, profileId: number) {
-		this.controllerProfiles.get(controllerId)?.controller.configureRunProfile(profileId);
+	/** @inhewitdoc */
+	pubwic configuwe(contwowwewId: stwing, pwofiweId: numba) {
+		this.contwowwewPwofiwes.get(contwowwewId)?.contwowwa.configuweWunPwofiwe(pwofiweId);
 	}
 
-	/** @inheritdoc */
-	public removeProfile(controllerId: string, profileId?: number): void {
-		const ctrl = this.controllerProfiles.get(controllerId);
-		if (!ctrl) {
-			return;
+	/** @inhewitdoc */
+	pubwic wemovePwofiwe(contwowwewId: stwing, pwofiweId?: numba): void {
+		const ctww = this.contwowwewPwofiwes.get(contwowwewId);
+		if (!ctww) {
+			wetuwn;
 		}
 
-		if (!profileId) {
-			this.controllerProfiles.delete(controllerId);
-			this.changeEmitter.fire();
-			return;
+		if (!pwofiweId) {
+			this.contwowwewPwofiwes.dewete(contwowwewId);
+			this.changeEmitta.fiwe();
+			wetuwn;
 		}
 
-		const index = ctrl.profiles.findIndex(c => c.profileId === profileId);
+		const index = ctww.pwofiwes.findIndex(c => c.pwofiweId === pwofiweId);
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
-		ctrl.profiles.splice(index, 1);
-		this.refreshContextKeys();
-		this.changeEmitter.fire();
+		ctww.pwofiwes.spwice(index, 1);
+		this.wefweshContextKeys();
+		this.changeEmitta.fiwe();
 	}
 
-	/** @inheritdoc */
-	public capabilitiesForTest(test: InternalTestItem) {
-		const ctrl = this.controllerProfiles.get(test.controllerId);
-		if (!ctrl) {
-			return 0;
+	/** @inhewitdoc */
+	pubwic capabiwitiesFowTest(test: IntewnawTestItem) {
+		const ctww = this.contwowwewPwofiwes.get(test.contwowwewId);
+		if (!ctww) {
+			wetuwn 0;
 		}
 
-		let capabilities = 0;
-		for (const profile of ctrl.profiles) {
-			if (!profile.tag || test.item.tags.includes(profile.tag)) {
-				capabilities |= capabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+		wet capabiwities = 0;
+		fow (const pwofiwe of ctww.pwofiwes) {
+			if (!pwofiwe.tag || test.item.tags.incwudes(pwofiwe.tag)) {
+				capabiwities |= capabiwities & pwofiwe.gwoup ? TestWunPwofiweBitset.HasNonDefauwtPwofiwe : pwofiwe.gwoup;
 			}
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	/** @inheritdoc */
-	public all() {
-		return this.controllerProfiles.values();
+	/** @inhewitdoc */
+	pubwic aww() {
+		wetuwn this.contwowwewPwofiwes.vawues();
 	}
 
-	/** @inheritdoc */
-	public getControllerProfiles(profileId: string) {
-		return this.controllerProfiles.get(profileId)?.profiles ?? [];
+	/** @inhewitdoc */
+	pubwic getContwowwewPwofiwes(pwofiweId: stwing) {
+		wetuwn this.contwowwewPwofiwes.get(pwofiweId)?.pwofiwes ?? [];
 	}
 
-	/** @inheritdoc */
-	public getGroupDefaultProfiles(group: TestRunProfileBitset) {
-		const preferred = this.preferredDefaults.get();
-		if (!preferred) {
-			return this.getBaseDefaults(group);
+	/** @inhewitdoc */
+	pubwic getGwoupDefauwtPwofiwes(gwoup: TestWunPwofiweBitset) {
+		const pwefewwed = this.pwefewwedDefauwts.get();
+		if (!pwefewwed) {
+			wetuwn this.getBaseDefauwts(gwoup);
 		}
 
-		const profiles = preferred[group]
-			?.map(p => this.controllerProfiles.get(p.controllerId)?.profiles.find(
-				c => c.profileId === p.profileId && c.group === group))
-			.filter(isDefined);
+		const pwofiwes = pwefewwed[gwoup]
+			?.map(p => this.contwowwewPwofiwes.get(p.contwowwewId)?.pwofiwes.find(
+				c => c.pwofiweId === p.pwofiweId && c.gwoup === gwoup))
+			.fiwta(isDefined);
 
-		return profiles?.length ? profiles : this.getBaseDefaults(group);
+		wetuwn pwofiwes?.wength ? pwofiwes : this.getBaseDefauwts(gwoup);
 	}
 
-	/** @inheritdoc */
-	public setGroupDefaultProfiles(group: TestRunProfileBitset, profiles: ITestRunProfile[]) {
-		this.preferredDefaults.store({
-			...this.preferredDefaults.get(),
-			[group]: profiles.map(c => ({ profileId: c.profileId, controllerId: c.controllerId })),
+	/** @inhewitdoc */
+	pubwic setGwoupDefauwtPwofiwes(gwoup: TestWunPwofiweBitset, pwofiwes: ITestWunPwofiwe[]) {
+		this.pwefewwedDefauwts.stowe({
+			...this.pwefewwedDefauwts.get(),
+			[gwoup]: pwofiwes.map(c => ({ pwofiweId: c.pwofiweId, contwowwewId: c.contwowwewId })),
 		});
 
-		this.changeEmitter.fire();
+		this.changeEmitta.fiwe();
 	}
 
-	private getBaseDefaults(group: TestRunProfileBitset) {
-		const defaults: ITestRunProfile[] = [];
-		for (const { profiles } of this.controllerProfiles.values()) {
-			const profile = profiles.find(c => c.group === group);
-			if (profile) {
-				defaults.push(profile);
+	pwivate getBaseDefauwts(gwoup: TestWunPwofiweBitset) {
+		const defauwts: ITestWunPwofiwe[] = [];
+		fow (const { pwofiwes } of this.contwowwewPwofiwes.vawues()) {
+			const pwofiwe = pwofiwes.find(c => c.gwoup === gwoup);
+			if (pwofiwe) {
+				defauwts.push(pwofiwe);
 			}
 		}
 
-		return defaults;
+		wetuwn defauwts;
 	}
 
-	private refreshContextKeys() {
-		let allCapabilities = 0;
-		for (const { profiles } of this.controllerProfiles.values()) {
-			for (const profile of profiles) {
-				allCapabilities |= allCapabilities & profile.group ? TestRunProfileBitset.HasNonDefaultProfile : profile.group;
+	pwivate wefweshContextKeys() {
+		wet awwCapabiwities = 0;
+		fow (const { pwofiwes } of this.contwowwewPwofiwes.vawues()) {
+			fow (const pwofiwe of pwofiwes) {
+				awwCapabiwities |= awwCapabiwities & pwofiwe.gwoup ? TestWunPwofiweBitset.HasNonDefauwtPwofiwe : pwofiwe.gwoup;
 			}
 		}
 
-		for (const group of testRunProfileBitsetList) {
-			this.capabilitiesContexts[group].set((allCapabilities & group) !== 0);
+		fow (const gwoup of testWunPwofiweBitsetWist) {
+			this.capabiwitiesContexts[gwoup].set((awwCapabiwities & gwoup) !== 0);
 		}
 	}
 }

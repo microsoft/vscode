@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export function dispose(arg: vscode.Disposable | Iterable<vscode.Disposable>): void {
-	if (arg instanceof vscode.Disposable) {
-		arg.dispose();
-	} else {
-		for (const disposable of arg) {
-			disposable.dispose();
+expowt function dispose(awg: vscode.Disposabwe | Itewabwe<vscode.Disposabwe>): void {
+	if (awg instanceof vscode.Disposabwe) {
+		awg.dispose();
+	} ewse {
+		fow (const disposabwe of awg) {
+			disposabwe.dispose();
 		}
 	}
 }
 
-export function combinedDisposable(disposables: Iterable<vscode.Disposable>): vscode.Disposable {
-	return {
+expowt function combinedDisposabwe(disposabwes: Itewabwe<vscode.Disposabwe>): vscode.Disposabwe {
+	wetuwn {
 		dispose() {
-			dispose(disposables);
+			dispose(disposabwes);
 		}
 	};
 }

@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+impowt { IEditowAction } fwom 'vs/editow/common/editowCommon';
+impowt { IContextKeySewvice, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class InternalEditorAction implements IEditorAction {
+expowt cwass IntewnawEditowAction impwements IEditowAction {
 
-	public readonly id: string;
-	public readonly label: string;
-	public readonly alias: string;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy wabew: stwing;
+	pubwic weadonwy awias: stwing;
 
-	private readonly _precondition: ContextKeyExpression | undefined;
-	private readonly _run: () => Promise<void>;
-	private readonly _contextKeyService: IContextKeyService;
+	pwivate weadonwy _pwecondition: ContextKeyExpwession | undefined;
+	pwivate weadonwy _wun: () => Pwomise<void>;
+	pwivate weadonwy _contextKeySewvice: IContextKeySewvice;
 
-	constructor(
-		id: string,
-		label: string,
-		alias: string,
-		precondition: ContextKeyExpression | undefined,
-		run: () => Promise<void>,
-		contextKeyService: IContextKeyService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		awias: stwing,
+		pwecondition: ContextKeyExpwession | undefined,
+		wun: () => Pwomise<void>,
+		contextKeySewvice: IContextKeySewvice
 	) {
 		this.id = id;
-		this.label = label;
-		this.alias = alias;
-		this._precondition = precondition;
-		this._run = run;
-		this._contextKeyService = contextKeyService;
+		this.wabew = wabew;
+		this.awias = awias;
+		this._pwecondition = pwecondition;
+		this._wun = wun;
+		this._contextKeySewvice = contextKeySewvice;
 	}
 
-	public isSupported(): boolean {
-		return this._contextKeyService.contextMatchesRules(this._precondition);
+	pubwic isSuppowted(): boowean {
+		wetuwn this._contextKeySewvice.contextMatchesWuwes(this._pwecondition);
 	}
 
-	public run(): Promise<void> {
-		if (!this.isSupported()) {
-			return Promise.resolve(undefined);
+	pubwic wun(): Pwomise<void> {
+		if (!this.isSuppowted()) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		return this._run();
+		wetuwn this._wun();
 	}
 }

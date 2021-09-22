@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export const enum TerminalStorageKeys {
-	NeverMeasureRenderTime = 'terminal.integrated.neverMeasureRenderTime',
-	SuggestedRendererType = 'terminal.integrated.suggestedRendererType',
-	TabsListWidthHorizontal = 'tabs-list-width-horizontal',
-	TabsListWidthVertical = 'tabs-list-width-vertical',
-	EnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollections',
-	TerminalBufferState = 'terminal.integrated.bufferState',
-	TerminalLayoutInfo = 'terminal.integrated.layoutInfo'
+expowt const enum TewminawStowageKeys {
+	NevewMeasuweWendewTime = 'tewminaw.integwated.nevewMeasuweWendewTime',
+	SuggestedWendewewType = 'tewminaw.integwated.suggestedWendewewType',
+	TabsWistWidthHowizontaw = 'tabs-wist-width-howizontaw',
+	TabsWistWidthVewticaw = 'tabs-wist-width-vewticaw',
+	EnviwonmentVawiabweCowwections = 'tewminaw.integwated.enviwonmentVawiabweCowwections',
+	TewminawBuffewState = 'tewminaw.integwated.buffewState',
+	TewminawWayoutInfo = 'tewminaw.integwated.wayoutInfo'
 }

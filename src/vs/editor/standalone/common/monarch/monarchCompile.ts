@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * This module only exports 'compile' which compiles a JSON language definition
- * into a typed and checked ILexer definition.
+ * This moduwe onwy expowts 'compiwe' which compiwes a JSON wanguage definition
+ * into a typed and checked IWexa definition.
  */
 
-import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
-import { IMonarchLanguage, IMonarchLanguageBracket } from 'vs/editor/standalone/common/monarch/monarchTypes';
+impowt * as monawchCommon fwom 'vs/editow/standawone/common/monawch/monawchCommon';
+impowt { IMonawchWanguage, IMonawchWanguageBwacket } fwom 'vs/editow/standawone/common/monawch/monawchTypes';
 
 /*
- * Type helpers
+ * Type hewpews
  *
- * Note: this is just for sanity checks on the JSON description which is
- * helpful for the programmer. No checks are done anymore once the lexer is
- * already 'compiled and checked'.
+ * Note: this is just fow sanity checks on the JSON descwiption which is
+ * hewpfuw fow the pwogwamma. No checks awe done anymowe once the wexa is
+ * awweady 'compiwed and checked'.
  *
  */
 
-function isArrayOf(elemType: (x: any) => boolean, obj: any): boolean {
+function isAwwayOf(ewemType: (x: any) => boowean, obj: any): boowean {
 	if (!obj) {
-		return false;
+		wetuwn fawse;
 	}
-	if (!(Array.isArray(obj))) {
-		return false;
+	if (!(Awway.isAwway(obj))) {
+		wetuwn fawse;
 	}
-	for (const el of obj) {
-		if (!(elemType(el))) {
-			return false;
+	fow (const ew of obj) {
+		if (!(ewemType(ew))) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-function bool(prop: any, defValue: boolean): boolean {
-	if (typeof prop === 'boolean') {
-		return prop;
+function boow(pwop: any, defVawue: boowean): boowean {
+	if (typeof pwop === 'boowean') {
+		wetuwn pwop;
 	}
-	return defValue;
+	wetuwn defVawue;
 }
 
-function string(prop: any, defValue: string): string {
-	if (typeof (prop) === 'string') {
-		return prop;
+function stwing(pwop: any, defVawue: stwing): stwing {
+	if (typeof (pwop) === 'stwing') {
+		wetuwn pwop;
 	}
-	return defValue;
+	wetuwn defVawue;
 }
 
 
-function arrayToHash(array: string[]): { [name: string]: true } {
-	const result: any = {};
-	for (const e of array) {
-		result[e] = true;
+function awwayToHash(awway: stwing[]): { [name: stwing]: twue } {
+	const wesuwt: any = {};
+	fow (const e of awway) {
+		wesuwt[e] = twue;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 
-function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): (str: string) => boolean {
+function cweateKeywowdMatcha(aww: stwing[], caseInsensitive: boowean = fawse): (stw: stwing) => boowean {
 	if (caseInsensitive) {
-		arr = arr.map(function (x) { return x.toLowerCase(); });
+		aww = aww.map(function (x) { wetuwn x.toWowewCase(); });
 	}
-	const hash = arrayToHash(arr);
+	const hash = awwayToHash(aww);
 	if (caseInsensitive) {
-		return function (word) {
-			return hash[word.toLowerCase()] !== undefined && hash.hasOwnProperty(word.toLowerCase());
+		wetuwn function (wowd) {
+			wetuwn hash[wowd.toWowewCase()] !== undefined && hash.hasOwnPwopewty(wowd.toWowewCase());
 		};
-	} else {
-		return function (word) {
-			return hash[word] !== undefined && hash.hasOwnProperty(word);
+	} ewse {
+		wetuwn function (wowd) {
+			wetuwn hash[wowd] !== undefined && hash.hasOwnPwopewty(wowd);
 		};
 	}
 }
 
 
-// Lexer helpers
+// Wexa hewpews
 
 /**
- * Compiles a regular expression string, adding the 'i' flag if 'ignoreCase' is set, and the 'u' flag if 'unicode' is set.
- * Also replaces @\w+ or sequences with the content of the specified attribute
- * @\w+ replacement can be avoided by escaping `@` signs with another `@` sign.
- * @example /@attr/ will be replaced with the value of lexer[attr]
- * @example /@@text/ will not be replaced and will become /@text/.
+ * Compiwes a weguwaw expwession stwing, adding the 'i' fwag if 'ignoweCase' is set, and the 'u' fwag if 'unicode' is set.
+ * Awso wepwaces @\w+ ow sequences with the content of the specified attwibute
+ * @\w+ wepwacement can be avoided by escaping `@` signs with anotha `@` sign.
+ * @exampwe /@attw/ wiww be wepwaced with the vawue of wexa[attw]
+ * @exampwe /@@text/ wiww not be wepwaced and wiww become /@text/.
  */
-function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
-	// @@ must be interpreted as a literal @, so we replace all occurences of @@ with a placeholder character
-	str = str.replace(/@@/g, `\x01`);
+function compiweWegExp(wexa: monawchCommon.IWexewMin, stw: stwing): WegExp {
+	// @@ must be intewpweted as a witewaw @, so we wepwace aww occuwences of @@ with a pwacehowda chawacta
+	stw = stw.wepwace(/@@/g, `\x01`);
 
-	let n = 0;
-	let hadExpansion: boolean;
+	wet n = 0;
+	wet hadExpansion: boowean;
 	do {
-		hadExpansion = false;
-		str = str.replace(/@(\w+)/g, function (s, attr?) {
-			hadExpansion = true;
-			let sub = '';
-			if (typeof (lexer[attr]) === 'string') {
-				sub = lexer[attr];
-			} else if (lexer[attr] && lexer[attr] instanceof RegExp) {
-				sub = lexer[attr].source;
-			} else {
-				if (lexer[attr] === undefined) {
-					throw monarchCommon.createError(lexer, 'language definition does not contain attribute \'' + attr + '\', used at: ' + str);
-				} else {
-					throw monarchCommon.createError(lexer, 'attribute reference \'' + attr + '\' must be a string, used at: ' + str);
+		hadExpansion = fawse;
+		stw = stw.wepwace(/@(\w+)/g, function (s, attw?) {
+			hadExpansion = twue;
+			wet sub = '';
+			if (typeof (wexa[attw]) === 'stwing') {
+				sub = wexa[attw];
+			} ewse if (wexa[attw] && wexa[attw] instanceof WegExp) {
+				sub = wexa[attw].souwce;
+			} ewse {
+				if (wexa[attw] === undefined) {
+					thwow monawchCommon.cweateEwwow(wexa, 'wanguage definition does not contain attwibute \'' + attw + '\', used at: ' + stw);
+				} ewse {
+					thwow monawchCommon.cweateEwwow(wexa, 'attwibute wefewence \'' + attw + '\' must be a stwing, used at: ' + stw);
 				}
 			}
-			return (monarchCommon.empty(sub) ? '' : '(?:' + sub + ')');
+			wetuwn (monawchCommon.empty(sub) ? '' : '(?:' + sub + ')');
 		});
 		n++;
-	} while (hadExpansion && n < 5);
+	} whiwe (hadExpansion && n < 5);
 
-	// handle escaped @@
-	str = str.replace(/\x01/g, '@');
+	// handwe escaped @@
+	stw = stw.wepwace(/\x01/g, '@');
 
-	let flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
-	return new RegExp(str, flags);
+	wet fwags = (wexa.ignoweCase ? 'i' : '') + (wexa.unicode ? 'u' : '');
+	wetuwn new WegExp(stw, fwags);
 }
 
 /**
- * Compiles guard functions for case matches.
- * This compiles 'cases' attributes into efficient match functions.
+ * Compiwes guawd functions fow case matches.
+ * This compiwes 'cases' attwibutes into efficient match functions.
  *
  */
-function selectScrutinee(id: string, matches: string[], state: string, num: number): string | null {
+function sewectScwutinee(id: stwing, matches: stwing[], state: stwing, num: numba): stwing | nuww {
 	if (num < 0) {
-		return id;
+		wetuwn id;
 	}
-	if (num < matches.length) {
-		return matches[num];
+	if (num < matches.wength) {
+		wetuwn matches[num];
 	}
 	if (num >= 100) {
 		num = num - 100;
-		let parts = state.split('.');
-		parts.unshift(state);
-		if (num < parts.length) {
-			return parts[num];
+		wet pawts = state.spwit('.');
+		pawts.unshift(state);
+		if (num < pawts.wength) {
+			wetuwn pawts[num];
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
-function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: string, val: monarchCommon.FuzzyAction): monarchCommon.IBranch {
-	// get the scrutinee and pattern
-	let scrut = -1; // -1: $!, 0-99: $n, 100+n: $Sn
-	let oppat = tkey;
-	let matches = tkey.match(/^\$(([sS]?)(\d\d?)|#)(.*)$/);
+function cweateGuawd(wexa: monawchCommon.IWexewMin, wuweName: stwing, tkey: stwing, vaw: monawchCommon.FuzzyAction): monawchCommon.IBwanch {
+	// get the scwutinee and pattewn
+	wet scwut = -1; // -1: $!, 0-99: $n, 100+n: $Sn
+	wet oppat = tkey;
+	wet matches = tkey.match(/^\$(([sS]?)(\d\d?)|#)(.*)$/);
 	if (matches) {
 		if (matches[3]) { // if digits
-			scrut = parseInt(matches[3]);
+			scwut = pawseInt(matches[3]);
 			if (matches[2]) {
-				scrut = scrut + 100; // if [sS] present
+				scwut = scwut + 100; // if [sS] pwesent
 			}
 		}
 		oppat = matches[4];
 	}
-	// get operator
-	let op = '~';
-	let pat = oppat;
-	if (!oppat || oppat.length === 0) {
+	// get opewatow
+	wet op = '~';
+	wet pat = oppat;
+	if (!oppat || oppat.wength === 0) {
 		op = '!=';
 		pat = '';
 	}
-	else if (/^\w*$/.test(pat)) {  // just a word
+	ewse if (/^\w*$/.test(pat)) {  // just a wowd
 		op = '==';
 	}
-	else {
+	ewse {
 		matches = oppat.match(/^(@|!@|~|!~|==|!=)(.*)$/);
 		if (matches) {
 			op = matches[1];
@@ -174,382 +174,382 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 		}
 	}
 
-	// set the tester function
-	let tester: (s: string, id: string, matches: string[], state: string, eos: boolean) => boolean;
+	// set the testa function
+	wet testa: (s: stwing, id: stwing, matches: stwing[], state: stwing, eos: boowean) => boowean;
 
-	// special case a regexp that matches just words
+	// speciaw case a wegexp that matches just wowds
 	if ((op === '~' || op === '!~') && /^(\w|\|)*$/.test(pat)) {
-		let inWords = createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
-		tester = function (s) { return (op === '~' ? inWords(s) : !inWords(s)); };
+		wet inWowds = cweateKeywowdMatcha(pat.spwit('|'), wexa.ignoweCase);
+		testa = function (s) { wetuwn (op === '~' ? inWowds(s) : !inWowds(s)); };
 	}
-	else if (op === '@' || op === '!@') {
-		let words = lexer[pat];
-		if (!words) {
-			throw monarchCommon.createError(lexer, 'the @ match target \'' + pat + '\' is not defined, in rule: ' + ruleName);
+	ewse if (op === '@' || op === '!@') {
+		wet wowds = wexa[pat];
+		if (!wowds) {
+			thwow monawchCommon.cweateEwwow(wexa, 'the @ match tawget \'' + pat + '\' is not defined, in wuwe: ' + wuweName);
 		}
-		if (!(isArrayOf(function (elem) { return (typeof (elem) === 'string'); }, words))) {
-			throw monarchCommon.createError(lexer, 'the @ match target \'' + pat + '\' must be an array of strings, in rule: ' + ruleName);
+		if (!(isAwwayOf(function (ewem) { wetuwn (typeof (ewem) === 'stwing'); }, wowds))) {
+			thwow monawchCommon.cweateEwwow(wexa, 'the @ match tawget \'' + pat + '\' must be an awway of stwings, in wuwe: ' + wuweName);
 		}
-		let inWords = createKeywordMatcher(words, lexer.ignoreCase);
-		tester = function (s) { return (op === '@' ? inWords(s) : !inWords(s)); };
+		wet inWowds = cweateKeywowdMatcha(wowds, wexa.ignoweCase);
+		testa = function (s) { wetuwn (op === '@' ? inWowds(s) : !inWowds(s)); };
 	}
-	else if (op === '~' || op === '!~') {
+	ewse if (op === '~' || op === '!~') {
 		if (pat.indexOf('$') < 0) {
-			// precompile regular expression
-			let re = compileRegExp(lexer, '^' + pat + '$');
-			tester = function (s) { return (op === '~' ? re.test(s) : !re.test(s)); };
+			// pwecompiwe weguwaw expwession
+			wet we = compiweWegExp(wexa, '^' + pat + '$');
+			testa = function (s) { wetuwn (op === '~' ? we.test(s) : !we.test(s)); };
 		}
-		else {
-			tester = function (s, id, matches, state) {
-				let re = compileRegExp(lexer, '^' + monarchCommon.substituteMatches(lexer, pat, id, matches, state) + '$');
-				return re.test(s);
+		ewse {
+			testa = function (s, id, matches, state) {
+				wet we = compiweWegExp(wexa, '^' + monawchCommon.substituteMatches(wexa, pat, id, matches, state) + '$');
+				wetuwn we.test(s);
 			};
 		}
 	}
-	else { // if (op==='==' || op==='!=') {
+	ewse { // if (op==='==' || op==='!=') {
 		if (pat.indexOf('$') < 0) {
-			let patx = monarchCommon.fixCase(lexer, pat);
-			tester = function (s) { return (op === '==' ? s === patx : s !== patx); };
+			wet patx = monawchCommon.fixCase(wexa, pat);
+			testa = function (s) { wetuwn (op === '==' ? s === patx : s !== patx); };
 		}
-		else {
-			let patx = monarchCommon.fixCase(lexer, pat);
-			tester = function (s, id, matches, state, eos) {
-				let patexp = monarchCommon.substituteMatches(lexer, patx, id, matches, state);
-				return (op === '==' ? s === patexp : s !== patexp);
+		ewse {
+			wet patx = monawchCommon.fixCase(wexa, pat);
+			testa = function (s, id, matches, state, eos) {
+				wet patexp = monawchCommon.substituteMatches(wexa, patx, id, matches, state);
+				wetuwn (op === '==' ? s === patexp : s !== patexp);
 			};
 		}
 	}
 
-	// return the branch object
-	if (scrut === -1) {
-		return {
-			name: tkey, value: val, test: function (id, matches, state, eos) {
-				return tester(id, id, matches, state, eos);
+	// wetuwn the bwanch object
+	if (scwut === -1) {
+		wetuwn {
+			name: tkey, vawue: vaw, test: function (id, matches, state, eos) {
+				wetuwn testa(id, id, matches, state, eos);
 			}
 		};
 	}
-	else {
-		return {
-			name: tkey, value: val, test: function (id, matches, state, eos) {
-				let scrutinee = selectScrutinee(id, matches, state, scrut);
-				return tester(!scrutinee ? '' : scrutinee, id, matches, state, eos);
+	ewse {
+		wetuwn {
+			name: tkey, vawue: vaw, test: function (id, matches, state, eos) {
+				wet scwutinee = sewectScwutinee(id, matches, state, scwut);
+				wetuwn testa(!scwutinee ? '' : scwutinee, id, matches, state, eos);
 			}
 		};
 	}
 }
 
 /**
- * Compiles an action: i.e. optimize regular expressions and case matches
+ * Compiwes an action: i.e. optimize weguwaw expwessions and case matches
  * and do many sanity checks.
  *
- * This is called only during compilation but if the lexer definition
- * contains user functions as actions (which is usually not allowed), then this
- * may be called during lexing. It is important therefore to compile common cases efficiently
+ * This is cawwed onwy duwing compiwation but if the wexa definition
+ * contains usa functions as actions (which is usuawwy not awwowed), then this
+ * may be cawwed duwing wexing. It is impowtant thewefowe to compiwe common cases efficientwy
  */
-function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action: any): monarchCommon.FuzzyAction {
+function compiweAction(wexa: monawchCommon.IWexewMin, wuweName: stwing, action: any): monawchCommon.FuzzyAction {
 	if (!action) {
-		return { token: '' };
+		wetuwn { token: '' };
 	}
-	else if (typeof (action) === 'string') {
-		return action; // { token: action };
+	ewse if (typeof (action) === 'stwing') {
+		wetuwn action; // { token: action };
 	}
-	else if (action.token || action.token === '') {
-		if (typeof (action.token) !== 'string') {
-			throw monarchCommon.createError(lexer, 'a \'token\' attribute must be of type string, in rule: ' + ruleName);
+	ewse if (action.token || action.token === '') {
+		if (typeof (action.token) !== 'stwing') {
+			thwow monawchCommon.cweateEwwow(wexa, 'a \'token\' attwibute must be of type stwing, in wuwe: ' + wuweName);
 		}
-		else {
-			// only copy specific typed fields (only happens once during compile Lexer)
-			let newAction: monarchCommon.IAction = { token: action.token };
+		ewse {
+			// onwy copy specific typed fiewds (onwy happens once duwing compiwe Wexa)
+			wet newAction: monawchCommon.IAction = { token: action.token };
 			if (action.token.indexOf('$') >= 0) {
-				newAction.tokenSubst = true;
+				newAction.tokenSubst = twue;
 			}
-			if (typeof (action.bracket) === 'string') {
-				if (action.bracket === '@open') {
-					newAction.bracket = monarchCommon.MonarchBracket.Open;
-				} else if (action.bracket === '@close') {
-					newAction.bracket = monarchCommon.MonarchBracket.Close;
-				} else {
-					throw monarchCommon.createError(lexer, 'a \'bracket\' attribute must be either \'@open\' or \'@close\', in rule: ' + ruleName);
+			if (typeof (action.bwacket) === 'stwing') {
+				if (action.bwacket === '@open') {
+					newAction.bwacket = monawchCommon.MonawchBwacket.Open;
+				} ewse if (action.bwacket === '@cwose') {
+					newAction.bwacket = monawchCommon.MonawchBwacket.Cwose;
+				} ewse {
+					thwow monawchCommon.cweateEwwow(wexa, 'a \'bwacket\' attwibute must be eitha \'@open\' ow \'@cwose\', in wuwe: ' + wuweName);
 				}
 			}
 			if (action.next) {
-				if (typeof (action.next) !== 'string') {
-					throw monarchCommon.createError(lexer, 'the next state must be a string value in rule: ' + ruleName);
+				if (typeof (action.next) !== 'stwing') {
+					thwow monawchCommon.cweateEwwow(wexa, 'the next state must be a stwing vawue in wuwe: ' + wuweName);
 				}
-				else {
-					let next: string = action.next;
-					if (!/^(@pop|@push|@popall)$/.test(next)) {
+				ewse {
+					wet next: stwing = action.next;
+					if (!/^(@pop|@push|@popaww)$/.test(next)) {
 						if (next[0] === '@') {
-							next = next.substr(1); // peel off starting @ sign
+							next = next.substw(1); // peew off stawting @ sign
 						}
-						if (next.indexOf('$') < 0) {  // no dollar substitution, we can check if the state exists
-							if (!monarchCommon.stateExists(lexer, monarchCommon.substituteMatches(lexer, next, '', [], ''))) {
-								throw monarchCommon.createError(lexer, 'the next state \'' + action.next + '\' is not defined in rule: ' + ruleName);
+						if (next.indexOf('$') < 0) {  // no dowwaw substitution, we can check if the state exists
+							if (!monawchCommon.stateExists(wexa, monawchCommon.substituteMatches(wexa, next, '', [], ''))) {
+								thwow monawchCommon.cweateEwwow(wexa, 'the next state \'' + action.next + '\' is not defined in wuwe: ' + wuweName);
 							}
 						}
 					}
 					newAction.next = next;
 				}
 			}
-			if (typeof (action.goBack) === 'number') {
+			if (typeof (action.goBack) === 'numba') {
 				newAction.goBack = action.goBack;
 			}
-			if (typeof (action.switchTo) === 'string') {
+			if (typeof (action.switchTo) === 'stwing') {
 				newAction.switchTo = action.switchTo;
 			}
-			if (typeof (action.log) === 'string') {
-				newAction.log = action.log;
+			if (typeof (action.wog) === 'stwing') {
+				newAction.wog = action.wog;
 			}
-			if (typeof (action.nextEmbedded) === 'string') {
+			if (typeof (action.nextEmbedded) === 'stwing') {
 				newAction.nextEmbedded = action.nextEmbedded;
-				lexer.usesEmbedded = true;
+				wexa.usesEmbedded = twue;
 			}
-			return newAction;
+			wetuwn newAction;
 		}
 	}
-	else if (Array.isArray(action)) {
-		let results: monarchCommon.FuzzyAction[] = [];
-		for (let i = 0, len = action.length; i < len; i++) {
-			results[i] = compileAction(lexer, ruleName, action[i]);
+	ewse if (Awway.isAwway(action)) {
+		wet wesuwts: monawchCommon.FuzzyAction[] = [];
+		fow (wet i = 0, wen = action.wength; i < wen; i++) {
+			wesuwts[i] = compiweAction(wexa, wuweName, action[i]);
 		}
-		return { group: results };
+		wetuwn { gwoup: wesuwts };
 	}
-	else if (action.cases) {
-		// build an array of test cases
-		let cases: monarchCommon.IBranch[] = [];
+	ewse if (action.cases) {
+		// buiwd an awway of test cases
+		wet cases: monawchCommon.IBwanch[] = [];
 
-		// for each case, push a test function and result value
-		for (let tkey in action.cases) {
-			if (action.cases.hasOwnProperty(tkey)) {
-				const val = compileAction(lexer, ruleName, action.cases[tkey]);
+		// fow each case, push a test function and wesuwt vawue
+		fow (wet tkey in action.cases) {
+			if (action.cases.hasOwnPwopewty(tkey)) {
+				const vaw = compiweAction(wexa, wuweName, action.cases[tkey]);
 
 				// what kind of case
-				if (tkey === '@default' || tkey === '@' || tkey === '') {
-					cases.push({ test: undefined, value: val, name: tkey });
+				if (tkey === '@defauwt' || tkey === '@' || tkey === '') {
+					cases.push({ test: undefined, vawue: vaw, name: tkey });
 				}
-				else if (tkey === '@eos') {
-					cases.push({ test: function (id, matches, state, eos) { return eos; }, value: val, name: tkey });
+				ewse if (tkey === '@eos') {
+					cases.push({ test: function (id, matches, state, eos) { wetuwn eos; }, vawue: vaw, name: tkey });
 				}
-				else {
-					cases.push(createGuard(lexer, ruleName, tkey, val));  // call separate function to avoid local variable capture
+				ewse {
+					cases.push(cweateGuawd(wexa, wuweName, tkey, vaw));  // caww sepawate function to avoid wocaw vawiabwe captuwe
 				}
 			}
 		}
 
-		// create a matching function
-		const def = lexer.defaultToken;
-		return {
+		// cweate a matching function
+		const def = wexa.defauwtToken;
+		wetuwn {
 			test: function (id, matches, state, eos) {
-				for (const _case of cases) {
+				fow (const _case of cases) {
 					const didmatch = (!_case.test || _case.test(id, matches, state, eos));
 					if (didmatch) {
-						return _case.value;
+						wetuwn _case.vawue;
 					}
 				}
-				return def;
+				wetuwn def;
 			}
 		};
 	}
-	else {
-		throw monarchCommon.createError(lexer, 'an action must be a string, an object with a \'token\' or \'cases\' attribute, or an array of actions; in rule: ' + ruleName);
+	ewse {
+		thwow monawchCommon.cweateEwwow(wexa, 'an action must be a stwing, an object with a \'token\' ow \'cases\' attwibute, ow an awway of actions; in wuwe: ' + wuweName);
 	}
 }
 
 /**
- * Helper class for creating matching rules
+ * Hewpa cwass fow cweating matching wuwes
  */
-class Rule implements monarchCommon.IRule {
-	public regex: RegExp = new RegExp('');
-	public action: monarchCommon.FuzzyAction = { token: '' };
-	public matchOnlyAtLineStart: boolean = false;
-	public name: string = '';
+cwass Wuwe impwements monawchCommon.IWuwe {
+	pubwic wegex: WegExp = new WegExp('');
+	pubwic action: monawchCommon.FuzzyAction = { token: '' };
+	pubwic matchOnwyAtWineStawt: boowean = fawse;
+	pubwic name: stwing = '';
 
-	constructor(name: string) {
+	constwuctow(name: stwing) {
 		this.name = name;
 	}
 
-	public setRegex(lexer: monarchCommon.ILexerMin, re: string | RegExp): void {
-		let sregex: string;
-		if (typeof (re) === 'string') {
-			sregex = re;
+	pubwic setWegex(wexa: monawchCommon.IWexewMin, we: stwing | WegExp): void {
+		wet swegex: stwing;
+		if (typeof (we) === 'stwing') {
+			swegex = we;
 		}
-		else if (re instanceof RegExp) {
-			sregex = (<RegExp>re).source;
+		ewse if (we instanceof WegExp) {
+			swegex = (<WegExp>we).souwce;
 		}
-		else {
-			throw monarchCommon.createError(lexer, 'rules must start with a match string or regular expression: ' + this.name);
+		ewse {
+			thwow monawchCommon.cweateEwwow(wexa, 'wuwes must stawt with a match stwing ow weguwaw expwession: ' + this.name);
 		}
 
-		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
-		this.name = this.name + ': ' + sregex;
-		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')');
+		this.matchOnwyAtWineStawt = (swegex.wength > 0 && swegex[0] === '^');
+		this.name = this.name + ': ' + swegex;
+		this.wegex = compiweWegExp(wexa, '^(?:' + (this.matchOnwyAtWineStawt ? swegex.substw(1) : swegex) + ')');
 	}
 
-	public setAction(lexer: monarchCommon.ILexerMin, act: monarchCommon.IAction) {
-		this.action = compileAction(lexer, this.name, act);
+	pubwic setAction(wexa: monawchCommon.IWexewMin, act: monawchCommon.IAction) {
+		this.action = compiweAction(wexa, this.name, act);
 	}
 }
 
 /**
- * Compiles a json description function into json where all regular expressions,
- * case matches etc, are compiled and all include rules are expanded.
- * We also compile the bracket definitions, supply defaults, and do many sanity checks.
- * If the 'jsonStrict' parameter is 'false', we allow at certain locations
- * regular expression objects and functions that get called during lexing.
- * (Currently we have no samples that need this so perhaps we should always have
- * jsonStrict to true).
+ * Compiwes a json descwiption function into json whewe aww weguwaw expwessions,
+ * case matches etc, awe compiwed and aww incwude wuwes awe expanded.
+ * We awso compiwe the bwacket definitions, suppwy defauwts, and do many sanity checks.
+ * If the 'jsonStwict' pawameta is 'fawse', we awwow at cewtain wocations
+ * weguwaw expwession objects and functions that get cawwed duwing wexing.
+ * (Cuwwentwy we have no sampwes that need this so pewhaps we shouwd awways have
+ * jsonStwict to twue).
  */
-export function compile(languageId: string, json: IMonarchLanguage): monarchCommon.ILexer {
+expowt function compiwe(wanguageId: stwing, json: IMonawchWanguage): monawchCommon.IWexa {
 	if (!json || typeof (json) !== 'object') {
-		throw new Error('Monarch: expecting a language definition object');
+		thwow new Ewwow('Monawch: expecting a wanguage definition object');
 	}
 
-	// Create our lexer
-	let lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
-	lexer.languageId = languageId;
-	lexer.includeLF = bool(json.includeLF, false);
-	lexer.noThrow = false; // raise exceptions during compilation
-	lexer.maxStack = 100;
+	// Cweate ouw wexa
+	wet wexa: monawchCommon.IWexa = <monawchCommon.IWexa>{};
+	wexa.wanguageId = wanguageId;
+	wexa.incwudeWF = boow(json.incwudeWF, fawse);
+	wexa.noThwow = fawse; // waise exceptions duwing compiwation
+	wexa.maxStack = 100;
 
-	// Set standard fields: be defensive about types
-	lexer.start = (typeof json.start === 'string' ? json.start : null);
-	lexer.ignoreCase = bool(json.ignoreCase, false);
-	lexer.unicode = bool(json.unicode, false);
+	// Set standawd fiewds: be defensive about types
+	wexa.stawt = (typeof json.stawt === 'stwing' ? json.stawt : nuww);
+	wexa.ignoweCase = boow(json.ignoweCase, fawse);
+	wexa.unicode = boow(json.unicode, fawse);
 
-	lexer.tokenPostfix = string(json.tokenPostfix, '.' + lexer.languageId);
-	lexer.defaultToken = string(json.defaultToken, 'source');
+	wexa.tokenPostfix = stwing(json.tokenPostfix, '.' + wexa.wanguageId);
+	wexa.defauwtToken = stwing(json.defauwtToken, 'souwce');
 
-	lexer.usesEmbedded = false; // becomes true if we find a nextEmbedded action
+	wexa.usesEmbedded = fawse; // becomes twue if we find a nextEmbedded action
 
-	// For calling compileAction later on
-	let lexerMin: monarchCommon.ILexerMin = <any>json;
-	lexerMin.languageId = languageId;
-	lexerMin.includeLF = lexer.includeLF;
-	lexerMin.ignoreCase = lexer.ignoreCase;
-	lexerMin.unicode = lexer.unicode;
-	lexerMin.noThrow = lexer.noThrow;
-	lexerMin.usesEmbedded = lexer.usesEmbedded;
-	lexerMin.stateNames = json.tokenizer;
-	lexerMin.defaultToken = lexer.defaultToken;
+	// Fow cawwing compiweAction wata on
+	wet wexewMin: monawchCommon.IWexewMin = <any>json;
+	wexewMin.wanguageId = wanguageId;
+	wexewMin.incwudeWF = wexa.incwudeWF;
+	wexewMin.ignoweCase = wexa.ignoweCase;
+	wexewMin.unicode = wexa.unicode;
+	wexewMin.noThwow = wexa.noThwow;
+	wexewMin.usesEmbedded = wexa.usesEmbedded;
+	wexewMin.stateNames = json.tokeniza;
+	wexewMin.defauwtToken = wexa.defauwtToken;
 
 
-	// Compile an array of rules into newrules where RegExp objects are created.
-	function addRules(state: string, newrules: monarchCommon.IRule[], rules: any[]) {
-		for (const rule of rules) {
+	// Compiwe an awway of wuwes into newwuwes whewe WegExp objects awe cweated.
+	function addWuwes(state: stwing, newwuwes: monawchCommon.IWuwe[], wuwes: any[]) {
+		fow (const wuwe of wuwes) {
 
-			let include = rule.include;
-			if (include) {
-				if (typeof (include) !== 'string') {
-					throw monarchCommon.createError(lexer, 'an \'include\' attribute must be a string at: ' + state);
+			wet incwude = wuwe.incwude;
+			if (incwude) {
+				if (typeof (incwude) !== 'stwing') {
+					thwow monawchCommon.cweateEwwow(wexa, 'an \'incwude\' attwibute must be a stwing at: ' + state);
 				}
-				if (include[0] === '@') {
-					include = include.substr(1); // peel off starting @
+				if (incwude[0] === '@') {
+					incwude = incwude.substw(1); // peew off stawting @
 				}
-				if (!json.tokenizer[include]) {
-					throw monarchCommon.createError(lexer, 'include target \'' + include + '\' is not defined at: ' + state);
+				if (!json.tokeniza[incwude]) {
+					thwow monawchCommon.cweateEwwow(wexa, 'incwude tawget \'' + incwude + '\' is not defined at: ' + state);
 				}
-				addRules(state + '.' + include, newrules, json.tokenizer[include]);
+				addWuwes(state + '.' + incwude, newwuwes, json.tokeniza[incwude]);
 			}
-			else {
-				const newrule = new Rule(state);
+			ewse {
+				const newwuwe = new Wuwe(state);
 
-				// Set up new rule attributes
-				if (Array.isArray(rule) && rule.length >= 1 && rule.length <= 3) {
-					newrule.setRegex(lexerMin, rule[0]);
-					if (rule.length >= 3) {
-						if (typeof (rule[1]) === 'string') {
-							newrule.setAction(lexerMin, { token: rule[1], next: rule[2] });
+				// Set up new wuwe attwibutes
+				if (Awway.isAwway(wuwe) && wuwe.wength >= 1 && wuwe.wength <= 3) {
+					newwuwe.setWegex(wexewMin, wuwe[0]);
+					if (wuwe.wength >= 3) {
+						if (typeof (wuwe[1]) === 'stwing') {
+							newwuwe.setAction(wexewMin, { token: wuwe[1], next: wuwe[2] });
 						}
-						else if (typeof (rule[1]) === 'object') {
-							const rule1 = rule[1];
-							rule1.next = rule[2];
-							newrule.setAction(lexerMin, rule1);
+						ewse if (typeof (wuwe[1]) === 'object') {
+							const wuwe1 = wuwe[1];
+							wuwe1.next = wuwe[2];
+							newwuwe.setAction(wexewMin, wuwe1);
 						}
-						else {
-							throw monarchCommon.createError(lexer, 'a next state as the last element of a rule can only be given if the action is either an object or a string, at: ' + state);
+						ewse {
+							thwow monawchCommon.cweateEwwow(wexa, 'a next state as the wast ewement of a wuwe can onwy be given if the action is eitha an object ow a stwing, at: ' + state);
 						}
 					}
-					else {
-						newrule.setAction(lexerMin, rule[1]);
+					ewse {
+						newwuwe.setAction(wexewMin, wuwe[1]);
 					}
 				}
-				else {
-					if (!rule.regex) {
-						throw monarchCommon.createError(lexer, 'a rule must either be an array, or an object with a \'regex\' or \'include\' field at: ' + state);
+				ewse {
+					if (!wuwe.wegex) {
+						thwow monawchCommon.cweateEwwow(wexa, 'a wuwe must eitha be an awway, ow an object with a \'wegex\' ow \'incwude\' fiewd at: ' + state);
 					}
-					if (rule.name) {
-						if (typeof rule.name === 'string') {
-							newrule.name = rule.name;
+					if (wuwe.name) {
+						if (typeof wuwe.name === 'stwing') {
+							newwuwe.name = wuwe.name;
 						}
 					}
-					if (rule.matchOnlyAtStart) {
-						newrule.matchOnlyAtLineStart = bool(rule.matchOnlyAtLineStart, false);
+					if (wuwe.matchOnwyAtStawt) {
+						newwuwe.matchOnwyAtWineStawt = boow(wuwe.matchOnwyAtWineStawt, fawse);
 					}
-					newrule.setRegex(lexerMin, rule.regex);
-					newrule.setAction(lexerMin, rule.action);
+					newwuwe.setWegex(wexewMin, wuwe.wegex);
+					newwuwe.setAction(wexewMin, wuwe.action);
 				}
 
-				newrules.push(newrule);
+				newwuwes.push(newwuwe);
 			}
 		}
 	}
 
-	// compile the tokenizer rules
-	if (!json.tokenizer || typeof (json.tokenizer) !== 'object') {
-		throw monarchCommon.createError(lexer, 'a language definition must define the \'tokenizer\' attribute as an object');
+	// compiwe the tokeniza wuwes
+	if (!json.tokeniza || typeof (json.tokeniza) !== 'object') {
+		thwow monawchCommon.cweateEwwow(wexa, 'a wanguage definition must define the \'tokeniza\' attwibute as an object');
 	}
 
-	lexer.tokenizer = <any>[];
-	for (let key in json.tokenizer) {
-		if (json.tokenizer.hasOwnProperty(key)) {
-			if (!lexer.start) {
-				lexer.start = key;
+	wexa.tokeniza = <any>[];
+	fow (wet key in json.tokeniza) {
+		if (json.tokeniza.hasOwnPwopewty(key)) {
+			if (!wexa.stawt) {
+				wexa.stawt = key;
 			}
 
-			const rules = json.tokenizer[key];
-			lexer.tokenizer[key] = new Array();
-			addRules('tokenizer.' + key, lexer.tokenizer[key], rules);
+			const wuwes = json.tokeniza[key];
+			wexa.tokeniza[key] = new Awway();
+			addWuwes('tokeniza.' + key, wexa.tokeniza[key], wuwes);
 		}
 	}
-	lexer.usesEmbedded = lexerMin.usesEmbedded;  // can be set during compileAction
+	wexa.usesEmbedded = wexewMin.usesEmbedded;  // can be set duwing compiweAction
 
-	// Set simple brackets
-	if (json.brackets) {
-		if (!(Array.isArray(<any>json.brackets))) {
-			throw monarchCommon.createError(lexer, 'the \'brackets\' attribute must be defined as an array');
+	// Set simpwe bwackets
+	if (json.bwackets) {
+		if (!(Awway.isAwway(<any>json.bwackets))) {
+			thwow monawchCommon.cweateEwwow(wexa, 'the \'bwackets\' attwibute must be defined as an awway');
 		}
 	}
-	else {
-		json.brackets = [
-			{ open: '{', close: '}', token: 'delimiter.curly' },
-			{ open: '[', close: ']', token: 'delimiter.square' },
-			{ open: '(', close: ')', token: 'delimiter.parenthesis' },
-			{ open: '<', close: '>', token: 'delimiter.angle' }];
+	ewse {
+		json.bwackets = [
+			{ open: '{', cwose: '}', token: 'dewimita.cuwwy' },
+			{ open: '[', cwose: ']', token: 'dewimita.squawe' },
+			{ open: '(', cwose: ')', token: 'dewimita.pawenthesis' },
+			{ open: '<', cwose: '>', token: 'dewimita.angwe' }];
 	}
-	let brackets: IMonarchLanguageBracket[] = [];
-	for (let el of json.brackets) {
-		let desc: any = el;
-		if (desc && Array.isArray(desc) && desc.length === 3) {
-			desc = { token: desc[2], open: desc[0], close: desc[1] };
+	wet bwackets: IMonawchWanguageBwacket[] = [];
+	fow (wet ew of json.bwackets) {
+		wet desc: any = ew;
+		if (desc && Awway.isAwway(desc) && desc.wength === 3) {
+			desc = { token: desc[2], open: desc[0], cwose: desc[1] };
 		}
-		if (desc.open === desc.close) {
-			throw monarchCommon.createError(lexer, 'open and close brackets in a \'brackets\' attribute must be different: ' + desc.open +
-				'\n hint: use the \'bracket\' attribute if matching on equal brackets is required.');
+		if (desc.open === desc.cwose) {
+			thwow monawchCommon.cweateEwwow(wexa, 'open and cwose bwackets in a \'bwackets\' attwibute must be diffewent: ' + desc.open +
+				'\n hint: use the \'bwacket\' attwibute if matching on equaw bwackets is wequiwed.');
 		}
-		if (typeof desc.open === 'string' && typeof desc.token === 'string' && typeof desc.close === 'string') {
-			brackets.push({
-				token: desc.token + lexer.tokenPostfix,
-				open: monarchCommon.fixCase(lexer, desc.open),
-				close: monarchCommon.fixCase(lexer, desc.close)
+		if (typeof desc.open === 'stwing' && typeof desc.token === 'stwing' && typeof desc.cwose === 'stwing') {
+			bwackets.push({
+				token: desc.token + wexa.tokenPostfix,
+				open: monawchCommon.fixCase(wexa, desc.open),
+				cwose: monawchCommon.fixCase(wexa, desc.cwose)
 			});
 		}
-		else {
-			throw monarchCommon.createError(lexer, 'every element in the \'brackets\' array must be a \'{open,close,token}\' object or array');
+		ewse {
+			thwow monawchCommon.cweateEwwow(wexa, 'evewy ewement in the \'bwackets\' awway must be a \'{open,cwose,token}\' object ow awway');
 		}
 	}
-	lexer.brackets = brackets;
+	wexa.bwackets = bwackets;
 
-	// Disable throw so the syntax highlighter goes, no matter what
-	lexer.noThrow = true;
-	return lexer;
+	// Disabwe thwow so the syntax highwighta goes, no matta what
+	wexa.noThwow = twue;
+	wetuwn wexa;
 }

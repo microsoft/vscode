@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { GestuweEvent } fwom 'vs/base/bwowsa/touch';
 
-export interface IListVirtualDelegate<T> {
-	getHeight(element: T): number;
-	getTemplateId(element: T): string;
-	hasDynamicHeight?(element: T): boolean;
-	setDynamicHeight?(element: T, height: number): void;
+expowt intewface IWistViwtuawDewegate<T> {
+	getHeight(ewement: T): numba;
+	getTempwateId(ewement: T): stwing;
+	hasDynamicHeight?(ewement: T): boowean;
+	setDynamicHeight?(ewement: T, height: numba): void;
 }
 
-export interface IListRenderer<T, TTemplateData> {
-	readonly templateId: string;
-	renderTemplate(container: HTMLElement): TTemplateData;
-	renderElement(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeElement?(element: T, index: number, templateData: TTemplateData, height: number | undefined): void;
-	disposeTemplate(templateData: TTemplateData): void;
+expowt intewface IWistWendewa<T, TTempwateData> {
+	weadonwy tempwateId: stwing;
+	wendewTempwate(containa: HTMWEwement): TTempwateData;
+	wendewEwement(ewement: T, index: numba, tempwateData: TTempwateData, height: numba | undefined): void;
+	disposeEwement?(ewement: T, index: numba, tempwateData: TTempwateData, height: numba | undefined): void;
+	disposeTempwate(tempwateData: TTempwateData): void;
 }
 
-export interface IListEvent<T> {
-	elements: T[];
-	indexes: number[];
-	browserEvent?: UIEvent;
+expowt intewface IWistEvent<T> {
+	ewements: T[];
+	indexes: numba[];
+	bwowsewEvent?: UIEvent;
 }
 
-export interface IListMouseEvent<T> {
-	browserEvent: MouseEvent;
-	element: T | undefined;
-	index: number | undefined;
+expowt intewface IWistMouseEvent<T> {
+	bwowsewEvent: MouseEvent;
+	ewement: T | undefined;
+	index: numba | undefined;
 }
 
-export interface IListTouchEvent<T> {
-	browserEvent: TouchEvent;
-	element: T | undefined;
-	index: number | undefined;
+expowt intewface IWistTouchEvent<T> {
+	bwowsewEvent: TouchEvent;
+	ewement: T | undefined;
+	index: numba | undefined;
 }
 
-export interface IListGestureEvent<T> {
-	browserEvent: GestureEvent;
-	element: T | undefined;
-	index: number | undefined;
+expowt intewface IWistGestuweEvent<T> {
+	bwowsewEvent: GestuweEvent;
+	ewement: T | undefined;
+	index: numba | undefined;
 }
 
-export interface IListDragEvent<T> {
-	browserEvent: DragEvent;
-	element: T | undefined;
-	index: number | undefined;
+expowt intewface IWistDwagEvent<T> {
+	bwowsewEvent: DwagEvent;
+	ewement: T | undefined;
+	index: numba | undefined;
 }
 
-export interface IListContextMenuEvent<T> {
-	browserEvent: UIEvent;
-	element: T | undefined;
-	index: number | undefined;
-	anchor: HTMLElement | { x: number; y: number; };
+expowt intewface IWistContextMenuEvent<T> {
+	bwowsewEvent: UIEvent;
+	ewement: T | undefined;
+	index: numba | undefined;
+	anchow: HTMWEwement | { x: numba; y: numba; };
 }
 
-export interface IIdentityProvider<T> {
-	getId(element: T): { toString(): string; };
+expowt intewface IIdentityPwovida<T> {
+	getId(ewement: T): { toStwing(): stwing; };
 }
 
-export interface IKeyboardNavigationLabelProvider<T> {
+expowt intewface IKeyboawdNavigationWabewPwovida<T> {
 
 	/**
-	 * Return a keyboard navigation label(s) which will be used by
-	 * the list for filtering/navigating. Return `undefined` to make
-	 * an element always match.
+	 * Wetuwn a keyboawd navigation wabew(s) which wiww be used by
+	 * the wist fow fiwtewing/navigating. Wetuwn `undefined` to make
+	 * an ewement awways match.
 	 */
-	getKeyboardNavigationLabel(element: T): { toString(): string | undefined; } | { toString(): string | undefined; }[] | undefined;
+	getKeyboawdNavigationWabew(ewement: T): { toStwing(): stwing | undefined; } | { toStwing(): stwing | undefined; }[] | undefined;
 }
 
-export interface IKeyboardNavigationDelegate {
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+expowt intewface IKeyboawdNavigationDewegate {
+	mightPwoducePwintabweChawacta(event: IKeyboawdEvent): boowean;
 }
 
-export const enum ListDragOverEffect {
+expowt const enum WistDwagOvewEffect {
 	Copy,
 	Move
 }
 
-export interface IListDragOverReaction {
-	accept: boolean;
-	effect?: ListDragOverEffect;
-	feedback?: number[]; // use -1 for entire list
+expowt intewface IWistDwagOvewWeaction {
+	accept: boowean;
+	effect?: WistDwagOvewEffect;
+	feedback?: numba[]; // use -1 fow entiwe wist
 }
 
-export const ListDragOverReactions = {
-	reject(): IListDragOverReaction { return { accept: false }; },
-	accept(): IListDragOverReaction { return { accept: true }; },
+expowt const WistDwagOvewWeactions = {
+	weject(): IWistDwagOvewWeaction { wetuwn { accept: fawse }; },
+	accept(): IWistDwagOvewWeaction { wetuwn { accept: twue }; },
 };
 
-export interface IListDragAndDrop<T> {
-	getDragURI(element: T): string | null;
-	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
-	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction;
-	onDragLeave?(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
-	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
-	onDragEnd?(originalEvent: DragEvent): void;
+expowt intewface IWistDwagAndDwop<T> {
+	getDwagUWI(ewement: T): stwing | nuww;
+	getDwagWabew?(ewements: T[], owiginawEvent: DwagEvent): stwing | undefined;
+	onDwagStawt?(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void;
+	onDwagOva(data: IDwagAndDwopData, tawgetEwement: T | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): boowean | IWistDwagOvewWeaction;
+	onDwagWeave?(data: IDwagAndDwopData, tawgetEwement: T | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): void;
+	dwop(data: IDwagAndDwopData, tawgetEwement: T | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): void;
+	onDwagEnd?(owiginawEvent: DwagEvent): void;
 }
 
-export class ListError extends Error {
+expowt cwass WistEwwow extends Ewwow {
 
-	constructor(user: string, message: string) {
-		super(`ListError [${user}] ${message}`);
+	constwuctow(usa: stwing, message: stwing) {
+		supa(`WistEwwow [${usa}] ${message}`);
 	}
 }
 
-export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T> {
+expowt abstwact cwass CachedWistViwtuawDewegate<T extends object> impwements IWistViwtuawDewegate<T> {
 
-	private cache = new WeakMap<T, number>();
+	pwivate cache = new WeakMap<T, numba>();
 
-	getHeight(element: T): number {
-		return this.cache.get(element) ?? this.estimateHeight(element);
+	getHeight(ewement: T): numba {
+		wetuwn this.cache.get(ewement) ?? this.estimateHeight(ewement);
 	}
 
-	protected abstract estimateHeight(element: T): number;
-	abstract getTemplateId(element: T): string;
+	pwotected abstwact estimateHeight(ewement: T): numba;
+	abstwact getTempwateId(ewement: T): stwing;
 
-	setDynamicHeight(element: T, height: number): void {
+	setDynamicHeight(ewement: T, height: numba): void {
 		if (height > 0) {
-			this.cache.set(element, height);
+			this.cache.set(ewement, height);
 		}
 	}
 }

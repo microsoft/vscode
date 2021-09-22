@@ -1,445 +1,445 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
-import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
-import { basename, dirname, join, sep } from 'vs/base/common/path';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Arch, getPlatformLimits } from 'vs/platform/files/common/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
-import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
+impowt * as fs fwom 'fs';
+impowt * as gwacefuwFs fwom 'gwacefuw-fs';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { compaweItemsByFuzzyScowe, FuzzyScowewCache, IItemAccessow, pwepaweQuewy } fwom 'vs/base/common/fuzzyScowa';
+impowt { basename, diwname, join, sep } fwom 'vs/base/common/path';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { Awch, getPwatfowmWimits } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ICachedSeawchStats, IFiweQuewy, IFiweSeawchPwogwessItem, IFiweSeawchStats, IFowdewQuewy, IPwogwessMessage, IWawFiweMatch, IWawFiweQuewy, IWawQuewy, IWawSeawchSewvice, IWawTextQuewy, ISeawchEngine, ISeawchEngineSuccess, ISewiawizedFiweMatch, ISewiawizedSeawchCompwete, ISewiawizedSeawchPwogwessItem, ISewiawizedSeawchSuccess, isFiwePattewnMatch, ITextQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { Engine as FiweSeawchEngine } fwom 'vs/wowkbench/sewvices/seawch/node/fiweSeawch';
+impowt { TextSeawchEngineAdapta } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchAdapta';
 
-gracefulFs.gracefulify(fs);
+gwacefuwFs.gwacefuwify(fs);
 
-export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
-export type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
+expowt type IPwogwessCawwback = (p: ISewiawizedSeawchPwogwessItem) => void;
+expowt type IFiwePwogwessCawwback = (p: IFiweSeawchPwogwessItem) => void;
 
-export class SearchService implements IRawSearchService {
+expowt cwass SeawchSewvice impwements IWawSeawchSewvice {
 
-	private static readonly BATCH_SIZE = 512;
+	pwivate static weadonwy BATCH_SIZE = 512;
 
-	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+	pwivate caches: { [cacheKey: stwing]: Cache; } = Object.cweate(nuww);
 
-	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
+	constwuctow(pwivate weadonwy pwocessType: IFiweSeawchStats['type'] = 'seawchPwocess') { }
 
-	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		let promise: CancelablePromise<ISerializedSearchSuccess>;
+	fiweSeawch(config: IWawFiweQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> {
+		wet pwomise: CancewabwePwomise<ISewiawizedSeawchSuccess>;
 
-		const query = reviveQuery(config);
-		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
-				promise = createCancelablePromise(token => {
-					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token);
+		const quewy = weviveQuewy(config);
+		const emitta = new Emitta<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>({
+			onFiwstWistenewDidAdd: () => {
+				pwomise = cweateCancewabwePwomise(token => {
+					wetuwn this.doFiweSeawchWithEngine(FiweSeawchEngine, quewy, p => emitta.fiwe(p), token);
 				});
 
-				promise.then(
-					c => emitter.fire(c),
-					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+				pwomise.then(
+					c => emitta.fiwe(c),
+					eww => emitta.fiwe({ type: 'ewwow', ewwow: { message: eww.message, stack: eww.stack } }));
 			},
-			onLastListenerRemove: () => {
-				promise.cancel();
+			onWastWistenewWemove: () => {
+				pwomise.cancew();
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
-	textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
-		let promise: CancelablePromise<ISerializedSearchComplete>;
+	textSeawch(wawQuewy: IWawTextQuewy): Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> {
+		wet pwomise: CancewabwePwomise<ISewiawizedSeawchCompwete>;
 
-		const query = reviveQuery(rawQuery);
-		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
-				promise = createCancelablePromise(token => {
-					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
+		const quewy = weviveQuewy(wawQuewy);
+		const emitta = new Emitta<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>({
+			onFiwstWistenewDidAdd: () => {
+				pwomise = cweateCancewabwePwomise(token => {
+					wetuwn this.wipgwepTextSeawch(quewy, p => emitta.fiwe(p), token);
 				});
 
-				promise.then(
-					c => emitter.fire(c),
-					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
+				pwomise.then(
+					c => emitta.fiwe(c),
+					eww => emitta.fiwe({ type: 'ewwow', ewwow: { message: eww.message, stack: eww.stack } }));
 			},
-			onLastListenerRemove: () => {
-				promise.cancel();
+			onWastWistenewWemove: () => {
+				pwomise.cancew();
 			}
 		});
 
-		return emitter.event;
+		wetuwn emitta.event;
 	}
 
-	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFileSize = getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
-		const engine = new TextSearchEngineAdapter(config);
+	pwivate wipgwepTextSeawch(config: ITextQuewy, pwogwessCawwback: IPwogwessCawwback, token: CancewwationToken): Pwomise<ISewiawizedSeawchSuccess> {
+		config.maxFiweSize = getPwatfowmWimits(pwocess.awch === 'ia32' ? Awch.IA32 : Awch.OTHa).maxFiweSize;
+		const engine = new TextSeawchEngineAdapta(config);
 
-		return engine.search(token, progressCallback, progressCallback);
+		wetuwn engine.seawch(token, pwogwessCawwback, pwogwessCawwback);
 	}
 
-	doFileSearch(config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
-		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token);
+	doFiweSeawch(config: IFiweQuewy, pwogwessCawwback: IPwogwessCawwback, token?: CancewwationToken): Pwomise<ISewiawizedSeawchSuccess> {
+		wetuwn this.doFiweSeawchWithEngine(FiweSeawchEngine, config, pwogwessCawwback, token);
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch>; }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
-		let resultCount = 0;
-		const fileProgressCallback: IFileProgressCallback = progress => {
-			if (Array.isArray(progress)) {
-				resultCount += progress.length;
-				progressCallback(progress.map(m => this.rawMatchToSearchItem(m)));
-			} else if ((<IRawFileMatch>progress).relativePath) {
-				resultCount++;
-				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
-			} else {
-				progressCallback(<IProgressMessage>progress);
+	doFiweSeawchWithEngine(EngineCwass: { new(config: IFiweQuewy): ISeawchEngine<IWawFiweMatch>; }, config: IFiweQuewy, pwogwessCawwback: IPwogwessCawwback, token?: CancewwationToken, batchSize = SeawchSewvice.BATCH_SIZE): Pwomise<ISewiawizedSeawchSuccess> {
+		wet wesuwtCount = 0;
+		const fiwePwogwessCawwback: IFiwePwogwessCawwback = pwogwess => {
+			if (Awway.isAwway(pwogwess)) {
+				wesuwtCount += pwogwess.wength;
+				pwogwessCawwback(pwogwess.map(m => this.wawMatchToSeawchItem(m)));
+			} ewse if ((<IWawFiweMatch>pwogwess).wewativePath) {
+				wesuwtCount++;
+				pwogwessCawwback(this.wawMatchToSeawchItem(<IWawFiweMatch>pwogwess));
+			} ewse {
+				pwogwessCawwback(<IPwogwessMessage>pwogwess);
 			}
 		};
 
-		if (config.sortByScore) {
-			let sortedSearch = this.trySortedSearchFromCache(config, fileProgressCallback, token);
-			if (!sortedSearch) {
-				const walkerConfig = config.maxResults ? Object.assign({}, config, { maxResults: null }) : config;
-				const engine = new EngineClass(walkerConfig);
-				sortedSearch = this.doSortedSearch(engine, config, progressCallback, fileProgressCallback, token);
+		if (config.sowtByScowe) {
+			wet sowtedSeawch = this.twySowtedSeawchFwomCache(config, fiwePwogwessCawwback, token);
+			if (!sowtedSeawch) {
+				const wawkewConfig = config.maxWesuwts ? Object.assign({}, config, { maxWesuwts: nuww }) : config;
+				const engine = new EngineCwass(wawkewConfig);
+				sowtedSeawch = this.doSowtedSeawch(engine, config, pwogwessCawwback, fiwePwogwessCawwback, token);
 			}
 
-			return new Promise<ISerializedSearchSuccess>((c, e) => {
-				sortedSearch!.then(([result, rawMatches]) => {
-					const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
-					this.sendProgress(serializedMatches, progressCallback, batchSize);
-					c(result);
+			wetuwn new Pwomise<ISewiawizedSeawchSuccess>((c, e) => {
+				sowtedSeawch!.then(([wesuwt, wawMatches]) => {
+					const sewiawizedMatches = wawMatches.map(wawMatch => this.wawMatchToSeawchItem(wawMatch));
+					this.sendPwogwess(sewiawizedMatches, pwogwessCawwback, batchSize);
+					c(wesuwt);
 				}, e);
 			});
 		}
 
-		const engine = new EngineClass(config);
+		const engine = new EngineCwass(config);
 
-		return this.doSearch(engine, fileProgressCallback, batchSize, token).then(complete => {
-			return <ISerializedSearchSuccess>{
-				limitHit: complete.limitHit,
+		wetuwn this.doSeawch(engine, fiwePwogwessCawwback, batchSize, token).then(compwete => {
+			wetuwn <ISewiawizedSeawchSuccess>{
+				wimitHit: compwete.wimitHit,
 				type: 'success',
 				stats: {
-					detailStats: complete.stats,
-					type: this.processType,
-					fromCache: false,
-					resultCount,
-					sortingTime: undefined
+					detaiwStats: compwete.stats,
+					type: this.pwocessType,
+					fwomCache: fawse,
+					wesuwtCount,
+					sowtingTime: undefined
 				}
 			};
 		});
 	}
 
-	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? join(match.base, match.relativePath) : match.relativePath };
+	pwivate wawMatchToSeawchItem(match: IWawFiweMatch): ISewiawizedFiweMatch {
+		wetuwn { path: match.base ? join(match.base, match.wewativePath) : match.wewativePath };
 	}
 
-	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IFileQuery, progressCallback: IProgressCallback, fileProgressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> {
-		const emitter = new Emitter<IFileSearchProgressItem>();
+	pwivate doSowtedSeawch(engine: ISeawchEngine<IWawFiweMatch>, config: IFiweQuewy, pwogwessCawwback: IPwogwessCawwback, fiwePwogwessCawwback: IFiwePwogwessCawwback, token?: CancewwationToken): Pwomise<[ISewiawizedSeawchSuccess, IWawFiweMatch[]]> {
+		const emitta = new Emitta<IFiweSeawchPwogwessItem>();
 
-		let allResultsPromise = createCancelablePromise(token => {
-			let results: IRawFileMatch[] = [];
+		wet awwWesuwtsPwomise = cweateCancewabwePwomise(token => {
+			wet wesuwts: IWawFiweMatch[] = [];
 
-			const innerProgressCallback: IFileProgressCallback = progress => {
-				if (Array.isArray(progress)) {
-					results = progress;
-				} else {
-					fileProgressCallback(progress);
-					emitter.fire(progress);
+			const innewPwogwessCawwback: IFiwePwogwessCawwback = pwogwess => {
+				if (Awway.isAwway(pwogwess)) {
+					wesuwts = pwogwess;
+				} ewse {
+					fiwePwogwessCawwback(pwogwess);
+					emitta.fiwe(pwogwess);
 				}
 			};
 
-			return this.doSearch(engine, innerProgressCallback, -1, token)
-				.then<[ISearchEngineSuccess, IRawFileMatch[]]>(result => {
-					return [result, results];
+			wetuwn this.doSeawch(engine, innewPwogwessCawwback, -1, token)
+				.then<[ISeawchEngineSuccess, IWawFiweMatch[]]>(wesuwt => {
+					wetuwn [wesuwt, wesuwts];
 				});
 		});
 
-		let cache: Cache;
+		wet cache: Cache;
 		if (config.cacheKey) {
-			cache = this.getOrCreateCache(config.cacheKey);
-			const cacheRow: ICacheRow = {
-				promise: allResultsPromise,
-				event: emitter.event,
-				resolved: false
+			cache = this.getOwCweateCache(config.cacheKey);
+			const cacheWow: ICacheWow = {
+				pwomise: awwWesuwtsPwomise,
+				event: emitta.event,
+				wesowved: fawse
 			};
-			cache.resultsToSearchCache[config.filePattern || ''] = cacheRow;
-			allResultsPromise.then(() => {
-				cacheRow.resolved = true;
-			}, err => {
-				delete cache.resultsToSearchCache[config.filePattern || ''];
+			cache.wesuwtsToSeawchCache[config.fiwePattewn || ''] = cacheWow;
+			awwWesuwtsPwomise.then(() => {
+				cacheWow.wesowved = twue;
+			}, eww => {
+				dewete cache.wesuwtsToSeawchCache[config.fiwePattewn || ''];
 			});
 
-			allResultsPromise = this.preventCancellation(allResultsPromise);
+			awwWesuwtsPwomise = this.pweventCancewwation(awwWesuwtsPwomise);
 		}
 
-		return allResultsPromise.then(([result, results]) => {
-			const scorerCache: FuzzyScorerCache = cache ? cache.scorerCache : Object.create(null);
-			const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
-			return this.sortResults(config, results, scorerCache, token)
-				.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickaccess is opened.
-					// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
-					const sortingTime = sortSW ? sortSW.elapsed() : -1;
+		wetuwn awwWesuwtsPwomise.then(([wesuwt, wesuwts]) => {
+			const scowewCache: FuzzyScowewCache = cache ? cache.scowewCache : Object.cweate(nuww);
+			const sowtSW = (typeof config.maxWesuwts !== 'numba' || config.maxWesuwts > 0) && StopWatch.cweate(fawse);
+			wetuwn this.sowtWesuwts(config, wesuwts, scowewCache, token)
+				.then<[ISewiawizedSeawchSuccess, IWawFiweMatch[]]>(sowtedWesuwts => {
+					// sowtingTime: -1 indicates a "sowted" seawch that was not sowted, i.e. popuwating the cache when quickaccess is opened.
+					// Contwasting with findFiwes which is not sowted and wiww have sowtingTime: undefined
+					const sowtingTime = sowtSW ? sowtSW.ewapsed() : -1;
 
-					return [{
+					wetuwn [{
 						type: 'success',
 						stats: {
-							detailStats: result.stats,
-							sortingTime,
-							fromCache: false,
-							type: this.processType,
-							workspaceFolderCount: config.folderQueries.length,
-							resultCount: sortedResults.length
+							detaiwStats: wesuwt.stats,
+							sowtingTime,
+							fwomCache: fawse,
+							type: this.pwocessType,
+							wowkspaceFowdewCount: config.fowdewQuewies.wength,
+							wesuwtCount: sowtedWesuwts.wength
 						},
-						messages: result.messages,
-						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-					} as ISerializedSearchSuccess, sortedResults];
+						messages: wesuwt.messages,
+						wimitHit: wesuwt.wimitHit || typeof config.maxWesuwts === 'numba' && wesuwts.wength > config.maxWesuwts
+					} as ISewiawizedSeawchSuccess, sowtedWesuwts];
 				});
 		});
 	}
 
-	private getOrCreateCache(cacheKey: string): Cache {
+	pwivate getOwCweateCache(cacheKey: stwing): Cache {
 		const existing = this.caches[cacheKey];
 		if (existing) {
-			return existing;
+			wetuwn existing;
 		}
-		return this.caches[cacheKey] = new Cache();
+		wetuwn this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IFileQuery, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> | undefined {
+	pwivate twySowtedSeawchFwomCache(config: IFiweQuewy, pwogwessCawwback: IFiwePwogwessCawwback, token?: CancewwationToken): Pwomise<[ISewiawizedSeawchSuccess, IWawFiweMatch[]]> | undefined {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern || '', progressCallback, token);
+		const cached = this.getWesuwtsFwomCache(cache, config.fiwePattewn || '', pwogwessCawwback, token);
 		if (cached) {
-			return cached.then(([result, results, cacheStats]) => {
-				const sortSW = StopWatch.create(false);
-				return this.sortResults(config, results, cache.scorerCache, token)
-					.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-						const sortingTime = sortSW.elapsed();
-						const stats: IFileSearchStats = {
-							fromCache: true,
-							detailStats: cacheStats,
-							type: this.processType,
-							resultCount: results.length,
-							sortingTime
+			wetuwn cached.then(([wesuwt, wesuwts, cacheStats]) => {
+				const sowtSW = StopWatch.cweate(fawse);
+				wetuwn this.sowtWesuwts(config, wesuwts, cache.scowewCache, token)
+					.then<[ISewiawizedSeawchSuccess, IWawFiweMatch[]]>(sowtedWesuwts => {
+						const sowtingTime = sowtSW.ewapsed();
+						const stats: IFiweSeawchStats = {
+							fwomCache: twue,
+							detaiwStats: cacheStats,
+							type: this.pwocessType,
+							wesuwtCount: wesuwts.wength,
+							sowtingTime
 						};
 
-						return [
+						wetuwn [
 							{
 								type: 'success',
-								limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
+								wimitHit: wesuwt.wimitHit || typeof config.maxWesuwts === 'numba' && wesuwts.wength > config.maxWesuwts,
 								stats
-							} as ISerializedSearchSuccess,
-							sortedResults
+							} as ISewiawizedSeawchSuccess,
+							sowtedWesuwts
 						];
 					});
 			});
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: FuzzyScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
-		// we use the same compare function that is used later when showing the results using fuzzy scoring
-		// this is very important because we are also limiting the number of results by config.maxResults
-		// and as such we want the top items to be included in this result set if the number of items
-		// exceeds config.maxResults.
-		const query = prepareQuery(config.filePattern || '');
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+	pwivate sowtWesuwts(config: IFiweQuewy, wesuwts: IWawFiweMatch[], scowewCache: FuzzyScowewCache, token?: CancewwationToken): Pwomise<IWawFiweMatch[]> {
+		// we use the same compawe function that is used wata when showing the wesuwts using fuzzy scowing
+		// this is vewy impowtant because we awe awso wimiting the numba of wesuwts by config.maxWesuwts
+		// and as such we want the top items to be incwuded in this wesuwt set if the numba of items
+		// exceeds config.maxWesuwts.
+		const quewy = pwepaweQuewy(config.fiwePattewn || '');
+		const compawe = (matchA: IWawFiweMatch, matchB: IWawFiweMatch) => compaweItemsByFuzzyScowe(matchA, matchB, quewy, twue, FiweMatchItemAccessow, scowewCache);
 
-		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
-		return arrays.topAsync(results, compare, maxResults, 10000, token);
+		const maxWesuwts = typeof config.maxWesuwts === 'numba' ? config.maxWesuwts : Numba.MAX_VAWUE;
+		wetuwn awways.topAsync(wesuwts, compawe, maxWesuwts, 10000, token);
 	}
 
-	private sendProgress(results: ISerializedFileMatch[], progressCb: IProgressCallback, batchSize: number) {
+	pwivate sendPwogwess(wesuwts: ISewiawizedFiweMatch[], pwogwessCb: IPwogwessCawwback, batchSize: numba) {
 		if (batchSize && batchSize > 0) {
-			for (let i = 0; i < results.length; i += batchSize) {
-				progressCb(results.slice(i, i + batchSize));
+			fow (wet i = 0; i < wesuwts.wength; i += batchSize) {
+				pwogwessCb(wesuwts.swice(i, i + batchSize));
 			}
-		} else {
-			progressCb(results);
+		} ewse {
+			pwogwessCb(wesuwts);
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> | null {
-		const cacheLookupSW = StopWatch.create(false);
+	pwivate getWesuwtsFwomCache(cache: Cache, seawchVawue: stwing, pwogwessCawwback: IFiwePwogwessCawwback, token?: CancewwationToken): Pwomise<[ISeawchEngineSuccess, IWawFiweMatch[], ICachedSeawchStats]> | nuww {
+		const cacheWookupSW = StopWatch.cweate(fawse);
 
-		// Find cache entries by prefix of search value
-		const hasPathSep = searchValue.indexOf(sep) >= 0;
-		let cachedRow: ICacheRow | undefined;
-		for (const previousSearch in cache.resultsToSearchCache) {
-			// If we narrow down, we might be able to reuse the cached results
-			if (searchValue.startsWith(previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
-					continue; // since a path character widens the search for potential more matches, require it in previous search too
+		// Find cache entwies by pwefix of seawch vawue
+		const hasPathSep = seawchVawue.indexOf(sep) >= 0;
+		wet cachedWow: ICacheWow | undefined;
+		fow (const pweviousSeawch in cache.wesuwtsToSeawchCache) {
+			// If we nawwow down, we might be abwe to weuse the cached wesuwts
+			if (seawchVawue.stawtsWith(pweviousSeawch)) {
+				if (hasPathSep && pweviousSeawch.indexOf(sep) < 0 && pweviousSeawch !== '') {
+					continue; // since a path chawacta widens the seawch fow potentiaw mowe matches, wequiwe it in pwevious seawch too
 				}
 
-				const row = cache.resultsToSearchCache[previousSearch];
-				cachedRow = {
-					promise: this.preventCancellation(row.promise),
-					event: row.event,
-					resolved: row.resolved
+				const wow = cache.wesuwtsToSeawchCache[pweviousSeawch];
+				cachedWow = {
+					pwomise: this.pweventCancewwation(wow.pwomise),
+					event: wow.event,
+					wesowved: wow.wesowved
 				};
-				break;
+				bweak;
 			}
 		}
 
-		if (!cachedRow) {
-			return null;
+		if (!cachedWow) {
+			wetuwn nuww;
 		}
 
-		const cacheLookupTime = cacheLookupSW.elapsed();
-		const cacheFilterSW = StopWatch.create(false);
+		const cacheWookupTime = cacheWookupSW.ewapsed();
+		const cacheFiwtewSW = StopWatch.cweate(fawse);
 
-		const listener = cachedRow.event(progressCallback);
+		const wistena = cachedWow.event(pwogwessCawwback);
 		if (token) {
-			token.onCancellationRequested(() => {
-				listener.dispose();
+			token.onCancewwationWequested(() => {
+				wistena.dispose();
 			});
 		}
 
-		return cachedRow.promise.then<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]>(([complete, cachedEntries]) => {
-			if (token && token.isCancellationRequested) {
-				throw canceled();
+		wetuwn cachedWow.pwomise.then<[ISeawchEngineSuccess, IWawFiweMatch[], ICachedSeawchStats]>(([compwete, cachedEntwies]) => {
+			if (token && token.isCancewwationWequested) {
+				thwow cancewed();
 			}
 
-			// Pattern match on results
-			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = prepareQuery(searchValue).normalizedLowercase;
-			for (const entry of cachedEntries) {
+			// Pattewn match on wesuwts
+			const wesuwts: IWawFiweMatch[] = [];
+			const nowmawizedSeawchVawueWowewcase = pwepaweQuewy(seawchVawue).nowmawizedWowewcase;
+			fow (const entwy of cachedEntwies) {
 
-				// Check if this entry is a match for the search value
-				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
+				// Check if this entwy is a match fow the seawch vawue
+				if (!isFiwePattewnMatch(entwy, nowmawizedSeawchVawueWowewcase)) {
 					continue;
 				}
 
-				results.push(entry);
+				wesuwts.push(entwy);
 			}
 
-			return [complete, results, {
-				cacheWasResolved: cachedRow!.resolved,
-				cacheLookupTime,
-				cacheFilterTime: cacheFilterSW.elapsed(),
-				cacheEntryCount: cachedEntries.length
+			wetuwn [compwete, wesuwts, {
+				cacheWasWesowved: cachedWow!.wesowved,
+				cacheWookupTime,
+				cacheFiwtewTime: cacheFiwtewSW.ewapsed(),
+				cacheEntwyCount: cachedEntwies.wength
 			}];
 		});
 	}
 
 
 
-	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISearchEngineSuccess> {
-		return new Promise<ISearchEngineSuccess>((c, e) => {
-			let batch: IRawFileMatch[] = [];
+	pwivate doSeawch(engine: ISeawchEngine<IWawFiweMatch>, pwogwessCawwback: IFiwePwogwessCawwback, batchSize: numba, token?: CancewwationToken): Pwomise<ISeawchEngineSuccess> {
+		wetuwn new Pwomise<ISeawchEngineSuccess>((c, e) => {
+			wet batch: IWawFiweMatch[] = [];
 			if (token) {
-				token.onCancellationRequested(() => engine.cancel());
+				token.onCancewwationWequested(() => engine.cancew());
 			}
 
-			engine.search((match) => {
+			engine.seawch((match) => {
 				if (match) {
 					if (batchSize) {
 						batch.push(match);
-						if (batchSize > 0 && batch.length >= batchSize) {
-							progressCallback(batch);
+						if (batchSize > 0 && batch.wength >= batchSize) {
+							pwogwessCawwback(batch);
 							batch = [];
 						}
-					} else {
-						progressCallback(match);
+					} ewse {
+						pwogwessCawwback(match);
 					}
 				}
-			}, (progress) => {
-				progressCallback(progress);
-			}, (error, complete) => {
-				if (batch.length) {
-					progressCallback(batch);
+			}, (pwogwess) => {
+				pwogwessCawwback(pwogwess);
+			}, (ewwow, compwete) => {
+				if (batch.wength) {
+					pwogwessCawwback(batch);
 				}
 
-				if (error) {
-					e(error);
-				} else {
-					c(complete);
+				if (ewwow) {
+					e(ewwow);
+				} ewse {
+					c(compwete);
 				}
 			});
 		});
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		delete this.caches[cacheKey];
-		return Promise.resolve(undefined);
+	cweawCache(cacheKey: stwing): Pwomise<void> {
+		dewete this.caches[cacheKey];
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
 	/**
-	 * Return a CancelablePromise which is not actually cancelable
-	 * TODO@rob - Is this really needed?
+	 * Wetuwn a CancewabwePwomise which is not actuawwy cancewabwe
+	 * TODO@wob - Is this weawwy needed?
 	 */
-	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
-		return new class implements CancelablePromise<C> {
-			get [Symbol.toStringTag]() { return this.toString(); }
-			cancel() {
+	pwivate pweventCancewwation<C>(pwomise: CancewabwePwomise<C>): CancewabwePwomise<C> {
+		wetuwn new cwass impwements CancewabwePwomise<C> {
+			get [Symbow.toStwingTag]() { wetuwn this.toStwing(); }
+			cancew() {
 				// Do nothing
 			}
-			then<TResult1 = C, TResult2 = never>(resolve?: ((value: C) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
-				return promise.then(resolve, reject);
+			then<TWesuwt1 = C, TWesuwt2 = neva>(wesowve?: ((vawue: C) => TWesuwt1 | Pwomise<TWesuwt1>) | undefined | nuww, weject?: ((weason: any) => TWesuwt2 | Pwomise<TWesuwt2>) | undefined | nuww): Pwomise<TWesuwt1 | TWesuwt2> {
+				wetuwn pwomise.then(wesowve, weject);
 			}
-			catch(reject?: any) {
-				return this.then(undefined, reject);
+			catch(weject?: any) {
+				wetuwn this.then(undefined, weject);
 			}
-			finally(onFinally: any) {
-				return promise.finally(onFinally);
+			finawwy(onFinawwy: any) {
+				wetuwn pwomise.finawwy(onFinawwy);
 			}
 		};
 	}
 }
 
-interface ICacheRow {
-	// TODO@roblou - never actually canceled
-	promise: CancelablePromise<[ISearchEngineSuccess, IRawFileMatch[]]>;
-	resolved: boolean;
-	event: Event<IFileSearchProgressItem>;
+intewface ICacheWow {
+	// TODO@wobwou - neva actuawwy cancewed
+	pwomise: CancewabwePwomise<[ISeawchEngineSuccess, IWawFiweMatch[]]>;
+	wesowved: boowean;
+	event: Event<IFiweSeawchPwogwessItem>;
 }
 
-class Cache {
+cwass Cache {
 
-	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
+	wesuwtsToSeawchCache: { [seawchVawue: stwing]: ICacheWow; } = Object.cweate(nuww);
 
-	scorerCache: FuzzyScorerCache = Object.create(null);
+	scowewCache: FuzzyScowewCache = Object.cweate(nuww);
 }
 
-const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
+const FiweMatchItemAccessow = new cwass impwements IItemAccessow<IWawFiweMatch> {
 
-	getItemLabel(match: IRawFileMatch): string {
-		return basename(match.relativePath); // e.g. myFile.txt
+	getItemWabew(match: IWawFiweMatch): stwing {
+		wetuwn basename(match.wewativePath); // e.g. myFiwe.txt
 	}
 
-	getItemDescription(match: IRawFileMatch): string {
-		return dirname(match.relativePath); // e.g. some/path/to/file
+	getItemDescwiption(match: IWawFiweMatch): stwing {
+		wetuwn diwname(match.wewativePath); // e.g. some/path/to/fiwe
 	}
 
-	getItemPath(match: IRawFileMatch): string {
-		return match.relativePath; // e.g. some/path/to/file/myFile.txt
+	getItemPath(match: IWawFiweMatch): stwing {
+		wetuwn match.wewativePath; // e.g. some/path/to/fiwe/myFiwe.txt
 	}
 };
 
-function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
-	return {
-		...<any>rawQuery, // TODO
+function weviveQuewy<U extends IWawQuewy>(wawQuewy: U): U extends IWawTextQuewy ? ITextQuewy : IFiweQuewy {
+	wetuwn {
+		...<any>wawQuewy, // TODO
 		...{
-			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
-			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))
+			fowdewQuewies: wawQuewy.fowdewQuewies && wawQuewy.fowdewQuewies.map(weviveFowdewQuewy),
+			extwaFiweWesouwces: wawQuewy.extwaFiweWesouwces && wawQuewy.extwaFiweWesouwces.map(components => UWI.wevive(components))
 		}
 	};
 }
 
-function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
+function weviveFowdewQuewy(wawFowdewQuewy: IFowdewQuewy<UwiComponents>): IFowdewQuewy<UWI> {
+	wetuwn {
+		...wawFowdewQuewy,
+		fowda: UWI.wevive(wawFowdewQuewy.fowda)
 	};
 }

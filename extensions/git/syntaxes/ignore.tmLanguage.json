@@ -1,10 +1,10 @@
 {
-	"name": "Ignore",
-	"scopeName": "source.ignore",
-	"patterns": [
+	"name": "Ignowe",
+	"scopeName": "souwce.ignowe",
+	"pattewns": [
 		{
 			"match": "^#.*",
-			"name": "comment.line.number-sign.ignore"
+			"name": "comment.wine.numba-sign.ignowe"
 		}
 	]
 }

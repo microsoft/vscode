@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { Range } from 'vs/editor/common/core/range';
-import * as dom from 'vs/base/browser/dom';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { FileKind } from 'vs/platform/files/common/files';
-import { localize } from 'vs/nls';
-import { ILabelService } from 'vs/platform/label/common/label';
-import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { basename } from 'vs/base/common/resources';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { compare } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { Iterable } from 'vs/base/common/iterator';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+impowt { IAsyncDataSouwce, ITweeWendewa, ITweeNode, ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { HighwightedWabew, IHighwight } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IIdentityPwovida, IWistViwtuawDewegate, IKeyboawdNavigationWabewPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { BuwkFiweOpewations, BuwkFiweOpewation, BuwkFiweOpewationType, BuwkTextEdit, BuwkCategowy } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditPweview';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt type { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { compawe } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { WesouwceFiweEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
 
-// --- VIEW MODEL
+// --- VIEW MODEW
 
-export interface ICheckable {
-	isChecked(): boolean;
-	setChecked(value: boolean): void;
+expowt intewface ICheckabwe {
+	isChecked(): boowean;
+	setChecked(vawue: boowean): void;
 }
 
-export class CategoryElement {
+expowt cwass CategowyEwement {
 
-	constructor(
-		readonly parent: BulkFileOperations,
-		readonly category: BulkCategory
+	constwuctow(
+		weadonwy pawent: BuwkFiweOpewations,
+		weadonwy categowy: BuwkCategowy
 	) { }
 }
 
-export class FileElement implements ICheckable {
+expowt cwass FiweEwement impwements ICheckabwe {
 
-	constructor(
-		readonly parent: CategoryElement | BulkFileOperations,
-		readonly edit: BulkFileOperation
+	constwuctow(
+		weadonwy pawent: CategowyEwement | BuwkFiweOpewations,
+		weadonwy edit: BuwkFiweOpewation
 	) { }
 
-	isChecked(): boolean {
-		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
+	isChecked(): boowean {
+		wet modew = this.pawent instanceof CategowyEwement ? this.pawent.pawent : this.pawent;
 
-		let checked = true;
+		wet checked = twue;
 
-		// only text edit children -> reflect children state
-		if (this.edit.type === BulkFileOperationType.TextEdit) {
-			checked = !this.edit.textEdits.every(edit => !model.checked.isChecked(edit.textEdit));
+		// onwy text edit chiwdwen -> wefwect chiwdwen state
+		if (this.edit.type === BuwkFiweOpewationType.TextEdit) {
+			checked = !this.edit.textEdits.evewy(edit => !modew.checked.isChecked(edit.textEdit));
 		}
 
-		// multiple file edits -> reflect single state
-		for (let edit of this.edit.originalEdits.values()) {
-			if (edit instanceof ResourceFileEdit) {
-				checked = checked && model.checked.isChecked(edit);
+		// muwtipwe fiwe edits -> wefwect singwe state
+		fow (wet edit of this.edit.owiginawEdits.vawues()) {
+			if (edit instanceof WesouwceFiweEdit) {
+				checked = checked && modew.checked.isChecked(edit);
 			}
 		}
 
-		// multiple categories and text change -> read all elements
-		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
-					if (file.uri.toString() === this.edit.uri.toString()) {
-						for (const edit of file.originalEdits.values()) {
-							if (edit instanceof ResourceFileEdit) {
-								checked = checked && model.checked.isChecked(edit);
+		// muwtipwe categowies and text change -> wead aww ewements
+		if (this.pawent instanceof CategowyEwement && this.edit.type === BuwkFiweOpewationType.TextEdit) {
+			fow (wet categowy of modew.categowies) {
+				fow (wet fiwe of categowy.fiweOpewations) {
+					if (fiwe.uwi.toStwing() === this.edit.uwi.toStwing()) {
+						fow (const edit of fiwe.owiginawEdits.vawues()) {
+							if (edit instanceof WesouwceFiweEdit) {
+								checked = checked && modew.checked.isChecked(edit);
 							}
 						}
 					}
@@ -82,22 +82,22 @@ export class FileElement implements ICheckable {
 			}
 		}
 
-		return checked;
+		wetuwn checked;
 	}
 
-	setChecked(value: boolean): void {
-		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
-		for (const edit of this.edit.originalEdits.values()) {
-			model.checked.updateChecked(edit, value);
+	setChecked(vawue: boowean): void {
+		wet modew = this.pawent instanceof CategowyEwement ? this.pawent.pawent : this.pawent;
+		fow (const edit of this.edit.owiginawEdits.vawues()) {
+			modew.checked.updateChecked(edit, vawue);
 		}
 
-		// multiple categories and file change -> update all elements
-		if (this.parent instanceof CategoryElement && this.edit.type !== BulkFileOperationType.TextEdit) {
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
-					if (file.uri.toString() === this.edit.uri.toString()) {
-						for (const edit of file.originalEdits.values()) {
-							model.checked.updateChecked(edit, value);
+		// muwtipwe categowies and fiwe change -> update aww ewements
+		if (this.pawent instanceof CategowyEwement && this.edit.type !== BuwkFiweOpewationType.TextEdit) {
+			fow (wet categowy of modew.categowies) {
+				fow (wet fiwe of categowy.fiweOpewations) {
+					if (fiwe.uwi.toStwing() === this.edit.uwi.toStwing()) {
+						fow (const edit of fiwe.owiginawEdits.vawues()) {
+							modew.checked.updateChecked(edit, vawue);
 						}
 					}
 				}
@@ -105,571 +105,571 @@ export class FileElement implements ICheckable {
 		}
 	}
 
-	isDisabled(): boolean {
-		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
-			let model = this.parent.parent;
-			let checked = true;
-			for (let category of model.categories) {
-				for (let file of category.fileOperations) {
-					if (file.uri.toString() === this.edit.uri.toString()) {
-						for (const edit of file.originalEdits.values()) {
-							if (edit instanceof ResourceFileEdit) {
-								checked = checked && model.checked.isChecked(edit);
+	isDisabwed(): boowean {
+		if (this.pawent instanceof CategowyEwement && this.edit.type === BuwkFiweOpewationType.TextEdit) {
+			wet modew = this.pawent.pawent;
+			wet checked = twue;
+			fow (wet categowy of modew.categowies) {
+				fow (wet fiwe of categowy.fiweOpewations) {
+					if (fiwe.uwi.toStwing() === this.edit.uwi.toStwing()) {
+						fow (const edit of fiwe.owiginawEdits.vawues()) {
+							if (edit instanceof WesouwceFiweEdit) {
+								checked = checked && modew.checked.isChecked(edit);
 							}
 						}
 					}
 				}
 			}
-			return !checked;
+			wetuwn !checked;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export class TextEditElement implements ICheckable {
+expowt cwass TextEditEwement impwements ICheckabwe {
 
-	constructor(
-		readonly parent: FileElement,
-		readonly idx: number,
-		readonly edit: BulkTextEdit,
-		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
+	constwuctow(
+		weadonwy pawent: FiweEwement,
+		weadonwy idx: numba,
+		weadonwy edit: BuwkTextEdit,
+		weadonwy pwefix: stwing, weadonwy sewecting: stwing, weadonwy insewting: stwing, weadonwy suffix: stwing
 	) { }
 
-	isChecked(): boolean {
-		let model = this.parent.parent;
-		if (model instanceof CategoryElement) {
-			model = model.parent;
+	isChecked(): boowean {
+		wet modew = this.pawent.pawent;
+		if (modew instanceof CategowyEwement) {
+			modew = modew.pawent;
 		}
-		return model.checked.isChecked(this.edit.textEdit);
+		wetuwn modew.checked.isChecked(this.edit.textEdit);
 	}
 
-	setChecked(value: boolean): void {
-		let model = this.parent.parent;
-		if (model instanceof CategoryElement) {
-			model = model.parent;
+	setChecked(vawue: boowean): void {
+		wet modew = this.pawent.pawent;
+		if (modew instanceof CategowyEwement) {
+			modew = modew.pawent;
 		}
 
-		// check/uncheck this element
-		model.checked.updateChecked(this.edit.textEdit, value);
+		// check/uncheck this ewement
+		modew.checked.updateChecked(this.edit.textEdit, vawue);
 
-		// make sure parent is checked when this element is checked...
-		if (value) {
-			for (const edit of this.parent.edit.originalEdits.values()) {
-				if (edit instanceof ResourceFileEdit) {
-					(<BulkFileOperations>model).checked.updateChecked(edit, value);
+		// make suwe pawent is checked when this ewement is checked...
+		if (vawue) {
+			fow (const edit of this.pawent.edit.owiginawEdits.vawues()) {
+				if (edit instanceof WesouwceFiweEdit) {
+					(<BuwkFiweOpewations>modew).checked.updateChecked(edit, vawue);
 				}
 			}
 		}
 	}
 
-	isDisabled(): boolean {
-		return this.parent.isDisabled();
+	isDisabwed(): boowean {
+		wetuwn this.pawent.isDisabwed();
 	}
 }
 
-export type BulkEditElement = CategoryElement | FileElement | TextEditElement;
+expowt type BuwkEditEwement = CategowyEwement | FiweEwement | TextEditEwement;
 
-// --- DATA SOURCE
+// --- DATA SOUWCE
 
-export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, BulkEditElement> {
+expowt cwass BuwkEditDataSouwce impwements IAsyncDataSouwce<BuwkFiweOpewations, BuwkEditEwement> {
 
-	public groupByFile: boolean = true;
+	pubwic gwoupByFiwe: boowean = twue;
 
-	constructor(
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+	constwuctow(
+		@ITextModewSewvice pwivate weadonwy _textModewSewvice: ITextModewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice,
 	) { }
 
-	hasChildren(element: BulkFileOperations | BulkEditElement): boolean {
-		if (element instanceof FileElement) {
-			return element.edit.textEdits.length > 0;
+	hasChiwdwen(ewement: BuwkFiweOpewations | BuwkEditEwement): boowean {
+		if (ewement instanceof FiweEwement) {
+			wetuwn ewement.edit.textEdits.wength > 0;
 		}
-		if (element instanceof TextEditElement) {
-			return false;
+		if (ewement instanceof TextEditEwement) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	async getChildren(element: BulkFileOperations | BulkEditElement): Promise<BulkEditElement[]> {
+	async getChiwdwen(ewement: BuwkFiweOpewations | BuwkEditEwement): Pwomise<BuwkEditEwement[]> {
 
-		// root -> file/text edits
-		if (element instanceof BulkFileOperations) {
-			return this.groupByFile
-				? element.fileOperations.map(op => new FileElement(element, op))
-				: element.categories.map(cat => new CategoryElement(element, cat));
+		// woot -> fiwe/text edits
+		if (ewement instanceof BuwkFiweOpewations) {
+			wetuwn this.gwoupByFiwe
+				? ewement.fiweOpewations.map(op => new FiweEwement(ewement, op))
+				: ewement.categowies.map(cat => new CategowyEwement(ewement, cat));
 		}
 
-		// category
-		if (element instanceof CategoryElement) {
-			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
+		// categowy
+		if (ewement instanceof CategowyEwement) {
+			wetuwn [...Itewabwe.map(ewement.categowy.fiweOpewations, op => new FiweEwement(ewement, op))];
 		}
 
-		// file: text edit
-		if (element instanceof FileElement && element.edit.textEdits.length > 0) {
-			// const previewUri = BulkEditPreviewProvider.asPreviewUri(element.edit.resource);
-			let textModel: ITextModel;
-			let textModelDisposable: IDisposable;
-			try {
-				const ref = await this._textModelService.createModelReference(element.edit.uri);
-				textModel = ref.object.textEditorModel;
-				textModelDisposable = ref;
+		// fiwe: text edit
+		if (ewement instanceof FiweEwement && ewement.edit.textEdits.wength > 0) {
+			// const pweviewUwi = BuwkEditPweviewPwovida.asPweviewUwi(ewement.edit.wesouwce);
+			wet textModew: ITextModew;
+			wet textModewDisposabwe: IDisposabwe;
+			twy {
+				const wef = await this._textModewSewvice.cweateModewWefewence(ewement.edit.uwi);
+				textModew = wef.object.textEditowModew;
+				textModewDisposabwe = wef;
 			} catch {
-				textModel = new TextModel('', TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
-				textModelDisposable = textModel;
+				textModew = new TextModew('', TextModew.DEFAUWT_CWEATION_OPTIONS, nuww, nuww, this._undoWedoSewvice);
+				textModewDisposabwe = textModew;
 			}
 
-			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.textEdit.range);
+			const wesuwt = ewement.edit.textEdits.map((edit, idx) => {
+				const wange = Wange.wift(edit.textEdit.textEdit.wange);
 
-				//prefix-math
-				let startTokens = textModel.getLineTokens(range.startLineNumber);
-				let prefixLen = 23; // default value for the no tokens/grammar case
-				for (let idx = startTokens.findTokenIndexAtOffset(range.startColumn) - 1; prefixLen < 50 && idx >= 0; idx--) {
-					prefixLen = range.startColumn - startTokens.getStartOffset(idx);
+				//pwefix-math
+				wet stawtTokens = textModew.getWineTokens(wange.stawtWineNumba);
+				wet pwefixWen = 23; // defauwt vawue fow the no tokens/gwammaw case
+				fow (wet idx = stawtTokens.findTokenIndexAtOffset(wange.stawtCowumn) - 1; pwefixWen < 50 && idx >= 0; idx--) {
+					pwefixWen = wange.stawtCowumn - stawtTokens.getStawtOffset(idx);
 				}
 
 				//suffix-math
-				let endTokens = textModel.getLineTokens(range.endLineNumber);
-				let suffixLen = 0;
-				for (let idx = endTokens.findTokenIndexAtOffset(range.endColumn); suffixLen < 50 && idx < endTokens.getCount(); idx++) {
-					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
+				wet endTokens = textModew.getWineTokens(wange.endWineNumba);
+				wet suffixWen = 0;
+				fow (wet idx = endTokens.findTokenIndexAtOffset(wange.endCowumn); suffixWen < 50 && idx < endTokens.getCount(); idx++) {
+					suffixWen += endTokens.getEndOffset(idx) - endTokens.getStawtOffset(idx);
 				}
 
-				return new TextEditElement(
-					element,
+				wetuwn new TextEditEwement(
+					ewement,
 					idx,
 					edit,
-					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
-					textModel.getValueInRange(range),
+					textModew.getVawueInWange(new Wange(wange.stawtWineNumba, wange.stawtCowumn - pwefixWen, wange.stawtWineNumba, wange.stawtCowumn)),
+					textModew.getVawueInWange(wange),
 					edit.textEdit.textEdit.text,
-					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
+					textModew.getVawueInWange(new Wange(wange.endWineNumba, wange.endCowumn, wange.endWineNumba, wange.endCowumn + suffixWen))
 				);
 			});
 
-			textModelDisposable.dispose();
-			return result;
+			textModewDisposabwe.dispose();
+			wetuwn wesuwt;
 		}
 
-		return [];
+		wetuwn [];
 	}
 }
 
 
-export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
+expowt cwass BuwkEditSowta impwements ITweeSowta<BuwkEditEwement> {
 
-	compare(a: BulkEditElement, b: BulkEditElement): number {
-		if (a instanceof FileElement && b instanceof FileElement) {
-			return compare(a.edit.uri.toString(), b.edit.uri.toString());
+	compawe(a: BuwkEditEwement, b: BuwkEditEwement): numba {
+		if (a instanceof FiweEwement && b instanceof FiweEwement) {
+			wetuwn compawe(a.edit.uwi.toStwing(), b.edit.uwi.toStwing());
 		}
 
-		if (a instanceof TextEditElement && b instanceof TextEditElement) {
-			return Range.compareRangesUsingStarts(a.edit.textEdit.textEdit.range, b.edit.textEdit.textEdit.range);
+		if (a instanceof TextEditEwement && b instanceof TextEditEwement) {
+			wetuwn Wange.compaweWangesUsingStawts(a.edit.textEdit.textEdit.wange, b.edit.textEdit.textEdit.wange);
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 }
 
 // --- ACCESSI
 
-export class BulkEditAccessibilityProvider implements IListAccessibilityProvider<BulkEditElement> {
+expowt cwass BuwkEditAccessibiwityPwovida impwements IWistAccessibiwityPwovida<BuwkEditEwement> {
 
-	constructor(@ILabelService private readonly _labelService: ILabelService) { }
+	constwuctow(@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('bulkEdit', "Bulk Edit");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('buwkEdit', "Buwk Edit");
 	}
 
-	getRole(_element: BulkEditElement): string {
-		return 'checkbox';
+	getWowe(_ewement: BuwkEditEwement): stwing {
+		wetuwn 'checkbox';
 	}
 
-	getAriaLabel(element: BulkEditElement): string | null {
-		if (element instanceof FileElement) {
-			if (element.edit.textEdits.length > 0) {
-				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-					return localize(
-						'aria.renameAndEdit', "Renaming {0} to {1}, also making text edits",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
+	getAwiaWabew(ewement: BuwkEditEwement): stwing | nuww {
+		if (ewement instanceof FiweEwement) {
+			if (ewement.edit.textEdits.wength > 0) {
+				if (ewement.edit.type & BuwkFiweOpewationType.Wename && ewement.edit.newUwi) {
+					wetuwn wocawize(
+						'awia.wenameAndEdit', "Wenaming {0} to {1}, awso making text edits",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }), this._wabewSewvice.getUwiWabew(ewement.edit.newUwi, { wewative: twue })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Create) {
-					return localize(
-						'aria.createAndEdit', "Creating {0}, also making text edits",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true })
+				} ewse if (ewement.edit.type & BuwkFiweOpewationType.Cweate) {
+					wetuwn wocawize(
+						'awia.cweateAndEdit', "Cweating {0}, awso making text edits",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Delete) {
-					return localize(
-						'aria.deleteAndEdit', "Deleting {0}, also making text edits",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
+				} ewse if (ewement.edit.type & BuwkFiweOpewationType.Dewete) {
+					wetuwn wocawize(
+						'awia.deweteAndEdit', "Deweting {0}, awso making text edits",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }),
 					);
-				} else {
-					return localize(
-						'aria.editOnly', "{0}, making text edits",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
+				} ewse {
+					wetuwn wocawize(
+						'awia.editOnwy', "{0}, making text edits",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }),
 					);
 				}
 
-			} else {
-				if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-					return localize(
-						'aria.rename', "Renaming {0} to {1}",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })
+			} ewse {
+				if (ewement.edit.type & BuwkFiweOpewationType.Wename && ewement.edit.newUwi) {
+					wetuwn wocawize(
+						'awia.wename', "Wenaming {0} to {1}",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }), this._wabewSewvice.getUwiWabew(ewement.edit.newUwi, { wewative: twue })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Create) {
-					return localize(
-						'aria.create', "Creating {0}",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true })
+				} ewse if (ewement.edit.type & BuwkFiweOpewationType.Cweate) {
+					wetuwn wocawize(
+						'awia.cweate', "Cweating {0}",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue })
 					);
 
-				} else if (element.edit.type & BulkFileOperationType.Delete) {
-					return localize(
-						'aria.delete', "Deleting {0}",
-						this._labelService.getUriLabel(element.edit.uri, { relative: true }),
+				} ewse if (ewement.edit.type & BuwkFiweOpewationType.Dewete) {
+					wetuwn wocawize(
+						'awia.dewete', "Deweting {0}",
+						this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }),
 					);
 				}
 			}
 		}
 
-		if (element instanceof TextEditElement) {
-			if (element.selecting.length > 0 && element.inserting.length > 0) {
-				// edit: replace
-				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting, element.inserting);
-			} else if (element.selecting.length > 0 && element.inserting.length === 0) {
-				// edit: delete
-				return localize('aria.del', "line {0}, removing {1}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting);
-			} else if (element.selecting.length === 0 && element.inserting.length > 0) {
-				// edit: insert
-				return localize('aria.insert', "line {0}, inserting {1}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting);
+		if (ewement instanceof TextEditEwement) {
+			if (ewement.sewecting.wength > 0 && ewement.insewting.wength > 0) {
+				// edit: wepwace
+				wetuwn wocawize('awia.wepwace', "wine {0}, wepwacing {1} with {2}", ewement.edit.textEdit.textEdit.wange.stawtWineNumba, ewement.sewecting, ewement.insewting);
+			} ewse if (ewement.sewecting.wength > 0 && ewement.insewting.wength === 0) {
+				// edit: dewete
+				wetuwn wocawize('awia.dew', "wine {0}, wemoving {1}", ewement.edit.textEdit.textEdit.wange.stawtWineNumba, ewement.sewecting);
+			} ewse if (ewement.sewecting.wength === 0 && ewement.insewting.wength > 0) {
+				// edit: insewt
+				wetuwn wocawize('awia.insewt', "wine {0}, insewting {1}", ewement.edit.textEdit.textEdit.wange.stawtWineNumba, ewement.sewecting);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 
 // --- IDENT
 
-export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditElement> {
+expowt cwass BuwkEditIdentityPwovida impwements IIdentityPwovida<BuwkEditEwement> {
 
-	getId(element: BulkEditElement): { toString(): string; } {
-		if (element instanceof FileElement) {
-			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
-		} else if (element instanceof TextEditElement) {
-			return element.parent.edit.uri.toString() + element.idx;
-		} else {
-			return JSON.stringify(element.category.metadata);
+	getId(ewement: BuwkEditEwement): { toStwing(): stwing; } {
+		if (ewement instanceof FiweEwement) {
+			wetuwn ewement.edit.uwi + (ewement.pawent instanceof CategowyEwement ? JSON.stwingify(ewement.pawent.categowy.metadata) : '');
+		} ewse if (ewement instanceof TextEditEwement) {
+			wetuwn ewement.pawent.edit.uwi.toStwing() + ewement.idx;
+		} ewse {
+			wetuwn JSON.stwingify(ewement.categowy.metadata);
 		}
 	}
 }
 
-// --- RENDERER
+// --- WENDEWa
 
-class CategoryElementTemplate {
+cwass CategowyEwementTempwate {
 
-	readonly icon: HTMLDivElement;
-	readonly label: IconLabel;
+	weadonwy icon: HTMWDivEwement;
+	weadonwy wabew: IconWabew;
 
-	constructor(container: HTMLElement) {
-		container.classList.add('category');
-		this.icon = document.createElement('div');
-		container.appendChild(this.icon);
-		this.label = new IconLabel(container);
+	constwuctow(containa: HTMWEwement) {
+		containa.cwassWist.add('categowy');
+		this.icon = document.cweateEwement('div');
+		containa.appendChiwd(this.icon);
+		this.wabew = new IconWabew(containa);
 	}
 }
 
-export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, FuzzyScore, CategoryElementTemplate> {
+expowt cwass CategowyEwementWendewa impwements ITweeWendewa<CategowyEwement, FuzzyScowe, CategowyEwementTempwate> {
 
-	static readonly id: string = 'CategoryElementRenderer';
+	static weadonwy id: stwing = 'CategowyEwementWendewa';
 
-	readonly templateId: string = CategoryElementRenderer.id;
+	weadonwy tempwateId: stwing = CategowyEwementWendewa.id;
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+	constwuctow(@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice) { }
 
-	renderTemplate(container: HTMLElement): CategoryElementTemplate {
-		return new CategoryElementTemplate(container);
+	wendewTempwate(containa: HTMWEwement): CategowyEwementTempwate {
+		wetuwn new CategowyEwementTempwate(containa);
 	}
 
-	renderElement(node: ITreeNode<CategoryElement, FuzzyScore>, _index: number, template: CategoryElementTemplate): void {
+	wendewEwement(node: ITweeNode<CategowyEwement, FuzzyScowe>, _index: numba, tempwate: CategowyEwementTempwate): void {
 
-		template.icon.style.setProperty('--background-dark', null);
-		template.icon.style.setProperty('--background-light', null);
-		template.icon.style.color = '';
+		tempwate.icon.stywe.setPwopewty('--backgwound-dawk', nuww);
+		tempwate.icon.stywe.setPwopewty('--backgwound-wight', nuww);
+		tempwate.icon.stywe.cowow = '';
 
-		const { metadata } = node.element.category;
+		const { metadata } = node.ewement.categowy;
 		if (ThemeIcon.isThemeIcon(metadata.iconPath)) {
 			// css
-			const className = ThemeIcon.asClassName(metadata.iconPath);
-			template.icon.className = className ? `theme-icon ${className}` : '';
-			template.icon.style.color = metadata.iconPath.color ? this._themeService.getColorTheme().getColor(metadata.iconPath.color.id)?.toString() ?? '' : '';
+			const cwassName = ThemeIcon.asCwassName(metadata.iconPath);
+			tempwate.icon.cwassName = cwassName ? `theme-icon ${cwassName}` : '';
+			tempwate.icon.stywe.cowow = metadata.iconPath.cowow ? this._themeSewvice.getCowowTheme().getCowow(metadata.iconPath.cowow.id)?.toStwing() ?? '' : '';
 
 
-		} else if (URI.isUri(metadata.iconPath)) {
-			// background-image
-			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath));
-			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath));
+		} ewse if (UWI.isUwi(metadata.iconPath)) {
+			// backgwound-image
+			tempwate.icon.cwassName = 'uwi-icon';
+			tempwate.icon.stywe.setPwopewty('--backgwound-dawk', dom.asCSSUww(metadata.iconPath));
+			tempwate.icon.stywe.setPwopewty('--backgwound-wight', dom.asCSSUww(metadata.iconPath));
 
-		} else if (metadata.iconPath) {
-			// background-image
-			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath.dark));
-			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath.light));
+		} ewse if (metadata.iconPath) {
+			// backgwound-image
+			tempwate.icon.cwassName = 'uwi-icon';
+			tempwate.icon.stywe.setPwopewty('--backgwound-dawk', dom.asCSSUww(metadata.iconPath.dawk));
+			tempwate.icon.stywe.setPwopewty('--backgwound-wight', dom.asCSSUww(metadata.iconPath.wight));
 		}
 
-		template.label.setLabel(metadata.label, metadata.description, {
-			descriptionMatches: createMatches(node.filterData),
+		tempwate.wabew.setWabew(metadata.wabew, metadata.descwiption, {
+			descwiptionMatches: cweateMatches(node.fiwtewData),
 		});
 	}
 
-	disposeTemplate(template: CategoryElementTemplate): void {
-		template.label.dispose();
+	disposeTempwate(tempwate: CategowyEwementTempwate): void {
+		tempwate.wabew.dispose();
 	}
 }
 
-class FileElementTemplate {
+cwass FiweEwementTempwate {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _localDisposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _wocawDisposabwes = new DisposabweStowe();
 
-	private readonly _checkbox: HTMLInputElement;
-	private readonly _label: IResourceLabel;
-	private readonly _details: HTMLSpanElement;
+	pwivate weadonwy _checkbox: HTMWInputEwement;
+	pwivate weadonwy _wabew: IWesouwceWabew;
+	pwivate weadonwy _detaiws: HTMWSpanEwement;
 
-	constructor(
-		container: HTMLElement,
-		resourceLabels: ResourceLabels,
-		@ILabelService private readonly _labelService: ILabelService,
+	constwuctow(
+		containa: HTMWEwement,
+		wesouwceWabews: WesouwceWabews,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
 	) {
 
-		this._checkbox = document.createElement('input');
-		this._checkbox.className = 'edit-checkbox';
+		this._checkbox = document.cweateEwement('input');
+		this._checkbox.cwassName = 'edit-checkbox';
 		this._checkbox.type = 'checkbox';
-		this._checkbox.setAttribute('role', 'checkbox');
-		container.appendChild(this._checkbox);
+		this._checkbox.setAttwibute('wowe', 'checkbox');
+		containa.appendChiwd(this._checkbox);
 
-		this._label = resourceLabels.create(container, { supportHighlights: true });
+		this._wabew = wesouwceWabews.cweate(containa, { suppowtHighwights: twue });
 
-		this._details = document.createElement('span');
-		this._details.className = 'details';
-		container.appendChild(this._details);
+		this._detaiws = document.cweateEwement('span');
+		this._detaiws.cwassName = 'detaiws';
+		containa.appendChiwd(this._detaiws);
 	}
 
 	dispose(): void {
-		this._localDisposables.dispose();
-		this._disposables.dispose();
-		this._label.dispose();
+		this._wocawDisposabwes.dispose();
+		this._disposabwes.dispose();
+		this._wabew.dispose();
 	}
 
-	set(element: FileElement, score: FuzzyScore | undefined) {
-		this._localDisposables.clear();
+	set(ewement: FiweEwement, scowe: FuzzyScowe | undefined) {
+		this._wocawDisposabwes.cweaw();
 
-		this._checkbox.checked = element.isChecked();
-		this._checkbox.disabled = element.isDisabled();
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', () => {
-			element.setChecked(this._checkbox.checked);
+		this._checkbox.checked = ewement.isChecked();
+		this._checkbox.disabwed = ewement.isDisabwed();
+		this._wocawDisposabwes.add(dom.addDisposabweWistena(this._checkbox, 'change', () => {
+			ewement.setChecked(this._checkbox.checked);
 		}));
 
-		if (element.edit.type & BulkFileOperationType.Rename && element.edit.newUri) {
-			// rename: oldName → newName
-			this._label.setResource({
-				resource: element.edit.uri,
-				name: localize('rename.label', "{0} → {1}", this._labelService.getUriLabel(element.edit.uri, { relative: true }), this._labelService.getUriLabel(element.edit.newUri, { relative: true })),
+		if (ewement.edit.type & BuwkFiweOpewationType.Wename && ewement.edit.newUwi) {
+			// wename: owdName → newName
+			this._wabew.setWesouwce({
+				wesouwce: ewement.edit.uwi,
+				name: wocawize('wename.wabew', "{0} → {1}", this._wabewSewvice.getUwiWabew(ewement.edit.uwi, { wewative: twue }), this._wabewSewvice.getUwiWabew(ewement.edit.newUwi, { wewative: twue })),
 			}, {
-				fileDecorations: { colors: true, badges: false }
+				fiweDecowations: { cowows: twue, badges: fawse }
 			});
 
-			this._details.innerText = localize('detail.rename', "(renaming)");
+			this._detaiws.innewText = wocawize('detaiw.wename', "(wenaming)");
 
-		} else {
-			// create, delete, edit: NAME
+		} ewse {
+			// cweate, dewete, edit: NAME
 			const options = {
-				matches: createMatches(score),
-				fileKind: FileKind.FILE,
-				fileDecorations: { colors: true, badges: false },
-				extraClasses: <string[]>[]
+				matches: cweateMatches(scowe),
+				fiweKind: FiweKind.FIWE,
+				fiweDecowations: { cowows: twue, badges: fawse },
+				extwaCwasses: <stwing[]>[]
 			};
-			if (element.edit.type & BulkFileOperationType.Create) {
-				this._details.innerText = localize('detail.create', "(creating)");
-			} else if (element.edit.type & BulkFileOperationType.Delete) {
-				this._details.innerText = localize('detail.del', "(deleting)");
-				options.extraClasses.push('delete');
-			} else {
-				this._details.innerText = '';
+			if (ewement.edit.type & BuwkFiweOpewationType.Cweate) {
+				this._detaiws.innewText = wocawize('detaiw.cweate', "(cweating)");
+			} ewse if (ewement.edit.type & BuwkFiweOpewationType.Dewete) {
+				this._detaiws.innewText = wocawize('detaiw.dew', "(deweting)");
+				options.extwaCwasses.push('dewete');
+			} ewse {
+				this._detaiws.innewText = '';
 			}
-			this._label.setFile(element.edit.uri, options);
+			this._wabew.setFiwe(ewement.edit.uwi, options);
 		}
 	}
 }
 
-export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScore, FileElementTemplate> {
+expowt cwass FiweEwementWendewa impwements ITweeWendewa<FiweEwement, FuzzyScowe, FiweEwementTempwate> {
 
-	static readonly id: string = 'FileElementRenderer';
+	static weadonwy id: stwing = 'FiweEwementWendewa';
 
-	readonly templateId: string = FileElementRenderer.id;
+	weadonwy tempwateId: stwing = FiweEwementWendewa.id;
 
-	constructor(
-		private readonly _resourceLabels: ResourceLabels,
-		@ILabelService private readonly _labelService: ILabelService,
+	constwuctow(
+		pwivate weadonwy _wesouwceWabews: WesouwceWabews,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): FileElementTemplate {
-		return new FileElementTemplate(container, this._resourceLabels, this._labelService);
+	wendewTempwate(containa: HTMWEwement): FiweEwementTempwate {
+		wetuwn new FiweEwementTempwate(containa, this._wesouwceWabews, this._wabewSewvice);
 	}
 
-	renderElement(node: ITreeNode<FileElement, FuzzyScore>, _index: number, template: FileElementTemplate): void {
-		template.set(node.element, node.filterData);
+	wendewEwement(node: ITweeNode<FiweEwement, FuzzyScowe>, _index: numba, tempwate: FiweEwementTempwate): void {
+		tempwate.set(node.ewement, node.fiwtewData);
 	}
 
-	disposeTemplate(template: FileElementTemplate): void {
-		template.dispose();
+	disposeTempwate(tempwate: FiweEwementTempwate): void {
+		tempwate.dispose();
 	}
 }
 
-class TextEditElementTemplate {
+cwass TextEditEwementTempwate {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _localDisposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _wocawDisposabwes = new DisposabweStowe();
 
-	private readonly _checkbox: HTMLInputElement;
-	private readonly _icon: HTMLDivElement;
-	private readonly _label: HighlightedLabel;
+	pwivate weadonwy _checkbox: HTMWInputEwement;
+	pwivate weadonwy _icon: HTMWDivEwement;
+	pwivate weadonwy _wabew: HighwightedWabew;
 
-	constructor(container: HTMLElement, @IThemeService private readonly _themeService: IThemeService) {
-		container.classList.add('textedit');
+	constwuctow(containa: HTMWEwement, @IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice) {
+		containa.cwassWist.add('textedit');
 
-		this._checkbox = document.createElement('input');
-		this._checkbox.className = 'edit-checkbox';
+		this._checkbox = document.cweateEwement('input');
+		this._checkbox.cwassName = 'edit-checkbox';
 		this._checkbox.type = 'checkbox';
-		this._checkbox.setAttribute('role', 'checkbox');
-		container.appendChild(this._checkbox);
+		this._checkbox.setAttwibute('wowe', 'checkbox');
+		containa.appendChiwd(this._checkbox);
 
-		this._icon = document.createElement('div');
-		container.appendChild(this._icon);
+		this._icon = document.cweateEwement('div');
+		containa.appendChiwd(this._icon);
 
-		this._label = new HighlightedLabel(container, false);
+		this._wabew = new HighwightedWabew(containa, fawse);
 	}
 
 	dispose(): void {
-		this._localDisposables.dispose();
-		this._disposables.dispose();
+		this._wocawDisposabwes.dispose();
+		this._disposabwes.dispose();
 	}
 
-	set(element: TextEditElement) {
-		this._localDisposables.clear();
+	set(ewement: TextEditEwement) {
+		this._wocawDisposabwes.cweaw();
 
-		this._localDisposables.add(dom.addDisposableListener(this._checkbox, 'change', e => {
-			element.setChecked(this._checkbox.checked);
-			e.preventDefault();
+		this._wocawDisposabwes.add(dom.addDisposabweWistena(this._checkbox, 'change', e => {
+			ewement.setChecked(this._checkbox.checked);
+			e.pweventDefauwt();
 		}));
-		if (element.parent.isChecked()) {
-			this._checkbox.checked = element.isChecked();
-			this._checkbox.disabled = element.isDisabled();
-		} else {
-			this._checkbox.checked = element.isChecked();
-			this._checkbox.disabled = element.isDisabled();
+		if (ewement.pawent.isChecked()) {
+			this._checkbox.checked = ewement.isChecked();
+			this._checkbox.disabwed = ewement.isDisabwed();
+		} ewse {
+			this._checkbox.checked = ewement.isChecked();
+			this._checkbox.disabwed = ewement.isDisabwed();
 		}
 
-		let value = '';
-		value += element.prefix;
-		value += element.selecting;
-		value += element.inserting;
-		value += element.suffix;
+		wet vawue = '';
+		vawue += ewement.pwefix;
+		vawue += ewement.sewecting;
+		vawue += ewement.insewting;
+		vawue += ewement.suffix;
 
-		let selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: 'remove' };
-		let insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: 'insert' };
+		wet sewectHighwight: IHighwight = { stawt: ewement.pwefix.wength, end: ewement.pwefix.wength + ewement.sewecting.wength, extwaCwasses: 'wemove' };
+		wet insewtHighwight: IHighwight = { stawt: sewectHighwight.end, end: sewectHighwight.end + ewement.insewting.wength, extwaCwasses: 'insewt' };
 
-		let title: string | undefined;
-		let { metadata } = element.edit.textEdit;
-		if (metadata && metadata.description) {
-			title = localize('title', "{0} - {1}", metadata.label, metadata.description);
-		} else if (metadata) {
-			title = metadata.label;
+		wet titwe: stwing | undefined;
+		wet { metadata } = ewement.edit.textEdit;
+		if (metadata && metadata.descwiption) {
+			titwe = wocawize('titwe', "{0} - {1}", metadata.wabew, metadata.descwiption);
+		} ewse if (metadata) {
+			titwe = metadata.wabew;
 		}
 
 		const iconPath = metadata?.iconPath;
 		if (!iconPath) {
-			this._icon.style.display = 'none';
-		} else {
-			this._icon.style.display = 'block';
+			this._icon.stywe.dispway = 'none';
+		} ewse {
+			this._icon.stywe.dispway = 'bwock';
 
-			this._icon.style.setProperty('--background-dark', null);
-			this._icon.style.setProperty('--background-light', null);
+			this._icon.stywe.setPwopewty('--backgwound-dawk', nuww);
+			this._icon.stywe.setPwopewty('--backgwound-wight', nuww);
 
 			if (ThemeIcon.isThemeIcon(iconPath)) {
 				// css
-				const className = ThemeIcon.asClassName(iconPath);
-				this._icon.className = className ? `theme-icon ${className}` : '';
-				this._icon.style.color = iconPath.color ? this._themeService.getColorTheme().getColor(iconPath.color.id)?.toString() ?? '' : '';
+				const cwassName = ThemeIcon.asCwassName(iconPath);
+				this._icon.cwassName = cwassName ? `theme-icon ${cwassName}` : '';
+				this._icon.stywe.cowow = iconPath.cowow ? this._themeSewvice.getCowowTheme().getCowow(iconPath.cowow.id)?.toStwing() ?? '' : '';
 
 
-			} else if (URI.isUri(iconPath)) {
-				// background-image
-				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath));
-				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath));
+			} ewse if (UWI.isUwi(iconPath)) {
+				// backgwound-image
+				this._icon.cwassName = 'uwi-icon';
+				this._icon.stywe.setPwopewty('--backgwound-dawk', dom.asCSSUww(iconPath));
+				this._icon.stywe.setPwopewty('--backgwound-wight', dom.asCSSUww(iconPath));
 
-			} else {
-				// background-image
-				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath.dark));
-				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath.light));
+			} ewse {
+				// backgwound-image
+				this._icon.cwassName = 'uwi-icon';
+				this._icon.stywe.setPwopewty('--backgwound-dawk', dom.asCSSUww(iconPath.dawk));
+				this._icon.stywe.setPwopewty('--backgwound-wight', dom.asCSSUww(iconPath.wight));
 			}
 		}
 
-		this._label.set(value, [selectHighlight, insertHighlight], title, true);
-		this._icon.title = title || '';
+		this._wabew.set(vawue, [sewectHighwight, insewtHighwight], titwe, twue);
+		this._icon.titwe = titwe || '';
 	}
 }
 
-export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, FuzzyScore, TextEditElementTemplate> {
+expowt cwass TextEditEwementWendewa impwements ITweeWendewa<TextEditEwement, FuzzyScowe, TextEditEwementTempwate> {
 
-	static readonly id = 'TextEditElementRenderer';
+	static weadonwy id = 'TextEditEwementWendewa';
 
-	readonly templateId: string = TextEditElementRenderer.id;
+	weadonwy tempwateId: stwing = TextEditEwementWendewa.id;
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+	constwuctow(@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice) { }
 
-	renderTemplate(container: HTMLElement): TextEditElementTemplate {
-		return new TextEditElementTemplate(container, this._themeService);
+	wendewTempwate(containa: HTMWEwement): TextEditEwementTempwate {
+		wetuwn new TextEditEwementTempwate(containa, this._themeSewvice);
 	}
 
-	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
-		template.set(element);
+	wendewEwement({ ewement }: ITweeNode<TextEditEwement, FuzzyScowe>, _index: numba, tempwate: TextEditEwementTempwate): void {
+		tempwate.set(ewement);
 	}
 
-	disposeTemplate(_template: TextEditElementTemplate): void { }
+	disposeTempwate(_tempwate: TextEditEwementTempwate): void { }
 }
 
-export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
+expowt cwass BuwkEditDewegate impwements IWistViwtuawDewegate<BuwkEditEwement> {
 
-	getHeight(): number {
-		return 23;
+	getHeight(): numba {
+		wetuwn 23;
 	}
 
-	getTemplateId(element: BulkEditElement): string {
+	getTempwateId(ewement: BuwkEditEwement): stwing {
 
-		if (element instanceof FileElement) {
-			return FileElementRenderer.id;
-		} else if (element instanceof TextEditElement) {
-			return TextEditElementRenderer.id;
-		} else {
-			return CategoryElementRenderer.id;
+		if (ewement instanceof FiweEwement) {
+			wetuwn FiweEwementWendewa.id;
+		} ewse if (ewement instanceof TextEditEwement) {
+			wetuwn TextEditEwementWendewa.id;
+		} ewse {
+			wetuwn CategowyEwementWendewa.id;
 		}
 	}
 }
 
 
-export class BulkEditNaviLabelProvider implements IKeyboardNavigationLabelProvider<BulkEditElement> {
+expowt cwass BuwkEditNaviWabewPwovida impwements IKeyboawdNavigationWabewPwovida<BuwkEditEwement> {
 
-	getKeyboardNavigationLabel(element: BulkEditElement) {
-		if (element instanceof FileElement) {
-			return basename(element.edit.uri);
-		} else if (element instanceof CategoryElement) {
-			return element.category.metadata.label;
+	getKeyboawdNavigationWabew(ewement: BuwkEditEwement) {
+		if (ewement instanceof FiweEwement) {
+			wetuwn basename(ewement.edit.uwi);
+		} ewse if (ewement instanceof CategowyEwement) {
+			wetuwn ewement.categowy.metadata.wabew;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

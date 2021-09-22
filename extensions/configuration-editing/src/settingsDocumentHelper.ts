@@ -1,288 +1,288 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { getLocation, Location, parse } from 'jsonc-parser';
-import * as nls from 'vscode-nls';
-import { provideInstalledExtensionProposals } from './extensionsProposals';
+impowt * as vscode fwom 'vscode';
+impowt { getWocation, Wocation, pawse } fwom 'jsonc-pawsa';
+impowt * as nws fwom 'vscode-nws';
+impowt { pwovideInstawwedExtensionPwoposaws } fwom './extensionsPwoposaws';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class SettingsDocument {
+expowt cwass SettingsDocument {
 
-	constructor(private document: vscode.TextDocument) { }
+	constwuctow(pwivate document: vscode.TextDocument) { }
 
-	public provideCompletionItems(position: vscode.Position, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-		const location = getLocation(this.document.getText(), this.document.offsetAt(position));
-		const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+	pubwic pwovideCompwetionItems(position: vscode.Position, _token: vscode.CancewwationToken): vscode.PwovidewWesuwt<vscode.CompwetionItem[] | vscode.CompwetionWist> {
+		const wocation = getWocation(this.document.getText(), this.document.offsetAt(position));
+		const wange = this.document.getWowdWangeAtPosition(position) || new vscode.Wange(position, position);
 
-		// window.title
-		if (location.path[0] === 'window.title') {
-			return this.provideWindowTitleCompletionItems(location, range);
+		// window.titwe
+		if (wocation.path[0] === 'window.titwe') {
+			wetuwn this.pwovideWindowTitweCompwetionItems(wocation, wange);
 		}
 
-		// files.association
-		if (location.path[0] === 'files.associations') {
-			return this.provideFilesAssociationsCompletionItems(location, range);
+		// fiwes.association
+		if (wocation.path[0] === 'fiwes.associations') {
+			wetuwn this.pwovideFiwesAssociationsCompwetionItems(wocation, wange);
 		}
 
-		// files.exclude, search.exclude
-		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude') {
-			return this.provideExcludeCompletionItems(location, range);
+		// fiwes.excwude, seawch.excwude
+		if (wocation.path[0] === 'fiwes.excwude' || wocation.path[0] === 'seawch.excwude') {
+			wetuwn this.pwovideExcwudeCompwetionItems(wocation, wange);
 		}
 
-		// files.defaultLanguage
-		if (location.path[0] === 'files.defaultLanguage') {
-			return this.provideLanguageCompletionItems(location, range).then(items => {
+		// fiwes.defauwtWanguage
+		if (wocation.path[0] === 'fiwes.defauwtWanguage') {
+			wetuwn this.pwovideWanguageCompwetionItems(wocation, wange).then(items => {
 
-				// Add special item '${activeEditorLanguage}'
-				return [this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, localize('activeEditor', "Use the language of the currently active text editor if any")), ...items];
+				// Add speciaw item '${activeEditowWanguage}'
+				wetuwn [this.newSimpweCompwetionItem(JSON.stwingify('${activeEditowWanguage}'), wange, wocawize('activeEditow', "Use the wanguage of the cuwwentwy active text editow if any")), ...items];
 			});
 		}
 
-		// settingsSync.ignoredExtensions
-		if (location.path[0] === 'settingsSync.ignoredExtensions') {
-			let ignoredExtensions = [];
-			try {
-				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
-			} catch (e) {/* ignore error */ }
-			return provideInstalledExtensionProposals(ignoredExtensions, '', range, true);
+		// settingsSync.ignowedExtensions
+		if (wocation.path[0] === 'settingsSync.ignowedExtensions') {
+			wet ignowedExtensions = [];
+			twy {
+				ignowedExtensions = pawse(this.document.getText())['settingsSync.ignowedExtensions'];
+			} catch (e) {/* ignowe ewwow */ }
+			wetuwn pwovideInstawwedExtensionPwoposaws(ignowedExtensions, '', wange, twue);
 		}
 
-		// remote.extensionKind
-		if (location.path[0] === 'remote.extensionKind' && location.path.length === 2 && location.isAtPropertyKey) {
-			let alreadyConfigured: string[] = [];
-			try {
-				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
-			} catch (e) {/* ignore error */ }
-			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
+		// wemote.extensionKind
+		if (wocation.path[0] === 'wemote.extensionKind' && wocation.path.wength === 2 && wocation.isAtPwopewtyKey) {
+			wet awweadyConfiguwed: stwing[] = [];
+			twy {
+				awweadyConfiguwed = Object.keys(pawse(this.document.getText())['wemote.extensionKind']);
+			} catch (e) {/* ignowe ewwow */ }
+			wetuwn pwovideInstawwedExtensionPwoposaws(awweadyConfiguwed, `: [\n\t"ui"\n]`, wange, twue);
 		}
 
-		// remote.portsAttributes
-		if (location.path[0] === 'remote.portsAttributes' && location.path.length === 2 && location.isAtPropertyKey) {
-			return this.providePortsAttributesCompletionItem(range);
+		// wemote.powtsAttwibutes
+		if (wocation.path[0] === 'wemote.powtsAttwibutes' && wocation.path.wength === 2 && wocation.isAtPwopewtyKey) {
+			wetuwn this.pwovidePowtsAttwibutesCompwetionItem(wange);
 		}
 
-		return this.provideLanguageOverridesCompletionItems(location, position);
+		wetuwn this.pwovideWanguageOvewwidesCompwetionItems(wocation, position);
 	}
 
-	private provideWindowTitleCompletionItems(_location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
-		const completions: vscode.CompletionItem[] = [];
+	pwivate pwovideWindowTitweCompwetionItems(_wocation: Wocation, wange: vscode.Wange): vscode.PwovidewWesuwt<vscode.CompwetionItem[]> {
+		const compwetions: vscode.CompwetionItem[] = [];
 
-		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "the file name (e.g. myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)")));
-		completions.push(this.newSimpleCompletionItem('${activeFolderShort}', range, localize('activeFolderShort', "the name of the folder the file is contained in (e.g. myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem('${activeFolderMedium}', range, localize('activeFolderMedium', "the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem('${activeFolderLong}', range, localize('activeFolderLong', "the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)")));
-		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "name of the workspace (e.g. myFolder or myWorkspace)")));
-		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "file path of the workspace (e.g. /Users/Development/myWorkspace)")));
-		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
-		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
-		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
-		completions.push(this.newSimpleCompletionItem('${remoteName}', range, localize('remoteName', "e.g. SSH")));
-		completions.push(this.newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
-		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeEditowShowt}', wange, wocawize('activeEditowShowt', "the fiwe name (e.g. myFiwe.txt)")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeEditowMedium}', wange, wocawize('activeEditowMedium', "the path of the fiwe wewative to the wowkspace fowda (e.g. myFowda/myFiweFowda/myFiwe.txt)")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeEditowWong}', wange, wocawize('activeEditowWong', "the fuww path of the fiwe (e.g. /Usews/Devewopment/myFowda/myFiweFowda/myFiwe.txt)")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeFowdewShowt}', wange, wocawize('activeFowdewShowt', "the name of the fowda the fiwe is contained in (e.g. myFiweFowda)")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeFowdewMedium}', wange, wocawize('activeFowdewMedium', "the path of the fowda the fiwe is contained in, wewative to the wowkspace fowda (e.g. myFowda/myFiweFowda)")));
+		compwetions.push(this.newSimpweCompwetionItem('${activeFowdewWong}', wange, wocawize('activeFowdewWong', "the fuww path of the fowda the fiwe is contained in (e.g. /Usews/Devewopment/myFowda/myFiweFowda)")));
+		compwetions.push(this.newSimpweCompwetionItem('${wootName}', wange, wocawize('wootName', "name of the wowkspace (e.g. myFowda ow myWowkspace)")));
+		compwetions.push(this.newSimpweCompwetionItem('${wootPath}', wange, wocawize('wootPath', "fiwe path of the wowkspace (e.g. /Usews/Devewopment/myWowkspace)")));
+		compwetions.push(this.newSimpweCompwetionItem('${fowdewName}', wange, wocawize('fowdewName', "name of the wowkspace fowda the fiwe is contained in (e.g. myFowda)")));
+		compwetions.push(this.newSimpweCompwetionItem('${fowdewPath}', wange, wocawize('fowdewPath', "fiwe path of the wowkspace fowda the fiwe is contained in (e.g. /Usews/Devewopment/myFowda)")));
+		compwetions.push(this.newSimpweCompwetionItem('${appName}', wange, wocawize('appName', "e.g. VS Code")));
+		compwetions.push(this.newSimpweCompwetionItem('${wemoteName}', wange, wocawize('wemoteName', "e.g. SSH")));
+		compwetions.push(this.newSimpweCompwetionItem('${diwty}', wange, wocawize('diwty', "a diwty indicatow if the active editow is diwty")));
+		compwetions.push(this.newSimpweCompwetionItem('${sepawatow}', wange, wocawize('sepawatow', "a conditionaw sepawatow (' - ') that onwy shows when suwwounded by vawiabwes with vawues")));
 
-		return Promise.resolve(completions);
+		wetuwn Pwomise.wesowve(compwetions);
 	}
 
-	private provideFilesAssociationsCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
-		const completions: vscode.CompletionItem[] = [];
+	pwivate pwovideFiwesAssociationsCompwetionItems(wocation: Wocation, wange: vscode.Wange): vscode.PwovidewWesuwt<vscode.CompwetionItem[]> {
+		const compwetions: vscode.CompwetionItem[] = [];
 
-		if (location.path.length === 2) {
+		if (wocation.path.wength === 2) {
 			// Key
-			if (!location.isAtPropertyKey || location.path[1] === '') {
-				completions.push(this.newSnippetCompletionItem({
-					label: localize('assocLabelFile', "Files with Extension"),
-					documentation: localize('assocDescriptionFile', "Map all files matching the glob pattern in their filename to the language with the given identifier."),
-					snippet: location.isAtPropertyKey ? '"*.${1:extension}": "${2:language}"' : '{ "*.${1:extension}": "${2:language}" }',
-					range
+			if (!wocation.isAtPwopewtyKey || wocation.path[1] === '') {
+				compwetions.push(this.newSnippetCompwetionItem({
+					wabew: wocawize('assocWabewFiwe', "Fiwes with Extension"),
+					documentation: wocawize('assocDescwiptionFiwe', "Map aww fiwes matching the gwob pattewn in theiw fiwename to the wanguage with the given identifia."),
+					snippet: wocation.isAtPwopewtyKey ? '"*.${1:extension}": "${2:wanguage}"' : '{ "*.${1:extension}": "${2:wanguage}" }',
+					wange
 				}));
 
-				completions.push(this.newSnippetCompletionItem({
-					label: localize('assocLabelPath', "Files with Path"),
-					documentation: localize('assocDescriptionPath', "Map all files matching the absolute path glob pattern in their path to the language with the given identifier."),
-					snippet: location.isAtPropertyKey ? '"/${1:path to file}/*.${2:extension}": "${3:language}"' : '{ "/${1:path to file}/*.${2:extension}": "${3:language}" }',
-					range
+				compwetions.push(this.newSnippetCompwetionItem({
+					wabew: wocawize('assocWabewPath', "Fiwes with Path"),
+					documentation: wocawize('assocDescwiptionPath', "Map aww fiwes matching the absowute path gwob pattewn in theiw path to the wanguage with the given identifia."),
+					snippet: wocation.isAtPwopewtyKey ? '"/${1:path to fiwe}/*.${2:extension}": "${3:wanguage}"' : '{ "/${1:path to fiwe}/*.${2:extension}": "${3:wanguage}" }',
+					wange
 				}));
-			} else {
-				// Value
-				return this.provideLanguageCompletionItemsForLanguageOverrides(location, range);
+			} ewse {
+				// Vawue
+				wetuwn this.pwovideWanguageCompwetionItemsFowWanguageOvewwides(wocation, wange);
 			}
 		}
 
-		return Promise.resolve(completions);
+		wetuwn Pwomise.wesowve(compwetions);
 	}
 
-	private provideExcludeCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
-		const completions: vscode.CompletionItem[] = [];
+	pwivate pwovideExcwudeCompwetionItems(wocation: Wocation, wange: vscode.Wange): vscode.PwovidewWesuwt<vscode.CompwetionItem[]> {
+		const compwetions: vscode.CompwetionItem[] = [];
 
 		// Key
-		if (location.path.length === 1) {
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('fileLabel', "Files by Extension"),
-				documentation: localize('fileDescription', "Match all files of a specific file extension."),
-				snippet: location.isAtPropertyKey ? '"**/*.${1:extension}": true' : '{ "**/*.${1:extension}": true }',
-				range
+		if (wocation.path.wength === 1) {
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('fiweWabew', "Fiwes by Extension"),
+				documentation: wocawize('fiweDescwiption', "Match aww fiwes of a specific fiwe extension."),
+				snippet: wocation.isAtPwopewtyKey ? '"**/*.${1:extension}": twue' : '{ "**/*.${1:extension}": twue }',
+				wange
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('filesLabel', "Files with Multiple Extensions"),
-				documentation: localize('filesDescription', "Match all files with any of the file extensions."),
-				snippet: location.isAtPropertyKey ? '"**/*.{ext1,ext2,ext3}": true' : '{ "**/*.{ext1,ext2,ext3}": true }',
-				range
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('fiwesWabew', "Fiwes with Muwtipwe Extensions"),
+				documentation: wocawize('fiwesDescwiption', "Match aww fiwes with any of the fiwe extensions."),
+				snippet: wocation.isAtPwopewtyKey ? '"**/*.{ext1,ext2,ext3}": twue' : '{ "**/*.{ext1,ext2,ext3}": twue }',
+				wange
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
-				snippet: location.isAtPropertyKey ? '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }' : '{ "**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" } }',
-				range
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('dewivedWabew', "Fiwes with Sibwings by Name"),
+				documentation: wocawize('dewivedDescwiption', "Match fiwes that have sibwings with the same name but a diffewent extension."),
+				snippet: wocation.isAtPwopewtyKey ? '"**/*.${1:souwce-extension}": { "when": "$(basename).${2:tawget-extension}" }' : '{ "**/*.${1:souwce-extension}": { "when": "$(basename).${2:tawget-extension}" } }',
+				wange
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('topFolderLabel', "Folder by Name (Top Level)"),
-				documentation: localize('topFolderDescription', "Match a top level folder with a specific name."),
-				snippet: location.isAtPropertyKey ? '"${1:name}": true' : '{ "${1:name}": true }',
-				range
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('topFowdewWabew', "Fowda by Name (Top Wevew)"),
+				documentation: wocawize('topFowdewDescwiption', "Match a top wevew fowda with a specific name."),
+				snippet: wocation.isAtPwopewtyKey ? '"${1:name}": twue' : '{ "${1:name}": twue }',
+				wange
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('topFoldersLabel', "Folders with Multiple Names (Top Level)"),
-				documentation: localize('topFoldersDescription', "Match multiple top level folders."),
-				snippet: location.isAtPropertyKey ? '"{folder1,folder2,folder3}": true' : '{ "{folder1,folder2,folder3}": true }',
-				range
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('topFowdewsWabew', "Fowdews with Muwtipwe Names (Top Wevew)"),
+				documentation: wocawize('topFowdewsDescwiption', "Match muwtipwe top wevew fowdews."),
+				snippet: wocation.isAtPwopewtyKey ? '"{fowdew1,fowdew2,fowdew3}": twue' : '{ "{fowdew1,fowdew2,fowdew3}": twue }',
+				wange
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('folderLabel', "Folder by Name (Any Location)"),
-				documentation: localize('folderDescription', "Match a folder with a specific name in any location."),
-				snippet: location.isAtPropertyKey ? '"**/${1:name}": true' : '{ "**/${1:name}": true }',
-				range
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('fowdewWabew', "Fowda by Name (Any Wocation)"),
+				documentation: wocawize('fowdewDescwiption', "Match a fowda with a specific name in any wocation."),
+				snippet: wocation.isAtPwopewtyKey ? '"**/${1:name}": twue' : '{ "**/${1:name}": twue }',
+				wange
 			}));
 		}
 
-		// Value
-		else {
-			completions.push(this.newSimpleCompletionItem('false', range, localize('falseDescription', "Disable the pattern.")));
-			completions.push(this.newSimpleCompletionItem('true', range, localize('trueDescription', "Enable the pattern.")));
+		// Vawue
+		ewse {
+			compwetions.push(this.newSimpweCompwetionItem('fawse', wange, wocawize('fawseDescwiption', "Disabwe the pattewn.")));
+			compwetions.push(this.newSimpweCompwetionItem('twue', wange, wocawize('twueDescwiption', "Enabwe the pattewn.")));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('siblingsDescription', "Match files that have siblings with the same name but a different extension."),
+			compwetions.push(this.newSnippetCompwetionItem({
+				wabew: wocawize('dewivedWabew', "Fiwes with Sibwings by Name"),
+				documentation: wocawize('sibwingsDescwiption', "Match fiwes that have sibwings with the same name but a diffewent extension."),
 				snippet: '{ "when": "$(basename).${1:extension}" }',
-				range
+				wange
 			}));
 		}
 
-		return Promise.resolve(completions);
+		wetuwn Pwomise.wesowve(compwetions);
 	}
 
-	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
-		return vscode.languages.getLanguages()
-			.then(languages => languages.map(l => this.newSimpleCompletionItem(formatFunc(l), range)));
+	pwivate pwovideWanguageCompwetionItems(_wocation: Wocation, wange: vscode.Wange, fowmatFunc: (stwing: stwing) => stwing = (w) => JSON.stwingify(w)): Thenabwe<vscode.CompwetionItem[]> {
+		wetuwn vscode.wanguages.getWanguages()
+			.then(wanguages => wanguages.map(w => this.newSimpweCompwetionItem(fowmatFunc(w), wange)));
 	}
 
-	private provideLanguageCompletionItemsForLanguageOverrides(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
-		return vscode.languages.getLanguages().then(languages => {
-			const completionItems = [];
-			const configuration = vscode.workspace.getConfiguration();
-			for (const language of languages) {
-				const inspect = configuration.inspect(`[${language}]`);
-				if (!inspect || !inspect.defaultValue) {
-					const item = new vscode.CompletionItem(formatFunc(language));
-					item.kind = vscode.CompletionItemKind.Property;
-					item.range = range;
-					completionItems.push(item);
+	pwivate pwovideWanguageCompwetionItemsFowWanguageOvewwides(_wocation: Wocation, wange: vscode.Wange, fowmatFunc: (stwing: stwing) => stwing = (w) => JSON.stwingify(w)): Thenabwe<vscode.CompwetionItem[]> {
+		wetuwn vscode.wanguages.getWanguages().then(wanguages => {
+			const compwetionItems = [];
+			const configuwation = vscode.wowkspace.getConfiguwation();
+			fow (const wanguage of wanguages) {
+				const inspect = configuwation.inspect(`[${wanguage}]`);
+				if (!inspect || !inspect.defauwtVawue) {
+					const item = new vscode.CompwetionItem(fowmatFunc(wanguage));
+					item.kind = vscode.CompwetionItemKind.Pwopewty;
+					item.wange = wange;
+					compwetionItems.push(item);
 				}
 			}
-			return completionItems;
+			wetuwn compwetionItems;
 		});
 	}
 
-	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
+	pwivate pwovideWanguageOvewwidesCompwetionItems(wocation: Wocation, position: vscode.Position): vscode.PwovidewWesuwt<vscode.CompwetionItem[]> {
 
-		if (location.path.length === 0) {
+		if (wocation.path.wength === 0) {
 
-			let range = this.document.getWordRangeAtPosition(position, /^\s*\[.*]?/) || new vscode.Range(position, position);
-			let text = this.document.getText(range);
-			if (text && text.trim().startsWith('[')) {
-				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + text.indexOf('[')), range.end);
-				return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
+			wet wange = this.document.getWowdWangeAtPosition(position, /^\s*\[.*]?/) || new vscode.Wange(position, position);
+			wet text = this.document.getText(wange);
+			if (text && text.twim().stawtsWith('[')) {
+				wange = new vscode.Wange(new vscode.Position(wange.stawt.wine, wange.stawt.chawacta + text.indexOf('[')), wange.end);
+				wetuwn this.pwovideWanguageCompwetionItemsFowWanguageOvewwides(wocation, wange, wanguage => `"[${wanguage}]"`);
 			}
 
-			range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			text = this.document.getText(range);
-			let snippet = '"[${1:language}]": {\n\t"$0"\n}';
+			wange = this.document.getWowdWangeAtPosition(position) || new vscode.Wange(position, position);
+			text = this.document.getText(wange);
+			wet snippet = '"[${1:wanguage}]": {\n\t"$0"\n}';
 
-			// Suggestion model word matching includes quotes,
-			// hence exclude the starting quote from the snippet and the range
-			// ending quote gets replaced
-			if (text && text.startsWith('"')) {
-				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 1), range.end);
-				snippet = snippet.substring(1);
+			// Suggestion modew wowd matching incwudes quotes,
+			// hence excwude the stawting quote fwom the snippet and the wange
+			// ending quote gets wepwaced
+			if (text && text.stawtsWith('"')) {
+				wange = new vscode.Wange(new vscode.Position(wange.stawt.wine, wange.stawt.chawacta + 1), wange.end);
+				snippet = snippet.substwing(1);
 			}
 
-			return Promise.resolve([this.newSnippetCompletionItem({
-				label: localize('languageSpecificEditorSettings', "Language specific editor settings"),
-				documentation: localize('languageSpecificEditorSettingsDescription', "Override editor settings for language"),
+			wetuwn Pwomise.wesowve([this.newSnippetCompwetionItem({
+				wabew: wocawize('wanguageSpecificEditowSettings', "Wanguage specific editow settings"),
+				documentation: wocawize('wanguageSpecificEditowSettingsDescwiption', "Ovewwide editow settings fow wanguage"),
 				snippet,
-				range
+				wange
 			})]);
 		}
 
-		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
-			// Suggestion model word matching includes closed sqaure bracket and ending quote
-			// Hence include them in the proposal to replace
-			const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
+		if (wocation.path.wength === 1 && wocation.pweviousNode && typeof wocation.pweviousNode.vawue === 'stwing' && wocation.pweviousNode.vawue.stawtsWith('[')) {
+			// Suggestion modew wowd matching incwudes cwosed sqauwe bwacket and ending quote
+			// Hence incwude them in the pwoposaw to wepwace
+			const wange = this.document.getWowdWangeAtPosition(position) || new vscode.Wange(position, position);
+			wetuwn this.pwovideWanguageCompwetionItemsFowWanguageOvewwides(wocation, wange, wanguage => `"[${wanguage}]"`);
 		}
-		return Promise.resolve([]);
+		wetuwn Pwomise.wesowve([]);
 	}
 
-	private providePortsAttributesCompletionItem(range: vscode.Range): vscode.CompletionItem[] {
-		return [this.newSnippetCompletionItem(
+	pwivate pwovidePowtsAttwibutesCompwetionItem(wange: vscode.Wange): vscode.CompwetionItem[] {
+		wetuwn [this.newSnippetCompwetionItem(
 			{
-				label: '\"3000\"',
-				documentation: 'Single Port Attribute',
-				range,
-				snippet: '\n  \"${1:3000}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+				wabew: '\"3000\"',
+				documentation: 'Singwe Powt Attwibute',
+				wange,
+				snippet: '\n  \"${1:3000}\": {\n    \"wabew\": \"${2:Appwication}\",\n    \"onAutoFowwawd\": \"${3:openPweview}\"\n  }\n'
 			}),
-		this.newSnippetCompletionItem(
+		this.newSnippetCompwetionItem(
 			{
-				label: '\"5000-6000\"',
-				documentation: 'Ranged Port Attribute',
-				range,
-				snippet: '\n  \"${1:40000-55000}\": {\n    \"onAutoForward\": \"${2:ignore}\"\n  }\n'
+				wabew: '\"5000-6000\"',
+				documentation: 'Wanged Powt Attwibute',
+				wange,
+				snippet: '\n  \"${1:40000-55000}\": {\n    \"onAutoFowwawd\": \"${2:ignowe}\"\n  }\n'
 			}),
-		this.newSnippetCompletionItem(
+		this.newSnippetCompwetionItem(
 			{
-				label: '\".+\\\\/server.js\"',
-				documentation: 'Command Match Port Attribute',
-				range,
-				snippet: '\n  \"${1:.+\\\\/server.js\}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+				wabew: '\".+\\\\/sewva.js\"',
+				documentation: 'Command Match Powt Attwibute',
+				wange,
+				snippet: '\n  \"${1:.+\\\\/sewva.js\}\": {\n    \"wabew\": \"${2:Appwication}\",\n    \"onAutoFowwawd\": \"${3:openPweview}\"\n  }\n'
 			})
 		];
 	}
 
-	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
-		const item = new vscode.CompletionItem(text);
-		item.kind = vscode.CompletionItemKind.Value;
-		item.detail = description;
-		item.insertText = insertText ? insertText : text;
-		item.range = range;
-		return item;
+	pwivate newSimpweCompwetionItem(text: stwing, wange: vscode.Wange, descwiption?: stwing, insewtText?: stwing): vscode.CompwetionItem {
+		const item = new vscode.CompwetionItem(text);
+		item.kind = vscode.CompwetionItemKind.Vawue;
+		item.detaiw = descwiption;
+		item.insewtText = insewtText ? insewtText : text;
+		item.wange = wange;
+		wetuwn item;
 	}
 
-	private newSnippetCompletionItem(o: { label: string; documentation?: string; snippet: string; range: vscode.Range; }): vscode.CompletionItem {
-		const item = new vscode.CompletionItem(o.label);
-		item.kind = vscode.CompletionItemKind.Value;
+	pwivate newSnippetCompwetionItem(o: { wabew: stwing; documentation?: stwing; snippet: stwing; wange: vscode.Wange; }): vscode.CompwetionItem {
+		const item = new vscode.CompwetionItem(o.wabew);
+		item.kind = vscode.CompwetionItemKind.Vawue;
 		item.documentation = o.documentation;
-		item.insertText = new vscode.SnippetString(o.snippet);
-		item.range = o.range;
-		return item;
+		item.insewtText = new vscode.SnippetStwing(o.snippet);
+		item.wange = o.wange;
+		wetuwn item;
 	}
 }

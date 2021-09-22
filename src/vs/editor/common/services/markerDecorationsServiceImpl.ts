@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from 'vs/editor/common/model';
-import { ClassName } from 'vs/editor/common/model/intervalTree';
-import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { Range } from 'vs/editor/common/core/range';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { Schemas } from 'vs/base/common/network';
-import { Emitter, Event } from 'vs/base/common/event';
-import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
-import { ResourceMap } from 'vs/base/common/map';
+impowt { IMawkewSewvice, IMawka, MawkewSevewity, MawkewTag } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModewDewtaDecowation, ITextModew, IModewDecowationOptions, TwackedWangeStickiness, OvewviewWuwewWane, IModewDecowation, MinimapPosition, IModewDecowationMinimapOptions } fwom 'vs/editow/common/modew';
+impowt { CwassName } fwom 'vs/editow/common/modew/intewvawTwee';
+impowt { themeCowowFwomId, ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ovewviewWuwewWawning, ovewviewWuwewInfo, ovewviewWuwewEwwow } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { minimapWawning, minimapEwwow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
 
 
-class MarkerDecorations extends Disposable {
+cwass MawkewDecowations extends Disposabwe {
 
-	private readonly _markersData: Map<string, IMarker> = new Map<string, IMarker>();
+	pwivate weadonwy _mawkewsData: Map<stwing, IMawka> = new Map<stwing, IMawka>();
 
-	constructor(
-		readonly model: ITextModel
+	constwuctow(
+		weadonwy modew: ITextModew
 	) {
-		super();
-		this._register(toDisposable(() => {
-			this.model.deltaDecorations([...this._markersData.keys()], []);
-			this._markersData.clear();
+		supa();
+		this._wegista(toDisposabwe(() => {
+			this.modew.dewtaDecowations([...this._mawkewsData.keys()], []);
+			this._mawkewsData.cweaw();
 		}));
 	}
 
-	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
-		const oldIds = [...this._markersData.keys()];
-		this._markersData.clear();
-		const ids = this.model.deltaDecorations(oldIds, newDecorations);
-		for (let index = 0; index < ids.length; index++) {
-			this._markersData.set(ids[index], markers[index]);
+	pubwic update(mawkews: IMawka[], newDecowations: IModewDewtaDecowation[]): boowean {
+		const owdIds = [...this._mawkewsData.keys()];
+		this._mawkewsData.cweaw();
+		const ids = this.modew.dewtaDecowations(owdIds, newDecowations);
+		fow (wet index = 0; index < ids.wength; index++) {
+			this._mawkewsData.set(ids[index], mawkews[index]);
 		}
-		return oldIds.length !== 0 || ids.length !== 0;
+		wetuwn owdIds.wength !== 0 || ids.wength !== 0;
 	}
 
-	getMarker(decoration: IModelDecoration): IMarker | undefined {
-		return this._markersData.get(decoration.id);
+	getMawka(decowation: IModewDecowation): IMawka | undefined {
+		wetuwn this._mawkewsData.get(decowation.id);
 	}
 
-	getMarkers(): [Range, IMarker][] {
-		const res: [Range, IMarker][] = [];
-		this._markersData.forEach((marker, id) => {
-			let range = this.model.getDecorationRange(id);
-			if (range) {
-				res.push([range, marker]);
+	getMawkews(): [Wange, IMawka][] {
+		const wes: [Wange, IMawka][] = [];
+		this._mawkewsData.fowEach((mawka, id) => {
+			wet wange = this.modew.getDecowationWange(id);
+			if (wange) {
+				wes.push([wange, mawka]);
 			}
 		});
-		return res;
+		wetuwn wes;
 	}
 }
 
-export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
+expowt cwass MawkewDecowationsSewvice extends Disposabwe impwements IMawkewDecowationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
-	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
+	pwivate weadonwy _onDidChangeMawka = this._wegista(new Emitta<ITextModew>());
+	weadonwy onDidChangeMawka: Event<ITextModew> = this._onDidChangeMawka.event;
 
-	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
+	pwivate weadonwy _mawkewDecowations = new WesouwceMap<MawkewDecowations>();
 
-	constructor(
-		@IModelService modelService: IModelService,
-		@IMarkerService private readonly _markerService: IMarkerService
+	constwuctow(
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IMawkewSewvice pwivate weadonwy _mawkewSewvice: IMawkewSewvice
 	) {
-		super();
-		modelService.getModels().forEach(model => this._onModelAdded(model));
-		this._register(modelService.onModelAdded(this._onModelAdded, this));
-		this._register(modelService.onModelRemoved(this._onModelRemoved, this));
-		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
+		supa();
+		modewSewvice.getModews().fowEach(modew => this._onModewAdded(modew));
+		this._wegista(modewSewvice.onModewAdded(this._onModewAdded, this));
+		this._wegista(modewSewvice.onModewWemoved(this._onModewWemoved, this));
+		this._wegista(this._mawkewSewvice.onMawkewChanged(this._handweMawkewChange, this));
 	}
 
-	override dispose() {
-		super.dispose();
-		this._markerDecorations.forEach(value => value.dispose());
-		this._markerDecorations.clear();
+	ovewwide dispose() {
+		supa.dispose();
+		this._mawkewDecowations.fowEach(vawue => vawue.dispose());
+		this._mawkewDecowations.cweaw();
 	}
 
-	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(uri);
-		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
+	getMawka(uwi: UWI, decowation: IModewDecowation): IMawka | nuww {
+		const mawkewDecowations = this._mawkewDecowations.get(uwi);
+		wetuwn mawkewDecowations ? (mawkewDecowations.getMawka(decowation) || nuww) : nuww;
 	}
 
-	getLiveMarkers(uri: URI): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(uri);
-		return markerDecorations ? markerDecorations.getMarkers() : [];
+	getWiveMawkews(uwi: UWI): [Wange, IMawka][] {
+		const mawkewDecowations = this._mawkewDecowations.get(uwi);
+		wetuwn mawkewDecowations ? mawkewDecowations.getMawkews() : [];
 	}
 
-	private _handleMarkerChange(changedResources: readonly URI[]): void {
-		changedResources.forEach((resource) => {
-			const markerDecorations = this._markerDecorations.get(resource);
-			if (markerDecorations) {
-				this._updateDecorations(markerDecorations);
+	pwivate _handweMawkewChange(changedWesouwces: weadonwy UWI[]): void {
+		changedWesouwces.fowEach((wesouwce) => {
+			const mawkewDecowations = this._mawkewDecowations.get(wesouwce);
+			if (mawkewDecowations) {
+				this._updateDecowations(mawkewDecowations);
 			}
 		});
 	}
 
-	private _onModelAdded(model: ITextModel): void {
-		const markerDecorations = new MarkerDecorations(model);
-		this._markerDecorations.set(model.uri, markerDecorations);
-		this._updateDecorations(markerDecorations);
+	pwivate _onModewAdded(modew: ITextModew): void {
+		const mawkewDecowations = new MawkewDecowations(modew);
+		this._mawkewDecowations.set(modew.uwi, mawkewDecowations);
+		this._updateDecowations(mawkewDecowations);
 	}
 
-	private _onModelRemoved(model: ITextModel): void {
-		const markerDecorations = this._markerDecorations.get(model.uri);
-		if (markerDecorations) {
-			markerDecorations.dispose();
-			this._markerDecorations.delete(model.uri);
+	pwivate _onModewWemoved(modew: ITextModew): void {
+		const mawkewDecowations = this._mawkewDecowations.get(modew.uwi);
+		if (mawkewDecowations) {
+			mawkewDecowations.dispose();
+			this._mawkewDecowations.dewete(modew.uwi);
 		}
 
-		// clean up markers for internal, transient models
-		if (model.uri.scheme === Schemas.inMemory
-			|| model.uri.scheme === Schemas.internal
-			|| model.uri.scheme === Schemas.vscode) {
-			if (this._markerService) {
-				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+		// cwean up mawkews fow intewnaw, twansient modews
+		if (modew.uwi.scheme === Schemas.inMemowy
+			|| modew.uwi.scheme === Schemas.intewnaw
+			|| modew.uwi.scheme === Schemas.vscode) {
+			if (this._mawkewSewvice) {
+				this._mawkewSewvice.wead({ wesouwce: modew.uwi }).map(mawka => mawka.owna).fowEach(owna => this._mawkewSewvice.wemove(owna, [modew.uwi]));
 			}
 		}
 	}
 
-	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		// Limit to the first 500 errors/warnings
-		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
-		let newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
-			return {
-				range: this._createDecorationRange(markerDecorations.model, marker),
-				options: this._createDecorationOption(marker)
+	pwivate _updateDecowations(mawkewDecowations: MawkewDecowations): void {
+		// Wimit to the fiwst 500 ewwows/wawnings
+		const mawkews = this._mawkewSewvice.wead({ wesouwce: mawkewDecowations.modew.uwi, take: 500 });
+		wet newModewDecowations: IModewDewtaDecowation[] = mawkews.map((mawka) => {
+			wetuwn {
+				wange: this._cweateDecowationWange(mawkewDecowations.modew, mawka),
+				options: this._cweateDecowationOption(mawka)
 			};
 		});
-		if (markerDecorations.update(markers, newModelDecorations)) {
-			this._onDidChangeMarker.fire(markerDecorations.model);
+		if (mawkewDecowations.update(mawkews, newModewDecowations)) {
+			this._onDidChangeMawka.fiwe(mawkewDecowations.modew);
 		}
 	}
 
-	private _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
+	pwivate _cweateDecowationWange(modew: ITextModew, wawMawka: IMawka): Wange {
 
-		let ret = Range.lift(rawMarker);
+		wet wet = Wange.wift(wawMawka);
 
-		if (rawMarker.severity === MarkerSeverity.Hint && !this._hasMarkerTag(rawMarker, MarkerTag.Unnecessary) && !this._hasMarkerTag(rawMarker, MarkerTag.Deprecated)) {
-			// * never render hints on multiple lines
-			// * make enough space for three dots
-			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
+		if (wawMawka.sevewity === MawkewSevewity.Hint && !this._hasMawkewTag(wawMawka, MawkewTag.Unnecessawy) && !this._hasMawkewTag(wawMawka, MawkewTag.Depwecated)) {
+			// * neva wenda hints on muwtipwe wines
+			// * make enough space fow thwee dots
+			wet = wet.setEndPosition(wet.stawtWineNumba, wet.stawtCowumn + 2);
 		}
 
-		ret = model.validateRange(ret);
+		wet = modew.vawidateWange(wet);
 
-		if (ret.isEmpty()) {
-			let word = model.getWordAtPosition(ret.getStartPosition());
-			if (word) {
-				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
-			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
-					model.getLineMaxColumn(ret.startLineNumber);
+		if (wet.isEmpty()) {
+			wet wowd = modew.getWowdAtPosition(wet.getStawtPosition());
+			if (wowd) {
+				wet = new Wange(wet.stawtWineNumba, wowd.stawtCowumn, wet.endWineNumba, wowd.endCowumn);
+			} ewse {
+				wet maxCowumn = modew.getWineWastNonWhitespaceCowumn(wet.stawtWineNumba) ||
+					modew.getWineMaxCowumn(wet.stawtWineNumba);
 
-				if (maxColumn === 1) {
-					// empty line
-					// console.warn('marker on empty line:', marker);
-				} else if (ret.endColumn >= maxColumn) {
-					// behind eol
-					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
-				} else {
-					// extend marker to width = 1
-					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
+				if (maxCowumn === 1) {
+					// empty wine
+					// consowe.wawn('mawka on empty wine:', mawka);
+				} ewse if (wet.endCowumn >= maxCowumn) {
+					// behind eow
+					wet = new Wange(wet.stawtWineNumba, maxCowumn - 1, wet.endWineNumba, maxCowumn);
+				} ewse {
+					// extend mawka to width = 1
+					wet = new Wange(wet.stawtWineNumba, wet.stawtCowumn, wet.endWineNumba, wet.endCowumn + 1);
 				}
 			}
-		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
-			if (minColumn < ret.endColumn) {
-				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
-				rawMarker.startColumn = minColumn;
+		} ewse if (wawMawka.endCowumn === Numba.MAX_VAWUE && wawMawka.stawtCowumn === 1 && wet.stawtWineNumba === wet.endWineNumba) {
+			wet minCowumn = modew.getWineFiwstNonWhitespaceCowumn(wawMawka.stawtWineNumba);
+			if (minCowumn < wet.endCowumn) {
+				wet = new Wange(wet.stawtWineNumba, minCowumn, wet.endWineNumba, wet.endCowumn);
+				wawMawka.stawtCowumn = minCowumn;
 			}
 		}
-		return ret;
+		wetuwn wet;
 	}
 
-	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {
+	pwivate _cweateDecowationOption(mawka: IMawka): IModewDecowationOptions {
 
-		let className: string | undefined;
-		let color: ThemeColor | undefined = undefined;
-		let zIndex: number;
-		let inlineClassName: string | undefined = undefined;
-		let minimap: IModelDecorationMinimapOptions | undefined;
+		wet cwassName: stwing | undefined;
+		wet cowow: ThemeCowow | undefined = undefined;
+		wet zIndex: numba;
+		wet inwineCwassName: stwing | undefined = undefined;
+		wet minimap: IModewDecowationMinimapOptions | undefined;
 
-		switch (marker.severity) {
-			case MarkerSeverity.Hint:
-				if (this._hasMarkerTag(marker, MarkerTag.Deprecated)) {
-					className = undefined;
-				} else if (this._hasMarkerTag(marker, MarkerTag.Unnecessary)) {
-					className = ClassName.EditorUnnecessaryDecoration;
-				} else {
-					className = ClassName.EditorHintDecoration;
+		switch (mawka.sevewity) {
+			case MawkewSevewity.Hint:
+				if (this._hasMawkewTag(mawka, MawkewTag.Depwecated)) {
+					cwassName = undefined;
+				} ewse if (this._hasMawkewTag(mawka, MawkewTag.Unnecessawy)) {
+					cwassName = CwassName.EditowUnnecessawyDecowation;
+				} ewse {
+					cwassName = CwassName.EditowHintDecowation;
 				}
 				zIndex = 0;
-				break;
-			case MarkerSeverity.Warning:
-				className = ClassName.EditorWarningDecoration;
-				color = themeColorFromId(overviewRulerWarning);
+				bweak;
+			case MawkewSevewity.Wawning:
+				cwassName = CwassName.EditowWawningDecowation;
+				cowow = themeCowowFwomId(ovewviewWuwewWawning);
 				zIndex = 20;
 				minimap = {
-					color: themeColorFromId(minimapWarning),
-					position: MinimapPosition.Inline
+					cowow: themeCowowFwomId(minimapWawning),
+					position: MinimapPosition.Inwine
 				};
-				break;
-			case MarkerSeverity.Info:
-				className = ClassName.EditorInfoDecoration;
-				color = themeColorFromId(overviewRulerInfo);
+				bweak;
+			case MawkewSevewity.Info:
+				cwassName = CwassName.EditowInfoDecowation;
+				cowow = themeCowowFwomId(ovewviewWuwewInfo);
 				zIndex = 10;
-				break;
-			case MarkerSeverity.Error:
-			default:
-				className = ClassName.EditorErrorDecoration;
-				color = themeColorFromId(overviewRulerError);
+				bweak;
+			case MawkewSevewity.Ewwow:
+			defauwt:
+				cwassName = CwassName.EditowEwwowDecowation;
+				cowow = themeCowowFwomId(ovewviewWuwewEwwow);
 				zIndex = 30;
 				minimap = {
-					color: themeColorFromId(minimapError),
-					position: MinimapPosition.Inline
+					cowow: themeCowowFwomId(minimapEwwow),
+					position: MinimapPosition.Inwine
 				};
-				break;
+				bweak;
 		}
 
-		if (marker.tags) {
-			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
-				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
+		if (mawka.tags) {
+			if (mawka.tags.indexOf(MawkewTag.Unnecessawy) !== -1) {
+				inwineCwassName = CwassName.EditowUnnecessawyInwineDecowation;
 			}
-			if (marker.tags.indexOf(MarkerTag.Deprecated) !== -1) {
-				inlineClassName = ClassName.EditorDeprecatedInlineDecoration;
+			if (mawka.tags.indexOf(MawkewTag.Depwecated) !== -1) {
+				inwineCwassName = CwassName.EditowDepwecatedInwineDecowation;
 			}
 		}
 
-		return {
-			description: 'marker-decoration',
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			className,
-			showIfCollapsed: true,
-			overviewRuler: {
-				color,
-				position: OverviewRulerLane.Right
+		wetuwn {
+			descwiption: 'mawka-decowation',
+			stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+			cwassName,
+			showIfCowwapsed: twue,
+			ovewviewWuwa: {
+				cowow,
+				position: OvewviewWuwewWane.Wight
 			},
 			minimap,
 			zIndex,
-			inlineClassName,
+			inwineCwassName,
 		};
 	}
 
-	private _hasMarkerTag(marker: IMarker, tag: MarkerTag): boolean {
-		if (marker.tags) {
-			return marker.tags.indexOf(tag) >= 0;
+	pwivate _hasMawkewTag(mawka: IMawka, tag: MawkewTag): boowean {
+		if (mawka.tags) {
+			wetuwn mawka.tags.indexOf(tag) >= 0;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

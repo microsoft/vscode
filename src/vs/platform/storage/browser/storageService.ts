@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { InMemowyStowageDatabase, isStowageItemsChangeEvent, IStowage, IStowageDatabase, IStowageItemsChangeEvent, IUpdateWequest, Stowage } fwom 'vs/base/pawts/stowage/common/stowage';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { AbstwactStowageSewvice, IS_NEW_KEY, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkspaceInitiawizationPaywoad } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export class BrowserStorageService extends AbstractStorageService {
+expowt cwass BwowsewStowageSewvice extends AbstwactStowageSewvice {
 
-	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
+	pwivate static BWOWSEW_DEFAUWT_FWUSH_INTEWVAW = 5 * 1000; // evewy 5s because async opewations awe not pewmitted on shutdown
 
-	private globalStorage: IStorage | undefined;
-	private workspaceStorage: IStorage | undefined;
+	pwivate gwobawStowage: IStowage | undefined;
+	pwivate wowkspaceStowage: IStowage | undefined;
 
-	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
-	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	pwivate gwobawStowageDatabase: IIndexedDBStowageDatabase | undefined;
+	pwivate wowkspaceStowageDatabase: IIndexedDBStowageDatabase | undefined;
 
-	get hasPendingUpdate(): boolean {
-		return Boolean(this.globalStorageDatabase?.hasPendingUpdate || this.workspaceStorageDatabase?.hasPendingUpdate);
+	get hasPendingUpdate(): boowean {
+		wetuwn Boowean(this.gwobawStowageDatabase?.hasPendingUpdate || this.wowkspaceStowageDatabase?.hasPendingUpdate);
 	}
 
-	constructor(
-		private readonly payload: IWorkspaceInitializationPayload,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		pwivate weadonwy paywoad: IWowkspaceInitiawizationPaywoad,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+		supa({ fwushIntewvaw: BwowsewStowageSewvice.BWOWSEW_DEFAUWT_FWUSH_INTEWVAW });
 	}
 
-	private getId(scope: StorageScope): string {
-		return scope === StorageScope.GLOBAL ? 'global' : this.payload.id;
+	pwivate getId(scope: StowageScope): stwing {
+		wetuwn scope === StowageScope.GWOBAW ? 'gwobaw' : this.paywoad.id;
 	}
 
-	protected async doInitialize(): Promise<void> {
+	pwotected async doInitiawize(): Pwomise<void> {
 
-		// Create Storage in Parallel
-		const [workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled([
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService),
-			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true /* only for global storage */ }, this.logService)
+		// Cweate Stowage in Pawawwew
+		const [wowkspaceStowageDatabase, gwobawStowageDatabase] = await Pwomises.settwed([
+			IndexedDBStowageDatabase.cweate({ id: this.getId(StowageScope.WOWKSPACE) }, this.wogSewvice),
+			IndexedDBStowageDatabase.cweate({ id: this.getId(StowageScope.GWOBAW), bwoadcastChanges: twue /* onwy fow gwobaw stowage */ }, this.wogSewvice)
 		]);
 
-		// Workspace Storage
-		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
-		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+		// Wowkspace Stowage
+		this.wowkspaceStowageDatabase = this._wegista(wowkspaceStowageDatabase);
+		this.wowkspaceStowage = this._wegista(new Stowage(this.wowkspaceStowageDatabase));
+		this._wegista(this.wowkspaceStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.WOWKSPACE, key)));
 
-		// Global Storage
-		this.globalStorageDatabase = this._register(globalStorageDatabase);
-		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		// Gwobaw Stowage
+		this.gwobawStowageDatabase = this._wegista(gwobawStowageDatabase);
+		this.gwobawStowage = this._wegista(new Stowage(this.gwobawStowageDatabase));
+		this._wegista(this.gwobawStowage.onDidChangeStowage(key => this.emitDidChangeVawue(StowageScope.GWOBAW, key)));
 
 		// Init both
-		await Promises.settled([
-			this.workspaceStorage.init(),
-			this.globalStorage.init()
+		await Pwomises.settwed([
+			this.wowkspaceStowage.init(),
+			this.gwobawStowage.init()
 		]);
 
-		// Check to see if this is the first time we are "opening" the application
-		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
-		if (firstOpen === undefined) {
-			this.globalStorage.set(IS_NEW_KEY, true);
-		} else if (firstOpen) {
-			this.globalStorage.set(IS_NEW_KEY, false);
+		// Check to see if this is the fiwst time we awe "opening" the appwication
+		const fiwstOpen = this.gwobawStowage.getBoowean(IS_NEW_KEY);
+		if (fiwstOpen === undefined) {
+			this.gwobawStowage.set(IS_NEW_KEY, twue);
+		} ewse if (fiwstOpen) {
+			this.gwobawStowage.set(IS_NEW_KEY, fawse);
 		}
 
-		// Check to see if this is the first time we are "opening" this workspace
-		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
-		if (firstWorkspaceOpen === undefined) {
-			this.workspaceStorage.set(IS_NEW_KEY, true);
-		} else if (firstWorkspaceOpen) {
-			this.workspaceStorage.set(IS_NEW_KEY, false);
+		// Check to see if this is the fiwst time we awe "opening" this wowkspace
+		const fiwstWowkspaceOpen = this.wowkspaceStowage.getBoowean(IS_NEW_KEY);
+		if (fiwstWowkspaceOpen === undefined) {
+			this.wowkspaceStowage.set(IS_NEW_KEY, twue);
+		} ewse if (fiwstWowkspaceOpen) {
+			this.wowkspaceStowage.set(IS_NEW_KEY, fawse);
 		}
 	}
 
-	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	pwotected getStowage(scope: StowageScope): IStowage | undefined {
+		wetuwn scope === StowageScope.GWOBAW ? this.gwobawStowage : this.wowkspaceStowage;
 	}
 
-	protected getLogDetails(scope: StorageScope): string | undefined {
-		return this.getId(scope);
+	pwotected getWogDetaiws(scope: StowageScope): stwing | undefined {
+		wetuwn this.getId(scope);
 	}
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
-		throw new Error('Migrating storage is currently unsupported in Web');
+	async migwate(toWowkspace: IWowkspaceInitiawizationPaywoad): Pwomise<void> {
+		thwow new Ewwow('Migwating stowage is cuwwentwy unsuppowted in Web');
 	}
 
-	protected override shouldFlushWhenIdle(): boolean {
-		// this flush() will potentially cause new state to be stored
-		// since new state will only be created while the document
-		// has focus, one optimization is to not run this when the
+	pwotected ovewwide shouwdFwushWhenIdwe(): boowean {
+		// this fwush() wiww potentiawwy cause new state to be stowed
+		// since new state wiww onwy be cweated whiwe the document
+		// has focus, one optimization is to not wun this when the
 		// document has no focus, assuming that state has not changed
 		//
-		// another optimization is to not collect more state if we
-		// have a pending update already running which indicates
-		// that the connection is either slow or disconnected and
-		// thus unhealthy.
-		return document.hasFocus() && !this.hasPendingUpdate;
+		// anotha optimization is to not cowwect mowe state if we
+		// have a pending update awweady wunning which indicates
+		// that the connection is eitha swow ow disconnected and
+		// thus unheawthy.
+		wetuwn document.hasFocus() && !this.hasPendingUpdate;
 	}
 
-	close(): void {
-		// We explicitly do not close our DBs because writing data onBeforeUnload()
-		// can result in unexpected results. Namely, it seems that - even though this
-		// operation is async - sometimes it is being triggered on unload and
-		// succeeds. Often though, the DBs turn out to be empty because the write
-		// never had a chance to complete.
+	cwose(): void {
+		// We expwicitwy do not cwose ouw DBs because wwiting data onBefoweUnwoad()
+		// can wesuwt in unexpected wesuwts. Namewy, it seems that - even though this
+		// opewation is async - sometimes it is being twiggewed on unwoad and
+		// succeeds. Often though, the DBs tuwn out to be empty because the wwite
+		// neva had a chance to compwete.
 		//
-		// Instead we trigger dispose() to ensure that no timeouts or callbacks
-		// get triggered in this phase.
+		// Instead we twigga dispose() to ensuwe that no timeouts ow cawwbacks
+		// get twiggewed in this phase.
 		this.dispose();
 	}
 
-	async clear(): Promise<void> {
+	async cweaw(): Pwomise<void> {
 
-		// Clear key/values
-		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
-			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
-				for (const key of this.keys(scope, target)) {
-					this.remove(key, scope);
+		// Cweaw key/vawues
+		fow (const scope of [StowageScope.GWOBAW, StowageScope.WOWKSPACE]) {
+			fow (const tawget of [StowageTawget.USa, StowageTawget.MACHINE]) {
+				fow (const key of this.keys(scope, tawget)) {
+					this.wemove(key, scope);
 				}
 			}
 
-			await this.getStorage(scope)?.whenFlushed();
+			await this.getStowage(scope)?.whenFwushed();
 		}
 
-		// Clear databases
-		await Promises.settled([
-			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
-			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
+		// Cweaw databases
+		await Pwomises.settwed([
+			this.gwobawStowageDatabase?.cweaw() ?? Pwomise.wesowve(),
+			this.wowkspaceStowageDatabase?.cweaw() ?? Pwomise.wesowve()
 		]);
 	}
 }
 
-interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable {
+intewface IIndexedDBStowageDatabase extends IStowageDatabase, IDisposabwe {
 
 	/**
-	 * Whether an update in the DB is currently pending
-	 * (either update or delete operation).
+	 * Whetha an update in the DB is cuwwentwy pending
+	 * (eitha update ow dewete opewation).
 	 */
-	readonly hasPendingUpdate: boolean;
+	weadonwy hasPendingUpdate: boowean;
 
 	/**
-	 * For testing only.
+	 * Fow testing onwy.
 	 */
-	clear(): Promise<void>;
+	cweaw(): Pwomise<void>;
 }
 
-class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implements IIndexedDBStorageDatabase {
+cwass InMemowyIndexedDBStowageDatabase extends InMemowyStowageDatabase impwements IIndexedDBStowageDatabase {
 
-	readonly hasPendingUpdate = false;
+	weadonwy hasPendingUpdate = fawse;
 
-	async clear(): Promise<void> {
-		(await this.getItems()).clear();
+	async cweaw(): Pwomise<void> {
+		(await this.getItems()).cweaw();
 	}
 
 	dispose(): void {
@@ -163,212 +163,212 @@ class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implement
 	}
 }
 
-interface IndexedDBStorageDatabaseOptions {
-	id: string;
-	broadcastChanges?: boolean;
+intewface IndexedDBStowageDatabaseOptions {
+	id: stwing;
+	bwoadcastChanges?: boowean;
 }
 
-export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBStorageDatabase {
+expowt cwass IndexedDBStowageDatabase extends Disposabwe impwements IIndexedDBStowageDatabase {
 
-	static async create(options: IndexedDBStorageDatabaseOptions, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
-		try {
-			const database = new IndexedDBStorageDatabase(options, logService);
+	static async cweate(options: IndexedDBStowageDatabaseOptions, wogSewvice: IWogSewvice): Pwomise<IIndexedDBStowageDatabase> {
+		twy {
+			const database = new IndexedDBStowageDatabase(options, wogSewvice);
 			await database.whenConnected;
 
-			return database;
-		} catch (error) {
-			logService.error(`[IndexedDB Storage ${options.id}] create(): ${toErrorMessage(error, true)}`);
+			wetuwn database;
+		} catch (ewwow) {
+			wogSewvice.ewwow(`[IndexedDB Stowage ${options.id}] cweate(): ${toEwwowMessage(ewwow, twue)}`);
 
-			return new InMemoryIndexedDBStorageDatabase();
+			wetuwn new InMemowyIndexedDBStowageDatabase();
 		}
 	}
 
-	private static readonly STORAGE_DATABASE_PREFIX = 'vscode-web-state-db-';
-	private static readonly STORAGE_OBJECT_STORE = 'ItemTable';
+	pwivate static weadonwy STOWAGE_DATABASE_PWEFIX = 'vscode-web-state-db-';
+	pwivate static weadonwy STOWAGE_OBJECT_STOWE = 'ItemTabwe';
 
-	private static readonly STORAGE_BROADCAST_CHANNEL = 'vscode.web.state.changes';
+	pwivate static weadonwy STOWAGE_BWOADCAST_CHANNEW = 'vscode.web.state.changes';
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+	pwivate weadonwy _onDidChangeItemsExtewnaw = this._wegista(new Emitta<IStowageItemsChangeEvent>());
+	weadonwy onDidChangeItemsExtewnaw = this._onDidChangeItemsExtewnaw.event;
 
-	private broadcastChannel: BroadcastChannel | undefined;
+	pwivate bwoadcastChannew: BwoadcastChannew | undefined;
 
-	private pendingUpdate: Promise<boolean> | undefined = undefined;
-	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
+	pwivate pendingUpdate: Pwomise<boowean> | undefined = undefined;
+	get hasPendingUpdate(): boowean { wetuwn !!this.pendingUpdate; }
 
-	private readonly name: string;
-	private readonly whenConnected: Promise<IDBDatabase>;
+	pwivate weadonwy name: stwing;
+	pwivate weadonwy whenConnected: Pwomise<IDBDatabase>;
 
-	private constructor(
-		options: IndexedDBStorageDatabaseOptions,
-		private readonly logService: ILogService
+	pwivate constwuctow(
+		options: IndexedDBStowageDatabaseOptions,
+		pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${options.id}`;
-		this.broadcastChannel = options.broadcastChanges && ('BroadcastChannel' in window) ? new BroadcastChannel(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL) : undefined;
+		this.name = `${IndexedDBStowageDatabase.STOWAGE_DATABASE_PWEFIX}${options.id}`;
+		this.bwoadcastChannew = options.bwoadcastChanges && ('BwoadcastChannew' in window) ? new BwoadcastChannew(IndexedDBStowageDatabase.STOWAGE_BWOADCAST_CHANNEW) : undefined;
 
 		this.whenConnected = this.connect();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Check for global storage change events from other
-		// windows/tabs via `BroadcastChannel` mechanisms.
-		if (this.broadcastChannel) {
-			const listener = (event: MessageEvent) => {
-				if (isStorageItemsChangeEvent(event.data)) {
-					this._onDidChangeItemsExternal.fire(event.data);
+		// Check fow gwobaw stowage change events fwom otha
+		// windows/tabs via `BwoadcastChannew` mechanisms.
+		if (this.bwoadcastChannew) {
+			const wistena = (event: MessageEvent) => {
+				if (isStowageItemsChangeEvent(event.data)) {
+					this._onDidChangeItemsExtewnaw.fiwe(event.data);
 				}
 			};
 
-			this.broadcastChannel.addEventListener('message', listener);
-			this._register(toDisposable(() => {
-				this.broadcastChannel?.removeEventListener('message', listener);
-				this.broadcastChannel?.close();
+			this.bwoadcastChannew.addEventWistena('message', wistena);
+			this._wegista(toDisposabwe(() => {
+				this.bwoadcastChannew?.wemoveEventWistena('message', wistena);
+				this.bwoadcastChannew?.cwose();
 			}));
 		}
 	}
 
-	private connect(): Promise<IDBDatabase> {
-		return new Promise<IDBDatabase>((resolve, reject) => {
-			const request = window.indexedDB.open(this.name);
+	pwivate connect(): Pwomise<IDBDatabase> {
+		wetuwn new Pwomise<IDBDatabase>((wesowve, weject) => {
+			const wequest = window.indexedDB.open(this.name);
 
-			// Create `ItemTable` object-store when this DB is new
-			request.onupgradeneeded = () => {
-				request.result.createObjectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+			// Cweate `ItemTabwe` object-stowe when this DB is new
+			wequest.onupgwadeneeded = () => {
+				wequest.wesuwt.cweateObjectStowe(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE);
 			};
 
-			// IndexedDB opened successfully
-			request.onsuccess = () => resolve(request.result);
+			// IndexedDB opened successfuwwy
+			wequest.onsuccess = () => wesowve(wequest.wesuwt);
 
-			// Fail on error (we will then fallback to in-memory DB)
-			request.onerror = () => reject(request.error);
+			// Faiw on ewwow (we wiww then fawwback to in-memowy DB)
+			wequest.onewwow = () => weject(wequest.ewwow);
 		});
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return new Promise<Map<string, string>>(async resolve => {
-			const items = new Map<string, string>();
+	getItems(): Pwomise<Map<stwing, stwing>> {
+		wetuwn new Pwomise<Map<stwing, stwing>>(async wesowve => {
+			const items = new Map<stwing, stwing>();
 
-			// Open a IndexedDB Cursor to iterate over key/values
+			// Open a IndexedDB Cuwsow to itewate ova key/vawues
 			const db = await this.whenConnected;
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			const cursor = objectStore.openCursor();
-			if (!cursor) {
-				return resolve(items); // this means the `ItemTable` was empty
+			const twansaction = db.twansaction(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE, 'weadonwy');
+			const objectStowe = twansaction.objectStowe(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE);
+			const cuwsow = objectStowe.openCuwsow();
+			if (!cuwsow) {
+				wetuwn wesowve(items); // this means the `ItemTabwe` was empty
 			}
 
-			// Iterate over rows of `ItemTable` until the end
-			cursor.onsuccess = () => {
-				if (cursor.result) {
+			// Itewate ova wows of `ItemTabwe` untiw the end
+			cuwsow.onsuccess = () => {
+				if (cuwsow.wesuwt) {
 
-					// Keep cursor key/value in our map
-					if (typeof cursor.result.value === 'string') {
-						items.set(cursor.result.key.toString(), cursor.result.value);
+					// Keep cuwsow key/vawue in ouw map
+					if (typeof cuwsow.wesuwt.vawue === 'stwing') {
+						items.set(cuwsow.wesuwt.key.toStwing(), cuwsow.wesuwt.vawue);
 					}
 
-					// Advance cursor to next row
-					cursor.result.continue();
-				} else {
-					resolve(items); // reached end of table
+					// Advance cuwsow to next wow
+					cuwsow.wesuwt.continue();
+				} ewse {
+					wesowve(items); // weached end of tabwe
 				}
 			};
 
-			const onError = (error: Error | null) => {
-				this.logService.error(`[IndexedDB Storage ${this.name}] getItems(): ${toErrorMessage(error, true)}`);
+			const onEwwow = (ewwow: Ewwow | nuww) => {
+				this.wogSewvice.ewwow(`[IndexedDB Stowage ${this.name}] getItems(): ${toEwwowMessage(ewwow, twue)}`);
 
-				resolve(items);
+				wesowve(items);
 			};
 
-			// Error handlers
-			cursor.onerror = () => onError(cursor.error);
-			transaction.onerror = () => onError(transaction.error);
+			// Ewwow handwews
+			cuwsow.onewwow = () => onEwwow(cuwsow.ewwow);
+			twansaction.onewwow = () => onEwwow(twansaction.ewwow);
 		});
 	}
 
-	async updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(wequest: IUpdateWequest): Pwomise<void> {
 
-		// Run the update
-		let didUpdate = false;
-		this.pendingUpdate = this.doUpdateItems(request);
-		try {
+		// Wun the update
+		wet didUpdate = fawse;
+		this.pendingUpdate = this.doUpdateItems(wequest);
+		twy {
 			didUpdate = await this.pendingUpdate;
-		} finally {
+		} finawwy {
 			this.pendingUpdate = undefined;
 		}
 
-		// Broadcast changes to other windows/tabs if enabled
-		// and only if we actually did update storage items.
-		if (this.broadcastChannel && didUpdate) {
-			const event: IStorageItemsChangeEvent = {
-				changed: request.insert,
-				deleted: request.delete
+		// Bwoadcast changes to otha windows/tabs if enabwed
+		// and onwy if we actuawwy did update stowage items.
+		if (this.bwoadcastChannew && didUpdate) {
+			const event: IStowageItemsChangeEvent = {
+				changed: wequest.insewt,
+				deweted: wequest.dewete
 			};
 
-			this.broadcastChannel.postMessage(event);
+			this.bwoadcastChannew.postMessage(event);
 		}
 	}
 
-	private async doUpdateItems(request: IUpdateRequest): Promise<boolean> {
+	pwivate async doUpdateItems(wequest: IUpdateWequest): Pwomise<boowean> {
 
-		// Return early if the request is empty
-		const toInsert = request.insert;
-		const toDelete = request.delete;
-		if ((!toInsert && !toDelete) || (toInsert?.size === 0 && toDelete?.size === 0)) {
-			return false;
+		// Wetuwn eawwy if the wequest is empty
+		const toInsewt = wequest.insewt;
+		const toDewete = wequest.dewete;
+		if ((!toInsewt && !toDewete) || (toInsewt?.size === 0 && toDewete?.size === 0)) {
+			wetuwn fawse;
 		}
 
-		// Update `ItemTable` with inserts and/or deletes
-		return new Promise<boolean>(async (resolve, reject) => {
+		// Update `ItemTabwe` with insewts and/ow dewetes
+		wetuwn new Pwomise<boowean>(async (wesowve, weject) => {
 			const db = await this.whenConnected;
 
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve(true);
-			transaction.onerror = () => reject(transaction.error);
+			const twansaction = db.twansaction(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE, 'weadwwite');
+			twansaction.oncompwete = () => wesowve(twue);
+			twansaction.onewwow = () => weject(twansaction.ewwow);
 
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+			const objectStowe = twansaction.objectStowe(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE);
 
-			// Inserts
-			if (toInsert) {
-				for (const [key, value] of toInsert) {
-					objectStore.put(value, key);
+			// Insewts
+			if (toInsewt) {
+				fow (const [key, vawue] of toInsewt) {
+					objectStowe.put(vawue, key);
 				}
 			}
 
-			// Deletes
-			if (toDelete) {
-				for (const key of toDelete) {
-					objectStore.delete(key);
+			// Dewetes
+			if (toDewete) {
+				fow (const key of toDewete) {
+					objectStowe.dewete(key);
 				}
 			}
 		});
 	}
 
-	async close(): Promise<void> {
+	async cwose(): Pwomise<void> {
 		const db = await this.whenConnected;
 
-		// Wait for pending updates to having finished
+		// Wait fow pending updates to having finished
 		await this.pendingUpdate;
 
-		// Finally, close IndexedDB
-		return db.close();
+		// Finawwy, cwose IndexedDB
+		wetuwn db.cwose();
 	}
 
-	clear(): Promise<void> {
-		return new Promise<void>(async (resolve, reject) => {
+	cweaw(): Pwomise<void> {
+		wetuwn new Pwomise<void>(async (wesowve, weject) => {
 			const db = await this.whenConnected;
 
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve();
-			transaction.onerror = () => reject(transaction.error);
+			const twansaction = db.twansaction(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE, 'weadwwite');
+			twansaction.oncompwete = () => wesowve();
+			twansaction.onewwow = () => weject(twansaction.ewwow);
 
-			// Clear every row in the `ItemTable`
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			objectStore.clear();
+			// Cweaw evewy wow in the `ItemTabwe`
+			const objectStowe = twansaction.objectStowe(IndexedDBStowageDatabase.STOWAGE_OBJECT_STOWE);
+			objectStowe.cweaw();
 		});
 	}
 }

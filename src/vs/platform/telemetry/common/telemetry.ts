@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
 
-export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
+expowt const ITewemetwySewvice = cweateDecowatow<ITewemetwySewvice>('tewemetwySewvice');
 
-export interface ITelemetryInfo {
-	sessionId: string;
-	machineId: string;
-	instanceId: string;
-	firstSessionDate: string;
-	msftInternal?: boolean;
+expowt intewface ITewemetwyInfo {
+	sessionId: stwing;
+	machineId: stwing;
+	instanceId: stwing;
+	fiwstSessionDate: stwing;
+	msftIntewnaw?: boowean;
 }
 
-export interface ITelemetryData {
-	from?: string;
-	target?: string;
-	[key: string]: any;
+expowt intewface ITewemetwyData {
+	fwom?: stwing;
+	tawget?: stwing;
+	[key: stwing]: any;
 }
 
-export interface ITelemetryService {
+expowt intewface ITewemetwySewvice {
 
 	/**
-	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
+	 * Whetha ewwow tewemetwy wiww get sent. If fawse, `pubwicWogEwwow` wiww no-op.
 	 */
-	readonly sendErrorTelemetry: boolean;
+	weadonwy sendEwwowTewemetwy: boowean;
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Sends a telemetry event that has been privacy approved.
-	 * Do not call this unless you have been given approval.
+	 * Sends a tewemetwy event that has been pwivacy appwoved.
+	 * Do not caww this unwess you have been given appwovaw.
 	 */
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
+	pubwicWog(eventName: stwing, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<void>;
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>, anonymizeFiwePaths?: boowean): Pwomise<void>;
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void>;
+	pubwicWogEwwow(ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<void>;
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>): Pwomise<void>;
 
-	getTelemetryInfo(): Promise<ITelemetryInfo>;
+	getTewemetwyInfo(): Pwomise<ITewemetwyInfo>;
 
-	setExperimentProperty(name: string, value: string): void;
+	setExpewimentPwopewty(name: stwing, vawue: stwing): void;
 
-	telemetryLevel: TelemetryLevel;
+	tewemetwyWevew: TewemetwyWevew;
 }
 
-export interface ITelemetryEndpoint {
-	id: string;
-	aiKey: string;
-	sendErrorTelemetry: boolean;
+expowt intewface ITewemetwyEndpoint {
+	id: stwing;
+	aiKey: stwing;
+	sendEwwowTewemetwy: boowean;
 }
 
-export const ICustomEndpointTelemetryService = createDecorator<ICustomEndpointTelemetryService>('customEndpointTelemetryService');
+expowt const ICustomEndpointTewemetwySewvice = cweateDecowatow<ICustomEndpointTewemetwySewvice>('customEndpointTewemetwySewvice');
 
-export interface ICustomEndpointTelemetryService {
-	readonly _serviceBrand: undefined;
+expowt intewface ICustomEndpointTewemetwySewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	publicLog(endpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void>;
-	publicLogError(endpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void>;
+	pubwicWog(endpoint: ITewemetwyEndpoint, eventName: stwing, data?: ITewemetwyData): Pwomise<void>;
+	pubwicWogEwwow(endpoint: ITewemetwyEndpoint, ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<void>;
 }
 
 // Keys
-export const instanceStorageKey = 'telemetry.instanceId';
-export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
-export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
-export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
-export const machineIdKey = 'telemetry.machineId';
+expowt const instanceStowageKey = 'tewemetwy.instanceId';
+expowt const cuwwentSessionDateStowageKey = 'tewemetwy.cuwwentSessionDate';
+expowt const fiwstSessionDateStowageKey = 'tewemetwy.fiwstSessionDate';
+expowt const wastSessionDateStowageKey = 'tewemetwy.wastSessionDate';
+expowt const machineIdKey = 'tewemetwy.machineId';
 
-// Configuration Keys
-export const TELEMETRY_SECTION_ID = 'telemetry';
-export const TELEMETRY_SETTING_ID = 'telemetry.telemetryLevel';
-export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
+// Configuwation Keys
+expowt const TEWEMETWY_SECTION_ID = 'tewemetwy';
+expowt const TEWEMETWY_SETTING_ID = 'tewemetwy.tewemetwyWevew';
+expowt const TEWEMETWY_OWD_SETTING_ID = 'tewemetwy.enabweTewemetwy';
 
-export const enum TelemetryLevel {
+expowt const enum TewemetwyWevew {
 	NONE = 0,
-	ERROR = 2,
+	EWWOW = 2,
 	USAGE = 3
 }
 
-export const enum TelemetryConfiguration {
+expowt const enum TewemetwyConfiguwation {
 	OFF = 'off',
-	ERROR = 'error',
+	EWWOW = 'ewwow',
 	ON = 'on'
 }

@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const cp = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const { dirs } = require('./dirs');
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
+const cp = wequiwe('chiwd_pwocess');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const { diws } = wequiwe('./diws');
+const yawn = pwocess.pwatfowm === 'win32' ? 'yawn.cmd' : 'yawn';
 
 /**
- * @param {string} location
- * @param {*} [opts]
+ * @pawam {stwing} wocation
+ * @pawam {*} [opts]
  */
-function yarnInstall(location, opts) {
-	opts = opts || { env: process.env };
-	opts.cwd = location;
-	opts.stdio = 'inherit';
+function yawnInstaww(wocation, opts) {
+	opts = opts || { env: pwocess.env };
+	opts.cwd = wocation;
+	opts.stdio = 'inhewit';
 
-	const raw = process.env['npm_config_argv'] || '{}';
-	const argv = JSON.parse(raw);
-	const original = argv.original || [];
-	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile');
-	if (opts.ignoreEngines) {
-		args.push('--ignore-engines');
-		delete opts.ignoreEngines;
+	const waw = pwocess.env['npm_config_awgv'] || '{}';
+	const awgv = JSON.pawse(waw);
+	const owiginaw = awgv.owiginaw || [];
+	const awgs = owiginaw.fiwta(awg => awg === '--ignowe-optionaw' || awg === '--fwozen-wockfiwe');
+	if (opts.ignoweEngines) {
+		awgs.push('--ignowe-engines');
+		dewete opts.ignoweEngines;
 	}
 
-	console.log(`Installing dependencies in ${location}...`);
-	console.log(`$ yarn ${args.join(' ')}`);
-	const result = cp.spawnSync(yarn, args, opts);
+	consowe.wog(`Instawwing dependencies in ${wocation}...`);
+	consowe.wog(`$ yawn ${awgs.join(' ')}`);
+	const wesuwt = cp.spawnSync(yawn, awgs, opts);
 
-	if (result.error || result.status !== 0) {
-		process.exit(1);
+	if (wesuwt.ewwow || wesuwt.status !== 0) {
+		pwocess.exit(1);
 	}
 }
 
-for (let dir of dirs) {
+fow (wet diw of diws) {
 
-	if (dir === '') {
-		// `yarn` already executed in root
+	if (diw === '') {
+		// `yawn` awweady executed in woot
 		continue;
 	}
 
-	if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
-		// windows arm: do not execute `yarn` on remote folder
+	if (/^wemote/.test(diw) && pwocess.pwatfowm === 'win32' && (pwocess.awch === 'awm64' || pwocess.env['npm_config_awch'] === 'awm64')) {
+		// windows awm: do not execute `yawn` on wemote fowda
 		continue;
 	}
 
-	if (dir === 'build/lib/watch') {
-		// node modules for watching, specific to host node version, not electron
-		yarnInstallBuildDependencies();
+	if (diw === 'buiwd/wib/watch') {
+		// node moduwes fow watching, specific to host node vewsion, not ewectwon
+		yawnInstawwBuiwdDependencies();
 		continue;
 	}
 
-	let opts;
+	wet opts;
 
-	if (dir === 'remote') {
-		// node modules used by vscode server
-		const env = { ...process.env };
-		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
-		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
-		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+	if (diw === 'wemote') {
+		// node moduwes used by vscode sewva
+		const env = { ...pwocess.env };
+		if (pwocess.env['VSCODE_WEMOTE_CC']) { env['CC'] = pwocess.env['VSCODE_WEMOTE_CC']; }
+		if (pwocess.env['VSCODE_WEMOTE_CXX']) { env['CXX'] = pwocess.env['VSCODE_WEMOTE_CXX']; }
+		if (pwocess.env['CXXFWAGS']) { dewete env['CXXFWAGS']; }
+		if (pwocess.env['WDFWAGS']) { dewete env['WDFWAGS']; }
+		if (pwocess.env['VSCODE_WEMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = pwocess.env['VSCODE_WEMOTE_NODE_GYP']; }
 		opts = { env };
-	} else if (/^extensions\//.test(dir)) {
-		opts = { ignoreEngines: true };
+	} ewse if (/^extensions\//.test(diw)) {
+		opts = { ignoweEngines: twue };
 	}
 
-	yarnInstall(dir, opts);
+	yawnInstaww(diw, opts);
 }
 
-function yarnInstallBuildDependencies() {
-	// make sure we install the deps of build/lib/watch for the system installed
-	// node, since that is the driver of gulp
-	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
-	const yarnrcPath = path.join(watchPath, '.yarnrc');
+function yawnInstawwBuiwdDependencies() {
+	// make suwe we instaww the deps of buiwd/wib/watch fow the system instawwed
+	// node, since that is the dwiva of guwp
+	const watchPath = path.join(path.diwname(__diwname), 'wib', 'watch');
+	const yawnwcPath = path.join(watchPath, '.yawnwc');
 
-	const disturl = 'https://nodejs.org/download/release';
-	const target = process.versions.node;
-	const runtime = 'node';
+	const distuww = 'https://nodejs.owg/downwoad/wewease';
+	const tawget = pwocess.vewsions.node;
+	const wuntime = 'node';
 
-	const yarnrc = `disturl "${disturl}"
-target "${target}"
-runtime "${runtime}"`;
+	const yawnwc = `distuww "${distuww}"
+tawget "${tawget}"
+wuntime "${wuntime}"`;
 
-	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
-	yarnInstall(watchPath);
+	fs.wwiteFiweSync(yawnwcPath, yawnwc, 'utf8');
+	yawnInstaww(watchPath);
 }
 
-cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');
+cp.execSync('git config puww.webase mewges');
+cp.execSync('git config bwame.ignoweWevsFiwe .git-bwame-ignowe');

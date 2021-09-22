@@ -1,276 +1,276 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+impowt * as assewt fwom 'assewt';
+impowt { IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ObjectTweeModew } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { ITweeFiwta, ITweeNode, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
 
-function toList<T>(arr: T[]): IList<T> {
-	return {
-		splice(start: number, deleteCount: number, elements: T[]): void {
-			// console.log(`splice (${start}, ${deleteCount}, ${elements.length} [${elements.join(', ')}] )`); // debugging
-			arr.splice(start, deleteCount, ...elements);
+function toWist<T>(aww: T[]): IWist<T> {
+	wetuwn {
+		spwice(stawt: numba, deweteCount: numba, ewements: T[]): void {
+			// consowe.wog(`spwice (${stawt}, ${deweteCount}, ${ewements.wength} [${ewements.join(', ')}] )`); // debugging
+			aww.spwice(stawt, deweteCount, ...ewements);
 		},
-		updateElementHeight() { }
+		updateEwementHeight() { }
 	};
 }
 
-function toArray<T>(list: ITreeNode<T>[]): T[] {
-	return list.map(i => i.element);
+function toAwway<T>(wist: ITweeNode<T>[]): T[] {
+	wetuwn wist.map(i => i.ewement);
 }
 
-suite('ObjectTreeModel', function () {
+suite('ObjectTweeModew', function () {
 
-	test('ctor', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list));
-		assert(model);
-		assert.strictEqual(list.length, 0);
-		assert.strictEqual(model.size, 0);
+	test('ctow', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist));
+		assewt(modew);
+		assewt.stwictEquaw(wist.wength, 0);
+		assewt.stwictEquaw(modew.size, 0);
 	});
 
-	test('flat', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list));
+	test('fwat', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist));
 
-		model.setChildren(null, [
-			{ element: 0 },
-			{ element: 1 },
-			{ element: 2 }
+		modew.setChiwdwen(nuww, [
+			{ ewement: 0 },
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0, 1, 2]);
-		assert.strictEqual(model.size, 3);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2]);
+		assewt.stwictEquaw(modew.size, 3);
 
-		model.setChildren(null, [
-			{ element: 3 },
-			{ element: 4 },
-			{ element: 5 },
+		modew.setChiwdwen(nuww, [
+			{ ewement: 3 },
+			{ ewement: 4 },
+			{ ewement: 5 },
 		]);
 
-		assert.deepStrictEqual(toArray(list), [3, 4, 5]);
-		assert.strictEqual(model.size, 3);
+		assewt.deepStwictEquaw(toAwway(wist), [3, 4, 5]);
+		assewt.stwictEquaw(modew.size, 3);
 
-		model.setChildren(null);
-		assert.deepStrictEqual(toArray(list), []);
-		assert.strictEqual(model.size, 0);
+		modew.setChiwdwen(nuww);
+		assewt.deepStwictEquaw(toAwway(wist), []);
+		assewt.stwictEquaw(modew.size, 0);
 	});
 
 	test('nested', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list));
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist));
 
-		model.setChildren(null, [
+		modew.setChiwdwen(nuww, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0, 10, 11, 12, 1, 2]);
-		assert.strictEqual(model.size, 6);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 10, 11, 12, 1, 2]);
+		assewt.stwictEquaw(modew.size, 6);
 
-		model.setChildren(12, [
-			{ element: 120 },
-			{ element: 121 }
+		modew.setChiwdwen(12, [
+			{ ewement: 120 },
+			{ ewement: 121 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0, 10, 11, 12, 120, 121, 1, 2]);
-		assert.strictEqual(model.size, 8);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 10, 11, 12, 120, 121, 1, 2]);
+		assewt.stwictEquaw(modew.size, 8);
 
-		model.setChildren(0);
-		assert.deepStrictEqual(toArray(list), [0, 1, 2]);
-		assert.strictEqual(model.size, 3);
+		modew.setChiwdwen(0);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2]);
+		assewt.stwictEquaw(modew.size, 3);
 
-		model.setChildren(null);
-		assert.deepStrictEqual(toArray(list), []);
-		assert.strictEqual(model.size, 0);
+		modew.setChiwdwen(nuww);
+		assewt.deepStwictEquaw(toAwway(wist), []);
+		assewt.stwictEquaw(modew.size, 0);
 	});
 
-	test('setChildren on collapsed node', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list));
+	test('setChiwdwen on cowwapsed node', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist));
 
-		model.setChildren(null, [
-			{ element: 0, collapsed: true }
+		modew.setChiwdwen(nuww, [
+			{ ewement: 0, cowwapsed: twue }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0]);
+		assewt.deepStwictEquaw(toAwway(wist), [0]);
 
-		model.setChildren(0, [
-			{ element: 1 },
-			{ element: 2 }
+		modew.setChiwdwen(0, [
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0]);
+		assewt.deepStwictEquaw(toAwway(wist), [0]);
 
-		model.setCollapsed(0, false);
-		assert.deepStrictEqual(toArray(list), [0, 1, 2]);
+		modew.setCowwapsed(0, fawse);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2]);
 	});
 
-	test('setChildren on expanded, unrevealed node', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list));
+	test('setChiwdwen on expanded, unweveawed node', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist));
 
-		model.setChildren(null, [
+		modew.setChiwdwen(nuww, [
 			{
-				element: 1, collapsed: true, children: [
-					{ element: 11, collapsed: false }
+				ewement: 1, cowwapsed: twue, chiwdwen: [
+					{ ewement: 11, cowwapsed: fawse }
 				]
 			},
-			{ element: 2 }
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [1, 2]);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 2]);
 
-		model.setChildren(11, [
-			{ element: 111 },
-			{ element: 112 }
+		modew.setChiwdwen(11, [
+			{ ewement: 111 },
+			{ ewement: 112 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [1, 2]);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 2]);
 
-		model.setCollapsed(1, false);
-		assert.deepStrictEqual(toArray(list), [1, 11, 111, 112, 2]);
+		modew.setCowwapsed(1, fawse);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 11, 111, 112, 2]);
 	});
 
-	test('collapse state is preserved with strict identity', () => {
-		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>('test', toList(list), { collapseByDefault: true });
-		const data = [{ element: 'father', children: [{ element: 'child' }] }];
+	test('cowwapse state is pwesewved with stwict identity', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		const modew = new ObjectTweeModew<stwing>('test', toWist(wist), { cowwapseByDefauwt: twue });
+		const data = [{ ewement: 'fatha', chiwdwen: [{ ewement: 'chiwd' }] }];
 
-		model.setChildren(null, data);
-		assert.deepStrictEqual(toArray(list), ['father']);
+		modew.setChiwdwen(nuww, data);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha']);
 
-		model.setCollapsed('father', false);
-		assert.deepStrictEqual(toArray(list), ['father', 'child']);
+		modew.setCowwapsed('fatha', fawse);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha', 'chiwd']);
 
-		model.setChildren(null, data);
-		assert.deepStrictEqual(toArray(list), ['father', 'child']);
+		modew.setChiwdwen(nuww, data);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha', 'chiwd']);
 
-		const data2 = [{ element: 'father', children: [{ element: 'child' }] }, { element: 'uncle' }];
-		model.setChildren(null, data2);
-		assert.deepStrictEqual(toArray(list), ['father', 'child', 'uncle']);
+		const data2 = [{ ewement: 'fatha', chiwdwen: [{ ewement: 'chiwd' }] }, { ewement: 'uncwe' }];
+		modew.setChiwdwen(nuww, data2);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha', 'chiwd', 'uncwe']);
 
-		model.setChildren(null, [{ element: 'uncle' }]);
-		assert.deepStrictEqual(toArray(list), ['uncle']);
+		modew.setChiwdwen(nuww, [{ ewement: 'uncwe' }]);
+		assewt.deepStwictEquaw(toAwway(wist), ['uncwe']);
 
-		model.setChildren(null, data2);
-		assert.deepStrictEqual(toArray(list), ['father', 'uncle']);
+		modew.setChiwdwen(nuww, data2);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha', 'uncwe']);
 
-		model.setChildren(null, data);
-		assert.deepStrictEqual(toArray(list), ['father']);
+		modew.setChiwdwen(nuww, data);
+		assewt.deepStwictEquaw(toAwway(wist), ['fatha']);
 	});
 
-	test('sorter', () => {
-		let compare: (a: string, b: string) => number = (a, b) => a < b ? -1 : 1;
+	test('sowta', () => {
+		wet compawe: (a: stwing, b: stwing) => numba = (a, b) => a < b ? -1 : 1;
 
-		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>('test', toList(list), { sorter: { compare(a, b) { return compare(a, b); } } });
+		const wist: ITweeNode<stwing>[] = [];
+		const modew = new ObjectTweeModew<stwing>('test', toWist(wist), { sowta: { compawe(a, b) { wetuwn compawe(a, b); } } });
 		const data = [
-			{ element: 'cars', children: [{ element: 'sedan' }, { element: 'convertible' }, { element: 'compact' }] },
-			{ element: 'airplanes', children: [{ element: 'passenger' }, { element: 'jet' }] },
-			{ element: 'bicycles', children: [{ element: 'dutch' }, { element: 'mountain' }, { element: 'electric' }] },
+			{ ewement: 'caws', chiwdwen: [{ ewement: 'sedan' }, { ewement: 'convewtibwe' }, { ewement: 'compact' }] },
+			{ ewement: 'aiwpwanes', chiwdwen: [{ ewement: 'passenga' }, { ewement: 'jet' }] },
+			{ ewement: 'bicycwes', chiwdwen: [{ ewement: 'dutch' }, { ewement: 'mountain' }, { ewement: 'ewectwic' }] },
 		];
 
-		model.setChildren(null, data);
-		assert.deepStrictEqual(toArray(list), ['airplanes', 'jet', 'passenger', 'bicycles', 'dutch', 'electric', 'mountain', 'cars', 'compact', 'convertible', 'sedan']);
+		modew.setChiwdwen(nuww, data);
+		assewt.deepStwictEquaw(toAwway(wist), ['aiwpwanes', 'jet', 'passenga', 'bicycwes', 'dutch', 'ewectwic', 'mountain', 'caws', 'compact', 'convewtibwe', 'sedan']);
 	});
 
-	test('resort', () => {
-		let compare: (a: string, b: string) => number = () => 0;
+	test('wesowt', () => {
+		wet compawe: (a: stwing, b: stwing) => numba = () => 0;
 
-		const list: ITreeNode<string>[] = [];
-		const model = new ObjectTreeModel<string>('test', toList(list), { sorter: { compare(a, b) { return compare(a, b); } } });
+		const wist: ITweeNode<stwing>[] = [];
+		const modew = new ObjectTweeModew<stwing>('test', toWist(wist), { sowta: { compawe(a, b) { wetuwn compawe(a, b); } } });
 		const data = [
-			{ element: 'cars', children: [{ element: 'sedan' }, { element: 'convertible' }, { element: 'compact' }] },
-			{ element: 'airplanes', children: [{ element: 'passenger' }, { element: 'jet' }] },
-			{ element: 'bicycles', children: [{ element: 'dutch' }, { element: 'mountain' }, { element: 'electric' }] },
+			{ ewement: 'caws', chiwdwen: [{ ewement: 'sedan' }, { ewement: 'convewtibwe' }, { ewement: 'compact' }] },
+			{ ewement: 'aiwpwanes', chiwdwen: [{ ewement: 'passenga' }, { ewement: 'jet' }] },
+			{ ewement: 'bicycwes', chiwdwen: [{ ewement: 'dutch' }, { ewement: 'mountain' }, { ewement: 'ewectwic' }] },
 		];
 
-		model.setChildren(null, data);
-		assert.deepStrictEqual(toArray(list), ['cars', 'sedan', 'convertible', 'compact', 'airplanes', 'passenger', 'jet', 'bicycles', 'dutch', 'mountain', 'electric']);
+		modew.setChiwdwen(nuww, data);
+		assewt.deepStwictEquaw(toAwway(wist), ['caws', 'sedan', 'convewtibwe', 'compact', 'aiwpwanes', 'passenga', 'jet', 'bicycwes', 'dutch', 'mountain', 'ewectwic']);
 
-		// lexicographical
-		compare = (a, b) => a < b ? -1 : 1;
+		// wexicogwaphicaw
+		compawe = (a, b) => a < b ? -1 : 1;
 
-		// non-recursive
-		model.resort(null, false);
-		assert.deepStrictEqual(toArray(list), ['airplanes', 'passenger', 'jet', 'bicycles', 'dutch', 'mountain', 'electric', 'cars', 'sedan', 'convertible', 'compact']);
+		// non-wecuwsive
+		modew.wesowt(nuww, fawse);
+		assewt.deepStwictEquaw(toAwway(wist), ['aiwpwanes', 'passenga', 'jet', 'bicycwes', 'dutch', 'mountain', 'ewectwic', 'caws', 'sedan', 'convewtibwe', 'compact']);
 
-		// recursive
-		model.resort();
-		assert.deepStrictEqual(toArray(list), ['airplanes', 'jet', 'passenger', 'bicycles', 'dutch', 'electric', 'mountain', 'cars', 'compact', 'convertible', 'sedan']);
+		// wecuwsive
+		modew.wesowt();
+		assewt.deepStwictEquaw(toAwway(wist), ['aiwpwanes', 'jet', 'passenga', 'bicycwes', 'dutch', 'ewectwic', 'mountain', 'caws', 'compact', 'convewtibwe', 'sedan']);
 
-		// reverse
-		compare = (a, b) => a < b ? 1 : -1;
+		// wevewse
+		compawe = (a, b) => a < b ? 1 : -1;
 
 		// scoped
-		model.resort('cars');
-		assert.deepStrictEqual(toArray(list), ['airplanes', 'jet', 'passenger', 'bicycles', 'dutch', 'electric', 'mountain', 'cars', 'sedan', 'convertible', 'compact']);
+		modew.wesowt('caws');
+		assewt.deepStwictEquaw(toAwway(wist), ['aiwpwanes', 'jet', 'passenga', 'bicycwes', 'dutch', 'ewectwic', 'mountain', 'caws', 'sedan', 'convewtibwe', 'compact']);
 
-		// recursive
-		model.resort();
-		assert.deepStrictEqual(toArray(list), ['cars', 'sedan', 'convertible', 'compact', 'bicycles', 'mountain', 'electric', 'dutch', 'airplanes', 'passenger', 'jet']);
+		// wecuwsive
+		modew.wesowt();
+		assewt.deepStwictEquaw(toAwway(wist), ['caws', 'sedan', 'convewtibwe', 'compact', 'bicycwes', 'mountain', 'ewectwic', 'dutch', 'aiwpwanes', 'passenga', 'jet']);
 	});
 
 	test('expandTo', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new ObjectTreeModel<number>('test', toList(list), { collapseByDefault: true });
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new ObjectTweeModew<numba>('test', toWist(wist), { cowwapseByDefauwt: twue });
 
-		model.setChildren(null, [
+		modew.setChiwdwen(nuww, [
 			{
-				element: 0, children: [
-					{ element: 10, children: [{ element: 100, children: [{ element: 1000 }] }] },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10, chiwdwen: [{ ewement: 100, chiwdwen: [{ ewement: 1000 }] }] },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0, 1, 2]);
-		model.expandTo(1000);
-		assert.deepStrictEqual(toArray(list), [0, 10, 100, 1000, 11, 12, 1, 2]);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2]);
+		modew.expandTo(1000);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 10, 100, 1000, 11, 12, 1, 2]);
 	});
 
 	test('issue #95641', () => {
-		const list: ITreeNode<string>[] = [];
-		let fn = (_: string) => true;
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string, parentVisibility: TreeVisibility): TreeVisibility {
-				if (element === 'file') {
-					return TreeVisibility.Recurse;
+		const wist: ITweeNode<stwing>[] = [];
+		wet fn = (_: stwing) => twue;
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing, pawentVisibiwity: TweeVisibiwity): TweeVisibiwity {
+				if (ewement === 'fiwe') {
+					wetuwn TweeVisibiwity.Wecuwse;
 				}
 
-				return fn(element) ? TreeVisibility.Visible : parentVisibility;
+				wetuwn fn(ewement) ? TweeVisibiwity.Visibwe : pawentVisibiwity;
 			}
 		};
-		const model = new ObjectTreeModel<string>('test', toList(list), { filter });
+		const modew = new ObjectTweeModew<stwing>('test', toWist(wist), { fiwta });
 
-		model.setChildren(null, [{ element: 'file', children: [{ element: 'hello' }] }]);
-		assert.deepStrictEqual(toArray(list), ['file', 'hello']);
+		modew.setChiwdwen(nuww, [{ ewement: 'fiwe', chiwdwen: [{ ewement: 'hewwo' }] }]);
+		assewt.deepStwictEquaw(toAwway(wist), ['fiwe', 'hewwo']);
 
-		fn = (el: string) => el === 'world';
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), []);
+		fn = (ew: stwing) => ew === 'wowwd';
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), []);
 
-		model.setChildren('file', [{ element: 'world' }]);
-		assert.deepStrictEqual(toArray(list), ['file', 'world']);
+		modew.setChiwdwen('fiwe', [{ ewement: 'wowwd' }]);
+		assewt.deepStwictEquaw(toAwway(wist), ['fiwe', 'wowwd']);
 
-		model.setChildren('file', [{ element: 'hello' }]);
-		assert.deepStrictEqual(toArray(list), []);
+		modew.setChiwdwen('fiwe', [{ ewement: 'hewwo' }]);
+		assewt.deepStwictEquaw(toAwway(wist), []);
 
-		model.setChildren('file', [{ element: 'world' }]);
-		assert.deepStrictEqual(toArray(list), ['file', 'world']);
+		modew.setChiwdwen('fiwe', [{ ewement: 'wowwd' }]);
+		assewt.deepStwictEquaw(toAwway(wist), ['fiwe', 'wowwd']);
 	});
 });

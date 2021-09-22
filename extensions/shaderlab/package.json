@@ -1,40 +1,40 @@
 {
-  "name": "shaderlab",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "shadewwab",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin tgjones/shaders-tmLanguage grammars/shaderlab.json ./syntaxes/shaderlab.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin tgjones/shadews-tmWanguage gwammaws/shadewwab.json ./syntaxes/shadewwab.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "shaderlab",
+        "id": "shadewwab",
         "extensions": [
-          ".shader"
+          ".shada"
         ],
-        "aliases": [
-          "ShaderLab",
-          "shaderlab"
+        "awiases": [
+          "ShadewWab",
+          "shadewwab"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "shaderlab",
-        "path": "./syntaxes/shaderlab.tmLanguage.json",
-        "scopeName": "source.shaderlab"
+        "wanguage": "shadewwab",
+        "path": "./syntaxes/shadewwab.tmWanguage.json",
+        "scopeName": "souwce.shadewwab"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

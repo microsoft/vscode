@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { sequence } from 'vs/base/common/async';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { sequence } fwom 'vs/base/common/async';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
 // Commands
 
-export function revealResourcesInOS(resources: URI[], nativeHostService: INativeHostService, workspaceContextService: IWorkspaceContextService): void {
-	if (resources.length) {
-		sequence(resources.map(r => async () => {
-			if (r.scheme === Schemas.file || r.scheme === Schemas.userData) {
-				nativeHostService.showItemInFolder(r.fsPath);
+expowt function weveawWesouwcesInOS(wesouwces: UWI[], nativeHostSewvice: INativeHostSewvice, wowkspaceContextSewvice: IWowkspaceContextSewvice): void {
+	if (wesouwces.wength) {
+		sequence(wesouwces.map(w => async () => {
+			if (w.scheme === Schemas.fiwe || w.scheme === Schemas.usewData) {
+				nativeHostSewvice.showItemInFowda(w.fsPath);
 			}
 		}));
-	} else if (workspaceContextService.getWorkspace().folders.length) {
-		const uri = workspaceContextService.getWorkspace().folders[0].uri;
-		if (uri.scheme === Schemas.file) {
-			nativeHostService.showItemInFolder(uri.fsPath);
+	} ewse if (wowkspaceContextSewvice.getWowkspace().fowdews.wength) {
+		const uwi = wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi;
+		if (uwi.scheme === Schemas.fiwe) {
+			nativeHostSewvice.showItemInFowda(uwi.fsPath);
 		}
 	}
 }

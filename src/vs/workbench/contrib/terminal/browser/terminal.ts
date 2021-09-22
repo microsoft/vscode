@@ -1,790 +1,790 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, ITerminalProfileType, TerminalLocation, ICreateContributedTerminalProfileOptions, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
-import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IEditableData } from 'vs/workbench/common/views';
-import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawDimensions, ITewminawWaunchEwwow, ITewminawPwofiwe, ITewminawTabWayoutInfoById, TewminawIcon, TitweEventSouwce, TewminawShewwType, IExtensionTewminawPwofiwe, ITewminawPwofiweType, TewminawWocation, ICweateContwibutedTewminawPwofiweOptions, PwocessPwopewtyType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { ICommandTwacka, INavigationMode, IOffPwocessTewminawSewvice, IWemoteTewminawAttachTawget, IStawtExtensionTewminawWequest, ITewminawConfigHewpa, ITewminawPwocessExtHostPwoxy } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt type { Tewminaw as XTewmTewminaw } fwom 'xtewm';
+impowt type { SeawchAddon as XTewmSeawchAddon } fwom 'xtewm-addon-seawch';
+impowt type { Unicode11Addon as XTewmUnicode11Addon } fwom 'xtewm-addon-unicode11';
+impowt type { WebgwAddon as XTewmWebgwAddon } fwom 'xtewm-addon-webgw';
+impowt { ITewminawStatusWist } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawStatusWist';
+impowt { ICompweteTewminawConfiguwation } fwom 'vs/wowkbench/contwib/tewminaw/common/wemoteTewminawChannew';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { DesewiawizedTewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowSewiawiza';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
 
-export const ITerminalService = createDecorator<ITerminalService>('terminalService');
-export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
-export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
-export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
-export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
+expowt const ITewminawSewvice = cweateDecowatow<ITewminawSewvice>('tewminawSewvice');
+expowt const ITewminawEditowSewvice = cweateDecowatow<ITewminawEditowSewvice>('tewminawEditowSewvice');
+expowt const ITewminawGwoupSewvice = cweateDecowatow<ITewminawGwoupSewvice>('tewminawGwoupSewvice');
+expowt const ITewminawInstanceSewvice = cweateDecowatow<ITewminawInstanceSewvice>('tewminawInstanceSewvice');
+expowt const IWemoteTewminawSewvice = cweateDecowatow<IWemoteTewminawSewvice>('wemoteTewminawSewvice');
 
 /**
- * A service used by TerminalInstance (and components owned by it) that allows it to break its
- * dependency on electron-browser and node layers, while at the same time avoiding a cyclic
- * dependency on ITerminalService.
+ * A sewvice used by TewminawInstance (and components owned by it) that awwows it to bweak its
+ * dependency on ewectwon-bwowsa and node wayews, whiwe at the same time avoiding a cycwic
+ * dependency on ITewminawSewvice.
  */
-export interface ITerminalInstanceService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITewminawInstanceSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidCreateInstance: Event<ITerminalInstance>;
+	onDidCweateInstance: Event<ITewminawInstance>;
 
-	getXtermConstructor(): Promise<typeof XTermTerminal>;
-	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
-	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
-	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
+	getXtewmConstwuctow(): Pwomise<typeof XTewmTewminaw>;
+	getXtewmSeawchConstwuctow(): Pwomise<typeof XTewmSeawchAddon>;
+	getXtewmUnicode11Constwuctow(): Pwomise<typeof XTewmUnicode11Addon>;
+	getXtewmWebgwConstwuctow(): Pwomise<typeof XTewmWebgwAddon>;
 
 	/**
-	 * Takes a path and returns the properly escaped path to send to the terminal.
-	 * On Windows, this included trying to prepare the path for WSL if needed.
+	 * Takes a path and wetuwns the pwopewwy escaped path to send to the tewminaw.
+	 * On Windows, this incwuded twying to pwepawe the path fow WSW if needed.
 	 *
-	 * @param executable The executable off the shellLaunchConfig
-	 * @param title The terminal's title
-	 * @param path The path to be escaped and formatted.
-	 * @param isRemote Whether the terminal's pty is remote.
-	 * @returns An escaped version of the path to be execuded in the terminal.
+	 * @pawam executabwe The executabwe off the shewwWaunchConfig
+	 * @pawam titwe The tewminaw's titwe
+	 * @pawam path The path to be escaped and fowmatted.
+	 * @pawam isWemote Whetha the tewminaw's pty is wemote.
+	 * @wetuwns An escaped vewsion of the path to be execuded in the tewminaw.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
+	pwepawePathFowTewminawAsync(path: stwing, executabwe: stwing | undefined, titwe: stwing, shewwType: TewminawShewwType, isWemote: boowean): Pwomise<stwing>;
 
-	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
+	cweateInstance(waunchConfig: IShewwWaunchConfig, tawget?: TewminawWocation, wesouwce?: UWI): ITewminawInstance;
 }
 
-export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
-	panelContainer: HTMLElement | undefined;
+expowt intewface IBwowsewTewminawConfigHewpa extends ITewminawConfigHewpa {
+	panewContaina: HTMWEwement | undefined;
 }
 
-export const enum Direction {
-	Left = 0,
-	Right = 1,
+expowt const enum Diwection {
+	Weft = 0,
+	Wight = 1,
 	Up = 2,
 	Down = 3
 }
 
-export interface ITerminalGroup {
-	activeInstance: ITerminalInstance | undefined;
-	terminalInstances: ITerminalInstance[];
-	title: string;
+expowt intewface ITewminawGwoup {
+	activeInstance: ITewminawInstance | undefined;
+	tewminawInstances: ITewminawInstance[];
+	titwe: stwing;
 
-	readonly onDidDisposeInstance: Event<ITerminalInstance>;
-	readonly onDisposed: Event<ITerminalGroup>;
-	readonly onInstancesChanged: Event<void>;
-	readonly onPanelOrientationChanged: Event<Orientation>;
+	weadonwy onDidDisposeInstance: Event<ITewminawInstance>;
+	weadonwy onDisposed: Event<ITewminawGwoup>;
+	weadonwy onInstancesChanged: Event<void>;
+	weadonwy onPanewOwientationChanged: Event<Owientation>;
 
-	focusPreviousPane(): void;
+	focusPweviousPane(): void;
 	focusNextPane(): void;
-	resizePane(direction: Direction): void;
-	resizePanes(relativeSizes: number[]): void;
-	setActiveInstanceByIndex(index: number, force?: boolean): void;
-	attachToElement(element: HTMLElement): void;
-	addInstance(instance: ITerminalInstance): void;
-	removeInstance(instance: ITerminalInstance): void;
-	moveInstance(instance: ITerminalInstance, index: number): void;
-	setVisible(visible: boolean): void;
-	layout(width: number, height: number): void;
-	addDisposable(disposable: IDisposable): void;
-	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
-	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById;
+	wesizePane(diwection: Diwection): void;
+	wesizePanes(wewativeSizes: numba[]): void;
+	setActiveInstanceByIndex(index: numba, fowce?: boowean): void;
+	attachToEwement(ewement: HTMWEwement): void;
+	addInstance(instance: ITewminawInstance): void;
+	wemoveInstance(instance: ITewminawInstance): void;
+	moveInstance(instance: ITewminawInstance, index: numba): void;
+	setVisibwe(visibwe: boowean): void;
+	wayout(width: numba, height: numba): void;
+	addDisposabwe(disposabwe: IDisposabwe): void;
+	spwit(shewwWaunchConfig: IShewwWaunchConfig): ITewminawInstance;
+	getWayoutInfo(isActive: boowean): ITewminawTabWayoutInfoById;
 }
 
-export const enum TerminalConnectionState {
+expowt const enum TewminawConnectionState {
 	Connecting,
 	Connected
 }
 
-export interface ITerminalService extends ITerminalInstanceHost {
-	readonly _serviceBrand: undefined;
+expowt intewface ITewminawSewvice extends ITewminawInstanceHost {
+	weadonwy _sewviceBwand: undefined;
 
-	/** Gets all terminal instances, including editor and terminal view (group) instances. */
-	readonly instances: readonly ITerminalInstance[];
-	configHelper: ITerminalConfigHelper;
-	isProcessSupportRegistered: boolean;
-	readonly connectionState: TerminalConnectionState;
-	readonly availableProfiles: ITerminalProfile[];
-	readonly allProfiles: ITerminalProfileType[] | undefined;
-	readonly profilesReady: Promise<void>;
-	readonly defaultLocation: TerminalLocation;
+	/** Gets aww tewminaw instances, incwuding editow and tewminaw view (gwoup) instances. */
+	weadonwy instances: weadonwy ITewminawInstance[];
+	configHewpa: ITewminawConfigHewpa;
+	isPwocessSuppowtWegistewed: boowean;
+	weadonwy connectionState: TewminawConnectionState;
+	weadonwy avaiwabwePwofiwes: ITewminawPwofiwe[];
+	weadonwy awwPwofiwes: ITewminawPwofiweType[] | undefined;
+	weadonwy pwofiwesWeady: Pwomise<void>;
+	weadonwy defauwtWocation: TewminawWocation;
 
-	initializeTerminals(): Promise<void>;
-	onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
-	onDidDisposeGroup: Event<ITerminalGroup>;
-	onDidCreateInstance: Event<ITerminalInstance>;
-	onDidReceiveProcessId: Event<ITerminalInstance>;
-	onDidChangeInstanceDimensions: Event<ITerminalInstance>;
-	onDidMaximumDimensionsChange: Event<ITerminalInstance>;
-	onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceIcon: Event<ITerminalInstance | undefined>;
-	onDidChangeInstanceColor: Event<ITerminalInstance | undefined>;
-	onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
-	onDidInputInstanceData: Event<ITerminalInstance>;
-	onDidRegisterProcessSupport: Event<void>;
+	initiawizeTewminaws(): Pwomise<void>;
+	onDidChangeActiveGwoup: Event<ITewminawGwoup | undefined>;
+	onDidDisposeGwoup: Event<ITewminawGwoup>;
+	onDidCweateInstance: Event<ITewminawInstance>;
+	onDidWeceivePwocessId: Event<ITewminawInstance>;
+	onDidChangeInstanceDimensions: Event<ITewminawInstance>;
+	onDidMaximumDimensionsChange: Event<ITewminawInstance>;
+	onDidWequestStawtExtensionTewminaw: Event<IStawtExtensionTewminawWequest>;
+	onDidChangeInstanceTitwe: Event<ITewminawInstance | undefined>;
+	onDidChangeInstanceIcon: Event<ITewminawInstance | undefined>;
+	onDidChangeInstanceCowow: Event<ITewminawInstance | undefined>;
+	onDidChangeInstancePwimawyStatus: Event<ITewminawInstance>;
+	onDidInputInstanceData: Event<ITewminawInstance>;
+	onDidWegistewPwocessSuppowt: Event<void>;
 	onDidChangeConnectionState: Event<void>;
-	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
+	onDidChangeAvaiwabwePwofiwes: Event<ITewminawPwofiwe[]>;
 
 	/**
-	 * Creates a terminal.
-	 * @param options The options to create the terminal with, when not specified the default
-	 * profile will be used at the default target.
+	 * Cweates a tewminaw.
+	 * @pawam options The options to cweate the tewminaw with, when not specified the defauwt
+	 * pwofiwe wiww be used at the defauwt tawget.
 	 */
-	createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance>;
+	cweateTewminaw(options?: ICweateTewminawOptions): Pwomise<ITewminawInstance>;
 
 	/**
-	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
+	 * Cweates a waw tewminaw instance, this shouwd not be used outside of the tewminaw pawt.
 	 */
-	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
-	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
+	getInstanceFwomId(tewminawId: numba): ITewminawInstance | undefined;
+	getInstanceFwomIndex(tewminawIndex: numba): ITewminawInstance;
 
 
-	getActiveOrCreateInstance(): Promise<ITerminalInstance>;
-	moveToEditor(source: ITerminalInstance): void;
-	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
-	getOffProcessTerminalService(): IOffProcessTerminalService | undefined;
+	getActiveOwCweateInstance(): Pwomise<ITewminawInstance>;
+	moveToEditow(souwce: ITewminawInstance): void;
+	moveToTewminawView(souwce?: ITewminawInstance | UWI): Pwomise<void>;
+	getOffPwocessTewminawSewvice(): IOffPwocessTewminawSewvice | undefined;
 
 	/**
-	 * Perform an action with the active terminal instance, if the terminal does
-	 * not exist the callback will not be called.
-	 * @param callback The callback that fires with the active terminal
+	 * Pewfowm an action with the active tewminaw instance, if the tewminaw does
+	 * not exist the cawwback wiww not be cawwed.
+	 * @pawam cawwback The cawwback that fiwes with the active tewminaw
 	 */
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
+	doWithActiveInstance<T>(cawwback: (tewminaw: ITewminawInstance) => T): T | void;
 
 	/**
-	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
-	 * among other things.
+	 * Fiwe the onActiveTabChanged event, this wiww twigga the tewminaw dwopdown to be updated,
+	 * among otha things.
 	 */
-	refreshActiveGroup(): void;
+	wefweshActiveGwoup(): void;
 
-	registerProcessSupport(isSupported: boolean): void;
+	wegistewPwocessSuppowt(isSuppowted: boowean): void;
 	/**
-	 * Registers a link provider that enables integrators to add links to the terminal.
-	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
-	 * for links at that position. This lets the terminal know all links at a given area and also
-	 * labels for what these links are going to do.
+	 * Wegistews a wink pwovida that enabwes integwatows to add winks to the tewminaw.
+	 * @pawam winkPwovida When wegistewed, the wink pwovida is asked wheneva a ceww is hovewed
+	 * fow winks at that position. This wets the tewminaw know aww winks at a given awea and awso
+	 * wabews fow what these winks awe going to do.
 	 */
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
+	wegistewWinkPwovida(winkPwovida: ITewminawExtewnawWinkPwovida): IDisposabwe;
 
-	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	wegistewTewminawPwofiwePwovida(extensionIdenfifia: stwing, id: stwing, pwofiwePwovida: ITewminawPwofiwePwovida): IDisposabwe;
 
-	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
+	showPwofiweQuickPick(type: 'setDefauwt' | 'cweateInstance', cwd?: stwing | UWI): Pwomise<ITewminawInstance | undefined>;
 
-	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
+	setContainews(panewContaina: HTMWEwement, tewminawContaina: HTMWEwement): void;
 
-	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
-	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
-	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
-	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+	wequestStawtExtensionTewminaw(pwoxy: ITewminawPwocessExtHostPwoxy, cows: numba, wows: numba): Pwomise<ITewminawWaunchEwwow | undefined>;
+	isAttachedToTewminaw(wemoteTewm: IWemoteTewminawAttachTawget): boowean;
+	getEditabweData(instance: ITewminawInstance): IEditabweData | undefined;
+	setEditabwe(instance: ITewminawInstance, data: IEditabweData | nuww): Pwomise<void>;
+	safeDisposeTewminaw(instance: ITewminawInstance): Pwomise<void>;
 
-	getDefaultInstanceHost(): ITerminalInstanceHost;
-	getInstanceHost(target: ITerminalLocationOptions | undefined): ITerminalInstanceHost;
-	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
+	getDefauwtInstanceHost(): ITewminawInstanceHost;
+	getInstanceHost(tawget: ITewminawWocationOptions | undefined): ITewminawInstanceHost;
+	getFindHost(instance?: ITewminawInstance): ITewminawFindHost;
 
-	getDefaultProfileName(): string;
-	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
-	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
+	getDefauwtPwofiweName(): stwing;
+	wesowveWocation(wocation?: ITewminawWocationOptions): TewminawWocation | undefined
+	setNativeDewegate(nativeCawws: ITewminawSewviceNativeDewegate): void;
 }
 
-export interface ITerminalServiceNativeDelegate {
-	getWindowCount(): Promise<number>;
+expowt intewface ITewminawSewviceNativeDewegate {
+	getWindowCount(): Pwomise<numba>;
 }
 
 /**
- * This service is responsible for integrating with the editor service and managing terminal
- * editors.
+ * This sewvice is wesponsibwe fow integwating with the editow sewvice and managing tewminaw
+ * editows.
  */
-export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminalFindHost {
-	readonly _serviceBrand: undefined;
+expowt intewface ITewminawEditowSewvice extends ITewminawInstanceHost, ITewminawFindHost {
+	weadonwy _sewviceBwand: undefined;
 
-	/** Gets all _terminal editor_ instances. */
-	readonly instances: readonly ITerminalInstance[];
+	/** Gets aww _tewminaw editow_ instances. */
+	weadonwy instances: weadonwy ITewminawInstance[];
 
-	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
-	detachActiveEditorInstance(): ITerminalInstance;
-	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	revealActiveEditor(preserveFocus?: boolean): void;
-	resolveResource(instance: ITerminalInstance | URI): URI;
-	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
-	getInputFromResource(resource: URI): TerminalEditorInput;
+	openEditow(instance: ITewminawInstance, editowOptions?: TewminawEditowWocation): Pwomise<void>;
+	detachActiveEditowInstance(): ITewminawInstance;
+	detachInstance(instance: ITewminawInstance): void;
+	spwitInstance(instanceToSpwit: ITewminawInstance, shewwWaunchConfig?: IShewwWaunchConfig): ITewminawInstance;
+	weveawActiveEditow(pwesewveFocus?: boowean): void;
+	wesowveWesouwce(instance: ITewminawInstance | UWI): UWI;
+	weviveInput(desewiawizedInput: DesewiawizedTewminawEditowInput): TewminawEditowInput;
+	getInputFwomWesouwce(wesouwce: UWI): TewminawEditowInput;
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };
+expowt type ITewminawWocationOptions = TewminawWocation | TewminawEditowWocation | { pawentTewminaw: ITewminawInstance } | { spwitActiveTewminaw: boowean };
 
-export interface ICreateTerminalOptions {
+expowt intewface ICweateTewminawOptions {
 	/**
-	 * The shell launch config or profile to launch with, when not specified the default terminal
-	 * profile will be used.
+	 * The sheww waunch config ow pwofiwe to waunch with, when not specified the defauwt tewminaw
+	 * pwofiwe wiww be used.
 	 */
-	config?: IShellLaunchConfig | ITerminalProfile | IExtensionTerminalProfile;
+	config?: IShewwWaunchConfig | ITewminawPwofiwe | IExtensionTewminawPwofiwe;
 	/**
-	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * The cuwwent wowking diwectowy to stawt with, this wiww ovewwide IShewwWaunchConfig.cwd if
 	 * specified.
 	 */
-	cwd?: string | URI;
+	cwd?: stwing | UWI;
 	/**
-	 * The terminal's resource, passed when the terminal has moved windows.
+	 * The tewminaw's wesouwce, passed when the tewminaw has moved windows.
 	 */
-	resource?: URI;
+	wesouwce?: UWI;
 
 	/**
-	 * The terminal's location (editor or panel), it's terminal parent (split to the right), or editor group
+	 * The tewminaw's wocation (editow ow panew), it's tewminaw pawent (spwit to the wight), ow editow gwoup
 	 */
-	location?: ITerminalLocationOptions;
+	wocation?: ITewminawWocationOptions;
 }
 
-export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn,
-	preserveFocus?: boolean
+expowt intewface TewminawEditowWocation {
+	viewCowumn: EditowGwoupCowumn,
+	pwesewveFocus?: boowean
 }
 
 /**
- * This service is responsible for managing terminal groups, that is the terminals that are hosted
- * within the terminal panel, not in an editor.
+ * This sewvice is wesponsibwe fow managing tewminaw gwoups, that is the tewminaws that awe hosted
+ * within the tewminaw panew, not in an editow.
  */
-export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalFindHost {
-	readonly _serviceBrand: undefined;
+expowt intewface ITewminawGwoupSewvice extends ITewminawInstanceHost, ITewminawFindHost {
+	weadonwy _sewviceBwand: undefined;
 
-	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
-	readonly instances: readonly ITerminalInstance[];
-	readonly groups: readonly ITerminalGroup[];
-	activeGroup: ITerminalGroup | undefined;
-	readonly activeGroupIndex: number;
+	/** Gets aww _tewminaw view_ instances, ie. instances contained within tewminaw gwoups. */
+	weadonwy instances: weadonwy ITewminawInstance[];
+	weadonwy gwoups: weadonwy ITewminawGwoup[];
+	activeGwoup: ITewminawGwoup | undefined;
+	weadonwy activeGwoupIndex: numba;
 
-	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
-	readonly onDidDisposeGroup: Event<ITerminalGroup>;
-	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
-	readonly onDidChangeGroups: Event<void>;
+	weadonwy onDidChangeActiveGwoup: Event<ITewminawGwoup | undefined>;
+	weadonwy onDidDisposeGwoup: Event<ITewminawGwoup>;
+	/** Fiwes when a gwoup is cweated, disposed of, ow shown (in the case of a backgwound gwoup). */
+	weadonwy onDidChangeGwoups: Event<void>;
 
-	readonly onDidChangePanelOrientation: Event<Orientation>;
+	weadonwy onDidChangePanewOwientation: Event<Owientation>;
 
-	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;
-	createGroup(instance?: ITerminalInstance): ITerminalGroup;
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
+	cweateGwoup(shewwWaunchConfig?: IShewwWaunchConfig): ITewminawGwoup;
+	cweateGwoup(instance?: ITewminawInstance): ITewminawGwoup;
+	getGwoupFowInstance(instance: ITewminawInstance): ITewminawGwoup | undefined;
 
 	/**
-	 * Moves a terminal instance's group to the target instance group's position.
-	 * @param source The source instance to move.
-	 * @param target The target instance to move the source instance to.
+	 * Moves a tewminaw instance's gwoup to the tawget instance gwoup's position.
+	 * @pawam souwce The souwce instance to move.
+	 * @pawam tawget The tawget instance to move the souwce instance to.
 	 */
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveGroupToEnd(source: ITerminalInstance): void;
+	moveGwoup(souwce: ITewminawInstance, tawget: ITewminawInstance): void;
+	moveGwoupToEnd(souwce: ITewminawInstance): void;
 
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
-	unsplitInstance(instance: ITerminalInstance): void;
-	joinInstances(instances: ITerminalInstance[]): void;
-	instanceIsSplit(instance: ITerminalInstance): boolean;
+	moveInstance(souwce: ITewminawInstance, tawget: ITewminawInstance, side: 'befowe' | 'afta'): void;
+	unspwitInstance(instance: ITewminawInstance): void;
+	joinInstances(instances: ITewminawInstance[]): void;
+	instanceIsSpwit(instance: ITewminawInstance): boowean;
 
-	getGroupLabels(): string[];
-	setActiveGroupByIndex(index: number): void;
-	setActiveGroupToNext(): void;
-	setActiveGroupToPrevious(): void;
+	getGwoupWabews(): stwing[];
+	setActiveGwoupByIndex(index: numba): void;
+	setActiveGwoupToNext(): void;
+	setActiveGwoupToPwevious(): void;
 
-	setActiveInstanceByIndex(terminalIndex: number): void;
+	setActiveInstanceByIndex(tewminawIndex: numba): void;
 
-	setContainer(container: HTMLElement): void;
+	setContaina(containa: HTMWEwement): void;
 
-	showPanel(focus?: boolean): Promise<void>;
-	hidePanel(): void;
+	showPanew(focus?: boowean): Pwomise<void>;
+	hidePanew(): void;
 	focusTabs(): void;
 	showTabs(): void;
 }
 
 /**
- * An interface that indicates the implementer hosts terminal instances, exposing a common set of
- * properties and events.
+ * An intewface that indicates the impwementa hosts tewminaw instances, exposing a common set of
+ * pwopewties and events.
  */
-export interface ITerminalInstanceHost {
-	readonly activeInstance: ITerminalInstance | undefined;
-	readonly instances: readonly ITerminalInstance[];
+expowt intewface ITewminawInstanceHost {
+	weadonwy activeInstance: ITewminawInstance | undefined;
+	weadonwy instances: weadonwy ITewminawInstance[];
 
-	readonly onDidDisposeInstance: Event<ITerminalInstance>;
-	readonly onDidFocusInstance: Event<ITerminalInstance>;
-	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
-	readonly onDidChangeInstances: Event<void>;
+	weadonwy onDidDisposeInstance: Event<ITewminawInstance>;
+	weadonwy onDidFocusInstance: Event<ITewminawInstance>;
+	weadonwy onDidChangeActiveInstance: Event<ITewminawInstance | undefined>;
+	weadonwy onDidChangeInstances: Event<void>;
 
-	setActiveInstance(instance: ITerminalInstance): void;
+	setActiveInstance(instance: ITewminawInstance): void;
 	/**
-	 * Gets an instance from a resource if it exists. This MUST be used instead of getInstanceFromId
-	 * when you only know about a terminal's URI. (a URI's instance ID may not be this window's instance ID)
+	 * Gets an instance fwom a wesouwce if it exists. This MUST be used instead of getInstanceFwomId
+	 * when you onwy know about a tewminaw's UWI. (a UWI's instance ID may not be this window's instance ID)
 	 */
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined;
+	getInstanceFwomWesouwce(wesouwce: UWI | undefined): ITewminawInstance | undefined;
 }
 
-export interface ITerminalFindHost {
+expowt intewface ITewminawFindHost {
 	focusFindWidget(): void;
 	hideFindWidget(): void;
-	getFindState(): FindReplaceState;
+	getFindState(): FindWepwaceState;
 	findNext(): void;
-	findPrevious(): void;
+	findPwevious(): void;
 }
 
-export interface IRemoteTerminalService extends IOffProcessTerminalService {
-	createProcess(
-		shellLaunchConfig: IShellLaunchConfig,
-		configuration: ICompleteTerminalConfiguration,
-		activeWorkspaceRootUri: URI | undefined,
-		cols: number,
-		rows: number,
-		unicodeVersion: '6' | '11',
-		shouldPersist: boolean
-	): Promise<ITerminalChildProcess>;
+expowt intewface IWemoteTewminawSewvice extends IOffPwocessTewminawSewvice {
+	cweatePwocess(
+		shewwWaunchConfig: IShewwWaunchConfig,
+		configuwation: ICompweteTewminawConfiguwation,
+		activeWowkspaceWootUwi: UWI | undefined,
+		cows: numba,
+		wows: numba,
+		unicodeVewsion: '6' | '11',
+		shouwdPewsist: boowean
+	): Pwomise<ITewminawChiwdPwocess>;
 }
 
 /**
- * Similar to xterm.js' ILinkProvider but using promises and hides xterm.js internals (like buffer
- * positions, decorations, etc.) from the rest of vscode. This is the interface to use for
- * workbench integrations.
+ * Simiwaw to xtewm.js' IWinkPwovida but using pwomises and hides xtewm.js intewnaws (wike buffa
+ * positions, decowations, etc.) fwom the west of vscode. This is the intewface to use fow
+ * wowkbench integwations.
  */
-export interface ITerminalExternalLinkProvider {
-	provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined>;
+expowt intewface ITewminawExtewnawWinkPwovida {
+	pwovideWinks(instance: ITewminawInstance, wine: stwing): Pwomise<ITewminawWink[] | undefined>;
 }
 
-export interface ITerminalProfileProvider {
-	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
+expowt intewface ITewminawPwofiwePwovida {
+	cweateContwibutedTewminawPwofiwe(options: ICweateContwibutedTewminawPwofiweOptions): Pwomise<void>;
 }
 
-export interface ITerminalLink {
-	/** The startIndex of the link in the line. */
-	startIndex: number;
-	/** The length of the link in the line. */
-	length: number;
-	/** The descriptive label for what the link does when activated. */
-	label?: string;
+expowt intewface ITewminawWink {
+	/** The stawtIndex of the wink in the wine. */
+	stawtIndex: numba;
+	/** The wength of the wink in the wine. */
+	wength: numba;
+	/** The descwiptive wabew fow what the wink does when activated. */
+	wabew?: stwing;
 	/**
-	 * Activates the link.
-	 * @param text The text of the link.
+	 * Activates the wink.
+	 * @pawam text The text of the wink.
 	 */
-	activate(text: string): void;
+	activate(text: stwing): void;
 }
 
-export interface ISearchOptions {
-	/** Whether the find should be done as a regex. */
-	regex?: boolean;
-	/** Whether only whole words should match. */
-	wholeWord?: boolean;
-	/** Whether find should pay attention to case. */
-	caseSensitive?: boolean;
-	/** Whether the search should start at the current search position (not the next row). */
-	incremental?: boolean;
+expowt intewface ISeawchOptions {
+	/** Whetha the find shouwd be done as a wegex. */
+	wegex?: boowean;
+	/** Whetha onwy whowe wowds shouwd match. */
+	whoweWowd?: boowean;
+	/** Whetha find shouwd pay attention to case. */
+	caseSensitive?: boowean;
+	/** Whetha the seawch shouwd stawt at the cuwwent seawch position (not the next wow). */
+	incwementaw?: boowean;
 }
 
-export interface ITerminalBeforeHandleLinkEvent {
-	terminal?: ITerminalInstance;
-	/** The text of the link */
-	link: string;
-	/** Call with whether the link was handled by the interceptor */
-	resolve(wasHandled: boolean): void;
+expowt intewface ITewminawBefoweHandweWinkEvent {
+	tewminaw?: ITewminawInstance;
+	/** The text of the wink */
+	wink: stwing;
+	/** Caww with whetha the wink was handwed by the intewceptow */
+	wesowve(wasHandwed: boowean): void;
 }
 
-export interface ITerminalInstance {
+expowt intewface ITewminawInstance {
 	/**
-	 * The ID of the terminal instance, this is an arbitrary number only used to uniquely identify
-	 * terminal instances within a window.
+	 * The ID of the tewminaw instance, this is an awbitwawy numba onwy used to uniquewy identify
+	 * tewminaw instances within a window.
 	 */
-	readonly instanceId: number;
+	weadonwy instanceId: numba;
 	/**
-	 * A unique URI for this terminal instance with the following encoding:
-	 * path: /<workspace ID>/<instance ID>
-	 * fragment: Title
-	 * Note that when dragging terminals across windows, this will retain the original workspace ID /instance ID
-	 * from the other window.
+	 * A unique UWI fow this tewminaw instance with the fowwowing encoding:
+	 * path: /<wowkspace ID>/<instance ID>
+	 * fwagment: Titwe
+	 * Note that when dwagging tewminaws acwoss windows, this wiww wetain the owiginaw wowkspace ID /instance ID
+	 * fwom the otha window.
 	 */
-	readonly resource: URI;
+	weadonwy wesouwce: UWI;
 
-	readonly cols: number;
-	readonly rows: number;
-	readonly maxCols: number;
-	readonly maxRows: number;
-	readonly icon?: TerminalIcon;
-	readonly color?: string;
+	weadonwy cows: numba;
+	weadonwy wows: numba;
+	weadonwy maxCows: numba;
+	weadonwy maxWows: numba;
+	weadonwy icon?: TewminawIcon;
+	weadonwy cowow?: stwing;
 
-	readonly processName: string;
-	readonly sequence?: string;
-	readonly staticTitle?: string;
-	readonly workspaceFolder?: string;
-	readonly cwd?: string;
-	readonly initialCwd?: string;
-	readonly capabilities: ProcessCapability[];
+	weadonwy pwocessName: stwing;
+	weadonwy sequence?: stwing;
+	weadonwy staticTitwe?: stwing;
+	weadonwy wowkspaceFowda?: stwing;
+	weadonwy cwd?: stwing;
+	weadonwy initiawCwd?: stwing;
+	weadonwy capabiwities: PwocessCapabiwity[];
 
-	readonly statusList: ITerminalStatusList;
-
-	/**
-	 * The process ID of the shell process, this is undefined when there is no process associated
-	 * with this terminal.
-	 */
-	processId: number | undefined;
-
-	target?: TerminalLocation;
+	weadonwy statusWist: ITewminawStatusWist;
 
 	/**
-	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
-	 * that supports reconnection.
+	 * The pwocess ID of the sheww pwocess, this is undefined when thewe is no pwocess associated
+	 * with this tewminaw.
 	 */
-	readonly persistentProcessId: number | undefined;
+	pwocessId: numba | undefined;
+
+	tawget?: TewminawWocation;
 
 	/**
-	 * Whether the process should be persisted across reloads.
+	 * The id of a pewsistent pwocess. This is defined if this is a tewminaw cweated by a pty host
+	 * that suppowts weconnection.
 	 */
-	readonly shouldPersist: boolean;
+	weadonwy pewsistentPwocessId: numba | undefined;
 
 	/**
-	 * Whether the process communication channel has been disconnected.
+	 * Whetha the pwocess shouwd be pewsisted acwoss wewoads.
 	 */
-	readonly isDisconnected: boolean;
+	weadonwy shouwdPewsist: boowean;
 
 	/**
-	 * Whether the terminal's pty is hosted on a remote.
+	 * Whetha the pwocess communication channew has been disconnected.
 	 */
-	readonly isRemote: boolean;
+	weadonwy isDisconnected: boowean;
 
 	/**
-	 * Whether an element within this terminal is focused.
+	 * Whetha the tewminaw's pty is hosted on a wemote.
 	 */
-	readonly hasFocus: boolean;
+	weadonwy isWemote: boowean;
 
 	/**
-	 * An event that fires when the terminal instance's title changes.
+	 * Whetha an ewement within this tewminaw is focused.
 	 */
-	onTitleChanged: Event<ITerminalInstance>;
+	weadonwy hasFocus: boowean;
 
 	/**
-	 * An event that fires when the terminal instance's icon changes.
+	 * An event that fiwes when the tewminaw instance's titwe changes.
 	 */
-	onIconChanged: Event<ITerminalInstance>;
+	onTitweChanged: Event<ITewminawInstance>;
 
 	/**
-	 * An event that fires when the terminal instance is disposed.
+	 * An event that fiwes when the tewminaw instance's icon changes.
 	 */
-	onDisposed: Event<ITerminalInstance>;
+	onIconChanged: Event<ITewminawInstance>;
 
-	onProcessIdReady: Event<ITerminalInstance>;
-	onLinksReady: Event<ITerminalInstance>;
-	onRequestExtHostProcess: Event<ITerminalInstance>;
+	/**
+	 * An event that fiwes when the tewminaw instance is disposed.
+	 */
+	onDisposed: Event<ITewminawInstance>;
+
+	onPwocessIdWeady: Event<ITewminawInstance>;
+	onWinksWeady: Event<ITewminawInstance>;
+	onWequestExtHostPwocess: Event<ITewminawInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
-	onDidChangeHasChildProcesses: Event<boolean>;
+	onDidChangeHasChiwdPwocesses: Event<boowean>;
 
-	onDidFocus: Event<ITerminalInstance>;
-	onDidBlur: Event<ITerminalInstance>;
-	onDidInputData: Event<ITerminalInstance>;
+	onDidFocus: Event<ITewminawInstance>;
+	onDidBwuw: Event<ITewminawInstance>;
+	onDidInputData: Event<ITewminawInstance>;
 
 	/**
-	 * An event that fires when a terminal is dropped on this instance via drag and drop.
+	 * An event that fiwes when a tewminaw is dwopped on this instance via dwag and dwop.
 	 */
-	onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
+	onWequestAddInstanceToGwoup: Event<IWequestAddInstanceToGwoupEvent>;
 
 	/**
-	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * Attach a wistena to the waw data stweam coming fwom the pty, incwuding ANSI escape
 	 * sequences.
 	 */
-	onData: Event<string>;
+	onData: Event<stwing>;
 
 	/**
-	 * Attach a listener to the binary data stream coming from xterm and going to pty
+	 * Attach a wistena to the binawy data stweam coming fwom xtewm and going to pty
 	 */
-	onBinary: Event<string>;
+	onBinawy: Event<stwing>;
 
 	/**
-	 * Attach a listener to listen for new lines added to this terminal instance.
+	 * Attach a wistena to wisten fow new wines added to this tewminaw instance.
 	 *
-	 * @param listener The listener function which takes new line strings added to the terminal,
-	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
-	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
-	 * not fire for the last line, until either the line is ended with a LF character of the process
-	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
-	 * characters.
+	 * @pawam wistena The wistena function which takes new wine stwings added to the tewminaw,
+	 * excwuding ANSI escape sequences. The wine event wiww fiwe when an WF chawacta is added to
+	 * the tewminaw (ie. the wine is not wwapped). Note that this means that the wine data wiww
+	 * not fiwe fow the wast wine, untiw eitha the wine is ended with a WF chawacta of the pwocess
+	 * is exited. The wineData stwing wiww contain the fuwwy wwapped wine, not containing any WF/CW
+	 * chawactews.
 	 */
-	onLineData: Event<string>;
+	onWineData: Event<stwing>;
 
 	/**
-	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
-	 * is the processes' exit code, an exit code of null means the process was killed as a result of
-	 * the ITerminalInstance being disposed.
+	 * Attach a wistena that fiwes when the tewminaw's pty pwocess exits. The numba in the event
+	 * is the pwocesses' exit code, an exit code of nuww means the pwocess was kiwwed as a wesuwt of
+	 * the ITewminawInstance being disposed.
 	 */
-	onExit: Event<number | undefined>;
+	onExit: Event<numba | undefined>;
 
-	readonly exitCode: number | undefined;
+	weadonwy exitCode: numba | undefined;
 
-	readonly areLinksReady: boolean;
+	weadonwy aweWinksWeady: boowean;
 
 	/**
-	 * Returns an array of data events that have fired within the first 10 seconds. If this is
-	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
-	 * when objects that depend on the data events have delayed initialization, like extension
+	 * Wetuwns an awway of data events that have fiwed within the fiwst 10 seconds. If this is
+	 * cawwed 10 seconds afta the tewminaw has existed the wesuwt wiww be undefined. This is usefuw
+	 * when objects that depend on the data events have dewayed initiawization, wike extension
 	 * hosts.
 	 */
-	readonly initialDataEvents: string[] | undefined;
+	weadonwy initiawDataEvents: stwing[] | undefined;
 
-	/** A promise that resolves when the terminal's pty/process have been created. */
-	readonly processReady: Promise<void>;
+	/** A pwomise that wesowves when the tewminaw's pty/pwocess have been cweated. */
+	weadonwy pwocessWeady: Pwomise<void>;
 
-	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
-	readonly hasChildProcesses: boolean;
+	/** Whetha the tewminaw's pwocess has chiwd pwocesses (ie. is diwty/busy). */
+	weadonwy hasChiwdPwocesses: boowean;
 
 	/**
-	 * The title of the terminal. This is either title or the process currently running or an
-	 * explicit name given to the terminal instance through the extension API.
+	 * The titwe of the tewminaw. This is eitha titwe ow the pwocess cuwwentwy wunning ow an
+	 * expwicit name given to the tewminaw instance thwough the extension API.
 	 */
-	readonly title: string;
+	weadonwy titwe: stwing;
 
 	/**
-	 * How the current title was set.
+	 * How the cuwwent titwe was set.
 	 */
-	readonly titleSource: TitleEventSource;
+	weadonwy titweSouwce: TitweEventSouwce;
 
 	/**
-	 * The shell type of the terminal.
+	 * The sheww type of the tewminaw.
 	 */
-	readonly shellType: TerminalShellType;
+	weadonwy shewwType: TewminawShewwType;
 
 	/**
-	 * The focus state of the terminal before exiting.
+	 * The focus state of the tewminaw befowe exiting.
 	 */
-	readonly hadFocusOnExit: boolean;
+	weadonwy hadFocusOnExit: boowean;
 
 	/**
-	 * False when the title is set by an API or the user. We check this to make sure we
-	 * do not override the title when the process title changes in the terminal.
+	 * Fawse when the titwe is set by an API ow the usa. We check this to make suwe we
+	 * do not ovewwide the titwe when the pwocess titwe changes in the tewminaw.
 	 */
-	isTitleSetByProcess: boolean;
+	isTitweSetByPwocess: boowean;
 
 	/**
-	 * The shell launch config used to launch the shell.
+	 * The sheww waunch config used to waunch the sheww.
 	 */
-	readonly shellLaunchConfig: IShellLaunchConfig;
+	weadonwy shewwWaunchConfig: IShewwWaunchConfig;
 
 	/**
-	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
-	 * being manipulating (e.g. adding a split pane) and we want the terminal to ignore particular
-	 * resize events.
+	 * Whetha to disabwe wayout fow the tewminaw. This is usefuw when the size of the tewminaw is
+	 * being manipuwating (e.g. adding a spwit pane) and we want the tewminaw to ignowe pawticuwaw
+	 * wesize events.
 	 */
-	disableLayout: boolean;
+	disabweWayout: boowean;
 
 	/**
-	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * An object that twacks when commands awe wun and enabwes navigating and sewecting between
 	 * them.
 	 */
-	readonly commandTracker: ICommandTracker | undefined;
+	weadonwy commandTwacka: ICommandTwacka | undefined;
 
-	readonly navigationMode: INavigationMode | undefined;
+	weadonwy navigationMode: INavigationMode | undefined;
 
-	description: string | undefined;
+	descwiption: stwing | undefined;
 
-	userHome: string | undefined
+	usewHome: stwing | undefined
 	/**
-	 * Shows the environment information hover if the widget exists.
+	 * Shows the enviwonment infowmation hova if the widget exists.
 	 */
-	showEnvironmentInfoHover(): void;
+	showEnviwonmentInfoHova(): void;
 
 	/**
-	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
+	 * Dispose the tewminaw instance, wemoving it fwom the panew/sewvice and fweeing up wesouwces.
 	 *
-	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
-	 * when VS Code is shutting down or in cases where the terminal dispose was user initiated.
-	 * The immediate===false exists to cover an edge case where the final output of the terminal can
-	 * get cut off. If immediate kill any terminal processes immediately.
+	 * @pawam immediate Whetha the kiww shouwd be immediate ow not. Immediate shouwd onwy be used
+	 * when VS Code is shutting down ow in cases whewe the tewminaw dispose was usa initiated.
+	 * The immediate===fawse exists to cova an edge case whewe the finaw output of the tewminaw can
+	 * get cut off. If immediate kiww any tewminaw pwocesses immediatewy.
 	 */
-	dispose(immediate?: boolean): void;
+	dispose(immediate?: boowean): void;
 
 	/**
-	 * Inform the process that the terminal is now detached.
+	 * Infowm the pwocess that the tewminaw is now detached.
 	 */
-	detachFromProcess(): Promise<void>;
+	detachFwomPwocess(): Pwomise<void>;
 
 	/**
-	 * Forces the terminal to redraw its viewport.
+	 * Fowces the tewminaw to wedwaw its viewpowt.
 	 */
-	forceRedraw(): void;
+	fowceWedwaw(): void;
 
 	/**
-	 * Check if anything is selected in terminal.
+	 * Check if anything is sewected in tewminaw.
 	 */
-	hasSelection(): boolean;
+	hasSewection(): boowean;
 
 	/**
-	 * Copies the terminal selection to the clipboard.
+	 * Copies the tewminaw sewection to the cwipboawd.
 	 */
-	copySelection(): Promise<void>;
+	copySewection(): Pwomise<void>;
 
 	/**
-	 * Current selection in the terminal.
+	 * Cuwwent sewection in the tewminaw.
 	 */
-	readonly selection: string | undefined;
+	weadonwy sewection: stwing | undefined;
 
 	/**
-	 * Clear current selection.
+	 * Cweaw cuwwent sewection.
 	 */
-	clearSelection(): void;
+	cweawSewection(): void;
 
 	/**
-	 * Select all text in the terminal.
+	 * Sewect aww text in the tewminaw.
 	 */
-	selectAll(): void;
+	sewectAww(): void;
 
 	/**
-	 * Find the next instance of the term
+	 * Find the next instance of the tewm
 	*/
-	findNext(term: string, searchOptions: ISearchOptions): boolean;
+	findNext(tewm: stwing, seawchOptions: ISeawchOptions): boowean;
 
 	/**
-	 * Find the previous instance of the term
+	 * Find the pwevious instance of the tewm
 	 */
-	findPrevious(term: string, searchOptions: ISearchOptions): boolean;
+	findPwevious(tewm: stwing, seawchOptions: ISeawchOptions): boowean;
 
 	/**
-	 * Notifies the terminal that the find widget's focus state has been changed.
+	 * Notifies the tewminaw that the find widget's focus state has been changed.
 	 */
-	notifyFindWidgetFocusChanged(isFocused: boolean): void;
+	notifyFindWidgetFocusChanged(isFocused: boowean): void;
 
 	/**
-	 * Focuses the terminal instance if it's able to (xterm.js instance exists).
+	 * Focuses the tewminaw instance if it's abwe to (xtewm.js instance exists).
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @pawam focus Fowce focus even if thewe is a sewection.
 	 */
-	focus(force?: boolean): void;
+	focus(fowce?: boowean): void;
 
 	/**
-	 * Focuses the terminal instance when it's ready (the xterm.js instance is created). Use this
-	 * when the terminal is being shown.
+	 * Focuses the tewminaw instance when it's weady (the xtewm.js instance is cweated). Use this
+	 * when the tewminaw is being shown.
 	 *
-	 * @param focus Force focus even if there is a selection.
+	 * @pawam focus Fowce focus even if thewe is a sewection.
 	 */
-	focusWhenReady(force?: boolean): Promise<void>;
+	focusWhenWeady(fowce?: boowean): Pwomise<void>;
 
 	/**
-	 * Focuses and pastes the contents of the clipboard into the terminal instance.
+	 * Focuses and pastes the contents of the cwipboawd into the tewminaw instance.
 	 */
-	paste(): Promise<void>;
+	paste(): Pwomise<void>;
 
 	/**
-	 * Focuses and pastes the contents of the selection clipboard into the terminal instance.
+	 * Focuses and pastes the contents of the sewection cwipboawd into the tewminaw instance.
 	 */
-	pasteSelection(): Promise<void>;
+	pasteSewection(): Pwomise<void>;
 
 	/**
-	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
-	 * process (shell) of the terminal instance.
+	 * Send text to the tewminaw instance. The text is wwitten to the stdin of the undewwying pty
+	 * pwocess (sheww) of the tewminaw instance.
 	 *
-	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-	 * required to run a command in the terminal. The character(s) added are \n or \r\n
-	 * depending on the platform. This defaults to `true`.
+	 * @pawam text The text to send.
+	 * @pawam addNewWine Whetha to add a new wine to the text being sent, this is nowmawwy
+	 * wequiwed to wun a command in the tewminaw. The chawacta(s) added awe \n ow \w\n
+	 * depending on the pwatfowm. This defauwts to `twue`.
 	 */
-	sendText(text: string, addNewLine: boolean): Promise<void>;
+	sendText(text: stwing, addNewWine: boowean): Pwomise<void>;
 
-	/** Scroll the terminal buffer down 1 line. */
-	scrollDownLine(): void;
-	/** Scroll the terminal buffer down 1 page. */
-	scrollDownPage(): void;
-	/** Scroll the terminal buffer to the bottom. */
-	scrollToBottom(): void;
-	/** Scroll the terminal buffer up 1 line. */
-	scrollUpLine(): void;
-	/** Scroll the terminal buffer up 1 page. */
-	scrollUpPage(): void;
-	/** Scroll the terminal buffer to the top. */
-	scrollToTop(): void;
+	/** Scwoww the tewminaw buffa down 1 wine. */
+	scwowwDownWine(): void;
+	/** Scwoww the tewminaw buffa down 1 page. */
+	scwowwDownPage(): void;
+	/** Scwoww the tewminaw buffa to the bottom. */
+	scwowwToBottom(): void;
+	/** Scwoww the tewminaw buffa up 1 wine. */
+	scwowwUpWine(): void;
+	/** Scwoww the tewminaw buffa up 1 page. */
+	scwowwUpPage(): void;
+	/** Scwoww the tewminaw buffa to the top. */
+	scwowwToTop(): void;
 
 	/**
-	 * Clears the terminal buffer, leaving only the prompt line.
+	 * Cweaws the tewminaw buffa, weaving onwy the pwompt wine.
 	 */
-	clear(): void;
+	cweaw(): void;
 
 	/**
-	 * Attaches the terminal instance to an element on the DOM, before this is called the terminal
-	 * instance process may run in the background but cannot be displayed on the UI.
+	 * Attaches the tewminaw instance to an ewement on the DOM, befowe this is cawwed the tewminaw
+	 * instance pwocess may wun in the backgwound but cannot be dispwayed on the UI.
 	 *
-	 * @param container The element to attach the terminal instance to.
+	 * @pawam containa The ewement to attach the tewminaw instance to.
 	 */
-	attachToElement(container: HTMLElement): Promise<void> | void;
+	attachToEwement(containa: HTMWEwement): Pwomise<void> | void;
 
 	/**
-	 * Detaches the terminal instance from the terminal editor DOM element.
+	 * Detaches the tewminaw instance fwom the tewminaw editow DOM ewement.
 	 */
-	detachFromElement(): void;
+	detachFwomEwement(): void;
 
 	/**
-	 * Configure the dimensions of the terminal instance.
+	 * Configuwe the dimensions of the tewminaw instance.
 	 *
-	 * @param dimension The dimensions of the container.
+	 * @pawam dimension The dimensions of the containa.
 	 */
-	layout(dimension: { width: number, height: number }): void;
+	wayout(dimension: { width: numba, height: numba }): void;
 
 	/**
-	 * Sets whether the terminal instance's element is visible in the DOM.
+	 * Sets whetha the tewminaw instance's ewement is visibwe in the DOM.
 	 *
-	 * @param visible Whether the element is visible.
+	 * @pawam visibwe Whetha the ewement is visibwe.
 	 */
-	setVisible(visible: boolean): void;
+	setVisibwe(visibwe: boowean): void;
 
 	/**
-	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
+	 * Immediatewy kiwws the tewminaw's cuwwent pty pwocess and waunches a new one to wepwace it.
 	 *
-	 * @param shell The new launch configuration.
+	 * @pawam sheww The new waunch configuwation.
 	 */
-	reuseTerminal(shell: IShellLaunchConfig): Promise<void>;
+	weuseTewminaw(sheww: IShewwWaunchConfig): Pwomise<void>;
 
 	/**
-	 * Relaunches the terminal, killing it and reusing the launch config used initially. Any
-	 * environment variable changes will be recalculated when this happens.
+	 * Wewaunches the tewminaw, kiwwing it and weusing the waunch config used initiawwy. Any
+	 * enviwonment vawiabwe changes wiww be wecawcuwated when this happens.
 	 */
-	relaunch(): void;
+	wewaunch(): void;
 
 	/**
-	 * Sets the title and description of the terminal instance's label.
+	 * Sets the titwe and descwiption of the tewminaw instance's wabew.
 	 */
-	refreshTabLabels(title: string, eventSource: TitleEventSource): void;
+	wefweshTabWabews(titwe: stwing, eventSouwce: TitweEventSouwce): void;
 
-	waitForTitle(): Promise<string>;
+	waitFowTitwe(): Pwomise<stwing>;
 
-	setDimensions(dimensions: ITerminalDimensions): void;
+	setDimensions(dimensions: ITewminawDimensions): void;
 
-	addDisposable(disposable: IDisposable): void;
+	addDisposabwe(disposabwe: IDisposabwe): void;
 
-	toggleEscapeSequenceLogging(): void;
+	toggweEscapeSequenceWogging(): void;
 
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
+	getInitiawCwd(): Pwomise<stwing>;
+	getCwd(): Pwomise<stwing>;
 
-	refreshProperty(type: ProcessPropertyType): Promise<any>;
+	wefweshPwopewty(type: PwocessPwopewtyType): Pwomise<any>;
 
 	/**
-	 * @throws when called before xterm.js is ready.
+	 * @thwows when cawwed befowe xtewm.js is weady.
 	 */
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
+	wegistewWinkPwovida(pwovida: ITewminawExtewnawWinkPwovida): IDisposabwe;
 
 	/**
-	 * Sets the terminal name to the provided title or triggers a quick pick
-	 * to take user input.
+	 * Sets the tewminaw name to the pwovided titwe ow twiggews a quick pick
+	 * to take usa input.
 	 */
-	rename(title?: string): Promise<void>;
+	wename(titwe?: stwing): Pwomise<void>;
 
 	/**
-	 * Triggers a quick pick to change the icon of this terminal.
+	 * Twiggews a quick pick to change the icon of this tewminaw.
 	 */
-	changeIcon(): Promise<void>;
+	changeIcon(): Pwomise<void>;
 
 	/**
-	 * Triggers a quick pick to change the color of the associated terminal tab icon.
+	 * Twiggews a quick pick to change the cowow of the associated tewminaw tab icon.
 	 */
-	changeColor(): Promise<void>;
+	changeCowow(): Pwomise<void>;
 }
 
-export interface IRequestAddInstanceToGroupEvent {
-	uri: URI;
-	side: 'before' | 'after'
+expowt intewface IWequestAddInstanceToGwoupEvent {
+	uwi: UWI;
+	side: 'befowe' | 'afta'
 }
 
-export const enum LinuxDistro {
+expowt const enum WinuxDistwo {
 	Unknown = 1,
-	Fedora = 2,
+	Fedowa = 2,
 	Ubuntu = 3,
 }

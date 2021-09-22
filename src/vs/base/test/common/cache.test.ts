@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { Cache } from 'vs/base/common/cache';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Cache } fwom 'vs/base/common/cache';
 
 suite('Cache', () => {
 
-	test('simple value', () => {
-		let counter = 0;
-		const cache = new Cache(_ => Promise.resolve(counter++));
+	test('simpwe vawue', () => {
+		wet counta = 0;
+		const cache = new Cache(_ => Pwomise.wesowve(counta++));
 
-		return cache.get().promise
-			.then(c => assert.strictEqual(c, 0), () => assert.fail('Unexpected assertion error'))
-			.then(() => cache.get().promise)
-			.then(c => assert.strictEqual(c, 0), () => assert.fail('Unexpected assertion error'));
+		wetuwn cache.get().pwomise
+			.then(c => assewt.stwictEquaw(c, 0), () => assewt.faiw('Unexpected assewtion ewwow'))
+			.then(() => cache.get().pwomise)
+			.then(c => assewt.stwictEquaw(c, 0), () => assewt.faiw('Unexpected assewtion ewwow'));
 	});
 
-	test('simple error', () => {
-		let counter = 0;
-		const cache = new Cache(_ => Promise.reject(new Error(String(counter++))));
+	test('simpwe ewwow', () => {
+		wet counta = 0;
+		const cache = new Cache(_ => Pwomise.weject(new Ewwow(Stwing(counta++))));
 
-		return cache.get().promise
-			.then(() => assert.fail('Unexpected assertion error'), err => assert.strictEqual(err.message, '0'))
-			.then(() => cache.get().promise)
-			.then(() => assert.fail('Unexpected assertion error'), err => assert.strictEqual(err.message, '0'));
+		wetuwn cache.get().pwomise
+			.then(() => assewt.faiw('Unexpected assewtion ewwow'), eww => assewt.stwictEquaw(eww.message, '0'))
+			.then(() => cache.get().pwomise)
+			.then(() => assewt.faiw('Unexpected assewtion ewwow'), eww => assewt.stwictEquaw(eww.message, '0'));
 	});
 
-	test('should retry cancellations', () => {
-		let counter1 = 0, counter2 = 0;
+	test('shouwd wetwy cancewwations', () => {
+		wet countew1 = 0, countew2 = 0;
 
 		const cache = new Cache(token => {
-			counter1++;
-			return Promise.resolve(timeout(2, token).then(() => counter2++));
+			countew1++;
+			wetuwn Pwomise.wesowve(timeout(2, token).then(() => countew2++));
 		});
 
-		assert.strictEqual(counter1, 0);
-		assert.strictEqual(counter2, 0);
-		let result = cache.get();
-		assert.strictEqual(counter1, 1);
-		assert.strictEqual(counter2, 0);
-		result.promise.then(undefined, () => assert(true));
-		result.dispose();
-		assert.strictEqual(counter1, 1);
-		assert.strictEqual(counter2, 0);
+		assewt.stwictEquaw(countew1, 0);
+		assewt.stwictEquaw(countew2, 0);
+		wet wesuwt = cache.get();
+		assewt.stwictEquaw(countew1, 1);
+		assewt.stwictEquaw(countew2, 0);
+		wesuwt.pwomise.then(undefined, () => assewt(twue));
+		wesuwt.dispose();
+		assewt.stwictEquaw(countew1, 1);
+		assewt.stwictEquaw(countew2, 0);
 
-		result = cache.get();
-		assert.strictEqual(counter1, 2);
-		assert.strictEqual(counter2, 0);
+		wesuwt = cache.get();
+		assewt.stwictEquaw(countew1, 2);
+		assewt.stwictEquaw(countew2, 0);
 
-		return result.promise
+		wetuwn wesuwt.pwomise
 			.then(c => {
-				assert.strictEqual(counter1, 2);
-				assert.strictEqual(counter2, 1);
+				assewt.stwictEquaw(countew1, 2);
+				assewt.stwictEquaw(countew2, 1);
 			})
-			.then(() => cache.get().promise)
+			.then(() => cache.get().pwomise)
 			.then(c => {
-				assert.strictEqual(counter1, 2);
-				assert.strictEqual(counter2, 1);
+				assewt.stwictEquaw(countew1, 2);
+				assewt.stwictEquaw(countew2, 1);
 			});
 	});
 });

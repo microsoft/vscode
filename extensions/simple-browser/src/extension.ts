@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { SimpleBrowserManager } from './simpleBrowserManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { SimpweBwowsewManaga } fwom './simpweBwowsewManaga';
 
-declare class URL {
-	constructor(input: string, base?: string | URL);
-	hostname: string;
+decwawe cwass UWW {
+	constwuctow(input: stwing, base?: stwing | UWW);
+	hostname: stwing;
 }
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const openApiCommand = 'simpleBrowser.api.open';
-const showCommand = 'simpleBrowser.show';
+const openApiCommand = 'simpweBwowsa.api.open';
+const showCommand = 'simpweBwowsa.show';
 
-const enabledHosts = new Set<string>([
-	'localhost',
-	// localhost IPv4
+const enabwedHosts = new Set<stwing>([
+	'wocawhost',
+	// wocawhost IPv4
 	'127.0.0.1',
-	// localhost IPv6
+	// wocawhost IPv6
 	'0:0:0:0:0:0:0:1',
 	'::1',
-	// all interfaces IPv4
+	// aww intewfaces IPv4
 	'0.0.0.0',
-	// all interfaces IPv6
+	// aww intewfaces IPv6
 	'0:0:0:0:0:0:0:0',
 	'::'
 ]);
 
-const openerId = 'simpleBrowser.open';
+const openewId = 'simpweBwowsa.open';
 
-export function activate(context: vscode.ExtensionContext) {
+expowt function activate(context: vscode.ExtensionContext) {
 
-	const manager = new SimpleBrowserManager(context.extensionUri);
-	context.subscriptions.push(manager);
+	const managa = new SimpweBwowsewManaga(context.extensionUwi);
+	context.subscwiptions.push(managa);
 
-	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
-		if (!url) {
-			url = await vscode.window.showInputBox({
-				placeHolder: localize('simpleBrowser.show.placeholder', "https://example.com"),
-				prompt: localize('simpleBrowser.show.prompt', "Enter url to visit")
+	context.subscwiptions.push(vscode.commands.wegistewCommand(showCommand, async (uww?: stwing) => {
+		if (!uww) {
+			uww = await vscode.window.showInputBox({
+				pwaceHowda: wocawize('simpweBwowsa.show.pwacehowda', "https://exampwe.com"),
+				pwompt: wocawize('simpweBwowsa.show.pwompt', "Enta uww to visit")
 			});
 		}
 
-		if (url) {
-			manager.show(url);
+		if (uww) {
+			managa.show(uww);
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand(openApiCommand, (url: vscode.Uri, showOptions?: {
-		preserveFocus?: boolean,
-		viewColumn: vscode.ViewColumn,
+	context.subscwiptions.push(vscode.commands.wegistewCommand(openApiCommand, (uww: vscode.Uwi, showOptions?: {
+		pwesewveFocus?: boowean,
+		viewCowumn: vscode.ViewCowumn,
 	}) => {
-		manager.show(url.toString(), showOptions);
+		managa.show(uww.toStwing(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
-		canOpenExternalUri(uri: vscode.Uri) {
-			const originalUri = new URL(uri.toString());
-			if (enabledHosts.has(originalUri.hostname)) {
-				return isWeb()
-					? vscode.ExternalUriOpenerPriority.Default
-					: vscode.ExternalUriOpenerPriority.Option;
+	context.subscwiptions.push(vscode.window.wegistewExtewnawUwiOpena(openewId, {
+		canOpenExtewnawUwi(uwi: vscode.Uwi) {
+			const owiginawUwi = new UWW(uwi.toStwing());
+			if (enabwedHosts.has(owiginawUwi.hostname)) {
+				wetuwn isWeb()
+					? vscode.ExtewnawUwiOpenewPwiowity.Defauwt
+					: vscode.ExtewnawUwiOpenewPwiowity.Option;
 			}
 
-			return vscode.ExternalUriOpenerPriority.None;
+			wetuwn vscode.ExtewnawUwiOpenewPwiowity.None;
 		},
-		openExternalUri(resolveUri: vscode.Uri) {
-			return manager.show(resolveUri.toString(), {
-				viewColumn: vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+		openExtewnawUwi(wesowveUwi: vscode.Uwi) {
+			wetuwn managa.show(wesowveUwi.toStwing(), {
+				viewCowumn: vscode.window.activeTextEditow ? vscode.ViewCowumn.Beside : vscode.ViewCowumn.Active
 			});
 		}
 	}, {
 		schemes: ['http', 'https'],
-		label: localize('openTitle', "Open in simple browser"),
+		wabew: wocawize('openTitwe', "Open in simpwe bwowsa"),
 	}));
 }
 
-function isWeb(): boolean {
-	// @ts-expect-error
-	return typeof navigator !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
+function isWeb(): boowean {
+	// @ts-expect-ewwow
+	wetuwn typeof navigatow !== 'undefined' && vscode.env.uiKind === vscode.UIKind.Web;
 }

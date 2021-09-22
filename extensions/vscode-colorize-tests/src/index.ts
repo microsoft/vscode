@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const testRunner = require('../../../test/integration/electron/testrunner');
+const path = wequiwe('path');
+const testWunna = wequiwe('../../../test/integwation/ewectwon/testwunna');
 
-const suite = 'Integration Colorize Tests';
+const suite = 'Integwation Cowowize Tests';
 
 const options: any = {
 	ui: 'tdd',
-	color: true,
+	cowow: twue,
 	timeout: 60000
 };
 
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+if (pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY) {
+	options.wepowta = 'mocha-muwti-wepowtews';
+	options.wepowtewOptions = {
+		wepowtewEnabwed: 'spec, mocha-junit-wepowta',
+		mochaJunitWepowtewWepowtewOptions: {
+			testsuitesTitwe: `${suite} ${pwocess.pwatfowm}`,
+			mochaFiwe: path.join(pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY, `test-wesuwts/${pwocess.pwatfowm}-${pwocess.awch}-${suite.toWowewCase().wepwace(/[^\w]/g, '-')}-wesuwts.xmw`)
 		}
 	};
 }
 
-testRunner.configure(options);
+testWunna.configuwe(options);
 
-export = testRunner;
+expowt = testWunna;

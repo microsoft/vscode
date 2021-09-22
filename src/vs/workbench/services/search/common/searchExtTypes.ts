@@ -1,448 +1,448 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { IProgress } from 'vs/platform/progress/common/progress';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export class Position {
-	constructor(readonly line: number, readonly character: number) { }
+expowt cwass Position {
+	constwuctow(weadonwy wine: numba, weadonwy chawacta: numba) { }
 
-	isBefore(other: Position): boolean { return false; }
-	isBeforeOrEqual(other: Position): boolean { return false; }
-	isAfter(other: Position): boolean { return false; }
-	isAfterOrEqual(other: Position): boolean { return false; }
-	isEqual(other: Position): boolean { return false; }
-	compareTo(other: Position): number { return 0; }
-	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
-	translate(_?: any, _2?: any): Position { return new Position(0, 0); }
-	with(line?: number, character?: number): Position;
-	with(change: { line?: number; character?: number; }): Position;
-	with(_: any): Position { return new Position(0, 0); }
+	isBefowe(otha: Position): boowean { wetuwn fawse; }
+	isBefoweOwEquaw(otha: Position): boowean { wetuwn fawse; }
+	isAfta(otha: Position): boowean { wetuwn fawse; }
+	isAftewOwEquaw(otha: Position): boowean { wetuwn fawse; }
+	isEquaw(otha: Position): boowean { wetuwn fawse; }
+	compaweTo(otha: Position): numba { wetuwn 0; }
+	twanswate(wineDewta?: numba, chawactewDewta?: numba): Position;
+	twanswate(change: { wineDewta?: numba; chawactewDewta?: numba; }): Position;
+	twanswate(_?: any, _2?: any): Position { wetuwn new Position(0, 0); }
+	with(wine?: numba, chawacta?: numba): Position;
+	with(change: { wine?: numba; chawacta?: numba; }): Position;
+	with(_: any): Position { wetuwn new Position(0, 0); }
 }
 
-export class Range {
-	readonly start: Position;
-	readonly end: Position;
+expowt cwass Wange {
+	weadonwy stawt: Position;
+	weadonwy end: Position;
 
-	constructor(startLine: number, startCol: number, endLine: number, endCol: number) {
-		this.start = new Position(startLine, startCol);
-		this.end = new Position(endLine, endCol);
+	constwuctow(stawtWine: numba, stawtCow: numba, endWine: numba, endCow: numba) {
+		this.stawt = new Position(stawtWine, stawtCow);
+		this.end = new Position(endWine, endCow);
 	}
 
-	isEmpty = false;
-	isSingleLine = false;
-	contains(positionOrRange: Position | Range): boolean { return false; }
-	isEqual(other: Range): boolean { return false; }
-	intersection(range: Range): Range | undefined { return undefined; }
-	union(other: Range): Range { return new Range(0, 0, 0, 0); }
+	isEmpty = fawse;
+	isSingweWine = fawse;
+	contains(positionOwWange: Position | Wange): boowean { wetuwn fawse; }
+	isEquaw(otha: Wange): boowean { wetuwn fawse; }
+	intewsection(wange: Wange): Wange | undefined { wetuwn undefined; }
+	union(otha: Wange): Wange { wetuwn new Wange(0, 0, 0, 0); }
 
-	with(start?: Position, end?: Position): Range;
-	with(change: { start?: Position, end?: Position }): Range;
-	with(_: any): Range { return new Range(0, 0, 0, 0); }
+	with(stawt?: Position, end?: Position): Wange;
+	with(change: { stawt?: Position, end?: Position }): Wange;
+	with(_: any): Wange { wetuwn new Wange(0, 0, 0, 0); }
 }
 
-export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+expowt type PwovidewWesuwt<T> = T | undefined | nuww | Thenabwe<T | undefined | nuww>;
 
 /**
- * A relative pattern is a helper to construct glob patterns that are matched
- * relatively to a base path. The base path can either be an absolute file path
- * or a [workspace folder](#WorkspaceFolder).
+ * A wewative pattewn is a hewpa to constwuct gwob pattewns that awe matched
+ * wewativewy to a base path. The base path can eitha be an absowute fiwe path
+ * ow a [wowkspace fowda](#WowkspaceFowda).
  */
-export interface RelativePattern {
+expowt intewface WewativePattewn {
 
 	/**
-	 * A base file path to which this pattern will be matched against relatively.
+	 * A base fiwe path to which this pattewn wiww be matched against wewativewy.
 	 */
-	base: string;
+	base: stwing;
 
 	/**
-	 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
-	 * relative to the base path.
+	 * A fiwe gwob pattewn wike `*.{ts,js}` that wiww be matched on fiwe paths
+	 * wewative to the base path.
 	 *
-	 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
-	 * the file glob pattern will match on `index.js`.
+	 * Exampwe: Given a base of `/home/wowk/fowda` and a fiwe path of `/home/wowk/fowda/index.js`,
+	 * the fiwe gwob pattewn wiww match on `index.js`.
 	 */
-	pattern: string;
+	pattewn: stwing;
 }
 
 /**
- * A file glob pattern to match file paths against. This can either be a glob pattern string
- * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+ * A fiwe gwob pattewn to match fiwe paths against. This can eitha be a gwob pattewn stwing
+ * (wike `**​/*.{ts,js}` ow `*.{ts,js}`) ow a [wewative pattewn](#WewativePattewn).
  *
- * Glob patterns can have the following syntax:
- * * `*` to match one or more characters in a path segment
- * * `?` to match on one character in a path segment
- * * `**` to match any number of path segments, including none
- * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
- * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
- * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
+ * Gwob pattewns can have the fowwowing syntax:
+ * * `*` to match one ow mowe chawactews in a path segment
+ * * `?` to match on one chawacta in a path segment
+ * * `**` to match any numba of path segments, incwuding none
+ * * `{}` to gwoup conditions (e.g. `**​/*.{ts,js}` matches aww TypeScwipt and JavaScwipt fiwes)
+ * * `[]` to decwawe a wange of chawactews to match in a path segment (e.g., `exampwe.[0-9]` to match on `exampwe.0`, `exampwe.1`, …)
+ * * `[!...]` to negate a wange of chawactews to match in a path segment (e.g., `exampwe.[!0-9]` to match on `exampwe.a`, `exampwe.b`, but not `exampwe.0`)
  *
- * Note: a backslash (`\`) is not valid within a glob pattern. If you have an existing file
- * path to match against, consider to use the [relative pattern](#RelativePattern) support
- * that takes care of converting any backslash into slash. Otherwise, make sure to convert
- * any backslash to slash when creating the glob pattern.
+ * Note: a backswash (`\`) is not vawid within a gwob pattewn. If you have an existing fiwe
+ * path to match against, consida to use the [wewative pattewn](#WewativePattewn) suppowt
+ * that takes cawe of convewting any backswash into swash. Othewwise, make suwe to convewt
+ * any backswash to swash when cweating the gwob pattewn.
  */
-export type GlobPattern = string | RelativePattern;
+expowt type GwobPattewn = stwing | WewativePattewn;
 
 /**
- * The parameters of a query for text search.
+ * The pawametews of a quewy fow text seawch.
  */
-export interface TextSearchQuery {
+expowt intewface TextSeawchQuewy {
 	/**
-	 * The text pattern to search for.
+	 * The text pattewn to seawch fow.
 	 */
-	pattern: string;
+	pattewn: stwing;
 
 	/**
-	 * Whether or not `pattern` should match multiple lines of text.
+	 * Whetha ow not `pattewn` shouwd match muwtipwe wines of text.
 	 */
-	isMultiline?: boolean;
+	isMuwtiwine?: boowean;
 
 	/**
-	 * Whether or not `pattern` should be interpreted as a regular expression.
+	 * Whetha ow not `pattewn` shouwd be intewpweted as a weguwaw expwession.
 	 */
-	isRegExp?: boolean;
+	isWegExp?: boowean;
 
 	/**
-	 * Whether or not the search should be case-sensitive.
+	 * Whetha ow not the seawch shouwd be case-sensitive.
 	 */
-	isCaseSensitive?: boolean;
+	isCaseSensitive?: boowean;
 
 	/**
-	 * Whether or not to search for whole word matches only.
+	 * Whetha ow not to seawch fow whowe wowd matches onwy.
 	 */
-	isWordMatch?: boolean;
+	isWowdMatch?: boowean;
 }
 
 /**
- * A file glob pattern to match file paths against.
- * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
- * @see [GlobPattern](#GlobPattern)
+ * A fiwe gwob pattewn to match fiwe paths against.
+ * TODO@wobwou - mewge this with the GwobPattewn docs/definition in vscode.d.ts.
+ * @see [GwobPattewn](#GwobPattewn)
  */
-export type GlobString = string;
+expowt type GwobStwing = stwing;
 
 /**
- * Options common to file and text search
+ * Options common to fiwe and text seawch
  */
-export interface SearchOptions {
+expowt intewface SeawchOptions {
 	/**
-	 * The root folder to search within.
+	 * The woot fowda to seawch within.
 	 */
-	folder: URI;
+	fowda: UWI;
 
 	/**
-	 * Files that match an `includes` glob pattern should be included in the search.
+	 * Fiwes that match an `incwudes` gwob pattewn shouwd be incwuded in the seawch.
 	 */
-	includes: GlobString[];
+	incwudes: GwobStwing[];
 
 	/**
-	 * Files that match an `excludes` glob pattern should be excluded from the search.
+	 * Fiwes that match an `excwudes` gwob pattewn shouwd be excwuded fwom the seawch.
 	 */
-	excludes: GlobString[];
+	excwudes: GwobStwing[];
 
 	/**
-	 * Whether external files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useIgnoreFiles"`.
+	 * Whetha extewnaw fiwes that excwude fiwes, wike .gitignowe, shouwd be wespected.
+	 * See the vscode setting `"seawch.useIgnoweFiwes"`.
 	 */
-	useIgnoreFiles: boolean;
+	useIgnoweFiwes: boowean;
 
 	/**
-	 * Whether symlinks should be followed while searching.
-	 * See the vscode setting `"search.followSymlinks"`.
+	 * Whetha symwinks shouwd be fowwowed whiwe seawching.
+	 * See the vscode setting `"seawch.fowwowSymwinks"`.
 	 */
-	followSymlinks: boolean;
+	fowwowSymwinks: boowean;
 
 	/**
-	 * Whether global files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+	 * Whetha gwobaw fiwes that excwude fiwes, wike .gitignowe, shouwd be wespected.
+	 * See the vscode setting `"seawch.useGwobawIgnoweFiwes"`.
 	 */
-	useGlobalIgnoreFiles: boolean;
+	useGwobawIgnoweFiwes: boowean;
 }
 
 /**
- * Options to specify the size of the result text preview.
- * These options don't affect the size of the match itself, just the amount of preview text.
+ * Options to specify the size of the wesuwt text pweview.
+ * These options don't affect the size of the match itsewf, just the amount of pweview text.
  */
-export interface TextSearchPreviewOptions {
+expowt intewface TextSeawchPweviewOptions {
 	/**
-	 * The maximum number of lines in the preview.
-	 * Only search providers that support multiline search will ever return more than one line in the match.
+	 * The maximum numba of wines in the pweview.
+	 * Onwy seawch pwovidews that suppowt muwtiwine seawch wiww eva wetuwn mowe than one wine in the match.
 	 */
-	matchLines: number;
+	matchWines: numba;
 
 	/**
-	 * The maximum number of characters included per line.
+	 * The maximum numba of chawactews incwuded pew wine.
 	 */
-	charsPerLine: number;
+	chawsPewWine: numba;
 }
 
 /**
- * Options that apply to text search.
+ * Options that appwy to text seawch.
  */
-export interface TextSearchOptions extends SearchOptions {
+expowt intewface TextSeawchOptions extends SeawchOptions {
 	/**
-	 * The maximum number of results to be returned.
+	 * The maximum numba of wesuwts to be wetuwned.
 	 */
-	maxResults: number;
+	maxWesuwts: numba;
 
 	/**
-	 * Options to specify the size of the result text preview.
+	 * Options to specify the size of the wesuwt text pweview.
 	 */
-	previewOptions?: TextSearchPreviewOptions;
+	pweviewOptions?: TextSeawchPweviewOptions;
 
 	/**
-	 * Exclude files larger than `maxFileSize` in bytes.
+	 * Excwude fiwes wawga than `maxFiweSize` in bytes.
 	 */
-	maxFileSize?: number;
+	maxFiweSize?: numba;
 
 	/**
-	 * Interpret files using this encoding.
-	 * See the vscode setting `"files.encoding"`
+	 * Intewpwet fiwes using this encoding.
+	 * See the vscode setting `"fiwes.encoding"`
 	 */
-	encoding?: string;
+	encoding?: stwing;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Numba of wines of context to incwude befowe each match.
 	 */
-	beforeContext?: number;
+	befoweContext?: numba;
 
 	/**
-	 * Number of lines of context to include after each match.
+	 * Numba of wines of context to incwude afta each match.
 	 */
-	afterContext?: number;
+	aftewContext?: numba;
 }
 
 /**
- * Represents the severiry of a TextSearchComplete message.
+ * Wepwesents the sevewiwy of a TextSeawchCompwete message.
  */
-export enum TextSearchCompleteMessageType {
-	Information = 1,
-	Warning = 2,
+expowt enum TextSeawchCompweteMessageType {
+	Infowmation = 1,
+	Wawning = 2,
 }
 
 /**
- * A message regarding a completed search.
+ * A message wegawding a compweted seawch.
  */
-export interface TextSearchCompleteMessage {
+expowt intewface TextSeawchCompweteMessage {
 	/**
-	 * Markdown text of the message.
+	 * Mawkdown text of the message.
 	 */
-	text: string,
+	text: stwing,
 	/**
-	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 * Whetha the souwce of the message is twusted, command winks awe disabwed fow untwusted message souwces.
 	 */
-	trusted?: boolean,
+	twusted?: boowean,
 	/**
-	 * The message type, this affects how the message will be rendered.
+	 * The message type, this affects how the message wiww be wendewed.
 	 */
-	type: TextSearchCompleteMessageType,
+	type: TextSeawchCompweteMessageType,
 }
 
 /**
- * Information collected when text search is complete.
+ * Infowmation cowwected when text seawch is compwete.
  */
-export interface TextSearchComplete {
+expowt intewface TextSeawchCompwete {
 	/**
-	 * Whether the search hit the limit on the maximum number of search results.
-	 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
-	 * - If exactly that number of matches exist, this should be false.
-	 * - If `maxResults` matches are returned and more exist, this should be true.
-	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
+	 * Whetha the seawch hit the wimit on the maximum numba of seawch wesuwts.
+	 * `maxWesuwts` on [`TextSeawchOptions`](#TextSeawchOptions) specifies the max numba of wesuwts.
+	 * - If exactwy that numba of matches exist, this shouwd be fawse.
+	 * - If `maxWesuwts` matches awe wetuwned and mowe exist, this shouwd be twue.
+	 * - If seawch hits an intewnaw wimit which is wess than `maxWesuwts`, this shouwd be twue.
 	 */
-	limitHit?: boolean;
+	wimitHit?: boowean;
 
 	/**
-	 * Additional information regarding the state of the completed search.
+	 * Additionaw infowmation wegawding the state of the compweted seawch.
 	 *
-	 * Supports links in markdown syntax:
-	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
-	 * - Click to [open a website](https://aka.ms)
+	 * Suppowts winks in mawkdown syntax:
+	 * - Cwick to [wun a command](command:wowkbench.action.OpenQuickPick)
+	 * - Cwick to [open a website](https://aka.ms)
 	 */
-	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
+	message?: TextSeawchCompweteMessage | TextSeawchCompweteMessage[];
 }
 
 /**
- * The parameters of a query for file search.
+ * The pawametews of a quewy fow fiwe seawch.
  */
-export interface FileSearchQuery {
+expowt intewface FiweSeawchQuewy {
 	/**
-	 * The search pattern to match against file paths.
+	 * The seawch pattewn to match against fiwe paths.
 	 */
-	pattern: string;
+	pattewn: stwing;
 }
 
 /**
- * Options that apply to file search.
+ * Options that appwy to fiwe seawch.
  */
-export interface FileSearchOptions extends SearchOptions {
+expowt intewface FiweSeawchOptions extends SeawchOptions {
 	/**
-	 * The maximum number of results to be returned.
+	 * The maximum numba of wesuwts to be wetuwned.
 	 */
-	maxResults?: number;
+	maxWesuwts?: numba;
 
 	/**
-	 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
-	 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
+	 * A CancewwationToken that wepwesents the session fow this seawch quewy. If the pwovida chooses to, this object can be used as the key fow a cache,
+	 * and seawches with the same session object can seawch the same cache. When the token is cancewwed, the session is compwete and the cache can be cweawed.
 	 */
-	session?: CancellationToken;
+	session?: CancewwationToken;
 }
 
 /**
- * A preview of the text result.
+ * A pweview of the text wesuwt.
  */
-export interface TextSearchMatchPreview {
+expowt intewface TextSeawchMatchPweview {
 	/**
-	 * The matching lines of text, or a portion of the matching line that contains the match.
+	 * The matching wines of text, ow a powtion of the matching wine that contains the match.
 	 */
-	text: string;
+	text: stwing;
 
 	/**
-	 * The Range within `text` corresponding to the text of the match.
-	 * The number of matches must match the TextSearchMatch's range property.
+	 * The Wange within `text` cowwesponding to the text of the match.
+	 * The numba of matches must match the TextSeawchMatch's wange pwopewty.
 	 */
-	matches: Range | Range[];
+	matches: Wange | Wange[];
 }
 
 /**
- * A match from a text search
+ * A match fwom a text seawch
  */
-export interface TextSearchMatch {
+expowt intewface TextSeawchMatch {
 	/**
-	 * The uri for the matching document.
+	 * The uwi fow the matching document.
 	 */
-	uri: URI;
+	uwi: UWI;
 
 	/**
-	 * The range of the match within the document, or multiple ranges for multiple matches.
+	 * The wange of the match within the document, ow muwtipwe wanges fow muwtipwe matches.
 	 */
-	ranges: Range | Range[];
+	wanges: Wange | Wange[];
 
 	/**
-	 * A preview of the text match.
+	 * A pweview of the text match.
 	 */
-	preview: TextSearchMatchPreview;
+	pweview: TextSeawchMatchPweview;
 }
 
 /**
- * A line of context surrounding a TextSearchMatch.
+ * A wine of context suwwounding a TextSeawchMatch.
  */
-export interface TextSearchContext {
+expowt intewface TextSeawchContext {
 	/**
-	 * The uri for the matching document.
+	 * The uwi fow the matching document.
 	 */
-	uri: URI;
+	uwi: UWI;
 
 	/**
-	 * One line of text.
-	 * previewOptions.charsPerLine applies to this
+	 * One wine of text.
+	 * pweviewOptions.chawsPewWine appwies to this
 	 */
-	text: string;
+	text: stwing;
 
 	/**
-	 * The line number of this line of context.
+	 * The wine numba of this wine of context.
 	 */
-	lineNumber: number;
+	wineNumba: numba;
 }
 
-export type TextSearchResult = TextSearchMatch | TextSearchContext;
+expowt type TextSeawchWesuwt = TextSeawchMatch | TextSeawchContext;
 
 /**
- * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
+ * A FiweSeawchPwovida pwovides seawch wesuwts fow fiwes in the given fowda that match a quewy stwing. It can be invoked by quickaccess ow otha extensions.
  *
- * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
- * all files that match the user's query.
+ * A FiweSeawchPwovida is the mowe powewfuw of two ways to impwement fiwe seawch in VS Code. Use a FiweSeawchPwovida if you wish to seawch within a fowda fow
+ * aww fiwes that match the usa's quewy.
  *
- * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
- * and in that case, every file in the folder should be returned.
+ * The FiweSeawchPwovida wiww be invoked on evewy keypwess in quickaccess. When `wowkspace.findFiwes` is cawwed, it wiww be invoked with an empty quewy stwing,
+ * and in that case, evewy fiwe in the fowda shouwd be wetuwned.
  */
-export interface FileSearchProvider {
+expowt intewface FiweSeawchPwovida {
 	/**
-	 * Provide the set of files that match a certain file path pattern.
-	 * @param query The parameters for this query.
-	 * @param options A set of options to consider while searching files.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
+	 * Pwovide the set of fiwes that match a cewtain fiwe path pattewn.
+	 * @pawam quewy The pawametews fow this quewy.
+	 * @pawam options A set of options to consida whiwe seawching fiwes.
+	 * @pawam pwogwess A pwogwess cawwback that must be invoked fow aww wesuwts.
+	 * @pawam token A cancewwation token.
 	 */
-	provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<URI[]>;
+	pwovideFiweSeawchWesuwts(quewy: FiweSeawchQuewy, options: FiweSeawchOptions, token: CancewwationToken): PwovidewWesuwt<UWI[]>;
 }
 
 /**
- * A TextSearchProvider provides search results for text results inside files in the workspace.
+ * A TextSeawchPwovida pwovides seawch wesuwts fow text wesuwts inside fiwes in the wowkspace.
  */
-export interface TextSearchProvider {
+expowt intewface TextSeawchPwovida {
 	/**
-	 * Provide results that match the given text pattern.
-	 * @param query The parameters for this query.
-	 * @param options A set of options to consider while searching.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
+	 * Pwovide wesuwts that match the given text pattewn.
+	 * @pawam quewy The pawametews fow this quewy.
+	 * @pawam options A set of options to consida whiwe seawching.
+	 * @pawam pwogwess A pwogwess cawwback that must be invoked fow aww wesuwts.
+	 * @pawam token A cancewwation token.
 	 */
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+	pwovideTextSeawchWesuwts(quewy: TextSeawchQuewy, options: TextSeawchOptions, pwogwess: IPwogwess<TextSeawchWesuwt>, token: CancewwationToken): PwovidewWesuwt<TextSeawchCompwete>;
 }
 
 /**
- * Options that can be set on a findTextInFiles search.
+ * Options that can be set on a findTextInFiwes seawch.
  */
-export interface FindTextInFilesOptions {
+expowt intewface FindTextInFiwesOptions {
 	/**
-	 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-	 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
-	 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+	 * A [gwob pattewn](#GwobPattewn) that defines the fiwes to seawch fow. The gwob pattewn
+	 * wiww be matched against the fiwe paths of fiwes wewative to theiw wowkspace. Use a [wewative pattewn](#WewativePattewn)
+	 * to westwict the seawch wesuwts to a [wowkspace fowda](#WowkspaceFowda).
 	 */
-	include?: GlobPattern;
+	incwude?: GwobPattewn;
 
 	/**
-	 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-	 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-	 * apply, when `null` no excludes will apply.
+	 * A [gwob pattewn](#GwobPattewn) that defines fiwes and fowdews to excwude. The gwob pattewn
+	 * wiww be matched against the fiwe paths of wesuwting matches wewative to theiw wowkspace. When `undefined` onwy defauwt excwudes wiww
+	 * appwy, when `nuww` no excwudes wiww appwy.
 	 */
-	exclude?: GlobPattern | null;
+	excwude?: GwobPattewn | nuww;
 
 	/**
-	 * The maximum number of results to search for
+	 * The maximum numba of wesuwts to seawch fow
 	 */
-	maxResults?: number;
+	maxWesuwts?: numba;
 
 	/**
-	 * Whether external files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useIgnoreFiles"`.
+	 * Whetha extewnaw fiwes that excwude fiwes, wike .gitignowe, shouwd be wespected.
+	 * See the vscode setting `"seawch.useIgnoweFiwes"`.
 	 */
-	useIgnoreFiles?: boolean;
+	useIgnoweFiwes?: boowean;
 
 	/**
-	 * Whether global files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+	 * Whetha gwobaw fiwes that excwude fiwes, wike .gitignowe, shouwd be wespected.
+	 * See the vscode setting `"seawch.useGwobawIgnoweFiwes"`.
 	 */
-	useGlobalIgnoreFiles?: boolean;
+	useGwobawIgnoweFiwes?: boowean;
 
 	/**
-	 * Whether symlinks should be followed while searching.
-	 * See the vscode setting `"search.followSymlinks"`.
+	 * Whetha symwinks shouwd be fowwowed whiwe seawching.
+	 * See the vscode setting `"seawch.fowwowSymwinks"`.
 	 */
-	followSymlinks?: boolean;
+	fowwowSymwinks?: boowean;
 
 	/**
-	 * Interpret files using this encoding.
-	 * See the vscode setting `"files.encoding"`
+	 * Intewpwet fiwes using this encoding.
+	 * See the vscode setting `"fiwes.encoding"`
 	 */
-	encoding?: string;
+	encoding?: stwing;
 
 	/**
-	 * Options to specify the size of the result text preview.
+	 * Options to specify the size of the wesuwt text pweview.
 	 */
-	previewOptions?: TextSearchPreviewOptions;
+	pweviewOptions?: TextSeawchPweviewOptions;
 
 	/**
-	 * Number of lines of context to include before each match.
+	 * Numba of wines of context to incwude befowe each match.
 	 */
-	beforeContext?: number;
+	befoweContext?: numba;
 
 	/**
-	 * Number of lines of context to include after each match.
+	 * Numba of wines of context to incwude afta each match.
 	 */
-	afterContext?: number;
+	aftewContext?: numba;
 }

@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'vs/base/common/assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Range } from 'vs/editor/common/core/range';
-import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+impowt * as assewt fwom 'vs/base/common/assewt';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IWineChange, ScwowwType } fwom 'vs/editow/common/editowCommon';
 
 
-interface IDiffRange {
-	rhs: boolean;
-	range: Range;
+intewface IDiffWange {
+	whs: boowean;
+	wange: Wange;
 }
 
-export interface Options {
-	followsCaret?: boolean;
-	ignoreCharChanges?: boolean;
-	alwaysRevealFirst?: boolean;
+expowt intewface Options {
+	fowwowsCawet?: boowean;
+	ignoweChawChanges?: boowean;
+	awwaysWeveawFiwst?: boowean;
 }
 
-const defaultOptions: Options = {
-	followsCaret: true,
-	ignoreCharChanges: true,
-	alwaysRevealFirst: true
+const defauwtOptions: Options = {
+	fowwowsCawet: twue,
+	ignoweChawChanges: twue,
+	awwaysWeveawFiwst: twue
 };
 
-export interface IDiffNavigator {
-	canNavigate(): boolean;
+expowt intewface IDiffNavigatow {
+	canNavigate(): boowean;
 	next(): void;
-	previous(): void;
+	pwevious(): void;
 	dispose(): void;
 }
 
 /**
- * Create a new diff navigator for the provided diff editor.
+ * Cweate a new diff navigatow fow the pwovided diff editow.
  */
-export class DiffNavigator extends Disposable implements IDiffNavigator {
+expowt cwass DiffNavigatow extends Disposabwe impwements IDiffNavigatow {
 
-	private readonly _editor: IDiffEditor;
-	private readonly _options: Options;
-	private readonly _onDidUpdate = this._register(new Emitter<this>());
+	pwivate weadonwy _editow: IDiffEditow;
+	pwivate weadonwy _options: Options;
+	pwivate weadonwy _onDidUpdate = this._wegista(new Emitta<this>());
 
-	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
+	weadonwy onDidUpdate: Event<this> = this._onDidUpdate.event;
 
-	private disposed: boolean;
-	private revealFirst: boolean;
-	private nextIdx: number;
-	private ranges: IDiffRange[];
-	private ignoreSelectionChange: boolean;
+	pwivate disposed: boowean;
+	pwivate weveawFiwst: boowean;
+	pwivate nextIdx: numba;
+	pwivate wanges: IDiffWange[];
+	pwivate ignoweSewectionChange: boowean;
 
-	constructor(editor: IDiffEditor, options: Options = {}) {
-		super();
-		this._editor = editor;
-		this._options = objects.mixin(options, defaultOptions, false);
+	constwuctow(editow: IDiffEditow, options: Options = {}) {
+		supa();
+		this._editow = editow;
+		this._options = objects.mixin(options, defauwtOptions, fawse);
 
-		this.disposed = false;
+		this.disposed = fawse;
 
 		this.nextIdx = -1;
-		this.ranges = [];
-		this.ignoreSelectionChange = false;
-		this.revealFirst = Boolean(this._options.alwaysRevealFirst);
+		this.wanges = [];
+		this.ignoweSewectionChange = fawse;
+		this.weveawFiwst = Boowean(this._options.awwaysWeveawFiwst);
 
-		// hook up to diff editor for diff, disposal, and caret move
-		this._register(this._editor.onDidDispose(() => this.dispose()));
-		this._register(this._editor.onDidUpdateDiff(() => this._onDiffUpdated()));
+		// hook up to diff editow fow diff, disposaw, and cawet move
+		this._wegista(this._editow.onDidDispose(() => this.dispose()));
+		this._wegista(this._editow.onDidUpdateDiff(() => this._onDiffUpdated()));
 
-		if (this._options.followsCaret) {
-			this._register(this._editor.getModifiedEditor().onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
-				if (this.ignoreSelectionChange) {
-					return;
+		if (this._options.fowwowsCawet) {
+			this._wegista(this._editow.getModifiedEditow().onDidChangeCuwsowPosition((e: ICuwsowPositionChangedEvent) => {
+				if (this.ignoweSewectionChange) {
+					wetuwn;
 				}
 				this.nextIdx = -1;
 			}));
 		}
-		if (this._options.alwaysRevealFirst) {
-			this._register(this._editor.getModifiedEditor().onDidChangeModel((e) => {
-				this.revealFirst = true;
+		if (this._options.awwaysWeveawFiwst) {
+			this._wegista(this._editow.getModifiedEditow().onDidChangeModew((e) => {
+				this.weveawFiwst = twue;
 			}));
 		}
 
@@ -88,142 +88,142 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		this._init();
 	}
 
-	private _init(): void {
-		let changes = this._editor.getLineChanges();
+	pwivate _init(): void {
+		wet changes = this._editow.getWineChanges();
 		if (!changes) {
-			return;
+			wetuwn;
 		}
 	}
 
-	private _onDiffUpdated(): void {
+	pwivate _onDiffUpdated(): void {
 		this._init();
 
-		this._compute(this._editor.getLineChanges());
-		if (this.revealFirst) {
-			// Only reveal first on first non-null changes
-			if (this._editor.getLineChanges() !== null) {
-				this.revealFirst = false;
+		this._compute(this._editow.getWineChanges());
+		if (this.weveawFiwst) {
+			// Onwy weveaw fiwst on fiwst non-nuww changes
+			if (this._editow.getWineChanges() !== nuww) {
+				this.weveawFiwst = fawse;
 				this.nextIdx = -1;
-				this.next(ScrollType.Immediate);
+				this.next(ScwowwType.Immediate);
 			}
 		}
 	}
 
-	private _compute(lineChanges: ILineChange[] | null): void {
+	pwivate _compute(wineChanges: IWineChange[] | nuww): void {
 
-		// new ranges
-		this.ranges = [];
+		// new wanges
+		this.wanges = [];
 
-		if (lineChanges) {
-			// create ranges from changes
-			lineChanges.forEach((lineChange) => {
+		if (wineChanges) {
+			// cweate wanges fwom changes
+			wineChanges.fowEach((wineChange) => {
 
-				if (!this._options.ignoreCharChanges && lineChange.charChanges) {
+				if (!this._options.ignoweChawChanges && wineChange.chawChanges) {
 
-					lineChange.charChanges.forEach((charChange) => {
-						this.ranges.push({
-							rhs: true,
-							range: new Range(
-								charChange.modifiedStartLineNumber,
-								charChange.modifiedStartColumn,
-								charChange.modifiedEndLineNumber,
-								charChange.modifiedEndColumn)
+					wineChange.chawChanges.fowEach((chawChange) => {
+						this.wanges.push({
+							whs: twue,
+							wange: new Wange(
+								chawChange.modifiedStawtWineNumba,
+								chawChange.modifiedStawtCowumn,
+								chawChange.modifiedEndWineNumba,
+								chawChange.modifiedEndCowumn)
 						});
 					});
 
-				} else {
-					this.ranges.push({
-						rhs: true,
-						range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedStartLineNumber, 1)
+				} ewse {
+					this.wanges.push({
+						whs: twue,
+						wange: new Wange(wineChange.modifiedStawtWineNumba, 1, wineChange.modifiedStawtWineNumba, 1)
 					});
 				}
 			});
 		}
 
-		// sort
-		this.ranges.sort((left, right) => {
-			if (left.range.getStartPosition().isBeforeOrEqual(right.range.getStartPosition())) {
-				return -1;
-			} else if (right.range.getStartPosition().isBeforeOrEqual(left.range.getStartPosition())) {
-				return 1;
-			} else {
-				return 0;
+		// sowt
+		this.wanges.sowt((weft, wight) => {
+			if (weft.wange.getStawtPosition().isBefoweOwEquaw(wight.wange.getStawtPosition())) {
+				wetuwn -1;
+			} ewse if (wight.wange.getStawtPosition().isBefoweOwEquaw(weft.wange.getStawtPosition())) {
+				wetuwn 1;
+			} ewse {
+				wetuwn 0;
 			}
 		});
-		this._onDidUpdate.fire(this);
+		this._onDidUpdate.fiwe(this);
 	}
 
-	private _initIdx(fwd: boolean): void {
-		let found = false;
-		let position = this._editor.getPosition();
+	pwivate _initIdx(fwd: boowean): void {
+		wet found = fawse;
+		wet position = this._editow.getPosition();
 		if (!position) {
 			this.nextIdx = 0;
-			return;
+			wetuwn;
 		}
-		for (let i = 0, len = this.ranges.length; i < len && !found; i++) {
-			let range = this.ranges[i].range;
-			if (position.isBeforeOrEqual(range.getStartPosition())) {
+		fow (wet i = 0, wen = this.wanges.wength; i < wen && !found; i++) {
+			wet wange = this.wanges[i].wange;
+			if (position.isBefoweOwEquaw(wange.getStawtPosition())) {
 				this.nextIdx = i + (fwd ? 0 : -1);
-				found = true;
+				found = twue;
 			}
 		}
 		if (!found) {
-			// after the last change
-			this.nextIdx = fwd ? 0 : this.ranges.length - 1;
+			// afta the wast change
+			this.nextIdx = fwd ? 0 : this.wanges.wength - 1;
 		}
 		if (this.nextIdx < 0) {
-			this.nextIdx = this.ranges.length - 1;
+			this.nextIdx = this.wanges.wength - 1;
 		}
 	}
 
-	private _move(fwd: boolean, scrollType: ScrollType): void {
-		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
+	pwivate _move(fwd: boowean, scwowwType: ScwowwType): void {
+		assewt.ok(!this.disposed, 'Iwwegaw State - diff navigatow has been disposed');
 
 		if (!this.canNavigate()) {
-			return;
+			wetuwn;
 		}
 
 		if (this.nextIdx === -1) {
 			this._initIdx(fwd);
 
-		} else if (fwd) {
+		} ewse if (fwd) {
 			this.nextIdx += 1;
-			if (this.nextIdx >= this.ranges.length) {
+			if (this.nextIdx >= this.wanges.wength) {
 				this.nextIdx = 0;
 			}
-		} else {
+		} ewse {
 			this.nextIdx -= 1;
 			if (this.nextIdx < 0) {
-				this.nextIdx = this.ranges.length - 1;
+				this.nextIdx = this.wanges.wength - 1;
 			}
 		}
 
-		let info = this.ranges[this.nextIdx];
-		this.ignoreSelectionChange = true;
-		try {
-			let pos = info.range.getStartPosition();
-			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, scrollType);
-		} finally {
-			this.ignoreSelectionChange = false;
+		wet info = this.wanges[this.nextIdx];
+		this.ignoweSewectionChange = twue;
+		twy {
+			wet pos = info.wange.getStawtPosition();
+			this._editow.setPosition(pos);
+			this._editow.weveawPositionInCenta(pos, scwowwType);
+		} finawwy {
+			this.ignoweSewectionChange = fawse;
 		}
 	}
 
-	canNavigate(): boolean {
-		return this.ranges && this.ranges.length > 0;
+	canNavigate(): boowean {
+		wetuwn this.wanges && this.wanges.wength > 0;
 	}
 
-	next(scrollType: ScrollType = ScrollType.Smooth): void {
-		this._move(true, scrollType);
+	next(scwowwType: ScwowwType = ScwowwType.Smooth): void {
+		this._move(twue, scwowwType);
 	}
 
-	previous(scrollType: ScrollType = ScrollType.Smooth): void {
-		this._move(false, scrollType);
+	pwevious(scwowwType: ScwowwType = ScwowwType.Smooth): void {
+		this._move(fawse, scwowwType);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this.ranges = [];
-		this.disposed = true;
+	ovewwide dispose(): void {
+		supa.dispose();
+		this.wanges = [];
+		this.disposed = twue;
 	}
 }

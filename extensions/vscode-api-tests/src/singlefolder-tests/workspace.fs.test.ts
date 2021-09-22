@@ -1,184 +1,184 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { posix } from 'path';
-import * as vscode from 'vscode';
-import { assertNoRpc } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt { posix } fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { assewtNoWpc } fwom '../utiws';
 
-suite('vscode API - workspace-fs', () => {
+suite('vscode API - wowkspace-fs', () => {
 
-	let root: vscode.Uri;
+	wet woot: vscode.Uwi;
 
 	suiteSetup(function () {
-		root = vscode.workspace.workspaceFolders![0]!.uri;
+		woot = vscode.wowkspace.wowkspaceFowdews![0]!.uwi;
 	});
 
-	teardown(assertNoRpc);
+	teawdown(assewtNoWpc);
 
 	test('fs.stat', async function () {
-		const stat = await vscode.workspace.fs.stat(root);
-		assert.strictEqual(stat.type, vscode.FileType.Directory);
+		const stat = await vscode.wowkspace.fs.stat(woot);
+		assewt.stwictEquaw(stat.type, vscode.FiweType.Diwectowy);
 
-		assert.strictEqual(typeof stat.size, 'number');
-		assert.strictEqual(typeof stat.mtime, 'number');
-		assert.strictEqual(typeof stat.ctime, 'number');
+		assewt.stwictEquaw(typeof stat.size, 'numba');
+		assewt.stwictEquaw(typeof stat.mtime, 'numba');
+		assewt.stwictEquaw(typeof stat.ctime, 'numba');
 
-		assert.ok(stat.mtime > 0);
-		assert.ok(stat.ctime > 0);
+		assewt.ok(stat.mtime > 0);
+		assewt.ok(stat.ctime > 0);
 
-		const entries = await vscode.workspace.fs.readDirectory(root);
-		assert.ok(entries.length > 0);
+		const entwies = await vscode.wowkspace.fs.weadDiwectowy(woot);
+		assewt.ok(entwies.wength > 0);
 
-		// find far.js
-		const tuple = entries.find(tuple => tuple[0] === 'far.js')!;
-		assert.ok(tuple);
-		assert.strictEqual(tuple[0], 'far.js');
-		assert.strictEqual(tuple[1], vscode.FileType.File);
+		// find faw.js
+		const tupwe = entwies.find(tupwe => tupwe[0] === 'faw.js')!;
+		assewt.ok(tupwe);
+		assewt.stwictEquaw(tupwe[0], 'faw.js');
+		assewt.stwictEquaw(tupwe[1], vscode.FiweType.Fiwe);
 	});
 
 	test('fs.stat - bad scheme', async function () {
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar/baz/test.txt'));
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.fs.stat(vscode.Uwi.pawse('foo:/baw/baz/test.txt'));
+			assewt.ok(fawse);
 		} catch {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 
-	test('fs.stat - missing file', async function () {
-		try {
-			await vscode.workspace.fs.stat(root.with({ path: root.path + '.bad' }));
-			assert.ok(false);
+	test('fs.stat - missing fiwe', async function () {
+		twy {
+			await vscode.wowkspace.fs.stat(woot.with({ path: woot.path + '.bad' }));
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 
-	test('fs.write/stat/delete', async function () {
+	test('fs.wwite/stat/dewete', async function () {
 
-		const uri = root.with({ path: posix.join(root.path, 'new.file') });
-		await vscode.workspace.fs.writeFile(uri, Buffer.from('HELLO'));
+		const uwi = woot.with({ path: posix.join(woot.path, 'new.fiwe') });
+		await vscode.wowkspace.fs.wwiteFiwe(uwi, Buffa.fwom('HEWWO'));
 
-		const stat = await vscode.workspace.fs.stat(uri);
-		assert.strictEqual(stat.type, vscode.FileType.File);
+		const stat = await vscode.wowkspace.fs.stat(uwi);
+		assewt.stwictEquaw(stat.type, vscode.FiweType.Fiwe);
 
-		await vscode.workspace.fs.delete(uri);
+		await vscode.wowkspace.fs.dewete(uwi);
 
-		try {
-			await vscode.workspace.fs.stat(uri);
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.fs.stat(uwi);
+			assewt.ok(fawse);
 		} catch {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 
-	test('fs.delete folder', async function () {
+	test('fs.dewete fowda', async function () {
 
-		const folder = root.with({ path: posix.join(root.path, 'folder') });
-		const file = root.with({ path: posix.join(root.path, 'folder/file') });
+		const fowda = woot.with({ path: posix.join(woot.path, 'fowda') });
+		const fiwe = woot.with({ path: posix.join(woot.path, 'fowda/fiwe') });
 
-		await vscode.workspace.fs.createDirectory(folder);
-		await vscode.workspace.fs.writeFile(file, Buffer.from('FOO'));
+		await vscode.wowkspace.fs.cweateDiwectowy(fowda);
+		await vscode.wowkspace.fs.wwiteFiwe(fiwe, Buffa.fwom('FOO'));
 
-		await vscode.workspace.fs.stat(folder);
-		await vscode.workspace.fs.stat(file);
+		await vscode.wowkspace.fs.stat(fowda);
+		await vscode.wowkspace.fs.stat(fiwe);
 
-		// ensure non empty folder cannot be deleted
-		try {
-			await vscode.workspace.fs.delete(folder, { recursive: false, useTrash: false });
-			assert.ok(false);
+		// ensuwe non empty fowda cannot be deweted
+		twy {
+			await vscode.wowkspace.fs.dewete(fowda, { wecuwsive: fawse, useTwash: fawse });
+			assewt.ok(fawse);
 		} catch {
-			await vscode.workspace.fs.stat(folder);
-			await vscode.workspace.fs.stat(file);
+			await vscode.wowkspace.fs.stat(fowda);
+			await vscode.wowkspace.fs.stat(fiwe);
 		}
 
-		// ensure non empty folder cannot be deleted is DEFAULT
-		try {
-			await vscode.workspace.fs.delete(folder); // recursive: false as default
-			assert.ok(false);
+		// ensuwe non empty fowda cannot be deweted is DEFAUWT
+		twy {
+			await vscode.wowkspace.fs.dewete(fowda); // wecuwsive: fawse as defauwt
+			assewt.ok(fawse);
 		} catch {
-			await vscode.workspace.fs.stat(folder);
-			await vscode.workspace.fs.stat(file);
+			await vscode.wowkspace.fs.stat(fowda);
+			await vscode.wowkspace.fs.stat(fiwe);
 		}
 
-		// delete non empty folder with recursive-flag
-		await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+		// dewete non empty fowda with wecuwsive-fwag
+		await vscode.wowkspace.fs.dewete(fowda, { wecuwsive: twue, useTwash: fawse });
 
-		// esnure folder/file are gone
-		try {
-			await vscode.workspace.fs.stat(folder);
-			assert.ok(false);
+		// esnuwe fowda/fiwe awe gone
+		twy {
+			await vscode.wowkspace.fs.stat(fowda);
+			assewt.ok(fawse);
 		} catch {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
-		try {
-			await vscode.workspace.fs.stat(file);
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.fs.stat(fiwe);
+			assewt.ok(fawse);
 		} catch {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('thwows FiweSystemEwwow', async function () {
 
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.file(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.fs.stat(vscode.Uwi.fiwe(`/c468bf16-acfd-4591-825e-2bcebba508a3/71b1f274-91cb-4c19-af00-8495eaab4b73/4b60cb48-a6f2-40ea-9085-0936f4a8f59a.tx6`));
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(e instanceof vscode.FileSystemError);
-			assert.strictEqual(e.name, vscode.FileSystemError.FileNotFound().name);
+			assewt.ok(e instanceof vscode.FiweSystemEwwow);
+			assewt.stwictEquaw(e.name, vscode.FiweSystemEwwow.FiweNotFound().name);
 		}
 	});
 
-	test('throws FileSystemError', async function () {
+	test('thwows FiweSystemEwwow', async function () {
 
-		try {
-			await vscode.workspace.fs.stat(vscode.Uri.parse('foo:/bar'));
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.fs.stat(vscode.Uwi.pawse('foo:/baw'));
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(e instanceof vscode.FileSystemError);
-			assert.strictEqual(e.name, vscode.FileSystemError.Unavailable().name);
+			assewt.ok(e instanceof vscode.FiweSystemEwwow);
+			assewt.stwictEquaw(e.name, vscode.FiweSystemEwwow.Unavaiwabwe().name);
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
-		const entries = await vscode.workspace.fs.readDirectory(root);
-		assert.ok(entries.length > 0);
+	test('vscode.wowkspace.fs.wemove() (and copy()) succeed unexpectedwy. #84177', async function () {
+		const entwies = await vscode.wowkspace.fs.weadDiwectowy(woot);
+		assewt.ok(entwies.wength > 0);
 
-		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92') });
+		const someFowda = woot.with({ path: posix.join(woot.path, '6b1f9d664a92') });
 
-		try {
-			await vscode.workspace.fs.delete(someFolder, { recursive: true });
-			assert.ok(false);
-		} catch (err) {
-			assert.ok(true);
+		twy {
+			await vscode.wowkspace.fs.dewete(someFowda, { wecuwsive: twue });
+			assewt.ok(fawse);
+		} catch (eww) {
+			assewt.ok(twue);
 		}
 	});
 
-	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
-		const entries = await vscode.workspace.fs.readDirectory(root);
-		assert.ok(entries.length > 0);
+	test('vscode.wowkspace.fs.wemove() (and copy()) succeed unexpectedwy. #84177', async function () {
+		const entwies = await vscode.wowkspace.fs.weadDiwectowy(woot);
+		assewt.ok(entwies.wength > 0);
 
-		const folder = root.with({ path: posix.join(root.path, 'folder') });
-		const file = root.with({ path: posix.join(root.path, 'folder/file') });
+		const fowda = woot.with({ path: posix.join(woot.path, 'fowda') });
+		const fiwe = woot.with({ path: posix.join(woot.path, 'fowda/fiwe') });
 
-		await vscode.workspace.fs.createDirectory(folder);
-		await vscode.workspace.fs.writeFile(file, Buffer.from('FOO'));
+		await vscode.wowkspace.fs.cweateDiwectowy(fowda);
+		await vscode.wowkspace.fs.wwiteFiwe(fiwe, Buffa.fwom('FOO'));
 
-		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92/a564c52da70a') });
+		const someFowda = woot.with({ path: posix.join(woot.path, '6b1f9d664a92/a564c52da70a') });
 
-		try {
-			await vscode.workspace.fs.copy(folder, someFolder, { overwrite: true });
-			assert.ok(true);
-		} catch (err) {
-			assert.ok(false, err);
+		twy {
+			await vscode.wowkspace.fs.copy(fowda, someFowda, { ovewwwite: twue });
+			assewt.ok(twue);
+		} catch (eww) {
+			assewt.ok(fawse, eww);
 
-		} finally {
-			await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
-			await vscode.workspace.fs.delete(someFolder, { recursive: true, useTrash: false });
+		} finawwy {
+			await vscode.wowkspace.fs.dewete(fowda, { wecuwsive: twue, useTwash: fawse });
+			await vscode.wowkspace.fs.dewete(someFowda, { wecuwsive: twue, useTwash: fawse });
 		}
 	});
 });

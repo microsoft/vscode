@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Helpers for converting FROM vscode types TO ts types
+ * Hewpews fow convewting FWOM vscode types TO ts types
  */
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient } from '../typescriptService';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt * as PConst fwom '../pwotocow.const';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
 
-export namespace Range {
-	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
-		fromLocations(span.start, span.end);
+expowt namespace Wange {
+	expowt const fwomTextSpan = (span: Pwoto.TextSpan): vscode.Wange =>
+		fwomWocations(span.stawt, span.end);
 
-	export const toTextSpan = (range: vscode.Range): Proto.TextSpan => ({
-		start: Position.toLocation(range.start),
-		end: Position.toLocation(range.end)
+	expowt const toTextSpan = (wange: vscode.Wange): Pwoto.TextSpan => ({
+		stawt: Position.toWocation(wange.stawt),
+		end: Position.toWocation(wange.end)
 	});
 
-	export const fromLocations = (start: Proto.Location, end: Proto.Location): vscode.Range =>
-		new vscode.Range(
-			Math.max(0, start.line - 1), Math.max(start.offset - 1, 0),
-			Math.max(0, end.line - 1), Math.max(0, end.offset - 1));
+	expowt const fwomWocations = (stawt: Pwoto.Wocation, end: Pwoto.Wocation): vscode.Wange =>
+		new vscode.Wange(
+			Math.max(0, stawt.wine - 1), Math.max(stawt.offset - 1, 0),
+			Math.max(0, end.wine - 1), Math.max(0, end.offset - 1));
 
-	export const toFileRangeRequestArgs = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
-		file,
-		startLine: range.start.line + 1,
-		startOffset: range.start.character + 1,
-		endLine: range.end.line + 1,
-		endOffset: range.end.character + 1
+	expowt const toFiweWangeWequestAwgs = (fiwe: stwing, wange: vscode.Wange): Pwoto.FiweWangeWequestAwgs => ({
+		fiwe,
+		stawtWine: wange.stawt.wine + 1,
+		stawtOffset: wange.stawt.chawacta + 1,
+		endWine: wange.end.wine + 1,
+		endOffset: wange.end.chawacta + 1
 	});
 
-	export const toFormattingRequestArgs = (file: string, range: vscode.Range): Proto.FormatRequestArgs => ({
-		file,
-		line: range.start.line + 1,
-		offset: range.start.character + 1,
-		endLine: range.end.line + 1,
-		endOffset: range.end.character + 1
-	});
-}
-
-export namespace Position {
-	export const fromLocation = (tslocation: Proto.Location): vscode.Position =>
-		new vscode.Position(tslocation.line - 1, tslocation.offset - 1);
-
-	export const toLocation = (vsPosition: vscode.Position): Proto.Location => ({
-		line: vsPosition.line + 1,
-		offset: vsPosition.character + 1,
-	});
-
-	export const toFileLocationRequestArgs = (file: string, position: vscode.Position): Proto.FileLocationRequestArgs => ({
-		file,
-		line: position.line + 1,
-		offset: position.character + 1,
+	expowt const toFowmattingWequestAwgs = (fiwe: stwing, wange: vscode.Wange): Pwoto.FowmatWequestAwgs => ({
+		fiwe,
+		wine: wange.stawt.wine + 1,
+		offset: wange.stawt.chawacta + 1,
+		endWine: wange.end.wine + 1,
+		endOffset: wange.end.chawacta + 1
 	});
 }
 
-export namespace Location {
-	export const fromTextSpan = (resource: vscode.Uri, tsTextSpan: Proto.TextSpan): vscode.Location =>
-		new vscode.Location(resource, Range.fromTextSpan(tsTextSpan));
+expowt namespace Position {
+	expowt const fwomWocation = (tswocation: Pwoto.Wocation): vscode.Position =>
+		new vscode.Position(tswocation.wine - 1, tswocation.offset - 1);
+
+	expowt const toWocation = (vsPosition: vscode.Position): Pwoto.Wocation => ({
+		wine: vsPosition.wine + 1,
+		offset: vsPosition.chawacta + 1,
+	});
+
+	expowt const toFiweWocationWequestAwgs = (fiwe: stwing, position: vscode.Position): Pwoto.FiweWocationWequestAwgs => ({
+		fiwe,
+		wine: position.wine + 1,
+		offset: position.chawacta + 1,
+	});
 }
 
-export namespace TextEdit {
-	export const fromCodeEdit = (edit: Proto.CodeEdit): vscode.TextEdit =>
+expowt namespace Wocation {
+	expowt const fwomTextSpan = (wesouwce: vscode.Uwi, tsTextSpan: Pwoto.TextSpan): vscode.Wocation =>
+		new vscode.Wocation(wesouwce, Wange.fwomTextSpan(tsTextSpan));
+}
+
+expowt namespace TextEdit {
+	expowt const fwomCodeEdit = (edit: Pwoto.CodeEdit): vscode.TextEdit =>
 		new vscode.TextEdit(
-			Range.fromTextSpan(edit),
+			Wange.fwomTextSpan(edit),
 			edit.newText);
 }
 
-export namespace WorkspaceEdit {
-	export function fromFileCodeEdits(
-		client: ITypeScriptServiceClient,
-		edits: Iterable<Proto.FileCodeEdits>
-	): vscode.WorkspaceEdit {
-		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
+expowt namespace WowkspaceEdit {
+	expowt function fwomFiweCodeEdits(
+		cwient: ITypeScwiptSewviceCwient,
+		edits: Itewabwe<Pwoto.FiweCodeEdits>
+	): vscode.WowkspaceEdit {
+		wetuwn withFiweCodeEdits(new vscode.WowkspaceEdit(), cwient, edits);
 	}
 
-	export function withFileCodeEdits(
-		workspaceEdit: vscode.WorkspaceEdit,
-		client: ITypeScriptServiceClient,
-		edits: Iterable<Proto.FileCodeEdits>
-	): vscode.WorkspaceEdit {
-		for (const edit of edits) {
-			const resource = client.toResource(edit.fileName);
-			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(resource,
-					Range.fromTextSpan(textChange),
+	expowt function withFiweCodeEdits(
+		wowkspaceEdit: vscode.WowkspaceEdit,
+		cwient: ITypeScwiptSewviceCwient,
+		edits: Itewabwe<Pwoto.FiweCodeEdits>
+	): vscode.WowkspaceEdit {
+		fow (const edit of edits) {
+			const wesouwce = cwient.toWesouwce(edit.fiweName);
+			fow (const textChange of edit.textChanges) {
+				wowkspaceEdit.wepwace(wesouwce,
+					Wange.fwomTextSpan(textChange),
 					textChange.newText);
 			}
 		}
 
-		return workspaceEdit;
+		wetuwn wowkspaceEdit;
 	}
 }
 
-export namespace SymbolKind {
-	export function fromProtocolScriptElementKind(kind: Proto.ScriptElementKind) {
+expowt namespace SymbowKind {
+	expowt function fwomPwotocowScwiptEwementKind(kind: Pwoto.ScwiptEwementKind) {
 		switch (kind) {
-			case PConst.Kind.module: return vscode.SymbolKind.Module;
-			case PConst.Kind.class: return vscode.SymbolKind.Class;
-			case PConst.Kind.enum: return vscode.SymbolKind.Enum;
-			case PConst.Kind.enumMember: return vscode.SymbolKind.EnumMember;
-			case PConst.Kind.interface: return vscode.SymbolKind.Interface;
-			case PConst.Kind.indexSignature: return vscode.SymbolKind.Method;
-			case PConst.Kind.callSignature: return vscode.SymbolKind.Method;
-			case PConst.Kind.method: return vscode.SymbolKind.Method;
-			case PConst.Kind.memberVariable: return vscode.SymbolKind.Property;
-			case PConst.Kind.memberGetAccessor: return vscode.SymbolKind.Property;
-			case PConst.Kind.memberSetAccessor: return vscode.SymbolKind.Property;
-			case PConst.Kind.variable: return vscode.SymbolKind.Variable;
-			case PConst.Kind.let: return vscode.SymbolKind.Variable;
-			case PConst.Kind.const: return vscode.SymbolKind.Variable;
-			case PConst.Kind.localVariable: return vscode.SymbolKind.Variable;
-			case PConst.Kind.alias: return vscode.SymbolKind.Variable;
-			case PConst.Kind.function: return vscode.SymbolKind.Function;
-			case PConst.Kind.localFunction: return vscode.SymbolKind.Function;
-			case PConst.Kind.constructSignature: return vscode.SymbolKind.Constructor;
-			case PConst.Kind.constructorImplementation: return vscode.SymbolKind.Constructor;
-			case PConst.Kind.typeParameter: return vscode.SymbolKind.TypeParameter;
-			case PConst.Kind.string: return vscode.SymbolKind.String;
-			default: return vscode.SymbolKind.Variable;
+			case PConst.Kind.moduwe: wetuwn vscode.SymbowKind.Moduwe;
+			case PConst.Kind.cwass: wetuwn vscode.SymbowKind.Cwass;
+			case PConst.Kind.enum: wetuwn vscode.SymbowKind.Enum;
+			case PConst.Kind.enumMemba: wetuwn vscode.SymbowKind.EnumMemba;
+			case PConst.Kind.intewface: wetuwn vscode.SymbowKind.Intewface;
+			case PConst.Kind.indexSignatuwe: wetuwn vscode.SymbowKind.Method;
+			case PConst.Kind.cawwSignatuwe: wetuwn vscode.SymbowKind.Method;
+			case PConst.Kind.method: wetuwn vscode.SymbowKind.Method;
+			case PConst.Kind.membewVawiabwe: wetuwn vscode.SymbowKind.Pwopewty;
+			case PConst.Kind.membewGetAccessow: wetuwn vscode.SymbowKind.Pwopewty;
+			case PConst.Kind.membewSetAccessow: wetuwn vscode.SymbowKind.Pwopewty;
+			case PConst.Kind.vawiabwe: wetuwn vscode.SymbowKind.Vawiabwe;
+			case PConst.Kind.wet: wetuwn vscode.SymbowKind.Vawiabwe;
+			case PConst.Kind.const: wetuwn vscode.SymbowKind.Vawiabwe;
+			case PConst.Kind.wocawVawiabwe: wetuwn vscode.SymbowKind.Vawiabwe;
+			case PConst.Kind.awias: wetuwn vscode.SymbowKind.Vawiabwe;
+			case PConst.Kind.function: wetuwn vscode.SymbowKind.Function;
+			case PConst.Kind.wocawFunction: wetuwn vscode.SymbowKind.Function;
+			case PConst.Kind.constwuctSignatuwe: wetuwn vscode.SymbowKind.Constwuctow;
+			case PConst.Kind.constwuctowImpwementation: wetuwn vscode.SymbowKind.Constwuctow;
+			case PConst.Kind.typePawameta: wetuwn vscode.SymbowKind.TypePawameta;
+			case PConst.Kind.stwing: wetuwn vscode.SymbowKind.Stwing;
+			defauwt: wetuwn vscode.SymbowKind.Vawiabwe;
 		}
 	}
 }
 
-export namespace CompletionTriggerKind {
-	export function toProtocolCompletionTriggerKind(kind: vscode.CompletionTriggerKind): Proto.CompletionTriggerKind {
+expowt namespace CompwetionTwiggewKind {
+	expowt function toPwotocowCompwetionTwiggewKind(kind: vscode.CompwetionTwiggewKind): Pwoto.CompwetionTwiggewKind {
 		switch (kind) {
-			case vscode.CompletionTriggerKind.Invoke: return 1;
-			case vscode.CompletionTriggerKind.TriggerCharacter: return 2;
-			case vscode.CompletionTriggerKind.TriggerForIncompleteCompletions: return 3;
+			case vscode.CompwetionTwiggewKind.Invoke: wetuwn 1;
+			case vscode.CompwetionTwiggewKind.TwiggewChawacta: wetuwn 2;
+			case vscode.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions: wetuwn 3;
 		}
 	}
 }

@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
-import { memoize } from '../utils/memoize';
-import { TsServerProcess, TsServerProcessKind } from './server';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
+impowt { memoize } fwom '../utiws/memoize';
+impowt { TsSewvewPwocess, TsSewvewPwocessKind } fwom './sewva';
 
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-declare const Worker: any;
-declare type Worker = any;
+decwawe const Wowka: any;
+decwawe type Wowka = any;
 
-export class WorkerServerProcess implements TsServerProcess {
+expowt cwass WowkewSewvewPwocess impwements TsSewvewPwocess {
 
-	public static fork(
-		tsServerPath: string,
-		args: readonly string[],
-		_kind: TsServerProcessKind,
-		_configuration: TypeScriptServiceConfiguration,
+	pubwic static fowk(
+		tsSewvewPath: stwing,
+		awgs: weadonwy stwing[],
+		_kind: TsSewvewPwocessKind,
+		_configuwation: TypeScwiptSewviceConfiguwation,
 	) {
-		const worker = new Worker(tsServerPath);
-		return new WorkerServerProcess(worker, [
-			...args,
+		const wowka = new Wowka(tsSewvewPath);
+		wetuwn new WowkewSewvewPwocess(wowka, [
+			...awgs,
 
-			// Explicitly give TS Server its path so it can
-			// load local resources
-			'--executingFilePath', tsServerPath,
+			// Expwicitwy give TS Sewva its path so it can
+			// woad wocaw wesouwces
+			'--executingFiwePath', tsSewvewPath,
 		]);
 	}
 
-	private _onDataHandlers = new Set<(data: Proto.Response) => void>();
-	private _onErrorHandlers = new Set<(err: Error) => void>();
-	private _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
+	pwivate _onDataHandwews = new Set<(data: Pwoto.Wesponse) => void>();
+	pwivate _onEwwowHandwews = new Set<(eww: Ewwow) => void>();
+	pwivate _onExitHandwews = new Set<(code: numba | nuww, signaw: stwing | nuww) => void>();
 
-	public constructor(
-		private readonly worker: Worker,
-		args: readonly string[],
+	pubwic constwuctow(
+		pwivate weadonwy wowka: Wowka,
+		awgs: weadonwy stwing[],
 	) {
-		worker.addEventListener('message', (msg: any) => {
-			if (msg.data.type === 'log') {
-				this.output.appendLine(msg.data.body);
-				return;
+		wowka.addEventWistena('message', (msg: any) => {
+			if (msg.data.type === 'wog') {
+				this.output.appendWine(msg.data.body);
+				wetuwn;
 			}
 
-			for (const handler of this._onDataHandlers) {
-				handler(msg.data);
+			fow (const handwa of this._onDataHandwews) {
+				handwa(msg.data);
 			}
 		});
-		worker.onerror = (err: Error) => {
-			for (const handler of this._onErrorHandlers) {
-				handler(err);
+		wowka.onewwow = (eww: Ewwow) => {
+			fow (const handwa of this._onEwwowHandwews) {
+				handwa(eww);
 			}
 		};
-		worker.postMessage(args);
+		wowka.postMessage(awgs);
 	}
 
 	@memoize
-	private get output(): vscode.OutputChannel {
-		return vscode.window.createOutputChannel(localize('channelName', 'TypeScript Server Log'));
+	pwivate get output(): vscode.OutputChannew {
+		wetuwn vscode.window.cweateOutputChannew(wocawize('channewName', 'TypeScwipt Sewva Wog'));
 	}
 
-	write(serverRequest: Proto.Request): void {
-		this.worker.postMessage(serverRequest);
+	wwite(sewvewWequest: Pwoto.Wequest): void {
+		this.wowka.postMessage(sewvewWequest);
 	}
 
-	onData(handler: (response: Proto.Response) => void): void {
-		this._onDataHandlers.add(handler);
+	onData(handwa: (wesponse: Pwoto.Wesponse) => void): void {
+		this._onDataHandwews.add(handwa);
 	}
 
-	onError(handler: (err: Error) => void): void {
-		this._onErrorHandlers.add(handler);
+	onEwwow(handwa: (eww: Ewwow) => void): void {
+		this._onEwwowHandwews.add(handwa);
 	}
 
-	onExit(handler: (code: number | null, signal: string | null) => void): void {
-		this._onExitHandlers.add(handler);
-		// Todo: not implemented
+	onExit(handwa: (code: numba | nuww, signaw: stwing | nuww) => void): void {
+		this._onExitHandwews.add(handwa);
+		// Todo: not impwemented
 	}
 
-	kill(): void {
-		this.worker.terminate();
+	kiww(): void {
+		this.wowka.tewminate();
 	}
 }

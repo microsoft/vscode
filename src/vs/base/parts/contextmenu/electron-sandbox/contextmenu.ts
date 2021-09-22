@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IContextMenuEvent, IContextMenuItem, IPopupOptions, ISerializableContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+impowt { CONTEXT_MENU_CHANNEW, CONTEXT_MENU_CWOSE_CHANNEW, IContextMenuEvent, IContextMenuItem, IPopupOptions, ISewiawizabweContextMenuItem } fwom 'vs/base/pawts/contextmenu/common/contextmenu';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
 
-let contextMenuIdPool = 0;
+wet contextMenuIdPoow = 0;
 
-export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide?: () => void): void {
-	const processedItems: IContextMenuItem[] = [];
+expowt function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide?: () => void): void {
+	const pwocessedItems: IContextMenuItem[] = [];
 
-	const contextMenuId = contextMenuIdPool++;
-	const onClickChannel = `vscode:onContextMenu${contextMenuId}`;
-	const onClickChannelHandler = (event: unknown, itemId: number, context: IContextMenuEvent) => {
-		const item = processedItems[itemId];
-		if (item.click) {
-			item.click(context);
+	const contextMenuId = contextMenuIdPoow++;
+	const onCwickChannew = `vscode:onContextMenu${contextMenuId}`;
+	const onCwickChannewHandwa = (event: unknown, itemId: numba, context: IContextMenuEvent) => {
+		const item = pwocessedItems[itemId];
+		if (item.cwick) {
+			item.cwick(context);
 		}
 	};
 
-	ipcRenderer.once(onClickChannel, onClickChannelHandler);
-	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (event: unknown, closedContextMenuId: number) => {
-		if (closedContextMenuId !== contextMenuId) {
-			return;
+	ipcWendewa.once(onCwickChannew, onCwickChannewHandwa);
+	ipcWendewa.once(CONTEXT_MENU_CWOSE_CHANNEW, (event: unknown, cwosedContextMenuId: numba) => {
+		if (cwosedContextMenuId !== contextMenuId) {
+			wetuwn;
 		}
 
-		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
+		ipcWendewa.wemoveWistena(onCwickChannew, onCwickChannewHandwa);
 
 		if (onHide) {
 			onHide();
 		}
 	});
 
-	ipcRenderer.send(CONTEXT_MENU_CHANNEL, contextMenuId, items.map(item => createItem(item, processedItems)), onClickChannel, options);
+	ipcWendewa.send(CONTEXT_MENU_CHANNEW, contextMenuId, items.map(item => cweateItem(item, pwocessedItems)), onCwickChannew, options);
 }
 
-function createItem(item: IContextMenuItem, processedItems: IContextMenuItem[]): ISerializableContextMenuItem {
-	const serializableItem: ISerializableContextMenuItem = {
-		id: processedItems.length,
-		label: item.label,
+function cweateItem(item: IContextMenuItem, pwocessedItems: IContextMenuItem[]): ISewiawizabweContextMenuItem {
+	const sewiawizabweItem: ISewiawizabweContextMenuItem = {
+		id: pwocessedItems.wength,
+		wabew: item.wabew,
 		type: item.type,
-		accelerator: item.accelerator,
+		accewewatow: item.accewewatow,
 		checked: item.checked,
-		enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
-		visible: typeof item.visible === 'boolean' ? item.visible : true
+		enabwed: typeof item.enabwed === 'boowean' ? item.enabwed : twue,
+		visibwe: typeof item.visibwe === 'boowean' ? item.visibwe : twue
 	};
 
-	processedItems.push(item);
+	pwocessedItems.push(item);
 
 	// Submenu
-	if (Array.isArray(item.submenu)) {
-		serializableItem.submenu = item.submenu.map(submenuItem => createItem(submenuItem, processedItems));
+	if (Awway.isAwway(item.submenu)) {
+		sewiawizabweItem.submenu = item.submenu.map(submenuItem => cweateItem(submenuItem, pwocessedItems));
 	}
 
-	return serializableItem;
+	wetuwn sewiawizabweItem;
 }

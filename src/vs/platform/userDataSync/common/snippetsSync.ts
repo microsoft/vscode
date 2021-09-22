@@ -1,539 +1,539 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { deepClone } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
-import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweContent, IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AbstwactInitiawiza, AbstwactSynchwonisa, IAcceptWesuwt, IFiweWesouwcePweview, IMewgeWesuwt } fwom 'vs/pwatfowm/usewDataSync/common/abstwactSynchwoniza';
+impowt { aweSame, IMewgeWesuwt as ISnippetsMewgeWesuwt, mewge } fwom 'vs/pwatfowm/usewDataSync/common/snippetsMewge';
+impowt { Change, IWemoteUsewData, ISyncData, ISyncWesouwceHandwe, IUsewDataSyncBackupStoweSewvice, IUsewDataSynchwonisa, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncStoweSewvice, SyncWesouwce, USEW_DATA_SYNC_SCHEME } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-interface ISnippetsResourcePreview extends IFileResourcePreview {
-	previewResult: IMergeResult;
+intewface ISnippetsWesouwcePweview extends IFiweWesouwcePweview {
+	pweviewWesuwt: IMewgeWesuwt;
 }
 
-interface ISnippetsAcceptedResourcePreview extends IFileResourcePreview {
-	acceptResult: IAcceptResult;
+intewface ISnippetsAcceptedWesouwcePweview extends IFiweWesouwcePweview {
+	acceptWesuwt: IAcceptWesuwt;
 }
 
-export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
+expowt cwass SnippetsSynchwonisa extends AbstwactSynchwonisa impwements IUsewDataSynchwonisa {
 
-	protected readonly version: number = 1;
-	private readonly snippetsFolder: URI;
+	pwotected weadonwy vewsion: numba = 1;
+	pwivate weadonwy snippetsFowda: UWI;
 
-	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
-		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IUsewDataSyncStoweSewvice usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncBackupStoweSewvice usewDataSyncBackupStoweSewvice: IUsewDataSyncBackupStoweSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
-		this.snippetsFolder = environmentService.snippetsHome;
-		this._register(this.fileService.watch(environmentService.userRoamingDataHome));
-		this._register(this.fileService.watch(this.snippetsFolder));
-		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
+		supa(SyncWesouwce.Snippets, fiweSewvice, enviwonmentSewvice, stowageSewvice, usewDataSyncStoweSewvice, usewDataSyncBackupStoweSewvice, usewDataSyncWesouwceEnabwementSewvice, tewemetwySewvice, wogSewvice, configuwationSewvice);
+		this.snippetsFowda = enviwonmentSewvice.snippetsHome;
+		this._wegista(this.fiweSewvice.watch(enviwonmentSewvice.usewWoamingDataHome));
+		this._wegista(this.fiweSewvice.watch(this.snippetsFowda));
+		this._wegista(Event.fiwta(this.fiweSewvice.onDidFiwesChange, e => e.affects(this.snippetsFowda))(() => this.twiggewWocawChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ISnippetsResourcePreview[]> {
-		const local = await this.getSnippetsFileContents();
-		const localSnippets = this.toSnippetsContents(local);
-		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : null;
+	pwotected async genewateSyncPweview(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, isWemoteDataFwomCuwwentMachine: boowean, token: CancewwationToken): Pwomise<ISnippetsWesouwcePweview[]> {
+		const wocaw = await this.getSnippetsFiweContents();
+		const wocawSnippets = this.toSnippetsContents(wocaw);
+		const wemoteSnippets: IStwingDictionawy<stwing> | nuww = wemoteUsewData.syncData ? this.pawseSnippets(wemoteUsewData.syncData) : nuww;
 
-		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
-		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
-		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData && lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
+		// Use wemote data as wast sync data if wast sync data does not exist and wemote data is fwom same machine
+		wastSyncUsewData = wastSyncUsewData === nuww && isWemoteDataFwomCuwwentMachine ? wemoteUsewData : wastSyncUsewData;
+		const wastSyncSnippets: IStwingDictionawy<stwing> | nuww = wastSyncUsewData && wastSyncUsewData.syncData ? this.pawseSnippets(wastSyncUsewData.syncData) : nuww;
 
-		if (remoteSnippets) {
-			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote snippets with local snippets...`);
-		} else {
-			this.logService.trace(`${this.syncResourceLogLabel}: Remote snippets does not exist. Synchronizing snippets for the first time.`);
+		if (wemoteSnippets) {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Mewging wemote snippets with wocaw snippets...`);
+		} ewse {
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Wemote snippets does not exist. Synchwonizing snippets fow the fiwst time.`);
 		}
 
-		const mergeResult = merge(localSnippets, remoteSnippets, lastSyncSnippets);
-		return this.getResourcePreviews(mergeResult, local, remoteSnippets || {});
+		const mewgeWesuwt = mewge(wocawSnippets, wemoteSnippets, wastSyncSnippets);
+		wetuwn this.getWesouwcePweviews(mewgeWesuwt, wocaw, wemoteSnippets || {});
 	}
 
-	protected async getMergeResult(resourcePreview: ISnippetsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
-		return resourcePreview.previewResult;
+	pwotected async getMewgeWesuwt(wesouwcePweview: ISnippetsWesouwcePweview, token: CancewwationToken): Pwomise<IMewgeWesuwt> {
+		wetuwn wesouwcePweview.pweviewWesuwt;
 	}
 
-	protected async getAcceptResult(resourcePreview: ISnippetsResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult> {
+	pwotected async getAcceptWesuwt(wesouwcePweview: ISnippetsWesouwcePweview, wesouwce: UWI, content: stwing | nuww | undefined, token: CancewwationToken): Pwomise<IAcceptWesuwt> {
 
-		/* Accept local resource */
-		if (this.extUri.isEqualOrParent(resource, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))) {
-			return {
-				content: resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : null,
-				localChange: Change.None,
-				remoteChange: resourcePreview.fileContent
-					? resourcePreview.remoteContent !== null ? Change.Modified : Change.Added
-					: Change.Deleted
+		/* Accept wocaw wesouwce */
+		if (this.extUwi.isEquawOwPawent(wesouwce, this.syncPweviewFowda.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }))) {
+			wetuwn {
+				content: wesouwcePweview.fiweContent ? wesouwcePweview.fiweContent.vawue.toStwing() : nuww,
+				wocawChange: Change.None,
+				wemoteChange: wesouwcePweview.fiweContent
+					? wesouwcePweview.wemoteContent !== nuww ? Change.Modified : Change.Added
+					: Change.Deweted
 			};
 		}
 
-		/* Accept remote resource */
-		if (this.extUri.isEqualOrParent(resource, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))) {
-			return {
-				content: resourcePreview.remoteContent,
-				localChange: resourcePreview.remoteContent !== null
-					? resourcePreview.fileContent ? Change.Modified : Change.Added
-					: Change.Deleted,
-				remoteChange: Change.None,
+		/* Accept wemote wesouwce */
+		if (this.extUwi.isEquawOwPawent(wesouwce, this.syncPweviewFowda.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }))) {
+			wetuwn {
+				content: wesouwcePweview.wemoteContent,
+				wocawChange: wesouwcePweview.wemoteContent !== nuww
+					? wesouwcePweview.fiweContent ? Change.Modified : Change.Added
+					: Change.Deweted,
+				wemoteChange: Change.None,
 			};
 		}
 
-		/* Accept preview resource */
-		if (this.extUri.isEqualOrParent(resource, this.syncPreviewFolder)) {
+		/* Accept pweview wesouwce */
+		if (this.extUwi.isEquawOwPawent(wesouwce, this.syncPweviewFowda)) {
 			if (content === undefined) {
-				return {
-					content: resourcePreview.previewResult.content,
-					localChange: resourcePreview.previewResult.localChange,
-					remoteChange: resourcePreview.previewResult.remoteChange,
+				wetuwn {
+					content: wesouwcePweview.pweviewWesuwt.content,
+					wocawChange: wesouwcePweview.pweviewWesuwt.wocawChange,
+					wemoteChange: wesouwcePweview.pweviewWesuwt.wemoteChange,
 				};
-			} else {
-				return {
+			} ewse {
+				wetuwn {
 					content,
-					localChange: content === null
-						? resourcePreview.fileContent !== null ? Change.Deleted : Change.None
+					wocawChange: content === nuww
+						? wesouwcePweview.fiweContent !== nuww ? Change.Deweted : Change.None
 						: Change.Modified,
-					remoteChange: content === null
-						? resourcePreview.remoteContent !== null ? Change.Deleted : Change.None
+					wemoteChange: content === nuww
+						? wesouwcePweview.wemoteContent !== nuww ? Change.Deweted : Change.None
 						: Change.Modified
 				};
 			}
 		}
 
-		throw new Error(`Invalid Resource: ${resource.toString()}`);
+		thwow new Ewwow(`Invawid Wesouwce: ${wesouwce.toStwing()}`);
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [ISnippetsResourcePreview, IAcceptResult][], force: boolean): Promise<void> {
-		const accptedResourcePreviews: ISnippetsAcceptedResourcePreview[] = resourcePreviews.map(([resourcePreview, acceptResult]) => ({ ...resourcePreview, acceptResult }));
-		if (accptedResourcePreviews.every(({ localChange, remoteChange }) => localChange === Change.None && remoteChange === Change.None)) {
-			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing snippets.`);
+	pwotected async appwyWesuwt(wemoteUsewData: IWemoteUsewData, wastSyncUsewData: IWemoteUsewData | nuww, wesouwcePweviews: [ISnippetsWesouwcePweview, IAcceptWesuwt][], fowce: boowean): Pwomise<void> {
+		const accptedWesouwcePweviews: ISnippetsAcceptedWesouwcePweview[] = wesouwcePweviews.map(([wesouwcePweview, acceptWesuwt]) => ({ ...wesouwcePweview, acceptWesuwt }));
+		if (accptedWesouwcePweviews.evewy(({ wocawChange, wemoteChange }) => wocawChange === Change.None && wemoteChange === Change.None)) {
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: No changes found duwing synchwonizing snippets.`);
 		}
 
-		if (accptedResourcePreviews.some(({ localChange }) => localChange !== Change.None)) {
-			// back up all snippets
-			await this.updateLocalBackup(accptedResourcePreviews);
-			await this.updateLocalSnippets(accptedResourcePreviews, force);
+		if (accptedWesouwcePweviews.some(({ wocawChange }) => wocawChange !== Change.None)) {
+			// back up aww snippets
+			await this.updateWocawBackup(accptedWesouwcePweviews);
+			await this.updateWocawSnippets(accptedWesouwcePweviews, fowce);
 		}
 
-		if (accptedResourcePreviews.some(({ remoteChange }) => remoteChange !== Change.None)) {
-			remoteUserData = await this.updateRemoteSnippets(accptedResourcePreviews, remoteUserData, force);
+		if (accptedWesouwcePweviews.some(({ wemoteChange }) => wemoteChange !== Change.None)) {
+			wemoteUsewData = await this.updateWemoteSnippets(accptedWesouwcePweviews, wemoteUsewData, fowce);
 		}
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
-			// update last sync
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized snippets...`);
-			await this.updateLastSyncUserData(remoteUserData);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized snippets`);
+		if (wastSyncUsewData?.wef !== wemoteUsewData.wef) {
+			// update wast sync
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wast synchwonized snippets...`);
+			await this.updateWastSyncUsewData(wemoteUsewData);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wast synchwonized snippets`);
 		}
 
-		for (const { previewResource } of accptedResourcePreviews) {
-			// Delete the preview
-			try {
-				await this.fileService.del(previewResource);
-			} catch (e) { /* ignore */ }
+		fow (const { pweviewWesouwce } of accptedWesouwcePweviews) {
+			// Dewete the pweview
+			twy {
+				await this.fiweSewvice.dew(pweviewWesouwce);
+			} catch (e) { /* ignowe */ }
 		}
 
 	}
 
-	private getResourcePreviews(snippetsMergeResult: ISnippetsMergeResult, localFileContent: IStringDictionary<IFileContent>, remoteSnippets: IStringDictionary<string>): ISnippetsResourcePreview[] {
-		const resourcePreviews: Map<string, ISnippetsResourcePreview> = new Map<string, ISnippetsResourcePreview>();
+	pwivate getWesouwcePweviews(snippetsMewgeWesuwt: ISnippetsMewgeWesuwt, wocawFiweContent: IStwingDictionawy<IFiweContent>, wemoteSnippets: IStwingDictionawy<stwing>): ISnippetsWesouwcePweview[] {
+		const wesouwcePweviews: Map<stwing, ISnippetsWesouwcePweview> = new Map<stwing, ISnippetsWesouwcePweview>();
 
-		/* Snippets added remotely -> add locally */
-		for (const key of Object.keys(snippetsMergeResult.local.added)) {
-			const previewResult: IMergeResult = {
-				content: snippetsMergeResult.local.added[key],
-				hasConflicts: false,
-				localChange: Change.Added,
-				remoteChange: Change.None,
+		/* Snippets added wemotewy -> add wocawwy */
+		fow (const key of Object.keys(snippetsMewgeWesuwt.wocaw.added)) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: snippetsMewgeWesuwt.wocaw.added[key],
+				hasConfwicts: fawse,
+				wocawChange: Change.Added,
+				wemoteChange: Change.None,
 			};
-			resourcePreviews.set(key, {
-				fileContent: null,
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				localContent: null,
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: remoteSnippets[key],
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				fiweContent: nuww,
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				wocawContent: nuww,
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: wemoteSnippets[key],
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets updated remotely -> update locally */
-		for (const key of Object.keys(snippetsMergeResult.local.updated)) {
-			const previewResult: IMergeResult = {
-				content: snippetsMergeResult.local.updated[key],
-				hasConflicts: false,
-				localChange: Change.Modified,
-				remoteChange: Change.None,
+		/* Snippets updated wemotewy -> update wocawwy */
+		fow (const key of Object.keys(snippetsMewgeWesuwt.wocaw.updated)) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: snippetsMewgeWesuwt.wocaw.updated[key],
+				hasConfwicts: fawse,
+				wocawChange: Change.Modified,
+				wemoteChange: Change.None,
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: remoteSnippets[key],
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: wocawFiweContent[key],
+				wocawContent: wocawFiweContent[key].vawue.toStwing(),
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: wemoteSnippets[key],
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets removed remotely -> remove locally */
-		for (const key of snippetsMergeResult.local.removed) {
-			const previewResult: IMergeResult = {
-				content: null,
-				hasConflicts: false,
-				localChange: Change.Deleted,
-				remoteChange: Change.None,
+		/* Snippets wemoved wemotewy -> wemove wocawwy */
+		fow (const key of snippetsMewgeWesuwt.wocaw.wemoved) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: nuww,
+				hasConfwicts: fawse,
+				wocawChange: Change.Deweted,
+				wemoteChange: Change.None,
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: null,
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: wocawFiweContent[key],
+				wocawContent: wocawFiweContent[key].vawue.toStwing(),
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: nuww,
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets added locally -> add remotely */
-		for (const key of Object.keys(snippetsMergeResult.remote.added)) {
-			const previewResult: IMergeResult = {
-				content: snippetsMergeResult.remote.added[key],
-				hasConflicts: false,
-				localChange: Change.None,
-				remoteChange: Change.Added,
+		/* Snippets added wocawwy -> add wemotewy */
+		fow (const key of Object.keys(snippetsMewgeWesuwt.wemote.added)) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: snippetsMewgeWesuwt.wemote.added[key],
+				hasConfwicts: fawse,
+				wocawChange: Change.None,
+				wemoteChange: Change.Added,
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: null,
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: wocawFiweContent[key],
+				wocawContent: wocawFiweContent[key].vawue.toStwing(),
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: nuww,
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets updated locally -> update remotely */
-		for (const key of Object.keys(snippetsMergeResult.remote.updated)) {
-			const previewResult: IMergeResult = {
-				content: snippetsMergeResult.remote.updated[key],
-				hasConflicts: false,
-				localChange: Change.None,
-				remoteChange: Change.Modified,
+		/* Snippets updated wocawwy -> update wemotewy */
+		fow (const key of Object.keys(snippetsMewgeWesuwt.wemote.updated)) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: snippetsMewgeWesuwt.wemote.updated[key],
+				hasConfwicts: fawse,
+				wocawChange: Change.None,
+				wemoteChange: Change.Modified,
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: localFileContent[key],
-				localContent: localFileContent[key].value.toString(),
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: remoteSnippets[key],
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: wocawFiweContent[key],
+				wocawContent: wocawFiweContent[key].vawue.toStwing(),
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: wemoteSnippets[key],
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets removed locally -> remove remotely */
-		for (const key of snippetsMergeResult.remote.removed) {
-			const previewResult: IMergeResult = {
-				content: null,
-				hasConflicts: false,
-				localChange: Change.None,
-				remoteChange: Change.Deleted,
+		/* Snippets wemoved wocawwy -> wemove wemotewy */
+		fow (const key of snippetsMewgeWesuwt.wemote.wemoved) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: nuww,
+				hasConfwicts: fawse,
+				wocawChange: Change.None,
+				wemoteChange: Change.Deweted,
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: null,
-				localContent: null,
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: remoteSnippets[key],
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: nuww,
+				wocawContent: nuww,
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: wemoteSnippets[key],
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
-		/* Snippets with conflicts */
-		for (const key of snippetsMergeResult.conflicts) {
-			const previewResult: IMergeResult = {
-				content: localFileContent[key] ? localFileContent[key].value.toString() : null,
-				hasConflicts: true,
-				localChange: localFileContent[key] ? Change.Modified : Change.Added,
-				remoteChange: remoteSnippets[key] ? Change.Modified : Change.Added
+		/* Snippets with confwicts */
+		fow (const key of snippetsMewgeWesuwt.confwicts) {
+			const pweviewWesuwt: IMewgeWesuwt = {
+				content: wocawFiweContent[key] ? wocawFiweContent[key].vawue.toStwing() : nuww,
+				hasConfwicts: twue,
+				wocawChange: wocawFiweContent[key] ? Change.Modified : Change.Added,
+				wemoteChange: wemoteSnippets[key] ? Change.Modified : Change.Added
 			};
-			resourcePreviews.set(key, {
-				localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-				fileContent: localFileContent[key] || null,
-				localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
-				remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-				remoteContent: remoteSnippets[key] || null,
-				previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-				previewResult,
-				localChange: previewResult.localChange,
-				remoteChange: previewResult.remoteChange,
-				acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+			wesouwcePweviews.set(key, {
+				wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+				fiweContent: wocawFiweContent[key] || nuww,
+				wocawContent: wocawFiweContent[key] ? wocawFiweContent[key].vawue.toStwing() : nuww,
+				wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+				wemoteContent: wemoteSnippets[key] || nuww,
+				pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+				pweviewWesuwt,
+				wocawChange: pweviewWesuwt.wocawChange,
+				wemoteChange: pweviewWesuwt.wemoteChange,
+				acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 			});
 		}
 
 		/* Unmodified Snippets */
-		for (const key of Object.keys(localFileContent)) {
-			if (!resourcePreviews.has(key)) {
-				const previewResult: IMergeResult = {
-					content: localFileContent[key] ? localFileContent[key].value.toString() : null,
-					hasConflicts: false,
-					localChange: Change.None,
-					remoteChange: Change.None
+		fow (const key of Object.keys(wocawFiweContent)) {
+			if (!wesouwcePweviews.has(key)) {
+				const pweviewWesuwt: IMewgeWesuwt = {
+					content: wocawFiweContent[key] ? wocawFiweContent[key].vawue.toStwing() : nuww,
+					hasConfwicts: fawse,
+					wocawChange: Change.None,
+					wemoteChange: Change.None
 				};
-				resourcePreviews.set(key, {
-					localResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }),
-					fileContent: localFileContent[key] || null,
-					localContent: localFileContent[key] ? localFileContent[key].value.toString() : null,
-					remoteResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }),
-					remoteContent: remoteSnippets[key] || null,
-					previewResource: this.extUri.joinPath(this.syncPreviewFolder, key),
-					previewResult,
-					localChange: previewResult.localChange,
-					remoteChange: previewResult.remoteChange,
-					acceptedResource: this.extUri.joinPath(this.syncPreviewFolder, key).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' })
+				wesouwcePweviews.set(key, {
+					wocawWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }),
+					fiweContent: wocawFiweContent[key] || nuww,
+					wocawContent: wocawFiweContent[key] ? wocawFiweContent[key].vawue.toStwing() : nuww,
+					wemoteWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }),
+					wemoteContent: wemoteSnippets[key] || nuww,
+					pweviewWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key),
+					pweviewWesuwt,
+					wocawChange: pweviewWesuwt.wocawChange,
+					wemoteChange: pweviewWesuwt.wemoteChange,
+					acceptedWesouwce: this.extUwi.joinPath(this.syncPweviewFowda, key).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' })
 				});
 			}
 		}
 
-		return [...resourcePreviews.values()];
+		wetuwn [...wesouwcePweviews.vawues()];
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		let content = await super.resolveContent(uri);
+	async getAssociatedWesouwces({ uwi }: ISyncWesouwceHandwe): Pwomise<{ wesouwce: UWI, compawabweWesouwce: UWI }[]> {
+		wet content = await supa.wesowveContent(uwi);
 		if (content) {
-			const syncData = this.parseSyncData(content);
+			const syncData = this.pawseSyncData(content);
 			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				const result = [];
-				for (const snippet of Object.keys(snippets)) {
-					const resource = this.extUri.joinPath(uri, snippet);
-					const comparableResource = this.extUri.joinPath(this.snippetsFolder, snippet);
-					const exists = await this.fileService.exists(comparableResource);
-					result.push({ resource, comparableResource: exists ? comparableResource : this.extUri.joinPath(this.syncPreviewFolder, snippet).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }) });
+				const snippets = this.pawseSnippets(syncData);
+				const wesuwt = [];
+				fow (const snippet of Object.keys(snippets)) {
+					const wesouwce = this.extUwi.joinPath(uwi, snippet);
+					const compawabweWesouwce = this.extUwi.joinPath(this.snippetsFowda, snippet);
+					const exists = await this.fiweSewvice.exists(compawabweWesouwce);
+					wesuwt.push({ wesouwce, compawabweWesouwce: exists ? compawabweWesouwce : this.extUwi.joinPath(this.syncPweviewFowda, snippet).with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }) });
 				}
-				return result;
+				wetuwn wesuwt;
 			}
 		}
-		return [];
+		wetuwn [];
 	}
 
-	override async resolveContent(uri: URI): Promise<string | null> {
-		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
-			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
-			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {
-			return this.resolvePreviewContent(uri);
+	ovewwide async wesowveContent(uwi: UWI): Pwomise<stwing | nuww> {
+		if (this.extUwi.isEquawOwPawent(uwi, this.syncPweviewFowda.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wemote' }))
+			|| this.extUwi.isEquawOwPawent(uwi, this.syncPweviewFowda.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'wocaw' }))
+			|| this.extUwi.isEquawOwPawent(uwi, this.syncPweviewFowda.with({ scheme: USEW_DATA_SYNC_SCHEME, authowity: 'accepted' }))) {
+			wetuwn this.wesowvePweviewContent(uwi);
 		}
 
-		let content = await super.resolveContent(uri);
+		wet content = await supa.wesowveContent(uwi);
 		if (content) {
-			return content;
+			wetuwn content;
 		}
 
-		content = await super.resolveContent(this.extUri.dirname(uri));
+		content = await supa.wesowveContent(this.extUwi.diwname(uwi));
 		if (content) {
-			const syncData = this.parseSyncData(content);
+			const syncData = this.pawseSyncData(content);
 			if (syncData) {
-				const snippets = this.parseSnippets(syncData);
-				return snippets[this.extUri.basename(uri)] || null;
+				const snippets = this.pawseSnippets(syncData);
+				wetuwn snippets[this.extUwi.basename(uwi)] || nuww;
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	async hasLocalData(): Promise<boolean> {
-		try {
-			const localSnippets = await this.getSnippetsFileContents();
-			if (Object.keys(localSnippets).length) {
-				return true;
+	async hasWocawData(): Pwomise<boowean> {
+		twy {
+			const wocawSnippets = await this.getSnippetsFiweContents();
+			if (Object.keys(wocawSnippets).wength) {
+				wetuwn twue;
 			}
-		} catch (error) {
-			/* ignore error */
+		} catch (ewwow) {
+			/* ignowe ewwow */
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async updateLocalBackup(resourcePreviews: IFileResourcePreview[]): Promise<void> {
-		const local: IStringDictionary<IFileContent> = {};
-		for (const resourcePreview of resourcePreviews) {
-			if (resourcePreview.fileContent) {
-				local[this.extUri.basename(resourcePreview.localResource!)] = resourcePreview.fileContent;
+	pwivate async updateWocawBackup(wesouwcePweviews: IFiweWesouwcePweview[]): Pwomise<void> {
+		const wocaw: IStwingDictionawy<IFiweContent> = {};
+		fow (const wesouwcePweview of wesouwcePweviews) {
+			if (wesouwcePweview.fiweContent) {
+				wocaw[this.extUwi.basename(wesouwcePweview.wocawWesouwce!)] = wesouwcePweview.fiweContent;
 			}
 		}
-		await this.backupLocal(JSON.stringify(this.toSnippetsContents(local)));
+		await this.backupWocaw(JSON.stwingify(this.toSnippetsContents(wocaw)));
 	}
 
-	private async updateLocalSnippets(resourcePreviews: ISnippetsAcceptedResourcePreview[], force: boolean): Promise<void> {
-		for (const { fileContent, acceptResult, localResource, remoteResource, localChange } of resourcePreviews) {
-			if (localChange !== Change.None) {
-				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource!);
-				const resource = this.extUri.joinPath(this.snippetsFolder, key);
+	pwivate async updateWocawSnippets(wesouwcePweviews: ISnippetsAcceptedWesouwcePweview[], fowce: boowean): Pwomise<void> {
+		fow (const { fiweContent, acceptWesuwt, wocawWesouwce, wemoteWesouwce, wocawChange } of wesouwcePweviews) {
+			if (wocawChange !== Change.None) {
+				const key = wemoteWesouwce ? this.extUwi.basename(wemoteWesouwce) : this.extUwi.basename(wocawWesouwce!);
+				const wesouwce = this.extUwi.joinPath(this.snippetsFowda, key);
 
-				// Removed
-				if (localChange === Change.Deleted) {
-					this.logService.trace(`${this.syncResourceLogLabel}: Deleting snippet...`, this.extUri.basename(resource));
-					await this.fileService.del(resource);
-					this.logService.info(`${this.syncResourceLogLabel}: Deleted snippet`, this.extUri.basename(resource));
+				// Wemoved
+				if (wocawChange === Change.Deweted) {
+					this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Deweting snippet...`, this.extUwi.basename(wesouwce));
+					await this.fiweSewvice.dew(wesouwce);
+					this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Deweted snippet`, this.extUwi.basename(wesouwce));
 				}
 
 				// Added
-				else if (localChange === Change.Added) {
-					this.logService.trace(`${this.syncResourceLogLabel}: Creating snippet...`, this.extUri.basename(resource));
-					await this.fileService.createFile(resource, VSBuffer.fromString(acceptResult.content!), { overwrite: force });
-					this.logService.info(`${this.syncResourceLogLabel}: Created snippet`, this.extUri.basename(resource));
+				ewse if (wocawChange === Change.Added) {
+					this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Cweating snippet...`, this.extUwi.basename(wesouwce));
+					await this.fiweSewvice.cweateFiwe(wesouwce, VSBuffa.fwomStwing(acceptWesuwt.content!), { ovewwwite: fowce });
+					this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Cweated snippet`, this.extUwi.basename(wesouwce));
 				}
 
 				// Updated
-				else {
-					this.logService.trace(`${this.syncResourceLogLabel}: Updating snippet...`, this.extUri.basename(resource));
-					await this.fileService.writeFile(resource, VSBuffer.fromString(acceptResult.content!), force ? undefined : fileContent!);
-					this.logService.info(`${this.syncResourceLogLabel}: Updated snippet`, this.extUri.basename(resource));
+				ewse {
+					this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating snippet...`, this.extUwi.basename(wesouwce));
+					await this.fiweSewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(acceptWesuwt.content!), fowce ? undefined : fiweContent!);
+					this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated snippet`, this.extUwi.basename(wesouwce));
 				}
 			}
 		}
 	}
 
-	private async updateRemoteSnippets(resourcePreviews: ISnippetsAcceptedResourcePreview[], remoteUserData: IRemoteUserData, forcePush: boolean): Promise<IRemoteUserData> {
-		const currentSnippets: IStringDictionary<string> = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : {};
-		const newSnippets: IStringDictionary<string> = deepClone(currentSnippets);
+	pwivate async updateWemoteSnippets(wesouwcePweviews: ISnippetsAcceptedWesouwcePweview[], wemoteUsewData: IWemoteUsewData, fowcePush: boowean): Pwomise<IWemoteUsewData> {
+		const cuwwentSnippets: IStwingDictionawy<stwing> = wemoteUsewData.syncData ? this.pawseSnippets(wemoteUsewData.syncData) : {};
+		const newSnippets: IStwingDictionawy<stwing> = deepCwone(cuwwentSnippets);
 
-		for (const { acceptResult, localResource, remoteResource, remoteChange } of resourcePreviews) {
-			if (remoteChange !== Change.None) {
-				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource!);
-				if (remoteChange === Change.Deleted) {
-					delete newSnippets[key];
-				} else {
-					newSnippets[key] = acceptResult.content!;
+		fow (const { acceptWesuwt, wocawWesouwce, wemoteWesouwce, wemoteChange } of wesouwcePweviews) {
+			if (wemoteChange !== Change.None) {
+				const key = wocawWesouwce ? this.extUwi.basename(wocawWesouwce) : this.extUwi.basename(wemoteWesouwce!);
+				if (wemoteChange === Change.Deweted) {
+					dewete newSnippets[key];
+				} ewse {
+					newSnippets[key] = acceptWesuwt.content!;
 				}
 			}
 		}
 
-		if (!areSame(currentSnippets, newSnippets)) {
-			// update remote
-			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote snippets...`);
-			remoteUserData = await this.updateRemoteUserData(JSON.stringify(newSnippets), forcePush ? null : remoteUserData.ref);
-			this.logService.info(`${this.syncResourceLogLabel}: Updated remote snippets`);
+		if (!aweSame(cuwwentSnippets, newSnippets)) {
+			// update wemote
+			this.wogSewvice.twace(`${this.syncWesouwceWogWabew}: Updating wemote snippets...`);
+			wemoteUsewData = await this.updateWemoteUsewData(JSON.stwingify(newSnippets), fowcePush ? nuww : wemoteUsewData.wef);
+			this.wogSewvice.info(`${this.syncWesouwceWogWabew}: Updated wemote snippets`);
 		}
-		return remoteUserData;
+		wetuwn wemoteUsewData;
 	}
 
-	private parseSnippets(syncData: ISyncData): IStringDictionary<string> {
-		return JSON.parse(syncData.content);
+	pwivate pawseSnippets(syncData: ISyncData): IStwingDictionawy<stwing> {
+		wetuwn JSON.pawse(syncData.content);
 	}
 
-	private toSnippetsContents(snippetsFileContents: IStringDictionary<IFileContent>): IStringDictionary<string> {
-		const snippets: IStringDictionary<string> = {};
-		for (const key of Object.keys(snippetsFileContents)) {
-			snippets[key] = snippetsFileContents[key].value.toString();
+	pwivate toSnippetsContents(snippetsFiweContents: IStwingDictionawy<IFiweContent>): IStwingDictionawy<stwing> {
+		const snippets: IStwingDictionawy<stwing> = {};
+		fow (const key of Object.keys(snippetsFiweContents)) {
+			snippets[key] = snippetsFiweContents[key].vawue.toStwing();
 		}
-		return snippets;
+		wetuwn snippets;
 	}
 
-	private async getSnippetsFileContents(): Promise<IStringDictionary<IFileContent>> {
-		const snippets: IStringDictionary<IFileContent> = {};
-		let stat: IFileStat;
-		try {
-			stat = await this.fileService.resolve(this.snippetsFolder);
+	pwivate async getSnippetsFiweContents(): Pwomise<IStwingDictionawy<IFiweContent>> {
+		const snippets: IStwingDictionawy<IFiweContent> = {};
+		wet stat: IFiweStat;
+		twy {
+			stat = await this.fiweSewvice.wesowve(this.snippetsFowda);
 		} catch (e) {
 			// No snippets
-			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return snippets;
-			} else {
-				throw e;
+			if (e instanceof FiweOpewationEwwow && e.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				wetuwn snippets;
+			} ewse {
+				thwow e;
 			}
 		}
-		for (const entry of stat.children || []) {
-			const resource = entry.resource;
-			const extension = this.extUri.extname(resource);
+		fow (const entwy of stat.chiwdwen || []) {
+			const wesouwce = entwy.wesouwce;
+			const extension = this.extUwi.extname(wesouwce);
 			if (extension === '.json' || extension === '.code-snippets') {
-				const key = this.extUri.relativePath(this.snippetsFolder, resource)!;
-				const content = await this.fileService.readFile(resource);
+				const key = this.extUwi.wewativePath(this.snippetsFowda, wesouwce)!;
+				const content = await this.fiweSewvice.weadFiwe(wesouwce);
 				snippets[key] = content;
 			}
 		}
-		return snippets;
+		wetuwn snippets;
 	}
 }
 
-export class SnippetsInitializer extends AbstractInitializer {
+expowt cwass SnippetsInitiawiza extends AbstwactInitiawiza {
 
-	constructor(
-		@IFileService fileService: IFileService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	constwuctow(
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncWogSewvice wogSewvice: IUsewDataSyncWogSewvice,
 	) {
-		super(SyncResource.Snippets, environmentService, logService, fileService);
+		supa(SyncWesouwce.Snippets, enviwonmentSewvice, wogSewvice, fiweSewvice);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
-		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
-		if (!remoteSnippets) {
-			this.logService.info('Skipping initializing snippets because remote snippets does not exist.');
-			return;
+	async doInitiawize(wemoteUsewData: IWemoteUsewData): Pwomise<void> {
+		const wemoteSnippets: IStwingDictionawy<stwing> | nuww = wemoteUsewData.syncData ? JSON.pawse(wemoteUsewData.syncData.content) : nuww;
+		if (!wemoteSnippets) {
+			this.wogSewvice.info('Skipping initiawizing snippets because wemote snippets does not exist.');
+			wetuwn;
 		}
 
 		const isEmpty = await this.isEmpty();
 		if (!isEmpty) {
-			this.logService.info('Skipping initializing snippets because local snippets exist.');
-			return;
+			this.wogSewvice.info('Skipping initiawizing snippets because wocaw snippets exist.');
+			wetuwn;
 		}
 
-		for (const key of Object.keys(remoteSnippets)) {
-			const content = remoteSnippets[key];
+		fow (const key of Object.keys(wemoteSnippets)) {
+			const content = wemoteSnippets[key];
 			if (content) {
-				const resource = this.extUri.joinPath(this.environmentService.snippetsHome, key);
-				await this.fileService.createFile(resource, VSBuffer.fromString(content));
-				this.logService.info('Created snippet', this.extUri.basename(resource));
+				const wesouwce = this.extUwi.joinPath(this.enviwonmentSewvice.snippetsHome, key);
+				await this.fiweSewvice.cweateFiwe(wesouwce, VSBuffa.fwomStwing(content));
+				this.wogSewvice.info('Cweated snippet', this.extUwi.basename(wesouwce));
 			}
 		}
 
-		await this.updateLastSyncUserData(remoteUserData);
+		await this.updateWastSyncUsewData(wemoteUsewData);
 	}
 
-	private async isEmpty(): Promise<boolean> {
-		try {
-			const stat = await this.fileService.resolve(this.environmentService.snippetsHome);
-			return !stat.children?.length;
-		} catch (error) {
-			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+	pwivate async isEmpty(): Pwomise<boowean> {
+		twy {
+			const stat = await this.fiweSewvice.wesowve(this.enviwonmentSewvice.snippetsHome);
+			wetuwn !stat.chiwdwen?.wength;
+		} catch (ewwow) {
+			wetuwn (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_NOT_FOUND;
 		}
 	}
 

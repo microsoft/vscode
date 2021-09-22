@@ -1,217 +1,217 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SaveReason, IEditorIdentifier, GroupIdentifier, ISaveOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, dispose, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode, IAutoSaveConfiguwation } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { SaveWeason, IEditowIdentifia, GwoupIdentifia, ISaveOptions, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
+expowt cwass EditowAutoSave extends Disposabwe impwements IWowkbenchContwibution {
 
-	// Auto save: after delay
-	private autoSaveAfterDelay: number | undefined;
-	private readonly pendingAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable>();
+	// Auto save: afta deway
+	pwivate autoSaveAftewDeway: numba | undefined;
+	pwivate weadonwy pendingAutoSavesAftewDeway = new Map<IWowkingCopy, IDisposabwe>();
 
 	// Auto save: focus change & window change
-	private lastActiveEditor: EditorInput | undefined = undefined;
-	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
-	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
+	pwivate wastActiveEditow: EditowInput | undefined = undefined;
+	pwivate wastActiveGwoupId: GwoupIdentifia | undefined = undefined;
+	pwivate wastActiveEditowContwowDisposabwe = this._wegista(new DisposabweStowe());
 
-	constructor(
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IHostService private readonly hostService: IHostService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		// Figure out initial auto save config
-		this.onAutoSaveConfigurationChange(filesConfigurationService.getAutoSaveConfiguration(), false);
+		// Figuwe out initiaw auto save config
+		this.onAutoSaveConfiguwationChange(fiwesConfiguwationSewvice.getAutoSaveConfiguwation(), fawse);
 
-		// Fill in initial dirty working copies
-		for (const dirtyWorkingCopy of this.workingCopyService.dirtyWorkingCopies) {
-			this.onDidRegister(dirtyWorkingCopy);
+		// Fiww in initiaw diwty wowking copies
+		fow (const diwtyWowkingCopy of this.wowkingCopySewvice.diwtyWowkingCopies) {
+			this.onDidWegista(diwtyWowkingCopy);
 		}
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.hostSewvice.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.onDidActiveEditowChange()));
+		this._wegista(this.fiwesConfiguwationSewvice.onAutoSaveConfiguwationChange(config => this.onAutoSaveConfiguwationChange(config, twue)));
 
-		// Working Copy events
-		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
-		this._register(this.workingCopyService.onDidUnregister(workingCopy => this.onDidUnregister(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
-		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
+		// Wowking Copy events
+		this._wegista(this.wowkingCopySewvice.onDidWegista(wowkingCopy => this.onDidWegista(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidUnwegista(wowkingCopy => this.onDidUnwegista(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.onDidChangeDiwty(wowkingCopy)));
+		this._wegista(this.wowkingCopySewvice.onDidChangeContent(wowkingCopy => this.onDidChangeContent(wowkingCopy)));
 	}
 
-	private onWindowFocusChange(focused: boolean): void {
+	pwivate onWindowFocusChange(focused: boowean): void {
 		if (!focused) {
-			this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
+			this.maybeTwiggewAutoSave(SaveWeason.WINDOW_CHANGE);
 		}
 	}
 
-	private onDidActiveEditorChange(): void {
+	pwivate onDidActiveEditowChange(): void {
 
-		// Treat editor change like a focus change for our last active editor if any
-		if (this.lastActiveEditor && typeof this.lastActiveGroupId === 'number') {
-			this.maybeTriggerAutoSave(SaveReason.FOCUS_CHANGE, { groupId: this.lastActiveGroupId, editor: this.lastActiveEditor });
+		// Tweat editow change wike a focus change fow ouw wast active editow if any
+		if (this.wastActiveEditow && typeof this.wastActiveGwoupId === 'numba') {
+			this.maybeTwiggewAutoSave(SaveWeason.FOCUS_CHANGE, { gwoupId: this.wastActiveGwoupId, editow: this.wastActiveEditow });
 		}
 
-		// Remember as last active
-		const activeGroup = this.editorGroupService.activeGroup;
-		const activeEditor = this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
-		this.lastActiveGroupId = activeGroup.id;
+		// Wememba as wast active
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
+		const activeEditow = this.wastActiveEditow = withNuwwAsUndefined(activeGwoup.activeEditow);
+		this.wastActiveGwoupId = activeGwoup.id;
 
-		// Dispose previous active control listeners
-		this.lastActiveEditorControlDisposable.clear();
+		// Dispose pwevious active contwow wistenews
+		this.wastActiveEditowContwowDisposabwe.cweaw();
 
-		// Listen to focus changes on control for auto save
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditor && activeEditorPane) {
-			this.lastActiveEditorControlDisposable.add(activeEditorPane.onDidBlur(() => {
-				this.maybeTriggerAutoSave(SaveReason.FOCUS_CHANGE, { groupId: activeGroup.id, editor: activeEditor });
+		// Wisten to focus changes on contwow fow auto save
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (activeEditow && activeEditowPane) {
+			this.wastActiveEditowContwowDisposabwe.add(activeEditowPane.onDidBwuw(() => {
+				this.maybeTwiggewAutoSave(SaveWeason.FOCUS_CHANGE, { gwoupId: activeGwoup.id, editow: activeEditow });
 			}));
 		}
 	}
 
-	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
-		if (editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Readonly) || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
-			return; // no auto save for readonly or untitled editors
+	pwivate maybeTwiggewAutoSave(weason: SaveWeason, editowIdentifia?: IEditowIdentifia): void {
+		if (editowIdentifia?.editow.hasCapabiwity(EditowInputCapabiwities.Weadonwy) || editowIdentifia?.editow.hasCapabiwity(EditowInputCapabiwities.Untitwed)) {
+			wetuwn; // no auto save fow weadonwy ow untitwed editows
 		}
 
-		// Determine if we need to save all. In case of a window focus change we also save if 
-		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
-		const mode = this.filesConfigurationService.getAutoSaveMode();
+		// Detewmine if we need to save aww. In case of a window focus change we awso save if 
+		// auto save mode is configuwed to be ON_FOCUS_CHANGE (editow focus change)
+		const mode = this.fiwesConfiguwationSewvice.getAutoSaveMode();
 		if (
-			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
-			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
+			(weason === SaveWeason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
+			(weason === SaveWeason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
 		) {
-			this.logService.trace(`[editor auto save] triggering auto save with reason ${reason}`);
+			this.wogSewvice.twace(`[editow auto save] twiggewing auto save with weason ${weason}`);
 
-			if (editorIdentifier) {
-				this.editorService.save(editorIdentifier, { reason });
-			} else {
-				this.saveAllDirty({ reason });
+			if (editowIdentifia) {
+				this.editowSewvice.save(editowIdentifia, { weason });
+			} ewse {
+				this.saveAwwDiwty({ weason });
 			}
 		}
 	}
 
-	private onAutoSaveConfigurationChange(config: IAutoSaveConfiguration, fromEvent: boolean): void {
+	pwivate onAutoSaveConfiguwationChange(config: IAutoSaveConfiguwation, fwomEvent: boowean): void {
 
-		// Update auto save after delay config
-		this.autoSaveAfterDelay = (typeof config.autoSaveDelay === 'number') && config.autoSaveDelay > 0 ? config.autoSaveDelay : undefined;
+		// Update auto save afta deway config
+		this.autoSaveAftewDeway = (typeof config.autoSaveDeway === 'numba') && config.autoSaveDeway > 0 ? config.autoSaveDeway : undefined;
 
-		// Trigger a save-all when auto save is enabled
-		if (fromEvent) {
-			let reason: SaveReason | undefined = undefined;
-			switch (this.filesConfigurationService.getAutoSaveMode()) {
+		// Twigga a save-aww when auto save is enabwed
+		if (fwomEvent) {
+			wet weason: SaveWeason | undefined = undefined;
+			switch (this.fiwesConfiguwationSewvice.getAutoSaveMode()) {
 				case AutoSaveMode.ON_FOCUS_CHANGE:
-					reason = SaveReason.FOCUS_CHANGE;
-					break;
+					weason = SaveWeason.FOCUS_CHANGE;
+					bweak;
 				case AutoSaveMode.ON_WINDOW_CHANGE:
-					reason = SaveReason.WINDOW_CHANGE;
-					break;
-				case AutoSaveMode.AFTER_SHORT_DELAY:
-				case AutoSaveMode.AFTER_LONG_DELAY:
-					reason = SaveReason.AUTO;
-					break;
+					weason = SaveWeason.WINDOW_CHANGE;
+					bweak;
+				case AutoSaveMode.AFTEW_SHOWT_DEWAY:
+				case AutoSaveMode.AFTEW_WONG_DEWAY:
+					weason = SaveWeason.AUTO;
+					bweak;
 			}
 
-			if (reason) {
-				this.saveAllDirty({ reason });
-			}
-		}
-	}
-
-	private saveAllDirty(options?: ISaveOptions): void {
-		for (const workingCopy of this.workingCopyService.dirtyWorkingCopies) {
-			if (!(workingCopy.capabilities & WorkingCopyCapabilities.Untitled)) {
-				workingCopy.save(options);
+			if (weason) {
+				this.saveAwwDiwty({ weason });
 			}
 		}
 	}
 
-	private onDidRegister(workingCopy: IWorkingCopy): void {
-		if (workingCopy.isDirty()) {
-			this.scheduleAutoSave(workingCopy);
-		}
-	}
-
-	private onDidUnregister(workingCopy: IWorkingCopy): void {
-		this.discardAutoSave(workingCopy);
-	}
-
-	private onDidChangeDirty(workingCopy: IWorkingCopy): void {
-		if (workingCopy.isDirty()) {
-			this.scheduleAutoSave(workingCopy);
-		} else {
-			this.discardAutoSave(workingCopy);
-		}
-	}
-
-	private onDidChangeContent(workingCopy: IWorkingCopy): void {
-		if (workingCopy.isDirty()) {
-			// this listener will make sure that the auto save is
-			// pushed out for as long as the user is still changing
-			// the content of the working copy.
-			this.scheduleAutoSave(workingCopy);
-		}
-	}
-
-	private scheduleAutoSave(workingCopy: IWorkingCopy): void {
-		if (typeof this.autoSaveAfterDelay !== 'number') {
-			return; // auto save after delay must be enabled
-		}
-
-		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
-			return; // we never auto save untitled working copies
-		}
-
-		// Clear any running auto save operation
-		this.discardAutoSave(workingCopy);
-
-		this.logService.trace(`[editor auto save] scheduling auto save after ${this.autoSaveAfterDelay}ms`, workingCopy.resource.toString(true), workingCopy.typeId);
-
-		// Schedule new auto save
-		const handle = setTimeout(() => {
-
-			// Clear disposable
-			this.pendingAutoSavesAfterDelay.delete(workingCopy);
-
-			// Save if dirty
-			if (workingCopy.isDirty()) {
-				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(true), workingCopy.typeId);
-
-				workingCopy.save({ reason: SaveReason.AUTO });
+	pwivate saveAwwDiwty(options?: ISaveOptions): void {
+		fow (const wowkingCopy of this.wowkingCopySewvice.diwtyWowkingCopies) {
+			if (!(wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed)) {
+				wowkingCopy.save(options);
 			}
-		}, this.autoSaveAfterDelay);
+		}
+	}
 
-		// Keep in map for disposal as needed
-		this.pendingAutoSavesAfterDelay.set(workingCopy, toDisposable(() => {
-			this.logService.trace(`[editor auto save] clearing pending auto save`, workingCopy.resource.toString(true), workingCopy.typeId);
+	pwivate onDidWegista(wowkingCopy: IWowkingCopy): void {
+		if (wowkingCopy.isDiwty()) {
+			this.scheduweAutoSave(wowkingCopy);
+		}
+	}
 
-			clearTimeout(handle);
+	pwivate onDidUnwegista(wowkingCopy: IWowkingCopy): void {
+		this.discawdAutoSave(wowkingCopy);
+	}
+
+	pwivate onDidChangeDiwty(wowkingCopy: IWowkingCopy): void {
+		if (wowkingCopy.isDiwty()) {
+			this.scheduweAutoSave(wowkingCopy);
+		} ewse {
+			this.discawdAutoSave(wowkingCopy);
+		}
+	}
+
+	pwivate onDidChangeContent(wowkingCopy: IWowkingCopy): void {
+		if (wowkingCopy.isDiwty()) {
+			// this wistena wiww make suwe that the auto save is
+			// pushed out fow as wong as the usa is stiww changing
+			// the content of the wowking copy.
+			this.scheduweAutoSave(wowkingCopy);
+		}
+	}
+
+	pwivate scheduweAutoSave(wowkingCopy: IWowkingCopy): void {
+		if (typeof this.autoSaveAftewDeway !== 'numba') {
+			wetuwn; // auto save afta deway must be enabwed
+		}
+
+		if (wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed) {
+			wetuwn; // we neva auto save untitwed wowking copies
+		}
+
+		// Cweaw any wunning auto save opewation
+		this.discawdAutoSave(wowkingCopy);
+
+		this.wogSewvice.twace(`[editow auto save] scheduwing auto save afta ${this.autoSaveAftewDeway}ms`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
+
+		// Scheduwe new auto save
+		const handwe = setTimeout(() => {
+
+			// Cweaw disposabwe
+			this.pendingAutoSavesAftewDeway.dewete(wowkingCopy);
+
+			// Save if diwty
+			if (wowkingCopy.isDiwty()) {
+				this.wogSewvice.twace(`[editow auto save] wunning auto save`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
+
+				wowkingCopy.save({ weason: SaveWeason.AUTO });
+			}
+		}, this.autoSaveAftewDeway);
+
+		// Keep in map fow disposaw as needed
+		this.pendingAutoSavesAftewDeway.set(wowkingCopy, toDisposabwe(() => {
+			this.wogSewvice.twace(`[editow auto save] cweawing pending auto save`, wowkingCopy.wesouwce.toStwing(twue), wowkingCopy.typeId);
+
+			cweawTimeout(handwe);
 		}));
 	}
 
-	private discardAutoSave(workingCopy: IWorkingCopy): void {
-		dispose(this.pendingAutoSavesAfterDelay.get(workingCopy));
-		this.pendingAutoSavesAfterDelay.delete(workingCopy);
+	pwivate discawdAutoSave(wowkingCopy: IWowkingCopy): void {
+		dispose(this.pendingAutoSavesAftewDeway.get(wowkingCopy));
+		this.pendingAutoSavesAftewDeway.dewete(wowkingCopy);
 	}
 }

@@ -1,625 +1,625 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Action, IAction } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
-import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw, ActionsOwientation } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { BaseActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { HistowyInputBox, IHistowyInputOptions } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IMawginData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IModewDewtaDecowation, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ContextScopedHistowyInputBox } fwom 'vs/pwatfowm/bwowsa/contextScopedHistowyWidget';
+impowt { showHistowyKeybindingHint } fwom 'vs/pwatfowm/bwowsa/histowyWidgetKeybindingHint';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { activeContwastBowda, badgeBackgwound, badgeFowegwound, contwastBowda, focusBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachInputBoxStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ICowowTheme, ICssStyweCowwectow, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { isWowkspaceFowda, IWowkspaceContextSewvice, IWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { PANEW_ACTIVE_TITWE_BOWDa, PANEW_ACTIVE_TITWE_FOWEGWOUND, PANEW_INACTIVE_TITWE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { settingsEditIcon, settingsScopeDwopDownIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
 
-export class FolderSettingsActionViewItem extends BaseActionViewItem {
+expowt cwass FowdewSettingsActionViewItem extends BaseActionViewItem {
 
-	private _folder: IWorkspaceFolder | null;
-	private _folderSettingCounts = new Map<string, number>();
+	pwivate _fowda: IWowkspaceFowda | nuww;
+	pwivate _fowdewSettingCounts = new Map<stwing, numba>();
 
-	private container!: HTMLElement;
-	private anchorElement!: HTMLElement;
-	private labelElement!: HTMLElement;
-	private detailsElement!: HTMLElement;
-	private dropDownElement!: HTMLElement;
+	pwivate containa!: HTMWEwement;
+	pwivate anchowEwement!: HTMWEwement;
+	pwivate wabewEwement!: HTMWEwement;
+	pwivate detaiwsEwement!: HTMWEwement;
+	pwivate dwopDownEwement!: HTMWEwement;
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
 	) {
-		super(null, action);
-		const workspace = this.contextService.getWorkspace();
-		this._folder = workspace.folders.length === 1 ? workspace.folders[0] : null;
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
+		supa(nuww, action);
+		const wowkspace = this.contextSewvice.getWowkspace();
+		this._fowda = wowkspace.fowdews.wength === 1 ? wowkspace.fowdews[0] : nuww;
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.onWowkspaceFowdewsChanged()));
 	}
 
-	get folder(): IWorkspaceFolder | null {
-		return this._folder;
+	get fowda(): IWowkspaceFowda | nuww {
+		wetuwn this._fowda;
 	}
 
-	set folder(folder: IWorkspaceFolder | null) {
-		this._folder = folder;
+	set fowda(fowda: IWowkspaceFowda | nuww) {
+		this._fowda = fowda;
 		this.update();
 	}
 
-	setCount(settingsTarget: URI, count: number): void {
-		const workspaceFolder = this.contextService.getWorkspaceFolder(settingsTarget);
-		if (!workspaceFolder) {
-			throw new Error('unknown folder');
+	setCount(settingsTawget: UWI, count: numba): void {
+		const wowkspaceFowda = this.contextSewvice.getWowkspaceFowda(settingsTawget);
+		if (!wowkspaceFowda) {
+			thwow new Ewwow('unknown fowda');
 		}
-		const folder = workspaceFolder.uri;
-		this._folderSettingCounts.set(folder.toString(), count);
+		const fowda = wowkspaceFowda.uwi;
+		this._fowdewSettingCounts.set(fowda.toStwing(), count);
 		this.update();
 	}
 
-	override render(container: HTMLElement): void {
-		this.element = container;
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.ewement = containa;
 
-		this.container = container;
-		this.labelElement = DOM.$('.action-title');
-		this.detailsElement = DOM.$('.action-details');
-		this.dropDownElement = DOM.$('.dropdown-icon.hide' + ThemeIcon.asCSSSelector(settingsScopeDropDownIcon));
-		this.anchorElement = DOM.$('a.action-label.folder-settings', {
-			role: 'button',
-			'aria-haspopup': 'true',
+		this.containa = containa;
+		this.wabewEwement = DOM.$('.action-titwe');
+		this.detaiwsEwement = DOM.$('.action-detaiws');
+		this.dwopDownEwement = DOM.$('.dwopdown-icon.hide' + ThemeIcon.asCSSSewectow(settingsScopeDwopDownIcon));
+		this.anchowEwement = DOM.$('a.action-wabew.fowda-settings', {
+			wowe: 'button',
+			'awia-haspopup': 'twue',
 			'tabindex': '0'
-		}, this.labelElement, this.detailsElement, this.dropDownElement);
-		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
-		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
-		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
+		}, this.wabewEwement, this.detaiwsEwement, this.dwopDownEwement);
+		this._wegista(DOM.addDisposabweWistena(this.anchowEwement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHewpa.stop(e)));
+		this._wegista(DOM.addDisposabweWistena(this.anchowEwement, DOM.EventType.CWICK, e => this.onCwick(e)));
+		this._wegista(DOM.addDisposabweWistena(this.anchowEwement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
-		DOM.append(this.container, this.anchorElement);
+		DOM.append(this.containa, this.anchowEwement);
 
 		this.update();
 	}
 
-	private onKeyUp(event: any): void {
-		const keyboardEvent = new StandardKeyboardEvent(event);
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
+	pwivate onKeyUp(event: any): void {
+		const keyboawdEvent = new StandawdKeyboawdEvent(event);
+		switch (keyboawdEvent.keyCode) {
+			case KeyCode.Enta:
 			case KeyCode.Space:
-				this.onClick(event);
-				return;
+				this.onCwick(event);
+				wetuwn;
 		}
 	}
 
-	override onClick(event: DOM.EventLike): void {
-		DOM.EventHelper.stop(event, true);
-		if (!this.folder || this._action.checked) {
+	ovewwide onCwick(event: DOM.EventWike): void {
+		DOM.EventHewpa.stop(event, twue);
+		if (!this.fowda || this._action.checked) {
 			this.showMenu();
-		} else {
-			this._action.run(this._folder);
+		} ewse {
+			this._action.wun(this._fowda);
 		}
 	}
 
-	protected override updateEnabled(): void {
+	pwotected ovewwide updateEnabwed(): void {
 		this.update();
 	}
 
-	protected override updateChecked(): void {
+	pwotected ovewwide updateChecked(): void {
 		this.update();
 	}
 
-	private onWorkspaceFoldersChanged(): void {
-		const oldFolder = this._folder;
-		const workspace = this.contextService.getWorkspace();
-		if (oldFolder) {
-			this._folder = workspace.folders.filter(folder => isEqual(folder.uri, oldFolder.uri))[0] || workspace.folders[0];
+	pwivate onWowkspaceFowdewsChanged(): void {
+		const owdFowda = this._fowda;
+		const wowkspace = this.contextSewvice.getWowkspace();
+		if (owdFowda) {
+			this._fowda = wowkspace.fowdews.fiwta(fowda => isEquaw(fowda.uwi, owdFowda.uwi))[0] || wowkspace.fowdews[0];
 		}
-		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
+		this._fowda = this._fowda ? this._fowda : wowkspace.fowdews.wength === 1 ? wowkspace.fowdews[0] : nuww;
 
 		this.update();
 
 		if (this._action.checked) {
-			this._action.run(this._folder);
+			this._action.wun(this._fowda);
 		}
 	}
 
-	private async update(): Promise<void> {
-		let total = 0;
-		this._folderSettingCounts.forEach(n => total += n);
+	pwivate async update(): Pwomise<void> {
+		wet totaw = 0;
+		this._fowdewSettingCounts.fowEach(n => totaw += n);
 
-		const workspace = this.contextService.getWorkspace();
-		if (this._folder) {
-			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
-			const detailsText = this.labelWithCount(this._action.label, total);
-			this.detailsElement.textContent = detailsText;
-			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
-		} else {
-			const labelText = this.labelWithCount(this._action.label, total);
-			this.labelElement.textContent = labelText;
-			this.detailsElement.textContent = '';
-			this.anchorElement.title = this._action.label;
-			this.dropDownElement.classList.remove('hide');
+		const wowkspace = this.contextSewvice.getWowkspace();
+		if (this._fowda) {
+			this.wabewEwement.textContent = this._fowda.name;
+			this.anchowEwement.titwe = (await this.pwefewencesSewvice.getEditabweSettingsUWI(ConfiguwationTawget.WOWKSPACE_FOWDa, this._fowda.uwi))?.fsPath || '';
+			const detaiwsText = this.wabewWithCount(this._action.wabew, totaw);
+			this.detaiwsEwement.textContent = detaiwsText;
+			this.dwopDownEwement.cwassWist.toggwe('hide', wowkspace.fowdews.wength === 1 || !this._action.checked);
+		} ewse {
+			const wabewText = this.wabewWithCount(this._action.wabew, totaw);
+			this.wabewEwement.textContent = wabewText;
+			this.detaiwsEwement.textContent = '';
+			this.anchowEwement.titwe = this._action.wabew;
+			this.dwopDownEwement.cwassWist.wemove('hide');
 		}
 
-		this.anchorElement.classList.toggle('checked', this._action.checked);
-		this.container.classList.toggle('disabled', !this._action.enabled);
+		this.anchowEwement.cwassWist.toggwe('checked', this._action.checked);
+		this.containa.cwassWist.toggwe('disabwed', !this._action.enabwed);
 	}
 
-	private showMenu(): void {
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.container,
-			getActions: () => this.getDropdownMenuActions(),
+	pwivate showMenu(): void {
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => this.containa,
+			getActions: () => this.getDwopdownMenuActions(),
 			getActionViewItem: () => undefined,
 			onHide: () => {
-				this.anchorElement.blur();
+				this.anchowEwement.bwuw();
 			}
 		});
 	}
 
-	private getDropdownMenuActions(): IAction[] {
+	pwivate getDwopdownMenuActions(): IAction[] {
 		const actions: IAction[] = [];
-		const workspaceFolders = this.contextService.getWorkspace().folders;
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(...workspaceFolders.map((folder, index) => {
-				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
-				return <IAction>{
-					id: 'folderSettingsTarget' + index,
-					label: this.labelWithCount(folder.name, folderCount),
-					checked: this.folder && isEqual(this.folder.uri, folder.uri),
-					enabled: true,
-					run: () => this._action.run(folder)
+		const wowkspaceFowdews = this.contextSewvice.getWowkspace().fowdews;
+		if (this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE && wowkspaceFowdews.wength > 0) {
+			actions.push(...wowkspaceFowdews.map((fowda, index) => {
+				const fowdewCount = this._fowdewSettingCounts.get(fowda.uwi.toStwing());
+				wetuwn <IAction>{
+					id: 'fowdewSettingsTawget' + index,
+					wabew: this.wabewWithCount(fowda.name, fowdewCount),
+					checked: this.fowda && isEquaw(this.fowda.uwi, fowda.uwi),
+					enabwed: twue,
+					wun: () => this._action.wun(fowda)
 				};
 			}));
 		}
-		return actions;
+		wetuwn actions;
 	}
 
-	private labelWithCount(label: string, count: number | undefined): string {
+	pwivate wabewWithCount(wabew: stwing, count: numba | undefined): stwing {
 		// Append the count if it's >0 and not undefined
 		if (count) {
-			label += ` (${count})`;
+			wabew += ` (${count})`;
 		}
 
-		return label;
+		wetuwn wabew;
 	}
 }
 
-export type SettingsTarget = ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
+expowt type SettingsTawget = ConfiguwationTawget.USEW_WOCAW | ConfiguwationTawget.USEW_WEMOTE | ConfiguwationTawget.WOWKSPACE | UWI;
 
-export interface ISettingsTargetsWidgetOptions {
-	enableRemoteSettings?: boolean;
+expowt intewface ISettingsTawgetsWidgetOptions {
+	enabweWemoteSettings?: boowean;
 }
 
-export class SettingsTargetsWidget extends Widget {
+expowt cwass SettingsTawgetsWidget extends Widget {
 
-	private settingsSwitcherBar!: ActionBar;
-	private userLocalSettings!: Action;
-	private userRemoteSettings!: Action;
-	private workspaceSettings!: Action;
-	private folderSettings!: FolderSettingsActionViewItem;
-	private options: ISettingsTargetsWidgetOptions;
+	pwivate settingsSwitchewBaw!: ActionBaw;
+	pwivate usewWocawSettings!: Action;
+	pwivate usewWemoteSettings!: Action;
+	pwivate wowkspaceSettings!: Action;
+	pwivate fowdewSettings!: FowdewSettingsActionViewItem;
+	pwivate options: ISettingsTawgetsWidgetOptions;
 
-	private _settingsTarget: SettingsTarget | null = null;
+	pwivate _settingsTawget: SettingsTawget | nuww = nuww;
 
-	private readonly _onDidTargetChange = this._register(new Emitter<SettingsTarget>());
-	readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
+	pwivate weadonwy _onDidTawgetChange = this._wegista(new Emitta<SettingsTawget>());
+	weadonwy onDidTawgetChange: Event<SettingsTawget> = this._onDidTawgetChange.event;
 
-	constructor(
-		parent: HTMLElement,
-		options: ISettingsTargetsWidgetOptions | undefined,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+	constwuctow(
+		pawent: HTMWEwement,
+		options: ISettingsTawgetsWidgetOptions | undefined,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
 	) {
-		super();
+		supa();
 		this.options = options || {};
-		this.create(parent);
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+		this.cweate(pawent);
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.onWowkbenchStateChanged()));
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.update()));
 	}
 
-	private create(parent: HTMLElement): void {
-		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
-		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
-			animated: false,
-			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
+	pwivate cweate(pawent: HTMWEwement): void {
+		const settingsTabsWidget = DOM.append(pawent, DOM.$('.settings-tabs-widget'));
+		this.settingsSwitchewBaw = this._wegista(new ActionBaw(settingsTabsWidget, {
+			owientation: ActionsOwientation.HOWIZONTAW,
+			awiaWabew: wocawize('settingsSwitchewBawAwiaWabew', "Settings Switcha"),
+			animated: fawse,
+			actionViewItemPwovida: (action: IAction) => action.id === 'fowdewSettings' ? this.fowdewSettings : undefined
 		}));
 
-		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
-			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = uri?.fsPath || '';
+		this.usewWocawSettings = new Action('usewSettings', wocawize('usewSettings', "Usa"), '.settings-tab', twue, () => this.updateTawget(ConfiguwationTawget.USEW_WOCAW));
+		this.pwefewencesSewvice.getEditabweSettingsUWI(ConfiguwationTawget.USEW_WOCAW).then(uwi => {
+			// Don't wait to cweate UI on wesowving wemote
+			this.usewWocawSettings.toowtip = uwi?.fsPath || '';
 		});
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
-		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` [${hostLabel}]` : '');
-		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = uri?.fsPath || '';
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+		const hostWabew = wemoteAuthowity && this.wabewSewvice.getHostWabew(Schemas.vscodeWemote, wemoteAuthowity);
+		const wemoteSettingsWabew = wocawize('usewSettingsWemote', "Wemote") +
+			(hostWabew ? ` [${hostWabew}]` : '');
+		this.usewWemoteSettings = new Action('usewSettingsWemote', wemoteSettingsWabew, '.settings-tab', twue, () => this.updateTawget(ConfiguwationTawget.USEW_WEMOTE));
+		this.pwefewencesSewvice.getEditabweSettingsUWI(ConfiguwationTawget.USEW_WEMOTE).then(uwi => {
+			this.usewWemoteSettings.toowtip = uwi?.fsPath || '';
 		});
 
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
+		this.wowkspaceSettings = new Action('wowkspaceSettings', wocawize('wowkspaceSettings', "Wowkspace"), '.settings-tab', fawse, () => this.updateTawget(ConfiguwationTawget.WOWKSPACE));
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, async folder => {
-			this.updateTarget(isWorkspaceFolder(folder) ? folder.uri : ConfigurationTarget.USER_LOCAL);
+		const fowdewSettingsAction = new Action('fowdewSettings', wocawize('fowdewSettings', "Fowda"), '.settings-tab', fawse, async fowda => {
+			this.updateTawget(isWowkspaceFowda(fowda) ? fowda.uwi : ConfiguwationTawget.USEW_WOCAW);
 		});
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
+		this.fowdewSettings = this.instantiationSewvice.cweateInstance(FowdewSettingsActionViewItem, fowdewSettingsAction);
 
 		this.update();
 
-		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, folderSettingsAction]);
+		this.settingsSwitchewBaw.push([this.usewWocawSettings, this.usewWemoteSettings, this.wowkspaceSettings, fowdewSettingsAction]);
 	}
 
-	get settingsTarget(): SettingsTarget | null {
-		return this._settingsTarget;
+	get settingsTawget(): SettingsTawget | nuww {
+		wetuwn this._settingsTawget;
 	}
 
-	set settingsTarget(settingsTarget: SettingsTarget | null) {
-		this._settingsTarget = settingsTarget;
-		this.userLocalSettings.checked = ConfigurationTarget.USER_LOCAL === this.settingsTarget;
-		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
-		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
-		if (this.settingsTarget instanceof URI) {
-			this.folderSettings.getAction().checked = true;
-			this.folderSettings.folder = this.contextService.getWorkspaceFolder(this.settingsTarget as URI);
-		} else {
-			this.folderSettings.getAction().checked = false;
+	set settingsTawget(settingsTawget: SettingsTawget | nuww) {
+		this._settingsTawget = settingsTawget;
+		this.usewWocawSettings.checked = ConfiguwationTawget.USEW_WOCAW === this.settingsTawget;
+		this.usewWemoteSettings.checked = ConfiguwationTawget.USEW_WEMOTE === this.settingsTawget;
+		this.wowkspaceSettings.checked = ConfiguwationTawget.WOWKSPACE === this.settingsTawget;
+		if (this.settingsTawget instanceof UWI) {
+			this.fowdewSettings.getAction().checked = twue;
+			this.fowdewSettings.fowda = this.contextSewvice.getWowkspaceFowda(this.settingsTawget as UWI);
+		} ewse {
+			this.fowdewSettings.getAction().checked = fawse;
 		}
 	}
 
-	setResultCount(settingsTarget: SettingsTarget, count: number): void {
-		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
-			let label = localize('workspaceSettings', "Workspace");
+	setWesuwtCount(settingsTawget: SettingsTawget, count: numba): void {
+		if (settingsTawget === ConfiguwationTawget.WOWKSPACE) {
+			wet wabew = wocawize('wowkspaceSettings', "Wowkspace");
 			if (count) {
-				label += ` (${count})`;
+				wabew += ` (${count})`;
 			}
 
-			this.workspaceSettings.label = label;
-		} else if (settingsTarget === ConfigurationTarget.USER_LOCAL) {
-			let label = localize('userSettings', "User");
+			this.wowkspaceSettings.wabew = wabew;
+		} ewse if (settingsTawget === ConfiguwationTawget.USEW_WOCAW) {
+			wet wabew = wocawize('usewSettings', "Usa");
 			if (count) {
-				label += ` (${count})`;
+				wabew += ` (${count})`;
 			}
 
-			this.userLocalSettings.label = label;
-		} else if (settingsTarget instanceof URI) {
-			this.folderSettings.setCount(settingsTarget, count);
+			this.usewWocawSettings.wabew = wabew;
+		} ewse if (settingsTawget instanceof UWI) {
+			this.fowdewSettings.setCount(settingsTawget, count);
 		}
 	}
 
-	private onWorkbenchStateChanged(): void {
-		this.folderSettings.folder = null;
+	pwivate onWowkbenchStateChanged(): void {
+		this.fowdewSettings.fowda = nuww;
 		this.update();
-		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.updateTarget(ConfigurationTarget.USER_LOCAL);
+		if (this.settingsTawget === ConfiguwationTawget.WOWKSPACE && this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE) {
+			this.updateTawget(ConfiguwationTawget.USEW_WOCAW);
 		}
 	}
 
-	updateTarget(settingsTarget: SettingsTarget): Promise<void> {
-		const isSameTarget = this.settingsTarget === settingsTarget ||
-			settingsTarget instanceof URI &&
-			this.settingsTarget instanceof URI &&
-			isEqual(this.settingsTarget, settingsTarget);
+	updateTawget(settingsTawget: SettingsTawget): Pwomise<void> {
+		const isSameTawget = this.settingsTawget === settingsTawget ||
+			settingsTawget instanceof UWI &&
+			this.settingsTawget instanceof UWI &&
+			isEquaw(this.settingsTawget, settingsTawget);
 
-		if (!isSameTarget) {
-			this.settingsTarget = settingsTarget;
-			this._onDidTargetChange.fire(this.settingsTarget);
+		if (!isSameTawget) {
+			this.settingsTawget = settingsTawget;
+			this._onDidTawgetChange.fiwe(this.settingsTawget);
 		}
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	private async update(): Promise<void> {
-		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
-		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
-		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
-		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+	pwivate async update(): Pwomise<void> {
+		this.settingsSwitchewBaw.domNode.cwassWist.toggwe('empty-wowkbench', this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY);
+		this.usewWemoteSettings.enabwed = !!(this.options.enabweWemoteSettings && this.enviwonmentSewvice.wemoteAuthowity);
+		this.wowkspaceSettings.enabwed = this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY;
+		this.fowdewSettings.getAction().enabwed = this.contextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE && this.contextSewvice.getWowkspace().fowdews.wength > 0;
 
-		this.workspaceSettings.tooltip = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
+		this.wowkspaceSettings.toowtip = (await this.pwefewencesSewvice.getEditabweSettingsUWI(ConfiguwationTawget.WOWKSPACE))?.fsPath || '';
 	}
 }
 
-export interface SearchOptions extends IHistoryInputOptions {
-	focusKey?: IContextKey<boolean>;
-	showResultCount?: boolean;
-	ariaLive?: string;
-	ariaLabelledBy?: string;
+expowt intewface SeawchOptions extends IHistowyInputOptions {
+	focusKey?: IContextKey<boowean>;
+	showWesuwtCount?: boowean;
+	awiaWive?: stwing;
+	awiaWabewwedBy?: stwing;
 }
 
-export class SearchWidget extends Widget {
+expowt cwass SeawchWidget extends Widget {
 
-	domNode!: HTMLElement;
+	domNode!: HTMWEwement;
 
-	private countElement!: HTMLElement;
-	private searchContainer!: HTMLElement;
-	inputBox!: HistoryInputBox;
-	private controlsDiv!: HTMLElement;
+	pwivate countEwement!: HTMWEwement;
+	pwivate seawchContaina!: HTMWEwement;
+	inputBox!: HistowyInputBox;
+	pwivate contwowsDiv!: HTMWEwement;
 
-	private readonly _onDidChange: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	weadonwy onDidChange: Event<stwing> = this._onDidChange.event;
 
-	private readonly _onFocus: Emitter<void> = this._register(new Emitter<void>());
-	readonly onFocus: Event<void> = this._onFocus.event;
+	pwivate weadonwy _onFocus: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onFocus: Event<void> = this._onFocus.event;
 
-	constructor(parent: HTMLElement, protected options: SearchOptions,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService
+	constwuctow(pawent: HTMWEwement, pwotected options: SeawchOptions,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwotected weadonwy keybindingSewvice: IKeybindingSewvice
 	) {
-		super();
-		this.create(parent);
+		supa();
+		this.cweate(pawent);
 	}
 
-	private create(parent: HTMLElement) {
-		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
-		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
-		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
+	pwivate cweate(pawent: HTMWEwement) {
+		this.domNode = DOM.append(pawent, DOM.$('div.settings-heada-widget'));
+		this.cweateSeawchContaina(DOM.append(this.domNode, DOM.$('div.settings-seawch-containa')));
+		this.contwowsDiv = DOM.append(this.domNode, DOM.$('div.settings-seawch-contwows'));
 
-		if (this.options.showResultCount) {
-			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
-			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+		if (this.options.showWesuwtCount) {
+			this.countEwement = DOM.append(this.contwowsDiv, DOM.$('.settings-count-widget'));
+			this._wegista(attachStywewCawwback(this.themeSewvice, { badgeBackgwound, contwastBowda }, cowows => {
+				const backgwound = cowows.badgeBackgwound ? cowows.badgeBackgwound.toStwing() : '';
+				const bowda = cowows.contwastBowda ? cowows.contwastBowda.toStwing() : '';
 
-				this.countElement.style.backgroundColor = background;
+				this.countEwement.stywe.backgwoundCowow = backgwound;
 
-				this.countElement.style.borderWidth = border ? '1px' : '';
-				this.countElement.style.borderStyle = border ? 'solid' : '';
-				this.countElement.style.borderColor = border;
+				this.countEwement.stywe.bowdewWidth = bowda ? '1px' : '';
+				this.countEwement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+				this.countEwement.stywe.bowdewCowow = bowda;
 
-				const color = this.themeService.getColorTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : '';
+				const cowow = this.themeSewvice.getCowowTheme().getCowow(badgeFowegwound);
+				this.countEwement.stywe.cowow = cowow ? cowow.toStwing() : '';
 			}));
 		}
 
-		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
-		if (this.options.ariaLabelledBy) {
-			this.inputBox.inputElement.setAttribute('aria-labelledBy', this.options.ariaLabelledBy);
+		this.inputBox.inputEwement.setAttwibute('awia-wive', this.options.awiaWive || 'off');
+		if (this.options.awiaWabewwedBy) {
+			this.inputBox.inputEwement.setAttwibute('awia-wabewwedBy', this.options.awiaWabewwedBy);
 		}
-		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
-		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
+		const focusTwacka = this._wegista(DOM.twackFocus(this.inputBox.inputEwement));
+		this._wegista(focusTwacka.onDidFocus(() => this._onFocus.fiwe()));
 
 		const focusKey = this.options.focusKey;
 		if (focusKey) {
-			this._register(focusTracker.onDidFocus(() => focusKey.set(true)));
-			this._register(focusTracker.onDidBlur(() => focusKey.set(false)));
+			this._wegista(focusTwacka.onDidFocus(() => focusKey.set(twue)));
+			this._wegista(focusTwacka.onDidBwuw(() => focusKey.set(fawse)));
 		}
 	}
 
-	private createSearchContainer(searchContainer: HTMLElement) {
-		this.searchContainer = searchContainer;
-		const searchInput = DOM.append(this.searchContainer, DOM.$('div.settings-search-input'));
-		this.inputBox = this._register(this.createInputBox(searchInput));
-		this._register(this.inputBox.onDidChange(value => this._onDidChange.fire(value)));
+	pwivate cweateSeawchContaina(seawchContaina: HTMWEwement) {
+		this.seawchContaina = seawchContaina;
+		const seawchInput = DOM.append(this.seawchContaina, DOM.$('div.settings-seawch-input'));
+		this.inputBox = this._wegista(this.cweateInputBox(seawchInput));
+		this._wegista(this.inputBox.onDidChange(vawue => this._onDidChange.fiwe(vawue)));
 	}
 
-	protected createInputBox(parent: HTMLElement): HistoryInputBox {
-		const showHistoryHint = () => showHistoryKeybindingHint(this.keybindingService);
-		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, { ...this.options, showHistoryHint }, this.contextKeyService));
-		this._register(attachInputBoxStyler(box, this.themeService));
+	pwotected cweateInputBox(pawent: HTMWEwement): HistowyInputBox {
+		const showHistowyHint = () => showHistowyKeybindingHint(this.keybindingSewvice);
+		const box = this._wegista(new ContextScopedHistowyInputBox(pawent, this.contextViewSewvice, { ...this.options, showHistowyHint }, this.contextKeySewvice));
+		this._wegista(attachInputBoxStywa(box, this.themeSewvice));
 
-		return box;
+		wetuwn box;
 	}
 
-	showMessage(message: string): void {
-		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
-		if (this.countElement && message !== this.countElement.textContent) {
-			this.countElement.textContent = message;
-			this.inputBox.inputElement.setAttribute('aria-label', message);
-			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
+	showMessage(message: stwing): void {
+		// Avoid setting the awia-wabew unnecessawiwy, the scweenweada wiww wead the count evewy time it's set, since it's awia-wive:assewtive. #50968
+		if (this.countEwement && message !== this.countEwement.textContent) {
+			this.countEwement.textContent = message;
+			this.inputBox.inputEwement.setAttwibute('awia-wabew', message);
+			this.inputBox.inputEwement.stywe.paddingWight = this.getContwowsWidth() + 'px';
 		}
 	}
 
-	layout(dimension: DOM.Dimension) {
+	wayout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
-			if (this.countElement) {
-				this.countElement.classList.add('hide');
+			if (this.countEwement) {
+				this.countEwement.cwassWist.add('hide');
 			}
 
-			this.inputBox.inputElement.style.paddingRight = '0px';
-		} else {
-			if (this.countElement) {
-				this.countElement.classList.remove('hide');
+			this.inputBox.inputEwement.stywe.paddingWight = '0px';
+		} ewse {
+			if (this.countEwement) {
+				this.countEwement.cwassWist.wemove('hide');
 			}
 
-			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
+			this.inputBox.inputEwement.stywe.paddingWight = this.getContwowsWidth() + 'px';
 		}
 	}
 
-	private getControlsWidth(): number {
-		const countWidth = this.countElement ? DOM.getTotalWidth(this.countElement) : 0;
-		return countWidth + 20;
+	pwivate getContwowsWidth(): numba {
+		const countWidth = this.countEwement ? DOM.getTotawWidth(this.countEwement) : 0;
+		wetuwn countWidth + 20;
 	}
 
 	focus() {
 		this.inputBox.focus();
-		if (this.getValue()) {
-			this.inputBox.select();
+		if (this.getVawue()) {
+			this.inputBox.sewect();
 		}
 	}
 
-	hasFocus(): boolean {
-		return this.inputBox.hasFocus();
+	hasFocus(): boowean {
+		wetuwn this.inputBox.hasFocus();
 	}
 
-	clear() {
-		this.inputBox.value = '';
+	cweaw() {
+		this.inputBox.vawue = '';
 	}
 
-	getValue(): string {
-		return this.inputBox.value;
+	getVawue(): stwing {
+		wetuwn this.inputBox.vawue;
 	}
 
-	setValue(value: string): string {
-		return this.inputBox.value = value;
+	setVawue(vawue: stwing): stwing {
+		wetuwn this.inputBox.vawue = vawue;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
+			this.options.focusKey.set(fawse);
 		}
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class EditPreferenceWidget<T> extends Disposable {
+expowt cwass EditPwefewenceWidget<T> extends Disposabwe {
 
-	private _line: number = -1;
-	private _preferences: T[] = [];
+	pwivate _wine: numba = -1;
+	pwivate _pwefewences: T[] = [];
 
-	private _editPreferenceDecoration: string[];
+	pwivate _editPwefewenceDecowation: stwing[];
 
-	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
-	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
+	pwivate weadonwy _onCwick = this._wegista(new Emitta<IEditowMouseEvent>());
+	weadonwy onCwick: Event<IEditowMouseEvent> = this._onCwick.event;
 
-	constructor(private editor: ICodeEditor) {
-		super();
-		this._editPreferenceDecoration = [];
-		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			const data = e.target.detail as IMarginData;
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.isVisible()) {
-				return;
+	constwuctow(pwivate editow: ICodeEditow) {
+		supa();
+		this._editPwefewenceDecowation = [];
+		this._wegista(this.editow.onMouseDown((e: IEditowMouseEvent) => {
+			const data = e.tawget.detaiw as IMawginData;
+			if (e.tawget.type !== MouseTawgetType.GUTTEW_GWYPH_MAWGIN || data.isAftewWines || !this.isVisibwe()) {
+				wetuwn;
 			}
-			this._onClick.fire(e);
+			this._onCwick.fiwe(e);
 		}));
 	}
 
-	get preferences(): T[] {
-		return this._preferences;
+	get pwefewences(): T[] {
+		wetuwn this._pwefewences;
 	}
 
-	getLine(): number {
-		return this._line;
+	getWine(): numba {
+		wetuwn this._wine;
 	}
 
-	show(line: number, hoverMessage: string, preferences: T[]): void {
-		this._preferences = preferences;
-		const newDecoration: IModelDeltaDecoration[] = [];
-		this._line = line;
-		newDecoration.push({
+	show(wine: numba, hovewMessage: stwing, pwefewences: T[]): void {
+		this._pwefewences = pwefewences;
+		const newDecowation: IModewDewtaDecowation[] = [];
+		this._wine = wine;
+		newDecowation.push({
 			options: {
-				description: 'edit-preference-widget-decoration',
-				glyphMarginClassName: ThemeIcon.asClassName(settingsEditIcon),
-				glyphMarginHoverMessage: new MarkdownString().appendText(hoverMessage),
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				descwiption: 'edit-pwefewence-widget-decowation',
+				gwyphMawginCwassName: ThemeIcon.asCwassName(settingsEditIcon),
+				gwyphMawginHovewMessage: new MawkdownStwing().appendText(hovewMessage),
+				stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
 			},
-			range: {
-				startLineNumber: line,
-				startColumn: 1,
-				endLineNumber: line,
-				endColumn: 1
+			wange: {
+				stawtWineNumba: wine,
+				stawtCowumn: 1,
+				endWineNumba: wine,
+				endCowumn: 1
 			}
 		});
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+		this._editPwefewenceDecowation = this.editow.dewtaDecowations(this._editPwefewenceDecowation, newDecowation);
 	}
 
 	hide(): void {
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+		this._editPwefewenceDecowation = this.editow.dewtaDecowations(this._editPwefewenceDecowation, []);
 	}
 
-	isVisible(): boolean {
-		return this._editPreferenceDecoration.length > 0;
+	isVisibwe(): boowean {
+		wetuwn this._editPwefewenceDecowation.wength > 0;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.hide();
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	collector.addRule(`
-		.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
-		.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-			border-bottom: 1px solid;
+	cowwectow.addWuwe(`
+		.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:focus,
+		.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew.checked {
+			bowda-bottom: 1px sowid;
 		}
 	`);
-	// Title Active
-	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover,
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-				color: ${titleActive};
-				border-bottom-color: ${titleActiveBorder};
+	// Titwe Active
+	const titweActive = theme.getCowow(PANEW_ACTIVE_TITWE_FOWEGWOUND);
+	const titweActiveBowda = theme.getCowow(PANEW_ACTIVE_TITWE_BOWDa);
+	if (titweActive || titweActiveBowda) {
+		cowwectow.addWuwe(`
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:hova,
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew.checked {
+				cowow: ${titweActive};
+				bowda-bottom-cowow: ${titweActiveBowda};
 			}
 		`);
 	}
 
-	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	if (titleInactive) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-				color: ${titleInactive};
+	// Titwe Inactive
+	const titweInactive = theme.getCowow(PANEW_INACTIVE_TITWE_FOWEGWOUND);
+	if (titweInactive) {
+		cowwectow.addWuwe(`
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew {
+				cowow: ${titweInactive};
 			}
 		`);
 	}
 
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-				border-bottom-color: ${focusBorderColor} !important;
+	// Titwe focus
+	const focusBowdewCowow = theme.getCowow(focusBowda);
+	if (focusBowdewCowow) {
+		cowwectow.addWuwe(`
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:focus {
+				bowda-bottom-cowow: ${focusBowdewCowow} !impowtant;
 			}
 			`);
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-				outline: none;
+		cowwectow.addWuwe(`
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:focus {
+				outwine: none;
 			}
 			`);
 	}
 
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		const outline = theme.getColor(activeContrastBorder);
+	// Stywing with Outwine cowow (e.g. high contwast theme)
+	const outwine = theme.getCowow(activeContwastBowda);
+	if (outwine) {
+		const outwine = theme.getCowow(activeContwastBowda);
 
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
+		cowwectow.addWuwe(`
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew.checked,
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:hova {
+				outwine-cowow: ${outwine};
+				outwine-width: 1px;
+				outwine-stywe: sowid;
+				bowda-bottom: none;
 				padding-bottom: 0;
-				outline-offset: -1px;
+				outwine-offset: -1px;
 			}
 
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
-				outline-style: dashed;
+			.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew:not(.checked):hova {
+				outwine-stywe: dashed;
 			}
 		`);
 	}

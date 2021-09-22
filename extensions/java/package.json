@@ -1,47 +1,47 @@
 {
   "name": "java",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-java grammars/java.cson ./syntaxes/java.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-java gwammaws/java.cson ./syntaxes/java.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "java",
         "extensions": [
           ".java",
           ".jav"
         ],
-        "aliases": [
+        "awiases": [
           "Java",
           "java"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "java",
-        "scopeName": "source.java",
-        "path": "./syntaxes/java.tmLanguage.json"
+        "wanguage": "java",
+        "scopeName": "souwce.java",
+        "path": "./syntaxes/java.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "java",
+        "wanguage": "java",
         "path": "./snippets/java.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

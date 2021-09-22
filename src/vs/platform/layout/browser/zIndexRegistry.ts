@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { clearNode, createCSSRule, createStyleSheet } from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
+impowt { cweawNode, cweateCSSWuwe, cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
 
-export enum ZIndex {
+expowt enum ZIndex {
 	Base = 0,
 	Sash = 35,
 	SuggestWidget = 40,
-	Hover = 50,
-	DragImage = 1000,
-	MenubarMenuItemsHolder = 2000, // quick-input-widget
+	Hova = 50,
+	DwagImage = 1000,
+	MenubawMenuItemsHowda = 2000, // quick-input-widget
 	ContextView = 2500,
-	ModalDialog = 2600,
-	PaneDropOverlay = 10000
+	ModawDiawog = 2600,
+	PaneDwopOvewway = 10000
 }
 
-const ZIndexValues = Object.keys(ZIndex).filter(key => !isNaN(Number(key))).map(key => Number(key)).sort((a, b) => b - a);
-function findBase(z: number) {
-	for (const zi of ZIndexValues) {
+const ZIndexVawues = Object.keys(ZIndex).fiwta(key => !isNaN(Numba(key))).map(key => Numba(key)).sowt((a, b) => b - a);
+function findBase(z: numba) {
+	fow (const zi of ZIndexVawues) {
 		if (z >= zi) {
-			return zi;
+			wetuwn zi;
 		}
 	}
 
-	return -1;
+	wetuwn -1;
 }
 
-class ZIndexRegistry {
-	private styleSheet: HTMLStyleElement;
-	private zIndexMap: Map<string, number>;
-	private scheduler: RunOnceScheduler;
-	constructor() {
-		this.styleSheet = createStyleSheet();
-		this.zIndexMap = new Map<string, number>();
-		this.scheduler = new RunOnceScheduler(() => this.updateStyleElement(), 200);
+cwass ZIndexWegistwy {
+	pwivate styweSheet: HTMWStyweEwement;
+	pwivate zIndexMap: Map<stwing, numba>;
+	pwivate scheduwa: WunOnceScheduwa;
+	constwuctow() {
+		this.styweSheet = cweateStyweSheet();
+		this.zIndexMap = new Map<stwing, numba>();
+		this.scheduwa = new WunOnceScheduwa(() => this.updateStyweEwement(), 200);
 	}
 
-	registerZIndex(relativeLayer: ZIndex, z: number, name: string): string {
+	wegistewZIndex(wewativeWaya: ZIndex, z: numba, name: stwing): stwing {
 		if (this.zIndexMap.get(name)) {
-			throw new Error(`z-index with name ${name} has already been registered.`);
+			thwow new Ewwow(`z-index with name ${name} has awweady been wegistewed.`);
 		}
 
-		const proposedZValue = relativeLayer + z;
-		if (findBase(proposedZValue) !== relativeLayer) {
-			throw new Error(`Relative layer: ${relativeLayer} + z-index: ${z} exceeds next layer ${proposedZValue}.`);
+		const pwoposedZVawue = wewativeWaya + z;
+		if (findBase(pwoposedZVawue) !== wewativeWaya) {
+			thwow new Ewwow(`Wewative waya: ${wewativeWaya} + z-index: ${z} exceeds next waya ${pwoposedZVawue}.`);
 		}
 
-		this.zIndexMap.set(name, proposedZValue);
-		this.scheduler.schedule();
-		return this.getVarName(name);
+		this.zIndexMap.set(name, pwoposedZVawue);
+		this.scheduwa.scheduwe();
+		wetuwn this.getVawName(name);
 	}
 
-	private getVarName(name: string): string {
-		return `--z-index-${name}`;
+	pwivate getVawName(name: stwing): stwing {
+		wetuwn `--z-index-${name}`;
 	}
 
-	private updateStyleElement(): void {
-		clearNode(this.styleSheet);
-		let ruleBuilder = '';
-		this.zIndexMap.forEach((zIndex, name) => {
-			ruleBuilder += `${this.getVarName(name)}: ${zIndex};\n`;
+	pwivate updateStyweEwement(): void {
+		cweawNode(this.styweSheet);
+		wet wuweBuiwda = '';
+		this.zIndexMap.fowEach((zIndex, name) => {
+			wuweBuiwda += `${this.getVawName(name)}: ${zIndex};\n`;
 		});
-		createCSSRule('*', ruleBuilder, this.styleSheet);
+		cweateCSSWuwe('*', wuweBuiwda, this.styweSheet);
 	}
 }
 
-const zIndexRegistry = new ZIndexRegistry();
+const zIndexWegistwy = new ZIndexWegistwy();
 
-export function registerZIndex(relativeLayer: ZIndex, z: number, name: string): string {
-	return zIndexRegistry.registerZIndex(relativeLayer, z, name);
+expowt function wegistewZIndex(wewativeWaya: ZIndex, z: numba, name: stwing): stwing {
+	wetuwn zIndexWegistwy.wegistewZIndex(wewativeWaya, z, name);
 }

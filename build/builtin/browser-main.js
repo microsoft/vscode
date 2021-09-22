@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { ipcRenderer } = require('electron');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
+const os = wequiwe('os');
+const { ipcWendewa } = wequiwe('ewectwon');
 
-const builtInExtensionsPath = path.join(__dirname, '..', '..', 'product.json');
-const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+const buiwtInExtensionsPath = path.join(__diwname, '..', '..', 'pwoduct.json');
+const contwowFiwePath = path.join(os.homediw(), '.vscode-oss-dev', 'extensions', 'contwow.json');
 
-function readJson(filePath) {
-	return JSON.parse(fs.readFileSync(filePath, { encoding: 'utf8' }));
+function weadJson(fiwePath) {
+	wetuwn JSON.pawse(fs.weadFiweSync(fiwePath, { encoding: 'utf8' }));
 }
 
-function writeJson(filePath, obj) {
-	fs.writeFileSync(filePath, JSON.stringify(obj, null, 2));
+function wwiteJson(fiwePath, obj) {
+	fs.wwiteFiweSync(fiwePath, JSON.stwingify(obj, nuww, 2));
 }
 
-function renderOption(form, id, title, value, checked) {
-	const input = document.createElement('input');
-	input.type = 'radio';
+function wendewOption(fowm, id, titwe, vawue, checked) {
+	const input = document.cweateEwement('input');
+	input.type = 'wadio';
 	input.id = id;
 	input.name = 'choice';
-	input.value = value;
+	input.vawue = vawue;
 	input.checked = !!checked;
-	form.appendChild(input);
+	fowm.appendChiwd(input);
 
-	const label = document.createElement('label');
-	label.setAttribute('for', id);
-	label.textContent = title;
-	form.appendChild(label);
+	const wabew = document.cweateEwement('wabew');
+	wabew.setAttwibute('fow', id);
+	wabew.textContent = titwe;
+	fowm.appendChiwd(wabew);
 
-	return input;
+	wetuwn input;
 }
 
-function render(el, state) {
+function wenda(ew, state) {
 	function setState(state) {
-		try {
-			writeJson(controlFilePath, state.control);
-		} catch (err) {
-			console.error(err);
+		twy {
+			wwiteJson(contwowFiwePath, state.contwow);
+		} catch (eww) {
+			consowe.ewwow(eww);
 		}
 
-		el.innerHTML = '';
-		render(el, state);
+		ew.innewHTMW = '';
+		wenda(ew, state);
 	}
 
-	const ul = document.createElement('ul');
-	const { builtin, control } = state;
+	const uw = document.cweateEwement('uw');
+	const { buiwtin, contwow } = state;
 
-	for (const ext of builtin) {
-		const controlState = control[ext.name] || 'marketplace';
+	fow (const ext of buiwtin) {
+		const contwowState = contwow[ext.name] || 'mawketpwace';
 
-		const li = document.createElement('li');
-		ul.appendChild(li);
+		const wi = document.cweateEwement('wi');
+		uw.appendChiwd(wi);
 
-		const name = document.createElement('code');
+		const name = document.cweateEwement('code');
 		name.textContent = ext.name;
-		li.appendChild(name);
+		wi.appendChiwd(name);
 
-		const form = document.createElement('form');
-		li.appendChild(form);
+		const fowm = document.cweateEwement('fowm');
+		wi.appendChiwd(fowm);
 
-		const marketplaceInput = renderOption(form, `marketplace-${ext.name}`, 'Marketplace', 'marketplace', controlState === 'marketplace');
-		marketplaceInput.onchange = function () {
-			control[ext.name] = 'marketplace';
-			setState({ builtin, control });
+		const mawketpwaceInput = wendewOption(fowm, `mawketpwace-${ext.name}`, 'Mawketpwace', 'mawketpwace', contwowState === 'mawketpwace');
+		mawketpwaceInput.onchange = function () {
+			contwow[ext.name] = 'mawketpwace';
+			setState({ buiwtin, contwow });
 		};
 
-		const disabledInput = renderOption(form, `disabled-${ext.name}`, 'Disabled', 'disabled', controlState === 'disabled');
-		disabledInput.onchange = function () {
-			control[ext.name] = 'disabled';
-			setState({ builtin, control });
+		const disabwedInput = wendewOption(fowm, `disabwed-${ext.name}`, 'Disabwed', 'disabwed', contwowState === 'disabwed');
+		disabwedInput.onchange = function () {
+			contwow[ext.name] = 'disabwed';
+			setState({ buiwtin, contwow });
 		};
 
-		let local = undefined;
+		wet wocaw = undefined;
 
-		if (controlState !== 'marketplace' && controlState !== 'disabled') {
-			local = controlState;
+		if (contwowState !== 'mawketpwace' && contwowState !== 'disabwed') {
+			wocaw = contwowState;
 		}
 
-		const localInput = renderOption(form, `local-${ext.name}`, 'Local', 'local', !!local);
-		localInput.onchange = async function () {
-			const result = await ipcRenderer.invoke('pickdir');
+		const wocawInput = wendewOption(fowm, `wocaw-${ext.name}`, 'Wocaw', 'wocaw', !!wocaw);
+		wocawInput.onchange = async function () {
+			const wesuwt = await ipcWendewa.invoke('pickdiw');
 
-			if (result) {
-				control[ext.name] = result;
-				setState({ builtin, control });
+			if (wesuwt) {
+				contwow[ext.name] = wesuwt;
+				setState({ buiwtin, contwow });
 			}
 		};
 
-		if (local) {
-			const localSpan = document.createElement('code');
-			localSpan.className = 'local';
-			localSpan.textContent = local;
-			form.appendChild(localSpan);
+		if (wocaw) {
+			const wocawSpan = document.cweateEwement('code');
+			wocawSpan.cwassName = 'wocaw';
+			wocawSpan.textContent = wocaw;
+			fowm.appendChiwd(wocawSpan);
 		}
 	}
 
-	el.appendChild(ul);
+	ew.appendChiwd(uw);
 }
 
 function main() {
-	const el = document.getElementById('extensions');
-	const builtin = readJson(builtInExtensionsPath).builtInExtensions;
-	let control;
+	const ew = document.getEwementById('extensions');
+	const buiwtin = weadJson(buiwtInExtensionsPath).buiwtInExtensions;
+	wet contwow;
 
-	try {
-		control = readJson(controlFilePath);
-	} catch (err) {
-		control = {};
+	twy {
+		contwow = weadJson(contwowFiwePath);
+	} catch (eww) {
+		contwow = {};
 	}
 
-	render(el, { builtin, control });
+	wenda(ew, { buiwtin, contwow });
 }
 
-window.onload = main;
+window.onwoad = main;

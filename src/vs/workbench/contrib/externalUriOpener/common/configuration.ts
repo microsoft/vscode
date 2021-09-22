@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { IConfiguwationNode, IConfiguwationWegistwy, Extensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt * as nws fwom 'vs/nws';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export const defaultExternalUriOpenerId = 'default';
+expowt const defauwtExtewnawUwiOpenewId = 'defauwt';
 
-export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
+expowt const extewnawUwiOpenewsSettingId = 'wowkbench.extewnawUwiOpenews';
 
-export interface ExternalUriOpenersConfiguration {
-	readonly [uriGlob: string]: string;
+expowt intewface ExtewnawUwiOpenewsConfiguwation {
+	weadonwy [uwiGwob: stwing]: stwing;
 }
 
-const externalUriOpenerIdSchemaAddition: IJSONSchema = {
-	type: 'string',
+const extewnawUwiOpenewIdSchemaAddition: IJSONSchema = {
+	type: 'stwing',
 	enum: []
 };
 
-const exampleUriPatterns = `
-- \`https://microsoft.com\`: Matches this specific domain using https
-- \`https://microsoft.com:8080\`: Matches this specific domain on this port using https
-- \`https://microsoft.com:*\`: Matches this specific domain on any port using https
-- \`https://microsoft.com/foo\`: Matches \`https://microsoft.com/foo\` and \`https://microsoft.com/foo/bar\`, but not \`https://microsoft.com/foobar\` or \`https://microsoft.com/bar\`
-- \`https://*.microsoft.com\`: Match all domains ending in \`microsoft.com\` using https
-- \`microsoft.com\`: Match this specific domain using either http or https
-- \`*.microsoft.com\`: Match all domains ending in \`microsoft.com\` using either http or https
+const exampweUwiPattewns = `
+- \`https://micwosoft.com\`: Matches this specific domain using https
+- \`https://micwosoft.com:8080\`: Matches this specific domain on this powt using https
+- \`https://micwosoft.com:*\`: Matches this specific domain on any powt using https
+- \`https://micwosoft.com/foo\`: Matches \`https://micwosoft.com/foo\` and \`https://micwosoft.com/foo/baw\`, but not \`https://micwosoft.com/foobaw\` ow \`https://micwosoft.com/baw\`
+- \`https://*.micwosoft.com\`: Match aww domains ending in \`micwosoft.com\` using https
+- \`micwosoft.com\`: Match this specific domain using eitha http ow https
+- \`*.micwosoft.com\`: Match aww domains ending in \`micwosoft.com\` using eitha http ow https
 - \`http://192.168.0.1\`: Matches this specific IP using http
-- \`http://192.168.0.*\`: Matches all IP's with this prefix using http
-- \`*\`: Match all domains using either http or https`;
+- \`http://192.168.0.*\`: Matches aww IP's with this pwefix using http
+- \`*\`: Match aww domains using eitha http ow https`;
 
-export const externalUriOpenersConfigurationNode: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	properties: {
-		[externalUriOpenersSettingId]: {
+expowt const extewnawUwiOpenewsConfiguwationNode: IConfiguwationNode = {
+	...wowkbenchConfiguwationNodeBase,
+	pwopewties: {
+		[extewnawUwiOpenewsSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('externalUriOpeners', "Configure the opener to use for external URIs (http, https)."),
-			defaultSnippets: [{
+			mawkdownDescwiption: nws.wocawize('extewnawUwiOpenews', "Configuwe the opena to use fow extewnaw UWIs (http, https)."),
+			defauwtSnippets: [{
 				body: {
-					'example.com': '$1'
+					'exampwe.com': '$1'
 				}
 			}],
-			additionalProperties: {
+			additionawPwopewties: {
 				anyOf: [
 					{
-						type: 'string',
-						markdownDescription: nls.localize('externalUriOpeners.uri', "Map URI pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
+						type: 'stwing',
+						mawkdownDescwiption: nws.wocawize('extewnawUwiOpenews.uwi', "Map UWI pattewn to an opena id.\nExampwe pattewns: \n{0}", exampweUwiPattewns),
 					},
 					{
-						type: 'string',
-						markdownDescription: nls.localize('externalUriOpeners.uri', "Map URI pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
-						enum: [defaultExternalUriOpenerId],
-						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
+						type: 'stwing',
+						mawkdownDescwiption: nws.wocawize('extewnawUwiOpenews.uwi', "Map UWI pattewn to an opena id.\nExampwe pattewns: \n{0}", exampweUwiPattewns),
+						enum: [defauwtExtewnawUwiOpenewId],
+						enumDescwiptions: [nws.wocawize('extewnawUwiOpenews.defauwtId', "Open using VS Code's standawd opena.")],
 					},
-					externalUriOpenerIdSchemaAddition
+					extewnawUwiOpenewIdSchemaAddition
 				]
 			}
 		}
 	}
 };
 
-export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
-	externalUriOpenerIdSchemaAddition.enum = enumValues;
-	externalUriOpenerIdSchemaAddition.enumDescriptions = enumDescriptions;
+expowt function updateContwibutedOpenews(enumVawues: stwing[], enumDescwiptions: stwing[]): void {
+	extewnawUwiOpenewIdSchemaAddition.enum = enumVawues;
+	extewnawUwiOpenewIdSchemaAddition.enumDescwiptions = enumDescwiptions;
 
-	Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-		.notifyConfigurationSchemaUpdated(externalUriOpenersConfigurationNode);
+	Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation)
+		.notifyConfiguwationSchemaUpdated(extewnawUwiOpenewsConfiguwationNode);
 }

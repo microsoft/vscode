@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { context, ipcRenderer, process, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+impowt * as assewt fwom 'assewt';
+impowt { context, ipcWendewa, pwocess, webFwame } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
 
 suite('Sandbox', () => {
-	test('globals', async () => {
-		assert.ok(typeof ipcRenderer.send === 'function');
-		assert.ok(typeof webFrame.setZoomLevel === 'function');
-		assert.ok(typeof process.platform === 'string');
+	test('gwobaws', async () => {
+		assewt.ok(typeof ipcWendewa.send === 'function');
+		assewt.ok(typeof webFwame.setZoomWevew === 'function');
+		assewt.ok(typeof pwocess.pwatfowm === 'stwing');
 
-		const config = await context.resolveConfiguration();
-		assert.ok(config);
-		assert.ok(context.configuration());
+		const config = await context.wesowveConfiguwation();
+		assewt.ok(config);
+		assewt.ok(context.configuwation());
 	});
 });

@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.activitybar {
+.monaco-wowkbench .pawt.activitybaw {
 	width: 48px;
 	height: 100%;
 }
 
-.monaco-workbench .activitybar.bordered::before {
+.monaco-wowkbench .activitybaw.bowdewed::befowe {
 	content: '';
-	float: left;
-	position: absolute;
-	box-sizing: border-box;
+	fwoat: weft;
+	position: absowute;
+	box-sizing: bowda-box;
 	height: 100%;
 	width: 0px;
-	border-color: inherit;
+	bowda-cowow: inhewit;
 }
 
-.monaco-workbench .activitybar.left.bordered::before {
-	right: 0;
-	border-right-style: solid;
-	border-right-width: 1px;
+.monaco-wowkbench .activitybaw.weft.bowdewed::befowe {
+	wight: 0;
+	bowda-wight-stywe: sowid;
+	bowda-wight-width: 1px;
 }
 
-.monaco-workbench .activitybar.right.bordered::before {
-	left: 0;
-	border-left-style: solid;
-	border-left-width: 1px;
+.monaco-wowkbench .activitybaw.wight.bowdewed::befowe {
+	weft: 0;
+	bowda-weft-stywe: sowid;
+	bowda-weft-width: 1px;
 }
 
-.monaco-workbench .activitybar > .content {
+.monaco-wowkbench .activitybaw > .content {
 	height: 100%;
-	display: flex;
-	flex-direction: column;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 	justify-content: space-between;
 }
 
 /*
- * Fix menu jumping and background inheritance in Safari
+ * Fix menu jumping and backgwound inhewitance in Safawi
  */
-.monaco-workbench.safari .activitybar > .content {
-	position: absolute;
-	background-color: inherit;
+.monaco-wowkbench.safawi .activitybaw > .content {
+	position: absowute;
+	backgwound-cowow: inhewit;
 }
 
-/** Viewlet Switcher */
+/** Viewwet Switcha */
 
-.monaco-workbench .activitybar > .content .monaco-action-bar {
-	text-align: left;
-	background-color: inherit;
+.monaco-wowkbench .activitybaw > .content .monaco-action-baw {
+	text-awign: weft;
+	backgwound-cowow: inhewit;
 }
 
-.monaco-workbench .activitybar .action-item:focus {
-	outline: 0 !important; /* activity bar indicates focus custom */
+.monaco-wowkbench .activitybaw .action-item:focus {
+	outwine: 0 !impowtant; /* activity baw indicates focus custom */
 }
 
-.monaco-workbench .activitybar > .content > .composite-bar {
-	margin-bottom: auto;
+.monaco-wowkbench .activitybaw > .content > .composite-baw {
+	mawgin-bottom: auto;
 }
 
-/** Menu Bar */
+/** Menu Baw */
 
-.monaco-workbench .activitybar .menubar {
+.monaco-wowkbench .activitybaw .menubaw {
 	width: 100%;
 	height: 35px;
 }
 
-.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
+.monaco-wowkbench .activitybaw .menubaw.compact .toowbaw-toggwe-mowe {
 	width: 100%;
 	height: 35px;
 }

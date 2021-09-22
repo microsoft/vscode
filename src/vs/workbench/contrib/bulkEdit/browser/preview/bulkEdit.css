@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .bulk-edit-panel .highlight.remove {
-	text-decoration: line-through;
+.monaco-wowkbench .buwk-edit-panew .highwight.wemove {
+	text-decowation: wine-thwough;
 }
 
-.monaco-workbench .bulk-edit-panel .message {
+.monaco-wowkbench .buwk-edit-panew .message {
 	padding: 10px 20px
 }
 
-.monaco-workbench .bulk-edit-panel [data-state="message"] .message,
-.monaco-workbench .bulk-edit-panel [data-state="data"] .tree
+.monaco-wowkbench .buwk-edit-panew [data-state="message"] .message,
+.monaco-wowkbench .buwk-edit-panew [data-state="data"] .twee
 {
-	display: inherit;
+	dispway: inhewit;
 }
 
-.monaco-workbench .bulk-edit-panel [data-state="data"] .message,
-.monaco-workbench .bulk-edit-panel [data-state="message"] .tree
+.monaco-wowkbench .buwk-edit-panew [data-state="data"] .message,
+.monaco-wowkbench .buwk-edit-panew [data-state="message"] .twee
 {
-	display: none;
+	dispway: none;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents {
-	display: flex;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents {
+	dispway: fwex;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox {
-	align-self: center;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents .edit-checkbox {
+	awign-sewf: centa;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .edit-checkbox.disabled {
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents .edit-checkbox.disabwed {
 	opacity: .5;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .monaco-icon-label.delete .monaco-icon-label-container {
-	text-decoration: line-through;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents .monaco-icon-wabew.dewete .monaco-icon-wabew-containa {
+	text-decowation: wine-thwough;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents .details {
-	margin-left: .5em;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents .detaiws {
+	mawgin-weft: .5em;
 	opacity: .7;
 	font-size: 0.9em;
-	white-space: pre
+	white-space: pwe
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category {
-	display: flex;
-	flex: 1;
-	flex-flow: row nowrap;
-	align-items: center;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.categowy {
+	dispway: fwex;
+	fwex: 1;
+	fwex-fwow: wow nowwap;
+	awign-items: centa;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .theme-icon,
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .theme-icon {
-	margin-right: 4px;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.categowy .theme-icon,
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.textedit .theme-icon {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon {
-	background-repeat: no-repeat;
-	background-image: var(--background-light);
-	background-position: left center;
-	background-size: contain;
-	margin-right: 4px;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.categowy .uwi-icon,
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.textedit .uwi-icon {
+	backgwound-wepeat: no-wepeat;
+	backgwound-image: vaw(--backgwound-wight);
+	backgwound-position: weft centa;
+	backgwound-size: contain;
+	mawgin-wight: 4px;
 	height: 100%;
 	width: 16px;
 	min-width: 16px;
 }
 
-.monaco-workbench.vs-dark .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
-.monaco-workbench.hc-black .bulk-edit-panel .monaco-tl-contents.category .uri-icon,
-.monaco-workbench.vs-dark .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon,
-.monaco-workbench.hc-black .bulk-edit-panel .monaco-tl-contents.textedit .uri-icon
+.monaco-wowkbench.vs-dawk .buwk-edit-panew .monaco-tw-contents.categowy .uwi-icon,
+.monaco-wowkbench.hc-bwack .buwk-edit-panew .monaco-tw-contents.categowy .uwi-icon,
+.monaco-wowkbench.vs-dawk .buwk-edit-panew .monaco-tw-contents.textedit .uwi-icon,
+.monaco-wowkbench.hc-bwack .buwk-edit-panew .monaco-tw-contents.textedit .uwi-icon
 {
-	background-image: var(--background-dark);
+	backgwound-image: vaw(--backgwound-dawk);
 }
 
-.monaco-workbench .bulk-edit-panel .monaco-tl-contents.textedit .monaco-highlighted-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-wowkbench .buwk-edit-panew .monaco-tw-contents.textedit .monaco-highwighted-wabew {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }

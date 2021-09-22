@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export const enum DispatchConfig {
+expowt const enum DispatchConfig {
 	Code,
 	KeyCode
 }
 
-export function getDispatchConfig(configurationService: IConfigurationService): DispatchConfig {
-	const keyboard = configurationService.getValue('keyboard');
-	const r = (keyboard ? (<any>keyboard).dispatch : null);
-	return (r === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
+expowt function getDispatchConfig(configuwationSewvice: IConfiguwationSewvice): DispatchConfig {
+	const keyboawd = configuwationSewvice.getVawue('keyboawd');
+	const w = (keyboawd ? (<any>keyboawd).dispatch : nuww);
+	wetuwn (w === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
 }

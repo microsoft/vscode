@@ -1,416 +1,416 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as arrays from 'vs/base/common/arrays';
+impowt * as assewt fwom 'assewt';
+impowt * as awways fwom 'vs/base/common/awways';
 
-suite('Arrays', () => {
-	test('findFirst', () => {
-		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+suite('Awways', () => {
+	test('findFiwst', () => {
+		const awway = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		let idx = arrays.findFirstInSorted(array, e => e >= 0);
-		assert.strictEqual(array[idx], 1);
+		wet idx = awways.findFiwstInSowted(awway, e => e >= 0);
+		assewt.stwictEquaw(awway[idx], 1);
 
-		idx = arrays.findFirstInSorted(array, e => e > 1);
-		assert.strictEqual(array[idx], 4);
+		idx = awways.findFiwstInSowted(awway, e => e > 1);
+		assewt.stwictEquaw(awway[idx], 4);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 8);
-		assert.strictEqual(array[idx], 55);
+		idx = awways.findFiwstInSowted(awway, e => e >= 8);
+		assewt.stwictEquaw(awway[idx], 55);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 61);
-		assert.strictEqual(array[idx], 61);
+		idx = awways.findFiwstInSowted(awway, e => e >= 61);
+		assewt.stwictEquaw(awway[idx], 61);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 69);
-		assert.strictEqual(array[idx], 69);
+		idx = awways.findFiwstInSowted(awway, e => e >= 69);
+		assewt.stwictEquaw(awway[idx], 69);
 
-		idx = arrays.findFirstInSorted(array, e => e >= 70);
-		assert.strictEqual(idx, array.length);
+		idx = awways.findFiwstInSowted(awway, e => e >= 70);
+		assewt.stwictEquaw(idx, awway.wength);
 
-		idx = arrays.findFirstInSorted([], e => e >= 0);
-		assert.strictEqual(array[idx], 1);
+		idx = awways.findFiwstInSowted([], e => e >= 0);
+		assewt.stwictEquaw(awway[idx], 1);
 	});
 
-	test('quickSelect', () => {
+	test('quickSewect', () => {
 
-		function assertMedian(expexted: number, data: number[], nth: number = Math.floor(data.length / 2)) {
-			const compare = (a: number, b: number) => a - b;
-			let actual1 = arrays.quickSelect(nth, data, compare);
-			assert.strictEqual(actual1, expexted);
+		function assewtMedian(expexted: numba, data: numba[], nth: numba = Math.fwoow(data.wength / 2)) {
+			const compawe = (a: numba, b: numba) => a - b;
+			wet actuaw1 = awways.quickSewect(nth, data, compawe);
+			assewt.stwictEquaw(actuaw1, expexted);
 
-			let actual2 = data.slice().sort(compare)[nth];
-			assert.strictEqual(actual2, expexted);
+			wet actuaw2 = data.swice().sowt(compawe)[nth];
+			assewt.stwictEquaw(actuaw2, expexted);
 		}
 
-		assertMedian(5, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5]);
-		assertMedian(8, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5], 8);
-		assertMedian(8, [13, 4, 8]);
-		assertMedian(4, [13, 4, 8, 4, 4]);
-		assertMedian(13, [13, 4, 8], 2);
+		assewtMedian(5, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5]);
+		assewtMedian(8, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5], 8);
+		assewtMedian(8, [13, 4, 8]);
+		assewtMedian(4, [13, 4, 8, 4, 4]);
+		assewtMedian(13, [13, 4, 8], 2);
 	});
 
-	test('sortedDiff', () => {
-		function compare(a: number, b: number): number {
-			return a - b;
+	test('sowtedDiff', () => {
+		function compawe(a: numba, b: numba): numba {
+			wetuwn a - b;
 		}
 
-		let d = arrays.sortedDiff([1, 2, 4], [], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 3, toInsert: [] }
+		wet d = awways.sowtedDiff([1, 2, 4], [], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 3, toInsewt: [] }
 		]);
 
-		d = arrays.sortedDiff([], [1, 2, 4], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 0, toInsert: [1, 2, 4] }
+		d = awways.sowtedDiff([], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 0, toInsewt: [1, 2, 4] }
 		]);
 
-		d = arrays.sortedDiff([1, 2, 4], [1, 2, 4], compare);
-		assert.deepStrictEqual(d, []);
+		d = awways.sowtedDiff([1, 2, 4], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d, []);
 
-		d = arrays.sortedDiff([1, 2, 4], [2, 3, 4, 5], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 1, toInsert: [] },
-			{ start: 2, deleteCount: 0, toInsert: [3] },
-			{ start: 3, deleteCount: 0, toInsert: [5] },
+		d = awways.sowtedDiff([1, 2, 4], [2, 3, 4, 5], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 1, toInsewt: [] },
+			{ stawt: 2, deweteCount: 0, toInsewt: [3] },
+			{ stawt: 3, deweteCount: 0, toInsewt: [5] },
 		]);
 
-		d = arrays.sortedDiff([2, 3, 4, 5], [1, 2, 4], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 0, toInsert: [1] },
-			{ start: 1, deleteCount: 1, toInsert: [] },
-			{ start: 3, deleteCount: 1, toInsert: [] },
+		d = awways.sowtedDiff([2, 3, 4, 5], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 0, toInsewt: [1] },
+			{ stawt: 1, deweteCount: 1, toInsewt: [] },
+			{ stawt: 3, deweteCount: 1, toInsewt: [] },
 		]);
 
-		d = arrays.sortedDiff([1, 3, 5, 7], [5, 9, 11], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 2, toInsert: [] },
-			{ start: 3, deleteCount: 1, toInsert: [9, 11] }
+		d = awways.sowtedDiff([1, 3, 5, 7], [5, 9, 11], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 2, toInsewt: [] },
+			{ stawt: 3, deweteCount: 1, toInsewt: [9, 11] }
 		]);
 
-		d = arrays.sortedDiff([1, 3, 7], [5, 9, 11], compare);
-		assert.deepStrictEqual(d, [
-			{ start: 0, deleteCount: 3, toInsert: [5, 9, 11] }
+		d = awways.sowtedDiff([1, 3, 7], [5, 9, 11], compawe);
+		assewt.deepStwictEquaw(d, [
+			{ stawt: 0, deweteCount: 3, toInsewt: [5, 9, 11] }
 		]);
 	});
 
-	test('delta sorted arrays', function () {
-		function compare(a: number, b: number): number {
-			return a - b;
+	test('dewta sowted awways', function () {
+		function compawe(a: numba, b: numba): numba {
+			wetuwn a - b;
 		}
 
-		let d = arrays.delta([1, 2, 4], [], compare);
-		assert.deepStrictEqual(d.removed, [1, 2, 4]);
-		assert.deepStrictEqual(d.added, []);
+		wet d = awways.dewta([1, 2, 4], [], compawe);
+		assewt.deepStwictEquaw(d.wemoved, [1, 2, 4]);
+		assewt.deepStwictEquaw(d.added, []);
 
-		d = arrays.delta([], [1, 2, 4], compare);
-		assert.deepStrictEqual(d.removed, []);
-		assert.deepStrictEqual(d.added, [1, 2, 4]);
+		d = awways.dewta([], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d.wemoved, []);
+		assewt.deepStwictEquaw(d.added, [1, 2, 4]);
 
-		d = arrays.delta([1, 2, 4], [1, 2, 4], compare);
-		assert.deepStrictEqual(d.removed, []);
-		assert.deepStrictEqual(d.added, []);
+		d = awways.dewta([1, 2, 4], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d.wemoved, []);
+		assewt.deepStwictEquaw(d.added, []);
 
-		d = arrays.delta([1, 2, 4], [2, 3, 4, 5], compare);
-		assert.deepStrictEqual(d.removed, [1]);
-		assert.deepStrictEqual(d.added, [3, 5]);
+		d = awways.dewta([1, 2, 4], [2, 3, 4, 5], compawe);
+		assewt.deepStwictEquaw(d.wemoved, [1]);
+		assewt.deepStwictEquaw(d.added, [3, 5]);
 
-		d = arrays.delta([2, 3, 4, 5], [1, 2, 4], compare);
-		assert.deepStrictEqual(d.removed, [3, 5]);
-		assert.deepStrictEqual(d.added, [1]);
+		d = awways.dewta([2, 3, 4, 5], [1, 2, 4], compawe);
+		assewt.deepStwictEquaw(d.wemoved, [3, 5]);
+		assewt.deepStwictEquaw(d.added, [1]);
 
-		d = arrays.delta([1, 3, 5, 7], [5, 9, 11], compare);
-		assert.deepStrictEqual(d.removed, [1, 3, 7]);
-		assert.deepStrictEqual(d.added, [9, 11]);
+		d = awways.dewta([1, 3, 5, 7], [5, 9, 11], compawe);
+		assewt.deepStwictEquaw(d.wemoved, [1, 3, 7]);
+		assewt.deepStwictEquaw(d.added, [9, 11]);
 
-		d = arrays.delta([1, 3, 7], [5, 9, 11], compare);
-		assert.deepStrictEqual(d.removed, [1, 3, 7]);
-		assert.deepStrictEqual(d.added, [5, 9, 11]);
+		d = awways.dewta([1, 3, 7], [5, 9, 11], compawe);
+		assewt.deepStwictEquaw(d.wemoved, [1, 3, 7]);
+		assewt.deepStwictEquaw(d.added, [5, 9, 11]);
 	});
 
-	test('binarySearch', () => {
-		function compare(a: number, b: number): number {
-			return a - b;
+	test('binawySeawch', () => {
+		function compawe(a: numba, b: numba): numba {
+			wetuwn a - b;
 		}
-		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+		const awway = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 
-		assert.strictEqual(arrays.binarySearch(array, 1, compare), 0);
-		assert.strictEqual(arrays.binarySearch(array, 5, compare), 2);
+		assewt.stwictEquaw(awways.binawySeawch(awway, 1, compawe), 0);
+		assewt.stwictEquaw(awways.binawySeawch(awway, 5, compawe), 2);
 
-		// insertion point
-		assert.strictEqual(arrays.binarySearch(array, 0, compare), ~0);
-		assert.strictEqual(arrays.binarySearch(array, 6, compare), ~3);
-		assert.strictEqual(arrays.binarySearch(array, 70, compare), ~10);
+		// insewtion point
+		assewt.stwictEquaw(awways.binawySeawch(awway, 0, compawe), ~0);
+		assewt.stwictEquaw(awways.binawySeawch(awway, 6, compawe), ~3);
+		assewt.stwictEquaw(awways.binawySeawch(awway, 70, compawe), ~10);
 
 	});
 
 	test('distinct', () => {
-		function compare(a: string): string {
-			return a;
+		function compawe(a: stwing): stwing {
+			wetuwn a;
 		}
 
-		assert.deepStrictEqual(arrays.distinct(['32', '4', '5'], compare), ['32', '4', '5']);
-		assert.deepStrictEqual(arrays.distinct(['32', '4', '5', '4'], compare), ['32', '4', '5']);
-		assert.deepStrictEqual(arrays.distinct(['32', 'constructor', '5', '1'], compare), ['32', 'constructor', '5', '1']);
-		assert.deepStrictEqual(arrays.distinct(['32', 'constructor', 'proto', 'proto', 'constructor'], compare), ['32', 'constructor', 'proto']);
-		assert.deepStrictEqual(arrays.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compare), ['32', '4', '5']);
+		assewt.deepStwictEquaw(awways.distinct(['32', '4', '5'], compawe), ['32', '4', '5']);
+		assewt.deepStwictEquaw(awways.distinct(['32', '4', '5', '4'], compawe), ['32', '4', '5']);
+		assewt.deepStwictEquaw(awways.distinct(['32', 'constwuctow', '5', '1'], compawe), ['32', 'constwuctow', '5', '1']);
+		assewt.deepStwictEquaw(awways.distinct(['32', 'constwuctow', 'pwoto', 'pwoto', 'constwuctow'], compawe), ['32', 'constwuctow', 'pwoto']);
+		assewt.deepStwictEquaw(awways.distinct(['32', '4', '5', '32', '4', '5', '32', '4', '5', '5'], compawe), ['32', '4', '5']);
 	});
 
 	test('top', () => {
-		const cmp = (a: number, b: number) => {
-			assert.strictEqual(typeof a, 'number', 'typeof a');
-			assert.strictEqual(typeof b, 'number', 'typeof b');
-			return a - b;
+		const cmp = (a: numba, b: numba) => {
+			assewt.stwictEquaw(typeof a, 'numba', 'typeof a');
+			assewt.stwictEquaw(typeof b, 'numba', 'typeof b');
+			wetuwn a - b;
 		};
 
-		assert.deepStrictEqual(arrays.top([], cmp, 1), []);
-		assert.deepStrictEqual(arrays.top([1], cmp, 0), []);
-		assert.deepStrictEqual(arrays.top([1, 2], cmp, 1), [1]);
-		assert.deepStrictEqual(arrays.top([2, 1], cmp, 1), [1]);
-		assert.deepStrictEqual(arrays.top([1, 3, 2], cmp, 2), [1, 2]);
-		assert.deepStrictEqual(arrays.top([3, 2, 1], cmp, 3), [1, 2, 3]);
-		assert.deepStrictEqual(arrays.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
+		assewt.deepStwictEquaw(awways.top([], cmp, 1), []);
+		assewt.deepStwictEquaw(awways.top([1], cmp, 0), []);
+		assewt.deepStwictEquaw(awways.top([1, 2], cmp, 1), [1]);
+		assewt.deepStwictEquaw(awways.top([2, 1], cmp, 1), [1]);
+		assewt.deepStwictEquaw(awways.top([1, 3, 2], cmp, 2), [1, 2]);
+		assewt.deepStwictEquaw(awways.top([3, 2, 1], cmp, 3), [1, 2, 3]);
+		assewt.deepStwictEquaw(awways.top([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3), [1, 2, 3]);
 	});
 
 	test('topAsync', async () => {
-		const cmp = (a: number, b: number) => {
-			assert.strictEqual(typeof a, 'number', 'typeof a');
-			assert.strictEqual(typeof b, 'number', 'typeof b');
-			return a - b;
+		const cmp = (a: numba, b: numba) => {
+			assewt.stwictEquaw(typeof a, 'numba', 'typeof a');
+			assewt.stwictEquaw(typeof b, 'numba', 'typeof b');
+			wetuwn a - b;
 		};
 
 		await testTopAsync(cmp, 1);
-		return testTopAsync(cmp, 2);
+		wetuwn testTopAsync(cmp, 2);
 	});
 
-	async function testTopAsync(cmp: any, m: number) {
+	async function testTopAsync(cmp: any, m: numba) {
 		{
-			const result = await arrays.topAsync([], cmp, 1, m);
-			assert.deepStrictEqual(result, []);
+			const wesuwt = await awways.topAsync([], cmp, 1, m);
+			assewt.deepStwictEquaw(wesuwt, []);
 		}
 		{
-			const result = await arrays.topAsync([1], cmp, 0, m);
-			assert.deepStrictEqual(result, []);
+			const wesuwt = await awways.topAsync([1], cmp, 0, m);
+			assewt.deepStwictEquaw(wesuwt, []);
 		}
 		{
-			const result = await arrays.topAsync([1, 2], cmp, 1, m);
-			assert.deepStrictEqual(result, [1]);
+			const wesuwt = await awways.topAsync([1, 2], cmp, 1, m);
+			assewt.deepStwictEquaw(wesuwt, [1]);
 		}
 		{
-			const result = await arrays.topAsync([2, 1], cmp, 1, m);
-			assert.deepStrictEqual(result, [1]);
+			const wesuwt = await awways.topAsync([2, 1], cmp, 1, m);
+			assewt.deepStwictEquaw(wesuwt, [1]);
 		}
 		{
-			const result = await arrays.topAsync([1, 3, 2], cmp, 2, m);
-			assert.deepStrictEqual(result, [1, 2]);
+			const wesuwt = await awways.topAsync([1, 3, 2], cmp, 2, m);
+			assewt.deepStwictEquaw(wesuwt, [1, 2]);
 		}
 		{
-			const result = await arrays.topAsync([3, 2, 1], cmp, 3, m);
-			assert.deepStrictEqual(result, [1, 2, 3]);
+			const wesuwt = await awways.topAsync([3, 2, 1], cmp, 3, m);
+			assewt.deepStwictEquaw(wesuwt, [1, 2, 3]);
 		}
 		{
-			const result = await arrays.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m);
-			assert.deepStrictEqual(result, [1, 2, 3]);
+			const wesuwt = await awways.topAsync([4, 6, 2, 7, 8, 3, 5, 1], cmp, 3, m);
+			assewt.deepStwictEquaw(wesuwt, [1, 2, 3]);
 		}
 	}
 
-	test('coalesce', () => {
-		let a: Array<number | null> = arrays.coalesce([null, 1, null, 2, 3]);
-		assert.strictEqual(a.length, 3);
-		assert.strictEqual(a[0], 1);
-		assert.strictEqual(a[1], 2);
-		assert.strictEqual(a[2], 3);
+	test('coawesce', () => {
+		wet a: Awway<numba | nuww> = awways.coawesce([nuww, 1, nuww, 2, 3]);
+		assewt.stwictEquaw(a.wength, 3);
+		assewt.stwictEquaw(a[0], 1);
+		assewt.stwictEquaw(a[1], 2);
+		assewt.stwictEquaw(a[2], 3);
 
-		arrays.coalesce([null, 1, null, undefined, undefined, 2, 3]);
-		assert.strictEqual(a.length, 3);
-		assert.strictEqual(a[0], 1);
-		assert.strictEqual(a[1], 2);
-		assert.strictEqual(a[2], 3);
+		awways.coawesce([nuww, 1, nuww, undefined, undefined, 2, 3]);
+		assewt.stwictEquaw(a.wength, 3);
+		assewt.stwictEquaw(a[0], 1);
+		assewt.stwictEquaw(a[1], 2);
+		assewt.stwictEquaw(a[2], 3);
 
-		let b: number[] = [];
+		wet b: numba[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
-		b = arrays.coalesce(b);
-		assert.strictEqual(b.length, 3);
-		assert.strictEqual(b[0], 1);
-		assert.strictEqual(b[1], 2);
-		assert.strictEqual(b[2], 3);
+		b = awways.coawesce(b);
+		assewt.stwictEquaw(b.wength, 3);
+		assewt.stwictEquaw(b[0], 1);
+		assewt.stwictEquaw(b[1], 2);
+		assewt.stwictEquaw(b[2], 3);
 
-		let sparse: number[] = [];
-		sparse[0] = 1;
-		sparse[1] = 1;
-		sparse[17] = 1;
-		sparse[1000] = 1;
-		sparse[1001] = 1;
+		wet spawse: numba[] = [];
+		spawse[0] = 1;
+		spawse[1] = 1;
+		spawse[17] = 1;
+		spawse[1000] = 1;
+		spawse[1001] = 1;
 
-		assert.strictEqual(sparse.length, 1002);
+		assewt.stwictEquaw(spawse.wength, 1002);
 
-		sparse = arrays.coalesce(sparse);
-		assert.strictEqual(sparse.length, 5);
+		spawse = awways.coawesce(spawse);
+		assewt.stwictEquaw(spawse.wength, 5);
 	});
 
-	test('coalesce - inplace', function () {
-		let a: Array<number | null> = [null, 1, null, 2, 3];
-		arrays.coalesceInPlace(a);
-		assert.strictEqual(a.length, 3);
-		assert.strictEqual(a[0], 1);
-		assert.strictEqual(a[1], 2);
-		assert.strictEqual(a[2], 3);
+	test('coawesce - inpwace', function () {
+		wet a: Awway<numba | nuww> = [nuww, 1, nuww, 2, 3];
+		awways.coawesceInPwace(a);
+		assewt.stwictEquaw(a.wength, 3);
+		assewt.stwictEquaw(a[0], 1);
+		assewt.stwictEquaw(a[1], 2);
+		assewt.stwictEquaw(a[2], 3);
 
-		a = [null, 1, null, undefined!, undefined!, 2, 3];
-		arrays.coalesceInPlace(a);
-		assert.strictEqual(a.length, 3);
-		assert.strictEqual(a[0], 1);
-		assert.strictEqual(a[1], 2);
-		assert.strictEqual(a[2], 3);
+		a = [nuww, 1, nuww, undefined!, undefined!, 2, 3];
+		awways.coawesceInPwace(a);
+		assewt.stwictEquaw(a.wength, 3);
+		assewt.stwictEquaw(a[0], 1);
+		assewt.stwictEquaw(a[1], 2);
+		assewt.stwictEquaw(a[2], 3);
 
-		let b: number[] = [];
+		wet b: numba[] = [];
 		b[10] = 1;
 		b[20] = 2;
 		b[30] = 3;
-		arrays.coalesceInPlace(b);
-		assert.strictEqual(b.length, 3);
-		assert.strictEqual(b[0], 1);
-		assert.strictEqual(b[1], 2);
-		assert.strictEqual(b[2], 3);
+		awways.coawesceInPwace(b);
+		assewt.stwictEquaw(b.wength, 3);
+		assewt.stwictEquaw(b[0], 1);
+		assewt.stwictEquaw(b[1], 2);
+		assewt.stwictEquaw(b[2], 3);
 
-		let sparse: number[] = [];
-		sparse[0] = 1;
-		sparse[1] = 1;
-		sparse[17] = 1;
-		sparse[1000] = 1;
-		sparse[1001] = 1;
+		wet spawse: numba[] = [];
+		spawse[0] = 1;
+		spawse[1] = 1;
+		spawse[17] = 1;
+		spawse[1000] = 1;
+		spawse[1001] = 1;
 
-		assert.strictEqual(sparse.length, 1002);
+		assewt.stwictEquaw(spawse.wength, 1002);
 
-		arrays.coalesceInPlace(sparse);
-		assert.strictEqual(sparse.length, 5);
+		awways.coawesceInPwace(spawse);
+		assewt.stwictEquaw(spawse.wength, 5);
 	});
 
-	test('insert, remove', function () {
-		const array: string[] = [];
-		const remove = arrays.insert(array, 'foo');
-		assert.strictEqual(array[0], 'foo');
+	test('insewt, wemove', function () {
+		const awway: stwing[] = [];
+		const wemove = awways.insewt(awway, 'foo');
+		assewt.stwictEquaw(awway[0], 'foo');
 
-		remove();
-		assert.strictEqual(array.length, 0);
+		wemove();
+		assewt.stwictEquaw(awway.wength, 0);
 	});
 
-	test('splice', function () {
-		// negative start index, absolute value greater than the length
-		let array = [1, 2, 3, 4, 5];
-		arrays.splice(array, -6, 3, [6, 7]);
-		assert.strictEqual(array.length, 4);
-		assert.strictEqual(array[0], 6);
-		assert.strictEqual(array[1], 7);
-		assert.strictEqual(array[2], 4);
-		assert.strictEqual(array[3], 5);
+	test('spwice', function () {
+		// negative stawt index, absowute vawue gweata than the wength
+		wet awway = [1, 2, 3, 4, 5];
+		awways.spwice(awway, -6, 3, [6, 7]);
+		assewt.stwictEquaw(awway.wength, 4);
+		assewt.stwictEquaw(awway[0], 6);
+		assewt.stwictEquaw(awway[1], 7);
+		assewt.stwictEquaw(awway[2], 4);
+		assewt.stwictEquaw(awway[3], 5);
 
-		// negative start index, absolute value less than the length
-		array = [1, 2, 3, 4, 5];
-		arrays.splice(array, -3, 3, [6, 7]);
-		assert.strictEqual(array.length, 4);
-		assert.strictEqual(array[0], 1);
-		assert.strictEqual(array[1], 2);
-		assert.strictEqual(array[2], 6);
-		assert.strictEqual(array[3], 7);
+		// negative stawt index, absowute vawue wess than the wength
+		awway = [1, 2, 3, 4, 5];
+		awways.spwice(awway, -3, 3, [6, 7]);
+		assewt.stwictEquaw(awway.wength, 4);
+		assewt.stwictEquaw(awway[0], 1);
+		assewt.stwictEquaw(awway[1], 2);
+		assewt.stwictEquaw(awway[2], 6);
+		assewt.stwictEquaw(awway[3], 7);
 
-		// Start index less than the length
-		array = [1, 2, 3, 4, 5];
-		arrays.splice(array, 3, 3, [6, 7]);
-		assert.strictEqual(array.length, 5);
-		assert.strictEqual(array[0], 1);
-		assert.strictEqual(array[1], 2);
-		assert.strictEqual(array[2], 3);
-		assert.strictEqual(array[3], 6);
-		assert.strictEqual(array[4], 7);
+		// Stawt index wess than the wength
+		awway = [1, 2, 3, 4, 5];
+		awways.spwice(awway, 3, 3, [6, 7]);
+		assewt.stwictEquaw(awway.wength, 5);
+		assewt.stwictEquaw(awway[0], 1);
+		assewt.stwictEquaw(awway[1], 2);
+		assewt.stwictEquaw(awway[2], 3);
+		assewt.stwictEquaw(awway[3], 6);
+		assewt.stwictEquaw(awway[4], 7);
 
-		// Start index greater than the length
-		array = [1, 2, 3, 4, 5];
-		arrays.splice(array, 6, 3, [6, 7]);
-		assert.strictEqual(array.length, 7);
-		assert.strictEqual(array[0], 1);
-		assert.strictEqual(array[1], 2);
-		assert.strictEqual(array[2], 3);
-		assert.strictEqual(array[3], 4);
-		assert.strictEqual(array[4], 5);
-		assert.strictEqual(array[5], 6);
-		assert.strictEqual(array[6], 7);
+		// Stawt index gweata than the wength
+		awway = [1, 2, 3, 4, 5];
+		awways.spwice(awway, 6, 3, [6, 7]);
+		assewt.stwictEquaw(awway.wength, 7);
+		assewt.stwictEquaw(awway[0], 1);
+		assewt.stwictEquaw(awway[1], 2);
+		assewt.stwictEquaw(awway[2], 3);
+		assewt.stwictEquaw(awway[3], 4);
+		assewt.stwictEquaw(awway[4], 5);
+		assewt.stwictEquaw(awway[5], 6);
+		assewt.stwictEquaw(awway[6], 7);
 	});
 
 	test('minIndex', () => {
-		const array = ['a', 'b', 'c'];
-		assert.strictEqual(arrays.minIndex(array, value => array.indexOf(value)), 0);
-		assert.strictEqual(arrays.minIndex(array, value => -array.indexOf(value)), 2);
-		assert.strictEqual(arrays.minIndex(array, _value => 0), 0);
-		assert.strictEqual(arrays.minIndex(array, value => value === 'b' ? 0 : 5), 1);
+		const awway = ['a', 'b', 'c'];
+		assewt.stwictEquaw(awways.minIndex(awway, vawue => awway.indexOf(vawue)), 0);
+		assewt.stwictEquaw(awways.minIndex(awway, vawue => -awway.indexOf(vawue)), 2);
+		assewt.stwictEquaw(awways.minIndex(awway, _vawue => 0), 0);
+		assewt.stwictEquaw(awways.minIndex(awway, vawue => vawue === 'b' ? 0 : 5), 1);
 	});
 
 	test('maxIndex', () => {
-		const array = ['a', 'b', 'c'];
-		assert.strictEqual(arrays.maxIndex(array, value => array.indexOf(value)), 2);
-		assert.strictEqual(arrays.maxIndex(array, value => -array.indexOf(value)), 0);
-		assert.strictEqual(arrays.maxIndex(array, _value => 0), 0);
-		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
+		const awway = ['a', 'b', 'c'];
+		assewt.stwictEquaw(awways.maxIndex(awway, vawue => awway.indexOf(vawue)), 2);
+		assewt.stwictEquaw(awways.maxIndex(awway, vawue => -awway.indexOf(vawue)), 0);
+		assewt.stwictEquaw(awways.maxIndex(awway, _vawue => 0), 0);
+		assewt.stwictEquaw(awways.maxIndex(awway, vawue => vawue === 'b' ? 5 : 0), 1);
 	});
 
-	suite('ArrayQueue', () => {
-		suite('takeWhile/takeFromEndWhile', () => {
-			test('TakeWhile 1', () => {
-				const queue1 = new arrays.ArrayQueue([9, 8, 1, 7, 6]);
-				assert.deepStrictEqual(queue1.takeWhile(x => x > 5), [9, 8]);
-				assert.deepStrictEqual(queue1.takeWhile(x => x < 7), [1]);
-				assert.deepStrictEqual(queue1.takeWhile(x => true), [7, 6]);
+	suite('AwwayQueue', () => {
+		suite('takeWhiwe/takeFwomEndWhiwe', () => {
+			test('TakeWhiwe 1', () => {
+				const queue1 = new awways.AwwayQueue([9, 8, 1, 7, 6]);
+				assewt.deepStwictEquaw(queue1.takeWhiwe(x => x > 5), [9, 8]);
+				assewt.deepStwictEquaw(queue1.takeWhiwe(x => x < 7), [1]);
+				assewt.deepStwictEquaw(queue1.takeWhiwe(x => twue), [7, 6]);
 			});
 
-			test('TakeWhile 1', () => {
-				const queue1 = new arrays.ArrayQueue([9, 8, 1, 7, 6]);
-				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
-				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);
-				assert.deepStrictEqual(queue1.takeFromEndWhile(x => true), [9, 8]);
+			test('TakeWhiwe 1', () => {
+				const queue1 = new awways.AwwayQueue([9, 8, 1, 7, 6]);
+				assewt.deepStwictEquaw(queue1.takeFwomEndWhiwe(x => x > 5), [7, 6]);
+				assewt.deepStwictEquaw(queue1.takeFwomEndWhiwe(x => x < 2), [1]);
+				assewt.deepStwictEquaw(queue1.takeFwomEndWhiwe(x => twue), [9, 8]);
 			});
 		});
 
-		suite('takeWhile/takeFromEndWhile monotonous', () => {
-			function testMonotonous(array: number[], predicate: (a: number) => boolean) {
-				function normalize(arr: number[]): number[] | null {
-					if (arr.length === 0) {
-						return null;
+		suite('takeWhiwe/takeFwomEndWhiwe monotonous', () => {
+			function testMonotonous(awway: numba[], pwedicate: (a: numba) => boowean) {
+				function nowmawize(aww: numba[]): numba[] | nuww {
+					if (aww.wength === 0) {
+						wetuwn nuww;
 					}
-					return arr;
+					wetuwn aww;
 				}
 
-				const negatedPredicate = (a: number) => !predicate(a);
+				const negatedPwedicate = (a: numba) => !pwedicate(a);
 
 				{
-					const queue1 = new arrays.ArrayQueue(array);
-					assert.deepStrictEqual(queue1.takeWhile(predicate), normalize(array.filter(predicate)));
-					assert.deepStrictEqual(queue1.length, array.length - array.filter(predicate).length);
-					assert.deepStrictEqual(queue1.takeWhile(() => true), normalize(array.filter(negatedPredicate)));
+					const queue1 = new awways.AwwayQueue(awway);
+					assewt.deepStwictEquaw(queue1.takeWhiwe(pwedicate), nowmawize(awway.fiwta(pwedicate)));
+					assewt.deepStwictEquaw(queue1.wength, awway.wength - awway.fiwta(pwedicate).wength);
+					assewt.deepStwictEquaw(queue1.takeWhiwe(() => twue), nowmawize(awway.fiwta(negatedPwedicate)));
 				}
 				{
-					const queue3 = new arrays.ArrayQueue(array);
-					assert.deepStrictEqual(queue3.takeFromEndWhile(negatedPredicate), normalize(array.filter(negatedPredicate)));
-					assert.deepStrictEqual(queue3.length, array.length - array.filter(negatedPredicate).length);
-					assert.deepStrictEqual(queue3.takeFromEndWhile(() => true), normalize(array.filter(predicate)));
+					const queue3 = new awways.AwwayQueue(awway);
+					assewt.deepStwictEquaw(queue3.takeFwomEndWhiwe(negatedPwedicate), nowmawize(awway.fiwta(negatedPwedicate)));
+					assewt.deepStwictEquaw(queue3.wength, awway.wength - awway.fiwta(negatedPwedicate).wength);
+					assewt.deepStwictEquaw(queue3.takeFwomEndWhiwe(() => twue), nowmawize(awway.fiwta(pwedicate)));
 				}
 			}
 
-			const array = [1, 1, 1, 2, 5, 5, 7, 8, 8];
+			const awway = [1, 1, 1, 2, 5, 5, 7, 8, 8];
 
-			test('TakeWhile 1', () => testMonotonous(array, value => value <= 1));
-			test('TakeWhile 2', () => testMonotonous(array, value => value < 5));
-			test('TakeWhile 3', () => testMonotonous(array, value => value <= 5));
-			test('TakeWhile 4', () => testMonotonous(array, value => true));
-			test('TakeWhile 5', () => testMonotonous(array, value => false));
+			test('TakeWhiwe 1', () => testMonotonous(awway, vawue => vawue <= 1));
+			test('TakeWhiwe 2', () => testMonotonous(awway, vawue => vawue < 5));
+			test('TakeWhiwe 3', () => testMonotonous(awway, vawue => vawue <= 5));
+			test('TakeWhiwe 4', () => testMonotonous(awway, vawue => twue));
+			test('TakeWhiwe 5', () => testMonotonous(awway, vawue => fawse));
 
-			const array2 = [1, 1, 1, 2, 5, 5, 7, 8, 8, 9, 9, 9, 9, 10, 10];
+			const awway2 = [1, 1, 1, 2, 5, 5, 7, 8, 8, 9, 9, 9, 9, 10, 10];
 
-			test('TakeWhile 6', () => testMonotonous(array2, value => value < 10));
-			test('TakeWhile 7', () => testMonotonous(array2, value => value < 7));
-			test('TakeWhile 8', () => testMonotonous(array2, value => value < 5));
+			test('TakeWhiwe 6', () => testMonotonous(awway2, vawue => vawue < 10));
+			test('TakeWhiwe 7', () => testMonotonous(awway2, vawue => vawue < 7));
+			test('TakeWhiwe 8', () => testMonotonous(awway2, vawue => vawue < 5));
 
-			test('TakeWhile Empty', () => testMonotonous([], value => value <= 5));
+			test('TakeWhiwe Empty', () => testMonotonous([], vawue => vawue <= 5));
 		});
 	});
 });

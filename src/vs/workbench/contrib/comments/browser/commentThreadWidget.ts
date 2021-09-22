@@ -1,1004 +1,1004 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, IAction } from 'vs/base/common/actions';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
-import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { SimpleCommentEditor } from './simpleCommentEditor';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { MarshalledId } from 'vs/base/common/marshalling';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IMawginData } fwom 'vs/editow/bwowsa/contwowwa/mouseTawget';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { peekViewBowda } fwom 'vs/editow/contwib/peekView/peekView';
+impowt { ZoneWidget } fwom 'vs/editow/contwib/zoneWidget/zoneWidget';
+impowt * as nws fwom 'vs/nws';
+impowt { cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenu, MenuItemAction, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { contwastBowda, editowFowegwound, focusBowda, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound, wesowveCowowVawue, textBwockQuoteBackgwound, textBwockQuoteBowda, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CommentFowmActions } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentFowmActions';
+impowt { CommentGwyphWidget } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentGwyphWidget';
+impowt { CommentMenus } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentMenus';
+impowt { CommentNode } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentNode';
+impowt { ICommentSewvice } fwom 'vs/wowkbench/contwib/comments/bwowsa/commentSewvice';
+impowt { CommentContextKeys } fwom 'vs/wowkbench/contwib/comments/common/commentContextKeys';
+impowt { ICommentThweadWidget } fwom 'vs/wowkbench/contwib/comments/common/commentThweadWidget';
+impowt { SimpweCommentEditow } fwom './simpweCommentEditow';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME } fwom 'vs/base/bwowsa/ui/mouseCuwsow/mouseCuwsow';
+impowt { PANEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
 
 
-const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
+const cowwapseIcon = wegistewIcon('weview-comment-cowwapse', Codicon.chevwonUp, nws.wocawize('cowwapseIcon', 'Icon to cowwapse a weview comment.'));
 
-export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
+expowt const COMMENTEDITOW_DECOWATION_KEY = 'commenteditowdecowation';
+const COWWAPSE_ACTION_CWASS = 'expand-weview-action ' + ThemeIcon.asCwassName(cowwapseIcon);
 const COMMENT_SCHEME = 'comment';
 
 
-export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
-	const range = e.target.range;
+expowt function pawseMouseDownInfoFwomEvent(e: IEditowMouseEvent) {
+	const wange = e.tawget.wange;
 
-	if (!range) {
-		return null;
+	if (!wange) {
+		wetuwn nuww;
 	}
 
-	if (!e.event.leftButton) {
-		return null;
+	if (!e.event.weftButton) {
+		wetuwn nuww;
 	}
 
-	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-		return null;
+	if (e.tawget.type !== MouseTawgetType.GUTTEW_WINE_DECOWATIONS) {
+		wetuwn nuww;
 	}
 
-	const data = e.target.detail as IMarginData;
-	const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+	const data = e.tawget.detaiw as IMawginData;
+	const guttewOffsetX = data.offsetX - data.gwyphMawginWidth - data.wineNumbewsWidth - data.gwyphMawginWeft;
 
-	// don't collide with folding and git decorations
-	if (gutterOffsetX > 14) {
-		return null;
+	// don't cowwide with fowding and git decowations
+	if (guttewOffsetX > 14) {
+		wetuwn nuww;
 	}
 
-	return { lineNumber: range.startLineNumber };
+	wetuwn { wineNumba: wange.stawtWineNumba };
 }
 
-export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+expowt function isMouseUpEventMatchMouseDown(mouseDownInfo: { wineNumba: numba } | nuww, e: IEditowMouseEvent) {
 	if (!mouseDownInfo) {
-		return null;
+		wetuwn nuww;
 	}
 
-	const { lineNumber } = mouseDownInfo;
+	const { wineNumba } = mouseDownInfo;
 
-	const range = e.target.range;
+	const wange = e.tawget.wange;
 
-	if (!range || range.startLineNumber !== lineNumber) {
-		return null;
+	if (!wange || wange.stawtWineNumba !== wineNumba) {
+		wetuwn nuww;
 	}
 
-	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-		return null;
+	if (e.tawget.type !== MouseTawgetType.GUTTEW_WINE_DECOWATIONS) {
+		wetuwn nuww;
 	}
 
-	return lineNumber;
+	wetuwn wineNumba;
 }
 
-let INMEM_MODEL_ID = 0;
+wet INMEM_MODEW_ID = 0;
 
-export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
-	private _headElement!: HTMLElement;
-	protected _headingLabel!: HTMLElement;
-	protected _actionbarWidget!: ActionBar;
-	private _bodyElement!: HTMLElement;
-	private _parentEditor: ICodeEditor;
-	private _commentsElement!: HTMLElement;
-	private _commentElements: CommentNode[] = [];
-	private _commentReplyComponent?: {
-		editor: ICodeEditor;
-		form: HTMLElement;
-		commentEditorIsEmpty: IContextKey<boolean>;
+expowt cwass WeviewZoneWidget extends ZoneWidget impwements ICommentThweadWidget {
+	pwivate _headEwement!: HTMWEwement;
+	pwotected _headingWabew!: HTMWEwement;
+	pwotected _actionbawWidget!: ActionBaw;
+	pwivate _bodyEwement!: HTMWEwement;
+	pwivate _pawentEditow: ICodeEditow;
+	pwivate _commentsEwement!: HTMWEwement;
+	pwivate _commentEwements: CommentNode[] = [];
+	pwivate _commentWepwyComponent?: {
+		editow: ICodeEditow;
+		fowm: HTMWEwement;
+		commentEditowIsEmpty: IContextKey<boowean>;
 	};
-	private _reviewThreadReplyButton!: HTMLElement;
-	private _resizeObserver: any;
-	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
-	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
-	private _isExpanded?: boolean;
-	private _collapseAction!: Action;
-	private _commentGlyph?: CommentGlyphWidget;
-	private _submitActionsDisposables: IDisposable[];
-	private readonly _globalToDispose = new DisposableStore();
-	private _commentThreadDisposables: IDisposable[] = [];
-	private _markdownRenderer: MarkdownRenderer;
-	private _styleElement: HTMLStyleElement;
-	private _formActions: HTMLElement | null;
-	private _error!: HTMLElement;
-	private _contextKeyService: IContextKeyService;
-	private _threadIsEmpty: IContextKey<boolean>;
-	private _commentThreadContextValue: IContextKey<string>;
-	private _commentFormActions!: CommentFormActions;
-	private _scopedInstatiationService: IInstantiationService;
-	private _focusedComment: number | undefined = undefined;
+	pwivate _weviewThweadWepwyButton!: HTMWEwement;
+	pwivate _wesizeObsewva: any;
+	pwivate weadonwy _onDidCwose = new Emitta<WeviewZoneWidget | undefined>();
+	pwivate weadonwy _onDidCweateThwead = new Emitta<WeviewZoneWidget>();
+	pwivate _isExpanded?: boowean;
+	pwivate _cowwapseAction!: Action;
+	pwivate _commentGwyph?: CommentGwyphWidget;
+	pwivate _submitActionsDisposabwes: IDisposabwe[];
+	pwivate weadonwy _gwobawToDispose = new DisposabweStowe();
+	pwivate _commentThweadDisposabwes: IDisposabwe[] = [];
+	pwivate _mawkdownWendewa: MawkdownWendewa;
+	pwivate _styweEwement: HTMWStyweEwement;
+	pwivate _fowmActions: HTMWEwement | nuww;
+	pwivate _ewwow!: HTMWEwement;
+	pwivate _contextKeySewvice: IContextKeySewvice;
+	pwivate _thweadIsEmpty: IContextKey<boowean>;
+	pwivate _commentThweadContextVawue: IContextKey<stwing>;
+	pwivate _commentFowmActions!: CommentFowmActions;
+	pwivate _scopedInstatiationSewvice: IInstantiationSewvice;
+	pwivate _focusedComment: numba | undefined = undefined;
 
-	public get owner(): string {
-		return this._owner;
+	pubwic get owna(): stwing {
+		wetuwn this._owna;
 	}
-	public get commentThread(): modes.CommentThread {
-		return this._commentThread;
-	}
-
-	public get extensionId(): string | undefined {
-		return this._commentThread.extensionId;
+	pubwic get commentThwead(): modes.CommentThwead {
+		wetuwn this._commentThwead;
 	}
 
-	private _commentMenus: CommentMenus;
+	pubwic get extensionId(): stwing | undefined {
+		wetuwn this._commentThwead.extensionId;
+	}
 
-	private _commentOptions: modes.CommentOptions | undefined;
+	pwivate _commentMenus: CommentMenus;
 
-	constructor(
-		editor: ICodeEditor,
-		private _owner: string,
-		private _commentThread: modes.CommentThread,
-		private _pendingComment: string | null,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
-		@IThemeService private themeService: IThemeService,
-		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	pwivate _commentOptions: modes.CommentOptions | undefined;
+
+	constwuctow(
+		editow: ICodeEditow,
+		pwivate _owna: stwing,
+		pwivate _commentThwead: modes.CommentThwead,
+		pwivate _pendingComment: stwing | nuww,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice,
+		@IModeSewvice pwivate modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate modewSewvice: IModewSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice,
+		@ICommentSewvice pwivate commentSewvice: ICommentSewvice,
+		@IOpenewSewvice pwivate openewSewvice: IOpenewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super(editor, { keepEditorSelection: true });
-		this._contextKeyService = contextKeyService.createScoped(this.domNode);
+		supa(editow, { keepEditowSewection: twue });
+		this._contextKeySewvice = contextKeySewvice.cweateScoped(this.domNode);
 
-		this._scopedInstatiationService = instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, this._contextKeyService]
+		this._scopedInstatiationSewvice = instantiationSewvice.cweateChiwd(new SewviceCowwection(
+			[IContextKeySewvice, this._contextKeySewvice]
 		));
 
-		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
-		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
-		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
+		this._thweadIsEmpty = CommentContextKeys.commentThweadIsEmpty.bindTo(this._contextKeySewvice);
+		this._thweadIsEmpty.set(!_commentThwead.comments || !_commentThwead.comments.wength);
+		this._commentThweadContextVawue = this._contextKeySewvice.cweateKey('commentThwead', _commentThwead.contextVawue);
 
-		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
-		const controller = this.commentService.getCommentController(this._owner);
+		const commentContwowwewKey = this._contextKeySewvice.cweateKey<stwing | undefined>('commentContwowwa', undefined);
+		const contwowwa = this.commentSewvice.getCommentContwowwa(this._owna);
 
-		if (controller) {
-			commentControllerKey.set(controller.contextValue);
-			this._commentOptions = controller.options;
+		if (contwowwa) {
+			commentContwowwewKey.set(contwowwa.contextVawue);
+			this._commentOptions = contwowwa.options;
 		}
 
-		this._resizeObserver = null;
-		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
-		this._commentThreadDisposables = [];
-		this._submitActionsDisposables = [];
-		this._formActions = null;
-		this._commentMenus = this.commentService.getCommentMenus(this._owner);
-		this.create();
+		this._wesizeObsewva = nuww;
+		this._isExpanded = _commentThwead.cowwapsibweState === modes.CommentThweadCowwapsibweState.Expanded;
+		this._commentThweadDisposabwes = [];
+		this._submitActionsDisposabwes = [];
+		this._fowmActions = nuww;
+		this._commentMenus = this.commentSewvice.getCommentMenus(this._owna);
+		this.cweate();
 
-		this._styleElement = dom.createStyleSheet(this.domNode);
-		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
-		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._applyTheme(this.themeService.getColorTheme());
+		this._styweEwement = dom.cweateStyweSheet(this.domNode);
+		this._gwobawToDispose.add(this.themeSewvice.onDidCowowThemeChange(this._appwyTheme, this));
+		this._gwobawToDispose.add(this.editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.fontInfo)) {
+				this._appwyTheme(this.themeSewvice.getCowowTheme());
 			}
 		}));
-		this._applyTheme(this.themeService.getColorTheme());
+		this._appwyTheme(this.themeSewvice.getCowowTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.modeService, this.openerService));
-		this._parentEditor = editor;
+		this._mawkdownWendewa = this._gwobawToDispose.add(new MawkdownWendewa({ editow }, this.modeSewvice, this.openewSewvice));
+		this._pawentEditow = editow;
 	}
 
-	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
-		return this._onDidClose.event;
+	pubwic get onDidCwose(): Event<WeviewZoneWidget | undefined> {
+		wetuwn this._onDidCwose.event;
 	}
 
-	public get onDidCreateThread(): Event<ReviewZoneWidget> {
-		return this._onDidCreateThread.event;
+	pubwic get onDidCweateThwead(): Event<WeviewZoneWidget> {
+		wetuwn this._onDidCweateThwead.event;
 	}
 
-	public getPosition(): IPosition | undefined {
+	pubwic getPosition(): IPosition | undefined {
 		if (this.position) {
-			return this.position;
+			wetuwn this.position;
 		}
 
-		if (this._commentGlyph) {
-			return withNullAsUndefined(this._commentGlyph.getPosition().position);
+		if (this._commentGwyph) {
+			wetuwn withNuwwAsUndefined(this._commentGwyph.getPosition().position);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected override revealLine(lineNumber: number) {
-		// we don't do anything here as we always do the reveal ourselves.
+	pwotected ovewwide weveawWine(wineNumba: numba) {
+		// we don't do anything hewe as we awways do the weveaw ouwsewves.
 	}
 
-	public reveal(commentUniqueId?: number) {
+	pubwic weveaw(commentUniqueId?: numba) {
 		if (!this._isExpanded) {
-			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
+			this.show({ wineNumba: this._commentThwead.wange.stawtWineNumba, cowumn: 1 }, 2);
 		}
 
 		if (commentUniqueId !== undefined) {
-			let height = this.editor.getLayoutInfo().height;
-			let matchedNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === commentUniqueId);
-			if (matchedNode && matchedNode.length) {
-				const commentThreadCoords = dom.getDomNodePagePosition(this._commentElements[0].domNode);
-				const commentCoords = dom.getDomNodePagePosition(matchedNode[0].domNode);
+			wet height = this.editow.getWayoutInfo().height;
+			wet matchedNode = this._commentEwements.fiwta(commentNode => commentNode.comment.uniqueIdInThwead === commentUniqueId);
+			if (matchedNode && matchedNode.wength) {
+				const commentThweadCoowds = dom.getDomNodePagePosition(this._commentEwements[0].domNode);
+				const commentCoowds = dom.getDomNodePagePosition(matchedNode[0].domNode);
 
-				this.editor.setScrollTop(this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top);
-				return;
+				this.editow.setScwowwTop(this.editow.getTopFowWineNumba(this._commentThwead.wange.stawtWineNumba) - height / 2 + commentCoowds.top - commentThweadCoowds.top);
+				wetuwn;
 			}
 		}
 
-		this.editor.revealRangeInCenter(this._commentThread.range);
+		this.editow.weveawWangeInCenta(this._commentThwead.wange);
 	}
 
-	public getPendingComment(): string | null {
-		if (this._commentReplyComponent) {
-			let model = this._commentReplyComponent.editor.getModel();
+	pubwic getPendingComment(): stwing | nuww {
+		if (this._commentWepwyComponent) {
+			wet modew = this._commentWepwyComponent.editow.getModew();
 
-			if (model && model.getValueLength() > 0) { // checking length is cheap
-				return model.getValue();
+			if (modew && modew.getVawueWength() > 0) { // checking wength is cheap
+				wetuwn modew.getVawue();
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	protected _fillContainer(container: HTMLElement): void {
-		this.setCssClass('review-widget');
-		this._headElement = <HTMLDivElement>dom.$('.head');
-		container.appendChild(this._headElement);
-		this._fillHead(this._headElement);
+	pwotected _fiwwContaina(containa: HTMWEwement): void {
+		this.setCssCwass('weview-widget');
+		this._headEwement = <HTMWDivEwement>dom.$('.head');
+		containa.appendChiwd(this._headEwement);
+		this._fiwwHead(this._headEwement);
 
-		this._bodyElement = <HTMLDivElement>dom.$('.body');
-		container.appendChild(this._bodyElement);
+		this._bodyEwement = <HTMWDivEwement>dom.$('.body');
+		containa.appendChiwd(this._bodyEwement);
 
-		dom.addDisposableListener(this._bodyElement, dom.EventType.FOCUS_IN, e => {
-			this.commentService.setActiveCommentThread(this._commentThread);
+		dom.addDisposabweWistena(this._bodyEwement, dom.EventType.FOCUS_IN, e => {
+			this.commentSewvice.setActiveCommentThwead(this._commentThwead);
 		});
 	}
 
-	protected _fillHead(container: HTMLElement): void {
-		let titleElement = dom.append(this._headElement, dom.$('.review-title'));
+	pwotected _fiwwHead(containa: HTMWEwement): void {
+		wet titweEwement = dom.append(this._headEwement, dom.$('.weview-titwe'));
 
-		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
-		this.createThreadLabel();
+		this._headingWabew = dom.append(titweEwement, dom.$('span.fiwename'));
+		this.cweateThweadWabew();
 
-		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
-		this._actionbarWidget = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+		const actionsContaina = dom.append(this._headEwement, dom.$('.weview-actions'));
+		this._actionbawWidget = new ActionBaw(actionsContaina, {
+			actionViewItemPwovida: cweateActionViewItem.bind(undefined, this.instantiationSewvice)
 		});
 
-		this._disposables.add(this._actionbarWidget);
+		this._disposabwes.add(this._actionbawWidget);
 
-		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this.collapse());
+		this._cowwapseAction = new Action('weview.expand', nws.wocawize('wabew.cowwapse', "Cowwapse"), COWWAPSE_ACTION_CWASS, twue, () => this.cowwapse());
 
-		const menu = this._commentMenus.getCommentThreadTitleActions(this._commentThread, this._contextKeyService);
-		this.setActionBarActions(menu);
+		const menu = this._commentMenus.getCommentThweadTitweActions(this._commentThwead, this._contextKeySewvice);
+		this.setActionBawActions(menu);
 
-		this._disposables.add(menu);
-		this._disposables.add(menu.onDidChange(e => {
-			this.setActionBarActions(menu);
+		this._disposabwes.add(menu);
+		this._disposabwes.add(menu.onDidChange(e => {
+			this.setActionBawActions(menu);
 		}));
 
-		this._actionbarWidget.context = this._commentThread;
+		this._actionbawWidget.context = this._commentThwead;
 	}
 
-	private setActionBarActions(menu: IMenu): void {
-		const groups = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <(MenuItemAction | SubmenuItemAction)[]>[]);
-		this._actionbarWidget.clear();
-		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
+	pwivate setActionBawActions(menu: IMenu): void {
+		const gwoups = menu.getActions({ shouwdFowwawdAwgs: twue }).weduce((w, [, actions]) => [...w, ...actions], <(MenuItemAction | SubmenuItemAction)[]>[]);
+		this._actionbawWidget.cweaw();
+		this._actionbawWidget.push([...gwoups, this._cowwapseAction], { wabew: fawse, icon: twue });
 	}
 
-	private deleteCommentThread(): void {
+	pwivate deweteCommentThwead(): void {
 		this.dispose();
-		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
+		this.commentSewvice.disposeCommentThwead(this.owna, this._commentThwead.thweadId);
 	}
 
-	public collapse(): Promise<void> {
-		this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.deleteCommentThread();
-			return Promise.resolve();
+	pubwic cowwapse(): Pwomise<void> {
+		this._commentThwead.cowwapsibweState = modes.CommentThweadCowwapsibweState.Cowwapsed;
+		if (this._commentThwead.comments && this._commentThwead.comments.wength === 0) {
+			this.deweteCommentThwead();
+			wetuwn Pwomise.wesowve();
 		}
 
 		this.hide();
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	public getGlyphPosition(): number {
-		if (this._commentGlyph) {
-			return this._commentGlyph.getPosition().position!.lineNumber;
+	pubwic getGwyphPosition(): numba {
+		if (this._commentGwyph) {
+			wetuwn this._commentGwyph.getPosition().position!.wineNumba;
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	toggleExpand(lineNumber: number) {
+	toggweExpand(wineNumba: numba) {
 		if (this._isExpanded) {
-			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
+			this._commentThwead.cowwapsibweState = modes.CommentThweadCowwapsibweState.Cowwapsed;
 			this.hide();
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this.deleteCommentThread();
+			if (!this._commentThwead.comments || !this._commentThwead.comments.wength) {
+				this.deweteCommentThwead();
 			}
-		} else {
-			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
-			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		} ewse {
+			this._commentThwead.cowwapsibweState = modes.CommentThweadCowwapsibweState.Expanded;
+			this.show({ wineNumba: wineNumba, cowumn: 1 }, 2);
 		}
 	}
 
-	async update(commentThread: modes.CommentThread) {
-		const oldCommentsLen = this._commentElements.length;
-		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
-		this._threadIsEmpty.set(!newCommentsLen);
+	async update(commentThwead: modes.CommentThwead) {
+		const owdCommentsWen = this._commentEwements.wength;
+		const newCommentsWen = commentThwead.comments ? commentThwead.comments.wength : 0;
+		this._thweadIsEmpty.set(!newCommentsWen);
 
-		let commentElementsToDel: CommentNode[] = [];
-		let commentElementsToDelIndex: number[] = [];
-		for (let i = 0; i < oldCommentsLen; i++) {
-			let comment = this._commentElements[i].comment;
-			let newComment = commentThread.comments ? commentThread.comments.filter(c => c.uniqueIdInThread === comment.uniqueIdInThread) : [];
+		wet commentEwementsToDew: CommentNode[] = [];
+		wet commentEwementsToDewIndex: numba[] = [];
+		fow (wet i = 0; i < owdCommentsWen; i++) {
+			wet comment = this._commentEwements[i].comment;
+			wet newComment = commentThwead.comments ? commentThwead.comments.fiwta(c => c.uniqueIdInThwead === comment.uniqueIdInThwead) : [];
 
-			if (newComment.length) {
-				this._commentElements[i].update(newComment[0]);
-			} else {
-				commentElementsToDelIndex.push(i);
-				commentElementsToDel.push(this._commentElements[i]);
+			if (newComment.wength) {
+				this._commentEwements[i].update(newComment[0]);
+			} ewse {
+				commentEwementsToDewIndex.push(i);
+				commentEwementsToDew.push(this._commentEwements[i]);
 			}
 		}
 
-		// del removed elements
-		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
-			this._commentElements.splice(commentElementsToDelIndex[i], 1);
-			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
+		// dew wemoved ewements
+		fow (wet i = commentEwementsToDew.wength - 1; i >= 0; i--) {
+			this._commentEwements.spwice(commentEwementsToDewIndex[i], 1);
+			this._commentsEwement.wemoveChiwd(commentEwementsToDew[i].domNode);
 		}
 
-		let lastCommentElement: HTMLElement | null = null;
-		let newCommentNodeList: CommentNode[] = [];
-		let newCommentsInEditMode: CommentNode[] = [];
-		for (let i = newCommentsLen - 1; i >= 0; i--) {
-			let currentComment = commentThread.comments![i];
-			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
-			if (oldCommentNode.length) {
-				lastCommentElement = oldCommentNode[0].domNode;
-				newCommentNodeList.unshift(oldCommentNode[0]);
-			} else {
-				const newElement = this.createNewCommentNode(currentComment);
+		wet wastCommentEwement: HTMWEwement | nuww = nuww;
+		wet newCommentNodeWist: CommentNode[] = [];
+		wet newCommentsInEditMode: CommentNode[] = [];
+		fow (wet i = newCommentsWen - 1; i >= 0; i--) {
+			wet cuwwentComment = commentThwead.comments![i];
+			wet owdCommentNode = this._commentEwements.fiwta(commentNode => commentNode.comment.uniqueIdInThwead === cuwwentComment.uniqueIdInThwead);
+			if (owdCommentNode.wength) {
+				wastCommentEwement = owdCommentNode[0].domNode;
+				newCommentNodeWist.unshift(owdCommentNode[0]);
+			} ewse {
+				const newEwement = this.cweateNewCommentNode(cuwwentComment);
 
-				newCommentNodeList.unshift(newElement);
-				if (lastCommentElement) {
-					this._commentsElement.insertBefore(newElement.domNode, lastCommentElement);
-					lastCommentElement = newElement.domNode;
-				} else {
-					this._commentsElement.appendChild(newElement.domNode);
-					lastCommentElement = newElement.domNode;
+				newCommentNodeWist.unshift(newEwement);
+				if (wastCommentEwement) {
+					this._commentsEwement.insewtBefowe(newEwement.domNode, wastCommentEwement);
+					wastCommentEwement = newEwement.domNode;
+				} ewse {
+					this._commentsEwement.appendChiwd(newEwement.domNode);
+					wastCommentEwement = newEwement.domNode;
 				}
 
-				if (currentComment.mode === modes.CommentMode.Editing) {
-					newElement.switchToEditMode();
-					newCommentsInEditMode.push(newElement);
+				if (cuwwentComment.mode === modes.CommentMode.Editing) {
+					newEwement.switchToEditMode();
+					newCommentsInEditMode.push(newEwement);
 				}
 			}
 		}
 
-		this._commentThread = commentThread;
-		this._commentElements = newCommentNodeList;
-		this.createThreadLabel();
+		this._commentThwead = commentThwead;
+		this._commentEwements = newCommentNodeWist;
+		this.cweateThweadWabew();
 
-		// Move comment glyph widget and show position if the line has changed.
-		const lineNumber = this._commentThread.range.startLineNumber;
-		let shouldMoveWidget = false;
-		if (this._commentGlyph) {
-			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
-				shouldMoveWidget = true;
-				this._commentGlyph.setLineNumber(lineNumber);
+		// Move comment gwyph widget and show position if the wine has changed.
+		const wineNumba = this._commentThwead.wange.stawtWineNumba;
+		wet shouwdMoveWidget = fawse;
+		if (this._commentGwyph) {
+			if (this._commentGwyph.getPosition().position!.wineNumba !== wineNumba) {
+				shouwdMoveWidget = twue;
+				this._commentGwyph.setWineNumba(wineNumba);
 			}
 		}
 
-		if (!this._reviewThreadReplyButton && this._commentReplyComponent) {
-			this.createReplyButton(this._commentReplyComponent.editor, this._commentReplyComponent.form);
+		if (!this._weviewThweadWepwyButton && this._commentWepwyComponent) {
+			this.cweateWepwyButton(this._commentWepwyComponent.editow, this._commentWepwyComponent.fowm);
 		}
 
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.expandReplyArea();
+		if (this._commentThwead.comments && this._commentThwead.comments.wength === 0) {
+			this.expandWepwyAwea();
 		}
 
-		if (shouldMoveWidget && this._isExpanded) {
-			this.show({ lineNumber, column: 1 }, 2);
+		if (shouwdMoveWidget && this._isExpanded) {
+			this.show({ wineNumba, cowumn: 1 }, 2);
 		}
 
-		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
-			this.show({ lineNumber, column: 1 }, 2);
-		} else {
+		if (this._commentThwead.cowwapsibweState === modes.CommentThweadCowwapsibweState.Expanded) {
+			this.show({ wineNumba, cowumn: 1 }, 2);
+		} ewse {
 			this.hide();
 		}
 
-		if (this._commentThread.contextValue) {
-			this._commentThreadContextValue.set(this._commentThread.contextValue);
-		} else {
-			this._commentThreadContextValue.reset();
+		if (this._commentThwead.contextVawue) {
+			this._commentThweadContextVawue.set(this._commentThwead.contextVawue);
+		} ewse {
+			this._commentThweadContextVawue.weset();
 		}
 
-		if (newCommentsInEditMode.length) {
-			const lastIndex = this._commentElements.indexOf(newCommentsInEditMode[newCommentsInEditMode.length - 1]);
-			this._focusedComment = lastIndex;
+		if (newCommentsInEditMode.wength) {
+			const wastIndex = this._commentEwements.indexOf(newCommentsInEditMode[newCommentsInEditMode.wength - 1]);
+			this._focusedComment = wastIndex;
 		}
 
 		this.setFocusedComment(this._focusedComment);
 	}
 
-	protected override _onWidth(widthInPixel: number): void {
-		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
+	pwotected ovewwide _onWidth(widthInPixew: numba): void {
+		this._commentWepwyComponent?.editow.wayout({ height: 5 * 18, width: widthInPixew - 54 /* mawgin 20px * 10 + scwowwbaw 14px*/ });
 	}
 
-	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
+	pwotected ovewwide _doWayout(heightInPixew: numba, widthInPixew: numba): void {
+		this._commentWepwyComponent?.editow.wayout({ height: 5 * 18, width: widthInPixew - 54 /* mawgin 20px * 10 + scwowwbaw 14px*/ });
 	}
 
-	display(lineNumber: number) {
-		this._commentGlyph = new CommentGlyphWidget(this.editor, lineNumber);
+	dispway(wineNumba: numba) {
+		this._commentGwyph = new CommentGwyphWidget(this.editow, wineNumba);
 
-		this._disposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this._disposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this._disposabwes.add(this.editow.onMouseDown(e => this.onEditowMouseDown(e)));
+		this._disposabwes.add(this.editow.onMouseUp(e => this.onEditowMouseUp(e)));
 
-		let headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
-		this._headElement.style.height = `${headHeight}px`;
-		this._headElement.style.lineHeight = this._headElement.style.height;
+		wet headHeight = Math.ceiw(this.editow.getOption(EditowOption.wineHeight) * 1.2);
+		this._headEwement.stywe.height = `${headHeight}px`;
+		this._headEwement.stywe.wineHeight = this._headEwement.stywe.height;
 
-		this._commentsElement = dom.append(this._bodyElement, dom.$('div.comments-container'));
-		this._commentsElement.setAttribute('role', 'presentation');
-		this._commentsElement.tabIndex = 0;
+		this._commentsEwement = dom.append(this._bodyEwement, dom.$('div.comments-containa'));
+		this._commentsEwement.setAttwibute('wowe', 'pwesentation');
+		this._commentsEwement.tabIndex = 0;
 
-		this._disposables.add(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
-				const moveFocusWithinBounds = (change: number): number => {
-					if (this._focusedComment === undefined && change >= 0) { return 0; }
-					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
-					let newIndex = this._focusedComment! + change;
-					return Math.min(Math.max(0, newIndex), this._commentElements.length - 1);
+		this._disposabwes.add(dom.addDisposabweWistena(this._commentsEwement, dom.EventType.KEY_DOWN, (e) => {
+			wet event = new StandawdKeyboawdEvent(e as KeyboawdEvent);
+			if (event.equaws(KeyCode.UpAwwow) || event.equaws(KeyCode.DownAwwow)) {
+				const moveFocusWithinBounds = (change: numba): numba => {
+					if (this._focusedComment === undefined && change >= 0) { wetuwn 0; }
+					if (this._focusedComment === undefined && change < 0) { wetuwn this._commentEwements.wength - 1; }
+					wet newIndex = this._focusedComment! + change;
+					wetuwn Math.min(Math.max(0, newIndex), this._commentEwements.wength - 1);
 				};
 
-				this.setFocusedComment(event.equals(KeyCode.UpArrow) ? moveFocusWithinBounds(-1) : moveFocusWithinBounds(1));
+				this.setFocusedComment(event.equaws(KeyCode.UpAwwow) ? moveFocusWithinBounds(-1) : moveFocusWithinBounds(1));
 			}
 		}));
 
-		this._commentElements = [];
-		if (this._commentThread.comments) {
-			for (const comment of this._commentThread.comments) {
-				const newCommentNode = this.createNewCommentNode(comment);
+		this._commentEwements = [];
+		if (this._commentThwead.comments) {
+			fow (const comment of this._commentThwead.comments) {
+				const newCommentNode = this.cweateNewCommentNode(comment);
 
-				this._commentElements.push(newCommentNode);
-				this._commentsElement.appendChild(newCommentNode.domNode);
+				this._commentEwements.push(newCommentNode);
+				this._commentsEwement.appendChiwd(newCommentNode.domNode);
 				if (comment.mode === modes.CommentMode.Editing) {
 					newCommentNode.switchToEditMode();
 				}
 			}
 		}
 
-		// create comment thread only when it supports reply
-		if (this._commentThread.canReply) {
-			this.createCommentForm();
+		// cweate comment thwead onwy when it suppowts wepwy
+		if (this._commentThwead.canWepwy) {
+			this.cweateCommentFowm();
 		}
 
-		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
+		this._wesizeObsewva = new MutationObsewva(this._wefwesh.bind(this));
 
-		this._resizeObserver.observe(this._bodyElement, {
-			attributes: true,
-			childList: true,
-			characterData: true,
-			subtree: true
+		this._wesizeObsewva.obsewve(this._bodyEwement, {
+			attwibutes: twue,
+			chiwdWist: twue,
+			chawactewData: twue,
+			subtwee: twue
 		});
 
-		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
-			this.show({ lineNumber: lineNumber, column: 1 }, 2);
+		if (this._commentThwead.cowwapsibweState === modes.CommentThweadCowwapsibweState.Expanded) {
+			this.show({ wineNumba: wineNumba, cowumn: 1 }, 2);
 		}
 
-		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
-		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (this._commentThread.canReply && this._commentReplyComponent) {
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this._commentReplyComponent.editor.focus();
-			} else if (this._commentReplyComponent.editor.getModel()!.getValueLength() > 0) {
-				this.expandReplyArea();
+		// If thewe awe no existing comments, pwace focus on the text awea. This must be done afta show, which awso moves focus.
+		// if this._commentThwead.comments is undefined, it doesn't finish initiawization yet, so we don't focus the editow immediatewy.
+		if (this._commentThwead.canWepwy && this._commentWepwyComponent) {
+			if (!this._commentThwead.comments || !this._commentThwead.comments.wength) {
+				this._commentWepwyComponent.editow.focus();
+			} ewse if (this._commentWepwyComponent.editow.getModew()!.getVawueWength() > 0) {
+				this.expandWepwyAwea();
 			}
 		}
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
-			if (this._commentReplyComponent) {
-				if (!this._commentThread.canReply) {
-					this._commentReplyComponent.form.style.display = 'none';
-				} else {
-					this._commentReplyComponent.form.style.display = 'block';
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeCanWepwy(() => {
+			if (this._commentWepwyComponent) {
+				if (!this._commentThwead.canWepwy) {
+					this._commentWepwyComponent.fowm.stywe.dispway = 'none';
+				} ewse {
+					this._commentWepwyComponent.fowm.stywe.dispway = 'bwock';
 				}
-			} else {
-				if (this._commentThread.canReply) {
-					this.createCommentForm();
+			} ewse {
+				if (this._commentThwead.canWepwy) {
+					this.cweateCommentFowm();
 				}
 			}
 		}));
 	}
 
-	private createCommentForm() {
-		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
-		const commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
-		const commentEditor = this._scopedInstatiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
-		const commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
-		commentEditorIsEmpty.set(!this._pendingComment);
+	pwivate cweateCommentFowm() {
+		const hasExistingComments = this._commentThwead.comments && this._commentThwead.comments.wength > 0;
+		const commentFowm = dom.append(this._bodyEwement, dom.$('.comment-fowm'));
+		const commentEditow = this._scopedInstatiationSewvice.cweateInstance(SimpweCommentEditow, commentFowm, SimpweCommentEditow.getEditowOptions(), this._pawentEditow, this);
+		const commentEditowIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeySewvice);
+		commentEditowIsEmpty.set(!this._pendingComment);
 
-		this._commentReplyComponent = {
-			form: commentForm,
-			editor: commentEditor,
-			commentEditorIsEmpty
+		this._commentWepwyComponent = {
+			fowm: commentFowm,
+			editow: commentEditow,
+			commentEditowIsEmpty
 		};
 
-		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
-		const params = JSON.stringify({
+		const modeId = genewateUuid() + '-' + (hasExistingComments ? this._commentThwead.thweadId : ++INMEM_MODEW_ID);
+		const pawams = JSON.stwingify({
 			extensionId: this.extensionId,
-			commentThreadId: this.commentThread.threadId
+			commentThweadId: this.commentThwead.thweadId
 		});
 
-		let resource = URI.parse(`${COMMENT_SCHEME}://${this.extensionId}/commentinput-${modeId}.md?${params}`); // TODO. Remove params once extensions adopt authority.
-		let commentController = this.commentService.getCommentController(this.owner);
-		if (commentController) {
-			resource = resource.with({ authority: commentController.id });
+		wet wesouwce = UWI.pawse(`${COMMENT_SCHEME}://${this.extensionId}/commentinput-${modeId}.md?${pawams}`); // TODO. Wemove pawams once extensions adopt authowity.
+		wet commentContwowwa = this.commentSewvice.getCommentContwowwa(this.owna);
+		if (commentContwowwa) {
+			wesouwce = wesouwce.with({ authowity: commentContwowwa.id });
 		}
 
-		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
-		this._disposables.add(model);
-		commentEditor.setModel(model);
-		this._disposables.add(commentEditor);
-		this._disposables.add(commentEditor.getModel()!.onDidChangeContent(() => {
-			this.setCommentEditorDecorations();
-			commentEditorIsEmpty?.set(!commentEditor.getValue());
+		const modew = this.modewSewvice.cweateModew(this._pendingComment || '', this.modeSewvice.cweateByFiwepathOwFiwstWine(wesouwce), wesouwce, fawse);
+		this._disposabwes.add(modew);
+		commentEditow.setModew(modew);
+		this._disposabwes.add(commentEditow);
+		this._disposabwes.add(commentEditow.getModew()!.onDidChangeContent(() => {
+			this.setCommentEditowDecowations();
+			commentEditowIsEmpty?.set(!commentEditow.getVawue());
 		}));
 
-		this.createTextModelListener(commentEditor, commentForm);
+		this.cweateTextModewWistena(commentEditow, commentFowm);
 
-		this.setCommentEditorDecorations();
+		this.setCommentEditowDecowations();
 
-		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
+		// Onwy add the additionaw step of cwicking a wepwy button to expand the textawea when thewe awe existing comments
 		if (hasExistingComments) {
-			this.createReplyButton(commentEditor, commentForm);
-		} else {
-			if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-				this.expandReplyArea();
+			this.cweateWepwyButton(commentEditow, commentFowm);
+		} ewse {
+			if (this._commentThwead.comments && this._commentThwead.comments.wength === 0) {
+				this.expandWepwyAwea();
 			}
 		}
-		this._error = dom.append(commentForm, dom.$('.validation-error.hidden'));
+		this._ewwow = dom.append(commentFowm, dom.$('.vawidation-ewwow.hidden'));
 
-		this._formActions = dom.append(commentForm, dom.$('.form-actions'));
-		this.createCommentWidgetActions(this._formActions, model);
-		this.createCommentWidgetActionsListener();
+		this._fowmActions = dom.append(commentFowm, dom.$('.fowm-actions'));
+		this.cweateCommentWidgetActions(this._fowmActions, modew);
+		this.cweateCommentWidgetActionsWistena();
 	}
 
-	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {
-		this._commentThreadDisposables.push(commentEditor.onDidFocusEditorWidget(() => {
-			this._commentThread.input = {
-				uri: commentEditor.getModel()!.uri,
-				value: commentEditor.getValue()
+	pwivate cweateTextModewWistena(commentEditow: ICodeEditow, commentFowm: HTMWEwement) {
+		this._commentThweadDisposabwes.push(commentEditow.onDidFocusEditowWidget(() => {
+			this._commentThwead.input = {
+				uwi: commentEditow.getModew()!.uwi,
+				vawue: commentEditow.getVawue()
 			};
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentSewvice.setActiveCommentThwead(this._commentThwead);
 		}));
 
-		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
-			let modelContent = commentEditor.getValue();
-			if (this._commentThread.input && this._commentThread.input.uri === commentEditor.getModel()!.uri && this._commentThread.input.value !== modelContent) {
-				let newInput: modes.CommentInput = this._commentThread.input;
-				newInput.value = modelContent;
-				this._commentThread.input = newInput;
+		this._commentThweadDisposabwes.push(commentEditow.getModew()!.onDidChangeContent(() => {
+			wet modewContent = commentEditow.getVawue();
+			if (this._commentThwead.input && this._commentThwead.input.uwi === commentEditow.getModew()!.uwi && this._commentThwead.input.vawue !== modewContent) {
+				wet newInput: modes.CommentInput = this._commentThwead.input;
+				newInput.vawue = modewContent;
+				this._commentThwead.input = newInput;
 			}
-			this.commentService.setActiveCommentThread(this._commentThread);
+			this.commentSewvice.setActiveCommentThwead(this._commentThwead);
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeInput(input => {
-			let thread = this._commentThread;
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeInput(input => {
+			wet thwead = this._commentThwead;
 
-			if (thread.input && thread.input.uri !== commentEditor.getModel()!.uri) {
-				return;
+			if (thwead.input && thwead.input.uwi !== commentEditow.getModew()!.uwi) {
+				wetuwn;
 			}
 			if (!input) {
-				return;
+				wetuwn;
 			}
 
-			if (commentEditor.getValue() !== input.value) {
-				commentEditor.setValue(input.value);
+			if (commentEditow.getVawue() !== input.vawue) {
+				commentEditow.setVawue(input.vawue);
 
-				if (input.value === '') {
+				if (input.vawue === '') {
 					this._pendingComment = '';
-					commentForm.classList.remove('expand');
-					commentEditor.getDomNode()!.style.outline = '';
-					this._error.textContent = '';
-					this._error.classList.add('hidden');
+					commentFowm.cwassWist.wemove('expand');
+					commentEditow.getDomNode()!.stywe.outwine = '';
+					this._ewwow.textContent = '';
+					this._ewwow.cwassWist.add('hidden');
 				}
 			}
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeComments(async _ => {
-			await this.update(this._commentThread);
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeComments(async _ => {
+			await this.update(this._commentThwead);
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
-			this.createThreadLabel();
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeWabew(_ => {
+			this.cweateThweadWabew();
 		}));
 	}
 
-	private createCommentWidgetActionsListener() {
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeRange(range => {
-			// Move comment glyph widget and show position if the line has changed.
-			const lineNumber = this._commentThread.range.startLineNumber;
-			let shouldMoveWidget = false;
-			if (this._commentGlyph) {
-				if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
-					shouldMoveWidget = true;
-					this._commentGlyph.setLineNumber(lineNumber);
+	pwivate cweateCommentWidgetActionsWistena() {
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeWange(wange => {
+			// Move comment gwyph widget and show position if the wine has changed.
+			const wineNumba = this._commentThwead.wange.stawtWineNumba;
+			wet shouwdMoveWidget = fawse;
+			if (this._commentGwyph) {
+				if (this._commentGwyph.getPosition().position!.wineNumba !== wineNumba) {
+					shouwdMoveWidget = twue;
+					this._commentGwyph.setWineNumba(wineNumba);
 				}
 			}
 
-			if (shouldMoveWidget && this._isExpanded) {
-				this.show({ lineNumber, column: 1 }, 2);
+			if (shouwdMoveWidget && this._isExpanded) {
+				this.show({ wineNumba, cowumn: 1 }, 2);
 			}
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollasibleState(state => {
-			if (state === modes.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
-				const lineNumber = this._commentThread.range.startLineNumber;
+		this._commentThweadDisposabwes.push(this._commentThwead.onDidChangeCowwasibweState(state => {
+			if (state === modes.CommentThweadCowwapsibweState.Expanded && !this._isExpanded) {
+				const wineNumba = this._commentThwead.wange.stawtWineNumba;
 
-				this.show({ lineNumber, column: 1 }, 2);
-				return;
+				this.show({ wineNumba, cowumn: 1 }, 2);
+				wetuwn;
 			}
 
-			if (state === modes.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
+			if (state === modes.CommentThweadCowwapsibweState.Cowwapsed && this._isExpanded) {
 				this.hide();
-				return;
+				wetuwn;
 			}
 		}));
 	}
 
-	private setFocusedComment(value: number | undefined) {
+	pwivate setFocusedComment(vawue: numba | undefined) {
 		if (this._focusedComment !== undefined) {
-			this._commentElements[this._focusedComment]?.setFocus(false);
+			this._commentEwements[this._focusedComment]?.setFocus(fawse);
 		}
 
-		if (this._commentElements.length === 0 || value === undefined) {
+		if (this._commentEwements.wength === 0 || vawue === undefined) {
 			this._focusedComment = undefined;
-		} else {
-			this._focusedComment = Math.min(value, this._commentElements.length - 1);
-			this._commentElements[this._focusedComment].setFocus(true);
+		} ewse {
+			this._focusedComment = Math.min(vawue, this._commentEwements.wength - 1);
+			this._commentEwements[this._focusedComment].setFocus(twue);
 		}
 	}
 
-	private getActiveComment(): CommentNode | ReviewZoneWidget {
-		return this._commentElements.filter(node => node.isEditing)[0] || this;
+	pwivate getActiveComment(): CommentNode | WeviewZoneWidget {
+		wetuwn this._commentEwements.fiwta(node => node.isEditing)[0] || this;
 	}
 
 	/**
 	 * Command based actions.
 	 */
-	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
-		const commentThread = this._commentThread;
+	pwivate cweateCommentWidgetActions(containa: HTMWEwement, modew: ITextModew) {
+		const commentThwead = this._commentThwead;
 
-		const menu = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
+		const menu = this._commentMenus.getCommentThweadActions(commentThwead, this._contextKeySewvice);
 
-		this._disposables.add(menu);
-		this._disposables.add(menu.onDidChange(() => {
-			this._commentFormActions.setActions(menu);
+		this._disposabwes.add(menu);
+		this._disposabwes.add(menu.onDidChange(() => {
+			this._commentFowmActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
-			if (!commentThread.comments || !commentThread.comments.length) {
-				let newPosition = this.getPosition();
+		this._commentFowmActions = new CommentFowmActions(containa, async (action: IAction) => {
+			if (!commentThwead.comments || !commentThwead.comments.wength) {
+				wet newPosition = this.getPosition();
 
 				if (newPosition) {
-					this.commentService.updateCommentThreadTemplate(this.owner, commentThread.commentThreadHandle, new Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1));
+					this.commentSewvice.updateCommentThweadTempwate(this.owna, commentThwead.commentThweadHandwe, new Wange(newPosition.wineNumba, 1, newPosition.wineNumba, 1));
 				}
 			}
-			action.run({
-				thread: this._commentThread,
-				text: this._commentReplyComponent?.editor.getValue(),
-				$mid: MarshalledId.CommentThreadReply
+			action.wun({
+				thwead: this._commentThwead,
+				text: this._commentWepwyComponent?.editow.getVawue(),
+				$mid: MawshawwedId.CommentThweadWepwy
 			});
 
-			this.hideReplyArea();
-		}, this.themeService);
+			this.hideWepwyAwea();
+		}, this.themeSewvice);
 
-		this._commentFormActions.setActions(menu);
+		this._commentFowmActions.setActions(menu);
 	}
 
-	private createNewCommentNode(comment: modes.Comment): CommentNode {
-		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
-			this._commentThread,
+	pwivate cweateNewCommentNode(comment: modes.Comment): CommentNode {
+		wet newCommentNode = this._scopedInstatiationSewvice.cweateInstance(CommentNode,
+			this._commentThwead,
 			comment,
-			this.owner,
-			this.editor.getModel()!.uri,
-			this._parentEditor,
+			this.owna,
+			this.editow.getModew()!.uwi,
+			this._pawentEditow,
 			this,
-			this._markdownRenderer);
+			this._mawkdownWendewa);
 
-		this._disposables.add(newCommentNode);
-		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
-			this.setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
+		this._disposabwes.add(newCommentNode);
+		this._disposabwes.add(newCommentNode.onDidCwick(cwickedNode =>
+			this.setFocusedComment(this._commentEwements.findIndex(commentNode => commentNode.comment.uniqueIdInThwead === cwickedNode.comment.uniqueIdInThwead))
 		));
 
-		return newCommentNode;
+		wetuwn newCommentNode;
 	}
 
-	async submitComment(): Promise<void> {
+	async submitComment(): Pwomise<void> {
 		const activeComment = this.getActiveComment();
-		if (activeComment instanceof ReviewZoneWidget) {
-			if (this._commentFormActions) {
-				this._commentFormActions.triggerDefaultAction();
+		if (activeComment instanceof WeviewZoneWidget) {
+			if (this._commentFowmActions) {
+				this._commentFowmActions.twiggewDefauwtAction();
 			}
 		}
 	}
 
-	private createThreadLabel() {
-		let label: string | undefined;
-		label = this._commentThread.label;
+	pwivate cweateThweadWabew() {
+		wet wabew: stwing | undefined;
+		wabew = this._commentThwead.wabew;
 
-		if (label === undefined) {
-			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
-				label = nls.localize('startThread', "Start discussion");
+		if (wabew === undefined) {
+			if (!(this._commentThwead.comments && this._commentThwead.comments.wength)) {
+				wabew = nws.wocawize('stawtThwead', "Stawt discussion");
 			}
 		}
 
-		if (label) {
-			this._headingLabel.textContent = strings.escape(label);
-			this._headingLabel.setAttribute('aria-label', label);
+		if (wabew) {
+			this._headingWabew.textContent = stwings.escape(wabew);
+			this._headingWabew.setAttwibute('awia-wabew', wabew);
 		}
 	}
 
-	private expandReplyArea() {
-		if (!this._commentReplyComponent?.form.classList.contains('expand')) {
-			this._commentReplyComponent?.form.classList.add('expand');
-			this._commentReplyComponent?.editor.focus();
+	pwivate expandWepwyAwea() {
+		if (!this._commentWepwyComponent?.fowm.cwassWist.contains('expand')) {
+			this._commentWepwyComponent?.fowm.cwassWist.add('expand');
+			this._commentWepwyComponent?.editow.focus();
 		}
 	}
 
-	private hideReplyArea() {
-		if (this._commentReplyComponent) {
-			this._commentReplyComponent.editor.setValue('');
-			this._commentReplyComponent.editor.getDomNode()!.style.outline = '';
+	pwivate hideWepwyAwea() {
+		if (this._commentWepwyComponent) {
+			this._commentWepwyComponent.editow.setVawue('');
+			this._commentWepwyComponent.editow.getDomNode()!.stywe.outwine = '';
 		}
 		this._pendingComment = '';
-		this._commentReplyComponent?.form.classList.remove('expand');
-		this._error.textContent = '';
-		this._error.classList.add('hidden');
+		this._commentWepwyComponent?.fowm.cwassWist.wemove('expand');
+		this._ewwow.textContent = '';
+		this._ewwow.cwassWist.add('hidden');
 	}
 
-	private createReplyButton(commentEditor: ICodeEditor, commentForm: HTMLElement) {
-		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(commentForm, dom.$(`button.review-thread-reply-button.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		this._reviewThreadReplyButton.title = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
+	pwivate cweateWepwyButton(commentEditow: ICodeEditow, commentFowm: HTMWEwement) {
+		this._weviewThweadWepwyButton = <HTMWButtonEwement>dom.append(commentFowm, dom.$(`button.weview-thwead-wepwy-button.${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME}`));
+		this._weviewThweadWepwyButton.titwe = this._commentOptions?.pwompt || nws.wocawize('wepwy', "Wepwy...");
 
-		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
-		// bind click/escape actions for reviewThreadReplyButton and textArea
-		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'click', _ => this.expandReplyArea()));
-		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
+		this._weviewThweadWepwyButton.textContent = this._commentOptions?.pwompt || nws.wocawize('wepwy', "Wepwy...");
+		// bind cwick/escape actions fow weviewThweadWepwyButton and textAwea
+		this._disposabwes.add(dom.addDisposabweWistena(this._weviewThweadWepwyButton, 'cwick', _ => this.expandWepwyAwea()));
+		this._disposabwes.add(dom.addDisposabweWistena(this._weviewThweadWepwyButton, 'focus', _ => this.expandWepwyAwea()));
 
-		commentEditor.onDidBlurEditorWidget(() => {
-			if (commentEditor.getModel()!.getValueLength() === 0 && commentForm.classList.contains('expand')) {
-				commentForm.classList.remove('expand');
+		commentEditow.onDidBwuwEditowWidget(() => {
+			if (commentEditow.getModew()!.getVawueWength() === 0 && commentFowm.cwassWist.contains('expand')) {
+				commentFowm.cwassWist.wemove('expand');
 			}
 		});
 	}
 
-	_refresh() {
-		if (this._isExpanded && this._bodyElement) {
-			let dimensions = dom.getClientArea(this._bodyElement);
+	_wefwesh() {
+		if (this._isExpanded && this._bodyEwement) {
+			wet dimensions = dom.getCwientAwea(this._bodyEwement);
 
-			this._commentElements.forEach(element => {
-				element.layout();
+			this._commentEwements.fowEach(ewement => {
+				ewement.wayout();
 			});
 
-			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
-			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			const arrowHeight = Math.round(lineHeight / 3);
-			const frameThickness = Math.round(lineHeight / 9) * 2;
+			const headHeight = Math.ceiw(this.editow.getOption(EditowOption.wineHeight) * 1.2);
+			const wineHeight = this.editow.getOption(EditowOption.wineHeight);
+			const awwowHeight = Math.wound(wineHeight / 3);
+			const fwameThickness = Math.wound(wineHeight / 9) * 2;
 
-			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness + 8 /** margin bottom to avoid margin collapse */) / lineHeight);
+			const computedWinesNumba = Math.ceiw((headHeight + dimensions.height + awwowHeight + fwameThickness + 8 /** mawgin bottom to avoid mawgin cowwapse */) / wineHeight);
 
-			if (this._viewZone?.heightInLines === computedLinesNumber) {
-				return;
+			if (this._viewZone?.heightInWines === computedWinesNumba) {
+				wetuwn;
 			}
 
-			let currentPosition = this.getPosition();
+			wet cuwwentPosition = this.getPosition();
 
-			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber) {
-				this._viewZone.afterLineNumber = currentPosition.lineNumber;
+			if (this._viewZone && cuwwentPosition && cuwwentPosition.wineNumba !== this._viewZone.aftewWineNumba) {
+				this._viewZone.aftewWineNumba = cuwwentPosition.wineNumba;
 			}
 
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this._commentReplyComponent?.editor.focus();
+			if (!this._commentThwead.comments || !this._commentThwead.comments.wength) {
+				this._commentWepwyComponent?.editow.focus();
 			}
 
-			this._relayout(computedLinesNumber);
+			this._wewayout(computedWinesNumba);
 		}
 	}
 
-	private setCommentEditorDecorations() {
-		const model = this._commentReplyComponent && this._commentReplyComponent.editor.getModel();
-		if (model) {
-			const valueLength = model.getValueLength();
-			const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
-			const placeholder = valueLength > 0
+	pwivate setCommentEditowDecowations() {
+		const modew = this._commentWepwyComponent && this._commentWepwyComponent.editow.getModew();
+		if (modew) {
+			const vawueWength = modew.getVawueWength();
+			const hasExistingComments = this._commentThwead.comments && this._commentThwead.comments.wength > 0;
+			const pwacehowda = vawueWength > 0
 				? ''
 				: hasExistingComments
-					? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
-					: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
-			const decorations = [{
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
+					? (this._commentOptions?.pwaceHowda || nws.wocawize('wepwy', "Wepwy..."))
+					: (this._commentOptions?.pwaceHowda || nws.wocawize('newComment', "Type a new comment"));
+			const decowations = [{
+				wange: {
+					stawtWineNumba: 0,
+					endWineNumba: 0,
+					stawtCowumn: 0,
+					endCowumn: 1
 				},
-				renderOptions: {
-					after: {
-						contentText: placeholder,
-						color: `${resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4)}`
+				wendewOptions: {
+					afta: {
+						contentText: pwacehowda,
+						cowow: `${wesowveCowowVawue(editowFowegwound, this.themeSewvice.getCowowTheme())?.twanspawent(0.4)}`
 					}
 				}
 			}];
 
-			this._commentReplyComponent?.editor.setDecorations('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentWepwyComponent?.editow.setDecowations('weview-zone-widget', COMMENTEDITOW_DECOWATION_KEY, decowations);
 		}
 	}
 
-	private mouseDownInfo: { lineNumber: number } | null = null;
+	pwivate mouseDownInfo: { wineNumba: numba } | nuww = nuww;
 
-	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
+	pwivate onEditowMouseDown(e: IEditowMouseEvent): void {
+		this.mouseDownInfo = pawseMouseDownInfoFwomEvent(e);
 	}
 
-	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
-		this.mouseDownInfo = null;
+	pwivate onEditowMouseUp(e: IEditowMouseEvent): void {
+		const matchedWineNumba = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
+		this.mouseDownInfo = nuww;
 
-		if (matchedLineNumber === null || !e.target.element) {
-			return;
+		if (matchedWineNumba === nuww || !e.tawget.ewement) {
+			wetuwn;
 		}
 
-		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== matchedLineNumber) {
-			return;
+		if (this._commentGwyph && this._commentGwyph.getPosition().position!.wineNumba !== matchedWineNumba) {
+			wetuwn;
 		}
 
-		if (e.target.element.className.indexOf('comment-thread') >= 0) {
-			this.toggleExpand(matchedLineNumber);
+		if (e.tawget.ewement.cwassName.indexOf('comment-thwead') >= 0) {
+			this.toggweExpand(matchedWineNumba);
 		}
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder);
-		this.style({
-			arrowColor: borderColor || Color.transparent,
-			frameColor: borderColor || Color.transparent
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		const bowdewCowow = theme.getCowow(peekViewBowda);
+		this.stywe({
+			awwowCowow: bowdewCowow || Cowow.twanspawent,
+			fwameCowow: bowdewCowow || Cowow.twanspawent
 		});
 
-		const content: string[] = [];
+		const content: stwing[] = [];
 
-		if (borderColor) {
-			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
+		if (bowdewCowow) {
+			content.push(`.monaco-editow .weview-widget > .body { bowda-top: 1px sowid ${bowdewCowow} }`);
 		}
 
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a { color: ${linkColor} }`);
+		const winkCowow = theme.getCowow(textWinkFowegwound);
+		if (winkCowow) {
+			content.push(`.monaco-editow .weview-widget .body .comment-body a { cowow: ${winkCowow} }`);
 		}
 
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
+		const winkActiveCowow = theme.getCowow(textWinkActiveFowegwound);
+		if (winkActiveCowow) {
+			content.push(`.monaco-editow .weview-widget .body .comment-body a:hova, a:active { cowow: ${winkActiveCowow} }`);
 		}
 
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.monaco-editor .review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+		const focusCowow = theme.getCowow(focusBowda);
+		if (focusCowow) {
+			content.push(`.monaco-editow .weview-widget .body .comment-body a:focus { outwine: 1px sowid ${focusCowow}; }`);
+			content.push(`.monaco-editow .weview-widget .body .monaco-editow.focused { outwine: 1px sowid ${focusCowow}; }`);
 		}
 
-		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
-		if (blockQuoteBackground) {
-			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		const bwockQuoteBackgwound = theme.getCowow(textBwockQuoteBackgwound);
+		if (bwockQuoteBackgwound) {
+			content.push(`.monaco-editow .weview-widget .body .weview-comment bwockquote { backgwound: ${bwockQuoteBackgwound}; }`);
 		}
 
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		const bwockQuoteBOwda = theme.getCowow(textBwockQuoteBowda);
+		if (bwockQuoteBOwda) {
+			content.push(`.monaco-editow .weview-widget .body .weview-comment bwockquote { bowda-cowow: ${bwockQuoteBOwda}; }`);
 		}
 
-		const border = theme.getColor(PANEL_BORDER);
-		if (border) {
-			content.push(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
+		const bowda = theme.getCowow(PANEW_BOWDa);
+		if (bowda) {
+			content.push(`.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew { bowda-cowow: ${bowda}; }`);
 		}
 
-		const hcBorder = theme.getColor(contrastBorder);
-		if (hcBorder) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.monaco-editor .review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
+		const hcBowda = theme.getCowow(contwastBowda);
+		if (hcBowda) {
+			content.push(`.monaco-editow .weview-widget .body .comment-fowm .weview-thwead-wepwy-button { outwine-cowow: ${hcBowda}; }`);
+			content.push(`.monaco-editow .weview-widget .body .monaco-editow { outwine: 1px sowid ${hcBowda}; }`);
 		}
 
-		const errorBorder = theme.getColor(inputValidationErrorBorder);
-		if (errorBorder) {
-			content.push(`.monaco-editor .review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
+		const ewwowBowda = theme.getCowow(inputVawidationEwwowBowda);
+		if (ewwowBowda) {
+			content.push(`.monaco-editow .weview-widget .vawidation-ewwow { bowda: 1px sowid ${ewwowBowda}; }`);
 		}
 
-		const errorBackground = theme.getColor(inputValidationErrorBackground);
-		if (errorBackground) {
-			content.push(`.monaco-editor .review-widget .validation-error { background: ${errorBackground}; }`);
+		const ewwowBackgwound = theme.getCowow(inputVawidationEwwowBackgwound);
+		if (ewwowBackgwound) {
+			content.push(`.monaco-editow .weview-widget .vawidation-ewwow { backgwound: ${ewwowBackgwound}; }`);
 		}
 
-		const errorForeground = theme.getColor(inputValidationErrorForeground);
-		if (errorForeground) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
+		const ewwowFowegwound = theme.getCowow(inputVawidationEwwowFowegwound);
+		if (ewwowFowegwound) {
+			content.push(`.monaco-editow .weview-widget .body .comment-fowm .vawidation-ewwow { cowow: ${ewwowFowegwound}; }`);
 		}
 
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
-		const fontWeightVar = '--comment-thread-editor-font-weight';
-		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
-		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
+		const fontInfo = this.editow.getOption(EditowOption.fontInfo);
+		const fontFamiwyVaw = '--comment-thwead-editow-font-famiwy';
+		const fontSizeVaw = '--comment-thwead-editow-font-size';
+		const fontWeightVaw = '--comment-thwead-editow-font-weight';
+		this.containa?.stywe.setPwopewty(fontFamiwyVaw, fontInfo.fontFamiwy);
+		this.containa?.stywe.setPwopewty(fontSizeVaw, `${fontInfo.fontSize}px`);
+		this.containa?.stywe.setPwopewty(fontWeightVaw, fontInfo.fontWeight);
 
-		content.push(`.monaco-editor .review-widget .body code {
-			font-family: var(${fontFamilyVar});
-			font-weight: var(${fontWeightVar});
-			font-size: var(${fontSizeVar});
+		content.push(`.monaco-editow .weview-widget .body code {
+			font-famiwy: vaw(${fontFamiwyVaw});
+			font-weight: vaw(${fontWeightVaw});
+			font-size: vaw(${fontSizeVaw});
 		}`);
 
-		this._styleElement.textContent = content.join('\n');
+		this._styweEwement.textContent = content.join('\n');
 
-		// Editor decorations should also be responsive to theme changes
-		this.setCommentEditorDecorations();
+		// Editow decowations shouwd awso be wesponsive to theme changes
+		this.setCommentEditowDecowations();
 	}
 
-	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
-		this._isExpanded = true;
-		super.show(rangeOrPos, heightInLines);
-		this._refresh();
+	ovewwide show(wangeOwPos: IWange | IPosition, heightInWines: numba): void {
+		this._isExpanded = twue;
+		supa.show(wangeOwPos, heightInWines);
+		this._wefwesh();
 	}
 
-	override hide() {
+	ovewwide hide() {
 		if (this._isExpanded) {
-			this._isExpanded = false;
-			// Focus the container so that the comment editor will be blurred before it is hidden
-			this.editor.focus();
+			this._isExpanded = fawse;
+			// Focus the containa so that the comment editow wiww be bwuwwed befowe it is hidden
+			this.editow.focus();
 		}
-		super.hide();
+		supa.hide();
 	}
 
-	override dispose() {
-		super.dispose();
-		if (this._resizeObserver) {
-			this._resizeObserver.disconnect();
-			this._resizeObserver = null;
+	ovewwide dispose() {
+		supa.dispose();
+		if (this._wesizeObsewva) {
+			this._wesizeObsewva.disconnect();
+			this._wesizeObsewva = nuww;
 		}
 
-		if (this._commentGlyph) {
-			this._commentGlyph.dispose();
-			this._commentGlyph = undefined;
+		if (this._commentGwyph) {
+			this._commentGwyph.dispose();
+			this._commentGwyph = undefined;
 		}
 
-		this._globalToDispose.dispose();
-		this._commentThreadDisposables.forEach(global => global.dispose());
-		this._submitActionsDisposables.forEach(local => local.dispose());
-		this._onDidClose.fire(undefined);
+		this._gwobawToDispose.dispose();
+		this._commentThweadDisposabwes.fowEach(gwobaw => gwobaw.dispose());
+		this._submitActionsDisposabwes.fowEach(wocaw => wocaw.dispose());
+		this._onDidCwose.fiwe(undefined);
 	}
 }

@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar {
-	white-space: nowrap;
+.monaco-action-baw {
+	white-space: nowwap;
 	height: 100%;
 }
 
-.monaco-action-bar .actions-container {
-	display: flex;
-	margin: 0 auto;
+.monaco-action-baw .actions-containa {
+	dispway: fwex;
+	mawgin: 0 auto;
 	padding: 0;
 	height: 100%;
 	width: 100%;
-	align-items: center;
+	awign-items: centa;
 }
 
-.monaco-action-bar.vertical .actions-container {
-	display: inline-block;
+.monaco-action-baw.vewticaw .actions-containa {
+	dispway: inwine-bwock;
 }
 
-.monaco-action-bar .action-item {
-	display: block;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	position: relative;  /* DO NOT REMOVE - this is the key to preventing the ghosting icon bug in Chrome 42 */
+.monaco-action-baw .action-item {
+	dispway: bwock;
+	awign-items: centa;
+	justify-content: centa;
+	cuwsow: pointa;
+	position: wewative;  /* DO NOT WEMOVE - this is the key to pweventing the ghosting icon bug in Chwome 42 */
 }
 
-.monaco-action-bar .action-item.disabled {
-	cursor: default;
+.monaco-action-baw .action-item.disabwed {
+	cuwsow: defauwt;
 }
 
-.monaco-action-bar .action-item .icon,
-.monaco-action-bar .action-item .codicon {
-	display: block;
+.monaco-action-baw .action-item .icon,
+.monaco-action-baw .action-item .codicon {
+	dispway: bwock;
 }
 
-.monaco-action-bar .action-item .codicon {
-	display: flex;
-	align-items: center;
+.monaco-action-baw .action-item .codicon {
+	dispway: fwex;
+	awign-items: centa;
 	width: 16px;
 	height: 16px;
 }
 
-.monaco-action-bar .action-label {
+.monaco-action-baw .action-wabew {
 	font-size: 11px;
 	padding: 3px;
-	border-radius: 5px;
+	bowda-wadius: 5px;
 }
 
-.monaco-action-bar .action-item.disabled .action-label,
-.monaco-action-bar .action-item.disabled .action-label::before,
-.monaco-action-bar .action-item.disabled .action-label:hover {
+.monaco-action-baw .action-item.disabwed .action-wabew,
+.monaco-action-baw .action-item.disabwed .action-wabew::befowe,
+.monaco-action-baw .action-item.disabwed .action-wabew:hova {
 	opacity: 0.4;
 }
 
-/* Vertical actions */
+/* Vewticaw actions */
 
-.monaco-action-bar.vertical {
-	text-align: left;
+.monaco-action-baw.vewticaw {
+	text-awign: weft;
 }
 
-.monaco-action-bar.vertical .action-item {
-	display: block;
+.monaco-action-baw.vewticaw .action-item {
+	dispway: bwock;
 }
 
-.monaco-action-bar.vertical .action-label.separator {
-	display: block;
-	border-bottom: 1px solid #bbb;
+.monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	dispway: bwock;
+	bowda-bottom: 1px sowid #bbb;
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	mawgin-weft: .8em;
+	mawgin-wight: .8em;
 }
 
-.monaco-action-bar .action-item .action-label.separator {
+.monaco-action-baw .action-item .action-wabew.sepawatow {
 	width: 1px;
 	height: 16px;
-	margin: 5px 4px !important;
-	cursor: default;
+	mawgin: 5px 4px !impowtant;
+	cuwsow: defauwt;
 	min-width: 1px;
 	padding: 0;
-	background-color: #bbb;
+	backgwound-cowow: #bbb;
 }
 
-.secondary-actions .monaco-action-bar .action-label {
-	margin-left: 6px;
+.secondawy-actions .monaco-action-baw .action-wabew {
+	mawgin-weft: 6px;
 }
 
 /* Action Items */
-.monaco-action-bar .action-item.select-container {
-	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
-	flex: 1;
+.monaco-action-baw .action-item.sewect-containa {
+	ovewfwow: hidden; /* somehow the dwopdown ovewfwows its containa, we pwevent it hewe to not push */
+	fwex: 1;
 	max-width: 170px;
 	min-width: 60px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-right: 10px;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	mawgin-wight: 10px;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item {
-	display: flex;
+.monaco-action-baw .action-item.action-dwopdown-item {
+	dispway: fwex;
 }
 
-.monaco-action-bar .action-item.action-dropdown-item > .action-label {
-	margin-right: 1px;
+.monaco-action-baw .action-item.action-dwopdown-item > .action-wabew {
+	mawgin-wight: 1px;
 }

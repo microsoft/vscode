@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { IDimension, isThemeColor } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CodeCellLayoutInfo, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { SimpweIconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/simpweIconWabew';
+impowt { WowkbenchActionExecutedCwassification, WowkbenchActionExecutedEvent } fwom 'vs/base/common/actions';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { stwipIcons } fwom 'vs/base/common/iconWabews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { EwementSizeObsewva } fwom 'vs/editow/bwowsa/config/ewementSizeObsewva';
+impowt { IDimension, isThemeCowow } fwom 'vs/editow/common/editowCommon';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice, ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { INotebookCewwActionContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { CodeCewwWayoutInfo, MawkdownCewwWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwStatusbawAwignment, INotebookCewwStatusBawItem } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
-export interface IClickTarget {
-	type: ClickTargetType;
+expowt intewface ICwickTawget {
+	type: CwickTawgetType;
 	event: MouseEvent;
 }
 
-export const enum ClickTargetType {
-	Container = 0,
-	ContributedTextItem = 1,
-	ContributedCommandItem = 2
+expowt const enum CwickTawgetType {
+	Containa = 0,
+	ContwibutedTextItem = 1,
+	ContwibutedCommandItem = 2
 }
 
-export class CellEditorStatusBar extends Disposable {
-	readonly statusBarContainer: HTMLElement;
+expowt cwass CewwEditowStatusBaw extends Disposabwe {
+	weadonwy statusBawContaina: HTMWEwement;
 
-	private readonly leftItemsContainer: HTMLElement;
-	private readonly rightItemsContainer: HTMLElement;
-	private readonly itemsDisposable: DisposableStore;
+	pwivate weadonwy weftItemsContaina: HTMWEwement;
+	pwivate weadonwy wightItemsContaina: HTMWEwement;
+	pwivate weadonwy itemsDisposabwe: DisposabweStowe;
 
-	private leftItems: CellStatusBarItem[] = [];
-	private rightItems: CellStatusBarItem[] = [];
-	private width: number = 0;
+	pwivate weftItems: CewwStatusBawItem[] = [];
+	pwivate wightItems: CewwStatusBawItem[] = [];
+	pwivate width: numba = 0;
 
-	private currentContext: INotebookCellActionContext | undefined;
-	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
-	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
+	pwivate cuwwentContext: INotebookCewwActionContext | undefined;
+	pwotected weadonwy _onDidCwick: Emitta<ICwickTawget> = this._wegista(new Emitta<ICwickTawget>());
+	weadonwy onDidCwick: Event<ICwickTawget> = this._onDidCwick.event;
 
-	constructor(
-		container: HTMLElement,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService,
+	constwuctow(
+		containa: HTMWEwement,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
 	) {
-		super();
-		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
-		this.statusBarContainer.tabIndex = -1;
-		const leftItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-left'));
-		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
-		this.leftItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
-		this.rightItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
+		supa();
+		this.statusBawContaina = DOM.append(containa, $('.ceww-statusbaw-containa'));
+		this.statusBawContaina.tabIndex = -1;
+		const weftItemsContaina = DOM.append(this.statusBawContaina, $('.ceww-status-weft'));
+		const wightItemsContaina = DOM.append(this.statusBawContaina, $('.ceww-status-wight'));
+		this.weftItemsContaina = DOM.append(weftItemsContaina, $('.ceww-contwibuted-items.ceww-contwibuted-items-weft'));
+		this.wightItemsContaina = DOM.append(wightItemsContaina, $('.ceww-contwibuted-items.ceww-contwibuted-items-wight'));
 
-		this.itemsDisposable = this._register(new DisposableStore());
+		this.itemsDisposabwe = this._wegista(new DisposabweStowe());
 
-		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.update(this.currentContext)));
+		this._wegista(this._themeSewvice.onDidCowowThemeChange(() => this.cuwwentContext && this.update(this.cuwwentContext)));
 
-		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
-			if (e.target === leftItemsContainer || e.target === rightItemsContainer || e.target === this.statusBarContainer) {
+		this._wegista(DOM.addDisposabweWistena(this.statusBawContaina, DOM.EventType.CWICK, e => {
+			if (e.tawget === weftItemsContaina || e.tawget === wightItemsContaina || e.tawget === this.statusBawContaina) {
 				// hit on empty space
-				this._onDidClick.fire({
-					type: ClickTargetType.Container,
+				this._onDidCwick.fiwe({
+					type: CwickTawgetType.Containa,
 					event: e
 				});
-			} else {
-				if ((e.target as HTMLElement).classList.contains('cell-status-item-has-command')) {
-					this._onDidClick.fire({
-						type: ClickTargetType.ContributedCommandItem,
+			} ewse {
+				if ((e.tawget as HTMWEwement).cwassWist.contains('ceww-status-item-has-command')) {
+					this._onDidCwick.fiwe({
+						type: CwickTawgetType.ContwibutedCommandItem,
 						event: e
 					});
-				} else {
+				} ewse {
 					// text
-					this._onDidClick.fire({
-						type: ClickTargetType.ContributedTextItem,
+					this._onDidCwick.fiwe({
+						type: CwickTawgetType.ContwibutedTextItem,
 						event: e
 					});
 				}
@@ -92,226 +92,226 @@ export class CellEditorStatusBar extends Disposable {
 		}));
 	}
 
-	private layout(): void {
-		if (!this.currentContext) {
-			return;
+	pwivate wayout(): void {
+		if (!this.cuwwentContext) {
+			wetuwn;
 		}
 
-		// TODO@roblou maybe more props should be in common layoutInfo?
-		const layoutInfo = this.currentContext.cell.layoutInfo as CodeCellLayoutInfo | MarkdownCellLayoutInfo;
-		const width = layoutInfo.editorWidth;
+		// TODO@wobwou maybe mowe pwops shouwd be in common wayoutInfo?
+		const wayoutInfo = this.cuwwentContext.ceww.wayoutInfo as CodeCewwWayoutInfo | MawkdownCewwWayoutInfo;
+		const width = wayoutInfo.editowWidth;
 		if (!width) {
-			return;
+			wetuwn;
 		}
 
 		this.width = width;
-		this.statusBarContainer.style.width = `${width}px`;
+		this.statusBawContaina.stywe.width = `${width}px`;
 
 		const maxItemWidth = this.getMaxItemWidth();
-		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
-		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
+		this.weftItems.fowEach(item => item.maxWidth = maxItemWidth);
+		this.wightItems.fowEach(item => item.maxWidth = maxItemWidth);
 	}
 
-	private getMaxItemWidth() {
-		return this.width / 2;
+	pwivate getMaxItemWidth() {
+		wetuwn this.width / 2;
 	}
 
-	update(context: INotebookCellActionContext) {
-		this.currentContext = context;
-		this.itemsDisposable.clear();
+	update(context: INotebookCewwActionContext) {
+		this.cuwwentContext = context;
+		this.itemsDisposabwe.cweaw();
 
-		if (!this.currentContext) {
-			return;
+		if (!this.cuwwentContext) {
+			wetuwn;
 		}
 
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeLayout(() => this.layout()));
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
-		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
-		this.layout();
-		this.updateActiveCell();
-		this.updateRenderedItems();
+		this.itemsDisposabwe.add(this.cuwwentContext.ceww.onDidChangeWayout(() => this.wayout()));
+		this.itemsDisposabwe.add(this.cuwwentContext.ceww.onDidChangeCewwStatusBawItems(() => this.updateWendewedItems()));
+		this.itemsDisposabwe.add(this.cuwwentContext.notebookEditow.onDidChangeActiveCeww(() => this.updateActiveCeww()));
+		this.wayout();
+		this.updateActiveCeww();
+		this.updateWendewedItems();
 	}
 
-	private updateActiveCell(): void {
-		const isActiveCell = this.currentContext!.notebookEditor.getActiveCell() === this.currentContext?.cell;
-		this.statusBarContainer.classList.toggle('is-active-cell', isActiveCell);
+	pwivate updateActiveCeww(): void {
+		const isActiveCeww = this.cuwwentContext!.notebookEditow.getActiveCeww() === this.cuwwentContext?.ceww;
+		this.statusBawContaina.cwassWist.toggwe('is-active-ceww', isActiveCeww);
 	}
 
-	private updateRenderedItems(): void {
-		const items = this.currentContext!.cell.getCellStatusBarItems();
-		items.sort((itemA, itemB) => {
-			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
+	pwivate updateWendewedItems(): void {
+		const items = this.cuwwentContext!.ceww.getCewwStatusBawItems();
+		items.sowt((itemA, itemB) => {
+			wetuwn (itemB.pwiowity ?? 0) - (itemA.pwiowity ?? 0);
 		});
 
 		const maxItemWidth = this.getMaxItemWidth();
-		const newLeftItems = items.filter(item => item.alignment === CellStatusbarAlignment.Left);
-		const newRightItems = items.filter(item => item.alignment === CellStatusbarAlignment.Right).reverse();
+		const newWeftItems = items.fiwta(item => item.awignment === CewwStatusbawAwignment.Weft);
+		const newWightItems = items.fiwta(item => item.awignment === CewwStatusbawAwignment.Wight).wevewse();
 
-		const updateItems = (renderedItems: CellStatusBarItem[], newItems: INotebookCellStatusBarItem[], container: HTMLElement) => {
-			if (renderedItems.length > newItems.length) {
-				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
-				for (let deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
-					deletedItem.dispose();
+		const updateItems = (wendewedItems: CewwStatusBawItem[], newItems: INotebookCewwStatusBawItem[], containa: HTMWEwement) => {
+			if (wendewedItems.wength > newItems.wength) {
+				const deweted = wendewedItems.spwice(newItems.wength, wendewedItems.wength - newItems.wength);
+				fow (wet dewetedItem of deweted) {
+					containa.wemoveChiwd(dewetedItem.containa);
+					dewetedItem.dispose();
 				}
 			}
 
-			newItems.forEach((newLeftItem, i) => {
-				const existingItem = renderedItems[i];
+			newItems.fowEach((newWeftItem, i) => {
+				const existingItem = wendewedItems[i];
 				if (existingItem) {
-					existingItem.updateItem(newLeftItem, maxItemWidth);
-				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, newLeftItem, maxItemWidth);
-					renderedItems.push(item);
-					container.appendChild(item.container);
+					existingItem.updateItem(newWeftItem, maxItemWidth);
+				} ewse {
+					const item = this._instantiationSewvice.cweateInstance(CewwStatusBawItem, this.cuwwentContext!, newWeftItem, maxItemWidth);
+					wendewedItems.push(item);
+					containa.appendChiwd(item.containa);
 				}
 			});
 		};
 
-		updateItems(this.leftItems, newLeftItems, this.leftItemsContainer);
-		updateItems(this.rightItems, newRightItems, this.rightItemsContainer);
+		updateItems(this.weftItems, newWeftItems, this.weftItemsContaina);
+		updateItems(this.wightItems, newWightItems, this.wightItemsContaina);
 	}
 
-	override dispose() {
-		super.dispose();
-		dispose(this.leftItems);
-		dispose(this.rightItems);
+	ovewwide dispose() {
+		supa.dispose();
+		dispose(this.weftItems);
+		dispose(this.wightItems);
 	}
 }
 
-class CellStatusBarItem extends Disposable {
+cwass CewwStatusBawItem extends Disposabwe {
 
-	readonly container = $('.cell-status-item');
+	weadonwy containa = $('.ceww-status-item');
 
-	set maxWidth(v: number) {
-		this.container.style.maxWidth = v + 'px';
+	set maxWidth(v: numba) {
+		this.containa.stywe.maxWidth = v + 'px';
 	}
 
-	private _currentItem!: INotebookCellStatusBarItem;
-	private _itemDisposables = this._register(new DisposableStore());
+	pwivate _cuwwentItem!: INotebookCewwStatusBawItem;
+	pwivate _itemDisposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		private readonly _context: INotebookCellActionContext,
-		itemModel: INotebookCellStatusBarItem,
-		maxWidth: number | undefined,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IThemeService private readonly _themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy _context: INotebookCewwActionContext,
+		itemModew: INotebookCewwStatusBawItem,
+		maxWidth: numba | undefined,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
 	) {
-		super();
+		supa();
 
-		this.updateItem(itemModel, maxWidth);
+		this.updateItem(itemModew, maxWidth);
 	}
 
-	updateItem(item: INotebookCellStatusBarItem, maxWidth: number | undefined) {
-		this._itemDisposables.clear();
+	updateItem(item: INotebookCewwStatusBawItem, maxWidth: numba | undefined) {
+		this._itemDisposabwes.cweaw();
 
-		if (!this._currentItem || this._currentItem.text !== item.text) {
-			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
+		if (!this._cuwwentItem || this._cuwwentItem.text !== item.text) {
+			new SimpweIconWabew(this.containa).text = item.text.wepwace(/\n/g, ' ');
 		}
 
-		const resolveColor = (color: ThemeColor | string) => {
-			return isThemeColor(color) ?
-				(this._themeService.getColorTheme().getColor(color.id)?.toString() || '') :
-				color;
+		const wesowveCowow = (cowow: ThemeCowow | stwing) => {
+			wetuwn isThemeCowow(cowow) ?
+				(this._themeSewvice.getCowowTheme().getCowow(cowow.id)?.toStwing() || '') :
+				cowow;
 		};
 
-		this.container.style.color = item.color ? resolveColor(item.color) : '';
-		this.container.style.backgroundColor = item.backgroundColor ? resolveColor(item.backgroundColor) : '';
-		this.container.style.opacity = item.opacity ? item.opacity : '';
+		this.containa.stywe.cowow = item.cowow ? wesowveCowow(item.cowow) : '';
+		this.containa.stywe.backgwoundCowow = item.backgwoundCowow ? wesowveCowow(item.backgwoundCowow) : '';
+		this.containa.stywe.opacity = item.opacity ? item.opacity : '';
 
-		this.container.classList.toggle('cell-status-item-show-when-active', !!item.onlyShowWhenActive);
+		this.containa.cwassWist.toggwe('ceww-status-item-show-when-active', !!item.onwyShowWhenActive);
 
-		if (typeof maxWidth === 'number') {
+		if (typeof maxWidth === 'numba') {
 			this.maxWidth = maxWidth;
 		}
 
-		let ariaLabel: string;
-		let role: string | undefined;
-		if (item.accessibilityInformation) {
-			ariaLabel = item.accessibilityInformation.label;
-			role = item.accessibilityInformation.role;
-		} else {
-			ariaLabel = item.text ? stripIcons(item.text).trim() : '';
+		wet awiaWabew: stwing;
+		wet wowe: stwing | undefined;
+		if (item.accessibiwityInfowmation) {
+			awiaWabew = item.accessibiwityInfowmation.wabew;
+			wowe = item.accessibiwityInfowmation.wowe;
+		} ewse {
+			awiaWabew = item.text ? stwipIcons(item.text).twim() : '';
 		}
 
-		this.container.setAttribute('aria-label', ariaLabel);
-		this.container.setAttribute('role', role || '');
-		this.container.title = item.tooltip ?? '';
+		this.containa.setAttwibute('awia-wabew', awiaWabew);
+		this.containa.setAttwibute('wowe', wowe || '');
+		this.containa.titwe = item.toowtip ?? '';
 
-		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
+		this.containa.cwassWist.toggwe('ceww-status-item-has-command', !!item.command);
 		if (item.command) {
-			this.container.tabIndex = 0;
+			this.containa.tabIndex = 0;
 
-			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.CLICK, _e => {
+			this._itemDisposabwes.add(DOM.addDisposabweWistena(this.containa, DOM.EventType.CWICK, _e => {
 				this.executeCommand();
 			}));
-			this._itemDisposables.add(DOM.addDisposableListener(this.container, DOM.EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
-				if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+			this._itemDisposabwes.add(DOM.addDisposabweWistena(this.containa, DOM.EventType.KEY_DOWN, e => {
+				const event = new StandawdKeyboawdEvent(e);
+				if (event.equaws(KeyCode.Space) || event.equaws(KeyCode.Enta)) {
 					this.executeCommand();
 				}
 			}));
-		} else {
-			this.container.removeAttribute('tabIndex');
+		} ewse {
+			this.containa.wemoveAttwibute('tabIndex');
 		}
 
-		this._currentItem = item;
+		this._cuwwentItem = item;
 	}
 
-	private async executeCommand(): Promise<void> {
-		const command = this._currentItem.command;
+	pwivate async executeCommand(): Pwomise<void> {
+		const command = this._cuwwentItem.command;
 		if (!command) {
-			return;
+			wetuwn;
 		}
 
-		const id = typeof command === 'string' ? command : command.id;
-		const args = typeof command === 'string' ? [] : command.arguments ?? [];
+		const id = typeof command === 'stwing' ? command : command.id;
+		const awgs = typeof command === 'stwing' ? [] : command.awguments ?? [];
 
-		args.unshift(this._context);
+		awgs.unshift(this._context);
 
-		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
-		try {
-			await this._commandService.executeCommand(id, ...args);
-		} catch (error) {
-			this._notificationService.error(toErrorMessage(error));
+		this._tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id, fwom: 'ceww status baw' });
+		twy {
+			await this._commandSewvice.executeCommand(id, ...awgs);
+		} catch (ewwow) {
+			this._notificationSewvice.ewwow(toEwwowMessage(ewwow));
 		}
 	}
 }
 
-declare const ResizeObserver: any;
+decwawe const WesizeObsewva: any;
 
-export interface IResizeObserver {
-	startObserving: () => void;
-	stopObserving: () => void;
-	getWidth(): number;
-	getHeight(): number;
+expowt intewface IWesizeObsewva {
+	stawtObsewving: () => void;
+	stopObsewving: () => void;
+	getWidth(): numba;
+	getHeight(): numba;
 	dispose(): void;
 }
 
-export class BrowserResizeObserver extends Disposable implements IResizeObserver {
-	private readonly referenceDomElement: HTMLElement | null;
+expowt cwass BwowsewWesizeObsewva extends Disposabwe impwements IWesizeObsewva {
+	pwivate weadonwy wefewenceDomEwement: HTMWEwement | nuww;
 
-	private readonly observer: any;
-	private width: number;
-	private height: number;
+	pwivate weadonwy obsewva: any;
+	pwivate width: numba;
+	pwivate height: numba;
 
-	constructor(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void) {
-		super();
+	constwuctow(wefewenceDomEwement: HTMWEwement | nuww, dimension: IDimension | undefined, changeCawwback: () => void) {
+		supa();
 
-		this.referenceDomElement = referenceDomElement;
+		this.wefewenceDomEwement = wefewenceDomEwement;
 		this.width = -1;
 		this.height = -1;
 
-		this.observer = new ResizeObserver((entries: any) => {
-			for (const entry of entries) {
-				if (entry.target === referenceDomElement && entry.contentRect) {
-					if (this.width !== entry.contentRect.width || this.height !== entry.contentRect.height) {
-						this.width = entry.contentRect.width;
-						this.height = entry.contentRect.height;
-						DOM.scheduleAtNextAnimationFrame(() => {
-							changeCallback();
+		this.obsewva = new WesizeObsewva((entwies: any) => {
+			fow (const entwy of entwies) {
+				if (entwy.tawget === wefewenceDomEwement && entwy.contentWect) {
+					if (this.width !== entwy.contentWect.width || this.height !== entwy.contentWect.height) {
+						this.width = entwy.contentWect.width;
+						this.height = entwy.contentWect.height;
+						DOM.scheduweAtNextAnimationFwame(() => {
+							changeCawwback();
 						});
 					}
 				}
@@ -319,32 +319,32 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 		});
 	}
 
-	getWidth(): number {
-		return this.width;
+	getWidth(): numba {
+		wetuwn this.width;
 	}
 
-	getHeight(): number {
-		return this.height;
+	getHeight(): numba {
+		wetuwn this.height;
 	}
 
-	startObserving(): void {
-		this.observer.observe(this.referenceDomElement!);
+	stawtObsewving(): void {
+		this.obsewva.obsewve(this.wefewenceDomEwement!);
 	}
 
-	stopObserving(): void {
-		this.observer.unobserve(this.referenceDomElement!);
+	stopObsewving(): void {
+		this.obsewva.unobsewve(this.wefewenceDomEwement!);
 	}
 
-	override dispose(): void {
-		this.observer.disconnect();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.obsewva.disconnect();
+		supa.dispose();
 	}
 }
 
-export function getResizesObserver(referenceDomElement: HTMLElement | null, dimension: IDimension | undefined, changeCallback: () => void): IResizeObserver {
-	if (ResizeObserver) {
-		return new BrowserResizeObserver(referenceDomElement, dimension, changeCallback);
-	} else {
-		return new ElementSizeObserver(referenceDomElement, dimension, changeCallback);
+expowt function getWesizesObsewva(wefewenceDomEwement: HTMWEwement | nuww, dimension: IDimension | undefined, changeCawwback: () => void): IWesizeObsewva {
+	if (WesizeObsewva) {
+		wetuwn new BwowsewWesizeObsewva(wefewenceDomEwement, dimension, changeCawwback);
+	} ewse {
+		wetuwn new EwementSizeObsewva(wefewenceDomEwement, dimension, changeCawwback);
 	}
 }

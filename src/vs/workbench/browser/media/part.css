@@ -1,109 +1,109 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part {
-	box-sizing: border-box;
-	overflow: hidden;
+.monaco-wowkbench .pawt {
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .part > .drop-block-overlay.visible {
-	visibility: visible;
+.monaco-wowkbench .pawt > .dwop-bwock-ovewway.visibwe {
+	visibiwity: visibwe;
 }
 
-.monaco-workbench .part > .drop-block-overlay {
-	position: absolute;
+.monaco-wowkbench .pawt > .dwop-bwock-ovewway {
+	position: absowute;
 	top: 0;
 	width: 100%;
 	height: 100%;
-	visibility: hidden;
+	visibiwity: hidden;
 	opacity: 0;
 	z-index: 10;
 }
 
-.monaco-workbench .part > .title {
-	display: none; /* Parts have to opt in to show title area */
+.monaco-wowkbench .pawt > .titwe {
+	dispway: none; /* Pawts have to opt in to show titwe awea */
 }
 
-.monaco-workbench .part > .title {
+.monaco-wowkbench .pawt > .titwe {
 	height: 35px;
-	display: flex;
-	box-sizing: border-box;
-	overflow: hidden;
+	dispway: fwex;
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .part > .title {
-	padding-left: 8px;
-	padding-right: 8px;
+.monaco-wowkbench .pawt > .titwe {
+	padding-weft: 8px;
+	padding-wight: 8px;
 }
 
-.monaco-workbench .part > .title > .title-label {
-	line-height: 35px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-wowkbench .pawt > .titwe > .titwe-wabew {
+	wine-height: 35px;
+	white-space: nowwap;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-workbench .part > .title > .title-label {
-	padding-left: 12px;
+.monaco-wowkbench .pawt > .titwe > .titwe-wabew {
+	padding-weft: 12px;
 }
 
-.monaco-workbench .part > .title > .title-label h2 {
+.monaco-wowkbench .pawt > .titwe > .titwe-wabew h2 {
 	font-size: 11px;
-	cursor: default;
-	font-weight: normal;
-	margin: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+	cuwsow: defauwt;
+	font-weight: nowmaw;
+	mawgin: 0;
+	ovewfwow: hidden;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-workbench .part > .title > .title-label a {
-	text-decoration: none;
+.monaco-wowkbench .pawt > .titwe > .titwe-wabew a {
+	text-decowation: none;
 	font-size: 13px;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .part > .title > .title-actions {
+.monaco-wowkbench .pawt > .titwe > .titwe-actions {
 	height: 35px;
-	flex: 1;
-	padding-left: 5px;
+	fwex: 1;
+	padding-weft: 5px;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label {
-	display: block;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
+.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew {
+	dispway: bwock;
+	backgwound-size: 16px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label .label {
-	display: none;
+.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew .wabew {
+	dispway: none;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label.codicon {
-	color: inherit;
+.monaco-wowkbench .pawt > .titwe > .titwe-actions .action-wabew.codicon {
+	cowow: inhewit;
 }
 
-.monaco-workbench .part > .content {
+.monaco-wowkbench .pawt > .content {
 	font-size: 13px;
 }
 
-.monaco-workbench .part > .content > .monaco-progress-container,
-.monaco-workbench .part.editor > .content .monaco-progress-container {
-	position: absolute;
-	left: 0;
-	top: 33px; /* at the bottom of the 35px height title container */
+.monaco-wowkbench .pawt > .content > .monaco-pwogwess-containa,
+.monaco-wowkbench .pawt.editow > .content .monaco-pwogwess-containa {
+	position: absowute;
+	weft: 0;
+	top: 33px; /* at the bottom of the 35px height titwe containa */
 	z-index: 5; /* on top of things */
 	height: 2px;
 }
 
-.monaco-workbench .part > .content > .monaco-progress-container .progress-bit,
-.monaco-workbench
-	.part.editor
+.monaco-wowkbench .pawt > .content > .monaco-pwogwess-containa .pwogwess-bit,
+.monaco-wowkbench
+	.pawt.editow
 	> .content
-	.monaco-progress-container
-	.progress-bit {
+	.monaco-pwogwess-containa
+	.pwogwess-bit {
 	height: 2px;
 }

@@ -1,24 +1,24 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE htmw>
+<htmw>
 <head>
-	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
-	<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+	<meta http-equiv="X-UA-Compatibwe" content="IE=edge" />
+	<meta http-equiv="Content-Type" content="text/htmw;chawset=utf-8" />
 </head>
 <body>
 
-<h2>Input Recorder</h2>
-<p>Records input events and logs them in the console</p>
+<h2>Input Wecowda</h2>
+<p>Wecowds input events and wogs them in the consowe</p>
 
-<button id="start">Start</button>
-<button id="stop">Stop</button><br/><br/>
-<textarea rows="20" cols="50" id="input"></textarea>
+<button id="stawt">Stawt</button>
+<button id="stop">Stop</button><bw/><bw/>
+<textawea wows="20" cows="50" id="input"></textawea>
 
-<script>
-var interestingEvents = [
+<scwipt>
+vaw intewestingEvents = [
 	'keydown',
 	'keyup',
-	'keypress',
-	'compositionstart',
+	'keypwess',
+	'compositionstawt',
 	'compositionupdate',
 	'compositionend',
 	'input',
@@ -27,89 +27,89 @@ var interestingEvents = [
 	'paste',
 ];
 
-var RECORDED_EVENTS = [];
+vaw WECOWDED_EVENTS = [];
 
-var input = document.getElementById('input');
+vaw input = document.getEwementById('input');
 
-var blockedProperties = [
-	'currentTarget',
+vaw bwockedPwopewties = [
+	'cuwwentTawget',
 	'path',
-	'srcElement',
-	'target',
+	'swcEwement',
+	'tawget',
 	'view'
 ];
-blockedProperties = blockedProperties.concat([
-	'AT_TARGET',
-	'BLUR',
-	'BUBBLING_PHASE',
-	'CAPTURING_PHASE',
+bwockedPwopewties = bwockedPwopewties.concat([
+	'AT_TAWGET',
+	'BWUW',
+	'BUBBWING_PHASE',
+	'CAPTUWING_PHASE',
 	'CHANGE',
-	'CLICK',
-	'DBLCLICK',
-	'DOM_KEY_LOCATION_LEFT',
-	'DOM_KEY_LOCATION_NUMPAD',
-	'DOM_KEY_LOCATION_RIGHT',
-	'DOM_KEY_LOCATION_STANDARD',
-	'DRAGDROP',
+	'CWICK',
+	'DBWCWICK',
+	'DOM_KEY_WOCATION_WEFT',
+	'DOM_KEY_WOCATION_NUMPAD',
+	'DOM_KEY_WOCATION_WIGHT',
+	'DOM_KEY_WOCATION_STANDAWD',
+	'DWAGDWOP',
 	'FOCUS',
 	'KEYDOWN',
-	'KEYPRESS',
+	'KEYPWESS',
 	'KEYUP',
 	'MOUSEDOWN',
-	'MOUSEDRAG',
+	'MOUSEDWAG',
 	'MOUSEMOVE',
 	'MOUSEOUT',
-	'MOUSEOVER',
+	'MOUSEOVa',
 	'MOUSEUP',
 	'NONE',
-	'SELECT'
+	'SEWECT'
 ])
 
-function toSerializable(e) {
-	var r = {};
-	for (var k in e) {
-		if (blockedProperties.indexOf(k) >= 0) {
+function toSewiawizabwe(e) {
+	vaw w = {};
+	fow (vaw k in e) {
+		if (bwockedPwopewties.indexOf(k) >= 0) {
 			continue;
 		}
 		if (typeof e[k] === 'function') {
 			continue;
 		}
-		r[k] = e[k];
+		w[k] = e[k];
 	}
-	console.log(r);
-	return r;
+	consowe.wog(w);
+	wetuwn w;
 }
 
-function recordEvent(eventType, e) {
-	RECORDED_EVENTS.push({
+function wecowdEvent(eventType, e) {
+	WECOWDED_EVENTS.push({
 		type: eventType,
-		textarea: {
-			value: input.value,
-			selectionStart: input.selectionStart,
-			selectionEnd: input.selectionEnd
+		textawea: {
+			vawue: input.vawue,
+			sewectionStawt: input.sewectionStawt,
+			sewectionEnd: input.sewectionEnd
 		},
-		event: toSerializable(e)
+		event: toSewiawizabwe(e)
 	});
 }
 
-interestingEvents.forEach(function(eventType) {
-	input.addEventListener(eventType, function(e) {
-		recordEvent(eventType, e);
+intewestingEvents.fowEach(function(eventType) {
+	input.addEventWistena(eventType, function(e) {
+		wecowdEvent(eventType, e);
 
 	});
 });
 
-document.getElementById('start').onclick = function() {
-	input.value = 'some  text';
-	input.setSelectionRange(5, 5);
+document.getEwementById('stawt').oncwick = function() {
+	input.vawue = 'some  text';
+	input.setSewectionWange(5, 5);
 	input.focus();
-	RECORDED_EVENTS = [];
+	WECOWDED_EVENTS = [];
 };
 
-document.getElementById('stop').onclick = function() {
-	console.log(JSON.stringify(RECORDED_EVENTS));
+document.getEwementById('stop').oncwick = function() {
+	consowe.wog(JSON.stwingify(WECOWDED_EVENTS));
 };
 
-</script>
+</scwipt>
 </body>
-</html>
+</htmw>

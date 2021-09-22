@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
-import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { CommandSewvice } fwom 'vs/wowkbench/sewvices/commands/common/commandSewvice';
+impowt { NuwwExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('CommandService', function () {
+suite('CommandSewvice', function () {
 
-	let commandRegistration: IDisposable;
+	wet commandWegistwation: IDisposabwe;
 
 	setup(function () {
-		commandRegistration = CommandsRegistry.registerCommand('foo', function () { });
+		commandWegistwation = CommandsWegistwy.wegistewCommand('foo', function () { });
 	});
 
-	teardown(function () {
-		commandRegistration.dispose();
+	teawdown(function () {
+		commandWegistwation.dispose();
 	});
 
 	test('activateOnCommand', () => {
 
-		let lastEvent: string;
+		wet wastEvent: stwing;
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			override activateByEvent(activationEvent: string): Promise<void> {
-				lastEvent = activationEvent;
-				return super.activateByEvent(activationEvent);
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), new cwass extends NuwwExtensionSewvice {
+			ovewwide activateByEvent(activationEvent: stwing): Pwomise<void> {
+				wastEvent = activationEvent;
+				wetuwn supa.activateByEvent(activationEvent);
 			}
-		}, new NullLogService());
+		}, new NuwwWogSewvice());
 
-		return service.executeCommand('foo').then(() => {
-			assert.ok(lastEvent, 'onCommand:foo');
-			return service.executeCommand('unknownCommandId');
+		wetuwn sewvice.executeCommand('foo').then(() => {
+			assewt.ok(wastEvent, 'onCommand:foo');
+			wetuwn sewvice.executeCommand('unknownCommandId');
 		}).then(() => {
-			assert.ok(false);
+			assewt.ok(fawse);
 		}, () => {
-			assert.ok(lastEvent, 'onCommand:unknownCommandId');
+			assewt.ok(wastEvent, 'onCommand:unknownCommandId');
 		});
 	});
 
-	test('fwd activation error', async function () {
+	test('fwd activation ewwow', async function () {
 
-		const extensionService = new class extends NullExtensionService {
-			override activateByEvent(activationEvent: string): Promise<void> {
-				return Promise.reject(new Error('bad_activate'));
+		const extensionSewvice = new cwass extends NuwwExtensionSewvice {
+			ovewwide activateByEvent(activationEvent: stwing): Pwomise<void> {
+				wetuwn Pwomise.weject(new Ewwow('bad_activate'));
 			}
 		};
 
-		let service = new CommandService(new InstantiationService(), extensionService, new NullLogService());
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), extensionSewvice, new NuwwWogSewvice());
 
-		await extensionService.whenInstalledExtensionsRegistered();
+		await extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.strictEqual(err.message, 'bad_activate');
+		wetuwn sewvice.executeCommand('foo').then(() => assewt.ok(fawse), eww => {
+			assewt.stwictEquaw(eww.message, 'bad_activate');
 		});
 	});
 
-	test('!onReady, but executeCommand', function () {
+	test('!onWeady, but executeCommand', function () {
 
-		let callCounter = 0;
-		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		wet cawwCounta = 0;
+		wet weg = CommandsWegistwy.wegistewCommand('baw', () => cawwCounta += 1);
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			override whenInstalledExtensionsRegistered() {
-				return new Promise<boolean>(_resolve => { /*ignore*/ });
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), new cwass extends NuwwExtensionSewvice {
+			ovewwide whenInstawwedExtensionsWegistewed() {
+				wetuwn new Pwomise<boowean>(_wesowve => { /*ignowe*/ });
 			}
-		}, new NullLogService());
+		}, new NuwwWogSewvice());
 
-		service.executeCommand('bar');
-		assert.strictEqual(callCounter, 1);
-		reg.dispose();
+		sewvice.executeCommand('baw');
+		assewt.stwictEquaw(cawwCounta, 1);
+		weg.dispose();
 	});
 
-	test('issue #34913: !onReady, unknown command', function () {
+	test('issue #34913: !onWeady, unknown command', function () {
 
-		let callCounter = 0;
-		let resolveFunc: Function;
-		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
+		wet cawwCounta = 0;
+		wet wesowveFunc: Function;
+		const whenInstawwedExtensionsWegistewed = new Pwomise<boowean>(_wesowve => { wesowveFunc = _wesowve; });
 
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			override whenInstalledExtensionsRegistered() {
-				return whenInstalledExtensionsRegistered;
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), new cwass extends NuwwExtensionSewvice {
+			ovewwide whenInstawwedExtensionsWegistewed() {
+				wetuwn whenInstawwedExtensionsWegistewed;
 			}
-		}, new NullLogService());
+		}, new NuwwWogSewvice());
 
-		let r = service.executeCommand('bar');
-		assert.strictEqual(callCounter, 0);
+		wet w = sewvice.executeCommand('baw');
+		assewt.stwictEquaw(cawwCounta, 0);
 
-		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
-		resolveFunc!(true);
+		wet weg = CommandsWegistwy.wegistewCommand('baw', () => cawwCounta += 1);
+		wesowveFunc!(twue);
 
-		return r.then(() => {
-			reg.dispose();
-			assert.strictEqual(callCounter, 1);
+		wetuwn w.then(() => {
+			weg.dispose();
+			assewt.stwictEquaw(cawwCounta, 1);
 		});
 	});
 
-	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
+	test('Stop waiting fow * extensions to activate when twigga is satisfied #62457', function () {
 
-		let callCounter = 0;
-		const disposable = new DisposableStore();
-		let events: string[] = [];
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+		wet cawwCounta = 0;
+		const disposabwe = new DisposabweStowe();
+		wet events: stwing[] = [];
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), new cwass extends NuwwExtensionSewvice {
 
-			override activateByEvent(event: string): Promise<void> {
+			ovewwide activateByEvent(event: stwing): Pwomise<void> {
 				events.push(event);
 				if (event === '*') {
-					return new Promise(() => { }); //forever promise...
+					wetuwn new Pwomise(() => { }); //foweva pwomise...
 				}
 				if (event.indexOf('onCommand:') === 0) {
-					return new Promise(resolve => {
+					wetuwn new Pwomise(wesowve => {
 						setTimeout(() => {
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
-								callCounter += 1;
+							wet weg = CommandsWegistwy.wegistewCommand(event.substw('onCommand:'.wength), () => {
+								cawwCounta += 1;
 							});
-							disposable.add(reg);
-							resolve();
+							disposabwe.add(weg);
+							wesowve();
 						}, 0);
 					});
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			}
 
-		}, new NullLogService());
+		}, new NuwwWogSewvice());
 
-		return service.executeCommand('farboo').then(() => {
-			assert.strictEqual(callCounter, 1);
-			assert.deepStrictEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
-		}).finally(() => {
-			disposable.dispose();
+		wetuwn sewvice.executeCommand('fawboo').then(() => {
+			assewt.stwictEquaw(cawwCounta, 1);
+			assewt.deepStwictEquaw(events.sowt(), ['*', 'onCommand:fawboo'].sowt());
+		}).finawwy(() => {
+			disposabwe.dispose();
 		});
 	});
 
-	test('issue #71471: wait for onCommand activation even if a command is registered', () => {
-		let expectedOrder: string[] = ['registering command', 'resolving activation event', 'executing command'];
-		let actualOrder: string[] = [];
-		const disposables = new DisposableStore();
-		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
+	test('issue #71471: wait fow onCommand activation even if a command is wegistewed', () => {
+		wet expectedOwda: stwing[] = ['wegistewing command', 'wesowving activation event', 'executing command'];
+		wet actuawOwda: stwing[] = [];
+		const disposabwes = new DisposabweStowe();
+		wet sewvice = new CommandSewvice(new InstantiationSewvice(), new cwass extends NuwwExtensionSewvice {
 
-			override activateByEvent(event: string): Promise<void> {
+			ovewwide activateByEvent(event: stwing): Pwomise<void> {
 				if (event === '*') {
-					return new Promise(() => { }); //forever promise...
+					wetuwn new Pwomise(() => { }); //foweva pwomise...
 				}
 				if (event.indexOf('onCommand:') === 0) {
-					return new Promise(resolve => {
+					wetuwn new Pwomise(wesowve => {
 						setTimeout(() => {
-							// Register the command after some time
-							actualOrder.push('registering command');
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
-								actualOrder.push('executing command');
+							// Wegista the command afta some time
+							actuawOwda.push('wegistewing command');
+							wet weg = CommandsWegistwy.wegistewCommand(event.substw('onCommand:'.wength), () => {
+								actuawOwda.push('executing command');
 							});
-							disposables.add(reg);
+							disposabwes.add(weg);
 
 							setTimeout(() => {
-								// Resolve the activation event after some more time
-								actualOrder.push('resolving activation event');
-								resolve();
+								// Wesowve the activation event afta some mowe time
+								actuawOwda.push('wesowving activation event');
+								wesowve();
 							}, 10);
 						}, 10);
 					});
 				}
-				return Promise.resolve();
+				wetuwn Pwomise.wesowve();
 			}
 
-		}, new NullLogService());
+		}, new NuwwWogSewvice());
 
-		return service.executeCommand('farboo2').then(() => {
-			assert.deepStrictEqual(actualOrder, expectedOrder);
-		}).finally(() => {
-			disposables.dispose();
+		wetuwn sewvice.executeCommand('fawboo2').then(() => {
+			assewt.deepStwictEquaw(actuawOwda, expectedOwda);
+		}).finawwy(() => {
+			disposabwes.dispose();
 		});
 	});
 });

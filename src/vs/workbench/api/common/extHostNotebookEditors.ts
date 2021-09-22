@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookEditorsShape, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, MainContext, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import type * as vscode from 'vscode';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IdGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostNotebookEditowsShape, INotebookEditowPwopewtiesChangeData, INotebookEditowViewCowumnInfo, MainContext, MainThweadNotebookEditowsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt type * as vscode fwom 'vscode';
 
-class NotebookEditorDecorationType {
+cwass NotebookEditowDecowationType {
 
-	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
+	pwivate static weadonwy _Keys = new IdGenewatow('NotebookEditowDecowationType');
 
-	readonly value: vscode.NotebookEditorDecorationType;
+	weadonwy vawue: vscode.NotebookEditowDecowationType;
 
-	constructor(proxy: MainThreadNotebookEditorsShape, options: vscode.NotebookDecorationRenderOptions) {
-		const key = NotebookEditorDecorationType._Keys.nextId();
-		proxy.$registerNotebookEditorDecorationType(key, typeConverters.NotebookDecorationRenderOptions.from(options));
+	constwuctow(pwoxy: MainThweadNotebookEditowsShape, options: vscode.NotebookDecowationWendewOptions) {
+		const key = NotebookEditowDecowationType._Keys.nextId();
+		pwoxy.$wegistewNotebookEditowDecowationType(key, typeConvewtews.NotebookDecowationWendewOptions.fwom(options));
 
-		this.value = {
+		this.vawue = {
 			key,
 			dispose() {
-				proxy.$removeNotebookEditorDecorationType(key);
+				pwoxy.$wemoveNotebookEditowDecowationType(key);
 			}
 		};
 	}
 }
 
 
-export class ExtHostNotebookEditors implements ExtHostNotebookEditorsShape {
+expowt cwass ExtHostNotebookEditows impwements ExtHostNotebookEditowsShape {
 
-	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
-	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>();
+	pwivate weadonwy _onDidChangeNotebookEditowSewection = new Emitta<vscode.NotebookEditowSewectionChangeEvent>();
+	pwivate weadonwy _onDidChangeNotebookEditowVisibweWanges = new Emitta<vscode.NotebookEditowVisibweWangesChangeEvent>();
 
-	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
-	readonly onDidChangeNotebookEditorVisibleRanges = this._onDidChangeNotebookEditorVisibleRanges.event;
+	weadonwy onDidChangeNotebookEditowSewection = this._onDidChangeNotebookEditowSewection.event;
+	weadonwy onDidChangeNotebookEditowVisibweWanges = this._onDidChangeNotebookEditowVisibweWanges.event;
 
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
-		private readonly _notebooksAndEditors: ExtHostNotebookController,
+	constwuctow(
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IExtHostWpcSewvice pwivate weadonwy _extHostWpc: IExtHostWpcSewvice,
+		pwivate weadonwy _notebooksAndEditows: ExtHostNotebookContwowwa,
 	) {
 
 	}
 
 
-	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-		return new NotebookEditorDecorationType(this._extHostRpc.getProxy(MainContext.MainThreadNotebookEditors), options).value;
+	cweateNotebookEditowDecowationType(options: vscode.NotebookDecowationWendewOptions): vscode.NotebookEditowDecowationType {
+		wetuwn new NotebookEditowDecowationType(this._extHostWpc.getPwoxy(MainContext.MainThweadNotebookEditows), options).vawue;
 	}
 
-	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
-		this._logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);
-		const editor = this._notebooksAndEditors.getEditorById(id);
-		// ONE: make all state updates
-		if (data.visibleRanges) {
-			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookRange.to));
+	$acceptEditowPwopewtiesChanged(id: stwing, data: INotebookEditowPwopewtiesChangeData): void {
+		this._wogSewvice.debug('ExtHostNotebook#$acceptEditowPwopewtiesChanged', id, data);
+		const editow = this._notebooksAndEditows.getEditowById(id);
+		// ONE: make aww state updates
+		if (data.visibweWanges) {
+			editow._acceptVisibweWanges(data.visibweWanges.wanges.map(typeConvewtews.NotebookWange.to));
 		}
-		if (data.selections) {
-			editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookRange.to));
+		if (data.sewections) {
+			editow._acceptSewections(data.sewections.sewections.map(typeConvewtews.NotebookWange.to));
 		}
 
-		// TWO: send all events after states have been updated
-		if (data.visibleRanges) {
-			this._onDidChangeNotebookEditorVisibleRanges.fire({
-				notebookEditor: editor.apiEditor,
-				visibleRanges: editor.apiEditor.visibleRanges
+		// TWO: send aww events afta states have been updated
+		if (data.visibweWanges) {
+			this._onDidChangeNotebookEditowVisibweWanges.fiwe({
+				notebookEditow: editow.apiEditow,
+				visibweWanges: editow.apiEditow.visibweWanges
 			});
 		}
-		if (data.selections) {
-			this._onDidChangeNotebookEditorSelection.fire(Object.freeze({
-				notebookEditor: editor.apiEditor,
-				selections: editor.apiEditor.selections
+		if (data.sewections) {
+			this._onDidChangeNotebookEditowSewection.fiwe(Object.fweeze({
+				notebookEditow: editow.apiEditow,
+				sewections: editow.apiEditow.sewections
 			}));
 		}
 	}
 
-	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
-		for (const id in data) {
-			const editor = this._notebooksAndEditors.getEditorById(id);
-			editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
+	$acceptEditowViewCowumns(data: INotebookEditowViewCowumnInfo): void {
+		fow (const id in data) {
+			const editow = this._notebooksAndEditows.getEditowById(id);
+			editow._acceptViewCowumn(typeConvewtews.ViewCowumn.to(data[id]));
 		}
 	}
 }

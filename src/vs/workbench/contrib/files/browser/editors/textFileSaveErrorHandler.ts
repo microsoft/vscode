@@ -1,436 +1,436 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { Action, IAction } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ResourceMap } from 'vs/base/common/map';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { INotificationService, INotificationHandle, INotificationActions, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Event } from 'vs/base/common/event';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isWindows } from 'vs/base/common/platform';
-import { Schemas } from 'vs/base/common/network';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorIdentifier, SaveReason } from 'vs/workbench/common/editor';
-import { hash } from 'vs/base/common/hash';
+impowt { wocawize } fwom 'vs/nws';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { basename, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextFiweSewvice, ISaveEwwowHandwa, ITextFiweEditowModew, ITextFiweSaveAsOptions } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe, dispose, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TextFiweContentPwovida } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { SAVE_FIWE_AS_WABEW } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { INotificationSewvice, INotificationHandwe, INotificationActions, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IEditowIdentifia, SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { hash } fwom 'vs/base/common/hash';
 
-export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
-export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
+expowt const CONFWICT_WESOWUTION_CONTEXT = 'saveConfwictWesowutionContext';
+expowt const CONFWICT_WESOWUTION_SCHEME = 'confwictWesowution';
 
-const LEARN_MORE_DIRTY_WRITE_IGNORE_KEY = 'learnMoreDirtyWriteError';
+const WEAWN_MOWE_DIWTY_WWITE_IGNOWE_KEY = 'weawnMoweDiwtyWwiteEwwow';
 
-const conflictEditorHelp = localize('userGuide', "Use the actions in the editor tool bar to either undo your changes or overwrite the content of the file with your changes.");
+const confwictEditowHewp = wocawize('usewGuide', "Use the actions in the editow toow baw to eitha undo youw changes ow ovewwwite the content of the fiwe with youw changes.");
 
-// A handler for text file save error happening with conflict resolution actions
-export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
+// A handwa fow text fiwe save ewwow happening with confwict wesowution actions
+expowt cwass TextFiweSaveEwwowHandwa extends Disposabwe impwements ISaveEwwowHandwa, IWowkbenchContwibution {
 
-	private readonly messages = new ResourceMap<INotificationHandle>();
-	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
-	private activeConflictResolutionResource: URI | undefined = undefined;
+	pwivate weadonwy messages = new WesouwceMap<INotificationHandwe>();
+	pwivate weadonwy confwictWesowutionContext = new WawContextKey<boowean>(CONFWICT_WESOWUTION_CONTEXT, fawse, twue).bindTo(this.contextKeySewvice);
+	pwivate activeConfwictWesowutionWesouwce: UWI | undefined = undefined;
 
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IContextKeySewvice pwivate contextKeySewvice: IContextKeySewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super();
+		supa();
 
-		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
-		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));
+		const pwovida = this._wegista(instantiationSewvice.cweateInstance(TextFiweContentPwovida));
+		this._wegista(textModewSewvice.wegistewTextModewContentPwovida(CONFWICT_WESOWUTION_SCHEME, pwovida));
 
-		// Set as save error handler to service for text files
-		this.textFileService.files.saveErrorHandler = this;
+		// Set as save ewwow handwa to sewvice fow text fiwes
+		this.textFiweSewvice.fiwes.saveEwwowHandwa = this;
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.textFileService.files.onDidSave(event => this.onFileSavedOrReverted(event.model.resource)));
-		this._register(this.textFileService.files.onDidRevert(model => this.onFileSavedOrReverted(model.resource)));
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.textFiweSewvice.fiwes.onDidSave(event => this.onFiweSavedOwWevewted(event.modew.wesouwce)));
+		this._wegista(this.textFiweSewvice.fiwes.onDidWevewt(modew => this.onFiweSavedOwWevewted(modew.wesouwce)));
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.onActiveEditowChanged()));
 	}
 
-	private onActiveEditorChanged(): void {
-		let isActiveEditorSaveConflictResolution = false;
-		let activeConflictResolutionResource: URI | undefined;
+	pwivate onActiveEditowChanged(): void {
+		wet isActiveEditowSaveConfwictWesowution = fawse;
+		wet activeConfwictWesowutionWesouwce: UWI | undefined;
 
-		const activeInput = this.editorService.activeEditor;
-		if (activeInput instanceof DiffEditorInput) {
-			const resource = activeInput.original.resource;
-			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
-				isActiveEditorSaveConflictResolution = true;
-				activeConflictResolutionResource = activeInput.modified.resource;
+		const activeInput = this.editowSewvice.activeEditow;
+		if (activeInput instanceof DiffEditowInput) {
+			const wesouwce = activeInput.owiginaw.wesouwce;
+			if (wesouwce?.scheme === CONFWICT_WESOWUTION_SCHEME) {
+				isActiveEditowSaveConfwictWesowution = twue;
+				activeConfwictWesowutionWesouwce = activeInput.modified.wesouwce;
 			}
 		}
 
-		this.conflictResolutionContext.set(isActiveEditorSaveConflictResolution);
-		this.activeConflictResolutionResource = activeConflictResolutionResource;
+		this.confwictWesowutionContext.set(isActiveEditowSaveConfwictWesowution);
+		this.activeConfwictWesowutionWesouwce = activeConfwictWesowutionWesouwce;
 	}
 
-	private onFileSavedOrReverted(resource: URI): void {
-		const messageHandle = this.messages.get(resource);
-		if (messageHandle) {
-			messageHandle.close();
-			this.messages.delete(resource);
+	pwivate onFiweSavedOwWevewted(wesouwce: UWI): void {
+		const messageHandwe = this.messages.get(wesouwce);
+		if (messageHandwe) {
+			messageHandwe.cwose();
+			this.messages.dewete(wesouwce);
 		}
 	}
 
-	onSaveError(error: unknown, model: ITextFileEditorModel): void {
-		const fileOperationError = error as FileOperationError;
-		const resource = model.resource;
+	onSaveEwwow(ewwow: unknown, modew: ITextFiweEditowModew): void {
+		const fiweOpewationEwwow = ewwow as FiweOpewationEwwow;
+		const wesouwce = modew.wesouwce;
 
-		let message: string;
-		const primaryActions: IAction[] = [];
-		const secondaryActions: IAction[] = [];
+		wet message: stwing;
+		const pwimawyActions: IAction[] = [];
+		const secondawyActions: IAction[] = [];
 
-		// Dirty write prevention
-		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+		// Diwty wwite pwevention
+		if (fiweOpewationEwwow.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_MODIFIED_SINCE) {
 
-			// If the user tried to save from the opened conflict editor, show its message again
-			if (this.activeConflictResolutionResource && isEqual(this.activeConflictResolutionResource, model.resource)) {
-				if (this.storageService.getBoolean(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, StorageScope.GLOBAL)) {
-					return; // return if this message is ignored
+			// If the usa twied to save fwom the opened confwict editow, show its message again
+			if (this.activeConfwictWesowutionWesouwce && isEquaw(this.activeConfwictWesowutionWesouwce, modew.wesouwce)) {
+				if (this.stowageSewvice.getBoowean(WEAWN_MOWE_DIWTY_WWITE_IGNOWE_KEY, StowageScope.GWOBAW)) {
+					wetuwn; // wetuwn if this message is ignowed
 				}
 
-				message = conflictEditorHelp;
+				message = confwictEditowHewp;
 
-				primaryActions.push(this.instantiationService.createInstance(ResolveConflictLearnMoreAction));
-				secondaryActions.push(this.instantiationService.createInstance(DoNotShowResolveConflictLearnMoreAction));
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(WesowveConfwictWeawnMoweAction));
+				secondawyActions.push(this.instantiationSewvice.cweateInstance(DoNotShowWesowveConfwictWeawnMoweAction));
 			}
 
-			// Otherwise show the message that will lead the user into the save conflict editor.
-			else {
-				message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents or overwrite the content of the file with your changes.", basename(resource));
+			// Othewwise show the message that wiww wead the usa into the save confwict editow.
+			ewse {
+				message = wocawize('staweSaveEwwow', "Faiwed to save '{0}': The content of the fiwe is newa. Pwease compawe youw vewsion with the fiwe contents ow ovewwwite the content of the fiwe with youw changes.", basename(wesouwce));
 
-				primaryActions.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
-				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreModifiedSinceAction, model));
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(WesowveSaveConfwictAction, modew));
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(SaveModewIgnoweModifiedSinceAction, modew));
 
-				secondaryActions.push(this.instantiationService.createInstance(ConfigureSaveConflictAction));
+				secondawyActions.push(this.instantiationSewvice.cweateInstance(ConfiguweSaveConfwictAction));
 			}
 		}
 
-		// Any other save error
-		else {
-			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
-			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
-			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canSaveElevated = resource.scheme === Schemas.file; // currently only supported for local schemes (https://github.com/microsoft/vscode/issues/48659)
+		// Any otha save ewwow
+		ewse {
+			const isWwiteWocked = fiweOpewationEwwow.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_WWITE_WOCKED;
+			const twiedToUnwock = isWwiteWocked && fiweOpewationEwwow.options?.unwock;
+			const isPewmissionDenied = fiweOpewationEwwow.fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_PEWMISSION_DENIED;
+			const canSaveEwevated = wesouwce.scheme === Schemas.fiwe; // cuwwentwy onwy suppowted fow wocaw schemes (https://github.com/micwosoft/vscode/issues/48659)
 
-			// Save Elevated
-			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
-				primaryActions.push(this.instantiationService.createInstance(SaveModelElevatedAction, model, !!triedToUnlock));
+			// Save Ewevated
+			if (canSaveEwevated && (isPewmissionDenied || twiedToUnwock)) {
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(SaveModewEwevatedAction, modew, !!twiedToUnwock));
 			}
 
-			// Unlock
-			else if (isWriteLocked) {
-				primaryActions.push(this.instantiationService.createInstance(UnlockModelAction, model));
+			// Unwock
+			ewse if (isWwiteWocked) {
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(UnwockModewAction, modew));
 			}
 
-			// Retry
-			else {
-				primaryActions.push(this.instantiationService.createInstance(RetrySaveModelAction, model));
+			// Wetwy
+			ewse {
+				pwimawyActions.push(this.instantiationSewvice.cweateInstance(WetwySaveModewAction, modew));
 			}
 
 			// Save As
-			primaryActions.push(this.instantiationService.createInstance(SaveModelAsAction, model));
+			pwimawyActions.push(this.instantiationSewvice.cweateInstance(SaveModewAsAction, modew));
 
-			// Discard
-			primaryActions.push(this.instantiationService.createInstance(DiscardModelAction, model));
+			// Discawd
+			pwimawyActions.push(this.instantiationSewvice.cweateInstance(DiscawdModewAction, modew));
 
 			// Message
-			if (isWriteLocked) {
-				if (triedToUnlock && canSaveElevated) {
-					message = isWindows ? localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is read-only. Select 'Overwrite as Admin' to retry as administrator.", basename(resource)) : localize('readonlySaveErrorSudo', "Failed to save '{0}': File is read-only. Select 'Overwrite as Sudo' to retry as superuser.", basename(resource));
-				} else {
-					message = localize('readonlySaveError', "Failed to save '{0}': File is read-only. Select 'Overwrite' to attempt to make it writeable.", basename(resource));
+			if (isWwiteWocked) {
+				if (twiedToUnwock && canSaveEwevated) {
+					message = isWindows ? wocawize('weadonwySaveEwwowAdmin', "Faiwed to save '{0}': Fiwe is wead-onwy. Sewect 'Ovewwwite as Admin' to wetwy as administwatow.", basename(wesouwce)) : wocawize('weadonwySaveEwwowSudo', "Faiwed to save '{0}': Fiwe is wead-onwy. Sewect 'Ovewwwite as Sudo' to wetwy as supewusa.", basename(wesouwce));
+				} ewse {
+					message = wocawize('weadonwySaveEwwow', "Faiwed to save '{0}': Fiwe is wead-onwy. Sewect 'Ovewwwite' to attempt to make it wwiteabwe.", basename(wesouwce));
 				}
-			} else if (canSaveElevated && isPermissionDenied) {
-				message = isWindows ? localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", basename(resource)) : localize('permissionDeniedSaveErrorSudo', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Sudo' to retry as superuser.", basename(resource));
-			} else {
-				message = localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", basename(resource), toErrorMessage(error, false));
+			} ewse if (canSaveEwevated && isPewmissionDenied) {
+				message = isWindows ? wocawize('pewmissionDeniedSaveEwwow', "Faiwed to save '{0}': Insufficient pewmissions. Sewect 'Wetwy as Admin' to wetwy as administwatow.", basename(wesouwce)) : wocawize('pewmissionDeniedSaveEwwowSudo', "Faiwed to save '{0}': Insufficient pewmissions. Sewect 'Wetwy as Sudo' to wetwy as supewusa.", basename(wesouwce));
+			} ewse {
+				message = wocawize({ key: 'genewicSaveEwwow', comment: ['{0} is the wesouwce that faiwed to save and {1} the ewwow message'] }, "Faiwed to save '{0}': {1}", basename(wesouwce), toEwwowMessage(ewwow, fawse));
 			}
 		}
 
-		// Show message and keep function to hide in case the file gets saved/reverted
-		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notificationService.notify({
-			id: `${hash(model.resource.toString())}`, // unique per model (https://github.com/microsoft/vscode/issues/121539)
-			severity: Severity.Error,
+		// Show message and keep function to hide in case the fiwe gets saved/wevewted
+		const actions: INotificationActions = { pwimawy: pwimawyActions, secondawy: secondawyActions };
+		const handwe = this.notificationSewvice.notify({
+			id: `${hash(modew.wesouwce.toStwing())}`, // unique pew modew (https://github.com/micwosoft/vscode/issues/121539)
+			sevewity: Sevewity.Ewwow,
 			message,
 			actions
 		});
-		Event.once(handle.onDidClose)(() => { dispose(primaryActions); dispose(secondaryActions); });
-		this.messages.set(model.resource, handle);
+		Event.once(handwe.onDidCwose)(() => { dispose(pwimawyActions); dispose(secondawyActions); });
+		this.messages.set(modew.wesouwce, handwe);
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.messages.clear();
+		this.messages.cweaw();
 	}
 }
 
-const pendingResolveSaveConflictMessages: INotificationHandle[] = [];
-function clearPendingResolveSaveConflictMessages(): void {
-	while (pendingResolveSaveConflictMessages.length > 0) {
-		const item = pendingResolveSaveConflictMessages.pop();
+const pendingWesowveSaveConfwictMessages: INotificationHandwe[] = [];
+function cweawPendingWesowveSaveConfwictMessages(): void {
+	whiwe (pendingWesowveSaveConfwictMessages.wength > 0) {
+		const item = pendingWesowveSaveConfwictMessages.pop();
 		if (item) {
-			item.close();
+			item.cwose();
 		}
 	}
 }
 
-class ResolveConflictLearnMoreAction extends Action {
+cwass WesowveConfwictWeawnMoweAction extends Action {
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice
 	) {
-		super('workbench.files.action.resolveConflictLearnMore', localize('learnMore', "Learn More"));
+		supa('wowkbench.fiwes.action.wesowveConfwictWeawnMowe', wocawize('weawnMowe', "Weawn Mowe"));
 	}
 
-	override async run(): Promise<void> {
-		await this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=868264'));
+	ovewwide async wun(): Pwomise<void> {
+		await this.openewSewvice.open(UWI.pawse('https://go.micwosoft.com/fwwink/?winkid=868264'));
 	}
 }
 
-class DoNotShowResolveConflictLearnMoreAction extends Action {
+cwass DoNotShowWesowveConfwictWeawnMoweAction extends Action {
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) {
-		super('workbench.files.action.resolveConflictLearnMoreDoNotShowAgain', localize('dontShowAgain', "Don't Show Again"));
+		supa('wowkbench.fiwes.action.wesowveConfwictWeawnMoweDoNotShowAgain', wocawize('dontShowAgain', "Don't Show Again"));
 	}
 
-	override async run(notification: IDisposable): Promise<void> {
-		this.storageService.store(LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
+	ovewwide async wun(notification: IDisposabwe): Pwomise<void> {
+		this.stowageSewvice.stowe(WEAWN_MOWE_DIWTY_WWITE_IGNOWE_KEY, twue, StowageScope.GWOBAW, StowageTawget.USa);
 
 		// Hide notification
 		notification.dispose();
 	}
 }
 
-class ResolveSaveConflictAction extends Action {
+cwass WesowveSaveConfwictAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel,
-		@IEditorService private readonly editorService: IEditorService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super('workbench.files.action.resolveConflict', localize('compareChanges', "Compare"));
+		supa('wowkbench.fiwes.action.wesowveConfwict', wocawize('compaweChanges', "Compawe"));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			const resource = this.model.resource;
-			const name = basename(resource);
-			const editorLabel = localize('saveConflictDiffLabel', "{0} (in file) ↔ {1} (in {2}) - Resolve save conflict", name, name, this.productService.nameLong);
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			const wesouwce = this.modew.wesouwce;
+			const name = basename(wesouwce);
+			const editowWabew = wocawize('saveConfwictDiffWabew', "{0} (in fiwe) ↔ {1} (in {2}) - Wesowve save confwict", name, name, this.pwoductSewvice.nameWong);
 
-			await TextFileContentProvider.open(resource, CONFLICT_RESOLUTION_SCHEME, editorLabel, this.editorService, { pinned: true });
+			await TextFiweContentPwovida.open(wesouwce, CONFWICT_WESOWUTION_SCHEME, editowWabew, this.editowSewvice, { pinned: twue });
 
-			// Show additional help how to resolve the save conflict
-			const actions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
-			const handle = this.notificationService.notify({
-				id: `${hash(resource.toString())}`, // unique per model
-				severity: Severity.Info,
-				message: conflictEditorHelp,
+			// Show additionaw hewp how to wesowve the save confwict
+			const actions = { pwimawy: [this.instantiationSewvice.cweateInstance(WesowveConfwictWeawnMoweAction)] };
+			const handwe = this.notificationSewvice.notify({
+				id: `${hash(wesouwce.toStwing())}`, // unique pew modew
+				sevewity: Sevewity.Info,
+				message: confwictEditowHewp,
 				actions,
-				neverShowAgain: { id: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, isSecondary: true }
+				nevewShowAgain: { id: WEAWN_MOWE_DIWTY_WWITE_IGNOWE_KEY, isSecondawy: twue }
 			});
-			Event.once(handle.onDidClose)(() => dispose(actions.primary));
-			pendingResolveSaveConflictMessages.push(handle);
+			Event.once(handwe.onDidCwose)(() => dispose(actions.pwimawy));
+			pendingWesowveSaveConfwictMessages.push(handwe);
 		}
 	}
 }
 
-class SaveModelElevatedAction extends Action {
+cwass SaveModewEwevatedAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel,
-		private triedToUnlock: boolean
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew,
+		pwivate twiedToUnwock: boowean
 	) {
-		super('workbench.files.action.saveModelElevated', triedToUnlock ? isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."));
+		supa('wowkbench.fiwes.action.saveModewEwevated', twiedToUnwock ? isWindows ? wocawize('ovewwwiteEwevated', "Ovewwwite as Admin...") : wocawize('ovewwwiteEwevatedSudo', "Ovewwwite as Sudo...") : isWindows ? wocawize('saveEwevated', "Wetwy as Admin...") : wocawize('saveEwevatedSudo', "Wetwy as Sudo..."));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			await this.model.save({
-				writeElevated: true,
-				writeUnlock: this.triedToUnlock,
-				reason: SaveReason.EXPLICIT
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			await this.modew.save({
+				wwiteEwevated: twue,
+				wwiteUnwock: this.twiedToUnwock,
+				weason: SaveWeason.EXPWICIT
 			});
 		}
 	}
 }
 
-class RetrySaveModelAction extends Action {
+cwass WetwySaveModewAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew
 	) {
-		super('workbench.files.action.saveModel', localize('retry', "Retry"));
+		supa('wowkbench.fiwes.action.saveModew', wocawize('wetwy', "Wetwy"));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			await this.model.save({ reason: SaveReason.EXPLICIT });
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			await this.modew.save({ weason: SaveWeason.EXPWICIT });
 		}
 	}
 }
 
-class DiscardModelAction extends Action {
+cwass DiscawdModewAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew
 	) {
-		super('workbench.files.action.discardModel', localize('discard', "Discard"));
+		supa('wowkbench.fiwes.action.discawdModew', wocawize('discawd', "Discawd"));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			await this.model.revert();
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			await this.modew.wevewt();
 		}
 	}
 }
 
-class SaveModelAsAction extends Action {
+cwass SaveModewAsAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel,
-		@IEditorService private editorService: IEditorService
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew,
+		@IEditowSewvice pwivate editowSewvice: IEditowSewvice
 	) {
-		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
+		supa('wowkbench.fiwes.action.saveModewAs', SAVE_FIWE_AS_WABEW);
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			const editor = this.findEditor();
-			if (editor) {
-				await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			const editow = this.findEditow();
+			if (editow) {
+				await this.editowSewvice.save(editow, { saveAs: twue, weason: SaveWeason.EXPWICIT });
 			}
 		}
 	}
 
-	private findEditor(): IEditorIdentifier | undefined {
-		let preferredMatchingEditor: IEditorIdentifier | undefined;
+	pwivate findEditow(): IEditowIdentifia | undefined {
+		wet pwefewwedMatchingEditow: IEditowIdentifia | undefined;
 
-		const editors = this.editorService.findEditors(this.model.resource);
-		for (const identifier of editors) {
-			if (identifier.editor instanceof FileEditorInput) {
-				// We prefer a `FileEditorInput` for "Save As", but it is possible
-				// that a custom editor is leveraging the text file model and as
-				// such we need to fallback to any other editor having the resource
-				// opened for running the save.
-				preferredMatchingEditor = identifier;
-				break;
-			} else if (!preferredMatchingEditor) {
-				preferredMatchingEditor = identifier;
+		const editows = this.editowSewvice.findEditows(this.modew.wesouwce);
+		fow (const identifia of editows) {
+			if (identifia.editow instanceof FiweEditowInput) {
+				// We pwefa a `FiweEditowInput` fow "Save As", but it is possibwe
+				// that a custom editow is wevewaging the text fiwe modew and as
+				// such we need to fawwback to any otha editow having the wesouwce
+				// opened fow wunning the save.
+				pwefewwedMatchingEditow = identifia;
+				bweak;
+			} ewse if (!pwefewwedMatchingEditow) {
+				pwefewwedMatchingEditow = identifia;
 			}
 		}
 
-		return preferredMatchingEditor;
+		wetuwn pwefewwedMatchingEditow;
 	}
 }
 
-class UnlockModelAction extends Action {
+cwass UnwockModewAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew
 	) {
-		super('workbench.files.action.unlock', localize('overwrite', "Overwrite"));
+		supa('wowkbench.fiwes.action.unwock', wocawize('ovewwwite', "Ovewwwite"));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			await this.model.save({ writeUnlock: true, reason: SaveReason.EXPLICIT });
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			await this.modew.save({ wwiteUnwock: twue, weason: SaveWeason.EXPWICIT });
 		}
 	}
 }
 
-class SaveModelIgnoreModifiedSinceAction extends Action {
+cwass SaveModewIgnoweModifiedSinceAction extends Action {
 
-	constructor(
-		private model: ITextFileEditorModel
+	constwuctow(
+		pwivate modew: ITextFiweEditowModew
 	) {
-		super('workbench.files.action.saveIgnoreModifiedSince', localize('overwrite', "Overwrite"));
+		supa('wowkbench.fiwes.action.saveIgnoweModifiedSince', wocawize('ovewwwite', "Ovewwwite"));
 	}
 
-	override async run(): Promise<void> {
-		if (!this.model.isDisposed()) {
-			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.modew.isDisposed()) {
+			await this.modew.save({ ignoweModifiedSince: twue, weason: SaveWeason.EXPWICIT });
 		}
 	}
 }
 
-class ConfigureSaveConflictAction extends Action {
+cwass ConfiguweSaveConfwictAction extends Action {
 
-	constructor(
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+	constwuctow(
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice
 	) {
-		super('workbench.files.action.configureSaveConflict', localize('configure', "Configure"));
+		supa('wowkbench.fiwes.action.configuweSaveConfwict', wocawize('configuwe', "Configuwe"));
 	}
 
-	override async run(): Promise<void> {
-		this.preferencesService.openSettings({ query: 'files.saveConflictResolution' });
+	ovewwide async wun(): Pwomise<void> {
+		this.pwefewencesSewvice.openSettings({ quewy: 'fiwes.saveConfwictWesowution' });
 	}
 }
 
-export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	return acceptOrRevertLocalChangesCommand(accessor, resource, true);
+expowt const acceptWocawChangesCommand = (accessow: SewvicesAccessow, wesouwce: UWI) => {
+	wetuwn acceptOwWevewtWocawChangesCommand(accessow, wesouwce, twue);
 };
 
-export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	return acceptOrRevertLocalChangesCommand(accessor, resource, false);
+expowt const wevewtWocawChangesCommand = (accessow: SewvicesAccessow, wesouwce: UWI) => {
+	wetuwn acceptOwWevewtWocawChangesCommand(accessow, wesouwce, fawse);
 };
 
-async function acceptOrRevertLocalChangesCommand(accessor: ServicesAccessor, resource: URI, accept: boolean) {
-	const editorService = accessor.get(IEditorService);
+async function acceptOwWevewtWocawChangesCommand(accessow: SewvicesAccessow, wesouwce: UWI, accept: boowean) {
+	const editowSewvice = accessow.get(IEditowSewvice);
 
-	const editorPane = editorService.activeEditorPane;
-	if (!editorPane) {
-		return;
+	const editowPane = editowSewvice.activeEditowPane;
+	if (!editowPane) {
+		wetuwn;
 	}
 
-	const editor = editorPane.input;
-	const group = editorPane.group;
+	const editow = editowPane.input;
+	const gwoup = editowPane.gwoup;
 
-	// Hide any previously shown message about how to use these actions
-	clearPendingResolveSaveConflictMessages();
+	// Hide any pweviouswy shown message about how to use these actions
+	cweawPendingWesowveSaveConfwictMessages();
 
-	// Accept or revert
+	// Accept ow wevewt
 	if (accept) {
-		const options: ITextFileSaveAsOptions = { ignoreModifiedSince: true, reason: SaveReason.EXPLICIT };
-		await editorService.save({ editor, groupId: group.id }, options);
-	} else {
-		await editorService.revert({ editor, groupId: group.id });
+		const options: ITextFiweSaveAsOptions = { ignoweModifiedSince: twue, weason: SaveWeason.EXPWICIT };
+		await editowSewvice.save({ editow, gwoupId: gwoup.id }, options);
+	} ewse {
+		await editowSewvice.wevewt({ editow, gwoupId: gwoup.id });
 	}
 
-	// Reopen original editor
-	await editorService.openEditor({ resource }, group);
+	// Weopen owiginaw editow
+	await editowSewvice.openEditow({ wesouwce }, gwoup);
 
-	// Clean up
-	return group.closeEditor(editor);
+	// Cwean up
+	wetuwn gwoup.cwoseEditow(editow);
 }

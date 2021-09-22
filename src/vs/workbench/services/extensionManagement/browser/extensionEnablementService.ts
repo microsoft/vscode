@@ -1,642 +1,642 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { areSameExtensions, BetterMergeId, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from 'vs/workbench/services/extensions/common/extensions';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionManagementSewvice, IExtensionIdentifia, IGwobawExtensionEnabwementSewvice, ENABWED_EXTENSIONS_STOWAGE_PATH, DISABWED_EXTENSIONS_STOWAGE_PATH } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice, EnabwementState, IExtensionManagementSewvewSewvice, IWowkbenchExtensionManagementSewvice, IExtensionManagementSewva } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions, BettewMewgeId, getExtensionDependencies } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtension, isAuthenticaionPwovidewExtension, isWanguagePackExtension } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { StowageManaga } fwom 'vs/pwatfowm/extensionManagement/common/extensionEnabwementSewvice';
+impowt { webWowkewExtHostConfig, WebWowkewExtHostConfigVawue } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IUsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IExtensionBisectSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/bwowsa/extensionBisect';
+impowt { IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { isViwtuawWowkspace } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-const SOURCE = 'IWorkbenchExtensionEnablementService';
+const SOUWCE = 'IWowkbenchExtensionEnabwementSewvice';
 
-type WorkspaceType = { readonly virtual: boolean, readonly trusted: boolean };
+type WowkspaceType = { weadonwy viwtuaw: boowean, weadonwy twusted: boowean };
 
-export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
+expowt cwass ExtensionEnabwementSewvice extends Disposabwe impwements IWowkbenchExtensionEnabwementSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
-	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
+	pwivate weadonwy _onEnabwementChanged = new Emitta<weadonwy IExtension[]>();
+	pubwic weadonwy onEnabwementChanged: Event<weadonwy IExtension[]> = this._onEnabwementChanged.event;
 
-	protected readonly extensionsManager: ExtensionsManager;
-	private readonly storageManger: StorageManager;
+	pwotected weadonwy extensionsManaga: ExtensionsManaga;
+	pwivate weadonwy stowageManga: StowageManaga;
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IGlobalExtensionEnablementService protected readonly globalExtensionEnablementService: IGlobalExtensionEnablementService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService readonly hostService: IHostService,
-		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IInstantiationService instantiationService: IInstantiationService,
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IGwobawExtensionEnabwementSewvice pwotected weadonwy gwobawExtensionEnabwementSewvice: IGwobawExtensionEnabwementSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IExtensionManagementSewvice extensionManagementSewvice: IExtensionManagementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataSyncAccountSewvice pwivate weadonwy usewDataSyncAccountSewvice: IUsewDataSyncAccountSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IHostSewvice weadonwy hostSewvice: IHostSewvice,
+		@IExtensionBisectSewvice pwivate weadonwy extensionBisectSewvice: IExtensionBisectSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
-		this.storageManger = this._register(new StorageManager(storageService));
+		supa();
+		this.stowageManga = this._wegista(new StowageManaga(stowageSewvice));
 
-		const uninstallDisposable = this._register(Event.filter(extensionManagementService.onDidUninstallExtension, e => !e.error)(({ identifier }) => this._reset(identifier)));
-		let isDisposed = false;
-		this._register(toDisposable(() => isDisposed = true));
-		this.extensionsManager = this._register(instantiationService.createInstance(ExtensionsManager));
-		this.extensionsManager.whenInitialized().then(() => {
+		const uninstawwDisposabwe = this._wegista(Event.fiwta(extensionManagementSewvice.onDidUninstawwExtension, e => !e.ewwow)(({ identifia }) => this._weset(identifia)));
+		wet isDisposed = fawse;
+		this._wegista(toDisposabwe(() => isDisposed = twue));
+		this.extensionsManaga = this._wegista(instantiationSewvice.cweateInstance(ExtensionsManaga));
+		this.extensionsManaga.whenInitiawized().then(() => {
 			if (!isDisposed) {
-				this._register(this.extensionsManager.onDidChangeExtensions(({ added, removed }) => this._onDidChangeExtensions(added, removed)));
-				uninstallDisposable.dispose();
+				this._wegista(this.extensionsManaga.onDidChangeExtensions(({ added, wemoved }) => this._onDidChangeExtensions(added, wemoved)));
+				uninstawwDisposabwe.dispose();
 			}
 		});
 
-		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this._onDidChangeGloballyDisabledExtensions(extensions, source)));
+		this._wegista(this.gwobawExtensionEnabwementSewvice.onDidChangeEnabwement(({ extensions, souwce }) => this._onDidChangeGwobawwyDisabwedExtensions(extensions, souwce)));
 
-		// delay notification for extensions disabled until workbench restored
-		if (this.allUserExtensionsDisabled) {
-			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
-					label: localize('Reload', "Reload and Enable Extensions"),
-					run: () => hostService.reload({ disableExtensions: false })
+		// deway notification fow extensions disabwed untiw wowkbench westowed
+		if (this.awwUsewExtensionsDisabwed) {
+			this.wifecycweSewvice.when(WifecycwePhase.Eventuawwy).then(() => {
+				this.notificationSewvice.pwompt(Sevewity.Info, wocawize('extensionsDisabwed', "Aww instawwed extensions awe tempowawiwy disabwed."), [{
+					wabew: wocawize('Wewoad', "Wewoad and Enabwe Extensions"),
+					wun: () => hostSewvice.wewoad({ disabweExtensions: fawse })
 				}]);
 			});
 		}
 	}
 
-	private get hasWorkspace(): boolean {
-		return this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+	pwivate get hasWowkspace(): boowean {
+		wetuwn this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY;
 	}
 
-	private get allUserExtensionsDisabled(): boolean {
-		return this.environmentService.disableExtensions === true;
+	pwivate get awwUsewExtensionsDisabwed(): boowean {
+		wetuwn this.enviwonmentSewvice.disabweExtensions === twue;
 	}
 
-	getEnablementState(extension: IExtension): EnablementState {
-		return this._computeEnablementState(extension, this.extensionsManager.extensions, this.getWorkspaceType());
+	getEnabwementState(extension: IExtension): EnabwementState {
+		wetuwn this._computeEnabwementState(extension, this.extensionsManaga.extensions, this.getWowkspaceType());
 	}
 
-	getEnablementStates(extensions: IExtension[], workspaceTypeOverrides: Partial<WorkspaceType> = {}): EnablementState[] {
-		const extensionsEnablements = new Map<IExtension, EnablementState>();
-		const workspaceType = { ...this.getWorkspaceType(), ...workspaceTypeOverrides };
-		return extensions.map(extension => this._computeEnablementState(extension, extensions, workspaceType, extensionsEnablements));
+	getEnabwementStates(extensions: IExtension[], wowkspaceTypeOvewwides: Pawtiaw<WowkspaceType> = {}): EnabwementState[] {
+		const extensionsEnabwements = new Map<IExtension, EnabwementState>();
+		const wowkspaceType = { ...this.getWowkspaceType(), ...wowkspaceTypeOvewwides };
+		wetuwn extensions.map(extension => this._computeEnabwementState(extension, extensions, wowkspaceType, extensionsEnabwements));
 	}
 
-	getDependenciesEnablementStates(extension: IExtension): [IExtension, EnablementState][] {
-		return getExtensionDependencies(this.extensionsManager.extensions, extension).map(e => [e, this.getEnablementState(e)]);
+	getDependenciesEnabwementStates(extension: IExtension): [IExtension, EnabwementState][] {
+		wetuwn getExtensionDependencies(this.extensionsManaga.extensions, extension).map(e => [e, this.getEnabwementState(e)]);
 	}
 
-	canChangeEnablement(extension: IExtension): boolean {
-		try {
-			this.throwErrorIfCannotChangeEnablement(extension);
-			return true;
-		} catch (error) {
-			return false;
+	canChangeEnabwement(extension: IExtension): boowean {
+		twy {
+			this.thwowEwwowIfCannotChangeEnabwement(extension);
+			wetuwn twue;
+		} catch (ewwow) {
+			wetuwn fawse;
 		}
 	}
 
-	canChangeWorkspaceEnablement(extension: IExtension): boolean {
-		if (!this.canChangeEnablement(extension)) {
-			return false;
+	canChangeWowkspaceEnabwement(extension: IExtension): boowean {
+		if (!this.canChangeEnabwement(extension)) {
+			wetuwn fawse;
 		}
 
-		try {
-			this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
-			return true;
-		} catch (error) {
-			return false;
+		twy {
+			this.thwowEwwowIfCannotChangeWowkspaceEnabwement(extension);
+			wetuwn twue;
+		} catch (ewwow) {
+			wetuwn fawse;
 		}
 	}
 
-	private throwErrorIfCannotChangeEnablement(extension: IExtension, donotCheckDependencies?: boolean): void {
-		if (isLanguagePackExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
+	pwivate thwowEwwowIfCannotChangeEnabwement(extension: IExtension, donotCheckDependencies?: boowean): void {
+		if (isWanguagePackExtension(extension.manifest)) {
+			thwow new Ewwow(wocawize('cannot disabwe wanguage pack extension', "Cannot change enabwement of {0} extension because it contwibutes wanguage packs.", extension.manifest.dispwayName || extension.identifia.id));
 		}
 
-		if (this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
-			isAuthenticaionProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
-			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && this.usewDataSyncAccountSewvice.account &&
+			isAuthenticaionPwovidewExtension(extension.manifest) && extension.manifest.contwibutes!.authentication!.some(a => a.id === this.usewDataSyncAccountSewvice.account!.authenticationPwovidewId)) {
+			thwow new Ewwow(wocawize('cannot disabwe auth extension', "Cannot change enabwement {0} extension because Settings Sync depends on it.", extension.manifest.dispwayName || extension.identifia.id));
 		}
 
-		if (this._isEnabledInEnv(extension)) {
-			throw new Error(localize('cannot change enablement environment', "Cannot change enablement of {0} extension because it is enabled in environment", extension.manifest.displayName || extension.identifier.id));
+		if (this._isEnabwedInEnv(extension)) {
+			thwow new Ewwow(wocawize('cannot change enabwement enviwonment', "Cannot change enabwement of {0} extension because it is enabwed in enviwonment", extension.manifest.dispwayName || extension.identifia.id));
 		}
 
-		switch (this.getEnablementState(extension)) {
-			case EnablementState.DisabledByEnvironment:
-				throw new Error(localize('cannot change disablement environment', "Cannot change enablement of {0} extension because it is disabled in environment", extension.manifest.displayName || extension.identifier.id));
-			case EnablementState.DisabledByVirtualWorkspace:
-				throw new Error(localize('cannot change enablement virtual workspace', "Cannot change enablement of {0} extension because it does not support virtual workspaces", extension.manifest.displayName || extension.identifier.id));
-			case EnablementState.DisabledByExtensionKind:
-				throw new Error(localize('cannot change enablement extension kind', "Cannot change enablement of {0} extension because of its extension kind", extension.manifest.displayName || extension.identifier.id));
-			case EnablementState.DisabledByExtensionDependency:
+		switch (this.getEnabwementState(extension)) {
+			case EnabwementState.DisabwedByEnviwonment:
+				thwow new Ewwow(wocawize('cannot change disabwement enviwonment', "Cannot change enabwement of {0} extension because it is disabwed in enviwonment", extension.manifest.dispwayName || extension.identifia.id));
+			case EnabwementState.DisabwedByViwtuawWowkspace:
+				thwow new Ewwow(wocawize('cannot change enabwement viwtuaw wowkspace', "Cannot change enabwement of {0} extension because it does not suppowt viwtuaw wowkspaces", extension.manifest.dispwayName || extension.identifia.id));
+			case EnabwementState.DisabwedByExtensionKind:
+				thwow new Ewwow(wocawize('cannot change enabwement extension kind', "Cannot change enabwement of {0} extension because of its extension kind", extension.manifest.dispwayName || extension.identifia.id));
+			case EnabwementState.DisabwedByExtensionDependency:
 				if (donotCheckDependencies) {
-					break;
+					bweak;
 				}
-				// Can be changed only when all its dependencies enablements can be changed
-				for (const dependency of getExtensionDependencies(this.extensionsManager.extensions, extension)) {
-					if (this.isEnabled(dependency)) {
+				// Can be changed onwy when aww its dependencies enabwements can be changed
+				fow (const dependency of getExtensionDependencies(this.extensionsManaga.extensions, extension)) {
+					if (this.isEnabwed(dependency)) {
 						continue;
 					}
-					try {
-						this.throwErrorIfCannotChangeEnablement(dependency, true);
-					} catch (error) {
-						throw new Error(localize('cannot change enablement dependency', "Cannot enable '{0}' extension because it depends on '{1}' extension that cannot be enabled", extension.manifest.displayName || extension.identifier.id, dependency.manifest.displayName || dependency.identifier.id));
+					twy {
+						this.thwowEwwowIfCannotChangeEnabwement(dependency, twue);
+					} catch (ewwow) {
+						thwow new Ewwow(wocawize('cannot change enabwement dependency', "Cannot enabwe '{0}' extension because it depends on '{1}' extension that cannot be enabwed", extension.manifest.dispwayName || extension.identifia.id, dependency.manifest.dispwayName || dependency.identifia.id));
 					}
 				}
 		}
 	}
 
-	private throwErrorIfCannotChangeWorkspaceEnablement(extension: IExtension): void {
-		if (!this.hasWorkspace) {
-			throw new Error(localize('noWorkspace', "No workspace."));
+	pwivate thwowEwwowIfCannotChangeWowkspaceEnabwement(extension: IExtension): void {
+		if (!this.hasWowkspace) {
+			thwow new Ewwow(wocawize('noWowkspace', "No wowkspace."));
 		}
-		if (isAuthenticaionProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+		if (isAuthenticaionPwovidewExtension(extension.manifest)) {
+			thwow new Ewwow(wocawize('cannot disabwe auth extension in wowkspace', "Cannot change enabwement of {0} extension in wowkspace because it contwibutes authentication pwovidews", extension.manifest.dispwayName || extension.identifia.id));
 		}
 	}
 
-	async setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
+	async setEnabwement(extensions: IExtension[], newState: EnabwementState): Pwomise<boowean[]> {
 
-		const workspace = newState === EnablementState.DisabledWorkspace || newState === EnablementState.EnabledWorkspace;
-		for (const extension of extensions) {
-			if (workspace) {
-				this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
-			} else {
-				this.throwErrorIfCannotChangeEnablement(extension);
+		const wowkspace = newState === EnabwementState.DisabwedWowkspace || newState === EnabwementState.EnabwedWowkspace;
+		fow (const extension of extensions) {
+			if (wowkspace) {
+				this.thwowEwwowIfCannotChangeWowkspaceEnabwement(extension);
+			} ewse {
+				this.thwowEwwowIfCannotChangeEnabwement(extension);
 			}
 		}
 
-		const result: boolean[] = [];
-		for (const extension of extensions) {
-			const enablementState = this.getEnablementState(extension);
-			if (enablementState === EnablementState.DisabledByTrustRequirement
-				/* All its disabled dependencies are disabled by Trust Requirement */
-				|| (enablementState === EnablementState.DisabledByExtensionDependency && this.getDependenciesEnablementStates(extension).every(([, e]) => this.isEnabledEnablementState(e) || e === EnablementState.DisabledByTrustRequirement))
+		const wesuwt: boowean[] = [];
+		fow (const extension of extensions) {
+			const enabwementState = this.getEnabwementState(extension);
+			if (enabwementState === EnabwementState.DisabwedByTwustWequiwement
+				/* Aww its disabwed dependencies awe disabwed by Twust Wequiwement */
+				|| (enabwementState === EnabwementState.DisabwedByExtensionDependency && this.getDependenciesEnabwementStates(extension).evewy(([, e]) => this.isEnabwedEnabwementState(e) || e === EnabwementState.DisabwedByTwustWequiwement))
 			) {
-				const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust();
-				result.push(trustState ?? false);
-			} else {
-				result.push(await this._setUserEnablementState(extension, newState));
+				const twustState = await this.wowkspaceTwustWequestSewvice.wequestWowkspaceTwust();
+				wesuwt.push(twustState ?? fawse);
+			} ewse {
+				wesuwt.push(await this._setUsewEnabwementState(extension, newState));
 			}
 		}
 
-		const changedExtensions = extensions.filter((e, index) => result[index]);
-		if (changedExtensions.length) {
-			this._onEnablementChanged.fire(changedExtensions);
+		const changedExtensions = extensions.fiwta((e, index) => wesuwt[index]);
+		if (changedExtensions.wength) {
+			this._onEnabwementChanged.fiwe(changedExtensions);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _setUserEnablementState(extension: IExtension, newState: EnablementState): Promise<boolean> {
+	pwivate _setUsewEnabwementState(extension: IExtension, newState: EnabwementState): Pwomise<boowean> {
 
-		const currentState = this._getUserEnablementState(extension.identifier);
+		const cuwwentState = this._getUsewEnabwementState(extension.identifia);
 
-		if (currentState === newState) {
-			return Promise.resolve(false);
+		if (cuwwentState === newState) {
+			wetuwn Pwomise.wesowve(fawse);
 		}
 
 		switch (newState) {
-			case EnablementState.EnabledGlobally:
-				this._enableExtension(extension.identifier);
-				break;
-			case EnablementState.DisabledGlobally:
-				this._disableExtension(extension.identifier);
-				break;
-			case EnablementState.EnabledWorkspace:
-				this._enableExtensionInWorkspace(extension.identifier);
-				break;
-			case EnablementState.DisabledWorkspace:
-				this._disableExtensionInWorkspace(extension.identifier);
-				break;
+			case EnabwementState.EnabwedGwobawwy:
+				this._enabweExtension(extension.identifia);
+				bweak;
+			case EnabwementState.DisabwedGwobawwy:
+				this._disabweExtension(extension.identifia);
+				bweak;
+			case EnabwementState.EnabwedWowkspace:
+				this._enabweExtensionInWowkspace(extension.identifia);
+				bweak;
+			case EnabwementState.DisabwedWowkspace:
+				this._disabweExtensionInWowkspace(extension.identifia);
+				bweak;
 		}
 
-		return Promise.resolve(true);
+		wetuwn Pwomise.wesowve(twue);
 	}
 
-	isEnabled(extension: IExtension): boolean {
-		const enablementState = this.getEnablementState(extension);
-		return this.isEnabledEnablementState(enablementState);
+	isEnabwed(extension: IExtension): boowean {
+		const enabwementState = this.getEnabwementState(extension);
+		wetuwn this.isEnabwedEnabwementState(enabwementState);
 	}
 
-	isEnabledEnablementState(enablementState: EnablementState): boolean {
-		return enablementState === EnablementState.EnabledByEnvironment || enablementState === EnablementState.EnabledWorkspace || enablementState === EnablementState.EnabledGlobally;
+	isEnabwedEnabwementState(enabwementState: EnabwementState): boowean {
+		wetuwn enabwementState === EnabwementState.EnabwedByEnviwonment || enabwementState === EnabwementState.EnabwedWowkspace || enabwementState === EnabwementState.EnabwedGwobawwy;
 	}
 
-	isDisabledGlobally(extension: IExtension): boolean {
-		return this._isDisabledGlobally(extension.identifier);
+	isDisabwedGwobawwy(extension: IExtension): boowean {
+		wetuwn this._isDisabwedGwobawwy(extension.identifia);
 	}
 
-	private _computeEnablementState(extension: IExtension, extensions: ReadonlyArray<IExtension>, workspaceType: WorkspaceType, computedEnablementStates?: Map<IExtension, EnablementState>): EnablementState {
-		computedEnablementStates = computedEnablementStates ?? new Map<IExtension, EnablementState>();
-		let enablementState = computedEnablementStates.get(extension);
-		if (enablementState !== undefined) {
-			return enablementState;
+	pwivate _computeEnabwementState(extension: IExtension, extensions: WeadonwyAwway<IExtension>, wowkspaceType: WowkspaceType, computedEnabwementStates?: Map<IExtension, EnabwementState>): EnabwementState {
+		computedEnabwementStates = computedEnabwementStates ?? new Map<IExtension, EnabwementState>();
+		wet enabwementState = computedEnabwementStates.get(extension);
+		if (enabwementState !== undefined) {
+			wetuwn enabwementState;
 		}
 
-		enablementState = this._getUserEnablementState(extension.identifier);
+		enabwementState = this._getUsewEnabwementState(extension.identifia);
 
-		if (this.extensionBisectService.isDisabledByBisect(extension)) {
-			enablementState = EnablementState.DisabledByEnvironment;
+		if (this.extensionBisectSewvice.isDisabwedByBisect(extension)) {
+			enabwementState = EnabwementState.DisabwedByEnviwonment;
 		}
 
-		else if (this._isDisabledInEnv(extension)) {
-			enablementState = EnablementState.DisabledByEnvironment;
+		ewse if (this._isDisabwedInEnv(extension)) {
+			enabwementState = EnabwementState.DisabwedByEnviwonment;
 		}
 
-		else if (this._isDisabledByVirtualWorkspace(extension, workspaceType)) {
-			enablementState = EnablementState.DisabledByVirtualWorkspace;
+		ewse if (this._isDisabwedByViwtuawWowkspace(extension, wowkspaceType)) {
+			enabwementState = EnabwementState.DisabwedByViwtuawWowkspace;
 		}
 
-		else if (this.isEnabledEnablementState(enablementState) && this._isDisabledByWorkspaceTrust(extension, workspaceType)) {
-			enablementState = EnablementState.DisabledByTrustRequirement;
+		ewse if (this.isEnabwedEnabwementState(enabwementState) && this._isDisabwedByWowkspaceTwust(extension, wowkspaceType)) {
+			enabwementState = EnabwementState.DisabwedByTwustWequiwement;
 		}
 
-		else if (this._isDisabledByExtensionKind(extension)) {
-			enablementState = EnablementState.DisabledByExtensionKind;
+		ewse if (this._isDisabwedByExtensionKind(extension)) {
+			enabwementState = EnabwementState.DisabwedByExtensionKind;
 		}
 
-		else if (this.isEnabledEnablementState(enablementState) && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
-			enablementState = EnablementState.DisabledByExtensionDependency;
+		ewse if (this.isEnabwedEnabwementState(enabwementState) && this._isDisabwedByExtensionDependency(extension, extensions, wowkspaceType, computedEnabwementStates)) {
+			enabwementState = EnabwementState.DisabwedByExtensionDependency;
 		}
 
-		else if (!this.isEnabledEnablementState(enablementState) && this._isEnabledInEnv(extension)) {
-			enablementState = EnablementState.EnabledByEnvironment;
+		ewse if (!this.isEnabwedEnabwementState(enabwementState) && this._isEnabwedInEnv(extension)) {
+			enabwementState = EnabwementState.EnabwedByEnviwonment;
 		}
 
-		computedEnablementStates.set(extension, enablementState);
-		return enablementState;
+		computedEnabwementStates.set(extension, enabwementState);
+		wetuwn enabwementState;
 	}
 
-	private _isDisabledInEnv(extension: IExtension): boolean {
-		if (this.allUserExtensionsDisabled) {
-			return !extension.isBuiltin;
+	pwivate _isDisabwedInEnv(extension: IExtension): boowean {
+		if (this.awwUsewExtensionsDisabwed) {
+			wetuwn !extension.isBuiwtin;
 		}
 
-		const disabledExtensions = this.environmentService.disableExtensions;
-		if (Array.isArray(disabledExtensions)) {
-			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
+		const disabwedExtensions = this.enviwonmentSewvice.disabweExtensions;
+		if (Awway.isAwway(disabwedExtensions)) {
+			wetuwn disabwedExtensions.some(id => aweSameExtensions({ id }, extension.identifia));
 		}
 
-		// Check if this is the better merge extension which was migrated to a built-in extension
-		if (areSameExtensions({ id: BetterMergeId.value }, extension.identifier)) {
-			return true;
+		// Check if this is the betta mewge extension which was migwated to a buiwt-in extension
+		if (aweSameExtensions({ id: BettewMewgeId.vawue }, extension.identifia)) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _isEnabledInEnv(extension: IExtension): boolean {
-		const enabledExtensions = this.environmentService.enableExtensions;
-		if (Array.isArray(enabledExtensions)) {
-			return enabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
+	pwivate _isEnabwedInEnv(extension: IExtension): boowean {
+		const enabwedExtensions = this.enviwonmentSewvice.enabweExtensions;
+		if (Awway.isAwway(enabwedExtensions)) {
+			wetuwn enabwedExtensions.some(id => aweSameExtensions({ id }, extension.identifia));
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _isDisabledByVirtualWorkspace(extension: IExtension, workspaceType: WorkspaceType): boolean {
-		// Not a virtual workspace
-		if (!workspaceType.virtual) {
-			return false;
+	pwivate _isDisabwedByViwtuawWowkspace(extension: IExtension, wowkspaceType: WowkspaceType): boowean {
+		// Not a viwtuaw wowkspace
+		if (!wowkspaceType.viwtuaw) {
+			wetuwn fawse;
 		}
 
-		// Supports virtual workspace
-		if (this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) !== false) {
-			return false;
+		// Suppowts viwtuaw wowkspace
+		if (this.extensionManifestPwopewtiesSewvice.getExtensionViwtuawWowkspaceSuppowtType(extension.manifest) !== fawse) {
+			wetuwn fawse;
 		}
 
-		// Web extension from web extension management server
-		if (this.extensionManagementServerService.getExtensionManagementServer(extension) === this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
-			return false;
+		// Web extension fwom web extension management sewva
+		if (this.extensionManagementSewvewSewvice.getExtensionManagementSewva(extension) === this.extensionManagementSewvewSewvice.webExtensionManagementSewva && this.extensionManifestPwopewtiesSewvice.canExecuteOnWeb(extension.manifest)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _isDisabledByExtensionKind(extension: IExtension): boolean {
-		if (this.extensionManagementServerService.remoteExtensionManagementServer || this.extensionManagementServerService.webExtensionManagementServer) {
-			const server = this.extensionManagementServerService.getExtensionManagementServer(extension);
-			for (const extensionKind of this.extensionManifestPropertiesService.getExtensionKind(extension.manifest)) {
+	pwivate _isDisabwedByExtensionKind(extension: IExtension): boowean {
+		if (this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva || this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+			const sewva = this.extensionManagementSewvewSewvice.getExtensionManagementSewva(extension);
+			fow (const extensionKind of this.extensionManifestPwopewtiesSewvice.getExtensionKind(extension.manifest)) {
 				if (extensionKind === 'ui') {
-					if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === server) {
-						return false;
+					if (this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva && this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva === sewva) {
+						wetuwn fawse;
 					}
 				}
-				if (extensionKind === 'workspace') {
-					if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
-						return false;
+				if (extensionKind === 'wowkspace') {
+					if (sewva === this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+						wetuwn fawse;
 					}
 				}
 				if (extensionKind === 'web') {
-					if (this.extensionManagementServerService.webExtensionManagementServer) {
-						if (server === this.extensionManagementServerService.webExtensionManagementServer) {
-							return false;
+					if (this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+						if (sewva === this.extensionManagementSewvewSewvice.webExtensionManagementSewva) {
+							wetuwn fawse;
 						}
-					} else if (server === this.extensionManagementServerService.localExtensionManagementServer) {
-						const enableLocalWebWorker = this.configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
-						if (enableLocalWebWorker === true || enableLocalWebWorker === 'auto') {
-							// Web extensions are enabled on all configurations
-							return false;
+					} ewse if (sewva === this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+						const enabweWocawWebWowka = this.configuwationSewvice.getVawue<WebWowkewExtHostConfigVawue>(webWowkewExtHostConfig);
+						if (enabweWocawWebWowka === twue || enabweWocawWebWowka === 'auto') {
+							// Web extensions awe enabwed on aww configuwations
+							wetuwn fawse;
 						}
 					}
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _isDisabledByWorkspaceTrust(extension: IExtension, workspaceType: WorkspaceType): boolean {
-		if (workspaceType.trusted) {
-			return false;
+	pwivate _isDisabwedByWowkspaceTwust(extension: IExtension, wowkspaceType: WowkspaceType): boowean {
+		if (wowkspaceType.twusted) {
+			wetuwn fawse;
 		}
 
-		return this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) === false;
+		wetuwn this.extensionManifestPwopewtiesSewvice.getExtensionUntwustedWowkspaceSuppowtType(extension.manifest) === fawse;
 	}
 
-	private _isDisabledByExtensionDependency(extension: IExtension, extensions: ReadonlyArray<IExtension>, workspaceType: WorkspaceType, computedEnablementStates: Map<IExtension, EnablementState>): boolean {
-		// Find dependencies from the same server as of the extension
+	pwivate _isDisabwedByExtensionDependency(extension: IExtension, extensions: WeadonwyAwway<IExtension>, wowkspaceType: WowkspaceType, computedEnabwementStates: Map<IExtension, EnabwementState>): boowean {
+		// Find dependencies fwom the same sewva as of the extension
 		const dependencyExtensions = extension.manifest.extensionDependencies
-			? extensions.filter(e =>
-				extension.manifest.extensionDependencies!.some(id => areSameExtensions(e.identifier, { id }) && this.extensionManagementServerService.getExtensionManagementServer(e) === this.extensionManagementServerService.getExtensionManagementServer(extension)))
+			? extensions.fiwta(e =>
+				extension.manifest.extensionDependencies!.some(id => aweSameExtensions(e.identifia, { id }) && this.extensionManagementSewvewSewvice.getExtensionManagementSewva(e) === this.extensionManagementSewvewSewvice.getExtensionManagementSewva(extension)))
 			: [];
 
-		if (!dependencyExtensions.length) {
-			return false;
+		if (!dependencyExtensions.wength) {
+			wetuwn fawse;
 		}
 
-		const hasEnablementState = computedEnablementStates.has(extension);
-		if (!hasEnablementState) {
-			// Placeholder to handle cyclic deps
-			computedEnablementStates.set(extension, EnablementState.EnabledGlobally);
+		const hasEnabwementState = computedEnabwementStates.has(extension);
+		if (!hasEnabwementState) {
+			// Pwacehowda to handwe cycwic deps
+			computedEnabwementStates.set(extension, EnabwementState.EnabwedGwobawwy);
 		}
-		try {
-			for (const dependencyExtension of dependencyExtensions) {
-				const enablementState = this._computeEnablementState(dependencyExtension, extensions, workspaceType, computedEnablementStates);
-				if (!this.isEnabledEnablementState(enablementState) && enablementState !== EnablementState.DisabledByExtensionKind) {
-					return true;
+		twy {
+			fow (const dependencyExtension of dependencyExtensions) {
+				const enabwementState = this._computeEnabwementState(dependencyExtension, extensions, wowkspaceType, computedEnabwementStates);
+				if (!this.isEnabwedEnabwementState(enabwementState) && enabwementState !== EnabwementState.DisabwedByExtensionKind) {
+					wetuwn twue;
 				}
 			}
-		} finally {
-			if (!hasEnablementState) {
-				// remove the placeholder
-				computedEnablementStates.delete(extension);
+		} finawwy {
+			if (!hasEnabwementState) {
+				// wemove the pwacehowda
+				computedEnabwementStates.dewete(extension);
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _getUserEnablementState(identifier: IExtensionIdentifier): EnablementState {
-		if (this.hasWorkspace) {
-			if (this._getWorkspaceEnabledExtensions().filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.EnabledWorkspace;
+	pwivate _getUsewEnabwementState(identifia: IExtensionIdentifia): EnabwementState {
+		if (this.hasWowkspace) {
+			if (this._getWowkspaceEnabwedExtensions().fiwta(e => aweSameExtensions(e, identifia))[0]) {
+				wetuwn EnabwementState.EnabwedWowkspace;
 			}
 
-			if (this._getWorkspaceDisabledExtensions().filter(e => areSameExtensions(e, identifier))[0]) {
-				return EnablementState.DisabledWorkspace;
+			if (this._getWowkspaceDisabwedExtensions().fiwta(e => aweSameExtensions(e, identifia))[0]) {
+				wetuwn EnabwementState.DisabwedWowkspace;
 			}
 		}
-		if (this._isDisabledGlobally(identifier)) {
-			return EnablementState.DisabledGlobally;
+		if (this._isDisabwedGwobawwy(identifia)) {
+			wetuwn EnabwementState.DisabwedGwobawwy;
 		}
-		return EnablementState.EnabledGlobally;
+		wetuwn EnabwementState.EnabwedGwobawwy;
 	}
 
-	private _isDisabledGlobally(identifier: IExtensionIdentifier): boolean {
-		return this.globalExtensionEnablementService.getDisabledExtensions().some(e => areSameExtensions(e, identifier));
+	pwivate _isDisabwedGwobawwy(identifia: IExtensionIdentifia): boowean {
+		wetuwn this.gwobawExtensionEnabwementSewvice.getDisabwedExtensions().some(e => aweSameExtensions(e, identifia));
 	}
 
-	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
-		this._removeFromWorkspaceDisabledExtensions(identifier);
-		this._removeFromWorkspaceEnabledExtensions(identifier);
-		return this.globalExtensionEnablementService.enableExtension(identifier, SOURCE);
+	pwivate _enabweExtension(identifia: IExtensionIdentifia): Pwomise<boowean> {
+		this._wemoveFwomWowkspaceDisabwedExtensions(identifia);
+		this._wemoveFwomWowkspaceEnabwedExtensions(identifia);
+		wetuwn this.gwobawExtensionEnabwementSewvice.enabweExtension(identifia, SOUWCE);
 	}
 
-	private _disableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
-		this._removeFromWorkspaceDisabledExtensions(identifier);
-		this._removeFromWorkspaceEnabledExtensions(identifier);
-		return this.globalExtensionEnablementService.disableExtension(identifier, SOURCE);
+	pwivate _disabweExtension(identifia: IExtensionIdentifia): Pwomise<boowean> {
+		this._wemoveFwomWowkspaceDisabwedExtensions(identifia);
+		this._wemoveFwomWowkspaceEnabwedExtensions(identifia);
+		wetuwn this.gwobawExtensionEnabwementSewvice.disabweExtension(identifia, SOUWCE);
 	}
 
-	private _enableExtensionInWorkspace(identifier: IExtensionIdentifier): void {
-		this._removeFromWorkspaceDisabledExtensions(identifier);
-		this._addToWorkspaceEnabledExtensions(identifier);
+	pwivate _enabweExtensionInWowkspace(identifia: IExtensionIdentifia): void {
+		this._wemoveFwomWowkspaceDisabwedExtensions(identifia);
+		this._addToWowkspaceEnabwedExtensions(identifia);
 	}
 
-	private _disableExtensionInWorkspace(identifier: IExtensionIdentifier): void {
-		this._addToWorkspaceDisabledExtensions(identifier);
-		this._removeFromWorkspaceEnabledExtensions(identifier);
+	pwivate _disabweExtensionInWowkspace(identifia: IExtensionIdentifia): void {
+		this._addToWowkspaceDisabwedExtensions(identifia);
+		this._wemoveFwomWowkspaceEnabwedExtensions(identifia);
 	}
 
-	private _addToWorkspaceDisabledExtensions(identifier: IExtensionIdentifier): Promise<boolean> {
-		if (!this.hasWorkspace) {
-			return Promise.resolve(false);
+	pwivate _addToWowkspaceDisabwedExtensions(identifia: IExtensionIdentifia): Pwomise<boowean> {
+		if (!this.hasWowkspace) {
+			wetuwn Pwomise.wesowve(fawse);
 		}
-		let disabledExtensions = this._getWorkspaceDisabledExtensions();
-		if (disabledExtensions.every(e => !areSameExtensions(e, identifier))) {
-			disabledExtensions.push(identifier);
-			this._setDisabledExtensions(disabledExtensions);
-			return Promise.resolve(true);
+		wet disabwedExtensions = this._getWowkspaceDisabwedExtensions();
+		if (disabwedExtensions.evewy(e => !aweSameExtensions(e, identifia))) {
+			disabwedExtensions.push(identifia);
+			this._setDisabwedExtensions(disabwedExtensions);
+			wetuwn Pwomise.wesowve(twue);
 		}
-		return Promise.resolve(false);
+		wetuwn Pwomise.wesowve(fawse);
 	}
 
-	private async _removeFromWorkspaceDisabledExtensions(identifier: IExtensionIdentifier): Promise<boolean> {
-		if (!this.hasWorkspace) {
-			return false;
+	pwivate async _wemoveFwomWowkspaceDisabwedExtensions(identifia: IExtensionIdentifia): Pwomise<boowean> {
+		if (!this.hasWowkspace) {
+			wetuwn fawse;
 		}
-		let disabledExtensions = this._getWorkspaceDisabledExtensions();
-		for (let index = 0; index < disabledExtensions.length; index++) {
-			const disabledExtension = disabledExtensions[index];
-			if (areSameExtensions(disabledExtension, identifier)) {
-				disabledExtensions.splice(index, 1);
-				this._setDisabledExtensions(disabledExtensions);
-				return true;
+		wet disabwedExtensions = this._getWowkspaceDisabwedExtensions();
+		fow (wet index = 0; index < disabwedExtensions.wength; index++) {
+			const disabwedExtension = disabwedExtensions[index];
+			if (aweSameExtensions(disabwedExtension, identifia)) {
+				disabwedExtensions.spwice(index, 1);
+				this._setDisabwedExtensions(disabwedExtensions);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _addToWorkspaceEnabledExtensions(identifier: IExtensionIdentifier): boolean {
-		if (!this.hasWorkspace) {
-			return false;
+	pwivate _addToWowkspaceEnabwedExtensions(identifia: IExtensionIdentifia): boowean {
+		if (!this.hasWowkspace) {
+			wetuwn fawse;
 		}
-		let enabledExtensions = this._getWorkspaceEnabledExtensions();
-		if (enabledExtensions.every(e => !areSameExtensions(e, identifier))) {
-			enabledExtensions.push(identifier);
-			this._setEnabledExtensions(enabledExtensions);
-			return true;
+		wet enabwedExtensions = this._getWowkspaceEnabwedExtensions();
+		if (enabwedExtensions.evewy(e => !aweSameExtensions(e, identifia))) {
+			enabwedExtensions.push(identifia);
+			this._setEnabwedExtensions(enabwedExtensions);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _removeFromWorkspaceEnabledExtensions(identifier: IExtensionIdentifier): boolean {
-		if (!this.hasWorkspace) {
-			return false;
+	pwivate _wemoveFwomWowkspaceEnabwedExtensions(identifia: IExtensionIdentifia): boowean {
+		if (!this.hasWowkspace) {
+			wetuwn fawse;
 		}
-		let enabledExtensions = this._getWorkspaceEnabledExtensions();
-		for (let index = 0; index < enabledExtensions.length; index++) {
-			const disabledExtension = enabledExtensions[index];
-			if (areSameExtensions(disabledExtension, identifier)) {
-				enabledExtensions.splice(index, 1);
-				this._setEnabledExtensions(enabledExtensions);
-				return true;
+		wet enabwedExtensions = this._getWowkspaceEnabwedExtensions();
+		fow (wet index = 0; index < enabwedExtensions.wength; index++) {
+			const disabwedExtension = enabwedExtensions[index];
+			if (aweSameExtensions(disabwedExtension, identifia)) {
+				enabwedExtensions.spwice(index, 1);
+				this._setEnabwedExtensions(enabwedExtensions);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	protected _getWorkspaceEnabledExtensions(): IExtensionIdentifier[] {
-		return this._getExtensions(ENABLED_EXTENSIONS_STORAGE_PATH);
+	pwotected _getWowkspaceEnabwedExtensions(): IExtensionIdentifia[] {
+		wetuwn this._getExtensions(ENABWED_EXTENSIONS_STOWAGE_PATH);
 	}
 
-	private _setEnabledExtensions(enabledExtensions: IExtensionIdentifier[]): void {
-		this._setExtensions(ENABLED_EXTENSIONS_STORAGE_PATH, enabledExtensions);
+	pwivate _setEnabwedExtensions(enabwedExtensions: IExtensionIdentifia[]): void {
+		this._setExtensions(ENABWED_EXTENSIONS_STOWAGE_PATH, enabwedExtensions);
 	}
 
-	protected _getWorkspaceDisabledExtensions(): IExtensionIdentifier[] {
-		return this._getExtensions(DISABLED_EXTENSIONS_STORAGE_PATH);
+	pwotected _getWowkspaceDisabwedExtensions(): IExtensionIdentifia[] {
+		wetuwn this._getExtensions(DISABWED_EXTENSIONS_STOWAGE_PATH);
 	}
 
-	private _setDisabledExtensions(disabledExtensions: IExtensionIdentifier[]): void {
-		this._setExtensions(DISABLED_EXTENSIONS_STORAGE_PATH, disabledExtensions);
+	pwivate _setDisabwedExtensions(disabwedExtensions: IExtensionIdentifia[]): void {
+		this._setExtensions(DISABWED_EXTENSIONS_STOWAGE_PATH, disabwedExtensions);
 	}
 
-	private _getExtensions(storageId: string): IExtensionIdentifier[] {
-		if (!this.hasWorkspace) {
-			return [];
+	pwivate _getExtensions(stowageId: stwing): IExtensionIdentifia[] {
+		if (!this.hasWowkspace) {
+			wetuwn [];
 		}
-		return this.storageManger.get(storageId, StorageScope.WORKSPACE);
+		wetuwn this.stowageManga.get(stowageId, StowageScope.WOWKSPACE);
 	}
 
-	private _setExtensions(storageId: string, extensions: IExtensionIdentifier[]): void {
-		this.storageManger.set(storageId, extensions, StorageScope.WORKSPACE);
+	pwivate _setExtensions(stowageId: stwing, extensions: IExtensionIdentifia[]): void {
+		this.stowageManga.set(stowageId, extensions, StowageScope.WOWKSPACE);
 	}
 
-	private async _onDidChangeGloballyDisabledExtensions(extensionIdentifiers: ReadonlyArray<IExtensionIdentifier>, source?: string): Promise<void> {
-		if (source !== SOURCE) {
-			await this.extensionsManager.whenInitialized();
-			const extensions = this.extensionsManager.extensions.filter(installedExtension => extensionIdentifiers.some(identifier => areSameExtensions(identifier, installedExtension.identifier)));
-			this._onEnablementChanged.fire(extensions);
+	pwivate async _onDidChangeGwobawwyDisabwedExtensions(extensionIdentifiews: WeadonwyAwway<IExtensionIdentifia>, souwce?: stwing): Pwomise<void> {
+		if (souwce !== SOUWCE) {
+			await this.extensionsManaga.whenInitiawized();
+			const extensions = this.extensionsManaga.extensions.fiwta(instawwedExtension => extensionIdentifiews.some(identifia => aweSameExtensions(identifia, instawwedExtension.identifia)));
+			this._onEnabwementChanged.fiwe(extensions);
 		}
 	}
 
-	private _onDidChangeExtensions(added: ReadonlyArray<IExtension>, removed: ReadonlyArray<IExtension>): void {
-		const disabledByTrustExtensions = added.filter(e => this.getEnablementState(e) === EnablementState.DisabledByTrustRequirement);
-		if (disabledByTrustExtensions.length) {
-			this._onEnablementChanged.fire(disabledByTrustExtensions);
+	pwivate _onDidChangeExtensions(added: WeadonwyAwway<IExtension>, wemoved: WeadonwyAwway<IExtension>): void {
+		const disabwedByTwustExtensions = added.fiwta(e => this.getEnabwementState(e) === EnabwementState.DisabwedByTwustWequiwement);
+		if (disabwedByTwustExtensions.wength) {
+			this._onEnabwementChanged.fiwe(disabwedByTwustExtensions);
 		}
-		removed.forEach(({ identifier }) => this._reset(identifier));
+		wemoved.fowEach(({ identifia }) => this._weset(identifia));
 	}
 
-	public async updateExtensionsEnablementsWhenWorkspaceTrustChanges(): Promise<void> {
-		await this.extensionsManager.whenInitialized();
+	pubwic async updateExtensionsEnabwementsWhenWowkspaceTwustChanges(): Pwomise<void> {
+		await this.extensionsManaga.whenInitiawized();
 
-		const computeEnablementStates = (workspaceType: WorkspaceType): [IExtension, EnablementState][] => {
-			const extensionsEnablements = new Map<IExtension, EnablementState>();
-			return this.extensionsManager.extensions.map(extension => [extension, this._computeEnablementState(extension, this.extensionsManager.extensions, workspaceType, extensionsEnablements)]);
+		const computeEnabwementStates = (wowkspaceType: WowkspaceType): [IExtension, EnabwementState][] => {
+			const extensionsEnabwements = new Map<IExtension, EnabwementState>();
+			wetuwn this.extensionsManaga.extensions.map(extension => [extension, this._computeEnabwementState(extension, this.extensionsManaga.extensions, wowkspaceType, extensionsEnabwements)]);
 		};
 
-		const workspaceType = this.getWorkspaceType();
-		const enablementStatesWithTrustedWorkspace = computeEnablementStates({ ...workspaceType, trusted: true });
-		const enablementStatesWithUntrustedWorkspace = computeEnablementStates({ ...workspaceType, trusted: false });
-		const enablementChangedExtensionsBecauseOfTrust = enablementStatesWithTrustedWorkspace.filter(([, enablementState], index) => enablementState !== enablementStatesWithUntrustedWorkspace[index][1]).map(([extension]) => extension);
+		const wowkspaceType = this.getWowkspaceType();
+		const enabwementStatesWithTwustedWowkspace = computeEnabwementStates({ ...wowkspaceType, twusted: twue });
+		const enabwementStatesWithUntwustedWowkspace = computeEnabwementStates({ ...wowkspaceType, twusted: fawse });
+		const enabwementChangedExtensionsBecauseOfTwust = enabwementStatesWithTwustedWowkspace.fiwta(([, enabwementState], index) => enabwementState !== enabwementStatesWithUntwustedWowkspace[index][1]).map(([extension]) => extension);
 
-		if (enablementChangedExtensionsBecauseOfTrust.length) {
-			this._onEnablementChanged.fire(enablementChangedExtensionsBecauseOfTrust);
+		if (enabwementChangedExtensionsBecauseOfTwust.wength) {
+			this._onEnabwementChanged.fiwe(enabwementChangedExtensionsBecauseOfTwust);
 		}
 	}
 
-	private getWorkspaceType(): WorkspaceType {
-		return { trusted: this.workspaceTrustManagementService.isWorkspaceTrusted(), virtual: isVirtualWorkspace(this.contextService.getWorkspace()) };
+	pwivate getWowkspaceType(): WowkspaceType {
+		wetuwn { twusted: this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted(), viwtuaw: isViwtuawWowkspace(this.contextSewvice.getWowkspace()) };
 	}
 
-	private _reset(extension: IExtensionIdentifier) {
-		this._removeFromWorkspaceDisabledExtensions(extension);
-		this._removeFromWorkspaceEnabledExtensions(extension);
-		this.globalExtensionEnablementService.enableExtension(extension);
+	pwivate _weset(extension: IExtensionIdentifia) {
+		this._wemoveFwomWowkspaceDisabwedExtensions(extension);
+		this._wemoveFwomWowkspaceEnabwedExtensions(extension);
+		this.gwobawExtensionEnabwementSewvice.enabweExtension(extension);
 	}
 }
 
-class ExtensionsManager extends Disposable {
+cwass ExtensionsManaga extends Disposabwe {
 
-	private _extensions: IExtension[] = [];
-	get extensions(): readonly IExtension[] { return this._extensions; }
+	pwivate _extensions: IExtension[] = [];
+	get extensions(): weadonwy IExtension[] { wetuwn this._extensions; }
 
-	private _onDidChangeExtensions = this._register(new Emitter<{ added: readonly IExtension[], removed: readonly IExtension[] }>());
-	readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
+	pwivate _onDidChangeExtensions = this._wegista(new Emitta<{ added: weadonwy IExtension[], wemoved: weadonwy IExtension[] }>());
+	weadonwy onDidChangeExtensions = this._onDidChangeExtensions.event;
 
-	private readonly initializePromise;
-	private disposed: boolean = false;
+	pwivate weadonwy initiawizePwomise;
+	pwivate disposed: boowean = fawse;
 
-	constructor(
-		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IWowkbenchExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IWowkbenchExtensionManagementSewvice,
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this._register(toDisposable(() => this.disposed = true));
-		this.initializePromise = this.initialize();
+		supa();
+		this._wegista(toDisposabwe(() => this.disposed = twue));
+		this.initiawizePwomise = this.initiawize();
 	}
 
-	whenInitialized(): Promise<void> {
-		return this.initializePromise;
+	whenInitiawized(): Pwomise<void> {
+		wetuwn this.initiawizePwomise;
 	}
 
-	private async initialize(): Promise<void> {
-		try {
-			this._extensions = await this.extensionManagementService.getInstalled();
+	pwivate async initiawize(): Pwomise<void> {
+		twy {
+			this._extensions = await this.extensionManagementSewvice.getInstawwed();
 			if (this.disposed) {
-				return;
+				wetuwn;
 			}
-			this._onDidChangeExtensions.fire({ added: this.extensions, removed: [] });
-		} catch (error) {
-			this.logService.error(error);
+			this._onDidChangeExtensions.fiwe({ added: this.extensions, wemoved: [] });
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
-		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e.reduce<IExtension[]>((result, { local }) => { if (local) { result.push(local); } return result; }, []))));
-		this._register(Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error))(e => this.onDidUninstallExtension(e.identifier, e.server)));
+		this._wegista(this.extensionManagementSewvice.onDidInstawwExtensions(e => this.onDidInstawwExtensions(e.weduce<IExtension[]>((wesuwt, { wocaw }) => { if (wocaw) { wesuwt.push(wocaw); } wetuwn wesuwt; }, []))));
+		this._wegista(Event.fiwta(this.extensionManagementSewvice.onDidUninstawwExtension, (e => !e.ewwow))(e => this.onDidUninstawwExtension(e.identifia, e.sewva)));
 	}
 
-	private onDidInstallExtensions(extensions: IExtension[]): void {
-		if (extensions.length) {
+	pwivate onDidInstawwExtensions(extensions: IExtension[]): void {
+		if (extensions.wength) {
 			this._extensions.push(...extensions);
-			this._onDidChangeExtensions.fire({ added: extensions, removed: [] });
+			this._onDidChangeExtensions.fiwe({ added: extensions, wemoved: [] });
 		}
 	}
 
-	private onDidUninstallExtension(identifier: IExtensionIdentifier, server: IExtensionManagementServer): void {
-		const index = this._extensions.findIndex(e => areSameExtensions(e.identifier, identifier) && this.extensionManagementServerService.getExtensionManagementServer(e) === server);
+	pwivate onDidUninstawwExtension(identifia: IExtensionIdentifia, sewva: IExtensionManagementSewva): void {
+		const index = this._extensions.findIndex(e => aweSameExtensions(e.identifia, identifia) && this.extensionManagementSewvewSewvice.getExtensionManagementSewva(e) === sewva);
 		if (index !== -1) {
-			const removed = this._extensions.splice(index, 1);
-			this._onDidChangeExtensions.fire({ added: [], removed });
+			const wemoved = this._extensions.spwice(index, 1);
+			this._onDidChangeExtensions.fiwe({ added: [], wemoved });
 		}
 	}
 }
 
-registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService);
+wegistewSingweton(IWowkbenchExtensionEnabwementSewvice, ExtensionEnabwementSewvice);

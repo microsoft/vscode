@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IExtensionWecommendationNotificationSewvice, WecommendationsNotificationWesuwt, WecommendationSouwce } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
 
-export class ExtensionRecommendationNotificationServiceChannelClient implements IExtensionRecommendationNotificationService {
+expowt cwass ExtensionWecommendationNotificationSewviceChannewCwient impwements IExtensionWecommendationNotificationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(private readonly channel: IChannel) { }
+	constwuctow(pwivate weadonwy channew: IChannew) { }
 
-	get ignoredRecommendations(): string[] { throw new Error('not supported'); }
+	get ignowedWecommendations(): stwing[] { thwow new Ewwow('not suppowted'); }
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, priority: RecommendationSource): Promise<RecommendationsNotificationResult> {
-		return this.channel.call('promptImportantExtensionsInstallNotification', [extensionIds, message, searchValue, priority]);
+	pwomptImpowtantExtensionsInstawwNotification(extensionIds: stwing[], message: stwing, seawchVawue: stwing, pwiowity: WecommendationSouwce): Pwomise<WecommendationsNotificationWesuwt> {
+		wetuwn this.channew.caww('pwomptImpowtantExtensionsInstawwNotification', [extensionIds, message, seawchVawue, pwiowity]);
 	}
 
-	promptWorkspaceRecommendations(recommendations: string[]): Promise<void> {
-		throw new Error('not supported');
+	pwomptWowkspaceWecommendations(wecommendations: stwing[]): Pwomise<void> {
+		thwow new Ewwow('not suppowted');
 	}
 
-	hasToIgnoreRecommendationNotifications(): boolean {
-		throw new Error('not supported');
+	hasToIgnoweWecommendationNotifications(): boowean {
+		thwow new Ewwow('not suppowted');
 	}
 
 }
 
-export class ExtensionRecommendationNotificationServiceChannel implements IServerChannel {
+expowt cwass ExtensionWecommendationNotificationSewviceChannew impwements ISewvewChannew {
 
-	constructor(private service: IExtensionRecommendationNotificationService) { }
+	constwuctow(pwivate sewvice: IExtensionWecommendationNotificationSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
-		throw new Error(`Event not found: ${event}`);
+	wisten(_: unknown, event: stwing): Event<any> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, args?: any): Promise<any> {
+	caww(_: unknown, command: stwing, awgs?: any): Pwomise<any> {
 		switch (command) {
-			case 'promptImportantExtensionsInstallNotification': return this.service.promptImportantExtensionsInstallNotification(args[0], args[1], args[2], args[3]);
+			case 'pwomptImpowtantExtensionsInstawwNotification': wetuwn this.sewvice.pwomptImpowtantExtensionsInstawwNotification(awgs[0], awgs[1], awgs[2], awgs[3]);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 }
 

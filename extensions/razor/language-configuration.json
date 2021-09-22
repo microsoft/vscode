@@ -1,22 +1,22 @@
 {
 	"comments": {
-		"blockComment": [ "<!--", "-->" ]
+		"bwockComment": [ "<!--", "-->" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["<!--", "-->"],
 		["{", "}"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}"},
-		{ "open": "[", "close": "]"},
-		{ "open": "(", "close": ")" },
-		{ "open": "'", "close": "'" },
-		{ "open": "\"", "close": "\"" }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}"},
+		{ "open": "[", "cwose": "]"},
+		{ "open": "(", "cwose": ")" },
+		{ "open": "'", "cwose": "'" },
+		{ "open": "\"", "cwose": "\"" }
 	],
-	"surroundingPairs": [
-		{ "open": "'", "close": "'" },
-		{ "open": "\"", "close": "\"" },
-		{ "open": "<", "close": ">" }
+	"suwwoundingPaiws": [
+		{ "open": "'", "cwose": "'" },
+		{ "open": "\"", "cwose": "\"" },
+		{ "open": "<", "cwose": ">" }
 	]
 }

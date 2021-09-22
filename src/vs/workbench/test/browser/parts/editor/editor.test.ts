@@ -1,410 +1,410 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, IEditorInputWithOptions, isEditorInputWithOptions, isEditorInput, IEditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+impowt * as assewt fwom 'assewt';
+impowt { EditowWesouwceAccessow, SideBySideEditow, IEditowInputWithPwefewwedWesouwce, EditowInputCapabiwities, isEditowIdentifia, IWesouwceDiffEditowInput, IUntitwedTextWesouwceEditowInput, isWesouwceEditowInput, isUntitwedWesouwceEditowInput, isWesouwceDiffEditowInput, isEditowInputWithOptionsAndGwoup, IEditowInputWithOptions, isEditowInputWithOptions, isEditowInput, IEditowInputWithOptionsAndGwoup, isWesouwceSideBySideEditowInput, IWesouwceSideBySideEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestEditowInput, wegistewTestEditow, wegistewTestFiweEditow, wegistewTestWesouwceEditow, TestFiweEditowInput, cweateEditowPawt, wegistewTestSideBySideEditow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { whenEditowCwosed } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { EditowWesowution, IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
 
-suite('Workbench editor utils', () => {
+suite('Wowkbench editow utiws', () => {
 
-	class TestEditorInputWithPreferredResource extends TestEditorInput implements IEditorInputWithPreferredResource {
+	cwass TestEditowInputWithPwefewwedWesouwce extends TestEditowInput impwements IEditowInputWithPwefewwedWesouwce {
 
-		constructor(resource: URI, public preferredResource: URI, typeId: string) {
-			super(resource, typeId);
+		constwuctow(wesouwce: UWI, pubwic pwefewwedWesouwce: UWI, typeId: stwing) {
+			supa(wesouwce, typeId);
 		}
 	}
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
-	const TEST_EDITOR_ID = 'MyTestEditorForEditors';
+	const TEST_EDITOW_ID = 'MyTestEditowFowEditows';
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
-	async function createServices(): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+	async function cweateSewvices(): Pwomise<TestSewviceAccessow> {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		const editorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		return instantiationService.createInstance(TestServiceAccessor);
+		wetuwn instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		disposables.add(registerTestFileEditor());
-		disposables.add(registerTestSideBySideEditor());
-		disposables.add(registerTestResourceEditor());
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposabwes.add(wegistewTestFiweEditow());
+		disposabwes.add(wegistewTestSideBySideEditow());
+		disposabwes.add(wegistewTestWesouwceEditow());
+		disposabwes.add(wegistewTestEditow(TEST_EDITOW_ID, [new SyncDescwiptow(TestFiweEditowInput)]));
 	});
 
-	teardown(() => {
-		accessor.untitledTextEditorService.dispose();
+	teawdown(() => {
+		accessow.untitwedTextEditowSewvice.dispose();
 
-		disposables.clear();
+		disposabwes.cweaw();
 	});
 
 	test('untyped check functions', () => {
-		assert.ok(!isResourceEditorInput(undefined));
-		assert.ok(!isResourceEditorInput({}));
-		assert.ok(!isResourceEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
-		assert.ok(isResourceEditorInput({ resource: URI.file('/') }));
+		assewt.ok(!isWesouwceEditowInput(undefined));
+		assewt.ok(!isWesouwceEditowInput({}));
+		assewt.ok(!isWesouwceEditowInput({ owiginaw: { wesouwce: UWI.fiwe('/') }, modified: { wesouwce: UWI.fiwe('/') } }));
+		assewt.ok(isWesouwceEditowInput({ wesouwce: UWI.fiwe('/') }));
 
-		assert.ok(!isUntitledResourceEditorInput(undefined));
-		assert.ok(isUntitledResourceEditorInput({}));
-		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/').with({ scheme: Schemas.untitled }) }));
-		assert.ok(isUntitledResourceEditorInput({ resource: URI.file('/'), forceUntitled: true }));
+		assewt.ok(!isUntitwedWesouwceEditowInput(undefined));
+		assewt.ok(isUntitwedWesouwceEditowInput({}));
+		assewt.ok(isUntitwedWesouwceEditowInput({ wesouwce: UWI.fiwe('/').with({ scheme: Schemas.untitwed }) }));
+		assewt.ok(isUntitwedWesouwceEditowInput({ wesouwce: UWI.fiwe('/'), fowceUntitwed: twue }));
 
-		assert.ok(!isResourceDiffEditorInput(undefined));
-		assert.ok(!isResourceDiffEditorInput({}));
-		assert.ok(!isResourceDiffEditorInput({ resource: URI.file('/') }));
-		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
-		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') }, primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
-		assert.ok(!isResourceDiffEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
+		assewt.ok(!isWesouwceDiffEditowInput(undefined));
+		assewt.ok(!isWesouwceDiffEditowInput({}));
+		assewt.ok(!isWesouwceDiffEditowInput({ wesouwce: UWI.fiwe('/') }));
+		assewt.ok(isWesouwceDiffEditowInput({ owiginaw: { wesouwce: UWI.fiwe('/') }, modified: { wesouwce: UWI.fiwe('/') } }));
+		assewt.ok(isWesouwceDiffEditowInput({ owiginaw: { wesouwce: UWI.fiwe('/') }, modified: { wesouwce: UWI.fiwe('/') }, pwimawy: { wesouwce: UWI.fiwe('/') }, secondawy: { wesouwce: UWI.fiwe('/') } }));
+		assewt.ok(!isWesouwceDiffEditowInput({ pwimawy: { wesouwce: UWI.fiwe('/') }, secondawy: { wesouwce: UWI.fiwe('/') } }));
 
-		assert.ok(!isResourceSideBySideEditorInput(undefined));
-		assert.ok(!isResourceSideBySideEditorInput({}));
-		assert.ok(!isResourceSideBySideEditorInput({ resource: URI.file('/') }));
-		assert.ok(isResourceSideBySideEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
-		assert.ok(!isResourceSideBySideEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
-		assert.ok(!isResourceSideBySideEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') }, original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
+		assewt.ok(!isWesouwceSideBySideEditowInput(undefined));
+		assewt.ok(!isWesouwceSideBySideEditowInput({}));
+		assewt.ok(!isWesouwceSideBySideEditowInput({ wesouwce: UWI.fiwe('/') }));
+		assewt.ok(isWesouwceSideBySideEditowInput({ pwimawy: { wesouwce: UWI.fiwe('/') }, secondawy: { wesouwce: UWI.fiwe('/') } }));
+		assewt.ok(!isWesouwceSideBySideEditowInput({ owiginaw: { wesouwce: UWI.fiwe('/') }, modified: { wesouwce: UWI.fiwe('/') } }));
+		assewt.ok(!isWesouwceSideBySideEditowInput({ pwimawy: { wesouwce: UWI.fiwe('/') }, secondawy: { wesouwce: UWI.fiwe('/') }, owiginaw: { wesouwce: UWI.fiwe('/') }, modified: { wesouwce: UWI.fiwe('/') } }));
 	});
 
-	test('EditorInputCapabilities', () => {
-		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
-		const testInput2 = new TestFileEditorInput(URI.file('resource2'), 'testTypeId');
+	test('EditowInputCapabiwities', () => {
+		const testInput1 = new TestFiweEditowInput(UWI.fiwe('wesouwce1'), 'testTypeId');
+		const testInput2 = new TestFiweEditowInput(UWI.fiwe('wesouwce2'), 'testTypeId');
 
-		testInput1.capabilities = EditorInputCapabilities.None;
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), true);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Singleton), false);
+		testInput1.capabiwities = EditowInputCapabiwities.None;
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.None), twue);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Untitwed), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Singweton), fawse);
 
-		testInput1.capabilities |= EditorInputCapabilities.Readonly;
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), true);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
-		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Singleton), false);
+		testInput1.capabiwities |= EditowInputCapabiwities.Weadonwy;
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Weadonwy), twue);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.None), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Untitwed), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust), fawse);
+		assewt.stwictEquaw(testInput1.hasCapabiwity(EditowInputCapabiwities.Singweton), fawse);
 
-		testInput1.capabilities = EditorInputCapabilities.None;
-		testInput2.capabilities = EditorInputCapabilities.None;
+		testInput1.capabiwities = EditowInputCapabiwities.None;
+		testInput2.capabiwities = EditowInputCapabiwities.None;
 
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, testInput1, testInput2);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.None), true);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), false);
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), false);
+		const sideBySideInput = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'name', undefined, testInput1, testInput2);
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.None), twue);
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Untitwed), fawse);
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust), fawse);
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Singweton), fawse);
 
-		testInput1.capabilities |= EditorInputCapabilities.Readonly;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
+		testInput1.capabiwities |= EditowInputCapabiwities.Weadonwy;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
 
-		testInput2.capabilities |= EditorInputCapabilities.Readonly;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), true);
+		testInput2.capabiwities |= EditowInputCapabiwities.Weadonwy;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Weadonwy), twue);
 
-		testInput1.capabilities |= EditorInputCapabilities.Untitled;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
+		testInput1.capabiwities |= EditowInputCapabiwities.Untitwed;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Untitwed), fawse);
 
-		testInput2.capabilities |= EditorInputCapabilities.Untitled;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), true);
+		testInput2.capabiwities |= EditowInputCapabiwities.Untitwed;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Untitwed), twue);
 
-		testInput1.capabilities |= EditorInputCapabilities.RequiresTrust;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), true);
+		testInput1.capabiwities |= EditowInputCapabiwities.WequiwesTwust;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust), twue);
 
-		testInput2.capabilities |= EditorInputCapabilities.RequiresTrust;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), true);
+		testInput2.capabiwities |= EditowInputCapabiwities.WequiwesTwust;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust), twue);
 
-		testInput1.capabilities |= EditorInputCapabilities.Singleton;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), true);
+		testInput1.capabiwities |= EditowInputCapabiwities.Singweton;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Singweton), twue);
 
-		testInput2.capabilities |= EditorInputCapabilities.Singleton;
-		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), true);
+		testInput2.capabiwities |= EditowInputCapabiwities.Singweton;
+		assewt.stwictEquaw(sideBySideInput.hasCapabiwity(EditowInputCapabiwities.Singweton), twue);
 	});
 
-	test('EditorResourceAccessor - typed inputs', () => {
-		const service = accessor.untitledTextEditorService;
+	test('EditowWesouwceAccessow - typed inputs', () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(nuww!));
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(nuww!));
 
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const untitwed = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, sewvice.cweate());
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled)!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.ANY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: Schemas.file }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed)!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: Schemas.fiwe }));
 
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled)!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.ANY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
-		assert.ok(!EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: Schemas.file }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed)!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: Schemas.fiwe }));
 
-		const file = new TestEditorInput(URI.file('/some/path.txt'), 'editorResourceFileTest');
+		const fiwe = new TestEditowInput(UWI.fiwe('/some/path.txt'), 'editowWesouwceFiweTest');
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file)!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.ANY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: Schemas.untitled }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe)!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: Schemas.untitwed }));
 
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file)!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.ANY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
-		assert.ok(!EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.untitled }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe)!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: Schemas.untitwed }));
 
-		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', untitled, file, undefined);
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', untitled, file);
-		for (const input of [diffInput, sideBySideInput]) {
-			assert.ok(!EditorResourceAccessor.getCanonicalUri(input));
-			assert.ok(!EditorResourceAccessor.getCanonicalUri(input, { filterByScheme: Schemas.file }));
+		const diffInput = instantiationSewvice.cweateInstance(DiffEditowInput, 'name', 'descwiption', untitwed, fiwe, undefined);
+		const sideBySideInput = instantiationSewvice.cweateInstance(SideBySideEditowInput, 'name', 'descwiption', untitwed, fiwe);
+		fow (const input of [diffInput, sideBySideInput]) {
+			assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(input));
+			assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(input, { fiwtewByScheme: Schemas.fiwe }));
 
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: Schemas.untitled })!.toString(), untitled.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.file }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.fiwe }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.untitled }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.untitwed }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
 
-			assert.ok(!EditorResourceAccessor.getOriginalUri(input));
-			assert.ok(!EditorResourceAccessor.getOriginalUri(input, { filterByScheme: Schemas.file }));
+			assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(input));
+			assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(input, { fiwtewByScheme: Schemas.fiwe }));
 
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: Schemas.untitled })!.toString(), untitled.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.file }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.fiwe }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.untitled }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.untitwed }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce.toStwing());
 		}
 
-		const resource = URI.file('/some/path.txt');
-		const preferredResource = URI.file('/some/PATH.txt');
-		const fileWithPreferredResource = new TestEditorInputWithPreferredResource(URI.file('/some/path.txt'), URI.file('/some/PATH.txt'), 'editorResourceFileTest');
+		const wesouwce = UWI.fiwe('/some/path.txt');
+		const pwefewwedWesouwce = UWI.fiwe('/some/PATH.txt');
+		const fiweWithPwefewwedWesouwce = new TestEditowInputWithPwefewwedWesouwce(UWI.fiwe('/some/path.txt'), UWI.fiwe('/some/PATH.txt'), 'editowWesouwceFiweTest');
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileWithPreferredResource)?.toString(), resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileWithPreferredResource)?.toString(), preferredResource.toString());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiweWithPwefewwedWesouwce)?.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiweWithPwefewwedWesouwce)?.toStwing(), pwefewwedWesouwce.toStwing());
 	});
 
-	test('EditorResourceAccessor - untyped inputs', () => {
+	test('EditowWesouwceAccessow - untyped inputs', () => {
 
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(null!));
-		assert.ok(!EditorResourceAccessor.getOriginalUri(null!));
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(nuww!));
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(nuww!));
 
-		const untitledURI = URI.from({
-			scheme: Schemas.untitled,
-			authority: 'foo',
-			path: '/bar'
+		const untitwedUWI = UWI.fwom({
+			scheme: Schemas.untitwed,
+			authowity: 'foo',
+			path: '/baw'
 		});
-		const untitled: IUntitledTextResourceEditorInput = {
-			resource: untitledURI
+		const untitwed: IUntitwedTextWesouwceEditowInput = {
+			wesouwce: untitwedUWI
 		};
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled)!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.ANY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource?.toString());
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(untitled, { filterByScheme: Schemas.file }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed)!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(untitwed, { fiwtewByScheme: Schemas.fiwe }));
 
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled)!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.ANY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: Schemas.untitled })!.toString(), untitled.resource?.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource?.toString());
-		assert.ok(!EditorResourceAccessor.getOriginalUri(untitled, { filterByScheme: Schemas.file }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed)!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce?.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(untitwed, { fiwtewByScheme: Schemas.fiwe }));
 
-		const file: IResourceEditorInput = {
-			resource: URI.file('/some/path.txt')
+		const fiwe: IWesouwceEditowInput = {
+			wesouwce: UWI.fiwe('/some/path.txt')
 		};
 
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file)!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.ANY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
-		assert.ok(!EditorResourceAccessor.getCanonicalUri(file, { filterByScheme: Schemas.untitled }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe)!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(fiwe, { fiwtewByScheme: Schemas.untitwed }));
 
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file)!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.ANY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { supportSideBySide: SideBySideEditor.BOTH })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-		assert.strictEqual(EditorResourceAccessor.getOriginalUri(file, { filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
-		assert.ok(!EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.untitled }));
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe)!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.ANY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { suppowtSideBySide: SideBySideEditow.BOTH })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
+		assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(fiwe, { fiwtewByScheme: Schemas.untitwed }));
 
-		const diffInput: IResourceDiffEditorInput = { original: untitled, modified: file };
-		const sideBySideInput: IResourceSideBySideEditorInput = { primary: file, secondary: untitled };
-		for (const untypedInput of [diffInput, sideBySideInput]) {
-			assert.ok(!EditorResourceAccessor.getCanonicalUri(untypedInput));
-			assert.ok(!EditorResourceAccessor.getCanonicalUri(untypedInput, { filterByScheme: Schemas.file }));
+		const diffInput: IWesouwceDiffEditowInput = { owiginaw: untitwed, modified: fiwe };
+		const sideBySideInput: IWesouwceSideBySideEditowInput = { pwimawy: fiwe, secondawy: untitwed };
+		fow (const untypedInput of [diffInput, sideBySideInput]) {
+			assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(untypedInput));
+			assewt.ok(!EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { fiwtewByScheme: Schemas.fiwe }));
 
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource?.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: Schemas.untitled })!.toString(), untitled.resource?.toString());
-			assert.strictEqual(EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource?.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce?.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.file }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.fiwe }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.untitled }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
-			assert.strictEqual((EditorResourceAccessor.getCanonicalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.untitwed }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getCanonicawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
 
-			assert.ok(!EditorResourceAccessor.getOriginalUri(untypedInput));
-			assert.ok(!EditorResourceAccessor.getOriginalUri(untypedInput, { filterByScheme: Schemas.file }));
+			assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(untypedInput));
+			assewt.ok(!EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { fiwtewByScheme: Schemas.fiwe }));
 
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file })!.toString(), file.resource.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), file.resource.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: Schemas.fiwe })!.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY })!.toString(), untitled.resource?.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: Schemas.untitled })!.toString(), untitled.resource?.toString());
-			assert.strictEqual(EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: [Schemas.file, Schemas.untitled] })!.toString(), untitled.resource?.toString());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY })!.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: Schemas.untitwed })!.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw(EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] })!.toStwing(), untitwed.wesouwce?.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.file }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).primary.toString(), file.resource.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.fiwe }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).pwimawy.toStwing(), fiwe.wesouwce.toStwing());
 
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.untitled }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
-			assert.strictEqual((EditorResourceAccessor.getOriginalUri(untypedInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource?.toString());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: Schemas.untitwed }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
+			assewt.stwictEquaw((EditowWesouwceAccessow.getOwiginawUwi(untypedInput, { suppowtSideBySide: SideBySideEditow.BOTH, fiwtewByScheme: [Schemas.fiwe, Schemas.untitwed] }) as { pwimawy: UWI, secondawy: UWI }).secondawy.toStwing(), untitwed.wesouwce?.toStwing());
 		}
 	});
 
-	test('isEditorIdentifier', () => {
-		assert.strictEqual(isEditorIdentifier(undefined), false);
-		assert.strictEqual(isEditorIdentifier('undefined'), false);
+	test('isEditowIdentifia', () => {
+		assewt.stwictEquaw(isEditowIdentifia(undefined), fawse);
+		assewt.stwictEquaw(isEditowIdentifia('undefined'), fawse);
 
-		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
-		assert.strictEqual(isEditorIdentifier(testInput1), false);
-		assert.strictEqual(isEditorIdentifier({ editor: testInput1, groupId: 3 }), true);
+		const testInput1 = new TestFiweEditowInput(UWI.fiwe('wesouwce1'), 'testTypeId');
+		assewt.stwictEquaw(isEditowIdentifia(testInput1), fawse);
+		assewt.stwictEquaw(isEditowIdentifia({ editow: testInput1, gwoupId: 3 }), twue);
 	});
 
-	test('isEditorInputWithOptionsAndGroup', () => {
-		const editorInput = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
-		assert.strictEqual(isEditorInput(editorInput), true);
-		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
-		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
+	test('isEditowInputWithOptionsAndGwoup', () => {
+		const editowInput = new TestFiweEditowInput(UWI.fiwe('wesouwce1'), 'testTypeId');
+		assewt.stwictEquaw(isEditowInput(editowInput), twue);
+		assewt.stwictEquaw(isEditowInputWithOptions(editowInput), fawse);
+		assewt.stwictEquaw(isEditowInputWithOptionsAndGwoup(editowInput), fawse);
 
-		const editorInputWithOptions: IEditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.PICK } };
-		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
-		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
-		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
+		const editowInputWithOptions: IEditowInputWithOptions = { editow: editowInput, options: { ovewwide: EditowWesowution.PICK } };
+		assewt.stwictEquaw(isEditowInput(editowInputWithOptions), fawse);
+		assewt.stwictEquaw(isEditowInputWithOptions(editowInputWithOptions), twue);
+		assewt.stwictEquaw(isEditowInputWithOptionsAndGwoup(editowInputWithOptions), fawse);
 
-		const service = accessor.editorGroupService;
-		const editorInputWithOptionsAndGroup: IEditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.PICK }, group: service.activeGroup };
-		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
-		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
-		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
+		const sewvice = accessow.editowGwoupSewvice;
+		const editowInputWithOptionsAndGwoup: IEditowInputWithOptionsAndGwoup = { editow: editowInput, options: { ovewwide: EditowWesowution.PICK }, gwoup: sewvice.activeGwoup };
+		assewt.stwictEquaw(isEditowInput(editowInputWithOptionsAndGwoup), fawse);
+		assewt.stwictEquaw(isEditowInputWithOptions(editowInputWithOptionsAndGwoup), twue);
+		assewt.stwictEquaw(isEditowInputWithOptionsAndGwoup(editowInputWithOptionsAndGwoup), twue);
 	});
 
-	test('whenEditorClosed (single editor)', async function () {
-		return testWhenEditorClosed(false, false, toResource.call(this, '/path/index.txt'));
+	test('whenEditowCwosed (singwe editow)', async function () {
+		wetuwn testWhenEditowCwosed(fawse, fawse, toWesouwce.caww(this, '/path/index.txt'));
 	});
 
-	test('whenEditorClosed (multiple editor)', async function () {
-		return testWhenEditorClosed(false, false, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	test('whenEditowCwosed (muwtipwe editow)', async function () {
+		wetuwn testWhenEditowCwosed(fawse, fawse, toWesouwce.caww(this, '/path/index.txt'), toWesouwce.caww(this, '/test.htmw'));
 	});
 
-	test('whenEditorClosed (single editor, diff editor)', async function () {
-		return testWhenEditorClosed(true, false, toResource.call(this, '/path/index.txt'));
+	test('whenEditowCwosed (singwe editow, diff editow)', async function () {
+		wetuwn testWhenEditowCwosed(twue, fawse, toWesouwce.caww(this, '/path/index.txt'));
 	});
 
-	test('whenEditorClosed (multiple editor, diff editor)', async function () {
-		return testWhenEditorClosed(true, false, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	test('whenEditowCwosed (muwtipwe editow, diff editow)', async function () {
+		wetuwn testWhenEditowCwosed(twue, fawse, toWesouwce.caww(this, '/path/index.txt'), toWesouwce.caww(this, '/test.htmw'));
 	});
 
-	test('whenEditorClosed (single custom editor)', async function () {
-		return testWhenEditorClosed(false, true, toResource.call(this, '/path/index.txt'));
+	test('whenEditowCwosed (singwe custom editow)', async function () {
+		wetuwn testWhenEditowCwosed(fawse, twue, toWesouwce.caww(this, '/path/index.txt'));
 	});
 
-	test('whenEditorClosed (multiple custom editor)', async function () {
-		return testWhenEditorClosed(false, true, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
+	test('whenEditowCwosed (muwtipwe custom editow)', async function () {
+		wetuwn testWhenEditowCwosed(fawse, twue, toWesouwce.caww(this, '/path/index.txt'), toWesouwce.caww(this, '/test.htmw'));
 	});
 
-	async function testWhenEditorClosed(sideBySide: boolean, custom: boolean, ...resources: URI[]): Promise<void> {
-		const accessor = await createServices();
+	async function testWhenEditowCwosed(sideBySide: boowean, custom: boowean, ...wesouwces: UWI[]): Pwomise<void> {
+		const accessow = await cweateSewvices();
 
-		for (const resource of resources) {
+		fow (const wesouwce of wesouwces) {
 			if (custom) {
-				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorResolution.DISABLED });
-			} else if (sideBySide) {
-				await accessor.editorService.openEditor(instantiationService.createInstance(SideBySideEditorInput, 'testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
-			} else {
-				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
+				await accessow.editowSewvice.openEditow(new TestFiweEditowInput(wesouwce, 'testTypeId'), { pinned: twue, ovewwide: EditowWesowution.DISABWED });
+			} ewse if (sideBySide) {
+				await accessow.editowSewvice.openEditow(instantiationSewvice.cweateInstance(SideBySideEditowInput, 'testSideBySideEditow', undefined, new TestFiweEditowInput(wesouwce, 'testTypeId'), new TestFiweEditowInput(wesouwce, 'testTypeId')), { pinned: twue, ovewwide: EditowWesowution.DISABWED });
+			} ewse {
+				await accessow.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 			}
 		}
 
-		const closedPromise = accessor.instantitionService.invokeFunction(accessor => whenEditorClosed(accessor, resources));
+		const cwosedPwomise = accessow.instantitionSewvice.invokeFunction(accessow => whenEditowCwosed(accessow, wesouwces));
 
-		accessor.editorGroupService.activeGroup.closeAllEditors();
+		accessow.editowGwoupSewvice.activeGwoup.cwoseAwwEditows();
 
-		await closedPromise;
+		await cwosedPwomise;
 	}
 });

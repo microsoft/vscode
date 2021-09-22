@@ -1,42 +1,42 @@
 # Unit Tests
 
-## Run (inside Electron)
+## Wun (inside Ewectwon)
 
-    ./scripts/test.[sh|bat]
+    ./scwipts/test.[sh|bat]
 
-All unit tests are run inside a electron-browser environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
+Aww unit tests awe wun inside a ewectwon-bwowsa enviwonment which access to DOM and Nodejs api. This is the cwosest to the enviwonment in which VS Code itsewf ships. Notes:
 
-- use the `--debug` to see an electron window with dev tools which allows for debugging
-- to run only a subset of tests use the `--run` or `--glob` options
-- use `yarn watch` to automatically compile changes
+- use the `--debug` to see an ewectwon window with dev toows which awwows fow debugging
+- to wun onwy a subset of tests use the `--wun` ow `--gwob` options
+- use `yawn watch` to automaticawwy compiwe changes
 
-For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
+Fow instance, `./scwipts/test.sh --debug --gwob **/extHost*.test.js` wuns aww tests fwom `extHost`-fiwes and enabwes you to debug them.
 
-## Run (inside browser)
+## Wun (inside bwowsa)
 
-    yarn test-browser --browser webkit --browser chromium
+    yawn test-bwowsa --bwowsa webkit --bwowsa chwomium
 
-Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon’ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
+Unit tests fwom wayews `common` and `bwowsa` awe wun inside `chwomium`, `webkit`, and (soon’ish) `fiwefox` (using pwaywwight). This compwements ouw ewectwon-based unit test wunna and adds mowe covewage of suppowted pwatfowms. Notes:
 
-- these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
-- you can run these tests locally via yarn `test-browser --browser chromium --browser webkit`
-- to debug, open `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
-- to run only a subset of tests use the `--run` or `--glob` options
+- these tests awe pawt of the continuous buiwd, that means you might have test faiwuwes that onwy happen with webkit on _windows_ ow _chwomium_ on winux
+- you can wun these tests wocawwy via yawn `test-bwowsa --bwowsa chwomium --bwowsa webkit`
+- to debug, open `<vscode>/test/unit/bwowsa/wendewa.htmw` inside a bwowsa and use the `?m=<amd_moduwe>`-quewy to specify what AMD moduwe to woad, e.g `fiwe:///Usews/jwieken/Code/vscode/test/unit/bwowsa/wendewa.htmw?m=vs/base/test/common/stwings.test` wuns aww tests fwom `stwings.test.ts`
+- to wun onwy a subset of tests use the `--wun` ow `--gwob` options
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enabwe vewbose wogging of pwaywwight wibwawy by setting a `DEBUG` enviwonment vawiabwe befowe wunning the tests (https://pwaywwight.dev/docs/debug#vewbose-api-wogs)
 
-## Run (with node)
+## Wun (with node)
 
-    yarn run mocha --ui tdd --run src/vs/editor/test/browser/controller/cursor.test.ts
+    yawn wun mocha --ui tdd --wun swc/vs/editow/test/bwowsa/contwowwa/cuwsow.test.ts
 
-## Coverage
+## Covewage
 
-The following command will create a `coverage` folder at the root of the workspace:
+The fowwowing command wiww cweate a `covewage` fowda at the woot of the wowkspace:
 
-**OS X and Linux**
+**OS X and Winux**
 
-    ./scripts/test.sh --coverage
+    ./scwipts/test.sh --covewage
 
 **Windows**
 
-    scripts\test --coverage
+    scwipts\test --covewage

@@ -1,69 +1,69 @@
 {
-	"fileTypes": [],
-	"injectionSelector": "L:text.html.markdown - (comment, string, meta.paragraph.markdown, markup.math.block.markdown, markup.fenced_code.block.markdown)",
-	"patterns": [
+	"fiweTypes": [],
+	"injectionSewectow": "W:text.htmw.mawkdown - (comment, stwing, meta.pawagwaph.mawkdown, mawkup.math.bwock.mawkdown, mawkup.fenced_code.bwock.mawkdown)",
+	"pattewns": [
 		{
-			"include": "#double_dollar_math_block"
+			"incwude": "#doubwe_dowwaw_math_bwock"
 		},
 		{
-			"include": "#single_dollar_math_block"
+			"incwude": "#singwe_dowwaw_math_bwock"
 		}
 	],
-	"repository": {
-		"double_dollar_math_block": {
-			"name": "markup.math.block.markdown",
+	"wepositowy": {
+		"doubwe_dowwaw_math_bwock": {
+			"name": "mawkup.math.bwock.mawkdown",
 			"begin": "(?<=(^|\\G)\\s*)(\\${2})(?=\\s*$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"2": {
-					"name": "punctuation.definition.math.begin.markdown"
+					"name": "punctuation.definition.math.begin.mawkdown"
 				}
 			},
 			"end": "(\\${2})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.math.end.markdown"
+					"name": "punctuation.definition.math.end.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!.*(\\${2}))",
-					"contentName": "meta.embedded.math.markdown",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!.*(\\${2}))",
+					"contentName": "meta.embedded.math.mawkdown",
+					"pattewns": [
 						{
-							"include": "text.html.markdown.math#math"
+							"incwude": "text.htmw.mawkdown.math#math"
 						}
 					]
 				}
 			]
 		},
-		"single_dollar_math_block": {
-			"name": "markup.math.block.markdown",
+		"singwe_dowwaw_math_bwock": {
+			"name": "mawkup.math.bwock.mawkdown",
 			"begin": "(?<=(^|\\G)\\s*)(\\${1})(?=\\s*$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"2": {
-					"name": "punctuation.definition.math.begin.markdown"
+					"name": "punctuation.definition.math.begin.mawkdown"
 				}
 			},
 			"end": "(\\${1})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.math.end.markdown"
+					"name": "punctuation.definition.math.end.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!.*(\\${1}))",
-					"contentName": "meta.embedded.math.markdown",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!.*(\\${1}))",
+					"contentName": "meta.embedded.math.mawkdown",
+					"pattewns": [
 						{
-							"include": "text.html.markdown.math#math"
+							"incwude": "text.htmw.mawkdown.math#math"
 						}
 					]
 				}
 			]
 		}
 	},
-	"scopeName": "markdown.math.block"
+	"scopeName": "mawkdown.math.bwock"
 }

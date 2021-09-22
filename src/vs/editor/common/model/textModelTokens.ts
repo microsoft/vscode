@@ -1,462 +1,462 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
-import * as platform from 'vs/base/common/platform';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { IState, ITokenizationSuppowt, WanguageIdentifia, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { nuwwTokenize2 } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { MuwtiwineTokensBuiwda, countEOW } fwom 'vs/editow/common/modew/tokensStowe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
 
 const enum Constants {
-	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
+	CHEAP_TOKENIZATION_WENGTH_WIMIT = 2048
 }
 
-export class TokenizationStateStore {
-	private _beginState: (IState | null)[];
-	private _valid: boolean[];
-	private _len: number;
-	private _invalidLineStartIndex: number;
+expowt cwass TokenizationStateStowe {
+	pwivate _beginState: (IState | nuww)[];
+	pwivate _vawid: boowean[];
+	pwivate _wen: numba;
+	pwivate _invawidWineStawtIndex: numba;
 
-	constructor() {
+	constwuctow() {
 		this._beginState = [];
-		this._valid = [];
-		this._len = 0;
-		this._invalidLineStartIndex = 0;
+		this._vawid = [];
+		this._wen = 0;
+		this._invawidWineStawtIndex = 0;
 	}
 
-	private _reset(initialState: IState | null): void {
+	pwivate _weset(initiawState: IState | nuww): void {
 		this._beginState = [];
-		this._valid = [];
-		this._len = 0;
-		this._invalidLineStartIndex = 0;
+		this._vawid = [];
+		this._wen = 0;
+		this._invawidWineStawtIndex = 0;
 
-		if (initialState) {
-			this._setBeginState(0, initialState);
+		if (initiawState) {
+			this._setBeginState(0, initiawState);
 		}
 	}
 
-	public flush(initialState: IState | null): void {
-		this._reset(initialState);
+	pubwic fwush(initiawState: IState | nuww): void {
+		this._weset(initiawState);
 	}
 
-	public get invalidLineStartIndex() {
-		return this._invalidLineStartIndex;
+	pubwic get invawidWineStawtIndex() {
+		wetuwn this._invawidWineStawtIndex;
 	}
 
-	private _invalidateLine(lineIndex: number): void {
-		if (lineIndex < this._len) {
-			this._valid[lineIndex] = false;
+	pwivate _invawidateWine(wineIndex: numba): void {
+		if (wineIndex < this._wen) {
+			this._vawid[wineIndex] = fawse;
 		}
 
-		if (lineIndex < this._invalidLineStartIndex) {
-			this._invalidLineStartIndex = lineIndex;
-		}
-	}
-
-	private _isValid(lineIndex: number): boolean {
-		if (lineIndex < this._len) {
-			return this._valid[lineIndex];
-		}
-		return false;
-	}
-
-	public getBeginState(lineIndex: number): IState | null {
-		if (lineIndex < this._len) {
-			return this._beginState[lineIndex];
-		}
-		return null;
-	}
-
-	private _ensureLine(lineIndex: number): void {
-		while (lineIndex >= this._len) {
-			this._beginState[this._len] = null;
-			this._valid[this._len] = false;
-			this._len++;
+		if (wineIndex < this._invawidWineStawtIndex) {
+			this._invawidWineStawtIndex = wineIndex;
 		}
 	}
 
-	private _deleteLines(start: number, deleteCount: number): void {
-		if (deleteCount === 0) {
-			return;
+	pwivate _isVawid(wineIndex: numba): boowean {
+		if (wineIndex < this._wen) {
+			wetuwn this._vawid[wineIndex];
 		}
-		if (start + deleteCount > this._len) {
-			deleteCount = this._len - start;
-		}
-		this._beginState.splice(start, deleteCount);
-		this._valid.splice(start, deleteCount);
-		this._len -= deleteCount;
+		wetuwn fawse;
 	}
 
-	private _insertLines(insertIndex: number, insertCount: number): void {
-		if (insertCount === 0) {
-			return;
+	pubwic getBeginState(wineIndex: numba): IState | nuww {
+		if (wineIndex < this._wen) {
+			wetuwn this._beginState[wineIndex];
 		}
-		let beginState: (IState | null)[] = [];
-		let valid: boolean[] = [];
-		for (let i = 0; i < insertCount; i++) {
-			beginState[i] = null;
-			valid[i] = false;
+		wetuwn nuww;
+	}
+
+	pwivate _ensuweWine(wineIndex: numba): void {
+		whiwe (wineIndex >= this._wen) {
+			this._beginState[this._wen] = nuww;
+			this._vawid[this._wen] = fawse;
+			this._wen++;
 		}
-		this._beginState = arrays.arrayInsert(this._beginState, insertIndex, beginState);
-		this._valid = arrays.arrayInsert(this._valid, insertIndex, valid);
-		this._len += insertCount;
 	}
 
-	private _setValid(lineIndex: number, valid: boolean): void {
-		this._ensureLine(lineIndex);
-		this._valid[lineIndex] = valid;
+	pwivate _deweteWines(stawt: numba, deweteCount: numba): void {
+		if (deweteCount === 0) {
+			wetuwn;
+		}
+		if (stawt + deweteCount > this._wen) {
+			deweteCount = this._wen - stawt;
+		}
+		this._beginState.spwice(stawt, deweteCount);
+		this._vawid.spwice(stawt, deweteCount);
+		this._wen -= deweteCount;
 	}
 
-	private _setBeginState(lineIndex: number, beginState: IState | null): void {
-		this._ensureLine(lineIndex);
-		this._beginState[lineIndex] = beginState;
+	pwivate _insewtWines(insewtIndex: numba, insewtCount: numba): void {
+		if (insewtCount === 0) {
+			wetuwn;
+		}
+		wet beginState: (IState | nuww)[] = [];
+		wet vawid: boowean[] = [];
+		fow (wet i = 0; i < insewtCount; i++) {
+			beginState[i] = nuww;
+			vawid[i] = fawse;
+		}
+		this._beginState = awways.awwayInsewt(this._beginState, insewtIndex, beginState);
+		this._vawid = awways.awwayInsewt(this._vawid, insewtIndex, vawid);
+		this._wen += insewtCount;
 	}
 
-	public setEndState(linesLength: number, lineIndex: number, endState: IState): void {
-		this._setValid(lineIndex, true);
-		this._invalidLineStartIndex = lineIndex + 1;
+	pwivate _setVawid(wineIndex: numba, vawid: boowean): void {
+		this._ensuweWine(wineIndex);
+		this._vawid[wineIndex] = vawid;
+	}
 
-		// Check if this was the last line
-		if (lineIndex === linesLength - 1) {
-			return;
+	pwivate _setBeginState(wineIndex: numba, beginState: IState | nuww): void {
+		this._ensuweWine(wineIndex);
+		this._beginState[wineIndex] = beginState;
+	}
+
+	pubwic setEndState(winesWength: numba, wineIndex: numba, endState: IState): void {
+		this._setVawid(wineIndex, twue);
+		this._invawidWineStawtIndex = wineIndex + 1;
+
+		// Check if this was the wast wine
+		if (wineIndex === winesWength - 1) {
+			wetuwn;
 		}
 
 		// Check if the end state has changed
-		const previousEndState = this.getBeginState(lineIndex + 1);
-		if (previousEndState === null || !endState.equals(previousEndState)) {
-			this._setBeginState(lineIndex + 1, endState);
-			this._invalidateLine(lineIndex + 1);
-			return;
+		const pweviousEndState = this.getBeginState(wineIndex + 1);
+		if (pweviousEndState === nuww || !endState.equaws(pweviousEndState)) {
+			this._setBeginState(wineIndex + 1, endState);
+			this._invawidateWine(wineIndex + 1);
+			wetuwn;
 		}
 
-		// Perhaps we can skip tokenizing some lines...
-		let i = lineIndex + 1;
-		while (i < linesLength) {
-			if (!this._isValid(i)) {
-				break;
+		// Pewhaps we can skip tokenizing some wines...
+		wet i = wineIndex + 1;
+		whiwe (i < winesWength) {
+			if (!this._isVawid(i)) {
+				bweak;
 			}
 			i++;
 		}
-		this._invalidLineStartIndex = i;
+		this._invawidWineStawtIndex = i;
 	}
 
-	public setFakeTokens(lineIndex: number): void {
-		this._setValid(lineIndex, false);
+	pubwic setFakeTokens(wineIndex: numba): void {
+		this._setVawid(wineIndex, fawse);
 	}
 
-	//#region Editing
+	//#wegion Editing
 
-	public applyEdits(range: IRange, eolCount: number): void {
-		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = eolCount;
-		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
+	pubwic appwyEdits(wange: IWange, eowCount: numba): void {
+		const dewetingWinesCnt = wange.endWineNumba - wange.stawtWineNumba;
+		const insewtingWinesCnt = eowCount;
+		const editingWinesCnt = Math.min(dewetingWinesCnt, insewtingWinesCnt);
 
-		for (let j = editingLinesCnt; j >= 0; j--) {
-			this._invalidateLine(range.startLineNumber + j - 1);
+		fow (wet j = editingWinesCnt; j >= 0; j--) {
+			this._invawidateWine(wange.stawtWineNumba + j - 1);
 		}
 
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount);
+		this._acceptDeweteWange(wange);
+		this._acceptInsewtText(new Position(wange.stawtWineNumba, wange.stawtCowumn), eowCount);
 	}
 
-	private _acceptDeleteRange(range: IRange): void {
+	pwivate _acceptDeweteWange(wange: IWange): void {
 
-		const firstLineIndex = range.startLineNumber - 1;
-		if (firstLineIndex >= this._len) {
-			return;
+		const fiwstWineIndex = wange.stawtWineNumba - 1;
+		if (fiwstWineIndex >= this._wen) {
+			wetuwn;
 		}
 
-		this._deleteLines(range.startLineNumber, range.endLineNumber - range.startLineNumber);
+		this._deweteWines(wange.stawtWineNumba, wange.endWineNumba - wange.stawtWineNumba);
 	}
 
-	private _acceptInsertText(position: Position, eolCount: number): void {
+	pwivate _acceptInsewtText(position: Position, eowCount: numba): void {
 
-		const lineIndex = position.lineNumber - 1;
-		if (lineIndex >= this._len) {
-			return;
+		const wineIndex = position.wineNumba - 1;
+		if (wineIndex >= this._wen) {
+			wetuwn;
 		}
 
-		this._insertLines(position.lineNumber, eolCount);
+		this._insewtWines(position.wineNumba, eowCount);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export class TextModelTokenization extends Disposable {
+expowt cwass TextModewTokenization extends Disposabwe {
 
-	private readonly _textModel: TextModel;
-	private readonly _tokenizationStateStore: TokenizationStateStore;
-	private _isDisposed: boolean;
-	private _tokenizationSupport: ITokenizationSupport | null;
+	pwivate weadonwy _textModew: TextModew;
+	pwivate weadonwy _tokenizationStateStowe: TokenizationStateStowe;
+	pwivate _isDisposed: boowean;
+	pwivate _tokenizationSuppowt: ITokenizationSuppowt | nuww;
 
-	constructor(textModel: TextModel) {
-		super();
-		this._isDisposed = false;
-		this._textModel = textModel;
-		this._tokenizationStateStore = new TokenizationStateStore();
-		this._tokenizationSupport = null;
+	constwuctow(textModew: TextModew) {
+		supa();
+		this._isDisposed = fawse;
+		this._textModew = textModew;
+		this._tokenizationStateStowe = new TokenizationStateStowe();
+		this._tokenizationSuppowt = nuww;
 
-		this._register(TokenizationRegistry.onDidChange((e) => {
-			const languageIdentifier = this._textModel.getLanguageIdentifier();
-			if (e.changedLanguages.indexOf(languageIdentifier.language) === -1) {
-				return;
+		this._wegista(TokenizationWegistwy.onDidChange((e) => {
+			const wanguageIdentifia = this._textModew.getWanguageIdentifia();
+			if (e.changedWanguages.indexOf(wanguageIdentifia.wanguage) === -1) {
+				wetuwn;
 			}
 
-			this._resetTokenizationState();
-			this._textModel.clearTokens();
+			this._wesetTokenizationState();
+			this._textModew.cweawTokens();
 		}));
 
-		this._register(this._textModel.onDidChangeContentFast((e) => {
-			if (e.isFlush) {
-				this._resetTokenizationState();
-				return;
+		this._wegista(this._textModew.onDidChangeContentFast((e) => {
+			if (e.isFwush) {
+				this._wesetTokenizationState();
+				wetuwn;
 			}
-			for (let i = 0, len = e.changes.length; i < len; i++) {
+			fow (wet i = 0, wen = e.changes.wength; i < wen; i++) {
 				const change = e.changes[i];
-				const [eolCount] = countEOL(change.text);
-				this._tokenizationStateStore.applyEdits(change.range, eolCount);
+				const [eowCount] = countEOW(change.text);
+				this._tokenizationStateStowe.appwyEdits(change.wange, eowCount);
 			}
 
-			this._beginBackgroundTokenization();
+			this._beginBackgwoundTokenization();
 		}));
 
-		this._register(this._textModel.onDidChangeAttached(() => {
-			this._beginBackgroundTokenization();
+		this._wegista(this._textModew.onDidChangeAttached(() => {
+			this._beginBackgwoundTokenization();
 		}));
 
-		this._register(this._textModel.onDidChangeLanguage(() => {
-			this._resetTokenizationState();
-			this._textModel.clearTokens();
+		this._wegista(this._textModew.onDidChangeWanguage(() => {
+			this._wesetTokenizationState();
+			this._textModew.cweawTokens();
 		}));
 
-		this._resetTokenizationState();
+		this._wesetTokenizationState();
 	}
 
-	public override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 
-	private _resetTokenizationState(): void {
-		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel);
-		this._tokenizationSupport = tokenizationSupport;
-		this._tokenizationStateStore.flush(initialState);
-		this._beginBackgroundTokenization();
+	pwivate _wesetTokenizationState(): void {
+		const [tokenizationSuppowt, initiawState] = initiawizeTokenization(this._textModew);
+		this._tokenizationSuppowt = tokenizationSuppowt;
+		this._tokenizationStateStowe.fwush(initiawState);
+		this._beginBackgwoundTokenization();
 	}
 
-	private _beginBackgroundTokenization(): void {
-		if (this._textModel.isAttachedToEditor() && this._hasLinesToTokenize()) {
-			platform.setImmediate(() => {
+	pwivate _beginBackgwoundTokenization(): void {
+		if (this._textModew.isAttachedToEditow() && this._hasWinesToTokenize()) {
+			pwatfowm.setImmediate(() => {
 				if (this._isDisposed) {
 					// disposed in the meantime
-					return;
+					wetuwn;
 				}
-				this._revalidateTokensNow();
+				this._wevawidateTokensNow();
 			});
 		}
 	}
 
-	private _revalidateTokensNow(): void {
-		const textModelLastLineNumber = this._textModel.getLineCount();
+	pwivate _wevawidateTokensNow(): void {
+		const textModewWastWineNumba = this._textModew.getWineCount();
 
-		const MAX_ALLOWED_TIME = 1;
-		const builder = new MultilineTokensBuilder();
-		const sw = StopWatch.create(false);
-		let tokenizedLineNumber = -1;
+		const MAX_AWWOWED_TIME = 1;
+		const buiwda = new MuwtiwineTokensBuiwda();
+		const sw = StopWatch.cweate(fawse);
+		wet tokenizedWineNumba = -1;
 
-		while (this._hasLinesToTokenize()) {
-			if (sw.elapsed() > MAX_ALLOWED_TIME) {
-				// Stop if MAX_ALLOWED_TIME is reached
-				break;
+		whiwe (this._hasWinesToTokenize()) {
+			if (sw.ewapsed() > MAX_AWWOWED_TIME) {
+				// Stop if MAX_AWWOWED_TIME is weached
+				bweak;
 			}
 
-			tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+			tokenizedWineNumba = this._tokenizeOneInvawidWine(buiwda);
 
-			if (tokenizedLineNumber >= textModelLastLineNumber) {
-				break;
+			if (tokenizedWineNumba >= textModewWastWineNumba) {
+				bweak;
 			}
 		}
 
-		this._beginBackgroundTokenization();
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+		this._beginBackgwoundTokenization();
+		this._textModew.setTokens(buiwda.tokens, !this._hasWinesToTokenize());
 	}
 
-	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
-		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+	pubwic tokenizeViewpowt(stawtWineNumba: numba, endWineNumba: numba): void {
+		const buiwda = new MuwtiwineTokensBuiwda();
+		this._tokenizeViewpowt(buiwda, stawtWineNumba, endWineNumba);
+		this._textModew.setTokens(buiwda.tokens, !this._hasWinesToTokenize());
 	}
 
-	public reset(): void {
-		this._resetTokenizationState();
-		this._textModel.clearTokens();
+	pubwic weset(): void {
+		this._wesetTokenizationState();
+		this._textModew.cweawTokens();
 	}
 
-	public forceTokenization(lineNumber: number): void {
-		const builder = new MultilineTokensBuilder();
-		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.tokens, !this._hasLinesToTokenize());
+	pubwic fowceTokenization(wineNumba: numba): void {
+		const buiwda = new MuwtiwineTokensBuiwda();
+		this._updateTokensUntiwWine(buiwda, wineNumba);
+		this._textModew.setTokens(buiwda.tokens, !this._hasWinesToTokenize());
 	}
 
-	public isCheapToTokenize(lineNumber: number): boolean {
-		if (!this._tokenizationSupport) {
-			return true;
+	pubwic isCheapToTokenize(wineNumba: numba): boowean {
+		if (!this._tokenizationSuppowt) {
+			wetuwn twue;
 		}
 
-		const firstInvalidLineNumber = this._tokenizationStateStore.invalidLineStartIndex + 1;
-		if (lineNumber > firstInvalidLineNumber) {
-			return false;
+		const fiwstInvawidWineNumba = this._tokenizationStateStowe.invawidWineStawtIndex + 1;
+		if (wineNumba > fiwstInvawidWineNumba) {
+			wetuwn fawse;
 		}
 
-		if (lineNumber < firstInvalidLineNumber) {
-			return true;
+		if (wineNumba < fiwstInvawidWineNumba) {
+			wetuwn twue;
 		}
 
-		if (this._textModel.getLineLength(lineNumber) < Constants.CHEAP_TOKENIZATION_LENGTH_LIMIT) {
-			return true;
+		if (this._textModew.getWineWength(wineNumba) < Constants.CHEAP_TOKENIZATION_WENGTH_WIMIT) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private _hasLinesToTokenize(): boolean {
-		if (!this._tokenizationSupport) {
-			return false;
+	pwivate _hasWinesToTokenize(): boowean {
+		if (!this._tokenizationSuppowt) {
+			wetuwn fawse;
 		}
-		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
+		wetuwn (this._tokenizationStateStowe.invawidWineStawtIndex < this._textModew.getWineCount());
 	}
 
-	private _tokenizeOneInvalidLine(builder: MultilineTokensBuilder): number {
-		if (!this._hasLinesToTokenize()) {
-			return this._textModel.getLineCount() + 1;
+	pwivate _tokenizeOneInvawidWine(buiwda: MuwtiwineTokensBuiwda): numba {
+		if (!this._hasWinesToTokenize()) {
+			wetuwn this._textModew.getWineCount() + 1;
 		}
-		const lineNumber = this._tokenizationStateStore.invalidLineStartIndex + 1;
-		this._updateTokensUntilLine(builder, lineNumber);
-		return lineNumber;
+		const wineNumba = this._tokenizationStateStowe.invawidWineStawtIndex + 1;
+		this._updateTokensUntiwWine(buiwda, wineNumba);
+		wetuwn wineNumba;
 	}
 
-	private _updateTokensUntilLine(builder: MultilineTokensBuilder, lineNumber: number): void {
-		if (!this._tokenizationSupport) {
-			return;
+	pwivate _updateTokensUntiwWine(buiwda: MuwtiwineTokensBuiwda, wineNumba: numba): void {
+		if (!this._tokenizationSuppowt) {
+			wetuwn;
 		}
-		const languageIdentifier = this._textModel.getLanguageIdentifier();
-		const linesLength = this._textModel.getLineCount();
-		const endLineIndex = lineNumber - 1;
+		const wanguageIdentifia = this._textModew.getWanguageIdentifia();
+		const winesWength = this._textModew.getWineCount();
+		const endWineIndex = wineNumba - 1;
 
-		// Validate all states up to and including endLineIndex
-		for (let lineIndex = this._tokenizationStateStore.invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
-			const text = this._textModel.getLineContent(lineIndex + 1);
-			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
+		// Vawidate aww states up to and incwuding endWineIndex
+		fow (wet wineIndex = this._tokenizationStateStowe.invawidWineStawtIndex; wineIndex <= endWineIndex; wineIndex++) {
+			const text = this._textModew.getWineContent(wineIndex + 1);
+			const wineStawtState = this._tokenizationStateStowe.getBeginState(wineIndex);
 
-			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, lineStartState!);
-			builder.add(lineIndex + 1, r.tokens);
-			this._tokenizationStateStore.setEndState(linesLength, lineIndex, r.endState);
-			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
+			const w = safeTokenize(wanguageIdentifia, this._tokenizationSuppowt, text, twue, wineStawtState!);
+			buiwda.add(wineIndex + 1, w.tokens);
+			this._tokenizationStateStowe.setEndState(winesWength, wineIndex, w.endState);
+			wineIndex = this._tokenizationStateStowe.invawidWineStawtIndex - 1; // -1 because the outa woop incwements it
 		}
 	}
 
-	private _tokenizeViewport(builder: MultilineTokensBuilder, startLineNumber: number, endLineNumber: number): void {
-		if (!this._tokenizationSupport) {
+	pwivate _tokenizeViewpowt(buiwda: MuwtiwineTokensBuiwda, stawtWineNumba: numba, endWineNumba: numba): void {
+		if (!this._tokenizationSuppowt) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
 
-		if (endLineNumber <= this._tokenizationStateStore.invalidLineStartIndex) {
+		if (endWineNumba <= this._tokenizationStateStowe.invawidWineStawtIndex) {
 			// nothing to do
-			return;
+			wetuwn;
 		}
 
-		if (startLineNumber <= this._tokenizationStateStore.invalidLineStartIndex) {
-			// tokenization has reached the viewport start...
-			this._updateTokensUntilLine(builder, endLineNumber);
-			return;
+		if (stawtWineNumba <= this._tokenizationStateStowe.invawidWineStawtIndex) {
+			// tokenization has weached the viewpowt stawt...
+			this._updateTokensUntiwWine(buiwda, endWineNumba);
+			wetuwn;
 		}
 
-		let nonWhitespaceColumn = this._textModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-		let fakeLines: string[] = [];
-		let initialState: IState | null = null;
-		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
-			let newNonWhitespaceIndex = this._textModel.getLineFirstNonWhitespaceColumn(i);
+		wet nonWhitespaceCowumn = this._textModew.getWineFiwstNonWhitespaceCowumn(stawtWineNumba);
+		wet fakeWines: stwing[] = [];
+		wet initiawState: IState | nuww = nuww;
+		fow (wet i = stawtWineNumba - 1; nonWhitespaceCowumn > 0 && i >= 1; i--) {
+			wet newNonWhitespaceIndex = this._textModew.getWineFiwstNonWhitespaceCowumn(i);
 
 			if (newNonWhitespaceIndex === 0) {
 				continue;
 			}
 
-			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
-				initialState = this._tokenizationStateStore.getBeginState(i - 1);
-				if (initialState) {
-					break;
+			if (newNonWhitespaceIndex < nonWhitespaceCowumn) {
+				initiawState = this._tokenizationStateStowe.getBeginState(i - 1);
+				if (initiawState) {
+					bweak;
 				}
-				fakeLines.push(this._textModel.getLineContent(i));
-				nonWhitespaceColumn = newNonWhitespaceIndex;
+				fakeWines.push(this._textModew.getWineContent(i));
+				nonWhitespaceCowumn = newNonWhitespaceIndex;
 			}
 		}
 
-		if (!initialState) {
-			initialState = this._tokenizationSupport.getInitialState();
+		if (!initiawState) {
+			initiawState = this._tokenizationSuppowt.getInitiawState();
 		}
 
-		const languageIdentifier = this._textModel.getLanguageIdentifier();
-		let state = initialState;
-		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, fakeLines[i], false, state);
-			state = r.endState;
+		const wanguageIdentifia = this._textModew.getWanguageIdentifia();
+		wet state = initiawState;
+		fow (wet i = fakeWines.wength - 1; i >= 0; i--) {
+			wet w = safeTokenize(wanguageIdentifia, this._tokenizationSuppowt, fakeWines[i], fawse, state);
+			state = w.endState;
 		}
 
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let text = this._textModel.getLineContent(lineNumber);
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, state);
-			builder.add(lineNumber, r.tokens);
-			this._tokenizationStateStore.setFakeTokens(lineNumber - 1);
-			state = r.endState;
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			wet text = this._textModew.getWineContent(wineNumba);
+			wet w = safeTokenize(wanguageIdentifia, this._tokenizationSuppowt, text, twue, state);
+			buiwda.add(wineNumba, w.tokens);
+			this._tokenizationStateStowe.setFakeTokens(wineNumba - 1);
+			state = w.endState;
 		}
 	}
 }
 
-function initializeTokenization(textModel: TextModel): [ITokenizationSupport | null, IState | null] {
-	const languageIdentifier = textModel.getLanguageIdentifier();
-	let tokenizationSupport = (
-		textModel.isTooLargeForTokenization()
-			? null
-			: TokenizationRegistry.get(languageIdentifier.language)
+function initiawizeTokenization(textModew: TextModew): [ITokenizationSuppowt | nuww, IState | nuww] {
+	const wanguageIdentifia = textModew.getWanguageIdentifia();
+	wet tokenizationSuppowt = (
+		textModew.isTooWawgeFowTokenization()
+			? nuww
+			: TokenizationWegistwy.get(wanguageIdentifia.wanguage)
 	);
-	let initialState: IState | null = null;
-	if (tokenizationSupport) {
-		try {
-			initialState = tokenizationSupport.getInitialState();
+	wet initiawState: IState | nuww = nuww;
+	if (tokenizationSuppowt) {
+		twy {
+			initiawState = tokenizationSuppowt.getInitiawState();
 		} catch (e) {
-			onUnexpectedError(e);
-			tokenizationSupport = null;
+			onUnexpectedEwwow(e);
+			tokenizationSuppowt = nuww;
 		}
 	}
-	return [tokenizationSupport, initialState];
+	wetuwn [tokenizationSuppowt, initiawState];
 }
 
-function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): TokenizationResult2 {
-	let r: TokenizationResult2 | null = null;
+function safeTokenize(wanguageIdentifia: WanguageIdentifia, tokenizationSuppowt: ITokenizationSuppowt | nuww, text: stwing, hasEOW: boowean, state: IState): TokenizationWesuwt2 {
+	wet w: TokenizationWesuwt2 | nuww = nuww;
 
-	if (tokenizationSupport) {
-		try {
-			r = tokenizationSupport.tokenize2(text, hasEOL, state.clone(), 0);
+	if (tokenizationSuppowt) {
+		twy {
+			w = tokenizationSuppowt.tokenize2(text, hasEOW, state.cwone(), 0);
 		} catch (e) {
-			onUnexpectedError(e);
+			onUnexpectedEwwow(e);
 		}
 	}
 
-	if (!r) {
-		r = nullTokenize2(languageIdentifier.id, text, state, 0);
+	if (!w) {
+		w = nuwwTokenize2(wanguageIdentifia.id, text, state, 0);
 	}
 
-	LineTokens.convertToEndOffset(r.tokens, text.length);
-	return r;
+	WineTokens.convewtToEndOffset(w.tokens, text.wength);
+	wetuwn w;
 }

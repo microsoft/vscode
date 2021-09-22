@@ -1,199 +1,199 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn } from 'child_process';
-import { realpath, watch } from 'fs';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+impowt { spawn } fwom 'chiwd_pwocess';
+impowt { weawpath, watch } fwom 'fs';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as path fwom 'vs/base/common/path';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AvaiwabweFowDownwoad, IUpdateSewvice, State, StateType, UpdateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { UpdateNotAvaiwabweCwassification } fwom 'vs/pwatfowm/update/ewectwon-main/abstwactUpdateSewvice';
 
-abstract class AbstractUpdateService implements IUpdateService {
+abstwact cwass AbstwactUpdateSewvice impwements IUpdateSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _state: State = State.Uninitialized;
+	pwivate _state: State = State.Uninitiawized;
 
-	private readonly _onStateChange = new Emitter<State>();
-	readonly onStateChange: Event<State> = this._onStateChange.event;
+	pwivate weadonwy _onStateChange = new Emitta<State>();
+	weadonwy onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
-		return this._state;
+		wetuwn this._state;
 	}
 
-	protected setState(state: State): void {
-		this.logService.info('update#setState', state.type);
+	pwotected setState(state: State): void {
+		this.wogSewvice.info('update#setState', state.type);
 		this._state = state;
-		this._onStateChange.fire(state);
+		this._onStateChange.fiwe(state);
 	}
 
-	constructor(
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@ILogService protected logService: ILogService,
+	constwuctow(
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWogSewvice pwotected wogSewvice: IWogSewvice,
 	) {
-		if (environmentMainService.disableUpdates) {
-			this.logService.info('update#ctor - updates are disabled');
-			return;
+		if (enviwonmentMainSewvice.disabweUpdates) {
+			this.wogSewvice.info('update#ctow - updates awe disabwed');
+			wetuwn;
 		}
 
-		this.setState(State.Idle(this.getUpdateType()));
+		this.setState(State.Idwe(this.getUpdateType()));
 
-		// Start checking for updates after 30 seconds
-		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
+		// Stawt checking fow updates afta 30 seconds
+		this.scheduweCheckFowUpdates(30 * 1000).then(undefined, eww => this.wogSewvice.ewwow(eww));
 	}
 
-	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
-		return timeout(delay)
-			.then(() => this.checkForUpdates(false))
+	pwivate scheduweCheckFowUpdates(deway = 60 * 60 * 1000): Pwomise<void> {
+		wetuwn timeout(deway)
+			.then(() => this.checkFowUpdates(fawse))
 			.then(() => {
-				// Check again after 1 hour
-				return this.scheduleCheckForUpdates(60 * 60 * 1000);
+				// Check again afta 1 houw
+				wetuwn this.scheduweCheckFowUpdates(60 * 60 * 1000);
 			});
 	}
 
-	async checkForUpdates(explicit: boolean): Promise<void> {
-		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
+	async checkFowUpdates(expwicit: boowean): Pwomise<void> {
+		this.wogSewvice.twace('update#checkFowUpdates, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Idle) {
-			return;
+		if (this.state.type !== StateType.Idwe) {
+			wetuwn;
 		}
 
-		this.doCheckForUpdates(explicit);
+		this.doCheckFowUpdates(expwicit);
 	}
 
-	async downloadUpdate(): Promise<void> {
-		this.logService.trace('update#downloadUpdate, state = ', this.state.type);
+	async downwoadUpdate(): Pwomise<void> {
+		this.wogSewvice.twace('update#downwoadUpdate, state = ', this.state.type);
 
-		if (this.state.type !== StateType.AvailableForDownload) {
-			return;
+		if (this.state.type !== StateType.AvaiwabweFowDownwoad) {
+			wetuwn;
 		}
 
-		await this.doDownloadUpdate(this.state);
+		await this.doDownwoadUpdate(this.state);
 	}
 
-	protected doDownloadUpdate(state: AvailableForDownload): Promise<void> {
-		return Promise.resolve(undefined);
+	pwotected doDownwoadUpdate(state: AvaiwabweFowDownwoad): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	async applyUpdate(): Promise<void> {
-		this.logService.trace('update#applyUpdate, state = ', this.state.type);
+	async appwyUpdate(): Pwomise<void> {
+		this.wogSewvice.twace('update#appwyUpdate, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Downloaded) {
-			return;
+		if (this.state.type !== StateType.Downwoaded) {
+			wetuwn;
 		}
 
-		await this.doApplyUpdate();
+		await this.doAppwyUpdate();
 	}
 
-	protected doApplyUpdate(): Promise<void> {
-		return Promise.resolve(undefined);
+	pwotected doAppwyUpdate(): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	quitAndInstall(): Promise<void> {
-		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
+	quitAndInstaww(): Pwomise<void> {
+		this.wogSewvice.twace('update#quitAndInstaww, state = ', this.state.type);
 
-		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(undefined);
+		if (this.state.type !== StateType.Weady) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
 
-		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+		this.wogSewvice.twace('update#quitAndInstaww(): befowe wifecycwe quit()');
 
-		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
-			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
+		this.wifecycweMainSewvice.quit(twue /* wiww westawt */).then(vetod => {
+			this.wogSewvice.twace(`update#quitAndInstaww(): afta wifecycwe quit() with veto: ${vetod}`);
 			if (vetod) {
-				return;
+				wetuwn;
 			}
 
-			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-			this.doQuitAndInstall();
+			this.wogSewvice.twace('update#quitAndInstaww(): wunning waw#quitAndInstaww()');
+			this.doQuitAndInstaww();
 		});
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
 
-	protected getUpdateType(): UpdateType {
-		return UpdateType.Snap;
+	pwotected getUpdateType(): UpdateType {
+		wetuwn UpdateType.Snap;
 	}
 
-	protected doQuitAndInstall(): void {
+	pwotected doQuitAndInstaww(): void {
 		// noop
 	}
 
-	abstract isLatestVersion(): Promise<boolean | undefined>;
-	protected abstract doCheckForUpdates(context: any): void;
+	abstwact isWatestVewsion(): Pwomise<boowean | undefined>;
+	pwotected abstwact doCheckFowUpdates(context: any): void;
 }
 
-export class SnapUpdateService extends AbstractUpdateService {
+expowt cwass SnapUpdateSewvice extends AbstwactUpdateSewvice {
 
-	constructor(
-		private snap: string,
-		private snapRevision: string,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@ILogService logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+	constwuctow(
+		pwivate snap: stwing,
+		pwivate snapWevision: stwing,
+		@IWifecycweMainSewvice wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice
 	) {
-		super(lifecycleMainService, environmentMainService, logService);
+		supa(wifecycweMainSewvice, enviwonmentMainSewvice, wogSewvice);
 
-		const watcher = watch(path.dirname(this.snap));
-		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
-		const onCurrentChange = Event.filter(onChange, n => n === 'current');
-		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
-		const listener = onDebouncedCurrentChange(() => this.checkForUpdates(false));
+		const watcha = watch(path.diwname(this.snap));
+		const onChange = Event.fwomNodeEventEmitta(watcha, 'change', (_, fiweName: stwing) => fiweName);
+		const onCuwwentChange = Event.fiwta(onChange, n => n === 'cuwwent');
+		const onDebouncedCuwwentChange = Event.debounce(onCuwwentChange, (_, e) => e, 2000);
+		const wistena = onDebouncedCuwwentChange(() => this.checkFowUpdates(fawse));
 
-		lifecycleMainService.onWillShutdown(() => {
-			listener.dispose();
-			watcher.close();
+		wifecycweMainSewvice.onWiwwShutdown(() => {
+			wistena.dispose();
+			watcha.cwose();
 		});
 	}
 
-	protected doCheckForUpdates(): void {
-		this.setState(State.CheckingForUpdates(false));
-		this.isUpdateAvailable().then(result => {
-			if (result) {
-				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
-			} else {
-				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: false });
+	pwotected doCheckFowUpdates(): void {
+		this.setState(State.CheckingFowUpdates(fawse));
+		this.isUpdateAvaiwabwe().then(wesuwt => {
+			if (wesuwt) {
+				this.setState(State.Weady({ vewsion: 'something', pwoductVewsion: 'something' }));
+			} ewse {
+				this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: fawse });
 
-				this.setState(State.Idle(UpdateType.Snap));
+				this.setState(State.Idwe(UpdateType.Snap));
 			}
-		}, err => {
-			this.logService.error(err);
-			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: false });
-			this.setState(State.Idle(UpdateType.Snap, err.message || err));
+		}, eww => {
+			this.wogSewvice.ewwow(eww);
+			this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: fawse });
+			this.setState(State.Idwe(UpdateType.Snap, eww.message || eww));
 		});
 	}
 
-	protected override doQuitAndInstall(): void {
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+	pwotected ovewwide doQuitAndInstaww(): void {
+		this.wogSewvice.twace('update#quitAndInstaww(): wunning waw#quitAndInstaww()');
 
-		// Allow 3 seconds for VS Code to close
-		spawn('sleep 3 && ' + path.basename(process.argv[0]), {
-			shell: true,
-			detached: true,
-			stdio: 'ignore',
+		// Awwow 3 seconds fow VS Code to cwose
+		spawn('sweep 3 && ' + path.basename(pwocess.awgv[0]), {
+			sheww: twue,
+			detached: twue,
+			stdio: 'ignowe',
 		});
 	}
 
-	private async isUpdateAvailable(): Promise<boolean> {
-		const resolvedCurrentSnapPath = await new Promise<string>((c, e) => realpath(`${path.dirname(this.snap)}/current`, (err, r) => err ? e(err) : c(r)));
-		const currentRevision = path.basename(resolvedCurrentSnapPath);
-		return this.snapRevision !== currentRevision;
+	pwivate async isUpdateAvaiwabwe(): Pwomise<boowean> {
+		const wesowvedCuwwentSnapPath = await new Pwomise<stwing>((c, e) => weawpath(`${path.diwname(this.snap)}/cuwwent`, (eww, w) => eww ? e(eww) : c(w)));
+		const cuwwentWevision = path.basename(wesowvedCuwwentSnapPath);
+		wetuwn this.snapWevision !== cuwwentWevision;
 	}
 
-	isLatestVersion(): Promise<boolean | undefined> {
-		return this.isUpdateAvailable().then(undefined, err => {
-			this.logService.error('update#checkForSnapUpdate(): Could not get realpath of application.');
-			return undefined;
+	isWatestVewsion(): Pwomise<boowean | undefined> {
+		wetuwn this.isUpdateAvaiwabwe().then(undefined, eww => {
+			this.wogSewvice.ewwow('update#checkFowSnapUpdate(): Couwd not get weawpath of appwication.');
+			wetuwn undefined;
 		});
 	}
 }

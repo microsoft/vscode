@@ -1,711 +1,711 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewCowow, editowBackgwound, contwastBowda, twanspawent, editowWidgetBackgwound, textWinkFowegwound, wighten, dawken, focusBowda, activeContwastBowda, editowWidgetFowegwound, editowEwwowFowegwound, editowWawningFowegwound, editowInfoFowegwound, tweeIndentGuidesStwoke, ewwowFowegwound, wistActiveSewectionBackgwound, wistActiveSewectionFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
 
-// < --- Workbench (not customizable) --- >
+// < --- Wowkbench (not customizabwe) --- >
 
-export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
+expowt function WOWKBENCH_BACKGWOUND(theme: ICowowTheme): Cowow {
 	switch (theme.type) {
-		case 'dark':
-			return Color.fromHex('#252526');
-		case 'light':
-			return Color.fromHex('#F3F3F3');
-		default:
-			return Color.fromHex('#000000');
+		case 'dawk':
+			wetuwn Cowow.fwomHex('#252526');
+		case 'wight':
+			wetuwn Cowow.fwomHex('#F3F3F3');
+		defauwt:
+			wetuwn Cowow.fwomHex('#000000');
 	}
 }
 
 // < --- Tabs --- >
 
-//#region Tab Background
+//#wegion Tab Backgwound
 
-export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, localize('tabActiveBackground', "Active tab background color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_ACTIVE_BACKGWOUND = wegistewCowow('tab.activeBackgwound', {
+	dawk: editowBackgwound,
+	wight: editowBackgwound,
+	hc: editowBackgwound
+}, wocawize('tabActiveBackgwound', "Active tab backgwound cowow in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_ACTIVE_BACKGROUND = registerColor('tab.unfocusedActiveBackground', {
-	dark: TAB_ACTIVE_BACKGROUND,
-	light: TAB_ACTIVE_BACKGROUND,
-	hc: TAB_ACTIVE_BACKGROUND
-}, localize('tabUnfocusedActiveBackground', "Active tab background color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_ACTIVE_BACKGWOUND = wegistewCowow('tab.unfocusedActiveBackgwound', {
+	dawk: TAB_ACTIVE_BACKGWOUND,
+	wight: TAB_ACTIVE_BACKGWOUND,
+	hc: TAB_ACTIVE_BACKGWOUND
+}, wocawize('tabUnfocusedActiveBackgwound', "Active tab backgwound cowow in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
-	dark: '#2D2D2D',
-	light: '#ECECEC',
-	hc: null
-}, localize('tabInactiveBackground', "Inactive tab background color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_INACTIVE_BACKGWOUND = wegistewCowow('tab.inactiveBackgwound', {
+	dawk: '#2D2D2D',
+	wight: '#ECECEC',
+	hc: nuww
+}, wocawize('tabInactiveBackgwound', "Inactive tab backgwound cowow in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_INACTIVE_BACKGROUND = registerColor('tab.unfocusedInactiveBackground', {
-	dark: TAB_INACTIVE_BACKGROUND,
-	light: TAB_INACTIVE_BACKGROUND,
-	hc: TAB_INACTIVE_BACKGROUND
-}, localize('tabUnfocusedInactiveBackground', "Inactive tab background color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_INACTIVE_BACKGWOUND = wegistewCowow('tab.unfocusedInactiveBackgwound', {
+	dawk: TAB_INACTIVE_BACKGWOUND,
+	wight: TAB_INACTIVE_BACKGWOUND,
+	hc: TAB_INACTIVE_BACKGWOUND
+}, wocawize('tabUnfocusedInactiveBackgwound', "Inactive tab backgwound cowow in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-//#endregion
+//#endwegion
 
-//#region Tab Foreground
+//#wegion Tab Fowegwound
 
-export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
-	dark: Color.white,
-	light: '#333333',
-	hc: Color.white
-}, localize('tabActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_ACTIVE_FOWEGWOUND = wegistewCowow('tab.activeFowegwound', {
+	dawk: Cowow.white,
+	wight: '#333333',
+	hc: Cowow.white
+}, wocawize('tabActiveFowegwound', "Active tab fowegwound cowow in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
-	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
-	hc: Color.white
-}, localize('tabInactiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_INACTIVE_FOWEGWOUND = wegistewCowow('tab.inactiveFowegwound', {
+	dawk: twanspawent(TAB_ACTIVE_FOWEGWOUND, 0.5),
+	wight: twanspawent(TAB_ACTIVE_FOWEGWOUND, 0.7),
+	hc: Cowow.white
+}, wocawize('tabInactiveFowegwound', "Inactive tab fowegwound cowow in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiveForeground', {
-	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
-	hc: Color.white
-}, localize('tabUnfocusedActiveForeground', "Active tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_ACTIVE_FOWEGWOUND = wegistewCowow('tab.unfocusedActiveFowegwound', {
+	dawk: twanspawent(TAB_ACTIVE_FOWEGWOUND, 0.5),
+	wight: twanspawent(TAB_ACTIVE_FOWEGWOUND, 0.7),
+	hc: Cowow.white
+}, wocawize('tabUnfocusedActiveFowegwound', "Active tab fowegwound cowow in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
-	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
-	hc: Color.white
-}, localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_INACTIVE_FOWEGWOUND = wegistewCowow('tab.unfocusedInactiveFowegwound', {
+	dawk: twanspawent(TAB_INACTIVE_FOWEGWOUND, 0.5),
+	wight: twanspawent(TAB_INACTIVE_FOWEGWOUND, 0.5),
+	hc: Cowow.white
+}, wocawize('tabUnfocusedInactiveFowegwound', "Inactive tab fowegwound cowow in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-//#endregion
+//#endwegion
 
-//#region Tab Hover Foreground/Background
+//#wegion Tab Hova Fowegwound/Backgwound
 
-export const TAB_HOVER_BACKGROUND = registerColor('tab.hoverBackground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabHoverBackground', "Tab background color when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_HOVEW_BACKGWOUND = wegistewCowow('tab.hovewBackgwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabHovewBackgwound', "Tab backgwound cowow when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_HOVER_BACKGROUND = registerColor('tab.unfocusedHoverBackground', {
-	dark: transparent(TAB_HOVER_BACKGROUND, 0.5),
-	light: transparent(TAB_HOVER_BACKGROUND, 0.7),
-	hc: null
-}, localize('tabUnfocusedHoverBackground', "Tab background color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_HOVEW_BACKGWOUND = wegistewCowow('tab.unfocusedHovewBackgwound', {
+	dawk: twanspawent(TAB_HOVEW_BACKGWOUND, 0.5),
+	wight: twanspawent(TAB_HOVEW_BACKGWOUND, 0.7),
+	hc: nuww
+}, wocawize('tabUnfocusedHovewBackgwound', "Tab backgwound cowow in an unfocused gwoup when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_HOVER_FOREGROUND = registerColor('tab.hoverForeground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabHoverForeground', "Tab foreground color when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_HOVEW_FOWEGWOUND = wegistewCowow('tab.hovewFowegwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabHovewFowegwound', "Tab fowegwound cowow when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_HOVER_FOREGROUND = registerColor('tab.unfocusedHoverForeground', {
-	dark: transparent(TAB_HOVER_FOREGROUND, 0.5),
-	light: transparent(TAB_HOVER_FOREGROUND, 0.5),
-	hc: null
-}, localize('tabUnfocusedHoverForeground', "Tab foreground color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_HOVEW_FOWEGWOUND = wegistewCowow('tab.unfocusedHovewFowegwound', {
+	dawk: twanspawent(TAB_HOVEW_FOWEGWOUND, 0.5),
+	wight: twanspawent(TAB_HOVEW_FOWEGWOUND, 0.5),
+	hc: nuww
+}, wocawize('tabUnfocusedHovewFowegwound', "Tab fowegwound cowow in an unfocused gwoup when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-//#endregion
+//#endwegion
 
-//#region Tab Borders
+//#wegion Tab Bowdews
 
-export const TAB_BORDER = registerColor('tab.border', {
-	dark: '#252526',
-	light: '#F3F3F3',
-	hc: contrastBorder
-}, localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_BOWDa = wegistewCowow('tab.bowda', {
+	dawk: '#252526',
+	wight: '#F3F3F3',
+	hc: contwastBowda
+}, wocawize('tabBowda', "Bowda to sepawate tabs fwom each otha. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_LAST_PINNED_BORDER = registerColor('tab.lastPinnedBorder', {
-	dark: treeIndentGuidesStroke,
-	light: treeIndentGuidesStroke,
-	hc: contrastBorder
-}, localize('lastPinnedTabBorder', "Border to separate pinned tabs from other tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_WAST_PINNED_BOWDa = wegistewCowow('tab.wastPinnedBowda', {
+	dawk: tweeIndentGuidesStwoke,
+	wight: tweeIndentGuidesStwoke,
+	hc: contwastBowda
+}, wocawize('wastPinnedTabBowda', "Bowda to sepawate pinned tabs fwom otha tabs. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabActiveBorder', "Border on the bottom of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_ACTIVE_BOWDa = wegistewCowow('tab.activeBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabActiveBowda', "Bowda on the bottom of an active tab. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
-	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
-	light: transparent(TAB_ACTIVE_BORDER, 0.7),
-	hc: null
-}, localize('tabActiveUnfocusedBorder', "Border on the bottom of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_ACTIVE_BOWDa = wegistewCowow('tab.unfocusedActiveBowda', {
+	dawk: twanspawent(TAB_ACTIVE_BOWDa, 0.5),
+	wight: twanspawent(TAB_ACTIVE_BOWDa, 0.7),
+	hc: nuww
+}, wocawize('tabActiveUnfocusedBowda', "Bowda on the bottom of an active tab in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_ACTIVE_BOWDEW_TOP = wegistewCowow('tab.activeBowdewTop', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabActiveBowdewTop', "Bowda to the top of an active tab. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiveBorderTop', {
-	dark: transparent(TAB_ACTIVE_BORDER_TOP, 0.5),
-	light: transparent(TAB_ACTIVE_BORDER_TOP, 0.7),
-	hc: null
-}, localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_ACTIVE_BOWDEW_TOP = wegistewCowow('tab.unfocusedActiveBowdewTop', {
+	dawk: twanspawent(TAB_ACTIVE_BOWDEW_TOP, 0.5),
+	wight: twanspawent(TAB_ACTIVE_BOWDEW_TOP, 0.7),
+	hc: nuww
+}, wocawize('tabActiveUnfocusedBowdewTop', "Bowda to the top of an active tab in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabHoverBorder', "Border to highlight tabs when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_HOVEW_BOWDa = wegistewCowow('tab.hovewBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabHovewBowda', "Bowda to highwight tabs when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorder', {
-	dark: transparent(TAB_HOVER_BORDER, 0.5),
-	light: transparent(TAB_HOVER_BORDER, 0.7),
-	hc: null
-}, localize('tabUnfocusedHoverBorder', "Border to highlight tabs in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_HOVEW_BOWDa = wegistewCowow('tab.unfocusedHovewBowda', {
+	dawk: twanspawent(TAB_HOVEW_BOWDa, 0.5),
+	wight: twanspawent(TAB_HOVEW_BOWDa, 0.7),
+	hc: nuww
+}, wocawize('tabUnfocusedHovewBowda', "Bowda to highwight tabs in an unfocused gwoup when hovewing. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-//#endregion
+//#endwegion
 
-//#region Tab Modified Border
+//#wegion Tab Modified Bowda
 
-export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorder', {
-	dark: '#3399CC',
-	light: '#33AAEE',
-	hc: null
-}, localize('tabActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_ACTIVE_MODIFIED_BOWDa = wegistewCowow('tab.activeModifiedBowda', {
+	dawk: '#3399CC',
+	wight: '#33AAEE',
+	hc: nuww
+}, wocawize('tabActiveModifiedBowda', "Bowda on the top of modified (diwty) active tabs in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_INACTIVE_MODIFIED_BORDER = registerColor('tab.inactiveModifiedBorder', {
-	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
-	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
-	hc: Color.white
-}, localize('tabInactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_INACTIVE_MODIFIED_BOWDa = wegistewCowow('tab.inactiveModifiedBowda', {
+	dawk: twanspawent(TAB_ACTIVE_MODIFIED_BOWDa, 0.5),
+	wight: twanspawent(TAB_ACTIVE_MODIFIED_BOWDa, 0.5),
+	hc: Cowow.white
+}, wocawize('tabInactiveModifiedBowda', "Bowda on the top of modified (diwty) inactive tabs in an active gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedActiveModifiedBorder', {
-	dark: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.5),
-	light: transparent(TAB_ACTIVE_MODIFIED_BORDER, 0.7),
-	hc: Color.white
-}, localize('unfocusedActiveModifiedBorder', "Border on the top of modified (dirty) active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_ACTIVE_MODIFIED_BOWDa = wegistewCowow('tab.unfocusedActiveModifiedBowda', {
+	dawk: twanspawent(TAB_ACTIVE_MODIFIED_BOWDa, 0.5),
+	wight: twanspawent(TAB_ACTIVE_MODIFIED_BOWDa, 0.7),
+	hc: Cowow.white
+}, wocawize('unfocusedActiveModifiedBowda', "Bowda on the top of modified (diwty) active tabs in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-export const TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER = registerColor('tab.unfocusedInactiveModifiedBorder', {
-	dark: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
-	light: transparent(TAB_INACTIVE_MODIFIED_BORDER, 0.5),
-	hc: Color.white
-}, localize('unfocusedINactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+expowt const TAB_UNFOCUSED_INACTIVE_MODIFIED_BOWDa = wegistewCowow('tab.unfocusedInactiveModifiedBowda', {
+	dawk: twanspawent(TAB_INACTIVE_MODIFIED_BOWDa, 0.5),
+	wight: twanspawent(TAB_INACTIVE_MODIFIED_BOWDa, 0.5),
+	hc: Cowow.white
+}, wocawize('unfocusedINactiveModifiedBowda', "Bowda on the top of modified (diwty) inactive tabs in an unfocused gwoup. Tabs awe the containews fow editows in the editow awea. Muwtipwe tabs can be opened in one editow gwoup. Thewe can be muwtipwe editow gwoups."));
 
-//#endregion
+//#endwegion
 
-// < --- Editors --- >
+// < --- Editows --- >
 
-export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
+expowt const EDITOW_PANE_BACKGWOUND = wegistewCowow('editowPane.backgwound', {
+	dawk: editowBackgwound,
+	wight: editowBackgwound,
+	hc: editowBackgwound
+}, wocawize('editowPaneBackgwound', "Backgwound cowow of the editow pane visibwe on the weft and wight side of the centewed editow wayout."));
 
-export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('editorGroupEmptyBackground', "Background color of an empty editor group. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_EMPTY_BACKGWOUND = wegistewCowow('editowGwoup.emptyBackgwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('editowGwoupEmptyBackgwound', "Backgwound cowow of an empty editow gwoup. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_FOCUSED_EMPTY_BORDER = registerColor('editorGroup.focusedEmptyBorder', {
-	dark: null,
-	light: null,
-	hc: focusBorder
-}, localize('editorGroupFocusedEmptyBorder', "Border color of an empty editor group that is focused. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_FOCUSED_EMPTY_BOWDa = wegistewCowow('editowGwoup.focusedEmptyBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: focusBowda
+}, wocawize('editowGwoupFocusedEmptyBowda', "Bowda cowow of an empty editow gwoup that is focused. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
-	dark: '#252526',
-	light: '#F3F3F3',
-	hc: null
-}, localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_HEADEW_TABS_BACKGWOUND = wegistewCowow('editowGwoupHeada.tabsBackgwound', {
+	dawk: '#252526',
+	wight: '#F3F3F3',
+	hc: nuww
+}, wocawize('tabsContainewBackgwound', "Backgwound cowow of the editow gwoup titwe heada when tabs awe enabwed. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_HEADEW_TABS_BOWDa = wegistewCowow('editowGwoupHeada.tabsBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('tabsContainewBowda', "Bowda cowow of the editow gwoup titwe heada when tabs awe enabwed. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_HEADEW_NO_TABS_BACKGWOUND = wegistewCowow('editowGwoupHeada.noTabsBackgwound', {
+	dawk: editowBackgwound,
+	wight: editowBackgwound,
+	hc: editowBackgwound
+}, wocawize('editowGwoupHeadewBackgwound', "Backgwound cowow of the editow gwoup titwe heada when tabs awe disabwed (`\"wowkbench.editow.showTabs\": fawse`). Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('editorTitleContainerBorder', "Border color of the editor group title header. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_HEADEW_BOWDa = wegistewCowow('editowGwoupHeada.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('editowTitweContainewBowda', "Bowda cowow of the editow gwoup titwe heada. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
-	dark: '#444444',
-	light: '#E7E7E7',
-	hc: contrastBorder
-}, localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
+expowt const EDITOW_GWOUP_BOWDa = wegistewCowow('editowGwoup.bowda', {
+	dawk: '#444444',
+	wight: '#E7E7E7',
+	hc: contwastBowda
+}, wocawize('editowGwoupBowda', "Cowow to sepawate muwtipwe editow gwoups fwom each otha. Editow gwoups awe the containews of editows."));
 
-export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
-	dark: Color.fromHex('#53595D').transparent(0.5),
-	light: Color.fromHex('#2677CB').transparent(0.18),
-	hc: null
-}, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
+expowt const EDITOW_DWAG_AND_DWOP_BACKGWOUND = wegistewCowow('editowGwoup.dwopBackgwound', {
+	dawk: Cowow.fwomHex('#53595D').twanspawent(0.5),
+	wight: Cowow.fwomHex('#2677CB').twanspawent(0.18),
+	hc: nuww
+}, wocawize('editowDwagAndDwopBackgwound', "Backgwound cowow when dwagging editows awound. The cowow shouwd have twanspawency so that the editow contents can stiww shine thwough."));
 
-export const SIDE_BY_SIDE_EDITOR_BORDER = registerColor('sideBySideEditor.border', {
-	dark: EDITOR_GROUP_BORDER,
-	light: EDITOR_GROUP_BORDER,
-	hc: EDITOR_GROUP_BORDER
-}, localize('sideBySideEditor.border', "Color to separate two editors from each other when shown side by side in an editor group."));
+expowt const SIDE_BY_SIDE_EDITOW_BOWDa = wegistewCowow('sideBySideEditow.bowda', {
+	dawk: EDITOW_GWOUP_BOWDa,
+	wight: EDITOW_GWOUP_BOWDa,
+	hc: EDITOW_GWOUP_BOWDa
+}, wocawize('sideBySideEditow.bowda', "Cowow to sepawate two editows fwom each otha when shown side by side in an editow gwoup."));
 
-// < --- Panels --- >
+// < --- Panews --- >
 
-export const PANEL_BACKGROUND = registerColor('panel.background', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_BACKGWOUND = wegistewCowow('panew.backgwound', {
+	dawk: editowBackgwound,
+	wight: editowBackgwound,
+	hc: editowBackgwound
+}, wocawize('panewBackgwound', "Panew backgwound cowow. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
-export const PANEL_BORDER = registerColor('panel.border', {
-	dark: Color.fromHex('#808080').transparent(0.35),
-	light: Color.fromHex('#808080').transparent(0.35),
-	hc: contrastBorder
-}, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_BOWDa = wegistewCowow('panew.bowda', {
+	dawk: Cowow.fwomHex('#808080').twanspawent(0.35),
+	wight: Cowow.fwomHex('#808080').twanspawent(0.35),
+	hc: contwastBowda
+}, wocawize('panewBowda', "Panew bowda cowow to sepawate the panew fwom the editow. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
-export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
-	dark: '#E7E7E7',
-	light: '#424242',
-	hc: Color.white
-}, localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_ACTIVE_TITWE_FOWEGWOUND = wegistewCowow('panewTitwe.activeFowegwound', {
+	dawk: '#E7E7E7',
+	wight: '#424242',
+	hc: Cowow.white
+}, wocawize('panewActiveTitweFowegwound', "Titwe cowow fow the active panew. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
-export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiveForeground', {
-	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.6),
-	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
-	hc: Color.white
-}, localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_INACTIVE_TITWE_FOWEGWOUND = wegistewCowow('panewTitwe.inactiveFowegwound', {
+	dawk: twanspawent(PANEW_ACTIVE_TITWE_FOWEGWOUND, 0.6),
+	wight: twanspawent(PANEW_ACTIVE_TITWE_FOWEGWOUND, 0.75),
+	hc: Cowow.white
+}, wocawize('panewInactiveTitweFowegwound', "Titwe cowow fow the inactive panew. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
-export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
-	light: PANEL_ACTIVE_TITLE_FOREGROUND,
-	hc: contrastBorder
-}, localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_ACTIVE_TITWE_BOWDa = wegistewCowow('panewTitwe.activeBowda', {
+	dawk: PANEW_ACTIVE_TITWE_FOWEGWOUND,
+	wight: PANEW_ACTIVE_TITWE_FOWEGWOUND,
+	hc: contwastBowda
+}, wocawize('panewActiveTitweBowda', "Bowda cowow fow the active panew titwe. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
-export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
-	dark: null,
-	light: Color.fromHex('#ddd'),
-	hc: null
-}, localize('panelInputBorder', "Input box border for inputs in the panel."));
+expowt const PANEW_INPUT_BOWDa = wegistewCowow('panewInput.bowda', {
+	dawk: nuww,
+	wight: Cowow.fwomHex('#ddd'),
+	hc: nuww
+}, wocawize('panewInputBowda', "Input box bowda fow inputs in the panew."));
 
-export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
-	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
-	light: PANEL_ACTIVE_TITLE_FOREGROUND,
-	hc: PANEL_ACTIVE_TITLE_FOREGROUND,
-}, localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
+expowt const PANEW_DWAG_AND_DWOP_BOWDa = wegistewCowow('panew.dwopBowda', {
+	dawk: PANEW_ACTIVE_TITWE_FOWEGWOUND,
+	wight: PANEW_ACTIVE_TITWE_FOWEGWOUND,
+	hc: PANEW_ACTIVE_TITWE_FOWEGWOUND,
+}, wocawize('panewDwagAndDwopBowda', "Dwag and dwop feedback cowow fow the panew titwes. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw."));
 
 
-export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', {
-	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
-}, localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+expowt const PANEW_SECTION_DWAG_AND_DWOP_BACKGWOUND = wegistewCowow('panewSection.dwopBackgwound', {
+	dawk: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	wight: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	hc: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+}, wocawize('panewSectionDwagAndDwopBackgwound', "Dwag and dwop feedback cowow fow the panew sections. The cowow shouwd have twanspawency so that the panew sections can stiww shine thwough. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw. Panew sections awe views nested within the panews."));
 
-export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
-	dark: Color.fromHex('#808080').transparent(0.2),
-	light: Color.fromHex('#808080').transparent(0.2),
-	hc: null
-}, localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+expowt const PANEW_SECTION_HEADEW_BACKGWOUND = wegistewCowow('panewSectionHeada.backgwound', {
+	dawk: Cowow.fwomHex('#808080').twanspawent(0.2),
+	wight: Cowow.fwomHex('#808080').twanspawent(0.2),
+	hc: nuww
+}, wocawize('panewSectionHeadewBackgwound', "Panew section heada backgwound cowow. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw. Panew sections awe views nested within the panews."));
 
-export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+expowt const PANEW_SECTION_HEADEW_FOWEGWOUND = wegistewCowow('panewSectionHeada.fowegwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('panewSectionHeadewFowegwound', "Panew section heada fowegwound cowow. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw. Panew sections awe views nested within the panews."));
 
-export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', {
-	dark: contrastBorder,
-	light: contrastBorder,
-	hc: contrastBorder
-}, localize('panelSectionHeaderBorder', "Panel section header border color used when multiple views are stacked vertically in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+expowt const PANEW_SECTION_HEADEW_BOWDa = wegistewCowow('panewSectionHeada.bowda', {
+	dawk: contwastBowda,
+	wight: contwastBowda,
+	hc: contwastBowda
+}, wocawize('panewSectionHeadewBowda', "Panew section heada bowda cowow used when muwtipwe views awe stacked vewticawwy in the panew. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw. Panew sections awe views nested within the panews."));
 
-export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
-	dark: PANEL_BORDER,
-	light: PANEL_BORDER,
-	hc: PANEL_BORDER
-}, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+expowt const PANEW_SECTION_BOWDa = wegistewCowow('panewSection.bowda', {
+	dawk: PANEW_BOWDa,
+	wight: PANEW_BOWDa,
+	hc: PANEW_BOWDa
+}, wocawize('panewSectionBowda', "Panew section bowda cowow used when muwtipwe views awe stacked howizontawwy in the panew. Panews awe shown bewow the editow awea and contain views wike output and integwated tewminaw. Panew sections awe views nested within the panews."));
 
-// < --- Banner --- >
+// < --- Banna --- >
 
-export const BANNER_BACKGROUND = registerColor('banner.background', {
-	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
-	hc: listActiveSelectionBackground
-}, localize('banner.background', "Banner background color. The banner is shown under the title bar of the window."));
+expowt const BANNEW_BACKGWOUND = wegistewCowow('banna.backgwound', {
+	dawk: wistActiveSewectionBackgwound,
+	wight: wistActiveSewectionBackgwound,
+	hc: wistActiveSewectionBackgwound
+}, wocawize('banna.backgwound', "Banna backgwound cowow. The banna is shown unda the titwe baw of the window."));
 
-export const BANNER_FOREGROUND = registerColor('banner.foreground', {
-	dark: listActiveSelectionForeground,
-	light: listActiveSelectionForeground,
-	hc: listActiveSelectionForeground
-}, localize('banner.foreground', "Banner foreground color. The banner is shown under the title bar of the window."));
+expowt const BANNEW_FOWEGWOUND = wegistewCowow('banna.fowegwound', {
+	dawk: wistActiveSewectionFowegwound,
+	wight: wistActiveSewectionFowegwound,
+	hc: wistActiveSewectionFowegwound
+}, wocawize('banna.fowegwound', "Banna fowegwound cowow. The banna is shown unda the titwe baw of the window."));
 
-export const BANNER_ICON_FOREGROUND = registerColor('banner.iconForeground', {
-	dark: editorInfoForeground,
-	light: editorInfoForeground,
-	hc: editorInfoForeground
-}, localize('banner.iconForeground', "Banner icon color. The banner is shown under the title bar of the window."));
+expowt const BANNEW_ICON_FOWEGWOUND = wegistewCowow('banna.iconFowegwound', {
+	dawk: editowInfoFowegwound,
+	wight: editowInfoFowegwound,
+	hc: editowInfoFowegwound
+}, wocawize('banna.iconFowegwound', "Banna icon cowow. The banna is shown unda the titwe baw of the window."));
 
 // < --- Status --- >
 
-export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
-	dark: '#FFFFFF',
-	light: '#FFFFFF',
+expowt const STATUS_BAW_FOWEGWOUND = wegistewCowow('statusBaw.fowegwound', {
+	dawk: '#FFFFFF',
+	wight: '#FFFFFF',
 	hc: '#FFFFFF'
-}, localize('statusBarForeground', "Status bar foreground color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
+}, wocawize('statusBawFowegwound', "Status baw fowegwound cowow when a wowkspace ow fowda is opened. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_NO_FOWDEW_FOWEGWOUND = wegistewCowow('statusBaw.noFowdewFowegwound', {
+	dawk: STATUS_BAW_FOWEGWOUND,
+	wight: STATUS_BAW_FOWEGWOUND,
+	hc: STATUS_BAW_FOWEGWOUND
+}, wocawize('statusBawNoFowdewFowegwound', "Status baw fowegwound cowow when no fowda is opened. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
-	dark: '#007ACC',
-	light: '#007ACC',
-	hc: null
-}, localize('statusBarBackground', "Status bar background color when a workspace or folder is opened. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_BACKGWOUND = wegistewCowow('statusBaw.backgwound', {
+	dawk: '#007ACC',
+	wight: '#007ACC',
+	hc: nuww
+}, wocawize('statusBawBackgwound', "Status baw backgwound cowow when a wowkspace ow fowda is opened. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
-	dark: '#68217A',
-	light: '#68217A',
-	hc: null
-}, localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_NO_FOWDEW_BACKGWOUND = wegistewCowow('statusBaw.noFowdewBackgwound', {
+	dawk: '#68217A',
+	wight: '#68217A',
+	hc: nuww
+}, wocawize('statusBawNoFowdewBackgwound', "Status baw backgwound cowow when no fowda is opened. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_BOWDa = wegistewCowow('statusBaw.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('statusBawBowda', "Status baw bowda cowow sepawating to the sidebaw and editow. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_NO_FOLDER_BORDER = registerColor('statusBar.noFolderBorder', {
-	dark: STATUS_BAR_BORDER,
-	light: STATUS_BAR_BORDER,
-	hc: STATUS_BAR_BORDER
-}, localize('statusBarNoFolderBorder', "Status bar border color separating to the sidebar and editor when no folder is opened. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_NO_FOWDEW_BOWDa = wegistewCowow('statusBaw.noFowdewBowda', {
+	dawk: STATUS_BAW_BOWDa,
+	wight: STATUS_BAW_BOWDa,
+	hc: STATUS_BAW_BOWDa
+}, wocawize('statusBawNoFowdewBowda', "Status baw bowda cowow sepawating to the sidebaw and editow when no fowda is opened. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
-	dark: Color.white.transparent(0.18),
-	light: Color.white.transparent(0.18),
-	hc: Color.white.transparent(0.18)
-}, localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_ITEM_ACTIVE_BACKGWOUND = wegistewCowow('statusBawItem.activeBackgwound', {
+	dawk: Cowow.white.twanspawent(0.18),
+	wight: Cowow.white.twanspawent(0.18),
+	hc: Cowow.white.twanspawent(0.18)
+}, wocawize('statusBawItemActiveBackgwound', "Status baw item backgwound cowow when cwicking. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
-	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hc: Color.white.transparent(0.12)
-}, localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_ITEM_HOVEW_BACKGWOUND = wegistewCowow('statusBawItem.hovewBackgwound', {
+	dawk: Cowow.white.twanspawent(0.12),
+	wight: Cowow.white.twanspawent(0.12),
+	hc: Cowow.white.twanspawent(0.12)
+}, wocawize('statusBawItemHovewBackgwound', "Status baw item backgwound cowow when hovewing. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_FOREGROUND = registerColor('statusBarItem.prominentForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, localize('statusBarProminentItemForeground', "Status bar prominent items foreground color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_PWOMINENT_ITEM_FOWEGWOUND = wegistewCowow('statusBawItem.pwominentFowegwound', {
+	dawk: STATUS_BAW_FOWEGWOUND,
+	wight: STATUS_BAW_FOWEGWOUND,
+	hc: STATUS_BAW_FOWEGWOUND
+}, wocawize('statusBawPwominentItemFowegwound', "Status baw pwominent items fowegwound cowow. Pwominent items stand out fwom otha status baw entwies to indicate impowtance. Change mode `Toggwe Tab Key Moves Focus` fwom command pawette to see an exampwe. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
-	dark: Color.black.transparent(0.5),
-	light: Color.black.transparent(0.5),
-	hc: Color.black.transparent(0.5),
-}, localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_PWOMINENT_ITEM_BACKGWOUND = wegistewCowow('statusBawItem.pwominentBackgwound', {
+	dawk: Cowow.bwack.twanspawent(0.5),
+	wight: Cowow.bwack.twanspawent(0.5),
+	hc: Cowow.bwack.twanspawent(0.5),
+}, wocawize('statusBawPwominentItemBackgwound', "Status baw pwominent items backgwound cowow. Pwominent items stand out fwom otha status baw entwies to indicate impowtance. Change mode `Toggwe Tab Key Moves Focus` fwom command pawette to see an exampwe. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
-	dark: Color.black.transparent(0.3),
-	light: Color.black.transparent(0.3),
-	hc: Color.black.transparent(0.3),
-}, localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. Change mode `Toggle Tab Key Moves Focus` from command palette to see an example. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_PWOMINENT_ITEM_HOVEW_BACKGWOUND = wegistewCowow('statusBawItem.pwominentHovewBackgwound', {
+	dawk: Cowow.bwack.twanspawent(0.3),
+	wight: Cowow.bwack.twanspawent(0.3),
+	hc: Cowow.bwack.twanspawent(0.3),
+}, wocawize('statusBawPwominentItemHovewBackgwound', "Status baw pwominent items backgwound cowow when hovewing. Pwominent items stand out fwom otha status baw entwies to indicate impowtance. Change mode `Toggwe Tab Key Moves Focus` fwom command pawette to see an exampwe. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_ERROR_ITEM_BACKGROUND = registerColor('statusBarItem.errorBackground', {
-	dark: darken(errorForeground, .4),
-	light: darken(errorForeground, .4),
-	hc: null,
-}, localize('statusBarErrorItemBackground', "Status bar error items background color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_EWWOW_ITEM_BACKGWOUND = wegistewCowow('statusBawItem.ewwowBackgwound', {
+	dawk: dawken(ewwowFowegwound, .4),
+	wight: dawken(ewwowFowegwound, .4),
+	hc: nuww,
+}, wocawize('statusBawEwwowItemBackgwound', "Status baw ewwow items backgwound cowow. Ewwow items stand out fwom otha status baw entwies to indicate ewwow conditions. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_ERROR_ITEM_FOREGROUND = registerColor('statusBarItem.errorForeground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white,
-}, localize('statusBarErrorItemForeground', "Status bar error items foreground color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_EWWOW_ITEM_FOWEGWOUND = wegistewCowow('statusBawItem.ewwowFowegwound', {
+	dawk: Cowow.white,
+	wight: Cowow.white,
+	hc: Cowow.white,
+}, wocawize('statusBawEwwowItemFowegwound', "Status baw ewwow items fowegwound cowow. Ewwow items stand out fwom otha status baw entwies to indicate ewwow conditions. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_WARNING_ITEM_BACKGROUND = registerColor('statusBarItem.warningBackground', {
-	dark: darken(editorWarningForeground, .4),
-	light: darken(editorWarningForeground, .4),
-	hc: null,
-}, localize('statusBarWarningItemBackground', "Status bar warning items background color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_WAWNING_ITEM_BACKGWOUND = wegistewCowow('statusBawItem.wawningBackgwound', {
+	dawk: dawken(editowWawningFowegwound, .4),
+	wight: dawken(editowWawningFowegwound, .4),
+	hc: nuww,
+}, wocawize('statusBawWawningItemBackgwound', "Status baw wawning items backgwound cowow. Wawning items stand out fwom otha status baw entwies to indicate wawning conditions. The status baw is shown in the bottom of the window."));
 
-export const STATUS_BAR_WARNING_ITEM_FOREGROUND = registerColor('statusBarItem.warningForeground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white,
-}, localize('statusBarWarningItemForeground', "Status bar warning items foreground color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+expowt const STATUS_BAW_WAWNING_ITEM_FOWEGWOUND = wegistewCowow('statusBawItem.wawningFowegwound', {
+	dawk: Cowow.white,
+	wight: Cowow.white,
+	hc: Cowow.white,
+}, wocawize('statusBawWawningItemFowegwound', "Status baw wawning items fowegwound cowow. Wawning items stand out fwom otha status baw entwies to indicate wawning conditions. The status baw is shown in the bottom of the window."));
 
 
-// < --- Activity Bar --- >
+// < --- Activity Baw --- >
 
-export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBar.background', {
-	dark: '#333333',
-	light: '#2C2C2C',
+expowt const ACTIVITY_BAW_BACKGWOUND = wegistewCowow('activityBaw.backgwound', {
+	dawk: '#333333',
+	wight: '#2C2C2C',
 	hc: '#000000'
-}, localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, wocawize('activityBawBackgwound', "Activity baw backgwound cowow. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white
-}, localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_FOWEGWOUND = wegistewCowow('activityBaw.fowegwound', {
+	dawk: Cowow.white,
+	wight: Cowow.white,
+	hc: Cowow.white
+}, wocawize('activityBawFowegwound', "Activity baw item fowegwound cowow when it is active. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
-	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
-	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
-	hc: Color.white
-}, localize('activityBarInActiveForeground', "Activity bar item foreground color when it is inactive. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_INACTIVE_FOWEGWOUND = wegistewCowow('activityBaw.inactiveFowegwound', {
+	dawk: twanspawent(ACTIVITY_BAW_FOWEGWOUND, 0.4),
+	wight: twanspawent(ACTIVITY_BAW_FOWEGWOUND, 0.4),
+	hc: Cowow.white
+}, wocawize('activityBawInActiveFowegwound', "Activity baw item fowegwound cowow when it is inactive. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_BOWDa = wegistewCowow('activityBaw.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('activityBawBowda', "Activity baw bowda cowow sepawating to the side baw. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
-	dark: ACTIVITY_BAR_FOREGROUND,
-	light: ACTIVITY_BAR_FOREGROUND,
-	hc: null
-}, localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_ACTIVE_BOWDa = wegistewCowow('activityBaw.activeBowda', {
+	dawk: ACTIVITY_BAW_FOWEGWOUND,
+	wight: ACTIVITY_BAW_FOWEGWOUND,
+	hc: nuww
+}, wocawize('activityBawActiveBowda', "Activity baw bowda cowow fow the active item. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_ACTIVE_FOCUS_BORDER = registerColor('activityBar.activeFocusBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('activityBarActiveFocusBorder', "Activity bar focus border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_ACTIVE_FOCUS_BOWDa = wegistewCowow('activityBaw.activeFocusBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('activityBawActiveFocusBowda', "Activity baw focus bowda cowow fow the active item. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeBackground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('activityBarActiveBackground', "Activity bar background color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_ACTIVE_BACKGWOUND = wegistewCowow('activityBaw.activeBackgwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('activityBawActiveBackgwound', "Activity baw backgwound cowow fow the active item. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.dropBorder', {
-	dark: ACTIVITY_BAR_FOREGROUND,
-	light: ACTIVITY_BAR_FOREGROUND,
-	hc: ACTIVITY_BAR_FOREGROUND,
-}, localize('activityBarDragAndDropBorder', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+expowt const ACTIVITY_BAW_DWAG_AND_DWOP_BOWDa = wegistewCowow('activityBaw.dwopBowda', {
+	dawk: ACTIVITY_BAW_FOWEGWOUND,
+	wight: ACTIVITY_BAW_FOWEGWOUND,
+	hc: ACTIVITY_BAW_FOWEGWOUND,
+}, wocawize('activityBawDwagAndDwopBowda', "Dwag and dwop feedback cowow fow the activity baw items. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
-	dark: '#007ACC',
-	light: '#007ACC',
+expowt const ACTIVITY_BAW_BADGE_BACKGWOUND = wegistewCowow('activityBawBadge.backgwound', {
+	dawk: '#007ACC',
+	wight: '#007ACC',
 	hc: '#000000'
-}, localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, wocawize('activityBawBadgeBackgwound', "Activity notification badge backgwound cowow. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
-export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white
-}, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
-
-
-// < --- Remote --- >
-
-export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {
-	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
-	light: ACTIVITY_BAR_BADGE_BACKGROUND,
-	hc: ACTIVITY_BAR_BADGE_BACKGROUND
-}, localize('statusBarItemHostBackground', "Background color for the remote indicator on the status bar."));
-
-export const STATUS_BAR_HOST_NAME_FOREGROUND = registerColor('statusBarItem.remoteForeground', {
-	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
-	light: ACTIVITY_BAR_BADGE_FOREGROUND,
-	hc: ACTIVITY_BAR_BADGE_FOREGROUND
-}, localize('statusBarItemHostForeground', "Foreground color for the remote indicator on the status bar."));
-
-export const EXTENSION_BADGE_REMOTE_BACKGROUND = registerColor('extensionBadge.remoteBackground', {
-	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
-	light: ACTIVITY_BAR_BADGE_BACKGROUND,
-	hc: ACTIVITY_BAR_BADGE_BACKGROUND
-}, localize('extensionBadge.remoteBackground', "Background color for the remote badge in the extensions view."));
-
-export const EXTENSION_BADGE_REMOTE_FOREGROUND = registerColor('extensionBadge.remoteForeground', {
-	dark: ACTIVITY_BAR_BADGE_FOREGROUND,
-	light: ACTIVITY_BAR_BADGE_FOREGROUND,
-	hc: ACTIVITY_BAR_BADGE_FOREGROUND
-}, localize('extensionBadge.remoteForeground', "Foreground color for the remote badge in the extensions view."));
+expowt const ACTIVITY_BAW_BADGE_FOWEGWOUND = wegistewCowow('activityBawBadge.fowegwound', {
+	dawk: Cowow.white,
+	wight: Cowow.white,
+	hc: Cowow.white
+}, wocawize('activityBawBadgeFowegwound', "Activity notification badge fowegwound cowow. The activity baw is showing on the faw weft ow wight and awwows to switch between views of the side baw."));
 
 
-// < --- Side Bar --- >
+// < --- Wemote --- >
 
-export const SIDE_BAR_BACKGROUND = registerColor('sideBar.background', {
-	dark: '#252526',
-	light: '#F3F3F3',
+expowt const STATUS_BAW_HOST_NAME_BACKGWOUND = wegistewCowow('statusBawItem.wemoteBackgwound', {
+	dawk: ACTIVITY_BAW_BADGE_BACKGWOUND,
+	wight: ACTIVITY_BAW_BADGE_BACKGWOUND,
+	hc: ACTIVITY_BAW_BADGE_BACKGWOUND
+}, wocawize('statusBawItemHostBackgwound', "Backgwound cowow fow the wemote indicatow on the status baw."));
+
+expowt const STATUS_BAW_HOST_NAME_FOWEGWOUND = wegistewCowow('statusBawItem.wemoteFowegwound', {
+	dawk: ACTIVITY_BAW_BADGE_FOWEGWOUND,
+	wight: ACTIVITY_BAW_BADGE_FOWEGWOUND,
+	hc: ACTIVITY_BAW_BADGE_FOWEGWOUND
+}, wocawize('statusBawItemHostFowegwound', "Fowegwound cowow fow the wemote indicatow on the status baw."));
+
+expowt const EXTENSION_BADGE_WEMOTE_BACKGWOUND = wegistewCowow('extensionBadge.wemoteBackgwound', {
+	dawk: ACTIVITY_BAW_BADGE_BACKGWOUND,
+	wight: ACTIVITY_BAW_BADGE_BACKGWOUND,
+	hc: ACTIVITY_BAW_BADGE_BACKGWOUND
+}, wocawize('extensionBadge.wemoteBackgwound', "Backgwound cowow fow the wemote badge in the extensions view."));
+
+expowt const EXTENSION_BADGE_WEMOTE_FOWEGWOUND = wegistewCowow('extensionBadge.wemoteFowegwound', {
+	dawk: ACTIVITY_BAW_BADGE_FOWEGWOUND,
+	wight: ACTIVITY_BAW_BADGE_FOWEGWOUND,
+	hc: ACTIVITY_BAW_BADGE_FOWEGWOUND
+}, wocawize('extensionBadge.wemoteFowegwound', "Fowegwound cowow fow the wemote badge in the extensions view."));
+
+
+// < --- Side Baw --- >
+
+expowt const SIDE_BAW_BACKGWOUND = wegistewCowow('sideBaw.backgwound', {
+	dawk: '#252526',
+	wight: '#F3F3F3',
 	hc: '#000000'
-}, localize('sideBarBackground', "Side bar background color. The side bar is the container for views like explorer and search."));
+}, wocawize('sideBawBackgwound', "Side baw backgwound cowow. The side baw is the containa fow views wike expwowa and seawch."));
 
-export const SIDE_BAR_FOREGROUND = registerColor('sideBar.foreground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('sideBarForeground', "Side bar foreground color. The side bar is the container for views like explorer and search."));
+expowt const SIDE_BAW_FOWEGWOUND = wegistewCowow('sideBaw.fowegwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('sideBawFowegwound', "Side baw fowegwound cowow. The side baw is the containa fow views wike expwowa and seawch."));
 
-export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('sideBarBorder', "Side bar border color on the side separating to the editor. The side bar is the container for views like explorer and search."));
+expowt const SIDE_BAW_BOWDa = wegistewCowow('sideBaw.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('sideBawBowda', "Side baw bowda cowow on the side sepawating to the editow. The side baw is the containa fow views wike expwowa and seawch."));
 
-export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
-	dark: SIDE_BAR_FOREGROUND,
-	light: SIDE_BAR_FOREGROUND,
-	hc: SIDE_BAR_FOREGROUND
-}, localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
+expowt const SIDE_BAW_TITWE_FOWEGWOUND = wegistewCowow('sideBawTitwe.fowegwound', {
+	dawk: SIDE_BAW_FOWEGWOUND,
+	wight: SIDE_BAW_FOWEGWOUND,
+	hc: SIDE_BAW_FOWEGWOUND
+}, wocawize('sideBawTitweFowegwound', "Side baw titwe fowegwound cowow. The side baw is the containa fow views wike expwowa and seawch."));
 
-export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
-	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
-}, localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
+expowt const SIDE_BAW_DWAG_AND_DWOP_BACKGWOUND = wegistewCowow('sideBaw.dwopBackgwound', {
+	dawk: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	wight: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+	hc: EDITOW_DWAG_AND_DWOP_BACKGWOUND,
+}, wocawize('sideBawDwagAndDwopBackgwound', "Dwag and dwop feedback cowow fow the side baw sections. The cowow shouwd have twanspawency so that the side baw sections can stiww shine thwough. The side baw is the containa fow views wike expwowa and seawch. Side baw sections awe views nested within the side baw."));
 
-export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
-	dark: Color.fromHex('#808080').transparent(0.2),
-	light: Color.fromHex('#808080').transparent(0.2),
-	hc: null
-}, localize('sideBarSectionHeaderBackground', "Side bar section header background color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
+expowt const SIDE_BAW_SECTION_HEADEW_BACKGWOUND = wegistewCowow('sideBawSectionHeada.backgwound', {
+	dawk: Cowow.fwomHex('#808080').twanspawent(0.2),
+	wight: Cowow.fwomHex('#808080').twanspawent(0.2),
+	hc: nuww
+}, wocawize('sideBawSectionHeadewBackgwound', "Side baw section heada backgwound cowow. The side baw is the containa fow views wike expwowa and seawch. Side baw sections awe views nested within the side baw."));
 
-export const SIDE_BAR_SECTION_HEADER_FOREGROUND = registerColor('sideBarSectionHeader.foreground', {
-	dark: SIDE_BAR_FOREGROUND,
-	light: SIDE_BAR_FOREGROUND,
-	hc: SIDE_BAR_FOREGROUND
-}, localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
+expowt const SIDE_BAW_SECTION_HEADEW_FOWEGWOUND = wegistewCowow('sideBawSectionHeada.fowegwound', {
+	dawk: SIDE_BAW_FOWEGWOUND,
+	wight: SIDE_BAW_FOWEGWOUND,
+	hc: SIDE_BAW_FOWEGWOUND
+}, wocawize('sideBawSectionHeadewFowegwound', "Side baw section heada fowegwound cowow. The side baw is the containa fow views wike expwowa and seawch. Side baw sections awe views nested within the side baw."));
 
-export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeader.border', {
-	dark: contrastBorder,
-	light: contrastBorder,
-	hc: contrastBorder
-}, localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
+expowt const SIDE_BAW_SECTION_HEADEW_BOWDa = wegistewCowow('sideBawSectionHeada.bowda', {
+	dawk: contwastBowda,
+	wight: contwastBowda,
+	hc: contwastBowda
+}, wocawize('sideBawSectionHeadewBowda', "Side baw section heada bowda cowow. The side baw is the containa fow views wike expwowa and seawch. Side baw sections awe views nested within the side baw."));
 
 
-// < --- Title Bar --- >
+// < --- Titwe Baw --- >
 
-export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {
-	dark: '#CCCCCC',
-	light: '#333333',
+expowt const TITWE_BAW_ACTIVE_FOWEGWOUND = wegistewCowow('titweBaw.activeFowegwound', {
+	dawk: '#CCCCCC',
+	wight: '#333333',
 	hc: '#FFFFFF'
-}, localize('titleBarActiveForeground', "Title bar foreground when the window is active."));
+}, wocawize('titweBawActiveFowegwound', "Titwe baw fowegwound when the window is active."));
 
-export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBar.inactiveForeground', {
-	dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
-	light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
-	hc: null
-}, localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive."));
+expowt const TITWE_BAW_INACTIVE_FOWEGWOUND = wegistewCowow('titweBaw.inactiveFowegwound', {
+	dawk: twanspawent(TITWE_BAW_ACTIVE_FOWEGWOUND, 0.6),
+	wight: twanspawent(TITWE_BAW_ACTIVE_FOWEGWOUND, 0.6),
+	hc: nuww
+}, wocawize('titweBawInactiveFowegwound', "Titwe baw fowegwound when the window is inactive."));
 
-export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBar.activeBackground', {
-	dark: '#3C3C3C',
-	light: '#DDDDDD',
+expowt const TITWE_BAW_ACTIVE_BACKGWOUND = wegistewCowow('titweBaw.activeBackgwound', {
+	dawk: '#3C3C3C',
+	wight: '#DDDDDD',
 	hc: '#000000'
-}, localize('titleBarActiveBackground', "Title bar background when the window is active."));
+}, wocawize('titweBawActiveBackgwound', "Titwe baw backgwound when the window is active."));
 
-export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBackground', {
-	dark: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
-	light: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
-	hc: null
-}, localize('titleBarInactiveBackground', "Title bar background when the window is inactive."));
+expowt const TITWE_BAW_INACTIVE_BACKGWOUND = wegistewCowow('titweBaw.inactiveBackgwound', {
+	dawk: twanspawent(TITWE_BAW_ACTIVE_BACKGWOUND, 0.6),
+	wight: twanspawent(TITWE_BAW_ACTIVE_BACKGWOUND, 0.6),
+	hc: nuww
+}, wocawize('titweBawInactiveBackgwound', "Titwe baw backgwound when the window is inactive."));
 
-export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('titleBarBorder', "Title bar border color."));
+expowt const TITWE_BAW_BOWDa = wegistewCowow('titweBaw.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('titweBawBowda', "Titwe baw bowda cowow."));
 
-// < --- Menubar --- >
+// < --- Menubaw --- >
 
-export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionForeground', {
-	dark: TITLE_BAR_ACTIVE_FOREGROUND,
-	light: TITLE_BAR_ACTIVE_FOREGROUND,
-	hc: TITLE_BAR_ACTIVE_FOREGROUND
-}, localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));
+expowt const MENUBAW_SEWECTION_FOWEGWOUND = wegistewCowow('menubaw.sewectionFowegwound', {
+	dawk: TITWE_BAW_ACTIVE_FOWEGWOUND,
+	wight: TITWE_BAW_ACTIVE_FOWEGWOUND,
+	hc: TITWE_BAW_ACTIVE_FOWEGWOUND
+}, wocawize('menubawSewectionFowegwound', "Fowegwound cowow of the sewected menu item in the menubaw."));
 
-export const MENUBAR_SELECTION_BACKGROUND = registerColor('menubar.selectionBackground', {
-	dark: transparent(Color.white, 0.1),
-	light: transparent(Color.black, 0.1),
-	hc: null
-}, localize('menubarSelectionBackground', "Background color of the selected menu item in the menubar."));
+expowt const MENUBAW_SEWECTION_BACKGWOUND = wegistewCowow('menubaw.sewectionBackgwound', {
+	dawk: twanspawent(Cowow.white, 0.1),
+	wight: twanspawent(Cowow.bwack, 0.1),
+	hc: nuww
+}, wocawize('menubawSewectionBackgwound', "Backgwound cowow of the sewected menu item in the menubaw."));
 
-export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder', {
-	dark: null,
-	light: null,
-	hc: activeContrastBorder
-}, localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
+expowt const MENUBAW_SEWECTION_BOWDa = wegistewCowow('menubaw.sewectionBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: activeContwastBowda
+}, wocawize('menubawSewectionBowda', "Bowda cowow of the sewected menu item in the menubaw."));
 
 // < --- Notifications --- >
 
-export const NOTIFICATIONS_CENTER_BORDER = registerColor('notificationCenter.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('notificationCenterBorder', "Notifications center border color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_CENTEW_BOWDa = wegistewCowow('notificationCenta.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('notificationCentewBowda', "Notifications centa bowda cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_TOAST_BORDER = registerColor('notificationToast.border', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('notificationToastBorder', "Notification toast border color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_TOAST_BOWDa = wegistewCowow('notificationToast.bowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('notificationToastBowda', "Notification toast bowda cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_FOREGROUND = registerColor('notifications.foreground', {
-	dark: editorWidgetForeground,
-	light: editorWidgetForeground,
-	hc: editorWidgetForeground
-}, localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_FOWEGWOUND = wegistewCowow('notifications.fowegwound', {
+	dawk: editowWidgetFowegwound,
+	wight: editowWidgetFowegwound,
+	hc: editowWidgetFowegwound
+}, wocawize('notificationsFowegwound', "Notifications fowegwound cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_BACKGROUND = registerColor('notifications.background', {
-	dark: editorWidgetBackground,
-	light: editorWidgetBackground,
-	hc: editorWidgetBackground
-}, localize('notificationsBackground', "Notifications background color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_BACKGWOUND = wegistewCowow('notifications.backgwound', {
+	dawk: editowWidgetBackgwound,
+	wight: editowWidgetBackgwound,
+	hc: editowWidgetBackgwound
+}, wocawize('notificationsBackgwound', "Notifications backgwound cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_LINKS = registerColor('notificationLink.foreground', {
-	dark: textLinkForeground,
-	light: textLinkForeground,
-	hc: textLinkForeground
-}, localize('notificationsLink', "Notification links foreground color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_WINKS = wegistewCowow('notificationWink.fowegwound', {
+	dawk: textWinkFowegwound,
+	wight: textWinkFowegwound,
+	hc: textWinkFowegwound
+}, wocawize('notificationsWink', "Notification winks fowegwound cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_CENTER_HEADER_FOREGROUND = registerColor('notificationCenterHeader.foreground', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('notificationCenterHeaderForeground', "Notifications center header foreground color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_CENTEW_HEADEW_FOWEGWOUND = wegistewCowow('notificationCentewHeada.fowegwound', {
+	dawk: nuww,
+	wight: nuww,
+	hc: nuww
+}, wocawize('notificationCentewHeadewFowegwound', "Notifications centa heada fowegwound cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_CENTER_HEADER_BACKGROUND = registerColor('notificationCenterHeader.background', {
-	dark: lighten(NOTIFICATIONS_BACKGROUND, 0.3),
-	light: darken(NOTIFICATIONS_BACKGROUND, 0.05),
-	hc: NOTIFICATIONS_BACKGROUND
-}, localize('notificationCenterHeaderBackground', "Notifications center header background color. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND = wegistewCowow('notificationCentewHeada.backgwound', {
+	dawk: wighten(NOTIFICATIONS_BACKGWOUND, 0.3),
+	wight: dawken(NOTIFICATIONS_BACKGWOUND, 0.05),
+	hc: NOTIFICATIONS_BACKGWOUND
+}, wocawize('notificationCentewHeadewBackgwound', "Notifications centa heada backgwound cowow. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
-	dark: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
-	light: NOTIFICATIONS_CENTER_HEADER_BACKGROUND,
-	hc: NOTIFICATIONS_CENTER_HEADER_BACKGROUND
-}, localize('notificationsBorder', "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_BOWDa = wegistewCowow('notifications.bowda', {
+	dawk: NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND,
+	wight: NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND,
+	hc: NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND
+}, wocawize('notificationsBowda', "Notifications bowda cowow sepawating fwom otha notifications in the notifications centa. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_ERROR_ICON_FOREGROUND = registerColor('notificationsErrorIcon.foreground', {
-	dark: editorErrorForeground,
-	light: editorErrorForeground,
-	hc: editorErrorForeground
-}, localize('notificationsErrorIconForeground', "The color used for the icon of error notifications. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_EWWOW_ICON_FOWEGWOUND = wegistewCowow('notificationsEwwowIcon.fowegwound', {
+	dawk: editowEwwowFowegwound,
+	wight: editowEwwowFowegwound,
+	hc: editowEwwowFowegwound
+}, wocawize('notificationsEwwowIconFowegwound', "The cowow used fow the icon of ewwow notifications. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_WARNING_ICON_FOREGROUND = registerColor('notificationsWarningIcon.foreground', {
-	dark: editorWarningForeground,
-	light: editorWarningForeground,
-	hc: editorWarningForeground
-}, localize('notificationsWarningIconForeground', "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_WAWNING_ICON_FOWEGWOUND = wegistewCowow('notificationsWawningIcon.fowegwound', {
+	dawk: editowWawningFowegwound,
+	wight: editowWawningFowegwound,
+	hc: editowWawningFowegwound
+}, wocawize('notificationsWawningIconFowegwound', "The cowow used fow the icon of wawning notifications. Notifications swide in fwom the bottom wight of the window."));
 
-export const NOTIFICATIONS_INFO_ICON_FOREGROUND = registerColor('notificationsInfoIcon.foreground', {
-	dark: editorInfoForeground,
-	light: editorInfoForeground,
-	hc: editorInfoForeground
-}, localize('notificationsInfoIconForeground', "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."));
+expowt const NOTIFICATIONS_INFO_ICON_FOWEGWOUND = wegistewCowow('notificationsInfoIcon.fowegwound', {
+	dawk: editowInfoFowegwound,
+	wight: editowInfoFowegwound,
+	hc: editowInfoFowegwound
+}, wocawize('notificationsInfoIconFowegwound', "The cowow used fow the icon of info notifications. Notifications swide in fwom the bottom wight of the window."));
 
-export const WINDOW_ACTIVE_BORDER = registerColor('window.activeBorder', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('windowActiveBorder', "The color used for the border of the window when it is active. Only supported in the desktop client when using the custom title bar."));
+expowt const WINDOW_ACTIVE_BOWDa = wegistewCowow('window.activeBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('windowActiveBowda', "The cowow used fow the bowda of the window when it is active. Onwy suppowted in the desktop cwient when using the custom titwe baw."));
 
-export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
-	dark: null,
-	light: null,
-	hc: contrastBorder
-}, localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
+expowt const WINDOW_INACTIVE_BOWDa = wegistewCowow('window.inactiveBowda', {
+	dawk: nuww,
+	wight: nuww,
+	hc: contwastBowda
+}, wocawize('windowInactiveBowda', "The cowow used fow the bowda of the window when it is inactive. Onwy suppowted in the desktop cwient when using the custom titwe baw."));

@@ -1,274 +1,274 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { Range } from 'vs/editor/common/core/range';
-import * as model from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { NotebookCewwOutputTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwOutputTextModew';
+impowt { CewwIntewnawMetadataChangedEvent, CewwKind, ICeww, ICewwOutput, IOutputDto, NotebookCewwIntewnawMetadata, NotebookCewwMetadata, NotebookCewwOutputsSpwice, TwansientOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export class NotebookCellTextModel extends Disposable implements ICell {
-	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
+expowt cwass NotebookCewwTextModew extends Disposabwe impwements ICeww {
+	pwivate weadonwy _onDidChangeOutputs = this._wegista(new Emitta<NotebookCewwOutputsSpwice>());
+	onDidChangeOutputs: Event<NotebookCewwOutputsSpwice> = this._onDidChangeOutputs.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	pwivate weadonwy _onDidChangeContent = this._wegista(new Emitta<'content' | 'wanguage' | 'mime'>());
+	onDidChangeContent: Event<'content' | 'wanguage' | 'mime'> = this._onDidChangeContent.event;
 
-	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidChangeMetadata = this._wegista(new Emitta<void>());
 	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 
-	private readonly _onDidChangeInternalMetadata = this._register(new Emitter<CellInternalMetadataChangedEvent>());
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
+	pwivate weadonwy _onDidChangeIntewnawMetadata = this._wegista(new Emitta<CewwIntewnawMetadataChangedEvent>());
+	onDidChangeIntewnawMetadata: Event<CewwIntewnawMetadataChangedEvent> = this._onDidChangeIntewnawMetadata.event;
 
-	private readonly _onDidChangeLanguage = this._register(new Emitter<string>());
-	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+	pwivate weadonwy _onDidChangeWanguage = this._wegista(new Emitta<stwing>());
+	onDidChangeWanguage: Event<stwing> = this._onDidChangeWanguage.event;
 
-	private _outputs: NotebookCellOutputTextModel[];
+	pwivate _outputs: NotebookCewwOutputTextModew[];
 
-	get outputs(): ICellOutput[] {
-		return this._outputs;
+	get outputs(): ICewwOutput[] {
+		wetuwn this._outputs;
 	}
 
-	private _metadata: NotebookCellMetadata;
+	pwivate _metadata: NotebookCewwMetadata;
 
 	get metadata() {
-		return this._metadata;
+		wetuwn this._metadata;
 	}
 
-	set metadata(newMetadata: NotebookCellMetadata) {
+	set metadata(newMetadata: NotebookCewwMetadata) {
 		this._metadata = newMetadata;
-		this._hash = null;
-		this._onDidChangeMetadata.fire();
+		this._hash = nuww;
+		this._onDidChangeMetadata.fiwe();
 	}
 
-	private _internalMetadata: NotebookCellInternalMetadata;
+	pwivate _intewnawMetadata: NotebookCewwIntewnawMetadata;
 
-	get internalMetadata() {
-		return this._internalMetadata;
+	get intewnawMetadata() {
+		wetuwn this._intewnawMetadata;
 	}
 
-	set internalMetadata(newInternalMetadata: NotebookCellInternalMetadata) {
-		const runStateChanged = this._internalMetadata.runState !== newInternalMetadata.runState;
-		const lastRunSuccessChanged = this._internalMetadata.lastRunSuccess !== newInternalMetadata.lastRunSuccess;
-		newInternalMetadata = {
-			...newInternalMetadata,
-			...{ runStartTimeAdjustment: computeRunStartTimeAdjustment(this._internalMetadata, newInternalMetadata) }
+	set intewnawMetadata(newIntewnawMetadata: NotebookCewwIntewnawMetadata) {
+		const wunStateChanged = this._intewnawMetadata.wunState !== newIntewnawMetadata.wunState;
+		const wastWunSuccessChanged = this._intewnawMetadata.wastWunSuccess !== newIntewnawMetadata.wastWunSuccess;
+		newIntewnawMetadata = {
+			...newIntewnawMetadata,
+			...{ wunStawtTimeAdjustment: computeWunStawtTimeAdjustment(this._intewnawMetadata, newIntewnawMetadata) }
 		};
-		this._internalMetadata = newInternalMetadata;
-		this._hash = null;
-		this._onDidChangeInternalMetadata.fire({ runStateChanged, lastRunSuccessChanged });
+		this._intewnawMetadata = newIntewnawMetadata;
+		this._hash = nuww;
+		this._onDidChangeIntewnawMetadata.fiwe({ wunStateChanged, wastWunSuccessChanged });
 	}
 
-	get language() {
-		return this._language;
+	get wanguage() {
+		wetuwn this._wanguage;
 	}
 
-	set language(newLanguage: string) {
-		if (this._textModel && this._textModel.getLanguageIdentifier().language !== newLanguage) {
-			const newMode = this._modeService.create(newLanguage);
-			this._textModel.setMode(newMode.languageIdentifier);
+	set wanguage(newWanguage: stwing) {
+		if (this._textModew && this._textModew.getWanguageIdentifia().wanguage !== newWanguage) {
+			const newMode = this._modeSewvice.cweate(newWanguage);
+			this._textModew.setMode(newMode.wanguageIdentifia);
 		}
 
-		if (this._language === newLanguage) {
-			return;
+		if (this._wanguage === newWanguage) {
+			wetuwn;
 		}
 
-		this._language = newLanguage;
-		this._hash = null;
-		this._onDidChangeLanguage.fire(newLanguage);
-		this._onDidChangeContent.fire('language');
+		this._wanguage = newWanguage;
+		this._hash = nuww;
+		this._onDidChangeWanguage.fiwe(newWanguage);
+		this._onDidChangeContent.fiwe('wanguage');
 	}
 
-	public get mime(): string | undefined {
-		return this._mime;
+	pubwic get mime(): stwing | undefined {
+		wetuwn this._mime;
 	}
 
-	public set mime(newMime: string | undefined) {
+	pubwic set mime(newMime: stwing | undefined) {
 		if (this._mime === newMime) {
-			return;
+			wetuwn;
 		}
 		this._mime = newMime;
-		this._hash = null;
-		this._onDidChangeContent.fire('mime');
+		this._hash = nuww;
+		this._onDidChangeContent.fiwe('mime');
 	}
 
-	private _textBuffer!: model.IReadonlyTextBuffer;
+	pwivate _textBuffa!: modew.IWeadonwyTextBuffa;
 
-	get textBuffer() {
-		if (this._textBuffer) {
-			return this._textBuffer;
+	get textBuffa() {
+		if (this._textBuffa) {
+			wetuwn this._textBuffa;
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this._source);
-		const bufferFactory = builder.finish(true);
-		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
-		this._textBuffer = textBuffer;
-		this._register(disposable);
+		const buiwda = new PieceTweeTextBuffewBuiwda();
+		buiwda.acceptChunk(this._souwce);
+		const buffewFactowy = buiwda.finish(twue);
+		const { textBuffa, disposabwe } = buffewFactowy.cweate(modew.DefauwtEndOfWine.WF);
+		this._textBuffa = textBuffa;
+		this._wegista(disposabwe);
 
-		this._register(this._textBuffer.onDidChangeContent(() => {
-			this._hash = null;
-			if (!this._textModel) {
-				this._onDidChangeContent.fire('content');
+		this._wegista(this._textBuffa.onDidChangeContent(() => {
+			this._hash = nuww;
+			if (!this._textModew) {
+				this._onDidChangeContent.fiwe('content');
 			}
 		}));
 
-		return this._textBuffer;
+		wetuwn this._textBuffa;
 	}
 
-	private _hash: number | null = null;
+	pwivate _hash: numba | nuww = nuww;
 
-	private _versionId: number = 1;
-	private _alternativeId: number = 1;
-	get alternativeId(): number {
-		return this._alternativeId;
+	pwivate _vewsionId: numba = 1;
+	pwivate _awtewnativeId: numba = 1;
+	get awtewnativeId(): numba {
+		wetuwn this._awtewnativeId;
 	}
 
-	private readonly _textModelDisposables = this._register(new DisposableStore());
-	private _textModel: TextModel | undefined = undefined;
-	get textModel(): TextModel | undefined {
-		return this._textModel;
+	pwivate weadonwy _textModewDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _textModew: TextModew | undefined = undefined;
+	get textModew(): TextModew | undefined {
+		wetuwn this._textModew;
 	}
 
-	set textModel(m: TextModel | undefined) {
-		if (this._textModel === m) {
-			return;
+	set textModew(m: TextModew | undefined) {
+		if (this._textModew === m) {
+			wetuwn;
 		}
 
-		this._textModelDisposables.clear();
-		this._textModel = m;
-		if (this._textModel) {
-			// Init language from text model
-			this.language = this._textModel.getLanguageIdentifier().language;
+		this._textModewDisposabwes.cweaw();
+		this._textModew = m;
+		if (this._textModew) {
+			// Init wanguage fwom text modew
+			this.wanguage = this._textModew.getWanguageIdentifia().wanguage;
 
-			// Listen to language changes on the model
-			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
-				this.language = e.newLanguage;
+			// Wisten to wanguage changes on the modew
+			this._textModewDisposabwes.add(this._textModew.onDidChangeWanguage(e => {
+				this.wanguage = e.newWanguage;
 			}));
-			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
-			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
-				if (this._textModel) {
-					this._versionId = this._textModel.getVersionId();
-					this._alternativeId = this._textModel.getAlternativeVersionId();
+			this._textModewDisposabwes.add(this._textModew.onWiwwDispose(() => this.textModew = undefined));
+			this._textModewDisposabwes.add(this._textModew.onDidChangeContent(() => {
+				if (this._textModew) {
+					this._vewsionId = this._textModew.getVewsionId();
+					this._awtewnativeId = this._textModew.getAwtewnativeVewsionId();
 				}
-				this._onDidChangeContent.fire('content');
+				this._onDidChangeContent.fiwe('content');
 			}));
 
-			this._textModel._overwriteVersionId(this._versionId);
-			this._textModel._overwriteAlternativeVersionId(this._versionId);
+			this._textModew._ovewwwiteVewsionId(this._vewsionId);
+			this._textModew._ovewwwiteAwtewnativeVewsionId(this._vewsionId);
 		}
 	}
 
-	constructor(
-		readonly uri: URI,
-		public handle: number,
-		private _source: string,
-		private _language: string,
-		private _mime: string | undefined,
-		public cellKind: CellKind,
+	constwuctow(
+		weadonwy uwi: UWI,
+		pubwic handwe: numba,
+		pwivate _souwce: stwing,
+		pwivate _wanguage: stwing,
+		pwivate _mime: stwing | undefined,
+		pubwic cewwKind: CewwKind,
 		outputs: IOutputDto[],
-		metadata: NotebookCellMetadata | undefined,
-		internalMetadata: NotebookCellInternalMetadata | undefined,
-		public readonly transientOptions: TransientOptions,
-		private readonly _modeService: IModeService
+		metadata: NotebookCewwMetadata | undefined,
+		intewnawMetadata: NotebookCewwIntewnawMetadata | undefined,
+		pubwic weadonwy twansientOptions: TwansientOptions,
+		pwivate weadonwy _modeSewvice: IModeSewvice
 	) {
-		super();
-		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
+		supa();
+		this._outputs = outputs.map(op => new NotebookCewwOutputTextModew(op));
 		this._metadata = metadata ?? {};
-		this._internalMetadata = internalMetadata ?? {};
+		this._intewnawMetadata = intewnawMetadata ?? {};
 	}
 
-	getValue(): string {
-		const fullRange = this.getFullModelRange();
-		const eol = this.textBuffer.getEOL();
-		if (eol === '\n') {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
-		} else {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
+	getVawue(): stwing {
+		const fuwwWange = this.getFuwwModewWange();
+		const eow = this.textBuffa.getEOW();
+		if (eow === '\n') {
+			wetuwn this.textBuffa.getVawueInWange(fuwwWange, modew.EndOfWinePwefewence.WF);
+		} ewse {
+			wetuwn this.textBuffa.getVawueInWange(fuwwWange, modew.EndOfWinePwefewence.CWWF);
 		}
 	}
 
-	getHashValue(): number {
-		if (this._hash !== null) {
-			return this._hash;
+	getHashVawue(): numba {
+		if (this._hash !== nuww) {
+			wetuwn this._hash;
 		}
 
-		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
+		this._hash = hash([hash(this.wanguage), hash(this.getVawue()), this._getPewsisentMetadata(), this.twansientOptions.twansientOutputs ? [] : this._outputs.map(op => ({
 			outputs: op.outputs,
 			metadata: op.metadata
 		}))]);
-		return this._hash;
+		wetuwn this._hash;
 	}
 
-	private _getPersisentMetadata() {
-		let filteredMetadata: { [key: string]: any; } = {};
-		const transientCellMetadata = this.transientOptions.transientCellMetadata;
+	pwivate _getPewsisentMetadata() {
+		wet fiwtewedMetadata: { [key: stwing]: any; } = {};
+		const twansientCewwMetadata = this.twansientOptions.twansientCewwMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);
-		for (let key of keys) {
-			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
+		fow (wet key of keys) {
+			if (!(twansientCewwMetadata[key as keyof NotebookCewwMetadata])
 			) {
-				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
+				fiwtewedMetadata[key] = this.metadata[key as keyof NotebookCewwMetadata];
 			}
 		}
 
-		return filteredMetadata;
+		wetuwn fiwtewedMetadata;
 	}
 
-	getTextLength(): number {
-		return this.textBuffer.getLength();
+	getTextWength(): numba {
+		wetuwn this.textBuffa.getWength();
 	}
 
-	getFullModelRange() {
-		const lineCount = this.textBuffer.getLineCount();
-		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
+	getFuwwModewWange() {
+		const wineCount = this.textBuffa.getWineCount();
+		wetuwn new Wange(1, 1, wineCount, this.textBuffa.getWineWength(wineCount) + 1);
 	}
 
-	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
-		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
-		this._onDidChangeOutputs.fire(splice);
+	spwiceNotebookCewwOutputs(spwice: NotebookCewwOutputsSpwice): void {
+		this.outputs.spwice(spwice.stawt, spwice.deweteCount, ...spwice.newOutputs);
+		this._onDidChangeOutputs.fiwe(spwice);
 	}
-	override dispose() {
+	ovewwide dispose() {
 		dispose(this._outputs);
-		// Manually release reference to previous text buffer to avoid large leaks
-		// in case someone leaks a CellTextModel reference
-		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
-		emptyDisposedTextBuffer.dispose();
-		this._textBuffer = emptyDisposedTextBuffer;
-		super.dispose();
+		// Manuawwy wewease wefewence to pwevious text buffa to avoid wawge weaks
+		// in case someone weaks a CewwTextModew wefewence
+		const emptyDisposedTextBuffa = new PieceTweeTextBuffa([], '', '\n', fawse, fawse, twue, twue);
+		emptyDisposedTextBuffa.dispose();
+		this._textBuffa = emptyDisposedTextBuffa;
+		supa.dispose();
 	}
 }
 
-export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
-	return {
-		source: cell.getValue(),
-		language: cell.language,
-		mime: cell.mime,
-		cellKind: cell.cellKind,
-		outputs: cell.outputs.map(output => ({
+expowt function cwoneNotebookCewwTextModew(ceww: NotebookCewwTextModew) {
+	wetuwn {
+		souwce: ceww.getVawue(),
+		wanguage: ceww.wanguage,
+		mime: ceww.mime,
+		cewwKind: ceww.cewwKind,
+		outputs: ceww.outputs.map(output => ({
 			outputs: output.outputs,
-			/* paste should generate new outputId */ outputId: UUID.generateUuid()
+			/* paste shouwd genewate new outputId */ outputId: UUID.genewateUuid()
 		})),
-		metadata: { ...cell.metadata },
-		// Don't include internalMetadata, ie execution state, this is not to be shared
+		metadata: { ...ceww.metadata },
+		// Don't incwude intewnawMetadata, ie execution state, this is not to be shawed
 	};
 }
 
-function computeRunStartTimeAdjustment(oldMetadata: NotebookCellInternalMetadata, newMetadata: NotebookCellInternalMetadata): number | undefined {
-	if (oldMetadata.runStartTime !== newMetadata.runStartTime && typeof newMetadata.runStartTime === 'number') {
-		const offset = Date.now() - newMetadata.runStartTime;
-		return offset < 0 ? Math.abs(offset) : 0;
-	} else {
-		return newMetadata.runStartTimeAdjustment;
+function computeWunStawtTimeAdjustment(owdMetadata: NotebookCewwIntewnawMetadata, newMetadata: NotebookCewwIntewnawMetadata): numba | undefined {
+	if (owdMetadata.wunStawtTime !== newMetadata.wunStawtTime && typeof newMetadata.wunStawtTime === 'numba') {
+		const offset = Date.now() - newMetadata.wunStawtTime;
+		wetuwn offset < 0 ? Math.abs(offset) : 0;
+	} ewse {
+		wetuwn newMetadata.wunStawtTimeAdjustment;
 	}
 }

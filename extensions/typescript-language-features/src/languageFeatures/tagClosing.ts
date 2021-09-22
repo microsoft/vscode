@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { Condition, conditionalRegistration, requireConfiguration, requireMinVersion } from '../utils/dependentRegistration';
-import { Disposable } from '../utils/dispose';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { Condition, conditionawWegistwation, wequiweConfiguwation, wequiweMinVewsion } fwom '../utiws/dependentWegistwation';
+impowt { Disposabwe } fwom '../utiws/dispose';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TagClosing extends Disposable {
-	public static readonly minVersion = API.v300;
+cwass TagCwosing extends Disposabwe {
+	pubwic static weadonwy minVewsion = API.v300;
 
-	private _disposed = false;
-	private _timeout: NodeJS.Timer | undefined = undefined;
-	private _cancel: vscode.CancellationTokenSource | undefined = undefined;
+	pwivate _disposed = fawse;
+	pwivate _timeout: NodeJS.Tima | undefined = undefined;
+	pwivate _cancew: vscode.CancewwationTokenSouwce | undefined = undefined;
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) {
-		super();
-		vscode.workspace.onDidChangeTextDocument(
+		supa();
+		vscode.wowkspace.onDidChangeTextDocument(
 			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
-			null,
-			this._disposables);
+			nuww,
+			this._disposabwes);
 	}
 
-	public override dispose() {
-		super.dispose();
-		this._disposed = true;
+	pubwic ovewwide dispose() {
+		supa.dispose();
+		this._disposed = twue;
 
 		if (this._timeout) {
-			clearTimeout(this._timeout);
+			cweawTimeout(this._timeout);
 			this._timeout = undefined;
 		}
 
-		if (this._cancel) {
-			this._cancel.cancel();
-			this._cancel.dispose();
-			this._cancel = undefined;
+		if (this._cancew) {
+			this._cancew.cancew();
+			this._cancew.dispose();
+			this._cancew = undefined;
 		}
 	}
 
-	private onDidChangeTextDocument(
+	pwivate onDidChangeTextDocument(
 		document: vscode.TextDocument,
-		changes: readonly vscode.TextDocumentContentChangeEvent[]
+		changes: weadonwy vscode.TextDocumentContentChangeEvent[]
 	) {
-		const activeDocument = vscode.window.activeTextEditor && vscode.window.activeTextEditor.document;
-		if (document !== activeDocument || changes.length === 0) {
-			return;
+		const activeDocument = vscode.window.activeTextEditow && vscode.window.activeTextEditow.document;
+		if (document !== activeDocument || changes.wength === 0) {
+			wetuwn;
 		}
 
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return;
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn;
 		}
 
 		if (typeof this._timeout !== 'undefined') {
-			clearTimeout(this._timeout);
+			cweawTimeout(this._timeout);
 		}
 
-		if (this._cancel) {
-			this._cancel.cancel();
-			this._cancel.dispose();
-			this._cancel = undefined;
+		if (this._cancew) {
+			this._cancew.cancew();
+			this._cancew.dispose();
+			this._cancew = undefined;
 		}
 
-		const lastChange = changes[changes.length - 1];
-		const lastCharacter = lastChange.text[lastChange.text.length - 1];
-		if (lastChange.rangeLength > 0 || lastCharacter !== '>' && lastCharacter !== '/') {
-			return;
+		const wastChange = changes[changes.wength - 1];
+		const wastChawacta = wastChange.text[wastChange.text.wength - 1];
+		if (wastChange.wangeWength > 0 || wastChawacta !== '>' && wastChawacta !== '/') {
+			wetuwn;
 		}
 
-		const priorCharacter = lastChange.range.start.character > 0
-			? document.getText(new vscode.Range(lastChange.range.start.translate({ characterDelta: -1 }), lastChange.range.start))
+		const pwiowChawacta = wastChange.wange.stawt.chawacta > 0
+			? document.getText(new vscode.Wange(wastChange.wange.stawt.twanswate({ chawactewDewta: -1 }), wastChange.wange.stawt))
 			: '';
-		if (priorCharacter === '>') {
-			return;
+		if (pwiowChawacta === '>') {
+			wetuwn;
 		}
 
-		const version = document.version;
+		const vewsion = document.vewsion;
 		this._timeout = setTimeout(async () => {
 			this._timeout = undefined;
 
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
 
-			const addedLines = lastChange.text.split(/\r\n|\n/g);
-			const position = addedLines.length <= 1
-				? lastChange.range.start.translate({ characterDelta: lastChange.text.length })
-				: new vscode.Position(lastChange.range.start.line + addedLines.length - 1, addedLines[addedLines.length - 1].length);
+			const addedWines = wastChange.text.spwit(/\w\n|\n/g);
+			const position = addedWines.wength <= 1
+				? wastChange.wange.stawt.twanswate({ chawactewDewta: wastChange.text.wength })
+				: new vscode.Position(wastChange.wange.stawt.wine + addedWines.wength - 1, addedWines[addedWines.wength - 1].wength);
 
-			const args: Proto.JsxClosingTagRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			this._cancel = new vscode.CancellationTokenSource();
-			const response = await this.client.execute('jsxClosingTag', args, this._cancel.token);
-			if (response.type !== 'response' || !response.body) {
-				return;
+			const awgs: Pwoto.JsxCwosingTagWequestAwgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+			this._cancew = new vscode.CancewwationTokenSouwce();
+			const wesponse = await this.cwient.execute('jsxCwosingTag', awgs, this._cancew.token);
+			if (wesponse.type !== 'wesponse' || !wesponse.body) {
+				wetuwn;
 			}
 
 			if (this._disposed) {
-				return;
+				wetuwn;
 			}
 
-			const activeEditor = vscode.window.activeTextEditor;
-			if (!activeEditor) {
-				return;
+			const activeEditow = vscode.window.activeTextEditow;
+			if (!activeEditow) {
+				wetuwn;
 			}
 
-			const insertion = response.body;
-			const activeDocument = activeEditor.document;
-			if (document === activeDocument && activeDocument.version === version) {
-				activeEditor.insertSnippet(
-					this.getTagSnippet(insertion),
-					this.getInsertionPositions(activeEditor, position));
+			const insewtion = wesponse.body;
+			const activeDocument = activeEditow.document;
+			if (document === activeDocument && activeDocument.vewsion === vewsion) {
+				activeEditow.insewtSnippet(
+					this.getTagSnippet(insewtion),
+					this.getInsewtionPositions(activeEditow, position));
 			}
 		}, 100);
 	}
 
-	private getTagSnippet(closingTag: Proto.TextInsertion): vscode.SnippetString {
-		const snippet = new vscode.SnippetString();
-		snippet.appendPlaceholder('', 0);
-		snippet.appendText(closingTag.newText);
-		return snippet;
+	pwivate getTagSnippet(cwosingTag: Pwoto.TextInsewtion): vscode.SnippetStwing {
+		const snippet = new vscode.SnippetStwing();
+		snippet.appendPwacehowda('', 0);
+		snippet.appendText(cwosingTag.newText);
+		wetuwn snippet;
 	}
 
-	private getInsertionPositions(editor: vscode.TextEditor, position: vscode.Position) {
-		const activeSelectionPositions = editor.selections.map(s => s.active);
-		return activeSelectionPositions.some(p => p.isEqual(position))
-			? activeSelectionPositions
+	pwivate getInsewtionPositions(editow: vscode.TextEditow, position: vscode.Position) {
+		const activeSewectionPositions = editow.sewections.map(s => s.active);
+		wetuwn activeSewectionPositions.some(p => p.isEquaw(position))
+			? activeSewectionPositions
 			: position;
 	}
 }
 
-function requireActiveDocument(
-	selector: vscode.DocumentSelector
+function wequiweActiveDocument(
+	sewectow: vscode.DocumentSewectow
 ) {
-	return new Condition(
+	wetuwn new Condition(
 		() => {
-			const editor = vscode.window.activeTextEditor;
-			return !!(editor && vscode.languages.match(selector, editor.document));
+			const editow = vscode.window.activeTextEditow;
+			wetuwn !!(editow && vscode.wanguages.match(sewectow, editow.document));
 		},
-		handler => {
-			return vscode.Disposable.from(
-				vscode.window.onDidChangeActiveTextEditor(handler),
-				vscode.workspace.onDidOpenTextDocument(handler));
+		handwa => {
+			wetuwn vscode.Disposabwe.fwom(
+				vscode.window.onDidChangeActiveTextEditow(handwa),
+				vscode.wowkspace.onDidOpenTextDocument(handwa));
 		});
 }
 
-export function register(
-	selector: DocumentSelector,
-	modeId: string,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	modeId: stwing,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, TagClosing.minVersion),
-		requireConfiguration(modeId, 'autoClosingTags'),
-		requireActiveDocument(selector.syntax)
-	], () => new TagClosing(client));
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, TagCwosing.minVewsion),
+		wequiweConfiguwation(modeId, 'autoCwosingTags'),
+		wequiweActiveDocument(sewectow.syntax)
+	], () => new TagCwosing(cwient));
 }

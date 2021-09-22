@@ -1,257 +1,257 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
-import { Barrier } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { assertIsDefined } from 'vs/base/common/types';
-import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { WindowError } from 'vs/platform/windows/electron-main/windows';
+impowt { BwowsewWindow, Event as EwectwonEvent, ipcMain, IpcMainEvent, MessagePowtMain } fwom 'ewectwon';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { connect as connectMessagePowt } fwom 'vs/base/pawts/ipc/ewectwon-main/ipc.mp';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwotocowMainSewvice } fwom 'vs/pwatfowm/pwotocow/ewectwon-main/pwotocow';
+impowt { IShawedPwocess, IShawedPwocessConfiguwation } fwom 'vs/pwatfowm/shawedPwocess/node/shawedPwocess';
+impowt { IThemeMainSewvice } fwom 'vs/pwatfowm/theme/ewectwon-main/themeMainSewvice';
+impowt { WindowEwwow } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-export class SharedProcess extends Disposable implements ISharedProcess {
+expowt cwass ShawedPwocess extends Disposabwe impwements IShawedPwocess {
 
-	private readonly firstWindowConnectionBarrier = new Barrier();
+	pwivate weadonwy fiwstWindowConnectionBawwia = new Bawwia();
 
-	private window: BrowserWindow | undefined = undefined;
-	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
+	pwivate window: BwowsewWindow | undefined = undefined;
+	pwivate windowCwoseWistena: ((event: EwectwonEvent) => void) | undefined = undefined;
 
-	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details?: { reason: string, exitCode: number } }>());
-	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
+	pwivate weadonwy _onDidEwwow = this._wegista(new Emitta<{ type: WindowEwwow, detaiws?: { weason: stwing, exitCode: numba } }>());
+	weadonwy onDidEwwow = Event.buffa(this._onDidEwwow.event); // buffa untiw we have a wistena!
 
-	constructor(
-		private readonly machineId: string,
-		private userEnv: IProcessEnvironment,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
+	constwuctow(
+		pwivate weadonwy machineId: stwing,
+		pwivate usewEnv: IPwocessEnviwonment,
+		@IEnviwonmentMainSewvice pwivate weadonwy enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IThemeMainSewvice pwivate weadonwy themeMainSewvice: IThemeMainSewvice,
+		@IPwotocowMainSewvice pwivate weadonwy pwotocowMainSewvice: IPwotocowMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Lifecycle
-		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
+		// Wifecycwe
+		this._wegista(this.wifecycweMainSewvice.onWiwwShutdown(() => this.onWiwwShutdown()));
 
-		// Shared process connections from workbench windows
-		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
+		// Shawed pwocess connections fwom wowkbench windows
+		ipcMain.on('vscode:cweateShawedPwocessMessageChannew', async (e, nonce: stwing) => this.onWindowConnection(e, nonce));
 	}
 
-	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
-		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+	pwivate async onWindowConnection(e: IpcMainEvent, nonce: stwing): Pwomise<void> {
+		this.wogSewvice.twace('ShawedPwocess: on vscode:cweateShawedPwocessMessageChannew');
 
-		// release barrier if this is the first window connection
-		if (!this.firstWindowConnectionBarrier.isOpen()) {
-			this.firstWindowConnectionBarrier.open();
+		// wewease bawwia if this is the fiwst window connection
+		if (!this.fiwstWindowConnectionBawwia.isOpen()) {
+			this.fiwstWindowConnectionBawwia.open();
 		}
 
-		// await the shared process to be overall ready
-		// we do not just wait for IPC ready because the
-		// workbench window will communicate directly
-		await this.whenReady();
+		// await the shawed pwocess to be ovewaww weady
+		// we do not just wait fow IPC weady because the
+		// wowkbench window wiww communicate diwectwy
+		await this.whenWeady();
 
-		// connect to the shared process window
-		const port = await this.connect();
+		// connect to the shawed pwocess window
+		const powt = await this.connect();
 
-		// Check back if the requesting window meanwhile closed
-		// Since shared process is delayed on startup there is
-		// a chance that the window close before the shared process
-		// was ready for a connection.
-		if (e.sender.isDestroyed()) {
-			return port.close();
+		// Check back if the wequesting window meanwhiwe cwosed
+		// Since shawed pwocess is dewayed on stawtup thewe is
+		// a chance that the window cwose befowe the shawed pwocess
+		// was weady fow a connection.
+		if (e.senda.isDestwoyed()) {
+			wetuwn powt.cwose();
 		}
 
-		// send the port back to the requesting window
-		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
+		// send the powt back to the wequesting window
+		e.senda.postMessage('vscode:cweateShawedPwocessMessageChannewWesuwt', nonce, [powt]);
 	}
 
-	private onWillShutdown(): void {
+	pwivate onWiwwShutdown(): void {
 		const window = this.window;
 		if (!window) {
-			return; // possibly too early before created
+			wetuwn; // possibwy too eawwy befowe cweated
 		}
 
-		// Signal exit to shared process when shutting down
-		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-			window.webContents.send('vscode:electron-main->shared-process=exit');
+		// Signaw exit to shawed pwocess when shutting down
+		if (!window.isDestwoyed() && !window.webContents.isDestwoyed()) {
+			window.webContents.send('vscode:ewectwon-main->shawed-pwocess=exit');
 		}
 
-		// Shut the shared process down when we are quitting
+		// Shut the shawed pwocess down when we awe quitting
 		//
-		// Note: because we veto the window close, we must first remove our veto.
-		// Otherwise the application would never quit because the shared process
-		// window is refusing to close!
+		// Note: because we veto the window cwose, we must fiwst wemove ouw veto.
+		// Othewwise the appwication wouwd neva quit because the shawed pwocess
+		// window is wefusing to cwose!
 		//
-		if (this.windowCloseListener) {
-			window.removeListener('close', this.windowCloseListener);
-			this.windowCloseListener = undefined;
+		if (this.windowCwoseWistena) {
+			window.wemoveWistena('cwose', this.windowCwoseWistena);
+			this.windowCwoseWistena = undefined;
 		}
 
-		// Electron seems to crash on Windows without this setTimeout :|
+		// Ewectwon seems to cwash on Windows without this setTimeout :|
 		setTimeout(() => {
-			try {
-				window.close();
-			} catch (err) {
-				// ignore, as electron is already shutting down
+			twy {
+				window.cwose();
+			} catch (eww) {
+				// ignowe, as ewectwon is awweady shutting down
 			}
 
 			this.window = undefined;
 		}, 0);
 	}
 
-	private _whenReady: Promise<void> | undefined = undefined;
-	whenReady(): Promise<void> {
-		if (!this._whenReady) {
-			// Overall signal that the shared process window was loaded and
-			// all services within have been created.
-			this._whenReady = new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=init-done', () => {
-				this.logService.trace('SharedProcess: Overall ready');
+	pwivate _whenWeady: Pwomise<void> | undefined = undefined;
+	whenWeady(): Pwomise<void> {
+		if (!this._whenWeady) {
+			// Ovewaww signaw that the shawed pwocess window was woaded and
+			// aww sewvices within have been cweated.
+			this._whenWeady = new Pwomise<void>(wesowve => ipcMain.once('vscode:shawed-pwocess->ewectwon-main=init-done', () => {
+				this.wogSewvice.twace('ShawedPwocess: Ovewaww weady');
 
-				resolve();
+				wesowve();
 			}));
 		}
 
-		return this._whenReady;
+		wetuwn this._whenWeady;
 	}
 
-	private _whenIpcReady: Promise<void> | undefined = undefined;
-	private get whenIpcReady() {
-		if (!this._whenIpcReady) {
-			this._whenIpcReady = (async () => {
+	pwivate _whenIpcWeady: Pwomise<void> | undefined = undefined;
+	pwivate get whenIpcWeady() {
+		if (!this._whenIpcWeady) {
+			this._whenIpcWeady = (async () => {
 
-				// Always wait for first window asking for connection
-				await this.firstWindowConnectionBarrier.wait();
+				// Awways wait fow fiwst window asking fow connection
+				await this.fiwstWindowConnectionBawwia.wait();
 
-				// Create window for shared process
-				this.createWindow();
+				// Cweate window fow shawed pwocess
+				this.cweateWindow();
 
-				// Listeners
-				this.registerWindowListeners();
+				// Wistenews
+				this.wegistewWindowWistenews();
 
-				// Wait for window indicating that IPC connections are accepted
-				await new Promise<void>(resolve => ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => {
-					this.logService.trace('SharedProcess: IPC ready');
+				// Wait fow window indicating that IPC connections awe accepted
+				await new Pwomise<void>(wesowve => ipcMain.once('vscode:shawed-pwocess->ewectwon-main=ipc-weady', () => {
+					this.wogSewvice.twace('ShawedPwocess: IPC weady');
 
-					resolve();
+					wesowve();
 				}));
 			})();
 		}
 
-		return this._whenIpcReady;
+		wetuwn this._whenIpcWeady;
 	}
 
-	private createWindow(): void {
-		const configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<ISharedProcessConfiguration>());
+	pwivate cweateWindow(): void {
+		const configObjectUww = this._wegista(this.pwotocowMainSewvice.cweateIPCObjectUww<IShawedPwocessConfiguwation>());
 
-		// shared process is a hidden window by default
-		this.window = new BrowserWindow({
-			show: false,
-			backgroundColor: this.themeMainService.getBackgroundColor(),
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-				nodeIntegration: true,
-				contextIsolation: false,
-				enableWebSQL: false,
-				spellcheck: false,
-				nativeWindowOpen: true,
-				images: false,
-				webgl: false,
-				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
+		// shawed pwocess is a hidden window by defauwt
+		this.window = new BwowsewWindow({
+			show: fawse,
+			backgwoundCowow: this.themeMainSewvice.getBackgwoundCowow(),
+			webPwefewences: {
+				pwewoad: FiweAccess.asFiweUwi('vs/base/pawts/sandbox/ewectwon-bwowsa/pwewoad.js', wequiwe).fsPath,
+				additionawAwguments: [`--vscode-window-config=${configObjectUww.wesouwce.toStwing()}`],
+				v8CacheOptions: this.enviwonmentMainSewvice.useCodeCache ? 'bypassHeatCheck' : 'none',
+				nodeIntegwation: twue,
+				contextIsowation: fawse,
+				enabweWebSQW: fawse,
+				spewwcheck: fawse,
+				nativeWindowOpen: twue,
+				images: fawse,
+				webgw: fawse,
+				disabweBwinkFeatuwes: 'Auxcwick' // do NOT change, awwows us to identify this window as shawed-pwocess in the pwocess expwowa
 			}
 		});
 
-		// Store into config object URL
-		configObjectUrl.update({
+		// Stowe into config object UWW
+		configObjectUww.update({
 			machineId: this.machineId,
 			windowId: this.window.id,
-			appRoot: this.environmentMainService.appRoot,
-			codeCachePath: this.environmentMainService.codeCachePath,
-			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
-			userEnv: this.userEnv,
-			args: this.environmentMainService.args,
-			logLevel: this.logService.getLevel(),
-			product
+			appWoot: this.enviwonmentMainSewvice.appWoot,
+			codeCachePath: this.enviwonmentMainSewvice.codeCachePath,
+			backupWowkspacesPath: this.enviwonmentMainSewvice.backupWowkspacesPath,
+			usewEnv: this.usewEnv,
+			awgs: this.enviwonmentMainSewvice.awgs,
+			wogWevew: this.wogSewvice.getWevew(),
+			pwoduct
 		});
 
-		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require).toString(true));
+		// Woad with config
+		this.window.woadUWW(FiweAccess.asBwowsewUwi('vs/code/ewectwon-bwowsa/shawedPwocess/shawedPwocess.htmw', wequiwe).toStwing(twue));
 	}
 
-	private registerWindowListeners(): void {
+	pwivate wegistewWindowWistenews(): void {
 		if (!this.window) {
-			return;
+			wetuwn;
 		}
 
-		// Prevent the window from closing
-		this.windowCloseListener = (e: ElectronEvent) => {
-			this.logService.trace('SharedProcess#close prevented');
+		// Pwevent the window fwom cwosing
+		this.windowCwoseWistena = (e: EwectwonEvent) => {
+			this.wogSewvice.twace('ShawedPwocess#cwose pwevented');
 
-			// We never allow to close the shared process unless we get explicitly disposed()
-			e.preventDefault();
+			// We neva awwow to cwose the shawed pwocess unwess we get expwicitwy disposed()
+			e.pweventDefauwt();
 
-			// Still hide the window though if visible
-			if (this.window?.isVisible()) {
+			// Stiww hide the window though if visibwe
+			if (this.window?.isVisibwe()) {
 				this.window.hide();
 			}
 		};
 
-		this.window.on('close', this.windowCloseListener);
+		this.window.on('cwose', this.windowCwoseWistena);
 
-		// Crashes & Unresponsive & Failed to load
-		// We use `onUnexpectedError` explicitly because the error handler
-		// will send the error to the active window to log in devtools too
-		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, details }));
-		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE }));
-		this.window.webContents.on('did-fail-load', (event, exitCode, reason) => this._onDidError.fire({ type: WindowError.LOAD, details: { reason, exitCode } }));
+		// Cwashes & Unwesponsive & Faiwed to woad
+		// We use `onUnexpectedEwwow` expwicitwy because the ewwow handwa
+		// wiww send the ewwow to the active window to wog in devtoows too
+		this.window.webContents.on('wenda-pwocess-gone', (event, detaiws) => this._onDidEwwow.fiwe({ type: WindowEwwow.CWASHED, detaiws }));
+		this.window.on('unwesponsive', () => this._onDidEwwow.fiwe({ type: WindowEwwow.UNWESPONSIVE }));
+		this.window.webContents.on('did-faiw-woad', (event, exitCode, weason) => this._onDidEwwow.fiwe({ type: WindowEwwow.WOAD, detaiws: { weason, exitCode } }));
 	}
 
-	async connect(): Promise<MessagePortMain> {
+	async connect(): Pwomise<MessagePowtMain> {
 
-		// Wait for shared process being ready to accept connection
-		await this.whenIpcReady;
+		// Wait fow shawed pwocess being weady to accept connection
+		await this.whenIpcWeady;
 
-		// Connect and return message port
-		const window = assertIsDefined(this.window);
-		return connectMessagePort(window);
+		// Connect and wetuwn message powt
+		const window = assewtIsDefined(this.window);
+		wetuwn connectMessagePowt(window);
 	}
 
-	async toggle(): Promise<void> {
+	async toggwe(): Pwomise<void> {
 
-		// wait for window to be created
-		await this.whenIpcReady;
+		// wait fow window to be cweated
+		await this.whenIpcWeady;
 
 		if (!this.window) {
-			return; // possibly disposed already
+			wetuwn; // possibwy disposed awweady
 		}
 
-		if (this.window.isVisible()) {
-			this.window.webContents.closeDevTools();
+		if (this.window.isVisibwe()) {
+			this.window.webContents.cwoseDevToows();
 			this.window.hide();
-		} else {
+		} ewse {
 			this.window.show();
-			this.window.webContents.openDevTools();
+			this.window.webContents.openDevToows();
 		}
 	}
 
-	isVisible(): boolean {
-		return this.window?.isVisible() ?? false;
+	isVisibwe(): boowean {
+		wetuwn this.window?.isVisibwe() ?? fawse;
 	}
 }

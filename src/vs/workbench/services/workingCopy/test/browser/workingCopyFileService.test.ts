@@ -1,528 +1,528 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { toResource } from 'vs/base/test/common/utils';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ICopyOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestTextFiweEditowModewManaga } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { TestWowkingCopy } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { ICopyOpewation } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { timeout } fwom 'vs/base/common/async';
 
-suite('WorkingCopyFileService', () => {
+suite('WowkingCopyFiweSewvice', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	teawdown(() => {
+		(<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).dispose();
 	});
 
-	test('create - dirty file', async function () {
-		await testCreate(toResource.call(this, '/path/file.txt'), VSBuffer.fromString('Hello World'));
+	test('cweate - diwty fiwe', async function () {
+		await testCweate(toWesouwce.caww(this, '/path/fiwe.txt'), VSBuffa.fwomStwing('Hewwo Wowwd'));
 	});
 
-	test('delete - dirty file', async function () {
-		await testDelete([toResource.call(this, '/path/file.txt')]);
+	test('dewete - diwty fiwe', async function () {
+		await testDewete([toWesouwce.caww(this, '/path/fiwe.txt')]);
 	});
 
-	test('delete multiple - dirty files', async function () {
-		await testDelete([
-			toResource.call(this, '/path/file1.txt'),
-			toResource.call(this, '/path/file2.txt'),
-			toResource.call(this, '/path/file3.txt'),
-			toResource.call(this, '/path/file4.txt')]);
+	test('dewete muwtipwe - diwty fiwes', async function () {
+		await testDewete([
+			toWesouwce.caww(this, '/path/fiwe1.txt'),
+			toWesouwce.caww(this, '/path/fiwe2.txt'),
+			toWesouwce.caww(this, '/path/fiwe3.txt'),
+			toWesouwce.caww(this, '/path/fiwe4.txt')]);
 	});
 
-	test('move - dirty file', async function () {
-		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], true);
+	test('move - diwty fiwe', async function () {
+		await testMoveOwCopy([{ souwce: toWesouwce.caww(this, '/path/fiwe.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget.txt') }], twue);
 	});
 
-	test('move - source identical to target', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+	test('move - souwce identicaw to tawget', async function () {
+		wet souwceModew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew.wesouwce, souwceModew);
 
-		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }], true);
+		const eventCounta = await testEventsMoveOwCopy([{ fiwe: { souwce: souwceModew.wesouwce, tawget: souwceModew.wesouwce }, ovewwwite: twue }], twue);
 
-		sourceModel.dispose();
-		assert.strictEqual(eventCounter, 3);
+		souwceModew.dispose();
+		assewt.stwictEquaw(eventCounta, 3);
 	});
 
-	test('move - one source == target and another source != target', async function () {
-		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
-		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
-		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+	test('move - one souwce == tawget and anotha souwce != tawget', async function () {
+		wet souwceModew1: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe1.txt'), 'utf8', undefined);
+		wet souwceModew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe2.txt'), 'utf8', undefined);
+		wet tawgetModew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe_tawget2.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew1.wesouwce, souwceModew1);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew2.wesouwce, souwceModew2);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(tawgetModew2.wesouwce, tawgetModew2);
 
-		const eventCounter = await testEventsMoveOrCopy([
-			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
-			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
-		], true);
+		const eventCounta = await testEventsMoveOwCopy([
+			{ fiwe: { souwce: souwceModew1.wesouwce, tawget: souwceModew1.wesouwce }, ovewwwite: twue },
+			{ fiwe: { souwce: souwceModew2.wesouwce, tawget: tawgetModew2.wesouwce }, ovewwwite: twue }
+		], twue);
 
-		sourceModel1.dispose();
-		sourceModel2.dispose();
-		targetModel2.dispose();
-		assert.strictEqual(eventCounter, 3);
+		souwceModew1.dispose();
+		souwceModew2.dispose();
+		tawgetModew2.dispose();
+		assewt.stwictEquaw(eventCounta, 3);
 	});
 
-	test('move multiple - dirty file', async function () {
-		await testMoveOrCopy([
-			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file1_target.txt') },
-			{ source: toResource.call(this, '/path/file2.txt'), target: toResource.call(this, '/path/file2_target.txt') }],
-			true);
+	test('move muwtipwe - diwty fiwe', async function () {
+		await testMoveOwCopy([
+			{ souwce: toWesouwce.caww(this, '/path/fiwe1.txt'), tawget: toWesouwce.caww(this, '/path/fiwe1_tawget.txt') },
+			{ souwce: toWesouwce.caww(this, '/path/fiwe2.txt'), tawget: toWesouwce.caww(this, '/path/fiwe2_tawget.txt') }],
+			twue);
 	});
 
-	test('move - dirty file (target exists and is dirty)', async function () {
-		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], true, true);
+	test('move - diwty fiwe (tawget exists and is diwty)', async function () {
+		await testMoveOwCopy([{ souwce: toWesouwce.caww(this, '/path/fiwe.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget.txt') }], twue, twue);
 	});
 
-	test('copy - dirty file', async function () {
-		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false);
+	test('copy - diwty fiwe', async function () {
+		await testMoveOwCopy([{ souwce: toWesouwce.caww(this, '/path/fiwe.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget.txt') }], fawse);
 	});
 
-	test('copy - source identical to target', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+	test('copy - souwce identicaw to tawget', async function () {
+		wet souwceModew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew.wesouwce, souwceModew);
 
-		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }]);
+		const eventCounta = await testEventsMoveOwCopy([{ fiwe: { souwce: souwceModew.wesouwce, tawget: souwceModew.wesouwce }, ovewwwite: twue }]);
 
-		sourceModel.dispose();
-		assert.strictEqual(eventCounter, 3);
+		souwceModew.dispose();
+		assewt.stwictEquaw(eventCounta, 3);
 	});
 
-	test('copy - one source == target and another source != target', async function () {
-		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
-		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
-		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+	test('copy - one souwce == tawget and anotha souwce != tawget', async function () {
+		wet souwceModew1: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe1.txt'), 'utf8', undefined);
+		wet souwceModew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe2.txt'), 'utf8', undefined);
+		wet tawgetModew2: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe_tawget2.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew1.wesouwce, souwceModew1);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew2.wesouwce, souwceModew2);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(tawgetModew2.wesouwce, tawgetModew2);
 
-		const eventCounter = await testEventsMoveOrCopy([
-			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
-			{ file: { source: sourceModel2.resource, target: targetModel2.resource }, overwrite: true }
+		const eventCounta = await testEventsMoveOwCopy([
+			{ fiwe: { souwce: souwceModew1.wesouwce, tawget: souwceModew1.wesouwce }, ovewwwite: twue },
+			{ fiwe: { souwce: souwceModew2.wesouwce, tawget: tawgetModew2.wesouwce }, ovewwwite: twue }
 		]);
 
-		sourceModel1.dispose();
-		sourceModel2.dispose();
-		targetModel2.dispose();
-		assert.strictEqual(eventCounter, 3);
+		souwceModew1.dispose();
+		souwceModew2.dispose();
+		tawgetModew2.dispose();
+		assewt.stwictEquaw(eventCounta, 3);
 	});
 
-	test('copy multiple - dirty file', async function () {
-		await testMoveOrCopy([
-			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file_target1.txt') },
-			{ source: toResource.call(this, '/path/file2.txt'), target: toResource.call(this, '/path/file_target2.txt') },
-			{ source: toResource.call(this, '/path/file3.txt'), target: toResource.call(this, '/path/file_target3.txt') }],
-			false);
+	test('copy muwtipwe - diwty fiwe', async function () {
+		await testMoveOwCopy([
+			{ souwce: toWesouwce.caww(this, '/path/fiwe1.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget1.txt') },
+			{ souwce: toWesouwce.caww(this, '/path/fiwe2.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget2.txt') },
+			{ souwce: toWesouwce.caww(this, '/path/fiwe3.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget3.txt') }],
+			fawse);
 	});
 
-	test('copy - dirty file (target exists and is dirty)', async function () {
-		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false, true);
+	test('copy - diwty fiwe (tawget exists and is diwty)', async function () {
+		await testMoveOwCopy([{ souwce: toWesouwce.caww(this, '/path/fiwe.txt'), tawget: toWesouwce.caww(this, '/path/fiwe_tawget.txt') }], fawse, twue);
 	});
 
-	test('getDirty', async function () {
-		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
+	test('getDiwty', async function () {
+		const modew1 = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe-1.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew1.wesouwce, modew1);
 
-		const model2 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model2.resource, model2);
+		const modew2 = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe-2.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew2.wesouwce, modew2);
 
-		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
-		assert.strictEqual(dirty.length, 0);
+		wet diwty = accessow.wowkingCopyFiweSewvice.getDiwty(modew1.wesouwce);
+		assewt.stwictEquaw(diwty.wength, 0);
 
-		await model1.resolve();
-		model1.textEditorModel!.setValue('foo');
+		await modew1.wesowve();
+		modew1.textEditowModew!.setVawue('foo');
 
-		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
-		assert.strictEqual(dirty.length, 1);
-		assert.strictEqual(dirty[0], model1);
+		diwty = accessow.wowkingCopyFiweSewvice.getDiwty(modew1.wesouwce);
+		assewt.stwictEquaw(diwty.wength, 1);
+		assewt.stwictEquaw(diwty[0], modew1);
 
-		dirty = accessor.workingCopyFileService.getDirty(toResource.call(this, '/path'));
-		assert.strictEqual(dirty.length, 1);
-		assert.strictEqual(dirty[0], model1);
+		diwty = accessow.wowkingCopyFiweSewvice.getDiwty(toWesouwce.caww(this, '/path'));
+		assewt.stwictEquaw(diwty.wength, 1);
+		assewt.stwictEquaw(diwty[0], modew1);
 
-		await model2.resolve();
-		model2.textEditorModel!.setValue('bar');
+		await modew2.wesowve();
+		modew2.textEditowModew!.setVawue('baw');
 
-		dirty = accessor.workingCopyFileService.getDirty(toResource.call(this, '/path'));
-		assert.strictEqual(dirty.length, 2);
+		diwty = accessow.wowkingCopyFiweSewvice.getDiwty(toWesouwce.caww(this, '/path'));
+		assewt.stwictEquaw(diwty.wength, 2);
 
-		model1.dispose();
-		model2.dispose();
+		modew1.dispose();
+		modew2.dispose();
 	});
 
-	test('registerWorkingCopyProvider', async function () {
-		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
-		await model1.resolve();
-		model1.textEditorModel!.setValue('foo');
+	test('wegistewWowkingCopyPwovida', async function () {
+		const modew1 = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe-1.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew1.wesouwce, modew1);
+		await modew1.wesowve();
+		modew1.textEditowModew!.setVawue('foo');
 
-		const testWorkingCopy = new TestWorkingCopy(toResource.call(this, '/path/file-2.txt'), true);
-		const registration = accessor.workingCopyFileService.registerWorkingCopyProvider(() => {
-			return [model1, testWorkingCopy];
+		const testWowkingCopy = new TestWowkingCopy(toWesouwce.caww(this, '/path/fiwe-2.txt'), twue);
+		const wegistwation = accessow.wowkingCopyFiweSewvice.wegistewWowkingCopyPwovida(() => {
+			wetuwn [modew1, testWowkingCopy];
 		});
 
-		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
-		assert.strictEqual(dirty.length, 2, 'Should return default working copy + working copy from provider');
-		assert.strictEqual(dirty[0], model1);
-		assert.strictEqual(dirty[1], testWorkingCopy);
+		wet diwty = accessow.wowkingCopyFiweSewvice.getDiwty(modew1.wesouwce);
+		assewt.stwictEquaw(diwty.wength, 2, 'Shouwd wetuwn defauwt wowking copy + wowking copy fwom pwovida');
+		assewt.stwictEquaw(diwty[0], modew1);
+		assewt.stwictEquaw(diwty[1], testWowkingCopy);
 
-		registration.dispose();
+		wegistwation.dispose();
 
-		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
-		assert.strictEqual(dirty.length, 1, 'Should have unregistered our provider');
-		assert.strictEqual(dirty[0], model1);
+		diwty = accessow.wowkingCopyFiweSewvice.getDiwty(modew1.wesouwce);
+		assewt.stwictEquaw(diwty.wength, 1, 'Shouwd have unwegistewed ouw pwovida');
+		assewt.stwictEquaw(diwty[0], modew1);
 
-		model1.dispose();
+		modew1.dispose();
 	});
 
-	test('createFolder', async function () {
-		let eventCounter = 0;
-		let correlationId: number | undefined = undefined;
+	test('cweateFowda', async function () {
+		wet eventCounta = 0;
+		wet cowwewationId: numba | undefined = undefined;
 
-		const resource = toResource.call(this, '/path/folder');
+		const wesouwce = toWesouwce.caww(this, '/path/fowda');
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation) => {
-				assert.strictEqual(files.length, 1);
-				const file = files[0];
-				assert.strictEqual(file.target.toString(), resource.toString());
-				assert.strictEqual(operation, FileOperation.CREATE);
-				eventCounter++;
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async (fiwes, opewation) => {
+				assewt.stwictEquaw(fiwes.wength, 1);
+				const fiwe = fiwes[0];
+				assewt.stwictEquaw(fiwe.tawget.toStwing(), wesouwce.toStwing());
+				assewt.stwictEquaw(opewation, FiweOpewation.CWEATE);
+				eventCounta++;
 			}
 		});
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.strictEqual(e.files.length, 1);
-			const file = e.files[0];
-			assert.strictEqual(file.target.toString(), resource.toString());
-			assert.strictEqual(e.operation, FileOperation.CREATE);
-			correlationId = e.correlationId;
-			eventCounter++;
+		const wistenew1 = accessow.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => {
+			assewt.stwictEquaw(e.fiwes.wength, 1);
+			const fiwe = e.fiwes[0];
+			assewt.stwictEquaw(fiwe.tawget.toStwing(), wesouwce.toStwing());
+			assewt.stwictEquaw(e.opewation, FiweOpewation.CWEATE);
+			cowwewationId = e.cowwewationId;
+			eventCounta++;
 		});
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.strictEqual(e.files.length, 1);
-			const file = e.files[0];
-			assert.strictEqual(file.target.toString(), resource.toString());
-			assert.strictEqual(e.operation, FileOperation.CREATE);
-			assert.strictEqual(e.correlationId, correlationId);
-			eventCounter++;
+		const wistenew2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			assewt.stwictEquaw(e.fiwes.wength, 1);
+			const fiwe = e.fiwes[0];
+			assewt.stwictEquaw(fiwe.tawget.toStwing(), wesouwce.toStwing());
+			assewt.stwictEquaw(e.opewation, FiweOpewation.CWEATE);
+			assewt.stwictEquaw(e.cowwewationId, cowwewationId);
+			eventCounta++;
 		});
 
-		await accessor.workingCopyFileService.createFolder([{ resource }], CancellationToken.None);
+		await accessow.wowkingCopyFiweSewvice.cweateFowda([{ wesouwce }], CancewwationToken.None);
 
-		assert.strictEqual(eventCounter, 3);
+		assewt.stwictEquaw(eventCounta, 3);
 
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
+		pawticipant.dispose();
+		wistenew1.dispose();
+		wistenew2.dispose();
 	});
 
-	test('cancellation of participants', async function () {
-		const resource = toResource.call(this, '/path/folder');
+	test('cancewwation of pawticipants', async function () {
+		const wesouwce = toWesouwce.caww(this, '/path/fowda');
 
-		let canceled = false;
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation, info, t, token) => {
+		wet cancewed = fawse;
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async (fiwes, opewation, info, t, token) => {
 				await timeout(0);
-				canceled = token.isCancellationRequested;
+				cancewed = token.isCancewwationWequested;
 			}
 		});
 
-		// Create
-		let cts = new CancellationTokenSource();
-		let promise: Promise<unknown> = accessor.workingCopyFileService.create([{ resource }], cts.token);
-		cts.cancel();
-		await promise;
-		assert.strictEqual(canceled, true);
-		canceled = false;
+		// Cweate
+		wet cts = new CancewwationTokenSouwce();
+		wet pwomise: Pwomise<unknown> = accessow.wowkingCopyFiweSewvice.cweate([{ wesouwce }], cts.token);
+		cts.cancew();
+		await pwomise;
+		assewt.stwictEquaw(cancewed, twue);
+		cancewed = fawse;
 
-		// Create Folder
-		cts = new CancellationTokenSource();
-		promise = accessor.workingCopyFileService.createFolder([{ resource }], cts.token);
-		cts.cancel();
-		await promise;
-		assert.strictEqual(canceled, true);
-		canceled = false;
+		// Cweate Fowda
+		cts = new CancewwationTokenSouwce();
+		pwomise = accessow.wowkingCopyFiweSewvice.cweateFowda([{ wesouwce }], cts.token);
+		cts.cancew();
+		await pwomise;
+		assewt.stwictEquaw(cancewed, twue);
+		cancewed = fawse;
 
 		// Move
-		cts = new CancellationTokenSource();
-		promise = accessor.workingCopyFileService.move([{ file: { source: resource, target: resource } }], cts.token);
-		cts.cancel();
-		await promise;
-		assert.strictEqual(canceled, true);
-		canceled = false;
+		cts = new CancewwationTokenSouwce();
+		pwomise = accessow.wowkingCopyFiweSewvice.move([{ fiwe: { souwce: wesouwce, tawget: wesouwce } }], cts.token);
+		cts.cancew();
+		await pwomise;
+		assewt.stwictEquaw(cancewed, twue);
+		cancewed = fawse;
 
 		// Copy
-		cts = new CancellationTokenSource();
-		promise = accessor.workingCopyFileService.copy([{ file: { source: resource, target: resource } }], cts.token);
-		cts.cancel();
-		await promise;
-		assert.strictEqual(canceled, true);
-		canceled = false;
+		cts = new CancewwationTokenSouwce();
+		pwomise = accessow.wowkingCopyFiweSewvice.copy([{ fiwe: { souwce: wesouwce, tawget: wesouwce } }], cts.token);
+		cts.cancew();
+		await pwomise;
+		assewt.stwictEquaw(cancewed, twue);
+		cancewed = fawse;
 
-		// Delete
-		cts = new CancellationTokenSource();
-		promise = accessor.workingCopyFileService.delete([{ resource }], cts.token);
-		cts.cancel();
-		await promise;
-		assert.strictEqual(canceled, true);
-		canceled = false;
+		// Dewete
+		cts = new CancewwationTokenSouwce();
+		pwomise = accessow.wowkingCopyFiweSewvice.dewete([{ wesouwce }], cts.token);
+		cts.cancew();
+		await pwomise;
+		assewt.stwictEquaw(cancewed, twue);
+		cancewed = fawse;
 
-		participant.dispose();
+		pawticipant.dispose();
 	});
 
-	async function testEventsMoveOrCopy(files: ICopyOperation[], move?: boolean): Promise<number> {
-		let eventCounter = 0;
+	async function testEventsMoveOwCopy(fiwes: ICopyOpewation[], move?: boowean): Pwomise<numba> {
+		wet eventCounta = 0;
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async files => {
-				eventCounter++;
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async fiwes => {
+				eventCounta++;
 			}
 		});
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			eventCounter++;
+		const wistenew1 = accessow.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => {
+			eventCounta++;
 		});
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			eventCounter++;
+		const wistenew2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			eventCounta++;
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(files, CancellationToken.None);
-		} else {
-			await accessor.workingCopyFileService.copy(files, CancellationToken.None);
+			await accessow.wowkingCopyFiweSewvice.move(fiwes, CancewwationToken.None);
+		} ewse {
+			await accessow.wowkingCopyFiweSewvice.copy(fiwes, CancewwationToken.None);
 		}
 
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
-		return eventCounter;
+		pawticipant.dispose();
+		wistenew1.dispose();
+		wistenew2.dispose();
+		wetuwn eventCounta;
 	}
 
-	async function testMoveOrCopy(files: { source: URI, target: URI }[], move: boolean, targetDirty?: boolean): Promise<void> {
+	async function testMoveOwCopy(fiwes: { souwce: UWI, tawget: UWI }[], move: boowean, tawgetDiwty?: boowean): Pwomise<void> {
 
-		let eventCounter = 0;
-		const models = await Promise.all(files.map(async ({ source, target }, i) => {
-			let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
-			let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
+		wet eventCounta = 0;
+		const modews = await Pwomise.aww(fiwes.map(async ({ souwce, tawget }, i) => {
+			wet souwceModew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, souwce, 'utf8', undefined);
+			wet tawgetModew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, tawget, 'utf8', undefined);
+			(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(souwceModew.wesouwce, souwceModew);
+			(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(tawgetModew.wesouwce, tawgetModew);
 
-			await sourceModel.resolve();
-			sourceModel.textEditorModel!.setValue('foo' + i);
-			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
-			if (targetDirty) {
-				await targetModel.resolve();
-				targetModel.textEditorModel!.setValue('bar' + i);
-				assert.ok(accessor.textFileService.isDirty(targetModel.resource));
+			await souwceModew.wesowve();
+			souwceModew.textEditowModew!.setVawue('foo' + i);
+			assewt.ok(accessow.textFiweSewvice.isDiwty(souwceModew.wesouwce));
+			if (tawgetDiwty) {
+				await tawgetModew.wesowve();
+				tawgetModew.textEditowModew!.setVawue('baw' + i);
+				assewt.ok(accessow.textFiweSewvice.isDiwty(tawgetModew.wesouwce));
 			}
 
-			return { sourceModel, targetModel };
+			wetuwn { souwceModew, tawgetModew };
 		}));
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation) => {
-				for (let i = 0; i < files.length; i++) {
-					const { target, source } = files[i];
-					const { targetModel, sourceModel } = models[i];
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async (fiwes, opewation) => {
+				fow (wet i = 0; i < fiwes.wength; i++) {
+					const { tawget, souwce } = fiwes[i];
+					const { tawgetModew, souwceModew } = modews[i];
 
-					assert.strictEqual(target.toString(), targetModel.resource.toString());
-					assert.strictEqual(source?.toString(), sourceModel.resource.toString());
+					assewt.stwictEquaw(tawget.toStwing(), tawgetModew.wesouwce.toStwing());
+					assewt.stwictEquaw(souwce?.toStwing(), souwceModew.wesouwce.toStwing());
 				}
 
-				eventCounter++;
+				eventCounta++;
 
-				assert.strictEqual(operation, move ? FileOperation.MOVE : FileOperation.COPY);
+				assewt.stwictEquaw(opewation, move ? FiweOpewation.MOVE : FiweOpewation.COPY);
 			}
 		});
 
-		let correlationId: number;
+		wet cowwewationId: numba;
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			for (let i = 0; i < e.files.length; i++) {
-				const { target, source } = files[i];
-				const { targetModel, sourceModel } = models[i];
+		const wistenew1 = accessow.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => {
+			fow (wet i = 0; i < e.fiwes.wength; i++) {
+				const { tawget, souwce } = fiwes[i];
+				const { tawgetModew, souwceModew } = modews[i];
 
-				assert.strictEqual(target.toString(), targetModel.resource.toString());
-				assert.strictEqual(source?.toString(), sourceModel.resource.toString());
+				assewt.stwictEquaw(tawget.toStwing(), tawgetModew.wesouwce.toStwing());
+				assewt.stwictEquaw(souwce?.toStwing(), souwceModew.wesouwce.toStwing());
 			}
 
-			eventCounter++;
+			eventCounta++;
 
-			correlationId = e.correlationId;
-			assert.strictEqual(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
+			cowwewationId = e.cowwewationId;
+			assewt.stwictEquaw(e.opewation, move ? FiweOpewation.MOVE : FiweOpewation.COPY);
 		});
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			for (let i = 0; i < e.files.length; i++) {
-				const { target, source } = files[i];
-				const { targetModel, sourceModel } = models[i];
-				assert.strictEqual(target.toString(), targetModel.resource.toString());
-				assert.strictEqual(source?.toString(), sourceModel.resource.toString());
+		const wistenew2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			fow (wet i = 0; i < e.fiwes.wength; i++) {
+				const { tawget, souwce } = fiwes[i];
+				const { tawgetModew, souwceModew } = modews[i];
+				assewt.stwictEquaw(tawget.toStwing(), tawgetModew.wesouwce.toStwing());
+				assewt.stwictEquaw(souwce?.toStwing(), souwceModew.wesouwce.toStwing());
 			}
 
-			eventCounter++;
+			eventCounta++;
 
-			assert.strictEqual(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			assert.strictEqual(e.correlationId, correlationId);
+			assewt.stwictEquaw(e.opewation, move ? FiweOpewation.MOVE : FiweOpewation.COPY);
+			assewt.stwictEquaw(e.cowwewationId, cowwewationId);
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.move(models.map(model => ({ file: { source: model.sourceModel.resource, target: model.targetModel.resource }, options: { overwrite: true } })), CancellationToken.None);
-		} else {
-			await accessor.workingCopyFileService.copy(models.map(model => ({ file: { source: model.sourceModel.resource, target: model.targetModel.resource }, options: { overwrite: true } })), CancellationToken.None);
+			await accessow.wowkingCopyFiweSewvice.move(modews.map(modew => ({ fiwe: { souwce: modew.souwceModew.wesouwce, tawget: modew.tawgetModew.wesouwce }, options: { ovewwwite: twue } })), CancewwationToken.None);
+		} ewse {
+			await accessow.wowkingCopyFiweSewvice.copy(modews.map(modew => ({ fiwe: { souwce: modew.souwceModew.wesouwce, tawget: modew.tawgetModew.wesouwce }, options: { ovewwwite: twue } })), CancewwationToken.None);
 		}
 
-		for (let i = 0; i < models.length; i++) {
-			const { sourceModel, targetModel } = models[i];
+		fow (wet i = 0; i < modews.wength; i++) {
+			const { souwceModew, tawgetModew } = modews[i];
 
-			assert.strictEqual(targetModel.textEditorModel!.getValue(), 'foo' + i);
+			assewt.stwictEquaw(tawgetModew.textEditowModew!.getVawue(), 'foo' + i);
 
 			if (move) {
-				assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
-			} else {
-				assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
+				assewt.ok(!accessow.textFiweSewvice.isDiwty(souwceModew.wesouwce));
+			} ewse {
+				assewt.ok(accessow.textFiweSewvice.isDiwty(souwceModew.wesouwce));
 			}
-			assert.ok(accessor.textFileService.isDirty(targetModel.resource));
+			assewt.ok(accessow.textFiweSewvice.isDiwty(tawgetModew.wesouwce));
 
-			sourceModel.dispose();
-			targetModel.dispose();
+			souwceModew.dispose();
+			tawgetModew.dispose();
 		}
-		assert.strictEqual(eventCounter, 3);
+		assewt.stwictEquaw(eventCounta, 3);
 
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
+		pawticipant.dispose();
+		wistenew1.dispose();
+		wistenew2.dispose();
 	}
 
-	async function testDelete(resources: URI[]) {
+	async function testDewete(wesouwces: UWI[]) {
 
-		const models = await Promise.all(resources.map(async resource => {
-			const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		const modews = await Pwomise.aww(wesouwces.map(async wesouwce => {
+			const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, wesouwce, 'utf8', undefined);
+			(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-			await model.resolve();
-			model!.textEditorModel!.setValue('foo');
-			assert.ok(accessor.workingCopyService.isDirty(model.resource));
-			return model;
+			await modew.wesowve();
+			modew!.textEditowModew!.setVawue('foo');
+			assewt.ok(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce));
+			wetuwn modew;
 		}));
 
-		let eventCounter = 0;
-		let correlationId: number | undefined = undefined;
+		wet eventCounta = 0;
+		wet cowwewationId: numba | undefined = undefined;
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation) => {
-				for (let i = 0; i < models.length; i++) {
-					const model = models[i];
-					const file = files[i];
-					assert.strictEqual(file.target.toString(), model.resource.toString());
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async (fiwes, opewation) => {
+				fow (wet i = 0; i < modews.wength; i++) {
+					const modew = modews[i];
+					const fiwe = fiwes[i];
+					assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
 				}
-				assert.strictEqual(operation, FileOperation.DELETE);
-				eventCounter++;
+				assewt.stwictEquaw(opewation, FiweOpewation.DEWETE);
+				eventCounta++;
 			}
 		});
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			for (let i = 0; i < models.length; i++) {
-				const model = models[i];
-				const file = e.files[i];
-				assert.strictEqual(file.target.toString(), model.resource.toString());
+		const wistenew1 = accessow.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => {
+			fow (wet i = 0; i < modews.wength; i++) {
+				const modew = modews[i];
+				const fiwe = e.fiwes[i];
+				assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
 			}
-			assert.strictEqual(e.operation, FileOperation.DELETE);
-			correlationId = e.correlationId;
-			eventCounter++;
+			assewt.stwictEquaw(e.opewation, FiweOpewation.DEWETE);
+			cowwewationId = e.cowwewationId;
+			eventCounta++;
 		});
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			for (let i = 0; i < models.length; i++) {
-				const model = models[i];
-				const file = e.files[i];
-				assert.strictEqual(file.target.toString(), model.resource.toString());
+		const wistenew2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			fow (wet i = 0; i < modews.wength; i++) {
+				const modew = modews[i];
+				const fiwe = e.fiwes[i];
+				assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
 			}
-			assert.strictEqual(e.operation, FileOperation.DELETE);
-			assert.strictEqual(e.correlationId, correlationId);
-			eventCounter++;
+			assewt.stwictEquaw(e.opewation, FiweOpewation.DEWETE);
+			assewt.stwictEquaw(e.cowwewationId, cowwewationId);
+			eventCounta++;
 		});
 
-		await accessor.workingCopyFileService.delete(models.map(model => ({ resource: model.resource })), CancellationToken.None);
-		for (const model of models) {
-			assert.ok(!accessor.workingCopyService.isDirty(model.resource));
-			model.dispose();
+		await accessow.wowkingCopyFiweSewvice.dewete(modews.map(modew => ({ wesouwce: modew.wesouwce })), CancewwationToken.None);
+		fow (const modew of modews) {
+			assewt.ok(!accessow.wowkingCopySewvice.isDiwty(modew.wesouwce));
+			modew.dispose();
 		}
 
-		assert.strictEqual(eventCounter, 3);
+		assewt.stwictEquaw(eventCounta, 3);
 
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
+		pawticipant.dispose();
+		wistenew1.dispose();
+		wistenew2.dispose();
 	}
 
-	async function testCreate(resource: URI, contents: VSBuffer) {
-		const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+	async function testCweate(wesouwce: UWI, contents: VSBuffa) {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, wesouwce, 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(modew.wesouwce, modew);
 
-		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
-		assert.ok(accessor.workingCopyService.isDirty(model.resource));
+		await modew.wesowve();
+		modew!.textEditowModew!.setVawue('foo');
+		assewt.ok(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce));
 
-		let eventCounter = 0;
-		let correlationId: number | undefined = undefined;
+		wet eventCounta = 0;
+		wet cowwewationId: numba | undefined = undefined;
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (files, operation) => {
-				assert.strictEqual(files.length, 1);
-				const file = files[0];
-				assert.strictEqual(file.target.toString(), model.resource.toString());
-				assert.strictEqual(operation, FileOperation.CREATE);
-				eventCounter++;
+		const pawticipant = accessow.wowkingCopyFiweSewvice.addFiweOpewationPawticipant({
+			pawticipate: async (fiwes, opewation) => {
+				assewt.stwictEquaw(fiwes.wength, 1);
+				const fiwe = fiwes[0];
+				assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
+				assewt.stwictEquaw(opewation, FiweOpewation.CWEATE);
+				eventCounta++;
 			}
 		});
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.strictEqual(e.files.length, 1);
-			const file = e.files[0];
-			assert.strictEqual(file.target.toString(), model.resource.toString());
-			assert.strictEqual(e.operation, FileOperation.CREATE);
-			correlationId = e.correlationId;
-			eventCounter++;
+		const wistenew1 = accessow.wowkingCopyFiweSewvice.onWiwwWunWowkingCopyFiweOpewation(e => {
+			assewt.stwictEquaw(e.fiwes.wength, 1);
+			const fiwe = e.fiwes[0];
+			assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
+			assewt.stwictEquaw(e.opewation, FiweOpewation.CWEATE);
+			cowwewationId = e.cowwewationId;
+			eventCounta++;
 		});
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.strictEqual(e.files.length, 1);
-			const file = e.files[0];
-			assert.strictEqual(file.target.toString(), model.resource.toString());
-			assert.strictEqual(e.operation, FileOperation.CREATE);
-			assert.strictEqual(e.correlationId, correlationId);
-			eventCounter++;
+		const wistenew2 = accessow.wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			assewt.stwictEquaw(e.fiwes.wength, 1);
+			const fiwe = e.fiwes[0];
+			assewt.stwictEquaw(fiwe.tawget.toStwing(), modew.wesouwce.toStwing());
+			assewt.stwictEquaw(e.opewation, FiweOpewation.CWEATE);
+			assewt.stwictEquaw(e.cowwewationId, cowwewationId);
+			eventCounta++;
 		});
 
-		await accessor.workingCopyFileService.create([{ resource, contents }], CancellationToken.None);
-		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
-		model.dispose();
+		await accessow.wowkingCopyFiweSewvice.cweate([{ wesouwce, contents }], CancewwationToken.None);
+		assewt.ok(!accessow.wowkingCopySewvice.isDiwty(modew.wesouwce));
+		modew.dispose();
 
-		assert.strictEqual(eventCounter, 3);
+		assewt.stwictEquaw(eventCounta, 3);
 
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
+		pawticipant.dispose();
+		wistenew1.dispose();
+		wistenew2.dispose();
 	}
 });

@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-const idDescription = nls.localize('JsonSchema.input.id', "The input's id is used to associate an input with a variable of the form ${input:id}.");
-const typeDescription = nls.localize('JsonSchema.input.type', "The type of user input prompt to use.");
-const descriptionDescription = nls.localize('JsonSchema.input.description', "The description is shown when the user is prompted for input.");
-const defaultDescription = nls.localize('JsonSchema.input.default', "The default value for the input.");
+const idDescwiption = nws.wocawize('JsonSchema.input.id', "The input's id is used to associate an input with a vawiabwe of the fowm ${input:id}.");
+const typeDescwiption = nws.wocawize('JsonSchema.input.type', "The type of usa input pwompt to use.");
+const descwiptionDescwiption = nws.wocawize('JsonSchema.input.descwiption', "The descwiption is shown when the usa is pwompted fow input.");
+const defauwtDescwiption = nws.wocawize('JsonSchema.input.defauwt', "The defauwt vawue fow the input.");
 
 
-export const inputsSchema: IJSONSchema = {
+expowt const inputsSchema: IJSONSchema = {
 	definitions: {
 		inputs: {
-			type: 'array',
-			description: nls.localize('JsonSchema.inputs', 'User inputs. Used for defining user input prompts, such as free string input or a choice from several options.'),
+			type: 'awway',
+			descwiption: nws.wocawize('JsonSchema.inputs', 'Usa inputs. Used fow defining usa input pwompts, such as fwee stwing input ow a choice fwom sevewaw options.'),
 			items: {
 				oneOf: [
 					{
 						type: 'object',
-						required: ['id', 'type', 'description'],
-						additionalProperties: false,
-						properties: {
+						wequiwed: ['id', 'type', 'descwiption'],
+						additionawPwopewties: fawse,
+						pwopewties: {
 							id: {
-								type: 'string',
-								description: idDescription
+								type: 'stwing',
+								descwiption: idDescwiption
 							},
 							type: {
-								type: 'string',
-								description: typeDescription,
-								enum: ['promptString'],
-								enumDescriptions: [
-									nls.localize('JsonSchema.input.type.promptString', "The 'promptString' type opens an input box to ask the user for input."),
+								type: 'stwing',
+								descwiption: typeDescwiption,
+								enum: ['pwomptStwing'],
+								enumDescwiptions: [
+									nws.wocawize('JsonSchema.input.type.pwomptStwing', "The 'pwomptStwing' type opens an input box to ask the usa fow input."),
 								]
 							},
-							description: {
-								type: 'string',
-								description: descriptionDescription
+							descwiption: {
+								type: 'stwing',
+								descwiption: descwiptionDescwiption
 							},
-							default: {
-								type: 'string',
-								description: defaultDescription
+							defauwt: {
+								type: 'stwing',
+								descwiption: defauwtDescwiption
 							},
-							password: {
-								type: 'boolean',
-								description: nls.localize('JsonSchema.input.password', "Controls if a password input is shown. Password input hides the typed text."),
+							passwowd: {
+								type: 'boowean',
+								descwiption: nws.wocawize('JsonSchema.input.passwowd', "Contwows if a passwowd input is shown. Passwowd input hides the typed text."),
 							},
 						}
 					},
 					{
 						type: 'object',
-						required: ['id', 'type', 'description', 'options'],
-						additionalProperties: false,
-						properties: {
+						wequiwed: ['id', 'type', 'descwiption', 'options'],
+						additionawPwopewties: fawse,
+						pwopewties: {
 							id: {
-								type: 'string',
-								description: idDescription
+								type: 'stwing',
+								descwiption: idDescwiption
 							},
 							type: {
-								type: 'string',
-								description: typeDescription,
-								enum: ['pickString'],
-								enumDescriptions: [
-									nls.localize('JsonSchema.input.type.pickString', "The 'pickString' type shows a selection list."),
+								type: 'stwing',
+								descwiption: typeDescwiption,
+								enum: ['pickStwing'],
+								enumDescwiptions: [
+									nws.wocawize('JsonSchema.input.type.pickStwing', "The 'pickStwing' type shows a sewection wist."),
 								]
 							},
-							description: {
-								type: 'string',
-								description: descriptionDescription
+							descwiption: {
+								type: 'stwing',
+								descwiption: descwiptionDescwiption
 							},
-							default: {
-								type: 'string',
-								description: defaultDescription
+							defauwt: {
+								type: 'stwing',
+								descwiption: defauwtDescwiption
 							},
 							options: {
-								type: 'array',
-								description: nls.localize('JsonSchema.input.options', "An array of strings that defines the options for a quick pick."),
+								type: 'awway',
+								descwiption: nws.wocawize('JsonSchema.input.options', "An awway of stwings that defines the options fow a quick pick."),
 								items: {
 									oneOf: [
 										{
-											type: 'string'
+											type: 'stwing'
 										},
 										{
 											type: 'object',
-											required: ['value'],
-											additionalProperties: false,
-											properties: {
-												label: {
-													type: 'string',
-													description: nls.localize('JsonSchema.input.pickString.optionLabel', "Label for the option.")
+											wequiwed: ['vawue'],
+											additionawPwopewties: fawse,
+											pwopewties: {
+												wabew: {
+													type: 'stwing',
+													descwiption: nws.wocawize('JsonSchema.input.pickStwing.optionWabew', "Wabew fow the option.")
 												},
-												value: {
-													type: 'string',
-													description: nls.localize('JsonSchema.input.pickString.optionValue', "Value for the option.")
+												vawue: {
+													type: 'stwing',
+													descwiption: nws.wocawize('JsonSchema.input.pickStwing.optionVawue', "Vawue fow the option.")
 												}
 											}
 										}
@@ -105,38 +105,38 @@ export const inputsSchema: IJSONSchema = {
 					},
 					{
 						type: 'object',
-						required: ['id', 'type', 'command'],
-						additionalProperties: false,
-						properties: {
+						wequiwed: ['id', 'type', 'command'],
+						additionawPwopewties: fawse,
+						pwopewties: {
 							id: {
-								type: 'string',
-								description: idDescription
+								type: 'stwing',
+								descwiption: idDescwiption
 							},
 							type: {
-								type: 'string',
-								description: typeDescription,
+								type: 'stwing',
+								descwiption: typeDescwiption,
 								enum: ['command'],
-								enumDescriptions: [
-									nls.localize('JsonSchema.input.type.command', "The 'command' type executes a command."),
+								enumDescwiptions: [
+									nws.wocawize('JsonSchema.input.type.command', "The 'command' type executes a command."),
 								]
 							},
 							command: {
-								type: 'string',
-								description: nls.localize('JsonSchema.input.command.command', "The command to execute for this input variable.")
+								type: 'stwing',
+								descwiption: nws.wocawize('JsonSchema.input.command.command', "The command to execute fow this input vawiabwe.")
 							},
-							args: {
+							awgs: {
 								oneOf: [
 									{
 										type: 'object',
-										description: nls.localize('JsonSchema.input.command.args', "Optional arguments passed to the command.")
+										descwiption: nws.wocawize('JsonSchema.input.command.awgs', "Optionaw awguments passed to the command.")
 									},
 									{
-										type: 'array',
-										description: nls.localize('JsonSchema.input.command.args', "Optional arguments passed to the command.")
+										type: 'awway',
+										descwiption: nws.wocawize('JsonSchema.input.command.awgs', "Optionaw awguments passed to the command.")
 									},
 									{
-										type: 'string',
-										description: nls.localize('JsonSchema.input.command.args', "Optional arguments passed to the command.")
+										type: 'stwing',
+										descwiption: nws.wocawize('JsonSchema.input.command.awgs', "Optionaw awguments passed to the command.")
 									}
 								]
 							}

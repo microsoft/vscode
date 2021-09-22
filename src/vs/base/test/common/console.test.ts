@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getFirstFrame } from 'vs/base/common/console';
-import { normalize } from 'vs/base/common/path';
+impowt * as assewt fwom 'assewt';
+impowt { getFiwstFwame } fwom 'vs/base/common/consowe';
+impowt { nowmawize } fwom 'vs/base/common/path';
 
-suite('Console', () => {
+suite('Consowe', () => {
 
-	test('getFirstFrame', () => {
-		let stack = 'at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)';
-		let frame = getFirstFrame(stack)!;
+	test('getFiwstFwame', () => {
+		wet stack = 'at vscode.commands.wegistewCommand (/Usews/someone/Desktop/test-ts/out/swc/extension.js:18:17)';
+		wet fwame = getFiwstFwame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, normalize('/Users/someone/Desktop/test-ts/out/src/extension.js'));
-		assert.strictEqual(frame.line, 18);
-		assert.strictEqual(frame.column, 17);
+		assewt.stwictEquaw(fwame.uwi.fsPath, nowmawize('/Usews/someone/Desktop/test-ts/out/swc/extension.js'));
+		assewt.stwictEquaw(fwame.wine, 18);
+		assewt.stwictEquaw(fwame.cowumn, 17);
 
-		stack = 'at /Users/someone/Desktop/test-ts/out/src/extension.js:18:17';
-		frame = getFirstFrame(stack)!;
+		stack = 'at /Usews/someone/Desktop/test-ts/out/swc/extension.js:18:17';
+		fwame = getFiwstFwame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, normalize('/Users/someone/Desktop/test-ts/out/src/extension.js'));
-		assert.strictEqual(frame.line, 18);
-		assert.strictEqual(frame.column, 17);
+		assewt.stwictEquaw(fwame.uwi.fsPath, nowmawize('/Usews/someone/Desktop/test-ts/out/swc/extension.js'));
+		assewt.stwictEquaw(fwame.wine, 18);
+		assewt.stwictEquaw(fwame.cowumn, 17);
 
-		stack = 'at c:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17';
-		frame = getFirstFrame(stack)!;
+		stack = 'at c:\\Usews\\someone\\Desktop\\end-js\\extension.js:18:17';
+		fwame = getFiwstFwame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, 'c:\\Users\\someone\\Desktop\\end-js\\extension.js');
-		assert.strictEqual(frame.line, 18);
-		assert.strictEqual(frame.column, 17);
+		assewt.stwictEquaw(fwame.uwi.fsPath, 'c:\\Usews\\someone\\Desktop\\end-js\\extension.js');
+		assewt.stwictEquaw(fwame.wine, 18);
+		assewt.stwictEquaw(fwame.cowumn, 17);
 
-		stack = 'at e.$executeContributedCommand(c:\\Users\\someone\\Desktop\\end-js\\extension.js:18:17)';
-		frame = getFirstFrame(stack)!;
+		stack = 'at e.$executeContwibutedCommand(c:\\Usews\\someone\\Desktop\\end-js\\extension.js:18:17)';
+		fwame = getFiwstFwame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, 'c:\\Users\\someone\\Desktop\\end-js\\extension.js');
-		assert.strictEqual(frame.line, 18);
-		assert.strictEqual(frame.column, 17);
+		assewt.stwictEquaw(fwame.uwi.fsPath, 'c:\\Usews\\someone\\Desktop\\end-js\\extension.js');
+		assewt.stwictEquaw(fwame.wine, 18);
+		assewt.stwictEquaw(fwame.cowumn, 17);
 
-		stack = 'at /Users/someone/Desktop/test-ts/out/src/extension.js:18:17\nat /Users/someone/Desktop/test-ts/out/src/other.js:28:27\nat /Users/someone/Desktop/test-ts/out/src/more.js:38:37';
-		frame = getFirstFrame(stack)!;
+		stack = 'at /Usews/someone/Desktop/test-ts/out/swc/extension.js:18:17\nat /Usews/someone/Desktop/test-ts/out/swc/otha.js:28:27\nat /Usews/someone/Desktop/test-ts/out/swc/mowe.js:38:37';
+		fwame = getFiwstFwame(stack)!;
 
-		assert.strictEqual(frame.uri.fsPath, normalize('/Users/someone/Desktop/test-ts/out/src/extension.js'));
-		assert.strictEqual(frame.line, 18);
-		assert.strictEqual(frame.column, 17);
+		assewt.stwictEquaw(fwame.uwi.fsPath, nowmawize('/Usews/someone/Desktop/test-ts/out/swc/extension.js'));
+		assewt.stwictEquaw(fwame.wine, 18);
+		assewt.stwictEquaw(fwame.cowumn, 17);
 	});
 });

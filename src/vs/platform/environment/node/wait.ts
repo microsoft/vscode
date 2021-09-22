@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
+impowt * as fs fwom 'fs';
+impowt { tmpdiw } fwom 'os';
+impowt { join } fwom 'vs/base/common/path';
 
-export function createWaitMarkerFile(verbose?: boolean): string | undefined {
-	const randomWaitMarkerPath = join(tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
+expowt function cweateWaitMawkewFiwe(vewbose?: boowean): stwing | undefined {
+	const wandomWaitMawkewPath = join(tmpdiw(), Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 10));
 
-	try {
-		fs.writeFileSync(randomWaitMarkerPath, ''); // use built-in fs to avoid dragging in more dependencies
-		if (verbose) {
-			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);
+	twy {
+		fs.wwiteFiweSync(wandomWaitMawkewPath, ''); // use buiwt-in fs to avoid dwagging in mowe dependencies
+		if (vewbose) {
+			consowe.wog(`Mawka fiwe fow --wait cweated: ${wandomWaitMawkewPath}`);
 		}
-		return randomWaitMarkerPath;
-	} catch (err) {
-		if (verbose) {
-			console.error(`Failed to create marker file for --wait: ${err}`);
+		wetuwn wandomWaitMawkewPath;
+	} catch (eww) {
+		if (vewbose) {
+			consowe.ewwow(`Faiwed to cweate mawka fiwe fow --wait: ${eww}`);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

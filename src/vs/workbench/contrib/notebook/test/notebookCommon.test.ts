@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellKind, CellUri, diff, NotebookWorkingCopyTypeIdentifier, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { CewwKind, CewwUwi, diff, NotebookWowkingCopyTypeIdentifia, NOTEBOOK_DISPWAY_OWDa, sowtMimeTypes } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { cewwIndexesToWanges, cewwWangesToIndexes, weduceCewwWanges } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { setupInstantiationSewvice, TestCeww } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
 suite('NotebookCommon', () => {
-	const instantiationService = setupInstantiationService();
-	const modeService = instantiationService.get(IModeService);
+	const instantiationSewvice = setupInstantiationSewvice();
+	const modeSewvice = instantiationSewvice.get(IModeSewvice);
 
-	test('sortMimeTypes default orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
+	test('sowtMimeTypes defauwt owdews', function () {
+		const defauwtDispwayOwda = NOTEBOOK_DISPWAY_OWDa;
 
-		assert.deepStrictEqual(sortMimeTypes(
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
+				Mimes.mawkdown,
 				'image/png',
 				'image/jpeg',
 				Mimes.text
-			], [], defaultDisplayOrder),
+			], [], defauwtDispwayOwda),
 			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
-				'image/png',
-				'image/jpeg',
-				Mimes.text
-			]
-		);
-
-		assert.deepStrictEqual(sortMimeTypes(
-			[
-				'application/json',
-				Mimes.markdown,
-				'application/javascript',
-				'text/html',
-				Mimes.text,
-				'image/png',
-				'image/jpeg',
-				'image/svg+xml'
-			], [], defaultDisplayOrder),
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
+				Mimes.mawkdown,
 				'image/png',
 				'image/jpeg',
 				Mimes.text
 			]
 		);
 
-		assert.deepStrictEqual(sortMimeTypes(
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				Mimes.markdown,
-				'application/json',
+				'appwication/json',
+				Mimes.mawkdown,
+				'appwication/javascwipt',
+				'text/htmw',
+				Mimes.text,
+				'image/png',
+				'image/jpeg',
+				'image/svg+xmw'
+			], [], defauwtDispwayOwda),
+			[
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
+				Mimes.mawkdown,
+				'image/png',
+				'image/jpeg',
+				Mimes.text
+			]
+		);
+
+		assewt.deepStwictEquaw(sowtMimeTypes(
+			[
+				Mimes.mawkdown,
+				'appwication/json',
 				Mimes.text,
 				'image/jpeg',
-				'application/javascript',
-				'text/html',
+				'appwication/javascwipt',
+				'text/htmw',
 				'image/png',
-				'image/svg+xml'
-			], [], defaultDisplayOrder),
+				'image/svg+xmw'
+			], [], defauwtDispwayOwda),
 			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
+				Mimes.mawkdown,
 				'image/png',
 				'image/jpeg',
 				Mimes.text
@@ -90,15 +90,15 @@ suite('NotebookCommon', () => {
 
 
 
-	test('sortMimeTypes user orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-		assert.deepStrictEqual(sortMimeTypes(
+	test('sowtMimeTypes usa owdews', function () {
+		const defauwtDispwayOwda = NOTEBOOK_DISPWAY_OWDa;
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
+				Mimes.mawkdown,
 				'image/png',
 				'image/jpeg',
 				Mimes.text
@@ -106,46 +106,46 @@ suite('NotebookCommon', () => {
 			[
 				'image/png',
 				Mimes.text,
-				Mimes.markdown,
-				'text/html',
-				'application/json'
-			], defaultDisplayOrder),
+				Mimes.mawkdown,
+				'text/htmw',
+				'appwication/json'
+			], defauwtDispwayOwda),
 			[
 				'image/png',
 				Mimes.text,
-				Mimes.markdown,
-				'text/html',
-				'application/json',
-				'application/javascript',
-				'image/svg+xml',
+				Mimes.mawkdown,
+				'text/htmw',
+				'appwication/json',
+				'appwication/javascwipt',
+				'image/svg+xmw',
 				'image/jpeg',
 			]
 		);
 
-		assert.deepStrictEqual(sortMimeTypes(
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				Mimes.markdown,
-				'application/json',
+				Mimes.mawkdown,
+				'appwication/json',
 				Mimes.text,
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
+				'appwication/javascwipt',
+				'text/htmw',
+				'image/svg+xmw',
 				'image/jpeg',
 				'image/png'
 			],
 			[
-				'application/json',
-				'text/html',
-				'text/html',
-				Mimes.markdown,
-				'application/json'
-			], defaultDisplayOrder),
+				'appwication/json',
+				'text/htmw',
+				'text/htmw',
+				Mimes.mawkdown,
+				'appwication/json'
+			], defauwtDispwayOwda),
 			[
-				'application/json',
-				'text/html',
-				Mimes.markdown,
-				'application/javascript',
-				'image/svg+xml',
+				'appwication/json',
+				'text/htmw',
+				Mimes.mawkdown,
+				'appwication/javascwipt',
+				'image/svg+xmw',
 				'image/png',
 				'image/jpeg',
 				Mimes.text
@@ -153,116 +153,116 @@ suite('NotebookCommon', () => {
 		);
 	});
 
-	test('sortMimeTypes glob', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
+	test('sowtMimeTypes gwob', function () {
+		const defauwtDispwayOwda = NOTEBOOK_DISPWAY_OWDa;
 
-		// unknown mime types come last
-		assert.deepStrictEqual(sortMimeTypes(
+		// unknown mime types come wast
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				'application/json',
-				'application/vnd-vega.json',
-				'application/vnd-plot.json',
-				'application/javascript',
-				'text/html'
+				'appwication/json',
+				'appwication/vnd-vega.json',
+				'appwication/vnd-pwot.json',
+				'appwication/javascwipt',
+				'text/htmw'
 			],
 			[
-				Mimes.markdown,
-				'text/html',
-				'application/json'
-			], defaultDisplayOrder),
+				Mimes.mawkdown,
+				'text/htmw',
+				'appwication/json'
+			], defauwtDispwayOwda),
 			[
-				'text/html',
-				'application/json',
-				'application/javascript',
-				'application/vnd-vega.json',
-				'application/vnd-plot.json'
+				'text/htmw',
+				'appwication/json',
+				'appwication/javascwipt',
+				'appwication/vnd-vega.json',
+				'appwication/vnd-pwot.json'
 			],
-			'unknown mimetypes keep the ordering'
+			'unknown mimetypes keep the owdewing'
 		);
 
-		assert.deepStrictEqual(sortMimeTypes(
+		assewt.deepStwictEquaw(sowtMimeTypes(
 			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'application/vnd-plot.json',
-				'application/vnd-vega.json'
+				'appwication/json',
+				'appwication/javascwipt',
+				'text/htmw',
+				'appwication/vnd-pwot.json',
+				'appwication/vnd-vega.json'
 			],
 			[
-				'application/vnd-vega*',
-				Mimes.markdown,
-				'text/html',
-				'application/json'
-			], defaultDisplayOrder),
+				'appwication/vnd-vega*',
+				Mimes.mawkdown,
+				'text/htmw',
+				'appwication/json'
+			], defauwtDispwayOwda),
 			[
-				'application/vnd-vega.json',
-				'text/html',
-				'application/json',
-				'application/javascript',
-				'application/vnd-plot.json'
+				'appwication/vnd-vega.json',
+				'text/htmw',
+				'appwication/json',
+				'appwication/javascwipt',
+				'appwication/vnd-pwot.json'
 			],
-			'glob *'
+			'gwob *'
 		);
 	});
 
-	test('diff cells', function () {
-		const cells: TestCell[] = [];
+	test('diff cewws', function () {
+		const cewws: TestCeww[] = [];
 
-		for (let i = 0; i < 5; i++) {
-			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], modeService)
+		fow (wet i = 0; i < 5; i++) {
+			cewws.push(
+				new TestCeww('notebook', i, `vaw a = ${i};`, 'javascwipt', CewwKind.Code, [], modeSewvice)
 			);
 		}
 
-		assert.deepStrictEqual(diff<TestCell>(cells, [], (cell) => {
-			return cells.indexOf(cell) > -1;
+		assewt.deepStwictEquaw(diff<TestCeww>(cewws, [], (ceww) => {
+			wetuwn cewws.indexOf(ceww) > -1;
 		}), [
 			{
-				start: 0,
-				deleteCount: 5,
-				toInsert: []
+				stawt: 0,
+				deweteCount: 5,
+				toInsewt: []
 			}
 		]
 		);
 
-		assert.deepStrictEqual(diff<TestCell>([], cells, (cell) => {
-			return false;
+		assewt.deepStwictEquaw(diff<TestCeww>([], cewws, (ceww) => {
+			wetuwn fawse;
 		}), [
 			{
-				start: 0,
-				deleteCount: 0,
-				toInsert: cells
+				stawt: 0,
+				deweteCount: 0,
+				toInsewt: cewws
 			}
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], modeService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], modeService);
+		const cewwA = new TestCeww('notebook', 6, 'vaw a = 6;', 'javascwipt', CewwKind.Code, [], modeSewvice);
+		const cewwB = new TestCeww('notebook', 7, 'vaw a = 7;', 'javascwipt', CewwKind.Code, [], modeSewvice);
 
-		const modifiedCells = [
-			cells[0],
-			cells[1],
-			cellA,
-			cells[3],
-			cellB,
-			cells[4]
+		const modifiedCewws = [
+			cewws[0],
+			cewws[1],
+			cewwA,
+			cewws[3],
+			cewwB,
+			cewws[4]
 		];
 
-		const splices = diff<TestCell>(cells, modifiedCells, (cell) => {
-			return cells.indexOf(cell) > -1;
+		const spwices = diff<TestCeww>(cewws, modifiedCewws, (ceww) => {
+			wetuwn cewws.indexOf(ceww) > -1;
 		});
 
-		assert.deepStrictEqual(splices,
+		assewt.deepStwictEquaw(spwices,
 			[
 				{
-					start: 2,
-					deleteCount: 1,
-					toInsert: [cellA]
+					stawt: 2,
+					deweteCount: 1,
+					toInsewt: [cewwA]
 				},
 				{
-					start: 4,
-					deleteCount: 0,
-					toInsert: [cellB]
+					stawt: 4,
+					deweteCount: 0,
+					toInsewt: [cewwB]
 				}
 			]
 		);
@@ -270,91 +270,91 @@ suite('NotebookCommon', () => {
 });
 
 
-suite('CellUri', function () {
+suite('CewwUwi', function () {
 
-	test('parse, generate (file-scheme)', function () {
+	test('pawse, genewate (fiwe-scheme)', function () {
 
-		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const nb = UWI.pawse('foo:///baw/føwda/fiwe.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, id);
-		const actual = CellUri.parse(data);
-		assert.ok(Boolean(actual));
-		assert.strictEqual(actual?.handle, id);
-		assert.strictEqual(actual?.notebook.toString(), nb.toString());
+		const data = CewwUwi.genewate(nb, id);
+		const actuaw = CewwUwi.pawse(data);
+		assewt.ok(Boowean(actuaw));
+		assewt.stwictEquaw(actuaw?.handwe, id);
+		assewt.stwictEquaw(actuaw?.notebook.toStwing(), nb.toStwing());
 	});
 
-	test('parse, generate (foo-scheme)', function () {
+	test('pawse, genewate (foo-scheme)', function () {
 
-		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const nb = UWI.pawse('foo:///baw/føwda/fiwe.nb');
 		const id = 17;
 
-		const data = CellUri.generate(nb, id);
-		const actual = CellUri.parse(data);
-		assert.ok(Boolean(actual));
-		assert.strictEqual(actual?.handle, id);
-		assert.strictEqual(actual?.notebook.toString(), nb.toString());
+		const data = CewwUwi.genewate(nb, id);
+		const actuaw = CewwUwi.pawse(data);
+		assewt.ok(Boowean(actuaw));
+		assewt.stwictEquaw(actuaw?.handwe, id);
+		assewt.stwictEquaw(actuaw?.notebook.toStwing(), nb.toStwing());
 	});
 });
 
 
-suite('CellRange', function () {
+suite('CewwWange', function () {
 
-	test('Cell range to index', function () {
-		assert.deepStrictEqual(cellRangesToIndexes([]), []);
-		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 0 }]), []);
-		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 1 }]), [0]);
-		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }]), [0, 1]);
-		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 2, end: 3 }]), [0, 1, 2]);
-		assert.deepStrictEqual(cellRangesToIndexes([{ start: 0, end: 2 }, { start: 3, end: 4 }]), [0, 1, 3]);
+	test('Ceww wange to index', function () {
+		assewt.deepStwictEquaw(cewwWangesToIndexes([]), []);
+		assewt.deepStwictEquaw(cewwWangesToIndexes([{ stawt: 0, end: 0 }]), []);
+		assewt.deepStwictEquaw(cewwWangesToIndexes([{ stawt: 0, end: 1 }]), [0]);
+		assewt.deepStwictEquaw(cewwWangesToIndexes([{ stawt: 0, end: 2 }]), [0, 1]);
+		assewt.deepStwictEquaw(cewwWangesToIndexes([{ stawt: 0, end: 2 }, { stawt: 2, end: 3 }]), [0, 1, 2]);
+		assewt.deepStwictEquaw(cewwWangesToIndexes([{ stawt: 0, end: 2 }, { stawt: 3, end: 4 }]), [0, 1, 3]);
 	});
 
-	test('Cell index to range', function () {
-		assert.deepStrictEqual(cellIndexesToRanges([]), []);
-		assert.deepStrictEqual(cellIndexesToRanges([0]), [{ start: 0, end: 1 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([0, 1]), [{ start: 0, end: 2 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 2]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 3]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+	test('Ceww index to wange', function () {
+		assewt.deepStwictEquaw(cewwIndexesToWanges([]), []);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([0]), [{ stawt: 0, end: 1 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([0, 1]), [{ stawt: 0, end: 2 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([0, 1, 2]), [{ stawt: 0, end: 3 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([0, 1, 3]), [{ stawt: 0, end: 2 }, { stawt: 3, end: 4 }]);
 
-		assert.deepStrictEqual(cellIndexesToRanges([1, 0]), [{ start: 0, end: 2 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([1, 2, 0]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([3, 1, 0]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([1, 0]), [{ stawt: 0, end: 2 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([1, 2, 0]), [{ stawt: 0, end: 3 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([3, 1, 0]), [{ stawt: 0, end: 2 }, { stawt: 3, end: 4 }]);
 
-		assert.deepStrictEqual(cellIndexesToRanges([9, 10]), [{ start: 9, end: 11 }]);
-		assert.deepStrictEqual(cellIndexesToRanges([10, 9]), [{ start: 9, end: 11 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([9, 10]), [{ stawt: 9, end: 11 }]);
+		assewt.deepStwictEquaw(cewwIndexesToWanges([10, 9]), [{ stawt: 9, end: 11 }]);
 	});
 
-	test('Reduce ranges', function () {
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
+	test('Weduce wanges', function () {
+		assewt.deepStwictEquaw(weduceCewwWanges([{ stawt: 0, end: 1 }, { stawt: 1, end: 2 }]), [{ stawt: 0, end: 2 }]);
+		assewt.deepStwictEquaw(weduceCewwWanges([{ stawt: 0, end: 2 }, { stawt: 1, end: 3 }]), [{ stawt: 0, end: 3 }]);
+		assewt.deepStwictEquaw(weduceCewwWanges([{ stawt: 1, end: 3 }, { stawt: 0, end: 2 }]), [{ stawt: 0, end: 3 }]);
+		assewt.deepStwictEquaw(weduceCewwWanges([{ stawt: 0, end: 2 }, { stawt: 4, end: 5 }]), [{ stawt: 0, end: 2 }, { stawt: 4, end: 5 }]);
 
-		assert.deepStrictEqual(reduceCellRanges([
-			{ start: 0, end: 1 },
-			{ start: 1, end: 2 },
-			{ start: 4, end: 6 }
+		assewt.deepStwictEquaw(weduceCewwWanges([
+			{ stawt: 0, end: 1 },
+			{ stawt: 1, end: 2 },
+			{ stawt: 4, end: 6 }
 		]), [
-			{ start: 0, end: 2 },
-			{ start: 4, end: 6 }
+			{ stawt: 0, end: 2 },
+			{ stawt: 4, end: 6 }
 		]);
 
-		assert.deepStrictEqual(reduceCellRanges([
-			{ start: 0, end: 1 },
-			{ start: 1, end: 3 },
-			{ start: 3, end: 4 }
+		assewt.deepStwictEquaw(weduceCewwWanges([
+			{ stawt: 0, end: 1 },
+			{ stawt: 1, end: 3 },
+			{ stawt: 3, end: 4 }
 		]), [
-			{ start: 0, end: 4 }
+			{ stawt: 0, end: 4 }
 		]);
 	});
 });
 
-suite('NotebookWorkingCopyTypeIdentifier', function () {
+suite('NotebookWowkingCopyTypeIdentifia', function () {
 
-	test('works', function () {
+	test('wowks', function () {
 		const viewType = 'testViewType';
-		const type = NotebookWorkingCopyTypeIdentifier.create('testViewType');
-		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse(type), viewType);
-		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
+		const type = NotebookWowkingCopyTypeIdentifia.cweate('testViewType');
+		assewt.stwictEquaw(NotebookWowkingCopyTypeIdentifia.pawse(type), viewType);
+		assewt.stwictEquaw(NotebookWowkingCopyTypeIdentifia.pawse('something'), undefined);
 	});
 });

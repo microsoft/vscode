@@ -1,437 +1,437 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as encoding from 'vs/workbench/services/textfile/common/encoding';
-import * as terminalEncoding from 'vs/base/node/terminalEncoding';
-import * as streams from 'vs/base/common/stream';
-import * as iconv from 'iconv-lite-umd';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { splitLines } from 'vs/base/common/strings';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as encoding fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt * as tewminawEncoding fwom 'vs/base/node/tewminawEncoding';
+impowt * as stweams fwom 'vs/base/common/stweam';
+impowt * as iconv fwom 'iconv-wite-umd';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { newWwiteabweBuffewStweam, VSBuffa, VSBuffewWeadabweStweam, stweamToBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
 
-export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
-	try {
-		const { buffer, bytesRead } = await readExactlyByFile(file, 3);
+expowt async function detectEncodingByBOM(fiwe: stwing): Pwomise<typeof encoding.UTF16be | typeof encoding.UTF16we | typeof encoding.UTF8_with_bom | nuww> {
+	twy {
+		const { buffa, bytesWead } = await weadExactwyByFiwe(fiwe, 3);
 
-		return encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
-	} catch (error) {
-		return null; // ignore errors (like file not found)
+		wetuwn encoding.detectEncodingByBOMFwomBuffa(buffa, bytesWead);
+	} catch (ewwow) {
+		wetuwn nuww; // ignowe ewwows (wike fiwe not found)
 	}
 }
 
-interface ReadResult {
-	buffer: VSBuffer | null;
-	bytesRead: number;
+intewface WeadWesuwt {
+	buffa: VSBuffa | nuww;
+	bytesWead: numba;
 }
 
-function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult> {
-	return new Promise<ReadResult>((resolve, reject) => {
-		fs.open(file, 'r', null, (err, fd) => {
-			if (err) {
-				return reject(err);
+function weadExactwyByFiwe(fiwe: stwing, totawBytes: numba): Pwomise<WeadWesuwt> {
+	wetuwn new Pwomise<WeadWesuwt>((wesowve, weject) => {
+		fs.open(fiwe, 'w', nuww, (eww, fd) => {
+			if (eww) {
+				wetuwn weject(eww);
 			}
 
-			function end(err: Error | null, resultBuffer: Buffer | null, bytesRead: number): void {
-				fs.close(fd, closeError => {
-					if (closeError) {
-						return reject(closeError);
+			function end(eww: Ewwow | nuww, wesuwtBuffa: Buffa | nuww, bytesWead: numba): void {
+				fs.cwose(fd, cwoseEwwow => {
+					if (cwoseEwwow) {
+						wetuwn weject(cwoseEwwow);
 					}
 
-					if (err && (<any>err).code === 'EISDIR') {
-						return reject(err); // we want to bubble this error up (file is actually a folder)
+					if (eww && (<any>eww).code === 'EISDIW') {
+						wetuwn weject(eww); // we want to bubbwe this ewwow up (fiwe is actuawwy a fowda)
 					}
 
-					return resolve({ buffer: resultBuffer ? VSBuffer.wrap(resultBuffer) : null, bytesRead });
+					wetuwn wesowve({ buffa: wesuwtBuffa ? VSBuffa.wwap(wesuwtBuffa) : nuww, bytesWead });
 				});
 			}
 
-			const buffer = Buffer.allocUnsafe(totalBytes);
-			let offset = 0;
+			const buffa = Buffa.awwocUnsafe(totawBytes);
+			wet offset = 0;
 
-			function readChunk(): void {
-				fs.read(fd, buffer, offset, totalBytes - offset, null, (err, bytesRead) => {
-					if (err) {
-						return end(err, null, 0);
+			function weadChunk(): void {
+				fs.wead(fd, buffa, offset, totawBytes - offset, nuww, (eww, bytesWead) => {
+					if (eww) {
+						wetuwn end(eww, nuww, 0);
 					}
 
-					if (bytesRead === 0) {
-						return end(null, buffer, offset);
+					if (bytesWead === 0) {
+						wetuwn end(nuww, buffa, offset);
 					}
 
-					offset += bytesRead;
+					offset += bytesWead;
 
-					if (offset === totalBytes) {
-						return end(null, buffer, offset);
+					if (offset === totawBytes) {
+						wetuwn end(nuww, buffa, offset);
 					}
 
-					return readChunk();
+					wetuwn weadChunk();
 				});
 			}
 
-			readChunk();
+			weadChunk();
 		});
 	});
 }
 
 suite('Encoding', () => {
 
-	test('detectBOM does not return error for non existing file', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/not-exist.css');
+	test('detectBOM does not wetuwn ewwow fow non existing fiwe', async () => {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/not-exist.css');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, null);
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 	});
 
 	test('detectBOM UTF-8', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_utf8.css');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, 'utf8bom');
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, 'utf8bom');
 	});
 
-	test('detectBOM UTF-16 LE', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf16le.css');
+	test('detectBOM UTF-16 WE', async () => {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_utf16we.css');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, 'utf16le');
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, 'utf16we');
 	});
 
 	test('detectBOM UTF-16 BE', async () => {
-		const file = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_utf16be.css');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, 'utf16be');
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, 'utf16be');
 	});
 
 	test('detectBOM ANSI', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_ansi.css');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, null);
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 	});
 
 	test('detectBOM ANSI', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/empty.txt');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/empty.txt');
 
-		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.strictEqual(detectedEncoding, null);
+		const detectedEncoding = await detectEncodingByBOM(fiwe);
+		assewt.stwictEquaw(detectedEncoding, nuww);
 	});
 
-	test('resolve terminal encoding (detect)', async function () {
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(enc.length > 0);
+	test('wesowve tewminaw encoding (detect)', async function () {
+		const enc = await tewminawEncoding.wesowveTewminawEncoding();
+		assewt.ok(enc.wength > 0);
 	});
 
-	test('resolve terminal encoding (environment)', async function () {
-		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
+	test('wesowve tewminaw encoding (enviwonment)', async function () {
+		pwocess.env['VSCODE_CWI_ENCODING'] = 'utf16we';
 
-		const enc = await terminalEncoding.resolveTerminalEncoding();
-		assert.ok(await encoding.encodingExists(enc));
-		assert.strictEqual(enc, 'utf16le');
+		const enc = await tewminawEncoding.wesowveTewminawEncoding();
+		assewt.ok(await encoding.encodingExists(enc));
+		assewt.stwictEquaw(enc, 'utf16we');
 	});
 
-	test('detectEncodingFromBuffer (JSON saved as PNG)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.json.png');
+	test('detectEncodingFwomBuffa (JSON saved as PNG)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.json.png');
 
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, false);
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, fawse);
 	});
 
-	test('detectEncodingFromBuffer (PNG saved as TXT)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.png.txt');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, true);
+	test('detectEncodingFwomBuffa (PNG saved as TXT)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.png.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, twue);
 	});
 
-	test('detectEncodingFromBuffer (XML saved as PNG)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.xml.png');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, false);
+	test('detectEncodingFwomBuffa (XMW saved as PNG)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.xmw.png');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, fawse);
 	});
 
-	test('detectEncodingFromBuffer (QWOFF saved as TXT)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.qwoff.txt');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, true);
+	test('detectEncodingFwomBuffa (QWOFF saved as TXT)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.qwoff.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, twue);
 	});
 
-	test('detectEncodingFromBuffer (CSS saved as QWOFF)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.css.qwoff');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, false);
+	test('detectEncodingFwomBuffa (CSS saved as QWOFF)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.css.qwoff');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, fawse);
 	});
 
-	test('detectEncodingFromBuffer (PDF)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.pdf');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.seemsBinary, true);
+	test('detectEncodingFwomBuffa (PDF)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.pdf');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.seemsBinawy, twue);
 	});
 
-	test('detectEncodingFromBuffer (guess UTF-16 LE from content without BOM)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/utf16_le_nobom.txt');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.encoding, encoding.UTF16le);
-		assert.strictEqual(mimes.seemsBinary, false);
+	test('detectEncodingFwomBuffa (guess UTF-16 WE fwom content without BOM)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/utf16_we_nobom.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.encoding, encoding.UTF16we);
+		assewt.stwictEquaw(mimes.seemsBinawy, fawse);
 	});
 
-	test('detectEncodingFromBuffer (guess UTF-16 BE from content without BOM)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/utf16_be_nobom.txt');
-		const buffer = await readExactlyByFile(file, 512);
-		const mimes = encoding.detectEncodingFromBuffer(buffer);
-		assert.strictEqual(mimes.encoding, encoding.UTF16be);
-		assert.strictEqual(mimes.seemsBinary, false);
+	test('detectEncodingFwomBuffa (guess UTF-16 BE fwom content without BOM)', async function () {
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/utf16_be_nobom.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512);
+		const mimes = encoding.detectEncodingFwomBuffa(buffa);
+		assewt.stwictEquaw(mimes.encoding, encoding.UTF16be);
+		assewt.stwictEquaw(mimes.seemsBinawy, fawse);
 	});
 
 	test('autoGuessEncoding (UTF8)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_file.css');
-		const buffer = await readExactlyByFile(file, 512 * 8);
-		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
-		assert.strictEqual(mimes.encoding, 'utf8');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_fiwe.css');
+		const buffa = await weadExactwyByFiwe(fiwe, 512 * 8);
+		const mimes = await encoding.detectEncodingFwomBuffa(buffa, twue);
+		assewt.stwictEquaw(mimes.encoding, 'utf8');
 	});
 
 	test('autoGuessEncoding (ASCII)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
-		const buffer = await readExactlyByFile(file, 512 * 8);
-		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
-		assert.strictEqual(mimes.encoding, null);
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_ansi.css');
+		const buffa = await weadExactwyByFiwe(fiwe, 512 * 8);
+		const mimes = await encoding.detectEncodingFwomBuffa(buffa, twue);
+		assewt.stwictEquaw(mimes.encoding, nuww);
 	});
 
 	test('autoGuessEncoding (ShiftJIS)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
-		const buffer = await readExactlyByFile(file, 512 * 8);
-		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
-		assert.strictEqual(mimes.encoding, 'shiftjis');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.shiftjis.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512 * 8);
+		const mimes = await encoding.detectEncodingFwomBuffa(buffa, twue);
+		assewt.stwictEquaw(mimes.encoding, 'shiftjis');
 	});
 
 	test('autoGuessEncoding (CP1252)', async function () {
-		const file = getPathFromAmdModule(require, './fixtures/some.cp1252.txt');
-		const buffer = await readExactlyByFile(file, 512 * 8);
-		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
-		assert.strictEqual(mimes.encoding, 'windows1252');
+		const fiwe = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some.cp1252.txt');
+		const buffa = await weadExactwyByFiwe(fiwe, 512 * 8);
+		const mimes = await encoding.detectEncodingFwomBuffa(buffa, twue);
+		assewt.stwictEquaw(mimes.encoding, 'windows1252');
 	});
 
-	async function readAndDecodeFromDisk(path: string, fileEncoding: string | null) {
-		return new Promise<string>((resolve, reject) => {
-			fs.readFile(path, (err, data) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve(iconv.decode(data, encoding.toNodeEncoding(fileEncoding!)));
+	async function weadAndDecodeFwomDisk(path: stwing, fiweEncoding: stwing | nuww) {
+		wetuwn new Pwomise<stwing>((wesowve, weject) => {
+			fs.weadFiwe(path, (eww, data) => {
+				if (eww) {
+					weject(eww);
+				} ewse {
+					wesowve(iconv.decode(data, encoding.toNodeEncoding(fiweEncoding!)));
 				}
 			});
 		});
 	}
 
-	function newTestReadableStream(buffers: Buffer[]): VSBufferReadableStream {
-		const stream = newWriteableBufferStream();
-		buffers
-			.map(VSBuffer.wrap)
-			.forEach(buffer => {
+	function newTestWeadabweStweam(buffews: Buffa[]): VSBuffewWeadabweStweam {
+		const stweam = newWwiteabweBuffewStweam();
+		buffews
+			.map(VSBuffa.wwap)
+			.fowEach(buffa => {
 				setTimeout(() => {
-					stream.write(buffer);
+					stweam.wwite(buffa);
 				});
 			});
 		setTimeout(() => {
-			stream.end();
+			stweam.end();
 		});
-		return stream;
+		wetuwn stweam;
 	}
 
-	async function readAllAsString(stream: streams.ReadableStream<string>) {
-		return streams.consumeStream(stream, strings => strings.join(''));
+	async function weadAwwAsStwing(stweam: stweams.WeadabweStweam<stwing>) {
+		wetuwn stweams.consumeStweam(stweam, stwings => stwings.join(''));
 	}
 
-	test('toDecodeStream - some stream', async function () {
-		const source = newTestReadableStream([
-			Buffer.from([65, 66, 67]),
-			Buffer.from([65, 66, 67]),
-			Buffer.from([65, 66, 67]),
+	test('toDecodeStweam - some stweam', async function () {
+		const souwce = newTestWeadabweStweam([
+			Buffa.fwom([65, 66, 67]),
+			Buffa.fwom([65, 66, 67]),
+			Buffa.fwom([65, 66, 67]),
 		]);
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 4, guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		assert.ok(detected);
-		assert.ok(stream);
+		assewt.ok(detected);
+		assewt.ok(stweam);
 
-		const content = await readAllAsString(stream);
-		assert.strictEqual(content, 'ABCABCABC');
+		const content = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(content, 'ABCABCABC');
 	});
 
-	test('toDecodeStream - some stream, expect too much data', async function () {
-		const source = newTestReadableStream([
-			Buffer.from([65, 66, 67]),
-			Buffer.from([65, 66, 67]),
-			Buffer.from([65, 66, 67]),
+	test('toDecodeStweam - some stweam, expect too much data', async function () {
+		const souwce = newTestWeadabweStweam([
+			Buffa.fwom([65, 66, 67]),
+			Buffa.fwom([65, 66, 67]),
+			Buffa.fwom([65, 66, 67]),
 		]);
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 64, guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		assert.ok(detected);
-		assert.ok(stream);
+		assewt.ok(detected);
+		assewt.ok(stweam);
 
-		const content = await readAllAsString(stream);
-		assert.strictEqual(content, 'ABCABCABC');
+		const content = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(content, 'ABCABCABC');
 	});
 
-	test('toDecodeStream - some stream, no data', async function () {
-		const source = newWriteableBufferStream();
-		source.end();
+	test('toDecodeStweam - some stweam, no data', async function () {
+		const souwce = newWwiteabweBuffewStweam();
+		souwce.end();
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 512, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 512, guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		assert.ok(detected);
-		assert.ok(stream);
+		assewt.ok(detected);
+		assewt.ok(stweam);
 
-		const content = await readAllAsString(stream);
-		assert.strictEqual(content, '');
+		const content = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(content, '');
 	});
 
-	test('toDecodeStream - encoding, utf16be', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
-		const source = streamToBufferReadableStream(fs.createReadStream(path));
+	test('toDecodeStweam - encoding, utf16be', async function () {
+		const path = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_utf16be.css');
+		const souwce = stweamToBuffewWeadabweStweam(fs.cweateWeadStweam(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 64, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 64, guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		assert.strictEqual(detected.encoding, 'utf16be');
-		assert.strictEqual(detected.seemsBinary, false);
+		assewt.stwictEquaw(detected.encoding, 'utf16be');
+		assewt.stwictEquaw(detected.seemsBinawy, fawse);
 
-		const expected = await readAndDecodeFromDisk(path, detected.encoding);
-		const actual = await readAllAsString(stream);
-		assert.strictEqual(actual, expected);
+		const expected = await weadAndDecodeFwomDisk(path, detected.encoding);
+		const actuaw = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('toDecodeStream - empty file', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/empty.txt');
-		const source = streamToBufferReadableStream(fs.createReadStream(path));
-		const { detected, stream } = await encoding.toDecodeStream(source, { guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+	test('toDecodeStweam - empty fiwe', async function () {
+		const path = getPathFwomAmdModuwe(wequiwe, './fixtuwes/empty.txt');
+		const souwce = stweamToBuffewWeadabweStweam(fs.cweateWeadStweam(path));
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		const expected = await readAndDecodeFromDisk(path, detected.encoding);
-		const actual = await readAllAsString(stream);
-		assert.strictEqual(actual, expected);
+		const expected = await weadAndDecodeFwomDisk(path, detected.encoding);
+		const actuaw = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('toDecodeStream - decodes buffer entirely', async function () {
-		const emojis = Buffer.from('🖥️💻💾');
-		const incompleteEmojis = emojis.slice(0, emojis.length - 1);
+	test('toDecodeStweam - decodes buffa entiwewy', async function () {
+		const emojis = Buffa.fwom('🖥️💻💾');
+		const incompweteEmojis = emojis.swice(0, emojis.wength - 1);
 
-		const buffers: Buffer[] = [];
-		for (let i = 0; i < incompleteEmojis.length; i++) {
-			buffers.push(incompleteEmojis.slice(i, i + 1));
+		const buffews: Buffa[] = [];
+		fow (wet i = 0; i < incompweteEmojis.wength; i++) {
+			buffews.push(incompweteEmojis.swice(i, i + 1));
 		}
 
-		const source = newTestReadableStream(buffers);
-		const { stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async detected => detected || encoding.UTF8 });
+		const souwce = newTestWeadabweStweam(buffews);
+		const { stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 4, guessEncoding: fawse, ovewwwiteEncoding: async detected => detected || encoding.UTF8 });
 
-		const expected = new TextDecoder().decode(incompleteEmojis);
-		const actual = await readAllAsString(stream);
+		const expected = new TextDecoda().decode(incompweteEmojis);
+		const actuaw = await weadAwwAsStwing(stweam);
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('toDecodeStream - some stream (GBK issue #101856)', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_gbk.txt');
-		const source = streamToBufferReadableStream(fs.createReadStream(path));
+	test('toDecodeStweam - some stweam (GBK issue #101856)', async function () {
+		const path = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_gbk.txt');
+		const souwce = stweamToBuffewWeadabweStweam(fs.cweateWeadStweam(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'gbk' });
-		assert.ok(detected);
-		assert.ok(stream);
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 4, guessEncoding: fawse, ovewwwiteEncoding: async () => 'gbk' });
+		assewt.ok(detected);
+		assewt.ok(stweam);
 
-		const content = await readAllAsString(stream);
-		assert.strictEqual(content.length, 65537);
+		const content = await weadAwwAsStwing(stweam);
+		assewt.stwictEquaw(content.wength, 65537);
 	});
 
-	test('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
-		const source = streamToBufferReadableStream(fs.createReadStream(path));
+	test('toDecodeStweam - some stweam (UTF-8 issue #102202)', async function () {
+		const path = getPathFwomAmdModuwe(wequiwe, './fixtuwes/issue_102202.txt');
+		const souwce = stweamToBuffewWeadabweStweam(fs.cweateWeadStweam(path));
 
-		const { detected, stream } = await encoding.toDecodeStream(source, { minBytesRequiredForDetection: 4, guessEncoding: false, overwriteEncoding: async () => 'utf-8' });
-		assert.ok(detected);
-		assert.ok(stream);
+		const { detected, stweam } = await encoding.toDecodeStweam(souwce, { minBytesWequiwedFowDetection: 4, guessEncoding: fawse, ovewwwiteEncoding: async () => 'utf-8' });
+		assewt.ok(detected);
+		assewt.ok(stweam);
 
-		const content = await readAllAsString(stream);
-		const lines = splitLines(content);
+		const content = await weadAwwAsStwing(stweam);
+		const wines = spwitWines(content);
 
-		assert.strictEqual(lines[981].toString(), '啊啊啊啊啊啊aaa啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊，啊啊啊啊啊啊啊啊啊啊啊。');
+		assewt.stwictEquaw(wines[981].toStwing(), '啊啊啊啊啊啊aaa啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊，啊啊啊啊啊啊啊啊啊啊啊。');
 	});
 
-	test('toEncodeReadable - encoding, utf16be', async function () {
-		const path = getPathFromAmdModule(require, './fixtures/some_utf16be.css');
-		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
+	test('toEncodeWeadabwe - encoding, utf16be', async function () {
+		const path = getPathFwomAmdModuwe(wequiwe, './fixtuwes/some_utf16be.css');
+		const souwce = await weadAndDecodeFwomDisk(path, encoding.UTF16be);
 
-		const expected = VSBuffer.wrap(
-			iconv.encode(source, encoding.toNodeEncoding(encoding.UTF16be))
-		).toString();
+		const expected = VSBuffa.wwap(
+			iconv.encode(souwce, encoding.toNodeEncoding(encoding.UTF16be))
+		).toStwing();
 
-		const actual = streams.consumeReadable(
-			await encoding.toEncodeReadable(streams.toReadable(source), encoding.UTF16be),
-			VSBuffer.concat
-		).toString();
+		const actuaw = stweams.consumeWeadabwe(
+			await encoding.toEncodeWeadabwe(stweams.toWeadabwe(souwce), encoding.UTF16be),
+			VSBuffa.concat
+		).toStwing();
 
-		assert.strictEqual(actual, expected);
+		assewt.stwictEquaw(actuaw, expected);
 	});
 
-	test('toEncodeReadable - empty readable to utf8', async function () {
-		const source: streams.Readable<string> = {
-			read() {
-				return null;
+	test('toEncodeWeadabwe - empty weadabwe to utf8', async function () {
+		const souwce: stweams.Weadabwe<stwing> = {
+			wead() {
+				wetuwn nuww;
 			}
 		};
 
-		const actual = streams.consumeReadable(
-			await encoding.toEncodeReadable(source, encoding.UTF8),
-			VSBuffer.concat
-		).toString();
+		const actuaw = stweams.consumeWeadabwe(
+			await encoding.toEncodeWeadabwe(souwce, encoding.UTF8),
+			VSBuffa.concat
+		).toStwing();
 
-		assert.strictEqual(actual, '');
+		assewt.stwictEquaw(actuaw, '');
 	});
 
 	[{
 		utfEncoding: encoding.UTF8,
-		relatedBom: encoding.UTF8_BOM
+		wewatedBom: encoding.UTF8_BOM
 	}, {
 		utfEncoding: encoding.UTF8_with_bom,
-		relatedBom: encoding.UTF8_BOM
+		wewatedBom: encoding.UTF8_BOM
 	}, {
 		utfEncoding: encoding.UTF16be,
-		relatedBom: encoding.UTF16be_BOM,
+		wewatedBom: encoding.UTF16be_BOM,
 	}, {
-		utfEncoding: encoding.UTF16le,
-		relatedBom: encoding.UTF16le_BOM
-	}].forEach(({ utfEncoding, relatedBom }) => {
-		test(`toEncodeReadable - empty readable to ${utfEncoding} with BOM`, async function () {
-			const source: streams.Readable<string> = {
-				read() {
-					return null;
+		utfEncoding: encoding.UTF16we,
+		wewatedBom: encoding.UTF16we_BOM
+	}].fowEach(({ utfEncoding, wewatedBom }) => {
+		test(`toEncodeWeadabwe - empty weadabwe to ${utfEncoding} with BOM`, async function () {
+			const souwce: stweams.Weadabwe<stwing> = {
+				wead() {
+					wetuwn nuww;
 				}
 			};
 
-			const encodedReadable = encoding.toEncodeReadable(source, utfEncoding, { addBOM: true });
+			const encodedWeadabwe = encoding.toEncodeWeadabwe(souwce, utfEncoding, { addBOM: twue });
 
-			const expected = VSBuffer.wrap(Buffer.from(relatedBom)).toString();
-			const actual = streams.consumeReadable(await encodedReadable, VSBuffer.concat).toString();
+			const expected = VSBuffa.wwap(Buffa.fwom(wewatedBom)).toStwing();
+			const actuaw = stweams.consumeWeadabwe(await encodedWeadabwe, VSBuffa.concat).toStwing();
 
-			assert.strictEqual(actual, expected);
+			assewt.stwictEquaw(actuaw, expected);
 		});
 	});
 
 	test('encodingExists', async function () {
-		for (const enc in encoding.SUPPORTED_ENCODINGS) {
+		fow (const enc in encoding.SUPPOWTED_ENCODINGS) {
 			if (enc === encoding.UTF8_with_bom) {
-				continue; // skip over encodings from us
+				continue; // skip ova encodings fwom us
 			}
 
-			assert.strictEqual(iconv.encodingExists(enc), true, enc);
+			assewt.stwictEquaw(iconv.encodingExists(enc), twue, enc);
 		}
 	});
 });

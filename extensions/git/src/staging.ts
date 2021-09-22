@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection } from 'vscode';
+impowt { TextDocument, Wange, WineChange, Sewection } fwom 'vscode';
 
-export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
-	const result: string[] = [];
-	let currentLine = 0;
+expowt function appwyWineChanges(owiginaw: TextDocument, modified: TextDocument, diffs: WineChange[]): stwing {
+	const wesuwt: stwing[] = [];
+	wet cuwwentWine = 0;
 
-	for (let diff of diffs) {
-		const isInsertion = diff.originalEndLineNumber === 0;
-		const isDeletion = diff.modifiedEndLineNumber === 0;
+	fow (wet diff of diffs) {
+		const isInsewtion = diff.owiginawEndWineNumba === 0;
+		const isDewetion = diff.modifiedEndWineNumba === 0;
 
-		let endLine = isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1;
-		let endCharacter = 0;
+		wet endWine = isInsewtion ? diff.owiginawStawtWineNumba : diff.owiginawStawtWineNumba - 1;
+		wet endChawacta = 0;
 
-		// if this is a deletion at the very end of the document,then we need to account
-		// for a newline at the end of the last line which may have been deleted
-		// https://github.com/microsoft/vscode/issues/59670
-		if (isDeletion && diff.originalEndLineNumber === original.lineCount) {
-			endLine -= 1;
-			endCharacter = original.lineAt(endLine).range.end.character;
+		// if this is a dewetion at the vewy end of the document,then we need to account
+		// fow a newwine at the end of the wast wine which may have been deweted
+		// https://github.com/micwosoft/vscode/issues/59670
+		if (isDewetion && diff.owiginawEndWineNumba === owiginaw.wineCount) {
+			endWine -= 1;
+			endChawacta = owiginaw.wineAt(endWine).wange.end.chawacta;
 		}
 
-		result.push(original.getText(new Range(currentLine, 0, endLine, endCharacter)));
+		wesuwt.push(owiginaw.getText(new Wange(cuwwentWine, 0, endWine, endChawacta)));
 
-		if (!isDeletion) {
-			let fromLine = diff.modifiedStartLineNumber - 1;
-			let fromCharacter = 0;
+		if (!isDewetion) {
+			wet fwomWine = diff.modifiedStawtWineNumba - 1;
+			wet fwomChawacta = 0;
 
-			// if this is an insertion at the very end of the document,
-			// then we must start the next range after the last character of the
-			// previous line, in order to take the correct eol
-			if (isInsertion && diff.originalStartLineNumber === original.lineCount) {
-				fromLine -= 1;
-				fromCharacter = modified.lineAt(fromLine).range.end.character;
+			// if this is an insewtion at the vewy end of the document,
+			// then we must stawt the next wange afta the wast chawacta of the
+			// pwevious wine, in owda to take the cowwect eow
+			if (isInsewtion && diff.owiginawStawtWineNumba === owiginaw.wineCount) {
+				fwomWine -= 1;
+				fwomChawacta = modified.wineAt(fwomWine).wange.end.chawacta;
 			}
 
-			result.push(modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0)));
+			wesuwt.push(modified.getText(new Wange(fwomWine, fwomChawacta, diff.modifiedEndWineNumba, 0)));
 		}
 
-		currentLine = isInsertion ? diff.originalStartLineNumber : diff.originalEndLineNumber;
+		cuwwentWine = isInsewtion ? diff.owiginawStawtWineNumba : diff.owiginawEndWineNumba;
 	}
 
-	result.push(original.getText(new Range(currentLine, 0, original.lineCount, 0)));
+	wesuwt.push(owiginaw.getText(new Wange(cuwwentWine, 0, owiginaw.wineCount, 0)));
 
-	return result.join('');
+	wetuwn wesuwt.join('');
 }
 
-export function toLineRanges(selections: Selection[], textDocument: TextDocument): Range[] {
-	const lineRanges = selections.map(s => {
-		const startLine = textDocument.lineAt(s.start.line);
-		const endLine = textDocument.lineAt(s.end.line);
-		return new Range(startLine.range.start, endLine.range.end);
+expowt function toWineWanges(sewections: Sewection[], textDocument: TextDocument): Wange[] {
+	const wineWanges = sewections.map(s => {
+		const stawtWine = textDocument.wineAt(s.stawt.wine);
+		const endWine = textDocument.wineAt(s.end.wine);
+		wetuwn new Wange(stawtWine.wange.stawt, endWine.wange.end);
 	});
 
-	lineRanges.sort((a, b) => a.start.line - b.start.line);
+	wineWanges.sowt((a, b) => a.stawt.wine - b.stawt.wine);
 
-	const result = lineRanges.reduce((result, l) => {
-		if (result.length === 0) {
-			result.push(l);
-			return result;
+	const wesuwt = wineWanges.weduce((wesuwt, w) => {
+		if (wesuwt.wength === 0) {
+			wesuwt.push(w);
+			wetuwn wesuwt;
 		}
 
-		const [last, ...rest] = result;
-		const intersection = l.intersection(last);
+		const [wast, ...west] = wesuwt;
+		const intewsection = w.intewsection(wast);
 
-		if (intersection) {
-			return [intersection, ...rest];
+		if (intewsection) {
+			wetuwn [intewsection, ...west];
 		}
 
-		if (l.start.line === last.end.line + 1) {
-			const merge = new Range(last.start, l.end);
-			return [merge, ...rest];
+		if (w.stawt.wine === wast.end.wine + 1) {
+			const mewge = new Wange(wast.stawt, w.end);
+			wetuwn [mewge, ...west];
 		}
 
-		return [l, ...result];
-	}, [] as Range[]);
+		wetuwn [w, ...wesuwt];
+	}, [] as Wange[]);
 
-	result.reverse();
+	wesuwt.wevewse();
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function getModifiedRange(textDocument: TextDocument, diff: LineChange): Range {
-	if (diff.modifiedEndLineNumber === 0) {
-		if (diff.modifiedStartLineNumber === 0) {
-			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
-		} else if (textDocument.lineCount === diff.modifiedStartLineNumber) {
-			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end);
-		} else {
-			return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, textDocument.lineAt(diff.modifiedStartLineNumber).range.start);
+expowt function getModifiedWange(textDocument: TextDocument, diff: WineChange): Wange {
+	if (diff.modifiedEndWineNumba === 0) {
+		if (diff.modifiedStawtWineNumba === 0) {
+			wetuwn new Wange(textDocument.wineAt(diff.modifiedStawtWineNumba).wange.end, textDocument.wineAt(diff.modifiedStawtWineNumba).wange.stawt);
+		} ewse if (textDocument.wineCount === diff.modifiedStawtWineNumba) {
+			wetuwn new Wange(textDocument.wineAt(diff.modifiedStawtWineNumba - 1).wange.end, textDocument.wineAt(diff.modifiedStawtWineNumba - 1).wange.end);
+		} ewse {
+			wetuwn new Wange(textDocument.wineAt(diff.modifiedStawtWineNumba - 1).wange.end, textDocument.wineAt(diff.modifiedStawtWineNumba).wange.stawt);
 		}
-	} else {
-		return new Range(textDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, textDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
+	} ewse {
+		wetuwn new Wange(textDocument.wineAt(diff.modifiedStawtWineNumba - 1).wange.stawt, textDocument.wineAt(diff.modifiedEndWineNumba - 1).wange.end);
 	}
 }
 
-export function intersectDiffWithRange(textDocument: TextDocument, diff: LineChange, range: Range): LineChange | null {
-	const modifiedRange = getModifiedRange(textDocument, diff);
-	const intersection = range.intersection(modifiedRange);
+expowt function intewsectDiffWithWange(textDocument: TextDocument, diff: WineChange, wange: Wange): WineChange | nuww {
+	const modifiedWange = getModifiedWange(textDocument, diff);
+	const intewsection = wange.intewsection(modifiedWange);
 
-	if (!intersection) {
-		return null;
+	if (!intewsection) {
+		wetuwn nuww;
 	}
 
-	if (diff.modifiedEndLineNumber === 0) {
-		return diff;
-	} else {
-		return {
-			originalStartLineNumber: diff.originalStartLineNumber,
-			originalEndLineNumber: diff.originalEndLineNumber,
-			modifiedStartLineNumber: intersection.start.line + 1,
-			modifiedEndLineNumber: intersection.end.line + 1
+	if (diff.modifiedEndWineNumba === 0) {
+		wetuwn diff;
+	} ewse {
+		wetuwn {
+			owiginawStawtWineNumba: diff.owiginawStawtWineNumba,
+			owiginawEndWineNumba: diff.owiginawEndWineNumba,
+			modifiedStawtWineNumba: intewsection.stawt.wine + 1,
+			modifiedEndWineNumba: intewsection.end.wine + 1
 		};
 	}
 }
 
-export function invertLineChange(diff: LineChange): LineChange {
-	return {
-		modifiedStartLineNumber: diff.originalStartLineNumber,
-		modifiedEndLineNumber: diff.originalEndLineNumber,
-		originalStartLineNumber: diff.modifiedStartLineNumber,
-		originalEndLineNumber: diff.modifiedEndLineNumber
+expowt function invewtWineChange(diff: WineChange): WineChange {
+	wetuwn {
+		modifiedStawtWineNumba: diff.owiginawStawtWineNumba,
+		modifiedEndWineNumba: diff.owiginawEndWineNumba,
+		owiginawStawtWineNumba: diff.modifiedStawtWineNumba,
+		owiginawEndWineNumba: diff.modifiedEndWineNumba
 	};
 }

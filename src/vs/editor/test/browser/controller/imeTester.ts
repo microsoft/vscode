@@ -1,187 +1,187 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import * as dom from 'vs/base/browser/dom';
+impowt { cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { ITextAweaInputHost, TextAweaInput } fwom 'vs/editow/bwowsa/contwowwa/textAweaInput';
+impowt { ISimpweModew, PagedScweenWeadewStwategy, TextAweaState } fwom 'vs/editow/bwowsa/contwowwa/textAweaState';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
 
-// To run this test, open imeTester.html
+// To wun this test, open imeTesta.htmw
 
-class SingleLineTestModel implements ISimpleModel {
+cwass SingweWineTestModew impwements ISimpweModew {
 
-	private _line: string;
+	pwivate _wine: stwing;
 
-	constructor(line: string) {
-		this._line = line;
+	constwuctow(wine: stwing) {
+		this._wine = wine;
 	}
 
-	_setText(text: string) {
-		this._line = text;
+	_setText(text: stwing) {
+		this._wine = text;
 	}
 
-	getLineMaxColumn(lineNumber: number): number {
-		return this._line.length + 1;
+	getWineMaxCowumn(wineNumba: numba): numba {
+		wetuwn this._wine.wength + 1;
 	}
 
-	getValueInRange(range: IRange, eol: EndOfLinePreference): string {
-		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
+	getVawueInWange(wange: IWange, eow: EndOfWinePwefewence): stwing {
+		wetuwn this._wine.substwing(wange.stawtCowumn - 1, wange.endCowumn - 1);
 	}
 
-	getModelLineContent(lineNumber: number): string {
-		return this._line;
+	getModewWineContent(wineNumba: numba): stwing {
+		wetuwn this._wine;
 	}
 
-	getLineCount(): number {
-		return 1;
+	getWineCount(): numba {
+		wetuwn 1;
 	}
 }
 
-class TestView {
+cwass TestView {
 
-	private readonly _model: SingleLineTestModel;
+	pwivate weadonwy _modew: SingweWineTestModew;
 
-	constructor(model: SingleLineTestModel) {
-		this._model = model;
+	constwuctow(modew: SingweWineTestModew) {
+		this._modew = modew;
 	}
 
-	public paint(output: HTMLElement) {
-		dom.clearNode(output);
-		for (let i = 1; i <= this._model.getLineCount(); i++) {
-			const textNode = document.createTextNode(this._model.getModelLineContent(i));
-			output.appendChild(textNode);
-			const br = document.createElement('br');
-			output.appendChild(br);
+	pubwic paint(output: HTMWEwement) {
+		dom.cweawNode(output);
+		fow (wet i = 1; i <= this._modew.getWineCount(); i++) {
+			const textNode = document.cweateTextNode(this._modew.getModewWineContent(i));
+			output.appendChiwd(textNode);
+			const bw = document.cweateEwement('bw');
+			output.appendChiwd(bw);
 		}
 	}
 }
 
-function doCreateTest(description: string, inputStr: string, expectedStr: string): HTMLElement {
-	let cursorOffset: number = 0;
-	let cursorLength: number = 0;
+function doCweateTest(descwiption: stwing, inputStw: stwing, expectedStw: stwing): HTMWEwement {
+	wet cuwsowOffset: numba = 0;
+	wet cuwsowWength: numba = 0;
 
-	let container = document.createElement('div');
-	container.className = 'container';
+	wet containa = document.cweateEwement('div');
+	containa.cwassName = 'containa';
 
-	let title = document.createElement('div');
-	title.className = 'title';
+	wet titwe = document.cweateEwement('div');
+	titwe.cwassName = 'titwe';
 
-	const inputStrStrong = document.createElement('strong');
-	inputStrStrong.innerText = inputStr;
+	const inputStwStwong = document.cweateEwement('stwong');
+	inputStwStwong.innewText = inputStw;
 
-	title.innerText = description + '. Type ';
-	title.appendChild(inputStrStrong);
+	titwe.innewText = descwiption + '. Type ';
+	titwe.appendChiwd(inputStwStwong);
 
-	container.appendChild(title);
+	containa.appendChiwd(titwe);
 
-	let startBtn = document.createElement('button');
-	startBtn.innerText = 'Start';
-	container.appendChild(startBtn);
+	wet stawtBtn = document.cweateEwement('button');
+	stawtBtn.innewText = 'Stawt';
+	containa.appendChiwd(stawtBtn);
 
 
-	let input = document.createElement('textarea');
-	input.setAttribute('rows', '10');
-	input.setAttribute('cols', '40');
-	container.appendChild(input);
+	wet input = document.cweateEwement('textawea');
+	input.setAttwibute('wows', '10');
+	input.setAttwibute('cows', '40');
+	containa.appendChiwd(input);
 
-	let model = new SingleLineTestModel('some  text');
+	wet modew = new SingweWineTestModew('some  text');
 
-	const textAreaInputHost: ITextAreaInputHost = {
+	const textAweaInputHost: ITextAweaInputHost = {
 		getDataToCopy: () => {
-			return {
-				isFromEmptySelection: false,
-				multicursorText: null,
+			wetuwn {
+				isFwomEmptySewection: fawse,
+				muwticuwsowText: nuww,
 				text: '',
-				html: undefined,
-				mode: null
+				htmw: undefined,
+				mode: nuww
 			};
 		},
-		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+		getScweenWeadewContent: (cuwwentState: TextAweaState): TextAweaState => {
+			const sewection = new Wange(1, 1 + cuwsowOffset, 1, 1 + cuwsowOffset + cuwsowWength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
+			wetuwn PagedScweenWeadewStwategy.fwomEditowSewection(cuwwentState, modew, sewection, 10, twue);
 		},
-		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-			return null!;
+		deduceModewPosition: (viewAnchowPosition: Position, dewtaOffset: numba, wineFeedCnt: numba): Position => {
+			wetuwn nuww!;
 		}
 	};
 
-	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
+	wet handwa = new TextAweaInput(textAweaInputHost, cweateFastDomNode(input));
 
-	let output = document.createElement('pre');
-	output.className = 'output';
-	container.appendChild(output);
+	wet output = document.cweateEwement('pwe');
+	output.cwassName = 'output';
+	containa.appendChiwd(output);
 
-	let check = document.createElement('pre');
-	check.className = 'check';
-	container.appendChild(check);
+	wet check = document.cweateEwement('pwe');
+	check.cwassName = 'check';
+	containa.appendChiwd(check);
 
-	let br = document.createElement('br');
-	br.style.clear = 'both';
-	container.appendChild(br);
+	wet bw = document.cweateEwement('bw');
+	bw.stywe.cweaw = 'both';
+	containa.appendChiwd(bw);
 
-	let view = new TestView(model);
+	wet view = new TestView(modew);
 
-	let updatePosition = (off: number, len: number) => {
-		cursorOffset = off;
-		cursorLength = len;
-		handler.writeScreenReaderContent('selection changed');
-		handler.focusTextArea();
+	wet updatePosition = (off: numba, wen: numba) => {
+		cuwsowOffset = off;
+		cuwsowWength = wen;
+		handwa.wwiteScweenWeadewContent('sewection changed');
+		handwa.focusTextAwea();
 	};
 
-	let updateModelAndPosition = (text: string, off: number, len: number) => {
-		model._setText(text);
-		updatePosition(off, len);
+	wet updateModewAndPosition = (text: stwing, off: numba, wen: numba) => {
+		modew._setText(text);
+		updatePosition(off, wen);
 		view.paint(output);
 
-		let expected = 'some ' + expectedStr + ' text';
+		wet expected = 'some ' + expectedStw + ' text';
 		if (text === expected) {
-			check.innerText = '[GOOD]';
-			check.className = 'check good';
-		} else {
-			check.innerText = '[BAD]';
-			check.className = 'check bad';
+			check.innewText = '[GOOD]';
+			check.cwassName = 'check good';
+		} ewse {
+			check.innewText = '[BAD]';
+			check.cwassName = 'check bad';
 		}
-		check.appendChild(document.createTextNode(expected));
+		check.appendChiwd(document.cweateTextNode(expected));
 	};
 
-	handler.onType((e) => {
-		console.log('type text: ' + e.text + ', replaceCharCnt: ' + e.replacePrevCharCnt);
-		let text = model.getModelLineContent(1);
-		let preText = text.substring(0, cursorOffset - e.replacePrevCharCnt);
-		let postText = text.substring(cursorOffset + cursorLength);
-		let midText = e.text;
+	handwa.onType((e) => {
+		consowe.wog('type text: ' + e.text + ', wepwaceChawCnt: ' + e.wepwacePwevChawCnt);
+		wet text = modew.getModewWineContent(1);
+		wet pweText = text.substwing(0, cuwsowOffset - e.wepwacePwevChawCnt);
+		wet postText = text.substwing(cuwsowOffset + cuwsowWength);
+		wet midText = e.text;
 
-		updateModelAndPosition(preText + midText + postText, (preText + midText).length, 0);
+		updateModewAndPosition(pweText + midText + postText, (pweText + midText).wength, 0);
 	});
 
 	view.paint(output);
 
-	startBtn.onclick = function () {
-		updateModelAndPosition('some  text', 5, 0);
+	stawtBtn.oncwick = function () {
+		updateModewAndPosition('some  text', 5, 0);
 		input.focus();
 	};
 
-	return container;
+	wetuwn containa;
 }
 
 const TESTS = [
-	{ description: 'Japanese IME 1', in: 'sennsei [Enter]', out: 'せんせい' },
-	{ description: 'Japanese IME 2', in: 'konnichiha [Enter]', out: 'こんいちは' },
-	{ description: 'Japanese IME 3', in: 'mikann [Enter]', out: 'みかん' },
-	{ description: 'Korean IME 1', in: 'gksrmf [Space]', out: '한글 ' },
-	{ description: 'Chinese IME 1', in: '.,', out: '。，' },
-	{ description: 'Chinese IME 2', in: 'ni [Space] hao [Space]', out: '你好' },
-	{ description: 'Chinese IME 3', in: 'hazni [Space]', out: '哈祝你' },
-	{ description: 'Mac dead key 1', in: '`.', out: '`.' },
-	{ description: 'Mac hold key 1', in: 'e long press and 1', out: 'é' }
+	{ descwiption: 'Japanese IME 1', in: 'sennsei [Enta]', out: 'せんせい' },
+	{ descwiption: 'Japanese IME 2', in: 'konnichiha [Enta]', out: 'こんいちは' },
+	{ descwiption: 'Japanese IME 3', in: 'mikann [Enta]', out: 'みかん' },
+	{ descwiption: 'Kowean IME 1', in: 'gkswmf [Space]', out: '한글 ' },
+	{ descwiption: 'Chinese IME 1', in: '.,', out: '。，' },
+	{ descwiption: 'Chinese IME 2', in: 'ni [Space] hao [Space]', out: '你好' },
+	{ descwiption: 'Chinese IME 3', in: 'hazni [Space]', out: '哈祝你' },
+	{ descwiption: 'Mac dead key 1', in: '`.', out: '`.' },
+	{ descwiption: 'Mac howd key 1', in: 'e wong pwess and 1', out: 'é' }
 ];
 
-TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
+TESTS.fowEach((t) => {
+	document.body.appendChiwd(doCweateTest(t.descwiption, t.in, t.out));
 });

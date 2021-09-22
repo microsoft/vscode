@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { IReference } from 'vs/base/common/lifecycle';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { DEFAUWT_EDITOW_ASSOCIATION, GwoupIdentifia, IWevewtOptions, isEditowInputWithOptionsAndGwoup, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { AbstwactWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/wesouwceEditowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextFiweSewvice, ITextFiweSaveOptions, IModeSuppowt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { ITextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { TextWesouwceEditowModew } fwom 'vs/wowkbench/common/editow/textWesouwceEditowModew';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
 /**
- * The base class for all editor inputs that open in text editors.
+ * The base cwass fow aww editow inputs that open in text editows.
  */
-export abstract class AbstractTextResourceEditorInput extends AbstractResourceEditorInput {
+expowt abstwact cwass AbstwactTextWesouwceEditowInput extends AbstwactWesouwceEditowInput {
 
-	constructor(
-		resource: URI,
-		preferredResource: URI | undefined,
-		@IEditorService protected readonly editorService: IEditorService,
-		@ITextFileService protected readonly textFileService: ITextFileService,
-		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+	constwuctow(
+		wesouwce: UWI,
+		pwefewwedWesouwce: UWI | undefined,
+		@IEditowSewvice pwotected weadonwy editowSewvice: IEditowSewvice,
+		@ITextFiweSewvice pwotected weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(resource, preferredResource, labelService, fileService);
+		supa(wesouwce, pwefewwedWesouwce, wabewSewvice, fiweSewvice);
 	}
 
-	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
+	ovewwide save(gwoup: GwoupIdentifia, options?: ITextFiweSaveOptions): Pwomise<EditowInput | undefined> {
 
-		// If this is neither an `untitled` resource, nor a resource
-		// we can handle with the file service, we can only "Save As..."
-		if (this.resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(this.resource)) {
-			return this.saveAs(group, options);
+		// If this is neitha an `untitwed` wesouwce, now a wesouwce
+		// we can handwe with the fiwe sewvice, we can onwy "Save As..."
+		if (this.wesouwce.scheme !== Schemas.untitwed && !this.fiweSewvice.canHandweWesouwce(this.wesouwce)) {
+			wetuwn this.saveAs(gwoup, options);
 		}
 
-		// Normal save
-		return this.doSave(options, false, group);
+		// Nowmaw save
+		wetuwn this.doSave(options, fawse, gwoup);
 	}
 
-	override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
-		return this.doSave(options, true, group);
+	ovewwide saveAs(gwoup: GwoupIdentifia, options?: ITextFiweSaveOptions): Pwomise<EditowInput | undefined> {
+		wetuwn this.doSave(options, twue, gwoup);
 	}
 
-	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean, group: GroupIdentifier | undefined): Promise<EditorInput | undefined> {
+	pwivate async doSave(options: ITextFiweSaveOptions | undefined, saveAs: boowean, gwoup: GwoupIdentifia | undefined): Pwomise<EditowInput | undefined> {
 
 		// Save / Save As
-		let target: URI | undefined;
+		wet tawget: UWI | undefined;
 		if (saveAs) {
-			target = await this.textFileService.saveAs(this.resource, undefined, { ...options, suggestedTarget: this.preferredResource });
-		} else {
-			target = await this.textFileService.save(this.resource, options);
+			tawget = await this.textFiweSewvice.saveAs(this.wesouwce, undefined, { ...options, suggestedTawget: this.pwefewwedWesouwce });
+		} ewse {
+			tawget = await this.textFiweSewvice.save(this.wesouwce, options);
 		}
 
-		if (!target) {
-			return undefined; // save cancelled
+		if (!tawget) {
+			wetuwn undefined; // save cancewwed
 		}
 
-		// If this save operation results in a new editor, either
-		// because it was saved to disk (e.g. from untitled) or
-		// through an explicit "Save As", make sure to replace it.
+		// If this save opewation wesuwts in a new editow, eitha
+		// because it was saved to disk (e.g. fwom untitwed) ow
+		// thwough an expwicit "Save As", make suwe to wepwace it.
 		if (
-			target.scheme !== this.resource.scheme ||
-			(saveAs && !isEqual(target, this.preferredResource))
+			tawget.scheme !== this.wesouwce.scheme ||
+			(saveAs && !isEquaw(tawget, this.pwefewwedWesouwce))
 		) {
-			const editor = await this.editorResolverService.resolveEditor({ resource: target, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, group);
-			if (isEditorInputWithOptionsAndGroup(editor)) {
-				return editor.editor;
+			const editow = await this.editowWesowvewSewvice.wesowveEditow({ wesouwce: tawget, options: { ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id } }, gwoup);
+			if (isEditowInputWithOptionsAndGwoup(editow)) {
+				wetuwn editow.editow;
 			}
 		}
 
-		return this;
+		wetuwn this;
 	}
 
-	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		await this.textFileService.revert(this.resource, options);
+	ovewwide async wevewt(gwoup: GwoupIdentifia, options?: IWevewtOptions): Pwomise<void> {
+		await this.textFiweSewvice.wevewt(this.wesouwce, options);
 	}
 }
 
 /**
- * A read-only text editor input whos contents are made of the provided resource that points to an existing
- * code editor model.
+ * A wead-onwy text editow input whos contents awe made of the pwovided wesouwce that points to an existing
+ * code editow modew.
  */
-export class TextResourceEditorInput extends AbstractTextResourceEditorInput implements IModeSupport {
+expowt cwass TextWesouwceEditowInput extends AbstwactTextWesouwceEditowInput impwements IModeSuppowt {
 
-	static readonly ID: string = 'workbench.editors.resourceEditorInput';
+	static weadonwy ID: stwing = 'wowkbench.editows.wesouwceEditowInput';
 
-	override get typeId(): string {
-		return TextResourceEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn TextWesouwceEditowInput.ID;
 	}
 
-	override get editorId(): string | undefined {
-		return DEFAULT_EDITOR_ASSOCIATION.id;
+	ovewwide get editowId(): stwing | undefined {
+		wetuwn DEFAUWT_EDITOW_ASSOCIATION.id;
 	}
 
-	private cachedModel: TextResourceEditorModel | undefined = undefined;
-	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
+	pwivate cachedModew: TextWesouwceEditowModew | undefined = undefined;
+	pwivate modewWefewence: Pwomise<IWefewence<ITextEditowModew>> | undefined = undefined;
 
-	constructor(
-		resource: URI,
-		private name: string | undefined,
-		private description: string | undefined,
-		private preferredMode: string | undefined,
-		private preferredContents: string | undefined,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+	constwuctow(
+		wesouwce: UWI,
+		pwivate name: stwing | undefined,
+		pwivate descwiption: stwing | undefined,
+		pwivate pwefewwedMode: stwing | undefined,
+		pwivate pwefewwedContents: stwing | undefined,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(resource, undefined, editorService, textFileService, labelService, fileService, editorResolverService);
+		supa(wesouwce, undefined, editowSewvice, textFiweSewvice, wabewSewvice, fiweSewvice, editowWesowvewSewvice);
 	}
 
-	override getName(): string {
-		return this.name || super.getName();
+	ovewwide getName(): stwing {
+		wetuwn this.name || supa.getName();
 	}
 
-	setName(name: string): void {
+	setName(name: stwing): void {
 		if (this.name !== name) {
 			this.name = name;
 
-			this._onDidChangeLabel.fire();
+			this._onDidChangeWabew.fiwe();
 		}
 	}
 
-	override getDescription(): string | undefined {
-		return this.description;
+	ovewwide getDescwiption(): stwing | undefined {
+		wetuwn this.descwiption;
 	}
 
-	setDescription(description: string): void {
-		if (this.description !== description) {
-			this.description = description;
+	setDescwiption(descwiption: stwing): void {
+		if (this.descwiption !== descwiption) {
+			this.descwiption = descwiption;
 
-			this._onDidChangeLabel.fire();
-		}
-	}
-
-	setMode(mode: string): void {
-		this.setPreferredMode(mode);
-
-		if (this.cachedModel) {
-			this.cachedModel.setMode(mode);
+			this._onDidChangeWabew.fiwe();
 		}
 	}
 
-	setPreferredMode(mode: string): void {
-		this.preferredMode = mode;
+	setMode(mode: stwing): void {
+		this.setPwefewwedMode(mode);
+
+		if (this.cachedModew) {
+			this.cachedModew.setMode(mode);
+		}
 	}
 
-	setPreferredContents(contents: string): void {
-		this.preferredContents = contents;
+	setPwefewwedMode(mode: stwing): void {
+		this.pwefewwedMode = mode;
 	}
 
-	override async resolve(): Promise<ITextEditorModel> {
-
-		// Unset preferred contents and mode after resolving
-		// once to prevent these properties to stick. We still
-		// want the user to change the language mode in the editor
-		// and want to show updated contents (if any) in future
-		// `resolve` calls.
-		const preferredContents = this.preferredContents;
-		const preferredMode = this.preferredMode;
-		this.preferredContents = undefined;
-		this.preferredMode = undefined;
-
-		if (!this.modelReference) {
-			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
-		}
-
-		const ref = await this.modelReference;
-
-		// Ensure the resolved model is of expected type
-		const model = ref.object;
-		if (!(model instanceof TextResourceEditorModel)) {
-			ref.dispose();
-			this.modelReference = undefined;
-
-			throw new Error(`Unexpected model for TextResourceEditorInput: ${this.resource}`);
-		}
-
-		this.cachedModel = model;
-
-		// Set contents and mode if preferred
-		if (typeof preferredContents === 'string' || typeof preferredMode === 'string') {
-			model.updateTextEditorModel(typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined, preferredMode);
-		}
-
-		return model;
+	setPwefewwedContents(contents: stwing): void {
+		this.pwefewwedContents = contents;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
-			return true;
+	ovewwide async wesowve(): Pwomise<ITextEditowModew> {
+
+		// Unset pwefewwed contents and mode afta wesowving
+		// once to pwevent these pwopewties to stick. We stiww
+		// want the usa to change the wanguage mode in the editow
+		// and want to show updated contents (if any) in futuwe
+		// `wesowve` cawws.
+		const pwefewwedContents = this.pwefewwedContents;
+		const pwefewwedMode = this.pwefewwedMode;
+		this.pwefewwedContents = undefined;
+		this.pwefewwedMode = undefined;
+
+		if (!this.modewWefewence) {
+			this.modewWefewence = this.textModewWesowvewSewvice.cweateModewWefewence(this.wesouwce);
 		}
 
-		if (otherInput instanceof TextResourceEditorInput) {
-			return isEqual(otherInput.resource, this.resource);
+		const wef = await this.modewWefewence;
+
+		// Ensuwe the wesowved modew is of expected type
+		const modew = wef.object;
+		if (!(modew instanceof TextWesouwceEditowModew)) {
+			wef.dispose();
+			this.modewWefewence = undefined;
+
+			thwow new Ewwow(`Unexpected modew fow TextWesouwceEditowInput: ${this.wesouwce}`);
 		}
 
-		return false;
+		this.cachedModew = modew;
+
+		// Set contents and mode if pwefewwed
+		if (typeof pwefewwedContents === 'stwing' || typeof pwefewwedMode === 'stwing') {
+			modew.updateTextEditowModew(typeof pwefewwedContents === 'stwing' ? cweateTextBuffewFactowy(pwefewwedContents) : undefined, pwefewwedMode);
+		}
+
+		wetuwn modew;
 	}
 
-	override dispose(): void {
-		if (this.modelReference) {
-			this.modelReference.then(ref => ref.dispose());
-			this.modelReference = undefined;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(othewInput)) {
+			wetuwn twue;
 		}
 
-		this.cachedModel = undefined;
+		if (othewInput instanceof TextWesouwceEditowInput) {
+			wetuwn isEquaw(othewInput.wesouwce, this.wesouwce);
+		}
 
-		super.dispose();
+		wetuwn fawse;
+	}
+
+	ovewwide dispose(): void {
+		if (this.modewWefewence) {
+			this.modewWefewence.then(wef => wef.dispose());
+			this.modewWefewence = undefined;
+		}
+
+		this.cachedModew = undefined;
+
+		supa.dispose();
 	}
 }

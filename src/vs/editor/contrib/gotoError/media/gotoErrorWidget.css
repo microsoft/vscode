@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* marker zone */
+/* mawka zone */
 
-.monaco-editor .peekview-widget .head .peekview-title .severity-icon {
-	display: inline-block;
-	vertical-align: text-top;
-	margin-right: 4px;
+.monaco-editow .peekview-widget .head .peekview-titwe .sevewity-icon {
+	dispway: inwine-bwock;
+	vewticaw-awign: text-top;
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .marker-widget {
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.monaco-editow .mawka-widget {
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
 }
 
-.monaco-editor .marker-widget > .stale {
+.monaco-editow .mawka-widget > .stawe {
 	opacity: 0.6;
-	font-style: italic;
+	font-stywe: itawic;
 }
 
-.monaco-editor .marker-widget .title {
-	display: inline-block;
-	padding-right: 5px;
+.monaco-editow .mawka-widget .titwe {
+	dispway: inwine-bwock;
+	padding-wight: 5px;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer {
-	position: absolute;
-	white-space: pre;
-	user-select: text;
-	-webkit-user-select: text;
-	-ms-user-select: text;
+.monaco-editow .mawka-widget .descwiptioncontaina {
+	position: absowute;
+	white-space: pwe;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
+	-ms-usa-sewect: text;
 	padding: 8px 12px 0 20px;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message {
-	display: flex;
-	flex-direction: column;
+.monaco-editow .mawka-widget .descwiptioncontaina .message {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message .details {
-	padding-left: 6px;
+.monaco-editow .mawka-widget .descwiptioncontaina .message .detaiws {
+	padding-weft: 6px;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message .source,
-.monaco-editor .marker-widget .descriptioncontainer .message span.code {
+.monaco-editow .mawka-widget .descwiptioncontaina .message .souwce,
+.monaco-editow .mawka-widget .descwiptioncontaina .message span.code {
 	opacity: 0.6;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message a.code-link {
+.monaco-editow .mawka-widget .descwiptioncontaina .message a.code-wink {
 	opacity: 0.6;
-	color: inherit;
+	cowow: inhewit;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message a.code-link:before {
+.monaco-editow .mawka-widget .descwiptioncontaina .message a.code-wink:befowe {
 	content: '(';
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message a.code-link:after {
+.monaco-editow .mawka-widget .descwiptioncontaina .message a.code-wink:afta {
 	content: ')';
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .message a.code-link > span {
-	text-decoration: underline;
-	/** Hack to force underline to show **/
-	border-bottom: 1px solid transparent;
-	text-underline-position: under;
+.monaco-editow .mawka-widget .descwiptioncontaina .message a.code-wink > span {
+	text-decowation: undewwine;
+	/** Hack to fowce undewwine to show **/
+	bowda-bottom: 1px sowid twanspawent;
+	text-undewwine-position: unda;
 }
 
-.monaco-editor .marker-widget .descriptioncontainer .filename {
-	cursor: pointer;
+.monaco-editow .mawka-widget .descwiptioncontaina .fiwename {
+	cuwsow: pointa;
 }

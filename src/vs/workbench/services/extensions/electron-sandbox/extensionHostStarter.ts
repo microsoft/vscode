@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
+impowt { wegistewShawedPwocessWemoteSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IExtensionHostStawta, ipcExtensionHostStawtewChannewName } fwom 'vs/pwatfowm/extensions/common/extensionHostStawta';
 
-registerSharedProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName, { supportsDelayedInstantiation: true });
+wegistewShawedPwocessWemoteSewvice(IExtensionHostStawta, ipcExtensionHostStawtewChannewName, { suppowtsDewayedInstantiation: twue });

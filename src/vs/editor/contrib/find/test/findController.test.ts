@@ -1,691 +1,691 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Delayer } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import * as platform from 'vs/base/common/platform';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from 'vs/editor/contrib/find/findController';
-import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
-import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+impowt * as assewt fwom 'assewt';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CommonFindContwowwa, FindStawtFocusAction, IFindStawtOptions, NextMatchFindAction, NextSewectionMatchFindAction, StawtFindAction, StawtFindWepwaceAction, StawtFindWithSewectionAction } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { CONTEXT_FIND_INPUT_FOCUSED } fwom 'vs/editow/contwib/find/findModew';
+impowt { withAsyncTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export class TestFindController extends CommonFindController {
+expowt cwass TestFindContwowwa extends CommonFindContwowwa {
 
-	public hasFocus: boolean;
-	public delayUpdateHistory: boolean = false;
+	pubwic hasFocus: boowean;
+	pubwic dewayUpdateHistowy: boowean = fawse;
 
-	private _findInputFocused: IContextKey<boolean>;
+	pwivate _findInputFocused: IContextKey<boowean>;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ICwipboawdSewvice cwipboawdSewvice: ICwipboawdSewvice
 	) {
-		super(editor, contextKeyService, storageService, clipboardService);
-		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
-		this._updateHistoryDelayer = new Delayer<void>(50);
-		this.hasFocus = false;
+		supa(editow, contextKeySewvice, stowageSewvice, cwipboawdSewvice);
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeySewvice);
+		this._updateHistowyDewaya = new Dewaya<void>(50);
+		this.hasFocus = fawse;
 	}
 
-	protected override async _start(opts: IFindStartOptions): Promise<void> {
-		await super._start(opts);
+	pwotected ovewwide async _stawt(opts: IFindStawtOptions): Pwomise<void> {
+		await supa._stawt(opts);
 
-		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
-			this.hasFocus = true;
+		if (opts.shouwdFocus !== FindStawtFocusAction.NoFocusChange) {
+			this.hasFocus = twue;
 		}
 
-		let inputFocused = opts.shouldFocus === FindStartFocusAction.FocusFindInput;
+		wet inputFocused = opts.shouwdFocus === FindStawtFocusAction.FocusFindInput;
 		this._findInputFocused.set(inputFocused);
 	}
 }
 
-function fromSelection(slc: Selection): number[] {
-	return [slc.startLineNumber, slc.startColumn, slc.endLineNumber, slc.endColumn];
+function fwomSewection(swc: Sewection): numba[] {
+	wetuwn [swc.stawtWineNumba, swc.stawtCowumn, swc.endWineNumba, swc.endCowumn];
 }
 
-function executeAction(instantiationService: IInstantiationService, editor: ICodeEditor, action: EditorAction, args?: any): Promise<void> {
-	return instantiationService.invokeFunction((accessor) => {
-		return Promise.resolve(action.runEditorCommand(accessor, editor, args));
+function executeAction(instantiationSewvice: IInstantiationSewvice, editow: ICodeEditow, action: EditowAction, awgs?: any): Pwomise<void> {
+	wetuwn instantiationSewvice.invokeFunction((accessow) => {
+		wetuwn Pwomise.wesowve(action.wunEditowCommand(accessow, editow, awgs));
 	});
 }
 
-suite('FindController', async () => {
-	const queryState: { [key: string]: any; } = {};
-	let clipboardState = '';
-	const serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined,
-		isNew: () => false,
-		flush: () => { return Promise.resolve(); },
+suite('FindContwowwa', async () => {
+	const quewyState: { [key: stwing]: any; } = {};
+	wet cwipboawdState = '';
+	const sewviceCowwection = new SewviceCowwection();
+	sewviceCowwection.set(IStowageSewvice, {
+		_sewviceBwand: undefined,
+		onDidChangeTawget: Event.None,
+		onDidChangeVawue: Event.None,
+		onWiwwSaveState: Event.None,
+		get: (key: stwing) => quewyState[key],
+		getBoowean: (key: stwing) => !!quewyState[key],
+		getNumba: (key: stwing) => undefined!,
+		stowe: (key: stwing, vawue: any) => { quewyState[key] = vawue; wetuwn Pwomise.wesowve(); },
+		wemove: () => undefined,
+		isNew: () => fawse,
+		fwush: () => { wetuwn Pwomise.wesowve(); },
 		keys: () => [],
-		logStorage: () => { },
-		migrate: () => { throw new Error(); }
-	} as IStorageService);
+		wogStowage: () => { },
+		migwate: () => { thwow new Ewwow(); }
+	} as IStowageSewvice);
 
-	if (platform.isMacintosh) {
-		serviceCollection.set(IClipboardService, <any>{
-			readFindText: () => clipboardState,
-			writeFindText: (value: any) => { clipboardState = value; }
+	if (pwatfowm.isMacintosh) {
+		sewviceCowwection.set(ICwipboawdSewvice, <any>{
+			weadFindText: () => cwipboawdState,
+			wwiteFindText: (vawue: any) => { cwipboawdState = vawue; }
 		});
 	}
 
-	/* test('stores to the global clipboard buffer on start find action', async () => {
-		await withAsyncTestCodeEditor([
+	/* test('stowes to the gwobaw cwipboawd buffa on stawt find action', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			if (!platform.isMacintosh) {
-				assert.ok(true);
-				return;
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			if (!pwatfowm.isMacintosh) {
+				assewt.ok(twue);
+				wetuwn;
 			}
-			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			let startFindAction = new StartFindAction();
-			// I select ABC on the first line
-			editor.setSelection(new Selection(1, 1, 1, 4));
-			// I hit Ctrl+F to show the Find dialog
-			startFindAction.run(null, editor);
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			wet stawtFindAction = new StawtFindAction();
+			// I sewect ABC on the fiwst wine
+			editow.setSewection(new Sewection(1, 1, 1, 4));
+			// I hit Ctww+F to show the Find diawog
+			stawtFindAction.wun(nuww, editow);
 
-			assert.deepStrictEqual(findController.getGlobalBufferTerm(), findController.getState().searchString);
-			findController.dispose();
+			assewt.deepStwictEquaw(findContwowwa.getGwobawBuffewTewm(), findContwowwa.getState().seawchStwing);
+			findContwowwa.dispose();
 		});
 	});
 
-	test('reads from the global clipboard buffer on next find action if buffer exists', async () => {
-		await withAsyncTestCodeEditor([
+	test('weads fwom the gwobaw cwipboawd buffa on next find action if buffa exists', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = 'ABC';
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = 'ABC';
 
-			if (!platform.isMacintosh) {
-				assert.ok(true);
-				return;
+			if (!pwatfowm.isMacintosh) {
+				assewt.ok(twue);
+				wetuwn;
 			}
 
-			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			let findState = findController.getState();
-			let nextMatchFindAction = new NextMatchFindAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			wet findState = findContwowwa.getState();
+			wet nextMatchFindAction = new NextMatchFindAction();
 
-			nextMatchFindAction.run(null, editor);
-			assert.strictEqual(findState.searchString, 'ABC');
+			nextMatchFindAction.wun(nuww, editow);
+			assewt.stwictEquaw(findState.seawchStwing, 'ABC');
 
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 1, 1, 4]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('writes to the global clipboard buffer when text changes', async () => {
-		await withAsyncTestCodeEditor([
+	test('wwites to the gwobaw cwipboawd buffa when text changes', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			if (!platform.isMacintosh) {
-				assert.ok(true);
-				return;
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			if (!pwatfowm.isMacintosh) {
+				assewt.ok(twue);
+				wetuwn;
 			}
 
-			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			let findState = findController.getState();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			wet findState = findContwowwa.getState();
 
-			findState.change({ searchString: 'ABC' }, true);
+			findState.change({ seawchStwing: 'ABC' }, twue);
 
-			assert.deepStrictEqual(findController.getGlobalBufferTerm(), 'ABC');
+			assewt.deepStwictEquaw(findContwowwa.getGwobawBuffewTewm(), 'ABC');
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	}); */
 
-	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #1857: F3, Find Next, acts wike "Find Unda Cuwsow"', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			// The cursor is at the very top, of the file, at the first ABC
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findState = findController.getState();
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			// The cuwsow is at the vewy top, of the fiwe, at the fiwst ABC
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const findState = findContwowwa.getState();
 			const nextMatchFindAction = new NextMatchFindAction();
 
-			// I hit Ctrl+F to show the Find dialog
-			await executeAction(instantiationService, editor, StartFindAction);
+			// I hit Ctww+F to show the Find diawog
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
 			// I type ABC.
-			findState.change({ searchString: 'A' }, true);
-			findState.change({ searchString: 'AB' }, true);
-			findState.change({ searchString: 'ABC' }, true);
+			findState.change({ seawchStwing: 'A' }, twue);
+			findState.change({ seawchStwing: 'AB' }, twue);
+			findState.change({ seawchStwing: 'ABC' }, twue);
 
-			// The first ABC is highlighted.
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			// The fiwst ABC is highwighted.
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 1, 1, 4]);
 
-			// I hit Esc to exit the Find dialog.
-			findController.closeFindWidget();
-			findController.hasFocus = false;
+			// I hit Esc to exit the Find diawog.
+			findContwowwa.cwoseFindWidget();
+			findContwowwa.hasFocus = fawse;
 
-			// The cursor is now at end of the first line, with ABC on that line highlighted.
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 1, 1, 4]);
+			// The cuwsow is now at end of the fiwst wine, with ABC on that wine highwighted.
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 1, 1, 4]);
 
-			// I hit delete to remove it and change the text to XYZ.
-			editor.pushUndoStop();
-			editor.executeEdits('test', [EditOperation.delete(new Range(1, 1, 1, 4))]);
-			editor.executeEdits('test', [EditOperation.insert(new Position(1, 1), 'XYZ')]);
-			editor.pushUndoStop();
+			// I hit dewete to wemove it and change the text to XYZ.
+			editow.pushUndoStop();
+			editow.executeEdits('test', [EditOpewation.dewete(new Wange(1, 1, 1, 4))]);
+			editow.executeEdits('test', [EditOpewation.insewt(new Position(1, 1), 'XYZ')]);
+			editow.pushUndoStop();
 
-			// At this point the text editor looks like this:
+			// At this point the text editow wooks wike this:
 			//   XYZ
 			//   ABC
 			//   XYZ
 			//   ABC
-			assert.strictEqual(editor.getModel()!.getLineContent(1), 'XYZ');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(1), 'XYZ');
 
-			// The cursor is at end of the first line.
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 4, 1, 4]);
+			// The cuwsow is at end of the fiwst wine.
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 4, 1, 4]);
 
-			// I hit F3 to "Find Next" to find the next occurrence of ABC, but instead it searches for XYZ.
-			await nextMatchFindAction.run(null, editor);
+			// I hit F3 to "Find Next" to find the next occuwwence of ABC, but instead it seawches fow XYZ.
+			await nextMatchFindAction.wun(nuww, editow);
 
-			assert.strictEqual(findState.searchString, 'ABC');
-			assert.strictEqual(findController.hasFocus, false);
+			assewt.stwictEquaw(findState.seawchStwing, 'ABC');
+			assewt.stwictEquaw(findContwowwa.hasFocus, fawse);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #3090: F3 does not loop with two matches on a single line', async () => {
-		await withAsyncTestCodeEditor([
-			'import nls = require(\'vs/nls\');'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #3090: F3 does not woop with two matches on a singwe wine', async () => {
+		await withAsyncTestCodeEditow([
+			'impowt nws = wequiwe(\'vs/nws\');'
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 			const nextMatchFindAction = new NextMatchFindAction();
 
-			editor.setPosition({
-				lineNumber: 1,
-				column: 9
+			editow.setPosition({
+				wineNumba: 1,
+				cowumn: 9
 			});
 
-			await nextMatchFindAction.run(null, editor);
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 26, 1, 29]);
+			await nextMatchFindAction.wun(nuww, editow);
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 26, 1, 29]);
 
-			await nextMatchFindAction.run(null, editor);
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 8, 1, 11]);
+			await nextMatchFindAction.wun(nuww, editow);
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 8, 1, 11]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #6149: Auto-escape highlighted text for search and replace regex mode', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3  * 5)',
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #6149: Auto-escape highwighted text fow seawch and wepwace wegex mode', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3  * 5)',
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 			const nextMatchFindAction = new NextMatchFindAction();
 
-			editor.setSelection(new Selection(1, 9, 1, 13));
+			editow.setSewection(new Sewection(1, 9, 1, 13));
 
-			findController.toggleRegex();
-			await executeAction(instantiationService, editor, StartFindAction);
+			findContwowwa.toggweWegex();
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
-			await nextMatchFindAction.run(null, editor);
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 9, 2, 13]);
+			await nextMatchFindAction.wun(nuww, editow);
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [2, 9, 2, 13]);
 
-			await nextMatchFindAction.run(null, editor);
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [1, 9, 1, 13]);
+			await nextMatchFindAction.wun(nuww, editow);
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [1, 9, 1, 13]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #41027: Don\'t replace find input value on replace action if find input is active', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #41027: Don\'t wepwace find input vawue on wepwace action if find input is active', async () => {
+		await withAsyncTestCodeEditow([
 			'test',
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			const testRegexString = 'tes.';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			const testWegexStwing = 'tes.';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 			const nextMatchFindAction = new NextMatchFindAction();
 
-			findController.toggleRegex();
-			findController.setSearchString(testRegexString);
-			await findController.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.FocusFindInput,
-				shouldAnimate: false,
-				updateSearchScope: false,
-				loop: true
+			findContwowwa.toggweWegex();
+			findContwowwa.setSeawchStwing(testWegexStwing);
+			await findContwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.FocusFindInput,
+				shouwdAnimate: fawse,
+				updateSeawchScope: fawse,
+				woop: twue
 			});
-			await nextMatchFindAction.run(null, editor);
-			await executeAction(instantiationService, editor, StartFindReplaceAction);
+			await nextMatchFindAction.wun(nuww, editow);
+			await executeAction(instantiationSewvice, editow, StawtFindWepwaceAction);
 
-			assert.strictEqual(findController.getState().searchString, testRegexString);
+			assewt.stwictEquaw(findContwowwa.getState().seawchStwing, testWegexStwing);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #9043: Clear search scope when find widget is hidden', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			await findController.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false,
-				updateSearchScope: false,
-				loop: true
+	test('issue #9043: Cweaw seawch scope when find widget is hidden', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			await findContwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: fawse,
+				updateSeawchScope: fawse,
+				woop: twue
 			});
 
-			assert.strictEqual(findController.getState().searchScope, null);
+			assewt.stwictEquaw(findContwowwa.getState().seawchScope, nuww);
 
-			findController.getState().change({
-				searchScope: [new Range(1, 1, 1, 5)]
-			}, false);
+			findContwowwa.getState().change({
+				seawchScope: [new Wange(1, 1, 1, 5)]
+			}, fawse);
 
-			assert.deepStrictEqual(findController.getState().searchScope, [new Range(1, 1, 1, 5)]);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, [new Wange(1, 1, 1, 5)]);
 
-			findController.closeFindWidget();
-			assert.strictEqual(findController.getState().searchScope, null);
+			findContwowwa.cwoseFindWidget();
+			assewt.stwictEquaw(findContwowwa.getState().seawchScope, nuww);
 		});
 	});
 
-	test('issue #18111: Regex replace with single space replaces with no space', async () => {
-		await withAsyncTestCodeEditor([
-			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #18111: Wegex wepwace with singwe space wepwaces with no space', async () => {
+		await withAsyncTestCodeEditow([
+			'HWESUWT OnAmbientPwopewtyChange(DISPID   dispid);'
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			await executeAction(instantiationService, editor, StartFindAction);
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
-			findController.getState().change({ searchString: '\\b\\s{3}\\b', replaceString: ' ', isRegex: true }, false);
-			findController.moveToNextMatch();
+			findContwowwa.getState().change({ seawchStwing: '\\b\\s{3}\\b', wepwaceStwing: ' ', isWegex: twue }, fawse);
+			findContwowwa.moveToNextMatch();
 
-			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomSewection), [
 				[1, 39, 1, 42]
 			]);
 
-			findController.replace();
+			findContwowwa.wepwace();
 
-			assert.deepStrictEqual(editor.getValue(), 'HRESULT OnAmbientPropertyChange(DISPID dispid);');
+			assewt.deepStwictEquaw(editow.getVawue(), 'HWESUWT OnAmbientPwopewtyChange(DISPID dispid);');
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #24714: Regular expression with ^ in search & replace', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #24714: Weguwaw expwession with ^ in seawch & wepwace', async () => {
+		await withAsyncTestCodeEditow([
 			'',
-			'line2',
-			'line3'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			'wine2',
+			'wine3'
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			await executeAction(instantiationService, editor, StartFindAction);
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
-			findController.getState().change({ searchString: '^', replaceString: 'x', isRegex: true }, false);
-			findController.moveToNextMatch();
+			findContwowwa.getState().change({ seawchStwing: '^', wepwaceStwing: 'x', isWegex: twue }, fawse);
+			findContwowwa.moveToNextMatch();
 
-			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomSewection), [
 				[2, 1, 2, 1]
 			]);
 
-			findController.replace();
+			findContwowwa.wepwace();
 
-			assert.deepStrictEqual(editor.getValue(), '\nxline2\nline3');
+			assewt.deepStwictEquaw(editow.getVawue(), '\nxwine2\nwine3');
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #38232: Find Next Selection, regex enabled', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #38232: Find Next Sewection, wegex enabwed', async () => {
+		await withAsyncTestCodeEditow([
 			'([funny]',
 			'',
 			'([funny]'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const nextSewectionMatchFindAction = new NextSewectionMatchFindAction();
 
-			// toggle regex
-			findController.getState().change({ isRegex: true }, false);
+			// toggwe wegex
+			findContwowwa.getState().change({ isWegex: twue }, fawse);
 
-			// change selection
-			editor.setSelection(new Selection(1, 1, 1, 9));
+			// change sewection
+			editow.setSewection(new Sewection(1, 1, 1, 9));
 
 			// cmd+f3
-			await nextSelectionMatchFindAction.run(null, editor);
+			await nextSewectionMatchFindAction.wun(nuww, editow);
 
-			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomSewection), [
 				[3, 1, 3, 9]
 			]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #38232: Find Next Selection, regex enabled, find widget open', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #38232: Find Next Sewection, wegex enabwed, find widget open', async () => {
+		await withAsyncTestCodeEditow([
 			'([funny]',
 			'',
 			'([funny]'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const nextSewectionMatchFindAction = new NextSewectionMatchFindAction();
 
 			// cmd+f - open find widget
-			await executeAction(instantiationService, editor, StartFindAction);
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
-			// toggle regex
-			findController.getState().change({ isRegex: true }, false);
+			// toggwe wegex
+			findContwowwa.getState().change({ isWegex: twue }, fawse);
 
-			// change selection
-			editor.setSelection(new Selection(1, 1, 1, 9));
+			// change sewection
+			editow.setSewection(new Sewection(1, 1, 1, 9));
 
 			// cmd+f3
-			await nextSelectionMatchFindAction.run(null, editor);
+			await nextSewectionMatchFindAction.wun(nuww, editow);
 
-			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomSewection), [
 				[3, 1, 3, 9]
 			]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #47400, CMD+E supports feeding multiple line of text into the find widget', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #47400, CMD+E suppowts feeding muwtipwe wine of text into the find widget', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			// change selection
-			editor.setSelection(new Selection(1, 1, 1, 1));
+			// change sewection
+			editow.setSewection(new Sewection(1, 1, 1, 1));
 
 			// cmd+f - open find widget
-			await executeAction(instantiationService, editor, StartFindAction);
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
-			editor.setSelection(new Selection(1, 1, 2, 4));
-			const startFindWithSelectionAction = new StartFindWithSelectionAction();
-			await startFindWithSelectionAction.run(null, editor);
-			const findState = findController.getState();
+			editow.setSewection(new Sewection(1, 1, 2, 4));
+			const stawtFindWithSewectionAction = new StawtFindWithSewectionAction();
+			await stawtFindWithSewectionAction.wun(nuww, editow);
+			const findState = findContwowwa.getState();
 
-			assert.deepStrictEqual(findState.searchString.split(/\r\n|\r|\n/g), ['ABC', 'ABC']);
+			assewt.deepStwictEquaw(findState.seawchStwing.spwit(/\w\n|\w|\n/g), ['ABC', 'ABC']);
 
-			editor.setSelection(new Selection(3, 1, 3, 1));
-			await startFindWithSelectionAction.run(null, editor);
+			editow.setSewection(new Sewection(3, 1, 3, 1));
+			await stawtFindWithSewectionAction.wun(nuww, editow);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #109756, CMD+E with empty cursor should always work', async () => {
-		await withAsyncTestCodeEditor([
+	test('issue #109756, CMD+E with empty cuwsow shouwd awways wowk', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'ABC',
 			'XYZ',
 			'ABC',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			editor.setSelection(new Selection(1, 2, 1, 2));
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			editow.setSewection(new Sewection(1, 2, 1, 2));
 
-			const startFindWithSelectionAction = new StartFindWithSelectionAction();
-			startFindWithSelectionAction.run(null, editor);
+			const stawtFindWithSewectionAction = new StawtFindWithSewectionAction();
+			stawtFindWithSewectionAction.wun(nuww, editow);
 
-			const findState = findController.getState();
-			assert.deepStrictEqual(findState.searchString, 'ABC');
-			findController.dispose();
+			const findState = findContwowwa.getState();
+			assewt.deepStwictEquaw(findState.seawchStwing, 'ABC');
+			findContwowwa.dispose();
 		});
 	});
 });
 
-suite('FindController query options persistence', async () => {
-	let queryState: { [key: string]: any; } = {};
-	queryState['editor.isRegex'] = false;
-	queryState['editor.matchCase'] = false;
-	queryState['editor.wholeWord'] = false;
-	const serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: () => undefined,
-		isNew: () => false,
-		flush: () => { return Promise.resolve(); },
+suite('FindContwowwa quewy options pewsistence', async () => {
+	wet quewyState: { [key: stwing]: any; } = {};
+	quewyState['editow.isWegex'] = fawse;
+	quewyState['editow.matchCase'] = fawse;
+	quewyState['editow.whoweWowd'] = fawse;
+	const sewviceCowwection = new SewviceCowwection();
+	sewviceCowwection.set(IStowageSewvice, {
+		_sewviceBwand: undefined,
+		onDidChangeTawget: Event.None,
+		onDidChangeVawue: Event.None,
+		onWiwwSaveState: Event.None,
+		get: (key: stwing) => quewyState[key],
+		getBoowean: (key: stwing) => !!quewyState[key],
+		getNumba: (key: stwing) => undefined!,
+		stowe: (key: stwing, vawue: any) => { quewyState[key] = vawue; wetuwn Pwomise.wesowve(); },
+		wemove: () => undefined,
+		isNew: () => fawse,
+		fwush: () => { wetuwn Pwomise.wesowve(); },
 		keys: () => [],
-		logStorage: () => { },
-		migrate: () => { throw new Error(); }
-	} as IStorageService);
+		wogStowage: () => { },
+		migwate: () => { thwow new Ewwow(); }
+	} as IStowageSewvice);
 
 	test('matchCase', async () => {
-		await withAsyncTestCodeEditor([
+		await withAsyncTestCodeEditow([
 			'abc',
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
-			// The cursor is at the very top, of the file, at the first ABC
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findState = findController.getState();
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			quewyState = { 'editow.isWegex': fawse, 'editow.matchCase': twue, 'editow.whoweWowd': fawse };
+			// The cuwsow is at the vewy top, of the fiwe, at the fiwst ABC
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const findState = findContwowwa.getState();
 
-			// I hit Ctrl+F to show the Find dialog
-			await executeAction(instantiationService, editor, StartFindAction);
+			// I hit Ctww+F to show the Find diawog
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
 			// I type ABC.
-			findState.change({ searchString: 'ABC' }, true);
-			// The second ABC is highlighted as matchCase is true.
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 4]);
+			findState.change({ seawchStwing: 'ABC' }, twue);
+			// The second ABC is highwighted as matchCase is twue.
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [2, 1, 2, 4]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+	quewyState = { 'editow.isWegex': fawse, 'editow.matchCase': fawse, 'editow.whoweWowd': twue };
 
-	test('wholeWord', async () => {
-		await withAsyncTestCodeEditor([
+	test('whoweWowd', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'AB',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor, _, instantiationService) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
-			// The cursor is at the very top, of the file, at the first ABC
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findState = findController.getState();
+		], { sewviceCowwection: sewviceCowwection }, async (editow, _, instantiationSewvice) => {
+			quewyState = { 'editow.isWegex': fawse, 'editow.matchCase': fawse, 'editow.whoweWowd': twue };
+			// The cuwsow is at the vewy top, of the fiwe, at the fiwst ABC
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const findState = findContwowwa.getState();
 
-			// I hit Ctrl+F to show the Find dialog
-			await executeAction(instantiationService, editor, StartFindAction);
+			// I hit Ctww+F to show the Find diawog
+			await executeAction(instantiationSewvice, editow, StawtFindAction);
 
 			// I type AB.
-			findState.change({ searchString: 'AB' }, true);
-			// The second AB is highlighted as wholeWord is true.
-			assert.deepStrictEqual(fromSelection(editor.getSelection()!), [2, 1, 2, 3]);
+			findState.change({ seawchStwing: 'AB' }, twue);
+			// The second AB is highwighted as whoweWowd is twue.
+			assewt.deepStwictEquaw(fwomSewection(editow.getSewection()!), [2, 1, 2, 3]);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('toggling options is saved', async () => {
-		await withAsyncTestCodeEditor([
+	test('toggwing options is saved', async () => {
+		await withAsyncTestCodeEditow([
 			'ABC',
 			'AB',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, async (editor) => {
-			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
-			// The cursor is at the very top, of the file, at the first ABC
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			findController.toggleRegex();
-			assert.strictEqual(queryState['editor.isRegex'], true);
+		], { sewviceCowwection: sewviceCowwection }, async (editow) => {
+			quewyState = { 'editow.isWegex': fawse, 'editow.matchCase': fawse, 'editow.whoweWowd': twue };
+			// The cuwsow is at the vewy top, of the fiwe, at the fiwst ABC
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			findContwowwa.toggweWegex();
+			assewt.stwictEquaw(quewyState['editow.isWegex'], twue);
 
-			findController.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #27083: Update search scope once find widget becomes visible', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
-			// clipboardState = '';
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-			const findConfig: IFindStartOptions = {
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false,
-				updateSearchScope: true,
-				loop: true
+	test('issue #27083: Update seawch scope once find widget becomes visibwe', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection, find: { autoFindInSewection: 'awways', gwobawFindCwipboawd: fawse } }, async (editow) => {
+			// cwipboawdState = '';
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
+			const findConfig: IFindStawtOptions = {
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: fawse,
+				updateSeawchScope: twue,
+				woop: twue
 			};
 
-			editor.setSelection(new Range(1, 1, 2, 1));
-			findController.start(findConfig);
-			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1)]);
+			editow.setSewection(new Wange(1, 1, 2, 1));
+			findContwowwa.stawt(findConfig);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, [new Sewection(1, 1, 2, 1)]);
 
-			findController.closeFindWidget();
+			findContwowwa.cwoseFindWidget();
 
-			editor.setSelections([new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
-			findController.start(findConfig);
-			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
+			editow.setSewections([new Sewection(1, 1, 2, 1), new Sewection(2, 1, 2, 5)]);
+			findContwowwa.stawt(findConfig);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, [new Sewection(1, 1, 2, 1), new Sewection(2, 1, 2, 5)]);
 		});
 	});
 
-	test('issue #58604: Do not update searchScope if it is empty', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
-			// clipboardState = '';
-			editor.setSelection(new Range(1, 2, 1, 2));
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #58604: Do not update seawchScope if it is empty', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection, find: { autoFindInSewection: 'awways', gwobawFindCwipboawd: fawse } }, async (editow) => {
+			// cwipboawdState = '';
+			editow.setSewection(new Wange(1, 2, 1, 2));
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			await findController.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false,
-				updateSearchScope: true,
-				loop: true
+			await findContwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: fawse,
+				updateSeawchScope: twue,
+				woop: twue
 			});
 
-			assert.deepStrictEqual(findController.getState().searchScope, null);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, nuww);
 		});
 	});
 
-	test('issue #58604: Update searchScope if it is not empty', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
-			// clipboardState = '';
-			editor.setSelection(new Range(1, 2, 1, 3));
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #58604: Update seawchScope if it is not empty', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection, find: { autoFindInSewection: 'awways', gwobawFindCwipboawd: fawse } }, async (editow) => {
+			// cwipboawdState = '';
+			editow.setSewection(new Wange(1, 2, 1, 3));
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			await findController.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false,
-				updateSearchScope: true,
-				loop: true
+			await findContwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: fawse,
+				updateSeawchScope: twue,
+				woop: twue
 			});
 
-			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 2, 1, 3)]);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, [new Sewection(1, 2, 1, 3)]);
 		});
 	});
 
 
-	test('issue #27083: Find in selection when multiple lines are selected', async () => {
-		await withAsyncTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'multiline', globalFindClipboard: false } }, async (editor) => {
-			// clipboardState = '';
-			editor.setSelection(new Range(1, 6, 2, 1));
-			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+	test('issue #27083: Find in sewection when muwtipwe wines awe sewected', async () => {
+		await withAsyncTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection, find: { autoFindInSewection: 'muwtiwine', gwobawFindCwipboawd: fawse } }, async (editow) => {
+			// cwipboawdState = '';
+			editow.setSewection(new Wange(1, 6, 2, 1));
+			const findContwowwa = editow.wegistewAndInstantiateContwibution(TestFindContwowwa.ID, TestFindContwowwa);
 
-			await findController.start({
-				forceRevealReplace: false,
-				seedSearchStringFromSelection: 'none',
-				seedSearchStringFromNonEmptySelection: false,
-				seedSearchStringFromGlobalClipboard: false,
-				shouldFocus: FindStartFocusAction.NoFocusChange,
-				shouldAnimate: false,
-				updateSearchScope: true,
-				loop: true
+			await findContwowwa.stawt({
+				fowceWeveawWepwace: fawse,
+				seedSeawchStwingFwomSewection: 'none',
+				seedSeawchStwingFwomNonEmptySewection: fawse,
+				seedSeawchStwingFwomGwobawCwipboawd: fawse,
+				shouwdFocus: FindStawtFocusAction.NoFocusChange,
+				shouwdAnimate: fawse,
+				updateSeawchScope: twue,
+				woop: twue
 			});
 
-			assert.deepStrictEqual(findController.getState().searchScope, [new Selection(1, 6, 2, 1)]);
+			assewt.deepStwictEquaw(findContwowwa.getState().seawchScope, [new Sewection(1, 6, 2, 1)]);
 		});
 	});
 });

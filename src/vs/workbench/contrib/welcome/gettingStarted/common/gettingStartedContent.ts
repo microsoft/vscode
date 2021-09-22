@@ -1,247 +1,247 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcome/gettingStarted/common/media/example_markdown_media';
-import 'vs/workbench/contrib/welcome/gettingStarted/common/media/notebookProfile';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt 'vs/wowkbench/contwib/wewcome/gettingStawted/common/media/exampwe_mawkdown_media';
+impowt 'vs/wowkbench/contwib/wewcome/gettingStawted/common/media/notebookPwofiwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { OpenGettingStawted } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
 
-const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
-const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
-const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mortarBoard, localize('getting-started-intermediate-icon', "Icon used for the intermediate category of welcome page"));
+const setupIcon = wegistewIcon('getting-stawted-setup', Codicon.zap, wocawize('getting-stawted-setup-icon', "Icon used fow the setup categowy of wewcome page"));
+const beginnewIcon = wegistewIcon('getting-stawted-beginna', Codicon.wightbuwb, wocawize('getting-stawted-beginna-icon', "Icon used fow the beginna categowy of wewcome page"));
+const intewmediateIcon = wegistewIcon('getting-stawted-intewmediate', Codicon.mowtawBoawd, wocawize('getting-stawted-intewmediate-icon', "Icon used fow the intewmediate categowy of wewcome page"));
 
 
-export type BuiltinGettingStartedStep = {
-	id: string
-	title: string,
-	description: string,
-	completionEvents?: string[]
-	when?: string,
+expowt type BuiwtinGettingStawtedStep = {
+	id: stwing
+	titwe: stwing,
+	descwiption: stwing,
+	compwetionEvents?: stwing[]
+	when?: stwing,
 	media:
-	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
-	| { type: 'svg', path: string, altText: string }
-	| { type: 'markdown', path: string },
+	| { type: 'image', path: stwing | { hc: stwing, wight: stwing, dawk: stwing }, awtText: stwing }
+	| { type: 'svg', path: stwing, awtText: stwing }
+	| { type: 'mawkdown', path: stwing },
 };
 
-export type BuiltinGettingStartedCategory = {
-	id: string
-	title: string,
-	description: string,
-	isFeatured: boolean,
-	next?: string,
+expowt type BuiwtinGettingStawtedCategowy = {
+	id: stwing
+	titwe: stwing,
+	descwiption: stwing,
+	isFeatuwed: boowean,
+	next?: stwing,
 	icon: ThemeIcon,
-	when?: string,
+	when?: stwing,
 	content:
-	| { type: 'steps', steps: BuiltinGettingStartedStep[] }
+	| { type: 'steps', steps: BuiwtinGettingStawtedStep[] }
 };
 
-export type BuiltinGettingStartedStartEntry = {
-	id: string
-	title: string,
-	description: string,
+expowt type BuiwtinGettingStawtedStawtEntwy = {
+	id: stwing
+	titwe: stwing,
+	descwiption: stwing,
 	icon: ThemeIcon,
-	when?: string,
+	when?: stwing,
 	content:
-	| { type: 'startEntry', command: string }
+	| { type: 'stawtEntwy', command: stwing }
 };
 
-type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
-type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
+type GettingStawtedWawkthwoughContent = BuiwtinGettingStawtedCategowy[];
+type GettingStawtedStawtEntwyContent = BuiwtinGettingStawtedStawtEntwy[];
 
-export const startEntries: GettingStartedStartEntryContent = [
+expowt const stawtEntwies: GettingStawtedStawtEntwyContent = [
 	{
-		id: 'welcome.showNewFileEntries',
-		title: localize('gettingStarted.newFile.title', "New File..."),
-		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
-		icon: Codicon.newFile,
+		id: 'wewcome.showNewFiweEntwies',
+		titwe: wocawize('gettingStawted.newFiwe.titwe', "New Fiwe..."),
+		descwiption: wocawize('gettingStawted.newFiwe.descwiption', "Open a new untitwed fiwe, notebook, ow custom editow."),
+		icon: Codicon.newFiwe,
 		content: {
-			type: 'startEntry',
-			command: 'welcome.showNewFileEntries',
+			type: 'stawtEntwy',
+			command: 'wewcome.showNewFiweEntwies',
 		}
 	},
 	// {
-	// 	id: 'welcome.showNewFolderEntries',
-	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
-	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-	// 	icon: Codicon.newFolder,
+	// 	id: 'wewcome.showNewFowdewEntwies',
+	// 	titwe: wocawize('gettingStawted.newFowda.titwe', "New Fowda..."),
+	// 	descwiption: wocawize('gettingStawted.newFowda.descwiption', "Cweate a fowda fwom a Git wepo ow an extension contwibuted tempwate fowda"),
+	// 	icon: Codicon.newFowda,
 	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'welcome.showNewFolderEntries',
+	// 		type: 'stawtEntwy',
+	// 		command: 'wewcome.showNewFowdewEntwies',
 	// 	}
 	// },
 	{
-		id: 'topLevelOpenMac',
-		title: localize('gettingStarted.openMac.title', "Open..."),
-		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
-		icon: Codicon.folderOpened,
+		id: 'topWevewOpenMac',
+		titwe: wocawize('gettingStawted.openMac.titwe', "Open..."),
+		descwiption: wocawize('gettingStawted.openMac.descwiption', "Open a fiwe ow fowda to stawt wowking"),
+		icon: Codicon.fowdewOpened,
 		when: '!isWeb && isMac',
 		content: {
-			type: 'startEntry',
-			command: 'workbench.action.files.openFileFolder',
+			type: 'stawtEntwy',
+			command: 'wowkbench.action.fiwes.openFiweFowda',
 		}
 	},
 	{
-		id: 'topLevelOpenFile',
-		title: localize('gettingStarted.openFile.title', "Open File..."),
-		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
-		icon: Codicon.goToFile,
+		id: 'topWevewOpenFiwe',
+		titwe: wocawize('gettingStawted.openFiwe.titwe', "Open Fiwe..."),
+		descwiption: wocawize('gettingStawted.openFiwe.descwiption', "Open a fiwe to stawt wowking"),
+		icon: Codicon.goToFiwe,
 		when: 'isWeb || !isMac',
 		content: {
-			type: 'startEntry',
-			command: 'workbench.action.files.openFile',
+			type: 'stawtEntwy',
+			command: 'wowkbench.action.fiwes.openFiwe',
 		}
 	},
 	{
-		id: 'topLevelOpenFolder',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
-		icon: Codicon.folderOpened,
+		id: 'topWevewOpenFowda',
+		titwe: wocawize('gettingStawted.openFowda.titwe', "Open Fowda..."),
+		descwiption: wocawize('gettingStawted.openFowda.descwiption', "Open a fowda to stawt wowking"),
+		icon: Codicon.fowdewOpened,
 		when: '!isWeb',
 		content: {
-			type: 'startEntry',
-			command: 'workbench.action.files.openFolder',
+			type: 'stawtEntwy',
+			command: 'wowkbench.action.fiwes.openFowda',
 		}
 	},
 	{
-		id: 'topLevelOpenFolderWeb',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
-		icon: Codicon.folderOpened,
+		id: 'topWevewOpenFowdewWeb',
+		titwe: wocawize('gettingStawted.openFowda.titwe', "Open Fowda..."),
+		descwiption: wocawize('gettingStawted.openFowda.descwiption', "Open a fowda to stawt wowking"),
+		icon: Codicon.fowdewOpened,
 		when: 'isWeb',
 		content: {
-			type: 'startEntry',
-			command: 'workbench.action.addRootFolder',
+			type: 'stawtEntwy',
+			command: 'wowkbench.action.addWootFowda',
 		}
 	},
 	{
-		id: 'topLevelCommandPalette',
-		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),
-		description: localize('gettingStarted.topLevelCommandPalette.description', "Use the command palette to view and run all of vscode's commands"),
-		icon: Codicon.symbolColor,
+		id: 'topWevewCommandPawette',
+		titwe: wocawize('gettingStawted.topWevewCommandPawette.titwe', "Wun a Command..."),
+		descwiption: wocawize('gettingStawted.topWevewCommandPawette.descwiption', "Use the command pawette to view and wun aww of vscode's commands"),
+		icon: Codicon.symbowCowow,
 		content: {
-			type: 'startEntry',
-			command: 'workbench.action.showCommands',
+			type: 'stawtEntwy',
+			command: 'wowkbench.action.showCommands',
 		}
 	},
 	{
-		id: 'topLevelShowWalkthroughs',
-		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
-		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
-		icon: Codicon.checklist,
-		when: 'allWalkthroughsHidden',
+		id: 'topWevewShowWawkthwoughs',
+		titwe: wocawize('gettingStawted.topWevewShowWawkthwoughs.titwe', "Open a Wawkthwough..."),
+		descwiption: wocawize('gettingStawted.topWevewShowWawkthwoughs.descwiption', ""),
+		icon: Codicon.checkwist,
+		when: 'awwWawkthwoughsHidden',
 		content: {
-			type: 'startEntry',
-			command: 'welcome.showAllWalkthroughs',
+			type: 'stawtEntwy',
+			command: 'wewcome.showAwwWawkthwoughs',
 		}
 	},
 ];
 
-const Button = (title: string, href: string) => `[${title}](${href})`;
+const Button = (titwe: stwing, hwef: stwing) => `[${titwe}](${hwef})`;
 
-export const walkthroughs: GettingStartedWalkthroughContent = [
+expowt const wawkthwoughs: GettingStawtedWawkthwoughContent = [
 	{
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
-		description: localize('gettingStarted.setup.description', "Discover the best customizations to make VS Code yours."),
-		isFeatured: true,
+		titwe: wocawize('gettingStawted.setup.titwe', "Get Stawted with VS Code"),
+		descwiption: wocawize('gettingStawted.setup.descwiption', "Discova the best customizations to make VS Code youws."),
+		isFeatuwed: twue,
 		icon: setupIcon,
-		next: 'Beginner',
+		next: 'Beginna',
 		content: {
 			type: 'steps',
 			steps: [
 				{
-					id: 'pickColorTheme',
-					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
-					description: localize('gettingStarted.pickColor.description.interpolated', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
-					completionEvents: [
-						'onSettingChanged:workbench.colorTheme',
-						'onCommand:workbench.action.selectTheme'
+					id: 'pickCowowTheme',
+					titwe: wocawize('gettingStawted.pickCowow.titwe', "Choose the wook you want"),
+					descwiption: wocawize('gettingStawted.pickCowow.descwiption.intewpowated', "The wight cowow pawette hewps you focus on youw code, is easy on youw eyes, and is simpwy mowe fun to use.\n{0}", Button(wocawize('titweID', "Bwowse Cowow Themes"), 'command:wowkbench.action.sewectTheme')),
+					compwetionEvents: [
+						'onSettingChanged:wowkbench.cowowTheme',
+						'onCommand:wowkbench.action.sewectTheme'
 					],
-					media: { type: 'markdown', path: 'example_markdown_media', }
+					media: { type: 'mawkdown', path: 'exampwe_mawkdown_media', }
 				},
 				{
 					id: 'settingsSyncWeb',
-					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'workspacePlatform == \'webworker\' && syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
+					titwe: wocawize('gettingStawted.settingsSync.titwe', "Sync youw stuff acwoss devices"),
+					descwiption: wocawize('gettingStawted.settingsSync.descwiption.intewpowated', "Neva wose the pewfect VS Code setup! Settings Sync wiww back up and shawe settings, keybindings & extensions acwoss sevewaw instawwations.\n{0}", Button(wocawize('enabweSync', "Enabwe Settings Sync"), 'command:wowkbench.usewDataSync.actions.tuwnOn')),
+					when: 'wowkspacePwatfowm == \'webwowka\' && syncStatus != uninitiawized',
+					compwetionEvents: ['onEvent:sync-enabwed'],
 					media: {
-						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+						type: 'svg', awtText: 'The "Tuwn on Sync" entwy in the settings geaw menu.', path: 'settingsSync.svg'
 					},
 				},
 				{
-					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
+					id: 'findWanguageExtensions',
+					titwe: wocawize('gettingStawted.findWanguageExts.titwe', "Wich suppowt fow aww youw wanguages"),
+					descwiption: wocawize('gettingStawted.findWanguageExts.descwiption.intewpowated', "Code smawta with syntax highwighting, code compwetion, winting and debugging. Whiwe many wanguages awe buiwt-in, many mowe can be added as extensions.\n{0}", Button(wocawize('bwowseWangExts', "Bwowse Wanguage Extensions"), 'command:wowkbench.extensions.action.showWanguageExtensions')),
+					when: 'wowkspacePwatfowm != \'webwowka\'',
 					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
+						type: 'svg', awtText: 'Wanguage extensions', path: 'wanguages.svg'
 					},
 				},
 				{
-					id: 'commandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands Palette is the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequently used commands to save time and keep in the flow.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
+					id: 'commandPawetteTask',
+					titwe: wocawize('gettingStawted.commandPawette.titwe', "One showtcut to access evewything"),
+					descwiption: wocawize('gettingStawted.commandPawette.descwiption.intewpowated', "Commands Pawette is the keyboawd way to accompwish any task in VS Code. **Pwactice** by wooking up youw fwequentwy used commands to save time and keep in the fwow.\n{0}\n__Twy seawching fow 'view toggwe'.__", Button(wocawize('commandPawette', "Open Command Pawette"), 'command:wowkbench.action.showCommands')),
+					media: { type: 'svg', awtText: 'Command Pawette ovewway fow seawching and executing commands.', path: 'commandPawette.svg' },
 				},
 				{
 					id: 'extensionsWeb',
-					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
-					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
-					when: 'workspacePlatform == \'webworker\'',
+					titwe: wocawize('gettingStawted.extensions.titwe', "Wimitwess extensibiwity"),
+					descwiption: wocawize('gettingStawted.extensions.descwiption.intewpowated', "Extensions awe VS Code's powa-ups. They wange fwom handy pwoductivity hacks, expanding out-of-the-box featuwes, to adding compwetewy new capabiwities.\n{0}", Button(wocawize('bwowseWecommended', "Bwowse Wecommended Extensions"), 'command:wowkbench.extensions.action.showPopuwawExtensions')),
+					when: 'wowkspacePwatfowm == \'webwowka\'',
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
+						type: 'svg', awtText: 'VS Code extension mawketpwace with featuwed wanguage extensions', path: 'extensions.svg'
 					},
 				},
 				{
-					id: 'workspaceTrust',
-					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
-					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
-					when: 'workspacePlatform != \'webworker\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
+					id: 'wowkspaceTwust',
+					titwe: wocawize('gettingStawted.wowkspaceTwust.titwe', "Safewy bwowse and edit code"),
+					descwiption: wocawize('gettingStawted.wowkspaceTwust.descwiption.intewpowated', "{0} wets you decide whetha youw pwoject fowdews shouwd **awwow ow westwict** automatic code execution __(wequiwed fow extensions, debugging, etc)__.\nOpening a fiwe/fowda wiww pwompt to gwant twust. You can awways {1} wata.", Button(wocawize('wowkspaceTwust', "Wowkspace Twust"), 'https://github.com/micwosoft/vscode-docs/bwob/wowkspaceTwust/docs/editow/wowkspace-twust.md'), Button(wocawize('enabweTwust', "enabwe twust"), 'command:toSide:wowkbench.action.manageTwustedDomain')),
+					when: 'wowkspacePwatfowm != \'webwowka\' && !isWowkspaceTwusted && wowkspaceFowdewCount == 0',
 					media: {
-						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
+						type: 'svg', awtText: 'Wowkspace Twust editow in Westwicted mode and a pwimawy button fow switching to Twusted mode.', path: 'wowkspaceTwust.svg'
 					},
 				},
 				{
-					id: 'pickAFolderTask-Web',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
-					when: 'isWeb && workspaceFolderCount == 0',
+					id: 'pickAFowdewTask-Web',
+					titwe: wocawize('gettingStawted.setup.OpenFowda.titwe', "Open up youw code"),
+					descwiption: wocawize('gettingStawted.setup.OpenFowdewWeb.descwiption.intewpowated', "You'we aww set to stawt coding. Open a pwoject fowda to get youw fiwes into VS Code.\n{0}\n{1}", Button(wocawize('openFowda', "Open Fowda"), 'command:wowkbench.action.addWootFowda'), Button(wocawize('openWepositowy', "Open Wepositowy"), 'command:wemoteHub.openWepositowy')),
+					when: 'isWeb && wowkspaceFowdewCount == 0',
 					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+						type: 'svg', awtText: 'Expwowa view showing buttons fow opening fowda and cwoning wepositowy.', path: 'openFowda.svg'
 					}
 				},
 				{
-					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-					when: '!isWeb && isMac && workspaceFolderCount == 0',
+					id: 'pickAFowdewTask-Mac',
+					titwe: wocawize('gettingStawted.setup.OpenFowda.titwe', "Open up youw code"),
+					descwiption: wocawize('gettingStawted.setup.OpenFowda.descwiption.intewpowated', "You'we aww set to stawt coding. Open a pwoject fowda to get youw fiwes into VS Code.\n{0}", Button(wocawize('pickFowda', "Pick a Fowda"), 'command:wowkbench.action.fiwes.openFiweFowda')),
+					when: '!isWeb && isMac && wowkspaceFowdewCount == 0',
 					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+						type: 'svg', awtText: 'Expwowa view showing buttons fow opening fowda and cwoning wepositowy.', path: 'openFowda.svg'
 					}
 				},
 				{
-					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
-					when: '!isWeb && !isMac && workspaceFolderCount == 0',
+					id: 'pickAFowdewTask-Otha',
+					titwe: wocawize('gettingStawted.setup.OpenFowda.titwe', "Open up youw code"),
+					descwiption: wocawize('gettingStawted.setup.OpenFowda.descwiption.intewpowated', "You'we aww set to stawt coding. Open a pwoject fowda to get youw fiwes into VS Code.\n{0}", Button(wocawize('pickFowda', "Pick a Fowda"), 'command:wowkbench.action.fiwes.openFowda')),
+					when: '!isWeb && !isMac && wowkspaceFowdewCount == 0',
 					media: {
-						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+						type: 'svg', awtText: 'Expwowa view showing buttons fow opening fowda and cwoning wepositowy.', path: 'openFowda.svg'
 					}
 				},
 				{
 					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
-					description: localize('gettingStarted.quickOpen.description.interpolated', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n{0}", Button(localize('quickOpen', "Quick Open a File"), 'command:toSide:workbench.action.quickOpen')),
-					when: 'workspaceFolderCount != 0',
+					titwe: wocawize('gettingStawted.quickOpen.titwe', "Quickwy navigate between youw fiwes"),
+					descwiption: wocawize('gettingStawted.quickOpen.descwiption.intewpowated', "Navigate between fiwes in an instant with one keystwoke. Tip: Open muwtipwe fiwes by pwessing the wight awwow key.\n{0}", Button(wocawize('quickOpen', "Quick Open a Fiwe"), 'command:toSide:wowkbench.action.quickOpen')),
+					when: 'wowkspaceFowdewCount != 0',
 					media: {
-						type: 'svg', altText: 'Go to file in quick search.', path: 'search.svg'
+						type: 'svg', awtText: 'Go to fiwe in quick seawch.', path: 'seawch.svg'
 					}
 				}
 			]
@@ -249,149 +249,149 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 
 	{
-		id: 'Beginner',
-		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
-		icon: beginnerIcon,
-		isFeatured: true,
-		next: 'Intermediate',
-		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
+		id: 'Beginna',
+		titwe: wocawize('gettingStawted.beginna.titwe', "Weawn the Fundamentaws"),
+		icon: beginnewIcon,
+		isFeatuwed: twue,
+		next: 'Intewmediate',
+		descwiption: wocawize('gettingStawted.beginna.descwiption', "Jump wight into VS Code and get an ovewview of the must-have featuwes."),
 		content: {
 			type: 'steps',
 			steps: [
 				{
-					id: 'playground',
-					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
-					description: localize('gettingStarted.playground.description.interpolated', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n{0}", Button(localize('openInteractivePlayground', "Open Interactive Playground"), 'command:toSide:workbench.action.showInteractivePlayground')),
+					id: 'pwaygwound',
+					titwe: wocawize('gettingStawted.pwaygwound.titwe', "Wedefine youw editing skiwws"),
+					descwiption: wocawize('gettingStawted.pwaygwound.descwiption.intewpowated', "Want to code fasta and smawta? Pwactice powewfuw code editing featuwes in the intewactive pwaygwound.\n{0}", Button(wocawize('openIntewactivePwaygwound', "Open Intewactive Pwaygwound"), 'command:toSide:wowkbench.action.showIntewactivePwaygwound')),
 					media: {
-						type: 'svg', altText: 'Interactive Playground.', path: 'interactivePlayground.svg'
+						type: 'svg', awtText: 'Intewactive Pwaygwound.', path: 'intewactivePwaygwound.svg'
 					},
 				},
 				{
-					id: 'terminal',
-					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
-					description: localize('gettingStarted.terminal.description.interpolated', "Quickly run shell commands and monitor build output, right next to your code.\n{0}", Button(localize('showTerminal', "Show Terminal Panel"), 'command:workbench.action.terminal.toggleTerminal')),
-					when: 'workspacePlatform != \'webworker\' && remoteName != codespaces && !terminalIsOpen',
+					id: 'tewminaw',
+					titwe: wocawize('gettingStawted.tewminaw.titwe', "Convenient buiwt-in tewminaw"),
+					descwiption: wocawize('gettingStawted.tewminaw.descwiption.intewpowated', "Quickwy wun sheww commands and monitow buiwd output, wight next to youw code.\n{0}", Button(wocawize('showTewminaw', "Show Tewminaw Panew"), 'command:wowkbench.action.tewminaw.toggweTewminaw')),
+					when: 'wowkspacePwatfowm != \'webwowka\' && wemoteName != codespaces && !tewminawIsOpen',
 					media: {
-						type: 'svg', altText: 'Integrated terminal running a few npm commands', path: 'terminal.svg'
+						type: 'svg', awtText: 'Integwated tewminaw wunning a few npm commands', path: 'tewminaw.svg'
 					},
 				},
 				{
 					id: 'extensions',
-					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
-					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showRecommendedExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
+					titwe: wocawize('gettingStawted.extensions.titwe', "Wimitwess extensibiwity"),
+					descwiption: wocawize('gettingStawted.extensions.descwiption.intewpowated', "Extensions awe VS Code's powa-ups. They wange fwom handy pwoductivity hacks, expanding out-of-the-box featuwes, to adding compwetewy new capabiwities.\n{0}", Button(wocawize('bwowseWecommended', "Bwowse Wecommended Extensions"), 'command:wowkbench.extensions.action.showWecommendedExtensions')),
+					when: 'wowkspacePwatfowm != \'webwowka\'',
 					media: {
-						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
+						type: 'svg', awtText: 'VS Code extension mawketpwace with featuwed wanguage extensions', path: 'extensions.svg'
 					},
 				},
 				{
 					id: 'settings',
-					title: localize('gettingStarted.settings.title', "Tune your settings"),
-					description: localize('gettingStarted.settings.description.interpolated', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Tweak my Settings"), 'command:toSide:workbench.action.openSettings')),
+					titwe: wocawize('gettingStawted.settings.titwe', "Tune youw settings"),
+					descwiption: wocawize('gettingStawted.settings.descwiption.intewpowated', "Tweak evewy aspect of VS Code and youw extensions to youw wiking. Commonwy used settings awe wisted fiwst to get you stawted.\n{0}", Button(wocawize('tweakSettings', "Tweak my Settings"), 'command:toSide:wowkbench.action.openSettings')),
 					media: {
-						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+						type: 'svg', awtText: 'VS Code Settings', path: 'settings.svg'
 					},
 				},
 				{
 					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'workspacePlatform != \'webworker\' && syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
+					titwe: wocawize('gettingStawted.settingsSync.titwe', "Sync youw stuff acwoss devices"),
+					descwiption: wocawize('gettingStawted.settingsSync.descwiption.intewpowated', "Neva wose the pewfect VS Code setup! Settings Sync wiww back up and shawe settings, keybindings & extensions acwoss sevewaw instawwations.\n{0}", Button(wocawize('enabweSync', "Enabwe Settings Sync"), 'command:wowkbench.usewDataSync.actions.tuwnOn')),
+					when: 'wowkspacePwatfowm != \'webwowka\' && syncStatus != uninitiawized',
+					compwetionEvents: ['onEvent:sync-enabwed'],
 					media: {
-						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+						type: 'svg', awtText: 'The "Tuwn on Sync" entwy in the settings geaw menu.', path: 'settingsSync.svg'
 					},
 				},
 				{
-					id: 'videoTutorial',
-					title: localize('gettingStarted.videoTutorial.title', "Lean back and learn"),
-					description: localize('gettingStarted.videoTutorial.description.interpolated', "Watch the first in a series of short & practical video tutorials for VS Code's key features.\n{0}", Button(localize('watch', "Watch Tutorial"), 'https://aka.ms/vscode-getting-started-video')),
-					media: { type: 'svg', altText: 'VS Code Settings', path: 'learn.svg' },
+					id: 'videoTutowiaw',
+					titwe: wocawize('gettingStawted.videoTutowiaw.titwe', "Wean back and weawn"),
+					descwiption: wocawize('gettingStawted.videoTutowiaw.descwiption.intewpowated', "Watch the fiwst in a sewies of showt & pwacticaw video tutowiaws fow VS Code's key featuwes.\n{0}", Button(wocawize('watch', "Watch Tutowiaw"), 'https://aka.ms/vscode-getting-stawted-video')),
+					media: { type: 'svg', awtText: 'VS Code Settings', path: 'weawn.svg' },
 				}
 			]
 		}
 	},
 
 	{
-		id: 'Intermediate',
-		isFeatured: false,
-		title: localize('gettingStarted.intermediate.title', "Boost your Productivity"),
-		icon: intermediateIcon,
-		description: localize('gettingStarted.intermediate.description', "Optimize your development workflow with these tips & tricks."),
+		id: 'Intewmediate',
+		isFeatuwed: fawse,
+		titwe: wocawize('gettingStawted.intewmediate.titwe', "Boost youw Pwoductivity"),
+		icon: intewmediateIcon,
+		descwiption: wocawize('gettingStawted.intewmediate.descwiption', "Optimize youw devewopment wowkfwow with these tips & twicks."),
 		content: {
 			type: 'steps',
 			steps: [
 				{
-					id: 'splitview',
-					title: localize('gettingStarted.splitview.title', "Side by side editing"),
-					description: localize('gettingStarted.splitview.description.interpolated', "Make the most of your screen estate by opening files side by side, vertically and horizontally.\n{0}", Button(localize('splitEditor', "Split Editor"), 'command:workbench.action.splitEditor')),
+					id: 'spwitview',
+					titwe: wocawize('gettingStawted.spwitview.titwe', "Side by side editing"),
+					descwiption: wocawize('gettingStawted.spwitview.descwiption.intewpowated', "Make the most of youw scween estate by opening fiwes side by side, vewticawwy and howizontawwy.\n{0}", Button(wocawize('spwitEditow', "Spwit Editow"), 'command:wowkbench.action.spwitEditow')),
 					media: {
-						type: 'svg', altText: 'Multiple editors in split view.', path: 'sideBySide.svg',
+						type: 'svg', awtText: 'Muwtipwe editows in spwit view.', path: 'sideBySide.svg',
 					},
 				},
 				{
 					id: 'debugging',
-					title: localize('gettingStarted.debug.title', "Watch your code in action"),
-					description: localize('gettingStarted.debug.description.interpolated', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration.\n{0}", Button(localize('runProject', "Run your Project"), 'command:workbench.action.debug.selectandstart')),
-					when: 'workspacePlatform != \'webworker\' && workspaceFolderCount != 0',
+					titwe: wocawize('gettingStawted.debug.titwe', "Watch youw code in action"),
+					descwiption: wocawize('gettingStawted.debug.descwiption.intewpowated', "Accewewate youw edit, buiwd, test, and debug woop by setting up a waunch configuwation.\n{0}", Button(wocawize('wunPwoject', "Wun youw Pwoject"), 'command:wowkbench.action.debug.sewectandstawt')),
+					when: 'wowkspacePwatfowm != \'webwowka\' && wowkspaceFowdewCount != 0',
 					media: {
-						type: 'svg', altText: 'Run and debug view.', path: 'debug.svg',
+						type: 'svg', awtText: 'Wun and debug view.', path: 'debug.svg',
 					},
 				},
 				{
-					id: 'scmClone',
-					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmClone.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('cloneRepo', "Clone Repository"), 'command:git.clone')),
-					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
+					id: 'scmCwone',
+					titwe: wocawize('gettingStawted.scm.titwe', "Twack youw code with Git"),
+					descwiption: wocawize('gettingStawted.scmCwone.descwiption.intewpowated', "Set up the buiwt-in vewsion contwow fow youw pwoject to twack youw changes and cowwabowate with othews.\n{0}", Button(wocawize('cwoneWepo', "Cwone Wepositowy"), 'command:git.cwone')),
+					when: 'config.git.enabwed && !git.missing && wowkspaceFowdewCount == 0',
 					media: {
-						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
+						type: 'svg', awtText: 'Souwce Contwow view.', path: 'git.svg',
 					},
 				},
 				{
 					id: 'scmSetup',
-					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmSetup.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('initRepo', "Initialize Git Repository"), 'command:git.init')),
-					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount == 0',
+					titwe: wocawize('gettingStawted.scm.titwe', "Twack youw code with Git"),
+					descwiption: wocawize('gettingStawted.scmSetup.descwiption.intewpowated', "Set up the buiwt-in vewsion contwow fow youw pwoject to twack youw changes and cowwabowate with othews.\n{0}", Button(wocawize('initWepo', "Initiawize Git Wepositowy"), 'command:git.init')),
+					when: 'config.git.enabwed && !git.missing && wowkspaceFowdewCount != 0 && gitOpenWepositowyCount == 0',
 					media: {
-						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
+						type: 'svg', awtText: 'Souwce Contwow view.', path: 'git.svg',
 					},
 				},
 				{
 					id: 'scm',
-					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scm.description.interpolated', "No more looking up Git commands! Git and GitHub workflows are seamlessly integrated.\n{0}", Button(localize('openSCM', "Open Source Control"), 'command:workbench.view.scm')),
-					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount != 0 && activeViewlet != \'workbench.view.scm\'',
+					titwe: wocawize('gettingStawted.scm.titwe', "Twack youw code with Git"),
+					descwiption: wocawize('gettingStawted.scm.descwiption.intewpowated', "No mowe wooking up Git commands! Git and GitHub wowkfwows awe seamwesswy integwated.\n{0}", Button(wocawize('openSCM', "Open Souwce Contwow"), 'command:wowkbench.view.scm')),
+					when: 'config.git.enabwed && !git.missing && wowkspaceFowdewCount != 0 && gitOpenWepositowyCount != 0 && activeViewwet != \'wowkbench.view.scm\'',
 					media: {
-						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
+						type: 'svg', awtText: 'Souwce Contwow view.', path: 'git.svg',
 					},
 				},
 				{
-					id: 'installGit',
-					title: localize('gettingStarted.installGit.title', "Install Git"),
-					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					id: 'instawwGit',
+					titwe: wocawize('gettingStawted.instawwGit.titwe', "Instaww Git"),
+					descwiption: wocawize('gettingStawted.instawwGit.descwiption.intewpowated', "Instaww Git to twack changes in youw pwojects.\n{0}", Button(wocawize('instawwGit', "Instaww Git"), 'https://aka.ms/vscode-instaww-git')),
 					when: 'git.missing',
 					media: {
-						type: 'svg', altText: 'Install Git.', path: 'git.svg',
+						type: 'svg', awtText: 'Instaww Git.', path: 'git.svg',
 					},
-					completionEvents: [
-						'onContext:git.state == initialized'
+					compwetionEvents: [
+						'onContext:git.state == initiawized'
 					]
 				},
 				{
 					id: 'tasks',
-					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
-					when: 'workspaceFolderCount != 0 && workspacePlatform != \'webworker\'',
-					description: localize('gettingStarted.tasks.description.interpolated', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n{0}", Button(localize('runTasks', "Run Auto-detected Tasks"), 'command:workbench.action.tasks.runTask')),
+					titwe: wocawize('gettingStawted.tasks.titwe', "Automate youw pwoject tasks"),
+					when: 'wowkspaceFowdewCount != 0 && wowkspacePwatfowm != \'webwowka\'',
+					descwiption: wocawize('gettingStawted.tasks.descwiption.intewpowated', "Cweate tasks fow youw common wowkfwows and enjoy the integwated expewience of wunning scwipts and automaticawwy checking wesuwts.\n{0}", Button(wocawize('wunTasks', "Wun Auto-detected Tasks"), 'command:wowkbench.action.tasks.wunTask')),
 					media: {
-						type: 'svg', altText: 'Task runner.', path: 'runTask.svg',
+						type: 'svg', awtText: 'Task wunna.', path: 'wunTask.svg',
 					},
 				},
 				{
-					id: 'shortcuts',
-					title: localize('gettingStarted.shortcuts.title', "Customize your shortcuts"),
-					description: localize('gettingStarted.shortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
+					id: 'showtcuts',
+					titwe: wocawize('gettingStawted.showtcuts.titwe', "Customize youw showtcuts"),
+					descwiption: wocawize('gettingStawted.showtcuts.descwiption.intewpowated', "Once you have discovewed youw favowite commands, cweate custom keyboawd showtcuts fow instant access.\n{0}", Button(wocawize('keyboawdShowtcuts', "Keyboawd Showtcuts"), 'command:toSide:wowkbench.action.openGwobawKeybindings')),
 					media: {
-						type: 'svg', altText: 'Interactive shortcuts.', path: 'shortcuts.svg',
+						type: 'svg', awtText: 'Intewactive showtcuts.', path: 'showtcuts.svg',
 					}
 				}
 			]
@@ -399,22 +399,22 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 	{
 		id: 'notebooks',
-		title: localize('gettingStarted.notebook.title', "Customize Notebooks"),
-		description: '',
+		titwe: wocawize('gettingStawted.notebook.titwe', "Customize Notebooks"),
+		descwiption: '',
 		icon: setupIcon,
-		isFeatured: false,
-		when: `config.${OpenGettingStarted} && userHasOpenedNotebook`,
+		isFeatuwed: fawse,
+		when: `config.${OpenGettingStawted} && usewHasOpenedNotebook`,
 		content: {
 			type: 'steps',
 			steps: [
 				{
-					completionEvents: ['onCommand:notebook.setProfile'],
-					id: 'notebookProfile',
-					title: localize('gettingStarted.notebookProfile.title', "Select the layout for your notebooks"),
-					description: localize('gettingStarted.notebookProfile.description', "Get notebooks to feel just the way you prefer"),
-					when: 'userHasOpenedNotebook',
+					compwetionEvents: ['onCommand:notebook.setPwofiwe'],
+					id: 'notebookPwofiwe',
+					titwe: wocawize('gettingStawted.notebookPwofiwe.titwe', "Sewect the wayout fow youw notebooks"),
+					descwiption: wocawize('gettingStawted.notebookPwofiwe.descwiption', "Get notebooks to feew just the way you pwefa"),
+					when: 'usewHasOpenedNotebook',
 					media: {
-						type: 'markdown', path: 'notebookProfile'
+						type: 'mawkdown', path: 'notebookPwofiwe'
 					}
 				},
 			]

@@ -1,179 +1,179 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
-import TelemetryReporter from 'vscode-extension-telemetry';
-import * as nls from 'vscode-nls';
-import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
-import { Git, Stash } from './git';
-import { Model } from './model';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
-import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, pathEquals } from './util';
-import { Log, LogLevel } from './log';
-import { GitTimelineItem } from './timelineProvider';
-import { ApiRepository } from './api/api1';
-import { pickRemoteSource } from './remoteSource';
+impowt * as os fwom 'os';
+impowt * as path fwom 'path';
+impowt { Command, commands, Disposabwe, WineChange, MessageOptions, OutputChannew, Position, PwogwessWocation, QuickPickItem, Wange, SouwceContwowWesouwceState, TextDocumentShowOptions, TextEditow, Uwi, ViewCowumn, window, wowkspace, WowkspaceEdit, WowkspaceFowda, TimewineItem, env, Sewection, TextDocumentContentPwovida } fwom 'vscode';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt * as nws fwom 'vscode-nws';
+impowt { Bwanch, FowcePushMode, GitEwwowCodes, Wef, WefType, Status, CommitOptions, WemoteSouwcePwovida } fwom './api/git';
+impowt { Git, Stash } fwom './git';
+impowt { Modew } fwom './modew';
+impowt { Wepositowy, Wesouwce, WesouwceGwoupType } fwom './wepositowy';
+impowt { appwyWineChanges, getModifiedWange, intewsectDiffWithWange, invewtWineChange, toWineWanges } fwom './staging';
+impowt { fwomGitUwi, toGitUwi, isGitUwi } fwom './uwi';
+impowt { gwep, isDescendant, pathEquaws } fwom './utiw';
+impowt { Wog, WogWevew } fwom './wog';
+impowt { GitTimewineItem } fwom './timewinePwovida';
+impowt { ApiWepositowy } fwom './api/api1';
+impowt { pickWemoteSouwce } fwom './wemoteSouwce';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-class CheckoutItem implements QuickPickItem {
+cwass CheckoutItem impwements QuickPickItem {
 
-	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return this.ref.name || this.shortCommit; }
-	get description(): string { return this.shortCommit; }
+	pwotected get showtCommit(): stwing { wetuwn (this.wef.commit || '').substw(0, 8); }
+	get wabew(): stwing { wetuwn this.wef.name || this.showtCommit; }
+	get descwiption(): stwing { wetuwn this.showtCommit; }
 
-	constructor(protected ref: Ref) { }
+	constwuctow(pwotected wef: Wef) { }
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
-		const ref = this.ref.name;
+	async wun(wepositowy: Wepositowy, opts?: { detached?: boowean }): Pwomise<void> {
+		const wef = this.wef.name;
 
-		if (!ref) {
-			return;
+		if (!wef) {
+			wetuwn;
 		}
 
-		await repository.checkout(ref, opts);
+		await wepositowy.checkout(wef, opts);
 	}
 }
 
-class CheckoutTagItem extends CheckoutItem {
+cwass CheckoutTagItem extends CheckoutItem {
 
-	override get description(): string {
-		return localize('tag at', "Tag at {0}", this.shortCommit);
+	ovewwide get descwiption(): stwing {
+		wetuwn wocawize('tag at', "Tag at {0}", this.showtCommit);
 	}
 }
 
-class CheckoutRemoteHeadItem extends CheckoutItem {
+cwass CheckoutWemoteHeadItem extends CheckoutItem {
 
-	override get description(): string {
-		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
+	ovewwide get descwiption(): stwing {
+		wetuwn wocawize('wemote bwanch at', "Wemote bwanch at {0}", this.showtCommit);
 	}
 
-	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
-		if (!this.ref.name) {
-			return;
+	ovewwide async wun(wepositowy: Wepositowy, opts?: { detached?: boowean }): Pwomise<void> {
+		if (!this.wef.name) {
+			wetuwn;
 		}
 
-		const branches = await repository.findTrackingBranches(this.ref.name);
+		const bwanches = await wepositowy.findTwackingBwanches(this.wef.name);
 
-		if (branches.length > 0) {
-			await repository.checkout(branches[0].name!, opts);
-		} else {
-			await repository.checkoutTracking(this.ref.name, opts);
-		}
-	}
-}
-
-class BranchDeleteItem implements QuickPickItem {
-
-	private get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get branchName(): string | undefined { return this.ref.name; }
-	get label(): string { return this.branchName || ''; }
-	get description(): string { return this.shortCommit; }
-
-	constructor(private ref: Ref) { }
-
-	async run(repository: Repository, force?: boolean): Promise<void> {
-		if (!this.branchName) {
-			return;
-		}
-		await repository.deleteBranch(this.branchName, force);
-	}
-}
-
-class MergeItem implements QuickPickItem {
-
-	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
-
-	constructor(protected ref: Ref) { }
-
-	async run(repository: Repository): Promise<void> {
-		await repository.merge(this.ref.name! || this.ref.commit!);
-	}
-}
-
-class RebaseItem implements QuickPickItem {
-
-	get label(): string { return this.ref.name || ''; }
-	description: string = '';
-
-	constructor(readonly ref: Ref) { }
-
-	async run(repository: Repository): Promise<void> {
-		if (this.ref?.name) {
-			await repository.rebase(this.ref.name);
+		if (bwanches.wength > 0) {
+			await wepositowy.checkout(bwanches[0].name!, opts);
+		} ewse {
+			await wepositowy.checkoutTwacking(this.wef.name, opts);
 		}
 	}
 }
 
-class CreateBranchItem implements QuickPickItem {
-	get label(): string { return '$(plus) ' + localize('create branch', 'Create new branch...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
-}
+cwass BwanchDeweteItem impwements QuickPickItem {
 
-class CreateBranchFromItem implements QuickPickItem {
-	get label(): string { return '$(plus) ' + localize('create branch from', 'Create new branch from...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
-}
+	pwivate get showtCommit(): stwing { wetuwn (this.wef.commit || '').substw(0, 8); }
+	get bwanchName(): stwing | undefined { wetuwn this.wef.name; }
+	get wabew(): stwing { wetuwn this.bwanchName || ''; }
+	get descwiption(): stwing { wetuwn this.showtCommit; }
 
-class CheckoutDetachedItem implements QuickPickItem {
-	get label(): string { return '$(debug-disconnect) ' + localize('checkout detached', 'Checkout detached...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
-}
+	constwuctow(pwivate wef: Wef) { }
 
-class HEADItem implements QuickPickItem {
-
-	constructor(private repository: Repository) { }
-
-	get label(): string { return 'HEAD'; }
-	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
-	get alwaysShow(): boolean { return true; }
-}
-
-class AddRemoteItem implements QuickPickItem {
-
-	constructor(private cc: CommandCenter) { }
-
-	get label(): string { return '$(plus) ' + localize('add remote', 'Add a new remote...'); }
-	get description(): string { return ''; }
-
-	get alwaysShow(): boolean { return true; }
-
-	async run(repository: Repository): Promise<void> {
-		await this.cc.addRemote(repository);
+	async wun(wepositowy: Wepositowy, fowce?: boowean): Pwomise<void> {
+		if (!this.bwanchName) {
+			wetuwn;
+		}
+		await wepositowy.deweteBwanch(this.bwanchName, fowce);
 	}
 }
 
-interface ScmCommandOptions {
-	repository?: boolean;
-	diff?: boolean;
+cwass MewgeItem impwements QuickPickItem {
+
+	get wabew(): stwing { wetuwn this.wef.name || ''; }
+	get descwiption(): stwing { wetuwn this.wef.name || ''; }
+
+	constwuctow(pwotected wef: Wef) { }
+
+	async wun(wepositowy: Wepositowy): Pwomise<void> {
+		await wepositowy.mewge(this.wef.name! || this.wef.commit!);
+	}
 }
 
-interface ScmCommand {
-	commandId: string;
-	key: string;
+cwass WebaseItem impwements QuickPickItem {
+
+	get wabew(): stwing { wetuwn this.wef.name || ''; }
+	descwiption: stwing = '';
+
+	constwuctow(weadonwy wef: Wef) { }
+
+	async wun(wepositowy: Wepositowy): Pwomise<void> {
+		if (this.wef?.name) {
+			await wepositowy.webase(this.wef.name);
+		}
+	}
+}
+
+cwass CweateBwanchItem impwements QuickPickItem {
+	get wabew(): stwing { wetuwn '$(pwus) ' + wocawize('cweate bwanch', 'Cweate new bwanch...'); }
+	get descwiption(): stwing { wetuwn ''; }
+	get awwaysShow(): boowean { wetuwn twue; }
+}
+
+cwass CweateBwanchFwomItem impwements QuickPickItem {
+	get wabew(): stwing { wetuwn '$(pwus) ' + wocawize('cweate bwanch fwom', 'Cweate new bwanch fwom...'); }
+	get descwiption(): stwing { wetuwn ''; }
+	get awwaysShow(): boowean { wetuwn twue; }
+}
+
+cwass CheckoutDetachedItem impwements QuickPickItem {
+	get wabew(): stwing { wetuwn '$(debug-disconnect) ' + wocawize('checkout detached', 'Checkout detached...'); }
+	get descwiption(): stwing { wetuwn ''; }
+	get awwaysShow(): boowean { wetuwn twue; }
+}
+
+cwass HEADItem impwements QuickPickItem {
+
+	constwuctow(pwivate wepositowy: Wepositowy) { }
+
+	get wabew(): stwing { wetuwn 'HEAD'; }
+	get descwiption(): stwing { wetuwn (this.wepositowy.HEAD && this.wepositowy.HEAD.commit || '').substw(0, 8); }
+	get awwaysShow(): boowean { wetuwn twue; }
+}
+
+cwass AddWemoteItem impwements QuickPickItem {
+
+	constwuctow(pwivate cc: CommandCenta) { }
+
+	get wabew(): stwing { wetuwn '$(pwus) ' + wocawize('add wemote', 'Add a new wemote...'); }
+	get descwiption(): stwing { wetuwn ''; }
+
+	get awwaysShow(): boowean { wetuwn twue; }
+
+	async wun(wepositowy: Wepositowy): Pwomise<void> {
+		await this.cc.addWemote(wepositowy);
+	}
+}
+
+intewface ScmCommandOptions {
+	wepositowy?: boowean;
+	diff?: boowean;
+}
+
+intewface ScmCommand {
+	commandId: stwing;
+	key: stwing;
 	method: Function;
 	options: ScmCommandOptions;
 }
 
 const Commands: ScmCommand[] = [];
 
-function command(commandId: string, options: ScmCommandOptions = {}): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		if (!(typeof descriptor.value === 'function')) {
-			throw new Error('not supported');
+function command(commandId: stwing, options: ScmCommandOptions = {}): Function {
+	wetuwn (_tawget: any, key: stwing, descwiptow: any) => {
+		if (!(typeof descwiptow.vawue === 'function')) {
+			thwow new Ewwow('not suppowted');
 		}
 
-		Commands.push({ commandId, key, method: descriptor.value, options });
+		Commands.push({ commandId, key, method: descwiptow.vawue, options });
 	};
 }
 
@@ -186,2757 +186,2757 @@ function command(commandId: string, options: ScmCommandOptions = {}): Function {
 // 	'image/bmp'
 // ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
-	const selection = resources.filter(s => s instanceof Resource) as Resource[];
-	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
-	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
-	const isAnyDeleted = (s: Resource) => s.type === Status.DELETED_BY_THEM || s.type === Status.DELETED_BY_US;
-	const possibleUnresolved = merge.filter(isBothAddedOrModified);
-	const promises = possibleUnresolved.map(s => grep(s.resourceUri.fsPath, /^<{7}|^={7}|^>{7}/));
-	const unresolvedBothModified = await Promise.all<boolean>(promises);
-	const resolved = possibleUnresolved.filter((_s, i) => !unresolvedBothModified[i]);
-	const deletionConflicts = merge.filter(s => isAnyDeleted(s));
-	const unresolved = [
-		...merge.filter(s => !isBothAddedOrModified(s) && !isAnyDeleted(s)),
-		...possibleUnresolved.filter((_s, i) => unresolvedBothModified[i])
+async function categowizeWesouwceByWesowution(wesouwces: Wesouwce[]): Pwomise<{ mewge: Wesouwce[], wesowved: Wesouwce[], unwesowved: Wesouwce[], dewetionConfwicts: Wesouwce[] }> {
+	const sewection = wesouwces.fiwta(s => s instanceof Wesouwce) as Wesouwce[];
+	const mewge = sewection.fiwta(s => s.wesouwceGwoupType === WesouwceGwoupType.Mewge);
+	const isBothAddedOwModified = (s: Wesouwce) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
+	const isAnyDeweted = (s: Wesouwce) => s.type === Status.DEWETED_BY_THEM || s.type === Status.DEWETED_BY_US;
+	const possibweUnwesowved = mewge.fiwta(isBothAddedOwModified);
+	const pwomises = possibweUnwesowved.map(s => gwep(s.wesouwceUwi.fsPath, /^<{7}|^={7}|^>{7}/));
+	const unwesowvedBothModified = await Pwomise.aww<boowean>(pwomises);
+	const wesowved = possibweUnwesowved.fiwta((_s, i) => !unwesowvedBothModified[i]);
+	const dewetionConfwicts = mewge.fiwta(s => isAnyDeweted(s));
+	const unwesowved = [
+		...mewge.fiwta(s => !isBothAddedOwModified(s) && !isAnyDeweted(s)),
+		...possibweUnwesowved.fiwta((_s, i) => unwesowvedBothModified[i])
 	];
 
-	return { merge, resolved, unresolved, deletionConflicts };
+	wetuwn { mewge, wesowved, unwesowved, dewetionConfwicts };
 }
 
-function createCheckoutItems(repository: Repository): CheckoutItem[] {
-	const config = workspace.getConfiguration('git');
-	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
-	let checkoutTypes: string[];
+function cweateCheckoutItems(wepositowy: Wepositowy): CheckoutItem[] {
+	const config = wowkspace.getConfiguwation('git');
+	const checkoutTypeConfig = config.get<stwing | stwing[]>('checkoutType');
+	wet checkoutTypes: stwing[];
 
-	if (checkoutTypeConfig === 'all' || !checkoutTypeConfig || checkoutTypeConfig.length === 0) {
-		checkoutTypes = ['local', 'remote', 'tags'];
-	} else if (typeof checkoutTypeConfig === 'string') {
+	if (checkoutTypeConfig === 'aww' || !checkoutTypeConfig || checkoutTypeConfig.wength === 0) {
+		checkoutTypes = ['wocaw', 'wemote', 'tags'];
+	} ewse if (typeof checkoutTypeConfig === 'stwing') {
 		checkoutTypes = [checkoutTypeConfig];
-	} else {
+	} ewse {
 		checkoutTypes = checkoutTypeConfig;
 	}
 
-	const processors = checkoutTypes.map(getCheckoutProcessor)
-		.filter(p => !!p) as CheckoutProcessor[];
+	const pwocessows = checkoutTypes.map(getCheckoutPwocessow)
+		.fiwta(p => !!p) as CheckoutPwocessow[];
 
-	for (const ref of repository.refs) {
-		for (const processor of processors) {
-			processor.onRef(ref);
+	fow (const wef of wepositowy.wefs) {
+		fow (const pwocessow of pwocessows) {
+			pwocessow.onWef(wef);
 		}
 	}
 
-	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items), []);
+	wetuwn pwocessows.weduce<CheckoutItem[]>((w, p) => w.concat(...p.items), []);
 }
 
-class CheckoutProcessor {
+cwass CheckoutPwocessow {
 
-	private refs: Ref[] = [];
-	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(r)); }
-	constructor(private type: RefType, private ctor: { new(ref: Ref): CheckoutItem }) { }
+	pwivate wefs: Wef[] = [];
+	get items(): CheckoutItem[] { wetuwn this.wefs.map(w => new this.ctow(w)); }
+	constwuctow(pwivate type: WefType, pwivate ctow: { new(wef: Wef): CheckoutItem }) { }
 
-	onRef(ref: Ref): void {
-		if (ref.type === this.type) {
-			this.refs.push(ref);
+	onWef(wef: Wef): void {
+		if (wef.type === this.type) {
+			this.wefs.push(wef);
 		}
 	}
 }
 
-function getCheckoutProcessor(type: string): CheckoutProcessor | undefined {
+function getCheckoutPwocessow(type: stwing): CheckoutPwocessow | undefined {
 	switch (type) {
-		case 'local':
-			return new CheckoutProcessor(RefType.Head, CheckoutItem);
-		case 'remote':
-			return new CheckoutProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+		case 'wocaw':
+			wetuwn new CheckoutPwocessow(WefType.Head, CheckoutItem);
+		case 'wemote':
+			wetuwn new CheckoutPwocessow(WefType.WemoteHead, CheckoutWemoteHeadItem);
 		case 'tags':
-			return new CheckoutProcessor(RefType.Tag, CheckoutTagItem);
+			wetuwn new CheckoutPwocessow(WefType.Tag, CheckoutTagItem);
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-function sanitizeRemoteName(name: string) {
-	name = name.trim();
-	return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+function sanitizeWemoteName(name: stwing) {
+	name = name.twim();
+	wetuwn name && name.wepwace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.wock$|\.wock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
 }
 
-class TagItem implements QuickPickItem {
-	get label(): string { return this.ref.name ?? ''; }
-	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
-	constructor(readonly ref: Ref) { }
+cwass TagItem impwements QuickPickItem {
+	get wabew(): stwing { wetuwn this.wef.name ?? ''; }
+	get descwiption(): stwing { wetuwn this.wef.commit?.substw(0, 8) ?? ''; }
+	constwuctow(weadonwy wef: Wef) { }
 }
 
 enum PushType {
 	Push,
 	PushTo,
-	PushFollowTags,
+	PushFowwowTags,
 	PushTags
 }
 
-interface PushOptions {
+intewface PushOptions {
 	pushType: PushType;
-	forcePush?: boolean;
-	silent?: boolean;
+	fowcePush?: boowean;
+	siwent?: boowean;
 
 	pushTo?: {
-		remote?: string;
-		refspec?: string;
-		setUpstream?: boolean;
+		wemote?: stwing;
+		wefspec?: stwing;
+		setUpstweam?: boowean;
 	}
 }
 
-class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
+cwass CommandEwwowOutputTextDocumentContentPwovida impwements TextDocumentContentPwovida {
 
-	private items = new Map<string, string>();
+	pwivate items = new Map<stwing, stwing>();
 
-	set(uri: Uri, contents: string): void {
-		this.items.set(uri.path, contents);
+	set(uwi: Uwi, contents: stwing): void {
+		this.items.set(uwi.path, contents);
 	}
 
-	delete(uri: Uri): void {
-		this.items.delete(uri.path);
+	dewete(uwi: Uwi): void {
+		this.items.dewete(uwi.path);
 	}
 
-	provideTextDocumentContent(uri: Uri): string | undefined {
-		return this.items.get(uri.path);
+	pwovideTextDocumentContent(uwi: Uwi): stwing | undefined {
+		wetuwn this.items.get(uwi.path);
 	}
 }
 
-export class CommandCenter {
+expowt cwass CommandCenta {
 
-	private disposables: Disposable[];
-	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
+	pwivate disposabwes: Disposabwe[];
+	pwivate commandEwwows = new CommandEwwowOutputTextDocumentContentPwovida();
 
-	constructor(
-		private git: Git,
-		private model: Model,
-		private outputChannel: OutputChannel,
-		private telemetryReporter: TelemetryReporter
+	constwuctow(
+		pwivate git: Git,
+		pwivate modew: Modew,
+		pwivate outputChannew: OutputChannew,
+		pwivate tewemetwyWepowta: TewemetwyWepowta
 	) {
-		this.disposables = Commands.map(({ commandId, key, method, options }) => {
-			const command = this.createCommand(commandId, key, method, options);
+		this.disposabwes = Commands.map(({ commandId, key, method, options }) => {
+			const command = this.cweateCommand(commandId, key, method, options);
 
 			if (options.diff) {
-				return commands.registerDiffInformationCommand(commandId, command);
-			} else {
-				return commands.registerCommand(commandId, command);
+				wetuwn commands.wegistewDiffInfowmationCommand(commandId, command);
+			} ewse {
+				wetuwn commands.wegistewCommand(commandId, command);
 			}
 		});
 
-		this.disposables.push(workspace.registerTextDocumentContentProvider('git-output', this.commandErrors));
+		this.disposabwes.push(wowkspace.wegistewTextDocumentContentPwovida('git-output', this.commandEwwows));
 	}
 
-	@command('git.setLogLevel')
-	async setLogLevel(): Promise<void> {
-		const createItem = (logLevel: LogLevel) => ({
-			label: LogLevel[logLevel],
-			logLevel,
-			description: Log.logLevel === logLevel ? localize('current', "Current") : undefined
+	@command('git.setWogWevew')
+	async setWogWevew(): Pwomise<void> {
+		const cweateItem = (wogWevew: WogWevew) => ({
+			wabew: WogWevew[wogWevew],
+			wogWevew,
+			descwiption: Wog.wogWevew === wogWevew ? wocawize('cuwwent', "Cuwwent") : undefined
 		});
 
 		const items = [
-			createItem(LogLevel.Trace),
-			createItem(LogLevel.Debug),
-			createItem(LogLevel.Info),
-			createItem(LogLevel.Warning),
-			createItem(LogLevel.Error),
-			createItem(LogLevel.Critical),
-			createItem(LogLevel.Off)
+			cweateItem(WogWevew.Twace),
+			cweateItem(WogWevew.Debug),
+			cweateItem(WogWevew.Info),
+			cweateItem(WogWevew.Wawning),
+			cweateItem(WogWevew.Ewwow),
+			cweateItem(WogWevew.Cwiticaw),
+			cweateItem(WogWevew.Off)
 		];
 
 		const choice = await window.showQuickPick(items, {
-			placeHolder: localize('select log level', "Select log level")
+			pwaceHowda: wocawize('sewect wog wevew', "Sewect wog wevew")
 		});
 
 		if (!choice) {
-			return;
+			wetuwn;
 		}
 
-		Log.logLevel = choice.logLevel;
-		this.outputChannel.appendLine(localize('changed', "Log level changed to: {0}", LogLevel[Log.logLevel]));
+		Wog.wogWevew = choice.wogWevew;
+		this.outputChannew.appendWine(wocawize('changed', "Wog wevew changed to: {0}", WogWevew[Wog.wogWevew]));
 	}
 
-	@command('git.refresh', { repository: true })
-	async refresh(repository: Repository): Promise<void> {
-		await repository.status();
+	@command('git.wefwesh', { wepositowy: twue })
+	async wefwesh(wepositowy: Wepositowy): Pwomise<void> {
+		await wepositowy.status();
 	}
 
-	@command('git.openResource')
-	async openResource(resource: Resource): Promise<void> {
-		const repository = this.model.getRepository(resource.resourceUri);
+	@command('git.openWesouwce')
+	async openWesouwce(wesouwce: Wesouwce): Pwomise<void> {
+		const wepositowy = this.modew.getWepositowy(wesouwce.wesouwceUwi);
 
-		if (!repository) {
-			return;
+		if (!wepositowy) {
+			wetuwn;
 		}
 
-		await resource.open();
+		await wesouwce.open();
 	}
 
-	@command('git.openAllChanges', { repository: true })
-	async openChanges(repository: Repository): Promise<void> {
-		for (const resource of [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]) {
+	@command('git.openAwwChanges', { wepositowy: twue })
+	async openChanges(wepositowy: Wepositowy): Pwomise<void> {
+		fow (const wesouwce of [...wepositowy.wowkingTweeGwoup.wesouwceStates, ...wepositowy.untwackedGwoup.wesouwceStates]) {
 			if (
-				resource.type === Status.DELETED || resource.type === Status.DELETED_BY_THEM ||
-				resource.type === Status.DELETED_BY_US || resource.type === Status.BOTH_DELETED
+				wesouwce.type === Status.DEWETED || wesouwce.type === Status.DEWETED_BY_THEM ||
+				wesouwce.type === Status.DEWETED_BY_US || wesouwce.type === Status.BOTH_DEWETED
 			) {
 				continue;
 			}
 
 			void commands.executeCommand(
 				'vscode.open',
-				resource.resourceUri,
-				{ background: true, preview: false, }
+				wesouwce.wesouwceUwi,
+				{ backgwound: twue, pweview: fawse, }
 			);
 		}
 	}
 
-	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
-		if (!url || typeof url !== 'string') {
-			url = await pickRemoteSource(this.model, {
-				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
-				urlLabel: localize('repourl', "Clone from URL")
+	async cwoneWepositowy(uww?: stwing, pawentPath?: stwing, options: { wecuwsive?: boowean } = {}): Pwomise<void> {
+		if (!uww || typeof uww !== 'stwing') {
+			uww = await pickWemoteSouwce(this.modew, {
+				pwovidewWabew: pwovida => wocawize('cwonefwom', "Cwone fwom {0}", pwovida.name),
+				uwwWabew: wocawize('wepouww', "Cwone fwom UWW")
 			});
 		}
 
-		if (!url) {
-			/* __GDPR__
-				"clone" : {
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		if (!uww) {
+			/* __GDPW__
+				"cwone" : {
+					"outcome" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
-			return;
+			this.tewemetwyWepowta.sendTewemetwyEvent('cwone', { outcome: 'no_UWW' });
+			wetuwn;
 		}
 
-		url = url.trim().replace(/^git\s+clone\s+/, '');
+		uww = uww.twim().wepwace(/^git\s+cwone\s+/, '');
 
-		if (!parentPath) {
-			const config = workspace.getConfiguration('git');
-			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
-			defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
+		if (!pawentPath) {
+			const config = wowkspace.getConfiguwation('git');
+			wet defauwtCwoneDiwectowy = config.get<stwing>('defauwtCwoneDiwectowy') || os.homediw();
+			defauwtCwoneDiwectowy = defauwtCwoneDiwectowy.wepwace(/^~/, os.homediw());
 
-			const uris = await window.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: Uri.file(defaultCloneDirectory),
-				openLabel: localize('selectFolder', "Select Repository Location")
+			const uwis = await window.showOpenDiawog({
+				canSewectFiwes: fawse,
+				canSewectFowdews: twue,
+				canSewectMany: fawse,
+				defauwtUwi: Uwi.fiwe(defauwtCwoneDiwectowy),
+				openWabew: wocawize('sewectFowda', "Sewect Wepositowy Wocation")
 			});
 
-			if (!uris || uris.length === 0) {
-				/* __GDPR__
-					"clone" : {
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			if (!uwis || uwis.wength === 0) {
+				/* __GDPW__
+					"cwone" : {
+						"outcome" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 					}
 				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
-				return;
+				this.tewemetwyWepowta.sendTewemetwyEvent('cwone', { outcome: 'no_diwectowy' });
+				wetuwn;
 			}
 
-			const uri = uris[0];
-			parentPath = uri.fsPath;
+			const uwi = uwis[0];
+			pawentPath = uwi.fsPath;
 		}
 
-		try {
+		twy {
 			const opts = {
-				location: ProgressLocation.Notification,
-				title: localize('cloning', "Cloning git repository '{0}'...", url),
-				cancellable: true
+				wocation: PwogwessWocation.Notification,
+				titwe: wocawize('cwoning', "Cwoning git wepositowy '{0}'...", uww),
+				cancewwabwe: twue
 			};
 
-			const repositoryPath = await window.withProgress(
+			const wepositowyPath = await window.withPwogwess(
 				opts,
-				(progress, token) => this.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive }, token)
+				(pwogwess, token) => this.git.cwone(uww!, { pawentPath: pawentPath!, pwogwess, wecuwsive: options.wecuwsive }, token)
 			);
 
-			const config = workspace.getConfiguration('git');
-			const openAfterClone = config.get<'always' | 'alwaysNewWindow' | 'whenNoFolderOpen' | 'prompt'>('openAfterClone');
+			const config = wowkspace.getConfiguwation('git');
+			const openAftewCwone = config.get<'awways' | 'awwaysNewWindow' | 'whenNoFowdewOpen' | 'pwompt'>('openAftewCwone');
 
-			enum PostCloneAction { Open, OpenNewWindow, AddToWorkspace }
-			let action: PostCloneAction | undefined = undefined;
+			enum PostCwoneAction { Open, OpenNewWindow, AddToWowkspace }
+			wet action: PostCwoneAction | undefined = undefined;
 
-			if (openAfterClone === 'always') {
-				action = PostCloneAction.Open;
-			} else if (openAfterClone === 'alwaysNewWindow') {
-				action = PostCloneAction.OpenNewWindow;
-			} else if (openAfterClone === 'whenNoFolderOpen' && !workspace.workspaceFolders) {
-				action = PostCloneAction.Open;
+			if (openAftewCwone === 'awways') {
+				action = PostCwoneAction.Open;
+			} ewse if (openAftewCwone === 'awwaysNewWindow') {
+				action = PostCwoneAction.OpenNewWindow;
+			} ewse if (openAftewCwone === 'whenNoFowdewOpen' && !wowkspace.wowkspaceFowdews) {
+				action = PostCwoneAction.Open;
 			}
 
 			if (action === undefined) {
-				let message = localize('proposeopen', "Would you like to open the cloned repository?");
-				const open = localize('openrepo', "Open");
-				const openNewWindow = localize('openreponew', "Open in New Window");
+				wet message = wocawize('pwoposeopen', "Wouwd you wike to open the cwoned wepositowy?");
+				const open = wocawize('openwepo', "Open");
+				const openNewWindow = wocawize('openweponew', "Open in New Window");
 				const choices = [open, openNewWindow];
 
-				const addToWorkspace = localize('add', "Add to Workspace");
-				if (workspace.workspaceFolders) {
-					message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
-					choices.push(addToWorkspace);
+				const addToWowkspace = wocawize('add', "Add to Wowkspace");
+				if (wowkspace.wowkspaceFowdews) {
+					message = wocawize('pwoposeopen2', "Wouwd you wike to open the cwoned wepositowy, ow add it to the cuwwent wowkspace?");
+					choices.push(addToWowkspace);
 				}
 
-				const result = await window.showInformationMessage(message, ...choices);
+				const wesuwt = await window.showInfowmationMessage(message, ...choices);
 
-				action = result === open ? PostCloneAction.Open
-					: result === openNewWindow ? PostCloneAction.OpenNewWindow
-						: result === addToWorkspace ? PostCloneAction.AddToWorkspace : undefined;
+				action = wesuwt === open ? PostCwoneAction.Open
+					: wesuwt === openNewWindow ? PostCwoneAction.OpenNewWindow
+						: wesuwt === addToWowkspace ? PostCwoneAction.AddToWowkspace : undefined;
 			}
 
-			/* __GDPR__
-				"clone" : {
-					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"openFolder": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+			/* __GDPW__
+				"cwone" : {
+					"outcome" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"openFowda": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: action === PostCloneAction.Open || action === PostCloneAction.OpenNewWindow ? 1 : 0 });
+			this.tewemetwyWepowta.sendTewemetwyEvent('cwone', { outcome: 'success' }, { openFowda: action === PostCwoneAction.Open || action === PostCwoneAction.OpenNewWindow ? 1 : 0 });
 
-			const uri = Uri.file(repositoryPath);
+			const uwi = Uwi.fiwe(wepositowyPath);
 
-			if (action === PostCloneAction.Open) {
-				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
-			} else if (action === PostCloneAction.AddToWorkspace) {
-				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-			} else if (action === PostCloneAction.OpenNewWindow) {
-				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+			if (action === PostCwoneAction.Open) {
+				commands.executeCommand('vscode.openFowda', uwi, { fowceWeuseWindow: twue });
+			} ewse if (action === PostCwoneAction.AddToWowkspace) {
+				wowkspace.updateWowkspaceFowdews(wowkspace.wowkspaceFowdews!.wength, 0, { uwi });
+			} ewse if (action === PostCwoneAction.OpenNewWindow) {
+				commands.executeCommand('vscode.openFowda', uwi, { fowceNewWindow: twue });
 			}
-		} catch (err) {
-			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				/* __GDPR__
-					"clone" : {
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		} catch (eww) {
+			if (/awweady exists and is not an empty diwectowy/.test(eww && eww.stdeww || '')) {
+				/* __GDPW__
+					"cwone" : {
+						"outcome" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 					}
 				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
-			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			} else {
-				/* __GDPR__
-					"clone" : {
-						"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				this.tewemetwyWepowta.sendTewemetwyEvent('cwone', { outcome: 'diwectowy_not_empty' });
+			} ewse if (/Cancewwed/i.test(eww && (eww.message || eww.stdeww || ''))) {
+				wetuwn;
+			} ewse {
+				/* __GDPW__
+					"cwone" : {
+						"outcome" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 					}
 				*/
-				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
+				this.tewemetwyWepowta.sendTewemetwyEvent('cwone', { outcome: 'ewwow' });
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	@command('git.clone')
-	async clone(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath);
+	@command('git.cwone')
+	async cwone(uww?: stwing, pawentPath?: stwing): Pwomise<void> {
+		await this.cwoneWepositowy(uww, pawentPath);
 	}
 
-	@command('git.cloneRecursive')
-	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
-		await this.cloneRepository(url, parentPath, { recursive: true });
+	@command('git.cwoneWecuwsive')
+	async cwoneWecuwsive(uww?: stwing, pawentPath?: stwing): Pwomise<void> {
+		await this.cwoneWepositowy(uww, pawentPath, { wecuwsive: twue });
 	}
 
 	@command('git.init')
-	async init(skipFolderPrompt = false): Promise<void> {
-		let repositoryPath: string | undefined = undefined;
-		let askToOpen = true;
+	async init(skipFowdewPwompt = fawse): Pwomise<void> {
+		wet wepositowyPath: stwing | undefined = undefined;
+		wet askToOpen = twue;
 
-		if (workspace.workspaceFolders) {
-			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
-				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
-				askToOpen = false;
-			} else {
-				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
-				const pick = { label: localize('choose', "Choose Folder...") };
-				const items: { label: string, folder?: WorkspaceFolder }[] = [
-					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
+		if (wowkspace.wowkspaceFowdews) {
+			if (skipFowdewPwompt && wowkspace.wowkspaceFowdews.wength === 1) {
+				wepositowyPath = wowkspace.wowkspaceFowdews[0].uwi.fsPath;
+				askToOpen = fawse;
+			} ewse {
+				const pwaceHowda = wocawize('init', "Pick wowkspace fowda to initiawize git wepo in");
+				const pick = { wabew: wocawize('choose', "Choose Fowda...") };
+				const items: { wabew: stwing, fowda?: WowkspaceFowda }[] = [
+					...wowkspace.wowkspaceFowdews.map(fowda => ({ wabew: fowda.name, descwiption: fowda.uwi.fsPath, fowda })),
 					pick
 				];
-				const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
+				const item = await window.showQuickPick(items, { pwaceHowda, ignoweFocusOut: twue });
 
 				if (!item) {
-					return;
-				} else if (item.folder) {
-					repositoryPath = item.folder.uri.fsPath;
-					askToOpen = false;
+					wetuwn;
+				} ewse if (item.fowda) {
+					wepositowyPath = item.fowda.uwi.fsPath;
+					askToOpen = fawse;
 				}
 			}
 		}
 
-		if (!repositoryPath) {
-			const homeUri = Uri.file(os.homedir());
-			const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
-				? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
-				: homeUri;
+		if (!wepositowyPath) {
+			const homeUwi = Uwi.fiwe(os.homediw());
+			const defauwtUwi = wowkspace.wowkspaceFowdews && wowkspace.wowkspaceFowdews.wength > 0
+				? Uwi.fiwe(wowkspace.wowkspaceFowdews[0].uwi.fsPath)
+				: homeUwi;
 
-			const result = await window.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri,
-				openLabel: localize('init repo', "Initialize Repository")
+			const wesuwt = await window.showOpenDiawog({
+				canSewectFiwes: fawse,
+				canSewectFowdews: twue,
+				canSewectMany: fawse,
+				defauwtUwi,
+				openWabew: wocawize('init wepo', "Initiawize Wepositowy")
 			});
 
-			if (!result || result.length === 0) {
-				return;
+			if (!wesuwt || wesuwt.wength === 0) {
+				wetuwn;
 			}
 
-			const uri = result[0];
+			const uwi = wesuwt[0];
 
-			if (homeUri.toString().startsWith(uri.toString())) {
-				const yes = localize('create repo', "Initialize Repository");
-				const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
+			if (homeUwi.toStwing().stawtsWith(uwi.toStwing())) {
+				const yes = wocawize('cweate wepo', "Initiawize Wepositowy");
+				const answa = await window.showWawningMessage(wocawize('awe you suwe', "This wiww cweate a Git wepositowy in '{0}'. Awe you suwe you want to continue?", uwi.fsPath), yes);
 
-				if (answer !== yes) {
-					return;
+				if (answa !== yes) {
+					wetuwn;
 				}
 			}
 
-			repositoryPath = uri.fsPath;
+			wepositowyPath = uwi.fsPath;
 
-			if (workspace.workspaceFolders && workspace.workspaceFolders.some(w => w.uri.toString() === uri.toString())) {
-				askToOpen = false;
+			if (wowkspace.wowkspaceFowdews && wowkspace.wowkspaceFowdews.some(w => w.uwi.toStwing() === uwi.toStwing())) {
+				askToOpen = fawse;
 			}
 		}
 
-		await this.git.init(repositoryPath);
+		await this.git.init(wepositowyPath);
 
-		let message = localize('proposeopen init', "Would you like to open the initialized repository?");
-		const open = localize('openrepo', "Open");
-		const openNewWindow = localize('openreponew', "Open in New Window");
+		wet message = wocawize('pwoposeopen init', "Wouwd you wike to open the initiawized wepositowy?");
+		const open = wocawize('openwepo', "Open");
+		const openNewWindow = wocawize('openweponew', "Open in New Window");
 		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
-			return;
+			wetuwn;
 		}
 
-		const addToWorkspace = localize('add', "Add to Workspace");
-		if (workspace.workspaceFolders) {
-			message = localize('proposeopen2 init', "Would you like to open the initialized repository, or add it to the current workspace?");
-			choices.push(addToWorkspace);
+		const addToWowkspace = wocawize('add', "Add to Wowkspace");
+		if (wowkspace.wowkspaceFowdews) {
+			message = wocawize('pwoposeopen2 init', "Wouwd you wike to open the initiawized wepositowy, ow add it to the cuwwent wowkspace?");
+			choices.push(addToWowkspace);
 		}
 
-		const result = await window.showInformationMessage(message, ...choices);
-		const uri = Uri.file(repositoryPath);
+		const wesuwt = await window.showInfowmationMessage(message, ...choices);
+		const uwi = Uwi.fiwe(wepositowyPath);
 
-		if (result === open) {
-			commands.executeCommand('vscode.openFolder', uri);
-		} else if (result === addToWorkspace) {
-			workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
-		} else if (result === openNewWindow) {
-			commands.executeCommand('vscode.openFolder', uri, true);
-		} else {
-			await this.model.openRepository(repositoryPath);
+		if (wesuwt === open) {
+			commands.executeCommand('vscode.openFowda', uwi);
+		} ewse if (wesuwt === addToWowkspace) {
+			wowkspace.updateWowkspaceFowdews(wowkspace.wowkspaceFowdews!.wength, 0, { uwi });
+		} ewse if (wesuwt === openNewWindow) {
+			commands.executeCommand('vscode.openFowda', uwi, twue);
+		} ewse {
+			await this.modew.openWepositowy(wepositowyPath);
 		}
 	}
 
-	@command('git.openRepository', { repository: false })
-	async openRepository(path?: string): Promise<void> {
+	@command('git.openWepositowy', { wepositowy: fawse })
+	async openWepositowy(path?: stwing): Pwomise<void> {
 		if (!path) {
-			const result = await window.showOpenDialog({
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				defaultUri: Uri.file(os.homedir()),
-				openLabel: localize('open repo', "Open Repository")
+			const wesuwt = await window.showOpenDiawog({
+				canSewectFiwes: fawse,
+				canSewectFowdews: twue,
+				canSewectMany: fawse,
+				defauwtUwi: Uwi.fiwe(os.homediw()),
+				openWabew: wocawize('open wepo', "Open Wepositowy")
 			});
 
-			if (!result || result.length === 0) {
-				return;
+			if (!wesuwt || wesuwt.wength === 0) {
+				wetuwn;
 			}
 
-			path = result[0].fsPath;
+			path = wesuwt[0].fsPath;
 		}
 
-		await this.model.openRepository(path);
+		await this.modew.openWepositowy(path);
 	}
 
-	@command('git.close', { repository: true })
-	async close(repository: Repository): Promise<void> {
-		this.model.close(repository);
+	@command('git.cwose', { wepositowy: twue })
+	async cwose(wepositowy: Wepositowy): Pwomise<void> {
+		this.modew.cwose(wepositowy);
 	}
 
-	@command('git.openFile')
-	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		const preserveFocus = arg instanceof Resource;
+	@command('git.openFiwe')
+	async openFiwe(awg?: Wesouwce | Uwi, ...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		const pwesewveFocus = awg instanceof Wesouwce;
 
-		let uris: Uri[] | undefined;
+		wet uwis: Uwi[] | undefined;
 
-		if (arg instanceof Uri) {
-			if (isGitUri(arg)) {
-				uris = [Uri.file(fromGitUri(arg).path)];
-			} else if (arg.scheme === 'file') {
-				uris = [arg];
+		if (awg instanceof Uwi) {
+			if (isGitUwi(awg)) {
+				uwis = [Uwi.fiwe(fwomGitUwi(awg).path)];
+			} ewse if (awg.scheme === 'fiwe') {
+				uwis = [awg];
 			}
-		} else {
-			let resource = arg;
+		} ewse {
+			wet wesouwce = awg;
 
-			if (!(resource instanceof Resource)) {
-				// can happen when called from a keybinding
-				resource = this.getSCMResource();
+			if (!(wesouwce instanceof Wesouwce)) {
+				// can happen when cawwed fwom a keybinding
+				wesouwce = this.getSCMWesouwce();
 			}
 
-			if (resource) {
-				uris = ([resource, ...resourceStates] as Resource[])
-					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED)
-					.map(r => r.resourceUri);
-			} else if (window.activeTextEditor) {
-				uris = [window.activeTextEditor.document.uri];
+			if (wesouwce) {
+				uwis = ([wesouwce, ...wesouwceStates] as Wesouwce[])
+					.fiwta(w => w.type !== Status.DEWETED && w.type !== Status.INDEX_DEWETED)
+					.map(w => w.wesouwceUwi);
+			} ewse if (window.activeTextEditow) {
+				uwis = [window.activeTextEditow.document.uwi];
 			}
 		}
 
-		if (!uris) {
-			return;
+		if (!uwis) {
+			wetuwn;
 		}
 
-		const activeTextEditor = window.activeTextEditor;
+		const activeTextEditow = window.activeTextEditow;
 
-		for (const uri of uris) {
+		fow (const uwi of uwis) {
 			const opts: TextDocumentShowOptions = {
-				preserveFocus,
-				preview: false,
-				viewColumn: ViewColumn.Active
+				pwesewveFocus,
+				pweview: fawse,
+				viewCowumn: ViewCowumn.Active
 			};
 
-			let document;
-			try {
-				document = await workspace.openTextDocument(uri);
-			} catch (error) {
-				await commands.executeCommand('vscode.open', uri, {
+			wet document;
+			twy {
+				document = await wowkspace.openTextDocument(uwi);
+			} catch (ewwow) {
+				await commands.executeCommand('vscode.open', uwi, {
 					...opts,
-					override: arg instanceof Resource && arg.type === Status.BOTH_MODIFIED ? false : undefined
+					ovewwide: awg instanceof Wesouwce && awg.type === Status.BOTH_MODIFIED ? fawse : undefined
 				});
 				continue;
 			}
 
-			// Check if active text editor has same path as other editor. we cannot compare via
-			// URI.toString() here because the schemas can be different. Instead we just go by path.
-			if (activeTextEditor && activeTextEditor.document.uri.path === uri.path) {
-				// preserve not only selection but also visible range
-				opts.selection = activeTextEditor.selection;
-				const previousVisibleRanges = activeTextEditor.visibleRanges;
-				const editor = await window.showTextDocument(document, opts);
-				editor.revealRange(previousVisibleRanges[0]);
-			} else {
-				await commands.executeCommand('vscode.open', uri, opts);
+			// Check if active text editow has same path as otha editow. we cannot compawe via
+			// UWI.toStwing() hewe because the schemas can be diffewent. Instead we just go by path.
+			if (activeTextEditow && activeTextEditow.document.uwi.path === uwi.path) {
+				// pwesewve not onwy sewection but awso visibwe wange
+				opts.sewection = activeTextEditow.sewection;
+				const pweviousVisibweWanges = activeTextEditow.visibweWanges;
+				const editow = await window.showTextDocument(document, opts);
+				editow.weveawWange(pweviousVisibweWanges[0]);
+			} ewse {
+				await commands.executeCommand('vscode.open', uwi, opts);
 			}
 		}
 	}
 
-	@command('git.openFile2')
-	async openFile2(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.openFile(arg, ...resourceStates);
+	@command('git.openFiwe2')
+	async openFiwe2(awg?: Wesouwce | Uwi, ...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		this.openFiwe(awg, ...wesouwceStates);
 	}
 
-	@command('git.openHEADFile')
-	async openHEADFile(arg?: Resource | Uri): Promise<void> {
-		let resource: Resource | undefined = undefined;
-		const preview = !(arg instanceof Resource);
+	@command('git.openHEADFiwe')
+	async openHEADFiwe(awg?: Wesouwce | Uwi): Pwomise<void> {
+		wet wesouwce: Wesouwce | undefined = undefined;
+		const pweview = !(awg instanceof Wesouwce);
 
-		if (arg instanceof Resource) {
-			resource = arg;
-		} else if (arg instanceof Uri) {
-			resource = this.getSCMResource(arg);
-		} else {
-			resource = this.getSCMResource();
+		if (awg instanceof Wesouwce) {
+			wesouwce = awg;
+		} ewse if (awg instanceof Uwi) {
+			wesouwce = this.getSCMWesouwce(awg);
+		} ewse {
+			wesouwce = this.getSCMWesouwce();
 		}
 
-		if (!resource) {
-			return;
+		if (!wesouwce) {
+			wetuwn;
 		}
 
-		const HEAD = resource.leftUri;
-		const basename = path.basename(resource.resourceUri.fsPath);
-		const title = `${basename} (HEAD)`;
+		const HEAD = wesouwce.weftUwi;
+		const basename = path.basename(wesouwce.wesouwceUwi.fsPath);
+		const titwe = `${basename} (HEAD)`;
 
 		if (!HEAD) {
-			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
-			return;
+			window.showWawningMessage(wocawize('HEAD not avaiwabwe', "HEAD vewsion of '{0}' is not avaiwabwe.", path.basename(wesouwce.wesouwceUwi.fsPath)));
+			wetuwn;
 		}
 
 		const opts: TextDocumentShowOptions = {
-			preview
+			pweview
 		};
 
-		return await commands.executeCommand<void>('vscode.open', HEAD, opts, title);
+		wetuwn await commands.executeCommand<void>('vscode.open', HEAD, opts, titwe);
 	}
 
 	@command('git.openChange')
-	async openChange(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
-		let resources: Resource[] | undefined = undefined;
+	async openChange(awg?: Wesouwce | Uwi, ...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		wet wesouwces: Wesouwce[] | undefined = undefined;
 
-		if (arg instanceof Uri) {
-			const resource = this.getSCMResource(arg);
-			if (resource !== undefined) {
-				resources = [resource];
+		if (awg instanceof Uwi) {
+			const wesouwce = this.getSCMWesouwce(awg);
+			if (wesouwce !== undefined) {
+				wesouwces = [wesouwce];
 			}
-		} else {
-			let resource: Resource | undefined = undefined;
+		} ewse {
+			wet wesouwce: Wesouwce | undefined = undefined;
 
-			if (arg instanceof Resource) {
-				resource = arg;
-			} else {
-				resource = this.getSCMResource();
+			if (awg instanceof Wesouwce) {
+				wesouwce = awg;
+			} ewse {
+				wesouwce = this.getSCMWesouwce();
 			}
 
-			if (resource) {
-				resources = [...resourceStates as Resource[], resource];
+			if (wesouwce) {
+				wesouwces = [...wesouwceStates as Wesouwce[], wesouwce];
 			}
 		}
 
-		if (!resources) {
-			return;
+		if (!wesouwces) {
+			wetuwn;
 		}
 
-		for (const resource of resources) {
-			await resource.openChange();
+		fow (const wesouwce of wesouwces) {
+			await wesouwce.openChange();
 		}
 	}
 
-	@command('git.rename', { repository: true })
-	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
-		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
+	@command('git.wename', { wepositowy: twue })
+	async wename(wepositowy: Wepositowy, fwomUwi: Uwi | undefined): Pwomise<void> {
+		fwomUwi = fwomUwi ?? window.activeTextEditow?.document.uwi;
 
-		if (!fromUri) {
-			return;
+		if (!fwomUwi) {
+			wetuwn;
 		}
 
-		const from = path.relative(repository.root, fromUri.fsPath);
-		let to = await window.showInputBox({
-			value: from,
-			valueSelection: [from.length - path.basename(from).length, from.length]
+		const fwom = path.wewative(wepositowy.woot, fwomUwi.fsPath);
+		wet to = await window.showInputBox({
+			vawue: fwom,
+			vawueSewection: [fwom.wength - path.basename(fwom).wength, fwom.wength]
 		});
 
-		to = to?.trim();
+		to = to?.twim();
 
 		if (!to) {
-			return;
+			wetuwn;
 		}
 
-		await repository.move(from, to);
+		await wepositowy.move(fwom, to);
 	}
 
 	@command('git.stage')
-	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+	async stage(...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		this.outputChannew.appendWine(`git.stage ${wesouwceStates.wength}`);
 
-		resourceStates = resourceStates.filter(s => !!s);
+		wesouwceStates = wesouwceStates.fiwta(s => !!s);
 
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+		if (wesouwceStates.wength === 0 || (wesouwceStates[0] && !(wesouwceStates[0].wesouwceUwi instanceof Uwi))) {
+			const wesouwce = this.getSCMWesouwce();
 
-			this.outputChannel.appendLine(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
+			this.outputChannew.appendWine(`git.stage.getSCMWesouwce ${wesouwce ? wesouwce.wesouwceUwi.toStwing() : nuww}`);
 
-			if (!resource) {
-				return;
+			if (!wesouwce) {
+				wetuwn;
 			}
 
-			resourceStates = [resource];
+			wesouwceStates = [wesouwce];
 		}
 
-		const selection = resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { resolved, unresolved, deletionConflicts } = await categorizeResourceByResolution(selection);
+		const sewection = wesouwceStates.fiwta(s => s instanceof Wesouwce) as Wesouwce[];
+		const { wesowved, unwesowved, dewetionConfwicts } = await categowizeWesouwceByWesowution(sewection);
 
-		if (unresolved.length > 0) {
-			const message = unresolved.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", unresolved.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(unresolved[0].resourceUri.fsPath));
+		if (unwesowved.wength > 0) {
+			const message = unwesowved.wength > 1
+				? wocawize('confiwm stage fiwes with mewge confwicts', "Awe you suwe you want to stage {0} fiwes with mewge confwicts?", unwesowved.wength)
+				: wocawize('confiwm stage fiwe with mewge confwicts', "Awe you suwe you want to stage {0} with mewge confwicts?", path.basename(unwesowved[0].wesouwceUwi.fsPath));
 
-			const yes = localize('yes', "Yes");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			const yes = wocawize('yes', "Yes");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 			if (pick !== yes) {
-				return;
+				wetuwn;
 			}
 		}
 
-		try {
-			await this.runByRepository(deletionConflicts.map(r => r.resourceUri), async (repository, resources) => {
-				for (const resource of resources) {
-					await this._stageDeletionConflict(repository, resource);
+		twy {
+			await this.wunByWepositowy(dewetionConfwicts.map(w => w.wesouwceUwi), async (wepositowy, wesouwces) => {
+				fow (const wesouwce of wesouwces) {
+					await this._stageDewetionConfwict(wepositowy, wesouwce);
 				}
 			});
-		} catch (err) {
-			if (/Cancelled/.test(err.message)) {
-				return;
+		} catch (eww) {
+			if (/Cancewwed/.test(eww.message)) {
+				wetuwn;
 			}
 
-			throw err;
+			thwow eww;
 		}
 
-		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
-		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
-		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
+		const wowkingTwee = sewection.fiwta(s => s.wesouwceGwoupType === WesouwceGwoupType.WowkingTwee);
+		const untwacked = sewection.fiwta(s => s.wesouwceGwoupType === WesouwceGwoupType.Untwacked);
+		const scmWesouwces = [...wowkingTwee, ...untwacked, ...wesowved, ...unwesowved];
 
-		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
-		if (!scmResources.length) {
-			return;
+		this.outputChannew.appendWine(`git.stage.scmWesouwces ${scmWesouwces.wength}`);
+		if (!scmWesouwces.wength) {
+			wetuwn;
 		}
 
-		const resources = scmResources.map(r => r.resourceUri);
-		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
+		const wesouwces = scmWesouwces.map(w => w.wesouwceUwi);
+		await this.wunByWepositowy(wesouwces, async (wepositowy, wesouwces) => wepositowy.add(wesouwces));
 	}
 
-	@command('git.stageAll', { repository: true })
-	async stageAll(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates];
-		const uris = resources.map(r => r.resourceUri);
+	@command('git.stageAww', { wepositowy: twue })
+	async stageAww(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = [...wepositowy.wowkingTweeGwoup.wesouwceStates, ...wepositowy.untwackedGwoup.wesouwceStates];
+		const uwis = wesouwces.map(w => w.wesouwceUwi);
 
-		if (uris.length > 0) {
-			const config = workspace.getConfiguration('git', Uri.file(repository.root));
-			const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-			await repository.add(uris, untrackedChanges === 'mixed' ? undefined : { update: true });
-		}
-	}
-
-	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
-		const uriString = uri.toString();
-		const resource = repository.mergeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
-
-		if (!resource) {
-			return;
-		}
-
-		if (resource.type === Status.DELETED_BY_THEM) {
-			const keepIt = localize('keep ours', "Keep Our Version");
-			const deleteIt = localize('delete', "Delete File");
-			const result = await window.showInformationMessage(localize('deleted by them', "File '{0}' was deleted by them and modified by us.\n\nWhat would you like to do?", path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
-
-			if (result === keepIt) {
-				await repository.add([uri]);
-			} else if (result === deleteIt) {
-				await repository.rm([uri]);
-			} else {
-				throw new Error('Cancelled');
-			}
-		} else if (resource.type === Status.DELETED_BY_US) {
-			const keepIt = localize('keep theirs', "Keep Their Version");
-			const deleteIt = localize('delete', "Delete File");
-			const result = await window.showInformationMessage(localize('deleted by us', "File '{0}' was deleted by us and modified by them.\n\nWhat would you like to do?", path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
-
-			if (result === keepIt) {
-				await repository.add([uri]);
-			} else if (result === deleteIt) {
-				await repository.rm([uri]);
-			} else {
-				throw new Error('Cancelled');
-			}
+		if (uwis.wength > 0) {
+			const config = wowkspace.getConfiguwation('git', Uwi.fiwe(wepositowy.woot));
+			const untwackedChanges = config.get<'mixed' | 'sepawate' | 'hidden'>('untwackedChanges');
+			await wepositowy.add(uwis, untwackedChanges === 'mixed' ? undefined : { update: twue });
 		}
 	}
 
-	@command('git.stageAllTracked', { repository: true })
-	async stageAllTracked(repository: Repository): Promise<void> {
-		const resources = repository.workingTreeGroup.resourceStates
-			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
-		const uris = resources.map(r => r.resourceUri);
+	pwivate async _stageDewetionConfwict(wepositowy: Wepositowy, uwi: Uwi): Pwomise<void> {
+		const uwiStwing = uwi.toStwing();
+		const wesouwce = wepositowy.mewgeGwoup.wesouwceStates.fiwta(w => w.wesouwceUwi.toStwing() === uwiStwing)[0];
 
-		await repository.add(uris);
-	}
-
-	@command('git.stageAllUntracked', { repository: true })
-	async stageAllUntracked(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
-			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
-		const uris = resources.map(r => r.resourceUri);
-
-		await repository.add(uris);
-	}
-
-	@command('git.stageAllMerge', { repository: true })
-	async stageAllMerge(repository: Repository): Promise<void> {
-		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
-
-		try {
-			for (const deletionConflict of deletionConflicts) {
-				await this._stageDeletionConflict(repository, deletionConflict.resourceUri);
-			}
-		} catch (err) {
-			if (/Cancelled/.test(err.message)) {
-				return;
-			}
-
-			throw err;
+		if (!wesouwce) {
+			wetuwn;
 		}
 
-		if (unresolved.length > 0) {
-			const message = unresolved.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", merge.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(merge[0].resourceUri.fsPath));
+		if (wesouwce.type === Status.DEWETED_BY_THEM) {
+			const keepIt = wocawize('keep ouws', "Keep Ouw Vewsion");
+			const deweteIt = wocawize('dewete', "Dewete Fiwe");
+			const wesuwt = await window.showInfowmationMessage(wocawize('deweted by them', "Fiwe '{0}' was deweted by them and modified by us.\n\nWhat wouwd you wike to do?", path.basename(uwi.fsPath)), { modaw: twue }, keepIt, deweteIt);
 
-			const yes = localize('yes', "Yes");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			if (wesuwt === keepIt) {
+				await wepositowy.add([uwi]);
+			} ewse if (wesuwt === deweteIt) {
+				await wepositowy.wm([uwi]);
+			} ewse {
+				thwow new Ewwow('Cancewwed');
+			}
+		} ewse if (wesouwce.type === Status.DEWETED_BY_US) {
+			const keepIt = wocawize('keep theiws', "Keep Theiw Vewsion");
+			const deweteIt = wocawize('dewete', "Dewete Fiwe");
+			const wesuwt = await window.showInfowmationMessage(wocawize('deweted by us', "Fiwe '{0}' was deweted by us and modified by them.\n\nWhat wouwd you wike to do?", path.basename(uwi.fsPath)), { modaw: twue }, keepIt, deweteIt);
+
+			if (wesuwt === keepIt) {
+				await wepositowy.add([uwi]);
+			} ewse if (wesuwt === deweteIt) {
+				await wepositowy.wm([uwi]);
+			} ewse {
+				thwow new Ewwow('Cancewwed');
+			}
+		}
+	}
+
+	@command('git.stageAwwTwacked', { wepositowy: twue })
+	async stageAwwTwacked(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = wepositowy.wowkingTweeGwoup.wesouwceStates
+			.fiwta(w => w.type !== Status.UNTWACKED && w.type !== Status.IGNOWED);
+		const uwis = wesouwces.map(w => w.wesouwceUwi);
+
+		await wepositowy.add(uwis);
+	}
+
+	@command('git.stageAwwUntwacked', { wepositowy: twue })
+	async stageAwwUntwacked(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = [...wepositowy.wowkingTweeGwoup.wesouwceStates, ...wepositowy.untwackedGwoup.wesouwceStates]
+			.fiwta(w => w.type === Status.UNTWACKED || w.type === Status.IGNOWED);
+		const uwis = wesouwces.map(w => w.wesouwceUwi);
+
+		await wepositowy.add(uwis);
+	}
+
+	@command('git.stageAwwMewge', { wepositowy: twue })
+	async stageAwwMewge(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = wepositowy.mewgeGwoup.wesouwceStates.fiwta(s => s instanceof Wesouwce) as Wesouwce[];
+		const { mewge, unwesowved, dewetionConfwicts } = await categowizeWesouwceByWesowution(wesouwces);
+
+		twy {
+			fow (const dewetionConfwict of dewetionConfwicts) {
+				await this._stageDewetionConfwict(wepositowy, dewetionConfwict.wesouwceUwi);
+			}
+		} catch (eww) {
+			if (/Cancewwed/.test(eww.message)) {
+				wetuwn;
+			}
+
+			thwow eww;
+		}
+
+		if (unwesowved.wength > 0) {
+			const message = unwesowved.wength > 1
+				? wocawize('confiwm stage fiwes with mewge confwicts', "Awe you suwe you want to stage {0} fiwes with mewge confwicts?", mewge.wength)
+				: wocawize('confiwm stage fiwe with mewge confwicts', "Awe you suwe you want to stage {0} with mewge confwicts?", path.basename(mewge[0].wesouwceUwi.fsPath));
+
+			const yes = wocawize('yes', "Yes");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 			if (pick !== yes) {
-				return;
+				wetuwn;
 			}
 		}
 
-		const uris = resources.map(r => r.resourceUri);
+		const uwis = wesouwces.map(w => w.wesouwceUwi);
 
-		if (uris.length > 0) {
-			await repository.add(uris);
+		if (uwis.wength > 0) {
+			await wepositowy.add(uwis);
 		}
 	}
 
 	@command('git.stageChange')
-	async stageChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
-		if (!uri) {
-			return;
+	async stageChange(uwi: Uwi, changes: WineChange[], index: numba): Pwomise<void> {
+		if (!uwi) {
+			wetuwn;
 		}
 
-		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		const textEditow = window.visibweTextEditows.fiwta(e => e.document.uwi.toStwing() === uwi.toStwing())[0];
 
-		if (!textEditor) {
-			return;
+		if (!textEditow) {
+			wetuwn;
 		}
 
-		await this._stageChanges(textEditor, [changes[index]]);
+		await this._stageChanges(textEditow, [changes[index]]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
-		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+		const fiwstStagedWine = changes[index].modifiedStawtWineNumba - 1;
+		textEditow.sewections = [new Sewection(fiwstStagedWine, 0, fiwstStagedWine, 0)];
 	}
 
-	@command('git.stageSelectedRanges', { diff: true })
-	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	@command('git.stageSewectedWanges', { diff: twue })
+	async stageSewectedChanges(changes: WineChange[]): Pwomise<void> {
+		const textEditow = window.activeTextEditow;
 
-		if (!textEditor) {
-			return;
+		if (!textEditow) {
+			wetuwn;
 		}
 
-		const modifiedDocument = textEditor.document;
-		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedChanges = changes
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const modifiedDocument = textEditow.document;
+		const sewectedWines = toWineWanges(textEditow.sewections, modifiedDocument);
+		const sewectedChanges = changes
+			.map(diff => sewectedWines.weduce<WineChange | nuww>((wesuwt, wange) => wesuwt || intewsectDiffWithWange(modifiedDocument, diff, wange), nuww))
+			.fiwta(d => !!d) as WineChange[];
 
-		if (!selectedChanges.length) {
-			return;
+		if (!sewectedChanges.wength) {
+			wetuwn;
 		}
 
-		await this._stageChanges(textEditor, selectedChanges);
+		await this._stageChanges(textEditow, sewectedChanges);
 	}
 
-	private async _stageChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
-		const modifiedDocument = textEditor.document;
-		const modifiedUri = modifiedDocument.uri;
+	pwivate async _stageChanges(textEditow: TextEditow, changes: WineChange[]): Pwomise<void> {
+		const modifiedDocument = textEditow.document;
+		const modifiedUwi = modifiedDocument.uwi;
 
-		if (modifiedUri.scheme !== 'file') {
-			return;
+		if (modifiedUwi.scheme !== 'fiwe') {
+			wetuwn;
 		}
 
-		const originalUri = toGitUri(modifiedUri, '~');
-		const originalDocument = await workspace.openTextDocument(originalUri);
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+		const owiginawUwi = toGitUwi(modifiedUwi, '~');
+		const owiginawDocument = await wowkspace.openTextDocument(owiginawUwi);
+		const wesuwt = appwyWineChanges(owiginawDocument, modifiedDocument, changes);
 
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.wunByWepositowy(modifiedUwi, async (wepositowy, wesouwce) => await wepositowy.stage(wesouwce, wesuwt));
 	}
 
-	@command('git.revertChange')
-	async revertChange(uri: Uri, changes: LineChange[], index: number): Promise<void> {
-		if (!uri) {
-			return;
+	@command('git.wevewtChange')
+	async wevewtChange(uwi: Uwi, changes: WineChange[], index: numba): Pwomise<void> {
+		if (!uwi) {
+			wetuwn;
 		}
 
-		const textEditor = window.visibleTextEditors.filter(e => e.document.uri.toString() === uri.toString())[0];
+		const textEditow = window.visibweTextEditows.fiwta(e => e.document.uwi.toStwing() === uwi.toStwing())[0];
 
-		if (!textEditor) {
-			return;
+		if (!textEditow) {
+			wetuwn;
 		}
 
-		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+		await this._wevewtChanges(textEditow, [...changes.swice(0, index), ...changes.swice(index + 1)]);
 
-		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
-		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+		const fiwstStagedWine = changes[index].modifiedStawtWineNumba - 1;
+		textEditow.sewections = [new Sewection(fiwstStagedWine, 0, fiwstStagedWine, 0)];
 	}
 
-	@command('git.revertSelectedRanges', { diff: true })
-	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	@command('git.wevewtSewectedWanges', { diff: twue })
+	async wevewtSewectedWanges(changes: WineChange[]): Pwomise<void> {
+		const textEditow = window.activeTextEditow;
 
-		if (!textEditor) {
-			return;
+		if (!textEditow) {
+			wetuwn;
 		}
 
-		const modifiedDocument = textEditor.document;
-		const selections = textEditor.selections;
-		const selectedChanges = changes.filter(change => {
-			const modifiedRange = getModifiedRange(modifiedDocument, change);
-			return selections.every(selection => !selection.intersection(modifiedRange));
+		const modifiedDocument = textEditow.document;
+		const sewections = textEditow.sewections;
+		const sewectedChanges = changes.fiwta(change => {
+			const modifiedWange = getModifiedWange(modifiedDocument, change);
+			wetuwn sewections.evewy(sewection => !sewection.intewsection(modifiedWange));
 		});
 
-		if (selectedChanges.length === changes.length) {
-			return;
+		if (sewectedChanges.wength === changes.wength) {
+			wetuwn;
 		}
 
-		const selectionsBeforeRevert = textEditor.selections;
-		await this._revertChanges(textEditor, selectedChanges);
-		textEditor.selections = selectionsBeforeRevert;
+		const sewectionsBefoweWevewt = textEditow.sewections;
+		await this._wevewtChanges(textEditow, sewectedChanges);
+		textEditow.sewections = sewectionsBefoweWevewt;
 	}
 
-	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
-		const modifiedDocument = textEditor.document;
-		const modifiedUri = modifiedDocument.uri;
+	pwivate async _wevewtChanges(textEditow: TextEditow, changes: WineChange[]): Pwomise<void> {
+		const modifiedDocument = textEditow.document;
+		const modifiedUwi = modifiedDocument.uwi;
 
-		if (modifiedUri.scheme !== 'file') {
-			return;
+		if (modifiedUwi.scheme !== 'fiwe') {
+			wetuwn;
 		}
 
-		const originalUri = toGitUri(modifiedUri, '~');
-		const originalDocument = await workspace.openTextDocument(originalUri);
-		const visibleRangesBeforeRevert = textEditor.visibleRanges;
-		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
+		const owiginawUwi = toGitUwi(modifiedUwi, '~');
+		const owiginawDocument = await wowkspace.openTextDocument(owiginawUwi);
+		const visibweWangesBefoweWevewt = textEditow.visibweWanges;
+		const wesuwt = appwyWineChanges(owiginawDocument, modifiedDocument, changes);
 
-		const edit = new WorkspaceEdit();
-		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
-		workspace.applyEdit(edit);
+		const edit = new WowkspaceEdit();
+		edit.wepwace(modifiedUwi, new Wange(new Position(0, 0), modifiedDocument.wineAt(modifiedDocument.wineCount - 1).wange.end), wesuwt);
+		wowkspace.appwyEdit(edit);
 
 		await modifiedDocument.save();
 
-		textEditor.revealRange(visibleRangesBeforeRevert[0]);
+		textEditow.weveawWange(visibweWangesBefoweWevewt[0]);
 	}
 
 	@command('git.unstage')
-	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+	async unstage(...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		wesouwceStates = wesouwceStates.fiwta(s => !!s);
 
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+		if (wesouwceStates.wength === 0 || (wesouwceStates[0] && !(wesouwceStates[0].wesouwceUwi instanceof Uwi))) {
+			const wesouwce = this.getSCMWesouwce();
 
-			if (!resource) {
-				return;
+			if (!wesouwce) {
+				wetuwn;
 			}
 
-			resourceStates = [resource];
+			wesouwceStates = [wesouwce];
 		}
 
-		const scmResources = resourceStates
-			.filter(s => s instanceof Resource && s.resourceGroupType === ResourceGroupType.Index) as Resource[];
+		const scmWesouwces = wesouwceStates
+			.fiwta(s => s instanceof Wesouwce && s.wesouwceGwoupType === WesouwceGwoupType.Index) as Wesouwce[];
 
-		if (!scmResources.length) {
-			return;
+		if (!scmWesouwces.wength) {
+			wetuwn;
 		}
 
-		const resources = scmResources.map(r => r.resourceUri);
-		await this.runByRepository(resources, async (repository, resources) => repository.revert(resources));
+		const wesouwces = scmWesouwces.map(w => w.wesouwceUwi);
+		await this.wunByWepositowy(wesouwces, async (wepositowy, wesouwces) => wepositowy.wevewt(wesouwces));
 	}
 
-	@command('git.unstageAll', { repository: true })
-	async unstageAll(repository: Repository): Promise<void> {
-		await repository.revert([]);
+	@command('git.unstageAww', { wepositowy: twue })
+	async unstageAww(wepositowy: Wepositowy): Pwomise<void> {
+		await wepositowy.wevewt([]);
 	}
 
-	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
-		const textEditor = window.activeTextEditor;
+	@command('git.unstageSewectedWanges', { diff: twue })
+	async unstageSewectedWanges(diffs: WineChange[]): Pwomise<void> {
+		const textEditow = window.activeTextEditow;
 
-		if (!textEditor) {
-			return;
+		if (!textEditow) {
+			wetuwn;
 		}
 
-		const modifiedDocument = textEditor.document;
-		const modifiedUri = modifiedDocument.uri;
+		const modifiedDocument = textEditow.document;
+		const modifiedUwi = modifiedDocument.uwi;
 
-		if (!isGitUri(modifiedUri)) {
-			return;
+		if (!isGitUwi(modifiedUwi)) {
+			wetuwn;
 		}
 
-		const { ref } = fromGitUri(modifiedUri);
+		const { wef } = fwomGitUwi(modifiedUwi);
 
-		if (ref !== '') {
-			return;
+		if (wef !== '') {
+			wetuwn;
 		}
 
-		const originalUri = toGitUri(modifiedUri, 'HEAD');
-		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const owiginawUwi = toGitUwi(modifiedUwi, 'HEAD');
+		const owiginawDocument = await wowkspace.openTextDocument(owiginawUwi);
+		const sewectedWines = toWineWanges(textEditow.sewections, modifiedDocument);
+		const sewectedDiffs = diffs
+			.map(diff => sewectedWines.weduce<WineChange | nuww>((wesuwt, wange) => wesuwt || intewsectDiffWithWange(modifiedDocument, diff, wange), nuww))
+			.fiwta(d => !!d) as WineChange[];
 
-		if (!selectedDiffs.length) {
-			return;
+		if (!sewectedDiffs.wength) {
+			wetuwn;
 		}
 
-		const invertedDiffs = selectedDiffs.map(invertLineChange);
-		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
+		const invewtedDiffs = sewectedDiffs.map(invewtWineChange);
+		const wesuwt = appwyWineChanges(modifiedDocument, owiginawDocument, invewtedDiffs);
 
-		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
+		await this.wunByWepositowy(modifiedUwi, async (wepositowy, wesouwce) => await wepositowy.stage(wesouwce, wesuwt));
 	}
 
-	@command('git.clean')
-	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+	@command('git.cwean')
+	async cwean(...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		wesouwceStates = wesouwceStates.fiwta(s => !!s);
 
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+		if (wesouwceStates.wength === 0 || (wesouwceStates[0] && !(wesouwceStates[0].wesouwceUwi instanceof Uwi))) {
+			const wesouwce = this.getSCMWesouwce();
 
-			if (!resource) {
-				return;
+			if (!wesouwce) {
+				wetuwn;
 			}
 
-			resourceStates = [resource];
+			wesouwceStates = [wesouwce];
 		}
 
-		const scmResources = resourceStates.filter(s => s instanceof Resource
-			&& (s.resourceGroupType === ResourceGroupType.WorkingTree || s.resourceGroupType === ResourceGroupType.Untracked)) as Resource[];
+		const scmWesouwces = wesouwceStates.fiwta(s => s instanceof Wesouwce
+			&& (s.wesouwceGwoupType === WesouwceGwoupType.WowkingTwee || s.wesouwceGwoupType === WesouwceGwoupType.Untwacked)) as Wesouwce[];
 
-		if (!scmResources.length) {
-			return;
+		if (!scmWesouwces.wength) {
+			wetuwn;
 		}
 
-		const untrackedCount = scmResources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
-		let message: string;
-		let yes = localize('discard', "Discard Changes");
+		const untwackedCount = scmWesouwces.weduce((s, w) => s + (w.type === Status.UNTWACKED ? 1 : 0), 0);
+		wet message: stwing;
+		wet yes = wocawize('discawd', "Discawd Changes");
 
-		if (scmResources.length === 1) {
-			if (untrackedCount > 0) {
-				message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(scmResources[0].resourceUri.fsPath));
-				yes = localize('delete file', "Delete file");
-			} else {
-				if (scmResources[0].type === Status.DELETED) {
-					yes = localize('restore file', "Restore file");
-					message = localize('confirm restore', "Are you sure you want to restore {0}?", path.basename(scmResources[0].resourceUri.fsPath));
-				} else {
-					message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(scmResources[0].resourceUri.fsPath));
+		if (scmWesouwces.wength === 1) {
+			if (untwackedCount > 0) {
+				message = wocawize('confiwm dewete', "Awe you suwe you want to DEWETE {0}?\nThis is IWWEVEWSIBWE!\nThis fiwe wiww be FOWEVa WOST if you pwoceed.", path.basename(scmWesouwces[0].wesouwceUwi.fsPath));
+				yes = wocawize('dewete fiwe', "Dewete fiwe");
+			} ewse {
+				if (scmWesouwces[0].type === Status.DEWETED) {
+					yes = wocawize('westowe fiwe', "Westowe fiwe");
+					message = wocawize('confiwm westowe', "Awe you suwe you want to westowe {0}?", path.basename(scmWesouwces[0].wesouwceUwi.fsPath));
+				} ewse {
+					message = wocawize('confiwm discawd', "Awe you suwe you want to discawd changes in {0}?", path.basename(scmWesouwces[0].wesouwceUwi.fsPath));
 				}
 			}
-		} else {
-			if (scmResources.every(resource => resource.type === Status.DELETED)) {
-				yes = localize('restore files', "Restore files");
-				message = localize('confirm restore multiple', "Are you sure you want to restore {0} files?", scmResources.length);
-			} else {
-				message = localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", scmResources.length);
+		} ewse {
+			if (scmWesouwces.evewy(wesouwce => wesouwce.type === Status.DEWETED)) {
+				yes = wocawize('westowe fiwes', "Westowe fiwes");
+				message = wocawize('confiwm westowe muwtipwe', "Awe you suwe you want to westowe {0} fiwes?", scmWesouwces.wength);
+			} ewse {
+				message = wocawize('confiwm discawd muwtipwe', "Awe you suwe you want to discawd changes in {0} fiwes?", scmWesouwces.wength);
 			}
 
-			if (untrackedCount > 0) {
-				message = `${message}\n\n${localize('warn untracked', "This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.", untrackedCount)}`;
+			if (untwackedCount > 0) {
+				message = `${message}\n\n${wocawize('wawn untwacked', "This wiww DEWETE {0} untwacked fiwes!\nThis is IWWEVEWSIBWE!\nThese fiwes wiww be FOWEVa WOST.", untwackedCount)}`;
 			}
 		}
 
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+		const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 		if (pick !== yes) {
-			return;
+			wetuwn;
 		}
 
-		const resources = scmResources.map(r => r.resourceUri);
-		await this.runByRepository(resources, async (repository, resources) => repository.clean(resources));
+		const wesouwces = scmWesouwces.map(w => w.wesouwceUwi);
+		await this.wunByWepositowy(wesouwces, async (wepositowy, wesouwces) => wepositowy.cwean(wesouwces));
 	}
 
-	@command('git.cleanAll', { repository: true })
-	async cleanAll(repository: Repository): Promise<void> {
-		let resources = repository.workingTreeGroup.resourceStates;
+	@command('git.cweanAww', { wepositowy: twue })
+	async cweanAww(wepositowy: Wepositowy): Pwomise<void> {
+		wet wesouwces = wepositowy.wowkingTweeGwoup.wesouwceStates;
 
-		if (resources.length === 0) {
-			return;
+		if (wesouwces.wength === 0) {
+			wetuwn;
 		}
 
-		const trackedResources = resources.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
-		const untrackedResources = resources.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+		const twackedWesouwces = wesouwces.fiwta(w => w.type !== Status.UNTWACKED && w.type !== Status.IGNOWED);
+		const untwackedWesouwces = wesouwces.fiwta(w => w.type === Status.UNTWACKED || w.type === Status.IGNOWED);
 
-		if (untrackedResources.length === 0) {
-			await this._cleanTrackedChanges(repository, resources);
-		} else if (resources.length === 1) {
-			await this._cleanUntrackedChange(repository, resources[0]);
-		} else if (trackedResources.length === 0) {
-			await this._cleanUntrackedChanges(repository, resources);
-		} else { // resources.length > 1 && untrackedResources.length > 0 && trackedResources.length > 0
-			const untrackedMessage = untrackedResources.length === 1
-				? localize('there are untracked files single', "The following untracked file will be DELETED FROM DISK if discarded: {0}.", path.basename(untrackedResources[0].resourceUri.fsPath))
-				: localize('there are untracked files', "There are {0} untracked files which will be DELETED FROM DISK if discarded.", untrackedResources.length);
+		if (untwackedWesouwces.wength === 0) {
+			await this._cweanTwackedChanges(wepositowy, wesouwces);
+		} ewse if (wesouwces.wength === 1) {
+			await this._cweanUntwackedChange(wepositowy, wesouwces[0]);
+		} ewse if (twackedWesouwces.wength === 0) {
+			await this._cweanUntwackedChanges(wepositowy, wesouwces);
+		} ewse { // wesouwces.wength > 1 && untwackedWesouwces.wength > 0 && twackedWesouwces.wength > 0
+			const untwackedMessage = untwackedWesouwces.wength === 1
+				? wocawize('thewe awe untwacked fiwes singwe', "The fowwowing untwacked fiwe wiww be DEWETED FWOM DISK if discawded: {0}.", path.basename(untwackedWesouwces[0].wesouwceUwi.fsPath))
+				: wocawize('thewe awe untwacked fiwes', "Thewe awe {0} untwacked fiwes which wiww be DEWETED FWOM DISK if discawded.", untwackedWesouwces.wength);
 
-			const message = localize('confirm discard all 2', "{0}\n\nThis is IRREVERSIBLE, your current working set will be FOREVER LOST.", untrackedMessage, resources.length);
+			const message = wocawize('confiwm discawd aww 2', "{0}\n\nThis is IWWEVEWSIBWE, youw cuwwent wowking set wiww be FOWEVa WOST.", untwackedMessage, wesouwces.wength);
 
-			const yesTracked = trackedResources.length === 1
-				? localize('yes discard tracked', "Discard 1 Tracked File", trackedResources.length)
-				: localize('yes discard tracked multiple', "Discard {0} Tracked Files", trackedResources.length);
+			const yesTwacked = twackedWesouwces.wength === 1
+				? wocawize('yes discawd twacked', "Discawd 1 Twacked Fiwe", twackedWesouwces.wength)
+				: wocawize('yes discawd twacked muwtipwe', "Discawd {0} Twacked Fiwes", twackedWesouwces.wength);
 
-			const yesAll = localize('discardAll', "Discard All {0} Files", resources.length);
-			const pick = await window.showWarningMessage(message, { modal: true }, yesTracked, yesAll);
+			const yesAww = wocawize('discawdAww', "Discawd Aww {0} Fiwes", wesouwces.wength);
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yesTwacked, yesAww);
 
-			if (pick === yesTracked) {
-				resources = trackedResources;
-			} else if (pick !== yesAll) {
-				return;
+			if (pick === yesTwacked) {
+				wesouwces = twackedWesouwces;
+			} ewse if (pick !== yesAww) {
+				wetuwn;
 			}
 
-			await repository.clean(resources.map(r => r.resourceUri));
+			await wepositowy.cwean(wesouwces.map(w => w.wesouwceUwi));
 		}
 	}
 
-	@command('git.cleanAllTracked', { repository: true })
-	async cleanAllTracked(repository: Repository): Promise<void> {
-		const resources = repository.workingTreeGroup.resourceStates
-			.filter(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
+	@command('git.cweanAwwTwacked', { wepositowy: twue })
+	async cweanAwwTwacked(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = wepositowy.wowkingTweeGwoup.wesouwceStates
+			.fiwta(w => w.type !== Status.UNTWACKED && w.type !== Status.IGNOWED);
 
-		if (resources.length === 0) {
-			return;
+		if (wesouwces.wength === 0) {
+			wetuwn;
 		}
 
-		await this._cleanTrackedChanges(repository, resources);
+		await this._cweanTwackedChanges(wepositowy, wesouwces);
 	}
 
-	@command('git.cleanAllUntracked', { repository: true })
-	async cleanAllUntracked(repository: Repository): Promise<void> {
-		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]
-			.filter(r => r.type === Status.UNTRACKED || r.type === Status.IGNORED);
+	@command('git.cweanAwwUntwacked', { wepositowy: twue })
+	async cweanAwwUntwacked(wepositowy: Wepositowy): Pwomise<void> {
+		const wesouwces = [...wepositowy.wowkingTweeGwoup.wesouwceStates, ...wepositowy.untwackedGwoup.wesouwceStates]
+			.fiwta(w => w.type === Status.UNTWACKED || w.type === Status.IGNOWED);
 
-		if (resources.length === 0) {
-			return;
+		if (wesouwces.wength === 0) {
+			wetuwn;
 		}
 
-		if (resources.length === 1) {
-			await this._cleanUntrackedChange(repository, resources[0]);
-		} else {
-			await this._cleanUntrackedChanges(repository, resources);
+		if (wesouwces.wength === 1) {
+			await this._cweanUntwackedChange(wepositowy, wesouwces[0]);
+		} ewse {
+			await this._cweanUntwackedChanges(wepositowy, wesouwces);
 		}
 	}
 
-	private async _cleanTrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
-		const message = resources.length === 1
-			? localize('confirm discard all single', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
-			: localize('confirm discard all', "Are you sure you want to discard ALL changes in {0} files?\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.", resources.length);
-		const yes = resources.length === 1
-			? localize('discardAll multiple', "Discard 1 File")
-			: localize('discardAll', "Discard All {0} Files", resources.length);
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+	pwivate async _cweanTwackedChanges(wepositowy: Wepositowy, wesouwces: Wesouwce[]): Pwomise<void> {
+		const message = wesouwces.wength === 1
+			? wocawize('confiwm discawd aww singwe', "Awe you suwe you want to discawd changes in {0}?", path.basename(wesouwces[0].wesouwceUwi.fsPath))
+			: wocawize('confiwm discawd aww', "Awe you suwe you want to discawd AWW changes in {0} fiwes?\nThis is IWWEVEWSIBWE!\nYouw cuwwent wowking set wiww be FOWEVa WOST if you pwoceed.", wesouwces.wength);
+		const yes = wesouwces.wength === 1
+			? wocawize('discawdAww muwtipwe', "Discawd 1 Fiwe")
+			: wocawize('discawdAww', "Discawd Aww {0} Fiwes", wesouwces.wength);
+		const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 		if (pick !== yes) {
-			return;
+			wetuwn;
 		}
 
-		await repository.clean(resources.map(r => r.resourceUri));
+		await wepositowy.cwean(wesouwces.map(w => w.wesouwceUwi));
 	}
 
-	private async _cleanUntrackedChange(repository: Repository, resource: Resource): Promise<void> {
-		const message = localize('confirm delete', "Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.", path.basename(resource.resourceUri.fsPath));
-		const yes = localize('delete file', "Delete file");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+	pwivate async _cweanUntwackedChange(wepositowy: Wepositowy, wesouwce: Wesouwce): Pwomise<void> {
+		const message = wocawize('confiwm dewete', "Awe you suwe you want to DEWETE {0}?\nThis is IWWEVEWSIBWE!\nThis fiwe wiww be FOWEVa WOST if you pwoceed.", path.basename(wesouwce.wesouwceUwi.fsPath));
+		const yes = wocawize('dewete fiwe', "Dewete fiwe");
+		const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 		if (pick !== yes) {
-			return;
+			wetuwn;
 		}
 
-		await repository.clean([resource.resourceUri]);
+		await wepositowy.cwean([wesouwce.wesouwceUwi]);
 	}
 
-	private async _cleanUntrackedChanges(repository: Repository, resources: Resource[]): Promise<void> {
-		const message = localize('confirm delete multiple', "Are you sure you want to DELETE {0} files?\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST if you proceed.", resources.length);
-		const yes = localize('delete files', "Delete Files");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+	pwivate async _cweanUntwackedChanges(wepositowy: Wepositowy, wesouwces: Wesouwce[]): Pwomise<void> {
+		const message = wocawize('confiwm dewete muwtipwe', "Awe you suwe you want to DEWETE {0} fiwes?\nThis is IWWEVEWSIBWE!\nThese fiwes wiww be FOWEVa WOST if you pwoceed.", wesouwces.wength);
+		const yes = wocawize('dewete fiwes', "Dewete Fiwes");
+		const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 		if (pick !== yes) {
-			return;
+			wetuwn;
 		}
 
-		await repository.clean(resources.map(r => r.resourceUri));
+		await wepositowy.cwean(wesouwces.map(w => w.wesouwceUwi));
 	}
 
-	private async smartCommit(
-		repository: Repository,
-		getCommitMessage: () => Promise<string | undefined>,
+	pwivate async smawtCommit(
+		wepositowy: Wepositowy,
+		getCommitMessage: () => Pwomise<stwing | undefined>,
 		opts?: CommitOptions
-	): Promise<boolean> {
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		let promptToSaveFilesBeforeCommit = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeCommit');
+	): Pwomise<boowean> {
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(wepositowy.woot));
+		wet pwomptToSaveFiwesBefoweCommit = config.get<'awways' | 'staged' | 'neva'>('pwomptToSaveFiwesBefoweCommit');
 
-		// migration
-		if (promptToSaveFilesBeforeCommit as any === true) {
-			promptToSaveFilesBeforeCommit = 'always';
-		} else if (promptToSaveFilesBeforeCommit as any === false) {
-			promptToSaveFilesBeforeCommit = 'never';
+		// migwation
+		if (pwomptToSaveFiwesBefoweCommit as any === twue) {
+			pwomptToSaveFiwesBefoweCommit = 'awways';
+		} ewse if (pwomptToSaveFiwesBefoweCommit as any === fawse) {
+			pwomptToSaveFiwesBefoweCommit = 'neva';
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
-		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const enabweSmawtCommit = config.get<boowean>('enabweSmawtCommit') === twue;
+		const enabweCommitSigning = config.get<boowean>('enabweCommitSigning') === twue;
+		wet noStagedChanges = wepositowy.indexGwoup.wesouwceStates.wength === 0;
+		wet noUnstagedChanges = wepositowy.wowkingTweeGwoup.wesouwceStates.wength === 0;
 
-		if (promptToSaveFilesBeforeCommit !== 'never') {
-			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		if (pwomptToSaveFiwesBefoweCommit !== 'neva') {
+			wet documents = wowkspace.textDocuments
+				.fiwta(d => !d.isUntitwed && d.isDiwty && isDescendant(wepositowy.woot, d.uwi.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
+			if (pwomptToSaveFiwesBefoweCommit === 'staged' || wepositowy.indexGwoup.wesouwceStates.wength > 0) {
 				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+					.fiwta(d => wepositowy.indexGwoup.wesouwceStates.some(s => pathEquaws(s.wesouwceUwi.fsPath, d.uwi.fsPath)));
 			}
 
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
-					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
-				const saveAndCommit = localize('save and commit', "Save All & Commit");
-				const commit = localize('commit', "Commit Staged Changes");
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+			if (documents.wength > 0) {
+				const message = documents.wength === 1
+					? wocawize('unsaved fiwes singwe', "The fowwowing fiwe has unsaved changes which won't be incwuded in the commit if you pwoceed: {0}.\n\nWouwd you wike to save it befowe committing?", path.basename(documents[0].uwi.fsPath))
+					: wocawize('unsaved fiwes', "Thewe awe {0} unsaved fiwes.\n\nWouwd you wike to save them befowe committing?", documents.wength);
+				const saveAndCommit = wocawize('save and commit', "Save Aww & Commit");
+				const commit = wocawize('commit', "Commit Staged Changes");
+				const pick = await window.showWawningMessage(message, { modaw: twue }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
-					await repository.add(documents.map(d => d.uri));
+					await Pwomise.aww(documents.map(d => d.save()));
+					await wepositowy.add(documents.map(d => d.uwi));
 
-					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
-				} else if (pick !== commit) {
-					return false; // do not commit on cancel
+					noStagedChanges = wepositowy.indexGwoup.wesouwceStates.wength === 0;
+					noUnstagedChanges = wepositowy.wowkingTweeGwoup.wesouwceStates.wength === 0;
+				} ewse if (pick !== commit) {
+					wetuwn fawse; // do not commit on cancew
 				}
 			}
 		}
 
 		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
+			opts = { aww: noStagedChanges };
+		} ewse if (!opts.aww && noStagedChanges && !opts.empty) {
+			opts = { ...opts, aww: twue };
 		}
 
-		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
-			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+		// no changes, and the usa has not configuwed to commit aww in this case
+		if (!noUnstagedChanges && noStagedChanges && !enabweSmawtCommit && !opts.empty) {
+			const suggestSmawtCommit = config.get<boowean>('suggestSmawtCommit') === twue;
 
-			if (!suggestSmartCommit) {
-				return false;
+			if (!suggestSmawtCommit) {
+				wetuwn fawse;
 			}
 
-			// prompt the user if we want to commit all or not
-			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?");
-			const yes = localize('yes', "Yes");
-			const always = localize('always', "Always");
-			const never = localize('never', "Never");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+			// pwompt the usa if we want to commit aww ow not
+			const message = wocawize('no staged changes', "Thewe awe no staged changes to commit.\n\nWouwd you wike to stage aww youw changes and commit them diwectwy?");
+			const yes = wocawize('yes', "Yes");
+			const awways = wocawize('awways', "Awways");
+			const neva = wocawize('neva', "Neva");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes, awways, neva);
 
-			if (pick === always) {
-				config.update('enableSmartCommit', true, true);
-			} else if (pick === never) {
-				config.update('suggestSmartCommit', false, true);
-				return false;
-			} else if (pick !== yes) {
-				return false; // do not commit on cancel
+			if (pick === awways) {
+				config.update('enabweSmawtCommit', twue, twue);
+			} ewse if (pick === neva) {
+				config.update('suggestSmawtCommit', fawse, twue);
+				wetuwn fawse;
+			} ewse if (pick !== yes) {
+				wetuwn fawse; // do not commit on cancew
 			}
 		}
 
-		// enable signing of commits if configured
-		opts.signCommit = enableCommitSigning;
+		// enabwe signing of commits if configuwed
+		opts.signCommit = enabweCommitSigning;
 
-		if (config.get<boolean>('alwaysSignOff')) {
-			opts.signoff = true;
+		if (config.get<boowean>('awwaysSignOff')) {
+			opts.signoff = twue;
 		}
 
-		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges');
+		const smawtCommitChanges = config.get<'aww' | 'twacked'>('smawtCommitChanges');
 
 		if (
 			(
 				// no changes
 				(noStagedChanges && noUnstagedChanges)
-				// or no staged changes and not `all`
-				|| (!opts.all && noStagedChanges)
-				// no staged changes and no tracked unstaged changes
-				|| (noStagedChanges && smartCommitChanges === 'tracked' && repository.workingTreeGroup.resourceStates.every(r => r.type === Status.UNTRACKED))
+				// ow no staged changes and not `aww`
+				|| (!opts.aww && noStagedChanges)
+				// no staged changes and no twacked unstaged changes
+				|| (noStagedChanges && smawtCommitChanges === 'twacked' && wepositowy.wowkingTweeGwoup.wesouwceStates.evewy(w => w.type === Status.UNTWACKED))
 			)
-			// amend allows changing only the commit message
+			// amend awwows changing onwy the commit message
 			&& !opts.amend
 			&& !opts.empty
 		) {
-			const commitAnyway = localize('commit anyway', "Create Empty Commit");
-			const answer = await window.showInformationMessage(localize('no changes', "There are no changes to commit."), commitAnyway);
+			const commitAnyway = wocawize('commit anyway', "Cweate Empty Commit");
+			const answa = await window.showInfowmationMessage(wocawize('no changes', "Thewe awe no changes to commit."), commitAnyway);
 
-			if (answer !== commitAnyway) {
-				return false;
+			if (answa !== commitAnyway) {
+				wetuwn fawse;
 			}
 
-			opts.empty = true;
+			opts.empty = twue;
 		}
 
-		if (opts.noVerify) {
-			if (!config.get<boolean>('allowNoVerifyCommit')) {
-				await window.showErrorMessage(localize('no verify commit not allowed', "Commits without verification are not allowed, please enable them with the 'git.allowNoVerifyCommit' setting."));
-				return false;
+		if (opts.noVewify) {
+			if (!config.get<boowean>('awwowNoVewifyCommit')) {
+				await window.showEwwowMessage(wocawize('no vewify commit not awwowed', "Commits without vewification awe not awwowed, pwease enabwe them with the 'git.awwowNoVewifyCommit' setting."));
+				wetuwn fawse;
 			}
 
-			if (config.get<boolean>('confirmNoVerifyCommit')) {
-				const message = localize('confirm no verify commit', "You are about to commit your changes without verification, this skips pre-commit hooks and can be undesirable.\n\nAre you sure to continue?");
-				const yes = localize('ok', "OK");
-				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
-				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+			if (config.get<boowean>('confiwmNoVewifyCommit')) {
+				const message = wocawize('confiwm no vewify commit', "You awe about to commit youw changes without vewification, this skips pwe-commit hooks and can be undesiwabwe.\n\nAwe you suwe to continue?");
+				const yes = wocawize('ok', "OK");
+				const nevewAgain = wocawize('neva ask again', "OK, Don't Ask Again");
+				const pick = await window.showWawningMessage(message, { modaw: twue }, yes, nevewAgain);
 
-				if (pick === neverAgain) {
-					config.update('confirmNoVerifyCommit', false, true);
-				} else if (pick !== yes) {
-					return false;
+				if (pick === nevewAgain) {
+					config.update('confiwmNoVewifyCommit', fawse, twue);
+				} ewse if (pick !== yes) {
+					wetuwn fawse;
 				}
 			}
 		}
 
-		let message = await getCommitMessage();
+		wet message = await getCommitMessage();
 
 		if (!message && !opts.amend) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (opts.all && smartCommitChanges === 'tracked') {
-			opts.all = 'tracked';
+		if (opts.aww && smawtCommitChanges === 'twacked') {
+			opts.aww = 'twacked';
 		}
 
-		if (opts.all && config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges') !== 'mixed') {
-			opts.all = 'tracked';
+		if (opts.aww && config.get<'mixed' | 'sepawate' | 'hidden'>('untwackedChanges') !== 'mixed') {
+			opts.aww = 'twacked';
 		}
 
-		await repository.commit(message, opts);
+		await wepositowy.commit(message, opts);
 
 		const postCommitCommand = config.get<'none' | 'push' | 'sync'>('postCommitCommand');
 
 		switch (postCommitCommand) {
 			case 'push':
-				await this._push(repository, { pushType: PushType.Push, silent: true });
-				break;
+				await this._push(wepositowy, { pushType: PushType.Push, siwent: twue });
+				bweak;
 			case 'sync':
-				await this.sync(repository);
-				break;
+				await this.sync(wepositowy);
+				bweak;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private async commitWithAnyInput(repository: Repository, opts?: CommitOptions): Promise<void> {
-		const message = repository.inputBox.value;
+	pwivate async commitWithAnyInput(wepositowy: Wepositowy, opts?: CommitOptions): Pwomise<void> {
+		const message = wepositowy.inputBox.vawue;
 		const getCommitMessage = async () => {
-			let _message: string | undefined = message;
+			wet _message: stwing | undefined = message;
 
 			if (!_message) {
-				let value: string | undefined = undefined;
+				wet vawue: stwing | undefined = undefined;
 
-				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
-					return undefined;
+				if (opts && opts.amend && wepositowy.HEAD && wepositowy.HEAD.commit) {
+					wetuwn undefined;
 				}
 
-				const branchName = repository.headShortName;
-				let placeHolder: string;
+				const bwanchName = wepositowy.headShowtName;
+				wet pwaceHowda: stwing;
 
-				if (branchName) {
-					placeHolder = localize('commitMessageWithHeadLabel2', "Message (commit on '{0}')", branchName);
-				} else {
-					placeHolder = localize('commit message', "Commit message");
+				if (bwanchName) {
+					pwaceHowda = wocawize('commitMessageWithHeadWabew2', "Message (commit on '{0}')", bwanchName);
+				} ewse {
+					pwaceHowda = wocawize('commit message', "Commit message");
 				}
 
 				_message = await window.showInputBox({
-					value,
-					placeHolder,
-					prompt: localize('provide commit message', "Please provide a commit message"),
-					ignoreFocusOut: true
+					vawue,
+					pwaceHowda,
+					pwompt: wocawize('pwovide commit message', "Pwease pwovide a commit message"),
+					ignoweFocusOut: twue
 				});
 			}
 
-			return _message;
+			wetuwn _message;
 		};
 
-		const didCommit = await this.smartCommit(repository, getCommitMessage, opts);
+		const didCommit = await this.smawtCommit(wepositowy, getCommitMessage, opts);
 
 		if (message && didCommit) {
-			repository.inputBox.value = await repository.getInputTemplate();
+			wepositowy.inputBox.vawue = await wepositowy.getInputTempwate();
 		}
 	}
 
-	@command('git.commit', { repository: true })
-	async commit(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository);
+	@command('git.commit', { wepositowy: twue })
+	async commit(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy);
 	}
 
-	@command('git.commitStaged', { repository: true })
-	async commitStaged(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false });
+	@command('git.commitStaged', { wepositowy: twue })
+	async commitStaged(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse });
 	}
 
-	@command('git.commitStagedSigned', { repository: true })
-	async commitStagedSigned(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, signoff: true });
+	@command('git.commitStagedSigned', { wepositowy: twue })
+	async commitStagedSigned(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse, signoff: twue });
 	}
 
-	@command('git.commitStagedAmend', { repository: true })
-	async commitStagedAmend(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, amend: true });
+	@command('git.commitStagedAmend', { wepositowy: twue })
+	async commitStagedAmend(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse, amend: twue });
 	}
 
-	@command('git.commitAll', { repository: true })
-	async commitAll(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true });
+	@command('git.commitAww', { wepositowy: twue })
+	async commitAww(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue });
 	}
 
-	@command('git.commitAllSigned', { repository: true })
-	async commitAllSigned(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true, signoff: true });
+	@command('git.commitAwwSigned', { wepositowy: twue })
+	async commitAwwSigned(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue, signoff: twue });
 	}
 
-	@command('git.commitAllAmend', { repository: true })
-	async commitAllAmend(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true, amend: true });
+	@command('git.commitAwwAmend', { wepositowy: twue })
+	async commitAwwAmend(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue, amend: twue });
 	}
 
-	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
-		const root = Uri.file(repository.root);
-		const config = workspace.getConfiguration('git', root);
-		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
+	pwivate async _commitEmpty(wepositowy: Wepositowy, noVewify?: boowean): Pwomise<void> {
+		const woot = Uwi.fiwe(wepositowy.woot);
+		const config = wowkspace.getConfiguwation('git', woot);
+		const shouwdPwompt = config.get<boowean>('confiwmEmptyCommits') === twue;
 
-		if (shouldPrompt) {
-			const message = localize('confirm emtpy commit', "Are you sure you want to create an empty commit?");
-			const yes = localize('yes', "Yes");
-			const neverAgain = localize('yes never again', "Yes, Don't Show Again");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+		if (shouwdPwompt) {
+			const message = wocawize('confiwm emtpy commit', "Awe you suwe you want to cweate an empty commit?");
+			const yes = wocawize('yes', "Yes");
+			const nevewAgain = wocawize('yes neva again', "Yes, Don't Show Again");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes, nevewAgain);
 
-			if (pick === neverAgain) {
-				await config.update('confirmEmptyCommits', false, true);
-			} else if (pick !== yes) {
-				return;
+			if (pick === nevewAgain) {
+				await config.update('confiwmEmptyCommits', fawse, twue);
+			} ewse if (pick !== yes) {
+				wetuwn;
 			}
 		}
 
-		await this.commitWithAnyInput(repository, { empty: true, noVerify });
+		await this.commitWithAnyInput(wepositowy, { empty: twue, noVewify });
 	}
 
-	@command('git.commitEmpty', { repository: true })
-	async commitEmpty(repository: Repository): Promise<void> {
-		await this._commitEmpty(repository);
+	@command('git.commitEmpty', { wepositowy: twue })
+	async commitEmpty(wepositowy: Wepositowy): Pwomise<void> {
+		await this._commitEmpty(wepositowy);
 	}
 
-	@command('git.commitNoVerify', { repository: true })
-	async commitNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { noVerify: true });
+	@command('git.commitNoVewify', { wepositowy: twue })
+	async commitNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { noVewify: twue });
 	}
 
-	@command('git.commitStagedNoVerify', { repository: true })
-	async commitStagedNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, noVerify: true });
+	@command('git.commitStagedNoVewify', { wepositowy: twue })
+	async commitStagedNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse, noVewify: twue });
 	}
 
-	@command('git.commitStagedSignedNoVerify', { repository: true })
-	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	@command('git.commitStagedSignedNoVewify', { wepositowy: twue })
+	async commitStagedSignedNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse, signoff: twue, noVewify: twue });
 	}
 
-	@command('git.commitStagedAmendNoVerify', { repository: true })
-	async commitStagedAmendNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, amend: true, noVerify: true });
+	@command('git.commitStagedAmendNoVewify', { wepositowy: twue })
+	async commitStagedAmendNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: fawse, amend: twue, noVewify: twue });
 	}
 
-	@command('git.commitAllNoVerify', { repository: true })
-	async commitAllNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true, noVerify: true });
+	@command('git.commitAwwNoVewify', { wepositowy: twue })
+	async commitAwwNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue, noVewify: twue });
 	}
 
-	@command('git.commitAllSignedNoVerify', { repository: true })
-	async commitAllSignedNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true, signoff: true, noVerify: true });
+	@command('git.commitAwwSignedNoVewify', { wepositowy: twue })
+	async commitAwwSignedNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue, signoff: twue, noVewify: twue });
 	}
 
-	@command('git.commitAllAmendNoVerify', { repository: true })
-	async commitAllAmendNoVerify(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: true, amend: true, noVerify: true });
+	@command('git.commitAwwAmendNoVewify', { wepositowy: twue })
+	async commitAwwAmendNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this.commitWithAnyInput(wepositowy, { aww: twue, amend: twue, noVewify: twue });
 	}
 
-	@command('git.commitEmptyNoVerify', { repository: true })
-	async commitEmptyNoVerify(repository: Repository): Promise<void> {
-		await this._commitEmpty(repository, true);
+	@command('git.commitEmptyNoVewify', { wepositowy: twue })
+	async commitEmptyNoVewify(wepositowy: Wepositowy): Pwomise<void> {
+		await this._commitEmpty(wepositowy, twue);
 	}
 
-	@command('git.restoreCommitTemplate', { repository: true })
-	async restoreCommitTemplate(repository: Repository): Promise<void> {
-		repository.inputBox.value = await repository.getCommitTemplate();
+	@command('git.westoweCommitTempwate', { wepositowy: twue })
+	async westoweCommitTempwate(wepositowy: Wepositowy): Pwomise<void> {
+		wepositowy.inputBox.vawue = await wepositowy.getCommitTempwate();
 	}
 
-	@command('git.undoCommit', { repository: true })
-	async undoCommit(repository: Repository): Promise<void> {
-		const HEAD = repository.HEAD;
+	@command('git.undoCommit', { wepositowy: twue })
+	async undoCommit(wepositowy: Wepositowy): Pwomise<void> {
+		const HEAD = wepositowy.HEAD;
 
 		if (!HEAD || !HEAD.commit) {
-			window.showWarningMessage(localize('no more', "Can't undo because HEAD doesn't point to any commit."));
-			return;
+			window.showWawningMessage(wocawize('no mowe', "Can't undo because HEAD doesn't point to any commit."));
+			wetuwn;
 		}
 
-		const commit = await repository.getCommit('HEAD');
+		const commit = await wepositowy.getCommit('HEAD');
 
-		if (commit.parents.length > 1) {
-			const yes = localize('undo commit', "Undo merge commit");
-			const result = await window.showWarningMessage(localize('merge commit', "The last commit was a merge commit. Are you sure you want to undo it?"), { modal: true }, yes);
+		if (commit.pawents.wength > 1) {
+			const yes = wocawize('undo commit', "Undo mewge commit");
+			const wesuwt = await window.showWawningMessage(wocawize('mewge commit', "The wast commit was a mewge commit. Awe you suwe you want to undo it?"), { modaw: twue }, yes);
 
-			if (result !== yes) {
-				return;
+			if (wesuwt !== yes) {
+				wetuwn;
 			}
 		}
 
-		if (commit.parents.length > 0) {
-			await repository.reset('HEAD~');
-		} else {
-			await repository.deleteRef('HEAD');
-			await this.unstageAll(repository);
+		if (commit.pawents.wength > 0) {
+			await wepositowy.weset('HEAD~');
+		} ewse {
+			await wepositowy.deweteWef('HEAD');
+			await this.unstageAww(wepositowy);
 		}
 
-		repository.inputBox.value = commit.message;
+		wepositowy.inputBox.vawue = commit.message;
 	}
 
-	@command('git.checkout', { repository: true })
-	async checkout(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { treeish });
+	@command('git.checkout', { wepositowy: twue })
+	async checkout(wepositowy: Wepositowy, tweeish?: stwing): Pwomise<boowean> {
+		wetuwn this._checkout(wepositowy, { tweeish });
 	}
 
-	@command('git.checkoutDetached', { repository: true })
-	async checkoutDetached(repository: Repository, treeish?: string): Promise<boolean> {
-		return this._checkout(repository, { detached: true, treeish });
+	@command('git.checkoutDetached', { wepositowy: twue })
+	async checkoutDetached(wepositowy: Wepositowy, tweeish?: stwing): Pwomise<boowean> {
+		wetuwn this._checkout(wepositowy, { detached: twue, tweeish });
 	}
 
-	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
-		if (typeof opts?.treeish === 'string') {
-			await repository.checkout(opts?.treeish, opts);
-			return true;
+	pwivate async _checkout(wepositowy: Wepositowy, opts?: { detached?: boowean, tweeish?: stwing }): Pwomise<boowean> {
+		if (typeof opts?.tweeish === 'stwing') {
+			await wepositowy.checkout(opts?.tweeish, opts);
+			wetuwn twue;
 		}
 
-		const createBranch = new CreateBranchItem();
-		const createBranchFrom = new CreateBranchFromItem();
+		const cweateBwanch = new CweateBwanchItem();
+		const cweateBwanchFwom = new CweateBwanchFwomItem();
 		const checkoutDetached = new CheckoutDetachedItem();
 		const picks: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			picks.push(cweateBwanch, cweateBwanchFwom, checkoutDetached);
 		}
 
-		picks.push(...createCheckoutItems(repository));
+		picks.push(...cweateCheckoutItems(wepositowy));
 
-		const quickpick = window.createQuickPick();
+		const quickpick = window.cweateQuickPick();
 		quickpick.items = picks;
-		quickpick.placeholder = opts?.detached
-			? localize('select a ref to checkout detached', 'Select a ref to checkout in detached mode')
-			: localize('select a ref to checkout', 'Select a ref to checkout');
+		quickpick.pwacehowda = opts?.detached
+			? wocawize('sewect a wef to checkout detached', 'Sewect a wef to checkout in detached mode')
+			: wocawize('sewect a wef to checkout', 'Sewect a wef to checkout');
 
 		quickpick.show();
 
-		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
+		const choice = await new Pwomise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
 		quickpick.hide();
 
 		if (!choice) {
-			return false;
+			wetuwn fawse;
 		}
 
-		if (choice === createBranch) {
-			await this._branch(repository, quickpick.value);
-		} else if (choice === createBranchFrom) {
-			await this._branch(repository, quickpick.value, true);
-		} else if (choice === checkoutDetached) {
-			return this._checkout(repository, { detached: true });
-		} else {
+		if (choice === cweateBwanch) {
+			await this._bwanch(wepositowy, quickpick.vawue);
+		} ewse if (choice === cweateBwanchFwom) {
+			await this._bwanch(wepositowy, quickpick.vawue, twue);
+		} ewse if (choice === checkoutDetached) {
+			wetuwn this._checkout(wepositowy, { detached: twue });
+		} ewse {
 			const item = choice as CheckoutItem;
 
-			try {
-				await item.run(repository, opts);
-			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
-					throw err;
+			twy {
+				await item.wun(wepositowy, opts);
+			} catch (eww) {
+				if (eww.gitEwwowCode !== GitEwwowCodes.DiwtyWowkTwee) {
+					thwow eww;
 				}
 
-				const force = localize('force', "Force Checkout");
-				const stash = localize('stashcheckout', "Stash & Checkout");
-				const choice = await window.showWarningMessage(localize('local changes', "Your local changes would be overwritten by checkout."), { modal: true }, force, stash);
+				const fowce = wocawize('fowce', "Fowce Checkout");
+				const stash = wocawize('stashcheckout', "Stash & Checkout");
+				const choice = await window.showWawningMessage(wocawize('wocaw changes', "Youw wocaw changes wouwd be ovewwwitten by checkout."), { modaw: twue }, fowce, stash);
 
-				if (choice === force) {
-					await this.cleanAll(repository);
-					await item.run(repository, opts);
-				} else if (choice === stash) {
-					await this.stash(repository);
-					await item.run(repository, opts);
-					await this.stashPopLatest(repository);
+				if (choice === fowce) {
+					await this.cweanAww(wepositowy);
+					await item.wun(wepositowy, opts);
+				} ewse if (choice === stash) {
+					await this.stash(wepositowy);
+					await item.wun(wepositowy, opts);
+					await this.stashPopWatest(wepositowy);
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	@command('git.branch', { repository: true })
-	async branch(repository: Repository): Promise<void> {
-		await this._branch(repository);
+	@command('git.bwanch', { wepositowy: twue })
+	async bwanch(wepositowy: Wepositowy): Pwomise<void> {
+		await this._bwanch(wepositowy);
 	}
 
-	@command('git.branchFrom', { repository: true })
-	async branchFrom(repository: Repository): Promise<void> {
-		await this._branch(repository, undefined, true);
+	@command('git.bwanchFwom', { wepositowy: twue })
+	async bwanchFwom(wepositowy: Wepositowy): Pwomise<void> {
+		await this._bwanch(wepositowy, undefined, twue);
 	}
 
-	private async promptForBranchName(defaultName?: string, initialValue?: string): Promise<string> {
-		const config = workspace.getConfiguration('git');
-		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar')!;
-		const branchValidationRegex = config.get<string>('branchValidationRegex')!;
-		const sanitize = (name: string) => name ?
-			name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, branchWhitespaceChar)
+	pwivate async pwomptFowBwanchName(defauwtName?: stwing, initiawVawue?: stwing): Pwomise<stwing> {
+		const config = wowkspace.getConfiguwation('git');
+		const bwanchWhitespaceChaw = config.get<stwing>('bwanchWhitespaceChaw')!;
+		const bwanchVawidationWegex = config.get<stwing>('bwanchVawidationWegex')!;
+		const sanitize = (name: stwing) => name ?
+			name.twim().wepwace(/^-+/, '').wepwace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.wock$|\.wock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, bwanchWhitespaceChaw)
 			: name;
 
-		const rawBranchName = defaultName || await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a new branch name"),
-			value: initialValue,
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				const validateName = new RegExp(branchValidationRegex);
-				if (validateName.test(sanitize(name))) {
-					return null;
+		const wawBwanchName = defauwtName || await window.showInputBox({
+			pwaceHowda: wocawize('bwanch name', "Bwanch name"),
+			pwompt: wocawize('pwovide bwanch name', "Pwease pwovide a new bwanch name"),
+			vawue: initiawVawue,
+			ignoweFocusOut: twue,
+			vawidateInput: (name: stwing) => {
+				const vawidateName = new WegExp(bwanchVawidationWegex);
+				if (vawidateName.test(sanitize(name))) {
+					wetuwn nuww;
 				}
 
-				return localize('branch name format invalid', "Branch name needs to match regex: {0}", branchValidationRegex);
+				wetuwn wocawize('bwanch name fowmat invawid', "Bwanch name needs to match wegex: {0}", bwanchVawidationWegex);
 			}
 		});
 
-		return sanitize(rawBranchName || '');
+		wetuwn sanitize(wawBwanchName || '');
 	}
 
-	private async _branch(repository: Repository, defaultName?: string, from = false): Promise<void> {
-		const branchName = await this.promptForBranchName(defaultName);
+	pwivate async _bwanch(wepositowy: Wepositowy, defauwtName?: stwing, fwom = fawse): Pwomise<void> {
+		const bwanchName = await this.pwomptFowBwanchName(defauwtName);
 
-		if (!branchName) {
-			return;
+		if (!bwanchName) {
+			wetuwn;
 		}
 
-		let target = 'HEAD';
+		wet tawget = 'HEAD';
 
-		if (from) {
-			const picks = [new HEADItem(repository), ...createCheckoutItems(repository)];
-			const placeHolder = localize('select a ref to create a new branch from', 'Select a ref to create the \'{0}\' branch from', branchName);
-			const choice = await window.showQuickPick(picks, { placeHolder });
+		if (fwom) {
+			const picks = [new HEADItem(wepositowy), ...cweateCheckoutItems(wepositowy)];
+			const pwaceHowda = wocawize('sewect a wef to cweate a new bwanch fwom', 'Sewect a wef to cweate the \'{0}\' bwanch fwom', bwanchName);
+			const choice = await window.showQuickPick(picks, { pwaceHowda });
 
 			if (!choice) {
-				return;
+				wetuwn;
 			}
 
-			target = choice.label;
+			tawget = choice.wabew;
 		}
 
-		await repository.branch(branchName, true, target);
+		await wepositowy.bwanch(bwanchName, twue, tawget);
 	}
 
-	@command('git.deleteBranch', { repository: true })
-	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
-		let run: (force?: boolean) => Promise<void>;
-		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
-		} else {
-			const currentHead = repository.HEAD && repository.HEAD.name;
-			const heads = repository.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
-				.map(ref => new BranchDeleteItem(ref));
+	@command('git.deweteBwanch', { wepositowy: twue })
+	async deweteBwanch(wepositowy: Wepositowy, name: stwing, fowce?: boowean): Pwomise<void> {
+		wet wun: (fowce?: boowean) => Pwomise<void>;
+		if (typeof name === 'stwing') {
+			wun = fowce => wepositowy.deweteBwanch(name, fowce);
+		} ewse {
+			const cuwwentHead = wepositowy.HEAD && wepositowy.HEAD.name;
+			const heads = wepositowy.wefs.fiwta(wef => wef.type === WefType.Head && wef.name !== cuwwentHead)
+				.map(wef => new BwanchDeweteItem(wef));
 
-			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+			const pwaceHowda = wocawize('sewect bwanch to dewete', 'Sewect a bwanch to dewete');
+			const choice = await window.showQuickPick<BwanchDeweteItem>(heads, { pwaceHowda });
 
-			if (!choice || !choice.branchName) {
-				return;
+			if (!choice || !choice.bwanchName) {
+				wetuwn;
 			}
-			name = choice.branchName;
-			run = force => choice.run(repository, force);
+			name = choice.bwanchName;
+			wun = fowce => choice.wun(wepositowy, fowce);
 		}
 
-		try {
-			await run(force);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-				throw err;
+		twy {
+			await wun(fowce);
+		} catch (eww) {
+			if (eww.gitEwwowCode !== GitEwwowCodes.BwanchNotFuwwyMewged) {
+				thwow eww;
 			}
 
-			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
-			const yes = localize('delete branch', "Delete Branch");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			const message = wocawize('confiwm fowce dewete bwanch', "The bwanch '{0}' is not fuwwy mewged. Dewete anyway?", name);
+			const yes = wocawize('dewete bwanch', "Dewete Bwanch");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 			if (pick === yes) {
-				await run(true);
+				await wun(twue);
 			}
 		}
 	}
 
-	@command('git.renameBranch', { repository: true })
-	async renameBranch(repository: Repository): Promise<void> {
-		const currentBranchName = repository.HEAD && repository.HEAD.name;
-		const branchName = await this.promptForBranchName(undefined, currentBranchName);
+	@command('git.wenameBwanch', { wepositowy: twue })
+	async wenameBwanch(wepositowy: Wepositowy): Pwomise<void> {
+		const cuwwentBwanchName = wepositowy.HEAD && wepositowy.HEAD.name;
+		const bwanchName = await this.pwomptFowBwanchName(undefined, cuwwentBwanchName);
 
-		if (!branchName) {
-			return;
+		if (!bwanchName) {
+			wetuwn;
 		}
 
-		try {
-			await repository.renameBranch(branchName);
-		} catch (err) {
-			switch (err.gitErrorCode) {
-				case GitErrorCodes.InvalidBranchName:
-					window.showErrorMessage(localize('invalid branch name', 'Invalid branch name'));
-					return;
-				case GitErrorCodes.BranchAlreadyExists:
-					window.showErrorMessage(localize('branch already exists', "A branch named '{0}' already exists", branchName));
-					return;
-				default:
-					throw err;
+		twy {
+			await wepositowy.wenameBwanch(bwanchName);
+		} catch (eww) {
+			switch (eww.gitEwwowCode) {
+				case GitEwwowCodes.InvawidBwanchName:
+					window.showEwwowMessage(wocawize('invawid bwanch name', 'Invawid bwanch name'));
+					wetuwn;
+				case GitEwwowCodes.BwanchAwweadyExists:
+					window.showEwwowMessage(wocawize('bwanch awweady exists', "A bwanch named '{0}' awweady exists", bwanchName));
+					wetuwn;
+				defauwt:
+					thwow eww;
 			}
 		}
 	}
 
-	@command('git.merge', { repository: true })
-	async merge(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string | string[]>('checkoutType');
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
+	@command('git.mewge', { wepositowy: twue })
+	async mewge(wepositowy: Wepositowy): Pwomise<void> {
+		const config = wowkspace.getConfiguwation('git');
+		const checkoutType = config.get<stwing | stwing[]>('checkoutType');
+		const incwudeWemotes = checkoutType === 'aww' || checkoutType === 'wemote' || checkoutType?.incwudes('wemote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+		const heads = wepositowy.wefs.fiwta(wef => wef.type === WefType.Head)
+			.fiwta(wef => wef.name || wef.commit)
+			.map(wef => new MewgeItem(wef as Bwanch));
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit)
-			.map(ref => new MergeItem(ref as Branch));
+		const wemoteHeads = (incwudeWemotes ? wepositowy.wefs.fiwta(wef => wef.type === WefType.WemoteHead) : [])
+			.fiwta(wef => wef.name || wef.commit)
+			.map(wef => new MewgeItem(wef as Bwanch));
 
-		const picks = [...heads, ...remoteHeads];
-		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
-		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
+		const picks = [...heads, ...wemoteHeads];
+		const pwaceHowda = wocawize('sewect a bwanch to mewge fwom', 'Sewect a bwanch to mewge fwom');
+		const choice = await window.showQuickPick<MewgeItem>(picks, { pwaceHowda });
 
 		if (!choice) {
-			return;
+			wetuwn;
 		}
 
-		await choice.run(repository);
+		await choice.wun(wepositowy);
 	}
 
-	@command('git.rebase', { repository: true })
-	async rebase(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string | string[]>('checkoutType');
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
+	@command('git.webase', { wepositowy: twue })
+	async webase(wepositowy: Wepositowy): Pwomise<void> {
+		const config = wowkspace.getConfiguwation('git');
+		const checkoutType = config.get<stwing | stwing[]>('checkoutType');
+		const incwudeWemotes = checkoutType === 'aww' || checkoutType === 'wemote' || checkoutType?.incwudes('wemote');
 
-		const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-			.filter(ref => ref.name !== repository.HEAD?.name)
-			.filter(ref => ref.name || ref.commit);
+		const heads = wepositowy.wefs.fiwta(wef => wef.type === WefType.Head)
+			.fiwta(wef => wef.name !== wepositowy.HEAD?.name)
+			.fiwta(wef => wef.name || wef.commit);
 
-		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.filter(ref => ref.name || ref.commit);
+		const wemoteHeads = (incwudeWemotes ? wepositowy.wefs.fiwta(wef => wef.type === WefType.WemoteHead) : [])
+			.fiwta(wef => wef.name || wef.commit);
 
-		const picks = [...heads, ...remoteHeads]
-			.map(ref => new RebaseItem(ref));
+		const picks = [...heads, ...wemoteHeads]
+			.map(wef => new WebaseItem(wef));
 
-		// set upstream branch as first
-		if (repository.HEAD?.upstream) {
-			const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
-			const index = picks.findIndex(e => e.ref.name === upstreamName);
+		// set upstweam bwanch as fiwst
+		if (wepositowy.HEAD?.upstweam) {
+			const upstweamName = `${wepositowy.HEAD?.upstweam.wemote}/${wepositowy.HEAD?.upstweam.name}`;
+			const index = picks.findIndex(e => e.wef.name === upstweamName);
 
 			if (index > -1) {
-				const [ref] = picks.splice(index, 1);
-				ref.description = '(upstream)';
-				picks.unshift(ref);
+				const [wef] = picks.spwice(index, 1);
+				wef.descwiption = '(upstweam)';
+				picks.unshift(wef);
 			}
 		}
 
-		const placeHolder = localize('select a branch to rebase onto', 'Select a branch to rebase onto');
-		const choice = await window.showQuickPick<RebaseItem>(picks, { placeHolder });
+		const pwaceHowda = wocawize('sewect a bwanch to webase onto', 'Sewect a bwanch to webase onto');
+		const choice = await window.showQuickPick<WebaseItem>(picks, { pwaceHowda });
 
 		if (!choice) {
-			return;
+			wetuwn;
 		}
 
-		await choice.run(repository);
+		await choice.wun(wepositowy);
 	}
 
-	@command('git.createTag', { repository: true })
-	async createTag(repository: Repository): Promise<void> {
+	@command('git.cweateTag', { wepositowy: twue })
+	async cweateTag(wepositowy: Wepositowy): Pwomise<void> {
 		const inputTagName = await window.showInputBox({
-			placeHolder: localize('tag name', "Tag name"),
-			prompt: localize('provide tag name', "Please provide a tag name"),
-			ignoreFocusOut: true
+			pwaceHowda: wocawize('tag name', "Tag name"),
+			pwompt: wocawize('pwovide tag name', "Pwease pwovide a tag name"),
+			ignoweFocusOut: twue
 		});
 
 		if (!inputTagName) {
-			return;
+			wetuwn;
 		}
 
 		const inputMessage = await window.showInputBox({
-			placeHolder: localize('tag message', "Message"),
-			prompt: localize('provide tag message', "Please provide a message to annotate the tag"),
-			ignoreFocusOut: true
+			pwaceHowda: wocawize('tag message', "Message"),
+			pwompt: wocawize('pwovide tag message', "Pwease pwovide a message to annotate the tag"),
+			ignoweFocusOut: twue
 		});
 
-		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
-		await repository.tag(name, inputMessage);
+		const name = inputTagName.wepwace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.wock$|\.wock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		await wepositowy.tag(name, inputMessage);
 	}
 
-	@command('git.deleteTag', { repository: true })
-	async deleteTag(repository: Repository): Promise<void> {
-		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
-			.map(ref => new TagItem(ref));
+	@command('git.deweteTag', { wepositowy: twue })
+	async deweteTag(wepositowy: Wepositowy): Pwomise<void> {
+		const picks = wepositowy.wefs.fiwta(wef => wef.type === WefType.Tag)
+			.map(wef => new TagItem(wef));
 
-		if (picks.length === 0) {
-			window.showWarningMessage(localize('no tags', "This repository has no tags."));
-			return;
+		if (picks.wength === 0) {
+			window.showWawningMessage(wocawize('no tags', "This wepositowy has no tags."));
+			wetuwn;
 		}
 
-		const placeHolder = localize('select a tag to delete', 'Select a tag to delete');
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const pwaceHowda = wocawize('sewect a tag to dewete', 'Sewect a tag to dewete');
+		const choice = await window.showQuickPick(picks, { pwaceHowda });
 
 		if (!choice) {
-			return;
+			wetuwn;
 		}
 
-		await repository.deleteTag(choice.label);
+		await wepositowy.deweteTag(choice.wabew);
 	}
 
-	@command('git.fetch', { repository: true })
-	async fetch(repository: Repository): Promise<void> {
-		if (repository.remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
-			return;
+	@command('git.fetch', { wepositowy: twue })
+	async fetch(wepositowy: Wepositowy): Pwomise<void> {
+		if (wepositowy.wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to fetch', "This wepositowy has no wemotes configuwed to fetch fwom."));
+			wetuwn;
 		}
 
-		await repository.fetchDefault();
+		await wepositowy.fetchDefauwt();
 	}
 
-	@command('git.fetchPrune', { repository: true })
-	async fetchPrune(repository: Repository): Promise<void> {
-		if (repository.remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
-			return;
+	@command('git.fetchPwune', { wepositowy: twue })
+	async fetchPwune(wepositowy: Wepositowy): Pwomise<void> {
+		if (wepositowy.wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to fetch', "This wepositowy has no wemotes configuwed to fetch fwom."));
+			wetuwn;
 		}
 
-		await repository.fetchPrune();
+		await wepositowy.fetchPwune();
 	}
 
 
-	@command('git.fetchAll', { repository: true })
-	async fetchAll(repository: Repository): Promise<void> {
-		if (repository.remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
-			return;
+	@command('git.fetchAww', { wepositowy: twue })
+	async fetchAww(wepositowy: Wepositowy): Pwomise<void> {
+		if (wepositowy.wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to fetch', "This wepositowy has no wemotes configuwed to fetch fwom."));
+			wetuwn;
 		}
 
-		await repository.fetchAll();
+		await wepositowy.fetchAww();
 	}
 
-	@command('git.pullFrom', { repository: true })
-	async pullFrom(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+	@command('git.puwwFwom', { wepositowy: twue })
+	async puwwFwom(wepositowy: Wepositowy): Pwomise<void> {
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
-			return;
+		if (wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to puww', "Youw wepositowy has no wemotes configuwed to puww fwom."));
+			wetuwn;
 		}
 
-		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
-		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
-		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
+		const wemotePicks = wemotes.fiwta(w => w.fetchUww !== undefined).map(w => ({ wabew: w.name, descwiption: w.fetchUww! }));
+		const pwaceHowda = wocawize('pick wemote puww wepo', "Pick a wemote to puww the bwanch fwom");
+		const wemotePick = await window.showQuickPick(wemotePicks, { pwaceHowda });
 
-		if (!remotePick) {
-			return;
+		if (!wemotePick) {
+			wetuwn;
 		}
 
-		const remoteRefs = repository.refs;
-		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name! }));
-		const branchPlaceHolder = localize('pick branch pull', "Pick a branch to pull from");
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder: branchPlaceHolder });
+		const wemoteWefs = wepositowy.wefs;
+		const wemoteWefsFiwtewed = wemoteWefs.fiwta(w => (w.wemote === wemotePick.wabew));
+		const bwanchPicks = wemoteWefsFiwtewed.map(w => ({ wabew: w.name! }));
+		const bwanchPwaceHowda = wocawize('pick bwanch puww', "Pick a bwanch to puww fwom");
+		const bwanchPick = await window.showQuickPick(bwanchPicks, { pwaceHowda: bwanchPwaceHowda });
 
-		if (!branchPick) {
-			return;
+		if (!bwanchPick) {
+			wetuwn;
 		}
 
-		const remoteCharCnt = remotePick.label.length;
+		const wemoteChawCnt = wemotePick.wabew.wength;
 
-		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		await wepositowy.puwwFwom(fawse, wemotePick.wabew, bwanchPick.wabew.swice(wemoteChawCnt + 1));
 	}
 
-	@command('git.pull', { repository: true })
-	async pull(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+	@command('git.puww', { wepositowy: twue })
+	async puww(wepositowy: Wepositowy): Pwomise<void> {
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
-			return;
+		if (wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to puww', "Youw wepositowy has no wemotes configuwed to puww fwom."));
+			wetuwn;
 		}
 
-		await repository.pull(repository.HEAD);
+		await wepositowy.puww(wepositowy.HEAD);
 	}
 
-	@command('git.pullRebase', { repository: true })
-	async pullRebase(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+	@command('git.puwwWebase', { wepositowy: twue })
+	async puwwWebase(wepositowy: Wepositowy): Pwomise<void> {
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
-			return;
+		if (wemotes.wength === 0) {
+			window.showWawningMessage(wocawize('no wemotes to puww', "Youw wepositowy has no wemotes configuwed to puww fwom."));
+			wetuwn;
 		}
 
-		await repository.pullWithRebase(repository.HEAD);
+		await wepositowy.puwwWithWebase(wepositowy.HEAD);
 	}
 
-	private async _push(repository: Repository, pushOptions: PushOptions) {
-		const remotes = repository.remotes;
+	pwivate async _push(wepositowy: Wepositowy, pushOptions: PushOptions) {
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			if (pushOptions.silent) {
-				return;
+		if (wemotes.wength === 0) {
+			if (pushOptions.siwent) {
+				wetuwn;
 			}
 
-			const addRemote = localize('addremote', 'Add Remote');
-			const result = await window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."), addRemote);
+			const addWemote = wocawize('addwemote', 'Add Wemote');
+			const wesuwt = await window.showWawningMessage(wocawize('no wemotes to push', "Youw wepositowy has no wemotes configuwed to push to."), addWemote);
 
-			if (result === addRemote) {
-				await this.addRemote(repository);
+			if (wesuwt === addWemote) {
+				await this.addWemote(wepositowy);
 			}
 
-			return;
+			wetuwn;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		let forcePushMode: ForcePushMode | undefined = undefined;
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(wepositowy.woot));
+		wet fowcePushMode: FowcePushMode | undefined = undefined;
 
-		if (pushOptions.forcePush) {
-			if (!config.get<boolean>('allowForcePush')) {
-				await window.showErrorMessage(localize('force push not allowed', "Force push is not allowed, please enable it with the 'git.allowForcePush' setting."));
-				return;
+		if (pushOptions.fowcePush) {
+			if (!config.get<boowean>('awwowFowcePush')) {
+				await window.showEwwowMessage(wocawize('fowce push not awwowed', "Fowce push is not awwowed, pwease enabwe it with the 'git.awwowFowcePush' setting."));
+				wetuwn;
 			}
 
-			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+			fowcePushMode = config.get<boowean>('useFowcePushWithWease') === twue ? FowcePushMode.FowceWithWease : FowcePushMode.Fowce;
 
-			if (config.get<boolean>('confirmForcePush')) {
-				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?");
-				const yes = localize('ok', "OK");
-				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
-				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+			if (config.get<boowean>('confiwmFowcePush')) {
+				const message = wocawize('confiwm fowce push', "You awe about to fowce push youw changes, this can be destwuctive and couwd inadvewtentwy ovewwwite changes made by othews.\n\nAwe you suwe to continue?");
+				const yes = wocawize('ok', "OK");
+				const nevewAgain = wocawize('neva ask again', "OK, Don't Ask Again");
+				const pick = await window.showWawningMessage(message, { modaw: twue }, yes, nevewAgain);
 
-				if (pick === neverAgain) {
-					config.update('confirmForcePush', false, true);
-				} else if (pick !== yes) {
-					return;
+				if (pick === nevewAgain) {
+					config.update('confiwmFowcePush', fawse, twue);
+				} ewse if (pick !== yes) {
+					wetuwn;
 				}
 			}
 		}
 
-		if (pushOptions.pushType === PushType.PushFollowTags) {
-			await repository.pushFollowTags(undefined, forcePushMode);
-			return;
+		if (pushOptions.pushType === PushType.PushFowwowTags) {
+			await wepositowy.pushFowwowTags(undefined, fowcePushMode);
+			wetuwn;
 		}
 
 		if (pushOptions.pushType === PushType.PushTags) {
-			await repository.pushTags(undefined, forcePushMode);
+			await wepositowy.pushTags(undefined, fowcePushMode);
 		}
 
-		if (!repository.HEAD || !repository.HEAD.name) {
-			if (!pushOptions.silent) {
-				window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+		if (!wepositowy.HEAD || !wepositowy.HEAD.name) {
+			if (!pushOptions.siwent) {
+				window.showWawningMessage(wocawize('nobwanch', "Pwease check out a bwanch to push to a wemote."));
 			}
-			return;
+			wetuwn;
 		}
 
 		if (pushOptions.pushType === PushType.Push) {
-			try {
-				await repository.push(repository.HEAD, forcePushMode);
-			} catch (err) {
-				if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
-					throw err;
+			twy {
+				await wepositowy.push(wepositowy.HEAD, fowcePushMode);
+			} catch (eww) {
+				if (eww.gitEwwowCode !== GitEwwowCodes.NoUpstweamBwanch) {
+					thwow eww;
 				}
 
-				if (pushOptions.silent) {
-					return;
+				if (pushOptions.siwent) {
+					wetuwn;
 				}
 
-				const branchName = repository.HEAD.name;
-				const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
-				const yes = localize('ok', "OK");
-				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				const bwanchName = wepositowy.HEAD.name;
+				const message = wocawize('confiwm pubwish bwanch', "The bwanch '{0}' has no upstweam bwanch. Wouwd you wike to pubwish this bwanch?", bwanchName);
+				const yes = wocawize('ok', "OK");
+				const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 				if (pick === yes) {
-					await this.publish(repository);
+					await this.pubwish(wepositowy);
 				}
 			}
-		} else {
-			const branchName = repository.HEAD.name;
-			if (!pushOptions.pushTo?.remote) {
-				const addRemote = new AddRemoteItem(this);
-				const picks = [...remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-				const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-				const choice = await window.showQuickPick(picks, { placeHolder });
+		} ewse {
+			const bwanchName = wepositowy.HEAD.name;
+			if (!pushOptions.pushTo?.wemote) {
+				const addWemote = new AddWemoteItem(this);
+				const picks = [...wemotes.fiwta(w => w.pushUww !== undefined).map(w => ({ wabew: w.name, descwiption: w.pushUww })), addWemote];
+				const pwaceHowda = wocawize('pick wemote', "Pick a wemote to pubwish the bwanch '{0}' to:", bwanchName);
+				const choice = await window.showQuickPick(picks, { pwaceHowda });
 
 				if (!choice) {
-					return;
+					wetuwn;
 				}
 
-				if (choice === addRemote) {
-					const newRemote = await this.addRemote(repository);
+				if (choice === addWemote) {
+					const newWemote = await this.addWemote(wepositowy);
 
-					if (newRemote) {
-						await repository.pushTo(newRemote, branchName, undefined, forcePushMode);
+					if (newWemote) {
+						await wepositowy.pushTo(newWemote, bwanchName, undefined, fowcePushMode);
 					}
-				} else {
-					await repository.pushTo(choice.label, branchName, undefined, forcePushMode);
+				} ewse {
+					await wepositowy.pushTo(choice.wabew, bwanchName, undefined, fowcePushMode);
 				}
-			} else {
-				await repository.pushTo(pushOptions.pushTo.remote, pushOptions.pushTo.refspec || branchName, pushOptions.pushTo.setUpstream, forcePushMode);
+			} ewse {
+				await wepositowy.pushTo(pushOptions.pushTo.wemote, pushOptions.pushTo.wefspec || bwanchName, pushOptions.pushTo.setUpstweam, fowcePushMode);
 			}
 		}
 	}
 
-	@command('git.push', { repository: true })
-	async push(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.Push });
+	@command('git.push', { wepositowy: twue })
+	async push(wepositowy: Wepositowy): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.Push });
 	}
 
-	@command('git.pushForce', { repository: true })
-	async pushForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.Push, forcePush: true });
+	@command('git.pushFowce', { wepositowy: twue })
+	async pushFowce(wepositowy: Wepositowy): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.Push, fowcePush: twue });
 	}
 
-	@command('git.pushWithTags', { repository: true })
-	async pushFollowTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushFollowTags });
+	@command('git.pushWithTags', { wepositowy: twue })
+	async pushFowwowTags(wepositowy: Wepositowy): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.PushFowwowTags });
 	}
 
-	@command('git.pushWithTagsForce', { repository: true })
-	async pushFollowTagsForce(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushFollowTags, forcePush: true });
+	@command('git.pushWithTagsFowce', { wepositowy: twue })
+	async pushFowwowTagsFowce(wepositowy: Wepositowy): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.PushFowwowTags, fowcePush: twue });
 	}
 
-	@command('git.cherryPick', { repository: true })
-	async cherryPick(repository: Repository): Promise<void> {
+	@command('git.chewwyPick', { wepositowy: twue })
+	async chewwyPick(wepositowy: Wepositowy): Pwomise<void> {
 		const hash = await window.showInputBox({
-			placeHolder: localize('commit hash', "Commit Hash"),
-			prompt: localize('provide commit hash', "Please provide the commit hash"),
-			ignoreFocusOut: true
+			pwaceHowda: wocawize('commit hash', "Commit Hash"),
+			pwompt: wocawize('pwovide commit hash', "Pwease pwovide the commit hash"),
+			ignoweFocusOut: twue
 		});
 
 		if (!hash) {
-			return;
+			wetuwn;
 		}
 
-		await repository.cherryPick(hash);
+		await wepositowy.chewwyPick(hash);
 	}
 
-	@command('git.pushTo', { repository: true })
-	async pushTo(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream } });
+	@command('git.pushTo', { wepositowy: twue })
+	async pushTo(wepositowy: Wepositowy, wemote?: stwing, wefspec?: stwing, setUpstweam?: boowean): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.PushTo, pushTo: { wemote: wemote, wefspec: wefspec, setUpstweam: setUpstweam } });
 	}
 
-	@command('git.pushToForce', { repository: true })
-	async pushToForce(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream }, forcePush: true });
+	@command('git.pushToFowce', { wepositowy: twue })
+	async pushToFowce(wepositowy: Wepositowy, wemote?: stwing, wefspec?: stwing, setUpstweam?: boowean): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.PushTo, pushTo: { wemote: wemote, wefspec: wefspec, setUpstweam: setUpstweam }, fowcePush: twue });
 	}
 
-	@command('git.pushTags', { repository: true })
-	async pushTags(repository: Repository): Promise<void> {
-		await this._push(repository, { pushType: PushType.PushTags });
+	@command('git.pushTags', { wepositowy: twue })
+	async pushTags(wepositowy: Wepositowy): Pwomise<void> {
+		await this._push(wepositowy, { pushType: PushType.PushTags });
 	}
 
-	@command('git.addRemote', { repository: true })
-	async addRemote(repository: Repository): Promise<string | undefined> {
-		const url = await pickRemoteSource(this.model, {
-			providerLabel: provider => localize('addfrom', "Add remote from {0}", provider.name),
-			urlLabel: localize('addFrom', "Add remote from URL")
+	@command('git.addWemote', { wepositowy: twue })
+	async addWemote(wepositowy: Wepositowy): Pwomise<stwing | undefined> {
+		const uww = await pickWemoteSouwce(this.modew, {
+			pwovidewWabew: pwovida => wocawize('addfwom', "Add wemote fwom {0}", pwovida.name),
+			uwwWabew: wocawize('addFwom', "Add wemote fwom UWW")
 		});
 
-		if (!url) {
-			return;
+		if (!uww) {
+			wetuwn;
 		}
 
-		const resultName = await window.showInputBox({
-			placeHolder: localize('remote name', "Remote name"),
-			prompt: localize('provide remote name', "Please provide a remote name"),
-			ignoreFocusOut: true,
-			validateInput: (name: string) => {
-				if (!sanitizeRemoteName(name)) {
-					return localize('remote name format invalid', "Remote name format invalid");
-				} else if (repository.remotes.find(r => r.name === name)) {
-					return localize('remote already exists', "Remote '{0}' already exists.", name);
+		const wesuwtName = await window.showInputBox({
+			pwaceHowda: wocawize('wemote name', "Wemote name"),
+			pwompt: wocawize('pwovide wemote name', "Pwease pwovide a wemote name"),
+			ignoweFocusOut: twue,
+			vawidateInput: (name: stwing) => {
+				if (!sanitizeWemoteName(name)) {
+					wetuwn wocawize('wemote name fowmat invawid', "Wemote name fowmat invawid");
+				} ewse if (wepositowy.wemotes.find(w => w.name === name)) {
+					wetuwn wocawize('wemote awweady exists', "Wemote '{0}' awweady exists.", name);
 				}
 
-				return null;
+				wetuwn nuww;
 			}
 		});
 
-		const name = sanitizeRemoteName(resultName || '');
+		const name = sanitizeWemoteName(wesuwtName || '');
 
 		if (!name) {
-			return;
+			wetuwn;
 		}
 
-		await repository.addRemote(name, url.trim());
-		await repository.fetch({ remote: name });
-		return name;
+		await wepositowy.addWemote(name, uww.twim());
+		await wepositowy.fetch({ wemote: name });
+		wetuwn name;
 	}
 
-	@command('git.removeRemote', { repository: true })
-	async removeRemote(repository: Repository): Promise<void> {
-		const remotes = repository.remotes;
+	@command('git.wemoveWemote', { wepositowy: twue })
+	async wemoveWemote(wepositowy: Wepositowy): Pwomise<void> {
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
-			return;
+		if (wemotes.wength === 0) {
+			window.showEwwowMessage(wocawize('no wemotes added', "Youw wepositowy has no wemotes."));
+			wetuwn;
 		}
 
-		const picks = remotes.map(r => r.name);
-		const placeHolder = localize('remove remote', "Pick a remote to remove");
+		const picks = wemotes.map(w => w.name);
+		const pwaceHowda = wocawize('wemove wemote', "Pick a wemote to wemove");
 
-		const remoteName = await window.showQuickPick(picks, { placeHolder });
+		const wemoteName = await window.showQuickPick(picks, { pwaceHowda });
 
-		if (!remoteName) {
-			return;
+		if (!wemoteName) {
+			wetuwn;
 		}
 
-		await repository.removeRemote(remoteName);
+		await wepositowy.wemoveWemote(wemoteName);
 	}
 
-	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
-		const HEAD = repository.HEAD;
+	pwivate async _sync(wepositowy: Wepositowy, webase: boowean): Pwomise<void> {
+		const HEAD = wepositowy.HEAD;
 
 		if (!HEAD) {
-			return;
-		} else if (!HEAD.upstream) {
-			const branchName = HEAD.name;
-			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
-			const yes = localize('ok', "OK");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+			wetuwn;
+		} ewse if (!HEAD.upstweam) {
+			const bwanchName = HEAD.name;
+			const message = wocawize('confiwm pubwish bwanch', "The bwanch '{0}' has no upstweam bwanch. Wouwd you wike to pubwish this bwanch?", bwanchName);
+			const yes = wocawize('ok', "OK");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes);
 
 			if (pick === yes) {
-				await this.publish(repository);
+				await this.pubwish(wepositowy);
 			}
-			return;
+			wetuwn;
 		}
 
-		const remoteName = HEAD.remote || HEAD.upstream.remote;
-		const remote = repository.remotes.find(r => r.name === remoteName);
-		const isReadonly = remote && remote.isReadOnly;
+		const wemoteName = HEAD.wemote || HEAD.upstweam.wemote;
+		const wemote = wepositowy.wemotes.find(w => w.name === wemoteName);
+		const isWeadonwy = wemote && wemote.isWeadOnwy;
 
-		const config = workspace.getConfiguration('git');
-		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
+		const config = wowkspace.getConfiguwation('git');
+		const shouwdPwompt = !isWeadonwy && config.get<boowean>('confiwmSync') === twue;
 
-		if (shouldPrompt) {
-			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
-			const yes = localize('ok', "OK");
-			const neverAgain = localize('never again', "OK, Don't Show Again");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+		if (shouwdPwompt) {
+			const message = wocawize('sync is unpwedictabwe', "This action wiww push and puww commits to and fwom '{0}/{1}'.", HEAD.upstweam.wemote, HEAD.upstweam.name);
+			const yes = wocawize('ok', "OK");
+			const nevewAgain = wocawize('neva again', "OK, Don't Show Again");
+			const pick = await window.showWawningMessage(message, { modaw: twue }, yes, nevewAgain);
 
-			if (pick === neverAgain) {
-				await config.update('confirmSync', false, true);
-			} else if (pick !== yes) {
-				return;
+			if (pick === nevewAgain) {
+				await config.update('confiwmSync', fawse, twue);
+			} ewse if (pick !== yes) {
+				wetuwn;
 			}
 		}
 
-		if (rebase) {
-			await repository.syncRebase(HEAD);
-		} else {
-			await repository.sync(HEAD);
-		}
-	}
-
-	@command('git.sync', { repository: true })
-	async sync(repository: Repository): Promise<void> {
-		try {
-			await this._sync(repository, false);
-		} catch (err) {
-			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
-			}
-
-			throw err;
+		if (webase) {
+			await wepositowy.syncWebase(HEAD);
+		} ewse {
+			await wepositowy.sync(HEAD);
 		}
 	}
 
-	@command('git._syncAll')
-	async syncAll(): Promise<void> {
-		await Promise.all(this.model.repositories.map(async repository => {
-			const HEAD = repository.HEAD;
-
-			if (!HEAD || !HEAD.upstream) {
-				return;
+	@command('git.sync', { wepositowy: twue })
+	async sync(wepositowy: Wepositowy): Pwomise<void> {
+		twy {
+			await this._sync(wepositowy, fawse);
+		} catch (eww) {
+			if (/Cancewwed/i.test(eww && (eww.message || eww.stdeww || ''))) {
+				wetuwn;
 			}
 
-			await repository.sync(HEAD);
+			thwow eww;
+		}
+	}
+
+	@command('git._syncAww')
+	async syncAww(): Pwomise<void> {
+		await Pwomise.aww(this.modew.wepositowies.map(async wepositowy => {
+			const HEAD = wepositowy.HEAD;
+
+			if (!HEAD || !HEAD.upstweam) {
+				wetuwn;
+			}
+
+			await wepositowy.sync(HEAD);
 		}));
 	}
 
-	@command('git.syncRebase', { repository: true })
-	async syncRebase(repository: Repository): Promise<void> {
-		try {
-			await this._sync(repository, true);
-		} catch (err) {
-			if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
-				return;
+	@command('git.syncWebase', { wepositowy: twue })
+	async syncWebase(wepositowy: Wepositowy): Pwomise<void> {
+		twy {
+			await this._sync(wepositowy, twue);
+		} catch (eww) {
+			if (/Cancewwed/i.test(eww && (eww.message || eww.stdeww || ''))) {
+				wetuwn;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	@command('git.publish', { repository: true })
-	async publish(repository: Repository): Promise<void> {
-		const branchName = repository.HEAD && repository.HEAD.name || '';
-		const remotes = repository.remotes;
+	@command('git.pubwish', { wepositowy: twue })
+	async pubwish(wepositowy: Wepositowy): Pwomise<void> {
+		const bwanchName = wepositowy.HEAD && wepositowy.HEAD.name || '';
+		const wemotes = wepositowy.wemotes;
 
-		if (remotes.length === 0) {
-			const providers = this.model.getRemoteProviders().filter(p => !!p.publishRepository);
+		if (wemotes.wength === 0) {
+			const pwovidews = this.modew.getWemotePwovidews().fiwta(p => !!p.pubwishWepositowy);
 
-			if (providers.length === 0) {
-				window.showWarningMessage(localize('no remotes to publish', "Your repository has no remotes configured to publish to."));
-				return;
+			if (pwovidews.wength === 0) {
+				window.showWawningMessage(wocawize('no wemotes to pubwish', "Youw wepositowy has no wemotes configuwed to pubwish to."));
+				wetuwn;
 			}
 
-			let provider: RemoteSourceProvider;
+			wet pwovida: WemoteSouwcePwovida;
 
-			if (providers.length === 1) {
-				provider = providers[0];
-			} else {
-				const picks = providers
-					.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('publish to', "Publish to {0}", provider.name), alwaysShow: true, provider }));
-				const placeHolder = localize('pick provider', "Pick a provider to publish the branch '{0}' to:", branchName);
-				const choice = await window.showQuickPick(picks, { placeHolder });
+			if (pwovidews.wength === 1) {
+				pwovida = pwovidews[0];
+			} ewse {
+				const picks = pwovidews
+					.map(pwovida => ({ wabew: (pwovida.icon ? `$(${pwovida.icon}) ` : '') + wocawize('pubwish to', "Pubwish to {0}", pwovida.name), awwaysShow: twue, pwovida }));
+				const pwaceHowda = wocawize('pick pwovida', "Pick a pwovida to pubwish the bwanch '{0}' to:", bwanchName);
+				const choice = await window.showQuickPick(picks, { pwaceHowda });
 
 				if (!choice) {
-					return;
+					wetuwn;
 				}
 
-				provider = choice.provider;
+				pwovida = choice.pwovida;
 			}
 
-			await provider.publishRepository!(new ApiRepository(repository));
-			this.model.firePublishEvent(repository, branchName);
+			await pwovida.pubwishWepositowy!(new ApiWepositowy(wepositowy));
+			this.modew.fiwePubwishEvent(wepositowy, bwanchName);
 
-			return;
+			wetuwn;
 		}
 
-		if (remotes.length === 1) {
-			await repository.pushTo(remotes[0].name, branchName, true);
-			this.model.firePublishEvent(repository, branchName);
+		if (wemotes.wength === 1) {
+			await wepositowy.pushTo(wemotes[0].name, bwanchName, twue);
+			this.modew.fiwePubwishEvent(wepositowy, bwanchName);
 
-			return;
+			wetuwn;
 		}
 
-		const addRemote = new AddRemoteItem(this);
-		const picks = [...repository.remotes.map(r => ({ label: r.name, description: r.pushUrl })), addRemote];
-		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
-		const choice = await window.showQuickPick(picks, { placeHolder });
+		const addWemote = new AddWemoteItem(this);
+		const picks = [...wepositowy.wemotes.map(w => ({ wabew: w.name, descwiption: w.pushUww })), addWemote];
+		const pwaceHowda = wocawize('pick wemote', "Pick a wemote to pubwish the bwanch '{0}' to:", bwanchName);
+		const choice = await window.showQuickPick(picks, { pwaceHowda });
 
 		if (!choice) {
-			return;
+			wetuwn;
 		}
 
-		if (choice === addRemote) {
-			const newRemote = await this.addRemote(repository);
+		if (choice === addWemote) {
+			const newWemote = await this.addWemote(wepositowy);
 
-			if (newRemote) {
-				await repository.pushTo(newRemote, branchName, true);
+			if (newWemote) {
+				await wepositowy.pushTo(newWemote, bwanchName, twue);
 
-				this.model.firePublishEvent(repository, branchName);
+				this.modew.fiwePubwishEvent(wepositowy, bwanchName);
 			}
-		} else {
-			await repository.pushTo(choice.label, branchName, true);
+		} ewse {
+			await wepositowy.pushTo(choice.wabew, bwanchName, twue);
 
-			this.model.firePublishEvent(repository, branchName);
+			this.modew.fiwePubwishEvent(wepositowy, bwanchName);
 		}
 	}
 
-	@command('git.ignore')
-	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		resourceStates = resourceStates.filter(s => !!s);
+	@command('git.ignowe')
+	async ignowe(...wesouwceStates: SouwceContwowWesouwceState[]): Pwomise<void> {
+		wesouwceStates = wesouwceStates.fiwta(s => !!s);
 
-		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
-			const resource = this.getSCMResource();
+		if (wesouwceStates.wength === 0 || (wesouwceStates[0] && !(wesouwceStates[0].wesouwceUwi instanceof Uwi))) {
+			const wesouwce = this.getSCMWesouwce();
 
-			if (!resource) {
-				return;
+			if (!wesouwce) {
+				wetuwn;
 			}
 
-			resourceStates = [resource];
+			wesouwceStates = [wesouwce];
 		}
 
-		const resources = resourceStates
-			.filter(s => s instanceof Resource)
-			.map(r => r.resourceUri);
+		const wesouwces = wesouwceStates
+			.fiwta(s => s instanceof Wesouwce)
+			.map(w => w.wesouwceUwi);
 
-		if (!resources.length) {
-			return;
+		if (!wesouwces.wength) {
+			wetuwn;
 		}
 
-		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
+		await this.wunByWepositowy(wesouwces, async (wepositowy, wesouwces) => wepositowy.ignowe(wesouwces));
 	}
 
-	@command('git.revealInExplorer')
-	async revealInExplorer(resourceState: SourceControlResourceState): Promise<void> {
-		if (!resourceState) {
-			return;
+	@command('git.weveawInExpwowa')
+	async weveawInExpwowa(wesouwceState: SouwceContwowWesouwceState): Pwomise<void> {
+		if (!wesouwceState) {
+			wetuwn;
 		}
 
-		if (!(resourceState.resourceUri instanceof Uri)) {
-			return;
+		if (!(wesouwceState.wesouwceUwi instanceof Uwi)) {
+			wetuwn;
 		}
 
-		await commands.executeCommand('revealInExplorer', resourceState.resourceUri);
+		await commands.executeCommand('weveawInExpwowa', wesouwceState.wesouwceUwi);
 	}
 
-	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
-		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0
-			&& (!includeUntracked || repository.untrackedGroup.resourceStates.length === 0);
-		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+	pwivate async _stash(wepositowy: Wepositowy, incwudeUntwacked = fawse): Pwomise<void> {
+		const noUnstagedChanges = wepositowy.wowkingTweeGwoup.wesouwceStates.wength === 0
+			&& (!incwudeUntwacked || wepositowy.untwackedGwoup.wesouwceStates.wength === 0);
+		const noStagedChanges = wepositowy.indexGwoup.wesouwceStates.wength === 0;
 
 		if (noUnstagedChanges && noStagedChanges) {
-			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
-			return;
+			window.showInfowmationMessage(wocawize('no changes stash', "Thewe awe no changes to stash."));
+			wetuwn;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const promptToSaveFilesBeforeStashing = config.get<'always' | 'staged' | 'never'>('promptToSaveFilesBeforeStash');
+		const config = wowkspace.getConfiguwation('git', Uwi.fiwe(wepositowy.woot));
+		const pwomptToSaveFiwesBefoweStashing = config.get<'awways' | 'staged' | 'neva'>('pwomptToSaveFiwesBefoweStash');
 
-		if (promptToSaveFilesBeforeStashing !== 'never') {
-			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		if (pwomptToSaveFiwesBefoweStashing !== 'neva') {
+			wet documents = wowkspace.textDocuments
+				.fiwta(d => !d.isUntitwed && d.isDiwty && isDescendant(wepositowy.woot, d.uwi.fsPath));
 
-			if (promptToSaveFilesBeforeStashing === 'staged' || repository.indexGroup.resourceStates.length > 0) {
+			if (pwomptToSaveFiwesBefoweStashing === 'staged' || wepositowy.indexGwoup.wesouwceStates.wength > 0) {
 				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+					.fiwta(d => wepositowy.indexGwoup.wesouwceStates.some(s => pathEquaws(s.wesouwceUwi.fsPath, d.uwi.fsPath)));
 			}
 
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? localize('unsaved stash files single', "The following file has unsaved changes which won't be included in the stash if you proceed: {0}.\n\nWould you like to save it before stashing?", path.basename(documents[0].uri.fsPath))
-					: localize('unsaved stash files', "There are {0} unsaved files.\n\nWould you like to save them before stashing?", documents.length);
-				const saveAndStash = localize('save and stash', "Save All & Stash");
-				const stash = localize('stash', "Stash Anyway");
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndStash, stash);
+			if (documents.wength > 0) {
+				const message = documents.wength === 1
+					? wocawize('unsaved stash fiwes singwe', "The fowwowing fiwe has unsaved changes which won't be incwuded in the stash if you pwoceed: {0}.\n\nWouwd you wike to save it befowe stashing?", path.basename(documents[0].uwi.fsPath))
+					: wocawize('unsaved stash fiwes', "Thewe awe {0} unsaved fiwes.\n\nWouwd you wike to save them befowe stashing?", documents.wength);
+				const saveAndStash = wocawize('save and stash', "Save Aww & Stash");
+				const stash = wocawize('stash', "Stash Anyway");
+				const pick = await window.showWawningMessage(message, { modaw: twue }, saveAndStash, stash);
 
 				if (pick === saveAndStash) {
-					await Promise.all(documents.map(d => d.save()));
-				} else if (pick !== stash) {
-					return; // do not stash on cancel
+					await Pwomise.aww(documents.map(d => d.save()));
+				} ewse if (pick !== stash) {
+					wetuwn; // do not stash on cancew
 				}
 			}
 		}
 
-		let message: string | undefined;
+		wet message: stwing | undefined;
 
-		if (config.get<boolean>('useCommitInputAsStashMessage') && (!repository.sourceControl.commitTemplate || repository.inputBox.value !== repository.sourceControl.commitTemplate)) {
-			message = repository.inputBox.value;
+		if (config.get<boowean>('useCommitInputAsStashMessage') && (!wepositowy.souwceContwow.commitTempwate || wepositowy.inputBox.vawue !== wepositowy.souwceContwow.commitTempwate)) {
+			message = wepositowy.inputBox.vawue;
 		}
 
 		message = await window.showInputBox({
-			value: message,
-			prompt: localize('provide stash message', "Optionally provide a stash message"),
-			placeHolder: localize('stash message', "Stash message")
+			vawue: message,
+			pwompt: wocawize('pwovide stash message', "Optionawwy pwovide a stash message"),
+			pwaceHowda: wocawize('stash message', "Stash message")
 		});
 
 		if (typeof message === 'undefined') {
-			return;
+			wetuwn;
 		}
 
-		await repository.createStash(message, includeUntracked);
+		await wepositowy.cweateStash(message, incwudeUntwacked);
 	}
 
-	@command('git.stash', { repository: true })
-	stash(repository: Repository): Promise<void> {
-		return this._stash(repository);
+	@command('git.stash', { wepositowy: twue })
+	stash(wepositowy: Wepositowy): Pwomise<void> {
+		wetuwn this._stash(wepositowy);
 	}
 
-	@command('git.stashIncludeUntracked', { repository: true })
-	stashIncludeUntracked(repository: Repository): Promise<void> {
-		return this._stash(repository, true);
+	@command('git.stashIncwudeUntwacked', { wepositowy: twue })
+	stashIncwudeUntwacked(wepositowy: Wepositowy): Pwomise<void> {
+		wetuwn this._stash(wepositowy, twue);
 	}
 
-	@command('git.stashPop', { repository: true })
-	async stashPop(repository: Repository): Promise<void> {
-		const placeHolder = localize('pick stash to pop', "Pick a stash to pop");
-		const stash = await this.pickStash(repository, placeHolder);
+	@command('git.stashPop', { wepositowy: twue })
+	async stashPop(wepositowy: Wepositowy): Pwomise<void> {
+		const pwaceHowda = wocawize('pick stash to pop', "Pick a stash to pop");
+		const stash = await this.pickStash(wepositowy, pwaceHowda);
 
 		if (!stash) {
-			return;
+			wetuwn;
 		}
 
-		await repository.popStash(stash.index);
+		await wepositowy.popStash(stash.index);
 	}
 
-	@command('git.stashPopLatest', { repository: true })
-	async stashPopLatest(repository: Repository): Promise<void> {
-		const stashes = await repository.getStashes();
+	@command('git.stashPopWatest', { wepositowy: twue })
+	async stashPopWatest(wepositowy: Wepositowy): Pwomise<void> {
+		const stashes = await wepositowy.getStashes();
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
-			return;
+		if (stashes.wength === 0) {
+			window.showInfowmationMessage(wocawize('no stashes', "Thewe awe no stashes in the wepositowy."));
+			wetuwn;
 		}
 
-		await repository.popStash();
+		await wepositowy.popStash();
 	}
 
-	@command('git.stashApply', { repository: true })
-	async stashApply(repository: Repository): Promise<void> {
-		const placeHolder = localize('pick stash to apply', "Pick a stash to apply");
-		const stash = await this.pickStash(repository, placeHolder);
+	@command('git.stashAppwy', { wepositowy: twue })
+	async stashAppwy(wepositowy: Wepositowy): Pwomise<void> {
+		const pwaceHowda = wocawize('pick stash to appwy', "Pick a stash to appwy");
+		const stash = await this.pickStash(wepositowy, pwaceHowda);
 
 		if (!stash) {
-			return;
+			wetuwn;
 		}
 
-		await repository.applyStash(stash.index);
+		await wepositowy.appwyStash(stash.index);
 	}
 
-	@command('git.stashApplyLatest', { repository: true })
-	async stashApplyLatest(repository: Repository): Promise<void> {
-		const stashes = await repository.getStashes();
+	@command('git.stashAppwyWatest', { wepositowy: twue })
+	async stashAppwyWatest(wepositowy: Wepositowy): Pwomise<void> {
+		const stashes = await wepositowy.getStashes();
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
-			return;
+		if (stashes.wength === 0) {
+			window.showInfowmationMessage(wocawize('no stashes', "Thewe awe no stashes in the wepositowy."));
+			wetuwn;
 		}
 
-		await repository.applyStash();
+		await wepositowy.appwyStash();
 	}
 
-	@command('git.stashDrop', { repository: true })
-	async stashDrop(repository: Repository): Promise<void> {
-		const placeHolder = localize('pick stash to drop', "Pick a stash to drop");
-		const stash = await this.pickStash(repository, placeHolder);
+	@command('git.stashDwop', { wepositowy: twue })
+	async stashDwop(wepositowy: Wepositowy): Pwomise<void> {
+		const pwaceHowda = wocawize('pick stash to dwop', "Pick a stash to dwop");
+		const stash = await this.pickStash(wepositowy, pwaceHowda);
 
 		if (!stash) {
-			return;
+			wetuwn;
 		}
 
-		// request confirmation for the operation
-		const yes = localize('yes', "Yes");
-		const result = await window.showWarningMessage(
-			localize('sure drop', "Are you sure you want to drop the stash: {0}?", stash.description),
+		// wequest confiwmation fow the opewation
+		const yes = wocawize('yes', "Yes");
+		const wesuwt = await window.showWawningMessage(
+			wocawize('suwe dwop', "Awe you suwe you want to dwop the stash: {0}?", stash.descwiption),
 			yes
 		);
-		if (result !== yes) {
-			return;
+		if (wesuwt !== yes) {
+			wetuwn;
 		}
 
-		await repository.dropStash(stash.index);
+		await wepositowy.dwopStash(stash.index);
 	}
 
-	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
-		const stashes = await repository.getStashes();
+	pwivate async pickStash(wepositowy: Wepositowy, pwaceHowda: stwing): Pwomise<Stash | undefined> {
+		const stashes = await wepositowy.getStashes();
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(localize('no stashes', "There are no stashes in the repository."));
-			return;
+		if (stashes.wength === 0) {
+			window.showInfowmationMessage(wocawize('no stashes', "Thewe awe no stashes in the wepositowy."));
+			wetuwn;
 		}
 
-		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
-		const result = await window.showQuickPick(picks, { placeHolder });
-		return result && result.stash;
+		const picks = stashes.map(stash => ({ wabew: `#${stash.index}:  ${stash.descwiption}`, descwiption: '', detaiws: '', stash }));
+		const wesuwt = await window.showQuickPick(picks, { pwaceHowda });
+		wetuwn wesuwt && wesuwt.stash;
 	}
 
-	@command('git.timeline.openDiff', { repository: false })
-	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		const cmd = this.resolveTimelineOpenDiffCommand(
-			item, uri,
+	@command('git.timewine.openDiff', { wepositowy: fawse })
+	async timewineOpenDiff(item: TimewineItem, uwi: Uwi | undefined, _souwce: stwing) {
+		const cmd = this.wesowveTimewineOpenDiffCommand(
+			item, uwi,
 			{
-				preserveFocus: true,
-				preview: true,
-				viewColumn: ViewColumn.Active
+				pwesewveFocus: twue,
+				pweview: twue,
+				viewCowumn: ViewCowumn.Active
 			},
 		);
 		if (cmd === undefined) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return commands.executeCommand(cmd.command, ...(cmd.arguments ?? []));
+		wetuwn commands.executeCommand(cmd.command, ...(cmd.awguments ?? []));
 	}
 
-	resolveTimelineOpenDiffCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Command | undefined {
-		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
-			return undefined;
+	wesowveTimewineOpenDiffCommand(item: TimewineItem, uwi: Uwi | undefined, options?: TextDocumentShowOptions): Command | undefined {
+		if (uwi === undefined || uwi === nuww || !GitTimewineItem.is(item)) {
+			wetuwn undefined;
 		}
 
-		const basename = path.basename(uri.fsPath);
+		const basename = path.basename(uwi.fsPath);
 
-		let title;
-		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
-			title = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		wet titwe;
+		if ((item.pweviousWef === 'HEAD' || item.pweviousWef === '~') && item.wef === '') {
+			titwe = wocawize('git.titwe.wowkingTwee', '{0} (Wowking Twee)', basename);
 		}
-		else if (item.previousRef === 'HEAD' && item.ref === '~') {
-			title = localize('git.title.index', '{0} (Index)', basename);
-		} else {
-			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
+		ewse if (item.pweviousWef === 'HEAD' && item.wef === '~') {
+			titwe = wocawize('git.titwe.index', '{0} (Index)', basename);
+		} ewse {
+			titwe = wocawize('git.titwe.diffWefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.showtPweviousWef, item.showtWef);
 		}
 
-		return {
+		wetuwn {
 			command: 'vscode.diff',
-			title: 'Open Comparison',
-			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
+			titwe: 'Open Compawison',
+			awguments: [toGitUwi(uwi, item.pweviousWef), item.wef === '' ? uwi : toGitUwi(uwi, item.wef), titwe, options]
 		};
 	}
 
-	@command('git.timeline.copyCommitId', { repository: false })
-	async timelineCopyCommitId(item: TimelineItem, _uri: Uri | undefined, _source: string) {
-		if (!GitTimelineItem.is(item)) {
-			return;
+	@command('git.timewine.copyCommitId', { wepositowy: fawse })
+	async timewineCopyCommitId(item: TimewineItem, _uwi: Uwi | undefined, _souwce: stwing) {
+		if (!GitTimewineItem.is(item)) {
+			wetuwn;
 		}
 
-		env.clipboard.writeText(item.ref);
+		env.cwipboawd.wwiteText(item.wef);
 	}
 
-	@command('git.timeline.copyCommitMessage', { repository: false })
-	async timelineCopyCommitMessage(item: TimelineItem, _uri: Uri | undefined, _source: string) {
-		if (!GitTimelineItem.is(item)) {
-			return;
+	@command('git.timewine.copyCommitMessage', { wepositowy: fawse })
+	async timewineCopyCommitMessage(item: TimewineItem, _uwi: Uwi | undefined, _souwce: stwing) {
+		if (!GitTimewineItem.is(item)) {
+			wetuwn;
 		}
 
-		env.clipboard.writeText(item.message);
+		env.cwipboawd.wwiteText(item.message);
 	}
 
-	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+	pwivate _sewectedFowCompawe: { uwi: Uwi, item: GitTimewineItem } | undefined;
 
-	@command('git.timeline.selectForCompare', { repository: false })
-	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		if (!GitTimelineItem.is(item) || !uri) {
-			return;
+	@command('git.timewine.sewectFowCompawe', { wepositowy: fawse })
+	async timewineSewectFowCompawe(item: TimewineItem, uwi: Uwi | undefined, _souwce: stwing) {
+		if (!GitTimewineItem.is(item) || !uwi) {
+			wetuwn;
 		}
 
-		this._selectedForCompare = { uri, item };
-		await commands.executeCommand('setContext', 'git.timeline.selectedForCompare', true);
+		this._sewectedFowCompawe = { uwi, item };
+		await commands.executeCommand('setContext', 'git.timewine.sewectedFowCompawe', twue);
 	}
 
-	@command('git.timeline.compareWithSelected', { repository: false })
-	async timelineCompareWithSelected(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		if (!GitTimelineItem.is(item) || !uri || !this._selectedForCompare || uri.toString() !== this._selectedForCompare.uri.toString()) {
-			return;
+	@command('git.timewine.compaweWithSewected', { wepositowy: fawse })
+	async timewineCompaweWithSewected(item: TimewineItem, uwi: Uwi | undefined, _souwce: stwing) {
+		if (!GitTimewineItem.is(item) || !uwi || !this._sewectedFowCompawe || uwi.toStwing() !== this._sewectedFowCompawe.uwi.toStwing()) {
+			wetuwn;
 		}
 
-		const { item: selected } = this._selectedForCompare;
+		const { item: sewected } = this._sewectedFowCompawe;
 
-		const basename = path.basename(uri.fsPath);
-		let leftTitle;
-		if ((selected.previousRef === 'HEAD' || selected.previousRef === '~') && selected.ref === '') {
-			leftTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		const basename = path.basename(uwi.fsPath);
+		wet weftTitwe;
+		if ((sewected.pweviousWef === 'HEAD' || sewected.pweviousWef === '~') && sewected.wef === '') {
+			weftTitwe = wocawize('git.titwe.wowkingTwee', '{0} (Wowking Twee)', basename);
 		}
-		else if (selected.previousRef === 'HEAD' && selected.ref === '~') {
-			leftTitle = localize('git.title.index', '{0} (Index)', basename);
-		} else {
-			leftTitle = localize('git.title.ref', '{0} ({1})', basename, selected.shortRef);
-		}
-
-		let rightTitle;
-		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
-			rightTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
-		}
-		else if (item.previousRef === 'HEAD' && item.ref === '~') {
-			rightTitle = localize('git.title.index', '{0} (Index)', basename);
-		} else {
-			rightTitle = localize('git.title.ref', '{0} ({1})', basename, item.shortRef);
+		ewse if (sewected.pweviousWef === 'HEAD' && sewected.wef === '~') {
+			weftTitwe = wocawize('git.titwe.index', '{0} (Index)', basename);
+		} ewse {
+			weftTitwe = wocawize('git.titwe.wef', '{0} ({1})', basename, sewected.showtWef);
 		}
 
+		wet wightTitwe;
+		if ((item.pweviousWef === 'HEAD' || item.pweviousWef === '~') && item.wef === '') {
+			wightTitwe = wocawize('git.titwe.wowkingTwee', '{0} (Wowking Twee)', basename);
+		}
+		ewse if (item.pweviousWef === 'HEAD' && item.wef === '~') {
+			wightTitwe = wocawize('git.titwe.index', '{0} (Index)', basename);
+		} ewse {
+			wightTitwe = wocawize('git.titwe.wef', '{0} ({1})', basename, item.showtWef);
+		}
 
-		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
-		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
+
+		const titwe = wocawize('git.titwe.diff', '{0} ⟷ {1}', weftTitwe, wightTitwe);
+		await commands.executeCommand('vscode.diff', sewected.wef === '' ? uwi : toGitUwi(uwi, sewected.wef), item.wef === '' ? uwi : toGitUwi(uwi, item.wef), titwe);
 	}
 
-	@command('git.rebaseAbort', { repository: true })
-	async rebaseAbort(repository: Repository): Promise<void> {
-		if (repository.rebaseCommit) {
-			await repository.rebaseAbort();
-		} else {
-			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
+	@command('git.webaseAbowt', { wepositowy: twue })
+	async webaseAbowt(wepositowy: Wepositowy): Pwomise<void> {
+		if (wepositowy.webaseCommit) {
+			await wepositowy.webaseAbowt();
+		} ewse {
+			await window.showInfowmationMessage(wocawize('no webase', "No webase in pwogwess."));
 		}
 	}
 
-	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
-		const result = (...args: any[]) => {
-			let result: Promise<any>;
+	pwivate cweateCommand(id: stwing, key: stwing, method: Function, options: ScmCommandOptions): (...awgs: any[]) => any {
+		const wesuwt = (...awgs: any[]) => {
+			wet wesuwt: Pwomise<any>;
 
-			if (!options.repository) {
-				result = Promise.resolve(method.apply(this, args));
-			} else {
-				// try to guess the repository based on the first argument
-				const repository = this.model.getRepository(args[0]);
-				let repositoryPromise: Promise<Repository | undefined>;
+			if (!options.wepositowy) {
+				wesuwt = Pwomise.wesowve(method.appwy(this, awgs));
+			} ewse {
+				// twy to guess the wepositowy based on the fiwst awgument
+				const wepositowy = this.modew.getWepositowy(awgs[0]);
+				wet wepositowyPwomise: Pwomise<Wepositowy | undefined>;
 
-				if (repository) {
-					repositoryPromise = Promise.resolve(repository);
-				} else if (this.model.repositories.length === 1) {
-					repositoryPromise = Promise.resolve(this.model.repositories[0]);
-				} else {
-					repositoryPromise = this.model.pickRepository();
+				if (wepositowy) {
+					wepositowyPwomise = Pwomise.wesowve(wepositowy);
+				} ewse if (this.modew.wepositowies.wength === 1) {
+					wepositowyPwomise = Pwomise.wesowve(this.modew.wepositowies[0]);
+				} ewse {
+					wepositowyPwomise = this.modew.pickWepositowy();
 				}
 
-				result = repositoryPromise.then(repository => {
-					if (!repository) {
-						return Promise.resolve();
+				wesuwt = wepositowyPwomise.then(wepositowy => {
+					if (!wepositowy) {
+						wetuwn Pwomise.wesowve();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
+					wetuwn Pwomise.wesowve(method.appwy(this, [wepositowy, ...awgs.swice(1)]));
 				});
 			}
 
-			/* __GDPR__
+			/* __GDPW__
 				"git.command" : {
-					"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"command" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
+			this.tewemetwyWepowta.sendTewemetwyEvent('git.command', { command: id });
 
-			return result.catch(async err => {
+			wetuwn wesuwt.catch(async eww => {
 				const options: MessageOptions = {
-					modal: true
+					modaw: twue
 				};
 
-				let message: string;
-				let type: 'error' | 'warning' = 'error';
+				wet message: stwing;
+				wet type: 'ewwow' | 'wawning' = 'ewwow';
 
-				const choices = new Map<string, () => void>();
-				const openOutputChannelChoice = localize('open git log', "Open Git Log");
-				const outputChannel = this.outputChannel as OutputChannel;
-				choices.set(openOutputChannelChoice, () => outputChannel.show());
+				const choices = new Map<stwing, () => void>();
+				const openOutputChannewChoice = wocawize('open git wog', "Open Git Wog");
+				const outputChannew = this.outputChannew as OutputChannew;
+				choices.set(openOutputChannewChoice, () => outputChannew.show());
 
-				const showCommandOutputChoice = localize('show command output', "Show Command Output");
-				if (err.stderr) {
+				const showCommandOutputChoice = wocawize('show command output', "Show Command Output");
+				if (eww.stdeww) {
 					choices.set(showCommandOutputChoice, async () => {
 						const timestamp = new Date().getTime();
-						const uri = Uri.parse(`git-output:/git-error-${timestamp}`);
+						const uwi = Uwi.pawse(`git-output:/git-ewwow-${timestamp}`);
 
-						let command = 'git';
+						wet command = 'git';
 
-						if (err.gitArgs) {
-							command = `${command} ${err.gitArgs.join(' ')}`;
-						} else if (err.gitCommand) {
-							command = `${command} ${err.gitCommand}`;
+						if (eww.gitAwgs) {
+							command = `${command} ${eww.gitAwgs.join(' ')}`;
+						} ewse if (eww.gitCommand) {
+							command = `${command} ${eww.gitCommand}`;
 						}
 
-						this.commandErrors.set(uri, `> ${command}\n${err.stderr}`);
+						this.commandEwwows.set(uwi, `> ${command}\n${eww.stdeww}`);
 
-						try {
-							const doc = await workspace.openTextDocument(uri);
+						twy {
+							const doc = await wowkspace.openTextDocument(uwi);
 							await window.showTextDocument(doc);
-						} finally {
-							this.commandErrors.delete(uri);
+						} finawwy {
+							this.commandEwwows.dewete(uwi);
 						}
 					});
 				}
 
-				switch (err.gitErrorCode) {
-					case GitErrorCodes.DirtyWorkTree:
-						message = localize('clean repo', "Please clean your repository working tree before checkout.");
-						break;
-					case GitErrorCodes.PushRejected:
-						message = localize('cant push', "Can't push refs to remote. Try running 'Pull' first to integrate your changes.");
-						break;
-					case GitErrorCodes.Conflict:
-						message = localize('merge conflicts', "There are merge conflicts. Resolve them before committing.");
-						type = 'warning';
-						options.modal = false;
-						break;
-					case GitErrorCodes.StashConflict:
-						message = localize('stash merge conflicts', "There were merge conflicts while applying the stash.");
-						type = 'warning';
-						options.modal = false;
-						break;
-					case GitErrorCodes.AuthenticationFailed:
-						const regex = /Authentication failed for '(.*)'/i;
-						const match = regex.exec(err.stderr || String(err));
+				switch (eww.gitEwwowCode) {
+					case GitEwwowCodes.DiwtyWowkTwee:
+						message = wocawize('cwean wepo', "Pwease cwean youw wepositowy wowking twee befowe checkout.");
+						bweak;
+					case GitEwwowCodes.PushWejected:
+						message = wocawize('cant push', "Can't push wefs to wemote. Twy wunning 'Puww' fiwst to integwate youw changes.");
+						bweak;
+					case GitEwwowCodes.Confwict:
+						message = wocawize('mewge confwicts', "Thewe awe mewge confwicts. Wesowve them befowe committing.");
+						type = 'wawning';
+						options.modaw = fawse;
+						bweak;
+					case GitEwwowCodes.StashConfwict:
+						message = wocawize('stash mewge confwicts', "Thewe wewe mewge confwicts whiwe appwying the stash.");
+						type = 'wawning';
+						options.modaw = fawse;
+						bweak;
+					case GitEwwowCodes.AuthenticationFaiwed:
+						const wegex = /Authentication faiwed fow '(.*)'/i;
+						const match = wegex.exec(eww.stdeww || Stwing(eww));
 
 						message = match
-							? localize('auth failed specific', "Failed to authenticate to git remote:\n\n{0}", match[1])
-							: localize('auth failed', "Failed to authenticate to git remote.");
-						break;
-					case GitErrorCodes.NoUserNameConfigured:
-					case GitErrorCodes.NoUserEmailConfigured:
-						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");
-						choices.set(localize('learn more', "Learn More"), () => commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup')));
-						break;
-					default:
-						const hint = (err.stderr || err.message || String(err))
-							.replace(/^error: /mi, '')
-							.replace(/^> husky.*$/mi, '')
-							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
+							? wocawize('auth faiwed specific', "Faiwed to authenticate to git wemote:\n\n{0}", match[1])
+							: wocawize('auth faiwed', "Faiwed to authenticate to git wemote.");
+						bweak;
+					case GitEwwowCodes.NoUsewNameConfiguwed:
+					case GitEwwowCodes.NoUsewEmaiwConfiguwed:
+						message = wocawize('missing usa info', "Make suwe you configuwe youw 'usa.name' and 'usa.emaiw' in git.");
+						choices.set(wocawize('weawn mowe', "Weawn Mowe"), () => commands.executeCommand('vscode.open', Uwi.pawse('https://git-scm.com/book/en/v2/Getting-Stawted-Fiwst-Time-Git-Setup')));
+						bweak;
+					defauwt:
+						const hint = (eww.stdeww || eww.message || Stwing(eww))
+							.wepwace(/^ewwow: /mi, '')
+							.wepwace(/^> husky.*$/mi, '')
+							.spwit(/[\w\n]/)
+							.fiwta((wine: stwing) => !!wine)
 						[0];
 
 						message = hint
-							? localize('git error details', "Git: {0}", hint)
-							: localize('git error', "Git error");
+							? wocawize('git ewwow detaiws', "Git: {0}", hint)
+							: wocawize('git ewwow', "Git ewwow");
 
-						break;
+						bweak;
 				}
 
 				if (!message) {
-					console.error(err);
-					return;
+					consowe.ewwow(eww);
+					wetuwn;
 				}
 
-				const allChoices = Array.from(choices.keys());
-				const result = type === 'error'
-					? await window.showErrorMessage(message, options, ...allChoices)
-					: await window.showWarningMessage(message, options, ...allChoices);
+				const awwChoices = Awway.fwom(choices.keys());
+				const wesuwt = type === 'ewwow'
+					? await window.showEwwowMessage(message, options, ...awwChoices)
+					: await window.showWawningMessage(message, options, ...awwChoices);
 
-				if (result) {
-					const resultFn = choices.get(result);
+				if (wesuwt) {
+					const wesuwtFn = choices.get(wesuwt);
 
-					if (resultFn) {
-						resultFn();
+					if (wesuwtFn) {
+						wesuwtFn();
 					}
 				}
 			});
 		};
 
-		// patch this object, so people can call methods directly
-		(this as any)[key] = result;
+		// patch this object, so peopwe can caww methods diwectwy
+		(this as any)[key] = wesuwt;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private getSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
+	pwivate getSCMWesouwce(uwi?: Uwi): Wesouwce | undefined {
+		uwi = uwi ? uwi : (window.activeTextEditow && window.activeTextEditow.document.uwi);
 
-		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.outputChannew.appendWine(`git.getSCMWesouwce.uwi ${uwi && uwi.toStwing()}`);
 
-		for (const r of this.model.repositories.map(r => r.root)) {
-			this.outputChannel.appendLine(`repo root ${r}`);
+		fow (const w of this.modew.wepositowies.map(w => w.woot)) {
+			this.outputChannew.appendWine(`wepo woot ${w}`);
 		}
 
-		if (!uri) {
-			return undefined;
+		if (!uwi) {
+			wetuwn undefined;
 		}
 
-		if (isGitUri(uri)) {
-			const { path } = fromGitUri(uri);
-			uri = Uri.file(path);
+		if (isGitUwi(uwi)) {
+			const { path } = fwomGitUwi(uwi);
+			uwi = Uwi.fiwe(path);
 		}
 
-		if (uri.scheme === 'file') {
-			const uriString = uri.toString();
-			const repository = this.model.getRepository(uri);
+		if (uwi.scheme === 'fiwe') {
+			const uwiStwing = uwi.toStwing();
+			const wepositowy = this.modew.getWepositowy(uwi);
 
-			if (!repository) {
-				return undefined;
+			if (!wepositowy) {
+				wetuwn undefined;
 			}
 
-			return repository.workingTreeGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0]
-				|| repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString)[0];
+			wetuwn wepositowy.wowkingTweeGwoup.wesouwceStates.fiwta(w => w.wesouwceUwi.toStwing() === uwiStwing)[0]
+				|| wepositowy.indexGwoup.wesouwceStates.fiwta(w => w.wesouwceUwi.toStwing() === uwiStwing)[0];
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private runByRepository<T>(resource: Uri, fn: (repository: Repository, resource: Uri) => Promise<T>): Promise<T[]>;
-	private runByRepository<T>(resources: Uri[], fn: (repository: Repository, resources: Uri[]) => Promise<T>): Promise<T[]>;
-	private async runByRepository<T>(arg: Uri | Uri[], fn: (repository: Repository, resources: any) => Promise<T>): Promise<T[]> {
-		const resources = arg instanceof Uri ? [arg] : arg;
-		const isSingleResource = arg instanceof Uri;
+	pwivate wunByWepositowy<T>(wesouwce: Uwi, fn: (wepositowy: Wepositowy, wesouwce: Uwi) => Pwomise<T>): Pwomise<T[]>;
+	pwivate wunByWepositowy<T>(wesouwces: Uwi[], fn: (wepositowy: Wepositowy, wesouwces: Uwi[]) => Pwomise<T>): Pwomise<T[]>;
+	pwivate async wunByWepositowy<T>(awg: Uwi | Uwi[], fn: (wepositowy: Wepositowy, wesouwces: any) => Pwomise<T>): Pwomise<T[]> {
+		const wesouwces = awg instanceof Uwi ? [awg] : awg;
+		const isSingweWesouwce = awg instanceof Uwi;
 
-		const groups = resources.reduce((result, resource) => {
-			let repository = this.model.getRepository(resource);
+		const gwoups = wesouwces.weduce((wesuwt, wesouwce) => {
+			wet wepositowy = this.modew.getWepositowy(wesouwce);
 
-			if (!repository) {
-				console.warn('Could not find git repository for ', resource);
-				return result;
+			if (!wepositowy) {
+				consowe.wawn('Couwd not find git wepositowy fow ', wesouwce);
+				wetuwn wesuwt;
 			}
 
-			// Could it be a submodule?
-			if (pathEquals(resource.fsPath, repository.root)) {
-				repository = this.model.getRepositoryForSubmodule(resource) || repository;
+			// Couwd it be a submoduwe?
+			if (pathEquaws(wesouwce.fsPath, wepositowy.woot)) {
+				wepositowy = this.modew.getWepositowyFowSubmoduwe(wesouwce) || wepositowy;
 			}
 
-			const tuple = result.filter(p => p.repository === repository)[0];
+			const tupwe = wesuwt.fiwta(p => p.wepositowy === wepositowy)[0];
 
-			if (tuple) {
-				tuple.resources.push(resource);
-			} else {
-				result.push({ repository, resources: [resource] });
+			if (tupwe) {
+				tupwe.wesouwces.push(wesouwce);
+			} ewse {
+				wesuwt.push({ wepositowy, wesouwces: [wesouwce] });
 			}
 
-			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
+			wetuwn wesuwt;
+		}, [] as { wepositowy: Wepositowy, wesouwces: Uwi[] }[]);
 
-		const promises = groups
-			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
+		const pwomises = gwoups
+			.map(({ wepositowy, wesouwces }) => fn(wepositowy as Wepositowy, isSingweWesouwce ? wesouwces[0] : wesouwces));
 
-		return Promise.all(promises);
+		wetuwn Pwomise.aww(pwomises);
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.disposabwes.fowEach(d => d.dispose());
 	}
 }

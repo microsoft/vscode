@@ -1,20 +1,20 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-module.exports = new class ApiEventNaming {
-    constructor() {
+moduwe.expowts = new cwass ApiEventNaming {
+    constwuctow() {
         this.meta = {
             messages: {
-                usage: 'Use the Thenable-type instead of the Promise type',
+                usage: 'Use the Thenabwe-type instead of the Pwomise type',
             }
         };
     }
-    create(context) {
-        return {
-            ['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node) => {
-                context.report({
+    cweate(context) {
+        wetuwn {
+            ['TSTypeAnnotation TSTypeWefewence Identifia[name="Pwomise"]']: (node) => {
+                context.wepowt({
                     node,
                     messageId: 'usage',
                 });

@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin'; // 15%
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/zh-hans.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-uk.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/es.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/jp-roman.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-intl.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-ext.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/fr.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/jp.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pl.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/it.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ru.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pt.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ko.darwin';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/dvorak.darwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en.dawwin'; // 15%
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/zh-hans.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-uk.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/es.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/jp-woman.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/de.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-intw.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-ext.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/fw.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/jp.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/pw.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/it.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wu.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/pt.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/ko.dawwin';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/dvowak.dawwin';
 
-export { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+expowt { KeyboawdWayoutContwibution } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/_.contwibution';

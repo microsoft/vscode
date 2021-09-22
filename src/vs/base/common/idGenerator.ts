@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class IdGenerator {
+expowt cwass IdGenewatow {
 
-	private _prefix: string;
-	private _lastId: number;
+	pwivate _pwefix: stwing;
+	pwivate _wastId: numba;
 
-	constructor(prefix: string) {
-		this._prefix = prefix;
-		this._lastId = 0;
+	constwuctow(pwefix: stwing) {
+		this._pwefix = pwefix;
+		this._wastId = 0;
 	}
 
-	public nextId(): string {
-		return this._prefix + (++this._lastId);
+	pubwic nextId(): stwing {
+		wetuwn this._pwefix + (++this._wastId);
 	}
 }
 
-export const defaultGenerator = new IdGenerator('id#');
+expowt const defauwtGenewatow = new IdGenewatow('id#');

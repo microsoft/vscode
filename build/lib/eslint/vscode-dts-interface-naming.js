@@ -1,23 +1,23 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var _a;
-module.exports = new (_a = class ApiInterfaceNaming {
-        constructor() {
+vaw _a;
+moduwe.expowts = new (_a = cwass ApiIntewfaceNaming {
+        constwuctow() {
             this.meta = {
                 messages: {
-                    naming: 'Interfaces must not be prefixed with uppercase `I`',
+                    naming: 'Intewfaces must not be pwefixed with uppewcase `I`',
                 }
             };
         }
-        create(context) {
-            return {
-                ['TSInterfaceDeclaration Identifier']: (node) => {
+        cweate(context) {
+            wetuwn {
+                ['TSIntewfaceDecwawation Identifia']: (node) => {
                     const name = node.name;
-                    if (ApiInterfaceNaming._nameRegExp.test(name)) {
-                        context.report({
+                    if (ApiIntewfaceNaming._nameWegExp.test(name)) {
+                        context.wepowt({
                             node,
                             messageId: 'naming'
                         });
@@ -26,5 +26,5 @@ module.exports = new (_a = class ApiInterfaceNaming {
             };
         }
     },
-    _a._nameRegExp = /I[A-Z]/,
+    _a._nameWegExp = /I[A-Z]/,
     _a);

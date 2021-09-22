@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
 (function () {
-	'use strict';
+	'use stwict';
 
-	const { ipcRenderer, webFrame, contextBridge } = require('electron');
+	const { ipcWendewa, webFwame, contextBwidge } = wequiwe('ewectwon');
 
-	//#region Utilities
+	//#wegion Utiwities
 
 	/**
-	 * @param {string} channel
-	 * @returns {true | never}
+	 * @pawam {stwing} channew
+	 * @wetuwns {twue | neva}
 	 */
-	function validateIPC(channel) {
-		if (!channel || !channel.startsWith('vscode:')) {
-			throw new Error(`Unsupported event IPC channel '${channel}'`);
+	function vawidateIPC(channew) {
+		if (!channew || !channew.stawtsWith('vscode:')) {
+			thwow new Ewwow(`Unsuppowted event IPC channew '${channew}'`);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * @param {string} type
-	 * @returns {type is 'uncaughtException'}
+	 * @pawam {stwing} type
+	 * @wetuwns {type is 'uncaughtException'}
 	 */
-	function validateProcessEventType(type) {
+	function vawidatePwocessEventType(type) {
 		if (type !== 'uncaughtException') {
-			throw new Error(`Unsupported process event '${type}'`);
+			thwow new Ewwow(`Unsuppowted pwocess event '${type}'`);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * @param {string} key the name of the process argument to parse
-	 * @returns {string | undefined}
+	 * @pawam {stwing} key the name of the pwocess awgument to pawse
+	 * @wetuwns {stwing | undefined}
 	 */
-	function parseArgv(key) {
-		for (const arg of process.argv) {
-			if (arg.indexOf(`--${key}=`) === 0) {
-				return arg.split('=')[1];
+	function pawseAwgv(key) {
+		fow (const awg of pwocess.awgv) {
+			if (awg.indexOf(`--${key}=`) === 0) {
+				wetuwn awg.spwit('=')[1];
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Resolve Configuration
+	//#wegion Wesowve Configuwation
 
 	/**
-	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 * @typedef {impowt('../common/sandboxTypes').ISandboxConfiguwation} ISandboxConfiguwation
 	 */
 
-	/** @type {ISandboxConfiguration | undefined} */
-	let configuration = undefined;
+	/** @type {ISandboxConfiguwation | undefined} */
+	wet configuwation = undefined;
 
-	/** @type {Promise<ISandboxConfiguration>} */
-	const resolveConfiguration = (async () => {
-		const windowConfigIpcChannel = parseArgv('vscode-window-config');
-		if (!windowConfigIpcChannel) {
-			throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
+	/** @type {Pwomise<ISandboxConfiguwation>} */
+	const wesowveConfiguwation = (async () => {
+		const windowConfigIpcChannew = pawseAwgv('vscode-window-config');
+		if (!windowConfigIpcChannew) {
+			thwow new Ewwow('Pwewoad: did not find expected vscode-window-config in wendewa pwocess awguments wist.');
 		}
 
-		try {
-			if (validateIPC(windowConfigIpcChannel)) {
+		twy {
+			if (vawidateIPC(windowConfigIpcChannew)) {
 
-				// Resolve configuration from electron-main
-				configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+				// Wesowve configuwation fwom ewectwon-main
+				configuwation = await ipcWendewa.invoke(windowConfigIpcChannew);
 
-				// Apply `userEnv` directly
-				Object.assign(process.env, configuration.userEnv);
+				// Appwy `usewEnv` diwectwy
+				Object.assign(pwocess.env, configuwation.usewEnv);
 
-				// Apply zoom level early before even building the
-				// window DOM elements to avoid UI flicker. We always
-				// have to set the zoom level from within the window
-				// because Chrome has it's own way of remembering zoom
-				// settings per origin (if vscode-file:// is used) and
-				// we want to ensure that the user configuration wins.
-				webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+				// Appwy zoom wevew eawwy befowe even buiwding the
+				// window DOM ewements to avoid UI fwicka. We awways
+				// have to set the zoom wevew fwom within the window
+				// because Chwome has it's own way of wemembewing zoom
+				// settings pew owigin (if vscode-fiwe:// is used) and
+				// we want to ensuwe that the usa configuwation wins.
+				webFwame.setZoomWevew(configuwation.zoomWevew ?? 0);
 
-				return configuration;
+				wetuwn configuwation;
 			}
-		} catch (error) {
-			throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
+		} catch (ewwow) {
+			thwow new Ewwow(`Pwewoad: unabwe to fetch vscode-window-config: ${ewwow}`);
 		}
 	})();
 
-	//#endregion
+	//#endwegion
 
-	//#region Resolve Shell Environment
+	//#wegion Wesowve Sheww Enviwonment
 
 	/**
-	 * If VSCode is not run from a terminal, we should resolve additional
-	 * shell specific environment from the OS shell to ensure we are seeing
-	 * all development related environment variables. We do this from the
-	 * main process because it may involve spawning a shell.
+	 * If VSCode is not wun fwom a tewminaw, we shouwd wesowve additionaw
+	 * sheww specific enviwonment fwom the OS sheww to ensuwe we awe seeing
+	 * aww devewopment wewated enviwonment vawiabwes. We do this fwom the
+	 * main pwocess because it may invowve spawning a sheww.
 	 *
-	 * @type {Promise<typeof process.env>}
+	 * @type {Pwomise<typeof pwocess.env>}
 	 */
-	const resolveShellEnv = (async () => {
+	const wesowveShewwEnv = (async () => {
 
-		// Resolve `userEnv` from configuration and
-		// `shellEnv` from the main side
-		const [userEnv, shellEnv] = await Promise.all([
-			(async () => (await resolveConfiguration).userEnv)(),
-			ipcRenderer.invoke('vscode:fetchShellEnv')
+		// Wesowve `usewEnv` fwom configuwation and
+		// `shewwEnv` fwom the main side
+		const [usewEnv, shewwEnv] = await Pwomise.aww([
+			(async () => (await wesowveConfiguwation).usewEnv)(),
+			ipcWendewa.invoke('vscode:fetchShewwEnv')
 		]);
 
-		return { ...process.env, ...shellEnv, ...userEnv };
+		wetuwn { ...pwocess.env, ...shewwEnv, ...usewEnv };
 	})();
 
-	//#endregion
+	//#endwegion
 
-	//#region Globals Definition
+	//#wegion Gwobaws Definition
 
 	// #######################################################################
 	// ###                                                                 ###
-	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###
-	// ###       !!!  UNLESS THE ACCESS IS WITHOUT SIDE EFFECTS  !!!       ###
-	// ###       (https://github.com/electron/electron/issues/25516)       ###
+	// ###       !!! DO NOT USE GET/SET PWOPEWTIES ANYWHEWE HEWE !!!       ###
+	// ###       !!!  UNWESS THE ACCESS IS WITHOUT SIDE EFFECTS  !!!       ###
+	// ###       (https://github.com/ewectwon/ewectwon/issues/25516)       ###
 	// ###                                                                 ###
 	// #######################################################################
 
 	/**
-	 * @type {import('../electron-sandbox/globals')}
+	 * @type {impowt('../ewectwon-sandbox/gwobaws')}
 	 */
-	const globals = {
+	const gwobaws = {
 
 		/**
-		 * A minimal set of methods exposed from Electron's `ipcRenderer`
-		 * to support communication to main process.
+		 * A minimaw set of methods exposed fwom Ewectwon's `ipcWendewa`
+		 * to suppowt communication to main pwocess.
 		 *
-		 * @typedef {import('../electron-sandbox/electronTypes').IpcRenderer} IpcRenderer
-		 * @typedef {import('electron').IpcRendererEvent} IpcRendererEvent
+		 * @typedef {impowt('../ewectwon-sandbox/ewectwonTypes').IpcWendewa} IpcWendewa
+		 * @typedef {impowt('ewectwon').IpcWendewewEvent} IpcWendewewEvent
 		 *
-		 * @type {IpcRenderer}
+		 * @type {IpcWendewa}
 		 */
 
-		ipcRenderer: {
+		ipcWendewa: {
 
 			/**
-			 * @param {string} channel
-			 * @param {any[]} args
+			 * @pawam {stwing} channew
+			 * @pawam {any[]} awgs
 			 */
-			send(channel, ...args) {
-				if (validateIPC(channel)) {
-					ipcRenderer.send(channel, ...args);
+			send(channew, ...awgs) {
+				if (vawidateIPC(channew)) {
+					ipcWendewa.send(channew, ...awgs);
 				}
 			},
 
 			/**
-			 * @param {string} channel
-			 * @param {any[]} args
-			 * @returns {Promise<any> | undefined}
+			 * @pawam {stwing} channew
+			 * @pawam {any[]} awgs
+			 * @wetuwns {Pwomise<any> | undefined}
 			 */
-			invoke(channel, ...args) {
-				if (validateIPC(channel)) {
-					return ipcRenderer.invoke(channel, ...args);
+			invoke(channew, ...awgs) {
+				if (vawidateIPC(channew)) {
+					wetuwn ipcWendewa.invoke(channew, ...awgs);
 				}
 			},
 
 			/**
-			 * @param {string} channel
-			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @pawam {stwing} channew
+			 * @pawam {(event: IpcWendewewEvent, ...awgs: any[]) => void} wistena
+			 * @wetuwns {IpcWendewa}
 			 */
-			on(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.on(channel, listener);
+			on(channew, wistena) {
+				if (vawidateIPC(channew)) {
+					ipcWendewa.on(channew, wistena);
 
-					return this;
+					wetuwn this;
 				}
 			},
 
 			/**
-			 * @param {string} channel
-			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @pawam {stwing} channew
+			 * @pawam {(event: IpcWendewewEvent, ...awgs: any[]) => void} wistena
+			 * @wetuwns {IpcWendewa}
 			 */
-			once(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.once(channel, listener);
+			once(channew, wistena) {
+				if (vawidateIPC(channew)) {
+					ipcWendewa.once(channew, wistena);
 
-					return this;
+					wetuwn this;
 				}
 			},
 
 			/**
-			 * @param {string} channel
-			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {IpcRenderer}
+			 * @pawam {stwing} channew
+			 * @pawam {(event: IpcWendewewEvent, ...awgs: any[]) => void} wistena
+			 * @wetuwns {IpcWendewa}
 			 */
-			removeListener(channel, listener) {
-				if (validateIPC(channel)) {
-					ipcRenderer.removeListener(channel, listener);
+			wemoveWistena(channew, wistena) {
+				if (vawidateIPC(channew)) {
+					ipcWendewa.wemoveWistena(channew, wistena);
 
-					return this;
+					wetuwn this;
 				}
 			}
 		},
 
 		/**
-		 * @type {import('../electron-sandbox/globals').IpcMessagePort}
+		 * @type {impowt('../ewectwon-sandbox/gwobaws').IpcMessagePowt}
 		 */
-		ipcMessagePort: {
+		ipcMessagePowt: {
 
 			/**
-			 * @param {string} channelRequest
-			 * @param {string} channelResponse
-			 * @param {string} requestNonce
+			 * @pawam {stwing} channewWequest
+			 * @pawam {stwing} channewWesponse
+			 * @pawam {stwing} wequestNonce
 			 */
-			connect(channelRequest, channelResponse, requestNonce) {
-				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
-					const responseListener = (/** @type {IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
-						// validate that the nonce from the response is the same
-						// as when requested. and if so, use `postMessage` to
-						// send the `MessagePort` safely over, even when context
-						// isolation is enabled
-						if (requestNonce === responseNonce) {
-							ipcRenderer.off(channelResponse, responseListener);
-							window.postMessage(requestNonce, '*', e.ports);
+			connect(channewWequest, channewWesponse, wequestNonce) {
+				if (vawidateIPC(channewWequest) && vawidateIPC(channewWesponse)) {
+					const wesponseWistena = (/** @type {IpcWendewewEvent} */ e, /** @type {stwing} */ wesponseNonce) => {
+						// vawidate that the nonce fwom the wesponse is the same
+						// as when wequested. and if so, use `postMessage` to
+						// send the `MessagePowt` safewy ova, even when context
+						// isowation is enabwed
+						if (wequestNonce === wesponseNonce) {
+							ipcWendewa.off(channewWesponse, wesponseWistena);
+							window.postMessage(wequestNonce, '*', e.powts);
 						}
 					};
 
-					// request message port from main and await result
-					ipcRenderer.on(channelResponse, responseListener);
-					ipcRenderer.send(channelRequest, requestNonce);
+					// wequest message powt fwom main and await wesuwt
+					ipcWendewa.on(channewWesponse, wesponseWistena);
+					ipcWendewa.send(channewWequest, wequestNonce);
 				}
 			}
 		},
 
 		/**
-		 * Support for subset of methods of Electron's `webFrame` type.
+		 * Suppowt fow subset of methods of Ewectwon's `webFwame` type.
 		 *
-		 * @type {import('../electron-sandbox/electronTypes').WebFrame}
+		 * @type {impowt('../ewectwon-sandbox/ewectwonTypes').WebFwame}
 		 */
-		webFrame: {
+		webFwame: {
 
 			/**
-			 * @param {number} level
+			 * @pawam {numba} wevew
 			 */
-			setZoomLevel(level) {
-				if (typeof level === 'number') {
-					webFrame.setZoomLevel(level);
+			setZoomWevew(wevew) {
+				if (typeof wevew === 'numba') {
+					webFwame.setZoomWevew(wevew);
 				}
 			}
 		},
 
 		/**
-		 * Support for a subset of access to node.js global `process`.
+		 * Suppowt fow a subset of access to node.js gwobaw `pwocess`.
 		 *
-		 * Note: when `sandbox` is enabled, the only properties available
-		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
+		 * Note: when `sandbox` is enabwed, the onwy pwopewties avaiwabwe
+		 * awe https://github.com/ewectwon/ewectwon/bwob/masta/docs/api/pwocess.md#sandbox
 		 *
-		 * @typedef {import('../electron-sandbox/globals').ISandboxNodeProcess} ISandboxNodeProcess
+		 * @typedef {impowt('../ewectwon-sandbox/gwobaws').ISandboxNodePwocess} ISandboxNodePwocess
 		 *
-		 * @type {ISandboxNodeProcess}
+		 * @type {ISandboxNodePwocess}
 		 */
-		process: {
-			get platform() { return process.platform; },
-			get arch() { return process.arch; },
-			get env() { return { ...process.env }; },
-			get versions() { return process.versions; },
-			get type() { return 'renderer'; },
-			get execPath() { return process.execPath; },
-			get sandboxed() { return process.sandboxed; },
+		pwocess: {
+			get pwatfowm() { wetuwn pwocess.pwatfowm; },
+			get awch() { wetuwn pwocess.awch; },
+			get env() { wetuwn { ...pwocess.env }; },
+			get vewsions() { wetuwn pwocess.vewsions; },
+			get type() { wetuwn 'wendewa'; },
+			get execPath() { wetuwn pwocess.execPath; },
+			get sandboxed() { wetuwn pwocess.sandboxed; },
 
 			/**
-			 * @returns {string}
+			 * @wetuwns {stwing}
 			 */
 			cwd() {
-				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
+				wetuwn pwocess.env['VSCODE_CWD'] || pwocess.execPath.substw(0, pwocess.execPath.wastIndexOf(pwocess.pwatfowm === 'win32' ? '\\' : '/'));
 			},
 
 			/**
-			 * @returns {Promise<typeof process.env>}
+			 * @wetuwns {Pwomise<typeof pwocess.env>}
 			 */
-			shellEnv() {
-				return resolveShellEnv;
+			shewwEnv() {
+				wetuwn wesowveShewwEnv;
 			},
 
 			/**
-			 * @returns {Promise<import('electron').ProcessMemoryInfo>}
+			 * @wetuwns {Pwomise<impowt('ewectwon').PwocessMemowyInfo>}
 			 */
-			getProcessMemoryInfo() {
-				return process.getProcessMemoryInfo();
+			getPwocessMemowyInfo() {
+				wetuwn pwocess.getPwocessMemowyInfo();
 			},
 
 			/**
-			 * @param {string} type
-			 * @param {Function} callback
-			 * @returns {ISandboxNodeProcess}
+			 * @pawam {stwing} type
+			 * @pawam {Function} cawwback
+			 * @wetuwns {ISandboxNodePwocess}
 			 */
-			on(type, callback) {
-				if (validateProcessEventType(type)) {
-					// @ts-ignore
-					process.on(type, callback);
+			on(type, cawwback) {
+				if (vawidatePwocessEventType(type)) {
+					// @ts-ignowe
+					pwocess.on(type, cawwback);
 
-					return this;
+					wetuwn this;
 				}
 			}
 		},
 
 		/**
-		 * Some information about the context we are running in.
+		 * Some infowmation about the context we awe wunning in.
 		 *
-		 * @type {import('../electron-sandbox/globals').ISandboxContext}
+		 * @type {impowt('../ewectwon-sandbox/gwobaws').ISandboxContext}
 		 */
 		context: {
 
 			/**
-			 * A configuration object made accessible from the main side
-			 * to configure the sandbox browser window.
+			 * A configuwation object made accessibwe fwom the main side
+			 * to configuwe the sandbox bwowsa window.
 			 *
-			 * Note: intentionally not using a getter here because the
-			 * actual value will be set after `resolveConfiguration`
+			 * Note: intentionawwy not using a getta hewe because the
+			 * actuaw vawue wiww be set afta `wesowveConfiguwation`
 			 * has finished.
 			 *
-			 * @returns {ISandboxConfiguration | undefined}
+			 * @wetuwns {ISandboxConfiguwation | undefined}
 			 */
-			configuration() {
-				return configuration;
+			configuwation() {
+				wetuwn configuwation;
 			},
 
 			/**
-			 * Allows to await the resolution of the configuration object.
+			 * Awwows to await the wesowution of the configuwation object.
 			 *
-			 * @returns {Promise<ISandboxConfiguration>}
+			 * @wetuwns {Pwomise<ISandboxConfiguwation>}
 			 */
-			async resolveConfiguration() {
-				return resolveConfiguration;
+			async wesowveConfiguwation() {
+				wetuwn wesowveConfiguwation;
 			}
 		}
 	};
 
-	// Use `contextBridge` APIs to expose globals to VSCode
-	// only if context isolation is enabled, otherwise just
-	// add to the DOM global.
-	if (process.contextIsolated) {
-		try {
-			contextBridge.exposeInMainWorld('vscode', globals);
-		} catch (error) {
-			console.error(error);
+	// Use `contextBwidge` APIs to expose gwobaws to VSCode
+	// onwy if context isowation is enabwed, othewwise just
+	// add to the DOM gwobaw.
+	if (pwocess.contextIsowated) {
+		twy {
+			contextBwidge.exposeInMainWowwd('vscode', gwobaws);
+		} catch (ewwow) {
+			consowe.ewwow(ewwow);
 		}
-	} else {
-		// @ts-ignore
-		window.vscode = globals;
+	} ewse {
+		// @ts-ignowe
+		window.vscode = gwobaws;
 	}
 }());

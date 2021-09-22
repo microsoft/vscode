@@ -1,1571 +1,1571 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CellEditType, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { AccessibilityHelpController } from 'vs/workbench/contrib/codeEditor/browser/accessibility/accessibility';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { DiffEwementViewModewBase, getFowmatedMetadataJSON, OUTPUT_EDITOW_HEIGHT_MAGIC, PwopewtyFowdingState, SideBySideDiffEwementViewModew, SingweSideDiffEwementViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { CewwDiffSideBySideWendewTempwate, CewwDiffSingweSideWendewTempwate, DiffSide, DIFF_CEWW_MAWGIN, INotebookTextDiffEditow, NOTEBOOK_DIFF_CEWW_PWOPEWTY, NOTEBOOK_DIFF_CEWW_PWOPEWTY_EXPANDED } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { CodeEditowWidget, ICodeEditowWidgetOptions } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { CewwEditType, CewwUwi, IOutputDto, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IMenu, IMenuSewvice, MenuId, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CodiconActionViewItem } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwActionView';
+impowt { cowwapsedIcon, expandedIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { OutputContaina } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementOutputs';
+impowt { EditowExtensionsWegistwy } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ContextMenuContwowwa } fwom 'vs/editow/contwib/contextmenu/contextmenu';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { AccessibiwityHewpContwowwa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/accessibiwity/accessibiwity';
+impowt { MenuPweventa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/menuPweventa';
+impowt { SewectionCwipboawdContwibutionID } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/sewectionCwipboawd';
+impowt { TabCompwetionContwowwa } fwom 'vs/wowkbench/contwib/snippets/bwowsa/tabCompwetion';
+impowt { wendewIcon } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiffEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
 
-const fixedEditorPadding = {
+const fixedEditowPadding = {
 	top: 12,
 	bottom: 12
 };
-export const fixedEditorOptions: IEditorOptions = {
-	padding: fixedEditorPadding,
-	scrollBeyondLastLine: false,
-	scrollbar: {
-		verticalScrollbarSize: 14,
-		horizontal: 'auto',
-		vertical: 'hidden',
-		useShadows: true,
-		verticalHasArrows: false,
-		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false,
+expowt const fixedEditowOptions: IEditowOptions = {
+	padding: fixedEditowPadding,
+	scwowwBeyondWastWine: fawse,
+	scwowwbaw: {
+		vewticawScwowwbawSize: 14,
+		howizontaw: 'auto',
+		vewticaw: 'hidden',
+		useShadows: twue,
+		vewticawHasAwwows: fawse,
+		howizontawHasAwwows: fawse,
+		awwaysConsumeMouseWheew: fawse,
 	},
-	renderLineHighlightOnlyWhenFocus: true,
-	overviewRulerLanes: 0,
-	overviewRulerBorder: false,
-	selectOnLineNumbers: false,
-	wordWrap: 'off',
-	lineNumbers: 'off',
-	lineDecorationsWidth: 0,
-	glyphMargin: false,
-	fixedOverflowWidgets: true,
-	minimap: { enabled: false },
-	renderValidationDecorations: 'on',
-	renderLineHighlight: 'none',
-	readOnly: true
+	wendewWineHighwightOnwyWhenFocus: twue,
+	ovewviewWuwewWanes: 0,
+	ovewviewWuwewBowda: fawse,
+	sewectOnWineNumbews: fawse,
+	wowdWwap: 'off',
+	wineNumbews: 'off',
+	wineDecowationsWidth: 0,
+	gwyphMawgin: fawse,
+	fixedOvewfwowWidgets: twue,
+	minimap: { enabwed: fawse },
+	wendewVawidationDecowations: 'on',
+	wendewWineHighwight: 'none',
+	weadOnwy: twue
 };
 
-export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
-	return {
-		isSimpleWidget: false,
-		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-			MenuPreventer.ID,
-			SelectionClipboardContributionID,
-			ContextMenuController.ID,
-			SuggestController.ID,
-			SnippetController2.ID,
-			TabCompletionController.ID,
-			AccessibilityHelpController.ID
+expowt function getOptimizedNestedCodeEditowWidgetOptions(): ICodeEditowWidgetOptions {
+	wetuwn {
+		isSimpweWidget: fawse,
+		contwibutions: EditowExtensionsWegistwy.getSomeEditowContwibutions([
+			MenuPweventa.ID,
+			SewectionCwipboawdContwibutionID,
+			ContextMenuContwowwa.ID,
+			SuggestContwowwa.ID,
+			SnippetContwowwew2.ID,
+			TabCompwetionContwowwa.ID,
+			AccessibiwityHewpContwowwa.ID
 		])
 	};
 }
 
-export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
-	...fixedEditorOptions,
-	glyphMargin: true,
-	enableSplitViewResizing: false,
-	renderIndicators: true,
-	readOnly: false,
-	isInEmbeddedEditor: true,
-	renderOverviewRuler: false
+expowt const fixedDiffEditowOptions: IDiffEditowConstwuctionOptions = {
+	...fixedEditowOptions,
+	gwyphMawgin: twue,
+	enabweSpwitViewWesizing: fawse,
+	wendewIndicatows: twue,
+	weadOnwy: fawse,
+	isInEmbeddedEditow: twue,
+	wendewOvewviewWuwa: fawse
 };
 
-class PropertyHeader extends Disposable {
-	protected _foldingIndicator!: HTMLElement;
-	protected _statusSpan!: HTMLElement;
-	protected _toolbar!: ToolBar;
-	protected _menu!: IMenu;
-	protected _propertyExpanded?: IContextKey<boolean>;
+cwass PwopewtyHeada extends Disposabwe {
+	pwotected _fowdingIndicatow!: HTMWEwement;
+	pwotected _statusSpan!: HTMWEwement;
+	pwotected _toowbaw!: ToowBaw;
+	pwotected _menu!: IMenu;
+	pwotected _pwopewtyExpanded?: IContextKey<boowean>;
 
-	constructor(
-		readonly cell: DiffElementViewModelBase,
-		readonly propertyHeaderContainer: HTMLElement,
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly accessor: {
-			updateInfoRendering: (renderOutput: boolean) => void;
-			checkIfModified: (cell: DiffElementViewModelBase) => boolean;
-			getFoldingState: (cell: DiffElementViewModelBase) => PropertyFoldingState;
-			updateFoldingState: (cell: DiffElementViewModelBase, newState: PropertyFoldingState) => void;
-			unChangedLabel: string;
-			changedLabel: string;
-			prefix: string;
+	constwuctow(
+		weadonwy ceww: DiffEwementViewModewBase,
+		weadonwy pwopewtyHeadewContaina: HTMWEwement,
+		weadonwy notebookEditow: INotebookTextDiffEditow,
+		weadonwy accessow: {
+			updateInfoWendewing: (wendewOutput: boowean) => void;
+			checkIfModified: (ceww: DiffEwementViewModewBase) => boowean;
+			getFowdingState: (ceww: DiffEwementViewModewBase) => PwopewtyFowdingState;
+			updateFowdingState: (ceww: DiffEwementViewModewBase, newState: PwopewtyFowdingState) => void;
+			unChangedWabew: stwing;
+			changedWabew: stwing;
+			pwefix: stwing;
 			menuId: MenuId;
 		},
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@INotificationService readonly notificationService: INotificationService,
-		@IMenuService readonly menuService: IMenuService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextMenuSewvice weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice weadonwy keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice weadonwy notificationSewvice: INotificationSewvice,
+		@IMenuSewvice weadonwy menuSewvice: IMenuSewvice,
+		@IContextKeySewvice weadonwy contextKeySewvice: IContextKeySewvice
 	) {
-		super();
+		supa();
 	}
 
-	buildHeader(): void {
-		let metadataChanged = this.accessor.checkIfModified(this.cell);
-		this._foldingIndicator = DOM.append(this.propertyHeaderContainer, DOM.$('.property-folding-indicator'));
-		this._foldingIndicator.classList.add(this.accessor.prefix);
-		this._updateFoldingIcon();
-		const metadataStatus = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-status'));
+	buiwdHeada(): void {
+		wet metadataChanged = this.accessow.checkIfModified(this.ceww);
+		this._fowdingIndicatow = DOM.append(this.pwopewtyHeadewContaina, DOM.$('.pwopewty-fowding-indicatow'));
+		this._fowdingIndicatow.cwassWist.add(this.accessow.pwefix);
+		this._updateFowdingIcon();
+		const metadataStatus = DOM.append(this.pwopewtyHeadewContaina, DOM.$('div.pwopewty-status'));
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
 
 		if (metadataChanged) {
-			this._statusSpan.textContent = this.accessor.changedLabel;
-			this._statusSpan.style.fontWeight = 'bold';
-			this.propertyHeaderContainer.classList.add('modified');
-		} else {
-			this._statusSpan.textContent = this.accessor.unChangedLabel;
+			this._statusSpan.textContent = this.accessow.changedWabew;
+			this._statusSpan.stywe.fontWeight = 'bowd';
+			this.pwopewtyHeadewContaina.cwassWist.add('modified');
+		} ewse {
+			this._statusSpan.textContent = this.accessow.unChangedWabew;
 		}
 
-		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
-		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+		const cewwToowbawContaina = DOM.append(this.pwopewtyHeadewContaina, DOM.$('div.pwopewty-toowbaw'));
+		this._toowbaw = new ToowBaw(cewwToowbawContaina, this.contextMenuSewvice, {
+			actionViewItemPwovida: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
-					return item;
+					const item = new CodiconActionViewItem(action, this.keybindingSewvice, this.notificationSewvice, this.contextKeySewvice);
+					wetuwn item;
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		});
-		this._register(this._toolbar);
-		this._toolbar.context = {
-			cell: this.cell
+		this._wegista(this._toowbaw);
+		this._toowbaw.context = {
+			ceww: this.ceww
 		};
 
-		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
-		this._register(scopedContextKeyService);
-		const propertyChanged = NOTEBOOK_DIFF_CELL_PROPERTY.bindTo(scopedContextKeyService);
-		propertyChanged.set(metadataChanged);
-		this._propertyExpanded = NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED.bindTo(scopedContextKeyService);
+		const scopedContextKeySewvice = this.contextKeySewvice.cweateScoped(cewwToowbawContaina);
+		this._wegista(scopedContextKeySewvice);
+		const pwopewtyChanged = NOTEBOOK_DIFF_CEWW_PWOPEWTY.bindTo(scopedContextKeySewvice);
+		pwopewtyChanged.set(metadataChanged);
+		this._pwopewtyExpanded = NOTEBOOK_DIFF_CEWW_PWOPEWTY_EXPANDED.bindTo(scopedContextKeySewvice);
 
-		this._menu = this.menuService.createMenu(this.accessor.menuId, scopedContextKeyService);
-		this._register(this._menu);
+		this._menu = this.menuSewvice.cweateMenu(this.accessow.menuId, scopedContextKeySewvice);
+		this._wegista(this._menu);
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-		this._toolbar.setActions(actions);
+		cweateAndFiwwInActionBawActions(this._menu, { shouwdFowwawdAwgs: twue }, actions);
+		this._toowbaw.setActions(actions);
 
-		this._register(this._menu.onDidChange(() => {
+		this._wegista(this._menu.onDidChange(() => {
 			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-			this._toolbar.setActions(actions);
+			cweateAndFiwwInActionBawActions(this._menu, { shouwdFowwawdAwgs: twue }, actions);
+			this._toowbaw.setActions(actions);
 		}));
 
-		this._register(this.notebookEditor.onMouseUp(e => {
-			if (!e.event.target) {
-				return;
+		this._wegista(this.notebookEditow.onMouseUp(e => {
+			if (!e.event.tawget) {
+				wetuwn;
 			}
 
-			const target = e.event.target as HTMLElement;
+			const tawget = e.event.tawget as HTMWEwement;
 
-			if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
-				const parent = target.parentElement as HTMLElement;
+			if (tawget.cwassWist.contains('codicon-notebook-cowwapsed') || tawget.cwassWist.contains('codicon-notebook-expanded')) {
+				const pawent = tawget.pawentEwement as HTMWEwement;
 
-				if (!parent) {
-					return;
+				if (!pawent) {
+					wetuwn;
 				}
 
-				if (!parent.classList.contains(this.accessor.prefix)) {
-					return;
+				if (!pawent.cwassWist.contains(this.accessow.pwefix)) {
+					wetuwn;
 				}
 
-				if (!parent.classList.contains('property-folding-indicator')) {
-					return;
+				if (!pawent.cwassWist.contains('pwopewty-fowding-indicatow')) {
+					wetuwn;
 				}
 
-				// folding icon
+				// fowding icon
 
-				const cellViewModel = e.target;
+				const cewwViewModew = e.tawget;
 
-				if (cellViewModel === this.cell) {
-					const oldFoldingState = this.accessor.getFoldingState(this.cell);
-					this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
-					this._updateFoldingIcon();
-					this.accessor.updateInfoRendering(this.cell.renderOutput);
+				if (cewwViewModew === this.ceww) {
+					const owdFowdingState = this.accessow.getFowdingState(this.ceww);
+					this.accessow.updateFowdingState(this.ceww, owdFowdingState === PwopewtyFowdingState.Expanded ? PwopewtyFowdingState.Cowwapsed : PwopewtyFowdingState.Expanded);
+					this._updateFowdingIcon();
+					this.accessow.updateInfoWendewing(this.ceww.wendewOutput);
 				}
 			}
 
-			return;
+			wetuwn;
 		}));
 
-		this._updateFoldingIcon();
-		this.accessor.updateInfoRendering(this.cell.renderOutput);
+		this._updateFowdingIcon();
+		this.accessow.updateInfoWendewing(this.ceww.wendewOutput);
 	}
 
-	refresh() {
-		let metadataChanged = this.accessor.checkIfModified(this.cell);
+	wefwesh() {
+		wet metadataChanged = this.accessow.checkIfModified(this.ceww);
 		if (metadataChanged) {
-			this._statusSpan.textContent = this.accessor.changedLabel;
-			this._statusSpan.style.fontWeight = 'bold';
-			this.propertyHeaderContainer.classList.add('modified');
+			this._statusSpan.textContent = this.accessow.changedWabew;
+			this._statusSpan.stywe.fontWeight = 'bowd';
+			this.pwopewtyHeadewContaina.cwassWist.add('modified');
 			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this._menu, undefined, actions);
-			this._toolbar.setActions(actions);
-		} else {
-			this._statusSpan.textContent = this.accessor.unChangedLabel;
-			this._statusSpan.style.fontWeight = 'normal';
-			this._toolbar.setActions([]);
+			cweateAndFiwwInActionBawActions(this._menu, undefined, actions);
+			this._toowbaw.setActions(actions);
+		} ewse {
+			this._statusSpan.textContent = this.accessow.unChangedWabew;
+			this._statusSpan.stywe.fontWeight = 'nowmaw';
+			this._toowbaw.setActions([]);
 		}
 	}
 
-	private _updateFoldingIcon() {
-		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, renderIcon(collapsedIcon));
-			this._propertyExpanded?.set(false);
-		} else {
-			DOM.reset(this._foldingIndicator, renderIcon(expandedIcon));
-			this._propertyExpanded?.set(true);
+	pwivate _updateFowdingIcon() {
+		if (this.accessow.getFowdingState(this.ceww) === PwopewtyFowdingState.Cowwapsed) {
+			DOM.weset(this._fowdingIndicatow, wendewIcon(cowwapsedIcon));
+			this._pwopewtyExpanded?.set(fawse);
+		} ewse {
+			DOM.weset(this._fowdingIndicatow, wendewIcon(expandedIcon));
+			this._pwopewtyExpanded?.set(twue);
 		}
 
 	}
 }
 
-interface IDiffElementLayoutState {
-	outerWidth?: boolean;
-	editorHeight?: boolean;
-	metadataEditor?: boolean;
-	metadataHeight?: boolean;
-	outputTotalHeight?: boolean;
+intewface IDiffEwementWayoutState {
+	outewWidth?: boowean;
+	editowHeight?: boowean;
+	metadataEditow?: boowean;
+	metadataHeight?: boowean;
+	outputTotawHeight?: boowean;
 }
 
-abstract class AbstractElementRenderer extends Disposable {
-	protected _metadataLocalDisposable = this._register(new DisposableStore());
-	protected _outputLocalDisposable = this._register(new DisposableStore());
-	protected _ignoreMetadata: boolean = false;
-	protected _ignoreOutputs: boolean = false;
-	protected _metadataHeaderContainer!: HTMLElement;
-	protected _metadataHeader!: PropertyHeader;
-	protected _metadataInfoContainer!: HTMLElement;
-	protected _metadataEditorContainer?: HTMLElement;
-	protected _metadataEditorDisposeStore!: DisposableStore;
-	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
+abstwact cwass AbstwactEwementWendewa extends Disposabwe {
+	pwotected _metadataWocawDisposabwe = this._wegista(new DisposabweStowe());
+	pwotected _outputWocawDisposabwe = this._wegista(new DisposabweStowe());
+	pwotected _ignoweMetadata: boowean = fawse;
+	pwotected _ignoweOutputs: boowean = fawse;
+	pwotected _metadataHeadewContaina!: HTMWEwement;
+	pwotected _metadataHeada!: PwopewtyHeada;
+	pwotected _metadataInfoContaina!: HTMWEwement;
+	pwotected _metadataEditowContaina?: HTMWEwement;
+	pwotected _metadataEditowDisposeStowe!: DisposabweStowe;
+	pwotected _metadataEditow?: CodeEditowWidget | DiffEditowWidget;
 
-	protected _outputHeaderContainer!: HTMLElement;
-	protected _outputHeader!: PropertyHeader;
-	protected _outputInfoContainer!: HTMLElement;
-	protected _outputEditorContainer?: HTMLElement;
-	protected _outputViewContainer?: HTMLElement;
-	protected _outputLeftContainer?: HTMLElement;
-	protected _outputRightContainer?: HTMLElement;
-	protected _outputEmptyElement?: HTMLElement;
-	protected _outputLeftView?: OutputContainer;
-	protected _outputRightView?: OutputContainer;
-	protected _outputEditorDisposeStore!: DisposableStore;
-	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
+	pwotected _outputHeadewContaina!: HTMWEwement;
+	pwotected _outputHeada!: PwopewtyHeada;
+	pwotected _outputInfoContaina!: HTMWEwement;
+	pwotected _outputEditowContaina?: HTMWEwement;
+	pwotected _outputViewContaina?: HTMWEwement;
+	pwotected _outputWeftContaina?: HTMWEwement;
+	pwotected _outputWightContaina?: HTMWEwement;
+	pwotected _outputEmptyEwement?: HTMWEwement;
+	pwotected _outputWeftView?: OutputContaina;
+	pwotected _outputWightView?: OutputContaina;
+	pwotected _outputEditowDisposeStowe!: DisposabweStowe;
+	pwotected _outputEditow?: CodeEditowWidget | DiffEditowWidget;
 
 
-	protected _diffEditorContainer!: HTMLElement;
-	protected _diagonalFill?: HTMLElement;
-	protected _isDisposed: boolean;
+	pwotected _diffEditowContaina!: HTMWEwement;
+	pwotected _diagonawFiww?: HTMWEwement;
+	pwotected _isDisposed: boowean;
 
-	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: DiffElementViewModelBase,
-		readonly templateData: CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate,
-		readonly style: 'left' | 'right' | 'full',
-		protected readonly instantiationService: IInstantiationService,
-		protected readonly modeService: IModeService,
-		protected readonly modelService: IModelService,
-		protected readonly textModelService: ITextModelService,
-		protected readonly contextMenuService: IContextMenuService,
-		protected readonly keybindingService: IKeybindingService,
-		protected readonly notificationService: INotificationService,
-		protected readonly menuService: IMenuService,
-		protected readonly contextKeyService: IContextKeyService,
-		protected readonly configurationService: IConfigurationService,
+	constwuctow(
+		weadonwy notebookEditow: INotebookTextDiffEditow,
+		weadonwy ceww: DiffEwementViewModewBase,
+		weadonwy tempwateData: CewwDiffSingweSideWendewTempwate | CewwDiffSideBySideWendewTempwate,
+		weadonwy stywe: 'weft' | 'wight' | 'fuww',
+		pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		pwotected weadonwy modeSewvice: IModeSewvice,
+		pwotected weadonwy modewSewvice: IModewSewvice,
+		pwotected weadonwy textModewSewvice: ITextModewSewvice,
+		pwotected weadonwy contextMenuSewvice: IContextMenuSewvice,
+		pwotected weadonwy keybindingSewvice: IKeybindingSewvice,
+		pwotected weadonwy notificationSewvice: INotificationSewvice,
+		pwotected weadonwy menuSewvice: IMenuSewvice,
+		pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super();
+		supa();
 		// init
-		this._isDisposed = false;
-		this._metadataEditorDisposeStore = this._register(new DisposableStore());
-		this._outputEditorDisposeStore = this._register(new DisposableStore());
-		this._register(cell.onDidLayoutChange(e => this.layout(e)));
-		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
+		this._isDisposed = fawse;
+		this._metadataEditowDisposeStowe = this._wegista(new DisposabweStowe());
+		this._outputEditowDisposeStowe = this._wegista(new DisposabweStowe());
+		this._wegista(ceww.onDidWayoutChange(e => this.wayout(e)));
+		this._wegista(ceww.onDidWayoutChange(e => this.updateBowdews()));
 		this.init();
-		this.buildBody();
+		this.buiwdBody();
 
-		this._register(cell.onDidStateChange(() => {
-			this.updateOutputRendering(this.cell.renderOutput);
+		this._wegista(ceww.onDidStateChange(() => {
+			this.updateOutputWendewing(this.ceww.wendewOutput);
 		}));
 	}
 
-	abstract init(): void;
-	abstract styleContainer(container: HTMLElement): void;
-	abstract _buildOutput(): void;
-	abstract _disposeOutput(): void;
-	abstract _buildMetadata(): void;
-	abstract _disposeMetadata(): void;
+	abstwact init(): void;
+	abstwact styweContaina(containa: HTMWEwement): void;
+	abstwact _buiwdOutput(): void;
+	abstwact _disposeOutput(): void;
+	abstwact _buiwdMetadata(): void;
+	abstwact _disposeMetadata(): void;
 
-	buildBody(): void {
-		const body = this.templateData.body;
-		this._diffEditorContainer = this.templateData.diffEditorContainer;
-		body.classList.remove('left', 'right', 'full');
-		switch (this.style) {
-			case 'left':
-				body.classList.add('left');
-				break;
-			case 'right':
-				body.classList.add('right');
-				break;
-			default:
-				body.classList.add('full');
-				break;
+	buiwdBody(): void {
+		const body = this.tempwateData.body;
+		this._diffEditowContaina = this.tempwateData.diffEditowContaina;
+		body.cwassWist.wemove('weft', 'wight', 'fuww');
+		switch (this.stywe) {
+			case 'weft':
+				body.cwassWist.add('weft');
+				bweak;
+			case 'wight':
+				body.cwassWist.add('wight');
+				bweak;
+			defauwt:
+				body.cwassWist.add('fuww');
+				bweak;
 		}
 
-		this.styleContainer(this._diffEditorContainer);
-		this.updateSourceEditor();
+		this.styweContaina(this._diffEditowContaina);
+		this.updateSouwceEditow();
 
-		this._ignoreMetadata = this.configurationService.getValue('notebook.diff.ignoreMetadata');
-		if (this._ignoreMetadata) {
+		this._ignoweMetadata = this.configuwationSewvice.getVawue('notebook.diff.ignoweMetadata');
+		if (this._ignoweMetadata) {
 			this._disposeMetadata();
-		} else {
-			this._buildMetadata();
+		} ewse {
+			this._buiwdMetadata();
 		}
 
-		this._ignoreOutputs = this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.notebookEditor.textModel?.transientOptions.transientOutputs);
-		if (this._ignoreOutputs) {
+		this._ignoweOutputs = this.configuwationSewvice.getVawue<boowean>('notebook.diff.ignoweOutputs') || !!(this.notebookEditow.textModew?.twansientOptions.twansientOutputs);
+		if (this._ignoweOutputs) {
 			this._disposeOutput();
-		} else {
-			this._buildOutput();
+		} ewse {
+			this._buiwdOutput();
 		}
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			let metadataLayoutChange = false;
-			let outputLayoutChange = false;
-			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
-				const newValue = this.configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			wet metadataWayoutChange = fawse;
+			wet outputWayoutChange = fawse;
+			if (e.affectsConfiguwation('notebook.diff.ignoweMetadata')) {
+				const newVawue = this.configuwationSewvice.getVawue<boowean>('notebook.diff.ignoweMetadata');
 
-				if (newValue !== undefined && this._ignoreMetadata !== newValue) {
-					this._ignoreMetadata = newValue;
+				if (newVawue !== undefined && this._ignoweMetadata !== newVawue) {
+					this._ignoweMetadata = newVawue;
 
-					this._metadataLocalDisposable.clear();
-					if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+					this._metadataWocawDisposabwe.cweaw();
+					if (this.configuwationSewvice.getVawue('notebook.diff.ignoweMetadata')) {
 						this._disposeMetadata();
-					} else {
-						this.cell.metadataStatusHeight = 25;
-						this._buildMetadata();
-						this.updateMetadataRendering();
-						metadataLayoutChange = true;
+					} ewse {
+						this.ceww.metadataStatusHeight = 25;
+						this._buiwdMetadata();
+						this.updateMetadataWendewing();
+						metadataWayoutChange = twue;
 					}
 				}
 			}
 
-			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
-				const newValue = this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+			if (e.affectsConfiguwation('notebook.diff.ignoweOutputs')) {
+				const newVawue = this.configuwationSewvice.getVawue<boowean>('notebook.diff.ignoweOutputs');
 
-				if (newValue !== undefined && this._ignoreOutputs !== (newValue || this.notebookEditor.textModel?.transientOptions.transientOutputs)) {
-					this._ignoreOutputs = newValue || !!(this.notebookEditor.textModel?.transientOptions.transientOutputs);
+				if (newVawue !== undefined && this._ignoweOutputs !== (newVawue || this.notebookEditow.textModew?.twansientOptions.twansientOutputs)) {
+					this._ignoweOutputs = newVawue || !!(this.notebookEditow.textModew?.twansientOptions.twansientOutputs);
 
-					this._outputLocalDisposable.clear();
-					if (this._ignoreOutputs) {
+					this._outputWocawDisposabwe.cweaw();
+					if (this._ignoweOutputs) {
 						this._disposeOutput();
-					} else {
-						this.cell.outputStatusHeight = 25;
-						this._buildOutput();
-						outputLayoutChange = true;
+					} ewse {
+						this.ceww.outputStatusHeight = 25;
+						this._buiwdOutput();
+						outputWayoutChange = twue;
 					}
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			this.wayout({ metadataHeight: metadataWayoutChange, outputTotawHeight: outputWayoutChange });
 		}));
 	}
 
-	updateMetadataRendering() {
-		if (this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
-			// we should expand the metadata editor
-			this._metadataInfoContainer.style.display = 'block';
+	updateMetadataWendewing() {
+		if (this.ceww.metadataFowdingState === PwopewtyFowdingState.Expanded) {
+			// we shouwd expand the metadata editow
+			this._metadataInfoContaina.stywe.dispway = 'bwock';
 
-			if (!this._metadataEditorContainer || !this._metadataEditor) {
-				// create editor
-				this._metadataEditorContainer = DOM.append(this._metadataInfoContainer, DOM.$('.metadata-editor-container'));
-				this._buildMetadataEditor();
-			} else {
-				this.cell.metadataHeight = this._metadataEditor.getContentHeight();
+			if (!this._metadataEditowContaina || !this._metadataEditow) {
+				// cweate editow
+				this._metadataEditowContaina = DOM.append(this._metadataInfoContaina, DOM.$('.metadata-editow-containa'));
+				this._buiwdMetadataEditow();
+			} ewse {
+				this.ceww.metadataHeight = this._metadataEditow.getContentHeight();
 			}
-		} else {
-			// we should collapse the metadata editor
-			this._metadataInfoContainer.style.display = 'none';
-			// this._metadataEditorDisposeStore.clear();
-			this.cell.metadataHeight = 0;
+		} ewse {
+			// we shouwd cowwapse the metadata editow
+			this._metadataInfoContaina.stywe.dispway = 'none';
+			// this._metadataEditowDisposeStowe.cweaw();
+			this.ceww.metadataHeight = 0;
 		}
 	}
 
-	updateOutputRendering(renderRichOutput: boolean) {
-		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
-			this._outputInfoContainer.style.display = 'block';
-			if (renderRichOutput) {
-				this._hideOutputsRaw();
-				this._buildOutputRendererContainer();
-				this._showOutputsRenderer();
+	updateOutputWendewing(wendewWichOutput: boowean) {
+		if (this.ceww.outputFowdingState === PwopewtyFowdingState.Expanded) {
+			this._outputInfoContaina.stywe.dispway = 'bwock';
+			if (wendewWichOutput) {
+				this._hideOutputsWaw();
+				this._buiwdOutputWendewewContaina();
+				this._showOutputsWendewa();
 				this._showOutputsEmptyView();
-			} else {
-				this._hideOutputsRenderer();
-				this._buildOutputRawContainer();
-				this._showOutputsRaw();
+			} ewse {
+				this._hideOutputsWendewa();
+				this._buiwdOutputWawContaina();
+				this._showOutputsWaw();
 			}
-		} else {
-			this._outputInfoContainer.style.display = 'none';
+		} ewse {
+			this._outputInfoContaina.stywe.dispway = 'none';
 
-			this._hideOutputsRaw();
-			this._hideOutputsRenderer();
+			this._hideOutputsWaw();
+			this._hideOutputsWendewa();
 			this._hideOutputsEmptyView();
 		}
 	}
 
-	private _buildOutputRawContainer() {
-		if (!this._outputEditorContainer) {
-			this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
-			this._buildOutputEditor();
+	pwivate _buiwdOutputWawContaina() {
+		if (!this._outputEditowContaina) {
+			this._outputEditowContaina = DOM.append(this._outputInfoContaina, DOM.$('.output-editow-containa'));
+			this._buiwdOutputEditow();
 		}
 	}
 
-	private _showOutputsRaw() {
-		if (this._outputEditorContainer) {
-			this._outputEditorContainer.style.display = 'block';
-			this.cell.rawOutputHeight = this._outputEditor!.getContentHeight();
+	pwivate _showOutputsWaw() {
+		if (this._outputEditowContaina) {
+			this._outputEditowContaina.stywe.dispway = 'bwock';
+			this.ceww.wawOutputHeight = this._outputEditow!.getContentHeight();
 		}
 	}
 
-	private _showOutputsEmptyView() {
-		this.cell.layoutChange();
+	pwivate _showOutputsEmptyView() {
+		this.ceww.wayoutChange();
 	}
 
-	protected _hideOutputsRaw() {
-		if (this._outputEditorContainer) {
-			this._outputEditorContainer.style.display = 'none';
-			this.cell.rawOutputHeight = 0;
+	pwotected _hideOutputsWaw() {
+		if (this._outputEditowContaina) {
+			this._outputEditowContaina.stywe.dispway = 'none';
+			this.ceww.wawOutputHeight = 0;
 		}
 	}
 
-	protected _hideOutputsEmptyView() {
-		this.cell.layoutChange();
+	pwotected _hideOutputsEmptyView() {
+		this.ceww.wayoutChange();
 	}
 
-	abstract _buildOutputRendererContainer(): void;
-	abstract _hideOutputsRenderer(): void;
-	abstract _showOutputsRenderer(): void;
+	abstwact _buiwdOutputWendewewContaina(): void;
+	abstwact _hideOutputsWendewa(): void;
+	abstwact _showOutputsWendewa(): void;
 
-	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
-		let result: { [key: string]: any } = {};
-		try {
-			const newMetadataObj = JSON.parse(newMetadata);
+	pwivate _appwySanitizedMetadataChanges(cuwwentMetadata: NotebookCewwMetadata, newMetadata: any) {
+		wet wesuwt: { [key: stwing]: any } = {};
+		twy {
+			const newMetadataObj = JSON.pawse(newMetadata);
 			const keys = new Set([...Object.keys(newMetadataObj)]);
-			for (let key of keys) {
-				switch (key as keyof NotebookCellMetadata) {
-					case 'inputCollapsed':
-					case 'outputCollapsed':
-						// boolean
-						if (typeof newMetadataObj[key] === 'boolean') {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
+			fow (wet key of keys) {
+				switch (key as keyof NotebookCewwMetadata) {
+					case 'inputCowwapsed':
+					case 'outputCowwapsed':
+						// boowean
+						if (typeof newMetadataObj[key] === 'boowean') {
+							wesuwt[key] = newMetadataObj[key];
+						} ewse {
+							wesuwt[key] = cuwwentMetadata[key as keyof NotebookCewwMetadata];
 						}
-						break;
+						bweak;
 
-					default:
-						result[key] = newMetadataObj[key];
-						break;
+					defauwt:
+						wesuwt[key] = newMetadataObj[key];
+						bweak;
 				}
 			}
 
-			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
+			const index = this.notebookEditow.textModew!.cewws.indexOf(this.ceww.modified!.textModew);
 
 			if (index < 0) {
-				return;
+				wetuwn;
 			}
 
-			this.notebookEditor.textModel!.applyEdits([
-				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true, undefined, () => undefined, undefined);
+			this.notebookEditow.textModew!.appwyEdits([
+				{ editType: CewwEditType.Metadata, index, metadata: wesuwt }
+			], twue, undefined, () => undefined, undefined);
 		} catch {
 		}
 	}
 
-	private async _buildMetadataEditor() {
-		this._metadataEditorDisposeStore.clear();
+	pwivate async _buiwdMetadataEditow() {
+		this._metadataEditowDisposeStowe.cweaw();
 
-		if (this.cell instanceof SideBySideDiffElementViewModel) {
-			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
-				...fixedDiffEditorOptions,
-				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-				readOnly: false,
-				originalEditable: false,
-				ignoreTrimWhitespace: false,
-				automaticLayout: false,
+		if (this.ceww instanceof SideBySideDiffEwementViewModew) {
+			this._metadataEditow = this.instantiationSewvice.cweateInstance(DiffEditowWidget, this._metadataEditowContaina!, {
+				...fixedDiffEditowOptions,
+				ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode(),
+				weadOnwy: fawse,
+				owiginawEditabwe: fawse,
+				ignoweTwimWhitespace: fawse,
+				automaticWayout: fawse,
 				dimension: {
-					height: this.cell.layoutInfo.metadataHeight,
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), true, true)
+					height: this.ceww.wayoutInfo.metadataHeight,
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), twue, twue)
 				}
 			}, {
-				originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
-				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+				owiginawEditow: getOptimizedNestedCodeEditowWidgetOptions(),
+				modifiedEditow: getOptimizedNestedCodeEditowWidgetOptions()
 			});
-			this.layout({ metadataHeight: true });
-			this._metadataEditorDisposeStore.add(this._metadataEditor);
+			this.wayout({ metadataHeight: twue });
+			this._metadataEditowDisposeStowe.add(this._metadataEditow);
 
-			this._metadataEditorContainer?.classList.add('diff');
+			this._metadataEditowContaina?.cwassWist.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
-			this._metadataEditor.setModel({
-				original: originalMetadataModel.object.textEditorModel,
-				modified: modifiedMetadataModel.object.textEditorModel
+			const owiginawMetadataModew = await this.textModewSewvice.cweateModewWefewence(CewwUwi.genewateCewwUwi(this.ceww.owiginawDocument.uwi, this.ceww.owiginaw!.handwe, Schemas.vscodeNotebookCewwMetadata));
+			const modifiedMetadataModew = await this.textModewSewvice.cweateModewWefewence(CewwUwi.genewateCewwUwi(this.ceww.modifiedDocument.uwi, this.ceww.modified!.handwe, Schemas.vscodeNotebookCewwMetadata));
+			this._metadataEditow.setModew({
+				owiginaw: owiginawMetadataModew.object.textEditowModew,
+				modified: modifiedMetadataModew.object.textEditowModew
 			});
 
-			this._metadataEditorDisposeStore.add(originalMetadataModel);
-			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
+			this._metadataEditowDisposeStowe.add(owiginawMetadataModew);
+			this._metadataEditowDisposeStowe.add(modifiedMetadataModew);
 
-			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
+			this.ceww.metadataHeight = this._metadataEditow.getContentHeight();
 
-			this._metadataEditorDisposeStore.add(this._metadataEditor.onDidContentSizeChange((e) => {
-				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
-					this.cell.metadataHeight = e.contentHeight;
+			this._metadataEditowDisposeStowe.add(this._metadataEditow.onDidContentSizeChange((e) => {
+				if (e.contentHeightChanged && this.ceww.metadataFowdingState === PwopewtyFowdingState.Expanded) {
+					this.ceww.metadataHeight = e.contentHeight;
 				}
 			}));
 
-			let respondingToContentChange = false;
+			wet wespondingToContentChange = fawse;
 
-			this._metadataEditorDisposeStore.add(modifiedMetadataModel.object.textEditorModel.onDidChangeContent(() => {
-				respondingToContentChange = true;
-				const value = modifiedMetadataModel.object.textEditorModel.getValue();
-				this._applySanitizedMetadataChanges(this.cell.modified!.metadata, value);
-				this._metadataHeader.refresh();
-				respondingToContentChange = false;
+			this._metadataEditowDisposeStowe.add(modifiedMetadataModew.object.textEditowModew.onDidChangeContent(() => {
+				wespondingToContentChange = twue;
+				const vawue = modifiedMetadataModew.object.textEditowModew.getVawue();
+				this._appwySanitizedMetadataChanges(this.ceww.modified!.metadata, vawue);
+				this._metadataHeada.wefwesh();
+				wespondingToContentChange = fawse;
 			}));
 
-			this._metadataEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeMetadata(() => {
-				if (respondingToContentChange) {
-					return;
+			this._metadataEditowDisposeStowe.add(this.ceww.modified!.textModew.onDidChangeMetadata(() => {
+				if (wespondingToContentChange) {
+					wetuwn;
 				}
 
-				const modifiedMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!, this.cell.modified?.metadata || {}, this.cell.modified?.language);
-				modifiedMetadataModel.object.textEditorModel.setValue(modifiedMetadataSource);
+				const modifiedMetadataSouwce = getFowmatedMetadataJSON(this.notebookEditow.textModew!, this.ceww.modified?.metadata || {}, this.ceww.modified?.wanguage);
+				modifiedMetadataModew.object.textEditowModew.setVawue(modifiedMetadataSouwce);
 			}));
 
-			return;
-		} else {
-			this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
-				...fixedEditorOptions,
+			wetuwn;
+		} ewse {
+			this._metadataEditow = this.instantiationSewvice.cweateInstance(CodeEditowWidget, this._metadataEditowContaina!, {
+				...fixedEditowOptions,
 				dimension: {
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-					height: this.cell.layoutInfo.metadataHeight
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, twue),
+					height: this.ceww.wayoutInfo.metadataHeight
 				},
-				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-				readOnly: false
+				ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode(),
+				weadOnwy: fawse
 			}, {});
-			this.layout({ metadataHeight: true });
-			this._metadataEditorDisposeStore.add(this._metadataEditor);
+			this.wayout({ metadataHeight: twue });
+			this._metadataEditowDisposeStowe.add(this._metadataEditow);
 
-			const mode = this.modeService.create('jsonc');
-			const originalMetadataSource = getFormatedMetadataJSON(this.notebookEditor.textModel!,
-				this.cell.type === 'insert'
-					? this.cell.modified!.metadata || {}
-					: this.cell.original!.metadata || {});
-			const uri = this.cell.type === 'insert'
-				? this.cell.modified!.uri
-				: this.cell.original!.uri;
-			const handle = this.cell.type === 'insert'
-				? this.cell.modified!.handle
-				: this.cell.original!.handle;
+			const mode = this.modeSewvice.cweate('jsonc');
+			const owiginawMetadataSouwce = getFowmatedMetadataJSON(this.notebookEditow.textModew!,
+				this.ceww.type === 'insewt'
+					? this.ceww.modified!.metadata || {}
+					: this.ceww.owiginaw!.metadata || {});
+			const uwi = this.ceww.type === 'insewt'
+				? this.ceww.modified!.uwi
+				: this.ceww.owiginaw!.uwi;
+			const handwe = this.ceww.type === 'insewt'
+				? this.ceww.modified!.handwe
+				: this.ceww.owiginaw!.handwe;
 
-			const modelUri = CellUri.generateCellUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
-			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
-			this._metadataEditor.setModel(metadataModel);
-			this._metadataEditorDisposeStore.add(metadataModel);
+			const modewUwi = CewwUwi.genewateCewwUwi(uwi, handwe, Schemas.vscodeNotebookCewwMetadata);
+			const metadataModew = this.modewSewvice.cweateModew(owiginawMetadataSouwce, mode, modewUwi, fawse);
+			this._metadataEditow.setModew(metadataModew);
+			this._metadataEditowDisposeStowe.add(metadataModew);
 
-			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
+			this.ceww.metadataHeight = this._metadataEditow.getContentHeight();
 
-			this._metadataEditorDisposeStore.add(this._metadataEditor.onDidContentSizeChange((e) => {
-				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
-					this.cell.metadataHeight = e.contentHeight;
+			this._metadataEditowDisposeStowe.add(this._metadataEditow.onDidContentSizeChange((e) => {
+				if (e.contentHeightChanged && this.ceww.metadataFowdingState === PwopewtyFowdingState.Expanded) {
+					this.ceww.metadataHeight = e.contentHeight;
 				}
 			}));
 		}
 	}
 
-	private _getFormatedOutputJSON(outputs: IOutputDto[]) {
-		return JSON.stringify(outputs.map(op => ({ outputs: op.outputs })), undefined, '\t');
+	pwivate _getFowmatedOutputJSON(outputs: IOutputDto[]) {
+		wetuwn JSON.stwingify(outputs.map(op => ({ outputs: op.outputs })), undefined, '\t');
 	}
 
-	private _buildOutputEditor() {
-		this._outputEditorDisposeStore.clear();
+	pwivate _buiwdOutputEditow() {
+		this._outputEditowDisposeStowe.cweaw();
 
-		if ((this.cell.type === 'modified' || this.cell.type === 'unchanged') && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
-			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
-			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
-			if (originalOutputsSource !== modifiedOutputsSource) {
-				const mode = this.modeService.create('json');
-				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
-				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
-				this._outputEditorDisposeStore.add(originalModel);
-				this._outputEditorDisposeStore.add(modifiedModel);
+		if ((this.ceww.type === 'modified' || this.ceww.type === 'unchanged') && !this.notebookEditow.textModew!.twansientOptions.twansientOutputs) {
+			const owiginawOutputsSouwce = this._getFowmatedOutputJSON(this.ceww.owiginaw?.outputs || []);
+			const modifiedOutputsSouwce = this._getFowmatedOutputJSON(this.ceww.modified?.outputs || []);
+			if (owiginawOutputsSouwce !== modifiedOutputsSouwce) {
+				const mode = this.modeSewvice.cweate('json');
+				const owiginawModew = this.modewSewvice.cweateModew(owiginawOutputsSouwce, mode, undefined, twue);
+				const modifiedModew = this.modewSewvice.cweateModew(modifiedOutputsSouwce, mode, undefined, twue);
+				this._outputEditowDisposeStowe.add(owiginawModew);
+				this._outputEditowDisposeStowe.add(modifiedModew);
 
-				const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-				const lineCount = Math.max(originalModel.getLineCount(), modifiedModel.getLineCount());
-				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
-					...fixedDiffEditorOptions,
-					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-					readOnly: true,
-					ignoreTrimWhitespace: false,
-					automaticLayout: false,
+				const wineHeight = this.notebookEditow.getWayoutInfo().fontInfo.wineHeight || 17;
+				const wineCount = Math.max(owiginawModew.getWineCount(), modifiedModew.getWineCount());
+				this._outputEditow = this.instantiationSewvice.cweateInstance(DiffEditowWidget, this._outputEditowContaina!, {
+					...fixedDiffEditowOptions,
+					ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode(),
+					weadOnwy: twue,
+					ignoweTwimWhitespace: fawse,
+					automaticWayout: fawse,
 					dimension: {
-						height: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.layoutInfo.rawOutputHeight || lineHeight * lineCount),
-						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
+						height: Math.min(OUTPUT_EDITOW_HEIGHT_MAGIC, this.ceww.wayoutInfo.wawOutputHeight || wineHeight * wineCount),
+						width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, twue)
 					}
 				}, {
-					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
-					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+					owiginawEditow: getOptimizedNestedCodeEditowWidgetOptions(),
+					modifiedEditow: getOptimizedNestedCodeEditowWidgetOptions()
 				});
-				this._outputEditorDisposeStore.add(this._outputEditor);
+				this._outputEditowDisposeStowe.add(this._outputEditow);
 
-				this._outputEditorContainer?.classList.add('diff');
+				this._outputEditowContaina?.cwassWist.add('diff');
 
-				this._outputEditor.setModel({
-					original: originalModel,
-					modified: modifiedModel
+				this._outputEditow.setModew({
+					owiginaw: owiginawModew,
+					modified: modifiedModew
 				});
-				this._outputEditor.restoreViewState(this.cell.getOutputEditorViewState() as editorCommon.IDiffEditorViewState);
+				this._outputEditow.westoweViewState(this.ceww.getOutputEditowViewState() as editowCommon.IDiffEditowViewState);
 
-				this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
+				this.ceww.wawOutputHeight = this._outputEditow.getContentHeight();
 
-				this._outputEditorDisposeStore.add(this._outputEditor.onDidContentSizeChange((e) => {
-					if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
-						this.cell.rawOutputHeight = e.contentHeight;
+				this._outputEditowDisposeStowe.add(this._outputEditow.onDidContentSizeChange((e) => {
+					if (e.contentHeightChanged && this.ceww.outputFowdingState === PwopewtyFowdingState.Expanded) {
+						this.ceww.wawOutputHeight = e.contentHeight;
 					}
 				}));
 
-				this._outputEditorDisposeStore.add(this.cell.modified!.textModel.onDidChangeOutputs(() => {
-					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
-					modifiedModel.setValue(modifiedOutputsSource);
-					this._outputHeader.refresh();
+				this._outputEditowDisposeStowe.add(this.ceww.modified!.textModew.onDidChangeOutputs(() => {
+					const modifiedOutputsSouwce = this._getFowmatedOutputJSON(this.ceww.modified?.outputs || []);
+					modifiedModew.setVawue(modifiedOutputsSouwce);
+					this._outputHeada.wefwesh();
 				}));
 
-				return;
+				wetuwn;
 			}
 		}
 
-		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
-			...fixedEditorOptions,
+		this._outputEditow = this.instantiationSewvice.cweateInstance(CodeEditowWidget, this._outputEditowContaina!, {
+			...fixedEditowOptions,
 			dimension: {
-				width: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32),
-				height: this.cell.layoutInfo.rawOutputHeight
+				width: Math.min(OUTPUT_EDITOW_HEIGHT_MAGIC, this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, this.ceww.type === 'unchanged' || this.ceww.type === 'modified') - 32),
+				height: this.ceww.wayoutInfo.wawOutputHeight
 			},
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode()
 		}, {});
-		this._outputEditorDisposeStore.add(this._outputEditor);
+		this._outputEditowDisposeStowe.add(this._outputEditow);
 
-		const mode = this.modeService.create('json');
-		const originaloutputSource = this._getFormatedOutputJSON(
-			this.notebookEditor.textModel!.transientOptions.transientOutputs
+		const mode = this.modeSewvice.cweate('json');
+		const owiginawoutputSouwce = this._getFowmatedOutputJSON(
+			this.notebookEditow.textModew!.twansientOptions.twansientOutputs
 				? []
-				: this.cell.type === 'insert'
-					? this.cell.modified!.outputs || []
-					: this.cell.original!.outputs || []);
-		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
-		this._outputEditorDisposeStore.add(outputModel);
-		this._outputEditor.setModel(outputModel);
-		this._outputEditor.restoreViewState(this.cell.getOutputEditorViewState());
+				: this.ceww.type === 'insewt'
+					? this.ceww.modified!.outputs || []
+					: this.ceww.owiginaw!.outputs || []);
+		const outputModew = this.modewSewvice.cweateModew(owiginawoutputSouwce, mode, undefined, twue);
+		this._outputEditowDisposeStowe.add(outputModew);
+		this._outputEditow.setModew(outputModew);
+		this._outputEditow.westoweViewState(this.ceww.getOutputEditowViewState());
 
-		this.cell.rawOutputHeight = this._outputEditor.getContentHeight();
+		this.ceww.wawOutputHeight = this._outputEditow.getContentHeight();
 
-		this._outputEditorDisposeStore.add(this._outputEditor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
-				this.cell.rawOutputHeight = e.contentHeight;
+		this._outputEditowDisposeStowe.add(this._outputEditow.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.ceww.outputFowdingState === PwopewtyFowdingState.Expanded) {
+				this.ceww.wawOutputHeight = e.contentHeight;
 			}
 		}));
 	}
 
-	protected layoutNotebookCell() {
-		this.notebookEditor.layoutNotebookCell(
-			this.cell,
-			this.cell.layoutInfo.totalHeight
+	pwotected wayoutNotebookCeww() {
+		this.notebookEditow.wayoutNotebookCeww(
+			this.ceww,
+			this.ceww.wayoutInfo.totawHeight
 		);
 	}
 
-	updateBorders() {
-		this.templateData.leftBorder.style.height = `${this.cell.layoutInfo.totalHeight - 32}px`;
-		this.templateData.rightBorder.style.height = `${this.cell.layoutInfo.totalHeight - 32}px`;
-		this.templateData.bottomBorder.style.top = `${this.cell.layoutInfo.totalHeight - 32}px`;
+	updateBowdews() {
+		this.tempwateData.weftBowda.stywe.height = `${this.ceww.wayoutInfo.totawHeight - 32}px`;
+		this.tempwateData.wightBowda.stywe.height = `${this.ceww.wayoutInfo.totawHeight - 32}px`;
+		this.tempwateData.bottomBowda.stywe.top = `${this.ceww.wayoutInfo.totawHeight - 32}px`;
 	}
 
-	override dispose() {
-		if (this._outputEditor) {
-			this.cell.saveOutputEditorViewState(this._outputEditor.saveViewState());
+	ovewwide dispose() {
+		if (this._outputEditow) {
+			this.ceww.saveOutputEditowViewState(this._outputEditow.saveViewState());
 		}
 
-		if (this._metadataEditor) {
-			this.cell.saveMetadataEditorViewState(this._metadataEditor.saveViewState());
+		if (this._metadataEditow) {
+			this.ceww.saveMetadataEditowViewState(this._metadataEditow.saveViewState());
 		}
 
-		this._metadataEditorDisposeStore.dispose();
-		this._outputEditorDisposeStore.dispose();
+		this._metadataEditowDisposeStowe.dispose();
+		this._outputEditowDisposeStowe.dispose();
 
-		this._isDisposed = true;
-		super.dispose();
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 
-	abstract updateSourceEditor(): void;
-	abstract layout(state: IDiffElementLayoutState): void;
+	abstwact updateSouwceEditow(): void;
+	abstwact wayout(state: IDiffEwementWayoutState): void;
 }
 
-abstract class SingleSideDiffElement extends AbstractElementRenderer {
+abstwact cwass SingweSideDiffEwement extends AbstwactEwementWendewa {
 
-	override readonly cell: SingleSideDiffElementViewModel;
-	override readonly templateData: CellDiffSingleSideRenderTemplate;
+	ovewwide weadonwy ceww: SingweSideDiffEwementViewModew;
+	ovewwide weadonwy tempwateData: CewwDiffSingweSideWendewTempwate;
 
-	constructor(
-		notebookEditor: INotebookTextDiffEditor,
-		cell: SingleSideDiffElementViewModel,
-		templateData: CellDiffSingleSideRenderTemplate,
-		style: 'left' | 'right' | 'full',
-		instantiationService: IInstantiationService,
-		modeService: IModeService,
-		modelService: IModelService,
-		textModelService: ITextModelService,
-		contextMenuService: IContextMenuService,
-		keybindingService: IKeybindingService,
-		notificationService: INotificationService,
-		menuService: IMenuService,
-		contextKeyService: IContextKeyService,
-		configurationService: IConfigurationService,
+	constwuctow(
+		notebookEditow: INotebookTextDiffEditow,
+		ceww: SingweSideDiffEwementViewModew,
+		tempwateData: CewwDiffSingweSideWendewTempwate,
+		stywe: 'weft' | 'wight' | 'fuww',
+		instantiationSewvice: IInstantiationSewvice,
+		modeSewvice: IModeSewvice,
+		modewSewvice: IModewSewvice,
+		textModewSewvice: ITextModewSewvice,
+		contextMenuSewvice: IContextMenuSewvice,
+		keybindingSewvice: IKeybindingSewvice,
+		notificationSewvice: INotificationSewvice,
+		menuSewvice: IMenuSewvice,
+		contextKeySewvice: IContextKeySewvice,
+		configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(
-			notebookEditor,
-			cell,
-			templateData,
-			style,
-			instantiationService,
-			modeService,
-			modelService,
-			textModelService,
-			contextMenuService,
-			keybindingService,
-			notificationService,
-			menuService,
-			contextKeyService,
-			configurationService
+		supa(
+			notebookEditow,
+			ceww,
+			tempwateData,
+			stywe,
+			instantiationSewvice,
+			modeSewvice,
+			modewSewvice,
+			textModewSewvice,
+			contextMenuSewvice,
+			keybindingSewvice,
+			notificationSewvice,
+			menuSewvice,
+			contextKeySewvice,
+			configuwationSewvice
 		);
-		this.cell = cell;
-		this.templateData = templateData;
+		this.ceww = ceww;
+		this.tempwateData = tempwateData;
 	}
 
 	init() {
-		this._diagonalFill = this.templateData.diagonalFill;
+		this._diagonawFiww = this.tempwateData.diagonawFiww;
 	}
 
-	override buildBody() {
-		const body = this.templateData.body;
-		this._diffEditorContainer = this.templateData.diffEditorContainer;
-		body.classList.remove('left', 'right', 'full');
-		switch (this.style) {
-			case 'left':
-				body.classList.add('left');
-				break;
-			case 'right':
-				body.classList.add('right');
-				break;
-			default:
-				body.classList.add('full');
-				break;
+	ovewwide buiwdBody() {
+		const body = this.tempwateData.body;
+		this._diffEditowContaina = this.tempwateData.diffEditowContaina;
+		body.cwassWist.wemove('weft', 'wight', 'fuww');
+		switch (this.stywe) {
+			case 'weft':
+				body.cwassWist.add('weft');
+				bweak;
+			case 'wight':
+				body.cwassWist.add('wight');
+				bweak;
+			defauwt:
+				body.cwassWist.add('fuww');
+				bweak;
 		}
 
-		this.styleContainer(this._diffEditorContainer);
-		this.updateSourceEditor();
+		this.styweContaina(this._diffEditowContaina);
+		this.updateSouwceEditow();
 
-		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+		if (this.configuwationSewvice.getVawue('notebook.diff.ignoweMetadata')) {
 			this._disposeMetadata();
-		} else {
-			this._buildMetadata();
+		} ewse {
+			this._buiwdMetadata();
 		}
 
-		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+		if (this.configuwationSewvice.getVawue('notebook.diff.ignoweOutputs') || this.notebookEditow.textModew?.twansientOptions.twansientOutputs) {
 			this._disposeOutput();
-		} else {
-			this._buildOutput();
+		} ewse {
+			this._buiwdOutput();
 		}
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			let metadataLayoutChange = false;
-			let outputLayoutChange = false;
-			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
-				this._metadataLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			wet metadataWayoutChange = fawse;
+			wet outputWayoutChange = fawse;
+			if (e.affectsConfiguwation('notebook.diff.ignoweMetadata')) {
+				this._metadataWocawDisposabwe.cweaw();
+				if (this.configuwationSewvice.getVawue('notebook.diff.ignoweMetadata')) {
 					this._disposeMetadata();
-				} else {
-					this.cell.metadataStatusHeight = 25;
-					this._buildMetadata();
-					this.updateMetadataRendering();
-					metadataLayoutChange = true;
+				} ewse {
+					this.ceww.metadataStatusHeight = 25;
+					this._buiwdMetadata();
+					this.updateMetadataWendewing();
+					metadataWayoutChange = twue;
 				}
 			}
 
-			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
-				this._outputLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			if (e.affectsConfiguwation('notebook.diff.ignoweOutputs')) {
+				this._outputWocawDisposabwe.cweaw();
+				if (this.configuwationSewvice.getVawue('notebook.diff.ignoweOutputs') || this.notebookEditow.textModew?.twansientOptions.twansientOutputs) {
 					this._disposeOutput();
-				} else {
-					this.cell.outputStatusHeight = 25;
-					this._buildOutput();
-					outputLayoutChange = true;
+				} ewse {
+					this.ceww.outputStatusHeight = 25;
+					this._buiwdOutput();
+					outputWayoutChange = twue;
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			this.wayout({ metadataHeight: metadataWayoutChange, outputTotawHeight: outputWayoutChange });
 		}));
 	}
 
 	_disposeMetadata() {
-		this.cell.metadataStatusHeight = 0;
-		this.cell.metadataHeight = 0;
-		this.templateData.metadataHeaderContainer.style.display = 'none';
-		this.templateData.metadataInfoContainer.style.display = 'none';
-		this._metadataEditor = undefined;
+		this.ceww.metadataStatusHeight = 0;
+		this.ceww.metadataHeight = 0;
+		this.tempwateData.metadataHeadewContaina.stywe.dispway = 'none';
+		this.tempwateData.metadataInfoContaina.stywe.dispway = 'none';
+		this._metadataEditow = undefined;
 	}
 
-	_buildMetadata() {
-		this._metadataHeaderContainer = this.templateData.metadataHeaderContainer;
-		this._metadataInfoContainer = this.templateData.metadataInfoContainer;
-		this._metadataHeaderContainer.style.display = 'flex';
-		this._metadataInfoContainer.style.display = 'block';
-		this._metadataHeaderContainer.innerText = '';
-		this._metadataInfoContainer.innerText = '';
+	_buiwdMetadata() {
+		this._metadataHeadewContaina = this.tempwateData.metadataHeadewContaina;
+		this._metadataInfoContaina = this.tempwateData.metadataInfoContaina;
+		this._metadataHeadewContaina.stywe.dispway = 'fwex';
+		this._metadataInfoContaina.stywe.dispway = 'bwock';
+		this._metadataHeadewContaina.innewText = '';
+		this._metadataInfoContaina.innewText = '';
 
-		this._metadataHeader = this.instantiationService.createInstance(
-			PropertyHeader,
-			this.cell,
-			this._metadataHeaderContainer,
-			this.notebookEditor,
+		this._metadataHeada = this.instantiationSewvice.cweateInstance(
+			PwopewtyHeada,
+			this.ceww,
+			this._metadataHeadewContaina,
+			this.notebookEditow,
 			{
-				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				updateInfoWendewing: this.updateMetadataWendewing.bind(this),
+				checkIfModified: (ceww) => {
+					wetuwn ceww.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFowdingState: (ceww) => {
+					wetuwn ceww.metadataFowdingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFowdingState: (ceww, state) => {
+					ceww.metadataFowdingState = state;
 				},
-				unChangedLabel: 'Metadata',
-				changedLabel: 'Metadata changed',
-				prefix: 'metadata',
-				menuId: MenuId.NotebookDiffCellMetadataTitle
+				unChangedWabew: 'Metadata',
+				changedWabew: 'Metadata changed',
+				pwefix: 'metadata',
+				menuId: MenuId.NotebookDiffCewwMetadataTitwe
 			}
 		);
-		this._metadataLocalDisposable.add(this._metadataHeader);
-		this._metadataHeader.buildHeader();
+		this._metadataWocawDisposabwe.add(this._metadataHeada);
+		this._metadataHeada.buiwdHeada();
 	}
 
-	_buildOutput() {
-		this.templateData.outputHeaderContainer.style.display = 'flex';
-		this.templateData.outputInfoContainer.style.display = 'block';
+	_buiwdOutput() {
+		this.tempwateData.outputHeadewContaina.stywe.dispway = 'fwex';
+		this.tempwateData.outputInfoContaina.stywe.dispway = 'bwock';
 
-		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
-		this._outputInfoContainer = this.templateData.outputInfoContainer;
+		this._outputHeadewContaina = this.tempwateData.outputHeadewContaina;
+		this._outputInfoContaina = this.tempwateData.outputInfoContaina;
 
-		this._outputHeaderContainer.innerText = '';
-		this._outputInfoContainer.innerText = '';
+		this._outputHeadewContaina.innewText = '';
+		this._outputInfoContaina.innewText = '';
 
-		this._outputHeader = this.instantiationService.createInstance(
-			PropertyHeader,
-			this.cell,
-			this._outputHeaderContainer,
-			this.notebookEditor,
+		this._outputHeada = this.instantiationSewvice.cweateInstance(
+			PwopewtyHeada,
+			this.ceww,
+			this._outputHeadewContaina,
+			this.notebookEditow,
 			{
-				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				updateInfoWendewing: this.updateOutputWendewing.bind(this),
+				checkIfModified: (ceww) => {
+					wetuwn ceww.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFowdingState: (ceww) => {
+					wetuwn ceww.outputFowdingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFowdingState: (ceww, state) => {
+					ceww.outputFowdingState = state;
 				},
-				unChangedLabel: 'Outputs',
-				changedLabel: 'Outputs changed',
-				prefix: 'output',
-				menuId: MenuId.NotebookDiffCellOutputsTitle
+				unChangedWabew: 'Outputs',
+				changedWabew: 'Outputs changed',
+				pwefix: 'output',
+				menuId: MenuId.NotebookDiffCewwOutputsTitwe
 			}
 		);
-		this._outputLocalDisposable.add(this._outputHeader);
-		this._outputHeader.buildHeader();
+		this._outputWocawDisposabwe.add(this._outputHeada);
+		this._outputHeada.buiwdHeada();
 	}
 
 	_disposeOutput() {
-		this._hideOutputsRaw();
-		this._hideOutputsRenderer();
+		this._hideOutputsWaw();
+		this._hideOutputsWendewa();
 		this._hideOutputsEmptyView();
 
-		this.cell.rawOutputHeight = 0;
-		this.cell.outputStatusHeight = 0;
-		this.templateData.outputHeaderContainer.style.display = 'none';
-		this.templateData.outputInfoContainer.style.display = 'none';
-		this._outputViewContainer = undefined;
+		this.ceww.wawOutputHeight = 0;
+		this.ceww.outputStatusHeight = 0;
+		this.tempwateData.outputHeadewContaina.stywe.dispway = 'none';
+		this.tempwateData.outputInfoContaina.stywe.dispway = 'none';
+		this._outputViewContaina = undefined;
 	}
 }
-export class DeletedElement extends SingleSideDiffElement {
-	private _editor!: CodeEditorWidget;
-	constructor(
-		notebookEditor: INotebookTextDiffEditor,
-		cell: SingleSideDiffElementViewModel,
-		templateData: CellDiffSingleSideRenderTemplate,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+expowt cwass DewetedEwement extends SingweSideDiffEwement {
+	pwivate _editow!: CodeEditowWidget;
+	constwuctow(
+		notebookEditow: INotebookTextDiffEditow,
+		ceww: SingweSideDiffEwementViewModew,
+		tempwateData: CewwDiffSingweSideWendewTempwate,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		supa(notebookEditow, ceww, tempwateData, 'weft', instantiationSewvice, modeSewvice, modewSewvice, textModewSewvice, contextMenuSewvice, keybindingSewvice, notificationSewvice, menuSewvice, contextKeySewvice, configuwationSewvice);
 	}
 
-	styleContainer(container: HTMLElement) {
-		container.classList.remove('inserted');
-		container.classList.add('removed');
+	styweContaina(containa: HTMWEwement) {
+		containa.cwassWist.wemove('insewted');
+		containa.cwassWist.add('wemoved');
 	}
 
-	updateSourceEditor(): void {
-		const originalCell = this.cell.original!;
-		const lineCount = originalCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+	updateSouwceEditow(): void {
+		const owiginawCeww = this.ceww.owiginaw!;
+		const wineCount = owiginawCeww.textModew.textBuffa.getWineCount();
+		const wineHeight = this.notebookEditow.getWayoutInfo().fontInfo.wineHeight || 17;
+		const editowHeight = wineCount * wineHeight + fixedEditowPadding.top + fixedEditowPadding.bottom;
 
-		this._editor = this.templateData.sourceEditor;
-		this._editor.layout({
-			width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
-			height: editorHeight
+		this._editow = this.tempwateData.souwceEditow;
+		this._editow.wayout({
+			width: (this.notebookEditow.getWayoutInfo().width - 2 * DIFF_CEWW_MAWGIN) / 2 - 18,
+			height: editowHeight
 		});
 
-		this.cell.editorHeight = editorHeight;
+		this.ceww.editowHeight = editowHeight;
 
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
+		this._wegista(this._editow.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.ceww.wayoutInfo.editowHeight !== e.contentHeight) {
+				this.ceww.editowHeight = e.contentHeight;
 			}
 		}));
 
-		this.textModelService.createModelReference(originalCell.uri).then(ref => {
+		this.textModewSewvice.cweateModewWefewence(owiginawCeww.uwi).then(wef => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			this._register(ref);
+			this._wegista(wef);
 
-			const textModel = ref.object.textEditorModel;
-			this._editor.setModel(textModel);
-			this.cell.editorHeight = this._editor.getContentHeight();
+			const textModew = wef.object.textEditowModew;
+			this._editow.setModew(textModew);
+			this.ceww.editowHeight = this._editow.getContentHeight();
 		});
 	}
 
-	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			if (state.editorHeight || state.outerWidth) {
-				this._editor.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-					height: this.cell.layoutInfo.editorHeight
+	wayout(state: IDiffEwementWayoutState) {
+		DOM.scheduweAtNextAnimationFwame(() => {
+			if (state.editowHeight || state.outewWidth) {
+				this._editow.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, fawse),
+					height: this.ceww.wayoutInfo.editowHeight
 				});
 			}
 
-			if (state.metadataHeight || state.outerWidth) {
-				this._metadataEditor?.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-					height: this.cell.layoutInfo.metadataHeight
+			if (state.metadataHeight || state.outewWidth) {
+				this._metadataEditow?.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, fawse),
+					height: this.ceww.wayoutInfo.metadataHeight
 				});
 			}
 
-			if (state.outputTotalHeight || state.outerWidth) {
-				this._outputEditor?.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-					height: this.cell.layoutInfo.outputTotalHeight
+			if (state.outputTotawHeight || state.outewWidth) {
+				this._outputEditow?.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, fawse),
+					height: this.ceww.wayoutInfo.outputTotawHeight
 				});
 			}
 
-			if (this._diagonalFill) {
-				this._diagonalFill.style.height = `${this.cell.layoutInfo.totalHeight - 32}px`;
+			if (this._diagonawFiww) {
+				this._diagonawFiww.stywe.height = `${this.ceww.wayoutInfo.totawHeight - 32}px`;
 			}
 
-			this.layoutNotebookCell();
+			this.wayoutNotebookCeww();
 		});
 	}
 
-	_buildOutputRendererContainer() {
-		if (!this._outputViewContainer) {
-			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
-			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
-			const span = DOM.append(this._outputEmptyElement, DOM.$('span'));
-			span.innerText = 'No outputs to render';
+	_buiwdOutputWendewewContaina() {
+		if (!this._outputViewContaina) {
+			this._outputViewContaina = DOM.append(this._outputInfoContaina, DOM.$('.output-view-containa'));
+			this._outputEmptyEwement = DOM.append(this._outputViewContaina, DOM.$('.output-empty-view'));
+			const span = DOM.append(this._outputEmptyEwement, DOM.$('span'));
+			span.innewText = 'No outputs to wenda';
 
-			if (this.cell.original!.outputs.length === 0) {
-				this._outputEmptyElement.style.display = 'block';
-			} else {
-				this._outputEmptyElement.style.display = 'none';
+			if (this.ceww.owiginaw!.outputs.wength === 0) {
+				this._outputEmptyEwement.stywe.dispway = 'bwock';
+			} ewse {
+				this._outputEmptyEwement.stywe.dispway = 'none';
 			}
 
-			this.cell.layoutChange();
+			this.ceww.wayoutChange();
 
-			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputViewContainer!);
-			this._register(this._outputLeftView);
-			this._outputLeftView.render();
+			this._outputWeftView = this.instantiationSewvice.cweateInstance(OutputContaina, this.notebookEditow, this.notebookEditow.textModew!, this.ceww, this.ceww.owiginaw!, DiffSide.Owiginaw, this._outputViewContaina!);
+			this._wegista(this._outputWeftView);
+			this._outputWeftView.wenda();
 
-			const removedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-				if (e.cell.uri.toString() === this.cell.original!.uri.toString()) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original!.id, ['nb-cellDeleted'], []);
-					removedOutputRenderListener.dispose();
+			const wemovedOutputWendewWistena = this.notebookEditow.onDidDynamicOutputWendewed(e => {
+				if (e.ceww.uwi.toStwing() === this.ceww.owiginaw!.uwi.toStwing()) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Owiginaw, this.ceww.owiginaw!.id, ['nb-cewwDeweted'], []);
+					wemovedOutputWendewWistena.dispose();
 				}
 			});
 
-			this._register(removedOutputRenderListener);
+			this._wegista(wemovedOutputWendewWistena);
 		}
 
-		this._outputViewContainer.style.display = 'block';
+		this._outputViewContaina.stywe.dispway = 'bwock';
 	}
 
-	_decorate() {
-		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original!.id, ['nb-cellDeleted'], []);
+	_decowate() {
+		this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Owiginaw, this.ceww.owiginaw!.id, ['nb-cewwDeweted'], []);
 	}
 
-	_showOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'block';
+	_showOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'bwock';
 
-			this._outputLeftView?.showOutputs();
-			this._decorate();
-		}
-	}
-
-	_hideOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'none';
-
-			this._outputLeftView?.hideOutputs();
+			this._outputWeftView?.showOutputs();
+			this._decowate();
 		}
 	}
 
-	override dispose() {
-		if (this._editor) {
-			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+	_hideOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'none';
+
+			this._outputWeftView?.hideOutputs();
+		}
+	}
+
+	ovewwide dispose() {
+		if (this._editow) {
+			this.ceww.saveSpiwceEditowViewState(this._editow.saveViewState());
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class InsertElement extends SingleSideDiffElement {
-	private _editor!: CodeEditorWidget;
-	constructor(
-		notebookEditor: INotebookTextDiffEditor,
-		cell: SingleSideDiffElementViewModel,
-		templateData: CellDiffSingleSideRenderTemplate,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+expowt cwass InsewtEwement extends SingweSideDiffEwement {
+	pwivate _editow!: CodeEditowWidget;
+	constwuctow(
+		notebookEditow: INotebookTextDiffEditow,
+		ceww: SingweSideDiffEwementViewModew,
+		tempwateData: CewwDiffSingweSideWendewTempwate,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
+		supa(notebookEditow, ceww, tempwateData, 'wight', instantiationSewvice, modeSewvice, modewSewvice, textModewSewvice, contextMenuSewvice, keybindingSewvice, notificationSewvice, menuSewvice, contextKeySewvice, configuwationSewvice);
 	}
 
-	styleContainer(container: HTMLElement): void {
-		container.classList.remove('removed');
-		container.classList.add('inserted');
+	styweContaina(containa: HTMWEwement): void {
+		containa.cwassWist.wemove('wemoved');
+		containa.cwassWist.add('insewted');
 	}
 
-	updateSourceEditor(): void {
-		const modifiedCell = this.cell.modified!;
-		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+	updateSouwceEditow(): void {
+		const modifiedCeww = this.ceww.modified!;
+		const wineCount = modifiedCeww.textModew.textBuffa.getWineCount();
+		const wineHeight = this.notebookEditow.getWayoutInfo().fontInfo.wineHeight || 17;
+		const editowHeight = wineCount * wineHeight + fixedEditowPadding.top + fixedEditowPadding.bottom;
 
-		this._editor = this.templateData.sourceEditor;
-		this._editor.layout(
+		this._editow = this.tempwateData.souwceEditow;
+		this._editow.wayout(
 			{
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
-				height: editorHeight
+				width: (this.notebookEditow.getWayoutInfo().width - 2 * DIFF_CEWW_MAWGIN) / 2 - 18,
+				height: editowHeight
 			}
 		);
-		this._editor.updateOptions({ readOnly: false });
-		this.cell.editorHeight = editorHeight;
+		this._editow.updateOptions({ weadOnwy: fawse });
+		this.ceww.editowHeight = editowHeight;
 
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
+		this._wegista(this._editow.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.ceww.wayoutInfo.editowHeight !== e.contentHeight) {
+				this.ceww.editowHeight = e.contentHeight;
 			}
 		}));
 
-		this.textModelService.createModelReference(modifiedCell.uri).then(ref => {
+		this.textModewSewvice.cweateModewWefewence(modifiedCeww.uwi).then(wef => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			this._register(ref);
+			this._wegista(wef);
 
-			const textModel = ref.object.textEditorModel;
-			this._editor.setModel(textModel);
-			this._editor.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.ICodeEditorViewState);
-			this.cell.editorHeight = this._editor.getContentHeight();
+			const textModew = wef.object.textEditowModew;
+			this._editow.setModew(textModew);
+			this._editow.westoweViewState(this.ceww.getSouwceEditowViewState() as editowCommon.ICodeEditowViewState);
+			this.ceww.editowHeight = this._editow.getContentHeight();
 		});
 	}
 
-	_buildOutputRendererContainer() {
-		if (!this._outputViewContainer) {
-			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
-			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
-			this._outputEmptyElement.innerText = 'No outputs to render';
+	_buiwdOutputWendewewContaina() {
+		if (!this._outputViewContaina) {
+			this._outputViewContaina = DOM.append(this._outputInfoContaina, DOM.$('.output-view-containa'));
+			this._outputEmptyEwement = DOM.append(this._outputViewContaina, DOM.$('.output-empty-view'));
+			this._outputEmptyEwement.innewText = 'No outputs to wenda';
 
-			if (this.cell.modified!.outputs.length === 0) {
-				this._outputEmptyElement.style.display = 'block';
-			} else {
-				this._outputEmptyElement.style.display = 'none';
+			if (this.ceww.modified!.outputs.wength === 0) {
+				this._outputEmptyEwement.stywe.dispway = 'bwock';
+			} ewse {
+				this._outputEmptyEwement.stywe.dispway = 'none';
 			}
 
-			this.cell.layoutChange();
+			this.ceww.wayoutChange();
 
-			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputViewContainer!);
-			this._register(this._outputRightView);
-			this._outputRightView.render();
+			this._outputWightView = this.instantiationSewvice.cweateInstance(OutputContaina, this.notebookEditow, this.notebookEditow.textModew!, this.ceww, this.ceww.modified!, DiffSide.Modified, this._outputViewContaina!);
+			this._wegista(this._outputWightView);
+			this._outputWightView.wenda();
 
-			const insertOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-				if (e.cell.uri.toString() === this.cell.modified!.uri.toString()) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified!.id, ['nb-cellAdded'], []);
-					insertOutputRenderListener.dispose();
+			const insewtOutputWendewWistena = this.notebookEditow.onDidDynamicOutputWendewed(e => {
+				if (e.ceww.uwi.toStwing() === this.ceww.modified!.uwi.toStwing()) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Modified, this.ceww.modified!.id, ['nb-cewwAdded'], []);
+					insewtOutputWendewWistena.dispose();
 				}
 			});
-			this._register(insertOutputRenderListener);
+			this._wegista(insewtOutputWendewWistena);
 		}
 
-		this._outputViewContainer.style.display = 'block';
+		this._outputViewContaina.stywe.dispway = 'bwock';
 	}
 
-	_decorate() {
-		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified!.id, ['nb-cellAdded'], []);
+	_decowate() {
+		this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Modified, this.ceww.modified!.id, ['nb-cewwAdded'], []);
 	}
 
-	_showOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'block';
-			this._outputRightView?.showOutputs();
-			this._decorate();
-		}
-	}
-
-	_hideOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'none';
-			this._outputRightView?.hideOutputs();
+	_showOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'bwock';
+			this._outputWightView?.showOutputs();
+			this._decowate();
 		}
 	}
 
-	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			if (state.editorHeight || state.outerWidth) {
-				this._editor.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-					height: this.cell.layoutInfo.editorHeight
+	_hideOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'none';
+			this._outputWightView?.hideOutputs();
+		}
+	}
+
+	wayout(state: IDiffEwementWayoutState) {
+		DOM.scheduweAtNextAnimationFwame(() => {
+			if (state.editowHeight || state.outewWidth) {
+				this._editow.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, fawse),
+					height: this.ceww.wayoutInfo.editowHeight
 				});
 			}
 
-			if (state.metadataHeight || state.outerWidth) {
-				this._metadataEditor?.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-					height: this.cell.layoutInfo.metadataHeight
+			if (state.metadataHeight || state.outewWidth) {
+				this._metadataEditow?.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, twue),
+					height: this.ceww.wayoutInfo.metadataHeight
 				});
 			}
 
-			if (state.outputTotalHeight || state.outerWidth) {
-				this._outputEditor?.layout({
-					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-					height: this.cell.layoutInfo.outputTotalHeight
+			if (state.outputTotawHeight || state.outewWidth) {
+				this._outputEditow?.wayout({
+					width: this.ceww.getComputedCewwContainewWidth(this.notebookEditow.getWayoutInfo(), fawse, fawse),
+					height: this.ceww.wayoutInfo.outputTotawHeight
 				});
 			}
 
-			this.layoutNotebookCell();
+			this.wayoutNotebookCeww();
 
-			if (this._diagonalFill) {
-				this._diagonalFill.style.height = `${this.cell.layoutInfo.editorHeight + this.cell.layoutInfo.editorMargin + this.cell.layoutInfo.metadataStatusHeight + this.cell.layoutInfo.metadataHeight + this.cell.layoutInfo.outputTotalHeight + this.cell.layoutInfo.outputStatusHeight}px`;
+			if (this._diagonawFiww) {
+				this._diagonawFiww.stywe.height = `${this.ceww.wayoutInfo.editowHeight + this.ceww.wayoutInfo.editowMawgin + this.ceww.wayoutInfo.metadataStatusHeight + this.ceww.wayoutInfo.metadataHeight + this.ceww.wayoutInfo.outputTotawHeight + this.ceww.wayoutInfo.outputStatusHeight}px`;
 			}
 		});
 	}
 
-	override dispose() {
-		if (this._editor) {
-			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+	ovewwide dispose() {
+		if (this._editow) {
+			this.ceww.saveSpiwceEditowViewState(this._editow.saveViewState());
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class ModifiedElement extends AbstractElementRenderer {
-	private _editor?: DiffEditorWidget;
-	private _editorContainer!: HTMLElement;
-	private _inputToolbarContainer!: HTMLElement;
-	protected _toolbar!: ToolBar;
-	protected _menu!: IMenu;
+expowt cwass ModifiedEwement extends AbstwactEwementWendewa {
+	pwivate _editow?: DiffEditowWidget;
+	pwivate _editowContaina!: HTMWEwement;
+	pwivate _inputToowbawContaina!: HTMWEwement;
+	pwotected _toowbaw!: ToowBaw;
+	pwotected _menu!: IMenu;
 
-	override readonly cell: SideBySideDiffElementViewModel;
-	override readonly templateData: CellDiffSideBySideRenderTemplate;
+	ovewwide weadonwy ceww: SideBySideDiffEwementViewModew;
+	ovewwide weadonwy tempwateData: CewwDiffSideBySideWendewTempwate;
 
-	constructor(
-		notebookEditor: INotebookTextDiffEditor,
-		cell: SideBySideDiffElementViewModel,
-		templateData: CellDiffSideBySideRenderTemplate,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
-		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+	constwuctow(
+		notebookEditow: INotebookTextDiffEditow,
+		ceww: SideBySideDiffEwementViewModew,
+		tempwateData: CewwDiffSideBySideWendewTempwate,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@ITextModewSewvice textModewSewvice: ITextModewSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
-		this.cell = cell;
-		this.templateData = templateData;
+		supa(notebookEditow, ceww, tempwateData, 'fuww', instantiationSewvice, modeSewvice, modewSewvice, textModewSewvice, contextMenuSewvice, keybindingSewvice, notificationSewvice, menuSewvice, contextKeySewvice, configuwationSewvice);
+		this.ceww = ceww;
+		this.tempwateData = tempwateData;
 	}
 
 	init() { }
-	styleContainer(container: HTMLElement): void {
-		container.classList.remove('inserted', 'removed');
+	styweContaina(containa: HTMWEwement): void {
+		containa.cwassWist.wemove('insewted', 'wemoved');
 	}
 
 	_disposeMetadata() {
-		this.cell.metadataStatusHeight = 0;
-		this.cell.metadataHeight = 0;
-		this.templateData.metadataHeaderContainer.style.display = 'none';
-		this.templateData.metadataInfoContainer.style.display = 'none';
-		this._metadataEditor = undefined;
+		this.ceww.metadataStatusHeight = 0;
+		this.ceww.metadataHeight = 0;
+		this.tempwateData.metadataHeadewContaina.stywe.dispway = 'none';
+		this.tempwateData.metadataInfoContaina.stywe.dispway = 'none';
+		this._metadataEditow = undefined;
 	}
 
-	_buildMetadata() {
-		this._metadataHeaderContainer = this.templateData.metadataHeaderContainer;
-		this._metadataInfoContainer = this.templateData.metadataInfoContainer;
-		this._metadataHeaderContainer.style.display = 'flex';
-		this._metadataInfoContainer.style.display = 'block';
+	_buiwdMetadata() {
+		this._metadataHeadewContaina = this.tempwateData.metadataHeadewContaina;
+		this._metadataInfoContaina = this.tempwateData.metadataInfoContaina;
+		this._metadataHeadewContaina.stywe.dispway = 'fwex';
+		this._metadataInfoContaina.stywe.dispway = 'bwock';
 
-		this._metadataHeaderContainer.innerText = '';
-		this._metadataInfoContainer.innerText = '';
+		this._metadataHeadewContaina.innewText = '';
+		this._metadataInfoContaina.innewText = '';
 
-		this._metadataHeader = this.instantiationService.createInstance(
-			PropertyHeader,
-			this.cell,
-			this._metadataHeaderContainer,
-			this.notebookEditor,
+		this._metadataHeada = this.instantiationSewvice.cweateInstance(
+			PwopewtyHeada,
+			this.ceww,
+			this._metadataHeadewContaina,
+			this.notebookEditow,
 			{
-				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				updateInfoWendewing: this.updateMetadataWendewing.bind(this),
+				checkIfModified: (ceww) => {
+					wetuwn ceww.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFowdingState: (ceww) => {
+					wetuwn ceww.metadataFowdingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFowdingState: (ceww, state) => {
+					ceww.metadataFowdingState = state;
 				},
-				unChangedLabel: 'Metadata',
-				changedLabel: 'Metadata changed',
-				prefix: 'metadata',
-				menuId: MenuId.NotebookDiffCellMetadataTitle
+				unChangedWabew: 'Metadata',
+				changedWabew: 'Metadata changed',
+				pwefix: 'metadata',
+				menuId: MenuId.NotebookDiffCewwMetadataTitwe
 			}
 		);
-		this._metadataLocalDisposable.add(this._metadataHeader);
-		this._metadataHeader.buildHeader();
+		this._metadataWocawDisposabwe.add(this._metadataHeada);
+		this._metadataHeada.buiwdHeada();
 	}
 
 	_disposeOutput() {
-		this._hideOutputsRaw();
-		this._hideOutputsRenderer();
+		this._hideOutputsWaw();
+		this._hideOutputsWendewa();
 		this._hideOutputsEmptyView();
 
-		this.cell.rawOutputHeight = 0;
-		this.cell.outputStatusHeight = 0;
-		this.templateData.outputHeaderContainer.style.display = 'none';
-		this.templateData.outputInfoContainer.style.display = 'none';
-		this._outputViewContainer = undefined;
+		this.ceww.wawOutputHeight = 0;
+		this.ceww.outputStatusHeight = 0;
+		this.tempwateData.outputHeadewContaina.stywe.dispway = 'none';
+		this.tempwateData.outputInfoContaina.stywe.dispway = 'none';
+		this._outputViewContaina = undefined;
 	}
 
-	_buildOutput() {
-		this.templateData.outputHeaderContainer.style.display = 'flex';
-		this.templateData.outputInfoContainer.style.display = 'block';
+	_buiwdOutput() {
+		this.tempwateData.outputHeadewContaina.stywe.dispway = 'fwex';
+		this.tempwateData.outputInfoContaina.stywe.dispway = 'bwock';
 
-		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
-		this._outputInfoContainer = this.templateData.outputInfoContainer;
-		this._outputHeaderContainer.innerText = '';
-		this._outputInfoContainer.innerText = '';
+		this._outputHeadewContaina = this.tempwateData.outputHeadewContaina;
+		this._outputInfoContaina = this.tempwateData.outputInfoContaina;
+		this._outputHeadewContaina.innewText = '';
+		this._outputInfoContaina.innewText = '';
 
-		if (this.cell.checkIfOutputsModified()) {
-			this._outputInfoContainer.classList.add('modified');
+		if (this.ceww.checkIfOutputsModified()) {
+			this._outputInfoContaina.cwassWist.add('modified');
 		}
 
-		this._outputHeader = this.instantiationService.createInstance(
-			PropertyHeader,
-			this.cell,
-			this._outputHeaderContainer,
-			this.notebookEditor,
+		this._outputHeada = this.instantiationSewvice.cweateInstance(
+			PwopewtyHeada,
+			this.ceww,
+			this._outputHeadewContaina,
+			this.notebookEditow,
 			{
-				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				updateInfoWendewing: this.updateOutputWendewing.bind(this),
+				checkIfModified: (ceww) => {
+					wetuwn ceww.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFowdingState: (ceww) => {
+					wetuwn ceww.outputFowdingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFowdingState: (ceww, state) => {
+					ceww.outputFowdingState = state;
 				},
-				unChangedLabel: 'Outputs',
-				changedLabel: 'Outputs changed',
-				prefix: 'output',
-				menuId: MenuId.NotebookDiffCellOutputsTitle
+				unChangedWabew: 'Outputs',
+				changedWabew: 'Outputs changed',
+				pwefix: 'output',
+				menuId: MenuId.NotebookDiffCewwOutputsTitwe
 			}
 		);
-		this._outputLocalDisposable.add(this._outputHeader);
-		this._outputHeader.buildHeader();
+		this._outputWocawDisposabwe.add(this._outputHeada);
+		this._outputHeada.buiwdHeada();
 	}
 
-	_buildOutputRendererContainer() {
-		if (!this._outputViewContainer) {
-			this._outputViewContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-view-container'));
-			this._outputEmptyElement = DOM.append(this._outputViewContainer, DOM.$('.output-empty-view'));
-			this._outputEmptyElement.innerText = 'No outputs to render';
+	_buiwdOutputWendewewContaina() {
+		if (!this._outputViewContaina) {
+			this._outputViewContaina = DOM.append(this._outputInfoContaina, DOM.$('.output-view-containa'));
+			this._outputEmptyEwement = DOM.append(this._outputViewContaina, DOM.$('.output-empty-view'));
+			this._outputEmptyEwement.innewText = 'No outputs to wenda';
 
-			if (!this.cell.checkIfOutputsModified() && this.cell.modified.outputs.length === 0) {
-				this._outputEmptyElement.style.display = 'block';
-			} else {
-				this._outputEmptyElement.style.display = 'none';
+			if (!this.ceww.checkIfOutputsModified() && this.ceww.modified.outputs.wength === 0) {
+				this._outputEmptyEwement.stywe.dispway = 'bwock';
+			} ewse {
+				this._outputEmptyEwement.stywe.dispway = 'none';
 			}
 
-			this.cell.layoutChange();
+			this.ceww.wayoutChange();
 
-			this._register(this.cell.modified.textModel.onDidChangeOutputs(() => {
-				// currently we only allow outputs change to the modified cell
-				if (!this.cell.checkIfOutputsModified() && this.cell.modified.outputs.length === 0) {
-					this._outputEmptyElement!.style.display = 'block';
-				} else {
-					this._outputEmptyElement!.style.display = 'none';
+			this._wegista(this.ceww.modified.textModew.onDidChangeOutputs(() => {
+				// cuwwentwy we onwy awwow outputs change to the modified ceww
+				if (!this.ceww.checkIfOutputsModified() && this.ceww.modified.outputs.wength === 0) {
+					this._outputEmptyEwement!.stywe.dispway = 'bwock';
+				} ewse {
+					this._outputEmptyEwement!.stywe.dispway = 'none';
 				}
 			}));
 
-			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
-			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+			this._outputWeftContaina = DOM.append(this._outputViewContaina!, DOM.$('.output-view-containa-weft'));
+			this._outputWightContaina = DOM.append(this._outputViewContaina!, DOM.$('.output-view-containa-wight'));
 
-			if (this.cell.checkIfOutputsModified()) {
-				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
-						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
-						originalOutputRenderListener.dispose();
+			if (this.ceww.checkIfOutputsModified()) {
+				const owiginawOutputWendewWistena = this.notebookEditow.onDidDynamicOutputWendewed(e => {
+					if (e.ceww.uwi.toStwing() === this.ceww.owiginaw.uwi.toStwing()) {
+						this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Owiginaw, this.ceww.owiginaw.id, ['nb-cewwDeweted'], []);
+						owiginawOutputWendewWistena.dispose();
 					}
 				});
 
-				const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-					if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
-						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
-						modifiedOutputRenderListener.dispose();
+				const modifiedOutputWendewWistena = this.notebookEditow.onDidDynamicOutputWendewed(e => {
+					if (e.ceww.uwi.toStwing() === this.ceww.modified.uwi.toStwing()) {
+						this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Modified, this.ceww.modified.id, ['nb-cewwAdded'], []);
+						modifiedOutputWendewWistena.dispose();
 					}
 				});
 
-				this._register(originalOutputRenderListener);
-				this._register(modifiedOutputRenderListener);
+				this._wegista(owiginawOutputWendewWistena);
+				this._wegista(modifiedOutputWendewWistena);
 			}
 
-			// We should use the original text model here
-			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
-			this._outputLeftView.render();
-			this._register(this._outputLeftView);
-			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
-			this._outputRightView.render();
-			this._register(this._outputRightView);
-			this._decorate();
+			// We shouwd use the owiginaw text modew hewe
+			this._outputWeftView = this.instantiationSewvice.cweateInstance(OutputContaina, this.notebookEditow, this.notebookEditow.textModew!, this.ceww, this.ceww.owiginaw!, DiffSide.Owiginaw, this._outputWeftContaina!);
+			this._outputWeftView.wenda();
+			this._wegista(this._outputWeftView);
+			this._outputWightView = this.instantiationSewvice.cweateInstance(OutputContaina, this.notebookEditow, this.notebookEditow.textModew!, this.ceww, this.ceww.modified!, DiffSide.Modified, this._outputWightContaina!);
+			this._outputWightView.wenda();
+			this._wegista(this._outputWightView);
+			this._decowate();
 		}
 
-		this._outputViewContainer.style.display = 'block';
+		this._outputViewContaina.stywe.dispway = 'bwock';
 	}
 
-	_decorate() {
-		if (this.cell.checkIfOutputsModified()) {
-			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
-			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
-		}
-	}
-
-	_showOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'block';
-
-			this._outputLeftView?.showOutputs();
-			this._outputRightView?.showOutputs();
-			this._decorate();
+	_decowate() {
+		if (this.ceww.checkIfOutputsModified()) {
+			this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Owiginaw, this.ceww.owiginaw.id, ['nb-cewwDeweted'], []);
+			this.notebookEditow.dewtaCewwOutputContainewCwassNames(DiffSide.Modified, this.ceww.modified.id, ['nb-cewwAdded'], []);
 		}
 	}
 
-	_hideOutputsRenderer() {
-		if (this._outputViewContainer) {
-			this._outputViewContainer.style.display = 'none';
+	_showOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'bwock';
 
-			this._outputLeftView?.hideOutputs();
-			this._outputRightView?.hideOutputs();
+			this._outputWeftView?.showOutputs();
+			this._outputWightView?.showOutputs();
+			this._decowate();
 		}
 	}
 
-	updateSourceEditor(): void {
-		const modifiedCell = this.cell.modified!;
-		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+	_hideOutputsWendewa() {
+		if (this._outputViewContaina) {
+			this._outputViewContaina.stywe.dispway = 'none';
 
-		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
-		this._editorContainer = this.templateData.editorContainer;
-		this._editor = this.templateData.sourceEditor;
+			this._outputWeftView?.hideOutputs();
+			this._outputWightView?.hideOutputs();
+		}
+	}
 
-		this._editorContainer.classList.add('diff');
+	updateSouwceEditow(): void {
+		const modifiedCeww = this.ceww.modified!;
+		const wineCount = modifiedCeww.textModew.textBuffa.getWineCount();
+		const wineHeight = this.notebookEditow.getWayoutInfo().fontInfo.wineHeight || 17;
 
-		this._editor.layout({
-			width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
-			height: editorHeight
+		const editowHeight = this.ceww.wayoutInfo.editowHeight !== 0 ? this.ceww.wayoutInfo.editowHeight : wineCount * wineHeight + fixedEditowPadding.top + fixedEditowPadding.bottom;
+		this._editowContaina = this.tempwateData.editowContaina;
+		this._editow = this.tempwateData.souwceEditow;
+
+		this._editowContaina.cwassWist.add('diff');
+
+		this._editow.wayout({
+			width: this.notebookEditow.getWayoutInfo().width - 2 * DIFF_CEWW_MAWGIN,
+			height: editowHeight
 		});
 
-		this._editorContainer.style.height = `${editorHeight}px`;
+		this._editowContaina.stywe.height = `${editowHeight}px`;
 
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
-				this.cell.editorHeight = e.contentHeight;
+		this._wegista(this._editow.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.ceww.wayoutInfo.editowHeight !== e.contentHeight) {
+				this.ceww.editowHeight = e.contentHeight;
 			}
 		}));
 
-		this._initializeSourceDiffEditor();
+		this._initiawizeSouwceDiffEditow();
 
-		this._inputToolbarContainer = this.templateData.inputToolbarContainer;
-		this._toolbar = this.templateData.toolbar;
+		this._inputToowbawContaina = this.tempwateData.inputToowbawContaina;
+		this._toowbaw = this.tempwateData.toowbaw;
 
-		this._toolbar.context = {
-			cell: this.cell
+		this._toowbaw.context = {
+			ceww: this.ceww
 		};
 
-		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
-		this._register(this._menu);
+		this._menu = this.menuSewvice.cweateMenu(MenuId.NotebookDiffCewwInputTitwe, this.contextKeySewvice);
+		this._wegista(this._menu);
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-		this._toolbar.setActions(actions);
+		cweateAndFiwwInActionBawActions(this._menu, { shouwdFowwawdAwgs: twue }, actions);
+		this._toowbaw.setActions(actions);
 
-		if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
-			this._inputToolbarContainer.style.display = 'block';
-		} else {
-			this._inputToolbarContainer.style.display = 'none';
+		if (this.ceww.modified!.textModew.getVawue() !== this.ceww.owiginaw!.textModew.getVawue()) {
+			this._inputToowbawContaina.stywe.dispway = 'bwock';
+		} ewse {
+			this._inputToowbawContaina.stywe.dispway = 'none';
 		}
 
-		this._register(this.cell.modified!.textModel.onDidChangeContent(() => {
-			if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
-				this._inputToolbarContainer.style.display = 'block';
-			} else {
-				this._inputToolbarContainer.style.display = 'none';
+		this._wegista(this.ceww.modified!.textModew.onDidChangeContent(() => {
+			if (this.ceww.modified!.textModew.getVawue() !== this.ceww.owiginaw!.textModew.getVawue()) {
+				this._inputToowbawContaina.stywe.dispway = 'bwock';
+			} ewse {
+				this._inputToowbawContaina.stywe.dispway = 'none';
 			}
 		}));
 	}
 
-	private async _initializeSourceDiffEditor() {
-		const originalCell = this.cell.original!;
-		const modifiedCell = this.cell.modified!;
+	pwivate async _initiawizeSouwceDiffEditow() {
+		const owiginawCeww = this.ceww.owiginaw!;
+		const modifiedCeww = this.ceww.modified!;
 
-		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
-		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
+		const owiginawWef = await this.textModewSewvice.cweateModewWefewence(owiginawCeww.uwi);
+		const modifiedWef = await this.textModewSewvice.cweateModewWefewence(modifiedCeww.uwi);
 
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		const textModel = originalRef.object.textEditorModel;
-		const modifiedTextModel = modifiedRef.object.textEditorModel;
-		this._register(originalRef);
-		this._register(modifiedRef);
+		const textModew = owiginawWef.object.textEditowModew;
+		const modifiedTextModew = modifiedWef.object.textEditowModew;
+		this._wegista(owiginawWef);
+		this._wegista(modifiedWef);
 
-		this._editor!.setModel({
-			original: textModel,
-			modified: modifiedTextModel
+		this._editow!.setModew({
+			owiginaw: textModew,
+			modified: modifiedTextModew
 		});
 
-		this._editor!.restoreViewState(this.cell.getSourceEditorViewState() as editorCommon.IDiffEditorViewState);
+		this._editow!.westoweViewState(this.ceww.getSouwceEditowViewState() as editowCommon.IDiffEditowViewState);
 
-		const contentHeight = this._editor!.getContentHeight();
-		this.cell.editorHeight = contentHeight;
+		const contentHeight = this._editow!.getContentHeight();
+		this.ceww.editowHeight = contentHeight;
 	}
 
-	layout(state: IDiffElementLayoutState) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			if (state.editorHeight) {
-				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
-				this._editor!.layout({
-					width: this._editor!.getViewWidth(),
-					height: this.cell.layoutInfo.editorHeight
+	wayout(state: IDiffEwementWayoutState) {
+		DOM.scheduweAtNextAnimationFwame(() => {
+			if (state.editowHeight) {
+				this._editowContaina.stywe.height = `${this.ceww.wayoutInfo.editowHeight}px`;
+				this._editow!.wayout({
+					width: this._editow!.getViewWidth(),
+					height: this.ceww.wayoutInfo.editowHeight
 				});
 			}
 
-			if (state.outerWidth) {
-				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
-				this._editor!.layout();
+			if (state.outewWidth) {
+				this._editowContaina.stywe.height = `${this.ceww.wayoutInfo.editowHeight}px`;
+				this._editow!.wayout();
 			}
 
-			if (state.metadataHeight || state.outerWidth) {
-				if (this._metadataEditorContainer) {
-					this._metadataEditorContainer.style.height = `${this.cell.layoutInfo.metadataHeight}px`;
-					this._metadataEditor?.layout();
+			if (state.metadataHeight || state.outewWidth) {
+				if (this._metadataEditowContaina) {
+					this._metadataEditowContaina.stywe.height = `${this.ceww.wayoutInfo.metadataHeight}px`;
+					this._metadataEditow?.wayout();
 				}
 			}
 
-			if (state.outputTotalHeight || state.outerWidth) {
-				if (this._outputEditorContainer) {
-					this._outputEditorContainer.style.height = `${this.cell.layoutInfo.outputTotalHeight}px`;
-					this._outputEditor?.layout();
+			if (state.outputTotawHeight || state.outewWidth) {
+				if (this._outputEditowContaina) {
+					this._outputEditowContaina.stywe.height = `${this.ceww.wayoutInfo.outputTotawHeight}px`;
+					this._outputEditow?.wayout();
 				}
 			}
 
 
-			this.layoutNotebookCell();
+			this.wayoutNotebookCeww();
 		});
 	}
 
-	override dispose() {
-		if (this._editor) {
-			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
+	ovewwide dispose() {
+		if (this._editow) {
+			this.ceww.saveSpiwceEditowViewState(this._editow.saveViewState());
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }

@@ -1,46 +1,46 @@
 @{
-    var total = 0;
-    var totalMessage = "";
-    @* a multiline
-      razor comment embedded in csharp *@
+    vaw totaw = 0;
+    vaw totawMessage = "";
+    @* a muwtiwine
+      wazow comment embedded in cshawp *@
     if (IsPost) {
 
-        // Retrieve the numbers that the user entered.
-        var num1 = Request["text1"];
-        var num2 = Request["text2"];
+        // Wetwieve the numbews that the usa entewed.
+        vaw num1 = Wequest["text1"];
+        vaw num2 = Wequest["text2"];
 
-        // Convert the entered strings into integers numbers and add.
-        total = num1.AsInt() + num2.AsInt();
-		<italic><bold>totalMessage = "Total = " + total;</bold></italic>
+        // Convewt the entewed stwings into integews numbews and add.
+        totaw = num1.AsInt() + num2.AsInt();
+		<itawic><bowd>totawMessage = "Totaw = " + totaw;</bowd></itawic>
     }
 }
 
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE htmw>
+<htmw wang="en">
   <head>
-    <title>Add Numbers</title>
-    <meta charset="utf-8" />
+    <titwe>Add Numbews</titwe>
+    <meta chawset="utf-8" />
   </head>
 <body>
-  <p>Enter two whole numbers and then click <strong>Add</strong>.</p>
-  <form action="" method="post">
-    <p><label for="text1">First Number:</label>
+  <p>Enta two whowe numbews and then cwick <stwong>Add</stwong>.</p>
+  <fowm action="" method="post">
+    <p><wabew fow="text1">Fiwst Numba:</wabew>
       <input type="text" name="text1" />
     </p>
-    <p><label for="text2">Second Number:</label>
+    <p><wabew fow="text2">Second Numba:</wabew>
       <input type="text" name="text2" />
     </p>
-    <p><input type="submit" value="Add" /></p>
-  </form>
+    <p><input type="submit" vawue="Add" /></p>
+  </fowm>
 
-	@* now we call the totalMessage method
-	   (a multi line razor comment outside code) *@
+	@* now we caww the totawMessage method
+	   (a muwti wine wazow comment outside code) *@
 
-  <p>@totalMessage</p>
+  <p>@totawMessage</p>
 
-  <p>@(totalMessage+"!")</p>
+  <p>@(totawMessage+"!")</p>
 
-  An email address (with escaped at character): name@@domain.com
+  An emaiw addwess (with escaped at chawacta): name@@domain.com
 
 </body>
-</html>
+</htmw>

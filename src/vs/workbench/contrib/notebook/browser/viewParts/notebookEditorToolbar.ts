@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { INotebookEditorDelegate, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
-import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { GlobalToolbar, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ToggweMenuAction, ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenu, IMenuSewvice, MenuItemAction, SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { toowbawActiveBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { SEWECT_KEWNEW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { INotebookEditowDewegate, NOTEBOOK_EDITOW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebooKewnewActionViewItem } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewPawts/notebookKewnewActionViewItem';
+impowt { ActionViewWithWabew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwActionView';
+impowt { GwobawToowbaw, GwobawToowbawShowWabew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
 
-interface IActionModel {
-	action: IAction; size: number; visible: boolean;
+intewface IActionModew {
+	action: IAction; size: numba; visibwe: boowean;
 }
 
-const TOGGLE_MORE_ACTION_WIDTH = 21;
+const TOGGWE_MOWE_ACTION_WIDTH = 21;
 const ACTION_PADDING = 8;
 
-export class NotebookEditorToolbar extends Disposable {
-	// private _editorToolbarContainer!: HTMLElement;
-	private _leftToolbarScrollable!: DomScrollableElement;
-	private _notebookTopLeftToolbarContainer!: HTMLElement;
-	private _notebookTopRightToolbarContainer!: HTMLElement;
-	private _notebookGlobalActionsMenu!: IMenu;
-	private _notebookLeftToolbar!: ToolBar;
-	private _primaryActions: IActionModel[];
-	private _secondaryActions: IAction[];
-	private _notebookRightToolbar!: ToolBar;
-	private _useGlobalToolbar: boolean = false;
-	private _renderLabel: boolean = true;
+expowt cwass NotebookEditowToowbaw extends Disposabwe {
+	// pwivate _editowToowbawContaina!: HTMWEwement;
+	pwivate _weftToowbawScwowwabwe!: DomScwowwabweEwement;
+	pwivate _notebookTopWeftToowbawContaina!: HTMWEwement;
+	pwivate _notebookTopWightToowbawContaina!: HTMWEwement;
+	pwivate _notebookGwobawActionsMenu!: IMenu;
+	pwivate _notebookWeftToowbaw!: ToowBaw;
+	pwivate _pwimawyActions: IActionModew[];
+	pwivate _secondawyActions: IAction[];
+	pwivate _notebookWightToowbaw!: ToowBaw;
+	pwivate _useGwobawToowbaw: boowean = fawse;
+	pwivate _wendewWabew: boowean = twue;
 
-	private readonly _onDidChangeState = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidChangeState = this._wegista(new Emitta<void>());
 	onDidChangeState: Event<void> = this._onDidChangeState.event;
 
-	get useGlobalToolbar(): boolean {
-		return this._useGlobalToolbar;
+	get useGwobawToowbaw(): boowean {
+		wetuwn this._useGwobawToowbaw;
 	}
 
-	private _dimension: DOM.Dimension | null = null;
-	private _pendingLayout: IDisposable | undefined;
+	pwivate _dimension: DOM.Dimension | nuww = nuww;
+	pwivate _pendingWayout: IDisposabwe | undefined;
 
-	constructor(
-		readonly notebookEditor: INotebookEditorDelegate,
-		readonly contextKeyService: IContextKeyService,
-		readonly domNode: HTMLElement,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IMenuService readonly menuService: IMenuService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITASExperimentService private readonly experimentService: ITASExperimentService
+	constwuctow(
+		weadonwy notebookEditow: INotebookEditowDewegate,
+		weadonwy contextKeySewvice: IContextKeySewvice,
+		weadonwy domNode: HTMWEwement,
+		@IInstantiationSewvice weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IContextMenuSewvice weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice weadonwy menuSewvice: IMenuSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@ITASExpewimentSewvice pwivate weadonwy expewimentSewvice: ITASExpewimentSewvice
 	) {
-		super();
+		supa();
 
-		this._primaryActions = [];
-		this._secondaryActions = [];
-		this._buildBody();
+		this._pwimawyActions = [];
+		this._secondawyActions = [];
+		this._buiwdBody();
 
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
-				if (notebookEditor === this.notebookEditor) {
-					// this is the active editor
-					this._showNotebookActionsinEditorToolbar();
-					return;
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => {
+			if (this.editowSewvice.activeEditowPane?.getId() === NOTEBOOK_EDITOW_ID) {
+				const notebookEditow = this.editowSewvice.activeEditowPane.getContwow() as INotebookEditowDewegate;
+				if (notebookEditow === this.notebookEditow) {
+					// this is the active editow
+					this._showNotebookActionsinEditowToowbaw();
+					wetuwn;
 				}
 			}
 		}));
 
-		this._reigsterNotebookActionsToolbar();
+		this._weigstewNotebookActionsToowbaw();
 	}
 
-	private _buildBody() {
-		this._notebookTopLeftToolbarContainer = document.createElement('div');
-		this._notebookTopLeftToolbarContainer.classList.add('notebook-toolbar-left');
-		this._leftToolbarScrollable = new DomScrollableElement(this._notebookTopLeftToolbarContainer, {
-			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
-			horizontalScrollbarSize: 3,
-			useShadows: false,
-			scrollYToX: true
+	pwivate _buiwdBody() {
+		this._notebookTopWeftToowbawContaina = document.cweateEwement('div');
+		this._notebookTopWeftToowbawContaina.cwassWist.add('notebook-toowbaw-weft');
+		this._weftToowbawScwowwabwe = new DomScwowwabweEwement(this._notebookTopWeftToowbawContaina, {
+			vewticaw: ScwowwbawVisibiwity.Hidden,
+			howizontaw: ScwowwbawVisibiwity.Auto,
+			howizontawScwowwbawSize: 3,
+			useShadows: fawse,
+			scwowwYToX: twue
 		});
-		this._register(this._leftToolbarScrollable);
+		this._wegista(this._weftToowbawScwowwabwe);
 
-		DOM.append(this.domNode, this._leftToolbarScrollable.getDomNode());
-		this._notebookTopRightToolbarContainer = document.createElement('div');
-		this._notebookTopRightToolbarContainer.classList.add('notebook-toolbar-right');
-		DOM.append(this.domNode, this._notebookTopRightToolbarContainer);
+		DOM.append(this.domNode, this._weftToowbawScwowwabwe.getDomNode());
+		this._notebookTopWightToowbawContaina = document.cweateEwement('div');
+		this._notebookTopWightToowbawContaina.cwassWist.add('notebook-toowbaw-wight');
+		DOM.append(this.domNode, this._notebookTopWightToowbawContaina);
 	}
 
-	private _reigsterNotebookActionsToolbar() {
-		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
-		this._register(this._notebookGlobalActionsMenu);
+	pwivate _weigstewNotebookActionsToowbaw() {
+		this._notebookGwobawActionsMenu = this._wegista(this.menuSewvice.cweateMenu(this.notebookEditow.cweationOptions.menuIds.notebookToowbaw, this.contextKeySewvice));
+		this._wegista(this._notebookGwobawActionsMenu);
 
-		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
-		this._renderLabel = this.configurationService.getValue<boolean>(GlobalToolbarShowLabel);
+		this._useGwobawToowbaw = this.configuwationSewvice.getVawue<boowean | undefined>(GwobawToowbaw) ?? fawse;
+		this._wendewWabew = this.configuwationSewvice.getVawue<boowean>(GwobawToowbawShowWabew);
 
 		const context = {
-			ui: true,
-			notebookEditor: this.notebookEditor
+			ui: twue,
+			notebookEditow: this.notebookEditow
 		};
 
-		const actionProvider = (action: IAction) => {
-			if (action.id === SELECT_KERNEL_ID) {
-				// 	// this is being disposed by the consumer
-				return this.instantiationService.createInstance(NotebooKernelActionViewItem, action, this.notebookEditor);
+		const actionPwovida = (action: IAction) => {
+			if (action.id === SEWECT_KEWNEW_ID) {
+				// 	// this is being disposed by the consuma
+				wetuwn this.instantiationSewvice.cweateInstance(NotebooKewnewActionViewItem, action, this.notebookEditow);
 			}
 
-			if (this._renderLabel) {
-				return action instanceof MenuItemAction ? this.instantiationService.createInstance(ActionViewWithLabel, action) : undefined;
-			} else {
-				return action instanceof MenuItemAction ? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined) : undefined;
+			if (this._wendewWabew) {
+				wetuwn action instanceof MenuItemAction ? this.instantiationSewvice.cweateInstance(ActionViewWithWabew, action) : undefined;
+			} ewse {
+				wetuwn action instanceof MenuItemAction ? this.instantiationSewvice.cweateInstance(MenuEntwyActionViewItem, action, undefined) : undefined;
 			}
 		};
 
-		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: actionProvider,
-			renderDropdownAsChildElement: true
+		this._notebookWeftToowbaw = new ToowBaw(this._notebookTopWeftToowbawContaina, this.contextMenuSewvice, {
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			actionViewItemPwovida: actionPwovida,
+			wendewDwopdownAsChiwdEwement: twue
 		});
-		this._register(this._notebookLeftToolbar);
-		this._notebookLeftToolbar.context = context;
+		this._wegista(this._notebookWeftToowbaw);
+		this._notebookWeftToowbaw.context = context;
 
-		this._notebookRightToolbar = new ToolBar(this._notebookTopRightToolbarContainer, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: actionProvider,
-			renderDropdownAsChildElement: true
+		this._notebookWightToowbaw = new ToowBaw(this._notebookTopWightToowbawContaina, this.contextMenuSewvice, {
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			actionViewItemPwovida: actionPwovida,
+			wendewDwopdownAsChiwdEwement: twue
 		});
-		this._register(this._notebookRightToolbar);
-		this._notebookRightToolbar.context = context;
+		this._wegista(this._notebookWightToowbaw);
+		this._notebookWightToowbaw.context = context;
 
-		this._showNotebookActionsinEditorToolbar();
-		let dropdownIsVisible = false;
-		let deferredUpdate: (() => void) | undefined;
+		this._showNotebookActionsinEditowToowbaw();
+		wet dwopdownIsVisibwe = fawse;
+		wet defewwedUpdate: (() => void) | undefined;
 
-		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
-			if (dropdownIsVisible) {
-				deferredUpdate = () => this._showNotebookActionsinEditorToolbar();
-				return;
+		this._wegista(this._notebookGwobawActionsMenu.onDidChange(() => {
+			if (dwopdownIsVisibwe) {
+				defewwedUpdate = () => this._showNotebookActionsinEditowToowbaw();
+				wetuwn;
 			}
 
-			this._showNotebookActionsinEditorToolbar();
+			this._showNotebookActionsinEditowToowbaw();
 		}));
 
-		this._register(this._notebookLeftToolbar.onDidChangeDropdownVisibility(visible => {
-			dropdownIsVisible = visible;
+		this._wegista(this._notebookWeftToowbaw.onDidChangeDwopdownVisibiwity(visibwe => {
+			dwopdownIsVisibwe = visibwe;
 
-			if (deferredUpdate && !visible) {
+			if (defewwedUpdate && !visibwe) {
 				setTimeout(() => {
-					if (deferredUpdate) {
-						deferredUpdate();
+					if (defewwedUpdate) {
+						defewwedUpdate();
 					}
 				}, 0);
-				deferredUpdate = undefined;
+				defewwedUpdate = undefined;
 			}
 		}));
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(GlobalToolbarShowLabel)) {
-				this._renderLabel = this.configurationService.getValue<boolean>(GlobalToolbarShowLabel);
-				const oldElement = this._notebookLeftToolbar.getElement();
-				oldElement.parentElement?.removeChild(oldElement);
-				this._notebookLeftToolbar.dispose();
-				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
-					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-					actionViewItemProvider: actionProvider,
-					renderDropdownAsChildElement: true
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(GwobawToowbawShowWabew)) {
+				this._wendewWabew = this.configuwationSewvice.getVawue<boowean>(GwobawToowbawShowWabew);
+				const owdEwement = this._notebookWeftToowbaw.getEwement();
+				owdEwement.pawentEwement?.wemoveChiwd(owdEwement);
+				this._notebookWeftToowbaw.dispose();
+				this._notebookWeftToowbaw = new ToowBaw(this._notebookTopWeftToowbawContaina, this.contextMenuSewvice, {
+					getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+					actionViewItemPwovida: actionPwovida,
+					wendewDwopdownAsChiwdEwement: twue
 				});
-				this._register(this._notebookLeftToolbar);
-				this._notebookLeftToolbar.context = context;
-				this._showNotebookActionsinEditorToolbar();
-				return;
+				this._wegista(this._notebookWeftToowbaw);
+				this._notebookWeftToowbaw.context = context;
+				this._showNotebookActionsinEditowToowbaw();
+				wetuwn;
 			}
 
-			if (e.affectsConfiguration(GlobalToolbar)) {
-				this._useGlobalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar);
-				this._showNotebookActionsinEditorToolbar();
+			if (e.affectsConfiguwation(GwobawToowbaw)) {
+				this._useGwobawToowbaw = this.configuwationSewvice.getVawue<boowean>(GwobawToowbaw);
+				this._showNotebookActionsinEditowToowbaw();
 			}
 		}));
 
-		if (this.experimentService) {
-			this.experimentService.getTreatment<boolean>('nbtoolbarineditor').then(treatment => {
-				if (treatment === undefined) {
-					return;
+		if (this.expewimentSewvice) {
+			this.expewimentSewvice.getTweatment<boowean>('nbtoowbawineditow').then(tweatment => {
+				if (tweatment === undefined) {
+					wetuwn;
 				}
-				if (this._useGlobalToolbar !== treatment) {
-					this._useGlobalToolbar = treatment;
-					this._showNotebookActionsinEditorToolbar();
+				if (this._useGwobawToowbaw !== tweatment) {
+					this._useGwobawToowbaw = tweatment;
+					this._showNotebookActionsinEditowToowbaw();
 				}
 			});
 		}
 	}
 
-	private _showNotebookActionsinEditorToolbar() {
-		// when there is no view model, just ignore.
-		if (!this.notebookEditor.hasModel()) {
-			return;
+	pwivate _showNotebookActionsinEditowToowbaw() {
+		// when thewe is no view modew, just ignowe.
+		if (!this.notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		if (!this._useGlobalToolbar) {
-			this.domNode.style.display = 'none';
-		} else {
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
-			this.domNode.style.display = 'flex';
-			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
-			let primaryActions: IAction[] = [];
-			primaryLeftGroups.sort((a, b) => {
+		if (!this._useGwobawToowbaw) {
+			this.domNode.stywe.dispway = 'none';
+		} ewse {
+			const gwoups = this._notebookGwobawActionsMenu.getActions({ shouwdFowwawdAwgs: twue, wendewShowtTitwe: twue });
+			this.domNode.stywe.dispway = 'fwex';
+			const pwimawyWeftGwoups = gwoups.fiwta(gwoup => /^navigation/.test(gwoup[0]));
+			wet pwimawyActions: IAction[] = [];
+			pwimawyWeftGwoups.sowt((a, b) => {
 				if (a[0] === 'navigation') {
-					return 1;
+					wetuwn 1;
 				}
 
 				if (b[0] === 'navigation') {
-					return -1;
+					wetuwn -1;
 				}
 
-				return 0;
-			}).forEach((group, index) => {
-				primaryActions.push(...group[1]);
-				if (index < primaryLeftGroups.length - 1) {
-					primaryActions.push(new Separator());
+				wetuwn 0;
+			}).fowEach((gwoup, index) => {
+				pwimawyActions.push(...gwoup[1]);
+				if (index < pwimawyWeftGwoups.wength - 1) {
+					pwimawyActions.push(new Sepawatow());
 				}
 			});
-			const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
-			const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
-			const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+			const pwimawyWightGwoup = gwoups.find(gwoup => /^status/.test(gwoup[0]));
+			const pwimawyWightActions = pwimawyWightGwoup ? pwimawyWightGwoup[1] : [];
+			const secondawyActions = gwoups.fiwta(gwoup => !/^navigation/.test(gwoup[0]) && !/^status/.test(gwoup[0])).weduce((pwev: (MenuItemAction | SubmenuItemAction)[], cuww) => { pwev.push(...cuww[1]); wetuwn pwev; }, []);
 
-			this._notebookLeftToolbar.setActions([], []);
+			this._notebookWeftToowbaw.setActions([], []);
 
-			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
-			this._notebookRightToolbar.setActions(primaryRightActions, []);
-			this._secondaryActions = secondaryActions;
-			// flush to make sure it can be updated later
-			this._primaryActions = [];
+			this._notebookWeftToowbaw.setActions(pwimawyActions, secondawyActions);
+			this._notebookWightToowbaw.setActions(pwimawyWightActions, []);
+			this._secondawyActions = secondawyActions;
+			// fwush to make suwe it can be updated wata
+			this._pwimawyActions = [];
 
 			if (this._dimension && this._dimension.width >= 0 && this._dimension.height >= 0) {
-				this._cacheItemSizes(this._notebookLeftToolbar);
+				this._cacheItemSizes(this._notebookWeftToowbaw);
 			}
 
 			this._computeSizes();
 		}
 
-		this._onDidChangeState.fire();
+		this._onDidChangeState.fiwe();
 	}
 
-	private _cacheItemSizes(toolbar: ToolBar) {
-		let actions: IActionModel[] = [];
+	pwivate _cacheItemSizes(toowbaw: ToowBaw) {
+		wet actions: IActionModew[] = [];
 
-		for (let i = 0; i < toolbar.getItemsLength(); i++) {
-			const action = toolbar.getItemAction(i);
+		fow (wet i = 0; i < toowbaw.getItemsWength(); i++) {
+			const action = toowbaw.getItemAction(i);
 			actions.push({
 				action: action,
-				size: toolbar.getItemWidth(i),
-				visible: true
+				size: toowbaw.getItemWidth(i),
+				visibwe: twue
 			});
 		}
 
-		this._primaryActions = actions;
+		this._pwimawyActions = actions;
 	}
 
-	private _canBeVisible(width: number) {
-		let w = 0;
-		for (let i = 0; i < this._primaryActions.length; i++) {
-			w += this._primaryActions[i].size + 8;
+	pwivate _canBeVisibwe(width: numba) {
+		wet w = 0;
+		fow (wet i = 0; i < this._pwimawyActions.wength; i++) {
+			w += this._pwimawyActions[i].size + 8;
 		}
 
-		return w <= width;
+		wetuwn w <= width;
 	}
 
-	private _computeSizes() {
-		const toolbar = this._notebookLeftToolbar;
-		const rightToolbar = this._notebookRightToolbar;
-		if (toolbar && rightToolbar && this._dimension && this._dimension.height >= 0 && this._dimension.width >= 0) {
-			// compute size only if it's visible
-			if (this._primaryActions.length === 0 && toolbar.getItemsLength() !== this._primaryActions.length) {
-				this._cacheItemSizes(this._notebookLeftToolbar);
+	pwivate _computeSizes() {
+		const toowbaw = this._notebookWeftToowbaw;
+		const wightToowbaw = this._notebookWightToowbaw;
+		if (toowbaw && wightToowbaw && this._dimension && this._dimension.height >= 0 && this._dimension.width >= 0) {
+			// compute size onwy if it's visibwe
+			if (this._pwimawyActions.wength === 0 && toowbaw.getItemsWength() !== this._pwimawyActions.wength) {
+				this._cacheItemSizes(this._notebookWeftToowbaw);
 			}
 
-			if (this._primaryActions.length === 0) {
-				return;
+			if (this._pwimawyActions.wength === 0) {
+				wetuwn;
 			}
 
-			const kernelWidth = (rightToolbar.getItemsLength() ? rightToolbar.getItemWidth(0) : 0) + ACTION_PADDING;
+			const kewnewWidth = (wightToowbaw.getItemsWength() ? wightToowbaw.getItemWidth(0) : 0) + ACTION_PADDING;
 
-			if (this._canBeVisible(this._dimension.width - kernelWidth - ACTION_PADDING /** left margin */)) {
-				this._primaryActions.forEach(action => action.visible = true);
-				toolbar.setActions(this._primaryActions.filter(action => action.action.id !== ToggleMenuAction.ID).map(model => model.action), this._secondaryActions);
-				return;
+			if (this._canBeVisibwe(this._dimension.width - kewnewWidth - ACTION_PADDING /** weft mawgin */)) {
+				this._pwimawyActions.fowEach(action => action.visibwe = twue);
+				toowbaw.setActions(this._pwimawyActions.fiwta(action => action.action.id !== ToggweMenuAction.ID).map(modew => modew.action), this._secondawyActions);
+				wetuwn;
 			}
 
-			const leftToolbarContainerMaxWidth = this._dimension.width - kernelWidth - (TOGGLE_MORE_ACTION_WIDTH + ACTION_PADDING) /** ... */ - ACTION_PADDING /** toolbar left margin */;
-			const lastItemInLeft = this._primaryActions[this._primaryActions.length - 1];
-			const hasToggleMoreAction = lastItemInLeft.action.id === ToggleMenuAction.ID;
+			const weftToowbawContainewMaxWidth = this._dimension.width - kewnewWidth - (TOGGWE_MOWE_ACTION_WIDTH + ACTION_PADDING) /** ... */ - ACTION_PADDING /** toowbaw weft mawgin */;
+			const wastItemInWeft = this._pwimawyActions[this._pwimawyActions.wength - 1];
+			const hasToggweMoweAction = wastItemInWeft.action.id === ToggweMenuAction.ID;
 
-			let size = 0;
-			let actions: IActionModel[] = [];
+			wet size = 0;
+			wet actions: IActionModew[] = [];
 
-			for (let i = 0; i < this._primaryActions.length - (hasToggleMoreAction ? 1 : 0); i++) {
-				const actionModel = this._primaryActions[i];
+			fow (wet i = 0; i < this._pwimawyActions.wength - (hasToggweMoweAction ? 1 : 0); i++) {
+				const actionModew = this._pwimawyActions[i];
 
-				const itemSize = actionModel.size;
-				if (size + itemSize <= leftToolbarContainerMaxWidth) {
+				const itemSize = actionModew.size;
+				if (size + itemSize <= weftToowbawContainewMaxWidth) {
 					size += ACTION_PADDING + itemSize;
-					actions.push(actionModel);
-				} else {
-					break;
+					actions.push(actionModew);
+				} ewse {
+					bweak;
 				}
 			}
 
-			actions.forEach(action => action.visible = true);
-			this._primaryActions.slice(actions.length).forEach(action => action.visible = false);
+			actions.fowEach(action => action.visibwe = twue);
+			this._pwimawyActions.swice(actions.wength).fowEach(action => action.visibwe = fawse);
 
-			toolbar.setActions(
-				actions.filter(action => (action.visible && action.action.id !== ToggleMenuAction.ID)).map(action => action.action),
-				[...this._primaryActions.slice(actions.length).filter(action => !action.visible && action.action.id !== ToggleMenuAction.ID).map(action => action.action), ...this._secondaryActions]);
+			toowbaw.setActions(
+				actions.fiwta(action => (action.visibwe && action.action.id !== ToggweMenuAction.ID)).map(action => action.action),
+				[...this._pwimawyActions.swice(actions.wength).fiwta(action => !action.visibwe && action.action.id !== ToggweMenuAction.ID).map(action => action.action), ...this._secondawyActions]);
 		}
 	}
 
-	layout(dimension: DOM.Dimension) {
+	wayout(dimension: DOM.Dimension) {
 		this._dimension = dimension;
 
-		if (!this._useGlobalToolbar) {
-			this.domNode.style.display = 'none';
-		} else {
-			this.domNode.style.display = 'flex';
+		if (!this._useGwobawToowbaw) {
+			this.domNode.stywe.dispway = 'none';
+		} ewse {
+			this.domNode.stywe.dispway = 'fwex';
 		}
 		this._computeSizes();
 	}
 
-	override dispose() {
-		this._pendingLayout?.dispose();
-		super.dispose();
+	ovewwide dispose() {
+		this._pendingWayout?.dispose();
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveBackgroundColor) {
-		collector.addRule(`
-		.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
-			background-color: ${toolbarActiveBackgroundColor};
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const toowbawActiveBackgwoundCowow = theme.getCowow(toowbawActiveBackgwound);
+	if (toowbawActiveBackgwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .notebookOvewway .notebook-toowbaw-containa .monaco-action-baw:not(.vewticaw) .action-item.active {
+			backgwound-cowow: ${toowbawActiveBackgwoundCowow};
 		}
 		`);
 	}

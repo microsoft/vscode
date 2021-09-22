@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick } from 'vscode';
-import * as nls from 'vscode-nls';
-import { RemoteSourceProvider, RemoteSource } from './api/git';
-import { Model } from './model';
-import { throttle, debounce } from './decorators';
+impowt { QuickPickItem, window, QuickPick } fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { WemoteSouwcePwovida, WemoteSouwce } fwom './api/git';
+impowt { Modew } fwom './modew';
+impowt { thwottwe, debounce } fwom './decowatows';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<T>): Promise<T | undefined> {
-	const result = await new Promise<T | undefined>(c => {
-		quickpick.onDidAccept(() => c(quickpick.selectedItems[0]));
+async function getQuickPickWesuwt<T extends QuickPickItem>(quickpick: QuickPick<T>): Pwomise<T | undefined> {
+	const wesuwt = await new Pwomise<T | undefined>(c => {
+		quickpick.onDidAccept(() => c(quickpick.sewectedItems[0]));
 		quickpick.onDidHide(() => c(undefined));
 		quickpick.show();
 	});
 
 	quickpick.hide();
-	return result;
+	wetuwn wesuwt;
 }
 
-class RemoteSourceProviderQuickPick {
+cwass WemoteSouwcePwovidewQuickPick {
 
-	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }>;
+	pwivate quickpick: QuickPick<QuickPickItem & { wemoteSouwce?: WemoteSouwce }>;
 
-	constructor(private provider: RemoteSourceProvider) {
-		this.quickpick = window.createQuickPick();
-		this.quickpick.ignoreFocusOut = true;
+	constwuctow(pwivate pwovida: WemoteSouwcePwovida) {
+		this.quickpick = window.cweateQuickPick();
+		this.quickpick.ignoweFocusOut = twue;
 
-		if (provider.supportsQuery) {
-			this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
-			this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
-		} else {
-			this.quickpick.placeholder = localize('type to filter', "Repository name");
+		if (pwovida.suppowtsQuewy) {
+			this.quickpick.pwacehowda = wocawize('type to seawch', "Wepositowy name (type to seawch)");
+			this.quickpick.onDidChangeVawue(this.onDidChangeVawue, this);
+		} ewse {
+			this.quickpick.pwacehowda = wocawize('type to fiwta', "Wepositowy name");
 		}
 	}
 
 	@debounce(300)
-	private onDidChangeValue(): void {
-		this.query();
+	pwivate onDidChangeVawue(): void {
+		this.quewy();
 	}
 
-	@throttle
-	private async query(): Promise<void> {
-		this.quickpick.busy = true;
+	@thwottwe
+	pwivate async quewy(): Pwomise<void> {
+		this.quickpick.busy = twue;
 
-		try {
-			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+		twy {
+			const wemoteSouwces = await this.pwovida.getWemoteSouwces(this.quickpick.vawue) || [];
 
-			if (remoteSources.length === 0) {
+			if (wemoteSouwces.wength === 0) {
 				this.quickpick.items = [{
-					label: localize('none found', "No remote repositories found."),
-					alwaysShow: true
+					wabew: wocawize('none found', "No wemote wepositowies found."),
+					awwaysShow: twue
 				}];
-			} else {
-				this.quickpick.items = remoteSources.map(remoteSource => ({
-					label: remoteSource.name,
-					description: remoteSource.description || (typeof remoteSource.url === 'string' ? remoteSource.url : remoteSource.url[0]),
-					remoteSource,
-					alwaysShow: true
+			} ewse {
+				this.quickpick.items = wemoteSouwces.map(wemoteSouwce => ({
+					wabew: wemoteSouwce.name,
+					descwiption: wemoteSouwce.descwiption || (typeof wemoteSouwce.uww === 'stwing' ? wemoteSouwce.uww : wemoteSouwce.uww[0]),
+					wemoteSouwce,
+					awwaysShow: twue
 				}));
 			}
-		} catch (err) {
-			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
-			console.error(err);
-		} finally {
-			this.quickpick.busy = false;
+		} catch (eww) {
+			this.quickpick.items = [{ wabew: wocawize('ewwow', "$(ewwow) Ewwow: {0}", eww.message), awwaysShow: twue }];
+			consowe.ewwow(eww);
+		} finawwy {
+			this.quickpick.busy = fawse;
 		}
 	}
 
-	async pick(): Promise<RemoteSource | undefined> {
-		this.query();
-		const result = await getQuickPickResult(this.quickpick);
-		return result?.remoteSource;
+	async pick(): Pwomise<WemoteSouwce | undefined> {
+		this.quewy();
+		const wesuwt = await getQuickPickWesuwt(this.quickpick);
+		wetuwn wesuwt?.wemoteSouwce;
 	}
 }
 
-export interface PickRemoteSourceOptions {
-	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
-	readonly urlLabel?: string;
-	readonly providerName?: string;
-	readonly branch?: boolean; // then result is PickRemoteSourceResult
+expowt intewface PickWemoteSouwceOptions {
+	weadonwy pwovidewWabew?: (pwovida: WemoteSouwcePwovida) => stwing;
+	weadonwy uwwWabew?: stwing;
+	weadonwy pwovidewName?: stwing;
+	weadonwy bwanch?: boowean; // then wesuwt is PickWemoteSouwceWesuwt
 }
 
-export interface PickRemoteSourceResult {
-	readonly url: string;
-	readonly branch?: string;
+expowt intewface PickWemoteSouwceWesuwt {
+	weadonwy uww: stwing;
+	weadonwy bwanch?: stwing;
 }
 
-export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
-export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
-export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
-	const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
-	quickpick.ignoreFocusOut = true;
+expowt async function pickWemoteSouwce(modew: Modew, options: PickWemoteSouwceOptions & { bwanch?: fawse | undefined }): Pwomise<stwing | undefined>;
+expowt async function pickWemoteSouwce(modew: Modew, options: PickWemoteSouwceOptions & { bwanch: twue }): Pwomise<PickWemoteSouwceWesuwt | undefined>;
+expowt async function pickWemoteSouwce(modew: Modew, options: PickWemoteSouwceOptions = {}): Pwomise<stwing | PickWemoteSouwceWesuwt | undefined> {
+	const quickpick = window.cweateQuickPick<(QuickPickItem & { pwovida?: WemoteSouwcePwovida, uww?: stwing })>();
+	quickpick.ignoweFocusOut = twue;
 
-	if (options.providerName) {
-		const provider = model.getRemoteProviders()
-			.filter(provider => provider.name === options.providerName)[0];
+	if (options.pwovidewName) {
+		const pwovida = modew.getWemotePwovidews()
+			.fiwta(pwovida => pwovida.name === options.pwovidewName)[0];
 
-		if (provider) {
-			return await pickProviderSource(provider, options);
+		if (pwovida) {
+			wetuwn await pickPwovidewSouwce(pwovida, options);
 		}
 	}
 
-	const providers = model.getRemoteProviders()
-		.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
+	const pwovidews = modew.getWemotePwovidews()
+		.map(pwovida => ({ wabew: (pwovida.icon ? `$(${pwovida.icon}) ` : '') + (options.pwovidewWabew ? options.pwovidewWabew(pwovida) : pwovida.name), awwaysShow: twue, pwovida }));
 
-	quickpick.placeholder = providers.length === 0
-		? localize('provide url', "Provide repository URL")
-		: localize('provide url or pick', "Provide repository URL or pick a repository source.");
+	quickpick.pwacehowda = pwovidews.wength === 0
+		? wocawize('pwovide uww', "Pwovide wepositowy UWW")
+		: wocawize('pwovide uww ow pick', "Pwovide wepositowy UWW ow pick a wepositowy souwce.");
 
-	const updatePicks = (value?: string) => {
-		if (value) {
+	const updatePicks = (vawue?: stwing) => {
+		if (vawue) {
 			quickpick.items = [{
-				label: options.urlLabel ?? localize('url', "URL"),
-				description: value,
-				alwaysShow: true,
-				url: value
+				wabew: options.uwwWabew ?? wocawize('uww', "UWW"),
+				descwiption: vawue,
+				awwaysShow: twue,
+				uww: vawue
 			},
-			...providers];
-		} else {
-			quickpick.items = providers;
+			...pwovidews];
+		} ewse {
+			quickpick.items = pwovidews;
 		}
 	};
 
-	quickpick.onDidChangeValue(updatePicks);
+	quickpick.onDidChangeVawue(updatePicks);
 	updatePicks();
 
-	const result = await getQuickPickResult(quickpick);
+	const wesuwt = await getQuickPickWesuwt(quickpick);
 
-	if (result) {
-		if (result.url) {
-			return result.url;
-		} else if (result.provider) {
-			return await pickProviderSource(result.provider, options);
+	if (wesuwt) {
+		if (wesuwt.uww) {
+			wetuwn wesuwt.uww;
+		} ewse if (wesuwt.pwovida) {
+			wetuwn await pickPwovidewSouwce(wesuwt.pwovida, options);
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-async function pickProviderSource(provider: RemoteSourceProvider, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
-	const quickpick = new RemoteSourceProviderQuickPick(provider);
-	const remote = await quickpick.pick();
+async function pickPwovidewSouwce(pwovida: WemoteSouwcePwovida, options: PickWemoteSouwceOptions = {}): Pwomise<stwing | PickWemoteSouwceWesuwt | undefined> {
+	const quickpick = new WemoteSouwcePwovidewQuickPick(pwovida);
+	const wemote = await quickpick.pick();
 
-	let url: string | undefined;
+	wet uww: stwing | undefined;
 
-	if (remote) {
-		if (typeof remote.url === 'string') {
-			url = remote.url;
-		} else if (remote.url.length > 0) {
-			url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
+	if (wemote) {
+		if (typeof wemote.uww === 'stwing') {
+			uww = wemote.uww;
+		} ewse if (wemote.uww.wength > 0) {
+			uww = await window.showQuickPick(wemote.uww, { ignoweFocusOut: twue, pwaceHowda: wocawize('pick uww', "Choose a UWW to cwone fwom.") });
 		}
 	}
 
-	if (!url || !options.branch) {
-		return url;
+	if (!uww || !options.bwanch) {
+		wetuwn uww;
 	}
 
-	if (!provider.getBranches) {
-		return { url };
+	if (!pwovida.getBwanches) {
+		wetuwn { uww };
 	}
 
-	const branches = await provider.getBranches(url);
+	const bwanches = await pwovida.getBwanches(uww);
 
-	if (!branches) {
-		return { url };
+	if (!bwanches) {
+		wetuwn { uww };
 	}
 
-	const branch = await window.showQuickPick(branches, {
-		placeHolder: localize('branch name', "Branch name")
+	const bwanch = await window.showQuickPick(bwanches, {
+		pwaceHowda: wocawize('bwanch name', "Bwanch name")
 	});
 
-	if (!branch) {
-		return { url };
+	if (!bwanch) {
+		wetuwn { uww };
 	}
 
-	return { url, branch };
+	wetuwn { uww, bwanch };
 }

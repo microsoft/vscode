@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
 
-export class EditOperation {
+expowt cwass EditOpewation {
 
-	public static insert(position: Position, text: string): IIdentifiedSingleEditOperation {
-		return {
-			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+	pubwic static insewt(position: Position, text: stwing): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn),
 			text: text,
-			forceMoveMarkers: true
+			fowceMoveMawkews: twue
 		};
 	}
 
-	public static delete(range: Range): IIdentifiedSingleEditOperation {
-		return {
-			range: range,
-			text: null
+	pubwic static dewete(wange: Wange): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: wange,
+			text: nuww
 		};
 	}
 
-	public static replace(range: Range, text: string | null): IIdentifiedSingleEditOperation {
-		return {
-			range: range,
+	pubwic static wepwace(wange: Wange, text: stwing | nuww): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: wange,
 			text: text
 		};
 	}
 
-	public static replaceMove(range: Range, text: string | null): IIdentifiedSingleEditOperation {
-		return {
-			range: range,
+	pubwic static wepwaceMove(wange: Wange, text: stwing | nuww): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			wange: wange,
 			text: text,
-			forceMoveMarkers: true
+			fowceMoveMawkews: twue
 		};
 	}
 }

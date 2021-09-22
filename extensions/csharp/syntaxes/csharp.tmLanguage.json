@@ -1,688 +1,688 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/dotnet/csharp-tmLanguage/blob/master/grammars/csharp.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/dotnet/cshawp-tmWanguage/bwob/masta/gwammaws/cshawp.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/5426265f1be3f8056a984b709fadf56b9ce4c400",
+	"vewsion": "https://github.com/dotnet/cshawp-tmWanguage/commit/5426265f1be3f8056a984b709fadf56b9ce4c400",
 	"name": "C#",
-	"scopeName": "source.cs",
-	"patterns": [
+	"scopeName": "souwce.cs",
+	"pattewns": [
 		{
-			"include": "#preprocessor"
+			"incwude": "#pwepwocessow"
 		},
 		{
-			"include": "#comment"
+			"incwude": "#comment"
 		},
 		{
-			"include": "#directives"
+			"incwude": "#diwectives"
 		},
 		{
-			"include": "#declarations"
+			"incwude": "#decwawations"
 		},
 		{
-			"include": "#script-top-level"
+			"incwude": "#scwipt-top-wevew"
 		}
 	],
-	"repository": {
-		"directives": {
-			"patterns": [
+	"wepositowy": {
+		"diwectives": {
+			"pattewns": [
 				{
-					"include": "#extern-alias-directive"
+					"incwude": "#extewn-awias-diwective"
 				},
 				{
-					"include": "#using-directive"
+					"incwude": "#using-diwective"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"declarations": {
-			"patterns": [
+		"decwawations": {
+			"pattewns": [
 				{
-					"include": "#namespace-declaration"
+					"incwude": "#namespace-decwawation"
 				},
 				{
-					"include": "#type-declarations"
+					"incwude": "#type-decwawations"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"script-top-level": {
-			"patterns": [
+		"scwipt-top-wevew": {
+			"pattewns": [
 				{
-					"include": "#method-declaration"
+					"incwude": "#method-decwawation"
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"type-declarations": {
-			"patterns": [
+		"type-decwawations": {
+			"pattewns": [
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#storage-modifier"
+					"incwude": "#stowage-modifia"
 				},
 				{
-					"include": "#class-declaration"
+					"incwude": "#cwass-decwawation"
 				},
 				{
-					"include": "#delegate-declaration"
+					"incwude": "#dewegate-decwawation"
 				},
 				{
-					"include": "#enum-declaration"
+					"incwude": "#enum-decwawation"
 				},
 				{
-					"include": "#interface-declaration"
+					"incwude": "#intewface-decwawation"
 				},
 				{
-					"include": "#record-declaration"
+					"incwude": "#wecowd-decwawation"
 				},
 				{
-					"include": "#struct-declaration"
+					"incwude": "#stwuct-decwawation"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"class-or-struct-members": {
-			"patterns": [
+		"cwass-ow-stwuct-membews": {
+			"pattewns": [
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#storage-modifier"
+					"incwude": "#stowage-modifia"
 				},
 				{
-					"include": "#type-declarations"
+					"incwude": "#type-decwawations"
 				},
 				{
-					"include": "#property-declaration"
+					"incwude": "#pwopewty-decwawation"
 				},
 				{
-					"include": "#field-declaration"
+					"incwude": "#fiewd-decwawation"
 				},
 				{
-					"include": "#event-declaration"
+					"incwude": "#event-decwawation"
 				},
 				{
-					"include": "#indexer-declaration"
+					"incwude": "#indexa-decwawation"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				},
 				{
-					"include": "#constructor-declaration"
+					"incwude": "#constwuctow-decwawation"
 				},
 				{
-					"include": "#destructor-declaration"
+					"incwude": "#destwuctow-decwawation"
 				},
 				{
-					"include": "#operator-declaration"
+					"incwude": "#opewatow-decwawation"
 				},
 				{
-					"include": "#conversion-operator-declaration"
+					"incwude": "#convewsion-opewatow-decwawation"
 				},
 				{
-					"include": "#method-declaration"
+					"incwude": "#method-decwawation"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"interface-members": {
-			"patterns": [
+		"intewface-membews": {
+			"pattewns": [
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#property-declaration"
+					"incwude": "#pwopewty-decwawation"
 				},
 				{
-					"include": "#event-declaration"
+					"incwude": "#event-decwawation"
 				},
 				{
-					"include": "#indexer-declaration"
+					"incwude": "#indexa-decwawation"
 				},
 				{
-					"include": "#method-declaration"
+					"incwude": "#method-decwawation"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
 		"statement": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#while-statement"
+					"incwude": "#whiwe-statement"
 				},
 				{
-					"include": "#do-statement"
+					"incwude": "#do-statement"
 				},
 				{
-					"include": "#for-statement"
+					"incwude": "#fow-statement"
 				},
 				{
-					"include": "#foreach-statement"
+					"incwude": "#foweach-statement"
 				},
 				{
-					"include": "#if-statement"
+					"incwude": "#if-statement"
 				},
 				{
-					"include": "#else-part"
+					"incwude": "#ewse-pawt"
 				},
 				{
-					"include": "#switch-statement"
+					"incwude": "#switch-statement"
 				},
 				{
-					"include": "#goto-statement"
+					"incwude": "#goto-statement"
 				},
 				{
-					"include": "#return-statement"
+					"incwude": "#wetuwn-statement"
 				},
 				{
-					"include": "#break-or-continue-statement"
+					"incwude": "#bweak-ow-continue-statement"
 				},
 				{
-					"include": "#throw-statement"
+					"incwude": "#thwow-statement"
 				},
 				{
-					"include": "#yield-statement"
+					"incwude": "#yiewd-statement"
 				},
 				{
-					"include": "#await-statement"
+					"incwude": "#await-statement"
 				},
 				{
-					"include": "#try-statement"
+					"incwude": "#twy-statement"
 				},
 				{
-					"include": "#checked-unchecked-statement"
+					"incwude": "#checked-unchecked-statement"
 				},
 				{
-					"include": "#lock-statement"
+					"incwude": "#wock-statement"
 				},
 				{
-					"include": "#using-statement"
+					"incwude": "#using-statement"
 				},
 				{
-					"include": "#labeled-statement"
+					"incwude": "#wabewed-statement"
 				},
 				{
-					"include": "#object-creation-expression"
+					"incwude": "#object-cweation-expwession"
 				},
 				{
-					"include": "#array-creation-expression"
+					"incwude": "#awway-cweation-expwession"
 				},
 				{
-					"include": "#anonymous-object-creation-expression"
+					"incwude": "#anonymous-object-cweation-expwession"
 				},
 				{
-					"include": "#local-declaration"
+					"incwude": "#wocaw-decwawation"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"expression": {
-			"patterns": [
+		"expwession": {
+			"pattewns": [
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#checked-unchecked-expression"
+					"incwude": "#checked-unchecked-expwession"
 				},
 				{
-					"include": "#typeof-or-default-expression"
+					"incwude": "#typeof-ow-defauwt-expwession"
 				},
 				{
-					"include": "#nameof-expression"
+					"incwude": "#nameof-expwession"
 				},
 				{
-					"include": "#throw-expression"
+					"incwude": "#thwow-expwession"
 				},
 				{
-					"include": "#interpolated-string"
+					"incwude": "#intewpowated-stwing"
 				},
 				{
-					"include": "#verbatim-interpolated-string"
+					"incwude": "#vewbatim-intewpowated-stwing"
 				},
 				{
-					"include": "#this-or-base-expression"
+					"incwude": "#this-ow-base-expwession"
 				},
 				{
-					"include": "#switch-expression"
+					"incwude": "#switch-expwession"
 				},
 				{
-					"include": "#conditional-operator"
+					"incwude": "#conditionaw-opewatow"
 				},
 				{
-					"include": "#expression-operators"
+					"incwude": "#expwession-opewatows"
 				},
 				{
-					"include": "#await-expression"
+					"incwude": "#await-expwession"
 				},
 				{
-					"include": "#query-expression"
+					"incwude": "#quewy-expwession"
 				},
 				{
-					"include": "#as-expression"
+					"incwude": "#as-expwession"
 				},
 				{
-					"include": "#is-expression"
+					"incwude": "#is-expwession"
 				},
 				{
-					"include": "#anonymous-method-expression"
+					"incwude": "#anonymous-method-expwession"
 				},
 				{
-					"include": "#object-creation-expression"
+					"incwude": "#object-cweation-expwession"
 				},
 				{
-					"include": "#array-creation-expression"
+					"incwude": "#awway-cweation-expwession"
 				},
 				{
-					"include": "#anonymous-object-creation-expression"
+					"incwude": "#anonymous-object-cweation-expwession"
 				},
 				{
-					"include": "#invocation-expression"
+					"incwude": "#invocation-expwession"
 				},
 				{
-					"include": "#member-access-expression"
+					"incwude": "#memba-access-expwession"
 				},
 				{
-					"include": "#element-access-expression"
+					"incwude": "#ewement-access-expwession"
 				},
 				{
-					"include": "#cast-expression"
+					"incwude": "#cast-expwession"
 				},
 				{
-					"include": "#literal"
+					"incwude": "#witewaw"
 				},
 				{
-					"include": "#parenthesized-expression"
+					"incwude": "#pawenthesized-expwession"
 				},
 				{
-					"include": "#tuple-deconstruction-assignment"
+					"incwude": "#tupwe-deconstwuction-assignment"
 				},
 				{
-					"include": "#initializer-expression"
+					"incwude": "#initiawiza-expwession"
 				},
 				{
-					"include": "#identifier"
+					"incwude": "#identifia"
 				}
 			]
 		},
-		"extern-alias-directive": {
-			"begin": "\\s*(extern)\\b\\s*(alias)\\b\\s*(@?[_[:alpha:]][_[:alnum:]]*)",
-			"beginCaptures": {
+		"extewn-awias-diwective": {
+			"begin": "\\s*(extewn)\\b\\s*(awias)\\b\\s*(@?[_[:awpha:]][_[:awnum:]]*)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.extern.cs"
+					"name": "keywowd.otha.extewn.cs"
 				},
 				"2": {
-					"name": "keyword.other.alias.cs"
+					"name": "keywowd.otha.awias.cs"
 				},
 				"3": {
-					"name": "variable.other.alias.cs"
+					"name": "vawiabwe.otha.awias.cs"
 				}
 			},
 			"end": "(?=;)"
 		},
-		"using-directive": {
-			"patterns": [
+		"using-diwective": {
+			"pattewns": [
 				{
 					"begin": "\\b(using)\\b\\s+(static)\\s+",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.using.cs"
+							"name": "keywowd.otha.using.cs"
 						},
 						"2": {
-							"name": "keyword.other.static.cs"
+							"name": "keywowd.otha.static.cs"
 						}
 					},
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				{
-					"begin": "\\b(using)\\s+(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
-					"beginCaptures": {
+					"begin": "\\b(using)\\s+(?=(@?[_[:awpha:]][_[:awnum:]]*)\\s*=)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.using.cs"
+							"name": "keywowd.otha.using.cs"
 						},
 						"2": {
-							"name": "entity.name.type.alias.cs"
+							"name": "entity.name.type.awias.cs"
 						}
 					},
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#type"
+							"incwude": "#type"
 						},
 						{
-							"include": "#operator-assignment"
+							"incwude": "#opewatow-assignment"
 						}
 					]
 				},
 				{
 					"begin": "\\b(using)\\s*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.using.cs"
+							"name": "keywowd.otha.using.cs"
 						}
 					},
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
 							"name": "entity.name.type.namespace.cs",
-							"match": "@?[_[:alpha:]][_[:alnum:]]*"
+							"match": "@?[_[:awpha:]][_[:awnum:]]*"
 						},
 						{
-							"include": "#operator-assignment"
+							"incwude": "#opewatow-assignment"
 						}
 					]
 				}
 			]
 		},
-		"attribute-section": {
-			"begin": "(\\[)(assembly|module|field|event|method|param|property|return|type)?(\\:)?",
-			"beginCaptures": {
+		"attwibute-section": {
+			"begin": "(\\[)(assembwy|moduwe|fiewd|event|method|pawam|pwopewty|wetuwn|type)?(\\:)?",
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.squarebracket.open.cs"
+					"name": "punctuation.squawebwacket.open.cs"
 				},
 				"2": {
-					"name": "keyword.other.attribute-specifier.cs"
+					"name": "keywowd.otha.attwibute-specifia.cs"
 				},
 				"3": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			},
 			"end": "(\\])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.squarebracket.close.cs"
+					"name": "punctuation.squawebwacket.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#attribute"
+					"incwude": "#attwibute"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"attribute": {
-			"patterns": [
+		"attwibute": {
+			"pattewns": [
 				{
-					"include": "#type-name"
+					"incwude": "#type-name"
 				},
 				{
-					"include": "#attribute-arguments"
+					"incwude": "#attwibute-awguments"
 				}
 			]
 		},
-		"attribute-arguments": {
+		"attwibute-awguments": {
 			"begin": "(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#attribute-named-argument"
+					"incwude": "#attwibute-named-awgument"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"attribute-named-argument": {
-			"begin": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(?==)",
-			"beginCaptures": {
+		"attwibute-named-awgument": {
+			"begin": "(@?[_[:awpha:]][_[:awnum:]]*)\\s*(?==)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "entity.name.variable.property.cs"
+					"name": "entity.name.vawiabwe.pwopewty.cs"
 				}
 			},
 			"end": "(?=(,|\\)))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#operator-assignment"
+					"incwude": "#opewatow-assignment"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"namespace-declaration": {
+		"namespace-decwawation": {
 			"begin": "\\b(namespace)\\s+",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.namespace.cs"
+					"name": "keywowd.otha.namespace.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
 					"name": "entity.name.type.namespace.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				},
 				{
-					"include": "#punctuation-accessor"
+					"incwude": "#punctuation-accessow"
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#declarations"
+							"incwude": "#decwawations"
 						},
 						{
-							"include": "#using-directive"
+							"incwude": "#using-diwective"
 						},
 						{
-							"include": "#punctuation-semicolon"
+							"incwude": "#punctuation-semicowon"
 						}
 					]
 				}
 			]
 		},
-		"storage-modifier": {
-			"name": "storage.modifier.cs",
-			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref)\\b"
+		"stowage-modifia": {
+			"name": "stowage.modifia.cs",
+			"match": "(?<!\\.)\\b(new|pubwic|pwotected|intewnaw|pwivate|abstwact|viwtuaw|ovewwide|seawed|static|pawtiaw|weadonwy|vowatiwe|const|extewn|async|unsafe|wef)\\b"
 		},
-		"class-declaration": {
-			"begin": "(?=\\bclass\\b)",
+		"cwass-decwawation": {
+			"begin": "(?=\\bcwass\\b)",
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(?x)\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
-					"beginCaptures": {
+					"begin": "(?x)\n\\b(cwass)\\b\\s+\n(@?[_[:awpha:]][_[:awnum:]]*)\\s*",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.class.cs"
+							"name": "keywowd.otha.cwass.cs"
 						},
 						"2": {
-							"name": "entity.name.type.class.cs"
+							"name": "entity.name.type.cwass.cs"
 						}
 					},
 					"end": "(?=\\{)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						},
 						{
-							"include": "#base-types"
+							"incwude": "#base-types"
 						},
 						{
-							"include": "#generic-constraints"
+							"incwude": "#genewic-constwaints"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#class-or-struct-members"
+							"incwude": "#cwass-ow-stwuct-membews"
 						}
 					]
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"delegate-declaration": {
-			"begin": "(?x)\n(?:\\b(delegate)\\b)\\s+\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
-			"beginCaptures": {
+		"dewegate-decwawation": {
+			"begin": "(?x)\n(?:\\b(dewegate)\\b)\\s+\n(?<type_name>\n  (?:\n    (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifia>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.delegate.cs"
+					"name": "keywowd.otha.dewegate.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.type.delegate.cs"
+					"name": "entity.name.type.dewegate.cs"
 				},
 				"8": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						}
 					]
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#generic-constraints"
+					"incwude": "#genewic-constwaints"
 				}
 			]
 		},
-		"enum-declaration": {
+		"enum-decwawation": {
 			"begin": "(?=\\benum\\b)",
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?=enum)",
 					"end": "(?=\\{)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"match": "(enum)\\s+(@?[_[:alpha:]][_[:alnum:]]*)",
-							"captures": {
+							"match": "(enum)\\s+(@?[_[:awpha:]][_[:awnum:]]*)",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.enum.cs"
+									"name": "keywowd.otha.enum.cs"
 								},
 								"2": {
 									"name": "entity.name.type.enum.cs"
@@ -691,15 +691,15 @@
 						},
 						{
 							"begin": ":",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.separator.colon.cs"
+									"name": "punctuation.sepawatow.cowon.cs"
 								}
 							},
 							"end": "(?=\\{)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#type"
+									"incwude": "#type"
 								}
 							]
 						}
@@ -707,608 +707,608 @@
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#preprocessor"
+							"incwude": "#pwepwocessow"
 						},
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#attribute-section"
+							"incwude": "#attwibute-section"
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						},
 						{
-							"begin": "@?[_[:alpha:]][_[:alnum:]]*",
-							"beginCaptures": {
+							"begin": "@?[_[:awpha:]][_[:awnum:]]*",
+							"beginCaptuwes": {
 								"0": {
-									"name": "entity.name.variable.enum-member.cs"
+									"name": "entity.name.vawiabwe.enum-memba.cs"
 								}
 							},
 							"end": "(?=(,|\\}))",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comment"
+									"incwude": "#comment"
 								},
 								{
-									"include": "#variable-initializer"
+									"incwude": "#vawiabwe-initiawiza"
 								}
 							]
 						}
 					]
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"interface-declaration": {
-			"begin": "(?=\\binterface\\b)",
+		"intewface-decwawation": {
+			"begin": "(?=\\bintewface\\b)",
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(?x)\n(interface)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
-					"beginCaptures": {
+					"begin": "(?x)\n(intewface)\\b\\s+\n(@?[_[:awpha:]][_[:awnum:]]*)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.interface.cs"
+							"name": "keywowd.otha.intewface.cs"
 						},
 						"2": {
-							"name": "entity.name.type.interface.cs"
+							"name": "entity.name.type.intewface.cs"
 						}
 					},
 					"end": "(?=\\{)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						},
 						{
-							"include": "#base-types"
+							"incwude": "#base-types"
 						},
 						{
-							"include": "#generic-constraints"
+							"incwude": "#genewic-constwaints"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#interface-members"
+							"incwude": "#intewface-membews"
 						}
 					]
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"record-declaration": {
-			"begin": "(?=\\brecord\\b)",
+		"wecowd-decwawation": {
+			"begin": "(?=\\bwecowd\\b)",
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
-					"beginCaptures": {
+					"begin": "(?x)\n(wecowd)\\b\\s+\n(@?[_[:awpha:]][_[:awnum:]]*)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.record.cs"
+							"name": "keywowd.otha.wecowd.cs"
 						},
 						"2": {
-							"name": "entity.name.type.record.cs"
+							"name": "entity.name.type.wecowd.cs"
 						}
 					},
 					"end": "(?=\\{)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						},
 						{
-							"include": "#base-types"
+							"incwude": "#base-types"
 						},
 						{
-							"include": "#generic-constraints"
+							"incwude": "#genewic-constwaints"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#class-or-struct-members"
+							"incwude": "#cwass-ow-stwuct-membews"
 						}
 					]
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"struct-declaration": {
-			"begin": "(?=\\bstruct\\b)",
+		"stwuct-decwawation": {
+			"begin": "(?=\\bstwuct\\b)",
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(?x)\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
-					"beginCaptures": {
+					"begin": "(?x)\n(stwuct)\\b\\s+\n(@?[_[:awpha:]][_[:awnum:]]*)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.other.struct.cs"
+							"name": "keywowd.otha.stwuct.cs"
 						},
 						"2": {
-							"name": "entity.name.type.struct.cs"
+							"name": "entity.name.type.stwuct.cs"
 						}
 					},
 					"end": "(?=\\{)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						},
 						{
-							"include": "#base-types"
+							"incwude": "#base-types"
 						},
 						{
-							"include": "#generic-constraints"
+							"incwude": "#genewic-constwaints"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#class-or-struct-members"
+							"incwude": "#cwass-ow-stwuct-membews"
 						}
 					]
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"type-parameter-list": {
+		"type-pawameta-wist": {
 			"begin": "\\<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.typeparameters.begin.cs"
+					"name": "punctuation.definition.typepawametews.begin.cs"
 				}
 			},
 			"end": "\\>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.typeparameters.end.cs"
+					"name": "punctuation.definition.typepawametews.end.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\b(in|out)\\b",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"name": "stowage.modifia.cs"
 						}
 					}
 				},
 				{
-					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\b",
-					"captures": {
+					"match": "(@?[_[:awpha:]][_[:awnum:]]*)\\b",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.type-parameter.cs"
+							"name": "entity.name.type.type-pawameta.cs"
 						}
 					}
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				}
 			]
 		},
 		"base-types": {
 			"begin": ":",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			},
-			"end": "(?=\\{|where)",
-			"patterns": [
+			"end": "(?=\\{|whewe)",
+			"pattewns": [
 				{
-					"include": "#type"
+					"incwude": "#type"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				}
 			]
 		},
-		"generic-constraints": {
-			"begin": "(where)\\s+(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
-			"beginCaptures": {
+		"genewic-constwaints": {
+			"begin": "(whewe)\\s+(@?[_[:awpha:]][_[:awnum:]]*)\\s*(:)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.where.cs"
+					"name": "keywowd.otha.whewe.cs"
 				},
 				"2": {
-					"name": "storage.type.cs"
+					"name": "stowage.type.cs"
 				},
 				"3": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			},
-			"end": "(?=\\{|where|;|=>)",
-			"patterns": [
+			"end": "(?=\\{|whewe|;|=>)",
+			"pattewns": [
 				{
-					"name": "keyword.other.class.cs",
-					"match": "\\bclass\\b"
+					"name": "keywowd.otha.cwass.cs",
+					"match": "\\bcwass\\b"
 				},
 				{
-					"name": "keyword.other.struct.cs",
-					"match": "\\bstruct\\b"
+					"name": "keywowd.otha.stwuct.cs",
+					"match": "\\bstwuct\\b"
 				},
 				{
 					"match": "(new)\\s*(\\()\\s*(\\))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.other.new.cs"
+							"name": "keywowd.otha.new.cs"
 						},
 						"2": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						},
 						"3": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					}
 				},
 				{
-					"include": "#type"
+					"incwude": "#type"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#generic-constraints"
+					"incwude": "#genewic-constwaints"
 				}
 			]
 		},
-		"field-declaration": {
-			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s* # first field name\n(?!=>|==)(?=,|;|=|$)",
-			"beginCaptures": {
+		"fiewd-decwawation": {
+			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifia>)\\s* # fiwst fiewd name\n(?!=>|==)(?=,|;|=|$)",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"6": {
-					"name": "entity.name.variable.field.cs"
+					"name": "entity.name.vawiabwe.fiewd.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "entity.name.variable.field.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"name": "entity.name.vawiabwe.fiewd.cs",
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				},
 				{
-					"include": "#class-or-struct-members"
+					"incwude": "#cwass-ow-stwuct-membews"
 				}
 			]
 		},
-		"property-declaration": {
-			"begin": "(?x)\n\n# The negative lookahead below ensures that we don't match nested types\n# or other declarations as properties.\n(?![[:word:][:space:]]*\\b(?:class|interface|struct|enum|event)\\b)\n\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<property_name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
-			"beginCaptures": {
+		"pwopewty-decwawation": {
+			"begin": "(?x)\n\n# The negative wookahead bewow ensuwes that we don't match nested types\n# ow otha decwawations as pwopewties.\n(?![[:wowd:][:space:]]*\\b(?:cwass|intewface|stwuct|enum|event)\\b)\n\n(?<wetuwn_type>\n  (?<type_name>\n    (?:\n      (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<intewface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<pwopewty_name>\\g<identifia>)\\s*\n(?=\\{|=>|$)",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						},
 						{
-							"include": "#punctuation-accessor"
+							"incwude": "#punctuation-accessow"
 						}
 					]
 				},
 				"8": {
-					"name": "entity.name.variable.property.cs"
+					"name": "entity.name.vawiabwe.pwopewty.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#property-accessors"
+					"incwude": "#pwopewty-accessows"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				},
 				{
-					"include": "#class-or-struct-members"
+					"incwude": "#cwass-ow-stwuct-membews"
 				}
 			]
 		},
-		"indexer-declaration": {
-			"begin": "(?x)\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<indexer_name>this)\\s*\n(?=\\[)",
-			"beginCaptures": {
+		"indexa-decwawation": {
+			"begin": "(?x)\n(?<wetuwn_type>\n  (?<type_name>\n    (?:\n      (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<intewface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<indexew_name>this)\\s*\n(?=\\[)",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						},
 						{
-							"include": "#punctuation-accessor"
+							"incwude": "#punctuation-accessow"
 						}
 					]
 				},
 				"8": {
-					"name": "keyword.other.this.cs"
+					"name": "keywowd.otha.this.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#bracketed-parameter-list"
+					"incwude": "#bwacketed-pawameta-wist"
 				},
 				{
-					"include": "#property-accessors"
+					"incwude": "#pwopewty-accessows"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				}
 			]
 		},
-		"event-declaration": {
-			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<event_names>\\g<identifier>(?:\\s*,\\s*\\g<identifier>)*)\\s*\n(?=\\{|;|$)",
-			"beginCaptures": {
+		"event-decwawation": {
+			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<wetuwn_type>\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<intewface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<event_names>\\g<identifia>(?:\\s*,\\s*\\g<identifia>)*)\\s*\n(?=\\{|;|$)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.event.cs"
+					"name": "keywowd.otha.event.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"8": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						},
 						{
-							"include": "#punctuation-accessor"
+							"incwude": "#punctuation-accessow"
 						}
 					]
 				},
 				"9": {
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "entity.name.variable.event.cs",
-							"match": "@?[_[:alpha:]][_[:alnum:]]*"
+							"name": "entity.name.vawiabwe.event.cs",
+							"match": "@?[_[:awpha:]][_[:awnum:]]*"
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#event-accessors"
+					"incwude": "#event-accessows"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"property-accessors": {
+		"pwopewty-accessows": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.open.cs"
+					"name": "punctuation.cuwwybwace.open.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(private|protected|internal)\\b"
+					"name": "stowage.modifia.cs",
+					"match": "\\b(pwivate|pwotected|intewnaw)\\b"
 				},
 				{
-					"name": "keyword.other.get.cs",
+					"name": "keywowd.otha.get.cs",
 					"match": "\\b(get)\\b"
 				},
 				{
-					"name": "keyword.other.set.cs",
+					"name": "keywowd.otha.set.cs",
 					"match": "\\b(set)\\b"
 				},
 				{
-					"name": "keyword.other.init.cs",
+					"name": "keywowd.otha.init.cs",
 					"match": "\\b(init)\\b"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"event-accessors": {
+		"event-accessows": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.open.cs"
+					"name": "punctuation.cuwwybwace.open.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "keyword.other.add.cs",
+					"name": "keywowd.otha.add.cs",
 					"match": "\\b(add)\\b"
 				},
 				{
-					"name": "keyword.other.remove.cs",
-					"match": "\\b(remove)\\b"
+					"name": "keywowd.otha.wemove.cs",
+					"match": "\\b(wemove)\\b"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"incwude": "#punctuation-semicowon"
 				}
 			]
 		},
-		"method-declaration": {
-			"begin": "(?x)\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
-			"beginCaptures": {
+		"method-decwawation": {
+			"begin": "(?x)\n(?<wetuwn_type>\n  (?<type_name>\n    (?:\n      (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<intewface_name>\\g<type_name>\\s*\\.\\s*)?\n(\\g<identifia>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						},
 						{
-							"include": "#punctuation-accessor"
+							"incwude": "#punctuation-accessow"
 						}
 					]
 				},
@@ -1316,39 +1316,39 @@
 					"name": "entity.name.function.cs"
 				},
 				"9": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type-parameter-list"
+							"incwude": "#type-pawameta-wist"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#generic-constraints"
+					"incwude": "#genewic-constwaints"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"constructor-declaration": {
-			"begin": "(?=@?[_[:alpha:]][_[:alnum:]]*\\s*\\()",
+		"constwuctow-decwawation": {
+			"begin": "(?=@?[_[:awpha:]][_[:awnum:]]*\\s*\\()",
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\b",
-					"captures": {
+					"match": "(@?[_[:awpha:]][_[:awnum:]]*)\\b",
+					"captuwes": {
 						"1": {
 							"name": "entity.name.function.cs"
 						}
@@ -1356,645 +1356,645 @@
 				},
 				{
 					"begin": "(:)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.colon.cs"
+							"name": "punctuation.sepawatow.cowon.cs"
 						}
 					},
 					"end": "(?=\\{|=>)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#constructor-initializer"
+							"incwude": "#constwuctow-initiawiza"
 						}
 					]
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#preprocessor"
+					"incwude": "#pwepwocessow"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"constructor-initializer": {
+		"constwuctow-initiawiza": {
 			"begin": "\\b(?:(base)|(this))\\b\\s*(?=\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.base.cs"
+					"name": "keywowd.otha.base.cs"
 				},
 				"2": {
-					"name": "keyword.other.this.cs"
+					"name": "keywowd.otha.this.cs"
 				}
 			},
 			"end": "(?<=\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#argument-list"
+					"incwude": "#awgument-wist"
 				}
 			]
 		},
-		"destructor-declaration": {
-			"begin": "(~)(@?[_[:alpha:]][_[:alnum:]]*)\\s*(?=\\()",
-			"beginCaptures": {
+		"destwuctow-decwawation": {
+			"begin": "(~)(@?[_[:awpha:]][_[:awnum:]]*)\\s*(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.tilde.cs"
+					"name": "punctuation.tiwde.cs"
 				},
 				"2": {
 					"name": "entity.name.function.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"operator-declaration": {
-			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?<operator_keyword>(?:\\b(?:operator)))\\s*\n(?<operator>(?:\\+|-|\\*|/|%|&|\\||\\^|\\<\\<|\\>\\>|==|!=|\\>|\\<|\\>=|\\<=|!|~|\\+\\+|--|true|false))\\s*\n(?=\\()",
-			"beginCaptures": {
+		"opewatow-decwawation": {
+			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(?<opewatow_keywowd>(?:\\b(?:opewatow)))\\s*\n(?<opewatow>(?:\\+|-|\\*|/|%|&|\\||\\^|\\<\\<|\\>\\>|==|!=|\\>|\\<|\\>=|\\<=|!|~|\\+\\+|--|twue|fawse))\\s*\n(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"6": {
-					"name": "keyword.other.operator-decl.cs"
+					"name": "keywowd.otha.opewatow-decw.cs"
 				},
 				"7": {
 					"name": "entity.name.function.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"conversion-operator-declaration": {
-			"begin": "(?x)\n(?<explicit_or_implicit_keyword>(?:\\b(?:explicit|implicit)))\\s*\n(?<operator_keyword>(?:\\b(?:operator)))\\s*\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
-			"beginCaptures": {
+		"convewsion-opewatow-decwawation": {
+			"begin": "(?x)\n(?<expwicit_ow_impwicit_keywowd>(?:\\b(?:expwicit|impwicit)))\\s*\n(?<opewatow_keywowd>(?:\\b(?:opewatow)))\\s*\n(?<type_name>\n  (?:\n    (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wetuwn\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "\\b(explicit)\\b",
-							"captures": {
+							"match": "\\b(expwicit)\\b",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.explicit.cs"
+									"name": "keywowd.otha.expwicit.cs"
 								}
 							}
 						},
 						{
-							"match": "\\b(implicit)\\b",
-							"captures": {
+							"match": "\\b(impwicit)\\b",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.implicit.cs"
+									"name": "keywowd.otha.impwicit.cs"
 								}
 							}
 						}
 					]
 				},
 				"2": {
-					"name": "keyword.other.operator-decl.cs"
+					"name": "keywowd.otha.opewatow-decw.cs"
 				},
 				"3": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#parenthesized-parameter-list"
+					"incwude": "#pawenthesized-pawameta-wist"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"block": {
+		"bwock": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.open.cs"
+					"name": "punctuation.cuwwybwace.open.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"variable-initializer": {
+		"vawiabwe-initiawiza": {
 			"begin": "(?<!=|!)(=)(?!=|>)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.operator.assignment.cs"
+					"name": "keywowd.opewatow.assignment.cs"
 				}
 			},
 			"end": "(?=[,\\)\\];}])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#ref-modifier"
+					"incwude": "#wef-modifia"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"expression-body": {
+		"expwession-body": {
 			"begin": "=>",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.arrow.cs"
+					"name": "keywowd.opewatow.awwow.cs"
 				}
 			},
 			"end": "(?=[,\\);}])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#ref-modifier"
+					"incwude": "#wef-modifia"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
 		"goto-statement": {
 			"begin": "(?<!\\.)\\b(goto)\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.goto.cs"
+					"name": "keywowd.contwow.goto.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\b(case)\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.case.cs"
+							"name": "keywowd.contwow.case.cs"
 						}
 					},
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"match": "\\b(default)\\b",
-					"captures": {
+					"match": "\\b(defauwt)\\b",
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.default.cs"
+							"name": "keywowd.contwow.defauwt.cs"
 						}
 					}
 				},
 				{
-					"name": "entity.name.label.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"name": "entity.name.wabew.cs",
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				}
 			]
 		},
-		"return-statement": {
-			"begin": "(?<!\\.)\\b(return)\\b",
-			"beginCaptures": {
+		"wetuwn-statement": {
+			"begin": "(?<!\\.)\\b(wetuwn)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.flow.return.cs"
+					"name": "keywowd.contwow.fwow.wetuwn.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#ref-modifier"
+					"incwude": "#wef-modifia"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"break-or-continue-statement": {
-			"match": "(?<!\\.)\\b(?:(break)|(continue))\\b",
-			"captures": {
+		"bweak-ow-continue-statement": {
+			"match": "(?<!\\.)\\b(?:(bweak)|(continue))\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.flow.break.cs"
+					"name": "keywowd.contwow.fwow.bweak.cs"
 				},
 				"2": {
-					"name": "keyword.control.flow.continue.cs"
+					"name": "keywowd.contwow.fwow.continue.cs"
 				}
 			}
 		},
-		"throw-statement": {
-			"begin": "(?<!\\.)\\b(throw)\\b",
-			"beginCaptures": {
+		"thwow-statement": {
+			"begin": "(?<!\\.)\\b(thwow)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.flow.throw.cs"
+					"name": "keywowd.contwow.fwow.thwow.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"yield-statement": {
-			"patterns": [
+		"yiewd-statement": {
+			"pattewns": [
 				{
-					"include": "#yield-return-statement"
+					"incwude": "#yiewd-wetuwn-statement"
 				},
 				{
-					"include": "#yield-break-statement"
+					"incwude": "#yiewd-bweak-statement"
 				}
 			]
 		},
-		"yield-return-statement": {
-			"begin": "(?<!\\.)\\b(yield)\\b\\s*\\b(return)\\b",
-			"beginCaptures": {
+		"yiewd-wetuwn-statement": {
+			"begin": "(?<!\\.)\\b(yiewd)\\b\\s*\\b(wetuwn)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.flow.yield.cs"
+					"name": "keywowd.contwow.fwow.yiewd.cs"
 				},
 				"2": {
-					"name": "keyword.control.flow.return.cs"
+					"name": "keywowd.contwow.fwow.wetuwn.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"yield-break-statement": {
-			"match": "(?<!\\.)\\b(yield)\\b\\s*\\b(break)\\b",
-			"captures": {
+		"yiewd-bweak-statement": {
+			"match": "(?<!\\.)\\b(yiewd)\\b\\s*\\b(bweak)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.flow.yield.cs"
+					"name": "keywowd.contwow.fwow.yiewd.cs"
 				},
 				"2": {
-					"name": "keyword.control.flow.break.cs"
+					"name": "keywowd.contwow.fwow.bweak.cs"
 				}
 			}
 		},
 		"await-statement": {
 			"begin": "(?<!\\.)\\b(await)\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.await.cs"
+					"name": "keywowd.otha.await.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
 		"if-statement": {
 			"begin": "(?<!\\.)\\b(if)\\b\\s*(?=\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.conditional.if.cs"
+					"name": "keywowd.contwow.conditionaw.if.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"else-part": {
-			"begin": "(?<!\\.)\\b(else)\\b",
-			"beginCaptures": {
+		"ewse-pawt": {
+			"begin": "(?<!\\.)\\b(ewse)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.conditional.else.cs"
+					"name": "keywowd.contwow.conditionaw.ewse.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
 		"switch-statement": {
 			"begin": "(?<!\\.)\\b(switch)\\b\\s*(?=\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.switch.cs"
+					"name": "keywowd.contwow.switch.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#switch-label"
+							"incwude": "#switch-wabew"
 						},
 						{
-							"include": "#statement"
+							"incwude": "#statement"
 						}
 					]
 				}
 			]
 		},
-		"switch-expression": {
+		"switch-expwession": {
 			"begin": "(?x) (?<!\\.)\\b(switch)\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.switch.cs"
+					"name": "keywowd.contwow.switch.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.open.cs"
+							"name": "punctuation.cuwwybwace.open.cs"
 						}
 					},
 					"end": "\\}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.curlybrace.close.cs"
+							"name": "punctuation.cuwwybwace.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#literal"
+							"incwude": "#witewaw"
 						},
 						{
-							"include": "#switch-var-pattern"
+							"incwude": "#switch-vaw-pattewn"
 						},
 						{
-							"include": "#switch-property-expression"
+							"incwude": "#switch-pwopewty-expwession"
 						},
 						{
-							"include": "#member-access-expression"
+							"incwude": "#memba-access-expwession"
 						},
 						{
-							"include": "#switch-pattern"
+							"incwude": "#switch-pattewn"
 						},
 						{
-							"include": "#expression-body"
+							"incwude": "#expwession-body"
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						}
 					]
 				}
 			]
 		},
-		"switch-pattern": {
-			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*",
-			"beginCaptures": {
+		"switch-pattewn": {
+			"begin": "(?x) # e.g. int x OW vaw x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifia>)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"2": {
-					"name": "entity.name.variable.local.cs"
+					"name": "entity.name.vawiabwe.wocaw.cs"
 				}
 			},
 			"end": "(?==>)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#switch-when-clause"
+					"incwude": "#switch-when-cwause"
 				}
 			]
 		},
-		"switch-property-expression": {
-			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(\\{)",
-			"beginCaptures": {
+		"switch-pwopewty-expwession": {
+			"begin": "(?x) # e.g. int x OW vaw x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?\\s*\n(\\{)",
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"6": {
-					"name": "punctuation.curlybrace.open.cs"
+					"name": "punctuation.cuwwybwace.open.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"switch-var-pattern": {
-			"begin": "(?x) # match foreach (var (x, y) in ...)\n(?:\\b(var)\\b\\s*)\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*",
-			"beginCaptures": {
+		"switch-vaw-pattewn": {
+			"begin": "(?x) # match foweach (vaw (x, y) in ...)\n(?:\\b(vaw)\\b\\s*)\n(?<tupwe>\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "keywowd.otha.vaw.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple-declaration-deconstruction-element-list"
+							"incwude": "#tupwe-decwawation-deconstwuction-ewement-wist"
 						}
 					]
 				}
 			},
 			"end": "(?==>)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#switch-when-clause"
+					"incwude": "#switch-when-cwause"
 				}
 			]
 		},
-		"switch-when-clause": {
+		"switch-when-cwause": {
 			"begin": "(?<!\\.)\\b(when)\\b\\s*(\\()?",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.try.when.cs"
+					"name": "keywowd.contwow.twy.when.cs"
 				},
 				"2": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "(?==>)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
 					"match": "\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					}
 				},
 				{
 					"match": "\\)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					}
 				}
 			]
 		},
-		"switch-label": {
-			"patterns": [
+		"switch-wabew": {
+			"pattewns": [
 				{
 					"begin": "(?<!\\.)\\b(case)\\b\\s+",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.case.cs"
+							"name": "keywowd.contwow.case.cs"
 						}
 					},
 					"end": ":",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.colon.cs"
+							"name": "punctuation.sepawatow.cowon.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"match": "(?<!\\.)\\b(default)\\b\\s*(:)",
-					"captures": {
+					"match": "(?<!\\.)\\b(defauwt)\\b\\s*(:)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.default.cs"
+							"name": "keywowd.contwow.defauwt.cs"
 						},
 						"2": {
-							"name": "punctuation.separator.colon.cs"
+							"name": "punctuation.sepawatow.cowon.cs"
 						}
 					}
 				}
@@ -2002,974 +2002,974 @@
 		},
 		"do-statement": {
 			"begin": "(?<!\\.)\\b(do)\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.loop.do.cs"
+					"name": "keywowd.contwow.woop.do.cs"
 				}
 			},
 			"end": "(?=;|})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"while-statement": {
-			"begin": "(?<!\\.)\\b(while)\\b\\s*(?=\\()",
-			"beginCaptures": {
+		"whiwe-statement": {
+			"begin": "(?<!\\.)\\b(whiwe)\\b\\s*(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.loop.while.cs"
+					"name": "keywowd.contwow.woop.whiwe.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"for-statement": {
-			"begin": "(?<!\\.)\\b(for)\\b\\s*(?=\\()",
-			"beginCaptures": {
+		"fow-statement": {
+			"begin": "(?<!\\.)\\b(fow)\\b\\s*(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.loop.for.cs"
+					"name": "keywowd.contwow.woop.fow.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#local-variable-declaration"
+							"incwude": "#wocaw-vawiabwe-decwawation"
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						},
 						{
-							"include": "#punctuation-semicolon"
+							"incwude": "#punctuation-semicowon"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"foreach-statement": {
-			"begin": "(?<!\\.)\\b(foreach)\\b\\s*(?=\\()",
-			"beginCaptures": {
+		"foweach-statement": {
+			"begin": "(?<!\\.)\\b(foweach)\\b\\s*(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.loop.foreach.cs"
+					"name": "keywowd.contwow.woop.foweach.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(?x)\n(?:\n  (\\bvar\\b)|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
-							"captures": {
+							"match": "(?x)\n(?:\n  (\\bvaw\\b)|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifia>)\\s+\n\\b(in)\\b",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.var.cs"
+									"name": "keywowd.otha.vaw.cs"
 								},
 								"2": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#type"
+											"incwude": "#type"
 										}
 									]
 								},
 								"7": {
-									"name": "entity.name.variable.local.cs"
+									"name": "entity.name.vawiabwe.wocaw.cs"
 								},
 								"8": {
-									"name": "keyword.control.loop.in.cs"
+									"name": "keywowd.contwow.woop.in.cs"
 								}
 							}
 						},
 						{
-							"match": "(?x) # match foreach (var (x, y) in ...)\n(?:\\b(var)\\b\\s*)?\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s+\n\\b(in)\\b",
-							"captures": {
+							"match": "(?x) # match foweach (vaw (x, y) in ...)\n(?:\\b(vaw)\\b\\s*)?\n(?<tupwe>\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\\s+\n\\b(in)\\b",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.var.cs"
+									"name": "keywowd.otha.vaw.cs"
 								},
 								"2": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#tuple-declaration-deconstruction-element-list"
+											"incwude": "#tupwe-decwawation-deconstwuction-ewement-wist"
 										}
 									]
 								},
 								"3": {
-									"name": "keyword.control.loop.in.cs"
+									"name": "keywowd.contwow.woop.in.cs"
 								}
 							}
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"try-statement": {
-			"patterns": [
+		"twy-statement": {
+			"pattewns": [
 				{
-					"include": "#try-block"
+					"incwude": "#twy-bwock"
 				},
 				{
-					"include": "#catch-clause"
+					"incwude": "#catch-cwause"
 				},
 				{
-					"include": "#finally-clause"
+					"incwude": "#finawwy-cwause"
 				}
 			]
 		},
-		"try-block": {
-			"begin": "(?<!\\.)\\b(try)\\b",
-			"beginCaptures": {
+		"twy-bwock": {
+			"begin": "(?<!\\.)\\b(twy)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.try.cs"
+					"name": "keywowd.contwow.twy.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"finally-clause": {
-			"begin": "(?<!\\.)\\b(finally)\\b",
-			"beginCaptures": {
+		"finawwy-cwause": {
+			"begin": "(?<!\\.)\\b(finawwy)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.try.finally.cs"
+					"name": "keywowd.contwow.twy.finawwy.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"catch-clause": {
+		"catch-cwause": {
 			"begin": "(?<!\\.)\\b(catch)\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.try.catch.cs"
+					"name": "keywowd.contwow.twy.catch.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?:(\\g<identifier>)\\b)?",
-							"captures": {
+							"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(?:(\\g<identifia>)\\b)?",
+							"captuwes": {
 								"1": {
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#type"
+											"incwude": "#type"
 										}
 									]
 								},
 								"6": {
-									"name": "entity.name.variable.local.cs"
+									"name": "entity.name.vawiabwe.wocaw.cs"
 								}
 							}
 						}
 					]
 				},
 				{
-					"include": "#when-clause"
+					"incwude": "#when-cwause"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			]
 		},
-		"when-clause": {
+		"when-cwause": {
 			"begin": "(?<!\\.)\\b(when)\\b\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.try.when.cs"
+					"name": "keywowd.contwow.twy.when.cs"
 				},
 				"2": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
 		"checked-unchecked-statement": {
 			"begin": "(?<!\\.)\\b(?:(checked)|(unchecked))\\b\\s*(?!\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.checked.cs"
+					"name": "keywowd.otha.checked.cs"
 				},
 				"2": {
-					"name": "keyword.other.unchecked.cs"
+					"name": "keywowd.otha.unchecked.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				}
 			]
 		},
-		"lock-statement": {
-			"begin": "(?<!\\.)\\b(lock)\\b\\s*(?=\\()",
-			"beginCaptures": {
+		"wock-statement": {
+			"begin": "(?<!\\.)\\b(wock)\\b\\s*(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.lock.cs"
+					"name": "keywowd.otha.wock.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
 		"using-statement": {
 			"begin": "(?<!\\.)\\b(using)\\b\\s*(?=\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.using.cs"
+					"name": "keywowd.otha.using.cs"
 				}
 			},
 			"end": "(?=\\;|})",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#local-variable-declaration"
+							"incwude": "#wocaw-vawiabwe-decwawation"
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"include": "#statement"
+					"incwude": "#statement"
 				}
 			]
 		},
-		"labeled-statement": {
-			"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
-			"captures": {
+		"wabewed-statement": {
+			"match": "(@?[_[:awpha:]][_[:awnum:]]*)\\s*(:)",
+			"captuwes": {
 				"1": {
-					"name": "entity.name.label.cs"
+					"name": "entity.name.wabew.cs"
 				},
 				"2": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			}
 		},
-		"local-declaration": {
-			"patterns": [
+		"wocaw-decwawation": {
+			"pattewns": [
 				{
-					"include": "#local-constant-declaration"
+					"incwude": "#wocaw-constant-decwawation"
 				},
 				{
-					"include": "#local-variable-declaration"
+					"incwude": "#wocaw-vawiabwe-decwawation"
 				},
 				{
-					"include": "#local-function-declaration"
+					"incwude": "#wocaw-function-decwawation"
 				},
 				{
-					"include": "#local-tuple-var-deconstruction"
+					"incwude": "#wocaw-tupwe-vaw-deconstwuction"
 				}
 			]
 		},
-		"local-variable-declaration": {
-			"begin": "(?x)\n(?:\n  (?:(\\busing)\\s+)?\n  (?:(\\bref)\\s+(?:(\\breadonly)\\s+)?)?(\\bvar\\b)| # ref local\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref local\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?!=>)\n(?=,|;|=|\\))",
-			"beginCaptures": {
+		"wocaw-vawiabwe-decwawation": {
+			"begin": "(?x)\n(?:\n  (?:(\\busing)\\s+)?\n  (?:(\\bwef)\\s+(?:(\\bweadonwy)\\s+)?)?(\\bvaw\\b)| # wef wocaw\n  (?<type_name>\n    (?:\n      (?:wef\\s+(?:weadonwy\\s+)?)?   # wef wocaw\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifia>)\\s*\n(?!=>)\n(?=,|;|=|\\))",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.using.cs"
+					"name": "keywowd.otha.using.cs"
 				},
 				"2": {
-					"name": "storage.modifier.cs"
+					"name": "stowage.modifia.cs"
 				},
 				"3": {
-					"name": "storage.modifier.cs"
+					"name": "stowage.modifia.cs"
 				},
 				"4": {
-					"name": "keyword.other.var.cs"
+					"name": "keywowd.otha.vaw.cs"
 				},
 				"5": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"10": {
-					"name": "entity.name.variable.local.cs"
+					"name": "entity.name.vawiabwe.wocaw.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "entity.name.variable.local.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"name": "entity.name.vawiabwe.wocaw.cs",
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				}
 			]
 		},
-		"local-constant-declaration": {
-			"begin": "(?x)\n(?<const_keyword>\\b(?:const)\\b)\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?=,|;|=)",
-			"beginCaptures": {
+		"wocaw-constant-decwawation": {
+			"begin": "(?x)\n(?<const_keywowd>\\b(?:const)\\b)\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifia>)\\s*\n(?=,|;|=)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "stowage.modifia.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.local.cs"
+					"name": "entity.name.vawiabwe.wocaw.cs"
 				}
 			},
 			"end": "(?=;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "entity.name.variable.local.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"name": "entity.name.vawiabwe.wocaw.cs",
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				}
 			]
 		},
-		"local-function-declaration": {
-			"patterns": [
+		"wocaw-function-decwawation": {
+			"pattewns": [
 				{
-					"include": "#method-declaration"
+					"incwude": "#method-decwawation"
 				}
 			]
 		},
-		"local-tuple-var-deconstruction": {
-			"begin": "(?x) # e.g. var (x, y) = GetPoint();\n(?:\\b(var)\\b\\s*)\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*\n(?=;|=|\\))",
-			"beginCaptures": {
+		"wocaw-tupwe-vaw-deconstwuction": {
+			"begin": "(?x) # e.g. vaw (x, y) = GetPoint();\n(?:\\b(vaw)\\b\\s*)\n(?<tupwe>\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\\s*\n(?=;|=|\\))",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "keywowd.otha.vaw.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple-declaration-deconstruction-element-list"
+							"incwude": "#tupwe-decwawation-deconstwuction-ewement-wist"
 						}
 					]
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				}
 			]
 		},
-		"tuple-deconstruction-assignment": {
-			"match": "(?x)\n(?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*\n(?!=>|==)(?==)",
-			"captures": {
+		"tupwe-deconstwuction-assignment": {
+			"match": "(?x)\n(?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\\s*\n(?!=>|==)(?==)",
+			"captuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple-deconstruction-element-list"
+							"incwude": "#tupwe-deconstwuction-ewement-wist"
 						}
 					]
 				}
 			}
 		},
-		"tuple-declaration-deconstruction-element-list": {
+		"tupwe-decwawation-deconstwuction-ewement-wist": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#tuple-declaration-deconstruction-element-list"
+					"incwude": "#tupwe-decwawation-deconstwuction-ewement-wist"
 				},
 				{
-					"include": "#declaration-expression-tuple"
+					"incwude": "#decwawation-expwession-tupwe"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"match": "(?x) # e.g. x\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
-					"captures": {
+					"match": "(?x) # e.g. x\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*\n(?=[,)])",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.variable.tuple-element.cs"
+							"name": "entity.name.vawiabwe.tupwe-ewement.cs"
 						}
 					}
 				}
 			]
 		},
-		"tuple-deconstruction-element-list": {
+		"tupwe-deconstwuction-ewement-wist": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#tuple-deconstruction-element-list"
+					"incwude": "#tupwe-deconstwuction-ewement-wist"
 				},
 				{
-					"include": "#declaration-expression-tuple"
+					"incwude": "#decwawation-expwession-tupwe"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"match": "(?x) # e.g. x\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
-					"captures": {
+					"match": "(?x) # e.g. x\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*\n(?=[,)])",
+					"captuwes": {
 						"1": {
-							"name": "variable.other.readwrite.cs"
+							"name": "vawiabwe.otha.weadwwite.cs"
 						}
 					}
 				}
 			]
 		},
-		"declaration-expression-local": {
-			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)\\]])",
-			"captures": {
+		"decwawation-expwession-wocaw": {
+			"match": "(?x) # e.g. int x OW vaw x\n(?:\n  \\b(vaw)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n      (?:\\s* # awway suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n        \\]\n        \\s*\n        (?:\\?)? # awways can be nuwwabwe wefewence types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifia>)\\b\\s*\n(?=[,)\\]])",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "keywowd.otha.vaw.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.local.cs"
+					"name": "entity.name.vawiabwe.wocaw.cs"
 				}
 			}
 		},
-		"declaration-expression-tuple": {
-			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n                (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
-			"captures": {
+		"decwawation-expwession-tupwe": {
+			"match": "(?x) # e.g. int x OW vaw x\n(?:\n  \\b(vaw)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n        (?<name_and_type_awgs> # identifia + type awguments (if any)\n          \\g<identifia>\\s*\n          (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n        (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n                (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n    )\n  )\n)\\s+\n(\\g<identifia>)\\b\\s*\n(?=[,)])",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "keywowd.otha.vaw.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.tuple-element.cs"
+					"name": "entity.name.vawiabwe.tupwe-ewement.cs"
 				}
 			}
 		},
-		"checked-unchecked-expression": {
+		"checked-unchecked-expwession": {
 			"begin": "(?<!\\.)\\b(?:(checked)|(unchecked))\\b\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.checked.cs"
+					"name": "keywowd.otha.checked.cs"
 				},
 				"2": {
-					"name": "keyword.other.unchecked.cs"
+					"name": "keywowd.otha.unchecked.cs"
 				},
 				"3": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"typeof-or-default-expression": {
-			"begin": "(?<!\\.)\\b(?:(typeof)|(default))\\b\\s*(\\()",
-			"beginCaptures": {
+		"typeof-ow-defauwt-expwession": {
+			"begin": "(?<!\\.)\\b(?:(typeof)|(defauwt))\\b\\s*(\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.typeof.cs"
+					"name": "keywowd.otha.typeof.cs"
 				},
 				"2": {
-					"name": "keyword.other.default.cs"
+					"name": "keywowd.otha.defauwt.cs"
 				},
 				"3": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#type"
+					"incwude": "#type"
 				}
 			]
 		},
-		"nameof-expression": {
+		"nameof-expwession": {
 			"begin": "(?<!\\.)\\b(nameof)\\b\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.nameof.cs"
+					"name": "keywowd.otha.nameof.cs"
 				},
 				"2": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"throw-expression": {
-			"match": "(?<!\\.)\\b(throw)\\b",
-			"captures": {
+		"thwow-expwession": {
+			"match": "(?<!\\.)\\b(thwow)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.flow.throw.cs"
+					"name": "keywowd.contwow.fwow.thwow.cs"
 				}
 			}
 		},
-		"interpolated-string": {
-			"name": "string.quoted.double.cs",
+		"intewpowated-stwing": {
+			"name": "stwing.quoted.doubwe.cs",
 			"begin": "\\$\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.cs"
+					"name": "punctuation.definition.stwing.begin.cs"
 				}
 			},
 			"end": "(\")|((?:[^\\\\\\n])$)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.cs"
+					"name": "punctuation.definition.stwing.end.cs"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.cs"
+					"name": "invawid.iwwegaw.newwine.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#string-character-escape"
+					"incwude": "#stwing-chawacta-escape"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"verbatim-interpolated-string": {
-			"name": "string.quoted.double.cs",
+		"vewbatim-intewpowated-stwing": {
+			"name": "stwing.quoted.doubwe.cs",
 			"begin": "(?:\\$@|@\\$)\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.cs"
+					"name": "punctuation.definition.stwing.begin.cs"
 				}
 			},
 			"end": "\"(?=[^\"])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.cs"
+					"name": "punctuation.definition.stwing.end.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#verbatim-string-character-escape"
+					"incwude": "#vewbatim-stwing-chawacta-escape"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"interpolation": {
-			"name": "meta.interpolation.cs",
+		"intewpowation": {
+			"name": "meta.intewpowation.cs",
 			"begin": "(?<=[^\\{]|^)((?:\\{\\{)*)(\\{)(?=[^\\{])",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "string.quoted.double.cs"
+					"name": "stwing.quoted.doubwe.cs"
 				},
 				"2": {
-					"name": "punctuation.definition.interpolation.begin.cs"
+					"name": "punctuation.definition.intewpowation.begin.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.interpolation.end.cs"
+					"name": "punctuation.definition.intewpowation.end.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"literal": {
-			"patterns": [
+		"witewaw": {
+			"pattewns": [
 				{
-					"include": "#boolean-literal"
+					"incwude": "#boowean-witewaw"
 				},
 				{
-					"include": "#null-literal"
+					"incwude": "#nuww-witewaw"
 				},
 				{
-					"include": "#numeric-literal"
+					"incwude": "#numewic-witewaw"
 				},
 				{
-					"include": "#char-literal"
+					"incwude": "#chaw-witewaw"
 				},
 				{
-					"include": "#string-literal"
+					"incwude": "#stwing-witewaw"
 				},
 				{
-					"include": "#verbatim-string-literal"
+					"incwude": "#vewbatim-stwing-witewaw"
 				},
 				{
-					"include": "#tuple-literal"
+					"incwude": "#tupwe-witewaw"
 				}
 			]
 		},
-		"boolean-literal": {
-			"patterns": [
+		"boowean-witewaw": {
+			"pattewns": [
 				{
-					"name": "constant.language.boolean.true.cs",
-					"match": "(?<!\\.)\\btrue\\b"
+					"name": "constant.wanguage.boowean.twue.cs",
+					"match": "(?<!\\.)\\btwue\\b"
 				},
 				{
-					"name": "constant.language.boolean.false.cs",
-					"match": "(?<!\\.)\\bfalse\\b"
+					"name": "constant.wanguage.boowean.fawse.cs",
+					"match": "(?<!\\.)\\bfawse\\b"
 				}
 			]
 		},
-		"null-literal": {
-			"name": "constant.language.null.cs",
-			"match": "(?<!\\.)\\bnull\\b"
+		"nuww-witewaw": {
+			"name": "constant.wanguage.nuww.cs",
+			"match": "(?<!\\.)\\bnuww\\b"
 		},
-		"numeric-literal": {
+		"numewic-witewaw": {
 			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])*",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?=.)",
 							"end": "$",
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?:(?<=[0-9])|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?([fFdDmM](?!\\w))?$",
-									"captures": {
+									"captuwes": {
 										"2": {
-											"name": "constant.numeric.decimal.cs",
-											"patterns": [
+											"name": "constant.numewic.decimaw.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"3": {
-											"name": "constant.numeric.other.separator.thousands.cs"
+											"name": "constant.numewic.otha.sepawatow.thousands.cs"
 										},
 										"4": {
-											"name": "constant.numeric.other.separator.decimals.cs"
+											"name": "constant.numewic.otha.sepawatow.decimaws.cs"
 										},
 										"5": {
-											"name": "constant.numeric.decimal.cs",
-											"patterns": [
+											"name": "constant.numewic.decimaw.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"6": {
-											"name": "constant.numeric.other.separator.thousands.cs"
+											"name": "constant.numewic.otha.sepawatow.thousands.cs"
 										},
 										"8": {
-											"name": "constant.numeric.other.exponent.cs"
+											"name": "constant.numewic.otha.exponent.cs"
 										},
 										"9": {
-											"name": "keyword.operator.arithmetic.cs"
+											"name": "keywowd.opewatow.awithmetic.cs"
 										},
 										"10": {
-											"name": "keyword.operator.arithmetic.cs"
+											"name": "keywowd.opewatow.awithmetic.cs"
 										},
 										"11": {
-											"name": "constant.numeric.decimal.cs",
-											"patterns": [
+											"name": "constant.numewic.decimaw.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"12": {
-											"name": "constant.numeric.other.suffix.cs"
+											"name": "constant.numewic.otha.suffix.cs"
 										}
 									}
 								},
 								{
-									"match": "(\\G0[bB])([01_](?:[01_]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
-									"captures": {
+									"match": "(\\G0[bB])([01_](?:[01_]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]w)|[uU]W)|w[uU]?)|W[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captuwes": {
 										"1": {
-											"name": "constant.numeric.other.preffix.binary.cs"
+											"name": "constant.numewic.otha.pweffix.binawy.cs"
 										},
 										"2": {
-											"name": "constant.numeric.binary.cs",
-											"patterns": [
+											"name": "constant.numewic.binawy.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"3": {
-											"name": "constant.numeric.other.separator.thousands.cs"
+											"name": "constant.numewic.otha.sepawatow.thousands.cs"
 										},
 										"4": {
-											"name": "constant.numeric.other.suffix.cs"
+											"name": "constant.numewic.otha.suffix.cs"
 										}
 									}
 								},
 								{
-									"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
-									"captures": {
+									"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]w)|[uU]W)|w[uU]?)|W[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captuwes": {
 										"1": {
-											"name": "constant.numeric.other.preffix.hex.cs"
+											"name": "constant.numewic.otha.pweffix.hex.cs"
 										},
 										"2": {
-											"name": "constant.numeric.hex.cs",
-											"patterns": [
+											"name": "constant.numewic.hex.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"3": {
-											"name": "constant.numeric.other.separator.thousands.cs"
+											"name": "constant.numewic.otha.sepawatow.thousands.cs"
 										},
 										"4": {
-											"name": "constant.numeric.other.suffix.cs"
+											"name": "constant.numewic.otha.suffix.cs"
 										}
 									}
 								},
 								{
-									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
-									"captures": {
+									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]w)|[uU]W)|w[uU]?)|W[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captuwes": {
 										"2": {
-											"name": "constant.numeric.decimal.cs",
-											"patterns": [
+											"name": "constant.numewic.decimaw.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"3": {
-											"name": "constant.numeric.other.separator.thousands.cs"
+											"name": "constant.numewic.otha.sepawatow.thousands.cs"
 										},
 										"5": {
-											"name": "constant.numeric.other.exponent.cs"
+											"name": "constant.numewic.otha.exponent.cs"
 										},
 										"6": {
-											"name": "keyword.operator.arithmetic.cs"
+											"name": "keywowd.opewatow.awithmetic.cs"
 										},
 										"7": {
-											"name": "keyword.operator.arithmetic.cs"
+											"name": "keywowd.opewatow.awithmetic.cs"
 										},
 										"8": {
-											"name": "constant.numeric.decimal.cs",
-											"patterns": [
+											"name": "constant.numewic.decimaw.cs",
+											"pattewns": [
 												{
 													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
-													"name": "constant.numeric.other.separator.thousands.cs"
+													"name": "constant.numewic.otha.sepawatow.thousands.cs"
 												}
 											]
 										},
 										"9": {
-											"name": "constant.numeric.other.suffix.cs"
+											"name": "constant.numewic.otha.suffix.cs"
 										}
 									}
 								},
 								{
 									"match": "(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])+",
-									"name": "invalid.illegal.constant.numeric.cs"
+									"name": "invawid.iwwegaw.constant.numewic.cs"
 								}
 							]
 						}
@@ -2977,1555 +2977,1555 @@
 				}
 			}
 		},
-		"char-literal": {
-			"name": "string.quoted.single.cs",
+		"chaw-witewaw": {
+			"name": "stwing.quoted.singwe.cs",
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.char.begin.cs"
+					"name": "punctuation.definition.chaw.begin.cs"
 				}
 			},
 			"end": "(\\')|((?:[^\\\\\\n])$)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.char.end.cs"
+					"name": "punctuation.definition.chaw.end.cs"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.cs"
+					"name": "invawid.iwwegaw.newwine.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#char-character-escape"
+					"incwude": "#chaw-chawacta-escape"
 				}
 			]
 		},
-		"char-character-escape": {
-			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
+		"chaw-chawacta-escape": {
+			"name": "constant.chawacta.escape.cs",
+			"match": "\\\\(['\"\\\\0abfnwtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
 		},
-		"string-literal": {
-			"name": "string.quoted.double.cs",
+		"stwing-witewaw": {
+			"name": "stwing.quoted.doubwe.cs",
 			"begin": "(?<!@)\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.cs"
+					"name": "punctuation.definition.stwing.begin.cs"
 				}
 			},
 			"end": "(\")|((?:[^\\\\\\n])$)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.string.end.cs"
+					"name": "punctuation.definition.stwing.end.cs"
 				},
 				"2": {
-					"name": "invalid.illegal.newline.cs"
+					"name": "invawid.iwwegaw.newwine.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#string-character-escape"
+					"incwude": "#stwing-chawacta-escape"
 				}
 			]
 		},
-		"string-character-escape": {
-			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
+		"stwing-chawacta-escape": {
+			"name": "constant.chawacta.escape.cs",
+			"match": "\\\\(['\"\\\\0abfnwtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
 		},
-		"verbatim-string-literal": {
-			"name": "string.quoted.double.cs",
+		"vewbatim-stwing-witewaw": {
+			"name": "stwing.quoted.doubwe.cs",
 			"begin": "@\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.cs"
+					"name": "punctuation.definition.stwing.begin.cs"
 				}
 			},
 			"end": "\"(?=[^\"])",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.cs"
+					"name": "punctuation.definition.stwing.end.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#verbatim-string-character-escape"
+					"incwude": "#vewbatim-stwing-chawacta-escape"
 				}
 			]
 		},
-		"verbatim-string-character-escape": {
-			"name": "constant.character.escape.cs",
+		"vewbatim-stwing-chawacta-escape": {
+			"name": "constant.chawacta.escape.cs",
 			"match": "\"\""
 		},
-		"tuple-literal": {
+		"tupwe-witewaw": {
 			"begin": "(\\()(?=.*[:,])",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#tuple-literal-element"
+					"incwude": "#tupwe-witewaw-ewement"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"tuple-literal-element": {
-			"begin": "(?x)\n(?:(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)\\s*)?\n(?![,)])",
-			"beginCaptures": {
+		"tupwe-witewaw-ewement": {
+			"begin": "(?x)\n(?:(@?[_[:awpha:]][_[:awnum:]]*)\\s*(:)\\s*)?\n(?![,)])",
+			"beginCaptuwes": {
 				"0": {
-					"name": "entity.name.variable.tuple-element.cs"
+					"name": "entity.name.vawiabwe.tupwe-ewement.cs"
 				},
 				"1": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			},
 			"end": "(?=[,)])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"expression-operators": {
-			"patterns": [
+		"expwession-opewatows": {
+			"pattewns": [
 				{
-					"name": "keyword.operator.assignment.compound.cs",
+					"name": "keywowd.opewatow.assignment.compound.cs",
 					"match": "\\*=|/=|%=|\\+=|-=|\\?\\?="
 				},
 				{
-					"name": "keyword.operator.assignment.compound.bitwise.cs",
+					"name": "keywowd.opewatow.assignment.compound.bitwise.cs",
 					"match": "\\&=|\\^=|<<=|>>=|\\|="
 				},
 				{
-					"name": "keyword.operator.bitwise.shift.cs",
+					"name": "keywowd.opewatow.bitwise.shift.cs",
 					"match": "<<|>>"
 				},
 				{
-					"name": "keyword.operator.comparison.cs",
+					"name": "keywowd.opewatow.compawison.cs",
 					"match": "==|!="
 				},
 				{
-					"name": "keyword.operator.relational.cs",
+					"name": "keywowd.opewatow.wewationaw.cs",
 					"match": "<=|>=|<|>"
 				},
 				{
-					"name": "keyword.operator.logical.cs",
+					"name": "keywowd.opewatow.wogicaw.cs",
 					"match": "\\!|&&|\\|\\|"
 				},
 				{
-					"name": "keyword.operator.bitwise.cs",
+					"name": "keywowd.opewatow.bitwise.cs",
 					"match": "\\&|~|\\^|\\|"
 				},
 				{
-					"name": "keyword.operator.assignment.cs",
+					"name": "keywowd.opewatow.assignment.cs",
 					"match": "\\="
 				},
 				{
-					"name": "keyword.operator.decrement.cs",
+					"name": "keywowd.opewatow.decwement.cs",
 					"match": "--"
 				},
 				{
-					"name": "keyword.operator.increment.cs",
+					"name": "keywowd.opewatow.incwement.cs",
 					"match": "\\+\\+"
 				},
 				{
-					"name": "keyword.operator.arithmetic.cs",
+					"name": "keywowd.opewatow.awithmetic.cs",
 					"match": "%|\\*|/|-|\\+"
 				},
 				{
-					"name": "keyword.operator.null-coalescing.cs",
+					"name": "keywowd.opewatow.nuww-coawescing.cs",
 					"match": "\\?\\?"
 				}
 			]
 		},
-		"switch-literal": {
-			"name": "constant.language.null.cs",
-			"match": "(?<!\\.)\\bnull\\b",
-			"beginCaptures": {
+		"switch-witewaw": {
+			"name": "constant.wanguage.nuww.cs",
+			"match": "(?<!\\.)\\bnuww\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "constant.language.null.cs"
+					"name": "constant.wanguage.nuww.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#expression-body"
+					"incwude": "#expwession-body"
 				}
 			]
 		},
-		"conditional-operator": {
+		"conditionaw-opewatow": {
 			"begin": "\\?(?!\\s*[?.\\[]|\\s*$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.operator.conditional.question-mark.cs"
+					"name": "keywowd.opewatow.conditionaw.question-mawk.cs"
 				}
 			},
 			"end": ":",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "keyword.operator.conditional.colon.cs"
+					"name": "keywowd.opewatow.conditionaw.cowon.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"await-expression": {
-			"name": "keyword.other.await.cs",
+		"await-expwession": {
+			"name": "keywowd.otha.await.cs",
 			"match": "(?!\\.)\\b(await)\\b"
 		},
-		"parenthesized-expression": {
+		"pawenthesized-expwession": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"initializer-expression": {
+		"initiawiza-expwession": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.open.cs"
+					"name": "punctuation.cuwwybwace.open.cs"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.curlybrace.close.cs"
+					"name": "punctuation.cuwwybwace.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"identifier": {
-			"name": "variable.other.readwrite.cs",
-			"match": "@?[_[:alpha:]][_[:alnum:]]*"
+		"identifia": {
+			"name": "vawiabwe.otha.weadwwite.cs",
+			"match": "@?[_[:awpha:]][_[:awnum:]]*"
 		},
-		"cast-expression": {
-			"match": "(?x)\n(\\()\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(\\))(?=\\s*-*!*@?[_[:alnum:]\\(])",
-			"captures": {
+		"cast-expwession": {
+			"match": "(?x)\n(\\()\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(\\))(?=\\s*-*!*@?[_[:awnum:]\\(])",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			}
 		},
-		"as-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
-			"captures": {
+		"as-expwession": {
+			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.as.cs"
+					"name": "keywowd.otha.as.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			}
 		},
-		"is-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(is)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
-			"captures": {
+		"is-expwession": {
+			"match": "(?x)\n(?<!\\.)\\b(is)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.is.cs"
+					"name": "keywowd.otha.is.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			}
 		},
-		"this-or-base-expression": {
+		"this-ow-base-expwession": {
 			"match": "\\b(?:(base)|(this))\\b",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.base.cs"
+					"name": "keywowd.otha.base.cs"
 				},
 				"2": {
-					"name": "keyword.other.this.cs"
+					"name": "keywowd.otha.this.cs"
 				}
 			}
 		},
-		"invocation-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                                     # preceding null-conditional operator?\n(?:(\\.)\\s*)?                                     # preceding dot?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                   # method name\n(?<type_args>\\s*<([^<>]|\\g<type_args>)+>\\s*)?\\s* # type arguments\n(?=\\()                                           # open paren of argument list",
-			"beginCaptures": {
+		"invocation-expwession": {
+			"begin": "(?x)\n(?:(\\?)\\s*)?                                     # pweceding nuww-conditionaw opewatow?\n(?:(\\.)\\s*)?                                     # pweceding dot?\n(@?[_[:awpha:]][_[:awnum:]]*)\\s*                   # method name\n(?<type_awgs>\\s*<([^<>]|\\g<type_awgs>)+>\\s*)?\\s* # type awguments\n(?=\\()                                           # open pawen of awgument wist",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.operator.null-conditional.cs"
+					"name": "keywowd.opewatow.nuww-conditionaw.cs"
 				},
 				"2": {
-					"name": "punctuation.accessor.cs"
+					"name": "punctuation.accessow.cs"
 				},
 				"3": {
 					"name": "entity.name.function.cs"
 				},
 				"4": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type-arguments"
+							"incwude": "#type-awguments"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#argument-list"
+					"incwude": "#awgument-wist"
 				}
 			]
 		},
-		"element-access-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:(@?[_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
-			"beginCaptures": {
+		"ewement-access-expwession": {
+			"begin": "(?x)\n(?:(\\?)\\s*)?                        # pweceding nuww-conditionaw opewatow?\n(?:(\\.)\\s*)?                        # pweceding dot?\n(?:(@?[_[:awpha:]][_[:awnum:]]*)\\s*)? # pwopewty name\n(?:(\\?)\\s*)?                        # nuww-conditionaw opewatow?\n(?=\\[)                              # open bwacket of awgument wist",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.operator.null-conditional.cs"
+					"name": "keywowd.opewatow.nuww-conditionaw.cs"
 				},
 				"2": {
-					"name": "punctuation.accessor.cs"
+					"name": "punctuation.accessow.cs"
 				},
 				"3": {
-					"name": "variable.other.object.property.cs"
+					"name": "vawiabwe.otha.object.pwopewty.cs"
 				},
 				"4": {
-					"name": "keyword.operator.null-conditional.cs"
+					"name": "keywowd.opewatow.nuww-conditionaw.cs"
 				}
 			},
 			"end": "(?<=\\])(?!\\s*\\[)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#bracketed-argument-list"
+					"incwude": "#bwacketed-awgument-wist"
 				}
 			]
 		},
-		"member-access-expression": {
-			"patterns": [
+		"memba-access-expwession": {
+			"pattewns": [
 				{
-					"match": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(\\.)\\s*                        # preceding dot\n(@?[_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?![_[:alnum:]]|\\(|(\\?)?\\[|<)  # next character is not alpha-numeric, nor a (, [, or <. Also, test for ?[",
-					"captures": {
+					"match": "(?x)\n(?:(\\?)\\s*)?                   # pweceding nuww-conditionaw opewatow?\n(\\.)\\s*                        # pweceding dot\n(@?[_[:awpha:]][_[:awnum:]]*)\\s* # pwopewty name\n(?![_[:awnum:]]|\\(|(\\?)?\\[|<)  # next chawacta is not awpha-numewic, now a (, [, ow <. Awso, test fow ?[",
+					"captuwes": {
 						"1": {
-							"name": "keyword.operator.null-conditional.cs"
+							"name": "keywowd.opewatow.nuww-conditionaw.cs"
 						},
 						"2": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						},
 						"3": {
-							"name": "variable.other.object.property.cs"
+							"name": "vawiabwe.otha.object.pwopewty.cs"
 						}
 					}
 				},
 				{
-					"match": "(?x)\n(\\.)?\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?<type_params>\\s*<([^<>]|\\g<type_params>)+>\\s*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
-					"captures": {
+					"match": "(?x)\n(\\.)?\\s*\n(@?[_[:awpha:]][_[:awnum:]]*)\n(?<type_pawams>\\s*<([^<>]|\\g<type_pawams>)+>\\s*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:awpha:]][_[:awnum:]]*\n)",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						},
 						"2": {
-							"name": "variable.other.object.cs"
+							"name": "vawiabwe.otha.object.cs"
 						},
 						"3": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#type-arguments"
+									"incwude": "#type-awguments"
 								}
 							]
 						}
 					}
 				},
 				{
-					"match": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
-					"captures": {
+					"match": "(?x)\n(@?[_[:awpha:]][_[:awnum:]]*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:awpha:]][_[:awnum:]]*\n)",
+					"captuwes": {
 						"1": {
-							"name": "variable.other.object.cs"
+							"name": "vawiabwe.otha.object.cs"
 						}
 					}
 				}
 			]
 		},
-		"object-creation-expression": {
-			"patterns": [
+		"object-cweation-expwession": {
+			"pattewns": [
 				{
-					"include": "#object-creation-expression-with-parameters"
+					"incwude": "#object-cweation-expwession-with-pawametews"
 				},
 				{
-					"include": "#object-creation-expression-with-no-parameters"
+					"incwude": "#object-cweation-expwession-with-no-pawametews"
 				}
 			]
 		},
-		"object-creation-expression-with-parameters": {
-			"begin": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
-			"beginCaptures": {
+		"object-cweation-expwession-with-pawametews": {
+			"begin": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keywowd.otha.new.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#argument-list"
+					"incwude": "#awgument-wist"
 				}
 			]
 		},
-		"object-creation-expression-with-no-parameters": {
-			"match": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\{|$)",
-			"captures": {
+		"object-cweation-expwession-with-no-pawametews": {
+			"match": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\{|$)",
+			"captuwes": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keywowd.otha.new.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			}
 		},
-		"array-creation-expression": {
-			"begin": "(?x)\n\\b(new|stackalloc)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(?=\\[)",
-			"beginCaptures": {
+		"awway-cweation-expwession": {
+			"begin": "(?x)\n\\b(new|stackawwoc)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?\\s*\n(?=\\[)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keywowd.otha.new.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				}
 			},
 			"end": "(?<=\\])",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#bracketed-argument-list"
+					"incwude": "#bwacketed-awgument-wist"
 				}
 			]
 		},
-		"anonymous-object-creation-expression": {
+		"anonymous-object-cweation-expwession": {
 			"begin": "\\b(new)\\b\\s*(?=\\{|$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keywowd.otha.new.cs"
 				}
 			},
 			"end": "(?<=\\})",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#initializer-expression"
+					"incwude": "#initiawiza-expwession"
 				}
 			]
 		},
-		"bracketed-parameter-list": {
+		"bwacketed-pawameta-wist": {
 			"begin": "(?=(\\[))",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.squarebracket.open.cs"
+					"name": "punctuation.squawebwacket.open.cs"
 				}
 			},
 			"end": "(?=(\\]))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.squarebracket.close.cs"
+					"name": "punctuation.squawebwacket.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?<=\\[)",
 					"end": "(?=\\])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#attribute-section"
+							"incwude": "#attwibute-section"
 						},
 						{
-							"include": "#parameter"
+							"incwude": "#pawameta"
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						},
 						{
-							"include": "#variable-initializer"
+							"incwude": "#vawiabwe-initiawiza"
 						}
 					]
 				}
 			]
 		},
-		"parenthesized-parameter-list": {
+		"pawenthesized-pawameta-wist": {
 			"begin": "(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "(\\))",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#parameter"
+					"incwude": "#pawameta"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				},
 				{
-					"include": "#variable-initializer"
+					"incwude": "#vawiabwe-initiawiza"
 				}
 			]
 		},
-		"parameter": {
-			"match": "(?x)\n(?:(?:\\b(ref|params|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)",
-			"captures": {
+		"pawameta": {
+			"match": "(?x)\n(?:(?:\\b(wef|pawams|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:wef\\s+)?   # wef wetuwn\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifia>)",
+			"captuwes": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "stowage.modifia.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.parameter.cs"
+					"name": "entity.name.vawiabwe.pawameta.cs"
 				}
 			}
 		},
-		"argument-list": {
+		"awgument-wist": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#named-argument"
+					"incwude": "#named-awgument"
 				},
 				{
-					"include": "#argument"
+					"incwude": "#awgument"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"bracketed-argument-list": {
+		"bwacketed-awgument-wist": {
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.squarebracket.open.cs"
+					"name": "punctuation.squawebwacket.open.cs"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.squarebracket.close.cs"
+					"name": "punctuation.squawebwacket.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#named-argument"
+					"incwude": "#named-awgument"
 				},
 				{
-					"include": "#argument"
+					"incwude": "#awgument"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"named-argument": {
-			"begin": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
-			"beginCaptures": {
+		"named-awgument": {
+			"begin": "(@?[_[:awpha:]][_[:awnum:]]*)\\s*(:)",
+			"beginCaptuwes": {
 				"1": {
-					"name": "entity.name.variable.parameter.cs"
+					"name": "entity.name.vawiabwe.pawameta.cs"
 				},
 				"2": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				}
 			},
 			"end": "(?=(,|\\)|\\]))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#argument"
+					"incwude": "#awgument"
 				}
 			]
 		},
-		"argument": {
-			"patterns": [
+		"awgument": {
+			"pattewns": [
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(ref|out|in)\\b"
+					"name": "stowage.modifia.cs",
+					"match": "\\b(wef|out|in)\\b"
 				},
 				{
-					"include": "#declaration-expression-local"
+					"incwude": "#decwawation-expwession-wocaw"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"query-expression": {
-			"begin": "(?x)\n\\b(from)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
-			"beginCaptures": {
+		"quewy-expwession": {
+			"begin": "(?x)\n\\b(fwom)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifia>)\\b\\s*\n\\b(in)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.from.cs"
+					"name": "keywowd.quewy.fwom.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.range-variable.cs"
+					"name": "entity.name.vawiabwe.wange-vawiabwe.cs"
 				},
 				"8": {
-					"name": "keyword.query.in.cs"
+					"name": "keywowd.quewy.in.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"query-body": {
-			"patterns": [
+		"quewy-body": {
+			"pattewns": [
 				{
-					"include": "#let-clause"
+					"incwude": "#wet-cwause"
 				},
 				{
-					"include": "#where-clause"
+					"incwude": "#whewe-cwause"
 				},
 				{
-					"include": "#join-clause"
+					"incwude": "#join-cwause"
 				},
 				{
-					"include": "#orderby-clause"
+					"incwude": "#owdewby-cwause"
 				},
 				{
-					"include": "#select-clause"
+					"incwude": "#sewect-cwause"
 				},
 				{
-					"include": "#group-clause"
+					"incwude": "#gwoup-cwause"
 				}
 			]
 		},
-		"let-clause": {
-			"begin": "(?x)\n\\b(let)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=)\\s*",
-			"beginCaptures": {
+		"wet-cwause": {
+			"begin": "(?x)\n\\b(wet)\\b\\s*\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*\n(=)\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.let.cs"
+					"name": "keywowd.quewy.wet.cs"
 				},
 				"2": {
-					"name": "entity.name.variable.range-variable.cs"
+					"name": "entity.name.vawiabwe.wange-vawiabwe.cs"
 				},
 				"3": {
-					"name": "keyword.operator.assignment.cs"
+					"name": "keywowd.opewatow.assignment.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"where-clause": {
-			"begin": "(?x)\n\\b(where)\\b\\s*",
-			"beginCaptures": {
+		"whewe-cwause": {
+			"begin": "(?x)\n\\b(whewe)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.where.cs"
+					"name": "keywowd.quewy.whewe.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"join-clause": {
-			"begin": "(?x)\n\\b(join)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
-			"beginCaptures": {
+		"join-cwause": {
+			"begin": "(?x)\n\\b(join)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifia>)\\b\\s*\n\\b(in)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.join.cs"
+					"name": "keywowd.quewy.join.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.range-variable.cs"
+					"name": "entity.name.vawiabwe.wange-vawiabwe.cs"
 				},
 				"8": {
-					"name": "keyword.query.in.cs"
+					"name": "keywowd.quewy.in.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#join-on"
+					"incwude": "#join-on"
 				},
 				{
-					"include": "#join-equals"
+					"incwude": "#join-equaws"
 				},
 				{
-					"include": "#join-into"
+					"incwude": "#join-into"
 				},
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
 		"join-on": {
 			"match": "\\b(on)\\b\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.on.cs"
+					"name": "keywowd.quewy.on.cs"
 				}
 			}
 		},
-		"join-equals": {
-			"match": "\\b(equals)\\b\\s*",
-			"captures": {
+		"join-equaws": {
+			"match": "\\b(equaws)\\b\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.equals.cs"
+					"name": "keywowd.quewy.equaws.cs"
 				}
 			}
 		},
 		"join-into": {
-			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
-			"captures": {
+			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.into.cs"
+					"name": "keywowd.quewy.into.cs"
 				},
 				"2": {
-					"name": "entity.name.variable.range-variable.cs"
+					"name": "entity.name.vawiabwe.wange-vawiabwe.cs"
 				}
 			}
 		},
-		"orderby-clause": {
-			"begin": "\\b(orderby)\\b\\s*",
-			"beginCaptures": {
+		"owdewby-cwause": {
+			"begin": "\\b(owdewby)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.orderby.cs"
+					"name": "keywowd.quewy.owdewby.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#ordering-direction"
+					"incwude": "#owdewing-diwection"
 				},
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"ordering-direction": {
+		"owdewing-diwection": {
 			"match": "\\b(?:(ascending)|(descending))\\b",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.ascending.cs"
+					"name": "keywowd.quewy.ascending.cs"
 				},
 				"2": {
-					"name": "keyword.query.descending.cs"
+					"name": "keywowd.quewy.descending.cs"
 				}
 			}
 		},
-		"select-clause": {
-			"begin": "\\b(select)\\b\\s*",
-			"beginCaptures": {
+		"sewect-cwause": {
+			"begin": "\\b(sewect)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.select.cs"
+					"name": "keywowd.quewy.sewect.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"group-clause": {
-			"begin": "\\b(group)\\b\\s*",
-			"beginCaptures": {
+		"gwoup-cwause": {
+			"begin": "\\b(gwoup)\\b\\s*",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.query.group.cs"
+					"name": "keywowd.quewy.gwoup.cs"
 				}
 			},
 			"end": "(?=;|\\))",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#group-by"
+					"incwude": "#gwoup-by"
 				},
 				{
-					"include": "#group-into"
+					"incwude": "#gwoup-into"
 				},
 				{
-					"include": "#query-body"
+					"incwude": "#quewy-body"
 				},
 				{
-					"include": "#expression"
+					"incwude": "#expwession"
 				}
 			]
 		},
-		"group-by": {
+		"gwoup-by": {
 			"match": "\\b(by)\\b\\s*",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.by.cs"
+					"name": "keywowd.quewy.by.cs"
 				}
 			}
 		},
-		"group-into": {
-			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
-			"captures": {
+		"gwoup-into": {
+			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*",
+			"captuwes": {
 				"1": {
-					"name": "keyword.query.into.cs"
+					"name": "keywowd.quewy.into.cs"
 				},
 				"2": {
-					"name": "entity.name.variable.range-variable.cs"
+					"name": "entity.name.vawiabwe.wange-vawiabwe.cs"
 				}
 			}
 		},
-		"anonymous-method-expression": {
-			"patterns": [
+		"anonymous-method-expwession": {
+			"pattewns": [
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
-					"beginCaptures": {
+					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(@?[_[:awpha:]][_[:awnum:]]*)\\b\\s*\n(=>)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"name": "stowage.modifia.cs"
 						},
 						"2": {
-							"name": "entity.name.variable.parameter.cs"
+							"name": "entity.name.vawiabwe.pawameta.cs"
 						},
 						"3": {
-							"name": "keyword.operator.arrow.cs"
+							"name": "keywowd.opewatow.awwow.cs"
 						}
 					},
 					"end": "(?=\\)|;|}|,)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#block"
+							"incwude": "#bwock"
 						},
 						{
-							"include": "#ref-modifier"
+							"incwude": "#wef-modifia"
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
 					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(\\(.*?\\))\\s*\n(=>)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"name": "stowage.modifia.cs"
 						},
 						"2": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#lambda-parameter-list"
+									"incwude": "#wambda-pawameta-wist"
 								}
 							]
 						},
 						"3": {
-							"name": "keyword.operator.arrow.cs"
+							"name": "keywowd.opewatow.awwow.cs"
 						}
 					},
 					"end": "(?=\\)|;|}|,)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#block"
+							"incwude": "#bwock"
 						},
 						{
-							"include": "#ref-modifier"
+							"incwude": "#wef-modifia"
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				},
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(?:\\b(delegate)\\b\\s*)",
-					"beginCaptures": {
+					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(?:\\b(dewegate)\\b\\s*)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"name": "stowage.modifia.cs"
 						},
 						"2": {
-							"name": "keyword.other.delegate.cs"
+							"name": "keywowd.otha.dewegate.cs"
 						}
 					},
 					"end": "(?=\\)|;|}|,)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#parenthesized-parameter-list"
+							"incwude": "#pawenthesized-pawameta-wist"
 						},
 						{
-							"include": "#block"
+							"incwude": "#bwock"
 						},
 						{
-							"include": "#expression"
+							"incwude": "#expwession"
 						}
 					]
 				}
 			]
 		},
-		"lambda-parameter-list": {
+		"wambda-pawameta-wist": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#attribute-section"
+					"incwude": "#attwibute-section"
 				},
 				{
-					"include": "#lambda-parameter"
+					"incwude": "#wambda-pawameta"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"lambda-parameter": {
-			"match": "(?x)\n(?:\\b(ref|out|in)\\b)?\\s*\n(?:(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+)?\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
-			"captures": {
+		"wambda-pawameta": {
+			"match": "(?x)\n(?:\\b(wef|out|in)\\b)?\\s*\n(?:(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\\s+)?\n(\\g<identifia>)\\b\\s*\n(?=[,)])",
+			"captuwes": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "stowage.modifia.cs"
 				},
 				"2": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"7": {
-					"name": "entity.name.variable.parameter.cs"
+					"name": "entity.name.vawiabwe.pawameta.cs"
 				}
 			}
 		},
 		"type": {
 			"name": "meta.type.cs",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#ref-modifier"
+					"incwude": "#wef-modifia"
 				},
 				{
-					"include": "#readonly-modifier"
+					"incwude": "#weadonwy-modifia"
 				},
 				{
-					"include": "#tuple-type"
+					"incwude": "#tupwe-type"
 				},
 				{
-					"include": "#type-builtin"
+					"incwude": "#type-buiwtin"
 				},
 				{
-					"include": "#type-name"
+					"incwude": "#type-name"
 				},
 				{
-					"include": "#type-arguments"
+					"incwude": "#type-awguments"
 				},
 				{
-					"include": "#type-array-suffix"
+					"incwude": "#type-awway-suffix"
 				},
 				{
-					"include": "#type-nullable-suffix"
+					"incwude": "#type-nuwwabwe-suffix"
 				}
 			]
 		},
-		"ref-modifier": {
-			"name": "storage.modifier.cs",
-			"match": "\\b(ref)\\b"
+		"wef-modifia": {
+			"name": "stowage.modifia.cs",
+			"match": "\\b(wef)\\b"
 		},
-		"readonly-modifier": {
-			"name": "storage.modifier.cs",
-			"match": "\\b(readonly)\\b"
+		"weadonwy-modifia": {
+			"name": "stowage.modifia.cs",
+			"match": "\\b(weadonwy)\\b"
 		},
-		"tuple-type": {
+		"tupwe-type": {
 			"begin": "\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.open.cs"
+					"name": "punctuation.pawenthesis.open.cs"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.parenthesis.close.cs"
+					"name": "punctuation.pawenthesis.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#tuple-element"
+					"incwude": "#tupwe-ewement"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"tuple-element": {
-			"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\n(?:(?<tuple_name>\\g<identifier>)\\b)?",
-			"captures": {
+		"tupwe-ewement": {
+			"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifia>@?[_[:awpha:]][_[:awnum:]]*)\\s*\\:\\:\\s*)? # awias-quawification\n      (?<name_and_type_awgs> # identifia + type awguments (if any)\n        \\g<identifia>\\s*\n        (?<type_awgs>\\s*<(?:[^<>]|\\g<type_awgs>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_awgs>)* | # Awe thewe any mowe names being dotted into?\n      (?<tupwe>\\s*\\((?:[^\\(\\)]|\\g<tupwe>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nuwwabwe suffix?\n    (?:\\s* # awway suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata fow muwti-dimensionaw awways\n      \\]\n      \\s*\n      (?:\\?)? # awways can be nuwwabwe wefewence types\n      \\s*\n    )*\n  )\n)\n(?:(?<tupwe_name>\\g<identifia>)\\b)?",
+			"captuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#type"
+							"incwude": "#type"
 						}
 					]
 				},
 				"6": {
-					"name": "entity.name.variable.tuple-element.cs"
+					"name": "entity.name.vawiabwe.tupwe-ewement.cs"
 				}
 			}
 		},
-		"type-builtin": {
-			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void|dynamic)\\b",
-			"captures": {
+		"type-buiwtin": {
+			"match": "\\b(boow|byte|chaw|decimaw|doubwe|fwoat|int|wong|object|sbyte|showt|stwing|uint|uwong|ushowt|void|dynamic)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.type.cs"
+					"name": "keywowd.type.cs"
 				}
 			}
 		},
 		"type-name": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\:\\:)",
-					"captures": {
+					"match": "(@?[_[:awpha:]][_[:awnum:]]*)\\s*(\\:\\:)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.alias.cs"
+							"name": "entity.name.type.awias.cs"
 						},
 						"2": {
-							"name": "punctuation.separator.coloncolon.cs"
+							"name": "punctuation.sepawatow.cowoncowon.cs"
 						}
 					}
 				},
 				{
-					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
-					"captures": {
+					"match": "(@?[_[:awpha:]][_[:awnum:]]*)\\s*(\\.)",
+					"captuwes": {
 						"1": {
-							"name": "storage.type.cs"
+							"name": "stowage.type.cs"
 						},
 						"2": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						}
 					}
 				},
 				{
-					"match": "(\\.)\\s*(@?[_[:alpha:]][_[:alnum:]]*)",
-					"captures": {
+					"match": "(\\.)\\s*(@?[_[:awpha:]][_[:awnum:]]*)",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.accessor.cs"
+							"name": "punctuation.accessow.cs"
 						},
 						"2": {
-							"name": "storage.type.cs"
+							"name": "stowage.type.cs"
 						}
 					}
 				},
 				{
-					"name": "storage.type.cs",
-					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+					"name": "stowage.type.cs",
+					"match": "@?[_[:awpha:]][_[:awnum:]]*"
 				}
 			]
 		},
-		"type-arguments": {
+		"type-awguments": {
 			"begin": "<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.typeparameters.begin.cs"
+					"name": "punctuation.definition.typepawametews.begin.cs"
 				}
 			},
 			"end": ">",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.typeparameters.end.cs"
+					"name": "punctuation.definition.typepawametews.end.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#type"
+					"incwude": "#type"
 				},
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"type-array-suffix": {
+		"type-awway-suffix": {
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.squarebracket.open.cs"
+					"name": "punctuation.squawebwacket.open.cs"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.squarebracket.close.cs"
+					"name": "punctuation.squawebwacket.cwose.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#punctuation-comma"
+					"incwude": "#punctuation-comma"
 				}
 			]
 		},
-		"type-nullable-suffix": {
+		"type-nuwwabwe-suffix": {
 			"match": "\\?",
-			"captures": {
+			"captuwes": {
 				"0": {
-					"name": "punctuation.separator.question-mark.cs"
+					"name": "punctuation.sepawatow.question-mawk.cs"
 				}
 			}
 		},
-		"operator-assignment": {
-			"name": "keyword.operator.assignment.cs",
+		"opewatow-assignment": {
+			"name": "keywowd.opewatow.assignment.cs",
 			"match": "(?<!=|!)(=)(?!=)"
 		},
 		"punctuation-comma": {
-			"name": "punctuation.separator.comma.cs",
+			"name": "punctuation.sepawatow.comma.cs",
 			"match": ","
 		},
-		"punctuation-semicolon": {
-			"name": "punctuation.terminator.statement.cs",
+		"punctuation-semicowon": {
+			"name": "punctuation.tewminatow.statement.cs",
 			"match": ";"
 		},
-		"punctuation-accessor": {
-			"name": "punctuation.accessor.cs",
+		"punctuation-accessow": {
+			"name": "punctuation.accessow.cs",
 			"match": "\\."
 		},
-		"preprocessor": {
-			"name": "meta.preprocessor.cs",
+		"pwepwocessow": {
+			"name": "meta.pwepwocessow.cs",
 			"begin": "^\\s*(\\#)\\s*",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.separator.hash.cs"
+					"name": "punctuation.sepawatow.hash.cs"
 				}
 			},
 			"end": "(?<=$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#preprocessor-define-or-undef"
+					"incwude": "#pwepwocessow-define-ow-undef"
 				},
 				{
-					"include": "#preprocessor-if-or-elif"
+					"incwude": "#pwepwocessow-if-ow-ewif"
 				},
 				{
-					"include": "#preprocessor-else-or-endif"
+					"incwude": "#pwepwocessow-ewse-ow-endif"
 				},
 				{
-					"include": "#preprocessor-warning-or-error"
+					"incwude": "#pwepwocessow-wawning-ow-ewwow"
 				},
 				{
-					"include": "#preprocessor-region"
+					"incwude": "#pwepwocessow-wegion"
 				},
 				{
-					"include": "#preprocessor-endregion"
+					"incwude": "#pwepwocessow-endwegion"
 				},
 				{
-					"include": "#preprocessor-load"
+					"incwude": "#pwepwocessow-woad"
 				},
 				{
-					"include": "#preprocessor-r"
+					"incwude": "#pwepwocessow-w"
 				},
 				{
-					"include": "#preprocessor-line"
+					"incwude": "#pwepwocessow-wine"
 				},
 				{
-					"include": "#preprocessor-pragma-warning"
+					"incwude": "#pwepwocessow-pwagma-wawning"
 				},
 				{
-					"include": "#preprocessor-pragma-checksum"
+					"incwude": "#pwepwocessow-pwagma-checksum"
 				}
 			]
 		},
-		"preprocessor-define-or-undef": {
-			"match": "\\b(?:(define)|(undef))\\b\\s*\\b([_[:alpha:]][_[:alnum:]]*)\\b",
-			"captures": {
+		"pwepwocessow-define-ow-undef": {
+			"match": "\\b(?:(define)|(undef))\\b\\s*\\b([_[:awpha:]][_[:awnum:]]*)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.define.cs"
+					"name": "keywowd.pwepwocessow.define.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.undef.cs"
+					"name": "keywowd.pwepwocessow.undef.cs"
 				},
 				"3": {
-					"name": "entity.name.variable.preprocessor.symbol.cs"
+					"name": "entity.name.vawiabwe.pwepwocessow.symbow.cs"
 				}
 			}
 		},
-		"preprocessor-if-or-elif": {
-			"begin": "\\b(?:(if)|(elif))\\b",
-			"beginCaptures": {
+		"pwepwocessow-if-ow-ewif": {
+			"begin": "\\b(?:(if)|(ewif))\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.preprocessor.if.cs"
+					"name": "keywowd.pwepwocessow.if.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.elif.cs"
+					"name": "keywowd.pwepwocessow.ewif.cs"
 				}
 			},
 			"end": "(?=$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#preprocessor-expression"
+					"incwude": "#pwepwocessow-expwession"
 				}
 			]
 		},
-		"preprocessor-else-or-endif": {
-			"match": "\\b(?:(else)|(endif))\\b",
-			"captures": {
+		"pwepwocessow-ewse-ow-endif": {
+			"match": "\\b(?:(ewse)|(endif))\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.else.cs"
+					"name": "keywowd.pwepwocessow.ewse.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.endif.cs"
+					"name": "keywowd.pwepwocessow.endif.cs"
 				}
 			}
 		},
-		"preprocessor-warning-or-error": {
-			"match": "\\b(?:(warning)|(error))\\b\\s*(.*)(?=$)",
-			"captures": {
+		"pwepwocessow-wawning-ow-ewwow": {
+			"match": "\\b(?:(wawning)|(ewwow))\\b\\s*(.*)(?=$)",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.warning.cs"
+					"name": "keywowd.pwepwocessow.wawning.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.error.cs"
+					"name": "keywowd.pwepwocessow.ewwow.cs"
 				},
 				"3": {
-					"name": "string.unquoted.preprocessor.message.cs"
+					"name": "stwing.unquoted.pwepwocessow.message.cs"
 				}
 			}
 		},
-		"preprocessor-load": {
-			"begin": "\\b(load)\\b",
-			"beginCaptures": {
+		"pwepwocessow-woad": {
+			"begin": "\\b(woad)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.preprocessor.load.cs"
+					"name": "keywowd.pwepwocessow.woad.cs"
 				}
 			},
 			"end": "(?=$)",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\\"[^\"]*\\\"",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "string.quoted.double.cs"
+							"name": "stwing.quoted.doubwe.cs"
 						}
 					}
 				}
 			]
 		},
-		"preprocessor-r": {
-			"begin": "\\b(r)\\b",
-			"beginCaptures": {
+		"pwepwocessow-w": {
+			"begin": "\\b(w)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.preprocessor.r.cs"
+					"name": "keywowd.pwepwocessow.w.cs"
 				}
 			},
 			"end": "(?=$)",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\\"[^\"]*\\\"",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "string.quoted.double.cs"
+							"name": "stwing.quoted.doubwe.cs"
 						}
 					}
 				}
 			]
 		},
-		"preprocessor-region": {
-			"match": "\\b(region)\\b\\s*(.*)(?=$)",
-			"captures": {
+		"pwepwocessow-wegion": {
+			"match": "\\b(wegion)\\b\\s*(.*)(?=$)",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.region.cs"
+					"name": "keywowd.pwepwocessow.wegion.cs"
 				},
 				"2": {
-					"name": "string.unquoted.preprocessor.message.cs"
+					"name": "stwing.unquoted.pwepwocessow.message.cs"
 				}
 			}
 		},
-		"preprocessor-endregion": {
-			"match": "\\b(endregion)\\b",
-			"captures": {
+		"pwepwocessow-endwegion": {
+			"match": "\\b(endwegion)\\b",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.endregion.cs"
+					"name": "keywowd.pwepwocessow.endwegion.cs"
 				}
 			}
 		},
-		"preprocessor-line": {
-			"begin": "\\b(line)\\b",
-			"beginCaptures": {
+		"pwepwocessow-wine": {
+			"begin": "\\b(wine)\\b",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.preprocessor.line.cs"
+					"name": "keywowd.pwepwocessow.wine.cs"
 				}
 			},
 			"end": "(?=$)",
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "\\b(?:(default|hidden))",
-					"captures": {
+					"match": "\\b(?:(defauwt|hidden))",
+					"captuwes": {
 						"1": {
-							"name": "keyword.preprocessor.default.cs"
+							"name": "keywowd.pwepwocessow.defauwt.cs"
 						},
 						"2": {
-							"name": "keyword.preprocessor.hidden.cs"
+							"name": "keywowd.pwepwocessow.hidden.cs"
 						}
 					}
 				},
 				{
 					"match": "[0-9]+",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "constant.numeric.decimal.cs"
+							"name": "constant.numewic.decimaw.cs"
 						}
 					}
 				},
 				{
 					"match": "\\\"[^\"]*\\\"",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "string.quoted.double.cs"
+							"name": "stwing.quoted.doubwe.cs"
 						}
 					}
 				}
 			]
 		},
-		"preprocessor-pragma-warning": {
-			"match": "\\b(pragma)\\b\\s*\\b(warning)\\b\\s*\\b(?:(disable)|(restore))\\b(\\s*[0-9]+(?:\\s*,\\s*[0-9]+)?)?",
-			"captures": {
+		"pwepwocessow-pwagma-wawning": {
+			"match": "\\b(pwagma)\\b\\s*\\b(wawning)\\b\\s*\\b(?:(disabwe)|(westowe))\\b(\\s*[0-9]+(?:\\s*,\\s*[0-9]+)?)?",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.pragma.cs"
+					"name": "keywowd.pwepwocessow.pwagma.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.warning.cs"
+					"name": "keywowd.pwepwocessow.wawning.cs"
 				},
 				"3": {
-					"name": "keyword.preprocessor.disable.cs"
+					"name": "keywowd.pwepwocessow.disabwe.cs"
 				},
 				"4": {
-					"name": "keyword.preprocessor.restore.cs"
+					"name": "keywowd.pwepwocessow.westowe.cs"
 				},
 				"5": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "[0-9]+",
-							"captures": {
+							"captuwes": {
 								"0": {
-									"name": "constant.numeric.decimal.cs"
+									"name": "constant.numewic.decimaw.cs"
 								}
 							}
 						},
 						{
-							"include": "#punctuation-comma"
+							"incwude": "#punctuation-comma"
 						}
 					]
 				}
 			}
 		},
-		"preprocessor-pragma-checksum": {
-			"match": "\\b(pragma)\\b\\s*\\b(checksum)\\b\\s*(\\\"[^\"]*\\\")\\s*(\\\"[^\"]*\\\")\\s*(\\\"[^\"]*\\\")",
-			"captures": {
+		"pwepwocessow-pwagma-checksum": {
+			"match": "\\b(pwagma)\\b\\s*\\b(checksum)\\b\\s*(\\\"[^\"]*\\\")\\s*(\\\"[^\"]*\\\")\\s*(\\\"[^\"]*\\\")",
+			"captuwes": {
 				"1": {
-					"name": "keyword.preprocessor.pragma.cs"
+					"name": "keywowd.pwepwocessow.pwagma.cs"
 				},
 				"2": {
-					"name": "keyword.preprocessor.checksum.cs"
+					"name": "keywowd.pwepwocessow.checksum.cs"
 				},
 				"3": {
-					"name": "string.quoted.double.cs"
+					"name": "stwing.quoted.doubwe.cs"
 				},
 				"4": {
-					"name": "string.quoted.double.cs"
+					"name": "stwing.quoted.doubwe.cs"
 				},
 				"5": {
-					"name": "string.quoted.double.cs"
+					"name": "stwing.quoted.doubwe.cs"
 				}
 			}
 		},
-		"preprocessor-expression": {
-			"patterns": [
+		"pwepwocessow-expwession": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.open.cs"
+							"name": "punctuation.pawenthesis.open.cs"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.parenthesis.close.cs"
+							"name": "punctuation.pawenthesis.cwose.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#preprocessor-expression"
+							"incwude": "#pwepwocessow-expwession"
 						}
 					]
 				},
 				{
-					"match": "\\b(?:(true)|(false)|([_[:alpha:]][_[:alnum:]]*))\\b",
-					"captures": {
+					"match": "\\b(?:(twue)|(fawse)|([_[:awpha:]][_[:awnum:]]*))\\b",
+					"captuwes": {
 						"1": {
-							"name": "constant.language.boolean.true.cs"
+							"name": "constant.wanguage.boowean.twue.cs"
 						},
 						"2": {
-							"name": "constant.language.boolean.false.cs"
+							"name": "constant.wanguage.boowean.fawse.cs"
 						},
 						"3": {
-							"name": "entity.name.variable.preprocessor.symbol.cs"
+							"name": "entity.name.vawiabwe.pwepwocessow.symbow.cs"
 						}
 					}
 				},
 				{
 					"match": "(==|!=)|(\\!|&&|\\|\\|)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.operator.comparison.cs"
+							"name": "keywowd.opewatow.compawison.cs"
 						},
 						"2": {
-							"name": "keyword.operator.logical.cs"
+							"name": "keywowd.opewatow.wogicaw.cs"
 						}
 					}
 				}
 			]
 		},
 		"comment": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "comment.block.cs",
+					"name": "comment.bwock.cs",
 					"begin": "/\\*",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.cs"
 						}
 					},
 					"end": "\\*/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.cs"
 						}
@@ -4533,32 +4533,32 @@
 				},
 				{
 					"begin": "(^\\s+)?(?=//)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.cs"
+							"name": "punctuation.whitespace.comment.weading.cs"
 						}
 					},
 					"end": "(?=$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "comment.block.documentation.cs",
+							"name": "comment.bwock.documentation.cs",
 							"begin": "(?<!/)///(?!/)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.cs"
 								}
 							},
 							"end": "(?=$)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#xml-doc-comment"
+									"incwude": "#xmw-doc-comment"
 								}
 							]
 						},
 						{
-							"name": "comment.line.double-slash.cs",
+							"name": "comment.wine.doubwe-swash.cs",
 							"begin": "(?<!/)//(?:(?!/)|(?=//))",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.cs"
 								}
@@ -4569,26 +4569,26 @@
 				}
 			]
 		},
-		"xml-doc-comment": {
-			"patterns": [
+		"xmw-doc-comment": {
+			"pattewns": [
 				{
-					"include": "#xml-comment"
+					"incwude": "#xmw-comment"
 				},
 				{
-					"include": "#xml-character-entity"
+					"incwude": "#xmw-chawacta-entity"
 				},
 				{
-					"include": "#xml-cdata"
+					"incwude": "#xmw-cdata"
 				},
 				{
-					"include": "#xml-tag"
+					"incwude": "#xmw-tag"
 				}
 			]
 		},
-		"xml-tag": {
+		"xmw-tag": {
 			"name": "meta.tag.cs",
-			"begin": "(?x)\n(</?)\n(\n  (?:\n    ([-_[:alnum:]]+)\n    (:)\n  )?\n  ([-_[:alnum:]]+)\n)",
-			"beginCaptures": {
+			"begin": "(?x)\n(</?)\n(\n  (?:\n    ([-_[:awnum:]]+)\n    (:)\n  )?\n  ([-_[:awnum:]]+)\n)",
+			"beginCaptuwes": {
 				"1": {
 					"name": "punctuation.definition.tag.cs"
 				},
@@ -4599,116 +4599,116 @@
 					"name": "entity.name.tag.namespace.cs"
 				},
 				"4": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "punctuation.sepawatow.cowon.cs"
 				},
 				"5": {
-					"name": "entity.name.tag.localname.cs"
+					"name": "entity.name.tag.wocawname.cs"
 				}
 			},
 			"end": "(/?>)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
 					"name": "punctuation.definition.tag.cs"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#xml-attribute"
+					"incwude": "#xmw-attwibute"
 				}
 			]
 		},
-		"xml-attribute": {
-			"patterns": [
+		"xmw-attwibute": {
+			"pattewns": [
 				{
-					"match": "(?x)\n(?:^|\\s+)\n(\n  (?:\n    ([-_[:alnum:]]+)\n    (:)\n  )?\n  ([-_[:alnum:]]+)\n)\n(=)",
-					"captures": {
+					"match": "(?x)\n(?:^|\\s+)\n(\n  (?:\n    ([-_[:awnum:]]+)\n    (:)\n  )?\n  ([-_[:awnum:]]+)\n)\n(=)",
+					"captuwes": {
 						"1": {
-							"name": "entity.other.attribute-name.cs"
+							"name": "entity.otha.attwibute-name.cs"
 						},
 						"2": {
-							"name": "entity.other.attribute-name.namespace.cs"
+							"name": "entity.otha.attwibute-name.namespace.cs"
 						},
 						"3": {
-							"name": "punctuation.separator.colon.cs"
+							"name": "punctuation.sepawatow.cowon.cs"
 						},
 						"4": {
-							"name": "entity.other.attribute-name.localname.cs"
+							"name": "entity.otha.attwibute-name.wocawname.cs"
 						},
 						"5": {
-							"name": "punctuation.separator.equals.cs"
+							"name": "punctuation.sepawatow.equaws.cs"
 						}
 					}
 				},
 				{
-					"include": "#xml-string"
+					"incwude": "#xmw-stwing"
 				}
 			]
 		},
-		"xml-cdata": {
-			"name": "string.unquoted.cdata.cs",
+		"xmw-cdata": {
+			"name": "stwing.unquoted.cdata.cs",
 			"begin": "<!\\[CDATA\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.cs"
+					"name": "punctuation.definition.stwing.begin.cs"
 				}
 			},
 			"end": "\\]\\]>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.cs"
+					"name": "punctuation.definition.stwing.end.cs"
 				}
 			}
 		},
-		"xml-string": {
-			"patterns": [
+		"xmw-stwing": {
+			"pattewns": [
 				{
-					"name": "string.quoted.single.cs",
+					"name": "stwing.quoted.singwe.cs",
 					"begin": "\\'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.cs"
+							"name": "punctuation.definition.stwing.begin.cs"
 						}
 					},
 					"end": "\\'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.cs"
+							"name": "punctuation.definition.stwing.end.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#xml-character-entity"
+							"incwude": "#xmw-chawacta-entity"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.double.cs",
+					"name": "stwing.quoted.doubwe.cs",
 					"begin": "\\\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.cs"
+							"name": "punctuation.definition.stwing.begin.cs"
 						}
 					},
 					"end": "\\\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.cs"
+							"name": "punctuation.definition.stwing.end.cs"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#xml-character-entity"
+							"incwude": "#xmw-chawacta-entity"
 						}
 					]
 				}
 			]
 		},
-		"xml-character-entity": {
-			"patterns": [
+		"xmw-chawacta-entity": {
+			"pattewns": [
 				{
-					"name": "constant.character.entity.cs",
-					"match": "(?x)\n(&)\n(\n  (?:[[:alpha:]:_][[:alnum:]:_.-]*)|\n  (?:\\#[[:digit:]]+)|\n  (?:\\#x[[:xdigit:]]+)\n)\n(;)",
-					"captures": {
+					"name": "constant.chawacta.entity.cs",
+					"match": "(?x)\n(&)\n(\n  (?:[[:awpha:]:_][[:awnum:]:_.-]*)|\n  (?:\\#[[:digit:]]+)|\n  (?:\\#x[[:xdigit:]]+)\n)\n(;)",
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.constant.cs"
 						},
@@ -4718,21 +4718,21 @@
 					}
 				},
 				{
-					"name": "invalid.illegal.bad-ampersand.cs",
+					"name": "invawid.iwwegaw.bad-ampewsand.cs",
 					"match": "&"
 				}
 			]
 		},
-		"xml-comment": {
-			"name": "comment.block.cs",
+		"xmw-comment": {
+			"name": "comment.bwock.cs",
 			"begin": "<!--",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.cs"
 				}
 			},
 			"end": "-->",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
 					"name": "punctuation.definition.comment.cs"
 				}

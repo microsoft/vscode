@@ -1,569 +1,569 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./walkThroughPart';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { localize } from 'vs/nls';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event } from 'vs/base/common/event';
-import { isObject } from 'vs/base/common/types';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
-import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { deepClone } from 'vs/base/common/objects';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+impowt 'vs/css!./wawkThwoughPawt';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { EventType as TouchEventType, GestuweEvent, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe, dispose, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowMemento, IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WawkThwoughInput } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/bwowsa/wawkThwoughInput';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { WawContextKey, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IEditowOptions as ICodeEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wegistewCowow, focusBowda, textWinkFowegwound, textWinkActiveFowegwound, textPwefowmatFowegwound, contwastBowda, textBwockQuoteBackgwound, textBwockQuoteBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { getExtwaCowow } fwom 'vs/wowkbench/contwib/wewcome/wawkThwough/common/wawkThwoughUtiws';
+impowt { UIWabewPwovida } fwom 'vs/base/common/keybindingWabews';
+impowt { OS, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { addDisposabweWistena, Dimension, safeInnewHtmw, size } fwom 'vs/base/bwowsa/dom';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
 
-export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
+expowt const WAWK_THWOUGH_FOCUS = new WawContextKey<boowean>('intewactivePwaygwoundFocus', fawse);
 
-const UNBOUND_COMMAND = localize('walkThrough.unboundCommand', "unbound");
-const WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'walkThroughEditorViewState';
+const UNBOUND_COMMAND = wocawize('wawkThwough.unboundCommand', "unbound");
+const WAWK_THWOUGH_EDITOW_VIEW_STATE_PWEFEWENCE_KEY = 'wawkThwoughEditowViewState';
 
-interface IViewState {
-	scrollTop: number;
-	scrollLeft: number;
+intewface IViewState {
+	scwowwTop: numba;
+	scwowwWeft: numba;
 }
 
-interface IWalkThroughEditorViewState {
+intewface IWawkThwoughEditowViewState {
 	viewState: IViewState;
 }
 
-export class WalkThroughPart extends EditorPane {
+expowt cwass WawkThwoughPawt extends EditowPane {
 
-	static readonly ID: string = 'workbench.editor.walkThroughPart';
+	static weadonwy ID: stwing = 'wowkbench.editow.wawkThwoughPawt';
 
-	private readonly disposables = new DisposableStore();
-	private contentDisposables: IDisposable[] = [];
-	private content!: HTMLDivElement;
-	private scrollbar!: DomScrollableElement;
-	private editorFocus: IContextKey<boolean>;
-	private lastFocus: HTMLElement | undefined;
-	private size: Dimension | undefined;
-	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
+	pwivate weadonwy disposabwes = new DisposabweStowe();
+	pwivate contentDisposabwes: IDisposabwe[] = [];
+	pwivate content!: HTMWDivEwement;
+	pwivate scwowwbaw!: DomScwowwabweEwement;
+	pwivate editowFocus: IContextKey<boowean>;
+	pwivate wastFocus: HTMWEwement | undefined;
+	pwivate size: Dimension | undefined;
+	pwivate editowMemento: IEditowMemento<IWawkThwoughEditowViewState>;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IStorageService storageService: IStorageService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
 	) {
-		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
-		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, textResourceConfigurationService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		supa(WawkThwoughPawt.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this.editowFocus = WAWK_THWOUGH_FOCUS.bindTo(this.contextKeySewvice);
+		this.editowMemento = this.getEditowMemento<IWawkThwoughEditowViewState>(editowGwoupSewvice, textWesouwceConfiguwationSewvice, WAWK_THWOUGH_EDITOW_VIEW_STATE_PWEFEWENCE_KEY);
 	}
 
-	createEditor(container: HTMLElement): void {
-		this.content = document.createElement('div');
-		this.content.classList.add('welcomePageFocusElement');
+	cweateEditow(containa: HTMWEwement): void {
+		this.content = document.cweateEwement('div');
+		this.content.cwassWist.add('wewcomePageFocusEwement');
 		this.content.tabIndex = 0;
-		this.content.style.outlineStyle = 'none';
+		this.content.stywe.outwineStywe = 'none';
 
-		this.scrollbar = new DomScrollableElement(this.content, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Auto
+		this.scwowwbaw = new DomScwowwabweEwement(this.content, {
+			howizontaw: ScwowwbawVisibiwity.Auto,
+			vewticaw: ScwowwbawVisibiwity.Auto
 		});
-		this.disposables.add(this.scrollbar);
-		container.appendChild(this.scrollbar.getDomNode());
+		this.disposabwes.add(this.scwowwbaw);
+		containa.appendChiwd(this.scwowwbaw.getDomNode());
 
-		this.registerFocusHandlers();
-		this.registerClickHandler();
+		this.wegistewFocusHandwews();
+		this.wegistewCwickHandwa();
 
-		this.disposables.add(this.scrollbar.onScroll(e => this.updatedScrollPosition()));
+		this.disposabwes.add(this.scwowwbaw.onScwoww(e => this.updatedScwowwPosition()));
 	}
 
-	private updatedScrollPosition() {
-		const scrollDimensions = this.scrollbar.getScrollDimensions();
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		const scrollHeight = scrollDimensions.scrollHeight;
-		if (scrollHeight && this.input instanceof WalkThroughInput) {
-			const scrollTop = scrollPosition.scrollTop;
-			const height = scrollDimensions.height;
-			this.input.relativeScrollPosition(scrollTop / scrollHeight, (scrollTop + height) / scrollHeight);
+	pwivate updatedScwowwPosition() {
+		const scwowwDimensions = this.scwowwbaw.getScwowwDimensions();
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		const scwowwHeight = scwowwDimensions.scwowwHeight;
+		if (scwowwHeight && this.input instanceof WawkThwoughInput) {
+			const scwowwTop = scwowwPosition.scwowwTop;
+			const height = scwowwDimensions.height;
+			this.input.wewativeScwowwPosition(scwowwTop / scwowwHeight, (scwowwTop + height) / scwowwHeight);
 		}
 	}
 
-	private onTouchChange(event: GestureEvent) {
-		event.preventDefault();
-		event.stopPropagation();
+	pwivate onTouchChange(event: GestuweEvent) {
+		event.pweventDefauwt();
+		event.stopPwopagation();
 
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - event.translationY });
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		this.scwowwbaw.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop - event.twanswationY });
 	}
 
-	private addEventListener<K extends keyof HTMLElementEventMap, E extends HTMLElement>(element: E, type: K, listener: (this: E, ev: HTMLElementEventMap[K]) => any, useCapture?: boolean): IDisposable;
-	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable;
-	private addEventListener<E extends HTMLElement>(element: E, type: string, listener: EventListenerOrEventListenerObject, useCapture?: boolean): IDisposable {
-		element.addEventListener(type, listener, useCapture);
-		return toDisposable(() => { element.removeEventListener(type, listener, useCapture); });
+	pwivate addEventWistena<K extends keyof HTMWEwementEventMap, E extends HTMWEwement>(ewement: E, type: K, wistena: (this: E, ev: HTMWEwementEventMap[K]) => any, useCaptuwe?: boowean): IDisposabwe;
+	pwivate addEventWistena<E extends HTMWEwement>(ewement: E, type: stwing, wistena: EventWistenewOwEventWistenewObject, useCaptuwe?: boowean): IDisposabwe;
+	pwivate addEventWistena<E extends HTMWEwement>(ewement: E, type: stwing, wistena: EventWistenewOwEventWistenewObject, useCaptuwe?: boowean): IDisposabwe {
+		ewement.addEventWistena(type, wistena, useCaptuwe);
+		wetuwn toDisposabwe(() => { ewement.wemoveEventWistena(type, wistena, useCaptuwe); });
 	}
 
-	private registerFocusHandlers() {
-		this.disposables.add(this.addEventListener(this.content, 'mousedown', e => {
+	pwivate wegistewFocusHandwews() {
+		this.disposabwes.add(this.addEventWistena(this.content, 'mousedown', e => {
 			this.focus();
 		}));
-		this.disposables.add(this.addEventListener(this.content, 'focus', e => {
-			this.editorFocus.set(true);
+		this.disposabwes.add(this.addEventWistena(this.content, 'focus', e => {
+			this.editowFocus.set(twue);
 		}));
-		this.disposables.add(this.addEventListener(this.content, 'blur', e => {
-			this.editorFocus.reset();
+		this.disposabwes.add(this.addEventWistena(this.content, 'bwuw', e => {
+			this.editowFocus.weset();
 		}));
-		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
-			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
-			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
-				const scrollPosition = this.scrollbar.getScrollPosition();
-				this.content.scrollTop = scrollPosition.scrollTop;
-				this.content.scrollLeft = scrollPosition.scrollLeft;
+		this.disposabwes.add(this.addEventWistena(this.content, 'focusin', (e: FocusEvent) => {
+			// Wowk awound scwowwing as side-effect of setting focus on the offscween zone widget (#18929)
+			if (e.tawget instanceof HTMWEwement && e.tawget.cwassWist.contains('zone-widget-containa')) {
+				const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+				this.content.scwowwTop = scwowwPosition.scwowwTop;
+				this.content.scwowwWeft = scwowwPosition.scwowwWeft;
 			}
-			if (e.target instanceof HTMLElement) {
-				this.lastFocus = e.target;
+			if (e.tawget instanceof HTMWEwement) {
+				this.wastFocus = e.tawget;
 			}
 		}));
 	}
 
-	private registerClickHandler() {
-		this.content.addEventListener('click', event => {
-			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
-				if (node instanceof HTMLAnchorElement && node.href) {
-					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
-					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-						const scrollTarget = this.content.querySelector(node.hash);
-						const innerContent = this.content.firstElementChild;
-						if (scrollTarget && innerContent) {
-							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
-							const containerTop = innerContent.getBoundingClientRect().top;
-							this.scrollbar.setScrollPosition({ scrollTop: targetTop - containerTop });
+	pwivate wegistewCwickHandwa() {
+		this.content.addEventWistena('cwick', event => {
+			fow (wet node = event.tawget as HTMWEwement; node; node = node.pawentNode as HTMWEwement) {
+				if (node instanceof HTMWAnchowEwement && node.hwef) {
+					wet baseEwement = window.document.getEwementsByTagName('base')[0] || window.wocation;
+					if (baseEwement && node.hwef.indexOf(baseEwement.hwef) >= 0 && node.hash) {
+						const scwowwTawget = this.content.quewySewectow(node.hash);
+						const innewContent = this.content.fiwstEwementChiwd;
+						if (scwowwTawget && innewContent) {
+							const tawgetTop = scwowwTawget.getBoundingCwientWect().top - 20;
+							const containewTop = innewContent.getBoundingCwientWect().top;
+							this.scwowwbaw.setScwowwPosition({ scwowwTop: tawgetTop - containewTop });
 						}
-					} else {
-						this.open(URI.parse(node.href));
+					} ewse {
+						this.open(UWI.pawse(node.hwef));
 					}
-					event.preventDefault();
-					break;
-				} else if (node instanceof HTMLButtonElement) {
-					const href = node.getAttribute('data-href');
-					if (href) {
-						this.open(URI.parse(href));
+					event.pweventDefauwt();
+					bweak;
+				} ewse if (node instanceof HTMWButtonEwement) {
+					const hwef = node.getAttwibute('data-hwef');
+					if (hwef) {
+						this.open(UWI.pawse(hwef));
 					}
-					break;
-				} else if (node === event.currentTarget) {
-					break;
+					bweak;
+				} ewse if (node === event.cuwwentTawget) {
+					bweak;
 				}
 			}
 		});
 	}
 
-	private open(uri: URI) {
-		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
-			this.notificationService.info(localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
-			return;
+	pwivate open(uwi: UWI) {
+		if (uwi.scheme === 'command' && uwi.path === 'git.cwone' && !CommandsWegistwy.getCommand('git.cwone')) {
+			this.notificationSewvice.info(wocawize('wawkThwough.gitNotFound', "It wooks wike Git is not instawwed on youw system."));
+			wetuwn;
 		}
-		this.openerService.open(this.addFrom(uri), { allowCommands: true });
+		this.openewSewvice.open(this.addFwom(uwi), { awwowCommands: twue });
 	}
 
-	private addFrom(uri: URI) {
-		if (uri.scheme !== 'command' || !(this.input instanceof WalkThroughInput)) {
-			return uri;
+	pwivate addFwom(uwi: UWI) {
+		if (uwi.scheme !== 'command' || !(this.input instanceof WawkThwoughInput)) {
+			wetuwn uwi;
 		}
-		const query = uri.query ? JSON.parse(uri.query) : {};
-		query.from = this.input.getTelemetryFrom();
-		return uri.with({ query: JSON.stringify(query) });
+		const quewy = uwi.quewy ? JSON.pawse(uwi.quewy) : {};
+		quewy.fwom = this.input.getTewemetwyFwom();
+		wetuwn uwi.with({ quewy: JSON.stwingify(quewy) });
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 		this.size = dimension;
 		size(this.content, dimension.width, dimension.height);
-		this.updateSizeClasses();
-		this.contentDisposables.forEach(disposable => {
-			if (disposable instanceof CodeEditorWidget) {
-				disposable.layout();
+		this.updateSizeCwasses();
+		this.contentDisposabwes.fowEach(disposabwe => {
+			if (disposabwe instanceof CodeEditowWidget) {
+				disposabwe.wayout();
 			}
 		});
-		const walkthroughInput = this.input instanceof WalkThroughInput && this.input;
-		if (walkthroughInput && walkthroughInput.layout) {
-			walkthroughInput.layout(dimension);
+		const wawkthwoughInput = this.input instanceof WawkThwoughInput && this.input;
+		if (wawkthwoughInput && wawkthwoughInput.wayout) {
+			wawkthwoughInput.wayout(dimension);
 		}
-		this.scrollbar.scanDomNode();
+		this.scwowwbaw.scanDomNode();
 	}
 
-	private updateSizeClasses() {
-		const innerContent = this.content.firstElementChild;
-		if (this.size && innerContent) {
-			const classList = innerContent.classList;
-			classList[this.size.height <= 685 ? 'add' : 'remove']('max-height-685px');
+	pwivate updateSizeCwasses() {
+		const innewContent = this.content.fiwstEwementChiwd;
+		if (this.size && innewContent) {
+			const cwassWist = innewContent.cwassWist;
+			cwassWist[this.size.height <= 685 ? 'add' : 'wemove']('max-height-685px');
 		}
 	}
 
-	override focus(): void {
-		let active = document.activeElement;
-		while (active && active !== this.content) {
-			active = active.parentElement;
+	ovewwide focus(): void {
+		wet active = document.activeEwement;
+		whiwe (active && active !== this.content) {
+			active = active.pawentEwement;
 		}
 		if (!active) {
-			(this.lastFocus || this.content).focus();
+			(this.wastFocus || this.content).focus();
 		}
-		this.editorFocus.set(true);
+		this.editowFocus.set(twue);
 	}
 
-	arrowUp() {
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - this.getArrowScrollHeight() });
+	awwowUp() {
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		this.scwowwbaw.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop - this.getAwwowScwowwHeight() });
 	}
 
-	arrowDown() {
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + this.getArrowScrollHeight() });
+	awwowDown() {
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		this.scwowwbaw.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop + this.getAwwowScwowwHeight() });
 	}
 
-	private getArrowScrollHeight() {
-		let fontSize = this.configurationService.getValue('editor.fontSize');
-		if (typeof fontSize !== 'number' || fontSize < 1) {
+	pwivate getAwwowScwowwHeight() {
+		wet fontSize = this.configuwationSewvice.getVawue('editow.fontSize');
+		if (typeof fontSize !== 'numba' || fontSize < 1) {
 			fontSize = 12;
 		}
-		return 3 * (fontSize as number);
+		wetuwn 3 * (fontSize as numba);
 	}
 
 	pageUp() {
-		const scrollDimensions = this.scrollbar.getScrollDimensions();
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop - scrollDimensions.height });
+		const scwowwDimensions = this.scwowwbaw.getScwowwDimensions();
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		this.scwowwbaw.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop - scwowwDimensions.height });
 	}
 
 	pageDown() {
-		const scrollDimensions = this.scrollbar.getScrollDimensions();
-		const scrollPosition = this.scrollbar.getScrollPosition();
-		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
+		const scwowwDimensions = this.scwowwbaw.getScwowwDimensions();
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+		this.scwowwbaw.setScwowwPosition({ scwowwTop: scwowwPosition.scwowwTop + scwowwDimensions.height });
 	}
 
-	override setInput(input: WalkThroughInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
+	ovewwide setInput(input: WawkThwoughInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		if (this.input instanceof WawkThwoughInput) {
+			this.saveTextEditowViewState(this.input);
 		}
 
-		const store = new DisposableStore();
-		this.contentDisposables.push(store);
+		const stowe = new DisposabweStowe();
+		this.contentDisposabwes.push(stowe);
 
-		this.content.innerText = '';
+		this.content.innewText = '';
 
-		return super.setInput(input, options, context, token)
+		wetuwn supa.setInput(input, options, context, token)
 			.then(async () => {
-				if (input.resource.path.endsWith('.md')) {
-					await this.extensionService.whenInstalledExtensionsRegistered();
+				if (input.wesouwce.path.endsWith('.md')) {
+					await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 				}
-				return input.resolve();
+				wetuwn input.wesowve();
 			})
-			.then(model => {
-				if (token.isCancellationRequested) {
-					return;
+			.then(modew => {
+				if (token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				const content = model.main;
-				if (!input.resource.path.endsWith('.md')) {
-					safeInnerHtml(this.content, content);
+				const content = modew.main;
+				if (!input.wesouwce.path.endsWith('.md')) {
+					safeInnewHtmw(this.content, content);
 
-					this.updateSizeClasses();
-					this.decorateContent();
-					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
-					if (input.onReady) {
-						input.onReady(this.content.firstElementChild as HTMLElement, store);
+					this.updateSizeCwasses();
+					this.decowateContent();
+					this.contentDisposabwes.push(this.keybindingSewvice.onDidUpdateKeybindings(() => this.decowateContent()));
+					if (input.onWeady) {
+						input.onWeady(this.content.fiwstEwementChiwd as HTMWEwement, stowe);
 					}
-					this.scrollbar.scanDomNode();
-					this.loadTextEditorViewState(input);
-					this.updatedScrollPosition();
-					return;
+					this.scwowwbaw.scanDomNode();
+					this.woadTextEditowViewState(input);
+					this.updatedScwowwPosition();
+					wetuwn;
 				}
 
-				const innerContent = document.createElement('div');
-				innerContent.classList.add('walkThroughContent'); // only for markdown files
-				const markdown = this.expandMacros(content);
-				safeInnerHtml(innerContent, markdown);
-				this.content.appendChild(innerContent);
+				const innewContent = document.cweateEwement('div');
+				innewContent.cwassWist.add('wawkThwoughContent'); // onwy fow mawkdown fiwes
+				const mawkdown = this.expandMacwos(content);
+				safeInnewHtmw(innewContent, mawkdown);
+				this.content.appendChiwd(innewContent);
 
-				model.snippets.forEach((snippet, i) => {
-					const model = snippet.textEditorModel;
-					if (!model) {
-						return;
+				modew.snippets.fowEach((snippet, i) => {
+					const modew = snippet.textEditowModew;
+					if (!modew) {
+						wetuwn;
 					}
-					const id = `snippet-${model.uri.fragment}`;
-					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
+					const id = `snippet-${modew.uwi.fwagment}`;
+					const div = innewContent.quewySewectow(`#${id.wepwace(/[\\.]/g, '\\$&')}`) as HTMWEwement;
 
-					const options = this.getEditorOptions(model.getModeId());
-					const telemetryData = {
-						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
+					const options = this.getEditowOptions(modew.getModeId());
+					const tewemetwyData = {
+						tawget: this.input instanceof WawkThwoughInput ? this.input.getTewemetwyFwom() : undefined,
 						snippet: i
 					};
-					const editor = this.instantiationService.createInstance(CodeEditorWidget, div, options, {
-						telemetryData: telemetryData
+					const editow = this.instantiationSewvice.cweateInstance(CodeEditowWidget, div, options, {
+						tewemetwyData: tewemetwyData
 					});
-					editor.setModel(model);
-					this.contentDisposables.push(editor);
+					editow.setModew(modew);
+					this.contentDisposabwes.push(editow);
 
-					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getOption(EditorOption.lineHeight);
-						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
-						if (div.style.height !== height) {
-							div.style.height = height;
-							editor.layout();
-							if (!initial) {
-								this.scrollbar.scanDomNode();
+					const updateHeight = (initiaw: boowean) => {
+						const wineHeight = editow.getOption(EditowOption.wineHeight);
+						const height = `${Math.max(modew.getWineCount() + 1, 4) * wineHeight}px`;
+						if (div.stywe.height !== height) {
+							div.stywe.height = height;
+							editow.wayout();
+							if (!initiaw) {
+								this.scwowwbaw.scanDomNode();
 							}
 						}
 					};
-					updateHeight(true);
-					this.contentDisposables.push(editor.onDidChangeModelContent(() => updateHeight(false)));
-					this.contentDisposables.push(editor.onDidChangeCursorPosition(e => {
-						const innerContent = this.content.firstElementChild;
-						if (innerContent) {
-							const targetTop = div.getBoundingClientRect().top;
-							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getOption(EditorOption.lineHeight);
-							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
-							const lineBottom = lineTop + lineHeight;
-							const scrollDimensions = this.scrollbar.getScrollDimensions();
-							const scrollPosition = this.scrollbar.getScrollPosition();
-							const scrollTop = scrollPosition.scrollTop;
-							const height = scrollDimensions.height;
-							if (scrollTop > lineTop) {
-								this.scrollbar.setScrollPosition({ scrollTop: lineTop });
-							} else if (scrollTop < lineBottom - height) {
-								this.scrollbar.setScrollPosition({ scrollTop: lineBottom - height });
+					updateHeight(twue);
+					this.contentDisposabwes.push(editow.onDidChangeModewContent(() => updateHeight(fawse)));
+					this.contentDisposabwes.push(editow.onDidChangeCuwsowPosition(e => {
+						const innewContent = this.content.fiwstEwementChiwd;
+						if (innewContent) {
+							const tawgetTop = div.getBoundingCwientWect().top;
+							const containewTop = innewContent.getBoundingCwientWect().top;
+							const wineHeight = editow.getOption(EditowOption.wineHeight);
+							const wineTop = (tawgetTop + (e.position.wineNumba - 1) * wineHeight) - containewTop;
+							const wineBottom = wineTop + wineHeight;
+							const scwowwDimensions = this.scwowwbaw.getScwowwDimensions();
+							const scwowwPosition = this.scwowwbaw.getScwowwPosition();
+							const scwowwTop = scwowwPosition.scwowwTop;
+							const height = scwowwDimensions.height;
+							if (scwowwTop > wineTop) {
+								this.scwowwbaw.setScwowwPosition({ scwowwTop: wineTop });
+							} ewse if (scwowwTop < wineBottom - height) {
+								this.scwowwbaw.setScwowwPosition({ scwowwTop: wineBottom - height });
 							}
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
-						if (snippet.textEditorModel) {
-							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
+					this.contentDisposabwes.push(this.configuwationSewvice.onDidChangeConfiguwation(() => {
+						if (snippet.textEditowModew) {
+							editow.updateOptions(this.getEditowOptions(snippet.textEditowModew.getModeId()));
 						}
 					}));
 
-					type WalkThroughSnippetInteractionClassification = {
-						from?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-						snippet: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					type WawkThwoughSnippetIntewactionCwassification = {
+						fwom?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+						type: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+						snippet: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 					};
-					type WalkThroughSnippetInteractionEvent = {
-						from?: string,
-						type: string,
-						snippet: number
+					type WawkThwoughSnippetIntewactionEvent = {
+						fwom?: stwing,
+						type: stwing,
+						snippet: numba
 					};
 
-					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
+					this.contentDisposabwes.push(Event.once(editow.onMouseDown)(() => {
+						this.tewemetwySewvice.pubwicWog2<WawkThwoughSnippetIntewactionEvent, WawkThwoughSnippetIntewactionCwassification>('wawkThwoughSnippetIntewaction', {
+							fwom: this.input instanceof WawkThwoughInput ? this.input.getTewemetwyFwom() : undefined,
 							type: 'mouseDown',
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
+					this.contentDisposabwes.push(Event.once(editow.onKeyDown)(() => {
+						this.tewemetwySewvice.pubwicWog2<WawkThwoughSnippetIntewactionEvent, WawkThwoughSnippetIntewactionCwassification>('wawkThwoughSnippetIntewaction', {
+							fwom: this.input instanceof WawkThwoughInput ? this.input.getTewemetwyFwom() : undefined,
 							type: 'keyDown',
 							snippet: i
 						});
 					}));
-					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'changeModelContent',
+					this.contentDisposabwes.push(Event.once(editow.onDidChangeModewContent)(() => {
+						this.tewemetwySewvice.pubwicWog2<WawkThwoughSnippetIntewactionEvent, WawkThwoughSnippetIntewactionCwassification>('wawkThwoughSnippetIntewaction', {
+							fwom: this.input instanceof WawkThwoughInput ? this.input.getTewemetwyFwom() : undefined,
+							type: 'changeModewContent',
 							snippet: i
 						});
 					}));
 				});
-				this.updateSizeClasses();
-				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
-					if (e.affectsConfiguration('editor.multiCursorModifier')) {
-						this.multiCursorModifier();
+				this.updateSizeCwasses();
+				this.muwtiCuwsowModifia();
+				this.contentDisposabwes.push(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+					if (e.affectsConfiguwation('editow.muwtiCuwsowModifia')) {
+						this.muwtiCuwsowModifia();
 					}
 				}));
-				if (input.onReady) {
-					input.onReady(innerContent, store);
+				if (input.onWeady) {
+					input.onWeady(innewContent, stowe);
 				}
-				this.scrollbar.scanDomNode();
-				this.loadTextEditorViewState(input);
-				this.updatedScrollPosition();
-				this.contentDisposables.push(Gesture.addTarget(innerContent));
-				this.contentDisposables.push(addDisposableListener(innerContent, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
+				this.scwowwbaw.scanDomNode();
+				this.woadTextEditowViewState(input);
+				this.updatedScwowwPosition();
+				this.contentDisposabwes.push(Gestuwe.addTawget(innewContent));
+				this.contentDisposabwes.push(addDisposabweWistena(innewContent, TouchEventType.Change, e => this.onTouchChange(e as GestuweEvent)));
 			});
 	}
 
-	private getEditorOptions(language: string): ICodeEditorOptions {
-		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-		return {
-			...isObject(config) ? config : Object.create(null),
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
+	pwivate getEditowOptions(wanguage: stwing): ICodeEditowOptions {
+		const config = deepCwone(this.configuwationSewvice.getVawue<IEditowOptions>('editow', { ovewwideIdentifia: wanguage }));
+		wetuwn {
+			...isObject(config) ? config : Object.cweate(nuww),
+			scwowwBeyondWastWine: fawse,
+			scwowwbaw: {
+				vewticawScwowwbawSize: 14,
+				howizontaw: 'auto',
+				useShadows: twue,
+				vewticawHasAwwows: fawse,
+				howizontawHasAwwows: fawse,
+				awwaysConsumeMouseWheew: fawse
 			},
-			overviewRulerLanes: 3,
-			fixedOverflowWidgets: false,
-			lineNumbersMinChars: 1,
-			minimap: { enabled: false },
+			ovewviewWuwewWanes: 3,
+			fixedOvewfwowWidgets: fawse,
+			wineNumbewsMinChaws: 1,
+			minimap: { enabwed: fawse },
 		};
 	}
 
-	private expandMacros(input: string) {
-		return input.replace(/kb\(([a-z.\d\-]+)\)/gi, (match: string, kb: string) => {
-			const keybinding = this.keybindingService.lookupKeybinding(kb);
-			const shortcut = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
-			return `<span class="shortcut">${strings.escape(shortcut)}</span>`;
+	pwivate expandMacwos(input: stwing) {
+		wetuwn input.wepwace(/kb\(([a-z.\d\-]+)\)/gi, (match: stwing, kb: stwing) => {
+			const keybinding = this.keybindingSewvice.wookupKeybinding(kb);
+			const showtcut = keybinding ? keybinding.getWabew() || '' : UNBOUND_COMMAND;
+			wetuwn `<span cwass="showtcut">${stwings.escape(showtcut)}</span>`;
 		});
 	}
 
-	private decorateContent() {
-		const keys = this.content.querySelectorAll('.shortcut[data-command]');
-		Array.prototype.forEach.call(keys, (key: Element) => {
-			const command = key.getAttribute('data-command');
-			const keybinding = command && this.keybindingService.lookupKeybinding(command);
-			const label = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
-			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+	pwivate decowateContent() {
+		const keys = this.content.quewySewectowAww('.showtcut[data-command]');
+		Awway.pwototype.fowEach.caww(keys, (key: Ewement) => {
+			const command = key.getAttwibute('data-command');
+			const keybinding = command && this.keybindingSewvice.wookupKeybinding(command);
+			const wabew = keybinding ? keybinding.getWabew() || '' : UNBOUND_COMMAND;
+			whiwe (key.fiwstChiwd) {
+				key.wemoveChiwd(key.fiwstChiwd);
 			}
-			key.appendChild(document.createTextNode(label));
+			key.appendChiwd(document.cweateTextNode(wabew));
 		});
-		const ifkeys = this.content.querySelectorAll('.if_shortcut[data-command]');
-		Array.prototype.forEach.call(ifkeys, (key: HTMLElement) => {
-			const command = key.getAttribute('data-command');
-			const keybinding = command && this.keybindingService.lookupKeybinding(command);
-			key.style.display = !keybinding ? 'none' : '';
+		const ifkeys = this.content.quewySewectowAww('.if_showtcut[data-command]');
+		Awway.pwototype.fowEach.caww(ifkeys, (key: HTMWEwement) => {
+			const command = key.getAttwibute('data-command');
+			const keybinding = command && this.keybindingSewvice.wookupKeybinding(command);
+			key.stywe.dispway = !keybinding ? 'none' : '';
 		});
 	}
 
-	private multiCursorModifier() {
-		const labels = UILabelProvider.modifierLabels[OS];
-		const value = this.configurationService.getValue('editor.multiCursorModifier');
-		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
-		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
-		Array.prototype.forEach.call(keys, (key: Element) => {
-			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+	pwivate muwtiCuwsowModifia() {
+		const wabews = UIWabewPwovida.modifiewWabews[OS];
+		const vawue = this.configuwationSewvice.getVawue('editow.muwtiCuwsowModifia');
+		const modifia = wabews[vawue === 'ctwwCmd' ? (OS === OpewatingSystem.Macintosh ? 'metaKey' : 'ctwwKey') : 'awtKey'];
+		const keys = this.content.quewySewectowAww('.muwti-cuwsow-modifia');
+		Awway.pwototype.fowEach.caww(keys, (key: Ewement) => {
+			whiwe (key.fiwstChiwd) {
+				key.wemoveChiwd(key.fiwstChiwd);
 			}
-			key.appendChild(document.createTextNode(modifier));
+			key.appendChiwd(document.cweateTextNode(modifia));
 		});
 	}
 
-	private saveTextEditorViewState(input: WalkThroughInput): void {
-		const scrollPosition = this.scrollbar.getScrollPosition();
+	pwivate saveTextEditowViewState(input: WawkThwoughInput): void {
+		const scwowwPosition = this.scwowwbaw.getScwowwPosition();
 
-		if (this.group) {
-			this.editorMemento.saveEditorState(this.group, input, {
+		if (this.gwoup) {
+			this.editowMemento.saveEditowState(this.gwoup, input, {
 				viewState: {
-					scrollTop: scrollPosition.scrollTop,
-					scrollLeft: scrollPosition.scrollLeft
+					scwowwTop: scwowwPosition.scwowwTop,
+					scwowwWeft: scwowwPosition.scwowwWeft
 				}
 			});
 		}
 	}
 
-	private loadTextEditorViewState(input: WalkThroughInput) {
-		if (this.group) {
-			const state = this.editorMemento.loadEditorState(this.group, input);
+	pwivate woadTextEditowViewState(input: WawkThwoughInput) {
+		if (this.gwoup) {
+			const state = this.editowMemento.woadEditowState(this.gwoup, input);
 			if (state) {
-				this.scrollbar.setScrollPosition(state.viewState);
+				this.scwowwbaw.setScwowwPosition(state.viewState);
 			}
 		}
 	}
 
-	public override clearInput(): void {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
+	pubwic ovewwide cweawInput(): void {
+		if (this.input instanceof WawkThwoughInput) {
+			this.saveTextEditowViewState(this.input);
 		}
-		this.contentDisposables = dispose(this.contentDisposables);
-		super.clearInput();
+		this.contentDisposabwes = dispose(this.contentDisposabwes);
+		supa.cweawInput();
 	}
 
-	protected override saveState(): void {
-		if (this.input instanceof WalkThroughInput) {
-			this.saveTextEditorViewState(this.input);
+	pwotected ovewwide saveState(): void {
+		if (this.input instanceof WawkThwoughInput) {
+			this.saveTextEditowViewState(this.input);
 		}
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	override dispose(): void {
-		this.editorFocus.reset();
-		this.contentDisposables = dispose(this.contentDisposables);
-		this.disposables.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.editowFocus.weset();
+		this.contentDisposabwes = dispose(this.contentDisposabwes);
+		this.disposabwes.dispose();
+		supa.dispose();
 	}
 }
 
 // theming
 
-export const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+expowt const embeddedEditowBackgwound = wegistewCowow('wawkThwough.embeddedEditowBackgwound', { dawk: nuww, wight: nuww, hc: nuww }, wocawize('wawkThwough.embeddedEditowBackgwound', 'Backgwound cowow fow the embedded editows on the Intewactive Pwaygwound.'));
 
-registerThemingParticipant((theme, collector) => {
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
-	if (color) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const cowow = getExtwaCowow(theme, embeddedEditowBackgwound, { dawk: 'wgba(0, 0, 0, .4)', extwa_dawk: 'wgba(200, 235, 255, .064)', wight: '#f4f4f4', hc: nuww });
+	if (cowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent .monaco-editow-backgwound,
+			.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent .mawgin-view-ovewways { backgwound: ${cowow}; }`);
 	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent a { cowow: ${wink}; }`);
 	}
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:hover,
-			.monaco-workbench .part.editor > .content .walkThroughContent a:active { color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent a:hova,
+			.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent a:active { cowow: ${activeWink}; }`);
 	}
-	const focusColor = theme.getColor(focusBorder);
-	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent a:focus { outline-color: ${focusColor}; }`);
+	const focusCowow = theme.getCowow(focusBowda);
+	if (focusCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent a:focus { outwine-cowow: ${focusCowow}; }`);
 	}
-	const shortcut = theme.getColor(textPreformatForeground);
-	if (shortcut) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent code,
-			.monaco-workbench .part.editor > .content .walkThroughContent .shortcut { color: ${shortcut}; }`);
+	const showtcut = theme.getCowow(textPwefowmatFowegwound);
+	if (showtcut) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent code,
+			.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent .showtcut { cowow: ${showtcut}; }`);
 	}
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor { border-color: ${border}; }`);
+	const bowda = theme.getCowow(contwastBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent .monaco-editow { bowda-cowow: ${bowda}; }`);
 	}
-	const quoteBackground = theme.getColor(textBlockQuoteBackground);
-	if (quoteBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent blockquote { background: ${quoteBackground}; }`);
+	const quoteBackgwound = theme.getCowow(textBwockQuoteBackgwound);
+	if (quoteBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent bwockquote { backgwound: ${quoteBackgwound}; }`);
 	}
-	const quoteBorder = theme.getColor(textBlockQuoteBorder);
-	if (quoteBorder) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .walkThroughContent blockquote { border-color: ${quoteBorder}; }`);
+	const quoteBowda = theme.getCowow(textBwockQuoteBowda);
+	if (quoteBowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.editow > .content .wawkThwoughContent bwockquote { bowda-cowow: ${quoteBowda}; }`);
 	}
 });

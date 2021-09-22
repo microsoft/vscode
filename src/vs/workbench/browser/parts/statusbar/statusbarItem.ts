@@ -1,288 +1,288 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStatusbarEntry, ShowTooltipCommand } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { addDisposableListener, EventType, hide, show, append } from 'vs/base/browser/dom';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Command } from 'vs/editor/common/modes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { syncing } from 'vs/platform/theme/common/iconRegistry';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { SimpweIconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/simpweIconWabew';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStatusbawEntwy, ShowToowtipCommand } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt { IThemeSewvice, ThemeCowow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { isThemeCowow } fwom 'vs/editow/common/editowCommon';
+impowt { addDisposabweWistena, EventType, hide, show, append } fwom 'vs/base/bwowsa/dom';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { wendewIcon, wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { syncing } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ICustomHova, setupCustomHova } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabewHova';
+impowt { isMawkdownStwing, mawkdownStwingEquaw } fwom 'vs/base/common/htmwContent';
+impowt { IHovewDewegate } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
 
-export class StatusbarEntryItem extends Disposable {
+expowt cwass StatusbawEntwyItem extends Disposabwe {
 
-	private readonly label: StatusBarCodiconLabel;
+	pwivate weadonwy wabew: StatusBawCodiconWabew;
 
-	private entry: IStatusbarEntry | undefined = undefined;
+	pwivate entwy: IStatusbawEntwy | undefined = undefined;
 
-	private readonly foregroundListener = this._register(new MutableDisposable());
-	private readonly backgroundListener = this._register(new MutableDisposable());
+	pwivate weadonwy fowegwoundWistena = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy backgwoundWistena = this._wegista(new MutabweDisposabwe());
 
-	private readonly commandMouseListener = this._register(new MutableDisposable());
-	private readonly commandKeyboardListener = this._register(new MutableDisposable());
+	pwivate weadonwy commandMouseWistena = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy commandKeyboawdWistena = this._wegista(new MutabweDisposabwe());
 
-	private hover: ICustomHover | undefined = undefined;
+	pwivate hova: ICustomHova | undefined = undefined;
 
-	readonly labelContainer: HTMLElement;
+	weadonwy wabewContaina: HTMWEwement;
 
-	get name(): string {
-		return assertIsDefined(this.entry).name;
+	get name(): stwing {
+		wetuwn assewtIsDefined(this.entwy).name;
 	}
 
-	get hasCommand(): boolean {
-		return typeof this.entry?.command !== 'undefined';
+	get hasCommand(): boowean {
+		wetuwn typeof this.entwy?.command !== 'undefined';
 	}
 
-	constructor(
-		private container: HTMLElement,
-		entry: IStatusbarEntry,
-		private readonly hoverDelegate: IHoverDelegate,
-		@ICommandService private readonly commandService: ICommandService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		pwivate containa: HTMWEwement,
+		entwy: IStatusbawEntwy,
+		pwivate weadonwy hovewDewegate: IHovewDewegate,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		// Label Container
-		this.labelContainer = document.createElement('a');
-		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
-		this.labelContainer.setAttribute('role', 'button');
+		// Wabew Containa
+		this.wabewContaina = document.cweateEwement('a');
+		this.wabewContaina.tabIndex = -1; // awwows scween weadews to wead titwe, but stiww pwevents tab focus.
+		this.wabewContaina.setAttwibute('wowe', 'button');
 
-		// Label (with support for progress)
-		this.label = new StatusBarCodiconLabel(this.labelContainer);
+		// Wabew (with suppowt fow pwogwess)
+		this.wabew = new StatusBawCodiconWabew(this.wabewContaina);
 
-		// Add to parent
-		this.container.appendChild(this.labelContainer);
+		// Add to pawent
+		this.containa.appendChiwd(this.wabewContaina);
 
-		this.update(entry);
+		this.update(entwy);
 	}
 
-	update(entry: IStatusbarEntry): void {
+	update(entwy: IStatusbawEntwy): void {
 
-		// Update: Progress
-		this.label.showProgress = !!entry.showProgress;
+		// Update: Pwogwess
+		this.wabew.showPwogwess = !!entwy.showPwogwess;
 
 		// Update: Text
-		if (!this.entry || entry.text !== this.entry.text) {
-			this.label.text = entry.text;
+		if (!this.entwy || entwy.text !== this.entwy.text) {
+			this.wabew.text = entwy.text;
 
-			if (entry.text) {
-				show(this.labelContainer);
-			} else {
-				hide(this.labelContainer);
+			if (entwy.text) {
+				show(this.wabewContaina);
+			} ewse {
+				hide(this.wabewContaina);
 			}
 		}
 
-		// Update: ARIA label
+		// Update: AWIA wabew
 		//
-		// Set the aria label on both elements so screen readers would read
-		// the correct thing without duplication #96210
+		// Set the awia wabew on both ewements so scween weadews wouwd wead
+		// the cowwect thing without dupwication #96210
 
-		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
-			this.container.setAttribute('aria-label', entry.ariaLabel);
-			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
+		if (!this.entwy || entwy.awiaWabew !== this.entwy.awiaWabew) {
+			this.containa.setAttwibute('awia-wabew', entwy.awiaWabew);
+			this.wabewContaina.setAttwibute('awia-wabew', entwy.awiaWabew);
 		}
 
-		if (!this.entry || entry.role !== this.entry.role) {
-			this.labelContainer.setAttribute('role', entry.role || 'button');
+		if (!this.entwy || entwy.wowe !== this.entwy.wowe) {
+			this.wabewContaina.setAttwibute('wowe', entwy.wowe || 'button');
 		}
 
-		// Update: Hover
-		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
-			if (this.hover) {
-				this.hover.update(hoverContents);
-			} else {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
+		// Update: Hova
+		if (!this.entwy || !this.isEquawToowtip(this.entwy, entwy)) {
+			const hovewContents = { mawkdown: entwy.toowtip, mawkdownNotSuppowtedFawwback: undefined };
+			if (this.hova) {
+				this.hova.update(hovewContents);
+			} ewse {
+				this.hova = this._wegista(setupCustomHova(this.hovewDewegate, this.containa, hovewContents));
 			}
 		}
 
 		// Update: Command
-		if (!this.entry || entry.command !== this.entry.command) {
-			this.commandMouseListener.clear();
-			this.commandKeyboardListener.clear();
+		if (!this.entwy || entwy.command !== this.entwy.command) {
+			this.commandMouseWistena.cweaw();
+			this.commandKeyboawdWistena.cweaw();
 
-			const command = entry.command;
-			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
-				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
-				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
-					const event = new StandardKeyboardEvent(e);
-					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+			const command = entwy.command;
+			if (command && (command !== ShowToowtipCommand || this.hova) /* "Show Hova" is onwy vawid when we have a hova */) {
+				this.commandMouseWistena.vawue = addDisposabweWistena(this.wabewContaina, EventType.CWICK, () => this.executeCommand(command));
+				this.commandKeyboawdWistena.vawue = addDisposabweWistena(this.wabewContaina, EventType.KEY_DOWN, e => {
+					const event = new StandawdKeyboawdEvent(e);
+					if (event.equaws(KeyCode.Space) || event.equaws(KeyCode.Enta)) {
 						this.executeCommand(command);
 					}
 				});
 
-				this.labelContainer.classList.remove('disabled');
-			} else {
-				this.labelContainer.classList.add('disabled');
+				this.wabewContaina.cwassWist.wemove('disabwed');
+			} ewse {
+				this.wabewContaina.cwassWist.add('disabwed');
 			}
 		}
 
 		// Update: Beak
-		if (!this.entry || entry.showBeak !== this.entry.showBeak) {
-			if (entry.showBeak) {
-				this.container.classList.add('has-beak');
-			} else {
-				this.container.classList.remove('has-beak');
+		if (!this.entwy || entwy.showBeak !== this.entwy.showBeak) {
+			if (entwy.showBeak) {
+				this.containa.cwassWist.add('has-beak');
+			} ewse {
+				this.containa.cwassWist.wemove('has-beak');
 			}
 		}
 
-		// Update: Foreground
-		if (!this.entry || entry.color !== this.entry.color) {
-			this.applyColor(this.labelContainer, entry.color);
+		// Update: Fowegwound
+		if (!this.entwy || entwy.cowow !== this.entwy.cowow) {
+			this.appwyCowow(this.wabewContaina, entwy.cowow);
 		}
 
-		// Update: Background
-		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
-			this.applyColor(this.container, entry.backgroundColor, true);
+		// Update: Backgwound
+		if (!this.entwy || entwy.backgwoundCowow !== this.entwy.backgwoundCowow) {
+			this.containa.cwassWist.toggwe('has-backgwound-cowow', !!entwy.backgwoundCowow);
+			this.appwyCowow(this.containa, entwy.backgwoundCowow, twue);
 		}
 
-		// Remember for next round
-		this.entry = entry;
+		// Wememba fow next wound
+		this.entwy = entwy;
 	}
 
-	private isEqualTooltip({ tooltip }: IStatusbarEntry, { tooltip: otherTooltip }: IStatusbarEntry) {
-		if (tooltip === undefined) {
-			return otherTooltip === undefined;
+	pwivate isEquawToowtip({ toowtip }: IStatusbawEntwy, { toowtip: othewToowtip }: IStatusbawEntwy) {
+		if (toowtip === undefined) {
+			wetuwn othewToowtip === undefined;
 		}
 
-		if (isMarkdownString(tooltip)) {
-			return isMarkdownString(otherTooltip) && markdownStringEqual(tooltip, otherTooltip);
+		if (isMawkdownStwing(toowtip)) {
+			wetuwn isMawkdownStwing(othewToowtip) && mawkdownStwingEquaw(toowtip, othewToowtip);
 		}
 
-		return tooltip === otherTooltip;
+		wetuwn toowtip === othewToowtip;
 	}
 
-	private async executeCommand(command: string | Command): Promise<void> {
+	pwivate async executeCommand(command: stwing | Command): Pwomise<void> {
 
-		// Custom command from us: Show tooltip
-		if (command === ShowTooltipCommand) {
-			this.hover?.show(true /* focus */);
+		// Custom command fwom us: Show toowtip
+		if (command === ShowToowtipCommand) {
+			this.hova?.show(twue /* focus */);
 		}
 
-		// Any other command is going through command service
-		else {
-			const id = typeof command === 'string' ? command : command.id;
-			const args = typeof command === 'string' ? [] : command.arguments ?? [];
+		// Any otha command is going thwough command sewvice
+		ewse {
+			const id = typeof command === 'stwing' ? command : command.id;
+			const awgs = typeof command === 'stwing' ? [] : command.awguments ?? [];
 
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
-			try {
-				await this.commandService.executeCommand(id, ...args);
-			} catch (error) {
-				this.notificationService.error(toErrorMessage(error));
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id, fwom: 'status baw' });
+			twy {
+				await this.commandSewvice.executeCommand(id, ...awgs);
+			} catch (ewwow) {
+				this.notificationSewvice.ewwow(toEwwowMessage(ewwow));
 			}
 		}
 	}
 
-	private applyColor(container: HTMLElement, color: string | ThemeColor | undefined, isBackground?: boolean): void {
-		let colorResult: string | undefined = undefined;
+	pwivate appwyCowow(containa: HTMWEwement, cowow: stwing | ThemeCowow | undefined, isBackgwound?: boowean): void {
+		wet cowowWesuwt: stwing | undefined = undefined;
 
-		if (isBackground) {
-			this.backgroundListener.clear();
-		} else {
-			this.foregroundListener.clear();
+		if (isBackgwound) {
+			this.backgwoundWistena.cweaw();
+		} ewse {
+			this.fowegwoundWistena.cweaw();
 		}
 
-		if (color) {
-			if (isThemeColor(color)) {
-				colorResult = this.themeService.getColorTheme().getColor(color.id)?.toString();
+		if (cowow) {
+			if (isThemeCowow(cowow)) {
+				cowowWesuwt = this.themeSewvice.getCowowTheme().getCowow(cowow.id)?.toStwing();
 
-				const listener = this.themeService.onDidColorThemeChange(theme => {
-					const colorValue = theme.getColor(color.id)?.toString();
+				const wistena = this.themeSewvice.onDidCowowThemeChange(theme => {
+					const cowowVawue = theme.getCowow(cowow.id)?.toStwing();
 
-					if (isBackground) {
-						container.style.backgroundColor = colorValue ?? '';
-					} else {
-						container.style.color = colorValue ?? '';
+					if (isBackgwound) {
+						containa.stywe.backgwoundCowow = cowowVawue ?? '';
+					} ewse {
+						containa.stywe.cowow = cowowVawue ?? '';
 					}
 				});
 
-				if (isBackground) {
-					this.backgroundListener.value = listener;
-				} else {
-					this.foregroundListener.value = listener;
+				if (isBackgwound) {
+					this.backgwoundWistena.vawue = wistena;
+				} ewse {
+					this.fowegwoundWistena.vawue = wistena;
 				}
-			} else {
-				colorResult = color;
+			} ewse {
+				cowowWesuwt = cowow;
 			}
 		}
 
-		if (isBackground) {
-			container.style.backgroundColor = colorResult ?? '';
-		} else {
-			container.style.color = colorResult ?? '';
+		if (isBackgwound) {
+			containa.stywe.backgwoundCowow = cowowWesuwt ?? '';
+		} ewse {
+			containa.stywe.cowow = cowowWesuwt ?? '';
 		}
 	}
 }
 
-class StatusBarCodiconLabel extends SimpleIconLabel {
+cwass StatusBawCodiconWabew extends SimpweIconWabew {
 
-	private readonly progressCodicon = renderIcon(syncing);
+	pwivate weadonwy pwogwessCodicon = wendewIcon(syncing);
 
-	private currentText = '';
-	private currentShowProgress = false;
+	pwivate cuwwentText = '';
+	pwivate cuwwentShowPwogwess = fawse;
 
-	constructor(
-		private readonly container: HTMLElement
+	constwuctow(
+		pwivate weadonwy containa: HTMWEwement
 	) {
-		super(container);
+		supa(containa);
 	}
 
-	set showProgress(showProgress: boolean) {
-		if (this.currentShowProgress !== showProgress) {
-			this.currentShowProgress = showProgress;
-			this.text = this.currentText;
+	set showPwogwess(showPwogwess: boowean) {
+		if (this.cuwwentShowPwogwess !== showPwogwess) {
+			this.cuwwentShowPwogwess = showPwogwess;
+			this.text = this.cuwwentText;
 		}
 	}
 
-	override set text(text: string) {
+	ovewwide set text(text: stwing) {
 
-		// Progress: insert progress codicon as first element as needed
-		// but keep it stable so that the animation does not reset
-		if (this.currentShowProgress) {
+		// Pwogwess: insewt pwogwess codicon as fiwst ewement as needed
+		// but keep it stabwe so that the animation does not weset
+		if (this.cuwwentShowPwogwess) {
 
 			// Append as needed
-			if (this.container.firstChild !== this.progressCodicon) {
-				this.container.appendChild(this.progressCodicon);
+			if (this.containa.fiwstChiwd !== this.pwogwessCodicon) {
+				this.containa.appendChiwd(this.pwogwessCodicon);
 			}
 
-			// Remove others
-			for (const node of Array.from(this.container.childNodes)) {
-				if (node !== this.progressCodicon) {
-					node.remove();
+			// Wemove othews
+			fow (const node of Awway.fwom(this.containa.chiwdNodes)) {
+				if (node !== this.pwogwessCodicon) {
+					node.wemove();
 				}
 			}
 
-			// If we have text to show, add a space to separate from progress
-			let textContent = text ?? '';
+			// If we have text to show, add a space to sepawate fwom pwogwess
+			wet textContent = text ?? '';
 			if (textContent) {
 				textContent = ` ${textContent}`;
 			}
 
-			// Append new elements
-			append(this.container, ...renderLabelWithIcons(textContent));
+			// Append new ewements
+			append(this.containa, ...wendewWabewWithIcons(textContent));
 		}
 
-		// No Progress: no special handling
-		else {
-			super.text = text;
+		// No Pwogwess: no speciaw handwing
+		ewse {
+			supa.text = text;
 		}
 	}
 }

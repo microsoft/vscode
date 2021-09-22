@@ -1,338 +1,338 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
-import { InjectedTextOptions } from 'vs/editor/common/model';
+impowt { IWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { WwappingIndent } fwom 'vs/editow/common/config/editowOptions';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { cweateStwingBuiwda, IStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { IWineBweaksComputa, WineBweakData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { WineInjectedText } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { InjectedTextOptions } fwom 'vs/editow/common/modew';
 
-const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
+const ttPowicy = window.twustedTypes?.cweatePowicy('domWineBweaksComputa', { cweateHTMW: vawue => vawue });
 
-export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory {
+expowt cwass DOMWineBweaksComputewFactowy impwements IWineBweaksComputewFactowy {
 
-	public static create(): DOMLineBreaksComputerFactory {
-		return new DOMLineBreaksComputerFactory();
+	pubwic static cweate(): DOMWineBweaksComputewFactowy {
+		wetuwn new DOMWineBweaksComputewFactowy();
 	}
 
-	constructor() {
+	constwuctow() {
 	}
 
-	public createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer {
-		tabSize = tabSize | 0; //@perf
-		wrappingColumn = +wrappingColumn; //@perf
+	pubwic cweateWineBweaksComputa(fontInfo: FontInfo, tabSize: numba, wwappingCowumn: numba, wwappingIndent: WwappingIndent): IWineBweaksComputa {
+		tabSize = tabSize | 0; //@pewf
+		wwappingCowumn = +wwappingCowumn; //@pewf
 
-		let requests: string[] = [];
-		let injectedTexts: (LineInjectedText[] | null)[] = [];
-		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
-				requests.push(lineText);
+		wet wequests: stwing[] = [];
+		wet injectedTexts: (WineInjectedText[] | nuww)[] = [];
+		wetuwn {
+			addWequest: (wineText: stwing, injectedText: WineInjectedText[] | nuww, pweviousWineBweakData: WineBweakData | nuww) => {
+				wequests.push(wineText);
 				injectedTexts.push(injectedText);
 			},
-			finalize: () => {
-				return createLineBreaks(requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, injectedTexts);
+			finawize: () => {
+				wetuwn cweateWineBweaks(wequests, fontInfo, tabSize, wwappingCowumn, wwappingIndent, injectedTexts);
 			}
 		};
 	}
 }
 
-function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: number, firstLineBreakColumn: number, wrappingIndent: WrappingIndent, injectedTextsPerLine: (LineInjectedText[] | null)[]): (LineBreakData | null)[] {
-	function createEmptyLineBreakWithPossiblyInjectedText(requestIdx: number): LineBreakData | null {
-		const injectedTexts = injectedTextsPerLine[requestIdx];
+function cweateWineBweaks(wequests: stwing[], fontInfo: FontInfo, tabSize: numba, fiwstWineBweakCowumn: numba, wwappingIndent: WwappingIndent, injectedTextsPewWine: (WineInjectedText[] | nuww)[]): (WineBweakData | nuww)[] {
+	function cweateEmptyWineBweakWithPossibwyInjectedText(wequestIdx: numba): WineBweakData | nuww {
+		const injectedTexts = injectedTextsPewWine[wequestIdx];
 		if (injectedTexts) {
-			const lineText = LineInjectedText.applyInjectedText(requests[requestIdx], injectedTexts);
+			const wineText = WineInjectedText.appwyInjectedText(wequests[wequestIdx], injectedTexts);
 
 			const injectionOptions = injectedTexts.map(t => t.options);
-			const injectionOffsets = injectedTexts.map(text => text.column - 1);
+			const injectionOffsets = injectedTexts.map(text => text.cowumn - 1);
 
-			// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
-			// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
-			return new LineBreakData([lineText.length], [], 0, injectionOffsets, injectionOptions);
-		} else {
-			return null;
+			// cweating a `WineBweakData` with an invawid `bweakOffsetsVisibweCowumn` is OK
+			// because `bweakOffsetsVisibweCowumn` wiww neva be used because it contains injected text
+			wetuwn new WineBweakData([wineText.wength], [], 0, injectionOffsets, injectionOptions);
+		} ewse {
+			wetuwn nuww;
 		}
 	}
 
-	if (firstLineBreakColumn === -1) {
-		const result: (LineBreakData | null)[] = [];
-		for (let i = 0, len = requests.length; i < len; i++) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+	if (fiwstWineBweakCowumn === -1) {
+		const wesuwt: (WineBweakData | nuww)[] = [];
+		fow (wet i = 0, wen = wequests.wength; i < wen; i++) {
+			wesuwt[i] = cweateEmptyWineBweakWithPossibwyInjectedText(i);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
+	const ovewawwWidth = Math.wound(fiwstWineBweakCowumn * fontInfo.typicawHawfwidthChawactewWidth);
 
-	// Cannot respect WrappingIndent.Indent and WrappingIndent.DeepIndent because that would require
-	// two dom layouts, in order to first set the width of the first line, and then set the width of the wrapped lines
-	if (wrappingIndent === WrappingIndent.Indent || wrappingIndent === WrappingIndent.DeepIndent) {
-		wrappingIndent = WrappingIndent.Same;
+	// Cannot wespect WwappingIndent.Indent and WwappingIndent.DeepIndent because that wouwd wequiwe
+	// two dom wayouts, in owda to fiwst set the width of the fiwst wine, and then set the width of the wwapped wines
+	if (wwappingIndent === WwappingIndent.Indent || wwappingIndent === WwappingIndent.DeepIndent) {
+		wwappingIndent = WwappingIndent.Same;
 	}
 
-	const containerDomNode = document.createElement('div');
-	Configuration.applyFontInfoSlow(containerDomNode, fontInfo);
+	const containewDomNode = document.cweateEwement('div');
+	Configuwation.appwyFontInfoSwow(containewDomNode, fontInfo);
 
-	const sb = createStringBuilder(10000);
-	const firstNonWhitespaceIndices: number[] = [];
-	const wrappedTextIndentLengths: number[] = [];
-	const renderLineContents: string[] = [];
-	const allCharOffsets: number[][] = [];
-	const allVisibleColumns: number[][] = [];
-	for (let i = 0; i < requests.length; i++) {
-		const lineContent = LineInjectedText.applyInjectedText(requests[i], injectedTextsPerLine[i]);
+	const sb = cweateStwingBuiwda(10000);
+	const fiwstNonWhitespaceIndices: numba[] = [];
+	const wwappedTextIndentWengths: numba[] = [];
+	const wendewWineContents: stwing[] = [];
+	const awwChawOffsets: numba[][] = [];
+	const awwVisibweCowumns: numba[][] = [];
+	fow (wet i = 0; i < wequests.wength; i++) {
+		const wineContent = WineInjectedText.appwyInjectedText(wequests[i], injectedTextsPewWine[i]);
 
-		let firstNonWhitespaceIndex = 0;
-		let wrappedTextIndentLength = 0;
-		let width = overallWidth;
+		wet fiwstNonWhitespaceIndex = 0;
+		wet wwappedTextIndentWength = 0;
+		wet width = ovewawwWidth;
 
-		if (wrappingIndent !== WrappingIndent.None) {
-			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-			if (firstNonWhitespaceIndex === -1) {
-				// all whitespace line
-				firstNonWhitespaceIndex = 0;
+		if (wwappingIndent !== WwappingIndent.None) {
+			fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(wineContent);
+			if (fiwstNonWhitespaceIndex === -1) {
+				// aww whitespace wine
+				fiwstNonWhitespaceIndex = 0;
 
-			} else {
-				// Track existing indent
+			} ewse {
+				// Twack existing indent
 
-				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
-					const charWidth = (
-						lineContent.charCodeAt(i) === CharCode.Tab
-							? (tabSize - (wrappedTextIndentLength % tabSize))
+				fow (wet i = 0; i < fiwstNonWhitespaceIndex; i++) {
+					const chawWidth = (
+						wineContent.chawCodeAt(i) === ChawCode.Tab
+							? (tabSize - (wwappedTextIndentWength % tabSize))
 							: 1
 					);
-					wrappedTextIndentLength += charWidth;
+					wwappedTextIndentWength += chawWidth;
 				}
 
-				const indentWidth = Math.ceil(fontInfo.spaceWidth * wrappedTextIndentLength);
+				const indentWidth = Math.ceiw(fontInfo.spaceWidth * wwappedTextIndentWength);
 
-				// Force sticking to beginning of line if no character would fit except for the indentation
-				if (indentWidth + fontInfo.typicalFullwidthCharacterWidth > overallWidth) {
-					firstNonWhitespaceIndex = 0;
-					wrappedTextIndentLength = 0;
-				} else {
-					width = overallWidth - indentWidth;
+				// Fowce sticking to beginning of wine if no chawacta wouwd fit except fow the indentation
+				if (indentWidth + fontInfo.typicawFuwwwidthChawactewWidth > ovewawwWidth) {
+					fiwstNonWhitespaceIndex = 0;
+					wwappedTextIndentWength = 0;
+				} ewse {
+					width = ovewawwWidth - indentWidth;
 				}
 			}
 		}
 
-		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb);
-		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
-		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
-		renderLineContents[i] = renderLineContent;
-		allCharOffsets[i] = tmp[0];
-		allVisibleColumns[i] = tmp[1];
+		const wendewWineContent = wineContent.substw(fiwstNonWhitespaceIndex);
+		const tmp = wendewWine(wendewWineContent, wwappedTextIndentWength, tabSize, width, sb);
+		fiwstNonWhitespaceIndices[i] = fiwstNonWhitespaceIndex;
+		wwappedTextIndentWengths[i] = wwappedTextIndentWength;
+		wendewWineContents[i] = wendewWineContent;
+		awwChawOffsets[i] = tmp[0];
+		awwVisibweCowumns[i] = tmp[1];
 	}
-	const html = sb.build();
-	const trustedhtml = ttPolicy?.createHTML(html) ?? html;
-	containerDomNode.innerHTML = trustedhtml as string;
+	const htmw = sb.buiwd();
+	const twustedhtmw = ttPowicy?.cweateHTMW(htmw) ?? htmw;
+	containewDomNode.innewHTMW = twustedhtmw as stwing;
 
-	containerDomNode.style.position = 'absolute';
-	containerDomNode.style.top = '10000';
-	containerDomNode.style.wordWrap = 'break-word';
-	document.body.appendChild(containerDomNode);
+	containewDomNode.stywe.position = 'absowute';
+	containewDomNode.stywe.top = '10000';
+	containewDomNode.stywe.wowdWwap = 'bweak-wowd';
+	document.body.appendChiwd(containewDomNode);
 
-	let range = document.createRange();
-	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
+	wet wange = document.cweateWange();
+	const wineDomNodes = Awway.pwototype.swice.caww(containewDomNode.chiwdwen, 0);
 
-	let result: (LineBreakData | null)[] = [];
-	for (let i = 0; i < requests.length; i++) {
-		const lineDomNode = lineDomNodes[i];
-		const breakOffsets: number[] | null = readLineBreaks(range, lineDomNode, renderLineContents[i], allCharOffsets[i]);
-		if (breakOffsets === null) {
-			result[i] = createEmptyLineBreakWithPossiblyInjectedText(i);
+	wet wesuwt: (WineBweakData | nuww)[] = [];
+	fow (wet i = 0; i < wequests.wength; i++) {
+		const wineDomNode = wineDomNodes[i];
+		const bweakOffsets: numba[] | nuww = weadWineBweaks(wange, wineDomNode, wendewWineContents[i], awwChawOffsets[i]);
+		if (bweakOffsets === nuww) {
+			wesuwt[i] = cweateEmptyWineBweakWithPossibwyInjectedText(i);
 			continue;
 		}
 
-		const firstNonWhitespaceIndex = firstNonWhitespaceIndices[i];
-		const wrappedTextIndentLength = wrappedTextIndentLengths[i];
-		const visibleColumns = allVisibleColumns[i];
+		const fiwstNonWhitespaceIndex = fiwstNonWhitespaceIndices[i];
+		const wwappedTextIndentWength = wwappedTextIndentWengths[i];
+		const visibweCowumns = awwVisibweCowumns[i];
 
-		const breakOffsetsVisibleColumn: number[] = [];
-		for (let j = 0, len = breakOffsets.length; j < len; j++) {
-			breakOffsetsVisibleColumn[j] = visibleColumns[breakOffsets[j]];
+		const bweakOffsetsVisibweCowumn: numba[] = [];
+		fow (wet j = 0, wen = bweakOffsets.wength; j < wen; j++) {
+			bweakOffsetsVisibweCowumn[j] = visibweCowumns[bweakOffsets[j]];
 		}
 
-		if (firstNonWhitespaceIndex !== 0) {
-			// All break offsets are relative to the renderLineContent, make them absolute again
-			for (let j = 0, len = breakOffsets.length; j < len; j++) {
-				breakOffsets[j] += firstNonWhitespaceIndex;
+		if (fiwstNonWhitespaceIndex !== 0) {
+			// Aww bweak offsets awe wewative to the wendewWineContent, make them absowute again
+			fow (wet j = 0, wen = bweakOffsets.wength; j < wen; j++) {
+				bweakOffsets[j] += fiwstNonWhitespaceIndex;
 			}
 		}
 
-		let injectionOptions: InjectedTextOptions[] | null;
-		let injectionOffsets: number[] | null;
-		const curInjectedTexts = injectedTextsPerLine[i];
-		if (curInjectedTexts) {
-			injectionOptions = curInjectedTexts.map(t => t.options);
-			injectionOffsets = curInjectedTexts.map(text => text.column - 1);
-		} else {
-			injectionOptions = null;
-			injectionOffsets = null;
+		wet injectionOptions: InjectedTextOptions[] | nuww;
+		wet injectionOffsets: numba[] | nuww;
+		const cuwInjectedTexts = injectedTextsPewWine[i];
+		if (cuwInjectedTexts) {
+			injectionOptions = cuwInjectedTexts.map(t => t.options);
+			injectionOffsets = cuwInjectedTexts.map(text => text.cowumn - 1);
+		} ewse {
+			injectionOptions = nuww;
+			injectionOffsets = nuww;
 		}
 
-		result[i] = new LineBreakData(breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength, injectionOffsets, injectionOptions);
+		wesuwt[i] = new WineBweakData(bweakOffsets, bweakOffsetsVisibweCowumn, wwappedTextIndentWength, injectionOffsets, injectionOptions);
 	}
 
-	document.body.removeChild(containerDomNode);
-	return result;
+	document.body.wemoveChiwd(containewDomNode);
+	wetuwn wesuwt;
 }
 
 const enum Constants {
-	SPAN_MODULO_LIMIT = 16384
+	SPAN_MODUWO_WIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder): [number[], number[]] {
-	sb.appendASCIIString('<div style="width:');
-	sb.appendASCIIString(String(width));
-	sb.appendASCIIString('px;">');
-	// if (containsRTL) {
-	// 	sb.appendASCIIString('" dir="ltr');
+function wendewWine(wineContent: stwing, initiawVisibweCowumn: numba, tabSize: numba, width: numba, sb: IStwingBuiwda): [numba[], numba[]] {
+	sb.appendASCIIStwing('<div stywe="width:');
+	sb.appendASCIIStwing(Stwing(width));
+	sb.appendASCIIStwing('px;">');
+	// if (containsWTW) {
+	// 	sb.appendASCIIStwing('" diw="wtw');
 	// }
 
-	const len = lineContent.length;
-	let visibleColumn = initialVisibleColumn;
-	let charOffset = 0;
-	let charOffsets: number[] = [];
-	let visibleColumns: number[] = [];
-	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
+	const wen = wineContent.wength;
+	wet visibweCowumn = initiawVisibweCowumn;
+	wet chawOffset = 0;
+	wet chawOffsets: numba[] = [];
+	wet visibweCowumns: numba[] = [];
+	wet nextChawCode = (0 < wen ? wineContent.chawCodeAt(0) : ChawCode.Nuww);
 
-	sb.appendASCIIString('<span>');
-	for (let charIndex = 0; charIndex < len; charIndex++) {
-		if (charIndex !== 0 && charIndex % Constants.SPAN_MODULO_LIMIT === 0) {
-			sb.appendASCIIString('</span><span>');
+	sb.appendASCIIStwing('<span>');
+	fow (wet chawIndex = 0; chawIndex < wen; chawIndex++) {
+		if (chawIndex !== 0 && chawIndex % Constants.SPAN_MODUWO_WIMIT === 0) {
+			sb.appendASCIIStwing('</span><span>');
 		}
-		charOffsets[charIndex] = charOffset;
-		visibleColumns[charIndex] = visibleColumn;
-		const charCode = nextCharCode;
-		nextCharCode = (charIndex + 1 < len ? lineContent.charCodeAt(charIndex + 1) : CharCode.Null);
-		let producedCharacters = 1;
-		let charWidth = 1;
-		switch (charCode) {
-			case CharCode.Tab:
-				producedCharacters = (tabSize - (visibleColumn % tabSize));
-				charWidth = producedCharacters;
-				for (let space = 1; space <= producedCharacters; space++) {
-					if (space < producedCharacters) {
-						sb.write1(0xA0); // &nbsp;
-					} else {
-						sb.appendASCII(CharCode.Space);
+		chawOffsets[chawIndex] = chawOffset;
+		visibweCowumns[chawIndex] = visibweCowumn;
+		const chawCode = nextChawCode;
+		nextChawCode = (chawIndex + 1 < wen ? wineContent.chawCodeAt(chawIndex + 1) : ChawCode.Nuww);
+		wet pwoducedChawactews = 1;
+		wet chawWidth = 1;
+		switch (chawCode) {
+			case ChawCode.Tab:
+				pwoducedChawactews = (tabSize - (visibweCowumn % tabSize));
+				chawWidth = pwoducedChawactews;
+				fow (wet space = 1; space <= pwoducedChawactews; space++) {
+					if (space < pwoducedChawactews) {
+						sb.wwite1(0xA0); // &nbsp;
+					} ewse {
+						sb.appendASCII(ChawCode.Space);
 					}
 				}
-				break;
+				bweak;
 
-			case CharCode.Space:
-				if (nextCharCode === CharCode.Space) {
-					sb.write1(0xA0); // &nbsp;
-				} else {
-					sb.appendASCII(CharCode.Space);
+			case ChawCode.Space:
+				if (nextChawCode === ChawCode.Space) {
+					sb.wwite1(0xA0); // &nbsp;
+				} ewse {
+					sb.appendASCII(ChawCode.Space);
 				}
-				break;
+				bweak;
 
-			case CharCode.LessThan:
-				sb.appendASCIIString('&lt;');
-				break;
+			case ChawCode.WessThan:
+				sb.appendASCIIStwing('&wt;');
+				bweak;
 
-			case CharCode.GreaterThan:
-				sb.appendASCIIString('&gt;');
-				break;
+			case ChawCode.GweatewThan:
+				sb.appendASCIIStwing('&gt;');
+				bweak;
 
-			case CharCode.Ampersand:
-				sb.appendASCIIString('&amp;');
-				break;
+			case ChawCode.Ampewsand:
+				sb.appendASCIIStwing('&amp;');
+				bweak;
 
-			case CharCode.Null:
-				sb.appendASCIIString('&#00;');
-				break;
+			case ChawCode.Nuww:
+				sb.appendASCIIStwing('&#00;');
+				bweak;
 
-			case CharCode.UTF8_BOM:
-			case CharCode.LINE_SEPARATOR:
-			case CharCode.PARAGRAPH_SEPARATOR:
-			case CharCode.NEXT_LINE:
-				sb.write1(0xFFFD);
-				break;
+			case ChawCode.UTF8_BOM:
+			case ChawCode.WINE_SEPAWATOW:
+			case ChawCode.PAWAGWAPH_SEPAWATOW:
+			case ChawCode.NEXT_WINE:
+				sb.wwite1(0xFFFD);
+				bweak;
 
-			default:
-				if (strings.isFullWidthCharacter(charCode)) {
-					charWidth++;
+			defauwt:
+				if (stwings.isFuwwWidthChawacta(chawCode)) {
+					chawWidth++;
 				}
-				if (charCode < 32) {
-					sb.write1(9216 + charCode);
-				} else {
-					sb.write1(charCode);
+				if (chawCode < 32) {
+					sb.wwite1(9216 + chawCode);
+				} ewse {
+					sb.wwite1(chawCode);
 				}
 		}
 
-		charOffset += producedCharacters;
-		visibleColumn += charWidth;
+		chawOffset += pwoducedChawactews;
+		visibweCowumn += chawWidth;
 	}
-	sb.appendASCIIString('</span>');
+	sb.appendASCIIStwing('</span>');
 
-	charOffsets[lineContent.length] = charOffset;
-	visibleColumns[lineContent.length] = visibleColumn;
+	chawOffsets[wineContent.wength] = chawOffset;
+	visibweCowumns[wineContent.wength] = visibweCowumn;
 
-	sb.appendASCIIString('</div>');
+	sb.appendASCIIStwing('</div>');
 
-	return [charOffsets, visibleColumns];
+	wetuwn [chawOffsets, visibweCowumns];
 }
 
-function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, charOffsets: number[]): number[] | null {
-	if (lineContent.length <= 1) {
-		return null;
+function weadWineBweaks(wange: Wange, wineDomNode: HTMWDivEwement, wineContent: stwing, chawOffsets: numba[]): numba[] | nuww {
+	if (wineContent.wength <= 1) {
+		wetuwn nuww;
 	}
-	const spans = <HTMLSpanElement[]>Array.prototype.slice.call(lineDomNode.children, 0);
+	const spans = <HTMWSpanEwement[]>Awway.pwototype.swice.caww(wineDomNode.chiwdwen, 0);
 
-	const breakOffsets: number[] = [];
-	try {
-		discoverBreaks(range, spans, charOffsets, 0, null, lineContent.length - 1, null, breakOffsets);
-	} catch (err) {
-		console.log(err);
-		return null;
-	}
-
-	if (breakOffsets.length === 0) {
-		return null;
+	const bweakOffsets: numba[] = [];
+	twy {
+		discovewBweaks(wange, spans, chawOffsets, 0, nuww, wineContent.wength - 1, nuww, bweakOffsets);
+	} catch (eww) {
+		consowe.wog(eww);
+		wetuwn nuww;
 	}
 
-	breakOffsets.push(lineContent.length);
-	return breakOffsets;
+	if (bweakOffsets.wength === 0) {
+		wetuwn nuww;
+	}
+
+	bweakOffsets.push(wineContent.wength);
+	wetuwn bweakOffsets;
 }
 
-function discoverBreaks(range: Range, spans: HTMLSpanElement[], charOffsets: number[], low: number, lowRects: DOMRectList | null, high: number, highRects: DOMRectList | null, result: number[]): void {
-	if (low === high) {
-		return;
+function discovewBweaks(wange: Wange, spans: HTMWSpanEwement[], chawOffsets: numba[], wow: numba, wowWects: DOMWectWist | nuww, high: numba, highWects: DOMWectWist | nuww, wesuwt: numba[]): void {
+	if (wow === high) {
+		wetuwn;
 	}
 
-	lowRects = lowRects || readClientRect(range, spans, charOffsets[low], charOffsets[low + 1]);
-	highRects = highRects || readClientRect(range, spans, charOffsets[high], charOffsets[high + 1]);
+	wowWects = wowWects || weadCwientWect(wange, spans, chawOffsets[wow], chawOffsets[wow + 1]);
+	highWects = highWects || weadCwientWect(wange, spans, chawOffsets[high], chawOffsets[high + 1]);
 
-	if (Math.abs(lowRects[0].top - highRects[0].top) <= 0.1) {
-		// same line
-		return;
+	if (Math.abs(wowWects[0].top - highWects[0].top) <= 0.1) {
+		// same wine
+		wetuwn;
 	}
 
-	// there is at least one line break between these two offsets
-	if (low + 1 === high) {
-		// the two characters are adjacent, so the line break must be exactly between them
-		result.push(high);
-		return;
+	// thewe is at weast one wine bweak between these two offsets
+	if (wow + 1 === high) {
+		// the two chawactews awe adjacent, so the wine bweak must be exactwy between them
+		wesuwt.push(high);
+		wetuwn;
 	}
 
-	const mid = low + ((high - low) / 2) | 0;
-	const midRects = readClientRect(range, spans, charOffsets[mid], charOffsets[mid + 1]);
-	discoverBreaks(range, spans, charOffsets, low, lowRects, mid, midRects, result);
-	discoverBreaks(range, spans, charOffsets, mid, midRects, high, highRects, result);
+	const mid = wow + ((high - wow) / 2) | 0;
+	const midWects = weadCwientWect(wange, spans, chawOffsets[mid], chawOffsets[mid + 1]);
+	discovewBweaks(wange, spans, chawOffsets, wow, wowWects, mid, midWects, wesuwt);
+	discovewBweaks(wange, spans, chawOffsets, mid, midWects, high, highWects, wesuwt);
 }
 
-function readClientRect(range: Range, spans: HTMLSpanElement[], startOffset: number, endOffset: number): DOMRectList {
-	range.setStart(spans[(startOffset / Constants.SPAN_MODULO_LIMIT) | 0].firstChild!, startOffset % Constants.SPAN_MODULO_LIMIT);
-	range.setEnd(spans[(endOffset / Constants.SPAN_MODULO_LIMIT) | 0].firstChild!, endOffset % Constants.SPAN_MODULO_LIMIT);
-	return range.getClientRects();
+function weadCwientWect(wange: Wange, spans: HTMWSpanEwement[], stawtOffset: numba, endOffset: numba): DOMWectWist {
+	wange.setStawt(spans[(stawtOffset / Constants.SPAN_MODUWO_WIMIT) | 0].fiwstChiwd!, stawtOffset % Constants.SPAN_MODUWO_WIMIT);
+	wange.setEnd(spans[(endOffset / Constants.SPAN_MODUWO_WIMIT) | 0].fiwstChiwd!, endOffset % Constants.SPAN_MODUWO_WIMIT);
+	wetuwn wange.getCwientWects();
 }

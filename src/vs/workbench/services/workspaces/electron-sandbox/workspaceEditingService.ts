@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { basename } from 'vs/base/common/resources';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { isMacintosh } from 'vs/base/common/platform';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IWowkspacesSewvice, isUntitwedWowkspace, IWowkspaceIdentifia, hasWowkspaceFiweExtension, isWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWifecycweSewvice, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IFiweDiawogSewvice, IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { AbstwactWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/bwowsa/abstwactWowkspaceEditingSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { WowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackupSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
 
-export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
+expowt cwass NativeWowkspaceEditingSewvice extends AbstwactWowkspaceEditingSewvice {
 
-	constructor(
-		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IWorkspaceContextService contextService: WorkspaceService,
-		@INativeHostService private nativeHostService: INativeHostService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IWorkingCopyBackupService private workingCopyBackupService: IWorkingCopyBackupService,
-		@INotificationService notificationService: INotificationService,
-		@ICommandService commandService: ICommandService,
-		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IFileDialogService fileDialogService: IFileDialogService,
-		@IDialogService dialogService: IDialogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IHostService hostService: IHostService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
+	constwuctow(
+		@IJSONEditingSewvice jsonEditingSewvice: IJSONEditingSewvice,
+		@IWowkspaceContextSewvice contextSewvice: WowkspaceSewvice,
+		@INativeHostSewvice pwivate nativeHostSewvice: INativeHostSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate extensionSewvice: IExtensionSewvice,
+		@IWowkingCopyBackupSewvice pwivate wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IFiweDiawogSewvice fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWowkspaceTwustManagementSewvice wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
+		supa(jsonEditingSewvice, contextSewvice, configuwationSewvice, notificationSewvice, commandSewvice, fiweSewvice, textFiweSewvice, wowkspacesSewvice, enviwonmentSewvice, fiweDiawogSewvice, diawogSewvice, hostSewvice, uwiIdentitySewvice, wowkspaceTwustManagementSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this.lifecycleService.onBeforeShutdown(e => {
-			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
-			e.veto(saveOperation, 'veto.untitledWorkspace');
+	pwivate wegistewWistenews(): void {
+		this.wifecycweSewvice.onBefoweShutdown(e => {
+			const saveOpewation = this.saveUntitwedBefoweShutdown(e.weason);
+			e.veto(saveOpewation, 'veto.untitwedWowkspace');
 		});
 	}
 
-	private async saveUntitledBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
-		if (reason !== ShutdownReason.LOAD && reason !== ShutdownReason.CLOSE) {
-			return false; // only interested when window is closing or loading
+	pwivate async saveUntitwedBefoweShutdown(weason: ShutdownWeason): Pwomise<boowean> {
+		if (weason !== ShutdownWeason.WOAD && weason !== ShutdownWeason.CWOSE) {
+			wetuwn fawse; // onwy intewested when window is cwosing ow woading
 		}
 
-		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
-		if (!workspaceIdentifier || !isUntitledWorkspace(workspaceIdentifier.configPath, this.environmentService)) {
-			return false; // only care about untitled workspaces to ask for saving
+		const wowkspaceIdentifia = this.getCuwwentWowkspaceIdentifia();
+		if (!wowkspaceIdentifia || !isUntitwedWowkspace(wowkspaceIdentifia.configPath, this.enviwonmentSewvice)) {
+			wetuwn fawse; // onwy cawe about untitwed wowkspaces to ask fow saving
 		}
 
-		const windowCount = await this.nativeHostService.getWindowCount();
-		if (reason === ShutdownReason.CLOSE && !isMacintosh && windowCount === 1) {
-			return false; // Windows/Linux: quits when last window is closed, so do not ask then
+		const windowCount = await this.nativeHostSewvice.getWindowCount();
+		if (weason === ShutdownWeason.CWOSE && !isMacintosh && windowCount === 1) {
+			wetuwn fawse; // Windows/Winux: quits when wast window is cwosed, so do not ask then
 		}
 
-		enum ConfirmResult {
+		enum ConfiwmWesuwt {
 			SAVE,
 			DONT_SAVE,
-			CANCEL
+			CANCEW
 		}
 
 		const buttons = [
-			{ label: mnemonicButtonLabel(localize('save', "Save")), result: ConfirmResult.SAVE },
-			{ label: mnemonicButtonLabel(localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
-			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
+			{ wabew: mnemonicButtonWabew(wocawize('save', "Save")), wesuwt: ConfiwmWesuwt.SAVE },
+			{ wabew: mnemonicButtonWabew(wocawize('doNotSave', "Don't Save")), wesuwt: ConfiwmWesuwt.DONT_SAVE },
+			{ wabew: wocawize('cancew', "Cancew"), wesuwt: ConfiwmWesuwt.CANCEW }
 		];
-		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-		const detail = localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId: 2 });
+		const message = wocawize('saveWowkspaceMessage', "Do you want to save youw wowkspace configuwation as a fiwe?");
+		const detaiw = wocawize('saveWowkspaceDetaiw', "Save youw wowkspace if you pwan to open it again.");
+		const { choice } = await this.diawogSewvice.show(Sevewity.Wawning, message, buttons.map(button => button.wabew), { detaiw, cancewId: 2 });
 
-		switch (buttons[choice].result) {
+		switch (buttons[choice].wesuwt) {
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				return true;
+			// Cancew: veto unwoad
+			case ConfiwmWesuwt.CANCEW:
+				wetuwn twue;
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				return false;
+			// Don't Save: dewete wowkspace
+			case ConfiwmWesuwt.DONT_SAVE:
+				await this.wowkspacesSewvice.deweteUntitwedWowkspace(wowkspaceIdentifia);
+				wetuwn fawse;
 
-			// Save: save workspace, but do not veto unload if path provided
-			case ConfirmResult.SAVE: {
-				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
-					return true; // keep veto if no target was provided
+			// Save: save wowkspace, but do not veto unwoad if path pwovided
+			case ConfiwmWesuwt.SAVE: {
+				const newWowkspacePath = await this.pickNewWowkspacePath();
+				if (!newWowkspacePath || !hasWowkspaceFiweExtension(newWowkspacePath)) {
+					wetuwn twue; // keep veto if no tawget was pwovided
 				}
 
-				try {
-					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
+				twy {
+					await this.saveWowkspaceAs(wowkspaceIdentifia, newWowkspacePath);
 
-					// Make sure to add the new workspace to the history to find it again
-					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
-					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
-						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority
+					// Make suwe to add the new wowkspace to the histowy to find it again
+					const newWowkspaceIdentifia = await this.wowkspacesSewvice.getWowkspaceIdentifia(newWowkspacePath);
+					await this.wowkspacesSewvice.addWecentwyOpened([{
+						wabew: this.wabewSewvice.getWowkspaceWabew(newWowkspaceIdentifia, { vewbose: twue }),
+						wowkspace: newWowkspaceIdentifia,
+						wemoteAuthowity: this.enviwonmentSewvice.wemoteAuthowity
 					}]);
 
-					// Delete the untitled one
-					await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				} catch (error) {
-					// ignore
+					// Dewete the untitwed one
+					await this.wowkspacesSewvice.deweteUntitwedWowkspace(wowkspaceIdentifia);
+				} catch (ewwow) {
+					// ignowe
 				}
 
-				return false;
+				wetuwn fawse;
 			}
 		}
 	}
 
-	override async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
-		const windows = await this.nativeHostService.getWindows();
+	ovewwide async isVawidTawgetWowkspacePath(path: UWI): Pwomise<boowean> {
+		const windows = await this.nativeHostSewvice.getWindows();
 
-		// Prevent overwriting a workspace that is currently opened in another window
-		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, path))) {
-			await this.dialogService.show(
-				Severity.Info,
-				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
+		// Pwevent ovewwwiting a wowkspace that is cuwwentwy opened in anotha window
+		if (windows.some(window => isWowkspaceIdentifia(window.wowkspace) && this.uwiIdentitySewvice.extUwi.isEquaw(window.wowkspace.configPath, path))) {
+			await this.diawogSewvice.show(
+				Sevewity.Info,
+				wocawize('wowkspaceOpenedMessage', "Unabwe to save wowkspace '{0}'", basename(path)),
 				undefined,
 				{
-					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
+					detaiw: wocawize('wowkspaceOpenedDetaiw', "The wowkspace is awweady opened in anotha window. Pwease cwose that window fiwst and then twy again.")
 				}
 			);
 
-			return false;
+			wetuwn fawse;
 		}
 
-		return true; // OK
+		wetuwn twue; // OK
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
-		const result = await this.doEnterWorkspace(path);
-		if (result) {
+	async entewWowkspace(path: UWI): Pwomise<void> {
+		const wesuwt = await this.doEntewWowkspace(path);
+		if (wesuwt) {
 
-			// Migrate storage to new workspace
-			await this.migrateStorage(result.workspace);
+			// Migwate stowage to new wowkspace
+			await this.migwateStowage(wesuwt.wowkspace);
 
-			// Reinitialize backup service
-			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
-				const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
-				this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
+			// Weinitiawize backup sewvice
+			if (this.wowkingCopyBackupSewvice instanceof WowkingCopyBackupSewvice) {
+				const newBackupWowkspaceHome = wesuwt.backupPath ? UWI.fiwe(wesuwt.backupPath).with({ scheme: this.enviwonmentSewvice.usewWoamingDataHome.scheme }) : undefined;
+				this.wowkingCopyBackupSewvice.weinitiawize(newBackupWowkspaceHome);
 			}
 		}
 
-		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.remoteAuthority) {
-			this.hostService.reload();
+		// TODO@aeschwi: wowkawound untiw westawting wowks
+		if (this.enviwonmentSewvice.wemoteAuthowity) {
+			this.hostSewvice.wewoad();
 		}
 
-		// Restart the extension host: entering a workspace means a new location for
-		// storage and potentially a change in the workspace.rootPath property.
-		else {
-			this.extensionService.restartExtensionHost();
+		// Westawt the extension host: entewing a wowkspace means a new wocation fow
+		// stowage and potentiawwy a change in the wowkspace.wootPath pwopewty.
+		ewse {
+			this.extensionSewvice.westawtExtensionHost();
 		}
 	}
 
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.storageService.migrate(toWorkspace);
+	pwivate migwateStowage(toWowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		wetuwn this.stowageSewvice.migwate(toWowkspace);
 	}
 }
 
-registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, true);
+wegistewSingweton(IWowkspaceEditingSewvice, NativeWowkspaceEditingSewvice, twue);

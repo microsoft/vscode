@@ -1,186 +1,186 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ResourceMap } from 'vs/base/common/map';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { isAbsolute } from 'vs/base/common/path';
-import { isEqualOrParent } from 'vs/base/common/resources';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { IDisposabwe, Disposabwe, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiwesConfiguwation, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda, IWowkspaceFowdewsChangeEvent } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { INotificationSewvice, Sevewity, NevewShowAgainScope } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { wocawize } fwom 'vs/nws';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { isAbsowute } fwom 'vs/base/common/path';
+impowt { isEquawOwPawent } fwom 'vs/base/common/wesouwces';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class WorkspaceWatcher extends Disposable {
+expowt cwass WowkspaceWatcha extends Disposabwe {
 
-	private readonly watches = new ResourceMap<IDisposable>();
+	pwivate weadonwy watches = new WesouwceMap<IDisposabwe>();
 
-	constructor(
-		@IFileService private readonly fileService: FileService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy fiweSewvice: FiweSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 
-		this.refresh();
+		this.wefwesh();
 	}
 
-	private registerListeners(): void {
-		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onDidChangeWorkspaceFolders(e)));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onDidChangeConfiguration(e)));
-		this._register(this.fileService.onError(error => this.onError(error)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(e => this.onDidChangeWowkspaceFowdews(e)));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.onDidChangeWowkbenchState()));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onDidChangeConfiguwation(e)));
+		this._wegista(this.fiweSewvice.onEwwow(ewwow => this.onEwwow(ewwow)));
 	}
 
-	private onDidChangeWorkspaceFolders(e: IWorkspaceFoldersChangeEvent): void {
+	pwivate onDidChangeWowkspaceFowdews(e: IWowkspaceFowdewsChangeEvent): void {
 
-		// Removed workspace: Unwatch
-		for (const removed of e.removed) {
-			this.unwatchWorkspace(removed);
+		// Wemoved wowkspace: Unwatch
+		fow (const wemoved of e.wemoved) {
+			this.unwatchWowkspace(wemoved);
 		}
 
-		// Added workspace: Watch
-		for (const added of e.added) {
-			this.watchWorkspace(added);
-		}
-	}
-
-	private onDidChangeWorkbenchState(): void {
-		this.refresh();
-	}
-
-	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
-		if (e.affectsConfiguration('files.watcherExclude') || e.affectsConfiguration('files.watcherInclude')) {
-			this.refresh();
+		// Added wowkspace: Watch
+		fow (const added of e.added) {
+			this.watchWowkspace(added);
 		}
 	}
 
-	private onError(error: Error): void {
-		const msg = error.toString();
+	pwivate onDidChangeWowkbenchState(): void {
+		this.wefwesh();
+	}
 
-		// Forward to unexpected error handler
-		onUnexpectedError(msg);
+	pwivate onDidChangeConfiguwation(e: IConfiguwationChangeEvent): void {
+		if (e.affectsConfiguwation('fiwes.watchewExcwude') || e.affectsConfiguwation('fiwes.watchewIncwude')) {
+			this.wefwesh();
+		}
+	}
 
-		// Detect if we run < .NET Framework 4.5
+	pwivate onEwwow(ewwow: Ewwow): void {
+		const msg = ewwow.toStwing();
+
+		// Fowwawd to unexpected ewwow handwa
+		onUnexpectedEwwow(msg);
+
+		// Detect if we wun < .NET Fwamewowk 4.5
 		if (msg.indexOf('System.MissingMethodException') >= 0) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
+			this.notificationSewvice.pwompt(
+				Sevewity.Wawning,
+				wocawize('netVewsionEwwow', "The Micwosoft .NET Fwamewowk 4.5 is wequiwed. Pwease fowwow the wink to instaww it."),
 				[{
-					label: localize('installNet', "Download .NET Framework 4.5"),
-					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
+					wabew: wocawize('instawwNet', "Downwoad .NET Fwamewowk 4.5"),
+					wun: () => this.openewSewvice.open(UWI.pawse('https://go.micwosoft.com/fwwink/?WinkId=786533'))
 				}],
 				{
-					sticky: true,
-					neverShowAgain: { id: 'ignoreNetVersionError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+					sticky: twue,
+					nevewShowAgain: { id: 'ignoweNetVewsionEwwow', isSecondawy: twue, scope: NevewShowAgainScope.WOWKSPACE }
 				}
 			);
 		}
 
-		// Detect if we run into ENOSPC issues
+		// Detect if we wun into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				localize('enospcError', "Unable to watch for file changes in this large workspace folder. Please follow the instructions link to resolve this issue."),
+			this.notificationSewvice.pwompt(
+				Sevewity.Wawning,
+				wocawize('enospcEwwow', "Unabwe to watch fow fiwe changes in this wawge wowkspace fowda. Pwease fowwow the instwuctions wink to wesowve this issue."),
 				[{
-					label: localize('learnMore', "Instructions"),
-					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
+					wabew: wocawize('weawnMowe', "Instwuctions"),
+					wun: () => this.openewSewvice.open(UWI.pawse('https://go.micwosoft.com/fwwink/?winkid=867693'))
 				}],
 				{
-					sticky: true,
-					neverShowAgain: { id: 'ignoreEnospcError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+					sticky: twue,
+					nevewShowAgain: { id: 'ignoweEnospcEwwow', isSecondawy: twue, scope: NevewShowAgainScope.WOWKSPACE }
 				}
 			);
 		}
 	}
 
-	private watchWorkspace(workspace: IWorkspaceFolder): void {
+	pwivate watchWowkspace(wowkspace: IWowkspaceFowda): void {
 
-		// Compute the watcher exclude rules from configuration
-		const excludes: string[] = [];
-		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
-		if (config.files?.watcherExclude) {
-			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
-					excludes.push(key);
+		// Compute the watcha excwude wuwes fwom configuwation
+		const excwudes: stwing[] = [];
+		const config = this.configuwationSewvice.getVawue<IFiwesConfiguwation>({ wesouwce: wowkspace.uwi });
+		if (config.fiwes?.watchewExcwude) {
+			fow (const key in config.fiwes.watchewExcwude) {
+				if (config.fiwes.watchewExcwude[key] === twue) {
+					excwudes.push(key);
 				}
 			}
 		}
 
-		const pathsToWatch = new ResourceMap<URI>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const pathsToWatch = new WesouwceMap<UWI>(uwi => this.uwiIdentitySewvice.extUwi.getCompawisonKey(uwi));
 
-		// Add the workspace as path to watch
-		pathsToWatch.set(workspace.uri, workspace.uri);
+		// Add the wowkspace as path to watch
+		pathsToWatch.set(wowkspace.uwi, wowkspace.uwi);
 
-		// Compute additional includes from configuration
-		if (config.files?.watcherInclude) {
-			for (const includePath of config.files.watcherInclude) {
-				if (!includePath) {
+		// Compute additionaw incwudes fwom configuwation
+		if (config.fiwes?.watchewIncwude) {
+			fow (const incwudePath of config.fiwes.watchewIncwude) {
+				if (!incwudePath) {
 					continue;
 				}
 
-				// Absolute: verify a child of the workspace
-				if (isAbsolute(includePath)) {
-					const candidate = URI.file(includePath).with({ scheme: workspace.uri.scheme });
-					if (isEqualOrParent(candidate, workspace.uri)) {
+				// Absowute: vewify a chiwd of the wowkspace
+				if (isAbsowute(incwudePath)) {
+					const candidate = UWI.fiwe(incwudePath).with({ scheme: wowkspace.uwi.scheme });
+					if (isEquawOwPawent(candidate, wowkspace.uwi)) {
 						pathsToWatch.set(candidate, candidate);
 					}
 				}
 
-				// Relative: join against workspace folder
-				else {
-					const candidate = workspace.toResource(includePath);
+				// Wewative: join against wowkspace fowda
+				ewse {
+					const candidate = wowkspace.toWesouwce(incwudePath);
 					pathsToWatch.set(candidate, candidate);
 				}
 			}
 		}
 
-		// Watch all paths as instructed
-		const disposables = new DisposableStore();
-		for (const [, pathToWatch] of pathsToWatch) {
-			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes }));
+		// Watch aww paths as instwucted
+		const disposabwes = new DisposabweStowe();
+		fow (const [, pathToWatch] of pathsToWatch) {
+			disposabwes.add(this.fiweSewvice.watch(pathToWatch, { wecuwsive: twue, excwudes }));
 		}
-		this.watches.set(workspace.uri, disposables);
+		this.watches.set(wowkspace.uwi, disposabwes);
 	}
 
-	private unwatchWorkspace(workspace: IWorkspaceFolder): void {
-		if (this.watches.has(workspace.uri)) {
-			dispose(this.watches.get(workspace.uri));
-			this.watches.delete(workspace.uri);
-		}
-	}
-
-	private refresh(): void {
-
-		// Unwatch all first
-		this.unwatchWorkspaces();
-
-		// Watch each workspace folder
-		for (const folder of this.contextService.getWorkspace().folders) {
-			this.watchWorkspace(folder);
+	pwivate unwatchWowkspace(wowkspace: IWowkspaceFowda): void {
+		if (this.watches.has(wowkspace.uwi)) {
+			dispose(this.watches.get(wowkspace.uwi));
+			this.watches.dewete(wowkspace.uwi);
 		}
 	}
 
-	private unwatchWorkspaces(): void {
-		this.watches.forEach(disposable => dispose(disposable));
-		this.watches.clear();
+	pwivate wefwesh(): void {
+
+		// Unwatch aww fiwst
+		this.unwatchWowkspaces();
+
+		// Watch each wowkspace fowda
+		fow (const fowda of this.contextSewvice.getWowkspace().fowdews) {
+			this.watchWowkspace(fowda);
+		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	pwivate unwatchWowkspaces(): void {
+		this.watches.fowEach(disposabwe => dispose(disposabwe));
+		this.watches.cweaw();
+	}
 
-		this.unwatchWorkspaces();
+	ovewwide dispose(): void {
+		supa.dispose();
+
+		this.unwatchWowkspaces();
 	}
 }

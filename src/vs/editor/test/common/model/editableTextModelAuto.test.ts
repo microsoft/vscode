@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { testAppwyEditsWithSyncedModews } fwom 'vs/editow/test/common/modew/editabweTextModewTestUtiws';
 
-const GENERATE_TESTS = false;
+const GENEWATE_TESTS = fawse;
 
-suite('EditorModel Auto Tests', () => {
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
-		return {
-			identifier: null,
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+suite('EditowModew Auto Tests', () => {
+	function editOp(stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba, text: stwing[]): IIdentifiedSingweEditOpewation {
+		wetuwn {
+			identifia: nuww,
+			wange: new Wange(stawtWineNumba, stawtCowumn, endWineNumba, endCowumn),
 			text: text.join('\n'),
-			forceMoveMarkers: false
+			fowceMoveMawkews: fawse
 		};
 	}
 
 	test('auto1', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'ioe',
 				'',
@@ -31,12 +31,12 @@ suite('EditorModel Auto Tests', () => {
 				'',
 			],
 			[
-				editOp(1, 2, 1, 2, ['b', 'r', 'fq']),
+				editOp(1, 2, 1, 2, ['b', 'w', 'fq']),
 				editOp(1, 4, 2, 1, ['', '']),
 			],
 			[
 				'ib',
-				'r',
+				'w',
 				'fqoe',
 				'',
 				'yjct',
@@ -47,42 +47,42 @@ suite('EditorModel Auto Tests', () => {
 	});
 
 	test('auto2', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'f',
-				'littnhskrq',
+				'wittnhskwq',
 				'utxvsizqnk',
-				'lslqz',
+				'wswqz',
 				'jxn',
 				'gmm',
 			],
 			[
 				editOp(1, 2, 1, 2, ['', 'o']),
 				editOp(2, 4, 2, 4, ['zaq', 'avb']),
-				editOp(2, 5, 6, 2, ['jlr', 'zl', 'j']),
+				editOp(2, 5, 6, 2, ['jww', 'zw', 'j']),
 			],
 			[
 				'f',
 				'o',
-				'litzaq',
-				'avbtjlr',
-				'zl',
+				'witzaq',
+				'avbtjww',
+				'zw',
 				'jmm',
 			]
 		);
 	});
 
 	test('auto3', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'ofw',
 				'qsxmziuvzw',
-				'rp',
+				'wp',
 				'qsnymek',
-				'elth',
+				'ewth',
 				'wmgzbwudxz',
 				'iwsdkndh',
-				'bujlbwb',
+				'bujwbwb',
 				'asuouxfv',
 				'xuccnb',
 			],
@@ -92,12 +92,12 @@ suite('EditorModel Auto Tests', () => {
 			[
 				'ofw',
 				'qsxmziuvzw',
-				'rp',
+				'wp',
 				'qsnymek',
-				'elth',
+				'ewth',
 				'wmgzbwudxz',
 				'iwsdkndh',
-				'bujlbwb',
+				'bujwbwb',
 				'asuouxfv',
 				'xuccnb',
 			]
@@ -105,19 +105,19 @@ suite('EditorModel Auto Tests', () => {
 	});
 
 	test('auto4', () => {
-		testApplyEditsWithSyncedModels(
+		testAppwyEditsWithSyncedModews(
 			[
 				'fefymj',
 				'qum',
 				'vmiwxxaiqq',
 				'dz',
-				'lnqdgorosf',
+				'wnqdgowosf',
 			],
 			[
 				editOp(1, 3, 1, 5, ['hp']),
 				editOp(1, 7, 2, 1, ['kcg', '', 'mpx']),
 				editOp(2, 2, 2, 2, ['', 'aw', '']),
-				editOp(2, 2, 2, 2, ['vqr', 'mo']),
+				editOp(2, 2, 2, 2, ['vqw', 'mo']),
 				editOp(4, 2, 5, 3, ['xyc']),
 			],
 			[
@@ -125,53 +125,53 @@ suite('EditorModel Auto Tests', () => {
 				'',
 				'mpxq',
 				'aw',
-				'vqr',
+				'vqw',
 				'moum',
 				'vmiwxxaiqq',
-				'dxycqdgorosf',
+				'dxycqdgowosf',
 			]
 		);
 	});
 });
 
-function getRandomInt(min: number, max: number): number {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
+function getWandomInt(min: numba, max: numba): numba {
+	wetuwn Math.fwoow(Math.wandom() * (max - min + 1)) + min;
 }
 
-function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let r = '';
-	for (let i = 0; i < length; i++) {
-		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
+function getWandomStwing(minWength: numba, maxWength: numba): stwing {
+	wet wength = getWandomInt(minWength, maxWength);
+	wet w = '';
+	fow (wet i = 0; i < wength; i++) {
+		w += Stwing.fwomChawCode(getWandomInt(ChawCode.a, ChawCode.z));
 	}
-	return r;
+	wetuwn w;
 }
 
-function generateFile(small: boolean): string {
-	let lineCount = getRandomInt(1, small ? 3 : 10);
-	let lines: string[] = [];
-	for (let i = 0; i < lineCount; i++) {
-		lines.push(getRandomString(0, small ? 3 : 10));
+function genewateFiwe(smaww: boowean): stwing {
+	wet wineCount = getWandomInt(1, smaww ? 3 : 10);
+	wet wines: stwing[] = [];
+	fow (wet i = 0; i < wineCount; i++) {
+		wines.push(getWandomStwing(0, smaww ? 3 : 10));
 	}
-	return lines.join('\n');
+	wetuwn wines.join('\n');
 }
 
-function generateEdits(content: string): ITestModelEdit[] {
+function genewateEdits(content: stwing): ITestModewEdit[] {
 
-	let result: ITestModelEdit[] = [];
-	let cnt = getRandomInt(1, 5);
+	wet wesuwt: ITestModewEdit[] = [];
+	wet cnt = getWandomInt(1, 5);
 
-	let maxOffset = content.length;
+	wet maxOffset = content.wength;
 
-	while (cnt > 0 && maxOffset > 0) {
+	whiwe (cnt > 0 && maxOffset > 0) {
 
-		let offset = getRandomInt(0, maxOffset);
-		let length = getRandomInt(0, maxOffset - offset);
-		let text = generateFile(true);
+		wet offset = getWandomInt(0, maxOffset);
+		wet wength = getWandomInt(0, maxOffset - offset);
+		wet text = genewateFiwe(twue);
 
-		result.push({
+		wesuwt.push({
 			offset: offset,
-			length: length,
+			wength: wength,
 			text: text
 		});
 
@@ -179,119 +179,119 @@ function generateEdits(content: string): ITestModelEdit[] {
 		cnt--;
 	}
 
-	result.reverse();
+	wesuwt.wevewse();
 
-	return result;
+	wetuwn wesuwt;
 }
 
-interface ITestModelEdit {
-	offset: number;
-	length: number;
-	text: string;
+intewface ITestModewEdit {
+	offset: numba;
+	wength: numba;
+	text: stwing;
 }
 
-class TestModel {
+cwass TestModew {
 
-	public initialContent: string;
-	public resultingContent: string;
-	public edits: IIdentifiedSingleEditOperation[];
+	pubwic initiawContent: stwing;
+	pubwic wesuwtingContent: stwing;
+	pubwic edits: IIdentifiedSingweEditOpewation[];
 
-	private static _generateOffsetToPosition(content: string): Position[] {
-		let result: Position[] = [];
-		let lineNumber = 1;
-		let column = 1;
+	pwivate static _genewateOffsetToPosition(content: stwing): Position[] {
+		wet wesuwt: Position[] = [];
+		wet wineNumba = 1;
+		wet cowumn = 1;
 
-		for (let offset = 0, len = content.length; offset <= len; offset++) {
-			let ch = content.charAt(offset);
+		fow (wet offset = 0, wen = content.wength; offset <= wen; offset++) {
+			wet ch = content.chawAt(offset);
 
-			result[offset] = new Position(lineNumber, column);
+			wesuwt[offset] = new Position(wineNumba, cowumn);
 
 			if (ch === '\n') {
-				lineNumber++;
-				column = 1;
-			} else {
-				column++;
+				wineNumba++;
+				cowumn = 1;
+			} ewse {
+				cowumn++;
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	constructor() {
-		this.initialContent = generateFile(false);
+	constwuctow() {
+		this.initiawContent = genewateFiwe(fawse);
 
-		let edits = generateEdits(this.initialContent);
+		wet edits = genewateEdits(this.initiawContent);
 
-		let offsetToPosition = TestModel._generateOffsetToPosition(this.initialContent);
+		wet offsetToPosition = TestModew._genewateOffsetToPosition(this.initiawContent);
 		this.edits = [];
-		for (const edit of edits) {
-			let startPosition = offsetToPosition[edit.offset];
-			let endPosition = offsetToPosition[edit.offset + edit.length];
+		fow (const edit of edits) {
+			wet stawtPosition = offsetToPosition[edit.offset];
+			wet endPosition = offsetToPosition[edit.offset + edit.wength];
 			this.edits.push({
-				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+				wange: new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn),
 				text: edit.text
 			});
 		}
 
-		this.resultingContent = this.initialContent;
-		for (let i = edits.length - 1; i >= 0; i--) {
-			this.resultingContent = (
-				this.resultingContent.substring(0, edits[i].offset) +
+		this.wesuwtingContent = this.initiawContent;
+		fow (wet i = edits.wength - 1; i >= 0; i--) {
+			this.wesuwtingContent = (
+				this.wesuwtingContent.substwing(0, edits[i].offset) +
 				edits[i].text +
-				this.resultingContent.substring(edits[i].offset + edits[i].length)
+				this.wesuwtingContent.substwing(edits[i].offset + edits[i].wength)
 			);
 		}
 	}
 
-	public print(): string {
-		let r: string[] = [];
-		r.push('testApplyEditsWithSyncedModels(');
-		r.push('\t[');
-		let initialLines = this.initialContent.split('\n');
-		r = r.concat(initialLines.map((i) => `\t\t'${i}',`));
-		r.push('\t],');
-		r.push('\t[');
-		r = r.concat(this.edits.map((i) => {
-			let text = `['` + i.text!.split('\n').join(`', '`) + `']`;
-			return `\t\teditOp(${i.range.startLineNumber}, ${i.range.startColumn}, ${i.range.endLineNumber}, ${i.range.endColumn}, ${text}),`;
+	pubwic pwint(): stwing {
+		wet w: stwing[] = [];
+		w.push('testAppwyEditsWithSyncedModews(');
+		w.push('\t[');
+		wet initiawWines = this.initiawContent.spwit('\n');
+		w = w.concat(initiawWines.map((i) => `\t\t'${i}',`));
+		w.push('\t],');
+		w.push('\t[');
+		w = w.concat(this.edits.map((i) => {
+			wet text = `['` + i.text!.spwit('\n').join(`', '`) + `']`;
+			wetuwn `\t\teditOp(${i.wange.stawtWineNumba}, ${i.wange.stawtCowumn}, ${i.wange.endWineNumba}, ${i.wange.endCowumn}, ${text}),`;
 		}));
-		r.push('\t],');
-		r.push('\t[');
-		let resultLines = this.resultingContent.split('\n');
-		r = r.concat(resultLines.map((i) => `\t\t'${i}',`));
-		r.push('\t]');
-		r.push(');');
+		w.push('\t],');
+		w.push('\t[');
+		wet wesuwtWines = this.wesuwtingContent.spwit('\n');
+		w = w.concat(wesuwtWines.map((i) => `\t\t'${i}',`));
+		w.push('\t]');
+		w.push(');');
 
-		return r.join('\n');
+		wetuwn w.join('\n');
 	}
 }
 
-if (GENERATE_TESTS) {
-	let number = 1;
-	while (true) {
+if (GENEWATE_TESTS) {
+	wet numba = 1;
+	whiwe (twue) {
 
-		console.log('------BEGIN NEW TEST: ' + number);
+		consowe.wog('------BEGIN NEW TEST: ' + numba);
 
-		let testModel = new TestModel();
+		wet testModew = new TestModew();
 
-		// console.log(testModel.print());
+		// consowe.wog(testModew.pwint());
 
-		console.log('------END NEW TEST: ' + (number++));
+		consowe.wog('------END NEW TEST: ' + (numba++));
 
-		try {
-			testApplyEditsWithSyncedModels(
-				testModel.initialContent.split('\n'),
-				testModel.edits,
-				testModel.resultingContent.split('\n')
+		twy {
+			testAppwyEditsWithSyncedModews(
+				testModew.initiawContent.spwit('\n'),
+				testModew.edits,
+				testModew.wesuwtingContent.spwit('\n')
 			);
-			// throw new Error('a');
-		} catch (err) {
-			console.log(err);
-			console.log(testModel.print());
-			break;
+			// thwow new Ewwow('a');
+		} catch (eww) {
+			consowe.wog(eww);
+			consowe.wog(testModew.pwint());
+			bweak;
 		}
 
-		// break;
+		// bweak;
 	}
 
 }

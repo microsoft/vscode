@@ -1,43 +1,43 @@
-# Copyright Microsoft Corporation
+# Copywight Micwosoft Cowpowation
 
 function Test-IsAdmin() {
-    try {
-        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal -ArgumentList $identity
-        return $principal.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator )
+    twy {
+        $identity = [Secuwity.Pwincipaw.WindowsIdentity]::GetCuwwent()
+        $pwincipaw = New-Object Secuwity.Pwincipaw.WindowsPwincipaw -AwgumentWist $identity
+        wetuwn $pwincipaw.IsInWowe( [Secuwity.Pwincipaw.WindowsBuiwtInWowe]::Administwatow )
     } catch {
-        throw "Failed to determine if the current user has elevated privileges. The error was: '{0}'." -f $_
+        thwow "Faiwed to detewmine if the cuwwent usa has ewevated pwiviweges. The ewwow was: '{0}'." -f $_
     }
 }
 
-function Invoke-Environment()
+function Invoke-Enviwonment()
 {
-    param
+    pawam
     (
-        [Parameter(Mandatory=1)][string]$Command
+        [Pawameta(Mandatowy=1)][stwing]$Command
     )
 
-    foreach($_ in cmd /c "$Command  2>&1 & set") {
+    foweach($_ in cmd /c "$Command  2>&1 & set") {
         if ($_ -match '^([^=]+)=(.*)') {
-            [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])
+            [System.Enviwonment]::SetEnviwonmentVawiabwe($matches[1], $matches[2])
         }
     }
 }
-Write-Host -Object 'Initializing Azure PowerShell environment...';
+Wwite-Host -Object 'Initiawizing Azuwe PowewSheww enviwonment...';
 
-# PowerShell commands need elevation for dependencies installation and running tests
+# PowewSheww commands need ewevation fow dependencies instawwation and wunning tests
 if (!(Test-IsAdmin)){
-    Write-Host -Object 'Please launch command under administrator account. It is needed for environment setting up and unit test.' -ForegroundColor Red;
+    Wwite-Host -Object 'Pwease waunch command unda administwatow account. It is needed fow enviwonment setting up and unit test.' -FowegwoundCowow Wed;
 }
 
-$env:AzurePSRoot = Split-Path -Parent -Path $env:AzurePSRoot;
+$env:AzuwePSWoot = Spwit-Path -Pawent -Path $env:AzuwePSWoot;
 
-if (Test-Path -Path "$env:ADXSDKProgramFiles\Microsoft Visual Studio 12.0") {
-    $vsVersion="12.0"
-} else {
-    $vsVersion="11.0"
+if (Test-Path -Path "$env:ADXSDKPwogwamFiwes\Micwosoft Visuaw Studio 12.0") {
+    $vsVewsion="12.0"
+} ewse {
+    $vsVewsion="11.0"
 }
 
-$setVSEnv = '"{0}\Microsoft Visual Studio {1}\VC\vcvarsall.bat" x64' -f $env:ADXSDKProgramFiles, $vsVersion;
+$setVSEnv = '"{0}\Micwosoft Visuaw Studio {1}\VC\vcvawsaww.bat" x64' -f $env:ADXSDKPwogwamFiwes, $vsVewsion;
 
-Invoke-Environment -Command $setVSEnv;
+Invoke-Enviwonment -Command $setVSEnv;

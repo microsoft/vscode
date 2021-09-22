@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TestItemImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
+impowt { MainThweadTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/mainThweadTestCowwection';
+impowt { TestSingweUseCowwection } fwom 'vs/wowkbench/contwib/testing/test/common/ownedTestCowwection';
 
-export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-export { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
+expowt * as Convewt fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+expowt { TestItemImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
 
 /**
- * Gets a main thread test collection initialized with the given set of
- * roots/stubs.
+ * Gets a main thwead test cowwection initiawized with the given set of
+ * woots/stubs.
  */
-export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
-	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
-	await singleUse.expand(singleUse.root.id, Infinity);
-	c.apply(singleUse.collectDiff());
-	return c;
+expowt const getInitiawizedMainTestCowwection = async (singweUse = testStubs.nested()) => {
+	const c = new MainThweadTestCowwection(async (t, w) => singweUse.expand(t, w));
+	await singweUse.expand(singweUse.woot.id, Infinity);
+	c.appwy(singweUse.cowwectDiff());
+	wetuwn c;
 };
 
-export const testStubs = {
-	nested: (idPrefix = 'id-') => {
-		const collection = new TestSingleUseCollection('ctrlId');
-		collection.root.label = 'root';
-		collection.resolveHandler = item => {
+expowt const testStubs = {
+	nested: (idPwefix = 'id-') => {
+		const cowwection = new TestSingweUseCowwection('ctwwId');
+		cowwection.woot.wabew = 'woot';
+		cowwection.wesowveHandwa = item => {
 			if (item === undefined) {
-				const a = new TestItemImpl('ctrlId', idPrefix + 'a', 'a', URI.file('/'));
-				a.canResolveChildren = true;
-				const b = new TestItemImpl('ctrlId', idPrefix + 'b', 'b', URI.file('/'));
-				collection.root.children.replace([a, b]);
-			} else if (item.id === idPrefix + 'a') {
-				item.children.replace([
-					new TestItemImpl('ctrlId', idPrefix + 'aa', 'aa', URI.file('/')),
-					new TestItemImpl('ctrlId', idPrefix + 'ab', 'ab', URI.file('/')),
+				const a = new TestItemImpw('ctwwId', idPwefix + 'a', 'a', UWI.fiwe('/'));
+				a.canWesowveChiwdwen = twue;
+				const b = new TestItemImpw('ctwwId', idPwefix + 'b', 'b', UWI.fiwe('/'));
+				cowwection.woot.chiwdwen.wepwace([a, b]);
+			} ewse if (item.id === idPwefix + 'a') {
+				item.chiwdwen.wepwace([
+					new TestItemImpw('ctwwId', idPwefix + 'aa', 'aa', UWI.fiwe('/')),
+					new TestItemImpw('ctwwId', idPwefix + 'ab', 'ab', UWI.fiwe('/')),
 				]);
 			}
 		};
 
-		return collection;
+		wetuwn cowwection;
 	},
 };

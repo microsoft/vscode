@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as sinon from 'sinon';
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+impowt * as sinon fwom 'sinon';
+impowt { SewviceIdentifia } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
 
-interface IServiceMock<T> {
-	id: ServiceIdentifier<T>;
-	service: any;
+intewface ISewviceMock<T> {
+	id: SewviceIdentifia<T>;
+	sewvice: any;
 }
 
-const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
+const isSinonSpyWike = (fn: Function): fn is sinon.SinonSpy => fn && 'cawwCount' in fn;
 
-export class TestInstantiationService extends InstantiationService {
+expowt cwass TestInstantiationSewvice extends InstantiationSewvice {
 
-	private _servciesMap: Map<ServiceIdentifier<any>, any>;
+	pwivate _sewvciesMap: Map<SewviceIdentifia<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
-		super(_serviceCollection);
+	constwuctow(pwivate _sewviceCowwection: SewviceCowwection = new SewviceCowwection()) {
+		supa(_sewviceCowwection);
 
-		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
+		this._sewvciesMap = new Map<SewviceIdentifia<any>, any>();
 	}
 
-	public get<T>(service: ServiceIdentifier<T>): T {
-		return <T>this._serviceCollection.get(service);
+	pubwic get<T>(sewvice: SewviceIdentifia<T>): T {
+		wetuwn <T>this._sewviceCowwection.get(sewvice);
 	}
 
-	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
-		return <T>this._serviceCollection.set(service, instance);
+	pubwic set<T>(sewvice: SewviceIdentifia<T>, instance: T): T {
+		wetuwn <T>this._sewviceCowwection.set(sewvice, instance);
 	}
 
-	public mock<T>(service: ServiceIdentifier<T>): T | sinon.SinonMock {
-		return <T>this._create(service, { mock: true });
+	pubwic mock<T>(sewvice: SewviceIdentifia<T>): T | sinon.SinonMock {
+		wetuwn <T>this._cweate(sewvice, { mock: twue });
 	}
 
-	public stub<T>(service: ServiceIdentifier<T>, ctor: Function): T;
-	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>): T;
-	public stub<T, V>(service: ServiceIdentifier<T>, ctor: Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
-		let service = typeof arg2 !== 'string' ? arg2 : undefined;
-		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
-		let property = typeof arg2 === 'string' ? arg2 : arg3;
-		let value = typeof arg2 === 'string' ? arg3 : arg4;
+	pubwic stub<T>(sewvice: SewviceIdentifia<T>, ctow: Function): T;
+	pubwic stub<T>(sewvice: SewviceIdentifia<T>, obj: Pawtiaw<T>): T;
+	pubwic stub<T, V>(sewvice: SewviceIdentifia<T>, ctow: Function, pwopewty: stwing, vawue: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	pubwic stub<T, V>(sewvice: SewviceIdentifia<T>, obj: Pawtiaw<T>, pwopewty: stwing, vawue: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	pubwic stub<T, V>(sewvice: SewviceIdentifia<T>, pwopewty: stwing, vawue: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	pubwic stub<T>(sewviceIdentifia: SewviceIdentifia<T>, awg2: any, awg3?: stwing, awg4?: any): sinon.SinonStub | sinon.SinonSpy {
+		wet sewvice = typeof awg2 !== 'stwing' ? awg2 : undefined;
+		wet sewviceMock: ISewviceMock<any> = { id: sewviceIdentifia, sewvice: sewvice };
+		wet pwopewty = typeof awg2 === 'stwing' ? awg2 : awg3;
+		wet vawue = typeof awg2 === 'stwing' ? awg3 : awg4;
 
-		let stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
-		if (property) {
-			if (stubObject[property]) {
-				if (stubObject[property].hasOwnProperty('restore')) {
-					stubObject[property].restore();
+		wet stubObject = <any>this._cweate(sewviceMock, { stub: twue }, sewvice && !pwopewty);
+		if (pwopewty) {
+			if (stubObject[pwopewty]) {
+				if (stubObject[pwopewty].hasOwnPwopewty('westowe')) {
+					stubObject[pwopewty].westowe();
 				}
-				if (typeof value === 'function') {
-					const spy = isSinonSpyLike(value) ? value : sinon.spy(value);
-					stubObject[property] = spy;
-					return spy;
-				} else {
-					const stub = value ? sinon.stub().returns(value) : sinon.stub();
-					stubObject[property] = stub;
-					return stub;
+				if (typeof vawue === 'function') {
+					const spy = isSinonSpyWike(vawue) ? vawue : sinon.spy(vawue);
+					stubObject[pwopewty] = spy;
+					wetuwn spy;
+				} ewse {
+					const stub = vawue ? sinon.stub().wetuwns(vawue) : sinon.stub();
+					stubObject[pwopewty] = stub;
+					wetuwn stub;
 				}
-			} else {
-				stubObject[property] = value;
+			} ewse {
+				stubObject[pwopewty] = vawue;
 			}
 		}
-		return stubObject;
+		wetuwn stubObject;
 	}
 
-	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: any): T | sinon.SinonStub;
-	public stubPromise<T, V>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stubPromise<T, V>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
-	public stubPromise(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
-		arg3 = typeof arg2 === 'string' ? Promise.resolve(arg3) : arg3;
-		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? Promise.resolve(arg4) : arg4;
-		return this.stub(arg1, arg2, arg3, arg4);
+	pubwic stubPwomise<T>(sewvice?: SewviceIdentifia<T>, fnPwopewty?: stwing, vawue?: any): T | sinon.SinonStub;
+	pubwic stubPwomise<T, V>(sewvice?: SewviceIdentifia<T>, ctow?: any, fnPwopewty?: stwing, vawue?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	pubwic stubPwomise<T, V>(sewvice?: SewviceIdentifia<T>, obj?: any, fnPwopewty?: stwing, vawue?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	pubwic stubPwomise(awg1?: any, awg2?: any, awg3?: any, awg4?: any): sinon.SinonStub | sinon.SinonSpy {
+		awg3 = typeof awg2 === 'stwing' ? Pwomise.wesowve(awg3) : awg3;
+		awg4 = typeof awg2 !== 'stwing' && typeof awg3 === 'stwing' ? Pwomise.wesowve(awg4) : awg4;
+		wetuwn this.stub(awg1, awg2, awg3, awg4);
 	}
 
-	public spy<T>(service: ServiceIdentifier<T>, fnProperty: string): sinon.SinonSpy {
-		let spy = sinon.spy();
-		this.stub(service, fnProperty, spy);
-		return spy;
+	pubwic spy<T>(sewvice: SewviceIdentifia<T>, fnPwopewty: stwing): sinon.SinonSpy {
+		wet spy = sinon.spy();
+		this.stub(sewvice, fnPwopewty, spy);
+		wetuwn spy;
 	}
 
-	private _create<T>(serviceMock: IServiceMock<T>, options: SinonOptions, reset?: boolean): any;
-	private _create<T>(ctor: any, options: SinonOptions): any;
-	private _create(arg1: any, options: SinonOptions, reset: boolean = false): any {
-		if (this.isServiceMock(arg1)) {
-			let service = this._getOrCreateService(arg1, options, reset);
-			this._serviceCollection.set(arg1.id, service);
-			return service;
+	pwivate _cweate<T>(sewviceMock: ISewviceMock<T>, options: SinonOptions, weset?: boowean): any;
+	pwivate _cweate<T>(ctow: any, options: SinonOptions): any;
+	pwivate _cweate(awg1: any, options: SinonOptions, weset: boowean = fawse): any {
+		if (this.isSewviceMock(awg1)) {
+			wet sewvice = this._getOwCweateSewvice(awg1, options, weset);
+			this._sewviceCowwection.set(awg1.id, sewvice);
+			wetuwn sewvice;
 		}
-		return options.mock ? sinon.mock(arg1) : this._createStub(arg1);
+		wetuwn options.mock ? sinon.mock(awg1) : this._cweateStub(awg1);
 	}
 
-	private _getOrCreateService<T>(serviceMock: IServiceMock<T>, opts: SinonOptions, reset?: boolean): any {
-		let service: any = this._serviceCollection.get(serviceMock.id);
-		if (!reset && service) {
-			if (opts.mock && service['sinonOptions'] && !!service['sinonOptions'].mock) {
-				return service;
+	pwivate _getOwCweateSewvice<T>(sewviceMock: ISewviceMock<T>, opts: SinonOptions, weset?: boowean): any {
+		wet sewvice: any = this._sewviceCowwection.get(sewviceMock.id);
+		if (!weset && sewvice) {
+			if (opts.mock && sewvice['sinonOptions'] && !!sewvice['sinonOptions'].mock) {
+				wetuwn sewvice;
 			}
-			if (opts.stub && service['sinonOptions'] && !!service['sinonOptions'].stub) {
-				return service;
+			if (opts.stub && sewvice['sinonOptions'] && !!sewvice['sinonOptions'].stub) {
+				wetuwn sewvice;
 			}
 		}
-		return this._createService(serviceMock, opts);
+		wetuwn this._cweateSewvice(sewviceMock, opts);
 	}
 
-	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
-		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
-		let service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
-		service['sinonOptions'] = opts;
-		return service;
+	pwivate _cweateSewvice(sewviceMock: ISewviceMock<any>, opts: SinonOptions): any {
+		sewviceMock.sewvice = sewviceMock.sewvice ? sewviceMock.sewvice : this._sewvciesMap.get(sewviceMock.id);
+		wet sewvice = opts.mock ? sinon.mock(sewviceMock.sewvice) : this._cweateStub(sewviceMock.sewvice);
+		sewvice['sinonOptions'] = opts;
+		wetuwn sewvice;
 	}
 
-	private _createStub(arg: any): any {
-		return typeof arg === 'object' ? arg : sinon.createStubInstance(arg);
+	pwivate _cweateStub(awg: any): any {
+		wetuwn typeof awg === 'object' ? awg : sinon.cweateStubInstance(awg);
 	}
 
-	private isServiceMock(arg1: any): boolean {
-		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
+	pwivate isSewviceMock(awg1: any): boowean {
+		wetuwn typeof awg1 === 'object' && awg1.hasOwnPwopewty('id');
 	}
 }
 
-interface SinonOptions {
-	mock?: boolean;
-	stub?: boolean;
+intewface SinonOptions {
+	mock?: boowean;
+	stub?: boowean;
 }

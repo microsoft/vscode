@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInput, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import { DialogsModel } from 'vs/workbench/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiwmation, IConfiwmationWesuwt, IDiawogOptions, IDiawogSewvice, IInput, IInputWesuwt, IShowWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { DiawogsModew } fwom 'vs/wowkbench/common/diawogs';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export class DialogService extends Disposable implements IDialogService {
+expowt cwass DiawogSewvice extends Disposabwe impwements IDiawogSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly model = this._register(new DialogsModel());
+	weadonwy modew = this._wegista(new DiawogsModew());
 
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		const handle = this.model.show({ confirmArgs: { confirmation } });
+	async confiwm(confiwmation: IConfiwmation): Pwomise<IConfiwmationWesuwt> {
+		const handwe = this.modew.show({ confiwmAwgs: { confiwmation } });
 
-		return await handle.result as IConfirmationResult;
+		wetuwn await handwe.wesuwt as IConfiwmationWesuwt;
 	}
 
-	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
-		const handle = this.model.show({ showArgs: { severity, message, buttons, options } });
+	async show(sevewity: Sevewity, message: stwing, buttons?: stwing[], options?: IDiawogOptions): Pwomise<IShowWesuwt> {
+		const handwe = this.modew.show({ showAwgs: { sevewity, message, buttons, options } });
 
-		return await handle.result as IShowResult;
+		wetuwn await handwe.wesuwt as IShowWesuwt;
 	}
 
-	async input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult> {
-		const handle = this.model.show({ inputArgs: { severity, message, buttons, inputs, options } });
+	async input(sevewity: Sevewity, message: stwing, buttons: stwing[], inputs: IInput[], options?: IDiawogOptions): Pwomise<IInputWesuwt> {
+		const handwe = this.modew.show({ inputAwgs: { sevewity, message, buttons, inputs, options } });
 
-		return await handle.result as IInputResult;
+		wetuwn await handwe.wesuwt as IInputWesuwt;
 	}
 
-	async about(): Promise<void> {
-		const handle = this.model.show({});
-		await handle.result;
+	async about(): Pwomise<void> {
+		const handwe = this.modew.show({});
+		await handwe.wesuwt;
 	}
 }
 
-registerSingleton(IDialogService, DialogService, true);
+wegistewSingweton(IDiawogSewvice, DiawogSewvice, twue);

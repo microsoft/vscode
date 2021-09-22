@@ -1,194 +1,194 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { localize } from 'vs/nls';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $ } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+impowt 'vs/css!./media/scm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { append, $ } fwom 'vs/base/bwowsa/dom';
+impowt { IWistViwtuawDewegate, IWistContextMenuEvent, IWistEvent } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ISCMWepositowy, ISCMSewvice, ISCMViewSewvice } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WepositowyWendewa } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmWepositowyWendewa';
+impowt { cowwectContextMenuActions, getActionViewItemPwovida } fwom 'vs/wowkbench/contwib/scm/bwowsa/utiw';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
 
-class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
+cwass WistDewegate impwements IWistViwtuawDewegate<ISCMWepositowy> {
 
-	getHeight(): number {
-		return 22;
+	getHeight(): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(): string {
-		return RepositoryRenderer.TEMPLATE_ID;
+	getTempwateId(): stwing {
+		wetuwn WepositowyWendewa.TEMPWATE_ID;
 	}
 }
 
-export class SCMRepositoriesViewPane extends ViewPane {
+expowt cwass SCMWepositowiesViewPane extends ViewPane {
 
-	private list!: WorkbenchList<ISCMRepository>;
+	pwivate wist!: WowkbenchWist<ISCMWepositowy>;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@ISCMService protected scmService: ISCMService,
-		@ISCMViewService protected scmViewService: ISCMViewService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ISCMSewvice pwotected scmSewvice: ISCMSewvice,
+		@ISCMViewSewvice pwotected scmViewSewvice: ISCMViewSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
+		const wistContaina = append(containa, $('.scm-view.scm-wepositowies-view'));
 
-		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
-		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
+		const dewegate = new WistDewegate();
+		const wendewa = this.instantiationSewvice.cweateInstance(WepositowyWendewa, getActionViewItemPwovida(this.instantiationSewvice));
+		const identityPwovida = { getId: (w: ISCMWepositowy) => w.pwovida.id };
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
-			identityProvider,
-			horizontalScrolling: false,
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+		this.wist = this.instantiationSewvice.cweateInstance(WowkbenchWist, `SCM Main`, wistContaina, dewegate, [wendewa], {
+			identityPwovida,
+			howizontawScwowwing: fawse,
+			ovewwideStywes: {
+				wistBackgwound: SIDE_BAW_BACKGWOUND
 			},
-			accessibilityProvider: {
-				getAriaLabel(r: ISCMRepository) {
-					return r.provider.label;
+			accessibiwityPwovida: {
+				getAwiaWabew(w: ISCMWepositowy) {
+					wetuwn w.pwovida.wabew;
 				},
-				getWidgetAriaLabel() {
-					return localize('scm', "Source Control Repositories");
+				getWidgetAwiaWabew() {
+					wetuwn wocawize('scm', "Souwce Contwow Wepositowies");
 				}
 			}
-		}) as WorkbenchList<ISCMRepository>;
+		}) as WowkbenchWist<ISCMWepositowy>;
 
-		this._register(this.list);
-		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
-		this._register(this.list.onContextMenu(this.onListContextMenu, this));
+		this._wegista(this.wist);
+		this._wegista(this.wist.onDidChangeSewection(this.onWistSewectionChange, this));
+		this._wegista(this.wist.onContextMenu(this.onWistContextMenu, this));
 
-		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
+		this._wegista(this.scmViewSewvice.onDidChangeVisibweWepositowies(this.updateWistSewection, this));
 
-		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
+		this._wegista(this.scmSewvice.onDidAddWepositowy(this.onDidAddWepositowy, this));
+		this._wegista(this.scmSewvice.onDidWemoveWepositowy(this.onDidWemoveWepositowy, this));
 
-		for (const repository of this.scmService.repositories) {
-			this.onDidAddRepository(repository);
+		fow (const wepositowy of this.scmSewvice.wepositowies) {
+			this.onDidAddWepositowy(wepositowy);
 		}
 
-		if (this.orientation === Orientation.VERTICAL) {
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('scm.repositories.visible')) {
+		if (this.owientation === Owientation.VEWTICAW) {
+			this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.affectsConfiguwation('scm.wepositowies.visibwe')) {
 					this.updateBodySize();
 				}
 			}));
 		}
 
-		this.updateListSelection();
+		this.updateWistSewection();
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.list.splice(this.list.length, 0, [repository]);
+	pwivate onDidAddWepositowy(wepositowy: ISCMWepositowy): void {
+		this.wist.spwice(this.wist.wength, 0, [wepositowy]);
 		this.updateBodySize();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const index = this.list.indexOf(repository);
+	pwivate onDidWemoveWepositowy(wepositowy: ISCMWepositowy): void {
+		const index = this.wist.indexOf(wepositowy);
 
 		if (index > -1) {
-			this.list.splice(index, 1);
+			this.wist.spwice(index, 1);
 		}
 
 		this.updateBodySize();
 	}
 
-	override focus(): void {
-		this.list.domFocus();
+	ovewwide focus(): void {
+		this.wist.domFocus();
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.list.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.wist.wayout(height, width);
 	}
 
-	private updateBodySize(): void {
-		if (this.orientation === Orientation.HORIZONTAL) {
-			return;
+	pwivate updateBodySize(): void {
+		if (this.owientation === Owientation.HOWIZONTAW) {
+			wetuwn;
 		}
 
-		const visibleCount = this.configurationService.getValue<number>('scm.repositories.visible');
-		const empty = this.list.length === 0;
-		const size = Math.min(this.list.length, visibleCount) * 22;
+		const visibweCount = this.configuwationSewvice.getVawue<numba>('scm.wepositowies.visibwe');
+		const empty = this.wist.wength === 0;
+		const size = Math.min(this.wist.wength, visibweCount) * 22;
 
-		this.minimumBodySize = visibleCount === 0 ? 22 : size;
-		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+		this.minimumBodySize = visibweCount === 0 ? 22 : size;
+		this.maximumBodySize = visibweCount === 0 ? Numba.POSITIVE_INFINITY : empty ? Numba.POSITIVE_INFINITY : size;
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
-		if (!e.element) {
-			return;
+	pwivate onWistContextMenu(e: IWistContextMenuEvent<ISCMWepositowy>): void {
+		if (!e.ewement) {
+			wetuwn;
 		}
 
-		const provider = e.element.provider;
-		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryMenu;
-		const [actions, disposable] = collectContextMenuActions(menu);
+		const pwovida = e.ewement.pwovida;
+		const menus = this.scmViewSewvice.menus.getWepositowyMenus(pwovida);
+		const menu = menus.wepositowyMenu;
+		const [actions, disposabwe] = cowwectContextMenuActions(menu);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
-			getActionsContext: () => provider,
+			getActionsContext: () => pwovida,
 			onHide() {
-				disposable.dispose();
+				disposabwe.dispose();
 			}
 		});
 	}
 
-	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
-		if (e.browserEvent && e.elements.length > 0) {
-			const scrollTop = this.list.scrollTop;
-			this.scmViewService.visibleRepositories = e.elements;
-			this.list.scrollTop = scrollTop;
+	pwivate onWistSewectionChange(e: IWistEvent<ISCMWepositowy>): void {
+		if (e.bwowsewEvent && e.ewements.wength > 0) {
+			const scwowwTop = this.wist.scwowwTop;
+			this.scmViewSewvice.visibweWepositowies = e.ewements;
+			this.wist.scwowwTop = scwowwTop;
 		}
 	}
 
-	private updateListSelection(): void {
+	pwivate updateWistSewection(): void {
 		const set = new Set();
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			set.add(repository);
+		fow (const wepositowy of this.scmViewSewvice.visibweWepositowies) {
+			set.add(wepositowy);
 		}
 
-		const selection: number[] = [];
+		const sewection: numba[] = [];
 
-		for (let i = 0; i < this.list.length; i++) {
-			if (set.has(this.list.element(i))) {
-				selection.push(i);
+		fow (wet i = 0; i < this.wist.wength; i++) {
+			if (set.has(this.wist.ewement(i))) {
+				sewection.push(i);
 			}
 		}
 
-		this.list.setSelection(selection);
+		this.wist.setSewection(sewection);
 
-		if (selection.length > 0) {
-			this.list.setFocus([selection[0]]);
+		if (sewection.wength > 0) {
+			this.wist.setFocus([sewection[0]]);
 		}
 	}
 }

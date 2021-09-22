@@ -1,401 +1,401 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection, workspace, ConfigurationTarget } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { removeTag } from '../removeTag';
-import { updateTag } from '../updateTag';
-import { matchTag } from '../matchTag';
-import { splitJoinTag } from '../splitJoinTag';
-import { mergeLines } from '../mergeLines';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection, wowkspace, ConfiguwationTawget } fwom 'vscode';
+impowt { withWandomFiweEditow, cwoseAwwEditows } fwom './testUtiws';
+impowt { wemoveTag } fwom '../wemoveTag';
+impowt { updateTag } fwom '../updateTag';
+impowt { matchTag } fwom '../matchTag';
+impowt { spwitJoinTag } fwom '../spwitJoinTag';
+impowt { mewgeWines } fwom '../mewgeWines';
 
-suite('Tests for Emmet actions on html tags', () => {
-	teardown(closeAllEditors);
+suite('Tests fow Emmet actions on htmw tags', () => {
+	teawdown(cwoseAwwEditows);
 
 	const contents = `
-	<div class="hello">
-		<ul>
-			<li><span>Hello</span></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><span>Hewwo</span></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span/>
 	</div>
 	`;
 
-	let contentsWithTemplate = `
-	<script type="text/template">
-		<ul>
-			<li><span>Hello</span></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	wet contentsWithTempwate = `
+	<scwipt type="text/tempwate">
+		<uw>
+			<wi><span>Hewwo</span></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span/>
-	</script>
+	</scwipt>
 	`;
 
-	test('update tag with multiple cursors', () => {
+	test('update tag with muwtipwe cuwsows', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li><section>Hello</section></li>
-			<section><span>There</span></section>
-			<section><li><span>Bye</span></li></section>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><section>Hewwo</section></wi>
+			<section><span>Thewe</span></section>
+			<section><wi><span>Bye</span></wi></section>
+		</uw>
 		<span/>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 17, 3, 17), // cursor inside tags
-				new Selection(4, 5, 4, 5), // cursor inside opening tag
-				new Selection(5, 35, 5, 35), // cursor inside closing tag
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 17, 3, 17), // cuwsow inside tags
+				new Sewection(4, 5, 4, 5), // cuwsow inside opening tag
+				new Sewection(5, 35, 5, 35), // cuwsow inside cwosing tag
 			];
 
-			return updateTag('section')!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateTag('section')!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	// #region update tag
-	test('update tag with entire node selected', () => {
+	// #wegion update tag
+	test('update tag with entiwe node sewected', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li><section>Hello</section></li>
-			<li><span>There</span></li>
-			<section><li><span>Bye</span></li></section>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><section>Hewwo</section></wi>
+			<wi><span>Thewe</span></wi>
+			<section><wi><span>Bye</span></wi></section>
+		</uw>
 		<span/>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 7, 3, 25),
-				new Selection(5, 3, 5, 39),
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 7, 3, 25),
+				new Sewection(5, 3, 5, 39),
 			];
 
-			return updateTag('section')!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateTag('section')!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('update tag with template', () => {
+	test('update tag with tempwate', () => {
 		const expectedContents = `
-	<script type="text/template">
+	<scwipt type="text/tempwate">
 		<section>
-			<li><span>Hello</span></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
+			<wi><span>Hewwo</span></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
 		</section>
 		<span/>
-	</script>
+	</scwipt>
 	`;
 
-		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(2, 4, 2, 4), // cursor inside ul tag
+		wetuwn withWandomFiweEditow(contentsWithTempwate, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(2, 4, 2, 4), // cuwsow inside uw tag
 			];
 
-			return updateTag('section')!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn updateTag('section')!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
-	// #endregion
+	// #endwegion
 
-	// #region remove tag
-	test('remove tag with mutliple cursors', () => {
+	// #wegion wemove tag
+	test('wemove tag with mutwipwe cuwsows', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li>Hello</li>
-			<span>There</span>
-			<li><span>Bye</span></li>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi>Hewwo</wi>
+			<span>Thewe</span>
+			<wi><span>Bye</span></wi>
+		</uw>
 		<span/>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 17, 3, 17), // cursor inside tags
-				new Selection(4, 5, 4, 5), // cursor inside opening tag
-				new Selection(5, 35, 5, 35), // cursor inside closing tag
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 17, 3, 17), // cuwsow inside tags
+				new Sewection(4, 5, 4, 5), // cuwsow inside opening tag
+				new Sewection(5, 35, 5, 35), // cuwsow inside cwosing tag
 			];
 
-			return removeTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn wemoveTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('remove tag with boundary conditions', () => {
+	test('wemove tag with boundawy conditions', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li>Hello</li>
-			<li><span>There</span></li>
-			<li><span>Bye</span></li>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi>Hewwo</wi>
+			<wi><span>Thewe</span></wi>
+			<wi><span>Bye</span></wi>
+		</uw>
 		<span/>
 	</div>
 	`;
 
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 7, 3, 25),
-				new Selection(5, 3, 5, 39),
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 7, 3, 25),
+				new Sewection(5, 3, 5, 39),
 			];
 
-			return removeTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn wemoveTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
 
-	test('remove tag with template', () => {
+	test('wemove tag with tempwate', () => {
 		const expectedContents = `
-	<script type="text/template">
+	<scwipt type="text/tempwate">
 \t\t
-		<li><span>Hello</span></li>
-		<li><span>There</span></li>
-		<div><li><span>Bye</span></li></div>
+		<wi><span>Hewwo</span></wi>
+		<wi><span>Thewe</span></wi>
+		<div><wi><span>Bye</span></wi></div>
 \t\t
 		<span/>
-	</script>
+	</scwipt>
 	`;
-		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(2, 4, 2, 4), // cursor inside ul tag
+		wetuwn withWandomFiweEditow(contentsWithTempwate, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(2, 4, 2, 4), // cuwsow inside uw tag
 			];
 
-			return removeTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn wemoveTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
-	// #endregion
+	// #endwegion
 
-	// #region split/join tag
-	test('split/join tag with mutliple cursors', () => {
+	// #wegion spwit/join tag
+	test('spwit/join tag with mutwipwe cuwsows', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li><span/></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><span/></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span></span>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 17, 3, 17), // join tag
-				new Selection(7, 5, 7, 5), // split tag
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 17, 3, 17), // join tag
+				new Sewection(7, 5, 7, 5), // spwit tag
 			];
 
-			return splitJoinTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn spwitJoinTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('split/join tag with boundary selection', () => {
+	test('spwit/join tag with boundawy sewection', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li><span/></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><span/></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span></span>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 7, 3, 25), // join tag
-				new Selection(7, 2, 7, 9), // split tag
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 7, 3, 25), // join tag
+				new Sewection(7, 2, 7, 9), // spwit tag
 			];
 
-			return splitJoinTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn spwitJoinTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('split/join tag with templates', () => {
+	test('spwit/join tag with tempwates', () => {
 		const expectedContents = `
-	<script type="text/template">
-		<ul>
-			<li><span/></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	<scwipt type="text/tempwate">
+		<uw>
+			<wi><span/></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span></span>
-	</script>
+	</scwipt>
 	`;
-		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 17, 3, 17), // join tag
-				new Selection(7, 5, 7, 5), // split tag
+		wetuwn withWandomFiweEditow(contentsWithTempwate, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 17, 3, 17), // join tag
+				new Sewection(7, 5, 7, 5), // spwit tag
 			];
 
-			return splitJoinTag()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn spwitJoinTag()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('split/join tag in jsx with xhtml self closing tag', () => {
+	test('spwit/join tag in jsx with xhtmw sewf cwosing tag', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul>
-			<li><span /></li>
-			<li><span>There</span></li>
-			<div><li><span>Bye</span></li></div>
-		</ul>
+	<div cwass="hewwo">
+		<uw>
+			<wi><span /></wi>
+			<wi><span>Thewe</span></wi>
+			<div><wi><span>Bye</span></wi></div>
+		</uw>
 		<span></span>
 	</div>
 	`;
-		const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { selfClosingStyle: 'xhtml' } }, ConfigurationTarget.Global).then(() => {
-			return withRandomFileEditor(contents, 'jsx', (editor, doc) => {
-				editor.selections = [
-					new Selection(3, 17, 3, 17), // join tag
-					new Selection(7, 5, 7, 5), // split tag
+		const owdVawueFowSyntaxPwofiwes = wowkspace.getConfiguwation('emmet').inspect('syntaxPwofiwes');
+		wetuwn wowkspace.getConfiguwation('emmet').update('syntaxPwofiwes', { jsx: { sewfCwosingStywe: 'xhtmw' } }, ConfiguwationTawget.Gwobaw).then(() => {
+			wetuwn withWandomFiweEditow(contents, 'jsx', (editow, doc) => {
+				editow.sewections = [
+					new Sewection(3, 17, 3, 17), // join tag
+					new Sewection(7, 5, 7, 5), // spwit tag
 				];
 
-				return splitJoinTag()!.then(() => {
-					assert.strictEqual(doc.getText(), expectedContents);
-					return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
+				wetuwn spwitJoinTag()!.then(() => {
+					assewt.stwictEquaw(doc.getText(), expectedContents);
+					wetuwn wowkspace.getConfiguwation('emmet').update('syntaxPwofiwes', owdVawueFowSyntaxPwofiwes ? owdVawueFowSyntaxPwofiwes.gwobawVawue : undefined, ConfiguwationTawget.Gwobaw);
 				});
 			});
 		});
 	});
-	// #endregion
+	// #endwegion
 
-	// #region match tag
-	test('match tag with mutliple cursors', () => {
-		return withRandomFileEditor(contents, 'html', (editor, _) => {
-			editor.selections = [
-				new Selection(1, 0, 1, 0), // just before tag starts, i.e before <
-				new Selection(1, 1, 1, 1), // just before tag name starts
-				new Selection(1, 2, 1, 2), // inside tag name
-				new Selection(1, 6, 1, 6), // after tag name but before opening tag ends
-				new Selection(1, 18, 1, 18), // just before opening tag ends
-				new Selection(1, 19, 1, 19), // just after opening tag ends
+	// #wegion match tag
+	test('match tag with mutwipwe cuwsows', () => {
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, _) => {
+			editow.sewections = [
+				new Sewection(1, 0, 1, 0), // just befowe tag stawts, i.e befowe <
+				new Sewection(1, 1, 1, 1), // just befowe tag name stawts
+				new Sewection(1, 2, 1, 2), // inside tag name
+				new Sewection(1, 6, 1, 6), // afta tag name but befowe opening tag ends
+				new Sewection(1, 18, 1, 18), // just befowe opening tag ends
+				new Sewection(1, 19, 1, 19), // just afta opening tag ends
 			];
 
 			matchTag();
 
-			editor.selections.forEach(selection => {
-				assert.strictEqual(selection.active.line, 8);
-				assert.strictEqual(selection.active.character, 3);
-				assert.strictEqual(selection.anchor.line, 8);
-				assert.strictEqual(selection.anchor.character, 3);
+			editow.sewections.fowEach(sewection => {
+				assewt.stwictEquaw(sewection.active.wine, 8);
+				assewt.stwictEquaw(sewection.active.chawacta, 3);
+				assewt.stwictEquaw(sewection.anchow.wine, 8);
+				assewt.stwictEquaw(sewection.anchow.chawacta, 3);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	test('match tag with template scripts', () => {
-		let templateScript = `
-	<script type="text/template">
+	test('match tag with tempwate scwipts', () => {
+		wet tempwateScwipt = `
+	<scwipt type="text/tempwate">
 		<div>
-			Hello
+			Hewwo
 		</div>
-	</script>`;
+	</scwipt>`;
 
-		return withRandomFileEditor(templateScript, 'html', (editor, _) => {
-			editor.selections = [
-				new Selection(2, 2, 2, 2), // just before div tag starts, i.e before <
+		wetuwn withWandomFiweEditow(tempwateScwipt, 'htmw', (editow, _) => {
+			editow.sewections = [
+				new Sewection(2, 2, 2, 2), // just befowe div tag stawts, i.e befowe <
 			];
 
 			matchTag();
 
-			editor.selections.forEach(selection => {
-				assert.strictEqual(selection.active.line, 4);
-				assert.strictEqual(selection.active.character, 4);
-				assert.strictEqual(selection.anchor.line, 4);
-				assert.strictEqual(selection.anchor.character, 4);
+			editow.sewections.fowEach(sewection => {
+				assewt.stwictEquaw(sewection.active.wine, 4);
+				assewt.stwictEquaw(sewection.active.chawacta, 4);
+				assewt.stwictEquaw(sewection.anchow.wine, 4);
+				assewt.stwictEquaw(sewection.anchow.chawacta, 4);
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		});
 	});
 
-	// #endregion
+	// #endwegion
 
-	// #region merge lines
-	test('merge lines of tag with children when empty selection', () => {
+	// #wegion mewge wines
+	test('mewge wines of tag with chiwdwen when empty sewection', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul><li><span>Hello</span></li><li><span>There</span></li><div><li><span>Bye</span></li></div></ul>
+	<div cwass="hewwo">
+		<uw><wi><span>Hewwo</span></wi><wi><span>Thewe</span></wi><div><wi><span>Bye</span></wi></div></uw>
 		<span/>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(2, 3, 2, 3)
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(2, 3, 2, 3)
 			];
 
-			return mergeLines()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn mewgeWines()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('merge lines of tag with children when full node selection', () => {
+	test('mewge wines of tag with chiwdwen when fuww node sewection', () => {
 		const expectedContents = `
-	<div class="hello">
-		<ul><li><span>Hello</span></li><li><span>There</span></li><div><li><span>Bye</span></li></div></ul>
+	<div cwass="hewwo">
+		<uw><wi><span>Hewwo</span></wi><wi><span>Thewe</span></wi><div><wi><span>Bye</span></wi></div></uw>
 		<span/>
 	</div>
 	`;
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(2, 3, 6, 7)
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(2, 3, 6, 7)
 			];
 
-			return mergeLines()!.then(() => {
-				assert.strictEqual(doc.getText(), expectedContents);
-				return Promise.resolve();
+			wetuwn mewgeWines()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), expectedContents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('merge lines is no-op when start and end nodes are on the same line', () => {
-		return withRandomFileEditor(contents, 'html', (editor, doc) => {
-			editor.selections = [
-				new Selection(3, 9, 3, 9), // cursor is inside the <span> in <li><span>Hello</span></li>
-				new Selection(4, 5, 4, 5), // cursor is inside the <li> in <li><span>Hello</span></li>
-				new Selection(5, 5, 5, 20) // selection spans multiple nodes in the same line
+	test('mewge wines is no-op when stawt and end nodes awe on the same wine', () => {
+		wetuwn withWandomFiweEditow(contents, 'htmw', (editow, doc) => {
+			editow.sewections = [
+				new Sewection(3, 9, 3, 9), // cuwsow is inside the <span> in <wi><span>Hewwo</span></wi>
+				new Sewection(4, 5, 4, 5), // cuwsow is inside the <wi> in <wi><span>Hewwo</span></wi>
+				new Sewection(5, 5, 5, 20) // sewection spans muwtipwe nodes in the same wine
 			];
 
-			return mergeLines()!.then(() => {
-				assert.strictEqual(doc.getText(), contents);
-				return Promise.resolve();
+			wetuwn mewgeWines()!.then(() => {
+				assewt.stwictEquaw(doc.getText(), contents);
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
-	// #endregion
+	// #endwegion
 });
 

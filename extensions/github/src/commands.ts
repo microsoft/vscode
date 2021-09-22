@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { API as GitAPI } from './typings/git';
-import { publishRepository } from './publish';
-import { combinedDisposable } from './util';
+impowt * as vscode fwom 'vscode';
+impowt { API as GitAPI } fwom './typings/git';
+impowt { pubwishWepositowy } fwom './pubwish';
+impowt { combinedDisposabwe } fwom './utiw';
 
-export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
-	const disposables: vscode.Disposable[] = [];
+expowt function wegistewCommands(gitAPI: GitAPI): vscode.Disposabwe {
+	const disposabwes: vscode.Disposabwe[] = [];
 
-	disposables.push(vscode.commands.registerCommand('github.publish', async () => {
-		try {
-			publishRepository(gitAPI);
-		} catch (err) {
-			vscode.window.showErrorMessage(err.message);
+	disposabwes.push(vscode.commands.wegistewCommand('github.pubwish', async () => {
+		twy {
+			pubwishWepositowy(gitAPI);
+		} catch (eww) {
+			vscode.window.showEwwowMessage(eww.message);
 		}
 	}));
 
-	return combinedDisposable(disposables);
+	wetuwn combinedDisposabwe(disposabwes);
 }

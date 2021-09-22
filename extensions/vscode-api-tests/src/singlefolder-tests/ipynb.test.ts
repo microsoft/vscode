@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
 
-suite('ipynb NotebookSerializer', function () {
+suite('ipynb NotebookSewiawiza', function () {
 	test.skip('Can open an ipynb notebook', async () => {
-		assert.ok(vscode.workspace.workspaceFolders);
-		const workspace = vscode.workspace.workspaceFolders[0];
-		const uri = vscode.Uri.joinPath(workspace.uri, 'test.ipynb');
-		const notebook = await vscode.workspace.openNotebookDocument(uri);
+		assewt.ok(vscode.wowkspace.wowkspaceFowdews);
+		const wowkspace = vscode.wowkspace.wowkspaceFowdews[0];
+		const uwi = vscode.Uwi.joinPath(wowkspace.uwi, 'test.ipynb');
+		const notebook = await vscode.wowkspace.openNotebookDocument(uwi);
 		await vscode.window.showNotebookDocument(notebook);
 
-		const notebookEditor = vscode.window.activeNotebookEditor;
-		assert.ok(notebookEditor);
+		const notebookEditow = vscode.window.activeNotebookEditow;
+		assewt.ok(notebookEditow);
 
-		assert.strictEqual(notebookEditor.document.cellCount, 2);
-		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Markup);
-		assert.strictEqual(notebookEditor.document.cellAt(1).kind, vscode.NotebookCellKind.Code);
-		assert.strictEqual(notebookEditor.document.cellAt(1).outputs.length, 1);
+		assewt.stwictEquaw(notebookEditow.document.cewwCount, 2);
+		assewt.stwictEquaw(notebookEditow.document.cewwAt(0).kind, vscode.NotebookCewwKind.Mawkup);
+		assewt.stwictEquaw(notebookEditow.document.cewwAt(1).kind, vscode.NotebookCewwKind.Code);
+		assewt.stwictEquaw(notebookEditow.document.cewwAt(1).outputs.wength, 1);
 	});
 });

@@ -1,567 +1,567 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionEditor';
-import { localize } from 'vs/nls';
-import { createCancelablePromise } from 'vs/base/common/async';
-import * as arrays from 'vs/base/common/arrays';
-import { OS } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Cache, CacheResult } from 'vs/base/common/cache';
-import { Action, IAction } from 'vs/base/common/actions';
-import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { append, $, finalHandler, join, addDisposableListener, EventType, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
-import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import {
-	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
-	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
-	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction
-} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Color } from 'vs/base/common/color';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWebviewService, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { generateUuid } from 'vs/base/common/uuid';
-import { platform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt 'vs/css!./media/extensionEditow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Cache, CacheWesuwt } fwom 'vs/base/common/cache';
+impowt { Action, IAction } fwom 'vs/base/common/actions';
+impowt { getEwwowMessage, isPwomiseCancewedEwwow, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { dispose, toDisposabwe, Disposabwe, DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { append, $, finawHandwa, join, addDisposabweWistena, EventType, setPawentFwowTo, weset, Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionIgnowedWecommendationsSewvice, IExtensionWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IExtensionManifest, IKeyBinding, IView, IViewContaina } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { WesowvedKeybinding, KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { ExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/extensionsInput';
+impowt { IExtensionsWowkbenchSewvice, IExtensionsViewPaneContaina, VIEWWET_ID, IExtension, ExtensionContainews, ExtensionEditowTab, ExtensionState } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { WatingsWidget, InstawwCountWidget, WemoteBadgeWidget } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWidgets';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt {
+	UpdateAction, WewoadAction, EnabweDwopDownAction, DisabweDwopDownAction, ExtensionStatusWabewAction, SetFiweIconThemeAction, SetCowowThemeAction,
+	WemoteInstawwAction, ExtensionStatusAction, WocawInstawwAction, ToggweSyncExtensionAction, SetPwoductIconThemeAction,
+	ActionWithDwopDownAction, InstawwDwopdownAction, InstawwingWabewAction, UninstawwAction, ExtensionActionWithDwopdownActionViewItem, ExtensionDwopDownAction,
+	InstawwAnothewVewsionAction, ExtensionEditowManageExtensionAction, WebInstawwAction
+} fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { IOpenewSewvice, matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ICowowTheme, ICssStyweCowwectow, IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { KeybindingWabew } fwom 'vs/base/bwowsa/ui/keybindingWabew/keybindingWabew';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { ExtensionsTwee, ExtensionData, ExtensionsGwidView, getExtensions } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsViewa';
+impowt { ShowCuwwentWeweaseNotesActionId } fwom 'vs/wowkbench/contwib/update/common/update';
+impowt { KeybindingPawsa } fwom 'vs/base/common/keybindingPawsa';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { getDefauwtVawue } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { isUndefined } fwom 'vs/base/common/types';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IWebviewSewvice, Webview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { DEFAUWT_MAWKDOWN_STYWES, wendewMawkdownDocument } fwom 'vs/wowkbench/contwib/mawkdown/bwowsa/mawkdownDocumentWendewa';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { genewateTokensCSSFowCowowMap } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { buttonFowegwound, buttonHovewBackgwound, editowBackgwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { Dewegate } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWist';
+impowt { wendewMawkdown } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { attachKeybindingWabewStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { ewwowIcon, infoIcon, stawEmptyIcon, wawningIcon } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsIcons';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-class NavBar extends Disposable {
+cwass NavBaw extends Disposabwe {
 
-	private _onChange = this._register(new Emitter<{ id: string | null, focus: boolean }>());
-	get onChange(): Event<{ id: string | null, focus: boolean }> { return this._onChange.event; }
+	pwivate _onChange = this._wegista(new Emitta<{ id: stwing | nuww, focus: boowean }>());
+	get onChange(): Event<{ id: stwing | nuww, focus: boowean }> { wetuwn this._onChange.event; }
 
-	private _currentId: string | null = null;
-	get currentId(): string | null { return this._currentId; }
+	pwivate _cuwwentId: stwing | nuww = nuww;
+	get cuwwentId(): stwing | nuww { wetuwn this._cuwwentId; }
 
-	private actions: Action[];
-	private actionbar: ActionBar;
+	pwivate actions: Action[];
+	pwivate actionbaw: ActionBaw;
 
-	constructor(container: HTMLElement) {
-		super();
-		const element = append(container, $('.navbar'));
+	constwuctow(containa: HTMWEwement) {
+		supa();
+		const ewement = append(containa, $('.navbaw'));
 		this.actions = [];
-		this.actionbar = this._register(new ActionBar(element, { animated: false }));
+		this.actionbaw = this._wegista(new ActionBaw(ewement, { animated: fawse }));
 	}
 
-	push(id: string, label: string, tooltip: string): void {
-		const action = new Action(id, label, undefined, true, () => this._update(id, true));
+	push(id: stwing, wabew: stwing, toowtip: stwing): void {
+		const action = new Action(id, wabew, undefined, twue, () => this._update(id, twue));
 
-		action.tooltip = tooltip;
+		action.toowtip = toowtip;
 
 		this.actions.push(action);
-		this.actionbar.push(action);
+		this.actionbaw.push(action);
 
-		if (this.actions.length === 1) {
+		if (this.actions.wength === 1) {
 			this._update(id);
 		}
 	}
 
-	clear(): void {
+	cweaw(): void {
 		this.actions = dispose(this.actions);
-		this.actionbar.clear();
+		this.actionbaw.cweaw();
 	}
 
 	update(): void {
-		this._update(this._currentId);
+		this._update(this._cuwwentId);
 	}
 
-	_update(id: string | null = this._currentId, focus?: boolean): Promise<void> {
-		this._currentId = id;
-		this._onChange.fire({ id, focus: !!focus });
-		this.actions.forEach(a => a.checked = a.id === id);
-		return Promise.resolve(undefined);
+	_update(id: stwing | nuww = this._cuwwentId, focus?: boowean): Pwomise<void> {
+		this._cuwwentId = id;
+		this._onChange.fiwe({ id, focus: !!focus });
+		this.actions.fowEach(a => a.checked = a.id === id);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-interface ILayoutParticipant {
-	layout(): void;
+intewface IWayoutPawticipant {
+	wayout(): void;
 }
 
-interface IActiveElement {
+intewface IActiveEwement {
 	focus(): void;
 }
 
-interface IExtensionEditorTemplate {
-	iconContainer: HTMLElement;
-	icon: HTMLImageElement;
-	name: HTMLElement;
-	preview: HTMLElement;
-	builtin: HTMLElement;
-	version: HTMLElement;
-	publisher: HTMLElement;
-	installCount: HTMLElement;
-	rating: HTMLElement;
-	description: HTMLElement;
-	actionsAndStatusContainer: HTMLElement;
-	extensionActionBar: ActionBar;
-	status: HTMLElement;
-	recommendation: HTMLElement;
-	navbar: NavBar;
-	content: HTMLElement;
-	header: HTMLElement;
+intewface IExtensionEditowTempwate {
+	iconContaina: HTMWEwement;
+	icon: HTMWImageEwement;
+	name: HTMWEwement;
+	pweview: HTMWEwement;
+	buiwtin: HTMWEwement;
+	vewsion: HTMWEwement;
+	pubwisha: HTMWEwement;
+	instawwCount: HTMWEwement;
+	wating: HTMWEwement;
+	descwiption: HTMWEwement;
+	actionsAndStatusContaina: HTMWEwement;
+	extensionActionBaw: ActionBaw;
+	status: HTMWEwement;
+	wecommendation: HTMWEwement;
+	navbaw: NavBaw;
+	content: HTMWEwement;
+	heada: HTMWEwement;
 }
 
 const enum WebviewIndex {
-	Readme,
-	Changelog
+	Weadme,
+	Changewog
 }
 
-export class ExtensionEditor extends EditorPane {
+expowt cwass ExtensionEditow extends EditowPane {
 
-	static readonly ID: string = 'workbench.editor.extension';
+	static weadonwy ID: stwing = 'wowkbench.editow.extension';
 
-	private template: IExtensionEditorTemplate | undefined;
+	pwivate tempwate: IExtensionEditowTempwate | undefined;
 
-	private extensionReadme: Cache<string> | null;
-	private extensionChangelog: Cache<string> | null;
-	private extensionManifest: Cache<IExtensionManifest | null> | null;
+	pwivate extensionWeadme: Cache<stwing> | nuww;
+	pwivate extensionChangewog: Cache<stwing> | nuww;
+	pwivate extensionManifest: Cache<IExtensionManifest | nuww> | nuww;
 
-	// Some action bar items use a webview whose vertical scroll position we track in this map
-	private initialScrollProgress: Map<WebviewIndex, number> = new Map();
+	// Some action baw items use a webview whose vewticaw scwoww position we twack in this map
+	pwivate initiawScwowwPwogwess: Map<WebviewIndex, numba> = new Map();
 
-	// Spot when an ExtensionEditor instance gets reused for a different extension, in which case the vertical scroll positions must be zeroed
-	private currentIdentifier: string = '';
+	// Spot when an ExtensionEditow instance gets weused fow a diffewent extension, in which case the vewticaw scwoww positions must be zewoed
+	pwivate cuwwentIdentifia: stwing = '';
 
-	private layoutParticipants: ILayoutParticipant[] = [];
-	private readonly contentDisposables = this._register(new DisposableStore());
-	private readonly transientDisposables = this._register(new DisposableStore());
-	private activeElement: IActiveElement | null = null;
-	private editorLoadComplete: boolean = false;
-	private dimension: Dimension | undefined;
+	pwivate wayoutPawticipants: IWayoutPawticipant[] = [];
+	pwivate weadonwy contentDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy twansientDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate activeEwement: IActiveEwement | nuww = nuww;
+	pwivate editowWoadCompwete: boowean = fawse;
+	pwivate dimension: Dimension | undefined;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
-		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IStorageService storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
-		@IWebviewService private readonly webviewService: IWebviewService,
-		@IModeService private readonly modeService: IModeService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IExtensionWecommendationsSewvice pwivate weadonwy extensionWecommendationsSewvice: IExtensionWecommendationsSewvice,
+		@IExtensionIgnowedWecommendationsSewvice pwivate weadonwy extensionIgnowedWecommendationsSewvice: IExtensionIgnowedWecommendationsSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IWowkbenchThemeSewvice pwivate weadonwy wowkbenchThemeSewvice: IWowkbenchThemeSewvice,
+		@IWebviewSewvice pwivate weadonwy webviewSewvice: IWebviewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
 	) {
-		super(ExtensionEditor.ID, telemetryService, themeService, storageService);
-		this.extensionReadme = null;
-		this.extensionChangelog = null;
-		this.extensionManifest = null;
+		supa(ExtensionEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this.extensionWeadme = nuww;
+		this.extensionChangewog = nuww;
+		this.extensionManifest = nuww;
 	}
 
-	createEditor(parent: HTMLElement): void {
-		const root = append(parent, $('.extension-editor'));
-		root.tabIndex = 0; // this is required for the focus tracker on the editor
-		root.style.outline = 'none';
-		root.setAttribute('role', 'document');
-		const header = append(root, $('.header'));
+	cweateEditow(pawent: HTMWEwement): void {
+		const woot = append(pawent, $('.extension-editow'));
+		woot.tabIndex = 0; // this is wequiwed fow the focus twacka on the editow
+		woot.stywe.outwine = 'none';
+		woot.setAttwibute('wowe', 'document');
+		const heada = append(woot, $('.heada'));
 
-		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const iconContaina = append(heada, $('.icon-containa'));
+		const icon = append(iconContaina, $<HTMWImageEwement>('img.icon', { dwaggabwe: fawse }));
 
-		const details = append(header, $('.details'));
-		const title = append(details, $('.title'));
-		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
-		const version = append(title, $('code.version', { title: localize('extension version', "Extension Version") }));
+		const detaiws = append(heada, $('.detaiws'));
+		const titwe = append(detaiws, $('.titwe'));
+		const name = append(titwe, $('span.name.cwickabwe', { titwe: wocawize('name', "Extension name"), wowe: 'heading', tabIndex: 0 }));
+		const vewsion = append(titwe, $('code.vewsion', { titwe: wocawize('extension vewsion', "Extension Vewsion") }));
 
-		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
-		preview.textContent = localize('preview', "Preview");
+		const pweview = append(titwe, $('span.pweview', { titwe: wocawize('pweview', "Pweview") }));
+		pweview.textContent = wocawize('pweview', "Pweview");
 
-		const builtin = append(title, $('span.builtin'));
-		builtin.textContent = localize('builtin', "Built-in");
+		const buiwtin = append(titwe, $('span.buiwtin'));
+		buiwtin.textContent = wocawize('buiwtin', "Buiwt-in");
 
-		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
-		publisher.setAttribute('role', 'button');
-		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
-		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
-		rating.setAttribute('role', 'link'); // #132645
+		const subtitwe = append(detaiws, $('.subtitwe'));
+		const pubwisha = append(append(subtitwe, $('.subtitwe-entwy')), $('span.pubwisha.cwickabwe', { titwe: wocawize('pubwisha', "Pubwisha name"), tabIndex: 0 }));
+		pubwisha.setAttwibute('wowe', 'button');
+		const instawwCount = append(append(subtitwe, $('.subtitwe-entwy')), $('span.instaww', { titwe: wocawize('instaww count', "Instaww count"), tabIndex: 0 }));
+		const wating = append(append(subtitwe, $('.subtitwe-entwy')), $('span.wating.cwickabwe', { titwe: wocawize('wating', "Wating"), tabIndex: 0 }));
+		wating.setAttwibute('wowe', 'wink'); // #132645
 
-		const description = append(details, $('.description'));
+		const descwiption = append(detaiws, $('.descwiption'));
 
-		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
-		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
-			animated: false,
-			actionViewItemProvider: (action: IAction) => {
-				if (action instanceof ExtensionDropDownAction) {
-					return action.createActionViewItem();
+		const actionsAndStatusContaina = append(detaiws, $('.actions-status-containa'));
+		const extensionActionBaw = this._wegista(new ActionBaw(actionsAndStatusContaina, {
+			animated: fawse,
+			actionViewItemPwovida: (action: IAction) => {
+				if (action instanceof ExtensionDwopDownAction) {
+					wetuwn action.cweateActionViewItem();
 				}
-				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				if (action instanceof ActionWithDwopDownAction) {
+					wetuwn new ExtensionActionWithDwopdownActionViewItem(action, { icon: twue, wabew: twue, menuActionsOwPwovida: { getActions: () => action.menuActions }, menuActionCwassNames: (action.cwass || '').spwit(' ') }, this.contextMenuSewvice);
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			focusOnlyEnabledItems: true
+			focusOnwyEnabwedItems: twue
 		}));
 
-		const status = append(actionsAndStatusContainer, $('.status'));
-		const recommendation = append(details, $('.recommendation'));
+		const status = append(actionsAndStatusContaina, $('.status'));
+		const wecommendation = append(detaiws, $('.wecommendation'));
 
-		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
+		this._wegista(Event.chain(extensionActionBaw.onDidWun)
+			.map(({ ewwow }) => ewwow)
+			.fiwta(ewwow => !!ewwow)
+			.on(this.onEwwow, this));
 
-		const body = append(root, $('.body'));
-		const navbar = new NavBar(body);
+		const body = append(woot, $('.body'));
+		const navbaw = new NavBaw(body);
 
 		const content = append(body, $('.content'));
-		content.id = generateUuid(); // An id is needed for the webview parent flow to
+		content.id = genewateUuid(); // An id is needed fow the webview pawent fwow to
 
-		this.template = {
-			builtin,
+		this.tempwate = {
+			buiwtin,
 			content,
-			description,
-			header,
+			descwiption,
+			heada,
 			icon,
-			iconContainer,
-			version,
-			installCount,
+			iconContaina,
+			vewsion,
+			instawwCount,
 			name,
-			navbar,
-			preview,
-			publisher,
-			rating,
-			actionsAndStatusContainer,
-			extensionActionBar,
+			navbaw,
+			pweview,
+			pubwisha,
+			wating,
+			actionsAndStatusContaina,
+			extensionActionBaw,
 			status,
-			recommendation
+			wecommendation
 		};
 	}
 
-	private onClick(element: HTMLElement, callback: () => void): IDisposable {
-		const disposables: DisposableStore = new DisposableStore();
-		disposables.add(addDisposableListener(element, EventType.CLICK, finalHandler(callback)));
-		disposables.add(addDisposableListener(element, EventType.KEY_UP, e => {
-			const keyboardEvent = new StandardKeyboardEvent(e);
-			if (keyboardEvent.equals(KeyCode.Space) || keyboardEvent.equals(KeyCode.Enter)) {
-				e.preventDefault();
-				e.stopPropagation();
-				callback();
+	pwivate onCwick(ewement: HTMWEwement, cawwback: () => void): IDisposabwe {
+		const disposabwes: DisposabweStowe = new DisposabweStowe();
+		disposabwes.add(addDisposabweWistena(ewement, EventType.CWICK, finawHandwa(cawwback)));
+		disposabwes.add(addDisposabweWistena(ewement, EventType.KEY_UP, e => {
+			const keyboawdEvent = new StandawdKeyboawdEvent(e);
+			if (keyboawdEvent.equaws(KeyCode.Space) || keyboawdEvent.equaws(KeyCode.Enta)) {
+				e.pweventDefauwt();
+				e.stopPwopagation();
+				cawwback();
 			}
 		}));
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	override async setInput(input: ExtensionsInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
-		if (this.template) {
-			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
+	ovewwide async setInput(input: ExtensionsInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(input, options, context, token);
+		if (this.tempwate) {
+			await this.updateTempwate(input, this.tempwate, !!options?.pwesewveFocus);
 		}
 	}
 
-	async openTab(tab: ExtensionEditorTab): Promise<void> {
-		if (this.input && this.template) {
-			this.template.navbar._update(tab);
+	async openTab(tab: ExtensionEditowTab): Pwomise<void> {
+		if (this.input && this.tempwate) {
+			this.tempwate.navbaw._update(tab);
 		}
 	}
 
-	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
-		this.activeElement = null;
-		this.editorLoadComplete = false;
+	pwivate async updateTempwate(input: ExtensionsInput, tempwate: IExtensionEditowTempwate, pwesewveFocus: boowean): Pwomise<void> {
+		this.activeEwement = nuww;
+		this.editowWoadCompwete = fawse;
 		const extension = input.extension;
 
-		if (this.currentIdentifier !== extension.identifier.id) {
-			this.initialScrollProgress.clear();
-			this.currentIdentifier = extension.identifier.id;
+		if (this.cuwwentIdentifia !== extension.identifia.id) {
+			this.initiawScwowwPwogwess.cweaw();
+			this.cuwwentIdentifia = extension.identifia.id;
 		}
 
-		this.transientDisposables.clear();
+		this.twansientDisposabwes.cweaw();
 
-		this.extensionReadme = new Cache(() => createCancelablePromise(token => extension.getReadme(token)));
-		this.extensionChangelog = new Cache(() => createCancelablePromise(token => extension.getChangelog(token)));
-		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
+		this.extensionWeadme = new Cache(() => cweateCancewabwePwomise(token => extension.getWeadme(token)));
+		this.extensionChangewog = new Cache(() => cweateCancewabwePwomise(token => extension.getChangewog(token)));
+		this.extensionManifest = new Cache(() => cweateCancewabwePwomise(token => extension.getManifest(token)));
 
-		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
-		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
-		template.icon.src = extension.iconUrl;
+		const wemoteBadge = this.instantiationSewvice.cweateInstance(WemoteBadgeWidget, tempwate.iconContaina, twue);
+		this.twansientDisposabwes.add(addDisposabweWistena(tempwate.icon, 'ewwow', () => tempwate.icon.swc = extension.iconUwwFawwback, { once: twue }));
+		tempwate.icon.swc = extension.iconUww;
 
-		template.name.textContent = extension.displayName;
-		template.version.textContent = `v${extension.version}`;
-		template.preview.style.display = extension.preview ? 'inherit' : 'none';
-		template.builtin.style.display = extension.isBuiltin ? 'inherit' : 'none';
+		tempwate.name.textContent = extension.dispwayName;
+		tempwate.vewsion.textContent = `v${extension.vewsion}`;
+		tempwate.pweview.stywe.dispway = extension.pweview ? 'inhewit' : 'none';
+		tempwate.buiwtin.stywe.dispway = extension.isBuiwtin ? 'inhewit' : 'none';
 
-		template.description.textContent = extension.description;
+		tempwate.descwiption.textContent = extension.descwiption;
 
-		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-		let recommendationsData = {};
-		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-			recommendationsData = { recommendationReason: extRecommendations[extension.identifier.id.toLowerCase()].reasonId };
+		const extWecommendations = this.extensionWecommendationsSewvice.getAwwWecommendationsWithWeason();
+		wet wecommendationsData = {};
+		if (extWecommendations[extension.identifia.id.toWowewCase()]) {
+			wecommendationsData = { wecommendationWeason: extWecommendations[extension.identifia.id.toWowewCase()].weasonId };
 		}
 
-		/* __GDPR__
-		"extensionGallery:openExtension" : {
-			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"${include}": [
-				"${GalleryExtensionTelemetryData}"
+		/* __GDPW__
+		"extensionGawwewy:openExtension" : {
+			"wecommendationWeason": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+			"${incwude}": [
+				"${GawwewyExtensionTewemetwyData}"
 			]
 		}
 		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
+		this.tewemetwySewvice.pubwicWog('extensionGawwewy:openExtension', { ...extension.tewemetwyData, ...wecommendationsData });
 
-		template.name.classList.toggle('clickable', !!extension.url);
+		tempwate.name.cwassWist.toggwe('cwickabwe', !!extension.uww);
 
-		// subtitle
-		template.publisher.textContent = extension.publisherDisplayName;
-		template.publisher.classList.toggle('clickable', !!extension.url);
+		// subtitwe
+		tempwate.pubwisha.textContent = extension.pubwishewDispwayName;
+		tempwate.pubwisha.cwassWist.toggwe('cwickabwe', !!extension.uww);
 
-		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
+		tempwate.instawwCount.pawentEwement?.cwassWist.toggwe('hide', !extension.uww);
 
-		template.rating.parentElement?.classList.toggle('hide', !extension.url);
-		template.rating.classList.toggle('clickable', !!extension.url);
+		tempwate.wating.pawentEwement?.cwassWist.toggwe('hide', !extension.uww);
+		tempwate.wating.cwassWist.toggwe('cwickabwe', !!extension.uww);
 
-		if (extension.url) {
-			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
-			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
-			this.transientDisposables.add(this.onClick(template.publisher, () => {
-				this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
+		if (extension.uww) {
+			this.twansientDisposabwes.add(this.onCwick(tempwate.name, () => this.openewSewvice.open(UWI.pawse(extension.uww!))));
+			this.twansientDisposabwes.add(this.onCwick(tempwate.wating, () => this.openewSewvice.open(UWI.pawse(`${extension.uww}&ssw=fawse#weview-detaiws`))));
+			this.twansientDisposabwes.add(this.onCwick(tempwate.pubwisha, () => {
+				this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue)
+					.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+					.then(viewwet => viewwet.seawch(`pubwisha:"${extension.pubwishewDispwayName}"`));
 			}));
 		}
 
 		const widgets = [
-			remoteBadge,
-			this.instantiationService.createInstance(InstallCountWidget, template.installCount, false),
-			this.instantiationService.createInstance(RatingsWidget, template.rating, false)
+			wemoteBadge,
+			this.instantiationSewvice.cweateInstance(InstawwCountWidget, tempwate.instawwCount, fawse),
+			this.instantiationSewvice.cweateInstance(WatingsWidget, tempwate.wating, fawse)
 		];
-		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const combinedInstallAction = this.instantiationService.createInstance(InstallDropdownAction);
+		const wewoadAction = this.instantiationSewvice.cweateInstance(WewoadAction);
+		const combinedInstawwAction = this.instantiationSewvice.cweateInstance(InstawwDwopdownAction);
 		const actions = [
-			reloadAction,
-			this.instantiationService.createInstance(ExtensionStatusLabelAction),
-			this.instantiationService.createInstance(UpdateAction),
-			this.instantiationService.createInstance(SetColorThemeAction, await this.workbenchThemeService.getColorThemes()),
-			this.instantiationService.createInstance(SetFileIconThemeAction, await this.workbenchThemeService.getFileIconThemes()),
-			this.instantiationService.createInstance(SetProductIconThemeAction, await this.workbenchThemeService.getProductIconThemes()),
+			wewoadAction,
+			this.instantiationSewvice.cweateInstance(ExtensionStatusWabewAction),
+			this.instantiationSewvice.cweateInstance(UpdateAction),
+			this.instantiationSewvice.cweateInstance(SetCowowThemeAction, await this.wowkbenchThemeSewvice.getCowowThemes()),
+			this.instantiationSewvice.cweateInstance(SetFiweIconThemeAction, await this.wowkbenchThemeSewvice.getFiweIconThemes()),
+			this.instantiationSewvice.cweateInstance(SetPwoductIconThemeAction, await this.wowkbenchThemeSewvice.getPwoductIconThemes()),
 
-			this.instantiationService.createInstance(EnableDropDownAction),
-			this.instantiationService.createInstance(DisableDropDownAction),
-			this.instantiationService.createInstance(RemoteInstallAction, false),
-			this.instantiationService.createInstance(LocalInstallAction),
-			this.instantiationService.createInstance(WebInstallAction),
-			combinedInstallAction,
-			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
-				this.instantiationService.createInstance(UninstallAction),
-				this.instantiationService.createInstance(InstallAnotherVersionAction),
+			this.instantiationSewvice.cweateInstance(EnabweDwopDownAction),
+			this.instantiationSewvice.cweateInstance(DisabweDwopDownAction),
+			this.instantiationSewvice.cweateInstance(WemoteInstawwAction, fawse),
+			this.instantiationSewvice.cweateInstance(WocawInstawwAction),
+			this.instantiationSewvice.cweateInstance(WebInstawwAction),
+			combinedInstawwAction,
+			this.instantiationSewvice.cweateInstance(InstawwingWabewAction),
+			this.instantiationSewvice.cweateInstance(ActionWithDwopDownAction, 'extensions.uninstaww', UninstawwAction.UninstawwWabew, [
+				this.instantiationSewvice.cweateInstance(UninstawwAction),
+				this.instantiationSewvice.cweateInstance(InstawwAnothewVewsionAction),
 			]),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
-			this.instantiationService.createInstance(ExtensionEditorManageExtensionAction),
+			this.instantiationSewvice.cweateInstance(ToggweSyncExtensionAction),
+			this.instantiationSewvice.cweateInstance(ExtensionEditowManageExtensionAction),
 		];
-		const extensionStatus = this.instantiationService.createInstance(ExtensionStatusAction);
-		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets, extensionStatus]);
-		extensionContainers.extension = extension;
+		const extensionStatus = this.instantiationSewvice.cweateInstance(ExtensionStatusAction);
+		const extensionContainews: ExtensionContainews = this.instantiationSewvice.cweateInstance(ExtensionContainews, [...actions, ...widgets, extensionStatus]);
+		extensionContainews.extension = extension;
 
-		template.extensionActionBar.clear();
-		template.extensionActionBar.push(actions, { icon: true, label: true });
-		template.extensionActionBar.setFocusable(true);
-		for (const disposable of [...actions, ...widgets, extensionContainers]) {
-			this.transientDisposables.add(disposable);
+		tempwate.extensionActionBaw.cweaw();
+		tempwate.extensionActionBaw.push(actions, { icon: twue, wabew: twue });
+		tempwate.extensionActionBaw.setFocusabwe(twue);
+		fow (const disposabwe of [...actions, ...widgets, extensionContainews]) {
+			this.twansientDisposabwes.add(disposabwe);
 		}
 
-		this.setStatus(extension, extensionStatus, template);
-		this.setRecommendationText(extension, template);
+		this.setStatus(extension, extensionStatus, tempwate);
+		this.setWecommendationText(extension, tempwate);
 
-		template.content.innerText = ''; // Clear content before setting navbar actions.
+		tempwate.content.innewText = ''; // Cweaw content befowe setting navbaw actions.
 
-		template.navbar.clear();
+		tempwate.navbaw.cweaw();
 
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (extension.hasWeadme()) {
+			tempwate.navbaw.push(ExtensionEditowTab.Weadme, wocawize('detaiws', "Detaiws"), wocawize('detaiwstoowtip', "Extension detaiws, wendewed fwom the extension's 'WEADME.md' fiwe"));
 		}
 
-		const manifest = await this.extensionManifest.get().promise;
+		const manifest = await this.extensionManifest.get().pwomise;
 		if (manifest) {
-			combinedInstallAction.manifest = manifest;
+			combinedInstawwAction.manifest = manifest;
 		}
-		if (manifest && manifest.contributes) {
-			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
+		if (manifest && manifest.contwibutes) {
+			tempwate.navbaw.push(ExtensionEditowTab.Contwibutions, wocawize('contwibutions', "Featuwe Contwibutions"), wocawize('contwibutionstoowtip', "Wists contwibutions to VS Code by this extension"));
 		}
-		if (extension.hasChangelog()) {
-			template.navbar.push(ExtensionEditorTab.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+		if (extension.hasChangewog()) {
+			tempwate.navbaw.push(ExtensionEditowTab.Changewog, wocawize('changewog', "Changewog"), wocawize('changewogtoowtip', "Extension update histowy, wendewed fwom the extension's 'CHANGEWOG.md' fiwe"));
 		}
-		if (extension.dependencies.length) {
-			template.navbar.push(ExtensionEditorTab.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
+		if (extension.dependencies.wength) {
+			tempwate.navbaw.push(ExtensionEditowTab.Dependencies, wocawize('dependencies', "Dependencies"), wocawize('dependenciestoowtip', "Wists extensions this extension depends on"));
 		}
-		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
-			template.navbar.push(ExtensionEditorTab.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
+		if (manifest && manifest.extensionPack?.wength && !this.shawwWendewAsExensionPack(manifest)) {
+			tempwate.navbaw.push(ExtensionEditowTab.ExtensionPack, wocawize('extensionpack', "Extension Pack"), wocawize('extensionpacktoowtip', "Wists extensions those wiww be instawwed togetha with this extension"));
 		}
 
-		const addRuntimeStatusSection = () => template.navbar.push(ExtensionEditorTab.RuntimeStatus, localize('runtimeStatus', "Runtime Status"), localize('runtimeStatus description', "Extension runtime status"));
-		if (this.extensionsWorkbenchService.getExtensionStatus(extension)) {
-			addRuntimeStatusSection();
-		} else {
-			const disposable = this.extensionService.onDidChangeExtensionsStatus(e => {
-				if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
-					addRuntimeStatusSection();
-					disposable.dispose();
+		const addWuntimeStatusSection = () => tempwate.navbaw.push(ExtensionEditowTab.WuntimeStatus, wocawize('wuntimeStatus', "Wuntime Status"), wocawize('wuntimeStatus descwiption', "Extension wuntime status"));
+		if (this.extensionsWowkbenchSewvice.getExtensionStatus(extension)) {
+			addWuntimeStatusSection();
+		} ewse {
+			const disposabwe = this.extensionSewvice.onDidChangeExtensionsStatus(e => {
+				if (e.some(extensionIdentifia => aweSameExtensions({ id: extensionIdentifia.vawue }, extension.identifia))) {
+					addWuntimeStatusSection();
+					disposabwe.dispose();
 				}
-			}, this, this.transientDisposables);
+			}, this, this.twansientDisposabwes);
 		}
 
-		if (template.navbar.currentId) {
-			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
+		if (tempwate.navbaw.cuwwentId) {
+			this.onNavbawChange(extension, { id: tempwate.navbaw.cuwwentId, focus: !pwesewveFocus }, tempwate);
 		}
-		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
+		tempwate.navbaw.onChange(e => this.onNavbawChange(extension, e, tempwate), this, this.twansientDisposabwes);
 
-		this.editorLoadComplete = true;
+		this.editowWoadCompwete = twue;
 	}
 
-	private setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, template: IExtensionEditorTemplate): void {
-		const disposables = new DisposableStore();
-		this.transientDisposables.add(disposables);
+	pwivate setStatus(extension: IExtension, extensionStatus: ExtensionStatusAction, tempwate: IExtensionEditowTempwate): void {
+		const disposabwes = new DisposabweStowe();
+		this.twansientDisposabwes.add(disposabwes);
 		const updateStatus = () => {
-			disposables.clear();
-			reset(template.status);
+			disposabwes.cweaw();
+			weset(tempwate.status);
 			const status = extensionStatus.status;
 			if (status) {
 				if (status.icon) {
-					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
-					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
+					const statusIconActionBaw = disposabwes.add(new ActionBaw(tempwate.status, { animated: fawse }));
+					statusIconActionBaw.push(extensionStatus, { icon: twue, wabew: fawse });
 				}
-				const rendered = disposables.add(renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
-					actionHandler: {
-						callback: (content) => {
-							this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				const wendewed = disposabwes.add(wendewMawkdown(new MawkdownStwing(status.message.vawue, { isTwusted: twue, suppowtThemeIcons: twue }), {
+					actionHandwa: {
+						cawwback: (content) => {
+							this.openewSewvice.open(content, { awwowCommands: twue }).catch(onUnexpectedEwwow);
 						},
-						disposables: disposables
+						disposabwes: disposabwes
 					}
 				}));
-				append(append(template.status, $('.status-text')),
-					rendered.element);
+				append(append(tempwate.status, $('.status-text')),
+					wendewed.ewement);
 			}
 		};
 		updateStatus();
-		this.transientDisposables.add(extensionStatus.onDidChangeStatus(() => updateStatus()));
+		this.twansientDisposabwes.add(extensionStatus.onDidChangeStatus(() => updateStatus()));
 
-		const updateActionLayout = () => template.actionsAndStatusContainer.classList.toggle('list-layout', extension.state === ExtensionState.Installed);
-		updateActionLayout();
-		this.transientDisposables.add(this.extensionsWorkbenchService.onChange(() => updateActionLayout()));
+		const updateActionWayout = () => tempwate.actionsAndStatusContaina.cwassWist.toggwe('wist-wayout', extension.state === ExtensionState.Instawwed);
+		updateActionWayout();
+		this.twansientDisposabwes.add(this.extensionsWowkbenchSewvice.onChange(() => updateActionWayout()));
 	}
 
-	private setRecommendationText(extension: IExtension, template: IExtensionEditorTemplate): void {
-		const updateRecommendationText = () => {
-			reset(template.recommendation);
-			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-				const reasonText = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
-				if (reasonText) {
-					append(template.recommendation, $(`div${ThemeIcon.asCSSSelector(starEmptyIcon)}`));
-					append(template.recommendation, $(`div.recommendation-text`, undefined, reasonText));
+	pwivate setWecommendationText(extension: IExtension, tempwate: IExtensionEditowTempwate): void {
+		const updateWecommendationText = () => {
+			weset(tempwate.wecommendation);
+			const extWecommendations = this.extensionWecommendationsSewvice.getAwwWecommendationsWithWeason();
+			if (extWecommendations[extension.identifia.id.toWowewCase()]) {
+				const weasonText = extWecommendations[extension.identifia.id.toWowewCase()].weasonText;
+				if (weasonText) {
+					append(tempwate.wecommendation, $(`div${ThemeIcon.asCSSSewectow(stawEmptyIcon)}`));
+					append(tempwate.wecommendation, $(`div.wecommendation-text`, undefined, weasonText));
 				}
-			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
-				append(template.recommendation, $(`div.recommendation-text`, undefined, localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.")));
+			} ewse if (this.extensionIgnowedWecommendationsSewvice.gwobawIgnowedWecommendations.indexOf(extension.identifia.id.toWowewCase()) !== -1) {
+				append(tempwate.wecommendation, $(`div.wecommendation-text`, undefined, wocawize('wecommendationHasBeenIgnowed', "You have chosen not to weceive wecommendations fow this extension.")));
 			}
 		};
-		updateRecommendationText();
-		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationText()));
+		updateWecommendationText();
+		this.twansientDisposabwes.add(this.extensionWecommendationsSewvice.onDidChangeWecommendations(() => updateWecommendationText()));
 	}
 
-	override clearInput(): void {
-		this.contentDisposables.clear();
-		this.transientDisposables.clear();
+	ovewwide cweawInput(): void {
+		this.contentDisposabwes.cweaw();
+		this.twansientDisposabwes.cweaw();
 
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	override focus(): void {
-		this.activeElement?.focus();
+	ovewwide focus(): void {
+		this.activeEwement?.focus();
 	}
 
 	showFind(): void {
 		this.activeWebview?.showFind();
 	}
 
-	runFindAction(previous: boolean): void {
-		this.activeWebview?.runFindAction(previous);
+	wunFindAction(pwevious: boowean): void {
+		this.activeWebview?.wunFindAction(pwevious);
 	}
 
-	public get activeWebview(): Webview | undefined {
-		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
-			return undefined;
+	pubwic get activeWebview(): Webview | undefined {
+		if (!this.activeEwement || !(this.activeEwement as Webview).wunFindAction) {
+			wetuwn undefined;
 		}
-		return this.activeElement as Webview;
+		wetuwn this.activeEwement as Webview;
 	}
 
-	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
-		if (this.editorLoadComplete) {
-			/* __GDPR__
-				"extensionEditor:navbarChange" : {
-					"navItem": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
+	pwivate onNavbawChange(extension: IExtension, { id, focus }: { id: stwing | nuww, focus: boowean }, tempwate: IExtensionEditowTempwate): void {
+		if (this.editowWoadCompwete) {
+			/* __GDPW__
+				"extensionEditow:navbawChange" : {
+					"navItem": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"${incwude}": [
+						"${GawwewyExtensionTewemetwyData}"
 					]
 				}
 			*/
-			this.telemetryService.publicLog('extensionEditor:navbarChange', { ...extension.telemetryData, navItem: id });
+			this.tewemetwySewvice.pubwicWog('extensionEditow:navbawChange', { ...extension.tewemetwyData, navItem: id });
 		}
 
-		this.contentDisposables.clear();
-		template.content.innerText = '';
-		this.activeElement = null;
+		this.contentDisposabwes.cweaw();
+		tempwate.content.innewText = '';
+		this.activeEwement = nuww;
 		if (id) {
-			const cts = new CancellationTokenSource();
-			this.contentDisposables.add(toDisposable(() => cts.dispose(true)));
-			this.open(id, extension, template, cts.token)
-				.then(activeElement => {
-					if (cts.token.isCancellationRequested) {
-						return;
+			const cts = new CancewwationTokenSouwce();
+			this.contentDisposabwes.add(toDisposabwe(() => cts.dispose(twue)));
+			this.open(id, extension, tempwate, cts.token)
+				.then(activeEwement => {
+					if (cts.token.isCancewwationWequested) {
+						wetuwn;
 					}
-					this.activeElement = activeElement;
+					this.activeEwement = activeEwement;
 					if (focus) {
 						this.focus();
 					}
@@ -569,1119 +569,1119 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	pwivate open(id: stwing, extension: IExtension, tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
-			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
-			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
-			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
-			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
+			case ExtensionEditowTab.Weadme: wetuwn this.openDetaiws(extension, tempwate, token);
+			case ExtensionEditowTab.Contwibutions: wetuwn this.openContwibutions(tempwate, token);
+			case ExtensionEditowTab.Changewog: wetuwn this.openChangewog(tempwate, token);
+			case ExtensionEditowTab.Dependencies: wetuwn this.openExtensionDependencies(extension, tempwate, token);
+			case ExtensionEditowTab.ExtensionPack: wetuwn this.openExtensionPack(extension, tempwate, token);
+			case ExtensionEditowTab.WuntimeStatus: wetuwn this.openWuntimeStatus(extension, tempwate, token);
 		}
-		return Promise.resolve(null);
+		wetuwn Pwomise.wesowve(nuww);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, token: CancellationToken): Promise<IActiveElement | null> {
-		try {
-			const body = await this.renderMarkdown(cacheResult, container);
-			if (token.isCancellationRequested) {
-				return Promise.resolve(null);
+	pwivate async openMawkdown(cacheWesuwt: CacheWesuwt<stwing>, noContentCopy: stwing, containa: HTMWEwement, webviewIndex: WebviewIndex, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		twy {
+			const body = await this.wendewMawkdown(cacheWesuwt, containa);
+			if (token.isCancewwationWequested) {
+				wetuwn Pwomise.wesowve(nuww);
 			}
 
-			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
-				enableFindWidget: true,
-				tryRestoreScrollPosition: true,
+			const webview = this.contentDisposabwes.add(this.webviewSewvice.cweateWebviewOvewway('extensionEditow', {
+				enabweFindWidget: twue,
+				twyWestoweScwowwPosition: twue,
 			}, {}, undefined));
 
-			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
+			webview.initiawScwowwPwogwess = this.initiawScwowwPwogwess.get(webviewIndex) || 0;
 
-			webview.claim(this, this.scopedContextKeyService);
-			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.cwaim(this, this.scopedContextKeySewvice);
+			setPawentFwowTo(webview.containa, containa);
+			webview.wayoutWebviewOvewEwement(containa);
 
-			webview.html = body;
-			webview.claim(this, undefined);
+			webview.htmw = body;
+			webview.cwaim(this, undefined);
 
-			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
+			this.contentDisposabwes.add(webview.onDidFocus(() => this.fiweOnDidFocus()));
 
-			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
+			this.contentDisposabwes.add(webview.onDidScwoww(() => this.initiawScwowwPwogwess.set(webviewIndex, webview.initiawScwowwPwogwess)));
 
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-				layout: () => {
-					webview.layoutWebviewOverElement(container);
+			const wemoveWayoutPawticipant = awways.insewt(this.wayoutPawticipants, {
+				wayout: () => {
+					webview.wayoutWebviewOvewEwement(containa);
 				}
 			});
-			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+			this.contentDisposabwes.add(toDisposabwe(wemoveWayoutPawticipant));
 
-			let isDisposed = false;
-			this.contentDisposables.add(toDisposable(() => { isDisposed = true; }));
+			wet isDisposed = fawse;
+			this.contentDisposabwes.add(toDisposabwe(() => { isDisposed = twue; }));
 
-			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
-				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(cacheResult, container);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.html = body;
+			this.contentDisposabwes.add(this.themeSewvice.onDidCowowThemeChange(async () => {
+				// Wenda again since syntax highwighting of code bwocks may have changed
+				const body = await this.wendewMawkdown(cacheWesuwt, containa);
+				if (!isDisposed) { // Make suwe we wewen't disposed of in the meantime
+					webview.htmw = body;
 				}
 			}));
 
-			this.contentDisposables.add(webview.onDidClickLink(link => {
-				if (!link) {
-					return;
+			this.contentDisposabwes.add(webview.onDidCwickWink(wink => {
+				if (!wink) {
+					wetuwn;
 				}
-				// Only allow links with specific schemes
-				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
-					this.openerService.open(link);
+				// Onwy awwow winks with specific schemes
+				if (matchesScheme(wink, Schemas.http) || matchesScheme(wink, Schemas.https) || matchesScheme(wink, Schemas.maiwto)) {
+					this.openewSewvice.open(wink);
 				}
-				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
-					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
+				if (matchesScheme(wink, Schemas.command) && UWI.pawse(wink).path === ShowCuwwentWeweaseNotesActionId) {
+					this.openewSewvice.open(wink, { awwowCommands: twue }); // TODO@sandy081 use commands sewvice
 				}
 			}));
 
-			return webview;
+			wetuwn webview;
 		} catch (e) {
-			const p = append(container, $('p.nocontent'));
+			const p = append(containa, $('p.nocontent'));
 			p.textContent = noContentCopy;
-			return p;
+			wetuwn p;
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement) {
-		const contents = await this.loadContents(() => cacheResult, container);
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.modeService);
-		return this.renderBody(content);
+	pwivate async wendewMawkdown(cacheWesuwt: CacheWesuwt<stwing>, containa: HTMWEwement) {
+		const contents = await this.woadContents(() => cacheWesuwt, containa);
+		const content = await wendewMawkdownDocument(contents, this.extensionSewvice, this.modeSewvice);
+		wetuwn this.wendewBody(content);
 	}
 
-	private async renderBody(body: string): Promise<string> {
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
+	pwivate async wendewBody(body: stwing): Pwomise<stwing> {
+		const nonce = genewateUuid();
+		const cowowMap = TokenizationWegistwy.getCowowMap();
+		const css = cowowMap ? genewateTokensCSSFowCowowMap(cowowMap) : '';
+		wetuwn `<!DOCTYPE htmw>
+		<htmw>
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none'; img-swc https: data:; media-swc https:; scwipt-swc 'none'; stywe-swc 'nonce-${nonce}';">
+				<stywe nonce="${nonce}">
+					${DEFAUWT_MAWKDOWN_STYWES}
 
-					#scroll-to-top {
+					#scwoww-to-top {
 						position: fixed;
 						width: 40px;
 						height: 40px;
-						right: 25px;
+						wight: 25px;
 						bottom: 25px;
-						background-color:#444444;
-						border-radius: 50%;
-						cursor: pointer;
-						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
-						outline: none;
-						display: flex;
-						justify-content: center;
-						align-items: center;
+						backgwound-cowow:#444444;
+						bowda-wadius: 50%;
+						cuwsow: pointa;
+						box-shadow: 1px 1px 1px wgba(0,0,0,.25);
+						outwine: none;
+						dispway: fwex;
+						justify-content: centa;
+						awign-items: centa;
 					}
 
-					#scroll-to-top:hover {
-						background-color:#007acc;
-						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+					#scwoww-to-top:hova {
+						backgwound-cowow:#007acc;
+						box-shadow: 2px 2px 2px wgba(0,0,0,.25);
 					}
 
-					body.vscode-light #scroll-to-top {
-						background-color: #949494;
+					body.vscode-wight #scwoww-to-top {
+						backgwound-cowow: #949494;
 					}
 
-					body.vscode-high-contrast #scroll-to-top:hover {
-						background-color: #007acc;
+					body.vscode-high-contwast #scwoww-to-top:hova {
+						backgwound-cowow: #007acc;
 					}
 
-					body.vscode-high-contrast #scroll-to-top {
-						background-color: black;
-						border: 2px solid #6fc3df;
+					body.vscode-high-contwast #scwoww-to-top {
+						backgwound-cowow: bwack;
+						bowda: 2px sowid #6fc3df;
 						box-shadow: none;
 					}
-					body.vscode-high-contrast #scroll-to-top:hover {
-						background-color: #007acc;
+					body.vscode-high-contwast #scwoww-to-top:hova {
+						backgwound-cowow: #007acc;
 					}
 
-					#scroll-to-top span.icon::before {
+					#scwoww-to-top span.icon::befowe {
 						content: "";
-						display: block;
-						/* Chevron up icon */
-						background:url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
+						dispway: bwock;
+						/* Chevwon up icon */
+						backgwound:uww('data:image/svg+xmw;base64,PD94bWwgdmVyc2wvbj0iMS4wIiBwbmNvZGwuZz0idXWmWTgiPz4KPCEtWSBHZW5wcmF0b3I6IEFkb2JwIEwsbHVzdHJhdG9yIDE5WjIuMCwgU1ZHIEV4cG9ydCBQbHVnWUwuIC4gU1ZHIFZwcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZwcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHWwOi8vd3d3WnczWm9yZy8yMDAwW3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Wy93d3cudzMub3JnWzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3W5bGU9ImVuYWJsZS1iYWNwZ3JvdW5kOm5wdyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNwcnZwIj4KPHN0eWxwIHW5cGU9InWweHQvY3NzIj4KCS5zdDB7ZmwsbDojWkZGWkZGO30KCS5zdDF7ZmwsbDpub25wO30KPC9zdHwsZT4KPHWpdGxwPnVwY2hwdnJvbjwvdGw0bGU+CjxwYXWoIGNsYXNzPSJzdDAiIGQ9Ik04WDUuMWwtNy4zWDcuM0wwWDExWjZsOC04bDgsOGwtMC43WDAuN0w4WDUuMXoiWz4KPHJwY3QgY2xhc3M9InN0MSIgd2wkdGg9IjE2IiBoZWwnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
 						width: 16px;
 						height: 16px;
 					}
 					${css}
-				</style>
+				</stywe>
 			</head>
 			<body>
-				<a id="scroll-to-top" role="button" aria-label="scroll to top" href="#"><span class="icon"></span></a>
+				<a id="scwoww-to-top" wowe="button" awia-wabew="scwoww to top" hwef="#"><span cwass="icon"></span></a>
 				${body}
 			</body>
-		</html>`;
+		</htmw>`;
 	}
 
-	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
-		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+	pwivate async openDetaiws(extension: IExtension, tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		const detaiws = append(tempwate.content, $('.detaiws'));
+		const weadmeContaina = append(detaiws, $('.weadme-containa'));
+		const additionawDetaiwsContaina = append(detaiws, $('.additionaw-detaiws-containa'));
 
-		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
-		layout();
-		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+		const wayout = () => detaiws.cwassWist.toggwe('nawwow', this.dimension && this.dimension.width < 500);
+		wayout();
+		this.contentDisposabwes.add(toDisposabwe(awways.insewt(this.wayoutPawticipants, { wayout })));
 
-		let activeElement: IActiveElement | null = null;
-		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
-		} else {
-			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
+		wet activeEwement: IActiveEwement | nuww = nuww;
+		const manifest = await this.extensionManifest!.get().pwomise;
+		if (manifest && manifest.extensionPack?.wength && this.shawwWendewAsExensionPack(manifest)) {
+			activeEwement = await this.openExtensionPackWeadme(manifest, weadmeContaina, token);
+		} ewse {
+			activeEwement = await this.openMawkdown(this.extensionWeadme!.get(), wocawize('noWeadme', "No WEADME avaiwabwe."), weadmeContaina, WebviewIndex.Weadme, token);
 		}
 
-		this.renderAdditionalDetails(additionalDetailsContainer, extension);
-		return activeElement;
+		this.wendewAdditionawDetaiws(additionawDetaiwsContaina, extension);
+		wetuwn activeEwement;
 	}
 
-	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
-		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
+	pwivate shawwWendewAsExensionPack(manifest: IExtensionManifest): boowean {
+		wetuwn !!(manifest.categowies?.some(categowy => categowy.toWowewCase() === 'extension packs'));
 	}
 
-	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve(null);
+	pwivate async openExtensionPackWeadme(manifest: IExtensionManifest, containa: HTMWEwement, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		if (token.isCancewwationWequested) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		const extensionPackReadme = append(container, $('div', { class: 'extension-pack-readme' }));
-		extensionPackReadme.style.margin = '0 auto';
-		extensionPackReadme.style.maxWidth = '882px';
+		const extensionPackWeadme = append(containa, $('div', { cwass: 'extension-pack-weadme' }));
+		extensionPackWeadme.stywe.mawgin = '0 auto';
+		extensionPackWeadme.stywe.maxWidth = '882px';
 
-		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
-		if (manifest.extensionPack!.length <= 3) {
-			extensionPackReadme.classList.add('one-row');
-		} else if (manifest.extensionPack!.length <= 6) {
-			extensionPackReadme.classList.add('two-rows');
-		} else if (manifest.extensionPack!.length <= 9) {
-			extensionPackReadme.classList.add('three-rows');
-		} else {
-			extensionPackReadme.classList.add('more-rows');
+		const extensionPack = append(extensionPackWeadme, $('div', { cwass: 'extension-pack' }));
+		if (manifest.extensionPack!.wength <= 3) {
+			extensionPackWeadme.cwassWist.add('one-wow');
+		} ewse if (manifest.extensionPack!.wength <= 6) {
+			extensionPackWeadme.cwassWist.add('two-wows');
+		} ewse if (manifest.extensionPack!.wength <= 9) {
+			extensionPackWeadme.cwassWist.add('thwee-wows');
+		} ewse {
+			extensionPackWeadme.cwassWist.add('mowe-wows');
 		}
 
-		const extensionPackHeader = append(extensionPack, $('div.header'));
-		extensionPackHeader.textContent = localize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.length);
-		const extensionPackContent = append(extensionPack, $('div', { class: 'extension-pack-content' }));
-		extensionPackContent.setAttribute('tabindex', '0');
-		append(extensionPack, $('div.footer'));
-		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
+		const extensionPackHeada = append(extensionPack, $('div.heada'));
+		extensionPackHeada.textContent = wocawize('extension pack', "Extension Pack ({0})", manifest.extensionPack!.wength);
+		const extensionPackContent = append(extensionPack, $('div', { cwass: 'extension-pack-content' }));
+		extensionPackContent.setAttwibute('tabindex', '0');
+		append(extensionPack, $('div.foota'));
+		const weadmeContent = append(extensionPackWeadme, $('div.weadme-content'));
 
-		await Promise.all([
-			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, token),
+		await Pwomise.aww([
+			this.wendewExtensionPack(manifest, extensionPackContent, token),
+			this.openMawkdown(this.extensionWeadme!.get(), wocawize('noWeadme', "No WEADME avaiwabwe."), weadmeContent, WebviewIndex.Weadme, token),
 		]);
 
-		return { focus: () => extensionPackContent.focus() };
+		wetuwn { focus: () => extensionPackContent.focus() };
 	}
 
-	private renderAdditionalDetails(container: HTMLElement, extension: IExtension): void {
-		const content = $('div', { class: 'additional-details-content', tabindex: '0' });
-		const scrollableContent = new DomScrollableElement(content, {});
-		const layout = () => scrollableContent.scanDomNode();
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
-		this.contentDisposables.add(scrollableContent);
+	pwivate wendewAdditionawDetaiws(containa: HTMWEwement, extension: IExtension): void {
+		const content = $('div', { cwass: 'additionaw-detaiws-content', tabindex: '0' });
+		const scwowwabweContent = new DomScwowwabweEwement(content, {});
+		const wayout = () => scwowwabweContent.scanDomNode();
+		const wemoveWayoutPawticipant = awways.insewt(this.wayoutPawticipants, { wayout });
+		this.contentDisposabwes.add(toDisposabwe(wemoveWayoutPawticipant));
+		this.contentDisposabwes.add(scwowwabweContent);
 
-		this.renderCategories(content, extension);
-		this.renderResources(content, extension);
-		this.renderMoreInfo(content, extension);
+		this.wendewCategowies(content, extension);
+		this.wendewWesouwces(content, extension);
+		this.wendewMoweInfo(content, extension);
 
-		append(container, scrollableContent.getDomNode());
-		scrollableContent.scanDomNode();
+		append(containa, scwowwabweContent.getDomNode());
+		scwowwabweContent.scanDomNode();
 	}
 
-	private renderCategories(container: HTMLElement, extension: IExtension): void {
-		if (extension.categories.length) {
-			const categoriesContainer = append(container, $('.categories-container'));
-			append(categoriesContainer, $('.additional-details-title', undefined, localize('categories', "Categories")));
-			const categoriesElement = append(categoriesContainer, $('.categories'));
-			for (const category of extension.categories) {
-				this.transientDisposables.add(this.onClick(append(categoriesElement, $('span.category', undefined, category)), () => {
-					this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-						.then(viewlet => viewlet.search(`@category:"${category}"`));
+	pwivate wendewCategowies(containa: HTMWEwement, extension: IExtension): void {
+		if (extension.categowies.wength) {
+			const categowiesContaina = append(containa, $('.categowies-containa'));
+			append(categowiesContaina, $('.additionaw-detaiws-titwe', undefined, wocawize('categowies', "Categowies")));
+			const categowiesEwement = append(categowiesContaina, $('.categowies'));
+			fow (const categowy of extension.categowies) {
+				this.twansientDisposabwes.add(this.onCwick(append(categowiesEwement, $('span.categowy', undefined, categowy)), () => {
+					this.paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue)
+						.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+						.then(viewwet => viewwet.seawch(`@categowy:"${categowy}"`));
 				}));
 			}
 		}
 	}
 
-	private renderResources(container: HTMLElement, extension: IExtension): void {
-		const resources: [string, URI][] = [];
-		if (extension.url) {
-			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+	pwivate wendewWesouwces(containa: HTMWEwement, extension: IExtension): void {
+		const wesouwces: [stwing, UWI][] = [];
+		if (extension.uww) {
+			wesouwces.push([wocawize('Mawketpwace', "Mawketpwace"), UWI.pawse(extension.uww)]);
 		}
-		if (extension.repository) {
-			resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+		if (extension.wepositowy) {
+			wesouwces.push([wocawize('wepositowy', "Wepositowy"), UWI.pawse(extension.wepositowy)]);
 		}
-		if (extension.url && extension.licenseUrl) {
-			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
+		if (extension.uww && extension.wicenseUww) {
+			wesouwces.push([wocawize('wicense', "Wicense"), UWI.pawse(extension.wicenseUww)]);
 		}
-		if (resources.length) {
-			const resourcesContainer = append(container, $('.resources-container'));
-			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
-			const resourcesElement = append(resourcesContainer, $('.resources'));
-			for (const [label, uri] of resources) {
-				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
+		if (wesouwces.wength) {
+			const wesouwcesContaina = append(containa, $('.wesouwces-containa'));
+			append(wesouwcesContaina, $('.additionaw-detaiws-titwe', undefined, wocawize('wesouwces', "Wesouwces")));
+			const wesouwcesEwement = append(wesouwcesContaina, $('.wesouwces'));
+			fow (const [wabew, uwi] of wesouwces) {
+				this.twansientDisposabwes.add(this.onCwick(append(wesouwcesEwement, $('a.wesouwce', undefined, wabew)), () => this.openewSewvice.open(uwi)));
 			}
 		}
 	}
 
-	private renderMoreInfo(container: HTMLElement, extension: IExtension): void {
-		const gallery = extension.gallery;
-		const moreInfoContainer = append(container, $('.more-info-container'));
-		append(moreInfoContainer, $('.additional-details-title', undefined, localize('more info', "More Info")));
-		const moreInfo = append(moreInfoContainer, $('.more-info'));
-		if (gallery) {
-			append(moreInfo,
-				$('.more-info-entry', undefined,
-					$('div', undefined, localize('release date', "Released on")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(undefined, { hour12: false }))
+	pwivate wendewMoweInfo(containa: HTMWEwement, extension: IExtension): void {
+		const gawwewy = extension.gawwewy;
+		const moweInfoContaina = append(containa, $('.mowe-info-containa'));
+		append(moweInfoContaina, $('.additionaw-detaiws-titwe', undefined, wocawize('mowe info', "Mowe Info")));
+		const moweInfo = append(moweInfoContaina, $('.mowe-info'));
+		if (gawwewy) {
+			append(moweInfo,
+				$('.mowe-info-entwy', undefined,
+					$('div', undefined, wocawize('wewease date', "Weweased on")),
+					$('div', undefined, new Date(gawwewy.weweaseDate).toWocaweStwing(undefined, { houw12: fawse }))
 				),
-				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(undefined, { hour12: false }))
+				$('.mowe-info-entwy', undefined,
+					$('div', undefined, wocawize('wast updated', "Wast updated")),
+					$('div', undefined, new Date(gawwewy.wastUpdated).toWocaweStwing(undefined, { houw12: fawse }))
 				)
 			);
 		}
-		append(moreInfo,
-			$('.more-info-entry', undefined,
-				$('div', undefined, localize('id', "Identifier")),
-				$('code', undefined, extension.identifier.id)
+		append(moweInfo,
+			$('.mowe-info-entwy', undefined,
+				$('div', undefined, wocawize('id', "Identifia")),
+				$('code', undefined, extension.identifia.id)
 			));
 	}
 
-	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, token);
+	pwivate openChangewog(tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		wetuwn this.openMawkdown(this.extensionChangewog!.get(), wocawize('noChangewog', "No Changewog avaiwabwe."), tempwate.content, WebviewIndex.Changewog, token);
 	}
 
-	private openContributions(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div.subcontent.feature-contributions', { tabindex: '0' });
-		return this.loadContents(() => this.extensionManifest!.get(), template.content)
+	pwivate openContwibutions(tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		const content = $('div.subcontent.featuwe-contwibutions', { tabindex: '0' });
+		wetuwn this.woadContents(() => this.extensionManifest!.get(), tempwate.content)
 			.then(manifest => {
-				if (token.isCancellationRequested) {
-					return null;
+				if (token.isCancewwationWequested) {
+					wetuwn nuww;
 				}
 
 				if (!manifest) {
-					return content;
+					wetuwn content;
 				}
 
-				const scrollableContent = new DomScrollableElement(content, {});
+				const scwowwabweContent = new DomScwowwabweEwement(content, {});
 
-				const layout = () => scrollableContent.scanDomNode();
-				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-				this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+				const wayout = () => scwowwabweContent.scanDomNode();
+				const wemoveWayoutPawticipant = awways.insewt(this.wayoutPawticipants, { wayout });
+				this.contentDisposabwes.add(toDisposabwe(wemoveWayoutPawticipant));
 
-				const renders = [
-					this.renderSettings(content, manifest, layout),
-					this.renderCommands(content, manifest, layout),
-					this.renderCodeActions(content, manifest, layout),
-					this.renderLanguages(content, manifest, layout),
-					this.renderColorThemes(content, manifest, layout),
-					this.renderIconThemes(content, manifest, layout),
-					this.renderProductIconThemes(content, manifest, layout),
-					this.renderColors(content, manifest, layout),
-					this.renderJSONValidation(content, manifest, layout),
-					this.renderDebuggers(content, manifest, layout),
-					this.renderViewContainers(content, manifest, layout),
-					this.renderViews(content, manifest, layout),
-					this.renderLocalizations(content, manifest, layout),
-					this.renderCustomEditors(content, manifest, layout),
-					this.renderAuthentication(content, manifest, layout),
-					this.renderActivationEvents(content, manifest, layout),
+				const wendews = [
+					this.wendewSettings(content, manifest, wayout),
+					this.wendewCommands(content, manifest, wayout),
+					this.wendewCodeActions(content, manifest, wayout),
+					this.wendewWanguages(content, manifest, wayout),
+					this.wendewCowowThemes(content, manifest, wayout),
+					this.wendewIconThemes(content, manifest, wayout),
+					this.wendewPwoductIconThemes(content, manifest, wayout),
+					this.wendewCowows(content, manifest, wayout),
+					this.wendewJSONVawidation(content, manifest, wayout),
+					this.wendewDebuggews(content, manifest, wayout),
+					this.wendewViewContainews(content, manifest, wayout),
+					this.wendewViews(content, manifest, wayout),
+					this.wendewWocawizations(content, manifest, wayout),
+					this.wendewCustomEditows(content, manifest, wayout),
+					this.wendewAuthentication(content, manifest, wayout),
+					this.wendewActivationEvents(content, manifest, wayout),
 				];
 
-				scrollableContent.scanDomNode();
+				scwowwabweContent.scanDomNode();
 
-				const isEmpty = !renders.some(x => x);
+				const isEmpty = !wendews.some(x => x);
 				if (isEmpty) {
-					append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-					append(template.content, content);
-				} else {
-					append(template.content, scrollableContent.getDomNode());
-					this.contentDisposables.add(scrollableContent);
+					append(content, $('p.nocontent')).textContent = wocawize('noContwibutions', "No Contwibutions");
+					append(tempwate.content, content);
+				} ewse {
+					append(tempwate.content, scwowwabweContent.getDomNode());
+					this.contentDisposabwes.add(scwowwabweContent);
 				}
-				return content;
+				wetuwn content;
 			}, () => {
-				if (token.isCancellationRequested) {
-					return null;
+				if (token.isCancewwationWequested) {
+					wetuwn nuww;
 				}
 
-				append(content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
-				append(template.content, content);
-				return content;
+				append(content, $('p.nocontent')).textContent = wocawize('noContwibutions', "No Contwibutions");
+				append(tempwate.content, content);
+				wetuwn content;
 			});
 	}
 
-	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve(null);
+	pwivate openExtensionDependencies(extension: IExtension, tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		if (token.isCancewwationWequested) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		if (arrays.isFalsyOrEmpty(extension.dependencies)) {
-			append(template.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
-			return Promise.resolve(template.content);
+		if (awways.isFawsyOwEmpty(extension.dependencies)) {
+			append(tempwate.content, $('p.nocontent')).textContent = wocawize('noDependencies', "No Dependencies");
+			wetuwn Pwomise.wesowve(tempwate.content);
 		}
 
-		const content = $('div', { class: 'subcontent' });
-		const scrollableContent = new DomScrollableElement(content, {});
-		append(template.content, scrollableContent.getDomNode());
-		this.contentDisposables.add(scrollableContent);
+		const content = $('div', { cwass: 'subcontent' });
+		const scwowwabweContent = new DomScwowwabweEwement(content, {});
+		append(tempwate.content, scwowwabweContent.getDomNode());
+		this.contentDisposabwes.add(scwowwabweContent);
 
-		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
-			new ExtensionData(extension, null, extension => extension.dependencies || [], this.extensionsWorkbenchService), content,
+		const dependenciesTwee = this.instantiationSewvice.cweateInstance(ExtensionsTwee,
+			new ExtensionData(extension, nuww, extension => extension.dependencies || [], this.extensionsWowkbenchSewvice), content,
 			{
-				listBackground: editorBackground
+				wistBackgwound: editowBackgwound
 			});
-		const layout = () => {
-			scrollableContent.scanDomNode();
-			const scrollDimensions = scrollableContent.getScrollDimensions();
-			dependenciesTree.layout(scrollDimensions.height);
+		const wayout = () => {
+			scwowwabweContent.scanDomNode();
+			const scwowwDimensions = scwowwabweContent.getScwowwDimensions();
+			dependenciesTwee.wayout(scwowwDimensions.height);
 		};
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		const wemoveWayoutPawticipant = awways.insewt(this.wayoutPawticipants, { wayout });
+		this.contentDisposabwes.add(toDisposabwe(wemoveWayoutPawticipant));
 
-		this.contentDisposables.add(dependenciesTree);
-		scrollableContent.scanDomNode();
-		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
+		this.contentDisposabwes.add(dependenciesTwee);
+		scwowwabweContent.scanDomNode();
+		wetuwn Pwomise.wesowve({ focus() { dependenciesTwee.domFocus(); } });
 	}
 
-	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		if (token.isCancellationRequested) {
-			return Promise.resolve(null);
+	pwivate async openExtensionPack(extension: IExtension, tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		if (token.isCancewwationWequested) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
-		const manifest = await this.loadContents(() => this.extensionManifest!.get(), template.content);
-		if (token.isCancellationRequested) {
-			return null;
+		const manifest = await this.woadContents(() => this.extensionManifest!.get(), tempwate.content);
+		if (token.isCancewwationWequested) {
+			wetuwn nuww;
 		}
 		if (!manifest) {
-			return null;
+			wetuwn nuww;
 		}
-		return this.renderExtensionPack(manifest, template.content, token);
+		wetuwn this.wendewExtensionPack(manifest, tempwate.content, token);
 	}
 
-	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		const content = $('div', { class: 'subcontent', tabindex: '0' });
+	pwivate async openWuntimeStatus(extension: IExtension, tempwate: IExtensionEditowTempwate, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		const content = $('div', { cwass: 'subcontent', tabindex: '0' });
 
-		const scrollableContent = new DomScrollableElement(content, {});
-		const layout = () => scrollableContent.scanDomNode();
-		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+		const scwowwabweContent = new DomScwowwabweEwement(content, {});
+		const wayout = () => scwowwabweContent.scanDomNode();
+		const wemoveWayoutPawticipant = awways.insewt(this.wayoutPawticipants, { wayout });
+		this.contentDisposabwes.add(toDisposabwe(wemoveWayoutPawticipant));
 
 		const updateContent = () => {
-			scrollableContent.scanDomNode();
-			reset(content, this.renderRuntimeStatus(extension, layout));
+			scwowwabweContent.scanDomNode();
+			weset(content, this.wendewWuntimeStatus(extension, wayout));
 		};
 
 		updateContent();
-		this.extensionService.onDidChangeExtensionsStatus(e => {
-			if (e.some(extensionIdentifier => areSameExtensions({ id: extensionIdentifier.value }, extension.identifier))) {
+		this.extensionSewvice.onDidChangeExtensionsStatus(e => {
+			if (e.some(extensionIdentifia => aweSameExtensions({ id: extensionIdentifia.vawue }, extension.identifia))) {
 				updateContent();
 			}
-		}, this, this.contentDisposables);
+		}, this, this.contentDisposabwes);
 
-		this.contentDisposables.add(scrollableContent);
-		append(template.content, scrollableContent.getDomNode());
-		return content;
+		this.contentDisposabwes.add(scwowwabweContent);
+		append(tempwate.content, scwowwabweContent.getDomNode());
+		wetuwn content;
 	}
 
-	private renderRuntimeStatus(extension: IExtension, onDetailsToggle: Function): HTMLElement {
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(extension);
-		const element = $('.runtime-status');
+	pwivate wendewWuntimeStatus(extension: IExtension, onDetaiwsToggwe: Function): HTMWEwement {
+		const extensionStatus = this.extensionsWowkbenchSewvice.getExtensionStatus(extension);
+		const ewement = $('.wuntime-status');
 
 		if (extensionStatus?.activationTimes) {
-			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-			append(element, $('div.activation-message', undefined, `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`));
+			const activationTime = extensionStatus.activationTimes.codeWoadingTime + extensionStatus.activationTimes.activateCawwTime;
+			append(ewement, $('div.activation-message', undefined, `${wocawize('activation', "Activation time")}${extensionStatus.activationTimes.activationWeason.stawtup ? ` (${wocawize('stawtup', "Stawtup")})` : ''} : ${activationTime}ms`));
 		}
 
-		else if (extension.local && (extension.local.manifest.main || extension.local.manifest.browser)) {
-			append(element, $('div.activation-message', undefined, localize('not yet activated', "Not yet activated.")));
+		ewse if (extension.wocaw && (extension.wocaw.manifest.main || extension.wocaw.manifest.bwowsa)) {
+			append(ewement, $('div.activation-message', undefined, wocawize('not yet activated', "Not yet activated.")));
 		}
 
-		if (extensionStatus?.runtimeErrors.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('uncaught errors', "Uncaught Errors ({0})", extensionStatus.runtimeErrors.length)),
+		if (extensionStatus?.wuntimeEwwows.wength) {
+			append(ewement, $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+				$('summawy', { tabindex: '0' }, wocawize('uncaught ewwows', "Uncaught Ewwows ({0})", extensionStatus.wuntimeEwwows.wength)),
 				$('div', undefined,
-					...extensionStatus.runtimeErrors.map(error => $('div.message-entry', undefined,
-						$(`span${ThemeIcon.asCSSSelector(errorIcon)}`, undefined),
-						$('span', undefined, getErrorMessage(error)),
+					...extensionStatus.wuntimeEwwows.map(ewwow => $('div.message-entwy', undefined,
+						$(`span${ThemeIcon.asCSSSewectow(ewwowIcon)}`, undefined),
+						$('span', undefined, getEwwowMessage(ewwow)),
 					))
 				),
 			));
 		}
 
-		if (extensionStatus?.messages.length) {
-			append(element, $('details', { open: true, ontoggle: onDetailsToggle },
-				$('summary', { tabindex: '0' }, localize('messages', "Messages ({0})", extensionStatus?.messages.length)),
+		if (extensionStatus?.messages.wength) {
+			append(ewement, $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+				$('summawy', { tabindex: '0' }, wocawize('messages', "Messages ({0})", extensionStatus?.messages.wength)),
 				$('div', undefined,
-					...extensionStatus.messages.sort((a, b) => b.type - a.type)
-						.map(message => $('div.message-entry', undefined,
-							$(`span${ThemeIcon.asCSSSelector(message.type === Severity.Error ? errorIcon : message.type === Severity.Warning ? warningIcon : infoIcon)}`, undefined),
+					...extensionStatus.messages.sowt((a, b) => b.type - a.type)
+						.map(message => $('div.message-entwy', undefined,
+							$(`span${ThemeIcon.asCSSSewectow(message.type === Sevewity.Ewwow ? ewwowIcon : message.type === Sevewity.Wawning ? wawningIcon : infoIcon)}`, undefined),
 							$('span', undefined, message.message)
 						))
 				),
 			));
 		}
 
-		if (element.children.length === 0) {
-			append(element, $('div.no-status-message')).textContent = localize('noStatus', "No status available.");
+		if (ewement.chiwdwen.wength === 0) {
+			append(ewement, $('div.no-status-message')).textContent = wocawize('noStatus', "No status avaiwabwe.");
 		}
 
-		return element;
+		wetuwn ewement;
 	}
 
-	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
-		if (token.isCancellationRequested) {
-			return null;
+	pwivate async wendewExtensionPack(manifest: IExtensionManifest, pawent: HTMWEwement, token: CancewwationToken): Pwomise<IActiveEwement | nuww> {
+		if (token.isCancewwationWequested) {
+			wetuwn nuww;
 		}
 
-		const content = $('div', { class: 'subcontent' });
-		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
-		append(parent, scrollableContent.getDomNode());
+		const content = $('div', { cwass: 'subcontent' });
+		const scwowwabweContent = new DomScwowwabweEwement(content, { useShadows: fawse });
+		append(pawent, scwowwabweContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
-		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
-		extensionsGridView.setExtensions(extensions);
-		scrollableContent.scanDomNode();
+		const extensionsGwidView = this.instantiationSewvice.cweateInstance(ExtensionsGwidView, content, new Dewegate());
+		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWowkbenchSewvice);
+		extensionsGwidView.setExtensions(extensions);
+		scwowwabweContent.scanDomNode();
 
-		this.contentDisposables.add(scrollableContent);
-		this.contentDisposables.add(extensionsGridView);
-		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout: () => scrollableContent.scanDomNode() })));
+		this.contentDisposabwes.add(scwowwabweContent);
+		this.contentDisposabwes.add(extensionsGwidView);
+		this.contentDisposabwes.add(toDisposabwe(awways.insewt(this.wayoutPawticipants, { wayout: () => scwowwabweContent.scanDomNode() })));
 
-		return content;
+		wetuwn content;
 	}
 
-	private renderSettings(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const configuration = manifest.contributes?.configuration;
-		let properties: any = {};
-		if (Array.isArray(configuration)) {
-			configuration.forEach(config => {
-				properties = { ...properties, ...config.properties };
+	pwivate wendewSettings(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const configuwation = manifest.contwibutes?.configuwation;
+		wet pwopewties: any = {};
+		if (Awway.isAwway(configuwation)) {
+			configuwation.fowEach(config => {
+				pwopewties = { ...pwopewties, ...config.pwopewties };
 			});
-		} else if (configuration) {
-			properties = configuration.properties;
+		} ewse if (configuwation) {
+			pwopewties = configuwation.pwopewties;
 		}
-		const contrib = properties ? Object.keys(properties) : [];
+		const contwib = pwopewties ? Object.keys(pwopewties) : [];
 
-		if (!contrib.length) {
-			return false;
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('settings', "Settings ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('setting name', "Name")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('default', "Default"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('settings', "Settings ({0})", contwib.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('setting name', "Name")),
+					$('th', undefined, wocawize('descwiption', "Descwiption")),
+					$('th', undefined, wocawize('defauwt', "Defauwt"))
 				),
-				...contrib.map(key => $('tr', undefined,
+				...contwib.map(key => $('tw', undefined,
 					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } }))),
-					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
+					$('td', undefined, pwopewties[key].descwiption || (pwopewties[key].mawkdownDescwiption && wendewMawkdown({ vawue: pwopewties[key].mawkdownDescwiption }, { actionHandwa: { cawwback: (content) => this.openewSewvice.open(content).catch(onUnexpectedEwwow), disposabwes: this.contentDisposabwes } }))),
+					$('td', undefined, $('code', undefined, `${isUndefined(pwopewties[key].defauwt) ? getDefauwtVawue(pwopewties[key].type) : pwopewties[key].defauwt}`))
 				))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderDebuggers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.debuggers || [];
-		if (!contrib.length) {
-			return false;
+	pwivate wendewDebuggews(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.debuggews || [];
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('debuggers', "Debuggers ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('debugger name', "Name")),
-					$('th', undefined, localize('debugger type', "Type")),
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('debuggews', "Debuggews ({0})", contwib.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('debugga name', "Name")),
+					$('th', undefined, wocawize('debugga type', "Type")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.label!),
+				...contwib.map(d => $('tw', undefined,
+					$('td', undefined, d.wabew!),
 					$('td', undefined, d.type)))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.viewsContainers || {};
+	pwivate wendewViewContainews(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.viewsContainews || {};
 
-		const viewContainers = Object.keys(contrib).reduce((result, location) => {
-			let viewContainersForLocation: IViewContainer[] = contrib[location];
-			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
-			return result;
-		}, [] as Array<{ id: string, title: string, location: string }>);
+		const viewContainews = Object.keys(contwib).weduce((wesuwt, wocation) => {
+			wet viewContainewsFowWocation: IViewContaina[] = contwib[wocation];
+			wesuwt.push(...viewContainewsFowWocation.map(viewContaina => ({ ...viewContaina, wocation })));
+			wetuwn wesuwt;
+		}, [] as Awway<{ id: stwing, titwe: stwing, wocation: stwing }>);
 
-		if (!viewContainers.length) {
-			return false;
+		if (!viewContainews.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
-				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('viewContainews', "View Containews ({0})", viewContainews.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined, $('th', undefined, wocawize('view containa id', "ID")), $('th', undefined, wocawize('view containa titwe', "Titwe")), $('th', undefined, wocawize('view containa wocation', "Whewe"))),
+				...viewContainews.map(viewContaina => $('tw', undefined, $('td', undefined, viewContaina.id), $('td', undefined, viewContaina.titwe), $('td', undefined, viewContaina.wocation)))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderViews(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.views || {};
+	pwivate wendewViews(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.views || {};
 
-		const views = Object.keys(contrib).reduce((result, location) => {
-			let viewsForLocation: IView[] = contrib[location];
-			result.push(...viewsForLocation.map(view => ({ ...view, location })));
-			return result;
-		}, [] as Array<{ id: string, name: string, location: string }>);
+		const views = Object.keys(contwib).weduce((wesuwt, wocation) => {
+			wet viewsFowWocation: IView[] = contwib[wocation];
+			wesuwt.push(...viewsFowWocation.map(view => ({ ...view, wocation })));
+			wetuwn wesuwt;
+		}, [] as Awway<{ id: stwing, name: stwing, wocation: stwing }>);
 
-		if (!views.length) {
-			return false;
+		if (!views.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('views', "Views ({0})", views.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
-				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('views', "Views ({0})", views.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined, $('th', undefined, wocawize('view id', "ID")), $('th', undefined, wocawize('view name', "Name")), $('th', undefined, wocawize('view wocation', "Whewe"))),
+				...views.map(view => $('tw', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.wocation)))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderLocalizations(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const localizations = manifest.contributes?.localizations || [];
-		if (!localizations.length) {
-			return false;
+	pwivate wendewWocawizations(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const wocawizations = manifest.contwibutes?.wocawizations || [];
+		if (!wocawizations.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
-			$('table', undefined,
-				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language ID")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
-				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('wocawizations', "Wocawizations ({0})", wocawizations.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined, $('th', undefined, wocawize('wocawizations wanguage id', "Wanguage ID")), $('th', undefined, wocawize('wocawizations wanguage name', "Wanguage Name")), $('th', undefined, wocawize('wocawizations wocawized wanguage name', "Wanguage Name (Wocawized)"))),
+				...wocawizations.map(wocawization => $('tw', undefined, $('td', undefined, wocawization.wanguageId), $('td', undefined, wocawization.wanguageName || ''), $('td', undefined, wocawization.wocawizedWanguageName || '')))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderCustomEditors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const webviewEditors = manifest.contributes?.customEditors || [];
-		if (!webviewEditors.length) {
-			return false;
+	pwivate wendewCustomEditows(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const webviewEditows = manifest.contwibutes?.customEditows || [];
+		if (!webviewEditows.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", webviewEditors.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('customEditors view type', "View Type")),
-					$('th', undefined, localize('customEditors priority', "Priority")),
-					$('th', undefined, localize('customEditors filenamePattern', "Filename Pattern"))),
-				...webviewEditors.map(webviewEditor =>
-					$('tr', undefined,
-						$('td', undefined, webviewEditor.viewType),
-						$('td', undefined, webviewEditor.priority),
-						$('td', undefined, arrays.coalesce(webviewEditor.selector.map(x => x.filenamePattern)).join(', '))))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('customEditows', "Custom Editows ({0})", webviewEditows.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('customEditows view type', "View Type")),
+					$('th', undefined, wocawize('customEditows pwiowity', "Pwiowity")),
+					$('th', undefined, wocawize('customEditows fiwenamePattewn', "Fiwename Pattewn"))),
+				...webviewEditows.map(webviewEditow =>
+					$('tw', undefined,
+						$('td', undefined, webviewEditow.viewType),
+						$('td', undefined, webviewEditow.pwiowity),
+						$('td', undefined, awways.coawesce(webviewEditow.sewectow.map(x => x.fiwenamePattewn)).join(', '))))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderCodeActions(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const codeActions = manifest.contributes?.codeActions || [];
-		if (!codeActions.length) {
-			return false;
+	pwivate wendewCodeActions(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const codeActions = manifest.contwibutes?.codeActions || [];
+		if (!codeActions.wength) {
+			wetuwn fawse;
 		}
 
-		const flatActions = arrays.flatten(
-			codeActions.map(contribution =>
-				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))));
+		const fwatActions = awways.fwatten(
+			codeActions.map(contwibution =>
+				contwibution.actions.map(action => ({ ...action, wanguages: contwibution.wanguages }))));
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('codeActions', "Code Actions ({0})", flatActions.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('codeActions.title', "Title")),
-					$('th', undefined, localize('codeActions.kind', "Kind")),
-					$('th', undefined, localize('codeActions.description', "Description")),
-					$('th', undefined, localize('codeActions.languages', "Languages"))),
-				...flatActions.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.title),
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('codeActions', "Code Actions ({0})", fwatActions.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('codeActions.titwe', "Titwe")),
+					$('th', undefined, wocawize('codeActions.kind', "Kind")),
+					$('th', undefined, wocawize('codeActions.descwiption', "Descwiption")),
+					$('th', undefined, wocawize('codeActions.wanguages', "Wanguages"))),
+				...fwatActions.map(action =>
+					$('tw', undefined,
+						$('td', undefined, action.titwe),
 						$('td', undefined, $('code', undefined, action.kind)),
-						$('td', undefined, action.description ?? ''),
-						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
+						$('td', undefined, action.descwiption ?? ''),
+						$('td', undefined, ...action.wanguages.map(wanguage => $('code', undefined, wanguage)))))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderAuthentication(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const authentication = manifest.contributes?.authentication || [];
-		if (!authentication.length) {
-			return false;
+	pwivate wendewAuthentication(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const authentication = manifest.contwibutes?.authentication || [];
+		if (!authentication.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('authentication', "Authentication ({0})", authentication.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('authentication.label', "Label")),
-					$('th', undefined, localize('authentication.id', "Id"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('authentication', "Authentication ({0})", authentication.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('authentication.wabew', "Wabew")),
+					$('th', undefined, wocawize('authentication.id', "Id"))
 				),
 				...authentication.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.label),
+					$('tw', undefined,
+						$('td', undefined, action.wabew),
 						$('td', undefined, action.id)
 					)
 				)
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderColorThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.themes || [];
-		if (!contrib.length) {
-			return false;
+	pwivate wendewCowowThemes(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.themes || [];
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('cowowThemes', "Cowow Themes ({0})", contwib.wength)),
+			$('uw', undefined, ...contwib.map(theme => $('wi', undefined, theme.wabew)))
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.iconThemes || [];
-		if (!contrib.length) {
-			return false;
+	pwivate wendewIconThemes(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.iconThemes || [];
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('iconThemes', "Fiwe Icon Themes ({0})", contwib.wength)),
+			$('uw', undefined, ...contwib.map(theme => $('wi', undefined, theme.wabew)))
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderProductIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.productIconThemes || [];
-		if (!contrib.length) {
-			return false;
+	pwivate wendewPwoductIconThemes(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.pwoductIconThemes || [];
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('pwoductThemes', "Pwoduct Icon Themes ({0})", contwib.wength)),
+			$('uw', undefined, ...contwib.map(theme => $('wi', undefined, theme.wabew)))
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderColors(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const colors = manifest.contributes?.colors || [];
-		if (!colors.length) {
-			return false;
+	pwivate wendewCowows(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const cowows = manifest.contwibutes?.cowows || [];
+		if (!cowows.wength) {
+			wetuwn fawse;
 		}
 
-		function colorPreview(colorReference: string): Node[] {
-			let result: Node[] = [];
-			if (colorReference && colorReference[0] === '#') {
-				let color = Color.fromHex(colorReference);
-				if (color) {
-					result.push($('span', { class: 'colorBox', style: 'background-color: ' + Color.Format.CSS.format(color) }, ''));
+		function cowowPweview(cowowWefewence: stwing): Node[] {
+			wet wesuwt: Node[] = [];
+			if (cowowWefewence && cowowWefewence[0] === '#') {
+				wet cowow = Cowow.fwomHex(cowowWefewence);
+				if (cowow) {
+					wesuwt.push($('span', { cwass: 'cowowBox', stywe: 'backgwound-cowow: ' + Cowow.Fowmat.CSS.fowmat(cowow) }, ''));
 				}
 			}
-			result.push($('code', undefined, colorReference));
-			return result;
+			wesuwt.push($('code', undefined, cowowWefewence));
+			wetuwn wesuwt;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('colors', "Colors ({0})", colors.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('colorId', "Id")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('defaultDark', "Dark Default")),
-					$('th', undefined, localize('defaultLight', "Light Default")),
-					$('th', undefined, localize('defaultHC', "High Contrast Default"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('cowows', "Cowows ({0})", cowows.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('cowowId', "Id")),
+					$('th', undefined, wocawize('descwiption', "Descwiption")),
+					$('th', undefined, wocawize('defauwtDawk', "Dawk Defauwt")),
+					$('th', undefined, wocawize('defauwtWight', "Wight Defauwt")),
+					$('th', undefined, wocawize('defauwtHC', "High Contwast Defauwt"))
 				),
-				...colors.map(color => $('tr', undefined,
-					$('td', undefined, $('code', undefined, color.id)),
-					$('td', undefined, color.description),
-					$('td', undefined, ...colorPreview(color.defaults.dark)),
-					$('td', undefined, ...colorPreview(color.defaults.light)),
-					$('td', undefined, ...colorPreview(color.defaults.highContrast))
+				...cowows.map(cowow => $('tw', undefined,
+					$('td', undefined, $('code', undefined, cowow.id)),
+					$('td', undefined, cowow.descwiption),
+					$('td', undefined, ...cowowPweview(cowow.defauwts.dawk)),
+					$('td', undefined, ...cowowPweview(cowow.defauwts.wight)),
+					$('td', undefined, ...cowowPweview(cowow.defauwts.highContwast))
 				))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
 
-	private renderJSONValidation(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contrib = manifest.contributes?.jsonValidation || [];
-		if (!contrib.length) {
-			return false;
+	pwivate wendewJSONVawidation(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwib = manifest.contwibutes?.jsonVawidation || [];
+		if (!contwib.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('JSON Validation', "JSON Validation ({0})", contrib.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('fileMatch', "File Match")),
-					$('th', undefined, localize('schema', "Schema"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('JSON Vawidation', "JSON Vawidation ({0})", contwib.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('fiweMatch', "Fiwe Match")),
+					$('th', undefined, wocawize('schema', "Schema"))
 				),
-				...contrib.map(v => $('tr', undefined,
-					$('td', undefined, $('code', undefined, Array.isArray(v.fileMatch) ? v.fileMatch.join(', ') : v.fileMatch)),
-					$('td', undefined, v.url)
+				...contwib.map(v => $('tw', undefined,
+					$('td', undefined, $('code', undefined, Awway.isAwway(v.fiweMatch) ? v.fiweMatch.join(', ') : v.fiweMatch)),
+					$('td', undefined, v.uww)
 				))));
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderCommands(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const rawCommands = manifest.contributes?.commands || [];
-		const commands = rawCommands.map(c => ({
+	pwivate wendewCommands(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const wawCommands = manifest.contwibutes?.commands || [];
+		const commands = wawCommands.map(c => ({
 			id: c.command,
-			title: c.title,
-			keybindings: [] as ResolvedKeybinding[],
-			menus: [] as string[]
+			titwe: c.titwe,
+			keybindings: [] as WesowvedKeybinding[],
+			menus: [] as stwing[]
 		}));
 
-		const byId = arrays.index(commands, c => c.id);
+		const byId = awways.index(commands, c => c.id);
 
-		const menus = manifest.contributes?.menus || {};
+		const menus = manifest.contwibutes?.menus || {};
 
-		Object.keys(menus).forEach(context => {
-			menus[context].forEach(menu => {
-				let command = byId[menu.command];
+		Object.keys(menus).fowEach(context => {
+			menus[context].fowEach(menu => {
+				wet command = byId[menu.command];
 
 				if (command) {
 					command.menus.push(context);
-				} else {
-					command = { id: menu.command, title: '', keybindings: [], menus: [context] };
+				} ewse {
+					command = { id: menu.command, titwe: '', keybindings: [], menus: [context] };
 					byId[command.id] = command;
 					commands.push(command);
 				}
 			});
 		});
 
-		const rawKeybindings = manifest.contributes?.keybindings ? (Array.isArray(manifest.contributes.keybindings) ? manifest.contributes.keybindings : [manifest.contributes.keybindings]) : [];
+		const wawKeybindings = manifest.contwibutes?.keybindings ? (Awway.isAwway(manifest.contwibutes.keybindings) ? manifest.contwibutes.keybindings : [manifest.contwibutes.keybindings]) : [];
 
-		rawKeybindings.forEach(rawKeybinding => {
-			const keybinding = this.resolveKeybinding(rawKeybinding);
+		wawKeybindings.fowEach(wawKeybinding => {
+			const keybinding = this.wesowveKeybinding(wawKeybinding);
 
 			if (!keybinding) {
-				return;
+				wetuwn;
 			}
 
-			let command = byId[rawKeybinding.command];
+			wet command = byId[wawKeybinding.command];
 
 			if (command) {
 				command.keybindings.push(keybinding);
-			} else {
-				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
+			} ewse {
+				command = { id: wawKeybinding.command, titwe: '', keybindings: [keybinding], menus: [] };
 				byId[command.id] = command;
 				commands.push(command);
 			}
 		});
 
-		if (!commands.length) {
-			return false;
+		if (!commands.wength) {
+			wetuwn fawse;
 		}
 
-		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
-			const element = $('');
-			const kbl = new KeybindingLabel(element, OS);
-			kbl.set(keybinding);
-			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
-			return element;
+		const wendewKeybinding = (keybinding: WesowvedKeybinding): HTMWEwement => {
+			const ewement = $('');
+			const kbw = new KeybindingWabew(ewement, OS);
+			kbw.set(keybinding);
+			this.contentDisposabwes.add(attachKeybindingWabewStywa(kbw, this.themeSewvice));
+			wetuwn ewement;
 		};
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('commands', "Commands ({0})", commands.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('command name', "Name")),
-					$('th', undefined, localize('description', "Description")),
-					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
-					$('th', undefined, localize('menuContexts', "Menu Contexts"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('commands', "Commands ({0})", commands.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('command name', "Name")),
+					$('th', undefined, wocawize('descwiption', "Descwiption")),
+					$('th', undefined, wocawize('keyboawd showtcuts', "Keyboawd Showtcuts")),
+					$('th', undefined, wocawize('menuContexts', "Menu Contexts"))
 				),
-				...commands.map(c => $('tr', undefined,
+				...commands.map(c => $('tw', undefined,
 					$('td', undefined, $('code', undefined, c.id)),
-					$('td', undefined, c.title),
-					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
+					$('td', undefined, c.titwe),
+					$('td', undefined, ...c.keybindings.map(keybinding => wendewKeybinding(keybinding))),
 					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
 				))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderLanguages(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
-		const contributes = manifest.contributes;
-		const rawLanguages = contributes?.languages || [];
-		const languages = rawLanguages.map(l => ({
-			id: l.id,
-			name: (l.aliases || [])[0] || l.id,
-			extensions: l.extensions || [],
-			hasGrammar: false,
-			hasSnippets: false
+	pwivate wendewWanguages(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
+		const contwibutes = manifest.contwibutes;
+		const wawWanguages = contwibutes?.wanguages || [];
+		const wanguages = wawWanguages.map(w => ({
+			id: w.id,
+			name: (w.awiases || [])[0] || w.id,
+			extensions: w.extensions || [],
+			hasGwammaw: fawse,
+			hasSnippets: fawse
 		}));
 
-		const byId = arrays.index(languages, l => l.id);
+		const byId = awways.index(wanguages, w => w.id);
 
-		const grammars = contributes?.grammars || [];
-		grammars.forEach(grammar => {
-			let language = byId[grammar.language];
+		const gwammaws = contwibutes?.gwammaws || [];
+		gwammaws.fowEach(gwammaw => {
+			wet wanguage = byId[gwammaw.wanguage];
 
-			if (language) {
-				language.hasGrammar = true;
-			} else {
-				language = { id: grammar.language, name: grammar.language, extensions: [], hasGrammar: true, hasSnippets: false };
-				byId[language.id] = language;
-				languages.push(language);
+			if (wanguage) {
+				wanguage.hasGwammaw = twue;
+			} ewse {
+				wanguage = { id: gwammaw.wanguage, name: gwammaw.wanguage, extensions: [], hasGwammaw: twue, hasSnippets: fawse };
+				byId[wanguage.id] = wanguage;
+				wanguages.push(wanguage);
 			}
 		});
 
-		const snippets = contributes?.snippets || [];
-		snippets.forEach(snippet => {
-			let language = byId[snippet.language];
+		const snippets = contwibutes?.snippets || [];
+		snippets.fowEach(snippet => {
+			wet wanguage = byId[snippet.wanguage];
 
-			if (language) {
-				language.hasSnippets = true;
-			} else {
-				language = { id: snippet.language, name: snippet.language, extensions: [], hasGrammar: false, hasSnippets: true };
-				byId[language.id] = language;
-				languages.push(language);
+			if (wanguage) {
+				wanguage.hasSnippets = twue;
+			} ewse {
+				wanguage = { id: snippet.wanguage, name: snippet.wanguage, extensions: [], hasGwammaw: fawse, hasSnippets: twue };
+				byId[wanguage.id] = wanguage;
+				wanguages.push(wanguage);
 			}
 		});
 
-		if (!languages.length) {
-			return false;
+		if (!wanguages.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('languages', "Languages ({0})", languages.length)),
-			$('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, localize('language id', "ID")),
-					$('th', undefined, localize('language name', "Name")),
-					$('th', undefined, localize('file extensions', "File Extensions")),
-					$('th', undefined, localize('grammar', "Grammar")),
-					$('th', undefined, localize('snippets', "Snippets"))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('wanguages', "Wanguages ({0})", wanguages.wength)),
+			$('tabwe', undefined,
+				$('tw', undefined,
+					$('th', undefined, wocawize('wanguage id', "ID")),
+					$('th', undefined, wocawize('wanguage name', "Name")),
+					$('th', undefined, wocawize('fiwe extensions', "Fiwe Extensions")),
+					$('th', undefined, wocawize('gwammaw', "Gwammaw")),
+					$('th', undefined, wocawize('snippets', "Snippets"))
 				),
-				...languages.map(l => $('tr', undefined,
-					$('td', undefined, l.id),
-					$('td', undefined, l.name),
-					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '—')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '—'))
+				...wanguages.map(w => $('tw', undefined,
+					$('td', undefined, w.id),
+					$('td', undefined, w.name),
+					$('td', undefined, ...join(w.extensions.map(ext => $('code', undefined, ext)), ' ')),
+					$('td', undefined, document.cweateTextNode(w.hasGwammaw ? '✔︎' : '—')),
+					$('td', undefined, document.cweateTextNode(w.hasSnippets ? '✔︎' : '—'))
 				))
 			)
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private renderActivationEvents(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+	pwivate wendewActivationEvents(containa: HTMWEwement, manifest: IExtensionManifest, onDetaiwsToggwe: Function): boowean {
 		const activationEvents = manifest.activationEvents || [];
-		if (!activationEvents.length) {
-			return false;
+		if (!activationEvents.wength) {
+			wetuwn fawse;
 		}
 
-		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
-			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
+		const detaiws = $('detaiws', { open: twue, ontoggwe: onDetaiwsToggwe },
+			$('summawy', { tabindex: '0' }, wocawize('activation events', "Activation Events ({0})", activationEvents.wength)),
+			$('uw', undefined, ...activationEvents.map(activationEvent => $('wi', undefined, $('code', undefined, activationEvent))))
 		);
 
-		append(container, details);
-		return true;
+		append(containa, detaiws);
+		wetuwn twue;
 	}
 
-	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding | null {
-		let key: string | undefined;
+	pwivate wesowveKeybinding(wawKeyBinding: IKeyBinding): WesowvedKeybinding | nuww {
+		wet key: stwing | undefined;
 
-		switch (platform) {
-			case 'win32': key = rawKeyBinding.win; break;
-			case 'linux': key = rawKeyBinding.linux; break;
-			case 'darwin': key = rawKeyBinding.mac; break;
+		switch (pwatfowm) {
+			case 'win32': key = wawKeyBinding.win; bweak;
+			case 'winux': key = wawKeyBinding.winux; bweak;
+			case 'dawwin': key = wawKeyBinding.mac; bweak;
 		}
 
-		const keyBinding = KeybindingParser.parseKeybinding(key || rawKeyBinding.key, OS);
+		const keyBinding = KeybindingPawsa.pawseKeybinding(key || wawKeyBinding.key, OS);
 		if (keyBinding) {
-			return this.keybindingService.resolveKeybinding(keyBinding)[0];
+			wetuwn this.keybindingSewvice.wesowveKeybinding(keyBinding)[0];
 
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private loadContents<T>(loadingTask: () => CacheResult<T>, container: HTMLElement): Promise<T> {
-		container.classList.add('loading');
+	pwivate woadContents<T>(woadingTask: () => CacheWesuwt<T>, containa: HTMWEwement): Pwomise<T> {
+		containa.cwassWist.add('woading');
 
-		const result = this.contentDisposables.add(loadingTask());
-		const onDone = () => container.classList.remove('loading');
-		result.promise.then(onDone, onDone);
+		const wesuwt = this.contentDisposabwes.add(woadingTask());
+		const onDone = () => containa.cwassWist.wemove('woading');
+		wesuwt.pwomise.then(onDone, onDone);
 
-		return result.promise;
+		wetuwn wesuwt.pwomise;
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 		this.dimension = dimension;
-		this.layoutParticipants.forEach(p => p.layout());
+		this.wayoutPawticipants.fowEach(p => p.wayout());
 	}
 
-	private onError(err: any): void {
-		if (isPromiseCanceledError(err)) {
-			return;
+	pwivate onEwwow(eww: any): void {
+		if (isPwomiseCancewedEwwow(eww)) {
+			wetuwn;
 		}
 
-		this.notificationService.error(err);
+		this.notificationSewvice.ewwow(eww);
 	}
 }
 
-const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), EditorContextKeys.focus.toNegated());
-registerAction2(class ShowExtensionEditorFindAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.extensioneditor.showfind',
-			title: localize('find', "Find"),
+const contextKeyExpw = ContextKeyExpw.and(ContextKeyExpw.equaws('activeEditow', ExtensionEditow.ID), EditowContextKeys.focus.toNegated());
+wegistewAction2(cwass ShowExtensionEditowFindAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'editow.action.extensioneditow.showfind',
+			titwe: wocawize('find', "Find"),
 			keybinding: {
-				when: contextKeyExpr,
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				when: contextKeyExpw,
+				weight: KeybindingWeight.EditowContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
-		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.showFind();
+	wun(accessow: SewvicesAccessow): any {
+		const extensionEditow = getExtensionEditow(accessow);
+		if (extensionEditow) {
+			extensionEditow.showFind();
 		}
 	}
 });
 
-registerAction2(class StartExtensionEditorFindNextAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.extensioneditor.findNext',
-			title: localize('find next', "Find Next"),
+wegistewAction2(cwass StawtExtensionEditowFindNextAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'editow.action.extensioneditow.findNext',
+			titwe: wocawize('find next', "Find Next"),
 			keybinding: {
-				when: ContextKeyExpr.and(
-					contextKeyExpr,
+				when: ContextKeyExpw.and(
+					contextKeyExpw,
 					KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				pwimawy: KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
-		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(false);
+	wun(accessow: SewvicesAccessow): any {
+		const extensionEditow = getExtensionEditow(accessow);
+		if (extensionEditow) {
+			extensionEditow.wunFindAction(fawse);
 		}
 	}
 });
 
-registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
-	constructor() {
-		super({
-			id: 'editor.action.extensioneditor.findPrevious',
-			title: localize('find previous', "Find Previous"),
+wegistewAction2(cwass StawtExtensionEditowFindPweviousAction extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'editow.action.extensioneditow.findPwevious',
+			titwe: wocawize('find pwevious', "Find Pwevious"),
 			keybinding: {
-				when: ContextKeyExpr.and(
-					contextKeyExpr,
+				when: ContextKeyExpw.and(
+					contextKeyExpw,
 					KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
+				pwimawy: KeyMod.Shift | KeyCode.Enta,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): any {
-		const extensionEditor = getExtensionEditor(accessor);
-		if (extensionEditor) {
-			extensionEditor.runFindAction(true);
+	wun(accessow: SewvicesAccessow): any {
+		const extensionEditow = getExtensionEditow(accessow);
+		if (extensionEditow) {
+			extensionEditow.wunFindAction(twue);
 		}
 	}
 });
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content .detaiws .additionaw-detaiws-containa .wesouwces-containa a { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content .featuwe-contwibutions a { cowow: ${wink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow > .heada > .detaiws > .actions-status-containa > .status > .status-text a { cowow: ${wink}; }`);
 	}
 
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:hover,
-			.monaco-workbench .extension-editor .content .details .additional-details-container .resources-container a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content .feature-contributions a:hover,
-			.monaco-workbench .extension-editor .content .feature-contributions a:active { color: ${activeLink}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover,
-			.monaco-workbench .extension-editor > .header > .details > actions-status-container > .status > .status-text a:active { color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content .detaiws .additionaw-detaiws-containa .wesouwces-containa a:hova,
+			.monaco-wowkbench .extension-editow .content .detaiws .additionaw-detaiws-containa .wesouwces-containa a:active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content .featuwe-contwibutions a:hova,
+			.monaco-wowkbench .extension-editow .content .featuwe-contwibutions a:active { cowow: ${activeWink}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow > .heada > .detaiws > .actions-status-containa > .status > .status-text a:hova,
+			.monaco-wowkbench .extension-editow > .heada > .detaiws > actions-status-containa > .status > .status-text a:active { cowow: ${activeWink}; }`);
 
 	}
 
-	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
-	if (buttonHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { background-color: ${buttonHoverBackgroundColor}; border-color: ${buttonHoverBackgroundColor}; }`);
+	const buttonHovewBackgwoundCowow = theme.getCowow(buttonHovewBackgwound);
+	if (buttonHovewBackgwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content > .detaiws > .additionaw-detaiws-containa .categowies-containa > .categowies > .categowy:hova { backgwound-cowow: ${buttonHovewBackgwoundCowow}; bowda-cowow: ${buttonHovewBackgwoundCowow}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content > .detaiws > .additionaw-detaiws-containa .tags-containa > .tags > .tag:hova { backgwound-cowow: ${buttonHovewBackgwoundCowow}; bowda-cowow: ${buttonHovewBackgwoundCowow}; }`);
 	}
 
-	const buttonForegroundColor = theme.getColor(buttonForeground);
-	if (buttonForegroundColor) {
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .categories-container > .categories > .category:hover { color: ${buttonForegroundColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor .content > .details > .additional-details-container .tags-container > .tags > .tag:hover { color: ${buttonForegroundColor}; }`);
+	const buttonFowegwoundCowow = theme.getCowow(buttonFowegwound);
+	if (buttonFowegwoundCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content > .detaiws > .additionaw-detaiws-containa .categowies-containa > .categowies > .categowy:hova { cowow: ${buttonFowegwoundCowow}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow .content > .detaiws > .additionaw-detaiws-containa .tags-containa > .tags > .tag:hova { cowow: ${buttonFowegwoundCowow}; }`);
 	}
 
 });
 
-function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
-	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-	if (activeEditorPane instanceof ExtensionEditor) {
-		return activeEditorPane;
+function getExtensionEditow(accessow: SewvicesAccessow): ExtensionEditow | nuww {
+	const activeEditowPane = accessow.get(IEditowSewvice).activeEditowPane;
+	if (activeEditowPane instanceof ExtensionEditow) {
+		wetuwn activeEditowPane;
 	}
-	return null;
+	wetuwn nuww;
 }

@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { Action2, MenuId, MenuWegistwy, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class ToggleMultiCursorModifierAction extends Action2 {
+expowt cwass ToggweMuwtiCuwsowModifiewAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleMultiCursorModifier';
+	static weadonwy ID = 'wowkbench.action.toggweMuwtiCuwsowModifia';
 
-	private static readonly multiCursorModifierConfigurationKey = 'editor.multiCursorModifier';
+	pwivate static weadonwy muwtiCuwsowModifiewConfiguwationKey = 'editow.muwtiCuwsowModifia';
 
-	constructor() {
-		super({
-			id: ToggleMultiCursorModifierAction.ID,
-			title: { value: localize('toggleLocation', "Toggle Multi-Cursor Modifier"), original: 'Toggle Multi-Cursor Modifier' },
-			f1: true
+	constwuctow() {
+		supa({
+			id: ToggweMuwtiCuwsowModifiewAction.ID,
+			titwe: { vawue: wocawize('toggweWocation', "Toggwe Muwti-Cuwsow Modifia"), owiginaw: 'Toggwe Muwti-Cuwsow Modifia' },
+			f1: twue
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const editorConf = configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
-		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
+		const editowConf = configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
+		const newVawue: 'ctwwCmd' | 'awt' = (editowConf.muwtiCuwsowModifia === 'ctwwCmd' ? 'awt' : 'ctwwCmd');
 
-		return configurationService.updateValue(ToggleMultiCursorModifierAction.multiCursorModifierConfigurationKey, newValue);
+		wetuwn configuwationSewvice.updateVawue(ToggweMuwtiCuwsowModifiewAction.muwtiCuwsowModifiewConfiguwationKey, newVawue);
 	}
 }
 
-const multiCursorModifier = new RawContextKey<string>('multiCursorModifier', 'altKey');
+const muwtiCuwsowModifia = new WawContextKey<stwing>('muwtiCuwsowModifia', 'awtKey');
 
-class MultiCursorModifierContextKeyController implements IWorkbenchContribution {
+cwass MuwtiCuwsowModifiewContextKeyContwowwa impwements IWowkbenchContwibution {
 
-	private readonly _multiCursorModifier: IContextKey<string>;
+	pwivate weadonwy _muwtiCuwsowModifia: IContextKey<stwing>;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this._multiCursorModifier = multiCursorModifier.bindTo(contextKeyService);
+		this._muwtiCuwsowModifia = muwtiCuwsowModifia.bindTo(contextKeySewvice);
 
 		this._update();
-		configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('editor.multiCursorModifier')) {
+		configuwationSewvice.onDidChangeConfiguwation((e) => {
+			if (e.affectsConfiguwation('editow.muwtiCuwsowModifia')) {
 				this._update();
 			}
 		});
 	}
 
-	private _update(): void {
-		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
-		const value = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'ctrlCmd' : 'altKey');
-		this._multiCursorModifier.set(value);
+	pwivate _update(): void {
+		const editowConf = this.configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
+		const vawue = (editowConf.muwtiCuwsowModifia === 'ctwwCmd' ? 'ctwwCmd' : 'awtKey');
+		this._muwtiCuwsowModifia.set(vawue);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MultiCursorModifierContextKeyController, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(MuwtiCuwsowModifiewContextKeyContwowwa, WifecycwePhase.Westowed);
 
-registerAction2(ToggleMultiCursorModifierAction);
+wegistewAction2(ToggweMuwtiCuwsowModifiewAction);
 
-MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '4_config',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSewectionMenu, {
+	gwoup: '4_config',
 	command: {
-		id: ToggleMultiCursorModifierAction.ID,
-		title: localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor")
+		id: ToggweMuwtiCuwsowModifiewAction.ID,
+		titwe: wocawize('miMuwtiCuwsowAwt', "Switch to Awt+Cwick fow Muwti-Cuwsow")
 	},
-	when: multiCursorModifier.isEqualTo('ctrlCmd'),
-	order: 1
+	when: muwtiCuwsowModifia.isEquawTo('ctwwCmd'),
+	owda: 1
 });
-MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '4_config',
+MenuWegistwy.appendMenuItem(MenuId.MenubawSewectionMenu, {
+	gwoup: '4_config',
 	command: {
-		id: ToggleMultiCursorModifierAction.ID,
-		title: (
+		id: ToggweMuwtiCuwsowModifiewAction.ID,
+		titwe: (
 			isMacintosh
-				? localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
-				: localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor")
+				? wocawize('miMuwtiCuwsowCmd', "Switch to Cmd+Cwick fow Muwti-Cuwsow")
+				: wocawize('miMuwtiCuwsowCtww', "Switch to Ctww+Cwick fow Muwti-Cuwsow")
 		)
 	},
-	when: multiCursorModifier.isEqualTo('altKey'),
-	order: 1
+	when: muwtiCuwsowModifia.isEquawTo('awtKey'),
+	owda: 1
 });

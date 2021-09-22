@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Mimes } from 'vs/base/common/mime';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
 /**
- * An editor model that just represents a resource that can be loaded.
+ * An editow modew that just wepwesents a wesouwce that can be woaded.
  */
-export class BinaryEditorModel extends EditorModel {
+expowt cwass BinawyEditowModew extends EditowModew {
 
-	private readonly mime = Mimes.binary;
+	pwivate weadonwy mime = Mimes.binawy;
 
-	private size: number | undefined;
-	private etag: string | undefined;
+	pwivate size: numba | undefined;
+	pwivate etag: stwing | undefined;
 
-	constructor(
-		readonly resource: URI,
-		private readonly name: string,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		pwivate weadonwy name: stwing,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 	}
 
 	/**
-	 * The name of the binary resource.
+	 * The name of the binawy wesouwce.
 	 */
-	getName(): string {
-		return this.name;
+	getName(): stwing {
+		wetuwn this.name;
 	}
 
 	/**
-	 * The size of the binary resource if known.
+	 * The size of the binawy wesouwce if known.
 	 */
-	getSize(): number | undefined {
-		return this.size;
+	getSize(): numba | undefined {
+		wetuwn this.size;
 	}
 
 	/**
-	 * The mime of the binary resource if known.
+	 * The mime of the binawy wesouwce if known.
 	 */
-	getMime(): string {
-		return this.mime;
+	getMime(): stwing {
+		wetuwn this.mime;
 	}
 
 	/**
-	 * The etag of the binary resource if known.
+	 * The etag of the binawy wesouwce if known.
 	 */
-	getETag(): string | undefined {
-		return this.etag;
+	getETag(): stwing | undefined {
+		wetuwn this.etag;
 	}
 
-	override async resolve(): Promise<void> {
+	ovewwide async wesowve(): Pwomise<void> {
 
-		// Make sure to resolve up to date stat for file resources
-		if (this.fileService.canHandleResource(this.resource)) {
-			const stat = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+		// Make suwe to wesowve up to date stat fow fiwe wesouwces
+		if (this.fiweSewvice.canHandweWesouwce(this.wesouwce)) {
+			const stat = await this.fiweSewvice.wesowve(this.wesouwce, { wesowveMetadata: twue });
 			this.etag = stat.etag;
-			if (typeof stat.size === 'number') {
+			if (typeof stat.size === 'numba') {
 				this.size = stat.size;
 			}
 		}
 
-		return super.resolve();
+		wetuwn supa.wesowve();
 	}
 }

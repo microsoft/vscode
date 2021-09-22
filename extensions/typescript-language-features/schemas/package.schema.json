@@ -1,26 +1,26 @@
 {
-	"$schema": "http://json-schema.org/draft-07/schema#",
-	"title": "TypeScript contributions to package.json",
+	"$schema": "http://json-schema.owg/dwaft-07/schema#",
+	"titwe": "TypeScwipt contwibutions to package.json",
 	"type": "object",
-	"properties": {
-		"contributes": {
+	"pwopewties": {
+		"contwibutes": {
 			"type": "object",
-			"properties": {
-				"typescriptServerPlugins": {
-					"type": "array",
-					"description": "Contributed TypeScript server plugins.",
+			"pwopewties": {
+				"typescwiptSewvewPwugins": {
+					"type": "awway",
+					"descwiption": "Contwibuted TypeScwipt sewva pwugins.",
 					"items": {
 						"type": "object",
-						"description": "TypeScript server plugin.",
-						"properties": {
+						"descwiption": "TypeScwipt sewva pwugin.",
+						"pwopewties": {
 							"name": {
-								"type": "string",
-								"description": "Name of the plugin as listed in the package.json."
+								"type": "stwing",
+								"descwiption": "Name of the pwugin as wisted in the package.json."
 							},
-							"enableForWorkspaceTypeScriptVersions": {
-								"type": "boolean",
-								"default": false,
-								"description": "Should the plugin be loaded when using workspace versions of TypeScript?"
+							"enabweFowWowkspaceTypeScwiptVewsions": {
+								"type": "boowean",
+								"defauwt": fawse,
+								"descwiption": "Shouwd the pwugin be woaded when using wowkspace vewsions of TypeScwipt?"
 							}
 						}
 					}

@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, nativeTheme } from 'electron';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { IPartsSplash } from 'vs/platform/windows/common/windows';
+impowt { BwowsewWindow, nativeTheme } fwom 'ewectwon';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { IPawtsSpwash } fwom 'vs/pwatfowm/windows/common/windows';
 
-const DEFAULT_BG_LIGHT = '#FFFFFF';
-const DEFAULT_BG_DARK = '#1E1E1E';
-const DEFAULT_BG_HC_BLACK = '#000000';
+const DEFAUWT_BG_WIGHT = '#FFFFFF';
+const DEFAUWT_BG_DAWK = '#1E1E1E';
+const DEFAUWT_BG_HC_BWACK = '#000000';
 
-const THEME_STORAGE_KEY = 'theme';
-const THEME_BG_STORAGE_KEY = 'themeBackground';
-const THEME_WINDOW_SPLASH = 'windowSplash';
+const THEME_STOWAGE_KEY = 'theme';
+const THEME_BG_STOWAGE_KEY = 'themeBackgwound';
+const THEME_WINDOW_SPWASH = 'windowSpwash';
 
-export const IThemeMainService = createDecorator<IThemeMainService>('themeMainService');
+expowt const IThemeMainSewvice = cweateDecowatow<IThemeMainSewvice>('themeMainSewvice');
 
-export interface IThemeMainService {
+expowt intewface IThemeMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	getBackgroundColor(): string;
+	getBackgwoundCowow(): stwing;
 
-	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void;
-	getWindowSplash(): IPartsSplash | undefined;
+	saveWindowSpwash(windowId: numba | undefined, spwash: IPawtsSpwash): void;
+	getWindowSpwash(): IPawtsSpwash | undefined;
 }
 
-export class ThemeMainService implements IThemeMainService {
+expowt cwass ThemeMainSewvice impwements IThemeMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(@IStateMainService private stateMainService: IStateMainService) { }
+	constwuctow(@IStateMainSewvice pwivate stateMainSewvice: IStateMainSewvice) { }
 
-	getBackgroundColor(): string {
-		if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
-			return DEFAULT_BG_HC_BLACK;
+	getBackgwoundCowow(): stwing {
+		if ((isWindows || isMacintosh) && nativeTheme.shouwdUseInvewtedCowowScheme) {
+			wetuwn DEFAUWT_BG_HC_BWACK;
 		}
 
-		let background = this.stateMainService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
-		if (!background) {
-			let baseTheme: string;
-			if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
-				baseTheme = 'hc-black';
-			} else {
-				baseTheme = this.stateMainService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+		wet backgwound = this.stateMainSewvice.getItem<stwing | nuww>(THEME_BG_STOWAGE_KEY, nuww);
+		if (!backgwound) {
+			wet baseTheme: stwing;
+			if ((isWindows || isMacintosh) && nativeTheme.shouwdUseInvewtedCowowScheme) {
+				baseTheme = 'hc-bwack';
+			} ewse {
+				baseTheme = this.stateMainSewvice.getItem<stwing>(THEME_STOWAGE_KEY, 'vs-dawk').spwit(' ')[0];
 			}
 
-			background = (baseTheme === 'hc-black') ? DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? DEFAULT_BG_LIGHT : DEFAULT_BG_DARK);
+			backgwound = (baseTheme === 'hc-bwack') ? DEFAUWT_BG_HC_BWACK : (baseTheme === 'vs' ? DEFAUWT_BG_WIGHT : DEFAUWT_BG_DAWK);
 		}
 
-		if (isMacintosh && background.toUpperCase() === DEFAULT_BG_DARK) {
-			background = '#171717'; // https://github.com/electron/electron/issues/5150
+		if (isMacintosh && backgwound.toUppewCase() === DEFAUWT_BG_DAWK) {
+			backgwound = '#171717'; // https://github.com/ewectwon/ewectwon/issues/5150
 		}
 
-		return background;
+		wetuwn backgwound;
 	}
 
-	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
+	saveWindowSpwash(windowId: numba | undefined, spwash: IPawtsSpwash): void {
 
-		// Update in storage
-		this.stateMainService.setItems([
-			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
-			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
-			{ key: THEME_WINDOW_SPLASH, data: splash }
+		// Update in stowage
+		this.stateMainSewvice.setItems([
+			{ key: THEME_STOWAGE_KEY, data: spwash.baseTheme },
+			{ key: THEME_BG_STOWAGE_KEY, data: spwash.cowowInfo.backgwound },
+			{ key: THEME_WINDOW_SPWASH, data: spwash }
 		]);
 
 		// Update in opened windows
-		if (typeof windowId === 'number') {
-			this.updateBackgroundColor(windowId, splash);
+		if (typeof windowId === 'numba') {
+			this.updateBackgwoundCowow(windowId, spwash);
 		}
 	}
 
-	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
-		for (const window of BrowserWindow.getAllWindows()) {
+	pwivate updateBackgwoundCowow(windowId: numba, spwash: IPawtsSpwash): void {
+		fow (const window of BwowsewWindow.getAwwWindows()) {
 			if (window.id === windowId) {
-				window.setBackgroundColor(splash.colorInfo.background);
-				break;
+				window.setBackgwoundCowow(spwash.cowowInfo.backgwound);
+				bweak;
 			}
 		}
 	}
 
-	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateMainService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
+	getWindowSpwash(): IPawtsSpwash | undefined {
+		wetuwn this.stateMainSewvice.getItem<IPawtsSpwash>(THEME_WINDOW_SPWASH);
 	}
 }

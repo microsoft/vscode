@@ -1,28 +1,28 @@
 """
-A CoffeeScript sample.
+A CoffeeScwipt sampwe.
 """
 
-class Vehicle
-  constructor: (@name) =>
+cwass Vehicwe
+  constwuctow: (@name) =>
 
-  drive: () =>
-    alert "Drive #{@name}"
+  dwive: () =>
+    awewt "Dwive #{@name}"
 
-class Car extends Vehicle
-  drive: () =>
-    alert "Driving #{@name}"
+cwass Caw extends Vehicwe
+  dwive: () =>
+    awewt "Dwiving #{@name}"
 
-c = new Car "Volvo"
+c = new Caw "Vowvo"
 
-while onTheRoad()
-  c.drive()
+whiwe onTheWoad()
+  c.dwive()
 
-vehicles = (new Car for i in [1..100])
+vehicwes = (new Caw fow i in [1..100])
 
-startRace = (vehicles) -> [vehicle.drive() for vehicle in vehicles]
+stawtWace = (vehicwes) -> [vehicwe.dwive() fow vehicwe in vehicwes]
 
-fancyRegExp = ///
-	(\d+)	# numbers
-	(\w*)	# letters
+fancyWegExp = ///
+	(\d+)	# numbews
+	(\w*)	# wettews
 	$		# the end
 ///

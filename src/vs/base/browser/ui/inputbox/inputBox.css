@@ -1,111 +1,111 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-inputbox {
-	position: relative;
-	display: block;
+	position: wewative;
+	dispway: bwock;
 	padding: 0;
-	box-sizing:	border-box;
+	box-sizing:	bowda-box;
 
-	/* Customizable */
-	font-size: inherit;
+	/* Customizabwe */
+	font-size: inhewit;
 }
 
-.monaco-inputbox.idle {
-	border: 1px solid transparent;
+.monaco-inputbox.idwe {
+	bowda: 1px sowid twanspawent;
 }
 
-.monaco-inputbox > .ibwrapper > .input,
-.monaco-inputbox > .ibwrapper > .mirror {
+.monaco-inputbox > .ibwwappa > .input,
+.monaco-inputbox > .ibwwappa > .miwwow {
 
-	/* Customizable */
+	/* Customizabwe */
 	padding: 4px;
 }
 
-.monaco-inputbox > .ibwrapper {
-	position: relative;
+.monaco-inputbox > .ibwwappa {
+	position: wewative;
 	width: 100%;
 	height: 100%;
 }
 
-.monaco-inputbox > .ibwrapper > .input {
-	display: inline-block;
-	box-sizing:	border-box;
+.monaco-inputbox > .ibwwappa > .input {
+	dispway: inwine-bwock;
+	box-sizing:	bowda-box;
 	width: 100%;
 	height: 100%;
-	line-height: inherit;
-	border: none;
-	font-family: inherit;
-	font-size: inherit;
-	resize: none;
-	color: inherit;
+	wine-height: inhewit;
+	bowda: none;
+	font-famiwy: inhewit;
+	font-size: inhewit;
+	wesize: none;
+	cowow: inhewit;
 }
 
-.monaco-inputbox > .ibwrapper > input {
-	text-overflow: ellipsis;
+.monaco-inputbox > .ibwwappa > input {
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-inputbox > .ibwrapper > textarea.input {
-	display: block;
-	-ms-overflow-style: none; /* IE 10+: hide scrollbars */
-	scrollbar-width: none; /* Firefox: hide scrollbars */
-	outline: none;
+.monaco-inputbox > .ibwwappa > textawea.input {
+	dispway: bwock;
+	-ms-ovewfwow-stywe: none; /* IE 10+: hide scwowwbaws */
+	scwowwbaw-width: none; /* Fiwefox: hide scwowwbaws */
+	outwine: none;
 }
 
-.monaco-inputbox > .ibwrapper > textarea.input::-webkit-scrollbar {
-	display: none; /* Chrome + Safari: hide scrollbar */
+.monaco-inputbox > .ibwwappa > textawea.input::-webkit-scwowwbaw {
+	dispway: none; /* Chwome + Safawi: hide scwowwbaw */
 }
 
-.monaco-inputbox > .ibwrapper > textarea.input.empty {
-	white-space: nowrap;
+.monaco-inputbox > .ibwwappa > textawea.input.empty {
+	white-space: nowwap;
 }
 
-.monaco-inputbox > .ibwrapper > .mirror {
-	position: absolute;
-	display: inline-block;
+.monaco-inputbox > .ibwwappa > .miwwow {
+	position: absowute;
+	dispway: inwine-bwock;
 	width: 100%;
 	top: 0;
-	left: 0;
-	box-sizing: border-box;
-	white-space: pre-wrap;
-	visibility: hidden;
-	word-wrap: break-word;
+	weft: 0;
+	box-sizing: bowda-box;
+	white-space: pwe-wwap;
+	visibiwity: hidden;
+	wowd-wwap: bweak-wowd;
 }
 
 /* Context view */
 
-.monaco-inputbox-container {
-	text-align: right;
+.monaco-inputbox-containa {
+	text-awign: wight;
 }
 
-.monaco-inputbox-container .monaco-inputbox-message {
-	display: inline-block;
-	overflow: hidden;
-	text-align: left;
+.monaco-inputbox-containa .monaco-inputbox-message {
+	dispway: inwine-bwock;
+	ovewfwow: hidden;
+	text-awign: weft;
 	width: 100%;
-	box-sizing:	border-box;
+	box-sizing:	bowda-box;
 	padding: 0.4em;
 	font-size: 12px;
-	line-height: 17px;
-	margin-top: -1px;
-	word-wrap: break-word;
+	wine-height: 17px;
+	mawgin-top: -1px;
+	wowd-wwap: bweak-wowd;
 }
 
-/* Action bar support */
-.monaco-inputbox .monaco-action-bar {
-	position: absolute;
-	right: 2px;
+/* Action baw suppowt */
+.monaco-inputbox .monaco-action-baw {
+	position: absowute;
+	wight: 2px;
 	top: 4px;
 }
 
-.monaco-inputbox .monaco-action-bar .action-item {
-	margin-left: 2px;
+.monaco-inputbox .monaco-action-baw .action-item {
+	mawgin-weft: 2px;
 }
 
-.monaco-inputbox .monaco-action-bar .action-item .codicon {
-	background-repeat: no-repeat;
+.monaco-inputbox .monaco-action-baw .action-item .codicon {
+	backgwound-wepeat: no-wepeat;
 	width: 16px;
 	height: 16px;
 }

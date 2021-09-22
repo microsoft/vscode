@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonNativeHostService } from 'vs/platform/native/common/native';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICommonNativeHostSewvice } fwom 'vs/pwatfowm/native/common/native';
 
-export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
+expowt const INativeHostSewvice = cweateDecowatow<INativeHostSewvice>('nativeHostSewvice');
 
 /**
- * A set of methods specific to a native host, i.e. unsupported in web
- * environments.
+ * A set of methods specific to a native host, i.e. unsuppowted in web
+ * enviwonments.
  *
- * @see {@link IHostService} for methods that can be used in native and web
+ * @see {@wink IHostSewvice} fow methods that can be used in native and web
  * hosts.
  */
-export interface INativeHostService extends ICommonNativeHostService { }
+expowt intewface INativeHostSewvice extends ICommonNativeHostSewvice { }

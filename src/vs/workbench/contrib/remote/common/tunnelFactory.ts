@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITunnelService, TunnelOptions, RemoteTunnel, TunnelCreationOptions, ITunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { ITunnewSewvice, TunnewOptions, WemoteTunnew, TunnewCweationOptions, ITunnew, TunnewPwotocow } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWemoteExpwowewSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass TunnewFactowyContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@ITunnelService tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService private openerService: IOpenerService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
-		@ILogService logService: ILogService
+	constwuctow(
+		@ITunnewSewvice tunnewSewvice: ITunnewSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IOpenewSewvice pwivate openewSewvice: IOpenewSewvice,
+		@IWemoteExpwowewSewvice wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super();
-		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
-		if (tunnelFactory) {
-			this._register(tunnelService.setTunnelProvider({
-				forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined => {
-					let tunnelPromise: Promise<ITunnel> | undefined;
-					try {
-						tunnelPromise = tunnelFactory(tunnelOptions, tunnelCreationOptions);
+		supa();
+		const tunnewFactowy = enviwonmentSewvice.options?.tunnewPwovida?.tunnewFactowy;
+		if (tunnewFactowy) {
+			this._wegista(tunnewSewvice.setTunnewPwovida({
+				fowwawdPowt: (tunnewOptions: TunnewOptions, tunnewCweationOptions: TunnewCweationOptions): Pwomise<WemoteTunnew | undefined> | undefined => {
+					wet tunnewPwomise: Pwomise<ITunnew> | undefined;
+					twy {
+						tunnewPwomise = tunnewFactowy(tunnewOptions, tunnewCweationOptions);
 					} catch (e) {
-						logService.trace('tunnelFactory: tunnel provider error');
+						wogSewvice.twace('tunnewFactowy: tunnew pwovida ewwow');
 					}
 
-					return new Promise(async (resolve) => {
-						if (!tunnelPromise) {
-							resolve(undefined);
-							return;
+					wetuwn new Pwomise(async (wesowve) => {
+						if (!tunnewPwomise) {
+							wesowve(undefined);
+							wetuwn;
 						}
-						let tunnel: ITunnel;
-						try {
-							tunnel = await tunnelPromise;
+						wet tunnew: ITunnew;
+						twy {
+							tunnew = await tunnewPwomise;
 						} catch (e) {
-							logService.trace('tunnelFactory: tunnel provider promise error');
-							resolve(undefined);
-							return;
+							wogSewvice.twace('tunnewFactowy: tunnew pwovida pwomise ewwow');
+							wesowve(undefined);
+							wetuwn;
 						}
-						const localAddress = tunnel.localAddress.startsWith('http') ? tunnel.localAddress : `http://${tunnel.localAddress}`;
-						const remoteTunnel: RemoteTunnel = {
-							tunnelRemotePort: tunnel.remoteAddress.port,
-							tunnelRemoteHost: tunnel.remoteAddress.host,
-							// The tunnel factory may give us an inaccessible local address.
-							// To make sure this doesn't happen, resolve the uri immediately.
-							localAddress: await this.resolveExternalUri(localAddress),
-							public: !!tunnel.public,
-							protocol: tunnel.protocol ?? TunnelProtocol.Http,
-							dispose: async () => { await tunnel.dispose(); }
+						const wocawAddwess = tunnew.wocawAddwess.stawtsWith('http') ? tunnew.wocawAddwess : `http://${tunnew.wocawAddwess}`;
+						const wemoteTunnew: WemoteTunnew = {
+							tunnewWemotePowt: tunnew.wemoteAddwess.powt,
+							tunnewWemoteHost: tunnew.wemoteAddwess.host,
+							// The tunnew factowy may give us an inaccessibwe wocaw addwess.
+							// To make suwe this doesn't happen, wesowve the uwi immediatewy.
+							wocawAddwess: await this.wesowveExtewnawUwi(wocawAddwess),
+							pubwic: !!tunnew.pubwic,
+							pwotocow: tunnew.pwotocow ?? TunnewPwotocow.Http,
+							dispose: async () => { await tunnew.dispose(); }
 						};
-						resolve(remoteTunnel);
+						wesowve(wemoteTunnew);
 					});
 				}
-			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
-			remoteExplorerService.setTunnelInformation(undefined);
+			}, enviwonmentSewvice.options?.tunnewPwovida?.featuwes ?? { ewevation: fawse, pubwic: fawse }));
+			wemoteExpwowewSewvice.setTunnewInfowmation(undefined);
 		}
 	}
 
-	private async resolveExternalUri(uri: string): Promise<string> {
-		try {
-			return (await this.openerService.resolveExternalUri(URI.parse(uri))).resolved.toString();
+	pwivate async wesowveExtewnawUwi(uwi: stwing): Pwomise<stwing> {
+		twy {
+			wetuwn (await this.openewSewvice.wesowveExtewnawUwi(UWI.pawse(uwi))).wesowved.toStwing();
 		} catch {
-			return uri;
+			wetuwn uwi;
 		}
 	}
 }

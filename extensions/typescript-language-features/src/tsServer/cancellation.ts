@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import Tracer from '../utils/tracer';
+impowt Twaca fwom '../utiws/twaca';
 
-export interface OngoingRequestCanceller {
-	readonly cancellationPipeName: string | undefined;
-	tryCancelOngoingRequest(seq: number): boolean;
+expowt intewface OngoingWequestCancewwa {
+	weadonwy cancewwationPipeName: stwing | undefined;
+	twyCancewOngoingWequest(seq: numba): boowean;
 }
 
-export interface OngoingRequestCancellerFactory {
-	create(serverId: string, tracer: Tracer): OngoingRequestCanceller;
+expowt intewface OngoingWequestCancewwewFactowy {
+	cweate(sewvewId: stwing, twaca: Twaca): OngoingWequestCancewwa;
 }
 
-const noopRequestCanceller = new class implements OngoingRequestCanceller {
-	public readonly cancellationPipeName = undefined;
+const noopWequestCancewwa = new cwass impwements OngoingWequestCancewwa {
+	pubwic weadonwy cancewwationPipeName = undefined;
 
-	public tryCancelOngoingRequest(_seq: number): boolean {
-		return false;
+	pubwic twyCancewOngoingWequest(_seq: numba): boowean {
+		wetuwn fawse;
 	}
 };
 
-export const noopRequestCancellerFactory = new class implements OngoingRequestCancellerFactory {
-	create(_serverId: string, _tracer: Tracer): OngoingRequestCanceller {
-		return noopRequestCanceller;
+expowt const noopWequestCancewwewFactowy = new cwass impwements OngoingWequestCancewwewFactowy {
+	cweate(_sewvewId: stwing, _twaca: Twaca): OngoingWequestCancewwa {
+		wetuwn noopWequestCancewwa;
 	}
 };

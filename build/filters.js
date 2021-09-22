@@ -1,158 +1,158 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Hygiene works by creating cascading subsets of all our files and
- * passing them through a sequence of checks. Here are the current subsets,
- * named according to the checks performed on them. Each subset contains
- * the following one, as described in mathematical notation:
+ * Hygiene wowks by cweating cascading subsets of aww ouw fiwes and
+ * passing them thwough a sequence of checks. Hewe awe the cuwwent subsets,
+ * named accowding to the checks pewfowmed on them. Each subset contains
+ * the fowwowing one, as descwibed in mathematicaw notation:
  *
- * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
+ * aww ⊃ eow ⊇ indentation ⊃ copywight ⊃ typescwipt
  */
 
-module.exports.all = [
+moduwe.expowts.aww = [
 	'*',
-	'build/**/*',
+	'buiwd/**/*',
 	'extensions/**/*',
-	'scripts/**/*',
-	'src/**/*',
+	'scwipts/**/*',
+	'swc/**/*',
 	'test/**/*',
 	'!out*/**',
 	'!test/**/out/**',
-	'!**/node_modules/**',
+	'!**/node_moduwes/**',
 ];
 
-module.exports.indentationFilter = [
+moduwe.expowts.indentationFiwta = [
 	'**',
 
-	// except specific files
-	'!**/ThirdPartyNotices.txt',
-	'!**/LICENSE.{txt,rtf}',
-	'!LICENSES.chromium.html',
-	'!**/LICENSE',
-	'!src/vs/nls.js',
-	'!src/vs/nls.build.js',
-	'!src/vs/css.js',
-	'!src/vs/css.build.js',
-	'!src/vs/loader.js',
-	'!src/vs/base/browser/dompurify/*',
-	'!src/vs/base/common/marked/marked.js',
-	'!src/vs/base/common/semver/semver.js',
-	'!src/vs/base/node/terminateProcess.sh',
-	'!src/vs/base/node/cpuUsage.sh',
-	'!test/unit/assert.js',
-	'!resources/linux/snap/electron-launch',
-	'!build/ext.js',
+	// except specific fiwes
+	'!**/ThiwdPawtyNotices.txt',
+	'!**/WICENSE.{txt,wtf}',
+	'!WICENSES.chwomium.htmw',
+	'!**/WICENSE',
+	'!swc/vs/nws.js',
+	'!swc/vs/nws.buiwd.js',
+	'!swc/vs/css.js',
+	'!swc/vs/css.buiwd.js',
+	'!swc/vs/woada.js',
+	'!swc/vs/base/bwowsa/dompuwify/*',
+	'!swc/vs/base/common/mawked/mawked.js',
+	'!swc/vs/base/common/semva/semva.js',
+	'!swc/vs/base/node/tewminatePwocess.sh',
+	'!swc/vs/base/node/cpuUsage.sh',
+	'!test/unit/assewt.js',
+	'!wesouwces/winux/snap/ewectwon-waunch',
+	'!buiwd/ext.js',
 
-	// except specific folders
+	// except specific fowdews
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
-	'!extensions/typescript-language-features/test-workspace/**',
-	'!extensions/markdown-math/notebook-out/**',
-	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/vscode-api-tests/testWorkspace2/**',
-	'!extensions/vscode-custom-editor-tests/test-workspace/**',
-	'!build/monaco/**',
-	'!build/win32/**',
+	'!extensions/typescwipt-wanguage-featuwes/test-wowkspace/**',
+	'!extensions/mawkdown-math/notebook-out/**',
+	'!extensions/vscode-api-tests/testWowkspace/**',
+	'!extensions/vscode-api-tests/testWowkspace2/**',
+	'!extensions/vscode-custom-editow-tests/test-wowkspace/**',
+	'!buiwd/monaco/**',
+	'!buiwd/win32/**',
 
-	// except multiple specific files
+	// except muwtipwe specific fiwes
 	'!**/package.json',
-	'!**/yarn.lock',
-	'!**/yarn-error.log',
+	'!**/yawn.wock',
+	'!**/yawn-ewwow.wog',
 
-	// except multiple specific folders
+	// except muwtipwe specific fowdews
 	'!**/codicon/**',
-	'!**/fixtures/**',
-	'!**/lib/**',
+	'!**/fixtuwes/**',
+	'!**/wib/**',
 	'!extensions/**/dist/**',
 	'!extensions/**/out/**',
 	'!extensions/**/snippets/**',
 	'!extensions/**/syntaxes/**',
 	'!extensions/**/themes/**',
-	'!extensions/**/colorize-fixtures/**',
+	'!extensions/**/cowowize-fixtuwes/**',
 
-	// except specific file types
-	'!src/vs/*/**/*.d.ts',
-	'!src/typings/**/*.d.ts',
+	// except specific fiwe types
+	'!swc/vs/*/**/*.d.ts',
+	'!swc/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cur,ttf,woff,eot,md,ps1,template,yaml,yml,d.ts.recipe,ico,icns,plist}',
-	'!build/{lib,download,linux,darwin}/**/*.js',
-	'!build/**/*.sh',
-	'!build/azure-pipelines/**/*.js',
-	'!build/azure-pipelines/**/*.config',
-	'!**/Dockerfile',
-	'!**/Dockerfile.*',
-	'!**/*.Dockerfile',
-	'!**/*.dockerfile',
-	'!extensions/markdown-language-features/media/*.js',
-	'!extensions/markdown-language-features/notebook-out/*.js',
-	'!extensions/markdown-math/notebook-out/*.js',
-	'!extensions/simple-browser/media/*.js',
+	'!**/*.{svg,exe,png,bmp,jpg,scpt,bat,cmd,cuw,ttf,woff,eot,md,ps1,tempwate,yamw,ymw,d.ts.wecipe,ico,icns,pwist}',
+	'!buiwd/{wib,downwoad,winux,dawwin}/**/*.js',
+	'!buiwd/**/*.sh',
+	'!buiwd/azuwe-pipewines/**/*.js',
+	'!buiwd/azuwe-pipewines/**/*.config',
+	'!**/Dockewfiwe',
+	'!**/Dockewfiwe.*',
+	'!**/*.Dockewfiwe',
+	'!**/*.dockewfiwe',
+	'!extensions/mawkdown-wanguage-featuwes/media/*.js',
+	'!extensions/mawkdown-wanguage-featuwes/notebook-out/*.js',
+	'!extensions/mawkdown-math/notebook-out/*.js',
+	'!extensions/simpwe-bwowsa/media/*.js',
 ];
 
-module.exports.copyrightFilter = [
+moduwe.expowts.copywightFiwta = [
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
-	'!**/*.html',
-	'!**/*.template',
+	'!**/*.htmw',
+	'!**/*.tempwate',
 	'!**/*.md',
 	'!**/*.bat',
 	'!**/*.cmd',
 	'!**/*.ico',
 	'!**/*.icns',
-	'!**/*.xml',
+	'!**/*.xmw',
 	'!**/*.sh',
 	'!**/*.txt',
 	'!**/*.xpm',
 	'!**/*.opts',
-	'!**/*.disabled',
-	'!**/*.code-workspace',
+	'!**/*.disabwed',
+	'!**/*.code-wowkspace',
 	'!**/*.js.map',
-	'!build/**/*.init',
-	'!build/linux/libcxx-fetcher.*',
-	'!resources/linux/snap/snapcraft.yaml',
-	'!resources/win32/bin/code.js',
-	'!resources/web/code-web.js',
-	'!resources/completions/**',
-	'!extensions/configuration-editing/build/inline-allOf.ts',
-	'!extensions/markdown-language-features/media/highlight.css',
-	'!extensions/markdown-math/notebook-out/**',
-	'!extensions/html-language-features/server/src/modes/typescript/*',
-	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
+	'!buiwd/**/*.init',
+	'!buiwd/winux/wibcxx-fetcha.*',
+	'!wesouwces/winux/snap/snapcwaft.yamw',
+	'!wesouwces/win32/bin/code.js',
+	'!wesouwces/web/code-web.js',
+	'!wesouwces/compwetions/**',
+	'!extensions/configuwation-editing/buiwd/inwine-awwOf.ts',
+	'!extensions/mawkdown-wanguage-featuwes/media/highwight.css',
+	'!extensions/mawkdown-math/notebook-out/**',
+	'!extensions/htmw-wanguage-featuwes/sewva/swc/modes/typescwipt/*',
+	'!extensions/*/sewva/bin/*',
+	'!swc/vs/editow/test/node/cwassification/typescwipt-test.ts',
 ];
 
-module.exports.jsHygieneFilter = [
-	'src/**/*.js',
-	'build/gulpfile.*.js',
-	'!src/vs/loader.js',
-	'!src/vs/css.js',
-	'!src/vs/nls.js',
-	'!src/vs/css.build.js',
-	'!src/vs/nls.build.js',
-	'!src/**/dompurify.js',
-	'!src/**/marked.js',
-	'!src/**/semver.js',
+moduwe.expowts.jsHygieneFiwta = [
+	'swc/**/*.js',
+	'buiwd/guwpfiwe.*.js',
+	'!swc/vs/woada.js',
+	'!swc/vs/css.js',
+	'!swc/vs/nws.js',
+	'!swc/vs/css.buiwd.js',
+	'!swc/vs/nws.buiwd.js',
+	'!swc/**/dompuwify.js',
+	'!swc/**/mawked.js',
+	'!swc/**/semva.js',
 	'!**/test/**',
 ];
 
-module.exports.tsHygieneFilter = [
-	'src/**/*.ts',
+moduwe.expowts.tsHygieneFiwta = [
+	'swc/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
-	'!src/vs/*/**/*.d.ts',
-	'!src/typings/**/*.d.ts',
+	'!swc/vs/*/**/*.d.ts',
+	'!swc/typings/**/*.d.ts',
 	'!extensions/**/*.d.ts',
-	'!**/fixtures/**',
+	'!**/fixtuwes/**',
 	'!**/typings/**',
-	'!**/node_modules/**',
-	'!extensions/**/colorize-fixtures/**',
-	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/vscode-api-tests/testWorkspace2/**',
+	'!**/node_moduwes/**',
+	'!extensions/**/cowowize-fixtuwes/**',
+	'!extensions/vscode-api-tests/testWowkspace/**',
+	'!extensions/vscode-api-tests/testWowkspace2/**',
 	'!extensions/**/*.test.ts',
-	'!extensions/html-language-features/server/lib/jquery.d.ts',
+	'!extensions/htmw-wanguage-featuwes/sewva/wib/jquewy.d.ts',
 ];

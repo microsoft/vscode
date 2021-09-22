@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IEditorMemento, IEditorCloseEvent, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtUri } from 'vs/base/common/resources';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowMemento, IEditowCwoseEvent, IEditowOpenContext, EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IEditowGwoupsSewvice, IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
 /**
- * Base class of editors that want to store and restore view state.
+ * Base cwass of editows that want to stowe and westowe view state.
  */
-export abstract class AbstractEditorWithViewState<T extends object> extends EditorPane {
+expowt abstwact cwass AbstwactEditowWithViewState<T extends object> extends EditowPane {
 
-	private viewState: IEditorMemento<T>;
+	pwivate viewState: IEditowMemento<T>;
 
-	private readonly groupListener = this._register(new MutableDisposable());
+	pwivate weadonwy gwoupWistena = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		id: string,
-		viewStateStorageKey: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorService protected readonly editorService: IEditorService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		viewStateStowageKey: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice pwotected weadonwy textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowSewvice pwotected weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwotected weadonwy editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, telemetryService, themeService, storageService);
+		supa(id, tewemetwySewvice, themeSewvice, stowageSewvice);
 
-		this.viewState = this.getEditorMemento<T>(editorGroupService, textResourceConfigurationService, viewStateStorageKey, 100);
+		this.viewState = this.getEditowMemento<T>(editowGwoupSewvice, textWesouwceConfiguwationSewvice, viewStateStowageKey, 100);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	pwotected ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
 
-		// Listen to close events to trigger `onWillCloseEditorInGroup`
-		this.groupListener.value = group?.onWillCloseEditor(e => this.onWillCloseEditor(e));
+		// Wisten to cwose events to twigga `onWiwwCwoseEditowInGwoup`
+		this.gwoupWistena.vawue = gwoup?.onWiwwCwoseEditow(e => this.onWiwwCwoseEditow(e));
 
-		super.setEditorVisible(visible, group);
+		supa.setEditowVisibwe(visibwe, gwoup);
 	}
 
-	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		const editor = e.editor;
-		if (editor === this.input) {
-			// React to editors closing to preserve or clear view state. This needs to happen
-			// in the `onWillCloseEditor` because at that time the editor has not yet
-			// been disposed and we can safely persist the view state.
-			this.updateEditorViewState(editor);
+	pwivate onWiwwCwoseEditow(e: IEditowCwoseEvent): void {
+		const editow = e.editow;
+		if (editow === this.input) {
+			// Weact to editows cwosing to pwesewve ow cweaw view state. This needs to happen
+			// in the `onWiwwCwoseEditow` because at that time the editow has not yet
+			// been disposed and we can safewy pewsist the view state.
+			this.updateEditowViewState(editow);
 		}
 	}
 
-	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	ovewwide async setInput(input: EditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
 
-		// Preserve current input view state before opening new
-		this.updateEditorViewState(this.input);
+		// Pwesewve cuwwent input view state befowe opening new
+		this.updateEditowViewState(this.input);
 
-		await super.setInput(input, options, context, token);
+		await supa.setInput(input, options, context, token);
 	}
 
-	override clearInput(): void {
+	ovewwide cweawInput(): void {
 
-		// Preserve current input view state before clearing
-		this.updateEditorViewState(this.input);
+		// Pwesewve cuwwent input view state befowe cweawing
+		this.updateEditowViewState(this.input);
 
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	protected override saveState(): void {
+	pwotected ovewwide saveState(): void {
 
-		// Preserve current input view state before shutting down
-		this.updateEditorViewState(this.input);
+		// Pwesewve cuwwent input view state befowe shutting down
+		this.updateEditowViewState(this.input);
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	private updateEditorViewState(input: EditorInput | undefined): void {
-		if (!input || !this.tracksEditorViewState(input)) {
-			return; // ensure we have an input to handle view state for
+	pwivate updateEditowViewState(input: EditowInput | undefined): void {
+		if (!input || !this.twacksEditowViewState(input)) {
+			wetuwn; // ensuwe we have an input to handwe view state fow
 		}
 
-		const resource = this.toEditorViewStateResource(input);
-		if (!resource) {
-			return; // we need a resource
+		const wesouwce = this.toEditowViewStateWesouwce(input);
+		if (!wesouwce) {
+			wetuwn; // we need a wesouwce
 		}
 
-		// Clear the editor view state if:
-		// - the editor view state should not be tracked for disposed editors
-		// - the user configured to not restore view state unless the editor is still opened in the group
+		// Cweaw the editow view state if:
+		// - the editow view state shouwd not be twacked fow disposed editows
+		// - the usa configuwed to not westowe view state unwess the editow is stiww opened in the gwoup
 		if (
-			(input.isDisposed() && !this.tracksDisposedEditorViewState()) ||
-			(!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input)))
+			(input.isDisposed() && !this.twacksDisposedEditowViewState()) ||
+			(!this.shouwdWestoweEditowViewState(input) && (!this.gwoup || !this.gwoup.contains(input)))
 		) {
-			this.clearEditorViewState(resource, this.group);
+			this.cweawEditowViewState(wesouwce, this.gwoup);
 		}
 
-		// Otherwise we save the view state
-		else if (!input.isDisposed()) {
-			this.saveEditorViewState(resource);
+		// Othewwise we save the view state
+		ewse if (!input.isDisposed()) {
+			this.saveEditowViewState(wesouwce);
 		}
 	}
 
-	private shouldRestoreEditorViewState(input: EditorInput, context?: IEditorOpenContext): boolean {
+	pwivate shouwdWestoweEditowViewState(input: EditowInput, context?: IEditowOpenContext): boowean {
 
-		// new editor: check with workbench.editor.restoreViewState setting
-		if (context?.newInGroup) {
-			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+		// new editow: check with wowkbench.editow.westoweViewState setting
+		if (context?.newInGwoup) {
+			wetuwn this.textWesouwceConfiguwationSewvice.getVawue<boowean>(EditowWesouwceAccessow.getOwiginawUwi(input, { suppowtSideBySide: SideBySideEditow.PWIMAWY }), 'wowkbench.editow.westoweViewState') === fawse ? fawse : twue /* westowe by defauwt */;
 		}
 
-		// existing editor: always restore viewstate
-		return true;
+		// existing editow: awways westowe viewstate
+		wetuwn twue;
 	}
 
-	override getViewState(): T | undefined {
+	ovewwide getViewState(): T | undefined {
 		const input = this.input;
-		if (!input || !this.tracksEditorViewState(input)) {
-			return; // need valid input for view state
+		if (!input || !this.twacksEditowViewState(input)) {
+			wetuwn; // need vawid input fow view state
 		}
 
-		const resource = this.toEditorViewStateResource(input);
-		if (!resource) {
-			return; // need a resource for finding view state
+		const wesouwce = this.toEditowViewStateWesouwce(input);
+		if (!wesouwce) {
+			wetuwn; // need a wesouwce fow finding view state
 		}
 
-		return this.computeEditorViewState(resource);
+		wetuwn this.computeEditowViewState(wesouwce);
 	}
 
-	private saveEditorViewState(resource: URI): void {
-		if (!this.group) {
-			return;
+	pwivate saveEditowViewState(wesouwce: UWI): void {
+		if (!this.gwoup) {
+			wetuwn;
 		}
 
-		const editorViewState = this.computeEditorViewState(resource);
-		if (!editorViewState) {
-			return;
+		const editowViewState = this.computeEditowViewState(wesouwce);
+		if (!editowViewState) {
+			wetuwn;
 		}
 
-		this.viewState.saveEditorState(this.group, resource, editorViewState);
+		this.viewState.saveEditowState(this.gwoup, wesouwce, editowViewState);
 	}
 
-	protected loadEditorViewState(input: EditorInput | undefined, context?: IEditorOpenContext): T | undefined {
-		if (!input || !this.group) {
-			return undefined; // we need valid input
+	pwotected woadEditowViewState(input: EditowInput | undefined, context?: IEditowOpenContext): T | undefined {
+		if (!input || !this.gwoup) {
+			wetuwn undefined; // we need vawid input
 		}
 
-		if (!this.tracksEditorViewState(input)) {
-			return undefined; // not tracking for input
+		if (!this.twacksEditowViewState(input)) {
+			wetuwn undefined; // not twacking fow input
 		}
 
-		if (!this.shouldRestoreEditorViewState(input, context)) {
-			return undefined; // not enabled for input
+		if (!this.shouwdWestoweEditowViewState(input, context)) {
+			wetuwn undefined; // not enabwed fow input
 		}
 
-		const resource = this.toEditorViewStateResource(input);
-		if (!resource) {
-			return; // need a resource for finding view state
+		const wesouwce = this.toEditowViewStateWesouwce(input);
+		if (!wesouwce) {
+			wetuwn; // need a wesouwce fow finding view state
 		}
 
-		return this.viewState.loadEditorState(this.group, resource);
+		wetuwn this.viewState.woadEditowState(this.gwoup, wesouwce);
 	}
 
-	protected moveEditorViewState(source: URI, target: URI, comparer: IExtUri): void {
-		return this.viewState.moveEditorState(source, target, comparer);
+	pwotected moveEditowViewState(souwce: UWI, tawget: UWI, compawa: IExtUwi): void {
+		wetuwn this.viewState.moveEditowState(souwce, tawget, compawa);
 	}
 
-	protected clearEditorViewState(resource: URI, group?: IEditorGroup): void {
-		this.viewState.clearEditorState(resource, group);
+	pwotected cweawEditowViewState(wesouwce: UWI, gwoup?: IEditowGwoup): void {
+		this.viewState.cweawEditowState(wesouwce, gwoup);
 	}
 
-	//#region Subclasses should/could override based on needs
+	//#wegion Subcwasses shouwd/couwd ovewwide based on needs
 
 	/**
-	 * The actual method to provide for gathering the view state
-	 * object for the control.
+	 * The actuaw method to pwovide fow gathewing the view state
+	 * object fow the contwow.
 	 *
-	 * @param resource the expected `URI` for the view state. This
-	 * should be used as a way to ensure the view state in the
-	 * editor control is matching the resource expected.
+	 * @pawam wesouwce the expected `UWI` fow the view state. This
+	 * shouwd be used as a way to ensuwe the view state in the
+	 * editow contwow is matching the wesouwce expected.
 	 */
-	protected abstract computeEditorViewState(resource: URI): T | undefined;
+	pwotected abstwact computeEditowViewState(wesouwce: UWI): T | undefined;
 
 	/**
-	 * Whether view state should be associated with the given input.
-	 * Subclasses need to ensure that the editor input is expected
-	 * for the editor.
+	 * Whetha view state shouwd be associated with the given input.
+	 * Subcwasses need to ensuwe that the editow input is expected
+	 * fow the editow.
 	 */
-	protected abstract tracksEditorViewState(input: EditorInput): boolean;
+	pwotected abstwact twacksEditowViewState(input: EditowInput): boowean;
 
 	/**
-	 * Whether view state should be tracked even when the editor is
+	 * Whetha view state shouwd be twacked even when the editow is
 	 * disposed.
 	 *
-	 * Subclasses should override this if the input can be restored
-	 * from the resource at a later point, e.g. if backed by files.
+	 * Subcwasses shouwd ovewwide this if the input can be westowed
+	 * fwom the wesouwce at a wata point, e.g. if backed by fiwes.
 	 */
-	protected tracksDisposedEditorViewState(): boolean {
-		return false;
+	pwotected twacksDisposedEditowViewState(): boowean {
+		wetuwn fawse;
 	}
 
 	/**
-	 * Asks to return the `URI` to associate with the view state.
+	 * Asks to wetuwn the `UWI` to associate with the view state.
 	 */
-	protected abstract toEditorViewStateResource(input: EditorInput): URI | undefined;
+	pwotected abstwact toEditowViewStateWesouwce(input: EditowInput): UWI | undefined;
 
-	//#endregion
+	//#endwegion
 }

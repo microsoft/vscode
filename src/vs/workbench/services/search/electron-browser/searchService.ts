@@ -1,197 +1,197 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI as uri } from 'vs/base/common/uri';
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugParams } from 'vs/platform/environment/common/environment';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { parseSearchPort } from 'vs/platform/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { FileMatch, IFileMatch, IFileQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, ISearchService, isFileMatch } from 'vs/workbench/services/search/common/search';
-import { SearchChannelClient } from 'vs/workbench/services/search/node/searchIpc';
-import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { FileAccess } from 'vs/base/common/network';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { getNextTickChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient, IIPCOptions } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDebugPawams } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { pawseSeawchPowt } fwom 'vs/pwatfowm/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { FiweMatch, IFiweMatch, IFiweQuewy, IPwogwessMessage, IWawSeawchSewvice, ISeawchCompwete, ISeawchConfiguwation, ISeawchPwogwessItem, ISeawchWesuwtPwovida, ISewiawizedFiweMatch, ISewiawizedSeawchCompwete, ISewiawizedSeawchPwogwessItem, isSewiawizedSeawchCompwete, isSewiawizedSeawchSuccess, ITextQuewy, ISeawchSewvice, isFiweMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { SeawchChannewCwient } fwom 'vs/wowkbench/sewvices/seawch/node/seawchIpc';
+impowt { SeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/common/seawchSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export class LocalSearchService extends SearchService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService,
-		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IConfigurationService configurationService: IConfigurationService,
+expowt cwass WocawSeawchSewvice extends SeawchSewvice {
+	constwuctow(
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@INativeWowkbenchEnviwonmentSewvice weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IInstantiationSewvice weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
+		supa(modewSewvice, editowSewvice, tewemetwySewvice, wogSewvice, extensionSewvice, fiweSewvice, uwiIdentitySewvice);
 
-		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
+		this.diskSeawch = instantiationSewvice.cweateInstance(DiskSeawch, !enviwonmentSewvice.isBuiwt || enviwonmentSewvice.vewbose, pawseSeawchPowt(enviwonmentSewvice.awgs, enviwonmentSewvice.isBuiwt));
 	}
 }
 
-export class DiskSearch implements ISearchResultProvider {
-	private raw: IRawSearchService;
+expowt cwass DiskSeawch impwements ISeawchWesuwtPwovida {
+	pwivate waw: IWawSeawchSewvice;
 
-	constructor(
-		verboseLogging: boolean,
-		searchDebug: IDebugParams | undefined,
-		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configService: IConfigurationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+	constwuctow(
+		vewboseWogging: boowean,
+		seawchDebug: IDebugPawams | undefined,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configSewvice: IConfiguwationSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice
 	) {
-		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
+		const timeout = this.configSewvice.getVawue<ISeawchConfiguwation>().seawch.maintainFiweSeawchCache ?
 			100 * 60 * 60 * 1000 :
 			60 * 60 * 1000;
 
 		const opts: IIPCOptions = {
-			serverName: 'Search',
+			sewvewName: 'Seawch',
 			timeout,
-			args: ['--type=searchService'],
-			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-			freshExecArgv: true,
+			awgs: ['--type=seawchSewvice'],
+			// Pass in fwesh execAwgv to the fowked pwocess such that it doesn't inhewit them fwom `pwocess.execAwgv`.
+			fweshExecAwgv: twue,
 			env: {
-				VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
-				VSCODE_PIPE_LOGGING: 'true',
-				VSCODE_VERBOSE_LOGGING: verboseLogging
+				VSCODE_AMD_ENTWYPOINT: 'vs/wowkbench/sewvices/seawch/node/seawchApp',
+				VSCODE_PIPE_WOGGING: 'twue',
+				VSCODE_VEWBOSE_WOGGING: vewboseWogging
 			},
-			useQueue: true
+			useQueue: twue
 		};
 
-		if (searchDebug) {
-			if (searchDebug.break && searchDebug.port) {
-				opts.debugBrk = searchDebug.port;
-			} else if (!searchDebug.break && searchDebug.port) {
-				opts.debug = searchDebug.port;
+		if (seawchDebug) {
+			if (seawchDebug.bweak && seawchDebug.powt) {
+				opts.debugBwk = seawchDebug.powt;
+			} ewse if (!seawchDebug.bweak && seawchDebug.powt) {
+				opts.debug = seawchDebug.powt;
 			}
 		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
-		const channel = getNextTickChannel(client.getChannel('search'));
-		this.raw = new SearchChannelClient(channel);
+		const cwient = new Cwient(FiweAccess.asFiweUwi('bootstwap-fowk', wequiwe).fsPath, opts);
+		const channew = getNextTickChannew(cwient.getChannew('seawch'));
+		this.waw = new SeawchChannewCwient(channew);
 
-		this.lifecycleService.onWillShutdown(_ => client.dispose());
+		this.wifecycweSewvice.onWiwwShutdown(_ => cwient.dispose());
 	}
 
-	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
-		if (token && token.isCancellationRequested) {
-			throw canceled();
+	textSeawch(quewy: ITextQuewy, onPwogwess?: (p: ISeawchPwogwessItem) => void, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		if (token && token.isCancewwationWequested) {
+			thwow cancewed();
 		}
 
-		const event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete> = this.raw.textSearch(query);
+		const event: Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete> = this.waw.textSeawch(quewy);
 
-		return DiskSearch.collectResultsFromEvent(event, onProgress, token);
+		wetuwn DiskSeawch.cowwectWesuwtsFwomEvent(event, onPwogwess, token);
 	}
 
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-		if (token && token.isCancellationRequested) {
-			throw canceled();
+	fiweSeawch(quewy: IFiweQuewy, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		if (token && token.isCancewwationWequested) {
+			thwow cancewed();
 		}
 
-		let event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
-		event = this.raw.fileSearch(query);
+		wet event: Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>;
+		event = this.waw.fiweSeawch(quewy);
 
-		const onProgress = (p: ISearchProgressItem) => {
-			if (!isFileMatch(p)) {
-				// Should only be for logs
-				this.logService.debug('SearchService#search', p.message);
+		const onPwogwess = (p: ISeawchPwogwessItem) => {
+			if (!isFiweMatch(p)) {
+				// Shouwd onwy be fow wogs
+				this.wogSewvice.debug('SeawchSewvice#seawch', p.message);
 			}
 		};
 
-		return DiskSearch.collectResultsFromEvent(event, onProgress, token);
+		wetuwn DiskSeawch.cowwectWesuwtsFwomEvent(event, onPwogwess, token);
 	}
 
 	/**
-	 * Public for test
+	 * Pubwic fow test
 	 */
-	static collectResultsFromEvent(event: Event<ISerializedSearchProgressItem | ISerializedSearchComplete>, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
-		let result: IFileMatch[] = [];
+	static cowwectWesuwtsFwomEvent(event: Event<ISewiawizedSeawchPwogwessItem | ISewiawizedSeawchCompwete>, onPwogwess?: (p: ISeawchPwogwessItem) => void, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		wet wesuwt: IFiweMatch[] = [];
 
-		let listener: IDisposable;
-		return new Promise<ISearchComplete>((c, e) => {
+		wet wistena: IDisposabwe;
+		wetuwn new Pwomise<ISeawchCompwete>((c, e) => {
 			if (token) {
-				token.onCancellationRequested(() => {
-					if (listener) {
-						listener.dispose();
+				token.onCancewwationWequested(() => {
+					if (wistena) {
+						wistena.dispose();
 					}
 
-					e(canceled());
+					e(cancewed());
 				});
 			}
 
-			listener = event(ev => {
-				if (isSerializedSearchComplete(ev)) {
-					if (isSerializedSearchSuccess(ev)) {
+			wistena = event(ev => {
+				if (isSewiawizedSeawchCompwete(ev)) {
+					if (isSewiawizedSeawchSuccess(ev)) {
 						c({
-							limitHit: ev.limitHit,
-							results: result,
+							wimitHit: ev.wimitHit,
+							wesuwts: wesuwt,
 							stats: ev.stats,
 							messages: ev.messages,
 						});
-					} else {
-						e(ev.error);
+					} ewse {
+						e(ev.ewwow);
 					}
 
-					listener.dispose();
-				} else {
+					wistena.dispose();
+				} ewse {
 					// Matches
-					if (Array.isArray(ev)) {
-						const fileMatches = ev.map(d => this.createFileMatch(d));
-						result = result.concat(fileMatches);
-						if (onProgress) {
-							fileMatches.forEach(onProgress);
+					if (Awway.isAwway(ev)) {
+						const fiweMatches = ev.map(d => this.cweateFiweMatch(d));
+						wesuwt = wesuwt.concat(fiweMatches);
+						if (onPwogwess) {
+							fiweMatches.fowEach(onPwogwess);
 						}
 					}
 
 					// Match
-					else if ((<ISerializedFileMatch>ev).path) {
-						const fileMatch = this.createFileMatch(<ISerializedFileMatch>ev);
-						result.push(fileMatch);
+					ewse if ((<ISewiawizedFiweMatch>ev).path) {
+						const fiweMatch = this.cweateFiweMatch(<ISewiawizedFiweMatch>ev);
+						wesuwt.push(fiweMatch);
 
-						if (onProgress) {
-							onProgress(fileMatch);
+						if (onPwogwess) {
+							onPwogwess(fiweMatch);
 						}
 					}
 
-					// Progress
-					else if (onProgress) {
-						onProgress(<IProgressMessage>ev);
+					// Pwogwess
+					ewse if (onPwogwess) {
+						onPwogwess(<IPwogwessMessage>ev);
 					}
 				}
 			});
 		});
 	}
 
-	private static createFileMatch(data: ISerializedFileMatch): FileMatch {
-		const fileMatch = new FileMatch(uri.file(data.path));
-		if (data.results) {
-			// const matches = data.results.filter(resultIsMatch);
-			fileMatch.results.push(...data.results);
+	pwivate static cweateFiweMatch(data: ISewiawizedFiweMatch): FiweMatch {
+		const fiweMatch = new FiweMatch(uwi.fiwe(data.path));
+		if (data.wesuwts) {
+			// const matches = data.wesuwts.fiwta(wesuwtIsMatch);
+			fiweMatch.wesuwts.push(...data.wesuwts);
 		}
-		return fileMatch;
+		wetuwn fiweMatch;
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		return this.raw.clearCache(cacheKey);
+	cweawCache(cacheKey: stwing): Pwomise<void> {
+		wetuwn this.waw.cweawCache(cacheKey);
 	}
 }
 
-registerSingleton(ISearchService, LocalSearchService, true);
+wegistewSingweton(ISeawchSewvice, WocawSeawchSewvice, twue);

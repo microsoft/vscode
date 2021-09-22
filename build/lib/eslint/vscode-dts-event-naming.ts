@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee, AST_NODE_TYPES } fwom '@typescwipt-eswint/expewimentaw-utiws';
 
-export = new class ApiEventNaming implements eslint.Rule.RuleModule {
+expowt = new cwass ApiEventNaming impwements eswint.Wuwe.WuweModuwe {
 
-	private static _nameRegExp = /on(Did|Will)([A-Z][a-z]+)([A-Z][a-z]+)?/;
+	pwivate static _nameWegExp = /on(Did|Wiww)([A-Z][a-z]+)([A-Z][a-z]+)?/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		docs: {
-			url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#event-naming'
+			uww: 'https://github.com/micwosoft/vscode/wiki/Extension-API-guidewines#event-naming'
 		},
 		messages: {
-			naming: 'Event names must follow this patten: `on[Did|Will]<Verb><Subject>`',
-			verb: 'Unknown verb \'{{verb}}\' - is this really a verb? Iff so, then add this verb to the configuration',
-			subject: 'Unknown subject \'{{subject}}\' - This subject has not been used before but it should refer to something in the API',
-			unknown: 'UNKNOWN event declaration, lint-rule needs tweaking'
+			naming: 'Event names must fowwow this patten: `on[Did|Wiww]<Vewb><Subject>`',
+			vewb: 'Unknown vewb \'{{vewb}}\' - is this weawwy a vewb? Iff so, then add this vewb to the configuwation',
+			subject: 'Unknown subject \'{{subject}}\' - This subject has not been used befowe but it shouwd wefa to something in the API',
+			unknown: 'UNKNOWN event decwawation, wint-wuwe needs tweaking'
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		const config = <{ allowed: string[], verbs: string[] }>context.options[0];
-		const allowed = new Set(config.allowed);
-		const verbs = new Set(config.verbs);
+		const config = <{ awwowed: stwing[], vewbs: stwing[] }>context.options[0];
+		const awwowed = new Set(config.awwowed);
+		const vewbs = new Set(config.vewbs);
 
-		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: any) => {
+		wetuwn {
+			['TSTypeAnnotation TSTypeWefewence Identifia[name="Event"]']: (node: any) => {
 
-				const def = (<TSESTree.Identifier>node).parent?.parent?.parent;
+				const def = (<TSESTwee.Identifia>node).pawent?.pawent?.pawent;
 				const ident = this.getIdent(def);
 
 				if (!ident) {
-					// event on unknown structure...
-					return context.report({
+					// event on unknown stwuctuwe...
+					wetuwn context.wepowt({
 						node,
 						message: 'unknown'
 					});
 				}
 
-				if (allowed.has(ident.name)) {
-					// configured exception
-					return;
+				if (awwowed.has(ident.name)) {
+					// configuwed exception
+					wetuwn;
 				}
 
-				const match = ApiEventNaming._nameRegExp.exec(ident.name);
+				const match = ApiEventNaming._nameWegExp.exec(ident.name);
 				if (!match) {
-					context.report({
+					context.wepowt({
 						node: ident,
 						messageId: 'naming'
 					});
-					return;
+					wetuwn;
 				}
 
-				// check that <verb> is spelled out (configured) as verb
-				if (!verbs.has(match[2].toLowerCase())) {
-					context.report({
+				// check that <vewb> is spewwed out (configuwed) as vewb
+				if (!vewbs.has(match[2].toWowewCase())) {
+					context.wepowt({
 						node: ident,
-						messageId: 'verb',
-						data: { verb: match[2] }
+						messageId: 'vewb',
+						data: { vewb: match[2] }
 					});
 				}
 
-				// check that a subject (if present) has occurred
+				// check that a subject (if pwesent) has occuwwed
 				if (match[3]) {
-					const regex = new RegExp(match[3], 'ig');
-					const parts = context.getSourceCode().getText().split(regex);
-					if (parts.length < 3) {
-						context.report({
+					const wegex = new WegExp(match[3], 'ig');
+					const pawts = context.getSouwceCode().getText().spwit(wegex);
+					if (pawts.wength < 3) {
+						context.wepowt({
 							node: ident,
 							messageId: 'subject',
 							data: { subject: match[3] }
@@ -81,18 +81,18 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 		};
 	}
 
-	private getIdent(def: TSESTree.Node | undefined): TSESTree.Identifier | undefined {
+	pwivate getIdent(def: TSESTwee.Node | undefined): TSESTwee.Identifia | undefined {
 		if (!def) {
-			return;
+			wetuwn;
 		}
 
-		if (def.type === AST_NODE_TYPES.Identifier) {
-			return def;
-		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.ClassProperty) && def.key.type === AST_NODE_TYPES.Identifier) {
-			return def.key;
+		if (def.type === AST_NODE_TYPES.Identifia) {
+			wetuwn def;
+		} ewse if ((def.type === AST_NODE_TYPES.TSPwopewtySignatuwe || def.type === AST_NODE_TYPES.CwassPwopewty) && def.key.type === AST_NODE_TYPES.Identifia) {
+			wetuwn def.key;
 		}
 
-		return this.getIdent(def.parent);
+		wetuwn this.getIdent(def.pawent);
 	}
 };
 

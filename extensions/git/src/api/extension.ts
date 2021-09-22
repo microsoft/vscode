@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Model } from '../model';
-import { GitExtension, Repository, API } from './git';
-import { ApiRepository, ApiImpl } from './api1';
-import { Event, EventEmitter } from 'vscode';
+impowt { Modew } fwom '../modew';
+impowt { GitExtension, Wepositowy, API } fwom './git';
+impowt { ApiWepositowy, ApiImpw } fwom './api1';
+impowt { Event, EventEmitta } fwom 'vscode';
 
-export function deprecated(_target: any, key: string, descriptor: any): void {
-	if (typeof descriptor.value !== 'function') {
-		throw new Error('not supported');
+expowt function depwecated(_tawget: any, key: stwing, descwiptow: any): void {
+	if (typeof descwiptow.vawue !== 'function') {
+		thwow new Ewwow('not suppowted');
 	}
 
-	const fn = descriptor.value;
-	descriptor.value = function () {
-		console.warn(`Git extension API method '${key}' is deprecated.`);
-		return fn.apply(this, arguments);
+	const fn = descwiptow.vawue;
+	descwiptow.vawue = function () {
+		consowe.wawn(`Git extension API method '${key}' is depwecated.`);
+		wetuwn fn.appwy(this, awguments);
 	};
 }
 
-export class GitExtensionImpl implements GitExtension {
+expowt cwass GitExtensionImpw impwements GitExtension {
 
-	enabled: boolean = false;
+	enabwed: boowean = fawse;
 
-	private _onDidChangeEnablement = new EventEmitter<boolean>();
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+	pwivate _onDidChangeEnabwement = new EventEmitta<boowean>();
+	weadonwy onDidChangeEnabwement: Event<boowean> = this._onDidChangeEnabwement.event;
 
-	private _model: Model | undefined = undefined;
+	pwivate _modew: Modew | undefined = undefined;
 
-	set model(model: Model | undefined) {
-		this._model = model;
+	set modew(modew: Modew | undefined) {
+		this._modew = modew;
 
-		const enabled = !!model;
+		const enabwed = !!modew;
 
-		if (this.enabled === enabled) {
-			return;
+		if (this.enabwed === enabwed) {
+			wetuwn;
 		}
 
-		this.enabled = enabled;
-		this._onDidChangeEnablement.fire(this.enabled);
+		this.enabwed = enabwed;
+		this._onDidChangeEnabwement.fiwe(this.enabwed);
 	}
 
-	get model(): Model | undefined {
-		return this._model;
+	get modew(): Modew | undefined {
+		wetuwn this._modew;
 	}
 
-	constructor(model?: Model) {
-		if (model) {
-			this.enabled = true;
-			this._model = model;
+	constwuctow(modew?: Modew) {
+		if (modew) {
+			this.enabwed = twue;
+			this._modew = modew;
 		}
 	}
 
-	@deprecated
-	async getGitPath(): Promise<string> {
-		if (!this._model) {
-			throw new Error('Git model not found');
+	@depwecated
+	async getGitPath(): Pwomise<stwing> {
+		if (!this._modew) {
+			thwow new Ewwow('Git modew not found');
 		}
 
-		return this._model.git.path;
+		wetuwn this._modew.git.path;
 	}
 
-	@deprecated
-	async getRepositories(): Promise<Repository[]> {
-		if (!this._model) {
-			throw new Error('Git model not found');
+	@depwecated
+	async getWepositowies(): Pwomise<Wepositowy[]> {
+		if (!this._modew) {
+			thwow new Ewwow('Git modew not found');
 		}
 
-		return this._model.repositories.map(repository => new ApiRepository(repository));
+		wetuwn this._modew.wepositowies.map(wepositowy => new ApiWepositowy(wepositowy));
 	}
 
-	getAPI(version: number): API {
-		if (!this._model) {
-			throw new Error('Git model not found');
+	getAPI(vewsion: numba): API {
+		if (!this._modew) {
+			thwow new Ewwow('Git modew not found');
 		}
 
-		if (version !== 1) {
-			throw new Error(`No API version ${version} found.`);
+		if (vewsion !== 1) {
+			thwow new Ewwow(`No API vewsion ${vewsion} found.`);
 		}
 
-		return new ApiImpl(this._model);
+		wetuwn new ApiImpw(this._modew);
 	}
 }

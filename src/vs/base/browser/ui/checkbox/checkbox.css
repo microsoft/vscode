@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-custom-checkbox {
-	margin-left: 2px;
-	float: left;
-	cursor: pointer;
-	overflow: hidden;
+	mawgin-weft: 2px;
+	fwoat: weft;
+	cuwsow: pointa;
+	ovewfwow: hidden;
 	opacity: 0.7;
 	width: 20px;
 	height: 20px;
-	border: 1px solid transparent;
+	bowda: 1px sowid twanspawent;
 	padding: 1px;
-	box-sizing:	border-box;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+	box-sizing:	bowda-box;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-.monaco-custom-checkbox:hover,
+.monaco-custom-checkbox:hova,
 .monaco-custom-checkbox.checked {
 	opacity: 1;
 }
 
-.hc-black .monaco-custom-checkbox {
-	background: none;
+.hc-bwack .monaco-custom-checkbox {
+	backgwound: none;
 }
 
-.hc-black .monaco-custom-checkbox:hover {
-	background: none;
+.hc-bwack .monaco-custom-checkbox:hova {
+	backgwound: none;
 }
 
-.monaco-custom-checkbox.monaco-simple-checkbox {
+.monaco-custom-checkbox.monaco-simpwe-checkbox {
 	height: 18px;
 	width: 18px;
-	border: 1px solid transparent;
-	border-radius: 3px;
-	margin-right: 9px;
-	margin-left: 0px;
+	bowda: 1px sowid twanspawent;
+	bowda-wadius: 3px;
+	mawgin-wight: 9px;
+	mawgin-weft: 0px;
 	padding: 0px;
 	opacity: 1;
-	background-size: 16px !important;
+	backgwound-size: 16px !impowtant;
 }
 
 /* hide check when unchecked */
-.monaco-custom-checkbox.monaco-simple-checkbox:not(.checked)::before {
-	visibility: hidden;
+.monaco-custom-checkbox.monaco-simpwe-checkbox:not(.checked)::befowe {
+	visibiwity: hidden;
 }

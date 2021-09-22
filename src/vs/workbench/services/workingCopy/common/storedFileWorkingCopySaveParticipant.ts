@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { insert } from 'vs/base/common/arrays';
-import { IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+impowt { wocawize } fwom 'vs/nws';
+impowt { waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce, CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { IDisposabwe, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { insewt } fwom 'vs/base/common/awways';
+impowt { IStowedFiweWowkingCopySavePawticipant } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IStowedFiweWowkingCopy, IStowedFiweWowkingCopyModew } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
 
-export class StoredFileWorkingCopySaveParticipant extends Disposable {
+expowt cwass StowedFiweWowkingCopySavePawticipant extends Disposabwe {
 
-	private readonly saveParticipants: IStoredFileWorkingCopySaveParticipant[] = [];
+	pwivate weadonwy savePawticipants: IStowedFiweWowkingCopySavePawticipant[] = [];
 
-	get length(): number { return this.saveParticipants.length; }
+	get wength(): numba { wetuwn this.savePawticipants.wength; }
 
-	constructor(
-		@IProgressService private readonly progressService: IProgressService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 	}
 
-	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable {
-		const remove = insert(this.saveParticipants, participant);
+	addSavePawticipant(pawticipant: IStowedFiweWowkingCopySavePawticipant): IDisposabwe {
+		const wemove = insewt(this.savePawticipants, pawticipant);
 
-		return toDisposable(() => remove());
+		wetuwn toDisposabwe(() => wemove());
 	}
 
-	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
-		const cts = new CancellationTokenSource(token);
+	pawticipate(wowkingCopy: IStowedFiweWowkingCopy<IStowedFiweWowkingCopyModew>, context: { weason: SaveWeason; }, token: CancewwationToken): Pwomise<void> {
+		const cts = new CancewwationTokenSouwce(token);
 
-		return this.progressService.withProgress({
-			title: localize('saveParticipants', "Saving '{0}'", workingCopy.name),
-			location: ProgressLocation.Notification,
-			cancellable: true,
-			delay: workingCopy.isDirty() ? 3000 : 5000
-		}, async progress => {
+		wetuwn this.pwogwessSewvice.withPwogwess({
+			titwe: wocawize('savePawticipants', "Saving '{0}'", wowkingCopy.name),
+			wocation: PwogwessWocation.Notification,
+			cancewwabwe: twue,
+			deway: wowkingCopy.isDiwty() ? 3000 : 5000
+		}, async pwogwess => {
 
-			// undoStop before participation
-			workingCopy.model?.pushStackElement();
+			// undoStop befowe pawticipation
+			wowkingCopy.modew?.pushStackEwement();
 
-			for (const saveParticipant of this.saveParticipants) {
-				if (cts.token.isCancellationRequested || workingCopy.isDisposed()) {
-					break;
+			fow (const savePawticipant of this.savePawticipants) {
+				if (cts.token.isCancewwationWequested || wowkingCopy.isDisposed()) {
+					bweak;
 				}
 
-				try {
-					const promise = saveParticipant.participate(workingCopy, context, progress, cts.token);
-					await raceCancellation(promise, cts.token);
-				} catch (err) {
-					this.logService.warn(err);
+				twy {
+					const pwomise = savePawticipant.pawticipate(wowkingCopy, context, pwogwess, cts.token);
+					await waceCancewwation(pwomise, cts.token);
+				} catch (eww) {
+					this.wogSewvice.wawn(eww);
 				}
 			}
 
-			// undoStop after participation
-			workingCopy.model?.pushStackElement();
+			// undoStop afta pawticipation
+			wowkingCopy.modew?.pushStackEwement();
 		}, () => {
-			// user cancel
-			cts.dispose(true);
+			// usa cancew
+			cts.dispose(twue);
 		});
 	}
 
-	override dispose(): void {
-		this.saveParticipants.splice(0, this.saveParticipants.length);
+	ovewwide dispose(): void {
+		this.savePawticipants.spwice(0, this.savePawticipants.wength);
 	}
 }

@@ -1,1046 +1,1046 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
 define({
-	"Sleep": {
-		"value": "",
+	"Sweep": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"WakeUp": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"KeyA": {
-		"value": "ф",
+		"vawue": "ф",
 		"withShift": "Ф",
-		"withAltGr": "ф",
-		"withShiftAltGr": "Ф"
+		"withAwtGw": "ф",
+		"withShiftAwtGw": "Ф"
 	},
 	"KeyB": {
-		"value": "и",
+		"vawue": "и",
 		"withShift": "И",
-		"withAltGr": "и",
-		"withShiftAltGr": "И"
+		"withAwtGw": "и",
+		"withShiftAwtGw": "И"
 	},
 	"KeyC": {
-		"value": "с",
+		"vawue": "с",
 		"withShift": "С",
-		"withAltGr": "с",
-		"withShiftAltGr": "С"
+		"withAwtGw": "с",
+		"withShiftAwtGw": "С"
 	},
 	"KeyD": {
-		"value": "в",
+		"vawue": "в",
 		"withShift": "В",
-		"withAltGr": "в",
-		"withShiftAltGr": "В"
+		"withAwtGw": "в",
+		"withShiftAwtGw": "В"
 	},
 	"KeyE": {
-		"value": "у",
+		"vawue": "у",
 		"withShift": "У",
-		"withAltGr": "у",
-		"withShiftAltGr": "У"
+		"withAwtGw": "у",
+		"withShiftAwtGw": "У"
 	},
 	"KeyF": {
-		"value": "а",
+		"vawue": "а",
 		"withShift": "А",
-		"withAltGr": "а",
-		"withShiftAltGr": "А"
+		"withAwtGw": "а",
+		"withShiftAwtGw": "А"
 	},
 	"KeyG": {
-		"value": "п",
+		"vawue": "п",
 		"withShift": "П",
-		"withAltGr": "п",
-		"withShiftAltGr": "П"
+		"withAwtGw": "п",
+		"withShiftAwtGw": "П"
 	},
 	"KeyH": {
-		"value": "р",
+		"vawue": "р",
 		"withShift": "Р",
-		"withAltGr": "р",
-		"withShiftAltGr": "Р"
+		"withAwtGw": "р",
+		"withShiftAwtGw": "Р"
 	},
 	"KeyI": {
-		"value": "ш",
+		"vawue": "ш",
 		"withShift": "Ш",
-		"withAltGr": "ш",
-		"withShiftAltGr": "Ш"
+		"withAwtGw": "ш",
+		"withShiftAwtGw": "Ш"
 	},
 	"KeyJ": {
-		"value": "о",
+		"vawue": "о",
 		"withShift": "О",
-		"withAltGr": "о",
-		"withShiftAltGr": "О"
+		"withAwtGw": "о",
+		"withShiftAwtGw": "О"
 	},
 	"KeyK": {
-		"value": "л",
+		"vawue": "л",
 		"withShift": "Л",
-		"withAltGr": "л",
-		"withShiftAltGr": "Л"
-	},
-	"KeyL": {
-		"value": "д",
-		"withShift": "Д",
-		"withAltGr": "д",
-		"withShiftAltGr": "Д"
-	},
-	"KeyM": {
-		"value": "ь",
-		"withShift": "Ь",
-		"withAltGr": "ь",
-		"withShiftAltGr": "Ь"
-	},
-	"KeyN": {
-		"value": "т",
-		"withShift": "Т",
-		"withAltGr": "т",
-		"withShiftAltGr": "Т"
-	},
-	"KeyO": {
-		"value": "щ",
-		"withShift": "Щ",
-		"withAltGr": "щ",
-		"withShiftAltGr": "Щ"
-	},
-	"KeyP": {
-		"value": "з",
-		"withShift": "З",
-		"withAltGr": "з",
-		"withShiftAltGr": "З"
-	},
-	"KeyQ": {
-		"value": "й",
-		"withShift": "Й",
-		"withAltGr": "й",
-		"withShiftAltGr": "Й"
-	},
-	"KeyR": {
-		"value": "к",
-		"withShift": "К",
-		"withAltGr": "к",
-		"withShiftAltGr": "К"
-	},
-	"KeyS": {
-		"value": "ы",
-		"withShift": "Ы",
-		"withAltGr": "ы",
-		"withShiftAltGr": "Ы"
-	},
-	"KeyT": {
-		"value": "е",
-		"withShift": "Е",
-		"withAltGr": "е",
-		"withShiftAltGr": "Е"
-	},
-	"KeyU": {
-		"value": "г",
-		"withShift": "Г",
-		"withAltGr": "г",
-		"withShiftAltGr": "Г"
-	},
-	"KeyV": {
-		"value": "м",
-		"withShift": "М",
-		"withAltGr": "м",
-		"withShiftAltGr": "М"
+		"withAwtGw": "л",
+		"withShiftAwtGw": "Л"
 	},
 	"KeyW": {
-		"value": "ц",
+		"vawue": "д",
+		"withShift": "Д",
+		"withAwtGw": "д",
+		"withShiftAwtGw": "Д"
+	},
+	"KeyM": {
+		"vawue": "ь",
+		"withShift": "Ь",
+		"withAwtGw": "ь",
+		"withShiftAwtGw": "Ь"
+	},
+	"KeyN": {
+		"vawue": "т",
+		"withShift": "Т",
+		"withAwtGw": "т",
+		"withShiftAwtGw": "Т"
+	},
+	"KeyO": {
+		"vawue": "щ",
+		"withShift": "Щ",
+		"withAwtGw": "щ",
+		"withShiftAwtGw": "Щ"
+	},
+	"KeyP": {
+		"vawue": "з",
+		"withShift": "З",
+		"withAwtGw": "з",
+		"withShiftAwtGw": "З"
+	},
+	"KeyQ": {
+		"vawue": "й",
+		"withShift": "Й",
+		"withAwtGw": "й",
+		"withShiftAwtGw": "Й"
+	},
+	"KeyW": {
+		"vawue": "к",
+		"withShift": "К",
+		"withAwtGw": "к",
+		"withShiftAwtGw": "К"
+	},
+	"KeyS": {
+		"vawue": "ы",
+		"withShift": "Ы",
+		"withAwtGw": "ы",
+		"withShiftAwtGw": "Ы"
+	},
+	"KeyT": {
+		"vawue": "е",
+		"withShift": "Е",
+		"withAwtGw": "е",
+		"withShiftAwtGw": "Е"
+	},
+	"KeyU": {
+		"vawue": "г",
+		"withShift": "Г",
+		"withAwtGw": "г",
+		"withShiftAwtGw": "Г"
+	},
+	"KeyV": {
+		"vawue": "м",
+		"withShift": "М",
+		"withAwtGw": "м",
+		"withShiftAwtGw": "М"
+	},
+	"KeyW": {
+		"vawue": "ц",
 		"withShift": "Ц",
-		"withAltGr": "ц",
-		"withShiftAltGr": "Ц"
+		"withAwtGw": "ц",
+		"withShiftAwtGw": "Ц"
 	},
 	"KeyX": {
-		"value": "ч",
+		"vawue": "ч",
 		"withShift": "Ч",
-		"withAltGr": "ч",
-		"withShiftAltGr": "Ч"
+		"withAwtGw": "ч",
+		"withShiftAwtGw": "Ч"
 	},
 	"KeyY": {
-		"value": "н",
+		"vawue": "н",
 		"withShift": "Н",
-		"withAltGr": "н",
-		"withShiftAltGr": "Н"
+		"withAwtGw": "н",
+		"withShiftAwtGw": "Н"
 	},
 	"KeyZ": {
-		"value": "я",
+		"vawue": "я",
 		"withShift": "Я",
-		"withAltGr": "я",
-		"withShiftAltGr": "Я"
+		"withAwtGw": "я",
+		"withShiftAwtGw": "Я"
 	},
 	"Digit1": {
-		"value": "1",
+		"vawue": "1",
 		"withShift": "!",
-		"withAltGr": "1",
-		"withShiftAltGr": "!"
+		"withAwtGw": "1",
+		"withShiftAwtGw": "!"
 	},
 	"Digit2": {
-		"value": "2",
+		"vawue": "2",
 		"withShift": "\"",
-		"withAltGr": "2",
-		"withShiftAltGr": "\""
+		"withAwtGw": "2",
+		"withShiftAwtGw": "\""
 	},
 	"Digit3": {
-		"value": "3",
+		"vawue": "3",
 		"withShift": "№",
-		"withAltGr": "3",
-		"withShiftAltGr": "№"
+		"withAwtGw": "3",
+		"withShiftAwtGw": "№"
 	},
 	"Digit4": {
-		"value": "4",
+		"vawue": "4",
 		"withShift": ";",
-		"withAltGr": "4",
-		"withShiftAltGr": ";"
+		"withAwtGw": "4",
+		"withShiftAwtGw": ";"
 	},
 	"Digit5": {
-		"value": "5",
+		"vawue": "5",
 		"withShift": "%",
-		"withAltGr": "5",
-		"withShiftAltGr": "%"
+		"withAwtGw": "5",
+		"withShiftAwtGw": "%"
 	},
 	"Digit6": {
-		"value": "6",
+		"vawue": "6",
 		"withShift": ":",
-		"withAltGr": "6",
-		"withShiftAltGr": ":"
+		"withAwtGw": "6",
+		"withShiftAwtGw": ":"
 	},
 	"Digit7": {
-		"value": "7",
+		"vawue": "7",
 		"withShift": "?",
-		"withAltGr": "7",
-		"withShiftAltGr": "?"
+		"withAwtGw": "7",
+		"withShiftAwtGw": "?"
 	},
 	"Digit8": {
-		"value": "8",
+		"vawue": "8",
 		"withShift": "*",
-		"withAltGr": "8",
-		"withShiftAltGr": "*"
+		"withAwtGw": "8",
+		"withShiftAwtGw": "*"
 	},
 	"Digit9": {
-		"value": "9",
+		"vawue": "9",
 		"withShift": "(",
-		"withAltGr": "9",
-		"withShiftAltGr": "("
+		"withAwtGw": "9",
+		"withShiftAwtGw": "("
 	},
 	"Digit0": {
-		"value": "0",
+		"vawue": "0",
 		"withShift": ")",
-		"withAltGr": "0",
-		"withShiftAltGr": ")"
+		"withAwtGw": "0",
+		"withShiftAwtGw": ")"
 	},
-	"Enter": {
-		"value": "\r",
-		"withShift": "\r",
-		"withAltGr": "\r",
-		"withShiftAltGr": "\r"
+	"Enta": {
+		"vawue": "\w",
+		"withShift": "\w",
+		"withAwtGw": "\w",
+		"withShiftAwtGw": "\w"
 	},
 	"Escape": {
-		"value": "\u001b",
+		"vawue": "\u001b",
 		"withShift": "\u001b",
-		"withAltGr": "\u001b",
-		"withShiftAltGr": "\u001b"
+		"withAwtGw": "\u001b",
+		"withShiftAwtGw": "\u001b"
 	},
 	"Backspace": {
-		"value": "\b",
+		"vawue": "\b",
 		"withShift": "\b",
-		"withAltGr": "\b",
-		"withShiftAltGr": "\b"
+		"withAwtGw": "\b",
+		"withShiftAwtGw": "\b"
 	},
 	"Tab": {
-		"value": "\t",
+		"vawue": "\t",
 		"withShift": "",
-		"withAltGr": "\t",
-		"withShiftAltGr": ""
+		"withAwtGw": "\t",
+		"withShiftAwtGw": ""
 	},
 	"Space": {
-		"value": " ",
+		"vawue": " ",
 		"withShift": " ",
-		"withAltGr": " ",
-		"withShiftAltGr": " "
+		"withAwtGw": " ",
+		"withShiftAwtGw": " "
 	},
 	"Minus": {
-		"value": "-",
+		"vawue": "-",
 		"withShift": "_",
-		"withAltGr": "-",
-		"withShiftAltGr": "_"
+		"withAwtGw": "-",
+		"withShiftAwtGw": "_"
 	},
-	"Equal": {
-		"value": "=",
+	"Equaw": {
+		"vawue": "=",
 		"withShift": "+",
-		"withAltGr": "=",
-		"withShiftAltGr": "+"
+		"withAwtGw": "=",
+		"withShiftAwtGw": "+"
 	},
-	"BracketLeft": {
-		"value": "х",
+	"BwacketWeft": {
+		"vawue": "х",
 		"withShift": "Х",
-		"withAltGr": "х",
-		"withShiftAltGr": "Х"
+		"withAwtGw": "х",
+		"withShiftAwtGw": "Х"
 	},
-	"BracketRight": {
-		"value": "ъ",
+	"BwacketWight": {
+		"vawue": "ъ",
 		"withShift": "Ъ",
-		"withAltGr": "ъ",
-		"withShiftAltGr": "Ъ"
+		"withAwtGw": "ъ",
+		"withShiftAwtGw": "Ъ"
 	},
-	"Backslash": {
-		"value": "\\",
+	"Backswash": {
+		"vawue": "\\",
 		"withShift": "/",
-		"withAltGr": "\\",
-		"withShiftAltGr": "/"
+		"withAwtGw": "\\",
+		"withShiftAwtGw": "/"
 	},
-	"Semicolon": {
-		"value": "ж",
+	"Semicowon": {
+		"vawue": "ж",
 		"withShift": "Ж",
-		"withAltGr": "ж",
-		"withShiftAltGr": "Ж"
+		"withAwtGw": "ж",
+		"withShiftAwtGw": "Ж"
 	},
 	"Quote": {
-		"value": "э",
+		"vawue": "э",
 		"withShift": "Э",
-		"withAltGr": "э",
-		"withShiftAltGr": "Э"
+		"withAwtGw": "э",
+		"withShiftAwtGw": "Э"
 	},
 	"Backquote": {
-		"value": "ё",
+		"vawue": "ё",
 		"withShift": "Ё",
-		"withAltGr": "ё",
-		"withShiftAltGr": "Ё"
+		"withAwtGw": "ё",
+		"withShiftAwtGw": "Ё"
 	},
 	"Comma": {
-		"value": "б",
+		"vawue": "б",
 		"withShift": "Б",
-		"withAltGr": "б",
-		"withShiftAltGr": "Б"
+		"withAwtGw": "б",
+		"withShiftAwtGw": "Б"
 	},
-	"Period": {
-		"value": "ю",
+	"Pewiod": {
+		"vawue": "ю",
 		"withShift": "Ю",
-		"withAltGr": "ю",
-		"withShiftAltGr": "Ю"
+		"withAwtGw": "ю",
+		"withShiftAwtGw": "Ю"
 	},
-	"Slash": {
-		"value": ".",
+	"Swash": {
+		"vawue": ".",
 		"withShift": ",",
-		"withAltGr": ".",
-		"withShiftAltGr": ","
+		"withAwtGw": ".",
+		"withShiftAwtGw": ","
 	},
-	"CapsLock": {
-		"value": "",
+	"CapsWock": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F1": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F2": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F3": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F4": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F5": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F6": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F7": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F8": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F9": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F10": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F11": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F12": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"PrintScreen": {
-		"value": "",
+	"PwintScween": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ScrollLock": {
-		"value": "",
+	"ScwowwWock": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Pause": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Insert": {
-		"value": "",
+	"Insewt": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Home": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"PageUp": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Delete": {
-		"value": "",
+	"Dewete": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"End": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"PageDown": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ArrowRight": {
-		"value": "",
+	"AwwowWight": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ArrowLeft": {
-		"value": "",
+	"AwwowWeft": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ArrowDown": {
-		"value": "",
+	"AwwowDown": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ArrowUp": {
-		"value": "",
+	"AwwowUp": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"NumLock": {
-		"value": "",
+	"NumWock": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"NumpadDivide": {
-		"value": "/",
+		"vawue": "/",
 		"withShift": "/",
-		"withAltGr": "/",
-		"withShiftAltGr": "/"
+		"withAwtGw": "/",
+		"withShiftAwtGw": "/"
 	},
-	"NumpadMultiply": {
-		"value": "*",
+	"NumpadMuwtipwy": {
+		"vawue": "*",
 		"withShift": "*",
-		"withAltGr": "*",
-		"withShiftAltGr": "*"
+		"withAwtGw": "*",
+		"withShiftAwtGw": "*"
 	},
-	"NumpadSubtract": {
-		"value": "-",
+	"NumpadSubtwact": {
+		"vawue": "-",
 		"withShift": "-",
-		"withAltGr": "-",
-		"withShiftAltGr": "-"
+		"withAwtGw": "-",
+		"withShiftAwtGw": "-"
 	},
 	"NumpadAdd": {
-		"value": "+",
+		"vawue": "+",
 		"withShift": "+",
-		"withAltGr": "+",
-		"withShiftAltGr": "+"
+		"withAwtGw": "+",
+		"withShiftAwtGw": "+"
 	},
-	"NumpadEnter": {
-		"value": "\r",
-		"withShift": "\r",
-		"withAltGr": "\r",
-		"withShiftAltGr": "\r"
+	"NumpadEnta": {
+		"vawue": "\w",
+		"withShift": "\w",
+		"withAwtGw": "\w",
+		"withShiftAwtGw": "\w"
 	},
 	"Numpad1": {
-		"value": "",
+		"vawue": "",
 		"withShift": "1",
-		"withAltGr": "",
-		"withShiftAltGr": "1"
+		"withAwtGw": "",
+		"withShiftAwtGw": "1"
 	},
 	"Numpad2": {
-		"value": "",
+		"vawue": "",
 		"withShift": "2",
-		"withAltGr": "",
-		"withShiftAltGr": "2"
+		"withAwtGw": "",
+		"withShiftAwtGw": "2"
 	},
 	"Numpad3": {
-		"value": "",
+		"vawue": "",
 		"withShift": "3",
-		"withAltGr": "",
-		"withShiftAltGr": "3"
+		"withAwtGw": "",
+		"withShiftAwtGw": "3"
 	},
 	"Numpad4": {
-		"value": "",
+		"vawue": "",
 		"withShift": "4",
-		"withAltGr": "",
-		"withShiftAltGr": "4"
+		"withAwtGw": "",
+		"withShiftAwtGw": "4"
 	},
 	"Numpad5": {
-		"value": "",
+		"vawue": "",
 		"withShift": "5",
-		"withAltGr": "",
-		"withShiftAltGr": "5"
+		"withAwtGw": "",
+		"withShiftAwtGw": "5"
 	},
 	"Numpad6": {
-		"value": "",
+		"vawue": "",
 		"withShift": "6",
-		"withAltGr": "",
-		"withShiftAltGr": "6"
+		"withAwtGw": "",
+		"withShiftAwtGw": "6"
 	},
 	"Numpad7": {
-		"value": "",
+		"vawue": "",
 		"withShift": "7",
-		"withAltGr": "",
-		"withShiftAltGr": "7"
+		"withAwtGw": "",
+		"withShiftAwtGw": "7"
 	},
 	"Numpad8": {
-		"value": "",
+		"vawue": "",
 		"withShift": "8",
-		"withAltGr": "",
-		"withShiftAltGr": "8"
+		"withAwtGw": "",
+		"withShiftAwtGw": "8"
 	},
 	"Numpad9": {
-		"value": "",
+		"vawue": "",
 		"withShift": "9",
-		"withAltGr": "",
-		"withShiftAltGr": "9"
+		"withAwtGw": "",
+		"withShiftAwtGw": "9"
 	},
 	"Numpad0": {
-		"value": "",
+		"vawue": "",
 		"withShift": "0",
-		"withAltGr": "",
-		"withShiftAltGr": "0"
+		"withAwtGw": "",
+		"withShiftAwtGw": "0"
 	},
-	"NumpadDecimal": {
-		"value": "",
+	"NumpadDecimaw": {
+		"vawue": "",
 		"withShift": ",",
-		"withAltGr": "",
-		"withShiftAltGr": ","
+		"withAwtGw": "",
+		"withShiftAwtGw": ","
 	},
-	"IntlBackslash": {
-		"value": "/",
+	"IntwBackswash": {
+		"vawue": "/",
 		"withShift": "|",
-		"withAltGr": "|",
-		"withShiftAltGr": "¦"
+		"withAwtGw": "|",
+		"withShiftAwtGw": "¦"
 	},
 	"ContextMenu": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Power": {
-		"value": "",
+	"Powa": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"NumpadEqual": {
-		"value": "=",
+	"NumpadEquaw": {
+		"vawue": "=",
 		"withShift": "=",
-		"withAltGr": "=",
-		"withShiftAltGr": "="
+		"withAwtGw": "=",
+		"withShiftAwtGw": "="
 	},
 	"F13": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F14": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F15": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F16": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F17": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F18": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F19": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F20": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F21": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F22": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F23": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"F24": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Open": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Help": {
-		"value": "",
+	"Hewp": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Select": {
-		"value": "",
+	"Sewect": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Again": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Undo": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Cut": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Copy": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Paste": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Find": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"AudioVolumeMute": {
-		"value": "",
+	"AudioVowumeMute": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"AudioVolumeUp": {
-		"value": "",
+	"AudioVowumeUp": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"AudioVolumeDown": {
-		"value": "",
+	"AudioVowumeDown": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"NumpadComma": {
-		"value": ".",
+		"vawue": ".",
 		"withShift": ".",
-		"withAltGr": ".",
-		"withShiftAltGr": "."
+		"withAwtGw": ".",
+		"withShiftAwtGw": "."
 	},
-	"IntlRo": {
-		"value": "",
+	"IntwWo": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"KanaMode": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"IntlYen": {
-		"value": "",
+	"IntwYen": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Convert": {
-		"value": "",
+	"Convewt": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"NonConvert": {
-		"value": "",
+	"NonConvewt": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Lang1": {
-		"value": "",
+	"Wang1": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Lang2": {
-		"value": "",
+	"Wang2": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Lang3": {
-		"value": "",
+	"Wang3": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Lang4": {
-		"value": "",
+	"Wang4": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"Lang5": {
-		"value": "",
+	"Wang5": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"NumpadParenLeft": {
-		"value": "(",
+	"NumpadPawenWeft": {
+		"vawue": "(",
 		"withShift": "(",
-		"withAltGr": "(",
-		"withShiftAltGr": "("
+		"withAwtGw": "(",
+		"withShiftAwtGw": "("
 	},
-	"NumpadParenRight": {
-		"value": ")",
+	"NumpadPawenWight": {
+		"vawue": ")",
 		"withShift": ")",
-		"withAltGr": ")",
-		"withShiftAltGr": ")"
+		"withAwtGw": ")",
+		"withShiftAwtGw": ")"
 	},
-	"ControlLeft": {
-		"value": "",
+	"ContwowWeft": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ShiftLeft": {
-		"value": "",
+	"ShiftWeft": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"AltLeft": {
-		"value": "",
+	"AwtWeft": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MetaLeft": {
-		"value": "",
+	"MetaWeft": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ControlRight": {
-		"value": "",
+	"ContwowWight": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"ShiftRight": {
-		"value": "",
+	"ShiftWight": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"AltRight": {
-		"value": "",
+	"AwtWight": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MetaRight": {
-		"value": "",
+	"MetaWight": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrightnessUp": {
-		"value": "",
+	"BwightnessUp": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrightnessDown": {
-		"value": "",
+	"BwightnessDown": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaPlay": {
-		"value": "",
+	"MediaPway": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaRecord": {
-		"value": "",
+	"MediaWecowd": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaFastForward": {
-		"value": "",
+	"MediaFastFowwawd": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaRewind": {
-		"value": "",
+	"MediaWewind": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaTrackNext": {
-		"value": "",
+	"MediaTwackNext": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaTrackPrevious": {
-		"value": "",
+	"MediaTwackPwevious": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"MediaStop": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
 	"Eject": {
-		"value": "",
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaPlayPause": {
-		"value": "",
+	"MediaPwayPause": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MediaSelect": {
-		"value": "",
+	"MediaSewect": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"LaunchMail": {
-		"value": "",
+	"WaunchMaiw": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"LaunchApp2": {
-		"value": "",
+	"WaunchApp2": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"LaunchApp1": {
-		"value": "",
+	"WaunchApp1": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"SelectTask": {
-		"value": "",
+	"SewectTask": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"LaunchScreenSaver": {
-		"value": "",
+	"WaunchScweenSava": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserSearch": {
-		"value": "",
+	"BwowsewSeawch": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserHome": {
-		"value": "",
+	"BwowsewHome": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserBack": {
-		"value": "",
+	"BwowsewBack": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserForward": {
-		"value": "",
+	"BwowsewFowwawd": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserStop": {
-		"value": "",
+	"BwowsewStop": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserRefresh": {
-		"value": "",
+	"BwowsewWefwesh": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"BrowserFavorites": {
-		"value": "",
+	"BwowsewFavowites": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MailReply": {
-		"value": "",
+	"MaiwWepwy": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MailForward": {
-		"value": "",
+	"MaiwFowwawd": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	},
-	"MailSend": {
-		"value": "",
+	"MaiwSend": {
+		"vawue": "",
 		"withShift": "",
-		"withAltGr": "",
-		"withShiftAltGr": ""
+		"withAwtGw": "",
+		"withShiftAwtGw": ""
 	}
 });

@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
-import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RequestService } from 'vs/platform/request/browser/requestService';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt { IWequestOptions, IWequestContext } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WequestChannewCwient } fwom 'vs/pwatfowm/wequest/common/wequestIpc';
+impowt { IWemoteAgentSewvice, IWemoteAgentConnection } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { WequestSewvice } fwom 'vs/pwatfowm/wequest/bwowsa/wequestSewvice';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class BrowserRequestService extends RequestService {
+expowt cwass BwowsewWequestSewvice extends WequestSewvice {
 
-	constructor(
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILogService logService: ILogService
+	constwuctow(
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super(configurationService, logService);
+		supa(configuwationSewvice, wogSewvice);
 	}
 
-	override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		try {
-			const context = await super.request(options, token);
-			const connection = this.remoteAgentService.getConnection();
-			if (connection && context.res.statusCode === 405) {
-				return this._makeRemoteRequest(connection, options, token);
+	ovewwide async wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		twy {
+			const context = await supa.wequest(options, token);
+			const connection = this.wemoteAgentSewvice.getConnection();
+			if (connection && context.wes.statusCode === 405) {
+				wetuwn this._makeWemoteWequest(connection, options, token);
 			}
-			return context;
-		} catch (error) {
-			const connection = this.remoteAgentService.getConnection();
+			wetuwn context;
+		} catch (ewwow) {
+			const connection = this.wemoteAgentSewvice.getConnection();
 			if (connection) {
-				return this._makeRemoteRequest(connection, options, token);
+				wetuwn this._makeWemoteWequest(connection, options, token);
 			}
-			throw error;
+			thwow ewwow;
 		}
 	}
 
-	private _makeRemoteRequest(connection: IRemoteAgentConnection, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return connection.withChannel('request', channel => RequestChannelClient.request(channel, options, token));
+	pwivate _makeWemoteWequest(connection: IWemoteAgentConnection, options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+		wetuwn connection.withChannew('wequest', channew => WequestChannewCwient.wequest(channew, options, token));
 	}
 }
 
-// --- Internal commands to help authentication for extensions
+// --- Intewnaw commands to hewp authentication fow extensions
 
-CommandsRegistry.registerCommand('_workbench.fetchJSON', async function (accessor: ServicesAccessor, url: string, method: string) {
-	const result = await fetch(url, { method, headers: { Accept: 'application/json' } });
+CommandsWegistwy.wegistewCommand('_wowkbench.fetchJSON', async function (accessow: SewvicesAccessow, uww: stwing, method: stwing) {
+	const wesuwt = await fetch(uww, { method, headews: { Accept: 'appwication/json' } });
 
-	if (result.ok) {
-		return result.json();
-	} else {
-		throw new Error(result.statusText);
+	if (wesuwt.ok) {
+		wetuwn wesuwt.json();
+	} ewse {
+		thwow new Ewwow(wesuwt.statusText);
 	}
 });

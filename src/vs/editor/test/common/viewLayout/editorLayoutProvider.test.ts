@@ -1,1399 +1,1399 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
-import { ComputedEditorOptions } from 'vs/editor/common/config/commonEditorConfig';
+impowt * as assewt fwom 'assewt';
+impowt { EditowWayoutInfo, EditowWayoutInfoComputa, WendewMinimap, EditowOption, EditowMinimapOptions, IntewnawEditowScwowwbawOptions, EditowOptions, WendewWineNumbewsType, IntewnawEditowWendewWineNumbewsOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ComputedEditowOptions } fwom 'vs/editow/common/config/commonEditowConfig';
 
-interface IEditorLayoutProviderOpts {
-	readonly outerWidth: number;
-	readonly outerHeight: number;
+intewface IEditowWayoutPwovidewOpts {
+	weadonwy outewWidth: numba;
+	weadonwy outewHeight: numba;
 
-	readonly showGlyphMargin: boolean;
-	readonly lineHeight: number;
+	weadonwy showGwyphMawgin: boowean;
+	weadonwy wineHeight: numba;
 
-	readonly showLineNumbers: boolean;
-	readonly lineNumbersMinChars: number;
-	readonly lineNumbersDigitCount: number;
-	maxLineNumber?: number;
+	weadonwy showWineNumbews: boowean;
+	weadonwy wineNumbewsMinChaws: numba;
+	weadonwy wineNumbewsDigitCount: numba;
+	maxWineNumba?: numba;
 
-	readonly lineDecorationsWidth: number;
+	weadonwy wineDecowationsWidth: numba;
 
-	readonly typicalHalfwidthCharacterWidth: number;
-	readonly maxDigitWidth: number;
+	weadonwy typicawHawfwidthChawactewWidth: numba;
+	weadonwy maxDigitWidth: numba;
 
-	readonly verticalScrollbarWidth: number;
-	readonly verticalScrollbarHasArrows: boolean;
-	readonly scrollbarArrowSize: number;
-	readonly horizontalScrollbarHeight: number;
+	weadonwy vewticawScwowwbawWidth: numba;
+	weadonwy vewticawScwowwbawHasAwwows: boowean;
+	weadonwy scwowwbawAwwowSize: numba;
+	weadonwy howizontawScwowwbawHeight: numba;
 
-	readonly minimap: boolean;
-	readonly minimapSide: 'left' | 'right';
-	readonly minimapRenderCharacters: boolean;
-	readonly minimapMaxColumn: number;
-	minimapSize?: 'proportional' | 'fill' | 'fit';
-	readonly pixelRatio: number;
+	weadonwy minimap: boowean;
+	weadonwy minimapSide: 'weft' | 'wight';
+	weadonwy minimapWendewChawactews: boowean;
+	weadonwy minimapMaxCowumn: numba;
+	minimapSize?: 'pwopowtionaw' | 'fiww' | 'fit';
+	weadonwy pixewWatio: numba;
 }
 
-suite('Editor ViewLayout - EditorLayoutProvider', () => {
+suite('Editow ViewWayout - EditowWayoutPwovida', () => {
 
-	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
-		const options = new ComputedEditorOptions();
-		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
-		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
-		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
-		options._write(EditorOption.folding, false);
-		const minimapOptions: EditorMinimapOptions = {
-			enabled: input.minimap,
-			size: input.minimapSize || 'proportional',
+	function doTest(input: IEditowWayoutPwovidewOpts, expected: EditowWayoutInfo): void {
+		const options = new ComputedEditowOptions();
+		options._wwite(EditowOption.gwyphMawgin, input.showGwyphMawgin);
+		options._wwite(EditowOption.wineNumbewsMinChaws, input.wineNumbewsMinChaws);
+		options._wwite(EditowOption.wineDecowationsWidth, input.wineDecowationsWidth);
+		options._wwite(EditowOption.fowding, fawse);
+		const minimapOptions: EditowMinimapOptions = {
+			enabwed: input.minimap,
+			size: input.minimapSize || 'pwopowtionaw',
 			side: input.minimapSide,
-			renderCharacters: input.minimapRenderCharacters,
-			maxColumn: input.minimapMaxColumn,
-			showSlider: 'mouseover',
-			scale: 1,
+			wendewChawactews: input.minimapWendewChawactews,
+			maxCowumn: input.minimapMaxCowumn,
+			showSwida: 'mouseova',
+			scawe: 1,
 		};
-		options._write(EditorOption.minimap, minimapOptions);
-		const scrollbarOptions: InternalEditorScrollbarOptions = {
-			arrowSize: input.scrollbarArrowSize,
-			vertical: EditorOptions.scrollbar.defaultValue.vertical,
-			horizontal: EditorOptions.scrollbar.defaultValue.horizontal,
-			useShadows: EditorOptions.scrollbar.defaultValue.useShadows,
-			verticalHasArrows: input.verticalScrollbarHasArrows,
-			horizontalHasArrows: false,
-			handleMouseWheel: EditorOptions.scrollbar.defaultValue.handleMouseWheel,
-			alwaysConsumeMouseWheel: true,
-			horizontalScrollbarSize: input.horizontalScrollbarHeight,
-			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
-			verticalScrollbarSize: input.verticalScrollbarWidth,
-			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
-			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
+		options._wwite(EditowOption.minimap, minimapOptions);
+		const scwowwbawOptions: IntewnawEditowScwowwbawOptions = {
+			awwowSize: input.scwowwbawAwwowSize,
+			vewticaw: EditowOptions.scwowwbaw.defauwtVawue.vewticaw,
+			howizontaw: EditowOptions.scwowwbaw.defauwtVawue.howizontaw,
+			useShadows: EditowOptions.scwowwbaw.defauwtVawue.useShadows,
+			vewticawHasAwwows: input.vewticawScwowwbawHasAwwows,
+			howizontawHasAwwows: fawse,
+			handweMouseWheew: EditowOptions.scwowwbaw.defauwtVawue.handweMouseWheew,
+			awwaysConsumeMouseWheew: twue,
+			howizontawScwowwbawSize: input.howizontawScwowwbawHeight,
+			howizontawSwidewSize: EditowOptions.scwowwbaw.defauwtVawue.howizontawSwidewSize,
+			vewticawScwowwbawSize: input.vewticawScwowwbawWidth,
+			vewticawSwidewSize: EditowOptions.scwowwbaw.defauwtVawue.vewticawSwidewSize,
+			scwowwByPage: EditowOptions.scwowwbaw.defauwtVawue.scwowwByPage,
 		};
-		options._write(EditorOption.scrollbar, scrollbarOptions);
-		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {
-			renderType: input.showLineNumbers ? RenderLineNumbersType.On : RenderLineNumbersType.Off,
-			renderFn: null
+		options._wwite(EditowOption.scwowwbaw, scwowwbawOptions);
+		const wineNumbewsOptions: IntewnawEditowWendewWineNumbewsOptions = {
+			wendewType: input.showWineNumbews ? WendewWineNumbewsType.On : WendewWineNumbewsType.Off,
+			wendewFn: nuww
 		};
-		options._write(EditorOption.lineNumbers, lineNumbersOptions);
+		options._wwite(EditowOption.wineNumbews, wineNumbewsOptions);
 
-		options._write(EditorOption.wordWrap, 'off');
-		options._write(EditorOption.wordWrapColumn, 80);
-		options._write(EditorOption.wordWrapOverride1, 'inherit');
-		options._write(EditorOption.wordWrapOverride2, 'inherit');
-		options._write(EditorOption.accessibilitySupport, 'auto');
+		options._wwite(EditowOption.wowdWwap, 'off');
+		options._wwite(EditowOption.wowdWwapCowumn, 80);
+		options._wwite(EditowOption.wowdWwapOvewwide1, 'inhewit');
+		options._wwite(EditowOption.wowdWwapOvewwide2, 'inhewit');
+		options._wwite(EditowOption.accessibiwitySuppowt, 'auto');
 
-		const actual = EditorLayoutInfoComputer.computeLayout(options, {
-			memory: null,
-			outerWidth: input.outerWidth,
-			outerHeight: input.outerHeight,
-			isDominatedByLongLines: false,
-			lineHeight: input.lineHeight,
-			viewLineCount: input.maxLineNumber || Math.pow(10, input.lineNumbersDigitCount) - 1,
-			lineNumbersDigitCount: input.lineNumbersDigitCount,
-			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
+		const actuaw = EditowWayoutInfoComputa.computeWayout(options, {
+			memowy: nuww,
+			outewWidth: input.outewWidth,
+			outewHeight: input.outewHeight,
+			isDominatedByWongWines: fawse,
+			wineHeight: input.wineHeight,
+			viewWineCount: input.maxWineNumba || Math.pow(10, input.wineNumbewsDigitCount) - 1,
+			wineNumbewsDigitCount: input.wineNumbewsDigitCount,
+			typicawHawfwidthChawactewWidth: input.typicawHawfwidthChawactewWidth,
 			maxDigitWidth: input.maxDigitWidth,
-			pixelRatio: input.pixelRatio,
+			pixewWatio: input.pixewWatio,
 		});
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	test('EditorLayoutProvider 1', () => {
+	test('EditowWayoutPwovida 1', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 990,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 800,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 98,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 98,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 1.1', () => {
+	test('EditowWayoutPwovida 1.1', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 11,
-			horizontalScrollbarHeight: 12,
-			scrollbarArrowSize: 13,
-			verticalScrollbarHasArrows: true,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 11,
+			howizontawScwowwbawHeight: 12,
+			scwowwbawAwwowSize: 13,
+			vewticawScwowwbawHasAwwows: twue,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 990,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 800,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 97,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 97,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 11,
-			horizontalScrollbarHeight: 12,
+			vewticawScwowwbawWidth: 11,
+			howizontawScwowwbawHeight: 12,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 13,
 				width: 11,
 				height: (800 - 2 * 13),
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 2', () => {
+	test('EditowWayoutPwovida 2', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 890,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 800,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 88,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 3', () => {
+	test('EditowWayoutPwovida 3', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 890,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 88,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 4', () => {
+	test('EditowWayoutPwovida 4', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 890,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 88,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 88,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 5', () => {
+	test('EditowWayoutPwovida 5', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: true,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 50,
 
-			decorationsLeft: 50,
-			decorationsWidth: 10,
+			decowationsWeft: 50,
+			decowationsWidth: 10,
 
-			contentLeft: 60,
+			contentWeft: 60,
 			contentWidth: 840,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 83,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 83,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 6', () => {
+	test('EditowWayoutPwovida 6', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: true,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 5,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 5,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 50,
 
-			decorationsLeft: 50,
-			decorationsWidth: 10,
+			decowationsWeft: 50,
+			decowationsWidth: 10,
 
-			contentLeft: 60,
+			contentWeft: 60,
 			contentWidth: 840,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 83,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 83,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 7', () => {
+	test('EditowWayoutPwovida 7', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: true,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 6,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 60,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 60,
 
-			decorationsLeft: 60,
-			decorationsWidth: 10,
+			decowationsWeft: 60,
+			decowationsWidth: 10,
 
-			contentLeft: 70,
+			contentWeft: 70,
 			contentWidth: 830,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 82,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 82,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 8', () => {
+	test('EditowWayoutPwovida 8', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: true,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 5,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 6,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 5,
 			maxDigitWidth: 5,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 30,
 
-			decorationsLeft: 30,
-			decorationsWidth: 10,
+			decowationsWeft: 30,
+			decowationsWidth: 10,
 
-			contentLeft: 40,
+			contentWeft: 40,
 			contentWidth: 860,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 171,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 171,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 8 - rounds floats', () => {
+	test('EditowWayoutPwovida 8 - wounds fwoats', () => {
 		doTest({
-			outerWidth: 900,
-			outerHeight: 900,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: true,
-			lineNumbersMinChars: 5,
-			lineNumbersDigitCount: 6,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 5.05,
+			outewWidth: 900,
+			outewHeight: 900,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 5,
+			wineNumbewsDigitCount: 6,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 5.05,
 			maxDigitWidth: 5.05,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: false,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: fawse,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 900,
 			height: 900,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 30,
 
-			decorationsLeft: 30,
-			decorationsWidth: 10,
+			decowationsWeft: 30,
+			decowationsWidth: 10,
 
-			contentLeft: 40,
+			contentWeft: 40,
 			contentWidth: 860,
 
 			minimap: {
-				renderMinimap: RenderMinimap.None,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.None,
+				minimapWeft: 0,
 				minimapWidth: 0,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 900,
-				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 900,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 0,
+				minimapCanvasInnewHeight: 900,
+				minimapCanvasOutewWidth: 0,
+				minimapCanvasOutewHeight: 900,
 			},
 
-			viewportColumn: 169,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 169,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 900,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 9 - render minimap', () => {
+	test('EditowWayoutPwovida 9 - wenda minimap', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 1,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 1,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 893,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 903,
 				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 1,
-				minimapLineHeight: 2,
-				minimapCanvasInnerWidth: 97,
-				minimapCanvasInnerHeight: 800,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 1,
+				minimapWineHeight: 2,
+				minimapCanvasInnewWidth: 97,
+				minimapCanvasInnewHeight: 800,
+				minimapCanvasOutewWidth: 97,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 89,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 2', () => {
+	test('EditowWayoutPwovida 9 - wenda minimap with pixewWatio = 2', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 2,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 2,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 893,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 903,
 				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 194,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 2,
+				minimapWineHeight: 4,
+				minimapCanvasInnewWidth: 194,
+				minimapCanvasInnewHeight: 1600,
+				minimapCanvasOutewWidth: 97,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 89,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 4', () => {
+	test('EditowWayoutPwovida 9 - wenda minimap with pixewWatio = 4', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 4,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 4,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 935,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 945,
 				minimapWidth: 55,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 220,
-				minimapCanvasInnerHeight: 3200,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 2,
+				minimapWineHeight: 4,
+				minimapCanvasInnewWidth: 220,
+				minimapCanvasInnewHeight: 3200,
+				minimapCanvasOutewWidth: 55,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 93,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 10 - render minimap to left', () => {
+	test('EditowWayoutPwovida 10 - wenda minimap to weft', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'left',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			pixelRatio: 4,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'weft',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			pixewWatio: 4,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 55,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 55,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 55,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 55,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 55,
-			decorationsWidth: 10,
+			decowationsWeft: 55,
+			decowationsWidth: 10,
 
-			contentLeft: 65,
+			contentWeft: 65,
 			contentWidth: 935,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 0,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 0,
 				minimapWidth: 55,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 220,
-				minimapCanvasInnerHeight: 3200,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 2,
+				minimapWineHeight: 4,
+				minimapCanvasInnewWidth: 220,
+				minimapCanvasInnewHeight: 3200,
+				minimapCanvasOutewWidth: 55,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 93,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 11 - minimap mode cover without sampling', () => {
+	test('EditowWayoutPwovida 11 - minimap mode cova without sampwing', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 3,
-			maxLineNumber: 120,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 3,
+			maxWineNumba: 120,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			minimapSize: 'fill',
-			pixelRatio: 2,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			minimapSize: 'fiww',
+			pixewWatio: 2,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 893,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 903,
 				minimapWidth: 97,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: false,
-				minimapScale: 3,
-				minimapLineHeight: 13,
-				minimapCanvasInnerWidth: 291,
-				minimapCanvasInnerHeight: 1560,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: twue,
+				minimapIsSampwing: fawse,
+				minimapScawe: 3,
+				minimapWineHeight: 13,
+				minimapCanvasInnewWidth: 291,
+				minimapCanvasInnewHeight: 1560,
+				minimapCanvasOutewWidth: 97,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 89,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 12 - minimap mode cover with sampling', () => {
+	test('EditowWayoutPwovida 12 - minimap mode cova with sampwing', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 4,
-			maxLineNumber: 2500,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 4,
+			maxWineNumba: 2500,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
-			minimapSize: 'fill',
-			pixelRatio: 2,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
+			minimapSize: 'fiww',
+			pixewWatio: 2,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 935,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 945,
 				minimapWidth: 55,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: true,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 110,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: twue,
+				minimapIsSampwing: twue,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 110,
+				minimapCanvasInnewHeight: 1600,
+				minimapCanvasOutewWidth: 55,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 93,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 13 - minimap mode contain without sampling', () => {
+	test('EditowWayoutPwovida 13 - minimap mode contain without sampwing', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 3,
-			maxLineNumber: 120,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 3,
+			maxWineNumba: 120,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
 			minimapSize: 'fit',
-			pixelRatio: 2,
+			pixewWatio: 2,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 893,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 903,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 903,
 				minimapWidth: 97,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 194,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 97,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 2,
+				minimapWineHeight: 4,
+				minimapCanvasInnewWidth: 194,
+				minimapCanvasInnewHeight: 1600,
+				minimapCanvasOutewWidth: 97,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 89,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 89,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('EditorLayoutProvider 14 - minimap mode contain with sampling', () => {
+	test('EditowWayoutPwovida 14 - minimap mode contain with sampwing', () => {
 		doTest({
-			outerWidth: 1000,
-			outerHeight: 800,
-			showGlyphMargin: false,
-			lineHeight: 16,
-			showLineNumbers: false,
-			lineNumbersMinChars: 0,
-			lineNumbersDigitCount: 4,
-			maxLineNumber: 2500,
-			lineDecorationsWidth: 10,
-			typicalHalfwidthCharacterWidth: 10,
+			outewWidth: 1000,
+			outewHeight: 800,
+			showGwyphMawgin: fawse,
+			wineHeight: 16,
+			showWineNumbews: fawse,
+			wineNumbewsMinChaws: 0,
+			wineNumbewsDigitCount: 4,
+			maxWineNumba: 2500,
+			wineDecowationsWidth: 10,
+			typicawHawfwidthChawactewWidth: 10,
 			maxDigitWidth: 10,
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-			scrollbarArrowSize: 0,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 150,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
+			scwowwbawAwwowSize: 0,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 150,
 			minimapSize: 'fit',
-			pixelRatio: 2,
+			pixewWatio: 2,
 		}, {
 			width: 1000,
 			height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 0,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
+			wineNumbewsWeft: 0,
+			wineNumbewsWidth: 0,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
+			decowationsWeft: 0,
+			decowationsWidth: 10,
 
-			contentLeft: 10,
+			contentWeft: 10,
 			contentWidth: 935,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 945,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 945,
 				minimapWidth: 55,
-				minimapHeightIsEditorHeight: true,
-				minimapIsSampling: true,
-				minimapScale: 1,
-				minimapLineHeight: 1,
-				minimapCanvasInnerWidth: 110,
-				minimapCanvasInnerHeight: 1600,
-				minimapCanvasOuterWidth: 55,
-				minimapCanvasOuterHeight: 800,
+				minimapHeightIsEditowHeight: twue,
+				minimapIsSampwing: twue,
+				minimapScawe: 1,
+				minimapWineHeight: 1,
+				minimapCanvasInnewWidth: 110,
+				minimapCanvasInnewHeight: 1600,
+				minimapCanvasOutewWidth: 55,
+				minimapCanvasOutewHeight: 800,
 			},
 
-			viewportColumn: 93,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 93,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
+			vewticawScwowwbawWidth: 0,
+			howizontawScwowwbawHeight: 0,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 0,
 				height: 800,
-				right: 0
+				wight: 0
 			}
 		});
 	});
 
-	test('issue #31312: When wrapping, leave 2px for the cursor', () => {
+	test('issue #31312: When wwapping, weave 2px fow the cuwsow', () => {
 		doTest({
-			outerWidth: 1201,
-			outerHeight: 422,
-			showGlyphMargin: true,
-			lineHeight: 30,
-			showLineNumbers: true,
-			lineNumbersMinChars: 3,
-			lineNumbersDigitCount: 1,
-			lineDecorationsWidth: 26,
-			typicalHalfwidthCharacterWidth: 12.04296875,
+			outewWidth: 1201,
+			outewHeight: 422,
+			showGwyphMawgin: twue,
+			wineHeight: 30,
+			showWineNumbews: twue,
+			wineNumbewsMinChaws: 3,
+			wineNumbewsDigitCount: 1,
+			wineDecowationsWidth: 26,
+			typicawHawfwidthChawactewWidth: 12.04296875,
 			maxDigitWidth: 12.04296875,
-			verticalScrollbarWidth: 14,
-			horizontalScrollbarHeight: 10,
-			scrollbarArrowSize: 11,
-			verticalScrollbarHasArrows: false,
-			minimap: true,
-			minimapSide: 'right',
-			minimapRenderCharacters: true,
-			minimapMaxColumn: 120,
-			pixelRatio: 2
+			vewticawScwowwbawWidth: 14,
+			howizontawScwowwbawHeight: 10,
+			scwowwbawAwwowSize: 11,
+			vewticawScwowwbawHasAwwows: fawse,
+			minimap: twue,
+			minimapSide: 'wight',
+			minimapWendewChawactews: twue,
+			minimapMaxCowumn: 120,
+			pixewWatio: 2
 		}, {
 			width: 1201,
 			height: 422,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 30,
+			gwyphMawginWeft: 0,
+			gwyphMawginWidth: 30,
 
-			lineNumbersLeft: 30,
-			lineNumbersWidth: 36,
+			wineNumbewsWeft: 30,
+			wineNumbewsWidth: 36,
 
-			decorationsLeft: 66,
-			decorationsWidth: 26,
+			decowationsWeft: 66,
+			decowationsWidth: 26,
 
-			contentLeft: 92,
+			contentWeft: 92,
 			contentWidth: 1018,
 
 			minimap: {
-				renderMinimap: RenderMinimap.Text,
-				minimapLeft: 1096,
+				wendewMinimap: WendewMinimap.Text,
+				minimapWeft: 1096,
 				minimapWidth: 91,
-				minimapHeightIsEditorHeight: false,
-				minimapIsSampling: false,
-				minimapScale: 2,
-				minimapLineHeight: 4,
-				minimapCanvasInnerWidth: 182,
-				minimapCanvasInnerHeight: 844,
-				minimapCanvasOuterWidth: 91,
-				minimapCanvasOuterHeight: 422,
+				minimapHeightIsEditowHeight: fawse,
+				minimapIsSampwing: fawse,
+				minimapScawe: 2,
+				minimapWineHeight: 4,
+				minimapCanvasInnewWidth: 182,
+				minimapCanvasInnewHeight: 844,
+				minimapCanvasOutewWidth: 91,
+				minimapCanvasOutewHeight: 422,
 			},
 
-			viewportColumn: 83,
-			isWordWrapMinified: false,
-			isViewportWrapping: false,
-			wrappingColumn: -1,
+			viewpowtCowumn: 83,
+			isWowdWwapMinified: fawse,
+			isViewpowtWwapping: fawse,
+			wwappingCowumn: -1,
 
-			verticalScrollbarWidth: 14,
-			horizontalScrollbarHeight: 10,
+			vewticawScwowwbawWidth: 14,
+			howizontawScwowwbawHeight: 10,
 
-			overviewRuler: {
+			ovewviewWuwa: {
 				top: 0,
 				width: 14,
 				height: 422,
-				right: 0
+				wight: 0
 			}
 		});
 

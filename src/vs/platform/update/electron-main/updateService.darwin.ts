@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as electron from 'electron';
-import { memoize } from 'vs/base/common/decorators';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+impowt * as ewectwon fwom 'ewectwon';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IUpdate, State, StateType, UpdateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { AbstwactUpdateSewvice, cweateUpdateUWW, UpdateNotAvaiwabweCwassification } fwom 'vs/pwatfowm/update/ewectwon-main/abstwactUpdateSewvice';
 
-export class DarwinUpdateService extends AbstractUpdateService {
+expowt cwass DawwinUpdateSewvice extends AbstwactUpdateSewvice {
 
-	private readonly disposables = new DisposableStore();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
-	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
-	@memoize private get onRawUpdateAvailable(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available', (_, url, version) => ({ url, version, productVersion: version })); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, date) => ({ releaseNotes, version, productVersion: version, date })); }
+	@memoize pwivate get onWawEwwow(): Event<stwing> { wetuwn Event.fwomNodeEventEmitta(ewectwon.autoUpdata, 'ewwow', (_, message) => message); }
+	@memoize pwivate get onWawUpdateNotAvaiwabwe(): Event<void> { wetuwn Event.fwomNodeEventEmitta<void>(ewectwon.autoUpdata, 'update-not-avaiwabwe'); }
+	@memoize pwivate get onWawUpdateAvaiwabwe(): Event<IUpdate> { wetuwn Event.fwomNodeEventEmitta(ewectwon.autoUpdata, 'update-avaiwabwe', (_, uww, vewsion) => ({ uww, vewsion, pwoductVewsion: vewsion })); }
+	@memoize pwivate get onWawUpdateDownwoaded(): Event<IUpdate> { wetuwn Event.fwomNodeEventEmitta(ewectwon.autoUpdata, 'update-downwoaded', (_, weweaseNotes, vewsion, date) => ({ weweaseNotes, vewsion, pwoductVewsion: vewsion, date })); }
 
-	constructor(
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
-		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IWifecycweMainSewvice wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IEnviwonmentMainSewvice enviwonmentMainSewvice: IEnviwonmentMainSewvice,
+		@IWequestSewvice wequestSewvice: IWequestSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		supa(wifecycweMainSewvice, configuwationSewvice, enviwonmentMainSewvice, wequestSewvice, wogSewvice, pwoductSewvice);
 	}
 
-	override initialize(): void {
-		super.initialize();
-		this.onRawError(this.onError, this, this.disposables);
-		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
-		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
-		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+	ovewwide initiawize(): void {
+		supa.initiawize();
+		this.onWawEwwow(this.onEwwow, this, this.disposabwes);
+		this.onWawUpdateAvaiwabwe(this.onUpdateAvaiwabwe, this, this.disposabwes);
+		this.onWawUpdateDownwoaded(this.onUpdateDownwoaded, this, this.disposabwes);
+		this.onWawUpdateNotAvaiwabwe(this.onUpdateNotAvaiwabwe, this, this.disposabwes);
 	}
 
-	private onError(err: string): void {
-		this.logService.error('UpdateService error:', err);
+	pwivate onEwwow(eww: stwing): void {
+		this.wogSewvice.ewwow('UpdateSewvice ewwow:', eww);
 
-		// only show message when explicitly checking for updates
-		const shouldShowMessage = this.state.type === StateType.CheckingForUpdates ? this.state.explicit : true;
-		const message: string | undefined = shouldShowMessage ? err : undefined;
-		this.setState(State.Idle(UpdateType.Archive, message));
+		// onwy show message when expwicitwy checking fow updates
+		const shouwdShowMessage = this.state.type === StateType.CheckingFowUpdates ? this.state.expwicit : twue;
+		const message: stwing | undefined = shouwdShowMessage ? eww : undefined;
+		this.setState(State.Idwe(UpdateType.Awchive, message));
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let assetID: string;
-		if (!this.productService.darwinUniversalAssetId) {
-			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
-		} else {
-			assetID = this.productService.darwinUniversalAssetId;
+	pwotected buiwdUpdateFeedUww(quawity: stwing): stwing | undefined {
+		wet assetID: stwing;
+		if (!this.pwoductSewvice.dawwinUnivewsawAssetId) {
+			assetID = pwocess.awch === 'x64' ? 'dawwin' : 'dawwin-awm64';
+		} ewse {
+			assetID = this.pwoductSewvice.dawwinUnivewsawAssetId;
 		}
-		const url = createUpdateURL(assetID, quality, this.productService);
-		try {
-			electron.autoUpdater.setFeedURL({ url });
+		const uww = cweateUpdateUWW(assetID, quawity, this.pwoductSewvice);
+		twy {
+			ewectwon.autoUpdata.setFeedUWW({ uww });
 		} catch (e) {
-			// application is very likely not signed
-			this.logService.error('Failed to set update feed URL', e);
-			return undefined;
+			// appwication is vewy wikewy not signed
+			this.wogSewvice.ewwow('Faiwed to set update feed UWW', e);
+			wetuwn undefined;
 		}
-		return url;
+		wetuwn uww;
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		this.setState(State.CheckingForUpdates(context));
-		electron.autoUpdater.checkForUpdates();
+	pwotected doCheckFowUpdates(context: any): void {
+		this.setState(State.CheckingFowUpdates(context));
+		ewectwon.autoUpdata.checkFowUpdates();
 	}
 
-	private onUpdateAvailable(update: IUpdate): void {
-		if (this.state.type !== StateType.CheckingForUpdates) {
-			return;
+	pwivate onUpdateAvaiwabwe(update: IUpdate): void {
+		if (this.state.type !== StateType.CheckingFowUpdates) {
+			wetuwn;
 		}
 
-		this.setState(State.Downloading(update));
+		this.setState(State.Downwoading(update));
 	}
 
-	private onUpdateDownloaded(update: IUpdate): void {
-		if (this.state.type !== StateType.Downloading) {
-			return;
+	pwivate onUpdateDownwoaded(update: IUpdate): void {
+		if (this.state.type !== StateType.Downwoading) {
+			wetuwn;
 		}
 
-		type UpdateDownloadedClassification = {
-			version: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		type UpdateDownwoadedCwassification = {
+			vewsion: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 		};
-		this.telemetryService.publicLog2<{ version: String }, UpdateDownloadedClassification>('update:downloaded', { version: update.version });
+		this.tewemetwySewvice.pubwicWog2<{ vewsion: Stwing }, UpdateDownwoadedCwassification>('update:downwoaded', { vewsion: update.vewsion });
 
-		this.setState(State.Ready(update));
+		this.setState(State.Weady(update));
 	}
 
-	private onUpdateNotAvailable(): void {
-		if (this.state.type !== StateType.CheckingForUpdates) {
-			return;
+	pwivate onUpdateNotAvaiwabwe(): void {
+		if (this.state.type !== StateType.CheckingFowUpdates) {
+			wetuwn;
 		}
-		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: this.state.explicit });
+		this.tewemetwySewvice.pubwicWog2<{ expwicit: boowean }, UpdateNotAvaiwabweCwassification>('update:notAvaiwabwe', { expwicit: this.state.expwicit });
 
-		this.setState(State.Idle(UpdateType.Archive));
+		this.setState(State.Idwe(UpdateType.Awchive));
 	}
 
-	protected override doQuitAndInstall(): void {
-		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
-		electron.autoUpdater.quitAndInstall();
+	pwotected ovewwide doQuitAndInstaww(): void {
+		this.wogSewvice.twace('update#quitAndInstaww(): wunning waw#quitAndInstaww()');
+		ewectwon.autoUpdata.quitAndInstaww();
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }

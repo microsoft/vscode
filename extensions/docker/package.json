@@ -1,57 +1,57 @@
 {
-  "name": "docker",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "docka",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin moby/moby contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage ./syntaxes/docker.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin moby/moby contwib/syntax/textmate/Docka.tmbundwe/Syntaxes/Dockewfiwe.tmWanguage ./syntaxes/docka.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "dockerfile",
+        "id": "dockewfiwe",
         "extensions": [
-          ".dockerfile",
-          ".containerfile"
+          ".dockewfiwe",
+          ".containewfiwe"
         ],
-        "filenames": [
-          "Dockerfile",
-          "Containerfile"
+        "fiwenames": [
+          "Dockewfiwe",
+          "Containewfiwe"
         ],
-        "filenamePatterns": [
-          "Dockerfile.*",
-          "Containerfile.*"
+        "fiwenamePattewns": [
+          "Dockewfiwe.*",
+          "Containewfiwe.*"
         ],
-        "aliases": [
-          "Docker",
-          "Dockerfile",
-          "Containerfile"
+        "awiases": [
+          "Docka",
+          "Dockewfiwe",
+          "Containewfiwe"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "dockerfile",
-        "scopeName": "source.dockerfile",
-        "path": "./syntaxes/docker.tmLanguage.json"
+        "wanguage": "dockewfiwe",
+        "scopeName": "souwce.dockewfiwe",
+        "path": "./syntaxes/docka.tmWanguage.json"
       }
     ],
-    "configurationDefaults": {
-      "[dockerfile]": {
-        "editor.quickSuggestions": {
-          "strings": true
+    "configuwationDefauwts": {
+      "[dockewfiwe]": {
+        "editow.quickSuggestions": {
+          "stwings": twue
         }
       }
     }
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

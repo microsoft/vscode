@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { join } from 'vs/base/common/path';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { join } fwom 'vs/base/common/path';
+impowt { cweateStaticIPCHandwe } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { IEnviwonmentSewvice, INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { NativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/node/enviwonmentSewvice';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
+expowt const IEnviwonmentMainSewvice = wefineSewviceDecowatow<IEnviwonmentSewvice, IEnviwonmentMainSewvice>(IEnviwonmentSewvice);
 
 /**
- * A subclass of the `INativeEnvironmentService` to be used only in electron-main
- * environments.
+ * A subcwass of the `INativeEnviwonmentSewvice` to be used onwy in ewectwon-main
+ * enviwonments.
  */
-export interface IEnvironmentMainService extends INativeEnvironmentService {
+expowt intewface IEnviwonmentMainSewvice extends INativeEnviwonmentSewvice {
 
-	// --- NLS cache path
-	cachedLanguagesPath: string;
+	// --- NWS cache path
+	cachedWanguagesPath: stwing;
 
 	// --- backup paths
-	backupHome: string;
-	backupWorkspacesPath: string;
+	backupHome: stwing;
+	backupWowkspacesPath: stwing;
 
 	// --- V8 code caching
-	codeCachePath: string | undefined;
-	useCodeCache: boolean;
+	codeCachePath: stwing | undefined;
+	useCodeCache: boowean;
 
 	// --- IPC
-	mainIPCHandle: string;
-	mainLockfile: string;
+	mainIPCHandwe: stwing;
+	mainWockfiwe: stwing;
 
 	// --- config
-	sandbox: boolean;
-	driverVerbose: boolean;
-	disableUpdates: boolean;
-	disableKeytar: boolean;
+	sandbox: boowean;
+	dwivewVewbose: boowean;
+	disabweUpdates: boowean;
+	disabweKeytaw: boowean;
 }
 
-export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
+expowt cwass EnviwonmentMainSewvice extends NativeEnviwonmentSewvice impwements IEnviwonmentMainSewvice {
 
 	@memoize
-	get cachedLanguagesPath(): string { return join(this.userDataPath, 'clp'); }
+	get cachedWanguagesPath(): stwing { wetuwn join(this.usewDataPath, 'cwp'); }
 
 	@memoize
-	get backupHome(): string { return join(this.userDataPath, 'Backups'); }
+	get backupHome(): stwing { wetuwn join(this.usewDataPath, 'Backups'); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
+	get backupWowkspacesPath(): stwing { wetuwn join(this.backupHome, 'wowkspaces.json'); }
 
 	@memoize
-	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
+	get mainIPCHandwe(): stwing { wetuwn cweateStaticIPCHandwe(this.usewDataPath, 'main', this.pwoductSewvice.vewsion); }
 
 	@memoize
-	get mainLockfile(): string { return join(this.userDataPath, 'code.lock'); }
+	get mainWockfiwe(): stwing { wetuwn join(this.usewDataPath, 'code.wock'); }
 
 	@memoize
-	get sandbox(): boolean { return !!this.args['__sandbox']; }
+	get sandbox(): boowean { wetuwn !!this.awgs['__sandbox']; }
 
 	@memoize
-	get driverVerbose(): boolean { return !!this.args['driver-verbose']; }
+	get dwivewVewbose(): boowean { wetuwn !!this.awgs['dwiva-vewbose']; }
 
 	@memoize
-	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
+	get disabweUpdates(): boowean { wetuwn !!this.awgs['disabwe-updates']; }
 
 	@memoize
-	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
+	get disabweKeytaw(): boowean { wetuwn !!this.awgs['disabwe-keytaw']; }
 
 	@memoize
-	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
+	get codeCachePath(): stwing | undefined { wetuwn pwocess.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 
 	@memoize
-	get useCodeCache(): boolean { return !!this.codeCachePath; }
+	get useCodeCache(): boowean { wetuwn !!this.codeCachePath; }
 }

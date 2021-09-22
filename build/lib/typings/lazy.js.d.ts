@@ -1,276 +1,276 @@
-// Type definitions for Lazy.js 0.3.2
-// Project: https://github.com/dtao/lazy.js/
-// Definitions by: Bart van der Schoor <https://github.com/Bartvds>
-// Definitions: https://github.com/borisyankov/DefinitelyTyped
+// Type definitions fow Wazy.js 0.3.2
+// Pwoject: https://github.com/dtao/wazy.js/
+// Definitions by: Bawt van dew Schoow <https://github.com/Bawtvds>
+// Definitions: https://github.com/bowisyankov/DefinitewyTyped
 
-declare function Lazy(value: string): Lazy.StringLikeSequence;
-declare function Lazy<T>(value: T[]): Lazy.ArrayLikeSequence<T>;
-declare function Lazy(value: any[]): Lazy.ArrayLikeSequence<any>;
-declare function Lazy<T>(value: Object): Lazy.ObjectLikeSequence<T>;
-declare function Lazy(value: Object): Lazy.ObjectLikeSequence<any>;
+decwawe function Wazy(vawue: stwing): Wazy.StwingWikeSequence;
+decwawe function Wazy<T>(vawue: T[]): Wazy.AwwayWikeSequence<T>;
+decwawe function Wazy(vawue: any[]): Wazy.AwwayWikeSequence<any>;
+decwawe function Wazy<T>(vawue: Object): Wazy.ObjectWikeSequence<T>;
+decwawe function Wazy(vawue: Object): Wazy.ObjectWikeSequence<any>;
 
-declare module Lazy {
-	function strict(): StrictLazy;
-	function generate<T>(generatorFn: GeneratorCallback<T>, length?: number): GeneratedSequence<T>;
-	function range(to: number): GeneratedSequence<number>;
-	function range(from: number, to: number, step?: number): GeneratedSequence<number>;
-	function repeat<T>(value: T, count?: number): GeneratedSequence<T>;
-	function on<T>(eventType: string): Sequence<T>;
-	function readFile(path: string): StringLikeSequence;
-	function makeHttpRequest(path: string): StringLikeSequence;
+decwawe moduwe Wazy {
+	function stwict(): StwictWazy;
+	function genewate<T>(genewatowFn: GenewatowCawwback<T>, wength?: numba): GenewatedSequence<T>;
+	function wange(to: numba): GenewatedSequence<numba>;
+	function wange(fwom: numba, to: numba, step?: numba): GenewatedSequence<numba>;
+	function wepeat<T>(vawue: T, count?: numba): GenewatedSequence<T>;
+	function on<T>(eventType: stwing): Sequence<T>;
+	function weadFiwe(path: stwing): StwingWikeSequence;
+	function makeHttpWequest(path: stwing): StwingWikeSequence;
 
-	interface StrictLazy {
-		(value: string): StringLikeSequence;
-		<T>(value: T[]): ArrayLikeSequence<T>;
-		(value: any[]): ArrayLikeSequence<any>;
-		<T>(value: Object): ObjectLikeSequence<T>;
-		(value: Object): ObjectLikeSequence<any>;
-		strict(): StrictLazy;
-		generate<T>(generatorFn: GeneratorCallback<T>, length?: number): GeneratedSequence<T>;
-		range(to: number): GeneratedSequence<number>;
-		range(from: number, to: number, step?: number): GeneratedSequence<number>;
-		repeat<T>(value: T, count?: number): GeneratedSequence<T>;
-		on<T>(eventType: string): Sequence<T>;
-		readFile(path: string): StringLikeSequence;
-		makeHttpRequest(path: string): StringLikeSequence;
+	intewface StwictWazy {
+		(vawue: stwing): StwingWikeSequence;
+		<T>(vawue: T[]): AwwayWikeSequence<T>;
+		(vawue: any[]): AwwayWikeSequence<any>;
+		<T>(vawue: Object): ObjectWikeSequence<T>;
+		(vawue: Object): ObjectWikeSequence<any>;
+		stwict(): StwictWazy;
+		genewate<T>(genewatowFn: GenewatowCawwback<T>, wength?: numba): GenewatedSequence<T>;
+		wange(to: numba): GenewatedSequence<numba>;
+		wange(fwom: numba, to: numba, step?: numba): GenewatedSequence<numba>;
+		wepeat<T>(vawue: T, count?: numba): GenewatedSequence<T>;
+		on<T>(eventType: stwing): Sequence<T>;
+		weadFiwe(path: stwing): StwingWikeSequence;
+		makeHttpWequest(path: stwing): StwingWikeSequence;
 	}
 
-	interface ArrayLike<T> {
-		length: number;
-		[index: number]: T;
+	intewface AwwayWike<T> {
+		wength: numba;
+		[index: numba]: T;
 	}
 
-	interface Callback {
+	intewface Cawwback {
 		(): void;
 	}
 
-	interface ErrorCallback {
-		(error: any): void;
+	intewface EwwowCawwback {
+		(ewwow: any): void;
 	}
 
-	interface ValueCallback<T> {
-		(value: T): void;
+	intewface VawueCawwback<T> {
+		(vawue: T): void;
 	}
 
-	interface GetKeyCallback<T> {
-		(value: T): string;
+	intewface GetKeyCawwback<T> {
+		(vawue: T): stwing;
 	}
 
-	interface TestCallback<T> {
-		(value: T): boolean;
+	intewface TestCawwback<T> {
+		(vawue: T): boowean;
 	}
 
-	interface MapCallback<T, U> {
-		(value: T): U;
+	intewface MapCawwback<T, U> {
+		(vawue: T): U;
 	}
 
-	interface MapStringCallback {
-		(value: string): string;
+	intewface MapStwingCawwback {
+		(vawue: stwing): stwing;
 	}
 
-	interface NumberCallback<T> {
-		(value: T): number;
+	intewface NumbewCawwback<T> {
+		(vawue: T): numba;
 	}
 
-	interface MemoCallback<T, U> {
-		(memo: U, value: T): U;
+	intewface MemoCawwback<T, U> {
+		(memo: U, vawue: T): U;
 	}
 
-	interface GeneratorCallback<T> {
-		(index: number): T;
+	intewface GenewatowCawwback<T> {
+		(index: numba): T;
 	}
 
-	interface CompareCallback {
-		(x: any, y: any): number;
-	}
-
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-	interface Iterator<T> {
-		new(sequence: Sequence<T>): Iterator<T>;
-		current(): T;
-		moveNext(): boolean;
-	}
-
-	interface GeneratedSequence<T> extends Sequence<T> {
-		new(generatorFn: GeneratorCallback<T>, length: number): GeneratedSequence<T>;
-		length(): number;
-	}
-
-	interface AsyncSequence<T> extends SequenceBase<T> {
-		each(callback: ValueCallback<T>): AsyncHandle<T>;
-	}
-
-	interface AsyncHandle<T> {
-		cancel(): void;
-		onComplete(callback: Callback): void;
-		onError(callback: ErrorCallback): void;
+	intewface CompaweCawwback {
+		(x: any, y: any): numba;
 	}
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	module Sequence {
-		function define(methodName: string[], overrides: Object): Function;
+	intewface Itewatow<T> {
+		new(sequence: Sequence<T>): Itewatow<T>;
+		cuwwent(): T;
+		moveNext(): boowean;
 	}
 
-	interface Sequence<T> extends SequenceBase<T> {
-		each(eachFn: ValueCallback<T>): Sequence<T>;
+	intewface GenewatedSequence<T> extends Sequence<T> {
+		new(genewatowFn: GenewatowCawwback<T>, wength: numba): GenewatedSequence<T>;
+		wength(): numba;
 	}
 
-	interface ArraySequence<T> extends SequenceBase<T[]> {
-		flatten(): Sequence<T>;
+	intewface AsyncSequence<T> extends SequenceBase<T> {
+		each(cawwback: VawueCawwback<T>): AsyncHandwe<T>;
 	}
 
-	interface SequenceBase<T> extends SequenceBaser<T> {
-		first(): any;
-		first(count: number): Sequence<T>;
-		indexOf(value: any, startIndex?: number): Sequence<T>;
-
-		last(): any;
-		last(count: number): Sequence<T>;
-		lastIndexOf(value: any): Sequence<T>;
-
-		reverse(): Sequence<T>;
+	intewface AsyncHandwe<T> {
+		cancew(): void;
+		onCompwete(cawwback: Cawwback): void;
+		onEwwow(cawwback: EwwowCawwback): void;
 	}
 
-	interface SequenceBaser<T> {
-		// TODO improve define() (needs ugly overload)
-		async(interval: number): AsyncSequence<T>;
-		chunk(size: number): Sequence<T>;
+	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	moduwe Sequence {
+		function define(methodName: stwing[], ovewwides: Object): Function;
+	}
+
+	intewface Sequence<T> extends SequenceBase<T> {
+		each(eachFn: VawueCawwback<T>): Sequence<T>;
+	}
+
+	intewface AwwaySequence<T> extends SequenceBase<T[]> {
+		fwatten(): Sequence<T>;
+	}
+
+	intewface SequenceBase<T> extends SequenceBasa<T> {
+		fiwst(): any;
+		fiwst(count: numba): Sequence<T>;
+		indexOf(vawue: any, stawtIndex?: numba): Sequence<T>;
+
+		wast(): any;
+		wast(count: numba): Sequence<T>;
+		wastIndexOf(vawue: any): Sequence<T>;
+
+		wevewse(): Sequence<T>;
+	}
+
+	intewface SequenceBasa<T> {
+		// TODO impwove define() (needs ugwy ovewwoad)
+		async(intewvaw: numba): AsyncSequence<T>;
+		chunk(size: numba): Sequence<T>;
 		compact(): Sequence<T>;
-		concat(var_args: T[]): Sequence<T>;
+		concat(vaw_awgs: T[]): Sequence<T>;
 		concat(sequence: Sequence<T>): Sequence<T>;
-		consecutive(length: number): Sequence<T>;
-		contains(value: T): boolean;
-		countBy(keyFn: GetKeyCallback<T>): ObjectLikeSequence<T>;
-		countBy(propertyName: string): ObjectLikeSequence<T>;
-		dropWhile(predicateFn: TestCallback<T>): Sequence<T>;
-		every(predicateFn: TestCallback<T>): boolean;
-		filter(predicateFn: TestCallback<T>): Sequence<T>;
-		find(predicateFn: TestCallback<T>): Sequence<T>;
-		findWhere(properties: Object): Sequence<T>;
+		consecutive(wength: numba): Sequence<T>;
+		contains(vawue: T): boowean;
+		countBy(keyFn: GetKeyCawwback<T>): ObjectWikeSequence<T>;
+		countBy(pwopewtyName: stwing): ObjectWikeSequence<T>;
+		dwopWhiwe(pwedicateFn: TestCawwback<T>): Sequence<T>;
+		evewy(pwedicateFn: TestCawwback<T>): boowean;
+		fiwta(pwedicateFn: TestCawwback<T>): Sequence<T>;
+		find(pwedicateFn: TestCawwback<T>): Sequence<T>;
+		findWhewe(pwopewties: Object): Sequence<T>;
 
-		groupBy(keyFn: GetKeyCallback<T>): ObjectLikeSequence<T>;
-		initial(count?: number): Sequence<T>;
-		intersection(var_args: T[]): Sequence<T>;
-		invoke(methodName: string): Sequence<T>;
-		isEmpty(): boolean;
-		join(delimiter?: string): string;
-		map<U>(mapFn: MapCallback<T, U[]>): ArraySequence<U>;
-		map<U>(mapFn: MapCallback<T, U>): Sequence<U>;
+		gwoupBy(keyFn: GetKeyCawwback<T>): ObjectWikeSequence<T>;
+		initiaw(count?: numba): Sequence<T>;
+		intewsection(vaw_awgs: T[]): Sequence<T>;
+		invoke(methodName: stwing): Sequence<T>;
+		isEmpty(): boowean;
+		join(dewimita?: stwing): stwing;
+		map<U>(mapFn: MapCawwback<T, U[]>): AwwaySequence<U>;
+		map<U>(mapFn: MapCawwback<T, U>): Sequence<U>;
 
-		// TODO: vscode addition to workaround strict null errors
-		flatten(): Sequence<any>;
+		// TODO: vscode addition to wowkawound stwict nuww ewwows
+		fwatten(): Sequence<any>;
 
-		max(valueFn?: NumberCallback<T>): T;
-		min(valueFn?: NumberCallback<T>): T;
-		none(valueFn?: TestCallback<T>): boolean;
-		pluck(propertyName: string): Sequence<T>;
-		reduce<U>(aggregatorFn: MemoCallback<T, U>, memo?: U): U;
-		reduceRight<U>(aggregatorFn: MemoCallback<T, U>, memo: U): U;
-		reject(predicateFn: TestCallback<T>): Sequence<T>;
-		rest(count?: number): Sequence<T>;
-		shuffle(): Sequence<T>;
-		some(predicateFn?: TestCallback<T>): boolean;
-		sort(sortFn?: CompareCallback, descending?: boolean): Sequence<T>;
-		sortBy(sortFn: string, descending?: boolean): Sequence<T>;
-		sortBy(sortFn: NumberCallback<T>, descending?: boolean): Sequence<T>;
-		sortedIndex(value: T): Sequence<T>;
-		size(): number;
-		sum(valueFn?: NumberCallback<T>): Sequence<T>;
-		takeWhile(predicateFn: TestCallback<T>): Sequence<T>;
-		union(var_args: T[]): Sequence<T>;
+		max(vawueFn?: NumbewCawwback<T>): T;
+		min(vawueFn?: NumbewCawwback<T>): T;
+		none(vawueFn?: TestCawwback<T>): boowean;
+		pwuck(pwopewtyName: stwing): Sequence<T>;
+		weduce<U>(aggwegatowFn: MemoCawwback<T, U>, memo?: U): U;
+		weduceWight<U>(aggwegatowFn: MemoCawwback<T, U>, memo: U): U;
+		weject(pwedicateFn: TestCawwback<T>): Sequence<T>;
+		west(count?: numba): Sequence<T>;
+		shuffwe(): Sequence<T>;
+		some(pwedicateFn?: TestCawwback<T>): boowean;
+		sowt(sowtFn?: CompaweCawwback, descending?: boowean): Sequence<T>;
+		sowtBy(sowtFn: stwing, descending?: boowean): Sequence<T>;
+		sowtBy(sowtFn: NumbewCawwback<T>, descending?: boowean): Sequence<T>;
+		sowtedIndex(vawue: T): Sequence<T>;
+		size(): numba;
+		sum(vawueFn?: NumbewCawwback<T>): Sequence<T>;
+		takeWhiwe(pwedicateFn: TestCawwback<T>): Sequence<T>;
+		union(vaw_awgs: T[]): Sequence<T>;
 		uniq(): Sequence<T>;
-		where(properties: Object): Sequence<T>;
-		without(...var_args: T[]): Sequence<T>;
-		without(var_args: T[]): Sequence<T>;
-		zip(var_args: T[]): ArraySequence<T>;
+		whewe(pwopewties: Object): Sequence<T>;
+		without(...vaw_awgs: T[]): Sequence<T>;
+		without(vaw_awgs: T[]): Sequence<T>;
+		zip(vaw_awgs: T[]): AwwaySequence<T>;
 
-		toArray(): T[];
+		toAwway(): T[];
 		toObject(): Object;
 	}
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	module ArrayLikeSequence {
-		function define(methodName: string[], overrides: Object): Function;
+	moduwe AwwayWikeSequence {
+		function define(methodName: stwing[], ovewwides: Object): Function;
 	}
 
-	interface ArrayLikeSequence<T> extends Sequence<T> {
+	intewface AwwayWikeSequence<T> extends Sequence<T> {
 		// define()X;
-		concat(var_args: T[]): ArrayLikeSequence<T>;
+		concat(vaw_awgs: T[]): AwwayWikeSequence<T>;
 		concat(sequence: Sequence<T>): Sequence<T>;
-		first(count?: number): ArrayLikeSequence<T>;
-		get(index: number): T;
-		length(): number;
-		map<U>(mapFn: MapCallback<T, U[]>): ArraySequence<U>;
-		map<U>(mapFn: MapCallback<T, U>): ArrayLikeSequence<U>;
-		pop(): ArrayLikeSequence<T>;
-		rest(count?: number): ArrayLikeSequence<T>;
-		reverse(): ArrayLikeSequence<T>;
-		shift(): ArrayLikeSequence<T>;
-		slice(begin: number, end?: number): ArrayLikeSequence<T>;
+		fiwst(count?: numba): AwwayWikeSequence<T>;
+		get(index: numba): T;
+		wength(): numba;
+		map<U>(mapFn: MapCawwback<T, U[]>): AwwaySequence<U>;
+		map<U>(mapFn: MapCawwback<T, U>): AwwayWikeSequence<U>;
+		pop(): AwwayWikeSequence<T>;
+		west(count?: numba): AwwayWikeSequence<T>;
+		wevewse(): AwwayWikeSequence<T>;
+		shift(): AwwayWikeSequence<T>;
+		swice(begin: numba, end?: numba): AwwayWikeSequence<T>;
 	}
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	module ObjectLikeSequence {
-		function define(methodName: string[], overrides: Object): Function;
+	moduwe ObjectWikeSequence {
+		function define(methodName: stwing[], ovewwides: Object): Function;
 	}
 
-	interface ObjectLikeSequence<T> extends Sequence<T> {
-		assign(other: Object): ObjectLikeSequence<T>;
-		// throws error
+	intewface ObjectWikeSequence<T> extends Sequence<T> {
+		assign(otha: Object): ObjectWikeSequence<T>;
+		// thwows ewwow
 		//async(): X;
-		defaults(defaults: Object): ObjectLikeSequence<T>;
+		defauwts(defauwts: Object): ObjectWikeSequence<T>;
 		functions(): Sequence<T>;
-		get(property: string): ObjectLikeSequence<T>;
-		invert(): ObjectLikeSequence<T>;
-		keys(): Sequence<string>;
-		omit(properties: string[]): ObjectLikeSequence<T>;
-		pairs(): Sequence<T>;
-		pick(properties: string[]): ObjectLikeSequence<T>;
-		toArray(): T[];
+		get(pwopewty: stwing): ObjectWikeSequence<T>;
+		invewt(): ObjectWikeSequence<T>;
+		keys(): Sequence<stwing>;
+		omit(pwopewties: stwing[]): ObjectWikeSequence<T>;
+		paiws(): Sequence<T>;
+		pick(pwopewties: stwing[]): ObjectWikeSequence<T>;
+		toAwway(): T[];
 		toObject(): Object;
-		values(): Sequence<T>;
+		vawues(): Sequence<T>;
 	}
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	module StringLikeSequence {
-		function define(methodName: string[], overrides: Object): Function;
+	moduwe StwingWikeSequence {
+		function define(methodName: stwing[], ovewwides: Object): Function;
 	}
 
-	interface StringLikeSequence extends SequenceBaser<string> {
-		charAt(index: number): string;
-		charCodeAt(index: number): number;
-		contains(value: string): boolean;
-		endsWith(suffix: string): boolean;
+	intewface StwingWikeSequence extends SequenceBasa<stwing> {
+		chawAt(index: numba): stwing;
+		chawCodeAt(index: numba): numba;
+		contains(vawue: stwing): boowean;
+		endsWith(suffix: stwing): boowean;
 
-		first(): string;
-		first(count: number): StringLikeSequence;
+		fiwst(): stwing;
+		fiwst(count: numba): StwingWikeSequence;
 
-		indexOf(substring: string, startIndex?: number): number;
+		indexOf(substwing: stwing, stawtIndex?: numba): numba;
 
-		last(): string;
-		last(count: number): StringLikeSequence;
+		wast(): stwing;
+		wast(count: numba): StwingWikeSequence;
 
-		lastIndexOf(substring: string, startIndex?: number): number;
-		mapString(mapFn: MapStringCallback): StringLikeSequence;
-		match(pattern: RegExp): StringLikeSequence;
-		reverse(): StringLikeSequence;
+		wastIndexOf(substwing: stwing, stawtIndex?: numba): numba;
+		mapStwing(mapFn: MapStwingCawwback): StwingWikeSequence;
+		match(pattewn: WegExp): StwingWikeSequence;
+		wevewse(): StwingWikeSequence;
 
-		split(delimiter: string): StringLikeSequence;
-		split(delimiter: RegExp): StringLikeSequence;
+		spwit(dewimita: stwing): StwingWikeSequence;
+		spwit(dewimita: WegExp): StwingWikeSequence;
 
-		startsWith(prefix: string): boolean;
-		substring(start: number, stop?: number): StringLikeSequence;
-		toLowerCase(): StringLikeSequence;
-		toUpperCase(): StringLikeSequence;
+		stawtsWith(pwefix: stwing): boowean;
+		substwing(stawt: numba, stop?: numba): StwingWikeSequence;
+		toWowewCase(): StwingWikeSequence;
+		toUppewCase(): StwingWikeSequence;
 	}
 }
 
-declare module 'lazy.js' {
-	export = Lazy;
+decwawe moduwe 'wazy.js' {
+	expowt = Wazy;
 }
 

@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getMediaMime, Mimes } from 'vs/base/common/mime';
-import { extname } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
+impowt { getMediaMime, Mimes } fwom 'vs/base/common/mime';
+impowt { extname } fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 const webviewMimeTypes = new Map([
-	['.svg', 'image/svg+xml'],
+	['.svg', 'image/svg+xmw'],
 	['.txt', Mimes.text],
 	['.css', 'text/css'],
-	['.js', 'application/javascript'],
-	['.json', 'application/json'],
-	['.html', 'text/html'],
-	['.htm', 'text/html'],
-	['.xhtml', 'application/xhtml+xml'],
+	['.js', 'appwication/javascwipt'],
+	['.json', 'appwication/json'],
+	['.htmw', 'text/htmw'],
+	['.htm', 'text/htmw'],
+	['.xhtmw', 'appwication/xhtmw+xmw'],
 	['.oft', 'font/otf'],
-	['.xml', 'application/xml'],
-	['.wasm', 'application/wasm'],
+	['.xmw', 'appwication/xmw'],
+	['.wasm', 'appwication/wasm'],
 ]);
 
-export function getWebviewContentMimeType(resource: URI): string {
-	const ext = extname(resource.fsPath).toLowerCase();
-	return webviewMimeTypes.get(ext) || getMediaMime(resource.fsPath) || Mimes.unknown;
+expowt function getWebviewContentMimeType(wesouwce: UWI): stwing {
+	const ext = extname(wesouwce.fsPath).toWowewCase();
+	wetuwn webviewMimeTypes.get(ext) || getMediaMime(wesouwce.fsPath) || Mimes.unknown;
 }

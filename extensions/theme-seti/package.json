@@ -1,29 +1,29 @@
 {
   "name": "vscode-theme-seti",
-  "private": true,
-  "version": "1.0.0",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "publisher": "vscode",
-  "license": "MIT",
-  "icon": "icons/seti-circular-128x128.png",
-  "scripts": {
-    "update": "node ./build/update-icon-theme.js"
+  "pwivate": twue,
+  "vewsion": "1.0.0",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "icon": "icons/seti-ciwcuwaw-128x128.png",
+  "scwipts": {
+    "update": "node ./buiwd/update-icon-theme.js"
   },
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
+  "contwibutes": {
     "iconThemes": [
       {
         "id": "vs-seti",
-        "label": "%themeLabel%",
+        "wabew": "%themeWabew%",
         "path": "./icons/vs-seti-icon-theme.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

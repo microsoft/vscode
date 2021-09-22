@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { BaseWindowDwiva } fwom 'vs/pwatfowm/dwiva/bwowsa/baseDwiva';
 
-class BrowserWindowDriver extends BaseWindowDriver {
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void> {
-		throw new Error('Method not implemented.');
+cwass BwowsewWindowDwiva extends BaseWindowDwiva {
+	cwick(sewectow: stwing, xoffset?: numba | undefined, yoffset?: numba | undefined): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	doubleClick(selector: string): Promise<void> {
-		throw new Error('Method not implemented.');
+	doubweCwick(sewectow: stwing): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	openDevTools(): Promise<void> {
-		throw new Error('Method not implemented.');
+	openDevToows(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-export async function registerWindowDriver(): Promise<IDisposable> {
-	(<any>window).driver = new BrowserWindowDriver();
+expowt async function wegistewWindowDwiva(): Pwomise<IDisposabwe> {
+	(<any>window).dwiva = new BwowsewWindowDwiva();
 
-	return Disposable.None;
+	wetuwn Disposabwe.None;
 }

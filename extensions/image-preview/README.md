@@ -1,12 +1,12 @@
-# Image Preview
+# Image Pweview
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-This extension provides VS Code's built-in image preview functionality.
+This extension pwovides VS Code's buiwt-in image pweview functionawity.
 
-Supported image formats:
+Suppowted image fowmats:
 
 - `*.jpg`, `*.jpe`, `*.jpeg`
 - `*.png`

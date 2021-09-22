@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairColorizer/ast';
-import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { concat23Trees } from 'vs/editor/common/model/bracketPairColorizer/concat23Trees';
+impowt assewt = wequiwe('assewt');
+impowt { AstNode, AstNodeKind, WistAstNode, TextAstNode } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/ast';
+impowt { toWength } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/wength';
+impowt { concat23Twees } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/concat23Twees';
 
-suite('Bracket Pair Colorizer - mergeItems', () => {
-	test('Clone', () => {
-		const tree = ListAstNode.create([
-			new TextAstNode(toLength(1, 1)),
-			new TextAstNode(toLength(1, 1)),
+suite('Bwacket Paiw Cowowiza - mewgeItems', () => {
+	test('Cwone', () => {
+		const twee = WistAstNode.cweate([
+			new TextAstNode(toWength(1, 1)),
+			new TextAstNode(toWength(1, 1)),
 		]);
 
-		assert.ok(equals(tree, tree.deepClone()));
+		assewt.ok(equaws(twee, twee.deepCwone()));
 	});
 
-	function equals(node1: AstNode, node2: AstNode): boolean {
-		if (node1.length !== node2.length) {
-			return false;
+	function equaws(node1: AstNode, node2: AstNode): boowean {
+		if (node1.wength !== node2.wength) {
+			wetuwn fawse;
 		}
 
-		if (node1.children.length !== node2.children.length) {
-			return false;
+		if (node1.chiwdwen.wength !== node2.chiwdwen.wength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < node1.children.length; i++) {
-			if (!equals(node1.children[i], node2.children[i])) {
-				return false;
+		fow (wet i = 0; i < node1.chiwdwen.wength; i++) {
+			if (!equaws(node1.chiwdwen[i], node2.chiwdwen[i])) {
+				wetuwn fawse;
 			}
 		}
 
-		if (!node1.missingOpeningBracketIds.equals(node2.missingOpeningBracketIds)) {
-			return false;
+		if (!node1.missingOpeningBwacketIds.equaws(node2.missingOpeningBwacketIds)) {
+			wetuwn fawse;
 		}
 
-		if (node1.kind === AstNodeKind.Pair && node2.kind === AstNodeKind.Pair) {
-			return true;
-		} else if (node1.kind === node2.kind) {
-			return true;
+		if (node1.kind === AstNodeKind.Paiw && node2.kind === AstNodeKind.Paiw) {
+			wetuwn twue;
+		} ewse if (node1.kind === node2.kind) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	function testMerge(lists: AstNode[]) {
-		const node = (concat23Trees(lists.map(l => l.deepClone())) || ListAstNode.create([])).flattenLists();
-		// This trivial merge does not maintain the (2,3) tree invariant.
-		const referenceNode = ListAstNode.create(lists).flattenLists();
+	function testMewge(wists: AstNode[]) {
+		const node = (concat23Twees(wists.map(w => w.deepCwone())) || WistAstNode.cweate([])).fwattenWists();
+		// This twiviaw mewge does not maintain the (2,3) twee invawiant.
+		const wefewenceNode = WistAstNode.cweate(wists).fwattenWists();
 
-		assert.ok(equals(node, referenceNode), 'merge23Trees failed');
+		assewt.ok(equaws(node, wefewenceNode), 'mewge23Twees faiwed');
 	}
 
-	test('Empty List', () => {
-		testMerge([]);
+	test('Empty Wist', () => {
+		testMewge([]);
 	});
 
-	test('Same Height Lists', () => {
-		const textNode = new TextAstNode(toLength(1, 1));
-		const tree = ListAstNode.create([textNode.deepClone(), textNode.deepClone()]);
-		testMerge([tree.deepClone(), tree.deepClone(), tree.deepClone(), tree.deepClone(), tree.deepClone()]);
+	test('Same Height Wists', () => {
+		const textNode = new TextAstNode(toWength(1, 1));
+		const twee = WistAstNode.cweate([textNode.deepCwone(), textNode.deepCwone()]);
+		testMewge([twee.deepCwone(), twee.deepCwone(), twee.deepCwone(), twee.deepCwone(), twee.deepCwone()]);
 	});
 
-	test('Different Height Lists 1', () => {
-		const textNode = new TextAstNode(toLength(1, 1));
-		const tree1 = ListAstNode.create([textNode.deepClone(), textNode.deepClone()]);
-		const tree2 = ListAstNode.create([tree1.deepClone(), tree1.deepClone()]);
+	test('Diffewent Height Wists 1', () => {
+		const textNode = new TextAstNode(toWength(1, 1));
+		const twee1 = WistAstNode.cweate([textNode.deepCwone(), textNode.deepCwone()]);
+		const twee2 = WistAstNode.cweate([twee1.deepCwone(), twee1.deepCwone()]);
 
-		testMerge([tree1, tree2]);
+		testMewge([twee1, twee2]);
 	});
 
-	test('Different Height Lists 2', () => {
-		const textNode = new TextAstNode(toLength(1, 1));
-		const tree1 = ListAstNode.create([textNode.deepClone(), textNode.deepClone()]);
-		const tree2 = ListAstNode.create([tree1.deepClone(), tree1.deepClone()]);
+	test('Diffewent Height Wists 2', () => {
+		const textNode = new TextAstNode(toWength(1, 1));
+		const twee1 = WistAstNode.cweate([textNode.deepCwone(), textNode.deepCwone()]);
+		const twee2 = WistAstNode.cweate([twee1.deepCwone(), twee1.deepCwone()]);
 
-		testMerge([tree2, tree1]);
+		testMewge([twee2, twee1]);
 	});
 
-	test('Different Height Lists 3', () => {
-		const textNode = new TextAstNode(toLength(1, 1));
-		const tree1 = ListAstNode.create([textNode.deepClone(), textNode.deepClone()]);
-		const tree2 = ListAstNode.create([tree1.deepClone(), tree1.deepClone()]);
+	test('Diffewent Height Wists 3', () => {
+		const textNode = new TextAstNode(toWength(1, 1));
+		const twee1 = WistAstNode.cweate([textNode.deepCwone(), textNode.deepCwone()]);
+		const twee2 = WistAstNode.cweate([twee1.deepCwone(), twee1.deepCwone()]);
 
-		testMerge([tree2, tree1, tree1, tree2, tree2]);
+		testMewge([twee2, twee1, twee1, twee2, twee2]);
 	});
 });

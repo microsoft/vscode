@@ -1,20 +1,20 @@
 {
 	"comments": {
-		"lineComment": "//",
-		"blockComment": [ "/*", "*/" ]
+		"wineComment": "//",
+		"bwockComment": [ "/*", "*/" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""]
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],

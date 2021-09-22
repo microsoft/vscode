@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export function getRemoteAuthority(uri: URI): string | undefined {
-	return uri.scheme === Schemas.vscodeRemote ? uri.authority : undefined;
+expowt function getWemoteAuthowity(uwi: UWI): stwing | undefined {
+	wetuwn uwi.scheme === Schemas.vscodeWemote ? uwi.authowity : undefined;
 }
 
-export function getRemoteName(authority: string): string;
-export function getRemoteName(authority: undefined): undefined;
-export function getRemoteName(authority: string | undefined): string | undefined;
-export function getRemoteName(authority: string | undefined): string | undefined {
-	if (!authority) {
-		return undefined;
+expowt function getWemoteName(authowity: stwing): stwing;
+expowt function getWemoteName(authowity: undefined): undefined;
+expowt function getWemoteName(authowity: stwing | undefined): stwing | undefined;
+expowt function getWemoteName(authowity: stwing | undefined): stwing | undefined {
+	if (!authowity) {
+		wetuwn undefined;
 	}
-	const pos = authority.indexOf('+');
+	const pos = authowity.indexOf('+');
 	if (pos < 0) {
-		// e.g. localhost:8000
-		return authority;
+		// e.g. wocawhost:8000
+		wetuwn authowity;
 	}
-	return authority.substr(0, pos);
+	wetuwn authowity.substw(0, pos);
 }
 
-export function isVirtualResource(resource: URI) {
-	return resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote;
+expowt function isViwtuawWesouwce(wesouwce: UWI) {
+	wetuwn wesouwce.scheme !== Schemas.fiwe && wesouwce.scheme !== Schemas.vscodeWemote;
 }
 
-export function getVirtualWorkspaceLocation(workspace: IWorkspace): { scheme: string, authority: string } | undefined {
-	if (workspace.folders.length) {
-		return workspace.folders.every(f => isVirtualResource(f.uri)) ? workspace.folders[0].uri : undefined;
-	} else if (workspace.configuration && isVirtualResource(workspace.configuration)) {
-		return workspace.configuration;
+expowt function getViwtuawWowkspaceWocation(wowkspace: IWowkspace): { scheme: stwing, authowity: stwing } | undefined {
+	if (wowkspace.fowdews.wength) {
+		wetuwn wowkspace.fowdews.evewy(f => isViwtuawWesouwce(f.uwi)) ? wowkspace.fowdews[0].uwi : undefined;
+	} ewse if (wowkspace.configuwation && isViwtuawWesouwce(wowkspace.configuwation)) {
+		wetuwn wowkspace.configuwation;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function getVirtualWorkspaceScheme(workspace: IWorkspace): string | undefined {
-	return getVirtualWorkspaceLocation(workspace)?.scheme;
+expowt function getViwtuawWowkspaceScheme(wowkspace: IWowkspace): stwing | undefined {
+	wetuwn getViwtuawWowkspaceWocation(wowkspace)?.scheme;
 }
 
-export function isVirtualWorkspace(workspace: IWorkspace): boolean {
-	return getVirtualWorkspaceLocation(workspace) !== undefined;
+expowt function isViwtuawWowkspace(wowkspace: IWowkspace): boowean {
+	wetuwn getViwtuawWowkspaceWocation(wowkspace) !== undefined;
 }

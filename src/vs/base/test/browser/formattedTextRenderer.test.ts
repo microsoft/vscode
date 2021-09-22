@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt * as assewt fwom 'assewt';
+impowt { wendewFowmattedText, wendewText } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-suite('FormattedTextRenderer', () => {
-	const store = new DisposableStore();
+suite('FowmattedTextWendewa', () => {
+	const stowe = new DisposabweStowe();
 
 	setup(() => {
-		store.clear();
+		stowe.cweaw();
 	});
 
-	teardown(() => {
-		store.clear();
+	teawdown(() => {
+		stowe.cweaw();
 	});
 
-	test('render simple element', () => {
-		let result: HTMLElement = renderText('testing');
+	test('wenda simpwe ewement', () => {
+		wet wesuwt: HTMWEwement = wendewText('testing');
 
-		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
-		assert.strictEqual(result.textContent, 'testing');
-		assert.strictEqual(result.tagName, 'DIV');
+		assewt.stwictEquaw(wesuwt.nodeType, document.EWEMENT_NODE);
+		assewt.stwictEquaw(wesuwt.textContent, 'testing');
+		assewt.stwictEquaw(wesuwt.tagName, 'DIV');
 	});
 
-	test('render element with class', () => {
-		let result: HTMLElement = renderText('testing', {
-			className: 'testClass'
+	test('wenda ewement with cwass', () => {
+		wet wesuwt: HTMWEwement = wendewText('testing', {
+			cwassName: 'testCwass'
 		});
-		assert.strictEqual(result.nodeType, document.ELEMENT_NODE);
-		assert.strictEqual(result.className, 'testClass');
+		assewt.stwictEquaw(wesuwt.nodeType, document.EWEMENT_NODE);
+		assewt.stwictEquaw(wesuwt.cwassName, 'testCwass');
 	});
 
-	test('simple formatting', () => {
-		let result: HTMLElement = renderFormattedText('**bold**');
-		assert.strictEqual(result.children.length, 1);
-		assert.strictEqual(result.firstChild!.textContent, 'bold');
-		assert.strictEqual((<HTMLElement>result.firstChild).tagName, 'B');
-		assert.strictEqual(result.innerHTML, '<b>bold</b>');
+	test('simpwe fowmatting', () => {
+		wet wesuwt: HTMWEwement = wendewFowmattedText('**bowd**');
+		assewt.stwictEquaw(wesuwt.chiwdwen.wength, 1);
+		assewt.stwictEquaw(wesuwt.fiwstChiwd!.textContent, 'bowd');
+		assewt.stwictEquaw((<HTMWEwement>wesuwt.fiwstChiwd).tagName, 'B');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<b>bowd</b>');
 
-		result = renderFormattedText('__italics__');
-		assert.strictEqual(result.innerHTML, '<i>italics</i>');
+		wesuwt = wendewFowmattedText('__itawics__');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<i>itawics</i>');
 
-		result = renderFormattedText('``code``');
-		assert.strictEqual(result.innerHTML, '``code``');
+		wesuwt = wendewFowmattedText('``code``');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '``code``');
 
-		result = renderFormattedText('``code``', { renderCodeSegments: true });
-		assert.strictEqual(result.innerHTML, '<code>code</code>');
+		wesuwt = wendewFowmattedText('``code``', { wendewCodeSegments: twue });
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<code>code</code>');
 
-		result = renderFormattedText('this string has **bold**, __italics__, and ``code``!!', { renderCodeSegments: true });
-		assert.strictEqual(result.innerHTML, 'this string has <b>bold</b>, <i>italics</i>, and <code>code</code>!!');
+		wesuwt = wendewFowmattedText('this stwing has **bowd**, __itawics__, and ``code``!!', { wendewCodeSegments: twue });
+		assewt.stwictEquaw(wesuwt.innewHTMW, 'this stwing has <b>bowd</b>, <i>itawics</i>, and <code>code</code>!!');
 	});
 
-	test('no formatting', () => {
-		let result: HTMLElement = renderFormattedText('this is just a string');
-		assert.strictEqual(result.innerHTML, 'this is just a string');
+	test('no fowmatting', () => {
+		wet wesuwt: HTMWEwement = wendewFowmattedText('this is just a stwing');
+		assewt.stwictEquaw(wesuwt.innewHTMW, 'this is just a stwing');
 	});
 
-	test('preserve newlines', () => {
-		let result: HTMLElement = renderFormattedText('line one\nline two');
-		assert.strictEqual(result.innerHTML, 'line one<br>line two');
+	test('pwesewve newwines', () => {
+		wet wesuwt: HTMWEwement = wendewFowmattedText('wine one\nwine two');
+		assewt.stwictEquaw(wesuwt.innewHTMW, 'wine one<bw>wine two');
 	});
 
 	test('action', () => {
-		let callbackCalled = false;
-		let result: HTMLElement = renderFormattedText('[[action]]', {
-			actionHandler: {
-				callback(content) {
-					assert.strictEqual(content, '0');
-					callbackCalled = true;
+		wet cawwbackCawwed = fawse;
+		wet wesuwt: HTMWEwement = wendewFowmattedText('[[action]]', {
+			actionHandwa: {
+				cawwback(content) {
+					assewt.stwictEquaw(content, '0');
+					cawwbackCawwed = twue;
 				},
-				disposables: store
+				disposabwes: stowe
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<a hwef="#">action</a>');
 
-		let event: MouseEvent = <any>document.createEvent('MouseEvent');
-		event.initEvent('click', true, true);
-		result.firstChild!.dispatchEvent(event);
-		assert.strictEqual(callbackCalled, true);
+		wet event: MouseEvent = <any>document.cweateEvent('MouseEvent');
+		event.initEvent('cwick', twue, twue);
+		wesuwt.fiwstChiwd!.dispatchEvent(event);
+		assewt.stwictEquaw(cawwbackCawwed, twue);
 	});
 
 	test('fancy action', () => {
-		let callbackCalled = false;
-		let result: HTMLElement = renderFormattedText('__**[[action]]**__', {
-			actionHandler: {
-				callback(content) {
-					assert.strictEqual(content, '0');
-					callbackCalled = true;
+		wet cawwbackCawwed = fawse;
+		wet wesuwt: HTMWEwement = wendewFowmattedText('__**[[action]]**__', {
+			actionHandwa: {
+				cawwback(content) {
+					assewt.stwictEquaw(content, '0');
+					cawwbackCawwed = twue;
 				},
-				disposables: store
+				disposabwes: stowe
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<i><b><a hwef="#">action</a></b></i>');
 
-		let event: MouseEvent = <any>document.createEvent('MouseEvent');
-		event.initEvent('click', true, true);
-		result.firstChild!.firstChild!.firstChild!.dispatchEvent(event);
-		assert.strictEqual(callbackCalled, true);
+		wet event: MouseEvent = <any>document.cweateEvent('MouseEvent');
+		event.initEvent('cwick', twue, twue);
+		wesuwt.fiwstChiwd!.fiwstChiwd!.fiwstChiwd!.dispatchEvent(event);
+		assewt.stwictEquaw(cawwbackCawwed, twue);
 	});
 
-	test('fancier action', () => {
-		let callbackCalled = false;
-		let result: HTMLElement = renderFormattedText('``__**[[action]]**__``', {
-			renderCodeSegments: true,
-			actionHandler: {
-				callback(content) {
-					assert.strictEqual(content, '0');
-					callbackCalled = true;
+	test('fancia action', () => {
+		wet cawwbackCawwed = fawse;
+		wet wesuwt: HTMWEwement = wendewFowmattedText('``__**[[action]]**__``', {
+			wendewCodeSegments: twue,
+			actionHandwa: {
+				cawwback(content) {
+					assewt.stwictEquaw(content, '0');
+					cawwbackCawwed = twue;
 				},
-				disposables: store
+				disposabwes: stowe
 			}
 		});
-		assert.strictEqual(result.innerHTML, '<code><i><b><a href="#">action</a></b></i></code>');
+		assewt.stwictEquaw(wesuwt.innewHTMW, '<code><i><b><a hwef="#">action</a></b></i></code>');
 
-		let event: MouseEvent = <any>document.createEvent('MouseEvent');
-		event.initEvent('click', true, true);
-		result.firstChild!.firstChild!.firstChild!.firstChild!.dispatchEvent(event);
-		assert.strictEqual(callbackCalled, true);
+		wet event: MouseEvent = <any>document.cweateEvent('MouseEvent');
+		event.initEvent('cwick', twue, twue);
+		wesuwt.fiwstChiwd!.fiwstChiwd!.fiwstChiwd!.fiwstChiwd!.dispatchEvent(event);
+		assewt.stwictEquaw(cawwbackCawwed, twue);
 	});
 
-	test('escaped formatting', () => {
-		let result: HTMLElement = renderFormattedText('\\*\\*bold\\*\\*');
-		assert.strictEqual(result.children.length, 0);
-		assert.strictEqual(result.innerHTML, '**bold**');
+	test('escaped fowmatting', () => {
+		wet wesuwt: HTMWEwement = wendewFowmattedText('\\*\\*bowd\\*\\*');
+		assewt.stwictEquaw(wesuwt.chiwdwen.wength, 0);
+		assewt.stwictEquaw(wesuwt.innewHTMW, '**bowd**');
 	});
 });

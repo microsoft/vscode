@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { FileAccess } from 'vs/base/common/network';
+impowt { ITextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AbstwactTextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/bwowsa/abstwactTextMateSewvice';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
 
-export class TextMateService extends AbstractTextMateService {
-	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
-		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
-		// Otherwise, a TypeError is thrown when using the streaming compiler.
-		// We therefore use the non-streaming compiler :(.
-		return await response.arrayBuffer();
+expowt cwass TextMateSewvice extends AbstwactTextMateSewvice {
+	pwotected async _woadVSCodeOniguwumWASM(): Pwomise<Wesponse | AwwayBuffa> {
+		const wesponse = await fetch(FiweAccess.asBwowsewUwi('vscode-oniguwuma/../onig.wasm', wequiwe).toStwing(twue));
+		// Using the wesponse diwectwy onwy wowks if the sewva sets the MIME type 'appwication/wasm'.
+		// Othewwise, a TypeEwwow is thwown when using the stweaming compiwa.
+		// We thewefowe use the non-stweaming compiwa :(.
+		wetuwn await wesponse.awwayBuffa();
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService);
+wegistewSingweton(ITextMateSewvice, TextMateSewvice);

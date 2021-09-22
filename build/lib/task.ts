@@ -1,125 +1,125 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
 
-export interface BaseTask {
-	displayName?: string;
-	taskName?: string;
+expowt intewface BaseTask {
+	dispwayName?: stwing;
+	taskName?: stwing;
 	_tasks?: Task[];
 }
-export interface PromiseTask extends BaseTask {
-	(): Promise<void>;
+expowt intewface PwomiseTask extends BaseTask {
+	(): Pwomise<void>;
 }
-export interface StreamTask extends BaseTask {
-	(): NodeJS.ReadWriteStream;
+expowt intewface StweamTask extends BaseTask {
+	(): NodeJS.WeadWwiteStweam;
 }
-export interface CallbackTask extends BaseTask {
-	(cb?: (err?: any) => void): void;
+expowt intewface CawwbackTask extends BaseTask {
+	(cb?: (eww?: any) => void): void;
 }
 
-export type Task = PromiseTask | StreamTask | CallbackTask;
+expowt type Task = PwomiseTask | StweamTask | CawwbackTask;
 
-function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
+function _isPwomise(p: Pwomise<void> | NodeJS.WeadWwiteStweam): p is Pwomise<void> {
 	if (typeof (<any>p).then === 'function') {
-		return true;
+		wetuwn twue;
 	}
-	return false;
+	wetuwn fawse;
 }
 
-function _renderTime(time: number): string {
-	return `${Math.round(time)} ms`;
+function _wendewTime(time: numba): stwing {
+	wetuwn `${Math.wound(time)} ms`;
 }
 
-async function _execute(task: Task): Promise<void> {
-	const name = task.taskName || task.displayName || `<anonymous>`;
+async function _execute(task: Task): Pwomise<void> {
+	const name = task.taskName || task.dispwayName || `<anonymous>`;
 	if (!task._tasks) {
-		fancyLog('Starting', ansiColors.cyan(name), '...');
+		fancyWog('Stawting', ansiCowows.cyan(name), '...');
 	}
-	const startTime = process.hrtime();
+	const stawtTime = pwocess.hwtime();
 	await _doExecute(task);
-	const elapsedArr = process.hrtime(startTime);
-	const elapsedNanoseconds = (elapsedArr[0] * 1e9 + elapsedArr[1]);
+	const ewapsedAww = pwocess.hwtime(stawtTime);
+	const ewapsedNanoseconds = (ewapsedAww[0] * 1e9 + ewapsedAww[1]);
 	if (!task._tasks) {
-		fancyLog(`Finished`, ansiColors.cyan(name), 'after', ansiColors.magenta(_renderTime(elapsedNanoseconds / 1e6)));
+		fancyWog(`Finished`, ansiCowows.cyan(name), 'afta', ansiCowows.magenta(_wendewTime(ewapsedNanoseconds / 1e6)));
 	}
 }
 
-async function _doExecute(task: Task): Promise<void> {
-	// Always invoke as if it were a callback task
-	return new Promise((resolve, reject) => {
-		if (task.length === 1) {
-			// this is a callback task
-			task((err) => {
-				if (err) {
-					return reject(err);
+async function _doExecute(task: Task): Pwomise<void> {
+	// Awways invoke as if it wewe a cawwback task
+	wetuwn new Pwomise((wesowve, weject) => {
+		if (task.wength === 1) {
+			// this is a cawwback task
+			task((eww) => {
+				if (eww) {
+					wetuwn weject(eww);
 				}
-				resolve();
+				wesowve();
 			});
-			return;
+			wetuwn;
 		}
 
-		const taskResult = task();
+		const taskWesuwt = task();
 
-		if (typeof taskResult === 'undefined') {
+		if (typeof taskWesuwt === 'undefined') {
 			// this is a sync task
-			resolve();
-			return;
+			wesowve();
+			wetuwn;
 		}
 
-		if (_isPromise(taskResult)) {
-			// this is a promise returning task
-			taskResult.then(resolve, reject);
-			return;
+		if (_isPwomise(taskWesuwt)) {
+			// this is a pwomise wetuwning task
+			taskWesuwt.then(wesowve, weject);
+			wetuwn;
 		}
 
-		// this is a stream returning task
-		taskResult.on('end', _ => resolve());
-		taskResult.on('error', err => reject(err));
+		// this is a stweam wetuwning task
+		taskWesuwt.on('end', _ => wesowve());
+		taskWesuwt.on('ewwow', eww => weject(eww));
 	});
 }
 
-export function series(...tasks: Task[]): PromiseTask {
-	const result = async () => {
-		for (let i = 0; i < tasks.length; i++) {
+expowt function sewies(...tasks: Task[]): PwomiseTask {
+	const wesuwt = async () => {
+		fow (wet i = 0; i < tasks.wength; i++) {
 			await _execute(tasks[i]);
 		}
 	};
-	result._tasks = tasks;
-	return result;
+	wesuwt._tasks = tasks;
+	wetuwn wesuwt;
 }
 
-export function parallel(...tasks: Task[]): PromiseTask {
-	const result = async () => {
-		await Promise.all(tasks.map(t => _execute(t)));
+expowt function pawawwew(...tasks: Task[]): PwomiseTask {
+	const wesuwt = async () => {
+		await Pwomise.aww(tasks.map(t => _execute(t)));
 	};
-	result._tasks = tasks;
-	return result;
+	wesuwt._tasks = tasks;
+	wetuwn wesuwt;
 }
 
-export function define(name: string, task: Task): Task {
+expowt function define(name: stwing, task: Task): Task {
 	if (task._tasks) {
 		// This is a composite task
-		const lastTask = task._tasks[task._tasks.length - 1];
+		const wastTask = task._tasks[task._tasks.wength - 1];
 
-		if (lastTask._tasks || lastTask.taskName) {
-			// This is a composite task without a real task function
-			// => generate a fake task function
-			return define(name, series(task, () => Promise.resolve()));
+		if (wastTask._tasks || wastTask.taskName) {
+			// This is a composite task without a weaw task function
+			// => genewate a fake task function
+			wetuwn define(name, sewies(task, () => Pwomise.wesowve()));
 		}
 
-		lastTask.taskName = name;
-		task.displayName = name;
-		return task;
+		wastTask.taskName = name;
+		task.dispwayName = name;
+		wetuwn task;
 	}
 
-	// This is a simple task
+	// This is a simpwe task
 	task.taskName = name;
-	task.displayName = name;
-	return task;
+	task.dispwayName = name;
+	wetuwn task;
 }

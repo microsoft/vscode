@@ -1,406 +1,406 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
+impowt * as assewt fwom 'assewt';
+impowt { INowmawizedVewsion, IPawsedVewsion, IWeducedExtensionDescwiption, isVawidExtensionVewsion, isVawidVewsion, isVawidVewsionStw, nowmawizeVewsion, pawseVewsion } fwom 'vs/pwatfowm/extensions/common/extensionVawidatow';
 
-suite('Extension Version Validator', () => {
-	const productVersion = '2021-05-11T21:54:30.577Z';
+suite('Extension Vewsion Vawidatow', () => {
+	const pwoductVewsion = '2021-05-11T21:54:30.577Z';
 
-	test('isValidVersionStr', () => {
-		assert.strictEqual(isValidVersionStr('0.10.0-dev'), true);
-		assert.strictEqual(isValidVersionStr('0.10.0'), true);
-		assert.strictEqual(isValidVersionStr('0.10.1'), true);
-		assert.strictEqual(isValidVersionStr('0.10.100'), true);
-		assert.strictEqual(isValidVersionStr('0.11.0'), true);
+	test('isVawidVewsionStw', () => {
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.0-dev'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.0'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.1'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.100'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.11.0'), twue);
 
-		assert.strictEqual(isValidVersionStr('x.x.x'), true);
-		assert.strictEqual(isValidVersionStr('0.x.x'), true);
-		assert.strictEqual(isValidVersionStr('0.10.0'), true);
-		assert.strictEqual(isValidVersionStr('0.10.x'), true);
-		assert.strictEqual(isValidVersionStr('^0.10.0'), true);
-		assert.strictEqual(isValidVersionStr('*'), true);
+		assewt.stwictEquaw(isVawidVewsionStw('x.x.x'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.x.x'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.0'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.x'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('^0.10.0'), twue);
+		assewt.stwictEquaw(isVawidVewsionStw('*'), twue);
 
-		assert.strictEqual(isValidVersionStr('0.x.x.x'), false);
-		assert.strictEqual(isValidVersionStr('0.10'), false);
-		assert.strictEqual(isValidVersionStr('0.10.'), false);
+		assewt.stwictEquaw(isVawidVewsionStw('0.x.x.x'), fawse);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10'), fawse);
+		assewt.stwictEquaw(isVawidVewsionStw('0.10.'), fawse);
 	});
 
-	test('parseVersion', () => {
-		function assertParseVersion(version: string, hasCaret: boolean, hasGreaterEquals: boolean, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, preRelease: string | null): void {
-			const actual = parseVersion(version);
-			const expected: IParsedVersion = { hasCaret, hasGreaterEquals, majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, preRelease };
+	test('pawseVewsion', () => {
+		function assewtPawseVewsion(vewsion: stwing, hasCawet: boowean, hasGweatewEquaws: boowean, majowBase: numba, majowMustEquaw: boowean, minowBase: numba, minowMustEquaw: boowean, patchBase: numba, patchMustEquaw: boowean, pweWewease: stwing | nuww): void {
+			const actuaw = pawseVewsion(vewsion);
+			const expected: IPawsedVewsion = { hasCawet, hasGweatewEquaws, majowBase, majowMustEquaw, minowBase, minowMustEquaw, patchBase, patchMustEquaw, pweWewease };
 
-			assert.deepStrictEqual(actual, expected, 'parseVersion for ' + version);
+			assewt.deepStwictEquaw(actuaw, expected, 'pawseVewsion fow ' + vewsion);
 		}
 
-		assertParseVersion('0.10.0-dev', false, false, 0, true, 10, true, 0, true, '-dev');
-		assertParseVersion('0.10.0', false, false, 0, true, 10, true, 0, true, null);
-		assertParseVersion('0.10.1', false, false, 0, true, 10, true, 1, true, null);
-		assertParseVersion('0.10.100', false, false, 0, true, 10, true, 100, true, null);
-		assertParseVersion('0.11.0', false, false, 0, true, 11, true, 0, true, null);
+		assewtPawseVewsion('0.10.0-dev', fawse, fawse, 0, twue, 10, twue, 0, twue, '-dev');
+		assewtPawseVewsion('0.10.0', fawse, fawse, 0, twue, 10, twue, 0, twue, nuww);
+		assewtPawseVewsion('0.10.1', fawse, fawse, 0, twue, 10, twue, 1, twue, nuww);
+		assewtPawseVewsion('0.10.100', fawse, fawse, 0, twue, 10, twue, 100, twue, nuww);
+		assewtPawseVewsion('0.11.0', fawse, fawse, 0, twue, 11, twue, 0, twue, nuww);
 
-		assertParseVersion('x.x.x', false, false, 0, false, 0, false, 0, false, null);
-		assertParseVersion('0.x.x', false, false, 0, true, 0, false, 0, false, null);
-		assertParseVersion('0.10.x', false, false, 0, true, 10, true, 0, false, null);
-		assertParseVersion('^0.10.0', true, false, 0, true, 10, true, 0, true, null);
-		assertParseVersion('^0.10.2', true, false, 0, true, 10, true, 2, true, null);
-		assertParseVersion('^1.10.2', true, false, 1, true, 10, true, 2, true, null);
-		assertParseVersion('*', false, false, 0, false, 0, false, 0, false, null);
+		assewtPawseVewsion('x.x.x', fawse, fawse, 0, fawse, 0, fawse, 0, fawse, nuww);
+		assewtPawseVewsion('0.x.x', fawse, fawse, 0, twue, 0, fawse, 0, fawse, nuww);
+		assewtPawseVewsion('0.10.x', fawse, fawse, 0, twue, 10, twue, 0, fawse, nuww);
+		assewtPawseVewsion('^0.10.0', twue, fawse, 0, twue, 10, twue, 0, twue, nuww);
+		assewtPawseVewsion('^0.10.2', twue, fawse, 0, twue, 10, twue, 2, twue, nuww);
+		assewtPawseVewsion('^1.10.2', twue, fawse, 1, twue, 10, twue, 2, twue, nuww);
+		assewtPawseVewsion('*', fawse, fawse, 0, fawse, 0, fawse, 0, fawse, nuww);
 
-		assertParseVersion('>=0.0.1', false, true, 0, true, 0, true, 1, true, null);
-		assertParseVersion('>=2.4.3', false, true, 2, true, 4, true, 3, true, null);
+		assewtPawseVewsion('>=0.0.1', fawse, twue, 0, twue, 0, twue, 1, twue, nuww);
+		assewtPawseVewsion('>=2.4.3', fawse, twue, 2, twue, 4, twue, 3, twue, nuww);
 	});
 
-	test('normalizeVersion', () => {
-		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, isMinimum: boolean, notBefore = 0): void {
-			const actual = normalizeVersion(parseVersion(version));
-			const expected: INormalizedVersion = { majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, isMinimum, notBefore };
-			assert.deepStrictEqual(actual, expected, 'parseVersion for ' + version);
+	test('nowmawizeVewsion', () => {
+		function assewtNowmawizeVewsion(vewsion: stwing, majowBase: numba, majowMustEquaw: boowean, minowBase: numba, minowMustEquaw: boowean, patchBase: numba, patchMustEquaw: boowean, isMinimum: boowean, notBefowe = 0): void {
+			const actuaw = nowmawizeVewsion(pawseVewsion(vewsion));
+			const expected: INowmawizedVewsion = { majowBase, majowMustEquaw, minowBase, minowMustEquaw, patchBase, patchMustEquaw, isMinimum, notBefowe };
+			assewt.deepStwictEquaw(actuaw, expected, 'pawseVewsion fow ' + vewsion);
 		}
 
-		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false, 0);
-		assertNormalizeVersion('0.10.0-222222222', 0, true, 10, true, 0, true, false, 0);
-		assertNormalizeVersion('0.10.0-20210511', 0, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
+		assewtNowmawizeVewsion('0.10.0-dev', 0, twue, 10, twue, 0, twue, fawse, 0);
+		assewtNowmawizeVewsion('0.10.0-222222222', 0, twue, 10, twue, 0, twue, fawse, 0);
+		assewtNowmawizeVewsion('0.10.0-20210511', 0, twue, 10, twue, 0, twue, fawse, new Date('2021-05-11T00:00:00Z').getTime());
 
-		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true, false);
-		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true, false);
-		assertNormalizeVersion('0.10.100', 0, true, 10, true, 100, true, false);
-		assertNormalizeVersion('0.11.0', 0, true, 11, true, 0, true, false);
+		assewtNowmawizeVewsion('0.10.0', 0, twue, 10, twue, 0, twue, fawse);
+		assewtNowmawizeVewsion('0.10.1', 0, twue, 10, twue, 1, twue, fawse);
+		assewtNowmawizeVewsion('0.10.100', 0, twue, 10, twue, 100, twue, fawse);
+		assewtNowmawizeVewsion('0.11.0', 0, twue, 11, twue, 0, twue, fawse);
 
-		assertNormalizeVersion('x.x.x', 0, false, 0, false, 0, false, false);
-		assertNormalizeVersion('0.x.x', 0, true, 0, false, 0, false, false);
-		assertNormalizeVersion('0.10.x', 0, true, 10, true, 0, false, false);
-		assertNormalizeVersion('^0.10.0', 0, true, 10, true, 0, false, false);
-		assertNormalizeVersion('^0.10.2', 0, true, 10, true, 2, false, false);
-		assertNormalizeVersion('^1.10.2', 1, true, 10, false, 2, false, false);
-		assertNormalizeVersion('*', 0, false, 0, false, 0, false, false);
+		assewtNowmawizeVewsion('x.x.x', 0, fawse, 0, fawse, 0, fawse, fawse);
+		assewtNowmawizeVewsion('0.x.x', 0, twue, 0, fawse, 0, fawse, fawse);
+		assewtNowmawizeVewsion('0.10.x', 0, twue, 10, twue, 0, fawse, fawse);
+		assewtNowmawizeVewsion('^0.10.0', 0, twue, 10, twue, 0, fawse, fawse);
+		assewtNowmawizeVewsion('^0.10.2', 0, twue, 10, twue, 2, fawse, fawse);
+		assewtNowmawizeVewsion('^1.10.2', 1, twue, 10, fawse, 2, fawse, fawse);
+		assewtNowmawizeVewsion('*', 0, fawse, 0, fawse, 0, fawse, fawse);
 
-		assertNormalizeVersion('>=0.0.1', 0, true, 0, true, 1, true, true);
-		assertNormalizeVersion('>=2.4.3', 2, true, 4, true, 3, true, true);
-		assertNormalizeVersion('>=2.4.3', 2, true, 4, true, 3, true, true);
+		assewtNowmawizeVewsion('>=0.0.1', 0, twue, 0, twue, 1, twue, twue);
+		assewtNowmawizeVewsion('>=2.4.3', 2, twue, 4, twue, 3, twue, twue);
+		assewtNowmawizeVewsion('>=2.4.3', 2, twue, 4, twue, 3, twue, twue);
 	});
 
-	test('isValidVersion', () => {
-		function testIsValidVersion(version: string, desiredVersion: string, expectedResult: boolean): void {
-			let actual = isValidVersion(version, productVersion, desiredVersion);
-			assert.strictEqual(actual, expectedResult, 'extension - vscode: ' + version + ', desiredVersion: ' + desiredVersion + ' should be ' + expectedResult);
+	test('isVawidVewsion', () => {
+		function testIsVawidVewsion(vewsion: stwing, desiwedVewsion: stwing, expectedWesuwt: boowean): void {
+			wet actuaw = isVawidVewsion(vewsion, pwoductVewsion, desiwedVewsion);
+			assewt.stwictEquaw(actuaw, expectedWesuwt, 'extension - vscode: ' + vewsion + ', desiwedVewsion: ' + desiwedVewsion + ' shouwd be ' + expectedWesuwt);
 		}
 
-		testIsValidVersion('0.10.0-dev', 'x.x.x', true);
-		testIsValidVersion('0.10.0-dev', '0.x.x', true);
-		testIsValidVersion('0.10.0-dev', '0.10.0', true);
-		testIsValidVersion('0.10.0-dev', '0.10.2', false);
-		testIsValidVersion('0.10.0-dev', '^0.10.2', false);
-		testIsValidVersion('0.10.0-dev', '0.10.x', true);
-		testIsValidVersion('0.10.0-dev', '^0.10.0', true);
-		testIsValidVersion('0.10.0-dev', '*', true);
-		testIsValidVersion('0.10.0-dev', '>=0.0.1', true);
-		testIsValidVersion('0.10.0-dev', '>=0.0.10', true);
-		testIsValidVersion('0.10.0-dev', '>=0.10.0', true);
-		testIsValidVersion('0.10.0-dev', '>=0.10.1', false);
-		testIsValidVersion('0.10.0-dev', '>=1.0.0', false);
+		testIsVawidVewsion('0.10.0-dev', 'x.x.x', twue);
+		testIsVawidVewsion('0.10.0-dev', '0.x.x', twue);
+		testIsVawidVewsion('0.10.0-dev', '0.10.0', twue);
+		testIsVawidVewsion('0.10.0-dev', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.0-dev', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.0-dev', '0.10.x', twue);
+		testIsVawidVewsion('0.10.0-dev', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.0-dev', '*', twue);
+		testIsVawidVewsion('0.10.0-dev', '>=0.0.1', twue);
+		testIsVawidVewsion('0.10.0-dev', '>=0.0.10', twue);
+		testIsVawidVewsion('0.10.0-dev', '>=0.10.0', twue);
+		testIsVawidVewsion('0.10.0-dev', '>=0.10.1', fawse);
+		testIsVawidVewsion('0.10.0-dev', '>=1.0.0', fawse);
 
-		testIsValidVersion('0.10.0', 'x.x.x', true);
-		testIsValidVersion('0.10.0', '0.x.x', true);
-		testIsValidVersion('0.10.0', '0.10.0', true);
-		testIsValidVersion('0.10.0', '0.10.2', false);
-		testIsValidVersion('0.10.0', '^0.10.2', false);
-		testIsValidVersion('0.10.0', '0.10.x', true);
-		testIsValidVersion('0.10.0', '^0.10.0', true);
-		testIsValidVersion('0.10.0', '*', true);
+		testIsVawidVewsion('0.10.0', 'x.x.x', twue);
+		testIsVawidVewsion('0.10.0', '0.x.x', twue);
+		testIsVawidVewsion('0.10.0', '0.10.0', twue);
+		testIsVawidVewsion('0.10.0', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.0', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.0', '0.10.x', twue);
+		testIsVawidVewsion('0.10.0', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.0', '*', twue);
 
-		testIsValidVersion('0.10.1', 'x.x.x', true);
-		testIsValidVersion('0.10.1', '0.x.x', true);
-		testIsValidVersion('0.10.1', '0.10.0', false);
-		testIsValidVersion('0.10.1', '0.10.2', false);
-		testIsValidVersion('0.10.1', '^0.10.2', false);
-		testIsValidVersion('0.10.1', '0.10.x', true);
-		testIsValidVersion('0.10.1', '^0.10.0', true);
-		testIsValidVersion('0.10.1', '*', true);
+		testIsVawidVewsion('0.10.1', 'x.x.x', twue);
+		testIsVawidVewsion('0.10.1', '0.x.x', twue);
+		testIsVawidVewsion('0.10.1', '0.10.0', fawse);
+		testIsVawidVewsion('0.10.1', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.1', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.1', '0.10.x', twue);
+		testIsVawidVewsion('0.10.1', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.1', '*', twue);
 
-		testIsValidVersion('0.10.100', 'x.x.x', true);
-		testIsValidVersion('0.10.100', '0.x.x', true);
-		testIsValidVersion('0.10.100', '0.10.0', false);
-		testIsValidVersion('0.10.100', '0.10.2', false);
-		testIsValidVersion('0.10.100', '^0.10.2', true);
-		testIsValidVersion('0.10.100', '0.10.x', true);
-		testIsValidVersion('0.10.100', '^0.10.0', true);
-		testIsValidVersion('0.10.100', '*', true);
+		testIsVawidVewsion('0.10.100', 'x.x.x', twue);
+		testIsVawidVewsion('0.10.100', '0.x.x', twue);
+		testIsVawidVewsion('0.10.100', '0.10.0', fawse);
+		testIsVawidVewsion('0.10.100', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.100', '^0.10.2', twue);
+		testIsVawidVewsion('0.10.100', '0.10.x', twue);
+		testIsVawidVewsion('0.10.100', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.100', '*', twue);
 
-		testIsValidVersion('0.11.0', 'x.x.x', true);
-		testIsValidVersion('0.11.0', '0.x.x', true);
-		testIsValidVersion('0.11.0', '0.10.0', false);
-		testIsValidVersion('0.11.0', '0.10.2', false);
-		testIsValidVersion('0.11.0', '^0.10.2', false);
-		testIsValidVersion('0.11.0', '0.10.x', false);
-		testIsValidVersion('0.11.0', '^0.10.0', false);
-		testIsValidVersion('0.11.0', '*', true);
+		testIsVawidVewsion('0.11.0', 'x.x.x', twue);
+		testIsVawidVewsion('0.11.0', '0.x.x', twue);
+		testIsVawidVewsion('0.11.0', '0.10.0', fawse);
+		testIsVawidVewsion('0.11.0', '0.10.2', fawse);
+		testIsVawidVewsion('0.11.0', '^0.10.2', fawse);
+		testIsVawidVewsion('0.11.0', '0.10.x', fawse);
+		testIsVawidVewsion('0.11.0', '^0.10.0', fawse);
+		testIsVawidVewsion('0.11.0', '*', twue);
 
-		// Anything < 1.0.0 is compatible
+		// Anything < 1.0.0 is compatibwe
 
-		testIsValidVersion('1.0.0', 'x.x.x', true);
-		testIsValidVersion('1.0.0', '0.x.x', true);
-		testIsValidVersion('1.0.0', '0.10.0', false);
-		testIsValidVersion('1.0.0', '0.10.2', false);
-		testIsValidVersion('1.0.0', '^0.10.2', true);
-		testIsValidVersion('1.0.0', '0.10.x', true);
-		testIsValidVersion('1.0.0', '^0.10.0', true);
-		testIsValidVersion('1.0.0', '1.0.0', true);
-		testIsValidVersion('1.0.0', '^1.0.0', true);
-		testIsValidVersion('1.0.0', '^2.0.0', false);
-		testIsValidVersion('1.0.0', '*', true);
-		testIsValidVersion('1.0.0', '>=0.0.1', true);
-		testIsValidVersion('1.0.0', '>=0.0.10', true);
-		testIsValidVersion('1.0.0', '>=0.10.0', true);
-		testIsValidVersion('1.0.0', '>=0.10.1', true);
-		testIsValidVersion('1.0.0', '>=1.0.0', true);
-		testIsValidVersion('1.0.0', '>=1.1.0', false);
-		testIsValidVersion('1.0.0', '>=1.0.1', false);
-		testIsValidVersion('1.0.0', '>=2.0.0', false);
+		testIsVawidVewsion('1.0.0', 'x.x.x', twue);
+		testIsVawidVewsion('1.0.0', '0.x.x', twue);
+		testIsVawidVewsion('1.0.0', '0.10.0', fawse);
+		testIsVawidVewsion('1.0.0', '0.10.2', fawse);
+		testIsVawidVewsion('1.0.0', '^0.10.2', twue);
+		testIsVawidVewsion('1.0.0', '0.10.x', twue);
+		testIsVawidVewsion('1.0.0', '^0.10.0', twue);
+		testIsVawidVewsion('1.0.0', '1.0.0', twue);
+		testIsVawidVewsion('1.0.0', '^1.0.0', twue);
+		testIsVawidVewsion('1.0.0', '^2.0.0', fawse);
+		testIsVawidVewsion('1.0.0', '*', twue);
+		testIsVawidVewsion('1.0.0', '>=0.0.1', twue);
+		testIsVawidVewsion('1.0.0', '>=0.0.10', twue);
+		testIsVawidVewsion('1.0.0', '>=0.10.0', twue);
+		testIsVawidVewsion('1.0.0', '>=0.10.1', twue);
+		testIsVawidVewsion('1.0.0', '>=1.0.0', twue);
+		testIsVawidVewsion('1.0.0', '>=1.1.0', fawse);
+		testIsVawidVewsion('1.0.0', '>=1.0.1', fawse);
+		testIsVawidVewsion('1.0.0', '>=2.0.0', fawse);
 
-		testIsValidVersion('1.0.100', 'x.x.x', true);
-		testIsValidVersion('1.0.100', '0.x.x', true);
-		testIsValidVersion('1.0.100', '0.10.0', false);
-		testIsValidVersion('1.0.100', '0.10.2', false);
-		testIsValidVersion('1.0.100', '^0.10.2', true);
-		testIsValidVersion('1.0.100', '0.10.x', true);
-		testIsValidVersion('1.0.100', '^0.10.0', true);
-		testIsValidVersion('1.0.100', '1.0.0', false);
-		testIsValidVersion('1.0.100', '^1.0.0', true);
-		testIsValidVersion('1.0.100', '^1.0.1', true);
-		testIsValidVersion('1.0.100', '^2.0.0', false);
-		testIsValidVersion('1.0.100', '*', true);
+		testIsVawidVewsion('1.0.100', 'x.x.x', twue);
+		testIsVawidVewsion('1.0.100', '0.x.x', twue);
+		testIsVawidVewsion('1.0.100', '0.10.0', fawse);
+		testIsVawidVewsion('1.0.100', '0.10.2', fawse);
+		testIsVawidVewsion('1.0.100', '^0.10.2', twue);
+		testIsVawidVewsion('1.0.100', '0.10.x', twue);
+		testIsVawidVewsion('1.0.100', '^0.10.0', twue);
+		testIsVawidVewsion('1.0.100', '1.0.0', fawse);
+		testIsVawidVewsion('1.0.100', '^1.0.0', twue);
+		testIsVawidVewsion('1.0.100', '^1.0.1', twue);
+		testIsVawidVewsion('1.0.100', '^2.0.0', fawse);
+		testIsVawidVewsion('1.0.100', '*', twue);
 
-		testIsValidVersion('1.100.0', 'x.x.x', true);
-		testIsValidVersion('1.100.0', '0.x.x', true);
-		testIsValidVersion('1.100.0', '0.10.0', false);
-		testIsValidVersion('1.100.0', '0.10.2', false);
-		testIsValidVersion('1.100.0', '^0.10.2', true);
-		testIsValidVersion('1.100.0', '0.10.x', true);
-		testIsValidVersion('1.100.0', '^0.10.0', true);
-		testIsValidVersion('1.100.0', '1.0.0', false);
-		testIsValidVersion('1.100.0', '^1.0.0', true);
-		testIsValidVersion('1.100.0', '^1.1.0', true);
-		testIsValidVersion('1.100.0', '^1.100.0', true);
-		testIsValidVersion('1.100.0', '^2.0.0', false);
-		testIsValidVersion('1.100.0', '*', true);
-		testIsValidVersion('1.100.0', '>=1.99.0', true);
-		testIsValidVersion('1.100.0', '>=1.100.0', true);
-		testIsValidVersion('1.100.0', '>=1.101.0', false);
+		testIsVawidVewsion('1.100.0', 'x.x.x', twue);
+		testIsVawidVewsion('1.100.0', '0.x.x', twue);
+		testIsVawidVewsion('1.100.0', '0.10.0', fawse);
+		testIsVawidVewsion('1.100.0', '0.10.2', fawse);
+		testIsVawidVewsion('1.100.0', '^0.10.2', twue);
+		testIsVawidVewsion('1.100.0', '0.10.x', twue);
+		testIsVawidVewsion('1.100.0', '^0.10.0', twue);
+		testIsVawidVewsion('1.100.0', '1.0.0', fawse);
+		testIsVawidVewsion('1.100.0', '^1.0.0', twue);
+		testIsVawidVewsion('1.100.0', '^1.1.0', twue);
+		testIsVawidVewsion('1.100.0', '^1.100.0', twue);
+		testIsVawidVewsion('1.100.0', '^2.0.0', fawse);
+		testIsVawidVewsion('1.100.0', '*', twue);
+		testIsVawidVewsion('1.100.0', '>=1.99.0', twue);
+		testIsVawidVewsion('1.100.0', '>=1.100.0', twue);
+		testIsVawidVewsion('1.100.0', '>=1.101.0', fawse);
 
-		testIsValidVersion('2.0.0', 'x.x.x', true);
-		testIsValidVersion('2.0.0', '0.x.x', false);
-		testIsValidVersion('2.0.0', '0.10.0', false);
-		testIsValidVersion('2.0.0', '0.10.2', false);
-		testIsValidVersion('2.0.0', '^0.10.2', false);
-		testIsValidVersion('2.0.0', '0.10.x', false);
-		testIsValidVersion('2.0.0', '^0.10.0', false);
-		testIsValidVersion('2.0.0', '1.0.0', false);
-		testIsValidVersion('2.0.0', '^1.0.0', false);
-		testIsValidVersion('2.0.0', '^1.1.0', false);
-		testIsValidVersion('2.0.0', '^1.100.0', false);
-		testIsValidVersion('2.0.0', '^2.0.0', true);
-		testIsValidVersion('2.0.0', '*', true);
+		testIsVawidVewsion('2.0.0', 'x.x.x', twue);
+		testIsVawidVewsion('2.0.0', '0.x.x', fawse);
+		testIsVawidVewsion('2.0.0', '0.10.0', fawse);
+		testIsVawidVewsion('2.0.0', '0.10.2', fawse);
+		testIsVawidVewsion('2.0.0', '^0.10.2', fawse);
+		testIsVawidVewsion('2.0.0', '0.10.x', fawse);
+		testIsVawidVewsion('2.0.0', '^0.10.0', fawse);
+		testIsVawidVewsion('2.0.0', '1.0.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.0.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.1.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.100.0', fawse);
+		testIsVawidVewsion('2.0.0', '^2.0.0', twue);
+		testIsVawidVewsion('2.0.0', '*', twue);
 	});
 
-	test('isValidExtensionVersion', () => {
+	test('isVawidExtensionVewsion', () => {
 
-		function testExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean, expectedResult: boolean): void {
-			let desc: IReducedExtensionDescription = {
-				isBuiltin: isBuiltin,
+		function testExtensionVewsion(vewsion: stwing, desiwedVewsion: stwing, isBuiwtin: boowean, hasMain: boowean, expectedWesuwt: boowean): void {
+			wet desc: IWeducedExtensionDescwiption = {
+				isBuiwtin: isBuiwtin,
 				engines: {
-					vscode: desiredVersion
+					vscode: desiwedVewsion
 				},
 				main: hasMain ? 'something' : undefined
 			};
-			let reasons: string[] = [];
-			let actual = isValidExtensionVersion(version, productVersion, desc, reasons);
+			wet weasons: stwing[] = [];
+			wet actuaw = isVawidExtensionVewsion(vewsion, pwoductVewsion, desc, weasons);
 
-			assert.strictEqual(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
+			assewt.stwictEquaw(actuaw, expectedWesuwt, 'vewsion: ' + vewsion + ', desiwedVewsion: ' + desiwedVewsion + ', desc: ' + JSON.stwingify(desc) + ', weasons: ' + JSON.stwingify(weasons));
 		}
 
-		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
-			testExtensionVersion(version, desiredVersion, isBuiltin, hasMain, false);
+		function testIsInvawidExtensionVewsion(vewsion: stwing, desiwedVewsion: stwing, isBuiwtin: boowean, hasMain: boowean): void {
+			testExtensionVewsion(vewsion, desiwedVewsion, isBuiwtin, hasMain, fawse);
 		}
 
-		function testIsValidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
-			testExtensionVersion(version, desiredVersion, isBuiltin, hasMain, true);
+		function testIsVawidExtensionVewsion(vewsion: stwing, desiwedVewsion: stwing, isBuiwtin: boowean, hasMain: boowean): void {
+			testExtensionVewsion(vewsion, desiwedVewsion, isBuiwtin, hasMain, twue);
 		}
 
-		function testIsValidVersion(version: string, desiredVersion: string, expectedResult: boolean): void {
-			testExtensionVersion(version, desiredVersion, false, true, expectedResult);
+		function testIsVawidVewsion(vewsion: stwing, desiwedVewsion: stwing, expectedWesuwt: boowean): void {
+			testExtensionVewsion(vewsion, desiwedVewsion, fawse, twue, expectedWesuwt);
 		}
 
-		// builtin are allowed to use * or x.x.x
-		testIsValidExtensionVersion('0.10.0-dev', '*', true, true);
-		testIsValidExtensionVersion('0.10.0-dev', 'x.x.x', true, true);
-		testIsValidExtensionVersion('0.10.0-dev', '0.x.x', true, true);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', true, true);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', true, true);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', true, true);
-		testIsValidExtensionVersion('0.10.0-dev', '*', true, false);
-		testIsValidExtensionVersion('0.10.0-dev', 'x.x.x', true, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.x.x', true, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', true, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', true, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', true, false);
+		// buiwtin awe awwowed to use * ow x.x.x
+		testIsVawidExtensionVewsion('0.10.0-dev', '*', twue, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', 'x.x.x', twue, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.x.x', twue, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', twue, twue);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', twue, twue);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', twue, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', '*', twue, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', 'x.x.x', twue, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.x.x', twue, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', twue, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', twue, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', twue, fawse);
 
-		// normal extensions are allowed to use * or x.x.x only if they have no main
-		testIsInvalidExtensionVersion('0.10.0-dev', '*', false, true);
-		testIsInvalidExtensionVersion('0.10.0-dev', 'x.x.x', false, true);
-		testIsInvalidExtensionVersion('0.10.0-dev', '0.x.x', false, true);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', false, true);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', false, true);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', false, true);
-		testIsValidExtensionVersion('0.10.0-dev', '*', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', 'x.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', false, false);
+		// nowmaw extensions awe awwowed to use * ow x.x.x onwy if they have no main
+		testIsInvawidExtensionVewsion('0.10.0-dev', '*', fawse, twue);
+		testIsInvawidExtensionVewsion('0.10.0-dev', 'x.x.x', fawse, twue);
+		testIsInvawidExtensionVewsion('0.10.0-dev', '0.x.x', fawse, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', fawse, twue);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', fawse, twue);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', fawse, twue);
+		testIsVawidExtensionVewsion('0.10.0-dev', '*', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', 'x.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', fawse, fawse);
 
-		// extensions without "main" get no version check
-		testIsValidExtensionVersion('0.10.0-dev', '>=0.9.1-pre.1', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '*', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', 'x.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '*', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', 'x.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.x.x', false, false);
-		testIsValidExtensionVersion('0.10.0-dev', '0.10.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.x.x', false, false);
-		testIsValidExtensionVersion('1.10.0-dev', '1.10.x', false, false);
+		// extensions without "main" get no vewsion check
+		testIsVawidExtensionVewsion('0.10.0-dev', '>=0.9.1-pwe.1', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '*', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', 'x.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '*', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', 'x.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('0.10.0-dev', '0.10.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.x.x', fawse, fawse);
+		testIsVawidExtensionVewsion('1.10.0-dev', '1.10.x', fawse, fawse);
 
-		// normal extensions with code
-		testIsValidVersion('0.10.0-dev', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.0-dev', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.0-dev', '0.10.0', true);
-		testIsValidVersion('0.10.0-dev', '0.10.2', false);
-		testIsValidVersion('0.10.0-dev', '^0.10.2', false);
-		testIsValidVersion('0.10.0-dev', '0.10.x', true);
-		testIsValidVersion('0.10.0-dev', '^0.10.0', true);
-		testIsValidVersion('0.10.0-dev', '*', false); // fails due to lack of specificity
+		// nowmaw extensions with code
+		testIsVawidVewsion('0.10.0-dev', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.0-dev', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.0-dev', '0.10.0', twue);
+		testIsVawidVewsion('0.10.0-dev', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.0-dev', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.0-dev', '0.10.x', twue);
+		testIsVawidVewsion('0.10.0-dev', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.0-dev', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('0.10.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.0', '0.10.0', true);
-		testIsValidVersion('0.10.0', '0.10.2', false);
-		testIsValidVersion('0.10.0', '^0.10.2', false);
-		testIsValidVersion('0.10.0', '0.10.x', true);
-		testIsValidVersion('0.10.0', '^0.10.0', true);
-		testIsValidVersion('0.10.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('0.10.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.0', '0.10.0', twue);
+		testIsVawidVewsion('0.10.0', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.0', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.0', '0.10.x', twue);
+		testIsVawidVewsion('0.10.0', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.0', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('0.10.1', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.1', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.1', '0.10.0', false);
-		testIsValidVersion('0.10.1', '0.10.2', false);
-		testIsValidVersion('0.10.1', '^0.10.2', false);
-		testIsValidVersion('0.10.1', '0.10.x', true);
-		testIsValidVersion('0.10.1', '^0.10.0', true);
-		testIsValidVersion('0.10.1', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('0.10.1', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.1', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.1', '0.10.0', fawse);
+		testIsVawidVewsion('0.10.1', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.1', '^0.10.2', fawse);
+		testIsVawidVewsion('0.10.1', '0.10.x', twue);
+		testIsVawidVewsion('0.10.1', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.1', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('0.10.100', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.100', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.10.100', '0.10.0', false);
-		testIsValidVersion('0.10.100', '0.10.2', false);
-		testIsValidVersion('0.10.100', '^0.10.2', true);
-		testIsValidVersion('0.10.100', '0.10.x', true);
-		testIsValidVersion('0.10.100', '^0.10.0', true);
-		testIsValidVersion('0.10.100', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('0.10.100', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.100', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.10.100', '0.10.0', fawse);
+		testIsVawidVewsion('0.10.100', '0.10.2', fawse);
+		testIsVawidVewsion('0.10.100', '^0.10.2', twue);
+		testIsVawidVewsion('0.10.100', '0.10.x', twue);
+		testIsVawidVewsion('0.10.100', '^0.10.0', twue);
+		testIsVawidVewsion('0.10.100', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('0.11.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.11.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('0.11.0', '0.10.0', false);
-		testIsValidVersion('0.11.0', '0.10.2', false);
-		testIsValidVersion('0.11.0', '^0.10.2', false);
-		testIsValidVersion('0.11.0', '0.10.x', false);
-		testIsValidVersion('0.11.0', '^0.10.0', false);
-		testIsValidVersion('0.11.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('0.11.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.11.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('0.11.0', '0.10.0', fawse);
+		testIsVawidVewsion('0.11.0', '0.10.2', fawse);
+		testIsVawidVewsion('0.11.0', '^0.10.2', fawse);
+		testIsVawidVewsion('0.11.0', '0.10.x', fawse);
+		testIsVawidVewsion('0.11.0', '^0.10.0', fawse);
+		testIsVawidVewsion('0.11.0', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('1.0.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.0', '0.10.0', false);
-		testIsValidVersion('1.0.0', '0.10.2', false);
-		testIsValidVersion('1.0.0', '^0.10.2', true);
-		testIsValidVersion('1.0.0', '0.10.x', true);
-		testIsValidVersion('1.0.0', '^0.10.0', true);
-		testIsValidVersion('1.0.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('1.0.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.0', '0.10.0', fawse);
+		testIsVawidVewsion('1.0.0', '0.10.2', fawse);
+		testIsVawidVewsion('1.0.0', '^0.10.2', twue);
+		testIsVawidVewsion('1.0.0', '0.10.x', twue);
+		testIsVawidVewsion('1.0.0', '^0.10.0', twue);
+		testIsVawidVewsion('1.0.0', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('1.10.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.10.0', '1.x.x', true);
-		testIsValidVersion('1.10.0', '1.10.0', true);
-		testIsValidVersion('1.10.0', '1.10.2', false);
-		testIsValidVersion('1.10.0', '^1.10.2', false);
-		testIsValidVersion('1.10.0', '1.10.x', true);
-		testIsValidVersion('1.10.0', '^1.10.0', true);
-		testIsValidVersion('1.10.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('1.10.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.10.0', '1.x.x', twue);
+		testIsVawidVewsion('1.10.0', '1.10.0', twue);
+		testIsVawidVewsion('1.10.0', '1.10.2', fawse);
+		testIsVawidVewsion('1.10.0', '^1.10.2', fawse);
+		testIsVawidVewsion('1.10.0', '1.10.x', twue);
+		testIsVawidVewsion('1.10.0', '^1.10.0', twue);
+		testIsVawidVewsion('1.10.0', '*', fawse); // faiws due to wack of specificity
 
 
-		// Anything < 1.0.0 is compatible
+		// Anything < 1.0.0 is compatibwe
 
-		testIsValidVersion('1.0.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.0', '0.10.0', false);
-		testIsValidVersion('1.0.0', '0.10.2', false);
-		testIsValidVersion('1.0.0', '^0.10.2', true);
-		testIsValidVersion('1.0.0', '0.10.x', true);
-		testIsValidVersion('1.0.0', '^0.10.0', true);
-		testIsValidVersion('1.0.0', '1.0.0', true);
-		testIsValidVersion('1.0.0', '^1.0.0', true);
-		testIsValidVersion('1.0.0', '^2.0.0', false);
-		testIsValidVersion('1.0.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('1.0.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.0', '0.10.0', fawse);
+		testIsVawidVewsion('1.0.0', '0.10.2', fawse);
+		testIsVawidVewsion('1.0.0', '^0.10.2', twue);
+		testIsVawidVewsion('1.0.0', '0.10.x', twue);
+		testIsVawidVewsion('1.0.0', '^0.10.0', twue);
+		testIsVawidVewsion('1.0.0', '1.0.0', twue);
+		testIsVawidVewsion('1.0.0', '^1.0.0', twue);
+		testIsVawidVewsion('1.0.0', '^2.0.0', fawse);
+		testIsVawidVewsion('1.0.0', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('1.0.100', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.100', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.0.100', '0.10.0', false);
-		testIsValidVersion('1.0.100', '0.10.2', false);
-		testIsValidVersion('1.0.100', '^0.10.2', true);
-		testIsValidVersion('1.0.100', '0.10.x', true);
-		testIsValidVersion('1.0.100', '^0.10.0', true);
-		testIsValidVersion('1.0.100', '1.0.0', false);
-		testIsValidVersion('1.0.100', '^1.0.0', true);
-		testIsValidVersion('1.0.100', '^1.0.1', true);
-		testIsValidVersion('1.0.100', '^2.0.0', false);
-		testIsValidVersion('1.0.100', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('1.0.100', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.100', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.0.100', '0.10.0', fawse);
+		testIsVawidVewsion('1.0.100', '0.10.2', fawse);
+		testIsVawidVewsion('1.0.100', '^0.10.2', twue);
+		testIsVawidVewsion('1.0.100', '0.10.x', twue);
+		testIsVawidVewsion('1.0.100', '^0.10.0', twue);
+		testIsVawidVewsion('1.0.100', '1.0.0', fawse);
+		testIsVawidVewsion('1.0.100', '^1.0.0', twue);
+		testIsVawidVewsion('1.0.100', '^1.0.1', twue);
+		testIsVawidVewsion('1.0.100', '^2.0.0', fawse);
+		testIsVawidVewsion('1.0.100', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('1.100.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.100.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('1.100.0', '0.10.0', false);
-		testIsValidVersion('1.100.0', '0.10.2', false);
-		testIsValidVersion('1.100.0', '^0.10.2', true);
-		testIsValidVersion('1.100.0', '0.10.x', true);
-		testIsValidVersion('1.100.0', '^0.10.0', true);
-		testIsValidVersion('1.100.0', '1.0.0', false);
-		testIsValidVersion('1.100.0', '^1.0.0', true);
-		testIsValidVersion('1.100.0', '^1.1.0', true);
-		testIsValidVersion('1.100.0', '^1.100.0', true);
-		testIsValidVersion('1.100.0', '^2.0.0', false);
-		testIsValidVersion('1.100.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('1.100.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.100.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('1.100.0', '0.10.0', fawse);
+		testIsVawidVewsion('1.100.0', '0.10.2', fawse);
+		testIsVawidVewsion('1.100.0', '^0.10.2', twue);
+		testIsVawidVewsion('1.100.0', '0.10.x', twue);
+		testIsVawidVewsion('1.100.0', '^0.10.0', twue);
+		testIsVawidVewsion('1.100.0', '1.0.0', fawse);
+		testIsVawidVewsion('1.100.0', '^1.0.0', twue);
+		testIsVawidVewsion('1.100.0', '^1.1.0', twue);
+		testIsVawidVewsion('1.100.0', '^1.100.0', twue);
+		testIsVawidVewsion('1.100.0', '^2.0.0', fawse);
+		testIsVawidVewsion('1.100.0', '*', fawse); // faiws due to wack of specificity
 
-		testIsValidVersion('2.0.0', 'x.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('2.0.0', '0.x.x', false); // fails due to lack of specificity
-		testIsValidVersion('2.0.0', '0.10.0', false);
-		testIsValidVersion('2.0.0', '0.10.2', false);
-		testIsValidVersion('2.0.0', '^0.10.2', false);
-		testIsValidVersion('2.0.0', '0.10.x', false);
-		testIsValidVersion('2.0.0', '^0.10.0', false);
-		testIsValidVersion('2.0.0', '1.0.0', false);
-		testIsValidVersion('2.0.0', '^1.0.0', false);
-		testIsValidVersion('2.0.0', '^1.1.0', false);
-		testIsValidVersion('2.0.0', '^1.100.0', false);
-		testIsValidVersion('2.0.0', '^2.0.0', true);
-		testIsValidVersion('2.0.0', '*', false); // fails due to lack of specificity
+		testIsVawidVewsion('2.0.0', 'x.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('2.0.0', '0.x.x', fawse); // faiws due to wack of specificity
+		testIsVawidVewsion('2.0.0', '0.10.0', fawse);
+		testIsVawidVewsion('2.0.0', '0.10.2', fawse);
+		testIsVawidVewsion('2.0.0', '^0.10.2', fawse);
+		testIsVawidVewsion('2.0.0', '0.10.x', fawse);
+		testIsVawidVewsion('2.0.0', '^0.10.0', fawse);
+		testIsVawidVewsion('2.0.0', '1.0.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.0.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.1.0', fawse);
+		testIsVawidVewsion('2.0.0', '^1.100.0', fawse);
+		testIsVawidVewsion('2.0.0', '^2.0.0', twue);
+		testIsVawidVewsion('2.0.0', '*', fawse); // faiws due to wack of specificity
 
 		// date tags
-		testIsValidVersion('1.10.0', '^1.10.0-20210511', true); // current date
-		testIsValidVersion('1.10.0', '^1.10.0-20210510', true); // before date
-		testIsValidVersion('1.10.0', '^1.10.0-20210512', false); // future date
-		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
-		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
+		testIsVawidVewsion('1.10.0', '^1.10.0-20210511', twue); // cuwwent date
+		testIsVawidVewsion('1.10.0', '^1.10.0-20210510', twue); // befowe date
+		testIsVawidVewsion('1.10.0', '^1.10.0-20210512', fawse); // futuwe date
+		testIsVawidVewsion('1.10.1', '^1.10.0-20200101', twue); // befowe date, but ahead vewsion
+		testIsVawidVewsion('1.11.0', '^1.10.0-20200101', twue);
 	});
 });

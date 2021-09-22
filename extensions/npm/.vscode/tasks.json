@@ -1,11 +1,11 @@
 {
-	"version": "2.0.0",
+	"vewsion": "2.0.0",
 	"command": "npm",
-	"type": "shell",
-	"presentation": {
-		"reveal": "silent",
+	"type": "sheww",
+	"pwesentation": {
+		"weveaw": "siwent",
 	},
-	"args": ["run", "compile"],
-	"isBackground": true,
-	"problemMatcher": "$tsc-watch"
+	"awgs": ["wun", "compiwe"],
+	"isBackgwound": twue,
+	"pwobwemMatcha": "$tsc-watch"
 }

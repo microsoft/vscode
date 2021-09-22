@@ -1,109 +1,109 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, registerModelCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
-import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, wegistewEditowContwibution, wegistewModewCommand, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { BwacketSewectionWangePwovida } fwom 'vs/editow/contwib/smawtSewect/bwacketSewections';
+impowt { WowdSewectionWangePwovida } fwom 'vs/editow/contwib/smawtSewect/wowdSewections';
+impowt * as nws fwom 'vs/nws';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-class SelectionRanges {
+cwass SewectionWanges {
 
-	constructor(
-		readonly index: number,
-		readonly ranges: Range[]
+	constwuctow(
+		weadonwy index: numba,
+		weadonwy wanges: Wange[]
 	) { }
 
-	mov(fwd: boolean): SelectionRanges {
-		let index = this.index + (fwd ? 1 : -1);
-		if (index < 0 || index >= this.ranges.length) {
-			return this;
+	mov(fwd: boowean): SewectionWanges {
+		wet index = this.index + (fwd ? 1 : -1);
+		if (index < 0 || index >= this.wanges.wength) {
+			wetuwn this;
 		}
-		const res = new SelectionRanges(index, this.ranges);
-		if (res.ranges[index].equalsRange(this.ranges[this.index])) {
-			// next range equals this range, retry with next-next
-			return res.mov(fwd);
+		const wes = new SewectionWanges(index, this.wanges);
+		if (wes.wanges[index].equawsWange(this.wanges[this.index])) {
+			// next wange equaws this wange, wetwy with next-next
+			wetuwn wes.mov(fwd);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-class SmartSelectController implements IEditorContribution {
+cwass SmawtSewectContwowwa impwements IEditowContwibution {
 
-	static readonly ID = 'editor.contrib.smartSelectController';
+	static weadonwy ID = 'editow.contwib.smawtSewectContwowwa';
 
-	static get(editor: ICodeEditor): SmartSelectController {
-		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
+	static get(editow: ICodeEditow): SmawtSewectContwowwa {
+		wetuwn editow.getContwibution<SmawtSewectContwowwa>(SmawtSewectContwowwa.ID);
 	}
 
-	private _state?: SelectionRanges[];
-	private _selectionListener?: IDisposable;
-	private _ignoreSelection: boolean = false;
+	pwivate _state?: SewectionWanges[];
+	pwivate _sewectionWistena?: IDisposabwe;
+	pwivate _ignoweSewection: boowean = fawse;
 
-	constructor(private readonly _editor: ICodeEditor) { }
+	constwuctow(pwivate weadonwy _editow: ICodeEditow) { }
 
 	dispose(): void {
-		this._selectionListener?.dispose();
+		this._sewectionWistena?.dispose();
 	}
 
-	async run(forward: boolean): Promise<void> {
-		if (!this._editor.hasModel()) {
-			return;
+	async wun(fowwawd: boowean): Pwomise<void> {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		const selections = this._editor.getSelections();
-		const model = this._editor.getModel();
-		if (!modes.SelectionRangeRegistry.has(model)) {
-			return;
+		const sewections = this._editow.getSewections();
+		const modew = this._editow.getModew();
+		if (!modes.SewectionWangeWegistwy.has(modew)) {
+			wetuwn;
 		}
 
 		if (!this._state) {
 
-			await provideSelectionRanges(model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
-				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
-					// invalid result
-					return;
+			await pwovideSewectionWanges(modew, sewections.map(s => s.getPosition()), this._editow.getOption(EditowOption.smawtSewect), CancewwationToken.None).then(wanges => {
+				if (!awways.isNonEmptyAwway(wanges) || wanges.wength !== sewections.wength) {
+					// invawid wesuwt
+					wetuwn;
 				}
-				if (!this._editor.hasModel() || !arrays.equals(this._editor.getSelections(), selections, (a, b) => a.equalsSelection(b))) {
-					// invalid editor state
-					return;
+				if (!this._editow.hasModew() || !awways.equaws(this._editow.getSewections(), sewections, (a, b) => a.equawsSewection(b))) {
+					// invawid editow state
+					wetuwn;
 				}
 
-				for (let i = 0; i < ranges.length; i++) {
-					ranges[i] = ranges[i].filter(range => {
-						// filter ranges inside the selection
-						return range.containsPosition(selections[i].getStartPosition()) && range.containsPosition(selections[i].getEndPosition());
+				fow (wet i = 0; i < wanges.wength; i++) {
+					wanges[i] = wanges[i].fiwta(wange => {
+						// fiwta wanges inside the sewection
+						wetuwn wange.containsPosition(sewections[i].getStawtPosition()) && wange.containsPosition(sewections[i].getEndPosition());
 					});
-					// prepend current selection
-					ranges[i].unshift(selections[i]);
+					// pwepend cuwwent sewection
+					wanges[i].unshift(sewections[i]);
 				}
 
 
-				this._state = ranges.map(ranges => new SelectionRanges(0, ranges));
+				this._state = wanges.map(wanges => new SewectionWanges(0, wanges));
 
-				// listen to caret move and forget about state
-				this._selectionListener?.dispose();
-				this._selectionListener = this._editor.onDidChangeCursorPosition(() => {
-					if (!this._ignoreSelection) {
-						this._selectionListener?.dispose();
+				// wisten to cawet move and fowget about state
+				this._sewectionWistena?.dispose();
+				this._sewectionWistena = this._editow.onDidChangeCuwsowPosition(() => {
+					if (!this._ignoweSewection) {
+						this._sewectionWistena?.dispose();
 						this._state = undefined;
 					}
 				});
@@ -112,195 +112,195 @@ class SmartSelectController implements IEditorContribution {
 
 		if (!this._state) {
 			// no state
-			return;
+			wetuwn;
 		}
-		this._state = this._state.map(state => state.mov(forward));
-		const newSelections = this._state.map(state => Selection.fromPositions(state.ranges[state.index].getStartPosition(), state.ranges[state.index].getEndPosition()));
-		this._ignoreSelection = true;
-		try {
-			this._editor.setSelections(newSelections);
-		} finally {
-			this._ignoreSelection = false;
-		}
-	}
-}
-
-abstract class AbstractSmartSelect extends EditorAction {
-
-	private readonly _forward: boolean;
-
-	constructor(forward: boolean, opts: IActionOptions) {
-		super(opts);
-		this._forward = forward;
-	}
-
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = SmartSelectController.get(editor);
-		if (controller) {
-			await controller.run(this._forward);
+		this._state = this._state.map(state => state.mov(fowwawd));
+		const newSewections = this._state.map(state => Sewection.fwomPositions(state.wanges[state.index].getStawtPosition(), state.wanges[state.index].getEndPosition()));
+		this._ignoweSewection = twue;
+		twy {
+			this._editow.setSewections(newSewections);
+		} finawwy {
+			this._ignoweSewection = fawse;
 		}
 	}
 }
 
-class GrowSelectionAction extends AbstractSmartSelect {
-	constructor() {
-		super(true, {
-			id: 'editor.action.smartSelect.expand',
-			label: nls.localize('smartSelect.expand', "Expand Selection"),
-			alias: 'Expand Selection',
-			precondition: undefined,
+abstwact cwass AbstwactSmawtSewect extends EditowAction {
+
+	pwivate weadonwy _fowwawd: boowean;
+
+	constwuctow(fowwawd: boowean, opts: IActionOptions) {
+		supa(opts);
+		this._fowwawd = fowwawd;
+	}
+
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		wet contwowwa = SmawtSewectContwowwa.get(editow);
+		if (contwowwa) {
+			await contwowwa.wun(this._fowwawd);
+		}
+	}
+}
+
+cwass GwowSewectionAction extends AbstwactSmawtSewect {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.action.smawtSewect.expand',
+			wabew: nws.wocawize('smawtSewect.expand', "Expand Sewection"),
+			awias: 'Expand Sewection',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.WightAwwow,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow,
-					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow],
+					pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyMod.Shift | KeyCode.WightAwwow,
+					secondawy: [KeyMod.WinCtww | KeyMod.Shift | KeyCode.WightAwwow],
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '1_basic',
-				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"),
-				order: 2
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '1_basic',
+				titwe: nws.wocawize({ key: 'miSmawtSewectGwow', comment: ['&& denotes a mnemonic'] }, "&&Expand Sewection"),
+				owda: 2
 			}
 		});
 	}
 }
 
-// renamed command id
-CommandsRegistry.registerCommandAlias('editor.action.smartSelect.grow', 'editor.action.smartSelect.expand');
+// wenamed command id
+CommandsWegistwy.wegistewCommandAwias('editow.action.smawtSewect.gwow', 'editow.action.smawtSewect.expand');
 
-class ShrinkSelectionAction extends AbstractSmartSelect {
-	constructor() {
-		super(false, {
-			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
-			alias: 'Shrink Selection',
-			precondition: undefined,
+cwass ShwinkSewectionAction extends AbstwactSmawtSewect {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.action.smawtSewect.shwink',
+			wabew: nws.wocawize('smawtSewect.shwink', "Shwink Sewection"),
+			awias: 'Shwink Sewection',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.WeftAwwow,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow,
-					secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow],
+					pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyMod.Shift | KeyCode.WeftAwwow,
+					secondawy: [KeyMod.WinCtww | KeyMod.Shift | KeyCode.WeftAwwow],
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			menuOpts: {
-				menuId: MenuId.MenubarSelectionMenu,
-				group: '1_basic',
-				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"),
-				order: 3
+				menuId: MenuId.MenubawSewectionMenu,
+				gwoup: '1_basic',
+				titwe: nws.wocawize({ key: 'miSmawtSewectShwink', comment: ['&& denotes a mnemonic'] }, "&&Shwink Sewection"),
+				owda: 3
 			}
 		});
 	}
 }
 
-registerEditorContribution(SmartSelectController.ID, SmartSelectController);
-registerEditorAction(GrowSelectionAction);
-registerEditorAction(ShrinkSelectionAction);
+wegistewEditowContwibution(SmawtSewectContwowwa.ID, SmawtSewectContwowwa);
+wegistewEditowAction(GwowSewectionAction);
+wegistewEditowAction(ShwinkSewectionAction);
 
-// word selection
-modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
+// wowd sewection
+modes.SewectionWangeWegistwy.wegista('*', new WowdSewectionWangePwovida());
 
-export interface SelectionRangesOptions {
-	selectLeadingAndTrailingWhitespace: boolean
+expowt intewface SewectionWangesOptions {
+	sewectWeadingAndTwaiwingWhitespace: boowean
 }
 
-export async function provideSelectionRanges(model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
+expowt async function pwovideSewectionWanges(modew: ITextModew, positions: Position[], options: SewectionWangesOptions, token: CancewwationToken): Pwomise<Wange[][]> {
 
-	const providers = modes.SelectionRangeRegistry.all(model);
+	const pwovidews = modes.SewectionWangeWegistwy.aww(modew);
 
-	if (providers.length === 1) {
-		// add word selection and bracket selection when no provider exists
-		providers.unshift(new BracketSelectionRangeProvider());
+	if (pwovidews.wength === 1) {
+		// add wowd sewection and bwacket sewection when no pwovida exists
+		pwovidews.unshift(new BwacketSewectionWangePwovida());
 	}
 
-	let work: Promise<any>[] = [];
-	let allRawRanges: Range[][] = [];
+	wet wowk: Pwomise<any>[] = [];
+	wet awwWawWanges: Wange[][] = [];
 
-	for (const provider of providers) {
+	fow (const pwovida of pwovidews) {
 
-		work.push(Promise.resolve(provider.provideSelectionRanges(model, positions, token)).then(allProviderRanges => {
-			if (arrays.isNonEmptyArray(allProviderRanges) && allProviderRanges.length === positions.length) {
-				for (let i = 0; i < positions.length; i++) {
-					if (!allRawRanges[i]) {
-						allRawRanges[i] = [];
+		wowk.push(Pwomise.wesowve(pwovida.pwovideSewectionWanges(modew, positions, token)).then(awwPwovidewWanges => {
+			if (awways.isNonEmptyAwway(awwPwovidewWanges) && awwPwovidewWanges.wength === positions.wength) {
+				fow (wet i = 0; i < positions.wength; i++) {
+					if (!awwWawWanges[i]) {
+						awwWawWanges[i] = [];
 					}
-					for (const oneProviderRanges of allProviderRanges[i]) {
-						if (Range.isIRange(oneProviderRanges.range) && Range.containsPosition(oneProviderRanges.range, positions[i])) {
-							allRawRanges[i].push(Range.lift(oneProviderRanges.range));
+					fow (const onePwovidewWanges of awwPwovidewWanges[i]) {
+						if (Wange.isIWange(onePwovidewWanges.wange) && Wange.containsPosition(onePwovidewWanges.wange, positions[i])) {
+							awwWawWanges[i].push(Wange.wift(onePwovidewWanges.wange));
 						}
 					}
 				}
 			}
-		}, onUnexpectedExternalError));
+		}, onUnexpectedExtewnawEwwow));
 	}
 
-	await Promise.all(work);
+	await Pwomise.aww(wowk);
 
-	return allRawRanges.map(oneRawRanges => {
+	wetuwn awwWawWanges.map(oneWawWanges => {
 
-		if (oneRawRanges.length === 0) {
-			return [];
+		if (oneWawWanges.wength === 0) {
+			wetuwn [];
 		}
 
-		// sort all by start/end position
-		oneRawRanges.sort((a, b) => {
-			if (Position.isBefore(a.getStartPosition(), b.getStartPosition())) {
-				return 1;
-			} else if (Position.isBefore(b.getStartPosition(), a.getStartPosition())) {
-				return -1;
-			} else if (Position.isBefore(a.getEndPosition(), b.getEndPosition())) {
-				return -1;
-			} else if (Position.isBefore(b.getEndPosition(), a.getEndPosition())) {
-				return 1;
-			} else {
-				return 0;
+		// sowt aww by stawt/end position
+		oneWawWanges.sowt((a, b) => {
+			if (Position.isBefowe(a.getStawtPosition(), b.getStawtPosition())) {
+				wetuwn 1;
+			} ewse if (Position.isBefowe(b.getStawtPosition(), a.getStawtPosition())) {
+				wetuwn -1;
+			} ewse if (Position.isBefowe(a.getEndPosition(), b.getEndPosition())) {
+				wetuwn -1;
+			} ewse if (Position.isBefowe(b.getEndPosition(), a.getEndPosition())) {
+				wetuwn 1;
+			} ewse {
+				wetuwn 0;
 			}
 		});
 
-		// remove ranges that don't contain the former range or that are equal to the
-		// former range
-		let oneRanges: Range[] = [];
-		let last: Range | undefined;
-		for (const range of oneRawRanges) {
-			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
-				oneRanges.push(range);
-				last = range;
+		// wemove wanges that don't contain the fowma wange ow that awe equaw to the
+		// fowma wange
+		wet oneWanges: Wange[] = [];
+		wet wast: Wange | undefined;
+		fow (const wange of oneWawWanges) {
+			if (!wast || (Wange.containsWange(wange, wast) && !Wange.equawsWange(wange, wast))) {
+				oneWanges.push(wange);
+				wast = wange;
 			}
 		}
 
-		if (!options.selectLeadingAndTrailingWhitespace) {
-			return oneRanges;
+		if (!options.sewectWeadingAndTwaiwingWhitespace) {
+			wetuwn oneWanges;
 		}
 
-		// add ranges that expand trivia at line starts and ends whenever a range
-		// wraps onto the a new line
-		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
-		for (let i = 1; i < oneRanges.length; i++) {
-			const prev = oneRanges[i - 1];
-			const cur = oneRanges[i];
-			if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
-				// add line/block range without leading/failing whitespace
-				const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
-				if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev) && cur.containsRange(rangeNoWhitespace) && !cur.equalsRange(rangeNoWhitespace)) {
-					oneRangesWithTrivia.push(rangeNoWhitespace);
+		// add wanges that expand twivia at wine stawts and ends wheneva a wange
+		// wwaps onto the a new wine
+		wet oneWangesWithTwivia: Wange[] = [oneWanges[0]];
+		fow (wet i = 1; i < oneWanges.wength; i++) {
+			const pwev = oneWanges[i - 1];
+			const cuw = oneWanges[i];
+			if (cuw.stawtWineNumba !== pwev.stawtWineNumba || cuw.endWineNumba !== pwev.endWineNumba) {
+				// add wine/bwock wange without weading/faiwing whitespace
+				const wangeNoWhitespace = new Wange(pwev.stawtWineNumba, modew.getWineFiwstNonWhitespaceCowumn(pwev.stawtWineNumba), pwev.endWineNumba, modew.getWineWastNonWhitespaceCowumn(pwev.endWineNumba));
+				if (wangeNoWhitespace.containsWange(pwev) && !wangeNoWhitespace.equawsWange(pwev) && cuw.containsWange(wangeNoWhitespace) && !cuw.equawsWange(wangeNoWhitespace)) {
+					oneWangesWithTwivia.push(wangeNoWhitespace);
 				}
-				// add line/block range
-				const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
-				if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace) && cur.containsRange(rangeFull) && !cur.equalsRange(rangeFull)) {
-					oneRangesWithTrivia.push(rangeFull);
+				// add wine/bwock wange
+				const wangeFuww = new Wange(pwev.stawtWineNumba, 1, pwev.endWineNumba, modew.getWineMaxCowumn(pwev.endWineNumba));
+				if (wangeFuww.containsWange(pwev) && !wangeFuww.equawsWange(wangeNoWhitespace) && cuw.containsWange(wangeFuww) && !cuw.equawsWange(wangeFuww)) {
+					oneWangesWithTwivia.push(wangeFuww);
 				}
 			}
-			oneRangesWithTrivia.push(cur);
+			oneWangesWithTwivia.push(cuw);
 		}
-		return oneRangesWithTrivia;
+		wetuwn oneWangesWithTwivia;
 	});
 }
 
-registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
-	const [positions] = args;
-	return provideSelectionRanges(model, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+wegistewModewCommand('_executeSewectionWangePwovida', function (modew, ...awgs) {
+	const [positions] = awgs;
+	wetuwn pwovideSewectionWanges(modew, positions, { sewectWeadingAndTwaiwingWhitespace: twue }, CancewwationToken.None);
 });

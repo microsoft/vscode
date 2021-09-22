@@ -1,837 +1,837 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
-import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/supports/indentRules';
-import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DEFAUWT_WOWD_WEGEXP, ensuweVawidWowdDefinition } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { WanguageId, WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { EntewAction, FowdingWuwes, IAutoCwosingPaiw, IndentAction, IndentationWuwe, WanguageConfiguwation, StandawdAutoCwosingPaiwConditionaw, CompweteEntewAction, AutoCwosingPaiws, ChawactewPaiw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { cweateScopedWineTokens, ScopedWineTokens } fwom 'vs/editow/common/modes/suppowts';
+impowt { ChawactewPaiwSuppowt } fwom 'vs/editow/common/modes/suppowts/chawactewPaiw';
+impowt { BwacketEwectwicChawactewSuppowt, IEwectwicAction } fwom 'vs/editow/common/modes/suppowts/ewectwicChawacta';
+impowt { IndentConsts, IndentWuwesSuppowt } fwom 'vs/editow/common/modes/suppowts/indentWuwes';
+impowt { OnEntewSuppowt } fwom 'vs/editow/common/modes/suppowts/onEnta';
+impowt { WichEditBwackets } fwom 'vs/editow/common/modes/suppowts/wichEditBwackets';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
 
 /**
- * Interface used to support insertion of mode specific comments.
+ * Intewface used to suppowt insewtion of mode specific comments.
  */
-export interface ICommentsConfiguration {
-	lineCommentToken?: string;
-	blockCommentStartToken?: string;
-	blockCommentEndToken?: string;
+expowt intewface ICommentsConfiguwation {
+	wineCommentToken?: stwing;
+	bwockCommentStawtToken?: stwing;
+	bwockCommentEndToken?: stwing;
 }
 
-export interface IVirtualModel {
-	getLineTokens(lineNumber: number): LineTokens;
-	getLanguageIdentifier(): LanguageIdentifier;
-	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
-	getLineContent(lineNumber: number): string;
+expowt intewface IViwtuawModew {
+	getWineTokens(wineNumba: numba): WineTokens;
+	getWanguageIdentifia(): WanguageIdentifia;
+	getWanguageIdAtPosition(wineNumba: numba, cowumn: numba): WanguageId;
+	getWineContent(wineNumba: numba): stwing;
 }
 
-export interface IIndentConverter {
-	shiftIndent(indentation: string): string;
-	unshiftIndent(indentation: string): string;
-	normalizeIndentation?(indentation: string): string;
+expowt intewface IIndentConvewta {
+	shiftIndent(indentation: stwing): stwing;
+	unshiftIndent(indentation: stwing): stwing;
+	nowmawizeIndentation?(indentation: stwing): stwing;
 }
 
-export class RichEditSupport {
+expowt cwass WichEditSuppowt {
 
-	private readonly _conf: LanguageConfiguration;
-	private readonly _languageIdentifier: LanguageIdentifier;
-	private _brackets: RichEditBrackets | null;
-	private _electricCharacter: BracketElectricCharacterSupport | null;
-	private readonly _onEnterSupport: OnEnterSupport | null;
+	pwivate weadonwy _conf: WanguageConfiguwation;
+	pwivate weadonwy _wanguageIdentifia: WanguageIdentifia;
+	pwivate _bwackets: WichEditBwackets | nuww;
+	pwivate _ewectwicChawacta: BwacketEwectwicChawactewSuppowt | nuww;
+	pwivate weadonwy _onEntewSuppowt: OnEntewSuppowt | nuww;
 
-	public readonly comments: ICommentsConfiguration | null;
-	public readonly characterPair: CharacterPairSupport;
-	public readonly wordDefinition: RegExp;
-	public readonly indentRulesSupport: IndentRulesSupport | null;
-	public readonly indentationRules: IndentationRule | undefined;
-	public readonly foldingRules: FoldingRules;
+	pubwic weadonwy comments: ICommentsConfiguwation | nuww;
+	pubwic weadonwy chawactewPaiw: ChawactewPaiwSuppowt;
+	pubwic weadonwy wowdDefinition: WegExp;
+	pubwic weadonwy indentWuwesSuppowt: IndentWuwesSuppowt | nuww;
+	pubwic weadonwy indentationWuwes: IndentationWuwe | undefined;
+	pubwic weadonwy fowdingWuwes: FowdingWuwes;
 
-	constructor(languageIdentifier: LanguageIdentifier, rawConf: LanguageConfiguration) {
-		this._languageIdentifier = languageIdentifier;
-		this._brackets = null;
-		this._electricCharacter = null;
-		this._conf = rawConf;
-		this._onEnterSupport = (this._conf.brackets || this._conf.indentationRules || this._conf.onEnterRules ? new OnEnterSupport(this._conf) : null);
-		this.comments = RichEditSupport._handleComments(this._conf);
-		this.characterPair = new CharacterPairSupport(this._conf);
-		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
-		this.indentationRules = this._conf.indentationRules;
-		if (this._conf.indentationRules) {
-			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
-		} else {
-			this.indentRulesSupport = null;
+	constwuctow(wanguageIdentifia: WanguageIdentifia, wawConf: WanguageConfiguwation) {
+		this._wanguageIdentifia = wanguageIdentifia;
+		this._bwackets = nuww;
+		this._ewectwicChawacta = nuww;
+		this._conf = wawConf;
+		this._onEntewSuppowt = (this._conf.bwackets || this._conf.indentationWuwes || this._conf.onEntewWuwes ? new OnEntewSuppowt(this._conf) : nuww);
+		this.comments = WichEditSuppowt._handweComments(this._conf);
+		this.chawactewPaiw = new ChawactewPaiwSuppowt(this._conf);
+		this.wowdDefinition = this._conf.wowdPattewn || DEFAUWT_WOWD_WEGEXP;
+		this.indentationWuwes = this._conf.indentationWuwes;
+		if (this._conf.indentationWuwes) {
+			this.indentWuwesSuppowt = new IndentWuwesSuppowt(this._conf.indentationWuwes);
+		} ewse {
+			this.indentWuwesSuppowt = nuww;
 		}
-		this.foldingRules = this._conf.folding || {};
+		this.fowdingWuwes = this._conf.fowding || {};
 	}
 
-	public get brackets(): RichEditBrackets | null {
-		if (!this._brackets && this._conf.brackets) {
-			this._brackets = new RichEditBrackets(this._languageIdentifier, this._conf.brackets);
+	pubwic get bwackets(): WichEditBwackets | nuww {
+		if (!this._bwackets && this._conf.bwackets) {
+			this._bwackets = new WichEditBwackets(this._wanguageIdentifia, this._conf.bwackets);
 		}
-		return this._brackets;
+		wetuwn this._bwackets;
 	}
 
-	public get electricCharacter(): BracketElectricCharacterSupport | null {
-		if (!this._electricCharacter) {
-			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
+	pubwic get ewectwicChawacta(): BwacketEwectwicChawactewSuppowt | nuww {
+		if (!this._ewectwicChawacta) {
+			this._ewectwicChawacta = new BwacketEwectwicChawactewSuppowt(this.bwackets);
 		}
-		return this._electricCharacter;
+		wetuwn this._ewectwicChawacta;
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
-		if (!this._onEnterSupport) {
-			return null;
+	pubwic onEnta(autoIndent: EditowAutoIndentStwategy, pweviousWineText: stwing, befoweEntewText: stwing, aftewEntewText: stwing): EntewAction | nuww {
+		if (!this._onEntewSuppowt) {
+			wetuwn nuww;
 		}
-		return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
+		wetuwn this._onEntewSuppowt.onEnta(autoIndent, pweviousWineText, befoweEntewText, aftewEntewText);
 	}
 
-	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration | null {
-		let commentRule = conf.comments;
-		if (!commentRule) {
-			return null;
+	pwivate static _handweComments(conf: WanguageConfiguwation): ICommentsConfiguwation | nuww {
+		wet commentWuwe = conf.comments;
+		if (!commentWuwe) {
+			wetuwn nuww;
 		}
 
-		// comment configuration
-		let comments: ICommentsConfiguration = {};
+		// comment configuwation
+		wet comments: ICommentsConfiguwation = {};
 
-		if (commentRule.lineComment) {
-			comments.lineCommentToken = commentRule.lineComment;
+		if (commentWuwe.wineComment) {
+			comments.wineCommentToken = commentWuwe.wineComment;
 		}
-		if (commentRule.blockComment) {
-			let [blockStart, blockEnd] = commentRule.blockComment;
-			comments.blockCommentStartToken = blockStart;
-			comments.blockCommentEndToken = blockEnd;
+		if (commentWuwe.bwockComment) {
+			wet [bwockStawt, bwockEnd] = commentWuwe.bwockComment;
+			comments.bwockCommentStawtToken = bwockStawt;
+			comments.bwockCommentEndToken = bwockEnd;
 		}
 
-		return comments;
+		wetuwn comments;
 	}
 }
 
-export class LanguageConfigurationChangeEvent {
-	constructor(
-		public readonly languageIdentifier: LanguageIdentifier
+expowt cwass WanguageConfiguwationChangeEvent {
+	constwuctow(
+		pubwic weadonwy wanguageIdentifia: WanguageIdentifia
 	) { }
 }
 
-class LanguageConfigurationEntry {
+cwass WanguageConfiguwationEntwy {
 
-	constructor(
-		public readonly configuration: LanguageConfiguration,
-		public readonly priority: number,
-		public readonly order: number
+	constwuctow(
+		pubwic weadonwy configuwation: WanguageConfiguwation,
+		pubwic weadonwy pwiowity: numba,
+		pubwic weadonwy owda: numba
 	) { }
 
-	public static cmp(a: LanguageConfigurationEntry, b: LanguageConfigurationEntry) {
-		if (a.priority === b.priority) {
-			// higher order last
-			return a.order - b.order;
+	pubwic static cmp(a: WanguageConfiguwationEntwy, b: WanguageConfiguwationEntwy) {
+		if (a.pwiowity === b.pwiowity) {
+			// higha owda wast
+			wetuwn a.owda - b.owda;
 		}
-		// higher priority last
-		return a.priority - b.priority;
+		// higha pwiowity wast
+		wetuwn a.pwiowity - b.pwiowity;
 	}
 }
 
-class LanguageConfigurationEntries {
+cwass WanguageConfiguwationEntwies {
 
-	private readonly _entries: LanguageConfigurationEntry[];
-	private _order: number;
-	private _resolved: RichEditSupport | null = null;
+	pwivate weadonwy _entwies: WanguageConfiguwationEntwy[];
+	pwivate _owda: numba;
+	pwivate _wesowved: WichEditSuppowt | nuww = nuww;
 
-	constructor(
-		public readonly languageIdentifier: LanguageIdentifier
+	constwuctow(
+		pubwic weadonwy wanguageIdentifia: WanguageIdentifia
 	) {
-		this._entries = [];
-		this._order = 0;
-		this._resolved = null;
+		this._entwies = [];
+		this._owda = 0;
+		this._wesowved = nuww;
 	}
 
-	public register(configuration: LanguageConfiguration, priority: number): IDisposable {
-		const entry = new LanguageConfigurationEntry(configuration, priority, ++this._order);
-		this._entries.push(entry);
-		this._resolved = null;
-		return toDisposable(() => {
-			for (let i = 0; i < this._entries.length; i++) {
-				if (this._entries[i] === entry) {
-					this._entries.splice(i, 1);
-					this._resolved = null;
-					break;
+	pubwic wegista(configuwation: WanguageConfiguwation, pwiowity: numba): IDisposabwe {
+		const entwy = new WanguageConfiguwationEntwy(configuwation, pwiowity, ++this._owda);
+		this._entwies.push(entwy);
+		this._wesowved = nuww;
+		wetuwn toDisposabwe(() => {
+			fow (wet i = 0; i < this._entwies.wength; i++) {
+				if (this._entwies[i] === entwy) {
+					this._entwies.spwice(i, 1);
+					this._wesowved = nuww;
+					bweak;
 				}
 			}
 		});
 	}
 
-	public getRichEditSupport(): RichEditSupport | null {
-		if (!this._resolved) {
-			const config = this._resolve();
+	pubwic getWichEditSuppowt(): WichEditSuppowt | nuww {
+		if (!this._wesowved) {
+			const config = this._wesowve();
 			if (config) {
-				this._resolved = new RichEditSupport(this.languageIdentifier, config);
+				this._wesowved = new WichEditSuppowt(this.wanguageIdentifia, config);
 			}
 		}
-		return this._resolved;
+		wetuwn this._wesowved;
 	}
 
-	private _resolve(): LanguageConfiguration | null {
-		if (this._entries.length === 0) {
-			return null;
+	pwivate _wesowve(): WanguageConfiguwation | nuww {
+		if (this._entwies.wength === 0) {
+			wetuwn nuww;
 		}
-		this._entries.sort(LanguageConfigurationEntry.cmp);
-		const result: LanguageConfiguration = {};
-		for (const entry of this._entries) {
-			const conf = entry.configuration;
-			result.comments = conf.comments || result.comments;
-			result.brackets = conf.brackets || result.brackets;
-			result.wordPattern = conf.wordPattern || result.wordPattern;
-			result.indentationRules = conf.indentationRules || result.indentationRules;
-			result.onEnterRules = conf.onEnterRules || result.onEnterRules;
-			result.autoClosingPairs = conf.autoClosingPairs || result.autoClosingPairs;
-			result.surroundingPairs = conf.surroundingPairs || result.surroundingPairs;
-			result.autoCloseBefore = conf.autoCloseBefore || result.autoCloseBefore;
-			result.folding = conf.folding || result.folding;
-			result.colorizedBracketPairs = conf.colorizedBracketPairs || result.colorizedBracketPairs;
-			result.__electricCharacterSupport = conf.__electricCharacterSupport || result.__electricCharacterSupport;
+		this._entwies.sowt(WanguageConfiguwationEntwy.cmp);
+		const wesuwt: WanguageConfiguwation = {};
+		fow (const entwy of this._entwies) {
+			const conf = entwy.configuwation;
+			wesuwt.comments = conf.comments || wesuwt.comments;
+			wesuwt.bwackets = conf.bwackets || wesuwt.bwackets;
+			wesuwt.wowdPattewn = conf.wowdPattewn || wesuwt.wowdPattewn;
+			wesuwt.indentationWuwes = conf.indentationWuwes || wesuwt.indentationWuwes;
+			wesuwt.onEntewWuwes = conf.onEntewWuwes || wesuwt.onEntewWuwes;
+			wesuwt.autoCwosingPaiws = conf.autoCwosingPaiws || wesuwt.autoCwosingPaiws;
+			wesuwt.suwwoundingPaiws = conf.suwwoundingPaiws || wesuwt.suwwoundingPaiws;
+			wesuwt.autoCwoseBefowe = conf.autoCwoseBefowe || wesuwt.autoCwoseBefowe;
+			wesuwt.fowding = conf.fowding || wesuwt.fowding;
+			wesuwt.cowowizedBwacketPaiws = conf.cowowizedBwacketPaiws || wesuwt.cowowizedBwacketPaiws;
+			wesuwt.__ewectwicChawactewSuppowt = conf.__ewectwicChawactewSuppowt || wesuwt.__ewectwicChawactewSuppowt;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class LanguageConfigurationRegistryImpl {
+expowt cwass WanguageConfiguwationWegistwyImpw {
 
-	private readonly _entries2 = new Map<LanguageId, LanguageConfigurationEntries>();
+	pwivate weadonwy _entwies2 = new Map<WanguageId, WanguageConfiguwationEntwies>();
 
-	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
-	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<WanguageConfiguwationChangeEvent>();
+	pubwic weadonwy onDidChange: Event<WanguageConfiguwationChangeEvent> = this._onDidChange.event;
 
 	/**
-	 * @param priority Use a higher number for higher priority
+	 * @pawam pwiowity Use a higha numba fow higha pwiowity
 	 */
-	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
-		let entries = this._entries2.get(languageIdentifier.id);
-		if (!entries) {
-			entries = new LanguageConfigurationEntries(languageIdentifier);
-			this._entries2.set(languageIdentifier.id, entries);
+	pubwic wegista(wanguageIdentifia: WanguageIdentifia, configuwation: WanguageConfiguwation, pwiowity: numba = 0): IDisposabwe {
+		wet entwies = this._entwies2.get(wanguageIdentifia.id);
+		if (!entwies) {
+			entwies = new WanguageConfiguwationEntwies(wanguageIdentifia);
+			this._entwies2.set(wanguageIdentifia.id, entwies);
 		}
 
-		const disposable = entries.register(configuration, priority);
-		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+		const disposabwe = entwies.wegista(configuwation, pwiowity);
+		this._onDidChange.fiwe(new WanguageConfiguwationChangeEvent(wanguageIdentifia));
 
-		return toDisposable(() => {
-			disposable.dispose();
-			this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageIdentifier));
+		wetuwn toDisposabwe(() => {
+			disposabwe.dispose();
+			this._onDidChange.fiwe(new WanguageConfiguwationChangeEvent(wanguageIdentifia));
 		});
 	}
 
-	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | null {
-		const entries = this._entries2.get(languageId);
-		return entries ? entries.getRichEditSupport() : null;
+	pwivate _getWichEditSuppowt(wanguageId: WanguageId): WichEditSuppowt | nuww {
+		const entwies = this._entwies2.get(wanguageId);
+		wetuwn entwies ? entwies.getWichEditSuppowt() : nuww;
 	}
 
-	public getIndentationRules(languageId: LanguageId): IndentationRule | null {
-		const value = this._getRichEditSupport(languageId);
-		return value ? value.indentationRules || null : null;
+	pubwic getIndentationWuwes(wanguageId: WanguageId): IndentationWuwe | nuww {
+		const vawue = this._getWichEditSuppowt(wanguageId);
+		wetuwn vawue ? vawue.indentationWuwes || nuww : nuww;
 	}
 
-	// begin electricCharacter
+	// begin ewectwicChawacta
 
-	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport | null {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
+	pwivate _getEwectwicChawactewSuppowt(wanguageId: WanguageId): BwacketEwectwicChawactewSuppowt | nuww {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return value.electricCharacter || null;
+		wetuwn vawue.ewectwicChawacta || nuww;
 	}
 
-	public getElectricCharacters(languageId: LanguageId): string[] {
-		let electricCharacterSupport = this._getElectricCharacterSupport(languageId);
-		if (!electricCharacterSupport) {
-			return [];
+	pubwic getEwectwicChawactews(wanguageId: WanguageId): stwing[] {
+		wet ewectwicChawactewSuppowt = this._getEwectwicChawactewSuppowt(wanguageId);
+		if (!ewectwicChawactewSuppowt) {
+			wetuwn [];
 		}
-		return electricCharacterSupport.getElectricCharacters();
+		wetuwn ewectwicChawactewSuppowt.getEwectwicChawactews();
 	}
 
 	/**
-	 * Should return opening bracket type to match indentation with
+	 * Shouwd wetuwn opening bwacket type to match indentation with
 	 */
-	public onElectricCharacter(character: string, context: LineTokens, column: number): IElectricAction | null {
-		let scopedLineTokens = createScopedLineTokens(context, column - 1);
-		let electricCharacterSupport = this._getElectricCharacterSupport(scopedLineTokens.languageId);
-		if (!electricCharacterSupport) {
-			return null;
+	pubwic onEwectwicChawacta(chawacta: stwing, context: WineTokens, cowumn: numba): IEwectwicAction | nuww {
+		wet scopedWineTokens = cweateScopedWineTokens(context, cowumn - 1);
+		wet ewectwicChawactewSuppowt = this._getEwectwicChawactewSuppowt(scopedWineTokens.wanguageId);
+		if (!ewectwicChawactewSuppowt) {
+			wetuwn nuww;
 		}
-		return electricCharacterSupport.onElectricCharacter(character, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+		wetuwn ewectwicChawactewSuppowt.onEwectwicChawacta(chawacta, scopedWineTokens, cowumn - scopedWineTokens.fiwstChawOffset);
 	}
 
-	// end electricCharacter
+	// end ewectwicChawacta
 
-	public getComments(languageId: LanguageId): ICommentsConfiguration | null {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
+	pubwic getComments(wanguageId: WanguageId): ICommentsConfiguwation | nuww {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return value.comments || null;
+		wetuwn vawue.comments || nuww;
 	}
 
-	// begin characterPair
+	// begin chawactewPaiw
 
-	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport | null {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
+	pwivate _getChawactewPaiwSuppowt(wanguageId: WanguageId): ChawactewPaiwSuppowt | nuww {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return value.characterPair || null;
+		wetuwn vawue.chawactewPaiw || nuww;
 	}
 
-	public getAutoClosingPairs(languageId: LanguageId): AutoClosingPairs {
-		const characterPairSupport = this._getCharacterPairSupport(languageId);
-		return new AutoClosingPairs(characterPairSupport ? characterPairSupport.getAutoClosingPairs() : []);
+	pubwic getAutoCwosingPaiws(wanguageId: WanguageId): AutoCwosingPaiws {
+		const chawactewPaiwSuppowt = this._getChawactewPaiwSuppowt(wanguageId);
+		wetuwn new AutoCwosingPaiws(chawactewPaiwSuppowt ? chawactewPaiwSuppowt.getAutoCwosingPaiws() : []);
 	}
 
-	public getAutoCloseBeforeSet(languageId: LanguageId): string {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return CharacterPairSupport.DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED;
+	pubwic getAutoCwoseBefoweSet(wanguageId: WanguageId): stwing {
+		wet chawactewPaiwSuppowt = this._getChawactewPaiwSuppowt(wanguageId);
+		if (!chawactewPaiwSuppowt) {
+			wetuwn ChawactewPaiwSuppowt.DEFAUWT_AUTOCWOSE_BEFOWE_WANGUAGE_DEFINED;
 		}
-		return characterPairSupport.getAutoCloseBeforeSet();
+		wetuwn chawactewPaiwSuppowt.getAutoCwoseBefoweSet();
 	}
 
-	public getSurroundingPairs(languageId: LanguageId): IAutoClosingPair[] {
-		let characterPairSupport = this._getCharacterPairSupport(languageId);
-		if (!characterPairSupport) {
-			return [];
+	pubwic getSuwwoundingPaiws(wanguageId: WanguageId): IAutoCwosingPaiw[] {
+		wet chawactewPaiwSuppowt = this._getChawactewPaiwSuppowt(wanguageId);
+		if (!chawactewPaiwSuppowt) {
+			wetuwn [];
 		}
-		return characterPairSupport.getSurroundingPairs();
+		wetuwn chawactewPaiwSuppowt.getSuwwoundingPaiws();
 	}
 
-	public shouldAutoClosePair(autoClosingPair: StandardAutoClosingPairConditional, context: LineTokens, column: number): boolean {
-		const scopedLineTokens = createScopedLineTokens(context, column - 1);
-		return CharacterPairSupport.shouldAutoClosePair(autoClosingPair, scopedLineTokens, column - scopedLineTokens.firstCharOffset);
+	pubwic shouwdAutoCwosePaiw(autoCwosingPaiw: StandawdAutoCwosingPaiwConditionaw, context: WineTokens, cowumn: numba): boowean {
+		const scopedWineTokens = cweateScopedWineTokens(context, cowumn - 1);
+		wetuwn ChawactewPaiwSuppowt.shouwdAutoCwosePaiw(autoCwosingPaiw, scopedWineTokens, cowumn - scopedWineTokens.fiwstChawOffset);
 	}
 
-	// end characterPair
+	// end chawactewPaiw
 
-	public getWordDefinition(languageId: LanguageId): RegExp {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return ensureValidWordDefinition(null);
+	pubwic getWowdDefinition(wanguageId: WanguageId): WegExp {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn ensuweVawidWowdDefinition(nuww);
 		}
-		return ensureValidWordDefinition(value.wordDefinition || null);
+		wetuwn ensuweVawidWowdDefinition(vawue.wowdDefinition || nuww);
 	}
 
-	public getWordDefinitions(): [LanguageId, RegExp][] {
-		let result: [LanguageId, RegExp][] = [];
-		for (const [language, entries] of this._entries2) {
-			const value = entries.getRichEditSupport();
-			if (value) {
-				result.push([language, value.wordDefinition]);
+	pubwic getWowdDefinitions(): [WanguageId, WegExp][] {
+		wet wesuwt: [WanguageId, WegExp][] = [];
+		fow (const [wanguage, entwies] of this._entwies2) {
+			const vawue = entwies.getWichEditSuppowt();
+			if (vawue) {
+				wesuwt.push([wanguage, vawue.wowdDefinition]);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getFoldingRules(languageId: LanguageId): FoldingRules {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return {};
+	pubwic getFowdingWuwes(wanguageId: WanguageId): FowdingWuwes {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn {};
 		}
-		return value.foldingRules;
+		wetuwn vawue.fowdingWuwes;
 	}
 
-	// begin Indent Rules
+	// begin Indent Wuwes
 
-	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport | null {
-		let value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
+	pubwic getIndentWuwesSuppowt(wanguageId: WanguageId): IndentWuwesSuppowt | nuww {
+		wet vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return value.indentRulesSupport || null;
+		wetuwn vawue.indentWuwesSuppowt || nuww;
 	}
 
 	/**
-	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
-	 * Result:
-	 * -1: run into the boundary of embedded languages
-	 * 0: every line above are invalid
-	 * else: nearest preceding line of the same language
+	 * Get neawest pweceiding wine which doesn't match unIndentPattewn ow contains aww whitespace.
+	 * Wesuwt:
+	 * -1: wun into the boundawy of embedded wanguages
+	 * 0: evewy wine above awe invawid
+	 * ewse: neawest pweceding wine of the same wanguage
 	 */
-	private getPrecedingValidLine(model: IVirtualModel, lineNumber: number, indentRulesSupport: IndentRulesSupport) {
-		let languageID = model.getLanguageIdAtPosition(lineNumber, 0);
-		if (lineNumber > 1) {
-			let lastLineNumber: number;
-			let resultLineNumber = -1;
+	pwivate getPwecedingVawidWine(modew: IViwtuawModew, wineNumba: numba, indentWuwesSuppowt: IndentWuwesSuppowt) {
+		wet wanguageID = modew.getWanguageIdAtPosition(wineNumba, 0);
+		if (wineNumba > 1) {
+			wet wastWineNumba: numba;
+			wet wesuwtWineNumba = -1;
 
-			for (lastLineNumber = lineNumber - 1; lastLineNumber >= 1; lastLineNumber--) {
-				if (model.getLanguageIdAtPosition(lastLineNumber, 0) !== languageID) {
-					return resultLineNumber;
+			fow (wastWineNumba = wineNumba - 1; wastWineNumba >= 1; wastWineNumba--) {
+				if (modew.getWanguageIdAtPosition(wastWineNumba, 0) !== wanguageID) {
+					wetuwn wesuwtWineNumba;
 				}
-				let text = model.getLineContent(lastLineNumber);
-				if (indentRulesSupport.shouldIgnore(text) || /^\s+$/.test(text) || text === '') {
-					resultLineNumber = lastLineNumber;
+				wet text = modew.getWineContent(wastWineNumba);
+				if (indentWuwesSuppowt.shouwdIgnowe(text) || /^\s+$/.test(text) || text === '') {
+					wesuwtWineNumba = wastWineNumba;
 					continue;
 				}
 
-				return lastLineNumber;
+				wetuwn wastWineNumba;
 			}
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 
 	/**
-	 * Get inherited indentation from above lines.
-	 * 1. Find the nearest preceding line which doesn't match unIndentedLinePattern.
-	 * 2. If this line matches indentNextLinePattern or increaseIndentPattern, it means that the indent level of `lineNumber` should be 1 greater than this line.
-	 * 3. If this line doesn't match any indent rules
-	 *   a. check whether the line above it matches indentNextLinePattern
-	 *   b. If not, the indent level of this line is the result
-	 *   c. If so, it means the indent of this line is *temporary*, go upward utill we find a line whose indent is not temporary (the same workflow a -> b -> c).
-	 * 4. Otherwise, we fail to get an inherited indent from aboves. Return null and we should not touch the indent of `lineNumber`
+	 * Get inhewited indentation fwom above wines.
+	 * 1. Find the neawest pweceding wine which doesn't match unIndentedWinePattewn.
+	 * 2. If this wine matches indentNextWinePattewn ow incweaseIndentPattewn, it means that the indent wevew of `wineNumba` shouwd be 1 gweata than this wine.
+	 * 3. If this wine doesn't match any indent wuwes
+	 *   a. check whetha the wine above it matches indentNextWinePattewn
+	 *   b. If not, the indent wevew of this wine is the wesuwt
+	 *   c. If so, it means the indent of this wine is *tempowawy*, go upwawd utiww we find a wine whose indent is not tempowawy (the same wowkfwow a -> b -> c).
+	 * 4. Othewwise, we faiw to get an inhewited indent fwom aboves. Wetuwn nuww and we shouwd not touch the indent of `wineNumba`
 	 *
-	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
+	 * This function onwy wetuwn the inhewited indent based on above wines, it doesn't check whetha cuwwent wine shouwd decwease ow not.
 	 */
-	public getInheritIndentForLine(autoIndent: EditorAutoIndentStrategy, model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number; } | null {
-		if (autoIndent < EditorAutoIndentStrategy.Full) {
-			return null;
+	pubwic getInhewitIndentFowWine(autoIndent: EditowAutoIndentStwategy, modew: IViwtuawModew, wineNumba: numba, honowIntentiawIndent: boowean = twue): { indentation: stwing; action: IndentAction | nuww; wine?: numba; } | nuww {
+		if (autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn nuww;
 		}
 
-		const indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
-		if (!indentRulesSupport) {
-			return null;
+		const indentWuwesSuppowt = this.getIndentWuwesSuppowt(modew.getWanguageIdentifia().id);
+		if (!indentWuwesSuppowt) {
+			wetuwn nuww;
 		}
 
-		if (lineNumber <= 1) {
-			return {
+		if (wineNumba <= 1) {
+			wetuwn {
 				indentation: '',
-				action: null
+				action: nuww
 			};
 		}
 
-		const precedingUnIgnoredLine = this.getPrecedingValidLine(model, lineNumber, indentRulesSupport);
-		if (precedingUnIgnoredLine < 0) {
-			return null;
-		} else if (precedingUnIgnoredLine < 1) {
-			return {
+		const pwecedingUnIgnowedWine = this.getPwecedingVawidWine(modew, wineNumba, indentWuwesSuppowt);
+		if (pwecedingUnIgnowedWine < 0) {
+			wetuwn nuww;
+		} ewse if (pwecedingUnIgnowedWine < 1) {
+			wetuwn {
 				indentation: '',
-				action: null
+				action: nuww
 			};
 		}
 
-		const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
-		if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
-			return {
-				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
+		const pwecedingUnIgnowedWineContent = modew.getWineContent(pwecedingUnIgnowedWine);
+		if (indentWuwesSuppowt.shouwdIncwease(pwecedingUnIgnowedWineContent) || indentWuwesSuppowt.shouwdIndentNextWine(pwecedingUnIgnowedWineContent)) {
+			wetuwn {
+				indentation: stwings.getWeadingWhitespace(pwecedingUnIgnowedWineContent),
 				action: IndentAction.Indent,
-				line: precedingUnIgnoredLine
+				wine: pwecedingUnIgnowedWine
 			};
-		} else if (indentRulesSupport.shouldDecrease(precedingUnIgnoredLineContent)) {
-			return {
-				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
-				action: null,
-				line: precedingUnIgnoredLine
+		} ewse if (indentWuwesSuppowt.shouwdDecwease(pwecedingUnIgnowedWineContent)) {
+			wetuwn {
+				indentation: stwings.getWeadingWhitespace(pwecedingUnIgnowedWineContent),
+				action: nuww,
+				wine: pwecedingUnIgnowedWine
 			};
-		} else {
-			// precedingUnIgnoredLine can not be ignored.
-			// it doesn't increase indent of following lines
-			// it doesn't increase just next line
-			// so current line is not affect by precedingUnIgnoredLine
-			// and then we should get a correct inheritted indentation from above lines
-			if (precedingUnIgnoredLine === 1) {
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null,
-					line: precedingUnIgnoredLine
+		} ewse {
+			// pwecedingUnIgnowedWine can not be ignowed.
+			// it doesn't incwease indent of fowwowing wines
+			// it doesn't incwease just next wine
+			// so cuwwent wine is not affect by pwecedingUnIgnowedWine
+			// and then we shouwd get a cowwect inhewitted indentation fwom above wines
+			if (pwecedingUnIgnowedWine === 1) {
+				wetuwn {
+					indentation: stwings.getWeadingWhitespace(modew.getWineContent(pwecedingUnIgnowedWine)),
+					action: nuww,
+					wine: pwecedingUnIgnowedWine
 				};
 			}
 
-			const previousLine = precedingUnIgnoredLine - 1;
+			const pweviousWine = pwecedingUnIgnowedWine - 1;
 
-			const previousLineIndentMetadata = indentRulesSupport.getIndentMetadata(model.getLineContent(previousLine));
-			if (!(previousLineIndentMetadata & (IndentConsts.INCREASE_MASK | IndentConsts.DECREASE_MASK)) &&
-				(previousLineIndentMetadata & IndentConsts.INDENT_NEXTLINE_MASK)) {
-				let stopLine = 0;
-				for (let i = previousLine - 1; i > 0; i--) {
-					if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+			const pweviousWineIndentMetadata = indentWuwesSuppowt.getIndentMetadata(modew.getWineContent(pweviousWine));
+			if (!(pweviousWineIndentMetadata & (IndentConsts.INCWEASE_MASK | IndentConsts.DECWEASE_MASK)) &&
+				(pweviousWineIndentMetadata & IndentConsts.INDENT_NEXTWINE_MASK)) {
+				wet stopWine = 0;
+				fow (wet i = pweviousWine - 1; i > 0; i--) {
+					if (indentWuwesSuppowt.shouwdIndentNextWine(modew.getWineContent(i))) {
 						continue;
 					}
-					stopLine = i;
-					break;
+					stopWine = i;
+					bweak;
 				}
 
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-					action: null,
-					line: stopLine + 1
+				wetuwn {
+					indentation: stwings.getWeadingWhitespace(modew.getWineContent(stopWine + 1)),
+					action: nuww,
+					wine: stopWine + 1
 				};
 			}
 
-			if (honorIntentialIndent) {
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
-					action: null,
-					line: precedingUnIgnoredLine
+			if (honowIntentiawIndent) {
+				wetuwn {
+					indentation: stwings.getWeadingWhitespace(modew.getWineContent(pwecedingUnIgnowedWine)),
+					action: nuww,
+					wine: pwecedingUnIgnowedWine
 				};
-			} else {
-				// search from precedingUnIgnoredLine until we find one whose indent is not temporary
-				for (let i = precedingUnIgnoredLine; i > 0; i--) {
-					const lineContent = model.getLineContent(i);
-					if (indentRulesSupport.shouldIncrease(lineContent)) {
-						return {
-							indentation: strings.getLeadingWhitespace(lineContent),
+			} ewse {
+				// seawch fwom pwecedingUnIgnowedWine untiw we find one whose indent is not tempowawy
+				fow (wet i = pwecedingUnIgnowedWine; i > 0; i--) {
+					const wineContent = modew.getWineContent(i);
+					if (indentWuwesSuppowt.shouwdIncwease(wineContent)) {
+						wetuwn {
+							indentation: stwings.getWeadingWhitespace(wineContent),
 							action: IndentAction.Indent,
-							line: i
+							wine: i
 						};
-					} else if (indentRulesSupport.shouldIndentNextLine(lineContent)) {
-						let stopLine = 0;
-						for (let j = i - 1; j > 0; j--) {
-							if (indentRulesSupport.shouldIndentNextLine(model.getLineContent(i))) {
+					} ewse if (indentWuwesSuppowt.shouwdIndentNextWine(wineContent)) {
+						wet stopWine = 0;
+						fow (wet j = i - 1; j > 0; j--) {
+							if (indentWuwesSuppowt.shouwdIndentNextWine(modew.getWineContent(i))) {
 								continue;
 							}
-							stopLine = j;
-							break;
+							stopWine = j;
+							bweak;
 						}
 
-						return {
-							indentation: strings.getLeadingWhitespace(model.getLineContent(stopLine + 1)),
-							action: null,
-							line: stopLine + 1
+						wetuwn {
+							indentation: stwings.getWeadingWhitespace(modew.getWineContent(stopWine + 1)),
+							action: nuww,
+							wine: stopWine + 1
 						};
-					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
-						return {
-							indentation: strings.getLeadingWhitespace(lineContent),
-							action: null,
-							line: i
+					} ewse if (indentWuwesSuppowt.shouwdDecwease(wineContent)) {
+						wetuwn {
+							indentation: stwings.getWeadingWhitespace(wineContent),
+							action: nuww,
+							wine: i
 						};
 					}
 				}
 
-				return {
-					indentation: strings.getLeadingWhitespace(model.getLineContent(1)),
-					action: null,
-					line: 1
+				wetuwn {
+					indentation: stwings.getWeadingWhitespace(modew.getWineContent(1)),
+					action: nuww,
+					wine: 1
 				};
 			}
 		}
 	}
 
-	public getGoodIndentForLine(autoIndent: EditorAutoIndentStrategy, virtualModel: IVirtualModel, languageId: LanguageId, lineNumber: number, indentConverter: IIndentConverter): string | null {
-		if (autoIndent < EditorAutoIndentStrategy.Full) {
-			return null;
+	pubwic getGoodIndentFowWine(autoIndent: EditowAutoIndentStwategy, viwtuawModew: IViwtuawModew, wanguageId: WanguageId, wineNumba: numba, indentConvewta: IIndentConvewta): stwing | nuww {
+		if (autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn nuww;
 		}
 
-		const richEditSupport = this._getRichEditSupport(languageId);
-		if (!richEditSupport) {
-			return null;
+		const wichEditSuppowt = this._getWichEditSuppowt(wanguageId);
+		if (!wichEditSuppowt) {
+			wetuwn nuww;
 		}
 
-		const indentRulesSupport = this.getIndentRulesSupport(languageId);
-		if (!indentRulesSupport) {
-			return null;
+		const indentWuwesSuppowt = this.getIndentWuwesSuppowt(wanguageId);
+		if (!indentWuwesSuppowt) {
+			wetuwn nuww;
 		}
 
-		const indent = this.getInheritIndentForLine(autoIndent, virtualModel, lineNumber);
-		const lineContent = virtualModel.getLineContent(lineNumber);
+		const indent = this.getInhewitIndentFowWine(autoIndent, viwtuawModew, wineNumba);
+		const wineContent = viwtuawModew.getWineContent(wineNumba);
 
 		if (indent) {
-			const inheritLine = indent.line;
-			if (inheritLine !== undefined) {
-				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
+			const inhewitWine = indent.wine;
+			if (inhewitWine !== undefined) {
+				const entewWesuwt = wichEditSuppowt.onEnta(autoIndent, '', viwtuawModew.getWineContent(inhewitWine), '');
 
-				if (enterResult) {
-					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
+				if (entewWesuwt) {
+					wet indentation = stwings.getWeadingWhitespace(viwtuawModew.getWineContent(inhewitWine));
 
-					if (enterResult.removeText) {
-						indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+					if (entewWesuwt.wemoveText) {
+						indentation = indentation.substwing(0, indentation.wength - entewWesuwt.wemoveText);
 					}
 
 					if (
-						(enterResult.indentAction === IndentAction.Indent) ||
-						(enterResult.indentAction === IndentAction.IndentOutdent)
+						(entewWesuwt.indentAction === IndentAction.Indent) ||
+						(entewWesuwt.indentAction === IndentAction.IndentOutdent)
 					) {
-						indentation = indentConverter.shiftIndent(indentation);
-					} else if (enterResult.indentAction === IndentAction.Outdent) {
-						indentation = indentConverter.unshiftIndent(indentation);
+						indentation = indentConvewta.shiftIndent(indentation);
+					} ewse if (entewWesuwt.indentAction === IndentAction.Outdent) {
+						indentation = indentConvewta.unshiftIndent(indentation);
 					}
 
-					if (indentRulesSupport.shouldDecrease(lineContent)) {
-						indentation = indentConverter.unshiftIndent(indentation);
+					if (indentWuwesSuppowt.shouwdDecwease(wineContent)) {
+						indentation = indentConvewta.unshiftIndent(indentation);
 					}
 
-					if (enterResult.appendText) {
-						indentation += enterResult.appendText;
+					if (entewWesuwt.appendText) {
+						indentation += entewWesuwt.appendText;
 					}
 
-					return strings.getLeadingWhitespace(indentation);
+					wetuwn stwings.getWeadingWhitespace(indentation);
 				}
 			}
 
-			if (indentRulesSupport.shouldDecrease(lineContent)) {
+			if (indentWuwesSuppowt.shouwdDecwease(wineContent)) {
 				if (indent.action === IndentAction.Indent) {
-					return indent.indentation;
-				} else {
-					return indentConverter.unshiftIndent(indent.indentation);
+					wetuwn indent.indentation;
+				} ewse {
+					wetuwn indentConvewta.unshiftIndent(indent.indentation);
 				}
-			} else {
+			} ewse {
 				if (indent.action === IndentAction.Indent) {
-					return indentConverter.shiftIndent(indent.indentation);
-				} else {
-					return indent.indentation;
+					wetuwn indentConvewta.shiftIndent(indent.indentation);
+				} ewse {
+					wetuwn indent.indentation;
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public getIndentForEnter(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string, afterEnter: string } | null {
-		if (autoIndent < EditorAutoIndentStrategy.Full) {
-			return null;
+	pubwic getIndentFowEnta(autoIndent: EditowAutoIndentStwategy, modew: ITextModew, wange: Wange, indentConvewta: IIndentConvewta): { befoweEnta: stwing, aftewEnta: stwing } | nuww {
+		if (autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn nuww;
 		}
-		model.forceTokenization(range.startLineNumber);
-		const lineTokens = model.getLineTokens(range.startLineNumber);
-		const scopedLineTokens = createScopedLineTokens(lineTokens, range.startColumn - 1);
-		const scopedLineText = scopedLineTokens.getLineContent();
+		modew.fowceTokenization(wange.stawtWineNumba);
+		const wineTokens = modew.getWineTokens(wange.stawtWineNumba);
+		const scopedWineTokens = cweateScopedWineTokens(wineTokens, wange.stawtCowumn - 1);
+		const scopedWineText = scopedWineTokens.getWineContent();
 
-		let embeddedLanguage = false;
-		let beforeEnterText: string;
-		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
-			// we are in the embeded language content
-			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
-			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-		} else {
-			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
-		}
-
-		let afterEnterText: string;
-		if (range.isEmpty()) {
-			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-		} else {
-			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		wet embeddedWanguage = fawse;
+		wet befoweEntewText: stwing;
+		if (scopedWineTokens.fiwstChawOffset > 0 && wineTokens.getWanguageId(0) !== scopedWineTokens.wanguageId) {
+			// we awe in the embeded wanguage content
+			embeddedWanguage = twue; // if embeddedWanguage is twue, then we don't touch the indentation of cuwwent wine
+			befoweEntewText = scopedWineText.substw(0, wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+		} ewse {
+			befoweEntewText = wineTokens.getWineContent().substwing(0, wange.stawtCowumn - 1);
 		}
 
-		const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
-		if (!indentRulesSupport) {
-			return null;
+		wet aftewEntewText: stwing;
+		if (wange.isEmpty()) {
+			aftewEntewText = scopedWineText.substw(wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+		} ewse {
+			const endScopedWineTokens = this.getScopedWineTokens(modew, wange.endWineNumba, wange.endCowumn);
+			aftewEntewText = endScopedWineTokens.getWineContent().substw(wange.endCowumn - 1 - scopedWineTokens.fiwstChawOffset);
 		}
 
-		const beforeEnterResult = beforeEnterText;
-		const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterText);
+		const indentWuwesSuppowt = this.getIndentWuwesSuppowt(scopedWineTokens.wanguageId);
+		if (!indentWuwesSuppowt) {
+			wetuwn nuww;
+		}
 
-		const virtualModel: IVirtualModel = {
-			getLineTokens: (lineNumber: number) => {
-				return model.getLineTokens(lineNumber);
+		const befoweEntewWesuwt = befoweEntewText;
+		const befoweEntewIndent = stwings.getWeadingWhitespace(befoweEntewText);
+
+		const viwtuawModew: IViwtuawModew = {
+			getWineTokens: (wineNumba: numba) => {
+				wetuwn modew.getWineTokens(wineNumba);
 			},
-			getLanguageIdentifier: () => {
-				return model.getLanguageIdentifier();
+			getWanguageIdentifia: () => {
+				wetuwn modew.getWanguageIdentifia();
 			},
-			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-				return model.getLanguageIdAtPosition(lineNumber, column);
+			getWanguageIdAtPosition: (wineNumba: numba, cowumn: numba) => {
+				wetuwn modew.getWanguageIdAtPosition(wineNumba, cowumn);
 			},
-			getLineContent: (lineNumber: number) => {
-				if (lineNumber === range.startLineNumber) {
-					return beforeEnterResult;
-				} else {
-					return model.getLineContent(lineNumber);
+			getWineContent: (wineNumba: numba) => {
+				if (wineNumba === wange.stawtWineNumba) {
+					wetuwn befoweEntewWesuwt;
+				} ewse {
+					wetuwn modew.getWineContent(wineNumba);
 				}
 			}
 		};
 
-		const currentLineIndent = strings.getLeadingWhitespace(lineTokens.getLineContent());
-		const afterEnterAction = this.getInheritIndentForLine(autoIndent, virtualModel, range.startLineNumber + 1);
-		if (!afterEnterAction) {
-			const beforeEnter = embeddedLanguage ? currentLineIndent : beforeEnterIndent;
-			return {
-				beforeEnter: beforeEnter,
-				afterEnter: beforeEnter
+		const cuwwentWineIndent = stwings.getWeadingWhitespace(wineTokens.getWineContent());
+		const aftewEntewAction = this.getInhewitIndentFowWine(autoIndent, viwtuawModew, wange.stawtWineNumba + 1);
+		if (!aftewEntewAction) {
+			const befoweEnta = embeddedWanguage ? cuwwentWineIndent : befoweEntewIndent;
+			wetuwn {
+				befoweEnta: befoweEnta,
+				aftewEnta: befoweEnta
 			};
 		}
 
-		let afterEnterIndent = embeddedLanguage ? currentLineIndent : afterEnterAction.indentation;
+		wet aftewEntewIndent = embeddedWanguage ? cuwwentWineIndent : aftewEntewAction.indentation;
 
-		if (afterEnterAction.action === IndentAction.Indent) {
-			afterEnterIndent = indentConverter.shiftIndent(afterEnterIndent);
+		if (aftewEntewAction.action === IndentAction.Indent) {
+			aftewEntewIndent = indentConvewta.shiftIndent(aftewEntewIndent);
 		}
 
-		if (indentRulesSupport.shouldDecrease(afterEnterText)) {
-			afterEnterIndent = indentConverter.unshiftIndent(afterEnterIndent);
+		if (indentWuwesSuppowt.shouwdDecwease(aftewEntewText)) {
+			aftewEntewIndent = indentConvewta.unshiftIndent(aftewEntewIndent);
 		}
 
-		return {
-			beforeEnter: embeddedLanguage ? currentLineIndent : beforeEnterIndent,
-			afterEnter: afterEnterIndent
+		wetuwn {
+			befoweEnta: embeddedWanguage ? cuwwentWineIndent : befoweEntewIndent,
+			aftewEnta: aftewEntewIndent
 		};
 	}
 
 	/**
-	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
-	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
+	 * We shouwd awways awwow intentionaw indentation. It means, if usews change the indentation of `wineNumba` and the content of
+	 * this wine doesn't match decweaseIndentPattewn, we shouwd not adjust the indentation.
 	 */
-	public getIndentActionForType(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, ch: string, indentConverter: IIndentConverter): string | null {
-		if (autoIndent < EditorAutoIndentStrategy.Full) {
-			return null;
+	pubwic getIndentActionFowType(autoIndent: EditowAutoIndentStwategy, modew: ITextModew, wange: Wange, ch: stwing, indentConvewta: IIndentConvewta): stwing | nuww {
+		if (autoIndent < EditowAutoIndentStwategy.Fuww) {
+			wetuwn nuww;
 		}
-		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
+		const scopedWineTokens = this.getScopedWineTokens(modew, wange.stawtWineNumba, wange.stawtCowumn);
 
-		if (scopedLineTokens.firstCharOffset) {
-			// this line has mixed languages and indentation rules will not work
-			return null;
-		}
-
-		const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
-		if (!indentRulesSupport) {
-			return null;
+		if (scopedWineTokens.fiwstChawOffset) {
+			// this wine has mixed wanguages and indentation wuwes wiww not wowk
+			wetuwn nuww;
 		}
 
-		const scopedLineText = scopedLineTokens.getLineContent();
-		const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-
-		// selection support
-		let afterTypeText: string;
-		if (range.isEmpty()) {
-			afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-		} else {
-			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		const indentWuwesSuppowt = this.getIndentWuwesSuppowt(scopedWineTokens.wanguageId);
+		if (!indentWuwesSuppowt) {
+			wetuwn nuww;
 		}
 
-		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
-		// Users might change the indentation by purpose and we should honor that instead of readjusting.
-		if (!indentRulesSupport.shouldDecrease(beforeTypeText + afterTypeText) && indentRulesSupport.shouldDecrease(beforeTypeText + ch + afterTypeText)) {
-			// after typing `ch`, the content matches decreaseIndentPattern, we should adjust the indent to a good manner.
-			// 1. Get inherited indent action
-			const r = this.getInheritIndentForLine(autoIndent, model, range.startLineNumber, false);
-			if (!r) {
-				return null;
+		const scopedWineText = scopedWineTokens.getWineContent();
+		const befoweTypeText = scopedWineText.substw(0, wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+
+		// sewection suppowt
+		wet aftewTypeText: stwing;
+		if (wange.isEmpty()) {
+			aftewTypeText = scopedWineText.substw(wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+		} ewse {
+			const endScopedWineTokens = this.getScopedWineTokens(modew, wange.endWineNumba, wange.endCowumn);
+			aftewTypeText = endScopedWineTokens.getWineContent().substw(wange.endCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+		}
+
+		// If pwevious content awweady matches decweaseIndentPattewn, it means indentation of this wine shouwd awweady be adjusted
+		// Usews might change the indentation by puwpose and we shouwd honow that instead of weadjusting.
+		if (!indentWuwesSuppowt.shouwdDecwease(befoweTypeText + aftewTypeText) && indentWuwesSuppowt.shouwdDecwease(befoweTypeText + ch + aftewTypeText)) {
+			// afta typing `ch`, the content matches decweaseIndentPattewn, we shouwd adjust the indent to a good manna.
+			// 1. Get inhewited indent action
+			const w = this.getInhewitIndentFowWine(autoIndent, modew, wange.stawtWineNumba, fawse);
+			if (!w) {
+				wetuwn nuww;
 			}
 
-			let indentation = r.indentation;
-			if (r.action !== IndentAction.Indent) {
-				indentation = indentConverter.unshiftIndent(indentation);
+			wet indentation = w.indentation;
+			if (w.action !== IndentAction.Indent) {
+				indentation = indentConvewta.unshiftIndent(indentation);
 			}
 
-			return indentation;
+			wetuwn indentation;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public getIndentMetadata(model: ITextModel, lineNumber: number): number | null {
-		const indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
-		if (!indentRulesSupport) {
-			return null;
+	pubwic getIndentMetadata(modew: ITextModew, wineNumba: numba): numba | nuww {
+		const indentWuwesSuppowt = this.getIndentWuwesSuppowt(modew.getWanguageIdentifia().id);
+		if (!indentWuwesSuppowt) {
+			wetuwn nuww;
 		}
-		if (lineNumber < 1 || lineNumber > model.getLineCount()) {
-			return null;
+		if (wineNumba < 1 || wineNumba > modew.getWineCount()) {
+			wetuwn nuww;
 		}
-		return indentRulesSupport.getIndentMetadata(model.getLineContent(lineNumber));
+		wetuwn indentWuwesSuppowt.getIndentMetadata(modew.getWineContent(wineNumba));
 	}
 
-	// end Indent Rules
+	// end Indent Wuwes
 
-	// begin onEnter
+	// begin onEnta
 
-	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): CompleteEnterAction | null {
-		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		const richEditSupport = this._getRichEditSupport(scopedLineTokens.languageId);
-		if (!richEditSupport) {
-			return null;
+	pubwic getEntewAction(autoIndent: EditowAutoIndentStwategy, modew: ITextModew, wange: Wange): CompweteEntewAction | nuww {
+		const scopedWineTokens = this.getScopedWineTokens(modew, wange.stawtWineNumba, wange.stawtCowumn);
+		const wichEditSuppowt = this._getWichEditSuppowt(scopedWineTokens.wanguageId);
+		if (!wichEditSuppowt) {
+			wetuwn nuww;
 		}
 
-		const scopedLineText = scopedLineTokens.getLineContent();
-		const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const scopedWineText = scopedWineTokens.getWineContent();
+		const befoweEntewText = scopedWineText.substw(0, wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
 
-		// selection support
-		let afterEnterText: string;
-		if (range.isEmpty()) {
-			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-		} else {
-			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+		// sewection suppowt
+		wet aftewEntewText: stwing;
+		if (wange.isEmpty()) {
+			aftewEntewText = scopedWineText.substw(wange.stawtCowumn - 1 - scopedWineTokens.fiwstChawOffset);
+		} ewse {
+			const endScopedWineTokens = this.getScopedWineTokens(modew, wange.endWineNumba, wange.endCowumn);
+			aftewEntewText = endScopedWineTokens.getWineContent().substw(wange.endCowumn - 1 - scopedWineTokens.fiwstChawOffset);
 		}
 
-		let previousLineText = '';
-		if (range.startLineNumber > 1 && scopedLineTokens.firstCharOffset === 0) {
-			// This is not the first line and the entire line belongs to this mode
-			const oneLineAboveScopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber - 1);
-			if (oneLineAboveScopedLineTokens.languageId === scopedLineTokens.languageId) {
-				// The line above ends with text belonging to the same mode
-				previousLineText = oneLineAboveScopedLineTokens.getLineContent();
+		wet pweviousWineText = '';
+		if (wange.stawtWineNumba > 1 && scopedWineTokens.fiwstChawOffset === 0) {
+			// This is not the fiwst wine and the entiwe wine bewongs to this mode
+			const oneWineAboveScopedWineTokens = this.getScopedWineTokens(modew, wange.stawtWineNumba - 1);
+			if (oneWineAboveScopedWineTokens.wanguageId === scopedWineTokens.wanguageId) {
+				// The wine above ends with text bewonging to the same mode
+				pweviousWineText = oneWineAboveScopedWineTokens.getWineContent();
 			}
 		}
 
-		const enterResult = richEditSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
-		if (!enterResult) {
-			return null;
+		const entewWesuwt = wichEditSuppowt.onEnta(autoIndent, pweviousWineText, befoweEntewText, aftewEntewText);
+		if (!entewWesuwt) {
+			wetuwn nuww;
 		}
 
-		const indentAction = enterResult.indentAction;
-		let appendText = enterResult.appendText;
-		const removeText = enterResult.removeText || 0;
+		const indentAction = entewWesuwt.indentAction;
+		wet appendText = entewWesuwt.appendText;
+		const wemoveText = entewWesuwt.wemoveText || 0;
 
-		// Here we add `\t` to appendText first because enterAction is leveraging appendText and removeText to change indentation.
+		// Hewe we add `\t` to appendText fiwst because entewAction is wevewaging appendText and wemoveText to change indentation.
 		if (!appendText) {
 			if (
 				(indentAction === IndentAction.Indent) ||
 				(indentAction === IndentAction.IndentOutdent)
 			) {
 				appendText = '\t';
-			} else {
+			} ewse {
 				appendText = '';
 			}
-		} else if (indentAction === IndentAction.Indent) {
+		} ewse if (indentAction === IndentAction.Indent) {
 			appendText = '\t' + appendText;
 		}
 
-		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		if (removeText) {
-			indentation = indentation.substring(0, indentation.length - removeText);
+		wet indentation = this.getIndentationAtPosition(modew, wange.stawtWineNumba, wange.stawtCowumn);
+		if (wemoveText) {
+			indentation = indentation.substwing(0, indentation.wength - wemoveText);
 		}
 
-		return {
+		wetuwn {
 			indentAction: indentAction,
 			appendText: appendText,
-			removeText: removeText,
+			wemoveText: wemoveText,
 			indentation: indentation
 		};
 	}
 
-	public getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {
-		const lineText = model.getLineContent(lineNumber);
-		let indentation = strings.getLeadingWhitespace(lineText);
-		if (indentation.length > column - 1) {
-			indentation = indentation.substring(0, column - 1);
+	pubwic getIndentationAtPosition(modew: ITextModew, wineNumba: numba, cowumn: numba): stwing {
+		const wineText = modew.getWineContent(wineNumba);
+		wet indentation = stwings.getWeadingWhitespace(wineText);
+		if (indentation.wength > cowumn - 1) {
+			indentation = indentation.substwing(0, cowumn - 1);
 		}
-		return indentation;
+		wetuwn indentation;
 	}
 
-	private getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
-		model.forceTokenization(lineNumber);
-		const lineTokens = model.getLineTokens(lineNumber);
-		const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
-		return createScopedLineTokens(lineTokens, column);
+	pwivate getScopedWineTokens(modew: ITextModew, wineNumba: numba, cowumnNumba?: numba): ScopedWineTokens {
+		modew.fowceTokenization(wineNumba);
+		const wineTokens = modew.getWineTokens(wineNumba);
+		const cowumn = (typeof cowumnNumba === 'undefined' ? modew.getWineMaxCowumn(wineNumba) - 1 : cowumnNumba - 1);
+		wetuwn cweateScopedWineTokens(wineTokens, cowumn);
 	}
 
-	// end onEnter
+	// end onEnta
 
-	public getBracketsSupport(languageId: LanguageId): RichEditBrackets | null {
-		const value = this._getRichEditSupport(languageId);
-		if (!value) {
-			return null;
+	pubwic getBwacketsSuppowt(wanguageId: WanguageId): WichEditBwackets | nuww {
+		const vawue = this._getWichEditSuppowt(wanguageId);
+		if (!vawue) {
+			wetuwn nuww;
 		}
-		return value.brackets || null;
+		wetuwn vawue.bwackets || nuww;
 	}
 
-	public getColorizedBracketPairs(languageId: LanguageId): CharacterPair[] {
-		return this._getRichEditSupport(languageId)?.characterPair.getColorizedBrackets() || [];
+	pubwic getCowowizedBwacketPaiws(wanguageId: WanguageId): ChawactewPaiw[] {
+		wetuwn this._getWichEditSuppowt(wanguageId)?.chawactewPaiw.getCowowizedBwackets() || [];
 	}
 }
 
-export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
+expowt const WanguageConfiguwationWegistwy = new WanguageConfiguwationWegistwyImpw();

@@ -1,166 +1,166 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IUntitledTextResourceEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isEqual, toLocalResource } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+impowt { DEFAUWT_EDITOW_ASSOCIATION, findViewStateFowEditow, GwoupIdentifia, IUntitwedTextWesouwceEditowInput, IUntypedEditowInput, Vewbosity } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { AbstwactTextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { IUntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { EncodingMode, IEncodingSuppowt, IModeSuppowt, ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { isEquaw, toWocawWesouwce } fwom 'vs/base/common/wesouwces';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
 
 /**
- * An editor input to be used for untitled text buffers.
+ * An editow input to be used fow untitwed text buffews.
  */
-export class UntitledTextEditorInput extends AbstractTextResourceEditorInput implements IEncodingSupport, IModeSupport {
+expowt cwass UntitwedTextEditowInput extends AbstwactTextWesouwceEditowInput impwements IEncodingSuppowt, IModeSuppowt {
 
-	static readonly ID: string = 'workbench.editors.untitledEditorInput';
+	static weadonwy ID: stwing = 'wowkbench.editows.untitwedEditowInput';
 
-	override get typeId(): string {
-		return UntitledTextEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn UntitwedTextEditowInput.ID;
 	}
 
-	override get editorId(): string | undefined {
-		return DEFAULT_EDITOR_ASSOCIATION.id;
+	ovewwide get editowId(): stwing | undefined {
+		wetuwn DEFAUWT_EDITOW_ASSOCIATION.id;
 	}
 
-	private modelResolve: Promise<void> | undefined = undefined;
+	pwivate modewWesowve: Pwomise<void> | undefined = undefined;
 
-	constructor(
-		readonly model: IUntitledTextEditorModel,
-		@ITextFileService textFileService: ITextFileService,
-		@ILabelService labelService: ILabelService,
-		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService,
-		@IEditorResolverService editorResolverService: IEditorResolverService
+	constwuctow(
+		weadonwy modew: IUntitwedTextEditowModew,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IEditowWesowvewSewvice editowWesowvewSewvice: IEditowWesowvewSewvice
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService, editorResolverService);
+		supa(modew.wesouwce, undefined, editowSewvice, textFiweSewvice, wabewSewvice, fiweSewvice, editowWesowvewSewvice);
 
-		this.registerModelListeners(model);
+		this.wegistewModewWistenews(modew);
 	}
 
-	private registerModelListeners(model: IUntitledTextEditorModel): void {
+	pwivate wegistewModewWistenews(modew: IUntitwedTextEditowModew): void {
 
-		// re-emit some events from the model
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
+		// we-emit some events fwom the modew
+		this._wegista(modew.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe()));
+		this._wegista(modew.onDidChangeName(() => this._onDidChangeWabew.fiwe()));
 
-		// a reverted untitled text editor model renders this input disposed
-		this._register(model.onDidRevert(() => this.dispose()));
+		// a wevewted untitwed text editow modew wendews this input disposed
+		this._wegista(modew.onDidWevewt(() => this.dispose()));
 	}
 
-	override getName(): string {
-		return this.model.name;
+	ovewwide getName(): stwing {
+		wetuwn this.modew.name;
 	}
 
-	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
+	ovewwide getDescwiption(vewbosity = Vewbosity.MEDIUM): stwing | undefined {
 
-		// Without associated path: only use if name and description differ
-		if (!this.model.hasAssociatedFilePath) {
-			const descriptionCandidate = this.resource.path;
-			if (descriptionCandidate !== this.getName()) {
-				return descriptionCandidate;
+		// Without associated path: onwy use if name and descwiption diffa
+		if (!this.modew.hasAssociatedFiwePath) {
+			const descwiptionCandidate = this.wesouwce.path;
+			if (descwiptionCandidate !== this.getName()) {
+				wetuwn descwiptionCandidate;
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		// With associated path: delegate to parent
-		return super.getDescription(verbosity);
+		// With associated path: dewegate to pawent
+		wetuwn supa.getDescwiption(vewbosity);
 	}
 
-	override getTitle(verbosity: Verbosity): string {
+	ovewwide getTitwe(vewbosity: Vewbosity): stwing {
 
-		// Without associated path: check if name and description differ to decide
-		// if description should appear besides the name to distinguish better
-		if (!this.model.hasAssociatedFilePath) {
+		// Without associated path: check if name and descwiption diffa to decide
+		// if descwiption shouwd appeaw besides the name to distinguish betta
+		if (!this.modew.hasAssociatedFiwePath) {
 			const name = this.getName();
-			const description = this.getDescription();
-			if (description && description !== name) {
-				return `${name} • ${description}`;
+			const descwiption = this.getDescwiption();
+			if (descwiption && descwiption !== name) {
+				wetuwn `${name} • ${descwiption}`;
 			}
 
-			return name;
+			wetuwn name;
 		}
 
-		// With associated path: delegate to parent
-		return super.getTitle(verbosity);
+		// With associated path: dewegate to pawent
+		wetuwn supa.getTitwe(vewbosity);
 	}
 
-	override isDirty(): boolean {
-		return this.model.isDirty();
+	ovewwide isDiwty(): boowean {
+		wetuwn this.modew.isDiwty();
 	}
 
-	getEncoding(): string | undefined {
-		return this.model.getEncoding();
+	getEncoding(): stwing | undefined {
+		wetuwn this.modew.getEncoding();
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): Promise<void> {
-		return this.model.setEncoding(encoding);
+	setEncoding(encoding: stwing, mode: EncodingMode /* ignowed, we onwy have Encode */): Pwomise<void> {
+		wetuwn this.modew.setEncoding(encoding);
 	}
 
-	setMode(mode: string): void {
-		this.model.setMode(mode);
+	setMode(mode: stwing): void {
+		this.modew.setMode(mode);
 	}
 
-	getMode(): string | undefined {
-		return this.model.getMode();
+	getMode(): stwing | undefined {
+		wetuwn this.modew.getMode();
 	}
 
-	override async resolve(): Promise<IUntitledTextEditorModel> {
-		if (!this.modelResolve) {
-			this.modelResolve = this.model.resolve();
+	ovewwide async wesowve(): Pwomise<IUntitwedTextEditowModew> {
+		if (!this.modewWesowve) {
+			this.modewWesowve = this.modew.wesowve();
 		}
 
-		await this.modelResolve;
+		await this.modewWesowve;
 
-		return this.model;
+		wetuwn this.modew;
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntitledTextResourceEditorInput {
-		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
-			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
-			forceUntitled: true,
+	ovewwide toUntyped(options?: { pwesewveViewState: GwoupIdentifia }): IUntitwedTextWesouwceEditowInput {
+		const untypedInput: IUntitwedTextWesouwceEditowInput & { options: ITextEditowOptions } = {
+			wesouwce: this.modew.hasAssociatedFiwePath ? toWocawWesouwce(this.modew.wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme) : this.wesouwce,
+			fowceUntitwed: twue,
 			options: {
-				override: this.editorId
+				ovewwide: this.editowId
 			}
 		};
 
-		if (typeof options?.preserveViewState === 'number') {
+		if (typeof options?.pwesewveViewState === 'numba') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.mode = this.getMode();
-			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
-			untypedInput.options.viewState = findViewStateForEditor(this, options.preserveViewState, this.editorService);
+			untypedInput.contents = this.modew.isDiwty() ? this.modew.textEditowModew?.getVawue() : undefined;
+			untypedInput.options.viewState = findViewStateFowEditow(this, options.pwesewveViewState, this.editowSewvice);
 		}
 
-		return untypedInput;
+		wetuwn untypedInput;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(othewInput)) {
+			wetuwn twue;
 		}
 
-		if (otherInput instanceof UntitledTextEditorInput) {
-			return isEqual(otherInput.resource, this.resource);
+		if (othewInput instanceof UntitwedTextEditowInput) {
+			wetuwn isEquaw(othewInput.wesouwce, this.wesouwce);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	override dispose(): void {
-		this.modelResolve = undefined;
+	ovewwide dispose(): void {
+		this.modewWesowve = undefined;
 
-		super.dispose();
+		supa.dispose();
 	}
 }

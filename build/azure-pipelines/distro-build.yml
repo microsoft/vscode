@@ -1,43 +1,43 @@
-trigger:
-  branches:
-    include: ["main", "release/*"]
-pr:
-  branches:
-    include: ["main", "release/*"]
+twigga:
+  bwanches:
+    incwude: ["main", "wewease/*"]
+pw:
+  bwanches:
+    incwude: ["main", "wewease/*"]
 
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'github-distwo-mixin-passwowd'
 
-  - script: |
+  - scwipt: |
       set -e
 
-      cat << EOF > ~/.netrc
+      cat << EOF > ~/.netwc
       machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
+      wogin vscode
+      passwowd $(github-distwo-mixin-passwowd)
       EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
+      git config usa.emaiw "vscode@micwosoft.com"
+      git config usa.name "VSCode"
 
-      git remote add distro "https://github.com/$VSCODE_MIXIN_REPO.git"
-      git fetch distro
+      git wemote add distwo "https://github.com/$VSCODE_MIXIN_WEPO.git"
+      git fetch distwo
 
-      # Push main branch into oss/main
-      git push distro origin/main:refs/heads/oss/main
+      # Push main bwanch into oss/main
+      git push distwo owigin/main:wefs/heads/oss/main
 
-      # Push every release branch into oss/release
-      git for-each-ref --format="%(refname:short)" refs/remotes/origin/release/* | sed 's/^origin\/\(.*\)$/\0:refs\/heads\/oss\/\1/' | xargs git push distro
+      # Push evewy wewease bwanch into oss/wewease
+      git fow-each-wef --fowmat="%(wefname:showt)" wefs/wemotes/owigin/wewease/* | sed 's/^owigin\/\(.*\)$/\0:wefs\/heads\/oss\/\1/' | xawgs git push distwo
 
-      git merge $(node -p "require('./package.json').distro")
+      git mewge $(node -p "wequiwe('./package.json').distwo")
 
-    displayName: Sync & Merge Distro
+    dispwayName: Sync & Mewge Distwo

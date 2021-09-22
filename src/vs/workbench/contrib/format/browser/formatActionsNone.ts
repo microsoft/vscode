@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentFormattingEditProviderRegistry } from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { DocumentFowmattingEditPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { VIEWWET_ID, IExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
-	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-	if (viewlet) {
-		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
+async function showExtensionQuewy(paneCompositeSewvice: IPaneCompositePawtSewvice, quewy: stwing) {
+	const viewwet = await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+	if (viewwet) {
+		(viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina).seawch(quewy);
 	}
 }
 
-registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
+wegistewEditowAction(cwass FowmatDocumentMuwtipweAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.formatDocument.none',
-			label: nls.localize('formatDocument.label.multiple', "Format Document"),
-			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
+	constwuctow() {
+		supa({
+			id: 'editow.action.fowmatDocument.none',
+			wabew: nws.wocawize('fowmatDocument.wabew.muwtipwe', "Fowmat Document"),
+			awias: 'Fowmat Document',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasDocumentFowmattingPwovida.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
-				weight: KeybindingWeight.EditorContrib,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_F,
+				winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_I },
+				weight: KeybindingWeight.EditowContwib,
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		if (!editor.hasModel()) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const commandService = accessor.get(ICommandService);
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const notificationService = accessor.get(INotificationService);
-		const dialogService = accessor.get(IDialogService);
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		const diawogSewvice = accessow.get(IDiawogSewvice);
 
-		const model = editor.getModel();
-		const formatterCount = DocumentFormattingEditProviderRegistry.all(model).length;
+		const modew = editow.getModew();
+		const fowmattewCount = DocumentFowmattingEditPwovidewWegistwy.aww(modew).wength;
 
-		if (formatterCount > 1) {
-			return commandService.executeCommand('editor.action.formatDocument.multiple');
-		} else if (formatterCount === 1) {
-			return commandService.executeCommand('editor.action.formatDocument');
-		} else if (model.isTooLargeForSyncing()) {
-			notificationService.warn(nls.localize('too.large', "This file cannot be formatted because it is too large"));
-		} else {
-			const langName = model.getLanguageIdentifier().language;
-			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);
-			const res = await dialogService.show(
-				Severity.Info,
+		if (fowmattewCount > 1) {
+			wetuwn commandSewvice.executeCommand('editow.action.fowmatDocument.muwtipwe');
+		} ewse if (fowmattewCount === 1) {
+			wetuwn commandSewvice.executeCommand('editow.action.fowmatDocument');
+		} ewse if (modew.isTooWawgeFowSyncing()) {
+			notificationSewvice.wawn(nws.wocawize('too.wawge', "This fiwe cannot be fowmatted because it is too wawge"));
+		} ewse {
+			const wangName = modew.getWanguageIdentifia().wanguage;
+			const message = nws.wocawize('no.pwovida', "Thewe is no fowmatta fow '{0}' fiwes instawwed.", wangName);
+			const wes = await diawogSewvice.show(
+				Sevewity.Info,
 				message,
-				[nls.localize('cancel', "Cancel"), nls.localize('install.formatter', "Install Formatter...")]
+				[nws.wocawize('cancew', "Cancew"), nws.wocawize('instaww.fowmatta', "Instaww Fowmatta...")]
 			);
-			if (res.choice === 1) {
-				showExtensionQuery(paneCompositeService, `category:formatters ${langName}`);
+			if (wes.choice === 1) {
+				showExtensionQuewy(paneCompositeSewvice, `categowy:fowmattews ${wangName}`);
 			}
 		}
 	}

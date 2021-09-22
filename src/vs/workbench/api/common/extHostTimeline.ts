@@ -1,190 +1,190 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { Timeline, TimelineItem, TimelineOptions, TimelineProvider, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
+impowt * as vscode fwom 'vscode';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtHostTimewineShape, MainThweadTimewineShape, IMainContext, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { Timewine, TimewineItem, TimewineOptions, TimewinePwovida, IntewnawTimewineOptions } fwom 'vs/wowkbench/contwib/timewine/common/timewine';
+impowt { IDisposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { CommandsConvewta, ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { ThemeIcon } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
 
-export interface IExtHostTimeline extends ExtHostTimelineShape {
-	readonly _serviceBrand: undefined;
-	$getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+expowt intewface IExtHostTimewine extends ExtHostTimewineShape {
+	weadonwy _sewviceBwand: undefined;
+	$getTimewine(id: stwing, uwi: UwiComponents, options: vscode.TimewineOptions, token: vscode.CancewwationToken, intewnawOptions?: IntewnawTimewineOptions): Pwomise<Timewine | undefined>;
 }
 
-export const IExtHostTimeline = createDecorator<IExtHostTimeline>('IExtHostTimeline');
+expowt const IExtHostTimewine = cweateDecowatow<IExtHostTimewine>('IExtHostTimewine');
 
-export class ExtHostTimeline implements IExtHostTimeline {
-	declare readonly _serviceBrand: undefined;
+expowt cwass ExtHostTimewine impwements IExtHostTimewine {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _proxy: MainThreadTimelineShape;
+	pwivate _pwoxy: MainThweadTimewineShape;
 
-	private _providers = new Map<string, TimelineProvider>();
+	pwivate _pwovidews = new Map<stwing, TimewinePwovida>();
 
-	private _itemsBySourceAndUriMap = new Map<string, Map<string | undefined, Map<string, vscode.TimelineItem>>>();
+	pwivate _itemsBySouwceAndUwiMap = new Map<stwing, Map<stwing | undefined, Map<stwing, vscode.TimewineItem>>>();
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
 		commands: ExtHostCommands,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadTimewine);
 
-		commands.registerArgumentProcessor({
-			processArgument: arg => {
-				if (arg && arg.$mid === MarshalledId.TimelineActionContext) {
-					const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
-					return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
+		commands.wegistewAwgumentPwocessow({
+			pwocessAwgument: awg => {
+				if (awg && awg.$mid === MawshawwedId.TimewineActionContext) {
+					const uwi = awg.uwi === undefined ? undefined : UWI.wevive(awg.uwi);
+					wetuwn this._itemsBySouwceAndUwiMap.get(awg.souwce)?.get(getUwiKey(uwi))?.get(awg.handwe);
 				}
 
-				return arg;
+				wetuwn awg;
 			}
 		});
 	}
 
-	async $getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined> {
-		const provider = this._providers.get(id);
-		return provider?.provideTimeline(URI.revive(uri), options, token, internalOptions);
+	async $getTimewine(id: stwing, uwi: UwiComponents, options: vscode.TimewineOptions, token: vscode.CancewwationToken, intewnawOptions?: IntewnawTimewineOptions): Pwomise<Timewine | undefined> {
+		const pwovida = this._pwovidews.get(id);
+		wetuwn pwovida?.pwovideTimewine(UWI.wevive(uwi), options, token, intewnawOptions);
 	}
 
-	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, _extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
-		const timelineDisposables = new DisposableStore();
+	wegistewTimewinePwovida(scheme: stwing | stwing[], pwovida: vscode.TimewinePwovida, _extensionId: ExtensionIdentifia, commandConvewta: CommandsConvewta): IDisposabwe {
+		const timewineDisposabwes = new DisposabweStowe();
 
-		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables).bind(this);
+		const convewtTimewineItem = this.convewtTimewineItem(pwovida.id, commandConvewta, timewineDisposabwes).bind(this);
 
-		let disposable: IDisposable | undefined;
-		if (provider.onDidChange) {
-			disposable = provider.onDidChange(e => this._proxy.$emitTimelineChangeEvent({ uri: undefined, reset: true, ...e, id: provider.id }), this);
+		wet disposabwe: IDisposabwe | undefined;
+		if (pwovida.onDidChange) {
+			disposabwe = pwovida.onDidChange(e => this._pwoxy.$emitTimewineChangeEvent({ uwi: undefined, weset: twue, ...e, id: pwovida.id }), this);
 		}
 
-		const itemsBySourceAndUriMap = this._itemsBySourceAndUriMap;
-		return this.registerTimelineProviderCore({
-			...provider,
+		const itemsBySouwceAndUwiMap = this._itemsBySouwceAndUwiMap;
+		wetuwn this.wegistewTimewinePwovidewCowe({
+			...pwovida,
 			scheme: scheme,
 			onDidChange: undefined,
-			async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions) {
-				if (internalOptions?.resetCache) {
-					timelineDisposables.clear();
+			async pwovideTimewine(uwi: UWI, options: TimewineOptions, token: CancewwationToken, intewnawOptions?: IntewnawTimewineOptions) {
+				if (intewnawOptions?.wesetCache) {
+					timewineDisposabwes.cweaw();
 
-					// For now, only allow the caching of a single Uri
-					// itemsBySourceAndUriMap.get(provider.id)?.get(getUriKey(uri))?.clear();
-					itemsBySourceAndUriMap.get(provider.id)?.clear();
+					// Fow now, onwy awwow the caching of a singwe Uwi
+					// itemsBySouwceAndUwiMap.get(pwovida.id)?.get(getUwiKey(uwi))?.cweaw();
+					itemsBySouwceAndUwiMap.get(pwovida.id)?.cweaw();
 				}
 
-				const result = await provider.provideTimeline(uri, options, token);
-				if (result === undefined || result === null) {
-					return undefined;
+				const wesuwt = await pwovida.pwovideTimewine(uwi, options, token);
+				if (wesuwt === undefined || wesuwt === nuww) {
+					wetuwn undefined;
 				}
 
-				// TODO: Should we bother converting all the data if we aren't caching? Meaning it is being requested by an extension?
+				// TODO: Shouwd we botha convewting aww the data if we awen't caching? Meaning it is being wequested by an extension?
 
-				const convertItem = convertTimelineItem(uri, internalOptions);
-				return {
-					...result,
-					source: provider.id,
-					items: result.items.map(convertItem)
+				const convewtItem = convewtTimewineItem(uwi, intewnawOptions);
+				wetuwn {
+					...wesuwt,
+					souwce: pwovida.id,
+					items: wesuwt.items.map(convewtItem)
 				};
 			},
 			dispose() {
-				for (const sourceMap of itemsBySourceAndUriMap.values()) {
-					sourceMap.get(provider.id)?.clear();
+				fow (const souwceMap of itemsBySouwceAndUwiMap.vawues()) {
+					souwceMap.get(pwovida.id)?.cweaw();
 				}
 
-				disposable?.dispose();
-				timelineDisposables.dispose();
+				disposabwe?.dispose();
+				timewineDisposabwes.dispose();
 			}
 		});
 	}
 
-	private convertTimelineItem(source: string, commandConverter: CommandsConverter, disposables: DisposableStore) {
-		return (uri: URI, options?: InternalTimelineOptions) => {
-			let items: Map<string, vscode.TimelineItem> | undefined;
-			if (options?.cacheResults) {
-				let itemsByUri = this._itemsBySourceAndUriMap.get(source);
-				if (itemsByUri === undefined) {
-					itemsByUri = new Map();
-					this._itemsBySourceAndUriMap.set(source, itemsByUri);
+	pwivate convewtTimewineItem(souwce: stwing, commandConvewta: CommandsConvewta, disposabwes: DisposabweStowe) {
+		wetuwn (uwi: UWI, options?: IntewnawTimewineOptions) => {
+			wet items: Map<stwing, vscode.TimewineItem> | undefined;
+			if (options?.cacheWesuwts) {
+				wet itemsByUwi = this._itemsBySouwceAndUwiMap.get(souwce);
+				if (itemsByUwi === undefined) {
+					itemsByUwi = new Map();
+					this._itemsBySouwceAndUwiMap.set(souwce, itemsByUwi);
 				}
 
-				const uriKey = getUriKey(uri);
-				items = itemsByUri.get(uriKey);
+				const uwiKey = getUwiKey(uwi);
+				items = itemsByUwi.get(uwiKey);
 				if (items === undefined) {
 					items = new Map();
-					itemsByUri.set(uriKey, items);
+					itemsByUwi.set(uwiKey, items);
 				}
 			}
 
-			return (item: vscode.TimelineItem): TimelineItem => {
-				const { iconPath, ...props } = item;
+			wetuwn (item: vscode.TimewineItem): TimewineItem => {
+				const { iconPath, ...pwops } = item;
 
-				const handle = `${source}|${item.id ?? item.timestamp}`;
-				items?.set(handle, item);
+				const handwe = `${souwce}|${item.id ?? item.timestamp}`;
+				items?.set(handwe, item);
 
-				let icon;
-				let iconDark;
-				let themeIcon;
+				wet icon;
+				wet iconDawk;
+				wet themeIcon;
 				if (item.iconPath) {
 					if (iconPath instanceof ThemeIcon) {
-						themeIcon = { id: iconPath.id, color: iconPath.color };
+						themeIcon = { id: iconPath.id, cowow: iconPath.cowow };
 					}
-					else if (URI.isUri(iconPath)) {
+					ewse if (UWI.isUwi(iconPath)) {
 						icon = iconPath;
-						iconDark = iconPath;
+						iconDawk = iconPath;
 					}
-					else {
-						({ light: icon, dark: iconDark } = iconPath as { light: URI; dark: URI });
+					ewse {
+						({ wight: icon, dawk: iconDawk } = iconPath as { wight: UWI; dawk: UWI });
 					}
 				}
 
-				return {
-					...props,
-					id: props.id ?? undefined,
-					handle: handle,
-					source: source,
-					command: item.command ? commandConverter.toInternal(item.command, disposables) : undefined,
+				wetuwn {
+					...pwops,
+					id: pwops.id ?? undefined,
+					handwe: handwe,
+					souwce: souwce,
+					command: item.command ? commandConvewta.toIntewnaw(item.command, disposabwes) : undefined,
 					icon: icon,
-					iconDark: iconDark,
+					iconDawk: iconDawk,
 					themeIcon: themeIcon,
-					accessibilityInformation: item.accessibilityInformation
+					accessibiwityInfowmation: item.accessibiwityInfowmation
 				};
 			};
 		};
 	}
 
-	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
-		// console.log(`ExtHostTimeline#registerTimelineProvider: id=${provider.id}`);
+	pwivate wegistewTimewinePwovidewCowe(pwovida: TimewinePwovida): IDisposabwe {
+		// consowe.wog(`ExtHostTimewine#wegistewTimewinePwovida: id=${pwovida.id}`);
 
-		const existing = this._providers.get(provider.id);
+		const existing = this._pwovidews.get(pwovida.id);
 		if (existing) {
-			throw new Error(`Timeline Provider ${provider.id} already exists.`);
+			thwow new Ewwow(`Timewine Pwovida ${pwovida.id} awweady exists.`);
 		}
 
-		this._proxy.$registerTimelineProvider({
-			id: provider.id,
-			label: provider.label,
-			scheme: provider.scheme
+		this._pwoxy.$wegistewTimewinePwovida({
+			id: pwovida.id,
+			wabew: pwovida.wabew,
+			scheme: pwovida.scheme
 		});
-		this._providers.set(provider.id, provider);
+		this._pwovidews.set(pwovida.id, pwovida);
 
-		return toDisposable(() => {
-			for (const sourceMap of this._itemsBySourceAndUriMap.values()) {
-				sourceMap.get(provider.id)?.clear();
+		wetuwn toDisposabwe(() => {
+			fow (const souwceMap of this._itemsBySouwceAndUwiMap.vawues()) {
+				souwceMap.get(pwovida.id)?.cweaw();
 			}
 
-			this._providers.delete(provider.id);
-			this._proxy.$unregisterTimelineProvider(provider.id);
-			provider.dispose();
+			this._pwovidews.dewete(pwovida.id);
+			this._pwoxy.$unwegistewTimewinePwovida(pwovida.id);
+			pwovida.dispose();
 		});
 	}
 }
 
-function getUriKey(uri: URI | undefined): string | undefined {
-	return uri?.toString();
+function getUwiKey(uwi: UWI | undefined): stwing | undefined {
+	wetuwn uwi?.toStwing();
 }

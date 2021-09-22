@@ -1,226 +1,226 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
 
-export interface IFilePathToResourceConverter {
+expowt intewface IFiwePathToWesouwceConvewta {
 	/**
-	 * Convert a typescript filepath to a VS Code resource.
+	 * Convewt a typescwipt fiwepath to a VS Code wesouwce.
 	 */
-	toResource(filepath: string): vscode.Uri;
+	toWesouwce(fiwepath: stwing): vscode.Uwi;
 }
 
-function replaceLinks(text: string): string {
-	return text
-		// Http(s) links
-		.replace(/\{@(link|linkplain|linkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: string, link: string, text?: string) => {
+function wepwaceWinks(text: stwing): stwing {
+	wetuwn text
+		// Http(s) winks
+		.wepwace(/\{@(wink|winkpwain|winkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: stwing, wink: stwing, text?: stwing) => {
 			switch (tag) {
-				case 'linkcode':
-					return `[\`${text ? text.trim() : link}\`](${link})`;
+				case 'winkcode':
+					wetuwn `[\`${text ? text.twim() : wink}\`](${wink})`;
 
-				default:
-					return `[${text ? text.trim() : link}](${link})`;
+				defauwt:
+					wetuwn `[${text ? text.twim() : wink}](${wink})`;
 			}
 		});
 }
 
-function processInlineTags(text: string): string {
-	return replaceLinks(text);
+function pwocessInwineTags(text: stwing): stwing {
+	wetuwn wepwaceWinks(text);
 }
 
 function getTagBodyText(
-	tag: Proto.JSDocTagInfo,
-	filePathConverter: IFilePathToResourceConverter,
-): string | undefined {
+	tag: Pwoto.JSDocTagInfo,
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): stwing | undefined {
 	if (!tag.text) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	// Convert to markdown code block if it is not already one
-	function makeCodeblock(text: string): string {
+	// Convewt to mawkdown code bwock if it is not awweady one
+	function makeCodebwock(text: stwing): stwing {
 		if (text.match(/^\s*[~`]{3}/g)) {
-			return text;
+			wetuwn text;
 		}
-		return '```\n' + text + '\n```';
+		wetuwn '```\n' + text + '\n```';
 	}
 
-	const text = convertLinkTags(tag.text, filePathConverter);
+	const text = convewtWinkTags(tag.text, fiwePathConvewta);
 	switch (tag.name) {
-		case 'example':
-			// check for caption tags, fix for #79704
-			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
+		case 'exampwe':
+			// check fow caption tags, fix fow #79704
+			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\w\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
-				return captionTagMatches[1] + '\n\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
-			} else {
-				return makeCodeblock(text);
+				wetuwn captionTagMatches[1] + '\n\n' + makeCodebwock(text.substw(captionTagMatches[0].wength));
+			} ewse {
+				wetuwn makeCodebwock(text);
 			}
-		case 'author':
-			// fix obsucated email address, #80898
-			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
+		case 'authow':
+			// fix obsucated emaiw addwess, #80898
+			const emaiwMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
-			if (emailMatch === null) {
-				return text;
-			} else {
-				return `${emailMatch[1]} ${emailMatch[2]}`;
+			if (emaiwMatch === nuww) {
+				wetuwn text;
+			} ewse {
+				wetuwn `${emaiwMatch[1]} ${emaiwMatch[2]}`;
 			}
-		case 'default':
-			return makeCodeblock(text);
+		case 'defauwt':
+			wetuwn makeCodebwock(text);
 	}
 
-	return processInlineTags(text);
+	wetuwn pwocessInwineTags(text);
 }
 
 function getTagDocumentation(
-	tag: Proto.JSDocTagInfo,
-	filePathConverter: IFilePathToResourceConverter,
-): string | undefined {
+	tag: Pwoto.JSDocTagInfo,
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): stwing | undefined {
 	switch (tag.name) {
 		case 'augments':
 		case 'extends':
-		case 'param':
-		case 'template':
-			const body = (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
-			if (body?.length === 3) {
-				const param = body[1];
+		case 'pawam':
+		case 'tempwate':
+			const body = (convewtWinkTags(tag.text, fiwePathConvewta)).spwit(/^(\S+)\s*-?\s*/);
+			if (body?.wength === 3) {
+				const pawam = body[1];
 				const doc = body[2];
-				const label = `*@${tag.name}* \`${param}\``;
+				const wabew = `*@${tag.name}* \`${pawam}\``;
 				if (!doc) {
-					return label;
+					wetuwn wabew;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
+				wetuwn wabew + (doc.match(/\w\n|\n/g) ? '  \n' + pwocessInwineTags(doc) : ` — ${pwocessInwineTags(doc)}`);
 			}
 	}
 
-	// Generic tag
-	const label = `*@${tag.name}*`;
-	const text = getTagBodyText(tag, filePathConverter);
+	// Genewic tag
+	const wabew = `*@${tag.name}*`;
+	const text = getTagBodyText(tag, fiwePathConvewta);
 	if (!text) {
-		return label;
+		wetuwn wabew;
 	}
-	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
+	wetuwn wabew + (text.match(/\w\n|\n/g) ? '  \n' + text : ` — ${text}`);
 }
 
-export function plainWithLinks(
-	parts: readonly Proto.SymbolDisplayPart[] | string,
-	filePathConverter: IFilePathToResourceConverter,
-): string {
-	return processInlineTags(convertLinkTags(parts, filePathConverter));
+expowt function pwainWithWinks(
+	pawts: weadonwy Pwoto.SymbowDispwayPawt[] | stwing,
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): stwing {
+	wetuwn pwocessInwineTags(convewtWinkTags(pawts, fiwePathConvewta));
 }
 
 /**
- * Convert `@link` inline tags to markdown links
+ * Convewt `@wink` inwine tags to mawkdown winks
  */
-function convertLinkTags(
-	parts: readonly Proto.SymbolDisplayPart[] | string | undefined,
-	filePathConverter: IFilePathToResourceConverter,
-): string {
-	if (!parts) {
-		return '';
+function convewtWinkTags(
+	pawts: weadonwy Pwoto.SymbowDispwayPawt[] | stwing | undefined,
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): stwing {
+	if (!pawts) {
+		wetuwn '';
 	}
 
-	if (typeof parts === 'string') {
-		return parts;
+	if (typeof pawts === 'stwing') {
+		wetuwn pawts;
 	}
 
-	const out: string[] = [];
+	const out: stwing[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
-	for (const part of parts) {
-		switch (part.kind) {
-			case 'link':
-				if (currentLink) {
-					if (currentLink.target) {
-						const link = filePathConverter.toResource(currentLink.target.file)
+	wet cuwwentWink: { name?: stwing, tawget?: Pwoto.FiweSpan, text?: stwing, weadonwy winkcode: boowean } | undefined;
+	fow (const pawt of pawts) {
+		switch (pawt.kind) {
+			case 'wink':
+				if (cuwwentWink) {
+					if (cuwwentWink.tawget) {
+						const wink = fiwePathConvewta.toWesouwce(cuwwentWink.tawget.fiwe)
 							.with({
-								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
+								fwagment: `W${cuwwentWink.tawget.stawt.wine},${cuwwentWink.tawget.stawt.offset}`
 							});
 
-						const linkText = currentLink.text ? currentLink.text : escapeMarkdownSyntaxTokensForCode(currentLink.name ?? '');
-						out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${link.toString()})`);
-					} else {
-						const text = currentLink.text ?? currentLink.name;
+						const winkText = cuwwentWink.text ? cuwwentWink.text : escapeMawkdownSyntaxTokensFowCode(cuwwentWink.name ?? '');
+						out.push(`[${cuwwentWink.winkcode ? '`' + winkText + '`' : winkText}](${wink.toStwing()})`);
+					} ewse {
+						const text = cuwwentWink.text ?? cuwwentWink.name;
 						if (text) {
 							if (/^https?:/.test(text)) {
-								const parts = text.split(' ');
-								if (parts.length === 1) {
-									out.push(parts[0]);
-								} else if (parts.length > 1) {
-									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
-									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+								const pawts = text.spwit(' ');
+								if (pawts.wength === 1) {
+									out.push(pawts[0]);
+								} ewse if (pawts.wength > 1) {
+									const winkText = escapeMawkdownSyntaxTokensFowCode(pawts.swice(1).join(' '));
+									out.push(`[${cuwwentWink.winkcode ? '`' + winkText + '`' : winkText}](${pawts[0]})`);
 								}
-							} else {
-								out.push(escapeMarkdownSyntaxTokensForCode(text));
+							} ewse {
+								out.push(escapeMawkdownSyntaxTokensFowCode(text));
 							}
 						}
 					}
-					currentLink = undefined;
-				} else {
-					currentLink = {
-						linkcode: part.text === '{@linkcode '
+					cuwwentWink = undefined;
+				} ewse {
+					cuwwentWink = {
+						winkcode: pawt.text === '{@winkcode '
 					};
 				}
-				break;
+				bweak;
 
-			case 'linkName':
-				if (currentLink) {
-					currentLink.name = part.text;
-					currentLink.target = (part as Proto.JSDocLinkDisplayPart).target;
+			case 'winkName':
+				if (cuwwentWink) {
+					cuwwentWink.name = pawt.text;
+					cuwwentWink.tawget = (pawt as Pwoto.JSDocWinkDispwayPawt).tawget;
 				}
-				break;
+				bweak;
 
-			case 'linkText':
-				if (currentLink) {
-					currentLink.text = part.text;
+			case 'winkText':
+				if (cuwwentWink) {
+					cuwwentWink.text = pawt.text;
 				}
-				break;
+				bweak;
 
-			default:
-				out.push(part.text);
-				break;
+			defauwt:
+				out.push(pawt.text);
+				bweak;
 		}
 	}
-	return processInlineTags(out.join(''));
+	wetuwn pwocessInwineTags(out.join(''));
 }
 
-export function tagsMarkdownPreview(
-	tags: readonly Proto.JSDocTagInfo[],
-	filePathConverter: IFilePathToResourceConverter,
-): string {
-	return tags.map(tag => getTagDocumentation(tag, filePathConverter)).join('  \n\n');
+expowt function tagsMawkdownPweview(
+	tags: weadonwy Pwoto.JSDocTagInfo[],
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): stwing {
+	wetuwn tags.map(tag => getTagDocumentation(tag, fiwePathConvewta)).join('  \n\n');
 }
 
-export function markdownDocumentation(
-	documentation: Proto.SymbolDisplayPart[] | string,
-	tags: Proto.JSDocTagInfo[],
-	filePathConverter: IFilePathToResourceConverter,
-): vscode.MarkdownString {
-	const out = new vscode.MarkdownString();
-	addMarkdownDocumentation(out, documentation, tags, filePathConverter);
-	return out;
+expowt function mawkdownDocumentation(
+	documentation: Pwoto.SymbowDispwayPawt[] | stwing,
+	tags: Pwoto.JSDocTagInfo[],
+	fiwePathConvewta: IFiwePathToWesouwceConvewta,
+): vscode.MawkdownStwing {
+	const out = new vscode.MawkdownStwing();
+	addMawkdownDocumentation(out, documentation, tags, fiwePathConvewta);
+	wetuwn out;
 }
 
-export function addMarkdownDocumentation(
-	out: vscode.MarkdownString,
-	documentation: Proto.SymbolDisplayPart[] | string | undefined,
-	tags: Proto.JSDocTagInfo[] | undefined,
-	converter: IFilePathToResourceConverter,
-): vscode.MarkdownString {
+expowt function addMawkdownDocumentation(
+	out: vscode.MawkdownStwing,
+	documentation: Pwoto.SymbowDispwayPawt[] | stwing | undefined,
+	tags: Pwoto.JSDocTagInfo[] | undefined,
+	convewta: IFiwePathToWesouwceConvewta,
+): vscode.MawkdownStwing {
 	if (documentation) {
-		out.appendMarkdown(plainWithLinks(documentation, converter));
+		out.appendMawkdown(pwainWithWinks(documentation, convewta));
 	}
 
 	if (tags) {
-		const tagsPreview = tagsMarkdownPreview(tags, converter);
-		if (tagsPreview) {
-			out.appendMarkdown('\n\n' + tagsPreview);
+		const tagsPweview = tagsMawkdownPweview(tags, convewta);
+		if (tagsPweview) {
+			out.appendMawkdown('\n\n' + tagsPweview);
 		}
 	}
-	return out;
+	wetuwn out;
 }
 
-function escapeMarkdownSyntaxTokensForCode(text: string): string {
-	return text.replace(/`/g, '\\$&');
+function escapeMawkdownSyntaxTokensFowCode(text: stwing): stwing {
+	wetuwn text.wepwace(/`/g, '\\$&');
 }

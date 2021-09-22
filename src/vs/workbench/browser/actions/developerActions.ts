@@ -1,347 +1,347 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
+impowt 'vs/css!./media/actions';
 
-import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomEmitter } from 'vs/base/browser/event';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { timeout } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { clamp } from 'vs/base/common/numbers';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, toDisposabwe, dispose, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { getDomNodePagePosition, cweateStyweSheet, cweateCSSWuwe, append, $ } fwom 'vs/base/bwowsa/dom';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Context } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
 
-class InspectContextKeysAction extends Action2 {
+cwass InspectContextKeysAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.inspectContextKeys',
-			title: { value: localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.inspectContextKeys',
+			titwe: { vawue: wocawize('inspect context keys', "Inspect Context Keys"), owiginaw: 'Inspect Context Keys' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const contextKeyService = accessor.get(IContextKeyService);
+	wun(accessow: SewvicesAccessow): void {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const stylesheet = createStyleSheet();
-		disposables.add(toDisposable(() => {
-			if (stylesheet.parentNode) {
-				stylesheet.parentNode.removeChild(stylesheet);
+		const stywesheet = cweateStyweSheet();
+		disposabwes.add(toDisposabwe(() => {
+			if (stywesheet.pawentNode) {
+				stywesheet.pawentNode.wemoveChiwd(stywesheet);
 			}
 		}));
-		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
+		cweateCSSWuwe('*', 'cuwsow: cwosshaiw !impowtant;', stywesheet);
 
-		const hoverFeedback = document.createElement('div');
-		document.body.appendChild(hoverFeedback);
-		disposables.add(toDisposable(() => document.body.removeChild(hoverFeedback)));
+		const hovewFeedback = document.cweateEwement('div');
+		document.body.appendChiwd(hovewFeedback);
+		disposabwes.add(toDisposabwe(() => document.body.wemoveChiwd(hovewFeedback)));
 
-		hoverFeedback.style.position = 'absolute';
-		hoverFeedback.style.pointerEvents = 'none';
-		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
-		hoverFeedback.style.zIndex = '1000';
+		hovewFeedback.stywe.position = 'absowute';
+		hovewFeedback.stywe.pointewEvents = 'none';
+		hovewFeedback.stywe.backgwoundCowow = 'wgba(255, 0, 0, 0.5)';
+		hovewFeedback.stywe.zIndex = '1000';
 
-		const onMouseMove = disposables.add(new DomEmitter(document.body, 'mousemove', true));
-		disposables.add(onMouseMove.event(e => {
-			const target = e.target as HTMLElement;
-			const position = getDomNodePagePosition(target);
+		const onMouseMove = disposabwes.add(new DomEmitta(document.body, 'mousemove', twue));
+		disposabwes.add(onMouseMove.event(e => {
+			const tawget = e.tawget as HTMWEwement;
+			const position = getDomNodePagePosition(tawget);
 
-			hoverFeedback.style.top = `${position.top}px`;
-			hoverFeedback.style.left = `${position.left}px`;
-			hoverFeedback.style.width = `${position.width}px`;
-			hoverFeedback.style.height = `${position.height}px`;
+			hovewFeedback.stywe.top = `${position.top}px`;
+			hovewFeedback.stywe.weft = `${position.weft}px`;
+			hovewFeedback.stywe.width = `${position.width}px`;
+			hovewFeedback.stywe.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = disposables.add(new DomEmitter(document.body, 'mousedown', true));
-		Event.once(onMouseDown.event)(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+		const onMouseDown = disposabwes.add(new DomEmitta(document.body, 'mousedown', twue));
+		Event.once(onMouseDown.event)(e => { e.pweventDefauwt(); e.stopPwopagation(); }, nuww, disposabwes);
 
-		const onMouseUp = disposables.add(new DomEmitter(document.body, 'mouseup', true));
+		const onMouseUp = disposabwes.add(new DomEmitta(document.body, 'mouseup', twue));
 		Event.once(onMouseUp.event)(e => {
-			e.preventDefault();
-			e.stopPropagation();
+			e.pweventDefauwt();
+			e.stopPwopagation();
 
-			const context = contextKeyService.getContext(e.target as HTMLElement) as Context;
-			console.log(context.collectAllValues());
+			const context = contextKeySewvice.getContext(e.tawget as HTMWEwement) as Context;
+			consowe.wog(context.cowwectAwwVawues());
 
-			dispose(disposables);
-		}, null, disposables);
+			dispose(disposabwes);
+		}, nuww, disposabwes);
 	}
 }
 
-class ToggleScreencastModeAction extends Action2 {
+cwass ToggweScweencastModeAction extends Action2 {
 
-	static disposable: IDisposable | undefined;
+	static disposabwe: IDisposabwe | undefined;
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleScreencastMode',
-			title: { value: localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweScweencastMode',
+			titwe: { vawue: wocawize('toggwe scweencast mode', "Toggwe Scweencast Mode"), owiginaw: 'Toggwe Scweencast Mode' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		if (ToggleScreencastModeAction.disposable) {
-			ToggleScreencastModeAction.disposable.dispose();
-			ToggleScreencastModeAction.disposable = undefined;
-			return;
+	wun(accessow: SewvicesAccessow): void {
+		if (ToggweScweencastModeAction.disposabwe) {
+			ToggweScweencastModeAction.disposabwe.dispose();
+			ToggweScweencastModeAction.disposabwe = undefined;
+			wetuwn;
 		}
 
-		const layoutService = accessor.get(ILayoutService);
-		const configurationService = accessor.get(IConfigurationService);
-		const keybindingService = accessor.get(IKeybindingService);
+		const wayoutSewvice = accessow.get(IWayoutSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		const keybindingSewvice = accessow.get(IKeybindingSewvice);
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const container = layoutService.container;
-		const mouseMarker = append(container, $('.screencast-mouse'));
-		disposables.add(toDisposable(() => mouseMarker.remove()));
+		const containa = wayoutSewvice.containa;
+		const mouseMawka = append(containa, $('.scweencast-mouse'));
+		disposabwes.add(toDisposabwe(() => mouseMawka.wemove()));
 
-		const onMouseDown = disposables.add(new DomEmitter(container, 'mousedown', true));
-		const onMouseUp = disposables.add(new DomEmitter(container, 'mouseup', true));
-		const onMouseMove = disposables.add(new DomEmitter(container, 'mousemove', true));
+		const onMouseDown = disposabwes.add(new DomEmitta(containa, 'mousedown', twue));
+		const onMouseUp = disposabwes.add(new DomEmitta(containa, 'mouseup', twue));
+		const onMouseMove = disposabwes.add(new DomEmitta(containa, 'mousemove', twue));
 
-		const updateMouseIndicatorColor = () => {
-			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
+		const updateMouseIndicatowCowow = () => {
+			mouseMawka.stywe.bowdewCowow = Cowow.fwomHex(configuwationSewvice.getVawue<stwing>('scweencastMode.mouseIndicatowCowow')).toStwing();
 		};
 
-		let mouseIndicatorSize: number;
-		const updateMouseIndicatorSize = () => {
-			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+		wet mouseIndicatowSize: numba;
+		const updateMouseIndicatowSize = () => {
+			mouseIndicatowSize = cwamp(configuwationSewvice.getVawue<numba>('scweencastMode.mouseIndicatowSize') || 20, 20, 100);
 
-			mouseMarker.style.height = `${mouseIndicatorSize}px`;
-			mouseMarker.style.width = `${mouseIndicatorSize}px`;
+			mouseMawka.stywe.height = `${mouseIndicatowSize}px`;
+			mouseMawka.stywe.width = `${mouseIndicatowSize}px`;
 		};
 
-		updateMouseIndicatorColor();
-		updateMouseIndicatorSize();
+		updateMouseIndicatowCowow();
+		updateMouseIndicatowSize();
 
-		disposables.add(onMouseDown.event(e => {
-			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
-			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
-			mouseMarker.style.display = 'block';
+		disposabwes.add(onMouseDown.event(e => {
+			mouseMawka.stywe.top = `${e.cwientY - mouseIndicatowSize / 2}px`;
+			mouseMawka.stywe.weft = `${e.cwientX - mouseIndicatowSize / 2}px`;
+			mouseMawka.stywe.dispway = 'bwock';
 
-			const mouseMoveListener = onMouseMove.event(e => {
-				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
-				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
+			const mouseMoveWistena = onMouseMove.event(e => {
+				mouseMawka.stywe.top = `${e.cwientY - mouseIndicatowSize / 2}px`;
+				mouseMawka.stywe.weft = `${e.cwientX - mouseIndicatowSize / 2}px`;
 			});
 
 			Event.once(onMouseUp.event)(() => {
-				mouseMarker.style.display = 'none';
-				mouseMoveListener.dispose();
+				mouseMawka.stywe.dispway = 'none';
+				mouseMoveWistena.dispose();
 			});
 		}));
 
-		const keyboardMarker = append(container, $('.screencast-keyboard'));
-		disposables.add(toDisposable(() => keyboardMarker.remove()));
+		const keyboawdMawka = append(containa, $('.scweencast-keyboawd'));
+		disposabwes.add(toDisposabwe(() => keyboawdMawka.wemove()));
 
-		const updateKeyboardFontSize = () => {
-			keyboardMarker.style.fontSize = `${clamp(configurationService.getValue<number>('screencastMode.fontSize') || 56, 20, 100)}px`;
+		const updateKeyboawdFontSize = () => {
+			keyboawdMawka.stywe.fontSize = `${cwamp(configuwationSewvice.getVawue<numba>('scweencastMode.fontSize') || 56, 20, 100)}px`;
 		};
 
-		const updateKeyboardMarker = () => {
-			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
+		const updateKeyboawdMawka = () => {
+			keyboawdMawka.stywe.bottom = `${cwamp(configuwationSewvice.getVawue<numba>('scweencastMode.vewticawOffset') || 0, 0, 90)}%`;
 		};
 
-		let keyboardMarkerTimeout: number;
-		const updateKeyboardMarkerTimeout = () => {
-			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
+		wet keyboawdMawkewTimeout: numba;
+		const updateKeyboawdMawkewTimeout = () => {
+			keyboawdMawkewTimeout = cwamp(configuwationSewvice.getVawue<numba>('scweencastMode.keyboawdOvewwayTimeout') || 800, 500, 5000);
 		};
 
-		updateKeyboardFontSize();
-		updateKeyboardMarker();
-		updateKeyboardMarkerTimeout();
+		updateKeyboawdFontSize();
+		updateKeyboawdMawka();
+		updateKeyboawdMawkewTimeout();
 
-		disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
-				updateKeyboardMarker();
+		disposabwes.add(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('scweencastMode.vewticawOffset')) {
+				updateKeyboawdMawka();
 			}
 
-			if (e.affectsConfiguration('screencastMode.fontSize')) {
-				updateKeyboardFontSize();
+			if (e.affectsConfiguwation('scweencastMode.fontSize')) {
+				updateKeyboawdFontSize();
 			}
 
-			if (e.affectsConfiguration('screencastMode.keyboardOverlayTimeout')) {
-				updateKeyboardMarkerTimeout();
+			if (e.affectsConfiguwation('scweencastMode.keyboawdOvewwayTimeout')) {
+				updateKeyboawdMawkewTimeout();
 			}
 
-			if (e.affectsConfiguration('screencastMode.mouseIndicatorColor')) {
-				updateMouseIndicatorColor();
+			if (e.affectsConfiguwation('scweencastMode.mouseIndicatowCowow')) {
+				updateMouseIndicatowCowow();
 			}
 
-			if (e.affectsConfiguration('screencastMode.mouseIndicatorSize')) {
-				updateMouseIndicatorSize();
+			if (e.affectsConfiguwation('scweencastMode.mouseIndicatowSize')) {
+				updateMouseIndicatowSize();
 			}
 		}));
 
-		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
-		let keyboardTimeout: IDisposable = Disposable.None;
-		let length = 0;
+		const onKeyDown = disposabwes.add(new DomEmitta(window, 'keydown', twue));
+		wet keyboawdTimeout: IDisposabwe = Disposabwe.None;
+		wet wength = 0;
 
-		disposables.add(onKeyDown.event(e => {
-			keyboardTimeout.dispose();
+		disposabwes.add(onKeyDown.event(e => {
+			keyboawdTimeout.dispose();
 
-			const event = new StandardKeyboardEvent(e);
-			const shortcut = keybindingService.softDispatch(event, event.target);
+			const event = new StandawdKeyboawdEvent(e);
+			const showtcut = keybindingSewvice.softDispatch(event, event.tawget);
 
-			if (shortcut || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
+			if (showtcut || !configuwationSewvice.getVawue('scweencastMode.onwyKeyboawdShowtcuts')) {
 				if (
-					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
-					|| length > 20
+					event.ctwwKey || event.awtKey || event.metaKey || event.shiftKey
+					|| wength > 20
 					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
 				) {
-					keyboardMarker.innerText = '';
-					length = 0;
+					keyboawdMawka.innewText = '';
+					wength = 0;
 				}
 
-				const keybinding = keybindingService.resolveKeyboardEvent(event);
-				const label = keybinding.getLabel();
-				const key = $('span.key', {}, label || '');
-				length++;
-				append(keyboardMarker, key);
+				const keybinding = keybindingSewvice.wesowveKeyboawdEvent(event);
+				const wabew = keybinding.getWabew();
+				const key = $('span.key', {}, wabew || '');
+				wength++;
+				append(keyboawdMawka, key);
 			}
 
-			const promise = timeout(keyboardMarkerTimeout);
-			keyboardTimeout = toDisposable(() => promise.cancel());
+			const pwomise = timeout(keyboawdMawkewTimeout);
+			keyboawdTimeout = toDisposabwe(() => pwomise.cancew());
 
-			promise.then(() => {
-				keyboardMarker.textContent = '';
-				length = 0;
+			pwomise.then(() => {
+				keyboawdMawka.textContent = '';
+				wength = 0;
 			});
 		}));
 
-		ToggleScreencastModeAction.disposable = disposables;
+		ToggweScweencastModeAction.disposabwe = disposabwes;
 	}
 }
 
-class LogStorageAction extends Action2 {
+cwass WogStowageAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.logStorage',
-			title: { value: localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.wogStowage',
+			titwe: { vawue: wocawize({ key: 'wogStowage', comment: ['A devewopa onwy action to wog the contents of the stowage fow the cuwwent window.'] }, "Wog Stowage Database Contents"), owiginaw: 'Wog Stowage Database Contents' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).logStorage();
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IStowageSewvice).wogStowage();
 	}
 }
 
-class LogWorkingCopiesAction extends Action2 {
+cwass WogWowkingCopiesAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.logWorkingCopies',
-			title: { value: localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.wogWowkingCopies',
+			titwe: { vawue: wocawize({ key: 'wogWowkingCopies', comment: ['A devewopa onwy action to wog the wowking copies that exist.'] }, "Wog Wowking Copies"), owiginaw: 'Wog Wowking Copies' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const workingCopyService = accessor.get(IWorkingCopyService);
-		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
-		const logService = accessor.get(ILogService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wowkingCopySewvice = accessow.get(IWowkingCopySewvice);
+		const wowkingCopyBackupSewvice = accessow.get(IWowkingCopyBackupSewvice);
+		const wogSewvice = accessow.get(IWogSewvice);
 
-		const backups = await workingCopyBackupService.getBackups();
+		const backups = await wowkingCopyBackupSewvice.getBackups();
 
 		const msg = [
 			``,
-			`[Working Copies]`,
-			...(workingCopyService.workingCopies.length > 0) ?
-				workingCopyService.workingCopies.map(workingCopy => `${workingCopy.isDirty() ? '● ' : ''}${workingCopy.resource.toString(true)} (typeId: ${workingCopy.typeId || '<no typeId>'})`) :
+			`[Wowking Copies]`,
+			...(wowkingCopySewvice.wowkingCopies.wength > 0) ?
+				wowkingCopySewvice.wowkingCopies.map(wowkingCopy => `${wowkingCopy.isDiwty() ? '● ' : ''}${wowkingCopy.wesouwce.toStwing(twue)} (typeId: ${wowkingCopy.typeId || '<no typeId>'})`) :
 				['<none>'],
 			``,
 			`[Backups]`,
-			...(backups.length > 0) ?
-				backups.map(backup => `${backup.resource.toString(true)} (typeId: ${backup.typeId || '<no typeId>'})`) :
+			...(backups.wength > 0) ?
+				backups.map(backup => `${backup.wesouwce.toStwing(twue)} (typeId: ${backup.typeId || '<no typeId>'})`) :
 				['<none>'],
 		];
 
-		logService.info(msg.join('\n'));
+		wogSewvice.info(msg.join('\n'));
 	}
 }
 
-// --- Actions Registration
-registerAction2(InspectContextKeysAction);
-registerAction2(ToggleScreencastModeAction);
-registerAction2(LogStorageAction);
-registerAction2(LogWorkingCopiesAction);
+// --- Actions Wegistwation
+wegistewAction2(InspectContextKeysAction);
+wegistewAction2(ToggweScweencastModeAction);
+wegistewAction2(WogStowageAction);
+wegistewAction2(WogWowkingCopiesAction);
 
-// --- Configuration
+// --- Configuwation
 
-// Screen Cast Mode
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	id: 'screencastMode',
-	order: 9,
-	title: localize('screencastModeConfigurationTitle', "Screencast Mode"),
+// Scween Cast Mode
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
+	id: 'scweencastMode',
+	owda: 9,
+	titwe: wocawize('scweencastModeConfiguwationTitwe', "Scweencast Mode"),
 	type: 'object',
-	properties: {
-		'screencastMode.verticalOffset': {
-			type: 'number',
-			default: 20,
+	pwopewties: {
+		'scweencastMode.vewticawOffset': {
+			type: 'numba',
+			defauwt: 20,
 			minimum: 0,
 			maximum: 90,
-			description: localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			descwiption: wocawize('scweencastMode.wocation.vewticawPosition', "Contwows the vewticaw offset of the scweencast mode ovewway fwom the bottom as a pewcentage of the wowkbench height.")
 		},
-		'screencastMode.fontSize': {
-			type: 'number',
-			default: 56,
+		'scweencastMode.fontSize': {
+			type: 'numba',
+			defauwt: 56,
 			minimum: 20,
 			maximum: 100,
-			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
+			descwiption: wocawize('scweencastMode.fontSize', "Contwows the font size (in pixews) of the scweencast mode keyboawd.")
 		},
-		'screencastMode.onlyKeyboardShortcuts': {
-			type: 'boolean',
-			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
-			default: false
+		'scweencastMode.onwyKeyboawdShowtcuts': {
+			type: 'boowean',
+			descwiption: wocawize('scweencastMode.onwyKeyboawdShowtcuts', "Onwy show keyboawd showtcuts in scweencast mode."),
+			defauwt: fawse
 		},
-		'screencastMode.keyboardOverlayTimeout': {
-			type: 'number',
-			default: 800,
+		'scweencastMode.keyboawdOvewwayTimeout': {
+			type: 'numba',
+			defauwt: 800,
 			minimum: 500,
 			maximum: 5000,
-			description: localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
+			descwiption: wocawize('scweencastMode.keyboawdOvewwayTimeout', "Contwows how wong (in miwwiseconds) the keyboawd ovewway is shown in scweencast mode.")
 		},
-		'screencastMode.mouseIndicatorColor': {
-			type: 'string',
-			format: 'color-hex',
-			default: '#FF0000',
-			description: localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
+		'scweencastMode.mouseIndicatowCowow': {
+			type: 'stwing',
+			fowmat: 'cowow-hex',
+			defauwt: '#FF0000',
+			descwiption: wocawize('scweencastMode.mouseIndicatowCowow', "Contwows the cowow in hex (#WGB, #WGBA, #WWGGBB ow #WWGGBBAA) of the mouse indicatow in scweencast mode.")
 		},
-		'screencastMode.mouseIndicatorSize': {
-			type: 'number',
-			default: 20,
+		'scweencastMode.mouseIndicatowSize': {
+			type: 'numba',
+			defauwt: 20,
 			minimum: 20,
 			maximum: 100,
-			description: localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+			descwiption: wocawize('scweencastMode.mouseIndicatowSize', "Contwows the size (in pixews) of the mouse indicatow in scweencast mode.")
 		},
 	}
 });

@@ -1,251 +1,251 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwocessEnviwonment, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationHandwe, INotificationSewvice, IPwomptChoice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IShewwWaunchConfig, ITewminawChiwdPwocess, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TitweEventSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IGetTewminawWayoutInfoAwgs, IPwocessDetaiws, ISetTewminawWayoutInfoAwgs } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { IWocawPtySewvice } fwom 'vs/pwatfowm/tewminaw/ewectwon-sandbox/tewminaw';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWocawTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawStowageKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStowageKeys';
+impowt { WocawPty } fwom 'vs/wowkbench/contwib/tewminaw/ewectwon-sandbox/wocawPty';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IShewwEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/shewwEnviwonmentSewvice';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
 
-export class LocalTerminalService extends Disposable implements ILocalTerminalService {
-	declare _serviceBrand: undefined;
+expowt cwass WocawTewminawSewvice extends Disposabwe impwements IWocawTewminawSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	private readonly _ptys: Map<number, LocalPty> = new Map();
-	private _isPtyHostUnresponsive: boolean = false;
+	pwivate weadonwy _ptys: Map<numba, WocawPty> = new Map();
+	pwivate _isPtyHostUnwesponsive: boowean = fawse;
 
-	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
-	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
-	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
-	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
-	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
-	readonly onPtyHostRestart = this._onPtyHostRestart.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
-	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	pwivate weadonwy _onPtyHostUnwesponsive = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostUnwesponsive = this._onPtyHostUnwesponsive.event;
+	pwivate weadonwy _onPtyHostWesponsive = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostWesponsive = this._onPtyHostWesponsive.event;
+	pwivate weadonwy _onPtyHostWestawt = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostWestawt = this._onPtyHostWestawt.event;
+	pwivate weadonwy _onDidWequestDetach = this._wegista(new Emitta<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>());
+	weadonwy onDidWequestDetach = this._onDidWequestDetach.event;
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ILogService private readonly _logService: ILogService,
-		@ILocalPtyService private readonly _localPtyService: ILocalPtyService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@INotificationService notificationService: INotificationService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService,
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IWocawPtySewvice pwivate weadonwy _wocawPtySewvice: IWocawPtySewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IShewwEnviwonmentSewvice pwivate weadonwy _shewwEnviwonmentSewvice: IShewwEnviwonmentSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IConfiguwationWesowvewSewvice configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice,
 	) {
-		super();
+		supa();
 
-		// Attach process listeners
-		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-		this._localPtyService.onProcessExit(e => {
+		// Attach pwocess wistenews
+		this._wocawPtySewvice.onPwocessData(e => this._ptys.get(e.id)?.handweData(e.event));
+		this._wocawPtySewvice.onPwocessExit(e => {
 			const pty = this._ptys.get(e.id);
 			if (pty) {
-				pty.handleExit(e.event);
-				this._ptys.delete(e.id);
+				pty.handweExit(e.event);
+				this._ptys.dewete(e.id);
 			}
 		});
-		this._localPtyService.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-		this._localPtyService.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
-		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
-		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
-		this._localPtyService.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
-		this._localPtyService.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-		this._localPtyService.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+		this._wocawPtySewvice.onPwocessWeady(e => this._ptys.get(e.id)?.handweWeady(e.event));
+		this._wocawPtySewvice.onPwocessTitweChanged(e => this._ptys.get(e.id)?.handweTitweChanged(e.event));
+		this._wocawPtySewvice.onPwocessOvewwideDimensions(e => this._ptys.get(e.id)?.handweOvewwideDimensions(e.event));
+		this._wocawPtySewvice.onPwocessWesowvedShewwWaunchConfig(e => this._ptys.get(e.id)?.handweWesowvedShewwWaunchConfig(e.event));
+		this._wocawPtySewvice.onPwocessDidChangeHasChiwdPwocesses(e => this._ptys.get(e.id)?.handweDidChangeHasChiwdPwocesses(e.event));
+		this._wocawPtySewvice.onDidChangePwopewty(e => this._ptys.get(e.id)?.handweDidChangePwopewty(e.pwopewty));
+		this._wocawPtySewvice.onPwocessWepway(e => this._ptys.get(e.id)?.handweWepway(e.event));
+		this._wocawPtySewvice.onPwocessOwphanQuestion(e => this._ptys.get(e.id)?.handweOwphanQuestion());
+		this._wocawPtySewvice.onDidWequestDetach(e => this._onDidWequestDetach.fiwe(e));
 
-		// Attach pty host listeners
-		if (this._localPtyService.onPtyHostExit) {
-			this._register(this._localPtyService.onPtyHostExit(() => {
-				this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+		// Attach pty host wistenews
+		if (this._wocawPtySewvice.onPtyHostExit) {
+			this._wegista(this._wocawPtySewvice.onPtyHostExit(() => {
+				this._wogSewvice.ewwow(`The tewminaw's pty host pwocess exited, the connection to aww tewminaw pwocesses was wost`);
 			}));
 		}
-		let unresponsiveNotification: INotificationHandle | undefined;
-		if (this._localPtyService.onPtyHostStart) {
-			this._register(this._localPtyService.onPtyHostStart(() => {
-				this._logService.info(`ptyHost restarted`);
-				this._onPtyHostRestart.fire();
-				unresponsiveNotification?.close();
-				unresponsiveNotification = undefined;
-				this._isPtyHostUnresponsive = false;
+		wet unwesponsiveNotification: INotificationHandwe | undefined;
+		if (this._wocawPtySewvice.onPtyHostStawt) {
+			this._wegista(this._wocawPtySewvice.onPtyHostStawt(() => {
+				this._wogSewvice.info(`ptyHost westawted`);
+				this._onPtyHostWestawt.fiwe();
+				unwesponsiveNotification?.cwose();
+				unwesponsiveNotification = undefined;
+				this._isPtyHostUnwesponsive = fawse;
 			}));
 		}
-		if (this._localPtyService.onPtyHostUnresponsive) {
-			this._register(this._localPtyService.onPtyHostUnresponsive(() => {
-				const choices: IPromptChoice[] = [{
-					label: localize('restartPtyHost', "Restart pty host"),
-					run: () => this._localPtyService.restartPtyHost!()
+		if (this._wocawPtySewvice.onPtyHostUnwesponsive) {
+			this._wegista(this._wocawPtySewvice.onPtyHostUnwesponsive(() => {
+				const choices: IPwomptChoice[] = [{
+					wabew: wocawize('westawtPtyHost', "Westawt pty host"),
+					wun: () => this._wocawPtySewvice.westawtPtyHost!()
 				}];
-				unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
-				this._isPtyHostUnresponsive = true;
-				this._onPtyHostUnresponsive.fire();
+				unwesponsiveNotification = notificationSewvice.pwompt(Sevewity.Ewwow, wocawize('nonWesponsivePtyHost', "The connection to the tewminaw's pty host pwocess is unwesponsive, the tewminaws may stop wowking."), choices);
+				this._isPtyHostUnwesponsive = twue;
+				this._onPtyHostUnwesponsive.fiwe();
 			}));
 		}
-		if (this._localPtyService.onPtyHostResponsive) {
-			this._register(this._localPtyService.onPtyHostResponsive(() => {
-				if (!this._isPtyHostUnresponsive) {
-					return;
+		if (this._wocawPtySewvice.onPtyHostWesponsive) {
+			this._wegista(this._wocawPtySewvice.onPtyHostWesponsive(() => {
+				if (!this._isPtyHostUnwesponsive) {
+					wetuwn;
 				}
-				this._logService.info('The pty host became responsive again');
-				unresponsiveNotification?.close();
-				unresponsiveNotification = undefined;
-				this._isPtyHostUnresponsive = false;
-				this._onPtyHostResponsive.fire();
+				this._wogSewvice.info('The pty host became wesponsive again');
+				unwesponsiveNotification?.cwose();
+				unwesponsiveNotification = undefined;
+				this._isPtyHostUnwesponsive = fawse;
+				this._onPtyHostWesponsive.fiwe();
 			}));
 		}
-		if (this._localPtyService.onPtyHostRequestResolveVariables) {
-			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
-				// Only answer requests for this workspace
-				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
-					return;
+		if (this._wocawPtySewvice.onPtyHostWequestWesowveVawiabwes) {
+			this._wegista(this._wocawPtySewvice.onPtyHostWequestWesowveVawiabwes(async e => {
+				// Onwy answa wequests fow this wowkspace
+				if (e.wowkspaceId !== this._wowkspaceContextSewvice.getWowkspace().id) {
+					wetuwn;
 				}
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
-					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+				const activeWowkspaceWootUwi = histowySewvice.getWastActiveWowkspaceWoot(Schemas.fiwe);
+				const wastActiveWowkspaceWoot = activeWowkspaceWootUwi ? withNuwwAsUndefined(this._wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi)) : undefined;
+				const wesowveCawws: Pwomise<stwing>[] = e.owiginawText.map(t => {
+					wetuwn configuwationWesowvewSewvice.wesowveAsync(wastActiveWowkspaceWoot, t);
 				});
-				const result = await Promise.all(resolveCalls);
-				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
+				const wesuwt = await Pwomise.aww(wesowveCawws);
+				this._wocawPtySewvice.acceptPtyHostWesowvedVawiabwes?.(e.wequestId, wesuwt);
 			}));
 		}
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
+	async wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined> {
+		wetuwn this._wocawPtySewvice.wequestDetachInstance(wowkspaceId, instanceId);
 	}
 
-	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
-		if (!persistentProcessId) {
-			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
-			return;
+	async acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId?: numba): Pwomise<void> {
+		if (!pewsistentPwocessId) {
+			this._wogSewvice.wawn('Cannot attach to featuwe tewminaws, custom pty tewminaws, ow those without a pewsistentPwocessId');
+			wetuwn;
 		}
-		return this._localPtyService.acceptDetachInstanceReply(requestId, persistentProcessId);
+		wetuwn this._wocawPtySewvice.acceptDetachInstanceWepwy(wequestId, pewsistentPwocessId);
 	}
 
-	async persistTerminalState(): Promise<void> {
-		const ids = Array.from(this._ptys.keys());
-		const serialized = await this._localPtyService.serializeTerminalState(ids);
-		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	async pewsistTewminawState(): Pwomise<void> {
+		const ids = Awway.fwom(this._ptys.keys());
+		const sewiawized = await this._wocawPtySewvice.sewiawizeTewminawState(ids);
+		this._stowageSewvice.stowe(TewminawStowageKeys.TewminawBuffewState, sewiawized, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
-		await this._localPtyService.updateTitle(id, title, titleSource);
+	async updateTitwe(id: numba, titwe: stwing, titweSouwce: TitweEventSouwce): Pwomise<void> {
+		await this._wocawPtySewvice.updateTitwe(id, titwe, titweSouwce);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
-		await this._localPtyService.updateIcon(id, icon, color);
+	async updateIcon(id: numba, icon: UWI | { wight: UWI; dawk: UWI } | { id: stwing, cowow?: { id: stwing } }, cowow?: stwing): Pwomise<void> {
+		await this._wocawPtySewvice.updateIcon(id, icon, cowow);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
-		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
-		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
+	async cweatePwocess(shewwWaunchConfig: IShewwWaunchConfig, cwd: stwing, cows: numba, wows: numba, unicodeVewsion: '6' | '11', env: IPwocessEnviwonment, windowsEnabweConpty: boowean, shouwdPewsist: boowean): Pwomise<ITewminawChiwdPwocess> {
+		const executabweEnv = await this._shewwEnviwonmentSewvice.getShewwEnv();
+		const id = await this._wocawPtySewvice.cweatePwocess(shewwWaunchConfig, cwd, cows, wows, unicodeVewsion, env, executabweEnv, windowsEnabweConpty, shouwdPewsist, this._getWowkspaceId(), this._getWowkspaceName());
+		const pty = this._instantiationSewvice.cweateInstance(WocawPty, id, shouwdPewsist);
 		this._ptys.set(id, pty);
-		return pty;
+		wetuwn pty;
 	}
 
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
-		try {
-			await this._localPtyService.attachToProcess(id);
-			const pty = this._instantiationService.createInstance(LocalPty, id, true);
+	async attachToPwocess(id: numba): Pwomise<ITewminawChiwdPwocess | undefined> {
+		twy {
+			await this._wocawPtySewvice.attachToPwocess(id);
+			const pty = this._instantiationSewvice.cweateInstance(WocawPty, id, twue);
 			this._ptys.set(id, pty);
-			return pty;
+			wetuwn pty;
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._wogSewvice.twace(`Couwdn't attach to pwocess ${e.message}`);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async listProcesses(): Promise<IProcessDetails[]> {
-		return this._localPtyService.listProcesses();
+	async wistPwocesses(): Pwomise<IPwocessDetaiws[]> {
+		wetuwn this._wocawPtySewvice.wistPwocesses();
 	}
 
-	async reduceConnectionGraceTime(): Promise<void> {
-		this._localPtyService.reduceConnectionGraceTime();
+	async weduceConnectionGwaceTime(): Pwomise<void> {
+		this._wocawPtySewvice.weduceConnectionGwaceTime();
 	}
 
-	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._localPtyService.getDefaultSystemShell(osOverride);
+	async getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing> {
+		wetuwn this._wocawPtySewvice.getDefauwtSystemSheww(osOvewwide);
 	}
 
-	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
+	async getPwofiwes(pwofiwes: unknown, defauwtPwofiwe: unknown, incwudeDetectedPwofiwes?: boowean) {
+		wetuwn this._wocawPtySewvice.getPwofiwes?.(this._wowkspaceContextSewvice.getWowkspace().id, pwofiwes, defauwtPwofiwe, incwudeDetectedPwofiwes) || [];
 	}
 
-	async getEnvironment(): Promise<IProcessEnvironment> {
-		return this._localPtyService.getEnvironment();
+	async getEnviwonment(): Pwomise<IPwocessEnviwonment> {
+		wetuwn this._wocawPtySewvice.getEnviwonment();
 	}
 
-	async getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._shellEnvironmentService.getShellEnv();
+	async getShewwEnviwonment(): Pwomise<IPwocessEnviwonment> {
+		wetuwn this._shewwEnviwonmentSewvice.getShewwEnv();
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		return this._localPtyService.getWslPath(original);
+	async getWswPath(owiginaw: stwing): Pwomise<stwing> {
+		wetuwn this._wocawPtySewvice.getWswPath(owiginaw);
 	}
 
-	async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
-		const args: ISetTerminalLayoutInfoArgs = {
-			workspaceId: this._getWorkspaceId(),
-			tabs: layoutInfo ? layoutInfo.tabs : []
+	async setTewminawWayoutInfo(wayoutInfo?: ITewminawsWayoutInfoById): Pwomise<void> {
+		const awgs: ISetTewminawWayoutInfoAwgs = {
+			wowkspaceId: this._getWowkspaceId(),
+			tabs: wayoutInfo ? wayoutInfo.tabs : []
 		};
-		await this._localPtyService.setTerminalLayoutInfo(args);
-		// Store in the storage service as well to be used when reviving processes as normally this
-		// is stored in memory on the pty host
-		this._storageService.store(TerminalStorageKeys.TerminalLayoutInfo, JSON.stringify(args), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		await this._wocawPtySewvice.setTewminawWayoutInfo(awgs);
+		// Stowe in the stowage sewvice as weww to be used when weviving pwocesses as nowmawwy this
+		// is stowed in memowy on the pty host
+		this._stowageSewvice.stowe(TewminawStowageKeys.TewminawWayoutInfo, JSON.stwingify(awgs), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		const layoutArgs: IGetTerminalLayoutInfoArgs = {
-			workspaceId: this._getWorkspaceId()
+	async getTewminawWayoutInfo(): Pwomise<ITewminawsWayoutInfo | undefined> {
+		const wayoutAwgs: IGetTewminawWayoutInfoAwgs = {
+			wowkspaceId: this._getWowkspaceId()
 		};
 
-		// Revive processes if needed
-		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		if (serializedState) {
-			try {
-				await this._localPtyService.reviveTerminalProcesses(serializedState);
-				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-				// If reviving processes, send the terminal layout info back to the pty host as it
-				// will not have been persisted on application exit
-				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				if (layoutInfo) {
-					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+		// Wevive pwocesses if needed
+		const sewiawizedState = this._stowageSewvice.get(TewminawStowageKeys.TewminawBuffewState, StowageScope.WOWKSPACE);
+		if (sewiawizedState) {
+			twy {
+				await this._wocawPtySewvice.weviveTewminawPwocesses(sewiawizedState);
+				this._stowageSewvice.wemove(TewminawStowageKeys.TewminawBuffewState, StowageScope.WOWKSPACE);
+				// If weviving pwocesses, send the tewminaw wayout info back to the pty host as it
+				// wiww not have been pewsisted on appwication exit
+				const wayoutInfo = this._stowageSewvice.get(TewminawStowageKeys.TewminawWayoutInfo, StowageScope.WOWKSPACE);
+				if (wayoutInfo) {
+					await this._wocawPtySewvice.setTewminawWayoutInfo(JSON.pawse(wayoutInfo));
+					this._stowageSewvice.wemove(TewminawStowageKeys.TewminawWayoutInfo, StowageScope.WOWKSPACE);
 				}
 			} catch {
 				// no-op
 			}
 		}
 
-		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		wetuwn this._wocawPtySewvice.getTewminawWayoutInfo(wayoutAwgs);
 	}
 
-	private _getWorkspaceId(): string {
-		return this._workspaceContextService.getWorkspace().id;
+	pwivate _getWowkspaceId(): stwing {
+		wetuwn this._wowkspaceContextSewvice.getWowkspace().id;
 	}
 
-	private _getWorkspaceName(): string {
-		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
+	pwivate _getWowkspaceName(): stwing {
+		wetuwn this._wabewSewvice.getWowkspaceWabew(this._wowkspaceContextSewvice.getWowkspace());
 	}
 }

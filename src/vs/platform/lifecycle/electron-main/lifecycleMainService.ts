@@ -1,630 +1,630 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { Barrier, Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { app, BwowsewWindow, ipcMain } fwom 'ewectwon';
+impowt { Bawwia, Pwomises, timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { cwd } fwom 'vs/base/common/pwocess';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { handweVetos } fwom 'vs/pwatfowm/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { ICodeWindow, WoadWeason, UnwoadWeason } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
+expowt const IWifecycweMainSewvice = cweateDecowatow<IWifecycweMainSewvice>('wifecycweMainSewvice');
 
-export interface IWindowLoadEvent {
+expowt intewface IWindowWoadEvent {
 	window: ICodeWindow;
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	reason: LoadReason;
+	wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | undefined;
+	weason: WoadWeason;
 }
 
-export interface IWindowUnloadEvent {
+expowt intewface IWindowUnwoadEvent {
 	window: ICodeWindow;
-	reason: UnloadReason;
-	veto(value: boolean | Promise<boolean>): void;
+	weason: UnwoadWeason;
+	veto(vawue: boowean | Pwomise<boowean>): void;
 }
 
-export interface ShutdownEvent {
+expowt intewface ShutdownEvent {
 
 	/**
-	 * Allows to join the shutdown. The promise can be a long running operation but it
-	 * will block the application from closing.
+	 * Awwows to join the shutdown. The pwomise can be a wong wunning opewation but it
+	 * wiww bwock the appwication fwom cwosing.
 	 */
-	join(promise: Promise<void>): void;
+	join(pwomise: Pwomise<void>): void;
 }
 
-export interface ILifecycleMainService {
+expowt intewface IWifecycweMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Will be true if the program was restarted (e.g. due to explicit request or update).
+	 * Wiww be twue if the pwogwam was westawted (e.g. due to expwicit wequest ow update).
 	 */
-	readonly wasRestarted: boolean;
+	weadonwy wasWestawted: boowean;
 
 	/**
-	 * Will be true if the program was requested to quit.
+	 * Wiww be twue if the pwogwam was wequested to quit.
 	 */
-	readonly quitRequested: boolean;
+	weadonwy quitWequested: boowean;
 
 	/**
-	 * A flag indicating in what phase of the lifecycle we currently are.
+	 * A fwag indicating in what phase of the wifecycwe we cuwwentwy awe.
 	 */
-	phase: LifecycleMainPhase;
+	phase: WifecycweMainPhase;
 
 	/**
-	 * An event that fires when the application is about to shutdown before any window is closed.
-	 * The shutdown can still be prevented by any window that vetos this event.
+	 * An event that fiwes when the appwication is about to shutdown befowe any window is cwosed.
+	 * The shutdown can stiww be pwevented by any window that vetos this event.
 	 */
-	readonly onBeforeShutdown: Event<void>;
+	weadonwy onBefoweShutdown: Event<void>;
 
 	/**
-	 * An event that fires after the onBeforeShutdown event has been fired and after no window has
-	 * vetoed the shutdown sequence. At this point listeners are ensured that the application will
+	 * An event that fiwes afta the onBefoweShutdown event has been fiwed and afta no window has
+	 * vetoed the shutdown sequence. At this point wistenews awe ensuwed that the appwication wiww
 	 * quit without veto.
 	 */
-	readonly onWillShutdown: Event<ShutdownEvent>;
+	weadonwy onWiwwShutdown: Event<ShutdownEvent>;
 
 	/**
-	 * An event that fires when a window is loading. This can either be a window opening for the
-	 * first time or a window reloading or changing to another URL.
+	 * An event that fiwes when a window is woading. This can eitha be a window opening fow the
+	 * fiwst time ow a window wewoading ow changing to anotha UWW.
 	 */
-	readonly onWillLoadWindow: Event<IWindowLoadEvent>;
+	weadonwy onWiwwWoadWindow: Event<IWindowWoadEvent>;
 
 	/**
-	 * An event that fires before a window is about to unload. Listeners can veto this event to prevent
-	 * the window from unloading.
+	 * An event that fiwes befowe a window is about to unwoad. Wistenews can veto this event to pwevent
+	 * the window fwom unwoading.
 	 */
-	readonly onBeforeUnloadWindow: Event<IWindowUnloadEvent>;
+	weadonwy onBefoweUnwoadWindow: Event<IWindowUnwoadEvent>;
 
 	/**
-	 * An event that fires before a window closes. This event is fired after any veto has been dealt
-	 * with so that listeners know for sure that the window will close without veto.
+	 * An event that fiwes befowe a window cwoses. This event is fiwed afta any veto has been deawt
+	 * with so that wistenews know fow suwe that the window wiww cwose without veto.
 	 */
-	readonly onBeforeCloseWindow: Event<ICodeWindow>;
+	weadonwy onBefoweCwoseWindow: Event<ICodeWindow>;
 
 	/**
-	 * Make a `ICodeWindow` known to the lifecycle main service.
+	 * Make a `ICodeWindow` known to the wifecycwe main sewvice.
 	 */
-	registerWindow(window: ICodeWindow): void;
+	wegistewWindow(window: ICodeWindow): void;
 
 	/**
-	 * Reload a window. All lifecycle event handlers are triggered.
+	 * Wewoad a window. Aww wifecycwe event handwews awe twiggewed.
 	 */
-	reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void>;
+	wewoad(window: ICodeWindow, cwi?: NativePawsedAwgs): Pwomise<void>;
 
 	/**
-	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
+	 * Unwoad a window fow the pwovided weason. Aww wifecycwe event handwews awe twiggewed.
 	 */
-	unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */>;
+	unwoad(window: ICodeWindow, weason: UnwoadWeason): Pwomise<boowean /* veto */>;
 
 	/**
-	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
+	 * Westawt the appwication with optionaw awguments (CWI). Aww wifecycwe event handwews awe twiggewed.
 	 */
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	wewaunch(options?: { addAwgs?: stwing[], wemoveAwgs?: stwing[] }): Pwomise<void>;
 
 	/**
-	 * Shutdown the application normally. All lifecycle event handlers are triggered.
+	 * Shutdown the appwication nowmawwy. Aww wifecycwe event handwews awe twiggewed.
 	 */
-	quit(willRestart?: boolean): Promise<boolean /* veto */>;
+	quit(wiwwWestawt?: boowean): Pwomise<boowean /* veto */>;
 
 	/**
-	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
+	 * Fowcefuwwy shutdown the appwication. No wivecycwe event handwews awe twiggewed.
 	 */
-	kill(code?: number): Promise<void>;
+	kiww(code?: numba): Pwomise<void>;
 
 	/**
-	 * Returns a promise that resolves when a certain lifecycle phase
-	 * has started.
+	 * Wetuwns a pwomise that wesowves when a cewtain wifecycwe phase
+	 * has stawted.
 	 */
-	when(phase: LifecycleMainPhase): Promise<void>;
+	when(phase: WifecycweMainPhase): Pwomise<void>;
 }
 
-export const enum LifecycleMainPhase {
+expowt const enum WifecycweMainPhase {
 
 	/**
-	 * The first phase signals that we are about to startup.
+	 * The fiwst phase signaws that we awe about to stawtup.
 	 */
-	Starting = 1,
+	Stawting = 1,
 
 	/**
-	 * Services are ready and first window is about to open.
+	 * Sewvices awe weady and fiwst window is about to open.
 	 */
-	Ready = 2,
+	Weady = 2,
 
 	/**
-	 * This phase signals a point in time after the window has opened
-	 * and is typically the best place to do work that is not required
-	 * for the window to open.
+	 * This phase signaws a point in time afta the window has opened
+	 * and is typicawwy the best pwace to do wowk that is not wequiwed
+	 * fow the window to open.
 	 */
-	AfterWindowOpen = 3
+	AftewWindowOpen = 3
 }
 
-export class LifecycleMainService extends Disposable implements ILifecycleMainService {
+expowt cwass WifecycweMainSewvice extends Disposabwe impwements IWifecycweMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly QUIT_AND_RESTART_KEY = 'lifecycle.quitAndRestart';
+	pwivate static weadonwy QUIT_AND_WESTAWT_KEY = 'wifecycwe.quitAndWestawt';
 
-	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
-	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+	pwivate weadonwy _onBefoweShutdown = this._wegista(new Emitta<void>());
+	weadonwy onBefoweShutdown = this._onBefoweShutdown.event;
 
-	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
-	readonly onWillShutdown = this._onWillShutdown.event;
+	pwivate weadonwy _onWiwwShutdown = this._wegista(new Emitta<ShutdownEvent>());
+	weadonwy onWiwwShutdown = this._onWiwwShutdown.event;
 
-	private readonly _onWillLoadWindow = this._register(new Emitter<IWindowLoadEvent>());
-	readonly onWillLoadWindow = this._onWillLoadWindow.event;
+	pwivate weadonwy _onWiwwWoadWindow = this._wegista(new Emitta<IWindowWoadEvent>());
+	weadonwy onWiwwWoadWindow = this._onWiwwWoadWindow.event;
 
-	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
+	pwivate weadonwy _onBefoweCwoseWindow = this._wegista(new Emitta<ICodeWindow>());
+	weadonwy onBefoweCwoseWindow = this._onBefoweCwoseWindow.event;
 
-	private readonly _onBeforeUnloadWindow = this._register(new Emitter<IWindowUnloadEvent>());
-	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
+	pwivate weadonwy _onBefoweUnwoadWindow = this._wegista(new Emitta<IWindowUnwoadEvent>());
+	weadonwy onBefoweUnwoadWindow = this._onBefoweUnwoadWindow.event;
 
-	private _quitRequested = false;
-	get quitRequested(): boolean { return this._quitRequested; }
+	pwivate _quitWequested = fawse;
+	get quitWequested(): boowean { wetuwn this._quitWequested; }
 
-	private _wasRestarted: boolean = false;
-	get wasRestarted(): boolean { return this._wasRestarted; }
+	pwivate _wasWestawted: boowean = fawse;
+	get wasWestawted(): boowean { wetuwn this._wasWestawted; }
 
-	private _phase = LifecycleMainPhase.Starting;
-	get phase(): LifecycleMainPhase { return this._phase; }
+	pwivate _phase = WifecycweMainPhase.Stawting;
+	get phase(): WifecycweMainPhase { wetuwn this._phase; }
 
-	private readonly windowToCloseRequest = new Set<number>();
-	private oneTimeListenerTokenGenerator = 0;
-	private windowCounter = 0;
+	pwivate weadonwy windowToCwoseWequest = new Set<numba>();
+	pwivate oneTimeWistenewTokenGenewatow = 0;
+	pwivate windowCounta = 0;
 
-	private pendingQuitPromise: Promise<boolean> | undefined = undefined;
-	private pendingQuitPromiseResolve: { (veto: boolean): void } | undefined = undefined;
+	pwivate pendingQuitPwomise: Pwomise<boowean> | undefined = undefined;
+	pwivate pendingQuitPwomiseWesowve: { (veto: boowean): void } | undefined = undefined;
 
-	private pendingWillShutdownPromise: Promise<void> | undefined = undefined;
+	pwivate pendingWiwwShutdownPwomise: Pwomise<void> | undefined = undefined;
 
-	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
+	pwivate weadonwy phaseWhen = new Map<WifecycweMainPhase, Bawwia>();
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice
 	) {
-		super();
+		supa();
 
-		this.resolveRestarted();
-		this.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
+		this.wesowveWestawted();
+		this.when(WifecycweMainPhase.Weady).then(() => this.wegistewWistenews());
 	}
 
-	private resolveRestarted(): void {
-		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+	pwivate wesowveWestawted(): void {
+		this._wasWestawted = !!this.stateMainSewvice.getItem(WifecycweMainSewvice.QUIT_AND_WESTAWT_KEY);
 
-		if (this._wasRestarted) {
-			// remove the marker right after if found
-			this.stateMainService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+		if (this._wasWestawted) {
+			// wemove the mawka wight afta if found
+			this.stateMainSewvice.wemoveItem(WifecycweMainSewvice.QUIT_AND_WESTAWT_KEY);
 		}
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// before-quit: an event that is fired if application quit was
-		// requested but before any window was closed.
-		const beforeQuitListener = () => {
-			if (this._quitRequested) {
-				return;
+		// befowe-quit: an event that is fiwed if appwication quit was
+		// wequested but befowe any window was cwosed.
+		const befoweQuitWistena = () => {
+			if (this._quitWequested) {
+				wetuwn;
 			}
 
-			this.logService.trace('Lifecycle#app.on(before-quit)');
-			this._quitRequested = true;
+			this.wogSewvice.twace('Wifecycwe#app.on(befowe-quit)');
+			this._quitWequested = twue;
 
-			// Emit event to indicate that we are about to shutdown
-			this.logService.trace('Lifecycle#onBeforeShutdown.fire()');
-			this._onBeforeShutdown.fire();
+			// Emit event to indicate that we awe about to shutdown
+			this.wogSewvice.twace('Wifecycwe#onBefoweShutdown.fiwe()');
+			this._onBefoweShutdown.fiwe();
 
-			// macOS: can run without any window open. in that case we fire
-			// the onWillShutdown() event directly because there is no veto
+			// macOS: can wun without any window open. in that case we fiwe
+			// the onWiwwShutdown() event diwectwy because thewe is no veto
 			// to be expected.
-			if (isMacintosh && this.windowCounter === 0) {
-				this.beginOnWillShutdown();
+			if (isMacintosh && this.windowCounta === 0) {
+				this.beginOnWiwwShutdown();
 			}
 		};
-		app.addListener('before-quit', beforeQuitListener);
+		app.addWistena('befowe-quit', befoweQuitWistena);
 
-		// window-all-closed: an event that only fires when the last window
-		// was closed. We override this event to be in charge if app.quit()
-		// should be called or not.
-		const windowAllClosedListener = () => {
-			this.logService.trace('Lifecycle#app.on(window-all-closed)');
+		// window-aww-cwosed: an event that onwy fiwes when the wast window
+		// was cwosed. We ovewwide this event to be in chawge if app.quit()
+		// shouwd be cawwed ow not.
+		const windowAwwCwosedWistena = () => {
+			this.wogSewvice.twace('Wifecycwe#app.on(window-aww-cwosed)');
 
-			// Windows/Linux: we quit when all windows have closed
-			// Mac: we only quit when quit was requested
-			if (this._quitRequested || !isMacintosh) {
+			// Windows/Winux: we quit when aww windows have cwosed
+			// Mac: we onwy quit when quit was wequested
+			if (this._quitWequested || !isMacintosh) {
 				app.quit();
 			}
 		};
-		app.addListener('window-all-closed', windowAllClosedListener);
+		app.addWistena('window-aww-cwosed', windowAwwCwosedWistena);
 
-		// will-quit: an event that is fired after all windows have been
-		// closed, but before actually quitting.
-		app.once('will-quit', e => {
-			this.logService.trace('Lifecycle#app.on(will-quit)');
+		// wiww-quit: an event that is fiwed afta aww windows have been
+		// cwosed, but befowe actuawwy quitting.
+		app.once('wiww-quit', e => {
+			this.wogSewvice.twace('Wifecycwe#app.on(wiww-quit)');
 
-			// Prevent the quit until the shutdown promise was resolved
-			e.preventDefault();
+			// Pwevent the quit untiw the shutdown pwomise was wesowved
+			e.pweventDefauwt();
 
-			// Start shutdown sequence
-			const shutdownPromise = this.beginOnWillShutdown();
+			// Stawt shutdown sequence
+			const shutdownPwomise = this.beginOnWiwwShutdown();
 
-			// Wait until shutdown is signaled to be complete
-			shutdownPromise.finally(() => {
+			// Wait untiw shutdown is signawed to be compwete
+			shutdownPwomise.finawwy(() => {
 
-				// Resolve pending quit promise now without veto
-				this.resolvePendingQuitPromise(false /* no veto */);
+				// Wesowve pending quit pwomise now without veto
+				this.wesowvePendingQuitPwomise(fawse /* no veto */);
 
-				// Quit again, this time do not prevent this, since our
-				// will-quit listener is only installed "once". Also
-				// remove any listener we have that is no longer needed
-				app.removeListener('before-quit', beforeQuitListener);
-				app.removeListener('window-all-closed', windowAllClosedListener);
+				// Quit again, this time do not pwevent this, since ouw
+				// wiww-quit wistena is onwy instawwed "once". Awso
+				// wemove any wistena we have that is no wonga needed
+				app.wemoveWistena('befowe-quit', befoweQuitWistena);
+				app.wemoveWistena('window-aww-cwosed', windowAwwCwosedWistena);
 				app.quit();
 			});
 		});
 	}
 
-	private beginOnWillShutdown(): Promise<void> {
-		if (this.pendingWillShutdownPromise) {
-			return this.pendingWillShutdownPromise; // shutdown is already running
+	pwivate beginOnWiwwShutdown(): Pwomise<void> {
+		if (this.pendingWiwwShutdownPwomise) {
+			wetuwn this.pendingWiwwShutdownPwomise; // shutdown is awweady wunning
 		}
 
-		this.logService.trace('Lifecycle#onWillShutdown.fire()');
+		this.wogSewvice.twace('Wifecycwe#onWiwwShutdown.fiwe()');
 
-		const joiners: Promise<void>[] = [];
+		const joinews: Pwomise<void>[] = [];
 
-		this._onWillShutdown.fire({
-			join(promise) {
-				joiners.push(promise);
+		this._onWiwwShutdown.fiwe({
+			join(pwomise) {
+				joinews.push(pwomise);
 			}
 		});
 
-		this.pendingWillShutdownPromise = (async () => {
+		this.pendingWiwwShutdownPwomise = (async () => {
 
-			// Settle all shutdown event joiners
-			try {
-				await Promises.settled(joiners);
-			} catch (error) {
-				this.logService.error(error);
+			// Settwe aww shutdown event joinews
+			twy {
+				await Pwomises.settwed(joinews);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 
-			// Then, always make sure at the end
-			// the state service is flushed.
-			try {
-				await this.stateMainService.close();
-			} catch (error) {
-				this.logService.error(error);
+			// Then, awways make suwe at the end
+			// the state sewvice is fwushed.
+			twy {
+				await this.stateMainSewvice.cwose();
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(ewwow);
 			}
 		})();
 
-		return this.pendingWillShutdownPromise;
+		wetuwn this.pendingWiwwShutdownPwomise;
 	}
 
-	set phase(value: LifecycleMainPhase) {
-		if (value < this.phase) {
-			throw new Error('Lifecycle cannot go backwards');
+	set phase(vawue: WifecycweMainPhase) {
+		if (vawue < this.phase) {
+			thwow new Ewwow('Wifecycwe cannot go backwawds');
 		}
 
-		if (this._phase === value) {
-			return;
+		if (this._phase === vawue) {
+			wetuwn;
 		}
 
-		this.logService.trace(`lifecycle (main): phase changed (value: ${value})`);
+		this.wogSewvice.twace(`wifecycwe (main): phase changed (vawue: ${vawue})`);
 
-		this._phase = value;
+		this._phase = vawue;
 
-		const barrier = this.phaseWhen.get(this._phase);
-		if (barrier) {
-			barrier.open();
-			this.phaseWhen.delete(this._phase);
+		const bawwia = this.phaseWhen.get(this._phase);
+		if (bawwia) {
+			bawwia.open();
+			this.phaseWhen.dewete(this._phase);
 		}
 	}
 
-	async when(phase: LifecycleMainPhase): Promise<void> {
+	async when(phase: WifecycweMainPhase): Pwomise<void> {
 		if (phase <= this._phase) {
-			return;
+			wetuwn;
 		}
 
-		let barrier = this.phaseWhen.get(phase);
-		if (!barrier) {
-			barrier = new Barrier();
-			this.phaseWhen.set(phase, barrier);
+		wet bawwia = this.phaseWhen.get(phase);
+		if (!bawwia) {
+			bawwia = new Bawwia();
+			this.phaseWhen.set(phase, bawwia);
 		}
 
-		await barrier.wait();
+		await bawwia.wait();
 	}
 
-	registerWindow(window: ICodeWindow): void {
-		const windowListeners = new DisposableStore();
+	wegistewWindow(window: ICodeWindow): void {
+		const windowWistenews = new DisposabweStowe();
 
-		// track window count
-		this.windowCounter++;
+		// twack window count
+		this.windowCounta++;
 
-		// Window Will Load
-		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
+		// Window Wiww Woad
+		windowWistenews.add(window.onWiwwWoad(e => this._onWiwwWoadWindow.fiwe({ window, wowkspace: e.wowkspace, weason: e.weason })));
 
-		// Window Before Closing: Main -> Renderer
-		const win = assertIsDefined(window.win);
-		win.on('close', e => {
+		// Window Befowe Cwosing: Main -> Wendewa
+		const win = assewtIsDefined(window.win);
+		win.on('cwose', e => {
 
-			// The window already acknowledged to be closed
+			// The window awweady acknowwedged to be cwosed
 			const windowId = window.id;
-			if (this.windowToCloseRequest.has(windowId)) {
-				this.windowToCloseRequest.delete(windowId);
+			if (this.windowToCwoseWequest.has(windowId)) {
+				this.windowToCwoseWequest.dewete(windowId);
 
-				return;
+				wetuwn;
 			}
 
-			this.logService.trace(`Lifecycle#window.on('close') - window ID ${window.id}`);
+			this.wogSewvice.twace(`Wifecycwe#window.on('cwose') - window ID ${window.id}`);
 
-			// Otherwise prevent unload and handle it from window
-			e.preventDefault();
-			this.unload(window, UnloadReason.CLOSE).then(veto => {
+			// Othewwise pwevent unwoad and handwe it fwom window
+			e.pweventDefauwt();
+			this.unwoad(window, UnwoadWeason.CWOSE).then(veto => {
 				if (veto) {
-					this.windowToCloseRequest.delete(windowId);
-					return;
+					this.windowToCwoseWequest.dewete(windowId);
+					wetuwn;
 				}
 
-				this.windowToCloseRequest.add(windowId);
+				this.windowToCwoseWequest.add(windowId);
 
-				// Fire onBeforeCloseWindow before actually closing
-				this.logService.trace(`Lifecycle#onBeforeCloseWindow.fire() - window ID ${windowId}`);
-				this._onBeforeCloseWindow.fire(window);
+				// Fiwe onBefoweCwoseWindow befowe actuawwy cwosing
+				this.wogSewvice.twace(`Wifecycwe#onBefoweCwoseWindow.fiwe() - window ID ${windowId}`);
+				this._onBefoweCwoseWindow.fiwe(window);
 
-				// No veto, close window now
-				window.close();
+				// No veto, cwose window now
+				window.cwose();
 			});
 		});
 
-		// Window After Closing
-		win.on('closed', () => {
-			this.logService.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
+		// Window Afta Cwosing
+		win.on('cwosed', () => {
+			this.wogSewvice.twace(`Wifecycwe#window.on('cwosed') - window ID ${window.id}`);
 
 			// update window count
-			this.windowCounter--;
+			this.windowCounta--;
 
-			// clear window listeners
-			windowListeners.dispose();
+			// cweaw window wistenews
+			windowWistenews.dispose();
 
-			// if there are no more code windows opened, fire the onWillShutdown event, unless
-			// we are on macOS where it is perfectly fine to close the last window and
-			// the application continues running (unless quit was actually requested)
-			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
-				this.beginOnWillShutdown();
+			// if thewe awe no mowe code windows opened, fiwe the onWiwwShutdown event, unwess
+			// we awe on macOS whewe it is pewfectwy fine to cwose the wast window and
+			// the appwication continues wunning (unwess quit was actuawwy wequested)
+			if (this.windowCounta === 0 && (!isMacintosh || this._quitWequested)) {
+				this.beginOnWiwwShutdown();
 			}
 		});
 	}
 
-	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
+	async wewoad(window: ICodeWindow, cwi?: NativePawsedAwgs): Pwomise<void> {
 
-		// Only reload when the window has not vetoed this
-		const veto = await this.unload(window, UnloadReason.RELOAD);
+		// Onwy wewoad when the window has not vetoed this
+		const veto = await this.unwoad(window, UnwoadWeason.WEWOAD);
 		if (!veto) {
-			window.reload(cli);
+			window.wewoad(cwi);
 		}
 	}
 
-	async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
+	async unwoad(window: ICodeWindow, weason: UnwoadWeason): Pwomise<boowean /* veto */> {
 
-		// Always allow to unload a window that is not yet ready
-		if (!window.isReady) {
-			return false;
+		// Awways awwow to unwoad a window that is not yet weady
+		if (!window.isWeady) {
+			wetuwn fawse;
 		}
 
-		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
+		this.wogSewvice.twace(`Wifecycwe#unwoad() - window ID ${window.id}`);
 
-		// first ask the window itself if it vetos the unload
-		const windowUnloadReason = this._quitRequested ? UnloadReason.QUIT : reason;
-		let veto = await this.onBeforeUnloadWindowInRenderer(window, windowUnloadReason);
+		// fiwst ask the window itsewf if it vetos the unwoad
+		const windowUnwoadWeason = this._quitWequested ? UnwoadWeason.QUIT : weason;
+		wet veto = await this.onBefoweUnwoadWindowInWendewa(window, windowUnwoadWeason);
 		if (veto) {
-			this.logService.trace(`Lifecycle#unload() - veto in renderer (window ID ${window.id})`);
+			this.wogSewvice.twace(`Wifecycwe#unwoad() - veto in wendewa (window ID ${window.id})`);
 
-			return this.handleWindowUnloadVeto(veto);
+			wetuwn this.handweWindowUnwoadVeto(veto);
 		}
 
-		// then check for vetos in the main side
-		veto = await this.onBeforeUnloadWindowInMain(window, windowUnloadReason);
+		// then check fow vetos in the main side
+		veto = await this.onBefoweUnwoadWindowInMain(window, windowUnwoadWeason);
 		if (veto) {
-			this.logService.trace(`Lifecycle#unload() - veto in main (window ID ${window.id})`);
+			this.wogSewvice.twace(`Wifecycwe#unwoad() - veto in main (window ID ${window.id})`);
 
-			return this.handleWindowUnloadVeto(veto);
+			wetuwn this.handweWindowUnwoadVeto(veto);
 		}
 
-		this.logService.trace(`Lifecycle#unload() - no veto (window ID ${window.id})`);
+		this.wogSewvice.twace(`Wifecycwe#unwoad() - no veto (window ID ${window.id})`);
 
-		// finally if there are no vetos, unload the renderer
-		await this.onWillUnloadWindowInRenderer(window, windowUnloadReason);
+		// finawwy if thewe awe no vetos, unwoad the wendewa
+		await this.onWiwwUnwoadWindowInWendewa(window, windowUnwoadWeason);
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private handleWindowUnloadVeto(veto: boolean): boolean {
+	pwivate handweWindowUnwoadVeto(veto: boowean): boowean {
 		if (!veto) {
-			return false; // no veto
+			wetuwn fawse; // no veto
 		}
 
-		// a veto resolves any pending quit with veto
-		this.resolvePendingQuitPromise(true /* veto */);
+		// a veto wesowves any pending quit with veto
+		this.wesowvePendingQuitPwomise(twue /* veto */);
 
-		// a veto resets the pending quit request flag
-		this._quitRequested = false;
+		// a veto wesets the pending quit wequest fwag
+		this._quitWequested = fawse;
 
-		return true; // veto
+		wetuwn twue; // veto
 	}
 
-	private resolvePendingQuitPromise(veto: boolean): void {
-		if (this.pendingQuitPromiseResolve) {
-			this.pendingQuitPromiseResolve(veto);
-			this.pendingQuitPromiseResolve = undefined;
-			this.pendingQuitPromise = undefined;
+	pwivate wesowvePendingQuitPwomise(veto: boowean): void {
+		if (this.pendingQuitPwomiseWesowve) {
+			this.pendingQuitPwomiseWesowve(veto);
+			this.pendingQuitPwomiseWesowve = undefined;
+			this.pendingQuitPwomise = undefined;
 		}
 	}
 
-	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		return new Promise<boolean>(resolve => {
-			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
-			const okChannel = `vscode:ok${oneTimeEventToken}`;
-			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
+	pwivate onBefoweUnwoadWindowInWendewa(window: ICodeWindow, weason: UnwoadWeason): Pwomise<boowean /* veto */> {
+		wetuwn new Pwomise<boowean>(wesowve => {
+			const oneTimeEventToken = this.oneTimeWistenewTokenGenewatow++;
+			const okChannew = `vscode:ok${oneTimeEventToken}`;
+			const cancewChannew = `vscode:cancew${oneTimeEventToken}`;
 
-			ipcMain.once(okChannel, () => {
-				resolve(false); // no veto
+			ipcMain.once(okChannew, () => {
+				wesowve(fawse); // no veto
 			});
 
-			ipcMain.once(cancelChannel, () => {
-				resolve(true); // veto
+			ipcMain.once(cancewChannew, () => {
+				wesowve(twue); // veto
 			});
 
-			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
+			window.send('vscode:onBefoweUnwoad', { okChannew, cancewChannew, weason });
 		});
 	}
 
-	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		const vetos: (boolean | Promise<boolean>)[] = [];
+	pwivate onBefoweUnwoadWindowInMain(window: ICodeWindow, weason: UnwoadWeason): Pwomise<boowean /* veto */> {
+		const vetos: (boowean | Pwomise<boowean>)[] = [];
 
-		this._onBeforeUnloadWindow.fire({
-			reason,
+		this._onBefoweUnwoadWindow.fiwe({
+			weason,
 			window,
-			veto(value) {
-				vetos.push(value);
+			veto(vawue) {
+				vetos.push(vawue);
 			}
 		});
 
-		return handleVetos(vetos, err => this.logService.error(err));
+		wetuwn handweVetos(vetos, eww => this.wogSewvice.ewwow(eww));
 	}
 
-	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<void> {
-		return new Promise<void>(resolve => {
-			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
-			const replyChannel = `vscode:reply${oneTimeEventToken}`;
+	pwivate onWiwwUnwoadWindowInWendewa(window: ICodeWindow, weason: UnwoadWeason): Pwomise<void> {
+		wetuwn new Pwomise<void>(wesowve => {
+			const oneTimeEventToken = this.oneTimeWistenewTokenGenewatow++;
+			const wepwyChannew = `vscode:wepwy${oneTimeEventToken}`;
 
-			ipcMain.once(replyChannel, () => resolve());
+			ipcMain.once(wepwyChannew, () => wesowve());
 
-			window.send('vscode:onWillUnload', { replyChannel, reason });
+			window.send('vscode:onWiwwUnwoad', { wepwyChannew, weason });
 		});
 	}
 
-	quit(willRestart?: boolean): Promise<boolean /* veto */> {
-		if (this.pendingQuitPromise) {
-			return this.pendingQuitPromise;
+	quit(wiwwWestawt?: boowean): Pwomise<boowean /* veto */> {
+		if (this.pendingQuitPwomise) {
+			wetuwn this.pendingQuitPwomise;
 		}
 
-		this.logService.trace(`Lifecycle#quit() - will restart: ${willRestart}`);
+		this.wogSewvice.twace(`Wifecycwe#quit() - wiww westawt: ${wiwwWestawt}`);
 
-		// Remember if we are about to restart
-		if (willRestart) {
-			this.stateMainService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
+		// Wememba if we awe about to westawt
+		if (wiwwWestawt) {
+			this.stateMainSewvice.setItem(WifecycweMainSewvice.QUIT_AND_WESTAWT_KEY, twue);
 		}
 
-		this.pendingQuitPromise = new Promise(resolve => {
+		this.pendingQuitPwomise = new Pwomise(wesowve => {
 
-			// Store as field to access it from a window cancellation
-			this.pendingQuitPromiseResolve = resolve;
+			// Stowe as fiewd to access it fwom a window cancewwation
+			this.pendingQuitPwomiseWesowve = wesowve;
 
-			// Calling app.quit() will trigger the close handlers of each opened window
-			// and only if no window vetoed the shutdown, we will get the will-quit event
-			this.logService.trace('Lifecycle#quit() - calling app.quit()');
+			// Cawwing app.quit() wiww twigga the cwose handwews of each opened window
+			// and onwy if no window vetoed the shutdown, we wiww get the wiww-quit event
+			this.wogSewvice.twace('Wifecycwe#quit() - cawwing app.quit()');
 			app.quit();
 		});
 
-		return this.pendingQuitPromise;
+		wetuwn this.pendingQuitPwomise;
 	}
 
-	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
-		this.logService.trace('Lifecycle#relaunch()');
+	async wewaunch(options?: { addAwgs?: stwing[], wemoveAwgs?: stwing[] }): Pwomise<void> {
+		this.wogSewvice.twace('Wifecycwe#wewaunch()');
 
-		const args = process.argv.slice(1);
-		if (options?.addArgs) {
-			args.push(...options.addArgs);
+		const awgs = pwocess.awgv.swice(1);
+		if (options?.addAwgs) {
+			awgs.push(...options.addAwgs);
 		}
 
-		if (options?.removeArgs) {
-			for (const a of options.removeArgs) {
-				const idx = args.indexOf(a);
+		if (options?.wemoveAwgs) {
+			fow (const a of options.wemoveAwgs) {
+				const idx = awgs.indexOf(a);
 				if (idx >= 0) {
-					args.splice(idx, 1);
+					awgs.spwice(idx, 1);
 				}
 			}
 		}
 
-		const quitListener = () => {
-			// Windows: we are about to restart and as such we need to restore the original
-			// current working directory we had on startup to get the exact same startup
-			// behaviour. As such, we briefly change back to that directory and then when
-			// Code starts it will set it back to the installation directory again.
-			try {
+		const quitWistena = () => {
+			// Windows: we awe about to westawt and as such we need to westowe the owiginaw
+			// cuwwent wowking diwectowy we had on stawtup to get the exact same stawtup
+			// behaviouw. As such, we bwiefwy change back to that diwectowy and then when
+			// Code stawts it wiww set it back to the instawwation diwectowy again.
+			twy {
 				if (isWindows) {
-					const currentWorkingDir = cwd();
-					if (currentWorkingDir !== process.cwd()) {
-						process.chdir(currentWorkingDir);
+					const cuwwentWowkingDiw = cwd();
+					if (cuwwentWowkingDiw !== pwocess.cwd()) {
+						pwocess.chdiw(cuwwentWowkingDiw);
 					}
 				}
-			} catch (err) {
-				this.logService.error(err);
+			} catch (eww) {
+				this.wogSewvice.ewwow(eww);
 			}
 
-			// relaunch after we are sure there is no veto
-			this.logService.trace('Lifecycle#relaunch() - calling app.relaunch()');
-			app.relaunch({ args });
+			// wewaunch afta we awe suwe thewe is no veto
+			this.wogSewvice.twace('Wifecycwe#wewaunch() - cawwing app.wewaunch()');
+			app.wewaunch({ awgs });
 		};
-		app.once('quit', quitListener);
+		app.once('quit', quitWistena);
 
-		// app.relaunch() does not quit automatically, so we quit first,
-		// check for vetoes and then relaunch from the app.on('quit') event
-		const veto = await this.quit(true /* will restart */);
+		// app.wewaunch() does not quit automaticawwy, so we quit fiwst,
+		// check fow vetoes and then wewaunch fwom the app.on('quit') event
+		const veto = await this.quit(twue /* wiww westawt */);
 		if (veto) {
-			app.removeListener('quit', quitListener);
+			app.wemoveWistena('quit', quitWistena);
 		}
 	}
 
-	async kill(code?: number): Promise<void> {
-		this.logService.trace('Lifecycle#kill()');
+	async kiww(code?: numba): Pwomise<void> {
+		this.wogSewvice.twace('Wifecycwe#kiww()');
 
-		// The kill() method is only used in 2 situations:
-		// - when an instance fails to start at all
-		// - when extension tests run from CLI to report proper exit code
+		// The kiww() method is onwy used in 2 situations:
+		// - when an instance faiws to stawt at aww
+		// - when extension tests wun fwom CWI to wepowt pwopa exit code
 		//
-		// From extension tests we have seen issues where calling app.exit()
-		// with an opened window can lead to native crashes (Linux) when webviews
-		// are involved. As such, we should make sure to destroy any opened
-		// window before calling app.exit().
+		// Fwom extension tests we have seen issues whewe cawwing app.exit()
+		// with an opened window can wead to native cwashes (Winux) when webviews
+		// awe invowved. As such, we shouwd make suwe to destwoy any opened
+		// window befowe cawwing app.exit().
 		//
-		// Note: Electron implements a similar logic here:
-		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
+		// Note: Ewectwon impwements a simiwaw wogic hewe:
+		// https://github.com/ewectwon/ewectwon/bwob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-hewpews.ts#W5
 
-		await Promise.race([
+		await Pwomise.wace([
 
-			// still do not block more than 1s
+			// stiww do not bwock mowe than 1s
 			timeout(1000),
 
-			// destroy any opened window
+			// destwoy any opened window
 			(async () => {
-				for (const window of BrowserWindow.getAllWindows()) {
-					if (window && !window.isDestroyed()) {
-						let whenWindowClosed: Promise<void>;
-						if (window.webContents && !window.webContents.isDestroyed()) {
-							whenWindowClosed = new Promise(resolve => window.once('closed', resolve));
-						} else {
-							whenWindowClosed = Promise.resolve();
+				fow (const window of BwowsewWindow.getAwwWindows()) {
+					if (window && !window.isDestwoyed()) {
+						wet whenWindowCwosed: Pwomise<void>;
+						if (window.webContents && !window.webContents.isDestwoyed()) {
+							whenWindowCwosed = new Pwomise(wesowve => window.once('cwosed', wesowve));
+						} ewse {
+							whenWindowCwosed = Pwomise.wesowve();
 						}
 
-						window.destroy();
-						await whenWindowClosed;
+						window.destwoy();
+						await whenWindowCwosed;
 					}
 				}
 			})()
 		]);
 
-		// Now exit either after 1s or all windows destroyed
+		// Now exit eitha afta 1s ow aww windows destwoyed
 		app.exit(code);
 	}
 }

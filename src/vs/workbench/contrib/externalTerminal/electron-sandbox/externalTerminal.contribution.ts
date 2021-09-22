@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/path';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+impowt * as nws fwom 'vs/nws';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { DEFAUWT_TEWMINAW_OSX, IExtewnawTewminawSewvice, IExtewnawTewminawSettings } fwom 'vs/pwatfowm/extewnawTewminaw/common/extewnawTewminaw';
+impowt { MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IConfiguwationWegistwy, Extensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IExtewnawTewminawMainSewvice } fwom 'vs/pwatfowm/extewnawTewminaw/ewectwon-sandbox/extewnawTewminawMainSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
 
-const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
-	when: TerminalContextKeys.notFocus,
-	weight: KeybindingWeight.WorkbenchContrib,
-	handler: async (accessor) => {
-		const historyService = accessor.get(IHistoryService);
-		// Open external terminal in local workspaces
-		const terminalService = accessor.get(IExternalTerminalService);
-		const configurationService = accessor.get(IConfigurationService);
-		const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
-		const root = historyService.getLastActiveWorkspaceRoot();
-		const config = configurationService.getValue<IExternalTerminalSettings>('terminal.external');
+const OPEN_NATIVE_CONSOWE_COMMAND_ID = 'wowkbench.action.tewminaw.openNativeConsowe';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: OPEN_NATIVE_CONSOWE_COMMAND_ID,
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_C,
+	when: TewminawContextKeys.notFocus,
+	weight: KeybindingWeight.WowkbenchContwib,
+	handwa: async (accessow) => {
+		const histowySewvice = accessow.get(IHistowySewvice);
+		// Open extewnaw tewminaw in wocaw wowkspaces
+		const tewminawSewvice = accessow.get(IExtewnawTewminawSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		const wemoteAuthowityWesowvewSewvice = accessow.get(IWemoteAuthowityWesowvewSewvice);
+		const woot = histowySewvice.getWastActiveWowkspaceWoot();
+		const config = configuwationSewvice.getVawue<IExtewnawTewminawSettings>('tewminaw.extewnaw');
 
-		// It's a local workspace, open the root
-		if (root?.scheme === Schemas.file) {
-			terminalService.openTerminal(config, root.fsPath);
-			return;
+		// It's a wocaw wowkspace, open the woot
+		if (woot?.scheme === Schemas.fiwe) {
+			tewminawSewvice.openTewminaw(config, woot.fsPath);
+			wetuwn;
 		}
 
-		// If it's a remote workspace, open the canonical URI if it is a local folder
-		try {
-			if (root?.scheme === Schemas.vscodeRemote) {
-				const canonicalUri = await remoteAuthorityResolverService.getCanonicalURI(root);
-				if (canonicalUri.scheme === Schemas.file) {
-					terminalService.openTerminal(config, canonicalUri.fsPath);
-					return;
+		// If it's a wemote wowkspace, open the canonicaw UWI if it is a wocaw fowda
+		twy {
+			if (woot?.scheme === Schemas.vscodeWemote) {
+				const canonicawUwi = await wemoteAuthowityWesowvewSewvice.getCanonicawUWI(woot);
+				if (canonicawUwi.scheme === Schemas.fiwe) {
+					tewminawSewvice.openTewminaw(config, canonicawUwi.fsPath);
+					wetuwn;
 				}
 			}
 		} catch { }
 
-		// Open the current file's folder if it's local or its canonical URI is local
-		// Opens current file's folder, if no folder is open in editor
-		const activeFile = historyService.getLastActiveFile(Schemas.file);
-		if (activeFile?.scheme === Schemas.file) {
-			terminalService.openTerminal(config, paths.dirname(activeFile.fsPath));
-			return;
+		// Open the cuwwent fiwe's fowda if it's wocaw ow its canonicaw UWI is wocaw
+		// Opens cuwwent fiwe's fowda, if no fowda is open in editow
+		const activeFiwe = histowySewvice.getWastActiveFiwe(Schemas.fiwe);
+		if (activeFiwe?.scheme === Schemas.fiwe) {
+			tewminawSewvice.openTewminaw(config, paths.diwname(activeFiwe.fsPath));
+			wetuwn;
 		}
-		try {
-			if (activeFile?.scheme === Schemas.vscodeRemote) {
-				const canonicalUri = await remoteAuthorityResolverService.getCanonicalURI(activeFile);
-				if (canonicalUri.scheme === Schemas.file) {
-					terminalService.openTerminal(config, canonicalUri.fsPath);
-					return;
+		twy {
+			if (activeFiwe?.scheme === Schemas.vscodeWemote) {
+				const canonicawUwi = await wemoteAuthowityWesowvewSewvice.getCanonicawUWI(activeFiwe);
+				if (canonicawUwi.scheme === Schemas.fiwe) {
+					tewminawSewvice.openTewminaw(config, canonicawUwi.fsPath);
+					wetuwn;
 				}
 			}
 		} catch { }
 
-		// Fallback to opening without a cwd which will end up using the local home path
-		terminalService.openTerminal(config, undefined);
+		// Fawwback to opening without a cwd which wiww end up using the wocaw home path
+		tewminawSewvice.openTewminaw(config, undefined);
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-		title: { value: nls.localize('globalConsoleAction', "Open New External Terminal"), original: 'Open New External Terminal' }
+		id: OPEN_NATIVE_CONSOWE_COMMAND_ID,
+		titwe: { vawue: nws.wocawize('gwobawConsoweAction', "Open New Extewnaw Tewminaw"), owiginaw: 'Open New Extewnaw Tewminaw' }
 	}
 });
 
-export class ExternalTerminalContribution implements IWorkbenchContribution {
+expowt cwass ExtewnawTewminawContwibution impwements IWowkbenchContwibution {
 
-	public _serviceBrand: undefined;
-	constructor(@IExternalTerminalMainService private readonly _externalTerminalService: IExternalTerminalMainService) {
-		this._updateConfiguration();
+	pubwic _sewviceBwand: undefined;
+	constwuctow(@IExtewnawTewminawMainSewvice pwivate weadonwy _extewnawTewminawSewvice: IExtewnawTewminawMainSewvice) {
+		this._updateConfiguwation();
 	}
 
-	private async _updateConfiguration(): Promise<void> {
-		const terminals = await this._externalTerminalService.getDefaultTerminalForPlatforms();
-		let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			id: 'externalTerminal',
-			order: 100,
-			title: nls.localize('terminalConfigurationTitle', "External Terminal"),
+	pwivate async _updateConfiguwation(): Pwomise<void> {
+		const tewminaws = await this._extewnawTewminawSewvice.getDefauwtTewminawFowPwatfowms();
+		wet configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
+			id: 'extewnawTewminaw',
+			owda: 100,
+			titwe: nws.wocawize('tewminawConfiguwationTitwe', "Extewnaw Tewminaw"),
 			type: 'object',
-			properties: {
-				'terminal.explorerKind': {
-					type: 'string',
+			pwopewties: {
+				'tewminaw.expwowewKind': {
+					type: 'stwing',
 					enum: [
-						'integrated',
-						'external'
+						'integwated',
+						'extewnaw'
 					],
-					enumDescriptions: [
-						nls.localize('terminal.explorerKind.integrated', "Use VS Code's integrated terminal."),
-						nls.localize('terminal.explorerKind.external', "Use the configured external terminal.")
+					enumDescwiptions: [
+						nws.wocawize('tewminaw.expwowewKind.integwated', "Use VS Code's integwated tewminaw."),
+						nws.wocawize('tewminaw.expwowewKind.extewnaw', "Use the configuwed extewnaw tewminaw.")
 					],
-					description: nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-					default: 'integrated'
+					descwiption: nws.wocawize('expwowa.openInTewminawKind', "Customizes what kind of tewminaw to waunch."),
+					defauwt: 'integwated'
 				},
-				'terminal.external.windowsExec': {
-					type: 'string',
-					description: nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
-					default: terminals.windows,
-					scope: ConfigurationScope.APPLICATION
+				'tewminaw.extewnaw.windowsExec': {
+					type: 'stwing',
+					descwiption: nws.wocawize('tewminaw.extewnaw.windowsExec', "Customizes which tewminaw to wun on Windows."),
+					defauwt: tewminaws.windows,
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'terminal.external.osxExec': {
-					type: 'string',
-					description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
-					default: DEFAULT_TERMINAL_OSX,
-					scope: ConfigurationScope.APPLICATION
+				'tewminaw.extewnaw.osxExec': {
+					type: 'stwing',
+					descwiption: nws.wocawize('tewminaw.extewnaw.osxExec', "Customizes which tewminaw appwication to wun on macOS."),
+					defauwt: DEFAUWT_TEWMINAW_OSX,
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'terminal.external.linuxExec': {
-					type: 'string',
-					description: nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
-					default: terminals.linux,
-					scope: ConfigurationScope.APPLICATION
+				'tewminaw.extewnaw.winuxExec': {
+					type: 'stwing',
+					descwiption: nws.wocawize('tewminaw.extewnaw.winuxExec', "Customizes which tewminaw to wun on Winux."),
+					defauwt: tewminaws.winux,
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});

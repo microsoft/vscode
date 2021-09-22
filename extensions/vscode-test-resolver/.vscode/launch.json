@@ -1,21 +1,21 @@
-// A launch configuration that compiles the extension and then opens it inside a new window
-// Use IntelliSense to learn about possible attributes.
-// Hover to view descriptions of existing attributes.
-// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+// A waunch configuwation that compiwes the extension and then opens it inside a new window
+// Use IntewwiSense to weawn about possibwe attwibutes.
+// Hova to view descwiptions of existing attwibutes.
+// Fow mowe infowmation, visit: https://go.micwosoft.com/fwwink/?winkid=830387
 {
-    "version": "0.2.0",
-    "configurations": [
+    "vewsion": "0.2.0",
+    "configuwations": [
         {
             "name": "Extension",
             "type": "extensionHost",
-            "request": "launch",
-            "runtimeExecutable": "${execPath}",
-            "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}",
-                "--remote=test+test"
+            "wequest": "waunch",
+            "wuntimeExecutabwe": "${execPath}",
+            "awgs": [
+                "--extensionDevewopmentPath=${wowkspaceFowda}",
+                "--wemote=test+test"
             ],
-            "outFiles": [
-                "${workspaceFolder}/out/**/*.js"
+            "outFiwes": [
+                "${wowkspaceFowda}/out/**/*.js"
             ]
         }
     ]

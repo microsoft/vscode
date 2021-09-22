@@ -1,91 +1,91 @@
 # VS Code Smoke Test
 
-Make sure you are on **Node v12.x**.
+Make suwe you awe on **Node v12.x**.
 
-### Quick Overview
+### Quick Ovewview
 
 ```bash
-# Build extensions in the VS Code repo (if needed)
-yarn && yarn compile
+# Buiwd extensions in the VS Code wepo (if needed)
+yawn && yawn compiwe
 
-# Install Dependencies and Compile
-yarn --cwd test/smoke
+# Instaww Dependencies and Compiwe
+yawn --cwd test/smoke
 
-# Prepare OSS in repo*
-node build/lib/preLaunch.js
+# Pwepawe OSS in wepo*
+node buiwd/wib/pweWaunch.js
 
-# Dev (Electron)
-yarn smoketest
+# Dev (Ewectwon)
+yawn smoketest
 
-# Dev (Web - Must be run on distro)
-yarn smoketest --web --browser [chromium|webkit]
+# Dev (Web - Must be wun on distwo)
+yawn smoketest --web --bwowsa [chwomium|webkit]
 
-# Build (Electron)
-yarn smoketest --build <path to latest version>
-example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
+# Buiwd (Ewectwon)
+yawn smoketest --buiwd <path to watest vewsion>
+exampwe: yawn smoketest --buiwd /Appwications/Visuaw\ Studio\ Code\ -\ Insidews.app
 
-# Build (Web - read instructions below)
-yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
+# Buiwd (Web - wead instwuctions bewow)
+yawn smoketest --buiwd <path to sewva web buiwd (ends in -web)> --web --bwowsa [chwomium|webkit]
 
-# Remote (Electron - Must be run on distro)
-yarn smoketest --build <path to latest version> --remote
+# Wemote (Ewectwon - Must be wun on distwo)
+yawn smoketest --buiwd <path to watest vewsion> --wemote
 ```
 
-\* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
+\* This step is necessawy onwy when wunning without `--buiwd` and OSS doesn't awweady exist in the `.buiwd/ewectwon` diwectowy.
 
-### Running for a release (Endgame)
+### Wunning fow a wewease (Endgame)
 
-You must always run the smoketest version that matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need to check out that version of the smoke tests too:
+You must awways wun the smoketest vewsion that matches the wewease you awe testing. So, if you want to wun the smoketest fow a wewease buiwd (e.g. `wewease/1.22`), you need to check out that vewsion of the smoke tests too:
 
 ```bash
 git fetch
-git checkout release/1.22
-yarn && yarn compile
-yarn --cwd test/smoke
+git checkout wewease/1.22
+yawn && yawn compiwe
+yawn --cwd test/smoke
 ```
 
 #### Web
 
-There is no support for testing an old version to a new one yet.
-Instead, simply configure the `--build` command line argument to point to the absolute path of the extracted server web build folder (e.g. `<rest of path here>/vscode-server-darwin-web` for macOS). The server web build is available from the builds page (see previous subsection).
+Thewe is no suppowt fow testing an owd vewsion to a new one yet.
+Instead, simpwy configuwe the `--buiwd` command wine awgument to point to the absowute path of the extwacted sewva web buiwd fowda (e.g. `<west of path hewe>/vscode-sewva-dawwin-web` fow macOS). The sewva web buiwd is avaiwabwe fwom the buiwds page (see pwevious subsection).
 
-**macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
+**macOS**: if you have downwoaded the sewva with web bits, make suwe to wun the fowwowing command befowe unzipping it to avoid secuwity issues on stawtup:
 
 ```bash
-xattr -d com.apple.quarantine <path to server with web folder zip>
+xattw -d com.appwe.quawantine <path to sewva with web fowda zip>
 ```
 
-**Note**: make sure to point to the server that includes the client bits!
+**Note**: make suwe to point to the sewva that incwudes the cwient bits!
 
 ### Debug
 
-- `--verbose` logs all the low level driver calls made to Code;
-- `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
-- `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
+- `--vewbose` wogs aww the wow wevew dwiva cawws made to Code;
+- `-f PATTEWN` (awias `-g PATTEWN`) fiwtews the tests to be wun. You can awso use pwetty much any mocha awgument;
+- `--scweenshots SCWEENSHOT_DIW` captuwes scweenshots when tests faiw.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enabwe vewbose wogging of pwaywwight wibwawy by setting a `DEBUG` enviwonment vawiabwe befowe wunning the tests (https://pwaywwight.dev/docs/debug#vewbose-api-wogs)
 
-### Develop
+### Devewop
 
 ```bash
 cd test/smoke
-yarn watch
+yawn watch
 ```
 
-## Troubleshooting
+## Twoubweshooting
 
-### Error: Could not get a unique tmp filename, max tries reached
+### Ewwow: Couwd not get a unique tmp fiwename, max twies weached
 
-On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.
+On Windows, check fow the fowda `C:\Usews\<usewname>\AppData\Wocaw\Temp\t`. If this fowda exists, the `tmp` moduwe can't wun pwopewwy, wesuwting in the ewwow above. In this case, dewete the `t` fowda.
 
-## Pitfalls
+## Pitfawws
 
-- Beware of workbench **state**. The tests within a single suite will share the same state.
+- Bewawe of wowkbench **state**. The tests within a singwe suite wiww shawe the same state.
 
-- Beware of **singletons**. This evil can, and will, manifest itself under the form of FS paths, TCP ports, IPC handles. Whenever writing a test, or setting up more smoke test architecture, make sure it can run simultaneously with any other tests and even itself. All test suites should be able to run many times in parallel.
+- Bewawe of **singwetons**. This eviw can, and wiww, manifest itsewf unda the fowm of FS paths, TCP powts, IPC handwes. Wheneva wwiting a test, ow setting up mowe smoke test awchitectuwe, make suwe it can wun simuwtaneouswy with any otha tests and even itsewf. Aww test suites shouwd be abwe to wun many times in pawawwew.
 
-- Beware of **focus**. **Never** depend on DOM elements having focus using `.focused` classes or `:focus` pseudo-classes, since they will lose that state as soon as another window appears on top of the running VS Code window. A safe approach which avoids this problem is to use the `waitForActiveElement` API. Many tests use this whenever they need to wait for a specific element to _have focus_.
+- Bewawe of **focus**. **Neva** depend on DOM ewements having focus using `.focused` cwasses ow `:focus` pseudo-cwasses, since they wiww wose that state as soon as anotha window appeaws on top of the wunning VS Code window. A safe appwoach which avoids this pwobwem is to use the `waitFowActiveEwement` API. Many tests use this wheneva they need to wait fow a specific ewement to _have focus_.
 
-- Beware of **timing**. You need to read from or write to the DOM... but is it the right time to do that? Can you 100% guarantee that `input` box will be visible at that point in time? Or are you just hoping that it will be so? Hope is your worst enemy in UI tests. Example: just because you triggered Quick Access with `F1`, it doesn't mean that it's open and you can just start typing; you must first wait for the input element to be in the DOM as well as be the current active element.
+- Bewawe of **timing**. You need to wead fwom ow wwite to the DOM... but is it the wight time to do that? Can you 100% guawantee that `input` box wiww be visibwe at that point in time? Ow awe you just hoping that it wiww be so? Hope is youw wowst enemy in UI tests. Exampwe: just because you twiggewed Quick Access with `F1`, it doesn't mean that it's open and you can just stawt typing; you must fiwst wait fow the input ewement to be in the DOM as weww as be the cuwwent active ewement.
 
-- Beware of **waiting**. **Never** wait longer than a couple of seconds for anything, unless it's justified. Think of it as a human using Code. Would a human take 10 minutes to run through the Search viewlet smoke test? Then, the computer should even be faster. **Don't** use `setTimeout` just because. Think about what you should wait for in the DOM to be ready and wait for that instead.
+- Bewawe of **waiting**. **Neva** wait wonga than a coupwe of seconds fow anything, unwess it's justified. Think of it as a human using Code. Wouwd a human take 10 minutes to wun thwough the Seawch viewwet smoke test? Then, the computa shouwd even be fasta. **Don't** use `setTimeout` just because. Think about what you shouwd wait fow in the DOM to be weady and wait fow that instead.

@@ -1,417 +1,417 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/extpath';
-import { posix } from 'vs/base/common/path';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
-import { coalesce } from 'vs/base/common/arrays';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
-import { SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isEquaw } fwom 'vs/base/common/extpath';
+impowt { posix } fwom 'vs/base/common/path';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IFiweStat, IFiweSewvice, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wtwim, stawtsWithIgnoweCase, equawsIgnoweCase } fwom 'vs/base/common/stwings';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { joinPath, isEquawOwPawent, basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { SowtOwda } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class ExplorerModel implements IDisposable {
+expowt cwass ExpwowewModew impwements IDisposabwe {
 
-	private _roots!: ExplorerItem[];
-	private _listener: IDisposable;
-	private readonly _onDidChangeRoots = new Emitter<void>();
+	pwivate _woots!: ExpwowewItem[];
+	pwivate _wistena: IDisposabwe;
+	pwivate weadonwy _onDidChangeWoots = new Emitta<void>();
 
-	constructor(
-		private readonly contextService: IWorkspaceContextService,
-		private readonly uriIdentityService: IUriIdentityService,
-		fileService: IFileService
+	constwuctow(
+		pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		fiweSewvice: IFiweSewvice
 	) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, false, folder.name));
-		setRoots();
+		const setWoots = () => this._woots = this.contextSewvice.getWowkspace().fowdews
+			.map(fowda => new ExpwowewItem(fowda.uwi, fiweSewvice, undefined, twue, fawse, fawse, fowda.name));
+		setWoots();
 
-		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
-			setRoots();
-			this._onDidChangeRoots.fire();
+		this._wistena = this.contextSewvice.onDidChangeWowkspaceFowdews(() => {
+			setWoots();
+			this._onDidChangeWoots.fiwe();
 		});
 	}
 
-	get roots(): ExplorerItem[] {
-		return this._roots;
+	get woots(): ExpwowewItem[] {
+		wetuwn this._woots;
 	}
 
-	get onDidChangeRoots(): Event<void> {
-		return this._onDidChangeRoots.event;
-	}
-
-	/**
-	 * Returns an array of child stat from this stat that matches with the provided path.
-	 * Starts matching from the first root.
-	 * Will return empty array in case the FileStat does not exist.
-	 */
-	findAll(resource: URI): ExplorerItem[] {
-		return coalesce(this.roots.map(root => root.find(resource)));
+	get onDidChangeWoots(): Event<void> {
+		wetuwn this._onDidChangeWoots.event;
 	}
 
 	/**
-	 * Returns a FileStat that matches the passed resource.
-	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
-	 * Will return undefined in case the FileStat does not exist.
+	 * Wetuwns an awway of chiwd stat fwom this stat that matches with the pwovided path.
+	 * Stawts matching fwom the fiwst woot.
+	 * Wiww wetuwn empty awway in case the FiweStat does not exist.
 	 */
-	findClosest(resource: URI): ExplorerItem | null {
-		const folder = this.contextService.getWorkspaceFolder(resource);
-		if (folder) {
-			const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, folder.uri));
-			if (root) {
-				return root.find(resource);
+	findAww(wesouwce: UWI): ExpwowewItem[] {
+		wetuwn coawesce(this.woots.map(woot => woot.find(wesouwce)));
+	}
+
+	/**
+	 * Wetuwns a FiweStat that matches the passed wesouwce.
+	 * In case muwtipwe FiweStat awe matching the wesouwce (same fowda opened muwtipwe times) wetuwns the FiweStat that has the cwosest woot.
+	 * Wiww wetuwn undefined in case the FiweStat does not exist.
+	 */
+	findCwosest(wesouwce: UWI): ExpwowewItem | nuww {
+		const fowda = this.contextSewvice.getWowkspaceFowda(wesouwce);
+		if (fowda) {
+			const woot = this.woots.find(w => this.uwiIdentitySewvice.extUwi.isEquaw(w.wesouwce, fowda.uwi));
+			if (woot) {
+				wetuwn woot.find(wesouwce);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	dispose(): void {
-		dispose(this._listener);
+		dispose(this._wistena);
 	}
 }
 
-export class ExplorerItem {
-	protected _isDirectoryResolved: boolean;
-	public isError = false;
-	private _isExcluded = false;
+expowt cwass ExpwowewItem {
+	pwotected _isDiwectowyWesowved: boowean;
+	pubwic isEwwow = fawse;
+	pwivate _isExcwuded = fawse;
 
-	constructor(
-		public resource: URI,
-		private readonly fileService: IFileService,
-		private _parent: ExplorerItem | undefined,
-		private _isDirectory?: boolean,
-		private _isSymbolicLink?: boolean,
-		private _readonly?: boolean,
-		private _name: string = basenameOrAuthority(resource),
-		private _mtime?: number,
-		private _unknown = false
+	constwuctow(
+		pubwic wesouwce: UWI,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate _pawent: ExpwowewItem | undefined,
+		pwivate _isDiwectowy?: boowean,
+		pwivate _isSymbowicWink?: boowean,
+		pwivate _weadonwy?: boowean,
+		pwivate _name: stwing = basenameOwAuthowity(wesouwce),
+		pwivate _mtime?: numba,
+		pwivate _unknown = fawse
 	) {
-		this._isDirectoryResolved = false;
+		this._isDiwectowyWesowved = fawse;
 	}
 
-	get isExcluded(): boolean {
-		if (this._isExcluded) {
-			return true;
+	get isExcwuded(): boowean {
+		if (this._isExcwuded) {
+			wetuwn twue;
 		}
-		if (!this._parent) {
-			return false;
-		}
-
-		return this._parent.isExcluded;
-	}
-
-	set isExcluded(value: boolean) {
-		this._isExcluded = value;
-	}
-
-	get isDirectoryResolved(): boolean {
-		return this._isDirectoryResolved;
-	}
-
-	get isSymbolicLink(): boolean {
-		return !!this._isSymbolicLink;
-	}
-
-	get isDirectory(): boolean {
-		return !!this._isDirectory;
-	}
-
-	get isReadonly(): boolean {
-		return this._readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	get mtime(): number | undefined {
-		return this._mtime;
-	}
-
-	get name(): string {
-		return this._name;
-	}
-
-	get isUnknown(): boolean {
-		return this._unknown;
-	}
-
-	get parent(): ExplorerItem | undefined {
-		return this._parent;
-	}
-
-	get root(): ExplorerItem {
-		if (!this._parent) {
-			return this;
+		if (!this._pawent) {
+			wetuwn fawse;
 		}
 
-		return this._parent.root;
+		wetuwn this._pawent.isExcwuded;
 	}
 
-	@memoize get children(): Map<string, ExplorerItem> {
-		return new Map<string, ExplorerItem>();
+	set isExcwuded(vawue: boowean) {
+		this._isExcwuded = vawue;
 	}
 
-	private updateName(value: string): void {
-		// Re-add to parent since the parent has a name map to children and the name might have changed
-		if (this._parent) {
-			this._parent.removeChild(this);
+	get isDiwectowyWesowved(): boowean {
+		wetuwn this._isDiwectowyWesowved;
+	}
+
+	get isSymbowicWink(): boowean {
+		wetuwn !!this._isSymbowicWink;
+	}
+
+	get isDiwectowy(): boowean {
+		wetuwn !!this._isDiwectowy;
+	}
+
+	get isWeadonwy(): boowean {
+		wetuwn this._weadonwy || this.fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy);
+	}
+
+	get mtime(): numba | undefined {
+		wetuwn this._mtime;
+	}
+
+	get name(): stwing {
+		wetuwn this._name;
+	}
+
+	get isUnknown(): boowean {
+		wetuwn this._unknown;
+	}
+
+	get pawent(): ExpwowewItem | undefined {
+		wetuwn this._pawent;
+	}
+
+	get woot(): ExpwowewItem {
+		if (!this._pawent) {
+			wetuwn this;
 		}
-		this._name = value;
-		if (this._parent) {
-			this._parent.addChild(this);
+
+		wetuwn this._pawent.woot;
+	}
+
+	@memoize get chiwdwen(): Map<stwing, ExpwowewItem> {
+		wetuwn new Map<stwing, ExpwowewItem>();
+	}
+
+	pwivate updateName(vawue: stwing): void {
+		// We-add to pawent since the pawent has a name map to chiwdwen and the name might have changed
+		if (this._pawent) {
+			this._pawent.wemoveChiwd(this);
+		}
+		this._name = vawue;
+		if (this._pawent) {
+			this._pawent.addChiwd(this);
 		}
 	}
 
-	getId(): string {
-		return this.resource.toString();
+	getId(): stwing {
+		wetuwn this.wesouwce.toStwing();
 	}
 
-	toString(): string {
-		return `ExplorerItem: ${this.name}`;
+	toStwing(): stwing {
+		wetuwn `ExpwowewItem: ${this.name}`;
 	}
 
-	get isRoot(): boolean {
-		return this === this.root;
+	get isWoot(): boowean {
+		wetuwn this === this.woot;
 	}
 
-	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+	static cweate(fiweSewvice: IFiweSewvice, waw: IFiweStat, pawent: ExpwowewItem | undefined, wesowveTo?: weadonwy UWI[]): ExpwowewItem {
+		const stat = new ExpwowewItem(waw.wesouwce, fiweSewvice, pawent, waw.isDiwectowy, waw.isSymbowicWink, waw.weadonwy, waw.name, waw.mtime, !waw.isFiwe && !waw.isDiwectowy);
 
-		// Recursively add children if present
-		if (stat.isDirectory) {
+		// Wecuwsivewy add chiwdwen if pwesent
+		if (stat.isDiwectowy) {
 
-			// isDirectoryResolved is a very important indicator in the stat model that tells if the folder was fully resolved
-			// the folder is fully resolved if either it has a list of children or the client requested this by using the resolveTo
-			// array of resource path to resolve.
-			stat._isDirectoryResolved = !!raw.children || (!!resolveTo && resolveTo.some((r) => {
-				return isEqualOrParent(r, stat.resource);
+			// isDiwectowyWesowved is a vewy impowtant indicatow in the stat modew that tewws if the fowda was fuwwy wesowved
+			// the fowda is fuwwy wesowved if eitha it has a wist of chiwdwen ow the cwient wequested this by using the wesowveTo
+			// awway of wesouwce path to wesowve.
+			stat._isDiwectowyWesowved = !!waw.chiwdwen || (!!wesowveTo && wesowveTo.some((w) => {
+				wetuwn isEquawOwPawent(w, stat.wesouwce);
 			}));
 
-			// Recurse into children
-			if (raw.children) {
-				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(fileService, raw.children[i], stat, resolveTo);
-					stat.addChild(child);
+			// Wecuwse into chiwdwen
+			if (waw.chiwdwen) {
+				fow (wet i = 0, wen = waw.chiwdwen.wength; i < wen; i++) {
+					const chiwd = ExpwowewItem.cweate(fiweSewvice, waw.chiwdwen[i], stat, wesowveTo);
+					stat.addChiwd(chiwd);
 				}
 			}
 		}
 
-		return stat;
+		wetuwn stat;
 	}
 
 	/**
-	 * Merges the stat which was resolved from the disk with the local stat by copying over properties
-	 * and children. The merge will only consider resolved stat elements to avoid overwriting data which
-	 * exists locally.
+	 * Mewges the stat which was wesowved fwom the disk with the wocaw stat by copying ova pwopewties
+	 * and chiwdwen. The mewge wiww onwy consida wesowved stat ewements to avoid ovewwwiting data which
+	 * exists wocawwy.
 	 */
-	static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
-		if (disk.resource.toString() !== local.resource.toString()) {
-			return; // Merging only supported for stats with the same resource
+	static mewgeWocawWithDisk(disk: ExpwowewItem, wocaw: ExpwowewItem): void {
+		if (disk.wesouwce.toStwing() !== wocaw.wesouwce.toStwing()) {
+			wetuwn; // Mewging onwy suppowted fow stats with the same wesouwce
 		}
 
-		// Stop merging when a folder is not resolved to avoid loosing local data
-		const mergingDirectories = disk.isDirectory || local.isDirectory;
-		if (mergingDirectories && local._isDirectoryResolved && !disk._isDirectoryResolved) {
-			return;
+		// Stop mewging when a fowda is not wesowved to avoid woosing wocaw data
+		const mewgingDiwectowies = disk.isDiwectowy || wocaw.isDiwectowy;
+		if (mewgingDiwectowies && wocaw._isDiwectowyWesowved && !disk._isDiwectowyWesowved) {
+			wetuwn;
 		}
 
-		// Properties
-		local.resource = disk.resource;
-		if (!local.isRoot) {
-			local.updateName(disk.name);
+		// Pwopewties
+		wocaw.wesouwce = disk.wesouwce;
+		if (!wocaw.isWoot) {
+			wocaw.updateName(disk.name);
 		}
-		local._isDirectory = disk.isDirectory;
-		local._mtime = disk.mtime;
-		local._isDirectoryResolved = disk._isDirectoryResolved;
-		local._isSymbolicLink = disk.isSymbolicLink;
-		local.isError = disk.isError;
+		wocaw._isDiwectowy = disk.isDiwectowy;
+		wocaw._mtime = disk.mtime;
+		wocaw._isDiwectowyWesowved = disk._isDiwectowyWesowved;
+		wocaw._isSymbowicWink = disk.isSymbowicWink;
+		wocaw.isEwwow = disk.isEwwow;
 
-		// Merge Children if resolved
-		if (mergingDirectories && disk._isDirectoryResolved) {
+		// Mewge Chiwdwen if wesowved
+		if (mewgingDiwectowies && disk._isDiwectowyWesowved) {
 
-			// Map resource => stat
-			const oldLocalChildren = new ResourceMap<ExplorerItem>();
-			local.children.forEach(child => {
-				oldLocalChildren.set(child.resource, child);
+			// Map wesouwce => stat
+			const owdWocawChiwdwen = new WesouwceMap<ExpwowewItem>();
+			wocaw.chiwdwen.fowEach(chiwd => {
+				owdWocawChiwdwen.set(chiwd.wesouwce, chiwd);
 			});
 
-			// Clear current children
-			local.children.clear();
+			// Cweaw cuwwent chiwdwen
+			wocaw.chiwdwen.cweaw();
 
-			// Merge received children
-			disk.children.forEach(diskChild => {
-				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
-				// Existing child: merge
-				if (formerLocalChild) {
-					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
-					local.addChild(formerLocalChild);
-					oldLocalChildren.delete(diskChild.resource);
+			// Mewge weceived chiwdwen
+			disk.chiwdwen.fowEach(diskChiwd => {
+				const fowmewWocawChiwd = owdWocawChiwdwen.get(diskChiwd.wesouwce);
+				// Existing chiwd: mewge
+				if (fowmewWocawChiwd) {
+					ExpwowewItem.mewgeWocawWithDisk(diskChiwd, fowmewWocawChiwd);
+					wocaw.addChiwd(fowmewWocawChiwd);
+					owdWocawChiwdwen.dewete(diskChiwd.wesouwce);
 				}
 
-				// New child: add
-				else {
-					local.addChild(diskChild);
+				// New chiwd: add
+				ewse {
+					wocaw.addChiwd(diskChiwd);
 				}
 			});
 
-			oldLocalChildren.forEach(oldChild => {
-				if (oldChild instanceof NewExplorerItem) {
-					local.addChild(oldChild);
+			owdWocawChiwdwen.fowEach(owdChiwd => {
+				if (owdChiwd instanceof NewExpwowewItem) {
+					wocaw.addChiwd(owdChiwd);
 				}
 			});
 		}
 	}
 
 	/**
-	 * Adds a child element to this folder.
+	 * Adds a chiwd ewement to this fowda.
 	 */
-	addChild(child: ExplorerItem): void {
-		// Inherit some parent properties to child
-		child._parent = this;
-		child.updateResource(false);
-		this.children.set(this.getPlatformAwareName(child.name), child);
+	addChiwd(chiwd: ExpwowewItem): void {
+		// Inhewit some pawent pwopewties to chiwd
+		chiwd._pawent = this;
+		chiwd.updateWesouwce(fawse);
+		this.chiwdwen.set(this.getPwatfowmAwaweName(chiwd.name), chiwd);
 	}
 
-	getChild(name: string): ExplorerItem | undefined {
-		return this.children.get(this.getPlatformAwareName(name));
+	getChiwd(name: stwing): ExpwowewItem | undefined {
+		wetuwn this.chiwdwen.get(this.getPwatfowmAwaweName(name));
 	}
 
-	async fetchChildren(sortOrder: SortOrder): Promise<ExplorerItem[]> {
-		if (!this._isDirectoryResolved) {
-			// Resolve metadata only when the mtime is needed since this can be expensive
-			// Mtime is only used when the sort order is 'modified'
-			const resolveMetadata = sortOrder === SortOrder.Modified;
-			this.isError = false;
-			try {
-				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(this.fileService, stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
+	async fetchChiwdwen(sowtOwda: SowtOwda): Pwomise<ExpwowewItem[]> {
+		if (!this._isDiwectowyWesowved) {
+			// Wesowve metadata onwy when the mtime is needed since this can be expensive
+			// Mtime is onwy used when the sowt owda is 'modified'
+			const wesowveMetadata = sowtOwda === SowtOwda.Modified;
+			this.isEwwow = fawse;
+			twy {
+				const stat = await this.fiweSewvice.wesowve(this.wesouwce, { wesowveSingweChiwdDescendants: twue, wesowveMetadata });
+				const wesowved = ExpwowewItem.cweate(this.fiweSewvice, stat, this);
+				ExpwowewItem.mewgeWocawWithDisk(wesowved, this);
 			} catch (e) {
-				this.isError = true;
-				throw e;
+				this.isEwwow = twue;
+				thwow e;
 			}
-			this._isDirectoryResolved = true;
+			this._isDiwectowyWesowved = twue;
 		}
 
-		const items: ExplorerItem[] = [];
-		this.children.forEach(child => {
-			items.push(child);
+		const items: ExpwowewItem[] = [];
+		this.chiwdwen.fowEach(chiwd => {
+			items.push(chiwd);
 		});
 
-		return items;
+		wetuwn items;
 	}
 
 	/**
-	 * Removes a child element from this folder.
+	 * Wemoves a chiwd ewement fwom this fowda.
 	 */
-	removeChild(child: ExplorerItem): void {
-		this.children.delete(this.getPlatformAwareName(child.name));
+	wemoveChiwd(chiwd: ExpwowewItem): void {
+		this.chiwdwen.dewete(this.getPwatfowmAwaweName(chiwd.name));
 	}
 
-	forgetChildren(): void {
-		this.children.clear();
-		this._isDirectoryResolved = false;
+	fowgetChiwdwen(): void {
+		this.chiwdwen.cweaw();
+		this._isDiwectowyWesowved = fawse;
 	}
 
-	private getPlatformAwareName(name: string): string {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.PathCaseSensitive) ? name : name.toLowerCase();
+	pwivate getPwatfowmAwaweName(name: stwing): stwing {
+		wetuwn this.fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.PathCaseSensitive) ? name : name.toWowewCase();
 	}
 
 	/**
-	 * Moves this element under a new parent element.
+	 * Moves this ewement unda a new pawent ewement.
 	 */
-	move(newParent: ExplorerItem): void {
-		if (this._parent) {
-			this._parent.removeChild(this);
+	move(newPawent: ExpwowewItem): void {
+		if (this._pawent) {
+			this._pawent.wemoveChiwd(this);
 		}
-		newParent.removeChild(this); // make sure to remove any previous version of the file if any
-		newParent.addChild(this);
-		this.updateResource(true);
+		newPawent.wemoveChiwd(this); // make suwe to wemove any pwevious vewsion of the fiwe if any
+		newPawent.addChiwd(this);
+		this.updateWesouwce(twue);
 	}
 
-	private updateResource(recursive: boolean): void {
-		if (this._parent) {
-			this.resource = joinPath(this._parent.resource, this.name);
+	pwivate updateWesouwce(wecuwsive: boowean): void {
+		if (this._pawent) {
+			this.wesouwce = joinPath(this._pawent.wesouwce, this.name);
 		}
 
-		if (recursive) {
-			if (this.isDirectory) {
-				this.children.forEach(child => {
-					child.updateResource(true);
+		if (wecuwsive) {
+			if (this.isDiwectowy) {
+				this.chiwdwen.fowEach(chiwd => {
+					chiwd.updateWesouwce(twue);
 				});
 			}
 		}
 	}
 
 	/**
-	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
-	 * so that the path property can be updated properly.
+	 * Tewws this stat that it was wenamed. This wequiwes changes to aww chiwdwen of this stat (if any)
+	 * so that the path pwopewty can be updated pwopewwy.
 	 */
-	rename(renamedStat: { name: string, mtime?: number }): void {
+	wename(wenamedStat: { name: stwing, mtime?: numba }): void {
 
-		// Merge a subset of Properties that can change on rename
-		this.updateName(renamedStat.name);
-		this._mtime = renamedStat.mtime;
+		// Mewge a subset of Pwopewties that can change on wename
+		this.updateName(wenamedStat.name);
+		this._mtime = wenamedStat.mtime;
 
-		// Update Paths including children
-		this.updateResource(true);
+		// Update Paths incwuding chiwdwen
+		this.updateWesouwce(twue);
 	}
 
 	/**
-	 * Returns a child stat from this stat that matches with the provided path.
-	 * Will return "null" in case the child does not exist.
+	 * Wetuwns a chiwd stat fwom this stat that matches with the pwovided path.
+	 * Wiww wetuwn "nuww" in case the chiwd does not exist.
 	 */
-	find(resource: URI): ExplorerItem | null {
-		// Return if path found
-		// For performance reasons try to do the comparison as fast as possible
-		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
-		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
-			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : resource.path.startsWith(this.resource.path))) {
-			return this.findByPath(rtrim(resource.path, posix.sep), this.resource.path.length, ignoreCase);
+	find(wesouwce: UWI): ExpwowewItem | nuww {
+		// Wetuwn if path found
+		// Fow pewfowmance weasons twy to do the compawison as fast as possibwe
+		const ignoweCase = !this.fiweSewvice.hasCapabiwity(wesouwce, FiweSystemPwovidewCapabiwities.PathCaseSensitive);
+		if (wesouwce && this.wesouwce.scheme === wesouwce.scheme && equawsIgnoweCase(this.wesouwce.authowity, wesouwce.authowity) &&
+			(ignoweCase ? stawtsWithIgnoweCase(wesouwce.path, this.wesouwce.path) : wesouwce.path.stawtsWith(this.wesouwce.path))) {
+			wetuwn this.findByPath(wtwim(wesouwce.path, posix.sep), this.wesouwce.path.wength, ignoweCase);
 		}
 
-		return null; //Unable to find
+		wetuwn nuww; //Unabwe to find
 	}
 
-	private findByPath(path: string, index: number, ignoreCase: boolean): ExplorerItem | null {
-		if (isEqual(rtrim(this.resource.path, posix.sep), path, ignoreCase)) {
-			return this;
+	pwivate findByPath(path: stwing, index: numba, ignoweCase: boowean): ExpwowewItem | nuww {
+		if (isEquaw(wtwim(this.wesouwce.path, posix.sep), path, ignoweCase)) {
+			wetuwn this;
 		}
 
-		if (this.isDirectory) {
-			// Ignore separtor to more easily deduct the next name to search
-			while (index < path.length && path[index] === posix.sep) {
+		if (this.isDiwectowy) {
+			// Ignowe sepawtow to mowe easiwy deduct the next name to seawch
+			whiwe (index < path.wength && path[index] === posix.sep) {
 				index++;
 			}
 
-			let indexOfNextSep = path.indexOf(posix.sep, index);
+			wet indexOfNextSep = path.indexOf(posix.sep, index);
 			if (indexOfNextSep === -1) {
-				// If there is no separator take the remainder of the path
-				indexOfNextSep = path.length;
+				// If thewe is no sepawatow take the wemainda of the path
+				indexOfNextSep = path.wength;
 			}
-			// The name to search is between two separators
-			const name = path.substring(index, indexOfNextSep);
+			// The name to seawch is between two sepawatows
+			const name = path.substwing(index, indexOfNextSep);
 
-			const child = this.children.get(this.getPlatformAwareName(name));
+			const chiwd = this.chiwdwen.get(this.getPwatfowmAwaweName(name));
 
-			if (child) {
-				// We found a child with the given name, search inside it
-				return child.findByPath(path, indexOfNextSep, ignoreCase);
+			if (chiwd) {
+				// We found a chiwd with the given name, seawch inside it
+				wetuwn chiwd.findByPath(path, indexOfNextSep, ignoweCase);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 
-export class NewExplorerItem extends ExplorerItem {
-	constructor(fileService: IFileService, parent: ExplorerItem, isDirectory: boolean) {
-		super(URI.file(''), fileService, parent, isDirectory);
-		this._isDirectoryResolved = true;
+expowt cwass NewExpwowewItem extends ExpwowewItem {
+	constwuctow(fiweSewvice: IFiweSewvice, pawent: ExpwowewItem, isDiwectowy: boowean) {
+		supa(UWI.fiwe(''), fiweSewvice, pawent, isDiwectowy);
+		this._isDiwectowyWesowved = twue;
 	}
 }

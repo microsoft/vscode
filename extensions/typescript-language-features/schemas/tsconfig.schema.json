@@ -1,13 +1,13 @@
 {
-	"allowTrailingCommas": true,
-	"title": "JSON schema for the TypeScript compiler's configuration file",
+	"awwowTwaiwingCommas": twue,
+	"titwe": "JSON schema fow the TypeScwipt compiwa's configuwation fiwe",
 	"type": "object",
-	"default": {
-		"compilerOptions": {
-			"module": "commonjs"
+	"defauwt": {
+		"compiwewOptions": {
+			"moduwe": "commonjs"
 		},
-		"exclude": [
-			"node_modules"
+		"excwude": [
+			"node_moduwes"
 		]
 	}
 }

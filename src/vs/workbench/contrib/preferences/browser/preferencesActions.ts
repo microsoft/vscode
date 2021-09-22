@@ -1,64 +1,64 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
 
-export class ConfigureLanguageBasedSettingsAction extends Action {
+expowt cwass ConfiguweWanguageBasedSettingsAction extends Action {
 
-	static readonly ID = 'workbench.action.configureLanguageBasedSettings';
-	static readonly LABEL = { value: nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings..."), original: 'Configure Language Specific Settings...' };
+	static weadonwy ID = 'wowkbench.action.configuweWanguageBasedSettings';
+	static weadonwy WABEW = { vawue: nws.wocawize('configuweWanguageBasedSettings', "Configuwe Wanguage Specific Settings..."), owiginaw: 'Configuwe Wanguage Specific Settings...' };
 
-	constructor(
-		id: string,
-		label: string,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override async run(): Promise<void> {
-		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: IQuickPickItem[] = languages.sort().map((lang, index) => {
-			const description: string = nls.localize('languageDescriptionConfigured', "({0})", this.modeService.getModeIdForLanguageName(lang.toLowerCase()));
-			// construct a fake resource to be able to show nice icons if any
-			let fakeResource: URI | undefined;
-			const extensions = this.modeService.getExtensions(lang);
-			if (extensions && extensions.length) {
-				fakeResource = URI.file(extensions[0]);
-			} else {
-				const filenames = this.modeService.getFilenames(lang);
-				if (filenames && filenames.length) {
-					fakeResource = URI.file(filenames[0]);
+	ovewwide async wun(): Pwomise<void> {
+		const wanguages = this.modeSewvice.getWegistewedWanguageNames();
+		const picks: IQuickPickItem[] = wanguages.sowt().map((wang, index) => {
+			const descwiption: stwing = nws.wocawize('wanguageDescwiptionConfiguwed', "({0})", this.modeSewvice.getModeIdFowWanguageName(wang.toWowewCase()));
+			// constwuct a fake wesouwce to be abwe to show nice icons if any
+			wet fakeWesouwce: UWI | undefined;
+			const extensions = this.modeSewvice.getExtensions(wang);
+			if (extensions && extensions.wength) {
+				fakeWesouwce = UWI.fiwe(extensions[0]);
+			} ewse {
+				const fiwenames = this.modeSewvice.getFiwenames(wang);
+				if (fiwenames && fiwenames.wength) {
+					fakeWesouwce = UWI.fiwe(fiwenames[0]);
 				}
 			}
-			return {
-				label: lang,
-				iconClasses: getIconClasses(this.modelService, this.modeService, fakeResource),
-				description
+			wetuwn {
+				wabew: wang,
+				iconCwasses: getIconCwasses(this.modewSewvice, this.modeSewvice, fakeWesouwce),
+				descwiption
 			} as IQuickPickItem;
 		});
 
-		await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
+		await this.quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('pickWanguage', "Sewect Wanguage") })
 			.then(pick => {
 				if (pick) {
-					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
-					if (typeof modeId === 'string') {
-						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${modeId}]`, edit: true } });
+					const modeId = this.modeSewvice.getModeIdFowWanguageName(pick.wabew.toWowewCase());
+					if (typeof modeId === 'stwing') {
+						wetuwn this.pwefewencesSewvice.openUsewSettings({ jsonEditow: twue, weveawSetting: { key: `[${modeId}]`, edit: twue } });
 					}
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 
 	}

@@ -1,214 +1,214 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { INotebookContentProvider, INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Mimes } from 'vs/base/common/mime';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { CompwexNotebookEditowModew, NotebookFiweWowkingCopyModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModew';
+impowt { INotebookContentPwovida, INotebookSewiawiza, INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwKind, NotebookData, TwansientOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { setupInstantiationSewvice } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Mimes } fwom 'vs/base/common/mime';
 
-suite('NotebookFileWorkingCopyModel', function () {
+suite('NotebookFiweWowkingCopyModew', function () {
 
-	const instantiationService = setupInstantiationService();
+	const instantiationSewvice = setupInstantiationSewvice();
 
-	test('no transient output is send to serializer', function () {
+	test('no twansient output is send to sewiawiza', function () {
 
-		const notebook = instantiationService.createInstance(NotebookTextModel,
+		const notebook = instantiationSewvice.cweateInstance(NotebookTextModew,
 			'notebook',
-			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, value: 'Hello Out' }] }] }],
+			UWI.fiwe('test'),
+			[{ cewwKind: CewwKind.Code, wanguage: 'foo', souwce: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, vawue: 'Hewwo Out' }] }] }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse }
 		);
 
-		{ // transient output
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // twansient output
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {} };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.cells.length, 1);
-						assert.strictEqual(notebook.cells[0].outputs.length, 0);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: twue, twansientCewwMetadata: {}, twansientDocumentMetadata: {} };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.cewws.wength, 1);
+						assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 0);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
 
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 
-		{ // NOT transient output
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // NOT twansient output
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.cells.length, 1);
-						assert.strictEqual(notebook.cells[0].outputs.length, 1);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: fawse, twansientCewwMetadata: {}, twansientDocumentMetadata: {} };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.cewws.wength, 1);
+						assewt.stwictEquaw(notebook.cewws[0].outputs.wength, 1);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 	});
 
-	test('no transient metadata is send to serializer', function () {
+	test('no twansient metadata is send to sewiawiza', function () {
 
-		const notebook = instantiationService.createInstance(NotebookTextModel,
+		const notebook = instantiationSewvice.cweateInstance(NotebookTextModew,
 			'notebook',
-			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [] }],
-			{ foo: 123, bar: 456 },
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			UWI.fiwe('test'),
+			[{ cewwKind: CewwKind.Code, wanguage: 'foo', souwce: 'foo', outputs: [] }],
+			{ foo: 123, baw: 456 },
+			{ twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse }
 		);
 
-		{ // transient
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // twansient
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true } };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.metadata.foo, 123);
-						assert.strictEqual(notebook.metadata.bar, undefined);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: twue, twansientCewwMetadata: {}, twansientDocumentMetadata: { baw: twue } };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.metadata.foo, 123);
+						assewt.stwictEquaw(notebook.metadata.baw, undefined);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
 
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 
-		{ // NOT transient
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // NOT twansient
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.metadata.foo, 123);
-						assert.strictEqual(notebook.metadata.bar, 456);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: fawse, twansientCewwMetadata: {}, twansientDocumentMetadata: {} };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.metadata.foo, 123);
+						assewt.stwictEquaw(notebook.metadata.baw, 456);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 	});
 
-	test('no transient cell metadata is send to serializer', function () {
+	test('no twansient ceww metadata is send to sewiawiza', function () {
 
-		const notebook = instantiationService.createInstance(NotebookTextModel,
+		const notebook = instantiationSewvice.cweateInstance(NotebookTextModew,
 			'notebook',
-			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
+			UWI.fiwe('test'),
+			[{ cewwKind: CewwKind.Code, wanguage: 'foo', souwce: 'foo', outputs: [], metadata: { foo: 123, baw: 456 } }],
 			{},
-			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+			{ twansientCewwMetadata: {}, twansientDocumentMetadata: {}, twansientOutputs: fawse }
 		);
 
-		{ // transient
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // twansient
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true } };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
-						assert.strictEqual(notebook.cells[0].metadata!.bar, undefined);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: twue, twansientDocumentMetadata: {}, twansientCewwMetadata: { baw: twue } };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.cewws[0].metadata!.foo, 123);
+						assewt.stwictEquaw(notebook.cewws[0].metadata!.baw, undefined);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
 
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 
-		{ // NOT transient
-			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+		{ // NOT twansient
+			wet cawwCount = 0;
+			const modew = new NotebookFiweWowkingCopyModew(
 				notebook,
-				new class extends mock<INotebookSerializer>() {
-					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
-					override async notebookToData(notebook: NotebookData) {
-						callCount += 1;
-						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
-						assert.strictEqual(notebook.cells[0].metadata!.bar, 456);
-						return VSBuffer.fromString('');
+				new cwass extends mock<INotebookSewiawiza>() {
+					ovewwide options: TwansientOptions = { twansientOutputs: fawse, twansientCewwMetadata: {}, twansientDocumentMetadata: {} };
+					ovewwide async notebookToData(notebook: NotebookData) {
+						cawwCount += 1;
+						assewt.stwictEquaw(notebook.cewws[0].metadata!.foo, 123);
+						assewt.stwictEquaw(notebook.cewws[0].metadata!.baw, 456);
+						wetuwn VSBuffa.fwomStwing('');
 					}
 				}
 			);
-			model.snapshot(CancellationToken.None);
-			assert.strictEqual(callCount, 1);
+			modew.snapshot(CancewwationToken.None);
+			assewt.stwictEquaw(cawwCount, 1);
 		}
 	});
 });
 
-suite('ComplexNotebookEditorModel', function () {
+suite('CompwexNotebookEditowModew', function () {
 
-	const instaService = new InstantiationService();
-	const notebokService = new class extends mock<INotebookService>() { };
-	const backupService = new class extends mock<IWorkingCopyBackupService>() { };
-	const notificationService = new class extends mock<INotificationService>() { };
-	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
-	const fileService = new class extends mock<IFileService>() {
-		override onDidFilesChange = Event.None;
+	const instaSewvice = new InstantiationSewvice();
+	const notebokSewvice = new cwass extends mock<INotebookSewvice>() { };
+	const backupSewvice = new cwass extends mock<IWowkingCopyBackupSewvice>() { };
+	const notificationSewvice = new cwass extends mock<INotificationSewvice>() { };
+	const untitwedTextEditowSewvice = new cwass extends mock<IUntitwedTextEditowSewvice>() { };
+	const fiweSewvice = new cwass extends mock<IFiweSewvice>() {
+		ovewwide onDidFiwesChange = Event.None;
 	};
-	const labelService = new class extends mock<ILabelService>() {
-		override getUriBasenameLabel(uri: URI) { return uri.toString(); }
+	const wabewSewvice = new cwass extends mock<IWabewSewvice>() {
+		ovewwide getUwiBasenameWabew(uwi: UWI) { wetuwn uwi.toStwing(); }
 	};
 
-	const notebookDataProvider = new class extends mock<INotebookContentProvider>() { };
+	const notebookDataPwovida = new cwass extends mock<INotebookContentPwovida>() { };
 
-	test('working copy uri', function () {
+	test('wowking copy uwi', function () {
 
-		const r1 = URI.parse('foo-files:///my.nb');
-		const r2 = URI.parse('bar-files:///my.nb');
+		const w1 = UWI.pawse('foo-fiwes:///my.nb');
+		const w2 = UWI.pawse('baw-fiwes:///my.nb');
 
-		const copies: IWorkingCopy[] = [];
-		const workingCopyService = new class extends mock<IWorkingCopyService>() {
-			override registerWorkingCopy(copy: IWorkingCopy) {
+		const copies: IWowkingCopy[] = [];
+		const wowkingCopySewvice = new cwass extends mock<IWowkingCopySewvice>() {
+			ovewwide wegistewWowkingCopy(copy: IWowkingCopy) {
 				copies.push(copy);
-				return Disposable.None;
+				wetuwn Disposabwe.None;
 			}
 		};
 
-		new ComplexNotebookEditorModel(r1, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
-		new ComplexNotebookEditorModel(r2, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new CompwexNotebookEditowModew(w1, 'fff', notebookDataPwovida, instaSewvice, notebokSewvice, wowkingCopySewvice, backupSewvice, fiweSewvice, notificationSewvice, new NuwwWogSewvice(), untitwedTextEditowSewvice, wabewSewvice);
+		new CompwexNotebookEditowModew(w2, 'fff', notebookDataPwovida, instaSewvice, notebokSewvice, wowkingCopySewvice, backupSewvice, fiweSewvice, notificationSewvice, new NuwwWogSewvice(), untitwedTextEditowSewvice, wabewSewvice);
 
-		assert.strictEqual(copies.length, 2);
-		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);
+		assewt.stwictEquaw(copies.wength, 2);
+		assewt.stwictEquaw(!isEquaw(copies[0].wesouwce, copies[1].wesouwce), twue);
 	});
 });

@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModes, TextDocument, Position, Range, SelectionRange } from './languageModes';
-import { insideRangeButNotSame } from '../utils/positions';
+impowt { WanguageModes, TextDocument, Position, Wange, SewectionWange } fwom './wanguageModes';
+impowt { insideWangeButNotSame } fwom '../utiws/positions';
 
-export async function getSelectionRanges(languageModes: LanguageModes, document: TextDocument, positions: Position[]) {
-	const htmlMode = languageModes.getMode('html');
-	return Promise.all(positions.map(async position => {
-		const htmlRange = await htmlMode!.getSelectionRange!(document, position);
-		const mode = languageModes.getModeAtPosition(document, position);
-		if (mode && mode.getSelectionRange) {
-			let range = await mode.getSelectionRange(document, position);
-			let top = range;
-			while (top.parent && insideRangeButNotSame(htmlRange.range, top.parent.range)) {
-				top = top.parent;
+expowt async function getSewectionWanges(wanguageModes: WanguageModes, document: TextDocument, positions: Position[]) {
+	const htmwMode = wanguageModes.getMode('htmw');
+	wetuwn Pwomise.aww(positions.map(async position => {
+		const htmwWange = await htmwMode!.getSewectionWange!(document, position);
+		const mode = wanguageModes.getModeAtPosition(document, position);
+		if (mode && mode.getSewectionWange) {
+			wet wange = await mode.getSewectionWange(document, position);
+			wet top = wange;
+			whiwe (top.pawent && insideWangeButNotSame(htmwWange.wange, top.pawent.wange)) {
+				top = top.pawent;
 			}
-			top.parent = htmlRange;
-			return range;
+			top.pawent = htmwWange;
+			wetuwn wange;
 		}
-		return htmlRange || SelectionRange.create(Range.create(position, position));
+		wetuwn htmwWange || SewectionWange.cweate(Wange.cweate(position, position));
 	}));
 }
 

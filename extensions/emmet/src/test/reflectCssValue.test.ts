@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { reflectCssValue as reflectCssValueImpl } from '../reflectCssValue';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection } fwom 'vscode';
+impowt { withWandomFiweEditow, cwoseAwwEditows } fwom './testUtiws';
+impowt { wefwectCssVawue as wefwectCssVawueImpw } fwom '../wefwectCssVawue';
 
-function reflectCssValue(): Thenable<boolean> {
-	const result = reflectCssValueImpl();
-	assert.ok(result);
-	return result!;
+function wefwectCssVawue(): Thenabwe<boowean> {
+	const wesuwt = wefwectCssVawueImpw();
+	assewt.ok(wesuwt);
+	wetuwn wesuwt!;
 }
 
-suite('Tests for Emmet: Reflect CSS Value command', () => {
-	teardown(closeAllEditors);
+suite('Tests fow Emmet: Wefwect CSS Vawue command', () => {
+	teawdown(cwoseAwwEditows);
 
 	const cssContents = `
-	.header {
-		margin: 10px;
+	.heada {
+		mawgin: 10px;
 		padding: 10px;
-		transform: rotate(50deg);
-		-moz-transform: rotate(20deg);
-		-o-transform: rotate(50deg);
-		-webkit-transform: rotate(50deg);
-		-ms-transform: rotate(50deg);
+		twansfowm: wotate(50deg);
+		-moz-twansfowm: wotate(20deg);
+		-o-twansfowm: wotate(50deg);
+		-webkit-twansfowm: wotate(50deg);
+		-ms-twansfowm: wotate(50deg);
 	}
 	`;
 
-	const htmlContents = `
-	<html>
-		<style>
-			.header {
-				margin: 10px;
+	const htmwContents = `
+	<htmw>
+		<stywe>
+			.heada {
+				mawgin: 10px;
 				padding: 10px;
-				transform: rotate(50deg);
-				-moz-transform: rotate(20deg);
-				-o-transform: rotate(50deg);
-				-webkit-transform: rotate(50deg);
-				-ms-transform: rotate(50deg);
+				twansfowm: wotate(50deg);
+				-moz-twansfowm: wotate(20deg);
+				-o-twansfowm: wotate(50deg);
+				-webkit-twansfowm: wotate(50deg);
+				-ms-twansfowm: wotate(50deg);
 			}
-		</style>
-	</html>
+		</stywe>
+	</htmw>
 	`;
 
-	test('Reflect Css Value in css file', function (): any {
-		return withRandomFileEditor(cssContents, '.css', (editor, doc) => {
-			editor.selections = [new Selection(5, 10, 5, 10)];
-			return reflectCssValue().then(() => {
-				assert.strictEqual(doc.getText(), cssContents.replace(/\(50deg\)/g, '(20deg)'));
-				return Promise.resolve();
+	test('Wefwect Css Vawue in css fiwe', function (): any {
+		wetuwn withWandomFiweEditow(cssContents, '.css', (editow, doc) => {
+			editow.sewections = [new Sewection(5, 10, 5, 10)];
+			wetuwn wefwectCssVawue().then(() => {
+				assewt.stwictEquaw(doc.getText(), cssContents.wepwace(/\(50deg\)/g, '(20deg)'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Reflect Css Value in css file, selecting entire property', function (): any {
-		return withRandomFileEditor(cssContents, '.css', (editor, doc) => {
-			editor.selections = [new Selection(5, 2, 5, 32)];
-			return reflectCssValue().then(() => {
-				assert.strictEqual(doc.getText(), cssContents.replace(/\(50deg\)/g, '(20deg)'));
-				return Promise.resolve();
+	test('Wefwect Css Vawue in css fiwe, sewecting entiwe pwopewty', function (): any {
+		wetuwn withWandomFiweEditow(cssContents, '.css', (editow, doc) => {
+			editow.sewections = [new Sewection(5, 2, 5, 32)];
+			wetuwn wefwectCssVawue().then(() => {
+				assewt.stwictEquaw(doc.getText(), cssContents.wepwace(/\(50deg\)/g, '(20deg)'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Reflect Css Value in html file', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
-			editor.selections = [new Selection(7, 20, 7, 20)];
-			return reflectCssValue().then(() => {
-				assert.strictEqual(doc.getText(), htmlContents.replace(/\(50deg\)/g, '(20deg)'));
-				return Promise.resolve();
+	test('Wefwect Css Vawue in htmw fiwe', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, '.htmw', (editow, doc) => {
+			editow.sewections = [new Sewection(7, 20, 7, 20)];
+			wetuwn wefwectCssVawue().then(() => {
+				assewt.stwictEquaw(doc.getText(), htmwContents.wepwace(/\(50deg\)/g, '(20deg)'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});
 
-	test('Reflect Css Value in html file, selecting entire property', function (): any {
-		return withRandomFileEditor(htmlContents, '.html', (editor, doc) => {
-			editor.selections = [new Selection(7, 4, 7, 34)];
-			return reflectCssValue().then(() => {
-				assert.strictEqual(doc.getText(), htmlContents.replace(/\(50deg\)/g, '(20deg)'));
-				return Promise.resolve();
+	test('Wefwect Css Vawue in htmw fiwe, sewecting entiwe pwopewty', function (): any {
+		wetuwn withWandomFiweEditow(htmwContents, '.htmw', (editow, doc) => {
+			editow.sewections = [new Sewection(7, 4, 7, 34)];
+			wetuwn wefwectCssVawue().then(() => {
+				assewt.stwictEquaw(doc.getText(), htmwContents.wepwace(/\(50deg\)/g, '(20deg)'));
+				wetuwn Pwomise.wesowve();
 			});
 		});
 	});

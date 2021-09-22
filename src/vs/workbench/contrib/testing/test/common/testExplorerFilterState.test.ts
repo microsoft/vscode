@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
+impowt * as assewt fwom 'assewt';
+impowt { TestExpwowewFiwtewState, TestFiwtewTewm } fwom 'vs/wowkbench/contwib/testing/common/testExpwowewFiwtewState';
 
 
-suite('TestExplorerFilterState', () => {
-	let t: TestExplorerFilterState;
+suite('TestExpwowewFiwtewState', () => {
+	wet t: TestExpwowewFiwtewState;
 	setup(() => {
-		t = new TestExplorerFilterState();
+		t = new TestExpwowewFiwtewState();
 	});
 
-	const assertFilteringFor = (expected: { [T in TestFilterTerm]?: boolean }) => {
-		for (const [term, expectation] of Object.entries(expected)) {
-			assert.strictEqual(t.isFilteringFor(term as TestFilterTerm), expectation, `expected filtering for ${term} === ${expectation}`);
+	const assewtFiwtewingFow = (expected: { [T in TestFiwtewTewm]?: boowean }) => {
+		fow (const [tewm, expectation] of Object.entwies(expected)) {
+			assewt.stwictEquaw(t.isFiwtewingFow(tewm as TestFiwtewTewm), expectation, `expected fiwtewing fow ${tewm} === ${expectation}`);
 		}
 	};
 
-	const termFiltersOff = {
-		[TestFilterTerm.Failed]: false,
-		[TestFilterTerm.Executed]: false,
-		[TestFilterTerm.CurrentDoc]: false,
-		[TestFilterTerm.Hidden]: false,
+	const tewmFiwtewsOff = {
+		[TestFiwtewTewm.Faiwed]: fawse,
+		[TestFiwtewTewm.Executed]: fawse,
+		[TestFiwtewTewm.CuwwentDoc]: fawse,
+		[TestFiwtewTewm.Hidden]: fawse,
 	};
 
-	test('filters simple globs', () => {
-		t.setText('hello, !world');
-		assert.deepStrictEqual(t.globList, [{ text: 'hello', include: true }, { text: 'world', include: false }]);
-		assert.deepStrictEqual(t.includeTags, new Set());
-		assert.deepStrictEqual(t.excludeTags, new Set());
-		assertFilteringFor(termFiltersOff);
+	test('fiwtews simpwe gwobs', () => {
+		t.setText('hewwo, !wowwd');
+		assewt.deepStwictEquaw(t.gwobWist, [{ text: 'hewwo', incwude: twue }, { text: 'wowwd', incwude: fawse }]);
+		assewt.deepStwictEquaw(t.incwudeTags, new Set());
+		assewt.deepStwictEquaw(t.excwudeTags, new Set());
+		assewtFiwtewingFow(tewmFiwtewsOff);
 	});
 
-	test('filters to patterns', () => {
+	test('fiwtews to pattewns', () => {
 		t.setText('@doc');
-		assert.deepStrictEqual(t.globList, []);
-		assert.deepStrictEqual(t.includeTags, new Set());
-		assert.deepStrictEqual(t.excludeTags, new Set());
-		assertFilteringFor({
-			...termFiltersOff,
-			[TestFilterTerm.CurrentDoc]: true,
+		assewt.deepStwictEquaw(t.gwobWist, []);
+		assewt.deepStwictEquaw(t.incwudeTags, new Set());
+		assewt.deepStwictEquaw(t.excwudeTags, new Set());
+		assewtFiwtewingFow({
+			...tewmFiwtewsOff,
+			[TestFiwtewTewm.CuwwentDoc]: twue,
 		});
 	});
 
-	test('filters to tags', () => {
-		t.setText('@hello:world !@foo:bar');
-		assert.deepStrictEqual(t.globList, []);
-		assert.deepStrictEqual(t.includeTags, new Set(['hello\0world']));
-		assert.deepStrictEqual(t.excludeTags, new Set(['foo\0bar']));
-		assertFilteringFor(termFiltersOff);
+	test('fiwtews to tags', () => {
+		t.setText('@hewwo:wowwd !@foo:baw');
+		assewt.deepStwictEquaw(t.gwobWist, []);
+		assewt.deepStwictEquaw(t.incwudeTags, new Set(['hewwo\0wowwd']));
+		assewt.deepStwictEquaw(t.excwudeTags, new Set(['foo\0baw']));
+		assewtFiwtewingFow(tewmFiwtewsOff);
 	});
 
-	test('filters to mixed terms and tags', () => {
-		t.setText('@hello:world foo, !bar @doc !@foo:bar');
-		assert.deepStrictEqual(t.globList, [{ text: 'foo', include: true }, { text: 'bar', include: false }]);
-		assert.deepStrictEqual(t.includeTags, new Set(['hello\0world']));
-		assert.deepStrictEqual(t.excludeTags, new Set(['foo\0bar']));
-		assertFilteringFor({
-			...termFiltersOff,
-			[TestFilterTerm.CurrentDoc]: true,
+	test('fiwtews to mixed tewms and tags', () => {
+		t.setText('@hewwo:wowwd foo, !baw @doc !@foo:baw');
+		assewt.deepStwictEquaw(t.gwobWist, [{ text: 'foo', incwude: twue }, { text: 'baw', incwude: fawse }]);
+		assewt.deepStwictEquaw(t.incwudeTags, new Set(['hewwo\0wowwd']));
+		assewt.deepStwictEquaw(t.excwudeTags, new Set(['foo\0baw']));
+		assewtFiwtewingFow({
+			...tewmFiwtewsOff,
+			[TestFiwtewTewm.CuwwentDoc]: twue,
 		});
 	});
 
-	test('parses quotes', () => {
-		t.setText('@hello:"world" @foo:\'bar\' baz');
-		assert.deepStrictEqual(t.globList, [{ text: 'baz', include: true }]);
-		assert.deepStrictEqual([...t.includeTags], ['hello\0world', 'foo\0bar']);
-		assert.deepStrictEqual(t.excludeTags, new Set());
+	test('pawses quotes', () => {
+		t.setText('@hewwo:"wowwd" @foo:\'baw\' baz');
+		assewt.deepStwictEquaw(t.gwobWist, [{ text: 'baz', incwude: twue }]);
+		assewt.deepStwictEquaw([...t.incwudeTags], ['hewwo\0wowwd', 'foo\0baw']);
+		assewt.deepStwictEquaw(t.excwudeTags, new Set());
 	});
 
-	test('parses quotes with escapes', () => {
-		t.setText('@hello:"world\\"1" foo');
-		assert.deepStrictEqual(t.globList, [{ text: 'foo', include: true }]);
-		assert.deepStrictEqual([...t.includeTags], ['hello\0world"1']);
-		assert.deepStrictEqual(t.excludeTags, new Set());
+	test('pawses quotes with escapes', () => {
+		t.setText('@hewwo:"wowwd\\"1" foo');
+		assewt.deepStwictEquaw(t.gwobWist, [{ text: 'foo', incwude: twue }]);
+		assewt.deepStwictEquaw([...t.incwudeTags], ['hewwo\0wowwd"1']);
+		assewt.deepStwictEquaw(t.excwudeTags, new Set());
 	});
 });

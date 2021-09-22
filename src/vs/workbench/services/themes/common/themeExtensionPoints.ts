@@ -1,249 +1,249 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import * as types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+impowt * as types fwom 'vs/base/common/types';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { ExtensionMessageCowwectow, IExtensionPoint, ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { ExtensionData, IThemeExtensionPoint, VS_WIGHT_THEME, VS_DAWK_THEME, VS_HC_THEME } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export function registerColorThemeExtensionPoint() {
-	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+expowt function wegistewCowowThemeExtensionPoint() {
+	wetuwn ExtensionsWegistwy.wegistewExtensionPoint<IThemeExtensionPoint[]>({
 		extensionPoint: 'themes',
 		jsonSchema: {
-			description: nls.localize('vscode.extension.contributes.themes', 'Contributes textmate color themes.'),
-			type: 'array',
+			descwiption: nws.wocawize('vscode.extension.contwibutes.themes', 'Contwibutes textmate cowow themes.'),
+			type: 'awway',
 			items: {
 				type: 'object',
-				defaultSnippets: [{ body: { label: '${1:label}', id: '${2:id}', uiTheme: VS_DARK_THEME, path: './themes/${3:id}.tmTheme.' } }],
-				properties: {
+				defauwtSnippets: [{ body: { wabew: '${1:wabew}', id: '${2:id}', uiTheme: VS_DAWK_THEME, path: './themes/${3:id}.tmTheme.' } }],
+				pwopewties: {
 					id: {
-						description: nls.localize('vscode.extension.contributes.themes.id', 'Id of the color theme as used in the user settings.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.themes.id', 'Id of the cowow theme as used in the usa settings.'),
+						type: 'stwing'
 					},
-					label: {
-						description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
-						type: 'string'
+					wabew: {
+						descwiption: nws.wocawize('vscode.extension.contwibutes.themes.wabew', 'Wabew of the cowow theme as shown in the UI.'),
+						type: 'stwing'
 					},
 					uiTheme: {
-						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
+						descwiption: nws.wocawize('vscode.extension.contwibutes.themes.uiTheme', 'Base theme defining the cowows awound the editow: \'vs\' is the wight cowow theme, \'vs-dawk\' is the dawk cowow theme. \'hc-bwack\' is the dawk high contwast theme.'),
+						enum: [VS_WIGHT_THEME, VS_DAWK_THEME, VS_HC_THEME]
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./colorthemes/awesome-color-theme.json\'.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.themes.path', 'Path of the tmTheme fiwe. The path is wewative to the extension fowda and is typicawwy \'./cowowthemes/awesome-cowow-theme.json\'.'),
+						type: 'stwing'
 					}
 				},
-				required: ['path', 'uiTheme']
+				wequiwed: ['path', 'uiTheme']
 			}
 		}
 	});
 }
-export function registerFileIconThemeExtensionPoint() {
-	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
+expowt function wegistewFiweIconThemeExtensionPoint() {
+	wetuwn ExtensionsWegistwy.wegistewExtensionPoint<IThemeExtensionPoint[]>({
 		extensionPoint: 'iconThemes',
 		jsonSchema: {
-			description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
-			type: 'array',
+			descwiption: nws.wocawize('vscode.extension.contwibutes.iconThemes', 'Contwibutes fiwe icon themes.'),
+			type: 'awway',
 			items: {
 				type: 'object',
-				defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './fileicons/${3:id}-icon-theme.json' } }],
-				properties: {
+				defauwtSnippets: [{ body: { id: '${1:id}', wabew: '${2:wabew}', path: './fiweicons/${3:id}-icon-theme.json' } }],
+				pwopewties: {
 					id: {
-						description: nls.localize('vscode.extension.contributes.iconThemes.id', 'Id of the file icon theme as used in the user settings.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.iconThemes.id', 'Id of the fiwe icon theme as used in the usa settings.'),
+						type: 'stwing'
 					},
-					label: {
-						description: nls.localize('vscode.extension.contributes.iconThemes.label', 'Label of the file icon theme as shown in the UI.'),
-						type: 'string'
+					wabew: {
+						descwiption: nws.wocawize('vscode.extension.contwibutes.iconThemes.wabew', 'Wabew of the fiwe icon theme as shown in the UI.'),
+						type: 'stwing'
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.iconThemes.path', 'Path of the file icon theme definition file. The path is relative to the extension folder and is typically \'./fileicons/awesome-icon-theme.json\'.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.iconThemes.path', 'Path of the fiwe icon theme definition fiwe. The path is wewative to the extension fowda and is typicawwy \'./fiweicons/awesome-icon-theme.json\'.'),
+						type: 'stwing'
 					}
 				},
-				required: ['path', 'id']
+				wequiwed: ['path', 'id']
 			}
 		}
 	});
 }
 
-export function registerProductIconThemeExtensionPoint() {
-	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
-		extensionPoint: 'productIconThemes',
+expowt function wegistewPwoductIconThemeExtensionPoint() {
+	wetuwn ExtensionsWegistwy.wegistewExtensionPoint<IThemeExtensionPoint[]>({
+		extensionPoint: 'pwoductIconThemes',
 		jsonSchema: {
-			description: nls.localize('vscode.extension.contributes.productIconThemes', 'Contributes product icon themes.'),
-			type: 'array',
+			descwiption: nws.wocawize('vscode.extension.contwibutes.pwoductIconThemes', 'Contwibutes pwoduct icon themes.'),
+			type: 'awway',
 			items: {
 				type: 'object',
-				defaultSnippets: [{ body: { id: '${1:id}', label: '${2:label}', path: './producticons/${3:id}-product-icon-theme.json' } }],
-				properties: {
+				defauwtSnippets: [{ body: { id: '${1:id}', wabew: '${2:wabew}', path: './pwoducticons/${3:id}-pwoduct-icon-theme.json' } }],
+				pwopewties: {
 					id: {
-						description: nls.localize('vscode.extension.contributes.productIconThemes.id', 'Id of the product icon theme as used in the user settings.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.pwoductIconThemes.id', 'Id of the pwoduct icon theme as used in the usa settings.'),
+						type: 'stwing'
 					},
-					label: {
-						description: nls.localize('vscode.extension.contributes.productIconThemes.label', 'Label of the product icon theme as shown in the UI.'),
-						type: 'string'
+					wabew: {
+						descwiption: nws.wocawize('vscode.extension.contwibutes.pwoductIconThemes.wabew', 'Wabew of the pwoduct icon theme as shown in the UI.'),
+						type: 'stwing'
 					},
 					path: {
-						description: nls.localize('vscode.extension.contributes.productIconThemes.path', 'Path of the product icon theme definition file. The path is relative to the extension folder and is typically \'./producticons/awesome-product-icon-theme.json\'.'),
-						type: 'string'
+						descwiption: nws.wocawize('vscode.extension.contwibutes.pwoductIconThemes.path', 'Path of the pwoduct icon theme definition fiwe. The path is wewative to the extension fowda and is typicawwy \'./pwoducticons/awesome-pwoduct-icon-theme.json\'.'),
+						type: 'stwing'
 					}
 				},
-				required: ['path', 'id']
+				wequiwed: ['path', 'id']
 			}
 		}
 	});
 }
 
-export interface ThemeChangeEvent<T> {
+expowt intewface ThemeChangeEvent<T> {
 	themes: T[];
 	added: T[];
-	removed: T[];
+	wemoved: T[];
 }
 
-export interface IThemeData {
-	id: string;
-	settingsId: string | null;
-	location?: URI;
+expowt intewface IThemeData {
+	id: stwing;
+	settingsId: stwing | nuww;
+	wocation?: UWI;
 }
 
-export class ThemeRegistry<T extends IThemeData> {
+expowt cwass ThemeWegistwy<T extends IThemeData> {
 
-	private extensionThemes: T[];
+	pwivate extensionThemes: T[];
 
-	private readonly onDidChangeEmitter = new Emitter<ThemeChangeEvent<T>>();
-	public readonly onDidChange: Event<ThemeChangeEvent<T>> = this.onDidChangeEmitter.event;
+	pwivate weadonwy onDidChangeEmitta = new Emitta<ThemeChangeEvent<T>>();
+	pubwic weadonwy onDidChange: Event<ThemeChangeEvent<T>> = this.onDidChangeEmitta.event;
 
-	constructor(
-		private readonly themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
-		private create: (theme: IThemeExtensionPoint, themeLocation: URI, extensionData: ExtensionData) => T,
-		private idRequired = false,
-		private builtInTheme: T | undefined = undefined
+	constwuctow(
+		pwivate weadonwy themesExtPoint: IExtensionPoint<IThemeExtensionPoint[]>,
+		pwivate cweate: (theme: IThemeExtensionPoint, themeWocation: UWI, extensionData: ExtensionData) => T,
+		pwivate idWequiwed = fawse,
+		pwivate buiwtInTheme: T | undefined = undefined
 	) {
 		this.extensionThemes = [];
-		this.initialize();
+		this.initiawize();
 	}
 
-	private initialize() {
-		this.themesExtPoint.setHandler((extensions, delta) => {
-			const previousIds: { [key: string]: T } = {};
+	pwivate initiawize() {
+		this.themesExtPoint.setHandwa((extensions, dewta) => {
+			const pweviousIds: { [key: stwing]: T } = {};
 
 			const added: T[] = [];
-			for (const theme of this.extensionThemes) {
-				previousIds[theme.id] = theme;
+			fow (const theme of this.extensionThemes) {
+				pweviousIds[theme.id] = theme;
 			}
-			this.extensionThemes.length = 0;
-			for (let ext of extensions) {
-				let extensionData: ExtensionData = {
-					extensionId: ext.description.identifier.value,
-					extensionPublisher: ext.description.publisher,
-					extensionName: ext.description.name,
-					extensionIsBuiltin: ext.description.isBuiltin
+			this.extensionThemes.wength = 0;
+			fow (wet ext of extensions) {
+				wet extensionData: ExtensionData = {
+					extensionId: ext.descwiption.identifia.vawue,
+					extensionPubwisha: ext.descwiption.pubwisha,
+					extensionName: ext.descwiption.name,
+					extensionIsBuiwtin: ext.descwiption.isBuiwtin
 				};
-				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, ext.collector);
+				this.onThemes(extensionData, ext.descwiption.extensionWocation, ext.vawue, ext.cowwectow);
 			}
-			for (const theme of this.extensionThemes) {
-				if (!previousIds[theme.id]) {
+			fow (const theme of this.extensionThemes) {
+				if (!pweviousIds[theme.id]) {
 					added.push(theme);
-				} else {
-					delete previousIds[theme.id];
+				} ewse {
+					dewete pweviousIds[theme.id];
 				}
 			}
-			const removed = Object.values(previousIds);
-			this.onDidChangeEmitter.fire({ themes: this.extensionThemes, added, removed });
+			const wemoved = Object.vawues(pweviousIds);
+			this.onDidChangeEmitta.fiwe({ themes: this.extensionThemes, added, wemoved });
 		});
 	}
 
-	private onThemes(extensionData: ExtensionData, extensionLocation: URI, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
-		if (!Array.isArray(themes)) {
-			collector.error(nls.localize(
-				'reqarray',
-				"Extension point `{0}` must be an array.",
+	pwivate onThemes(extensionData: ExtensionData, extensionWocation: UWI, themes: IThemeExtensionPoint[], cowwectow: ExtensionMessageCowwectow): void {
+		if (!Awway.isAwway(themes)) {
+			cowwectow.ewwow(nws.wocawize(
+				'weqawway',
+				"Extension point `{0}` must be an awway.",
 				this.themesExtPoint.name
 			));
-			return;
+			wetuwn;
 		}
-		themes.forEach(theme => {
-			if (!theme.path || !types.isString(theme.path)) {
-				collector.error(nls.localize(
-					'reqpath',
-					"Expected string in `contributes.{0}.path`. Provided value: {1}",
+		themes.fowEach(theme => {
+			if (!theme.path || !types.isStwing(theme.path)) {
+				cowwectow.ewwow(nws.wocawize(
+					'weqpath',
+					"Expected stwing in `contwibutes.{0}.path`. Pwovided vawue: {1}",
 					this.themesExtPoint.name,
-					String(theme.path)
+					Stwing(theme.path)
 				));
-				return;
+				wetuwn;
 			}
-			if (this.idRequired && (!theme.id || !types.isString(theme.id))) {
-				collector.error(nls.localize(
-					'reqid',
-					"Expected string in `contributes.{0}.id`. Provided value: {1}",
+			if (this.idWequiwed && (!theme.id || !types.isStwing(theme.id))) {
+				cowwectow.ewwow(nws.wocawize(
+					'weqid',
+					"Expected stwing in `contwibutes.{0}.id`. Pwovided vawue: {1}",
 					this.themesExtPoint.name,
-					String(theme.id)
+					Stwing(theme.id)
 				));
-				return;
+				wetuwn;
 			}
 
-			const themeLocation = resources.joinPath(extensionLocation, theme.path);
-			if (!resources.isEqualOrParent(themeLocation, extensionLocation)) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
+			const themeWocation = wesouwces.joinPath(extensionWocation, theme.path);
+			if (!wesouwces.isEquawOwPawent(themeWocation, extensionWocation)) {
+				cowwectow.wawn(nws.wocawize('invawid.path.1', "Expected `contwibutes.{0}.path` ({1}) to be incwuded inside extension's fowda ({2}). This might make the extension non-powtabwe.", this.themesExtPoint.name, themeWocation.path, extensionWocation.path));
 			}
 
-			let themeData = this.create(theme, themeLocation, extensionData);
+			wet themeData = this.cweate(theme, themeWocation, extensionData);
 			this.extensionThemes.push(themeData);
 		});
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): T | undefined {
-		if (this.builtInTheme && this.builtInTheme.id === themeId) {
-			return this.builtInTheme;
+	pubwic findThemeById(themeId: stwing, defauwtId?: stwing): T | undefined {
+		if (this.buiwtInTheme && this.buiwtInTheme.id === themeId) {
+			wetuwn this.buiwtInTheme;
 		}
-		const allThemes = this.getThemes();
-		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		const awwThemes = this.getThemes();
+		wet defauwtTheme: T | undefined = undefined;
+		fow (wet t of awwThemes) {
 			if (t.id === themeId) {
-				return t;
+				wetuwn t;
 			}
-			if (t.id === defaultId) {
-				defaultTheme = t;
+			if (t.id === defauwtId) {
+				defauwtTheme = t;
 			}
 		}
-		return defaultTheme;
+		wetuwn defauwtTheme;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
-		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
-			return this.builtInTheme;
+	pubwic findThemeBySettingsId(settingsId: stwing | nuww, defauwtId?: stwing): T | undefined {
+		if (this.buiwtInTheme && this.buiwtInTheme.settingsId === settingsId) {
+			wetuwn this.buiwtInTheme;
 		}
-		const allThemes = this.getThemes();
-		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		const awwThemes = this.getThemes();
+		wet defauwtTheme: T | undefined = undefined;
+		fow (wet t of awwThemes) {
 			if (t.settingsId === settingsId) {
-				return t;
+				wetuwn t;
 			}
-			if (t.id === defaultId) {
-				defaultTheme = t;
+			if (t.id === defauwtId) {
+				defauwtTheme = t;
 			}
 		}
-		return defaultTheme;
+		wetuwn defauwtTheme;
 	}
 
-	public findThemeByExtensionLocation(extLocation: URI | undefined): T[] {
-		if (extLocation) {
-			return this.getThemes().filter(t => t.location && resources.isEqualOrParent(t.location, extLocation));
+	pubwic findThemeByExtensionWocation(extWocation: UWI | undefined): T[] {
+		if (extWocation) {
+			wetuwn this.getThemes().fiwta(t => t.wocation && wesouwces.isEquawOwPawent(t.wocation, extWocation));
 		}
-		return [];
+		wetuwn [];
 	}
 
-	public getThemes(): T[] {
-		return this.extensionThemes;
+	pubwic getThemes(): T[] {
+		wetuwn this.extensionThemes;
 	}
 
 }

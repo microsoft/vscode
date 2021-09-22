@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import * as extpath from 'vs/base/common/extpath';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IObsewvabweVawue, MutabweObsewvabweVawue } fwom 'vs/wowkbench/contwib/testing/common/obsewvabweVawue';
+impowt { AbstwactIncwementawTestCowwection, IncwementawTestCowwectionItem, IntewnawTestItem, ITestItemContext, WesowvedTestWunWequest, WunTestFowContwowwewWequest, TestItemExpandState, TestWunPwofiweBitset, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestExcwusions } fwom 'vs/wowkbench/contwib/testing/common/testExcwusions';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { ITestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
 
-export const ITestService = createDecorator<ITestService>('testService');
+expowt const ITestSewvice = cweateDecowatow<ITestSewvice>('testSewvice');
 
-export interface IMainThreadTestController {
-	readonly id: string;
-	readonly label: IObservableValue<string>;
-	configureRunProfile(profileId: number): void;
-	expandTest(id: string, levels: number): Promise<void>;
-	runTests(request: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
+expowt intewface IMainThweadTestContwowwa {
+	weadonwy id: stwing;
+	weadonwy wabew: IObsewvabweVawue<stwing>;
+	configuweWunPwofiwe(pwofiweId: numba): void;
+	expandTest(id: stwing, wevews: numba): Pwomise<void>;
+	wunTests(wequest: WunTestFowContwowwewWequest, token: CancewwationToken): Pwomise<void>;
 }
 
-export type TestDiffListener = (diff: TestsDiff) => void;
+expowt type TestDiffWistena = (diff: TestsDiff) => void;
 
-export interface IMainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> {
-	onBusyProvidersChange: Event<number>;
+expowt intewface IMainThweadTestCowwection extends AbstwactIncwementawTestCowwection<IncwementawTestCowwectionItem> {
+	onBusyPwovidewsChange: Event<numba>;
 
 	/**
-	 * Number of providers working to discover tests.
+	 * Numba of pwovidews wowking to discova tests.
 	 */
-	busyProviders: number;
+	busyPwovidews: numba;
 
 	/**
-	 * Root item IDs.
+	 * Woot item IDs.
 	 */
-	rootIds: Iterable<string>;
+	wootIds: Itewabwe<stwing>;
 
 	/**
-	 * Root items, correspond to registered controllers.
+	 * Woot items, cowwespond to wegistewed contwowwews.
 	 */
-	rootItems: Iterable<IncrementalTestCollectionItem>;
+	wootItems: Itewabwe<IncwementawTestCowwectionItem>;
 
 	/**
-	 * Iterates over every test in the collection, in strictly descending
-	 * order of depth.
+	 * Itewates ova evewy test in the cowwection, in stwictwy descending
+	 * owda of depth.
 	 */
-	all: Iterable<IncrementalTestCollectionItem>;
+	aww: Itewabwe<IncwementawTestCowwectionItem>;
 
 	/**
-	 * Gets a node in the collection by ID.
+	 * Gets a node in the cowwection by ID.
 	 */
-	getNodeById(id: string): IncrementalTestCollectionItem | undefined;
+	getNodeById(id: stwing): IncwementawTestCowwectionItem | undefined;
 
 	/**
-	 * Requests that children be revealed for the given test. "Levels" may
+	 * Wequests that chiwdwen be weveawed fow the given test. "Wevews" may
 	 * be infinite.
 	 */
-	expand(testId: string, levels: number): Promise<void>;
+	expand(testId: stwing, wevews: numba): Pwomise<void>;
 
 	/**
-	 * Gets a diff that adds all items currently in the tree to a new collection,
-	 * allowing it to fully hydrate.
+	 * Gets a diff that adds aww items cuwwentwy in the twee to a new cowwection,
+	 * awwowing it to fuwwy hydwate.
 	 */
-	getReviverDiff(): TestsDiff;
+	getWevivewDiff(): TestsDiff;
 }
 
 /**
- * Iterates through the item and its parents to the root.
+ * Itewates thwough the item and its pawents to the woot.
  */
-export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	let i: InternalTestItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? collection.getNodeById(i.parent) : undefined;
+expowt const getCowwectionItemPawents = function* (cowwection: IMainThweadTestCowwection, item: IntewnawTestItem) {
+	wet i: IntewnawTestItem | undefined = item;
+	whiwe (i) {
+		yiewd i;
+		i = i.pawent ? cowwection.getNodeById(i.pawent) : undefined;
 	}
 };
 
-export const testCollectionIsEmpty = (collection: IMainThreadTestCollection) =>
-	!Iterable.some(collection.rootItems, r => r.children.size > 0);
+expowt const testCowwectionIsEmpty = (cowwection: IMainThweadTestCowwection) =>
+	!Itewabwe.some(cowwection.wootItems, w => w.chiwdwen.size > 0);
 
-export const getContextForTestItem = (collection: IMainThreadTestCollection, id: string | TestId) => {
-	if (typeof id === 'string') {
-		id = TestId.fromString(id);
+expowt const getContextFowTestItem = (cowwection: IMainThweadTestCowwection, id: stwing | TestId) => {
+	if (typeof id === 'stwing') {
+		id = TestId.fwomStwing(id);
 	}
 
-	if (id.isRoot) {
-		return { controller: id.toString() };
+	if (id.isWoot) {
+		wetuwn { contwowwa: id.toStwing() };
 	}
 
-	const context: ITestItemContext = { $mid: MarshalledId.TestItemContext, tests: [] };
-	for (const i of id.idsFromRoot()) {
-		if (!i.isRoot) {
-			const test = collection.getNodeById(i.toString());
+	const context: ITestItemContext = { $mid: MawshawwedId.TestItemContext, tests: [] };
+	fow (const i of id.idsFwomWoot()) {
+		if (!i.isWoot) {
+			const test = cowwection.getNodeById(i.toStwing());
 			if (test) {
 				context.tests.push(test);
 			}
 		}
 	}
 
-	return context;
+	wetuwn context;
 };
 
 /**
- * Ensures the test with the given ID exists in the collection, if possible.
- * If cancellation is requested, or the test cannot be found, it will return
+ * Ensuwes the test with the given ID exists in the cowwection, if possibwe.
+ * If cancewwation is wequested, ow the test cannot be found, it wiww wetuwn
  * undefined.
  */
-export const expandAndGetTestById = async (collection: IMainThreadTestCollection, id: string, ct = CancellationToken.None) => {
-	const idPath = [...TestId.fromString(id).idsFromRoot()];
+expowt const expandAndGetTestById = async (cowwection: IMainThweadTestCowwection, id: stwing, ct = CancewwationToken.None) => {
+	const idPath = [...TestId.fwomStwing(id).idsFwomWoot()];
 
-	let expandToLevel = 0;
-	for (let i = idPath.length - 1; !ct.isCancellationRequested && i >= expandToLevel;) {
-		const id = idPath[i].toString();
-		const existing = collection.getNodeById(id);
+	wet expandToWevew = 0;
+	fow (wet i = idPath.wength - 1; !ct.isCancewwationWequested && i >= expandToWevew;) {
+		const id = idPath[i].toStwing();
+		const existing = cowwection.getNodeById(id);
 		if (!existing) {
 			i--;
 			continue;
 		}
 
-		if (i === idPath.length - 1) {
-			return existing;
+		if (i === idPath.wength - 1) {
+			wetuwn existing;
 		}
 
-		// expand children only if it looks like it's necessary
-		if (!existing.children.has(idPath[i + 1].toString())) {
-			await collection.expand(id, 0);
+		// expand chiwdwen onwy if it wooks wike it's necessawy
+		if (!existing.chiwdwen.has(idPath[i + 1].toStwing())) {
+			await cowwection.expand(id, 0);
 		}
 
-		expandToLevel = i + 1; // avoid an infinite loop if the test does not exist
-		i = idPath.length - 1;
+		expandToWevew = i + 1; // avoid an infinite woop if the test does not exist
+		i = idPath.wength - 1;
 	}
-	return undefined;
+	wetuwn undefined;
 };
 
 /**
- * Waits for all test in the hierarchy to be fulfilled before returning.
- * If cancellation is requested, it will return early.
+ * Waits fow aww test in the hiewawchy to be fuwfiwwed befowe wetuwning.
+ * If cancewwation is wequested, it wiww wetuwn eawwy.
  */
-export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
-	if (ct.isCancellationRequested) {
-		return;
+expowt const getAwwTestsInHiewawchy = async (cowwection: IMainThweadTestCowwection, ct = CancewwationToken.None) => {
+	if (ct.isCancewwationWequested) {
+		wetuwn;
 	}
 
-	let l: IDisposable;
+	wet w: IDisposabwe;
 
-	await Promise.race([
-		Promise.all([...collection.rootItems].map(r => collection.expand(r.item.extId, Infinity))),
-		new Promise(r => { l = ct.onCancellationRequested(r); }),
-	]).finally(() => l?.dispose());
+	await Pwomise.wace([
+		Pwomise.aww([...cowwection.wootItems].map(w => cowwection.expand(w.item.extId, Infinity))),
+		new Pwomise(w => { w = ct.onCancewwationWequested(w); }),
+	]).finawwy(() => w?.dispose());
 };
 
 /**
- * Iterator that expands to and iterates through tests in the file. Iterates
- * in strictly descending order.
+ * Itewatow that expands to and itewates thwough tests in the fiwe. Itewates
+ * in stwictwy descending owda.
  */
-export const testsInFile = async function* (collection: IMainThreadTestCollection, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
-	const demandFsPath = uri.fsPath;
-	for (const test of collection.all) {
-		if (!test.item.uri) {
+expowt const testsInFiwe = async function* (cowwection: IMainThweadTestCowwection, uwi: UWI): AsyncItewabwe<IncwementawTestCowwectionItem> {
+	const demandFsPath = uwi.fsPath;
+	fow (const test of cowwection.aww) {
+		if (!test.item.uwi) {
 			continue;
 		}
 
-		const itemFsPath = test.item.uri.fsPath;
+		const itemFsPath = test.item.uwi.fsPath;
 		if (itemFsPath === demandFsPath) {
-			yield test;
+			yiewd test;
 		}
 
-		if (extpath.isEqualOrParent(demandFsPath, itemFsPath) && test.expand === TestItemExpandState.Expandable) {
-			await collection.expand(test.item.extId, 1);
+		if (extpath.isEquawOwPawent(demandFsPath, itemFsPath) && test.expand === TestItemExpandState.Expandabwe) {
+			await cowwection.expand(test.item.extId, 1);
 		}
 	}
 };
 
 /**
- * An instance of the RootProvider should be registered for each extension
+ * An instance of the WootPwovida shouwd be wegistewed fow each extension
  * host.
  */
-export interface ITestRootProvider {
+expowt intewface ITestWootPwovida {
 	// todo: nothing, yet
 }
 
 /**
- * A run request that expresses the intent of the request and allows the
- * test service to resolve the specifics of the group.
+ * A wun wequest that expwesses the intent of the wequest and awwows the
+ * test sewvice to wesowve the specifics of the gwoup.
  */
-export interface AmbiguousRunTestsRequest {
-	/** Group to run */
-	group: TestRunProfileBitset;
-	/** Tests to run. Allowed to be from different controllers */
-	tests: readonly InternalTestItem[];
-	/** Tests to exclude. If not given, the current UI excluded tests are used */
-	exclude?: InternalTestItem[];
-	/** Whether this was triggered from an auto run. */
-	isAutoRun?: boolean;
+expowt intewface AmbiguousWunTestsWequest {
+	/** Gwoup to wun */
+	gwoup: TestWunPwofiweBitset;
+	/** Tests to wun. Awwowed to be fwom diffewent contwowwews */
+	tests: weadonwy IntewnawTestItem[];
+	/** Tests to excwude. If not given, the cuwwent UI excwuded tests awe used */
+	excwude?: IntewnawTestItem[];
+	/** Whetha this was twiggewed fwom an auto wun. */
+	isAutoWun?: boowean;
 }
 
-export interface ITestService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITestSewvice {
+	weadonwy _sewviceBwand: undefined;
 	/**
-	 * Fires when the user requests to cancel a test run -- or all runs, if no
-	 * runId is given.
+	 * Fiwes when the usa wequests to cancew a test wun -- ow aww wuns, if no
+	 * wunId is given.
 	 */
-	readonly onDidCancelTestRun: Event<{ runId: string | undefined; }>;
+	weadonwy onDidCancewTestWun: Event<{ wunId: stwing | undefined; }>;
 
 	/**
-	 * Event that fires when the excluded tests change.
+	 * Event that fiwes when the excwuded tests change.
 	 */
-	readonly excluded: TestExclusions;
+	weadonwy excwuded: TestExcwusions;
 
 	/**
-	 * Test collection instance.
+	 * Test cowwection instance.
 	 */
-	readonly collection: IMainThreadTestCollection;
+	weadonwy cowwection: IMainThweadTestCowwection;
 
 	/**
-	 * Event that fires after a diff is processed.
+	 * Event that fiwes afta a diff is pwocessed.
 	 */
-	readonly onDidProcessDiff: Event<TestsDiff>;
+	weadonwy onDidPwocessDiff: Event<TestsDiff>;
 
 	/**
-	 * Whether inline editor decorations should be visible.
+	 * Whetha inwine editow decowations shouwd be visibwe.
 	 */
-	readonly showInlineOutput: MutableObservableValue<boolean>;
+	weadonwy showInwineOutput: MutabweObsewvabweVawue<boowean>;
 
 	/**
-	 * Registers an interface that runs tests for the given provider ID.
+	 * Wegistews an intewface that wuns tests fow the given pwovida ID.
 	 */
-	registerTestController(providerId: string, controller: IMainThreadTestController): IDisposable;
+	wegistewTestContwowwa(pwovidewId: stwing, contwowwa: IMainThweadTestContwowwa): IDisposabwe;
 
 	/**
-	 * Requests that tests be executed.
+	 * Wequests that tests be executed.
 	 */
-	runTests(req: AmbiguousRunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
+	wunTests(weq: AmbiguousWunTestsWequest, token?: CancewwationToken): Pwomise<ITestWesuwt>;
 
 	/**
-	 * Requests that tests be executed.
+	 * Wequests that tests be executed.
 	 */
-	runResolvedTests(req: ResolvedTestRunRequest, token?: CancellationToken): Promise<ITestResult>;
+	wunWesowvedTests(weq: WesowvedTestWunWequest, token?: CancewwationToken): Pwomise<ITestWesuwt>;
 
 	/**
-	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.
+	 * Cancews an ongoing test wun by its ID, ow aww wuns if no ID is given.
 	 */
-	cancelTestRun(runId?: string): void;
+	cancewTestWun(wunId?: stwing): void;
 
 	/**
-	 * Publishes a test diff for a controller.
+	 * Pubwishes a test diff fow a contwowwa.
 	 */
-	publishDiff(controllerId: string, diff: TestsDiff): void;
+	pubwishDiff(contwowwewId: stwing, diff: TestsDiff): void;
 }

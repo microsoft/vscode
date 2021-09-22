@@ -1,169 +1,169 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpression, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Keybinding, WesowvedKeybinding, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { ContextKeyExpwession, IContextKey, IContextKeyChangeEvent, IContextKeySewvice, IContextKeySewviceTawget } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingEvent, IKeybindingSewvice, IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWesowveWesuwt } fwom 'vs/pwatfowm/keybinding/common/keybindingWesowva';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
 
-class MockKeybindingContextKey<T> implements IContextKey<T> {
-	private _defaultValue: T | undefined;
-	private _value: T | undefined;
+cwass MockKeybindingContextKey<T> impwements IContextKey<T> {
+	pwivate _defauwtVawue: T | undefined;
+	pwivate _vawue: T | undefined;
 
-	constructor(defaultValue: T | undefined) {
-		this._defaultValue = defaultValue;
-		this._value = this._defaultValue;
+	constwuctow(defauwtVawue: T | undefined) {
+		this._defauwtVawue = defauwtVawue;
+		this._vawue = this._defauwtVawue;
 	}
 
-	public set(value: T | undefined): void {
-		this._value = value;
+	pubwic set(vawue: T | undefined): void {
+		this._vawue = vawue;
 	}
 
-	public reset(): void {
-		this._value = this._defaultValue;
+	pubwic weset(): void {
+		this._vawue = this._defauwtVawue;
 	}
 
-	public get(): T | undefined {
-		return this._value;
+	pubwic get(): T | undefined {
+		wetuwn this._vawue;
 	}
 }
 
-export class MockContextKeyService implements IContextKeyService {
+expowt cwass MockContextKeySewvice impwements IContextKeySewvice {
 
-	public _serviceBrand: undefined;
-	private _keys = new Map<string, IContextKey<any>>();
+	pubwic _sewviceBwand: undefined;
+	pwivate _keys = new Map<stwing, IContextKey<any>>();
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		//
 	}
-	public createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T> {
-		let ret = new MockKeybindingContextKey(defaultValue);
-		this._keys.set(key, ret);
-		return ret;
+	pubwic cweateKey<T>(key: stwing, defauwtVawue: T | undefined): IContextKey<T> {
+		wet wet = new MockKeybindingContextKey(defauwtVawue);
+		this._keys.set(key, wet);
+		wetuwn wet;
 	}
-	public contextMatchesRules(rules: ContextKeyExpression): boolean {
-		return false;
+	pubwic contextMatchesWuwes(wuwes: ContextKeyExpwession): boowean {
+		wetuwn fawse;
 	}
-	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
-		return Event.None;
+	pubwic get onDidChangeContext(): Event<IContextKeyChangeEvent> {
+		wetuwn Event.None;
 	}
-	public bufferChangeEvents(callback: () => void) { callback(); }
-	public getContextKeyValue(key: string) {
-		const value = this._keys.get(key);
-		if (value) {
-			return value.get();
+	pubwic buffewChangeEvents(cawwback: () => void) { cawwback(); }
+	pubwic getContextKeyVawue(key: stwing) {
+		const vawue = this._keys.get(key);
+		if (vawue) {
+			wetuwn vawue.get();
 		}
 	}
-	public getContext(domNode: HTMLElement): any {
-		return null;
+	pubwic getContext(domNode: HTMWEwement): any {
+		wetuwn nuww;
 	}
-	public createScoped(domNode: HTMLElement): IContextKeyService {
-		return this;
+	pubwic cweateScoped(domNode: HTMWEwement): IContextKeySewvice {
+		wetuwn this;
 	}
-	public createOverlay(): IContextKeyService {
-		return this;
+	pubwic cweateOvewway(): IContextKeySewvice {
+		wetuwn this;
 	}
-	updateParent(_parentContextKeyService: IContextKeyService): void {
+	updatePawent(_pawentContextKeySewvice: IContextKeySewvice): void {
 		// no-op
 	}
 }
 
-export class MockScopableContextKeyService extends MockContextKeyService {
+expowt cwass MockScopabweContextKeySewvice extends MockContextKeySewvice {
 	/**
-	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
+	 * Don't impwement this fow aww tests since we wawewy depend on this behaviow and it isn't impwemented fuwwy
 	 */
-	public override createScoped(domNote: HTMLElement): IContextKeyService {
-		return new MockContextKeyService();
+	pubwic ovewwide cweateScoped(domNote: HTMWEwement): IContextKeySewvice {
+		wetuwn new MockContextKeySewvice();
 	}
 }
 
-export class MockKeybindingService implements IKeybindingService {
-	public _serviceBrand: undefined;
+expowt cwass MockKeybindingSewvice impwements IKeybindingSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	public readonly inChordMode: boolean = false;
+	pubwic weadonwy inChowdMode: boowean = fawse;
 
-	public get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
-		return Event.None;
+	pubwic get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
+		wetuwn Event.None;
 	}
 
-	public getDefaultKeybindingsContent(): string {
-		return '';
+	pubwic getDefauwtKeybindingsContent(): stwing {
+		wetuwn '';
 	}
 
-	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
-		return [];
+	pubwic getDefauwtKeybindings(): WesowvedKeybindingItem[] {
+		wetuwn [];
 	}
 
-	public getKeybindings(): ResolvedKeybindingItem[] {
-		return [];
+	pubwic getKeybindings(): WesowvedKeybindingItem[] {
+		wetuwn [];
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, OS)];
+	pubwic wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[] {
+		wetuwn [new USWayoutWesowvedKeybinding(keybinding, OS)];
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
-			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
-			keyboardEvent.metaKey,
-			keyboardEvent.keyCode
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding {
+		wet keybinding = new SimpweKeybinding(
+			keyboawdEvent.ctwwKey,
+			keyboawdEvent.shiftKey,
+			keyboawdEvent.awtKey,
+			keyboawdEvent.metaKey,
+			keyboawdEvent.keyCode
 		);
-		return this.resolveKeybinding(keybinding.toChord())[0];
+		wetuwn this.wesowveKeybinding(keybinding.toChowd())[0];
 	}
 
-	public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
-		return [];
+	pubwic wesowveUsewBinding(usewBinding: stwing): WesowvedKeybinding[] {
+		wetuwn [];
 	}
 
-	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
-		return [];
+	pubwic wookupKeybindings(commandId: stwing): WesowvedKeybinding[] {
+		wetuwn [];
 	}
 
-	public lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
-		return undefined;
+	pubwic wookupKeybinding(commandId: stwing): WesowvedKeybinding | undefined {
+		wetuwn undefined;
 	}
 
-	public customKeybindingsCount(): number {
-		return 0;
+	pubwic customKeybindingsCount(): numba {
+		wetuwn 0;
 	}
 
-	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
-		return null;
+	pubwic softDispatch(keybinding: IKeyboawdEvent, tawget: IContextKeySewviceTawget): IWesowveWesuwt | nuww {
+		wetuwn nuww;
 	}
 
-	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+	pubwic dispatchByUsewSettingsWabew(usewSettingsWabew: stwing, tawget: IContextKeySewviceTawget): void {
 
 	}
 
-	public dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
-		return false;
+	pubwic dispatchEvent(e: IKeyboawdEvent, tawget: IContextKeySewviceTawget): boowean {
+		wetuwn fawse;
 	}
 
-	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
-		return false;
+	pubwic mightPwoducePwintabweChawacta(e: IKeyboawdEvent): boowean {
+		wetuwn fawse;
 	}
 
-	public toggleLogging(): boolean {
-		return false;
+	pubwic toggweWogging(): boowean {
+		wetuwn fawse;
 	}
 
-	public _dumpDebugInfo(): string {
-		return '';
+	pubwic _dumpDebugInfo(): stwing {
+		wetuwn '';
 	}
 
-	public _dumpDebugInfoJSON(): string {
-		return '';
+	pubwic _dumpDebugInfoJSON(): stwing {
+		wetuwn '';
 	}
 
-	public registerSchemaContribution() {
+	pubwic wegistewSchemaContwibution() {
 		// noop
 	}
 }

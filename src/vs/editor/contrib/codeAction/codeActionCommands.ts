@@ -1,442 +1,442 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
-import { MessageController } from 'vs/editor/contrib/message/messageController';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CodeActionModel, CodeActionsState, SUPPORTED_CODE_ACTIONS } from './codeActionModel';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTrigger } from './types';
+impowt { IAnchow } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IBuwkEditSewvice, WesouwceEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { CodeActionTwiggewType } fwom 'vs/editow/common/modes';
+impowt { codeActionCommandId, CodeActionItem, CodeActionSet, fixAwwCommandId, owganizeImpowtsCommandId, wefactowCommandId, souwceActionCommandId } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionUi } fwom 'vs/editow/contwib/codeAction/codeActionUi';
+impowt { MessageContwowwa } fwom 'vs/editow/contwib/message/messageContwowwa';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { CodeActionModew, CodeActionsState, SUPPOWTED_CODE_ACTIONS } fwom './codeActionModew';
+impowt { CodeActionAutoAppwy, CodeActionCommandAwgs, CodeActionFiwta, CodeActionKind, CodeActionTwigga } fwom './types';
 
-function contextKeyForSupportedActions(kind: CodeActionKind) {
-	return ContextKeyExpr.regex(
-		SUPPORTED_CODE_ACTIONS.keys()[0],
-		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
+function contextKeyFowSuppowtedActions(kind: CodeActionKind) {
+	wetuwn ContextKeyExpw.wegex(
+		SUPPOWTED_CODE_ACTIONS.keys()[0],
+		new WegExp('(\\s|^)' + escapeWegExpChawactews(kind.vawue) + '\\b'));
 }
 
-const argsSchema: IJSONSchema = {
+const awgsSchema: IJSONSchema = {
 	type: 'object',
-	defaultSnippets: [{ body: { kind: '' } }],
-	properties: {
+	defauwtSnippets: [{ body: { kind: '' } }],
+	pwopewties: {
 		'kind': {
-			type: 'string',
-			description: nls.localize('args.schema.kind', "Kind of the code action to run."),
+			type: 'stwing',
+			descwiption: nws.wocawize('awgs.schema.kind', "Kind of the code action to wun."),
 		},
-		'apply': {
-			type: 'string',
-			description: nls.localize('args.schema.apply', "Controls when the returned actions are applied."),
-			default: CodeActionAutoApply.IfSingle,
-			enum: [CodeActionAutoApply.First, CodeActionAutoApply.IfSingle, CodeActionAutoApply.Never],
-			enumDescriptions: [
-				nls.localize('args.schema.apply.first', "Always apply the first returned code action."),
-				nls.localize('args.schema.apply.ifSingle', "Apply the first returned code action if it is the only one."),
-				nls.localize('args.schema.apply.never', "Do not apply the returned code actions."),
+		'appwy': {
+			type: 'stwing',
+			descwiption: nws.wocawize('awgs.schema.appwy', "Contwows when the wetuwned actions awe appwied."),
+			defauwt: CodeActionAutoAppwy.IfSingwe,
+			enum: [CodeActionAutoAppwy.Fiwst, CodeActionAutoAppwy.IfSingwe, CodeActionAutoAppwy.Neva],
+			enumDescwiptions: [
+				nws.wocawize('awgs.schema.appwy.fiwst', "Awways appwy the fiwst wetuwned code action."),
+				nws.wocawize('awgs.schema.appwy.ifSingwe', "Appwy the fiwst wetuwned code action if it is the onwy one."),
+				nws.wocawize('awgs.schema.appwy.neva', "Do not appwy the wetuwned code actions."),
 			]
 		},
-		'preferred': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('args.schema.preferred', "Controls if only preferred code actions should be returned."),
+		'pwefewwed': {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: nws.wocawize('awgs.schema.pwefewwed', "Contwows if onwy pwefewwed code actions shouwd be wetuwned."),
 		}
 	}
 };
 
-export class QuickFixController extends Disposable implements IEditorContribution {
+expowt cwass QuickFixContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.quickFixController';
+	pubwic static weadonwy ID = 'editow.contwib.quickFixContwowwa';
 
-	public static get(editor: ICodeEditor): QuickFixController {
-		return editor.getContribution<QuickFixController>(QuickFixController.ID);
+	pubwic static get(editow: ICodeEditow): QuickFixContwowwa {
+		wetuwn editow.getContwibution<QuickFixContwowwa>(QuickFixContwowwa.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private readonly _model: CodeActionModel;
-	private readonly _ui: Lazy<CodeActionUi>;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _modew: CodeActionModew;
+	pwivate weadonwy _ui: Wazy<CodeActionUi>;
 
-	constructor(
-		editor: ICodeEditor,
-		@IMarkerService markerService: IMarkerService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorProgressService progressService: IEditorProgressService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	constwuctow(
+		editow: ICodeEditow,
+		@IMawkewSewvice mawkewSewvice: IMawkewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IEditowPwogwessSewvice pwogwessSewvice: IEditowPwogwessSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
-		this._register(this._model.onDidChangeState(newState => this.update(newState)));
+		this._editow = editow;
+		this._modew = this._wegista(new CodeActionModew(this._editow, mawkewSewvice, contextKeySewvice, pwogwessSewvice));
+		this._wegista(this._modew.onDidChangeState(newState => this.update(newState)));
 
-		this._ui = new Lazy(() =>
-			this._register(new CodeActionUi(editor, QuickFixAction.Id, AutoFixAction.Id, {
-				applyCodeAction: async (action, retrigger) => {
-					try {
-						await this._applyCodeAction(action);
-					} finally {
-						if (retrigger) {
-							this._trigger({ type: CodeActionTriggerType.Auto, filter: {} });
+		this._ui = new Wazy(() =>
+			this._wegista(new CodeActionUi(editow, QuickFixAction.Id, AutoFixAction.Id, {
+				appwyCodeAction: async (action, wetwigga) => {
+					twy {
+						await this._appwyCodeAction(action);
+					} finawwy {
+						if (wetwigga) {
+							this._twigga({ type: CodeActionTwiggewType.Auto, fiwta: {} });
 						}
 					}
 				}
-			}, this._instantiationService))
+			}, this._instantiationSewvice))
 		);
 	}
 
-	private update(newState: CodeActionsState.State): void {
-		this._ui.getValue().update(newState);
+	pwivate update(newState: CodeActionsState.State): void {
+		this._ui.getVawue().update(newState);
 	}
 
-	public showCodeActions(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this._ui.getValue().showCodeActionList(trigger, actions, at, { includeDisabledActions: false });
+	pubwic showCodeActions(twigga: CodeActionTwigga, actions: CodeActionSet, at: IAnchow | IPosition) {
+		wetuwn this._ui.getVawue().showCodeActionWist(twigga, actions, at, { incwudeDisabwedActions: fawse });
 	}
 
-	public manualTriggerAtCurrentPosition(
-		notAvailableMessage: string,
-		filter?: CodeActionFilter,
-		autoApply?: CodeActionAutoApply
+	pubwic manuawTwiggewAtCuwwentPosition(
+		notAvaiwabweMessage: stwing,
+		fiwta?: CodeActionFiwta,
+		autoAppwy?: CodeActionAutoAppwy
 	): void {
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		MessageController.get(this._editor).closeMessage();
-		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		MessageContwowwa.get(this._editow).cwoseMessage();
+		const twiggewPosition = this._editow.getPosition();
+		this._twigga({ type: CodeActionTwiggewType.Invoke, fiwta, autoAppwy, context: { notAvaiwabweMessage, position: twiggewPosition } });
 	}
 
-	private _trigger(trigger: CodeActionTrigger) {
-		return this._model.trigger(trigger);
+	pwivate _twigga(twigga: CodeActionTwigga) {
+		wetuwn this._modew.twigga(twigga);
 	}
 
-	private _applyCodeAction(action: CodeActionItem): Promise<void> {
-		return this._instantiationService.invokeFunction(applyCodeAction, action, this._editor);
+	pwivate _appwyCodeAction(action: CodeActionItem): Pwomise<void> {
+		wetuwn this._instantiationSewvice.invokeFunction(appwyCodeAction, action, this._editow);
 	}
 }
 
-export async function applyCodeAction(
-	accessor: ServicesAccessor,
+expowt async function appwyCodeAction(
+	accessow: SewvicesAccessow,
 	item: CodeActionItem,
-	editor?: ICodeEditor,
-): Promise<void> {
-	const bulkEditService = accessor.get(IBulkEditService);
-	const commandService = accessor.get(ICommandService);
-	const telemetryService = accessor.get(ITelemetryService);
-	const notificationService = accessor.get(INotificationService);
+	editow?: ICodeEditow,
+): Pwomise<void> {
+	const buwkEditSewvice = accessow.get(IBuwkEditSewvice);
+	const commandSewvice = accessow.get(ICommandSewvice);
+	const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+	const notificationSewvice = accessow.get(INotificationSewvice);
 
-	type ApplyCodeActionEvent = {
-		codeActionTitle: string;
-		codeActionKind: string | undefined;
-		codeActionIsPreferred: boolean;
+	type AppwyCodeActionEvent = {
+		codeActionTitwe: stwing;
+		codeActionKind: stwing | undefined;
+		codeActionIsPwefewwed: boowean;
 	};
-	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionIsPreferred: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	type AppwyCodeEventCwassification = {
+		codeActionTitwe: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+		codeActionKind: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+		codeActionIsPwefewwed: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 	};
 
-	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		codeActionTitle: item.action.title,
+	tewemetwySewvice.pubwicWog2<AppwyCodeActionEvent, AppwyCodeEventCwassification>('codeAction.appwyCodeAction', {
+		codeActionTitwe: item.action.titwe,
 		codeActionKind: item.action.kind,
-		codeActionIsPreferred: !!item.action.isPreferred,
+		codeActionIsPwefewwed: !!item.action.isPwefewwed,
 	});
 
-	await item.resolve(CancellationToken.None);
+	await item.wesowve(CancewwationToken.None);
 
 	if (item.action.edit) {
-		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title });
+		await buwkEditSewvice.appwy(WesouwceEdit.convewt(item.action.edit), { editow, wabew: item.action.titwe });
 	}
 
 	if (item.action.command) {
-		try {
-			await commandService.executeCommand(item.action.command.id, ...(item.action.command.arguments || []));
-		} catch (err) {
-			const message = asMessage(err);
-			notificationService.error(
-				typeof message === 'string'
+		twy {
+			await commandSewvice.executeCommand(item.action.command.id, ...(item.action.command.awguments || []));
+		} catch (eww) {
+			const message = asMessage(eww);
+			notificationSewvice.ewwow(
+				typeof message === 'stwing'
 					? message
-					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
+					: nws.wocawize('appwyCodeActionFaiwed', "An unknown ewwow occuwwed whiwe appwying the code action"));
 		}
 	}
 }
 
-function asMessage(err: any): string | undefined {
-	if (typeof err === 'string') {
-		return err;
-	} else if (err instanceof Error && typeof err.message === 'string') {
-		return err.message;
-	} else {
-		return undefined;
+function asMessage(eww: any): stwing | undefined {
+	if (typeof eww === 'stwing') {
+		wetuwn eww;
+	} ewse if (eww instanceof Ewwow && typeof eww.message === 'stwing') {
+		wetuwn eww.message;
+	} ewse {
+		wetuwn undefined;
 	}
 }
 
-function triggerCodeActionsForEditorSelection(
-	editor: ICodeEditor,
-	notAvailableMessage: string,
-	filter: CodeActionFilter | undefined,
-	autoApply: CodeActionAutoApply | undefined
+function twiggewCodeActionsFowEditowSewection(
+	editow: ICodeEditow,
+	notAvaiwabweMessage: stwing,
+	fiwta: CodeActionFiwta | undefined,
+	autoAppwy: CodeActionAutoAppwy | undefined
 ): void {
-	if (editor.hasModel()) {
-		const controller = QuickFixController.get(editor);
-		if (controller) {
-			controller.manualTriggerAtCurrentPosition(notAvailableMessage, filter, autoApply);
+	if (editow.hasModew()) {
+		const contwowwa = QuickFixContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.manuawTwiggewAtCuwwentPosition(notAvaiwabweMessage, fiwta, autoAppwy);
 		}
 	}
 }
 
-export class QuickFixAction extends EditorAction {
+expowt cwass QuickFixAction extends EditowAction {
 
-	static readonly Id = 'editor.action.quickFix';
+	static weadonwy Id = 'editow.action.quickFix';
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: QuickFixAction.Id,
-			label: nls.localize('quickfix.trigger.label', "Quick Fix..."),
-			alias: 'Quick Fix...',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+			wabew: nws.wocawize('quickfix.twigga.wabew', "Quick Fix..."),
+			awias: 'Quick Fix...',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasCodeActionsPwovida),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.US_DOT,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined);
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wetuwn twiggewCodeActionsFowEditowSewection(editow, nws.wocawize('editow.action.quickFix.noneMessage', "No code actions avaiwabwe"), undefined, undefined);
 	}
 }
 
-export class CodeActionCommand extends EditorCommand {
+expowt cwass CodeActionCommand extends EditowCommand {
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: codeActionCommandId,
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			description: {
-				description: 'Trigger a code action',
-				args: [{ name: 'args', schema: argsSchema, }]
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasCodeActionsPwovida),
+			descwiption: {
+				descwiption: 'Twigga a code action',
+				awgs: [{ name: 'awgs', schema: awgsSchema, }]
 			}
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
+	pubwic wunEditowCommand(_accessow: SewvicesAccessow, editow: ICodeEditow, usewAwgs: any) {
+		const awgs = CodeActionCommandAwgs.fwomUsa(usewAwgs, {
 			kind: CodeActionKind.Empty,
-			apply: CodeActionAutoApply.IfSingle,
+			appwy: CodeActionAutoAppwy.IfSingwe,
 		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.codeAction.noneMessage.preferred.kind', "No preferred code actions for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.codeAction.noneMessage.kind', "No code actions for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.codeAction.noneMessage.preferred', "No preferred code actions available")
-					: nls.localize('editor.action.codeAction.noneMessage', "No code actions available"),
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			typeof usewAwgs?.kind === 'stwing'
+				? awgs.pwefewwed
+					? nws.wocawize('editow.action.codeAction.noneMessage.pwefewwed.kind', "No pwefewwed code actions fow '{0}' avaiwabwe", usewAwgs.kind)
+					: nws.wocawize('editow.action.codeAction.noneMessage.kind', "No code actions fow '{0}' avaiwabwe", usewAwgs.kind)
+				: awgs.pwefewwed
+					? nws.wocawize('editow.action.codeAction.noneMessage.pwefewwed', "No pwefewwed code actions avaiwabwe")
+					: nws.wocawize('editow.action.codeAction.noneMessage', "No code actions avaiwabwe"),
 			{
-				include: args.kind,
-				includeSourceActions: true,
-				onlyIncludePreferredActions: args.preferred,
+				incwude: awgs.kind,
+				incwudeSouwceActions: twue,
+				onwyIncwudePwefewwedActions: awgs.pwefewwed,
 			},
-			args.apply);
+			awgs.appwy);
 	}
 }
 
 
-export class RefactorAction extends EditorAction {
+expowt cwass WefactowAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: refactorCommandId,
-			label: nls.localize('refactor.label', "Refactor..."),
-			alias: 'Refactor...',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+	constwuctow() {
+		supa({
+			id: wefactowCommandId,
+			wabew: nws.wocawize('wefactow.wabew', "Wefactow..."),
+			awias: 'Wefactow...',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasCodeActionsPwovida),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_W,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+					pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_W
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: '1_modification',
-				order: 2,
-				when: ContextKeyExpr.and(
-					EditorContextKeys.writable,
-					contextKeyForSupportedActions(CodeActionKind.Refactor)),
+				gwoup: '1_modification',
+				owda: 2,
+				when: ContextKeyExpw.and(
+					EditowContextKeys.wwitabwe,
+					contextKeyFowSuppowtedActions(CodeActionKind.Wefactow)),
 			},
-			description: {
-				description: 'Refactor...',
-				args: [{ name: 'args', schema: argsSchema }]
+			descwiption: {
+				descwiption: 'Wefactow...',
+				awgs: [{ name: 'awgs', schema: awgsSchema }]
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Refactor,
-			apply: CodeActionAutoApply.Never
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow, usewAwgs: any): void {
+		const awgs = CodeActionCommandAwgs.fwomUsa(usewAwgs, {
+			kind: CodeActionKind.Wefactow,
+			appwy: CodeActionAutoAppwy.Neva
 		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred.kind', "No preferred refactorings for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.refactor.noneMessage.kind', "No refactorings for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.refactor.noneMessage.preferred', "No preferred refactorings available")
-					: nls.localize('editor.action.refactor.noneMessage', "No refactorings available"),
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			typeof usewAwgs?.kind === 'stwing'
+				? awgs.pwefewwed
+					? nws.wocawize('editow.action.wefactow.noneMessage.pwefewwed.kind', "No pwefewwed wefactowings fow '{0}' avaiwabwe", usewAwgs.kind)
+					: nws.wocawize('editow.action.wefactow.noneMessage.kind', "No wefactowings fow '{0}' avaiwabwe", usewAwgs.kind)
+				: awgs.pwefewwed
+					? nws.wocawize('editow.action.wefactow.noneMessage.pwefewwed', "No pwefewwed wefactowings avaiwabwe")
+					: nws.wocawize('editow.action.wefactow.noneMessage', "No wefactowings avaiwabwe"),
 			{
-				include: CodeActionKind.Refactor.contains(args.kind) ? args.kind : CodeActionKind.None,
-				onlyIncludePreferredActions: args.preferred,
+				incwude: CodeActionKind.Wefactow.contains(awgs.kind) ? awgs.kind : CodeActionKind.None,
+				onwyIncwudePwefewwedActions: awgs.pwefewwed,
 			},
-			args.apply);
+			awgs.appwy);
 	}
 }
 
-export class SourceAction extends EditorAction {
+expowt cwass SouwceAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: sourceActionCommandId,
-			label: nls.localize('source.label', "Source Action..."),
-			alias: 'Source Action...',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
+	constwuctow() {
+		supa({
+			id: souwceActionCommandId,
+			wabew: nws.wocawize('souwce.wabew', "Souwce Action..."),
+			awias: 'Souwce Action...',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasCodeActionsPwovida),
 			contextMenuOpts: {
-				group: '1_modification',
-				order: 2.1,
-				when: ContextKeyExpr.and(
-					EditorContextKeys.writable,
-					contextKeyForSupportedActions(CodeActionKind.Source)),
+				gwoup: '1_modification',
+				owda: 2.1,
+				when: ContextKeyExpw.and(
+					EditowContextKeys.wwitabwe,
+					contextKeyFowSuppowtedActions(CodeActionKind.Souwce)),
 			},
-			description: {
-				description: 'Source Action...',
-				args: [{ name: 'args', schema: argsSchema }]
+			descwiption: {
+				descwiption: 'Souwce Action...',
+				awgs: [{ name: 'awgs', schema: awgsSchema }]
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
-		const args = CodeActionCommandArgs.fromUser(userArgs, {
-			kind: CodeActionKind.Source,
-			apply: CodeActionAutoApply.Never
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow, usewAwgs: any): void {
+		const awgs = CodeActionCommandAwgs.fwomUsa(usewAwgs, {
+			kind: CodeActionKind.Souwce,
+			appwy: CodeActionAutoAppwy.Neva
 		});
-		return triggerCodeActionsForEditorSelection(editor,
-			typeof userArgs?.kind === 'string'
-				? args.preferred
-					? nls.localize('editor.action.source.noneMessage.preferred.kind', "No preferred source actions for '{0}' available", userArgs.kind)
-					: nls.localize('editor.action.source.noneMessage.kind', "No source actions for '{0}' available", userArgs.kind)
-				: args.preferred
-					? nls.localize('editor.action.source.noneMessage.preferred', "No preferred source actions available")
-					: nls.localize('editor.action.source.noneMessage', "No source actions available"),
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			typeof usewAwgs?.kind === 'stwing'
+				? awgs.pwefewwed
+					? nws.wocawize('editow.action.souwce.noneMessage.pwefewwed.kind', "No pwefewwed souwce actions fow '{0}' avaiwabwe", usewAwgs.kind)
+					: nws.wocawize('editow.action.souwce.noneMessage.kind', "No souwce actions fow '{0}' avaiwabwe", usewAwgs.kind)
+				: awgs.pwefewwed
+					? nws.wocawize('editow.action.souwce.noneMessage.pwefewwed', "No pwefewwed souwce actions avaiwabwe")
+					: nws.wocawize('editow.action.souwce.noneMessage', "No souwce actions avaiwabwe"),
 			{
-				include: CodeActionKind.Source.contains(args.kind) ? args.kind : CodeActionKind.None,
-				includeSourceActions: true,
-				onlyIncludePreferredActions: args.preferred,
+				incwude: CodeActionKind.Souwce.contains(awgs.kind) ? awgs.kind : CodeActionKind.None,
+				incwudeSouwceActions: twue,
+				onwyIncwudePwefewwedActions: awgs.pwefewwed,
 			},
-			args.apply);
+			awgs.appwy);
 	}
 }
 
-export class OrganizeImportsAction extends EditorAction {
+expowt cwass OwganizeImpowtsAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: organizeImportsCommandId,
-			label: nls.localize('organizeImports.label', "Organize Imports"),
-			alias: 'Organize Imports',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.writable,
-				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
+	constwuctow() {
+		supa({
+			id: owganizeImpowtsCommandId,
+			wabew: nws.wocawize('owganizeImpowts.wabew', "Owganize Impowts"),
+			awias: 'Owganize Impowts',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.wwitabwe,
+				contextKeyFowSuppowtedActions(CodeActionKind.SouwceOwganizeImpowts)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_O,
+				weight: KeybindingWeight.EditowContwib
 			},
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor,
-			nls.localize('editor.action.organize.noneMessage', "No organize imports action available"),
-			{ include: CodeActionKind.SourceOrganizeImports, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle);
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			nws.wocawize('editow.action.owganize.noneMessage', "No owganize impowts action avaiwabwe"),
+			{ incwude: CodeActionKind.SouwceOwganizeImpowts, incwudeSouwceActions: twue },
+			CodeActionAutoAppwy.IfSingwe);
 	}
 }
 
-export class FixAllAction extends EditorAction {
+expowt cwass FixAwwAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: fixAllCommandId,
-			label: nls.localize('fixAll.label', "Fix All"),
-			alias: 'Fix All',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.writable,
-				contextKeyForSupportedActions(CodeActionKind.SourceFixAll))
+	constwuctow() {
+		supa({
+			id: fixAwwCommandId,
+			wabew: nws.wocawize('fixAww.wabew', "Fix Aww"),
+			awias: 'Fix Aww',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.wwitabwe,
+				contextKeyFowSuppowtedActions(CodeActionKind.SouwceFixAww))
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor,
-			nls.localize('fixAll.noneMessage', "No fix all action available"),
-			{ include: CodeActionKind.SourceFixAll, includeSourceActions: true },
-			CodeActionAutoApply.IfSingle);
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			nws.wocawize('fixAww.noneMessage', "No fix aww action avaiwabwe"),
+			{ incwude: CodeActionKind.SouwceFixAww, incwudeSouwceActions: twue },
+			CodeActionAutoAppwy.IfSingwe);
 	}
 }
 
-export class AutoFixAction extends EditorAction {
+expowt cwass AutoFixAction extends EditowAction {
 
-	static readonly Id = 'editor.action.autoFix';
+	static weadonwy Id = 'editow.action.autoFix';
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: AutoFixAction.Id,
-			label: nls.localize('autoFix.label', "Auto Fix..."),
-			alias: 'Auto Fix...',
-			precondition: ContextKeyExpr.and(
-				EditorContextKeys.writable,
-				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
+			wabew: nws.wocawize('autoFix.wabew', "Auto Fix..."),
+			awias: 'Auto Fix...',
+			pwecondition: ContextKeyExpw.and(
+				EditowContextKeys.wwitabwe,
+				contextKeyFowSuppowtedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.US_DOT,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.US_DOT
 				},
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor,
-			nls.localize('editor.action.autoFix.noneMessage', "No auto fixes available"),
+	pubwic wun(_accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wetuwn twiggewCodeActionsFowEditowSewection(editow,
+			nws.wocawize('editow.action.autoFix.noneMessage', "No auto fixes avaiwabwe"),
 			{
-				include: CodeActionKind.QuickFix,
-				onlyIncludePreferredActions: true
+				incwude: CodeActionKind.QuickFix,
+				onwyIncwudePwefewwedActions: twue
 			},
-			CodeActionAutoApply.IfSingle);
+			CodeActionAutoAppwy.IfSingwe);
 	}
 }

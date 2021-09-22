@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { posix } from 'vs/base/common/path';
-import { rtrim } from 'vs/base/common/strings';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
-import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { posix } fwom 'vs/base/common/path';
+impowt { wtwim } fwom 'vs/base/common/stwings';
+impowt { IDiskFiweChange, IWogMessage, IWatchWequest } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
+impowt { OutOfPwocessWin32FowdewWatcha } fwom 'vs/pwatfowm/fiwes/node/watcha/win32/cshawpWatchewSewvice';
 
 /**
- * @deprecated
+ * @depwecated
  */
-export class FileWatcher implements IDisposable {
+expowt cwass FiweWatcha impwements IDisposabwe {
 
-	private folder: IWatchRequest;
-	private service: OutOfProcessWin32FolderWatcher | undefined = undefined;
+	pwivate fowda: IWatchWequest;
+	pwivate sewvice: OutOfPwocessWin32FowdewWatcha | undefined = undefined;
 
-	constructor(
-		folders: IWatchRequest[],
-		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean
+	constwuctow(
+		fowdews: IWatchWequest[],
+		pwivate weadonwy onDidFiwesChange: (changes: IDiskFiweChange[]) => void,
+		pwivate weadonwy onWogMessage: (msg: IWogMessage) => void,
+		pwivate vewboseWogging: boowean
 	) {
-		this.folder = folders[0];
+		this.fowda = fowdews[0];
 
-		if (this.folder.path.indexOf('\\\\') === 0 && this.folder.path.endsWith(posix.sep)) {
-			// for some weird reason, node adds a trailing slash to UNC paths
-			// we never ever want trailing slashes as our base path unless
-			// someone opens root ("/").
-			// See also https://github.com/nodejs/io.js/issues/1765
-			this.folder.path = rtrim(this.folder.path, posix.sep);
+		if (this.fowda.path.indexOf('\\\\') === 0 && this.fowda.path.endsWith(posix.sep)) {
+			// fow some weiwd weason, node adds a twaiwing swash to UNC paths
+			// we neva eva want twaiwing swashes as ouw base path unwess
+			// someone opens woot ("/").
+			// See awso https://github.com/nodejs/io.js/issues/1765
+			this.fowda.path = wtwim(this.fowda.path, posix.sep);
 		}
 
-		this.service = this.startWatching();
+		this.sewvice = this.stawtWatching();
 	}
 
-	private get isDisposed(): boolean {
-		return !this.service;
+	pwivate get isDisposed(): boowean {
+		wetuwn !this.sewvice;
 	}
 
-	private startWatching(): OutOfProcessWin32FolderWatcher {
-		return new OutOfProcessWin32FolderWatcher(
-			this.folder.path,
-			this.folder.excludes,
-			events => this.onFileEvents(events),
-			message => this.onLogMessage(message),
-			this.verboseLogging
+	pwivate stawtWatching(): OutOfPwocessWin32FowdewWatcha {
+		wetuwn new OutOfPwocessWin32FowdewWatcha(
+			this.fowda.path,
+			this.fowda.excwudes,
+			events => this.onFiweEvents(events),
+			message => this.onWogMessage(message),
+			this.vewboseWogging
 		);
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.verboseLogging = verboseLogging;
-		if (this.service) {
-			this.service.dispose();
-			this.service = this.startWatching();
+	setVewboseWogging(vewboseWogging: boowean): void {
+		this.vewboseWogging = vewboseWogging;
+		if (this.sewvice) {
+			this.sewvice.dispose();
+			this.sewvice = this.stawtWatching();
 		}
 	}
 
-	private onFileEvents(events: IDiskFileChange[]): void {
+	pwivate onFiweEvents(events: IDiskFiweChange[]): void {
 		if (this.isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		// Emit through event emitter
-		if (events.length > 0) {
-			this.onDidFilesChange(events);
+		// Emit thwough event emitta
+		if (events.wength > 0) {
+			this.onDidFiwesChange(events);
 		}
 	}
 
 	dispose(): void {
-		if (this.service) {
-			this.service.dispose();
-			this.service = undefined;
+		if (this.sewvice) {
+			this.sewvice.dispose();
+			this.sewvice = undefined;
 		}
 	}
 }

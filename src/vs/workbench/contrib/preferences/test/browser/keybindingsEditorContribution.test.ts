@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { KeybindingEditorDecorationsRenderer } from 'vs/workbench/contrib/preferences/browser/keybindingsEditorContribution';
+impowt * as assewt fwom 'assewt';
+impowt { KeybindingEditowDecowationsWendewa } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/keybindingsEditowContwibution';
 
-suite('KeybindingsEditorContribution', () => {
+suite('KeybindingsEditowContwibution', () => {
 
-	function assertUserSettingsFuzzyEquals(a: string, b: string, expected: boolean): void {
-		const actual = KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(a, b);
+	function assewtUsewSettingsFuzzyEquaws(a: stwing, b: stwing, expected: boowean): void {
+		const actuaw = KeybindingEditowDecowationsWendewa._usewSettingsFuzzyEquaws(a, b);
 		const message = expected ? `${a} == ${b}` : `${a} != ${b}`;
-		assert.strictEqual(actual, expected, 'fuzzy: ' + message);
+		assewt.stwictEquaw(actuaw, expected, 'fuzzy: ' + message);
 	}
 
-	function assertEqual(a: string, b: string): void {
-		assertUserSettingsFuzzyEquals(a, b, true);
+	function assewtEquaw(a: stwing, b: stwing): void {
+		assewtUsewSettingsFuzzyEquaws(a, b, twue);
 	}
 
-	function assertDifferent(a: string, b: string): void {
-		assertUserSettingsFuzzyEquals(a, b, false);
+	function assewtDiffewent(a: stwing, b: stwing): void {
+		assewtUsewSettingsFuzzyEquaws(a, b, fawse);
 	}
 
-	test('_userSettingsFuzzyEquals', () => {
-		assertEqual('a', 'a');
-		assertEqual('a', 'A');
-		assertEqual('ctrl+a', 'CTRL+A');
-		assertEqual('ctrl+a', ' CTRL+A ');
+	test('_usewSettingsFuzzyEquaws', () => {
+		assewtEquaw('a', 'a');
+		assewtEquaw('a', 'A');
+		assewtEquaw('ctww+a', 'CTWW+A');
+		assewtEquaw('ctww+a', ' CTWW+A ');
 
-		assertEqual('ctrl+shift+a', 'shift+ctrl+a');
-		assertEqual('ctrl+shift+a ctrl+alt+b', 'shift+ctrl+a alt+ctrl+b');
+		assewtEquaw('ctww+shift+a', 'shift+ctww+a');
+		assewtEquaw('ctww+shift+a ctww+awt+b', 'shift+ctww+a awt+ctww+b');
 
-		assertDifferent('ctrl+[KeyA]', 'ctrl+a');
+		assewtDiffewent('ctww+[KeyA]', 'ctww+a');
 
 		// issue #23335
-		assertEqual('cmd+shift+p', 'shift+cmd+p');
-		assertEqual('cmd+shift+p', 'shift-cmd-p');
+		assewtEquaw('cmd+shift+p', 'shift+cmd+p');
+		assewtEquaw('cmd+shift+p', 'shift-cmd-p');
 	});
 });

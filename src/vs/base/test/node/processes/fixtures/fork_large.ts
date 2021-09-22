@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as processes from 'vs/base/node/processes';
+impowt * as pwocesses fwom 'vs/base/node/pwocesses';
 
-const sender = processes.createQueuedSender(<any>process);
+const senda = pwocesses.cweateQueuedSenda(<any>pwocess);
 
-process.on('message', msg => {
-	sender.send(msg);
-	sender.send(msg);
-	sender.send(msg);
-	sender.send('done');
+pwocess.on('message', msg => {
+	senda.send(msg);
+	senda.send(msg);
+	senda.send(msg);
+	senda.send('done');
 });
 
-sender.send('ready');
+senda.send('weady');

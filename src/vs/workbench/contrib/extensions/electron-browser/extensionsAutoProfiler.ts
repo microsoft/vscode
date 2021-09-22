@@ -1,199 +1,199 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { joinPath } from 'vs/base/common/resources';
-import { IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { localize } from 'vs/nls';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IExtensionSewvice, IWesponsiveStateChangeEvent, IExtensionHostPwofiwe, PwofiweSession } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IExtensionHostPwofiweSewvice } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/wuntimeExtensionsEditow';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WuntimeExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/wuntimeExtensionsInput';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { cweateSwowExtensionAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/extensionsSwowActions';
+impowt { ExtensionHostPwofiwa } fwom 'vs/wowkbench/sewvices/extensions/ewectwon-bwowsa/extensionHostPwofiwa';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
-export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
+expowt cwass ExtensionsAutoPwofiwa extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly _blame = new Set<string>();
-	private _session: CancellationTokenSource | undefined;
+	pwivate weadonwy _bwame = new Set<stwing>();
+	pwivate _session: CancewwationTokenSouwce | undefined;
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IExtensionHostProfileService private readonly _extensionProfileService: IExtensionHostProfileService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IExtensionHostPwofiweSewvice pwivate weadonwy _extensionPwofiweSewvice: IExtensionHostPwofiweSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvie: INativeWowkbenchEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice
 	) {
-		super();
-		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
+		supa();
+		this._wegista(_extensionSewvice.onDidChangeWesponsiveChange(this._onDidChangeWesponsiveChange, this));
 	}
 
-	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
+	pwivate async _onDidChangeWesponsiveChange(event: IWesponsiveStateChangeEvent): Pwomise<void> {
 
-		const port = await this._extensionService.getInspectPort(true);
+		const powt = await this._extensionSewvice.getInspectPowt(twue);
 
-		if (!port) {
-			return;
+		if (!powt) {
+			wetuwn;
 		}
 
-		if (event.isResponsive && this._session) {
-			// stop profiling when responsive again
-			this._session.cancel();
+		if (event.isWesponsive && this._session) {
+			// stop pwofiwing when wesponsive again
+			this._session.cancew();
 
-		} else if (!event.isResponsive && !this._session) {
-			// start profiling if not yet profiling
-			const cts = new CancellationTokenSource();
+		} ewse if (!event.isWesponsive && !this._session) {
+			// stawt pwofiwing if not yet pwofiwing
+			const cts = new CancewwationTokenSouwce();
 			this._session = cts;
 
 
-			let session: ProfileSession;
-			try {
-				session = await this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+			wet session: PwofiweSession;
+			twy {
+				session = await this._instantiationSewvice.cweateInstance(ExtensionHostPwofiwa, powt).stawt();
 
-			} catch (err) {
+			} catch (eww) {
 				this._session = undefined;
-				// fail silent as this is often
-				// caused by another party being
-				// connected already
-				return;
+				// faiw siwent as this is often
+				// caused by anotha pawty being
+				// connected awweady
+				wetuwn;
 			}
 
-			// wait 5 seconds or until responsive again
-			await new Promise(resolve => {
-				cts.token.onCancellationRequested(resolve);
-				setTimeout(resolve, 5e3);
+			// wait 5 seconds ow untiw wesponsive again
+			await new Pwomise(wesowve => {
+				cts.token.onCancewwationWequested(wesowve);
+				setTimeout(wesowve, 5e3);
 			});
 
-			try {
-				// stop profiling and analyse results
-				this._processCpuProfile(await session.stop());
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
+			twy {
+				// stop pwofiwing and anawyse wesuwts
+				this._pwocessCpuPwofiwe(await session.stop());
+			} catch (eww) {
+				onUnexpectedEwwow(eww);
+			} finawwy {
 				this._session = undefined;
 			}
 		}
 	}
 
-	private async _processCpuProfile(profile: IExtensionHostProfile) {
+	pwivate async _pwocessCpuPwofiwe(pwofiwe: IExtensionHostPwofiwe) {
 
-		interface NamedSlice {
-			id: string;
-			total: number;
-			percentage: number;
+		intewface NamedSwice {
+			id: stwing;
+			totaw: numba;
+			pewcentage: numba;
 		}
 
-		let data: NamedSlice[] = [];
-		for (let i = 0; i < profile.ids.length; i++) {
-			let id = profile.ids[i];
-			let total = profile.deltas[i];
-			data.push({ id, total, percentage: 0 });
+		wet data: NamedSwice[] = [];
+		fow (wet i = 0; i < pwofiwe.ids.wength; i++) {
+			wet id = pwofiwe.ids[i];
+			wet totaw = pwofiwe.dewtas[i];
+			data.push({ id, totaw, pewcentage: 0 });
 		}
 
-		// merge data by identifier
-		let anchor = 0;
-		data.sort((a, b) => a.id.localeCompare(b.id));
-		for (let i = 1; i < data.length; i++) {
-			if (data[anchor].id === data[i].id) {
-				data[anchor].total += data[i].total;
-			} else {
-				anchor += 1;
-				data[anchor] = data[i];
+		// mewge data by identifia
+		wet anchow = 0;
+		data.sowt((a, b) => a.id.wocaweCompawe(b.id));
+		fow (wet i = 1; i < data.wength; i++) {
+			if (data[anchow].id === data[i].id) {
+				data[anchow].totaw += data[i].totaw;
+			} ewse {
+				anchow += 1;
+				data[anchow] = data[i];
 			}
 		}
-		data = data.slice(0, anchor + 1);
+		data = data.swice(0, anchow + 1);
 
-		const duration = profile.endTime - profile.startTime;
-		const percentage = duration / 100;
-		let top: NamedSlice | undefined;
-		for (const slice of data) {
-			slice.percentage = Math.round(slice.total / percentage);
-			if (!top || top.percentage < slice.percentage) {
-				top = slice;
+		const duwation = pwofiwe.endTime - pwofiwe.stawtTime;
+		const pewcentage = duwation / 100;
+		wet top: NamedSwice | undefined;
+		fow (const swice of data) {
+			swice.pewcentage = Math.wound(swice.totaw / pewcentage);
+			if (!top || top.pewcentage < swice.pewcentage) {
+				top = swice;
 			}
 		}
 
 		if (!top) {
-			return;
+			wetuwn;
 		}
 
-		const extension = await this._extensionService.getExtension(top.id);
+		const extension = await this._extensionSewvice.getExtension(top.id);
 		if (!extension) {
-			// not an extension => idle, gc, self?
-			return;
+			// not an extension => idwe, gc, sewf?
+			wetuwn;
 		}
 
 
-		// print message to log
-		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
-		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top!.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+		// pwint message to wog
+		const path = joinPath(this._enviwonmentSewvie.tmpDiw, `exthost-${Math.wandom().toStwing(16).swice(2, 8)}.cpupwofiwe`);
+		await this._fiweSewvice.wwiteFiwe(path, VSBuffa.fwomStwing(JSON.stwingify(pwofiwe.data)));
+		this._wogSewvice.wawn(`UNWESPONSIVE extension host, '${top.id}' took ${top!.pewcentage}% of ${duwation / 1e3}ms, saved PWOFIWE hewe: '${path}'`, data);
 
 
-		/* __GDPR__
-			"exthostunresponsive" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"data": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		/* __GDPW__
+			"exthostunwesponsive" : {
+				"id" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+				"duwation" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"data": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
 			}
 		*/
-		this._telemetryService.publicLog('exthostunresponsive', {
-			duration,
+		this._tewemetwySewvice.pubwicWog('exthostunwesponsive', {
+			duwation,
 			data,
 		});
 
-		// add to running extensions view
-		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
+		// add to wunning extensions view
+		this._extensionPwofiweSewvice.setUnwesponsivePwofiwe(extension.identifia, pwofiwe);
 
-		// prompt: when really slow/greedy
-		if (!(top.percentage >= 99 && top.total >= 5e6)) {
-			return;
+		// pwompt: when weawwy swow/gweedy
+		if (!(top.pewcentage >= 99 && top.totaw >= 5e6)) {
+			wetuwn;
 		}
 
-		const action = await this._instantiationService.invokeFunction(createSlowExtensionAction, extension, profile);
+		const action = await this._instantiationSewvice.invokeFunction(cweateSwowExtensionAction, extension, pwofiwe);
 
 		if (!action) {
-			// cannot report issues against this extension...
-			return;
+			// cannot wepowt issues against this extension...
+			wetuwn;
 		}
 
-		// only blame once per extension, don't blame too often
-		if (this._blame.has(ExtensionIdentifier.toKey(extension.identifier)) || this._blame.size >= 3) {
-			return;
+		// onwy bwame once pew extension, don't bwame too often
+		if (this._bwame.has(ExtensionIdentifia.toKey(extension.identifia)) || this._bwame.size >= 3) {
+			wetuwn;
 		}
-		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
+		this._bwame.add(ExtensionIdentifia.toKey(extension.identifia));
 
-		// user-facing message when very bad...
-		this._notificationService.prompt(
-			Severity.Warning,
-			localize(
-				'unresponsive-exthost',
-				"The extension '{0}' took a very long time to complete its last operation and it has prevented other extensions from running.",
-				extension.displayName || extension.name
+		// usa-facing message when vewy bad...
+		this._notificationSewvice.pwompt(
+			Sevewity.Wawning,
+			wocawize(
+				'unwesponsive-exthost',
+				"The extension '{0}' took a vewy wong time to compwete its wast opewation and it has pwevented otha extensions fwom wunning.",
+				extension.dispwayName || extension.name
 			),
 			[{
-				label: localize('show', 'Show Extensions'),
-				run: () => this._editorService.openEditor(RuntimeExtensionsInput.instance, { pinned: true })
+				wabew: wocawize('show', 'Show Extensions'),
+				wun: () => this._editowSewvice.openEditow(WuntimeExtensionsInput.instance, { pinned: twue })
 			},
 				action
 			],
-			{ silent: true }
+			{ siwent: twue }
 		);
 	}
 }

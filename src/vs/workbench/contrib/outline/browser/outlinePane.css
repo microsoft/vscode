@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .outline-pane {
-	display: flex;
-	flex-direction: column;
+.monaco-wowkbench .outwine-pane {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-workbench .outline-pane .outline-progress {
+.monaco-wowkbench .outwine-pane .outwine-pwogwess {
 	width: 100%;
 	height: 2px;
 	padding-bottom: 3px;
-	position: absolute;
+	position: absowute;
 }
 
-.monaco-workbench .outline-pane .outline-progress .monaco-progress-container {
+.monaco-wowkbench .outwine-pane .outwine-pwogwess .monaco-pwogwess-containa {
 	height: 2px;
 }
 
-.monaco-workbench .outline-pane .outline-progress .monaco-progress-container .progress-bit {
+.monaco-wowkbench .outwine-pane .outwine-pwogwess .monaco-pwogwess-containa .pwogwess-bit {
 	height: 2px;
 }
 
-.monaco-workbench .outline-pane .outline-tree {
+.monaco-wowkbench .outwine-pane .outwine-twee {
 	height: 100%;
 }
 
-.monaco-workbench .outline-pane .outline-message {
-	display: none;
+.monaco-wowkbench .outwine-pane .outwine-message {
+	dispway: none;
 	padding: 10px 22px 0 22px;
 	opacity: 0.5;
-	position: absolute;
-	pointer-events: none;
+	position: absowute;
+	pointa-events: none;
 	z-index: 1;
 }
 
-.monaco-workbench .outline-pane.message .outline-message {
-	display: inherit;
+.monaco-wowkbench .outwine-pane.message .outwine-message {
+	dispway: inhewit;
 }
 
-.monaco-workbench .outline-pane.message .outline-progress {
-	display: none;
+.monaco-wowkbench .outwine-pane.message .outwine-pwogwess {
+	dispway: none;
 }

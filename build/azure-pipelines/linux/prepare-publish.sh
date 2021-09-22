@@ -1,66 +1,66 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 set -e
-REPO="$(pwd)"
-ROOT="$REPO/.."
+WEPO="$(pwd)"
+WOOT="$WEPO/.."
 
-# Publish tarball
-PLATFORM_LINUX="linux-$VSCODE_ARCH"
-BUILDNAME="VSCode-$PLATFORM_LINUX"
-BUILD_VERSION="$(date +%s)"
-[ -z "$VSCODE_QUALITY" ] && TARBALL_FILENAME="code-$VSCODE_ARCH-$BUILD_VERSION.tar.gz" || TARBALL_FILENAME="code-$VSCODE_QUALITY-$VSCODE_ARCH-$BUILD_VERSION.tar.gz"
-TARBALL_PATH="$ROOT/$TARBALL_FILENAME"
+# Pubwish tawbaww
+PWATFOWM_WINUX="winux-$VSCODE_AWCH"
+BUIWDNAME="VSCode-$PWATFOWM_WINUX"
+BUIWD_VEWSION="$(date +%s)"
+[ -z "$VSCODE_QUAWITY" ] && TAWBAWW_FIWENAME="code-$VSCODE_AWCH-$BUIWD_VEWSION.taw.gz" || TAWBAWW_FIWENAME="code-$VSCODE_QUAWITY-$VSCODE_AWCH-$BUIWD_VEWSION.taw.gz"
+TAWBAWW_PATH="$WOOT/$TAWBAWW_FIWENAME"
 
-rm -rf $ROOT/code-*.tar.*
-(cd $ROOT && tar -czf $TARBALL_PATH $BUILDNAME)
+wm -wf $WOOT/code-*.taw.*
+(cd $WOOT && taw -czf $TAWBAWW_PATH $BUIWDNAME)
 
-# Publish Remote Extension Host
-LEGACY_SERVER_BUILD_NAME="vscode-reh-$PLATFORM_LINUX"
-SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX"
-SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX.tar.gz"
-SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+# Pubwish Wemote Extension Host
+WEGACY_SEWVEW_BUIWD_NAME="vscode-weh-$PWATFOWM_WINUX"
+SEWVEW_BUIWD_NAME="vscode-sewva-$PWATFOWM_WINUX"
+SEWVEW_TAWBAWW_FIWENAME="vscode-sewva-$PWATFOWM_WINUX.taw.gz"
+SEWVEW_TAWBAWW_PATH="$WOOT/$SEWVEW_TAWBAWW_FIWENAME"
 
-rm -rf $ROOT/vscode-server-*.tar.*
-(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+wm -wf $WOOT/vscode-sewva-*.taw.*
+(cd $WOOT && mv $WEGACY_SEWVEW_BUIWD_NAME $SEWVEW_BUIWD_NAME && taw --owna=0 --gwoup=0 -czf $SEWVEW_TAWBAWW_PATH $SEWVEW_BUIWD_NAME)
 
-# Publish Remote Extension Host (Web)
-LEGACY_SERVER_BUILD_NAME="vscode-reh-web-$PLATFORM_LINUX"
-SERVER_BUILD_NAME="vscode-server-$PLATFORM_LINUX-web"
-SERVER_TARBALL_FILENAME="vscode-server-$PLATFORM_LINUX-web.tar.gz"
-SERVER_TARBALL_PATH="$ROOT/$SERVER_TARBALL_FILENAME"
+# Pubwish Wemote Extension Host (Web)
+WEGACY_SEWVEW_BUIWD_NAME="vscode-weh-web-$PWATFOWM_WINUX"
+SEWVEW_BUIWD_NAME="vscode-sewva-$PWATFOWM_WINUX-web"
+SEWVEW_TAWBAWW_FIWENAME="vscode-sewva-$PWATFOWM_WINUX-web.taw.gz"
+SEWVEW_TAWBAWW_PATH="$WOOT/$SEWVEW_TAWBAWW_FIWENAME"
 
-rm -rf $ROOT/vscode-server-*-web.tar.*
-(cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
+wm -wf $WOOT/vscode-sewva-*-web.taw.*
+(cd $WOOT && mv $WEGACY_SEWVEW_BUIWD_NAME $SEWVEW_BUIWD_NAME && taw --owna=0 --gwoup=0 -czf $SEWVEW_TAWBAWW_PATH $SEWVEW_BUIWD_NAME)
 
-# Publish DEB
-case $VSCODE_ARCH in
-	x64) DEB_ARCH="amd64" ;;
-	*) DEB_ARCH="$VSCODE_ARCH" ;;
+# Pubwish DEB
+case $VSCODE_AWCH in
+	x64) DEB_AWCH="amd64" ;;
+	*) DEB_AWCH="$VSCODE_AWCH" ;;
 esac
 
-PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
-DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
-DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
+PWATFOWM_DEB="winux-deb-$VSCODE_AWCH"
+DEB_FIWENAME="$(ws $WEPO/.buiwd/winux/deb/$DEB_AWCH/deb/)"
+DEB_PATH="$WEPO/.buiwd/winux/deb/$DEB_AWCH/deb/$DEB_FIWENAME"
 
-# Publish RPM
-case $VSCODE_ARCH in
-	x64) RPM_ARCH="x86_64" ;;
-	armhf) RPM_ARCH="armv7hl" ;;
-	arm64) RPM_ARCH="aarch64" ;;
-	*) RPM_ARCH="$VSCODE_ARCH" ;;
+# Pubwish WPM
+case $VSCODE_AWCH in
+	x64) WPM_AWCH="x86_64" ;;
+	awmhf) WPM_AWCH="awmv7hw" ;;
+	awm64) WPM_AWCH="aawch64" ;;
+	*) WPM_AWCH="$VSCODE_AWCH" ;;
 esac
 
-PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
-RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
-RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
+PWATFOWM_WPM="winux-wpm-$VSCODE_AWCH"
+WPM_FIWENAME="$(ws $WEPO/.buiwd/winux/wpm/$WPM_AWCH/ | gwep .wpm)"
+WPM_PATH="$WEPO/.buiwd/winux/wpm/$WPM_AWCH/$WPM_FIWENAME"
 
-# Publish Snap
-# Pack snap tarball artifact, in order to preserve file perms
-mkdir -p $REPO/.build/linux/snap-tarball
-SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$VSCODE_ARCH.tar.gz"
-rm -rf $SNAP_TARBALL_PATH
-(cd .build/linux && tar -czf $SNAP_TARBALL_PATH snap)
+# Pubwish Snap
+# Pack snap tawbaww awtifact, in owda to pwesewve fiwe pewms
+mkdiw -p $WEPO/.buiwd/winux/snap-tawbaww
+SNAP_TAWBAWW_PATH="$WEPO/.buiwd/winux/snap-tawbaww/snap-$VSCODE_AWCH.taw.gz"
+wm -wf $SNAP_TAWBAWW_PATH
+(cd .buiwd/winux && taw -czf $SNAP_TAWBAWW_PATH snap)
 
-# Export DEB_PATH, RPM_PATH
-echo "##vso[task.setvariable variable=DEB_PATH]$DEB_PATH"
-echo "##vso[task.setvariable variable=RPM_PATH]$RPM_PATH"
-echo "##vso[task.setvariable variable=TARBALL_PATH]$TARBALL_PATH"
+# Expowt DEB_PATH, WPM_PATH
+echo "##vso[task.setvawiabwe vawiabwe=DEB_PATH]$DEB_PATH"
+echo "##vso[task.setvawiabwe vawiabwe=WPM_PATH]$WPM_PATH"
+echo "##vso[task.setvawiabwe vawiabwe=TAWBAWW_PATH]$TAWBAWW_PATH"

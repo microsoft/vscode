@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as Previewer from '../utils/previewer';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as Pweviewa fwom '../utiws/pweviewa';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
-class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
+cwass TypeScwiptSignatuweHewpPwovida impwements vscode.SignatuweHewpPwovida {
 
-	public static readonly triggerCharacters = ['(', ',', '<'];
-	public static readonly retriggerCharacters = [')'];
+	pubwic static weadonwy twiggewChawactews = ['(', ',', '<'];
+	pubwic static weadonwy wetwiggewChawactews = [')'];
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	public async provideSignatureHelp(
+	pubwic async pwovideSignatuweHewp(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.SignatureHelpContext,
-	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return undefined;
+		token: vscode.CancewwationToken,
+		context: vscode.SignatuweHewpContext,
+	): Pwomise<vscode.SignatuweHewp | undefined> {
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn undefined;
 		}
 
-		const args: Proto.SignatureHelpRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(filepath, position),
-			triggerReason: toTsTriggerReason(context)
+		const awgs: Pwoto.SignatuweHewpWequestAwgs = {
+			...typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position),
+			twiggewWeason: toTsTwiggewWeason(context)
 		};
-		const response = await this.client.interruptGetErr(() => this.client.execute('signatureHelp', args, token));
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const wesponse = await this.cwient.intewwuptGetEww(() => this.cwient.execute('signatuweHewp', awgs, token));
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		const info = response.body;
-		const result = new vscode.SignatureHelp();
-		result.signatures = info.items.map(signature => this.convertSignature(signature));
-		result.activeSignature = this.getActiveSignature(context, info, result.signatures);
-		result.activeParameter = this.getActiveParameter(info);
+		const info = wesponse.body;
+		const wesuwt = new vscode.SignatuweHewp();
+		wesuwt.signatuwes = info.items.map(signatuwe => this.convewtSignatuwe(signatuwe));
+		wesuwt.activeSignatuwe = this.getActiveSignatuwe(context, info, wesuwt.signatuwes);
+		wesuwt.activePawameta = this.getActivePawameta(info);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		// Try matching the previous active signature's label to keep it selected
-		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-		if (previouslyActiveSignature && context.isRetrigger) {
-			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
+	pwivate getActiveSignatuwe(context: vscode.SignatuweHewpContext, info: Pwoto.SignatuweHewpItems, signatuwes: weadonwy vscode.SignatuweInfowmation[]): numba {
+		// Twy matching the pwevious active signatuwe's wabew to keep it sewected
+		const pweviouswyActiveSignatuwe = context.activeSignatuweHewp?.signatuwes[context.activeSignatuweHewp.activeSignatuwe];
+		if (pweviouswyActiveSignatuwe && context.isWetwigga) {
+			const existingIndex = signatuwes.findIndex(otha => otha.wabew === pweviouswyActiveSignatuwe?.wabew);
 			if (existingIndex >= 0) {
-				return existingIndex;
+				wetuwn existingIndex;
 			}
 		}
 
-		return info.selectedItemIndex;
+		wetuwn info.sewectedItemIndex;
 	}
 
-	private getActiveParameter(info: Proto.SignatureHelpItems): number {
-		const activeSignature = info.items[info.selectedItemIndex];
-		if (activeSignature && activeSignature.isVariadic) {
-			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);
+	pwivate getActivePawameta(info: Pwoto.SignatuweHewpItems): numba {
+		const activeSignatuwe = info.items[info.sewectedItemIndex];
+		if (activeSignatuwe && activeSignatuwe.isVawiadic) {
+			wetuwn Math.min(info.awgumentIndex, activeSignatuwe.pawametews.wength - 1);
 		}
-		return info.argumentIndex;
+		wetuwn info.awgumentIndex;
 	}
 
-	private convertSignature(item: Proto.SignatureHelpItem) {
-		const signature = new vscode.SignatureInformation(
-			Previewer.plainWithLinks(item.prefixDisplayParts, this.client),
-			Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param'), this.client));
+	pwivate convewtSignatuwe(item: Pwoto.SignatuweHewpItem) {
+		const signatuwe = new vscode.SignatuweInfowmation(
+			Pweviewa.pwainWithWinks(item.pwefixDispwayPawts, this.cwient),
+			Pweviewa.mawkdownDocumentation(item.documentation, item.tags.fiwta(x => x.name !== 'pawam'), this.cwient));
 
-		let textIndex = signature.label.length;
-		const separatorLabel = Previewer.plainWithLinks(item.separatorDisplayParts, this.client);
-		for (let i = 0; i < item.parameters.length; ++i) {
-			const parameter = item.parameters[i];
-			const label = Previewer.plainWithLinks(parameter.displayParts, this.client);
+		wet textIndex = signatuwe.wabew.wength;
+		const sepawatowWabew = Pweviewa.pwainWithWinks(item.sepawatowDispwayPawts, this.cwient);
+		fow (wet i = 0; i < item.pawametews.wength; ++i) {
+			const pawameta = item.pawametews[i];
+			const wabew = Pweviewa.pwainWithWinks(pawameta.dispwayPawts, this.cwient);
 
-			signature.parameters.push(
-				new vscode.ParameterInformation(
-					[textIndex, textIndex + label.length],
-					Previewer.markdownDocumentation(parameter.documentation, [], this.client)));
+			signatuwe.pawametews.push(
+				new vscode.PawametewInfowmation(
+					[textIndex, textIndex + wabew.wength],
+					Pweviewa.mawkdownDocumentation(pawameta.documentation, [], this.cwient)));
 
-			textIndex += label.length;
-			signature.label += label;
+			textIndex += wabew.wength;
+			signatuwe.wabew += wabew;
 
-			if (i !== item.parameters.length - 1) {
-				signature.label += separatorLabel;
-				textIndex += separatorLabel.length;
+			if (i !== item.pawametews.wength - 1) {
+				signatuwe.wabew += sepawatowWabew;
+				textIndex += sepawatowWabew.wength;
 			}
 		}
 
-		signature.label += Previewer.plainWithLinks(item.suffixDisplayParts, this.client);
-		return signature;
+		signatuwe.wabew += Pweviewa.pwainWithWinks(item.suffixDispwayPawts, this.cwient);
+		wetuwn signatuwe;
 	}
 }
 
-function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
-	switch (context.triggerKind) {
-		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
-			if (context.triggerCharacter) {
-				if (context.isRetrigger) {
-					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
-				} else {
-					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+function toTsTwiggewWeason(context: vscode.SignatuweHewpContext): Pwoto.SignatuweHewpTwiggewWeason {
+	switch (context.twiggewKind) {
+		case vscode.SignatuweHewpTwiggewKind.TwiggewChawacta:
+			if (context.twiggewChawacta) {
+				if (context.isWetwigga) {
+					wetuwn { kind: 'wetwigga', twiggewChawacta: context.twiggewChawacta as any };
+				} ewse {
+					wetuwn { kind: 'chawactewTyped', twiggewChawacta: context.twiggewChawacta as any };
 				}
-			} else {
-				return { kind: 'invoked' };
+			} ewse {
+				wetuwn { kind: 'invoked' };
 			}
 
-		case vscode.SignatureHelpTriggerKind.ContentChange:
-			return context.isRetrigger ? { kind: 'retrigger' } : { kind: 'invoked' };
+		case vscode.SignatuweHewpTwiggewKind.ContentChange:
+			wetuwn context.isWetwigga ? { kind: 'wetwigga' } : { kind: 'invoked' };
 
-		case vscode.SignatureHelpTriggerKind.Invoke:
-		default:
-			return { kind: 'invoked' };
+		case vscode.SignatuweHewpTwiggewKind.Invoke:
+		defauwt:
+			wetuwn { kind: 'invoked' };
 	}
 }
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
 ) {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.EnhancedSyntax, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerSignatureHelpProvider(selector.syntax,
-			new TypeScriptSignatureHelpProvider(client), {
-			triggerCharacters: TypeScriptSignatureHelpProvider.triggerCharacters,
-			retriggerCharacters: TypeScriptSignatureHelpProvider.retriggerCharacters
+		wetuwn vscode.wanguages.wegistewSignatuweHewpPwovida(sewectow.syntax,
+			new TypeScwiptSignatuweHewpPwovida(cwient), {
+			twiggewChawactews: TypeScwiptSignatuweHewpPwovida.twiggewChawactews,
+			wetwiggewChawactews: TypeScwiptSignatuweHewpPwovida.wetwiggewChawactews
 		});
 	});
 }

@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ITextFileSaveParticipant, ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../common/extHost.protocol';
-import { canceled } from 'vs/base/common/errors';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { shouwdSynchwonizeModew } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwessStep, IPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { extHostCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ITextFiweSavePawticipant, ITextFiweSewvice, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt { ExtHostContext, ExtHostDocumentSavePawticipantShape, IExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-class ExtHostSaveParticipant implements ITextFileSaveParticipant {
+cwass ExtHostSavePawticipant impwements ITextFiweSavePawticipant {
 
-	private readonly _proxy: ExtHostDocumentSaveParticipantShape;
+	pwivate weadonwy _pwoxy: ExtHostDocumentSavePawticipantShape;
 
-	constructor(extHostContext: IExtHostContext) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
+	constwuctow(extHostContext: IExtHostContext) {
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostDocumentSavePawticipant);
 	}
 
-	async participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason; }, _progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	async pawticipate(editowModew: ITextFiweEditowModew, env: { weason: SaveWeason; }, _pwogwess: IPwogwess<IPwogwessStep>, token: CancewwationToken): Pwomise<void> {
 
-		if (!editorModel.textEditorModel || !shouldSynchronizeModel(editorModel.textEditorModel)) {
-			// the model never made it to the extension
-			// host meaning we cannot participate in its save
-			return undefined;
+		if (!editowModew.textEditowModew || !shouwdSynchwonizeModew(editowModew.textEditowModew)) {
+			// the modew neva made it to the extension
+			// host meaning we cannot pawticipate in its save
+			wetuwn undefined;
 		}
 
-		return new Promise<any>((resolve, reject) => {
+		wetuwn new Pwomise<any>((wesowve, weject) => {
 
-			token.onCancellationRequested(() => reject(canceled()));
+			token.onCancewwationWequested(() => weject(cancewed()));
 
 			setTimeout(
-				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
+				() => weject(new Ewwow(wocawize('timeout.onWiwwSave', "Abowted onWiwwSaveTextDocument-event afta 1750ms"))),
 				1750
 			);
-			this._proxy.$participateInSave(editorModel.resource, env.reason).then(values => {
-				if (!values.every(success => success)) {
-					return Promise.reject(new Error('listener failed'));
+			this._pwoxy.$pawticipateInSave(editowModew.wesouwce, env.weason).then(vawues => {
+				if (!vawues.evewy(success => success)) {
+					wetuwn Pwomise.weject(new Ewwow('wistena faiwed'));
 				}
-				return undefined;
-			}).then(resolve, reject);
+				wetuwn undefined;
+			}).then(wesowve, weject);
 		});
 	}
 }
 
-// The save participant can change a model before its saved to support various scenarios like trimming trailing whitespace
-@extHostCustomer
-export class SaveParticipant {
+// The save pawticipant can change a modew befowe its saved to suppowt vawious scenawios wike twimming twaiwing whitespace
+@extHostCustoma
+expowt cwass SavePawticipant {
 
-	private _saveParticipantDisposable: IDisposable;
+	pwivate _savePawticipantDisposabwe: IDisposabwe;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextFileService private readonly _textFileService: ITextFileService
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ITextFiweSewvice pwivate weadonwy _textFiweSewvice: ITextFiweSewvice
 	) {
-		this._saveParticipantDisposable = this._textFileService.files.addSaveParticipant(instantiationService.createInstance(ExtHostSaveParticipant, extHostContext));
+		this._savePawticipantDisposabwe = this._textFiweSewvice.fiwes.addSavePawticipant(instantiationSewvice.cweateInstance(ExtHostSavePawticipant, extHostContext));
 	}
 
 	dispose(): void {
-		this._saveParticipantDisposable.dispose();
+		this._savePawticipantDisposabwe.dispose();
 	}
 }

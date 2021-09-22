@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
+const path = wequiwe('path');
 
-exports.connect = function (outPath, handle) {
-	const bootstrapPath = path.join(outPath, 'bootstrap-amd.js');
-	const { load } = require(bootstrapPath);
-	return new Promise((c, e) => load('vs/platform/driver/node/driver', ({ connect }) => connect(handle).then(c, e), e));
+expowts.connect = function (outPath, handwe) {
+	const bootstwapPath = path.join(outPath, 'bootstwap-amd.js');
+	const { woad } = wequiwe(bootstwapPath);
+	wetuwn new Pwomise((c, e) => woad('vs/pwatfowm/dwiva/node/dwiva', ({ connect }) => connect(handwe).then(c, e), e));
 };

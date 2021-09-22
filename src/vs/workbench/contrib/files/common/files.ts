@@ -1,248 +1,248 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { once } from 'vs/base/common/functional';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { IWowkbenchEditowConfiguwation, IEditowIdentifia, EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IFiwesConfiguwation as PwatfowmIFiwesConfiguwation, FiweChangeType, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ContextKeyExpw, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice, IWanguageSewection } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { InputFocusedContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { wocawize } fwom 'vs/nws';
 
 /**
- * Explorer viewlet id.
+ * Expwowa viewwet id.
  */
-export const VIEWLET_ID = 'workbench.view.explorer';
+expowt const VIEWWET_ID = 'wowkbench.view.expwowa';
 
 /**
- * Explorer file view id.
+ * Expwowa fiwe view id.
  */
-export const VIEW_ID = 'workbench.explorer.fileView';
+expowt const VIEW_ID = 'wowkbench.expwowa.fiweView';
 
 /**
- * Context Keys to use with keybindings for the Explorer and Open Editors view
+ * Context Keys to use with keybindings fow the Expwowa and Open Editows view
  */
-export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true, { type: 'boolean', description: localize('explorerViewletVisible', "True when the EXPLORER viewlet is visible.") });
-export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false, { type: 'boolean', description: localize('explorerResourceIsFolder', "True when the focused item in the EXPLORER is a folder.") });
-export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is readonly.") });
-export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
+expowt const ExpwowewViewwetVisibweContext = new WawContextKey<boowean>('expwowewViewwetVisibwe', twue, { type: 'boowean', descwiption: wocawize('expwowewViewwetVisibwe', "Twue when the EXPWOWa viewwet is visibwe.") });
+expowt const ExpwowewFowdewContext = new WawContextKey<boowean>('expwowewWesouwceIsFowda', fawse, { type: 'boowean', descwiption: wocawize('expwowewWesouwceIsFowda', "Twue when the focused item in the EXPWOWa is a fowda.") });
+expowt const ExpwowewWesouwceWeadonwyContext = new WawContextKey<boowean>('expwowewWesouwceWeadonwy', fawse, { type: 'boowean', descwiption: wocawize('expwowewWesouwceWeadonwy', "Twue when the focused item in the EXPWOWa is weadonwy.") });
+expowt const ExpwowewWesouwceNotWeadonwyContext = ExpwowewWesouwceWeadonwyContext.toNegated();
 /**
- * Comma separated list of editor ids that can be used for the selected explorer resource.
+ * Comma sepawated wist of editow ids that can be used fow the sewected expwowa wesouwce.
  */
-export const ExplorerResourceAvailableEditorIdsContext = new RawContextKey<string>('explorerResourceAvailableEditorIds', '');
-export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false, { type: 'boolean', description: localize('explorerResourceIsRoot', "True when the focused item in the EXPLORER is a root folder.") });
-export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false, { type: 'boolean', description: localize('explorerResourceCut', "True when an item in the EXPLORER has been cut for cut and paste.") });
-export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false, { type: 'boolean', description: localize('explorerResourceMoveableToTrash', "True when the focused item in the EXPLORER can be moved to trash.") });
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true, { type: 'boolean', description: localize('filesExplorerFocus', "True when the focus is inside the EXPLORER view.") });
-export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false, { type: 'boolean', description: localize('openEditorsVisible', "True when the OPEN EDITORS view is visible.") });
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true, { type: 'boolean', description: localize('openEditorsFocus', "True when the focus is inside the OPEN EDITORS view.") });
-export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true, { type: 'boolean', description: localize('explorerViewletFocus', "True when the focus is inside the EXPLORER viewlet.") });
+expowt const ExpwowewWesouwceAvaiwabweEditowIdsContext = new WawContextKey<stwing>('expwowewWesouwceAvaiwabweEditowIds', '');
+expowt const ExpwowewWootContext = new WawContextKey<boowean>('expwowewWesouwceIsWoot', fawse, { type: 'boowean', descwiption: wocawize('expwowewWesouwceIsWoot', "Twue when the focused item in the EXPWOWa is a woot fowda.") });
+expowt const ExpwowewWesouwceCut = new WawContextKey<boowean>('expwowewWesouwceCut', fawse, { type: 'boowean', descwiption: wocawize('expwowewWesouwceCut', "Twue when an item in the EXPWOWa has been cut fow cut and paste.") });
+expowt const ExpwowewWesouwceMoveabweToTwash = new WawContextKey<boowean>('expwowewWesouwceMoveabweToTwash', fawse, { type: 'boowean', descwiption: wocawize('expwowewWesouwceMoveabweToTwash', "Twue when the focused item in the EXPWOWa can be moved to twash.") });
+expowt const FiwesExpwowewFocusedContext = new WawContextKey<boowean>('fiwesExpwowewFocus', twue, { type: 'boowean', descwiption: wocawize('fiwesExpwowewFocus', "Twue when the focus is inside the EXPWOWa view.") });
+expowt const OpenEditowsVisibweContext = new WawContextKey<boowean>('openEditowsVisibwe', fawse, { type: 'boowean', descwiption: wocawize('openEditowsVisibwe', "Twue when the OPEN EDITOWS view is visibwe.") });
+expowt const OpenEditowsFocusedContext = new WawContextKey<boowean>('openEditowsFocus', twue, { type: 'boowean', descwiption: wocawize('openEditowsFocus', "Twue when the focus is inside the OPEN EDITOWS view.") });
+expowt const ExpwowewFocusedContext = new WawContextKey<boowean>('expwowewViewwetFocus', twue, { type: 'boowean', descwiption: wocawize('expwowewViewwetFocus', "Twue when the focus is inside the EXPWOWa viewwet.") });
 
-// compressed nodes
-export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFocus', "True when the focused item in the EXPLORER view is a compact item.") });
-export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFirstFocus', "True when the focus is inside a compact item's first part in the EXPLORER view.") });
-export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedLastFocus', "True when the focus is inside a compact item's last part in the EXPLORER view.") });
+// compwessed nodes
+expowt const ExpwowewCompwessedFocusContext = new WawContextKey<boowean>('expwowewViewwetCompwessedFocus', twue, { type: 'boowean', descwiption: wocawize('expwowewViewwetCompwessedFocus', "Twue when the focused item in the EXPWOWa view is a compact item.") });
+expowt const ExpwowewCompwessedFiwstFocusContext = new WawContextKey<boowean>('expwowewViewwetCompwessedFiwstFocus', twue, { type: 'boowean', descwiption: wocawize('expwowewViewwetCompwessedFiwstFocus', "Twue when the focus is inside a compact item's fiwst pawt in the EXPWOWa view.") });
+expowt const ExpwowewCompwessedWastFocusContext = new WawContextKey<boowean>('expwowewViewwetCompwessedWastFocus', twue, { type: 'boowean', descwiption: wocawize('expwowewViewwetCompwessedWastFocus', "Twue when the focus is inside a compact item's wast pawt in the EXPWOWa view.") });
 
-export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
-export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
-
-/**
- * Text file editor id.
- */
-export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
+expowt const FiwesExpwowewFocusCondition = ContextKeyExpw.and(ExpwowewViewwetVisibweContext, FiwesExpwowewFocusedContext, ContextKeyExpw.not(InputFocusedContextKey));
+expowt const ExpwowewFocusCondition = ContextKeyExpw.and(ExpwowewViewwetVisibweContext, ExpwowewFocusedContext, ContextKeyExpw.not(InputFocusedContextKey));
 
 /**
- * File editor input id.
+ * Text fiwe editow id.
  */
-export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
+expowt const TEXT_FIWE_EDITOW_ID = 'wowkbench.editows.fiwes.textFiweEditow';
 
 /**
- * Binary file editor id.
+ * Fiwe editow input id.
  */
-export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
+expowt const FIWE_EDITOW_INPUT_ID = 'wowkbench.editows.fiwes.fiweEditowInput';
 
 /**
- * Language mode for binary files opened as text.
+ * Binawy fiwe editow id.
  */
-export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
+expowt const BINAWY_FIWE_EDITOW_ID = 'wowkbench.editows.fiwes.binawyFiweEditow';
 
-export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
-	explorer: {
-		openEditors: {
-			visible: number;
-			sortOrder: 'editorOrder' | 'alphabetical';
+/**
+ * Wanguage mode fow binawy fiwes opened as text.
+ */
+expowt const BINAWY_TEXT_FIWE_MODE = 'code-text-binawy';
+
+expowt intewface IFiwesConfiguwation extends PwatfowmIFiwesConfiguwation, IWowkbenchEditowConfiguwation {
+	expwowa: {
+		openEditows: {
+			visibwe: numba;
+			sowtOwda: 'editowOwda' | 'awphabeticaw';
 		};
-		autoReveal: boolean | 'focusNoScroll';
-		enableDragAndDrop: boolean;
-		confirmDelete: boolean;
-		sortOrder: SortOrder;
-		sortOrderLexicographicOptions: LexicographicOptions;
-		decorations: {
-			colors: boolean;
-			badges: boolean;
+		autoWeveaw: boowean | 'focusNoScwoww';
+		enabweDwagAndDwop: boowean;
+		confiwmDewete: boowean;
+		sowtOwda: SowtOwda;
+		sowtOwdewWexicogwaphicOptions: WexicogwaphicOptions;
+		decowations: {
+			cowows: boowean;
+			badges: boowean;
 		};
-		incrementalNaming: 'simple' | 'smart';
+		incwementawNaming: 'simpwe' | 'smawt';
 	};
-	editor: IEditorOptions;
+	editow: IEditowOptions;
 }
 
-export interface IFileResource {
-	resource: URI;
-	isDirectory?: boolean;
+expowt intewface IFiweWesouwce {
+	wesouwce: UWI;
+	isDiwectowy?: boowean;
 }
 
-export const enum SortOrder {
-	Default = 'default',
+expowt const enum SowtOwda {
+	Defauwt = 'defauwt',
 	Mixed = 'mixed',
-	FilesFirst = 'filesFirst',
+	FiwesFiwst = 'fiwesFiwst',
 	Type = 'type',
 	Modified = 'modified'
 }
 
-export const enum LexicographicOptions {
-	Default = 'default',
-	Upper = 'upper',
-	Lower = 'lower',
+expowt const enum WexicogwaphicOptions {
+	Defauwt = 'defauwt',
+	Uppa = 'uppa',
+	Wowa = 'wowa',
 	Unicode = 'unicode',
 }
 
-export interface ISortOrderConfiguration {
-	sortOrder: SortOrder;
-	lexicographicOptions: LexicographicOptions;
+expowt intewface ISowtOwdewConfiguwation {
+	sowtOwda: SowtOwda;
+	wexicogwaphicOptions: WexicogwaphicOptions;
 }
 
-export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
-	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
+expowt cwass TextFiweContentPwovida extends Disposabwe impwements ITextModewContentPwovida {
+	pwivate weadonwy fiweWatchewDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService
+	constwuctow(
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice
 	) {
-		super();
+		supa();
 	}
 
-	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
-		await editorService.openEditor({
-			original: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
-			modified: { resource },
-			label,
+	static async open(wesouwce: UWI, scheme: stwing, wabew: stwing, editowSewvice: IEditowSewvice, options?: ITextEditowOptions): Pwomise<void> {
+		await editowSewvice.openEditow({
+			owiginaw: { wesouwce: TextFiweContentPwovida.wesouwceToTextFiwe(scheme, wesouwce) },
+			modified: { wesouwce },
+			wabew,
 			options
 		});
 	}
 
-	private static resourceToTextFile(scheme: string, resource: URI): URI {
-		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme, query: resource.query }) });
+	pwivate static wesouwceToTextFiwe(scheme: stwing, wesouwce: UWI): UWI {
+		wetuwn wesouwce.with({ scheme, quewy: JSON.stwingify({ scheme: wesouwce.scheme, quewy: wesouwce.quewy }) });
 	}
 
-	private static textFileToResource(resource: URI): URI {
-		const { scheme, query } = JSON.parse(resource.query);
-		return resource.with({ scheme, query });
+	pwivate static textFiweToWesouwce(wesouwce: UWI): UWI {
+		const { scheme, quewy } = JSON.pawse(wesouwce.quewy);
+		wetuwn wesouwce.with({ scheme, quewy });
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		if (!resource.query) {
-			// We require the URI to use the `query` to transport the original scheme and query
-			// as done by `resourceToTextFile`
-			return null;
+	async pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> {
+		if (!wesouwce.quewy) {
+			// We wequiwe the UWI to use the `quewy` to twanspowt the owiginaw scheme and quewy
+			// as done by `wesouwceToTextFiwe`
+			wetuwn nuww;
 		}
 
-		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
+		const savedFiweWesouwce = TextFiweContentPwovida.textFiweToWesouwce(wesouwce);
 
-		// Make sure our text file is resolved up to date
-		const codeEditorModel = await this.resolveEditorModel(resource);
+		// Make suwe ouw text fiwe is wesowved up to date
+		const codeEditowModew = await this.wesowveEditowModew(wesouwce);
 
-		// Make sure to keep contents up to date when it changes
-		if (!this.fileWatcherDisposable.value) {
-			this.fileWatcherDisposable.value = this.fileService.onDidFilesChange(changes => {
-				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
-					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
+		// Make suwe to keep contents up to date when it changes
+		if (!this.fiweWatchewDisposabwe.vawue) {
+			this.fiweWatchewDisposabwe.vawue = this.fiweSewvice.onDidFiwesChange(changes => {
+				if (changes.contains(savedFiweWesouwce, FiweChangeType.UPDATED)) {
+					this.wesowveEditowModew(wesouwce, fawse /* do not cweate if missing */); // update modew when wesouwce changes
 				}
 			});
 
-			if (codeEditorModel) {
-				once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear());
+			if (codeEditowModew) {
+				once(codeEditowModew.onWiwwDispose)(() => this.fiweWatchewDisposabwe.cweaw());
 			}
 		}
 
-		return codeEditorModel;
+		wetuwn codeEditowModew;
 	}
 
-	private resolveEditorModel(resource: URI, createAsNeeded?: true): Promise<ITextModel>;
-	private resolveEditorModel(resource: URI, createAsNeeded?: boolean): Promise<ITextModel | null>;
-	private async resolveEditorModel(resource: URI, createAsNeeded: boolean = true): Promise<ITextModel | null> {
-		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
+	pwivate wesowveEditowModew(wesouwce: UWI, cweateAsNeeded?: twue): Pwomise<ITextModew>;
+	pwivate wesowveEditowModew(wesouwce: UWI, cweateAsNeeded?: boowean): Pwomise<ITextModew | nuww>;
+	pwivate async wesowveEditowModew(wesouwce: UWI, cweateAsNeeded: boowean = twue): Pwomise<ITextModew | nuww> {
+		const savedFiweWesouwce = TextFiweContentPwovida.textFiweToWesouwce(wesouwce);
 
-		const content = await this.textFileService.readStream(savedFileResource);
+		const content = await this.textFiweSewvice.weadStweam(savedFiweWesouwce);
 
-		let codeEditorModel = this.modelService.getModel(resource);
-		if (codeEditorModel) {
-			this.modelService.updateModel(codeEditorModel, content.value);
-		} else if (createAsNeeded) {
-			const textFileModel = this.modelService.getModel(savedFileResource);
+		wet codeEditowModew = this.modewSewvice.getModew(wesouwce);
+		if (codeEditowModew) {
+			this.modewSewvice.updateModew(codeEditowModew, content.vawue);
+		} ewse if (cweateAsNeeded) {
+			const textFiweModew = this.modewSewvice.getModew(savedFiweWesouwce);
 
-			let languageSelector: ILanguageSelection;
-			if (textFileModel) {
-				languageSelector = this.modeService.create(textFileModel.getModeId());
-			} else {
-				languageSelector = this.modeService.createByFilepathOrFirstLine(savedFileResource);
+			wet wanguageSewectow: IWanguageSewection;
+			if (textFiweModew) {
+				wanguageSewectow = this.modeSewvice.cweate(textFiweModew.getModeId());
+			} ewse {
+				wanguageSewectow = this.modeSewvice.cweateByFiwepathOwFiwstWine(savedFiweWesouwce);
 			}
 
-			codeEditorModel = this.modelService.createModel(content.value, languageSelector, resource);
+			codeEditowModew = this.modewSewvice.cweateModew(content.vawue, wanguageSewectow, wesouwce);
 		}
 
-		return codeEditorModel;
+		wetuwn codeEditowModew;
 	}
 }
 
-export class OpenEditor implements IEditorIdentifier {
+expowt cwass OpenEditow impwements IEditowIdentifia {
 
-	private id: number;
-	private static COUNTER = 0;
+	pwivate id: numba;
+	pwivate static COUNTa = 0;
 
-	constructor(private _editor: EditorInput, private _group: IEditorGroup) {
-		this.id = OpenEditor.COUNTER++;
+	constwuctow(pwivate _editow: EditowInput, pwivate _gwoup: IEditowGwoup) {
+		this.id = OpenEditow.COUNTa++;
 	}
 
-	get editor() {
-		return this._editor;
+	get editow() {
+		wetuwn this._editow;
 	}
 
-	get group() {
-		return this._group;
+	get gwoup() {
+		wetuwn this._gwoup;
 	}
 
-	get groupId() {
-		return this._group.id;
+	get gwoupId() {
+		wetuwn this._gwoup.id;
 	}
 
-	getId(): string {
-		return `openeditor:${this.groupId}:${this.id}`;
+	getId(): stwing {
+		wetuwn `openeditow:${this.gwoupId}:${this.id}`;
 	}
 
-	isPreview(): boolean {
-		return this._group.previewEditor === this.editor;
+	isPweview(): boowean {
+		wetuwn this._gwoup.pweviewEditow === this.editow;
 	}
 
-	isSticky(): boolean {
-		return this._group.isSticky(this.editor);
+	isSticky(): boowean {
+		wetuwn this._gwoup.isSticky(this.editow);
 	}
 
-	getResource(): URI | undefined {
-		return EditorResourceAccessor.getOriginalUri(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	getWesouwce(): UWI | undefined {
+		wetuwn EditowWesouwceAccessow.getOwiginawUwi(this.editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 	}
 }

@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IHostColorSchemeService = createDecorator<IHostColorSchemeService>('hostColorSchemeService');
+expowt const IHostCowowSchemeSewvice = cweateDecowatow<IHostCowowSchemeSewvice>('hostCowowSchemeSewvice');
 
-export interface IHostColorSchemeService {
+expowt intewface IHostCowowSchemeSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly dark: boolean;
-	readonly highContrast: boolean;
-	readonly onDidChangeColorScheme: Event<void>;
+	weadonwy dawk: boowean;
+	weadonwy highContwast: boowean;
+	weadonwy onDidChangeCowowScheme: Event<void>;
 
 }

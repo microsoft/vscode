@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { getHtmlFlatNode, offsetRangeToSelection, validate } from './util';
-import { getRootNode } from './parseDocument';
-import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+impowt * as vscode fwom 'vscode';
+impowt { getHtmwFwatNode, offsetWangeToSewection, vawidate } fwom './utiw';
+impowt { getWootNode } fwom './pawseDocument';
+impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
 
-let balanceOutStack: Array<vscode.Selection[]> = [];
-let lastBalancedSelections: vscode.Selection[] = [];
+wet bawanceOutStack: Awway<vscode.Sewection[]> = [];
+wet wastBawancedSewections: vscode.Sewection[] = [];
 
-export function balanceOut() {
-	balance(true);
+expowt function bawanceOut() {
+	bawance(twue);
 }
 
-export function balanceIn() {
-	balance(false);
+expowt function bawanceIn() {
+	bawance(fawse);
 }
 
-function balance(out: boolean) {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+function bawance(out: boowean) {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = <HtmlFlatNode>getRootNode(document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = <HtmwFwatNode>getWootNode(document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	const rangeFn = out ? getRangeToBalanceOut : getRangeToBalanceIn;
-	let newSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		const range = rangeFn(document, rootNode, selection);
-		newSelections.push(range);
+	const wangeFn = out ? getWangeToBawanceOut : getWangeToBawanceIn;
+	wet newSewections: vscode.Sewection[] = [];
+	editow.sewections.fowEach(sewection => {
+		const wange = wangeFn(document, wootNode, sewection);
+		newSewections.push(wange);
 	});
 
-	// check whether we are starting a balance elsewhere
-	if (areSameSelections(lastBalancedSelections, editor.selections)) {
-		// we are not starting elsewhere, so use the stack as-is
+	// check whetha we awe stawting a bawance ewsewhewe
+	if (aweSameSewections(wastBawancedSewections, editow.sewections)) {
+		// we awe not stawting ewsewhewe, so use the stack as-is
 		if (out) {
-			// make sure we are able to expand outwards
-			if (!areSameSelections(editor.selections, newSelections)) {
-				balanceOutStack.push(editor.selections);
+			// make suwe we awe abwe to expand outwawds
+			if (!aweSameSewections(editow.sewections, newSewections)) {
+				bawanceOutStack.push(editow.sewections);
 			}
-		} else if (balanceOutStack.length) {
-			newSelections = balanceOutStack.pop()!;
+		} ewse if (bawanceOutStack.wength) {
+			newSewections = bawanceOutStack.pop()!;
 		}
-	} else {
-		// we are starting elsewhere, so reset the stack
-		balanceOutStack = out ? [editor.selections] : [];
+	} ewse {
+		// we awe stawting ewsewhewe, so weset the stack
+		bawanceOutStack = out ? [editow.sewections] : [];
 	}
 
-	editor.selections = newSelections;
-	lastBalancedSelections = editor.selections;
+	editow.sewections = newSewections;
+	wastBawancedSewections = editow.sewections;
 }
 
-function getRangeToBalanceOut(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
-	const offset = document.offsetAt(selection.start);
-	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, false);
-	if (!nodeToBalance) {
-		return selection;
+function getWangeToBawanceOut(document: vscode.TextDocument, wootNode: HtmwFwatNode, sewection: vscode.Sewection): vscode.Sewection {
+	const offset = document.offsetAt(sewection.stawt);
+	const nodeToBawance = getHtmwFwatNode(document.getText(), wootNode, offset, fawse);
+	if (!nodeToBawance) {
+		wetuwn sewection;
 	}
-	if (!nodeToBalance.open || !nodeToBalance.close) {
-		return offsetRangeToSelection(document, nodeToBalance.start, nodeToBalance.end);
-	}
-
-	// Set reverse direction if we were in the end tag
-	let innerSelection: vscode.Selection;
-	let outerSelection: vscode.Selection;
-	if (nodeToBalance.close.start <= offset && nodeToBalance.close.end > offset) {
-		innerSelection = offsetRangeToSelection(document, nodeToBalance.close.start, nodeToBalance.open.end);
-		outerSelection = offsetRangeToSelection(document, nodeToBalance.close.end, nodeToBalance.open.start);
-	}
-	else {
-		innerSelection = offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
-		outerSelection = offsetRangeToSelection(document, nodeToBalance.open.start, nodeToBalance.close.end);
+	if (!nodeToBawance.open || !nodeToBawance.cwose) {
+		wetuwn offsetWangeToSewection(document, nodeToBawance.stawt, nodeToBawance.end);
 	}
 
-	if (innerSelection.contains(selection) && !innerSelection.isEqual(selection)) {
-		return innerSelection;
+	// Set wevewse diwection if we wewe in the end tag
+	wet innewSewection: vscode.Sewection;
+	wet outewSewection: vscode.Sewection;
+	if (nodeToBawance.cwose.stawt <= offset && nodeToBawance.cwose.end > offset) {
+		innewSewection = offsetWangeToSewection(document, nodeToBawance.cwose.stawt, nodeToBawance.open.end);
+		outewSewection = offsetWangeToSewection(document, nodeToBawance.cwose.end, nodeToBawance.open.stawt);
 	}
-	if (outerSelection.contains(selection) && !outerSelection.isEqual(selection)) {
-		return outerSelection;
+	ewse {
+		innewSewection = offsetWangeToSewection(document, nodeToBawance.open.end, nodeToBawance.cwose.stawt);
+		outewSewection = offsetWangeToSewection(document, nodeToBawance.open.stawt, nodeToBawance.cwose.end);
 	}
-	return selection;
+
+	if (innewSewection.contains(sewection) && !innewSewection.isEquaw(sewection)) {
+		wetuwn innewSewection;
+	}
+	if (outewSewection.contains(sewection) && !outewSewection.isEquaw(sewection)) {
+		wetuwn outewSewection;
+	}
+	wetuwn sewection;
 }
 
-function getRangeToBalanceIn(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Selection {
-	const offset = document.offsetAt(selection.start);
-	const nodeToBalance = getHtmlFlatNode(document.getText(), rootNode, offset, true);
-	if (!nodeToBalance) {
-		return selection;
+function getWangeToBawanceIn(document: vscode.TextDocument, wootNode: HtmwFwatNode, sewection: vscode.Sewection): vscode.Sewection {
+	const offset = document.offsetAt(sewection.stawt);
+	const nodeToBawance = getHtmwFwatNode(document.getText(), wootNode, offset, twue);
+	if (!nodeToBawance) {
+		wetuwn sewection;
 	}
 
-	const selectionStart = document.offsetAt(selection.start);
-	const selectionEnd = document.offsetAt(selection.end);
-	if (nodeToBalance.open && nodeToBalance.close) {
-		const entireNodeSelected = selectionStart === nodeToBalance.start && selectionEnd === nodeToBalance.end;
-		const startInOpenTag = selectionStart > nodeToBalance.open.start && selectionStart < nodeToBalance.open.end;
-		const startInCloseTag = selectionStart > nodeToBalance.close.start && selectionStart < nodeToBalance.close.end;
+	const sewectionStawt = document.offsetAt(sewection.stawt);
+	const sewectionEnd = document.offsetAt(sewection.end);
+	if (nodeToBawance.open && nodeToBawance.cwose) {
+		const entiweNodeSewected = sewectionStawt === nodeToBawance.stawt && sewectionEnd === nodeToBawance.end;
+		const stawtInOpenTag = sewectionStawt > nodeToBawance.open.stawt && sewectionStawt < nodeToBawance.open.end;
+		const stawtInCwoseTag = sewectionStawt > nodeToBawance.cwose.stawt && sewectionStawt < nodeToBawance.cwose.end;
 
-		if (entireNodeSelected || startInOpenTag || startInCloseTag) {
-			return offsetRangeToSelection(document, nodeToBalance.open.end, nodeToBalance.close.start);
+		if (entiweNodeSewected || stawtInOpenTag || stawtInCwoseTag) {
+			wetuwn offsetWangeToSewection(document, nodeToBawance.open.end, nodeToBawance.cwose.stawt);
 		}
 	}
 
-	if (!nodeToBalance.firstChild) {
-		return selection;
+	if (!nodeToBawance.fiwstChiwd) {
+		wetuwn sewection;
 	}
 
-	const firstChild = nodeToBalance.firstChild;
-	if (selectionStart === firstChild.start
-		&& selectionEnd === firstChild.end
-		&& firstChild.open
-		&& firstChild.close) {
-		return offsetRangeToSelection(document, firstChild.open.end, firstChild.close.start);
+	const fiwstChiwd = nodeToBawance.fiwstChiwd;
+	if (sewectionStawt === fiwstChiwd.stawt
+		&& sewectionEnd === fiwstChiwd.end
+		&& fiwstChiwd.open
+		&& fiwstChiwd.cwose) {
+		wetuwn offsetWangeToSewection(document, fiwstChiwd.open.end, fiwstChiwd.cwose.stawt);
 	}
 
-	return offsetRangeToSelection(document, firstChild.start, firstChild.end);
+	wetuwn offsetWangeToSewection(document, fiwstChiwd.stawt, fiwstChiwd.end);
 }
 
-function areSameSelections(a: vscode.Selection[], b: vscode.Selection[]): boolean {
-	if (a.length !== b.length) {
-		return false;
+function aweSameSewections(a: vscode.Sewection[], b: vscode.Sewection[]): boowean {
+	if (a.wength !== b.wength) {
+		wetuwn fawse;
 	}
-	for (let i = 0; i < a.length; i++) {
-		if (!a[i].isEqual(b[i])) {
-			return false;
+	fow (wet i = 0; i < a.wength; i++) {
+		if (!a[i].isEquaw(b[i])) {
+			wetuwn fawse;
 		}
 	}
-	return true;
+	wetuwn twue;
 }

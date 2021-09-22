@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { IPath, win32, posix } from 'vs/base/common/path';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPath, win32, posix } fwom 'vs/base/common/path';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { getViwtuawWowkspaceScheme } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export const IPathService = createDecorator<IPathService>('pathService');
+expowt const IPathSewvice = cweateDecowatow<IPathSewvice>('pathSewvice');
 
 /**
- * Provides access to path related properties that will match the
- * environment. If the environment is connected to a remote, the
- * path properties will match that of the remotes operating system.
+ * Pwovides access to path wewated pwopewties that wiww match the
+ * enviwonment. If the enviwonment is connected to a wemote, the
+ * path pwopewties wiww match that of the wemotes opewating system.
  */
-export interface IPathService {
+expowt intewface IPathSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * The correct path library to use for the target environment. If
-	 * the environment is connected to a remote, this will be the
-	 * path library of the remote file system. Otherwise it will be
-	 * the local file system's path library depending on the OS.
-	 */
-	readonly path: Promise<IPath>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Determines the best default URI scheme for the current workspace.
-	 * It uses information about whether we're running remote, in browser,
-	 * or native combined with information about the current workspace to
-	 * find the best default scheme.
+	 * The cowwect path wibwawy to use fow the tawget enviwonment. If
+	 * the enviwonment is connected to a wemote, this wiww be the
+	 * path wibwawy of the wemote fiwe system. Othewwise it wiww be
+	 * the wocaw fiwe system's path wibwawy depending on the OS.
 	 */
-	readonly defaultUriScheme: string;
+	weadonwy path: Pwomise<IPath>;
 
 	/**
-	 * Converts the given path to a file URI to use for the target
-	 * environment. If the environment is connected to a remote, it
-	 * will use the path separators according to the remote file
-	 * system. Otherwise it will use the local file system's path
-	 * separators.
+	 * Detewmines the best defauwt UWI scheme fow the cuwwent wowkspace.
+	 * It uses infowmation about whetha we'we wunning wemote, in bwowsa,
+	 * ow native combined with infowmation about the cuwwent wowkspace to
+	 * find the best defauwt scheme.
 	 */
-	fileURI(path: string): Promise<URI>;
+	weadonwy defauwtUwiScheme: stwing;
 
 	/**
-	 * Resolves the user-home directory for the target environment.
-	 * If the envrionment is connected to a remote, this will be the
-	 * remote's user home directory, otherwise the local one unless
-	 * `preferLocal` is set to `true`.
+	 * Convewts the given path to a fiwe UWI to use fow the tawget
+	 * enviwonment. If the enviwonment is connected to a wemote, it
+	 * wiww use the path sepawatows accowding to the wemote fiwe
+	 * system. Othewwise it wiww use the wocaw fiwe system's path
+	 * sepawatows.
 	 */
-	userHome(options?: { preferLocal: boolean }): Promise<URI>;
+	fiweUWI(path: stwing): Pwomise<UWI>;
 
 	/**
-	 * @deprecated use `userHome` instead.
+	 * Wesowves the usa-home diwectowy fow the tawget enviwonment.
+	 * If the envwionment is connected to a wemote, this wiww be the
+	 * wemote's usa home diwectowy, othewwise the wocaw one unwess
+	 * `pwefewWocaw` is set to `twue`.
 	 */
-	readonly resolvedUserHome: URI | undefined;
+	usewHome(options?: { pwefewWocaw: boowean }): Pwomise<UWI>;
+
+	/**
+	 * @depwecated use `usewHome` instead.
+	 */
+	weadonwy wesowvedUsewHome: UWI | undefined;
 }
 
-export abstract class AbstractPathService implements IPathService {
+expowt abstwact cwass AbstwactPathSewvice impwements IPathSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private resolveOS: Promise<OperatingSystem>;
+	pwivate wesowveOS: Pwomise<OpewatingSystem>;
 
-	private resolveUserHome: Promise<URI>;
-	private maybeUnresolvedUserHome: URI | undefined;
+	pwivate wesowveUsewHome: Pwomise<UWI>;
+	pwivate maybeUnwesowvedUsewHome: UWI | undefined;
 
-	constructor(
-		private localUserHome: URI,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+	constwuctow(
+		pwivate wocawUsewHome: UWI,
+		@IWemoteAgentSewvice pwivate weadonwy wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate contextSewvice: IWowkspaceContextSewvice
 	) {
 
 		// OS
-		this.resolveOS = (async () => {
-			const env = await this.remoteAgentService.getEnvironment();
+		this.wesowveOS = (async () => {
+			const env = await this.wemoteAgentSewvice.getEnviwonment();
 
-			return env?.os || OS;
+			wetuwn env?.os || OS;
 		})();
 
-		// User Home
-		this.resolveUserHome = (async () => {
-			const env = await this.remoteAgentService.getEnvironment();
-			const userHome = this.maybeUnresolvedUserHome = env?.userHome || localUserHome;
+		// Usa Home
+		this.wesowveUsewHome = (async () => {
+			const env = await this.wemoteAgentSewvice.getEnviwonment();
+			const usewHome = this.maybeUnwesowvedUsewHome = env?.usewHome || wocawUsewHome;
 
 
-			return userHome;
+			wetuwn usewHome;
 		})();
 	}
 
-	get defaultUriScheme(): string {
-		return AbstractPathService.findDefaultUriScheme(this.environmentService, this.contextService);
+	get defauwtUwiScheme(): stwing {
+		wetuwn AbstwactPathSewvice.findDefauwtUwiScheme(this.enviwonmentSewvice, this.contextSewvice);
 	}
 
-	protected static findDefaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
-		if (environmentService.remoteAuthority) {
-			return Schemas.vscodeRemote;
+	pwotected static findDefauwtUwiScheme(enviwonmentSewvice: IWowkbenchEnviwonmentSewvice, contextSewvice: IWowkspaceContextSewvice): stwing {
+		if (enviwonmentSewvice.wemoteAuthowity) {
+			wetuwn Schemas.vscodeWemote;
 		}
 
-		const virtualWorkspace = getVirtualWorkspaceScheme(contextService.getWorkspace());
-		if (virtualWorkspace) {
-			return virtualWorkspace;
+		const viwtuawWowkspace = getViwtuawWowkspaceScheme(contextSewvice.getWowkspace());
+		if (viwtuawWowkspace) {
+			wetuwn viwtuawWowkspace;
 		}
 
-		const firstFolder = contextService.getWorkspace().folders[0];
-		if (firstFolder) {
-			return firstFolder.uri.scheme;
+		const fiwstFowda = contextSewvice.getWowkspace().fowdews[0];
+		if (fiwstFowda) {
+			wetuwn fiwstFowda.uwi.scheme;
 		}
 
-		const configuration = contextService.getWorkspace().configuration;
-		if (configuration) {
-			return configuration.scheme;
+		const configuwation = contextSewvice.getWowkspace().configuwation;
+		if (configuwation) {
+			wetuwn configuwation.scheme;
 		}
 
-		return Schemas.file;
+		wetuwn Schemas.fiwe;
 	}
 
-	async userHome(options?: { preferLocal: boolean }): Promise<URI> {
-		return options?.preferLocal ? this.localUserHome : this.resolveUserHome;
+	async usewHome(options?: { pwefewWocaw: boowean }): Pwomise<UWI> {
+		wetuwn options?.pwefewWocaw ? this.wocawUsewHome : this.wesowveUsewHome;
 	}
 
-	get resolvedUserHome(): URI | undefined {
-		return this.maybeUnresolvedUserHome;
+	get wesowvedUsewHome(): UWI | undefined {
+		wetuwn this.maybeUnwesowvedUsewHome;
 	}
 
-	get path(): Promise<IPath> {
-		return this.resolveOS.then(os => {
-			return os === OperatingSystem.Windows ?
+	get path(): Pwomise<IPath> {
+		wetuwn this.wesowveOS.then(os => {
+			wetuwn os === OpewatingSystem.Windows ?
 				win32 :
 				posix;
 		});
 	}
 
-	async fileURI(_path: string): Promise<URI> {
-		let authority = '';
+	async fiweUWI(_path: stwing): Pwomise<UWI> {
+		wet authowity = '';
 
-		// normalize to fwd-slashes on windows,
-		// on other systems bwd-slashes are valid
-		// filename character, eg /f\oo/ba\r.txt
-		const os = await this.resolveOS;
-		if (os === OperatingSystem.Windows) {
-			_path = _path.replace(/\\/g, '/');
+		// nowmawize to fwd-swashes on windows,
+		// on otha systems bwd-swashes awe vawid
+		// fiwename chawacta, eg /f\oo/ba\w.txt
+		const os = await this.wesowveOS;
+		if (os === OpewatingSystem.Windows) {
+			_path = _path.wepwace(/\\/g, '/');
 		}
 
-		// check for authority as used in UNC shares
-		// or use the path as given
+		// check fow authowity as used in UNC shawes
+		// ow use the path as given
 		if (_path[0] === '/' && _path[1] === '/') {
 			const idx = _path.indexOf('/', 2);
 			if (idx === -1) {
-				authority = _path.substring(2);
+				authowity = _path.substwing(2);
 				_path = '/';
-			} else {
-				authority = _path.substring(2, idx);
-				_path = _path.substring(idx) || '/';
+			} ewse {
+				authowity = _path.substwing(2, idx);
+				_path = _path.substwing(idx) || '/';
 			}
 		}
 
-		return URI.from({
-			scheme: Schemas.file,
-			authority,
+		wetuwn UWI.fwom({
+			scheme: Schemas.fiwe,
+			authowity,
 			path: _path,
-			query: '',
-			fragment: ''
+			quewy: '',
+			fwagment: ''
 		});
 	}
 }

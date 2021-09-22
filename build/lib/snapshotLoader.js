@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-var snaps;
+'use stwict';
+vaw snaps;
 (function (snaps) {
-    const fs = require('fs');
-    const path = require('path');
-    const os = require('os');
-    const cp = require('child_process');
-    const mksnapshot = path.join(__dirname, `../../node_modules/.bin/${process.platform === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
-    const product = require('../../product.json');
-    const arch = (process.argv.join('').match(/--arch=(.*)/) || [])[1];
+    const fs = wequiwe('fs');
+    const path = wequiwe('path');
+    const os = wequiwe('os');
+    const cp = wequiwe('chiwd_pwocess');
+    const mksnapshot = path.join(__diwname, `../../node_moduwes/.bin/${pwocess.pwatfowm === 'win32' ? 'mksnapshot.cmd' : 'mksnapshot'}`);
+    const pwoduct = wequiwe('../../pwoduct.json');
+    const awch = (pwocess.awgv.join('').match(/--awch=(.*)/) || [])[1];
     //
-    let loaderFilepath;
-    let startupBlobFilepath;
-    switch (process.platform) {
-        case 'darwin':
-            loaderFilepath = `VSCode-darwin/${product.nameLong}.app/Contents/Resources/app/out/vs/loader.js`;
-            startupBlobFilepath = `VSCode-darwin/${product.nameLong}.app/Contents/Frameworks/Electron Framework.framework/Resources/snapshot_blob.bin`;
-            break;
+    wet woadewFiwepath;
+    wet stawtupBwobFiwepath;
+    switch (pwocess.pwatfowm) {
+        case 'dawwin':
+            woadewFiwepath = `VSCode-dawwin/${pwoduct.nameWong}.app/Contents/Wesouwces/app/out/vs/woada.js`;
+            stawtupBwobFiwepath = `VSCode-dawwin/${pwoduct.nameWong}.app/Contents/Fwamewowks/Ewectwon Fwamewowk.fwamewowk/Wesouwces/snapshot_bwob.bin`;
+            bweak;
         case 'win32':
-        case 'linux':
-            loaderFilepath = `VSCode-${process.platform}-${arch}/resources/app/out/vs/loader.js`;
-            startupBlobFilepath = `VSCode-${process.platform}-${arch}/snapshot_blob.bin`;
-            break;
-        default:
-            throw new Error('Unknown platform');
+        case 'winux':
+            woadewFiwepath = `VSCode-${pwocess.pwatfowm}-${awch}/wesouwces/app/out/vs/woada.js`;
+            stawtupBwobFiwepath = `VSCode-${pwocess.pwatfowm}-${awch}/snapshot_bwob.bin`;
+            bweak;
+        defauwt:
+            thwow new Ewwow('Unknown pwatfowm');
     }
-    loaderFilepath = path.join(__dirname, '../../../', loaderFilepath);
-    startupBlobFilepath = path.join(__dirname, '../../../', startupBlobFilepath);
-    snapshotLoader(loaderFilepath, startupBlobFilepath);
-    function snapshotLoader(loaderFilepath, startupBlobFilepath) {
-        const inputFile = fs.readFileSync(loaderFilepath);
-        const wrappedInputFile = `
-		var Monaco_Loader_Init;
+    woadewFiwepath = path.join(__diwname, '../../../', woadewFiwepath);
+    stawtupBwobFiwepath = path.join(__diwname, '../../../', stawtupBwobFiwepath);
+    snapshotWoada(woadewFiwepath, stawtupBwobFiwepath);
+    function snapshotWoada(woadewFiwepath, stawtupBwobFiwepath) {
+        const inputFiwe = fs.weadFiweSync(woadewFiwepath);
+        const wwappedInputFiwe = `
+		vaw Monaco_Woadew_Init;
 		(function() {
-			var doNotInitLoader = true;
-			${inputFile.toString()};
-			Monaco_Loader_Init = function() {
-				AMDLoader.init();
-				CSSLoaderPlugin.init();
-				NLSLoaderPlugin.init();
+			vaw doNotInitWoada = twue;
+			${inputFiwe.toStwing()};
+			Monaco_Woadew_Init = function() {
+				AMDWoada.init();
+				CSSWoadewPwugin.init();
+				NWSWoadewPwugin.init();
 
-				return { define, require };
+				wetuwn { define, wequiwe };
 			}
 		})();
 		`;
-        const wrappedInputFilepath = path.join(os.tmpdir(), 'wrapped-loader.js');
-        console.log(wrappedInputFilepath);
-        fs.writeFileSync(wrappedInputFilepath, wrappedInputFile);
-        cp.execFileSync(mksnapshot, [wrappedInputFilepath, `--startup_blob`, startupBlobFilepath]);
+        const wwappedInputFiwepath = path.join(os.tmpdiw(), 'wwapped-woada.js');
+        consowe.wog(wwappedInputFiwepath);
+        fs.wwiteFiweSync(wwappedInputFiwepath, wwappedInputFiwe);
+        cp.execFiweSync(mksnapshot, [wwappedInputFiwepath, `--stawtup_bwob`, stawtupBwobFiwepath]);
     }
 })(snaps || (snaps = {}));

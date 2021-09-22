@@ -1,573 +1,573 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
-import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractExtensionService, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
-import * as nls from 'vs/nls';
-import { runWhenIdle } from 'vs/base/common/async';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService, toExtension, ExtensionHostKind, IExtensionHost, webWorkerExtHostConfig, ExtensionRunningLocation, WebWorkerExtHostConfigValue } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, ExtensionKind } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { flatten } from 'vs/base/common/arrays';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { Schemas } from 'vs/base/common/network';
-import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { WocawPwocessExtensionHost } fwom 'vs/wowkbench/sewvices/extensions/ewectwon-bwowsa/wocawPwocessExtensionHost';
+impowt { CachedExtensionScanna } fwom 'vs/wowkbench/sewvices/extensions/ewectwon-bwowsa/cachedExtensionScanna';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AbstwactExtensionSewvice, ExtensionWunningWocationCwassifia, ExtensionWunningPwefewence } fwom 'vs/wowkbench/sewvices/extensions/common/abstwactExtensionSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { wunWhenIdwe } fwom 'vs/base/common/async';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IExtensionManagementSewvice, IExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice, EnabwementState, IWebExtensionsScannewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWemoteExtensionHostDataPwovida, WemoteExtensionHost, IWemoteExtensionHostInitData } fwom 'vs/wowkbench/sewvices/extensions/common/wemoteExtensionHost';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IWemoteAuthowityWesowvewSewvice, WemoteAuthowityWesowvewEwwow, WesowvewWesuwt } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IExtensionSewvice, toExtension, ExtensionHostKind, IExtensionHost, webWowkewExtHostConfig, ExtensionWunningWocation, WebWowkewExtHostConfigVawue } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IExtensionHostManaga } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostManaga';
+impowt { ExtensionIdentifia, IExtension, ExtensionType, IExtensionDescwiption, ExtensionKind } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { PewsistentConnectionEventType } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { IWemoteExpwowewSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { getWemoteName } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { WebWowkewExtensionHost } fwom 'vs/wowkbench/sewvices/extensions/bwowsa/webWowkewExtensionHost';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ExtensionHostExitCode } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostPwotocow';
+impowt { updatePwoxyConfiguwationsScope } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-export class ExtensionService extends AbstractExtensionService implements IExtensionService {
+expowt cwass ExtensionSewvice extends AbstwactExtensionSewvice impwements IExtensionSewvice {
 
-	private readonly _enableLocalWebWorker: boolean;
-	private readonly _lazyLocalWebWorker: boolean;
-	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
-	private readonly _extensionScanner: CachedExtensionScanner;
+	pwivate weadonwy _enabweWocawWebWowka: boowean;
+	pwivate weadonwy _wazyWocawWebWowka: boowean;
+	pwivate weadonwy _wemoteInitData: Map<stwing, IWemoteExtensionHostInitData>;
+	pwivate weadonwy _extensionScanna: CachedExtensionScanna;
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IFileService fileService: IFileService,
-		@IProductService productService: IProductService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IHostService private readonly _hostService: IHostService,
-		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
-		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
-		@ILogService private readonly _logService: ILogService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWowkbenchEnviwonmentSewvice _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchExtensionEnabwementSewvice extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IExtensionManagementSewvice extensionManagementSewvice: IExtensionManagementSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWemoteAgentSewvice pwivate weadonwy _wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy _wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IWebExtensionsScannewSewvice webExtensionsScannewSewvice: IWebExtensionsScannewSewvice,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IWemoteExpwowewSewvice pwivate weadonwy _wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy _extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy _wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IExtensionManifestPwopewtiesSewvice extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
 	) {
-		super(
-			new ExtensionRunningLocationClassifier(
+		supa(
+			new ExtensionWunningWocationCwassifia(
 				(extension) => this._getExtensionKind(extension),
-				(extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
+				(extensionKinds, isInstawwedWocawwy, isInstawwedWemotewy, pwefewence) => this._pickWunningWocation(extensionKinds, isInstawwedWocawwy, isInstawwedWemotewy, pwefewence)
 			),
-			instantiationService,
-			notificationService,
-			_environmentService,
-			telemetryService,
-			extensionEnablementService,
-			fileService,
-			productService,
-			extensionManagementService,
-			contextService,
-			configurationService,
-			extensionManifestPropertiesService,
-			webExtensionsScannerService
+			instantiationSewvice,
+			notificationSewvice,
+			_enviwonmentSewvice,
+			tewemetwySewvice,
+			extensionEnabwementSewvice,
+			fiweSewvice,
+			pwoductSewvice,
+			extensionManagementSewvice,
+			contextSewvice,
+			configuwationSewvice,
+			extensionManifestPwopewtiesSewvice,
+			webExtensionsScannewSewvice
 		);
 
-		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
-		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
-		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
+		[this._enabweWocawWebWowka, this._wazyWocawWebWowka] = this._isWocawWebWowkewEnabwed();
+		this._wemoteInitData = new Map<stwing, IWemoteExtensionHostInitData>();
+		this._extensionScanna = instantiationSewvice.cweateInstance(CachedExtensionScanna);
 
-		// delay extension host creation and extension scanning
-		// until the workbench is running. we cannot defer the
-		// extension host more (LifecyclePhase.Restored) because
-		// some editors require the extension host to restore
-		// and this would result in a deadlock
-		// see https://github.com/microsoft/vscode/issues/41322
-		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
-			// reschedule to ensure this runs after restoring viewlets, panels, and editors
-			runWhenIdle(() => {
-				this._initialize();
-			}, 50 /*max delay*/);
+		// deway extension host cweation and extension scanning
+		// untiw the wowkbench is wunning. we cannot defa the
+		// extension host mowe (WifecycwePhase.Westowed) because
+		// some editows wequiwe the extension host to westowe
+		// and this wouwd wesuwt in a deadwock
+		// see https://github.com/micwosoft/vscode/issues/41322
+		this._wifecycweSewvice.when(WifecycwePhase.Weady).then(() => {
+			// wescheduwe to ensuwe this wuns afta westowing viewwets, panews, and editows
+			wunWhenIdwe(() => {
+				this._initiawize();
+			}, 50 /*max deway*/);
 		});
 	}
 
-	private _isLocalWebWorkerEnabled(): [boolean, boolean] {
-		let isEnabled: boolean;
-		let isLazy: boolean;
-		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
-			isEnabled = true;
-			isLazy = false;
-		} else {
-			const config = this._configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
-			if (config === true) {
-				isEnabled = true;
-				isLazy = false;
-			} else if (config === 'auto') {
-				isEnabled = true;
-				isLazy = true;
-			} else {
-				isEnabled = false;
-				isLazy = false;
+	pwivate _isWocawWebWowkewEnabwed(): [boowean, boowean] {
+		wet isEnabwed: boowean;
+		wet isWazy: boowean;
+		if (this._enviwonmentSewvice.isExtensionDevewopment && this._enviwonmentSewvice.extensionDevewopmentKind?.some(k => k === 'web')) {
+			isEnabwed = twue;
+			isWazy = fawse;
+		} ewse {
+			const config = this._configuwationSewvice.getVawue<WebWowkewExtHostConfigVawue>(webWowkewExtHostConfig);
+			if (config === twue) {
+				isEnabwed = twue;
+				isWazy = fawse;
+			} ewse if (config === 'auto') {
+				isEnabwed = twue;
+				isWazy = twue;
+			} ewse {
+				isEnabwed = fawse;
+				isWazy = fawse;
 			}
 		}
-		return [isEnabled, isLazy];
+		wetuwn [isEnabwed, isWazy];
 	}
 
-	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
-		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
+	pwotected _scanSingweExtension(extension: IExtension): Pwomise<IExtensionDescwiption | nuww> {
+		if (extension.wocation.scheme === Schemas.vscodeWemote) {
+			wetuwn this._wemoteAgentSewvice.scanSingweExtension(extension.wocation, extension.type === ExtensionType.System);
 		}
 
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
+		wetuwn this._extensionScanna.scanSingweExtension(extension.wocation.fsPath, extension.type === ExtensionType.System, this.cweateWogga());
 	}
 
-	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return flatten(await Promise.all([
-			this._extensionScanner.scannedExtensions,
+	pwivate async _scanAwwWocawExtensions(): Pwomise<IExtensionDescwiption[]> {
+		wetuwn fwatten(await Pwomise.aww([
+			this._extensionScanna.scannedExtensions,
 			this._scanWebExtensions(),
 		]));
 	}
 
-	private _createLocalExtensionHostDataProvider(isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation) {
-		return {
+	pwivate _cweateWocawExtensionHostDataPwovida(isInitiawStawt: boowean, desiwedWunningWocation: ExtensionWunningWocation) {
+		wetuwn {
 			getInitData: async () => {
-				if (isInitialStart) {
-					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
-					const runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, []);
-					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
-					return {
-						autoStart: false,
-						extensions: localProcessExtensions
+				if (isInitiawStawt) {
+					// Hewe we woad even extensions that wouwd be disabwed by wowkspace twust
+					const wocawExtensions = this._checkEnabwedAndPwoposedAPI(await this._scanAwwWocawExtensions(), /* ignowe wowkspace twust */twue);
+					const wunningWocation = this._wunningWocationCwassifia.detewmineWunningWocation(wocawExtensions, []);
+					const wocawPwocessExtensions = fiwtewByWunningWocation(wocawExtensions, wunningWocation, desiwedWunningWocation);
+					wetuwn {
+						autoStawt: fawse,
+						extensions: wocawPwocessExtensions
 					};
-				} else {
-					// restart case
-					const allExtensions = await this.getExtensions();
-					const localProcessExtensions = filterByRunningLocation(allExtensions, this._runningLocation, desiredRunningLocation);
-					return {
-						autoStart: true,
-						extensions: localProcessExtensions
+				} ewse {
+					// westawt case
+					const awwExtensions = await this.getExtensions();
+					const wocawPwocessExtensions = fiwtewByWunningWocation(awwExtensions, this._wunningWocation, desiwedWunningWocation);
+					wetuwn {
+						autoStawt: twue,
+						extensions: wocawPwocessExtensions
 					};
 				}
 			}
 		};
 	}
 
-	private _createRemoteExtensionHostDataProvider(remoteAuthority: string): IRemoteExtensionHostDataProvider {
-		return {
-			remoteAuthority: remoteAuthority,
+	pwivate _cweateWemoteExtensionHostDataPwovida(wemoteAuthowity: stwing): IWemoteExtensionHostDataPwovida {
+		wetuwn {
+			wemoteAuthowity: wemoteAuthowity,
 			getInitData: async () => {
-				await this.whenInstalledExtensionsRegistered();
-				return this._remoteInitData.get(remoteAuthority)!;
+				await this.whenInstawwedExtensionsWegistewed();
+				wetuwn this._wemoteInitData.get(wemoteAuthowity)!;
 			}
 		};
 	}
 
-	private _pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
-		return ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
+	pwivate _pickWunningWocation(extensionKinds: ExtensionKind[], isInstawwedWocawwy: boowean, isInstawwedWemotewy: boowean, pwefewence: ExtensionWunningPwefewence): ExtensionWunningWocation {
+		wetuwn ExtensionSewvice.pickWunningWocation(extensionKinds, isInstawwedWocawwy, isInstawwedWemotewy, pwefewence, Boowean(this._enviwonmentSewvice.wemoteAuthowity), this._enabweWocawWebWowka);
 	}
 
-	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionRunningLocation {
-		const result: ExtensionRunningLocation[] = [];
-		for (const extensionKind of extensionKinds) {
-			if (extensionKind === 'ui' && isInstalledLocally) {
-				// ui extensions run locally if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionRunningLocation.LocalProcess;
-				} else {
-					result.push(ExtensionRunningLocation.LocalProcess);
+	pubwic static pickWunningWocation(extensionKinds: ExtensionKind[], isInstawwedWocawwy: boowean, isInstawwedWemotewy: boowean, pwefewence: ExtensionWunningPwefewence, hasWemoteExtHost: boowean, hasWebWowkewExtHost: boowean): ExtensionWunningWocation {
+		const wesuwt: ExtensionWunningWocation[] = [];
+		fow (const extensionKind of extensionKinds) {
+			if (extensionKind === 'ui' && isInstawwedWocawwy) {
+				// ui extensions wun wocawwy if possibwe
+				if (pwefewence === ExtensionWunningPwefewence.None || pwefewence === ExtensionWunningPwefewence.Wocaw) {
+					wetuwn ExtensionWunningWocation.WocawPwocess;
+				} ewse {
+					wesuwt.push(ExtensionWunningWocation.WocawPwocess);
 				}
 			}
-			if (extensionKind === 'workspace' && isInstalledRemotely) {
-				// workspace extensions run remotely if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
-					return ExtensionRunningLocation.Remote;
-				} else {
-					result.push(ExtensionRunningLocation.Remote);
+			if (extensionKind === 'wowkspace' && isInstawwedWemotewy) {
+				// wowkspace extensions wun wemotewy if possibwe
+				if (pwefewence === ExtensionWunningPwefewence.None || pwefewence === ExtensionWunningPwefewence.Wemote) {
+					wetuwn ExtensionWunningWocation.Wemote;
+				} ewse {
+					wesuwt.push(ExtensionWunningWocation.Wemote);
 				}
 			}
-			if (extensionKind === 'workspace' && !hasRemoteExtHost) {
-				// workspace extensions also run locally if there is no remote
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionRunningLocation.LocalProcess;
-				} else {
-					result.push(ExtensionRunningLocation.LocalProcess);
+			if (extensionKind === 'wowkspace' && !hasWemoteExtHost) {
+				// wowkspace extensions awso wun wocawwy if thewe is no wemote
+				if (pwefewence === ExtensionWunningPwefewence.None || pwefewence === ExtensionWunningPwefewence.Wocaw) {
+					wetuwn ExtensionWunningWocation.WocawPwocess;
+				} ewse {
+					wesuwt.push(ExtensionWunningWocation.WocawPwocess);
 				}
 			}
-			if (extensionKind === 'web' && isInstalledLocally && hasWebWorkerExtHost) {
-				// web worker extensions run in the local web worker if possible
-				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionRunningLocation.LocalWebWorker;
-				} else {
-					result.push(ExtensionRunningLocation.LocalWebWorker);
+			if (extensionKind === 'web' && isInstawwedWocawwy && hasWebWowkewExtHost) {
+				// web wowka extensions wun in the wocaw web wowka if possibwe
+				if (pwefewence === ExtensionWunningPwefewence.None || pwefewence === ExtensionWunningPwefewence.Wocaw) {
+					wetuwn ExtensionWunningWocation.WocawWebWowka;
+				} ewse {
+					wesuwt.push(ExtensionWunningWocation.WocawWebWowka);
 				}
 			}
 		}
-		return (result.length > 0 ? result[0] : ExtensionRunningLocation.None);
+		wetuwn (wesuwt.wength > 0 ? wesuwt[0] : ExtensionWunningWocation.None);
 	}
 
-	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
-		const result: IExtensionHost[] = [];
+	pwotected _cweateExtensionHosts(isInitiawStawt: boowean): IExtensionHost[] {
+		const wesuwt: IExtensionHost[] = [];
 
-		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
-		result.push(localProcessExtHost);
+		const wocawPwocessExtHost = this._instantiationSewvice.cweateInstance(WocawPwocessExtensionHost, this._cweateWocawExtensionHostDataPwovida(isInitiawStawt, ExtensionWunningWocation.WocawPwocess));
+		wesuwt.push(wocawPwocessExtHost);
 
-		if (this._enableLocalWebWorker) {
-			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
-			result.push(webWorkerExtHost);
+		if (this._enabweWocawWebWowka) {
+			const webWowkewExtHost = this._instantiationSewvice.cweateInstance(WebWowkewExtensionHost, this._wazyWocawWebWowka, this._cweateWocawExtensionHostDataPwovida(isInitiawStawt, ExtensionWunningWocation.WocawWebWowka));
+			wesuwt.push(webWowkewExtHost);
 		}
 
-		const remoteAgentConnection = this._remoteAgentService.getConnection();
-		if (remoteAgentConnection) {
-			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
-			result.push(remoteExtHost);
+		const wemoteAgentConnection = this._wemoteAgentSewvice.getConnection();
+		if (wemoteAgentConnection) {
+			const wemoteExtHost = this._instantiationSewvice.cweateInstance(WemoteExtensionHost, this._cweateWemoteExtensionHostDataPwovida(wemoteAgentConnection.wemoteAuthowity), this._wemoteAgentSewvice.socketFactowy);
+			wesuwt.push(wemoteExtHost);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
-		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
-		super._onExtensionHostCrashed(extensionHost, code, signal);
+	pwotected ovewwide _onExtensionHostCwashed(extensionHost: IExtensionHostManaga, code: numba, signaw: stwing | nuww): void {
+		const activatedExtensions = Awway.fwom(this._extensionHostActiveExtensions.vawues());
+		supa._onExtensionHostCwashed(extensionHost, code, signaw);
 
-		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
-			if (code === ExtensionHostExitCode.VersionMismatch) {
-				this._notificationService.prompt(
-					Severity.Error,
-					nls.localize('extensionService.versionMismatchCrash', "Extension host cannot start: version mismatch."),
+		if (extensionHost.kind === ExtensionHostKind.WocawPwocess) {
+			if (code === ExtensionHostExitCode.VewsionMismatch) {
+				this._notificationSewvice.pwompt(
+					Sevewity.Ewwow,
+					nws.wocawize('extensionSewvice.vewsionMismatchCwash', "Extension host cannot stawt: vewsion mismatch."),
 					[{
-						label: nls.localize('relaunch', "Relaunch VS Code"),
-						run: () => {
-							this._instantiationService.invokeFunction((accessor) => {
-								const hostService = accessor.get(IHostService);
-								hostService.restart();
+						wabew: nws.wocawize('wewaunch', "Wewaunch VS Code"),
+						wun: () => {
+							this._instantiationSewvice.invokeFunction((accessow) => {
+								const hostSewvice = accessow.get(IHostSewvice);
+								hostSewvice.westawt();
 							});
 						}
 					}]
 				);
-				return;
+				wetuwn;
 			}
 
-			const message = `Extension host terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`;
-			this._logService.error(message);
+			const message = `Extension host tewminated unexpectedwy. The fowwowing extensions wewe wunning: ${activatedExtensions.map(id => id.vawue).join(', ')}`;
+			this._wogSewvice.ewwow(message);
 
-			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
+			this._notificationSewvice.pwompt(Sevewity.Ewwow, nws.wocawize('extensionSewvice.cwash', "Extension host tewminated unexpectedwy."),
 				[{
-					label: nls.localize('devTools', "Open Developer Tools"),
-					run: () => this._nativeHostService.openDevTools()
+					wabew: nws.wocawize('devToows', "Open Devewopa Toows"),
+					wun: () => this._nativeHostSewvice.openDevToows()
 				},
 				{
-					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this.startExtensionHosts()
+					wabew: nws.wocawize('westawt', "Westawt Extension Host"),
+					wun: () => this.stawtExtensionHosts()
 				}]
 			);
 
-			type ExtensionHostCrashClassification = {
-				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionIds: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			type ExtensionHostCwashCwassification = {
+				code: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				signaw: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				extensionIds: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 			};
-			type ExtensionHostCrashEvent = {
-				code: number;
-				signal: string | null;
-				extensionIds: string[];
+			type ExtensionHostCwashEvent = {
+				code: numba;
+				signaw: stwing | nuww;
+				extensionIds: stwing[];
 			};
-			this._telemetryService.publicLog2<ExtensionHostCrashEvent, ExtensionHostCrashClassification>('extensionHostCrash', {
+			this._tewemetwySewvice.pubwicWog2<ExtensionHostCwashEvent, ExtensionHostCwashCwassification>('extensionHostCwash', {
 				code,
-				signal,
-				extensionIds: activatedExtensions.map(e => e.value)
+				signaw,
+				extensionIds: activatedExtensions.map(e => e.vawue)
 			});
 
-			for (const extensionId of activatedExtensions) {
-				type ExtensionHostCrashExtensionClassification = {
-					code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			fow (const extensionId of activatedExtensions) {
+				type ExtensionHostCwashExtensionCwassification = {
+					code: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					signaw: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					extensionId: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 				};
-				type ExtensionHostCrashExtensionEvent = {
-					code: number;
-					signal: string | null;
-					extensionId: string;
+				type ExtensionHostCwashExtensionEvent = {
+					code: numba;
+					signaw: stwing | nuww;
+					extensionId: stwing;
 				};
-				this._telemetryService.publicLog2<ExtensionHostCrashExtensionEvent, ExtensionHostCrashExtensionClassification>('extensionHostCrashExtension', {
+				this._tewemetwySewvice.pubwicWog2<ExtensionHostCwashExtensionEvent, ExtensionHostCwashExtensionCwassification>('extensionHostCwashExtension', {
 					code,
-					signal,
-					extensionId: extensionId.value
+					signaw,
+					extensionId: extensionId.vawue
 				});
 			}
 		}
 	}
 
-	// --- impl
+	// --- impw
 
-	private async _resolveAuthorityAgain(): Promise<void> {
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		if (!remoteAuthority) {
-			return;
+	pwivate async _wesowveAuthowityAgain(): Pwomise<void> {
+		const wemoteAuthowity = this._enviwonmentSewvice.wemoteAuthowity;
+		if (!wemoteAuthowity) {
+			wetuwn;
 		}
 
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
-		try {
-			const result = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
-			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
-		} catch (err) {
-			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
+		const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess)!;
+		this._wemoteAuthowityWesowvewSewvice._cweawWesowvedAuthowity(wemoteAuthowity);
+		twy {
+			const wesuwt = await wocawPwocessExtensionHost.wesowveAuthowity(wemoteAuthowity);
+			this._wemoteAuthowityWesowvewSewvice._setWesowvedAuthowity(wesuwt.authowity, wesuwt.options);
+		} catch (eww) {
+			this._wemoteAuthowityWesowvewSewvice._setWesowvedAuthowityEwwow(wemoteAuthowity, eww);
 		}
 	}
 
-	protected async _scanAndHandleExtensions(): Promise<void> {
-		this._extensionScanner.startScanningExtensions(this.createLogger());
+	pwotected async _scanAndHandweExtensions(): Pwomise<void> {
+		this._extensionScanna.stawtScanningExtensions(this.cweateWogga());
 
-		const remoteAuthority = this._environmentService.remoteAuthority;
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+		const wemoteAuthowity = this._enviwonmentSewvice.wemoteAuthowity;
+		const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess)!;
 
-		let remoteEnv: IRemoteAgentEnvironment | null = null;
-		let remoteExtensions: IExtensionDescription[] = [];
+		wet wemoteEnv: IWemoteAgentEnviwonment | nuww = nuww;
+		wet wemoteExtensions: IExtensionDescwiption[] = [];
 
-		if (remoteAuthority) {
+		if (wemoteAuthowity) {
 
-			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
-				if (uri.scheme !== Schemas.vscodeRemote || uri.authority !== remoteAuthority) {
-					// The current remote authority resolver cannot give the canonical URI for this URI
-					return uri;
+			this._wemoteAuthowityWesowvewSewvice._setCanonicawUWIPwovida(async (uwi) => {
+				if (uwi.scheme !== Schemas.vscodeWemote || uwi.authowity !== wemoteAuthowity) {
+					// The cuwwent wemote authowity wesowva cannot give the canonicaw UWI fow this UWI
+					wetuwn uwi;
 				}
-				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
-				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+				const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess)!;
+				wetuwn wocawPwocessExtensionHost.getCanonicawUWI(wemoteAuthowity, uwi);
 			});
 
-			// Now that the canonical URI provider has been registered, we need to wait for the trust state to be
-			// calculated. The trust state will be used while resolving the authority, however the resolver can
-			// override the trust state through the resolver result.
-			await this._workspaceTrustManagementService.workspaceResolved;
-			let resolverResult: ResolverResult;
+			// Now that the canonicaw UWI pwovida has been wegistewed, we need to wait fow the twust state to be
+			// cawcuwated. The twust state wiww be used whiwe wesowving the authowity, howeva the wesowva can
+			// ovewwide the twust state thwough the wesowva wesuwt.
+			await this._wowkspaceTwustManagementSewvice.wowkspaceWesowved;
+			wet wesowvewWesuwt: WesowvewWesuwt;
 
-			try {
-				resolverResult = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
-			} catch (err) {
-				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
-					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
-				} else {
-					console.log(err);
-					if (RemoteAuthorityResolverError.isHandled(err)) {
-						console.log(`Error handled: Not showing a notification for the error`);
+			twy {
+				wesowvewWesuwt = await wocawPwocessExtensionHost.wesowveAuthowity(wemoteAuthowity);
+			} catch (eww) {
+				if (WemoteAuthowityWesowvewEwwow.isNoWesowvewFound(eww)) {
+					eww.isHandwed = await this._handweNoWesowvewFound(wemoteAuthowity);
+				} ewse {
+					consowe.wog(eww);
+					if (WemoteAuthowityWesowvewEwwow.isHandwed(eww)) {
+						consowe.wog(`Ewwow handwed: Not showing a notification fow the ewwow`);
 					}
 				}
-				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
+				this._wemoteAuthowityWesowvewSewvice._setWesowvedAuthowityEwwow(wemoteAuthowity, eww);
 
-				// Proceed with the local extension host
-				await this._startLocalExtensionHost();
-				return;
+				// Pwoceed with the wocaw extension host
+				await this._stawtWocawExtensionHost();
+				wetuwn;
 			}
 
-			// set the resolved authority
-			this._remoteAuthorityResolverService._setResolvedAuthority(resolverResult.authority, resolverResult.options);
-			this._remoteExplorerService.setTunnelInformation(resolverResult.tunnelInformation);
+			// set the wesowved authowity
+			this._wemoteAuthowityWesowvewSewvice._setWesowvedAuthowity(wesowvewWesuwt.authowity, wesowvewWesuwt.options);
+			this._wemoteExpwowewSewvice.setTunnewInfowmation(wesowvewWesuwt.tunnewInfowmation);
 
-			// monitor for breakage
-			const connection = this._remoteAgentService.getConnection();
+			// monitow fow bweakage
+			const connection = this._wemoteAgentSewvice.getConnection();
 			if (connection) {
 				connection.onDidStateChange(async (e) => {
-					if (e.type === PersistentConnectionEventType.ConnectionLost) {
-						this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
+					if (e.type === PewsistentConnectionEventType.ConnectionWost) {
+						this._wemoteAuthowityWesowvewSewvice._cweawWesowvedAuthowity(wemoteAuthowity);
 					}
 				});
-				connection.onReconnecting(() => this._resolveAuthorityAgain());
+				connection.onWeconnecting(() => this._wesowveAuthowityAgain());
 			}
 
-			// fetch the remote environment
-			[remoteEnv, remoteExtensions] = await Promise.all([
-				this._remoteAgentService.getEnvironment(),
-				this._remoteAgentService.scanExtensions()
+			// fetch the wemote enviwonment
+			[wemoteEnv, wemoteExtensions] = await Pwomise.aww([
+				this._wemoteAgentSewvice.getEnviwonment(),
+				this._wemoteAgentSewvice.scanExtensions()
 			]);
 
-			if (!remoteEnv) {
-				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
-				// Proceed with the local extension host
-				await this._startLocalExtensionHost();
-				return;
+			if (!wemoteEnv) {
+				this._notificationSewvice.notify({ sevewity: Sevewity.Ewwow, message: nws.wocawize('getEnviwonmentFaiwuwe', "Couwd not fetch wemote enviwonment") });
+				// Pwoceed with the wocaw extension host
+				await this._stawtWocawExtensionHost();
+				wetuwn;
 			}
 
-			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
-		} else {
+			updatePwoxyConfiguwationsScope(wemoteEnv.useHostPwoxy ? ConfiguwationScope.APPWICATION : ConfiguwationScope.MACHINE);
+		} ewse {
 
-			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
+			this._wemoteAuthowityWesowvewSewvice._setCanonicawUWIPwovida(async (uwi) => uwi);
 
 		}
 
-		await this._startLocalExtensionHost(remoteAuthority, remoteEnv, remoteExtensions);
+		await this._stawtWocawExtensionHost(wemoteAuthowity, wemoteEnv, wemoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
-		// Ensure that the workspace trust state has been fully initialized so
-		// that the extension host can start with the correct set of extensions.
-		await this._workspaceTrustManagementService.workspaceTrustInitialized;
+	pwivate async _stawtWocawExtensionHost(wemoteAuthowity: stwing | undefined = undefined, wemoteEnv: IWemoteAgentEnviwonment | nuww = nuww, wemoteExtensions: IExtensionDescwiption[] = []): Pwomise<void> {
+		// Ensuwe that the wowkspace twust state has been fuwwy initiawized so
+		// that the extension host can stawt with the cowwect set of extensions.
+		await this._wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized;
 
-		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
-		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), false);
-		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
+		wemoteExtensions = this._checkEnabwedAndPwoposedAPI(wemoteExtensions, fawse);
+		const wocawExtensions = this._checkEnabwedAndPwoposedAPI(await this._scanAwwWocawExtensions(), fawse);
+		this._wunningWocation = this._wunningWocationCwassifia.detewmineWunningWocation(wocawExtensions, wemoteExtensions);
 
-		// remove non-UI extensions from the local extensions
-		const localProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalProcess);
-		const localWebWorkerExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
-		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
+		// wemove non-UI extensions fwom the wocaw extensions
+		const wocawPwocessExtensions = fiwtewByWunningWocation(wocawExtensions, this._wunningWocation, ExtensionWunningWocation.WocawPwocess);
+		const wocawWebWowkewExtensions = fiwtewByWunningWocation(wocawExtensions, this._wunningWocation, ExtensionWunningWocation.WocawWebWowka);
+		wemoteExtensions = fiwtewByWunningWocation(wemoteExtensions, this._wunningWocation, ExtensionWunningWocation.Wemote);
 
-		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
-		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+		const wesuwt = this._wegistwy.dewtaExtensions(wemoteExtensions.concat(wocawPwocessExtensions).concat(wocawWebWowkewExtensions), []);
+		if (wesuwt.wemovedDueToWooping.wength > 0) {
+			this._wogOwShowMessage(Sevewity.Ewwow, nws.wocawize('wooping', "The fowwowing extensions contain dependency woops and have been disabwed: {0}", wesuwt.wemovedDueToWooping.map(e => `'${e.identifia.vawue}'`).join(', ')));
 		}
 
-		if (remoteAuthority && remoteEnv) {
-			this._remoteInitData.set(remoteAuthority, {
-				connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAuthority),
-				pid: remoteEnv.pid,
-				appRoot: remoteEnv.appRoot,
-				extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
-				globalStorageHome: remoteEnv.globalStorageHome,
-				workspaceStorageHome: remoteEnv.workspaceStorageHome,
-				extensions: remoteExtensions,
-				allExtensions: this._registry.getAllExtensionDescriptions(),
+		if (wemoteAuthowity && wemoteEnv) {
+			this._wemoteInitData.set(wemoteAuthowity, {
+				connectionData: this._wemoteAuthowityWesowvewSewvice.getConnectionData(wemoteAuthowity),
+				pid: wemoteEnv.pid,
+				appWoot: wemoteEnv.appWoot,
+				extensionHostWogsPath: wemoteEnv.extensionHostWogsPath,
+				gwobawStowageHome: wemoteEnv.gwobawStowageHome,
+				wowkspaceStowageHome: wemoteEnv.wowkspaceStowageHome,
+				extensions: wemoteExtensions,
+				awwExtensions: this._wegistwy.getAwwExtensionDescwiptions(),
 			});
 		}
 
-		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
+		this._doHandweExtensionPoints(this._wegistwy.getAwwExtensionDescwiptions());
 
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-		if (localProcessExtensionHost) {
-			localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess);
+		if (wocawPwocessExtensionHost) {
+			wocawPwocessExtensionHost.stawt(wocawPwocessExtensions.map(extension => extension.identifia).fiwta(id => this._wegistwy.containsExtension(id)));
 		}
 
-		const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);
-		if (localWebWorkerExtensionHost) {
-			localWebWorkerExtensionHost.start(localWebWorkerExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		const wocawWebWowkewExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawWebWowka);
+		if (wocawWebWowkewExtensionHost) {
+			wocawWebWowkewExtensionHost.stawt(wocawWebWowkewExtensions.map(extension => extension.identifia).fiwta(id => this._wegistwy.containsExtension(id)));
 		}
 	}
 
-	public override async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-		if (localProcessExtensionHost) {
-			return localProcessExtensionHost.getInspectPort(tryEnableInspector);
+	pubwic ovewwide async getInspectPowt(twyEnabweInspectow: boowean): Pwomise<numba> {
+		const wocawPwocessExtensionHost = this._getExtensionHostManaga(ExtensionHostKind.WocawPwocess);
+		if (wocawPwocessExtensionHost) {
+			wetuwn wocawPwocessExtensionHost.getInspectPowt(twyEnabweInspectow);
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public _onExtensionHostExit(code: number): void {
-		// Dispose everything associated with the extension host
+	pubwic _onExtensionHostExit(code: numba): void {
+		// Dispose evewything associated with the extension host
 		this.stopExtensionHosts();
 
-		if (this._isExtensionDevTestFromCli) {
-			// When CLI testing make sure to exit with proper exit code
-			this._nativeHostService.exit(code);
-		} else {
-			// Expected development extension termination: When the extension host goes down we also shutdown the window
-			this._nativeHostService.closeWindow();
+		if (this._isExtensionDevTestFwomCwi) {
+			// When CWI testing make suwe to exit with pwopa exit code
+			this._nativeHostSewvice.exit(code);
+		} ewse {
+			// Expected devewopment extension tewmination: When the extension host goes down we awso shutdown the window
+			this._nativeHostSewvice.cwoseWindow();
 		}
 	}
 
-	private async _handleNoResolverFound(remoteAuthority: string): Promise<boolean> {
-		const remoteName = getRemoteName(remoteAuthority);
-		const recommendation = this._productService.remoteExtensionTips?.[remoteName];
-		if (!recommendation) {
-			return false;
+	pwivate async _handweNoWesowvewFound(wemoteAuthowity: stwing): Pwomise<boowean> {
+		const wemoteName = getWemoteName(wemoteAuthowity);
+		const wecommendation = this._pwoductSewvice.wemoteExtensionTips?.[wemoteName];
+		if (!wecommendation) {
+			wetuwn fawse;
 		}
-		const sendTelemetry = (userReaction: 'install' | 'enable' | 'cancel') => {
-			/* __GDPR__
-			"remoteExtensionRecommendations:popup" : {
-				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+		const sendTewemetwy = (usewWeaction: 'instaww' | 'enabwe' | 'cancew') => {
+			/* __GDPW__
+			"wemoteExtensionWecommendations:popup" : {
+				"usewWeaction" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"extensionId": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 			}
 			*/
-			this._telemetryService.publicLog('remoteExtensionRecommendations:popup', { userReaction, extensionId: resolverExtensionId });
+			this._tewemetwySewvice.pubwicWog('wemoteExtensionWecommendations:popup', { usewWeaction, extensionId: wesowvewExtensionId });
 		};
 
-		const resolverExtensionId = recommendation.extensionId;
-		const allExtensions = await this._scanAllLocalExtensions();
-		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
+		const wesowvewExtensionId = wecommendation.extensionId;
+		const awwExtensions = await this._scanAwwWocawExtensions();
+		const extension = awwExtensions.fiwta(e => e.identifia.vawue === wesowvewExtensionId)[0];
 		if (extension) {
-			if (!this._isEnabled(extension, false)) {
-				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
-				this._notificationService.prompt(Severity.Info, message,
+			if (!this._isEnabwed(extension, fawse)) {
+				const message = nws.wocawize('enabweWesowva', "Extension '{0}' is wequiwed to open the wemote window.\nOK to enabwe?", wecommendation.fwiendwyName);
+				this._notificationSewvice.pwompt(Sevewity.Info, message,
 					[{
-						label: nls.localize('enable', 'Enable and Reload'),
-						run: async () => {
-							sendTelemetry('enable');
-							await this._extensionEnablementService.setEnablement([toExtension(extension)], EnablementState.EnabledGlobally);
-							await this._hostService.reload();
+						wabew: nws.wocawize('enabwe', 'Enabwe and Wewoad'),
+						wun: async () => {
+							sendTewemetwy('enabwe');
+							await this._extensionEnabwementSewvice.setEnabwement([toExtension(extension)], EnabwementState.EnabwedGwobawwy);
+							await this._hostSewvice.wewoad();
 						}
 					}],
-					{ sticky: true }
+					{ sticky: twue }
 				);
 			}
-		} else {
-			// Install the Extension and reload the window to handle.
-			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nDo you want to install the extension?", recommendation.friendlyName);
-			this._notificationService.prompt(Severity.Info, message,
+		} ewse {
+			// Instaww the Extension and wewoad the window to handwe.
+			const message = nws.wocawize('instawwWesowva', "Extension '{0}' is wequiwed to open the wemote window.\nDo you want to instaww the extension?", wecommendation.fwiendwyName);
+			this._notificationSewvice.pwompt(Sevewity.Info, message,
 				[{
-					label: nls.localize('install', 'Install and Reload'),
-					run: async () => {
-						sendTelemetry('install');
-						const [galleryExtension] = await this._extensionGalleryService.getExtensions([{ id: resolverExtensionId }], CancellationToken.None);
-						if (galleryExtension) {
-							await this._extensionManagementService.installFromGallery(galleryExtension);
-							await this._hostService.reload();
-						} else {
-							this._notificationService.error(nls.localize('resolverExtensionNotFound', "`{0}` not found on marketplace"));
+					wabew: nws.wocawize('instaww', 'Instaww and Wewoad'),
+					wun: async () => {
+						sendTewemetwy('instaww');
+						const [gawwewyExtension] = await this._extensionGawwewySewvice.getExtensions([{ id: wesowvewExtensionId }], CancewwationToken.None);
+						if (gawwewyExtension) {
+							await this._extensionManagementSewvice.instawwFwomGawwewy(gawwewyExtension);
+							await this._hostSewvice.wewoad();
+						} ewse {
+							this._notificationSewvice.ewwow(nws.wocawize('wesowvewExtensionNotFound', "`{0}` not found on mawketpwace"));
 						}
 
 					}
 				}],
 				{
-					sticky: true,
-					onCancel: () => sendTelemetry('cancel')
+					sticky: twue,
+					onCancew: () => sendTewemetwy('cancew')
 				}
 			);
 
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
-	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === desiredRunningLocation);
+function fiwtewByWunningWocation(extensions: IExtensionDescwiption[], wunningWocation: Map<stwing, ExtensionWunningWocation>, desiwedWunningWocation: ExtensionWunningWocation): IExtensionDescwiption[] {
+	wetuwn extensions.fiwta(ext => wunningWocation.get(ExtensionIdentifia.toKey(ext.identifia)) === desiwedWunningWocation);
 }
 
-registerSingleton(IExtensionService, ExtensionService);
+wegistewSingweton(IExtensionSewvice, ExtensionSewvice);
 
-class RestartExtensionHostAction extends Action2 {
+cwass WestawtExtensionHostAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.restartExtensionHost',
-			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.westawtExtensionHost',
+			titwe: { vawue: nws.wocawize('westawtExtensionHost', "Westawt Extension Host"), owiginaw: 'Westawt Extension Host' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IExtensionService).restartExtensionHost();
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IExtensionSewvice).westawtExtensionHost();
 	}
 }
 
-registerAction2(RestartExtensionHostAction);
+wegistewAction2(WestawtExtensionHostAction);

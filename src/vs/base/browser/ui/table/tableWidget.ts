@@ -1,344 +1,344 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IThemable } from 'vs/base/common/styler';
-import 'vs/css!./table';
+impowt { $, append, cweawNode, cweateStyweSheet, getContentHeight, getContentWidth } fwom 'vs/base/bwowsa/dom';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistOptions, IWistOptionsUpdate, IWistStywes, Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ISpwitViewDescwiptow, IView, Owientation, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { ITabweCowumn, ITabweContextMenuEvent, ITabweEvent, ITabweGestuweEvent, ITabweMouseEvent, ITabweWendewa, ITabweTouchEvent, ITabweViwtuawDewegate } fwom 'vs/base/bwowsa/ui/tabwe/tabwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt { ISpwiceabwe } fwom 'vs/base/common/sequence';
+impowt { IThemabwe } fwom 'vs/base/common/stywa';
+impowt 'vs/css!./tabwe';
 
 // TODO@joao
-type TCell = any;
+type TCeww = any;
 
-interface RowTemplateData {
-	readonly container: HTMLElement;
-	readonly cellContainers: HTMLElement[];
-	readonly cellTemplateData: unknown[];
+intewface WowTempwateData {
+	weadonwy containa: HTMWEwement;
+	weadonwy cewwContainews: HTMWEwement[];
+	weadonwy cewwTempwateData: unknown[];
 }
 
-class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
+cwass TabweWistWendewa<TWow> impwements IWistWendewa<TWow, WowTempwateData> {
 
-	static TemplateId = 'row';
-	readonly templateId = TableListRenderer.TemplateId;
-	private renderers: ITableRenderer<TCell, unknown>[];
-	private renderedTemplates = new Set<RowTemplateData>();
+	static TempwateId = 'wow';
+	weadonwy tempwateId = TabweWistWendewa.TempwateId;
+	pwivate wendewews: ITabweWendewa<TCeww, unknown>[];
+	pwivate wendewedTempwates = new Set<WowTempwateData>();
 
-	constructor(
-		private columns: ITableColumn<TRow, TCell>[],
-		renderers: ITableRenderer<TCell, unknown>[],
-		private getColumnSize: (index: number) => number
+	constwuctow(
+		pwivate cowumns: ITabweCowumn<TWow, TCeww>[],
+		wendewews: ITabweWendewa<TCeww, unknown>[],
+		pwivate getCowumnSize: (index: numba) => numba
 	) {
-		const rendererMap = new Map(renderers.map(r => [r.templateId, r]));
-		this.renderers = [];
+		const wendewewMap = new Map(wendewews.map(w => [w.tempwateId, w]));
+		this.wendewews = [];
 
-		for (const column of columns) {
-			const renderer = rendererMap.get(column.templateId);
+		fow (const cowumn of cowumns) {
+			const wendewa = wendewewMap.get(cowumn.tempwateId);
 
-			if (!renderer) {
-				throw new Error(`Table cell renderer for template id ${column.templateId} not found.`);
+			if (!wendewa) {
+				thwow new Ewwow(`Tabwe ceww wendewa fow tempwate id ${cowumn.tempwateId} not found.`);
 			}
 
-			this.renderers.push(renderer);
+			this.wendewews.push(wendewa);
 		}
 	}
 
-	renderTemplate(container: HTMLElement) {
-		const rowContainer = append(container, $('.monaco-table-tr'));
-		const cellContainers: HTMLElement[] = [];
-		const cellTemplateData: unknown[] = [];
+	wendewTempwate(containa: HTMWEwement) {
+		const wowContaina = append(containa, $('.monaco-tabwe-tw'));
+		const cewwContainews: HTMWEwement[] = [];
+		const cewwTempwateData: unknown[] = [];
 
-		for (let i = 0; i < this.columns.length; i++) {
-			const renderer = this.renderers[i];
-			const cellContainer = append(rowContainer, $('.monaco-table-td', { 'data-col-index': i }));
+		fow (wet i = 0; i < this.cowumns.wength; i++) {
+			const wendewa = this.wendewews[i];
+			const cewwContaina = append(wowContaina, $('.monaco-tabwe-td', { 'data-cow-index': i }));
 
-			cellContainer.style.width = `${this.getColumnSize(i)}px`;
-			cellContainers.push(cellContainer);
-			cellTemplateData.push(renderer.renderTemplate(cellContainer));
+			cewwContaina.stywe.width = `${this.getCowumnSize(i)}px`;
+			cewwContainews.push(cewwContaina);
+			cewwTempwateData.push(wendewa.wendewTempwate(cewwContaina));
 		}
 
-		const result = { container, cellContainers, cellTemplateData };
-		this.renderedTemplates.add(result);
+		const wesuwt = { containa, cewwContainews, cewwTempwateData };
+		this.wendewedTempwates.add(wesuwt);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	renderElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
-		for (let i = 0; i < this.columns.length; i++) {
-			const column = this.columns[i];
-			const cell = column.project(element);
-			const renderer = this.renderers[i];
-			renderer.renderElement(cell, index, templateData.cellTemplateData[i], height);
+	wendewEwement(ewement: TWow, index: numba, tempwateData: WowTempwateData, height: numba | undefined): void {
+		fow (wet i = 0; i < this.cowumns.wength; i++) {
+			const cowumn = this.cowumns[i];
+			const ceww = cowumn.pwoject(ewement);
+			const wendewa = this.wendewews[i];
+			wendewa.wendewEwement(ceww, index, tempwateData.cewwTempwateData[i], height);
 		}
 	}
 
-	disposeElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
-		for (let i = 0; i < this.columns.length; i++) {
-			const renderer = this.renderers[i];
+	disposeEwement(ewement: TWow, index: numba, tempwateData: WowTempwateData, height: numba | undefined): void {
+		fow (wet i = 0; i < this.cowumns.wength; i++) {
+			const wendewa = this.wendewews[i];
 
-			if (renderer.disposeElement) {
-				const column = this.columns[i];
-				const cell = column.project(element);
+			if (wendewa.disposeEwement) {
+				const cowumn = this.cowumns[i];
+				const ceww = cowumn.pwoject(ewement);
 
-				renderer.disposeElement(cell, index, templateData.cellTemplateData[i], height);
+				wendewa.disposeEwement(ceww, index, tempwateData.cewwTempwateData[i], height);
 			}
 		}
 	}
 
-	disposeTemplate(templateData: RowTemplateData): void {
-		for (let i = 0; i < this.columns.length; i++) {
-			const renderer = this.renderers[i];
-			renderer.disposeTemplate(templateData.cellTemplateData[i]);
+	disposeTempwate(tempwateData: WowTempwateData): void {
+		fow (wet i = 0; i < this.cowumns.wength; i++) {
+			const wendewa = this.wendewews[i];
+			wendewa.disposeTempwate(tempwateData.cewwTempwateData[i]);
 		}
 
-		clearNode(templateData.container);
-		this.renderedTemplates.delete(templateData);
+		cweawNode(tempwateData.containa);
+		this.wendewedTempwates.dewete(tempwateData);
 	}
 
-	layoutColumn(index: number, size: number): void {
-		for (const { cellContainers } of this.renderedTemplates) {
-			cellContainers[index].style.width = `${size}px`;
+	wayoutCowumn(index: numba, size: numba): void {
+		fow (const { cewwContainews } of this.wendewedTempwates) {
+			cewwContainews[index].stywe.width = `${size}px`;
 		}
 	}
 }
 
-function asListVirtualDelegate<TRow>(delegate: ITableVirtualDelegate<TRow>): IListVirtualDelegate<TRow> {
-	return {
-		getHeight(row) { return delegate.getHeight(row); },
-		getTemplateId() { return TableListRenderer.TemplateId; },
+function asWistViwtuawDewegate<TWow>(dewegate: ITabweViwtuawDewegate<TWow>): IWistViwtuawDewegate<TWow> {
+	wetuwn {
+		getHeight(wow) { wetuwn dewegate.getHeight(wow); },
+		getTempwateId() { wetuwn TabweWistWendewa.TempwateId; },
 	};
 }
 
-class ColumnHeader<TRow, TCell> implements IView {
+cwass CowumnHeada<TWow, TCeww> impwements IView {
 
-	readonly element: HTMLElement;
+	weadonwy ewement: HTMWEwement;
 
-	get minimumSize() { return this.column.minimumWidth ?? 120; }
-	get maximumSize() { return this.column.maximumWidth ?? Number.POSITIVE_INFINITY; }
-	get onDidChange() { return this.column.onDidChangeWidthConstraints ?? Event.None; }
+	get minimumSize() { wetuwn this.cowumn.minimumWidth ?? 120; }
+	get maximumSize() { wetuwn this.cowumn.maximumWidth ?? Numba.POSITIVE_INFINITY; }
+	get onDidChange() { wetuwn this.cowumn.onDidChangeWidthConstwaints ?? Event.None; }
 
-	private _onDidLayout = new Emitter<[number, number]>();
-	readonly onDidLayout = this._onDidLayout.event;
+	pwivate _onDidWayout = new Emitta<[numba, numba]>();
+	weadonwy onDidWayout = this._onDidWayout.event;
 
-	constructor(readonly column: ITableColumn<TRow, TCell>, private index: number) {
-		this.element = $('.monaco-table-th', { 'data-col-index': index, title: column.tooltip }, column.label);
+	constwuctow(weadonwy cowumn: ITabweCowumn<TWow, TCeww>, pwivate index: numba) {
+		this.ewement = $('.monaco-tabwe-th', { 'data-cow-index': index, titwe: cowumn.toowtip }, cowumn.wabew);
 	}
 
-	layout(size: number): void {
-		this._onDidLayout.fire([this.index, size]);
+	wayout(size: numba): void {
+		this._onDidWayout.fiwe([this.index, size]);
 	}
 }
 
-export interface ITableOptions<TRow> extends IListOptions<TRow> { }
-export interface ITableOptionsUpdate extends IListOptionsUpdate { }
-export interface ITableStyles extends IListStyles { }
+expowt intewface ITabweOptions<TWow> extends IWistOptions<TWow> { }
+expowt intewface ITabweOptionsUpdate extends IWistOptionsUpdate { }
+expowt intewface ITabweStywes extends IWistStywes { }
 
-export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
+expowt cwass Tabwe<TWow> impwements ISpwiceabwe<TWow>, IThemabwe, IDisposabwe {
 
-	private static InstanceCount = 0;
-	readonly domId = `table_id_${++Table.InstanceCount}`;
+	pwivate static InstanceCount = 0;
+	weadonwy domId = `tabwe_id_${++Tabwe.InstanceCount}`;
 
-	readonly domNode: HTMLElement;
-	private splitview: SplitView;
-	private list: List<TRow>;
-	private columnLayoutDisposable: IDisposable;
-	private cachedHeight: number = 0;
-	private styleElement: HTMLStyleElement;
+	weadonwy domNode: HTMWEwement;
+	pwivate spwitview: SpwitView;
+	pwivate wist: Wist<TWow>;
+	pwivate cowumnWayoutDisposabwe: IDisposabwe;
+	pwivate cachedHeight: numba = 0;
+	pwivate styweEwement: HTMWStyweEwement;
 
-	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
-	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
+	get onDidChangeFocus(): Event<ITabweEvent<TWow>> { wetuwn this.wist.onDidChangeFocus; }
+	get onDidChangeSewection(): Event<ITabweEvent<TWow>> { wetuwn this.wist.onDidChangeSewection; }
 
-	get onDidScroll(): Event<ScrollEvent> { return this.list.onDidScroll; }
-	get onMouseClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseClick; }
-	get onMouseDblClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseDblClick; }
-	get onMouseMiddleClick(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseMiddleClick; }
-	get onPointer(): Event<ITableMouseEvent<TRow>> { return this.list.onPointer; }
-	get onMouseUp(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseUp; }
-	get onMouseDown(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseDown; }
-	get onMouseOver(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseOver; }
-	get onMouseMove(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseMove; }
-	get onMouseOut(): Event<ITableMouseEvent<TRow>> { return this.list.onMouseOut; }
-	get onTouchStart(): Event<ITableTouchEvent<TRow>> { return this.list.onTouchStart; }
-	get onTap(): Event<ITableGestureEvent<TRow>> { return this.list.onTap; }
-	get onContextMenu(): Event<ITableContextMenuEvent<TRow>> { return this.list.onContextMenu; }
+	get onDidScwoww(): Event<ScwowwEvent> { wetuwn this.wist.onDidScwoww; }
+	get onMouseCwick(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseCwick; }
+	get onMouseDbwCwick(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseDbwCwick; }
+	get onMouseMiddweCwick(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseMiddweCwick; }
+	get onPointa(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onPointa; }
+	get onMouseUp(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseUp; }
+	get onMouseDown(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseDown; }
+	get onMouseOva(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseOva; }
+	get onMouseMove(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseMove; }
+	get onMouseOut(): Event<ITabweMouseEvent<TWow>> { wetuwn this.wist.onMouseOut; }
+	get onTouchStawt(): Event<ITabweTouchEvent<TWow>> { wetuwn this.wist.onTouchStawt; }
+	get onTap(): Event<ITabweGestuweEvent<TWow>> { wetuwn this.wist.onTap; }
+	get onContextMenu(): Event<ITabweContextMenuEvent<TWow>> { wetuwn this.wist.onContextMenu; }
 
-	get onDidFocus(): Event<void> { return this.list.onDidFocus; }
-	get onDidBlur(): Event<void> { return this.list.onDidBlur; }
+	get onDidFocus(): Event<void> { wetuwn this.wist.onDidFocus; }
+	get onDidBwuw(): Event<void> { wetuwn this.wist.onDidBwuw; }
 
-	get scrollTop(): number { return this.list.scrollTop; }
-	set scrollTop(scrollTop: number) { this.list.scrollTop = scrollTop; }
-	get scrollLeft(): number { return this.list.scrollLeft; }
-	set scrollLeft(scrollLeft: number) { this.list.scrollLeft = scrollLeft; }
-	get scrollHeight(): number { return this.list.scrollHeight; }
-	get renderHeight(): number { return this.list.renderHeight; }
-	get onDidDispose(): Event<void> { return this.list.onDidDispose; }
+	get scwowwTop(): numba { wetuwn this.wist.scwowwTop; }
+	set scwowwTop(scwowwTop: numba) { this.wist.scwowwTop = scwowwTop; }
+	get scwowwWeft(): numba { wetuwn this.wist.scwowwWeft; }
+	set scwowwWeft(scwowwWeft: numba) { this.wist.scwowwWeft = scwowwWeft; }
+	get scwowwHeight(): numba { wetuwn this.wist.scwowwHeight; }
+	get wendewHeight(): numba { wetuwn this.wist.wendewHeight; }
+	get onDidDispose(): Event<void> { wetuwn this.wist.onDidDispose; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		private virtualDelegate: ITableVirtualDelegate<TRow>,
-		columns: ITableColumn<TRow, TCell>[],
-		renderers: ITableRenderer<TCell, unknown>[],
-		_options?: ITableOptions<TRow>
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		pwivate viwtuawDewegate: ITabweViwtuawDewegate<TWow>,
+		cowumns: ITabweCowumn<TWow, TCeww>[],
+		wendewews: ITabweWendewa<TCeww, unknown>[],
+		_options?: ITabweOptions<TWow>
 	) {
-		this.domNode = append(container, $(`.monaco-table.${this.domId}`));
+		this.domNode = append(containa, $(`.monaco-tabwe.${this.domId}`));
 
-		const headers = columns.map((c, i) => new ColumnHeader(c, i));
-		const descriptor: ISplitViewDescriptor = {
-			size: headers.reduce((a, b) => a + b.column.weight, 0),
-			views: headers.map(view => ({ size: view.column.weight, view }))
+		const headews = cowumns.map((c, i) => new CowumnHeada(c, i));
+		const descwiptow: ISpwitViewDescwiptow = {
+			size: headews.weduce((a, b) => a + b.cowumn.weight, 0),
+			views: headews.map(view => ({ size: view.cowumn.weight, view }))
 		};
 
-		this.splitview = new SplitView(this.domNode, {
-			orientation: Orientation.HORIZONTAL,
-			scrollbarVisibility: ScrollbarVisibility.Hidden,
-			getSashOrthogonalSize: () => this.cachedHeight,
-			descriptor
+		this.spwitview = new SpwitView(this.domNode, {
+			owientation: Owientation.HOWIZONTAW,
+			scwowwbawVisibiwity: ScwowwbawVisibiwity.Hidden,
+			getSashOwthogonawSize: () => this.cachedHeight,
+			descwiptow
 		});
 
-		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
-		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
+		this.spwitview.ew.stywe.height = `${viwtuawDewegate.headewWowHeight}px`;
+		this.spwitview.ew.stywe.wineHeight = `${viwtuawDewegate.headewWowHeight}px`;
 
-		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
-		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options);
+		const wendewa = new TabweWistWendewa(cowumns, wendewews, i => this.spwitview.getViewSize(i));
+		this.wist = new Wist(usa, this.domNode, asWistViwtuawDewegate(viwtuawDewegate), [wendewa], _options);
 
-		this.columnLayoutDisposable = Event.any(...headers.map(h => h.onDidLayout))
-			(([index, size]) => renderer.layoutColumn(index, size));
+		this.cowumnWayoutDisposabwe = Event.any(...headews.map(h => h.onDidWayout))
+			(([index, size]) => wendewa.wayoutCowumn(index, size));
 
-		this.styleElement = createStyleSheet(this.domNode);
-		this.style({});
+		this.styweEwement = cweateStyweSheet(this.domNode);
+		this.stywe({});
 	}
 
-	updateOptions(options: ITableOptionsUpdate): void {
-		this.list.updateOptions(options);
+	updateOptions(options: ITabweOptionsUpdate): void {
+		this.wist.updateOptions(options);
 	}
 
-	splice(start: number, deleteCount: number, elements: TRow[] = []): void {
-		this.list.splice(start, deleteCount, elements);
+	spwice(stawt: numba, deweteCount: numba, ewements: TWow[] = []): void {
+		this.wist.spwice(stawt, deweteCount, ewements);
 	}
 
-	rerender(): void {
-		this.list.rerender();
+	wewenda(): void {
+		this.wist.wewenda();
 	}
 
-	row(index: number): TRow {
-		return this.list.element(index);
+	wow(index: numba): TWow {
+		wetuwn this.wist.ewement(index);
 	}
 
-	indexOf(element: TRow): number {
-		return this.list.indexOf(element);
+	indexOf(ewement: TWow): numba {
+		wetuwn this.wist.indexOf(ewement);
 	}
 
-	get length(): number {
-		return this.list.length;
+	get wength(): numba {
+		wetuwn this.wist.wength;
 	}
 
-	getHTMLElement(): HTMLElement {
-		return this.domNode;
+	getHTMWEwement(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	layout(height?: number, width?: number): void {
+	wayout(height?: numba, width?: numba): void {
 		height = height ?? getContentHeight(this.domNode);
 		width = width ?? getContentWidth(this.domNode);
 
 		this.cachedHeight = height;
-		this.splitview.layout(width);
+		this.spwitview.wayout(width);
 
-		const listHeight = height - this.virtualDelegate.headerRowHeight;
-		this.list.getHTMLElement().style.height = `${listHeight}px`;
-		this.list.layout(listHeight, width);
+		const wistHeight = height - this.viwtuawDewegate.headewWowHeight;
+		this.wist.getHTMWEwement().stywe.height = `${wistHeight}px`;
+		this.wist.wayout(wistHeight, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	toggweKeyboawdNavigation(): void {
+		this.wist.toggweKeyboawdNavigation();
 	}
 
-	style(styles: ITableStyles): void {
-		const content: string[] = [];
+	stywe(stywes: ITabweStywes): void {
+		const content: stwing[] = [];
 
-		content.push(`.monaco-table.${this.domId} > .monaco-split-view2 .monaco-sash.vertical::before {
-			top: ${this.virtualDelegate.headerRowHeight + 1}px;
-			height: calc(100% - ${this.virtualDelegate.headerRowHeight}px);
+		content.push(`.monaco-tabwe.${this.domId} > .monaco-spwit-view2 .monaco-sash.vewticaw::befowe {
+			top: ${this.viwtuawDewegate.headewWowHeight + 1}px;
+			height: cawc(100% - ${this.viwtuawDewegate.headewWowHeight}px);
 		}`);
 
-		this.styleElement.textContent = content.join('\n');
-		this.list.style(styles);
+		this.styweEwement.textContent = content.join('\n');
+		this.wist.stywe(stywes);
 	}
 
 	domFocus(): void {
-		this.list.domFocus();
+		this.wist.domFocus();
 	}
 
-	setAnchor(index: number | undefined): void {
-		this.list.setAnchor(index);
+	setAnchow(index: numba | undefined): void {
+		this.wist.setAnchow(index);
 	}
 
-	getAnchor(): number | undefined {
-		return this.list.getAnchor();
+	getAnchow(): numba | undefined {
+		wetuwn this.wist.getAnchow();
 	}
 
-	getSelectedElements(): TRow[] {
-		return this.list.getSelectedElements();
+	getSewectedEwements(): TWow[] {
+		wetuwn this.wist.getSewectedEwements();
 	}
 
-	setSelection(indexes: number[], browserEvent?: UIEvent): void {
-		this.list.setSelection(indexes, browserEvent);
+	setSewection(indexes: numba[], bwowsewEvent?: UIEvent): void {
+		this.wist.setSewection(indexes, bwowsewEvent);
 	}
 
-	getSelection(): number[] {
-		return this.list.getSelection();
+	getSewection(): numba[] {
+		wetuwn this.wist.getSewection();
 	}
 
-	setFocus(indexes: number[], browserEvent?: UIEvent): void {
-		this.list.setFocus(indexes, browserEvent);
+	setFocus(indexes: numba[], bwowsewEvent?: UIEvent): void {
+		this.wist.setFocus(indexes, bwowsewEvent);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.list.focusNext(n, loop, browserEvent);
+	focusNext(n = 1, woop = fawse, bwowsewEvent?: UIEvent): void {
+		this.wist.focusNext(n, woop, bwowsewEvent);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.list.focusPrevious(n, loop, browserEvent);
+	focusPwevious(n = 1, woop = fawse, bwowsewEvent?: UIEvent): void {
+		this.wist.focusPwevious(n, woop, bwowsewEvent);
 	}
 
-	focusNextPage(browserEvent?: UIEvent): Promise<void> {
-		return this.list.focusNextPage(browserEvent);
+	focusNextPage(bwowsewEvent?: UIEvent): Pwomise<void> {
+		wetuwn this.wist.focusNextPage(bwowsewEvent);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent): Promise<void> {
-		return this.list.focusPreviousPage(browserEvent);
+	focusPweviousPage(bwowsewEvent?: UIEvent): Pwomise<void> {
+		wetuwn this.wist.focusPweviousPage(bwowsewEvent);
 	}
 
-	focusFirst(browserEvent?: UIEvent): void {
-		this.list.focusFirst(browserEvent);
+	focusFiwst(bwowsewEvent?: UIEvent): void {
+		this.wist.focusFiwst(bwowsewEvent);
 	}
 
-	focusLast(browserEvent?: UIEvent): void {
-		this.list.focusLast(browserEvent);
+	focusWast(bwowsewEvent?: UIEvent): void {
+		this.wist.focusWast(bwowsewEvent);
 	}
 
-	getFocus(): number[] {
-		return this.list.getFocus();
+	getFocus(): numba[] {
+		wetuwn this.wist.getFocus();
 	}
 
-	getFocusedElements(): TRow[] {
-		return this.list.getFocusedElements();
+	getFocusedEwements(): TWow[] {
+		wetuwn this.wist.getFocusedEwements();
 	}
 
-	reveal(index: number, relativeTop?: number): void {
-		this.list.reveal(index, relativeTop);
+	weveaw(index: numba, wewativeTop?: numba): void {
+		this.wist.weveaw(index, wewativeTop);
 	}
 
 	dispose(): void {
-		this.splitview.dispose();
-		this.list.dispose();
-		this.columnLayoutDisposable.dispose();
+		this.spwitview.dispose();
+		this.wist.dispose();
+		this.cowumnWayoutDisposabwe.dispose();
 	}
 }

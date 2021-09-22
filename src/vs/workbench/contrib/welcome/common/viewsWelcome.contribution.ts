@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ViewsWelcomeContribution } from 'vs/workbench/contrib/welcome/common/viewsWelcomeContribution';
-import { ViewsWelcomeExtensionPoint, viewsWelcomeExtensionPointDescriptor } from 'vs/workbench/contrib/welcome/common/viewsWelcomeExtensionPoint';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ViewsWewcomeContwibution } fwom 'vs/wowkbench/contwib/wewcome/common/viewsWewcomeContwibution';
+impowt { ViewsWewcomeExtensionPoint, viewsWewcomeExtensionPointDescwiptow } fwom 'vs/wowkbench/contwib/wewcome/common/viewsWewcomeExtensionPoint';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-const extensionPoint = ExtensionsRegistry.registerExtensionPoint<ViewsWelcomeExtensionPoint>(viewsWelcomeExtensionPointDescriptor);
+const extensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<ViewsWewcomeExtensionPoint>(viewsWewcomeExtensionPointDescwiptow);
 
-class WorkbenchConfigurationContribution {
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+cwass WowkbenchConfiguwationContwibution {
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		instantiationService.createInstance(ViewsWelcomeContribution, extensionPoint);
+		instantiationSewvice.cweateInstance(ViewsWewcomeContwibution, extensionPoint);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WowkbenchConfiguwationContwibution, WifecycwePhase.Westowed);

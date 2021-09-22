@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
 
 /**
- * Returns the user data path to use with some rules:
- * - respect portable mode
- * - respect VSCODE_APPDATA environment variable
- * - respect --user-data-dir CLI argument
+ * Wetuwns the usa data path to use with some wuwes:
+ * - wespect powtabwe mode
+ * - wespect VSCODE_APPDATA enviwonment vawiabwe
+ * - wespect --usa-data-diw CWI awgument
  */
-export function getUserDataPath(args: NativeParsedArgs): string;
+expowt function getUsewDataPath(awgs: NativePawsedAwgs): stwing;

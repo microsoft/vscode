@@ -1,31 +1,31 @@
 @echo off
-setlocal
+setwocaw
 
-set ELECTRON_RUN_AS_NODE=
+set EWECTWON_WUN_AS_NODE=
 
 pushd %~dp0\..
 
-:: Get Code.exe location
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
-set NAMESHORT=%NAMESHORT: "=%
-set NAMESHORT=%NAMESHORT:"=%.exe
-set CODE=".build\electron\%NAMESHORT%"
+:: Get Code.exe wocation
+fow /f "tokens=2 dewims=:," %%a in ('findstw /W /C:"\"nameShowt\":.*" pwoduct.json') do set NAMESHOWT=%%~a
+set NAMESHOWT=%NAMESHOWT: "=%
+set NAMESHOWT=%NAMESHOWT:"=%.exe
+set CODE=".buiwd\ewectwon\%NAMESHOWT%"
 
-:: Download Electron if needed
-call node build\lib\electron.js
-if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+:: Downwoad Ewectwon if needed
+caww node buiwd\wib\ewectwon.js
+if %ewwowwevew% neq 0 node .\node_moduwes\guwp\bin\guwp.js ewectwon
 
-:: Run tests
-set ELECTRON_ENABLE_LOGGING=1
-%CODE% .\test\unit\electron\index.js %*
+:: Wun tests
+set EWECTWON_ENABWE_WOGGING=1
+%CODE% .\test\unit\ewectwon\index.js %*
 
 popd
 
-endlocal
+endwocaw
 
-:: app.exit(0) is exiting with code 255 in Electron 1.7.4.
-:: See https://github.com/microsoft/vscode/issues/28582
-echo errorlevel: %errorlevel%
-if %errorlevel% == 255 set errorlevel=0
+:: app.exit(0) is exiting with code 255 in Ewectwon 1.7.4.
+:: See https://github.com/micwosoft/vscode/issues/28582
+echo ewwowwevew: %ewwowwevew%
+if %ewwowwevew% == 255 set ewwowwevew=0
 
-exit /b %errorlevel%
+exit /b %ewwowwevew%

@@ -1,686 +1,686 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
 
 /**
- * Returns the last element of an array.
- * @param array The array.
- * @param n Which element from the end (default is zero).
+ * Wetuwns the wast ewement of an awway.
+ * @pawam awway The awway.
+ * @pawam n Which ewement fwom the end (defauwt is zewo).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
-	return array[array.length - (1 + n)];
+expowt function taiw<T>(awway: AwwayWike<T>, n: numba = 0): T {
+	wetuwn awway[awway.wength - (1 + n)];
 }
 
-export function tail2<T>(arr: T[]): [T[], T] {
-	if (arr.length === 0) {
-		throw new Error('Invalid tail call');
+expowt function taiw2<T>(aww: T[]): [T[], T] {
+	if (aww.wength === 0) {
+		thwow new Ewwow('Invawid taiw caww');
 	}
 
-	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
+	wetuwn [aww.swice(0, aww.wength - 1), aww[aww.wength - 1]];
 }
 
-export function equals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
-	if (one === other) {
-		return true;
+expowt function equaws<T>(one: WeadonwyAwway<T> | undefined, otha: WeadonwyAwway<T> | undefined, itemEquaws: (a: T, b: T) => boowean = (a, b) => a === b): boowean {
+	if (one === otha) {
+		wetuwn twue;
 	}
 
-	if (!one || !other) {
-		return false;
+	if (!one || !otha) {
+		wetuwn fawse;
 	}
 
-	if (one.length !== other.length) {
-		return false;
+	if (one.wength !== otha.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0, len = one.length; i < len; i++) {
-		if (!itemEquals(one[i], other[i])) {
-			return false;
+	fow (wet i = 0, wen = one.wength; i < wen; i++) {
+		if (!itemEquaws(one[i], otha[i])) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function binarySearch<T>(array: ReadonlyArray<T>, key: T, comparator: (op1: T, op2: T) => number): number {
-	let low = 0,
-		high = array.length - 1;
+expowt function binawySeawch<T>(awway: WeadonwyAwway<T>, key: T, compawatow: (op1: T, op2: T) => numba): numba {
+	wet wow = 0,
+		high = awway.wength - 1;
 
-	while (low <= high) {
-		const mid = ((low + high) / 2) | 0;
-		const comp = comparator(array[mid], key);
+	whiwe (wow <= high) {
+		const mid = ((wow + high) / 2) | 0;
+		const comp = compawatow(awway[mid], key);
 		if (comp < 0) {
-			low = mid + 1;
-		} else if (comp > 0) {
+			wow = mid + 1;
+		} ewse if (comp > 0) {
 			high = mid - 1;
-		} else {
-			return mid;
+		} ewse {
+			wetuwn mid;
 		}
 	}
-	return -(low + 1);
+	wetuwn -(wow + 1);
 }
 
 /**
- * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
- * are located before all elements where p(x) is true.
- * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
+ * Takes a sowted awway and a function p. The awway is sowted in such a way that aww ewements whewe p(x) is fawse
+ * awe wocated befowe aww ewements whewe p(x) is twue.
+ * @wetuwns the weast x fow which p(x) is twue ow awway.wength if no ewement fuwwfiwws the given function.
  */
-export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boolean): number {
-	let low = 0, high = array.length;
+expowt function findFiwstInSowted<T>(awway: WeadonwyAwway<T>, p: (x: T) => boowean): numba {
+	wet wow = 0, high = awway.wength;
 	if (high === 0) {
-		return 0; // no children
+		wetuwn 0; // no chiwdwen
 	}
-	while (low < high) {
-		const mid = Math.floor((low + high) / 2);
-		if (p(array[mid])) {
+	whiwe (wow < high) {
+		const mid = Math.fwoow((wow + high) / 2);
+		if (p(awway[mid])) {
 			high = mid;
-		} else {
-			low = mid + 1;
+		} ewse {
+			wow = mid + 1;
 		}
 	}
-	return low;
+	wetuwn wow;
 }
 
-type Compare<T> = (a: T, b: T) => number;
+type Compawe<T> = (a: T, b: T) => numba;
 
 
-export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
+expowt function quickSewect<T>(nth: numba, data: T[], compawe: Compawe<T>): T {
 
 	nth = nth | 0;
 
-	if (nth >= data.length) {
-		throw new TypeError('invalid index');
+	if (nth >= data.wength) {
+		thwow new TypeEwwow('invawid index');
 	}
 
-	let pivotValue = data[Math.floor(data.length * Math.random())];
-	let lower: T[] = [];
-	let higher: T[] = [];
-	let pivots: T[] = [];
+	wet pivotVawue = data[Math.fwoow(data.wength * Math.wandom())];
+	wet wowa: T[] = [];
+	wet higha: T[] = [];
+	wet pivots: T[] = [];
 
-	for (let value of data) {
-		const val = compare(value, pivotValue);
-		if (val < 0) {
-			lower.push(value);
-		} else if (val > 0) {
-			higher.push(value);
-		} else {
-			pivots.push(value);
+	fow (wet vawue of data) {
+		const vaw = compawe(vawue, pivotVawue);
+		if (vaw < 0) {
+			wowa.push(vawue);
+		} ewse if (vaw > 0) {
+			higha.push(vawue);
+		} ewse {
+			pivots.push(vawue);
 		}
 	}
 
-	if (nth < lower.length) {
-		return quickSelect(nth, lower, compare);
-	} else if (nth < lower.length + pivots.length) {
-		return pivots[0];
-	} else {
-		return quickSelect(nth - (lower.length + pivots.length), higher, compare);
+	if (nth < wowa.wength) {
+		wetuwn quickSewect(nth, wowa, compawe);
+	} ewse if (nth < wowa.wength + pivots.wength) {
+		wetuwn pivots[0];
+	} ewse {
+		wetuwn quickSewect(nth - (wowa.wength + pivots.wength), higha, compawe);
 	}
 }
 
-export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => number): T[][] {
-	const result: T[][] = [];
-	let currentGroup: T[] | undefined = undefined;
-	for (const element of data.slice(0).sort(compare)) {
-		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
-			currentGroup = [element];
-			result.push(currentGroup);
-		} else {
-			currentGroup.push(element);
+expowt function gwoupBy<T>(data: WeadonwyAwway<T>, compawe: (a: T, b: T) => numba): T[][] {
+	const wesuwt: T[][] = [];
+	wet cuwwentGwoup: T[] | undefined = undefined;
+	fow (const ewement of data.swice(0).sowt(compawe)) {
+		if (!cuwwentGwoup || compawe(cuwwentGwoup[0], ewement) !== 0) {
+			cuwwentGwoup = [ewement];
+			wesuwt.push(cuwwentGwoup);
+		} ewse {
+			cuwwentGwoup.push(ewement);
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-interface IMutableSplice<T> extends ISplice<T> {
-	deleteCount: number;
+intewface IMutabweSpwice<T> extends ISpwice<T> {
+	deweteCount: numba;
 }
 
 /**
- * Diffs two *sorted* arrays and computes the splices which apply the diff.
+ * Diffs two *sowted* awways and computes the spwices which appwy the diff.
  */
-export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): ISplice<T>[] {
-	const result: IMutableSplice<T>[] = [];
+expowt function sowtedDiff<T>(befowe: WeadonwyAwway<T>, afta: WeadonwyAwway<T>, compawe: (a: T, b: T) => numba): ISpwice<T>[] {
+	const wesuwt: IMutabweSpwice<T>[] = [];
 
-	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
-		if (deleteCount === 0 && toInsert.length === 0) {
-			return;
+	function pushSpwice(stawt: numba, deweteCount: numba, toInsewt: T[]): void {
+		if (deweteCount === 0 && toInsewt.wength === 0) {
+			wetuwn;
 		}
 
-		const latest = result[result.length - 1];
+		const watest = wesuwt[wesuwt.wength - 1];
 
-		if (latest && latest.start + latest.deleteCount === start) {
-			latest.deleteCount += deleteCount;
-			latest.toInsert.push(...toInsert);
-		} else {
-			result.push({ start, deleteCount, toInsert });
+		if (watest && watest.stawt + watest.deweteCount === stawt) {
+			watest.deweteCount += deweteCount;
+			watest.toInsewt.push(...toInsewt);
+		} ewse {
+			wesuwt.push({ stawt, deweteCount, toInsewt });
 		}
 	}
 
-	let beforeIdx = 0;
-	let afterIdx = 0;
+	wet befoweIdx = 0;
+	wet aftewIdx = 0;
 
-	while (true) {
-		if (beforeIdx === before.length) {
-			pushSplice(beforeIdx, 0, after.slice(afterIdx));
-			break;
+	whiwe (twue) {
+		if (befoweIdx === befowe.wength) {
+			pushSpwice(befoweIdx, 0, afta.swice(aftewIdx));
+			bweak;
 		}
-		if (afterIdx === after.length) {
-			pushSplice(beforeIdx, before.length - beforeIdx, []);
-			break;
+		if (aftewIdx === afta.wength) {
+			pushSpwice(befoweIdx, befowe.wength - befoweIdx, []);
+			bweak;
 		}
 
-		const beforeElement = before[beforeIdx];
-		const afterElement = after[afterIdx];
-		const n = compare(beforeElement, afterElement);
+		const befoweEwement = befowe[befoweIdx];
+		const aftewEwement = afta[aftewIdx];
+		const n = compawe(befoweEwement, aftewEwement);
 		if (n === 0) {
-			// equal
-			beforeIdx += 1;
-			afterIdx += 1;
-		} else if (n < 0) {
-			// beforeElement is smaller -> before element removed
-			pushSplice(beforeIdx, 1, []);
-			beforeIdx += 1;
-		} else if (n > 0) {
-			// beforeElement is greater -> after element added
-			pushSplice(beforeIdx, 0, [afterElement]);
-			afterIdx += 1;
+			// equaw
+			befoweIdx += 1;
+			aftewIdx += 1;
+		} ewse if (n < 0) {
+			// befoweEwement is smawwa -> befowe ewement wemoved
+			pushSpwice(befoweIdx, 1, []);
+			befoweIdx += 1;
+		} ewse if (n > 0) {
+			// befoweEwement is gweata -> afta ewement added
+			pushSpwice(befoweIdx, 0, [aftewEwement]);
+			aftewIdx += 1;
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Takes two *sorted* arrays and computes their delta (removed, added elements).
- * Finishes in `Math.min(before.length, after.length)` steps.
+ * Takes two *sowted* awways and computes theiw dewta (wemoved, added ewements).
+ * Finishes in `Math.min(befowe.wength, afta.wength)` steps.
  */
-export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
-	const splices = sortedDiff(before, after, compare);
-	const removed: T[] = [];
+expowt function dewta<T>(befowe: WeadonwyAwway<T>, afta: WeadonwyAwway<T>, compawe: (a: T, b: T) => numba): { wemoved: T[], added: T[] } {
+	const spwices = sowtedDiff(befowe, afta, compawe);
+	const wemoved: T[] = [];
 	const added: T[] = [];
 
-	for (const splice of splices) {
-		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
-		added.push(...splice.toInsert);
+	fow (const spwice of spwices) {
+		wemoved.push(...befowe.swice(spwice.stawt, spwice.stawt + spwice.deweteCount));
+		added.push(...spwice.toInsewt);
 	}
 
-	return { removed, added };
+	wetuwn { wemoved, added };
 }
 
 /**
- * Returns the top N elements from the array.
+ * Wetuwns the top N ewements fwom the awway.
  *
- * Faster than sorting the entire array when the array is a lot larger than N.
+ * Fasta than sowting the entiwe awway when the awway is a wot wawga than N.
  *
- * @param array The unsorted array.
- * @param compare A sort function for the elements.
- * @param n The number of elements to return.
- * @return The first n elements from array when sorted with compare.
+ * @pawam awway The unsowted awway.
+ * @pawam compawe A sowt function fow the ewements.
+ * @pawam n The numba of ewements to wetuwn.
+ * @wetuwn The fiwst n ewements fwom awway when sowted with compawe.
  */
-export function top<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, n: number): T[] {
+expowt function top<T>(awway: WeadonwyAwway<T>, compawe: (a: T, b: T) => numba, n: numba): T[] {
 	if (n === 0) {
-		return [];
+		wetuwn [];
 	}
-	const result = array.slice(0, n).sort(compare);
-	topStep(array, compare, result, n, array.length);
-	return result;
+	const wesuwt = awway.swice(0, n).sowt(compawe);
+	topStep(awway, compawe, wesuwt, n, awway.wength);
+	wetuwn wesuwt;
 }
 
 /**
- * Asynchronous variant of `top()` allowing for splitting up work in batches between which the event loop can run.
+ * Asynchwonous vawiant of `top()` awwowing fow spwitting up wowk in batches between which the event woop can wun.
  *
- * Returns the top N elements from the array.
+ * Wetuwns the top N ewements fwom the awway.
  *
- * Faster than sorting the entire array when the array is a lot larger than N.
+ * Fasta than sowting the entiwe awway when the awway is a wot wawga than N.
  *
- * @param array The unsorted array.
- * @param compare A sort function for the elements.
- * @param n The number of elements to return.
- * @param batch The number of elements to examine before yielding to the event loop.
- * @return The first n elements from array when sorted with compare.
+ * @pawam awway The unsowted awway.
+ * @pawam compawe A sowt function fow the ewements.
+ * @pawam n The numba of ewements to wetuwn.
+ * @pawam batch The numba of ewements to examine befowe yiewding to the event woop.
+ * @wetuwn The fiwst n ewements fwom awway when sowted with compawe.
  */
-export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
+expowt function topAsync<T>(awway: T[], compawe: (a: T, b: T) => numba, n: numba, batch: numba, token?: CancewwationToken): Pwomise<T[]> {
 	if (n === 0) {
-		return Promise.resolve([]);
+		wetuwn Pwomise.wesowve([]);
 	}
 
-	return new Promise((resolve, reject) => {
+	wetuwn new Pwomise((wesowve, weject) => {
 		(async () => {
-			const o = array.length;
-			const result = array.slice(0, n).sort(compare);
-			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
+			const o = awway.wength;
+			const wesuwt = awway.swice(0, n).sowt(compawe);
+			fow (wet i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
 				if (i > n) {
-					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+					await new Pwomise(wesowve => setTimeout(wesowve)); // nextTick() wouwd stawve I/O.
 				}
-				if (token && token.isCancellationRequested) {
-					throw canceled();
+				if (token && token.isCancewwationWequested) {
+					thwow cancewed();
 				}
-				topStep(array, compare, result, i, m);
+				topStep(awway, compawe, wesuwt, i, m);
 			}
-			return result;
+			wetuwn wesuwt;
 		})()
-			.then(resolve, reject);
+			.then(wesowve, weject);
 	});
 }
 
-function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, result: T[], i: number, m: number): void {
-	for (const n = result.length; i < m; i++) {
-		const element = array[i];
-		if (compare(element, result[n - 1]) < 0) {
-			result.pop();
-			const j = findFirstInSorted(result, e => compare(element, e) < 0);
-			result.splice(j, 0, element);
+function topStep<T>(awway: WeadonwyAwway<T>, compawe: (a: T, b: T) => numba, wesuwt: T[], i: numba, m: numba): void {
+	fow (const n = wesuwt.wength; i < m; i++) {
+		const ewement = awway[i];
+		if (compawe(ewement, wesuwt[n - 1]) < 0) {
+			wesuwt.pop();
+			const j = findFiwstInSowted(wesuwt, e => compawe(ewement, e) < 0);
+			wesuwt.spwice(j, 0, ewement);
 		}
 	}
 }
 
 /**
- * @returns New array with all falsy values removed. The original array IS NOT modified.
+ * @wetuwns New awway with aww fawsy vawues wemoved. The owiginaw awway IS NOT modified.
  */
-export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
+expowt function coawesce<T>(awway: WeadonwyAwway<T | undefined | nuww>): T[] {
+	wetuwn <T[]>awway.fiwta(e => !!e);
 }
 
 /**
- * Remove all falsy values from `array`. The original array IS modified.
+ * Wemove aww fawsy vawues fwom `awway`. The owiginaw awway IS modified.
  */
-export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
-	let to = 0;
-	for (let i = 0; i < array.length; i++) {
-		if (!!array[i]) {
-			array[to] = array[i];
+expowt function coawesceInPwace<T>(awway: Awway<T | undefined | nuww>): void {
+	wet to = 0;
+	fow (wet i = 0; i < awway.wength; i++) {
+		if (!!awway[i]) {
+			awway[to] = awway[i];
 			to += 1;
 		}
 	}
-	array.length = to;
+	awway.wength = to;
 }
 
 /**
- * Moves the element in the array for the provided positions.
+ * Moves the ewement in the awway fow the pwovided positions.
  */
-export function move(array: any[], from: number, to: number): void {
-	array.splice(to, 0, array.splice(from, 1)[0]);
+expowt function move(awway: any[], fwom: numba, to: numba): void {
+	awway.spwice(to, 0, awway.spwice(fwom, 1)[0]);
 }
 
 /**
- * @returns false if the provided object is an array and not empty.
+ * @wetuwns fawse if the pwovided object is an awway and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
-	return !Array.isArray(obj) || obj.length === 0;
+expowt function isFawsyOwEmpty(obj: any): boowean {
+	wetuwn !Awway.isAwway(obj) || obj.wength === 0;
 }
 
 /**
- * @returns True if the provided object is an array and has at least one element.
+ * @wetuwns Twue if the pwovided object is an awway and has at weast one ewement.
  */
-export function isNonEmptyArray<T>(obj: T[] | undefined | null): obj is T[];
-export function isNonEmptyArray<T>(obj: readonly T[] | undefined | null): obj is readonly T[];
-export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): obj is T[] | readonly T[] {
-	return Array.isArray(obj) && obj.length > 0;
+expowt function isNonEmptyAwway<T>(obj: T[] | undefined | nuww): obj is T[];
+expowt function isNonEmptyAwway<T>(obj: weadonwy T[] | undefined | nuww): obj is weadonwy T[];
+expowt function isNonEmptyAwway<T>(obj: T[] | weadonwy T[] | undefined | nuww): obj is T[] | weadonwy T[] {
+	wetuwn Awway.isAwway(obj) && obj.wength > 0;
 }
 
 /**
- * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equality by returning a unique string for each.
+ * Wemoves dupwicates fwom the given awway. The optionaw keyFn awwows to specify
+ * how ewements awe checked fow equawity by wetuwning a unique stwing fow each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
+expowt function distinct<T>(awway: WeadonwyAwway<T>, keyFn?: (t: T) => stwing): T[] {
 	if (!keyFn) {
-		return array.filter((element, position) => {
-			return array.indexOf(element) === position;
+		wetuwn awway.fiwta((ewement, position) => {
+			wetuwn awway.indexOf(ewement) === position;
 		});
 	}
 
-	const seen: { [key: string]: boolean; } = Object.create(null);
-	return array.filter((elem) => {
-		const key = keyFn(elem);
+	const seen: { [key: stwing]: boowean; } = Object.cweate(nuww);
+	wetuwn awway.fiwta((ewem) => {
+		const key = keyFn(ewem);
 		if (seen[key]) {
-			return false;
+			wetuwn fawse;
 		}
 
-		seen[key] = true;
+		seen[key] = twue;
 
-		return true;
+		wetuwn twue;
 	});
 }
 
-export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
+expowt function distinctES6<T>(awway: WeadonwyAwway<T>): T[] {
 	const seen = new Set<T>();
-	return array.filter(element => {
-		if (seen.has(element)) {
-			return false;
+	wetuwn awway.fiwta(ewement => {
+		if (seen.has(ewement)) {
+			wetuwn fawse;
 		}
 
-		seen.add(element);
-		return true;
+		seen.add(ewement);
+		wetuwn twue;
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+expowt function uniqueFiwta<T>(keyFn: (t: T) => stwing): (t: T) => boowean {
+	const seen: { [key: stwing]: boowean; } = Object.cweate(nuww);
 
-	return element => {
-		const key = keyFn(element);
+	wetuwn ewement => {
+		const key = keyFn(ewement);
 
 		if (seen[key]) {
-			return false;
+			wetuwn fawse;
 		}
 
-		seen[key] = true;
-		return true;
+		seen[key] = twue;
+		wetuwn twue;
 	};
 }
 
-export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = array.length - 1; i >= 0; i--) {
-		const element = array[i];
+expowt function wastIndex<T>(awway: WeadonwyAwway<T>, fn: (item: T) => boowean): numba {
+	fow (wet i = awway.wength - 1; i >= 0; i--) {
+		const ewement = awway[i];
 
-		if (fn(element)) {
-			return i;
+		if (fn(ewement)) {
+			wetuwn i;
 		}
 	}
 
-	return -1;
+	wetuwn -1;
 }
 
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
+expowt function fiwstOwDefauwt<T, NotFound = T>(awway: WeadonwyAwway<T>, notFoundVawue: NotFound): T | NotFound;
+expowt function fiwstOwDefauwt<T>(awway: WeadonwyAwway<T>): T | undefined;
+expowt function fiwstOwDefauwt<T, NotFound = T>(awway: WeadonwyAwway<T>, notFoundVawue?: NotFound): T | NotFound | undefined {
+	wetuwn awway.wength > 0 ? awway[0] : notFoundVawue;
 }
 
-export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
-	let result = 0;
+expowt function commonPwefixWength<T>(one: WeadonwyAwway<T>, otha: WeadonwyAwway<T>, equaws: (a: T, b: T) => boowean = (a, b) => a === b): numba {
+	wet wesuwt = 0;
 
-	for (let i = 0, len = Math.min(one.length, other.length); i < len && equals(one[i], other[i]); i++) {
-		result++;
+	fow (wet i = 0, wen = Math.min(one.wength, otha.wength); i < wen && equaws(one[i], otha[i]); i++) {
+		wesuwt++;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
+expowt function fwatten<T>(aww: T[][]): T[] {
+	wetuwn (<T[]>[]).concat(...aww);
 }
 
-export function range(to: number): number[];
-export function range(from: number, to: number): number[];
-export function range(arg: number, to?: number): number[] {
-	let from = typeof to === 'number' ? arg : 0;
+expowt function wange(to: numba): numba[];
+expowt function wange(fwom: numba, to: numba): numba[];
+expowt function wange(awg: numba, to?: numba): numba[] {
+	wet fwom = typeof to === 'numba' ? awg : 0;
 
-	if (typeof to === 'number') {
-		from = arg;
-	} else {
-		from = 0;
-		to = arg;
+	if (typeof to === 'numba') {
+		fwom = awg;
+	} ewse {
+		fwom = 0;
+		to = awg;
 	}
 
-	const result: number[] = [];
+	const wesuwt: numba[] = [];
 
-	if (from <= to) {
-		for (let i = from; i < to; i++) {
-			result.push(i);
+	if (fwom <= to) {
+		fow (wet i = fwom; i < to; i++) {
+			wesuwt.push(i);
 		}
-	} else {
-		for (let i = from; i > to; i--) {
-			result.push(i);
+	} ewse {
+		fow (wet i = fwom; i > to; i--) {
+			wesuwt.push(i);
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R; } {
-	return array.reduce((r, t) => {
-		r[indexer(t)] = mapper ? mapper(t) : t;
-		return r;
-	}, Object.create(null));
+expowt function index<T>(awway: WeadonwyAwway<T>, indexa: (t: T) => stwing): { [key: stwing]: T; };
+expowt function index<T, W>(awway: WeadonwyAwway<T>, indexa: (t: T) => stwing, mappa: (t: T) => W): { [key: stwing]: W; };
+expowt function index<T, W>(awway: WeadonwyAwway<T>, indexa: (t: T) => stwing, mappa?: (t: T) => W): { [key: stwing]: W; } {
+	wetuwn awway.weduce((w, t) => {
+		w[indexa(t)] = mappa ? mappa(t) : t;
+		wetuwn w;
+	}, Object.cweate(nuww));
 }
 
 /**
- * Inserts an element into an array. Returns a function which, when
- * called, will remove that element from the array.
+ * Insewts an ewement into an awway. Wetuwns a function which, when
+ * cawwed, wiww wemove that ewement fwom the awway.
  */
-export function insert<T>(array: T[], element: T): () => void {
-	array.push(element);
+expowt function insewt<T>(awway: T[], ewement: T): () => void {
+	awway.push(ewement);
 
-	return () => remove(array, element);
+	wetuwn () => wemove(awway, ewement);
 }
 
 /**
- * Removes an element from an array if it can be found.
+ * Wemoves an ewement fwom an awway if it can be found.
  */
-export function remove<T>(array: T[], element: T): T | undefined {
-	const index = array.indexOf(element);
+expowt function wemove<T>(awway: T[], ewement: T): T | undefined {
+	const index = awway.indexOf(ewement);
 	if (index > -1) {
-		array.splice(index, 1);
+		awway.spwice(index, 1);
 
-		return element;
+		wetuwn ewement;
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 /**
- * Insert `insertArr` inside `target` at `insertIndex`.
- * Please don't touch unless you understand https://jsperf.com/inserting-an-array-within-an-array
+ * Insewt `insewtAww` inside `tawget` at `insewtIndex`.
+ * Pwease don't touch unwess you undewstand https://jspewf.com/insewting-an-awway-within-an-awway
  */
-export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[]): T[] {
-	const before = target.slice(0, insertIndex);
-	const after = target.slice(insertIndex);
-	return before.concat(insertArr, after);
+expowt function awwayInsewt<T>(tawget: T[], insewtIndex: numba, insewtAww: T[]): T[] {
+	const befowe = tawget.swice(0, insewtIndex);
+	const afta = tawget.swice(insewtIndex);
+	wetuwn befowe.concat(insewtAww, afta);
 }
 
 /**
- * Uses Fisher-Yates shuffle to shuffle the given array
+ * Uses Fisha-Yates shuffwe to shuffwe the given awway
  */
-export function shuffle<T>(array: T[], _seed?: number): void {
-	let rand: () => number;
+expowt function shuffwe<T>(awway: T[], _seed?: numba): void {
+	wet wand: () => numba;
 
-	if (typeof _seed === 'number') {
-		let seed = _seed;
-		// Seeded random number generator in JS. Modified from:
-		// https://stackoverflow.com/questions/521295/seeding-the-random-number-generator-in-javascript
-		rand = () => {
-			const x = Math.sin(seed++) * 179426549; // throw away most significant digits and reduce any potential bias
-			return x - Math.floor(x);
+	if (typeof _seed === 'numba') {
+		wet seed = _seed;
+		// Seeded wandom numba genewatow in JS. Modified fwom:
+		// https://stackovewfwow.com/questions/521295/seeding-the-wandom-numba-genewatow-in-javascwipt
+		wand = () => {
+			const x = Math.sin(seed++) * 179426549; // thwow away most significant digits and weduce any potentiaw bias
+			wetuwn x - Math.fwoow(x);
 		};
-	} else {
-		rand = Math.random;
+	} ewse {
+		wand = Math.wandom;
 	}
 
-	for (let i = array.length - 1; i > 0; i -= 1) {
-		const j = Math.floor(rand() * (i + 1));
-		const temp = array[i];
-		array[i] = array[j];
-		array[j] = temp;
-	}
-}
-
-/**
- * Pushes an element to the start of the array, if found.
- */
-export function pushToStart<T>(arr: T[], value: T): void {
-	const index = arr.indexOf(value);
-
-	if (index > -1) {
-		arr.splice(index, 1);
-		arr.unshift(value);
+	fow (wet i = awway.wength - 1; i > 0; i -= 1) {
+		const j = Math.fwoow(wand() * (i + 1));
+		const temp = awway[i];
+		awway[i] = awway[j];
+		awway[j] = temp;
 	}
 }
 
 /**
- * Pushes an element to the end of the array, if found.
+ * Pushes an ewement to the stawt of the awway, if found.
  */
-export function pushToEnd<T>(arr: T[], value: T): void {
-	const index = arr.indexOf(value);
+expowt function pushToStawt<T>(aww: T[], vawue: T): void {
+	const index = aww.indexOf(vawue);
 
 	if (index > -1) {
-		arr.splice(index, 1);
-		arr.push(value);
+		aww.spwice(index, 1);
+		aww.unshift(vawue);
 	}
 }
 
-export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
-	return Array.isArray(items) ?
+/**
+ * Pushes an ewement to the end of the awway, if found.
+ */
+expowt function pushToEnd<T>(aww: T[], vawue: T): void {
+	const index = aww.indexOf(vawue);
+
+	if (index > -1) {
+		aww.spwice(index, 1);
+		aww.push(vawue);
+	}
+}
+
+expowt function mapAwwayOwNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
+	wetuwn Awway.isAwway(items) ?
 		items.map(fn) :
 		fn(items);
 }
 
-export function asArray<T>(x: T | T[]): T[];
-export function asArray<T>(x: T | readonly T[]): readonly T[];
-export function asArray<T>(x: T | T[]): T[] {
-	return Array.isArray(x) ? x : [x];
+expowt function asAwway<T>(x: T | T[]): T[];
+expowt function asAwway<T>(x: T | weadonwy T[]): weadonwy T[];
+expowt function asAwway<T>(x: T | T[]): T[] {
+	wetuwn Awway.isAwway(x) ? x : [x];
 }
 
-export function getRandomElement<T>(arr: T[]): T | undefined {
-	return arr[Math.floor(Math.random() * arr.length)];
+expowt function getWandomEwement<T>(aww: T[]): T | undefined {
+	wetuwn aww[Math.fwoow(Math.wandom() * aww.wength)];
 }
 
 /**
- * Returns the first mapped value of the array which is not undefined.
+ * Wetuwns the fiwst mapped vawue of the awway which is not undefined.
  */
-export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undefined): R | undefined {
-	for (const value of array) {
-		const mapped = mapFn(value);
+expowt function mapFind<T, W>(awway: Itewabwe<T>, mapFn: (vawue: T) => W | undefined): W | undefined {
+	fow (const vawue of awway) {
+		const mapped = mapFn(vawue);
 		if (mapped !== undefined) {
-			return mapped;
+			wetuwn mapped;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
 /**
- * Insert the new items in the array.
- * @param array The original array.
- * @param start The zero-based location in the array from which to start inserting elements.
- * @param newItems The items to be inserted
+ * Insewt the new items in the awway.
+ * @pawam awway The owiginaw awway.
+ * @pawam stawt The zewo-based wocation in the awway fwom which to stawt insewting ewements.
+ * @pawam newItems The items to be insewted
  */
-export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
-	const startIdx = getActualStartIndex(array, start);
-	const originalLength = array.length;
-	const newItemsLength = newItems.length;
-	array.length = originalLength + newItemsLength;
-	// Move the items after the start index, start from the end so that we don't overwrite any value.
-	for (let i = originalLength - 1; i >= startIdx; i--) {
-		array[i + newItemsLength] = array[i];
+expowt function insewtInto<T>(awway: T[], stawt: numba, newItems: T[]): void {
+	const stawtIdx = getActuawStawtIndex(awway, stawt);
+	const owiginawWength = awway.wength;
+	const newItemsWength = newItems.wength;
+	awway.wength = owiginawWength + newItemsWength;
+	// Move the items afta the stawt index, stawt fwom the end so that we don't ovewwwite any vawue.
+	fow (wet i = owiginawWength - 1; i >= stawtIdx; i--) {
+		awway[i + newItemsWength] = awway[i];
 	}
 
-	for (let i = 0; i < newItemsLength; i++) {
-		array[i + startIdx] = newItems[i];
+	fow (wet i = 0; i < newItemsWength; i++) {
+		awway[i + stawtIdx] = newItems[i];
 	}
 }
 
 /**
- * Removes elements from an array and inserts new elements in their place, returning the deleted elements. Alternative to the native Array.splice method, it
- * can only support limited number of items due to the maximum call stack size limit.
- * @param array The original array.
- * @param start The zero-based location in the array from which to start removing elements.
- * @param deleteCount The number of elements to remove.
- * @returns An array containing the elements that were deleted.
+ * Wemoves ewements fwom an awway and insewts new ewements in theiw pwace, wetuwning the deweted ewements. Awtewnative to the native Awway.spwice method, it
+ * can onwy suppowt wimited numba of items due to the maximum caww stack size wimit.
+ * @pawam awway The owiginaw awway.
+ * @pawam stawt The zewo-based wocation in the awway fwom which to stawt wemoving ewements.
+ * @pawam deweteCount The numba of ewements to wemove.
+ * @wetuwns An awway containing the ewements that wewe deweted.
  */
-export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
-	const index = getActualStartIndex(array, start);
-	const result = array.splice(index, deleteCount);
-	insertInto(array, index, newItems);
-	return result;
+expowt function spwice<T>(awway: T[], stawt: numba, deweteCount: numba, newItems: T[]): T[] {
+	const index = getActuawStawtIndex(awway, stawt);
+	const wesuwt = awway.spwice(index, deweteCount);
+	insewtInto(awway, index, newItems);
+	wetuwn wesuwt;
 }
 
 /**
- * Determine the actual start index (same logic as the native splice() or slice())
- * If greater than the length of the array, start will be set to the length of the array. In this case, no element will be deleted but the method will behave as an adding function, adding as many element as item[n*] provided.
- * If negative, it will begin that many elements from the end of the array. (In this case, the origin -1, meaning -n is the index of the nth last element, and is therefore equivalent to the index of array.length - n.) If array.length + start is less than 0, it will begin from index 0.
- * @param array The target array.
- * @param start The operation index.
+ * Detewmine the actuaw stawt index (same wogic as the native spwice() ow swice())
+ * If gweata than the wength of the awway, stawt wiww be set to the wength of the awway. In this case, no ewement wiww be deweted but the method wiww behave as an adding function, adding as many ewement as item[n*] pwovided.
+ * If negative, it wiww begin that many ewements fwom the end of the awway. (In this case, the owigin -1, meaning -n is the index of the nth wast ewement, and is thewefowe equivawent to the index of awway.wength - n.) If awway.wength + stawt is wess than 0, it wiww begin fwom index 0.
+ * @pawam awway The tawget awway.
+ * @pawam stawt The opewation index.
  */
-function getActualStartIndex<T>(array: T[], start: number): number {
-	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
+function getActuawStawtIndex<T>(awway: T[], stawt: numba): numba {
+	wetuwn stawt < 0 ? Math.max(stawt + awway.wength, 0) : Math.min(stawt, awway.wength);
 }
 
 /**
- * Like Math.min with a delegate, and returns the winning index
+ * Wike Math.min with a dewegate, and wetuwns the winning index
  */
-export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MAX_SAFE_INTEGER;
-	let minIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue < minValue) {
-			minValue = thisValue;
+expowt function minIndex<T>(awway: weadonwy T[], fn: (vawue: T) => numba): numba {
+	wet minVawue = Numba.MAX_SAFE_INTEGa;
+	wet minIdx = 0;
+	awway.fowEach((vawue, i) => {
+		const thisVawue = fn(vawue);
+		if (thisVawue < minVawue) {
+			minVawue = thisVawue;
 			minIdx = i;
 		}
 	});
 
-	return minIdx;
+	wetuwn minIdx;
 }
 
 /**
- * Like Math.max with a delegate, and returns the winning index
+ * Wike Math.max with a dewegate, and wetuwns the winning index
  */
-export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MIN_SAFE_INTEGER;
-	let maxIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue > minValue) {
-			minValue = thisValue;
+expowt function maxIndex<T>(awway: weadonwy T[], fn: (vawue: T) => numba): numba {
+	wet minVawue = Numba.MIN_SAFE_INTEGa;
+	wet maxIdx = 0;
+	awway.fowEach((vawue, i) => {
+		const thisVawue = fn(vawue);
+		if (thisVawue > minVawue) {
+			minVawue = thisVawue;
 			maxIdx = i;
 		}
 	});
 
-	return maxIdx;
+	wetuwn maxIdx;
 }
 
-export class ArrayQueue<T> {
-	private firstIdx = 0;
-	private lastIdx = this.items.length - 1;
+expowt cwass AwwayQueue<T> {
+	pwivate fiwstIdx = 0;
+	pwivate wastIdx = this.items.wength - 1;
 
 	/**
-	 * Constructs a queue that is backed by the given array. Runtime is O(1).
+	 * Constwucts a queue that is backed by the given awway. Wuntime is O(1).
 	*/
-	constructor(private readonly items: T[]) { }
+	constwuctow(pwivate weadonwy items: T[]) { }
 
-	get length(): number {
-		return this.lastIdx - this.firstIdx + 1;
+	get wength(): numba {
+		wetuwn this.wastIdx - this.fiwstIdx + 1;
 	}
 
 	/**
-	 * Consumes elements from the beginning of the queue as long as the predicate returns true.
-	 * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
+	 * Consumes ewements fwom the beginning of the queue as wong as the pwedicate wetuwns twue.
+	 * If no ewements wewe consumed, `nuww` is wetuwned. Has a wuntime of O(wesuwt.wength).
 	*/
-	takeWhile(predicate: (value: T) => boolean): T[] | null {
-		// P(k) := k <= this.lastIdx && predicate(this.items[k])
-		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
+	takeWhiwe(pwedicate: (vawue: T) => boowean): T[] | nuww {
+		// P(k) := k <= this.wastIdx && pwedicate(this.items[k])
+		// Find s := min { k | k >= this.fiwstIdx && !P(k) } and wetuwn this.data[this.fiwstIdx...s)
 
-		let startIdx = this.firstIdx;
-		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
-			startIdx++;
+		wet stawtIdx = this.fiwstIdx;
+		whiwe (stawtIdx < this.items.wength && pwedicate(this.items[stawtIdx])) {
+			stawtIdx++;
 		}
-		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
-		this.firstIdx = startIdx;
-		return result;
+		const wesuwt = stawtIdx === this.fiwstIdx ? nuww : this.items.swice(this.fiwstIdx, stawtIdx);
+		this.fiwstIdx = stawtIdx;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Consumes elements from the end of the queue as long as the predicate returns true.
-	 * If no elements were consumed, `null` is returned.
-	 * The result has the same order as the underlying array!
+	 * Consumes ewements fwom the end of the queue as wong as the pwedicate wetuwns twue.
+	 * If no ewements wewe consumed, `nuww` is wetuwned.
+	 * The wesuwt has the same owda as the undewwying awway!
 	*/
-	takeFromEndWhile(predicate: (value: T) => boolean): T[] | null {
-		// P(k) := this.firstIdx >= k && predicate(this.items[k])
-		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
+	takeFwomEndWhiwe(pwedicate: (vawue: T) => boowean): T[] | nuww {
+		// P(k) := this.fiwstIdx >= k && pwedicate(this.items[k])
+		// Find s := max { k | k <= this.wastIdx && !P(k) } and wetuwn this.data(s...this.wastIdx]
 
-		let endIdx = this.lastIdx;
-		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+		wet endIdx = this.wastIdx;
+		whiwe (endIdx >= 0 && pwedicate(this.items[endIdx])) {
 			endIdx--;
 		}
-		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
-		this.lastIdx = endIdx;
-		return result;
+		const wesuwt = endIdx === this.wastIdx ? nuww : this.items.swice(endIdx + 1, this.wastIdx + 1);
+		this.wastIdx = endIdx;
+		wetuwn wesuwt;
 	}
 }

@@ -1,169 +1,169 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Promises } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileWorkingCopy, IFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IFiweWowkingCopy, IFiweWowkingCopyModew } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopy';
 
-export interface IBaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends IDisposable {
+expowt intewface IBaseFiweWowkingCopyManaga<M extends IFiweWowkingCopyModew, W extends IFiweWowkingCopy<M>> extends IDisposabwe {
 
 	/**
-	 * An event for when a file working copy was created.
+	 * An event fow when a fiwe wowking copy was cweated.
 	 */
-	readonly onDidCreate: Event<W>;
+	weadonwy onDidCweate: Event<W>;
 
 	/**
-	 * Access to all known file working copies within the manager.
+	 * Access to aww known fiwe wowking copies within the managa.
 	 */
-	readonly workingCopies: readonly W[];
+	weadonwy wowkingCopies: weadonwy W[];
 
 	/**
-	 * Returns the file working copy for the provided resource
-	 * or `undefined` if none.
+	 * Wetuwns the fiwe wowking copy fow the pwovided wesouwce
+	 * ow `undefined` if none.
 	 */
-	get(resource: URI): W | undefined;
+	get(wesouwce: UWI): W | undefined;
 
 	/**
-	 * Disposes all working copies of the manager and disposes the manager. This
-	 * method is different from `dispose` in that it will unregister any working
-	 * copy from the `IWorkingCopyService`. Since this impact things like backups,
-	 * the method is `async` because it needs to trigger `save` for any dirty
-	 * working copy to preserve the data.
+	 * Disposes aww wowking copies of the managa and disposes the managa. This
+	 * method is diffewent fwom `dispose` in that it wiww unwegista any wowking
+	 * copy fwom the `IWowkingCopySewvice`. Since this impact things wike backups,
+	 * the method is `async` because it needs to twigga `save` fow any diwty
+	 * wowking copy to pwesewve the data.
 	 *
-	 * Callers should make sure to e.g. close any editors associated with the
-	 * working copy.
+	 * Cawwews shouwd make suwe to e.g. cwose any editows associated with the
+	 * wowking copy.
 	 */
-	destroy(): Promise<void>;
+	destwoy(): Pwomise<void>;
 }
 
-export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel, W extends IFileWorkingCopy<M>> extends Disposable implements IBaseFileWorkingCopyManager<M, W> {
+expowt abstwact cwass BaseFiweWowkingCopyManaga<M extends IFiweWowkingCopyModew, W extends IFiweWowkingCopy<M>> extends Disposabwe impwements IBaseFiweWowkingCopyManaga<M, W> {
 
-	private readonly _onDidCreate = this._register(new Emitter<W>());
-	readonly onDidCreate = this._onDidCreate.event;
+	pwivate weadonwy _onDidCweate = this._wegista(new Emitta<W>());
+	weadonwy onDidCweate = this._onDidCweate.event;
 
-	private readonly mapResourceToWorkingCopy = new ResourceMap<W>();
-	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
+	pwivate weadonwy mapWesouwceToWowkingCopy = new WesouwceMap<W>();
+	pwivate weadonwy mapWesouwceToDisposeWistena = new WesouwceMap<IDisposabwe>();
 
-	constructor(
-		@IFileService protected readonly fileService: IFileService,
-		@ILogService protected readonly logService: ILogService,
-		@IWorkingCopyBackupService protected readonly workingCopyBackupService: IWorkingCopyBackupService
+	constwuctow(
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwotected weadonwy wogSewvice: IWogSewvice,
+		@IWowkingCopyBackupSewvice pwotected weadonwy wowkingCopyBackupSewvice: IWowkingCopyBackupSewvice
 	) {
-		super();
+		supa();
 	}
 
-	protected has(resource: URI): boolean {
-		return this.mapResourceToWorkingCopy.has(resource);
+	pwotected has(wesouwce: UWI): boowean {
+		wetuwn this.mapWesouwceToWowkingCopy.has(wesouwce);
 	}
 
-	protected add(resource: URI, workingCopy: W): void {
-		const knownWorkingCopy = this.get(resource);
-		if (knownWorkingCopy === workingCopy) {
-			return; // already cached
+	pwotected add(wesouwce: UWI, wowkingCopy: W): void {
+		const knownWowkingCopy = this.get(wesouwce);
+		if (knownWowkingCopy === wowkingCopy) {
+			wetuwn; // awweady cached
 		}
 
-		// Add to our working copy map
-		this.mapResourceToWorkingCopy.set(resource, workingCopy);
+		// Add to ouw wowking copy map
+		this.mapWesouwceToWowkingCopy.set(wesouwce, wowkingCopy);
 
-		// Update our dipsose listener to remove it on dispose
-		this.mapResourceToDisposeListener.get(resource)?.dispose();
-		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
+		// Update ouw dipsose wistena to wemove it on dispose
+		this.mapWesouwceToDisposeWistena.get(wesouwce)?.dispose();
+		this.mapWesouwceToDisposeWistena.set(wesouwce, wowkingCopy.onWiwwDispose(() => this.wemove(wesouwce)));
 
-		// Signal creation event
-		this._onDidCreate.fire(workingCopy);
+		// Signaw cweation event
+		this._onDidCweate.fiwe(wowkingCopy);
 	}
 
-	protected remove(resource: URI): void {
+	pwotected wemove(wesouwce: UWI): void {
 
-		// Dispose any existing listener
-		const disposeListener = this.mapResourceToDisposeListener.get(resource);
-		if (disposeListener) {
-			dispose(disposeListener);
-			this.mapResourceToDisposeListener.delete(resource);
+		// Dispose any existing wistena
+		const disposeWistena = this.mapWesouwceToDisposeWistena.get(wesouwce);
+		if (disposeWistena) {
+			dispose(disposeWistena);
+			this.mapWesouwceToDisposeWistena.dewete(wesouwce);
 		}
 
-		// Remove from our working copy map
-		this.mapResourceToWorkingCopy.delete(resource);
+		// Wemove fwom ouw wowking copy map
+		this.mapWesouwceToWowkingCopy.dewete(wesouwce);
 	}
 
-	//#region Get / Get all
+	//#wegion Get / Get aww
 
-	get workingCopies(): W[] {
-		return [...this.mapResourceToWorkingCopy.values()];
+	get wowkingCopies(): W[] {
+		wetuwn [...this.mapWesouwceToWowkingCopy.vawues()];
 	}
 
-	get(resource: URI): W | undefined {
-		return this.mapResourceToWorkingCopy.get(resource);
+	get(wesouwce: UWI): W | undefined {
+		wetuwn this.mapWesouwceToWowkingCopy.get(wesouwce);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		// Clear working copy caches
+		// Cweaw wowking copy caches
 		//
-		// Note: we are not explicitly disposing the working copies
-		// known to the manager because this can have unwanted side
-		// effects such as backups getting discarded once the working
-		// copy unregisters. We have an explicit `destroy`
-		// for that purpose (https://github.com/microsoft/vscode/pull/123555)
+		// Note: we awe not expwicitwy disposing the wowking copies
+		// known to the managa because this can have unwanted side
+		// effects such as backups getting discawded once the wowking
+		// copy unwegistews. We have an expwicit `destwoy`
+		// fow that puwpose (https://github.com/micwosoft/vscode/puww/123555)
 		//
-		this.mapResourceToWorkingCopy.clear();
+		this.mapWesouwceToWowkingCopy.cweaw();
 
-		// Dispose the dispose listeners
-		dispose(this.mapResourceToDisposeListener.values());
-		this.mapResourceToDisposeListener.clear();
+		// Dispose the dispose wistenews
+		dispose(this.mapWesouwceToDisposeWistena.vawues());
+		this.mapWesouwceToDisposeWistena.cweaw();
 	}
 
-	async destroy(): Promise<void> {
+	async destwoy(): Pwomise<void> {
 
-		// Make sure all dirty working copies are saved to disk
-		try {
-			await Promises.settled(this.workingCopies.map(async workingCopy => {
-				if (workingCopy.isDirty()) {
-					await this.saveWithFallback(workingCopy);
+		// Make suwe aww diwty wowking copies awe saved to disk
+		twy {
+			await Pwomises.settwed(this.wowkingCopies.map(async wowkingCopy => {
+				if (wowkingCopy.isDiwty()) {
+					await this.saveWithFawwback(wowkingCopy);
 				}
 			}));
-		} catch (error) {
-			this.logService.error(error);
+		} catch (ewwow) {
+			this.wogSewvice.ewwow(ewwow);
 		}
 
-		// Dispose all working copies
-		dispose(this.mapResourceToWorkingCopy.values());
+		// Dispose aww wowking copies
+		dispose(this.mapWesouwceToWowkingCopy.vawues());
 
-		// Finally dispose manager
+		// Finawwy dispose managa
 		this.dispose();
 	}
 
-	private async saveWithFallback(workingCopy: W): Promise<void> {
+	pwivate async saveWithFawwback(wowkingCopy: W): Pwomise<void> {
 
-		// First try regular save
-		let saveFailed = false;
-		try {
-			await workingCopy.save();
-		} catch (error) {
-			saveFailed = true;
+		// Fiwst twy weguwaw save
+		wet saveFaiwed = fawse;
+		twy {
+			await wowkingCopy.save();
+		} catch (ewwow) {
+			saveFaiwed = twue;
 		}
 
-		// Then fallback to backup if that exists
-		if (saveFailed || workingCopy.isDirty()) {
-			const backup = await this.workingCopyBackupService.resolve(workingCopy);
+		// Then fawwback to backup if that exists
+		if (saveFaiwed || wowkingCopy.isDiwty()) {
+			const backup = await this.wowkingCopyBackupSewvice.wesowve(wowkingCopy);
 			if (backup) {
-				await this.fileService.writeFile(workingCopy.resource, backup.value, { unlock: true });
+				await this.fiweSewvice.wwiteFiwe(wowkingCopy.wesouwce, backup.vawue, { unwock: twue });
 			}
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }

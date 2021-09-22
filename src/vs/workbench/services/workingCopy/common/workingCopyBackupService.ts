@@ -1,589 +1,589 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { coalesce } from 'vs/base/common/arrays';
-import { equals, deepClone } from 'vs/base/common/objects';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ResourceMap } from 'vs/base/common/map';
-import { isReadableStream, peekStream } from 'vs/base/common/stream';
-import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { hash } from 'vs/base/common/hash';
-import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { basename, isEquaw, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { equaws, deepCwone } fwom 'vs/base/common/objects';
+impowt { Pwomises, WesouwceQueue } fwom 'vs/base/common/async';
+impowt { IWesowvedWowkingCopyBackup, IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IFiweSewvice, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { isWeadabweStweam, peekStweam } fwom 'vs/base/common/stweam';
+impowt { buffewToStweam, pwefixedBuffewWeadabwe, pwefixedBuffewStweam, weadabweToBuffa, stweamToBuffa, VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { IWowkingCopyBackupMeta, IWowkingCopyIdentifia, NO_TYPE_ID } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-export class WorkingCopyBackupsModel {
+expowt cwass WowkingCopyBackupsModew {
 
-	private readonly cache = new ResourceMap<{ versionId?: number, meta?: IWorkingCopyBackupMeta }>();
+	pwivate weadonwy cache = new WesouwceMap<{ vewsionId?: numba, meta?: IWowkingCopyBackupMeta }>();
 
-	static async create(backupRoot: URI, fileService: IFileService): Promise<WorkingCopyBackupsModel> {
-		const model = new WorkingCopyBackupsModel(backupRoot, fileService);
+	static async cweate(backupWoot: UWI, fiweSewvice: IFiweSewvice): Pwomise<WowkingCopyBackupsModew> {
+		const modew = new WowkingCopyBackupsModew(backupWoot, fiweSewvice);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		return model;
+		wetuwn modew;
 	}
 
-	private constructor(private backupRoot: URI, private fileService: IFileService) { }
+	pwivate constwuctow(pwivate backupWoot: UWI, pwivate fiweSewvice: IFiweSewvice) { }
 
-	private async resolve(): Promise<void> {
-		try {
-			const backupRootStat = await this.fileService.resolve(this.backupRoot);
-			if (backupRootStat.children) {
-				await Promises.settled(backupRootStat.children
-					.filter(child => child.isDirectory)
-					.map(async backupSchemaFolder => {
+	pwivate async wesowve(): Pwomise<void> {
+		twy {
+			const backupWootStat = await this.fiweSewvice.wesowve(this.backupWoot);
+			if (backupWootStat.chiwdwen) {
+				await Pwomises.settwed(backupWootStat.chiwdwen
+					.fiwta(chiwd => chiwd.isDiwectowy)
+					.map(async backupSchemaFowda => {
 
-						// Read backup directory for backups
-						const backupSchemaFolderStat = await this.fileService.resolve(backupSchemaFolder.resource);
+						// Wead backup diwectowy fow backups
+						const backupSchemaFowdewStat = await this.fiweSewvice.wesowve(backupSchemaFowda.wesouwce);
 
-						// Remember known backups in our caches
-						if (backupSchemaFolderStat.children) {
-							for (const backupForSchema of backupSchemaFolderStat.children) {
-								if (!backupForSchema.isDirectory) {
-									this.add(backupForSchema.resource);
+						// Wememba known backups in ouw caches
+						if (backupSchemaFowdewStat.chiwdwen) {
+							fow (const backupFowSchema of backupSchemaFowdewStat.chiwdwen) {
+								if (!backupFowSchema.isDiwectowy) {
+									this.add(backupFowSchema.wesouwce);
 								}
 							}
 						}
 					}));
 			}
-		} catch (error) {
-			// ignore any errors
+		} catch (ewwow) {
+			// ignowe any ewwows
 		}
 	}
 
-	add(resource: URI, versionId = 0, meta?: IWorkingCopyBackupMeta): void {
-		this.cache.set(resource, { versionId, meta: deepClone(meta) }); // make sure to not store original meta in our cache...
+	add(wesouwce: UWI, vewsionId = 0, meta?: IWowkingCopyBackupMeta): void {
+		this.cache.set(wesouwce, { vewsionId, meta: deepCwone(meta) }); // make suwe to not stowe owiginaw meta in ouw cache...
 	}
 
-	count(): number {
-		return this.cache.size;
+	count(): numba {
+		wetuwn this.cache.size;
 	}
 
-	has(resource: URI, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
-		const entry = this.cache.get(resource);
-		if (!entry) {
-			return false; // unknown resource
+	has(wesouwce: UWI, vewsionId?: numba, meta?: IWowkingCopyBackupMeta): boowean {
+		const entwy = this.cache.get(wesouwce);
+		if (!entwy) {
+			wetuwn fawse; // unknown wesouwce
 		}
 
-		if (typeof versionId === 'number' && versionId !== entry.versionId) {
-			return false; // different versionId
+		if (typeof vewsionId === 'numba' && vewsionId !== entwy.vewsionId) {
+			wetuwn fawse; // diffewent vewsionId
 		}
 
-		if (meta && !equals(meta, entry.meta)) {
-			return false; // different metadata
+		if (meta && !equaws(meta, entwy.meta)) {
+			wetuwn fawse; // diffewent metadata
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	get(): URI[] {
-		return Array.from(this.cache.keys());
+	get(): UWI[] {
+		wetuwn Awway.fwom(this.cache.keys());
 	}
 
-	remove(resource: URI): void {
-		this.cache.delete(resource);
+	wemove(wesouwce: UWI): void {
+		this.cache.dewete(wesouwce);
 	}
 
-	move(source: URI, target: URI): void {
-		const entry = this.cache.get(source);
-		if (entry) {
-			this.cache.delete(source);
-			this.cache.set(target, entry);
+	move(souwce: UWI, tawget: UWI): void {
+		const entwy = this.cache.get(souwce);
+		if (entwy) {
+			this.cache.dewete(souwce);
+			this.cache.set(tawget, entwy);
 		}
 	}
 
-	clear(): void {
-		this.cache.clear();
+	cweaw(): void {
+		this.cache.cweaw();
 	}
 }
 
-export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
+expowt abstwact cwass WowkingCopyBackupSewvice impwements IWowkingCopyBackupSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private impl: NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
+	pwivate impw: NativeWowkingCopyBackupSewviceImpw | InMemowyWowkingCopyBackupSewvice;
 
-	constructor(
-		backupWorkspaceHome: URI | undefined,
-		@IFileService protected fileService: IFileService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		backupWowkspaceHome: UWI | undefined,
+		@IFiweSewvice pwotected fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this.impl = this.initialize(backupWorkspaceHome);
+		this.impw = this.initiawize(backupWowkspaceHome);
 	}
 
-	private initialize(backupWorkspaceHome: URI | undefined): NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
-		if (backupWorkspaceHome) {
-			return new NativeWorkingCopyBackupServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
+	pwivate initiawize(backupWowkspaceHome: UWI | undefined): NativeWowkingCopyBackupSewviceImpw | InMemowyWowkingCopyBackupSewvice {
+		if (backupWowkspaceHome) {
+			wetuwn new NativeWowkingCopyBackupSewviceImpw(backupWowkspaceHome, this.fiweSewvice, this.wogSewvice);
 		}
 
-		return new InMemoryWorkingCopyBackupService();
+		wetuwn new InMemowyWowkingCopyBackupSewvice();
 	}
 
-	reinitialize(backupWorkspaceHome: URI | undefined): void {
+	weinitiawize(backupWowkspaceHome: UWI | undefined): void {
 
-		// Re-init implementation (unless we are running in-memory)
-		if (this.impl instanceof NativeWorkingCopyBackupServiceImpl) {
-			if (backupWorkspaceHome) {
-				this.impl.initialize(backupWorkspaceHome);
-			} else {
-				this.impl = new InMemoryWorkingCopyBackupService();
+		// We-init impwementation (unwess we awe wunning in-memowy)
+		if (this.impw instanceof NativeWowkingCopyBackupSewviceImpw) {
+			if (backupWowkspaceHome) {
+				this.impw.initiawize(backupWowkspaceHome);
+			} ewse {
+				this.impw = new InMemowyWowkingCopyBackupSewvice();
 			}
 		}
 	}
 
-	hasBackups(): Promise<boolean> {
-		return this.impl.hasBackups();
+	hasBackups(): Pwomise<boowean> {
+		wetuwn this.impw.hasBackups();
 	}
 
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
-		return this.impl.hasBackupSync(identifier, versionId);
+	hasBackupSync(identifia: IWowkingCopyIdentifia, vewsionId?: numba): boowean {
+		wetuwn this.impw.hasBackupSync(identifia, vewsionId);
 	}
 
-	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		return this.impl.backup(identifier, content, versionId, meta, token);
+	backup(identifia: IWowkingCopyIdentifia, content?: VSBuffewWeadabweStweam | VSBuffewWeadabwe, vewsionId?: numba, meta?: IWowkingCopyBackupMeta, token?: CancewwationToken): Pwomise<void> {
+		wetuwn this.impw.backup(identifia, content, vewsionId, meta, token);
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		return this.impl.discardBackup(identifier);
+	discawdBackup(identifia: IWowkingCopyIdentifia): Pwomise<void> {
+		wetuwn this.impw.discawdBackup(identifia);
 	}
 
-	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
-		return this.impl.discardBackups(filter);
+	discawdBackups(fiwta?: { except: IWowkingCopyIdentifia[] }): Pwomise<void> {
+		wetuwn this.impw.discawdBackups(fiwta);
 	}
 
-	getBackups(): Promise<IWorkingCopyIdentifier[]> {
-		return this.impl.getBackups();
+	getBackups(): Pwomise<IWowkingCopyIdentifia[]> {
+		wetuwn this.impw.getBackups();
 	}
 
-	resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
-		return this.impl.resolve(identifier);
+	wesowve<T extends IWowkingCopyBackupMeta>(identifia: IWowkingCopyIdentifia): Pwomise<IWesowvedWowkingCopyBackup<T> | undefined> {
+		wetuwn this.impw.wesowve(identifia);
 	}
 
-	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
-		return this.impl.toBackupResource(identifier);
+	toBackupWesouwce(identifia: IWowkingCopyIdentifia): UWI {
+		wetuwn this.impw.toBackupWesouwce(identifia);
 	}
 }
 
-class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
+cwass NativeWowkingCopyBackupSewviceImpw extends Disposabwe impwements IWowkingCopyBackupSewvice {
 
-	private static readonly PREAMBLE_END_MARKER = '\n';
-	private static readonly PREAMBLE_END_MARKER_CHARCODE = '\n'.charCodeAt(0);
-	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
-	private static readonly PREAMBLE_MAX_LENGTH = 10000;
+	pwivate static weadonwy PWEAMBWE_END_MAWKa = '\n';
+	pwivate static weadonwy PWEAMBWE_END_MAWKEW_CHAWCODE = '\n'.chawCodeAt(0);
+	pwivate static weadonwy PWEAMBWE_META_SEPAWATOW = ' '; // using a chawacta that is know to be escaped in a UWI as sepawatow
+	pwivate static weadonwy PWEAMBWE_MAX_WENGTH = 10000;
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
+	pwivate weadonwy ioOpewationQueues = this._wegista(new WesouwceQueue()); // queue IO opewations to ensuwe wwite/dewete fiwe owda
 
-	private ready!: Promise<WorkingCopyBackupsModel>;
-	private model: WorkingCopyBackupsModel | undefined = undefined;
+	pwivate weady!: Pwomise<WowkingCopyBackupsModew>;
+	pwivate modew: WowkingCopyBackupsModew | undefined = undefined;
 
-	constructor(
-		private backupWorkspaceHome: URI,
-		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		pwivate backupWowkspaceHome: UWI,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		this.initialize(backupWorkspaceHome);
+		this.initiawize(backupWowkspaceHome);
 	}
 
-	initialize(backupWorkspaceResource: URI): void {
-		this.backupWorkspaceHome = backupWorkspaceResource;
+	initiawize(backupWowkspaceWesouwce: UWI): void {
+		this.backupWowkspaceHome = backupWowkspaceWesouwce;
 
-		this.ready = this.doInitialize();
+		this.weady = this.doInitiawize();
 	}
 
-	private async doInitialize(): Promise<WorkingCopyBackupsModel> {
+	pwivate async doInitiawize(): Pwomise<WowkingCopyBackupsModew> {
 
-		// Create backup model
-		this.model = await WorkingCopyBackupsModel.create(this.backupWorkspaceHome, this.fileService);
+		// Cweate backup modew
+		this.modew = await WowkingCopyBackupsModew.cweate(this.backupWowkspaceHome, this.fiweSewvice);
 
-		// Migrate hashes as needed. We used to hash with a MD5
-		// sum of the path but switched to our own simpler hash
-		// to avoid a node.js dependency. We still want to
-		// support the older hash to prevent dataloss, so we:
-		// - iterate over all backups
-		// - detect if the file name length is 32 (MD5 length)
-		// - read the backup's target file path
-		// - rename the backup to the new hash
-		// - update the backup in our model
-		for (const backupResource of this.model.get()) {
-			if (basename(backupResource).length !== 32) {
-				continue; // not a MD5 hash, already uses new hash function
+		// Migwate hashes as needed. We used to hash with a MD5
+		// sum of the path but switched to ouw own simpwa hash
+		// to avoid a node.js dependency. We stiww want to
+		// suppowt the owda hash to pwevent datawoss, so we:
+		// - itewate ova aww backups
+		// - detect if the fiwe name wength is 32 (MD5 wength)
+		// - wead the backup's tawget fiwe path
+		// - wename the backup to the new hash
+		// - update the backup in ouw modew
+		fow (const backupWesouwce of this.modew.get()) {
+			if (basename(backupWesouwce).wength !== 32) {
+				continue; // not a MD5 hash, awweady uses new hash function
 			}
 
-			try {
-				const identifier = await this.resolveIdentifier(backupResource);
-				if (!identifier) {
-					this.logService.warn(`Backup: Unable to read target URI of backup ${backupResource} for migration to new hash.`);
+			twy {
+				const identifia = await this.wesowveIdentifia(backupWesouwce);
+				if (!identifia) {
+					this.wogSewvice.wawn(`Backup: Unabwe to wead tawget UWI of backup ${backupWesouwce} fow migwation to new hash.`);
 					continue;
 				}
 
-				const expectedBackupResource = this.toBackupResource(identifier);
-				if (!isEqual(expectedBackupResource, backupResource)) {
-					await this.fileService.move(backupResource, expectedBackupResource, true);
-					this.model.move(backupResource, expectedBackupResource);
+				const expectedBackupWesouwce = this.toBackupWesouwce(identifia);
+				if (!isEquaw(expectedBackupWesouwce, backupWesouwce)) {
+					await this.fiweSewvice.move(backupWesouwce, expectedBackupWesouwce, twue);
+					this.modew.move(backupWesouwce, expectedBackupWesouwce);
 				}
-			} catch (error) {
-				this.logService.error(`Backup: Unable to migrate backup ${backupResource} to new hash.`);
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(`Backup: Unabwe to migwate backup ${backupWesouwce} to new hash.`);
 			}
 		}
 
-		return this.model;
+		wetuwn this.modew;
 	}
 
-	async hasBackups(): Promise<boolean> {
-		const model = await this.ready;
+	async hasBackups(): Pwomise<boowean> {
+		const modew = await this.weady;
 
-		return model.count() > 0;
+		wetuwn modew.count() > 0;
 	}
 
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
-		if (!this.model) {
-			return false;
+	hasBackupSync(identifia: IWowkingCopyIdentifia, vewsionId?: numba): boowean {
+		if (!this.modew) {
+			wetuwn fawse;
 		}
 
-		const backupResource = this.toBackupResource(identifier);
+		const backupWesouwce = this.toBackupWesouwce(identifia);
 
-		return this.model.has(backupResource, versionId);
+		wetuwn this.modew.has(backupWesouwce, vewsionId);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		const model = await this.ready;
-		if (token?.isCancellationRequested) {
-			return;
+	async backup(identifia: IWowkingCopyIdentifia, content?: VSBuffewWeadabwe | VSBuffewWeadabweStweam, vewsionId?: numba, meta?: IWowkingCopyBackupMeta, token?: CancewwationToken): Pwomise<void> {
+		const modew = await this.weady;
+		if (token?.isCancewwationWequested) {
+			wetuwn;
 		}
 
-		const backupResource = this.toBackupResource(identifier);
-		if (model.has(backupResource, versionId, meta)) {
-			return; // return early if backup version id matches requested one
+		const backupWesouwce = this.toBackupWesouwce(identifia);
+		if (modew.has(backupWesouwce, vewsionId, meta)) {
+			wetuwn; // wetuwn eawwy if backup vewsion id matches wequested one
 		}
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			if (token?.isCancellationRequested) {
-				return;
+		wetuwn this.ioOpewationQueues.queueFow(backupWesouwce).queue(async () => {
+			if (token?.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Encode as: Resource + META-START + Meta + END
-			// and respect max length restrictions in case
-			// meta is too large.
-			let preamble = this.createPreamble(identifier, meta);
-			if (preamble.length >= NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH) {
-				preamble = this.createPreamble(identifier);
+			// Encode as: Wesouwce + META-STAWT + Meta + END
+			// and wespect max wength westwictions in case
+			// meta is too wawge.
+			wet pweambwe = this.cweatePweambwe(identifia, meta);
+			if (pweambwe.wength >= NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_MAX_WENGTH) {
+				pweambwe = this.cweatePweambwe(identifia);
 			}
 
-			// Update backup with value
-			const preambleBuffer = VSBuffer.fromString(preamble);
-			let backupBuffer: VSBuffer | VSBufferReadableStream | VSBufferReadable;
-			if (isReadableStream(content)) {
-				backupBuffer = prefixedBufferStream(preambleBuffer, content);
-			} else if (content) {
-				backupBuffer = prefixedBufferReadable(preambleBuffer, content);
-			} else {
-				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
+			// Update backup with vawue
+			const pweambweBuffa = VSBuffa.fwomStwing(pweambwe);
+			wet backupBuffa: VSBuffa | VSBuffewWeadabweStweam | VSBuffewWeadabwe;
+			if (isWeadabweStweam(content)) {
+				backupBuffa = pwefixedBuffewStweam(pweambweBuffa, content);
+			} ewse if (content) {
+				backupBuffa = pwefixedBuffewWeadabwe(pweambweBuffa, content);
+			} ewse {
+				backupBuffa = VSBuffa.concat([pweambweBuffa, VSBuffa.fwomStwing('')]);
 			}
 
-			await this.fileService.writeFile(backupResource, backupBuffer);
+			await this.fiweSewvice.wwiteFiwe(backupWesouwce, backupBuffa);
 
-			// Update model
-			model.add(backupResource, versionId, meta);
+			// Update modew
+			modew.add(backupWesouwce, vewsionId, meta);
 		});
 	}
 
-	private createPreamble(identifier: IWorkingCopyIdentifier, meta?: IWorkingCopyBackupMeta): string {
-		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
+	pwivate cweatePweambwe(identifia: IWowkingCopyIdentifia, meta?: IWowkingCopyBackupMeta): stwing {
+		wetuwn `${identifia.wesouwce.toStwing()}${NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_META_SEPAWATOW}${JSON.stwingify({ ...meta, typeId: identifia.typeId })}${NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_END_MAWKa}`;
 	}
 
-	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
-		const model = await this.ready;
+	async discawdBackups(fiwta?: { except: IWowkingCopyIdentifia[] }): Pwomise<void> {
+		const modew = await this.weady;
 
-		// Discard all but some backups
-		const except = filter?.except;
-		if (Array.isArray(except) && except.length > 0) {
-			const exceptMap = new ResourceMap<boolean>();
-			for (const exceptWorkingCopy of except) {
-				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
+		// Discawd aww but some backups
+		const except = fiwta?.except;
+		if (Awway.isAwway(except) && except.wength > 0) {
+			const exceptMap = new WesouwceMap<boowean>();
+			fow (const exceptWowkingCopy of except) {
+				exceptMap.set(this.toBackupWesouwce(exceptWowkingCopy), twue);
 			}
 
-			await Promises.settled(model.get().map(async backupResource => {
-				if (!exceptMap.has(backupResource)) {
-					await this.doDiscardBackup(backupResource);
+			await Pwomises.settwed(modew.get().map(async backupWesouwce => {
+				if (!exceptMap.has(backupWesouwce)) {
+					await this.doDiscawdBackup(backupWesouwce);
 				}
 			}));
 		}
 
-		// Discard all backups
-		else {
-			await this.deleteIgnoreFileNotFound(this.backupWorkspaceHome);
+		// Discawd aww backups
+		ewse {
+			await this.deweteIgnoweFiweNotFound(this.backupWowkspaceHome);
 
-			model.clear();
+			modew.cweaw();
 		}
 	}
 
-	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		const backupResource = this.toBackupResource(identifier);
+	discawdBackup(identifia: IWowkingCopyIdentifia): Pwomise<void> {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
 
-		return this.doDiscardBackup(backupResource);
+		wetuwn this.doDiscawdBackup(backupWesouwce);
 	}
 
-	private async doDiscardBackup(backupResource: URI): Promise<void> {
-		const model = await this.ready;
+	pwivate async doDiscawdBackup(backupWesouwce: UWI): Pwomise<void> {
+		const modew = await this.weady;
 
-		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await this.deleteIgnoreFileNotFound(backupResource);
+		wetuwn this.ioOpewationQueues.queueFow(backupWesouwce).queue(async () => {
+			await this.deweteIgnoweFiweNotFound(backupWesouwce);
 
-			model.remove(backupResource);
+			modew.wemove(backupWesouwce);
 		});
 	}
 
-	private async deleteIgnoreFileNotFound(backupResource: URI): Promise<void> {
-		try {
-			await this.fileService.del(backupResource, { recursive: true });
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				throw error; // re-throw any other error than file not found which is OK
+	pwivate async deweteIgnoweFiweNotFound(backupWesouwce: UWI): Pwomise<void> {
+		twy {
+			await this.fiweSewvice.dew(backupWesouwce, { wecuwsive: twue });
+		} catch (ewwow) {
+			if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+				thwow ewwow; // we-thwow any otha ewwow than fiwe not found which is OK
 			}
 		}
 	}
 
-	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
-		const model = await this.ready;
+	async getBackups(): Pwomise<IWowkingCopyIdentifia[]> {
+		const modew = await this.weady;
 
-		const backups = await Promise.all(model.get().map(backupResource => this.resolveIdentifier(backupResource)));
+		const backups = await Pwomise.aww(modew.get().map(backupWesouwce => this.wesowveIdentifia(backupWesouwce)));
 
-		return coalesce(backups);
+		wetuwn coawesce(backups);
 	}
 
-	private async resolveIdentifier(backupResource: URI): Promise<IWorkingCopyIdentifier | undefined> {
+	pwivate async wesowveIdentifia(backupWesouwce: UWI): Pwomise<IWowkingCopyIdentifia | undefined> {
 
-		// Read the entire backup preamble by reading up to
-		// `PREAMBLE_MAX_LENGTH` in the backup file until
-		// the `PREAMBLE_END_MARKER` is found
-		const backupPreamble = await this.readToMatchingString(backupResource, NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
-		if (!backupPreamble) {
-			return undefined;
+		// Wead the entiwe backup pweambwe by weading up to
+		// `PWEAMBWE_MAX_WENGTH` in the backup fiwe untiw
+		// the `PWEAMBWE_END_MAWKa` is found
+		const backupPweambwe = await this.weadToMatchingStwing(backupWesouwce, NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_END_MAWKa, NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_MAX_WENGTH);
+		if (!backupPweambwe) {
+			wetuwn undefined;
 		}
 
-		// Figure out the offset in the preamble where meta
-		// information possibly starts. This can be `-1` for
-		// older backups without meta.
-		const metaStartIndex = backupPreamble.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+		// Figuwe out the offset in the pweambwe whewe meta
+		// infowmation possibwy stawts. This can be `-1` fow
+		// owda backups without meta.
+		const metaStawtIndex = backupPweambwe.indexOf(NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_META_SEPAWATOW);
 
-		// Extract the preamble content for resource and meta
-		let resourcePreamble: string;
-		let metaPreamble: string | undefined;
-		if (metaStartIndex > 0) {
-			resourcePreamble = backupPreamble.substring(0, metaStartIndex);
-			metaPreamble = backupPreamble.substr(metaStartIndex + 1);
-		} else {
-			resourcePreamble = backupPreamble;
-			metaPreamble = undefined;
+		// Extwact the pweambwe content fow wesouwce and meta
+		wet wesouwcePweambwe: stwing;
+		wet metaPweambwe: stwing | undefined;
+		if (metaStawtIndex > 0) {
+			wesouwcePweambwe = backupPweambwe.substwing(0, metaStawtIndex);
+			metaPweambwe = backupPweambwe.substw(metaStawtIndex + 1);
+		} ewse {
+			wesouwcePweambwe = backupPweambwe;
+			metaPweambwe = undefined;
 		}
 
-		// Try to find the `typeId` in the meta data if possible
-		let typeId: string | undefined = undefined;
-		if (metaPreamble) {
-			try {
-				typeId = JSON.parse(metaPreamble).typeId;
-			} catch (error) {
-				// ignore JSON parse errors
+		// Twy to find the `typeId` in the meta data if possibwe
+		wet typeId: stwing | undefined = undefined;
+		if (metaPweambwe) {
+			twy {
+				typeId = JSON.pawse(metaPweambwe).typeId;
+			} catch (ewwow) {
+				// ignowe JSON pawse ewwows
 			}
 		}
 
-		return {
+		wetuwn {
 			typeId: typeId ?? NO_TYPE_ID,
-			resource: URI.parse(resourcePreamble)
+			wesouwce: UWI.pawse(wesouwcePweambwe)
 		};
 	}
 
-	private async readToMatchingString(backupResource: URI, matchingString: string, maximumBytesToRead: number): Promise<string | undefined> {
-		const contents = (await this.fileService.readFile(backupResource, { length: maximumBytesToRead })).value.toString();
+	pwivate async weadToMatchingStwing(backupWesouwce: UWI, matchingStwing: stwing, maximumBytesToWead: numba): Pwomise<stwing | undefined> {
+		const contents = (await this.fiweSewvice.weadFiwe(backupWesouwce, { wength: maximumBytesToWead })).vawue.toStwing();
 
-		const matchingStringIndex = contents.indexOf(matchingString);
-		if (matchingStringIndex >= 0) {
-			return contents.substr(0, matchingStringIndex);
+		const matchingStwingIndex = contents.indexOf(matchingStwing);
+		if (matchingStwingIndex >= 0) {
+			wetuwn contents.substw(0, matchingStwingIndex);
 		}
 
-		// Unable to find matching string in file
-		return undefined;
+		// Unabwe to find matching stwing in fiwe
+		wetuwn undefined;
 	}
 
-	async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
-		const backupResource = this.toBackupResource(identifier);
+	async wesowve<T extends IWowkingCopyBackupMeta>(identifia: IWowkingCopyIdentifia): Pwomise<IWesowvedWowkingCopyBackup<T> | undefined> {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
 
-		const model = await this.ready;
-		if (!model.has(backupResource)) {
-			return undefined; // require backup to be present
+		const modew = await this.weady;
+		if (!modew.has(backupWesouwce)) {
+			wetuwn undefined; // wequiwe backup to be pwesent
 		}
 
-		// Load the backup content and peek into the first chunk
-		// to be able to resolve the meta data
-		const backupStream = await this.fileService.readFileStream(backupResource);
-		const peekedBackupStream = await peekStream(backupStream.value, 1);
-		const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
+		// Woad the backup content and peek into the fiwst chunk
+		// to be abwe to wesowve the meta data
+		const backupStweam = await this.fiweSewvice.weadFiweStweam(backupWesouwce);
+		const peekedBackupStweam = await peekStweam(backupStweam.vawue, 1);
+		const fiwstBackupChunk = VSBuffa.concat(peekedBackupStweam.buffa);
 
-		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
-		// if VSCode goes down while writing the backup file, the file can turn empty because
-		// it always first gets truncated and then written to. In this case, we will not find
-		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
-		// here if that is the case.
-		const preambleEndIndex = firstBackupChunk.buffer.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
-		if (preambleEndIndex === -1) {
-			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
+		// We have seen wepowts (e.g. https://github.com/micwosoft/vscode/issues/78500) whewe
+		// if VSCode goes down whiwe wwiting the backup fiwe, the fiwe can tuwn empty because
+		// it awways fiwst gets twuncated and then wwitten to. In this case, we wiww not find
+		// the meta-end mawka ('\n') and as such the backup can onwy be invawid. We baiw out
+		// hewe if that is the case.
+		const pweambweEndIndex = fiwstBackupChunk.buffa.indexOf(NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_END_MAWKEW_CHAWCODE);
+		if (pweambweEndIndex === -1) {
+			this.wogSewvice.twace(`Backup: Couwd not find meta end mawka in ${backupWesouwce}. The fiwe is pwobabwy cowwupt (fiwesize: ${backupStweam.size}).`);
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
+		const pweambewWaw = fiwstBackupChunk.swice(0, pweambweEndIndex).toStwing();
 
-		// Extract meta data (if any)
-		let meta: T | undefined;
-		const metaStartIndex = preambelRaw.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
-		if (metaStartIndex !== -1) {
-			try {
-				meta = JSON.parse(preambelRaw.substr(metaStartIndex + 1));
+		// Extwact meta data (if any)
+		wet meta: T | undefined;
+		const metaStawtIndex = pweambewWaw.indexOf(NativeWowkingCopyBackupSewviceImpw.PWEAMBWE_META_SEPAWATOW);
+		if (metaStawtIndex !== -1) {
+			twy {
+				meta = JSON.pawse(pweambewWaw.substw(metaStawtIndex + 1));
 
-				// `typeId` is a property that we add so we
-				// remove it when returning to clients.
-				if (typeof meta?.typeId === 'string') {
-					delete meta.typeId;
+				// `typeId` is a pwopewty that we add so we
+				// wemove it when wetuwning to cwients.
+				if (typeof meta?.typeId === 'stwing') {
+					dewete meta.typeId;
 
 					if (isEmptyObject(meta)) {
 						meta = undefined;
 					}
 				}
-			} catch (error) {
-				// ignore JSON parse errors
+			} catch (ewwow) {
+				// ignowe JSON pawse ewwows
 			}
 		}
 
-		// Build a new stream without the preamble
-		const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
-		let value: VSBufferReadableStream;
-		if (peekedBackupStream.ended) {
-			value = bufferToStream(firstBackupChunkWithoutPreamble);
-		} else {
-			value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
+		// Buiwd a new stweam without the pweambwe
+		const fiwstBackupChunkWithoutPweambwe = fiwstBackupChunk.swice(pweambweEndIndex + 1);
+		wet vawue: VSBuffewWeadabweStweam;
+		if (peekedBackupStweam.ended) {
+			vawue = buffewToStweam(fiwstBackupChunkWithoutPweambwe);
+		} ewse {
+			vawue = pwefixedBuffewStweam(fiwstBackupChunkWithoutPweambwe, peekedBackupStweam.stweam);
 		}
 
-		return { value, meta };
+		wetuwn { vawue, meta };
 	}
 
-	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
-		return joinPath(this.backupWorkspaceHome, identifier.resource.scheme, hashIdentifier(identifier));
+	toBackupWesouwce(identifia: IWowkingCopyIdentifia): UWI {
+		wetuwn joinPath(this.backupWowkspaceHome, identifia.wesouwce.scheme, hashIdentifia(identifia));
 	}
 }
 
-export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
+expowt cwass InMemowyWowkingCopyBackupSewvice impwements IWowkingCopyBackupSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string, content: VSBuffer, meta?: IWorkingCopyBackupMeta }>();
+	pwivate backups = new WesouwceMap<{ typeId: stwing, content: VSBuffa, meta?: IWowkingCopyBackupMeta }>();
 
-	constructor() { }
+	constwuctow() { }
 
-	async hasBackups(): Promise<boolean> {
-		return this.backups.size > 0;
+	async hasBackups(): Pwomise<boowean> {
+		wetuwn this.backups.size > 0;
 	}
 
-	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
-		const backupResource = this.toBackupResource(identifier);
+	hasBackupSync(identifia: IWowkingCopyIdentifia, vewsionId?: numba): boowean {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
 
-		return this.backups.has(backupResource);
+		wetuwn this.backups.has(backupWesouwce);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
-		const backupResource = this.toBackupResource(identifier);
-		this.backups.set(backupResource, {
-			typeId: identifier.typeId,
-			content: content instanceof VSBuffer ? content : content ? isReadableStream(content) ? await streamToBuffer(content) : readableToBuffer(content) : VSBuffer.fromString(''),
+	async backup(identifia: IWowkingCopyIdentifia, content?: VSBuffewWeadabwe | VSBuffewWeadabweStweam, vewsionId?: numba, meta?: IWowkingCopyBackupMeta, token?: CancewwationToken): Pwomise<void> {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
+		this.backups.set(backupWesouwce, {
+			typeId: identifia.typeId,
+			content: content instanceof VSBuffa ? content : content ? isWeadabweStweam(content) ? await stweamToBuffa(content) : weadabweToBuffa(content) : VSBuffa.fwomStwing(''),
 			meta
 		});
 	}
 
-	async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
-		const backupResource = this.toBackupResource(identifier);
-		const backup = this.backups.get(backupResource);
+	async wesowve<T extends IWowkingCopyBackupMeta>(identifia: IWowkingCopyIdentifia): Pwomise<IWesowvedWowkingCopyBackup<T> | undefined> {
+		const backupWesouwce = this.toBackupWesouwce(identifia);
+		const backup = this.backups.get(backupWesouwce);
 		if (backup) {
-			return { value: bufferToStream(backup.content), meta: backup.meta as T | undefined };
+			wetuwn { vawue: buffewToStweam(backup.content), meta: backup.meta as T | undefined };
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
-		return Array.from(this.backups.entries()).map(([resource, backup]) => ({ typeId: backup.typeId, resource }));
+	async getBackups(): Pwomise<IWowkingCopyIdentifia[]> {
+		wetuwn Awway.fwom(this.backups.entwies()).map(([wesouwce, backup]) => ({ typeId: backup.typeId, wesouwce }));
 	}
 
-	async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
-		this.backups.delete(this.toBackupResource(identifier));
+	async discawdBackup(identifia: IWowkingCopyIdentifia): Pwomise<void> {
+		this.backups.dewete(this.toBackupWesouwce(identifia));
 	}
 
-	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
-		const except = filter?.except;
-		if (Array.isArray(except) && except.length > 0) {
-			const exceptMap = new ResourceMap<boolean>();
-			for (const exceptWorkingCopy of except) {
-				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
+	async discawdBackups(fiwta?: { except: IWowkingCopyIdentifia[] }): Pwomise<void> {
+		const except = fiwta?.except;
+		if (Awway.isAwway(except) && except.wength > 0) {
+			const exceptMap = new WesouwceMap<boowean>();
+			fow (const exceptWowkingCopy of except) {
+				exceptMap.set(this.toBackupWesouwce(exceptWowkingCopy), twue);
 			}
 
-			for (const backup of await this.getBackups()) {
-				if (!exceptMap.has(this.toBackupResource(backup))) {
-					await this.discardBackup(backup);
+			fow (const backup of await this.getBackups()) {
+				if (!exceptMap.has(this.toBackupWesouwce(backup))) {
+					await this.discawdBackup(backup);
 				}
 			}
-		} else {
-			this.backups.clear();
+		} ewse {
+			this.backups.cweaw();
 		}
 	}
 
-	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
-		return URI.from({ scheme: Schemas.inMemory, path: hashIdentifier(identifier) });
+	toBackupWesouwce(identifia: IWowkingCopyIdentifia): UWI {
+		wetuwn UWI.fwom({ scheme: Schemas.inMemowy, path: hashIdentifia(identifia) });
 	}
 }
 
 /*
- * Exported only for testing
+ * Expowted onwy fow testing
  */
-export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
+expowt function hashIdentifia(identifia: IWowkingCopyIdentifia): stwing {
 
-	// IMPORTANT: for backwards compatibility, ensure that
-	// we ignore the `typeId` unless a value is provided.
-	// To preserve previous backups without type id, we
-	// need to just hash the resource. Otherwise we use
-	// the type id as a seed to the resource path.
-	let resource: URI;
-	if (identifier.typeId.length > 0) {
-		const typeIdHash = hashString(identifier.typeId);
-		if (identifier.resource.path) {
-			resource = joinPath(identifier.resource, typeIdHash);
-		} else {
-			resource = identifier.resource.with({ path: typeIdHash });
+	// IMPOWTANT: fow backwawds compatibiwity, ensuwe that
+	// we ignowe the `typeId` unwess a vawue is pwovided.
+	// To pwesewve pwevious backups without type id, we
+	// need to just hash the wesouwce. Othewwise we use
+	// the type id as a seed to the wesouwce path.
+	wet wesouwce: UWI;
+	if (identifia.typeId.wength > 0) {
+		const typeIdHash = hashStwing(identifia.typeId);
+		if (identifia.wesouwce.path) {
+			wesouwce = joinPath(identifia.wesouwce, typeIdHash);
+		} ewse {
+			wesouwce = identifia.wesouwce.with({ path: typeIdHash });
 		}
-	} else {
-		resource = identifier.resource;
+	} ewse {
+		wesouwce = identifia.wesouwce;
 	}
 
-	return hashPath(resource);
+	wetuwn hashPath(wesouwce);
 }
 
-function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
+function hashPath(wesouwce: UWI): stwing {
+	const stw = wesouwce.scheme === Schemas.fiwe || wesouwce.scheme === Schemas.untitwed ? wesouwce.fsPath : wesouwce.toStwing();
 
-	return hashString(str);
+	wetuwn hashStwing(stw);
 }
 
-function hashString(str: string): string {
-	return hash(str).toString(16);
+function hashStwing(stw: stwing): stwing {
+	wetuwn hash(stw).toStwing(16);
 }

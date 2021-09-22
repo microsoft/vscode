@@ -1,8 +1,8 @@
 {
 	"comments": {
-		"lineComment": "#"
+		"wineComment": "#"
 	},
-	"brackets": [
+	"bwackets": [
 		[
 			"{",
 			"}"
@@ -16,7 +16,7 @@
 			")"
 		]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		[
 			"{",
 			"}"
@@ -31,17 +31,17 @@
 		],
 		{
 			"open": "'",
-			"close": "'",
+			"cwose": "'",
 			"notIn": [
-				"string",
+				"stwing",
 				"comment"
 			]
 		},
 		{
 			"open": "\"",
-			"close": "\"",
+			"cwose": "\"",
 			"notIn": [
-				"string",
+				"stwing",
 				"comment"
 			]
 		}

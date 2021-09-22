@@ -1,152 +1,152 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { CompwetionItemKind, CompwetionItemPwovida, CompwetionPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { CompwetionOptions, pwovideSuggestionItems, SnippetSowtOwda } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
 
 suite('Suggest', function () {
 
-	let model: TextModel;
-	let registration: IDisposable;
+	wet modew: TextModew;
+	wet wegistwation: IDisposabwe;
 
 	setup(function () {
 
-		model = createTextModel('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
-		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
-			provideCompletionItems(_doc, pos) {
-				return {
-					incomplete: false,
+		modew = cweateTextModew('FOO\nbaw\BAW\nfoo', undefined, undefined, UWI.pawse('foo:baw/path'));
+		wegistwation = CompwetionPwovidewWegistwy.wegista({ pattewn: 'baw/path', scheme: 'foo' }, {
+			pwovideCompwetionItems(_doc, pos) {
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						label: 'aaa',
-						kind: CompletionItemKind.Snippet,
-						insertText: 'aaa',
-						range: Range.fromPositions(pos)
+						wabew: 'aaa',
+						kind: CompwetionItemKind.Snippet,
+						insewtText: 'aaa',
+						wange: Wange.fwomPositions(pos)
 					}, {
-						label: 'zzz',
-						kind: CompletionItemKind.Snippet,
-						insertText: 'zzz',
-						range: Range.fromPositions(pos)
+						wabew: 'zzz',
+						kind: CompwetionItemKind.Snippet,
+						insewtText: 'zzz',
+						wange: Wange.fwomPositions(pos)
 					}, {
-						label: 'fff',
-						kind: CompletionItemKind.Property,
-						insertText: 'fff',
-						range: Range.fromPositions(pos)
+						wabew: 'fff',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'fff',
+						wange: Wange.fwomPositions(pos)
 					}]
 				};
 			}
 		});
 	});
 
-	teardown(() => {
-		registration.dispose();
-		model.dispose();
+	teawdown(() => {
+		wegistwation.dispose();
+		modew.dispose();
 	});
 
-	test('sort - snippet inline', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Inline));
-		assert.strictEqual(items.length, 3);
-		assert.strictEqual(items[0].completion.label, 'aaa');
-		assert.strictEqual(items[1].completion.label, 'fff');
-		assert.strictEqual(items[2].completion.label, 'zzz');
+	test('sowt - snippet inwine', async function () {
+		const { items } = await pwovideSuggestionItems(modew, new Position(1, 1), new CompwetionOptions(SnippetSowtOwda.Inwine));
+		assewt.stwictEquaw(items.wength, 3);
+		assewt.stwictEquaw(items[0].compwetion.wabew, 'aaa');
+		assewt.stwictEquaw(items[1].compwetion.wabew, 'fff');
+		assewt.stwictEquaw(items[2].compwetion.wabew, 'zzz');
 	});
 
-	test('sort - snippet top', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Top));
-		assert.strictEqual(items.length, 3);
-		assert.strictEqual(items[0].completion.label, 'aaa');
-		assert.strictEqual(items[1].completion.label, 'zzz');
-		assert.strictEqual(items[2].completion.label, 'fff');
+	test('sowt - snippet top', async function () {
+		const { items } = await pwovideSuggestionItems(modew, new Position(1, 1), new CompwetionOptions(SnippetSowtOwda.Top));
+		assewt.stwictEquaw(items.wength, 3);
+		assewt.stwictEquaw(items[0].compwetion.wabew, 'aaa');
+		assewt.stwictEquaw(items[1].compwetion.wabew, 'zzz');
+		assewt.stwictEquaw(items[2].compwetion.wabew, 'fff');
 	});
 
-	test('sort - snippet bottom', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(SnippetSortOrder.Bottom));
-		assert.strictEqual(items.length, 3);
-		assert.strictEqual(items[0].completion.label, 'fff');
-		assert.strictEqual(items[1].completion.label, 'aaa');
-		assert.strictEqual(items[2].completion.label, 'zzz');
+	test('sowt - snippet bottom', async function () {
+		const { items } = await pwovideSuggestionItems(modew, new Position(1, 1), new CompwetionOptions(SnippetSowtOwda.Bottom));
+		assewt.stwictEquaw(items.wength, 3);
+		assewt.stwictEquaw(items[0].compwetion.wabew, 'fff');
+		assewt.stwictEquaw(items[1].compwetion.wabew, 'aaa');
+		assewt.stwictEquaw(items[2].compwetion.wabew, 'zzz');
 	});
 
-	test('sort - snippet none', async function () {
-		const { items } = await provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, new Set<CompletionItemKind>().add(CompletionItemKind.Snippet)));
-		assert.strictEqual(items.length, 1);
-		assert.strictEqual(items[0].completion.label, 'fff');
+	test('sowt - snippet none', async function () {
+		const { items } = await pwovideSuggestionItems(modew, new Position(1, 1), new CompwetionOptions(undefined, new Set<CompwetionItemKind>().add(CompwetionItemKind.Snippet)));
+		assewt.stwictEquaw(items.wength, 1);
+		assewt.stwictEquaw(items[0].compwetion.wabew, 'fff');
 	});
 
-	test('only from', function () {
+	test('onwy fwom', function () {
 
 		const foo: any = {
-			triggerCharacters: [],
-			provideCompletionItems() {
-				return {
-					currentWord: '',
-					incomplete: false,
+			twiggewChawactews: [],
+			pwovideCompwetionItems() {
+				wetuwn {
+					cuwwentWowd: '',
+					incompwete: fawse,
 					suggestions: [{
-						label: 'jjj',
-						type: 'property',
-						insertText: 'jjj'
+						wabew: 'jjj',
+						type: 'pwopewty',
+						insewtText: 'jjj'
 					}]
 				};
 			}
 		};
-		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const wegistwation = CompwetionPwovidewWegistwy.wegista({ pattewn: 'baw/path', scheme: 'foo' }, foo);
 
-		provideSuggestionItems(model, new Position(1, 1), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo))).then(({ items }) => {
-			registration.dispose();
+		pwovideSuggestionItems(modew, new Position(1, 1), new CompwetionOptions(undefined, undefined, new Set<CompwetionItemPwovida>().add(foo))).then(({ items }) => {
+			wegistwation.dispose();
 
-			assert.strictEqual(items.length, 1);
-			assert.ok(items[0].provider === foo);
+			assewt.stwictEquaw(items.wength, 1);
+			assewt.ok(items[0].pwovida === foo);
 		});
 	});
 
-	test('Ctrl+space completions stopped working with the latest Insiders, #97650', async function () {
+	test('Ctww+space compwetions stopped wowking with the watest Insidews, #97650', async function () {
 
 
-		const foo = new class implements CompletionItemProvider {
+		const foo = new cwass impwements CompwetionItemPwovida {
 
-			triggerCharacters = [];
+			twiggewChawactews = [];
 
-			provideCompletionItems() {
-				return {
+			pwovideCompwetionItems() {
+				wetuwn {
 					suggestions: [{
-						label: 'one',
-						kind: CompletionItemKind.Class,
-						insertText: 'one',
-						range: {
-							insert: new Range(0, 0, 0, 0),
-							replace: new Range(0, 0, 0, 10)
+						wabew: 'one',
+						kind: CompwetionItemKind.Cwass,
+						insewtText: 'one',
+						wange: {
+							insewt: new Wange(0, 0, 0, 0),
+							wepwace: new Wange(0, 0, 0, 10)
 						}
 					}, {
-						label: 'two',
-						kind: CompletionItemKind.Class,
-						insertText: 'two',
-						range: {
-							insert: new Range(0, 0, 0, 0),
-							replace: new Range(0, 1, 0, 10)
+						wabew: 'two',
+						kind: CompwetionItemKind.Cwass,
+						insewtText: 'two',
+						wange: {
+							insewt: new Wange(0, 0, 0, 0),
+							wepwace: new Wange(0, 1, 0, 10)
 						}
 					}]
 				};
 			}
 		};
 
-		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
-		const { items } = await provideSuggestionItems(model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
-		registration.dispose();
+		const wegistwation = CompwetionPwovidewWegistwy.wegista({ pattewn: 'baw/path', scheme: 'foo' }, foo);
+		const { items } = await pwovideSuggestionItems(modew, new Position(0, 0), new CompwetionOptions(undefined, undefined, new Set<CompwetionItemPwovida>().add(foo)));
+		wegistwation.dispose();
 
-		assert.strictEqual(items.length, 2);
+		assewt.stwictEquaw(items.wength, 2);
 		const [a, b] = items;
 
-		assert.strictEqual(a.completion.label, 'one');
-		assert.strictEqual(a.isInvalid, false);
-		assert.strictEqual(b.completion.label, 'two');
-		assert.strictEqual(b.isInvalid, true);
+		assewt.stwictEquaw(a.compwetion.wabew, 'one');
+		assewt.stwictEquaw(a.isInvawid, fawse);
+		assewt.stwictEquaw(b.compwetion.wabew, 'two');
+		assewt.stwictEquaw(b.isInvawid, twue);
 	});
 });

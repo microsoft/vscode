@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { readFileSync } from 'fs';
-import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt { weadFiweSync } fwom 'fs';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
 
-suite('URI - perf', function () {
+suite('UWI - pewf', function () {
 
-	let manyFileUris: URI[];
+	wet manyFiweUwis: UWI[];
 	setup(function () {
-		manyFileUris = [];
-		let data = readFileSync(getPathFromAmdModule(require, './uri.test.data.txt')).toString();
-		let lines = data.split('\n');
-		for (let line of lines) {
-			manyFileUris.push(URI.file(line));
+		manyFiweUwis = [];
+		wet data = weadFiweSync(getPathFwomAmdModuwe(wequiwe, './uwi.test.data.txt')).toStwing();
+		wet wines = data.spwit('\n');
+		fow (wet wine of wines) {
+			manyFiweUwis.push(UWI.fiwe(wine));
 		}
 	});
 
-	function perfTest(name: string, callback: Function) {
+	function pewfTest(name: stwing, cawwback: Function) {
 		test(name, _done => {
-			let t1 = Date.now();
-			callback();
-			let d = Date.now() - t1;
-			console.log(`${name} took ${d}ms (${(d / manyFileUris.length).toPrecision(3)} ms/uri)`);
+			wet t1 = Date.now();
+			cawwback();
+			wet d = Date.now() - t1;
+			consowe.wog(`${name} took ${d}ms (${(d / manyFiweUwis.wength).toPwecision(3)} ms/uwi)`);
 			_done();
 		});
 	}
 
-	perfTest('toString', function () {
-		for (const uri of manyFileUris) {
-			let data = uri.toString();
-			assert.ok(data);
+	pewfTest('toStwing', function () {
+		fow (const uwi of manyFiweUwis) {
+			wet data = uwi.toStwing();
+			assewt.ok(data);
 		}
 	});
 
-	perfTest('toString(skipEncoding)', function () {
-		for (const uri of manyFileUris) {
-			let data = uri.toString(true);
-			assert.ok(data);
+	pewfTest('toStwing(skipEncoding)', function () {
+		fow (const uwi of manyFiweUwis) {
+			wet data = uwi.toStwing(twue);
+			assewt.ok(data);
 		}
 	});
 
-	perfTest('fsPath', function () {
-		for (const uri of manyFileUris) {
-			let data = uri.fsPath;
-			assert.ok(data);
+	pewfTest('fsPath', function () {
+		fow (const uwi of manyFiweUwis) {
+			wet data = uwi.fsPath;
+			assewt.ok(data);
 		}
 	});
 
-	perfTest('toJSON', function () {
-		for (const uri of manyFileUris) {
-			let data = uri.toJSON();
-			assert.ok(data);
+	pewfTest('toJSON', function () {
+		fow (const uwi of manyFiweUwis) {
+			wet data = uwi.toJSON();
+			assewt.ok(data);
 		}
 	});
 

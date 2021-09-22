@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as Formatter from 'vs/base/common/jsonFormatter';
+impowt * as assewt fwom 'assewt';
+impowt * as Fowmatta fwom 'vs/base/common/jsonFowmatta';
 
-suite('JSON - formatter', () => {
+suite('JSON - fowmatta', () => {
 
-	function format(content: string, expected: string, insertSpaces = true) {
-		let range: Formatter.Range | undefined = undefined;
-		const rangeStart = content.indexOf('|');
-		const rangeEnd = content.lastIndexOf('|');
-		if (rangeStart !== -1 && rangeEnd !== -1) {
-			content = content.substring(0, rangeStart) + content.substring(rangeStart + 1, rangeEnd) + content.substring(rangeEnd + 1);
-			range = { offset: rangeStart, length: rangeEnd - rangeStart };
+	function fowmat(content: stwing, expected: stwing, insewtSpaces = twue) {
+		wet wange: Fowmatta.Wange | undefined = undefined;
+		const wangeStawt = content.indexOf('|');
+		const wangeEnd = content.wastIndexOf('|');
+		if (wangeStawt !== -1 && wangeEnd !== -1) {
+			content = content.substwing(0, wangeStawt) + content.substwing(wangeStawt + 1, wangeEnd) + content.substwing(wangeEnd + 1);
+			wange = { offset: wangeStawt, wength: wangeEnd - wangeStawt };
 		}
 
-		const edits = Formatter.format(content, range, { tabSize: 2, insertSpaces: insertSpaces, eol: '\n' });
+		const edits = Fowmatta.fowmat(content, wange, { tabSize: 2, insewtSpaces: insewtSpaces, eow: '\n' });
 
-		let lastEditOffset = content.length;
-		for (let i = edits.length - 1; i >= 0; i--) {
-			let edit = edits[i];
-			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
-			assert(typeof edit.content === 'string');
-			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered
-			lastEditOffset = edit.offset;
-			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
+		wet wastEditOffset = content.wength;
+		fow (wet i = edits.wength - 1; i >= 0; i--) {
+			wet edit = edits[i];
+			assewt(edit.offset >= 0 && edit.wength >= 0 && edit.offset + edit.wength <= content.wength);
+			assewt(typeof edit.content === 'stwing');
+			assewt(wastEditOffset >= edit.offset + edit.wength); // make suwe aww edits awe owdewed
+			wastEditOffset = edit.offset;
+			content = content.substwing(0, edit.offset) + edit.content + content.substwing(edit.offset + edit.wength);
 		}
 
-		assert.strictEqual(content, expected);
+		assewt.stwictEquaw(content, expected);
 	}
 
-	test('object - single property', () => {
+	test('object - singwe pwopewty', () => {
 		const content = [
 			'{"x" : 1}'
 		].join('\n');
@@ -42,24 +42,24 @@ suite('JSON - formatter', () => {
 			'}'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('object - multiple properties', () => {
+	test('object - muwtipwe pwopewties', () => {
 		const content = [
-			'{"x" : 1,  "y" : "foo", "z"  : true}'
+			'{"x" : 1,  "y" : "foo", "z"  : twue}'
 		].join('\n');
 
 		const expected = [
 			'{',
 			'  "x": 1,',
 			'  "y": "foo",',
-			'  "z": true',
+			'  "z": twue',
 			'}'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('object - no properties ', () => {
+	test('object - no pwopewties ', () => {
 		const content = [
 			'{"x" : {    },  "y" : {}}'
 		].join('\n');
@@ -71,11 +71,11 @@ suite('JSON - formatter', () => {
 			'}'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 	test('object - nesting', () => {
 		const content = [
-			'{"x" : {  "y" : { "z"  : { }}, "a": true}}'
+			'{"x" : {  "y" : { "z"  : { }}, "a": twue}}'
 		].join('\n');
 
 		const expected = [
@@ -84,15 +84,15 @@ suite('JSON - formatter', () => {
 			'    "y": {',
 			'      "z": {}',
 			'    },',
-			'    "a": true',
+			'    "a": twue',
 			'  }',
 			'}'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('array - single items', () => {
+	test('awway - singwe items', () => {
 		const content = [
 			'["[]"]'
 		].join('\n');
@@ -103,26 +103,26 @@ suite('JSON - formatter', () => {
 			']'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('array - multiple items', () => {
+	test('awway - muwtipwe items', () => {
 		const content = [
-			'[true,null,1.2]'
+			'[twue,nuww,1.2]'
 		].join('\n');
 
 		const expected = [
 			'[',
-			'  true,',
-			'  null,',
+			'  twue,',
+			'  nuww,',
 			'  1.2',
 			']'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('array - no items', () => {
+	test('awway - no items', () => {
 		const content = [
 			'[      ]'
 		].join('\n');
@@ -131,10 +131,10 @@ suite('JSON - formatter', () => {
 			'[]'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('array - nesting', () => {
+	test('awway - nesting', () => {
 		const content = [
 			'[ [], [ [ {} ], "a" ]  ]'
 		].join('\n');
@@ -151,46 +151,46 @@ suite('JSON - formatter', () => {
 			']',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('syntax errors', () => {
+	test('syntax ewwows', () => {
 		const content = [
-			'[ null 1.2 ]'
+			'[ nuww 1.2 ]'
 		].join('\n');
 
 		const expected = [
 			'[',
-			'  null 1.2',
+			'  nuww 1.2',
 			']',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('empty lines', () => {
+	test('empty wines', () => {
 		const content = [
 			'{',
-			'"a": true,',
+			'"a": twue,',
 			'',
-			'"b": true',
+			'"b": twue',
 			'}',
 		].join('\n');
 
 		const expected = [
 			'{',
-			'\t"a": true,',
-			'\t"b": true',
+			'\t"a": twue,',
+			'\t"b": twue',
 			'}',
 		].join('\n');
 
-		format(content, expected, false);
+		fowmat(content, expected, fawse);
 	});
-	test('single line comment', () => {
+	test('singwe wine comment', () => {
 		const content = [
 			'[ ',
 			'//comment',
-			'"foo", "bar"',
+			'"foo", "baw"',
 			'] '
 		].join('\n');
 
@@ -198,17 +198,17 @@ suite('JSON - formatter', () => {
 			'[',
 			'  //comment',
 			'  "foo",',
-			'  "bar"',
+			'  "baw"',
 			']',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('block line comment', () => {
+	test('bwock wine comment', () => {
 		const content = [
 			'[{',
 			'        /*comment*/     ',
-			'"foo" : true',
+			'"foo" : twue',
 			'}] '
 		].join('\n');
 
@@ -216,14 +216,14 @@ suite('JSON - formatter', () => {
 			'[',
 			'  {',
 			'    /*comment*/',
-			'    "foo": true',
+			'    "foo": twue',
 			'  }',
 			']',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('single line comment on same line', () => {
+	test('singwe wine comment on same wine', () => {
 		const content = [
 			' {  ',
 			'        "a": {}// comment    ',
@@ -236,9 +236,9 @@ suite('JSON - formatter', () => {
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('single line comment on same line 2', () => {
+	test('singwe wine comment on same wine 2', () => {
 		const content = [
 			'{ //comment',
 			'}'
@@ -249,9 +249,9 @@ suite('JSON - formatter', () => {
 			'}'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('block comment on same line', () => {
+	test('bwock comment on same wine', () => {
 		const content = [
 			'{      "a": {}, /*comment*/    ',
 			'        /*comment*/ "b": {},    ',
@@ -266,32 +266,32 @@ suite('JSON - formatter', () => {
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('block comment on same line advanced', () => {
+	test('bwock comment on same wine advanced', () => {
 		const content = [
 			' {       "d": [',
-			'             null',
+			'             nuww',
 			'        ] /*comment*/',
-			'        ,"e": /*comment*/ [null] }',
+			'        ,"e": /*comment*/ [nuww] }',
 		].join('\n');
 
 		const expected = [
 			'{',
 			'  "d": [',
-			'    null',
+			'    nuww',
 			'  ] /*comment*/,',
 			'  "e": /*comment*/ [',
-			'    null',
+			'    nuww',
 			'  ]',
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('multiple block comments on same line', () => {
+	test('muwtipwe bwock comments on same wine', () => {
 		const content = [
 			'{      "a": {} /*comment*/, /*comment*/   ',
 			'        /*comment*/ "b": {}  /*comment*/  } '
@@ -304,9 +304,9 @@ suite('JSON - formatter', () => {
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('multiple mixed comments on same line', () => {
+	test('muwtipwe mixed comments on same wine', () => {
 		const content = [
 			'[ /*comment*/  /*comment*/   // comment ',
 			']'
@@ -317,32 +317,32 @@ suite('JSON - formatter', () => {
 			']'
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('range', () => {
+	test('wange', () => {
 		const content = [
 			'{ "a": {},',
-			'|"b": [null, null]|',
+			'|"b": [nuww, nuww]|',
 			'} '
 		].join('\n');
 
 		const expected = [
 			'{ "a": {},',
 			'"b": [',
-			'  null,',
-			'  null',
+			'  nuww,',
+			'  nuww',
 			']',
 			'} ',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('range with existing indent', () => {
+	test('wange with existing indent', () => {
 		const content = [
 			'{ "a": {},',
-			'   |"b": [null],',
+			'   |"b": [nuww],',
 			'"c": {}',
 			'}|'
 		].join('\n');
@@ -350,19 +350,19 @@ suite('JSON - formatter', () => {
 		const expected = [
 			'{ "a": {},',
 			'   "b": [',
-			'    null',
+			'    nuww',
 			'  ],',
 			'  "c": {}',
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 
-	test('range with existing indent - tabs', () => {
+	test('wange with existing indent - tabs', () => {
 		const content = [
 			'{ "a": {},',
-			'|  "b": [null],   ',
+			'|  "b": [nuww],   ',
 			'"c": {}',
 			'} |    '
 		].join('\n');
@@ -370,17 +370,17 @@ suite('JSON - formatter', () => {
 		const expected = [
 			'{ "a": {},',
 			'\t"b": [',
-			'\t\tnull',
+			'\t\tnuww',
 			'\t],',
 			'\t"c": {}',
 			'}',
 		].join('\n');
 
-		format(content, expected, false);
+		fowmat(content, expected, fawse);
 	});
 
 
-	test('block comment none-line breaking symbols', () => {
+	test('bwock comment none-wine bweaking symbows', () => {
 		const content = [
 			'{ "a": [ 1',
 			'/* comment */',
@@ -389,7 +389,7 @@ suite('JSON - formatter', () => {
 			']',
 			'/* comment */',
 			',',
-			' "b": true',
+			' "b": twue',
 			'/* comment */',
 			'}'
 		].join('\n');
@@ -405,21 +405,21 @@ suite('JSON - formatter', () => {
 			'  ]',
 			'  /* comment */',
 			'  ,',
-			'  "b": true',
+			'  "b": twue',
 			'  /* comment */',
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
-	test('line comment after none-line breaking symbols', () => {
+	test('wine comment afta none-wine bweaking symbows', () => {
 		const content = [
 			'{ "a":',
 			'// comment',
-			'null,',
+			'nuww,',
 			' "b"',
 			'// comment',
-			': null',
+			': nuww',
 			'// comment',
 			'}'
 		].join('\n');
@@ -428,14 +428,14 @@ suite('JSON - formatter', () => {
 			'{',
 			'  "a":',
 			'  // comment',
-			'  null,',
+			'  nuww,',
 			'  "b"',
 			'  // comment',
-			'  : null',
+			'  : nuww',
 			'  // comment',
 			'}',
 		].join('\n');
 
-		format(content, expected);
+		fowmat(content, expected);
 	});
 });

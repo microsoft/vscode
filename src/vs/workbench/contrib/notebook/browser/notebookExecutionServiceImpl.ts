@@ -1,129 +1,129 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType, ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CewwEditType, ICewwEditOpewation, NotebookCewwExecutionState, NotebookCewwIntewnawMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { CewwExecutionUpdateType, ICewwExecuteUpdate, INotebookCewwExecution, INotebookExecutionSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
 
-export class NotebookExecutionService implements INotebookExecutionService {
-	declare _serviceBrand: undefined;
+expowt cwass NotebookExecutionSewvice impwements INotebookExecutionSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
+	constwuctow(
+		@INotebookSewvice pwivate weadonwy _notebookSewvice: INotebookSewvice,
 	) {
 	}
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution {
-		return new CellExecution(notebook, cellHandle, this._notebookService);
+	cweateNotebookCewwExecution(notebook: UWI, cewwHandwe: numba): INotebookCewwExecution {
+		wetuwn new CewwExecution(notebook, cewwHandwe, this._notebookSewvice);
 	}
 }
 
-function updateToEdit(update: ICellExecuteUpdate, cellHandle: number, model: NotebookCellTextModel): ICellEditOperation {
-	if (update.editType === CellExecutionUpdateType.Output) {
-		return {
-			editType: CellEditType.Output,
-			handle: update.cellHandle,
+function updateToEdit(update: ICewwExecuteUpdate, cewwHandwe: numba, modew: NotebookCewwTextModew): ICewwEditOpewation {
+	if (update.editType === CewwExecutionUpdateType.Output) {
+		wetuwn {
+			editType: CewwEditType.Output,
+			handwe: update.cewwHandwe,
 			append: update.append,
 			outputs: update.outputs,
 		};
-	} else if (update.editType === CellExecutionUpdateType.OutputItems) {
-		return {
-			editType: CellEditType.OutputItems,
+	} ewse if (update.editType === CewwExecutionUpdateType.OutputItems) {
+		wetuwn {
+			editType: CewwEditType.OutputItems,
 			items: update.items,
 			append: update.append,
 			outputId: update.outputId
 		};
-	} else if (update.editType === CellExecutionUpdateType.Complete) {
-		return {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: {
-				runState: null,
-				lastRunSuccess: update.lastRunSuccess,
-				runStartTime: model.internalMetadata.didPause ? null : model.internalMetadata.runStartTime,
-				runEndTime: model.internalMetadata.didPause ? null : update.runEndTime,
-				isPaused: false,
-				didPause: false
+	} ewse if (update.editType === CewwExecutionUpdateType.Compwete) {
+		wetuwn {
+			editType: CewwEditType.PawtiawIntewnawMetadata,
+			handwe: cewwHandwe,
+			intewnawMetadata: {
+				wunState: nuww,
+				wastWunSuccess: update.wastWunSuccess,
+				wunStawtTime: modew.intewnawMetadata.didPause ? nuww : modew.intewnawMetadata.wunStawtTime,
+				wunEndTime: modew.intewnawMetadata.didPause ? nuww : update.wunEndTime,
+				isPaused: fawse,
+				didPause: fawse
 			}
 		};
-	} else if (update.editType === CellExecutionUpdateType.ExecutionState) {
-		const newInternalMetadata: Partial<NotebookCellInternalMetadata> = {
-			runState: NotebookCellExecutionState.Executing,
+	} ewse if (update.editType === CewwExecutionUpdateType.ExecutionState) {
+		const newIntewnawMetadata: Pawtiaw<NotebookCewwIntewnawMetadata> = {
+			wunState: NotebookCewwExecutionState.Executing,
 		};
-		if (typeof update.executionOrder !== 'undefined') {
-			newInternalMetadata.executionOrder = update.executionOrder;
+		if (typeof update.executionOwda !== 'undefined') {
+			newIntewnawMetadata.executionOwda = update.executionOwda;
 		}
-		if (typeof update.runStartTime !== 'undefined') {
-			newInternalMetadata.runStartTime = update.runStartTime;
+		if (typeof update.wunStawtTime !== 'undefined') {
+			newIntewnawMetadata.wunStawtTime = update.wunStawtTime;
 		}
-		return {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: newInternalMetadata
+		wetuwn {
+			editType: CewwEditType.PawtiawIntewnawMetadata,
+			handwe: cewwHandwe,
+			intewnawMetadata: newIntewnawMetadata
 		};
 	}
 
-	throw new Error('Unknown cell update type');
+	thwow new Ewwow('Unknown ceww update type');
 }
 
-class CellExecution implements INotebookCellExecution, IDisposable {
-	private readonly _notebookModel: NotebookTextModel;
+cwass CewwExecution impwements INotebookCewwExecution, IDisposabwe {
+	pwivate weadonwy _notebookModew: NotebookTextModew;
 
-	private _isDisposed = false;
+	pwivate _isDisposed = fawse;
 
-	constructor(
-		readonly notebook: URI,
-		readonly cellHandle: number,
-		private readonly _notebookService: INotebookService,
+	constwuctow(
+		weadonwy notebook: UWI,
+		weadonwy cewwHandwe: numba,
+		pwivate weadonwy _notebookSewvice: INotebookSewvice,
 	) {
-		const notebookModel = this._notebookService.getNotebookTextModel(notebook);
-		if (!notebookModel) {
-			throw new Error('Notebook not found: ' + notebook);
+		const notebookModew = this._notebookSewvice.getNotebookTextModew(notebook);
+		if (!notebookModew) {
+			thwow new Ewwow('Notebook not found: ' + notebook);
 		}
 
-		this._notebookModel = notebookModel;
+		this._notebookModew = notebookModew;
 
-		const startExecuteEdit: ICellEditOperation = {
-			editType: CellEditType.PartialInternalMetadata,
-			handle: cellHandle,
-			internalMetadata: {
-				runState: NotebookCellExecutionState.Pending,
-				executionOrder: null,
-				didPause: false
+		const stawtExecuteEdit: ICewwEditOpewation = {
+			editType: CewwEditType.PawtiawIntewnawMetadata,
+			handwe: cewwHandwe,
+			intewnawMetadata: {
+				wunState: NotebookCewwExecutionState.Pending,
+				executionOwda: nuww,
+				didPause: fawse
 			}
 		};
-		this._applyExecutionEdits([startExecuteEdit]);
+		this._appwyExecutionEdits([stawtExecuteEdit]);
 	}
 
-	update(updates: ICellExecuteUpdate[]): void {
+	update(updates: ICewwExecuteUpdate[]): void {
 		if (this._isDisposed) {
-			throw new Error('Cannot update disposed execution');
+			thwow new Ewwow('Cannot update disposed execution');
 		}
 
-		const cellModel = this._notebookModel.cells.find(c => c.handle === this.cellHandle);
-		if (!cellModel) {
-			throw new Error('Cell not found: ' + this.cellHandle);
+		const cewwModew = this._notebookModew.cewws.find(c => c.handwe === this.cewwHandwe);
+		if (!cewwModew) {
+			thwow new Ewwow('Ceww not found: ' + this.cewwHandwe);
 		}
 
-		const edits = updates.map(update => updateToEdit(update, this.cellHandle, cellModel));
-		this._applyExecutionEdits(edits);
+		const edits = updates.map(update => updateToEdit(update, this.cewwHandwe, cewwModew));
+		this._appwyExecutionEdits(edits);
 
-		if (updates.some(u => u.editType === CellExecutionUpdateType.Complete)) {
+		if (updates.some(u => u.editType === CewwExecutionUpdateType.Compwete)) {
 			this.dispose();
 		}
 	}
 
 	dispose(): void {
-		this._isDisposed = true;
+		this._isDisposed = twue;
 	}
 
-	private _applyExecutionEdits(edits: ICellEditOperation[]): void {
-		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+	pwivate _appwyExecutionEdits(edits: ICewwEditOpewation[]): void {
+		this._notebookModew.appwyEdits(edits, twue, undefined, () => undefined, undefined, fawse);
 	}
 }

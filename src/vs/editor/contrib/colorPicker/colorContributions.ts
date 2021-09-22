@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// import color detector contribution
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import 'vs/editor/contrib/colorPicker/colorDetector';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+// impowt cowow detectow contwibution
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt 'vs/editow/contwib/cowowPicka/cowowDetectow';
+impowt { ModesHovewContwowwa } fwom 'vs/editow/contwib/hova/hova';
+impowt { HovewStawtMode } fwom 'vs/editow/contwib/hova/hovewOpewation';
 
 
-export class ColorContribution extends Disposable implements IEditorContribution {
+expowt cwass CowowContwibution extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID: string = 'editor.contrib.colorContribution';
+	pubwic static weadonwy ID: stwing = 'editow.contwib.cowowContwibution';
 
-	static readonly RECOMPUTE_TIME = 1000; // ms
+	static weadonwy WECOMPUTE_TIME = 1000; // ms
 
-	constructor(private readonly _editor: ICodeEditor,
+	constwuctow(pwivate weadonwy _editow: ICodeEditow,
 	) {
-		super();
-		this._register(_editor.onMouseDown((e) => this.onMouseDown(e)));
+		supa();
+		this._wegista(_editow.onMouseDown((e) => this.onMouseDown(e)));
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 	}
 
-	private onMouseDown(mouseEvent: IEditorMouseEvent) {
-		const targetType = mouseEvent.target.type;
+	pwivate onMouseDown(mouseEvent: IEditowMouseEvent) {
+		const tawgetType = mouseEvent.tawget.type;
 
-		if (targetType !== MouseTargetType.CONTENT_TEXT) {
-			return;
+		if (tawgetType !== MouseTawgetType.CONTENT_TEXT) {
+			wetuwn;
 		}
 
-		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'));
-		if (!hoverOnColorDecorator) {
-			return;
+		const hovewOnCowowDecowatow = [...mouseEvent.tawget.ewement?.cwassWist.vawues() || []].find(cwassName => cwassName.stawtsWith('ced-cowowBox'));
+		if (!hovewOnCowowDecowatow) {
+			wetuwn;
 		}
 
-		if (!mouseEvent.target.range) {
-			return;
+		if (!mouseEvent.tawget.wange) {
+			wetuwn;
 		}
 
-		const hoverController = this._editor.getContribution<ModesHoverController>(ModesHoverController.ID);
-		if (!hoverController.isColorPickerVisible()) {
-			const range = new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Delayed, false);
+		const hovewContwowwa = this._editow.getContwibution<ModesHovewContwowwa>(ModesHovewContwowwa.ID);
+		if (!hovewContwowwa.isCowowPickewVisibwe()) {
+			const wange = new Wange(mouseEvent.tawget.wange.stawtWineNumba, mouseEvent.tawget.wange.stawtCowumn + 1, mouseEvent.tawget.wange.endWineNumba, mouseEvent.tawget.wange.endCowumn + 1);
+			hovewContwowwa.showContentHova(wange, HovewStawtMode.Dewayed, fawse);
 		}
 	}
 }
 
-registerEditorContribution(ColorContribution.ID, ColorContribution);
+wegistewEditowContwibution(CowowContwibution.ID, CowowContwibution);

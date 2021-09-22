@@ -1,38 +1,38 @@
 @echo off
-setlocal
+setwocaw
 
-title VSCode Dev
+titwe VSCode Dev
 
 pushd %~dp0\..
 
-:: Get electron, compile, built-in extensions
-if "%VSCODE_SKIP_PRELAUNCH%"=="" node build/lib/preLaunch.js
+:: Get ewectwon, compiwe, buiwt-in extensions
+if "%VSCODE_SKIP_PWEWAUNCH%"=="" node buiwd/wib/pweWaunch.js
 
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"nameShort\":.*" product.json') do set NAMESHORT=%%~a
-set NAMESHORT=%NAMESHORT: "=%
-set NAMESHORT=%NAMESHORT:"=%.exe
-set CODE=".build\electron\%NAMESHORT%"
+fow /f "tokens=2 dewims=:," %%a in ('findstw /W /C:"\"nameShowt\":.*" pwoduct.json') do set NAMESHOWT=%%~a
+set NAMESHOWT=%NAMESHOWT: "=%
+set NAMESHOWT=%NAMESHOWT:"=%.exe
+set CODE=".buiwd\ewectwon\%NAMESHOWT%"
 
-:: Manage built-in extensions
-if "%~1"=="--builtin" goto builtin
+:: Manage buiwt-in extensions
+if "%~1"=="--buiwtin" goto buiwtin
 
-:: Configuration
-set NODE_ENV=development
+:: Configuwation
+set NODE_ENV=devewopment
 set VSCODE_DEV=1
-set VSCODE_CLI=1
-set ELECTRON_ENABLE_LOGGING=1
-set ELECTRON_ENABLE_STACK_DUMPING=1
+set VSCODE_CWI=1
+set EWECTWON_ENABWE_WOGGING=1
+set EWECTWON_ENABWE_STACK_DUMPING=1
 
-:: Launch Code
+:: Waunch Code
 
 %CODE% . %*
 goto end
 
-:builtin
-%CODE% build/builtin
+:buiwtin
+%CODE% buiwd/buiwtin
 
 :end
 
 popd
 
-endlocal
+endwocaw

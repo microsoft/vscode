@@ -1,315 +1,315 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, TerminalShellType, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { sewiawizeEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweShawed';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { SideBySideEditow, EditowWesouwceAccessow } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IEnviwonmentVawiabweSewvice, ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { IPwocessDataEvent, IWequestWesowveVawiabwesEvent, IShewwWaunchConfig, IShewwWaunchConfigDto, ITewminawDimensionsOvewwide, ITewminawEnviwonment, ITewminawWaunchEwwow, ITewminawPwofiwe, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TewminawIcon, IPwocessPwopewty, TewminawShewwType, PwocessPwopewtyType, PwocessCapabiwity } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IGetTewminawWayoutInfoAwgs, IPwocessDetaiws, IPtyHostPwocessWepwayEvent, ISetTewminawWayoutInfoAwgs } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { IPwocessEnviwonment, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
 
-export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
+expowt const WEMOTE_TEWMINAW_CHANNEW_NAME = 'wemotetewminaw';
 
-export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': string;
-	'terminal.integrated.automationShell.osx': string;
-	'terminal.integrated.automationShell.linux': string;
-	'terminal.integrated.shell.windows': string;
-	'terminal.integrated.shell.osx': string;
-	'terminal.integrated.shell.linux': string;
-	'terminal.integrated.shellArgs.windows': string | string[];
-	'terminal.integrated.shellArgs.osx': string | string[];
-	'terminal.integrated.shellArgs.linux': string | string[];
-	'terminal.integrated.env.windows': ITerminalEnvironment;
-	'terminal.integrated.env.osx': ITerminalEnvironment;
-	'terminal.integrated.env.linux': ITerminalEnvironment;
-	'terminal.integrated.cwd': string;
-	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+expowt intewface ICompweteTewminawConfiguwation {
+	'tewminaw.integwated.automationSheww.windows': stwing;
+	'tewminaw.integwated.automationSheww.osx': stwing;
+	'tewminaw.integwated.automationSheww.winux': stwing;
+	'tewminaw.integwated.sheww.windows': stwing;
+	'tewminaw.integwated.sheww.osx': stwing;
+	'tewminaw.integwated.sheww.winux': stwing;
+	'tewminaw.integwated.shewwAwgs.windows': stwing | stwing[];
+	'tewminaw.integwated.shewwAwgs.osx': stwing | stwing[];
+	'tewminaw.integwated.shewwAwgs.winux': stwing | stwing[];
+	'tewminaw.integwated.env.windows': ITewminawEnviwonment;
+	'tewminaw.integwated.env.osx': ITewminawEnviwonment;
+	'tewminaw.integwated.env.winux': ITewminawEnviwonment;
+	'tewminaw.integwated.cwd': stwing;
+	'tewminaw.integwated.detectWocawe': 'auto' | 'off' | 'on';
 }
 
-export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
+expowt type ITewminawEnviwonmentVawiabweCowwections = [stwing, ISewiawizabweEnviwonmentVawiabweCowwection][];
 
-export interface IWorkspaceFolderData {
-	uri: UriComponents;
-	name: string;
-	index: number;
+expowt intewface IWowkspaceFowdewData {
+	uwi: UwiComponents;
+	name: stwing;
+	index: numba;
 }
 
-export interface ICreateTerminalProcessArguments {
-	configuration: ICompleteTerminalConfiguration;
-	resolvedVariables: { [name: string]: string; };
-	envVariableCollections: ITerminalEnvironmentVariableCollections;
-	shellLaunchConfig: IShellLaunchConfigDto;
-	workspaceId: string;
-	workspaceName: string;
-	workspaceFolders: IWorkspaceFolderData[];
-	activeWorkspaceFolder: IWorkspaceFolderData | null;
-	activeFileResource: UriComponents | undefined;
-	shouldPersistTerminal: boolean;
-	cols: number;
-	rows: number;
-	unicodeVersion: '6' | '11';
-	resolverEnv: { [key: string]: string | null; } | undefined
+expowt intewface ICweateTewminawPwocessAwguments {
+	configuwation: ICompweteTewminawConfiguwation;
+	wesowvedVawiabwes: { [name: stwing]: stwing; };
+	envVawiabweCowwections: ITewminawEnviwonmentVawiabweCowwections;
+	shewwWaunchConfig: IShewwWaunchConfigDto;
+	wowkspaceId: stwing;
+	wowkspaceName: stwing;
+	wowkspaceFowdews: IWowkspaceFowdewData[];
+	activeWowkspaceFowda: IWowkspaceFowdewData | nuww;
+	activeFiweWesouwce: UwiComponents | undefined;
+	shouwdPewsistTewminaw: boowean;
+	cows: numba;
+	wows: numba;
+	unicodeVewsion: '6' | '11';
+	wesowvewEnv: { [key: stwing]: stwing | nuww; } | undefined
 }
 
-export interface ICreateTerminalProcessResult {
-	persistentTerminalId: number;
-	resolvedShellLaunchConfig: IShellLaunchConfigDto;
+expowt intewface ICweateTewminawPwocessWesuwt {
+	pewsistentTewminawId: numba;
+	wesowvedShewwWaunchConfig: IShewwWaunchConfigDto;
 }
 
-export class RemoteTerminalChannelClient {
+expowt cwass WemoteTewminawChannewCwient {
 
 	get onPtyHostExit(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostExitEvent');
+		wetuwn this._channew.wisten<void>('$onPtyHostExitEvent');
 	}
-	get onPtyHostStart(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostStartEvent');
+	get onPtyHostStawt(): Event<void> {
+		wetuwn this._channew.wisten<void>('$onPtyHostStawtEvent');
 	}
-	get onPtyHostUnresponsive(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostUnresponsiveEvent');
+	get onPtyHostUnwesponsive(): Event<void> {
+		wetuwn this._channew.wisten<void>('$onPtyHostUnwesponsiveEvent');
 	}
-	get onPtyHostResponsive(): Event<void> {
-		return this._channel.listen<void>('$onPtyHostResponsiveEvent');
+	get onPtyHostWesponsive(): Event<void> {
+		wetuwn this._channew.wisten<void>('$onPtyHostWesponsiveEvent');
 	}
-	get onPtyHostRequestResolveVariables(): Event<IRequestResolveVariablesEvent> {
-		return this._channel.listen<IRequestResolveVariablesEvent>('$onPtyHostRequestResolveVariablesEvent');
+	get onPtyHostWequestWesowveVawiabwes(): Event<IWequestWesowveVawiabwesEvent> {
+		wetuwn this._channew.wisten<IWequestWesowveVawiabwesEvent>('$onPtyHostWequestWesowveVawiabwesEvent');
 	}
-	get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
-		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	get onPwocessData(): Event<{ id: numba, event: IPwocessDataEvent | stwing }> {
+		wetuwn this._channew.wisten<{ id: numba, event: IPwocessDataEvent | stwing }>('$onPwocessDataEvent');
 	}
-	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
-		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
+	get onPwocessExit(): Event<{ id: numba, event: numba | undefined }> {
+		wetuwn this._channew.wisten<{ id: numba, event: numba | undefined }>('$onPwocessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onPwocessWeady(): Event<{ id: numba, event: { pid: numba, cwd: stwing, capabiwities: PwocessCapabiwity[], wequiweWindowsMode?: boowean } }> {
+		wetuwn this._channew.wisten<{ id: numba, event: { pid: numba, cwd: stwing, capabiwities: PwocessCapabiwity[], wequiwesWindowsMode?: boowean } }>('$onPwocessWeadyEvent');
 	}
-	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
-		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
+	get onPwocessWepway(): Event<{ id: numba, event: IPtyHostPwocessWepwayEvent }> {
+		wetuwn this._channew.wisten<{ id: numba, event: IPtyHostPwocessWepwayEvent }>('$onPwocessWepwayEvent');
 	}
-	get onProcessTitleChanged(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
+	get onPwocessTitweChanged(): Event<{ id: numba, event: stwing }> {
+		wetuwn this._channew.wisten<{ id: numba, event: stwing }>('$onPwocessTitweChangedEvent');
 	}
-	get onProcessShellTypeChanged(): Event<{ id: number, event: TerminalShellType | undefined }> {
-		return this._channel.listen<{ id: number, event: TerminalShellType | undefined }>('$onProcessShellTypeChangedEvent');
+	get onPwocessShewwTypeChanged(): Event<{ id: numba, event: TewminawShewwType | undefined }> {
+		wetuwn this._channew.wisten<{ id: numba, event: TewminawShewwType | undefined }>('$onPwocessShewwTypeChangedEvent');
 	}
-	get onProcessOverrideDimensions(): Event<{ id: number, event: ITerminalDimensionsOverride | undefined }> {
-		return this._channel.listen<{ id: number, event: ITerminalDimensionsOverride | undefined }>('$onProcessOverrideDimensionsEvent');
+	get onPwocessOvewwideDimensions(): Event<{ id: numba, event: ITewminawDimensionsOvewwide | undefined }> {
+		wetuwn this._channew.wisten<{ id: numba, event: ITewminawDimensionsOvewwide | undefined }>('$onPwocessOvewwideDimensionsEvent');
 	}
-	get onProcessResolvedShellLaunchConfig(): Event<{ id: number, event: IShellLaunchConfig }> {
-		return this._channel.listen<{ id: number, event: IShellLaunchConfig }>('$onProcessResolvedShellLaunchConfigEvent');
+	get onPwocessWesowvedShewwWaunchConfig(): Event<{ id: numba, event: IShewwWaunchConfig }> {
+		wetuwn this._channew.wisten<{ id: numba, event: IShewwWaunchConfig }>('$onPwocessWesowvedShewwWaunchConfigEvent');
 	}
-	get onProcessOrphanQuestion(): Event<{ id: number }> {
-		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
+	get onPwocessOwphanQuestion(): Event<{ id: numba }> {
+		wetuwn this._channew.wisten<{ id: numba }>('$onPwocessOwphanQuestion');
 	}
-	get onProcessDidChangeHasChildProcesses(): Event<{ id: number, event: boolean }> {
-		return this._channel.listen<{ id: number, event: boolean }>('$onProcessDidChangeHasChildProcesses');
+	get onPwocessDidChangeHasChiwdPwocesses(): Event<{ id: numba, event: boowean }> {
+		wetuwn this._channew.wisten<{ id: numba, event: boowean }>('$onPwocessDidChangeHasChiwdPwocesses');
 	}
-	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ weqId: numba, commandId: stwing, commandAwgs: any[] }> {
+		wetuwn this._channew.wisten<{ weqId: numba, commandId: stwing, commandAwgs: any[] }>('$onExecuteCommand');
 	}
-	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
-		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
+	get onDidWequestDetach(): Event<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }> {
+		wetuwn this._channew.wisten<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>('$onDidWequestDetach');
 	}
-	get onDidChangeProperty(): Event<{ id: number, property: IProcessProperty<any> }> {
-		return this._channel.listen<{ id: number, property: IProcessProperty<any> }>('$onDidChangeProperty');
+	get onDidChangePwopewty(): Event<{ id: numba, pwopewty: IPwocessPwopewty<any> }> {
+		wetuwn this._channew.wisten<{ id: numba, pwopewty: IPwocessPwopewty<any> }>('$onDidChangePwopewty');
 	}
 
-	constructor(
-		private readonly _remoteAuthority: string,
-		private readonly _channel: IChannel,
-		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationResolverService private readonly _resolverService: IConfigurationResolverService,
-		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@ILogService private readonly _logService: ILogService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILabelService private readonly _labelService: ILabelService,
+	constwuctow(
+		pwivate weadonwy _wemoteAuthowity: stwing,
+		pwivate weadonwy _channew: IChannew,
+		@IWowkbenchConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IWowkbenchConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationWesowvewSewvice pwivate weadonwy _wesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IEnviwonmentVawiabweSewvice pwivate weadonwy _enviwonmentVawiabweSewvice: IEnviwonmentVawiabweSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy _wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
 	) { }
 
-	restartPtyHost(): Promise<void> {
-		return this._channel.call('$restartPtyHost', []);
+	westawtPtyHost(): Pwomise<void> {
+		wetuwn this._channew.caww('$westawtPtyHost', []);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, unicodeVersion: '6' | '11'): Promise<ICreateTerminalProcessResult> {
-		// Be sure to first wait for the remote configuration
-		await this._configurationService.whenRemoteConfigurationLoaded();
+	async cweatePwocess(shewwWaunchConfig: IShewwWaunchConfigDto, configuwation: ICompweteTewminawConfiguwation, activeWowkspaceWootUwi: UWI | undefined, shouwdPewsistTewminaw: boowean, cows: numba, wows: numba, unicodeVewsion: '6' | '11'): Pwomise<ICweateTewminawPwocessWesuwt> {
+		// Be suwe to fiwst wait fow the wemote configuwation
+		await this._configuwationSewvice.whenWemoteConfiguwationWoaded();
 
-		// We will use the resolver service to resolve all the variables in the config / launch config
-		// But then we will keep only some variables, since the rest need to be resolved on the remote side
-		const resolvedVariables = Object.create(null);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		let allResolvedVariables: Map<string, string> | undefined = undefined;
-		try {
-			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
-				shellLaunchConfig,
-				configuration
-			})).resolvedVariables;
-		} catch (err) {
-			this._logService.error(err);
+		// We wiww use the wesowva sewvice to wesowve aww the vawiabwes in the config / waunch config
+		// But then we wiww keep onwy some vawiabwes, since the west need to be wesowved on the wemote side
+		const wesowvedVawiabwes = Object.cweate(nuww);
+		const wastActiveWowkspace = activeWowkspaceWootUwi ? withNuwwAsUndefined(this._wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi)) : undefined;
+		wet awwWesowvedVawiabwes: Map<stwing, stwing> | undefined = undefined;
+		twy {
+			awwWesowvedVawiabwes = (await this._wesowvewSewvice.wesowveAnyMap(wastActiveWowkspace, {
+				shewwWaunchConfig,
+				configuwation
+			})).wesowvedVawiabwes;
+		} catch (eww) {
+			this._wogSewvice.ewwow(eww);
 		}
-		if (allResolvedVariables) {
-			for (const [name, value] of allResolvedVariables.entries()) {
-				if (/^config:/.test(name) || name === 'selectedText' || name === 'lineNumber') {
-					resolvedVariables[name] = value;
+		if (awwWesowvedVawiabwes) {
+			fow (const [name, vawue] of awwWesowvedVawiabwes.entwies()) {
+				if (/^config:/.test(name) || name === 'sewectedText' || name === 'wineNumba') {
+					wesowvedVawiabwes[name] = vawue;
 				}
 			}
 		}
 
-		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
-		for (const [k, v] of this._environmentVariableService.collections.entries()) {
-			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map)]);
+		const envVawiabweCowwections: ITewminawEnviwonmentVawiabweCowwections = [];
+		fow (const [k, v] of this._enviwonmentVawiabweSewvice.cowwections.entwies()) {
+			envVawiabweCowwections.push([k, sewiawizeEnviwonmentVawiabweCowwection(v.map)]);
 		}
 
-		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);
-		const resolverEnv = resolverResult.options && resolverResult.options.extensionHostEnv;
+		const wesowvewWesuwt = await this._wemoteAuthowityWesowvewSewvice.wesowveAuthowity(this._wemoteAuthowity);
+		const wesowvewEnv = wesowvewWesuwt.options && wesowvewWesuwt.options.extensionHostEnv;
 
-		const workspace = this._workspaceContextService.getWorkspace();
-		const workspaceFolders = workspace.folders;
-		const activeWorkspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : null;
+		const wowkspace = this._wowkspaceContextSewvice.getWowkspace();
+		const wowkspaceFowdews = wowkspace.fowdews;
+		const activeWowkspaceFowda = activeWowkspaceWootUwi ? this._wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi) : nuww;
 
-		const activeFileResource = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor, {
-			supportSideBySide: SideBySideEditor.PRIMARY,
-			filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+		const activeFiweWesouwce = EditowWesouwceAccessow.getOwiginawUwi(this._editowSewvice.activeEditow, {
+			suppowtSideBySide: SideBySideEditow.PWIMAWY,
+			fiwtewByScheme: [Schemas.fiwe, Schemas.usewData, Schemas.vscodeWemote]
 		});
 
-		const args: ICreateTerminalProcessArguments = {
-			configuration,
-			resolvedVariables,
-			envVariableCollections,
-			shellLaunchConfig,
-			workspaceId: workspace.id,
-			workspaceName: this._labelService.getWorkspaceLabel(workspace),
-			workspaceFolders,
-			activeWorkspaceFolder,
-			activeFileResource,
-			shouldPersistTerminal,
-			cols,
-			rows,
-			unicodeVersion,
-			resolverEnv
+		const awgs: ICweateTewminawPwocessAwguments = {
+			configuwation,
+			wesowvedVawiabwes,
+			envVawiabweCowwections,
+			shewwWaunchConfig,
+			wowkspaceId: wowkspace.id,
+			wowkspaceName: this._wabewSewvice.getWowkspaceWabew(wowkspace),
+			wowkspaceFowdews,
+			activeWowkspaceFowda,
+			activeFiweWesouwce,
+			shouwdPewsistTewminaw,
+			cows,
+			wows,
+			unicodeVewsion,
+			wesowvewEnv
 		};
-		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
+		wetuwn await this._channew.caww<ICweateTewminawPwocessWesuwt>('$cweatePwocess', awgs);
 	}
 
-	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		return this._channel.call('$requestDetachInstance', [workspaceId, instanceId]);
+	wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined> {
+		wetuwn this._channew.caww('$wequestDetachInstance', [wowkspaceId, instanceId]);
 	}
-	acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
-		return this._channel.call('$acceptDetachInstanceReply', [requestId, persistentProcessId]);
+	acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$acceptDetachInstanceWepwy', [wequestId, pewsistentPwocessId]);
 	}
-	attachToProcess(id: number): Promise<void> {
-		return this._channel.call('$attachToProcess', [id]);
+	attachToPwocess(id: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$attachToPwocess', [id]);
 	}
-	detachFromProcess(id: number): Promise<void> {
-		return this._channel.call('$detachFromProcess', [id]);
+	detachFwomPwocess(id: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$detachFwomPwocess', [id]);
 	}
-	listProcesses(): Promise<IProcessDetails[]> {
-		return this._channel.call('$listProcesses');
+	wistPwocesses(): Pwomise<IPwocessDetaiws[]> {
+		wetuwn this._channew.caww('$wistPwocesses');
 	}
-	reduceConnectionGraceTime(): Promise<void> {
-		return this._channel.call('$reduceConnectionGraceTime');
+	weduceConnectionGwaceTime(): Pwomise<void> {
+		wetuwn this._channew.caww('$weduceConnectionGwaceTime');
 	}
-	processBinary(id: number, data: string): Promise<void> {
-		return this._channel.call('$processBinary', [id, data]);
+	pwocessBinawy(id: numba, data: stwing): Pwomise<void> {
+		wetuwn this._channew.caww('$pwocessBinawy', [id, data]);
 	}
-	start(id: number): Promise<ITerminalLaunchError | void> {
-		return this._channel.call('$start', [id]);
+	stawt(id: numba): Pwomise<ITewminawWaunchEwwow | void> {
+		wetuwn this._channew.caww('$stawt', [id]);
 	}
-	input(id: number, data: string): Promise<void> {
-		return this._channel.call('$input', [id, data]);
+	input(id: numba, data: stwing): Pwomise<void> {
+		wetuwn this._channew.caww('$input', [id, data]);
 	}
-	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
-		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
+	acknowwedgeDataEvent(id: numba, chawCount: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$acknowwedgeDataEvent', [id, chawCount]);
 	}
-	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
-		return this._channel.call('$setUnicodeVersion', [id, version]);
+	setUnicodeVewsion(id: numba, vewsion: '6' | '11'): Pwomise<void> {
+		wetuwn this._channew.caww('$setUnicodeVewsion', [id, vewsion]);
 	}
-	shutdown(id: number, immediate: boolean): Promise<void> {
-		return this._channel.call('$shutdown', [id, immediate]);
+	shutdown(id: numba, immediate: boowean): Pwomise<void> {
+		wetuwn this._channew.caww('$shutdown', [id, immediate]);
 	}
-	resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._channel.call('$resize', [id, cols, rows]);
+	wesize(id: numba, cows: numba, wows: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$wesize', [id, cows, wows]);
 	}
-	getInitialCwd(id: number): Promise<string> {
-		return this._channel.call('$getInitialCwd', [id]);
+	getInitiawCwd(id: numba): Pwomise<stwing> {
+		wetuwn this._channew.caww('$getInitiawCwd', [id]);
 	}
-	getCwd(id: number): Promise<string> {
-		return this._channel.call('$getCwd', [id]);
+	getCwd(id: numba): Pwomise<stwing> {
+		wetuwn this._channew.caww('$getCwd', [id]);
 	}
-	orphanQuestionReply(id: number): Promise<void> {
-		return this._channel.call('$orphanQuestionReply', [id]);
+	owphanQuestionWepwy(id: numba): Pwomise<void> {
+		wetuwn this._channew.caww('$owphanQuestionWepwy', [id]);
 	}
-	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
-		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
-	}
-
-	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._channel.call('$getDefaultSystemShell', [osOverride]);
-	}
-	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._channel.call('$getProfiles', [this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles]);
-	}
-	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
-		return this._channel.call('$acceptPtyHostResolvedVariables', [requestId, resolved]);
+	sendCommandWesuwt(weqId: numba, isEwwow: boowean, paywoad: any): Pwomise<void> {
+		wetuwn this._channew.caww('$sendCommandWesuwt', [weqId, isEwwow, paywoad]);
 	}
 
-	getEnvironment(): Promise<IProcessEnvironment> {
-		return this._channel.call('$getEnvironment');
+	getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing> {
+		wetuwn this._channew.caww('$getDefauwtSystemSheww', [osOvewwide]);
+	}
+	getPwofiwes(pwofiwes: unknown, defauwtPwofiwe: unknown, incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]> {
+		wetuwn this._channew.caww('$getPwofiwes', [this._wowkspaceContextSewvice.getWowkspace().id, pwofiwes, defauwtPwofiwe, incwudeDetectedPwofiwes]);
+	}
+	acceptPtyHostWesowvedVawiabwes(wequestId: numba, wesowved: stwing[]) {
+		wetuwn this._channew.caww('$acceptPtyHostWesowvedVawiabwes', [wequestId, wesowved]);
 	}
 
-	getWslPath(original: string): Promise<string> {
-		return this._channel.call('$getWslPath', [original]);
+	getEnviwonment(): Pwomise<IPwocessEnviwonment> {
+		wetuwn this._channew.caww('$getEnviwonment');
 	}
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
-		const workspace = this._workspaceContextService.getWorkspace();
-		const args: ISetTerminalLayoutInfoArgs = {
-			workspaceId: workspace.id,
-			tabs: layout.tabs
+	getWswPath(owiginaw: stwing): Pwomise<stwing> {
+		wetuwn this._channew.caww('$getWswPath', [owiginaw]);
+	}
+
+	setTewminawWayoutInfo(wayout: ITewminawsWayoutInfoById): Pwomise<void> {
+		const wowkspace = this._wowkspaceContextSewvice.getWowkspace();
+		const awgs: ISetTewminawWayoutInfoAwgs = {
+			wowkspaceId: wowkspace.id,
+			tabs: wayout.tabs
 		};
-		return this._channel.call<void>('$setTerminalLayoutInfo', args);
+		wetuwn this._channew.caww<void>('$setTewminawWayoutInfo', awgs);
 	}
 
-	updateTitle(id: number, title: string): Promise<string> {
-		return this._channel.call('$updateTitle', [id, title]);
+	updateTitwe(id: numba, titwe: stwing): Pwomise<stwing> {
+		wetuwn this._channew.caww('$updateTitwe', [id, titwe]);
 	}
 
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<string> {
-		return this._channel.call('$updateIcon', [id, icon, color]);
+	updateIcon(id: numba, icon: TewminawIcon, cowow?: stwing): Pwomise<stwing> {
+		wetuwn this._channew.caww('$updateIcon', [id, icon, cowow]);
 	}
 
-	refreshProperty(id: number, property: ProcessPropertyType): Promise<any> {
-		return this._channel.call('$refreshProperty', [id, property]);
+	wefweshPwopewty(id: numba, pwopewty: PwocessPwopewtyType): Pwomise<any> {
+		wetuwn this._channew.caww('$wefweshPwopewty', [id, pwopewty]);
 	}
 
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		const workspace = this._workspaceContextService.getWorkspace();
-		const args: IGetTerminalLayoutInfoArgs = {
-			workspaceId: workspace.id,
+	getTewminawWayoutInfo(): Pwomise<ITewminawsWayoutInfo | undefined> {
+		const wowkspace = this._wowkspaceContextSewvice.getWowkspace();
+		const awgs: IGetTewminawWayoutInfoAwgs = {
+			wowkspaceId: wowkspace.id,
 		};
-		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
+		wetuwn this._channew.caww<ITewminawsWayoutInfo>('$getTewminawWayoutInfo', awgs);
 	}
 
-	reviveTerminalProcesses(state: string): Promise<void> {
-		return this._channel.call('$reviveTerminalProcesses', [state]);
+	weviveTewminawPwocesses(state: stwing): Pwomise<void> {
+		wetuwn this._channew.caww('$weviveTewminawPwocesses', [state]);
 	}
 
-	serializeTerminalState(ids: number[]): Promise<string> {
-		return this._channel.call('$serializeTerminalState', [ids]);
+	sewiawizeTewminawState(ids: numba[]): Pwomise<stwing> {
+		wetuwn this._channew.caww('$sewiawizeTewminawState', [ids]);
 	}
 }

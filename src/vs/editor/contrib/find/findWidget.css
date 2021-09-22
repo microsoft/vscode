@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /* Find widget */
-.monaco-editor .find-widget {
-	position: absolute;
+.monaco-editow .find-widget {
+	position: absowute;
 	z-index: 35;
 	height: 33px;
-	overflow: hidden;
-	line-height: 19px;
-	transition: transform 200ms linear;
+	ovewfwow: hidden;
+	wine-height: 19px;
+	twansition: twansfowm 200ms wineaw;
 	padding: 0 4px;
-	box-sizing: border-box;
-	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
+	box-sizing: bowda-box;
+	twansfowm: twanswateY(cawc(-100% - 10px)); /* shadow (10px) */
 }
 
-.monaco-editor .find-widget textarea {
-	margin: 0px;
+.monaco-editow .find-widget textawea {
+	mawgin: 0px;
 }
 
-.monaco-editor .find-widget.hiddenEditor {
-	display: none;
+.monaco-editow .find-widget.hiddenEditow {
+	dispway: none;
 }
 
-/* Find widget when replace is toggled on */
-.monaco-editor .find-widget.replaceToggled > .replace-part {
-	display: flex;
+/* Find widget when wepwace is toggwed on */
+.monaco-editow .find-widget.wepwaceToggwed > .wepwace-pawt {
+	dispway: fwex;
 }
 
-.monaco-editor .find-widget.visible  {
-	transform: translateY(0);
+.monaco-editow .find-widget.visibwe  {
+	twansfowm: twanswateY(0);
 }
 
-.monaco-editor .find-widget .monaco-inputbox.synthetic-focus {
-	outline: 1px solid -webkit-focus-ring-color;
-	outline-offset: -1px;
+.monaco-editow .find-widget .monaco-inputbox.synthetic-focus {
+	outwine: 1px sowid -webkit-focus-wing-cowow;
+	outwine-offset: -1px;
 }
 
-.monaco-editor .find-widget .monaco-inputbox .input {
-	background-color: transparent;
+.monaco-editow .find-widget .monaco-inputbox .input {
+	backgwound-cowow: twanspawent;
 	min-height: 0;
 }
 
-.monaco-editor .find-widget .monaco-findInput .input {
+.monaco-editow .find-widget .monaco-findInput .input {
 	font-size: 13px;
 }
 
-.monaco-editor .find-widget > .find-part,
-.monaco-editor .find-widget > .replace-part {
-	margin: 4px 0 0 17px;
+.monaco-editow .find-widget > .find-pawt,
+.monaco-editow .find-widget > .wepwace-pawt {
+	mawgin: 4px 0 0 17px;
 	font-size: 12px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-editor .find-widget > .find-part .monaco-inputbox,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox {
+.monaco-editow .find-widget > .find-pawt .monaco-inputbox,
+.monaco-editow .find-widget > .wepwace-pawt .monaco-inputbox {
 	min-height: 25px;
 }
 
 
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
-	padding-right: 22px;
+.monaco-editow .find-widget > .wepwace-pawt .monaco-inputbox > .ibwwappa > .miwwow {
+	padding-wight: 22px;
 }
 
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .input,
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .mirror,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .input,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
+.monaco-editow .find-widget > .find-pawt .monaco-inputbox > .ibwwappa > .input,
+.monaco-editow .find-widget > .find-pawt .monaco-inputbox > .ibwwappa > .miwwow,
+.monaco-editow .find-widget > .wepwace-pawt .monaco-inputbox > .ibwwappa > .input,
+.monaco-editow .find-widget > .wepwace-pawt .monaco-inputbox > .ibwwappa > .miwwow {
 	padding-top: 2px;
 	padding-bottom: 2px;
 }
 
-.monaco-editor .find-widget > .find-part .find-actions {
+.monaco-editow .find-widget > .find-pawt .find-actions {
 	height: 25px;
-	display: flex;
-	align-items: center;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-editor .find-widget > .replace-part .replace-actions {
+.monaco-editow .find-widget > .wepwace-pawt .wepwace-actions {
 	height: 25px;
-	display: flex;
-	align-items: center;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-editor .find-widget .monaco-findInput {
-	vertical-align: middle;
-	display: flex;
-	flex:1;
+.monaco-editow .find-widget .monaco-findInput {
+	vewticaw-awign: middwe;
+	dispway: fwex;
+	fwex:1;
 }
 
-.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element {
-	/* Make sure textarea inherits the width correctly */
+.monaco-editow .find-widget .monaco-findInput .monaco-scwowwabwe-ewement {
+	/* Make suwe textawea inhewits the width cowwectwy */
 	width: 100%;
 }
 
-.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element .scrollbar.vertical {
-	/* Hide vertical scrollbar */
+.monaco-editow .find-widget .monaco-findInput .monaco-scwowwabwe-ewement .scwowwbaw.vewticaw {
+	/* Hide vewticaw scwowwbaw */
 	opacity: 0;
 }
 
-.monaco-editor .find-widget .matchesCount {
-	display: flex;
-	flex: initial;
-	margin: 0 0 0 3px;
+.monaco-editow .find-widget .matchesCount {
+	dispway: fwex;
+	fwex: initiaw;
+	mawgin: 0 0 0 3px;
 	padding: 2px 0 0 2px;
 	height: 25px;
-	vertical-align: middle;
-	box-sizing: border-box;
-	text-align: center;
-	line-height: 23px;
+	vewticaw-awign: middwe;
+	box-sizing: bowda-box;
+	text-awign: centa;
+	wine-height: 23px;
 }
 
-.monaco-editor .find-widget .button {
+.monaco-editow .find-widget .button {
 	width: 16px;
 	height: 16px;
 	padding: 3px;
-	border-radius: 5px;
-	display: flex;
-	flex: initial;
-	margin-left: 3px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	bowda-wadius: 5px;
+	dispway: fwex;
+	fwex: initiaw;
+	mawgin-weft: 3px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
+	cuwsow: pointa;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-/* find in selection button */
-.monaco-editor .find-widget .codicon-find-selection {
+/* find in sewection button */
+.monaco-editow .find-widget .codicon-find-sewection {
 	width: 22px;
 	height: 22px;
 	padding: 3px;
-	border-radius: 5px;
+	bowda-wadius: 5px;
 }
 
-.monaco-editor .find-widget .button.left {
-	margin-left: 0;
-	margin-right: 3px;
+.monaco-editow .find-widget .button.weft {
+	mawgin-weft: 0;
+	mawgin-wight: 3px;
 }
 
-.monaco-editor .find-widget .button.wide {
+.monaco-editow .find-widget .button.wide {
 	width: auto;
 	padding: 1px 6px;
 	top: -1px;
 }
 
-.monaco-editor .find-widget .button.toggle {
-	position: absolute;
+.monaco-editow .find-widget .button.toggwe {
+	position: absowute;
 	top: 0;
-	left: 3px;
+	weft: 3px;
 	width: 18px;
 	height: 100%;
-	border-radius: 0;
-	box-sizing: border-box;
+	bowda-wadius: 0;
+	box-sizing: bowda-box;
 }
 
-.monaco-editor .find-widget .button.toggle.disabled {
-	display: none;
+.monaco-editow .find-widget .button.toggwe.disabwed {
+	dispway: none;
 }
 
-.monaco-editor .find-widget .disabled {
+.monaco-editow .find-widget .disabwed {
 	opacity: 0.3;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-editor .find-widget > .replace-part {
-	display: none;
+.monaco-editow .find-widget > .wepwace-pawt {
+	dispway: none;
 }
 
-.monaco-editor .find-widget > .replace-part > .monaco-findInput {
-	position: relative;
-	display: flex;
-	vertical-align: middle;
-	flex: auto;
-	flex-grow: 0;
-	flex-shrink: 0;
+.monaco-editow .find-widget > .wepwace-pawt > .monaco-findInput {
+	position: wewative;
+	dispway: fwex;
+	vewticaw-awign: middwe;
+	fwex: auto;
+	fwex-gwow: 0;
+	fwex-shwink: 0;
 }
 
-.monaco-editor .find-widget > .replace-part > .monaco-findInput > .controls {
-	position: absolute;
+.monaco-editow .find-widget > .wepwace-pawt > .monaco-findInput > .contwows {
+	position: absowute;
 	top: 3px;
-	right: 2px;
+	wight: 2px;
 }
 
-/* REDUCED */
-.monaco-editor .find-widget.reduced-find-widget .matchesCount {
-	display:none;
+/* WEDUCED */
+.monaco-editow .find-widget.weduced-find-widget .matchesCount {
+	dispway:none;
 }
 
-/* NARROW (SMALLER THAN REDUCED) */
-.monaco-editor .find-widget.narrow-find-widget {
-	max-width: 257px !important;
+/* NAWWOW (SMAWWa THAN WEDUCED) */
+.monaco-editow .find-widget.nawwow-find-widget {
+	max-width: 257px !impowtant;
 }
 
-/* COLLAPSED (SMALLER THAN NARROW) */
-.monaco-editor .find-widget.collapsed-find-widget {
-	max-width: 170px !important;
+/* COWWAPSED (SMAWWa THAN NAWWOW) */
+.monaco-editow .find-widget.cowwapsed-find-widget {
+	max-width: 170px !impowtant;
 }
 
-.monaco-editor .find-widget.collapsed-find-widget .button.previous,
-.monaco-editor .find-widget.collapsed-find-widget .button.next,
-.monaco-editor .find-widget.collapsed-find-widget .button.replace,
-.monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
-	display:none;
+.monaco-editow .find-widget.cowwapsed-find-widget .button.pwevious,
+.monaco-editow .find-widget.cowwapsed-find-widget .button.next,
+.monaco-editow .find-widget.cowwapsed-find-widget .button.wepwace,
+.monaco-editow .find-widget.cowwapsed-find-widget .button.wepwace-aww,
+.monaco-editow .find-widget.cowwapsed-find-widget > .find-pawt .monaco-findInput .contwows {
+	dispway:none;
 }
 
-.monaco-editor .findMatch {
-	animation-duration: 0;
-	animation-name: inherit !important;
+.monaco-editow .findMatch {
+	animation-duwation: 0;
+	animation-name: inhewit !impowtant;
 }
 
-.monaco-editor .find-widget .monaco-sash {
-	left: 0 !important;
+.monaco-editow .find-widget .monaco-sash {
+	weft: 0 !impowtant;
 }
 
-.monaco-editor.hc-black .find-widget .button:before {
-	position: relative;
+.monaco-editow.hc-bwack .find-widget .button:befowe {
+	position: wewative;
 	top: 1px;
-	left: 2px;
+	weft: 2px;
 }

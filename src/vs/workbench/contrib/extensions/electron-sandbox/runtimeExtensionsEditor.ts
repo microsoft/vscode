@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Event } from 'vs/base/common/event';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-sandbox/reportExtensionIssueAction';
-import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt * as nws fwom 'vs/nws';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice, cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IExtensionSewvice, IExtensionHostPwofiwe } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IContextKeySewvice, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { SwowExtensionAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/extensionsSwowActions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { WepowtExtensionIssueAction } fwom 'vs/wowkbench/contwib/extensions/ewectwon-sandbox/wepowtExtensionIssueAction';
+impowt { AbstwactWuntimeExtensionsEditow, IWuntimeExtension } fwom 'vs/wowkbench/contwib/extensions/bwowsa/abstwactWuntimeExtensionsEditow';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
-export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
-export const CONTEXT_EXTENSION_HOST_PROFILE_RECORDED = new RawContextKey<boolean>('extensionHostProfileRecorded', false);
+expowt const IExtensionHostPwofiweSewvice = cweateDecowatow<IExtensionHostPwofiweSewvice>('extensionHostPwofiweSewvice');
+expowt const CONTEXT_PWOFIWE_SESSION_STATE = new WawContextKey<stwing>('pwofiweSessionState', 'none');
+expowt const CONTEXT_EXTENSION_HOST_PWOFIWE_WECOWDED = new WawContextKey<boowean>('extensionHostPwofiweWecowded', fawse);
 
-export enum ProfileSessionState {
+expowt enum PwofiweSessionState {
 	None = 0,
-	Starting = 1,
-	Running = 2,
+	Stawting = 1,
+	Wunning = 2,
 	Stopping = 3
 }
 
-export interface IExtensionHostProfileService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionHostPwofiweSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeState: Event<void>;
-	readonly onDidChangeLastProfile: Event<void>;
+	weadonwy onDidChangeState: Event<void>;
+	weadonwy onDidChangeWastPwofiwe: Event<void>;
 
-	readonly state: ProfileSessionState;
-	readonly lastProfile: IExtensionHostProfile | null;
+	weadonwy state: PwofiweSessionState;
+	weadonwy wastPwofiwe: IExtensionHostPwofiwe | nuww;
 
-	startProfiling(): void;
-	stopProfiling(): void;
+	stawtPwofiwing(): void;
+	stopPwofiwing(): void;
 
-	getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
-	setUnresponsiveProfile(extensionId: ExtensionIdentifier, profile: IExtensionHostProfile): void;
+	getUnwesponsivePwofiwe(extensionId: ExtensionIdentifia): IExtensionHostPwofiwe | undefined;
+	setUnwesponsivePwofiwe(extensionId: ExtensionIdentifia, pwofiwe: IExtensionHostPwofiwe): void;
 }
 
-export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
+expowt cwass WuntimeExtensionsEditow extends AbstwactWuntimeExtensionsEditow {
 
-	private _profileInfo: IExtensionHostProfile | null;
-	private _extensionsHostRecorded: IContextKey<boolean>;
-	private _profileSessionState: IContextKey<string>;
+	pwivate _pwofiweInfo: IExtensionHostPwofiwe | nuww;
+	pwivate _extensionsHostWecowded: IContextKey<boowean>;
+	pwivate _pwofiweSessionState: IContextKey<stwing>;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService extensionService: IExtensionService,
-		@INotificationService notificationService: INotificationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ILabelService labelService: ILabelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionsWowkbenchSewvice extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IExtensionHostPwofiweSewvice pwivate weadonwy _extensionHostPwofiweSewvice: IExtensionHostPwofiweSewvice,
 	) {
-		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService);
-		this._profileInfo = this._extensionHostProfileService.lastProfile;
-		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
-		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
+		supa(tewemetwySewvice, themeSewvice, contextKeySewvice, extensionsWowkbenchSewvice, extensionSewvice, notificationSewvice, contextMenuSewvice, instantiationSewvice, stowageSewvice, wabewSewvice, enviwonmentSewvice);
+		this._pwofiweInfo = this._extensionHostPwofiweSewvice.wastPwofiwe;
+		this._extensionsHostWecowded = CONTEXT_EXTENSION_HOST_PWOFIWE_WECOWDED.bindTo(contextKeySewvice);
+		this._pwofiweSessionState = CONTEXT_PWOFIWE_SESSION_STATE.bindTo(contextKeySewvice);
 
-		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
-			this._profileInfo = this._extensionHostProfileService.lastProfile;
-			this._extensionsHostRecorded.set(!!this._profileInfo);
+		this._wegista(this._extensionHostPwofiweSewvice.onDidChangeWastPwofiwe(() => {
+			this._pwofiweInfo = this._extensionHostPwofiweSewvice.wastPwofiwe;
+			this._extensionsHostWecowded.set(!!this._pwofiweInfo);
 			this._updateExtensions();
 		}));
-		this._register(this._extensionHostProfileService.onDidChangeState(() => {
-			const state = this._extensionHostProfileService.state;
-			this._profileSessionState.set(ProfileSessionState[state].toLowerCase());
+		this._wegista(this._extensionHostPwofiweSewvice.onDidChangeState(() => {
+			const state = this._extensionHostPwofiweSewvice.state;
+			this._pwofiweSessionState.set(PwofiweSessionState[state].toWowewCase());
 		}));
 	}
 
-	protected _getProfileInfo(): IExtensionHostProfile | null {
-		return this._profileInfo;
+	pwotected _getPwofiweInfo(): IExtensionHostPwofiwe | nuww {
+		wetuwn this._pwofiweInfo;
 	}
 
-	protected _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined {
-		return this._extensionHostProfileService.getUnresponsiveProfile(extensionId);
+	pwotected _getUnwesponsivePwofiwe(extensionId: ExtensionIdentifia): IExtensionHostPwofiwe | undefined {
+		wetuwn this._extensionHostPwofiweSewvice.getUnwesponsivePwofiwe(extensionId);
 	}
 
-	protected _createSlowExtensionAction(element: IRuntimeExtension): Action | null {
-		if (element.unresponsiveProfile) {
-			return this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile);
+	pwotected _cweateSwowExtensionAction(ewement: IWuntimeExtension): Action | nuww {
+		if (ewement.unwesponsivePwofiwe) {
+			wetuwn this._instantiationSewvice.cweateInstance(SwowExtensionAction, ewement.descwiption, ewement.unwesponsivePwofiwe);
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
-		if (element.marketplaceInfo) {
-			return this._instantiationService.createInstance(ReportExtensionIssueAction, {
-				description: element.description,
-				marketplaceInfo: element.marketplaceInfo,
-				status: element.status,
-				unresponsiveProfile: element.unresponsiveProfile
+	pwotected _cweateWepowtExtensionIssueAction(ewement: IWuntimeExtension): Action | nuww {
+		if (ewement.mawketpwaceInfo) {
+			wetuwn this._instantiationSewvice.cweateInstance(WepowtExtensionIssueAction, {
+				descwiption: ewement.descwiption,
+				mawketpwaceInfo: ewement.mawketpwaceInfo,
+				status: ewement.status,
+				unwesponsivePwofiwe: ewement.unwesponsivePwofiwe
 			});
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	protected _createSaveExtensionHostProfileAction(): Action | null {
-		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL);
+	pwotected _cweateSaveExtensionHostPwofiweAction(): Action | nuww {
+		wetuwn this._instantiationSewvice.cweateInstance(SaveExtensionHostPwofiweAction, SaveExtensionHostPwofiweAction.ID, SaveExtensionHostPwofiweAction.WABEW);
 	}
 
-	protected _createProfileAction(): Action | null {
-		const state = this._extensionHostProfileService.state;
-		const profileAction = (
-			state === ProfileSessionState.Running
-				? this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL)
-				: this._instantiationService.createInstance(StartExtensionHostProfileAction, StartExtensionHostProfileAction.ID, StartExtensionHostProfileAction.LABEL)
+	pwotected _cweatePwofiweAction(): Action | nuww {
+		const state = this._extensionHostPwofiweSewvice.state;
+		const pwofiweAction = (
+			state === PwofiweSessionState.Wunning
+				? this._instantiationSewvice.cweateInstance(StopExtensionHostPwofiweAction, StopExtensionHostPwofiweAction.ID, StopExtensionHostPwofiweAction.WABEW)
+				: this._instantiationSewvice.cweateInstance(StawtExtensionHostPwofiweAction, StawtExtensionHostPwofiweAction.ID, StawtExtensionHostPwofiweAction.WABEW)
 		);
-		return profileAction;
+		wetuwn pwofiweAction;
 	}
 }
 
-export class StartExtensionHostProfileAction extends Action {
-	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
-	static readonly LABEL = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
+expowt cwass StawtExtensionHostPwofiweAction extends Action {
+	static weadonwy ID = 'wowkbench.extensions.action.extensionHostPwofiwe';
+	static weadonwy WABEW = nws.wocawize('extensionHostPwofiweStawt', "Stawt Extension Host Pwofiwe");
 
-	constructor(
-		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	constwuctow(
+		id: stwing = StawtExtensionHostPwofiweAction.ID, wabew: stwing = StawtExtensionHostPwofiweAction.WABEW,
+		@IExtensionHostPwofiweSewvice pwivate weadonwy _extensionHostPwofiweSewvice: IExtensionHostPwofiweSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		this._extensionHostProfileService.startProfiling();
-		return Promise.resolve();
+	ovewwide wun(): Pwomise<any> {
+		this._extensionHostPwofiweSewvice.stawtPwofiwing();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class StopExtensionHostProfileAction extends Action {
-	static readonly ID = 'workbench.extensions.action.stopExtensionHostProfile';
-	static readonly LABEL = nls.localize('stopExtensionHostProfileStart', "Stop Extension Host Profile");
+expowt cwass StopExtensionHostPwofiweAction extends Action {
+	static weadonwy ID = 'wowkbench.extensions.action.stopExtensionHostPwofiwe';
+	static weadonwy WABEW = nws.wocawize('stopExtensionHostPwofiweStawt', "Stop Extension Host Pwofiwe");
 
-	constructor(
-		id: string = StartExtensionHostProfileAction.ID, label: string = StartExtensionHostProfileAction.LABEL,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+	constwuctow(
+		id: stwing = StawtExtensionHostPwofiweAction.ID, wabew: stwing = StawtExtensionHostPwofiweAction.WABEW,
+		@IExtensionHostPwofiweSewvice pwivate weadonwy _extensionHostPwofiweSewvice: IExtensionHostPwofiweSewvice,
 	) {
-		super(id, label);
+		supa(id, wabew);
 	}
 
-	override run(): Promise<any> {
-		this._extensionHostProfileService.stopProfiling();
-		return Promise.resolve();
+	ovewwide wun(): Pwomise<any> {
+		this._extensionHostPwofiweSewvice.stopPwofiwing();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export class SaveExtensionHostProfileAction extends Action {
+expowt cwass SaveExtensionHostPwofiweAction extends Action {
 
-	static readonly LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
-	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
+	static weadonwy WABEW = nws.wocawize('saveExtensionHostPwofiwe', "Save Extension Host Pwofiwe");
+	static weadonwy ID = 'wowkbench.extensions.action.saveExtensionHostPwofiwe';
 
-	constructor(
-		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
-		@IFileService private readonly _fileService: IFileService
+	constwuctow(
+		id: stwing = SaveExtensionHostPwofiweAction.ID, wabew: stwing = SaveExtensionHostPwofiweAction.WABEW,
+		@INativeHostSewvice pwivate weadonwy _nativeHostSewvice: INativeHostSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IExtensionHostPwofiweSewvice pwivate weadonwy _extensionHostPwofiweSewvice: IExtensionHostPwofiweSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice
 	) {
-		super(id, label, undefined, false);
-		this._extensionHostProfileService.onDidChangeLastProfile(() => {
-			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		supa(id, wabew, undefined, fawse);
+		this._extensionHostPwofiweSewvice.onDidChangeWastPwofiwe(() => {
+			this.enabwed = (this._extensionHostPwofiweSewvice.wastPwofiwe !== nuww);
 		});
 	}
 
-	override run(): Promise<any> {
-		return Promise.resolve(this._asyncRun());
+	ovewwide wun(): Pwomise<any> {
+		wetuwn Pwomise.wesowve(this._asyncWun());
 	}
 
-	private async _asyncRun(): Promise<any> {
-		let picked = await this._nativeHostService.showSaveDialog({
-			title: 'Save Extension Host Profile',
-			buttonLabel: 'Save',
-			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
-			filters: [{
-				name: 'CPU Profiles',
-				extensions: ['cpuprofile', 'txt']
+	pwivate async _asyncWun(): Pwomise<any> {
+		wet picked = await this._nativeHostSewvice.showSaveDiawog({
+			titwe: 'Save Extension Host Pwofiwe',
+			buttonWabew: 'Save',
+			defauwtPath: `CPU-${new Date().toISOStwing().wepwace(/[\-:]/g, '')}.cpupwofiwe`,
+			fiwtews: [{
+				name: 'CPU Pwofiwes',
+				extensions: ['cpupwofiwe', 'txt']
 			}]
 		});
 
-		if (!picked || !picked.filePath || picked.canceled) {
-			return;
+		if (!picked || !picked.fiwePath || picked.cancewed) {
+			wetuwn;
 		}
 
-		const profileInfo = this._extensionHostProfileService.lastProfile;
-		let dataToWrite: object = profileInfo ? profileInfo.data : {};
+		const pwofiweInfo = this._extensionHostPwofiweSewvice.wastPwofiwe;
+		wet dataToWwite: object = pwofiweInfo ? pwofiweInfo.data : {};
 
-		let savePath = picked.filePath;
+		wet savePath = picked.fiwePath;
 
-		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
-			// when running from a not-development-build we remove
-			// absolute filenames because we don't want to reveal anything
-			// about users. We also append the `.txt` suffix to make it
-			// easier to attach these files to GH issues
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
-			dataToWrite = tmp.profile;
+		if (this._enviwonmentSewvice.isBuiwt) {
+			const pwofiwa = await impowt('v8-inspect-pwofiwa');
+			// when wunning fwom a not-devewopment-buiwd we wemove
+			// absowute fiwenames because we don't want to weveaw anything
+			// about usews. We awso append the `.txt` suffix to make it
+			// easia to attach these fiwes to GH issues
+			wet tmp = pwofiwa.wewwiteAbsowutePaths({ pwofiwe: dataToWwite as any }, 'piiWemoved');
+			dataToWwite = tmp.pwofiwe;
 
 			savePath = savePath + '.txt';
 		}
 
-		return this._fileService.writeFile(URI.file(savePath), VSBuffer.fromString(JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t')));
+		wetuwn this._fiweSewvice.wwiteFiwe(UWI.fiwe(savePath), VSBuffa.fwomStwing(JSON.stwingify(pwofiweInfo ? pwofiweInfo.data : {}, nuww, '\t')));
 	}
 }

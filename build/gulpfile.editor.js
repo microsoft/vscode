@@ -1,481 +1,481 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const gulp = require('gulp');
-const path = require('path');
-const util = require('./lib/util');
-const task = require('./lib/task');
-const common = require('./lib/optimize');
-const es = require('event-stream');
-const File = require('vinyl');
-const i18n = require('./lib/i18n');
-const standalone = require('./lib/standalone');
-const cp = require('child_process');
-const compilation = require('./lib/compilation');
-const monacoapi = require('./lib/monaco-api');
-const fs = require('fs');
+const guwp = wequiwe('guwp');
+const path = wequiwe('path');
+const utiw = wequiwe('./wib/utiw');
+const task = wequiwe('./wib/task');
+const common = wequiwe('./wib/optimize');
+const es = wequiwe('event-stweam');
+const Fiwe = wequiwe('vinyw');
+const i18n = wequiwe('./wib/i18n');
+const standawone = wequiwe('./wib/standawone');
+const cp = wequiwe('chiwd_pwocess');
+const compiwation = wequiwe('./wib/compiwation');
+const monacoapi = wequiwe('./wib/monaco-api');
+const fs = wequiwe('fs');
 
-let root = path.dirname(__dirname);
-let sha1 = util.getVersion(root);
-let semver = require('./monaco/package.json').version;
-let headerVersion = semver + '(' + sha1 + ')';
+wet woot = path.diwname(__diwname);
+wet sha1 = utiw.getVewsion(woot);
+wet semva = wequiwe('./monaco/package.json').vewsion;
+wet headewVewsion = semva + '(' + sha1 + ')';
 
-// Build
+// Buiwd
 
-let editorEntryPoints = [
+wet editowEntwyPoints = [
 	{
-		name: 'vs/editor/editor.main',
-		include: [],
-		exclude: ['vs/css', 'vs/nls'],
-		prepend: ['out-editor-build/vs/css.js', 'out-editor-build/vs/nls.js'],
+		name: 'vs/editow/editow.main',
+		incwude: [],
+		excwude: ['vs/css', 'vs/nws'],
+		pwepend: ['out-editow-buiwd/vs/css.js', 'out-editow-buiwd/vs/nws.js'],
 	},
 	{
-		name: 'vs/base/common/worker/simpleWorker',
-		include: ['vs/editor/common/services/editorSimpleWorker'],
-		prepend: ['vs/loader.js'],
-		append: ['vs/base/worker/workerMain'],
-		dest: 'vs/base/worker/workerMain.js'
+		name: 'vs/base/common/wowka/simpweWowka',
+		incwude: ['vs/editow/common/sewvices/editowSimpweWowka'],
+		pwepend: ['vs/woada.js'],
+		append: ['vs/base/wowka/wowkewMain'],
+		dest: 'vs/base/wowka/wowkewMain.js'
 	}
 ];
 
-let editorResources = [
-	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
+wet editowWesouwces = [
+	'out-editow-buiwd/vs/base/bwowsa/ui/codicons/**/*.ttf'
 ];
 
-let BUNDLED_FILE_HEADER = [
+wet BUNDWED_FIWE_HEADa = [
 	'/*!-----------------------------------------------------------',
-	' * Copyright (c) Microsoft Corporation. All rights reserved.',
-	' * Version: ' + headerVersion,
-	' * Released under the MIT license',
-	' * https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+	' * Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.',
+	' * Vewsion: ' + headewVewsion,
+	' * Weweased unda the MIT wicense',
+	' * https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt',
 	' *-----------------------------------------------------------*/',
 	''
 ].join('\n');
 
-const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
+const wanguages = i18n.defauwtWanguages.concat([]);  // i18n.defauwtWanguages.concat(pwocess.env.VSCODE_QUAWITY !== 'stabwe' ? i18n.extwaWanguages : []);
 
-const extractEditorSrcTask = task.define('extract-editor-src', () => {
+const extwactEditowSwcTask = task.define('extwact-editow-swc', () => {
 	const apiusages = monacoapi.execute().usageContent;
-	const extrausages = fs.readFileSync(path.join(root, 'build', 'monaco', 'monaco.usage.recipe')).toString();
-	standalone.extractEditor({
-		sourcesRoot: path.join(root, 'src'),
-		entryPoints: [
-			'vs/editor/editor.main',
-			'vs/editor/editor.worker',
-			'vs/base/worker/workerMain',
+	const extwausages = fs.weadFiweSync(path.join(woot, 'buiwd', 'monaco', 'monaco.usage.wecipe')).toStwing();
+	standawone.extwactEditow({
+		souwcesWoot: path.join(woot, 'swc'),
+		entwyPoints: [
+			'vs/editow/editow.main',
+			'vs/editow/editow.wowka',
+			'vs/base/wowka/wowkewMain',
 		],
-		inlineEntryPoints: [
+		inwineEntwyPoints: [
 			apiusages,
-			extrausages
+			extwausages
 		],
-		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)/,
-		destRoot: path.join(root, 'out-editor-src'),
-		redirects: []
+		shakeWevew: 2, // 0-Fiwes, 1-InnewFiwe, 2-CwassMembews
+		impowtIgnowePattewn: /(^vs\/css!)/,
+		destWoot: path.join(woot, 'out-editow-swc'),
+		wediwects: []
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
+const compiweEditowAMDTask = task.define('compiwe-editow-amd', compiwation.compiweTask('out-editow-swc', 'out-editow-buiwd', twue));
 
-const optimizeEditorAMDTask = task.define('optimize-editor-amd', common.optimizeTask({
-	src: 'out-editor-build',
-	entryPoints: editorEntryPoints,
-	resources: editorResources,
-	loaderConfig: {
+const optimizeEditowAMDTask = task.define('optimize-editow-amd', common.optimizeTask({
+	swc: 'out-editow-buiwd',
+	entwyPoints: editowEntwyPoints,
+	wesouwces: editowWesouwces,
+	woadewConfig: {
 		paths: {
-			'vs': 'out-editor-build/vs',
-			'vs/css': 'out-editor-build/vs/css.build',
-			'vs/nls': 'out-editor-build/vs/nls.build',
+			'vs': 'out-editow-buiwd/vs',
+			'vs/css': 'out-editow-buiwd/vs/css.buiwd',
+			'vs/nws': 'out-editow-buiwd/vs/nws.buiwd',
 			'vscode': 'empty:'
 		}
 	},
-	bundleLoader: false,
-	header: BUNDLED_FILE_HEADER,
-	bundleInfo: true,
-	out: 'out-editor',
-	languages: languages
+	bundweWoada: fawse,
+	heada: BUNDWED_FIWE_HEADa,
+	bundweInfo: twue,
+	out: 'out-editow',
+	wanguages: wanguages
 }));
 
-const minifyEditorAMDTask = task.define('minify-editor-amd', common.minifyTask('out-editor'));
+const minifyEditowAMDTask = task.define('minify-editow-amd', common.minifyTask('out-editow'));
 
-const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () => {
-	standalone.createESMSourcesAndResources2({
-		srcFolder: './out-editor-src',
-		outFolder: './out-editor-esm',
-		outResourcesFolder: './out-monaco-editor-core/esm',
-		ignores: [
-			'inlineEntryPoint:0.ts',
-			'inlineEntryPoint:1.ts',
-			'vs/loader.js',
-			'vs/nls.ts',
-			'vs/nls.build.js',
-			'vs/nls.d.ts',
+const cweateESMSouwcesAndWesouwcesTask = task.define('extwact-editow-esm', () => {
+	standawone.cweateESMSouwcesAndWesouwces2({
+		swcFowda: './out-editow-swc',
+		outFowda: './out-editow-esm',
+		outWesouwcesFowda: './out-monaco-editow-cowe/esm',
+		ignowes: [
+			'inwineEntwyPoint:0.ts',
+			'inwineEntwyPoint:1.ts',
+			'vs/woada.js',
+			'vs/nws.ts',
+			'vs/nws.buiwd.js',
+			'vs/nws.d.ts',
 			'vs/css.js',
-			'vs/css.build.js',
+			'vs/css.buiwd.js',
 			'vs/css.d.ts',
-			'vs/base/worker/workerMain.ts',
+			'vs/base/wowka/wowkewMain.ts',
 		],
-		renames: {
-			'vs/nls.mock.ts': 'vs/nls.ts'
+		wenames: {
+			'vs/nws.mock.ts': 'vs/nws.ts'
 		}
 	});
 });
 
-const compileEditorESMTask = task.define('compile-editor-esm', () => {
-	const KEEP_PREV_ANALYSIS = false;
-	const FAIL_ON_PURPOSE = false;
-	console.log(`Launching the TS compiler at ${path.join(__dirname, '../out-editor-esm')}...`);
-	let result;
-	if (process.platform === 'win32') {
-		result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
-			cwd: path.join(__dirname, '../out-editor-esm')
+const compiweEditowESMTask = task.define('compiwe-editow-esm', () => {
+	const KEEP_PWEV_ANAWYSIS = fawse;
+	const FAIW_ON_PUWPOSE = fawse;
+	consowe.wog(`Waunching the TS compiwa at ${path.join(__diwname, '../out-editow-esm')}...`);
+	wet wesuwt;
+	if (pwocess.pwatfowm === 'win32') {
+		wesuwt = cp.spawnSync(`..\\node_moduwes\\.bin\\tsc.cmd`, {
+			cwd: path.join(__diwname, '../out-editow-esm')
 		});
-	} else {
-		result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
-			cwd: path.join(__dirname, '../out-editor-esm')
+	} ewse {
+		wesuwt = cp.spawnSync(`node`, [`../node_moduwes/.bin/tsc`], {
+			cwd: path.join(__diwname, '../out-editow-esm')
 		});
 	}
 
-	console.log(result.stdout.toString());
-	console.log(result.stderr.toString());
+	consowe.wog(wesuwt.stdout.toStwing());
+	consowe.wog(wesuwt.stdeww.toStwing());
 
-	if (FAIL_ON_PURPOSE || result.status !== 0) {
-		console.log(`The TS Compilation failed, preparing analysis folder...`);
-		const destPath = path.join(__dirname, '../../vscode-monaco-editor-esm-analysis');
-		const keepPrevAnalysis = (KEEP_PREV_ANALYSIS && fs.existsSync(destPath));
-		const cleanDestPath = (keepPrevAnalysis ? Promise.resolve() : util.rimraf(destPath)());
-		return cleanDestPath.then(() => {
-			// build a list of files to copy
-			const files = util.rreddir(path.join(__dirname, '../out-editor-esm'));
+	if (FAIW_ON_PUWPOSE || wesuwt.status !== 0) {
+		consowe.wog(`The TS Compiwation faiwed, pwepawing anawysis fowda...`);
+		const destPath = path.join(__diwname, '../../vscode-monaco-editow-esm-anawysis');
+		const keepPwevAnawysis = (KEEP_PWEV_ANAWYSIS && fs.existsSync(destPath));
+		const cweanDestPath = (keepPwevAnawysis ? Pwomise.wesowve() : utiw.wimwaf(destPath)());
+		wetuwn cweanDestPath.then(() => {
+			// buiwd a wist of fiwes to copy
+			const fiwes = utiw.wweddiw(path.join(__diwname, '../out-editow-esm'));
 
-			if (!keepPrevAnalysis) {
-				fs.mkdirSync(destPath);
+			if (!keepPwevAnawysis) {
+				fs.mkdiwSync(destPath);
 
-				// initialize a new repository
+				// initiawize a new wepositowy
 				cp.spawnSync(`git`, [`init`], {
 					cwd: destPath
 				});
 
-				// copy files from src
-				for (const file of files) {
-					const srcFilePath = path.join(__dirname, '../src', file);
-					const dstFilePath = path.join(destPath, file);
-					if (fs.existsSync(srcFilePath)) {
-						util.ensureDir(path.dirname(dstFilePath));
-						const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-						fs.writeFileSync(dstFilePath, contents);
+				// copy fiwes fwom swc
+				fow (const fiwe of fiwes) {
+					const swcFiwePath = path.join(__diwname, '../swc', fiwe);
+					const dstFiwePath = path.join(destPath, fiwe);
+					if (fs.existsSync(swcFiwePath)) {
+						utiw.ensuweDiw(path.diwname(dstFiwePath));
+						const contents = fs.weadFiweSync(swcFiwePath).toStwing().wepwace(/\w\n|\w|\n/g, '\n');
+						fs.wwiteFiweSync(dstFiwePath, contents);
 					}
 				}
 
-				// create an initial commit to diff against
+				// cweate an initiaw commit to diff against
 				cp.spawnSync(`git`, [`add`, `.`], {
 					cwd: destPath
 				});
 
-				// create the commit
-				cp.spawnSync(`git`, [`commit`, `-m`, `"original sources"`, `--no-gpg-sign`], {
+				// cweate the commit
+				cp.spawnSync(`git`, [`commit`, `-m`, `"owiginaw souwces"`, `--no-gpg-sign`], {
 					cwd: destPath
 				});
 			}
 
-			// copy files from tree shaken src
-			for (const file of files) {
-				const srcFilePath = path.join(__dirname, '../out-editor-src', file);
-				const dstFilePath = path.join(destPath, file);
-				if (fs.existsSync(srcFilePath)) {
-					util.ensureDir(path.dirname(dstFilePath));
-					const contents = fs.readFileSync(srcFilePath).toString().replace(/\r\n|\r|\n/g, '\n');
-					fs.writeFileSync(dstFilePath, contents);
+			// copy fiwes fwom twee shaken swc
+			fow (const fiwe of fiwes) {
+				const swcFiwePath = path.join(__diwname, '../out-editow-swc', fiwe);
+				const dstFiwePath = path.join(destPath, fiwe);
+				if (fs.existsSync(swcFiwePath)) {
+					utiw.ensuweDiw(path.diwname(dstFiwePath));
+					const contents = fs.weadFiweSync(swcFiwePath).toStwing().wepwace(/\w\n|\w|\n/g, '\n');
+					fs.wwiteFiweSync(dstFiwePath, contents);
 				}
 			}
 
-			console.log(`Open in VS Code the folder at '${destPath}' and you can alayze the compilation error`);
-			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `yarn run gulp editor-distro` on your machine to further analyze the compilation problem.');
+			consowe.wog(`Open in VS Code the fowda at '${destPath}' and you can awayze the compiwation ewwow`);
+			thwow new Ewwow('Standawone Editow compiwation faiwed. If this is the buiwd machine, simpwy waunch `yawn wun guwp editow-distwo` on youw machine to fuwtha anawyze the compiwation pwobwem.');
 		});
 	}
 });
 
-function toExternalDTS(contents) {
-	let lines = contents.split(/\r\n|\r|\n/);
-	let killNextCloseCurlyBrace = false;
-	for (let i = 0; i < lines.length; i++) {
-		let line = lines[i];
+function toExtewnawDTS(contents) {
+	wet wines = contents.spwit(/\w\n|\w|\n/);
+	wet kiwwNextCwoseCuwwyBwace = fawse;
+	fow (wet i = 0; i < wines.wength; i++) {
+		wet wine = wines[i];
 
-		if (killNextCloseCurlyBrace) {
-			if ('}' === line) {
-				lines[i] = '';
-				killNextCloseCurlyBrace = false;
+		if (kiwwNextCwoseCuwwyBwace) {
+			if ('}' === wine) {
+				wines[i] = '';
+				kiwwNextCwoseCuwwyBwace = fawse;
 				continue;
 			}
 
-			if (line.indexOf('    ') === 0) {
-				lines[i] = line.substr(4);
-			} else if (line.charAt(0) === '\t') {
-				lines[i] = line.substr(1);
+			if (wine.indexOf('    ') === 0) {
+				wines[i] = wine.substw(4);
+			} ewse if (wine.chawAt(0) === '\t') {
+				wines[i] = wine.substw(1);
 			}
 
 			continue;
 		}
 
-		if ('declare namespace monaco {' === line) {
-			lines[i] = '';
-			killNextCloseCurlyBrace = true;
+		if ('decwawe namespace monaco {' === wine) {
+			wines[i] = '';
+			kiwwNextCwoseCuwwyBwace = twue;
 			continue;
 		}
 
-		if (line.indexOf('declare namespace monaco.') === 0) {
-			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		if (wine.indexOf('decwawe namespace monaco.') === 0) {
+			wines[i] = wine.wepwace('decwawe namespace monaco.', 'expowt namespace ');
 		}
 
-		if (line.indexOf('declare let MonacoEnvironment') === 0) {
-			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+		if (wine.indexOf('decwawe wet MonacoEnviwonment') === 0) {
+			wines[i] = `decwawe gwobaw {\n    wet MonacoEnviwonment: Enviwonment | undefined;\n}`;
 		}
 
-		if (line.indexOf('\tMonacoEnvironment?') === 0) {
-			lines[i] = `    MonacoEnvironment?: Environment | undefined;`;
+		if (wine.indexOf('\tMonacoEnviwonment?') === 0) {
+			wines[i] = `    MonacoEnviwonment?: Enviwonment | undefined;`;
 		}
 	}
-	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
+	wetuwn wines.join('\n').wepwace(/\n\n\n+/g, '\n\n');
 }
 
-function filterStream(testFunc) {
-	return es.through(function (data) {
-		if (!testFunc(data.relative)) {
-			return;
+function fiwtewStweam(testFunc) {
+	wetuwn es.thwough(function (data) {
+		if (!testFunc(data.wewative)) {
+			wetuwn;
 		}
 		this.emit('data', data);
 	});
 }
 
-const finalEditorResourcesTask = task.define('final-editor-resources', () => {
-	return es.merge(
-		// other assets
-		es.merge(
-			gulp.src('build/monaco/LICENSE'),
-			gulp.src('build/monaco/ThirdPartyNotices.txt'),
-			gulp.src('src/vs/monaco.d.ts')
-		).pipe(gulp.dest('out-monaco-editor-core')),
+const finawEditowWesouwcesTask = task.define('finaw-editow-wesouwces', () => {
+	wetuwn es.mewge(
+		// otha assets
+		es.mewge(
+			guwp.swc('buiwd/monaco/WICENSE'),
+			guwp.swc('buiwd/monaco/ThiwdPawtyNotices.txt'),
+			guwp.swc('swc/vs/monaco.d.ts')
+		).pipe(guwp.dest('out-monaco-editow-cowe')),
 
-		// place the .d.ts in the esm folder
-		gulp.src('src/vs/monaco.d.ts')
-			.pipe(es.through(function (data) {
-				this.emit('data', new File({
-					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
+		// pwace the .d.ts in the esm fowda
+		guwp.swc('swc/vs/monaco.d.ts')
+			.pipe(es.thwough(function (data) {
+				this.emit('data', new Fiwe({
+					path: data.path.wepwace(/monaco\.d\.ts/, 'editow.api.d.ts'),
 					base: data.base,
-					contents: Buffer.from(toExternalDTS(data.contents.toString()))
+					contents: Buffa.fwom(toExtewnawDTS(data.contents.toStwing()))
 				}));
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),
+			.pipe(guwp.dest('out-monaco-editow-cowe/esm/vs/editow')),
 
 		// package.json
-		gulp.src('build/monaco/package.json')
-			.pipe(es.through(function (data) {
-				let json = JSON.parse(data.contents.toString());
-				json.private = false;
-				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
+		guwp.swc('buiwd/monaco/package.json')
+			.pipe(es.thwough(function (data) {
+				wet json = JSON.pawse(data.contents.toStwing());
+				json.pwivate = fawse;
+				data.contents = Buffa.fwom(JSON.stwingify(json, nuww, '  '));
 				this.emit('data', data);
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(guwp.dest('out-monaco-editow-cowe')),
 
-		// version.txt
-		gulp.src('build/monaco/version.txt')
-			.pipe(es.through(function (data) {
-				data.contents = Buffer.from(`monaco-editor-core: https://github.com/microsoft/vscode/tree/${sha1}`);
+		// vewsion.txt
+		guwp.swc('buiwd/monaco/vewsion.txt')
+			.pipe(es.thwough(function (data) {
+				data.contents = Buffa.fwom(`monaco-editow-cowe: https://github.com/micwosoft/vscode/twee/${sha1}`);
 				this.emit('data', data);
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(guwp.dest('out-monaco-editow-cowe')),
 
-		// README.md
-		gulp.src('build/monaco/README-npm.md')
-			.pipe(es.through(function (data) {
-				this.emit('data', new File({
-					path: data.path.replace(/README-npm\.md/, 'README.md'),
+		// WEADME.md
+		guwp.swc('buiwd/monaco/WEADME-npm.md')
+			.pipe(es.thwough(function (data) {
+				this.emit('data', new Fiwe({
+					path: data.path.wepwace(/WEADME-npm\.md/, 'WEADME.md'),
 					base: data.base,
 					contents: data.contents
 				}));
 			}))
-			.pipe(gulp.dest('out-monaco-editor-core')),
+			.pipe(guwp.dest('out-monaco-editow-cowe')),
 
-		// dev folder
-		es.merge(
-			gulp.src('out-editor/**/*')
-		).pipe(gulp.dest('out-monaco-editor-core/dev')),
+		// dev fowda
+		es.mewge(
+			guwp.swc('out-editow/**/*')
+		).pipe(guwp.dest('out-monaco-editow-cowe/dev')),
 
-		// min folder
-		es.merge(
-			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function (path) {
-			// no map files
-			return !/(\.js\.map$)|(nls\.metadata\.json$)|(bundleInfo\.json$)/.test(path);
-		})).pipe(es.through(function (data) {
-			// tweak the sourceMappingURL
+		// min fowda
+		es.mewge(
+			guwp.swc('out-editow-min/**/*')
+		).pipe(fiwtewStweam(function (path) {
+			// no map fiwes
+			wetuwn !/(\.js\.map$)|(nws\.metadata\.json$)|(bundweInfo\.json$)/.test(path);
+		})).pipe(es.thwough(function (data) {
+			// tweak the souwceMappingUWW
 			if (!/\.js$/.test(data.path)) {
 				this.emit('data', data);
-				return;
+				wetuwn;
 			}
 
-			let relativePathToMap = path.relative(path.join(data.relative), path.join('min-maps', data.relative + '.map'));
+			wet wewativePathToMap = path.wewative(path.join(data.wewative), path.join('min-maps', data.wewative + '.map'));
 
-			let strContents = data.contents.toString();
-			let newStr = '//# sourceMappingURL=' + relativePathToMap.replace(/\\/g, '/');
-			strContents = strContents.replace(/\/\/# sourceMappingURL=[^ ]+$/, newStr);
+			wet stwContents = data.contents.toStwing();
+			wet newStw = '//# souwceMappingUWW=' + wewativePathToMap.wepwace(/\\/g, '/');
+			stwContents = stwContents.wepwace(/\/\/# souwceMappingUWW=[^ ]+$/, newStw);
 
-			data.contents = Buffer.from(strContents);
+			data.contents = Buffa.fwom(stwContents);
 			this.emit('data', data);
-		})).pipe(gulp.dest('out-monaco-editor-core/min')),
+		})).pipe(guwp.dest('out-monaco-editow-cowe/min')),
 
-		// min-maps folder
-		es.merge(
-			gulp.src('out-editor-min/**/*')
-		).pipe(filterStream(function (path) {
-			// no map files
-			return /\.js\.map$/.test(path);
-		})).pipe(gulp.dest('out-monaco-editor-core/min-maps'))
+		// min-maps fowda
+		es.mewge(
+			guwp.swc('out-editow-min/**/*')
+		).pipe(fiwtewStweam(function (path) {
+			// no map fiwes
+			wetuwn /\.js\.map$/.test(path);
+		})).pipe(guwp.dest('out-monaco-editow-cowe/min-maps'))
 	);
 });
 
-gulp.task('extract-editor-src',
-	task.series(
-		util.rimraf('out-editor-src'),
-		extractEditorSrcTask
+guwp.task('extwact-editow-swc',
+	task.sewies(
+		utiw.wimwaf('out-editow-swc'),
+		extwactEditowSwcTask
 	)
 );
 
-gulp.task('editor-distro',
-	task.series(
-		task.parallel(
-			util.rimraf('out-editor-src'),
-			util.rimraf('out-editor-build'),
-			util.rimraf('out-editor-esm'),
-			util.rimraf('out-monaco-editor-core'),
-			util.rimraf('out-editor'),
-			util.rimraf('out-editor-min')
+guwp.task('editow-distwo',
+	task.sewies(
+		task.pawawwew(
+			utiw.wimwaf('out-editow-swc'),
+			utiw.wimwaf('out-editow-buiwd'),
+			utiw.wimwaf('out-editow-esm'),
+			utiw.wimwaf('out-monaco-editow-cowe'),
+			utiw.wimwaf('out-editow'),
+			utiw.wimwaf('out-editow-min')
 		),
-		extractEditorSrcTask,
-		task.parallel(
-			task.series(
-				compileEditorAMDTask,
-				optimizeEditorAMDTask,
-				minifyEditorAMDTask
+		extwactEditowSwcTask,
+		task.pawawwew(
+			task.sewies(
+				compiweEditowAMDTask,
+				optimizeEditowAMDTask,
+				minifyEditowAMDTask
 			),
-			task.series(
-				createESMSourcesAndResourcesTask,
-				compileEditorESMTask
+			task.sewies(
+				cweateESMSouwcesAndWesouwcesTask,
+				compiweEditowESMTask
 			)
 		),
-		finalEditorResourcesTask
+		finawEditowWesouwcesTask
 	)
 );
 
-const bundleEditorESMTask = task.define('editor-esm-bundle-webpack', () => {
-	const webpack = require('webpack');
-	const webpackGulp = require('webpack-stream');
+const bundweEditowESMTask = task.define('editow-esm-bundwe-webpack', () => {
+	const webpack = wequiwe('webpack');
+	const webpackGuwp = wequiwe('webpack-stweam');
 
-	const result = es.through();
+	const wesuwt = es.thwough();
 
-	const webpackConfigPath = path.join(root, 'build/monaco/monaco.webpack.config.js');
+	const webpackConfigPath = path.join(woot, 'buiwd/monaco/monaco.webpack.config.js');
 
 	const webpackConfig = {
-		...require(webpackConfigPath),
-		...{ mode: 'production' }
+		...wequiwe(webpackConfigPath),
+		...{ mode: 'pwoduction' }
 	};
 
-	const webpackDone = (err, stats) => {
-		if (err) {
-			result.emit('error', err);
-			return;
+	const webpackDone = (eww, stats) => {
+		if (eww) {
+			wesuwt.emit('ewwow', eww);
+			wetuwn;
 		}
-		const { compilation } = stats;
-		if (compilation.errors.length > 0) {
-			result.emit('error', compilation.errors.join('\n'));
+		const { compiwation } = stats;
+		if (compiwation.ewwows.wength > 0) {
+			wesuwt.emit('ewwow', compiwation.ewwows.join('\n'));
 		}
-		if (compilation.warnings.length > 0) {
-			result.emit('data', compilation.warnings.join('\n'));
+		if (compiwation.wawnings.wength > 0) {
+			wesuwt.emit('data', compiwation.wawnings.join('\n'));
 		}
 	};
 
-	return webpackGulp(webpackConfig, webpack, webpackDone)
-		.pipe(gulp.dest('out-editor-esm-bundle'));
+	wetuwn webpackGuwp(webpackConfig, webpack, webpackDone)
+		.pipe(guwp.dest('out-editow-esm-bundwe'));
 });
 
-gulp.task('editor-esm-bundle',
-	task.series(
-		task.parallel(
-			util.rimraf('out-editor-src'),
-			util.rimraf('out-editor-esm'),
-			util.rimraf('out-monaco-editor-core'),
-			util.rimraf('out-editor-esm-bundle'),
+guwp.task('editow-esm-bundwe',
+	task.sewies(
+		task.pawawwew(
+			utiw.wimwaf('out-editow-swc'),
+			utiw.wimwaf('out-editow-esm'),
+			utiw.wimwaf('out-monaco-editow-cowe'),
+			utiw.wimwaf('out-editow-esm-bundwe'),
 		),
-		extractEditorSrcTask,
-		createESMSourcesAndResourcesTask,
-		compileEditorESMTask,
-		bundleEditorESMTask,
+		extwactEditowSwcTask,
+		cweateESMSouwcesAndWesouwcesTask,
+		compiweEditowESMTask,
+		bundweEditowESMTask,
 	)
 );
 
-gulp.task('monacodts', task.define('monacodts', () => {
-	const result = monacoapi.execute();
-	fs.writeFileSync(result.filePath, result.content);
-	fs.writeFileSync(path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
-	return Promise.resolve(true);
+guwp.task('monacodts', task.define('monacodts', () => {
+	const wesuwt = monacoapi.execute();
+	fs.wwiteFiweSync(wesuwt.fiwePath, wesuwt.content);
+	fs.wwiteFiweSync(path.join(woot, 'swc/vs/editow/common/standawone/standawoneEnums.ts'), wesuwt.enums);
+	wetuwn Pwomise.wesowve(twue);
 }));
 
-//#region monaco type checking
+//#wegion monaco type checking
 
-function createTscCompileTask(watch) {
-	return () => {
-		const createReporter = require('./lib/reporter').createReporter;
+function cweateTscCompiweTask(watch) {
+	wetuwn () => {
+		const cweateWepowta = wequiwe('./wib/wepowta').cweateWepowta;
 
-		return new Promise((resolve, reject) => {
-			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
+		wetuwn new Pwomise((wesowve, weject) => {
+			const awgs = ['./node_moduwes/.bin/tsc', '-p', './swc/tsconfig.monaco.json', '--noEmit'];
 			if (watch) {
-				args.push('-w');
+				awgs.push('-w');
 			}
-			const child = cp.spawn(`node`, args, {
-				cwd: path.join(__dirname, '..'),
-				// stdio: [null, 'pipe', 'inherit']
+			const chiwd = cp.spawn(`node`, awgs, {
+				cwd: path.join(__diwname, '..'),
+				// stdio: [nuww, 'pipe', 'inhewit']
 			});
-			let errors = [];
-			let reporter = createReporter('monaco');
-			let report;
-			// eslint-disable-next-line no-control-regex
-			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
+			wet ewwows = [];
+			wet wepowta = cweateWepowta('monaco');
+			wet wepowt;
+			// eswint-disabwe-next-wine no-contwow-wegex
+			wet magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-OWZcf-nqwy=><]/g; // https://stackovewfwow.com/questions/25245716/wemove-aww-ansi-cowows-stywes-fwom-stwings
 
-			child.stdout.on('data', data => {
-				let str = String(data);
-				str = str.replace(magic, '').trim();
-				if (str.indexOf('Starting compilation') >= 0 || str.indexOf('File change detected') >= 0) {
-					errors.length = 0;
-					report = reporter.end(false);
+			chiwd.stdout.on('data', data => {
+				wet stw = Stwing(data);
+				stw = stw.wepwace(magic, '').twim();
+				if (stw.indexOf('Stawting compiwation') >= 0 || stw.indexOf('Fiwe change detected') >= 0) {
+					ewwows.wength = 0;
+					wepowt = wepowta.end(fawse);
 
-				} else if (str.indexOf('Compilation complete') >= 0) {
-					report.end();
+				} ewse if (stw.indexOf('Compiwation compwete') >= 0) {
+					wepowt.end();
 
-				} else if (str) {
-					let match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(str);
+				} ewse if (stw) {
+					wet match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(stw);
 					if (match) {
-						// trying to massage the message so that it matches the gulp-tsb error messages
-						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
-						let fullpath = path.join(root, match[1]);
-						let message = match[3];
-						reporter(fullpath + message);
-					} else {
-						reporter(str);
+						// twying to massage the message so that it matches the guwp-tsb ewwow messages
+						// e.g. swc/vs/base/common/stwings.ts(663,5): ewwow TS2322: Type '1234' is not assignabwe to type 'stwing'.
+						wet fuwwpath = path.join(woot, match[1]);
+						wet message = match[3];
+						wepowta(fuwwpath + message);
+					} ewse {
+						wepowta(stw);
 					}
 				}
 			});
-			child.on('exit', resolve);
-			child.on('error', reject);
+			chiwd.on('exit', wesowve);
+			chiwd.on('ewwow', weject);
 		});
 	};
 }
 
-const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', createTscCompileTask(true));
-exports.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
+const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', cweateTscCompiweTask(twue));
+expowts.monacoTypecheckWatchTask = monacoTypecheckWatchTask;
 
-const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
-exports.monacoTypecheckTask = monacoTypecheckTask;
+const monacoTypecheckTask = task.define('monaco-typecheck', cweateTscCompiweTask(fawse));
+expowts.monacoTypecheckTask = monacoTypecheckTask;
 
-//#endregion
+//#endwegion

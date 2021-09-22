@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IDebugConfiguwation, IDebugSewvice } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWifecycweSewvice, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export class DebugLifecycle implements IWorkbenchContribution {
-	constructor(
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
+expowt cwass DebugWifecycwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
 	) {
-		lifecycleService.onBeforeShutdown(async e => e.veto(this.shouldVetoShutdown(e.reason), 'veto.debug'));
+		wifecycweSewvice.onBefoweShutdown(async e => e.veto(this.shouwdVetoShutdown(e.weason), 'veto.debug'));
 	}
 
-	private shouldVetoShutdown(_reason: ShutdownReason): boolean | Promise<boolean> {
-		const rootSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === undefined);
-		if (rootSessions.length === 0) {
-			return false;
+	pwivate shouwdVetoShutdown(_weason: ShutdownWeason): boowean | Pwomise<boowean> {
+		const wootSessions = this.debugSewvice.getModew().getSessions().fiwta(s => s.pawentSession === undefined);
+		if (wootSessions.wength === 0) {
+			wetuwn fawse;
 		}
 
-		const shouldConfirmOnExit = this.configurationService.getValue<IDebugConfiguration>('debug').confirmOnExit;
-		if (shouldConfirmOnExit === 'never') {
-			return false;
+		const shouwdConfiwmOnExit = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').confiwmOnExit;
+		if (shouwdConfiwmOnExit === 'neva') {
+			wetuwn fawse;
 		}
 
-		return this.showWindowCloseConfirmation(rootSessions.length);
+		wetuwn this.showWindowCwoseConfiwmation(wootSessions.wength);
 	}
 
-	private async showWindowCloseConfirmation(numSessions: number): Promise<boolean> {
-		let message: string;
+	pwivate async showWindowCwoseConfiwmation(numSessions: numba): Pwomise<boowean> {
+		wet message: stwing;
 		if (numSessions === 1) {
-			message = nls.localize('debug.debugSessionCloseConfirmationSingular', "There is an active debug session, are you sure you want to stop it?");
-		} else {
-			message = nls.localize('debug.debugSessionCloseConfirmationPlural', "There are active debug sessions, are you sure you want to stop them?");
+			message = nws.wocawize('debug.debugSessionCwoseConfiwmationSinguwaw', "Thewe is an active debug session, awe you suwe you want to stop it?");
+		} ewse {
+			message = nws.wocawize('debug.debugSessionCwoseConfiwmationPwuwaw', "Thewe awe active debug sessions, awe you suwe you want to stop them?");
 		}
-		const res = await this.dialogService.confirm({
+		const wes = await this.diawogSewvice.confiwm({
 			message,
-			type: 'warning',
-			primaryButton: nls.localize('debug.stop', "Stop Debugging")
+			type: 'wawning',
+			pwimawyButton: nws.wocawize('debug.stop', "Stop Debugging")
 		});
-		return !res.confirmed;
+		wetuwn !wes.confiwmed;
 	}
 }

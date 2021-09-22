@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
+impowt * as assewt fwom 'assewt';
+impowt { IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { EwwowWepowta, OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { MIN_MAX_MEMOWY_SIZE_MB } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
-	const errorReporter: ErrorReporter = {
+function pawseAndVawidate(cmdWineAwgs: stwing[], wepowtWawnings: boowean): NativePawsedAwgs {
+	const ewwowWepowta: EwwowWepowta = {
 		onUnknownOption: (id) => {
-			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
+			consowe.wawn(wocawize('unknownOption', "Wawning: '{0}' is not in the wist of known options, but stiww passed to Ewectwon/Chwomium.", id));
 		},
-		onMultipleValues: (id, val) => {
-			console.warn(localize('multipleValues', "Option '{0}' is defined more than once. Using value '{1}.'", id, val));
+		onMuwtipweVawues: (id, vaw) => {
+			consowe.wawn(wocawize('muwtipweVawues', "Option '{0}' is defined mowe than once. Using vawue '{1}.'", id, vaw));
 		}
 	};
 
-	const args = parseArgs(cmdLineArgs, OPTIONS, reportWarnings ? errorReporter : undefined);
-	if (args.goto) {
-		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
+	const awgs = pawseAwgs(cmdWineAwgs, OPTIONS, wepowtWawnings ? ewwowWepowta : undefined);
+	if (awgs.goto) {
+		awgs._.fowEach(awg => assewt(/^(\w:)?[^:]+(:\d*){0,2}$/.test(awg), wocawize('gotoVawidation', "Awguments in `--goto` mode shouwd be in the fowmat of `FIWE(:WINE(:CHAWACTa))`.")));
 	}
 
-	if (args['max-memory']) {
-		assert(parseInt(args['max-memory']) >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
+	if (awgs['max-memowy']) {
+		assewt(pawseInt(awgs['max-memowy']) >= MIN_MAX_MEMOWY_SIZE_MB, `The max-memowy awgument cannot be specified wowa than ${MIN_MAX_MEMOWY_SIZE_MB} MB.`);
 	}
 
-	return args;
+	wetuwn awgs;
 }
 
-function stripAppPath(argv: string[]): string[] | undefined {
-	const index = argv.findIndex(a => !/^-/.test(a));
+function stwipAppPath(awgv: stwing[]): stwing[] | undefined {
+	const index = awgv.findIndex(a => !/^-/.test(a));
 
 	if (index > -1) {
-		return [...argv.slice(0, index), ...argv.slice(index + 1)];
+		wetuwn [...awgv.swice(0, index), ...awgv.swice(index + 1)];
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
 /**
- * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
+ * Use this to pawse waw code pwocess.awgv such as: `Ewectwon . --vewbose --wait`
  */
-export function parseMainProcessArgv(processArgv: string[]): NativeParsedArgs {
-	let [, ...args] = processArgv;
+expowt function pawseMainPwocessAwgv(pwocessAwgv: stwing[]): NativePawsedAwgs {
+	wet [, ...awgs] = pwocessAwgv;
 
-	// If dev, remove the first non-option argument: it's the app location
-	if (process.env['VSCODE_DEV']) {
-		args = stripAppPath(args) || [];
+	// If dev, wemove the fiwst non-option awgument: it's the app wocation
+	if (pwocess.env['VSCODE_DEV']) {
+		awgs = stwipAppPath(awgs) || [];
 	}
 
-	// If called from CLI, don't report warnings as they are already reported.
-	const reportWarnings = !isLaunchedFromCli(process.env);
-	return parseAndValidate(args, reportWarnings);
+	// If cawwed fwom CWI, don't wepowt wawnings as they awe awweady wepowted.
+	const wepowtWawnings = !isWaunchedFwomCwi(pwocess.env);
+	wetuwn pawseAndVawidate(awgs, wepowtWawnings);
 }
 
 /**
- * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
+ * Use this to pawse waw code CWI pwocess.awgv such as: `Ewectwon cwi.js . --vewbose --wait`
  */
-export function parseCLIProcessArgv(processArgv: string[]): NativeParsedArgs {
-	const [, , ...args] = processArgv; // remove the first non-option argument: it's always the app location
+expowt function pawseCWIPwocessAwgv(pwocessAwgv: stwing[]): NativePawsedAwgs {
+	const [, , ...awgs] = pwocessAwgv; // wemove the fiwst non-option awgument: it's awways the app wocation
 
-	return parseAndValidate(args, true);
+	wetuwn pawseAndVawidate(awgs, twue);
 }
 
-export function addArg(argv: string[], ...args: string[]): string[] {
-	const endOfArgsMarkerIndex = argv.indexOf('--');
-	if (endOfArgsMarkerIndex === -1) {
-		argv.push(...args);
-	} else {
-		// if the we have an argument "--" (end of argument marker)
-		// we cannot add arguments at the end. rather, we add
-		// arguments before the "--" marker.
-		argv.splice(endOfArgsMarkerIndex, 0, ...args);
+expowt function addAwg(awgv: stwing[], ...awgs: stwing[]): stwing[] {
+	const endOfAwgsMawkewIndex = awgv.indexOf('--');
+	if (endOfAwgsMawkewIndex === -1) {
+		awgv.push(...awgs);
+	} ewse {
+		// if the we have an awgument "--" (end of awgument mawka)
+		// we cannot add awguments at the end. watha, we add
+		// awguments befowe the "--" mawka.
+		awgv.spwice(endOfAwgsMawkewIndex, 0, ...awgs);
 	}
 
-	return argv;
+	wetuwn awgv;
 }
 
-export function isLaunchedFromCli(env: IProcessEnvironment): boolean {
-	return env['VSCODE_CLI'] === '1';
+expowt function isWaunchedFwomCwi(env: IPwocessEnviwonment): boowean {
+	wetuwn env['VSCODE_CWI'] === '1';
 }

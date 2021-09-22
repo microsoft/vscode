@@ -1,378 +1,378 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { LcsDiff } from 'vs/base/common/diff/diff';
-import { Mimes } from 'vs/base/common/mime';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { CellKind, CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { WcsDiff } fwom 'vs/base/common/diff/diff';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { NotebookDiffEditowEventDispatcha } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/eventDispatcha';
+impowt { NotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookTextDiffEditow';
+impowt { CewwKind, CewwSequence } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { withTestNotebookDiffModew } fwom 'vs/wowkbench/contwib/notebook/test/testNotebookEditow';
 
 suite('NotebookCommon', () => {
 
-	test('diff different source', async () => {
-		await withTestNotebookDiffModel([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+	test('diff diffewent souwce', async () => {
+		await withTestNotebookDiffModew([
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
 		], [
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			assert.strictEqual(diffResult.changes.length, 1);
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+			['y', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			assewt.stwictEquaw(diffWesuwt.changes.wength, 1);
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 0,
-				originalLength: 1,
-				modifiedStart: 0,
-				modifiedLength: 1
+				owiginawStawt: 0,
+				owiginawWength: 1,
+				modifiedStawt: 0,
+				modifiedWength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 1);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 1);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
 		});
 	});
 
-	test('diff different output', async () => {
-		await withTestNotebookDiffModel([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 5 }],
-			['', 'javascript', CellKind.Code, [], {}]
+	test('diff diffewent output', async () => {
+		await withTestNotebookDiffModew([
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([5])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 5 }],
+			['', 'javascwipt', CewwKind.Code, [], {}]
 		], [
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-			['', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			assert.strictEqual(diffResult.changes.length, 1);
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
+			['', 'javascwipt', CewwKind.Code, [], {}]
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			assewt.stwictEquaw(diffWesuwt.changes.wength, 1);
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 0,
-				originalLength: 1,
-				modifiedStart: 0,
-				modifiedLength: 1
+				owiginawStawt: 0,
+				owiginawWength: 1,
+				modifiedStawt: 0,
+				modifiedWength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 2);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
-			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 2);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews[1].type, 'unchanged');
 		});
 	});
 
-	test('diff test small source', async () => {
-		await withTestNotebookDiffModel([
-			['123456789', 'javascript', CellKind.Code, [], {}]
+	test('diff test smaww souwce', async () => {
+		await withTestNotebookDiffModew([
+			['123456789', 'javascwipt', CewwKind.Code, [], {}]
 		], [
-			['987654321', 'javascript', CellKind.Code, [], {}],
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			assert.strictEqual(diffResult.changes.length, 1);
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+			['987654321', 'javascwipt', CewwKind.Code, [], {}],
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			assewt.stwictEquaw(diffWesuwt.changes.wength, 1);
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 0,
-				originalLength: 1,
-				modifiedStart: 0,
-				modifiedLength: 1
+				owiginawStawt: 0,
+				owiginawWength: 1,
+				modifiedStawt: 0,
+				modifiedWength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 1);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 1);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
 		});
 	});
 
-	test('diff test data single cell', async () => {
-		await withTestNotebookDiffModel([
+	test('diff test data singwe ceww', async () => {
+		await withTestNotebookDiffModew([
 			[[
-				'# This version has a bug\n',
-				'def mult(a, b):\n',
-				'    return a / b'
-			].join(''), 'javascript', CellKind.Code, [], {}]
+				'# This vewsion has a bug\n',
+				'def muwt(a, b):\n',
+				'    wetuwn a / b'
+			].join(''), 'javascwipt', CewwKind.Code, [], {}]
 		], [
 			[[
-				'def mult(a, b):\n',
-				'    \'This version is debugged.\'\n',
-				'    return a * b'
-			].join(''), 'javascript', CellKind.Code, [], {}],
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			assert.strictEqual(diffResult.changes.length, 1);
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+				'def muwt(a, b):\n',
+				'    \'This vewsion is debugged.\'\n',
+				'    wetuwn a * b'
+			].join(''), 'javascwipt', CewwKind.Code, [], {}],
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			assewt.stwictEquaw(diffWesuwt.changes.wength, 1);
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 0,
-				originalLength: 1,
-				modifiedStart: 0,
-				modifiedLength: 1
+				owiginawStawt: 0,
+				owiginawWength: 1,
+				modifiedStawt: 0,
+				modifiedWength: 1
 			}]);
 
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 1);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 1);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
 		});
 	});
 
 	test('diff foo/foe', async () => {
-		await withTestNotebookDiffModel([
-			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 5 }],
-			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 6 }],
-			['', 'javascript', CellKind.Code, [], {}]
+		await withTestNotebookDiffModew([
+			[['def foe(x, y):\n', '    wetuwn x + y\n', 'foe(3, 2)'].join(''), 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([6])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 5 }],
+			[['def foo(x, y):\n', '    wetuwn x * y\n', 'foo(1, 2)'].join(''), 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([2])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 6 }],
+			['', 'javascwipt', CewwKind.Code, [], {}]
 		], [
-			[['def foo(x, y):\n', '    return x * y\n', 'foo(1, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([6])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 5 }],
-			[['def foe(x, y):\n', '    return x + y\n', 'foe(3, 2)'].join(''), 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([2])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 6 }],
-			['', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			[['def foo(x, y):\n', '    wetuwn x * y\n', 'foo(1, 2)'].join(''), 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([6])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 5 }],
+			[['def foe(x, y):\n', '    wetuwn x + y\n', 'foe(3, 2)'].join(''), 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([2])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 6 }],
+			['', 'javascwipt', CewwKind.Code, [], {}]
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 3);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
-			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
-			assert.strictEqual(diffViewModels.viewModels[2].type, 'unchanged');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 3);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews[1].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews[2].type, 'unchanged');
 		});
 	});
 
-	test('diff markdown', async () => {
-		await withTestNotebookDiffModel([
-			['This is a test notebook with only markdown cells', 'markdown', CellKind.Markup, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
-			['In other news', 'markdown', CellKind.Markup, [], {}],
+	test('diff mawkdown', async () => {
+		await withTestNotebookDiffModew([
+			['This is a test notebook with onwy mawkdown cewws', 'mawkdown', CewwKind.Mawkup, [], {}],
+			['Wowem ipsum dowow sit amet', 'mawkdown', CewwKind.Mawkup, [], {}],
+			['In otha news', 'mawkdown', CewwKind.Mawkup, [], {}],
 		], [
-			['This is a test notebook with markdown cells only', 'markdown', CellKind.Markup, [], {}],
-			['Lorem ipsum dolor sit amet', 'markdown', CellKind.Markup, [], {}],
-			['In the news', 'markdown', CellKind.Markup, [], {}],
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			['This is a test notebook with mawkdown cewws onwy', 'mawkdown', CewwKind.Mawkup, [], {}],
+			['Wowem ipsum dowow sit amet', 'mawkdown', CewwKind.Mawkup, [], {}],
+			['In the news', 'mawkdown', CewwKind.Mawkup, [], {}],
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 3);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'modified');
-			assert.strictEqual(diffViewModels.viewModels[1].type, 'unchanged');
-			assert.strictEqual(diffViewModels.viewModels[2].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 3);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews[1].type, 'unchanged');
+			assewt.stwictEquaw(diffViewModews.viewModews[2].type, 'modified');
 		});
 	});
 
-	test('diff insert', async () => {
-		await withTestNotebookDiffModel([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
+	test('diff insewt', async () => {
+		await withTestNotebookDiffModew([
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
 		], [
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: {
+			['vaw h = 8;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}]
+		], (modew, accessow) => {
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffWesuwt = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: {
 					changes: [{
-						originalStart: 0,
-						originalLength: 0,
-						modifiedStart: 0,
-						modifiedLength: 1
+						owiginawStawt: 0,
+						owiginawWength: 0,
+						modifiedStawt: 0,
+						modifiedWength: 1
 					}],
-					quitEarly: false
+					quitEawwy: fawse
 				}
 			});
 
-			assert.strictEqual(diffResult.firstChangeIndex, 0);
-			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
-			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.fiwstChangeIndex, 0);
+			assewt.stwictEquaw(diffWesuwt.viewModews[0].type, 'insewt');
+			assewt.stwictEquaw(diffWesuwt.viewModews[1].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[2].type, 'unchanged');
 		});
 	});
 
-	test('diff insert 2', async () => {
+	test('diff insewt 2', async () => {
 
-		await withTestNotebookDiffModel([
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
+		await withTestNotebookDiffModew([
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw f = 6;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw g = 7;', 'javascwipt', CewwKind.Code, [], {}],
 		], [
-			['var h = 8;', 'javascript', CellKind.Code, [], {}],
-			['var a = 1;', 'javascript', CellKind.Code, [], {}],
-			['var b = 2;', 'javascript', CellKind.Code, [], {}],
-			['var c = 3;', 'javascript', CellKind.Code, [], {}],
-			['var d = 4;', 'javascript', CellKind.Code, [], {}],
-			['var e = 5;', 'javascript', CellKind.Code, [], {}],
-			['var f = 6;', 'javascript', CellKind.Code, [], {}],
-			['var g = 7;', 'javascript', CellKind.Code, [], {}],
-		], async (model, accessor) => {
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: {
+			['vaw h = 8;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw a = 1;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw b = 2;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw c = 3;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw d = 4;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw e = 5;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw f = 6;', 'javascwipt', CewwKind.Code, [], {}],
+			['vaw g = 7;', 'javascwipt', CewwKind.Code, [], {}],
+		], async (modew, accessow) => {
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffWesuwt = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: {
 					changes: [{
-						originalStart: 0,
-						originalLength: 0,
-						modifiedStart: 0,
-						modifiedLength: 1
+						owiginawStawt: 0,
+						owiginawWength: 0,
+						modifiedStawt: 0,
+						modifiedWength: 1
 					}, {
-						originalStart: 0,
-						originalLength: 6,
-						modifiedStart: 1,
-						modifiedLength: 6
+						owiginawStawt: 0,
+						owiginawWength: 6,
+						modifiedStawt: 1,
+						modifiedWength: 6
 					}],
-					quitEarly: false
+					quitEawwy: fawse
 				}
 			});
 
-			assert.strictEqual(diffResult.firstChangeIndex, 0);
-			assert.strictEqual(diffResult.viewModels[0].type, 'insert');
-			assert.strictEqual(diffResult.viewModels[1].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[2].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[3].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[4].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[5].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[6].type, 'unchanged');
-			assert.strictEqual(diffResult.viewModels[7].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.fiwstChangeIndex, 0);
+			assewt.stwictEquaw(diffWesuwt.viewModews[0].type, 'insewt');
+			assewt.stwictEquaw(diffWesuwt.viewModews[1].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[2].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[3].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[4].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[5].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[6].type, 'unchanged');
+			assewt.stwictEquaw(diffWesuwt.viewModews[7].type, 'unchanged');
 		});
 	});
 
-	test('LCS', async () => {
-		await withTestNotebookDiffModel([
-			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
-			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }]
+	test('WCS', async () => {
+		await withTestNotebookDiffModew([
+			['# Descwiption', 'mawkdown', CewwKind.Mawkup, [], { custom: { metadata: {} } }],
+			['x = 3', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: twue } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: fawse } } }]
 		], [
-			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
-			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }]
-		], async (model) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+			['# Descwiption', 'mawkdown', CewwKind.Mawkup, [], { custom: { metadata: {} } }],
+			['x = 3', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: twue } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: fawse } } }],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 1 }]
+		], async (modew) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 2,
-				originalLength: 0,
-				modifiedStart: 2,
-				modifiedLength: 1
+				owiginawStawt: 2,
+				owiginawWength: 0,
+				modifiedStawt: 2,
+				modifiedWength: 1
 			}, {
-				originalStart: 3,
-				originalLength: 1,
-				modifiedStart: 4,
-				modifiedLength: 0
+				owiginawStawt: 3,
+				owiginawWength: 1,
+				modifiedStawt: 4,
+				modifiedWength: 0
 			}]);
 		});
 	});
 
-	test('LCS 2', async () => {
-		await withTestNotebookDiffModel([
-			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
-			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
+	test('WCS 2', async () => {
+		await withTestNotebookDiffModew([
+			['# Descwiption', 'mawkdown', CewwKind.Mawkup, [], { custom: { metadata: {} } }],
+			['x = 3', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: twue } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: fawse } } }],
+			['x = 5', 'javascwipt', CewwKind.Code, [], {}],
+			['x', 'javascwipt', CewwKind.Code, [], {}],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([5])) }] }], {}],
 		], [
-			['# Description', 'markdown', CellKind.Markup, [], { custom: { metadata: {} } }],
-			['x = 3', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: true } }, executionOrder: 1 }],
-			['x', 'javascript', CellKind.Code, [], { custom: { metadata: { collapsed: false } } }],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 1 }],
-			['x = 5', 'javascript', CellKind.Code, [], {}],
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], {}],
-			['x', 'javascript', CellKind.Code, [], {}],
-		], async (model) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			NotebookTextDiffEditor.prettyChanges(model, diffResult);
+			['# Descwiption', 'mawkdown', CewwKind.Mawkup, [], { custom: { metadata: {} } }],
+			['x = 3', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: twue } }, executionOwda: 1 }],
+			['x', 'javascwipt', CewwKind.Code, [], { custom: { metadata: { cowwapsed: fawse } } }],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 1 }],
+			['x = 5', 'javascwipt', CewwKind.Code, [], {}],
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([5])) }] }], {}],
+			['x', 'javascwipt', CewwKind.Code, [], {}],
+		], async (modew) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			NotebookTextDiffEditow.pwettyChanges(modew, diffWesuwt);
 
-			assert.deepStrictEqual(diffResult.changes.map(change => ({
-				originalStart: change.originalStart,
-				originalLength: change.originalLength,
-				modifiedStart: change.modifiedStart,
-				modifiedLength: change.modifiedLength
+			assewt.deepStwictEquaw(diffWesuwt.changes.map(change => ({
+				owiginawStawt: change.owiginawStawt,
+				owiginawWength: change.owiginawWength,
+				modifiedStawt: change.modifiedStawt,
+				modifiedWength: change.modifiedWength
 			})), [{
-				originalStart: 2,
-				originalLength: 0,
-				modifiedStart: 2,
-				modifiedLength: 1
+				owiginawStawt: 2,
+				owiginawWength: 0,
+				modifiedStawt: 2,
+				modifiedWength: 1
 			}, {
-				originalStart: 3,
-				originalLength: 1,
-				modifiedStart: 4,
-				modifiedLength: 0
+				owiginawStawt: 3,
+				owiginawWength: 1,
+				modifiedStawt: 4,
+				modifiedWength: 0
 			}, {
-				originalStart: 5,
-				originalLength: 0,
-				modifiedStart: 5,
-				modifiedLength: 1
+				owiginawStawt: 5,
+				owiginawWength: 0,
+				modifiedStawt: 5,
+				modifiedWength: 1
 			}, {
-				originalStart: 6,
-				originalLength: 1,
-				modifiedStart: 7,
-				modifiedLength: 0
+				owiginawStawt: 6,
+				owiginawWength: 1,
+				modifiedStawt: 7,
+				modifiedWength: 0
 			}]);
 		});
 	});
 
 	test('diff output', async () => {
-		await withTestNotebookDiffModel([
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+		await withTestNotebookDiffModew([
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
+			['y', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([4])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
 		], [
-			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
-		], (model, accessor) => {
-			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-			const diffResult = diff.ComputeDiff(false);
-			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
-				cellsDiff: diffResult
+			['x', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([3])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
+			['y', 'javascwipt', CewwKind.Code, [{ outputId: 'someOthewId', outputs: [{ mime: Mimes.text, data: VSBuffa.wwap(new Uint8Awway([5])) }] }], { custom: { metadata: { cowwapsed: fawse } }, executionOwda: 3 }],
+		], (modew, accessow) => {
+			const diff = new WcsDiff(new CewwSequence(modew.owiginaw.notebook), new CewwSequence(modew.modified.notebook));
+			const diffWesuwt = diff.ComputeDiff(fawse);
+			const eventDispatcha = new NotebookDiffEditowEventDispatcha();
+			const diffViewModews = NotebookTextDiffEditow.computeDiff(accessow, modew, eventDispatcha, {
+				cewwsDiff: diffWesuwt
 			});
-			assert.strictEqual(diffViewModels.viewModels.length, 2);
-			assert.strictEqual(diffViewModels.viewModels[0].type, 'unchanged');
-			assert.strictEqual(diffViewModels.viewModels[0].checkIfOutputsModified(), false);
-			assert.strictEqual(diffViewModels.viewModels[1].type, 'modified');
-			assert.strictEqual(diffViewModels.viewModels[1].checkIfOutputsModified(), true);
+			assewt.stwictEquaw(diffViewModews.viewModews.wength, 2);
+			assewt.stwictEquaw(diffViewModews.viewModews[0].type, 'unchanged');
+			assewt.stwictEquaw(diffViewModews.viewModews[0].checkIfOutputsModified(), fawse);
+			assewt.stwictEquaw(diffViewModews.viewModews[1].type, 'modified');
+			assewt.stwictEquaw(diffViewModews.viewModews[1].checkIfOutputsModified(), twue);
 		});
 	});
 });

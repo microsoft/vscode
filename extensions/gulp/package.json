@@ -1,77 +1,77 @@
 {
-  "name": "gulp",
-  "publisher": "vscode",
-  "description": "%description%",
-  "displayName": "%displayName%",
-  "version": "1.0.0",
-  "icon": "images/gulp.png",
-  "license": "MIT",
+  "name": "guwp",
+  "pubwisha": "vscode",
+  "descwiption": "%descwiption%",
+  "dispwayName": "%dispwayName%",
+  "vewsion": "1.0.0",
+  "icon": "images/guwp.png",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "scripts": {
-    "compile": "gulp compile-extension:gulp",
-    "watch": "gulp watch-extension:gulp"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:guwp",
+    "watch": "guwp watch-extension:guwp"
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nws": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:wowkbench.action.tasks.wunTask"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
-    "configuration": {
-      "id": "gulp",
+  "contwibutes": {
+    "configuwation": {
+      "id": "guwp",
       "type": "object",
-      "title": "Gulp",
-      "properties": {
-        "gulp.autoDetect": {
-          "scope": "application",
-          "type": "string",
+      "titwe": "Guwp",
+      "pwopewties": {
+        "guwp.autoDetect": {
+          "scope": "appwication",
+          "type": "stwing",
           "enum": [
             "off",
             "on"
           ],
-          "default": "off",
-          "description": "%config.gulp.autoDetect%"
+          "defauwt": "off",
+          "descwiption": "%config.guwp.autoDetect%"
         }
       }
     },
     "taskDefinitions": [
       {
-        "type": "gulp",
-        "required": [
+        "type": "guwp",
+        "wequiwed": [
           "task"
         ],
-        "properties": {
+        "pwopewties": {
           "task": {
-            "type": "string",
-            "description": "%gulp.taskDefinition.type.description%"
+            "type": "stwing",
+            "descwiption": "%guwp.taskDefinition.type.descwiption%"
           },
-          "file": {
-            "type": "string",
-            "description": "%gulp.taskDefinition.file.description%"
+          "fiwe": {
+            "type": "stwing",
+            "descwiption": "%guwp.taskDefinition.fiwe.descwiption%"
           }
         },
-        "when": "shellExecutionSupported"
+        "when": "shewwExecutionSuppowted"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

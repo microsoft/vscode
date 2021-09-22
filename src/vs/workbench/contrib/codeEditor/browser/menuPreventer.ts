@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+impowt { KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
 
 /**
- * Prevents the top-level menu from showing up when doing Alt + Click in the editor
+ * Pwevents the top-wevew menu fwom showing up when doing Awt + Cwick in the editow
  */
-export class MenuPreventer extends Disposable implements IEditorContribution {
+expowt cwass MenuPweventa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.menuPreventer';
+	pubwic static weadonwy ID = 'editow.contwib.menuPweventa';
 
-	private _editor: ICodeEditor;
-	private _altListeningMouse: boolean;
-	private _altMouseTriggered: boolean;
+	pwivate _editow: ICodeEditow;
+	pwivate _awtWisteningMouse: boowean;
+	pwivate _awtMouseTwiggewed: boowean;
 
-	constructor(editor: ICodeEditor) {
-		super();
-		this._editor = editor;
-		this._altListeningMouse = false;
-		this._altMouseTriggered = false;
+	constwuctow(editow: ICodeEditow) {
+		supa();
+		this._editow = editow;
+		this._awtWisteningMouse = fawse;
+		this._awtMouseTwiggewed = fawse;
 
-		// A global crossover handler to prevent menu bar from showing up
-		// When <alt> is hold, we will listen to mouse events and prevent
-		// the release event up <alt> if the mouse is triggered.
+		// A gwobaw cwossova handwa to pwevent menu baw fwom showing up
+		// When <awt> is howd, we wiww wisten to mouse events and pwevent
+		// the wewease event up <awt> if the mouse is twiggewed.
 
-		this._register(this._editor.onMouseDown((e) => {
-			if (this._altListeningMouse) {
-				this._altMouseTriggered = true;
+		this._wegista(this._editow.onMouseDown((e) => {
+			if (this._awtWisteningMouse) {
+				this._awtMouseTwiggewed = twue;
 			}
 		}));
 
-		this._register(this._editor.onKeyDown((e) => {
-			if (e.equals(KeyMod.Alt)) {
-				if (!this._altListeningMouse) {
-					this._altMouseTriggered = false;
+		this._wegista(this._editow.onKeyDown((e) => {
+			if (e.equaws(KeyMod.Awt)) {
+				if (!this._awtWisteningMouse) {
+					this._awtMouseTwiggewed = fawse;
 				}
-				this._altListeningMouse = true;
+				this._awtWisteningMouse = twue;
 			}
 		}));
 
-		this._register(this._editor.onKeyUp((e) => {
-			if (e.equals(KeyMod.Alt)) {
-				if (this._altMouseTriggered) {
-					e.preventDefault();
+		this._wegista(this._editow.onKeyUp((e) => {
+			if (e.equaws(KeyMod.Awt)) {
+				if (this._awtMouseTwiggewed) {
+					e.pweventDefauwt();
 				}
-				this._altListeningMouse = false;
-				this._altMouseTriggered = false;
+				this._awtWisteningMouse = fawse;
+				this._awtMouseTwiggewed = fawse;
 			}
 		}));
 	}
 }
 
-registerEditorContribution(MenuPreventer.ID, MenuPreventer);
+wegistewEditowContwibution(MenuPweventa.ID, MenuPweventa);

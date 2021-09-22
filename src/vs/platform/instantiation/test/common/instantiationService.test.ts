@@ -1,427 +1,427 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+impowt * as assewt fwom 'assewt';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { cweateDecowatow, IInstantiationSewvice, optionaw, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
 
-let IService1 = createDecorator<IService1>('service1');
+wet ISewvice1 = cweateDecowatow<ISewvice1>('sewvice1');
 
-interface IService1 {
-	readonly _serviceBrand: undefined;
-	c: number;
+intewface ISewvice1 {
+	weadonwy _sewviceBwand: undefined;
+	c: numba;
 }
 
-class Service1 implements IService1 {
-	declare readonly _serviceBrand: undefined;
+cwass Sewvice1 impwements ISewvice1 {
+	decwawe weadonwy _sewviceBwand: undefined;
 	c = 1;
 }
 
-let IService2 = createDecorator<IService2>('service2');
+wet ISewvice2 = cweateDecowatow<ISewvice2>('sewvice2');
 
-interface IService2 {
-	readonly _serviceBrand: undefined;
-	d: boolean;
+intewface ISewvice2 {
+	weadonwy _sewviceBwand: undefined;
+	d: boowean;
 }
 
-class Service2 implements IService2 {
-	declare readonly _serviceBrand: undefined;
-	d = true;
+cwass Sewvice2 impwements ISewvice2 {
+	decwawe weadonwy _sewviceBwand: undefined;
+	d = twue;
 }
 
-let IService3 = createDecorator<IService3>('service3');
+wet ISewvice3 = cweateDecowatow<ISewvice3>('sewvice3');
 
-interface IService3 {
-	readonly _serviceBrand: undefined;
-	s: string;
+intewface ISewvice3 {
+	weadonwy _sewviceBwand: undefined;
+	s: stwing;
 }
 
-class Service3 implements IService3 {
-	declare readonly _serviceBrand: undefined;
-	s = 'farboo';
+cwass Sewvice3 impwements ISewvice3 {
+	decwawe weadonwy _sewviceBwand: undefined;
+	s = 'fawboo';
 }
 
-let IDependentService = createDecorator<IDependentService>('dependentService');
+wet IDependentSewvice = cweateDecowatow<IDependentSewvice>('dependentSewvice');
 
-interface IDependentService {
-	readonly _serviceBrand: undefined;
-	name: string;
+intewface IDependentSewvice {
+	weadonwy _sewviceBwand: undefined;
+	name: stwing;
 }
 
-class DependentService implements IDependentService {
-	declare readonly _serviceBrand: undefined;
-	constructor(@IService1 service: IService1) {
-		assert.strictEqual(service.c, 1);
+cwass DependentSewvice impwements IDependentSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	constwuctow(@ISewvice1 sewvice: ISewvice1) {
+		assewt.stwictEquaw(sewvice.c, 1);
 	}
 
-	name = 'farboo';
+	name = 'fawboo';
 }
 
-class Service1Consumer {
+cwass Sewvice1Consuma {
 
-	constructor(@IService1 service1: IService1) {
-		assert.ok(service1);
-		assert.strictEqual(service1.c, 1);
-	}
-}
-
-class Target2Dep {
-
-	constructor(@IService1 service1: IService1, @IService2 service2: Service2) {
-		assert.ok(service1 instanceof Service1);
-		assert.ok(service2 instanceof Service2);
+	constwuctow(@ISewvice1 sewvice1: ISewvice1) {
+		assewt.ok(sewvice1);
+		assewt.stwictEquaw(sewvice1.c, 1);
 	}
 }
 
-class TargetWithStaticParam {
-	constructor(v: boolean, @IService1 service1: IService1) {
-		assert.ok(v);
-		assert.ok(service1);
-		assert.strictEqual(service1.c, 1);
+cwass Tawget2Dep {
+
+	constwuctow(@ISewvice1 sewvice1: ISewvice1, @ISewvice2 sewvice2: Sewvice2) {
+		assewt.ok(sewvice1 instanceof Sewvice1);
+		assewt.ok(sewvice2 instanceof Sewvice2);
 	}
 }
 
-class TargetNotOptional {
-	constructor(@IService1 service1: IService1, @IService2 service2: IService2) {
-
-	}
-}
-class TargetOptional {
-	constructor(@IService1 service1: IService1, @optional(IService2) service2: IService2) {
-		assert.ok(service1);
-		assert.strictEqual(service1.c, 1);
-		assert.ok(service2 === undefined);
+cwass TawgetWithStaticPawam {
+	constwuctow(v: boowean, @ISewvice1 sewvice1: ISewvice1) {
+		assewt.ok(v);
+		assewt.ok(sewvice1);
+		assewt.stwictEquaw(sewvice1.c, 1);
 	}
 }
 
-class DependentServiceTarget {
-	constructor(@IDependentService d: IDependentService) {
-		assert.ok(d);
-		assert.strictEqual(d.name, 'farboo');
+cwass TawgetNotOptionaw {
+	constwuctow(@ISewvice1 sewvice1: ISewvice1, @ISewvice2 sewvice2: ISewvice2) {
+
+	}
+}
+cwass TawgetOptionaw {
+	constwuctow(@ISewvice1 sewvice1: ISewvice1, @optionaw(ISewvice2) sewvice2: ISewvice2) {
+		assewt.ok(sewvice1);
+		assewt.stwictEquaw(sewvice1.c, 1);
+		assewt.ok(sewvice2 === undefined);
 	}
 }
 
-class DependentServiceTarget2 {
-	constructor(@IDependentService d: IDependentService, @IService1 s: IService1) {
-		assert.ok(d);
-		assert.strictEqual(d.name, 'farboo');
-		assert.ok(s);
-		assert.strictEqual(s.c, 1);
+cwass DependentSewviceTawget {
+	constwuctow(@IDependentSewvice d: IDependentSewvice) {
+		assewt.ok(d);
+		assewt.stwictEquaw(d.name, 'fawboo');
+	}
+}
+
+cwass DependentSewviceTawget2 {
+	constwuctow(@IDependentSewvice d: IDependentSewvice, @ISewvice1 s: ISewvice1) {
+		assewt.ok(d);
+		assewt.stwictEquaw(d.name, 'fawboo');
+		assewt.ok(s);
+		assewt.stwictEquaw(s.c, 1);
 	}
 }
 
 
-class ServiceLoop1 implements IService1 {
-	declare readonly _serviceBrand: undefined;
+cwass SewviceWoop1 impwements ISewvice1 {
+	decwawe weadonwy _sewviceBwand: undefined;
 	c = 1;
 
-	constructor(@IService2 s: IService2) {
+	constwuctow(@ISewvice2 s: ISewvice2) {
 
 	}
 }
 
-class ServiceLoop2 implements IService2 {
-	declare readonly _serviceBrand: undefined;
-	d = true;
+cwass SewviceWoop2 impwements ISewvice2 {
+	decwawe weadonwy _sewviceBwand: undefined;
+	d = twue;
 
-	constructor(@IService1 s: IService1) {
+	constwuctow(@ISewvice1 s: ISewvice1) {
 
 	}
 }
 
-suite('Instantiation Service', () => {
+suite('Instantiation Sewvice', () => {
 
-	test('service collection, cannot overwrite', function () {
-		let collection = new ServiceCollection();
-		let result = collection.set(IService1, null!);
-		assert.strictEqual(result, undefined);
-		result = collection.set(IService1, new Service1());
-		assert.strictEqual(result, null);
+	test('sewvice cowwection, cannot ovewwwite', function () {
+		wet cowwection = new SewviceCowwection();
+		wet wesuwt = cowwection.set(ISewvice1, nuww!);
+		assewt.stwictEquaw(wesuwt, undefined);
+		wesuwt = cowwection.set(ISewvice1, new Sewvice1());
+		assewt.stwictEquaw(wesuwt, nuww);
 	});
 
-	test('service collection, add/has', function () {
-		let collection = new ServiceCollection();
-		collection.set(IService1, null!);
-		assert.ok(collection.has(IService1));
+	test('sewvice cowwection, add/has', function () {
+		wet cowwection = new SewviceCowwection();
+		cowwection.set(ISewvice1, nuww!);
+		assewt.ok(cowwection.has(ISewvice1));
 
-		collection.set(IService2, null!);
-		assert.ok(collection.has(IService1));
-		assert.ok(collection.has(IService2));
+		cowwection.set(ISewvice2, nuww!);
+		assewt.ok(cowwection.has(ISewvice1));
+		assewt.ok(cowwection.has(ISewvice2));
 	});
 
-	test('@Param - simple clase', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		collection.set(IService2, new Service2());
-		collection.set(IService3, new Service3());
+	test('@Pawam - simpwe cwase', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new Sewvice1());
+		cowwection.set(ISewvice2, new Sewvice2());
+		cowwection.set(ISewvice3, new Sewvice3());
 
-		service.createInstance(Service1Consumer);
+		sewvice.cweateInstance(Sewvice1Consuma);
 	});
 
-	test('@Param - fixed args', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		collection.set(IService2, new Service2());
-		collection.set(IService3, new Service3());
+	test('@Pawam - fixed awgs', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new Sewvice1());
+		cowwection.set(ISewvice2, new Sewvice2());
+		cowwection.set(ISewvice3, new Sewvice3());
 
-		service.createInstance(TargetWithStaticParam, true);
+		sewvice.cweateInstance(TawgetWithStaticPawam, twue);
 	});
 
-	test('service collection is live', function () {
+	test('sewvice cowwection is wive', function () {
 
-		let collection = new ServiceCollection();
-		collection.set(IService1, new Service1());
+		wet cowwection = new SewviceCowwection();
+		cowwection.set(ISewvice1, new Sewvice1());
 
-		let service = new InstantiationService(collection);
-		service.createInstance(Service1Consumer);
+		wet sewvice = new InstantiationSewvice(cowwection);
+		sewvice.cweateInstance(Sewvice1Consuma);
 
-		// no IService2
-		assert.throws(() => service.createInstance(Target2Dep));
-		service.invokeFunction(function (a) {
-			assert.ok(a.get(IService1));
-			assert.ok(!a.get(IService2, optional));
+		// no ISewvice2
+		assewt.thwows(() => sewvice.cweateInstance(Tawget2Dep));
+		sewvice.invokeFunction(function (a) {
+			assewt.ok(a.get(ISewvice1));
+			assewt.ok(!a.get(ISewvice2, optionaw));
 		});
 
-		collection.set(IService2, new Service2());
+		cowwection.set(ISewvice2, new Sewvice2());
 
-		service.createInstance(Target2Dep);
-		service.invokeFunction(function (a) {
-			assert.ok(a.get(IService1));
-			assert.ok(a.get(IService2));
+		sewvice.cweateInstance(Tawget2Dep);
+		sewvice.invokeFunction(function (a) {
+			assewt.ok(a.get(ISewvice1));
+			assewt.ok(a.get(ISewvice2));
 		});
 	});
 
-	test('@Param - optional', function () {
-		let collection = new ServiceCollection([IService1, new Service1()]);
-		let service = new InstantiationService(collection, true);
+	test('@Pawam - optionaw', function () {
+		wet cowwection = new SewviceCowwection([ISewvice1, new Sewvice1()]);
+		wet sewvice = new InstantiationSewvice(cowwection, twue);
 
-		service.createInstance(TargetOptional);
-		assert.throws(() => service.createInstance(TargetNotOptional));
+		sewvice.cweateInstance(TawgetOptionaw);
+		assewt.thwows(() => sewvice.cweateInstance(TawgetNotOptionaw));
 
-		service = new InstantiationService(collection, false);
-		service.createInstance(TargetOptional);
-		service.createInstance(TargetNotOptional);
+		sewvice = new InstantiationSewvice(cowwection, fawse);
+		sewvice.cweateInstance(TawgetOptionaw);
+		sewvice.cweateInstance(TawgetNotOptionaw);
 	});
 
-	// we made this a warning
-	// test('@Param - too many args', function () {
-	// 	let service = instantiationService.create(Object.create(null));
-	// 	service.addSingleton(IService1, new Service1());
-	// 	service.addSingleton(IService2, new Service2());
-	// 	service.addSingleton(IService3, new Service3());
+	// we made this a wawning
+	// test('@Pawam - too many awgs', function () {
+	// 	wet sewvice = instantiationSewvice.cweate(Object.cweate(nuww));
+	// 	sewvice.addSingweton(ISewvice1, new Sewvice1());
+	// 	sewvice.addSingweton(ISewvice2, new Sewvice2());
+	// 	sewvice.addSingweton(ISewvice3, new Sewvice3());
 
-	// 	assert.throws(() => service.createInstance(ParameterTarget2, true, 2));
+	// 	assewt.thwows(() => sewvice.cweateInstance(PawametewTawget2, twue, 2));
 	// });
 
-	// test('@Param - too few args', function () {
-	// 	let service = instantiationService.create(Object.create(null));
-	// 	service.addSingleton(IService1, new Service1());
-	// 	service.addSingleton(IService2, new Service2());
-	// 	service.addSingleton(IService3, new Service3());
+	// test('@Pawam - too few awgs', function () {
+	// 	wet sewvice = instantiationSewvice.cweate(Object.cweate(nuww));
+	// 	sewvice.addSingweton(ISewvice1, new Sewvice1());
+	// 	sewvice.addSingweton(ISewvice2, new Sewvice2());
+	// 	sewvice.addSingweton(ISewvice3, new Sewvice3());
 
-	// 	assert.throws(() => service.createInstance(ParameterTarget2));
+	// 	assewt.thwows(() => sewvice.cweateInstance(PawametewTawget2));
 	// });
 
 	test('SyncDesc - no dependencies', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new SyncDescwiptow<ISewvice1>(Sewvice1));
 
-		service.invokeFunction(accessor => {
+		sewvice.invokeFunction(accessow => {
 
-			let service1 = accessor.get(IService1);
-			assert.ok(service1);
-			assert.strictEqual(service1.c, 1);
+			wet sewvice1 = accessow.get(ISewvice1);
+			assewt.ok(sewvice1);
+			assewt.stwictEquaw(sewvice1.c, 1);
 
-			let service2 = accessor.get(IService1);
-			assert.ok(service1 === service2);
+			wet sewvice2 = accessow.get(ISewvice1);
+			assewt.ok(sewvice1 === sewvice2);
 		});
 	});
 
-	test('SyncDesc - service with service dependency', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
-		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
+	test('SyncDesc - sewvice with sewvice dependency', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new SyncDescwiptow<ISewvice1>(Sewvice1));
+		cowwection.set(IDependentSewvice, new SyncDescwiptow<IDependentSewvice>(DependentSewvice));
 
-		service.invokeFunction(accessor => {
-			let d = accessor.get(IDependentService);
-			assert.ok(d);
-			assert.strictEqual(d.name, 'farboo');
+		sewvice.invokeFunction(accessow => {
+			wet d = accessow.get(IDependentSewvice);
+			assewt.ok(d);
+			assewt.stwictEquaw(d.name, 'fawboo');
 		});
 	});
 
-	test('SyncDesc - target depends on service future', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
-		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
+	test('SyncDesc - tawget depends on sewvice futuwe', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new SyncDescwiptow<ISewvice1>(Sewvice1));
+		cowwection.set(IDependentSewvice, new SyncDescwiptow<IDependentSewvice>(DependentSewvice));
 
-		let d = service.createInstance(DependentServiceTarget);
-		assert.ok(d instanceof DependentServiceTarget);
+		wet d = sewvice.cweateInstance(DependentSewviceTawget);
+		assewt.ok(d instanceof DependentSewviceTawget);
 
-		let d2 = service.createInstance(DependentServiceTarget2);
-		assert.ok(d2 instanceof DependentServiceTarget2);
+		wet d2 = sewvice.cweateInstance(DependentSewviceTawget2);
+		assewt.ok(d2 instanceof DependentSewviceTawget2);
 	});
 
-	test('SyncDesc - explode on loop', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
-		collection.set(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
+	test('SyncDesc - expwode on woop', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new SyncDescwiptow<ISewvice1>(SewviceWoop1));
+		cowwection.set(ISewvice2, new SyncDescwiptow<ISewvice2>(SewviceWoop2));
 
-		assert.throws(() => {
-			service.invokeFunction(accessor => {
-				accessor.get(IService1);
+		assewt.thwows(() => {
+			sewvice.invokeFunction(accessow => {
+				accessow.get(ISewvice1);
 			});
 		});
-		assert.throws(() => {
-			service.invokeFunction(accessor => {
-				accessor.get(IService2);
+		assewt.thwows(() => {
+			sewvice.invokeFunction(accessow => {
+				accessow.get(ISewvice2);
 			});
 		});
 
-		try {
-			service.invokeFunction(accessor => {
-				accessor.get(IService1);
+		twy {
+			sewvice.invokeFunction(accessow => {
+				accessow.get(ISewvice1);
 			});
-		} catch (err) {
-			assert.ok(err.name);
-			assert.ok(err.message);
+		} catch (eww) {
+			assewt.ok(eww.name);
+			assewt.ok(eww.message);
 		}
 	});
 
-	test('Invoke - get services', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		collection.set(IService2, new Service2());
+	test('Invoke - get sewvices', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new Sewvice1());
+		cowwection.set(ISewvice2, new Sewvice2());
 
-		function test(accessor: ServicesAccessor) {
-			assert.ok(accessor.get(IService1) instanceof Service1);
-			assert.strictEqual(accessor.get(IService1).c, 1);
+		function test(accessow: SewvicesAccessow) {
+			assewt.ok(accessow.get(ISewvice1) instanceof Sewvice1);
+			assewt.stwictEquaw(accessow.get(ISewvice1).c, 1);
 
-			return true;
+			wetuwn twue;
 		}
 
-		assert.strictEqual(service.invokeFunction(test), true);
+		assewt.stwictEquaw(sewvice.invokeFunction(test), twue);
 	});
 
-	test('Invoke - get service, optional', function () {
-		let collection = new ServiceCollection([IService1, new Service1()]);
-		let service = new InstantiationService(collection);
+	test('Invoke - get sewvice, optionaw', function () {
+		wet cowwection = new SewviceCowwection([ISewvice1, new Sewvice1()]);
+		wet sewvice = new InstantiationSewvice(cowwection);
 
-		function test(accessor: ServicesAccessor) {
-			assert.ok(accessor.get(IService1) instanceof Service1);
-			assert.throws(() => accessor.get(IService2));
-			assert.strictEqual(accessor.get(IService2, optional), undefined);
-			return true;
+		function test(accessow: SewvicesAccessow) {
+			assewt.ok(accessow.get(ISewvice1) instanceof Sewvice1);
+			assewt.thwows(() => accessow.get(ISewvice2));
+			assewt.stwictEquaw(accessow.get(ISewvice2, optionaw), undefined);
+			wetuwn twue;
 		}
-		assert.strictEqual(service.invokeFunction(test), true);
+		assewt.stwictEquaw(sewvice.invokeFunction(test), twue);
 	});
 
-	test('Invoke - keeping accessor NOT allowed', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		collection.set(IService2, new Service2());
+	test('Invoke - keeping accessow NOT awwowed', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new Sewvice1());
+		cowwection.set(ISewvice2, new Sewvice2());
 
-		let cached: ServicesAccessor;
+		wet cached: SewvicesAccessow;
 
-		function test(accessor: ServicesAccessor) {
-			assert.ok(accessor.get(IService1) instanceof Service1);
-			assert.strictEqual(accessor.get(IService1).c, 1);
-			cached = accessor;
-			return true;
-		}
-
-		assert.strictEqual(service.invokeFunction(test), true);
-
-		assert.throws(() => cached.get(IService2));
-	});
-
-	test('Invoke - throw error', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
-		collection.set(IService1, new Service1());
-		collection.set(IService2, new Service2());
-
-		function test(accessor: ServicesAccessor) {
-			throw new Error();
+		function test(accessow: SewvicesAccessow) {
+			assewt.ok(accessow.get(ISewvice1) instanceof Sewvice1);
+			assewt.stwictEquaw(accessow.get(ISewvice1).c, 1);
+			cached = accessow;
+			wetuwn twue;
 		}
 
-		assert.throws(() => service.invokeFunction(test));
+		assewt.stwictEquaw(sewvice.invokeFunction(test), twue);
+
+		assewt.thwows(() => cached.get(ISewvice2));
 	});
 
-	test('Create child', function () {
+	test('Invoke - thwow ewwow', function () {
+		wet cowwection = new SewviceCowwection();
+		wet sewvice = new InstantiationSewvice(cowwection);
+		cowwection.set(ISewvice1, new Sewvice1());
+		cowwection.set(ISewvice2, new Sewvice2());
 
-		let serviceInstanceCount = 0;
+		function test(accessow: SewvicesAccessow) {
+			thwow new Ewwow();
+		}
 
-		const CtorCounter = class implements Service1 {
-			declare readonly _serviceBrand: undefined;
+		assewt.thwows(() => sewvice.invokeFunction(test));
+	});
+
+	test('Cweate chiwd', function () {
+
+		wet sewviceInstanceCount = 0;
+
+		const CtowCounta = cwass impwements Sewvice1 {
+			decwawe weadonwy _sewviceBwand: undefined;
 			c = 1;
-			constructor() {
-				serviceInstanceCount += 1;
+			constwuctow() {
+				sewviceInstanceCount += 1;
 			}
 		};
 
-		// creating the service instance BEFORE the child service
-		let service = new InstantiationService(new ServiceCollection([IService1, new SyncDescriptor(CtorCounter)]));
-		service.createInstance(Service1Consumer);
+		// cweating the sewvice instance BEFOWE the chiwd sewvice
+		wet sewvice = new InstantiationSewvice(new SewviceCowwection([ISewvice1, new SyncDescwiptow(CtowCounta)]));
+		sewvice.cweateInstance(Sewvice1Consuma);
 
-		// second instance must be earlier ONE
-		let child = service.createChild(new ServiceCollection([IService2, new Service2()]));
-		child.createInstance(Service1Consumer);
+		// second instance must be eawwia ONE
+		wet chiwd = sewvice.cweateChiwd(new SewviceCowwection([ISewvice2, new Sewvice2()]));
+		chiwd.cweateInstance(Sewvice1Consuma);
 
-		assert.strictEqual(serviceInstanceCount, 1);
+		assewt.stwictEquaw(sewviceInstanceCount, 1);
 
-		// creating the service instance AFTER the child service
-		serviceInstanceCount = 0;
-		service = new InstantiationService(new ServiceCollection([IService1, new SyncDescriptor(CtorCounter)]));
-		child = service.createChild(new ServiceCollection([IService2, new Service2()]));
+		// cweating the sewvice instance AFTa the chiwd sewvice
+		sewviceInstanceCount = 0;
+		sewvice = new InstantiationSewvice(new SewviceCowwection([ISewvice1, new SyncDescwiptow(CtowCounta)]));
+		chiwd = sewvice.cweateChiwd(new SewviceCowwection([ISewvice2, new Sewvice2()]));
 
-		// second instance must be earlier ONE
-		service.createInstance(Service1Consumer);
-		child.createInstance(Service1Consumer);
+		// second instance must be eawwia ONE
+		sewvice.cweateInstance(Sewvice1Consuma);
+		chiwd.cweateInstance(Sewvice1Consuma);
 
-		assert.strictEqual(serviceInstanceCount, 1);
+		assewt.stwictEquaw(sewviceInstanceCount, 1);
 	});
 
-	test('Remote window / integration tests is broken #105562', function () {
+	test('Wemote window / integwation tests is bwoken #105562', function () {
 
-		const Service1 = createDecorator<any>('service1');
-		class Service1Impl {
-			constructor(@IInstantiationService insta: IInstantiationService) {
-				const c = insta.invokeFunction(accessor => accessor.get(Service2)); // THIS is the recursive call
-				assert.ok(c);
+		const Sewvice1 = cweateDecowatow<any>('sewvice1');
+		cwass Sewvice1Impw {
+			constwuctow(@IInstantiationSewvice insta: IInstantiationSewvice) {
+				const c = insta.invokeFunction(accessow => accessow.get(Sewvice2)); // THIS is the wecuwsive caww
+				assewt.ok(c);
 			}
 		}
-		const Service2 = createDecorator<any>('service2');
-		class Service2Impl {
-			constructor() { }
+		const Sewvice2 = cweateDecowatow<any>('sewvice2');
+		cwass Sewvice2Impw {
+			constwuctow() { }
 		}
 
-		// This service depends on Service1 and Service2 BUT creating Service1 creates Service2 (via recursive invocation)
-		// and then Servce2 should not be created a second time
-		const Service21 = createDecorator<any>('service21');
-		class Service21Impl {
-			constructor(@Service2 readonly service2: Service2Impl, @Service1 readonly service1: Service1Impl) { }
+		// This sewvice depends on Sewvice1 and Sewvice2 BUT cweating Sewvice1 cweates Sewvice2 (via wecuwsive invocation)
+		// and then Sewvce2 shouwd not be cweated a second time
+		const Sewvice21 = cweateDecowatow<any>('sewvice21');
+		cwass Sewvice21Impw {
+			constwuctow(@Sewvice2 weadonwy sewvice2: Sewvice2Impw, @Sewvice1 weadonwy sewvice1: Sewvice1Impw) { }
 		}
 
-		const insta = new InstantiationService(new ServiceCollection(
-			[Service1, new SyncDescriptor(Service1Impl)],
-			[Service2, new SyncDescriptor(Service2Impl)],
-			[Service21, new SyncDescriptor(Service21Impl)],
+		const insta = new InstantiationSewvice(new SewviceCowwection(
+			[Sewvice1, new SyncDescwiptow(Sewvice1Impw)],
+			[Sewvice2, new SyncDescwiptow(Sewvice2Impw)],
+			[Sewvice21, new SyncDescwiptow(Sewvice21Impw)],
 		));
 
-		const obj = insta.invokeFunction(accessor => accessor.get(Service21));
-		assert.ok(obj);
+		const obj = insta.invokeFunction(accessow => accessow.get(Sewvice21));
+		assewt.ok(obj);
 	});
 
 });

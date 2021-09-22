@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalArgument } from 'vs/base/common/errors';
-import { OperatingSystem } from 'vs/base/common/platform';
+impowt { iwwegawAwgument } fwom 'vs/base/common/ewwows';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
 
 /**
- * Virtual Key Codes, the value does not hold any inherent meaning.
- * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
- * But these are "more general", as they should work across browsers & OS`s.
+ * Viwtuaw Key Codes, the vawue does not howd any inhewent meaning.
+ * Inspiwed somewhat fwom https://msdn.micwosoft.com/en-us/wibwawy/windows/desktop/dd375731(v=vs.85).aspx
+ * But these awe "mowe genewaw", as they shouwd wowk acwoss bwowsews & OS`s.
  */
-export const enum KeyCode {
-	DependsOnKbLayout = -1,
+expowt const enum KeyCode {
+	DependsOnKbWayout = -1,
 
 	/**
-	 * Placed first to cover the 0 value of the enum.
+	 * Pwaced fiwst to cova the 0 vawue of the enum.
 	 */
 	Unknown = 0,
 
 	Backspace = 1,
 	Tab = 2,
-	Enter = 3,
+	Enta = 3,
 	Shift = 4,
-	Ctrl = 5,
-	Alt = 6,
-	PauseBreak = 7,
-	CapsLock = 8,
+	Ctww = 5,
+	Awt = 6,
+	PauseBweak = 7,
+	CapsWock = 8,
 	Escape = 9,
 	Space = 10,
 	PageUp = 11,
 	PageDown = 12,
 	End = 13,
 	Home = 14,
-	LeftArrow = 15,
-	UpArrow = 16,
-	RightArrow = 17,
-	DownArrow = 18,
-	Insert = 19,
-	Delete = 20,
+	WeftAwwow = 15,
+	UpAwwow = 16,
+	WightAwwow = 17,
+	DownAwwow = 18,
+	Insewt = 19,
+	Dewete = 20,
 
 	KEY_0 = 21,
 	KEY_1 = 22,
@@ -62,13 +62,13 @@ export const enum KeyCode {
 	KEY_I = 39,
 	KEY_J = 40,
 	KEY_K = 41,
-	KEY_L = 42,
+	KEY_W = 42,
 	KEY_M = 43,
 	KEY_N = 44,
 	KEY_O = 45,
 	KEY_P = 46,
 	KEY_Q = 47,
-	KEY_R = 48,
+	KEY_W = 48,
 	KEY_S = 49,
 	KEY_T = 50,
 	KEY_U = 51,
@@ -101,152 +101,152 @@ export const enum KeyCode {
 	F18 = 76,
 	F19 = 77,
 
-	NumLock = 78,
-	ScrollLock = 79,
+	NumWock = 78,
+	ScwowwWock = 79,
 
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ';:' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ';:' key
 	 */
-	US_SEMICOLON = 80,
+	US_SEMICOWON = 80,
 	/**
-	 * For any country/region, the '+' key
-	 * For the US standard keyboard, the '=+' key
+	 * Fow any countwy/wegion, the '+' key
+	 * Fow the US standawd keyboawd, the '=+' key
 	 */
-	US_EQUAL = 81,
+	US_EQUAW = 81,
 	/**
-	 * For any country/region, the ',' key
-	 * For the US standard keyboard, the ',<' key
+	 * Fow any countwy/wegion, the ',' key
+	 * Fow the US standawd keyboawd, the ',<' key
 	 */
 	US_COMMA = 82,
 	/**
-	 * For any country/region, the '-' key
-	 * For the US standard keyboard, the '-_' key
+	 * Fow any countwy/wegion, the '-' key
+	 * Fow the US standawd keyboawd, the '-_' key
 	 */
 	US_MINUS = 83,
 	/**
-	 * For any country/region, the '.' key
-	 * For the US standard keyboard, the '.>' key
+	 * Fow any countwy/wegion, the '.' key
+	 * Fow the US standawd keyboawd, the '.>' key
 	 */
 	US_DOT = 84,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '/?' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '/?' key
 	 */
-	US_SLASH = 85,
+	US_SWASH = 85,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '`~' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '`~' key
 	 */
 	US_BACKTICK = 86,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '[{' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '[{' key
 	 */
-	US_OPEN_SQUARE_BRACKET = 87,
+	US_OPEN_SQUAWE_BWACKET = 87,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the '\|' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the '\|' key
 	 */
-	US_BACKSLASH = 88,
+	US_BACKSWASH = 88,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ']}' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ']}' key
 	 */
-	US_CLOSE_SQUARE_BRACKET = 89,
+	US_CWOSE_SQUAWE_BWACKET = 89,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
-	 * For the US standard keyboard, the ''"' key
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
+	 * Fow the US standawd keyboawd, the ''"' key
 	 */
 	US_QUOTE = 90,
 	/**
-	 * Used for miscellaneous characters; it can vary by keyboard.
+	 * Used fow miscewwaneous chawactews; it can vawy by keyboawd.
 	 */
 	OEM_8 = 91,
 	/**
-	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
+	 * Eitha the angwe bwacket key ow the backswash key on the WT 102-key keyboawd.
 	 */
 	OEM_102 = 92,
 
-	NUMPAD_0 = 93, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
-	NUMPAD_1 = 94, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
-	NUMPAD_2 = 95, // VK_NUMPAD2, 0x62, Numeric keypad 2 key
-	NUMPAD_3 = 96, // VK_NUMPAD3, 0x63, Numeric keypad 3 key
-	NUMPAD_4 = 97, // VK_NUMPAD4, 0x64, Numeric keypad 4 key
-	NUMPAD_5 = 98, // VK_NUMPAD5, 0x65, Numeric keypad 5 key
-	NUMPAD_6 = 99, // VK_NUMPAD6, 0x66, Numeric keypad 6 key
-	NUMPAD_7 = 100, // VK_NUMPAD7, 0x67, Numeric keypad 7 key
-	NUMPAD_8 = 101, // VK_NUMPAD8, 0x68, Numeric keypad 8 key
-	NUMPAD_9 = 102, // VK_NUMPAD9, 0x69, Numeric keypad 9 key
+	NUMPAD_0 = 93, // VK_NUMPAD0, 0x60, Numewic keypad 0 key
+	NUMPAD_1 = 94, // VK_NUMPAD1, 0x61, Numewic keypad 1 key
+	NUMPAD_2 = 95, // VK_NUMPAD2, 0x62, Numewic keypad 2 key
+	NUMPAD_3 = 96, // VK_NUMPAD3, 0x63, Numewic keypad 3 key
+	NUMPAD_4 = 97, // VK_NUMPAD4, 0x64, Numewic keypad 4 key
+	NUMPAD_5 = 98, // VK_NUMPAD5, 0x65, Numewic keypad 5 key
+	NUMPAD_6 = 99, // VK_NUMPAD6, 0x66, Numewic keypad 6 key
+	NUMPAD_7 = 100, // VK_NUMPAD7, 0x67, Numewic keypad 7 key
+	NUMPAD_8 = 101, // VK_NUMPAD8, 0x68, Numewic keypad 8 key
+	NUMPAD_9 = 102, // VK_NUMPAD9, 0x69, Numewic keypad 9 key
 
-	NUMPAD_MULTIPLY = 103,	// VK_MULTIPLY, 0x6A, Multiply key
+	NUMPAD_MUWTIPWY = 103,	// VK_MUWTIPWY, 0x6A, Muwtipwy key
 	NUMPAD_ADD = 104,		// VK_ADD, 0x6B, Add key
-	NUMPAD_SEPARATOR = 105,	// VK_SEPARATOR, 0x6C, Separator key
-	NUMPAD_SUBTRACT = 106,	// VK_SUBTRACT, 0x6D, Subtract key
-	NUMPAD_DECIMAL = 107,	// VK_DECIMAL, 0x6E, Decimal key
+	NUMPAD_SEPAWATOW = 105,	// VK_SEPAWATOW, 0x6C, Sepawatow key
+	NUMPAD_SUBTWACT = 106,	// VK_SUBTWACT, 0x6D, Subtwact key
+	NUMPAD_DECIMAW = 107,	// VK_DECIMAW, 0x6E, Decimaw key
 	NUMPAD_DIVIDE = 108,	// VK_DIVIDE, 0x6F,
 
 	/**
-	 * Cover all key codes when IME is processing input.
+	 * Cova aww key codes when IME is pwocessing input.
 	 */
 	KEY_IN_COMPOSITION = 109,
 
-	ABNT_C1 = 110, // Brazilian (ABNT) Keyboard
-	ABNT_C2 = 111, // Brazilian (ABNT) Keyboard
+	ABNT_C1 = 110, // Bwaziwian (ABNT) Keyboawd
+	ABNT_C2 = 111, // Bwaziwian (ABNT) Keyboawd
 
 	/**
-	 * Placed last to cover the length of the enum.
-	 * Please do not depend on this value!
+	 * Pwaced wast to cova the wength of the enum.
+	 * Pwease do not depend on this vawue!
 	 */
-	MAX_VALUE
+	MAX_VAWUE
 }
 
-class KeyCodeStrMap {
+cwass KeyCodeStwMap {
 
-	private _keyCodeToStr: string[];
-	private _strToKeyCode: { [str: string]: KeyCode; };
+	pwivate _keyCodeToStw: stwing[];
+	pwivate _stwToKeyCode: { [stw: stwing]: KeyCode; };
 
-	constructor() {
-		this._keyCodeToStr = [];
-		this._strToKeyCode = Object.create(null);
+	constwuctow() {
+		this._keyCodeToStw = [];
+		this._stwToKeyCode = Object.cweate(nuww);
 	}
 
-	define(keyCode: KeyCode, str: string): void {
-		this._keyCodeToStr[keyCode] = str;
-		this._strToKeyCode[str.toLowerCase()] = keyCode;
+	define(keyCode: KeyCode, stw: stwing): void {
+		this._keyCodeToStw[keyCode] = stw;
+		this._stwToKeyCode[stw.toWowewCase()] = keyCode;
 	}
 
-	keyCodeToStr(keyCode: KeyCode): string {
-		return this._keyCodeToStr[keyCode];
+	keyCodeToStw(keyCode: KeyCode): stwing {
+		wetuwn this._keyCodeToStw[keyCode];
 	}
 
-	strToKeyCode(str: string): KeyCode {
-		return this._strToKeyCode[str.toLowerCase()] || KeyCode.Unknown;
+	stwToKeyCode(stw: stwing): KeyCode {
+		wetuwn this._stwToKeyCode[stw.toWowewCase()] || KeyCode.Unknown;
 	}
 }
 
-const uiMap = new KeyCodeStrMap();
-const userSettingsUSMap = new KeyCodeStrMap();
-const userSettingsGeneralMap = new KeyCodeStrMap();
+const uiMap = new KeyCodeStwMap();
+const usewSettingsUSMap = new KeyCodeStwMap();
+const usewSettingsGenewawMap = new KeyCodeStwMap();
 
 (function () {
 
-	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
-		uiMap.define(keyCode, uiLabel);
-		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
-		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
+	function define(keyCode: KeyCode, uiWabew: stwing, usUsewSettingsWabew: stwing = uiWabew, genewawUsewSettingsWabew: stwing = usUsewSettingsWabew): void {
+		uiMap.define(keyCode, uiWabew);
+		usewSettingsUSMap.define(keyCode, usUsewSettingsWabew);
+		usewSettingsGenewawMap.define(keyCode, genewawUsewSettingsWabew);
 	}
 
 	define(KeyCode.Unknown, 'unknown');
 
 	define(KeyCode.Backspace, 'Backspace');
 	define(KeyCode.Tab, 'Tab');
-	define(KeyCode.Enter, 'Enter');
+	define(KeyCode.Enta, 'Enta');
 	define(KeyCode.Shift, 'Shift');
-	define(KeyCode.Ctrl, 'Ctrl');
-	define(KeyCode.Alt, 'Alt');
-	define(KeyCode.PauseBreak, 'PauseBreak');
-	define(KeyCode.CapsLock, 'CapsLock');
+	define(KeyCode.Ctww, 'Ctww');
+	define(KeyCode.Awt, 'Awt');
+	define(KeyCode.PauseBweak, 'PauseBweak');
+	define(KeyCode.CapsWock, 'CapsWock');
 	define(KeyCode.Escape, 'Escape');
 	define(KeyCode.Space, 'Space');
 	define(KeyCode.PageUp, 'PageUp');
@@ -254,12 +254,12 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.End, 'End');
 	define(KeyCode.Home, 'Home');
 
-	define(KeyCode.LeftArrow, 'LeftArrow', 'Left');
-	define(KeyCode.UpArrow, 'UpArrow', 'Up');
-	define(KeyCode.RightArrow, 'RightArrow', 'Right');
-	define(KeyCode.DownArrow, 'DownArrow', 'Down');
-	define(KeyCode.Insert, 'Insert');
-	define(KeyCode.Delete, 'Delete');
+	define(KeyCode.WeftAwwow, 'WeftAwwow', 'Weft');
+	define(KeyCode.UpAwwow, 'UpAwwow', 'Up');
+	define(KeyCode.WightAwwow, 'WightAwwow', 'Wight');
+	define(KeyCode.DownAwwow, 'DownAwwow', 'Down');
+	define(KeyCode.Insewt, 'Insewt');
+	define(KeyCode.Dewete, 'Dewete');
 
 	define(KeyCode.KEY_0, '0');
 	define(KeyCode.KEY_1, '1');
@@ -283,13 +283,13 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.KEY_I, 'I');
 	define(KeyCode.KEY_J, 'J');
 	define(KeyCode.KEY_K, 'K');
-	define(KeyCode.KEY_L, 'L');
+	define(KeyCode.KEY_W, 'W');
 	define(KeyCode.KEY_M, 'M');
 	define(KeyCode.KEY_N, 'N');
 	define(KeyCode.KEY_O, 'O');
 	define(KeyCode.KEY_P, 'P');
 	define(KeyCode.KEY_Q, 'Q');
-	define(KeyCode.KEY_R, 'R');
+	define(KeyCode.KEY_W, 'W');
 	define(KeyCode.KEY_S, 'S');
 	define(KeyCode.KEY_T, 'T');
 	define(KeyCode.KEY_U, 'U');
@@ -322,21 +322,21 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.F18, 'F18');
 	define(KeyCode.F19, 'F19');
 
-	define(KeyCode.NumLock, 'NumLock');
-	define(KeyCode.ScrollLock, 'ScrollLock');
+	define(KeyCode.NumWock, 'NumWock');
+	define(KeyCode.ScwowwWock, 'ScwowwWock');
 
-	define(KeyCode.US_SEMICOLON, ';', ';', 'OEM_1');
-	define(KeyCode.US_EQUAL, '=', '=', 'OEM_PLUS');
+	define(KeyCode.US_SEMICOWON, ';', ';', 'OEM_1');
+	define(KeyCode.US_EQUAW, '=', '=', 'OEM_PWUS');
 	define(KeyCode.US_COMMA, ',', ',', 'OEM_COMMA');
 	define(KeyCode.US_MINUS, '-', '-', 'OEM_MINUS');
-	define(KeyCode.US_DOT, '.', '.', 'OEM_PERIOD');
-	define(KeyCode.US_SLASH, '/', '/', 'OEM_2');
+	define(KeyCode.US_DOT, '.', '.', 'OEM_PEWIOD');
+	define(KeyCode.US_SWASH, '/', '/', 'OEM_2');
 	define(KeyCode.US_BACKTICK, '`', '`', 'OEM_3');
 	define(KeyCode.ABNT_C1, 'ABNT_C1');
 	define(KeyCode.ABNT_C2, 'ABNT_C2');
-	define(KeyCode.US_OPEN_SQUARE_BRACKET, '[', '[', 'OEM_4');
-	define(KeyCode.US_BACKSLASH, '\\', '\\', 'OEM_5');
-	define(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', 'OEM_6');
+	define(KeyCode.US_OPEN_SQUAWE_BWACKET, '[', '[', 'OEM_4');
+	define(KeyCode.US_BACKSWASH, '\\', '\\', 'OEM_5');
+	define(KeyCode.US_CWOSE_SQUAWE_BWACKET, ']', ']', 'OEM_6');
 	define(KeyCode.US_QUOTE, '\'', '\'', 'OEM_7');
 	define(KeyCode.OEM_8, 'OEM_8');
 	define(KeyCode.OEM_102, 'OEM_102');
@@ -352,264 +352,264 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.NUMPAD_8, 'NumPad8');
 	define(KeyCode.NUMPAD_9, 'NumPad9');
 
-	define(KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply');
+	define(KeyCode.NUMPAD_MUWTIPWY, 'NumPad_Muwtipwy');
 	define(KeyCode.NUMPAD_ADD, 'NumPad_Add');
-	define(KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator');
-	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract');
-	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal');
+	define(KeyCode.NUMPAD_SEPAWATOW, 'NumPad_Sepawatow');
+	define(KeyCode.NUMPAD_SUBTWACT, 'NumPad_Subtwact');
+	define(KeyCode.NUMPAD_DECIMAW, 'NumPad_Decimaw');
 	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide');
 
 })();
 
-export namespace KeyCodeUtils {
-	export function toString(keyCode: KeyCode): string {
-		return uiMap.keyCodeToStr(keyCode);
+expowt namespace KeyCodeUtiws {
+	expowt function toStwing(keyCode: KeyCode): stwing {
+		wetuwn uiMap.keyCodeToStw(keyCode);
 	}
-	export function fromString(key: string): KeyCode {
-		return uiMap.strToKeyCode(key);
+	expowt function fwomStwing(key: stwing): KeyCode {
+		wetuwn uiMap.stwToKeyCode(key);
 	}
 
-	export function toUserSettingsUS(keyCode: KeyCode): string {
-		return userSettingsUSMap.keyCodeToStr(keyCode);
+	expowt function toUsewSettingsUS(keyCode: KeyCode): stwing {
+		wetuwn usewSettingsUSMap.keyCodeToStw(keyCode);
 	}
-	export function toUserSettingsGeneral(keyCode: KeyCode): string {
-		return userSettingsGeneralMap.keyCodeToStr(keyCode);
+	expowt function toUsewSettingsGenewaw(keyCode: KeyCode): stwing {
+		wetuwn usewSettingsGenewawMap.keyCodeToStw(keyCode);
 	}
-	export function fromUserSettings(key: string): KeyCode {
-		return userSettingsUSMap.strToKeyCode(key) || userSettingsGeneralMap.strToKeyCode(key);
+	expowt function fwomUsewSettings(key: stwing): KeyCode {
+		wetuwn usewSettingsUSMap.stwToKeyCode(key) || usewSettingsGenewawMap.stwToKeyCode(key);
 	}
 }
 
 /**
- * Binary encoding strategy:
+ * Binawy encoding stwategy:
  * ```
  *    1111 11
  *    5432 1098 7654 3210
  *    ---- CSAW KKKK KKKK
- *  C = bit 11 = ctrlCmd flag
- *  S = bit 10 = shift flag
- *  A = bit 9 = alt flag
- *  W = bit 8 = winCtrl flag
+ *  C = bit 11 = ctwwCmd fwag
+ *  S = bit 10 = shift fwag
+ *  A = bit 9 = awt fwag
+ *  W = bit 8 = winCtww fwag
  *  K = bits 0-7 = key code
  * ```
  */
-const enum BinaryKeybindingsMask {
-	CtrlCmd = (1 << 11) >>> 0,
+const enum BinawyKeybindingsMask {
+	CtwwCmd = (1 << 11) >>> 0,
 	Shift = (1 << 10) >>> 0,
-	Alt = (1 << 9) >>> 0,
-	WinCtrl = (1 << 8) >>> 0,
+	Awt = (1 << 9) >>> 0,
+	WinCtww = (1 << 8) >>> 0,
 	KeyCode = 0x000000FF
 }
 
-export const enum KeyMod {
-	CtrlCmd = (1 << 11) >>> 0,
+expowt const enum KeyMod {
+	CtwwCmd = (1 << 11) >>> 0,
 	Shift = (1 << 10) >>> 0,
-	Alt = (1 << 9) >>> 0,
-	WinCtrl = (1 << 8) >>> 0,
+	Awt = (1 << 9) >>> 0,
+	WinCtww = (1 << 8) >>> 0,
 }
 
-export function KeyChord(firstPart: number, secondPart: number): number {
-	const chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
-	return (firstPart | chordPart) >>> 0;
+expowt function KeyChowd(fiwstPawt: numba, secondPawt: numba): numba {
+	const chowdPawt = ((secondPawt & 0x0000FFFF) << 16) >>> 0;
+	wetuwn (fiwstPawt | chowdPawt) >>> 0;
 }
 
-export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
+expowt function cweateKeybinding(keybinding: numba, OS: OpewatingSystem): Keybinding | nuww {
 	if (keybinding === 0) {
-		return null;
+		wetuwn nuww;
 	}
-	const firstPart = (keybinding & 0x0000FFFF) >>> 0;
-	const chordPart = (keybinding & 0xFFFF0000) >>> 16;
-	if (chordPart !== 0) {
-		return new ChordKeybinding([
-			createSimpleKeybinding(firstPart, OS),
-			createSimpleKeybinding(chordPart, OS)
+	const fiwstPawt = (keybinding & 0x0000FFFF) >>> 0;
+	const chowdPawt = (keybinding & 0xFFFF0000) >>> 16;
+	if (chowdPawt !== 0) {
+		wetuwn new ChowdKeybinding([
+			cweateSimpweKeybinding(fiwstPawt, OS),
+			cweateSimpweKeybinding(chowdPawt, OS)
 		]);
 	}
-	return new ChordKeybinding([createSimpleKeybinding(firstPart, OS)]);
+	wetuwn new ChowdKeybinding([cweateSimpweKeybinding(fiwstPawt, OS)]);
 }
 
-export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
+expowt function cweateSimpweKeybinding(keybinding: numba, OS: OpewatingSystem): SimpweKeybinding {
 
-	const ctrlCmd = (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
-	const winCtrl = (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
+	const ctwwCmd = (keybinding & BinawyKeybindingsMask.CtwwCmd ? twue : fawse);
+	const winCtww = (keybinding & BinawyKeybindingsMask.WinCtww ? twue : fawse);
 
-	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
-	const shiftKey = (keybinding & BinaryKeybindingsMask.Shift ? true : false);
-	const altKey = (keybinding & BinaryKeybindingsMask.Alt ? true : false);
-	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
-	const keyCode = (keybinding & BinaryKeybindingsMask.KeyCode);
+	const ctwwKey = (OS === OpewatingSystem.Macintosh ? winCtww : ctwwCmd);
+	const shiftKey = (keybinding & BinawyKeybindingsMask.Shift ? twue : fawse);
+	const awtKey = (keybinding & BinawyKeybindingsMask.Awt ? twue : fawse);
+	const metaKey = (OS === OpewatingSystem.Macintosh ? ctwwCmd : winCtww);
+	const keyCode = (keybinding & BinawyKeybindingsMask.KeyCode);
 
-	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+	wetuwn new SimpweKeybinding(ctwwKey, shiftKey, awtKey, metaKey, keyCode);
 }
 
-export class SimpleKeybinding {
-	public readonly ctrlKey: boolean;
-	public readonly shiftKey: boolean;
-	public readonly altKey: boolean;
-	public readonly metaKey: boolean;
-	public readonly keyCode: KeyCode;
+expowt cwass SimpweKeybinding {
+	pubwic weadonwy ctwwKey: boowean;
+	pubwic weadonwy shiftKey: boowean;
+	pubwic weadonwy awtKey: boowean;
+	pubwic weadonwy metaKey: boowean;
+	pubwic weadonwy keyCode: KeyCode;
 
-	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, keyCode: KeyCode) {
-		this.ctrlKey = ctrlKey;
+	constwuctow(ctwwKey: boowean, shiftKey: boowean, awtKey: boowean, metaKey: boowean, keyCode: KeyCode) {
+		this.ctwwKey = ctwwKey;
 		this.shiftKey = shiftKey;
-		this.altKey = altKey;
+		this.awtKey = awtKey;
 		this.metaKey = metaKey;
 		this.keyCode = keyCode;
 	}
 
-	public equals(other: SimpleKeybinding): boolean {
-		return (
-			this.ctrlKey === other.ctrlKey
-			&& this.shiftKey === other.shiftKey
-			&& this.altKey === other.altKey
-			&& this.metaKey === other.metaKey
-			&& this.keyCode === other.keyCode
+	pubwic equaws(otha: SimpweKeybinding): boowean {
+		wetuwn (
+			this.ctwwKey === otha.ctwwKey
+			&& this.shiftKey === otha.shiftKey
+			&& this.awtKey === otha.awtKey
+			&& this.metaKey === otha.metaKey
+			&& this.keyCode === otha.keyCode
 		);
 	}
 
-	public getHashCode(): string {
-		const ctrl = this.ctrlKey ? '1' : '0';
+	pubwic getHashCode(): stwing {
+		const ctww = this.ctwwKey ? '1' : '0';
 		const shift = this.shiftKey ? '1' : '0';
-		const alt = this.altKey ? '1' : '0';
+		const awt = this.awtKey ? '1' : '0';
 		const meta = this.metaKey ? '1' : '0';
-		return `${ctrl}${shift}${alt}${meta}${this.keyCode}`;
+		wetuwn `${ctww}${shift}${awt}${meta}${this.keyCode}`;
 	}
 
-	public isModifierKey(): boolean {
-		return (
+	pubwic isModifiewKey(): boowean {
+		wetuwn (
 			this.keyCode === KeyCode.Unknown
-			|| this.keyCode === KeyCode.Ctrl
+			|| this.keyCode === KeyCode.Ctww
 			|| this.keyCode === KeyCode.Meta
-			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Awt
 			|| this.keyCode === KeyCode.Shift
 		);
 	}
 
-	public toChord(): ChordKeybinding {
-		return new ChordKeybinding([this]);
+	pubwic toChowd(): ChowdKeybinding {
+		wetuwn new ChowdKeybinding([this]);
 	}
 
 	/**
-	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 * Does this keybinding wefa to the key code of a modifia and it awso has the modifia fwag?
 	 */
-	public isDuplicateModifierCase(): boolean {
-		return (
-			(this.ctrlKey && this.keyCode === KeyCode.Ctrl)
+	pubwic isDupwicateModifiewCase(): boowean {
+		wetuwn (
+			(this.ctwwKey && this.keyCode === KeyCode.Ctww)
 			|| (this.shiftKey && this.keyCode === KeyCode.Shift)
-			|| (this.altKey && this.keyCode === KeyCode.Alt)
+			|| (this.awtKey && this.keyCode === KeyCode.Awt)
 			|| (this.metaKey && this.keyCode === KeyCode.Meta)
 		);
 	}
 }
 
-export class ChordKeybinding {
-	public readonly parts: SimpleKeybinding[];
+expowt cwass ChowdKeybinding {
+	pubwic weadonwy pawts: SimpweKeybinding[];
 
-	constructor(parts: SimpleKeybinding[]) {
-		if (parts.length === 0) {
-			throw illegalArgument(`parts`);
+	constwuctow(pawts: SimpweKeybinding[]) {
+		if (pawts.wength === 0) {
+			thwow iwwegawAwgument(`pawts`);
 		}
-		this.parts = parts;
+		this.pawts = pawts;
 	}
 
-	public getHashCode(): string {
-		let result = '';
-		for (let i = 0, len = this.parts.length; i < len; i++) {
+	pubwic getHashCode(): stwing {
+		wet wesuwt = '';
+		fow (wet i = 0, wen = this.pawts.wength; i < wen; i++) {
 			if (i !== 0) {
-				result += ';';
+				wesuwt += ';';
 			}
-			result += this.parts[i].getHashCode();
+			wesuwt += this.pawts[i].getHashCode();
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public equals(other: ChordKeybinding | null): boolean {
-		if (other === null) {
-			return false;
+	pubwic equaws(otha: ChowdKeybinding | nuww): boowean {
+		if (otha === nuww) {
+			wetuwn fawse;
 		}
-		if (this.parts.length !== other.parts.length) {
-			return false;
+		if (this.pawts.wength !== otha.pawts.wength) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < this.parts.length; i++) {
-			if (!this.parts[i].equals(other.parts[i])) {
-				return false;
+		fow (wet i = 0; i < this.pawts.wength; i++) {
+			if (!this.pawts[i].equaws(otha.pawts[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 }
 
-export type Keybinding = ChordKeybinding;
+expowt type Keybinding = ChowdKeybinding;
 
-export class ResolvedKeybindingPart {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
+expowt cwass WesowvedKeybindingPawt {
+	weadonwy ctwwKey: boowean;
+	weadonwy shiftKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy metaKey: boowean;
 
-	readonly keyLabel: string | null;
-	readonly keyAriaLabel: string | null;
+	weadonwy keyWabew: stwing | nuww;
+	weadonwy keyAwiaWabew: stwing | nuww;
 
-	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string | null, kbAriaLabel: string | null) {
-		this.ctrlKey = ctrlKey;
+	constwuctow(ctwwKey: boowean, shiftKey: boowean, awtKey: boowean, metaKey: boowean, kbWabew: stwing | nuww, kbAwiaWabew: stwing | nuww) {
+		this.ctwwKey = ctwwKey;
 		this.shiftKey = shiftKey;
-		this.altKey = altKey;
+		this.awtKey = awtKey;
 		this.metaKey = metaKey;
-		this.keyLabel = kbLabel;
-		this.keyAriaLabel = kbAriaLabel;
+		this.keyWabew = kbWabew;
+		this.keyAwiaWabew = kbAwiaWabew;
 	}
 }
 
 /**
- * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
+ * A wesowved keybinding. Can be a simpwe keybinding ow a chowd keybinding.
  */
-export abstract class ResolvedKeybinding {
+expowt abstwact cwass WesowvedKeybinding {
 	/**
-	 * This prints the binding in a format suitable for displaying in the UI.
+	 * This pwints the binding in a fowmat suitabwe fow dispwaying in the UI.
 	 */
-	public abstract getLabel(): string | null;
+	pubwic abstwact getWabew(): stwing | nuww;
 	/**
-	 * This prints the binding in a format suitable for ARIA.
+	 * This pwints the binding in a fowmat suitabwe fow AWIA.
 	 */
-	public abstract getAriaLabel(): string | null;
+	pubwic abstwact getAwiaWabew(): stwing | nuww;
 	/**
-	 * This prints the binding in a format suitable for electron's accelerators.
-	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 * This pwints the binding in a fowmat suitabwe fow ewectwon's accewewatows.
+	 * See https://github.com/ewectwon/ewectwon/bwob/masta/docs/api/accewewatow.md
 	 */
-	public abstract getElectronAccelerator(): string | null;
+	pubwic abstwact getEwectwonAccewewatow(): stwing | nuww;
 	/**
-	 * This prints the binding in a format suitable for user settings.
+	 * This pwints the binding in a fowmat suitabwe fow usa settings.
 	 */
-	public abstract getUserSettingsLabel(): string | null;
+	pubwic abstwact getUsewSettingsWabew(): stwing | nuww;
 	/**
-	 * Is the user settings label reflecting the label?
+	 * Is the usa settings wabew wefwecting the wabew?
 	 */
-	public abstract isWYSIWYG(): boolean;
+	pubwic abstwact isWYSIWYG(): boowean;
 
 	/**
-	 * Is the binding a chord?
+	 * Is the binding a chowd?
 	 */
-	public abstract isChord(): boolean;
+	pubwic abstwact isChowd(): boowean;
 
 	/**
-	 * Returns the parts that comprise of the keybinding.
-	 * Simple keybindings return one element.
+	 * Wetuwns the pawts that compwise of the keybinding.
+	 * Simpwe keybindings wetuwn one ewement.
 	 */
-	public abstract getParts(): ResolvedKeybindingPart[];
+	pubwic abstwact getPawts(): WesowvedKeybindingPawt[];
 
 	/**
-	 * Returns the parts that should be used for dispatching.
-	 * Returns null for parts consisting of only modifier keys
-	 * @example keybinding "Shift" -> null
-	 * @example keybinding ("D" with shift == true) -> "shift+D"
+	 * Wetuwns the pawts that shouwd be used fow dispatching.
+	 * Wetuwns nuww fow pawts consisting of onwy modifia keys
+	 * @exampwe keybinding "Shift" -> nuww
+	 * @exampwe keybinding ("D" with shift == twue) -> "shift+D"
 	 */
-	public abstract getDispatchParts(): (string | null)[];
+	pubwic abstwact getDispatchPawts(): (stwing | nuww)[];
 
 	/**
-	 * Returns the parts that should be used for dispatching single modifier keys
-	 * Returns null for parts that contain more than one modifier or a regular key.
-	 * @example keybinding "Shift" -> "shift"
-	 * @example keybinding ("D" with shift == true") -> null
+	 * Wetuwns the pawts that shouwd be used fow dispatching singwe modifia keys
+	 * Wetuwns nuww fow pawts that contain mowe than one modifia ow a weguwaw key.
+	 * @exampwe keybinding "Shift" -> "shift"
+	 * @exampwe keybinding ("D" with shift == twue") -> nuww
 	 */
-	public abstract getSingleModifierDispatchParts(): (string | null)[];
+	pubwic abstwact getSingweModifiewDispatchPawts(): (stwing | nuww)[];
 }

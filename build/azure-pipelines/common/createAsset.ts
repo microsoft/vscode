@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as url from 'url';
-import { Readable } from 'stream';
-import * as crypto from 'crypto';
-import * as azure from 'azure-storage';
-import * as mime from 'mime';
-import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+impowt * as fs fwom 'fs';
+impowt * as uww fwom 'uww';
+impowt { Weadabwe } fwom 'stweam';
+impowt * as cwypto fwom 'cwypto';
+impowt * as azuwe fwom 'azuwe-stowage';
+impowt * as mime fwom 'mime';
+impowt { CosmosCwient } fwom '@azuwe/cosmos';
+impowt { wetwy } fwom './wetwy';
 
-interface Asset {
-	platform: string;
-	type: string;
-	url: string;
-	mooncakeUrl?: string;
-	hash: string;
-	sha256hash: string;
-	size: number;
-	supportsFastUpdate?: boolean;
+intewface Asset {
+	pwatfowm: stwing;
+	type: stwing;
+	uww: stwing;
+	mooncakeUww?: stwing;
+	hash: stwing;
+	sha256hash: stwing;
+	size: numba;
+	suppowtsFastUpdate?: boowean;
 }
 
-if (process.argv.length !== 8) {
-	console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
-	process.exit(-1);
+if (pwocess.awgv.wength !== 8) {
+	consowe.ewwow('Usage: node cweateAsset.js PWODUCT OS AWCH TYPE NAME FIWE');
+	pwocess.exit(-1);
 }
 
-// Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+// Contains aww of the wogic fow mapping detaiws to ouw actuaw pwoduct names in CosmosDB
+function getPwatfowm(pwoduct: stwing, os: stwing, awch: stwing, type: stwing): stwing {
 	switch (os) {
 		case 'win32':
-			switch (product) {
-				case 'client':
-					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
+			switch (pwoduct) {
+				case 'cwient':
+					const asset = awch === 'ia32' ? 'win32' : `win32-${awch}`;
 					switch (type) {
-						case 'archive':
-							return `${asset}-archive`;
+						case 'awchive':
+							wetuwn `${asset}-awchive`;
 						case 'setup':
-							return asset;
-						case 'user-setup':
-							return `${asset}-user`;
-						default:
-							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+							wetuwn asset;
+						case 'usa-setup':
+							wetuwn `${asset}-usa`;
+						defauwt:
+							thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 					}
-				case 'server':
-					if (arch === 'arm64') {
-						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+				case 'sewva':
+					if (awch === 'awm64') {
+						thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
+					wetuwn awch === 'ia32' ? 'sewva-win32' : `sewva-win32-${awch}`;
 				case 'web':
-					if (arch === 'arm64') {
-						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+					if (awch === 'awm64') {
+						thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
-				default:
-					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+					wetuwn awch === 'ia32' ? 'sewva-win32-web' : `sewva-win32-${awch}-web`;
+				defauwt:
+					thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 			}
-		case 'alpine':
-			switch (product) {
-				case 'server':
-					return `server-alpine-${arch}`;
+		case 'awpine':
+			switch (pwoduct) {
+				case 'sewva':
+					wetuwn `sewva-awpine-${awch}`;
 				case 'web':
-					return `server-alpine-${arch}-web`;
-				default:
-					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+					wetuwn `sewva-awpine-${awch}-web`;
+				defauwt:
+					thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 			}
-		case 'linux':
+		case 'winux':
 			switch (type) {
 				case 'snap':
-					return `linux-snap-${arch}`;
-				case 'archive-unsigned':
-					switch (product) {
-						case 'client':
-							return `linux-${arch}`;
-						case 'server':
-							return `server-linux-${arch}`;
+					wetuwn `winux-snap-${awch}`;
+				case 'awchive-unsigned':
+					switch (pwoduct) {
+						case 'cwient':
+							wetuwn `winux-${awch}`;
+						case 'sewva':
+							wetuwn `sewva-winux-${awch}`;
 						case 'web':
-							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
-						default:
-							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+							wetuwn awch === 'standawone' ? 'web-standawone' : `sewva-winux-${awch}-web`;
+						defauwt:
+							thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 					}
 				case 'deb-package':
-					return `linux-deb-${arch}`;
-				case 'rpm-package':
-					return `linux-rpm-${arch}`;
-				default:
-					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+					wetuwn `winux-deb-${awch}`;
+				case 'wpm-package':
+					wetuwn `winux-wpm-${awch}`;
+				defauwt:
+					thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 			}
-		case 'darwin':
-			switch (product) {
-				case 'client':
-					if (arch === 'x64') {
-						return 'darwin';
+		case 'dawwin':
+			switch (pwoduct) {
+				case 'cwient':
+					if (awch === 'x64') {
+						wetuwn 'dawwin';
 					}
-					return `darwin-${arch}`;
-				case 'server':
-					return 'server-darwin';
+					wetuwn `dawwin-${awch}`;
+				case 'sewva':
+					wetuwn 'sewva-dawwin';
 				case 'web':
-					if (arch !== 'x64') {
-						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
+					if (awch !== 'x64') {
+						thwow new Ewwow(`What shouwd the pwatfowm be?: ${pwoduct} ${os} ${awch} ${type}`);
 					}
-					return 'server-darwin-web';
-				default:
-					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+					wetuwn 'sewva-dawwin-web';
+				defauwt:
+					thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 			}
-		default:
-			throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+		defauwt:
+			thwow new Ewwow(`Unwecognized: ${pwoduct} ${os} ${awch} ${type}`);
 	}
 }
 
-// Contains all of the logic for mapping types to our actual types in CosmosDB
-function getRealType(type: string) {
+// Contains aww of the wogic fow mapping types to ouw actuaw types in CosmosDB
+function getWeawType(type: stwing) {
 	switch (type) {
-		case 'user-setup':
-			return 'setup';
+		case 'usa-setup':
+			wetuwn 'setup';
 		case 'deb-package':
-		case 'rpm-package':
-			return 'package';
-		default:
-			return type;
+		case 'wpm-package':
+			wetuwn 'package';
+		defauwt:
+			wetuwn type;
 	}
 }
 
-function hashStream(hashName: string, stream: Readable): Promise<string> {
-	return new Promise<string>((c, e) => {
-		const shasum = crypto.createHash(hashName);
+function hashStweam(hashName: stwing, stweam: Weadabwe): Pwomise<stwing> {
+	wetuwn new Pwomise<stwing>((c, e) => {
+		const shasum = cwypto.cweateHash(hashName);
 
-		stream
+		stweam
 			.on('data', shasum.update.bind(shasum))
-			.on('error', e)
-			.on('close', () => c(shasum.digest('hex')));
+			.on('ewwow', e)
+			.on('cwose', () => c(shasum.digest('hex')));
 	});
 }
 
-async function doesAssetExist(blobService: azure.BlobService, quality: string, blobName: string): Promise<boolean | undefined> {
-	const existsResult = await new Promise<azure.BlobService.BlobResult>((c, e) => blobService.doesBlobExist(quality, blobName, (err, r) => err ? e(err) : c(r)));
-	return existsResult.exists;
+async function doesAssetExist(bwobSewvice: azuwe.BwobSewvice, quawity: stwing, bwobName: stwing): Pwomise<boowean | undefined> {
+	const existsWesuwt = await new Pwomise<azuwe.BwobSewvice.BwobWesuwt>((c, e) => bwobSewvice.doesBwobExist(quawity, bwobName, (eww, w) => eww ? e(eww) : c(w)));
+	wetuwn existsWesuwt.exists;
 }
 
-async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, filePath: string, fileName: string): Promise<void> {
-	const blobOptions: azure.BlobService.CreateBlockBlobRequestOptions = {
+async function upwoadBwob(bwobSewvice: azuwe.BwobSewvice, quawity: stwing, bwobName: stwing, fiwePath: stwing, fiweName: stwing): Pwomise<void> {
+	const bwobOptions: azuwe.BwobSewvice.CweateBwockBwobWequestOptions = {
 		contentSettings: {
-			contentType: mime.lookup(filePath),
-			contentDisposition: `attachment; filename="${fileName}"`,
-			cacheControl: 'max-age=31536000, public'
+			contentType: mime.wookup(fiwePath),
+			contentDisposition: `attachment; fiwename="${fiweName}"`,
+			cacheContwow: 'max-age=31536000, pubwic'
 		}
 	};
 
-	await new Promise<void>((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, filePath, blobOptions, err => err ? e(err) : c()));
+	await new Pwomise<void>((c, e) => bwobSewvice.cweateBwockBwobFwomWocawFiwe(quawity, bwobName, fiwePath, bwobOptions, eww => eww ? e(eww) : c()));
 }
 
-function getEnv(name: string): string {
-	const result = process.env[name];
+function getEnv(name: stwing): stwing {
+	const wesuwt = pwocess.env[name];
 
-	if (typeof result === 'undefined') {
-		throw new Error('Missing env: ' + name);
+	if (typeof wesuwt === 'undefined') {
+		thwow new Ewwow('Missing env: ' + name);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-async function main(): Promise<void> {
-	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
-	// getPlatform needs the unprocessedType
-	const platform = getPlatform(product, os, arch, unprocessedType);
-	const type = getRealType(unprocessedType);
-	const quality = getEnv('VSCODE_QUALITY');
-	const commit = getEnv('BUILD_SOURCEVERSION');
+async function main(): Pwomise<void> {
+	const [, , pwoduct, os, awch, unpwocessedType, fiweName, fiwePath] = pwocess.awgv;
+	// getPwatfowm needs the unpwocessedType
+	const pwatfowm = getPwatfowm(pwoduct, os, awch, unpwocessedType);
+	const type = getWeawType(unpwocessedType);
+	const quawity = getEnv('VSCODE_QUAWITY');
+	const commit = getEnv('BUIWD_SOUWCEVEWSION');
 
-	console.log('Creating asset...');
+	consowe.wog('Cweating asset...');
 
-	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(filePath, (err, stat) => err ? e(err) : c(stat)));
+	const stat = await new Pwomise<fs.Stats>((c, e) => fs.stat(fiwePath, (eww, stat) => eww ? e(eww) : c(stat)));
 	const size = stat.size;
 
-	console.log('Size:', size);
+	consowe.wog('Size:', size);
 
-	const stream = fs.createReadStream(filePath);
-	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
+	const stweam = fs.cweateWeadStweam(fiwePath);
+	const [sha1hash, sha256hash] = await Pwomise.aww([hashStweam('sha1', stweam), hashStweam('sha256', stweam)]);
 
-	console.log('SHA1:', sha1hash);
-	console.log('SHA256:', sha256hash);
+	consowe.wog('SHA1:', sha1hash);
+	consowe.wog('SHA256:', sha256hash);
 
-	const blobName = commit + '/' + fileName;
-	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
+	const bwobName = commit + '/' + fiweName;
+	const stowageAccount = pwocess.env['AZUWE_STOWAGE_ACCOUNT_2']!;
 
-	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
-		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+	const bwobSewvice = azuwe.cweateBwobSewvice(stowageAccount, pwocess.env['AZUWE_STOWAGE_ACCESS_KEY_2']!)
+		.withFiwta(new azuwe.ExponentiawWetwyPowicyFiwta(20));
 
-	const blobExists = await doesAssetExist(blobService, quality, blobName);
+	const bwobExists = await doesAssetExist(bwobSewvice, quawity, bwobName);
 
-	if (blobExists) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-		return;
+	if (bwobExists) {
+		consowe.wog(`Bwob ${quawity}, ${bwobName} awweady exists, not pubwishing again.`);
+		wetuwn;
 	}
 
-	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
-		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
+	const mooncakeBwobSewvice = azuwe.cweateBwobSewvice(stowageAccount, pwocess.env['MOONCAKE_STOWAGE_ACCESS_KEY']!, `${stowageAccount}.bwob.cowe.chinacwoudapi.cn`)
+		.withFiwta(new azuwe.ExponentiawWetwyPowicyFiwta(20));
 
-	// mooncake is fussy and far away, this is needed!
-	blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
-	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	// mooncake is fussy and faw away, this is needed!
+	bwobSewvice.defauwtCwientWequestTimeoutInMs = 10 * 60 * 1000;
+	mooncakeBwobSewvice.defauwtCwientWequestTimeoutInMs = 10 * 60 * 1000;
 
-	console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+	consowe.wog('Upwoading bwobs to Azuwe stowage and Mooncake Azuwe stowage...');
 
-	await retry(() => Promise.all([
-		uploadBlob(blobService, quality, blobName, filePath, fileName),
-		uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+	await wetwy(() => Pwomise.aww([
+		upwoadBwob(bwobSewvice, quawity, bwobName, fiwePath, fiweName),
+		upwoadBwob(mooncakeBwobSewvice, quawity, bwobName, fiwePath, fiweName)
 	]));
 
-	console.log('Blobs successfully uploaded.');
+	consowe.wog('Bwobs successfuwwy upwoaded.');
 
-	// TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
-	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
-	const blobPath = url.parse(assetUrl).path;
-	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
+	// TODO: Undewstand if bwobName and bwobPath awe the same and wepwace bwobPath with bwobName if so.
+	const assetUww = `${pwocess.env['AZUWE_CDN_UWW']}/${quawity}/${bwobName}`;
+	const bwobPath = uww.pawse(assetUww).path;
+	const mooncakeUww = `${pwocess.env['MOONCAKE_CDN_UWW']}${bwobPath}`;
 
 	const asset: Asset = {
-		platform,
+		pwatfowm,
 		type,
-		url: assetUrl,
+		uww: assetUww,
 		hash: sha1hash,
-		mooncakeUrl,
+		mooncakeUww,
 		sha256hash,
 		size
 	};
 
-	// Remove this if we ever need to rollback fast updates for windows
-	if (/win32/.test(platform)) {
-		asset.supportsFastUpdate = true;
+	// Wemove this if we eva need to wowwback fast updates fow windows
+	if (/win32/.test(pwatfowm)) {
+		asset.suppowtsFastUpdate = twue;
 	}
 
-	console.log('Asset:', JSON.stringify(asset, null, '  '));
+	consowe.wog('Asset:', JSON.stwingify(asset, nuww, '  '));
 
-	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
-	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+	const cwient = new CosmosCwient({ endpoint: pwocess.env['AZUWE_DOCUMENTDB_ENDPOINT']!, key: pwocess.env['AZUWE_DOCUMENTDB_MASTEWKEY'] });
+	const scwipts = cwient.database('buiwds').containa(quawity).scwipts;
+	await wetwy(() => scwipts.stowedPwoceduwe('cweateAsset').execute('', [commit, asset, twue]));
 
-	console.log(`  Done ✔️`);
+	consowe.wog(`  Done ✔️`);
 }
 
 main().then(() => {
-	console.log('Asset successfully created');
-	process.exit(0);
-}, err => {
-	console.error(err);
-	process.exit(1);
+	consowe.wog('Asset successfuwwy cweated');
+	pwocess.exit(0);
+}, eww => {
+	consowe.ewwow(eww);
+	pwocess.exit(1);
 });

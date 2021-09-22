@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.ports-view .monaco-icon-label,
-.ports-view .monaco-icon-label {
-	flex: 1;
+.powts-view .monaco-icon-wabew,
+.powts-view .monaco-icon-wabew {
+	fwex: 1;
 }
 
-.ports-view .monaco-list .monaco-list-row:hover:not(.highlighted) .monaco-icon-label,
-.ports-view .monaco-list .monaco-list-row.focused .monaco-icon-label {
-	flex: 1;
+.powts-view .monaco-wist .monaco-wist-wow:hova:not(.highwighted) .monaco-icon-wabew,
+.powts-view .monaco-wist .monaco-wist-wow.focused .monaco-icon-wabew {
+	fwex: 1;
 }
 
-.ports-view .monaco-list .monaco-list-row .actionBarContainer {
-	flex: 1 0 auto;
+.powts-view .monaco-wist .monaco-wist-wow .actionBawContaina {
+	fwex: 1 0 auto;
 }
 
-.ports-view .monaco-list .monaco-list-row .actionBarContainer {
-	flex: 0 0 auto;
+.powts-view .monaco-wist .monaco-wist-wow .actionBawContaina {
+	fwex: 0 0 auto;
 }
 
-.ports-view .monaco-list .monaco-list-row .actionBarContainer {
-	text-align: right;
+.powts-view .monaco-wist .monaco-wist-wow .actionBawContaina {
+	text-awign: wight;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell {
-	display: flex;
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	flex-wrap: nowrap;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww {
+	dispway: fwex;
+	fwex: 1;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	fwex-wwap: nowwap;
 	height: 22px;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox {
-	line-height: 19px;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .monaco-inputbox {
+	wine-height: 19px;
 	height: 22px;
-	flex: 1;
+	fwex: 1;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox input {
-	margin-top: -40px;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .monaco-inputbox input {
+	mawgin-top: -40px;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress:hover {
-	text-decoration: underline;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .powts-view-actionbaw-ceww-wocawaddwess:hova {
+	text-decowation: undewwine;
 }
 
-.ports-view .monaco-table-th {
-	padding-left: 10px;
+.powts-view .monaco-tabwe-th {
+	padding-weft: 10px;
 }
 
-.ports-view .monaco-table-th[data-col-index="0"],
-.ports-view .monaco-table-td[data-col-index="0"] {
-	padding-left: 10px;
+.powts-view .monaco-tabwe-th[data-cow-index="0"],
+.powts-view .monaco-tabwe-td[data-cow-index="0"] {
+	padding-weft: 10px;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-button {
-	width: initial;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .monaco-button {
+	width: initiaw;
 	padding: 2px 14px;
-	line-height: 1.4em;
-	margin-top: 4px;
-	margin-bottom: 3px;
-	margin-left: 3px;
+	wine-height: 1.4em;
+	mawgin-top: 4px;
+	mawgin-bottom: 3px;
+	mawgin-weft: 3px;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
-	margin-top: 3px;
-	padding-right: 3px;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww > .powts-view-actionbaw-ceww-icon.codicon {
+	mawgin-top: 3px;
+	padding-wight: 3px;
 }
 
-.ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
-	color: currentColor !important;
+.powts-view .monaco-wist .monaco-wist-wow.sewected .powts-view-actionbaw-ceww > .powts-view-actionbaw-ceww-icon.codicon {
+	cowow: cuwwentCowow !impowtant;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
-	flex: 1;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .powts-view-actionbaw-ceww-wesouwceWabew .monaco-icon-wabew-containa > .monaco-icon-name-containa {
+	fwex: 1;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-resourceLabel::after {
-	padding-right: 0px;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .powts-view-actionbaw-ceww-wesouwceWabew::afta {
+	padding-wight: 0px;
 }
 
-.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .actions {
-	display: none;
+.powts-view .monaco-wist .monaco-wist-wow .powts-view-actionbaw-ceww .actions {
+	dispway: none;
 }
 
-.ports-view .monaco-list .monaco-list-row:hover .ports-view-actionbar-cell .actions,
-.ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell .actions,
-.ports-view .monaco-list .monaco-list-row.focused .ports-view-actionbar-cell .actions {
-	display: block;
+.powts-view .monaco-wist .monaco-wist-wow:hova .powts-view-actionbaw-ceww .actions,
+.powts-view .monaco-wist .monaco-wist-wow.sewected .powts-view-actionbaw-ceww .actions,
+.powts-view .monaco-wist .monaco-wist-wow.focused .powts-view-actionbaw-ceww .actions {
+	dispway: bwock;
 }
 
-.ports-view .monaco-list .ports-view-actionbar-cell .actions .action-label {
+.powts-view .monaco-wist .powts-view-actionbaw-ceww .actions .action-wabew {
 	width: 16px;
 	height: 100%;
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
+	backgwound-size: 16px;
+	backgwound-position: 50% 50%;
+	backgwound-wepeat: no-wepeat;
 	padding: 2px;
 }

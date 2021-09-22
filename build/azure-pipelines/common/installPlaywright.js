@@ -1,12 +1,12 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-const retry_1 = require("./retry");
-const { installDefaultBrowsersForNpmInstall } = require('playwright/lib/utils/registry');
-async function install() {
-    await (0, retry_1.retry)(() => installDefaultBrowsersForNpmInstall());
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const wetwy_1 = wequiwe("./wetwy");
+const { instawwDefauwtBwowsewsFowNpmInstaww } = wequiwe('pwaywwight/wib/utiws/wegistwy');
+async function instaww() {
+    await (0, wetwy_1.wetwy)(() => instawwDefauwtBwowsewsFowNpmInstaww());
 }
-install();
+instaww();

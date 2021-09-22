@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export interface TaskDefinitionDTO {
-	type: string;
-	[name: string]: any;
+expowt intewface TaskDefinitionDTO {
+	type: stwing;
+	[name: stwing]: any;
 }
 
-export interface TaskPresentationOptionsDTO {
-	reveal?: number;
-	echo?: boolean;
-	focus?: boolean;
-	panel?: number;
-	showReuseMessage?: boolean;
-	clear?: boolean;
-	group?: string;
-	close?: boolean;
+expowt intewface TaskPwesentationOptionsDTO {
+	weveaw?: numba;
+	echo?: boowean;
+	focus?: boowean;
+	panew?: numba;
+	showWeuseMessage?: boowean;
+	cweaw?: boowean;
+	gwoup?: stwing;
+	cwose?: boowean;
 }
 
-export interface RunOptionsDTO {
-	reevaluateOnRerun?: boolean;
+expowt intewface WunOptionsDTO {
+	weevawuateOnWewun?: boowean;
 }
 
-export interface ExecutionOptionsDTO {
-	cwd?: string;
-	env?: { [key: string]: string };
+expowt intewface ExecutionOptionsDTO {
+	cwd?: stwing;
+	env?: { [key: stwing]: stwing };
 }
 
-export interface ProcessExecutionOptionsDTO extends ExecutionOptionsDTO {
+expowt intewface PwocessExecutionOptionsDTO extends ExecutionOptionsDTO {
 }
 
-export interface ProcessExecutionDTO {
-	process: string;
-	args: string[];
-	options?: ProcessExecutionOptionsDTO;
+expowt intewface PwocessExecutionDTO {
+	pwocess: stwing;
+	awgs: stwing[];
+	options?: PwocessExecutionOptionsDTO;
 }
 
-export interface ShellQuotingOptionsDTO {
-	escape?: string | {
-		escapeChar: string;
-		charsToEscape: string;
+expowt intewface ShewwQuotingOptionsDTO {
+	escape?: stwing | {
+		escapeChaw: stwing;
+		chawsToEscape: stwing;
 	};
-	strong?: string;
-	weak?: string;
+	stwong?: stwing;
+	weak?: stwing;
 }
 
-export interface ShellExecutionOptionsDTO extends ExecutionOptionsDTO {
-	executable?: string;
-	shellArgs?: string[];
-	shellQuoting?: ShellQuotingOptionsDTO;
+expowt intewface ShewwExecutionOptionsDTO extends ExecutionOptionsDTO {
+	executabwe?: stwing;
+	shewwAwgs?: stwing[];
+	shewwQuoting?: ShewwQuotingOptionsDTO;
 }
 
-export interface ShellQuotedStringDTO {
-	value: string;
-	quoting: number;
+expowt intewface ShewwQuotedStwingDTO {
+	vawue: stwing;
+	quoting: numba;
 }
 
-export interface ShellExecutionDTO {
-	commandLine?: string;
-	command?: string | ShellQuotedStringDTO;
-	args?: Array<string | ShellQuotedStringDTO>;
-	options?: ShellExecutionOptionsDTO;
+expowt intewface ShewwExecutionDTO {
+	commandWine?: stwing;
+	command?: stwing | ShewwQuotedStwingDTO;
+	awgs?: Awway<stwing | ShewwQuotedStwingDTO>;
+	options?: ShewwExecutionOptionsDTO;
 }
 
-export interface CustomExecutionDTO {
+expowt intewface CustomExecutionDTO {
 	customExecution: 'customExecution';
 }
 
-export interface TaskSourceDTO {
-	label: string;
-	extensionId?: string;
-	scope?: number | UriComponents;
+expowt intewface TaskSouwceDTO {
+	wabew: stwing;
+	extensionId?: stwing;
+	scope?: numba | UwiComponents;
 }
 
-export interface TaskHandleDTO {
-	id: string;
-	workspaceFolder: UriComponents | string;
+expowt intewface TaskHandweDTO {
+	id: stwing;
+	wowkspaceFowda: UwiComponents | stwing;
 }
 
-export interface TaskGroupDTO {
-	isDefault?: boolean;
-	_id: string;
+expowt intewface TaskGwoupDTO {
+	isDefauwt?: boowean;
+	_id: stwing;
 }
 
-export interface TaskDTO {
-	_id: string;
-	name?: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO | undefined;
+expowt intewface TaskDTO {
+	_id: stwing;
+	name?: stwing;
+	execution: PwocessExecutionDTO | ShewwExecutionDTO | CustomExecutionDTO | undefined;
 	definition: TaskDefinitionDTO;
-	isBackground?: boolean;
-	source: TaskSourceDTO;
-	group?: TaskGroupDTO;
-	detail?: string;
-	presentationOptions?: TaskPresentationOptionsDTO;
-	problemMatchers: string[];
-	hasDefinedMatchers: boolean;
-	runOptions?: RunOptionsDTO;
+	isBackgwound?: boowean;
+	souwce: TaskSouwceDTO;
+	gwoup?: TaskGwoupDTO;
+	detaiw?: stwing;
+	pwesentationOptions?: TaskPwesentationOptionsDTO;
+	pwobwemMatchews: stwing[];
+	hasDefinedMatchews: boowean;
+	wunOptions?: WunOptionsDTO;
 }
 
-export interface TaskSetDTO {
+expowt intewface TaskSetDTO {
 	tasks: TaskDTO[];
-	extension: IExtensionDescription;
+	extension: IExtensionDescwiption;
 }
 
-export interface TaskExecutionDTO {
-	id: string;
+expowt intewface TaskExecutionDTO {
+	id: stwing;
 	task: TaskDTO | undefined;
 }
 
-export interface TaskProcessStartedDTO {
-	id: string;
-	processId: number;
+expowt intewface TaskPwocessStawtedDTO {
+	id: stwing;
+	pwocessId: numba;
 }
 
-export interface TaskProcessEndedDTO {
-	id: string;
-	exitCode: number | undefined;
+expowt intewface TaskPwocessEndedDTO {
+	id: stwing;
+	exitCode: numba | undefined;
 }
 
 
-export interface TaskFilterDTO {
-	version?: string;
-	type?: string;
+expowt intewface TaskFiwtewDTO {
+	vewsion?: stwing;
+	type?: stwing;
 }
 
-export interface TaskSystemInfoDTO {
-	scheme: string;
-	authority: string;
-	platform: string;
+expowt intewface TaskSystemInfoDTO {
+	scheme: stwing;
+	authowity: stwing;
+	pwatfowm: stwing;
 }

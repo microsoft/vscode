@@ -1,596 +1,596 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { RunOnceScheduler, TimeoutTimer } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, FindMatch, ITextModel } from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
-import { ReplaceAllCommand } from 'vs/editor/contrib/find/replaceAllCommand';
-import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+impowt { findFiwstInSowted } fwom 'vs/base/common/awways';
+impowt { WunOnceScheduwa, TimeoutTima } fwom 'vs/base/common/async';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { WepwaceCommand, WepwaceCommandThatPwesewvesSewection } fwom 'vs/editow/common/commands/wepwaceCommand';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowChangeWeason, ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence, FindMatch, ITextModew } fwom 'vs/editow/common/modew';
+impowt { SeawchPawams } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { FindDecowations } fwom 'vs/editow/contwib/find/findDecowations';
+impowt { FindWepwaceState, FindWepwaceStateChangedEvent } fwom 'vs/editow/contwib/find/findState';
+impowt { WepwaceAwwCommand } fwom 'vs/editow/contwib/find/wepwaceAwwCommand';
+impowt { pawseWepwaceStwing, WepwacePattewn } fwom 'vs/editow/contwib/find/wepwacePattewn';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindings } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
 
-export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
-export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
-// Keep ContextKey use of 'Focussed' to not break when clauses
-export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
-export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
+expowt const CONTEXT_FIND_WIDGET_VISIBWE = new WawContextKey<boowean>('findWidgetVisibwe', fawse);
+expowt const CONTEXT_FIND_WIDGET_NOT_VISIBWE = CONTEXT_FIND_WIDGET_VISIBWE.toNegated();
+// Keep ContextKey use of 'Focussed' to not bweak when cwauses
+expowt const CONTEXT_FIND_INPUT_FOCUSED = new WawContextKey<boowean>('findInputFocussed', fawse);
+expowt const CONTEXT_WEPWACE_INPUT_FOCUSED = new WawContextKey<boowean>('wepwaceInputFocussed', fawse);
 
-export const ToggleCaseSensitiveKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_C,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C }
+expowt const ToggweCaseSensitiveKeybinding: IKeybindings = {
+	pwimawy: KeyMod.Awt | KeyCode.KEY_C,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_C }
 };
-export const ToggleWholeWordKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_W,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W }
+expowt const ToggweWhoweWowdKeybinding: IKeybindings = {
+	pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W }
 };
-export const ToggleRegexKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_R,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+expowt const ToggweWegexKeybinding: IKeybindings = {
+	pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W }
 };
-export const ToggleSearchScopeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_L,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
+expowt const ToggweSeawchScopeKeybinding: IKeybindings = {
+	pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W }
 };
-export const TogglePreserveCaseKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_P,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_P }
-};
-
-export const FIND_IDS = {
-	StartFindAction: 'actions.find',
-	StartFindWithSelection: 'actions.findWithSelection',
-	NextMatchFindAction: 'editor.action.nextMatchFindAction',
-	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
-	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
-	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
-	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
-	CloseFindWidgetCommand: 'closeFindWidget',
-	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
-	ToggleWholeWordCommand: 'toggleFindWholeWord',
-	ToggleRegexCommand: 'toggleFindRegex',
-	ToggleSearchScopeCommand: 'toggleFindInSelection',
-	TogglePreserveCaseCommand: 'togglePreserveCase',
-	ReplaceOneAction: 'editor.action.replaceOne',
-	ReplaceAllAction: 'editor.action.replaceAll',
-	SelectAllMatchesAction: 'editor.action.selectAllMatches'
+expowt const ToggwePwesewveCaseKeybinding: IKeybindings = {
+	pwimawy: KeyMod.Awt | KeyCode.KEY_P,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_P }
 };
 
-export const MATCHES_LIMIT = 19999;
-const RESEARCH_DELAY = 240;
+expowt const FIND_IDS = {
+	StawtFindAction: 'actions.find',
+	StawtFindWithSewection: 'actions.findWithSewection',
+	NextMatchFindAction: 'editow.action.nextMatchFindAction',
+	PweviousMatchFindAction: 'editow.action.pweviousMatchFindAction',
+	NextSewectionMatchFindAction: 'editow.action.nextSewectionMatchFindAction',
+	PweviousSewectionMatchFindAction: 'editow.action.pweviousSewectionMatchFindAction',
+	StawtFindWepwaceAction: 'editow.action.stawtFindWepwaceAction',
+	CwoseFindWidgetCommand: 'cwoseFindWidget',
+	ToggweCaseSensitiveCommand: 'toggweFindCaseSensitive',
+	ToggweWhoweWowdCommand: 'toggweFindWhoweWowd',
+	ToggweWegexCommand: 'toggweFindWegex',
+	ToggweSeawchScopeCommand: 'toggweFindInSewection',
+	ToggwePwesewveCaseCommand: 'toggwePwesewveCase',
+	WepwaceOneAction: 'editow.action.wepwaceOne',
+	WepwaceAwwAction: 'editow.action.wepwaceAww',
+	SewectAwwMatchesAction: 'editow.action.sewectAwwMatches'
+};
 
-export class FindModelBoundToEditorModel {
+expowt const MATCHES_WIMIT = 19999;
+const WESEAWCH_DEWAY = 240;
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _state: FindReplaceState;
-	private readonly _toDispose = new DisposableStore();
-	private readonly _decorations: FindDecorations;
-	private _ignoreModelContentChanged: boolean;
-	private readonly _startSearchingTimer: TimeoutTimer;
+expowt cwass FindModewBoundToEditowModew {
 
-	private readonly _updateDecorationsScheduler: RunOnceScheduler;
-	private _isDisposed: boolean;
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _state: FindWepwaceState;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate weadonwy _decowations: FindDecowations;
+	pwivate _ignoweModewContentChanged: boowean;
+	pwivate weadonwy _stawtSeawchingTima: TimeoutTima;
 
-	constructor(editor: IActiveCodeEditor, state: FindReplaceState) {
-		this._editor = editor;
+	pwivate weadonwy _updateDecowationsScheduwa: WunOnceScheduwa;
+	pwivate _isDisposed: boowean;
+
+	constwuctow(editow: IActiveCodeEditow, state: FindWepwaceState) {
+		this._editow = editow;
 		this._state = state;
-		this._isDisposed = false;
-		this._startSearchingTimer = new TimeoutTimer();
+		this._isDisposed = fawse;
+		this._stawtSeawchingTima = new TimeoutTima();
 
-		this._decorations = new FindDecorations(editor);
-		this._toDispose.add(this._decorations);
+		this._decowations = new FindDecowations(editow);
+		this._toDispose.add(this._decowations);
 
-		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
-		this._toDispose.add(this._updateDecorationsScheduler);
+		this._updateDecowationsScheduwa = new WunOnceScheduwa(() => this.weseawch(fawse), 100);
+		this._toDispose.add(this._updateDecowationsScheduwa);
 
-		this._toDispose.add(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+		this._toDispose.add(this._editow.onDidChangeCuwsowPosition((e: ICuwsowPositionChangedEvent) => {
 			if (
-				e.reason === CursorChangeReason.Explicit
-				|| e.reason === CursorChangeReason.Undo
-				|| e.reason === CursorChangeReason.Redo
+				e.weason === CuwsowChangeWeason.Expwicit
+				|| e.weason === CuwsowChangeWeason.Undo
+				|| e.weason === CuwsowChangeWeason.Wedo
 			) {
-				this._decorations.setStartPosition(this._editor.getPosition());
+				this._decowations.setStawtPosition(this._editow.getPosition());
 			}
 		}));
 
-		this._ignoreModelContentChanged = false;
-		this._toDispose.add(this._editor.onDidChangeModelContent((e) => {
-			if (this._ignoreModelContentChanged) {
-				return;
+		this._ignoweModewContentChanged = fawse;
+		this._toDispose.add(this._editow.onDidChangeModewContent((e) => {
+			if (this._ignoweModewContentChanged) {
+				wetuwn;
 			}
-			if (e.isFlush) {
-				// a model.setValue() was called
-				this._decorations.reset();
+			if (e.isFwush) {
+				// a modew.setVawue() was cawwed
+				this._decowations.weset();
 			}
-			this._decorations.setStartPosition(this._editor.getPosition());
-			this._updateDecorationsScheduler.schedule();
+			this._decowations.setStawtPosition(this._editow.getPosition());
+			this._updateDecowationsScheduwa.scheduwe();
 		}));
 
-		this._toDispose.add(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
+		this._toDispose.add(this._state.onFindWepwaceStateChange((e) => this._onStateChanged(e)));
 
-		this.research(false, this._state.searchScope);
+		this.weseawch(fawse, this._state.seawchScope);
 	}
 
-	public dispose(): void {
-		this._isDisposed = true;
-		dispose(this._startSearchingTimer);
+	pubwic dispose(): void {
+		this._isDisposed = twue;
+		dispose(this._stawtSeawchingTima);
 		this._toDispose.dispose();
 	}
 
-	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
+	pwivate _onStateChanged(e: FindWepwaceStateChangedEvent): void {
 		if (this._isDisposed) {
-			// The find model is disposed during a find state changed event
-			return;
+			// The find modew is disposed duwing a find state changed event
+			wetuwn;
 		}
-		if (!this._editor.hasModel()) {
-			// The find model will be disposed momentarily
-			return;
+		if (!this._editow.hasModew()) {
+			// The find modew wiww be disposed momentawiwy
+			wetuwn;
 		}
-		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
-			let model = this._editor.getModel();
+		if (e.seawchStwing || e.isWepwaceWeveawed || e.isWegex || e.whoweWowd || e.matchCase || e.seawchScope) {
+			wet modew = this._editow.getModew();
 
-			if (model.isTooLargeForSyncing()) {
-				this._startSearchingTimer.cancel();
+			if (modew.isTooWawgeFowSyncing()) {
+				this._stawtSeawchingTima.cancew();
 
-				this._startSearchingTimer.setIfNotSet(() => {
-					if (e.searchScope) {
-						this.research(e.moveCursor, this._state.searchScope);
-					} else {
-						this.research(e.moveCursor);
+				this._stawtSeawchingTima.setIfNotSet(() => {
+					if (e.seawchScope) {
+						this.weseawch(e.moveCuwsow, this._state.seawchScope);
+					} ewse {
+						this.weseawch(e.moveCuwsow);
 					}
-				}, RESEARCH_DELAY);
-			} else {
-				if (e.searchScope) {
-					this.research(e.moveCursor, this._state.searchScope);
-				} else {
-					this.research(e.moveCursor);
+				}, WESEAWCH_DEWAY);
+			} ewse {
+				if (e.seawchScope) {
+					this.weseawch(e.moveCuwsow, this._state.seawchScope);
+				} ewse {
+					this.weseawch(e.moveCuwsow);
 				}
 			}
 		}
 	}
 
-	private static _getSearchRange(model: ITextModel, findScope: Range | null): Range {
-		// If we have set now or before a find scope, use it for computing the search range
+	pwivate static _getSeawchWange(modew: ITextModew, findScope: Wange | nuww): Wange {
+		// If we have set now ow befowe a find scope, use it fow computing the seawch wange
 		if (findScope) {
-			return findScope;
+			wetuwn findScope;
 		}
 
-		return model.getFullModelRange();
+		wetuwn modew.getFuwwModewWange();
 	}
 
-	private research(moveCursor: boolean, newFindScope?: Range | Range[] | null): void {
-		let findScopes: Range[] | null = null;
+	pwivate weseawch(moveCuwsow: boowean, newFindScope?: Wange | Wange[] | nuww): void {
+		wet findScopes: Wange[] | nuww = nuww;
 		if (typeof newFindScope !== 'undefined') {
-			if (newFindScope !== null) {
-				if (!Array.isArray(newFindScope)) {
-					findScopes = [newFindScope as Range];
-				} else {
+			if (newFindScope !== nuww) {
+				if (!Awway.isAwway(newFindScope)) {
+					findScopes = [newFindScope as Wange];
+				} ewse {
 					findScopes = newFindScope;
 				}
 			}
-		} else {
-			findScopes = this._decorations.getFindScopes();
+		} ewse {
+			findScopes = this._decowations.getFindScopes();
 		}
-		if (findScopes !== null) {
+		if (findScopes !== nuww) {
 			findScopes = findScopes.map(findScope => {
-				if (findScope.startLineNumber !== findScope.endLineNumber) {
-					let endLineNumber = findScope.endLineNumber;
+				if (findScope.stawtWineNumba !== findScope.endWineNumba) {
+					wet endWineNumba = findScope.endWineNumba;
 
-					if (findScope.endColumn === 1) {
-						endLineNumber = endLineNumber - 1;
+					if (findScope.endCowumn === 1) {
+						endWineNumba = endWineNumba - 1;
 					}
 
-					return new Range(findScope.startLineNumber, 1, endLineNumber, this._editor.getModel().getLineMaxColumn(endLineNumber));
+					wetuwn new Wange(findScope.stawtWineNumba, 1, endWineNumba, this._editow.getModew().getWineMaxCowumn(endWineNumba));
 				}
-				return findScope;
+				wetuwn findScope;
 			});
 		}
 
-		let findMatches = this._findMatches(findScopes, false, MATCHES_LIMIT);
-		this._decorations.set(findMatches, findScopes);
+		wet findMatches = this._findMatches(findScopes, fawse, MATCHES_WIMIT);
+		this._decowations.set(findMatches, findScopes);
 
-		const editorSelection = this._editor.getSelection();
-		let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
-		if (currentMatchesPosition === 0 && findMatches.length > 0) {
-			// current selection is not on top of a match
-			// try to find its nearest result from the top of the document
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
-			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
+		const editowSewection = this._editow.getSewection();
+		wet cuwwentMatchesPosition = this._decowations.getCuwwentMatchesPosition(editowSewection);
+		if (cuwwentMatchesPosition === 0 && findMatches.wength > 0) {
+			// cuwwent sewection is not on top of a match
+			// twy to find its neawest wesuwt fwom the top of the document
+			const matchAftewSewection = findFiwstInSowted(findMatches.map(match => match.wange), wange => Wange.compaweWangesUsingStawts(wange, editowSewection) >= 0);
+			cuwwentMatchesPosition = matchAftewSewection > 0 ? matchAftewSewection - 1 + 1 /** match position is one based */ : cuwwentMatchesPosition;
 		}
 
 		this._state.changeMatchInfo(
-			currentMatchesPosition,
-			this._decorations.getCount(),
+			cuwwentMatchesPosition,
+			this._decowations.getCount(),
 			undefined
 		);
 
-		if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
-			this._moveToNextMatch(this._decorations.getStartPosition());
+		if (moveCuwsow && this._editow.getOption(EditowOption.find).cuwsowMoveOnType) {
+			this._moveToNextMatch(this._decowations.getStawtPosition());
 		}
 	}
 
-	private _hasMatches(): boolean {
-		return (this._state.matchesCount > 0);
+	pwivate _hasMatches(): boowean {
+		wetuwn (this._state.matchesCount > 0);
 	}
 
-	private _cannotFind(): boolean {
+	pwivate _cannotFind(): boowean {
 		if (!this._hasMatches()) {
-			let findScope = this._decorations.getFindScope();
+			wet findScope = this._decowations.getFindScope();
 			if (findScope) {
-				// Reveal the selection so user is reminded that 'selection find' is on.
-				this._editor.revealRangeInCenterIfOutsideViewport(findScope, ScrollType.Smooth);
+				// Weveaw the sewection so usa is weminded that 'sewection find' is on.
+				this._editow.weveawWangeInCentewIfOutsideViewpowt(findScope, ScwowwType.Smooth);
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private _setCurrentFindMatch(match: Range): void {
-		let matchesPosition = this._decorations.setCurrentFindMatch(match);
+	pwivate _setCuwwentFindMatch(match: Wange): void {
+		wet matchesPosition = this._decowations.setCuwwentFindMatch(match);
 		this._state.changeMatchInfo(
 			matchesPosition,
-			this._decorations.getCount(),
+			this._decowations.getCount(),
 			match
 		);
 
-		this._editor.setSelection(match);
-		this._editor.revealRangeInCenterIfOutsideViewport(match, ScrollType.Smooth);
+		this._editow.setSewection(match);
+		this._editow.weveawWangeInCentewIfOutsideViewpowt(match, ScwowwType.Smooth);
 	}
 
-	private _prevSearchPosition(before: Position) {
-		let isUsingLineStops = this._state.isRegex && (
-			this._state.searchString.indexOf('^') >= 0
-			|| this._state.searchString.indexOf('$') >= 0
+	pwivate _pwevSeawchPosition(befowe: Position) {
+		wet isUsingWineStops = this._state.isWegex && (
+			this._state.seawchStwing.indexOf('^') >= 0
+			|| this._state.seawchStwing.indexOf('$') >= 0
 		);
-		let { lineNumber, column } = before;
-		let model = this._editor.getModel();
+		wet { wineNumba, cowumn } = befowe;
+		wet modew = this._editow.getModew();
 
-		if (isUsingLineStops || column === 1) {
-			if (lineNumber === 1) {
-				lineNumber = model.getLineCount();
-			} else {
-				lineNumber--;
+		if (isUsingWineStops || cowumn === 1) {
+			if (wineNumba === 1) {
+				wineNumba = modew.getWineCount();
+			} ewse {
+				wineNumba--;
 			}
-			column = model.getLineMaxColumn(lineNumber);
-		} else {
-			column--;
+			cowumn = modew.getWineMaxCowumn(wineNumba);
+		} ewse {
+			cowumn--;
 		}
 
-		return new Position(lineNumber, column);
+		wetuwn new Position(wineNumba, cowumn);
 	}
 
-	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
+	pwivate _moveToPwevMatch(befowe: Position, isWecuwsed: boowean = fawse): void {
 		if (!this._state.canNavigateBack()) {
-			// we are beyond the first matched find result
-			// instead of doing nothing, we should refocus the first item
-			const nextMatchRange = this._decorations.matchAfterPosition(before);
+			// we awe beyond the fiwst matched find wesuwt
+			// instead of doing nothing, we shouwd wefocus the fiwst item
+			const nextMatchWange = this._decowations.matchAftewPosition(befowe);
 
-			if (nextMatchRange) {
-				this._setCurrentFindMatch(nextMatchRange);
+			if (nextMatchWange) {
+				this._setCuwwentFindMatch(nextMatchWange);
 			}
-			return;
+			wetuwn;
 		}
-		if (this._decorations.getCount() < MATCHES_LIMIT) {
-			let prevMatchRange = this._decorations.matchBeforePosition(before);
+		if (this._decowations.getCount() < MATCHES_WIMIT) {
+			wet pwevMatchWange = this._decowations.matchBefowePosition(befowe);
 
-			if (prevMatchRange && prevMatchRange.isEmpty() && prevMatchRange.getStartPosition().equals(before)) {
-				before = this._prevSearchPosition(before);
-				prevMatchRange = this._decorations.matchBeforePosition(before);
+			if (pwevMatchWange && pwevMatchWange.isEmpty() && pwevMatchWange.getStawtPosition().equaws(befowe)) {
+				befowe = this._pwevSeawchPosition(befowe);
+				pwevMatchWange = this._decowations.matchBefowePosition(befowe);
 			}
 
-			if (prevMatchRange) {
-				this._setCurrentFindMatch(prevMatchRange);
+			if (pwevMatchWange) {
+				this._setCuwwentFindMatch(pwevMatchWange);
 			}
 
-			return;
+			wetuwn;
 		}
 
 		if (this._cannotFind()) {
-			return;
+			wetuwn;
 		}
 
-		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
+		wet findScope = this._decowations.getFindScope();
+		wet seawchWange = FindModewBoundToEditowModew._getSeawchWange(this._editow.getModew(), findScope);
 
 		// ...(----)...|...
-		if (searchRange.getEndPosition().isBefore(before)) {
-			before = searchRange.getEndPosition();
+		if (seawchWange.getEndPosition().isBefowe(befowe)) {
+			befowe = seawchWange.getEndPosition();
 		}
 
 		// ...|...(----)...
-		if (before.isBefore(searchRange.getStartPosition())) {
-			before = searchRange.getEndPosition();
+		if (befowe.isBefowe(seawchWange.getStawtPosition())) {
+			befowe = seawchWange.getEndPosition();
 		}
 
-		let { lineNumber, column } = before;
-		let model = this._editor.getModel();
+		wet { wineNumba, cowumn } = befowe;
+		wet modew = this._editow.getModew();
 
-		let position = new Position(lineNumber, column);
+		wet position = new Position(wineNumba, cowumn);
 
-		let prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		wet pwevMatch = modew.findPweviousMatch(this._state.seawchStwing, position, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse);
 
-		if (prevMatch && prevMatch.range.isEmpty() && prevMatch.range.getStartPosition().equals(position)) {
-			// Looks like we're stuck at this position, unacceptable!
-			position = this._prevSearchPosition(position);
-			prevMatch = model.findPreviousMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false);
+		if (pwevMatch && pwevMatch.wange.isEmpty() && pwevMatch.wange.getStawtPosition().equaws(position)) {
+			// Wooks wike we'we stuck at this position, unacceptabwe!
+			position = this._pwevSeawchPosition(position);
+			pwevMatch = modew.findPweviousMatch(this._state.seawchStwing, position, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, fawse);
 		}
 
-		if (!prevMatch) {
-			// there is precisely one match and selection is on top of it
-			return;
+		if (!pwevMatch) {
+			// thewe is pwecisewy one match and sewection is on top of it
+			wetuwn;
 		}
 
-		if (!isRecursed && !searchRange.containsRange(prevMatch.range)) {
-			return this._moveToPrevMatch(prevMatch.range.getStartPosition(), true);
+		if (!isWecuwsed && !seawchWange.containsWange(pwevMatch.wange)) {
+			wetuwn this._moveToPwevMatch(pwevMatch.wange.getStawtPosition(), twue);
 		}
 
-		this._setCurrentFindMatch(prevMatch.range);
+		this._setCuwwentFindMatch(pwevMatch.wange);
 	}
 
-	public moveToPrevMatch(): void {
-		this._moveToPrevMatch(this._editor.getSelection().getStartPosition());
+	pubwic moveToPwevMatch(): void {
+		this._moveToPwevMatch(this._editow.getSewection().getStawtPosition());
 	}
 
-	private _nextSearchPosition(after: Position) {
-		let isUsingLineStops = this._state.isRegex && (
-			this._state.searchString.indexOf('^') >= 0
-			|| this._state.searchString.indexOf('$') >= 0
+	pwivate _nextSeawchPosition(afta: Position) {
+		wet isUsingWineStops = this._state.isWegex && (
+			this._state.seawchStwing.indexOf('^') >= 0
+			|| this._state.seawchStwing.indexOf('$') >= 0
 		);
 
-		let { lineNumber, column } = after;
-		let model = this._editor.getModel();
+		wet { wineNumba, cowumn } = afta;
+		wet modew = this._editow.getModew();
 
-		if (isUsingLineStops || column === model.getLineMaxColumn(lineNumber)) {
-			if (lineNumber === model.getLineCount()) {
-				lineNumber = 1;
-			} else {
-				lineNumber++;
+		if (isUsingWineStops || cowumn === modew.getWineMaxCowumn(wineNumba)) {
+			if (wineNumba === modew.getWineCount()) {
+				wineNumba = 1;
+			} ewse {
+				wineNumba++;
 			}
-			column = 1;
-		} else {
-			column++;
+			cowumn = 1;
+		} ewse {
+			cowumn++;
 		}
 
-		return new Position(lineNumber, column);
+		wetuwn new Position(wineNumba, cowumn);
 	}
 
-	private _moveToNextMatch(after: Position): void {
-		if (!this._state.canNavigateForward()) {
-			// we are beyond the last matched find result
-			// instead of doing nothing, we should refocus the last item
-			const prevMatchRange = this._decorations.matchBeforePosition(after);
+	pwivate _moveToNextMatch(afta: Position): void {
+		if (!this._state.canNavigateFowwawd()) {
+			// we awe beyond the wast matched find wesuwt
+			// instead of doing nothing, we shouwd wefocus the wast item
+			const pwevMatchWange = this._decowations.matchBefowePosition(afta);
 
-			if (prevMatchRange) {
-				this._setCurrentFindMatch(prevMatchRange);
+			if (pwevMatchWange) {
+				this._setCuwwentFindMatch(pwevMatchWange);
 			}
-			return;
+			wetuwn;
 		}
-		if (this._decorations.getCount() < MATCHES_LIMIT) {
-			let nextMatchRange = this._decorations.matchAfterPosition(after);
+		if (this._decowations.getCount() < MATCHES_WIMIT) {
+			wet nextMatchWange = this._decowations.matchAftewPosition(afta);
 
-			if (nextMatchRange && nextMatchRange.isEmpty() && nextMatchRange.getStartPosition().equals(after)) {
-				// Looks like we're stuck at this position, unacceptable!
-				after = this._nextSearchPosition(after);
-				nextMatchRange = this._decorations.matchAfterPosition(after);
+			if (nextMatchWange && nextMatchWange.isEmpty() && nextMatchWange.getStawtPosition().equaws(afta)) {
+				// Wooks wike we'we stuck at this position, unacceptabwe!
+				afta = this._nextSeawchPosition(afta);
+				nextMatchWange = this._decowations.matchAftewPosition(afta);
 			}
-			if (nextMatchRange) {
-				this._setCurrentFindMatch(nextMatchRange);
+			if (nextMatchWange) {
+				this._setCuwwentFindMatch(nextMatchWange);
 			}
 
-			return;
+			wetuwn;
 		}
 
-		let nextMatch = this._getNextMatch(after, false, true);
+		wet nextMatch = this._getNextMatch(afta, fawse, twue);
 		if (nextMatch) {
-			this._setCurrentFindMatch(nextMatch.range);
+			this._setCuwwentFindMatch(nextMatch.wange);
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): FindMatch | null {
+	pwivate _getNextMatch(afta: Position, captuweMatches: boowean, fowceMove: boowean, isWecuwsed: boowean = fawse): FindMatch | nuww {
 		if (this._cannotFind()) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
+		wet findScope = this._decowations.getFindScope();
+		wet seawchWange = FindModewBoundToEditowModew._getSeawchWange(this._editow.getModew(), findScope);
 
 		// ...(----)...|...
-		if (searchRange.getEndPosition().isBefore(after)) {
-			after = searchRange.getStartPosition();
+		if (seawchWange.getEndPosition().isBefowe(afta)) {
+			afta = seawchWange.getStawtPosition();
 		}
 
 		// ...|...(----)...
-		if (after.isBefore(searchRange.getStartPosition())) {
-			after = searchRange.getStartPosition();
+		if (afta.isBefowe(seawchWange.getStawtPosition())) {
+			afta = seawchWange.getStawtPosition();
 		}
 
-		let { lineNumber, column } = after;
-		let model = this._editor.getModel();
+		wet { wineNumba, cowumn } = afta;
+		wet modew = this._editow.getModew();
 
-		let position = new Position(lineNumber, column);
+		wet position = new Position(wineNumba, cowumn);
 
-		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
+		wet nextMatch = modew.findNextMatch(this._state.seawchStwing, position, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, captuweMatches);
 
-		if (forceMove && nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
-			// Looks like we're stuck at this position, unacceptable!
-			position = this._nextSearchPosition(position);
-			nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches);
+		if (fowceMove && nextMatch && nextMatch.wange.isEmpty() && nextMatch.wange.getStawtPosition().equaws(position)) {
+			// Wooks wike we'we stuck at this position, unacceptabwe!
+			position = this._nextSeawchPosition(position);
+			nextMatch = modew.findNextMatch(this._state.seawchStwing, position, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, captuweMatches);
 		}
 
 		if (!nextMatch) {
-			// there is precisely one match and selection is on top of it
-			return null;
+			// thewe is pwecisewy one match and sewection is on top of it
+			wetuwn nuww;
 		}
 
-		if (!isRecursed && !searchRange.containsRange(nextMatch.range)) {
-			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true);
+		if (!isWecuwsed && !seawchWange.containsWange(nextMatch.wange)) {
+			wetuwn this._getNextMatch(nextMatch.wange.getEndPosition(), captuweMatches, fowceMove, twue);
 		}
 
-		return nextMatch;
+		wetuwn nextMatch;
 	}
 
-	public moveToNextMatch(): void {
-		this._moveToNextMatch(this._editor.getSelection().getEndPosition());
+	pubwic moveToNextMatch(): void {
+		this._moveToNextMatch(this._editow.getSewection().getEndPosition());
 	}
 
-	private _getReplacePattern(): ReplacePattern {
-		if (this._state.isRegex) {
-			return parseReplaceString(this._state.replaceString);
+	pwivate _getWepwacePattewn(): WepwacePattewn {
+		if (this._state.isWegex) {
+			wetuwn pawseWepwaceStwing(this._state.wepwaceStwing);
 		}
-		return ReplacePattern.fromStaticValue(this._state.replaceString);
+		wetuwn WepwacePattewn.fwomStaticVawue(this._state.wepwaceStwing);
 	}
 
-	public replace(): void {
+	pubwic wepwace(): void {
 		if (!this._hasMatches()) {
-			return;
+			wetuwn;
 		}
 
-		let replacePattern = this._getReplacePattern();
-		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), true, false);
+		wet wepwacePattewn = this._getWepwacePattewn();
+		wet sewection = this._editow.getSewection();
+		wet nextMatch = this._getNextMatch(sewection.getStawtPosition(), twue, fawse);
 		if (nextMatch) {
-			if (selection.equalsRange(nextMatch.range)) {
-				// selection sits on a find match => replace it!
-				let replaceString = replacePattern.buildReplaceString(nextMatch.matches, this._state.preserveCase);
+			if (sewection.equawsWange(nextMatch.wange)) {
+				// sewection sits on a find match => wepwace it!
+				wet wepwaceStwing = wepwacePattewn.buiwdWepwaceStwing(nextMatch.matches, this._state.pwesewveCase);
 
-				let command = new ReplaceCommand(selection, replaceString);
+				wet command = new WepwaceCommand(sewection, wepwaceStwing);
 
-				this._executeEditorCommand('replace', command);
+				this._executeEditowCommand('wepwace', command);
 
-				this._decorations.setStartPosition(new Position(selection.startLineNumber, selection.startColumn + replaceString.length));
-				this.research(true);
-			} else {
-				this._decorations.setStartPosition(this._editor.getPosition());
-				this._setCurrentFindMatch(nextMatch.range);
+				this._decowations.setStawtPosition(new Position(sewection.stawtWineNumba, sewection.stawtCowumn + wepwaceStwing.wength));
+				this.weseawch(twue);
+			} ewse {
+				this._decowations.setStawtPosition(this._editow.getPosition());
+				this._setCuwwentFindMatch(nextMatch.wange);
 			}
 		}
 	}
 
-	private _findMatches(findScopes: Range[] | null, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const searchRanges = (findScopes as [] || [null]).map((scope: Range | null) =>
-			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
+	pwivate _findMatches(findScopes: Wange[] | nuww, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		const seawchWanges = (findScopes as [] || [nuww]).map((scope: Wange | nuww) =>
+			FindModewBoundToEditowModew._getSeawchWange(this._editow.getModew(), scope)
 		);
 
-		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+		wetuwn this._editow.getModew().findMatches(this._state.seawchStwing, seawchWanges, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww, captuweMatches, wimitWesuwtCount);
 	}
 
-	public replaceAll(): void {
+	pubwic wepwaceAww(): void {
 		if (!this._hasMatches()) {
-			return;
+			wetuwn;
 		}
 
-		const findScopes = this._decorations.getFindScopes();
+		const findScopes = this._decowations.getFindScopes();
 
-		if (findScopes === null && this._state.matchesCount >= MATCHES_LIMIT) {
-			// Doing a replace on the entire file that is over ${MATCHES_LIMIT} matches
-			this._largeReplaceAll();
-		} else {
-			this._regularReplaceAll(findScopes);
+		if (findScopes === nuww && this._state.matchesCount >= MATCHES_WIMIT) {
+			// Doing a wepwace on the entiwe fiwe that is ova ${MATCHES_WIMIT} matches
+			this._wawgeWepwaceAww();
+		} ewse {
+			this._weguwawWepwaceAww(findScopes);
 		}
 
-		this.research(false);
+		this.weseawch(fawse);
 	}
 
-	private _largeReplaceAll(): void {
-		const searchParams = new SearchParams(this._state.searchString, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null);
-		const searchData = searchParams.parseSearchRequest();
-		if (!searchData) {
-			return;
+	pwivate _wawgeWepwaceAww(): void {
+		const seawchPawams = new SeawchPawams(this._state.seawchStwing, this._state.isWegex, this._state.matchCase, this._state.whoweWowd ? this._editow.getOption(EditowOption.wowdSepawatows) : nuww);
+		const seawchData = seawchPawams.pawseSeawchWequest();
+		if (!seawchData) {
+			wetuwn;
 		}
 
-		let searchRegex = searchData.regex;
-		if (!searchRegex.multiline) {
-			let mod = 'mu';
-			if (searchRegex.ignoreCase) {
+		wet seawchWegex = seawchData.wegex;
+		if (!seawchWegex.muwtiwine) {
+			wet mod = 'mu';
+			if (seawchWegex.ignoweCase) {
 				mod += 'i';
 			}
-			if (searchRegex.global) {
+			if (seawchWegex.gwobaw) {
 				mod += 'g';
 			}
-			searchRegex = new RegExp(searchRegex.source, mod);
+			seawchWegex = new WegExp(seawchWegex.souwce, mod);
 		}
 
-		const model = this._editor.getModel();
-		const modelText = model.getValue(EndOfLinePreference.LF);
-		const fullModelRange = model.getFullModelRange();
+		const modew = this._editow.getModew();
+		const modewText = modew.getVawue(EndOfWinePwefewence.WF);
+		const fuwwModewWange = modew.getFuwwModewWange();
 
-		const replacePattern = this._getReplacePattern();
-		let resultText: string;
-		const preserveCase = this._state.preserveCase;
+		const wepwacePattewn = this._getWepwacePattewn();
+		wet wesuwtText: stwing;
+		const pwesewveCase = this._state.pwesewveCase;
 
-		if (replacePattern.hasReplacementPatterns || preserveCase) {
-			resultText = modelText.replace(searchRegex, function () {
-				return replacePattern.buildReplaceString(<string[]><any>arguments, preserveCase);
+		if (wepwacePattewn.hasWepwacementPattewns || pwesewveCase) {
+			wesuwtText = modewText.wepwace(seawchWegex, function () {
+				wetuwn wepwacePattewn.buiwdWepwaceStwing(<stwing[]><any>awguments, pwesewveCase);
 			});
-		} else {
-			resultText = modelText.replace(searchRegex, replacePattern.buildReplaceString(null, preserveCase));
+		} ewse {
+			wesuwtText = modewText.wepwace(seawchWegex, wepwacePattewn.buiwdWepwaceStwing(nuww, pwesewveCase));
 		}
 
-		let command = new ReplaceCommandThatPreservesSelection(fullModelRange, resultText, this._editor.getSelection());
-		this._executeEditorCommand('replaceAll', command);
+		wet command = new WepwaceCommandThatPwesewvesSewection(fuwwModewWange, wesuwtText, this._editow.getSewection());
+		this._executeEditowCommand('wepwaceAww', command);
 	}
 
-	private _regularReplaceAll(findScopes: Range[] | null): void {
-		const replacePattern = this._getReplacePattern();
-		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScopes, replacePattern.hasReplacementPatterns || this._state.preserveCase, Constants.MAX_SAFE_SMALL_INTEGER);
+	pwivate _weguwawWepwaceAww(findScopes: Wange[] | nuww): void {
+		const wepwacePattewn = this._getWepwacePattewn();
+		// Get aww the wanges (even mowe than the highwighted ones)
+		wet matches = this._findMatches(findScopes, wepwacePattewn.hasWepwacementPattewns || this._state.pwesewveCase, Constants.MAX_SAFE_SMAWW_INTEGa);
 
-		let replaceStrings: string[] = [];
-		for (let i = 0, len = matches.length; i < len; i++) {
-			replaceStrings[i] = replacePattern.buildReplaceString(matches[i].matches, this._state.preserveCase);
+		wet wepwaceStwings: stwing[] = [];
+		fow (wet i = 0, wen = matches.wength; i < wen; i++) {
+			wepwaceStwings[i] = wepwacePattewn.buiwdWepwaceStwing(matches[i].matches, this._state.pwesewveCase);
 		}
 
-		let command = new ReplaceAllCommand(this._editor.getSelection(), matches.map(m => m.range), replaceStrings);
-		this._executeEditorCommand('replaceAll', command);
+		wet command = new WepwaceAwwCommand(this._editow.getSewection(), matches.map(m => m.wange), wepwaceStwings);
+		this._executeEditowCommand('wepwaceAww', command);
 	}
 
-	public selectAllMatches(): void {
+	pubwic sewectAwwMatches(): void {
 		if (!this._hasMatches()) {
-			return;
+			wetuwn;
 		}
 
-		let findScopes = this._decorations.getFindScopes();
+		wet findScopes = this._decowations.getFindScopes();
 
-		// Get all the ranges (even more than the highlighted ones)
-		let matches = this._findMatches(findScopes, false, Constants.MAX_SAFE_SMALL_INTEGER);
-		let selections = matches.map(m => new Selection(m.range.startLineNumber, m.range.startColumn, m.range.endLineNumber, m.range.endColumn));
+		// Get aww the wanges (even mowe than the highwighted ones)
+		wet matches = this._findMatches(findScopes, fawse, Constants.MAX_SAFE_SMAWW_INTEGa);
+		wet sewections = matches.map(m => new Sewection(m.wange.stawtWineNumba, m.wange.stawtCowumn, m.wange.endWineNumba, m.wange.endCowumn));
 
-		// If one of the ranges is the editor selection, then maintain it as primary
-		let editorSelection = this._editor.getSelection();
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let sel = selections[i];
-			if (sel.equalsRange(editorSelection)) {
-				selections = [editorSelection].concat(selections.slice(0, i)).concat(selections.slice(i + 1));
-				break;
+		// If one of the wanges is the editow sewection, then maintain it as pwimawy
+		wet editowSewection = this._editow.getSewection();
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			wet sew = sewections[i];
+			if (sew.equawsWange(editowSewection)) {
+				sewections = [editowSewection].concat(sewections.swice(0, i)).concat(sewections.swice(i + 1));
+				bweak;
 			}
 		}
 
-		this._editor.setSelections(selections);
+		this._editow.setSewections(sewections);
 	}
 
-	private _executeEditorCommand(source: string, command: ICommand): void {
-		try {
-			this._ignoreModelContentChanged = true;
-			this._editor.pushUndoStop();
-			this._editor.executeCommand(source, command);
-			this._editor.pushUndoStop();
-		} finally {
-			this._ignoreModelContentChanged = false;
+	pwivate _executeEditowCommand(souwce: stwing, command: ICommand): void {
+		twy {
+			this._ignoweModewContentChanged = twue;
+			this._editow.pushUndoStop();
+			this._editow.executeCommand(souwce, command);
+			this._editow.pushUndoStop();
+		} finawwy {
+			this._ignoweModewContentChanged = fawse;
 		}
 	}
 }

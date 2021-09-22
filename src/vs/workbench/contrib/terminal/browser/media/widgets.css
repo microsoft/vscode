@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .terminal-widget-container {
-	position: absolute;
-	left: 0;
+.monaco-wowkbench .tewminaw-widget-containa {
+	position: absowute;
+	weft: 0;
 	bottom: 0;
-	right: 0;
+	wight: 0;
 	top: 0;
-	overflow: visible;
+	ovewfwow: visibwe;
 }
 
-.monaco-workbench .terminal-overlay-widget {
-	position: absolute;
-	left: 0;
+.monaco-wowkbench .tewminaw-ovewway-widget {
+	position: absowute;
+	weft: 0;
 	bottom: 0;
-	color: #3794ff;
+	cowow: #3794ff;
 }
 
-.monaco-workbench .terminal-hover-target {
-	position: absolute;
+.monaco-wowkbench .tewminaw-hova-tawget {
+	position: absowute;
 	z-index: 30;
 }
 
-.monaco-workbench .terminal-env-var-info {
-	position: absolute;
-	right: 2px;
+.monaco-wowkbench .tewminaw-env-vaw-info {
+	position: absowute;
+	wight: 2px;
 	top: 0;
 	width: 28px;
 	height: 28px;
-	text-align: center;
+	text-awign: centa;
 	z-index: 10;
 	opacity: 0.5;
 }
 
-.monaco-workbench .terminal-env-var-info:hover,
-.monaco-workbench .terminal-env-var-info.requires-action {
+.monaco-wowkbench .tewminaw-env-vaw-info:hova,
+.monaco-wowkbench .tewminaw-env-vaw-info.wequiwes-action {
 	opacity: 1;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-env-var-info {
-	/* Adjust for reduced margin in splits */
-	right: -8px;
+.monaco-wowkbench .pane-body.integwated-tewminaw .monaco-spwit-view2.howizontaw .spwit-view-view:wast-chiwd .tewminaw-env-vaw-info {
+	/* Adjust fow weduced mawgin in spwits */
+	wight: -8px;
 }
 
-.monaco-workbench .terminal-env-var-info.codicon {
-	line-height: 28px;
+.monaco-wowkbench .tewminaw-env-vaw-info.codicon {
+	wine-height: 28px;
 }

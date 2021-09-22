@@ -1,620 +1,620 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookConcatDocument } from 'vs/workbench/api/common/extHostNotebookConcatDocument';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { URI } from 'vs/base/common/uri';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Position, Location, Range } from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import * as vscode from 'vscode';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt * as assewt fwom 'assewt';
+impowt { TestWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostNotebookConcatDocument } fwom 'vs/wowkbench/api/common/extHostNotebookConcatDocument';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostNotebookDocument } fwom 'vs/wowkbench/api/common/extHostNotebookDocument';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CewwKind, CewwUwi, NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { Position, Wocation, Wange } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt * as vscode fwom 'vscode';
+impowt { mock } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { MainContext, MainThweadCommandsShape, MainThweadNotebookShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ExtHostNotebookDocuments } fwom 'vs/wowkbench/api/common/extHostNotebookDocuments';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
 suite('NotebookConcatDocument', function () {
 
-	let rpcProtocol: TestRPCProtocol;
-	let notebook: ExtHostNotebookDocument;
-	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
-	let extHostDocuments: ExtHostDocuments;
-	let extHostNotebooks: ExtHostNotebookController;
-	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+	wet wpcPwotocow: TestWPCPwotocow;
+	wet notebook: ExtHostNotebookDocument;
+	wet extHostDocumentsAndEditows: ExtHostDocumentsAndEditows;
+	wet extHostDocuments: ExtHostDocuments;
+	wet extHostNotebooks: ExtHostNotebookContwowwa;
+	wet extHostNotebookDocuments: ExtHostNotebookDocuments;
 
-	const notebookUri = URI.parse('test:///notebook.file');
-	const disposables = new DisposableStore();
+	const notebookUwi = UWI.pawse('test:///notebook.fiwe');
+	const disposabwes = new DisposabweStowe();
 
 	setup(async function () {
-		disposables.clear();
+		disposabwes.cweaw();
 
-		rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			override $registerCommand() { }
+		wpcPwotocow = new TestWPCPwotocow();
+		wpcPwotocow.set(MainContext.MainThweadCommands, new cwass extends mock<MainThweadCommandsShape>() {
+			ovewwide $wegistewCommand() { }
 		});
-		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			override async $registerNotebookProvider() { }
-			override async $unregisterNotebookProvider() { }
+		wpcPwotocow.set(MainContext.MainThweadNotebook, new cwass extends mock<MainThweadNotebookShape>() {
+			ovewwide async $wegistewNotebookPwovida() { }
+			ovewwide async $unwegistewNotebookPwovida() { }
 		});
-		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			override workspaceValue() {
-				return URI.from({ scheme: 'test', path: generateUuid() });
+		extHostDocumentsAndEditows = new ExtHostDocumentsAndEditows(wpcPwotocow, new NuwwWogSewvice());
+		extHostDocuments = new ExtHostDocuments(wpcPwotocow, extHostDocumentsAndEditows);
+		const extHostStowagePaths = new cwass extends mock<IExtensionStowagePaths>() {
+			ovewwide wowkspaceVawue() {
+				wetuwn UWI.fwom({ scheme: 'test', path: genewateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
-		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+		extHostNotebooks = new ExtHostNotebookContwowwa(wpcPwotocow, new ExtHostCommands(wpcPwotocow, new NuwwWogSewvice()), extHostDocumentsAndEditows, extHostDocuments, extHostStowagePaths);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NuwwWogSewvice(), extHostNotebooks);
 
-		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
+		wet weg = extHostNotebooks.wegistewNotebookContentPwovida(nuwwExtensionDescwiption, 'test', new cwass extends mock<vscode.NotebookContentPwovida>() {
 			// async openNotebook() { }
 		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({
 			addedDocuments: [{
-				uri: notebookUri,
+				uwi: notebookUwi,
 				viewType: 'test',
-				cells: [{
-					handle: 0,
-					uri: CellUri.generate(notebookUri, 0),
-					source: ['### Heading'],
-					eol: '\n',
-					language: 'markdown',
-					cellKind: CellKind.Markup,
+				cewws: [{
+					handwe: 0,
+					uwi: CewwUwi.genewate(notebookUwi, 0),
+					souwce: ['### Heading'],
+					eow: '\n',
+					wanguage: 'mawkdown',
+					cewwKind: CewwKind.Mawkup,
 					outputs: [],
 				}],
-				versionId: 0
+				vewsionId: 0
 			}],
-			addedEditors: [{
-				documentUri: notebookUri,
-				id: '_notebook_editor_0',
-				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+			addedEditows: [{
+				documentUwi: notebookUwi,
+				id: '_notebook_editow_0',
+				sewections: [{ stawt: 0, end: 1 }],
+				visibweWanges: []
 			}]
 		}));
-		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
+		extHostNotebooks.$acceptDocumentAndEditowsDewta(new SewiawizabweObjectWithBuffews({ newActiveEditow: '_notebook_editow_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
-		disposables.add(reg);
-		disposables.add(notebook);
-		disposables.add(extHostDocuments);
+		disposabwes.add(weg);
+		disposabwes.add(notebook);
+		disposabwes.add(extHostDocuments);
 	});
 
 	test('empty', function () {
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assert.strictEqual(doc.getText(), '');
-		assert.strictEqual(doc.version, 0);
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewt.stwictEquaw(doc.getText(), '');
+		assewt.stwictEquaw(doc.vewsion, 0);
 
-		// assert.strictEqual(doc.locationAt(new Position(0, 0)), undefined);
-		// assert.strictEqual(doc.positionAt(SOME_FAKE_LOCATION?), undefined);
+		// assewt.stwictEquaw(doc.wocationAt(new Position(0, 0)), undefined);
+		// assewt.stwictEquaw(doc.positionAt(SOME_FAKE_WOCATION?), undefined);
 	});
 
 
-	function assertLocation(doc: vscode.NotebookConcatTextDocument, pos: Position, expected: Location, reverse = true) {
-		const actual = doc.locationAt(pos);
-		assert.strictEqual(actual.uri.toString(), expected.uri.toString());
-		assert.strictEqual(actual.range.isEqual(expected.range), true);
+	function assewtWocation(doc: vscode.NotebookConcatTextDocument, pos: Position, expected: Wocation, wevewse = twue) {
+		const actuaw = doc.wocationAt(pos);
+		assewt.stwictEquaw(actuaw.uwi.toStwing(), expected.uwi.toStwing());
+		assewt.stwictEquaw(actuaw.wange.isEquaw(expected.wange), twue);
 
-		if (reverse) {
-			// reverse - offset
+		if (wevewse) {
+			// wevewse - offset
 			const offset = doc.offsetAt(pos);
-			assert.strictEqual(doc.positionAt(offset).isEqual(pos), true);
+			assewt.stwictEquaw(doc.positionAt(offset).isEquaw(pos), twue);
 
-			// reverse - pos
-			const actualPosition = doc.positionAt(actual);
-			assert.strictEqual(actualPosition.isEqual(pos), true);
+			// wevewse - pos
+			const actuawPosition = doc.positionAt(actuaw);
+			assewt.stwictEquaw(actuawPosition.isEquaw(pos), twue);
 		}
 	}
 
-	function assertLines(doc: vscode.NotebookConcatTextDocument, ...lines: string[]) {
-		let actual = doc.getText().split(/\r\n|\n|\r/);
-		assert.deepStrictEqual(actual, lines);
+	function assewtWines(doc: vscode.NotebookConcatTextDocument, ...wines: stwing[]) {
+		wet actuaw = doc.getText().spwit(/\w\n|\n|\w/);
+		assewt.deepStwictEquaw(actuaw, wines);
 	}
 
 	test('contains', function () {
 
-		const cellUri1 = CellUri.generate(notebook.uri, 1);
-		const cellUri2 = CellUri.generate(notebook.uri, 2);
+		const cewwUwi1 = CewwUwi.genewate(notebook.uwi, 1);
+		const cewwUwi2 = CewwUwi.genewate(notebook.uwi, 2);
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [{
-				kind: NotebookCellsChangeType.ModelChange,
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [{
+				kind: NotebookCewwsChangeType.ModewChange,
 				changes: [[0, 0, [{
-					handle: 1,
-					uri: cellUri1,
-					source: ['Hello', 'World', 'Hello World!'],
-					eol: '\n',
-					language: 'test',
-					cellKind: CellKind.Code,
+					handwe: 1,
+					uwi: cewwUwi1,
+					souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+					eow: '\n',
+					wanguage: 'test',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}, {
-					handle: 2,
-					uri: cellUri2,
-					source: ['Hallo', 'Welt', 'Hallo Welt!'],
-					eol: '\n',
-					language: 'test',
-					cellKind: CellKind.Code,
+					handwe: 2,
+					uwi: cewwUwi2,
+					souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+					eow: '\n',
+					wanguage: 'test',
+					cewwKind: CewwKind.Code,
 					outputs: [],
 				}]]
 				]
 			}]
-		}), false);
+		}), fawse);
 
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 
-		assert.strictEqual(doc.contains(cellUri1), true);
-		assert.strictEqual(doc.contains(cellUri2), true);
-		assert.strictEqual(doc.contains(URI.parse('some://miss/path')), false);
+		assewt.stwictEquaw(doc.contains(cewwUwi1), twue);
+		assewt.stwictEquaw(doc.contains(cewwUwi2), twue);
+		assewt.stwictEquaw(doc.contains(UWI.pawse('some://miss/path')), fawse);
 	});
 
-	test('location, position mapping', function () {
+	test('wocation, position mapping', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
 
-		assertLocation(doc, new Position(0, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(0, 0)));
-		assertLocation(doc, new Position(4, 0), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 0)));
-		assertLocation(doc, new Position(4, 3), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 3)));
-		assertLocation(doc, new Position(5, 11), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(2, 11)));
-		assertLocation(doc, new Position(5, 12), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(2, 11)), false); // don't check identity because position will be clamped
+		assewtWocation(doc, new Position(0, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(0, 0)));
+		assewtWocation(doc, new Position(4, 0), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 0)));
+		assewtWocation(doc, new Position(4, 3), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 3)));
+		assewtWocation(doc, new Position(5, 11), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(2, 11)));
+		assewtWocation(doc, new Position(5, 12), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(2, 11)), fawse); // don't check identity because position wiww be cwamped
 	});
 
 
-	test('location, position mapping, cell changes', function () {
+	test('wocation, position mapping, ceww changes', function () {
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 
 		// UPDATE 1
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 1);
-		assert.strictEqual(doc.version, 1);
-		assertLines(doc, 'Hello', 'World', 'Hello World!');
+		}), fawse);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 1);
+		assewt.stwictEquaw(doc.vewsion, 1);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!');
 
-		assertLocation(doc, new Position(0, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(0, 0)));
-		assertLocation(doc, new Position(2, 2), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 2)));
-		assertLocation(doc, new Position(4, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 12)), false); // clamped
+		assewtWocation(doc, new Position(0, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(0, 0)));
+		assewtWocation(doc, new Position(2, 2), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 2)));
+		assewtWocation(doc, new Position(4, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 12)), fawse); // cwamped
 
 
 		// UPDATE 2
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[1, 0, [{
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2);
-		assert.strictEqual(doc.version, 2);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
-		assertLocation(doc, new Position(0, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(0, 0)));
-		assertLocation(doc, new Position(4, 0), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 0)));
-		assertLocation(doc, new Position(4, 3), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 3)));
-		assertLocation(doc, new Position(5, 11), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(2, 11)));
-		assertLocation(doc, new Position(5, 12), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(2, 11)), false); // don't check identity because position will be clamped
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2);
+		assewt.stwictEquaw(doc.vewsion, 2);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
+		assewtWocation(doc, new Position(0, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(0, 0)));
+		assewtWocation(doc, new Position(4, 0), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 0)));
+		assewtWocation(doc, new Position(4, 3), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 3)));
+		assewtWocation(doc, new Position(5, 11), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(2, 11)));
+		assewtWocation(doc, new Position(5, 12), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(2, 11)), fawse); // don't check identity because position wiww be cwamped
 
-		// UPDATE 3 (remove cell #2 again)
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		// UPDATE 3 (wemove ceww #2 again)
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[1, 1, []]]
 				}
 			]
-		}), false);
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 1);
-		assert.strictEqual(doc.version, 3);
-		assertLines(doc, 'Hello', 'World', 'Hello World!');
-		assertLocation(doc, new Position(0, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(0, 0)));
-		assertLocation(doc, new Position(2, 2), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 2)));
-		assertLocation(doc, new Position(4, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 12)), false); // clamped
+		}), fawse);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 1);
+		assewt.stwictEquaw(doc.vewsion, 3);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!');
+		assewtWocation(doc, new Position(0, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(0, 0)));
+		assewtWocation(doc, new Position(2, 2), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 2)));
+		assewtWocation(doc, new Position(4, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 12)), fawse); // cwamped
 	});
 
-	test('location, position mapping, cell-document changes', function () {
+	test('wocation, position mapping, ceww-document changes', function () {
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
 
 		// UPDATE 1
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
 
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2);
-		assert.strictEqual(doc.version, 1);
+		}), fawse);
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2);
+		assewt.stwictEquaw(doc.vewsion, 1);
 
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
-		assertLocation(doc, new Position(0, 0), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(0, 0)));
-		assertLocation(doc, new Position(2, 2), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 2)));
-		assertLocation(doc, new Position(2, 12), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 12)));
-		assertLocation(doc, new Position(4, 0), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 0)));
-		assertLocation(doc, new Position(4, 3), new Location(notebook.apiNotebook.cellAt(1).document.uri, new Position(1, 3)));
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
+		assewtWocation(doc, new Position(0, 0), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(0, 0)));
+		assewtWocation(doc, new Position(2, 2), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 2)));
+		assewtWocation(doc, new Position(2, 12), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 12)));
+		assewtWocation(doc, new Position(4, 0), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 0)));
+		assewtWocation(doc, new Position(4, 3), new Wocation(notebook.apiNotebook.cewwAt(1).document.uwi, new Position(1, 3)));
 
 		// offset math
-		let cell1End = doc.offsetAt(new Position(2, 12));
-		assert.strictEqual(doc.positionAt(cell1End).isEqual(new Position(2, 12)), true);
+		wet ceww1End = doc.offsetAt(new Position(2, 12));
+		assewt.stwictEquaw(doc.positionAt(ceww1End).isEquaw(new Position(2, 12)), twue);
 
-		extHostDocuments.$acceptModelChanged(notebook.apiNotebook.cellAt(0).document.uri, {
-			versionId: 0,
-			eol: '\n',
+		extHostDocuments.$acceptModewChanged(notebook.apiNotebook.cewwAt(0).document.uwi, {
+			vewsionId: 0,
+			eow: '\n',
 			changes: [{
-				range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 6 },
-				rangeLength: 6,
-				rangeOffset: 12,
+				wange: { stawtWineNumba: 3, stawtCowumn: 1, endWineNumba: 3, endCowumn: 6 },
+				wangeWength: 6,
+				wangeOffset: 12,
 				text: 'Hi'
 			}],
-			isRedoing: false,
-			isUndoing: false,
-		}, false);
-		assertLines(doc, 'Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!');
-		assertLocation(doc, new Position(2, 12), new Location(notebook.apiNotebook.cellAt(0).document.uri, new Position(2, 9)), false);
+			isWedoing: fawse,
+			isUndoing: fawse,
+		}, fawse);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hi Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
+		assewtWocation(doc, new Position(2, 12), new Wocation(notebook.apiNotebook.cewwAt(0).document.uwi, new Position(2, 9)), fawse);
 
-		assert.strictEqual(doc.positionAt(cell1End).isEqual(new Position(3, 2)), true);
+		assewt.stwictEquaw(doc.positionAt(ceww1End).isEquaw(new Position(3, 2)), twue);
 
 	});
 
-	test('selector', function () {
+	test('sewectow', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['fooLang-document'],
-						eol: '\n',
-						language: 'fooLang',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['fooWang-document'],
+						eow: '\n',
+						wanguage: 'fooWang',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['barLang-document'],
-						eol: '\n',
-						language: 'barLang',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['bawWang-document'],
+						eow: '\n',
+						wanguage: 'bawWang',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
 		const mixedDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		const fooLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, 'fooLang');
-		const barLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, 'barLang');
+		const fooWangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, 'fooWang');
+		const bawWangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, 'bawWang');
 
-		assertLines(mixedDoc, 'fooLang-document', 'barLang-document');
-		assertLines(fooLangDoc, 'fooLang-document');
-		assertLines(barLangDoc, 'barLang-document');
+		assewtWines(mixedDoc, 'fooWang-document', 'bawWang-document');
+		assewtWines(fooWangDoc, 'fooWang-document');
+		assewtWines(bawWangDoc, 'bawWang-document');
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[2, 0, [{
-						handle: 3,
-						uri: CellUri.generate(notebook.uri, 3),
-						source: ['barLang-document2'],
-						eol: '\n',
-						language: 'barLang',
-						cellKind: CellKind.Code,
+						handwe: 3,
+						uwi: CewwUwi.genewate(notebook.uwi, 3),
+						souwce: ['bawWang-document2'],
+						eow: '\n',
+						wanguage: 'bawWang',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assertLines(mixedDoc, 'fooLang-document', 'barLang-document', 'barLang-document2');
-		assertLines(fooLangDoc, 'fooLang-document');
-		assertLines(barLangDoc, 'barLang-document', 'barLang-document2');
+		assewtWines(mixedDoc, 'fooWang-document', 'bawWang-document', 'bawWang-document2');
+		assewtWines(fooWangDoc, 'fooWang-document');
+		assewtWines(bawWangDoc, 'bawWang-document', 'bawWang-document2');
 	});
 
-	function assertOffsetAtPosition(doc: vscode.NotebookConcatTextDocument, offset: number, expected: { line: number, character: number }, reverse = true) {
-		const actual = doc.positionAt(offset);
+	function assewtOffsetAtPosition(doc: vscode.NotebookConcatTextDocument, offset: numba, expected: { wine: numba, chawacta: numba }, wevewse = twue) {
+		const actuaw = doc.positionAt(offset);
 
-		assert.strictEqual(actual.line, expected.line);
-		assert.strictEqual(actual.character, expected.character);
+		assewt.stwictEquaw(actuaw.wine, expected.wine);
+		assewt.stwictEquaw(actuaw.chawacta, expected.chawacta);
 
-		if (reverse) {
-			const actualOffset = doc.offsetAt(actual);
-			assert.strictEqual(actualOffset, offset);
+		if (wevewse) {
+			const actuawOffset = doc.offsetAt(actuaw);
+			assewt.stwictEquaw(actuawOffset, offset);
 		}
 	}
 
 
 	test('offsetAt(position) <-> positionAt(offset)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
 
-		assertOffsetAtPosition(doc, 0, { line: 0, character: 0 });
-		assertOffsetAtPosition(doc, 1, { line: 0, character: 1 });
-		assertOffsetAtPosition(doc, 9, { line: 1, character: 3 });
-		assertOffsetAtPosition(doc, 32, { line: 4, character: 1 });
-		assertOffsetAtPosition(doc, 47, { line: 5, character: 11 });
+		assewtOffsetAtPosition(doc, 0, { wine: 0, chawacta: 0 });
+		assewtOffsetAtPosition(doc, 1, { wine: 0, chawacta: 1 });
+		assewtOffsetAtPosition(doc, 9, { wine: 1, chawacta: 3 });
+		assewtOffsetAtPosition(doc, 32, { wine: 4, chawacta: 1 });
+		assewtOffsetAtPosition(doc, 47, { wine: 5, chawacta: 11 });
 	});
 
 
-	function assertLocationAtPosition(doc: vscode.NotebookConcatTextDocument, pos: { line: number, character: number }, expected: { uri: URI, line: number, character: number }, reverse = true) {
+	function assewtWocationAtPosition(doc: vscode.NotebookConcatTextDocument, pos: { wine: numba, chawacta: numba }, expected: { uwi: UWI, wine: numba, chawacta: numba }, wevewse = twue) {
 
-		const actual = doc.locationAt(new Position(pos.line, pos.character));
-		assert.strictEqual(actual.uri.toString(), expected.uri.toString());
-		assert.strictEqual(actual.range.start.line, expected.line);
-		assert.strictEqual(actual.range.end.line, expected.line);
-		assert.strictEqual(actual.range.start.character, expected.character);
-		assert.strictEqual(actual.range.end.character, expected.character);
+		const actuaw = doc.wocationAt(new Position(pos.wine, pos.chawacta));
+		assewt.stwictEquaw(actuaw.uwi.toStwing(), expected.uwi.toStwing());
+		assewt.stwictEquaw(actuaw.wange.stawt.wine, expected.wine);
+		assewt.stwictEquaw(actuaw.wange.end.wine, expected.wine);
+		assewt.stwictEquaw(actuaw.wange.stawt.chawacta, expected.chawacta);
+		assewt.stwictEquaw(actuaw.wange.end.chawacta, expected.chawacta);
 
-		if (reverse) {
-			const actualPos = doc.positionAt(actual);
-			assert.strictEqual(actualPos.line, pos.line);
-			assert.strictEqual(actualPos.character, pos.character);
+		if (wevewse) {
+			const actuawPos = doc.positionAt(actuaw);
+			assewt.stwictEquaw(actuawPos.wine, pos.wine);
+			assewt.stwictEquaw(actuawPos.chawacta, pos.chawacta);
 		}
 	}
 
-	test('locationAt(position) <-> positionAt(location)', function () {
+	test('wocationAt(position) <-> positionAt(wocation)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
 
-		assertLocationAtPosition(doc, { line: 0, character: 0 }, { uri: notebook.apiNotebook.cellAt(0).document.uri, line: 0, character: 0 });
-		assertLocationAtPosition(doc, { line: 2, character: 0 }, { uri: notebook.apiNotebook.cellAt(0).document.uri, line: 2, character: 0 });
-		assertLocationAtPosition(doc, { line: 2, character: 12 }, { uri: notebook.apiNotebook.cellAt(0).document.uri, line: 2, character: 12 });
-		assertLocationAtPosition(doc, { line: 3, character: 0 }, { uri: notebook.apiNotebook.cellAt(1).document.uri, line: 0, character: 0 });
-		assertLocationAtPosition(doc, { line: 5, character: 0 }, { uri: notebook.apiNotebook.cellAt(1).document.uri, line: 2, character: 0 });
-		assertLocationAtPosition(doc, { line: 5, character: 11 }, { uri: notebook.apiNotebook.cellAt(1).document.uri, line: 2, character: 11 });
+		assewtWocationAtPosition(doc, { wine: 0, chawacta: 0 }, { uwi: notebook.apiNotebook.cewwAt(0).document.uwi, wine: 0, chawacta: 0 });
+		assewtWocationAtPosition(doc, { wine: 2, chawacta: 0 }, { uwi: notebook.apiNotebook.cewwAt(0).document.uwi, wine: 2, chawacta: 0 });
+		assewtWocationAtPosition(doc, { wine: 2, chawacta: 12 }, { uwi: notebook.apiNotebook.cewwAt(0).document.uwi, wine: 2, chawacta: 12 });
+		assewtWocationAtPosition(doc, { wine: 3, chawacta: 0 }, { uwi: notebook.apiNotebook.cewwAt(1).document.uwi, wine: 0, chawacta: 0 });
+		assewtWocationAtPosition(doc, { wine: 5, chawacta: 0 }, { uwi: notebook.apiNotebook.cewwAt(1).document.uwi, wine: 2, chawacta: 0 });
+		assewtWocationAtPosition(doc, { wine: 5, chawacta: 11 }, { uwi: notebook.apiNotebook.cewwAt(1).document.uwi, wine: 2, chawacta: 11 });
 	});
 
-	test('getText(range)', function () {
+	test('getText(wange)', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 3,
-						uri: CellUri.generate(notebook.uri, 3),
-						source: ['Three', 'Drei', 'Drüü'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 3,
+						uwi: CewwUwi.genewate(notebook.uwi, 3),
+						souwce: ['Thwee', 'Dwei', 'Dwüü'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 3); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 3); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!', 'Three', 'Drei', 'Drüü');
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!', 'Thwee', 'Dwei', 'Dwüü');
 
-		assert.strictEqual(doc.getText(new Range(0, 0, 0, 0)), '');
-		assert.strictEqual(doc.getText(new Range(0, 0, 1, 0)), 'Hello\n');
-		assert.strictEqual(doc.getText(new Range(2, 0, 4, 0)), 'Hello World!\nHallo\n');
-		assert.strictEqual(doc.getText(new Range(2, 0, 8, 0)), 'Hello World!\nHallo\nWelt\nHallo Welt!\nThree\nDrei\n');
+		assewt.stwictEquaw(doc.getText(new Wange(0, 0, 0, 0)), '');
+		assewt.stwictEquaw(doc.getText(new Wange(0, 0, 1, 0)), 'Hewwo\n');
+		assewt.stwictEquaw(doc.getText(new Wange(2, 0, 4, 0)), 'Hewwo Wowwd!\nHawwo\n');
+		assewt.stwictEquaw(doc.getText(new Wange(2, 0, 8, 0)), 'Hewwo Wowwd!\nHawwo\nWewt\nHawwo Wewt!\nThwee\nDwei\n');
 	});
 
-	test('validateRange/Position', function () {
+	test('vawidateWange/Position', function () {
 
-		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
-			versionId: notebook.apiNotebook.version + 1,
-			rawEvents: [
+		extHostNotebookDocuments.$acceptModewChanged(notebookUwi, new SewiawizabweObjectWithBuffews({
+			vewsionId: notebook.apiNotebook.vewsion + 1,
+			wawEvents: [
 				{
-					kind: NotebookCellsChangeType.ModelChange,
+					kind: NotebookCewwsChangeType.ModewChange,
 					changes: [[0, 0, [{
-						handle: 1,
-						uri: CellUri.generate(notebook.uri, 1),
-						source: ['Hello', 'World', 'Hello World!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 1,
+						uwi: CewwUwi.genewate(notebook.uwi, 1),
+						souwce: ['Hewwo', 'Wowwd', 'Hewwo Wowwd!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}, {
-						handle: 2,
-						uri: CellUri.generate(notebook.uri, 2),
-						source: ['Hallo', 'Welt', 'Hallo Welt!'],
-						eol: '\n',
-						language: 'test',
-						cellKind: CellKind.Code,
+						handwe: 2,
+						uwi: CewwUwi.genewate(notebook.uwi, 2),
+						souwce: ['Hawwo', 'Wewt', 'Hawwo Wewt!'],
+						eow: '\n',
+						wanguage: 'test',
+						cewwKind: CewwKind.Code,
 						outputs: [],
 					}]]]
 				}
 			]
-		}), false);
+		}), fawse);
 
-		assert.strictEqual(notebook.apiNotebook.cellCount, 1 + 2); // markdown and code
+		assewt.stwictEquaw(notebook.apiNotebook.cewwCount, 1 + 2); // mawkdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
-		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
+		wet doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.apiNotebook, undefined);
+		assewtWines(doc, 'Hewwo', 'Wowwd', 'Hewwo Wowwd!', 'Hawwo', 'Wewt', 'Hawwo Wewt!');
 
 
-		function assertPosition(actual: vscode.Position, expectedLine: number, expectedCh: number) {
-			assert.strictEqual(actual.line, expectedLine);
-			assert.strictEqual(actual.character, expectedCh);
+		function assewtPosition(actuaw: vscode.Position, expectedWine: numba, expectedCh: numba) {
+			assewt.stwictEquaw(actuaw.wine, expectedWine);
+			assewt.stwictEquaw(actuaw.chawacta, expectedCh);
 		}
 
 
 		// "fixed"
-		assertPosition(doc.validatePosition(new Position(0, 1000)), 0, 5);
-		assertPosition(doc.validatePosition(new Position(2, 1000)), 2, 12);
-		assertPosition(doc.validatePosition(new Position(5, 1000)), 5, 11);
-		assertPosition(doc.validatePosition(new Position(5000, 1000)), 5, 11);
+		assewtPosition(doc.vawidatePosition(new Position(0, 1000)), 0, 5);
+		assewtPosition(doc.vawidatePosition(new Position(2, 1000)), 2, 12);
+		assewtPosition(doc.vawidatePosition(new Position(5, 1000)), 5, 11);
+		assewtPosition(doc.vawidatePosition(new Position(5000, 1000)), 5, 11);
 
 		// "good"
-		assertPosition(doc.validatePosition(new Position(0, 1)), 0, 1);
-		assertPosition(doc.validatePosition(new Position(0, 5)), 0, 5);
-		assertPosition(doc.validatePosition(new Position(2, 8)), 2, 8);
-		assertPosition(doc.validatePosition(new Position(2, 12)), 2, 12);
-		assertPosition(doc.validatePosition(new Position(5, 11)), 5, 11);
+		assewtPosition(doc.vawidatePosition(new Position(0, 1)), 0, 1);
+		assewtPosition(doc.vawidatePosition(new Position(0, 5)), 0, 5);
+		assewtPosition(doc.vawidatePosition(new Position(2, 8)), 2, 8);
+		assewtPosition(doc.vawidatePosition(new Position(2, 12)), 2, 12);
+		assewtPosition(doc.vawidatePosition(new Position(5, 11)), 5, 11);
 
 	});
 });

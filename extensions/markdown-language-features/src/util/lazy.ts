@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface Lazy<T> {
-	readonly value: T;
-	readonly hasValue: boolean;
-	map<R>(f: (x: T) => R): Lazy<R>;
+expowt intewface Wazy<T> {
+	weadonwy vawue: T;
+	weadonwy hasVawue: boowean;
+	map<W>(f: (x: T) => W): Wazy<W>;
 }
 
-class LazyValue<T> implements Lazy<T> {
-	private _hasValue: boolean = false;
-	private _value?: T;
+cwass WazyVawue<T> impwements Wazy<T> {
+	pwivate _hasVawue: boowean = fawse;
+	pwivate _vawue?: T;
 
-	constructor(
-		private readonly _getValue: () => T
+	constwuctow(
+		pwivate weadonwy _getVawue: () => T
 	) { }
 
-	get value(): T {
-		if (!this._hasValue) {
-			this._hasValue = true;
-			this._value = this._getValue();
+	get vawue(): T {
+		if (!this._hasVawue) {
+			this._hasVawue = twue;
+			this._vawue = this._getVawue();
 		}
-		return this._value!;
+		wetuwn this._vawue!;
 	}
 
-	get hasValue(): boolean {
-		return this._hasValue;
+	get hasVawue(): boowean {
+		wetuwn this._hasVawue;
 	}
 
-	public map<R>(f: (x: T) => R): Lazy<R> {
-		return new LazyValue(() => f(this.value));
+	pubwic map<W>(f: (x: T) => W): Wazy<W> {
+		wetuwn new WazyVawue(() => f(this.vawue));
 	}
 }
 
-export function lazy<T>(getValue: () => T): Lazy<T> {
-	return new LazyValue<T>(getValue);
+expowt function wazy<T>(getVawue: () => T): Wazy<T> {
+	wetuwn new WazyVawue<T>(getVawue);
 }

@@ -1,209 +1,209 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as minimist from 'minimist';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as minimist fwom 'minimist';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as path fwom 'vs/base/common/path';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { ITewemetwyInfo, ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { testWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt 'vs/wowkbench/contwib/seawch/bwowsa/seawch.contwibution'; // woad contwibutions
+impowt { ITextQuewyBuiwdewOptions, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { SeawchModew } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ISeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { WocawSeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/ewectwon-bwowsa/seawchSewvice';
+impowt { IUntitwedTextEditowSewvice, UntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { TestEditowGwoupsSewvice, TestEditowSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestContextSewvice, TestTextWesouwcePwopewtiesSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestEnviwonmentSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
 
 
 
-// declare var __dirname: string;
+// decwawe vaw __diwname: stwing;
 
-// Checkout sources to run against:
-// git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
-// cd testWorkspace; git checkout 39a7f93d67f7
-// Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite.skip('TextSearch performance (integration)', () => {
+// Checkout souwces to wun against:
+// git cwone --sepawate-git-diw=testGit --no-checkout --singwe-bwanch https://chwomium.googwesouwce.com/chwomium/swc testWowkspace
+// cd testWowkspace; git checkout 39a7f93d67f7
+// Wun fwom wepositowy woot fowda with (test.bat on Windows): ./scwipts/test-int-mocha.sh --gwep TextSeawch.pewfowmance --timeout 500000 --testWowkspace <path>
+suite.skip('TextSeawch pewfowmance (integwation)', () => {
 
-	test('Measure', () => {
-		if (process.env['VSCODE_PID']) {
-			return undefined; // TODO@Rob find out why test fails when run from within VS Code
+	test('Measuwe', () => {
+		if (pwocess.env['VSCODE_PID']) {
+			wetuwn undefined; // TODO@Wob find out why test faiws when wun fwom within VS Code
 		}
 
 		const n = 3;
-		const argv = minimist(process.argv);
-		const testWorkspaceArg = argv['testWorkspace'];
-		const testWorkspacePath = testWorkspaceArg ? path.resolve(testWorkspaceArg) : __dirname;
-		if (!fs.existsSync(testWorkspacePath)) {
-			throw new Error(`--testWorkspace doesn't exist`);
+		const awgv = minimist(pwocess.awgv);
+		const testWowkspaceAwg = awgv['testWowkspace'];
+		const testWowkspacePath = testWowkspaceAwg ? path.wesowve(testWowkspaceAwg) : __diwname;
+		if (!fs.existsSync(testWowkspacePath)) {
+			thwow new Ewwow(`--testWowkspace doesn't exist`);
 		}
 
-		const telemetryService = new TestTelemetryService();
-		const configurationService = new TestConfigurationService();
-		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
-		const logService = new NullLogService();
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		const instantiationService = new InstantiationService(new ServiceCollection(
-			[ITelemetryService, telemetryService],
-			[IConfigurationService, configurationService],
-			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IDialogService, dialogService],
-			[INotificationService, notificationService],
-			[IUndoRedoService, undoRedoService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService, undoRedoService)],
-			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
-			[IEditorService, new TestEditorService()],
-			[IEditorGroupsService, new TestEditorGroupsService()],
-			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledTextEditorService, new SyncDescriptor(UntitledTextEditorService)],
-			[ISearchService, new SyncDescriptor(LocalSearchService)],
-			[ILogService, logService]
+		const tewemetwySewvice = new TestTewemetwySewvice();
+		const configuwationSewvice = new TestConfiguwationSewvice();
+		const textWesouwcePwopewtiesSewvice = new TestTextWesouwcePwopewtiesSewvice(configuwationSewvice);
+		const wogSewvice = new NuwwWogSewvice();
+		const diawogSewvice = new TestDiawogSewvice();
+		const notificationSewvice = new TestNotificationSewvice();
+		const undoWedoSewvice = new UndoWedoSewvice(diawogSewvice, notificationSewvice);
+		const instantiationSewvice = new InstantiationSewvice(new SewviceCowwection(
+			[ITewemetwySewvice, tewemetwySewvice],
+			[IConfiguwationSewvice, configuwationSewvice],
+			[ITextWesouwcePwopewtiesSewvice, textWesouwcePwopewtiesSewvice],
+			[IDiawogSewvice, diawogSewvice],
+			[INotificationSewvice, notificationSewvice],
+			[IUndoWedoSewvice, undoWedoSewvice],
+			[IModewSewvice, new ModewSewviceImpw(configuwationSewvice, textWesouwcePwopewtiesSewvice, new TestThemeSewvice(), wogSewvice, undoWedoSewvice)],
+			[IWowkspaceContextSewvice, new TestContextSewvice(testWowkspace(UWI.fiwe(testWowkspacePath)))],
+			[IEditowSewvice, new TestEditowSewvice()],
+			[IEditowGwoupsSewvice, new TestEditowGwoupsSewvice()],
+			[IEnviwonmentSewvice, TestEnviwonmentSewvice],
+			[IUntitwedTextEditowSewvice, new SyncDescwiptow(UntitwedTextEditowSewvice)],
+			[ISeawchSewvice, new SyncDescwiptow(WocawSeawchSewvice)],
+			[IWogSewvice, wogSewvice]
 		));
 
-		const queryOptions: ITextQueryBuilderOptions = {
-			maxResults: 2048
+		const quewyOptions: ITextQuewyBuiwdewOptions = {
+			maxWesuwts: 2048
 		};
 
-		const searchModel: SearchModel = instantiationService.createInstance(SearchModel);
-		function runSearch(): Promise<any> {
-			const queryBuilder: QueryBuilder = instantiationService.createInstance(QueryBuilder);
-			const query = queryBuilder.text({ pattern: 'static_library(' }, [URI.file(testWorkspacePath)], queryOptions);
+		const seawchModew: SeawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		function wunSeawch(): Pwomise<any> {
+			const quewyBuiwda: QuewyBuiwda = instantiationSewvice.cweateInstance(QuewyBuiwda);
+			const quewy = quewyBuiwda.text({ pattewn: 'static_wibwawy(' }, [UWI.fiwe(testWowkspacePath)], quewyOptions);
 
-			// Wait for the 'searchResultsFinished' event, which is fired after the search() promise is resolved
-			const onSearchResultsFinished = Event.filter(telemetryService.eventLogged, e => e.name === 'searchResultsFinished');
-			Event.once(onSearchResultsFinished)(onComplete);
+			// Wait fow the 'seawchWesuwtsFinished' event, which is fiwed afta the seawch() pwomise is wesowved
+			const onSeawchWesuwtsFinished = Event.fiwta(tewemetwySewvice.eventWogged, e => e.name === 'seawchWesuwtsFinished');
+			Event.once(onSeawchWesuwtsFinished)(onCompwete);
 
-			function onComplete(): void {
-				try {
-					const allEvents = telemetryService.events.map(e => JSON.stringify(e)).join('\n');
-					assert.strictEqual(telemetryService.events.length, 3, 'Expected 3 telemetry events, got:\n' + allEvents);
+			function onCompwete(): void {
+				twy {
+					const awwEvents = tewemetwySewvice.events.map(e => JSON.stwingify(e)).join('\n');
+					assewt.stwictEquaw(tewemetwySewvice.events.wength, 3, 'Expected 3 tewemetwy events, got:\n' + awwEvents);
 
-					const [firstRenderEvent, resultsShownEvent, resultsFinishedEvent] = telemetryService.events;
-					assert.strictEqual(firstRenderEvent.name, 'searchResultsFirstRender');
-					assert.strictEqual(resultsShownEvent.name, 'searchResultsShown');
-					assert.strictEqual(resultsFinishedEvent.name, 'searchResultsFinished');
+					const [fiwstWendewEvent, wesuwtsShownEvent, wesuwtsFinishedEvent] = tewemetwySewvice.events;
+					assewt.stwictEquaw(fiwstWendewEvent.name, 'seawchWesuwtsFiwstWenda');
+					assewt.stwictEquaw(wesuwtsShownEvent.name, 'seawchWesuwtsShown');
+					assewt.stwictEquaw(wesuwtsFinishedEvent.name, 'seawchWesuwtsFinished');
 
-					telemetryService.events = [];
+					tewemetwySewvice.events = [];
 
-					resolve!(resultsFinishedEvent);
+					wesowve!(wesuwtsFinishedEvent);
 				} catch (e) {
-					// Fail the runSearch() promise
-					error!(e);
+					// Faiw the wunSeawch() pwomise
+					ewwow!(e);
 				}
 			}
 
-			let resolve: (result: any) => void;
-			let error: (error: Error) => void;
-			return new Promise((_resolve, _error) => {
-				resolve = _resolve;
-				error = _error;
+			wet wesowve: (wesuwt: any) => void;
+			wet ewwow: (ewwow: Ewwow) => void;
+			wetuwn new Pwomise((_wesowve, _ewwow) => {
+				wesowve = _wesowve;
+				ewwow = _ewwow;
 
-				// Don't wait on this promise, we're waiting on the event fired above
-				searchModel.search(query).then(
-					null,
-					_error);
+				// Don't wait on this pwomise, we'we waiting on the event fiwed above
+				seawchModew.seawch(quewy).then(
+					nuww,
+					_ewwow);
 			});
 		}
 
 		const finishedEvents: any[] = [];
-		return runSearch() // Warm-up first
+		wetuwn wunSeawch() // Wawm-up fiwst
 			.then(() => {
-				if (testWorkspaceArg) { // Don't measure by default
-					let i = n;
-					return (function iterate(): Promise<undefined> | undefined {
+				if (testWowkspaceAwg) { // Don't measuwe by defauwt
+					wet i = n;
+					wetuwn (function itewate(): Pwomise<undefined> | undefined {
 						if (!i--) {
-							return;
+							wetuwn;
 						}
 
-						return runSearch()
-							.then((resultsFinishedEvent: any) => {
-								console.log(`Iteration ${n - i}: ${resultsFinishedEvent.data.duration / 1000}s`);
-								finishedEvents.push(resultsFinishedEvent);
-								return iterate();
+						wetuwn wunSeawch()
+							.then((wesuwtsFinishedEvent: any) => {
+								consowe.wog(`Itewation ${n - i}: ${wesuwtsFinishedEvent.data.duwation / 1000}s`);
+								finishedEvents.push(wesuwtsFinishedEvent);
+								wetuwn itewate();
 							});
 					})()!.then(() => {
-						const totalTime = finishedEvents.reduce((sum, e) => sum + e.data.duration, 0);
-						console.log(`Avg duration: ${totalTime / n / 1000}s`);
+						const totawTime = finishedEvents.weduce((sum, e) => sum + e.data.duwation, 0);
+						consowe.wog(`Avg duwation: ${totawTime / n / 1000}s`);
 					});
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 	});
 });
 
-class TestTelemetryService implements ITelemetryService {
-	public _serviceBrand: undefined;
-	public telemetryLevel = TelemetryLevel.USAGE;
-	public sendErrorTelemetry = true;
+cwass TestTewemetwySewvice impwements ITewemetwySewvice {
+	pubwic _sewviceBwand: undefined;
+	pubwic tewemetwyWevew = TewemetwyWevew.USAGE;
+	pubwic sendEwwowTewemetwy = twue;
 
-	public events: any[] = [];
+	pubwic events: any[] = [];
 
-	private readonly emitter = new Emitter<any>();
+	pwivate weadonwy emitta = new Emitta<any>();
 
-	public get eventLogged(): Event<any> {
-		return this.emitter.event;
+	pubwic get eventWogged(): Event<any> {
+		wetuwn this.emitta.event;
 	}
 
-	public setEnabled(value: boolean): void {
+	pubwic setEnabwed(vawue: boowean): void {
 	}
 
-	public setExperimentProperty(name: string, value: string): void {
+	pubwic setExpewimentPwopewty(name: stwing, vawue: stwing): void {
 	}
 
-	public publicLog(eventName: string, data?: any): Promise<void> {
+	pubwic pubwicWog(eventName: stwing, data?: any): Pwomise<void> {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
-		this.emitter.fire(event);
-		return Promise.resolve();
+		this.emitta.fiwe(event);
+		wetuwn Pwomise.wesowve();
 	}
 
-	public publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as any);
+	pubwic pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWog(eventName, data as any);
 	}
 
-	public publicLogError(eventName: string, data?: any): Promise<void> {
-		return this.publicLog(eventName, data);
+	pubwic pubwicWogEwwow(eventName: stwing, data?: any): Pwomise<void> {
+		wetuwn this.pubwicWog(eventName, data);
 	}
 
-	public publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as any);
+	pubwic pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWogEwwow(eventName, data as any);
 	}
 
-	public getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
+	pubwic getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		wetuwn Pwomise.wesowve({
+			instanceId: 'someVawue.instanceId',
+			sessionId: 'someVawue.sessionId',
+			machineId: 'someVawue.machineId',
+			fiwstSessionDate: 'someVawue.fiwstSessionDate'
 		});
 	}
 }

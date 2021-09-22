@@ -1,945 +1,945 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as fs from 'fs';
-import * as path from 'path';
-import type * as ts from 'typescript';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt type * as ts fwom 'typescwipt';
 
-const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
+const TYPESCWIPT_WIB_FOWDa = path.diwname(wequiwe.wesowve('typescwipt/wib/wib.d.ts'));
 
-export const enum ShakeLevel {
-	Files = 0,
-	InnerFile = 1,
-	ClassMembers = 2
+expowt const enum ShakeWevew {
+	Fiwes = 0,
+	InnewFiwe = 1,
+	CwassMembews = 2
 }
 
-export function toStringShakeLevel(shakeLevel: ShakeLevel): string {
-	switch (shakeLevel) {
-		case ShakeLevel.Files:
-			return 'Files (0)';
-		case ShakeLevel.InnerFile:
-			return 'InnerFile (1)';
-		case ShakeLevel.ClassMembers:
-			return 'ClassMembers (2)';
+expowt function toStwingShakeWevew(shakeWevew: ShakeWevew): stwing {
+	switch (shakeWevew) {
+		case ShakeWevew.Fiwes:
+			wetuwn 'Fiwes (0)';
+		case ShakeWevew.InnewFiwe:
+			wetuwn 'InnewFiwe (1)';
+		case ShakeWevew.CwassMembews:
+			wetuwn 'CwassMembews (2)';
 	}
 }
 
-export interface ITreeShakingOptions {
+expowt intewface ITweeShakingOptions {
 	/**
-	 * The full path to the root where sources are.
+	 * The fuww path to the woot whewe souwces awe.
 	 */
-	sourcesRoot: string;
+	souwcesWoot: stwing;
 	/**
-	 * Module ids.
-	 * e.g. `vs/editor/editor.main` or `index`
+	 * Moduwe ids.
+	 * e.g. `vs/editow/editow.main` ow `index`
 	 */
-	entryPoints: string[];
+	entwyPoints: stwing[];
 	/**
-	 * Inline usages.
+	 * Inwine usages.
 	 */
-	inlineEntryPoints: string[];
+	inwineEntwyPoints: stwing[];
 	/**
-	 * Other .d.ts files
+	 * Otha .d.ts fiwes
 	 */
-	typings: string[];
+	typings: stwing[];
 	/**
-	 * TypeScript compiler options.
+	 * TypeScwipt compiwa options.
 	 */
-	compilerOptions?: any;
+	compiwewOptions?: any;
 	/**
-	 * The shake level to perform.
+	 * The shake wevew to pewfowm.
 	 */
-	shakeLevel: ShakeLevel;
+	shakeWevew: ShakeWevew;
 	/**
-	 * regex pattern to ignore certain imports e.g. `vs/css!` imports
+	 * wegex pattewn to ignowe cewtain impowts e.g. `vs/css!` impowts
 	 */
-	importIgnorePattern: RegExp;
+	impowtIgnowePattewn: WegExp;
 
-	redirects: { [module: string]: string; };
+	wediwects: { [moduwe: stwing]: stwing; };
 }
 
-export interface ITreeShakingResult {
-	[file: string]: string;
+expowt intewface ITweeShakingWesuwt {
+	[fiwe: stwing]: stwing;
 }
 
-function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArray<ts.Diagnostic>): void {
-	for (const diag of diagnostics) {
-		let result = '';
-		if (diag.file) {
-			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
+function pwintDiagnostics(options: ITweeShakingOptions, diagnostics: WeadonwyAwway<ts.Diagnostic>): void {
+	fow (const diag of diagnostics) {
+		wet wesuwt = '';
+		if (diag.fiwe) {
+			wesuwt += `${path.join(options.souwcesWoot, diag.fiwe.fiweName)}`;
 		}
-		if (diag.file && diag.start) {
-			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-			result += `:${location.line + 1}:${location.character}`;
+		if (diag.fiwe && diag.stawt) {
+			wet wocation = diag.fiwe.getWineAndChawactewOfPosition(diag.stawt);
+			wesuwt += `:${wocation.wine + 1}:${wocation.chawacta}`;
 		}
-		result += ` - ` + JSON.stringify(diag.messageText);
-		console.log(result);
+		wesuwt += ` - ` + JSON.stwingify(diag.messageText);
+		consowe.wog(wesuwt);
 	}
 }
 
-export function shake(options: ITreeShakingOptions): ITreeShakingResult {
-	const ts = require('typescript') as typeof import('typescript');
-	const languageService = createTypeScriptLanguageService(ts, options);
-	const program = languageService.getProgram()!;
+expowt function shake(options: ITweeShakingOptions): ITweeShakingWesuwt {
+	const ts = wequiwe('typescwipt') as typeof impowt('typescwipt');
+	const wanguageSewvice = cweateTypeScwiptWanguageSewvice(ts, options);
+	const pwogwam = wanguageSewvice.getPwogwam()!;
 
-	const globalDiagnostics = program.getGlobalDiagnostics();
-	if (globalDiagnostics.length > 0) {
-		printDiagnostics(options, globalDiagnostics);
-		throw new Error(`Compilation Errors encountered.`);
+	const gwobawDiagnostics = pwogwam.getGwobawDiagnostics();
+	if (gwobawDiagnostics.wength > 0) {
+		pwintDiagnostics(options, gwobawDiagnostics);
+		thwow new Ewwow(`Compiwation Ewwows encountewed.`);
 	}
 
-	const syntacticDiagnostics = program.getSyntacticDiagnostics();
-	if (syntacticDiagnostics.length > 0) {
-		printDiagnostics(options, syntacticDiagnostics);
-		throw new Error(`Compilation Errors encountered.`);
+	const syntacticDiagnostics = pwogwam.getSyntacticDiagnostics();
+	if (syntacticDiagnostics.wength > 0) {
+		pwintDiagnostics(options, syntacticDiagnostics);
+		thwow new Ewwow(`Compiwation Ewwows encountewed.`);
 	}
 
-	const semanticDiagnostics = program.getSemanticDiagnostics();
-	if (semanticDiagnostics.length > 0) {
-		printDiagnostics(options, semanticDiagnostics);
-		throw new Error(`Compilation Errors encountered.`);
+	const semanticDiagnostics = pwogwam.getSemanticDiagnostics();
+	if (semanticDiagnostics.wength > 0) {
+		pwintDiagnostics(options, semanticDiagnostics);
+		thwow new Ewwow(`Compiwation Ewwows encountewed.`);
 	}
 
-	markNodes(ts, languageService, options);
+	mawkNodes(ts, wanguageSewvice, options);
 
-	return generateResult(ts, languageService, options.shakeLevel);
+	wetuwn genewateWesuwt(ts, wanguageSewvice, options.shakeWevew);
 }
 
-//#region Discovery, LanguageService & Setup
-function createTypeScriptLanguageService(ts: typeof import('typescript'), options: ITreeShakingOptions): ts.LanguageService {
-	// Discover referenced files
-	const FILES = discoverAndReadFiles(ts, options);
+//#wegion Discovewy, WanguageSewvice & Setup
+function cweateTypeScwiptWanguageSewvice(ts: typeof impowt('typescwipt'), options: ITweeShakingOptions): ts.WanguageSewvice {
+	// Discova wefewenced fiwes
+	const FIWES = discovewAndWeadFiwes(ts, options);
 
-	// Add fake usage files
-	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
-		FILES[`inlineEntryPoint.${index}.ts`] = inlineEntryPoint;
+	// Add fake usage fiwes
+	options.inwineEntwyPoints.fowEach((inwineEntwyPoint, index) => {
+		FIWES[`inwineEntwyPoint.${index}.ts`] = inwineEntwyPoint;
 	});
 
-	// Add additional typings
-	options.typings.forEach((typing) => {
-		const filePath = path.join(options.sourcesRoot, typing);
-		FILES[typing] = fs.readFileSync(filePath).toString();
+	// Add additionaw typings
+	options.typings.fowEach((typing) => {
+		const fiwePath = path.join(options.souwcesWoot, typing);
+		FIWES[typing] = fs.weadFiweSync(fiwePath).toStwing();
 	});
 
-	// Resolve libs
-	const RESOLVED_LIBS = processLibFiles(ts, options);
+	// Wesowve wibs
+	const WESOWVED_WIBS = pwocessWibFiwes(ts, options);
 
-	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
+	const compiwewOptions = ts.convewtCompiwewOptionsFwomJson(options.compiwewOptions, options.souwcesWoot).options;
 
-	const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
-	return ts.createLanguageService(host);
+	const host = new TypeScwiptWanguageSewviceHost(ts, WESOWVED_WIBS, FIWES, compiwewOptions);
+	wetuwn ts.cweateWanguageSewvice(host);
 }
 
 /**
- * Read imports and follow them until all files have been handled
+ * Wead impowts and fowwow them untiw aww fiwes have been handwed
  */
-function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
-	const FILES: IFileMap = {};
+function discovewAndWeadFiwes(ts: typeof impowt('typescwipt'), options: ITweeShakingOptions): IFiweMap {
+	const FIWES: IFiweMap = {};
 
-	const in_queue: { [module: string]: boolean; } = Object.create(null);
-	const queue: string[] = [];
+	const in_queue: { [moduwe: stwing]: boowean; } = Object.cweate(nuww);
+	const queue: stwing[] = [];
 
-	const enqueue = (moduleId: string) => {
-		if (in_queue[moduleId]) {
-			return;
+	const enqueue = (moduweId: stwing) => {
+		if (in_queue[moduweId]) {
+			wetuwn;
 		}
-		in_queue[moduleId] = true;
-		queue.push(moduleId);
+		in_queue[moduweId] = twue;
+		queue.push(moduweId);
 	};
 
-	options.entryPoints.forEach((entryPoint) => enqueue(entryPoint));
+	options.entwyPoints.fowEach((entwyPoint) => enqueue(entwyPoint));
 
-	while (queue.length > 0) {
-		const moduleId = queue.shift()!;
-		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
-		if (fs.existsSync(dts_filename)) {
-			const dts_filecontents = fs.readFileSync(dts_filename).toString();
-			FILES[`${moduleId}.d.ts`] = dts_filecontents;
+	whiwe (queue.wength > 0) {
+		const moduweId = queue.shift()!;
+		const dts_fiwename = path.join(options.souwcesWoot, moduweId + '.d.ts');
+		if (fs.existsSync(dts_fiwename)) {
+			const dts_fiwecontents = fs.weadFiweSync(dts_fiwename).toStwing();
+			FIWES[`${moduweId}.d.ts`] = dts_fiwecontents;
 			continue;
 		}
 
-		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
-		if (fs.existsSync(js_filename)) {
-			// This is an import for a .js file, so ignore it...
+		const js_fiwename = path.join(options.souwcesWoot, moduweId + '.js');
+		if (fs.existsSync(js_fiwename)) {
+			// This is an impowt fow a .js fiwe, so ignowe it...
 			continue;
 		}
 
-		let ts_filename: string;
-		if (options.redirects[moduleId]) {
-			ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-		} else {
-			ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
+		wet ts_fiwename: stwing;
+		if (options.wediwects[moduweId]) {
+			ts_fiwename = path.join(options.souwcesWoot, options.wediwects[moduweId] + '.ts');
+		} ewse {
+			ts_fiwename = path.join(options.souwcesWoot, moduweId + '.ts');
 		}
-		const ts_filecontents = fs.readFileSync(ts_filename).toString();
-		const info = ts.preProcessFile(ts_filecontents);
-		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
-			const importedFileName = info.importedFiles[i].fileName;
+		const ts_fiwecontents = fs.weadFiweSync(ts_fiwename).toStwing();
+		const info = ts.pwePwocessFiwe(ts_fiwecontents);
+		fow (wet i = info.impowtedFiwes.wength - 1; i >= 0; i--) {
+			const impowtedFiweName = info.impowtedFiwes[i].fiweName;
 
-			if (options.importIgnorePattern.test(importedFileName)) {
-				// Ignore vs/css! imports
+			if (options.impowtIgnowePattewn.test(impowtedFiweName)) {
+				// Ignowe vs/css! impowts
 				continue;
 			}
 
-			let importedModuleId = importedFileName;
-			if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
-				importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+			wet impowtedModuweId = impowtedFiweName;
+			if (/(^\.\/)|(^\.\.\/)/.test(impowtedModuweId)) {
+				impowtedModuweId = path.join(path.diwname(moduweId), impowtedModuweId);
 			}
-			enqueue(importedModuleId);
+			enqueue(impowtedModuweId);
 		}
 
-		FILES[`${moduleId}.ts`] = ts_filecontents;
+		FIWES[`${moduweId}.ts`] = ts_fiwecontents;
 	}
 
-	return FILES;
+	wetuwn FIWES;
 }
 
 /**
- * Read lib files and follow lib references
+ * Wead wib fiwes and fowwow wib wefewences
  */
-function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): ILibMap {
+function pwocessWibFiwes(ts: typeof impowt('typescwipt'), options: ITweeShakingOptions): IWibMap {
 
-	const stack: string[] = [...options.compilerOptions.lib];
-	const result: ILibMap = {};
+	const stack: stwing[] = [...options.compiwewOptions.wib];
+	const wesuwt: IWibMap = {};
 
-	while (stack.length > 0) {
-		const filename = `lib.${stack.shift()!.toLowerCase()}.d.ts`;
-		const key = `defaultLib:${filename}`;
-		if (!result[key]) {
-			// add this file
-			const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
-			const sourceText = fs.readFileSync(filepath).toString();
-			result[key] = sourceText;
+	whiwe (stack.wength > 0) {
+		const fiwename = `wib.${stack.shift()!.toWowewCase()}.d.ts`;
+		const key = `defauwtWib:${fiwename}`;
+		if (!wesuwt[key]) {
+			// add this fiwe
+			const fiwepath = path.join(TYPESCWIPT_WIB_FOWDa, fiwename);
+			const souwceText = fs.weadFiweSync(fiwepath).toStwing();
+			wesuwt[key] = souwceText;
 
-			// precess dependencies and "recurse"
-			const info = ts.preProcessFile(sourceText);
-			for (let ref of info.libReferenceDirectives) {
-				stack.push(ref.fileName);
+			// pwecess dependencies and "wecuwse"
+			const info = ts.pwePwocessFiwe(souwceText);
+			fow (wet wef of info.wibWefewenceDiwectives) {
+				stack.push(wef.fiweName);
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+intewface IWibMap { [wibName: stwing]: stwing; }
+intewface IFiweMap { [fiweName: stwing]: stwing; }
 
 /**
- * A TypeScript language service host
+ * A TypeScwipt wanguage sewvice host
  */
-class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
+cwass TypeScwiptWanguageSewviceHost impwements ts.WanguageSewviceHost {
 
-	private readonly _ts: typeof import('typescript');
-	private readonly _libs: ILibMap;
-	private readonly _files: IFileMap;
-	private readonly _compilerOptions: ts.CompilerOptions;
+	pwivate weadonwy _ts: typeof impowt('typescwipt');
+	pwivate weadonwy _wibs: IWibMap;
+	pwivate weadonwy _fiwes: IFiweMap;
+	pwivate weadonwy _compiwewOptions: ts.CompiwewOptions;
 
-	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+	constwuctow(ts: typeof impowt('typescwipt'), wibs: IWibMap, fiwes: IFiweMap, compiwewOptions: ts.CompiwewOptions) {
 		this._ts = ts;
-		this._libs = libs;
-		this._files = files;
-		this._compilerOptions = compilerOptions;
+		this._wibs = wibs;
+		this._fiwes = fiwes;
+		this._compiwewOptions = compiwewOptions;
 	}
 
-	// --- language service host ---------------
+	// --- wanguage sewvice host ---------------
 
-	getCompilationSettings(): ts.CompilerOptions {
-		return this._compilerOptions;
+	getCompiwationSettings(): ts.CompiwewOptions {
+		wetuwn this._compiwewOptions;
 	}
-	getScriptFileNames(): string[] {
-		return (
-			([] as string[])
-				.concat(Object.keys(this._libs))
-				.concat(Object.keys(this._files))
+	getScwiptFiweNames(): stwing[] {
+		wetuwn (
+			([] as stwing[])
+				.concat(Object.keys(this._wibs))
+				.concat(Object.keys(this._fiwes))
 		);
 	}
-	getScriptVersion(_fileName: string): string {
-		return '1';
+	getScwiptVewsion(_fiweName: stwing): stwing {
+		wetuwn '1';
 	}
-	getProjectVersion(): string {
-		return '1';
+	getPwojectVewsion(): stwing {
+		wetuwn '1';
 	}
-	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
-		if (this._files.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-		} else if (this._libs.hasOwnProperty(fileName)) {
-			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
-		} else {
-			return this._ts.ScriptSnapshot.fromString('');
+	getScwiptSnapshot(fiweName: stwing): ts.IScwiptSnapshot {
+		if (this._fiwes.hasOwnPwopewty(fiweName)) {
+			wetuwn this._ts.ScwiptSnapshot.fwomStwing(this._fiwes[fiweName]);
+		} ewse if (this._wibs.hasOwnPwopewty(fiweName)) {
+			wetuwn this._ts.ScwiptSnapshot.fwomStwing(this._wibs[fiweName]);
+		} ewse {
+			wetuwn this._ts.ScwiptSnapshot.fwomStwing('');
 		}
 	}
-	getScriptKind(_fileName: string): ts.ScriptKind {
-		return this._ts.ScriptKind.TS;
+	getScwiptKind(_fiweName: stwing): ts.ScwiptKind {
+		wetuwn this._ts.ScwiptKind.TS;
 	}
-	getCurrentDirectory(): string {
-		return '';
+	getCuwwentDiwectowy(): stwing {
+		wetuwn '';
 	}
-	getDefaultLibFileName(_options: ts.CompilerOptions): string {
-		return 'defaultLib:lib.d.ts';
+	getDefauwtWibFiweName(_options: ts.CompiwewOptions): stwing {
+		wetuwn 'defauwtWib:wib.d.ts';
 	}
-	isDefaultLibFileName(fileName: string): boolean {
-		return fileName === this.getDefaultLibFileName(this._compilerOptions);
+	isDefauwtWibFiweName(fiweName: stwing): boowean {
+		wetuwn fiweName === this.getDefauwtWibFiweName(this._compiwewOptions);
 	}
 }
-//#endregion
+//#endwegion
 
-//#region Tree Shaking
+//#wegion Twee Shaking
 
-const enum NodeColor {
+const enum NodeCowow {
 	White = 0,
-	Gray = 1,
-	Black = 2
+	Gway = 1,
+	Bwack = 2
 }
 
-function getColor(node: ts.Node): NodeColor {
-	return (<any>node).$$$color || NodeColor.White;
+function getCowow(node: ts.Node): NodeCowow {
+	wetuwn (<any>node).$$$cowow || NodeCowow.White;
 }
-function setColor(node: ts.Node, color: NodeColor): void {
-	(<any>node).$$$color = color;
+function setCowow(node: ts.Node, cowow: NodeCowow): void {
+	(<any>node).$$$cowow = cowow;
 }
-function nodeOrParentIsBlack(node: ts.Node): boolean {
-	while (node) {
-		const color = getColor(node);
-		if (color === NodeColor.Black) {
-			return true;
+function nodeOwPawentIsBwack(node: ts.Node): boowean {
+	whiwe (node) {
+		const cowow = getCowow(node);
+		if (cowow === NodeCowow.Bwack) {
+			wetuwn twue;
 		}
-		node = node.parent;
+		node = node.pawent;
 	}
-	return false;
+	wetuwn fawse;
 }
-function nodeOrChildIsBlack(node: ts.Node): boolean {
-	if (getColor(node) === NodeColor.Black) {
-		return true;
+function nodeOwChiwdIsBwack(node: ts.Node): boowean {
+	if (getCowow(node) === NodeCowow.Bwack) {
+		wetuwn twue;
 	}
-	for (const child of node.getChildren()) {
-		if (nodeOrChildIsBlack(child)) {
-			return true;
+	fow (const chiwd of node.getChiwdwen()) {
+		if (nodeOwChiwdIsBwack(chiwd)) {
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-function isSymbolWithDeclarations(symbol: ts.Symbol | undefined | null): symbol is ts.Symbol & { declarations: ts.Declaration[] } {
-	return !!(symbol && symbol.declarations);
+function isSymbowWithDecwawations(symbow: ts.Symbow | undefined | nuww): symbow is ts.Symbow & { decwawations: ts.Decwawation[] } {
+	wetuwn !!(symbow && symbow.decwawations);
 }
 
-function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
-	const program = languageService.getProgram();
-	if (!program) {
-		throw new Error('Could not get program from language service');
+function mawkNodes(ts: typeof impowt('typescwipt'), wanguageSewvice: ts.WanguageSewvice, options: ITweeShakingOptions) {
+	const pwogwam = wanguageSewvice.getPwogwam();
+	if (!pwogwam) {
+		thwow new Ewwow('Couwd not get pwogwam fwom wanguage sewvice');
 	}
 
-	if (options.shakeLevel === ShakeLevel.Files) {
-		// Mark all source files Black
-		program.getSourceFiles().forEach((sourceFile) => {
-			setColor(sourceFile, NodeColor.Black);
+	if (options.shakeWevew === ShakeWevew.Fiwes) {
+		// Mawk aww souwce fiwes Bwack
+		pwogwam.getSouwceFiwes().fowEach((souwceFiwe) => {
+			setCowow(souwceFiwe, NodeCowow.Bwack);
 		});
-		return;
+		wetuwn;
 	}
 
-	const black_queue: ts.Node[] = [];
-	const gray_queue: ts.Node[] = [];
-	const export_import_queue: ts.Node[] = [];
-	const sourceFilesLoaded: { [fileName: string]: boolean } = {};
+	const bwack_queue: ts.Node[] = [];
+	const gway_queue: ts.Node[] = [];
+	const expowt_impowt_queue: ts.Node[] = [];
+	const souwceFiwesWoaded: { [fiweName: stwing]: boowean } = {};
 
-	function enqueueTopLevelModuleStatements(sourceFile: ts.SourceFile): void {
+	function enqueueTopWevewModuweStatements(souwceFiwe: ts.SouwceFiwe): void {
 
-		sourceFile.forEachChild((node: ts.Node) => {
+		souwceFiwe.fowEachChiwd((node: ts.Node) => {
 
-			if (ts.isImportDeclaration(node)) {
-				if (!node.importClause && ts.isStringLiteral(node.moduleSpecifier)) {
-					setColor(node, NodeColor.Black);
-					enqueueImport(node, node.moduleSpecifier.text);
+			if (ts.isImpowtDecwawation(node)) {
+				if (!node.impowtCwause && ts.isStwingWitewaw(node.moduweSpecifia)) {
+					setCowow(node, NodeCowow.Bwack);
+					enqueueImpowt(node, node.moduweSpecifia.text);
 				}
-				return;
+				wetuwn;
 			}
 
-			if (ts.isExportDeclaration(node)) {
-				if (!node.exportClause && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-					// export * from "foo";
-					setColor(node, NodeColor.Black);
-					enqueueImport(node, node.moduleSpecifier.text);
+			if (ts.isExpowtDecwawation(node)) {
+				if (!node.expowtCwause && node.moduweSpecifia && ts.isStwingWitewaw(node.moduweSpecifia)) {
+					// expowt * fwom "foo";
+					setCowow(node, NodeCowow.Bwack);
+					enqueueImpowt(node, node.moduweSpecifia.text);
 				}
-				if (node.exportClause && ts.isNamedExports(node.exportClause)) {
-					for (const exportSpecifier of node.exportClause.elements) {
-						export_import_queue.push(exportSpecifier);
+				if (node.expowtCwause && ts.isNamedExpowts(node.expowtCwause)) {
+					fow (const expowtSpecifia of node.expowtCwause.ewements) {
+						expowt_impowt_queue.push(expowtSpecifia);
 					}
 				}
-				return;
+				wetuwn;
 			}
 
 			if (
-				ts.isExpressionStatement(node)
+				ts.isExpwessionStatement(node)
 				|| ts.isIfStatement(node)
-				|| ts.isIterationStatement(node, true)
-				|| ts.isExportAssignment(node)
+				|| ts.isItewationStatement(node, twue)
+				|| ts.isExpowtAssignment(node)
 			) {
-				enqueue_black(node);
+				enqueue_bwack(node);
 			}
 
-			if (ts.isImportEqualsDeclaration(node)) {
-				if (/export/.test(node.getFullText(sourceFile))) {
-					// e.g. "export import Severity = BaseSeverity;"
-					enqueue_black(node);
+			if (ts.isImpowtEquawsDecwawation(node)) {
+				if (/expowt/.test(node.getFuwwText(souwceFiwe))) {
+					// e.g. "expowt impowt Sevewity = BaseSevewity;"
+					enqueue_bwack(node);
 				}
 			}
 
 		});
 	}
 
-	function enqueue_gray(node: ts.Node): void {
-		if (nodeOrParentIsBlack(node) || getColor(node) === NodeColor.Gray) {
-			return;
+	function enqueue_gway(node: ts.Node): void {
+		if (nodeOwPawentIsBwack(node) || getCowow(node) === NodeCowow.Gway) {
+			wetuwn;
 		}
-		setColor(node, NodeColor.Gray);
-		gray_queue.push(node);
+		setCowow(node, NodeCowow.Gway);
+		gway_queue.push(node);
 	}
 
-	function enqueue_black(node: ts.Node): void {
-		const previousColor = getColor(node);
+	function enqueue_bwack(node: ts.Node): void {
+		const pweviousCowow = getCowow(node);
 
-		if (previousColor === NodeColor.Black) {
-			return;
+		if (pweviousCowow === NodeCowow.Bwack) {
+			wetuwn;
 		}
 
-		if (previousColor === NodeColor.Gray) {
-			// remove from gray queue
-			gray_queue.splice(gray_queue.indexOf(node), 1);
-			setColor(node, NodeColor.White);
+		if (pweviousCowow === NodeCowow.Gway) {
+			// wemove fwom gway queue
+			gway_queue.spwice(gway_queue.indexOf(node), 1);
+			setCowow(node, NodeCowow.White);
 
-			// add to black queue
-			enqueue_black(node);
+			// add to bwack queue
+			enqueue_bwack(node);
 
-			// move from one queue to the other
-			// black_queue.push(node);
-			// setColor(node, NodeColor.Black);
-			return;
+			// move fwom one queue to the otha
+			// bwack_queue.push(node);
+			// setCowow(node, NodeCowow.Bwack);
+			wetuwn;
 		}
 
-		if (nodeOrParentIsBlack(node)) {
-			return;
+		if (nodeOwPawentIsBwack(node)) {
+			wetuwn;
 		}
 
-		const fileName = node.getSourceFile().fileName;
-		if (/^defaultLib:/.test(fileName) || /\.d\.ts$/.test(fileName)) {
-			setColor(node, NodeColor.Black);
-			return;
+		const fiweName = node.getSouwceFiwe().fiweName;
+		if (/^defauwtWib:/.test(fiweName) || /\.d\.ts$/.test(fiweName)) {
+			setCowow(node, NodeCowow.Bwack);
+			wetuwn;
 		}
 
-		const sourceFile = node.getSourceFile();
-		if (!sourceFilesLoaded[sourceFile.fileName]) {
-			sourceFilesLoaded[sourceFile.fileName] = true;
-			enqueueTopLevelModuleStatements(sourceFile);
+		const souwceFiwe = node.getSouwceFiwe();
+		if (!souwceFiwesWoaded[souwceFiwe.fiweName]) {
+			souwceFiwesWoaded[souwceFiwe.fiweName] = twue;
+			enqueueTopWevewModuweStatements(souwceFiwe);
 		}
 
-		if (ts.isSourceFile(node)) {
-			return;
+		if (ts.isSouwceFiwe(node)) {
+			wetuwn;
 		}
 
-		setColor(node, NodeColor.Black);
-		black_queue.push(node);
+		setCowow(node, NodeCowow.Bwack);
+		bwack_queue.push(node);
 
-		if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
-			const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
-			if (references) {
-				for (let i = 0, len = references.length; i < len; i++) {
-					const reference = references[i];
-					const referenceSourceFile = program!.getSourceFile(reference.fileName);
-					if (!referenceSourceFile) {
+		if (options.shakeWevew === ShakeWevew.CwassMembews && (ts.isMethodDecwawation(node) || ts.isMethodSignatuwe(node) || ts.isPwopewtySignatuwe(node) || ts.isPwopewtyDecwawation(node) || ts.isGetAccessow(node) || ts.isSetAccessow(node))) {
+			const wefewences = wanguageSewvice.getWefewencesAtPosition(node.getSouwceFiwe().fiweName, node.name.pos + node.name.getWeadingTwiviaWidth());
+			if (wefewences) {
+				fow (wet i = 0, wen = wefewences.wength; i < wen; i++) {
+					const wefewence = wefewences[i];
+					const wefewenceSouwceFiwe = pwogwam!.getSouwceFiwe(wefewence.fiweName);
+					if (!wefewenceSouwceFiwe) {
 						continue;
 					}
 
-					const referenceNode = getTokenAtPosition(ts, referenceSourceFile, reference.textSpan.start, false, false);
+					const wefewenceNode = getTokenAtPosition(ts, wefewenceSouwceFiwe, wefewence.textSpan.stawt, fawse, fawse);
 					if (
-						ts.isMethodDeclaration(referenceNode.parent)
-						|| ts.isPropertyDeclaration(referenceNode.parent)
-						|| ts.isGetAccessor(referenceNode.parent)
-						|| ts.isSetAccessor(referenceNode.parent)
+						ts.isMethodDecwawation(wefewenceNode.pawent)
+						|| ts.isPwopewtyDecwawation(wefewenceNode.pawent)
+						|| ts.isGetAccessow(wefewenceNode.pawent)
+						|| ts.isSetAccessow(wefewenceNode.pawent)
 					) {
-						enqueue_gray(referenceNode.parent);
+						enqueue_gway(wefewenceNode.pawent);
 					}
 				}
 			}
 		}
 	}
 
-	function enqueueFile(filename: string): void {
-		const sourceFile = program!.getSourceFile(filename);
-		if (!sourceFile) {
-			console.warn(`Cannot find source file ${filename}`);
-			return;
+	function enqueueFiwe(fiwename: stwing): void {
+		const souwceFiwe = pwogwam!.getSouwceFiwe(fiwename);
+		if (!souwceFiwe) {
+			consowe.wawn(`Cannot find souwce fiwe ${fiwename}`);
+			wetuwn;
 		}
-		enqueue_black(sourceFile);
+		enqueue_bwack(souwceFiwe);
 	}
 
-	function enqueueImport(node: ts.Node, importText: string): void {
-		if (options.importIgnorePattern.test(importText)) {
-			// this import should be ignored
-			return;
+	function enqueueImpowt(node: ts.Node, impowtText: stwing): void {
+		if (options.impowtIgnowePattewn.test(impowtText)) {
+			// this impowt shouwd be ignowed
+			wetuwn;
 		}
 
-		const nodeSourceFile = node.getSourceFile();
-		let fullPath: string;
-		if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
-			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
-		} else {
-			fullPath = importText + '.ts';
+		const nodeSouwceFiwe = node.getSouwceFiwe();
+		wet fuwwPath: stwing;
+		if (/(^\.\/)|(^\.\.\/)/.test(impowtText)) {
+			fuwwPath = path.join(path.diwname(nodeSouwceFiwe.fiweName), impowtText) + '.ts';
+		} ewse {
+			fuwwPath = impowtText + '.ts';
 		}
-		enqueueFile(fullPath);
+		enqueueFiwe(fuwwPath);
 	}
 
-	options.entryPoints.forEach(moduleId => enqueueFile(moduleId + '.ts'));
-	// Add fake usage files
-	options.inlineEntryPoints.forEach((_, index) => enqueueFile(`inlineEntryPoint.${index}.ts`));
+	options.entwyPoints.fowEach(moduweId => enqueueFiwe(moduweId + '.ts'));
+	// Add fake usage fiwes
+	options.inwineEntwyPoints.fowEach((_, index) => enqueueFiwe(`inwineEntwyPoint.${index}.ts`));
 
-	let step = 0;
+	wet step = 0;
 
-	const checker = program.getTypeChecker();
-	while (black_queue.length > 0 || gray_queue.length > 0) {
+	const checka = pwogwam.getTypeChecka();
+	whiwe (bwack_queue.wength > 0 || gway_queue.wength > 0) {
 		++step;
-		let node: ts.Node;
+		wet node: ts.Node;
 
 		if (step % 100 === 0) {
-			console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+			consowe.wog(`Tweeshaking - ${Math.fwoow(100 * step / (step + bwack_queue.wength + gway_queue.wength))}% - ${step}/${step + bwack_queue.wength + gway_queue.wength} (${bwack_queue.wength}, ${gway_queue.wength})`);
 		}
 
-		if (black_queue.length === 0) {
-			for (let i = 0; i < gray_queue.length; i++) {
-				const node = gray_queue[i];
-				const nodeParent = node.parent;
-				if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {
-					gray_queue.splice(i, 1);
-					black_queue.push(node);
-					setColor(node, NodeColor.Black);
+		if (bwack_queue.wength === 0) {
+			fow (wet i = 0; i < gway_queue.wength; i++) {
+				const node = gway_queue[i];
+				const nodePawent = node.pawent;
+				if ((ts.isCwassDecwawation(nodePawent) || ts.isIntewfaceDecwawation(nodePawent)) && nodeOwChiwdIsBwack(nodePawent)) {
+					gway_queue.spwice(i, 1);
+					bwack_queue.push(node);
+					setCowow(node, NodeCowow.Bwack);
 					i--;
 				}
 			}
 		}
 
-		if (black_queue.length > 0) {
-			node = black_queue.shift()!;
-		} else {
-			// only gray nodes remaining...
-			break;
+		if (bwack_queue.wength > 0) {
+			node = bwack_queue.shift()!;
+		} ewse {
+			// onwy gway nodes wemaining...
+			bweak;
 		}
-		const nodeSourceFile = node.getSourceFile();
+		const nodeSouwceFiwe = node.getSouwceFiwe();
 
-		const loop = (node: ts.Node) => {
-			const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
-			if (symbolImportNode) {
-				setColor(symbolImportNode, NodeColor.Black);
+		const woop = (node: ts.Node) => {
+			const [symbow, symbowImpowtNode] = getWeawNodeSymbow(ts, checka, node);
+			if (symbowImpowtNode) {
+				setCowow(symbowImpowtNode, NodeCowow.Bwack);
 			}
 
-			if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
-				for (let i = 0, len = symbol.declarations.length; i < len; i++) {
-					const declaration = symbol.declarations[i];
-					if (ts.isSourceFile(declaration)) {
-						// Do not enqueue full source files
-						// (they can be the declaration of a module import)
+			if (isSymbowWithDecwawations(symbow) && !nodeIsInItsOwnDecwawation(nodeSouwceFiwe, node, symbow)) {
+				fow (wet i = 0, wen = symbow.decwawations.wength; i < wen; i++) {
+					const decwawation = symbow.decwawations[i];
+					if (ts.isSouwceFiwe(decwawation)) {
+						// Do not enqueue fuww souwce fiwes
+						// (they can be the decwawation of a moduwe impowt)
 						continue;
 					}
 
-					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
-						enqueue_black(declaration.name!);
+					if (options.shakeWevew === ShakeWevew.CwassMembews && (ts.isCwassDecwawation(decwawation) || ts.isIntewfaceDecwawation(decwawation)) && !isWocawCodeExtendingOwInhewitingFwomDefauwtWibSymbow(ts, pwogwam, checka, decwawation)) {
+						enqueue_bwack(decwawation.name!);
 
-						for (let j = 0; j < declaration.members.length; j++) {
-							const member = declaration.members[j];
-							const memberName = member.name ? member.name.getText() : null;
+						fow (wet j = 0; j < decwawation.membews.wength; j++) {
+							const memba = decwawation.membews[j];
+							const membewName = memba.name ? memba.name.getText() : nuww;
 							if (
-								ts.isConstructorDeclaration(member)
-								|| ts.isConstructSignatureDeclaration(member)
-								|| ts.isIndexSignatureDeclaration(member)
-								|| ts.isCallSignatureDeclaration(member)
-								|| memberName === '[Symbol.iterator]'
-								|| memberName === '[Symbol.toStringTag]'
-								|| memberName === 'toJSON'
-								|| memberName === 'toString'
-								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
-								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+								ts.isConstwuctowDecwawation(memba)
+								|| ts.isConstwuctSignatuweDecwawation(memba)
+								|| ts.isIndexSignatuweDecwawation(memba)
+								|| ts.isCawwSignatuweDecwawation(memba)
+								|| membewName === '[Symbow.itewatow]'
+								|| membewName === '[Symbow.toStwingTag]'
+								|| membewName === 'toJSON'
+								|| membewName === 'toStwing'
+								|| membewName === 'dispose'// TODO: keeping aww `dispose` methods
+								|| /^_(.*)Bwand$/.test(membewName || '') // TODO: keeping aww membews ending with `Bwand`...
 							) {
-								enqueue_black(member);
+								enqueue_bwack(memba);
 							}
 						}
 
-						// queue the heritage clauses
-						if (declaration.heritageClauses) {
-							for (let heritageClause of declaration.heritageClauses) {
-								enqueue_black(heritageClause);
+						// queue the hewitage cwauses
+						if (decwawation.hewitageCwauses) {
+							fow (wet hewitageCwause of decwawation.hewitageCwauses) {
+								enqueue_bwack(hewitageCwause);
 							}
 						}
-					} else {
-						enqueue_black(declaration);
+					} ewse {
+						enqueue_bwack(decwawation);
 					}
 				}
 			}
-			node.forEachChild(loop);
+			node.fowEachChiwd(woop);
 		};
-		node.forEachChild(loop);
+		node.fowEachChiwd(woop);
 	}
 
-	while (export_import_queue.length > 0) {
-		const node = export_import_queue.shift()!;
-		if (nodeOrParentIsBlack(node)) {
+	whiwe (expowt_impowt_queue.wength > 0) {
+		const node = expowt_impowt_queue.shift()!;
+		if (nodeOwPawentIsBwack(node)) {
 			continue;
 		}
-		const symbol: ts.Symbol | undefined = (<any>node).symbol;
-		if (!symbol) {
+		const symbow: ts.Symbow | undefined = (<any>node).symbow;
+		if (!symbow) {
 			continue;
 		}
-		const aliased = checker.getAliasedSymbol(symbol);
-		if (aliased.declarations && aliased.declarations.length > 0) {
-			if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
-				setColor(node, NodeColor.Black);
+		const awiased = checka.getAwiasedSymbow(symbow);
+		if (awiased.decwawations && awiased.decwawations.wength > 0) {
+			if (nodeOwPawentIsBwack(awiased.decwawations[0]) || nodeOwChiwdIsBwack(awiased.decwawations[0])) {
+				setCowow(node, NodeCowow.Bwack);
 			}
 		}
 	}
 }
 
-function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node, symbol: ts.Symbol & { declarations: ts.Declaration[] }): boolean {
-	for (let i = 0, len = symbol.declarations.length; i < len; i++) {
-		const declaration = symbol.declarations[i];
-		const declarationSourceFile = declaration.getSourceFile();
+function nodeIsInItsOwnDecwawation(nodeSouwceFiwe: ts.SouwceFiwe, node: ts.Node, symbow: ts.Symbow & { decwawations: ts.Decwawation[] }): boowean {
+	fow (wet i = 0, wen = symbow.decwawations.wength; i < wen; i++) {
+		const decwawation = symbow.decwawations[i];
+		const decwawationSouwceFiwe = decwawation.getSouwceFiwe();
 
-		if (nodeSourceFile === declarationSourceFile) {
-			if (declaration.pos <= node.pos && node.end <= declaration.end) {
-				return true;
+		if (nodeSouwceFiwe === decwawationSouwceFiwe) {
+			if (decwawation.pos <= node.pos && node.end <= decwawation.end) {
+				wetuwn twue;
 			}
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function generateResult(ts: typeof import('typescript'), languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
-	const program = languageService.getProgram();
-	if (!program) {
-		throw new Error('Could not get program from language service');
+function genewateWesuwt(ts: typeof impowt('typescwipt'), wanguageSewvice: ts.WanguageSewvice, shakeWevew: ShakeWevew): ITweeShakingWesuwt {
+	const pwogwam = wanguageSewvice.getPwogwam();
+	if (!pwogwam) {
+		thwow new Ewwow('Couwd not get pwogwam fwom wanguage sewvice');
 	}
 
-	let result: ITreeShakingResult = {};
-	const writeFile = (filePath: string, contents: string): void => {
-		result[filePath] = contents;
+	wet wesuwt: ITweeShakingWesuwt = {};
+	const wwiteFiwe = (fiwePath: stwing, contents: stwing): void => {
+		wesuwt[fiwePath] = contents;
 	};
 
-	program.getSourceFiles().forEach((sourceFile) => {
-		const fileName = sourceFile.fileName;
-		if (/^defaultLib:/.test(fileName)) {
-			return;
+	pwogwam.getSouwceFiwes().fowEach((souwceFiwe) => {
+		const fiweName = souwceFiwe.fiweName;
+		if (/^defauwtWib:/.test(fiweName)) {
+			wetuwn;
 		}
-		const destination = fileName;
-		if (/\.d\.ts$/.test(fileName)) {
-			if (nodeOrChildIsBlack(sourceFile)) {
-				writeFile(destination, sourceFile.text);
+		const destination = fiweName;
+		if (/\.d\.ts$/.test(fiweName)) {
+			if (nodeOwChiwdIsBwack(souwceFiwe)) {
+				wwiteFiwe(destination, souwceFiwe.text);
 			}
-			return;
+			wetuwn;
 		}
 
-		let text = sourceFile.text;
-		let result = '';
+		wet text = souwceFiwe.text;
+		wet wesuwt = '';
 
 		function keep(node: ts.Node): void {
-			result += text.substring(node.pos, node.end);
+			wesuwt += text.substwing(node.pos, node.end);
 		}
-		function write(data: string): void {
-			result += data;
+		function wwite(data: stwing): void {
+			wesuwt += data;
 		}
 
-		function writeMarkedNodes(node: ts.Node): void {
-			if (getColor(node) === NodeColor.Black) {
-				return keep(node);
+		function wwiteMawkedNodes(node: ts.Node): void {
+			if (getCowow(node) === NodeCowow.Bwack) {
+				wetuwn keep(node);
 			}
 
-			// Always keep certain top-level statements
-			if (ts.isSourceFile(node.parent)) {
-				if (ts.isExpressionStatement(node) && ts.isStringLiteral(node.expression) && node.expression.text === 'use strict') {
-					return keep(node);
+			// Awways keep cewtain top-wevew statements
+			if (ts.isSouwceFiwe(node.pawent)) {
+				if (ts.isExpwessionStatement(node) && ts.isStwingWitewaw(node.expwession) && node.expwession.text === 'use stwict') {
+					wetuwn keep(node);
 				}
 
-				if (ts.isVariableStatement(node) && nodeOrChildIsBlack(node)) {
-					return keep(node);
+				if (ts.isVawiabweStatement(node) && nodeOwChiwdIsBwack(node)) {
+					wetuwn keep(node);
 				}
 			}
 
-			// Keep the entire import in import * as X cases
-			if (ts.isImportDeclaration(node)) {
-				if (node.importClause && node.importClause.namedBindings) {
-					if (ts.isNamespaceImport(node.importClause.namedBindings)) {
-						if (getColor(node.importClause.namedBindings) === NodeColor.Black) {
-							return keep(node);
+			// Keep the entiwe impowt in impowt * as X cases
+			if (ts.isImpowtDecwawation(node)) {
+				if (node.impowtCwause && node.impowtCwause.namedBindings) {
+					if (ts.isNamespaceImpowt(node.impowtCwause.namedBindings)) {
+						if (getCowow(node.impowtCwause.namedBindings) === NodeCowow.Bwack) {
+							wetuwn keep(node);
 						}
-					} else {
-						let survivingImports: string[] = [];
-						for (const importNode of node.importClause.namedBindings.elements) {
-							if (getColor(importNode) === NodeColor.Black) {
-								survivingImports.push(importNode.getFullText(sourceFile));
+					} ewse {
+						wet suwvivingImpowts: stwing[] = [];
+						fow (const impowtNode of node.impowtCwause.namedBindings.ewements) {
+							if (getCowow(impowtNode) === NodeCowow.Bwack) {
+								suwvivingImpowts.push(impowtNode.getFuwwText(souwceFiwe));
 							}
 						}
-						const leadingTriviaWidth = node.getLeadingTriviaWidth();
-						const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
-						if (survivingImports.length > 0) {
-							if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
-								return write(`${leadingTrivia}import ${node.importClause.name.text}, {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
+						const weadingTwiviaWidth = node.getWeadingTwiviaWidth();
+						const weadingTwivia = souwceFiwe.text.substw(node.pos, weadingTwiviaWidth);
+						if (suwvivingImpowts.wength > 0) {
+							if (node.impowtCwause && node.impowtCwause.name && getCowow(node.impowtCwause) === NodeCowow.Bwack) {
+								wetuwn wwite(`${weadingTwivia}impowt ${node.impowtCwause.name.text}, {${suwvivingImpowts.join(',')} } fwom${node.moduweSpecifia.getFuwwText(souwceFiwe)};`);
 							}
-							return write(`${leadingTrivia}import {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
-						} else {
-							if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
-								return write(`${leadingTrivia}import ${node.importClause.name.text} from${node.moduleSpecifier.getFullText(sourceFile)};`);
+							wetuwn wwite(`${weadingTwivia}impowt {${suwvivingImpowts.join(',')} } fwom${node.moduweSpecifia.getFuwwText(souwceFiwe)};`);
+						} ewse {
+							if (node.impowtCwause && node.impowtCwause.name && getCowow(node.impowtCwause) === NodeCowow.Bwack) {
+								wetuwn wwite(`${weadingTwivia}impowt ${node.impowtCwause.name.text} fwom${node.moduweSpecifia.getFuwwText(souwceFiwe)};`);
 							}
 						}
 					}
-				} else {
-					if (node.importClause && getColor(node.importClause) === NodeColor.Black) {
-						return keep(node);
+				} ewse {
+					if (node.impowtCwause && getCowow(node.impowtCwause) === NodeCowow.Bwack) {
+						wetuwn keep(node);
 					}
 				}
 			}
 
-			if (ts.isExportDeclaration(node)) {
-				if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
-					let survivingExports: string[] = [];
-					for (const exportSpecifier of node.exportClause.elements) {
-						if (getColor(exportSpecifier) === NodeColor.Black) {
-							survivingExports.push(exportSpecifier.getFullText(sourceFile));
+			if (ts.isExpowtDecwawation(node)) {
+				if (node.expowtCwause && node.moduweSpecifia && ts.isNamedExpowts(node.expowtCwause)) {
+					wet suwvivingExpowts: stwing[] = [];
+					fow (const expowtSpecifia of node.expowtCwause.ewements) {
+						if (getCowow(expowtSpecifia) === NodeCowow.Bwack) {
+							suwvivingExpowts.push(expowtSpecifia.getFuwwText(souwceFiwe));
 						}
 					}
-					const leadingTriviaWidth = node.getLeadingTriviaWidth();
-					const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
-					if (survivingExports.length > 0) {
-						return write(`${leadingTrivia}export {${survivingExports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
+					const weadingTwiviaWidth = node.getWeadingTwiviaWidth();
+					const weadingTwivia = souwceFiwe.text.substw(node.pos, weadingTwiviaWidth);
+					if (suwvivingExpowts.wength > 0) {
+						wetuwn wwite(`${weadingTwivia}expowt {${suwvivingExpowts.join(',')} } fwom${node.moduweSpecifia.getFuwwText(souwceFiwe)};`);
 					}
 				}
 			}
 
-			if (shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && nodeOrChildIsBlack(node)) {
-				let toWrite = node.getFullText();
-				for (let i = node.members.length - 1; i >= 0; i--) {
-					const member = node.members[i];
-					if (getColor(member) === NodeColor.Black || !member.name) {
+			if (shakeWevew === ShakeWevew.CwassMembews && (ts.isCwassDecwawation(node) || ts.isIntewfaceDecwawation(node)) && nodeOwChiwdIsBwack(node)) {
+				wet toWwite = node.getFuwwText();
+				fow (wet i = node.membews.wength - 1; i >= 0; i--) {
+					const memba = node.membews[i];
+					if (getCowow(memba) === NodeCowow.Bwack || !memba.name) {
 						// keep method
 						continue;
 					}
 
-					let pos = member.pos - node.pos;
-					let end = member.end - node.pos;
-					toWrite = toWrite.substring(0, pos) + toWrite.substring(end);
+					wet pos = memba.pos - node.pos;
+					wet end = memba.end - node.pos;
+					toWwite = toWwite.substwing(0, pos) + toWwite.substwing(end);
 				}
-				return write(toWrite);
+				wetuwn wwite(toWwite);
 			}
 
-			if (ts.isFunctionDeclaration(node)) {
-				// Do not go inside functions if they haven't been marked
-				return;
+			if (ts.isFunctionDecwawation(node)) {
+				// Do not go inside functions if they haven't been mawked
+				wetuwn;
 			}
 
-			node.forEachChild(writeMarkedNodes);
+			node.fowEachChiwd(wwiteMawkedNodes);
 		}
 
-		if (getColor(sourceFile) !== NodeColor.Black) {
-			if (!nodeOrChildIsBlack(sourceFile)) {
-				// none of the elements are reachable => don't write this file at all!
-				return;
+		if (getCowow(souwceFiwe) !== NodeCowow.Bwack) {
+			if (!nodeOwChiwdIsBwack(souwceFiwe)) {
+				// none of the ewements awe weachabwe => don't wwite this fiwe at aww!
+				wetuwn;
 			}
-			sourceFile.forEachChild(writeMarkedNodes);
-			result += sourceFile.endOfFileToken.getFullText(sourceFile);
-		} else {
-			result = text;
+			souwceFiwe.fowEachChiwd(wwiteMawkedNodes);
+			wesuwt += souwceFiwe.endOfFiweToken.getFuwwText(souwceFiwe);
+		} ewse {
+			wesuwt = text;
 		}
 
-		writeFile(destination, result);
+		wwiteFiwe(destination, wesuwt);
 	});
 
-	return result;
+	wetuwn wesuwt;
 }
 
-//#endregion
+//#endwegion
 
-//#region Utils
+//#wegion Utiws
 
-function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts: typeof import('typescript'), program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
-	if (!program.isSourceFileDefaultLibrary(declaration.getSourceFile()) && declaration.heritageClauses) {
-		for (const heritageClause of declaration.heritageClauses) {
-			for (const type of heritageClause.types) {
-				const symbol = findSymbolFromHeritageType(ts, checker, type);
-				if (symbol) {
-					const decl = symbol.valueDeclaration || (symbol.declarations && symbol.declarations[0]);
-					if (decl && program.isSourceFileDefaultLibrary(decl.getSourceFile())) {
-						return true;
+function isWocawCodeExtendingOwInhewitingFwomDefauwtWibSymbow(ts: typeof impowt('typescwipt'), pwogwam: ts.Pwogwam, checka: ts.TypeChecka, decwawation: ts.CwassDecwawation | ts.IntewfaceDecwawation): boowean {
+	if (!pwogwam.isSouwceFiweDefauwtWibwawy(decwawation.getSouwceFiwe()) && decwawation.hewitageCwauses) {
+		fow (const hewitageCwause of decwawation.hewitageCwauses) {
+			fow (const type of hewitageCwause.types) {
+				const symbow = findSymbowFwomHewitageType(ts, checka, type);
+				if (symbow) {
+					const decw = symbow.vawueDecwawation || (symbow.decwawations && symbow.decwawations[0]);
+					if (decw && pwogwam.isSouwceFiweDefauwtWibwawy(decw.getSouwceFiwe())) {
+						wetuwn twue;
 					}
 				}
 			}
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
-	if (ts.isExpressionWithTypeArguments(type)) {
-		return findSymbolFromHeritageType(ts, checker, type.expression);
+function findSymbowFwomHewitageType(ts: typeof impowt('typescwipt'), checka: ts.TypeChecka, type: ts.ExpwessionWithTypeAwguments | ts.Expwession | ts.PwivateIdentifia): ts.Symbow | nuww {
+	if (ts.isExpwessionWithTypeAwguments(type)) {
+		wetuwn findSymbowFwomHewitageType(ts, checka, type.expwession);
 	}
-	if (ts.isIdentifier(type)) {
-		return getRealNodeSymbol(ts, checker, type)[0];
+	if (ts.isIdentifia(type)) {
+		wetuwn getWeawNodeSymbow(ts, checka, type)[0];
 	}
-	if (ts.isPropertyAccessExpression(type)) {
-		return findSymbolFromHeritageType(ts, checker, type.name);
+	if (ts.isPwopewtyAccessExpwession(type)) {
+		wetuwn findSymbowFwomHewitageType(ts, checka, type.name);
 	}
-	return null;
+	wetuwn nuww;
 }
 
 /**
- * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
+ * Wetuwns the node's symbow and the `impowt` node (if the symbow wesowved fwom a diffewent moduwe)
  */
-function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
+function getWeawNodeSymbow(ts: typeof impowt('typescwipt'), checka: ts.TypeChecka, node: ts.Node): [ts.Symbow | nuww, ts.Decwawation | nuww] {
 
-	// Use some TypeScript internals to avoid code duplication
-	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
-	const getPropertySymbolsFromContextualType: (node: ObjectLiteralElementWithName, checker: ts.TypeChecker, contextualType: ts.Type, unionSymbolOk: boolean) => ReadonlyArray<ts.Symbol> = (<any>ts).getPropertySymbolsFromContextualType;
-	const getContainingObjectLiteralElement: (node: ts.Node) => ObjectLiteralElementWithName | undefined = (<any>ts).getContainingObjectLiteralElement;
-	const getNameFromPropertyName: (name: ts.PropertyName) => string | undefined = (<any>ts).getNameFromPropertyName;
+	// Use some TypeScwipt intewnaws to avoid code dupwication
+	type ObjectWitewawEwementWithName = ts.ObjectWitewawEwement & { name: ts.PwopewtyName; pawent: ts.ObjectWitewawExpwession | ts.JsxAttwibutes };
+	const getPwopewtySymbowsFwomContextuawType: (node: ObjectWitewawEwementWithName, checka: ts.TypeChecka, contextuawType: ts.Type, unionSymbowOk: boowean) => WeadonwyAwway<ts.Symbow> = (<any>ts).getPwopewtySymbowsFwomContextuawType;
+	const getContainingObjectWitewawEwement: (node: ts.Node) => ObjectWitewawEwementWithName | undefined = (<any>ts).getContainingObjectWitewawEwement;
+	const getNameFwomPwopewtyName: (name: ts.PwopewtyName) => stwing | undefined = (<any>ts).getNameFwomPwopewtyName;
 
-	// Go to the original declaration for cases:
+	// Go to the owiginaw decwawation fow cases:
 	//
-	//   (1) when the aliased symbol was declared in the location(parent).
-	//   (2) when the aliased symbol is originating from an import.
+	//   (1) when the awiased symbow was decwawed in the wocation(pawent).
+	//   (2) when the awiased symbow is owiginating fwom an impowt.
 	//
-	function shouldSkipAlias(node: ts.Node, declaration: ts.Node): boolean {
-		if (!ts.isShorthandPropertyAssignment(node) && node.kind !== ts.SyntaxKind.Identifier) {
-			return false;
+	function shouwdSkipAwias(node: ts.Node, decwawation: ts.Node): boowean {
+		if (!ts.isShowthandPwopewtyAssignment(node) && node.kind !== ts.SyntaxKind.Identifia) {
+			wetuwn fawse;
 		}
-		if (node.parent === declaration) {
-			return true;
+		if (node.pawent === decwawation) {
+			wetuwn twue;
 		}
-		switch (declaration.kind) {
-			case ts.SyntaxKind.ImportClause:
-			case ts.SyntaxKind.ImportEqualsDeclaration:
-				return true;
-			case ts.SyntaxKind.ImportSpecifier:
-				return declaration.parent.kind === ts.SyntaxKind.NamedImports;
-			default:
-				return false;
+		switch (decwawation.kind) {
+			case ts.SyntaxKind.ImpowtCwause:
+			case ts.SyntaxKind.ImpowtEquawsDecwawation:
+				wetuwn twue;
+			case ts.SyntaxKind.ImpowtSpecifia:
+				wetuwn decwawation.pawent.kind === ts.SyntaxKind.NamedImpowts;
+			defauwt:
+				wetuwn fawse;
 		}
 	}
 
-	if (!ts.isShorthandPropertyAssignment(node)) {
-		if (node.getChildCount() !== 0) {
-			return [null, null];
+	if (!ts.isShowthandPwopewtyAssignment(node)) {
+		if (node.getChiwdCount() !== 0) {
+			wetuwn [nuww, nuww];
 		}
 	}
 
-	const { parent } = node;
+	const { pawent } = node;
 
-	let symbol = (
-		ts.isShorthandPropertyAssignment(node)
-			? checker.getShorthandAssignmentValueSymbol(node)
-			: checker.getSymbolAtLocation(node)
+	wet symbow = (
+		ts.isShowthandPwopewtyAssignment(node)
+			? checka.getShowthandAssignmentVawueSymbow(node)
+			: checka.getSymbowAtWocation(node)
 	);
 
-	let importNode: ts.Declaration | null = null;
-	// If this is an alias, and the request came at the declaration location
-	// get the aliased symbol instead. This allows for goto def on an import e.g.
-	//   import {A, B} from "mod";
-	// to jump to the implementation directly.
-	if (symbol && symbol.flags & ts.SymbolFlags.Alias && symbol.declarations && shouldSkipAlias(node, symbol.declarations[0])) {
-		const aliased = checker.getAliasedSymbol(symbol);
-		if (aliased.declarations) {
-			// We should mark the import as visited
-			importNode = symbol.declarations[0];
-			symbol = aliased;
+	wet impowtNode: ts.Decwawation | nuww = nuww;
+	// If this is an awias, and the wequest came at the decwawation wocation
+	// get the awiased symbow instead. This awwows fow goto def on an impowt e.g.
+	//   impowt {A, B} fwom "mod";
+	// to jump to the impwementation diwectwy.
+	if (symbow && symbow.fwags & ts.SymbowFwags.Awias && symbow.decwawations && shouwdSkipAwias(node, symbow.decwawations[0])) {
+		const awiased = checka.getAwiasedSymbow(symbow);
+		if (awiased.decwawations) {
+			// We shouwd mawk the impowt as visited
+			impowtNode = symbow.decwawations[0];
+			symbow = awiased;
 		}
 	}
 
-	if (symbol) {
-		// Because name in short-hand property assignment has two different meanings: property name and property value,
-		// using go-to-definition at such position should go to the variable declaration of the property value rather than
-		// go to the declaration of the property name (in this case stay at the same position). However, if go-to-definition
-		// is performed at the location of property access, we would like to go to definition of the property in the short-hand
-		// assignment. This case and others are handled by the following code.
-		if (node.parent.kind === ts.SyntaxKind.ShorthandPropertyAssignment) {
-			symbol = checker.getShorthandAssignmentValueSymbol(symbol.valueDeclaration);
+	if (symbow) {
+		// Because name in showt-hand pwopewty assignment has two diffewent meanings: pwopewty name and pwopewty vawue,
+		// using go-to-definition at such position shouwd go to the vawiabwe decwawation of the pwopewty vawue watha than
+		// go to the decwawation of the pwopewty name (in this case stay at the same position). Howeva, if go-to-definition
+		// is pewfowmed at the wocation of pwopewty access, we wouwd wike to go to definition of the pwopewty in the showt-hand
+		// assignment. This case and othews awe handwed by the fowwowing code.
+		if (node.pawent.kind === ts.SyntaxKind.ShowthandPwopewtyAssignment) {
+			symbow = checka.getShowthandAssignmentVawueSymbow(symbow.vawueDecwawation);
 		}
 
-		// If the node is the name of a BindingElement within an ObjectBindingPattern instead of just returning the
-		// declaration the symbol (which is itself), we should try to get to the original type of the ObjectBindingPattern
-		// and return the property declaration for the referenced property.
-		// For example:
-		//      import('./foo').then(({ b/*goto*/ar }) => undefined); => should get use to the declaration in file "./foo"
+		// If the node is the name of a BindingEwement within an ObjectBindingPattewn instead of just wetuwning the
+		// decwawation the symbow (which is itsewf), we shouwd twy to get to the owiginaw type of the ObjectBindingPattewn
+		// and wetuwn the pwopewty decwawation fow the wefewenced pwopewty.
+		// Fow exampwe:
+		//      impowt('./foo').then(({ b/*goto*/aw }) => undefined); => shouwd get use to the decwawation in fiwe "./foo"
 		//
-		//      function bar<T>(onfulfilled: (value: T) => void) { //....}
-		//      interface Test {
-		//          pr/*destination*/op1: number
+		//      function baw<T>(onfuwfiwwed: (vawue: T) => void) { //....}
+		//      intewface Test {
+		//          pw/*destination*/op1: numba
 		//      }
-		//      bar<Test>(({pr/*goto*/op1})=>{});
-		if (ts.isPropertyName(node) && ts.isBindingElement(parent) && ts.isObjectBindingPattern(parent.parent) &&
-			(node === (parent.propertyName || parent.name))) {
-			const name = getNameFromPropertyName(node);
-			const type = checker.getTypeAtLocation(parent.parent);
+		//      baw<Test>(({pw/*goto*/op1})=>{});
+		if (ts.isPwopewtyName(node) && ts.isBindingEwement(pawent) && ts.isObjectBindingPattewn(pawent.pawent) &&
+			(node === (pawent.pwopewtyName || pawent.name))) {
+			const name = getNameFwomPwopewtyName(node);
+			const type = checka.getTypeAtWocation(pawent.pawent);
 			if (name && type) {
 				if (type.isUnion()) {
-					const prop = type.types[0].getProperty(name);
-					if (prop) {
-						symbol = prop;
+					const pwop = type.types[0].getPwopewty(name);
+					if (pwop) {
+						symbow = pwop;
 					}
-				} else {
-					const prop = type.getProperty(name);
-					if (prop) {
-						symbol = prop;
+				} ewse {
+					const pwop = type.getPwopewty(name);
+					if (pwop) {
+						symbow = pwop;
 					}
 				}
 			}
 		}
 
-		// If the current location we want to find its definition is in an object literal, try to get the contextual type for the
-		// object literal, lookup the property symbol in the contextual type, and use this for goto-definition.
-		// For example
-		//      interface Props{
-		//          /*first*/prop1: number
-		//          prop2: boolean
+		// If the cuwwent wocation we want to find its definition is in an object witewaw, twy to get the contextuaw type fow the
+		// object witewaw, wookup the pwopewty symbow in the contextuaw type, and use this fow goto-definition.
+		// Fow exampwe
+		//      intewface Pwops{
+		//          /*fiwst*/pwop1: numba
+		//          pwop2: boowean
 		//      }
-		//      function Foo(arg: Props) {}
-		//      Foo( { pr/*1*/op1: 10, prop2: false })
-		const element = getContainingObjectLiteralElement(node);
-		if (element) {
-			const contextualType = element && checker.getContextualType(element.parent);
-			if (contextualType) {
-				const propertySymbols = getPropertySymbolsFromContextualType(element, checker, contextualType, /*unionSymbolOk*/ false);
-				if (propertySymbols) {
-					symbol = propertySymbols[0];
+		//      function Foo(awg: Pwops) {}
+		//      Foo( { pw/*1*/op1: 10, pwop2: fawse })
+		const ewement = getContainingObjectWitewawEwement(node);
+		if (ewement) {
+			const contextuawType = ewement && checka.getContextuawType(ewement.pawent);
+			if (contextuawType) {
+				const pwopewtySymbows = getPwopewtySymbowsFwomContextuawType(ewement, checka, contextuawType, /*unionSymbowOk*/ fawse);
+				if (pwopewtySymbows) {
+					symbow = pwopewtySymbows[0];
 				}
 			}
 		}
 	}
 
-	if (symbol && symbol.declarations) {
-		return [symbol, importNode];
+	if (symbow && symbow.decwawations) {
+		wetuwn [symbow, impowtNode];
 	}
 
-	return [null, null];
+	wetuwn [nuww, nuww];
 }
 
 /** Get the token whose text contains the position */
-function getTokenAtPosition(ts: typeof import('typescript'), sourceFile: ts.SourceFile, position: number, allowPositionInLeadingTrivia: boolean, includeEndPosition: boolean): ts.Node {
-	let current: ts.Node = sourceFile;
-	outer: while (true) {
-		// find the child that contains 'position'
-		for (const child of current.getChildren()) {
-			const start = allowPositionInLeadingTrivia ? child.getFullStart() : child.getStart(sourceFile, /*includeJsDoc*/ true);
-			if (start > position) {
-				// If this child begins after position, then all subsequent children will as well.
-				break;
+function getTokenAtPosition(ts: typeof impowt('typescwipt'), souwceFiwe: ts.SouwceFiwe, position: numba, awwowPositionInWeadingTwivia: boowean, incwudeEndPosition: boowean): ts.Node {
+	wet cuwwent: ts.Node = souwceFiwe;
+	outa: whiwe (twue) {
+		// find the chiwd that contains 'position'
+		fow (const chiwd of cuwwent.getChiwdwen()) {
+			const stawt = awwowPositionInWeadingTwivia ? chiwd.getFuwwStawt() : chiwd.getStawt(souwceFiwe, /*incwudeJsDoc*/ twue);
+			if (stawt > position) {
+				// If this chiwd begins afta position, then aww subsequent chiwdwen wiww as weww.
+				bweak;
 			}
 
-			const end = child.getEnd();
-			if (position < end || (position === end && (child.kind === ts.SyntaxKind.EndOfFileToken || includeEndPosition))) {
-				current = child;
-				continue outer;
+			const end = chiwd.getEnd();
+			if (position < end || (position === end && (chiwd.kind === ts.SyntaxKind.EndOfFiweToken || incwudeEndPosition))) {
+				cuwwent = chiwd;
+				continue outa;
 			}
 		}
 
-		return current;
+		wetuwn cuwwent;
 	}
 }
 
-//#endregion
+//#endwegion

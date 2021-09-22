@@ -1,460 +1,460 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { IMatch } from 'vs/base/common/filters';
-import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { format, trim } from 'vs/base/common/strings';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { IPwepawedQuewy, pieceToQuewy, pwepaweQuewy, scoweFuzzy2 } fwom 'vs/base/common/fuzzyScowa';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { fowmat, twim } fwom 'vs/base/common/stwings';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentSymbow, DocumentSymbowPwovidewWegistwy, SymbowKind, SymbowKinds, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { OutwineModew } fwom 'vs/editow/contwib/documentSymbows/outwineModew';
+impowt { AbstwactEditowNavigationQuickAccessPwovida, IEditowNavigationQuickAccessOptions, IQuickAccessTextEditowContext } fwom 'vs/editow/contwib/quickAccess/editowNavigationQuickAccess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPick, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
-	kind: SymbolKind,
-	index: number,
-	score?: number;
-	range?: { decoration: IRange, selection: IRange }
+expowt intewface IGotoSymbowQuickPickItem extends IQuickPickItem {
+	kind: SymbowKind,
+	index: numba,
+	scowe?: numba;
+	wange?: { decowation: IWange, sewection: IWange }
 }
 
-export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
-	openSideBySideDirection?: () => undefined | 'right' | 'down'
+expowt intewface IGotoSymbowQuickAccessPwovidewOptions extends IEditowNavigationQuickAccessOptions {
+	openSideBySideDiwection?: () => undefined | 'wight' | 'down'
 }
 
-export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
+expowt abstwact cwass AbstwactGotoSymbowQuickAccessPwovida extends AbstwactEditowNavigationQuickAccessPwovida {
 
-	static PREFIX = '@';
-	static SCOPE_PREFIX = ':';
-	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
+	static PWEFIX = '@';
+	static SCOPE_PWEFIX = ':';
+	static PWEFIX_BY_CATEGOWY = `${AbstwactGotoSymbowQuickAccessPwovida.PWEFIX}${AbstwactGotoSymbowQuickAccessPwovida.SCOPE_PWEFIX}`;
 
-	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
+	pwotected ovewwide weadonwy options: IGotoSymbowQuickAccessPwovidewOptions;
 
-	constructor(options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
-		super(options);
+	constwuctow(options: IGotoSymbowQuickAccessPwovidewOptions = Object.cweate(nuww)) {
+		supa(options);
 
 		this.options = options;
-		this.options.canAcceptInBackground = true;
+		this.options.canAcceptInBackgwound = twue;
 	}
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information."));
+	pwotected pwovideWithoutTextEditow(picka: IQuickPick<IGotoSymbowQuickPickItem>): IDisposabwe {
+		this.pwovideWabewPick(picka, wocawize('cannotWunGotoSymbowWithoutEditow', "To go to a symbow, fiwst open a text editow with symbow infowmation."));
 
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const editor = context.editor;
-		const model = this.getModel(editor);
-		if (!model) {
-			return Disposable.None;
+	pwotected pwovideWithTextEditow(context: IQuickAccessTextEditowContext, picka: IQuickPick<IGotoSymbowQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const editow = context.editow;
+		const modew = this.getModew(editow);
+		if (!modew) {
+			wetuwn Disposabwe.None;
 		}
 
-		// Provide symbols from model if available in registry
-		if (DocumentSymbolProviderRegistry.has(model)) {
-			return this.doProvideWithEditorSymbols(context, model, picker, token);
+		// Pwovide symbows fwom modew if avaiwabwe in wegistwy
+		if (DocumentSymbowPwovidewWegistwy.has(modew)) {
+			wetuwn this.doPwovideWithEditowSymbows(context, modew, picka, token);
 		}
 
-		// Otherwise show an entry for a model without registry
-		// But give a chance to resolve the symbols at a later
-		// point if possible
-		return this.doProvideWithoutEditorSymbols(context, model, picker, token);
+		// Othewwise show an entwy fow a modew without wegistwy
+		// But give a chance to wesowve the symbows at a wata
+		// point if possibwe
+		wetuwn this.doPwovideWithoutEditowSymbows(context, modew, picka, token);
 	}
 
-	private doProvideWithoutEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	pwivate doPwovideWithoutEditowSymbows(context: IQuickAccessTextEditowContext, modew: ITextModew, picka: IQuickPick<IGotoSymbowQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Generic pick for not having any symbol information
-		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information."));
+		// Genewic pick fow not having any symbow infowmation
+		this.pwovideWabewPick(picka, wocawize('cannotWunGotoSymbowWithoutSymbowPwovida', "The active text editow does not pwovide symbow infowmation."));
 
-		// Wait for changes to the registry and see if eventually
-		// we do get symbols. This can happen if the picker is opened
-		// very early after the model has loaded but before the
-		// language registry is ready.
-		// https://github.com/microsoft/vscode/issues/70607
+		// Wait fow changes to the wegistwy and see if eventuawwy
+		// we do get symbows. This can happen if the picka is opened
+		// vewy eawwy afta the modew has woaded but befowe the
+		// wanguage wegistwy is weady.
+		// https://github.com/micwosoft/vscode/issues/70607
 		(async () => {
-			const result = await this.waitForLanguageSymbolRegistry(model, disposables);
-			if (!result || token.isCancellationRequested) {
-				return;
+			const wesuwt = await this.waitFowWanguageSymbowWegistwy(modew, disposabwes);
+			if (!wesuwt || token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			disposables.add(this.doProvideWithEditorSymbols(context, model, picker, token));
+			disposabwes.add(this.doPwovideWithEditowSymbows(context, modew, picka, token));
 		})();
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private provideLabelPick(picker: IQuickPick<IGotoSymbolQuickPickItem>, label: string): void {
-		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
-		picker.ariaLabel = label;
+	pwivate pwovideWabewPick(picka: IQuickPick<IGotoSymbowQuickPickItem>, wabew: stwing): void {
+		picka.items = [{ wabew, index: 0, kind: SymbowKind.Stwing }];
+		picka.awiaWabew = wabew;
 	}
 
-	protected async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
-		if (DocumentSymbolProviderRegistry.has(model)) {
-			return true;
+	pwotected async waitFowWanguageSymbowWegistwy(modew: ITextModew, disposabwes: DisposabweStowe): Pwomise<boowean> {
+		if (DocumentSymbowPwovidewWegistwy.has(modew)) {
+			wetuwn twue;
 		}
 
-		let symbolProviderRegistryPromiseResolve: (res: boolean) => void;
-		const symbolProviderRegistryPromise = new Promise<boolean>(resolve => symbolProviderRegistryPromiseResolve = resolve);
+		wet symbowPwovidewWegistwyPwomiseWesowve: (wes: boowean) => void;
+		const symbowPwovidewWegistwyPwomise = new Pwomise<boowean>(wesowve => symbowPwovidewWegistwyPwomiseWesowve = wesowve);
 
-		// Resolve promise when registry knows model
-		const symbolProviderListener = disposables.add(DocumentSymbolProviderRegistry.onDidChange(() => {
-			if (DocumentSymbolProviderRegistry.has(model)) {
-				symbolProviderListener.dispose();
+		// Wesowve pwomise when wegistwy knows modew
+		const symbowPwovidewWistena = disposabwes.add(DocumentSymbowPwovidewWegistwy.onDidChange(() => {
+			if (DocumentSymbowPwovidewWegistwy.has(modew)) {
+				symbowPwovidewWistena.dispose();
 
-				symbolProviderRegistryPromiseResolve(true);
+				symbowPwovidewWegistwyPwomiseWesowve(twue);
 			}
 		}));
 
-		// Resolve promise when we get disposed too
-		disposables.add(toDisposable(() => symbolProviderRegistryPromiseResolve(false)));
+		// Wesowve pwomise when we get disposed too
+		disposabwes.add(toDisposabwe(() => symbowPwovidewWegistwyPwomiseWesowve(fawse)));
 
-		return symbolProviderRegistryPromise;
+		wetuwn symbowPwovidewWegistwyPwomise;
 	}
 
-	private doProvideWithEditorSymbols(context: IQuickAccessTextEditorContext, model: ITextModel, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
-		const editor = context.editor;
-		const disposables = new DisposableStore();
+	pwivate doPwovideWithEditowSymbows(context: IQuickAccessTextEditowContext, modew: ITextModew, picka: IQuickPick<IGotoSymbowQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const editow = context.editow;
+		const disposabwes = new DisposabweStowe();
 
-		// Goto symbol once picked
-		disposables.add(picker.onDidAccept(event => {
-			const [item] = picker.selectedItems;
-			if (item && item.range) {
-				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, preserveFocus: event.inBackground });
+		// Goto symbow once picked
+		disposabwes.add(picka.onDidAccept(event => {
+			const [item] = picka.sewectedItems;
+			if (item && item.wange) {
+				this.gotoWocation(context, { wange: item.wange.sewection, keyMods: picka.keyMods, pwesewveFocus: event.inBackgwound });
 
-				if (!event.inBackground) {
-					picker.hide();
+				if (!event.inBackgwound) {
+					picka.hide();
 				}
 			}
 		}));
 
-		// Goto symbol side by side if enabled
-		disposables.add(picker.onDidTriggerItemButton(({ item }) => {
-			if (item && item.range) {
-				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, forceSideBySide: true });
+		// Goto symbow side by side if enabwed
+		disposabwes.add(picka.onDidTwiggewItemButton(({ item }) => {
+			if (item && item.wange) {
+				this.gotoWocation(context, { wange: item.wange.sewection, keyMods: picka.keyMods, fowceSideBySide: twue });
 
-				picker.hide();
+				picka.hide();
 			}
 		}));
 
-		// Resolve symbols from document once and reuse this
-		// request for all filtering and typing then on
-		const symbolsPromise = this.getDocumentSymbols(model, token);
+		// Wesowve symbows fwom document once and weuse this
+		// wequest fow aww fiwtewing and typing then on
+		const symbowsPwomise = this.getDocumentSymbows(modew, token);
 
-		// Set initial picks and update on type
-		let picksCts: CancellationTokenSource | undefined = undefined;
-		const updatePickerItems = async () => {
+		// Set initiaw picks and update on type
+		wet picksCts: CancewwationTokenSouwce | undefined = undefined;
+		const updatePickewItems = async () => {
 
-			// Cancel any previous ask for picks and busy
-			picksCts?.dispose(true);
-			picker.busy = false;
+			// Cancew any pwevious ask fow picks and busy
+			picksCts?.dispose(twue);
+			picka.busy = fawse;
 
-			// Create new cancellation source for this run
-			picksCts = new CancellationTokenSource(token);
+			// Cweate new cancewwation souwce fow this wun
+			picksCts = new CancewwationTokenSouwce(token);
 
-			// Collect symbol picks
-			picker.busy = true;
-			try {
-				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
-				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token);
-				if (token.isCancellationRequested) {
-					return;
+			// Cowwect symbow picks
+			picka.busy = twue;
+			twy {
+				const quewy = pwepaweQuewy(picka.vawue.substw(AbstwactGotoSymbowQuickAccessPwovida.PWEFIX.wength).twim());
+				const items = await this.doGetSymbowPicks(symbowsPwomise, quewy, undefined, picksCts.token);
+				if (token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				if (items.length > 0) {
-					picker.items = items;
-				} else {
-					if (query.original.length > 0) {
-						this.provideLabelPick(picker, localize('noMatchingSymbolResults', "No matching editor symbols"));
-					} else {
-						this.provideLabelPick(picker, localize('noSymbolResults', "No editor symbols"));
+				if (items.wength > 0) {
+					picka.items = items;
+				} ewse {
+					if (quewy.owiginaw.wength > 0) {
+						this.pwovideWabewPick(picka, wocawize('noMatchingSymbowWesuwts', "No matching editow symbows"));
+					} ewse {
+						this.pwovideWabewPick(picka, wocawize('noSymbowWesuwts', "No editow symbows"));
 					}
 				}
-			} finally {
-				if (!token.isCancellationRequested) {
-					picker.busy = false;
+			} finawwy {
+				if (!token.isCancewwationWequested) {
+					picka.busy = fawse;
 				}
 			}
 		};
-		disposables.add(picker.onDidChangeValue(() => updatePickerItems()));
-		updatePickerItems();
+		disposabwes.add(picka.onDidChangeVawue(() => updatePickewItems()));
+		updatePickewItems();
 
-		// Reveal and decorate when active item changes
-		// However, ignore the very first event so that
-		// opening the picker is not immediately revealing
-		// and decorating the first entry.
-		let ignoreFirstActiveEvent = true;
-		disposables.add(picker.onDidChangeActive(() => {
-			const [item] = picker.activeItems;
-			if (item && item.range) {
-				if (ignoreFirstActiveEvent) {
-					ignoreFirstActiveEvent = false;
-					return;
+		// Weveaw and decowate when active item changes
+		// Howeva, ignowe the vewy fiwst event so that
+		// opening the picka is not immediatewy weveawing
+		// and decowating the fiwst entwy.
+		wet ignoweFiwstActiveEvent = twue;
+		disposabwes.add(picka.onDidChangeActive(() => {
+			const [item] = picka.activeItems;
+			if (item && item.wange) {
+				if (ignoweFiwstActiveEvent) {
+					ignoweFiwstActiveEvent = fawse;
+					wetuwn;
 				}
 
-				// Reveal
-				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
+				// Weveaw
+				editow.weveawWangeInCenta(item.wange.sewection, ScwowwType.Smooth);
 
-				// Decorate
-				this.addDecorations(editor, item.range.decoration);
+				// Decowate
+				this.addDecowations(editow, item.wange.decowation);
 			}
 		}));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	protected async doGetSymbolPicks(symbolsPromise: Promise<DocumentSymbol[]>, query: IPreparedQuery, options: { extraContainerLabel?: string } | undefined, token: CancellationToken): Promise<Array<IGotoSymbolQuickPickItem | IQuickPickSeparator>> {
-		const symbols = await symbolsPromise;
-		if (token.isCancellationRequested) {
-			return [];
+	pwotected async doGetSymbowPicks(symbowsPwomise: Pwomise<DocumentSymbow[]>, quewy: IPwepawedQuewy, options: { extwaContainewWabew?: stwing } | undefined, token: CancewwationToken): Pwomise<Awway<IGotoSymbowQuickPickItem | IQuickPickSepawatow>> {
+		const symbows = await symbowsPwomise;
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		const filterBySymbolKind = query.original.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
-		const filterPos = filterBySymbolKind ? 1 : 0;
+		const fiwtewBySymbowKind = quewy.owiginaw.indexOf(AbstwactGotoSymbowQuickAccessPwovida.SCOPE_PWEFIX) === 0;
+		const fiwtewPos = fiwtewBySymbowKind ? 1 : 0;
 
-		// Split between symbol and container query
-		let symbolQuery: IPreparedQuery;
-		let containerQuery: IPreparedQuery | undefined;
-		if (query.values && query.values.length > 1) {
-			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
-			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
-		} else {
-			symbolQuery = query;
+		// Spwit between symbow and containa quewy
+		wet symbowQuewy: IPwepawedQuewy;
+		wet containewQuewy: IPwepawedQuewy | undefined;
+		if (quewy.vawues && quewy.vawues.wength > 1) {
+			symbowQuewy = pieceToQuewy(quewy.vawues[0]); 		  // symbow: onwy match on fiwst pawt
+			containewQuewy = pieceToQuewy(quewy.vawues.swice(1)); // containa: match on aww but fiwst pawts
+		} ewse {
+			symbowQuewy = quewy;
 		}
 
-		// Convert to symbol picks and apply filtering
-		const filteredSymbolPicks: IGotoSymbolQuickPickItem[] = [];
-		for (let index = 0; index < symbols.length; index++) {
-			const symbol = symbols[index];
+		// Convewt to symbow picks and appwy fiwtewing
+		const fiwtewedSymbowPicks: IGotoSymbowQuickPickItem[] = [];
+		fow (wet index = 0; index < symbows.wength; index++) {
+			const symbow = symbows[index];
 
-			const symbolLabel = trim(symbol.name);
-			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
+			const symbowWabew = twim(symbow.name);
+			const symbowWabewWithIcon = `$(symbow-${SymbowKinds.toStwing(symbow.kind) || 'pwopewty'}) ${symbowWabew}`;
+			const symbowWabewIconOffset = symbowWabewWithIcon.wength - symbowWabew.wength;
 
-			let containerLabel = symbol.containerName;
-			if (options?.extraContainerLabel) {
-				if (containerLabel) {
-					containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
-				} else {
-					containerLabel = options.extraContainerLabel;
+			wet containewWabew = symbow.containewName;
+			if (options?.extwaContainewWabew) {
+				if (containewWabew) {
+					containewWabew = `${options.extwaContainewWabew} • ${containewWabew}`;
+				} ewse {
+					containewWabew = options.extwaContainewWabew;
 				}
 			}
 
-			let symbolScore: number | undefined = undefined;
-			let symbolMatches: IMatch[] | undefined = undefined;
+			wet symbowScowe: numba | undefined = undefined;
+			wet symbowMatches: IMatch[] | undefined = undefined;
 
-			let containerScore: number | undefined = undefined;
-			let containerMatches: IMatch[] | undefined = undefined;
+			wet containewScowe: numba | undefined = undefined;
+			wet containewMatches: IMatch[] | undefined = undefined;
 
-			if (query.original.length > filterPos) {
+			if (quewy.owiginaw.wength > fiwtewPos) {
 
-				// First: try to score on the entire query, it is possible that
-				// the symbol matches perfectly (e.g. searching for "change log"
-				// can be a match on a markdown symbol "change log"). In that
-				// case we want to skip the container query altogether.
-				let skipContainerQuery = false;
-				if (symbolQuery !== query) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
-					if (typeof symbolScore === 'number') {
-						skipContainerQuery = true; // since we consumed the query, skip any container matching
+				// Fiwst: twy to scowe on the entiwe quewy, it is possibwe that
+				// the symbow matches pewfectwy (e.g. seawching fow "change wog"
+				// can be a match on a mawkdown symbow "change wog"). In that
+				// case we want to skip the containa quewy awtogetha.
+				wet skipContainewQuewy = fawse;
+				if (symbowQuewy !== quewy) {
+					[symbowScowe, symbowMatches] = scoweFuzzy2(symbowWabewWithIcon, { ...quewy, vawues: undefined /* disabwe muwti-quewy suppowt */ }, fiwtewPos, symbowWabewIconOffset);
+					if (typeof symbowScowe === 'numba') {
+						skipContainewQuewy = twue; // since we consumed the quewy, skip any containa matching
 					}
 				}
 
-				// Otherwise: score on the symbol query and match on the container later
-				if (typeof symbolScore !== 'number') {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, filterPos, symbolLabelIconOffset);
-					if (typeof symbolScore !== 'number') {
+				// Othewwise: scowe on the symbow quewy and match on the containa wata
+				if (typeof symbowScowe !== 'numba') {
+					[symbowScowe, symbowMatches] = scoweFuzzy2(symbowWabewWithIcon, symbowQuewy, fiwtewPos, symbowWabewIconOffset);
+					if (typeof symbowScowe !== 'numba') {
 						continue;
 					}
 				}
 
-				// Score by container if specified
-				if (!skipContainerQuery && containerQuery) {
-					if (containerLabel && containerQuery.original.length > 0) {
-						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
+				// Scowe by containa if specified
+				if (!skipContainewQuewy && containewQuewy) {
+					if (containewWabew && containewQuewy.owiginaw.wength > 0) {
+						[containewScowe, containewMatches] = scoweFuzzy2(containewWabew, containewQuewy);
 					}
 
-					if (typeof containerScore !== 'number') {
+					if (typeof containewScowe !== 'numba') {
 						continue;
 					}
 
-					if (typeof symbolScore === 'number') {
-						symbolScore += containerScore; // boost symbolScore by containerScore
+					if (typeof symbowScowe === 'numba') {
+						symbowScowe += containewScowe; // boost symbowScowe by containewScowe
 					}
 				}
 			}
 
-			const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+			const depwecated = symbow.tags && symbow.tags.indexOf(SymbowTag.Depwecated) >= 0;
 
-			filteredSymbolPicks.push({
+			fiwtewedSymbowPicks.push({
 				index,
-				kind: symbol.kind,
-				score: symbolScore,
-				label: symbolLabelWithIcon,
-				ariaLabel: symbolLabel,
-				description: containerLabel,
-				highlights: deprecated ? undefined : {
-					label: symbolMatches,
-					description: containerMatches
+				kind: symbow.kind,
+				scowe: symbowScowe,
+				wabew: symbowWabewWithIcon,
+				awiaWabew: symbowWabew,
+				descwiption: containewWabew,
+				highwights: depwecated ? undefined : {
+					wabew: symbowMatches,
+					descwiption: containewMatches
 				},
-				range: {
-					selection: Range.collapseToStart(symbol.selectionRange),
-					decoration: symbol.range
+				wange: {
+					sewection: Wange.cowwapseToStawt(symbow.sewectionWange),
+					decowation: symbow.wange
 				},
-				strikethrough: deprecated,
+				stwikethwough: depwecated,
 				buttons: (() => {
-					const openSideBySideDirection = this.options?.openSideBySideDirection ? this.options?.openSideBySideDirection() : undefined;
-					if (!openSideBySideDirection) {
-						return undefined;
+					const openSideBySideDiwection = this.options?.openSideBySideDiwection ? this.options?.openSideBySideDiwection() : undefined;
+					if (!openSideBySideDiwection) {
+						wetuwn undefined;
 					}
 
-					return [
+					wetuwn [
 						{
-							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+							iconCwass: openSideBySideDiwection === 'wight' ? Codicon.spwitHowizontaw.cwassNames : Codicon.spwitVewticaw.cwassNames,
+							toowtip: openSideBySideDiwection === 'wight' ? wocawize('openToSide', "Open to the Side") : wocawize('openToBottom', "Open to the Bottom")
 						}
 					];
 				})()
 			});
 		}
 
-		// Sort by score
-		const sortedFilteredSymbolPicks = filteredSymbolPicks.sort((symbolA, symbolB) => filterBySymbolKind ?
-			this.compareByKindAndScore(symbolA, symbolB) :
-			this.compareByScore(symbolA, symbolB)
+		// Sowt by scowe
+		const sowtedFiwtewedSymbowPicks = fiwtewedSymbowPicks.sowt((symbowA, symbowB) => fiwtewBySymbowKind ?
+			this.compaweByKindAndScowe(symbowA, symbowB) :
+			this.compaweByScowe(symbowA, symbowB)
 		);
 
-		// Add separator for types
-		// - @  only total number of symbols
-		// - @: grouped by symbol kind
-		let symbolPicks: Array<IGotoSymbolQuickPickItem | IQuickPickSeparator> = [];
-		if (filterBySymbolKind) {
-			let lastSymbolKind: SymbolKind | undefined = undefined;
-			let lastSeparator: IQuickPickSeparator | undefined = undefined;
-			let lastSymbolKindCounter = 0;
+		// Add sepawatow fow types
+		// - @  onwy totaw numba of symbows
+		// - @: gwouped by symbow kind
+		wet symbowPicks: Awway<IGotoSymbowQuickPickItem | IQuickPickSepawatow> = [];
+		if (fiwtewBySymbowKind) {
+			wet wastSymbowKind: SymbowKind | undefined = undefined;
+			wet wastSepawatow: IQuickPickSepawatow | undefined = undefined;
+			wet wastSymbowKindCounta = 0;
 
-			function updateLastSeparatorLabel(): void {
-				if (lastSeparator && typeof lastSymbolKind === 'number' && lastSymbolKindCounter > 0) {
-					lastSeparator.label = format(NLS_SYMBOL_KIND_CACHE[lastSymbolKind] || FALLBACK_NLS_SYMBOL_KIND, lastSymbolKindCounter);
+			function updateWastSepawatowWabew(): void {
+				if (wastSepawatow && typeof wastSymbowKind === 'numba' && wastSymbowKindCounta > 0) {
+					wastSepawatow.wabew = fowmat(NWS_SYMBOW_KIND_CACHE[wastSymbowKind] || FAWWBACK_NWS_SYMBOW_KIND, wastSymbowKindCounta);
 				}
 			}
 
-			for (const symbolPick of sortedFilteredSymbolPicks) {
+			fow (const symbowPick of sowtedFiwtewedSymbowPicks) {
 
 				// Found new kind
-				if (lastSymbolKind !== symbolPick.kind) {
+				if (wastSymbowKind !== symbowPick.kind) {
 
-					// Update last separator with number of symbols we found for kind
-					updateLastSeparatorLabel();
+					// Update wast sepawatow with numba of symbows we found fow kind
+					updateWastSepawatowWabew();
 
-					lastSymbolKind = symbolPick.kind;
-					lastSymbolKindCounter = 1;
+					wastSymbowKind = symbowPick.kind;
+					wastSymbowKindCounta = 1;
 
-					// Add new separator for new kind
-					lastSeparator = { type: 'separator' };
-					symbolPicks.push(lastSeparator);
+					// Add new sepawatow fow new kind
+					wastSepawatow = { type: 'sepawatow' };
+					symbowPicks.push(wastSepawatow);
 				}
 
 				// Existing kind, keep counting
-				else {
-					lastSymbolKindCounter++;
+				ewse {
+					wastSymbowKindCounta++;
 				}
 
-				// Add to final result
-				symbolPicks.push(symbolPick);
+				// Add to finaw wesuwt
+				symbowPicks.push(symbowPick);
 			}
 
-			// Update last separator with number of symbols we found for kind
-			updateLastSeparatorLabel();
-		} else if (sortedFilteredSymbolPicks.length > 0) {
-			symbolPicks = [
-				{ label: localize('symbols', "symbols ({0})", filteredSymbolPicks.length), type: 'separator' },
-				...sortedFilteredSymbolPicks
+			// Update wast sepawatow with numba of symbows we found fow kind
+			updateWastSepawatowWabew();
+		} ewse if (sowtedFiwtewedSymbowPicks.wength > 0) {
+			symbowPicks = [
+				{ wabew: wocawize('symbows', "symbows ({0})", fiwtewedSymbowPicks.wength), type: 'sepawatow' },
+				...sowtedFiwtewedSymbowPicks
 			];
 		}
 
-		return symbolPicks;
+		wetuwn symbowPicks;
 	}
 
-	private compareByScore(symbolA: IGotoSymbolQuickPickItem, symbolB: IGotoSymbolQuickPickItem): number {
-		if (typeof symbolA.score !== 'number' && typeof symbolB.score === 'number') {
-			return 1;
-		} else if (typeof symbolA.score === 'number' && typeof symbolB.score !== 'number') {
-			return -1;
+	pwivate compaweByScowe(symbowA: IGotoSymbowQuickPickItem, symbowB: IGotoSymbowQuickPickItem): numba {
+		if (typeof symbowA.scowe !== 'numba' && typeof symbowB.scowe === 'numba') {
+			wetuwn 1;
+		} ewse if (typeof symbowA.scowe === 'numba' && typeof symbowB.scowe !== 'numba') {
+			wetuwn -1;
 		}
 
-		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
-			if (symbolA.score > symbolB.score) {
-				return -1;
-			} else if (symbolA.score < symbolB.score) {
-				return 1;
+		if (typeof symbowA.scowe === 'numba' && typeof symbowB.scowe === 'numba') {
+			if (symbowA.scowe > symbowB.scowe) {
+				wetuwn -1;
+			} ewse if (symbowA.scowe < symbowB.scowe) {
+				wetuwn 1;
 			}
 		}
 
-		if (symbolA.index < symbolB.index) {
-			return -1;
-		} else if (symbolA.index > symbolB.index) {
-			return 1;
+		if (symbowA.index < symbowB.index) {
+			wetuwn -1;
+		} ewse if (symbowA.index > symbowB.index) {
+			wetuwn 1;
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 
-	private compareByKindAndScore(symbolA: IGotoSymbolQuickPickItem, symbolB: IGotoSymbolQuickPickItem): number {
-		const kindA = NLS_SYMBOL_KIND_CACHE[symbolA.kind] || FALLBACK_NLS_SYMBOL_KIND;
-		const kindB = NLS_SYMBOL_KIND_CACHE[symbolB.kind] || FALLBACK_NLS_SYMBOL_KIND;
+	pwivate compaweByKindAndScowe(symbowA: IGotoSymbowQuickPickItem, symbowB: IGotoSymbowQuickPickItem): numba {
+		const kindA = NWS_SYMBOW_KIND_CACHE[symbowA.kind] || FAWWBACK_NWS_SYMBOW_KIND;
+		const kindB = NWS_SYMBOW_KIND_CACHE[symbowB.kind] || FAWWBACK_NWS_SYMBOW_KIND;
 
-		// Sort by type first if scoped search
-		const result = kindA.localeCompare(kindB);
-		if (result === 0) {
-			return this.compareByScore(symbolA, symbolB);
+		// Sowt by type fiwst if scoped seawch
+		const wesuwt = kindA.wocaweCompawe(kindB);
+		if (wesuwt === 0) {
+			wetuwn this.compaweByScowe(symbowA, symbowB);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected async getDocumentSymbols(document: ITextModel, token: CancellationToken): Promise<DocumentSymbol[]> {
-		const model = await OutlineModel.create(document, token);
-		return token.isCancellationRequested ? [] : model.asListOfDocumentSymbols();
+	pwotected async getDocumentSymbows(document: ITextModew, token: CancewwationToken): Pwomise<DocumentSymbow[]> {
+		const modew = await OutwineModew.cweate(document, token);
+		wetuwn token.isCancewwationWequested ? [] : modew.asWistOfDocumentSymbows();
 	}
 }
 
-// #region NLS Helpers
+// #wegion NWS Hewpews
 
-const FALLBACK_NLS_SYMBOL_KIND = localize('property', "properties ({0})");
-const NLS_SYMBOL_KIND_CACHE: { [type: number]: string } = {
-	[SymbolKind.Method]: localize('method', "methods ({0})"),
-	[SymbolKind.Function]: localize('function', "functions ({0})"),
-	[SymbolKind.Constructor]: localize('_constructor', "constructors ({0})"),
-	[SymbolKind.Variable]: localize('variable', "variables ({0})"),
-	[SymbolKind.Class]: localize('class', "classes ({0})"),
-	[SymbolKind.Struct]: localize('struct', "structs ({0})"),
-	[SymbolKind.Event]: localize('event', "events ({0})"),
-	[SymbolKind.Operator]: localize('operator', "operators ({0})"),
-	[SymbolKind.Interface]: localize('interface', "interfaces ({0})"),
-	[SymbolKind.Namespace]: localize('namespace', "namespaces ({0})"),
-	[SymbolKind.Package]: localize('package', "packages ({0})"),
-	[SymbolKind.TypeParameter]: localize('typeParameter', "type parameters ({0})"),
-	[SymbolKind.Module]: localize('modules', "modules ({0})"),
-	[SymbolKind.Property]: localize('property', "properties ({0})"),
-	[SymbolKind.Enum]: localize('enum', "enumerations ({0})"),
-	[SymbolKind.EnumMember]: localize('enumMember', "enumeration members ({0})"),
-	[SymbolKind.String]: localize('string', "strings ({0})"),
-	[SymbolKind.File]: localize('file', "files ({0})"),
-	[SymbolKind.Array]: localize('array', "arrays ({0})"),
-	[SymbolKind.Number]: localize('number', "numbers ({0})"),
-	[SymbolKind.Boolean]: localize('boolean', "booleans ({0})"),
-	[SymbolKind.Object]: localize('object', "objects ({0})"),
-	[SymbolKind.Key]: localize('key', "keys ({0})"),
-	[SymbolKind.Field]: localize('field', "fields ({0})"),
-	[SymbolKind.Constant]: localize('constant', "constants ({0})")
+const FAWWBACK_NWS_SYMBOW_KIND = wocawize('pwopewty', "pwopewties ({0})");
+const NWS_SYMBOW_KIND_CACHE: { [type: numba]: stwing } = {
+	[SymbowKind.Method]: wocawize('method', "methods ({0})"),
+	[SymbowKind.Function]: wocawize('function', "functions ({0})"),
+	[SymbowKind.Constwuctow]: wocawize('_constwuctow', "constwuctows ({0})"),
+	[SymbowKind.Vawiabwe]: wocawize('vawiabwe', "vawiabwes ({0})"),
+	[SymbowKind.Cwass]: wocawize('cwass', "cwasses ({0})"),
+	[SymbowKind.Stwuct]: wocawize('stwuct', "stwucts ({0})"),
+	[SymbowKind.Event]: wocawize('event', "events ({0})"),
+	[SymbowKind.Opewatow]: wocawize('opewatow', "opewatows ({0})"),
+	[SymbowKind.Intewface]: wocawize('intewface', "intewfaces ({0})"),
+	[SymbowKind.Namespace]: wocawize('namespace', "namespaces ({0})"),
+	[SymbowKind.Package]: wocawize('package', "packages ({0})"),
+	[SymbowKind.TypePawameta]: wocawize('typePawameta', "type pawametews ({0})"),
+	[SymbowKind.Moduwe]: wocawize('moduwes', "moduwes ({0})"),
+	[SymbowKind.Pwopewty]: wocawize('pwopewty', "pwopewties ({0})"),
+	[SymbowKind.Enum]: wocawize('enum', "enumewations ({0})"),
+	[SymbowKind.EnumMemba]: wocawize('enumMemba', "enumewation membews ({0})"),
+	[SymbowKind.Stwing]: wocawize('stwing', "stwings ({0})"),
+	[SymbowKind.Fiwe]: wocawize('fiwe', "fiwes ({0})"),
+	[SymbowKind.Awway]: wocawize('awway', "awways ({0})"),
+	[SymbowKind.Numba]: wocawize('numba', "numbews ({0})"),
+	[SymbowKind.Boowean]: wocawize('boowean', "booweans ({0})"),
+	[SymbowKind.Object]: wocawize('object', "objects ({0})"),
+	[SymbowKind.Key]: wocawize('key', "keys ({0})"),
+	[SymbowKind.Fiewd]: wocawize('fiewd', "fiewds ({0})"),
+	[SymbowKind.Constant]: wocawize('constant', "constants ({0})")
 };
 
-//#endregion
+//#endwegion

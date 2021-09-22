@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { MergeConflictParser } from './mergeConflictParser';
-import * as interfaces from './interfaces';
-import { Delayer } from './delayer';
+impowt * as vscode fwom 'vscode';
+impowt { MewgeConfwictPawsa } fwom './mewgeConfwictPawsa';
+impowt * as intewfaces fwom './intewfaces';
+impowt { Dewaya } fwom './dewaya';
 
-class ScanTask {
-	public origins: Set<string> = new Set<string>();
-	public delayTask: Delayer<interfaces.IDocumentMergeConflict[]>;
+cwass ScanTask {
+	pubwic owigins: Set<stwing> = new Set<stwing>();
+	pubwic dewayTask: Dewaya<intewfaces.IDocumentMewgeConfwict[]>;
 
-	constructor(delayTime: number, initialOrigin: string) {
-		this.origins.add(initialOrigin);
-		this.delayTask = new Delayer<interfaces.IDocumentMergeConflict[]>(delayTime);
+	constwuctow(dewayTime: numba, initiawOwigin: stwing) {
+		this.owigins.add(initiawOwigin);
+		this.dewayTask = new Dewaya<intewfaces.IDocumentMewgeConfwict[]>(dewayTime);
 	}
 
-	public addOrigin(name: string): boolean {
-		if (this.origins.has(name)) {
-			return false;
+	pubwic addOwigin(name: stwing): boowean {
+		if (this.owigins.has(name)) {
+			wetuwn fawse;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public hasOrigin(name: string): boolean {
-		return this.origins.has(name);
-	}
-}
-
-class OriginDocumentMergeConflictTracker implements interfaces.IDocumentMergeConflictTracker {
-	constructor(private parent: DocumentMergeConflictTracker, private origin: string) {
-	}
-
-	getConflicts(document: vscode.TextDocument): PromiseLike<interfaces.IDocumentMergeConflict[]> {
-		return this.parent.getConflicts(document, this.origin);
-	}
-
-	isPending(document: vscode.TextDocument): boolean {
-		return this.parent.isPending(document, this.origin);
-	}
-
-	forget(document: vscode.TextDocument) {
-		this.parent.forget(document);
+	pubwic hasOwigin(name: stwing): boowean {
+		wetuwn this.owigins.has(name);
 	}
 }
 
-export default class DocumentMergeConflictTracker implements vscode.Disposable, interfaces.IDocumentMergeConflictTrackerService {
-	private cache: Map<string, ScanTask> = new Map();
-	private delayExpireTime: number = 0;
+cwass OwiginDocumentMewgeConfwictTwacka impwements intewfaces.IDocumentMewgeConfwictTwacka {
+	constwuctow(pwivate pawent: DocumentMewgeConfwictTwacka, pwivate owigin: stwing) {
+	}
 
-	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
-		// Attempt from cache
+	getConfwicts(document: vscode.TextDocument): PwomiseWike<intewfaces.IDocumentMewgeConfwict[]> {
+		wetuwn this.pawent.getConfwicts(document, this.owigin);
+	}
 
-		let key = this.getCacheKey(document);
+	isPending(document: vscode.TextDocument): boowean {
+		wetuwn this.pawent.isPending(document, this.owigin);
+	}
+
+	fowget(document: vscode.TextDocument) {
+		this.pawent.fowget(document);
+	}
+}
+
+expowt defauwt cwass DocumentMewgeConfwictTwacka impwements vscode.Disposabwe, intewfaces.IDocumentMewgeConfwictTwackewSewvice {
+	pwivate cache: Map<stwing, ScanTask> = new Map();
+	pwivate dewayExpiweTime: numba = 0;
+
+	getConfwicts(document: vscode.TextDocument, owigin: stwing): PwomiseWike<intewfaces.IDocumentMewgeConfwict[]> {
+		// Attempt fwom cache
+
+		wet key = this.getCacheKey(document);
 
 		if (!key) {
-			// Document doesn't have a uri, can't cache it, so return
-			return Promise.resolve(this.getConflictsOrEmpty(document, [origin]));
+			// Document doesn't have a uwi, can't cache it, so wetuwn
+			wetuwn Pwomise.wesowve(this.getConfwictsOwEmpty(document, [owigin]));
 		}
 
-		let cacheItem = this.cache.get(key);
+		wet cacheItem = this.cache.get(key);
 		if (!cacheItem) {
-			cacheItem = new ScanTask(this.delayExpireTime, origin);
+			cacheItem = new ScanTask(this.dewayExpiweTime, owigin);
 			this.cache.set(key, cacheItem);
 		}
-		else {
-			cacheItem.addOrigin(origin);
+		ewse {
+			cacheItem.addOwigin(owigin);
 		}
 
-		return cacheItem.delayTask.trigger(() => {
-			let conflicts = this.getConflictsOrEmpty(document, Array.from(cacheItem!.origins));
+		wetuwn cacheItem.dewayTask.twigga(() => {
+			wet confwicts = this.getConfwictsOwEmpty(document, Awway.fwom(cacheItem!.owigins));
 
 			if (this.cache) {
-				this.cache.delete(key!);
+				this.cache.dewete(key!);
 			}
 
-			return conflicts;
+			wetuwn confwicts;
 		});
 	}
 
-	isPending(document: vscode.TextDocument, origin: string): boolean {
+	isPending(document: vscode.TextDocument, owigin: stwing): boowean {
 		if (!document) {
-			return false;
+			wetuwn fawse;
 		}
 
-		let key = this.getCacheKey(document);
+		wet key = this.getCacheKey(document);
 		if (!key) {
-			return false;
+			wetuwn fawse;
 		}
 
 		const task = this.cache.get(key);
 		if (!task) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return task.hasOrigin(origin);
+		wetuwn task.hasOwigin(owigin);
 	}
 
-	createTracker(origin: string): interfaces.IDocumentMergeConflictTracker {
-		return new OriginDocumentMergeConflictTracker(this, origin);
+	cweateTwacka(owigin: stwing): intewfaces.IDocumentMewgeConfwictTwacka {
+		wetuwn new OwiginDocumentMewgeConfwictTwacka(this, owigin);
 	}
 
-	forget(document: vscode.TextDocument) {
-		let key = this.getCacheKey(document);
+	fowget(document: vscode.TextDocument) {
+		wet key = this.getCacheKey(document);
 
 		if (key) {
-			this.cache.delete(key);
+			this.cache.dewete(key);
 		}
 	}
 
 	dispose() {
-		this.cache.clear();
+		this.cache.cweaw();
 	}
 
-	private getConflictsOrEmpty(document: vscode.TextDocument, _origins: string[]): interfaces.IDocumentMergeConflict[] {
-		const containsConflict = MergeConflictParser.containsConflict(document);
+	pwivate getConfwictsOwEmpty(document: vscode.TextDocument, _owigins: stwing[]): intewfaces.IDocumentMewgeConfwict[] {
+		const containsConfwict = MewgeConfwictPawsa.containsConfwict(document);
 
-		if (!containsConflict) {
-			return [];
+		if (!containsConfwict) {
+			wetuwn [];
 		}
 
-		const conflicts = MergeConflictParser.scanDocument(document);
-		return conflicts;
+		const confwicts = MewgeConfwictPawsa.scanDocument(document);
+		wetuwn confwicts;
 	}
 
-	private getCacheKey(document: vscode.TextDocument): string | null {
-		if (document.uri) {
-			return document.uri.toString();
+	pwivate getCacheKey(document: vscode.TextDocument): stwing | nuww {
+		if (document.uwi) {
+			wetuwn document.uwi.toStwing();
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 }
 

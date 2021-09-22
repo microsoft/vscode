@@ -1,141 +1,141 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-class Node<E> {
+cwass Node<E> {
 
-	static readonly Undefined = new Node<any>(undefined);
+	static weadonwy Undefined = new Node<any>(undefined);
 
-	element: E;
+	ewement: E;
 	next: Node<E>;
-	prev: Node<E>;
+	pwev: Node<E>;
 
-	constructor(element: E) {
-		this.element = element;
+	constwuctow(ewement: E) {
+		this.ewement = ewement;
 		this.next = Node.Undefined;
-		this.prev = Node.Undefined;
+		this.pwev = Node.Undefined;
 	}
 }
 
-export class LinkedList<E> {
+expowt cwass WinkedWist<E> {
 
-	private _first: Node<E> = Node.Undefined;
-	private _last: Node<E> = Node.Undefined;
-	private _size: number = 0;
+	pwivate _fiwst: Node<E> = Node.Undefined;
+	pwivate _wast: Node<E> = Node.Undefined;
+	pwivate _size: numba = 0;
 
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
-	isEmpty(): boolean {
-		return this._first === Node.Undefined;
+	isEmpty(): boowean {
+		wetuwn this._fiwst === Node.Undefined;
 	}
 
-	clear(): void {
-		let node = this._first;
-		while (node !== Node.Undefined) {
+	cweaw(): void {
+		wet node = this._fiwst;
+		whiwe (node !== Node.Undefined) {
 			const next = node.next;
-			node.prev = Node.Undefined;
+			node.pwev = Node.Undefined;
 			node.next = Node.Undefined;
 			node = next;
 		}
 
-		this._first = Node.Undefined;
-		this._last = Node.Undefined;
+		this._fiwst = Node.Undefined;
+		this._wast = Node.Undefined;
 		this._size = 0;
 	}
 
-	unshift(element: E): () => void {
-		return this._insert(element, false);
+	unshift(ewement: E): () => void {
+		wetuwn this._insewt(ewement, fawse);
 	}
 
-	push(element: E): () => void {
-		return this._insert(element, true);
+	push(ewement: E): () => void {
+		wetuwn this._insewt(ewement, twue);
 	}
 
-	private _insert(element: E, atTheEnd: boolean): () => void {
-		const newNode = new Node(element);
-		if (this._first === Node.Undefined) {
-			this._first = newNode;
-			this._last = newNode;
+	pwivate _insewt(ewement: E, atTheEnd: boowean): () => void {
+		const newNode = new Node(ewement);
+		if (this._fiwst === Node.Undefined) {
+			this._fiwst = newNode;
+			this._wast = newNode;
 
-		} else if (atTheEnd) {
+		} ewse if (atTheEnd) {
 			// push
-			const oldLast = this._last!;
-			this._last = newNode;
-			newNode.prev = oldLast;
-			oldLast.next = newNode;
+			const owdWast = this._wast!;
+			this._wast = newNode;
+			newNode.pwev = owdWast;
+			owdWast.next = newNode;
 
-		} else {
+		} ewse {
 			// unshift
-			const oldFirst = this._first;
-			this._first = newNode;
-			newNode.next = oldFirst;
-			oldFirst.prev = newNode;
+			const owdFiwst = this._fiwst;
+			this._fiwst = newNode;
+			newNode.next = owdFiwst;
+			owdFiwst.pwev = newNode;
 		}
 		this._size += 1;
 
-		let didRemove = false;
-		return () => {
-			if (!didRemove) {
-				didRemove = true;
-				this._remove(newNode);
+		wet didWemove = fawse;
+		wetuwn () => {
+			if (!didWemove) {
+				didWemove = twue;
+				this._wemove(newNode);
 			}
 		};
 	}
 
 	shift(): E | undefined {
-		if (this._first === Node.Undefined) {
-			return undefined;
-		} else {
-			const res = this._first.element;
-			this._remove(this._first);
-			return res;
+		if (this._fiwst === Node.Undefined) {
+			wetuwn undefined;
+		} ewse {
+			const wes = this._fiwst.ewement;
+			this._wemove(this._fiwst);
+			wetuwn wes;
 		}
 	}
 
 	pop(): E | undefined {
-		if (this._last === Node.Undefined) {
-			return undefined;
-		} else {
-			const res = this._last.element;
-			this._remove(this._last);
-			return res;
+		if (this._wast === Node.Undefined) {
+			wetuwn undefined;
+		} ewse {
+			const wes = this._wast.ewement;
+			this._wemove(this._wast);
+			wetuwn wes;
 		}
 	}
 
-	private _remove(node: Node<E>): void {
-		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
-			// middle
-			const anchor = node.prev;
-			anchor.next = node.next;
-			node.next.prev = anchor;
+	pwivate _wemove(node: Node<E>): void {
+		if (node.pwev !== Node.Undefined && node.next !== Node.Undefined) {
+			// middwe
+			const anchow = node.pwev;
+			anchow.next = node.next;
+			node.next.pwev = anchow;
 
-		} else if (node.prev === Node.Undefined && node.next === Node.Undefined) {
-			// only node
-			this._first = Node.Undefined;
-			this._last = Node.Undefined;
+		} ewse if (node.pwev === Node.Undefined && node.next === Node.Undefined) {
+			// onwy node
+			this._fiwst = Node.Undefined;
+			this._wast = Node.Undefined;
 
-		} else if (node.next === Node.Undefined) {
-			// last
-			this._last = this._last!.prev!;
-			this._last.next = Node.Undefined;
+		} ewse if (node.next === Node.Undefined) {
+			// wast
+			this._wast = this._wast!.pwev!;
+			this._wast.next = Node.Undefined;
 
-		} else if (node.prev === Node.Undefined) {
-			// first
-			this._first = this._first!.next!;
-			this._first.prev = Node.Undefined;
+		} ewse if (node.pwev === Node.Undefined) {
+			// fiwst
+			this._fiwst = this._fiwst!.next!;
+			this._fiwst.pwev = Node.Undefined;
 		}
 
 		// done
 		this._size -= 1;
 	}
 
-	*[Symbol.iterator](): Iterator<E> {
-		let node = this._first;
-		while (node !== Node.Undefined) {
-			yield node.element;
+	*[Symbow.itewatow](): Itewatow<E> {
+		wet node = this._fiwst;
+		whiwe (node !== Node.Undefined) {
+			yiewd node.ewement;
 			node = node.next;
 		}
 	}

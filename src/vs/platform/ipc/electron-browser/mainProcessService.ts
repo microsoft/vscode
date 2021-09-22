@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as MessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+impowt { IChannew, ISewvewChannew, StaticWouta } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Sewva as MessagePowtSewva } fwom 'vs/base/pawts/ipc/ewectwon-bwowsa/ipc.mp';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
 
 /**
- * An implementation of `IMainProcessService` that leverages MessagePorts.
+ * An impwementation of `IMainPwocessSewvice` that wevewages MessagePowts.
  */
-export class MessagePortMainProcessService implements IMainProcessService {
+expowt cwass MessagePowtMainPwocessSewvice impwements IMainPwocessSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		private server: MessagePortServer,
-		private router: StaticRouter
+	constwuctow(
+		pwivate sewva: MessagePowtSewva,
+		pwivate wouta: StaticWouta
 	) { }
 
-	getChannel(channelName: string): IChannel {
-		return this.server.getChannel(channelName, this.router);
+	getChannew(channewName: stwing): IChannew {
+		wetuwn this.sewva.getChannew(channewName, this.wouta);
 	}
 
-	registerChannel(channelName: string, channel: IServerChannel<string>): void {
-		this.server.registerChannel(channelName, channel);
+	wegistewChannew(channewName: stwing, channew: ISewvewChannew<stwing>): void {
+		this.sewva.wegistewChannew(channewName, channew);
 	}
 }

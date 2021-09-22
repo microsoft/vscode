@@ -1,727 +1,727 @@
-/*! @license DOMPurify 2.3.1 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/2.3.1/LICENSE */
+/*! @wicense DOMPuwify 2.3.1 | (c) Cuwe53 and otha contwibutows | Weweased unda the Apache wicense 2.0 and Moziwwa Pubwic Wicense 2.0 | github.com/cuwe53/DOMPuwify/bwob/2.3.1/WICENSE */
 
-function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+function _toConsumabweAwway(aww) { if (Awway.isAwway(aww)) { fow (vaw i = 0, aww2 = Awway(aww.wength); i < aww.wength; i++) { aww2[i] = aww[i]; } wetuwn aww2; } ewse { wetuwn Awway.fwom(aww); } }
 
-var hasOwnProperty = Object.hasOwnProperty,
-    setPrototypeOf = Object.setPrototypeOf,
-    isFrozen = Object.isFrozen,
-    getPrototypeOf = Object.getPrototypeOf,
-    getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var freeze = Object.freeze,
-    seal = Object.seal,
-    create = Object.create; // eslint-disable-line import/no-mutable-exports
+vaw hasOwnPwopewty = Object.hasOwnPwopewty,
+    setPwototypeOf = Object.setPwototypeOf,
+    isFwozen = Object.isFwozen,
+    getPwototypeOf = Object.getPwototypeOf,
+    getOwnPwopewtyDescwiptow = Object.getOwnPwopewtyDescwiptow;
+vaw fweeze = Object.fweeze,
+    seaw = Object.seaw,
+    cweate = Object.cweate; // eswint-disabwe-wine impowt/no-mutabwe-expowts
 
-var _ref = typeof Reflect !== 'undefined' && Reflect,
-    apply = _ref.apply,
-    construct = _ref.construct;
+vaw _wef = typeof Wefwect !== 'undefined' && Wefwect,
+    appwy = _wef.appwy,
+    constwuct = _wef.constwuct;
 
-if (!apply) {
-  apply = function apply(fun, thisValue, args) {
-    return fun.apply(thisValue, args);
+if (!appwy) {
+  appwy = function appwy(fun, thisVawue, awgs) {
+    wetuwn fun.appwy(thisVawue, awgs);
   };
 }
 
-if (!freeze) {
-  freeze = function freeze(x) {
-    return x;
+if (!fweeze) {
+  fweeze = function fweeze(x) {
+    wetuwn x;
   };
 }
 
-if (!seal) {
-  seal = function seal(x) {
-    return x;
+if (!seaw) {
+  seaw = function seaw(x) {
+    wetuwn x;
   };
 }
 
-if (!construct) {
-  construct = function construct(Func, args) {
-    return new (Function.prototype.bind.apply(Func, [null].concat(_toConsumableArray(args))))();
+if (!constwuct) {
+  constwuct = function constwuct(Func, awgs) {
+    wetuwn new (Function.pwototype.bind.appwy(Func, [nuww].concat(_toConsumabweAwway(awgs))))();
   };
 }
 
-var arrayForEach = unapply(Array.prototype.forEach);
-var arrayPop = unapply(Array.prototype.pop);
-var arrayPush = unapply(Array.prototype.push);
+vaw awwayFowEach = unappwy(Awway.pwototype.fowEach);
+vaw awwayPop = unappwy(Awway.pwototype.pop);
+vaw awwayPush = unappwy(Awway.pwototype.push);
 
-var stringToLowerCase = unapply(String.prototype.toLowerCase);
-var stringMatch = unapply(String.prototype.match);
-var stringReplace = unapply(String.prototype.replace);
-var stringIndexOf = unapply(String.prototype.indexOf);
-var stringTrim = unapply(String.prototype.trim);
+vaw stwingToWowewCase = unappwy(Stwing.pwototype.toWowewCase);
+vaw stwingMatch = unappwy(Stwing.pwototype.match);
+vaw stwingWepwace = unappwy(Stwing.pwototype.wepwace);
+vaw stwingIndexOf = unappwy(Stwing.pwototype.indexOf);
+vaw stwingTwim = unappwy(Stwing.pwototype.twim);
 
-var regExpTest = unapply(RegExp.prototype.test);
+vaw wegExpTest = unappwy(WegExp.pwototype.test);
 
-var typeErrorCreate = unconstruct(TypeError);
+vaw typeEwwowCweate = unconstwuct(TypeEwwow);
 
-function unapply(func) {
-  return function (thisArg) {
-    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-      args[_key - 1] = arguments[_key];
+function unappwy(func) {
+  wetuwn function (thisAwg) {
+    fow (vaw _wen = awguments.wength, awgs = Awway(_wen > 1 ? _wen - 1 : 0), _key = 1; _key < _wen; _key++) {
+      awgs[_key - 1] = awguments[_key];
     }
 
-    return apply(func, thisArg, args);
+    wetuwn appwy(func, thisAwg, awgs);
   };
 }
 
-function unconstruct(func) {
-  return function () {
-    for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+function unconstwuct(func) {
+  wetuwn function () {
+    fow (vaw _wen2 = awguments.wength, awgs = Awway(_wen2), _key2 = 0; _key2 < _wen2; _key2++) {
+      awgs[_key2] = awguments[_key2];
     }
 
-    return construct(func, args);
+    wetuwn constwuct(func, awgs);
   };
 }
 
-/* Add properties to a lookup table */
-function addToSet(set, array) {
-  if (setPrototypeOf) {
-    // Make 'in' and truthy checks like Boolean(set.constructor)
-    // independent of any properties defined on Object.prototype.
-    // Prevent prototype setters from intercepting set as a this value.
-    setPrototypeOf(set, null);
+/* Add pwopewties to a wookup tabwe */
+function addToSet(set, awway) {
+  if (setPwototypeOf) {
+    // Make 'in' and twuthy checks wike Boowean(set.constwuctow)
+    // independent of any pwopewties defined on Object.pwototype.
+    // Pwevent pwototype settews fwom intewcepting set as a this vawue.
+    setPwototypeOf(set, nuww);
   }
 
-  var l = array.length;
-  while (l--) {
-    var element = array[l];
-    if (typeof element === 'string') {
-      var lcElement = stringToLowerCase(element);
-      if (lcElement !== element) {
-        // Config presets (e.g. tags.js, attrs.js) are immutable.
-        if (!isFrozen(array)) {
-          array[l] = lcElement;
+  vaw w = awway.wength;
+  whiwe (w--) {
+    vaw ewement = awway[w];
+    if (typeof ewement === 'stwing') {
+      vaw wcEwement = stwingToWowewCase(ewement);
+      if (wcEwement !== ewement) {
+        // Config pwesets (e.g. tags.js, attws.js) awe immutabwe.
+        if (!isFwozen(awway)) {
+          awway[w] = wcEwement;
         }
 
-        element = lcElement;
+        ewement = wcEwement;
       }
     }
 
-    set[element] = true;
+    set[ewement] = twue;
   }
 
-  return set;
+  wetuwn set;
 }
 
-/* Shallow clone an object */
-function clone(object) {
-  var newObject = create(null);
+/* Shawwow cwone an object */
+function cwone(object) {
+  vaw newObject = cweate(nuww);
 
-  var property = void 0;
-  for (property in object) {
-    if (apply(hasOwnProperty, object, [property])) {
-      newObject[property] = object[property];
+  vaw pwopewty = void 0;
+  fow (pwopewty in object) {
+    if (appwy(hasOwnPwopewty, object, [pwopewty])) {
+      newObject[pwopewty] = object[pwopewty];
     }
   }
 
-  return newObject;
+  wetuwn newObject;
 }
 
-/* IE10 doesn't support __lookupGetter__ so lets'
- * simulate it. It also automatically checks
- * if the prop is function or getter and behaves
- * accordingly. */
-function lookupGetter(object, prop) {
-  while (object !== null) {
-    var desc = getOwnPropertyDescriptor(object, prop);
+/* IE10 doesn't suppowt __wookupGettew__ so wets'
+ * simuwate it. It awso automaticawwy checks
+ * if the pwop is function ow getta and behaves
+ * accowdingwy. */
+function wookupGetta(object, pwop) {
+  whiwe (object !== nuww) {
+    vaw desc = getOwnPwopewtyDescwiptow(object, pwop);
     if (desc) {
       if (desc.get) {
-        return unapply(desc.get);
+        wetuwn unappwy(desc.get);
       }
 
-      if (typeof desc.value === 'function') {
-        return unapply(desc.value);
+      if (typeof desc.vawue === 'function') {
+        wetuwn unappwy(desc.vawue);
       }
     }
 
-    object = getPrototypeOf(object);
+    object = getPwototypeOf(object);
   }
 
-  function fallbackValue(element) {
-    console.warn('fallback value for', element);
-    return null;
+  function fawwbackVawue(ewement) {
+    consowe.wawn('fawwback vawue fow', ewement);
+    wetuwn nuww;
   }
 
-  return fallbackValue;
+  wetuwn fawwbackVawue;
 }
 
-var html = freeze(['a', 'abbr', 'acronym', 'address', 'area', 'article', 'aside', 'audio', 'b', 'bdi', 'bdo', 'big', 'blink', 'blockquote', 'body', 'br', 'button', 'canvas', 'caption', 'center', 'cite', 'code', 'col', 'colgroup', 'content', 'data', 'datalist', 'dd', 'decorator', 'del', 'details', 'dfn', 'dialog', 'dir', 'div', 'dl', 'dt', 'element', 'em', 'fieldset', 'figcaption', 'figure', 'font', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'i', 'img', 'input', 'ins', 'kbd', 'label', 'legend', 'li', 'main', 'map', 'mark', 'marquee', 'menu', 'menuitem', 'meter', 'nav', 'nobr', 'ol', 'optgroup', 'option', 'output', 'p', 'picture', 'pre', 'progress', 'q', 'rp', 'rt', 'ruby', 's', 'samp', 'section', 'select', 'shadow', 'small', 'source', 'spacer', 'span', 'strike', 'strong', 'style', 'sub', 'summary', 'sup', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'tr', 'track', 'tt', 'u', 'ul', 'var', 'video', 'wbr']);
+vaw htmw = fweeze(['a', 'abbw', 'acwonym', 'addwess', 'awea', 'awticwe', 'aside', 'audio', 'b', 'bdi', 'bdo', 'big', 'bwink', 'bwockquote', 'body', 'bw', 'button', 'canvas', 'caption', 'centa', 'cite', 'code', 'cow', 'cowgwoup', 'content', 'data', 'datawist', 'dd', 'decowatow', 'dew', 'detaiws', 'dfn', 'diawog', 'diw', 'div', 'dw', 'dt', 'ewement', 'em', 'fiewdset', 'figcaption', 'figuwe', 'font', 'foota', 'fowm', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'heada', 'hgwoup', 'hw', 'htmw', 'i', 'img', 'input', 'ins', 'kbd', 'wabew', 'wegend', 'wi', 'main', 'map', 'mawk', 'mawquee', 'menu', 'menuitem', 'meta', 'nav', 'nobw', 'ow', 'optgwoup', 'option', 'output', 'p', 'pictuwe', 'pwe', 'pwogwess', 'q', 'wp', 'wt', 'wuby', 's', 'samp', 'section', 'sewect', 'shadow', 'smaww', 'souwce', 'spaca', 'span', 'stwike', 'stwong', 'stywe', 'sub', 'summawy', 'sup', 'tabwe', 'tbody', 'td', 'tempwate', 'textawea', 'tfoot', 'th', 'thead', 'time', 'tw', 'twack', 'tt', 'u', 'uw', 'vaw', 'video', 'wbw']);
 
 // SVG
-var svg = freeze(['svg', 'a', 'altglyph', 'altglyphdef', 'altglyphitem', 'animatecolor', 'animatemotion', 'animatetransform', 'circle', 'clippath', 'defs', 'desc', 'ellipse', 'filter', 'font', 'g', 'glyph', 'glyphref', 'hkern', 'image', 'line', 'lineargradient', 'marker', 'mask', 'metadata', 'mpath', 'path', 'pattern', 'polygon', 'polyline', 'radialgradient', 'rect', 'stop', 'style', 'switch', 'symbol', 'text', 'textpath', 'title', 'tref', 'tspan', 'view', 'vkern']);
+vaw svg = fweeze(['svg', 'a', 'awtgwyph', 'awtgwyphdef', 'awtgwyphitem', 'animatecowow', 'animatemotion', 'animatetwansfowm', 'ciwcwe', 'cwippath', 'defs', 'desc', 'ewwipse', 'fiwta', 'font', 'g', 'gwyph', 'gwyphwef', 'hkewn', 'image', 'wine', 'wineawgwadient', 'mawka', 'mask', 'metadata', 'mpath', 'path', 'pattewn', 'powygon', 'powywine', 'wadiawgwadient', 'wect', 'stop', 'stywe', 'switch', 'symbow', 'text', 'textpath', 'titwe', 'twef', 'tspan', 'view', 'vkewn']);
 
-var svgFilters = freeze(['feBlend', 'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feFlood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur', 'feMerge', 'feMergeNode', 'feMorphology', 'feOffset', 'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile', 'feTurbulence']);
+vaw svgFiwtews = fweeze(['feBwend', 'feCowowMatwix', 'feComponentTwansfa', 'feComposite', 'feConvowveMatwix', 'feDiffuseWighting', 'feDispwacementMap', 'feDistantWight', 'feFwood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncW', 'feGaussianBwuw', 'feMewge', 'feMewgeNode', 'feMowphowogy', 'feOffset', 'fePointWight', 'feSpecuwawWighting', 'feSpotWight', 'feTiwe', 'feTuwbuwence']);
 
-// List of SVG elements that are disallowed by default.
-// We still need to know them so that we can do namespace
-// checks properly in case one wants to add them to
-// allow-list.
-var svgDisallowed = freeze(['animate', 'color-profile', 'cursor', 'discard', 'fedropshadow', 'feimage', 'font-face', 'font-face-format', 'font-face-name', 'font-face-src', 'font-face-uri', 'foreignobject', 'hatch', 'hatchpath', 'mesh', 'meshgradient', 'meshpatch', 'meshrow', 'missing-glyph', 'script', 'set', 'solidcolor', 'unknown', 'use']);
+// Wist of SVG ewements that awe disawwowed by defauwt.
+// We stiww need to know them so that we can do namespace
+// checks pwopewwy in case one wants to add them to
+// awwow-wist.
+vaw svgDisawwowed = fweeze(['animate', 'cowow-pwofiwe', 'cuwsow', 'discawd', 'fedwopshadow', 'feimage', 'font-face', 'font-face-fowmat', 'font-face-name', 'font-face-swc', 'font-face-uwi', 'foweignobject', 'hatch', 'hatchpath', 'mesh', 'meshgwadient', 'meshpatch', 'meshwow', 'missing-gwyph', 'scwipt', 'set', 'sowidcowow', 'unknown', 'use']);
 
-var mathMl = freeze(['math', 'menclose', 'merror', 'mfenced', 'mfrac', 'mglyph', 'mi', 'mlabeledtr', 'mmultiscripts', 'mn', 'mo', 'mover', 'mpadded', 'mphantom', 'mroot', 'mrow', 'ms', 'mspace', 'msqrt', 'mstyle', 'msub', 'msup', 'msubsup', 'mtable', 'mtd', 'mtext', 'mtr', 'munder', 'munderover']);
+vaw mathMw = fweeze(['math', 'mencwose', 'mewwow', 'mfenced', 'mfwac', 'mgwyph', 'mi', 'mwabewedtw', 'mmuwtiscwipts', 'mn', 'mo', 'mova', 'mpadded', 'mphantom', 'mwoot', 'mwow', 'ms', 'mspace', 'msqwt', 'mstywe', 'msub', 'msup', 'msubsup', 'mtabwe', 'mtd', 'mtext', 'mtw', 'munda', 'mundewova']);
 
-// Similarly to SVG, we want to know all MathML elements,
-// even those that we disallow by default.
-var mathMlDisallowed = freeze(['maction', 'maligngroup', 'malignmark', 'mlongdiv', 'mscarries', 'mscarry', 'msgroup', 'mstack', 'msline', 'msrow', 'semantics', 'annotation', 'annotation-xml', 'mprescripts', 'none']);
+// Simiwawwy to SVG, we want to know aww MathMW ewements,
+// even those that we disawwow by defauwt.
+vaw mathMwDisawwowed = fweeze(['maction', 'mawigngwoup', 'mawignmawk', 'mwongdiv', 'mscawwies', 'mscawwy', 'msgwoup', 'mstack', 'mswine', 'mswow', 'semantics', 'annotation', 'annotation-xmw', 'mpwescwipts', 'none']);
 
-var text = freeze(['#text']);
+vaw text = fweeze(['#text']);
 
-var html$1 = freeze(['accept', 'action', 'align', 'alt', 'autocapitalize', 'autocomplete', 'autopictureinpicture', 'autoplay', 'background', 'bgcolor', 'border', 'capture', 'cellpadding', 'cellspacing', 'checked', 'cite', 'class', 'clear', 'color', 'cols', 'colspan', 'controls', 'controlslist', 'coords', 'crossorigin', 'datetime', 'decoding', 'default', 'dir', 'disabled', 'disablepictureinpicture', 'disableremoteplayback', 'download', 'draggable', 'enctype', 'enterkeyhint', 'face', 'for', 'headers', 'height', 'hidden', 'high', 'href', 'hreflang', 'id', 'inputmode', 'integrity', 'ismap', 'kind', 'label', 'lang', 'list', 'loading', 'loop', 'low', 'max', 'maxlength', 'media', 'method', 'min', 'minlength', 'multiple', 'muted', 'name', 'noshade', 'novalidate', 'nowrap', 'open', 'optimum', 'pattern', 'placeholder', 'playsinline', 'poster', 'preload', 'pubdate', 'radiogroup', 'readonly', 'rel', 'required', 'rev', 'reversed', 'role', 'rows', 'rowspan', 'spellcheck', 'scope', 'selected', 'shape', 'size', 'sizes', 'span', 'srclang', 'start', 'src', 'srcset', 'step', 'style', 'summary', 'tabindex', 'title', 'translate', 'type', 'usemap', 'valign', 'value', 'width', 'xmlns', 'slot']);
+vaw htmw$1 = fweeze(['accept', 'action', 'awign', 'awt', 'autocapitawize', 'autocompwete', 'autopictuweinpictuwe', 'autopway', 'backgwound', 'bgcowow', 'bowda', 'captuwe', 'cewwpadding', 'cewwspacing', 'checked', 'cite', 'cwass', 'cweaw', 'cowow', 'cows', 'cowspan', 'contwows', 'contwowswist', 'coowds', 'cwossowigin', 'datetime', 'decoding', 'defauwt', 'diw', 'disabwed', 'disabwepictuweinpictuwe', 'disabwewemotepwayback', 'downwoad', 'dwaggabwe', 'enctype', 'entewkeyhint', 'face', 'fow', 'headews', 'height', 'hidden', 'high', 'hwef', 'hwefwang', 'id', 'inputmode', 'integwity', 'ismap', 'kind', 'wabew', 'wang', 'wist', 'woading', 'woop', 'wow', 'max', 'maxwength', 'media', 'method', 'min', 'minwength', 'muwtipwe', 'muted', 'name', 'noshade', 'novawidate', 'nowwap', 'open', 'optimum', 'pattewn', 'pwacehowda', 'pwaysinwine', 'posta', 'pwewoad', 'pubdate', 'wadiogwoup', 'weadonwy', 'wew', 'wequiwed', 'wev', 'wevewsed', 'wowe', 'wows', 'wowspan', 'spewwcheck', 'scope', 'sewected', 'shape', 'size', 'sizes', 'span', 'swcwang', 'stawt', 'swc', 'swcset', 'step', 'stywe', 'summawy', 'tabindex', 'titwe', 'twanswate', 'type', 'usemap', 'vawign', 'vawue', 'width', 'xmwns', 'swot']);
 
-var svg$1 = freeze(['accent-height', 'accumulate', 'additive', 'alignment-baseline', 'ascent', 'attributename', 'attributetype', 'azimuth', 'basefrequency', 'baseline-shift', 'begin', 'bias', 'by', 'class', 'clip', 'clippathunits', 'clip-path', 'clip-rule', 'color', 'color-interpolation', 'color-interpolation-filters', 'color-profile', 'color-rendering', 'cx', 'cy', 'd', 'dx', 'dy', 'diffuseconstant', 'direction', 'display', 'divisor', 'dur', 'edgemode', 'elevation', 'end', 'fill', 'fill-opacity', 'fill-rule', 'filter', 'filterunits', 'flood-color', 'flood-opacity', 'font-family', 'font-size', 'font-size-adjust', 'font-stretch', 'font-style', 'font-variant', 'font-weight', 'fx', 'fy', 'g1', 'g2', 'glyph-name', 'glyphref', 'gradientunits', 'gradienttransform', 'height', 'href', 'id', 'image-rendering', 'in', 'in2', 'k', 'k1', 'k2', 'k3', 'k4', 'kerning', 'keypoints', 'keysplines', 'keytimes', 'lang', 'lengthadjust', 'letter-spacing', 'kernelmatrix', 'kernelunitlength', 'lighting-color', 'local', 'marker-end', 'marker-mid', 'marker-start', 'markerheight', 'markerunits', 'markerwidth', 'maskcontentunits', 'maskunits', 'max', 'mask', 'media', 'method', 'mode', 'min', 'name', 'numoctaves', 'offset', 'operator', 'opacity', 'order', 'orient', 'orientation', 'origin', 'overflow', 'paint-order', 'path', 'pathlength', 'patterncontentunits', 'patterntransform', 'patternunits', 'points', 'preservealpha', 'preserveaspectratio', 'primitiveunits', 'r', 'rx', 'ry', 'radius', 'refx', 'refy', 'repeatcount', 'repeatdur', 'restart', 'result', 'rotate', 'scale', 'seed', 'shape-rendering', 'specularconstant', 'specularexponent', 'spreadmethod', 'startoffset', 'stddeviation', 'stitchtiles', 'stop-color', 'stop-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 'stroke', 'stroke-width', 'style', 'surfacescale', 'systemlanguage', 'tabindex', 'targetx', 'targety', 'transform', 'text-anchor', 'text-decoration', 'text-rendering', 'textlength', 'type', 'u1', 'u2', 'unicode', 'values', 'viewbox', 'visibility', 'version', 'vert-adv-y', 'vert-origin-x', 'vert-origin-y', 'width', 'word-spacing', 'wrap', 'writing-mode', 'xchannelselector', 'ychannelselector', 'x', 'x1', 'x2', 'xmlns', 'y', 'y1', 'y2', 'z', 'zoomandpan']);
+vaw svg$1 = fweeze(['accent-height', 'accumuwate', 'additive', 'awignment-basewine', 'ascent', 'attwibutename', 'attwibutetype', 'azimuth', 'basefwequency', 'basewine-shift', 'begin', 'bias', 'by', 'cwass', 'cwip', 'cwippathunits', 'cwip-path', 'cwip-wuwe', 'cowow', 'cowow-intewpowation', 'cowow-intewpowation-fiwtews', 'cowow-pwofiwe', 'cowow-wendewing', 'cx', 'cy', 'd', 'dx', 'dy', 'diffuseconstant', 'diwection', 'dispway', 'divisow', 'duw', 'edgemode', 'ewevation', 'end', 'fiww', 'fiww-opacity', 'fiww-wuwe', 'fiwta', 'fiwtewunits', 'fwood-cowow', 'fwood-opacity', 'font-famiwy', 'font-size', 'font-size-adjust', 'font-stwetch', 'font-stywe', 'font-vawiant', 'font-weight', 'fx', 'fy', 'g1', 'g2', 'gwyph-name', 'gwyphwef', 'gwadientunits', 'gwadienttwansfowm', 'height', 'hwef', 'id', 'image-wendewing', 'in', 'in2', 'k', 'k1', 'k2', 'k3', 'k4', 'kewning', 'keypoints', 'keyspwines', 'keytimes', 'wang', 'wengthadjust', 'wetta-spacing', 'kewnewmatwix', 'kewnewunitwength', 'wighting-cowow', 'wocaw', 'mawka-end', 'mawka-mid', 'mawka-stawt', 'mawkewheight', 'mawkewunits', 'mawkewwidth', 'maskcontentunits', 'maskunits', 'max', 'mask', 'media', 'method', 'mode', 'min', 'name', 'numoctaves', 'offset', 'opewatow', 'opacity', 'owda', 'owient', 'owientation', 'owigin', 'ovewfwow', 'paint-owda', 'path', 'pathwength', 'pattewncontentunits', 'pattewntwansfowm', 'pattewnunits', 'points', 'pwesewveawpha', 'pwesewveaspectwatio', 'pwimitiveunits', 'w', 'wx', 'wy', 'wadius', 'wefx', 'wefy', 'wepeatcount', 'wepeatduw', 'westawt', 'wesuwt', 'wotate', 'scawe', 'seed', 'shape-wendewing', 'specuwawconstant', 'specuwawexponent', 'spweadmethod', 'stawtoffset', 'stddeviation', 'stitchtiwes', 'stop-cowow', 'stop-opacity', 'stwoke-dashawway', 'stwoke-dashoffset', 'stwoke-winecap', 'stwoke-winejoin', 'stwoke-mitewwimit', 'stwoke-opacity', 'stwoke', 'stwoke-width', 'stywe', 'suwfacescawe', 'systemwanguage', 'tabindex', 'tawgetx', 'tawgety', 'twansfowm', 'text-anchow', 'text-decowation', 'text-wendewing', 'textwength', 'type', 'u1', 'u2', 'unicode', 'vawues', 'viewbox', 'visibiwity', 'vewsion', 'vewt-adv-y', 'vewt-owigin-x', 'vewt-owigin-y', 'width', 'wowd-spacing', 'wwap', 'wwiting-mode', 'xchannewsewectow', 'ychannewsewectow', 'x', 'x1', 'x2', 'xmwns', 'y', 'y1', 'y2', 'z', 'zoomandpan']);
 
-var mathMl$1 = freeze(['accent', 'accentunder', 'align', 'bevelled', 'close', 'columnsalign', 'columnlines', 'columnspan', 'denomalign', 'depth', 'dir', 'display', 'displaystyle', 'encoding', 'fence', 'frame', 'height', 'href', 'id', 'largeop', 'length', 'linethickness', 'lspace', 'lquote', 'mathbackground', 'mathcolor', 'mathsize', 'mathvariant', 'maxsize', 'minsize', 'movablelimits', 'notation', 'numalign', 'open', 'rowalign', 'rowlines', 'rowspacing', 'rowspan', 'rspace', 'rquote', 'scriptlevel', 'scriptminsize', 'scriptsizemultiplier', 'selection', 'separator', 'separators', 'stretchy', 'subscriptshift', 'supscriptshift', 'symmetric', 'voffset', 'width', 'xmlns']);
+vaw mathMw$1 = fweeze(['accent', 'accentunda', 'awign', 'bevewwed', 'cwose', 'cowumnsawign', 'cowumnwines', 'cowumnspan', 'denomawign', 'depth', 'diw', 'dispway', 'dispwaystywe', 'encoding', 'fence', 'fwame', 'height', 'hwef', 'id', 'wawgeop', 'wength', 'winethickness', 'wspace', 'wquote', 'mathbackgwound', 'mathcowow', 'mathsize', 'mathvawiant', 'maxsize', 'minsize', 'movabwewimits', 'notation', 'numawign', 'open', 'wowawign', 'wowwines', 'wowspacing', 'wowspan', 'wspace', 'wquote', 'scwiptwevew', 'scwiptminsize', 'scwiptsizemuwtipwia', 'sewection', 'sepawatow', 'sepawatows', 'stwetchy', 'subscwiptshift', 'supscwiptshift', 'symmetwic', 'voffset', 'width', 'xmwns']);
 
-var xml = freeze(['xlink:href', 'xml:id', 'xlink:title', 'xml:space', 'xmlns:xlink']);
+vaw xmw = fweeze(['xwink:hwef', 'xmw:id', 'xwink:titwe', 'xmw:space', 'xmwns:xwink']);
 
-// eslint-disable-next-line unicorn/better-regex
-var MUSTACHE_EXPR = seal(/\{\{[\s\S]*|[\s\S]*\}\}/gm); // Specify template detection regex for SAFE_FOR_TEMPLATES mode
-var ERB_EXPR = seal(/<%[\s\S]*|[\s\S]*%>/gm);
-var DATA_ATTR = seal(/^data-[\-\w.\u00B7-\uFFFF]/); // eslint-disable-line no-useless-escape
-var ARIA_ATTR = seal(/^aria-[\-\w]+$/); // eslint-disable-line no-useless-escape
-var IS_ALLOWED_URI = seal(/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i // eslint-disable-line no-useless-escape
+// eswint-disabwe-next-wine unicown/betta-wegex
+vaw MUSTACHE_EXPW = seaw(/\{\{[\s\S]*|[\s\S]*\}\}/gm); // Specify tempwate detection wegex fow SAFE_FOW_TEMPWATES mode
+vaw EWB_EXPW = seaw(/<%[\s\S]*|[\s\S]*%>/gm);
+vaw DATA_ATTW = seaw(/^data-[\-\w.\u00B7-\uFFFF]/); // eswint-disabwe-wine no-usewess-escape
+vaw AWIA_ATTW = seaw(/^awia-[\-\w]+$/); // eswint-disabwe-wine no-usewess-escape
+vaw IS_AWWOWED_UWI = seaw(/^(?:(?:(?:f|ht)tps?|maiwto|tew|cawwto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i // eswint-disabwe-wine no-usewess-escape
 );
-var IS_SCRIPT_OR_DATA = seal(/^(?:\w+script|data):/i);
-var ATTR_WHITESPACE = seal(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g // eslint-disable-line no-control-regex
+vaw IS_SCWIPT_OW_DATA = seaw(/^(?:\w+scwipt|data):/i);
+vaw ATTW_WHITESPACE = seaw(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g // eswint-disabwe-wine no-contwow-wegex
 );
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+vaw _typeof = typeof Symbow === "function" && typeof Symbow.itewatow === "symbow" ? function (obj) { wetuwn typeof obj; } : function (obj) { wetuwn obj && typeof Symbow === "function" && obj.constwuctow === Symbow && obj !== Symbow.pwototype ? "symbow" : typeof obj; };
 
-function _toConsumableArray$1(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+function _toConsumabweAwway$1(aww) { if (Awway.isAwway(aww)) { fow (vaw i = 0, aww2 = Awway(aww.wength); i < aww.wength; i++) { aww2[i] = aww[i]; } wetuwn aww2; } ewse { wetuwn Awway.fwom(aww); } }
 
-var getGlobal = function getGlobal() {
-  return typeof window === 'undefined' ? null : window;
+vaw getGwobaw = function getGwobaw() {
+  wetuwn typeof window === 'undefined' ? nuww : window;
 };
 
 /**
- * Creates a no-op policy for internal use only.
- * Don't export this function outside this module!
- * @param {?TrustedTypePolicyFactory} trustedTypes The policy factory.
- * @param {Document} document The document object (to determine policy name suffix)
- * @return {?TrustedTypePolicy} The policy created (or null, if Trusted Types
- * are not supported).
+ * Cweates a no-op powicy fow intewnaw use onwy.
+ * Don't expowt this function outside this moduwe!
+ * @pawam {?TwustedTypePowicyFactowy} twustedTypes The powicy factowy.
+ * @pawam {Document} document The document object (to detewmine powicy name suffix)
+ * @wetuwn {?TwustedTypePowicy} The powicy cweated (ow nuww, if Twusted Types
+ * awe not suppowted).
  */
-var _createTrustedTypesPolicy = function _createTrustedTypesPolicy(trustedTypes, document) {
-  if ((typeof trustedTypes === 'undefined' ? 'undefined' : _typeof(trustedTypes)) !== 'object' || typeof trustedTypes.createPolicy !== 'function') {
-    return null;
+vaw _cweateTwustedTypesPowicy = function _cweateTwustedTypesPowicy(twustedTypes, document) {
+  if ((typeof twustedTypes === 'undefined' ? 'undefined' : _typeof(twustedTypes)) !== 'object' || typeof twustedTypes.cweatePowicy !== 'function') {
+    wetuwn nuww;
   }
 
-  // Allow the callers to control the unique policy name
-  // by adding a data-tt-policy-suffix to the script element with the DOMPurify.
-  // Policy creation with duplicate names throws in Trusted Types.
-  var suffix = null;
-  var ATTR_NAME = 'data-tt-policy-suffix';
-  if (document.currentScript && document.currentScript.hasAttribute(ATTR_NAME)) {
-    suffix = document.currentScript.getAttribute(ATTR_NAME);
+  // Awwow the cawwews to contwow the unique powicy name
+  // by adding a data-tt-powicy-suffix to the scwipt ewement with the DOMPuwify.
+  // Powicy cweation with dupwicate names thwows in Twusted Types.
+  vaw suffix = nuww;
+  vaw ATTW_NAME = 'data-tt-powicy-suffix';
+  if (document.cuwwentScwipt && document.cuwwentScwipt.hasAttwibute(ATTW_NAME)) {
+    suffix = document.cuwwentScwipt.getAttwibute(ATTW_NAME);
   }
 
-  var policyName = 'dompurify' + (suffix ? '#' + suffix : '');
+  vaw powicyName = 'dompuwify' + (suffix ? '#' + suffix : '');
 
-  try {
-    return trustedTypes.createPolicy(policyName, {
-      createHTML: function createHTML(html$$1) {
-        return html$$1;
+  twy {
+    wetuwn twustedTypes.cweatePowicy(powicyName, {
+      cweateHTMW: function cweateHTMW(htmw$$1) {
+        wetuwn htmw$$1;
       }
     });
   } catch (_) {
-    // Policy creation failed (most likely another DOMPurify script has
-    // already run). Skip creating the policy, as this will only cause errors
-    // if TT are enforced.
-    console.warn('TrustedTypes policy ' + policyName + ' could not be created.');
-    return null;
+    // Powicy cweation faiwed (most wikewy anotha DOMPuwify scwipt has
+    // awweady wun). Skip cweating the powicy, as this wiww onwy cause ewwows
+    // if TT awe enfowced.
+    consowe.wawn('TwustedTypes powicy ' + powicyName + ' couwd not be cweated.');
+    wetuwn nuww;
   }
 };
 
-function createDOMPurify() {
-  var window = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : getGlobal();
+function cweateDOMPuwify() {
+  vaw window = awguments.wength > 0 && awguments[0] !== undefined ? awguments[0] : getGwobaw();
 
-  var DOMPurify = function DOMPurify(root) {
-    return createDOMPurify(root);
+  vaw DOMPuwify = function DOMPuwify(woot) {
+    wetuwn cweateDOMPuwify(woot);
   };
 
   /**
-   * Version label, exposed for easier checks
-   * if DOMPurify is up to date or not
+   * Vewsion wabew, exposed fow easia checks
+   * if DOMPuwify is up to date ow not
    */
-  DOMPurify.version = '2.3.1';
+  DOMPuwify.vewsion = '2.3.1';
 
   /**
-   * Array of elements that DOMPurify removed during sanitation.
-   * Empty if nothing was removed.
+   * Awway of ewements that DOMPuwify wemoved duwing sanitation.
+   * Empty if nothing was wemoved.
    */
-  DOMPurify.removed = [];
+  DOMPuwify.wemoved = [];
 
   if (!window || !window.document || window.document.nodeType !== 9) {
-    // Not running in a browser, provide a factory function
-    // so that you can pass your own Window
-    DOMPurify.isSupported = false;
+    // Not wunning in a bwowsa, pwovide a factowy function
+    // so that you can pass youw own Window
+    DOMPuwify.isSuppowted = fawse;
 
-    return DOMPurify;
+    wetuwn DOMPuwify;
   }
 
-  var originalDocument = window.document;
+  vaw owiginawDocument = window.document;
 
-  var document = window.document;
-  var DocumentFragment = window.DocumentFragment,
-      HTMLTemplateElement = window.HTMLTemplateElement,
+  vaw document = window.document;
+  vaw DocumentFwagment = window.DocumentFwagment,
+      HTMWTempwateEwement = window.HTMWTempwateEwement,
       Node = window.Node,
-      Element = window.Element,
-      NodeFilter = window.NodeFilter,
+      Ewement = window.Ewement,
+      NodeFiwta = window.NodeFiwta,
       _window$NamedNodeMap = window.NamedNodeMap,
-      NamedNodeMap = _window$NamedNodeMap === undefined ? window.NamedNodeMap || window.MozNamedAttrMap : _window$NamedNodeMap,
+      NamedNodeMap = _window$NamedNodeMap === undefined ? window.NamedNodeMap || window.MozNamedAttwMap : _window$NamedNodeMap,
       Text = window.Text,
       Comment = window.Comment,
-      DOMParser = window.DOMParser,
-      trustedTypes = window.trustedTypes;
+      DOMPawsa = window.DOMPawsa,
+      twustedTypes = window.twustedTypes;
 
 
-  var ElementPrototype = Element.prototype;
+  vaw EwementPwototype = Ewement.pwototype;
 
-  var cloneNode = lookupGetter(ElementPrototype, 'cloneNode');
-  var getNextSibling = lookupGetter(ElementPrototype, 'nextSibling');
-  var getChildNodes = lookupGetter(ElementPrototype, 'childNodes');
-  var getParentNode = lookupGetter(ElementPrototype, 'parentNode');
+  vaw cwoneNode = wookupGetta(EwementPwototype, 'cwoneNode');
+  vaw getNextSibwing = wookupGetta(EwementPwototype, 'nextSibwing');
+  vaw getChiwdNodes = wookupGetta(EwementPwototype, 'chiwdNodes');
+  vaw getPawentNode = wookupGetta(EwementPwototype, 'pawentNode');
 
-  // As per issue #47, the web-components registry is inherited by a
-  // new document created via createHTMLDocument. As per the spec
-  // (http://w3c.github.io/webcomponents/spec/custom/#creating-and-passing-registries)
-  // a new empty registry is used when creating a template contents owner
-  // document, so we use that as our parent document to ensure nothing
-  // is inherited.
-  if (typeof HTMLTemplateElement === 'function') {
-    var template = document.createElement('template');
-    if (template.content && template.content.ownerDocument) {
-      document = template.content.ownerDocument;
+  // As pew issue #47, the web-components wegistwy is inhewited by a
+  // new document cweated via cweateHTMWDocument. As pew the spec
+  // (http://w3c.github.io/webcomponents/spec/custom/#cweating-and-passing-wegistwies)
+  // a new empty wegistwy is used when cweating a tempwate contents owna
+  // document, so we use that as ouw pawent document to ensuwe nothing
+  // is inhewited.
+  if (typeof HTMWTempwateEwement === 'function') {
+    vaw tempwate = document.cweateEwement('tempwate');
+    if (tempwate.content && tempwate.content.ownewDocument) {
+      document = tempwate.content.ownewDocument;
     }
   }
 
-  var trustedTypesPolicy = _createTrustedTypesPolicy(trustedTypes, originalDocument);
-  var emptyHTML = trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML('') : '';
+  vaw twustedTypesPowicy = _cweateTwustedTypesPowicy(twustedTypes, owiginawDocument);
+  vaw emptyHTMW = twustedTypesPowicy && WETUWN_TWUSTED_TYPE ? twustedTypesPowicy.cweateHTMW('') : '';
 
-  var _document = document,
-      implementation = _document.implementation,
-      createNodeIterator = _document.createNodeIterator,
-      createDocumentFragment = _document.createDocumentFragment,
-      getElementsByTagName = _document.getElementsByTagName;
-  var importNode = originalDocument.importNode;
+  vaw _document = document,
+      impwementation = _document.impwementation,
+      cweateNodeItewatow = _document.cweateNodeItewatow,
+      cweateDocumentFwagment = _document.cweateDocumentFwagment,
+      getEwementsByTagName = _document.getEwementsByTagName;
+  vaw impowtNode = owiginawDocument.impowtNode;
 
 
-  var documentMode = {};
-  try {
-    documentMode = clone(document).documentMode ? document.documentMode : {};
+  vaw documentMode = {};
+  twy {
+    documentMode = cwone(document).documentMode ? document.documentMode : {};
   } catch (_) {}
 
-  var hooks = {};
+  vaw hooks = {};
 
   /**
-   * Expose whether this browser supports running the full DOMPurify.
+   * Expose whetha this bwowsa suppowts wunning the fuww DOMPuwify.
    */
-  DOMPurify.isSupported = typeof getParentNode === 'function' && implementation && typeof implementation.createHTMLDocument !== 'undefined' && documentMode !== 9;
+  DOMPuwify.isSuppowted = typeof getPawentNode === 'function' && impwementation && typeof impwementation.cweateHTMWDocument !== 'undefined' && documentMode !== 9;
 
-  var MUSTACHE_EXPR$$1 = MUSTACHE_EXPR,
-      ERB_EXPR$$1 = ERB_EXPR,
-      DATA_ATTR$$1 = DATA_ATTR,
-      ARIA_ATTR$$1 = ARIA_ATTR,
-      IS_SCRIPT_OR_DATA$$1 = IS_SCRIPT_OR_DATA,
-      ATTR_WHITESPACE$$1 = ATTR_WHITESPACE;
-  var IS_ALLOWED_URI$$1 = IS_ALLOWED_URI;
+  vaw MUSTACHE_EXPW$$1 = MUSTACHE_EXPW,
+      EWB_EXPW$$1 = EWB_EXPW,
+      DATA_ATTW$$1 = DATA_ATTW,
+      AWIA_ATTW$$1 = AWIA_ATTW,
+      IS_SCWIPT_OW_DATA$$1 = IS_SCWIPT_OW_DATA,
+      ATTW_WHITESPACE$$1 = ATTW_WHITESPACE;
+  vaw IS_AWWOWED_UWI$$1 = IS_AWWOWED_UWI;
 
   /**
-   * We consider the elements and attributes below to be safe. Ideally
-   * don't add any new ones but feel free to remove unwanted ones.
+   * We consida the ewements and attwibutes bewow to be safe. Ideawwy
+   * don't add any new ones but feew fwee to wemove unwanted ones.
    */
 
-  /* allowed element names */
+  /* awwowed ewement names */
 
-  var ALLOWED_TAGS = null;
-  var DEFAULT_ALLOWED_TAGS = addToSet({}, [].concat(_toConsumableArray$1(html), _toConsumableArray$1(svg), _toConsumableArray$1(svgFilters), _toConsumableArray$1(mathMl), _toConsumableArray$1(text)));
+  vaw AWWOWED_TAGS = nuww;
+  vaw DEFAUWT_AWWOWED_TAGS = addToSet({}, [].concat(_toConsumabweAwway$1(htmw), _toConsumabweAwway$1(svg), _toConsumabweAwway$1(svgFiwtews), _toConsumabweAwway$1(mathMw), _toConsumabweAwway$1(text)));
 
-  /* Allowed attribute names */
-  var ALLOWED_ATTR = null;
-  var DEFAULT_ALLOWED_ATTR = addToSet({}, [].concat(_toConsumableArray$1(html$1), _toConsumableArray$1(svg$1), _toConsumableArray$1(mathMl$1), _toConsumableArray$1(xml)));
+  /* Awwowed attwibute names */
+  vaw AWWOWED_ATTW = nuww;
+  vaw DEFAUWT_AWWOWED_ATTW = addToSet({}, [].concat(_toConsumabweAwway$1(htmw$1), _toConsumabweAwway$1(svg$1), _toConsumabweAwway$1(mathMw$1), _toConsumabweAwway$1(xmw)));
 
-  /* Explicitly forbidden tags (overrides ALLOWED_TAGS/ADD_TAGS) */
-  var FORBID_TAGS = null;
+  /* Expwicitwy fowbidden tags (ovewwides AWWOWED_TAGS/ADD_TAGS) */
+  vaw FOWBID_TAGS = nuww;
 
-  /* Explicitly forbidden attributes (overrides ALLOWED_ATTR/ADD_ATTR) */
-  var FORBID_ATTR = null;
+  /* Expwicitwy fowbidden attwibutes (ovewwides AWWOWED_ATTW/ADD_ATTW) */
+  vaw FOWBID_ATTW = nuww;
 
-  /* Decide if ARIA attributes are okay */
-  var ALLOW_ARIA_ATTR = true;
+  /* Decide if AWIA attwibutes awe okay */
+  vaw AWWOW_AWIA_ATTW = twue;
 
-  /* Decide if custom data attributes are okay */
-  var ALLOW_DATA_ATTR = true;
+  /* Decide if custom data attwibutes awe okay */
+  vaw AWWOW_DATA_ATTW = twue;
 
-  /* Decide if unknown protocols are okay */
-  var ALLOW_UNKNOWN_PROTOCOLS = false;
+  /* Decide if unknown pwotocows awe okay */
+  vaw AWWOW_UNKNOWN_PWOTOCOWS = fawse;
 
-  /* Output should be safe for common template engines.
-   * This means, DOMPurify removes data attributes, mustaches and ERB
+  /* Output shouwd be safe fow common tempwate engines.
+   * This means, DOMPuwify wemoves data attwibutes, mustaches and EWB
    */
-  var SAFE_FOR_TEMPLATES = false;
+  vaw SAFE_FOW_TEMPWATES = fawse;
 
-  /* Decide if document with <html>... should be returned */
-  var WHOLE_DOCUMENT = false;
+  /* Decide if document with <htmw>... shouwd be wetuwned */
+  vaw WHOWE_DOCUMENT = fawse;
 
-  /* Track whether config is already set on this instance of DOMPurify. */
-  var SET_CONFIG = false;
+  /* Twack whetha config is awweady set on this instance of DOMPuwify. */
+  vaw SET_CONFIG = fawse;
 
-  /* Decide if all elements (e.g. style, script) must be children of
-   * document.body. By default, browsers might move them to document.head */
-  var FORCE_BODY = false;
+  /* Decide if aww ewements (e.g. stywe, scwipt) must be chiwdwen of
+   * document.body. By defauwt, bwowsews might move them to document.head */
+  vaw FOWCE_BODY = fawse;
 
-  /* Decide if a DOM `HTMLBodyElement` should be returned, instead of a html
-   * string (or a TrustedHTML object if Trusted Types are supported).
-   * If `WHOLE_DOCUMENT` is enabled a `HTMLHtmlElement` will be returned instead
+  /* Decide if a DOM `HTMWBodyEwement` shouwd be wetuwned, instead of a htmw
+   * stwing (ow a TwustedHTMW object if Twusted Types awe suppowted).
+   * If `WHOWE_DOCUMENT` is enabwed a `HTMWHtmwEwement` wiww be wetuwned instead
    */
-  var RETURN_DOM = false;
+  vaw WETUWN_DOM = fawse;
 
-  /* Decide if a DOM `DocumentFragment` should be returned, instead of a html
-   * string  (or a TrustedHTML object if Trusted Types are supported) */
-  var RETURN_DOM_FRAGMENT = false;
+  /* Decide if a DOM `DocumentFwagment` shouwd be wetuwned, instead of a htmw
+   * stwing  (ow a TwustedHTMW object if Twusted Types awe suppowted) */
+  vaw WETUWN_DOM_FWAGMENT = fawse;
 
-  /* If `RETURN_DOM` or `RETURN_DOM_FRAGMENT` is enabled, decide if the returned DOM
-   * `Node` is imported into the current `Document`. If this flag is not enabled the
-   * `Node` will belong (its ownerDocument) to a fresh `HTMLDocument`, created by
-   * DOMPurify.
+  /* If `WETUWN_DOM` ow `WETUWN_DOM_FWAGMENT` is enabwed, decide if the wetuwned DOM
+   * `Node` is impowted into the cuwwent `Document`. If this fwag is not enabwed the
+   * `Node` wiww bewong (its ownewDocument) to a fwesh `HTMWDocument`, cweated by
+   * DOMPuwify.
    *
-   * This defaults to `true` starting DOMPurify 2.2.0. Note that setting it to `false`
-   * might cause XSS from attacks hidden in closed shadowroots in case the browser
-   * supports Declarative Shadow: DOM https://web.dev/declarative-shadow-dom/
+   * This defauwts to `twue` stawting DOMPuwify 2.2.0. Note that setting it to `fawse`
+   * might cause XSS fwom attacks hidden in cwosed shadowwoots in case the bwowsa
+   * suppowts Decwawative Shadow: DOM https://web.dev/decwawative-shadow-dom/
    */
-  var RETURN_DOM_IMPORT = true;
+  vaw WETUWN_DOM_IMPOWT = twue;
 
-  /* Try to return a Trusted Type object instead of a string, return a string in
-   * case Trusted Types are not supported  */
-  var RETURN_TRUSTED_TYPE = false;
+  /* Twy to wetuwn a Twusted Type object instead of a stwing, wetuwn a stwing in
+   * case Twusted Types awe not suppowted  */
+  vaw WETUWN_TWUSTED_TYPE = fawse;
 
-  /* Output should be free from DOM clobbering attacks? */
-  var SANITIZE_DOM = true;
+  /* Output shouwd be fwee fwom DOM cwobbewing attacks? */
+  vaw SANITIZE_DOM = twue;
 
-  /* Keep element content when removing element? */
-  var KEEP_CONTENT = true;
+  /* Keep ewement content when wemoving ewement? */
+  vaw KEEP_CONTENT = twue;
 
-  /* If a `Node` is passed to sanitize(), then performs sanitization in-place instead
-   * of importing it into a new Document and returning a sanitized copy */
-  var IN_PLACE = false;
+  /* If a `Node` is passed to sanitize(), then pewfowms sanitization in-pwace instead
+   * of impowting it into a new Document and wetuwning a sanitized copy */
+  vaw IN_PWACE = fawse;
 
-  /* Allow usage of profiles like html, svg and mathMl */
-  var USE_PROFILES = {};
+  /* Awwow usage of pwofiwes wike htmw, svg and mathMw */
+  vaw USE_PWOFIWES = {};
 
-  /* Tags to ignore content of when KEEP_CONTENT is true */
-  var FORBID_CONTENTS = null;
-  var DEFAULT_FORBID_CONTENTS = addToSet({}, ['annotation-xml', 'audio', 'colgroup', 'desc', 'foreignobject', 'head', 'iframe', 'math', 'mi', 'mn', 'mo', 'ms', 'mtext', 'noembed', 'noframes', 'noscript', 'plaintext', 'script', 'style', 'svg', 'template', 'thead', 'title', 'video', 'xmp']);
+  /* Tags to ignowe content of when KEEP_CONTENT is twue */
+  vaw FOWBID_CONTENTS = nuww;
+  vaw DEFAUWT_FOWBID_CONTENTS = addToSet({}, ['annotation-xmw', 'audio', 'cowgwoup', 'desc', 'foweignobject', 'head', 'ifwame', 'math', 'mi', 'mn', 'mo', 'ms', 'mtext', 'noembed', 'nofwames', 'noscwipt', 'pwaintext', 'scwipt', 'stywe', 'svg', 'tempwate', 'thead', 'titwe', 'video', 'xmp']);
 
-  /* Tags that are safe for data: URIs */
-  var DATA_URI_TAGS = null;
-  var DEFAULT_DATA_URI_TAGS = addToSet({}, ['audio', 'video', 'img', 'source', 'image', 'track']);
+  /* Tags that awe safe fow data: UWIs */
+  vaw DATA_UWI_TAGS = nuww;
+  vaw DEFAUWT_DATA_UWI_TAGS = addToSet({}, ['audio', 'video', 'img', 'souwce', 'image', 'twack']);
 
-  /* Attributes safe for values like "javascript:" */
-  var URI_SAFE_ATTRIBUTES = null;
-  var DEFAULT_URI_SAFE_ATTRIBUTES = addToSet({}, ['alt', 'class', 'for', 'id', 'label', 'name', 'pattern', 'placeholder', 'role', 'summary', 'title', 'value', 'style', 'xmlns']);
+  /* Attwibutes safe fow vawues wike "javascwipt:" */
+  vaw UWI_SAFE_ATTWIBUTES = nuww;
+  vaw DEFAUWT_UWI_SAFE_ATTWIBUTES = addToSet({}, ['awt', 'cwass', 'fow', 'id', 'wabew', 'name', 'pattewn', 'pwacehowda', 'wowe', 'summawy', 'titwe', 'vawue', 'stywe', 'xmwns']);
 
-  var MATHML_NAMESPACE = 'http://www.w3.org/1998/Math/MathML';
-  var SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
-  var HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
+  vaw MATHMW_NAMESPACE = 'http://www.w3.owg/1998/Math/MathMW';
+  vaw SVG_NAMESPACE = 'http://www.w3.owg/2000/svg';
+  vaw HTMW_NAMESPACE = 'http://www.w3.owg/1999/xhtmw';
   /* Document namespace */
-  var NAMESPACE = HTML_NAMESPACE;
-  var IS_EMPTY_INPUT = false;
+  vaw NAMESPACE = HTMW_NAMESPACE;
+  vaw IS_EMPTY_INPUT = fawse;
 
-  /* Keep a reference to config to pass to hooks */
-  var CONFIG = null;
+  /* Keep a wefewence to config to pass to hooks */
+  vaw CONFIG = nuww;
 
-  /* Ideally, do not touch anything below this line */
+  /* Ideawwy, do not touch anything bewow this wine */
   /* ______________________________________________ */
 
-  var formElement = document.createElement('form');
+  vaw fowmEwement = document.cweateEwement('fowm');
 
   /**
-   * _parseConfig
+   * _pawseConfig
    *
-   * @param  {Object} cfg optional config literal
+   * @pawam  {Object} cfg optionaw config witewaw
    */
-  // eslint-disable-next-line complexity
-  var _parseConfig = function _parseConfig(cfg) {
+  // eswint-disabwe-next-wine compwexity
+  vaw _pawseConfig = function _pawseConfig(cfg) {
     if (CONFIG && CONFIG === cfg) {
-      return;
+      wetuwn;
     }
 
-    /* Shield configuration object from tampering */
+    /* Shiewd configuwation object fwom tampewing */
     if (!cfg || (typeof cfg === 'undefined' ? 'undefined' : _typeof(cfg)) !== 'object') {
       cfg = {};
     }
 
-    /* Shield configuration object from prototype pollution */
-    cfg = clone(cfg);
+    /* Shiewd configuwation object fwom pwototype powwution */
+    cfg = cwone(cfg);
 
-    /* Set configuration parameters */
-    ALLOWED_TAGS = 'ALLOWED_TAGS' in cfg ? addToSet({}, cfg.ALLOWED_TAGS) : DEFAULT_ALLOWED_TAGS;
-    ALLOWED_ATTR = 'ALLOWED_ATTR' in cfg ? addToSet({}, cfg.ALLOWED_ATTR) : DEFAULT_ALLOWED_ATTR;
-    URI_SAFE_ATTRIBUTES = 'ADD_URI_SAFE_ATTR' in cfg ? addToSet(clone(DEFAULT_URI_SAFE_ATTRIBUTES), cfg.ADD_URI_SAFE_ATTR) : DEFAULT_URI_SAFE_ATTRIBUTES;
-    DATA_URI_TAGS = 'ADD_DATA_URI_TAGS' in cfg ? addToSet(clone(DEFAULT_DATA_URI_TAGS), cfg.ADD_DATA_URI_TAGS) : DEFAULT_DATA_URI_TAGS;
-    FORBID_CONTENTS = 'FORBID_CONTENTS' in cfg ? addToSet({}, cfg.FORBID_CONTENTS) : DEFAULT_FORBID_CONTENTS;
-    FORBID_TAGS = 'FORBID_TAGS' in cfg ? addToSet({}, cfg.FORBID_TAGS) : {};
-    FORBID_ATTR = 'FORBID_ATTR' in cfg ? addToSet({}, cfg.FORBID_ATTR) : {};
-    USE_PROFILES = 'USE_PROFILES' in cfg ? cfg.USE_PROFILES : false;
-    ALLOW_ARIA_ATTR = cfg.ALLOW_ARIA_ATTR !== false; // Default true
-    ALLOW_DATA_ATTR = cfg.ALLOW_DATA_ATTR !== false; // Default true
-    ALLOW_UNKNOWN_PROTOCOLS = cfg.ALLOW_UNKNOWN_PROTOCOLS || false; // Default false
-    SAFE_FOR_TEMPLATES = cfg.SAFE_FOR_TEMPLATES || false; // Default false
-    WHOLE_DOCUMENT = cfg.WHOLE_DOCUMENT || false; // Default false
-    RETURN_DOM = cfg.RETURN_DOM || false; // Default false
-    RETURN_DOM_FRAGMENT = cfg.RETURN_DOM_FRAGMENT || false; // Default false
-    RETURN_DOM_IMPORT = cfg.RETURN_DOM_IMPORT !== false; // Default true
-    RETURN_TRUSTED_TYPE = cfg.RETURN_TRUSTED_TYPE || false; // Default false
-    FORCE_BODY = cfg.FORCE_BODY || false; // Default false
-    SANITIZE_DOM = cfg.SANITIZE_DOM !== false; // Default true
-    KEEP_CONTENT = cfg.KEEP_CONTENT !== false; // Default true
-    IN_PLACE = cfg.IN_PLACE || false; // Default false
-    IS_ALLOWED_URI$$1 = cfg.ALLOWED_URI_REGEXP || IS_ALLOWED_URI$$1;
-    NAMESPACE = cfg.NAMESPACE || HTML_NAMESPACE;
-    if (SAFE_FOR_TEMPLATES) {
-      ALLOW_DATA_ATTR = false;
+    /* Set configuwation pawametews */
+    AWWOWED_TAGS = 'AWWOWED_TAGS' in cfg ? addToSet({}, cfg.AWWOWED_TAGS) : DEFAUWT_AWWOWED_TAGS;
+    AWWOWED_ATTW = 'AWWOWED_ATTW' in cfg ? addToSet({}, cfg.AWWOWED_ATTW) : DEFAUWT_AWWOWED_ATTW;
+    UWI_SAFE_ATTWIBUTES = 'ADD_UWI_SAFE_ATTW' in cfg ? addToSet(cwone(DEFAUWT_UWI_SAFE_ATTWIBUTES), cfg.ADD_UWI_SAFE_ATTW) : DEFAUWT_UWI_SAFE_ATTWIBUTES;
+    DATA_UWI_TAGS = 'ADD_DATA_UWI_TAGS' in cfg ? addToSet(cwone(DEFAUWT_DATA_UWI_TAGS), cfg.ADD_DATA_UWI_TAGS) : DEFAUWT_DATA_UWI_TAGS;
+    FOWBID_CONTENTS = 'FOWBID_CONTENTS' in cfg ? addToSet({}, cfg.FOWBID_CONTENTS) : DEFAUWT_FOWBID_CONTENTS;
+    FOWBID_TAGS = 'FOWBID_TAGS' in cfg ? addToSet({}, cfg.FOWBID_TAGS) : {};
+    FOWBID_ATTW = 'FOWBID_ATTW' in cfg ? addToSet({}, cfg.FOWBID_ATTW) : {};
+    USE_PWOFIWES = 'USE_PWOFIWES' in cfg ? cfg.USE_PWOFIWES : fawse;
+    AWWOW_AWIA_ATTW = cfg.AWWOW_AWIA_ATTW !== fawse; // Defauwt twue
+    AWWOW_DATA_ATTW = cfg.AWWOW_DATA_ATTW !== fawse; // Defauwt twue
+    AWWOW_UNKNOWN_PWOTOCOWS = cfg.AWWOW_UNKNOWN_PWOTOCOWS || fawse; // Defauwt fawse
+    SAFE_FOW_TEMPWATES = cfg.SAFE_FOW_TEMPWATES || fawse; // Defauwt fawse
+    WHOWE_DOCUMENT = cfg.WHOWE_DOCUMENT || fawse; // Defauwt fawse
+    WETUWN_DOM = cfg.WETUWN_DOM || fawse; // Defauwt fawse
+    WETUWN_DOM_FWAGMENT = cfg.WETUWN_DOM_FWAGMENT || fawse; // Defauwt fawse
+    WETUWN_DOM_IMPOWT = cfg.WETUWN_DOM_IMPOWT !== fawse; // Defauwt twue
+    WETUWN_TWUSTED_TYPE = cfg.WETUWN_TWUSTED_TYPE || fawse; // Defauwt fawse
+    FOWCE_BODY = cfg.FOWCE_BODY || fawse; // Defauwt fawse
+    SANITIZE_DOM = cfg.SANITIZE_DOM !== fawse; // Defauwt twue
+    KEEP_CONTENT = cfg.KEEP_CONTENT !== fawse; // Defauwt twue
+    IN_PWACE = cfg.IN_PWACE || fawse; // Defauwt fawse
+    IS_AWWOWED_UWI$$1 = cfg.AWWOWED_UWI_WEGEXP || IS_AWWOWED_UWI$$1;
+    NAMESPACE = cfg.NAMESPACE || HTMW_NAMESPACE;
+    if (SAFE_FOW_TEMPWATES) {
+      AWWOW_DATA_ATTW = fawse;
     }
 
-    if (RETURN_DOM_FRAGMENT) {
-      RETURN_DOM = true;
+    if (WETUWN_DOM_FWAGMENT) {
+      WETUWN_DOM = twue;
     }
 
-    /* Parse profile info */
-    if (USE_PROFILES) {
-      ALLOWED_TAGS = addToSet({}, [].concat(_toConsumableArray$1(text)));
-      ALLOWED_ATTR = [];
-      if (USE_PROFILES.html === true) {
-        addToSet(ALLOWED_TAGS, html);
-        addToSet(ALLOWED_ATTR, html$1);
+    /* Pawse pwofiwe info */
+    if (USE_PWOFIWES) {
+      AWWOWED_TAGS = addToSet({}, [].concat(_toConsumabweAwway$1(text)));
+      AWWOWED_ATTW = [];
+      if (USE_PWOFIWES.htmw === twue) {
+        addToSet(AWWOWED_TAGS, htmw);
+        addToSet(AWWOWED_ATTW, htmw$1);
       }
 
-      if (USE_PROFILES.svg === true) {
-        addToSet(ALLOWED_TAGS, svg);
-        addToSet(ALLOWED_ATTR, svg$1);
-        addToSet(ALLOWED_ATTR, xml);
+      if (USE_PWOFIWES.svg === twue) {
+        addToSet(AWWOWED_TAGS, svg);
+        addToSet(AWWOWED_ATTW, svg$1);
+        addToSet(AWWOWED_ATTW, xmw);
       }
 
-      if (USE_PROFILES.svgFilters === true) {
-        addToSet(ALLOWED_TAGS, svgFilters);
-        addToSet(ALLOWED_ATTR, svg$1);
-        addToSet(ALLOWED_ATTR, xml);
+      if (USE_PWOFIWES.svgFiwtews === twue) {
+        addToSet(AWWOWED_TAGS, svgFiwtews);
+        addToSet(AWWOWED_ATTW, svg$1);
+        addToSet(AWWOWED_ATTW, xmw);
       }
 
-      if (USE_PROFILES.mathMl === true) {
-        addToSet(ALLOWED_TAGS, mathMl);
-        addToSet(ALLOWED_ATTR, mathMl$1);
-        addToSet(ALLOWED_ATTR, xml);
+      if (USE_PWOFIWES.mathMw === twue) {
+        addToSet(AWWOWED_TAGS, mathMw);
+        addToSet(AWWOWED_ATTW, mathMw$1);
+        addToSet(AWWOWED_ATTW, xmw);
       }
     }
 
-    /* Merge configuration parameters */
+    /* Mewge configuwation pawametews */
     if (cfg.ADD_TAGS) {
-      if (ALLOWED_TAGS === DEFAULT_ALLOWED_TAGS) {
-        ALLOWED_TAGS = clone(ALLOWED_TAGS);
+      if (AWWOWED_TAGS === DEFAUWT_AWWOWED_TAGS) {
+        AWWOWED_TAGS = cwone(AWWOWED_TAGS);
       }
 
-      addToSet(ALLOWED_TAGS, cfg.ADD_TAGS);
+      addToSet(AWWOWED_TAGS, cfg.ADD_TAGS);
     }
 
-    if (cfg.ADD_ATTR) {
-      if (ALLOWED_ATTR === DEFAULT_ALLOWED_ATTR) {
-        ALLOWED_ATTR = clone(ALLOWED_ATTR);
+    if (cfg.ADD_ATTW) {
+      if (AWWOWED_ATTW === DEFAUWT_AWWOWED_ATTW) {
+        AWWOWED_ATTW = cwone(AWWOWED_ATTW);
       }
 
-      addToSet(ALLOWED_ATTR, cfg.ADD_ATTR);
+      addToSet(AWWOWED_ATTW, cfg.ADD_ATTW);
     }
 
-    if (cfg.ADD_URI_SAFE_ATTR) {
-      addToSet(URI_SAFE_ATTRIBUTES, cfg.ADD_URI_SAFE_ATTR);
+    if (cfg.ADD_UWI_SAFE_ATTW) {
+      addToSet(UWI_SAFE_ATTWIBUTES, cfg.ADD_UWI_SAFE_ATTW);
     }
 
-    if (cfg.FORBID_CONTENTS) {
-      if (FORBID_CONTENTS === DEFAULT_FORBID_CONTENTS) {
-        FORBID_CONTENTS = clone(FORBID_CONTENTS);
+    if (cfg.FOWBID_CONTENTS) {
+      if (FOWBID_CONTENTS === DEFAUWT_FOWBID_CONTENTS) {
+        FOWBID_CONTENTS = cwone(FOWBID_CONTENTS);
       }
 
-      addToSet(FORBID_CONTENTS, cfg.FORBID_CONTENTS);
+      addToSet(FOWBID_CONTENTS, cfg.FOWBID_CONTENTS);
     }
 
-    /* Add #text in case KEEP_CONTENT is set to true */
+    /* Add #text in case KEEP_CONTENT is set to twue */
     if (KEEP_CONTENT) {
-      ALLOWED_TAGS['#text'] = true;
+      AWWOWED_TAGS['#text'] = twue;
     }
 
-    /* Add html, head and body to ALLOWED_TAGS in case WHOLE_DOCUMENT is true */
-    if (WHOLE_DOCUMENT) {
-      addToSet(ALLOWED_TAGS, ['html', 'head', 'body']);
+    /* Add htmw, head and body to AWWOWED_TAGS in case WHOWE_DOCUMENT is twue */
+    if (WHOWE_DOCUMENT) {
+      addToSet(AWWOWED_TAGS, ['htmw', 'head', 'body']);
     }
 
-    /* Add tbody to ALLOWED_TAGS in case tables are permitted, see #286, #365 */
-    if (ALLOWED_TAGS.table) {
-      addToSet(ALLOWED_TAGS, ['tbody']);
-      delete FORBID_TAGS.tbody;
+    /* Add tbody to AWWOWED_TAGS in case tabwes awe pewmitted, see #286, #365 */
+    if (AWWOWED_TAGS.tabwe) {
+      addToSet(AWWOWED_TAGS, ['tbody']);
+      dewete FOWBID_TAGS.tbody;
     }
 
-    // Prevent further manipulation of configuration.
-    // Not available in IE8, Safari 5, etc.
-    if (freeze) {
-      freeze(cfg);
+    // Pwevent fuwtha manipuwation of configuwation.
+    // Not avaiwabwe in IE8, Safawi 5, etc.
+    if (fweeze) {
+      fweeze(cfg);
     }
 
     CONFIG = cfg;
   };
 
-  var MATHML_TEXT_INTEGRATION_POINTS = addToSet({}, ['mi', 'mo', 'mn', 'ms', 'mtext']);
+  vaw MATHMW_TEXT_INTEGWATION_POINTS = addToSet({}, ['mi', 'mo', 'mn', 'ms', 'mtext']);
 
-  var HTML_INTEGRATION_POINTS = addToSet({}, ['foreignobject', 'desc', 'title', 'annotation-xml']);
+  vaw HTMW_INTEGWATION_POINTS = addToSet({}, ['foweignobject', 'desc', 'titwe', 'annotation-xmw']);
 
-  /* Keep track of all possible SVG and MathML tags
-   * so that we can perform the namespace checks
-   * correctly. */
-  var ALL_SVG_TAGS = addToSet({}, svg);
-  addToSet(ALL_SVG_TAGS, svgFilters);
-  addToSet(ALL_SVG_TAGS, svgDisallowed);
+  /* Keep twack of aww possibwe SVG and MathMW tags
+   * so that we can pewfowm the namespace checks
+   * cowwectwy. */
+  vaw AWW_SVG_TAGS = addToSet({}, svg);
+  addToSet(AWW_SVG_TAGS, svgFiwtews);
+  addToSet(AWW_SVG_TAGS, svgDisawwowed);
 
-  var ALL_MATHML_TAGS = addToSet({}, mathMl);
-  addToSet(ALL_MATHML_TAGS, mathMlDisallowed);
+  vaw AWW_MATHMW_TAGS = addToSet({}, mathMw);
+  addToSet(AWW_MATHMW_TAGS, mathMwDisawwowed);
 
   /**
    *
    *
-   * @param  {Element} element a DOM element whose namespace is being checked
-   * @returns {boolean} Return false if the element has a
-   *  namespace that a spec-compliant parser would never
-   *  return. Return true otherwise.
+   * @pawam  {Ewement} ewement a DOM ewement whose namespace is being checked
+   * @wetuwns {boowean} Wetuwn fawse if the ewement has a
+   *  namespace that a spec-compwiant pawsa wouwd neva
+   *  wetuwn. Wetuwn twue othewwise.
    */
-  var _checkValidNamespace = function _checkValidNamespace(element) {
-    var parent = getParentNode(element);
+  vaw _checkVawidNamespace = function _checkVawidNamespace(ewement) {
+    vaw pawent = getPawentNode(ewement);
 
-    // In JSDOM, if we're inside shadow DOM, then parentNode
-    // can be null. We just simulate parent in this case.
-    if (!parent || !parent.tagName) {
-      parent = {
-        namespaceURI: HTML_NAMESPACE,
-        tagName: 'template'
+    // In JSDOM, if we'we inside shadow DOM, then pawentNode
+    // can be nuww. We just simuwate pawent in this case.
+    if (!pawent || !pawent.tagName) {
+      pawent = {
+        namespaceUWI: HTMW_NAMESPACE,
+        tagName: 'tempwate'
       };
     }
 
-    var tagName = stringToLowerCase(element.tagName);
-    var parentTagName = stringToLowerCase(parent.tagName);
+    vaw tagName = stwingToWowewCase(ewement.tagName);
+    vaw pawentTagName = stwingToWowewCase(pawent.tagName);
 
-    if (element.namespaceURI === SVG_NAMESPACE) {
-      // The only way to switch from HTML namespace to SVG
-      // is via <svg>. If it happens via any other tag, then
-      // it should be killed.
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === 'svg';
+    if (ewement.namespaceUWI === SVG_NAMESPACE) {
+      // The onwy way to switch fwom HTMW namespace to SVG
+      // is via <svg>. If it happens via any otha tag, then
+      // it shouwd be kiwwed.
+      if (pawent.namespaceUWI === HTMW_NAMESPACE) {
+        wetuwn tagName === 'svg';
       }
 
-      // The only way to switch from MathML to SVG is via
-      // svg if parent is either <annotation-xml> or MathML
-      // text integration points.
-      if (parent.namespaceURI === MATHML_NAMESPACE) {
-        return tagName === 'svg' && (parentTagName === 'annotation-xml' || MATHML_TEXT_INTEGRATION_POINTS[parentTagName]);
+      // The onwy way to switch fwom MathMW to SVG is via
+      // svg if pawent is eitha <annotation-xmw> ow MathMW
+      // text integwation points.
+      if (pawent.namespaceUWI === MATHMW_NAMESPACE) {
+        wetuwn tagName === 'svg' && (pawentTagName === 'annotation-xmw' || MATHMW_TEXT_INTEGWATION_POINTS[pawentTagName]);
       }
 
-      // We only allow elements that are defined in SVG
-      // spec. All others are disallowed in SVG namespace.
-      return Boolean(ALL_SVG_TAGS[tagName]);
+      // We onwy awwow ewements that awe defined in SVG
+      // spec. Aww othews awe disawwowed in SVG namespace.
+      wetuwn Boowean(AWW_SVG_TAGS[tagName]);
     }
 
-    if (element.namespaceURI === MATHML_NAMESPACE) {
-      // The only way to switch from HTML namespace to MathML
-      // is via <math>. If it happens via any other tag, then
-      // it should be killed.
-      if (parent.namespaceURI === HTML_NAMESPACE) {
-        return tagName === 'math';
+    if (ewement.namespaceUWI === MATHMW_NAMESPACE) {
+      // The onwy way to switch fwom HTMW namespace to MathMW
+      // is via <math>. If it happens via any otha tag, then
+      // it shouwd be kiwwed.
+      if (pawent.namespaceUWI === HTMW_NAMESPACE) {
+        wetuwn tagName === 'math';
       }
 
-      // The only way to switch from SVG to MathML is via
-      // <math> and HTML integration points
-      if (parent.namespaceURI === SVG_NAMESPACE) {
-        return tagName === 'math' && HTML_INTEGRATION_POINTS[parentTagName];
+      // The onwy way to switch fwom SVG to MathMW is via
+      // <math> and HTMW integwation points
+      if (pawent.namespaceUWI === SVG_NAMESPACE) {
+        wetuwn tagName === 'math' && HTMW_INTEGWATION_POINTS[pawentTagName];
       }
 
-      // We only allow elements that are defined in MathML
-      // spec. All others are disallowed in MathML namespace.
-      return Boolean(ALL_MATHML_TAGS[tagName]);
+      // We onwy awwow ewements that awe defined in MathMW
+      // spec. Aww othews awe disawwowed in MathMW namespace.
+      wetuwn Boowean(AWW_MATHMW_TAGS[tagName]);
     }
 
-    if (element.namespaceURI === HTML_NAMESPACE) {
-      // The only way to switch from SVG to HTML is via
-      // HTML integration points, and from MathML to HTML
-      // is via MathML text integration points
-      if (parent.namespaceURI === SVG_NAMESPACE && !HTML_INTEGRATION_POINTS[parentTagName]) {
-        return false;
+    if (ewement.namespaceUWI === HTMW_NAMESPACE) {
+      // The onwy way to switch fwom SVG to HTMW is via
+      // HTMW integwation points, and fwom MathMW to HTMW
+      // is via MathMW text integwation points
+      if (pawent.namespaceUWI === SVG_NAMESPACE && !HTMW_INTEGWATION_POINTS[pawentTagName]) {
+        wetuwn fawse;
       }
 
-      if (parent.namespaceURI === MATHML_NAMESPACE && !MATHML_TEXT_INTEGRATION_POINTS[parentTagName]) {
-        return false;
+      if (pawent.namespaceUWI === MATHMW_NAMESPACE && !MATHMW_TEXT_INTEGWATION_POINTS[pawentTagName]) {
+        wetuwn fawse;
       }
 
-      // Certain elements are allowed in both SVG and HTML
-      // namespace. We need to specify them explicitly
-      // so that they don't get erronously deleted from
-      // HTML namespace.
-      var commonSvgAndHTMLElements = addToSet({}, ['title', 'style', 'font', 'a', 'script']);
+      // Cewtain ewements awe awwowed in both SVG and HTMW
+      // namespace. We need to specify them expwicitwy
+      // so that they don't get ewwonouswy deweted fwom
+      // HTMW namespace.
+      vaw commonSvgAndHTMWEwements = addToSet({}, ['titwe', 'stywe', 'font', 'a', 'scwipt']);
 
-      // We disallow tags that are specific for MathML
-      // or SVG and should never appear in HTML namespace
-      return !ALL_MATHML_TAGS[tagName] && (commonSvgAndHTMLElements[tagName] || !ALL_SVG_TAGS[tagName]);
+      // We disawwow tags that awe specific fow MathMW
+      // ow SVG and shouwd neva appeaw in HTMW namespace
+      wetuwn !AWW_MATHMW_TAGS[tagName] && (commonSvgAndHTMWEwements[tagName] || !AWW_SVG_TAGS[tagName]);
     }
 
-    // The code should never reach this place (this means
-    // that the element somehow got namespace that is not
-    // HTML, SVG or MathML). Return false just in case.
-    return false;
+    // The code shouwd neva weach this pwace (this means
+    // that the ewement somehow got namespace that is not
+    // HTMW, SVG ow MathMW). Wetuwn fawse just in case.
+    wetuwn fawse;
   };
 
   /**
-   * _forceRemove
+   * _fowceWemove
    *
-   * @param  {Node} node a DOM node
+   * @pawam  {Node} node a DOM node
    */
-  var _forceRemove = function _forceRemove(node) {
-    arrayPush(DOMPurify.removed, { element: node });
-    try {
-      // eslint-disable-next-line unicorn/prefer-dom-node-remove
-      node.parentNode.removeChild(node);
+  vaw _fowceWemove = function _fowceWemove(node) {
+    awwayPush(DOMPuwify.wemoved, { ewement: node });
+    twy {
+      // eswint-disabwe-next-wine unicown/pwefa-dom-node-wemove
+      node.pawentNode.wemoveChiwd(node);
     } catch (_) {
-      try {
-        node.outerHTML = emptyHTML;
+      twy {
+        node.outewHTMW = emptyHTMW;
       } catch (_) {
-        node.remove();
+        node.wemove();
       }
     }
   };
 
   /**
-   * _removeAttribute
+   * _wemoveAttwibute
    *
-   * @param  {String} name an Attribute name
-   * @param  {Node} node a DOM node
+   * @pawam  {Stwing} name an Attwibute name
+   * @pawam  {Node} node a DOM node
    */
-  var _removeAttribute = function _removeAttribute(name, node) {
-    try {
-      arrayPush(DOMPurify.removed, {
-        attribute: node.getAttributeNode(name),
-        from: node
+  vaw _wemoveAttwibute = function _wemoveAttwibute(name, node) {
+    twy {
+      awwayPush(DOMPuwify.wemoved, {
+        attwibute: node.getAttwibuteNode(name),
+        fwom: node
       });
     } catch (_) {
-      arrayPush(DOMPurify.removed, {
-        attribute: null,
-        from: node
+      awwayPush(DOMPuwify.wemoved, {
+        attwibute: nuww,
+        fwom: node
       });
     }
 
-    node.removeAttribute(name);
+    node.wemoveAttwibute(name);
 
-    // We void attribute values for unremovable "is"" attributes
-    if (name === 'is' && !ALLOWED_ATTR[name]) {
-      if (RETURN_DOM || RETURN_DOM_FRAGMENT) {
-        try {
-          _forceRemove(node);
+    // We void attwibute vawues fow unwemovabwe "is"" attwibutes
+    if (name === 'is' && !AWWOWED_ATTW[name]) {
+      if (WETUWN_DOM || WETUWN_DOM_FWAGMENT) {
+        twy {
+          _fowceWemove(node);
         } catch (_) {}
-      } else {
-        try {
-          node.setAttribute(name, '');
+      } ewse {
+        twy {
+          node.setAttwibute(name, '');
         } catch (_) {}
       }
     }
@@ -730,647 +730,647 @@ function createDOMPurify() {
   /**
    * _initDocument
    *
-   * @param  {String} dirty a string of dirty markup
-   * @return {Document} a DOM, filled with the dirty markup
+   * @pawam  {Stwing} diwty a stwing of diwty mawkup
+   * @wetuwn {Document} a DOM, fiwwed with the diwty mawkup
    */
-  var _initDocument = function _initDocument(dirty) {
-    /* Create a HTML document */
-    var doc = void 0;
-    var leadingWhitespace = void 0;
+  vaw _initDocument = function _initDocument(diwty) {
+    /* Cweate a HTMW document */
+    vaw doc = void 0;
+    vaw weadingWhitespace = void 0;
 
-    if (FORCE_BODY) {
-      dirty = '<remove></remove>' + dirty;
-    } else {
-      /* If FORCE_BODY isn't used, leading whitespace needs to be preserved manually */
-      var matches = stringMatch(dirty, /^[\r\n\t ]+/);
-      leadingWhitespace = matches && matches[0];
+    if (FOWCE_BODY) {
+      diwty = '<wemove></wemove>' + diwty;
+    } ewse {
+      /* If FOWCE_BODY isn't used, weading whitespace needs to be pwesewved manuawwy */
+      vaw matches = stwingMatch(diwty, /^[\w\n\t ]+/);
+      weadingWhitespace = matches && matches[0];
     }
 
-    var dirtyPayload = trustedTypesPolicy ? trustedTypesPolicy.createHTML(dirty) : dirty;
+    vaw diwtyPaywoad = twustedTypesPowicy ? twustedTypesPowicy.cweateHTMW(diwty) : diwty;
     /*
-     * Use the DOMParser API by default, fallback later if needs be
-     * DOMParser not work for svg when has multiple root element.
+     * Use the DOMPawsa API by defauwt, fawwback wata if needs be
+     * DOMPawsa not wowk fow svg when has muwtipwe woot ewement.
      */
-    if (NAMESPACE === HTML_NAMESPACE) {
-      try {
-        doc = new DOMParser().parseFromString(dirtyPayload, 'text/html');
+    if (NAMESPACE === HTMW_NAMESPACE) {
+      twy {
+        doc = new DOMPawsa().pawseFwomStwing(diwtyPaywoad, 'text/htmw');
       } catch (_) {}
     }
 
-    /* Use createHTMLDocument in case DOMParser is not available */
-    if (!doc || !doc.documentElement) {
-      doc = implementation.createDocument(NAMESPACE, 'template', null);
-      try {
-        doc.documentElement.innerHTML = IS_EMPTY_INPUT ? '' : dirtyPayload;
+    /* Use cweateHTMWDocument in case DOMPawsa is not avaiwabwe */
+    if (!doc || !doc.documentEwement) {
+      doc = impwementation.cweateDocument(NAMESPACE, 'tempwate', nuww);
+      twy {
+        doc.documentEwement.innewHTMW = IS_EMPTY_INPUT ? '' : diwtyPaywoad;
       } catch (_) {
-        // Syntax error if dirtyPayload is invalid xml
+        // Syntax ewwow if diwtyPaywoad is invawid xmw
       }
     }
 
-    var body = doc.body || doc.documentElement;
+    vaw body = doc.body || doc.documentEwement;
 
-    if (dirty && leadingWhitespace) {
-      body.insertBefore(document.createTextNode(leadingWhitespace), body.childNodes[0] || null);
+    if (diwty && weadingWhitespace) {
+      body.insewtBefowe(document.cweateTextNode(weadingWhitespace), body.chiwdNodes[0] || nuww);
     }
 
-    /* Work on whole document or just its body */
-    if (NAMESPACE === HTML_NAMESPACE) {
-      return getElementsByTagName.call(doc, WHOLE_DOCUMENT ? 'html' : 'body')[0];
+    /* Wowk on whowe document ow just its body */
+    if (NAMESPACE === HTMW_NAMESPACE) {
+      wetuwn getEwementsByTagName.caww(doc, WHOWE_DOCUMENT ? 'htmw' : 'body')[0];
     }
 
-    return WHOLE_DOCUMENT ? doc.documentElement : body;
+    wetuwn WHOWE_DOCUMENT ? doc.documentEwement : body;
   };
 
   /**
-   * _createIterator
+   * _cweateItewatow
    *
-   * @param  {Document} root document/fragment to create iterator for
-   * @return {Iterator} iterator instance
+   * @pawam  {Document} woot document/fwagment to cweate itewatow fow
+   * @wetuwn {Itewatow} itewatow instance
    */
-  var _createIterator = function _createIterator(root) {
-    return createNodeIterator.call(root.ownerDocument || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT, null, false);
+  vaw _cweateItewatow = function _cweateItewatow(woot) {
+    wetuwn cweateNodeItewatow.caww(woot.ownewDocument || woot, woot, NodeFiwta.SHOW_EWEMENT | NodeFiwta.SHOW_COMMENT | NodeFiwta.SHOW_TEXT, nuww, fawse);
   };
 
   /**
-   * _isClobbered
+   * _isCwobbewed
    *
-   * @param  {Node} elm element to check for clobbering attacks
-   * @return {Boolean} true if clobbered, false if safe
+   * @pawam  {Node} ewm ewement to check fow cwobbewing attacks
+   * @wetuwn {Boowean} twue if cwobbewed, fawse if safe
    */
-  var _isClobbered = function _isClobbered(elm) {
-    if (elm instanceof Text || elm instanceof Comment) {
-      return false;
+  vaw _isCwobbewed = function _isCwobbewed(ewm) {
+    if (ewm instanceof Text || ewm instanceof Comment) {
+      wetuwn fawse;
     }
 
-    if (typeof elm.nodeName !== 'string' || typeof elm.textContent !== 'string' || typeof elm.removeChild !== 'function' || !(elm.attributes instanceof NamedNodeMap) || typeof elm.removeAttribute !== 'function' || typeof elm.setAttribute !== 'function' || typeof elm.namespaceURI !== 'string' || typeof elm.insertBefore !== 'function') {
-      return true;
+    if (typeof ewm.nodeName !== 'stwing' || typeof ewm.textContent !== 'stwing' || typeof ewm.wemoveChiwd !== 'function' || !(ewm.attwibutes instanceof NamedNodeMap) || typeof ewm.wemoveAttwibute !== 'function' || typeof ewm.setAttwibute !== 'function' || typeof ewm.namespaceUWI !== 'stwing' || typeof ewm.insewtBefowe !== 'function') {
+      wetuwn twue;
     }
 
-    return false;
+    wetuwn fawse;
   };
 
   /**
    * _isNode
    *
-   * @param  {Node} obj object to check whether it's a DOM node
-   * @return {Boolean} true is object is a DOM node
+   * @pawam  {Node} obj object to check whetha it's a DOM node
+   * @wetuwn {Boowean} twue is object is a DOM node
    */
-  var _isNode = function _isNode(object) {
-    return (typeof Node === 'undefined' ? 'undefined' : _typeof(Node)) === 'object' ? object instanceof Node : object && (typeof object === 'undefined' ? 'undefined' : _typeof(object)) === 'object' && typeof object.nodeType === 'number' && typeof object.nodeName === 'string';
+  vaw _isNode = function _isNode(object) {
+    wetuwn (typeof Node === 'undefined' ? 'undefined' : _typeof(Node)) === 'object' ? object instanceof Node : object && (typeof object === 'undefined' ? 'undefined' : _typeof(object)) === 'object' && typeof object.nodeType === 'numba' && typeof object.nodeName === 'stwing';
   };
 
   /**
    * _executeHook
-   * Execute user configurable hooks
+   * Execute usa configuwabwe hooks
    *
-   * @param  {String} entryPoint  Name of the hook's entry point
-   * @param  {Node} currentNode node to work on with the hook
-   * @param  {Object} data additional hook parameters
+   * @pawam  {Stwing} entwyPoint  Name of the hook's entwy point
+   * @pawam  {Node} cuwwentNode node to wowk on with the hook
+   * @pawam  {Object} data additionaw hook pawametews
    */
-  var _executeHook = function _executeHook(entryPoint, currentNode, data) {
-    if (!hooks[entryPoint]) {
-      return;
+  vaw _executeHook = function _executeHook(entwyPoint, cuwwentNode, data) {
+    if (!hooks[entwyPoint]) {
+      wetuwn;
     }
 
-    arrayForEach(hooks[entryPoint], function (hook) {
-      hook.call(DOMPurify, currentNode, data, CONFIG);
+    awwayFowEach(hooks[entwyPoint], function (hook) {
+      hook.caww(DOMPuwify, cuwwentNode, data, CONFIG);
     });
   };
 
   /**
-   * _sanitizeElements
+   * _sanitizeEwements
    *
-   * @protect nodeName
-   * @protect textContent
-   * @protect removeChild
+   * @pwotect nodeName
+   * @pwotect textContent
+   * @pwotect wemoveChiwd
    *
-   * @param   {Node} currentNode to check for permission to exist
-   * @return  {Boolean} true if node was killed, false if left alive
+   * @pawam   {Node} cuwwentNode to check fow pewmission to exist
+   * @wetuwn  {Boowean} twue if node was kiwwed, fawse if weft awive
    */
-  var _sanitizeElements = function _sanitizeElements(currentNode) {
-    var content = void 0;
+  vaw _sanitizeEwements = function _sanitizeEwements(cuwwentNode) {
+    vaw content = void 0;
 
-    /* Execute a hook if present */
-    _executeHook('beforeSanitizeElements', currentNode, null);
+    /* Execute a hook if pwesent */
+    _executeHook('befoweSanitizeEwements', cuwwentNode, nuww);
 
-    /* Check if element is clobbered or can clobber */
-    if (_isClobbered(currentNode)) {
-      _forceRemove(currentNode);
-      return true;
+    /* Check if ewement is cwobbewed ow can cwobba */
+    if (_isCwobbewed(cuwwentNode)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
     /* Check if tagname contains Unicode */
-    if (stringMatch(currentNode.nodeName, /[\u0080-\uFFFF]/)) {
-      _forceRemove(currentNode);
-      return true;
+    if (stwingMatch(cuwwentNode.nodeName, /[\u0080-\uFFFF]/)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    /* Now let's check the element's type and name */
-    var tagName = stringToLowerCase(currentNode.nodeName);
+    /* Now wet's check the ewement's type and name */
+    vaw tagName = stwingToWowewCase(cuwwentNode.nodeName);
 
-    /* Execute a hook if present */
-    _executeHook('uponSanitizeElement', currentNode, {
+    /* Execute a hook if pwesent */
+    _executeHook('uponSanitizeEwement', cuwwentNode, {
       tagName: tagName,
-      allowedTags: ALLOWED_TAGS
+      awwowedTags: AWWOWED_TAGS
     });
 
     /* Detect mXSS attempts abusing namespace confusion */
-    if (!_isNode(currentNode.firstElementChild) && (!_isNode(currentNode.content) || !_isNode(currentNode.content.firstElementChild)) && regExpTest(/<[/\w]/g, currentNode.innerHTML) && regExpTest(/<[/\w]/g, currentNode.textContent)) {
-      _forceRemove(currentNode);
-      return true;
+    if (!_isNode(cuwwentNode.fiwstEwementChiwd) && (!_isNode(cuwwentNode.content) || !_isNode(cuwwentNode.content.fiwstEwementChiwd)) && wegExpTest(/<[/\w]/g, cuwwentNode.innewHTMW) && wegExpTest(/<[/\w]/g, cuwwentNode.textContent)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    /* Mitigate a problem with templates inside select */
-    if (tagName === 'select' && regExpTest(/<template/i, currentNode.innerHTML)) {
-      _forceRemove(currentNode);
-      return true;
+    /* Mitigate a pwobwem with tempwates inside sewect */
+    if (tagName === 'sewect' && wegExpTest(/<tempwate/i, cuwwentNode.innewHTMW)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    /* Remove element if anything forbids its presence */
-    if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
-      /* Keep content except for bad-listed elements */
-      if (KEEP_CONTENT && !FORBID_CONTENTS[tagName]) {
-        var parentNode = getParentNode(currentNode) || currentNode.parentNode;
-        var childNodes = getChildNodes(currentNode) || currentNode.childNodes;
+    /* Wemove ewement if anything fowbids its pwesence */
+    if (!AWWOWED_TAGS[tagName] || FOWBID_TAGS[tagName]) {
+      /* Keep content except fow bad-wisted ewements */
+      if (KEEP_CONTENT && !FOWBID_CONTENTS[tagName]) {
+        vaw pawentNode = getPawentNode(cuwwentNode) || cuwwentNode.pawentNode;
+        vaw chiwdNodes = getChiwdNodes(cuwwentNode) || cuwwentNode.chiwdNodes;
 
-        if (childNodes && parentNode) {
-          var childCount = childNodes.length;
+        if (chiwdNodes && pawentNode) {
+          vaw chiwdCount = chiwdNodes.wength;
 
-          for (var i = childCount - 1; i >= 0; --i) {
-            parentNode.insertBefore(cloneNode(childNodes[i], true), getNextSibling(currentNode));
+          fow (vaw i = chiwdCount - 1; i >= 0; --i) {
+            pawentNode.insewtBefowe(cwoneNode(chiwdNodes[i], twue), getNextSibwing(cuwwentNode));
           }
         }
       }
 
-      _forceRemove(currentNode);
-      return true;
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    /* Check whether element has a valid namespace */
-    if (currentNode instanceof Element && !_checkValidNamespace(currentNode)) {
-      _forceRemove(currentNode);
-      return true;
+    /* Check whetha ewement has a vawid namespace */
+    if (cuwwentNode instanceof Ewement && !_checkVawidNamespace(cuwwentNode)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    if ((tagName === 'noscript' || tagName === 'noembed') && regExpTest(/<\/no(script|embed)/i, currentNode.innerHTML)) {
-      _forceRemove(currentNode);
-      return true;
+    if ((tagName === 'noscwipt' || tagName === 'noembed') && wegExpTest(/<\/no(scwipt|embed)/i, cuwwentNode.innewHTMW)) {
+      _fowceWemove(cuwwentNode);
+      wetuwn twue;
     }
 
-    /* Sanitize element content to be template-safe */
-    if (SAFE_FOR_TEMPLATES && currentNode.nodeType === 3) {
-      /* Get the element's text content */
-      content = currentNode.textContent;
-      content = stringReplace(content, MUSTACHE_EXPR$$1, ' ');
-      content = stringReplace(content, ERB_EXPR$$1, ' ');
-      if (currentNode.textContent !== content) {
-        arrayPush(DOMPurify.removed, { element: currentNode.cloneNode() });
-        currentNode.textContent = content;
+    /* Sanitize ewement content to be tempwate-safe */
+    if (SAFE_FOW_TEMPWATES && cuwwentNode.nodeType === 3) {
+      /* Get the ewement's text content */
+      content = cuwwentNode.textContent;
+      content = stwingWepwace(content, MUSTACHE_EXPW$$1, ' ');
+      content = stwingWepwace(content, EWB_EXPW$$1, ' ');
+      if (cuwwentNode.textContent !== content) {
+        awwayPush(DOMPuwify.wemoved, { ewement: cuwwentNode.cwoneNode() });
+        cuwwentNode.textContent = content;
       }
     }
 
-    /* Execute a hook if present */
-    _executeHook('afterSanitizeElements', currentNode, null);
+    /* Execute a hook if pwesent */
+    _executeHook('aftewSanitizeEwements', cuwwentNode, nuww);
 
-    return false;
+    wetuwn fawse;
   };
 
   /**
-   * _isValidAttribute
+   * _isVawidAttwibute
    *
-   * @param  {string} lcTag Lowercase tag name of containing element.
-   * @param  {string} lcName Lowercase attribute name.
-   * @param  {string} value Attribute value.
-   * @return {Boolean} Returns true if `value` is valid, otherwise false.
+   * @pawam  {stwing} wcTag Wowewcase tag name of containing ewement.
+   * @pawam  {stwing} wcName Wowewcase attwibute name.
+   * @pawam  {stwing} vawue Attwibute vawue.
+   * @wetuwn {Boowean} Wetuwns twue if `vawue` is vawid, othewwise fawse.
    */
-  // eslint-disable-next-line complexity
-  var _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
-    /* Make sure attribute cannot clobber */
-    if (SANITIZE_DOM && (lcName === 'id' || lcName === 'name') && (value in document || value in formElement)) {
-      return false;
+  // eswint-disabwe-next-wine compwexity
+  vaw _isVawidAttwibute = function _isVawidAttwibute(wcTag, wcName, vawue) {
+    /* Make suwe attwibute cannot cwobba */
+    if (SANITIZE_DOM && (wcName === 'id' || wcName === 'name') && (vawue in document || vawue in fowmEwement)) {
+      wetuwn fawse;
     }
 
-    /* Allow valid data-* attributes: At least one character after "-"
-        (https://html.spec.whatwg.org/multipage/dom.html#embedding-custom-non-visible-data-with-the-data-*-attributes)
-        XML-compatible (https://html.spec.whatwg.org/multipage/infrastructure.html#xml-compatible and http://www.w3.org/TR/xml/#d0e804)
-        We don't need to check the value; it's always URI safe. */
-    if (ALLOW_DATA_ATTR && !FORBID_ATTR[lcName] && regExpTest(DATA_ATTR$$1, lcName)) ; else if (ALLOW_ARIA_ATTR && regExpTest(ARIA_ATTR$$1, lcName)) ; else if (!ALLOWED_ATTR[lcName] || FORBID_ATTR[lcName]) {
-      return false;
+    /* Awwow vawid data-* attwibutes: At weast one chawacta afta "-"
+        (https://htmw.spec.whatwg.owg/muwtipage/dom.htmw#embedding-custom-non-visibwe-data-with-the-data-*-attwibutes)
+        XMW-compatibwe (https://htmw.spec.whatwg.owg/muwtipage/infwastwuctuwe.htmw#xmw-compatibwe and http://www.w3.owg/TW/xmw/#d0e804)
+        We don't need to check the vawue; it's awways UWI safe. */
+    if (AWWOW_DATA_ATTW && !FOWBID_ATTW[wcName] && wegExpTest(DATA_ATTW$$1, wcName)) ; ewse if (AWWOW_AWIA_ATTW && wegExpTest(AWIA_ATTW$$1, wcName)) ; ewse if (!AWWOWED_ATTW[wcName] || FOWBID_ATTW[wcName]) {
+      wetuwn fawse;
 
-      /* Check value is safe. First, is attr inert? If so, is safe */
-    } else if (URI_SAFE_ATTRIBUTES[lcName]) ; else if (regExpTest(IS_ALLOWED_URI$$1, stringReplace(value, ATTR_WHITESPACE$$1, ''))) ; else if ((lcName === 'src' || lcName === 'xlink:href' || lcName === 'href') && lcTag !== 'script' && stringIndexOf(value, 'data:') === 0 && DATA_URI_TAGS[lcTag]) ; else if (ALLOW_UNKNOWN_PROTOCOLS && !regExpTest(IS_SCRIPT_OR_DATA$$1, stringReplace(value, ATTR_WHITESPACE$$1, ''))) ; else if (!value) ; else {
-      return false;
+      /* Check vawue is safe. Fiwst, is attw inewt? If so, is safe */
+    } ewse if (UWI_SAFE_ATTWIBUTES[wcName]) ; ewse if (wegExpTest(IS_AWWOWED_UWI$$1, stwingWepwace(vawue, ATTW_WHITESPACE$$1, ''))) ; ewse if ((wcName === 'swc' || wcName === 'xwink:hwef' || wcName === 'hwef') && wcTag !== 'scwipt' && stwingIndexOf(vawue, 'data:') === 0 && DATA_UWI_TAGS[wcTag]) ; ewse if (AWWOW_UNKNOWN_PWOTOCOWS && !wegExpTest(IS_SCWIPT_OW_DATA$$1, stwingWepwace(vawue, ATTW_WHITESPACE$$1, ''))) ; ewse if (!vawue) ; ewse {
+      wetuwn fawse;
     }
 
-    return true;
+    wetuwn twue;
   };
 
   /**
-   * _sanitizeAttributes
+   * _sanitizeAttwibutes
    *
-   * @protect attributes
-   * @protect nodeName
-   * @protect removeAttribute
-   * @protect setAttribute
+   * @pwotect attwibutes
+   * @pwotect nodeName
+   * @pwotect wemoveAttwibute
+   * @pwotect setAttwibute
    *
-   * @param  {Node} currentNode to sanitize
+   * @pawam  {Node} cuwwentNode to sanitize
    */
-  var _sanitizeAttributes = function _sanitizeAttributes(currentNode) {
-    var attr = void 0;
-    var value = void 0;
-    var lcName = void 0;
-    var l = void 0;
-    /* Execute a hook if present */
-    _executeHook('beforeSanitizeAttributes', currentNode, null);
+  vaw _sanitizeAttwibutes = function _sanitizeAttwibutes(cuwwentNode) {
+    vaw attw = void 0;
+    vaw vawue = void 0;
+    vaw wcName = void 0;
+    vaw w = void 0;
+    /* Execute a hook if pwesent */
+    _executeHook('befoweSanitizeAttwibutes', cuwwentNode, nuww);
 
-    var attributes = currentNode.attributes;
+    vaw attwibutes = cuwwentNode.attwibutes;
 
-    /* Check if we have attributes; if not we might have a text node */
+    /* Check if we have attwibutes; if not we might have a text node */
 
-    if (!attributes) {
-      return;
+    if (!attwibutes) {
+      wetuwn;
     }
 
-    var hookEvent = {
-      attrName: '',
-      attrValue: '',
-      keepAttr: true,
-      allowedAttributes: ALLOWED_ATTR
+    vaw hookEvent = {
+      attwName: '',
+      attwVawue: '',
+      keepAttw: twue,
+      awwowedAttwibutes: AWWOWED_ATTW
     };
-    l = attributes.length;
+    w = attwibutes.wength;
 
-    /* Go backwards over all attributes; safely remove bad ones */
-    while (l--) {
-      attr = attributes[l];
-      var _attr = attr,
-          name = _attr.name,
-          namespaceURI = _attr.namespaceURI;
+    /* Go backwawds ova aww attwibutes; safewy wemove bad ones */
+    whiwe (w--) {
+      attw = attwibutes[w];
+      vaw _attw = attw,
+          name = _attw.name,
+          namespaceUWI = _attw.namespaceUWI;
 
-      value = stringTrim(attr.value);
-      lcName = stringToLowerCase(name);
+      vawue = stwingTwim(attw.vawue);
+      wcName = stwingToWowewCase(name);
 
-      /* Execute a hook if present */
-      hookEvent.attrName = lcName;
-      hookEvent.attrValue = value;
-      hookEvent.keepAttr = true;
-      hookEvent.forceKeepAttr = undefined; // Allows developers to see this is a property they can set
-      _executeHook('uponSanitizeAttribute', currentNode, hookEvent);
-      value = hookEvent.attrValue;
-      /* Did the hooks approve of the attribute? */
-      if (hookEvent.forceKeepAttr) {
+      /* Execute a hook if pwesent */
+      hookEvent.attwName = wcName;
+      hookEvent.attwVawue = vawue;
+      hookEvent.keepAttw = twue;
+      hookEvent.fowceKeepAttw = undefined; // Awwows devewopews to see this is a pwopewty they can set
+      _executeHook('uponSanitizeAttwibute', cuwwentNode, hookEvent);
+      vawue = hookEvent.attwVawue;
+      /* Did the hooks appwove of the attwibute? */
+      if (hookEvent.fowceKeepAttw) {
         continue;
       }
 
-      /* Remove attribute */
-      _removeAttribute(name, currentNode);
+      /* Wemove attwibute */
+      _wemoveAttwibute(name, cuwwentNode);
 
-      /* Did the hooks approve of the attribute? */
-      if (!hookEvent.keepAttr) {
+      /* Did the hooks appwove of the attwibute? */
+      if (!hookEvent.keepAttw) {
         continue;
       }
 
-      /* Work around a security issue in jQuery 3.0 */
-      if (regExpTest(/\/>/i, value)) {
-        _removeAttribute(name, currentNode);
+      /* Wowk awound a secuwity issue in jQuewy 3.0 */
+      if (wegExpTest(/\/>/i, vawue)) {
+        _wemoveAttwibute(name, cuwwentNode);
         continue;
       }
 
-      /* Sanitize attribute content to be template-safe */
-      if (SAFE_FOR_TEMPLATES) {
-        value = stringReplace(value, MUSTACHE_EXPR$$1, ' ');
-        value = stringReplace(value, ERB_EXPR$$1, ' ');
+      /* Sanitize attwibute content to be tempwate-safe */
+      if (SAFE_FOW_TEMPWATES) {
+        vawue = stwingWepwace(vawue, MUSTACHE_EXPW$$1, ' ');
+        vawue = stwingWepwace(vawue, EWB_EXPW$$1, ' ');
       }
 
-      /* Is `value` valid for this attribute? */
-      var lcTag = currentNode.nodeName.toLowerCase();
-      if (!_isValidAttribute(lcTag, lcName, value)) {
+      /* Is `vawue` vawid fow this attwibute? */
+      vaw wcTag = cuwwentNode.nodeName.toWowewCase();
+      if (!_isVawidAttwibute(wcTag, wcName, vawue)) {
         continue;
       }
 
-      /* Handle invalid data-* attribute set by try-catching it */
-      try {
-        if (namespaceURI) {
-          currentNode.setAttributeNS(namespaceURI, name, value);
-        } else {
-          /* Fallback to setAttribute() for browser-unrecognized namespaces e.g. "x-schema". */
-          currentNode.setAttribute(name, value);
+      /* Handwe invawid data-* attwibute set by twy-catching it */
+      twy {
+        if (namespaceUWI) {
+          cuwwentNode.setAttwibuteNS(namespaceUWI, name, vawue);
+        } ewse {
+          /* Fawwback to setAttwibute() fow bwowsa-unwecognized namespaces e.g. "x-schema". */
+          cuwwentNode.setAttwibute(name, vawue);
         }
 
-        arrayPop(DOMPurify.removed);
+        awwayPop(DOMPuwify.wemoved);
       } catch (_) {}
     }
 
-    /* Execute a hook if present */
-    _executeHook('afterSanitizeAttributes', currentNode, null);
+    /* Execute a hook if pwesent */
+    _executeHook('aftewSanitizeAttwibutes', cuwwentNode, nuww);
   };
 
   /**
    * _sanitizeShadowDOM
    *
-   * @param  {DocumentFragment} fragment to iterate over recursively
+   * @pawam  {DocumentFwagment} fwagment to itewate ova wecuwsivewy
    */
-  var _sanitizeShadowDOM = function _sanitizeShadowDOM(fragment) {
-    var shadowNode = void 0;
-    var shadowIterator = _createIterator(fragment);
+  vaw _sanitizeShadowDOM = function _sanitizeShadowDOM(fwagment) {
+    vaw shadowNode = void 0;
+    vaw shadowItewatow = _cweateItewatow(fwagment);
 
-    /* Execute a hook if present */
-    _executeHook('beforeSanitizeShadowDOM', fragment, null);
+    /* Execute a hook if pwesent */
+    _executeHook('befoweSanitizeShadowDOM', fwagment, nuww);
 
-    while (shadowNode = shadowIterator.nextNode()) {
-      /* Execute a hook if present */
-      _executeHook('uponSanitizeShadowNode', shadowNode, null);
+    whiwe (shadowNode = shadowItewatow.nextNode()) {
+      /* Execute a hook if pwesent */
+      _executeHook('uponSanitizeShadowNode', shadowNode, nuww);
 
-      /* Sanitize tags and elements */
-      if (_sanitizeElements(shadowNode)) {
+      /* Sanitize tags and ewements */
+      if (_sanitizeEwements(shadowNode)) {
         continue;
       }
 
       /* Deep shadow DOM detected */
-      if (shadowNode.content instanceof DocumentFragment) {
+      if (shadowNode.content instanceof DocumentFwagment) {
         _sanitizeShadowDOM(shadowNode.content);
       }
 
-      /* Check attributes, sanitize if necessary */
-      _sanitizeAttributes(shadowNode);
+      /* Check attwibutes, sanitize if necessawy */
+      _sanitizeAttwibutes(shadowNode);
     }
 
-    /* Execute a hook if present */
-    _executeHook('afterSanitizeShadowDOM', fragment, null);
+    /* Execute a hook if pwesent */
+    _executeHook('aftewSanitizeShadowDOM', fwagment, nuww);
   };
 
   /**
    * Sanitize
-   * Public method providing core sanitation functionality
+   * Pubwic method pwoviding cowe sanitation functionawity
    *
-   * @param {String|Node} dirty string or DOM node
-   * @param {Object} configuration object
+   * @pawam {Stwing|Node} diwty stwing ow DOM node
+   * @pawam {Object} configuwation object
    */
-  // eslint-disable-next-line complexity
-  DOMPurify.sanitize = function (dirty, cfg) {
-    var body = void 0;
-    var importedNode = void 0;
-    var currentNode = void 0;
-    var oldNode = void 0;
-    var returnNode = void 0;
-    /* Make sure we have a string to sanitize.
-      DO NOT return early, as this will return the wrong type if
-      the user has requested a DOM object rather than a string */
-    IS_EMPTY_INPUT = !dirty;
+  // eswint-disabwe-next-wine compwexity
+  DOMPuwify.sanitize = function (diwty, cfg) {
+    vaw body = void 0;
+    vaw impowtedNode = void 0;
+    vaw cuwwentNode = void 0;
+    vaw owdNode = void 0;
+    vaw wetuwnNode = void 0;
+    /* Make suwe we have a stwing to sanitize.
+      DO NOT wetuwn eawwy, as this wiww wetuwn the wwong type if
+      the usa has wequested a DOM object watha than a stwing */
+    IS_EMPTY_INPUT = !diwty;
     if (IS_EMPTY_INPUT) {
-      dirty = '<!-->';
+      diwty = '<!-->';
     }
 
-    /* Stringify, in case dirty is an object */
-    if (typeof dirty !== 'string' && !_isNode(dirty)) {
-      // eslint-disable-next-line no-negated-condition
-      if (typeof dirty.toString !== 'function') {
-        throw typeErrorCreate('toString is not a function');
-      } else {
-        dirty = dirty.toString();
-        if (typeof dirty !== 'string') {
-          throw typeErrorCreate('dirty is not a string, aborting');
+    /* Stwingify, in case diwty is an object */
+    if (typeof diwty !== 'stwing' && !_isNode(diwty)) {
+      // eswint-disabwe-next-wine no-negated-condition
+      if (typeof diwty.toStwing !== 'function') {
+        thwow typeEwwowCweate('toStwing is not a function');
+      } ewse {
+        diwty = diwty.toStwing();
+        if (typeof diwty !== 'stwing') {
+          thwow typeEwwowCweate('diwty is not a stwing, abowting');
         }
       }
     }
 
-    /* Check we can run. Otherwise fall back or ignore */
-    if (!DOMPurify.isSupported) {
-      if (_typeof(window.toStaticHTML) === 'object' || typeof window.toStaticHTML === 'function') {
-        if (typeof dirty === 'string') {
-          return window.toStaticHTML(dirty);
+    /* Check we can wun. Othewwise faww back ow ignowe */
+    if (!DOMPuwify.isSuppowted) {
+      if (_typeof(window.toStaticHTMW) === 'object' || typeof window.toStaticHTMW === 'function') {
+        if (typeof diwty === 'stwing') {
+          wetuwn window.toStaticHTMW(diwty);
         }
 
-        if (_isNode(dirty)) {
-          return window.toStaticHTML(dirty.outerHTML);
+        if (_isNode(diwty)) {
+          wetuwn window.toStaticHTMW(diwty.outewHTMW);
         }
       }
 
-      return dirty;
+      wetuwn diwty;
     }
 
-    /* Assign config vars */
+    /* Assign config vaws */
     if (!SET_CONFIG) {
-      _parseConfig(cfg);
+      _pawseConfig(cfg);
     }
 
-    /* Clean up removed elements */
-    DOMPurify.removed = [];
+    /* Cwean up wemoved ewements */
+    DOMPuwify.wemoved = [];
 
-    /* Check if dirty is correctly typed for IN_PLACE */
-    if (typeof dirty === 'string') {
-      IN_PLACE = false;
+    /* Check if diwty is cowwectwy typed fow IN_PWACE */
+    if (typeof diwty === 'stwing') {
+      IN_PWACE = fawse;
     }
 
-    if (IN_PLACE) ; else if (dirty instanceof Node) {
-      /* If dirty is a DOM element, append to an empty document to avoid
-         elements being stripped by the parser */
+    if (IN_PWACE) ; ewse if (diwty instanceof Node) {
+      /* If diwty is a DOM ewement, append to an empty document to avoid
+         ewements being stwipped by the pawsa */
       body = _initDocument('<!---->');
-      importedNode = body.ownerDocument.importNode(dirty, true);
-      if (importedNode.nodeType === 1 && importedNode.nodeName === 'BODY') {
-        /* Node is already a body, use as is */
-        body = importedNode;
-      } else if (importedNode.nodeName === 'HTML') {
-        body = importedNode;
-      } else {
-        // eslint-disable-next-line unicorn/prefer-dom-node-append
-        body.appendChild(importedNode);
+      impowtedNode = body.ownewDocument.impowtNode(diwty, twue);
+      if (impowtedNode.nodeType === 1 && impowtedNode.nodeName === 'BODY') {
+        /* Node is awweady a body, use as is */
+        body = impowtedNode;
+      } ewse if (impowtedNode.nodeName === 'HTMW') {
+        body = impowtedNode;
+      } ewse {
+        // eswint-disabwe-next-wine unicown/pwefa-dom-node-append
+        body.appendChiwd(impowtedNode);
       }
-    } else {
-      /* Exit directly if we have nothing to do */
-      if (!RETURN_DOM && !SAFE_FOR_TEMPLATES && !WHOLE_DOCUMENT &&
-      // eslint-disable-next-line unicorn/prefer-includes
-      dirty.indexOf('<') === -1) {
-        return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(dirty) : dirty;
+    } ewse {
+      /* Exit diwectwy if we have nothing to do */
+      if (!WETUWN_DOM && !SAFE_FOW_TEMPWATES && !WHOWE_DOCUMENT &&
+      // eswint-disabwe-next-wine unicown/pwefa-incwudes
+      diwty.indexOf('<') === -1) {
+        wetuwn twustedTypesPowicy && WETUWN_TWUSTED_TYPE ? twustedTypesPowicy.cweateHTMW(diwty) : diwty;
       }
 
-      /* Initialize the document to work on */
-      body = _initDocument(dirty);
+      /* Initiawize the document to wowk on */
+      body = _initDocument(diwty);
 
-      /* Check we have a DOM node from the data */
+      /* Check we have a DOM node fwom the data */
       if (!body) {
-        return RETURN_DOM ? null : emptyHTML;
+        wetuwn WETUWN_DOM ? nuww : emptyHTMW;
       }
     }
 
-    /* Remove first element node (ours) if FORCE_BODY is set */
-    if (body && FORCE_BODY) {
-      _forceRemove(body.firstChild);
+    /* Wemove fiwst ewement node (ouws) if FOWCE_BODY is set */
+    if (body && FOWCE_BODY) {
+      _fowceWemove(body.fiwstChiwd);
     }
 
-    /* Get node iterator */
-    var nodeIterator = _createIterator(IN_PLACE ? dirty : body);
+    /* Get node itewatow */
+    vaw nodeItewatow = _cweateItewatow(IN_PWACE ? diwty : body);
 
-    /* Now start iterating over the created document */
-    while (currentNode = nodeIterator.nextNode()) {
-      /* Fix IE's strange behavior with manipulated textNodes #89 */
-      if (currentNode.nodeType === 3 && currentNode === oldNode) {
+    /* Now stawt itewating ova the cweated document */
+    whiwe (cuwwentNode = nodeItewatow.nextNode()) {
+      /* Fix IE's stwange behaviow with manipuwated textNodes #89 */
+      if (cuwwentNode.nodeType === 3 && cuwwentNode === owdNode) {
         continue;
       }
 
-      /* Sanitize tags and elements */
-      if (_sanitizeElements(currentNode)) {
+      /* Sanitize tags and ewements */
+      if (_sanitizeEwements(cuwwentNode)) {
         continue;
       }
 
       /* Shadow DOM detected, sanitize it */
-      if (currentNode.content instanceof DocumentFragment) {
-        _sanitizeShadowDOM(currentNode.content);
+      if (cuwwentNode.content instanceof DocumentFwagment) {
+        _sanitizeShadowDOM(cuwwentNode.content);
       }
 
-      /* Check attributes, sanitize if necessary */
-      _sanitizeAttributes(currentNode);
+      /* Check attwibutes, sanitize if necessawy */
+      _sanitizeAttwibutes(cuwwentNode);
 
-      oldNode = currentNode;
+      owdNode = cuwwentNode;
     }
 
-    oldNode = null;
+    owdNode = nuww;
 
-    /* If we sanitized `dirty` in-place, return it. */
-    if (IN_PLACE) {
-      return dirty;
+    /* If we sanitized `diwty` in-pwace, wetuwn it. */
+    if (IN_PWACE) {
+      wetuwn diwty;
     }
 
-    /* Return sanitized string or DOM */
-    if (RETURN_DOM) {
-      if (RETURN_DOM_FRAGMENT) {
-        returnNode = createDocumentFragment.call(body.ownerDocument);
+    /* Wetuwn sanitized stwing ow DOM */
+    if (WETUWN_DOM) {
+      if (WETUWN_DOM_FWAGMENT) {
+        wetuwnNode = cweateDocumentFwagment.caww(body.ownewDocument);
 
-        while (body.firstChild) {
-          // eslint-disable-next-line unicorn/prefer-dom-node-append
-          returnNode.appendChild(body.firstChild);
+        whiwe (body.fiwstChiwd) {
+          // eswint-disabwe-next-wine unicown/pwefa-dom-node-append
+          wetuwnNode.appendChiwd(body.fiwstChiwd);
         }
-      } else {
-        returnNode = body;
+      } ewse {
+        wetuwnNode = body;
       }
 
-      if (RETURN_DOM_IMPORT) {
+      if (WETUWN_DOM_IMPOWT) {
         /*
-          AdoptNode() is not used because internal state is not reset
-          (e.g. the past names map of a HTMLFormElement), this is safe
-          in theory but we would rather not risk another attack vector.
-          The state that is cloned by importNode() is explicitly defined
+          AdoptNode() is not used because intewnaw state is not weset
+          (e.g. the past names map of a HTMWFowmEwement), this is safe
+          in theowy but we wouwd watha not wisk anotha attack vectow.
+          The state that is cwoned by impowtNode() is expwicitwy defined
           by the specs.
         */
-        returnNode = importNode.call(originalDocument, returnNode, true);
+        wetuwnNode = impowtNode.caww(owiginawDocument, wetuwnNode, twue);
       }
 
-      return returnNode;
+      wetuwn wetuwnNode;
     }
 
-    var serializedHTML = WHOLE_DOCUMENT ? body.outerHTML : body.innerHTML;
+    vaw sewiawizedHTMW = WHOWE_DOCUMENT ? body.outewHTMW : body.innewHTMW;
 
-    /* Sanitize final string template-safe */
-    if (SAFE_FOR_TEMPLATES) {
-      serializedHTML = stringReplace(serializedHTML, MUSTACHE_EXPR$$1, ' ');
-      serializedHTML = stringReplace(serializedHTML, ERB_EXPR$$1, ' ');
+    /* Sanitize finaw stwing tempwate-safe */
+    if (SAFE_FOW_TEMPWATES) {
+      sewiawizedHTMW = stwingWepwace(sewiawizedHTMW, MUSTACHE_EXPW$$1, ' ');
+      sewiawizedHTMW = stwingWepwace(sewiawizedHTMW, EWB_EXPW$$1, ' ');
     }
 
-    return trustedTypesPolicy && RETURN_TRUSTED_TYPE ? trustedTypesPolicy.createHTML(serializedHTML) : serializedHTML;
+    wetuwn twustedTypesPowicy && WETUWN_TWUSTED_TYPE ? twustedTypesPowicy.cweateHTMW(sewiawizedHTMW) : sewiawizedHTMW;
   };
 
   /**
-   * Public method to set the configuration once
+   * Pubwic method to set the configuwation once
    * setConfig
    *
-   * @param {Object} cfg configuration object
+   * @pawam {Object} cfg configuwation object
    */
-  DOMPurify.setConfig = function (cfg) {
-    _parseConfig(cfg);
-    SET_CONFIG = true;
+  DOMPuwify.setConfig = function (cfg) {
+    _pawseConfig(cfg);
+    SET_CONFIG = twue;
   };
 
   /**
-   * Public method to remove the configuration
-   * clearConfig
+   * Pubwic method to wemove the configuwation
+   * cweawConfig
    *
    */
-  DOMPurify.clearConfig = function () {
-    CONFIG = null;
-    SET_CONFIG = false;
+  DOMPuwify.cweawConfig = function () {
+    CONFIG = nuww;
+    SET_CONFIG = fawse;
   };
 
   /**
-   * Public method to check if an attribute value is valid.
-   * Uses last set config, if any. Otherwise, uses config defaults.
-   * isValidAttribute
+   * Pubwic method to check if an attwibute vawue is vawid.
+   * Uses wast set config, if any. Othewwise, uses config defauwts.
+   * isVawidAttwibute
    *
-   * @param  {string} tag Tag name of containing element.
-   * @param  {string} attr Attribute name.
-   * @param  {string} value Attribute value.
-   * @return {Boolean} Returns true if `value` is valid. Otherwise, returns false.
+   * @pawam  {stwing} tag Tag name of containing ewement.
+   * @pawam  {stwing} attw Attwibute name.
+   * @pawam  {stwing} vawue Attwibute vawue.
+   * @wetuwn {Boowean} Wetuwns twue if `vawue` is vawid. Othewwise, wetuwns fawse.
    */
-  DOMPurify.isValidAttribute = function (tag, attr, value) {
-    /* Initialize shared config vars if necessary. */
+  DOMPuwify.isVawidAttwibute = function (tag, attw, vawue) {
+    /* Initiawize shawed config vaws if necessawy. */
     if (!CONFIG) {
-      _parseConfig({});
+      _pawseConfig({});
     }
 
-    var lcTag = stringToLowerCase(tag);
-    var lcName = stringToLowerCase(attr);
-    return _isValidAttribute(lcTag, lcName, value);
+    vaw wcTag = stwingToWowewCase(tag);
+    vaw wcName = stwingToWowewCase(attw);
+    wetuwn _isVawidAttwibute(wcTag, wcName, vawue);
   };
 
   /**
    * AddHook
-   * Public method to add DOMPurify hooks
+   * Pubwic method to add DOMPuwify hooks
    *
-   * @param {String} entryPoint entry point for the hook to add
-   * @param {Function} hookFunction function to execute
+   * @pawam {Stwing} entwyPoint entwy point fow the hook to add
+   * @pawam {Function} hookFunction function to execute
    */
-  DOMPurify.addHook = function (entryPoint, hookFunction) {
+  DOMPuwify.addHook = function (entwyPoint, hookFunction) {
     if (typeof hookFunction !== 'function') {
-      return;
+      wetuwn;
     }
 
-    hooks[entryPoint] = hooks[entryPoint] || [];
-    arrayPush(hooks[entryPoint], hookFunction);
+    hooks[entwyPoint] = hooks[entwyPoint] || [];
+    awwayPush(hooks[entwyPoint], hookFunction);
   };
 
   /**
-   * RemoveHook
-   * Public method to remove a DOMPurify hook at a given entryPoint
-   * (pops it from the stack of hooks if more are present)
+   * WemoveHook
+   * Pubwic method to wemove a DOMPuwify hook at a given entwyPoint
+   * (pops it fwom the stack of hooks if mowe awe pwesent)
    *
-   * @param {String} entryPoint entry point for the hook to remove
+   * @pawam {Stwing} entwyPoint entwy point fow the hook to wemove
    */
-  DOMPurify.removeHook = function (entryPoint) {
-    if (hooks[entryPoint]) {
-      arrayPop(hooks[entryPoint]);
-    }
-  };
-
-  /**
-   * RemoveHooks
-   * Public method to remove all DOMPurify hooks at a given entryPoint
-   *
-   * @param  {String} entryPoint entry point for the hooks to remove
-   */
-  DOMPurify.removeHooks = function (entryPoint) {
-    if (hooks[entryPoint]) {
-      hooks[entryPoint] = [];
+  DOMPuwify.wemoveHook = function (entwyPoint) {
+    if (hooks[entwyPoint]) {
+      awwayPop(hooks[entwyPoint]);
     }
   };
 
   /**
-   * RemoveAllHooks
-   * Public method to remove all DOMPurify hooks
+   * WemoveHooks
+   * Pubwic method to wemove aww DOMPuwify hooks at a given entwyPoint
+   *
+   * @pawam  {Stwing} entwyPoint entwy point fow the hooks to wemove
+   */
+  DOMPuwify.wemoveHooks = function (entwyPoint) {
+    if (hooks[entwyPoint]) {
+      hooks[entwyPoint] = [];
+    }
+  };
+
+  /**
+   * WemoveAwwHooks
+   * Pubwic method to wemove aww DOMPuwify hooks
    *
    */
-  DOMPurify.removeAllHooks = function () {
+  DOMPuwify.wemoveAwwHooks = function () {
     hooks = {};
   };
 
-  return DOMPurify;
+  wetuwn DOMPuwify;
 }
 
-var purify = createDOMPurify();
+vaw puwify = cweateDOMPuwify();
 
 // ESM-comment-begin
-define(function () { return purify; });
+define(function () { wetuwn puwify; });
 // ESM-comment-end
 
 // ESM-uncomment-begin
-// export default purify;
+// expowt defauwt puwify;
 // ESM-uncomment-end
 
-//# sourceMappingURL=purify.es.js.map
+//# souwceMappingUWW=puwify.es.js.map

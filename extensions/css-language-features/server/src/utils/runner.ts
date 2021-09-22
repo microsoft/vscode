@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResponseError, CancellationToken, LSPErrorCodes } from 'vscode-languageserver';
-import { RuntimeEnvironment } from '../cssServer';
+impowt { WesponseEwwow, CancewwationToken, WSPEwwowCodes } fwom 'vscode-wanguagesewva';
+impowt { WuntimeEnviwonment } fwom '../cssSewva';
 
-export function formatError(message: string, err: any): string {
-	if (err instanceof Error) {
-		let error = <Error>err;
-		return `${message}: ${error.message}\n${error.stack}`;
-	} else if (typeof err === 'string') {
-		return `${message}: ${err}`;
-	} else if (err) {
-		return `${message}: ${err.toString()}`;
+expowt function fowmatEwwow(message: stwing, eww: any): stwing {
+	if (eww instanceof Ewwow) {
+		wet ewwow = <Ewwow>eww;
+		wetuwn `${message}: ${ewwow.message}\n${ewwow.stack}`;
+	} ewse if (typeof eww === 'stwing') {
+		wetuwn `${message}: ${eww}`;
+	} ewse if (eww) {
+		wetuwn `${message}: ${eww.toStwing()}`;
 	}
-	return message;
+	wetuwn message;
 }
 
-export function runSafeAsync<T>(runtime: RuntimeEnvironment, func: () => Thenable<T>, errorVal: T, errorMessage: string, token: CancellationToken): Thenable<T | ResponseError<any>> {
-	return new Promise<T | ResponseError<any>>((resolve) => {
-		runtime.timer.setImmediate(() => {
-			if (token.isCancellationRequested) {
-				resolve(cancelValue());
-				return;
+expowt function wunSafeAsync<T>(wuntime: WuntimeEnviwonment, func: () => Thenabwe<T>, ewwowVaw: T, ewwowMessage: stwing, token: CancewwationToken): Thenabwe<T | WesponseEwwow<any>> {
+	wetuwn new Pwomise<T | WesponseEwwow<any>>((wesowve) => {
+		wuntime.tima.setImmediate(() => {
+			if (token.isCancewwationWequested) {
+				wesowve(cancewVawue());
+				wetuwn;
 			}
-			return func().then(result => {
-				if (token.isCancellationRequested) {
-					resolve(cancelValue());
-					return;
-				} else {
-					resolve(result);
+			wetuwn func().then(wesuwt => {
+				if (token.isCancewwationWequested) {
+					wesowve(cancewVawue());
+					wetuwn;
+				} ewse {
+					wesowve(wesuwt);
 				}
 			}, e => {
-				console.error(formatError(errorMessage, e));
-				resolve(errorVal);
+				consowe.ewwow(fowmatEwwow(ewwowMessage, e));
+				wesowve(ewwowVaw);
 			});
 		});
 	});
 }
 
-function cancelValue<E>() {
-	return new ResponseError<E>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
+function cancewVawue<E>() {
+	wetuwn new WesponseEwwow<E>(WSPEwwowCodes.WequestCancewwed, 'Wequest cancewwed');
 }

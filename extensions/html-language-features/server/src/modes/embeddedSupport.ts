@@ -1,233 +1,233 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Position, LanguageService, TokenType, Range } from './languageModes';
+impowt { TextDocument, Position, WanguageSewvice, TokenType, Wange } fwom './wanguageModes';
 
-export interface LanguageRange extends Range {
-	languageId: string | undefined;
-	attributeValue?: boolean;
+expowt intewface WanguageWange extends Wange {
+	wanguageId: stwing | undefined;
+	attwibuteVawue?: boowean;
 }
 
-export interface HTMLDocumentRegions {
-	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
-	getLanguageRanges(range: Range): LanguageRange[];
-	getLanguageAtPosition(position: Position): string | undefined;
-	getLanguagesInDocument(): string[];
-	getImportedScripts(): string[];
+expowt intewface HTMWDocumentWegions {
+	getEmbeddedDocument(wanguageId: stwing, ignoweAttwibuteVawues?: boowean): TextDocument;
+	getWanguageWanges(wange: Wange): WanguageWange[];
+	getWanguageAtPosition(position: Position): stwing | undefined;
+	getWanguagesInDocument(): stwing[];
+	getImpowtedScwipts(): stwing[];
 }
 
-export const CSS_STYLE_RULE = '__';
+expowt const CSS_STYWE_WUWE = '__';
 
-interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
+intewface EmbeddedWegion { wanguageId: stwing | undefined; stawt: numba; end: numba; attwibuteVawue?: boowean; }
 
 
-export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
-	let regions: EmbeddedRegion[] = [];
-	let scanner = languageService.createScanner(document.getText());
-	let lastTagName: string = '';
-	let lastAttributeName: string | null = null;
-	let languageIdFromType: string | undefined = undefined;
-	let importedScripts: string[] = [];
+expowt function getDocumentWegions(wanguageSewvice: WanguageSewvice, document: TextDocument): HTMWDocumentWegions {
+	wet wegions: EmbeddedWegion[] = [];
+	wet scanna = wanguageSewvice.cweateScanna(document.getText());
+	wet wastTagName: stwing = '';
+	wet wastAttwibuteName: stwing | nuww = nuww;
+	wet wanguageIdFwomType: stwing | undefined = undefined;
+	wet impowtedScwipts: stwing[] = [];
 
-	let token = scanner.scan();
-	while (token !== TokenType.EOS) {
+	wet token = scanna.scan();
+	whiwe (token !== TokenType.EOS) {
 		switch (token) {
-			case TokenType.StartTag:
-				lastTagName = scanner.getTokenText();
-				lastAttributeName = null;
-				languageIdFromType = 'javascript';
-				break;
-			case TokenType.Styles:
-				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
-				break;
-			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
-				break;
-			case TokenType.AttributeName:
-				lastAttributeName = scanner.getTokenText();
-				break;
-			case TokenType.AttributeValue:
-				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
-					let value = scanner.getTokenText();
-					if (value[0] === '\'' || value[0] === '"') {
-						value = value.substr(1, value.length - 1);
+			case TokenType.StawtTag:
+				wastTagName = scanna.getTokenText();
+				wastAttwibuteName = nuww;
+				wanguageIdFwomType = 'javascwipt';
+				bweak;
+			case TokenType.Stywes:
+				wegions.push({ wanguageId: 'css', stawt: scanna.getTokenOffset(), end: scanna.getTokenEnd() });
+				bweak;
+			case TokenType.Scwipt:
+				wegions.push({ wanguageId: wanguageIdFwomType, stawt: scanna.getTokenOffset(), end: scanna.getTokenEnd() });
+				bweak;
+			case TokenType.AttwibuteName:
+				wastAttwibuteName = scanna.getTokenText();
+				bweak;
+			case TokenType.AttwibuteVawue:
+				if (wastAttwibuteName === 'swc' && wastTagName.toWowewCase() === 'scwipt') {
+					wet vawue = scanna.getTokenText();
+					if (vawue[0] === '\'' || vawue[0] === '"') {
+						vawue = vawue.substw(1, vawue.wength - 1);
 					}
-					importedScripts.push(value);
-				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
-						languageIdFromType = 'javascript';
-					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
-						languageIdFromType = 'typescript';
-					} else {
-						languageIdFromType = undefined;
+					impowtedScwipts.push(vawue);
+				} ewse if (wastAttwibuteName === 'type' && wastTagName.toWowewCase() === 'scwipt') {
+					if (/["'](moduwe|(text|appwication)\/(java|ecma)scwipt|text\/babew)["']/.test(scanna.getTokenText())) {
+						wanguageIdFwomType = 'javascwipt';
+					} ewse if (/["']text\/typescwipt["']/.test(scanna.getTokenText())) {
+						wanguageIdFwomType = 'typescwipt';
+					} ewse {
+						wanguageIdFwomType = undefined;
 					}
-				} else {
-					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);
-					if (attributeLanguageId) {
-						let start = scanner.getTokenOffset();
-						let end = scanner.getTokenEnd();
-						let firstChar = document.getText()[start];
-						if (firstChar === '\'' || firstChar === '"') {
-							start++;
+				} ewse {
+					wet attwibuteWanguageId = getAttwibuteWanguage(wastAttwibuteName!);
+					if (attwibuteWanguageId) {
+						wet stawt = scanna.getTokenOffset();
+						wet end = scanna.getTokenEnd();
+						wet fiwstChaw = document.getText()[stawt];
+						if (fiwstChaw === '\'' || fiwstChaw === '"') {
+							stawt++;
 							end--;
 						}
-						regions.push({ languageId: attributeLanguageId, start, end, attributeValue: true });
+						wegions.push({ wanguageId: attwibuteWanguageId, stawt, end, attwibuteVawue: twue });
 					}
 				}
-				lastAttributeName = null;
-				break;
+				wastAttwibuteName = nuww;
+				bweak;
 		}
-		token = scanner.scan();
+		token = scanna.scan();
 	}
-	return {
-		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
-		getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
-		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
-		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
-		getImportedScripts: () => importedScripts
+	wetuwn {
+		getWanguageWanges: (wange: Wange) => getWanguageWanges(document, wegions, wange),
+		getEmbeddedDocument: (wanguageId: stwing, ignoweAttwibuteVawues: boowean) => getEmbeddedDocument(document, wegions, wanguageId, ignoweAttwibuteVawues),
+		getWanguageAtPosition: (position: Position) => getWanguageAtPosition(document, wegions, position),
+		getWanguagesInDocument: () => getWanguagesInDocument(document, wegions),
+		getImpowtedScwipts: () => impowtedScwipts
 	};
 }
 
 
-function getLanguageRanges(document: TextDocument, regions: EmbeddedRegion[], range: Range): LanguageRange[] {
-	let result: LanguageRange[] = [];
-	let currentPos = range ? range.start : Position.create(0, 0);
-	let currentOffset = range ? document.offsetAt(range.start) : 0;
-	let endOffset = range ? document.offsetAt(range.end) : document.getText().length;
-	for (let region of regions) {
-		if (region.end > currentOffset && region.start < endOffset) {
-			let start = Math.max(region.start, currentOffset);
-			let startPos = document.positionAt(start);
-			if (currentOffset < region.start) {
-				result.push({
-					start: currentPos,
-					end: startPos,
-					languageId: 'html'
+function getWanguageWanges(document: TextDocument, wegions: EmbeddedWegion[], wange: Wange): WanguageWange[] {
+	wet wesuwt: WanguageWange[] = [];
+	wet cuwwentPos = wange ? wange.stawt : Position.cweate(0, 0);
+	wet cuwwentOffset = wange ? document.offsetAt(wange.stawt) : 0;
+	wet endOffset = wange ? document.offsetAt(wange.end) : document.getText().wength;
+	fow (wet wegion of wegions) {
+		if (wegion.end > cuwwentOffset && wegion.stawt < endOffset) {
+			wet stawt = Math.max(wegion.stawt, cuwwentOffset);
+			wet stawtPos = document.positionAt(stawt);
+			if (cuwwentOffset < wegion.stawt) {
+				wesuwt.push({
+					stawt: cuwwentPos,
+					end: stawtPos,
+					wanguageId: 'htmw'
 				});
 			}
-			let end = Math.min(region.end, endOffset);
-			let endPos = document.positionAt(end);
-			if (end > region.start) {
-				result.push({
-					start: startPos,
+			wet end = Math.min(wegion.end, endOffset);
+			wet endPos = document.positionAt(end);
+			if (end > wegion.stawt) {
+				wesuwt.push({
+					stawt: stawtPos,
 					end: endPos,
-					languageId: region.languageId,
-					attributeValue: region.attributeValue
+					wanguageId: wegion.wanguageId,
+					attwibuteVawue: wegion.attwibuteVawue
 				});
 			}
-			currentOffset = end;
-			currentPos = endPos;
+			cuwwentOffset = end;
+			cuwwentPos = endPos;
 		}
 	}
-	if (currentOffset < endOffset) {
-		let endPos = range ? range.end : document.positionAt(endOffset);
-		result.push({
-			start: currentPos,
+	if (cuwwentOffset < endOffset) {
+		wet endPos = wange ? wange.end : document.positionAt(endOffset);
+		wesuwt.push({
+			stawt: cuwwentPos,
 			end: endPos,
-			languageId: 'html'
+			wanguageId: 'htmw'
 		});
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function getLanguagesInDocument(_document: TextDocument, regions: EmbeddedRegion[]): string[] {
-	let result = [];
-	for (let region of regions) {
-		if (region.languageId && result.indexOf(region.languageId) === -1) {
-			result.push(region.languageId);
-			if (result.length === 3) {
-				return result;
+function getWanguagesInDocument(_document: TextDocument, wegions: EmbeddedWegion[]): stwing[] {
+	wet wesuwt = [];
+	fow (wet wegion of wegions) {
+		if (wegion.wanguageId && wesuwt.indexOf(wegion.wanguageId) === -1) {
+			wesuwt.push(wegion.wanguageId);
+			if (wesuwt.wength === 3) {
+				wetuwn wesuwt;
 			}
 		}
 	}
-	result.push('html');
-	return result;
+	wesuwt.push('htmw');
+	wetuwn wesuwt;
 }
 
-function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string | undefined {
-	let offset = document.offsetAt(position);
-	for (let region of regions) {
-		if (region.start <= offset) {
-			if (offset <= region.end) {
-				return region.languageId;
+function getWanguageAtPosition(document: TextDocument, wegions: EmbeddedWegion[], position: Position): stwing | undefined {
+	wet offset = document.offsetAt(position);
+	fow (wet wegion of wegions) {
+		if (wegion.stawt <= offset) {
+			if (offset <= wegion.end) {
+				wetuwn wegion.wanguageId;
 			}
-		} else {
-			break;
+		} ewse {
+			bweak;
 		}
 	}
-	return 'html';
+	wetuwn 'htmw';
 }
 
-function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument {
-	let currentPos = 0;
-	let oldContent = document.getText();
-	let result = '';
-	let lastSuffix = '';
-	for (let c of contents) {
-		if (c.languageId === languageId && (!ignoreAttributeValues || !c.attributeValue)) {
-			result = substituteWithWhitespace(result, currentPos, c.start, oldContent, lastSuffix, getPrefix(c));
-			result += oldContent.substring(c.start, c.end);
-			currentPos = c.end;
-			lastSuffix = getSuffix(c);
+function getEmbeddedDocument(document: TextDocument, contents: EmbeddedWegion[], wanguageId: stwing, ignoweAttwibuteVawues: boowean): TextDocument {
+	wet cuwwentPos = 0;
+	wet owdContent = document.getText();
+	wet wesuwt = '';
+	wet wastSuffix = '';
+	fow (wet c of contents) {
+		if (c.wanguageId === wanguageId && (!ignoweAttwibuteVawues || !c.attwibuteVawue)) {
+			wesuwt = substituteWithWhitespace(wesuwt, cuwwentPos, c.stawt, owdContent, wastSuffix, getPwefix(c));
+			wesuwt += owdContent.substwing(c.stawt, c.end);
+			cuwwentPos = c.end;
+			wastSuffix = getSuffix(c);
 		}
 	}
-	result = substituteWithWhitespace(result, currentPos, oldContent.length, oldContent, lastSuffix, '');
-	return TextDocument.create(document.uri, languageId, document.version, result);
+	wesuwt = substituteWithWhitespace(wesuwt, cuwwentPos, owdContent.wength, owdContent, wastSuffix, '');
+	wetuwn TextDocument.cweate(document.uwi, wanguageId, document.vewsion, wesuwt);
 }
 
-function getPrefix(c: EmbeddedRegion) {
-	if (c.attributeValue) {
-		switch (c.languageId) {
-			case 'css': return CSS_STYLE_RULE + '{';
+function getPwefix(c: EmbeddedWegion) {
+	if (c.attwibuteVawue) {
+		switch (c.wanguageId) {
+			case 'css': wetuwn CSS_STYWE_WUWE + '{';
 		}
 	}
-	return '';
+	wetuwn '';
 }
-function getSuffix(c: EmbeddedRegion) {
-	if (c.attributeValue) {
-		switch (c.languageId) {
-			case 'css': return '}';
-			case 'javascript': return ';';
+function getSuffix(c: EmbeddedWegion) {
+	if (c.attwibuteVawue) {
+		switch (c.wanguageId) {
+			case 'css': wetuwn '}';
+			case 'javascwipt': wetuwn ';';
 		}
 	}
-	return '';
-}
-
-function substituteWithWhitespace(result: string, start: number, end: number, oldContent: string, before: string, after: string) {
-	let accumulatedWS = 0;
-	result += before;
-	for (let i = start + before.length; i < end; i++) {
-		let ch = oldContent[i];
-		if (ch === '\n' || ch === '\r') {
-			// only write new lines, skip the whitespace
-			accumulatedWS = 0;
-			result += ch;
-		} else {
-			accumulatedWS++;
-		}
-	}
-	result = append(result, ' ', accumulatedWS - after.length);
-	result += after;
-	return result;
+	wetuwn '';
 }
 
-function append(result: string, str: string, n: number): string {
-	while (n > 0) {
+function substituteWithWhitespace(wesuwt: stwing, stawt: numba, end: numba, owdContent: stwing, befowe: stwing, afta: stwing) {
+	wet accumuwatedWS = 0;
+	wesuwt += befowe;
+	fow (wet i = stawt + befowe.wength; i < end; i++) {
+		wet ch = owdContent[i];
+		if (ch === '\n' || ch === '\w') {
+			// onwy wwite new wines, skip the whitespace
+			accumuwatedWS = 0;
+			wesuwt += ch;
+		} ewse {
+			accumuwatedWS++;
+		}
+	}
+	wesuwt = append(wesuwt, ' ', accumuwatedWS - afta.wength);
+	wesuwt += afta;
+	wetuwn wesuwt;
+}
+
+function append(wesuwt: stwing, stw: stwing, n: numba): stwing {
+	whiwe (n > 0) {
 		if (n & 1) {
-			result += str;
+			wesuwt += stw;
 		}
 		n >>= 1;
-		str += str;
+		stw += stw;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function getAttributeLanguage(attributeName: string): string | null {
-	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
+function getAttwibuteWanguage(attwibuteName: stwing): stwing | nuww {
+	wet match = attwibuteName.match(/^(stywe)$|^(on\w+)$/i);
 	if (!match) {
-		return null;
+		wetuwn nuww;
 	}
-	return match[1] ? 'css' : 'javascript';
+	wetuwn match[1] ? 'css' : 'javascwipt';
 }

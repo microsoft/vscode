@@ -1,7 +1,7 @@
-# Language Features for TypeScript and JavaScript files
+# Wanguage Featuwes fow TypeScwipt and JavaScwipt fiwes
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [TypeScript in Visual Studio Code](https://code.visualstudio.com/docs/languages/typescript) and [JavaScript in Visual Studio Code](https://code.visualstudio.com/docs/languages/javascript) to learn about the features of this extension.
+See [TypeScwipt in Visuaw Studio Code](https://code.visuawstudio.com/docs/wanguages/typescwipt) and [JavaScwipt in Visuaw Studio Code](https://code.visuawstudio.com/docs/wanguages/javascwipt) to weawn about the featuwes of this extension.

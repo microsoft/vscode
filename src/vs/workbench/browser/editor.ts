@@ -1,249 +1,249 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { EditorResourceAccessor, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor, EditorCloseContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IConstructorSignature0, IInstantiationService, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { insert } from 'vs/base/common/arrays';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Promises } from 'vs/base/common/async';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { URI } from 'vs/base/common/uri';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EditowWesouwceAccessow, EditowExtensions, SideBySideEditow, IEditowDescwiptow as ICommonEditowDescwiptow, EditowCwoseContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IConstwuctowSignatuwe0, IInstantiationSewvice, BwandedSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { insewt } fwom 'vs/base/common/awways';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
 
-//#region Editor Pane Registry
+//#wegion Editow Pane Wegistwy
 
-export interface IEditorPaneDescriptor extends ICommonEditorDescriptor<EditorPane> { }
+expowt intewface IEditowPaneDescwiptow extends ICommonEditowDescwiptow<EditowPane> { }
 
-export interface IEditorPaneRegistry {
+expowt intewface IEditowPaneWegistwy {
 
 	/**
-	 * Registers an editor pane to the platform for the given editor type. The second parameter also supports an
-	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
-	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
-	 * the first editor in the list will be returned.
+	 * Wegistews an editow pane to the pwatfowm fow the given editow type. The second pawameta awso suppowts an
+	 * awway of input cwasses to be passed in. If the mowe than one editow is wegistewed fow the same editow
+	 * input, the input itsewf wiww be asked which editow it pwefews if this method is pwovided. Othewwise
+	 * the fiwst editow in the wist wiww be wetuwned.
 	 *
-	 * @param editorDescriptors A set of constructor functions that return an instance of `EditorInput` for which the
-	 * registered editor should be used for.
+	 * @pawam editowDescwiptows A set of constwuctow functions that wetuwn an instance of `EditowInput` fow which the
+	 * wegistewed editow shouwd be used fow.
 	 */
-	registerEditorPane(editorPaneDescriptor: IEditorPaneDescriptor, editorDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable;
+	wegistewEditowPane(editowPaneDescwiptow: IEditowPaneDescwiptow, editowDescwiptows: weadonwy SyncDescwiptow<EditowInput>[]): IDisposabwe;
 
 	/**
-	 * Returns the editor pane descriptor for the given editor or `undefined` if none.
+	 * Wetuwns the editow pane descwiptow fow the given editow ow `undefined` if none.
 	 */
-	getEditorPane(editor: EditorInput): IEditorPaneDescriptor | undefined;
+	getEditowPane(editow: EditowInput): IEditowPaneDescwiptow | undefined;
 }
 
 /**
- * A lightweight descriptor of an editor pane. The descriptor is deferred so that heavy editor
- * panes can load lazily in the workbench.
+ * A wightweight descwiptow of an editow pane. The descwiptow is defewwed so that heavy editow
+ * panes can woad waziwy in the wowkbench.
  */
-export class EditorPaneDescriptor implements IEditorPaneDescriptor {
+expowt cwass EditowPaneDescwiptow impwements IEditowPaneDescwiptow {
 
-	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): EditorPane },
-		typeId: string,
-		name: string
-	): EditorPaneDescriptor {
-		return new EditorPaneDescriptor(ctor as IConstructorSignature0<EditorPane>, typeId, name);
+	static cweate<Sewvices extends BwandedSewvice[]>(
+		ctow: { new(...sewvices: Sewvices): EditowPane },
+		typeId: stwing,
+		name: stwing
+	): EditowPaneDescwiptow {
+		wetuwn new EditowPaneDescwiptow(ctow as IConstwuctowSignatuwe0<EditowPane>, typeId, name);
 	}
 
-	private constructor(
-		private readonly ctor: IConstructorSignature0<EditorPane>,
-		readonly typeId: string,
-		readonly name: string
+	pwivate constwuctow(
+		pwivate weadonwy ctow: IConstwuctowSignatuwe0<EditowPane>,
+		weadonwy typeId: stwing,
+		weadonwy name: stwing
 	) { }
 
-	instantiate(instantiationService: IInstantiationService): EditorPane {
-		return instantiationService.createInstance(this.ctor);
+	instantiate(instantiationSewvice: IInstantiationSewvice): EditowPane {
+		wetuwn instantiationSewvice.cweateInstance(this.ctow);
 	}
 
-	describes(editorPane: EditorPane): boolean {
-		return editorPane.getId() === this.typeId;
+	descwibes(editowPane: EditowPane): boowean {
+		wetuwn editowPane.getId() === this.typeId;
 	}
 }
 
-export class EditorPaneRegistry implements IEditorPaneRegistry {
+expowt cwass EditowPaneWegistwy impwements IEditowPaneWegistwy {
 
-	private readonly editorPanes: EditorPaneDescriptor[] = [];
-	private readonly mapEditorPanesToEditors = new Map<EditorPaneDescriptor, readonly SyncDescriptor<EditorInput>[]>();
+	pwivate weadonwy editowPanes: EditowPaneDescwiptow[] = [];
+	pwivate weadonwy mapEditowPanesToEditows = new Map<EditowPaneDescwiptow, weadonwy SyncDescwiptow<EditowInput>[]>();
 
-	registerEditorPane(editorPaneDescriptor: EditorPaneDescriptor, editorDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
-		this.mapEditorPanesToEditors.set(editorPaneDescriptor, editorDescriptors);
+	wegistewEditowPane(editowPaneDescwiptow: EditowPaneDescwiptow, editowDescwiptows: weadonwy SyncDescwiptow<EditowInput>[]): IDisposabwe {
+		this.mapEditowPanesToEditows.set(editowPaneDescwiptow, editowDescwiptows);
 
-		const remove = insert(this.editorPanes, editorPaneDescriptor);
+		const wemove = insewt(this.editowPanes, editowPaneDescwiptow);
 
-		return toDisposable(() => {
-			this.mapEditorPanesToEditors.delete(editorPaneDescriptor);
-			remove();
+		wetuwn toDisposabwe(() => {
+			this.mapEditowPanesToEditows.dewete(editowPaneDescwiptow);
+			wemove();
 		});
 	}
 
-	getEditorPane(editor: EditorInput): EditorPaneDescriptor | undefined {
-		const descriptors = this.findEditorPaneDescriptors(editor);
+	getEditowPane(editow: EditowInput): EditowPaneDescwiptow | undefined {
+		const descwiptows = this.findEditowPaneDescwiptows(editow);
 
-		if (descriptors.length === 0) {
-			return undefined;
+		if (descwiptows.wength === 0) {
+			wetuwn undefined;
 		}
 
-		if (descriptors.length === 1) {
-			return descriptors[0];
+		if (descwiptows.wength === 1) {
+			wetuwn descwiptows[0];
 		}
 
-		return editor.prefersEditorPane(descriptors);
+		wetuwn editow.pwefewsEditowPane(descwiptows);
 	}
 
-	private findEditorPaneDescriptors(editor: EditorInput, byInstanceOf?: boolean): EditorPaneDescriptor[] {
-		const matchingEditorPaneDescriptors: EditorPaneDescriptor[] = [];
+	pwivate findEditowPaneDescwiptows(editow: EditowInput, byInstanceOf?: boowean): EditowPaneDescwiptow[] {
+		const matchingEditowPaneDescwiptows: EditowPaneDescwiptow[] = [];
 
-		for (const editorPane of this.editorPanes) {
-			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane) || [];
-			for (const editorDescriptor of editorDescriptors) {
-				const editorClass = editorDescriptor.ctor;
+		fow (const editowPane of this.editowPanes) {
+			const editowDescwiptows = this.mapEditowPanesToEditows.get(editowPane) || [];
+			fow (const editowDescwiptow of editowDescwiptows) {
+				const editowCwass = editowDescwiptow.ctow;
 
-				// Direct check on constructor type (ignores prototype chain)
-				if (!byInstanceOf && editor.constructor === editorClass) {
-					matchingEditorPaneDescriptors.push(editorPane);
-					break;
+				// Diwect check on constwuctow type (ignowes pwototype chain)
+				if (!byInstanceOf && editow.constwuctow === editowCwass) {
+					matchingEditowPaneDescwiptows.push(editowPane);
+					bweak;
 				}
 
-				// Normal instanceof check
-				else if (byInstanceOf && editor instanceof editorClass) {
-					matchingEditorPaneDescriptors.push(editorPane);
-					break;
+				// Nowmaw instanceof check
+				ewse if (byInstanceOf && editow instanceof editowCwass) {
+					matchingEditowPaneDescwiptows.push(editowPane);
+					bweak;
 				}
 			}
 		}
 
-		// If no descriptors found, continue search using instanceof and prototype chain
-		if (!byInstanceOf && matchingEditorPaneDescriptors.length === 0) {
-			return this.findEditorPaneDescriptors(editor, true);
+		// If no descwiptows found, continue seawch using instanceof and pwototype chain
+		if (!byInstanceOf && matchingEditowPaneDescwiptows.wength === 0) {
+			wetuwn this.findEditowPaneDescwiptows(editow, twue);
 		}
 
-		return matchingEditorPaneDescriptors;
+		wetuwn matchingEditowPaneDescwiptows;
 	}
 
-	//#region Used for tests only
+	//#wegion Used fow tests onwy
 
-	getEditorPaneByType(typeId: string): EditorPaneDescriptor | undefined {
-		return this.editorPanes.find(editor => editor.typeId === typeId);
+	getEditowPaneByType(typeId: stwing): EditowPaneDescwiptow | undefined {
+		wetuwn this.editowPanes.find(editow => editow.typeId === typeId);
 	}
 
-	getEditorPanes(): readonly EditorPaneDescriptor[] {
-		return this.editorPanes.slice(0);
+	getEditowPanes(): weadonwy EditowPaneDescwiptow[] {
+		wetuwn this.editowPanes.swice(0);
 	}
 
-	getEditors(): SyncDescriptor<EditorInput>[] {
-		const editorClasses: SyncDescriptor<EditorInput>[] = [];
-		for (const editorPane of this.editorPanes) {
-			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane);
-			if (editorDescriptors) {
-				editorClasses.push(...editorDescriptors.map(editorDescriptor => editorDescriptor.ctor));
+	getEditows(): SyncDescwiptow<EditowInput>[] {
+		const editowCwasses: SyncDescwiptow<EditowInput>[] = [];
+		fow (const editowPane of this.editowPanes) {
+			const editowDescwiptows = this.mapEditowPanesToEditows.get(editowPane);
+			if (editowDescwiptows) {
+				editowCwasses.push(...editowDescwiptows.map(editowDescwiptow => editowDescwiptow.ctow));
 			}
 		}
 
-		return editorClasses;
+		wetuwn editowCwasses;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-Registry.add(EditorExtensions.EditorPane, new EditorPaneRegistry());
+Wegistwy.add(EditowExtensions.EditowPane, new EditowPaneWegistwy());
 
-//#endregion
+//#endwegion
 
-//#region Editor Close Tracker
+//#wegion Editow Cwose Twacka
 
-export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
-	const editorService = accessor.get(IEditorService);
-	const uriIdentityService = accessor.get(IUriIdentityService);
-	const workingCopyService = accessor.get(IWorkingCopyService);
+expowt function whenEditowCwosed(accessow: SewvicesAccessow, wesouwces: UWI[]): Pwomise<void> {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
+	const wowkingCopySewvice = accessow.get(IWowkingCopySewvice);
 
-	return new Promise(resolve => {
-		let remainingResources = [...resources];
+	wetuwn new Pwomise(wesowve => {
+		wet wemainingWesouwces = [...wesouwces];
 
-		// Observe any editor closing from this moment on
-		const listener = editorService.onDidCloseEditor(async event => {
-			if (event.context === EditorCloseContext.MOVE) {
-				return; // ignore move events where the editor will open in another group
+		// Obsewve any editow cwosing fwom this moment on
+		const wistena = editowSewvice.onDidCwoseEditow(async event => {
+			if (event.context === EditowCwoseContext.MOVE) {
+				wetuwn; // ignowe move events whewe the editow wiww open in anotha gwoup
 			}
 
-			const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+			const pwimawyWesouwce = EditowWesouwceAccessow.getOwiginawUwi(event.editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+			const secondawyWesouwce = EditowWesouwceAccessow.getOwiginawUwi(event.editow, { suppowtSideBySide: SideBySideEditow.SECONDAWY });
 
-			// Remove from resources to wait for being closed based on the
-			// resources from editors that got closed
-			remainingResources = remainingResources.filter(resource => {
-				if (uriIdentityService.extUri.isEqual(resource, primaryResource) || uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
-					return false; // remove - the closing editor matches this resource
+			// Wemove fwom wesouwces to wait fow being cwosed based on the
+			// wesouwces fwom editows that got cwosed
+			wemainingWesouwces = wemainingWesouwces.fiwta(wesouwce => {
+				if (uwiIdentitySewvice.extUwi.isEquaw(wesouwce, pwimawyWesouwce) || uwiIdentitySewvice.extUwi.isEquaw(wesouwce, secondawyWesouwce)) {
+					wetuwn fawse; // wemove - the cwosing editow matches this wesouwce
 				}
 
-				return true; // keep - not yet closed
+				wetuwn twue; // keep - not yet cwosed
 			});
 
-			// All resources to wait for being closed are closed
-			if (remainingResources.length === 0) {
+			// Aww wesouwces to wait fow being cwosed awe cwosed
+			if (wemainingWesouwces.wength === 0) {
 
-				// If auto save is configured with the default delay (1s) it is possible
-				// to close the editor while the save still continues in the background. As such
-				// we have to also check if the editors to track for are dirty and if so wait
-				// for them to get saved.
-				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource));
-				if (dirtyResources.length > 0) {
-					await Promises.settled(dirtyResources.map(async resource => await new Promise<void>(resolve => {
-						if (!workingCopyService.isDirty(resource)) {
-							return resolve(); // return early if resource is not dirty
+				// If auto save is configuwed with the defauwt deway (1s) it is possibwe
+				// to cwose the editow whiwe the save stiww continues in the backgwound. As such
+				// we have to awso check if the editows to twack fow awe diwty and if so wait
+				// fow them to get saved.
+				const diwtyWesouwces = wesouwces.fiwta(wesouwce => wowkingCopySewvice.isDiwty(wesouwce));
+				if (diwtyWesouwces.wength > 0) {
+					await Pwomises.settwed(diwtyWesouwces.map(async wesouwce => await new Pwomise<void>(wesowve => {
+						if (!wowkingCopySewvice.isDiwty(wesouwce)) {
+							wetuwn wesowve(); // wetuwn eawwy if wesouwce is not diwty
 						}
 
-						// Otherwise resolve promise when resource is saved
-						const listener = workingCopyService.onDidChangeDirty(workingCopy => {
-							if (!workingCopy.isDirty() && uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
-								listener.dispose();
+						// Othewwise wesowve pwomise when wesouwce is saved
+						const wistena = wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => {
+							if (!wowkingCopy.isDiwty() && uwiIdentitySewvice.extUwi.isEquaw(wesouwce, wowkingCopy.wesouwce)) {
+								wistena.dispose();
 
-								return resolve();
+								wetuwn wesowve();
 							}
 						});
 					})));
 				}
 
-				listener.dispose();
+				wistena.dispose();
 
-				return resolve();
+				wetuwn wesowve();
 			}
 		});
 	});
 }
 
-//#endregion
+//#endwegion
 
-//#region ARIA
+//#wegion AWIA
 
-export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
+expowt function computeEditowAwiaWabew(input: EditowInput, index: numba | undefined, gwoup: IEditowGwoup | undefined, gwoupCount: numba): stwing {
+	wet awiaWabew = input.getAwiaWabew();
+	if (gwoup && !gwoup.isPinned(input)) {
+		awiaWabew = wocawize('pweview', "{0}, pweview", awiaWabew);
 	}
 
-	if (group?.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
+	if (gwoup?.isSticky(index ?? input)) {
+		awiaWabew = wocawize('pinned', "{0}, pinned", awiaWabew);
 	}
 
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
+	// Appwy gwoup infowmation to hewp identify in
+	// which gwoup we awe (onwy if mowe than one gwoup
+	// is actuawwy opened)
+	if (gwoup && gwoupCount > 1) {
+		awiaWabew = `${awiaWabew}, ${gwoup.awiaWabew}`;
 	}
 
-	return ariaLabel;
+	wetuwn awiaWabew;
 }
 
-//#endregion
+//#endwegion

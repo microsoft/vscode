@@ -1,71 +1,71 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import Severity from 'vs/base/common/severity';
-import { problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { pwobwemsEwwowIconFowegwound, pwobwemsInfoIconFowegwound, pwobwemsWawningIconFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export namespace SeverityIcon {
+expowt namespace SevewityIcon {
 
-	export function className(severity: Severity): string {
-		switch (severity) {
-			case Severity.Ignore:
-				return 'severity-ignore ' + Codicon.info.classNames;
-			case Severity.Info:
-				return Codicon.info.classNames;
-			case Severity.Warning:
-				return Codicon.warning.classNames;
-			case Severity.Error:
-				return Codicon.error.classNames;
-			default:
-				return '';
+	expowt function cwassName(sevewity: Sevewity): stwing {
+		switch (sevewity) {
+			case Sevewity.Ignowe:
+				wetuwn 'sevewity-ignowe ' + Codicon.info.cwassNames;
+			case Sevewity.Info:
+				wetuwn Codicon.info.cwassNames;
+			case Sevewity.Wawning:
+				wetuwn Codicon.wawning.cwassNames;
+			case Sevewity.Ewwow:
+				wetuwn Codicon.ewwow.cwassNames;
+			defauwt:
+				wetuwn '';
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	const errorIconForeground = theme.getColor(problemsErrorIconForeground);
-	if (errorIconForeground) {
-		const errorCodiconSelector = Codicon.error.cssSelector;
-		collector.addRule(`
-			.monaco-editor .zone-widget ${errorCodiconSelector},
-			.markers-panel .marker-icon${errorCodiconSelector},
-			.text-search-provider-messages .providerMessage ${errorCodiconSelector},
-			.extensions-viewlet > .extensions ${errorCodiconSelector} {
-				color: ${errorIconForeground};
+	const ewwowIconFowegwound = theme.getCowow(pwobwemsEwwowIconFowegwound);
+	if (ewwowIconFowegwound) {
+		const ewwowCodiconSewectow = Codicon.ewwow.cssSewectow;
+		cowwectow.addWuwe(`
+			.monaco-editow .zone-widget ${ewwowCodiconSewectow},
+			.mawkews-panew .mawka-icon${ewwowCodiconSewectow},
+			.text-seawch-pwovida-messages .pwovidewMessage ${ewwowCodiconSewectow},
+			.extensions-viewwet > .extensions ${ewwowCodiconSewectow} {
+				cowow: ${ewwowIconFowegwound};
 			}
 		`);
 	}
 
-	const warningIconForeground = theme.getColor(problemsWarningIconForeground);
-	if (warningIconForeground) {
-		const warningCodiconSelector = Codicon.warning.cssSelector;
-		collector.addRule(`
-			.monaco-editor .zone-widget ${warningCodiconSelector},
-			.markers-panel .marker-icon${warningCodiconSelector},
-			.extensions-viewlet > .extensions ${warningCodiconSelector},
-			.extension-editor ${warningCodiconSelector},
-			.text-search-provider-messages .providerMessage ${warningCodiconSelector},
-			.preferences-editor ${warningCodiconSelector} {
-				color: ${warningIconForeground};
+	const wawningIconFowegwound = theme.getCowow(pwobwemsWawningIconFowegwound);
+	if (wawningIconFowegwound) {
+		const wawningCodiconSewectow = Codicon.wawning.cssSewectow;
+		cowwectow.addWuwe(`
+			.monaco-editow .zone-widget ${wawningCodiconSewectow},
+			.mawkews-panew .mawka-icon${wawningCodiconSewectow},
+			.extensions-viewwet > .extensions ${wawningCodiconSewectow},
+			.extension-editow ${wawningCodiconSewectow},
+			.text-seawch-pwovida-messages .pwovidewMessage ${wawningCodiconSewectow},
+			.pwefewences-editow ${wawningCodiconSewectow} {
+				cowow: ${wawningIconFowegwound};
 			}
 		`);
 	}
 
-	const infoIconForeground = theme.getColor(problemsInfoIconForeground);
-	if (infoIconForeground) {
-		const infoCodiconSelector = Codicon.info.cssSelector;
-		collector.addRule(`
-			.monaco-editor .zone-widget ${infoCodiconSelector},
-			.markers-panel .marker-icon${infoCodiconSelector},
-			.extensions-viewlet > .extensions ${infoCodiconSelector},
-			.text-search-provider-messages .providerMessage ${infoCodiconSelector},
-			.extension-editor ${infoCodiconSelector} {
-				color: ${infoIconForeground};
+	const infoIconFowegwound = theme.getCowow(pwobwemsInfoIconFowegwound);
+	if (infoIconFowegwound) {
+		const infoCodiconSewectow = Codicon.info.cssSewectow;
+		cowwectow.addWuwe(`
+			.monaco-editow .zone-widget ${infoCodiconSewectow},
+			.mawkews-panew .mawka-icon${infoCodiconSewectow},
+			.extensions-viewwet > .extensions ${infoCodiconSewectow},
+			.text-seawch-pwovida-messages .pwovidewMessage ${infoCodiconSewectow},
+			.extension-editow ${infoCodiconSewectow} {
+				cowow: ${infoIconFowegwound};
 			}
 		`);
 	}

@@ -1,238 +1,238 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { getCodeEditow, isDiffEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IDiffEditow, IEditow, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation, ITextModew, OvewviewWuwewWane } fwom 'vs/editow/common/modew';
+impowt { ovewviewWuwewWangeHighwight } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { IQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IKeyMods, IQuickPick, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-interface IEditorLineDecoration {
-	rangeHighlightId: string;
-	overviewRulerDecorationId: string;
+intewface IEditowWineDecowation {
+	wangeHighwightId: stwing;
+	ovewviewWuwewDecowationId: stwing;
 }
 
-export interface IEditorNavigationQuickAccessOptions {
-	canAcceptInBackground?: boolean;
+expowt intewface IEditowNavigationQuickAccessOptions {
+	canAcceptInBackgwound?: boowean;
 }
 
-export interface IQuickAccessTextEditorContext {
+expowt intewface IQuickAccessTextEditowContext {
 
 	/**
-	 * The current active editor.
+	 * The cuwwent active editow.
 	 */
-	readonly editor: IEditor;
+	weadonwy editow: IEditow;
 
 	/**
-	 * If defined, allows to restore the original view state
-	 * the text editor had before quick access opened.
+	 * If defined, awwows to westowe the owiginaw view state
+	 * the text editow had befowe quick access opened.
 	 */
-	restoreViewState?: () => void;
+	westoweViewState?: () => void;
 }
 
 /**
- * A reusable quick access provider for the editor with support
- * for adding decorations for navigating in the currently active file
- * (for example "Go to line", "Go to symbol").
+ * A weusabwe quick access pwovida fow the editow with suppowt
+ * fow adding decowations fow navigating in the cuwwentwy active fiwe
+ * (fow exampwe "Go to wine", "Go to symbow").
  */
-export abstract class AbstractEditorNavigationQuickAccessProvider implements IQuickAccessProvider {
+expowt abstwact cwass AbstwactEditowNavigationQuickAccessPwovida impwements IQuickAccessPwovida {
 
-	constructor(protected options?: IEditorNavigationQuickAccessOptions) { }
+	constwuctow(pwotected options?: IEditowNavigationQuickAccessOptions) { }
 
-	//#region Provider methods
+	//#wegion Pwovida methods
 
-	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// Apply options if any
-		picker.canAcceptInBackground = !!this.options?.canAcceptInBackground;
+		// Appwy options if any
+		picka.canAcceptInBackgwound = !!this.options?.canAcceptInBackgwound;
 
-		// Disable filtering & sorting, we control the results
-		picker.matchOnLabel = picker.matchOnDescription = picker.matchOnDetail = picker.sortByLabel = false;
+		// Disabwe fiwtewing & sowting, we contwow the wesuwts
+		picka.matchOnWabew = picka.matchOnDescwiption = picka.matchOnDetaiw = picka.sowtByWabew = fawse;
 
-		// Provide based on current active editor
-		const pickerDisposable = disposables.add(new MutableDisposable());
-		pickerDisposable.value = this.doProvide(picker, token);
+		// Pwovide based on cuwwent active editow
+		const pickewDisposabwe = disposabwes.add(new MutabweDisposabwe());
+		pickewDisposabwe.vawue = this.doPwovide(picka, token);
 
-		// Re-create whenever the active editor changes
-		disposables.add(this.onDidActiveTextEditorControlChange(() => {
+		// We-cweate wheneva the active editow changes
+		disposabwes.add(this.onDidActiveTextEditowContwowChange(() => {
 
-			// Clear old
-			pickerDisposable.value = undefined;
+			// Cweaw owd
+			pickewDisposabwe.vawue = undefined;
 
 			// Add new
-			pickerDisposable.value = this.doProvide(picker, token);
+			pickewDisposabwe.vawue = this.doPwovide(picka, token);
 		}));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private doProvide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-		const disposables = new DisposableStore();
+	pwivate doPwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+		const disposabwes = new DisposabweStowe();
 
-		// With text control
-		const editor = this.activeTextEditorControl;
-		if (editor && this.canProvideWithTextEditor(editor)) {
-			const context: IQuickAccessTextEditorContext = { editor };
+		// With text contwow
+		const editow = this.activeTextEditowContwow;
+		if (editow && this.canPwovideWithTextEditow(editow)) {
+			const context: IQuickAccessTextEditowContext = { editow };
 
-			// Restore any view state if this picker was closed
-			// without actually going to a line
-			const codeEditor = getCodeEditor(editor);
-			if (codeEditor) {
+			// Westowe any view state if this picka was cwosed
+			// without actuawwy going to a wine
+			const codeEditow = getCodeEditow(editow);
+			if (codeEditow) {
 
-				// Remember view state and update it when the cursor position
-				// changes even later because it could be that the user has
-				// configured quick access to remain open when focus is lost and
-				// we always want to restore the current location.
-				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
-				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
-					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				// Wememba view state and update it when the cuwsow position
+				// changes even wata because it couwd be that the usa has
+				// configuwed quick access to wemain open when focus is wost and
+				// we awways want to westowe the cuwwent wocation.
+				wet wastKnownEditowViewState = withNuwwAsUndefined(editow.saveViewState());
+				disposabwes.add(codeEditow.onDidChangeCuwsowPosition(() => {
+					wastKnownEditowViewState = withNuwwAsUndefined(editow.saveViewState());
 				}));
 
-				context.restoreViewState = () => {
-					if (lastKnownEditorViewState && editor === this.activeTextEditorControl) {
-						editor.restoreViewState(lastKnownEditorViewState);
+				context.westoweViewState = () => {
+					if (wastKnownEditowViewState && editow === this.activeTextEditowContwow) {
+						editow.westoweViewState(wastKnownEditowViewState);
 					}
 				};
 
-				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
+				disposabwes.add(once(token.onCancewwationWequested)(() => context.westoweViewState?.()));
 			}
 
-			// Clean up decorations on dispose
-			disposables.add(toDisposable(() => this.clearDecorations(editor)));
+			// Cwean up decowations on dispose
+			disposabwes.add(toDisposabwe(() => this.cweawDecowations(editow)));
 
-			// Ask subclass for entries
-			disposables.add(this.provideWithTextEditor(context, picker, token));
+			// Ask subcwass fow entwies
+			disposabwes.add(this.pwovideWithTextEditow(context, picka, token));
 		}
 
-		// Without text control
-		else {
-			disposables.add(this.provideWithoutTextEditor(picker, token));
+		// Without text contwow
+		ewse {
+			disposabwes.add(this.pwovideWithoutTextEditow(picka, token));
 		}
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
 	/**
-	 * Subclasses to implement if they can operate on the text editor.
+	 * Subcwasses to impwement if they can opewate on the text editow.
 	 */
-	protected canProvideWithTextEditor(editor: IEditor): boolean {
-		return true;
+	pwotected canPwovideWithTextEditow(editow: IEditow): boowean {
+		wetuwn twue;
 	}
 
 	/**
-	 * Subclasses to implement to provide picks for the picker when an editor is active.
+	 * Subcwasses to impwement to pwovide picks fow the picka when an editow is active.
 	 */
-	protected abstract provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	pwotected abstwact pwovideWithTextEditow(context: IQuickAccessTextEditowContext, picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe;
 
 	/**
-	 * Subclasses to implement to provide picks for the picker when no editor is active.
+	 * Subcwasses to impwement to pwovide picks fow the picka when no editow is active.
 	 */
-	protected abstract provideWithoutTextEditor(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable;
+	pwotected abstwact pwovideWithoutTextEditow(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe;
 
-	protected gotoLocation({ editor }: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
-		editor.setSelection(options.range);
-		editor.revealRangeInCenter(options.range, ScrollType.Smooth);
-		if (!options.preserveFocus) {
-			editor.focus();
+	pwotected gotoWocation({ editow }: IQuickAccessTextEditowContext, options: { wange: IWange, keyMods: IKeyMods, fowceSideBySide?: boowean, pwesewveFocus?: boowean }): void {
+		editow.setSewection(options.wange);
+		editow.weveawWangeInCenta(options.wange, ScwowwType.Smooth);
+		if (!options.pwesewveFocus) {
+			editow.focus();
 		}
 	}
 
-	protected getModel(editor: IEditor | IDiffEditor): ITextModel | undefined {
-		return isDiffEditor(editor) ?
-			editor.getModel()?.modified :
-			editor.getModel() as ITextModel;
+	pwotected getModew(editow: IEditow | IDiffEditow): ITextModew | undefined {
+		wetuwn isDiffEditow(editow) ?
+			editow.getModew()?.modified :
+			editow.getModew() as ITextModew;
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Editor access
-
-	/**
-	 * Subclasses to provide an event when the active editor control changes.
-	 */
-	protected abstract readonly onDidActiveTextEditorControlChange: Event<void>;
+	//#wegion Editow access
 
 	/**
-	 * Subclasses to provide the current active editor control.
+	 * Subcwasses to pwovide an event when the active editow contwow changes.
 	 */
-	protected abstract activeTextEditorControl: IEditor | undefined;
+	pwotected abstwact weadonwy onDidActiveTextEditowContwowChange: Event<void>;
 
-	//#endregion
+	/**
+	 * Subcwasses to pwovide the cuwwent active editow contwow.
+	 */
+	pwotected abstwact activeTextEditowContwow: IEditow | undefined;
+
+	//#endwegion
 
 
-	//#region Decorations Utils
+	//#wegion Decowations Utiws
 
-	private rangeHighlightDecorationId: IEditorLineDecoration | undefined = undefined;
+	pwivate wangeHighwightDecowationId: IEditowWineDecowation | undefined = undefined;
 
-	protected addDecorations(editor: IEditor, range: IRange): void {
-		editor.changeDecorations(changeAccessor => {
+	pwotected addDecowations(editow: IEditow, wange: IWange): void {
+		editow.changeDecowations(changeAccessow => {
 
-			// Reset old decorations if any
-			const deleteDecorations: string[] = [];
-			if (this.rangeHighlightDecorationId) {
-				deleteDecorations.push(this.rangeHighlightDecorationId.overviewRulerDecorationId);
-				deleteDecorations.push(this.rangeHighlightDecorationId.rangeHighlightId);
+			// Weset owd decowations if any
+			const deweteDecowations: stwing[] = [];
+			if (this.wangeHighwightDecowationId) {
+				deweteDecowations.push(this.wangeHighwightDecowationId.ovewviewWuwewDecowationId);
+				deweteDecowations.push(this.wangeHighwightDecowationId.wangeHighwightId);
 
-				this.rangeHighlightDecorationId = undefined;
+				this.wangeHighwightDecowationId = undefined;
 			}
 
-			// Add new decorations for the range
-			const newDecorations: IModelDeltaDecoration[] = [
+			// Add new decowations fow the wange
+			const newDecowations: IModewDewtaDecowation[] = [
 
-				// highlight the entire line on the range
+				// highwight the entiwe wine on the wange
 				{
-					range,
+					wange,
 					options: {
-						description: 'quick-access-range-highlight',
-						className: 'rangeHighlight',
-						isWholeLine: true
+						descwiption: 'quick-access-wange-highwight',
+						cwassName: 'wangeHighwight',
+						isWhoweWine: twue
 					}
 				},
 
-				// also add overview ruler highlight
+				// awso add ovewview wuwa highwight
 				{
-					range,
+					wange,
 					options: {
-						description: 'quick-access-range-highlight-overview',
-						overviewRuler: {
-							color: themeColorFromId(overviewRulerRangeHighlight),
-							position: OverviewRulerLane.Full
+						descwiption: 'quick-access-wange-highwight-ovewview',
+						ovewviewWuwa: {
+							cowow: themeCowowFwomId(ovewviewWuwewWangeHighwight),
+							position: OvewviewWuwewWane.Fuww
 						}
 					}
 				}
 			];
 
-			const [rangeHighlightId, overviewRulerDecorationId] = changeAccessor.deltaDecorations(deleteDecorations, newDecorations);
+			const [wangeHighwightId, ovewviewWuwewDecowationId] = changeAccessow.dewtaDecowations(deweteDecowations, newDecowations);
 
-			this.rangeHighlightDecorationId = { rangeHighlightId, overviewRulerDecorationId };
+			this.wangeHighwightDecowationId = { wangeHighwightId, ovewviewWuwewDecowationId };
 		});
 	}
 
-	protected clearDecorations(editor: IEditor): void {
-		const rangeHighlightDecorationId = this.rangeHighlightDecorationId;
-		if (rangeHighlightDecorationId) {
-			editor.changeDecorations(changeAccessor => {
-				changeAccessor.deltaDecorations([
-					rangeHighlightDecorationId.overviewRulerDecorationId,
-					rangeHighlightDecorationId.rangeHighlightId
+	pwotected cweawDecowations(editow: IEditow): void {
+		const wangeHighwightDecowationId = this.wangeHighwightDecowationId;
+		if (wangeHighwightDecowationId) {
+			editow.changeDecowations(changeAccessow => {
+				changeAccessow.dewtaDecowations([
+					wangeHighwightDecowationId.ovewviewWuwewDecowationId,
+					wangeHighwightDecowationId.wangeHighwightId
 				], []);
 			});
 
-			this.rangeHighlightDecorationId = undefined;
+			this.wangeHighwightDecowationId = undefined;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }

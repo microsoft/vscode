@@ -1,139 +1,139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { append, $ } from 'vs/base/browser/dom';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IAction } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { basename } from 'vs/base/common/resources';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+impowt 'vs/css!./media/scm';
+impowt { IDisposabwe, Disposabwe, DisposabweStowe, combinedDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { append, $ } fwom 'vs/base/bwowsa/dom';
+impowt { ISCMWepositowy, ISCMViewSewvice } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { connectPwimawyMenu, isSCMWepositowy, StatusBawAction } fwom './utiw';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { ICompwessibweTweeWendewa } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
 
-interface RepositoryTemplate {
-	readonly label: HTMLElement;
-	readonly name: HTMLElement;
-	readonly description: HTMLElement;
-	readonly countContainer: HTMLElement;
-	readonly count: CountBadge;
-	readonly toolBar: ToolBar;
-	disposable: IDisposable;
-	readonly templateDisposable: IDisposable;
+intewface WepositowyTempwate {
+	weadonwy wabew: HTMWEwement;
+	weadonwy name: HTMWEwement;
+	weadonwy descwiption: HTMWEwement;
+	weadonwy countContaina: HTMWEwement;
+	weadonwy count: CountBadge;
+	weadonwy toowBaw: ToowBaw;
+	disposabwe: IDisposabwe;
+	weadonwy tempwateDisposabwe: IDisposabwe;
 }
 
-export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate>, IListRenderer<ISCMRepository, RepositoryTemplate> {
+expowt cwass WepositowyWendewa impwements ICompwessibweTweeWendewa<ISCMWepositowy, FuzzyScowe, WepositowyTempwate>, IWistWendewa<ISCMWepositowy, WepositowyTempwate> {
 
-	static readonly TEMPLATE_ID = 'repository';
-	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
+	static weadonwy TEMPWATE_ID = 'wepositowy';
+	get tempwateId(): stwing { wetuwn WepositowyWendewa.TEMPWATE_ID; }
 
-	constructor(
-		private actionViewItemProvider: IActionViewItemProvider,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@ICommandService private commandService: ICommandService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService private themeService: IThemeService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+	constwuctow(
+		pwivate actionViewItemPwovida: IActionViewItemPwovida,
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@ICommandSewvice pwivate commandSewvice: ICommandSewvice,
+		@IContextMenuSewvice pwivate contextMenuSewvice: IContextMenuSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice,
+		@IWowkspaceContextSewvice pwivate wowkspaceContextSewvice: IWowkspaceContextSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): RepositoryTemplate {
+	wendewTempwate(containa: HTMWEwement): WepositowyTempwate {
 		// hack
-		if (container.classList.contains('monaco-tl-contents')) {
-			(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+		if (containa.cwassWist.contains('monaco-tw-contents')) {
+			(containa.pawentEwement!.pawentEwement!.quewySewectow('.monaco-tw-twistie')! as HTMWEwement).cwassWist.add('fowce-twistie');
 		}
 
-		const provider = append(container, $('.scm-provider'));
-		const label = append(provider, $('.label'));
-		const name = append(label, $('span.name'));
-		const description = append(label, $('span.description'));
-		const actions = append(provider, $('.actions'));
-		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
-		const countContainer = append(provider, $('.count'));
-		const count = new CountBadge(countContainer);
-		const badgeStyler = attachBadgeStyler(count, this.themeService);
-		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
+		const pwovida = append(containa, $('.scm-pwovida'));
+		const wabew = append(pwovida, $('.wabew'));
+		const name = append(wabew, $('span.name'));
+		const descwiption = append(wabew, $('span.descwiption'));
+		const actions = append(pwovida, $('.actions'));
+		const toowBaw = new ToowBaw(actions, this.contextMenuSewvice, { actionViewItemPwovida: this.actionViewItemPwovida });
+		const countContaina = append(pwovida, $('.count'));
+		const count = new CountBadge(countContaina);
+		const badgeStywa = attachBadgeStywa(count, this.themeSewvice);
+		const visibiwityDisposabwe = toowBaw.onDidChangeDwopdownVisibiwity(e => pwovida.cwassWist.toggwe('active', e));
 
-		const disposable = Disposable.None;
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar, badgeStyler);
+		const disposabwe = Disposabwe.None;
+		const tempwateDisposabwe = combinedDisposabwe(visibiwityDisposabwe, toowBaw, badgeStywa);
 
-		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
+		wetuwn { wabew, name, descwiption, countContaina, count, toowBaw, disposabwe, tempwateDisposabwe };
 	}
 
-	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
-		templateData.disposable.dispose();
+	wendewEwement(awg: ISCMWepositowy | ITweeNode<ISCMWepositowy, FuzzyScowe>, index: numba, tempwateData: WepositowyTempwate, height: numba | undefined): void {
+		tempwateData.disposabwe.dispose();
 
-		const disposables = new DisposableStore();
-		const repository = isSCMRepository(arg) ? arg : arg.element;
+		const disposabwes = new DisposabweStowe();
+		const wepositowy = isSCMWepositowy(awg) ? awg : awg.ewement;
 
-		if (repository.provider.rootUri) {
-			const folder = this.workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
+		if (wepositowy.pwovida.wootUwi) {
+			const fowda = this.wowkspaceContextSewvice.getWowkspaceFowda(wepositowy.pwovida.wootUwi);
 
-			if (folder?.uri.toString() === repository.provider.rootUri.toString()) {
-				templateData.name.textContent = folder.name;
-			} else {
-				templateData.name.textContent = basename(repository.provider.rootUri);
+			if (fowda?.uwi.toStwing() === wepositowy.pwovida.wootUwi.toStwing()) {
+				tempwateData.name.textContent = fowda.name;
+			} ewse {
+				tempwateData.name.textContent = basename(wepositowy.pwovida.wootUwi);
 			}
 
-			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
-			templateData.description.textContent = repository.provider.label;
-		} else {
-			templateData.label.title = repository.provider.label;
-			templateData.name.textContent = repository.provider.label;
-			templateData.description.textContent = '';
+			tempwateData.wabew.titwe = `${wepositowy.pwovida.wabew}: ${wepositowy.pwovida.wootUwi.fsPath}`;
+			tempwateData.descwiption.textContent = wepositowy.pwovida.wabew;
+		} ewse {
+			tempwateData.wabew.titwe = wepositowy.pwovida.wabew;
+			tempwateData.name.textContent = wepositowy.pwovida.wabew;
+			tempwateData.descwiption.textContent = '';
 		}
 
-		let statusPrimaryActions: IAction[] = [];
-		let menuPrimaryActions: IAction[] = [];
-		let menuSecondaryActions: IAction[] = [];
-		const updateToolbar = () => {
-			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
+		wet statusPwimawyActions: IAction[] = [];
+		wet menuPwimawyActions: IAction[] = [];
+		wet menuSecondawyActions: IAction[] = [];
+		const updateToowbaw = () => {
+			tempwateData.toowBaw.setActions([...statusPwimawyActions, ...menuPwimawyActions], menuSecondawyActions);
 		};
 
-		const onDidChangeProvider = () => {
-			const commands = repository.provider.statusBarCommands || [];
-			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
-			updateToolbar();
+		const onDidChangePwovida = () => {
+			const commands = wepositowy.pwovida.statusBawCommands || [];
+			statusPwimawyActions = commands.map(c => new StatusBawAction(c, this.commandSewvice));
+			updateToowbaw();
 
-			const count = repository.provider.count || 0;
-			templateData.countContainer.setAttribute('data-count', String(count));
-			templateData.count.setCount(count);
+			const count = wepositowy.pwovida.count || 0;
+			tempwateData.countContaina.setAttwibute('data-count', Stwing(count));
+			tempwateData.count.setCount(count);
 		};
-		disposables.add(repository.provider.onDidChange(onDidChangeProvider, null));
-		onDidChangeProvider();
+		disposabwes.add(wepositowy.pwovida.onDidChange(onDidChangePwovida, nuww));
+		onDidChangePwovida();
 
-		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		disposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
-			menuPrimaryActions = primary;
-			menuSecondaryActions = secondary;
-			updateToolbar();
+		const menus = this.scmViewSewvice.menus.getWepositowyMenus(wepositowy.pwovida);
+		disposabwes.add(connectPwimawyMenu(menus.titweMenu.menu, (pwimawy, secondawy) => {
+			menuPwimawyActions = pwimawy;
+			menuSecondawyActions = secondawy;
+			updateToowbaw();
 		}));
-		templateData.toolBar.context = repository.provider;
+		tempwateData.toowBaw.context = wepositowy.pwovida;
 
-		templateData.disposable = disposables;
+		tempwateData.disposabwe = disposabwes;
 	}
 
-	renderCompressedElements(): void {
-		throw new Error('Should never happen since node is incompressible');
+	wendewCompwessedEwements(): void {
+		thwow new Ewwow('Shouwd neva happen since node is incompwessibwe');
 	}
 
-	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
-		template.disposable.dispose();
+	disposeEwement(gwoup: ISCMWepositowy | ITweeNode<ISCMWepositowy, FuzzyScowe>, index: numba, tempwate: WepositowyTempwate): void {
+		tempwate.disposabwe.dispose();
 	}
 
-	disposeTemplate(templateData: RepositoryTemplate): void {
-		templateData.disposable.dispose();
-		templateData.templateDisposable.dispose();
+	disposeTempwate(tempwateData: WepositowyTempwate): void {
+		tempwateData.disposabwe.dispose();
+		tempwateData.tempwateDisposabwe.dispose();
 	}
 }

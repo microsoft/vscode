@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, Event, Disposable } from 'vscode';
+impowt { EventEmitta, Event, Disposabwe } fwom 'vscode';
 
-export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-	return (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables);
+expowt function fiwtewEvent<T>(event: Event<T>, fiwta: (e: T) => boowean): Event<T> {
+	wetuwn (wistena, thisAwgs = nuww, disposabwes?) => event(e => fiwta(e) && wistena.caww(thisAwgs, e), nuww, disposabwes);
 }
 
-export function onceEvent<T>(event: Event<T>): Event<T> {
-	return (listener, thisArgs = null, disposables?) => {
-		const result = event(e => {
-			result.dispose();
-			return listener.call(thisArgs, e);
-		}, null, disposables);
+expowt function onceEvent<T>(event: Event<T>): Event<T> {
+	wetuwn (wistena, thisAwgs = nuww, disposabwes?) => {
+		const wesuwt = event(e => {
+			wesuwt.dispose();
+			wetuwn wistena.caww(thisAwgs, e);
+		}, nuww, disposabwes);
 
-		return result;
+		wetuwn wesuwt;
 	};
 }
 
 
-export interface PromiseAdapter<T, U> {
+expowt intewface PwomiseAdapta<T, U> {
 	(
-		value: T,
-		resolve:
-			(value: U | PromiseLike<U>) => void,
-		reject:
-			(reason: any) => void
+		vawue: T,
+		wesowve:
+			(vawue: U | PwomiseWike<U>) => void,
+		weject:
+			(weason: any) => void
 	): any;
 }
 
-const passthrough = (value: any, resolve: (value?: any) => void) => resolve(value);
+const passthwough = (vawue: any, wesowve: (vawue?: any) => void) => wesowve(vawue);
 
 /**
- * Return a promise that resolves with the next emitted event, or with some future
- * event as decided by an adapter.
+ * Wetuwn a pwomise that wesowves with the next emitted event, ow with some futuwe
+ * event as decided by an adapta.
  *
- * If specified, the adapter is a function that will be called with
- * `(event, resolve, reject)`. It will be called once per event until it resolves or
- * rejects.
+ * If specified, the adapta is a function that wiww be cawwed with
+ * `(event, wesowve, weject)`. It wiww be cawwed once pew event untiw it wesowves ow
+ * wejects.
  *
- * The default adapter is the passthrough function `(value, resolve) => resolve(value)`.
+ * The defauwt adapta is the passthwough function `(vawue, wesowve) => wesowve(vawue)`.
  *
- * @param event the event
- * @param adapter controls resolution of the returned promise
- * @returns a promise that resolves or rejects as specified by the adapter
+ * @pawam event the event
+ * @pawam adapta contwows wesowution of the wetuwned pwomise
+ * @wetuwns a pwomise that wesowves ow wejects as specified by the adapta
  */
-export function promiseFromEvent<T, U>(
+expowt function pwomiseFwomEvent<T, U>(
 	event: Event<T>,
-	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>, cancel: EventEmitter<void> } {
-	let subscription: Disposable;
-	let cancel = new EventEmitter<void>();
-	return {
-		promise: new Promise<U>((resolve, reject) => {
-			cancel.event(_ => reject());
-			subscription = event((value: T) => {
-				try {
-					Promise.resolve(adapter(value, resolve, reject))
-						.catch(reject);
-				} catch (error) {
-					reject(error);
+	adapta: PwomiseAdapta<T, U> = passthwough): { pwomise: Pwomise<U>, cancew: EventEmitta<void> } {
+	wet subscwiption: Disposabwe;
+	wet cancew = new EventEmitta<void>();
+	wetuwn {
+		pwomise: new Pwomise<U>((wesowve, weject) => {
+			cancew.event(_ => weject());
+			subscwiption = event((vawue: T) => {
+				twy {
+					Pwomise.wesowve(adapta(vawue, wesowve, weject))
+						.catch(weject);
+				} catch (ewwow) {
+					weject(ewwow);
 				}
 			});
 		}).then(
-			(result: U) => {
-				subscription.dispose();
-				return result;
+			(wesuwt: U) => {
+				subscwiption.dispose();
+				wetuwn wesuwt;
 			},
-			error => {
-				subscription.dispose();
-				throw error;
+			ewwow => {
+				subscwiption.dispose();
+				thwow ewwow;
 			}
 		),
-		cancel
+		cancew
 	};
 }
 
-export function arrayEquals<T>(one: ReadonlyArray<T> | undefined, other: ReadonlyArray<T> | undefined, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
-	if (one === other) {
-		return true;
+expowt function awwayEquaws<T>(one: WeadonwyAwway<T> | undefined, otha: WeadonwyAwway<T> | undefined, itemEquaws: (a: T, b: T) => boowean = (a, b) => a === b): boowean {
+	if (one === otha) {
+		wetuwn twue;
 	}
 
-	if (!one || !other) {
-		return false;
+	if (!one || !otha) {
+		wetuwn fawse;
 	}
 
-	if (one.length !== other.length) {
-		return false;
+	if (one.wength !== otha.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0, len = one.length; i < len; i++) {
-		if (!itemEquals(one[i], other[i])) {
-			return false;
+	fow (wet i = 0, wen = one.wength; i < wen; i++) {
+		if (!itemEquaws(one[i], otha[i])) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
 
-export class StopWatch {
+expowt cwass StopWatch {
 
-	private _startTime: number = Date.now();
-	private _stopTime: number = -1;
+	pwivate _stawtTime: numba = Date.now();
+	pwivate _stopTime: numba = -1;
 
-	public stop(): void {
+	pubwic stop(): void {
 		this._stopTime = Date.now();
 	}
 
-	public elapsed(): number {
+	pubwic ewapsed(): numba {
 		if (this._stopTime !== -1) {
-			return this._stopTime - this._startTime;
+			wetuwn this._stopTime - this._stawtTime;
 		}
-		return Date.now() - this._startTime;
+		wetuwn Date.now() - this._stawtTime;
 	}
 }

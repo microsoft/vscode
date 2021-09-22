@@ -1,293 +1,293 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+impowt * as assewt fwom 'assewt';
+impowt { settingKeyToDispwayFowmat, pawseQuewy, IPawsedQuewy } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTweeModews';
 
-suite('SettingsTree', () => {
-	test('settingKeyToDisplayFormat', () => {
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar'),
+suite('SettingsTwee', () => {
+	test('settingKeyToDispwayFowmat', () => {
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw'),
 			{
-				category: 'Foo',
-				label: 'Bar'
+				categowy: 'Foo',
+				wabew: 'Baw'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar.etc'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw.etc'),
 			{
-				category: 'Foo › Bar',
-				label: 'Etc'
+				categowy: 'Foo › Baw',
+				wabew: 'Etc'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('fooBar.etcSomething'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('fooBaw.etcSomething'),
 			{
-				category: 'Foo Bar',
-				label: 'Etc Something'
+				categowy: 'Foo Baw',
+				wabew: 'Etc Something'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo'),
 			{
-				category: '',
-				label: 'Foo'
+				categowy: '',
+				wabew: 'Foo'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.1leading.number'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.1weading.numba'),
 			{
-				category: 'Foo › 1leading',
-				label: 'Number'
+				categowy: 'Foo › 1weading',
+				wabew: 'Numba'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.1Leading.number'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.1Weading.numba'),
 			{
-				category: 'Foo › 1 Leading',
-				label: 'Number'
-			});
-	});
-
-	test('settingKeyToDisplayFormat - with category', () => {
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar', 'foo'),
-			{
-				category: '',
-				label: 'Bar'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('disableligatures.ligatures', 'disableligatures'),
-			{
-				category: '',
-				label: 'Ligatures'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar.etc', 'foo'),
-			{
-				category: 'Bar',
-				label: 'Etc'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('fooBar.etcSomething', 'foo'),
-			{
-				category: 'Foo Bar',
-				label: 'Etc Something'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar.etc', 'foo/bar'),
-			{
-				category: '',
-				label: 'Etc'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('foo.bar.etc', 'something/foo'),
-			{
-				category: 'Bar',
-				label: 'Etc'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('bar.etc', 'something.bar'),
-			{
-				category: '',
-				label: 'Etc'
-			});
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('fooBar.etc', 'fooBar'),
-			{
-				category: '',
-				label: 'Etc'
-			});
-
-
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('fooBar.somethingElse.etc', 'fooBar'),
-			{
-				category: 'Something Else',
-				label: 'Etc'
+				categowy: 'Foo › 1 Weading',
+				wabew: 'Numba'
 			});
 	});
 
-	test('settingKeyToDisplayFormat - known acronym/term', () => {
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('css.someCssSetting'),
+	test('settingKeyToDispwayFowmat - with categowy', () => {
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw', 'foo'),
 			{
-				category: 'CSS',
-				label: 'Some CSS Setting'
+				categowy: '',
+				wabew: 'Baw'
 			});
 
-		assert.deepStrictEqual(
-			settingKeyToDisplayFormat('powershell.somePowerShellSetting'),
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('disabwewigatuwes.wigatuwes', 'disabwewigatuwes'),
 			{
-				category: 'PowerShell',
-				label: 'Some PowerShell Setting'
+				categowy: '',
+				wabew: 'Wigatuwes'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw.etc', 'foo'),
+			{
+				categowy: 'Baw',
+				wabew: 'Etc'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('fooBaw.etcSomething', 'foo'),
+			{
+				categowy: 'Foo Baw',
+				wabew: 'Etc Something'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw.etc', 'foo/baw'),
+			{
+				categowy: '',
+				wabew: 'Etc'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('foo.baw.etc', 'something/foo'),
+			{
+				categowy: 'Baw',
+				wabew: 'Etc'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('baw.etc', 'something.baw'),
+			{
+				categowy: '',
+				wabew: 'Etc'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('fooBaw.etc', 'fooBaw'),
+			{
+				categowy: '',
+				wabew: 'Etc'
+			});
+
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('fooBaw.somethingEwse.etc', 'fooBaw'),
+			{
+				categowy: 'Something Ewse',
+				wabew: 'Etc'
 			});
 	});
 
-	test('parseQuery', () => {
-		function testParseQuery(input: string, expected: IParsedQuery) {
-			assert.deepStrictEqual(
-				parseQuery(input),
+	test('settingKeyToDispwayFowmat - known acwonym/tewm', () => {
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('css.someCssSetting'),
+			{
+				categowy: 'CSS',
+				wabew: 'Some CSS Setting'
+			});
+
+		assewt.deepStwictEquaw(
+			settingKeyToDispwayFowmat('powewsheww.somePowewShewwSetting'),
+			{
+				categowy: 'PowewSheww',
+				wabew: 'Some PowewSheww Setting'
+			});
+	});
+
+	test('pawseQuewy', () => {
+		function testPawseQuewy(input: stwing, expected: IPawsedQuewy) {
+			assewt.deepStwictEquaw(
+				pawseQuewy(input),
 				expected,
 				input
 			);
 		}
 
-		testParseQuery(
+		testPawseQuewy(
 			'',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
+		testPawseQuewy(
 			'@modified',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: ['modified'],
-				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
+		testPawseQuewy(
 			'@tag:foo',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: ['foo'],
-				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
+		testPawseQuewy(
 			'@modified foo',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: ['modified'],
-				extensionFilters: [],
-				query: 'foo',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: 'foo',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
+		testPawseQuewy(
 			'@tag:foo @modified',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: ['foo', 'modified'],
-				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'@tag:foo @modified my query',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'@tag:foo @modified my quewy',
+			<IPawsedQuewy>{
 				tags: ['foo', 'modified'],
-				extensionFilters: [],
-				query: 'my query',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: 'my quewy',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'test @modified query',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'test @modified quewy',
+			<IPawsedQuewy>{
 				tags: ['modified'],
-				extensionFilters: [],
-				query: 'test  query',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: 'test  quewy',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
+		testPawseQuewy(
 			'test @modified',
-			<IParsedQuery>{
+			<IPawsedQuewy>{
 				tags: ['modified'],
-				extensionFilters: [],
-				query: 'test',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: 'test',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'query has @ for some reason',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'quewy has @ fow some weason',
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: [],
-				query: 'query has @ for some reason',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: [],
+				quewy: 'quewy has @ fow some weason',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'@ext:github.vscode-pull-request-github',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'@ext:github.vscode-puww-wequest-github',
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: ['github.vscode-pull-request-github'],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: ['github.vscode-puww-wequest-github'],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'@ext:github.vscode-pull-request-github,vscode.git',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'@ext:github.vscode-puww-wequest-github,vscode.git',
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				extensionFiwtews: ['github.vscode-puww-wequest-github', 'vscode.git'],
+				quewy: '',
+				featuweFiwtews: [],
+				idFiwtews: []
 			});
-		testParseQuery(
-			'@feature:scm',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'@featuwe:scm',
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: [],
-				featureFilters: ['scm'],
-				query: '',
-				idFilters: []
-			});
-
-		testParseQuery(
-			'@feature:scm,terminal',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: ['scm', 'terminal'],
-				query: '',
-				idFilters: []
-			});
-		testParseQuery(
-			'@id:files.autoSave',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: [],
-				query: '',
-				idFilters: ['files.autoSave']
+				extensionFiwtews: [],
+				featuweFiwtews: ['scm'],
+				quewy: '',
+				idFiwtews: []
 			});
 
-		testParseQuery(
-			'@id:files.autoSave,terminal.integrated.commandsToSkipShell',
-			<IParsedQuery>{
+		testPawseQuewy(
+			'@featuwe:scm,tewminaw',
+			<IPawsedQuewy>{
 				tags: [],
-				extensionFilters: [],
-				featureFilters: [],
-				query: '',
-				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell']
+				extensionFiwtews: [],
+				featuweFiwtews: ['scm', 'tewminaw'],
+				quewy: '',
+				idFiwtews: []
+			});
+		testPawseQuewy(
+			'@id:fiwes.autoSave',
+			<IPawsedQuewy>{
+				tags: [],
+				extensionFiwtews: [],
+				featuweFiwtews: [],
+				quewy: '',
+				idFiwtews: ['fiwes.autoSave']
+			});
+
+		testPawseQuewy(
+			'@id:fiwes.autoSave,tewminaw.integwated.commandsToSkipSheww',
+			<IPawsedQuewy>{
+				tags: [],
+				extensionFiwtews: [],
+				featuweFiwtews: [],
+				quewy: '',
+				idFiwtews: ['fiwes.autoSave', 'tewminaw.integwated.commandsToSkipSheww']
 			});
 	});
 });

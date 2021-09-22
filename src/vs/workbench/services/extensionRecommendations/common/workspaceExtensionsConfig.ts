@@ -1,269 +1,269 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IJSONEditingService, IJSONValue } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ResourceMap } from 'vs/base/common/map';
+impowt { distinct, fwatten } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { FiweKind, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { isWowkspace, IWowkspace, IWowkspaceContextSewvice, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IJSONEditingSewvice, IJSONVawue } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
 
-export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
+expowt const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
-export interface IExtensionsConfigContent {
-	recommendations?: string[];
-	unwantedRecommendations?: string[];
+expowt intewface IExtensionsConfigContent {
+	wecommendations?: stwing[];
+	unwantedWecommendations?: stwing[];
 }
 
-export const IWorkpsaceExtensionsConfigService = createDecorator<IWorkpsaceExtensionsConfigService>('IWorkpsaceExtensionsConfigService');
+expowt const IWowkpsaceExtensionsConfigSewvice = cweateDecowatow<IWowkpsaceExtensionsConfigSewvice>('IWowkpsaceExtensionsConfigSewvice');
 
-export interface IWorkpsaceExtensionsConfigService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWowkpsaceExtensionsConfigSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	onDidChangeExtensionsConfigs: Event<void>;
-	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
-	getRecommendations(): Promise<string[]>;
-	getUnwantedRecommendations(): Promise<string[]>;
+	getExtensionsConfigs(): Pwomise<IExtensionsConfigContent[]>;
+	getWecommendations(): Pwomise<stwing[]>;
+	getUnwantedWecommendations(): Pwomise<stwing[]>;
 
-	toggleRecommendation(extensionId: string): Promise<void>;
-	toggleUnwantedRecommendation(extensionId: string): Promise<void>;
+	toggweWecommendation(extensionId: stwing): Pwomise<void>;
+	toggweUnwantedWecommendation(extensionId: stwing): Pwomise<void>;
 }
 
-export class WorkspaceExtensionsConfigService extends Disposable implements IWorkpsaceExtensionsConfigService {
+expowt cwass WowkspaceExtensionsConfigSewvice extends Disposabwe impwements IWowkpsaceExtensionsConfigSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeExtensionsConfigs = this._register(new Emitter<void>());
-	readonly onDidChangeExtensionsConfigs = this._onDidChangeExtensionsConfigs.event;
+	pwivate weadonwy _onDidChangeExtensionsConfigs = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeExtensionsConfigs = this._onDidChangeExtensionsConfigs.event;
 
-	constructor(
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IFileService private readonly fileService: IFileService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
+	constwuctow(
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IJSONEditingSewvice pwivate weadonwy jsonEditingSewvice: IJSONEditingSewvice,
 	) {
-		super();
-		this._register(workspaceContextService.onDidChangeWorkspaceFolders(e => this._onDidChangeExtensionsConfigs.fire()));
-		this._register(fileService.onDidFilesChange(e => {
-			const workspace = workspaceContextService.getWorkspace();
-			if ((workspace.configuration && e.affects(workspace.configuration))
-				|| workspace.folders.some(folder => e.affects(folder.toResource(EXTENSIONS_CONFIG)))
+		supa();
+		this._wegista(wowkspaceContextSewvice.onDidChangeWowkspaceFowdews(e => this._onDidChangeExtensionsConfigs.fiwe()));
+		this._wegista(fiweSewvice.onDidFiwesChange(e => {
+			const wowkspace = wowkspaceContextSewvice.getWowkspace();
+			if ((wowkspace.configuwation && e.affects(wowkspace.configuwation))
+				|| wowkspace.fowdews.some(fowda => e.affects(fowda.toWesouwce(EXTENSIONS_CONFIG)))
 			) {
-				this._onDidChangeExtensionsConfigs.fire();
+				this._onDidChangeExtensionsConfigs.fiwe();
 			}
 		}));
 	}
 
-	async getExtensionsConfigs(): Promise<IExtensionsConfigContent[]> {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const result: IExtensionsConfigContent[] = [];
-		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
-		if (workspaceExtensionsConfigContent) {
-			result.push(workspaceExtensionsConfigContent);
+	async getExtensionsConfigs(): Pwomise<IExtensionsConfigContent[]> {
+		const wowkspace = this.wowkspaceContextSewvice.getWowkspace();
+		const wesuwt: IExtensionsConfigContent[] = [];
+		const wowkspaceExtensionsConfigContent = wowkspace.configuwation ? await this.wesowveWowkspaceExtensionConfig(wowkspace.configuwation) : undefined;
+		if (wowkspaceExtensionsConfigContent) {
+			wesuwt.push(wowkspaceExtensionsConfigContent);
 		}
-		result.push(...await Promise.all(workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))));
-		return result;
+		wesuwt.push(...await Pwomise.aww(wowkspace.fowdews.map(wowkspaceFowda => this.wesowveWowkspaceFowdewExtensionConfig(wowkspaceFowda))));
+		wetuwn wesuwt;
 	}
 
-	async getRecommendations(): Promise<string[]> {
+	async getWecommendations(): Pwomise<stwing[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : [])));
+		wetuwn distinct(fwatten(configs.map(c => c.wecommendations ? c.wecommendations.map(c => c.toWowewCase()) : [])));
 	}
 
-	async getUnwantedRecommendations(): Promise<string[]> {
+	async getUnwantedWecommendations(): Pwomise<stwing[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : [])));
+		wetuwn distinct(fwatten(configs.map(c => c.unwantedWecommendations ? c.unwantedWecommendations.map(c => c.toWowewCase()) : [])));
 	}
 
-	async toggleRecommendation(extensionId: string): Promise<void> {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
-		const workspaceFolderExtensionsConfigContents = new ResourceMap<IExtensionsConfigContent>();
-		await Promise.all(workspace.folders.map(async workspaceFolder => {
-			const extensionsConfigContent = await this.resolveWorkspaceFolderExtensionConfig(workspaceFolder);
-			workspaceFolderExtensionsConfigContents.set(workspaceFolder.uri, extensionsConfigContent);
+	async toggweWecommendation(extensionId: stwing): Pwomise<void> {
+		const wowkspace = this.wowkspaceContextSewvice.getWowkspace();
+		const wowkspaceExtensionsConfigContent = wowkspace.configuwation ? await this.wesowveWowkspaceExtensionConfig(wowkspace.configuwation) : undefined;
+		const wowkspaceFowdewExtensionsConfigContents = new WesouwceMap<IExtensionsConfigContent>();
+		await Pwomise.aww(wowkspace.fowdews.map(async wowkspaceFowda => {
+			const extensionsConfigContent = await this.wesowveWowkspaceFowdewExtensionConfig(wowkspaceFowda);
+			wowkspaceFowdewExtensionsConfigContents.set(wowkspaceFowda.uwi, extensionsConfigContent);
 		}));
 
-		const isWorkspaceRecommended = workspaceExtensionsConfigContent && workspaceExtensionsConfigContent.recommendations?.some(r => r === extensionId);
-		const recommendedWorksapceFolders = workspace.folders.filter(workspaceFolder => workspaceFolderExtensionsConfigContents.get(workspaceFolder.uri)?.recommendations?.some(r => r === extensionId));
-		const isRecommended = isWorkspaceRecommended || recommendedWorksapceFolders.length > 0;
+		const isWowkspaceWecommended = wowkspaceExtensionsConfigContent && wowkspaceExtensionsConfigContent.wecommendations?.some(w => w === extensionId);
+		const wecommendedWowksapceFowdews = wowkspace.fowdews.fiwta(wowkspaceFowda => wowkspaceFowdewExtensionsConfigContents.get(wowkspaceFowda.uwi)?.wecommendations?.some(w => w === extensionId));
+		const isWecommended = isWowkspaceWecommended || wecommendedWowksapceFowdews.wength > 0;
 
-		const workspaceOrFolders = isRecommended
-			? await this.pickWorkspaceOrFolders(recommendedWorksapceFolders, isWorkspaceRecommended ? workspace : undefined, localize('select for remove', "Remove extension recommendation from"))
-			: await this.pickWorkspaceOrFolders(workspace.folders, workspace.configuration ? workspace : undefined, localize('select for add', "Add extension recommendation to"));
+		const wowkspaceOwFowdews = isWecommended
+			? await this.pickWowkspaceOwFowdews(wecommendedWowksapceFowdews, isWowkspaceWecommended ? wowkspace : undefined, wocawize('sewect fow wemove', "Wemove extension wecommendation fwom"))
+			: await this.pickWowkspaceOwFowdews(wowkspace.fowdews, wowkspace.configuwation ? wowkspace : undefined, wocawize('sewect fow add', "Add extension wecommendation to"));
 
-		for (const workspaceOrWorkspaceFolder of workspaceOrFolders) {
-			if (isWorkspace(workspaceOrWorkspaceFolder)) {
-				await this.addOrRemoveWorkspaceRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceExtensionsConfigContent, !isRecommended);
-			} else {
-				await this.addOrRemoveWorkspaceFolderRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceFolderExtensionsConfigContents.get(workspaceOrWorkspaceFolder.uri)!, !isRecommended);
+		fow (const wowkspaceOwWowkspaceFowda of wowkspaceOwFowdews) {
+			if (isWowkspace(wowkspaceOwWowkspaceFowda)) {
+				await this.addOwWemoveWowkspaceWecommendation(extensionId, wowkspaceOwWowkspaceFowda, wowkspaceExtensionsConfigContent, !isWecommended);
+			} ewse {
+				await this.addOwWemoveWowkspaceFowdewWecommendation(extensionId, wowkspaceOwWowkspaceFowda, wowkspaceFowdewExtensionsConfigContents.get(wowkspaceOwWowkspaceFowda.uwi)!, !isWecommended);
 			}
 		}
 	}
 
-	async toggleUnwantedRecommendation(extensionId: string): Promise<void> {
-		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
-		const workspaceFolderExtensionsConfigContents = new ResourceMap<IExtensionsConfigContent>();
-		await Promise.all(workspace.folders.map(async workspaceFolder => {
-			const extensionsConfigContent = await this.resolveWorkspaceFolderExtensionConfig(workspaceFolder);
-			workspaceFolderExtensionsConfigContents.set(workspaceFolder.uri, extensionsConfigContent);
+	async toggweUnwantedWecommendation(extensionId: stwing): Pwomise<void> {
+		const wowkspace = this.wowkspaceContextSewvice.getWowkspace();
+		const wowkspaceExtensionsConfigContent = wowkspace.configuwation ? await this.wesowveWowkspaceExtensionConfig(wowkspace.configuwation) : undefined;
+		const wowkspaceFowdewExtensionsConfigContents = new WesouwceMap<IExtensionsConfigContent>();
+		await Pwomise.aww(wowkspace.fowdews.map(async wowkspaceFowda => {
+			const extensionsConfigContent = await this.wesowveWowkspaceFowdewExtensionConfig(wowkspaceFowda);
+			wowkspaceFowdewExtensionsConfigContents.set(wowkspaceFowda.uwi, extensionsConfigContent);
 		}));
 
-		const isWorkspaceUnwanted = workspaceExtensionsConfigContent && workspaceExtensionsConfigContent.unwantedRecommendations?.some(r => r === extensionId);
-		const unWantedWorksapceFolders = workspace.folders.filter(workspaceFolder => workspaceFolderExtensionsConfigContents.get(workspaceFolder.uri)?.unwantedRecommendations?.some(r => r === extensionId));
-		const isUnwanted = isWorkspaceUnwanted || unWantedWorksapceFolders.length > 0;
+		const isWowkspaceUnwanted = wowkspaceExtensionsConfigContent && wowkspaceExtensionsConfigContent.unwantedWecommendations?.some(w => w === extensionId);
+		const unWantedWowksapceFowdews = wowkspace.fowdews.fiwta(wowkspaceFowda => wowkspaceFowdewExtensionsConfigContents.get(wowkspaceFowda.uwi)?.unwantedWecommendations?.some(w => w === extensionId));
+		const isUnwanted = isWowkspaceUnwanted || unWantedWowksapceFowdews.wength > 0;
 
-		const workspaceOrFolders = isUnwanted
-			? await this.pickWorkspaceOrFolders(unWantedWorksapceFolders, isWorkspaceUnwanted ? workspace : undefined, localize('select for remove', "Remove extension recommendation from"))
-			: await this.pickWorkspaceOrFolders(workspace.folders, workspace.configuration ? workspace : undefined, localize('select for add', "Add extension recommendation to"));
+		const wowkspaceOwFowdews = isUnwanted
+			? await this.pickWowkspaceOwFowdews(unWantedWowksapceFowdews, isWowkspaceUnwanted ? wowkspace : undefined, wocawize('sewect fow wemove', "Wemove extension wecommendation fwom"))
+			: await this.pickWowkspaceOwFowdews(wowkspace.fowdews, wowkspace.configuwation ? wowkspace : undefined, wocawize('sewect fow add', "Add extension wecommendation to"));
 
-		for (const workspaceOrWorkspaceFolder of workspaceOrFolders) {
-			if (isWorkspace(workspaceOrWorkspaceFolder)) {
-				await this.addOrRemoveWorkspaceUnwantedRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceExtensionsConfigContent, !isUnwanted);
-			} else {
-				await this.addOrRemoveWorkspaceFolderUnwantedRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceFolderExtensionsConfigContents.get(workspaceOrWorkspaceFolder.uri)!, !isUnwanted);
+		fow (const wowkspaceOwWowkspaceFowda of wowkspaceOwFowdews) {
+			if (isWowkspace(wowkspaceOwWowkspaceFowda)) {
+				await this.addOwWemoveWowkspaceUnwantedWecommendation(extensionId, wowkspaceOwWowkspaceFowda, wowkspaceExtensionsConfigContent, !isUnwanted);
+			} ewse {
+				await this.addOwWemoveWowkspaceFowdewUnwantedWecommendation(extensionId, wowkspaceOwWowkspaceFowda, wowkspaceFowdewExtensionsConfigContents.get(wowkspaceOwWowkspaceFowda.uwi)!, !isUnwanted);
 			}
 		}
 	}
 
-	private async addOrRemoveWorkspaceFolderRecommendation(extensionId: string, workspaceFolder: IWorkspaceFolder, extensionsConfigContent: IExtensionsConfigContent, add: boolean): Promise<void> {
-		const values: IJSONValue[] = [];
+	pwivate async addOwWemoveWowkspaceFowdewWecommendation(extensionId: stwing, wowkspaceFowda: IWowkspaceFowda, extensionsConfigContent: IExtensionsConfigContent, add: boowean): Pwomise<void> {
+		const vawues: IJSONVawue[] = [];
 		if (add) {
-			values.push({ path: ['recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
-			if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-				values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+			vawues.push({ path: ['wecommendations'], vawue: [...extensionsConfigContent.wecommendations || [], extensionId] });
+			if (extensionsConfigContent.unwantedWecommendations && extensionsConfigContent.unwantedWecommendations.some(e => e === extensionId)) {
+				vawues.push({ path: ['unwantedWecommendations'], vawue: extensionsConfigContent.unwantedWecommendations.fiwta(e => e !== extensionId) });
 			}
-		} else if (extensionsConfigContent.recommendations) {
-			values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+		} ewse if (extensionsConfigContent.wecommendations) {
+			vawues.push({ path: ['wecommendations'], vawue: extensionsConfigContent.wecommendations.fiwta(e => e !== extensionId) });
 		}
 
-		if (values.length) {
-			return this.jsonEditingService.write(workspaceFolder.toResource(EXTENSIONS_CONFIG), values, true);
+		if (vawues.wength) {
+			wetuwn this.jsonEditingSewvice.wwite(wowkspaceFowda.toWesouwce(EXTENSIONS_CONFIG), vawues, twue);
 		}
 	}
 
-	private async addOrRemoveWorkspaceRecommendation(extensionId: string, workspace: IWorkspace, extensionsConfigContent: IExtensionsConfigContent | undefined, add: boolean): Promise<void> {
-		const values: IJSONValue[] = [];
+	pwivate async addOwWemoveWowkspaceWecommendation(extensionId: stwing, wowkspace: IWowkspace, extensionsConfigContent: IExtensionsConfigContent | undefined, add: boowean): Pwomise<void> {
+		const vawues: IJSONVawue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['extensions', 'recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
-				if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-					values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+				vawues.push({ path: ['extensions', 'wecommendations'], vawue: [...extensionsConfigContent.wecommendations || [], extensionId] });
+				if (extensionsConfigContent.unwantedWecommendations && extensionsConfigContent.unwantedWecommendations.some(e => e === extensionId)) {
+					vawues.push({ path: ['extensions', 'unwantedWecommendations'], vawue: extensionsConfigContent.unwantedWecommendations.fiwta(e => e !== extensionId) });
 				}
-			} else if (extensionsConfigContent.recommendations) {
-				values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+			} ewse if (extensionsConfigContent.wecommendations) {
+				vawues.push({ path: ['extensions', 'wecommendations'], vawue: extensionsConfigContent.wecommendations.fiwta(e => e !== extensionId) });
 			}
-		} else if (add) {
-			values.push({ path: ['extensions'], value: { recommendations: [extensionId] } });
+		} ewse if (add) {
+			vawues.push({ path: ['extensions'], vawue: { wecommendations: [extensionId] } });
 		}
 
-		if (values.length) {
-			return this.jsonEditingService.write(workspace.configuration!, values, true);
+		if (vawues.wength) {
+			wetuwn this.jsonEditingSewvice.wwite(wowkspace.configuwation!, vawues, twue);
 		}
 	}
 
-	private async addOrRemoveWorkspaceFolderUnwantedRecommendation(extensionId: string, workspaceFolder: IWorkspaceFolder, extensionsConfigContent: IExtensionsConfigContent, add: boolean): Promise<void> {
-		const values: IJSONValue[] = [];
+	pwivate async addOwWemoveWowkspaceFowdewUnwantedWecommendation(extensionId: stwing, wowkspaceFowda: IWowkspaceFowda, extensionsConfigContent: IExtensionsConfigContent, add: boowean): Pwomise<void> {
+		const vawues: IJSONVawue[] = [];
 		if (add) {
-			values.push({ path: ['unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
-			if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-				values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+			vawues.push({ path: ['unwantedWecommendations'], vawue: [...extensionsConfigContent.unwantedWecommendations || [], extensionId] });
+			if (extensionsConfigContent.wecommendations && extensionsConfigContent.wecommendations.some(e => e === extensionId)) {
+				vawues.push({ path: ['wecommendations'], vawue: extensionsConfigContent.wecommendations.fiwta(e => e !== extensionId) });
 			}
-		} else if (extensionsConfigContent.unwantedRecommendations) {
-			values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+		} ewse if (extensionsConfigContent.unwantedWecommendations) {
+			vawues.push({ path: ['unwantedWecommendations'], vawue: extensionsConfigContent.unwantedWecommendations.fiwta(e => e !== extensionId) });
 		}
-		if (values.length) {
-			return this.jsonEditingService.write(workspaceFolder.toResource(EXTENSIONS_CONFIG), values, true);
+		if (vawues.wength) {
+			wetuwn this.jsonEditingSewvice.wwite(wowkspaceFowda.toWesouwce(EXTENSIONS_CONFIG), vawues, twue);
 		}
 	}
 
-	private async addOrRemoveWorkspaceUnwantedRecommendation(extensionId: string, workspace: IWorkspace, extensionsConfigContent: IExtensionsConfigContent | undefined, add: boolean): Promise<void> {
-		const values: IJSONValue[] = [];
+	pwivate async addOwWemoveWowkspaceUnwantedWecommendation(extensionId: stwing, wowkspace: IWowkspace, extensionsConfigContent: IExtensionsConfigContent | undefined, add: boowean): Pwomise<void> {
+		const vawues: IJSONVawue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['extensions', 'unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
-				if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-					values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+				vawues.push({ path: ['extensions', 'unwantedWecommendations'], vawue: [...extensionsConfigContent.unwantedWecommendations || [], extensionId] });
+				if (extensionsConfigContent.wecommendations && extensionsConfigContent.wecommendations.some(e => e === extensionId)) {
+					vawues.push({ path: ['extensions', 'wecommendations'], vawue: extensionsConfigContent.wecommendations.fiwta(e => e !== extensionId) });
 				}
-			} else if (extensionsConfigContent.unwantedRecommendations) {
-				values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+			} ewse if (extensionsConfigContent.unwantedWecommendations) {
+				vawues.push({ path: ['extensions', 'unwantedWecommendations'], vawue: extensionsConfigContent.unwantedWecommendations.fiwta(e => e !== extensionId) });
 			}
-		} else if (add) {
-			values.push({ path: ['extensions'], value: { unwantedRecommendations: [extensionId] } });
+		} ewse if (add) {
+			vawues.push({ path: ['extensions'], vawue: { unwantedWecommendations: [extensionId] } });
 		}
 
-		if (values.length) {
-			return this.jsonEditingService.write(workspace.configuration!, values, true);
+		if (vawues.wength) {
+			wetuwn this.jsonEditingSewvice.wwite(wowkspace.configuwation!, vawues, twue);
 		}
 	}
 
-	private async pickWorkspaceOrFolders(workspaceFolders: IWorkspaceFolder[], workspace: IWorkspace | undefined, placeHolder: string): Promise<(IWorkspace | IWorkspaceFolder)[]> {
-		const workspaceOrFolders = workspace ? [...workspaceFolders, workspace] : [...workspaceFolders];
-		if (workspaceOrFolders.length === 1) {
-			return workspaceOrFolders;
+	pwivate async pickWowkspaceOwFowdews(wowkspaceFowdews: IWowkspaceFowda[], wowkspace: IWowkspace | undefined, pwaceHowda: stwing): Pwomise<(IWowkspace | IWowkspaceFowda)[]> {
+		const wowkspaceOwFowdews = wowkspace ? [...wowkspaceFowdews, wowkspace] : [...wowkspaceFowdews];
+		if (wowkspaceOwFowdews.wength === 1) {
+			wetuwn wowkspaceOwFowdews;
 		}
 
-		const folderPicks: (IQuickPickItem & { workspaceOrFolder: IWorkspace | IWorkspaceFolder } | IQuickPickSeparator)[] = workspaceFolders.map(workspaceFolder => {
-			return {
-				label: workspaceFolder.name,
-				description: localize('workspace folder', "Workspace Folder"),
-				workspaceOrFolder: workspaceFolder,
-				iconClasses: getIconClasses(this.modelService, this.modeService, workspaceFolder.uri, FileKind.ROOT_FOLDER)
+		const fowdewPicks: (IQuickPickItem & { wowkspaceOwFowda: IWowkspace | IWowkspaceFowda } | IQuickPickSepawatow)[] = wowkspaceFowdews.map(wowkspaceFowda => {
+			wetuwn {
+				wabew: wowkspaceFowda.name,
+				descwiption: wocawize('wowkspace fowda', "Wowkspace Fowda"),
+				wowkspaceOwFowda: wowkspaceFowda,
+				iconCwasses: getIconCwasses(this.modewSewvice, this.modeSewvice, wowkspaceFowda.uwi, FiweKind.WOOT_FOWDa)
 			};
 		});
 
-		if (workspace) {
-			folderPicks.push({ type: 'separator' });
-			folderPicks.push({
-				label: localize('workspace', "Workspace"),
-				workspaceOrFolder: workspace,
+		if (wowkspace) {
+			fowdewPicks.push({ type: 'sepawatow' });
+			fowdewPicks.push({
+				wabew: wocawize('wowkspace', "Wowkspace"),
+				wowkspaceOwFowda: wowkspace,
 			});
 		}
 
-		const result = await this.quickInputService.pick(folderPicks, { placeHolder, canPickMany: true }) || [];
-		return result.map(r => r.workspaceOrFolder!);
+		const wesuwt = await this.quickInputSewvice.pick(fowdewPicks, { pwaceHowda, canPickMany: twue }) || [];
+		wetuwn wesuwt.map(w => w.wowkspaceOwFowda!);
 	}
 
-	private async resolveWorkspaceExtensionConfig(workspaceConfigurationResource: URI): Promise<IExtensionsConfigContent | undefined> {
-		try {
-			const content = await this.fileService.readFile(workspaceConfigurationResource);
-			const extensionsConfigContent = <IExtensionsConfigContent | undefined>parse(content.value.toString())['extensions'];
-			return extensionsConfigContent ? this.parseExtensionConfig(extensionsConfigContent) : undefined;
-		} catch (e) { /* Ignore */ }
-		return undefined;
+	pwivate async wesowveWowkspaceExtensionConfig(wowkspaceConfiguwationWesouwce: UWI): Pwomise<IExtensionsConfigContent | undefined> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(wowkspaceConfiguwationWesouwce);
+			const extensionsConfigContent = <IExtensionsConfigContent | undefined>pawse(content.vawue.toStwing())['extensions'];
+			wetuwn extensionsConfigContent ? this.pawseExtensionConfig(extensionsConfigContent) : undefined;
+		} catch (e) { /* Ignowe */ }
+		wetuwn undefined;
 	}
 
-	private async resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<IExtensionsConfigContent> {
-		try {
-			const content = await this.fileService.readFile(workspaceFolder.toResource(EXTENSIONS_CONFIG));
-			const extensionsConfigContent = <IExtensionsConfigContent>parse(content.value.toString());
-			return this.parseExtensionConfig(extensionsConfigContent);
-		} catch (e) { /* ignore */ }
-		return {};
+	pwivate async wesowveWowkspaceFowdewExtensionConfig(wowkspaceFowda: IWowkspaceFowda): Pwomise<IExtensionsConfigContent> {
+		twy {
+			const content = await this.fiweSewvice.weadFiwe(wowkspaceFowda.toWesouwce(EXTENSIONS_CONFIG));
+			const extensionsConfigContent = <IExtensionsConfigContent>pawse(content.vawue.toStwing());
+			wetuwn this.pawseExtensionConfig(extensionsConfigContent);
+		} catch (e) { /* ignowe */ }
+		wetuwn {};
 	}
 
-	private parseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent): IExtensionsConfigContent {
-		return {
-			recommendations: distinct((extensionsConfigContent.recommendations || []).map(e => e.toLowerCase())),
-			unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase()))
+	pwivate pawseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent): IExtensionsConfigContent {
+		wetuwn {
+			wecommendations: distinct((extensionsConfigContent.wecommendations || []).map(e => e.toWowewCase())),
+			unwantedWecommendations: distinct((extensionsConfigContent.unwantedWecommendations || []).map(e => e.toWowewCase()))
 		};
 	}
 
 }
 
-registerSingleton(IWorkpsaceExtensionsConfigService, WorkspaceExtensionsConfigService);
+wegistewSingweton(IWowkpsaceExtensionsConfigSewvice, WowkspaceExtensionsConfigSewvice);

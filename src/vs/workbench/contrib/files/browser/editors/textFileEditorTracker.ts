@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { URI } from 'vs/base/common/uri';
-import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextFiweSewvice, TextFiweEditowModewState } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { distinct, coawesce } fwom 'vs/base/common/awways';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WunOnceWowka } fwom 'vs/base/common/async';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IFiwesConfiguwationSewvice, AutoSaveMode } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { FIWE_EDITOW_INPUT_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { IWowkingCopyEditowSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyEditowSewvice';
+impowt { DEFAUWT_EDITOW_ASSOCIATION } fwom 'vs/wowkbench/common/editow';
 
-export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
+expowt cwass TextFiweEditowTwacka extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IWowkingCopyEditowSewvice pwivate weadonwy wowkingCopyEditowSewvice: IWowkingCopyEditowSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.files.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
-		this._register(this.textFileService.files.onDidSaveError(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
-		this._register(this.textFileService.untitled.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
+		// Ensuwe diwty text fiwe and untitwed modews awe awways opened as editows
+		this._wegista(this.textFiweSewvice.fiwes.onDidChangeDiwty(modew => this.ensuweDiwtyFiwesAweOpenedWowka.wowk(modew.wesouwce)));
+		this._wegista(this.textFiweSewvice.fiwes.onDidSaveEwwow(modew => this.ensuweDiwtyFiwesAweOpenedWowka.wowk(modew.wesouwce)));
+		this._wegista(this.textFiweSewvice.untitwed.onDidChangeDiwty(modew => this.ensuweDiwtyFiwesAweOpenedWowka.wowk(modew.wesouwce)));
 
-		// Update visible text file editors when focus is gained
-		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
+		// Update visibwe text fiwe editows when focus is gained
+		this._wegista(this.hostSewvice.onDidChangeFocus(hasFocus => hasFocus ? this.wewoadVisibweTextFiweEditows() : undefined));
 
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		// Wifecycwe
+		this.wifecycweSewvice.onDidShutdown(() => this.dispose());
 	}
 
-	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
+	//#wegion Text Fiwe: Ensuwe evewy diwty text and untitwed fiwe is opened in an editow
 
-	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), this.getDirtyTextFileTrackerDelay()));
+	pwivate weadonwy ensuweDiwtyFiwesAweOpenedWowka = this._wegista(new WunOnceWowka<UWI>(units => this.ensuweDiwtyTextFiwesAweOpened(units), this.getDiwtyTextFiweTwackewDeway()));
 
-	protected getDirtyTextFileTrackerDelay(): number {
-		return 800; // encapsulated in a method for tests to override
+	pwotected getDiwtyTextFiweTwackewDeway(): numba {
+		wetuwn 800; // encapsuwated in a method fow tests to ovewwide
 	}
 
-	private ensureDirtyTextFilesAreOpened(resources: URI[]): void {
-		this.doEnsureDirtyTextFilesAreOpened(distinct(resources.filter(resource => {
-			if (!this.textFileService.isDirty(resource)) {
-				return false; // resource must be dirty
+	pwivate ensuweDiwtyTextFiwesAweOpened(wesouwces: UWI[]): void {
+		this.doEnsuweDiwtyTextFiwesAweOpened(distinct(wesouwces.fiwta(wesouwce => {
+			if (!this.textFiweSewvice.isDiwty(wesouwce)) {
+				wetuwn fawse; // wesouwce must be diwty
 			}
 
-			const fileModel = this.textFileService.files.get(resource);
-			if (fileModel?.hasState(TextFileEditorModelState.PENDING_SAVE)) {
-				return false; // resource must not be pending to save
+			const fiweModew = this.textFiweSewvice.fiwes.get(wesouwce);
+			if (fiweModew?.hasState(TextFiweEditowModewState.PENDING_SAVE)) {
+				wetuwn fawse; // wesouwce must not be pending to save
 			}
 
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !fileModel?.hasState(TextFileEditorModelState.ERROR)) {
-				// leave models auto saved after short delay unless
-				// the save resulted in an error
-				return false;
+			if (this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY && !fiweModew?.hasState(TextFiweEditowModewState.EWWOW)) {
+				// weave modews auto saved afta showt deway unwess
+				// the save wesuwted in an ewwow
+				wetuwn fawse;
 			}
 
-			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
-				return false; // model must not be opened already as file (fast check via editor type)
+			if (this.editowSewvice.isOpened({ wesouwce, typeId: wesouwce.scheme === Schemas.untitwed ? UntitwedTextEditowInput.ID : FIWE_EDITOW_INPUT_ID, editowId: DEFAUWT_EDITOW_ASSOCIATION.id })) {
+				wetuwn fawse; // modew must not be opened awweady as fiwe (fast check via editow type)
 			}
 
-			const model = fileModel ?? this.textFileService.untitled.get(resource);
-			if (model && this.workingCopyEditorService.findEditor(model)) {
-				return false; // model must not be opened already as file (slower check via working copy)
+			const modew = fiweModew ?? this.textFiweSewvice.untitwed.get(wesouwce);
+			if (modew && this.wowkingCopyEditowSewvice.findEditow(modew)) {
+				wetuwn fawse; // modew must not be opened awweady as fiwe (swowa check via wowking copy)
 			}
 
-			return true;
-		}), resource => resource.toString()));
+			wetuwn twue;
+		}), wesouwce => wesouwce.toStwing()));
 	}
 
-	private doEnsureDirtyTextFilesAreOpened(resources: URI[]): void {
-		if (!resources.length) {
-			return;
+	pwivate doEnsuweDiwtyTextFiwesAweOpened(wesouwces: UWI[]): void {
+		if (!wesouwces.wength) {
+			wetuwn;
 		}
 
-		this.editorService.openEditors(resources.map(resource => ({
-			resource,
-			options: { inactive: true, pinned: true, preserveFocus: true }
+		this.editowSewvice.openEditows(wesouwces.map(wesouwce => ({
+			wesouwce,
+			options: { inactive: twue, pinned: twue, pwesewveFocus: twue }
 		})));
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Window Focus Change: Update visible code editors when focus is gained that have a known text file model
+	//#wegion Window Focus Change: Update visibwe code editows when focus is gained that have a known text fiwe modew
 
-	private reloadVisibleTextFileEditors(): void {
-		// the window got focus and we use this as a hint that files might have been changed outside
-		// of this window. since file events can be unreliable, we queue a load for models that
-		// are visible in any editor. since this is a fast operation in the case nothing has changed,
-		// we tolerate the additional work.
+	pwivate wewoadVisibweTextFiweEditows(): void {
+		// the window got focus and we use this as a hint that fiwes might have been changed outside
+		// of this window. since fiwe events can be unwewiabwe, we queue a woad fow modews that
+		// awe visibwe in any editow. since this is a fast opewation in the case nothing has changed,
+		// we towewate the additionaw wowk.
 		distinct(
-			coalesce(this.codeEditorService.listCodeEditors()
-				.map(codeEditor => {
-					const resource = codeEditor.getModel()?.uri;
-					if (!resource) {
-						return undefined;
+			coawesce(this.codeEditowSewvice.wistCodeEditows()
+				.map(codeEditow => {
+					const wesouwce = codeEditow.getModew()?.uwi;
+					if (!wesouwce) {
+						wetuwn undefined;
 					}
 
-					const model = this.textFileService.files.get(resource);
-					if (!model || model.isDirty() || !model.isResolved()) {
-						return undefined;
+					const modew = this.textFiweSewvice.fiwes.get(wesouwce);
+					if (!modew || modew.isDiwty() || !modew.isWesowved()) {
+						wetuwn undefined;
 					}
 
-					return model;
+					wetuwn modew;
 				})),
-			model => model.resource.toString()
-		).forEach(model => this.textFileService.files.resolve(model.resource, { reload: { async: true } }));
+			modew => modew.wesouwce.toStwing()
+		).fowEach(modew => this.textFiweSewvice.fiwes.wesowve(modew.wesouwce, { wewoad: { async: twue } }));
 	}
 
-	//#endregion
+	//#endwegion
 }

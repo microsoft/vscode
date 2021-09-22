@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { validate, isStyleSheet } from './util';
-import { nextItemHTML, prevItemHTML } from './selectItemHTML';
-import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
-import { HtmlNode, CssNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { vawidate, isStyweSheet } fwom './utiw';
+impowt { nextItemHTMW, pwevItemHTMW } fwom './sewectItemHTMW';
+impowt { nextItemStywesheet, pwevItemStywesheet } fwom './sewectItemStywesheet';
+impowt { HtmwNode, CssNode } fwom 'EmmetFwatNode';
+impowt { getWootNode } fwom './pawseDocument';
 
-export function fetchSelectItem(direction: string): void {
-	if (!validate() || !vscode.window.activeTextEditor) {
-		return;
+expowt function fetchSewectItem(diwection: stwing): void {
+	if (!vawidate() || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = getRootNode(document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = getWootNode(document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	let newSelections: vscode.Selection[] = [];
-	editor.selections.forEach(selection => {
-		const selectionStart = selection.isReversed ? selection.active : selection.anchor;
-		const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
+	wet newSewections: vscode.Sewection[] = [];
+	editow.sewections.fowEach(sewection => {
+		const sewectionStawt = sewection.isWevewsed ? sewection.active : sewection.anchow;
+		const sewectionEnd = sewection.isWevewsed ? sewection.anchow : sewection.active;
 
-		let updatedSelection;
-		if (isStyleSheet(editor.document.languageId)) {
-			updatedSelection = direction === 'next' ?
-				nextItemStylesheet(document, selectionStart, selectionEnd, <CssNode>rootNode) :
-				prevItemStylesheet(document, selectionStart, selectionEnd, <CssNode>rootNode);
-		} else {
-			updatedSelection = direction === 'next' ?
-				nextItemHTML(document, selectionStart, selectionEnd, <HtmlNode>rootNode) :
-				prevItemHTML(document, selectionStart, selectionEnd, <HtmlNode>rootNode);
+		wet updatedSewection;
+		if (isStyweSheet(editow.document.wanguageId)) {
+			updatedSewection = diwection === 'next' ?
+				nextItemStywesheet(document, sewectionStawt, sewectionEnd, <CssNode>wootNode) :
+				pwevItemStywesheet(document, sewectionStawt, sewectionEnd, <CssNode>wootNode);
+		} ewse {
+			updatedSewection = diwection === 'next' ?
+				nextItemHTMW(document, sewectionStawt, sewectionEnd, <HtmwNode>wootNode) :
+				pwevItemHTMW(document, sewectionStawt, sewectionEnd, <HtmwNode>wootNode);
 		}
-		newSelections.push(updatedSelection ? updatedSelection : selection);
+		newSewections.push(updatedSewection ? updatedSewection : sewection);
 	});
-	editor.selections = newSelections;
-	editor.revealRange(editor.selections[editor.selections.length - 1]);
+	editow.sewections = newSewections;
+	editow.weveawWange(editow.sewections[editow.sewections.wength - 1]);
 }

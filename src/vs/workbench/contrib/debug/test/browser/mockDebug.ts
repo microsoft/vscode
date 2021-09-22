@@ -1,654 +1,654 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ILaunch, IDebugService, State, IDebugSession, IConfigurationManager, IStackFrame, IBreakpointData, IBreakpointUpdateData, IConfig, IDebugModel, IViewModel, IBreakpoint, LoadedSourceEvent, IThread, IRawModelUpdate, IFunctionBreakpoint, IExceptionBreakpoint, IDebugger, IExceptionInfo, AdapterEndEvent, IReplElement, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IEvaluate, IAdapterManager, IRawStoppedDetails, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import Severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { ExceptionBreakpoint, Expression, DataBreakpoint, FunctionBreakpoint, Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Position, IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWaunch, IDebugSewvice, State, IDebugSession, IConfiguwationManaga, IStackFwame, IBweakpointData, IBweakpointUpdateData, IConfig, IDebugModew, IViewModew, IBweakpoint, WoadedSouwceEvent, IThwead, IWawModewUpdate, IFunctionBweakpoint, IExceptionBweakpoint, IDebugga, IExceptionInfo, AdaptewEndEvent, IWepwEwement, IExpwession, IWepwEwementSouwce, IDataBweakpoint, IDebugSessionOptions, IEvawuate, IAdaptewManaga, IWawStoppedDetaiws, IInstwuctionBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { AbstwactDebugAdapta } fwom 'vs/wowkbench/contwib/debug/common/abstwactDebugAdapta';
+impowt { DebugStowage } fwom 'vs/wowkbench/contwib/debug/common/debugStowage';
+impowt { ExceptionBweakpoint, Expwession, DataBweakpoint, FunctionBweakpoint, Bweakpoint, DebugModew } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { DebugCompoundWoot } fwom 'vs/wowkbench/contwib/debug/common/debugCompoundWoot';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { TestFiweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-const fileService = new TestFileService();
-export const mockUriIdentityService = new UriIdentityService(fileService);
+const fiweSewvice = new TestFiweSewvice();
+expowt const mockUwiIdentitySewvice = new UwiIdentitySewvice(fiweSewvice);
 
-export class MockDebugService implements IDebugService {
-	_serviceBrand: undefined;
+expowt cwass MockDebugSewvice impwements IDebugSewvice {
+	_sewviceBwand: undefined;
 
 	get state(): State {
-		throw new Error('not implemented');
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onWillNewSession(): Event<IDebugSession> {
-		throw new Error('not implemented');
+	get onWiwwNewSession(): Event<IDebugSession> {
+		thwow new Ewwow('not impwemented');
 	}
 
 	get onDidNewSession(): Event<IDebugSession> {
-		throw new Error('not implemented');
+		thwow new Ewwow('not impwemented');
 	}
 
 	get onDidEndSession(): Event<IDebugSession> {
-		throw new Error('not implemented');
+		thwow new Ewwow('not impwemented');
 	}
 
 	get onDidChangeState(): Event<State> {
-		throw new Error('not implemented');
+		thwow new Ewwow('not impwemented');
 	}
 
-	getConfigurationManager(): IConfigurationManager {
-		throw new Error('not implemented');
+	getConfiguwationManaga(): IConfiguwationManaga {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getAdapterManager(): IAdapterManager {
-		throw new Error('Method not implemented.');
+	getAdaptewManaga(): IAdaptewManaga {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	canSetBreakpointsIn(model: ITextModel): boolean {
-		throw new Error('Method not implemented.');
+	canSetBweakpointsIn(modew: ITextModew): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	focusStackFrame(focusedStackFrame: IStackFrame): Promise<void> {
-		throw new Error('not implemented');
+	focusStackFwame(focusedStackFwame: IStackFwame): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		throw new Error('not implemented');
+	sendAwwBweakpoints(session?: IDebugSession): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[]): Promise<IBreakpoint[]> {
-		throw new Error('not implemented');
+	addBweakpoints(uwi: uwi, wawBweakpoints: IBweakpointData[]): Pwomise<IBweakpoint[]> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
-		throw new Error('not implemented');
+	updateBweakpoints(uwi: uwi, data: Map<stwing, IBweakpointUpdateData>, sendOnWesouwceSaved: boowean): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	enableOrDisableBreakpoints(enabled: boolean): Promise<void> {
-		throw new Error('not implemented');
+	enabweOwDisabweBweakpoints(enabwed: boowean): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setBreakpointsActivated(): Promise<void> {
-		throw new Error('not implemented');
+	setBweakpointsActivated(): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	removeBreakpoints(): Promise<any> {
-		throw new Error('not implemented');
+	wemoveBweakpoints(): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
-		throw new Error('Method not implemented.');
+	addInstwuctionBweakpoint(addwess: stwing, offset: numba, condition?: stwing, hitCondition?: stwing): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	removeInstructionBreakpoints(address?: string): Promise<void> {
-		throw new Error('Method not implemented.');
+	wemoveInstwuctionBweakpoints(addwess?: stwing): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string): Promise<void> {
-		throw new Error('Method not implemented.');
+	setExceptionBweakpointCondition(bweakpoint: IExceptionBweakpoint, condition: stwing): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
-		throw new Error('Method not implemented.');
+	setExceptionBweakpoints(data: DebugPwotocow.ExceptionBweakpointsFiwta[]): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	addFunctionBreakpoint(): void { }
+	addFunctionBweakpoint(): void { }
 
-	moveWatchExpression(id: string, position: number): void { }
+	moveWatchExpwession(id: stwing, position: numba): void { }
 
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void> {
-		throw new Error('not implemented');
+	updateFunctionBweakpoint(id: stwing, update: { name?: stwing, hitCondition?: stwing, condition?: stwing }): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	removeFunctionBreakpoints(id?: string): Promise<void> {
-		throw new Error('not implemented');
+	wemoveFunctionBweakpoints(id?: stwing): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
+	addDataBweakpoint(wabew: stwing, dataId: stwing, canPewsist: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	removeDataBreakpoints(id?: string | undefined): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-
-	addReplExpression(name: string): Promise<void> {
-		throw new Error('not implemented');
+	wemoveDataBweakpoints(id?: stwing | undefined): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	removeReplExpressions(): void { }
-
-	addWatchExpression(name?: string): Promise<void> {
-		throw new Error('not implemented');
+	addWepwExpwession(name: stwing): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	renameWatchExpression(id: string, newName: string): Promise<void> {
-		throw new Error('not implemented');
+	wemoveWepwExpwessions(): void { }
+
+	addWatchExpwession(name?: stwing): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	removeWatchExpressions(id?: string): void { }
-
-	startDebugging(launch: ILaunch, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
-		return Promise.resolve(true);
+	wenameWatchExpwession(id: stwing, newName: stwing): Pwomise<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	restartSession(): Promise<any> {
-		throw new Error('not implemented');
+	wemoveWatchExpwessions(id?: stwing): void { }
+
+	stawtDebugging(waunch: IWaunch, configOwName?: IConfig | stwing, options?: IDebugSessionOptions): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(twue);
 	}
 
-	stopSession(): Promise<any> {
-		throw new Error('not implemented');
+	westawtSession(): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getModel(): IDebugModel {
-		throw new Error('not implemented');
+	stopSession(): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getViewModel(): IViewModel {
-		throw new Error('not implemented');
+	getModew(): IDebugModew {
+		thwow new Ewwow('not impwemented');
 	}
 
-	logToRepl(session: IDebugSession, value: string): void { }
-
-	sourceIsNotAvailable(uri: uri): void { }
-
-	tryToAutoFocusStackFrame(thread: IThread): Promise<any> {
-		throw new Error('not implemented');
+	getViewModew(): IViewModew {
+		thwow new Ewwow('not impwemented');
 	}
 
-	runTo(uri: uri, lineNumber: number, column?: number): Promise<void> {
-		throw new Error('Method not implemented.');
+	wogToWepw(session: IDebugSession, vawue: stwing): void { }
+
+	souwceIsNotAvaiwabwe(uwi: uwi): void { }
+
+	twyToAutoFocusStackFwame(thwead: IThwead): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
+	}
+
+	wunTo(uwi: uwi, wineNumba: numba, cowumn?: numba): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-export class MockSession implements IDebugSession {
-	get compoundRoot(): DebugCompoundRoot | undefined {
-		return undefined;
+expowt cwass MockSession impwements IDebugSession {
+	get compoundWoot(): DebugCompoundWoot | undefined {
+		wetuwn undefined;
 	}
 
-	get isSimpleUI(): boolean {
-		return false;
+	get isSimpweUI(): boowean {
+		wetuwn fawse;
 	}
 
-	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
-		throw new Error('Method not implemented.');
+	stepInTawgets(fwameId: numba): Pwomise<{ id: numba; wabew: stwing; }[]> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	cancel(_progressId: string): Promise<DebugProtocol.CancelResponse> {
-		throw new Error('Method not implemented.');
+	cancew(_pwogwessId: stwing): Pwomise<DebugPwotocow.CancewWesponse> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]> {
-		throw new Error('Method not implemented.');
+	bweakpointsWocations(uwi: uwi, wineNumba: numba): Pwomise<IPosition[]> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; } | undefined> {
-		throw new Error('Method not implemented.');
+	dataBweakpointInfo(name: stwing, vawiabwesWefewence?: numba | undefined): Pwomise<{ dataId: stwing | nuww; descwiption: stwing; canPewsist?: boowean | undefined; } | undefined> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void> {
-		throw new Error('Method not implemented.');
+	sendDataBweakpoints(dbps: IDataBweakpoint[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	subId: string | undefined;
+	subId: stwing | undefined;
 
-	get compact(): boolean {
-		return false;
+	get compact(): boowean {
+		wetuwn fawse;
 	}
 
-	setSubId(subId: string | undefined): void {
-		throw new Error('Method not implemented.');
+	setSubId(subId: stwing | undefined): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	get parentSession(): IDebugSession | undefined {
-		return undefined;
+	get pawentSession(): IDebugSession | undefined {
+		wetuwn undefined;
 	}
 
-	getReplElements(): IReplElement[] {
-		return [];
+	getWepwEwements(): IWepwEwement[] {
+		wetuwn [];
 	}
 
-	hasSeparateRepl(): boolean {
-		return true;
+	hasSepawateWepw(): boowean {
+		wetuwn twue;
 	}
 
-	removeReplExpressions(): void { }
-	get onDidChangeReplElements(): Event<void> {
-		throw new Error('not implemented');
+	wemoveWepwExpwessions(): void { }
+	get onDidChangeWepwEwements(): Event<void> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	addReplExpression(stackFrame: IStackFrame, name: string): Promise<void> {
-		return Promise.resolve(undefined);
+	addWepwExpwession(stackFwame: IStackFwame, name: stwing): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
-	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
+	appendToWepw(data: stwing | IExpwession, sevewity: Sevewity, souwce?: IWepwEwementSouwce): void { }
+	wogToWepw(sev: Sevewity, awgs: any[], fwame?: { uwi: uwi; wine: numba; cowumn: numba; }) { }
 
-	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
-	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
+	configuwation: IConfig = { type: 'mock', name: 'mock', wequest: 'waunch' };
+	unwesowvedConfiguwation: IConfig = { type: 'mock', name: 'mock', wequest: 'waunch' };
 	state = State.Stopped;
-	root!: IWorkspaceFolder;
-	capabilities: DebugProtocol.Capabilities = {};
+	woot!: IWowkspaceFowda;
+	capabiwities: DebugPwotocow.Capabiwities = {};
 
-	getId(): string {
-		return 'mock';
+	getId(): stwing {
+		wetuwn 'mock';
 	}
 
-	getLabel(): string {
-		return 'mockname';
+	getWabew(): stwing {
+		wetuwn 'mockname';
 	}
 
-	get name(): string {
-		return 'mockname';
+	get name(): stwing {
+		wetuwn 'mockname';
 	}
 
-	setName(name: string): void {
-		throw new Error('not implemented');
+	setName(name: stwing): void {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getSourceForUri(modelUri: uri): Source {
-		throw new Error('not implemented');
+	getSouwceFowUwi(modewUwi: uwi): Souwce {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getThread(threadId: number): IThread {
-		throw new Error('not implemented');
+	getThwead(thweadId: numba): IThwead {
+		thwow new Ewwow('not impwemented');
 	}
 
-	getStoppedDetails(): IRawStoppedDetails {
-		throw new Error('not implemented');
+	getStoppedDetaiws(): IWawStoppedDetaiws {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidCustomEvent(): Event<DebugProtocol.Event> {
-		throw new Error('not implemented');
+	get onDidCustomEvent(): Event<DebugPwotocow.Event> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidLoadedSource(): Event<LoadedSourceEvent> {
-		throw new Error('not implemented');
+	get onDidWoadedSouwce(): Event<WoadedSouwceEvent> {
+		thwow new Ewwow('not impwemented');
 	}
 
 	get onDidChangeState(): Event<void> {
-		throw new Error('not implemented');
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidEndAdapter(): Event<AdapterEndEvent | undefined> {
-		throw new Error('not implemented');
+	get onDidEndAdapta(): Event<AdaptewEndEvent | undefined> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidChangeName(): Event<string> {
-		throw new Error('not implemented');
+	get onDidChangeName(): Event<stwing> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
-		throw new Error('not implemented');
+	get onDidPwogwessStawt(): Event<DebugPwotocow.PwogwessStawtEvent> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
-		throw new Error('not implemented');
+	get onDidPwogwessUpdate(): Event<DebugPwotocow.PwogwessUpdateEvent> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
-		throw new Error('not implemented');
+	get onDidPwogwessEnd(): Event<DebugPwotocow.PwogwessEndEvent> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
+	setConfiguwation(configuwation: { wesowved: IConfig, unwesowved: IConfig }) { }
 
-	getAllThreads(): IThread[] {
-		return [];
-	}
-
-	getSource(raw: DebugProtocol.Source): Source {
-		throw new Error('not implemented');
+	getAwwThweads(): IThwead[] {
+		wetuwn [];
 	}
 
-	getLoadedSources(): Promise<Source[]> {
-		return Promise.resolve([]);
+	getSouwce(waw: DebugPwotocow.Souwce): Souwce {
+		thwow new Ewwow('not impwemented');
 	}
 
-	completions(frameId: number, threadId: number, text: string, position: Position, overwriteBefore: number): Promise<DebugProtocol.CompletionsResponse> {
-		throw new Error('not implemented');
+	getWoadedSouwces(): Pwomise<Souwce[]> {
+		wetuwn Pwomise.wesowve([]);
 	}
 
-	clearThreads(removeThreads: boolean, reference?: number): void { }
-
-	rawUpdate(data: IRawModelUpdate): void { }
-
-	initialize(dbgr: IDebugger): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	launchOrAttach(config: IConfig): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	restart(): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined {
-		throw new Error('Method not implemented.');
-	}
-	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
-		throw new Error('Method not implemented.');
-	}
-	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse> {
-		throw new Error('Method not implemented.');
-	}
-	exceptionInfo(threadId: number): Promise<IExceptionInfo> {
-		throw new Error('Method not implemented.');
-	}
-	scopes(frameId: number): Promise<DebugProtocol.ScopesResponse> {
-		throw new Error('Method not implemented.');
-	}
-	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named', start: number, count: number): Promise<DebugProtocol.VariablesResponse> {
-		throw new Error('Method not implemented.');
-	}
-	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {
-		throw new Error('Method not implemented.');
-	}
-	restartFrame(frameId: number, threadId: number): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	continue(threadId: number): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	reverseContinue(threadId: number): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	pause(threadId: number): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	terminateThreads(threadIds: number[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse> {
-		throw new Error('Method not implemented.');
-	}
-	setExpression(frameId: number, expression: string, value: string): Promise<DebugProtocol.SetExpressionResponse | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse> {
-		throw new Error('Method not implemented.');
-	}
-	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined> {
-		throw new Error('Method not implemented.');
+	compwetions(fwameId: numba, thweadId: numba, text: stwing, position: Position, ovewwwiteBefowe: numba): Pwomise<DebugPwotocow.CompwetionsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	terminate(restart = false): Promise<void> {
-		throw new Error('Method not implemented.');
+	cweawThweads(wemoveThweads: boowean, wefewence?: numba): void { }
+
+	wawUpdate(data: IWawModewUpdate): void { }
+
+	initiawize(dbgw: IDebugga): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	disconnect(restart = false): Promise<void> {
-		throw new Error('Method not implemented.');
+	waunchOwAttach(config: IConfig): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	westawt(): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	sendBweakpoints(modewUwi: uwi, bpts: IBweakpoint[], souwceModified: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	sendFunctionBweakpoints(fbps: IFunctionBweakpoint[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	sendExceptionBweakpoints(exbpts: IExceptionBweakpoint[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	sendInstwuctionBweakpoints(dbps: IInstwuctionBweakpoint[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	getDebugPwotocowBweakpoint(bweakpointId: stwing): DebugPwotocow.Bweakpoint | undefined {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	customWequest(wequest: stwing, awgs: any): Pwomise<DebugPwotocow.Wesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	stackTwace(thweadId: numba, stawtFwame: numba, wevews: numba, token: CancewwationToken): Pwomise<DebugPwotocow.StackTwaceWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	exceptionInfo(thweadId: numba): Pwomise<IExceptionInfo> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	scopes(fwameId: numba): Pwomise<DebugPwotocow.ScopesWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	vawiabwes(vawiabwesWefewence: numba, thweadId: numba | undefined, fiwta: 'indexed' | 'named', stawt: numba, count: numba): Pwomise<DebugPwotocow.VawiabwesWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	evawuate(expwession: stwing, fwameId: numba, context?: stwing): Pwomise<DebugPwotocow.EvawuateWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	westawtFwame(fwameId: numba, thweadId: numba): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	next(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	stepIn(thweadId: numba, tawgetId?: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	stepOut(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	stepBack(thweadId: numba, gwanuwawity?: DebugPwotocow.SteppingGwanuwawity): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	continue(thweadId: numba): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	wevewseContinue(thweadId: numba): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	pause(thweadId: numba): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	tewminateThweads(thweadIds: numba[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	setVawiabwe(vawiabwesWefewence: numba, name: stwing, vawue: stwing): Pwomise<DebugPwotocow.SetVawiabweWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	setExpwession(fwameId: numba, expwession: stwing, vawue: stwing): Pwomise<DebugPwotocow.SetExpwessionWesponse | undefined> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	woadSouwce(wesouwce: uwi): Pwomise<DebugPwotocow.SouwceWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	disassembwe(memowyWefewence: stwing, offset: numba, instwuctionOffset: numba, instwuctionCount: numba): Pwomise<DebugPwotocow.DisassembwedInstwuction[] | undefined> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	gotoTargets(source: DebugProtocol.Source, line: number, column?: number | undefined): Promise<DebugProtocol.GotoTargetsResponse> {
-		throw new Error('Method not implemented.');
+	tewminate(westawt = fawse): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
-		throw new Error('Method not implemented.');
+	disconnect(westawt = fawse): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+
+	gotoTawgets(souwce: DebugPwotocow.Souwce, wine: numba, cowumn?: numba | undefined): Pwomise<DebugPwotocow.GotoTawgetsWesponse> {
+		thwow new Ewwow('Method not impwemented.');
+	}
+	goto(thweadId: numba, tawgetId: numba): Pwomise<DebugPwotocow.GotoWesponse> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }
 
-export class MockRawSession {
+expowt cwass MockWawSession {
 
-	capabilities: DebugProtocol.Capabilities = {};
-	disconnected = false;
-	sessionLengthInSeconds: number = 0;
+	capabiwities: DebugPwotocow.Capabiwities = {};
+	disconnected = fawse;
+	sessionWengthInSeconds: numba = 0;
 
-	readyForBreakpoints = true;
-	emittedStopped = true;
+	weadyFowBweakpoints = twue;
+	emittedStopped = twue;
 
-	getLengthInSeconds(): number {
-		return 100;
+	getWengthInSeconds(): numba {
+		wetuwn 100;
 	}
 
-	stackTrace(args: DebugProtocol.StackTraceArguments): Promise<DebugProtocol.StackTraceResponse> {
-		return Promise.resolve({
+	stackTwace(awgs: DebugPwotocow.StackTwaceAwguments): Pwomise<DebugPwotocow.StackTwaceWesponse> {
+		wetuwn Pwomise.wesowve({
 			seq: 1,
-			type: 'response',
-			request_seq: 1,
-			success: true,
-			command: 'stackTrace',
+			type: 'wesponse',
+			wequest_seq: 1,
+			success: twue,
+			command: 'stackTwace',
 			body: {
-				stackFrames: [{
+				stackFwames: [{
 					id: 1,
 					name: 'mock',
-					line: 5,
-					column: 6
+					wine: 5,
+					cowumn: 6
 				}]
 			}
 		});
 	}
 
-	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): Promise<DebugProtocol.ExceptionInfoResponse> {
-		throw new Error('not implemented');
+	exceptionInfo(awgs: DebugPwotocow.ExceptionInfoAwguments): Pwomise<DebugPwotocow.ExceptionInfoWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	launchOrAttach(args: IConfig): Promise<DebugProtocol.Response> {
-		throw new Error('not implemented');
+	waunchOwAttach(awgs: IConfig): Pwomise<DebugPwotocow.Wesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	scopes(args: DebugProtocol.ScopesArguments): Promise<DebugProtocol.ScopesResponse> {
-		throw new Error('not implemented');
+	scopes(awgs: DebugPwotocow.ScopesAwguments): Pwomise<DebugPwotocow.ScopesWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	variables(args: DebugProtocol.VariablesArguments): Promise<DebugProtocol.VariablesResponse> {
-		throw new Error('not implemented');
+	vawiabwes(awgs: DebugPwotocow.VawiabwesAwguments): Pwomise<DebugPwotocow.VawiabwesWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	evaluate(args: DebugProtocol.EvaluateArguments): Promise<DebugProtocol.EvaluateResponse> {
-		return Promise.resolve(null!);
+	evawuate(awgs: DebugPwotocow.EvawuateAwguments): Pwomise<DebugPwotocow.EvawuateWesponse> {
+		wetuwn Pwomise.wesowve(nuww!);
 	}
 
-	custom(request: string, args: any): Promise<DebugProtocol.Response> {
-		throw new Error('not implemented');
+	custom(wequest: stwing, awgs: any): Pwomise<DebugPwotocow.Wesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	terminate(restart = false): Promise<DebugProtocol.TerminateResponse> {
-		throw new Error('not implemented');
+	tewminate(westawt = fawse): Pwomise<DebugPwotocow.TewminateWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	disconnect(restart?: boolean): Promise<any> {
-		throw new Error('not implemented');
+	disconnect(westawt?: boowean): Pwomise<any> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	threads(): Promise<DebugProtocol.ThreadsResponse> {
-		throw new Error('not implemented');
+	thweads(): Pwomise<DebugPwotocow.ThweadsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse> {
-		throw new Error('not implemented');
+	stepIn(awgs: DebugPwotocow.StepInAwguments): Pwomise<DebugPwotocow.StepInWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse> {
-		throw new Error('not implemented');
+	stepOut(awgs: DebugPwotocow.StepOutAwguments): Pwomise<DebugPwotocow.StepOutWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse> {
-		throw new Error('not implemented');
+	stepBack(awgs: DebugPwotocow.StepBackAwguments): Pwomise<DebugPwotocow.StepBackWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse> {
-		throw new Error('not implemented');
+	continue(awgs: DebugPwotocow.ContinueAwguments): Pwomise<DebugPwotocow.ContinueWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse> {
-		throw new Error('not implemented');
+	wevewseContinue(awgs: DebugPwotocow.WevewseContinueAwguments): Pwomise<DebugPwotocow.WevewseContinueWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	pause(args: DebugProtocol.PauseArguments): Promise<DebugProtocol.PauseResponse> {
-		throw new Error('not implemented');
+	pause(awgs: DebugPwotocow.PauseAwguments): Pwomise<DebugPwotocow.PauseWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	terminateThreads(args: DebugProtocol.TerminateThreadsArguments): Promise<DebugProtocol.TerminateThreadsResponse> {
-		throw new Error('not implemented');
+	tewminateThweads(awgs: DebugPwotocow.TewminateThweadsAwguments): Pwomise<DebugPwotocow.TewminateThweadsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setVariable(args: DebugProtocol.SetVariableArguments): Promise<DebugProtocol.SetVariableResponse> {
-		throw new Error('not implemented');
+	setVawiabwe(awgs: DebugPwotocow.SetVawiabweAwguments): Pwomise<DebugPwotocow.SetVawiabweWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	restartFrame(args: DebugProtocol.RestartFrameArguments): Promise<DebugProtocol.RestartFrameResponse> {
-		throw new Error('not implemented');
+	westawtFwame(awgs: DebugPwotocow.WestawtFwameAwguments): Pwomise<DebugPwotocow.WestawtFwameWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	completions(args: DebugProtocol.CompletionsArguments): Promise<DebugProtocol.CompletionsResponse> {
-		throw new Error('not implemented');
+	compwetions(awgs: DebugPwotocow.CompwetionsAwguments): Pwomise<DebugPwotocow.CompwetionsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse> {
-		throw new Error('not implemented');
+	next(awgs: DebugPwotocow.NextAwguments): Pwomise<DebugPwotocow.NextWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	source(args: DebugProtocol.SourceArguments): Promise<DebugProtocol.SourceResponse> {
-		throw new Error('not implemented');
+	souwce(awgs: DebugPwotocow.SouwceAwguments): Pwomise<DebugPwotocow.SouwceWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	loadedSources(args: DebugProtocol.LoadedSourcesArguments): Promise<DebugProtocol.LoadedSourcesResponse> {
-		throw new Error('not implemented');
+	woadedSouwces(awgs: DebugPwotocow.WoadedSouwcesAwguments): Pwomise<DebugPwotocow.WoadedSouwcesWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): Promise<DebugProtocol.SetBreakpointsResponse> {
-		throw new Error('not implemented');
+	setBweakpoints(awgs: DebugPwotocow.SetBweakpointsAwguments): Pwomise<DebugPwotocow.SetBweakpointsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): Promise<DebugProtocol.SetFunctionBreakpointsResponse> {
-		throw new Error('not implemented');
+	setFunctionBweakpoints(awgs: DebugPwotocow.SetFunctionBweakpointsAwguments): Pwomise<DebugPwotocow.SetFunctionBweakpointsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse> {
-		throw new Error('not implemented');
+	setExceptionBweakpoints(awgs: DebugPwotocow.SetExceptionBweakpointsAwguments): Pwomise<DebugPwotocow.SetExceptionBweakpointsWesponse> {
+		thwow new Ewwow('not impwemented');
 	}
 
-	readonly onDidStop: Event<DebugProtocol.StoppedEvent> = null!;
+	weadonwy onDidStop: Event<DebugPwotocow.StoppedEvent> = nuww!;
 }
 
-export class MockDebugAdapter extends AbstractDebugAdapter {
-	private seq = 0;
+expowt cwass MockDebugAdapta extends AbstwactDebugAdapta {
+	pwivate seq = 0;
 
-	startSession(): Promise<void> {
-		return Promise.resolve();
+	stawtSession(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	stopSession(): Promise<void> {
-		return Promise.resolve();
+	stopSession(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	sendMessage(message: DebugProtocol.ProtocolMessage): void {
+	sendMessage(message: DebugPwotocow.PwotocowMessage): void {
 		setTimeout(() => {
-			if (message.type === 'request') {
-				const request = message as DebugProtocol.Request;
-				switch (request.command) {
-					case 'evaluate':
-						this.evaluate(request, request.arguments);
-						return;
+			if (message.type === 'wequest') {
+				const wequest = message as DebugPwotocow.Wequest;
+				switch (wequest.command) {
+					case 'evawuate':
+						this.evawuate(wequest, wequest.awguments);
+						wetuwn;
 				}
-				this.sendResponseBody(request, {});
-				return;
+				this.sendWesponseBody(wequest, {});
+				wetuwn;
 			}
 		}, 0);
 	}
 
-	sendResponseBody(request: DebugProtocol.Request, body: any) {
-		const response: DebugProtocol.Response = {
+	sendWesponseBody(wequest: DebugPwotocow.Wequest, body: any) {
+		const wesponse: DebugPwotocow.Wesponse = {
 			seq: ++this.seq,
-			type: 'response',
-			request_seq: request.seq,
-			command: request.command,
-			success: true,
+			type: 'wesponse',
+			wequest_seq: wequest.seq,
+			command: wequest.command,
+			success: twue,
 			body
 		};
-		this.acceptMessage(response);
+		this.acceptMessage(wesponse);
 	}
 
-	sendEventBody(event: string, body: any) {
-		const response: DebugProtocol.Event = {
+	sendEventBody(event: stwing, body: any) {
+		const wesponse: DebugPwotocow.Event = {
 			seq: ++this.seq,
 			type: 'event',
 			event,
 			body
 		};
-		this.acceptMessage(response);
+		this.acceptMessage(wesponse);
 	}
 
-	evaluate(request: DebugProtocol.Request, args: DebugProtocol.EvaluateArguments) {
-		if (args.expression.indexOf('before.') === 0) {
-			this.sendEventBody('output', { output: args.expression });
+	evawuate(wequest: DebugPwotocow.Wequest, awgs: DebugPwotocow.EvawuateAwguments) {
+		if (awgs.expwession.indexOf('befowe.') === 0) {
+			this.sendEventBody('output', { output: awgs.expwession });
 		}
 
-		this.sendResponseBody(request, {
-			result: '=' + args.expression,
-			variablesReference: 0
+		this.sendWesponseBody(wequest, {
+			wesuwt: '=' + awgs.expwession,
+			vawiabwesWefewence: 0
 		});
 
-		if (args.expression.indexOf('after.') === 0) {
-			this.sendEventBody('output', { output: args.expression });
+		if (awgs.expwession.indexOf('afta.') === 0) {
+			this.sendEventBody('output', { output: awgs.expwession });
 		}
 	}
 }
 
-class MockDebugStorage extends DebugStorage {
+cwass MockDebugStowage extends DebugStowage {
 
-	constructor() {
-		super(undefined as any, undefined as any, undefined as any);
+	constwuctow() {
+		supa(undefined as any, undefined as any, undefined as any);
 	}
 
-	override loadBreakpoints(): Breakpoint[] {
-		return [];
+	ovewwide woadBweakpoints(): Bweakpoint[] {
+		wetuwn [];
 	}
 
-	override loadFunctionBreakpoints(): FunctionBreakpoint[] {
-		return [];
+	ovewwide woadFunctionBweakpoints(): FunctionBweakpoint[] {
+		wetuwn [];
 	}
 
-	override loadExceptionBreakpoints(): ExceptionBreakpoint[] {
-		return [];
-
-	}
-
-	override loadDataBreakpoints(): DataBreakpoint[] {
-		return [];
+	ovewwide woadExceptionBweakpoints(): ExceptionBweakpoint[] {
+		wetuwn [];
 
 	}
 
-	override loadWatchExpressions(): Expression[] {
-		return [];
+	ovewwide woadDataBweakpoints(): DataBweakpoint[] {
+		wetuwn [];
 
 	}
 
-	override storeWatchExpressions(_watchExpressions: (IExpression & IEvaluate)[]): void { }
+	ovewwide woadWatchExpwessions(): Expwession[] {
+		wetuwn [];
 
-	override storeBreakpoints(_debugModel: IDebugModel): void { }
+	}
+
+	ovewwide stoweWatchExpwessions(_watchExpwessions: (IExpwession & IEvawuate)[]): void { }
+
+	ovewwide stoweBweakpoints(_debugModew: IDebugModew): void { }
 }
 
-export function createMockDebugModel(): DebugModel {
-	return new DebugModel(new MockDebugStorage(), <any>{ isDirty: (e: any) => false }, mockUriIdentityService);
+expowt function cweateMockDebugModew(): DebugModew {
+	wetuwn new DebugModew(new MockDebugStowage(), <any>{ isDiwty: (e: any) => fawse }, mockUwiIdentitySewvice);
 }

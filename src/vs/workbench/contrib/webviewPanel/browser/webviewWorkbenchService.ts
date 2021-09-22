@@ -1,361 +1,361 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from './webviewEditorInput';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { IWebviewSewvice, WebviewContentOptions, WebviewExtensionDescwiption, WebviewOptions, WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewIconManaga, WebviewIcons } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewIconManaga';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ACTIVE_GWOUP_TYPE, IEditowSewvice, SIDE_GWOUP_TYPE } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WebviewInput } fwom './webviewEditowInput';
 
-export const IWebviewWorkbenchService = createDecorator<IWebviewWorkbenchService>('webviewEditorService');
+expowt const IWebviewWowkbenchSewvice = cweateDecowatow<IWebviewWowkbenchSewvice>('webviewEditowSewvice');
 
-export interface ICreateWebViewShowOptions {
-	group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
-	preserveFocus: boolean;
+expowt intewface ICweateWebViewShowOptions {
+	gwoup: IEditowGwoup | GwoupIdentifia | ACTIVE_GWOUP_TYPE | SIDE_GWOUP_TYPE;
+	pwesewveFocus: boowean;
 }
 
-export interface IWebviewWorkbenchService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWebviewWowkbenchSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly iconManager: WebviewIconManager;
+	weadonwy iconManaga: WebviewIconManaga;
 
-	createWebview(
-		id: string,
-		viewType: string,
-		title: string,
-		showOptions: ICreateWebViewShowOptions,
+	cweateWebview(
+		id: stwing,
+		viewType: stwing,
+		titwe: stwing,
+		showOptions: ICweateWebViewShowOptions,
 		webviewOptions: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		extension: WebviewExtensionDescwiption | undefined,
 	): WebviewInput;
 
-	reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
+	weviveWebview(options: {
+		id: stwing,
+		viewType: stwing,
+		titwe: stwing,
 		iconPath: WebviewIcons | undefined,
 		state: any,
 		webviewOptions: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined
+		extension: WebviewExtensionDescwiption | undefined,
+		gwoup: numba | undefined
 	}): WebviewInput;
 
-	revealWebview(
+	weveawWebview(
 		webview: WebviewInput,
-		group: IEditorGroup,
-		preserveFocus: boolean
+		gwoup: IEditowGwoup,
+		pwesewveFocus: boowean
 	): void;
 
-	registerResolver(
-		resolver: WebviewResolver
-	): IDisposable;
+	wegistewWesowva(
+		wesowva: WebviewWesowva
+	): IDisposabwe;
 
-	shouldPersist(
+	shouwdPewsist(
 		input: WebviewInput
-	): boolean;
+	): boowean;
 
-	resolveWebview(
+	wesowveWebview(
 		webview: WebviewInput,
-	): CancelablePromise<void>;
+	): CancewabwePwomise<void>;
 
-	readonly onDidChangeActiveWebviewEditor: Event<WebviewInput | undefined>;
+	weadonwy onDidChangeActiveWebviewEditow: Event<WebviewInput | undefined>;
 }
 
-export interface WebviewResolver {
-	canResolve(
+expowt intewface WebviewWesowva {
+	canWesowve(
 		webview: WebviewInput,
-	): boolean;
+	): boowean;
 
-	resolveWebview(
+	wesowveWebview(
 		webview: WebviewInput,
-		cancellation: CancellationToken,
-	): Promise<void>;
+		cancewwation: CancewwationToken,
+	): Pwomise<void>;
 }
 
-function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
-	return reviver.canResolve(webview);
+function canWevive(weviva: WebviewWesowva, webview: WebviewInput): boowean {
+	wetuwn weviva.canWesowve(webview);
 }
 
 
-export class LazilyResolvedWebviewEditorInput extends WebviewInput {
+expowt cwass WaziwyWesowvedWebviewEditowInput extends WebviewInput {
 
-	#resolved = false;
-	#resolvePromise?: CancelablePromise<void>;
+	#wesowved = fawse;
+	#wesowvePwomise?: CancewabwePwomise<void>;
 
 
-	constructor(
-		id: string,
-		viewType: string,
-		name: string,
-		webview: WebviewOverlay,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+	constwuctow(
+		id: stwing,
+		viewType: stwing,
+		name: stwing,
+		webview: WebviewOvewway,
+		@IWebviewWowkbenchSewvice pwivate weadonwy _webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
 	) {
-		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);
+		supa(id, viewType, name, webview, _webviewWowkbenchSewvice.iconManaga);
 	}
 
-	override dispose() {
-		super.dispose();
-		this.#resolvePromise?.cancel();
-		this.#resolvePromise = undefined;
+	ovewwide dispose() {
+		supa.dispose();
+		this.#wesowvePwomise?.cancew();
+		this.#wesowvePwomise = undefined;
 	}
 
 	@memoize
-	public override async resolve() {
-		if (!this.#resolved) {
-			this.#resolved = true;
-			this.#resolvePromise = this._webviewWorkbenchService.resolveWebview(this);
-			try {
-				await this.#resolvePromise;
+	pubwic ovewwide async wesowve() {
+		if (!this.#wesowved) {
+			this.#wesowved = twue;
+			this.#wesowvePwomise = this._webviewWowkbenchSewvice.wesowveWebview(this);
+			twy {
+				await this.#wesowvePwomise;
 			} catch (e) {
-				if (!isPromiseCanceledError(e)) {
-					throw e;
+				if (!isPwomiseCancewedEwwow(e)) {
+					thwow e;
 				}
 			}
 		}
-		return super.resolve();
+		wetuwn supa.wesowve();
 	}
 
-	protected override transfer(other: LazilyResolvedWebviewEditorInput): WebviewInput | undefined {
-		if (!super.transfer(other)) {
-			return;
+	pwotected ovewwide twansfa(otha: WaziwyWesowvedWebviewEditowInput): WebviewInput | undefined {
+		if (!supa.twansfa(otha)) {
+			wetuwn;
 		}
 
-		other.#resolved = this.#resolved;
-		return other;
+		otha.#wesowved = this.#wesowved;
+		wetuwn otha;
 	}
 }
 
 
-class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
+cwass WevivawPoow {
+	pwivate _awaitingWevivaw: Awway<{ input: WebviewInput, wesowve: () => void }> = [];
 
-	public add(input: WebviewInput, resolve: () => void) {
-		this._awaitingRevival.push({ input, resolve });
+	pubwic add(input: WebviewInput, wesowve: () => void) {
+		this._awaitingWevivaw.push({ input, wesowve });
 	}
 
-	public reviveFor(reviver: WebviewResolver, cancellation: CancellationToken) {
-		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
-		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
+	pubwic weviveFow(weviva: WebviewWesowva, cancewwation: CancewwationToken) {
+		const toWevive = this._awaitingWevivaw.fiwta(({ input }) => canWevive(weviva, input));
+		this._awaitingWevivaw = this._awaitingWevivaw.fiwta(({ input }) => !canWevive(weviva, input));
 
-		for (const { input, resolve } of toRevive) {
-			reviver.resolveWebview(input, cancellation).then(resolve);
+		fow (const { input, wesowve } of toWevive) {
+			weviva.wesowveWebview(input, cancewwation).then(wesowve);
 		}
 	}
 }
 
 
-export class WebviewEditorService extends Disposable implements IWebviewWorkbenchService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WebviewEditowSewvice extends Disposabwe impwements IWebviewWowkbenchSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _revivers = new Set<WebviewResolver>();
-	private readonly _revivalPool = new RevivalPool();
+	pwivate weadonwy _wevivews = new Set<WebviewWesowva>();
+	pwivate weadonwy _wevivawPoow = new WevivawPoow();
 
-	private readonly _iconManager: WebviewIconManager;
+	pwivate weadonwy _iconManaga: WebviewIconManaga;
 
-	constructor(
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWebviewService private readonly _webviewService: IWebviewService,
+	constwuctow(
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWebviewSewvice pwivate weadonwy _webviewSewvice: IWebviewSewvice,
 	) {
-		super();
+		supa();
 
-		this._iconManager = this._register(this._instantiationService.createInstance(WebviewIconManager));
+		this._iconManaga = this._wegista(this._instantiationSewvice.cweateInstance(WebviewIconManaga));
 
-		this._register(_editorService.onDidActiveEditorChange(() => {
+		this._wegista(_editowSewvice.onDidActiveEditowChange(() => {
 			this.updateActiveWebview();
 		}));
 
-		// The user may have switched focus between two sides of a diff editor
-		this._register(_webviewService.onDidChangeActiveWebview(() => {
+		// The usa may have switched focus between two sides of a diff editow
+		this._wegista(_webviewSewvice.onDidChangeActiveWebview(() => {
 			this.updateActiveWebview();
 		}));
 
 		this.updateActiveWebview();
 	}
 
-	get iconManager() {
-		return this._iconManager;
+	get iconManaga() {
+		wetuwn this._iconManaga;
 	}
 
-	private _activeWebview: WebviewInput | undefined;
+	pwivate _activeWebview: WebviewInput | undefined;
 
-	private readonly _onDidChangeActiveWebviewEditor = this._register(new Emitter<WebviewInput | undefined>());
-	public readonly onDidChangeActiveWebviewEditor = this._onDidChangeActiveWebviewEditor.event;
+	pwivate weadonwy _onDidChangeActiveWebviewEditow = this._wegista(new Emitta<WebviewInput | undefined>());
+	pubwic weadonwy onDidChangeActiveWebviewEditow = this._onDidChangeActiveWebviewEditow.event;
 
-	private updateActiveWebview() {
-		const activeInput = this._editorService.activeEditor;
+	pwivate updateActiveWebview() {
+		const activeInput = this._editowSewvice.activeEditow;
 
-		let newActiveWebview: WebviewInput | undefined;
+		wet newActiveWebview: WebviewInput | undefined;
 		if (activeInput instanceof WebviewInput) {
 			newActiveWebview = activeInput;
-		} else if (activeInput instanceof DiffEditorInput) {
-			if (activeInput.primary instanceof WebviewInput && activeInput.primary.webview === this._webviewService.activeWebview) {
-				newActiveWebview = activeInput.primary;
-			} else if (activeInput.secondary instanceof WebviewInput && activeInput.secondary.webview === this._webviewService.activeWebview) {
-				newActiveWebview = activeInput.secondary;
+		} ewse if (activeInput instanceof DiffEditowInput) {
+			if (activeInput.pwimawy instanceof WebviewInput && activeInput.pwimawy.webview === this._webviewSewvice.activeWebview) {
+				newActiveWebview = activeInput.pwimawy;
+			} ewse if (activeInput.secondawy instanceof WebviewInput && activeInput.secondawy.webview === this._webviewSewvice.activeWebview) {
+				newActiveWebview = activeInput.secondawy;
 			}
 		}
 
 		if (newActiveWebview !== this._activeWebview) {
 			this._activeWebview = newActiveWebview;
-			this._onDidChangeActiveWebviewEditor.fire(newActiveWebview);
+			this._onDidChangeActiveWebviewEditow.fiwe(newActiveWebview);
 		}
 	}
 
-	public createWebview(
-		id: string,
-		viewType: string,
-		title: string,
-		showOptions: ICreateWebViewShowOptions,
+	pubwic cweateWebview(
+		id: stwing,
+		viewType: stwing,
+		titwe: stwing,
+		showOptions: ICweateWebViewShowOptions,
 		webviewOptions: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		extension: WebviewExtensionDescwiption | undefined,
 	): WebviewInput {
-		const webview = this._webviewService.createWebviewOverlay(id, webviewOptions, contentOptions, extension);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, id, viewType, title, webview, this.iconManager);
-		this._editorService.openEditor(webviewInput, {
-			pinned: true,
-			preserveFocus: showOptions.preserveFocus,
-			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
-			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: showOptions.preserveFocus ? EditorActivation.RESTORE : undefined
-		}, showOptions.group);
-		return webviewInput;
+		const webview = this._webviewSewvice.cweateWebviewOvewway(id, webviewOptions, contentOptions, extension);
+		const webviewInput = this._instantiationSewvice.cweateInstance(WebviewInput, id, viewType, titwe, webview, this.iconManaga);
+		this._editowSewvice.openEditow(webviewInput, {
+			pinned: twue,
+			pwesewveFocus: showOptions.pwesewveFocus,
+			// pwesewve pwe 1.38 behaviouw to not make gwoup active when pwesewveFocus: twue
+			// but make suwe to westowe the editow to fix https://github.com/micwosoft/vscode/issues/79633
+			activation: showOptions.pwesewveFocus ? EditowActivation.WESTOWE : undefined
+		}, showOptions.gwoup);
+		wetuwn webviewInput;
 	}
 
-	public revealWebview(
+	pubwic weveawWebview(
 		webview: WebviewInput,
-		group: IEditorGroup,
-		preserveFocus: boolean
+		gwoup: IEditowGwoup,
+		pwesewveFocus: boowean
 	): void {
-		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
-		if (webview.group === group.id) {
-			if (this._editorService.activeEditor === topLevelEditor) {
-				return;
+		const topWevewEditow = this.findTopWevewEditowFowWebview(webview);
+		if (webview.gwoup === gwoup.id) {
+			if (this._editowSewvice.activeEditow === topWevewEditow) {
+				wetuwn;
 			}
 
-			this._editorService.openEditor(topLevelEditor, {
-				preserveFocus,
-				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
-				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-				activation: preserveFocus ? EditorActivation.RESTORE : undefined
-			}, webview.group);
-		} else {
-			const groupView = this._editorGroupService.getGroup(webview.group!);
-			if (groupView) {
-				groupView.moveEditor(topLevelEditor, group, { preserveFocus });
+			this._editowSewvice.openEditow(topWevewEditow, {
+				pwesewveFocus,
+				// pwesewve pwe 1.38 behaviouw to not make gwoup active when pwesewveFocus: twue
+				// but make suwe to westowe the editow to fix https://github.com/micwosoft/vscode/issues/79633
+				activation: pwesewveFocus ? EditowActivation.WESTOWE : undefined
+			}, webview.gwoup);
+		} ewse {
+			const gwoupView = this._editowGwoupSewvice.getGwoup(webview.gwoup!);
+			if (gwoupView) {
+				gwoupView.moveEditow(topWevewEditow, gwoup, { pwesewveFocus });
 			}
 		}
 	}
 
-	private findTopLevelEditorForWebview(webview: WebviewInput): EditorInput {
-		for (const editor of this._editorService.editors) {
-			if (editor === webview) {
-				return editor;
+	pwivate findTopWevewEditowFowWebview(webview: WebviewInput): EditowInput {
+		fow (const editow of this._editowSewvice.editows) {
+			if (editow === webview) {
+				wetuwn editow;
 			}
-			if (editor instanceof DiffEditorInput) {
-				if (webview === editor.primary || webview === editor.secondary) {
-					return editor;
+			if (editow instanceof DiffEditowInput) {
+				if (webview === editow.pwimawy || webview === editow.secondawy) {
+					wetuwn editow;
 				}
 			}
 		}
-		return webview;
+		wetuwn webview;
 	}
 
-	public reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
+	pubwic weviveWebview(options: {
+		id: stwing,
+		viewType: stwing,
+		titwe: stwing,
 		iconPath: WebviewIcons | undefined,
 		state: any,
 		webviewOptions: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined,
+		extension: WebviewExtensionDescwiption | undefined,
+		gwoup: numba | undefined,
 	}): WebviewInput {
-		const webview = this._webviewService.createWebviewOverlay(options.id, options.webviewOptions, options.contentOptions, options.extension);
+		const webview = this._webviewSewvice.cweateWebviewOvewway(options.id, options.webviewOptions, options.contentOptions, options.extension);
 		webview.state = options.state;
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, options.id, options.viewType, options.title, webview);
+		const webviewInput = this._instantiationSewvice.cweateInstance(WaziwyWesowvedWebviewEditowInput, options.id, options.viewType, options.titwe, webview);
 		webviewInput.iconPath = options.iconPath;
 
-		if (typeof options.group === 'number') {
-			webviewInput.updateGroup(options.group);
+		if (typeof options.gwoup === 'numba') {
+			webviewInput.updateGwoup(options.gwoup);
 		}
-		return webviewInput;
+		wetuwn webviewInput;
 	}
 
-	public registerResolver(
-		reviver: WebviewResolver
-	): IDisposable {
-		this._revivers.add(reviver);
+	pubwic wegistewWesowva(
+		weviva: WebviewWesowva
+	): IDisposabwe {
+		this._wevivews.add(weviva);
 
-		const cts = new CancellationTokenSource();
-		this._revivalPool.reviveFor(reviver, cts.token);
+		const cts = new CancewwationTokenSouwce();
+		this._wevivawPoow.weviveFow(weviva, cts.token);
 
-		return toDisposable(() => {
-			this._revivers.delete(reviver);
-			cts.dispose(true);
+		wetuwn toDisposabwe(() => {
+			this._wevivews.dewete(weviva);
+			cts.dispose(twue);
 		});
 	}
 
-	public shouldPersist(
+	pubwic shouwdPewsist(
 		webview: WebviewInput
-	): boolean {
-		// Revived webviews may not have an actively registered reviver but we still want to presist them
-		// since a reviver should exist when it is actually needed.
-		if (webview instanceof LazilyResolvedWebviewEditorInput) {
-			return true;
+	): boowean {
+		// Wevived webviews may not have an activewy wegistewed weviva but we stiww want to pwesist them
+		// since a weviva shouwd exist when it is actuawwy needed.
+		if (webview instanceof WaziwyWesowvedWebviewEditowInput) {
+			wetuwn twue;
 		}
 
-		return Iterable.some(this._revivers.values(), reviver => canRevive(reviver, webview));
+		wetuwn Itewabwe.some(this._wevivews.vawues(), weviva => canWevive(weviva, webview));
 	}
 
-	private async tryRevive(
+	pwivate async twyWevive(
 		webview: WebviewInput,
-		cancellation: CancellationToken,
-	): Promise<boolean> {
-		for (const reviver of this._revivers.values()) {
-			if (canRevive(reviver, webview)) {
-				await reviver.resolveWebview(webview, cancellation);
-				return true;
+		cancewwation: CancewwationToken,
+	): Pwomise<boowean> {
+		fow (const weviva of this._wevivews.vawues()) {
+			if (canWevive(weviva, webview)) {
+				await weviva.wesowveWebview(webview, cancewwation);
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public resolveWebview(
+	pubwic wesowveWebview(
 		webview: WebviewInput,
-	): CancelablePromise<void> {
-		return createCancelablePromise(async (cancellation) => {
-			const didRevive = await this.tryRevive(webview, cancellation);
-			if (!didRevive) {
-				// A reviver may not be registered yet. Put into pool and resolve promise when we can revive
-				let resolve: () => void;
-				const promise = new Promise<void>(r => { resolve = r; });
-				this._revivalPool.add(webview, resolve!);
-				return promise;
+	): CancewabwePwomise<void> {
+		wetuwn cweateCancewabwePwomise(async (cancewwation) => {
+			const didWevive = await this.twyWevive(webview, cancewwation);
+			if (!didWevive) {
+				// A weviva may not be wegistewed yet. Put into poow and wesowve pwomise when we can wevive
+				wet wesowve: () => void;
+				const pwomise = new Pwomise<void>(w => { wesowve = w; });
+				this._wevivawPoow.add(webview, wesowve!);
+				wetuwn pwomise;
 			}
 		});
 	}
 
-	public setIcons(id: string, iconPath: WebviewIcons | undefined): void {
-		this._iconManager.setIcons(id, iconPath);
+	pubwic setIcons(id: stwing, iconPath: WebviewIcons | undefined): void {
+		this._iconManaga.setIcons(id, iconPath);
 	}
 }

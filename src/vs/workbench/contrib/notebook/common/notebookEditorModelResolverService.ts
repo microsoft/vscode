@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWesowvedNotebookEditowModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
 
-export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
+expowt const INotebookEditowModewWesowvewSewvice = cweateDecowatow<INotebookEditowModewWesowvewSewvice>('INotebookModewWesowvewSewvice');
 
-export interface IUntitledNotebookResource {
+expowt intewface IUntitwedNotebookWesouwce {
 	/**
-	 * Depending on the value of `untitledResource` will
-	 * resolve a untitled notebook that:
-	 * - gets a unique name if `undefined` (e.g. `Untitled-1')
-	 * - uses the resource directly if the scheme is `untitled:`
-	 * - converts any other resource scheme to `untitled:` and will
-	 *   assume an associated file path
+	 * Depending on the vawue of `untitwedWesouwce` wiww
+	 * wesowve a untitwed notebook that:
+	 * - gets a unique name if `undefined` (e.g. `Untitwed-1')
+	 * - uses the wesouwce diwectwy if the scheme is `untitwed:`
+	 * - convewts any otha wesouwce scheme to `untitwed:` and wiww
+	 *   assume an associated fiwe path
 	 *
-	 * Untitled notebook editors with associated path behave slightly
-	 * different from other untitled editors:
-	 * - they are dirty right when opening
-	 * - they will not ask for a file path when saving but use the associated path
+	 * Untitwed notebook editows with associated path behave swightwy
+	 * diffewent fwom otha untitwed editows:
+	 * - they awe diwty wight when opening
+	 * - they wiww not ask fow a fiwe path when saving but use the associated path
 	 */
-	untitledResource: URI | undefined;
+	untitwedWesouwce: UWI | undefined;
 }
 
-export interface INotebookEditorModelResolverService {
-	readonly _serviceBrand: undefined;
+expowt intewface INotebookEditowModewWesowvewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidSaveNotebook: Event<URI>;
-	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
+	weadonwy onDidSaveNotebook: Event<UWI>;
+	weadonwy onDidChangeDiwty: Event<IWesowvedNotebookEditowModew>;
 
-	isDirty(resource: URI): boolean;
+	isDiwty(wesouwce: UWI): boowean;
 
-	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
-	resolve(resource: IUntitledNotebookResource, viewType: string): Promise<IReference<IResolvedNotebookEditorModel>>;
+	wesowve(wesouwce: UWI, viewType?: stwing): Pwomise<IWefewence<IWesowvedNotebookEditowModew>>;
+	wesowve(wesouwce: IUntitwedNotebookWesouwce, viewType: stwing): Pwomise<IWefewence<IWesowvedNotebookEditowModew>>;
 }

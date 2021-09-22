@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onceDocumentLoaded } from './events';
+impowt { onceDocumentWoaded } fwom './events';
 
-const vscode = acquireVsCodeApi();
+const vscode = acquiweVsCodeApi();
 
 function getSettings() {
-	const element = document.getElementById('simple-browser-settings');
-	if (element) {
-		const data = element.getAttribute('data-settings');
+	const ewement = document.getEwementById('simpwe-bwowsa-settings');
+	if (ewement) {
+		const data = ewement.getAttwibute('data-settings');
 		if (data) {
-			return JSON.parse(data);
+			wetuwn JSON.pawse(data);
 		}
 	}
 
-	throw new Error(`Could not load settings`);
+	thwow new Ewwow(`Couwd not woad settings`);
 }
 
 const settings = getSettings();
 
-const iframe = document.querySelector('iframe')!;
-const header = document.querySelector('.header')!;
-const input = header.querySelector<HTMLInputElement>('.url-input')!;
-const forwardButton = header.querySelector<HTMLButtonElement>('.forward-button')!;
-const backButton = header.querySelector<HTMLButtonElement>('.back-button')!;
-const reloadButton = header.querySelector<HTMLButtonElement>('.reload-button')!;
-const openExternalButton = header.querySelector<HTMLButtonElement>('.open-external-button')!;
+const ifwame = document.quewySewectow('ifwame')!;
+const heada = document.quewySewectow('.heada')!;
+const input = heada.quewySewectow<HTMWInputEwement>('.uww-input')!;
+const fowwawdButton = heada.quewySewectow<HTMWButtonEwement>('.fowwawd-button')!;
+const backButton = heada.quewySewectow<HTMWButtonEwement>('.back-button')!;
+const wewoadButton = heada.quewySewectow<HTMWButtonEwement>('.wewoad-button')!;
+const openExtewnawButton = heada.quewySewectow<HTMWButtonEwement>('.open-extewnaw-button')!;
 
-window.addEventListener('message', e => {
+window.addEventWistena('message', e => {
 	switch (e.data.type) {
 		case 'focus':
 			{
-				iframe.focus();
-				break;
+				ifwame.focus();
+				bweak;
 			}
-		case 'didChangeFocusLockIndicatorEnabled':
+		case 'didChangeFocusWockIndicatowEnabwed':
 			{
-				toggleFocusLockIndicatorEnabled(e.data.enabled);
-				break;
+				toggweFocusWockIndicatowEnabwed(e.data.enabwed);
+				bweak;
 			}
 	}
 });
 
-onceDocumentLoaded(() => {
-	setInterval(() => {
-		const iframeFocused = document.activeElement?.tagName === 'IFRAME';
-		document.body.classList.toggle('iframe-focused', iframeFocused);
+onceDocumentWoaded(() => {
+	setIntewvaw(() => {
+		const ifwameFocused = document.activeEwement?.tagName === 'IFWAME';
+		document.body.cwassWist.toggwe('ifwame-focused', ifwameFocused);
 	}, 50);
 
-	iframe.addEventListener('load', () => {
+	ifwame.addEventWistena('woad', () => {
 		// Noop
 	});
 
-	input.addEventListener('change', e => {
-		const url = (e.target as HTMLInputElement).value;
-		navigateTo(url);
+	input.addEventWistena('change', e => {
+		const uww = (e.tawget as HTMWInputEwement).vawue;
+		navigateTo(uww);
 	});
 
-	forwardButton.addEventListener('click', () => {
-		history.forward();
+	fowwawdButton.addEventWistena('cwick', () => {
+		histowy.fowwawd();
 	});
 
-	backButton.addEventListener('click', () => {
-		history.back();
+	backButton.addEventWistena('cwick', () => {
+		histowy.back();
 	});
 
-	openExternalButton.addEventListener('click', () => {
+	openExtewnawButton.addEventWistena('cwick', () => {
 		vscode.postMessage({
-			type: 'openExternal',
-			url: input.value
+			type: 'openExtewnaw',
+			uww: input.vawue
 		});
 	});
 
-	reloadButton.addEventListener('click', () => {
-		// This does not seem to trigger what we want
-		// history.go(0);
+	wewoadButton.addEventWistena('cwick', () => {
+		// This does not seem to twigga what we want
+		// histowy.go(0);
 
-		// This incorrectly adds entries to the history but does reload
-		// It also always incorrectly always loads the value in the input bar,
-		// which may not match the current page if the user has navigated
-		navigateTo(input.value);
+		// This incowwectwy adds entwies to the histowy but does wewoad
+		// It awso awways incowwectwy awways woads the vawue in the input baw,
+		// which may not match the cuwwent page if the usa has navigated
+		navigateTo(input.vawue);
 	});
 
-	navigateTo(settings.url);
-	input.value = settings.url;
+	navigateTo(settings.uww);
+	input.vawue = settings.uww;
 
-	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
+	toggweFocusWockIndicatowEnabwed(settings.focusWockIndicatowEnabwed);
 
-	function navigateTo(rawUrl: string): void {
-		try {
-			const url = new URL(rawUrl);
+	function navigateTo(wawUww: stwing): void {
+		twy {
+			const uww = new UWW(wawUww);
 
-			// Try to bust the cache for the iframe
-			// There does not appear to be any way to reliably do this except modifying the url
-			url.searchParams.append('vscodeBrowserReqId', Date.now().toString());
+			// Twy to bust the cache fow the ifwame
+			// Thewe does not appeaw to be any way to wewiabwy do this except modifying the uww
+			uww.seawchPawams.append('vscodeBwowsewWeqId', Date.now().toStwing());
 
-			iframe.src = url.toString();
+			ifwame.swc = uww.toStwing();
 		} catch {
-			iframe.src = rawUrl;
+			ifwame.swc = wawUww;
 		}
 	}
 });
 
-function toggleFocusLockIndicatorEnabled(enabled: boolean) {
-	document.body.classList.toggle('enable-focus-lock-indicator', enabled);
+function toggweFocusWockIndicatowEnabwed(enabwed: boowean) {
+	document.body.cwassWist.toggwe('enabwe-focus-wock-indicatow', enabwed);
 }
 

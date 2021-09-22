@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-const updateGrammar = require('vscode-grammar-updater');
+const updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-function adaptInjectionScope(grammar) {
-	// we're using the HTML grammar from https://github.com/textmate/html.tmbundle which has moved away from source.js.embedded.html
-	// also we need to add source.css scope for PHP code in <style> tags, which are handled differently in atom
-	const oldInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js.embedded.html - (meta.embedded.block.php | meta.embedded.line.php))";
-	const newInjectionKey = "text.html.php - (meta.embedded | meta.tag), L:((text.html.php meta.tag) - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.js - (meta.embedded.block.php | meta.embedded.line.php)), L:(source.css - (meta.embedded.block.php | meta.embedded.line.php))";
+function adaptInjectionScope(gwammaw) {
+	// we'we using the HTMW gwammaw fwom https://github.com/textmate/htmw.tmbundwe which has moved away fwom souwce.js.embedded.htmw
+	// awso we need to add souwce.css scope fow PHP code in <stywe> tags, which awe handwed diffewentwy in atom
+	const owdInjectionKey = "text.htmw.php - (meta.embedded | meta.tag), W:((text.htmw.php meta.tag) - (meta.embedded.bwock.php | meta.embedded.wine.php)), W:(souwce.js.embedded.htmw - (meta.embedded.bwock.php | meta.embedded.wine.php))";
+	const newInjectionKey = "text.htmw.php - (meta.embedded | meta.tag), W:((text.htmw.php meta.tag) - (meta.embedded.bwock.php | meta.embedded.wine.php)), W:(souwce.js - (meta.embedded.bwock.php | meta.embedded.wine.php)), W:(souwce.css - (meta.embedded.bwock.php | meta.embedded.wine.php))";
 
-	const injections = grammar.injections;
-	const injection = injections[oldInjectionKey];
+	const injections = gwammaw.injections;
+	const injection = injections[owdInjectionKey];
 	if (!injection) {
-		throw new Error("Can not find PHP injection to patch");
+		thwow new Ewwow("Can not find PHP injection to patch");
 	}
-	delete injections[oldInjectionKey];
+	dewete injections[owdInjectionKey];
 	injections[newInjectionKey] = injection;
 }
 
-function includeDerivativeHtml(grammar) {
-	grammar.patterns.forEach(pattern => {
-		if (pattern.include === 'text.html.basic') {
-			pattern.include = 'text.html.derivative';
+function incwudeDewivativeHtmw(gwammaw) {
+	gwammaw.pattewns.fowEach(pattewn => {
+		if (pattewn.incwude === 'text.htmw.basic') {
+			pattewn.incwude = 'text.htmw.dewivative';
 		}
 	});
 }
 
-// Workaround for https://github.com/microsoft/vscode/issues/40279
-// and https://github.com/microsoft/vscode-textmate/issues/59
-function fixBadRegex(grammar) {
-	function fail(msg) {
-		throw new Error(`fixBadRegex callback couldn't patch ${msg}. It may be obsolete`);
+// Wowkawound fow https://github.com/micwosoft/vscode/issues/40279
+// and https://github.com/micwosoft/vscode-textmate/issues/59
+function fixBadWegex(gwammaw) {
+	function faiw(msg) {
+		thwow new Ewwow(`fixBadWegex cawwback couwdn't patch ${msg}. It may be obsowete`);
 	}
 
-	const scopeResolution = grammar.repository['scope-resolution'];
-	if (scopeResolution) {
-		const match = scopeResolution.patterns[0].match;
+	const scopeWesowution = gwammaw.wepositowy['scope-wesowution'];
+	if (scopeWesowution) {
+		const match = scopeWesowution.pattewns[0].match;
 		if (match === '(?i)([a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)') {
-			scopeResolution.patterns[0].match = '([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)';
-		} else {
-			fail('scope-resolution.match');
+			scopeWesowution.pattewns[0].match = '([A-Za-z_\\x{7f}-\\x{7fffffff}\\\\][A-Za-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)(?=\\s*::)';
+		} ewse {
+			faiw('scope-wesowution.match');
 		}
-	} else {
-		fail('scope-resolution');
+	} ewse {
+		faiw('scope-wesowution');
 	}
 
-	const functionCall = grammar.repository['function-call'];
-	if (functionCall) {
-		const begin0 = functionCall.patterns[0].begin;
-		if (begin0 === '(?xi)\n(\n  \\\\?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()') {
-			functionCall.patterns[0].begin = '(?x)\n(\n  \\\\?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])                            # Optional root namespace\n  [a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*          # First namespace\n  (?:\\\\[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additional namespaces\n)\\s*(\\()';
-		} else {
-			fail('function-call.begin0');
+	const functionCaww = gwammaw.wepositowy['function-caww'];
+	if (functionCaww) {
+		const begin0 = functionCaww.pattewns[0].begin;
+		if (begin0 === '(?xi)\n(\n  \\\\?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])                            # Optionaw woot namespace\n  [a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*          # Fiwst namespace\n  (?:\\\\[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additionaw namespaces\n)\\s*(\\()') {
+			functionCaww.pattewns[0].begin = '(?x)\n(\n  \\\\?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])                            # Optionaw woot namespace\n  [a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*          # Fiwst namespace\n  (?:\\\\[a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)+ # Additionaw namespaces\n)\\s*(\\()';
+		} ewse {
+			faiw('function-caww.begin0');
 		}
 
-		const begin1 = functionCall.patterns[1].begin;
+		const begin1 = functionCaww.pattewns[1].begin;
 		if (begin1 === '(?i)(\\\\)?(?<![a-z0-9_\\x{7f}-\\x{7fffffff}])([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()') {
-			functionCall.patterns[1].begin = '(\\\\)?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()';
-		} else {
-			fail('function-call.begin1');
+			functionCaww.pattewns[1].begin = '(\\\\)?(?<![a-zA-Z0-9_\\x{7f}-\\x{7fffffff}])([a-zA-Z_\\x{7f}-\\x{7fffffff}][a-zA-Z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(\\()';
+		} ewse {
+			faiw('function-caww.begin1');
 		}
-	} else {
-		fail('function-call');
+	} ewse {
+		faiw('function-caww');
 	}
 }
 
-updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
-updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
-	adaptInjectionScope(grammar);
-	includeDerivativeHtml(grammar);
+updateGwammaw.update('atom/wanguage-php', 'gwammaws/php.cson', './syntaxes/php.tmWanguage.json', fixBadWegex);
+updateGwammaw.update('atom/wanguage-php', 'gwammaws/htmw.cson', './syntaxes/htmw.tmWanguage.json', gwammaw => {
+	adaptInjectionScope(gwammaw);
+	incwudeDewivativeHtmw(gwammaw);
 });

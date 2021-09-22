@@ -1,401 +1,401 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/common/extHostTypes';
-import { MainThreadTextEditorsShape, IWorkspaceEditDto, IWorkspaceTextEditDto, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { SaveReason } from 'vs/workbench/common/editor';
-import type * as vscode from 'vscode';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { timeout } from 'vs/base/common/async';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { TextDocumentSaveWeason, TextEdit, Position, EndOfWine } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { MainThweadTextEditowsShape, IWowkspaceEditDto, IWowkspaceTextEditDto, MainThweadBuwkEditsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocumentSavePawticipant } fwom 'vs/wowkbench/api/common/extHostDocumentSavePawticipant';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt type * as vscode fwom 'vscode';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-suite('ExtHostDocumentSaveParticipant', () => {
+suite('ExtHostDocumentSavePawticipant', () => {
 
-	let resource = URI.parse('foo:bar');
-	let mainThreadBulkEdits = new class extends mock<MainThreadBulkEditsShape>() { };
-	let documents: ExtHostDocuments;
-	let nullLogService = new NullLogService();
-	let nullExtensionDescription: IExtensionDescription = {
-		identifier: new ExtensionIdentifier('nullExtensionDescription'),
-		name: 'Null Extension Description',
-		publisher: 'vscode',
-		enableProposedApi: false,
+	wet wesouwce = UWI.pawse('foo:baw');
+	wet mainThweadBuwkEdits = new cwass extends mock<MainThweadBuwkEditsShape>() { };
+	wet documents: ExtHostDocuments;
+	wet nuwwWogSewvice = new NuwwWogSewvice();
+	wet nuwwExtensionDescwiption: IExtensionDescwiption = {
+		identifia: new ExtensionIdentifia('nuwwExtensionDescwiption'),
+		name: 'Nuww Extension Descwiption',
+		pubwisha: 'vscode',
+		enabwePwoposedApi: fawse,
 		engines: undefined!,
-		extensionLocation: undefined!,
-		isBuiltin: false,
-		isUserBuiltin: false,
-		isUnderDevelopment: false,
-		version: undefined!
+		extensionWocation: undefined!,
+		isBuiwtin: fawse,
+		isUsewBuiwtin: fawse,
+		isUndewDevewopment: fawse,
+		vewsion: undefined!
 	};
 
 	setup(() => {
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null), new NullLogService());
-		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+		const documentsAndEditows = new ExtHostDocumentsAndEditows(SingwePwoxyWPCPwotocow(nuww), new NuwwWogSewvice());
+		documentsAndEditows.$acceptDocumentsAndEditowsDewta({
 			addedDocuments: [{
-				isDirty: false,
+				isDiwty: fawse,
 				modeId: 'foo',
-				uri: resource,
-				versionId: 1,
-				lines: ['foo'],
-				EOL: '\n',
+				uwi: wesouwce,
+				vewsionId: 1,
+				wines: ['foo'],
+				EOW: '\n',
 			}]
 		});
-		documents = new ExtHostDocuments(SingleProxyRPCProtocol(null), documentsAndEditors);
+		documents = new ExtHostDocuments(SingwePwoxyWPCPwotocow(nuww), documentsAndEditows);
 	});
 
-	test('no listeners, no problem', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => assert.ok(true));
+	test('no wistenews, no pwobwem', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => assewt.ok(twue));
 	});
 
-	test('event delivery', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let event: vscode.TextDocumentWillSaveEvent;
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
+		wet event: vscode.TextDocumentWiwwSaveEvent;
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
 
-			assert.ok(event);
-			assert.strictEqual(event.reason, TextDocumentSaveReason.Manual);
-			assert.strictEqual(typeof event.waitUntil, 'function');
+			assewt.ok(event);
+			assewt.stwictEquaw(event.weason, TextDocumentSaveWeason.Manuaw);
+			assewt.stwictEquaw(typeof event.waitUntiw, 'function');
 		});
 	});
 
-	test('event delivery, immutable', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, immutabwe', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let event: vscode.TextDocumentWillSaveEvent;
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
+		wet event: vscode.TextDocumentWiwwSaveEvent;
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
 
-			assert.ok(event);
-			assert.throws(() => { (event.document as any) = null!; });
+			assewt.ok(event);
+			assewt.thwows(() => { (event.document as any) = nuww!; });
 		});
 	});
 
-	test('event delivery, bad listener', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, bad wistena', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			throw new Error('💀');
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			thwow new Ewwow('💀');
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(vawues => {
 			sub.dispose();
 
-			const [first] = values;
-			assert.strictEqual(first, false);
+			const [fiwst] = vawues;
+			assewt.stwictEquaw(fiwst, fawse);
 		});
 	});
 
-	test('event delivery, bad listener doesn\'t prevent more events', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, bad wistena doesn\'t pwevent mowe events', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			throw new Error('💀');
+		wet sub1 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			thwow new Ewwow('💀');
 		});
-		let event: vscode.TextDocumentWillSaveEvent;
-		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
+		wet event: vscode.TextDocumentWiwwSaveEvent;
+		wet sub2 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub1.dispose();
 			sub2.dispose();
 
-			assert.ok(event);
+			assewt.ok(event);
 		});
 	});
 
-	test('event delivery, in subscriber order', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, in subscwiba owda', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let counter = 0;
-		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			assert.strictEqual(counter++, 0);
+		wet counta = 0;
+		wet sub1 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			assewt.stwictEquaw(counta++, 0);
 		});
 
-		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			assert.strictEqual(counter++, 1);
+		wet sub2 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			assewt.stwictEquaw(counta++, 1);
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub1.dispose();
 			sub2.dispose();
 		});
 	});
 
-	test('event delivery, ignore bad listeners', async () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 1 });
+	test('event dewivewy, ignowe bad wistenews', async () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits, { timeout: 5, ewwows: 1 });
 
-		let callCount = 0;
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			throw new Error('boom');
+		wet cawwCount = 0;
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			cawwCount += 1;
+			thwow new Ewwow('boom');
 		});
 
-		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
-		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
-		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
-		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		await pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT);
+		await pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT);
+		await pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT);
+		await pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT);
 
 		sub.dispose();
-		assert.strictEqual(callCount, 2);
+		assewt.stwictEquaw(cawwCount, 2);
 	});
 
-	test('event delivery, overall timeout', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 20, errors: 5 });
+	test('event dewivewy, ovewaww timeout', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits, { timeout: 20, ewwows: 5 });
 
-		let callCount = 0;
-		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(1));
+		wet cawwCount = 0;
+		wet sub1 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			cawwCount += 1;
+			event.waitUntiw(timeout(1));
 		});
 
-		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
-			event.waitUntil(timeout(170));
+		wet sub2 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			cawwCount += 1;
+			event.waitUntiw(timeout(170));
 		});
 
-		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			callCount += 1;
+		wet sub3 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			cawwCount += 1;
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(vawues => {
 			sub1.dispose();
 			sub2.dispose();
 			sub3.dispose();
 
-			assert.strictEqual(callCount, 2);
-			assert.strictEqual(values.length, 2);
+			assewt.stwictEquaw(cawwCount, 2);
+			assewt.stwictEquaw(vawues.wength, 2);
 		});
 	});
 
-	test('event delivery, waitUntil', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, waitUntiw', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
 
-			event.waitUntil(timeout(10));
-			event.waitUntil(timeout(10));
-			event.waitUntil(timeout(10));
+			event.waitUntiw(timeout(10));
+			event.waitUntiw(timeout(10));
+			event.waitUntiw(timeout(10));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
 		});
 
 	});
 
-	test('event delivery, waitUntil must be called sync', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, waitUntiw must be cawwed sync', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
 
-			event.waitUntil(new Promise<undefined>((resolve, reject) => {
+			event.waitUntiw(new Pwomise<undefined>((wesowve, weject) => {
 				setTimeout(() => {
-					try {
-						assert.throws(() => event.waitUntil(timeout(10)));
-						resolve(undefined);
+					twy {
+						assewt.thwows(() => event.waitUntiw(timeout(10)));
+						wesowve(undefined);
 					} catch (e) {
-						reject(e);
+						weject(e);
 					}
 
 				}, 10);
 			}));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
 		});
 	});
 
-	test('event delivery, waitUntil will timeout', function () {
+	test('event dewivewy, waitUntiw wiww timeout', function () {
 
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits, { timeout: 5, errors: 3 });
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits, { timeout: 5, ewwows: 3 });
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
-			event.waitUntil(timeout(100));
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (event) {
+			event.waitUntiw(timeout(100));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(vawues => {
 			sub.dispose();
 
-			const [first] = values;
-			assert.strictEqual(first, false);
+			const [fiwst] = vawues;
+			assewt.stwictEquaw(fiwst, fawse);
 		});
 	});
 
-	test('event delivery, waitUntil failure handling', () => {
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, mainThreadBulkEdits);
+	test('event dewivewy, waitUntiw faiwuwe handwing', () => {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, mainThweadBuwkEdits);
 
-		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			e.waitUntil(Promise.reject(new Error('dddd')));
+		wet sub1 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			e.waitUntiw(Pwomise.weject(new Ewwow('dddd')));
 		});
 
-		let event: vscode.TextDocumentWillSaveEvent;
-		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
+		wet event: vscode.TextDocumentWiwwSaveEvent;
+		wet sub2 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
 			event = e;
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
-			assert.ok(event);
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
+			assewt.ok(event);
 			sub1.dispose();
 			sub2.dispose();
 		});
 	});
 
-	test('event delivery, pushEdits sync', () => {
+	test('event dewivewy, pushEdits sync', () => {
 
-		let dto: IWorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
+		wet dto: IWowkspaceEditDto;
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, new cwass extends mock<MainThweadTextEditowsShape>() {
+			$twyAppwyWowkspaceEdit(_edits: IWowkspaceEditDto) {
 				dto = _edits;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
-			e.waitUntil(Promise.resolve([TextEdit.setEndOfLine(EndOfLine.CRLF)]));
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			e.waitUntiw(Pwomise.wesowve([TextEdit.insewt(new Position(0, 0), 'baw')]));
+			e.waitUntiw(Pwomise.wesowve([TextEdit.setEndOfWine(EndOfWine.CWWF)]));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
 
-			assert.strictEqual(dto.edits.length, 2);
-			assert.ok((<IWorkspaceTextEditDto>dto.edits[0]).edit);
-			assert.ok((<IWorkspaceTextEditDto>dto.edits[1]).edit);
+			assewt.stwictEquaw(dto.edits.wength, 2);
+			assewt.ok((<IWowkspaceTextEditDto>dto.edits[0]).edit);
+			assewt.ok((<IWowkspaceTextEditDto>dto.edits[1]).edit);
 		});
 	});
 
-	test('event delivery, concurrent change', () => {
+	test('event dewivewy, concuwwent change', () => {
 
-		let edits: IWorkspaceEditDto;
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(_edits: IWorkspaceEditDto) {
+		wet edits: IWowkspaceEditDto;
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, new cwass extends mock<MainThweadTextEditowsShape>() {
+			$twyAppwyWowkspaceEdit(_edits: IWowkspaceEditDto) {
 				edits = _edits;
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
 
-			// concurrent change from somewhere
-			documents.$acceptModelChanged(resource, {
+			// concuwwent change fwom somewhewe
+			documents.$acceptModewChanged(wesouwce, {
 				changes: [{
-					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-					rangeOffset: undefined!,
-					rangeLength: undefined!,
-					text: 'bar'
+					wange: { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 1 },
+					wangeOffset: undefined!,
+					wangeWength: undefined!,
+					text: 'baw'
 				}],
-				eol: undefined!,
-				versionId: 2,
-				isRedoing: false,
-				isUndoing: false,
-			}, true);
+				eow: undefined!,
+				vewsionId: 2,
+				isWedoing: fawse,
+				isUndoing: fawse,
+			}, twue);
 
-			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
+			e.waitUntiw(Pwomise.wesowve([TextEdit.insewt(new Position(0, 0), 'baw')]));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(vawues => {
 			sub.dispose();
 
-			assert.strictEqual(edits, undefined);
-			assert.strictEqual(values[0], false);
+			assewt.stwictEquaw(edits, undefined);
+			assewt.stwictEquaw(vawues[0], fawse);
 		});
 
 	});
 
-	test('event delivery, two listeners -> two document states', () => {
+	test('event dewivewy, two wistenews -> two document states', () => {
 
-		const participant = new ExtHostDocumentSaveParticipant(nullLogService, documents, new class extends mock<MainThreadTextEditorsShape>() {
-			$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto) {
+		const pawticipant = new ExtHostDocumentSavePawticipant(nuwwWogSewvice, documents, new cwass extends mock<MainThweadTextEditowsShape>() {
+			$twyAppwyWowkspaceEdit(dto: IWowkspaceEditDto) {
 
-				for (const edit of dto.edits) {
+				fow (const edit of dto.edits) {
 
-					const uri = URI.revive((<IWorkspaceTextEditDto>edit).resource);
-					const { text, range } = (<IWorkspaceTextEditDto>edit).edit;
-					documents.$acceptModelChanged(uri, {
+					const uwi = UWI.wevive((<IWowkspaceTextEditDto>edit).wesouwce);
+					const { text, wange } = (<IWowkspaceTextEditDto>edit).edit;
+					documents.$acceptModewChanged(uwi, {
 						changes: [{
-							range,
+							wange,
 							text,
-							rangeOffset: undefined!,
-							rangeLength: undefined!,
+							wangeOffset: undefined!,
+							wangeWength: undefined!,
 						}],
-						eol: undefined!,
-						versionId: documents.getDocumentData(uri)!.version + 1,
-						isRedoing: false,
-						isUndoing: false,
-					}, true);
+						eow: undefined!,
+						vewsionId: documents.getDocumentData(uwi)!.vewsion + 1,
+						isWedoing: fawse,
+						isUndoing: fawse,
+					}, twue);
 					// }
 				}
 
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}
 		});
 
-		const document = documents.getDocument(resource);
+		const document = documents.getDocument(wesouwce);
 
-		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			// the document state we started with
-			assert.strictEqual(document.version, 1);
-			assert.strictEqual(document.getText(), 'foo');
+		wet sub1 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			// the document state we stawted with
+			assewt.stwictEquaw(document.vewsion, 1);
+			assewt.stwictEquaw(document.getText(), 'foo');
 
-			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
+			e.waitUntiw(Pwomise.wesowve([TextEdit.insewt(new Position(0, 0), 'baw')]));
 		});
 
-		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			// the document state AFTER the first listener kicked in
-			assert.strictEqual(document.version, 2);
-			assert.strictEqual(document.getText(), 'barfoo');
+		wet sub2 = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			// the document state AFTa the fiwst wistena kicked in
+			assewt.stwictEquaw(document.vewsion, 2);
+			assewt.stwictEquaw(document.getText(), 'bawfoo');
 
-			e.waitUntil(Promise.resolve([TextEdit.insert(new Position(0, 0), 'bar')]));
+			e.waitUntiw(Pwomise.wesowve([TextEdit.insewt(new Position(0, 0), 'baw')]));
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(values => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(vawues => {
 			sub1.dispose();
 			sub2.dispose();
 
-			// the document state AFTER eventing is done
-			assert.strictEqual(document.version, 3);
-			assert.strictEqual(document.getText(), 'barbarfoo');
+			// the document state AFTa eventing is done
+			assewt.stwictEquaw(document.vewsion, 3);
+			assewt.stwictEquaw(document.getText(), 'bawbawfoo');
 		});
 
 	});
 
-	test('Log failing listener', function () {
-		let didLogSomething = false;
-		let participant = new ExtHostDocumentSaveParticipant(new class extends NullLogService {
-			override error(message: string | Error, ...args: any[]): void {
-				didLogSomething = true;
+	test('Wog faiwing wistena', function () {
+		wet didWogSomething = fawse;
+		wet pawticipant = new ExtHostDocumentSavePawticipant(new cwass extends NuwwWogSewvice {
+			ovewwide ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+				didWogSomething = twue;
 			}
-		}, documents, mainThreadBulkEdits);
+		}, documents, mainThweadBuwkEdits);
 
 
-		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
-			throw new Error('boom');
+		wet sub = pawticipant.getOnWiwwSaveTextDocumentEvent(nuwwExtensionDescwiption)(function (e) {
+			thwow new Ewwow('boom');
 		});
 
-		return participant.$participateInSave(resource, SaveReason.EXPLICIT).then(() => {
+		wetuwn pawticipant.$pawticipateInSave(wesouwce, SaveWeason.EXPWICIT).then(() => {
 			sub.dispose();
-			assert.strictEqual(didLogSomething, true);
+			assewt.stwictEquaw(didWogSomething, twue);
 		});
 	});
 });

@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.keybindings-editor {
+.keybindings-editow {
 	padding: 11px 0px 0px 27px;
 }
 
-/* header styling */
+/* heada stywing */
 
-.keybindings-editor > .keybindings-header {
+.keybindings-editow > .keybindings-heada {
 	padding: 0px 10px 11px 0;
 }
 
-.keybindings-editor > .keybindings-header > .search-container {
-	position: relative;
+.keybindings-editow > .keybindings-heada > .seawch-containa {
+	position: wewative;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container {
-	position: absolute;
+.keybindings-editow > .keybindings-heada > .seawch-containa > .keybindings-seawch-actions-containa {
+	position: absowute;
 	top: 0;
-	right: 10px;
-	margin-top: 5px;
-	display: flex;
+	wight: 10px;
+	mawgin-top: 5px;
+	dispway: fwex;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge {
-	margin-right: 8px;
+.keybindings-editow > .keybindings-heada > .seawch-containa > .keybindings-seawch-actions-containa > .wecowding-badge {
+	mawgin-wight: 8px;
 	padding: 3px;
 }
 
-.keybindings-editor > .keybindings-header.small > .search-container > .keybindings-search-actions-container > .recording-badge,
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container > .recording-badge.disabled {
-	display: none;
+.keybindings-editow > .keybindings-heada.smaww > .seawch-containa > .keybindings-seawch-actions-containa > .wecowding-badge,
+.keybindings-editow > .keybindings-heada > .seawch-containa > .keybindings-seawch-actions-containa > .wecowding-badge.disabwed {
+	dispway: none;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item > .icon {
+.keybindings-editow > .keybindings-heada > .seawch-containa > .keybindings-seawch-actions-containa .monaco-action-baw .action-item > .icon {
 	width:16px;
 	height: 18px;
 }
 
-.keybindings-editor > .keybindings-header > .search-container > .keybindings-search-actions-container .monaco-action-bar .action-item {
-	margin-right: 4px;
+.keybindings-editow > .keybindings-heada > .seawch-containa > .keybindings-seawch-actions-containa .monaco-action-baw .action-item {
+	mawgin-wight: 4px;
 }
 
-.keybindings-editor .monaco-action-bar .action-item > .codicon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
+.keybindings-editow .monaco-action-baw .action-item > .codicon {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	cowow: inhewit;
 }
 
-.keybindings-editor > .keybindings-header .open-keybindings-container {
-	margin-top: 10px;
-	display: flex;
+.keybindings-editow > .keybindings-heada .open-keybindings-containa {
+	mawgin-top: 10px;
+	dispway: fwex;
 }
 
-.keybindings-editor > .keybindings-header .open-keybindings-container > div {
+.keybindings-editow > .keybindings-heada .open-keybindings-containa > div {
 	opacity: 0.7;
 }
 
-.keybindings-editor > .keybindings-header .open-keybindings-container > .file-name {
-	text-decoration: underline;
-	cursor: pointer;
-	margin-left: 4px;
+.keybindings-editow > .keybindings-heada .open-keybindings-containa > .fiwe-name {
+	text-decowation: undewwine;
+	cuwsow: pointa;
+	mawgin-weft: 4px;
 }
 
-.keybindings-editor > .keybindings-header .open-keybindings-container > .file-name:focus {
+.keybindings-editow > .keybindings-heada .open-keybindings-containa > .fiwe-name:focus {
 	opacity: 1;
 }
 
-/** Table styling **/
+/** Tabwe stywing **/
 
-.keybindings-editor > .keybindings-body .keybindings-table-container {
+.keybindings-editow > .keybindings-body .keybindings-tabwe-containa {
 	width: 100%;
-	border-spacing: 0;
-	border-collapse: separate;
+	bowda-spacing: 0;
+	bowda-cowwapse: sepawate;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr {
-	cursor: default;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw {
+	cuwsow: defauwt;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td {
-	align-items: center;
-	display: flex;
-	overflow: hidden;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td {
+	awign-items: centa;
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-/** Actions column styling **/
+/** Actions cowumn stywing **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: none;
-	flex: 1;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw {
+	dispway: none;
+	fwex: 1;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
-	display: flex;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-wist-wow.sewected .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe.focused .monaco-wist-wow.focused .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-wist-wow:hova .monaco-tabwe-tw .monaco-tabwe-td .actions .monaco-action-baw {
+	dispway: fwex;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .monaco-action-bar .action-item > .icon {
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .monaco-action-baw .action-item > .icon {
 	width:16px;
 	height: 16px;
-	cursor: pointer;
-	margin-top: 3px;
+	cuwsow: pointa;
+	mawgin-top: 3px;
 }
 
-/** Command column styling **/
+/** Command cowumn stywing **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command .hide {
-	display: none;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command .hide {
+	dispway: none;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command.vertical-align-column {
-	flex-direction: column;
-	align-items: flex-start;
-	justify-content: center;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command.vewticaw-awign-cowumn {
+	fwex-diwection: cowumn;
+	awign-items: fwex-stawt;
+	justify-content: centa;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command .command-default-label {
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command .command-defauwt-wabew {
 	opacity: 0.8;
-	margin-top: 2px;
+	mawgin-top: 2px;
 }
 
-/** Keybinding column styling **/
+/** Keybinding cowumn stywing **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .keybinding .monaco-highlighted-label {
-	padding-left: 10px;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .keybinding .monaco-highwighted-wabew {
+	padding-weft: 10px;
 }
 
-/** When column styling **/
+/** When cowumn stywing **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when {
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when {
 	width: 100%;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .empty {
-	padding-left: 4px;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .empty {
+	padding-weft: 4px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when:not(.input-mode) .monaco-inputbox,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when.input-mode .when-label {
-	display: none;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when:not(.input-mode) .monaco-inputbox,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when.input-mode .when-wabew {
+	dispway: none;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
-	line-height: normal;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .monaco-inputbox {
+	wine-height: nowmaw;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox input {
-	padding-left: 10px;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .monaco-inputbox input {
+	padding-weft: 10px;
 }
 
-.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox,
-.monaco-workbench.mac .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-inputbox {
+.monaco-wowkbench.mac .keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .monaco-inputbox,
+.monaco-wowkbench.mac .keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .monaco-inputbox {
 	height: 24px;
 }
 
-/** columns styling **/
+/** cowumns stywing **/
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command > .command-label,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command > .command-default-label,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command > .command-id-label,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .command .monaco-highlighted-label,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .source .monaco-highlighted-label,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .when .monaco-highlighted-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command > .command-wabew,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command > .command-defauwt-wabew,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command > .command-id-wabew,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .command .monaco-highwighted-wabew,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .souwce .monaco-highwighted-wabew,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .when .monaco-highwighted-wabew {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .code {
-	font-family: var(--monaco-monospace-font);
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .code {
+	font-famiwy: vaw(--monaco-monospace-font);
 	font-size: 90%;
-	display: flex;
-	overflow: hidden;
+	dispway: fwex;
+	ovewfwow: hidden;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .code.strong {
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .code.stwong {
 	padding: 1px 4px;
-	background-color: rgba(128, 128, 128, 0.17);
-	border-radius: 4px;
+	backgwound-cowow: wgba(128, 128, 128, 0.17);
+	bowda-wadius: 4px;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td .highlight {
-	font-weight: bold;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe-tw .monaco-tabwe-td .highwight {
+	font-weight: bowd;
 }
 
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-td .highlight,
-.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected.focused .monaco-table-td .highlight {
-	color: inherit;
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe.focused .monaco-wist-wow.sewected .monaco-tabwe-td .highwight,
+.keybindings-editow > .keybindings-body > .keybindings-tabwe-containa .monaco-tabwe.focused .monaco-wist-wow.sewected.focused .monaco-tabwe-td .highwight {
+	cowow: inhewit;
 }
 
-.keybindings-editor .monaco-table-th,
-.keybindings-editor .monaco-table-td {
-	padding-left: 10px;
+.keybindings-editow .monaco-tabwe-th,
+.keybindings-editow .monaco-tabwe-td {
+	padding-weft: 10px;
 }
 
-.keybindings-editor .monaco-table-th[data-col-index="0"],
-.keybindings-editor .monaco-table-td[data-col-index="0"] {
-	padding-left: 20px;
+.keybindings-editow .monaco-tabwe-th[data-cow-index="0"],
+.keybindings-editow .monaco-tabwe-td[data-cow-index="0"] {
+	padding-weft: 20px;
 }

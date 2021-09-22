@@ -1,395 +1,395 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { dirname, isEqual } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { diwname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IFiweDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { FiweSystemPwovidewCapabiwities, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { DEFAUWT_EDITOW_ASSOCIATION, EditowInputCapabiwities, GwoupIdentifia, IWevewtOptions, ISaveOptions, isEditowInputWithOptionsAndGwoup, IUntypedEditowInput, Vewbosity } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ICustomEditowModew, ICustomEditowSewvice } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { IWebviewSewvice, WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { IWebviewWowkbenchSewvice, WaziwyWesowvedWebviewEditowInput } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewWowkbenchSewvice';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IUntitwedTextEditowSewvice } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
 
-export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
+expowt cwass CustomEditowInput extends WaziwyWesowvedWebviewEditowInput {
 
-	static create(
-		instantiationService: IInstantiationService,
-		resource: URI,
-		viewType: string,
-		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses?: string, readonly oldResource?: URI },
-	): EditorInput {
-		return instantiationService.invokeFunction(accessor => {
-			// If it's an untitled file we must populate the untitledDocumentData
-			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
-			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
-			const id = generateUuid();
-			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData, oldResource: options?.oldResource });
-			if (typeof group !== 'undefined') {
-				input.updateGroup(group);
+	static cweate(
+		instantiationSewvice: IInstantiationSewvice,
+		wesouwce: UWI,
+		viewType: stwing,
+		gwoup: GwoupIdentifia | undefined,
+		options?: { weadonwy customCwasses?: stwing, weadonwy owdWesouwce?: UWI },
+	): EditowInput {
+		wetuwn instantiationSewvice.invokeFunction(accessow => {
+			// If it's an untitwed fiwe we must popuwate the untitwedDocumentData
+			const untitwedStwing = accessow.get(IUntitwedTextEditowSewvice).getVawue(wesouwce);
+			wet untitwedDocumentData = untitwedStwing ? VSBuffa.fwomStwing(untitwedStwing) : undefined;
+			const id = genewateUuid();
+			const webview = accessow.get(IWebviewSewvice).cweateWebviewOvewway(id, { customCwasses: options?.customCwasses }, {}, undefined);
+			const input = instantiationSewvice.cweateInstance(CustomEditowInput, wesouwce, viewType, id, webview, { untitwedDocumentData: untitwedDocumentData, owdWesouwce: options?.owdWesouwce });
+			if (typeof gwoup !== 'undefined') {
+				input.updateGwoup(gwoup);
 			}
-			return input;
+			wetuwn input;
 		});
 	}
 
-	public static override readonly typeId = 'workbench.editors.webviewEditor';
+	pubwic static ovewwide weadonwy typeId = 'wowkbench.editows.webviewEditow';
 
-	private readonly _editorResource: URI;
-	public readonly oldResource?: URI;
-	private _defaultDirtyState: boolean | undefined;
+	pwivate weadonwy _editowWesouwce: UWI;
+	pubwic weadonwy owdWesouwce?: UWI;
+	pwivate _defauwtDiwtyState: boowean | undefined;
 
-	private readonly _backupId: string | undefined;
+	pwivate weadonwy _backupId: stwing | undefined;
 
-	private readonly _untitledDocumentData: VSBuffer | undefined;
+	pwivate weadonwy _untitwedDocumentData: VSBuffa | undefined;
 
-	override get resource() { return this._editorResource; }
+	ovewwide get wesouwce() { wetuwn this._editowWesouwce; }
 
-	private _modelRef?: IReference<ICustomEditorModel>;
+	pwivate _modewWef?: IWefewence<ICustomEditowModew>;
 
-	constructor(
-		resource: URI,
-		viewType: string,
-		id: string,
-		webview: WebviewOverlay,
-		options: { startsDirty?: boolean, backupId?: string, untitledDocumentData?: VSBuffer, readonly oldResource?: URI },
-		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILabelService private readonly labelService: ILabelService,
-		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
-		@IFileService private readonly fileService: IFileService
+	constwuctow(
+		wesouwce: UWI,
+		viewType: stwing,
+		id: stwing,
+		webview: WebviewOvewway,
+		options: { stawtsDiwty?: boowean, backupId?: stwing, untitwedDocumentData?: VSBuffa, weadonwy owdWesouwce?: UWI },
+		@IWebviewWowkbenchSewvice webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@ICustomEditowSewvice pwivate weadonwy customEditowSewvice: ICustomEditowSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy undoWedoSewvice: IUndoWedoSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super(id, viewType, '', webview, webviewWorkbenchService);
-		this._editorResource = resource;
-		this.oldResource = options.oldResource;
-		this._defaultDirtyState = options.startsDirty;
+		supa(id, viewType, '', webview, webviewWowkbenchSewvice);
+		this._editowWesouwce = wesouwce;
+		this.owdWesouwce = options.owdWesouwce;
+		this._defauwtDiwtyState = options.stawtsDiwty;
 		this._backupId = options.backupId;
-		this._untitledDocumentData = options.untitledDocumentData;
+		this._untitwedDocumentData = options.untitwedDocumentData;
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Clear our labels on certain label related events
-		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+		// Cweaw ouw wabews on cewtain wabew wewated events
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(e => this.onWabewEvent(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onWabewEvent(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onWabewEvent(e.scheme)));
 	}
 
-	private onLabelEvent(scheme: string): void {
-		if (scheme === this.resource.scheme) {
-			this.updateLabel();
+	pwivate onWabewEvent(scheme: stwing): void {
+		if (scheme === this.wesouwce.scheme) {
+			this.updateWabew();
 		}
 	}
 
-	private updateLabel(): void {
+	pwivate updateWabew(): void {
 
-		// Clear any cached labels from before
-		this._shortDescription = undefined;
-		this._mediumDescription = undefined;
-		this._longDescription = undefined;
-		this._shortTitle = undefined;
-		this._mediumTitle = undefined;
-		this._longTitle = undefined;
+		// Cweaw any cached wabews fwom befowe
+		this._showtDescwiption = undefined;
+		this._mediumDescwiption = undefined;
+		this._wongDescwiption = undefined;
+		this._showtTitwe = undefined;
+		this._mediumTitwe = undefined;
+		this._wongTitwe = undefined;
 
-		// Trigger recompute of label
-		this._onDidChangeLabel.fire();
+		// Twigga wecompute of wabew
+		this._onDidChangeWabew.fiwe();
 	}
 
-	public override get typeId(): string {
-		return CustomEditorInput.typeId;
+	pubwic ovewwide get typeId(): stwing {
+		wetuwn CustomEditowInput.typeId;
 	}
 
-	public override get editorId() {
-		return this.viewType;
+	pubwic ovewwide get editowId() {
+		wetuwn this.viewType;
 	}
 
-	public override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.None;
+	pubwic ovewwide get capabiwities(): EditowInputCapabiwities {
+		wet capabiwities = EditowInputCapabiwities.None;
 
-		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
-			capabilities |= EditorInputCapabilities.Singleton;
+		if (!this.customEditowSewvice.getCustomEditowCapabiwities(this.viewType)?.suppowtsMuwtipweEditowsPewDocument) {
+			capabiwities |= EditowInputCapabiwities.Singweton;
 		}
 
-		if (this._modelRef) {
-			if (this._modelRef.object.isReadonly()) {
-				capabilities |= EditorInputCapabilities.Readonly;
+		if (this._modewWef) {
+			if (this._modewWef.object.isWeadonwy()) {
+				capabiwities |= EditowInputCapabiwities.Weadonwy;
 			}
-		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-				capabilities |= EditorInputCapabilities.Readonly;
+		} ewse {
+			if (this.fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy)) {
+				capabiwities |= EditowInputCapabiwities.Weadonwy;
 			}
 		}
 
-		if (this.resource.scheme === Schemas.untitled) {
-			capabilities |= EditorInputCapabilities.Untitled;
+		if (this.wesouwce.scheme === Schemas.untitwed) {
+			capabiwities |= EditowInputCapabiwities.Untitwed;
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	override getName(): string {
-		return basename(this.labelService.getUriLabel(this.resource));
+	ovewwide getName(): stwing {
+		wetuwn basename(this.wabewSewvice.getUwiWabew(this.wesouwce));
 	}
 
-	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
-	}
-
-	private _shortDescription: string | undefined = undefined;
-	private get shortDescription(): string {
-		if (typeof this._shortDescription !== 'string') {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this.resource));
-		}
-
-		return this._shortDescription;
-	}
-
-	private _mediumDescription: string | undefined = undefined;
-	private get mediumDescription(): string {
-		if (typeof this._mediumDescription !== 'string') {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this.resource), { relative: true });
-		}
-
-		return this._mediumDescription;
-	}
-
-	private _longDescription: string | undefined = undefined;
-	private get longDescription(): string {
-		if (typeof this._longDescription !== 'string') {
-			this._longDescription = this.labelService.getUriLabel(dirname(this.resource));
-		}
-
-		return this._longDescription;
-	}
-
-	private _shortTitle: string | undefined = undefined;
-	private get shortTitle(): string {
-		if (typeof this._shortTitle !== 'string') {
-			this._shortTitle = this.getName();
-		}
-
-		return this._shortTitle;
-	}
-
-	private _mediumTitle: string | undefined = undefined;
-	private get mediumTitle(): string {
-		if (typeof this._mediumTitle !== 'string') {
-			this._mediumTitle = this.labelService.getUriLabel(this.resource, { relative: true });
-		}
-
-		return this._mediumTitle;
-	}
-
-	private _longTitle: string | undefined = undefined;
-	private get longTitle(): string {
-		if (typeof this._longTitle !== 'string') {
-			this._longTitle = this.labelService.getUriLabel(this.resource);
-		}
-
-		return this._longTitle;
-	}
-
-	override getTitle(verbosity?: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortTitle;
-			case Verbosity.LONG:
-				return this.longTitle;
-			default:
-			case Verbosity.MEDIUM:
-				return this.mediumTitle;
+	ovewwide getDescwiption(vewbosity = Vewbosity.MEDIUM): stwing | undefined {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.showtDescwiption;
+			case Vewbosity.WONG:
+				wetuwn this.wongDescwiption;
+			case Vewbosity.MEDIUM:
+			defauwt:
+				wetuwn this.mediumDescwiption;
 		}
 	}
 
-	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
+	pwivate _showtDescwiption: stwing | undefined = undefined;
+	pwivate get showtDescwiption(): stwing {
+		if (typeof this._showtDescwiption !== 'stwing') {
+			this._showtDescwiption = this.wabewSewvice.getUwiBasenameWabew(diwname(this.wesouwce));
 		}
-		return this === other || (other instanceof CustomEditorInput
-			&& this.viewType === other.viewType
-			&& isEqual(this.resource, other.resource));
+
+		wetuwn this._showtDescwiption;
 	}
 
-	public override copy(): EditorInput {
-		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
+	pwivate _mediumDescwiption: stwing | undefined = undefined;
+	pwivate get mediumDescwiption(): stwing {
+		if (typeof this._mediumDescwiption !== 'stwing') {
+			this._mediumDescwiption = this.wabewSewvice.getUwiWabew(diwname(this.wesouwce), { wewative: twue });
+		}
+
+		wetuwn this._mediumDescwiption;
 	}
 
-	public override isDirty(): boolean {
-		if (!this._modelRef) {
-			return !!this._defaultDirtyState;
+	pwivate _wongDescwiption: stwing | undefined = undefined;
+	pwivate get wongDescwiption(): stwing {
+		if (typeof this._wongDescwiption !== 'stwing') {
+			this._wongDescwiption = this.wabewSewvice.getUwiWabew(diwname(this.wesouwce));
 		}
-		return this._modelRef.object.isDirty();
+
+		wetuwn this._wongDescwiption;
 	}
 
-	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		if (!this._modelRef) {
-			return undefined;
+	pwivate _showtTitwe: stwing | undefined = undefined;
+	pwivate get showtTitwe(): stwing {
+		if (typeof this._showtTitwe !== 'stwing') {
+			this._showtTitwe = this.getName();
 		}
 
-		const target = await this._modelRef.object.saveCustomEditor(options);
-		if (!target) {
-			return undefined; // save cancelled
-		}
-
-		if (!isEqual(target, this.resource)) {
-			return CustomEditorInput.create(this.instantiationService, target, this.viewType, groupId);
-		}
-
-		return this;
+		wetuwn this._showtTitwe;
 	}
 
-	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		if (!this._modelRef) {
-			return undefined;
+	pwivate _mediumTitwe: stwing | undefined = undefined;
+	pwivate get mediumTitwe(): stwing {
+		if (typeof this._mediumTitwe !== 'stwing') {
+			this._mediumTitwe = this.wabewSewvice.getUwiWabew(this.wesouwce, { wewative: twue });
 		}
 
-		const dialogPath = this._editorResource;
-		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
-		if (!target) {
-			return undefined; // save cancelled
-		}
-
-		if (!await this._modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
-			return undefined;
-		}
-
-		return (await this.rename(groupId, target))?.editor;
+		wetuwn this._mediumTitwe;
 	}
 
-	public override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._modelRef) {
-			return this._modelRef.object.revert(options);
+	pwivate _wongTitwe: stwing | undefined = undefined;
+	pwivate get wongTitwe(): stwing {
+		if (typeof this._wongTitwe !== 'stwing') {
+			this._wongTitwe = this.wabewSewvice.getUwiWabew(this.wesouwce);
 		}
-		this._defaultDirtyState = false;
-		this._onDidChangeDirty.fire();
+
+		wetuwn this._wongTitwe;
 	}
 
-	public override async resolve(): Promise<null> {
-		await super.resolve();
+	ovewwide getTitwe(vewbosity?: Vewbosity): stwing {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.showtTitwe;
+			case Vewbosity.WONG:
+				wetuwn this.wongTitwe;
+			defauwt:
+			case Vewbosity.MEDIUM:
+				wetuwn this.mediumTitwe;
+		}
+	}
+
+	pubwic ovewwide matches(otha: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(otha)) {
+			wetuwn twue;
+		}
+		wetuwn this === otha || (otha instanceof CustomEditowInput
+			&& this.viewType === otha.viewType
+			&& isEquaw(this.wesouwce, otha.wesouwce));
+	}
+
+	pubwic ovewwide copy(): EditowInput {
+		wetuwn CustomEditowInput.cweate(this.instantiationSewvice, this.wesouwce, this.viewType, this.gwoup, this.webview.options);
+	}
+
+	pubwic ovewwide isDiwty(): boowean {
+		if (!this._modewWef) {
+			wetuwn !!this._defauwtDiwtyState;
+		}
+		wetuwn this._modewWef.object.isDiwty();
+	}
+
+	pubwic ovewwide async save(gwoupId: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		if (!this._modewWef) {
+			wetuwn undefined;
+		}
+
+		const tawget = await this._modewWef.object.saveCustomEditow(options);
+		if (!tawget) {
+			wetuwn undefined; // save cancewwed
+		}
+
+		if (!isEquaw(tawget, this.wesouwce)) {
+			wetuwn CustomEditowInput.cweate(this.instantiationSewvice, tawget, this.viewType, gwoupId);
+		}
+
+		wetuwn this;
+	}
+
+	pubwic ovewwide async saveAs(gwoupId: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		if (!this._modewWef) {
+			wetuwn undefined;
+		}
+
+		const diawogPath = this._editowWesouwce;
+		const tawget = await this.fiweDiawogSewvice.pickFiweToSave(diawogPath, options?.avaiwabweFiweSystems);
+		if (!tawget) {
+			wetuwn undefined; // save cancewwed
+		}
+
+		if (!await this._modewWef.object.saveCustomEditowAs(this._editowWesouwce, tawget, options)) {
+			wetuwn undefined;
+		}
+
+		wetuwn (await this.wename(gwoupId, tawget))?.editow;
+	}
+
+	pubwic ovewwide async wevewt(gwoup: GwoupIdentifia, options?: IWevewtOptions): Pwomise<void> {
+		if (this._modewWef) {
+			wetuwn this._modewWef.object.wevewt(options);
+		}
+		this._defauwtDiwtyState = fawse;
+		this._onDidChangeDiwty.fiwe();
+	}
+
+	pubwic ovewwide async wesowve(): Pwomise<nuww> {
+		await supa.wesowve();
 
 		if (this.isDisposed()) {
-			return null;
+			wetuwn nuww;
 		}
 
-		if (!this._modelRef) {
-			const oldCapabilities = this.capabilities;
-			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
-			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._modelRef.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
-			// If we're loading untitled file data we should ensure it's dirty
-			if (this._untitledDocumentData) {
-				this._defaultDirtyState = true;
+		if (!this._modewWef) {
+			const owdCapabiwities = this.capabiwities;
+			this._modewWef = this._wegista(assewtIsDefined(await this.customEditowSewvice.modews.twyWetain(this.wesouwce, this.viewType)));
+			this._wegista(this._modewWef.object.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe()));
+			this._wegista(this._modewWef.object.onDidChangeWeadonwy(() => this._onDidChangeCapabiwities.fiwe()));
+			// If we'we woading untitwed fiwe data we shouwd ensuwe it's diwty
+			if (this._untitwedDocumentData) {
+				this._defauwtDiwtyState = twue;
 			}
-			if (this.isDirty()) {
-				this._onDidChangeDirty.fire();
+			if (this.isDiwty()) {
+				this._onDidChangeDiwty.fiwe();
 			}
-			if (this.capabilities !== oldCapabilities) {
-				this._onDidChangeCapabilities.fire();
+			if (this.capabiwities !== owdCapabiwities) {
+				this._onDidChangeCapabiwities.fiwe();
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public override async rename(group: GroupIdentifier, newResource: URI): Promise<{ editor: EditorInput } | undefined> {
-		// See if we can keep using the same custom editor provider
-		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
-		if (editorInfo?.matches(newResource)) {
-			return { editor: this.doMove(group, newResource) };
+	pubwic ovewwide async wename(gwoup: GwoupIdentifia, newWesouwce: UWI): Pwomise<{ editow: EditowInput } | undefined> {
+		// See if we can keep using the same custom editow pwovida
+		const editowInfo = this.customEditowSewvice.getCustomEditow(this.viewType);
+		if (editowInfo?.matches(newWesouwce)) {
+			wetuwn { editow: this.doMove(gwoup, newWesouwce) };
 		}
 
-		const resolvedEditor = await this.editorResolverService.resolveEditor({ resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, undefined);
-		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
+		const wesowvedEditow = await this.editowWesowvewSewvice.wesowveEditow({ wesouwce: newWesouwce, options: { ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id } }, undefined);
+		wetuwn isEditowInputWithOptionsAndGwoup(wesowvedEditow) ? { editow: wesowvedEditow.editow } : undefined;
 	}
 
-	private doMove(group: GroupIdentifier, newResource: URI): EditorInput {
-		if (!this._moveHandler) {
-			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group, { oldResource: this.resource });
+	pwivate doMove(gwoup: GwoupIdentifia, newWesouwce: UWI): EditowInput {
+		if (!this._moveHandwa) {
+			wetuwn CustomEditowInput.cweate(this.instantiationSewvice, newWesouwce, this.viewType, gwoup, { owdWesouwce: this.wesouwce });
 		}
 
-		this._moveHandler(newResource);
-		const newEditor = this.instantiationService.createInstance(CustomEditorInput,
-			newResource,
+		this._moveHandwa(newWesouwce);
+		const newEditow = this.instantiationSewvice.cweateInstance(CustomEditowInput,
+			newWesouwce,
 			this.viewType,
 			this.id,
-			undefined!,  // this webview is replaced in the transfer call
-			{ startsDirty: this._defaultDirtyState, backupId: this._backupId });
-		this.transfer(newEditor);
-		newEditor.updateGroup(group);
-		return newEditor;
+			undefined!,  // this webview is wepwaced in the twansfa caww
+			{ stawtsDiwty: this._defauwtDiwtyState, backupId: this._backupId });
+		this.twansfa(newEditow);
+		newEditow.updateGwoup(gwoup);
+		wetuwn newEditow;
 	}
 
-	public undo(): void | Promise<void> {
-		assertIsDefined(this._modelRef);
-		return this.undoRedoService.undo(this.resource);
+	pubwic undo(): void | Pwomise<void> {
+		assewtIsDefined(this._modewWef);
+		wetuwn this.undoWedoSewvice.undo(this.wesouwce);
 	}
 
-	public redo(): void | Promise<void> {
-		assertIsDefined(this._modelRef);
-		return this.undoRedoService.redo(this.resource);
+	pubwic wedo(): void | Pwomise<void> {
+		assewtIsDefined(this._modewWef);
+		wetuwn this.undoWedoSewvice.wedo(this.wesouwce);
 	}
 
-	private _moveHandler?: (newResource: URI) => void;
+	pwivate _moveHandwa?: (newWesouwce: UWI) => void;
 
-	public onMove(handler: (newResource: URI) => void): void {
-		// TODO: Move this to the service
-		this._moveHandler = handler;
+	pubwic onMove(handwa: (newWesouwce: UWI) => void): void {
+		// TODO: Move this to the sewvice
+		this._moveHandwa = handwa;
 	}
 
-	protected override transfer(other: CustomEditorInput): CustomEditorInput | undefined {
-		if (!super.transfer(other)) {
-			return;
+	pwotected ovewwide twansfa(otha: CustomEditowInput): CustomEditowInput | undefined {
+		if (!supa.twansfa(otha)) {
+			wetuwn;
 		}
 
-		other._moveHandler = this._moveHandler;
-		this._moveHandler = undefined;
-		return other;
+		otha._moveHandwa = this._moveHandwa;
+		this._moveHandwa = undefined;
+		wetuwn otha;
 	}
 
-	public get backupId(): string | undefined {
-		if (this._modelRef) {
-			return this._modelRef.object.backupId;
+	pubwic get backupId(): stwing | undefined {
+		if (this._modewWef) {
+			wetuwn this._modewWef.object.backupId;
 		}
-		return this._backupId;
+		wetuwn this._backupId;
 	}
 
-	public get untitledDocumentData(): VSBuffer | undefined {
-		return this._untitledDocumentData;
+	pubwic get untitwedDocumentData(): VSBuffa | undefined {
+		wetuwn this._untitwedDocumentData;
 	}
 
-	public override toUntyped(): IResourceEditorInput {
-		return {
-			resource: this.resource,
+	pubwic ovewwide toUntyped(): IWesouwceEditowInput {
+		wetuwn {
+			wesouwce: this.wesouwce,
 			options: {
-				override: this.viewType
+				ovewwide: this.viewType
 			}
 		};
 	}

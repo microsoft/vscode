@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMessagePassingPwotocow, IPCCwient } fwom 'vs/base/pawts/ipc/common/ipc';
 
 /**
- * Declare minimal `MessageEvent` and `MessagePort` interfaces here
- * so that this utility can be used both from `browser` and
- * `electron-main` namespace where message ports are available.
+ * Decwawe minimaw `MessageEvent` and `MessagePowt` intewfaces hewe
+ * so that this utiwity can be used both fwom `bwowsa` and
+ * `ewectwon-main` namespace whewe message powts awe avaiwabwe.
  */
 
-export interface MessageEvent {
+expowt intewface MessageEvent {
 
 	/**
-	 * For our use we only consider `Uint8Array` a valid data transfer
-	 * via message ports because our protocol implementation is buffer based.
+	 * Fow ouw use we onwy consida `Uint8Awway` a vawid data twansfa
+	 * via message powts because ouw pwotocow impwementation is buffa based.
 	 */
-	data: Uint8Array;
+	data: Uint8Awway;
 }
 
-export interface MessagePort {
+expowt intewface MessagePowt {
 
-	addEventListener(type: 'message', listener: (this: MessagePort, e: MessageEvent) => unknown): void;
-	removeEventListener(type: 'message', listener: (this: MessagePort, e: MessageEvent) => unknown): void;
+	addEventWistena(type: 'message', wistena: (this: MessagePowt, e: MessageEvent) => unknown): void;
+	wemoveEventWistena(type: 'message', wistena: (this: MessagePowt, e: MessageEvent) => unknown): void;
 
-	postMessage(message: Uint8Array): void;
+	postMessage(message: Uint8Awway): void;
 
-	start(): void;
-	close(): void;
+	stawt(): void;
+	cwose(): void;
 }
 
 /**
- * The MessagePort `Protocol` leverages MessagePort style IPC communication
- * for the implementation of the `IMessagePassingProtocol`. That style of API
- * is a simple `onmessage` / `postMessage` pattern.
+ * The MessagePowt `Pwotocow` wevewages MessagePowt stywe IPC communication
+ * fow the impwementation of the `IMessagePassingPwotocow`. That stywe of API
+ * is a simpwe `onmessage` / `postMessage` pattewn.
  */
-export class Protocol implements IMessagePassingProtocol {
+expowt cwass Pwotocow impwements IMessagePassingPwotocow {
 
-	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
+	weadonwy onMessage = Event.fwomDOMEventEmitta<VSBuffa>(this.powt, 'message', (e: MessageEvent) => VSBuffa.wwap(e.data));
 
-	constructor(private port: MessagePort) {
+	constwuctow(pwivate powt: MessagePowt) {
 
-		// we must call start() to ensure messages are flowing
-		port.start();
+		// we must caww stawt() to ensuwe messages awe fwowing
+		powt.stawt();
 	}
 
-	send(message: VSBuffer): void {
-		this.port.postMessage(message.buffer);
+	send(message: VSBuffa): void {
+		this.powt.postMessage(message.buffa);
 	}
 
 	disconnect(): void {
-		this.port.close();
+		this.powt.cwose();
 	}
 }
 
 /**
- * An implementation of a `IPCClient` on top of MessagePort style IPC communication.
+ * An impwementation of a `IPCCwient` on top of MessagePowt stywe IPC communication.
  */
-export class Client extends IPCClient implements IDisposable {
+expowt cwass Cwient extends IPCCwient impwements IDisposabwe {
 
-	private protocol: Protocol;
+	pwivate pwotocow: Pwotocow;
 
-	constructor(port: MessagePort, clientId: string) {
-		const protocol = new Protocol(port);
-		super(protocol, clientId);
+	constwuctow(powt: MessagePowt, cwientId: stwing) {
+		const pwotocow = new Pwotocow(powt);
+		supa(pwotocow, cwientId);
 
-		this.protocol = protocol;
+		this.pwotocow = pwotocow;
 	}
 
-	override dispose(): void {
-		this.protocol.disconnect();
+	ovewwide dispose(): void {
+		this.pwotocow.disconnect();
 	}
 }

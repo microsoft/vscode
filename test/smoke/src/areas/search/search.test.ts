@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	// https://github.com/microsoft/vscode/issues/115244
-	// https://github.com/microsoft/vscode/issues/132218
-	(process.platform === 'win32' ? describe.skip : describe)('Search', () => {
-		beforeSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	// https://github.com/micwosoft/vscode/issues/115244
+	// https://github.com/micwosoft/vscode/issues/132218
+	(pwocess.pwatfowm === 'win32' ? descwibe.skip : descwibe)('Seawch', () => {
+		befoweSuite(opts);
 
-		after(function () {
-			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+		afta(function () {
+			const app = this.app as Appwication;
+			cp.execSync('git checkout . --quiet', { cwd: app.wowkspacePathOwFowda });
+			cp.execSync('git weset --hawd HEAD --quiet', { cwd: app.wowkspacePathOwFowda });
 		});
 
-		afterSuite(opts);
+		aftewSuite(opts);
 
-		// https://github.com/microsoft/vscode/issues/124146
-		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
-			const app = this.app as Application;
-			const tooltip: string = await app.workbench.search.getSearchTooltip();
-			if (!/Search \(.+\)/.test(tooltip)) {
-				throw Error(`Expected search tooltip to contain keybinding but got ${tooltip}`);
+		// https://github.com/micwosoft/vscode/issues/124146
+		it.skip /* https://github.com/micwosoft/vscode/issues/124335 */('has a toowtp with a keybinding', async function () {
+			const app = this.app as Appwication;
+			const toowtip: stwing = await app.wowkbench.seawch.getSeawchToowtip();
+			if (!/Seawch \(.+\)/.test(toowtip)) {
+				thwow Ewwow(`Expected seawch toowtip to contain keybinding but got ${toowtip}`);
 			}
 		});
 
-		it('searches for body & checks for correct result number', async function () {
-			const app = this.app as Application;
-			await app.workbench.search.openSearchViewlet();
-			await app.workbench.search.searchFor('body');
+		it('seawches fow body & checks fow cowwect wesuwt numba', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.seawch.openSeawchViewwet();
+			await app.wowkbench.seawch.seawchFow('body');
 
-			await app.workbench.search.waitForResultText('16 results in 5 files');
+			await app.wowkbench.seawch.waitFowWesuwtText('16 wesuwts in 5 fiwes');
 		});
 
-		it('searches only for *.js files & checks for correct result number', async function () {
-			const app = this.app as Application;
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.showQueryDetails();
-			await app.workbench.search.setFilesToIncludeText('*.js');
-			await app.workbench.search.submitSearch();
+		it('seawches onwy fow *.js fiwes & checks fow cowwect wesuwt numba', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.seawch.seawchFow('body');
+			await app.wowkbench.seawch.showQuewyDetaiws();
+			await app.wowkbench.seawch.setFiwesToIncwudeText('*.js');
+			await app.wowkbench.seawch.submitSeawch();
 
-			await app.workbench.search.waitForResultText('4 results in 1 file');
-			await app.workbench.search.setFilesToIncludeText('');
-			await app.workbench.search.hideQueryDetails();
+			await app.wowkbench.seawch.waitFowWesuwtText('4 wesuwts in 1 fiwe');
+			await app.wowkbench.seawch.setFiwesToIncwudeText('');
+			await app.wowkbench.seawch.hideQuewyDetaiws();
 		});
 
-		it.skip('dismisses result & checks for correct result number', async function () {
-			const app = this.app as Application;
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.removeFileMatch('app.js');
-			await app.workbench.search.waitForResultText('12 results in 4 files');
+		it.skip('dismisses wesuwt & checks fow cowwect wesuwt numba', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.seawch.seawchFow('body');
+			await app.wowkbench.seawch.wemoveFiweMatch('app.js');
+			await app.wowkbench.seawch.waitFowWesuwtText('12 wesuwts in 4 fiwes');
 		});
 
-		it('replaces first search result with a replace term', async function () {
-			const app = this.app as Application;
+		it('wepwaces fiwst seawch wesuwt with a wepwace tewm', async function () {
+			const app = this.app as Appwication;
 
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.expandReplace();
-			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForResultText('12 results in 4 files');
+			await app.wowkbench.seawch.seawchFow('body');
+			await app.wowkbench.seawch.expandWepwace();
+			await app.wowkbench.seawch.setWepwaceText('ydob');
+			await app.wowkbench.seawch.wepwaceFiweMatch('app.js');
+			await app.wowkbench.seawch.waitFowWesuwtText('12 wesuwts in 4 fiwes');
 
-			await app.workbench.search.searchFor('ydob');
-			await app.workbench.search.setReplaceText('body');
-			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForResultText('0 results in 0 files');
+			await app.wowkbench.seawch.seawchFow('ydob');
+			await app.wowkbench.seawch.setWepwaceText('body');
+			await app.wowkbench.seawch.wepwaceFiweMatch('app.js');
+			await app.wowkbench.seawch.waitFowWesuwtText('0 wesuwts in 0 fiwes');
 		});
 	});
 
-	describe('Quick Access', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+	descwibe('Quick Access', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it('quick access search produces correct result', async function () {
-			const app = this.app as Application;
+		it('quick access seawch pwoduces cowwect wesuwt', async function () {
+			const app = this.app as Appwication;
 			const expectedNames = [
-				'.eslintrc.json',
+				'.eswintwc.json',
 				'tasks.json',
 				'app.js',
 				'index.js',
-				'users.js',
+				'usews.js',
 				'package.json',
 				'jsconfig.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('.js');
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.wowkbench.quickaccess.openQuickAccess('.js');
+			await app.wowkbench.quickinput.waitFowQuickInputEwements(names => expectedNames.evewy(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 
-		it('quick access respects fuzzy matching', async function () {
-			const app = this.app as Application;
+		it('quick access wespects fuzzy matching', async function () {
+			const app = this.app as Appwication;
 			const expectedNames = [
 				'tasks.json',
 				'app.js',
 				'package.json'
 			];
 
-			await app.workbench.quickaccess.openQuickAccess('a.s');
-			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(n => names.some(m => n === m)));
+			await app.wowkbench.quickaccess.openQuickAccess('a.s');
+			await app.wowkbench.quickinput.waitFowQuickInputEwements(names => expectedNames.evewy(n => names.some(m => n === m)));
 			await app.code.dispatchKeybinding('escape');
 		});
 	});

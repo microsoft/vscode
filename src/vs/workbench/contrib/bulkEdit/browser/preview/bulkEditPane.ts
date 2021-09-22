@@ -1,391 +1,391 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./bulkEdit';
-import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
-import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
-import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { URI } from 'vs/base/common/uri';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { basename, dirname } from 'vs/base/common/resources';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+impowt 'vs/css!./buwkEdit';
+impowt { WowkbenchAsyncDataTwee, IOpenEvent } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { BuwkEditEwement, BuwkEditDewegate, TextEditEwementWendewa, FiweEwementWendewa, BuwkEditDataSouwce, BuwkEditIdentityPwovida, FiweEwement, TextEditEwement, BuwkEditAccessibiwityPwovida, CategowyEwementWendewa, BuwkEditNaviWabewPwovida, CategowyEwement, BuwkEditSowta } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditTwee';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow, IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { diffInsewted, diffWemoved } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wocawize } fwom 'vs/nws';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ACTIVE_GWOUP, IEditowSewvice, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { BuwkEditPweviewPwovida, BuwkFiweOpewations, BuwkFiweOpewationType } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/pweview/buwkEditPweview';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { WesouwceWabews, IWesouwceWabewsContaina } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { basename, diwname } fwom 'vs/base/common/wesouwces';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { ITweeContextMenuEvent } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt type { IAsyncDataTweeViewState } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WesouwceEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
 
 const enum State {
 	Data = 'data',
 	Message = 'message'
 }
 
-export class BulkEditPane extends ViewPane {
+expowt cwass BuwkEditPane extends ViewPane {
 
-	static readonly ID = 'refactorPreview';
+	static weadonwy ID = 'wefactowPweview';
 
-	static readonly ctxHasCategories = new RawContextKey('refactorPreview.hasCategories', false);
-	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
-	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
+	static weadonwy ctxHasCategowies = new WawContextKey('wefactowPweview.hasCategowies', fawse);
+	static weadonwy ctxGwoupByFiwe = new WawContextKey('wefactowPweview.gwoupByFiwe', twue);
+	static weadonwy ctxHasCheckedChanges = new WawContextKey('wefactowPweview.hasCheckedChanges', twue);
 
-	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
+	pwivate static weadonwy _memGwoupByFiwe = `${BuwkEditPane.ID}.gwoupByFiwe`;
 
-	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
-	private _treeDataSource!: BulkEditDataSource;
-	private _treeViewStates = new Map<boolean, IAsyncDataTreeViewState>();
-	private _message!: HTMLSpanElement;
+	pwivate _twee!: WowkbenchAsyncDataTwee<BuwkFiweOpewations, BuwkEditEwement, FuzzyScowe>;
+	pwivate _tweeDataSouwce!: BuwkEditDataSouwce;
+	pwivate _tweeViewStates = new Map<boowean, IAsyncDataTweeViewState>();
+	pwivate _message!: HTMWSpanEwement;
 
-	private readonly _ctxHasCategories: IContextKey<boolean>;
-	private readonly _ctxGroupByFile: IContextKey<boolean>;
-	private readonly _ctxHasCheckedChanges: IContextKey<boolean>;
+	pwivate weadonwy _ctxHasCategowies: IContextKey<boowean>;
+	pwivate weadonwy _ctxGwoupByFiwe: IContextKey<boowean>;
+	pwivate weadonwy _ctxHasCheckedChanges: IContextKey<boowean>;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _sessionDisposables = new DisposableStore();
-	private _currentResolve?: (edit?: ResourceEdit[]) => void;
-	private _currentInput?: BulkFileOperations;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _sessionDisposabwes = new DisposabweStowe();
+	pwivate _cuwwentWesowve?: (edit?: WesouwceEdit[]) => void;
+	pwivate _cuwwentInput?: BuwkFiweOpewations;
 
 
-	constructor(
-		options: IViewletViewOptions,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewSewvice: ITextModewSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice pwivate weadonwy _contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(
-			{ ...options, titleMenuId: MenuId.BulkEditTitle },
-			keybindingService, contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instaService, openerService, themeService, telemetryService
+		supa(
+			{ ...options, titweMenuId: MenuId.BuwkEditTitwe },
+			keybindingSewvice, contextMenuSewvice, configuwationSewvice, _contextKeySewvice, viewDescwiptowSewvice, _instaSewvice, openewSewvice, themeSewvice, tewemetwySewvice
 		);
 
-		this.element.classList.add('bulk-edit-panel', 'show-file-icons');
-		this._ctxHasCategories = BulkEditPane.ctxHasCategories.bindTo(_contextKeyService);
-		this._ctxGroupByFile = BulkEditPane.ctxGroupByFile.bindTo(_contextKeyService);
-		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
+		this.ewement.cwassWist.add('buwk-edit-panew', 'show-fiwe-icons');
+		this._ctxHasCategowies = BuwkEditPane.ctxHasCategowies.bindTo(_contextKeySewvice);
+		this._ctxGwoupByFiwe = BuwkEditPane.ctxGwoupByFiwe.bindTo(_contextKeySewvice);
+		this._ctxHasCheckedChanges = BuwkEditPane.ctxHasCheckedChanges.bindTo(_contextKeySewvice);
 	}
 
-	override dispose(): void {
-		this._tree.dispose();
-		this._disposables.dispose();
+	ovewwide dispose(): void {
+		this._twee.dispose();
+		this._disposabwes.dispose();
 	}
 
-	protected override renderBody(parent: HTMLElement): void {
-		super.renderBody(parent);
+	pwotected ovewwide wendewBody(pawent: HTMWEwement): void {
+		supa.wendewBody(pawent);
 
-		const resourceLabels = this._instaService.createInstance(
-			ResourceLabels,
-			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+		const wesouwceWabews = this._instaSewvice.cweateInstance(
+			WesouwceWabews,
+			<IWesouwceWabewsContaina>{ onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity }
 		);
-		this._disposables.add(resourceLabels);
+		this._disposabwes.add(wesouwceWabews);
 
-		// tree
-		const treeContainer = document.createElement('div');
-		treeContainer.className = 'tree';
-		treeContainer.style.width = '100%';
-		treeContainer.style.height = '100%';
-		parent.appendChild(treeContainer);
+		// twee
+		const tweeContaina = document.cweateEwement('div');
+		tweeContaina.cwassName = 'twee';
+		tweeContaina.stywe.width = '100%';
+		tweeContaina.stywe.height = '100%';
+		pawent.appendChiwd(tweeContaina);
 
-		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
-		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
-		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
+		this._tweeDataSouwce = this._instaSewvice.cweateInstance(BuwkEditDataSouwce);
+		this._tweeDataSouwce.gwoupByFiwe = this._stowageSewvice.getBoowean(BuwkEditPane._memGwoupByFiwe, StowageScope.GWOBAW, twue);
+		this._ctxGwoupByFiwe.set(this._tweeDataSouwce.gwoupByFiwe);
 
-		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
-			WorkbenchAsyncDataTree, this.id, treeContainer,
-			new BulkEditDelegate(),
-			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
-			this._treeDataSource,
+		this._twee = <WowkbenchAsyncDataTwee<BuwkFiweOpewations, BuwkEditEwement, FuzzyScowe>>this._instaSewvice.cweateInstance(
+			WowkbenchAsyncDataTwee, this.id, tweeContaina,
+			new BuwkEditDewegate(),
+			[this._instaSewvice.cweateInstance(TextEditEwementWendewa), this._instaSewvice.cweateInstance(FiweEwementWendewa, wesouwceWabews), this._instaSewvice.cweateInstance(CategowyEwementWendewa)],
+			this._tweeDataSouwce,
 			{
-				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
-				identityProvider: new BulkEditIdentityProvider(),
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
-				sorter: new BulkEditSorter(),
-				selectionNavigation: true
+				accessibiwityPwovida: this._instaSewvice.cweateInstance(BuwkEditAccessibiwityPwovida),
+				identityPwovida: new BuwkEditIdentityPwovida(),
+				expandOnwyOnTwistieCwick: twue,
+				muwtipweSewectionSuppowt: fawse,
+				keyboawdNavigationWabewPwovida: new BuwkEditNaviWabewPwovida(),
+				sowta: new BuwkEditSowta(),
+				sewectionNavigation: twue
 			}
 		);
 
-		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
-		this._disposables.add(this._tree.onDidOpen(e => this._openElementAsEditor(e)));
+		this._disposabwes.add(this._twee.onContextMenu(this._onContextMenu, this));
+		this._disposabwes.add(this._twee.onDidOpen(e => this._openEwementAsEditow(e)));
 
 		// message
-		this._message = document.createElement('span');
-		this._message.className = 'message';
-		this._message.innerText = localize('empty.msg', "Invoke a code action, like rename, to see a preview of its changes here.");
-		parent.appendChild(this._message);
+		this._message = document.cweateEwement('span');
+		this._message.cwassName = 'message';
+		this._message.innewText = wocawize('empty.msg', "Invoke a code action, wike wename, to see a pweview of its changes hewe.");
+		pawent.appendChiwd(this._message);
 
 		//
 		this._setState(State.Message);
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._tree.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this._twee.wayout(height, width);
 	}
 
-	private _setState(state: State): void {
-		this.element.dataset['state'] = state;
+	pwivate _setState(state: State): void {
+		this.ewement.dataset['state'] = state;
 	}
 
-	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
+	async setInput(edit: WesouwceEdit[], token: CancewwationToken): Pwomise<WesouwceEdit[] | undefined> {
 		this._setState(State.Data);
-		this._sessionDisposables.clear();
-		this._treeViewStates.clear();
+		this._sessionDisposabwes.cweaw();
+		this._tweeViewStates.cweaw();
 
-		if (this._currentResolve) {
-			this._currentResolve(undefined);
-			this._currentResolve = undefined;
+		if (this._cuwwentWesowve) {
+			this._cuwwentWesowve(undefined);
+			this._cuwwentWesowve = undefined;
 		}
 
-		const input = await this._instaService.invokeFunction(BulkFileOperations.create, edit);
-		const provider = this._instaService.createInstance(BulkEditPreviewProvider, input);
-		this._sessionDisposables.add(provider);
-		this._sessionDisposables.add(input);
+		const input = await this._instaSewvice.invokeFunction(BuwkFiweOpewations.cweate, edit);
+		const pwovida = this._instaSewvice.cweateInstance(BuwkEditPweviewPwovida, input);
+		this._sessionDisposabwes.add(pwovida);
+		this._sessionDisposabwes.add(input);
 
 		//
-		const hasCategories = input.categories.length > 1;
-		this._ctxHasCategories.set(hasCategories);
-		this._treeDataSource.groupByFile = !hasCategories || this._treeDataSource.groupByFile;
+		const hasCategowies = input.categowies.wength > 1;
+		this._ctxHasCategowies.set(hasCategowies);
+		this._tweeDataSouwce.gwoupByFiwe = !hasCategowies || this._tweeDataSouwce.gwoupByFiwe;
 		this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 
-		this._currentInput = input;
+		this._cuwwentInput = input;
 
-		return new Promise<ResourceEdit[] | undefined>(async resolve => {
+		wetuwn new Pwomise<WesouwceEdit[] | undefined>(async wesowve => {
 
-			token.onCancellationRequested(() => resolve(undefined));
+			token.onCancewwationWequested(() => wesowve(undefined));
 
-			this._currentResolve = resolve;
-			this._setTreeInput(input);
+			this._cuwwentWesowve = wesowve;
+			this._setTweeInput(input);
 
-			// refresh when check state changes
-			this._sessionDisposables.add(input.checked.onDidChange(() => {
-				this._tree.updateChildren();
+			// wefwesh when check state changes
+			this._sessionDisposabwes.add(input.checked.onDidChange(() => {
+				this._twee.updateChiwdwen();
 				this._ctxHasCheckedChanges.set(input.checked.checkedCount > 0);
 			}));
 		});
 	}
 
-	hasInput(): boolean {
-		return Boolean(this._currentInput);
+	hasInput(): boowean {
+		wetuwn Boowean(this._cuwwentInput);
 	}
 
-	private async _setTreeInput(input: BulkFileOperations) {
+	pwivate async _setTweeInput(input: BuwkFiweOpewations) {
 
-		const viewState = this._treeViewStates.get(this._treeDataSource.groupByFile);
-		await this._tree.setInput(input, viewState);
-		this._tree.domFocus();
+		const viewState = this._tweeViewStates.get(this._tweeDataSouwce.gwoupByFiwe);
+		await this._twee.setInput(input, viewState);
+		this._twee.domFocus();
 
 		if (viewState) {
-			return;
+			wetuwn;
 		}
 
-		// async expandAll (max=10) is the default when no view state is given
-		const expand = [...this._tree.getNode(input).children].slice(0, 10);
-		while (expand.length > 0) {
-			const { element } = expand.shift()!;
-			if (element instanceof FileElement) {
-				await this._tree.expand(element, true);
+		// async expandAww (max=10) is the defauwt when no view state is given
+		const expand = [...this._twee.getNode(input).chiwdwen].swice(0, 10);
+		whiwe (expand.wength > 0) {
+			const { ewement } = expand.shift()!;
+			if (ewement instanceof FiweEwement) {
+				await this._twee.expand(ewement, twue);
 			}
-			if (element instanceof CategoryElement) {
-				await this._tree.expand(element, true);
-				expand.push(...this._tree.getNode(element).children);
+			if (ewement instanceof CategowyEwement) {
+				await this._twee.expand(ewement, twue);
+				expand.push(...this._twee.getNode(ewement).chiwdwen);
 			}
 		}
 	}
 
 	accept(): void {
 
-		const conflicts = this._currentInput?.conflicts.list();
+		const confwicts = this._cuwwentInput?.confwicts.wist();
 
-		if (!conflicts || conflicts.length === 0) {
-			this._done(true);
-			return;
+		if (!confwicts || confwicts.wength === 0) {
+			this._done(twue);
+			wetuwn;
 		}
 
-		let message: string;
-		if (conflicts.length === 1) {
-			message = localize('conflict.1', "Cannot apply refactoring because '{0}' has changed in the meantime.", this._labelService.getUriLabel(conflicts[0], { relative: true }));
-		} else {
-			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
+		wet message: stwing;
+		if (confwicts.wength === 1) {
+			message = wocawize('confwict.1', "Cannot appwy wefactowing because '{0}' has changed in the meantime.", this._wabewSewvice.getUwiWabew(confwicts[0], { wewative: twue }));
+		} ewse {
+			message = wocawize('confwict.N', "Cannot appwy wefactowing because {0} otha fiwes have changed in the meantime.", confwicts.wength);
 		}
 
-		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
+		this._diawogSewvice.show(Sevewity.Wawning, message).finawwy(() => this._done(fawse));
 	}
 
-	discard() {
-		this._done(false);
+	discawd() {
+		this._done(fawse);
 	}
 
-	private _done(accept: boolean): void {
-		if (this._currentResolve) {
-			this._currentResolve(accept ? this._currentInput?.getWorkspaceEdit() : undefined);
+	pwivate _done(accept: boowean): void {
+		if (this._cuwwentWesowve) {
+			this._cuwwentWesowve(accept ? this._cuwwentInput?.getWowkspaceEdit() : undefined);
 		}
-		this._currentInput = undefined;
+		this._cuwwentInput = undefined;
 		this._setState(State.Message);
-		this._sessionDisposables.clear();
+		this._sessionDisposabwes.cweaw();
 	}
 
-	toggleChecked() {
-		const [first] = this._tree.getFocus();
-		if ((first instanceof FileElement || first instanceof TextEditElement) && !first.isDisabled()) {
-			first.setChecked(!first.isChecked());
+	toggweChecked() {
+		const [fiwst] = this._twee.getFocus();
+		if ((fiwst instanceof FiweEwement || fiwst instanceof TextEditEwement) && !fiwst.isDisabwed()) {
+			fiwst.setChecked(!fiwst.isChecked());
 		}
 	}
 
-	groupByFile(): void {
-		if (!this._treeDataSource.groupByFile) {
-			this.toggleGrouping();
+	gwoupByFiwe(): void {
+		if (!this._tweeDataSouwce.gwoupByFiwe) {
+			this.toggweGwouping();
 		}
 	}
 
-	groupByType(): void {
-		if (this._treeDataSource.groupByFile) {
-			this.toggleGrouping();
+	gwoupByType(): void {
+		if (this._tweeDataSouwce.gwoupByFiwe) {
+			this.toggweGwouping();
 		}
 	}
 
-	toggleGrouping() {
-		const input = this._tree.getInput();
+	toggweGwouping() {
+		const input = this._twee.getInput();
 		if (input) {
 
-			// (1) capture view state
-			let oldViewState = this._tree.getViewState();
-			this._treeViewStates.set(this._treeDataSource.groupByFile, oldViewState);
+			// (1) captuwe view state
+			wet owdViewState = this._twee.getViewState();
+			this._tweeViewStates.set(this._tweeDataSouwce.gwoupByFiwe, owdViewState);
 
-			// (2) toggle and update
-			this._treeDataSource.groupByFile = !this._treeDataSource.groupByFile;
-			this._setTreeInput(input);
+			// (2) toggwe and update
+			this._tweeDataSouwce.gwoupByFiwe = !this._tweeDataSouwce.gwoupByFiwe;
+			this._setTweeInput(input);
 
-			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
-			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
+			// (3) wememba pwefewence
+			this._stowageSewvice.stowe(BuwkEditPane._memGwoupByFiwe, this._tweeDataSouwce.gwoupByFiwe, StowageScope.GWOBAW, StowageTawget.USa);
+			this._ctxGwoupByFiwe.set(this._tweeDataSouwce.gwoupByFiwe);
 		}
 	}
 
-	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
-		type Mutable<T> = {
-			-readonly [P in keyof T]: T[P]
+	pwivate async _openEwementAsEditow(e: IOpenEvent<BuwkEditEwement | undefined>): Pwomise<void> {
+		type Mutabwe<T> = {
+			-weadonwy [P in keyof T]: T[P]
 		};
 
-		let options: Mutable<ITextEditorOptions> = { ...e.editorOptions };
-		let fileElement: FileElement;
-		if (e.element instanceof TextEditElement) {
-			fileElement = e.element.parent;
-			options.selection = e.element.edit.textEdit.textEdit.range;
+		wet options: Mutabwe<ITextEditowOptions> = { ...e.editowOptions };
+		wet fiweEwement: FiweEwement;
+		if (e.ewement instanceof TextEditEwement) {
+			fiweEwement = e.ewement.pawent;
+			options.sewection = e.ewement.edit.textEdit.textEdit.wange;
 
-		} else if (e.element instanceof FileElement) {
-			fileElement = e.element;
-			options.selection = e.element.edit.textEdits[0]?.textEdit.textEdit.range;
+		} ewse if (e.ewement instanceof FiweEwement) {
+			fiweEwement = e.ewement;
+			options.sewection = e.ewement.edit.textEdits[0]?.textEdit.textEdit.wange;
 
-		} else {
-			// invalid event
-			return;
+		} ewse {
+			// invawid event
+			wetuwn;
 		}
 
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(fileElement.edit.uri);
+		const pweviewUwi = BuwkEditPweviewPwovida.asPweviewUwi(fiweEwement.edit.uwi);
 
-		if (fileElement.edit.type & BulkFileOperationType.Delete) {
-			// delete -> show single editor
-			this._editorService.openEditor({
-				label: localize('edt.title.del', "{0} (delete, refactor preview)", basename(fileElement.edit.uri)),
-				resource: previewUri,
+		if (fiweEwement.edit.type & BuwkFiweOpewationType.Dewete) {
+			// dewete -> show singwe editow
+			this._editowSewvice.openEditow({
+				wabew: wocawize('edt.titwe.dew', "{0} (dewete, wefactow pweview)", basename(fiweEwement.edit.uwi)),
+				wesouwce: pweviewUwi,
 				options
 			});
 
-		} else {
-			// rename, create, edits -> show diff editr
-			let leftResource: URI | undefined;
-			try {
-				(await this._textModelService.createModelReference(fileElement.edit.uri)).dispose();
-				leftResource = fileElement.edit.uri;
+		} ewse {
+			// wename, cweate, edits -> show diff editw
+			wet weftWesouwce: UWI | undefined;
+			twy {
+				(await this._textModewSewvice.cweateModewWefewence(fiweEwement.edit.uwi)).dispose();
+				weftWesouwce = fiweEwement.edit.uwi;
 			} catch {
-				leftResource = BulkEditPreviewProvider.emptyPreview;
+				weftWesouwce = BuwkEditPweviewPwovida.emptyPweview;
 			}
 
-			let typeLabel: string | undefined;
-			if (fileElement.edit.type & BulkFileOperationType.Rename) {
-				typeLabel = localize('rename', "rename");
-			} else if (fileElement.edit.type & BulkFileOperationType.Create) {
-				typeLabel = localize('create', "create");
+			wet typeWabew: stwing | undefined;
+			if (fiweEwement.edit.type & BuwkFiweOpewationType.Wename) {
+				typeWabew = wocawize('wename', "wename");
+			} ewse if (fiweEwement.edit.type & BuwkFiweOpewationType.Cweate) {
+				typeWabew = wocawize('cweate', "cweate");
 			}
 
-			let label: string;
-			if (typeLabel) {
-				label = localize('edt.title.2', "{0} ({1}, refactor preview)", basename(fileElement.edit.uri), typeLabel);
-			} else {
-				label = localize('edt.title.1', "{0} (refactor preview)", basename(fileElement.edit.uri));
+			wet wabew: stwing;
+			if (typeWabew) {
+				wabew = wocawize('edt.titwe.2', "{0} ({1}, wefactow pweview)", basename(fiweEwement.edit.uwi), typeWabew);
+			} ewse {
+				wabew = wocawize('edt.titwe.1', "{0} (wefactow pweview)", basename(fiweEwement.edit.uwi));
 			}
 
-			this._editorService.openEditor({
-				original: { resource: leftResource },
-				modified: { resource: previewUri },
-				label,
-				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
+			this._editowSewvice.openEditow({
+				owiginaw: { wesouwce: weftWesouwce },
+				modified: { wesouwce: pweviewUwi },
+				wabew,
+				descwiption: this._wabewSewvice.getUwiWabew(diwname(weftWesouwce), { wewative: twue }),
 				options
-			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			}, e.sideBySide ? SIDE_GWOUP : ACTIVE_GWOUP);
 		}
 	}
 
-	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
-		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
+	pwivate _onContextMenu(e: ITweeContextMenuEvent<any>): void {
+		const menu = this._menuSewvice.cweateMenu(MenuId.BuwkEditContext, this._contextKeySewvice);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+		const disposabwe = cweateAndFiwwInContextMenuActions(menu, undefined, actions);
 
-		this._contextMenuService.showContextMenu({
+		this._contextMenuSewvice.showContextMenu({
 			getActions: () => actions,
-			getAnchor: () => e.anchor,
+			getAnchow: () => e.anchow,
 			onHide: () => {
-				disposable.dispose();
+				disposabwe.dispose();
 				menu.dispose();
 			}
 		});
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.insert { background-color: ${diffInsertedColor}; }`);
+	const diffInsewtedCowow = theme.getCowow(diffInsewted);
+	if (diffInsewtedCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .buwk-edit-panew .highwight.insewt { backgwound-cowow: ${diffInsewtedCowow}; }`);
 	}
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .bulk-edit-panel .highlight.remove { background-color: ${diffRemovedColor}; }`);
+	const diffWemovedCowow = theme.getCowow(diffWemoved);
+	if (diffWemovedCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .buwk-edit-panew .highwight.wemove { backgwound-cowow: ${diffWemovedCowow}; }`);
 	}
 });

@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, workspace } from 'vscode';
-import { filterEvent, IDisposable } from './util';
+impowt { ExtensionContext, wowkspace } fwom 'vscode';
+impowt { fiwtewEvent, IDisposabwe } fwom './utiw';
 
-export class TerminalEnvironmentManager {
+expowt cwass TewminawEnviwonmentManaga {
 
-	private readonly disposable: IDisposable;
+	pwivate weadonwy disposabwe: IDisposabwe;
 
-	private _enabled = false;
-	private set enabled(enabled: boolean) {
-		if (this._enabled === enabled) {
-			return;
+	pwivate _enabwed = fawse;
+	pwivate set enabwed(enabwed: boowean) {
+		if (this._enabwed === enabwed) {
+			wetuwn;
 		}
 
-		this._enabled = enabled;
-		this.context.environmentVariableCollection.clear();
+		this._enabwed = enabwed;
+		this.context.enviwonmentVawiabweCowwection.cweaw();
 
-		if (enabled) {
-			for (const name of Object.keys(this.env)) {
-				this.context.environmentVariableCollection.replace(name, this.env[name]);
+		if (enabwed) {
+			fow (const name of Object.keys(this.env)) {
+				this.context.enviwonmentVawiabweCowwection.wepwace(name, this.env[name]);
 			}
 		}
 	}
 
-	constructor(private readonly context: ExtensionContext, private readonly env: { [key: string]: string }) {
-		this.disposable = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git'))
-			(this.refresh, this);
+	constwuctow(pwivate weadonwy context: ExtensionContext, pwivate weadonwy env: { [key: stwing]: stwing }) {
+		this.disposabwe = fiwtewEvent(wowkspace.onDidChangeConfiguwation, e => e.affectsConfiguwation('git'))
+			(this.wefwesh, this);
 
-		this.refresh();
+		this.wefwesh();
 	}
 
-	private refresh(): void {
-		const config = workspace.getConfiguration('git', null);
-		this.enabled = config.get<boolean>('enabled', true) && config.get('terminalAuthentication', true);
+	pwivate wefwesh(): void {
+		const config = wowkspace.getConfiguwation('git', nuww);
+		this.enabwed = config.get<boowean>('enabwed', twue) && config.get('tewminawAuthentication', twue);
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposabwe.dispose();
 	}
 }

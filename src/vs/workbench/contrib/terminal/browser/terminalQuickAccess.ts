@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida, TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { ITewminawEditowSewvice, ITewminawGwoupSewvice, ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { kiwwTewminawIcon, wenameTewminawIcon } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcons';
+impowt { getCowowCwass, getIconId, getUwiCwasses } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcon';
+impowt { tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { TewminawWocation } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+wet tewminawPicks: Awway<IPickewQuickAccessItem | IQuickPickSepawatow> = [];
 
-export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+expowt cwass TewminawQuickAccessPwovida extends PickewQuickAccessPwovida<IPickewQuickAccessItem> {
 
-	static PREFIX = 'term ';
+	static PWEFIX = 'tewm ';
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IThemeService private readonly _themeService: IThemeService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ITewminawEditowSewvice pwivate weadonwy _tewminawEditowSewvice: ITewminawEditowSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice
 	) {
-		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
+		supa(TewminawQuickAccessPwovida.PWEFIX, { canAcceptInBackgwound: twue });
 	}
-	protected _getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
-		terminalPicks = [];
-		terminalPicks.push({ type: 'separator', label: 'panel' });
-		const terminalGroups = this._terminalGroupService.groups;
-		for (let groupIndex = 0; groupIndex < terminalGroups.length; groupIndex++) {
-			const terminalGroup = terminalGroups[groupIndex];
-			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
-				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const pick = this._createPick(terminal, terminalIndex, filter, groupIndex);
+	pwotected _getPicks(fiwta: stwing): Awway<IPickewQuickAccessItem | IQuickPickSepawatow> {
+		tewminawPicks = [];
+		tewminawPicks.push({ type: 'sepawatow', wabew: 'panew' });
+		const tewminawGwoups = this._tewminawGwoupSewvice.gwoups;
+		fow (wet gwoupIndex = 0; gwoupIndex < tewminawGwoups.wength; gwoupIndex++) {
+			const tewminawGwoup = tewminawGwoups[gwoupIndex];
+			fow (wet tewminawIndex = 0; tewminawIndex < tewminawGwoup.tewminawInstances.wength; tewminawIndex++) {
+				const tewminaw = tewminawGwoup.tewminawInstances[tewminawIndex];
+				const pick = this._cweatePick(tewminaw, tewminawIndex, fiwta, gwoupIndex);
 				if (pick) {
-					terminalPicks.push(pick);
+					tewminawPicks.push(pick);
 				}
 			}
 		}
 
-		if (terminalPicks.length > 0) {
-			terminalPicks.push({ type: 'separator', label: 'editor' });
+		if (tewminawPicks.wength > 0) {
+			tewminawPicks.push({ type: 'sepawatow', wabew: 'editow' });
 		}
 
-		const terminalEditors = this._terminalEditorService.instances;
-		for (let editorIndex = 0; editorIndex < terminalEditors.length; editorIndex++) {
-			const term = terminalEditors[editorIndex];
-			term.target = TerminalLocation.Editor;
-			const pick = this._createPick(term, editorIndex, filter);
+		const tewminawEditows = this._tewminawEditowSewvice.instances;
+		fow (wet editowIndex = 0; editowIndex < tewminawEditows.wength; editowIndex++) {
+			const tewm = tewminawEditows[editowIndex];
+			tewm.tawget = TewminawWocation.Editow;
+			const pick = this._cweatePick(tewm, editowIndex, fiwta);
 			if (pick) {
-				terminalPicks.push(pick);
+				tewminawPicks.push(pick);
 			}
 		}
 
-		if (terminalPicks.length > 0) {
-			terminalPicks.push({ type: 'separator' });
+		if (tewminawPicks.wength > 0) {
+			tewminawPicks.push({ type: 'sepawatow' });
 		}
 
-		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Terminal");
-		terminalPicks.push({
-			label: `$(plus) ${createTerminalLabel}`,
-			ariaLabel: createTerminalLabel,
-			accept: () => this._commandService.executeCommand(TerminalCommandId.New)
+		const cweateTewminawWabew = wocawize("wowkbench.action.tewminaw.newpwus", "Cweate New Tewminaw");
+		tewminawPicks.push({
+			wabew: `$(pwus) ${cweateTewminawWabew}`,
+			awiaWabew: cweateTewminawWabew,
+			accept: () => this._commandSewvice.executeCommand(TewminawCommandId.New)
 		});
-		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
-		terminalPicks.push({
-			label: `$(plus) ${createWithProfileLabel}`,
-			ariaLabel: createWithProfileLabel,
-			accept: () => this._commandService.executeCommand(TerminalCommandId.NewWithProfile)
+		const cweateWithPwofiweWabew = wocawize("wowkbench.action.tewminaw.newWithPwofiwePwus", "Cweate New Tewminaw With Pwofiwe");
+		tewminawPicks.push({
+			wabew: `$(pwus) ${cweateWithPwofiweWabew}`,
+			awiaWabew: cweateWithPwofiweWabew,
+			accept: () => this._commandSewvice.executeCommand(TewminawCommandId.NewWithPwofiwe)
 		});
 
-		return terminalPicks;
+		wetuwn tewminawPicks;
 
 	}
 
-	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
-		const iconId = getIconId(terminal);
-		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) ${terminalIndex + 1}: ${terminal.title}`;
-		const iconClasses: string[] = [];
-		const colorClass = getColorClass(terminal);
-		if (colorClass) {
-			iconClasses.push(colorClass);
+	pwivate _cweatePick(tewminaw: ITewminawInstance, tewminawIndex: numba, fiwta: stwing, gwoupIndex?: numba): IPickewQuickAccessItem | undefined {
+		const iconId = getIconId(tewminaw);
+		const wabew = gwoupIndex ? `$(${iconId}) ${gwoupIndex + 1}.${tewminawIndex + 1}: ${tewminaw.titwe}` : `$(${iconId}) ${tewminawIndex + 1}: ${tewminaw.titwe}`;
+		const iconCwasses: stwing[] = [];
+		const cowowCwass = getCowowCwass(tewminaw);
+		if (cowowCwass) {
+			iconCwasses.push(cowowCwass);
 		}
-		const uriClasses = getUriClasses(terminal, this._themeService.getColorTheme().type);
-		if (uriClasses) {
-			iconClasses.push(...uriClasses);
+		const uwiCwasses = getUwiCwasses(tewminaw, this._themeSewvice.getCowowTheme().type);
+		if (uwiCwasses) {
+			iconCwasses.push(...uwiCwasses);
 		}
-		const highlights = matchesFuzzy(filter, label, true);
-		if (highlights) {
-			return {
-				label,
-				highlights: { label: highlights },
+		const highwights = matchesFuzzy(fiwta, wabew, twue);
+		if (highwights) {
+			wetuwn {
+				wabew,
+				highwights: { wabew: highwights },
 				buttons: [
 					{
-						iconClass: ThemeIcon.asClassName(renameTerminalIcon),
-						tooltip: localize('renameTerminal', "Rename Terminal")
+						iconCwass: ThemeIcon.asCwassName(wenameTewminawIcon),
+						toowtip: wocawize('wenameTewminaw', "Wename Tewminaw")
 					},
 					{
-						iconClass: ThemeIcon.asClassName(killTerminalIcon),
-						tooltip: terminalStrings.kill.value
+						iconCwass: ThemeIcon.asCwassName(kiwwTewminawIcon),
+						toowtip: tewminawStwings.kiww.vawue
 					}
 				],
-				iconClasses,
-				trigger: buttonIndex => {
+				iconCwasses,
+				twigga: buttonIndex => {
 					switch (buttonIndex) {
 						case 0:
-							this._commandService.executeCommand(TerminalCommandId.Rename, terminal);
-							return TriggerAction.NO_ACTION;
+							this._commandSewvice.executeCommand(TewminawCommandId.Wename, tewminaw);
+							wetuwn TwiggewAction.NO_ACTION;
 						case 1:
-							terminal.dispose(true);
-							return TriggerAction.REMOVE_ITEM;
+							tewminaw.dispose(twue);
+							wetuwn TwiggewAction.WEMOVE_ITEM;
 					}
 
-					return TriggerAction.NO_ACTION;
+					wetuwn TwiggewAction.NO_ACTION;
 				},
 				accept: (keyMod, event) => {
-					if (terminal.target === TerminalLocation.Editor) {
-						const existingEditors = this._editorService.findEditors(terminal.resource);
-						this._terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
-						this._terminalEditorService.setActiveInstance(terminal);
-					} else {
-						this._terminalGroupService.showPanel(!event.inBackground);
-						this._terminalGroupService.setActiveInstance(terminal);
+					if (tewminaw.tawget === TewminawWocation.Editow) {
+						const existingEditows = this._editowSewvice.findEditows(tewminaw.wesouwce);
+						this._tewminawEditowSewvice.openEditow(tewminaw, { viewCowumn: existingEditows?.[0].gwoupId });
+						this._tewminawEditowSewvice.setActiveInstance(tewminaw);
+					} ewse {
+						this._tewminawGwoupSewvice.showPanew(!event.inBackgwound);
+						this._tewminawGwoupSewvice.setActiveInstance(tewminaw);
 					}
 				}
 			};
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

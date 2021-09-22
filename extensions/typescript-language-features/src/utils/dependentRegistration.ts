@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from './api';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom './api';
+impowt { Disposabwe } fwom './dispose';
 
-export class Condition extends Disposable {
-	private _value: boolean;
+expowt cwass Condition extends Disposabwe {
+	pwivate _vawue: boowean;
 
-	constructor(
-		private readonly getValue: () => boolean,
-		onUpdate: (handler: () => void) => void,
+	constwuctow(
+		pwivate weadonwy getVawue: () => boowean,
+		onUpdate: (handwa: () => void) => void,
 	) {
-		super();
-		this._value = this.getValue();
+		supa();
+		this._vawue = this.getVawue();
 
 		onUpdate(() => {
-			const newValue = this.getValue();
-			if (newValue !== this._value) {
-				this._value = newValue;
-				this._onDidChange.fire();
+			const newVawue = this.getVawue();
+			if (newVawue !== this._vawue) {
+				this._vawue = newVawue;
+				this._onDidChange.fiwe();
 			}
 		});
 	}
 
-	public get value(): boolean { return this._value; }
+	pubwic get vawue(): boowean { wetuwn this._vawue; }
 
-	private readonly _onDidChange = this._register(new vscode.EventEmitter<void>());
-	public readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDidChange = this._onDidChange.event;
 }
 
-class ConditionalRegistration {
-	private registration: vscode.Disposable | undefined = undefined;
+cwass ConditionawWegistwation {
+	pwivate wegistwation: vscode.Disposabwe | undefined = undefined;
 
-	public constructor(
-		private readonly conditions: readonly Condition[],
-		private readonly doRegister: () => vscode.Disposable
+	pubwic constwuctow(
+		pwivate weadonwy conditions: weadonwy Condition[],
+		pwivate weadonwy doWegista: () => vscode.Disposabwe
 	) {
-		for (const condition of conditions) {
+		fow (const condition of conditions) {
 			condition.onDidChange(() => this.update());
 		}
 		this.update();
 	}
 
-	public dispose() {
-		this.registration?.dispose();
-		this.registration = undefined;
+	pubwic dispose() {
+		this.wegistwation?.dispose();
+		this.wegistwation = undefined;
 	}
 
-	private update() {
-		const enabled = this.conditions.every(condition => condition.value);
-		if (enabled) {
-			if (!this.registration) {
-				this.registration = this.doRegister();
+	pwivate update() {
+		const enabwed = this.conditions.evewy(condition => condition.vawue);
+		if (enabwed) {
+			if (!this.wegistwation) {
+				this.wegistwation = this.doWegista();
 			}
-		} else {
-			if (this.registration) {
-				this.registration.dispose();
-				this.registration = undefined;
+		} ewse {
+			if (this.wegistwation) {
+				this.wegistwation.dispose();
+				this.wegistwation = undefined;
 			}
 		}
 	}
 }
 
-export function conditionalRegistration(
-	conditions: readonly Condition[],
-	doRegister: () => vscode.Disposable,
-): vscode.Disposable {
-	return new ConditionalRegistration(conditions, doRegister);
+expowt function conditionawWegistwation(
+	conditions: weadonwy Condition[],
+	doWegista: () => vscode.Disposabwe,
+): vscode.Disposabwe {
+	wetuwn new ConditionawWegistwation(conditions, doWegista);
 }
 
-export function requireMinVersion(
-	client: ITypeScriptServiceClient,
-	minVersion: API,
+expowt function wequiweMinVewsion(
+	cwient: ITypeScwiptSewviceCwient,
+	minVewsion: API,
 ) {
-	return new Condition(
-		() => client.apiVersion.gte(minVersion),
-		client.onTsServerStarted
+	wetuwn new Condition(
+		() => cwient.apiVewsion.gte(minVewsion),
+		cwient.onTsSewvewStawted
 	);
 }
 
-export function requireConfiguration(
-	language: string,
-	configValue: string,
+expowt function wequiweConfiguwation(
+	wanguage: stwing,
+	configVawue: stwing,
 ) {
-	return new Condition(
+	wetuwn new Condition(
 		() => {
-			const config = vscode.workspace.getConfiguration(language, null);
-			return !!config.get<boolean>(configValue);
+			const config = vscode.wowkspace.getConfiguwation(wanguage, nuww);
+			wetuwn !!config.get<boowean>(configVawue);
 		},
-		vscode.workspace.onDidChangeConfiguration
+		vscode.wowkspace.onDidChangeConfiguwation
 	);
 }
 
-export function requireSomeCapability(
-	client: ITypeScriptServiceClient,
-	...capabilities: readonly ClientCapability[]
+expowt function wequiweSomeCapabiwity(
+	cwient: ITypeScwiptSewviceCwient,
+	...capabiwities: weadonwy CwientCapabiwity[]
 ) {
-	return new Condition(
-		() => capabilities.some(requiredCapability => client.capabilities.has(requiredCapability)),
-		client.onDidChangeCapabilities
+	wetuwn new Condition(
+		() => capabiwities.some(wequiwedCapabiwity => cwient.capabiwities.has(wequiwedCapabiwity)),
+		cwient.onDidChangeCapabiwities
 	);
 }

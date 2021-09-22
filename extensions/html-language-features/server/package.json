@@ -1,32 +1,32 @@
 {
-  "name": "vscode-html-languageserver",
-  "description": "HTML language server",
-  "version": "1.0.0",
-  "author": "Microsoft Corporation",
-  "license": "MIT",
+  "name": "vscode-htmw-wanguagesewva",
+  "descwiption": "HTMW wanguage sewva",
+  "vewsion": "1.0.0",
+  "authow": "Micwosoft Cowpowation",
+  "wicense": "MIT",
   "engines": {
     "node": "*"
   },
-  "main": "./out/node/htmlServerMain",
+  "main": "./out/node/htmwSewvewMain",
   "dependencies": {
-    "vscode-css-languageservice": "^5.1.5",
-    "vscode-html-languageservice": "^4.0.8",
-    "vscode-languageserver": "^7.0.0",
-    "vscode-languageserver-textdocument": "^1.0.1",
-    "vscode-nls": "^5.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-css-wanguagesewvice": "^5.1.5",
+    "vscode-htmw-wanguagesewvice": "^4.0.8",
+    "vscode-wanguagesewva": "^7.0.0",
+    "vscode-wanguagesewva-textdocument": "^1.0.1",
+    "vscode-nws": "^5.0.0",
+    "vscode-uwi": "^3.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
     "@types/node": "14.x"
   },
-  "scripts": {
-    "compile": "npx gulp compile-extension:html-language-features-server",
-    "watch": "npx gulp watch-extension:html-language-features-server",
-    "install-service-next": "yarn add vscode-css-languageservice@next && yarn add vscode-html-languageservice@next",
-    "install-service-local": "yarn link vscode-css-languageservice && yarn link vscode-html-languageservice",
-    "install-server-next": "yarn add vscode-languageserver@next",
-    "install-server-local": "yarn link vscode-languageserver",
-    "test": "npm run compile && node ./test/index.js"
+  "scwipts": {
+    "compiwe": "npx guwp compiwe-extension:htmw-wanguage-featuwes-sewva",
+    "watch": "npx guwp watch-extension:htmw-wanguage-featuwes-sewva",
+    "instaww-sewvice-next": "yawn add vscode-css-wanguagesewvice@next && yawn add vscode-htmw-wanguagesewvice@next",
+    "instaww-sewvice-wocaw": "yawn wink vscode-css-wanguagesewvice && yawn wink vscode-htmw-wanguagesewvice",
+    "instaww-sewva-next": "yawn add vscode-wanguagesewva@next",
+    "instaww-sewva-wocaw": "yawn wink vscode-wanguagesewva",
+    "test": "npm wun compiwe && node ./test/index.js"
   }
 }

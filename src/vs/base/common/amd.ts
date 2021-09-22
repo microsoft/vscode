@@ -1,131 +1,131 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export abstract class LoaderStats {
-	abstract get amdLoad(): [string, number][];
-	abstract get amdInvoke(): [string, number][];
-	abstract get nodeRequire(): [string, number][];
-	abstract get nodeEval(): [string, number][];
-	abstract get nodeRequireTotal(): number;
+expowt abstwact cwass WoadewStats {
+	abstwact get amdWoad(): [stwing, numba][];
+	abstwact get amdInvoke(): [stwing, numba][];
+	abstwact get nodeWequiwe(): [stwing, numba][];
+	abstwact get nodeEvaw(): [stwing, numba][];
+	abstwact get nodeWequiweTotaw(): numba;
 
-	static get(): LoaderStats {
-		const amdLoadScript = new Map<string, number>();
-		const amdInvokeFactory = new Map<string, number>();
-		const nodeRequire = new Map<string, number>();
-		const nodeEval = new Map<string, number>();
+	static get(): WoadewStats {
+		const amdWoadScwipt = new Map<stwing, numba>();
+		const amdInvokeFactowy = new Map<stwing, numba>();
+		const nodeWequiwe = new Map<stwing, numba>();
+		const nodeEvaw = new Map<stwing, numba>();
 
-		function mark(map: Map<string, number>, stat: LoaderEvent) {
-			if (map.has(stat.detail)) {
-				// console.warn('BAD events, DOUBLE start', stat);
-				// map.delete(stat.detail);
-				return;
+		function mawk(map: Map<stwing, numba>, stat: WoadewEvent) {
+			if (map.has(stat.detaiw)) {
+				// consowe.wawn('BAD events, DOUBWE stawt', stat);
+				// map.dewete(stat.detaiw);
+				wetuwn;
 			}
-			map.set(stat.detail, -stat.timestamp);
+			map.set(stat.detaiw, -stat.timestamp);
 		}
 
-		function diff(map: Map<string, number>, stat: LoaderEvent) {
-			let duration = map.get(stat.detail);
-			if (!duration) {
-				// console.warn('BAD events, end WITHOUT start', stat);
-				// map.delete(stat.detail);
-				return;
+		function diff(map: Map<stwing, numba>, stat: WoadewEvent) {
+			wet duwation = map.get(stat.detaiw);
+			if (!duwation) {
+				// consowe.wawn('BAD events, end WITHOUT stawt', stat);
+				// map.dewete(stat.detaiw);
+				wetuwn;
 			}
-			if (duration >= 0) {
-				// console.warn('BAD events, DOUBLE end', stat);
-				// map.delete(stat.detail);
-				return;
+			if (duwation >= 0) {
+				// consowe.wawn('BAD events, DOUBWE end', stat);
+				// map.dewete(stat.detaiw);
+				wetuwn;
 			}
-			map.set(stat.detail, duration + stat.timestamp);
+			map.set(stat.detaiw, duwation + stat.timestamp);
 		}
 
-		const stats = require.getStats().slice(0).sort((a, b) => a.timestamp - b.timestamp);
+		const stats = wequiwe.getStats().swice(0).sowt((a, b) => a.timestamp - b.timestamp);
 
-		for (const stat of stats) {
+		fow (const stat of stats) {
 			switch (stat.type) {
-				case LoaderEventType.BeginLoadingScript:
-					mark(amdLoadScript, stat);
-					break;
-				case LoaderEventType.EndLoadingScriptOK:
-				case LoaderEventType.EndLoadingScriptError:
-					diff(amdLoadScript, stat);
-					break;
+				case WoadewEventType.BeginWoadingScwipt:
+					mawk(amdWoadScwipt, stat);
+					bweak;
+				case WoadewEventType.EndWoadingScwiptOK:
+				case WoadewEventType.EndWoadingScwiptEwwow:
+					diff(amdWoadScwipt, stat);
+					bweak;
 
-				case LoaderEventType.BeginInvokeFactory:
-					mark(amdInvokeFactory, stat);
-					break;
-				case LoaderEventType.EndInvokeFactory:
-					diff(amdInvokeFactory, stat);
-					break;
+				case WoadewEventType.BeginInvokeFactowy:
+					mawk(amdInvokeFactowy, stat);
+					bweak;
+				case WoadewEventType.EndInvokeFactowy:
+					diff(amdInvokeFactowy, stat);
+					bweak;
 
-				case LoaderEventType.NodeBeginNativeRequire:
-					mark(nodeRequire, stat);
-					break;
-				case LoaderEventType.NodeEndNativeRequire:
-					diff(nodeRequire, stat);
-					break;
+				case WoadewEventType.NodeBeginNativeWequiwe:
+					mawk(nodeWequiwe, stat);
+					bweak;
+				case WoadewEventType.NodeEndNativeWequiwe:
+					diff(nodeWequiwe, stat);
+					bweak;
 
-				case LoaderEventType.NodeBeginEvaluatingScript:
-					mark(nodeEval, stat);
-					break;
-				case LoaderEventType.NodeEndEvaluatingScript:
-					diff(nodeEval, stat);
-					break;
+				case WoadewEventType.NodeBeginEvawuatingScwipt:
+					mawk(nodeEvaw, stat);
+					bweak;
+				case WoadewEventType.NodeEndEvawuatingScwipt:
+					diff(nodeEvaw, stat);
+					bweak;
 			}
 		}
 
-		let nodeRequireTotal = 0;
-		nodeRequire.forEach(value => nodeRequireTotal += value);
+		wet nodeWequiweTotaw = 0;
+		nodeWequiwe.fowEach(vawue => nodeWequiweTotaw += vawue);
 
-		function to2dArray(map: Map<string, number>): [string, number][] {
-			let res: [string, number][] = [];
-			map.forEach((value, index) => res.push([index, value]));
-			return res;
+		function to2dAwway(map: Map<stwing, numba>): [stwing, numba][] {
+			wet wes: [stwing, numba][] = [];
+			map.fowEach((vawue, index) => wes.push([index, vawue]));
+			wetuwn wes;
 		}
 
-		return {
-			amdLoad: to2dArray(amdLoadScript),
-			amdInvoke: to2dArray(amdInvokeFactory),
-			nodeRequire: to2dArray(nodeRequire),
-			nodeEval: to2dArray(nodeEval),
-			nodeRequireTotal
+		wetuwn {
+			amdWoad: to2dAwway(amdWoadScwipt),
+			amdInvoke: to2dAwway(amdInvokeFactowy),
+			nodeWequiwe: to2dAwway(nodeWequiwe),
+			nodeEvaw: to2dAwway(nodeEvaw),
+			nodeWequiweTotaw
 		};
 	}
 
-	static toMarkdownTable(header: string[], rows: Array<Array<{ toString(): string } | undefined>>): string {
-		let result = '';
+	static toMawkdownTabwe(heada: stwing[], wows: Awway<Awway<{ toStwing(): stwing } | undefined>>): stwing {
+		wet wesuwt = '';
 
-		let lengths: number[] = [];
-		header.forEach((cell, ci) => {
-			lengths[ci] = cell.length;
+		wet wengths: numba[] = [];
+		heada.fowEach((ceww, ci) => {
+			wengths[ci] = ceww.wength;
 		});
-		rows.forEach(row => {
-			row.forEach((cell, ci) => {
-				if (typeof cell === 'undefined') {
-					cell = row[ci] = '-';
+		wows.fowEach(wow => {
+			wow.fowEach((ceww, ci) => {
+				if (typeof ceww === 'undefined') {
+					ceww = wow[ci] = '-';
 				}
-				const len = cell.toString().length;
-				lengths[ci] = Math.max(len, lengths[ci]);
+				const wen = ceww.toStwing().wength;
+				wengths[ci] = Math.max(wen, wengths[ci]);
 			});
 		});
 
-		// header
-		header.forEach((cell, ci) => { result += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `; });
-		result += '|\n';
-		header.forEach((_cell, ci) => { result += `| ${'-'.repeat(lengths[ci])} `; });
-		result += '|\n';
+		// heada
+		heada.fowEach((ceww, ci) => { wesuwt += `| ${ceww + ' '.wepeat(wengths[ci] - ceww.toStwing().wength)} `; });
+		wesuwt += '|\n';
+		heada.fowEach((_ceww, ci) => { wesuwt += `| ${'-'.wepeat(wengths[ci])} `; });
+		wesuwt += '|\n';
 
-		// cells
-		rows.forEach(row => {
-			row.forEach((cell, ci) => {
-				if (typeof cell !== 'undefined') {
-					result += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `;
+		// cewws
+		wows.fowEach(wow => {
+			wow.fowEach((ceww, ci) => {
+				if (typeof ceww !== 'undefined') {
+					wesuwt += `| ${ceww + ' '.wepeat(wengths[ci] - ceww.toStwing().wength)} `;
 				}
 			});
-			result += '|\n';
+			wesuwt += '|\n';
 		});
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

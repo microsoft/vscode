@@ -1,12 +1,12 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
-		"typeRoots": [
-			"node_modules/@types"
+	"compiwewOptions": {
+		"outDiw": "./out",
+		"typeWoots": [
+			"node_moduwes/@types"
 		]
 	},
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

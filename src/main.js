@@ -1,627 +1,627 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
 /**
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
- * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
- * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ * @typedef {impowt('./vs/base/common/pwoduct').IPwoductConfiguwation} IPwoductConfiguwation
+ * @typedef {impowt('./vs/base/node/wanguagePacks').NWSConfiguwation} NWSConfiguwation
+ * @typedef {impowt('./vs/pwatfowm/enviwonment/common/awgv').NativePawsedAwgs} NativePawsedAwgs
  */
 
-const perf = require('./vs/base/common/performance');
-perf.mark('code/didStartMain');
+const pewf = wequiwe('./vs/base/common/pewfowmance');
+pewf.mawk('code/didStawtMain');
 
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-/** @type {Partial<IProductConfiguration>} */
-const product = require('../product.json');
-const { app, protocol, crashReporter } = require('electron');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const os = wequiwe('os');
+const bootstwap = wequiwe('./bootstwap');
+const bootstwapNode = wequiwe('./bootstwap-node');
+const { getUsewDataPath } = wequiwe('./vs/pwatfowm/enviwonment/node/usewDataPath');
+/** @type {Pawtiaw<IPwoductConfiguwation>} */
+const pwoduct = wequiwe('../pwoduct.json');
+const { app, pwotocow, cwashWepowta } = wequiwe('ewectwon');
 
-// Disable render process reuse, we still have
-// non-context aware native modules in the renderer.
-app.allowRendererProcessReuse = false;
+// Disabwe wenda pwocess weuse, we stiww have
+// non-context awawe native moduwes in the wendewa.
+app.awwowWendewewPwocessWeuse = fawse;
 
-// Enable portable support
-const portable = bootstrapNode.configurePortable(product);
+// Enabwe powtabwe suppowt
+const powtabwe = bootstwapNode.configuwePowtabwe(pwoduct);
 
-// Enable ASAR support
-bootstrap.enableASARSupport();
+// Enabwe ASAW suppowt
+bootstwap.enabweASAWSuppowt();
 
-// Set userData path before app 'ready' event
-const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
-app.setPath('userData', userDataPath);
+// Set usewData path befowe app 'weady' event
+const awgs = pawseCWIAwgs();
+const usewDataPath = getUsewDataPath(awgs);
+app.setPath('usewData', usewDataPath);
 
-// Resolve code cache path
+// Wesowve code cache path
 const codeCachePath = getCodeCachePath();
 
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
+// Configuwe static command wine awguments
+const awgvConfig = configuweCommandwineSwitchesSync(awgs);
 
-// Configure crash reporter
-perf.mark('code/willStartCrashReporter');
-// If a crash-reporter-directory is specified we store the crash reports
-// in the specified directory and don't upload them to the crash server.
+// Configuwe cwash wepowta
+pewf.mawk('code/wiwwStawtCwashWepowta');
+// If a cwash-wepowta-diwectowy is specified we stowe the cwash wepowts
+// in the specified diwectowy and don't upwoad them to the cwash sewva.
 //
-// Appcenter crash reporting is enabled if
-// * enable-crash-reporter runtime argument is set to 'true'
-// * --disable-crash-reporter command line parameter is not set
+// Appcenta cwash wepowting is enabwed if
+// * enabwe-cwash-wepowta wuntime awgument is set to 'twue'
+// * --disabwe-cwash-wepowta command wine pawameta is not set
 //
-// Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
-	configureCrashReporter();
+// Disabwe cwash wepowting in aww otha cases.
+if (awgs['cwash-wepowta-diwectowy'] ||
+	(awgvConfig['enabwe-cwash-wepowta'] && !awgs['disabwe-cwash-wepowta'])) {
+	configuweCwashWepowta();
 }
-perf.mark('code/didStartCrashReporter');
+pewf.mawk('code/didStawtCwashWepowta');
 
-// Set logs path before app 'ready' event if running portable
-// to ensure that no 'logs' folder is created on disk at a
-// location outside of the portable directory
-// (https://github.com/microsoft/vscode/issues/56651)
-if (portable && portable.isPortable) {
-	app.setAppLogsPath(path.join(userDataPath, 'logs'));
+// Set wogs path befowe app 'weady' event if wunning powtabwe
+// to ensuwe that no 'wogs' fowda is cweated on disk at a
+// wocation outside of the powtabwe diwectowy
+// (https://github.com/micwosoft/vscode/issues/56651)
+if (powtabwe && powtabwe.isPowtabwe) {
+	app.setAppWogsPath(path.join(usewDataPath, 'wogs'));
 }
 
-// Register custom schemes with privileges
-protocol.registerSchemesAsPrivileged([
+// Wegista custom schemes with pwiviweges
+pwotocow.wegistewSchemesAsPwiviweged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
+		pwiviweges: { standawd: twue, secuwe: twue, suppowtFetchAPI: twue, cowsEnabwed: twue, awwowSewviceWowkews: twue, }
 	},
 	{
-		scheme: 'vscode-file',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		scheme: 'vscode-fiwe',
+		pwiviweges: { secuwe: twue, standawd: twue, suppowtFetchAPI: twue, cowsEnabwed: twue }
 	}
 ]);
 
-// Global app listeners
-registerListeners();
+// Gwobaw app wistenews
+wegistewWistenews();
 
 /**
- * Support user defined locale: load it early before app('ready')
- * to have more things running in parallel.
+ * Suppowt usa defined wocawe: woad it eawwy befowe app('weady')
+ * to have mowe things wunning in pawawwew.
  *
- * @type {Promise<NLSConfiguration> | undefined}
+ * @type {Pwomise<NWSConfiguwation> | undefined}
  */
-let nlsConfigurationPromise = undefined;
+wet nwsConfiguwationPwomise = undefined;
 
-const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-const locale = getUserDefinedLocale(argvConfig);
-if (locale) {
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+const metaDataFiwe = path.join(__diwname, 'nws.metadata.json');
+const wocawe = getUsewDefinedWocawe(awgvConfig);
+if (wocawe) {
+	const { getNWSConfiguwation } = wequiwe('./vs/base/node/wanguagePacks');
+	nwsConfiguwationPwomise = getNWSConfiguwation(pwoduct.commit, usewDataPath, metaDataFiwe, wocawe);
 }
 
-// Load our code once ready
-app.once('ready', function () {
-	if (args['trace']) {
-		const contentTracing = require('electron').contentTracing;
+// Woad ouw code once weady
+app.once('weady', function () {
+	if (awgs['twace']) {
+		const contentTwacing = wequiwe('ewectwon').contentTwacing;
 
-		const traceOptions = {
-			categoryFilter: args['trace-category-filter'] || '*',
-			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
+		const twaceOptions = {
+			categowyFiwta: awgs['twace-categowy-fiwta'] || '*',
+			twaceOptions: awgs['twace-options'] || 'wecowd-untiw-fuww,enabwe-sampwing'
 		};
 
-		contentTracing.startRecording(traceOptions).finally(() => onReady());
-	} else {
-		onReady();
+		contentTwacing.stawtWecowding(twaceOptions).finawwy(() => onWeady());
+	} ewse {
+		onWeady();
 	}
 });
 
 /**
- * Main startup routine
+ * Main stawtup woutine
  *
- * @param {string | undefined} codeCachePath
- * @param {NLSConfiguration} nlsConfig
+ * @pawam {stwing | undefined} codeCachePath
+ * @pawam {NWSConfiguwation} nwsConfig
  */
-function startup(codeCachePath, nlsConfig) {
-	nlsConfig._languagePackSupport = true;
+function stawtup(codeCachePath, nwsConfig) {
+	nwsConfig._wanguagePackSuppowt = twue;
 
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
-	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
+	pwocess.env['VSCODE_NWS_CONFIG'] = JSON.stwingify(nwsConfig);
+	pwocess.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
-	// Load main in AMD
-	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
+	// Woad main in AMD
+	pewf.mawk('code/wiwwWoadMainBundwe');
+	wequiwe('./bootstwap-amd').woad('vs/code/ewectwon-main/main', () => {
+		pewf.mawk('code/didWoadMainBundwe');
 	});
 }
 
-async function onReady() {
-	perf.mark('code/mainAppReady');
+async function onWeady() {
+	pewf.mawk('code/mainAppWeady');
 
-	try {
-		const [, nlsConfig] = await Promise.all([mkdirpIgnoreError(codeCachePath), resolveNlsConfiguration()]);
+	twy {
+		const [, nwsConfig] = await Pwomise.aww([mkdiwpIgnoweEwwow(codeCachePath), wesowveNwsConfiguwation()]);
 
-		startup(codeCachePath, nlsConfig);
-	} catch (error) {
-		console.error(error);
+		stawtup(codeCachePath, nwsConfig);
+	} catch (ewwow) {
+		consowe.ewwow(ewwow);
 	}
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
+ * @pawam {NativePawsedAwgs} cwiAwgs
  */
-function configureCommandlineSwitchesSync(cliArgs) {
-	const SUPPORTED_ELECTRON_SWITCHES = [
+function configuweCommandwineSwitchesSync(cwiAwgs) {
+	const SUPPOWTED_EWECTWON_SWITCHES = [
 
-		// alias from us for --disable-gpu
-		'disable-hardware-acceleration',
+		// awias fwom us fow --disabwe-gpu
+		'disabwe-hawdwawe-accewewation',
 
-		// provided by Electron
-		'disable-color-correct-rendering',
+		// pwovided by Ewectwon
+		'disabwe-cowow-cowwect-wendewing',
 
-		// override for the color profile to use
-		'force-color-profile'
+		// ovewwide fow the cowow pwofiwe to use
+		'fowce-cowow-pwofiwe'
 	];
 
-	if (process.platform === 'linux') {
+	if (pwocess.pwatfowm === 'winux') {
 
-		// Force enable screen readers on Linux via this flag
-		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+		// Fowce enabwe scween weadews on Winux via this fwag
+		SUPPOWTED_EWECTWON_SWITCHES.push('fowce-wendewa-accessibiwity');
 	}
 
-	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
+	const SUPPOWTED_MAIN_PWOCESS_SWITCHES = [
 
-		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
-		'enable-proposed-api',
+		// Pewsistentwy enabwe pwoposed api via awgv.json: https://github.com/micwosoft/vscode/issues/99775
+		'enabwe-pwoposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		// Wog wevew to use. Defauwt is 'info'. Awwowed vawues awe 'cwiticaw', 'ewwow', 'wawn', 'info', 'debug', 'twace', 'off'.
+		'wog-wevew'
 	];
 
-	// Read argv config
-	const argvConfig = readArgvConfigSync();
+	// Wead awgv config
+	const awgvConfig = weadAwgvConfigSync();
 
-	Object.keys(argvConfig).forEach(argvKey => {
-		const argvValue = argvConfig[argvKey];
+	Object.keys(awgvConfig).fowEach(awgvKey => {
+		const awgvVawue = awgvConfig[awgvKey];
 
-		// Append Electron flags to Electron
-		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
+		// Append Ewectwon fwags to Ewectwon
+		if (SUPPOWTED_EWECTWON_SWITCHES.indexOf(awgvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
-				if (argvValue) {
-					app.commandLine.appendSwitch(argvKey, argvValue);
+			// Cowow pwofiwe
+			if (awgvKey === 'fowce-cowow-pwofiwe') {
+				if (awgvVawue) {
+					app.commandWine.appendSwitch(awgvKey, awgvVawue);
 				}
 			}
 
-			// Others
-			else if (argvValue === true || argvValue === 'true') {
-				if (argvKey === 'disable-hardware-acceleration') {
-					app.disableHardwareAcceleration(); // needs to be called explicitly
-				} else {
-					app.commandLine.appendSwitch(argvKey);
+			// Othews
+			ewse if (awgvVawue === twue || awgvVawue === 'twue') {
+				if (awgvKey === 'disabwe-hawdwawe-accewewation') {
+					app.disabweHawdwaweAccewewation(); // needs to be cawwed expwicitwy
+				} ewse {
+					app.commandWine.appendSwitch(awgvKey);
 				}
 			}
 		}
 
-		// Append main process flags to process.argv
-		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
-			switch (argvKey) {
-				case 'enable-proposed-api':
-					if (Array.isArray(argvValue)) {
-						argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
-					} else {
-						console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+		// Append main pwocess fwags to pwocess.awgv
+		ewse if (SUPPOWTED_MAIN_PWOCESS_SWITCHES.indexOf(awgvKey) !== -1) {
+			switch (awgvKey) {
+				case 'enabwe-pwoposed-api':
+					if (Awway.isAwway(awgvVawue)) {
+						awgvVawue.fowEach(id => id && typeof id === 'stwing' && pwocess.awgv.push('--enabwe-pwoposed-api', id));
+					} ewse {
+						consowe.ewwow(`Unexpected vawue fow \`enabwe-pwoposed-api\` in awgv.json. Expected awway of extension ids.`);
 					}
-					break;
+					bweak;
 
-				case 'log-level':
-					if (typeof argvValue === 'string') {
-						process.argv.push('--log', argvValue);
+				case 'wog-wevew':
+					if (typeof awgvVawue === 'stwing') {
+						pwocess.awgv.push('--wog', awgvVawue);
 					}
-					break;
+					bweak;
 			}
 		}
 	});
 
-	// Support JS Flags
-	const jsFlags = getJSFlags(cliArgs);
-	if (jsFlags) {
-		app.commandLine.appendSwitch('js-flags', jsFlags);
+	// Suppowt JS Fwags
+	const jsFwags = getJSFwags(cwiAwgs);
+	if (jsFwags) {
+		app.commandWine.appendSwitch('js-fwags', jsFwags);
 	}
 
-	return argvConfig;
+	wetuwn awgvConfig;
 }
 
-function readArgvConfigSync() {
+function weadAwgvConfigSync() {
 
-	// Read or create the argv.json config file sync before app('ready')
-	const argvConfigPath = getArgvConfigPath();
-	let argvConfig;
-	try {
-		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
-	} catch (error) {
-		if (error && error.code === 'ENOENT') {
-			createDefaultArgvConfigSync(argvConfigPath);
-		} else {
-			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+	// Wead ow cweate the awgv.json config fiwe sync befowe app('weady')
+	const awgvConfigPath = getAwgvConfigPath();
+	wet awgvConfig;
+	twy {
+		awgvConfig = JSON.pawse(stwipComments(fs.weadFiweSync(awgvConfigPath).toStwing()));
+	} catch (ewwow) {
+		if (ewwow && ewwow.code === 'ENOENT') {
+			cweateDefauwtAwgvConfigSync(awgvConfigPath);
+		} ewse {
+			consowe.wawn(`Unabwe to wead awgv.json configuwation fiwe in ${awgvConfigPath}, fawwing back to defauwts (${ewwow})`);
 		}
 	}
 
-	// Fallback to default
-	if (!argvConfig) {
-		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
+	// Fawwback to defauwt
+	if (!awgvConfig) {
+		awgvConfig = {
+			'disabwe-cowow-cowwect-wendewing': twue // Fowce pwe-Chwome-60 cowow pwofiwe handwing (fow https://github.com/micwosoft/vscode/issues/51791)
 		};
 	}
 
-	return argvConfig;
+	wetuwn awgvConfig;
 }
 
 /**
- * @param {string} argvConfigPath
+ * @pawam {stwing} awgvConfigPath
  */
-function createDefaultArgvConfigSync(argvConfigPath) {
-	try {
+function cweateDefauwtAwgvConfigSync(awgvConfigPath) {
+	twy {
 
-		// Ensure argv config parent exists
-		const argvConfigPathDirname = path.dirname(argvConfigPath);
-		if (!fs.existsSync(argvConfigPathDirname)) {
-			fs.mkdirSync(argvConfigPathDirname);
+		// Ensuwe awgv config pawent exists
+		const awgvConfigPathDiwname = path.diwname(awgvConfigPath);
+		if (!fs.existsSync(awgvConfigPathDiwname)) {
+			fs.mkdiwSync(awgvConfigPathDiwname);
 		}
 
-		// Default argv content
-		const defaultArgvConfigContent = [
-			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
-			'// Only a subset of arguments is currently supported to reduce the likelihood of breaking',
-			'// the installation.',
+		// Defauwt awgv content
+		const defauwtAwgvConfigContent = [
+			'// This configuwation fiwe awwows you to pass pewmanent command wine awguments to VS Code.',
+			'// Onwy a subset of awguments is cuwwentwy suppowted to weduce the wikewihood of bweaking',
+			'// the instawwation.',
 			'//',
-			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
+			'// PWEASE DO NOT CHANGE WITHOUT UNDEWSTANDING THE IMPACT',
 			'//',
-			'// NOTE: Changing this file requires a restart of VS Code.',
+			'// NOTE: Changing this fiwe wequiwes a westawt of VS Code.',
 			'{',
-			'	// Use software rendering instead of hardware accelerated rendering.',
-			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true,',
+			'	// Use softwawe wendewing instead of hawdwawe accewewated wendewing.',
+			'	// This can hewp in cases whewe you see wendewing issues in VS Code.',
+			'	// "disabwe-hawdwawe-accewewation": twue,',
 			'',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true',
+			'	// Enabwed by defauwt by VS Code to wesowve cowow issues in the wendewa',
+			'	// See https://github.com/micwosoft/vscode/issues/51791 fow detaiws',
+			'	"disabwe-cowow-cowwect-wendewing": twue',
 			'}'
 		];
 
-		// Create initial argv.json with default content
-		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
-	} catch (error) {
-		console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
+		// Cweate initiaw awgv.json with defauwt content
+		fs.wwiteFiweSync(awgvConfigPath, defauwtAwgvConfigContent.join('\n'));
+	} catch (ewwow) {
+		consowe.ewwow(`Unabwe to cweate awgv.json configuwation fiwe in ${awgvConfigPath}, fawwing back to defauwts (${ewwow})`);
 	}
 }
 
-function getArgvConfigPath() {
-	const vscodePortable = process.env['VSCODE_PORTABLE'];
-	if (vscodePortable) {
-		return path.join(vscodePortable, 'argv.json');
+function getAwgvConfigPath() {
+	const vscodePowtabwe = pwocess.env['VSCODE_POWTABWE'];
+	if (vscodePowtabwe) {
+		wetuwn path.join(vscodePowtabwe, 'awgv.json');
 	}
 
-	let dataFolderName = product.dataFolderName;
-	if (process.env['VSCODE_DEV']) {
-		dataFolderName = `${dataFolderName}-dev`;
+	wet dataFowdewName = pwoduct.dataFowdewName;
+	if (pwocess.env['VSCODE_DEV']) {
+		dataFowdewName = `${dataFowdewName}-dev`;
 	}
 
-	return path.join(os.homedir(), dataFolderName, 'argv.json');
+	wetuwn path.join(os.homediw(), dataFowdewName, 'awgv.json');
 }
 
-function configureCrashReporter() {
+function configuweCwashWepowta() {
 
-	let crashReporterDirectory = args['crash-reporter-directory'];
-	let submitURL = '';
-	if (crashReporterDirectory) {
-		crashReporterDirectory = path.normalize(crashReporterDirectory);
+	wet cwashWepowtewDiwectowy = awgs['cwash-wepowta-diwectowy'];
+	wet submitUWW = '';
+	if (cwashWepowtewDiwectowy) {
+		cwashWepowtewDiwectowy = path.nowmawize(cwashWepowtewDiwectowy);
 
-		if (!path.isAbsolute(crashReporterDirectory)) {
-			console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		if (!path.isAbsowute(cwashWepowtewDiwectowy)) {
+			consowe.ewwow(`The path '${cwashWepowtewDiwectowy}' specified fow --cwash-wepowta-diwectowy must be absowute.`);
 			app.exit(1);
 		}
 
-		if (!fs.existsSync(crashReporterDirectory)) {
-			try {
-				fs.mkdirSync(crashReporterDirectory);
-			} catch (error) {
-				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
+		if (!fs.existsSync(cwashWepowtewDiwectowy)) {
+			twy {
+				fs.mkdiwSync(cwashWepowtewDiwectowy);
+			} catch (ewwow) {
+				consowe.ewwow(`The path '${cwashWepowtewDiwectowy}' specified fow --cwash-wepowta-diwectowy does not seem to exist ow cannot be cweated.`);
 				app.exit(1);
 			}
 		}
 
-		// Crashes are stored in the crashDumps directory by default, so we
-		// need to change that directory to the provided one
-		console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
-		app.setPath('crashDumps', crashReporterDirectory);
+		// Cwashes awe stowed in the cwashDumps diwectowy by defauwt, so we
+		// need to change that diwectowy to the pwovided one
+		consowe.wog(`Found --cwash-wepowta-diwectowy awgument. Setting cwashDumps diwectowy to be '${cwashWepowtewDiwectowy}'`);
+		app.setPath('cwashDumps', cwashWepowtewDiwectowy);
 	}
 
-	// Otherwise we configure the crash reporter from product.json
-	else {
-		const appCenter = product.appCenter;
-		if (appCenter) {
-			const isWindows = (process.platform === 'win32');
-			const isLinux = (process.platform === 'linux');
-			const isDarwin = (process.platform === 'darwin');
-			const crashReporterId = argvConfig['crash-reporter-id'];
-			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-			if (uuidPattern.test(crashReporterId)) {
+	// Othewwise we configuwe the cwash wepowta fwom pwoduct.json
+	ewse {
+		const appCenta = pwoduct.appCenta;
+		if (appCenta) {
+			const isWindows = (pwocess.pwatfowm === 'win32');
+			const isWinux = (pwocess.pwatfowm === 'winux');
+			const isDawwin = (pwocess.pwatfowm === 'dawwin');
+			const cwashWepowtewId = awgvConfig['cwash-wepowta-id'];
+			const uuidPattewn = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+			if (uuidPattewn.test(cwashWepowtewId)) {
 				if (isWindows) {
-					switch (process.arch) {
+					switch (pwocess.awch) {
 						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
+							submitUWW = appCenta['win32-ia32'];
+							bweak;
 						case 'x64':
-							submitURL = appCenter['win32-x64'];
-							break;
-						case 'arm64':
-							submitURL = appCenter['win32-arm64'];
-							break;
+							submitUWW = appCenta['win32-x64'];
+							bweak;
+						case 'awm64':
+							submitUWW = appCenta['win32-awm64'];
+							bweak;
 					}
-				} else if (isDarwin) {
-					if (product.darwinUniversalAssetId) {
-						submitURL = appCenter['darwin-universal'];
-					} else {
-						switch (process.arch) {
+				} ewse if (isDawwin) {
+					if (pwoduct.dawwinUnivewsawAssetId) {
+						submitUWW = appCenta['dawwin-univewsaw'];
+					} ewse {
+						switch (pwocess.awch) {
 							case 'x64':
-								submitURL = appCenter['darwin'];
-								break;
-							case 'arm64':
-								submitURL = appCenter['darwin-arm64'];
-								break;
+								submitUWW = appCenta['dawwin'];
+								bweak;
+							case 'awm64':
+								submitUWW = appCenta['dawwin-awm64'];
+								bweak;
 						}
 					}
-				} else if (isLinux) {
-					submitURL = appCenter['linux-x64'];
+				} ewse if (isWinux) {
+					submitUWW = appCenta['winux-x64'];
 				}
-				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-				// Send the id for child node process that are explicitly starting crash reporter.
-				// For vscode this is ExtensionHost process currently.
-				const argv = process.argv;
-				const endOfArgsMarkerIndex = argv.indexOf('--');
-				if (endOfArgsMarkerIndex === -1) {
-					argv.push('--crash-reporter-id', crashReporterId);
-				} else {
-					// if the we have an argument "--" (end of argument marker)
-					// we cannot add arguments at the end. rather, we add
-					// arguments before the "--" marker.
-					argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+				submitUWW = submitUWW.concat('&uid=', cwashWepowtewId, '&iid=', cwashWepowtewId, '&sid=', cwashWepowtewId);
+				// Send the id fow chiwd node pwocess that awe expwicitwy stawting cwash wepowta.
+				// Fow vscode this is ExtensionHost pwocess cuwwentwy.
+				const awgv = pwocess.awgv;
+				const endOfAwgsMawkewIndex = awgv.indexOf('--');
+				if (endOfAwgsMawkewIndex === -1) {
+					awgv.push('--cwash-wepowta-id', cwashWepowtewId);
+				} ewse {
+					// if the we have an awgument "--" (end of awgument mawka)
+					// we cannot add awguments at the end. watha, we add
+					// awguments befowe the "--" mawka.
+					awgv.spwice(endOfAwgsMawkewIndex, 0, '--cwash-wepowta-id', cwashWepowtewId);
 				}
 			}
 		}
 	}
 
-	// Start crash reporter for all processes
-	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
-	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
-	crashReporter.start({
+	// Stawt cwash wepowta fow aww pwocesses
+	const pwoductName = (pwoduct.cwashWepowta ? pwoduct.cwashWepowta.pwoductName : undefined) || pwoduct.nameShowt;
+	const companyName = (pwoduct.cwashWepowta ? pwoduct.cwashWepowta.companyName : undefined) || 'Micwosoft';
+	const upwoadToSewva = !pwocess.env['VSCODE_DEV'] && submitUWW && !cwashWepowtewDiwectowy;
+	cwashWepowta.stawt({
 		companyName,
-		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
-		submitURL,
-		uploadToServer,
-		compress: true
+		pwoductName: pwocess.env['VSCODE_DEV'] ? `${pwoductName} Dev` : pwoductName,
+		submitUWW,
+		upwoadToSewva,
+		compwess: twue
 	});
 }
 
 /**
- * @param {NativeParsedArgs} cliArgs
- * @returns {string | null}
+ * @pawam {NativePawsedAwgs} cwiAwgs
+ * @wetuwns {stwing | nuww}
  */
-function getJSFlags(cliArgs) {
-	const jsFlags = [];
+function getJSFwags(cwiAwgs) {
+	const jsFwags = [];
 
-	// Add any existing JS flags we already got from the command line
-	if (cliArgs['js-flags']) {
-		jsFlags.push(cliArgs['js-flags']);
+	// Add any existing JS fwags we awweady got fwom the command wine
+	if (cwiAwgs['js-fwags']) {
+		jsFwags.push(cwiAwgs['js-fwags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
+	// Suppowt max-memowy fwag
+	if (cwiAwgs['max-memowy'] && !/max_owd_space_size=(\d+)/g.exec(cwiAwgs['js-fwags'])) {
+		jsFwags.push(`--max_owd_space_size=${cwiAwgs['max-memowy']}`);
 	}
 
-	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
+	wetuwn jsFwags.wength > 0 ? jsFwags.join(' ') : nuww;
 }
 
 /**
- * @returns {NativeParsedArgs}
+ * @wetuwns {NativePawsedAwgs}
  */
-function parseCLIArgs() {
-	const minimist = require('minimist');
+function pawseCWIAwgs() {
+	const minimist = wequiwe('minimist');
 
-	return minimist(process.argv, {
-		string: [
-			'user-data-dir',
-			'locale',
-			'js-flags',
-			'max-memory',
-			'crash-reporter-directory'
+	wetuwn minimist(pwocess.awgv, {
+		stwing: [
+			'usa-data-diw',
+			'wocawe',
+			'js-fwags',
+			'max-memowy',
+			'cwash-wepowta-diwectowy'
 		]
 	});
 }
 
-function registerListeners() {
+function wegistewWistenews() {
 
 	/**
-	 * macOS: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
-	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
+	 * macOS: when someone dwops a fiwe to the not-yet wunning VSCode, the open-fiwe event fiwes even befowe
+	 * the app-weady event. We wisten vewy eawwy fow open-fiwe and wememba this upon stawtup as path to open.
 	 *
-	 * @type {string[]}
+	 * @type {stwing[]}
 	 */
-	const macOpenFiles = [];
-	global['macOpenFiles'] = macOpenFiles;
-	app.on('open-file', function (event, path) {
-		macOpenFiles.push(path);
+	const macOpenFiwes = [];
+	gwobaw['macOpenFiwes'] = macOpenFiwes;
+	app.on('open-fiwe', function (event, path) {
+		macOpenFiwes.push(path);
 	});
 
 	/**
-	 * macOS: react to open-url requests.
+	 * macOS: weact to open-uww wequests.
 	 *
-	 * @type {string[]}
+	 * @type {stwing[]}
 	 */
-	const openUrls = [];
-	const onOpenUrl =
+	const openUwws = [];
+	const onOpenUww =
 		/**
-		 * @param {{ preventDefault: () => void; }} event
-		 * @param {string} url
+		 * @pawam {{ pweventDefauwt: () => void; }} event
+		 * @pawam {stwing} uww
 		 */
-		function (event, url) {
-			event.preventDefault();
+		function (event, uww) {
+			event.pweventDefauwt();
 
-			openUrls.push(url);
+			openUwws.push(uww);
 		};
 
-	app.on('will-finish-launching', function () {
-		app.on('open-url', onOpenUrl);
+	app.on('wiww-finish-waunching', function () {
+		app.on('open-uww', onOpenUww);
 	});
 
-	global['getOpenUrls'] = function () {
-		app.removeListener('open-url', onOpenUrl);
+	gwobaw['getOpenUwws'] = function () {
+		app.wemoveWistena('open-uww', onOpenUww);
 
-		return openUrls;
+		wetuwn openUwws;
 	};
 }
 
 /**
- * @returns {string | undefined} the location to use for the code cache
- * or `undefined` if disabled.
+ * @wetuwns {stwing | undefined} the wocation to use fow the code cache
+ * ow `undefined` if disabwed.
  */
 function getCodeCachePath() {
 
-	// explicitly disabled via CLI args
-	if (process.argv.indexOf('--no-cached-data') > 0) {
-		return undefined;
+	// expwicitwy disabwed via CWI awgs
+	if (pwocess.awgv.indexOf('--no-cached-data') > 0) {
+		wetuwn undefined;
 	}
 
-	// running out of sources
-	if (process.env['VSCODE_DEV']) {
-		return undefined;
+	// wunning out of souwces
+	if (pwocess.env['VSCODE_DEV']) {
+		wetuwn undefined;
 	}
 
-	// require commit id
-	const commit = product.commit;
+	// wequiwe commit id
+	const commit = pwoduct.commit;
 	if (!commit) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	return path.join(userDataPath, 'CachedData', commit);
+	wetuwn path.join(usewDataPath, 'CachedData', commit);
 }
 
 /**
- * @param {string} dir
- * @returns {Promise<string>}
+ * @pawam {stwing} diw
+ * @wetuwns {Pwomise<stwing>}
  */
-function mkdirp(dir) {
-	const fs = require('fs');
+function mkdiwp(diw) {
+	const fs = wequiwe('fs');
 
-	return new Promise((resolve, reject) => {
-		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
+	wetuwn new Pwomise((wesowve, weject) => {
+		fs.mkdiw(diw, { wecuwsive: twue }, eww => (eww && eww.code !== 'EEXIST') ? weject(eww) : wesowve(diw));
 	});
 }
 
 /**
- * @param {string | undefined} dir
- * @returns {Promise<string | undefined>}
+ * @pawam {stwing | undefined} diw
+ * @wetuwns {Pwomise<stwing | undefined>}
  */
-async function mkdirpIgnoreError(dir) {
-	if (typeof dir === 'string') {
-		try {
-			await mkdirp(dir);
+async function mkdiwpIgnoweEwwow(diw) {
+	if (typeof diw === 'stwing') {
+		twy {
+			await mkdiwp(diw);
 
-			return dir;
-		} catch (error) {
-			// ignore
+			wetuwn diw;
+		} catch (ewwow) {
+			// ignowe
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-//#region NLS Support
+//#wegion NWS Suppowt
 
 /**
- * Resolve the NLS configuration
+ * Wesowve the NWS configuwation
  *
- * @return {Promise<NLSConfiguration>}
+ * @wetuwn {Pwomise<NWSConfiguwation>}
  */
-async function resolveNlsConfiguration() {
+async function wesowveNwsConfiguwation() {
 
-	// First, we need to test a user defined locale. If it fails we try the app locale.
-	// If that fails we fall back to English.
-	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
+	// Fiwst, we need to test a usa defined wocawe. If it faiws we twy the app wocawe.
+	// If that faiws we faww back to Engwish.
+	wet nwsConfiguwation = nwsConfiguwationPwomise ? await nwsConfiguwationPwomise : undefined;
+	if (!nwsConfiguwation) {
 
-		// Try to use the app locale. Please note that the app locale is only
-		// valid after we have received the app ready event. This is why the
-		// code is here.
-		let appLocale = app.getLocale();
-		if (!appLocale) {
-			nlsConfiguration = { locale: 'en', availableLanguages: {} };
-		} else {
+		// Twy to use the app wocawe. Pwease note that the app wocawe is onwy
+		// vawid afta we have weceived the app weady event. This is why the
+		// code is hewe.
+		wet appWocawe = app.getWocawe();
+		if (!appWocawe) {
+			nwsConfiguwation = { wocawe: 'en', avaiwabweWanguages: {} };
+		} ewse {
 
-			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
+			// See above the comment about the woada and case sensitiveness
+			appWocawe = appWocawe.toWowewCase();
 
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
-			if (!nlsConfiguration) {
-				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			const { getNWSConfiguwation } = wequiwe('./vs/base/node/wanguagePacks');
+			nwsConfiguwation = await getNWSConfiguwation(pwoduct.commit, usewDataPath, metaDataFiwe, appWocawe);
+			if (!nwsConfiguwation) {
+				nwsConfiguwation = { wocawe: appWocawe, avaiwabweWanguages: {} };
 			}
 		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	} ewse {
+		// We weceived a vawid nwsConfig fwom a usa defined wocawe
 	}
 
-	return nlsConfiguration;
+	wetuwn nwsConfiguwation;
 }
 
 /**
- * @param {string} content
- * @returns {string}
+ * @pawam {stwing} content
+ * @wetuwns {stwing}
  */
-function stripComments(content) {
-	const regexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+function stwipComments(content) {
+	const wegexp = /("(?:[^\\"]*(?:\\.)?)*")|('(?:[^\\']*(?:\\.)?)*')|(\/\*(?:\w?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\w?\n)|$))/g;
 
-	return content.replace(regexp, function (match, m1, m2, m3, m4) {
-		// Only one of m1, m2, m3, m4 matches
+	wetuwn content.wepwace(wegexp, function (match, m1, m2, m3, m4) {
+		// Onwy one of m1, m2, m3, m4 matches
 		if (m3) {
-			// A block comment. Replace with nothing
-			return '';
-		} else if (m4) {
-			// A line comment. If it ends in \r?\n then keep it.
-			const length_1 = m4.length;
-			if (length_1 > 2 && m4[length_1 - 1] === '\n') {
-				return m4[length_1 - 2] === '\r' ? '\r\n' : '\n';
+			// A bwock comment. Wepwace with nothing
+			wetuwn '';
+		} ewse if (m4) {
+			// A wine comment. If it ends in \w?\n then keep it.
+			const wength_1 = m4.wength;
+			if (wength_1 > 2 && m4[wength_1 - 1] === '\n') {
+				wetuwn m4[wength_1 - 2] === '\w' ? '\w\n' : '\n';
 			}
-			else {
-				return '';
+			ewse {
+				wetuwn '';
 			}
-		} else {
-			// We match a string
-			return match;
+		} ewse {
+			// We match a stwing
+			wetuwn match;
 		}
 	});
 }
 
 /**
- * Language tags are case insensitive however an amd loader is case sensitive
- * To make this work on case preserving & insensitive FS we do the following:
- * the language bundles have lower case language tags and we always lower case
- * the locale we receive from the user or OS.
+ * Wanguage tags awe case insensitive howeva an amd woada is case sensitive
+ * To make this wowk on case pwesewving & insensitive FS we do the fowwowing:
+ * the wanguage bundwes have wowa case wanguage tags and we awways wowa case
+ * the wocawe we weceive fwom the usa ow OS.
  *
- * @param {{ locale: string | undefined; }} argvConfig
- * @returns {string | undefined}
+ * @pawam {{ wocawe: stwing | undefined; }} awgvConfig
+ * @wetuwns {stwing | undefined}
  */
-function getUserDefinedLocale(argvConfig) {
-	const locale = args['locale'];
-	if (locale) {
-		return locale.toLowerCase(); // a directly provided --locale always wins
+function getUsewDefinedWocawe(awgvConfig) {
+	const wocawe = awgs['wocawe'];
+	if (wocawe) {
+		wetuwn wocawe.toWowewCase(); // a diwectwy pwovided --wocawe awways wins
 	}
 
-	return argvConfig.locale && typeof argvConfig.locale === 'string' ? argvConfig.locale.toLowerCase() : undefined;
+	wetuwn awgvConfig.wocawe && typeof awgvConfig.wocawe === 'stwing' ? awgvConfig.wocawe.toWowewCase() : undefined;
 }
 
-//#endregion
+//#endwegion

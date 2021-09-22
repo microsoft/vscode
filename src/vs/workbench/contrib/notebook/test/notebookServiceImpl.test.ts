@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { NotebookPwovidewInfoStowe } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookSewviceImpw';
+impowt { INotebookEditowModewWesowvewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewvice';
+impowt { NotebookPwovidewInfo } fwom 'vs/wowkbench/contwib/notebook/common/notebookPwovida';
+impowt { EditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowWesowvewSewvice';
+impowt { WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IExtensionSewvice, nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
 
-suite('NotebookProviderInfoStore', function () {
+suite('NotebookPwovidewInfoStowe', function () {
 
-	test('Can\'t open untitled notebooks in test #119363', function () {
+	test('Can\'t open untitwed notebooks in test #119363', function () {
 
-		const instantiationService = workbenchInstantiationService();
-		const store = new NotebookProviderInfoStore(
-			new class extends mock<IStorageService>() {
-				override get() { return ''; }
-				override store() { }
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		const stowe = new NotebookPwovidewInfoStowe(
+			new cwass extends mock<IStowageSewvice>() {
+				ovewwide get() { wetuwn ''; }
+				ovewwide stowe() { }
 			},
-			new class extends mock<IExtensionService>() {
-				override onDidRegisterExtensions = Event.None;
+			new cwass extends mock<IExtensionSewvice>() {
+				ovewwide onDidWegistewExtensions = Event.None;
 			},
-			instantiationService.createInstance(EditorResolverService),
-			new TestConfigurationService(),
-			new class extends mock<IAccessibilityService>() { },
-			instantiationService,
-			new class extends mock<IFileService>() {
-				override canHandleResource() { return true; }
+			instantiationSewvice.cweateInstance(EditowWesowvewSewvice),
+			new TestConfiguwationSewvice(),
+			new cwass extends mock<IAccessibiwitySewvice>() { },
+			instantiationSewvice,
+			new cwass extends mock<IFiweSewvice>() {
+				ovewwide canHandweWesouwce() { wetuwn twue; }
 			},
-			new class extends mock<INotebookEditorModelResolverService>() { }
+			new cwass extends mock<INotebookEditowModewWesowvewSewvice>() { }
 		);
 
-		const fooInfo = new NotebookProviderInfo({
-			extension: nullExtensionDescription.identifier,
+		const fooInfo = new NotebookPwovidewInfo({
+			extension: nuwwExtensionDescwiption.identifia,
 			id: 'foo',
-			displayName: 'foo',
-			selectors: [{ filenamePattern: '*.foo' }],
-			priority: RegisteredEditorPriority.default,
-			exclusive: false,
-			providerDisplayName: 'foo',
+			dispwayName: 'foo',
+			sewectows: [{ fiwenamePattewn: '*.foo' }],
+			pwiowity: WegistewedEditowPwiowity.defauwt,
+			excwusive: fawse,
+			pwovidewDispwayName: 'foo',
 		});
-		const barInfo = new NotebookProviderInfo({
-			extension: nullExtensionDescription.identifier,
-			id: 'bar',
-			displayName: 'bar',
-			selectors: [{ filenamePattern: '*.bar' }],
-			priority: RegisteredEditorPriority.default,
-			exclusive: false,
-			providerDisplayName: 'bar',
+		const bawInfo = new NotebookPwovidewInfo({
+			extension: nuwwExtensionDescwiption.identifia,
+			id: 'baw',
+			dispwayName: 'baw',
+			sewectows: [{ fiwenamePattewn: '*.baw' }],
+			pwiowity: WegistewedEditowPwiowity.defauwt,
+			excwusive: fawse,
+			pwovidewDispwayName: 'baw',
 		});
 
-		store.add(fooInfo);
-		store.add(barInfo);
+		stowe.add(fooInfo);
+		stowe.add(bawInfo);
 
-		assert.ok(store.get('foo'));
-		assert.ok(store.get('bar'));
-		assert.ok(!store.get('barfoo'));
+		assewt.ok(stowe.get('foo'));
+		assewt.ok(stowe.get('baw'));
+		assewt.ok(!stowe.get('bawfoo'));
 
-		let providers = store.getContributedNotebook(URI.parse('file:///test/nb.foo'));
-		assert.strictEqual(providers.length, 1);
-		assert.strictEqual(providers[0] === fooInfo, true);
+		wet pwovidews = stowe.getContwibutedNotebook(UWI.pawse('fiwe:///test/nb.foo'));
+		assewt.stwictEquaw(pwovidews.wength, 1);
+		assewt.stwictEquaw(pwovidews[0] === fooInfo, twue);
 
-		providers = store.getContributedNotebook(URI.parse('file:///test/nb.bar'));
-		assert.strictEqual(providers.length, 1);
-		assert.strictEqual(providers[0] === barInfo, true);
+		pwovidews = stowe.getContwibutedNotebook(UWI.pawse('fiwe:///test/nb.baw'));
+		assewt.stwictEquaw(pwovidews.wength, 1);
+		assewt.stwictEquaw(pwovidews[0] === bawInfo, twue);
 
-		providers = store.getContributedNotebook(URI.parse('untitled:///Untitled-1'));
-		assert.strictEqual(providers.length, 2);
-		assert.strictEqual(providers[0] === fooInfo, true);
-		assert.strictEqual(providers[1] === barInfo, true);
+		pwovidews = stowe.getContwibutedNotebook(UWI.pawse('untitwed:///Untitwed-1'));
+		assewt.stwictEquaw(pwovidews.wength, 2);
+		assewt.stwictEquaw(pwovidews[0] === fooInfo, twue);
+		assewt.stwictEquaw(pwovidews[1] === bawInfo, twue);
 
-		providers = store.getContributedNotebook(URI.parse('untitled:///test/nb.bar'));
-		assert.strictEqual(providers.length, 1);
-		assert.strictEqual(providers[0] === barInfo, true);
+		pwovidews = stowe.getContwibutedNotebook(UWI.pawse('untitwed:///test/nb.baw'));
+		assewt.stwictEquaw(pwovidews.wength, 1);
+		assewt.stwictEquaw(pwovidews[0] === bawInfo, twue);
 	});
 
 });

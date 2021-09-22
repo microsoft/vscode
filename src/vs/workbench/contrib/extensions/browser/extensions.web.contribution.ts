@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { RuntimeExtensionsEditor } from 'vs/workbench/contrib/extensions/browser/browserRuntimeExtensionsEditor';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { EditorExtensions } from 'vs/workbench/common/editor';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { WuntimeExtensionsEditow } fwom 'vs/wowkbench/contwib/extensions/bwowsa/bwowsewWuntimeExtensionsEditow';
+impowt { WuntimeExtensionsInput } fwom 'vs/wowkbench/contwib/extensions/common/wuntimeExtensionsInput';
+impowt { EditowExtensions } fwom 'vs/wowkbench/common/editow';
 
-// Running Extensions
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
-	[new SyncDescriptor(RuntimeExtensionsInput)]
+// Wunning Extensions
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(WuntimeExtensionsEditow, WuntimeExtensionsEditow.ID, wocawize('wuntimeExtension', "Wunning Extensions")),
+	[new SyncDescwiptow(WuntimeExtensionsInput)]
 );

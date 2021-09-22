@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { localize } from '../tsServer/versionProvider';
-import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { markdownDocumentation } from '../utils/previewer';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { wocawize } fwom '../tsSewva/vewsionPwovida';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient, SewvewType } fwom '../typescwiptSewvice';
+impowt { conditionawWegistwation, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt { mawkdownDocumentation } fwom '../utiws/pweviewa';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
 
-class TypeScriptHoverProvider implements vscode.HoverProvider {
+cwass TypeScwiptHovewPwovida impwements vscode.HovewPwovida {
 
-	public constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager,
+	pubwic constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
 	) { }
 
-	public async provideHover(
+	pubwic async pwovideHova(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.Hover | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
-		if (!filepath) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.Hova | undefined> {
+		const fiwepath = this.cwient.toOpenedFiwePath(document);
+		if (!fiwepath) {
+			wetuwn undefined;
 		}
 
-		const response = await this.client.interruptGetErr(async () => {
-			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+		const wesponse = await this.cwient.intewwuptGetEww(async () => {
+			await this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(document, token);
 
-			const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			return this.client.execute('quickinfo', args, token);
+			const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwepath, position);
+			wetuwn this.cwient.execute('quickinfo', awgs, token);
 		});
 
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return new vscode.Hover(
-			this.getContents(document.uri, response.body, response._serverType),
-			typeConverters.Range.fromTextSpan(response.body));
+		wetuwn new vscode.Hova(
+			this.getContents(document.uwi, wesponse.body, wesponse._sewvewType),
+			typeConvewtews.Wange.fwomTextSpan(wesponse.body));
 	}
 
-	private getContents(
-		resource: vscode.Uri,
-		data: Proto.QuickInfoResponseBody,
-		source: ServerType | undefined,
+	pwivate getContents(
+		wesouwce: vscode.Uwi,
+		data: Pwoto.QuickInfoWesponseBody,
+		souwce: SewvewType | undefined,
 	) {
-		const parts: vscode.MarkdownString[] = [];
+		const pawts: vscode.MawkdownStwing[] = [];
 
-		if (data.displayString) {
-			const displayParts: string[] = [];
+		if (data.dispwayStwing) {
+			const dispwayPawts: stwing[] = [];
 
-			if (source === ServerType.Syntax && this.client.hasCapabilityForResource(resource, ClientCapability.Semantic)) {
-				displayParts.push(
-					localize({
-						key: 'loadingPrefix',
-						comment: ['Prefix displayed for hover entries while the server is still loading']
-					}, "(loading...)"));
+			if (souwce === SewvewType.Syntax && this.cwient.hasCapabiwityFowWesouwce(wesouwce, CwientCapabiwity.Semantic)) {
+				dispwayPawts.push(
+					wocawize({
+						key: 'woadingPwefix',
+						comment: ['Pwefix dispwayed fow hova entwies whiwe the sewva is stiww woading']
+					}, "(woading...)"));
 			}
 
-			displayParts.push(data.displayString);
-			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
+			dispwayPawts.push(data.dispwayStwing);
+			pawts.push(new vscode.MawkdownStwing().appendCodebwock(dispwayPawts.join(' '), 'typescwipt'));
 		}
-		parts.push(markdownDocumentation(data.documentation, data.tags, this.client));
-		return parts;
+		pawts.push(mawkdownDocumentation(data.documentation, data.tags, this.cwient));
+		wetuwn pawts;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
-): vscode.Disposable {
-	return conditionalRegistration([
-		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
+): vscode.Disposabwe {
+	wetuwn conditionawWegistwation([
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.EnhancedSyntax, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerHoverProvider(selector.syntax,
-			new TypeScriptHoverProvider(client, fileConfigurationManager));
+		wetuwn vscode.wanguages.wegistewHovewPwovida(sewectow.syntax,
+			new TypeScwiptHovewPwovida(cwient, fiweConfiguwationManaga));
 	});
 }

@@ -1,1786 +1,1786 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextSnapshot } from 'vs/editor/common/model';
-import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { SearchData, Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, ITextSnapshot } fwom 'vs/editow/common/modew';
+impowt { NodeCowow, SENTINEW, TweeNode, fixInsewt, weftest, wbDewete, wighttest, updateTweeMetadata } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/wbTweeBase';
+impowt { SeawchData, Seawcha, cweateFindMatch, isVawidMatch } fwom 'vs/editow/common/modew/textModewSeawch';
 
-// const lfRegex = new RegExp(/\r\n|\r|\n/g);
-export const AverageBufferSize = 65535;
+// const wfWegex = new WegExp(/\w\n|\w|\n/g);
+expowt const AvewageBuffewSize = 65535;
 
-export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
-	let r;
-	if (arr[arr.length - 1] < 65536) {
-		r = new Uint16Array(arr.length);
-	} else {
-		r = new Uint32Array(arr.length);
+expowt function cweateUintAwway(aww: numba[]): Uint32Awway | Uint16Awway {
+	wet w;
+	if (aww[aww.wength - 1] < 65536) {
+		w = new Uint16Awway(aww.wength);
+	} ewse {
+		w = new Uint32Awway(aww.wength);
 	}
-	r.set(arr, 0);
-	return r;
+	w.set(aww, 0);
+	wetuwn w;
 }
 
-export class LineStarts {
-	constructor(
-		public readonly lineStarts: Uint32Array | Uint16Array | number[],
-		public readonly cr: number,
-		public readonly lf: number,
-		public readonly crlf: number,
-		public readonly isBasicASCII: boolean
+expowt cwass WineStawts {
+	constwuctow(
+		pubwic weadonwy wineStawts: Uint32Awway | Uint16Awway | numba[],
+		pubwic weadonwy cw: numba,
+		pubwic weadonwy wf: numba,
+		pubwic weadonwy cwwf: numba,
+		pubwic weadonwy isBasicASCII: boowean
 	) { }
 }
 
-export function createLineStartsFast(str: string, readonly: boolean = true): Uint32Array | Uint16Array | number[] {
-	let r: number[] = [0], rLength = 1;
+expowt function cweateWineStawtsFast(stw: stwing, weadonwy: boowean = twue): Uint32Awway | Uint16Awway | numba[] {
+	wet w: numba[] = [0], wWength = 1;
 
-	for (let i = 0, len = str.length; i < len; i++) {
-		const chr = str.charCodeAt(i);
+	fow (wet i = 0, wen = stw.wength; i < wen; i++) {
+		const chw = stw.chawCodeAt(i);
 
-		if (chr === CharCode.CarriageReturn) {
-			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
-				// \r\n... case
-				r[rLength++] = i + 2;
+		if (chw === ChawCode.CawwiageWetuwn) {
+			if (i + 1 < wen && stw.chawCodeAt(i + 1) === ChawCode.WineFeed) {
+				// \w\n... case
+				w[wWength++] = i + 2;
 				i++; // skip \n
-			} else {
-				// \r... case
-				r[rLength++] = i + 1;
+			} ewse {
+				// \w... case
+				w[wWength++] = i + 1;
 			}
-		} else if (chr === CharCode.LineFeed) {
-			r[rLength++] = i + 1;
+		} ewse if (chw === ChawCode.WineFeed) {
+			w[wWength++] = i + 1;
 		}
 	}
-	if (readonly) {
-		return createUintArray(r);
-	} else {
-		return r;
+	if (weadonwy) {
+		wetuwn cweateUintAwway(w);
+	} ewse {
+		wetuwn w;
 	}
 }
 
-export function createLineStarts(r: number[], str: string): LineStarts {
-	r.length = 0;
-	r[0] = 0;
-	let rLength = 1;
-	let cr = 0, lf = 0, crlf = 0;
-	let isBasicASCII = true;
-	for (let i = 0, len = str.length; i < len; i++) {
-		const chr = str.charCodeAt(i);
+expowt function cweateWineStawts(w: numba[], stw: stwing): WineStawts {
+	w.wength = 0;
+	w[0] = 0;
+	wet wWength = 1;
+	wet cw = 0, wf = 0, cwwf = 0;
+	wet isBasicASCII = twue;
+	fow (wet i = 0, wen = stw.wength; i < wen; i++) {
+		const chw = stw.chawCodeAt(i);
 
-		if (chr === CharCode.CarriageReturn) {
-			if (i + 1 < len && str.charCodeAt(i + 1) === CharCode.LineFeed) {
-				// \r\n... case
-				crlf++;
-				r[rLength++] = i + 2;
+		if (chw === ChawCode.CawwiageWetuwn) {
+			if (i + 1 < wen && stw.chawCodeAt(i + 1) === ChawCode.WineFeed) {
+				// \w\n... case
+				cwwf++;
+				w[wWength++] = i + 2;
 				i++; // skip \n
-			} else {
-				cr++;
-				// \r... case
-				r[rLength++] = i + 1;
+			} ewse {
+				cw++;
+				// \w... case
+				w[wWength++] = i + 1;
 			}
-		} else if (chr === CharCode.LineFeed) {
-			lf++;
-			r[rLength++] = i + 1;
-		} else {
+		} ewse if (chw === ChawCode.WineFeed) {
+			wf++;
+			w[wWength++] = i + 1;
+		} ewse {
 			if (isBasicASCII) {
-				if (chr !== CharCode.Tab && (chr < 32 || chr > 126)) {
-					isBasicASCII = false;
+				if (chw !== ChawCode.Tab && (chw < 32 || chw > 126)) {
+					isBasicASCII = fawse;
 				}
 			}
 		}
 	}
-	const result = new LineStarts(createUintArray(r), cr, lf, crlf, isBasicASCII);
-	r.length = 0;
+	const wesuwt = new WineStawts(cweateUintAwway(w), cw, wf, cwwf, isBasicASCII);
+	w.wength = 0;
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export interface NodePosition {
+expowt intewface NodePosition {
 	/**
 	 * Piece Index
 	 */
-	node: TreeNode;
+	node: TweeNode;
 	/**
-	 * remainer in current piece.
+	 * wemaina in cuwwent piece.
 	*/
-	remainder: number;
+	wemainda: numba;
 	/**
-	 * node start offset in document.
+	 * node stawt offset in document.
 	 */
-	nodeStartOffset: number;
+	nodeStawtOffset: numba;
 }
 
-export interface BufferCursor {
+expowt intewface BuffewCuwsow {
 	/**
-	 * Line number in current buffer
+	 * Wine numba in cuwwent buffa
 	 */
-	line: number;
+	wine: numba;
 	/**
-	 * Column number in current buffer
+	 * Cowumn numba in cuwwent buffa
 	 */
-	column: number;
+	cowumn: numba;
 }
 
-export class Piece {
-	readonly bufferIndex: number;
-	readonly start: BufferCursor;
-	readonly end: BufferCursor;
-	readonly length: number;
-	readonly lineFeedCnt: number;
+expowt cwass Piece {
+	weadonwy buffewIndex: numba;
+	weadonwy stawt: BuffewCuwsow;
+	weadonwy end: BuffewCuwsow;
+	weadonwy wength: numba;
+	weadonwy wineFeedCnt: numba;
 
-	constructor(bufferIndex: number, start: BufferCursor, end: BufferCursor, lineFeedCnt: number, length: number) {
-		this.bufferIndex = bufferIndex;
-		this.start = start;
+	constwuctow(buffewIndex: numba, stawt: BuffewCuwsow, end: BuffewCuwsow, wineFeedCnt: numba, wength: numba) {
+		this.buffewIndex = buffewIndex;
+		this.stawt = stawt;
 		this.end = end;
-		this.lineFeedCnt = lineFeedCnt;
-		this.length = length;
+		this.wineFeedCnt = wineFeedCnt;
+		this.wength = wength;
 	}
 }
 
-export class StringBuffer {
-	buffer: string;
-	lineStarts: Uint32Array | Uint16Array | number[];
+expowt cwass StwingBuffa {
+	buffa: stwing;
+	wineStawts: Uint32Awway | Uint16Awway | numba[];
 
-	constructor(buffer: string, lineStarts: Uint32Array | Uint16Array | number[]) {
-		this.buffer = buffer;
-		this.lineStarts = lineStarts;
+	constwuctow(buffa: stwing, wineStawts: Uint32Awway | Uint16Awway | numba[]) {
+		this.buffa = buffa;
+		this.wineStawts = wineStawts;
 	}
 }
 
 /**
- * Readonly snapshot for piece tree.
- * In a real multiple thread environment, to make snapshot reading always work correctly, we need to
- * 1. Make TreeNode.piece immutable, then reading and writing can run in parallel.
- * 2. TreeNode/Buffers normalization should not happen during snapshot reading.
+ * Weadonwy snapshot fow piece twee.
+ * In a weaw muwtipwe thwead enviwonment, to make snapshot weading awways wowk cowwectwy, we need to
+ * 1. Make TweeNode.piece immutabwe, then weading and wwiting can wun in pawawwew.
+ * 2. TweeNode/Buffews nowmawization shouwd not happen duwing snapshot weading.
  */
-class PieceTreeSnapshot implements ITextSnapshot {
-	private readonly _pieces: Piece[];
-	private _index: number;
-	private readonly _tree: PieceTreeBase;
-	private readonly _BOM: string;
+cwass PieceTweeSnapshot impwements ITextSnapshot {
+	pwivate weadonwy _pieces: Piece[];
+	pwivate _index: numba;
+	pwivate weadonwy _twee: PieceTweeBase;
+	pwivate weadonwy _BOM: stwing;
 
-	constructor(tree: PieceTreeBase, BOM: string) {
+	constwuctow(twee: PieceTweeBase, BOM: stwing) {
 		this._pieces = [];
-		this._tree = tree;
+		this._twee = twee;
 		this._BOM = BOM;
 		this._index = 0;
-		if (tree.root !== SENTINEL) {
-			tree.iterate(tree.root, node => {
-				if (node !== SENTINEL) {
+		if (twee.woot !== SENTINEW) {
+			twee.itewate(twee.woot, node => {
+				if (node !== SENTINEW) {
 					this._pieces.push(node.piece);
 				}
-				return true;
+				wetuwn twue;
 			});
 		}
 	}
 
-	read(): string | null {
-		if (this._pieces.length === 0) {
+	wead(): stwing | nuww {
+		if (this._pieces.wength === 0) {
 			if (this._index === 0) {
 				this._index++;
-				return this._BOM;
-			} else {
-				return null;
+				wetuwn this._BOM;
+			} ewse {
+				wetuwn nuww;
 			}
 		}
 
-		if (this._index > this._pieces.length - 1) {
-			return null;
+		if (this._index > this._pieces.wength - 1) {
+			wetuwn nuww;
 		}
 
 		if (this._index === 0) {
-			return this._BOM + this._tree.getPieceContent(this._pieces[this._index++]);
+			wetuwn this._BOM + this._twee.getPieceContent(this._pieces[this._index++]);
 		}
-		return this._tree.getPieceContent(this._pieces[this._index++]);
+		wetuwn this._twee.getPieceContent(this._pieces[this._index++]);
 	}
 }
 
-interface CacheEntry {
-	node: TreeNode;
-	nodeStartOffset: number;
-	nodeStartLineNumber?: number;
+intewface CacheEntwy {
+	node: TweeNode;
+	nodeStawtOffset: numba;
+	nodeStawtWineNumba?: numba;
 }
 
-class PieceTreeSearchCache {
-	private readonly _limit: number;
-	private _cache: CacheEntry[];
+cwass PieceTweeSeawchCache {
+	pwivate weadonwy _wimit: numba;
+	pwivate _cache: CacheEntwy[];
 
-	constructor(limit: number) {
-		this._limit = limit;
+	constwuctow(wimit: numba) {
+		this._wimit = wimit;
 		this._cache = [];
 	}
 
-	public get(offset: number): CacheEntry | null {
-		for (let i = this._cache.length - 1; i >= 0; i--) {
-			let nodePos = this._cache[i];
-			if (nodePos.nodeStartOffset <= offset && nodePos.nodeStartOffset + nodePos.node.piece.length >= offset) {
-				return nodePos;
+	pubwic get(offset: numba): CacheEntwy | nuww {
+		fow (wet i = this._cache.wength - 1; i >= 0; i--) {
+			wet nodePos = this._cache[i];
+			if (nodePos.nodeStawtOffset <= offset && nodePos.nodeStawtOffset + nodePos.node.piece.wength >= offset) {
+				wetuwn nodePos;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public get2(lineNumber: number): { node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number } | null {
-		for (let i = this._cache.length - 1; i >= 0; i--) {
-			let nodePos = this._cache[i];
-			if (nodePos.nodeStartLineNumber && nodePos.nodeStartLineNumber < lineNumber && nodePos.nodeStartLineNumber + nodePos.node.piece.lineFeedCnt >= lineNumber) {
-				return <{ node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number }>nodePos;
+	pubwic get2(wineNumba: numba): { node: TweeNode, nodeStawtOffset: numba, nodeStawtWineNumba: numba } | nuww {
+		fow (wet i = this._cache.wength - 1; i >= 0; i--) {
+			wet nodePos = this._cache[i];
+			if (nodePos.nodeStawtWineNumba && nodePos.nodeStawtWineNumba < wineNumba && nodePos.nodeStawtWineNumba + nodePos.node.piece.wineFeedCnt >= wineNumba) {
+				wetuwn <{ node: TweeNode, nodeStawtOffset: numba, nodeStawtWineNumba: numba }>nodePos;
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	public set(nodePosition: CacheEntry) {
-		if (this._cache.length >= this._limit) {
+	pubwic set(nodePosition: CacheEntwy) {
+		if (this._cache.wength >= this._wimit) {
 			this._cache.shift();
 		}
 		this._cache.push(nodePosition);
 	}
 
-	public validate(offset: number) {
-		let hasInvalidVal = false;
-		let tmp: Array<CacheEntry | null> = this._cache;
-		for (let i = 0; i < tmp.length; i++) {
-			let nodePos = tmp[i]!;
-			if (nodePos.node.parent === null || nodePos.nodeStartOffset >= offset) {
-				tmp[i] = null;
-				hasInvalidVal = true;
+	pubwic vawidate(offset: numba) {
+		wet hasInvawidVaw = fawse;
+		wet tmp: Awway<CacheEntwy | nuww> = this._cache;
+		fow (wet i = 0; i < tmp.wength; i++) {
+			wet nodePos = tmp[i]!;
+			if (nodePos.node.pawent === nuww || nodePos.nodeStawtOffset >= offset) {
+				tmp[i] = nuww;
+				hasInvawidVaw = twue;
 				continue;
 			}
 		}
 
-		if (hasInvalidVal) {
-			let newArr: CacheEntry[] = [];
-			for (const entry of tmp) {
-				if (entry !== null) {
-					newArr.push(entry);
+		if (hasInvawidVaw) {
+			wet newAww: CacheEntwy[] = [];
+			fow (const entwy of tmp) {
+				if (entwy !== nuww) {
+					newAww.push(entwy);
 				}
 			}
 
-			this._cache = newArr;
+			this._cache = newAww;
 		}
 	}
 }
 
-export class PieceTreeBase {
-	root!: TreeNode;
-	protected _buffers!: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
-	protected _lineCnt!: number;
-	protected _length!: number;
-	protected _EOL!: '\r\n' | '\n';
-	protected _EOLLength!: number;
-	protected _EOLNormalized!: boolean;
-	private _lastChangeBufferPos!: BufferCursor;
-	private _searchCache!: PieceTreeSearchCache;
-	private _lastVisitedLine!: { lineNumber: number; value: string; };
+expowt cwass PieceTweeBase {
+	woot!: TweeNode;
+	pwotected _buffews!: StwingBuffa[]; // 0 is change buffa, othews awe weadonwy owiginaw buffa.
+	pwotected _wineCnt!: numba;
+	pwotected _wength!: numba;
+	pwotected _EOW!: '\w\n' | '\n';
+	pwotected _EOWWength!: numba;
+	pwotected _EOWNowmawized!: boowean;
+	pwivate _wastChangeBuffewPos!: BuffewCuwsow;
+	pwivate _seawchCache!: PieceTweeSeawchCache;
+	pwivate _wastVisitedWine!: { wineNumba: numba; vawue: stwing; };
 
-	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
-		this.create(chunks, eol, eolNormalized);
+	constwuctow(chunks: StwingBuffa[], eow: '\w\n' | '\n', eowNowmawized: boowean) {
+		this.cweate(chunks, eow, eowNowmawized);
 	}
 
-	create(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
-		this._buffers = [
-			new StringBuffer('', [0])
+	cweate(chunks: StwingBuffa[], eow: '\w\n' | '\n', eowNowmawized: boowean) {
+		this._buffews = [
+			new StwingBuffa('', [0])
 		];
-		this._lastChangeBufferPos = { line: 0, column: 0 };
-		this.root = SENTINEL;
-		this._lineCnt = 1;
-		this._length = 0;
-		this._EOL = eol;
-		this._EOLLength = eol.length;
-		this._EOLNormalized = eolNormalized;
+		this._wastChangeBuffewPos = { wine: 0, cowumn: 0 };
+		this.woot = SENTINEW;
+		this._wineCnt = 1;
+		this._wength = 0;
+		this._EOW = eow;
+		this._EOWWength = eow.wength;
+		this._EOWNowmawized = eowNowmawized;
 
-		let lastNode: TreeNode | null = null;
-		for (let i = 0, len = chunks.length; i < len; i++) {
-			if (chunks[i].buffer.length > 0) {
-				if (!chunks[i].lineStarts) {
-					chunks[i].lineStarts = createLineStartsFast(chunks[i].buffer);
+		wet wastNode: TweeNode | nuww = nuww;
+		fow (wet i = 0, wen = chunks.wength; i < wen; i++) {
+			if (chunks[i].buffa.wength > 0) {
+				if (!chunks[i].wineStawts) {
+					chunks[i].wineStawts = cweateWineStawtsFast(chunks[i].buffa);
 				}
 
-				let piece = new Piece(
+				wet piece = new Piece(
 					i + 1,
-					{ line: 0, column: 0 },
-					{ line: chunks[i].lineStarts.length - 1, column: chunks[i].buffer.length - chunks[i].lineStarts[chunks[i].lineStarts.length - 1] },
-					chunks[i].lineStarts.length - 1,
-					chunks[i].buffer.length
+					{ wine: 0, cowumn: 0 },
+					{ wine: chunks[i].wineStawts.wength - 1, cowumn: chunks[i].buffa.wength - chunks[i].wineStawts[chunks[i].wineStawts.wength - 1] },
+					chunks[i].wineStawts.wength - 1,
+					chunks[i].buffa.wength
 				);
-				this._buffers.push(chunks[i]);
-				lastNode = this.rbInsertRight(lastNode, piece);
+				this._buffews.push(chunks[i]);
+				wastNode = this.wbInsewtWight(wastNode, piece);
 			}
 		}
 
-		this._searchCache = new PieceTreeSearchCache(1);
-		this._lastVisitedLine = { lineNumber: 0, value: '' };
-		this.computeBufferMetadata();
+		this._seawchCache = new PieceTweeSeawchCache(1);
+		this._wastVisitedWine = { wineNumba: 0, vawue: '' };
+		this.computeBuffewMetadata();
 	}
 
-	normalizeEOL(eol: '\r\n' | '\n') {
-		let averageBufferSize = AverageBufferSize;
-		let min = averageBufferSize - Math.floor(averageBufferSize / 3);
-		let max = min * 2;
+	nowmawizeEOW(eow: '\w\n' | '\n') {
+		wet avewageBuffewSize = AvewageBuffewSize;
+		wet min = avewageBuffewSize - Math.fwoow(avewageBuffewSize / 3);
+		wet max = min * 2;
 
-		let tempChunk = '';
-		let tempChunkLen = 0;
-		let chunks: StringBuffer[] = [];
+		wet tempChunk = '';
+		wet tempChunkWen = 0;
+		wet chunks: StwingBuffa[] = [];
 
-		this.iterate(this.root, node => {
-			let str = this.getNodeContent(node);
-			let len = str.length;
-			if (tempChunkLen <= min || tempChunkLen + len < max) {
-				tempChunk += str;
-				tempChunkLen += len;
-				return true;
+		this.itewate(this.woot, node => {
+			wet stw = this.getNodeContent(node);
+			wet wen = stw.wength;
+			if (tempChunkWen <= min || tempChunkWen + wen < max) {
+				tempChunk += stw;
+				tempChunkWen += wen;
+				wetuwn twue;
 			}
 
-			// flush anyways
-			let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
-			chunks.push(new StringBuffer(text, createLineStartsFast(text)));
-			tempChunk = str;
-			tempChunkLen = len;
-			return true;
+			// fwush anyways
+			wet text = tempChunk.wepwace(/\w\n|\w|\n/g, eow);
+			chunks.push(new StwingBuffa(text, cweateWineStawtsFast(text)));
+			tempChunk = stw;
+			tempChunkWen = wen;
+			wetuwn twue;
 		});
 
-		if (tempChunkLen > 0) {
-			let text = tempChunk.replace(/\r\n|\r|\n/g, eol);
-			chunks.push(new StringBuffer(text, createLineStartsFast(text)));
+		if (tempChunkWen > 0) {
+			wet text = tempChunk.wepwace(/\w\n|\w|\n/g, eow);
+			chunks.push(new StwingBuffa(text, cweateWineStawtsFast(text)));
 		}
 
-		this.create(chunks, eol, true);
+		this.cweate(chunks, eow, twue);
 	}
 
-	// #region Buffer API
-	public getEOL(): '\r\n' | '\n' {
-		return this._EOL;
+	// #wegion Buffa API
+	pubwic getEOW(): '\w\n' | '\n' {
+		wetuwn this._EOW;
 	}
 
-	public setEOL(newEOL: '\r\n' | '\n'): void {
-		this._EOL = newEOL;
-		this._EOLLength = this._EOL.length;
-		this.normalizeEOL(newEOL);
+	pubwic setEOW(newEOW: '\w\n' | '\n'): void {
+		this._EOW = newEOW;
+		this._EOWWength = this._EOW.wength;
+		this.nowmawizeEOW(newEOW);
 	}
 
-	public createSnapshot(BOM: string): ITextSnapshot {
-		return new PieceTreeSnapshot(this, BOM);
+	pubwic cweateSnapshot(BOM: stwing): ITextSnapshot {
+		wetuwn new PieceTweeSnapshot(this, BOM);
 	}
 
-	public equal(other: PieceTreeBase): boolean {
-		if (this.getLength() !== other.getLength()) {
-			return false;
+	pubwic equaw(otha: PieceTweeBase): boowean {
+		if (this.getWength() !== otha.getWength()) {
+			wetuwn fawse;
 		}
-		if (this.getLineCount() !== other.getLineCount()) {
-			return false;
+		if (this.getWineCount() !== otha.getWineCount()) {
+			wetuwn fawse;
 		}
 
-		let offset = 0;
-		let ret = this.iterate(this.root, node => {
-			if (node === SENTINEL) {
-				return true;
+		wet offset = 0;
+		wet wet = this.itewate(this.woot, node => {
+			if (node === SENTINEW) {
+				wetuwn twue;
 			}
-			let str = this.getNodeContent(node);
-			let len = str.length;
-			let startPosition = other.nodeAt(offset);
-			let endPosition = other.nodeAt(offset + len);
-			let val = other.getValueInRange2(startPosition, endPosition);
+			wet stw = this.getNodeContent(node);
+			wet wen = stw.wength;
+			wet stawtPosition = otha.nodeAt(offset);
+			wet endPosition = otha.nodeAt(offset + wen);
+			wet vaw = otha.getVawueInWange2(stawtPosition, endPosition);
 
-			return str === val;
+			wetuwn stw === vaw;
 		});
 
-		return ret;
+		wetuwn wet;
 	}
 
-	public getOffsetAt(lineNumber: number, column: number): number {
-		let leftLen = 0; // inorder
+	pubwic getOffsetAt(wineNumba: numba, cowumn: numba): numba {
+		wet weftWen = 0; // inowda
 
-		let x = this.root;
+		wet x = this.woot;
 
-		while (x !== SENTINEL) {
-			if (x.left !== SENTINEL && x.lf_left + 1 >= lineNumber) {
-				x = x.left;
-			} else if (x.lf_left + x.piece.lineFeedCnt + 1 >= lineNumber) {
-				leftLen += x.size_left;
-				// lineNumber >= 2
-				let accumualtedValInCurrentIndex = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				return leftLen += accumualtedValInCurrentIndex + column - 1;
-			} else {
-				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
-				leftLen += x.size_left + x.piece.length;
-				x = x.right;
+		whiwe (x !== SENTINEW) {
+			if (x.weft !== SENTINEW && x.wf_weft + 1 >= wineNumba) {
+				x = x.weft;
+			} ewse if (x.wf_weft + x.piece.wineFeedCnt + 1 >= wineNumba) {
+				weftWen += x.size_weft;
+				// wineNumba >= 2
+				wet accumuawtedVawInCuwwentIndex = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 2);
+				wetuwn weftWen += accumuawtedVawInCuwwentIndex + cowumn - 1;
+			} ewse {
+				wineNumba -= x.wf_weft + x.piece.wineFeedCnt;
+				weftWen += x.size_weft + x.piece.wength;
+				x = x.wight;
 			}
 		}
 
-		return leftLen;
+		wetuwn weftWen;
 	}
 
-	public getPositionAt(offset: number): Position {
-		offset = Math.floor(offset);
+	pubwic getPositionAt(offset: numba): Position {
+		offset = Math.fwoow(offset);
 		offset = Math.max(0, offset);
 
-		let x = this.root;
-		let lfCnt = 0;
-		let originalOffset = offset;
+		wet x = this.woot;
+		wet wfCnt = 0;
+		wet owiginawOffset = offset;
 
-		while (x !== SENTINEL) {
-			if (x.size_left !== 0 && x.size_left >= offset) {
-				x = x.left;
-			} else if (x.size_left + x.piece.length >= offset) {
-				let out = this.getIndexOf(x, offset - x.size_left);
+		whiwe (x !== SENTINEW) {
+			if (x.size_weft !== 0 && x.size_weft >= offset) {
+				x = x.weft;
+			} ewse if (x.size_weft + x.piece.wength >= offset) {
+				wet out = this.getIndexOf(x, offset - x.size_weft);
 
-				lfCnt += x.lf_left + out.index;
+				wfCnt += x.wf_weft + out.index;
 
 				if (out.index === 0) {
-					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
-					let column = originalOffset - lineStartOffset;
-					return new Position(lfCnt + 1, column + 1);
+					wet wineStawtOffset = this.getOffsetAt(wfCnt + 1, 1);
+					wet cowumn = owiginawOffset - wineStawtOffset;
+					wetuwn new Position(wfCnt + 1, cowumn + 1);
 				}
 
-				return new Position(lfCnt + 1, out.remainder + 1);
-			} else {
-				offset -= x.size_left + x.piece.length;
-				lfCnt += x.lf_left + x.piece.lineFeedCnt;
+				wetuwn new Position(wfCnt + 1, out.wemainda + 1);
+			} ewse {
+				offset -= x.size_weft + x.piece.wength;
+				wfCnt += x.wf_weft + x.piece.wineFeedCnt;
 
-				if (x.right === SENTINEL) {
-					// last node
-					let lineStartOffset = this.getOffsetAt(lfCnt + 1, 1);
-					let column = originalOffset - offset - lineStartOffset;
-					return new Position(lfCnt + 1, column + 1);
-				} else {
-					x = x.right;
+				if (x.wight === SENTINEW) {
+					// wast node
+					wet wineStawtOffset = this.getOffsetAt(wfCnt + 1, 1);
+					wet cowumn = owiginawOffset - offset - wineStawtOffset;
+					wetuwn new Position(wfCnt + 1, cowumn + 1);
+				} ewse {
+					x = x.wight;
 				}
 			}
 		}
 
-		return new Position(1, 1);
+		wetuwn new Position(1, 1);
 	}
 
-	public getValueInRange(range: Range, eol?: string): string {
-		if (range.startLineNumber === range.endLineNumber && range.startColumn === range.endColumn) {
-			return '';
+	pubwic getVawueInWange(wange: Wange, eow?: stwing): stwing {
+		if (wange.stawtWineNumba === wange.endWineNumba && wange.stawtCowumn === wange.endCowumn) {
+			wetuwn '';
 		}
 
-		let startPosition = this.nodeAt2(range.startLineNumber, range.startColumn);
-		let endPosition = this.nodeAt2(range.endLineNumber, range.endColumn);
+		wet stawtPosition = this.nodeAt2(wange.stawtWineNumba, wange.stawtCowumn);
+		wet endPosition = this.nodeAt2(wange.endWineNumba, wange.endCowumn);
 
-		let value = this.getValueInRange2(startPosition, endPosition);
-		if (eol) {
-			if (eol !== this._EOL || !this._EOLNormalized) {
-				return value.replace(/\r\n|\r|\n/g, eol);
+		wet vawue = this.getVawueInWange2(stawtPosition, endPosition);
+		if (eow) {
+			if (eow !== this._EOW || !this._EOWNowmawized) {
+				wetuwn vawue.wepwace(/\w\n|\w|\n/g, eow);
 			}
 
-			if (eol === this.getEOL() && this._EOLNormalized) {
-				if (eol === '\r\n') {
+			if (eow === this.getEOW() && this._EOWNowmawized) {
+				if (eow === '\w\n') {
 
 				}
-				return value;
+				wetuwn vawue;
 			}
-			return value.replace(/\r\n|\r|\n/g, eol);
+			wetuwn vawue.wepwace(/\w\n|\w|\n/g, eow);
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	public getValueInRange2(startPosition: NodePosition, endPosition: NodePosition): string {
-		if (startPosition.node === endPosition.node) {
-			let node = startPosition.node;
-			let buffer = this._buffers[node.piece.bufferIndex].buffer;
-			let startOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
-			return buffer.substring(startOffset + startPosition.remainder, startOffset + endPosition.remainder);
+	pubwic getVawueInWange2(stawtPosition: NodePosition, endPosition: NodePosition): stwing {
+		if (stawtPosition.node === endPosition.node) {
+			wet node = stawtPosition.node;
+			wet buffa = this._buffews[node.piece.buffewIndex].buffa;
+			wet stawtOffset = this.offsetInBuffa(node.piece.buffewIndex, node.piece.stawt);
+			wetuwn buffa.substwing(stawtOffset + stawtPosition.wemainda, stawtOffset + endPosition.wemainda);
 		}
 
-		let x = startPosition.node;
-		let buffer = this._buffers[x.piece.bufferIndex].buffer;
-		let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
-		let ret = buffer.substring(startOffset + startPosition.remainder, startOffset + x.piece.length);
+		wet x = stawtPosition.node;
+		wet buffa = this._buffews[x.piece.buffewIndex].buffa;
+		wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
+		wet wet = buffa.substwing(stawtOffset + stawtPosition.wemainda, stawtOffset + x.piece.wength);
 
 		x = x.next();
-		while (x !== SENTINEL) {
-			let buffer = this._buffers[x.piece.bufferIndex].buffer;
-			let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
+		whiwe (x !== SENTINEW) {
+			wet buffa = this._buffews[x.piece.buffewIndex].buffa;
+			wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
 
 			if (x === endPosition.node) {
-				ret += buffer.substring(startOffset, startOffset + endPosition.remainder);
-				break;
-			} else {
-				ret += buffer.substr(startOffset, x.piece.length);
+				wet += buffa.substwing(stawtOffset, stawtOffset + endPosition.wemainda);
+				bweak;
+			} ewse {
+				wet += buffa.substw(stawtOffset, x.piece.wength);
 			}
 
 			x = x.next();
 		}
 
-		return ret;
+		wetuwn wet;
 	}
 
-	public getLinesContent(): string[] {
-		let lines: string[] = [];
-		let linesLength = 0;
-		let currentLine = '';
-		let danglingCR = false;
+	pubwic getWinesContent(): stwing[] {
+		wet wines: stwing[] = [];
+		wet winesWength = 0;
+		wet cuwwentWine = '';
+		wet dangwingCW = fawse;
 
-		this.iterate(this.root, node => {
-			if (node === SENTINEL) {
-				return true;
+		this.itewate(this.woot, node => {
+			if (node === SENTINEW) {
+				wetuwn twue;
 			}
 
 			const piece = node.piece;
-			let pieceLength = piece.length;
-			if (pieceLength === 0) {
-				return true;
+			wet pieceWength = piece.wength;
+			if (pieceWength === 0) {
+				wetuwn twue;
 			}
 
-			const buffer = this._buffers[piece.bufferIndex].buffer;
-			const lineStarts = this._buffers[piece.bufferIndex].lineStarts;
+			const buffa = this._buffews[piece.buffewIndex].buffa;
+			const wineStawts = this._buffews[piece.buffewIndex].wineStawts;
 
-			const pieceStartLine = piece.start.line;
-			const pieceEndLine = piece.end.line;
-			let pieceStartOffset = lineStarts[pieceStartLine] + piece.start.column;
+			const pieceStawtWine = piece.stawt.wine;
+			const pieceEndWine = piece.end.wine;
+			wet pieceStawtOffset = wineStawts[pieceStawtWine] + piece.stawt.cowumn;
 
-			if (danglingCR) {
-				if (buffer.charCodeAt(pieceStartOffset) === CharCode.LineFeed) {
-					// pretend the \n was in the previous piece..
-					pieceStartOffset++;
-					pieceLength--;
+			if (dangwingCW) {
+				if (buffa.chawCodeAt(pieceStawtOffset) === ChawCode.WineFeed) {
+					// pwetend the \n was in the pwevious piece..
+					pieceStawtOffset++;
+					pieceWength--;
 				}
-				lines[linesLength++] = currentLine;
-				currentLine = '';
-				danglingCR = false;
-				if (pieceLength === 0) {
-					return true;
+				wines[winesWength++] = cuwwentWine;
+				cuwwentWine = '';
+				dangwingCW = fawse;
+				if (pieceWength === 0) {
+					wetuwn twue;
 				}
 			}
 
-			if (pieceStartLine === pieceEndLine) {
-				// this piece has no new lines
-				if (!this._EOLNormalized && buffer.charCodeAt(pieceStartOffset + pieceLength - 1) === CharCode.CarriageReturn) {
-					danglingCR = true;
-					currentLine += buffer.substr(pieceStartOffset, pieceLength - 1);
-				} else {
-					currentLine += buffer.substr(pieceStartOffset, pieceLength);
+			if (pieceStawtWine === pieceEndWine) {
+				// this piece has no new wines
+				if (!this._EOWNowmawized && buffa.chawCodeAt(pieceStawtOffset + pieceWength - 1) === ChawCode.CawwiageWetuwn) {
+					dangwingCW = twue;
+					cuwwentWine += buffa.substw(pieceStawtOffset, pieceWength - 1);
+				} ewse {
+					cuwwentWine += buffa.substw(pieceStawtOffset, pieceWength);
 				}
-				return true;
+				wetuwn twue;
 			}
 
-			// add the text before the first line start in this piece
-			currentLine += (
-				this._EOLNormalized
-					? buffer.substring(pieceStartOffset, Math.max(pieceStartOffset, lineStarts[pieceStartLine + 1] - this._EOLLength))
-					: buffer.substring(pieceStartOffset, lineStarts[pieceStartLine + 1]).replace(/(\r\n|\r|\n)$/, '')
+			// add the text befowe the fiwst wine stawt in this piece
+			cuwwentWine += (
+				this._EOWNowmawized
+					? buffa.substwing(pieceStawtOffset, Math.max(pieceStawtOffset, wineStawts[pieceStawtWine + 1] - this._EOWWength))
+					: buffa.substwing(pieceStawtOffset, wineStawts[pieceStawtWine + 1]).wepwace(/(\w\n|\w|\n)$/, '')
 			);
-			lines[linesLength++] = currentLine;
+			wines[winesWength++] = cuwwentWine;
 
-			for (let line = pieceStartLine + 1; line < pieceEndLine; line++) {
-				currentLine = (
-					this._EOLNormalized
-						? buffer.substring(lineStarts[line], lineStarts[line + 1] - this._EOLLength)
-						: buffer.substring(lineStarts[line], lineStarts[line + 1]).replace(/(\r\n|\r|\n)$/, '')
+			fow (wet wine = pieceStawtWine + 1; wine < pieceEndWine; wine++) {
+				cuwwentWine = (
+					this._EOWNowmawized
+						? buffa.substwing(wineStawts[wine], wineStawts[wine + 1] - this._EOWWength)
+						: buffa.substwing(wineStawts[wine], wineStawts[wine + 1]).wepwace(/(\w\n|\w|\n)$/, '')
 				);
-				lines[linesLength++] = currentLine;
+				wines[winesWength++] = cuwwentWine;
 			}
 
-			if (!this._EOLNormalized && buffer.charCodeAt(lineStarts[pieceEndLine] + piece.end.column - 1) === CharCode.CarriageReturn) {
-				danglingCR = true;
-				if (piece.end.column === 0) {
-					// The last line ended with a \r, let's undo the push, it will be pushed by next iteration
-					linesLength--;
-				} else {
-					currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column - 1);
+			if (!this._EOWNowmawized && buffa.chawCodeAt(wineStawts[pieceEndWine] + piece.end.cowumn - 1) === ChawCode.CawwiageWetuwn) {
+				dangwingCW = twue;
+				if (piece.end.cowumn === 0) {
+					// The wast wine ended with a \w, wet's undo the push, it wiww be pushed by next itewation
+					winesWength--;
+				} ewse {
+					cuwwentWine = buffa.substw(wineStawts[pieceEndWine], piece.end.cowumn - 1);
 				}
-			} else {
-				currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column);
+			} ewse {
+				cuwwentWine = buffa.substw(wineStawts[pieceEndWine], piece.end.cowumn);
 			}
 
-			return true;
+			wetuwn twue;
 		});
 
-		if (danglingCR) {
-			lines[linesLength++] = currentLine;
-			currentLine = '';
+		if (dangwingCW) {
+			wines[winesWength++] = cuwwentWine;
+			cuwwentWine = '';
 		}
 
-		lines[linesLength++] = currentLine;
-		return lines;
+		wines[winesWength++] = cuwwentWine;
+		wetuwn wines;
 	}
 
-	public getLength(): number {
-		return this._length;
+	pubwic getWength(): numba {
+		wetuwn this._wength;
 	}
 
-	public getLineCount(): number {
-		return this._lineCnt;
+	pubwic getWineCount(): numba {
+		wetuwn this._wineCnt;
 	}
 
-	public getLineContent(lineNumber: number): string {
-		if (this._lastVisitedLine.lineNumber === lineNumber) {
-			return this._lastVisitedLine.value;
+	pubwic getWineContent(wineNumba: numba): stwing {
+		if (this._wastVisitedWine.wineNumba === wineNumba) {
+			wetuwn this._wastVisitedWine.vawue;
 		}
 
-		this._lastVisitedLine.lineNumber = lineNumber;
+		this._wastVisitedWine.wineNumba = wineNumba;
 
-		if (lineNumber === this._lineCnt) {
-			this._lastVisitedLine.value = this.getLineRawContent(lineNumber);
-		} else if (this._EOLNormalized) {
-			this._lastVisitedLine.value = this.getLineRawContent(lineNumber, this._EOLLength);
-		} else {
-			this._lastVisitedLine.value = this.getLineRawContent(lineNumber).replace(/(\r\n|\r|\n)$/, '');
+		if (wineNumba === this._wineCnt) {
+			this._wastVisitedWine.vawue = this.getWineWawContent(wineNumba);
+		} ewse if (this._EOWNowmawized) {
+			this._wastVisitedWine.vawue = this.getWineWawContent(wineNumba, this._EOWWength);
+		} ewse {
+			this._wastVisitedWine.vawue = this.getWineWawContent(wineNumba).wepwace(/(\w\n|\w|\n)$/, '');
 		}
 
-		return this._lastVisitedLine.value;
+		wetuwn this._wastVisitedWine.vawue;
 	}
 
-	private _getCharCode(nodePos: NodePosition): number {
-		if (nodePos.remainder === nodePos.node.piece.length) {
-			// the char we want to fetch is at the head of next node.
-			let matchingNode = nodePos.node.next();
+	pwivate _getChawCode(nodePos: NodePosition): numba {
+		if (nodePos.wemainda === nodePos.node.piece.wength) {
+			// the chaw we want to fetch is at the head of next node.
+			wet matchingNode = nodePos.node.next();
 			if (!matchingNode) {
-				return 0;
+				wetuwn 0;
 			}
 
-			let buffer = this._buffers[matchingNode.piece.bufferIndex];
-			let startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
-			return buffer.buffer.charCodeAt(startOffset);
-		} else {
-			let buffer = this._buffers[nodePos.node.piece.bufferIndex];
-			let startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
-			let targetOffset = startOffset + nodePos.remainder;
+			wet buffa = this._buffews[matchingNode.piece.buffewIndex];
+			wet stawtOffset = this.offsetInBuffa(matchingNode.piece.buffewIndex, matchingNode.piece.stawt);
+			wetuwn buffa.buffa.chawCodeAt(stawtOffset);
+		} ewse {
+			wet buffa = this._buffews[nodePos.node.piece.buffewIndex];
+			wet stawtOffset = this.offsetInBuffa(nodePos.node.piece.buffewIndex, nodePos.node.piece.stawt);
+			wet tawgetOffset = stawtOffset + nodePos.wemainda;
 
-			return buffer.buffer.charCodeAt(targetOffset);
+			wetuwn buffa.buffa.chawCodeAt(tawgetOffset);
 		}
 	}
 
-	public getLineCharCode(lineNumber: number, index: number): number {
-		let nodePos = this.nodeAt2(lineNumber, index + 1);
-		return this._getCharCode(nodePos);
+	pubwic getWineChawCode(wineNumba: numba, index: numba): numba {
+		wet nodePos = this.nodeAt2(wineNumba, index + 1);
+		wetuwn this._getChawCode(nodePos);
 	}
 
-	public getLineLength(lineNumber: number): number {
-		if (lineNumber === this.getLineCount()) {
-			let startOffset = this.getOffsetAt(lineNumber, 1);
-			return this.getLength() - startOffset;
+	pubwic getWineWength(wineNumba: numba): numba {
+		if (wineNumba === this.getWineCount()) {
+			wet stawtOffset = this.getOffsetAt(wineNumba, 1);
+			wetuwn this.getWength() - stawtOffset;
 		}
-		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
+		wetuwn this.getOffsetAt(wineNumba + 1, 1) - this.getOffsetAt(wineNumba, 1) - this._EOWWength;
 	}
 
-	public getCharCode(offset: number): number {
-		let nodePos = this.nodeAt(offset);
-		return this._getCharCode(nodePos);
+	pubwic getChawCode(offset: numba): numba {
+		wet nodePos = this.nodeAt(offset);
+		wetuwn this._getChawCode(nodePos);
 	}
 
-	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
-		let buffer = this._buffers[node.piece.bufferIndex];
-		let startOffsetInBuffer = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
-		let start = this.offsetInBuffer(node.piece.bufferIndex, startCursor);
-		let end = this.offsetInBuffer(node.piece.bufferIndex, endCursor);
+	pubwic findMatchesInNode(node: TweeNode, seawcha: Seawcha, stawtWineNumba: numba, stawtCowumn: numba, stawtCuwsow: BuffewCuwsow, endCuwsow: BuffewCuwsow, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba, wesuwtWen: numba, wesuwt: FindMatch[]) {
+		wet buffa = this._buffews[node.piece.buffewIndex];
+		wet stawtOffsetInBuffa = this.offsetInBuffa(node.piece.buffewIndex, node.piece.stawt);
+		wet stawt = this.offsetInBuffa(node.piece.buffewIndex, stawtCuwsow);
+		wet end = this.offsetInBuffa(node.piece.buffewIndex, endCuwsow);
 
-		let m: RegExpExecArray | null;
-		// Reset regex to search from the beginning
-		let ret: BufferCursor = { line: 0, column: 0 };
-		let searchText: string;
-		let offsetInBuffer: (offset: number) => number;
+		wet m: WegExpExecAwway | nuww;
+		// Weset wegex to seawch fwom the beginning
+		wet wet: BuffewCuwsow = { wine: 0, cowumn: 0 };
+		wet seawchText: stwing;
+		wet offsetInBuffa: (offset: numba) => numba;
 
-		if (searcher._wordSeparators) {
-			searchText = buffer.buffer.substring(start, end);
-			offsetInBuffer = (offset: number) => offset + start;
-			searcher.reset(0);
-		} else {
-			searchText = buffer.buffer;
-			offsetInBuffer = (offset: number) => offset;
-			searcher.reset(start);
+		if (seawcha._wowdSepawatows) {
+			seawchText = buffa.buffa.substwing(stawt, end);
+			offsetInBuffa = (offset: numba) => offset + stawt;
+			seawcha.weset(0);
+		} ewse {
+			seawchText = buffa.buffa;
+			offsetInBuffa = (offset: numba) => offset;
+			seawcha.weset(stawt);
 		}
 
 		do {
-			m = searcher.next(searchText);
+			m = seawcha.next(seawchText);
 
 			if (m) {
-				if (offsetInBuffer(m.index) >= end) {
-					return resultLen;
+				if (offsetInBuffa(m.index) >= end) {
+					wetuwn wesuwtWen;
 				}
-				this.positionInBuffer(node, offsetInBuffer(m.index) - startOffsetInBuffer, ret);
-				let lineFeedCnt = this.getLineFeedCnt(node.piece.bufferIndex, startCursor, ret);
-				let retStartColumn = ret.line === startCursor.line ? ret.column - startCursor.column + startColumn : ret.column + 1;
-				let retEndColumn = retStartColumn + m[0].length;
-				result[resultLen++] = createFindMatch(new Range(startLineNumber + lineFeedCnt, retStartColumn, startLineNumber + lineFeedCnt, retEndColumn), m, captureMatches);
+				this.positionInBuffa(node, offsetInBuffa(m.index) - stawtOffsetInBuffa, wet);
+				wet wineFeedCnt = this.getWineFeedCnt(node.piece.buffewIndex, stawtCuwsow, wet);
+				wet wetStawtCowumn = wet.wine === stawtCuwsow.wine ? wet.cowumn - stawtCuwsow.cowumn + stawtCowumn : wet.cowumn + 1;
+				wet wetEndCowumn = wetStawtCowumn + m[0].wength;
+				wesuwt[wesuwtWen++] = cweateFindMatch(new Wange(stawtWineNumba + wineFeedCnt, wetStawtCowumn, stawtWineNumba + wineFeedCnt, wetEndCowumn), m, captuweMatches);
 
-				if (offsetInBuffer(m.index) + m[0].length >= end) {
-					return resultLen;
+				if (offsetInBuffa(m.index) + m[0].wength >= end) {
+					wetuwn wesuwtWen;
 				}
-				if (resultLen >= limitResultCount) {
-					return resultLen;
+				if (wesuwtWen >= wimitWesuwtCount) {
+					wetuwn wesuwtWen;
 				}
 			}
 
-		} while (m);
+		} whiwe (m);
 
-		return resultLen;
+		wetuwn wesuwtWen;
 	}
 
-	public findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
-		const result: FindMatch[] = [];
-		let resultLen = 0;
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+	pubwic findMatchesWineByWine(seawchWange: Wange, seawchData: SeawchData, captuweMatches: boowean, wimitWesuwtCount: numba): FindMatch[] {
+		const wesuwt: FindMatch[] = [];
+		wet wesuwtWen = 0;
+		const seawcha = new Seawcha(seawchData.wowdSepawatows, seawchData.wegex);
 
-		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
-		if (startPosition === null) {
-			return [];
+		wet stawtPosition = this.nodeAt2(seawchWange.stawtWineNumba, seawchWange.stawtCowumn);
+		if (stawtPosition === nuww) {
+			wetuwn [];
 		}
-		let endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
-		if (endPosition === null) {
-			return [];
+		wet endPosition = this.nodeAt2(seawchWange.endWineNumba, seawchWange.endCowumn);
+		if (endPosition === nuww) {
+			wetuwn [];
 		}
-		let start = this.positionInBuffer(startPosition.node, startPosition.remainder);
-		let end = this.positionInBuffer(endPosition.node, endPosition.remainder);
+		wet stawt = this.positionInBuffa(stawtPosition.node, stawtPosition.wemainda);
+		wet end = this.positionInBuffa(endPosition.node, endPosition.wemainda);
 
-		if (startPosition.node === endPosition.node) {
-			this.findMatchesInNode(startPosition.node, searcher, searchRange.startLineNumber, searchRange.startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
-			return result;
+		if (stawtPosition.node === endPosition.node) {
+			this.findMatchesInNode(stawtPosition.node, seawcha, seawchWange.stawtWineNumba, seawchWange.stawtCowumn, stawt, end, seawchData, captuweMatches, wimitWesuwtCount, wesuwtWen, wesuwt);
+			wetuwn wesuwt;
 		}
 
-		let startLineNumber = searchRange.startLineNumber;
+		wet stawtWineNumba = seawchWange.stawtWineNumba;
 
-		let currentNode = startPosition.node;
-		while (currentNode !== endPosition.node) {
-			let lineBreakCnt = this.getLineFeedCnt(currentNode.piece.bufferIndex, start, currentNode.piece.end);
+		wet cuwwentNode = stawtPosition.node;
+		whiwe (cuwwentNode !== endPosition.node) {
+			wet wineBweakCnt = this.getWineFeedCnt(cuwwentNode.piece.buffewIndex, stawt, cuwwentNode.piece.end);
 
-			if (lineBreakCnt >= 1) {
-				// last line break position
-				let lineStarts = this._buffers[currentNode.piece.bufferIndex].lineStarts;
-				let startOffsetInBuffer = this.offsetInBuffer(currentNode.piece.bufferIndex, currentNode.piece.start);
-				let nextLineStartOffset = lineStarts[start.line + lineBreakCnt];
-				let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
-				resultLen = this.findMatchesInNode(currentNode, searcher, startLineNumber, startColumn, start, this.positionInBuffer(currentNode, nextLineStartOffset - startOffsetInBuffer), searchData, captureMatches, limitResultCount, resultLen, result);
+			if (wineBweakCnt >= 1) {
+				// wast wine bweak position
+				wet wineStawts = this._buffews[cuwwentNode.piece.buffewIndex].wineStawts;
+				wet stawtOffsetInBuffa = this.offsetInBuffa(cuwwentNode.piece.buffewIndex, cuwwentNode.piece.stawt);
+				wet nextWineStawtOffset = wineStawts[stawt.wine + wineBweakCnt];
+				wet stawtCowumn = stawtWineNumba === seawchWange.stawtWineNumba ? seawchWange.stawtCowumn : 1;
+				wesuwtWen = this.findMatchesInNode(cuwwentNode, seawcha, stawtWineNumba, stawtCowumn, stawt, this.positionInBuffa(cuwwentNode, nextWineStawtOffset - stawtOffsetInBuffa), seawchData, captuweMatches, wimitWesuwtCount, wesuwtWen, wesuwt);
 
-				if (resultLen >= limitResultCount) {
-					return result;
+				if (wesuwtWen >= wimitWesuwtCount) {
+					wetuwn wesuwt;
 				}
 
-				startLineNumber += lineBreakCnt;
+				stawtWineNumba += wineBweakCnt;
 			}
 
-			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
-			// search for the remaining content
-			if (startLineNumber === searchRange.endLineNumber) {
-				const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
-				resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
-				return result;
+			wet stawtCowumn = stawtWineNumba === seawchWange.stawtWineNumba ? seawchWange.stawtCowumn - 1 : 0;
+			// seawch fow the wemaining content
+			if (stawtWineNumba === seawchWange.endWineNumba) {
+				const text = this.getWineContent(stawtWineNumba).substwing(stawtCowumn, seawchWange.endCowumn - 1);
+				wesuwtWen = this._findMatchesInWine(seawchData, seawcha, text, seawchWange.endWineNumba, stawtCowumn, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
+				wetuwn wesuwt;
 			}
 
-			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber).substr(startColumn), startLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
+			wesuwtWen = this._findMatchesInWine(seawchData, seawcha, this.getWineContent(stawtWineNumba).substw(stawtCowumn), stawtWineNumba, stawtCowumn, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
 
-			if (resultLen >= limitResultCount) {
-				return result;
+			if (wesuwtWen >= wimitWesuwtCount) {
+				wetuwn wesuwt;
 			}
 
-			startLineNumber++;
-			startPosition = this.nodeAt2(startLineNumber, 1);
-			currentNode = startPosition.node;
-			start = this.positionInBuffer(startPosition.node, startPosition.remainder);
+			stawtWineNumba++;
+			stawtPosition = this.nodeAt2(stawtWineNumba, 1);
+			cuwwentNode = stawtPosition.node;
+			stawt = this.positionInBuffa(stawtPosition.node, stawtPosition.wemainda);
 		}
 
-		if (startLineNumber === searchRange.endLineNumber) {
-			let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn - 1 : 0;
-			const text = this.getLineContent(startLineNumber).substring(startColumn, searchRange.endColumn - 1);
-			resultLen = this._findMatchesInLine(searchData, searcher, text, searchRange.endLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
-			return result;
+		if (stawtWineNumba === seawchWange.endWineNumba) {
+			wet stawtCowumn = stawtWineNumba === seawchWange.stawtWineNumba ? seawchWange.stawtCowumn - 1 : 0;
+			const text = this.getWineContent(stawtWineNumba).substwing(stawtCowumn, seawchWange.endCowumn - 1);
+			wesuwtWen = this._findMatchesInWine(seawchData, seawcha, text, seawchWange.endWineNumba, stawtCowumn, wesuwtWen, wesuwt, captuweMatches, wimitWesuwtCount);
+			wetuwn wesuwt;
 		}
 
-		let startColumn = startLineNumber === searchRange.startLineNumber ? searchRange.startColumn : 1;
-		resultLen = this.findMatchesInNode(endPosition.node, searcher, startLineNumber, startColumn, start, end, searchData, captureMatches, limitResultCount, resultLen, result);
-		return result;
+		wet stawtCowumn = stawtWineNumba === seawchWange.stawtWineNumba ? seawchWange.stawtCowumn : 1;
+		wesuwtWen = this.findMatchesInNode(endPosition.node, seawcha, stawtWineNumba, stawtCowumn, stawt, end, seawchData, captuweMatches, wimitWesuwtCount, wesuwtWen, wesuwt);
+		wetuwn wesuwt;
 	}
 
-	private _findMatchesInLine(searchData: SearchData, searcher: Searcher, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
-		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
+	pwivate _findMatchesInWine(seawchData: SeawchData, seawcha: Seawcha, text: stwing, wineNumba: numba, dewtaOffset: numba, wesuwtWen: numba, wesuwt: FindMatch[], captuweMatches: boowean, wimitWesuwtCount: numba): numba {
+		const wowdSepawatows = seawchData.wowdSepawatows;
+		if (!captuweMatches && seawchData.simpweSeawch) {
+			const seawchStwing = seawchData.simpweSeawch;
+			const seawchStwingWen = seawchStwing.wength;
+			const textWength = text.wength;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
+			wet wastMatchIndex = -seawchStwingWen;
+			whiwe ((wastMatchIndex = text.indexOf(seawchStwing, wastMatchIndex + seawchStwingWen)) !== -1) {
+				if (!wowdSepawatows || isVawidMatch(wowdSepawatows, text, textWength, wastMatchIndex, seawchStwingWen)) {
+					wesuwt[wesuwtWen++] = new FindMatch(new Wange(wineNumba, wastMatchIndex + 1 + dewtaOffset, wineNumba, wastMatchIndex + 1 + seawchStwingWen + dewtaOffset), nuww);
+					if (wesuwtWen >= wimitWesuwtCount) {
+						wetuwn wesuwtWen;
 					}
 				}
 			}
-			return resultLen;
+			wetuwn wesuwtWen;
 		}
 
-		let m: RegExpExecArray | null;
-		// Reset regex to search from the beginning
-		searcher.reset(0);
+		wet m: WegExpExecAwway | nuww;
+		// Weset wegex to seawch fwom the beginning
+		seawcha.weset(0);
 		do {
-			m = searcher.next(text);
+			m = seawcha.next(text);
 			if (m) {
-				result[resultLen++] = createFindMatch(new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset), m, captureMatches);
-				if (resultLen >= limitResultCount) {
-					return resultLen;
+				wesuwt[wesuwtWen++] = cweateFindMatch(new Wange(wineNumba, m.index + 1 + dewtaOffset, wineNumba, m.index + 1 + m[0].wength + dewtaOffset), m, captuweMatches);
+				if (wesuwtWen >= wimitWesuwtCount) {
+					wetuwn wesuwtWen;
 				}
 			}
-		} while (m);
-		return resultLen;
+		} whiwe (m);
+		wetuwn wesuwtWen;
 	}
 
-	// #endregion
+	// #endwegion
 
-	// #region Piece Table
-	public insert(offset: number, value: string, eolNormalized: boolean = false): void {
-		this._EOLNormalized = this._EOLNormalized && eolNormalized;
-		this._lastVisitedLine.lineNumber = 0;
-		this._lastVisitedLine.value = '';
+	// #wegion Piece Tabwe
+	pubwic insewt(offset: numba, vawue: stwing, eowNowmawized: boowean = fawse): void {
+		this._EOWNowmawized = this._EOWNowmawized && eowNowmawized;
+		this._wastVisitedWine.wineNumba = 0;
+		this._wastVisitedWine.vawue = '';
 
-		if (this.root !== SENTINEL) {
-			let { node, remainder, nodeStartOffset } = this.nodeAt(offset);
-			let piece = node.piece;
-			let bufferIndex = piece.bufferIndex;
-			let insertPosInBuffer = this.positionInBuffer(node, remainder);
-			if (node.piece.bufferIndex === 0 &&
-				piece.end.line === this._lastChangeBufferPos.line &&
-				piece.end.column === this._lastChangeBufferPos.column &&
-				(nodeStartOffset + piece.length === offset) &&
-				value.length < AverageBufferSize
+		if (this.woot !== SENTINEW) {
+			wet { node, wemainda, nodeStawtOffset } = this.nodeAt(offset);
+			wet piece = node.piece;
+			wet buffewIndex = piece.buffewIndex;
+			wet insewtPosInBuffa = this.positionInBuffa(node, wemainda);
+			if (node.piece.buffewIndex === 0 &&
+				piece.end.wine === this._wastChangeBuffewPos.wine &&
+				piece.end.cowumn === this._wastChangeBuffewPos.cowumn &&
+				(nodeStawtOffset + piece.wength === offset) &&
+				vawue.wength < AvewageBuffewSize
 			) {
-				// changed buffer
-				this.appendToNode(node, value);
-				this.computeBufferMetadata();
-				return;
+				// changed buffa
+				this.appendToNode(node, vawue);
+				this.computeBuffewMetadata();
+				wetuwn;
 			}
 
-			if (nodeStartOffset === offset) {
-				this.insertContentToNodeLeft(value, node);
-				this._searchCache.validate(offset);
-			} else if (nodeStartOffset + node.piece.length > offset) {
-				// we are inserting into the middle of a node.
-				let nodesToDel: TreeNode[] = [];
-				let newRightPiece = new Piece(
-					piece.bufferIndex,
-					insertPosInBuffer,
+			if (nodeStawtOffset === offset) {
+				this.insewtContentToNodeWeft(vawue, node);
+				this._seawchCache.vawidate(offset);
+			} ewse if (nodeStawtOffset + node.piece.wength > offset) {
+				// we awe insewting into the middwe of a node.
+				wet nodesToDew: TweeNode[] = [];
+				wet newWightPiece = new Piece(
+					piece.buffewIndex,
+					insewtPosInBuffa,
 					piece.end,
-					this.getLineFeedCnt(piece.bufferIndex, insertPosInBuffer, piece.end),
-					this.offsetInBuffer(bufferIndex, piece.end) - this.offsetInBuffer(bufferIndex, insertPosInBuffer)
+					this.getWineFeedCnt(piece.buffewIndex, insewtPosInBuffa, piece.end),
+					this.offsetInBuffa(buffewIndex, piece.end) - this.offsetInBuffa(buffewIndex, insewtPosInBuffa)
 				);
 
-				if (this.shouldCheckCRLF() && this.endWithCR(value)) {
-					let headOfRight = this.nodeCharCodeAt(node, remainder);
+				if (this.shouwdCheckCWWF() && this.endWithCW(vawue)) {
+					wet headOfWight = this.nodeChawCodeAt(node, wemainda);
 
-					if (headOfRight === 10 /** \n */) {
-						let newStart: BufferCursor = { line: newRightPiece.start.line + 1, column: 0 };
-						newRightPiece = new Piece(
-							newRightPiece.bufferIndex,
-							newStart,
-							newRightPiece.end,
-							this.getLineFeedCnt(newRightPiece.bufferIndex, newStart, newRightPiece.end),
-							newRightPiece.length - 1
+					if (headOfWight === 10 /** \n */) {
+						wet newStawt: BuffewCuwsow = { wine: newWightPiece.stawt.wine + 1, cowumn: 0 };
+						newWightPiece = new Piece(
+							newWightPiece.buffewIndex,
+							newStawt,
+							newWightPiece.end,
+							this.getWineFeedCnt(newWightPiece.buffewIndex, newStawt, newWightPiece.end),
+							newWightPiece.wength - 1
 						);
 
-						value += '\n';
+						vawue += '\n';
 					}
 				}
 
-				// reuse node for content before insertion point.
-				if (this.shouldCheckCRLF() && this.startWithLF(value)) {
-					let tailOfLeft = this.nodeCharCodeAt(node, remainder - 1);
-					if (tailOfLeft === 13 /** \r */) {
-						let previousPos = this.positionInBuffer(node, remainder - 1);
-						this.deleteNodeTail(node, previousPos);
-						value = '\r' + value;
+				// weuse node fow content befowe insewtion point.
+				if (this.shouwdCheckCWWF() && this.stawtWithWF(vawue)) {
+					wet taiwOfWeft = this.nodeChawCodeAt(node, wemainda - 1);
+					if (taiwOfWeft === 13 /** \w */) {
+						wet pweviousPos = this.positionInBuffa(node, wemainda - 1);
+						this.deweteNodeTaiw(node, pweviousPos);
+						vawue = '\w' + vawue;
 
-						if (node.piece.length === 0) {
-							nodesToDel.push(node);
+						if (node.piece.wength === 0) {
+							nodesToDew.push(node);
 						}
-					} else {
-						this.deleteNodeTail(node, insertPosInBuffer);
+					} ewse {
+						this.deweteNodeTaiw(node, insewtPosInBuffa);
 					}
-				} else {
-					this.deleteNodeTail(node, insertPosInBuffer);
+				} ewse {
+					this.deweteNodeTaiw(node, insewtPosInBuffa);
 				}
 
-				let newPieces = this.createNewPieces(value);
-				if (newRightPiece.length > 0) {
-					this.rbInsertRight(node, newRightPiece);
+				wet newPieces = this.cweateNewPieces(vawue);
+				if (newWightPiece.wength > 0) {
+					this.wbInsewtWight(node, newWightPiece);
 				}
 
-				let tmpNode = node;
-				for (let k = 0; k < newPieces.length; k++) {
-					tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+				wet tmpNode = node;
+				fow (wet k = 0; k < newPieces.wength; k++) {
+					tmpNode = this.wbInsewtWight(tmpNode, newPieces[k]);
 				}
-				this.deleteNodes(nodesToDel);
-			} else {
-				this.insertContentToNodeRight(value, node);
+				this.deweteNodes(nodesToDew);
+			} ewse {
+				this.insewtContentToNodeWight(vawue, node);
 			}
-		} else {
-			// insert new node
-			let pieces = this.createNewPieces(value);
-			let node = this.rbInsertLeft(null, pieces[0]);
+		} ewse {
+			// insewt new node
+			wet pieces = this.cweateNewPieces(vawue);
+			wet node = this.wbInsewtWeft(nuww, pieces[0]);
 
-			for (let k = 1; k < pieces.length; k++) {
-				node = this.rbInsertRight(node, pieces[k]);
+			fow (wet k = 1; k < pieces.wength; k++) {
+				node = this.wbInsewtWight(node, pieces[k]);
 			}
 		}
 
-		// todo, this is too brutal. Total line feed count should be updated the same way as lf_left.
-		this.computeBufferMetadata();
+		// todo, this is too bwutaw. Totaw wine feed count shouwd be updated the same way as wf_weft.
+		this.computeBuffewMetadata();
 	}
 
-	public delete(offset: number, cnt: number): void {
-		this._lastVisitedLine.lineNumber = 0;
-		this._lastVisitedLine.value = '';
+	pubwic dewete(offset: numba, cnt: numba): void {
+		this._wastVisitedWine.wineNumba = 0;
+		this._wastVisitedWine.vawue = '';
 
-		if (cnt <= 0 || this.root === SENTINEL) {
-			return;
+		if (cnt <= 0 || this.woot === SENTINEW) {
+			wetuwn;
 		}
 
-		let startPosition = this.nodeAt(offset);
-		let endPosition = this.nodeAt(offset + cnt);
-		let startNode = startPosition.node;
-		let endNode = endPosition.node;
+		wet stawtPosition = this.nodeAt(offset);
+		wet endPosition = this.nodeAt(offset + cnt);
+		wet stawtNode = stawtPosition.node;
+		wet endNode = endPosition.node;
 
-		if (startNode === endNode) {
-			let startSplitPosInBuffer = this.positionInBuffer(startNode, startPosition.remainder);
-			let endSplitPosInBuffer = this.positionInBuffer(startNode, endPosition.remainder);
+		if (stawtNode === endNode) {
+			wet stawtSpwitPosInBuffa = this.positionInBuffa(stawtNode, stawtPosition.wemainda);
+			wet endSpwitPosInBuffa = this.positionInBuffa(stawtNode, endPosition.wemainda);
 
-			if (startPosition.nodeStartOffset === offset) {
-				if (cnt === startNode.piece.length) { // delete node
-					let next = startNode.next();
-					rbDelete(this, startNode);
-					this.validateCRLFWithPrevNode(next);
-					this.computeBufferMetadata();
-					return;
+			if (stawtPosition.nodeStawtOffset === offset) {
+				if (cnt === stawtNode.piece.wength) { // dewete node
+					wet next = stawtNode.next();
+					wbDewete(this, stawtNode);
+					this.vawidateCWWFWithPwevNode(next);
+					this.computeBuffewMetadata();
+					wetuwn;
 				}
-				this.deleteNodeHead(startNode, endSplitPosInBuffer);
-				this._searchCache.validate(offset);
-				this.validateCRLFWithPrevNode(startNode);
-				this.computeBufferMetadata();
-				return;
+				this.deweteNodeHead(stawtNode, endSpwitPosInBuffa);
+				this._seawchCache.vawidate(offset);
+				this.vawidateCWWFWithPwevNode(stawtNode);
+				this.computeBuffewMetadata();
+				wetuwn;
 			}
 
-			if (startPosition.nodeStartOffset + startNode.piece.length === offset + cnt) {
-				this.deleteNodeTail(startNode, startSplitPosInBuffer);
-				this.validateCRLFWithNextNode(startNode);
-				this.computeBufferMetadata();
-				return;
+			if (stawtPosition.nodeStawtOffset + stawtNode.piece.wength === offset + cnt) {
+				this.deweteNodeTaiw(stawtNode, stawtSpwitPosInBuffa);
+				this.vawidateCWWFWithNextNode(stawtNode);
+				this.computeBuffewMetadata();
+				wetuwn;
 			}
 
-			// delete content in the middle, this node will be splitted to nodes
-			this.shrinkNode(startNode, startSplitPosInBuffer, endSplitPosInBuffer);
-			this.computeBufferMetadata();
-			return;
+			// dewete content in the middwe, this node wiww be spwitted to nodes
+			this.shwinkNode(stawtNode, stawtSpwitPosInBuffa, endSpwitPosInBuffa);
+			this.computeBuffewMetadata();
+			wetuwn;
 		}
 
-		let nodesToDel: TreeNode[] = [];
+		wet nodesToDew: TweeNode[] = [];
 
-		let startSplitPosInBuffer = this.positionInBuffer(startNode, startPosition.remainder);
-		this.deleteNodeTail(startNode, startSplitPosInBuffer);
-		this._searchCache.validate(offset);
-		if (startNode.piece.length === 0) {
-			nodesToDel.push(startNode);
+		wet stawtSpwitPosInBuffa = this.positionInBuffa(stawtNode, stawtPosition.wemainda);
+		this.deweteNodeTaiw(stawtNode, stawtSpwitPosInBuffa);
+		this._seawchCache.vawidate(offset);
+		if (stawtNode.piece.wength === 0) {
+			nodesToDew.push(stawtNode);
 		}
 
-		// update last touched node
-		let endSplitPosInBuffer = this.positionInBuffer(endNode, endPosition.remainder);
-		this.deleteNodeHead(endNode, endSplitPosInBuffer);
-		if (endNode.piece.length === 0) {
-			nodesToDel.push(endNode);
+		// update wast touched node
+		wet endSpwitPosInBuffa = this.positionInBuffa(endNode, endPosition.wemainda);
+		this.deweteNodeHead(endNode, endSpwitPosInBuffa);
+		if (endNode.piece.wength === 0) {
+			nodesToDew.push(endNode);
 		}
 
-		// delete nodes in between
-		let secondNode = startNode.next();
-		for (let node = secondNode; node !== SENTINEL && node !== endNode; node = node.next()) {
-			nodesToDel.push(node);
+		// dewete nodes in between
+		wet secondNode = stawtNode.next();
+		fow (wet node = secondNode; node !== SENTINEW && node !== endNode; node = node.next()) {
+			nodesToDew.push(node);
 		}
 
-		let prev = startNode.piece.length === 0 ? startNode.prev() : startNode;
-		this.deleteNodes(nodesToDel);
-		this.validateCRLFWithNextNode(prev);
-		this.computeBufferMetadata();
+		wet pwev = stawtNode.piece.wength === 0 ? stawtNode.pwev() : stawtNode;
+		this.deweteNodes(nodesToDew);
+		this.vawidateCWWFWithNextNode(pwev);
+		this.computeBuffewMetadata();
 	}
 
-	private insertContentToNodeLeft(value: string, node: TreeNode) {
-		// we are inserting content to the beginning of node
-		let nodesToDel: TreeNode[] = [];
-		if (this.shouldCheckCRLF() && this.endWithCR(value) && this.startWithLF(node)) {
+	pwivate insewtContentToNodeWeft(vawue: stwing, node: TweeNode) {
+		// we awe insewting content to the beginning of node
+		wet nodesToDew: TweeNode[] = [];
+		if (this.shouwdCheckCWWF() && this.endWithCW(vawue) && this.stawtWithWF(node)) {
 			// move `\n` to new node.
 
-			let piece = node.piece;
-			let newStart: BufferCursor = { line: piece.start.line + 1, column: 0 };
-			let nPiece = new Piece(
-				piece.bufferIndex,
-				newStart,
+			wet piece = node.piece;
+			wet newStawt: BuffewCuwsow = { wine: piece.stawt.wine + 1, cowumn: 0 };
+			wet nPiece = new Piece(
+				piece.buffewIndex,
+				newStawt,
 				piece.end,
-				this.getLineFeedCnt(piece.bufferIndex, newStart, piece.end),
-				piece.length - 1
+				this.getWineFeedCnt(piece.buffewIndex, newStawt, piece.end),
+				piece.wength - 1
 			);
 
 			node.piece = nPiece;
 
-			value += '\n';
-			updateTreeMetadata(this, node, -1, -1);
+			vawue += '\n';
+			updateTweeMetadata(this, node, -1, -1);
 
-			if (node.piece.length === 0) {
-				nodesToDel.push(node);
+			if (node.piece.wength === 0) {
+				nodesToDew.push(node);
 			}
 		}
 
-		let newPieces = this.createNewPieces(value);
-		let newNode = this.rbInsertLeft(node, newPieces[newPieces.length - 1]);
-		for (let k = newPieces.length - 2; k >= 0; k--) {
-			newNode = this.rbInsertLeft(newNode, newPieces[k]);
+		wet newPieces = this.cweateNewPieces(vawue);
+		wet newNode = this.wbInsewtWeft(node, newPieces[newPieces.wength - 1]);
+		fow (wet k = newPieces.wength - 2; k >= 0; k--) {
+			newNode = this.wbInsewtWeft(newNode, newPieces[k]);
 		}
-		this.validateCRLFWithPrevNode(newNode);
-		this.deleteNodes(nodesToDel);
+		this.vawidateCWWFWithPwevNode(newNode);
+		this.deweteNodes(nodesToDew);
 	}
 
-	private insertContentToNodeRight(value: string, node: TreeNode) {
-		// we are inserting to the right of this node.
-		if (this.adjustCarriageReturnFromNext(value, node)) {
+	pwivate insewtContentToNodeWight(vawue: stwing, node: TweeNode) {
+		// we awe insewting to the wight of this node.
+		if (this.adjustCawwiageWetuwnFwomNext(vawue, node)) {
 			// move \n to the new node.
-			value += '\n';
+			vawue += '\n';
 		}
 
-		let newPieces = this.createNewPieces(value);
-		let newNode = this.rbInsertRight(node, newPieces[0]);
-		let tmpNode = newNode;
+		wet newPieces = this.cweateNewPieces(vawue);
+		wet newNode = this.wbInsewtWight(node, newPieces[0]);
+		wet tmpNode = newNode;
 
-		for (let k = 1; k < newPieces.length; k++) {
-			tmpNode = this.rbInsertRight(tmpNode, newPieces[k]);
+		fow (wet k = 1; k < newPieces.wength; k++) {
+			tmpNode = this.wbInsewtWight(tmpNode, newPieces[k]);
 		}
 
-		this.validateCRLFWithPrevNode(newNode);
+		this.vawidateCWWFWithPwevNode(newNode);
 	}
 
-	private positionInBuffer(node: TreeNode, remainder: number): BufferCursor;
-	private positionInBuffer(node: TreeNode, remainder: number, ret: BufferCursor): null;
-	private positionInBuffer(node: TreeNode, remainder: number, ret?: BufferCursor): BufferCursor | null {
-		let piece = node.piece;
-		let bufferIndex = node.piece.bufferIndex;
-		let lineStarts = this._buffers[bufferIndex].lineStarts;
+	pwivate positionInBuffa(node: TweeNode, wemainda: numba): BuffewCuwsow;
+	pwivate positionInBuffa(node: TweeNode, wemainda: numba, wet: BuffewCuwsow): nuww;
+	pwivate positionInBuffa(node: TweeNode, wemainda: numba, wet?: BuffewCuwsow): BuffewCuwsow | nuww {
+		wet piece = node.piece;
+		wet buffewIndex = node.piece.buffewIndex;
+		wet wineStawts = this._buffews[buffewIndex].wineStawts;
 
-		let startOffset = lineStarts[piece.start.line] + piece.start.column;
+		wet stawtOffset = wineStawts[piece.stawt.wine] + piece.stawt.cowumn;
 
-		let offset = startOffset + remainder;
+		wet offset = stawtOffset + wemainda;
 
-		// binary search offset between startOffset and endOffset
-		let low = piece.start.line;
-		let high = piece.end.line;
+		// binawy seawch offset between stawtOffset and endOffset
+		wet wow = piece.stawt.wine;
+		wet high = piece.end.wine;
 
-		let mid: number = 0;
-		let midStop: number = 0;
-		let midStart: number = 0;
+		wet mid: numba = 0;
+		wet midStop: numba = 0;
+		wet midStawt: numba = 0;
 
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
-			midStart = lineStarts[mid];
+		whiwe (wow <= high) {
+			mid = wow + ((high - wow) / 2) | 0;
+			midStawt = wineStawts[mid];
 
 			if (mid === high) {
-				break;
+				bweak;
 			}
 
-			midStop = lineStarts[mid + 1];
+			midStop = wineStawts[mid + 1];
 
-			if (offset < midStart) {
+			if (offset < midStawt) {
 				high = mid - 1;
-			} else if (offset >= midStop) {
-				low = mid + 1;
-			} else {
-				break;
+			} ewse if (offset >= midStop) {
+				wow = mid + 1;
+			} ewse {
+				bweak;
 			}
 		}
 
-		if (ret) {
-			ret.line = mid;
-			ret.column = offset - midStart;
-			return null;
+		if (wet) {
+			wet.wine = mid;
+			wet.cowumn = offset - midStawt;
+			wetuwn nuww;
 		}
 
-		return {
-			line: mid,
-			column: offset - midStart
+		wetuwn {
+			wine: mid,
+			cowumn: offset - midStawt
 		};
 	}
 
-	private getLineFeedCnt(bufferIndex: number, start: BufferCursor, end: BufferCursor): number {
-		// we don't need to worry about start: abc\r|\n, or abc|\r, or abc|\n, or abc|\r\n doesn't change the fact that, there is one line break after start.
-		// now let's take care of end: abc\r|\n, if end is in between \r and \n, we need to add line feed count by 1
-		if (end.column === 0) {
-			return end.line - start.line;
+	pwivate getWineFeedCnt(buffewIndex: numba, stawt: BuffewCuwsow, end: BuffewCuwsow): numba {
+		// we don't need to wowwy about stawt: abc\w|\n, ow abc|\w, ow abc|\n, ow abc|\w\n doesn't change the fact that, thewe is one wine bweak afta stawt.
+		// now wet's take cawe of end: abc\w|\n, if end is in between \w and \n, we need to add wine feed count by 1
+		if (end.cowumn === 0) {
+			wetuwn end.wine - stawt.wine;
 		}
 
-		let lineStarts = this._buffers[bufferIndex].lineStarts;
-		if (end.line === lineStarts.length - 1) { // it means, there is no \n after end, otherwise, there will be one more lineStart.
-			return end.line - start.line;
+		wet wineStawts = this._buffews[buffewIndex].wineStawts;
+		if (end.wine === wineStawts.wength - 1) { // it means, thewe is no \n afta end, othewwise, thewe wiww be one mowe wineStawt.
+			wetuwn end.wine - stawt.wine;
 		}
 
-		let nextLineStartOffset = lineStarts[end.line + 1];
-		let endOffset = lineStarts[end.line] + end.column;
-		if (nextLineStartOffset > endOffset + 1) { // there are more than 1 character after end, which means it can't be \n
-			return end.line - start.line;
+		wet nextWineStawtOffset = wineStawts[end.wine + 1];
+		wet endOffset = wineStawts[end.wine] + end.cowumn;
+		if (nextWineStawtOffset > endOffset + 1) { // thewe awe mowe than 1 chawacta afta end, which means it can't be \n
+			wetuwn end.wine - stawt.wine;
 		}
-		// endOffset + 1 === nextLineStartOffset
-		// character at endOffset is \n, so we check the character before first
-		// if character at endOffset is \r, end.column is 0 and we can't get here.
-		let previousCharOffset = endOffset - 1; // end.column > 0 so it's okay.
-		let buffer = this._buffers[bufferIndex].buffer;
+		// endOffset + 1 === nextWineStawtOffset
+		// chawacta at endOffset is \n, so we check the chawacta befowe fiwst
+		// if chawacta at endOffset is \w, end.cowumn is 0 and we can't get hewe.
+		wet pweviousChawOffset = endOffset - 1; // end.cowumn > 0 so it's okay.
+		wet buffa = this._buffews[buffewIndex].buffa;
 
-		if (buffer.charCodeAt(previousCharOffset) === 13) {
-			return end.line - start.line + 1;
-		} else {
-			return end.line - start.line;
-		}
-	}
-
-	private offsetInBuffer(bufferIndex: number, cursor: BufferCursor): number {
-		let lineStarts = this._buffers[bufferIndex].lineStarts;
-		return lineStarts[cursor.line] + cursor.column;
-	}
-
-	private deleteNodes(nodes: TreeNode[]): void {
-		for (let i = 0; i < nodes.length; i++) {
-			rbDelete(this, nodes[i]);
+		if (buffa.chawCodeAt(pweviousChawOffset) === 13) {
+			wetuwn end.wine - stawt.wine + 1;
+		} ewse {
+			wetuwn end.wine - stawt.wine;
 		}
 	}
 
-	private createNewPieces(text: string): Piece[] {
-		if (text.length > AverageBufferSize) {
-			// the content is large, operations like substring, charCode becomes slow
-			// so here we split it into smaller chunks, just like what we did for CR/LF normalization
-			let newPieces: Piece[] = [];
-			while (text.length > AverageBufferSize) {
-				const lastChar = text.charCodeAt(AverageBufferSize - 1);
-				let splitText;
-				if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
-					// last character is \r or a high surrogate => keep it back
-					splitText = text.substring(0, AverageBufferSize - 1);
-					text = text.substring(AverageBufferSize - 1);
-				} else {
-					splitText = text.substring(0, AverageBufferSize);
-					text = text.substring(AverageBufferSize);
+	pwivate offsetInBuffa(buffewIndex: numba, cuwsow: BuffewCuwsow): numba {
+		wet wineStawts = this._buffews[buffewIndex].wineStawts;
+		wetuwn wineStawts[cuwsow.wine] + cuwsow.cowumn;
+	}
+
+	pwivate deweteNodes(nodes: TweeNode[]): void {
+		fow (wet i = 0; i < nodes.wength; i++) {
+			wbDewete(this, nodes[i]);
+		}
+	}
+
+	pwivate cweateNewPieces(text: stwing): Piece[] {
+		if (text.wength > AvewageBuffewSize) {
+			// the content is wawge, opewations wike substwing, chawCode becomes swow
+			// so hewe we spwit it into smawwa chunks, just wike what we did fow CW/WF nowmawization
+			wet newPieces: Piece[] = [];
+			whiwe (text.wength > AvewageBuffewSize) {
+				const wastChaw = text.chawCodeAt(AvewageBuffewSize - 1);
+				wet spwitText;
+				if (wastChaw === ChawCode.CawwiageWetuwn || (wastChaw >= 0xD800 && wastChaw <= 0xDBFF)) {
+					// wast chawacta is \w ow a high suwwogate => keep it back
+					spwitText = text.substwing(0, AvewageBuffewSize - 1);
+					text = text.substwing(AvewageBuffewSize - 1);
+				} ewse {
+					spwitText = text.substwing(0, AvewageBuffewSize);
+					text = text.substwing(AvewageBuffewSize);
 				}
 
-				let lineStarts = createLineStartsFast(splitText);
+				wet wineStawts = cweateWineStawtsFast(spwitText);
 				newPieces.push(new Piece(
-					this._buffers.length, /* buffer index */
-					{ line: 0, column: 0 },
-					{ line: lineStarts.length - 1, column: splitText.length - lineStarts[lineStarts.length - 1] },
-					lineStarts.length - 1,
-					splitText.length
+					this._buffews.wength, /* buffa index */
+					{ wine: 0, cowumn: 0 },
+					{ wine: wineStawts.wength - 1, cowumn: spwitText.wength - wineStawts[wineStawts.wength - 1] },
+					wineStawts.wength - 1,
+					spwitText.wength
 				));
-				this._buffers.push(new StringBuffer(splitText, lineStarts));
+				this._buffews.push(new StwingBuffa(spwitText, wineStawts));
 			}
 
-			let lineStarts = createLineStartsFast(text);
+			wet wineStawts = cweateWineStawtsFast(text);
 			newPieces.push(new Piece(
-				this._buffers.length, /* buffer index */
-				{ line: 0, column: 0 },
-				{ line: lineStarts.length - 1, column: text.length - lineStarts[lineStarts.length - 1] },
-				lineStarts.length - 1,
-				text.length
+				this._buffews.wength, /* buffa index */
+				{ wine: 0, cowumn: 0 },
+				{ wine: wineStawts.wength - 1, cowumn: text.wength - wineStawts[wineStawts.wength - 1] },
+				wineStawts.wength - 1,
+				text.wength
 			));
-			this._buffers.push(new StringBuffer(text, lineStarts));
+			this._buffews.push(new StwingBuffa(text, wineStawts));
 
-			return newPieces;
+			wetuwn newPieces;
 		}
 
-		let startOffset = this._buffers[0].buffer.length;
-		const lineStarts = createLineStartsFast(text, false);
+		wet stawtOffset = this._buffews[0].buffa.wength;
+		const wineStawts = cweateWineStawtsFast(text, fawse);
 
-		let start = this._lastChangeBufferPos;
-		if (this._buffers[0].lineStarts[this._buffers[0].lineStarts.length - 1] === startOffset
-			&& startOffset !== 0
-			&& this.startWithLF(text)
-			&& this.endWithCR(this._buffers[0].buffer) // todo, we can check this._lastChangeBufferPos's column as it's the last one
+		wet stawt = this._wastChangeBuffewPos;
+		if (this._buffews[0].wineStawts[this._buffews[0].wineStawts.wength - 1] === stawtOffset
+			&& stawtOffset !== 0
+			&& this.stawtWithWF(text)
+			&& this.endWithCW(this._buffews[0].buffa) // todo, we can check this._wastChangeBuffewPos's cowumn as it's the wast one
 		) {
-			this._lastChangeBufferPos = { line: this._lastChangeBufferPos.line, column: this._lastChangeBufferPos.column + 1 };
-			start = this._lastChangeBufferPos;
+			this._wastChangeBuffewPos = { wine: this._wastChangeBuffewPos.wine, cowumn: this._wastChangeBuffewPos.cowumn + 1 };
+			stawt = this._wastChangeBuffewPos;
 
-			for (let i = 0; i < lineStarts.length; i++) {
-				lineStarts[i] += startOffset + 1;
+			fow (wet i = 0; i < wineStawts.wength; i++) {
+				wineStawts[i] += stawtOffset + 1;
 			}
 
-			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
-			this._buffers[0].buffer += '_' + text;
-			startOffset += 1;
-		} else {
-			if (startOffset !== 0) {
-				for (let i = 0; i < lineStarts.length; i++) {
-					lineStarts[i] += startOffset;
+			this._buffews[0].wineStawts = (<numba[]>this._buffews[0].wineStawts).concat(<numba[]>wineStawts.swice(1));
+			this._buffews[0].buffa += '_' + text;
+			stawtOffset += 1;
+		} ewse {
+			if (stawtOffset !== 0) {
+				fow (wet i = 0; i < wineStawts.wength; i++) {
+					wineStawts[i] += stawtOffset;
 				}
 			}
-			this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
-			this._buffers[0].buffer += text;
+			this._buffews[0].wineStawts = (<numba[]>this._buffews[0].wineStawts).concat(<numba[]>wineStawts.swice(1));
+			this._buffews[0].buffa += text;
 		}
 
-		const endOffset = this._buffers[0].buffer.length;
-		let endIndex = this._buffers[0].lineStarts.length - 1;
-		let endColumn = endOffset - this._buffers[0].lineStarts[endIndex];
-		let endPos = { line: endIndex, column: endColumn };
-		let newPiece = new Piece(
+		const endOffset = this._buffews[0].buffa.wength;
+		wet endIndex = this._buffews[0].wineStawts.wength - 1;
+		wet endCowumn = endOffset - this._buffews[0].wineStawts[endIndex];
+		wet endPos = { wine: endIndex, cowumn: endCowumn };
+		wet newPiece = new Piece(
 			0, /** todo@peng */
-			start,
+			stawt,
 			endPos,
-			this.getLineFeedCnt(0, start, endPos),
-			endOffset - startOffset
+			this.getWineFeedCnt(0, stawt, endPos),
+			endOffset - stawtOffset
 		);
-		this._lastChangeBufferPos = endPos;
-		return [newPiece];
+		this._wastChangeBuffewPos = endPos;
+		wetuwn [newPiece];
 	}
 
-	public getLinesRawContent(): string {
-		return this.getContentOfSubTree(this.root);
+	pubwic getWinesWawContent(): stwing {
+		wetuwn this.getContentOfSubTwee(this.woot);
 	}
 
-	public getLineRawContent(lineNumber: number, endOffset: number = 0): string {
-		let x = this.root;
+	pubwic getWineWawContent(wineNumba: numba, endOffset: numba = 0): stwing {
+		wet x = this.woot;
 
-		let ret = '';
-		let cache = this._searchCache.get2(lineNumber);
+		wet wet = '';
+		wet cache = this._seawchCache.get2(wineNumba);
 		if (cache) {
 			x = cache.node;
-			let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber - 1);
-			let buffer = this._buffers[x.piece.bufferIndex].buffer;
-			let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
-			if (cache.nodeStartLineNumber + x.piece.lineFeedCnt === lineNumber) {
-				ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
-			} else {
-				let accumulatedValue = this.getAccumulatedValue(x, lineNumber - cache.nodeStartLineNumber);
-				return buffer.substring(startOffset + prevAccumulatedValue, startOffset + accumulatedValue - endOffset);
+			wet pwevAccumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - cache.nodeStawtWineNumba - 1);
+			wet buffa = this._buffews[x.piece.buffewIndex].buffa;
+			wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
+			if (cache.nodeStawtWineNumba + x.piece.wineFeedCnt === wineNumba) {
+				wet = buffa.substwing(stawtOffset + pwevAccumuwatedVawue, stawtOffset + x.piece.wength);
+			} ewse {
+				wet accumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - cache.nodeStawtWineNumba);
+				wetuwn buffa.substwing(stawtOffset + pwevAccumuwatedVawue, stawtOffset + accumuwatedVawue - endOffset);
 			}
-		} else {
-			let nodeStartOffset = 0;
-			const originalLineNumber = lineNumber;
-			while (x !== SENTINEL) {
-				if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
-					x = x.left;
-				} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
-					let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-					let accumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
-					let buffer = this._buffers[x.piece.bufferIndex].buffer;
-					let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
-					nodeStartOffset += x.size_left;
-					this._searchCache.set({
+		} ewse {
+			wet nodeStawtOffset = 0;
+			const owiginawWineNumba = wineNumba;
+			whiwe (x !== SENTINEW) {
+				if (x.weft !== SENTINEW && x.wf_weft >= wineNumba - 1) {
+					x = x.weft;
+				} ewse if (x.wf_weft + x.piece.wineFeedCnt > wineNumba - 1) {
+					wet pwevAccumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 2);
+					wet accumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 1);
+					wet buffa = this._buffews[x.piece.buffewIndex].buffa;
+					wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
+					nodeStawtOffset += x.size_weft;
+					this._seawchCache.set({
 						node: x,
-						nodeStartOffset,
-						nodeStartLineNumber: originalLineNumber - (lineNumber - 1 - x.lf_left)
+						nodeStawtOffset,
+						nodeStawtWineNumba: owiginawWineNumba - (wineNumba - 1 - x.wf_weft)
 					});
 
-					return buffer.substring(startOffset + prevAccumulatedValue, startOffset + accumulatedValue - endOffset);
-				} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
-					let prevAccumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-					let buffer = this._buffers[x.piece.bufferIndex].buffer;
-					let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
+					wetuwn buffa.substwing(stawtOffset + pwevAccumuwatedVawue, stawtOffset + accumuwatedVawue - endOffset);
+				} ewse if (x.wf_weft + x.piece.wineFeedCnt === wineNumba - 1) {
+					wet pwevAccumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 2);
+					wet buffa = this._buffews[x.piece.buffewIndex].buffa;
+					wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
 
-					ret = buffer.substring(startOffset + prevAccumulatedValue, startOffset + x.piece.length);
-					break;
-				} else {
-					lineNumber -= x.lf_left + x.piece.lineFeedCnt;
-					nodeStartOffset += x.size_left + x.piece.length;
-					x = x.right;
+					wet = buffa.substwing(stawtOffset + pwevAccumuwatedVawue, stawtOffset + x.piece.wength);
+					bweak;
+				} ewse {
+					wineNumba -= x.wf_weft + x.piece.wineFeedCnt;
+					nodeStawtOffset += x.size_weft + x.piece.wength;
+					x = x.wight;
 				}
 			}
 		}
 
-		// search in order, to find the node contains end column
+		// seawch in owda, to find the node contains end cowumn
 		x = x.next();
-		while (x !== SENTINEL) {
-			let buffer = this._buffers[x.piece.bufferIndex].buffer;
+		whiwe (x !== SENTINEW) {
+			wet buffa = this._buffews[x.piece.buffewIndex].buffa;
 
-			if (x.piece.lineFeedCnt > 0) {
-				let accumulatedValue = this.getAccumulatedValue(x, 0);
-				let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
+			if (x.piece.wineFeedCnt > 0) {
+				wet accumuwatedVawue = this.getAccumuwatedVawue(x, 0);
+				wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
 
-				ret += buffer.substring(startOffset, startOffset + accumulatedValue - endOffset);
-				return ret;
-			} else {
-				let startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
-				ret += buffer.substr(startOffset, x.piece.length);
+				wet += buffa.substwing(stawtOffset, stawtOffset + accumuwatedVawue - endOffset);
+				wetuwn wet;
+			} ewse {
+				wet stawtOffset = this.offsetInBuffa(x.piece.buffewIndex, x.piece.stawt);
+				wet += buffa.substw(stawtOffset, x.piece.wength);
 			}
 
 			x = x.next();
 		}
 
-		return ret;
+		wetuwn wet;
 	}
 
-	private computeBufferMetadata() {
-		let x = this.root;
+	pwivate computeBuffewMetadata() {
+		wet x = this.woot;
 
-		let lfCnt = 1;
-		let len = 0;
+		wet wfCnt = 1;
+		wet wen = 0;
 
-		while (x !== SENTINEL) {
-			lfCnt += x.lf_left + x.piece.lineFeedCnt;
-			len += x.size_left + x.piece.length;
-			x = x.right;
+		whiwe (x !== SENTINEW) {
+			wfCnt += x.wf_weft + x.piece.wineFeedCnt;
+			wen += x.size_weft + x.piece.wength;
+			x = x.wight;
 		}
 
-		this._lineCnt = lfCnt;
-		this._length = len;
-		this._searchCache.validate(this._length);
+		this._wineCnt = wfCnt;
+		this._wength = wen;
+		this._seawchCache.vawidate(this._wength);
 	}
 
-	// #region node operations
-	private getIndexOf(node: TreeNode, accumulatedValue: number): { index: number, remainder: number } {
-		let piece = node.piece;
-		let pos = this.positionInBuffer(node, accumulatedValue);
-		let lineCnt = pos.line - piece.start.line;
+	// #wegion node opewations
+	pwivate getIndexOf(node: TweeNode, accumuwatedVawue: numba): { index: numba, wemainda: numba } {
+		wet piece = node.piece;
+		wet pos = this.positionInBuffa(node, accumuwatedVawue);
+		wet wineCnt = pos.wine - piece.stawt.wine;
 
-		if (this.offsetInBuffer(piece.bufferIndex, piece.end) - this.offsetInBuffer(piece.bufferIndex, piece.start) === accumulatedValue) {
-			// we are checking the end of this node, so a CRLF check is necessary.
-			let realLineCnt = this.getLineFeedCnt(node.piece.bufferIndex, piece.start, pos);
-			if (realLineCnt !== lineCnt) {
-				// aha yes, CRLF
-				return { index: realLineCnt, remainder: 0 };
+		if (this.offsetInBuffa(piece.buffewIndex, piece.end) - this.offsetInBuffa(piece.buffewIndex, piece.stawt) === accumuwatedVawue) {
+			// we awe checking the end of this node, so a CWWF check is necessawy.
+			wet weawWineCnt = this.getWineFeedCnt(node.piece.buffewIndex, piece.stawt, pos);
+			if (weawWineCnt !== wineCnt) {
+				// aha yes, CWWF
+				wetuwn { index: weawWineCnt, wemainda: 0 };
 			}
 		}
 
-		return { index: lineCnt, remainder: pos.column };
+		wetuwn { index: wineCnt, wemainda: pos.cowumn };
 	}
 
-	private getAccumulatedValue(node: TreeNode, index: number) {
+	pwivate getAccumuwatedVawue(node: TweeNode, index: numba) {
 		if (index < 0) {
-			return 0;
+			wetuwn 0;
 		}
-		let piece = node.piece;
-		let lineStarts = this._buffers[piece.bufferIndex].lineStarts;
-		let expectedLineStartIndex = piece.start.line + index + 1;
-		if (expectedLineStartIndex > piece.end.line) {
-			return lineStarts[piece.end.line] + piece.end.column - lineStarts[piece.start.line] - piece.start.column;
-		} else {
-			return lineStarts[expectedLineStartIndex] - lineStarts[piece.start.line] - piece.start.column;
+		wet piece = node.piece;
+		wet wineStawts = this._buffews[piece.buffewIndex].wineStawts;
+		wet expectedWineStawtIndex = piece.stawt.wine + index + 1;
+		if (expectedWineStawtIndex > piece.end.wine) {
+			wetuwn wineStawts[piece.end.wine] + piece.end.cowumn - wineStawts[piece.stawt.wine] - piece.stawt.cowumn;
+		} ewse {
+			wetuwn wineStawts[expectedWineStawtIndex] - wineStawts[piece.stawt.wine] - piece.stawt.cowumn;
 		}
 	}
 
-	private deleteNodeTail(node: TreeNode, pos: BufferCursor) {
+	pwivate deweteNodeTaiw(node: TweeNode, pos: BuffewCuwsow) {
 		const piece = node.piece;
-		const originalLFCnt = piece.lineFeedCnt;
-		const originalEndOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
+		const owiginawWFCnt = piece.wineFeedCnt;
+		const owiginawEndOffset = this.offsetInBuffa(piece.buffewIndex, piece.end);
 
 		const newEnd = pos;
-		const newEndOffset = this.offsetInBuffer(piece.bufferIndex, newEnd);
-		const newLineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, piece.start, newEnd);
+		const newEndOffset = this.offsetInBuffa(piece.buffewIndex, newEnd);
+		const newWineFeedCnt = this.getWineFeedCnt(piece.buffewIndex, piece.stawt, newEnd);
 
-		const lf_delta = newLineFeedCnt - originalLFCnt;
-		const size_delta = newEndOffset - originalEndOffset;
-		const newLength = piece.length + size_delta;
+		const wf_dewta = newWineFeedCnt - owiginawWFCnt;
+		const size_dewta = newEndOffset - owiginawEndOffset;
+		const newWength = piece.wength + size_dewta;
 
 		node.piece = new Piece(
-			piece.bufferIndex,
-			piece.start,
+			piece.buffewIndex,
+			piece.stawt,
 			newEnd,
-			newLineFeedCnt,
-			newLength
+			newWineFeedCnt,
+			newWength
 		);
 
-		updateTreeMetadata(this, node, size_delta, lf_delta);
+		updateTweeMetadata(this, node, size_dewta, wf_dewta);
 	}
 
-	private deleteNodeHead(node: TreeNode, pos: BufferCursor) {
+	pwivate deweteNodeHead(node: TweeNode, pos: BuffewCuwsow) {
 		const piece = node.piece;
-		const originalLFCnt = piece.lineFeedCnt;
-		const originalStartOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
+		const owiginawWFCnt = piece.wineFeedCnt;
+		const owiginawStawtOffset = this.offsetInBuffa(piece.buffewIndex, piece.stawt);
 
-		const newStart = pos;
-		const newLineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, newStart, piece.end);
-		const newStartOffset = this.offsetInBuffer(piece.bufferIndex, newStart);
-		const lf_delta = newLineFeedCnt - originalLFCnt;
-		const size_delta = originalStartOffset - newStartOffset;
-		const newLength = piece.length + size_delta;
+		const newStawt = pos;
+		const newWineFeedCnt = this.getWineFeedCnt(piece.buffewIndex, newStawt, piece.end);
+		const newStawtOffset = this.offsetInBuffa(piece.buffewIndex, newStawt);
+		const wf_dewta = newWineFeedCnt - owiginawWFCnt;
+		const size_dewta = owiginawStawtOffset - newStawtOffset;
+		const newWength = piece.wength + size_dewta;
 		node.piece = new Piece(
-			piece.bufferIndex,
-			newStart,
+			piece.buffewIndex,
+			newStawt,
 			piece.end,
-			newLineFeedCnt,
-			newLength
+			newWineFeedCnt,
+			newWength
 		);
 
-		updateTreeMetadata(this, node, size_delta, lf_delta);
+		updateTweeMetadata(this, node, size_dewta, wf_dewta);
 	}
 
-	private shrinkNode(node: TreeNode, start: BufferCursor, end: BufferCursor) {
+	pwivate shwinkNode(node: TweeNode, stawt: BuffewCuwsow, end: BuffewCuwsow) {
 		const piece = node.piece;
-		const originalStartPos = piece.start;
-		const originalEndPos = piece.end;
+		const owiginawStawtPos = piece.stawt;
+		const owiginawEndPos = piece.end;
 
-		// old piece, originalStartPos, start
-		const oldLength = piece.length;
-		const oldLFCnt = piece.lineFeedCnt;
-		const newEnd = start;
-		const newLineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, piece.start, newEnd);
-		const newLength = this.offsetInBuffer(piece.bufferIndex, start) - this.offsetInBuffer(piece.bufferIndex, originalStartPos);
+		// owd piece, owiginawStawtPos, stawt
+		const owdWength = piece.wength;
+		const owdWFCnt = piece.wineFeedCnt;
+		const newEnd = stawt;
+		const newWineFeedCnt = this.getWineFeedCnt(piece.buffewIndex, piece.stawt, newEnd);
+		const newWength = this.offsetInBuffa(piece.buffewIndex, stawt) - this.offsetInBuffa(piece.buffewIndex, owiginawStawtPos);
 
 		node.piece = new Piece(
-			piece.bufferIndex,
-			piece.start,
+			piece.buffewIndex,
+			piece.stawt,
 			newEnd,
-			newLineFeedCnt,
-			newLength
+			newWineFeedCnt,
+			newWength
 		);
 
-		updateTreeMetadata(this, node, newLength - oldLength, newLineFeedCnt - oldLFCnt);
+		updateTweeMetadata(this, node, newWength - owdWength, newWineFeedCnt - owdWFCnt);
 
-		// new right piece, end, originalEndPos
-		let newPiece = new Piece(
-			piece.bufferIndex,
+		// new wight piece, end, owiginawEndPos
+		wet newPiece = new Piece(
+			piece.buffewIndex,
 			end,
-			originalEndPos,
-			this.getLineFeedCnt(piece.bufferIndex, end, originalEndPos),
-			this.offsetInBuffer(piece.bufferIndex, originalEndPos) - this.offsetInBuffer(piece.bufferIndex, end)
+			owiginawEndPos,
+			this.getWineFeedCnt(piece.buffewIndex, end, owiginawEndPos),
+			this.offsetInBuffa(piece.buffewIndex, owiginawEndPos) - this.offsetInBuffa(piece.buffewIndex, end)
 		);
 
-		let newNode = this.rbInsertRight(node, newPiece);
-		this.validateCRLFWithPrevNode(newNode);
+		wet newNode = this.wbInsewtWight(node, newPiece);
+		this.vawidateCWWFWithPwevNode(newNode);
 	}
 
-	private appendToNode(node: TreeNode, value: string): void {
-		if (this.adjustCarriageReturnFromNext(value, node)) {
-			value += '\n';
+	pwivate appendToNode(node: TweeNode, vawue: stwing): void {
+		if (this.adjustCawwiageWetuwnFwomNext(vawue, node)) {
+			vawue += '\n';
 		}
 
-		const hitCRLF = this.shouldCheckCRLF() && this.startWithLF(value) && this.endWithCR(node);
-		const startOffset = this._buffers[0].buffer.length;
-		this._buffers[0].buffer += value;
-		const lineStarts = createLineStartsFast(value, false);
-		for (let i = 0; i < lineStarts.length; i++) {
-			lineStarts[i] += startOffset;
+		const hitCWWF = this.shouwdCheckCWWF() && this.stawtWithWF(vawue) && this.endWithCW(node);
+		const stawtOffset = this._buffews[0].buffa.wength;
+		this._buffews[0].buffa += vawue;
+		const wineStawts = cweateWineStawtsFast(vawue, fawse);
+		fow (wet i = 0; i < wineStawts.wength; i++) {
+			wineStawts[i] += stawtOffset;
 		}
-		if (hitCRLF) {
-			let prevStartOffset = this._buffers[0].lineStarts[this._buffers[0].lineStarts.length - 2];
-			(<number[]>this._buffers[0].lineStarts).pop();
-			// _lastChangeBufferPos is already wrong
-			this._lastChangeBufferPos = { line: this._lastChangeBufferPos.line - 1, column: startOffset - prevStartOffset };
+		if (hitCWWF) {
+			wet pwevStawtOffset = this._buffews[0].wineStawts[this._buffews[0].wineStawts.wength - 2];
+			(<numba[]>this._buffews[0].wineStawts).pop();
+			// _wastChangeBuffewPos is awweady wwong
+			this._wastChangeBuffewPos = { wine: this._wastChangeBuffewPos.wine - 1, cowumn: stawtOffset - pwevStawtOffset };
 		}
 
-		this._buffers[0].lineStarts = (<number[]>this._buffers[0].lineStarts).concat(<number[]>lineStarts.slice(1));
-		const endIndex = this._buffers[0].lineStarts.length - 1;
-		const endColumn = this._buffers[0].buffer.length - this._buffers[0].lineStarts[endIndex];
-		const newEnd = { line: endIndex, column: endColumn };
-		const newLength = node.piece.length + value.length;
-		const oldLineFeedCnt = node.piece.lineFeedCnt;
-		const newLineFeedCnt = this.getLineFeedCnt(0, node.piece.start, newEnd);
-		const lf_delta = newLineFeedCnt - oldLineFeedCnt;
+		this._buffews[0].wineStawts = (<numba[]>this._buffews[0].wineStawts).concat(<numba[]>wineStawts.swice(1));
+		const endIndex = this._buffews[0].wineStawts.wength - 1;
+		const endCowumn = this._buffews[0].buffa.wength - this._buffews[0].wineStawts[endIndex];
+		const newEnd = { wine: endIndex, cowumn: endCowumn };
+		const newWength = node.piece.wength + vawue.wength;
+		const owdWineFeedCnt = node.piece.wineFeedCnt;
+		const newWineFeedCnt = this.getWineFeedCnt(0, node.piece.stawt, newEnd);
+		const wf_dewta = newWineFeedCnt - owdWineFeedCnt;
 
 		node.piece = new Piece(
-			node.piece.bufferIndex,
-			node.piece.start,
+			node.piece.buffewIndex,
+			node.piece.stawt,
 			newEnd,
-			newLineFeedCnt,
-			newLength
+			newWineFeedCnt,
+			newWength
 		);
 
-		this._lastChangeBufferPos = newEnd;
-		updateTreeMetadata(this, node, value.length, lf_delta);
+		this._wastChangeBuffewPos = newEnd;
+		updateTweeMetadata(this, node, vawue.wength, wf_dewta);
 	}
 
-	private nodeAt(offset: number): NodePosition {
-		let x = this.root;
-		let cache = this._searchCache.get(offset);
+	pwivate nodeAt(offset: numba): NodePosition {
+		wet x = this.woot;
+		wet cache = this._seawchCache.get(offset);
 		if (cache) {
-			return {
+			wetuwn {
 				node: cache.node,
-				nodeStartOffset: cache.nodeStartOffset,
-				remainder: offset - cache.nodeStartOffset
+				nodeStawtOffset: cache.nodeStawtOffset,
+				wemainda: offset - cache.nodeStawtOffset
 			};
 		}
 
-		let nodeStartOffset = 0;
+		wet nodeStawtOffset = 0;
 
-		while (x !== SENTINEL) {
-			if (x.size_left > offset) {
-				x = x.left;
-			} else if (x.size_left + x.piece.length >= offset) {
-				nodeStartOffset += x.size_left;
-				let ret = {
+		whiwe (x !== SENTINEW) {
+			if (x.size_weft > offset) {
+				x = x.weft;
+			} ewse if (x.size_weft + x.piece.wength >= offset) {
+				nodeStawtOffset += x.size_weft;
+				wet wet = {
 					node: x,
-					remainder: offset - x.size_left,
-					nodeStartOffset
+					wemainda: offset - x.size_weft,
+					nodeStawtOffset
 				};
-				this._searchCache.set(ret);
-				return ret;
-			} else {
-				offset -= x.size_left + x.piece.length;
-				nodeStartOffset += x.size_left + x.piece.length;
-				x = x.right;
+				this._seawchCache.set(wet);
+				wetuwn wet;
+			} ewse {
+				offset -= x.size_weft + x.piece.wength;
+				nodeStawtOffset += x.size_weft + x.piece.wength;
+				x = x.wight;
 			}
 		}
 
-		return null!;
+		wetuwn nuww!;
 	}
 
-	private nodeAt2(lineNumber: number, column: number): NodePosition {
-		let x = this.root;
-		let nodeStartOffset = 0;
+	pwivate nodeAt2(wineNumba: numba, cowumn: numba): NodePosition {
+		wet x = this.woot;
+		wet nodeStawtOffset = 0;
 
-		while (x !== SENTINEL) {
-			if (x.left !== SENTINEL && x.lf_left >= lineNumber - 1) {
-				x = x.left;
-			} else if (x.lf_left + x.piece.lineFeedCnt > lineNumber - 1) {
-				let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				let accumulatedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 1);
-				nodeStartOffset += x.size_left;
+		whiwe (x !== SENTINEW) {
+			if (x.weft !== SENTINEW && x.wf_weft >= wineNumba - 1) {
+				x = x.weft;
+			} ewse if (x.wf_weft + x.piece.wineFeedCnt > wineNumba - 1) {
+				wet pwevAccumuawtedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 2);
+				wet accumuwatedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 1);
+				nodeStawtOffset += x.size_weft;
 
-				return {
+				wetuwn {
 					node: x,
-					remainder: Math.min(prevAccumualtedValue + column - 1, accumulatedValue),
-					nodeStartOffset
+					wemainda: Math.min(pwevAccumuawtedVawue + cowumn - 1, accumuwatedVawue),
+					nodeStawtOffset
 				};
-			} else if (x.lf_left + x.piece.lineFeedCnt === lineNumber - 1) {
-				let prevAccumualtedValue = this.getAccumulatedValue(x, lineNumber - x.lf_left - 2);
-				if (prevAccumualtedValue + column - 1 <= x.piece.length) {
-					return {
+			} ewse if (x.wf_weft + x.piece.wineFeedCnt === wineNumba - 1) {
+				wet pwevAccumuawtedVawue = this.getAccumuwatedVawue(x, wineNumba - x.wf_weft - 2);
+				if (pwevAccumuawtedVawue + cowumn - 1 <= x.piece.wength) {
+					wetuwn {
 						node: x,
-						remainder: prevAccumualtedValue + column - 1,
-						nodeStartOffset
+						wemainda: pwevAccumuawtedVawue + cowumn - 1,
+						nodeStawtOffset
 					};
-				} else {
-					column -= x.piece.length - prevAccumualtedValue;
-					break;
+				} ewse {
+					cowumn -= x.piece.wength - pwevAccumuawtedVawue;
+					bweak;
 				}
-			} else {
-				lineNumber -= x.lf_left + x.piece.lineFeedCnt;
-				nodeStartOffset += x.size_left + x.piece.length;
-				x = x.right;
+			} ewse {
+				wineNumba -= x.wf_weft + x.piece.wineFeedCnt;
+				nodeStawtOffset += x.size_weft + x.piece.wength;
+				x = x.wight;
 			}
 		}
 
-		// search in order, to find the node contains position.column
+		// seawch in owda, to find the node contains position.cowumn
 		x = x.next();
-		while (x !== SENTINEL) {
+		whiwe (x !== SENTINEW) {
 
-			if (x.piece.lineFeedCnt > 0) {
-				let accumulatedValue = this.getAccumulatedValue(x, 0);
-				let nodeStartOffset = this.offsetOfNode(x);
-				return {
+			if (x.piece.wineFeedCnt > 0) {
+				wet accumuwatedVawue = this.getAccumuwatedVawue(x, 0);
+				wet nodeStawtOffset = this.offsetOfNode(x);
+				wetuwn {
 					node: x,
-					remainder: Math.min(column - 1, accumulatedValue),
-					nodeStartOffset
+					wemainda: Math.min(cowumn - 1, accumuwatedVawue),
+					nodeStawtOffset
 				};
-			} else {
-				if (x.piece.length >= column - 1) {
-					let nodeStartOffset = this.offsetOfNode(x);
-					return {
+			} ewse {
+				if (x.piece.wength >= cowumn - 1) {
+					wet nodeStawtOffset = this.offsetOfNode(x);
+					wetuwn {
 						node: x,
-						remainder: column - 1,
-						nodeStartOffset
+						wemainda: cowumn - 1,
+						nodeStawtOffset
 					};
-				} else {
-					column -= x.piece.length;
+				} ewse {
+					cowumn -= x.piece.wength;
 				}
 			}
 
 			x = x.next();
 		}
 
-		return null!;
+		wetuwn nuww!;
 	}
 
-	private nodeCharCodeAt(node: TreeNode, offset: number): number {
-		if (node.piece.lineFeedCnt < 1) {
-			return -1;
+	pwivate nodeChawCodeAt(node: TweeNode, offset: numba): numba {
+		if (node.piece.wineFeedCnt < 1) {
+			wetuwn -1;
 		}
-		let buffer = this._buffers[node.piece.bufferIndex];
-		let newOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start) + offset;
-		return buffer.buffer.charCodeAt(newOffset);
+		wet buffa = this._buffews[node.piece.buffewIndex];
+		wet newOffset = this.offsetInBuffa(node.piece.buffewIndex, node.piece.stawt) + offset;
+		wetuwn buffa.buffa.chawCodeAt(newOffset);
 	}
 
-	private offsetOfNode(node: TreeNode): number {
+	pwivate offsetOfNode(node: TweeNode): numba {
 		if (!node) {
-			return 0;
+			wetuwn 0;
 		}
-		let pos = node.size_left;
-		while (node !== this.root) {
-			if (node.parent.right === node) {
-				pos += node.parent.size_left + node.parent.piece.length;
+		wet pos = node.size_weft;
+		whiwe (node !== this.woot) {
+			if (node.pawent.wight === node) {
+				pos += node.pawent.size_weft + node.pawent.piece.wength;
 			}
 
-			node = node.parent;
+			node = node.pawent;
 		}
 
-		return pos;
+		wetuwn pos;
 	}
 
-	// #endregion
+	// #endwegion
 
-	// #region CRLF
-	private shouldCheckCRLF() {
-		return !(this._EOLNormalized && this._EOL === '\n');
+	// #wegion CWWF
+	pwivate shouwdCheckCWWF() {
+		wetuwn !(this._EOWNowmawized && this._EOW === '\n');
 	}
 
-	private startWithLF(val: string | TreeNode): boolean {
-		if (typeof val === 'string') {
-			return val.charCodeAt(0) === 10;
+	pwivate stawtWithWF(vaw: stwing | TweeNode): boowean {
+		if (typeof vaw === 'stwing') {
+			wetuwn vaw.chawCodeAt(0) === 10;
 		}
 
-		if (val === SENTINEL || val.piece.lineFeedCnt === 0) {
-			return false;
+		if (vaw === SENTINEW || vaw.piece.wineFeedCnt === 0) {
+			wetuwn fawse;
 		}
 
-		let piece = val.piece;
-		let lineStarts = this._buffers[piece.bufferIndex].lineStarts;
-		let line = piece.start.line;
-		let startOffset = lineStarts[line] + piece.start.column;
-		if (line === lineStarts.length - 1) {
-			// last line, so there is no line feed at the end of this line
-			return false;
+		wet piece = vaw.piece;
+		wet wineStawts = this._buffews[piece.buffewIndex].wineStawts;
+		wet wine = piece.stawt.wine;
+		wet stawtOffset = wineStawts[wine] + piece.stawt.cowumn;
+		if (wine === wineStawts.wength - 1) {
+			// wast wine, so thewe is no wine feed at the end of this wine
+			wetuwn fawse;
 		}
-		let nextLineOffset = lineStarts[line + 1];
-		if (nextLineOffset > startOffset + 1) {
-			return false;
+		wet nextWineOffset = wineStawts[wine + 1];
+		if (nextWineOffset > stawtOffset + 1) {
+			wetuwn fawse;
 		}
-		return this._buffers[piece.bufferIndex].buffer.charCodeAt(startOffset) === 10;
+		wetuwn this._buffews[piece.buffewIndex].buffa.chawCodeAt(stawtOffset) === 10;
 	}
 
-	private endWithCR(val: string | TreeNode): boolean {
-		if (typeof val === 'string') {
-			return val.charCodeAt(val.length - 1) === 13;
+	pwivate endWithCW(vaw: stwing | TweeNode): boowean {
+		if (typeof vaw === 'stwing') {
+			wetuwn vaw.chawCodeAt(vaw.wength - 1) === 13;
 		}
 
-		if (val === SENTINEL || val.piece.lineFeedCnt === 0) {
-			return false;
+		if (vaw === SENTINEW || vaw.piece.wineFeedCnt === 0) {
+			wetuwn fawse;
 		}
 
-		return this.nodeCharCodeAt(val, val.piece.length - 1) === 13;
+		wetuwn this.nodeChawCodeAt(vaw, vaw.piece.wength - 1) === 13;
 	}
 
-	private validateCRLFWithPrevNode(nextNode: TreeNode) {
-		if (this.shouldCheckCRLF() && this.startWithLF(nextNode)) {
-			let node = nextNode.prev();
-			if (this.endWithCR(node)) {
-				this.fixCRLF(node, nextNode);
-			}
-		}
-	}
-
-	private validateCRLFWithNextNode(node: TreeNode) {
-		if (this.shouldCheckCRLF() && this.endWithCR(node)) {
-			let nextNode = node.next();
-			if (this.startWithLF(nextNode)) {
-				this.fixCRLF(node, nextNode);
+	pwivate vawidateCWWFWithPwevNode(nextNode: TweeNode) {
+		if (this.shouwdCheckCWWF() && this.stawtWithWF(nextNode)) {
+			wet node = nextNode.pwev();
+			if (this.endWithCW(node)) {
+				this.fixCWWF(node, nextNode);
 			}
 		}
 	}
 
-	private fixCRLF(prev: TreeNode, next: TreeNode) {
-		let nodesToDel: TreeNode[] = [];
+	pwivate vawidateCWWFWithNextNode(node: TweeNode) {
+		if (this.shouwdCheckCWWF() && this.endWithCW(node)) {
+			wet nextNode = node.next();
+			if (this.stawtWithWF(nextNode)) {
+				this.fixCWWF(node, nextNode);
+			}
+		}
+	}
+
+	pwivate fixCWWF(pwev: TweeNode, next: TweeNode) {
+		wet nodesToDew: TweeNode[] = [];
 		// update node
-		let lineStarts = this._buffers[prev.piece.bufferIndex].lineStarts;
-		let newEnd: BufferCursor;
-		if (prev.piece.end.column === 0) {
-			// it means, last line ends with \r, not \r\n
-			newEnd = { line: prev.piece.end.line - 1, column: lineStarts[prev.piece.end.line] - lineStarts[prev.piece.end.line - 1] - 1 };
-		} else {
-			// \r\n
-			newEnd = { line: prev.piece.end.line, column: prev.piece.end.column - 1 };
+		wet wineStawts = this._buffews[pwev.piece.buffewIndex].wineStawts;
+		wet newEnd: BuffewCuwsow;
+		if (pwev.piece.end.cowumn === 0) {
+			// it means, wast wine ends with \w, not \w\n
+			newEnd = { wine: pwev.piece.end.wine - 1, cowumn: wineStawts[pwev.piece.end.wine] - wineStawts[pwev.piece.end.wine - 1] - 1 };
+		} ewse {
+			// \w\n
+			newEnd = { wine: pwev.piece.end.wine, cowumn: pwev.piece.end.cowumn - 1 };
 		}
 
-		const prevNewLength = prev.piece.length - 1;
-		const prevNewLFCnt = prev.piece.lineFeedCnt - 1;
-		prev.piece = new Piece(
-			prev.piece.bufferIndex,
-			prev.piece.start,
+		const pwevNewWength = pwev.piece.wength - 1;
+		const pwevNewWFCnt = pwev.piece.wineFeedCnt - 1;
+		pwev.piece = new Piece(
+			pwev.piece.buffewIndex,
+			pwev.piece.stawt,
 			newEnd,
-			prevNewLFCnt,
-			prevNewLength
+			pwevNewWFCnt,
+			pwevNewWength
 		);
 
-		updateTreeMetadata(this, prev, - 1, -1);
-		if (prev.piece.length === 0) {
-			nodesToDel.push(prev);
+		updateTweeMetadata(this, pwev, - 1, -1);
+		if (pwev.piece.wength === 0) {
+			nodesToDew.push(pwev);
 		}
 
 		// update nextNode
-		let newStart: BufferCursor = { line: next.piece.start.line + 1, column: 0 };
-		const newLength = next.piece.length - 1;
-		const newLineFeedCnt = this.getLineFeedCnt(next.piece.bufferIndex, newStart, next.piece.end);
+		wet newStawt: BuffewCuwsow = { wine: next.piece.stawt.wine + 1, cowumn: 0 };
+		const newWength = next.piece.wength - 1;
+		const newWineFeedCnt = this.getWineFeedCnt(next.piece.buffewIndex, newStawt, next.piece.end);
 		next.piece = new Piece(
-			next.piece.bufferIndex,
-			newStart,
+			next.piece.buffewIndex,
+			newStawt,
 			next.piece.end,
-			newLineFeedCnt,
-			newLength
+			newWineFeedCnt,
+			newWength
 		);
 
-		updateTreeMetadata(this, next, - 1, -1);
-		if (next.piece.length === 0) {
-			nodesToDel.push(next);
+		updateTweeMetadata(this, next, - 1, -1);
+		if (next.piece.wength === 0) {
+			nodesToDew.push(next);
 		}
 
-		// create new piece which contains \r\n
-		let pieces = this.createNewPieces('\r\n');
-		this.rbInsertRight(prev, pieces[0]);
-		// delete empty nodes
+		// cweate new piece which contains \w\n
+		wet pieces = this.cweateNewPieces('\w\n');
+		this.wbInsewtWight(pwev, pieces[0]);
+		// dewete empty nodes
 
-		for (let i = 0; i < nodesToDel.length; i++) {
-			rbDelete(this, nodesToDel[i]);
+		fow (wet i = 0; i < nodesToDew.wength; i++) {
+			wbDewete(this, nodesToDew[i]);
 		}
 	}
 
-	private adjustCarriageReturnFromNext(value: string, node: TreeNode): boolean {
-		if (this.shouldCheckCRLF() && this.endWithCR(value)) {
-			let nextNode = node.next();
-			if (this.startWithLF(nextNode)) {
-				// move `\n` forward
-				value += '\n';
+	pwivate adjustCawwiageWetuwnFwomNext(vawue: stwing, node: TweeNode): boowean {
+		if (this.shouwdCheckCWWF() && this.endWithCW(vawue)) {
+			wet nextNode = node.next();
+			if (this.stawtWithWF(nextNode)) {
+				// move `\n` fowwawd
+				vawue += '\n';
 
-				if (nextNode.piece.length === 1) {
-					rbDelete(this, nextNode);
-				} else {
+				if (nextNode.piece.wength === 1) {
+					wbDewete(this, nextNode);
+				} ewse {
 
 					const piece = nextNode.piece;
-					const newStart: BufferCursor = { line: piece.start.line + 1, column: 0 };
-					const newLength = piece.length - 1;
-					const newLineFeedCnt = this.getLineFeedCnt(piece.bufferIndex, newStart, piece.end);
+					const newStawt: BuffewCuwsow = { wine: piece.stawt.wine + 1, cowumn: 0 };
+					const newWength = piece.wength - 1;
+					const newWineFeedCnt = this.getWineFeedCnt(piece.buffewIndex, newStawt, piece.end);
 					nextNode.piece = new Piece(
-						piece.bufferIndex,
-						newStart,
+						piece.buffewIndex,
+						newStawt,
 						piece.end,
-						newLineFeedCnt,
-						newLength
+						newWineFeedCnt,
+						newWength
 					);
 
-					updateTreeMetadata(this, nextNode, -1, -1);
+					updateTweeMetadata(this, nextNode, -1, -1);
 				}
-				return true;
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	// #endregion
+	// #endwegion
 
-	// #endregion
+	// #endwegion
 
-	// #region Tree operations
-	iterate(node: TreeNode, callback: (node: TreeNode) => boolean): boolean {
-		if (node === SENTINEL) {
-			return callback(SENTINEL);
+	// #wegion Twee opewations
+	itewate(node: TweeNode, cawwback: (node: TweeNode) => boowean): boowean {
+		if (node === SENTINEW) {
+			wetuwn cawwback(SENTINEW);
 		}
 
-		let leftRet = this.iterate(node.left, callback);
-		if (!leftRet) {
-			return leftRet;
+		wet weftWet = this.itewate(node.weft, cawwback);
+		if (!weftWet) {
+			wetuwn weftWet;
 		}
 
-		return callback(node) && this.iterate(node.right, callback);
+		wetuwn cawwback(node) && this.itewate(node.wight, cawwback);
 	}
 
-	private getNodeContent(node: TreeNode) {
-		if (node === SENTINEL) {
-			return '';
+	pwivate getNodeContent(node: TweeNode) {
+		if (node === SENTINEW) {
+			wetuwn '';
 		}
-		let buffer = this._buffers[node.piece.bufferIndex];
-		let currentContent;
-		let piece = node.piece;
-		let startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
-		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		currentContent = buffer.buffer.substring(startOffset, endOffset);
-		return currentContent;
+		wet buffa = this._buffews[node.piece.buffewIndex];
+		wet cuwwentContent;
+		wet piece = node.piece;
+		wet stawtOffset = this.offsetInBuffa(piece.buffewIndex, piece.stawt);
+		wet endOffset = this.offsetInBuffa(piece.buffewIndex, piece.end);
+		cuwwentContent = buffa.buffa.substwing(stawtOffset, endOffset);
+		wetuwn cuwwentContent;
 	}
 
 	getPieceContent(piece: Piece) {
-		let buffer = this._buffers[piece.bufferIndex];
-		let startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
-		let endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		let currentContent = buffer.buffer.substring(startOffset, endOffset);
-		return currentContent;
+		wet buffa = this._buffews[piece.buffewIndex];
+		wet stawtOffset = this.offsetInBuffa(piece.buffewIndex, piece.stawt);
+		wet endOffset = this.offsetInBuffa(piece.buffewIndex, piece.end);
+		wet cuwwentContent = buffa.buffa.substwing(stawtOffset, endOffset);
+		wetuwn cuwwentContent;
 	}
 
 	/**
@@ -1790,29 +1790,29 @@ export class PieceTreeBase {
 	 *                         /
 	 *                        z
 	 */
-	private rbInsertRight(node: TreeNode | null, p: Piece): TreeNode {
-		let z = new TreeNode(p, NodeColor.Red);
-		z.left = SENTINEL;
-		z.right = SENTINEL;
-		z.parent = SENTINEL;
-		z.size_left = 0;
-		z.lf_left = 0;
+	pwivate wbInsewtWight(node: TweeNode | nuww, p: Piece): TweeNode {
+		wet z = new TweeNode(p, NodeCowow.Wed);
+		z.weft = SENTINEW;
+		z.wight = SENTINEW;
+		z.pawent = SENTINEW;
+		z.size_weft = 0;
+		z.wf_weft = 0;
 
-		let x = this.root;
-		if (x === SENTINEL) {
-			this.root = z;
-			z.color = NodeColor.Black;
-		} else if (node!.right === SENTINEL) {
-			node!.right = z;
-			z.parent = node!;
-		} else {
-			let nextNode = leftest(node!.right);
-			nextNode.left = z;
-			z.parent = nextNode;
+		wet x = this.woot;
+		if (x === SENTINEW) {
+			this.woot = z;
+			z.cowow = NodeCowow.Bwack;
+		} ewse if (node!.wight === SENTINEW) {
+			node!.wight = z;
+			z.pawent = node!;
+		} ewse {
+			wet nextNode = weftest(node!.wight);
+			nextNode.weft = z;
+			z.pawent = nextNode;
 		}
 
-		fixInsert(this, z);
-		return z;
+		fixInsewt(this, z);
+		wetuwn z;
 	}
 
 	/**
@@ -1822,39 +1822,39 @@ export class PieceTreeBase {
 	 *                       \
 	 *                        z
 	 */
-	private rbInsertLeft(node: TreeNode | null, p: Piece): TreeNode {
-		let z = new TreeNode(p, NodeColor.Red);
-		z.left = SENTINEL;
-		z.right = SENTINEL;
-		z.parent = SENTINEL;
-		z.size_left = 0;
-		z.lf_left = 0;
+	pwivate wbInsewtWeft(node: TweeNode | nuww, p: Piece): TweeNode {
+		wet z = new TweeNode(p, NodeCowow.Wed);
+		z.weft = SENTINEW;
+		z.wight = SENTINEW;
+		z.pawent = SENTINEW;
+		z.size_weft = 0;
+		z.wf_weft = 0;
 
-		if (this.root === SENTINEL) {
-			this.root = z;
-			z.color = NodeColor.Black;
-		} else if (node!.left === SENTINEL) {
-			node!.left = z;
-			z.parent = node!;
-		} else {
-			let prevNode = righttest(node!.left); // a
-			prevNode.right = z;
-			z.parent = prevNode;
+		if (this.woot === SENTINEW) {
+			this.woot = z;
+			z.cowow = NodeCowow.Bwack;
+		} ewse if (node!.weft === SENTINEW) {
+			node!.weft = z;
+			z.pawent = node!;
+		} ewse {
+			wet pwevNode = wighttest(node!.weft); // a
+			pwevNode.wight = z;
+			z.pawent = pwevNode;
 		}
 
-		fixInsert(this, z);
-		return z;
+		fixInsewt(this, z);
+		wetuwn z;
 	}
 
-	private getContentOfSubTree(node: TreeNode): string {
-		let str = '';
+	pwivate getContentOfSubTwee(node: TweeNode): stwing {
+		wet stw = '';
 
-		this.iterate(node, node => {
-			str += this.getNodeContent(node);
-			return true;
+		this.itewate(node, node => {
+			stw += this.getNodeContent(node);
+			wetuwn twue;
 		});
 
-		return str;
+		wetuwn stw;
 	}
-	// #endregion
+	// #endwegion
 }

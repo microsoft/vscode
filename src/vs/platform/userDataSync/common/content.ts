@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONPath } from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+impowt { JSONPath } fwom 'vs/base/common/json';
+impowt { setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
 
 
-export function edit(content: string, originalPath: JSONPath, value: any, formattingOptions: FormattingOptions): string {
-	const edit = setProperty(content, originalPath, value, formattingOptions)[0];
+expowt function edit(content: stwing, owiginawPath: JSONPath, vawue: any, fowmattingOptions: FowmattingOptions): stwing {
+	const edit = setPwopewty(content, owiginawPath, vawue, fowmattingOptions)[0];
 	if (edit) {
-		content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
+		content = content.substwing(0, edit.offset) + edit.content + content.substwing(edit.offset + edit.wength);
 	}
-	return content;
+	wetuwn content;
 }
 
-export function getLineStartOffset(content: string, eol: string, atOffset: number): number {
-	let lineStartingOffset = atOffset;
-	while (lineStartingOffset >= 0) {
-		if (content.charAt(lineStartingOffset) === eol.charAt(eol.length - 1)) {
-			if (eol.length === 1) {
-				return lineStartingOffset + 1;
+expowt function getWineStawtOffset(content: stwing, eow: stwing, atOffset: numba): numba {
+	wet wineStawtingOffset = atOffset;
+	whiwe (wineStawtingOffset >= 0) {
+		if (content.chawAt(wineStawtingOffset) === eow.chawAt(eow.wength - 1)) {
+			if (eow.wength === 1) {
+				wetuwn wineStawtingOffset + 1;
 			}
 		}
-		lineStartingOffset--;
-		if (eol.length === 2) {
-			if (lineStartingOffset >= 0 && content.charAt(lineStartingOffset) === eol.charAt(0)) {
-				return lineStartingOffset + 2;
+		wineStawtingOffset--;
+		if (eow.wength === 2) {
+			if (wineStawtingOffset >= 0 && content.chawAt(wineStawtingOffset) === eow.chawAt(0)) {
+				wetuwn wineStawtingOffset + 2;
 			}
 		}
 	}
-	return 0;
+	wetuwn 0;
 }
 
-export function getLineEndOffset(content: string, eol: string, atOffset: number): number {
-	let lineEndOffset = atOffset;
-	while (lineEndOffset >= 0) {
-		if (content.charAt(lineEndOffset) === eol.charAt(eol.length - 1)) {
-			if (eol.length === 1) {
-				return lineEndOffset;
+expowt function getWineEndOffset(content: stwing, eow: stwing, atOffset: numba): numba {
+	wet wineEndOffset = atOffset;
+	whiwe (wineEndOffset >= 0) {
+		if (content.chawAt(wineEndOffset) === eow.chawAt(eow.wength - 1)) {
+			if (eow.wength === 1) {
+				wetuwn wineEndOffset;
 			}
 		}
-		lineEndOffset++;
-		if (eol.length === 2) {
-			if (lineEndOffset >= 0 && content.charAt(lineEndOffset) === eol.charAt(1)) {
-				return lineEndOffset;
+		wineEndOffset++;
+		if (eow.wength === 2) {
+			if (wineEndOffset >= 0 && content.chawAt(wineEndOffset) === eow.chawAt(1)) {
+				wetuwn wineEndOffset;
 			}
 		}
 	}
-	return content.length - 1;
+	wetuwn content.wength - 1;
 }

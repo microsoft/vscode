@@ -1,196 +1,196 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { parseKeyboardLayoutDescription, areKeyboardLayoutsEqual, getKeyboardLayoutId, IKeyboardLayoutService, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { KEYBOARD_LAYOUT_OPEN_PICKER } from 'vs/workbench/contrib/preferences/common/preferences';
-import { Action } from 'vs/base/common/actions';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { QuickPickInput, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IEditorPane } from 'vs/workbench/common/editor';
+impowt * as nws fwom 'vs/nws';
+impowt { StatusbawAwignment, IStatusbawSewvice, IStatusbawEntwyAccessow } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { pawseKeyboawdWayoutDescwiption, aweKeyboawdWayoutsEquaw, getKeyboawdWayoutId, IKeyboawdWayoutSewvice, IKeyboawdWayoutInfo } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchActionWegistwy, Extensions as ActionExtensions } fwom 'vs/wowkbench/common/actions';
+impowt { KEYBOAWD_WAYOUT_OPEN_PICKa } fwom 'vs/wowkbench/contwib/pwefewences/common/pwefewences';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { QuickPickInput, IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
 
-export class KeyboardLayoutPickerContribution extends Disposable implements IWorkbenchContribution {
-	private readonly pickerElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+expowt cwass KeyboawdWayoutPickewContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	pwivate weadonwy pickewEwement = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
 
-	constructor(
-		@IKeyboardLayoutService private readonly keyboardLayoutService: IKeyboardLayoutService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
+	constwuctow(
+		@IKeyboawdWayoutSewvice pwivate weadonwy keyboawdWayoutSewvice: IKeyboawdWayoutSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
 	) {
-		super();
+		supa();
 
-		const name = nls.localize('status.workbench.keyboardLayout', "Keyboard Layout");
+		const name = nws.wocawize('status.wowkbench.keyboawdWayout', "Keyboawd Wayout");
 
-		let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
-		if (layout) {
-			let layoutInfo = parseKeyboardLayoutDescription(layout);
-			const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
+		wet wayout = this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout();
+		if (wayout) {
+			wet wayoutInfo = pawseKeyboawdWayoutDescwiption(wayout);
+			const text = nws.wocawize('keyboawdWayout', "Wayout: {0}", wayoutInfo.wabew);
 
-			this.pickerElement.value = this.statusbarService.addEntry(
+			this.pickewEwement.vawue = this.statusbawSewvice.addEntwy(
 				{
 					name,
 					text,
-					ariaLabel: text,
-					command: KEYBOARD_LAYOUT_OPEN_PICKER
+					awiaWabew: text,
+					command: KEYBOAWD_WAYOUT_OPEN_PICKa
 				},
-				'status.workbench.keyboardLayout',
-				StatusbarAlignment.RIGHT
+				'status.wowkbench.keyboawdWayout',
+				StatusbawAwignment.WIGHT
 			);
 		}
 
-		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
-			let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
-			let layoutInfo = parseKeyboardLayoutDescription(layout);
+		this._wegista(keyboawdWayoutSewvice.onDidChangeKeyboawdWayout(() => {
+			wet wayout = this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout();
+			wet wayoutInfo = pawseKeyboawdWayoutDescwiption(wayout);
 
-			if (this.pickerElement.value) {
-				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
-				this.pickerElement.value.update({
+			if (this.pickewEwement.vawue) {
+				const text = nws.wocawize('keyboawdWayout', "Wayout: {0}", wayoutInfo.wabew);
+				this.pickewEwement.vawue.update({
 					name,
 					text,
-					ariaLabel: text,
-					command: KEYBOARD_LAYOUT_OPEN_PICKER
+					awiaWabew: text,
+					command: KEYBOAWD_WAYOUT_OPEN_PICKa
 				});
-			} else {
-				const text = nls.localize('keyboardLayout', "Layout: {0}", layoutInfo.label);
-				this.pickerElement.value = this.statusbarService.addEntry(
+			} ewse {
+				const text = nws.wocawize('keyboawdWayout', "Wayout: {0}", wayoutInfo.wabew);
+				this.pickewEwement.vawue = this.statusbawSewvice.addEntwy(
 					{
 						name,
 						text,
-						ariaLabel: text,
-						command: KEYBOARD_LAYOUT_OPEN_PICKER
+						awiaWabew: text,
+						command: KEYBOAWD_WAYOUT_OPEN_PICKa
 					},
-					'status.workbench.keyboardLayout',
-					StatusbarAlignment.RIGHT
+					'status.wowkbench.keyboawdWayout',
+					StatusbawAwignment.WIGHT
 				);
 			}
 		}));
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(KeyboardLayoutPickerContribution, LifecyclePhase.Starting);
+const wowkbenchContwibutionsWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchContwibutionsWegistwy.wegistewWowkbenchContwibution(KeyboawdWayoutPickewContwibution, WifecycwePhase.Stawting);
 
-interface LayoutQuickPickItem extends IQuickPickItem {
-	layout: IKeyboardLayoutInfo;
+intewface WayoutQuickPickItem extends IQuickPickItem {
+	wayout: IKeyboawdWayoutInfo;
 }
 
-interface IUnknownLayout {
-	text?: string;
-	lang?: string;
-	layout?: string;
+intewface IUnknownWayout {
+	text?: stwing;
+	wang?: stwing;
+	wayout?: stwing;
 }
 
-export class KeyboardLayoutPickerAction extends Action {
-	static readonly ID = KEYBOARD_LAYOUT_OPEN_PICKER;
-	static readonly LABEL = nls.localize('keyboard.chooseLayout', "Change Keyboard Layout");
+expowt cwass KeyboawdWayoutPickewAction extends Action {
+	static weadonwy ID = KEYBOAWD_WAYOUT_OPEN_PICKa;
+	static weadonwy WABEW = nws.wocawize('keyboawd.chooseWayout', "Change Keyboawd Wayout");
 
-	private static DEFAULT_CONTENT: string = [
-		`// ${nls.localize('displayLanguage', 'Defines the keyboard layout used in VS Code in the browser environment.')}`,
-		`// ${nls.localize('doc', 'Open VS Code and run "Developer: Inspect Key Mappings (JSON)" from Command Palette.')}`,
+	pwivate static DEFAUWT_CONTENT: stwing = [
+		`// ${nws.wocawize('dispwayWanguage', 'Defines the keyboawd wayout used in VS Code in the bwowsa enviwonment.')}`,
+		`// ${nws.wocawize('doc', 'Open VS Code and wun "Devewopa: Inspect Key Mappings (JSON)" fwom Command Pawette.')}`,
 		``,
-		`// Once you have the keyboard layout info, please paste it below.`,
+		`// Once you have the keyboawd wayout info, pwease paste it bewow.`,
 		'\n'
 	].join('\n');
 
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IFileService private readonly fileService: IFileService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeyboardLayoutService private readonly keyboardLayoutService: IKeyboardLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IEditorService private readonly editorService: IEditorService
+	constwuctow(
+		actionId: stwing,
+		actionWabew: stwing,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IKeyboawdWayoutSewvice pwivate weadonwy keyboawdWayoutSewvice: IKeyboawdWayoutSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice
 	) {
-		super(actionId, actionLabel, undefined, true);
+		supa(actionId, actionWabew, undefined, twue);
 	}
 
-	override async run(): Promise<void> {
-		let layouts = this.keyboardLayoutService.getAllKeyboardLayouts();
-		let currentLayout = this.keyboardLayoutService.getCurrentKeyboardLayout();
-		let layoutConfig = this.configurationService.getValue('keyboard.layout');
-		let isAutoDetect = layoutConfig === 'autodetect';
+	ovewwide async wun(): Pwomise<void> {
+		wet wayouts = this.keyboawdWayoutSewvice.getAwwKeyboawdWayouts();
+		wet cuwwentWayout = this.keyboawdWayoutSewvice.getCuwwentKeyboawdWayout();
+		wet wayoutConfig = this.configuwationSewvice.getVawue('keyboawd.wayout');
+		wet isAutoDetect = wayoutConfig === 'autodetect';
 
-		const picks: QuickPickInput[] = layouts.map(layout => {
-			const picked = !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout);
-			const layoutInfo = parseKeyboardLayoutDescription(layout);
-			return {
-				layout: layout,
-				label: [layoutInfo.label, (layout && layout.isUserKeyboardLayout) ? '(User configured layout)' : ''].join(' '),
-				id: (layout as IUnknownLayout).text || (layout as IUnknownLayout).lang || (layout as IUnknownLayout).layout,
-				description: layoutInfo.description + (picked ? ' (Current layout)' : ''),
-				picked: !isAutoDetect && areKeyboardLayoutsEqual(currentLayout, layout)
+		const picks: QuickPickInput[] = wayouts.map(wayout => {
+			const picked = !isAutoDetect && aweKeyboawdWayoutsEquaw(cuwwentWayout, wayout);
+			const wayoutInfo = pawseKeyboawdWayoutDescwiption(wayout);
+			wetuwn {
+				wayout: wayout,
+				wabew: [wayoutInfo.wabew, (wayout && wayout.isUsewKeyboawdWayout) ? '(Usa configuwed wayout)' : ''].join(' '),
+				id: (wayout as IUnknownWayout).text || (wayout as IUnknownWayout).wang || (wayout as IUnknownWayout).wayout,
+				descwiption: wayoutInfo.descwiption + (picked ? ' (Cuwwent wayout)' : ''),
+				picked: !isAutoDetect && aweKeyboawdWayoutsEquaw(cuwwentWayout, wayout)
 			};
-		}).sort((a: IQuickPickItem, b: IQuickPickItem) => {
-			return a.label < b.label ? -1 : (a.label > b.label ? 1 : 0);
+		}).sowt((a: IQuickPickItem, b: IQuickPickItem) => {
+			wetuwn a.wabew < b.wabew ? -1 : (a.wabew > b.wabew ? 1 : 0);
 		});
 
-		if (picks.length > 0) {
-			const platform = isMacintosh ? 'Mac' : isWindows ? 'Win' : 'Linux';
-			picks.unshift({ type: 'separator', label: nls.localize('layoutPicks', "Keyboard Layouts ({0})", platform) });
+		if (picks.wength > 0) {
+			const pwatfowm = isMacintosh ? 'Mac' : isWindows ? 'Win' : 'Winux';
+			picks.unshift({ type: 'sepawatow', wabew: nws.wocawize('wayoutPicks', "Keyboawd Wayouts ({0})", pwatfowm) });
 		}
 
-		let configureKeyboardLayout: IQuickPickItem = { label: nls.localize('configureKeyboardLayout', "Configure Keyboard Layout") };
+		wet configuweKeyboawdWayout: IQuickPickItem = { wabew: nws.wocawize('configuweKeyboawdWayout', "Configuwe Keyboawd Wayout") };
 
-		picks.unshift(configureKeyboardLayout);
+		picks.unshift(configuweKeyboawdWayout);
 
-		// Offer to "Auto Detect"
+		// Offa to "Auto Detect"
 		const autoDetectMode: IQuickPickItem = {
-			label: nls.localize('autoDetect', "Auto Detect"),
-			description: isAutoDetect ? `Current: ${parseKeyboardLayoutDescription(currentLayout).label}` : undefined,
-			picked: isAutoDetect ? true : undefined
+			wabew: nws.wocawize('autoDetect', "Auto Detect"),
+			descwiption: isAutoDetect ? `Cuwwent: ${pawseKeyboawdWayoutDescwiption(cuwwentWayout).wabew}` : undefined,
+			picked: isAutoDetect ? twue : undefined
 		};
 
 		picks.unshift(autoDetectMode);
 
-		const pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickKeyboardLayout', "Select Keyboard Layout"), matchOnDescription: true });
+		const pick = await this.quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('pickKeyboawdWayout', "Sewect Keyboawd Wayout"), matchOnDescwiption: twue });
 		if (!pick) {
-			return;
+			wetuwn;
 		}
 
 		if (pick === autoDetectMode) {
-			// set keymap service to auto mode
-			this.configurationService.updateValue('keyboard.layout', 'autodetect');
-			return;
+			// set keymap sewvice to auto mode
+			this.configuwationSewvice.updateVawue('keyboawd.wayout', 'autodetect');
+			wetuwn;
 		}
 
-		if (pick === configureKeyboardLayout) {
-			const file = this.environmentService.keyboardLayoutResource;
+		if (pick === configuweKeyboawdWayout) {
+			const fiwe = this.enviwonmentSewvice.keyboawdWayoutWesouwce;
 
-			await this.fileService.resolve(file).then(undefined, (error) => {
-				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
-			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
+			await this.fiweSewvice.wesowve(fiwe).then(undefined, (ewwow) => {
+				wetuwn this.fiweSewvice.cweateFiwe(fiwe, VSBuffa.fwomStwing(KeyboawdWayoutPickewAction.DEFAUWT_CONTENT));
+			}).then((stat): Pwomise<IEditowPane | undefined> | undefined => {
 				if (!stat) {
-					return undefined;
+					wetuwn undefined;
 				}
-				return this.editorService.openEditor({
-					resource: stat.resource,
+				wetuwn this.editowSewvice.openEditow({
+					wesouwce: stat.wesouwce,
 					mode: 'jsonc',
-					options: { pinned: true }
+					options: { pinned: twue }
 				});
-			}, (error) => {
-				throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", file.toString(), error));
+			}, (ewwow) => {
+				thwow new Ewwow(nws.wocawize('faiw.cweateSettings', "Unabwe to cweate '{0}' ({1}).", fiwe.toStwing(), ewwow));
 			});
 
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		}
 
-		this.configurationService.updateValue('keyboard.layout', getKeyboardLayoutId((<LayoutQuickPickItem>pick).layout));
+		this.configuwationSewvice.updateVawue('keyboawd.wayout', getKeyboawdWayoutId((<WayoutQuickPickItem>pick).wayout));
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(KeyboardLayoutPickerAction, {}), 'Preferences: Change Keyboard Layout', nls.localize('preferences', "Preferences"));
+const wegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(ActionExtensions.WowkbenchActions);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(KeyboawdWayoutPickewAction, {}), 'Pwefewences: Change Keyboawd Wayout', nws.wocawize('pwefewences', "Pwefewences"));

@@ -1,295 +1,295 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WanguagesWegistwy } fwom 'vs/editow/common/sewvices/wanguagesWegistwy';
 
-suite('LanguagesRegistry', () => {
+suite('WanguagesWegistwy', () => {
 
 	test('output mode does not have a name', () => {
-		let registry = new LanguagesRegistry(false);
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'outputModeId',
 			extensions: [],
-			aliases: [],
+			awiases: [],
 			mimetypes: ['outputModeMimeType'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), []);
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), []);
 	});
 
-	test('mode with alias does have a name', () => {
-		let registry = new LanguagesRegistry(false);
+	test('mode with awias does have a name', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: [],
-			aliases: ['ModeName'],
-			mimetypes: ['bla'],
+			awiases: ['ModeName'],
+			mimetypes: ['bwa'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['ModeName']);
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('modeId'), 'ModeName');
 	});
 
-	test('mode without alias gets a name', () => {
-		let registry = new LanguagesRegistry(false);
+	test('mode without awias gets a name', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: [],
-			mimetypes: ['bla'],
+			mimetypes: ['bwa'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['modeId']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'modeId');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['modeId']);
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('modeId'), 'modeId');
 	});
 
-	test('bug #4360: f# not shown in status bar', () => {
-		let registry = new LanguagesRegistry(false);
+	test('bug #4360: f# not shown in status baw', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
-			mimetypes: ['bla'],
+			awiases: ['ModeName'],
+			mimetypes: ['bwa'],
 		}]);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: ['.ext2'],
-			aliases: [],
-			mimetypes: ['bla'],
+			awiases: [],
+			mimetypes: ['bwa'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['ModeName']);
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('modeId'), 'ModeName');
 	});
 
-	test('issue #5278: Extension cannot override language name anymore', () => {
-		let registry = new LanguagesRegistry(false);
+	test('issue #5278: Extension cannot ovewwide wanguage name anymowe', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
-			mimetypes: ['bla'],
+			awiases: ['ModeName'],
+			mimetypes: ['bwa'],
 		}]);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			extensions: ['.ext2'],
-			aliases: ['BetterModeName'],
-			mimetypes: ['bla'],
+			awiases: ['BettewModeName'],
+			mimetypes: ['bwa'],
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);
-		assert.deepStrictEqual(registry.getLanguageName('modeId'), 'BetterModeName');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['BettewModeName']);
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('modeId'), 'BettewModeName');
 	});
 
-	test('mimetypes are generated if necessary', () => {
-		let registry = new LanguagesRegistry(false);
+	test('mimetypes awe genewated if necessawy', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId'
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeForMode('modeId'), 'text/x-modeId');
+		assewt.deepStwictEquaw(wegistwy.getMimeFowMode('modeId'), 'text/x-modeId');
 	});
 
-	test('first mimetype wins', () => {
-		let registry = new LanguagesRegistry(false);
+	test('fiwst mimetype wins', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			mimetypes: ['text/modeId', 'text/modeId2']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeForMode('modeId'), 'text/modeId');
+		assewt.deepStwictEquaw(wegistwy.getMimeFowMode('modeId'), 'text/modeId');
 	});
 
-	test('first mimetype wins 2', () => {
-		let registry = new LanguagesRegistry(false);
+	test('fiwst mimetype wins 2', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId'
 		}]);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'modeId',
 			mimetypes: ['text/modeId']
 		}]);
 
-		assert.deepStrictEqual(registry.getMimeForMode('modeId'), 'text/x-modeId');
+		assewt.deepStwictEquaw(wegistwy.getMimeFowMode('modeId'), 'text/x-modeId');
 	});
 
-	test('aliases', () => {
-		let registry = new LanguagesRegistry(false);
+	test('awiases', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('a'), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('a'), 'a');
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			aliases: ['A1', 'A2']
+			awiases: ['A1', 'A2']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A1']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('a'), []);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A1'), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A2'), []);
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a1'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a2'), 'a');
-		assert.deepStrictEqual(registry.getLanguageName('a'), 'A1');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['A1']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A1'), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A2'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a1'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a2'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('a'), 'A1');
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			aliases: ['A3', 'A4']
+			awiases: ['A3', 'A4']
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['A3']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('a'), []);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A1'), []);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A2'), []);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A3'), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('A4'), []);
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a1'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a2'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a3'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a4'), 'a');
-		assert.deepStrictEqual(registry.getLanguageName('a'), 'A3');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['A3']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A1'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A2'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A3'), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('A4'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a1'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a2'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a3'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a4'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('a'), 'A3');
 	});
 
-	test('empty aliases array means no alias', () => {
-		let registry = new LanguagesRegistry(false);
+	test('empty awiases awway means no awias', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a'
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('a'), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('a'), 'a');
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'b',
-			aliases: []
+			awiases: []
 		}]);
 
-		assert.deepStrictEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepStrictEqual(registry.getModeIdsFromLanguageName('b'), []);
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepStrictEqual(registry.getModeIdForLanguageNameLowercase('b'), 'b');
-		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
-		assert.deepStrictEqual(registry.getLanguageName('b'), null);
+		assewt.deepStwictEquaw(wegistwy.getWegistewedWanguageNames(), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('a'), ['a']);
+		assewt.deepStwictEquaw(wegistwy.getModeIdsFwomWanguageName('b'), []);
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getModeIdFowWanguageNameWowewcase('b'), 'b');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('a'), 'a');
+		assewt.deepStwictEquaw(wegistwy.getWanguageName('b'), nuww);
 	});
 
 	test('extensions', () => {
-		let registry = new LanguagesRegistry(false);
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			aliases: ['aName'],
+			awiases: ['aName'],
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt']);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('aName'), ['aExt']);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a'), []);
-		assert.deepStrictEqual(registry.getExtensions('aname'), []);
-		assert.deepStrictEqual(registry.getExtensions('aName'), ['aExt', 'aExt2']);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getExtensions('aName'), ['aExt', 'aExt2']);
 	});
 
-	test('extensions of primary language registration come first', () => {
-		let registry = new LanguagesRegistry(false);
+	test('extensions of pwimawy wanguage wegistwation come fiwst', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
 			extensions: ['aExt3']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt3');
+		assewt.deepStwictEquaw(wegistwy.getExtensions('a')[0], 'aExt3');
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			configuration: URI.file('conf.json'),
+			configuwation: UWI.fiwe('conf.json'),
 			extensions: ['aExt']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+		assewt.deepStwictEquaw(wegistwy.getExtensions('a')[0], 'aExt');
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+		assewt.deepStwictEquaw(wegistwy.getExtensions('a')[0], 'aExt');
 	});
 
-	test('filenames', () => {
-		let registry = new LanguagesRegistry(false);
+	test('fiwenames', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			aliases: ['aName'],
-			filenames: ['aFilename']
+			awiases: ['aName'],
+			fiwenames: ['aFiwename']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename']);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('aName'), ['aFiwename']);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			filenames: ['aFilename2']
+			fiwenames: ['aFiwename2']
 		}]);
 
-		assert.deepStrictEqual(registry.getFilenames('a'), []);
-		assert.deepStrictEqual(registry.getFilenames('aname'), []);
-		assert.deepStrictEqual(registry.getFilenames('aName'), ['aFilename', 'aFilename2']);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('a'), []);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getFiwenames('aName'), ['aFiwename', 'aFiwename2']);
 	});
 
-	test('configuration', () => {
-		let registry = new LanguagesRegistry(false);
+	test('configuwation', () => {
+		wet wegistwy = new WanguagesWegistwy(fawse);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			aliases: ['aName'],
-			configuration: URI.file('/path/to/aFilename')
+			awiases: ['aName'],
+			configuwation: UWI.fiwe('/path/to/aFiwename')
 		}]);
 
-		assert.deepStrictEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename')]);
-		assert.deepStrictEqual(registry.getConfigurationFiles('aname'), []);
-		assert.deepStrictEqual(registry.getConfigurationFiles('aName'), []);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('a'), [UWI.fiwe('/path/to/aFiwename')]);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('aName'), []);
 
-		registry._registerLanguages([{
+		wegistwy._wegistewWanguages([{
 			id: 'a',
-			configuration: URI.file('/path/to/aFilename2')
+			configuwation: UWI.fiwe('/path/to/aFiwename2')
 		}]);
 
-		assert.deepStrictEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename'), URI.file('/path/to/aFilename2')]);
-		assert.deepStrictEqual(registry.getConfigurationFiles('aname'), []);
-		assert.deepStrictEqual(registry.getConfigurationFiles('aName'), []);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('a'), [UWI.fiwe('/path/to/aFiwename'), UWI.fiwe('/path/to/aFiwename2')]);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('aname'), []);
+		assewt.deepStwictEquaw(wegistwy.getConfiguwationFiwes('aName'), []);
 	});
 });

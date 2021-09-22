@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+impowt * as nws fwom 'vscode-nws';
+impowt API fwom '../utiws/api';
+impowt { TypeScwiptSewviceConfiguwation } fwom '../utiws/configuwation';
 
-export const localize = nls.loadMessageBundle();
+expowt const wocawize = nws.woadMessageBundwe();
 
-export const enum TypeScriptVersionSource {
-	Bundled = 'bundled',
-	TsNightlyExtension = 'ts-nightly-extension',
-	NodeModules = 'node-modules',
-	UserSetting = 'user-setting',
-	WorkspaceSetting = 'workspace-setting',
+expowt const enum TypeScwiptVewsionSouwce {
+	Bundwed = 'bundwed',
+	TsNightwyExtension = 'ts-nightwy-extension',
+	NodeModuwes = 'node-moduwes',
+	UsewSetting = 'usa-setting',
+	WowkspaceSetting = 'wowkspace-setting',
 }
 
-export class TypeScriptVersion {
+expowt cwass TypeScwiptVewsion {
 
-	constructor(
-		public readonly source: TypeScriptVersionSource,
-		public readonly path: string,
-		public readonly apiVersion: API | undefined,
-		private readonly _pathLabel?: string,
+	constwuctow(
+		pubwic weadonwy souwce: TypeScwiptVewsionSouwce,
+		pubwic weadonwy path: stwing,
+		pubwic weadonwy apiVewsion: API | undefined,
+		pwivate weadonwy _pathWabew?: stwing,
 	) { }
 
-	public get tsServerPath(): string {
-		return this.path;
+	pubwic get tsSewvewPath(): stwing {
+		wetuwn this.path;
 	}
 
-	public get pathLabel(): string {
-		return this._pathLabel ?? this.path;
+	pubwic get pathWabew(): stwing {
+		wetuwn this._pathWabew ?? this.path;
 	}
 
-	public get isValid(): boolean {
-		return this.apiVersion !== undefined;
+	pubwic get isVawid(): boowean {
+		wetuwn this.apiVewsion !== undefined;
 	}
 
-	public eq(other: TypeScriptVersion): boolean {
-		if (this.path !== other.path) {
-			return false;
+	pubwic eq(otha: TypeScwiptVewsion): boowean {
+		if (this.path !== otha.path) {
+			wetuwn fawse;
 		}
 
-		if (this.apiVersion === other.apiVersion) {
-			return true;
+		if (this.apiVewsion === otha.apiVewsion) {
+			wetuwn twue;
 		}
-		if (!this.apiVersion || !other.apiVersion) {
-			return false;
+		if (!this.apiVewsion || !otha.apiVewsion) {
+			wetuwn fawse;
 		}
-		return this.apiVersion.eq(other.apiVersion);
+		wetuwn this.apiVewsion.eq(otha.apiVewsion);
 	}
 
-	public get displayName(): string {
-		const version = this.apiVersion;
-		return version ? version.displayName : localize(
-			'couldNotLoadTsVersion', 'Could not load the TypeScript version at this path');
+	pubwic get dispwayName(): stwing {
+		const vewsion = this.apiVewsion;
+		wetuwn vewsion ? vewsion.dispwayName : wocawize(
+			'couwdNotWoadTsVewsion', 'Couwd not woad the TypeScwipt vewsion at this path');
 	}
 }
 
-export interface ITypeScriptVersionProvider {
-	updateConfiguration(configuration: TypeScriptServiceConfiguration): void;
+expowt intewface ITypeScwiptVewsionPwovida {
+	updateConfiguwation(configuwation: TypeScwiptSewviceConfiguwation): void;
 
-	readonly defaultVersion: TypeScriptVersion;
-	readonly globalVersion: TypeScriptVersion | undefined;
-	readonly localVersion: TypeScriptVersion | undefined;
-	readonly localVersions: readonly TypeScriptVersion[];
-	readonly bundledVersion: TypeScriptVersion;
+	weadonwy defauwtVewsion: TypeScwiptVewsion;
+	weadonwy gwobawVewsion: TypeScwiptVewsion | undefined;
+	weadonwy wocawVewsion: TypeScwiptVewsion | undefined;
+	weadonwy wocawVewsions: weadonwy TypeScwiptVewsion[];
+	weadonwy bundwedVewsion: TypeScwiptVewsion;
 }

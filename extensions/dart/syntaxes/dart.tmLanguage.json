@@ -1,112 +1,112 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/dart-lang/dart-syntax-highlight/blob/master/grammars/dart.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/dawt-wang/dawt-syntax-highwight/bwob/masta/gwammaws/dawt.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/0aaacde81aa9a12cfed8ca4ab619be5d9e9ed00a",
-	"name": "Dart",
-	"scopeName": "source.dart",
-	"patterns": [
+	"vewsion": "https://github.com/dawt-wang/dawt-syntax-highwight/commit/0aaacde81aa9a12cfed8ca4ab619be5d9e9ed00a",
+	"name": "Dawt",
+	"scopeName": "souwce.dawt",
+	"pattewns": [
 		{
-			"name": "meta.preprocessor.script.dart",
+			"name": "meta.pwepwocessow.scwipt.dawt",
 			"match": "^(#!.*)$"
 		},
 		{
-			"name": "meta.declaration.dart",
-			"begin": "^\\w*\\b(library|import|part of|part|export)\\b",
-			"beginCaptures": {
+			"name": "meta.decwawation.dawt",
+			"begin": "^\\w*\\b(wibwawy|impowt|pawt of|pawt|expowt)\\b",
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.other.import.dart"
+					"name": "keywowd.otha.impowt.dawt"
 				}
 			},
 			"end": ";",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.terminator.dart"
+					"name": "punctuation.tewminatow.dawt"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"name": "keyword.other.import.dart",
+					"name": "keywowd.otha.impowt.dawt",
 					"match": "\\b(as|show|hide)\\b"
 				},
 				{
-					"name": "keyword.control.dart",
+					"name": "keywowd.contwow.dawt",
 					"match": "\\b(if)\\b"
 				}
 			]
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"include": "#punctuation"
+			"incwude": "#punctuation"
 		},
 		{
-			"include": "#annotations"
+			"incwude": "#annotations"
 		},
 		{
-			"include": "#keywords"
+			"incwude": "#keywowds"
 		},
 		{
-			"include": "#constants-and-special-vars"
+			"incwude": "#constants-and-speciaw-vaws"
 		},
 		{
-			"include": "#strings"
+			"incwude": "#stwings"
 		}
 	],
-	"repository": {
-		"dartdoc": {
-			"patterns": [
+	"wepositowy": {
+		"dawtdoc": {
+			"pattewns": [
 				{
 					"match": "(\\[.*?\\])",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.name.source.dart"
+							"name": "vawiabwe.name.souwce.dawt"
 						}
 					}
 				},
 				{
 					"match": "^ {4,}(?![ \\*]).*",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.name.source.dart"
+							"name": "vawiabwe.name.souwce.dawt"
 						}
 					}
 				},
 				{
-					"contentName": "variable.other.source.dart",
+					"contentName": "vawiabwe.otha.souwce.dawt",
 					"begin": "```.*?$",
 					"end": "```"
 				},
 				{
 					"match": "(`.*?`)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.source.dart"
+							"name": "vawiabwe.otha.souwce.dawt"
 						}
 					}
 				},
 				{
 					"match": "(`.*?`)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "variable.other.source.dart"
+							"name": "vawiabwe.otha.souwce.dawt"
 						}
 					}
 				},
 				{
 					"match": "(\\* ((    ).*))$",
-					"captures": {
+					"captuwes": {
 						"2": {
-							"name": "variable.other.source.dart"
+							"name": "vawiabwe.otha.souwce.dawt"
 						}
 					}
 				},
@@ -116,322 +116,322 @@
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "comment.block.empty.dart",
+					"name": "comment.bwock.empty.dawt",
 					"match": "/\\*\\*/",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.dart"
+							"name": "punctuation.definition.comment.dawt"
 						}
 					}
 				},
 				{
-					"include": "#comments-doc-oldschool"
+					"incwude": "#comments-doc-owdschoow"
 				},
 				{
-					"include": "#comments-doc"
+					"incwude": "#comments-doc"
 				},
 				{
-					"include": "#comments-inline"
+					"incwude": "#comments-inwine"
 				}
 			]
 		},
-		"comments-doc-oldschool": {
-			"patterns": [
+		"comments-doc-owdschoow": {
+			"pattewns": [
 				{
-					"name": "comment.block.documentation.dart",
+					"name": "comment.bwock.documentation.dawt",
 					"begin": "/\\*\\*",
 					"end": "\\*/",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments-doc-oldschool"
+							"incwude": "#comments-doc-owdschoow"
 						},
 						{
-							"include": "#comments-block"
+							"incwude": "#comments-bwock"
 						},
 						{
-							"include": "#dartdoc"
+							"incwude": "#dawtdoc"
 						}
 					]
 				}
 			]
 		},
 		"comments-doc": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "comment.block.documentation.dart",
+					"name": "comment.bwock.documentation.dawt",
 					"begin": "///",
-					"while": "^\\s*///",
-					"patterns": [
+					"whiwe": "^\\s*///",
+					"pattewns": [
 						{
-							"include": "#dartdoc"
+							"incwude": "#dawtdoc"
 						}
 					]
 				}
 			]
 		},
-		"comments-inline": {
-			"patterns": [
+		"comments-inwine": {
+			"pattewns": [
 				{
-					"include": "#comments-block"
+					"incwude": "#comments-bwock"
 				},
 				{
 					"match": "((//).*)$",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "comment.line.double-slash.dart"
+							"name": "comment.wine.doubwe-swash.dawt"
 						}
 					}
 				}
 			]
 		},
-		"comments-block": {
-			"patterns": [
+		"comments-bwock": {
+			"pattewns": [
 				{
-					"name": "comment.block.dart",
+					"name": "comment.bwock.dawt",
 					"begin": "/\\*",
 					"end": "\\*/",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments-block"
+							"incwude": "#comments-bwock"
 						}
 					]
 				}
 			]
 		},
 		"annotations": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "storage.type.annotation.dart",
+					"name": "stowage.type.annotation.dawt",
 					"match": "@[a-zA-Z]+"
 				}
 			]
 		},
-		"constants-and-special-vars": {
-			"patterns": [
+		"constants-and-speciaw-vaws": {
+			"pattewns": [
 				{
-					"name": "constant.language.dart",
-					"match": "(?<!\\$)\\b(true|false|null)\\b(?!\\$)"
+					"name": "constant.wanguage.dawt",
+					"match": "(?<!\\$)\\b(twue|fawse|nuww)\\b(?!\\$)"
 				},
 				{
-					"name": "variable.language.dart",
-					"match": "(?<!\\$)\\b(this|super)\\b(?!\\$)"
+					"name": "vawiabwe.wanguage.dawt",
+					"match": "(?<!\\$)\\b(this|supa)\\b(?!\\$)"
 				},
 				{
-					"name": "constant.numeric.dart",
+					"name": "constant.numewic.dawt",
 					"match": "(?<!\\$)\\b((0(x|X)[0-9a-fA-F]*)|(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))((e|E)(\\+|-)?[0-9]+)?)\\b(?!\\$)"
 				},
 				{
-					"name": "support.class.dart",
-					"match": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*|bool\\b|num\\b|int\\b|double\\b|dynamic\\b)"
+					"name": "suppowt.cwass.dawt",
+					"match": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*|boow\\b|num\\b|int\\b|doubwe\\b|dynamic\\b)"
 				},
 				{
 					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<|\\(|\\s+=>)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "entity.name.function.dart"
+							"name": "entity.name.function.dawt"
 						}
 					}
 				}
 			]
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"name": "keyword.cast.dart",
+					"name": "keywowd.cast.dawt",
 					"match": "(?<!\\$)\\bas\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.catch-exception.dart",
-					"match": "(?<!\\$)\\b(try|on|catch|finally|throw|rethrow)\\b(?!\\$)"
+					"name": "keywowd.contwow.catch-exception.dawt",
+					"match": "(?<!\\$)\\b(twy|on|catch|finawwy|thwow|wethwow)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|return|switch|while)\\b(?!\\$)"
+					"name": "keywowd.contwow.dawt",
+					"match": "(?<!\\$)\\b(bweak|case|continue|defauwt|do|ewse|fow|if|in|wetuwn|switch|whiwe)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\b(sync(\\*)?|async(\\*)?|await|yield(\\*)?)\\b(?!\\$)"
+					"name": "keywowd.contwow.dawt",
+					"match": "(?<!\\$)\\b(sync(\\*)?|async(\\*)?|await|yiewd(\\*)?)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\bassert\\b(?!\\$)"
+					"name": "keywowd.contwow.dawt",
+					"match": "(?<!\\$)\\bassewt\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.control.new.dart",
+					"name": "keywowd.contwow.new.dawt",
 					"match": "(?<!\\$)\\b(new)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|class|enum|extends|extension|external|factory|implements|get|mixin|native|operator|set|typedef|with|covariant)\\b(?!\\$)"
+					"name": "keywowd.decwawation.dawt",
+					"match": "(?<!\\$)\\b(abstwact|cwass|enum|extends|extension|extewnaw|factowy|impwements|get|mixin|native|opewatow|set|typedef|with|covawiant)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.dart",
+					"name": "keywowd.opewatow.dawt",
 					"match": "(?<!\\$)\\b(is\\!?)\\b(?!\\$)"
 				},
 				{
-					"name": "keyword.operator.ternary.dart",
+					"name": "keywowd.opewatow.tewnawy.dawt",
 					"match": "\\?|:"
 				},
 				{
-					"name": "keyword.operator.bitwise.dart",
+					"name": "keywowd.opewatow.bitwise.dawt",
 					"match": "(<<|>>>?|~|\\^|\\||&)"
 				},
 				{
-					"name": "keyword.operator.assignment.bitwise.dart",
+					"name": "keywowd.opewatow.assignment.bitwise.dawt",
 					"match": "((&|\\^|\\||<<|>>>?)=)"
 				},
 				{
-					"name": "keyword.operator.closure.dart",
+					"name": "keywowd.opewatow.cwosuwe.dawt",
 					"match": "(=>)"
 				},
 				{
-					"name": "keyword.operator.comparison.dart",
+					"name": "keywowd.opewatow.compawison.dawt",
 					"match": "(==|!=|<=?|>=?)"
 				},
 				{
-					"name": "keyword.operator.assignment.arithmetic.dart",
+					"name": "keywowd.opewatow.assignment.awithmetic.dawt",
 					"match": "(([+*/%-]|\\~)=)"
 				},
 				{
-					"name": "keyword.operator.assignment.dart",
+					"name": "keywowd.opewatow.assignment.dawt",
 					"match": "(=)"
 				},
 				{
-					"name": "keyword.operator.increment-decrement.dart",
+					"name": "keywowd.opewatow.incwement-decwement.dawt",
 					"match": "(\\-\\-|\\+\\+)"
 				},
 				{
-					"name": "keyword.operator.arithmetic.dart",
+					"name": "keywowd.opewatow.awithmetic.dawt",
 					"match": "(\\-|\\+|\\*|\\/|\\~\\/|%)"
 				},
 				{
-					"name": "keyword.operator.logical.dart",
+					"name": "keywowd.opewatow.wogicaw.dawt",
 					"match": "(!|&&|\\|\\|)"
 				},
 				{
-					"name": "storage.modifier.dart",
-					"match": "(?<!\\$)\\b(static|final|const|required|late)\\b(?!\\$)"
+					"name": "stowage.modifia.dawt",
+					"match": "(?<!\\$)\\b(static|finaw|const|wequiwed|wate)\\b(?!\\$)"
 				},
 				{
-					"name": "storage.type.primitive.dart",
-					"match": "(?<!\\$)\\b(?:void|var)\\b(?!\\$)"
+					"name": "stowage.type.pwimitive.dawt",
+					"match": "(?<!\\$)\\b(?:void|vaw)\\b(?!\\$)"
 				}
 			]
 		},
-		"string-interp": {
-			"patterns": [
+		"stwing-intewp": {
+			"pattewns": [
 				{
 					"match": "\\$([a-zA-Z0-9_]+)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.parameter.dart"
+							"name": "vawiabwe.pawameta.dawt"
 						}
 					}
 				},
 				{
-					"name": "string.interpolated.expression.dart",
+					"name": "stwing.intewpowated.expwession.dawt",
 					"begin": "\\$\\{",
 					"end": "\\}",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#constants-and-special-vars",
-							"name": "variable.parameter.dart"
+							"incwude": "#constants-and-speciaw-vaws",
+							"name": "vawiabwe.pawameta.dawt"
 						},
 						{
-							"include": "#strings"
+							"incwude": "#stwings"
 						},
 						{
-							"name": "variable.parameter.dart",
+							"name": "vawiabwe.pawameta.dawt",
 							"match": "[a-zA-Z0-9_]+"
 						}
 					]
 				},
 				{
-					"name": "constant.character.escape.dart",
+					"name": "constant.chawacta.escape.dawt",
 					"match": "\\\\."
 				}
 			]
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
-					"name": "string.interpolated.triple.double.dart",
-					"begin": "(?<!r)\"\"\"",
+					"name": "stwing.intewpowated.twipwe.doubwe.dawt",
+					"begin": "(?<!w)\"\"\"",
 					"end": "\"\"\"(?!\")",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#string-interp"
+							"incwude": "#stwing-intewp"
 						}
 					]
 				},
 				{
-					"name": "string.interpolated.triple.single.dart",
-					"begin": "(?<!r)'''",
+					"name": "stwing.intewpowated.twipwe.singwe.dawt",
+					"begin": "(?<!w)'''",
 					"end": "'''(?!')",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#string-interp"
+							"incwude": "#stwing-intewp"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.triple.double.dart",
-					"begin": "r\"\"\"",
+					"name": "stwing.quoted.twipwe.doubwe.dawt",
+					"begin": "w\"\"\"",
 					"end": "\"\"\"(?!\")"
 				},
 				{
-					"name": "string.quoted.triple.single.dart",
-					"begin": "r'''",
+					"name": "stwing.quoted.twipwe.singwe.dawt",
+					"begin": "w'''",
 					"end": "'''(?!')"
 				},
 				{
-					"name": "string.interpolated.double.dart",
-					"begin": "(?<!\\|r)\"",
+					"name": "stwing.intewpowated.doubwe.dawt",
+					"begin": "(?<!\\|w)\"",
 					"end": "\"",
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "invalid.string.newline",
+							"name": "invawid.stwing.newwine",
 							"match": "\\n"
 						},
 						{
-							"include": "#string-interp"
+							"incwude": "#stwing-intewp"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.double.dart",
-					"begin": "r\"",
+					"name": "stwing.quoted.doubwe.dawt",
+					"begin": "w\"",
 					"end": "\"",
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "invalid.string.newline",
+							"name": "invawid.stwing.newwine",
 							"match": "\\n"
 						}
 					]
 				},
 				{
-					"name": "string.interpolated.single.dart",
-					"begin": "(?<!\\|r)'",
+					"name": "stwing.intewpowated.singwe.dawt",
+					"begin": "(?<!\\|w)'",
 					"end": "'",
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "invalid.string.newline",
+							"name": "invawid.stwing.newwine",
 							"match": "\\n"
 						},
 						{
-							"include": "#string-interp"
+							"incwude": "#stwing-intewp"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.single.dart",
-					"begin": "r'",
+					"name": "stwing.quoted.singwe.dawt",
+					"begin": "w'",
 					"end": "'",
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "invalid.string.newline",
+							"name": "invawid.stwing.newwine",
 							"match": "\\n"
 						}
 					]
@@ -439,17 +439,17 @@
 			]
 		},
 		"punctuation": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "punctuation.comma.dart",
+					"name": "punctuation.comma.dawt",
 					"match": ","
 				},
 				{
-					"name": "punctuation.terminator.dart",
+					"name": "punctuation.tewminatow.dawt",
 					"match": ";"
 				},
 				{
-					"name": "punctuation.dot.dart",
+					"name": "punctuation.dot.dawt",
 					"match": "\\."
 				}
 			]

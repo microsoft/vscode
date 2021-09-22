@@ -1,17 +1,17 @@
 {
   "name": "github",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "publisher": "vscode",
-  "license": "MIT",
-  "version": "0.0.1",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "vewsion": "0.0.1",
   "engines": {
     "vscode": "^1.41.0"
   },
   "icon": "images/icon.png",
-  "enableProposedApi": true,
-  "categories": [
-    "Other"
+  "enabwePwoposedApi": twue,
+  "categowies": [
+    "Otha"
   ],
   "activationEvents": [
     "*"
@@ -20,60 +20,60 @@
     "vscode.git"
   ],
   "main": "./out/extension.js",
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
+  "contwibutes": {
     "commands": [
       {
-        "command": "github.publish",
-        "title": "Publish to GitHub"
+        "command": "github.pubwish",
+        "titwe": "Pubwish to GitHub"
       }
     ],
-    "configuration": [
+    "configuwation": [
       {
-        "title": "GitHub",
-        "properties": {
+        "titwe": "GitHub",
+        "pwopewties": {
           "github.gitAuthentication": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": true,
-            "description": "%config.gitAuthentication%"
+            "type": "boowean",
+            "scope": "wesouwce",
+            "defauwt": twue,
+            "descwiption": "%config.gitAuthentication%"
           }
         }
       }
     ],
-    "viewsWelcome": [
+    "viewsWewcome": [
       {
         "view": "scm",
-        "contents": "%welcome.publishFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "contents": "%wewcome.pubwishFowda%",
+        "when": "config.git.enabwed && git.state == initiawized && wowkbenchState == fowda"
       },
       {
         "view": "scm",
-        "contents": "%welcome.publishWorkspaceFolder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "contents": "%wewcome.pubwishWowkspaceFowda%",
+        "when": "config.git.enabwed && git.state == initiawized && wowkbenchState == wowkspace && wowkspaceFowdewCount != 0"
       }
     ]
   },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "gulp compile-extension:github",
-    "watch": "gulp watch-extension:github"
+  "scwipts": {
+    "vscode:pwepubwish": "npm wun compiwe",
+    "compiwe": "guwp compiwe-extension:github",
+    "watch": "guwp watch-extension:github"
   },
   "dependencies": {
-    "@octokit/rest": "^18.0.1",
-    "tunnel": "^0.0.6",
-    "vscode-nls": "^4.1.2"
+    "@octokit/west": "^18.0.1",
+    "tunnew": "^0.0.6",
+    "vscode-nws": "^4.1.2"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

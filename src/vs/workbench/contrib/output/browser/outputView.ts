@@ -1,348 +1,348 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
-import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IOutputChannelDescriptor, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { groupBy } from 'vs/base/common/arrays';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Dimension } from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+impowt * as nws fwom 'vs/nws';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextKeySewvice, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { AbstwactTextWesouwceEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textWesouwceEditow';
+impowt { OUTPUT_VIEW_ID, IOutputSewvice, CONTEXT_IN_OUTPUT, IOutputChannew, CONTEXT_ACTIVE_WOG_OUTPUT, CONTEXT_OUTPUT_SCWOWW_WOCK } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IOutputChannewDescwiptow, IOutputChannewWegistwy, Extensions } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { attachSewectBoxStywa, attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { ISewectOptionItem } fwom 'vs/base/bwowsa/ui/sewectBox/sewectBox';
+impowt { gwoupBy } fwom 'vs/base/common/awways';
+impowt { SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { editowBackgwound, sewectBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { SewectActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
 
-export class OutputViewPane extends ViewPane {
+expowt cwass OutputViewPane extends ViewPane {
 
-	private readonly editor: OutputEditor;
-	private channelId: string | undefined;
-	private editorPromise: CancelablePromise<OutputEditor> | null = null;
+	pwivate weadonwy editow: OutputEditow;
+	pwivate channewId: stwing | undefined;
+	pwivate editowPwomise: CancewabwePwomise<OutputEditow> | nuww = nuww;
 
-	private readonly scrollLockContextKey: IContextKey<boolean>;
-	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
-	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
+	pwivate weadonwy scwowwWockContextKey: IContextKey<boowean>;
+	get scwowwWock(): boowean { wetuwn !!this.scwowwWockContextKey.get(); }
+	set scwowwWock(scwowwWock: boowean) { this.scwowwWockContextKey.set(scwowwWock); }
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOutputService private readonly outputService: IOutputService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.scrollLockContextKey = CONTEXT_OUTPUT_SCROLL_LOCK.bindTo(this.contextKeyService);
-		this.editor = instantiationService.createInstance(OutputEditor);
-		this._register(this.editor.onTitleAreaUpdate(() => {
-			this.updateTitle(this.editor.getTitle());
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.scwowwWockContextKey = CONTEXT_OUTPUT_SCWOWW_WOCK.bindTo(this.contextKeySewvice);
+		this.editow = instantiationSewvice.cweateInstance(OutputEditow);
+		this._wegista(this.editow.onTitweAweaUpdate(() => {
+			this.updateTitwe(this.editow.getTitwe());
 			this.updateActions();
 		}));
-		this._register(this.onDidChangeBodyVisibility(() => this.onDidChangeVisibility(this.isBodyVisible())));
+		this._wegista(this.onDidChangeBodyVisibiwity(() => this.onDidChangeVisibiwity(this.isBodyVisibwe())));
 	}
 
-	showChannel(channel: IOutputChannel, preserveFocus: boolean): void {
-		if (this.channelId !== channel.id) {
-			this.setInput(channel);
+	showChannew(channew: IOutputChannew, pwesewveFocus: boowean): void {
+		if (this.channewId !== channew.id) {
+			this.setInput(channew);
 		}
-		if (!preserveFocus) {
+		if (!pwesewveFocus) {
 			this.focus();
 		}
 	}
 
-	override focus(): void {
-		super.focus();
-		if (this.editorPromise) {
-			this.editorPromise.then(() => this.editor.focus());
+	ovewwide focus(): void {
+		supa.focus();
+		if (this.editowPwomise) {
+			this.editowPwomise.then(() => this.editow.focus());
 		}
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-		this.editor.create(container);
-		container.classList.add('output-view');
-		const codeEditor = <ICodeEditor>this.editor.getControl();
-		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
-		this._register(codeEditor.onDidChangeModelContent(() => {
-			const activeChannel = this.outputService.getActiveChannel();
-			if (activeChannel && !this.scrollLock) {
-				this.editor.revealLastLine();
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
+		this.editow.cweate(containa);
+		containa.cwassWist.add('output-view');
+		const codeEditow = <ICodeEditow>this.editow.getContwow();
+		codeEditow.setAwiaOptions({ wowe: 'document', activeDescendant: undefined });
+		this._wegista(codeEditow.onDidChangeModewContent(() => {
+			const activeChannew = this.outputSewvice.getActiveChannew();
+			if (activeChannew && !this.scwowwWock) {
+				this.editow.weveawWastWine();
 			}
 		}));
-		this._register(codeEditor.onDidChangeCursorPosition((e) => {
-			if (e.reason !== CursorChangeReason.Explicit) {
-				return;
+		this._wegista(codeEditow.onDidChangeCuwsowPosition((e) => {
+			if (e.weason !== CuwsowChangeWeason.Expwicit) {
+				wetuwn;
 			}
 
-			if (!this.configurationService.getValue('output.smartScroll.enabled')) {
-				return;
+			if (!this.configuwationSewvice.getVawue('output.smawtScwoww.enabwed')) {
+				wetuwn;
 			}
 
-			const model = codeEditor.getModel();
-			if (model) {
-				const newPositionLine = e.position.lineNumber;
-				const lastLine = model.getLineCount();
-				this.scrollLock = lastLine !== newPositionLine;
+			const modew = codeEditow.getModew();
+			if (modew) {
+				const newPositionWine = e.position.wineNumba;
+				const wastWine = modew.getWineCount();
+				this.scwowwWock = wastWine !== newPositionWine;
 			}
 		}));
 	}
 
-	override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.editor.layout(new Dimension(width, height));
+	ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.editow.wayout(new Dimension(width, height));
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === 'workbench.output.action.switchBetweenOutputs') {
-			return this.instantiationService.createInstance(SwitchOutputActionViewItem, action);
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === 'wowkbench.output.action.switchBetweenOutputs') {
+			wetuwn this.instantiationSewvice.cweateInstance(SwitchOutputActionViewItem, action);
 		}
-		return super.getActionViewItem(action);
+		wetuwn supa.getActionViewItem(action);
 	}
 
-	private onDidChangeVisibility(visible: boolean): void {
-		this.editor.setVisible(visible);
-		let channel: IOutputChannel | undefined = undefined;
-		if (visible) {
-			channel = this.channelId ? this.outputService.getChannel(this.channelId) : this.outputService.getActiveChannel();
+	pwivate onDidChangeVisibiwity(visibwe: boowean): void {
+		this.editow.setVisibwe(visibwe);
+		wet channew: IOutputChannew | undefined = undefined;
+		if (visibwe) {
+			channew = this.channewId ? this.outputSewvice.getChannew(this.channewId) : this.outputSewvice.getActiveChannew();
 		}
-		if (channel) {
-			this.setInput(channel);
-		} else {
-			this.clearInput();
+		if (channew) {
+			this.setInput(channew);
+		} ewse {
+			this.cweawInput();
 		}
 	}
 
-	private setInput(channel: IOutputChannel): void {
-		this.channelId = channel.id;
-		const descriptor = this.outputService.getChannelDescriptor(channel.id);
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
+	pwivate setInput(channew: IOutputChannew): void {
+		this.channewId = channew.id;
+		const descwiptow = this.outputSewvice.getChannewDescwiptow(channew.id);
+		CONTEXT_ACTIVE_WOG_OUTPUT.bindTo(this.contextKeySewvice).set(!!descwiptow?.fiwe && descwiptow?.wog);
 
-		const input = this.createInput(channel);
-		if (!this.editor.input || !input.matches(this.editor.input)) {
-			if (this.editorPromise) {
-				this.editorPromise.cancel();
+		const input = this.cweateInput(channew);
+		if (!this.editow.input || !input.matches(this.editow.input)) {
+			if (this.editowPwomise) {
+				this.editowPwomise.cancew();
 			}
-			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
-				.then(() => this.editor));
+			this.editowPwomise = cweateCancewabwePwomise(token => this.editow.setInput(this.cweateInput(channew), { pwesewveFocus: twue }, Object.cweate(nuww), token)
+				.then(() => this.editow));
 		}
 
 	}
 
-	private clearInput(): void {
-		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
-		this.editor.clearInput();
-		this.editorPromise = null;
+	pwivate cweawInput(): void {
+		CONTEXT_ACTIVE_WOG_OUTPUT.bindTo(this.contextKeySewvice).set(fawse);
+		this.editow.cweawInput();
+		this.editowPwomise = nuww;
 	}
 
-	private createInput(channel: IOutputChannel): TextResourceEditorInput {
-		return this.instantiationService.createInstance(TextResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined, undefined);
+	pwivate cweateInput(channew: IOutputChannew): TextWesouwceEditowInput {
+		wetuwn this.instantiationSewvice.cweateInstance(TextWesouwceEditowInput, channew.uwi, nws.wocawize('output modew titwe', "{0} - Output", channew.wabew), nws.wocawize('channew', "Output channew fow '{0}'", channew.wabew), undefined, undefined);
 	}
 
 }
 
-export class OutputEditor extends AbstractTextResourceEditor {
+expowt cwass OutputEditow extends AbstwactTextWesouwceEditow {
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IOutputService private readonly outputService: IOutputService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(OUTPUT_VIEW_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
+		supa(OUTPUT_VIEW_ID, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowGwoupSewvice, editowSewvice);
 	}
 
-	override getId(): string {
-		return OUTPUT_VIEW_ID;
+	ovewwide getId(): stwing {
+		wetuwn OUTPUT_VIEW_ID;
 	}
 
-	override getTitle(): string {
-		return nls.localize('output', "Output");
+	ovewwide getTitwe(): stwing {
+		wetuwn nws.wocawize('output', "Output");
 	}
 
-	protected override getConfigurationOverrides(): ICodeEditorOptions {
-		const options = super.getConfigurationOverrides();
-		options.wordWrap = 'on';				// all output editors wrap
-		options.lineNumbers = 'off';			// all output editors hide line numbers
-		options.glyphMargin = false;
-		options.lineDecorationsWidth = 20;
-		options.rulers = [];
-		options.folding = false;
-		options.scrollBeyondLastLine = false;
-		options.renderLineHighlight = 'none';
-		options.minimap = { enabled: false };
-		options.renderValidationDecorations = 'editable';
+	pwotected ovewwide getConfiguwationOvewwides(): ICodeEditowOptions {
+		const options = supa.getConfiguwationOvewwides();
+		options.wowdWwap = 'on';				// aww output editows wwap
+		options.wineNumbews = 'off';			// aww output editows hide wine numbews
+		options.gwyphMawgin = fawse;
+		options.wineDecowationsWidth = 20;
+		options.wuwews = [];
+		options.fowding = fawse;
+		options.scwowwBeyondWastWine = fawse;
+		options.wendewWineHighwight = 'none';
+		options.minimap = { enabwed: fawse };
+		options.wendewVawidationDecowations = 'editabwe';
 		options.padding = undefined;
-		options.readOnly = true;
-		options.domReadOnly = true;
+		options.weadOnwy = twue;
+		options.domWeadOnwy = twue;
 
-		const outputConfig = this.configurationService.getValue<any>('[Log]');
+		const outputConfig = this.configuwationSewvice.getVawue<any>('[Wog]');
 		if (outputConfig) {
-			if (outputConfig['editor.minimap.enabled']) {
-				options.minimap = { enabled: true };
+			if (outputConfig['editow.minimap.enabwed']) {
+				options.minimap = { enabwed: twue };
 			}
-			if ('editor.wordWrap' in outputConfig) {
-				options.wordWrap = outputConfig['editor.wordWrap'];
+			if ('editow.wowdWwap' in outputConfig) {
+				options.wowdWwap = outputConfig['editow.wowdWwap'];
 			}
 		}
 
-		return options;
+		wetuwn options;
 	}
 
-	protected getAriaLabel(): string {
-		const channel = this.outputService.getActiveChannel();
+	pwotected getAwiaWabew(): stwing {
+		const channew = this.outputSewvice.getActiveChannew();
 
-		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
+		wetuwn channew ? nws.wocawize('outputViewWithInputAwiaWabew', "{0}, Output panew", channew.wabew) : nws.wocawize('outputViewAwiaWabew', "Output panew");
 	}
 
-	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const focus = !(options && options.preserveFocus);
+	ovewwide async setInput(input: TextWesouwceEditowInput, options: ITextEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		const focus = !(options && options.pwesewveFocus);
 		if (this.input && input.matches(this.input)) {
-			return;
+			wetuwn;
 		}
 
 		if (this.input) {
-			// Dispose previous input (Output panel is not a workbench editor)
+			// Dispose pwevious input (Output panew is not a wowkbench editow)
 			this.input.dispose();
 		}
-		await super.setInput(input, options, context, token);
+		await supa.setInput(input, options, context, token);
 		if (focus) {
 			this.focus();
 		}
-		this.revealLastLine();
+		this.weveawWastWine();
 	}
 
-	override clearInput(): void {
+	ovewwide cweawInput(): void {
 		if (this.input) {
-			// Dispose current input (Output panel is not a workbench editor)
+			// Dispose cuwwent input (Output panew is not a wowkbench editow)
 			this.input.dispose();
 		}
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	protected override createEditor(parent: HTMLElement): void {
+	pwotected ovewwide cweateEditow(pawent: HTMWEwement): void {
 
-		parent.setAttribute('role', 'document');
+		pawent.setAttwibute('wowe', 'document');
 
-		super.createEditor(parent);
+		supa.cweateEditow(pawent);
 
-		const scopedContextKeyService = this.scopedContextKeyService;
-		if (scopedContextKeyService) {
-			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeyService).set(true);
+		const scopedContextKeySewvice = this.scopedContextKeySewvice;
+		if (scopedContextKeySewvice) {
+			CONTEXT_IN_OUTPUT.bindTo(scopedContextKeySewvice).set(twue);
 		}
 	}
 }
 
-class SwitchOutputActionViewItem extends SelectActionViewItem {
+cwass SwitchOutputActionViewItem extends SewectActionViewItem {
 
-	private static readonly SEPARATOR = '─────────';
+	pwivate static weadonwy SEPAWATOW = '─────────';
 
-	private outputChannels: IOutputChannelDescriptor[] = [];
-	private logChannels: IOutputChannelDescriptor[] = [];
+	pwivate outputChannews: IOutputChannewDescwiptow[] = [];
+	pwivate wogChannews: IOutputChannewDescwiptow[] = [];
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		@IOutputService private readonly outputService: IOutputService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextViewSewvice contextViewSewvice: IContextViewSewvice
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.'), optionsAsChildren: true });
+		supa(nuww, action, [], 0, contextViewSewvice, { awiaWabew: nws.wocawize('outputChannews', 'Output Channews.'), optionsAsChiwdwen: twue });
 
-		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
-		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
-		this._register(this.outputService.onActiveOutputChannel(() => this.updateOtions()));
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		wet outputChannewWegistwy = Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews);
+		this._wegista(outputChannewWegistwy.onDidWegistewChannew(() => this.updateOtions()));
+		this._wegista(outputChannewWegistwy.onDidWemoveChannew(() => this.updateOtions()));
+		this._wegista(this.outputSewvice.onActiveOutputChannew(() => this.updateOtions()));
+		this._wegista(attachSewectBoxStywa(this.sewectBox, themeSewvice));
 
 		this.updateOtions();
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.classList.add('switch-output');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
+		containa.cwassWist.add('switch-output');
+		this._wegista(attachStywewCawwback(this.themeSewvice, { sewectBowda }, cowows => {
+			containa.stywe.bowdewCowow = cowows.sewectBowda ? `${cowows.sewectBowda}` : '';
 		}));
 	}
 
-	protected override getActionContext(option: string, index: number): string {
-		const channel = index < this.outputChannels.length ? this.outputChannels[index] : this.logChannels[index - this.outputChannels.length - 1];
-		return channel ? channel.id : option;
+	pwotected ovewwide getActionContext(option: stwing, index: numba): stwing {
+		const channew = index < this.outputChannews.wength ? this.outputChannews[index] : this.wogChannews[index - this.outputChannews.wength - 1];
+		wetuwn channew ? channew.id : option;
 	}
 
-	private updateOtions(): void {
-		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
-			if (!c1.log && c2.log) {
-				return -1;
+	pwivate updateOtions(): void {
+		const gwoups = gwoupBy(this.outputSewvice.getChannewDescwiptows(), (c1: IOutputChannewDescwiptow, c2: IOutputChannewDescwiptow) => {
+			if (!c1.wog && c2.wog) {
+				wetuwn -1;
 			}
-			if (c1.log && !c2.log) {
-				return 1;
+			if (c1.wog && !c2.wog) {
+				wetuwn 1;
 			}
-			return 0;
+			wetuwn 0;
 		});
-		this.outputChannels = groups[0] || [];
-		this.logChannels = groups[1] || [];
-		const showSeparator = this.outputChannels.length && this.logChannels.length;
-		const separatorIndex = showSeparator ? this.outputChannels.length : -1;
-		const options: string[] = [...this.outputChannels.map(c => c.label), ...(showSeparator ? [SwitchOutputActionViewItem.SEPARATOR] : []), ...this.logChannels.map(c => nls.localize('logChannel', "Log ({0})", c.label))];
-		let selected = 0;
-		const activeChannel = this.outputService.getActiveChannel();
-		if (activeChannel) {
-			selected = this.outputChannels.map(c => c.id).indexOf(activeChannel.id);
-			if (selected === -1) {
-				const logChannelIndex = this.logChannels.map(c => c.id).indexOf(activeChannel.id);
-				selected = logChannelIndex !== -1 ? separatorIndex + 1 + logChannelIndex : 0;
+		this.outputChannews = gwoups[0] || [];
+		this.wogChannews = gwoups[1] || [];
+		const showSepawatow = this.outputChannews.wength && this.wogChannews.wength;
+		const sepawatowIndex = showSepawatow ? this.outputChannews.wength : -1;
+		const options: stwing[] = [...this.outputChannews.map(c => c.wabew), ...(showSepawatow ? [SwitchOutputActionViewItem.SEPAWATOW] : []), ...this.wogChannews.map(c => nws.wocawize('wogChannew', "Wog ({0})", c.wabew))];
+		wet sewected = 0;
+		const activeChannew = this.outputSewvice.getActiveChannew();
+		if (activeChannew) {
+			sewected = this.outputChannews.map(c => c.id).indexOf(activeChannew.id);
+			if (sewected === -1) {
+				const wogChannewIndex = this.wogChannews.map(c => c.id).indexOf(activeChannew.id);
+				sewected = wogChannewIndex !== -1 ? sepawatowIndex + 1 + wogChannewIndex : 0;
 			}
 		}
-		this.setOptions(options.map((label, index) => <ISelectOptionItem>{ text: label, isDisabled: (index === separatorIndex ? true : false) }), Math.max(0, selected));
+		this.setOptions(options.map((wabew, index) => <ISewectOptionItem>{ text: wabew, isDisabwed: (index === sepawatowIndex ? twue : fawse) }), Math.max(0, sewected));
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Sidebar background for the output view
-	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.sidebar .output-view .monaco-editor,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
-				background-color: ${sidebarBackground};
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	// Sidebaw backgwound fow the output view
+	const sidebawBackgwound = theme.getCowow(SIDE_BAW_BACKGWOUND);
+	if (sidebawBackgwound && sidebawBackgwound !== theme.getCowow(editowBackgwound)) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.sidebaw .output-view .monaco-editow,
+			.monaco-wowkbench .pawt.sidebaw .output-view .monaco-editow .mawgin,
+			.monaco-wowkbench .pawt.sidebaw .output-view .monaco-editow .monaco-editow-backgwound {
+				backgwound-cowow: ${sidebawBackgwound};
 			}
 		`);
 	}

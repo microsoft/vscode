@@ -1,35 +1,35 @@
 {
 	"comments": {
-		"lineComment": "#",
-		"blockComment": [ "#=", "=#" ]
+		"wineComment": "#",
+		"bwockComment": [ "#=", "=#" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["`", "`"],
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] }
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing", "comment"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["`", "`"]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*#region",
-			"end": "^\\s*#endregion"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*#wegion",
+			"end": "^\\s*#endwegion"
 		}
 	},
-	"indentationRules": {
-		"increaseIndentPattern": "^(\\s*|.*=\\s*|.*@\\w*\\s*)[\\w\\s]*(?:[\"'`][^\"'`]*[\"'`])*[\\w\\s]*\\b(if|while|for|function|macro|(mutable\\s+)?struct|abstract\\s+type|primitive\\s+type|let|quote|try|begin|.*\\)\\s*do|else|elseif|catch|finally)\\b(?!(?:.*\\bend\\b[^\\]]*)|(?:[^\\[]*\\].*)$).*$",
-		"decreaseIndentPattern": "^\\s*(end|else|elseif|catch|finally)\\b.*$"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "^(\\s*|.*=\\s*|.*@\\w*\\s*)[\\w\\s]*(?:[\"'`][^\"'`]*[\"'`])*[\\w\\s]*\\b(if|whiwe|fow|function|macwo|(mutabwe\\s+)?stwuct|abstwact\\s+type|pwimitive\\s+type|wet|quote|twy|begin|.*\\)\\s*do|ewse|ewseif|catch|finawwy)\\b(?!(?:.*\\bend\\b[^\\]]*)|(?:[^\\[]*\\].*)$).*$",
+		"decweaseIndentPattewn": "^\\s*(end|ewse|ewseif|catch|finawwy)\\b.*$"
 	}
 }

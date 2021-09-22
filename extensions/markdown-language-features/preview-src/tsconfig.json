@@ -1,16 +1,16 @@
 {
 	"extends": "../../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./dist/",
-		"jsx": "react",
-		"lib": [
+	"compiwewOptions": {
+		"outDiw": "./dist/",
+		"jsx": "weact",
+		"wib": [
 			"es2018",
 			"DOM",
-			"DOM.Iterable"
+			"DOM.Itewabwe"
 		]
 	},
 	"typeAcquisition": {
-		"include": [
+		"incwude": [
 			"@types/vscode-webview"
 		]
 	}

@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { CommandManager } from './commands/commandManager';
-import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
-import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { TsServerProcessFactory } from './tsServer/server';
-import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
-import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { flatten } from './utils/arrays';
-import { ServiceConfigurationProvider } from './utils/configuration';
-import * as fileSchemes from './utils/fileSchemes';
-import { standardLanguageDescriptions } from './utils/languageDescription';
-import { lazy, Lazy } from './utils/lazy';
-import ManagedFileContextManager from './utils/managedFileContext';
-import { PluginManager } from './utils/plugins';
+impowt * as vscode fwom 'vscode';
+impowt { CommandManaga } fwom './commands/commandManaga';
+impowt { OngoingWequestCancewwewFactowy } fwom './tsSewva/cancewwation';
+impowt { IWogDiwectowyPwovida } fwom './tsSewva/wogDiwectowyPwovida';
+impowt { TsSewvewPwocessFactowy } fwom './tsSewva/sewva';
+impowt { ITypeScwiptVewsionPwovida } fwom './tsSewva/vewsionPwovida';
+impowt TypeScwiptSewviceCwientHost fwom './typeScwiptSewviceCwientHost';
+impowt { ActiveJsTsEditowTwacka } fwom './utiws/activeJsTsEditowTwacka';
+impowt { fwatten } fwom './utiws/awways';
+impowt { SewviceConfiguwationPwovida } fwom './utiws/configuwation';
+impowt * as fiweSchemes fwom './utiws/fiweSchemes';
+impowt { standawdWanguageDescwiptions } fwom './utiws/wanguageDescwiption';
+impowt { wazy, Wazy } fwom './utiws/wazy';
+impowt ManagedFiweContextManaga fwom './utiws/managedFiweContext';
+impowt { PwuginManaga } fwom './utiws/pwugins';
 
-export function createLazyClientHost(
+expowt function cweateWazyCwientHost(
 	context: vscode.ExtensionContext,
-	onCaseInsensitiveFileSystem: boolean,
-	services: {
-		pluginManager: PluginManager,
-		commandManager: CommandManager,
-		logDirectoryProvider: ILogDirectoryProvider,
-		cancellerFactory: OngoingRequestCancellerFactory,
-		versionProvider: ITypeScriptVersionProvider,
-		processFactory: TsServerProcessFactory,
-		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-		serviceConfigurationProvider: ServiceConfigurationProvider,
+	onCaseInsensitiveFiweSystem: boowean,
+	sewvices: {
+		pwuginManaga: PwuginManaga,
+		commandManaga: CommandManaga,
+		wogDiwectowyPwovida: IWogDiwectowyPwovida,
+		cancewwewFactowy: OngoingWequestCancewwewFactowy,
+		vewsionPwovida: ITypeScwiptVewsionPwovida,
+		pwocessFactowy: TsSewvewPwocessFactowy,
+		activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+		sewviceConfiguwationPwovida: SewviceConfiguwationPwovida,
 	},
-	onCompletionAccepted: (item: vscode.CompletionItem) => void,
-): Lazy<TypeScriptServiceClientHost> {
-	return lazy(() => {
-		const clientHost = new TypeScriptServiceClientHost(
-			standardLanguageDescriptions,
+	onCompwetionAccepted: (item: vscode.CompwetionItem) => void,
+): Wazy<TypeScwiptSewviceCwientHost> {
+	wetuwn wazy(() => {
+		const cwientHost = new TypeScwiptSewviceCwientHost(
+			standawdWanguageDescwiptions,
 			context,
-			onCaseInsensitiveFileSystem,
-			services,
-			onCompletionAccepted);
+			onCaseInsensitiveFiweSystem,
+			sewvices,
+			onCompwetionAccepted);
 
-		context.subscriptions.push(clientHost);
+		context.subscwiptions.push(cwientHost);
 
-		return clientHost;
+		wetuwn cwientHost;
 	});
 }
 
-export function lazilyActivateClient(
-	lazyClientHost: Lazy<TypeScriptServiceClientHost>,
-	pluginManager: PluginManager,
-	activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-): vscode.Disposable {
-	const disposables: vscode.Disposable[] = [];
+expowt function waziwyActivateCwient(
+	wazyCwientHost: Wazy<TypeScwiptSewviceCwientHost>,
+	pwuginManaga: PwuginManaga,
+	activeJsTsEditowTwacka: ActiveJsTsEditowTwacka,
+): vscode.Disposabwe {
+	const disposabwes: vscode.Disposabwe[] = [];
 
-	const supportedLanguage = flatten([
-		...standardLanguageDescriptions.map(x => x.modeIds),
-		...pluginManager.plugins.map(x => x.languages)
+	const suppowtedWanguage = fwatten([
+		...standawdWanguageDescwiptions.map(x => x.modeIds),
+		...pwuginManaga.pwugins.map(x => x.wanguages)
 	]);
 
-	let hasActivated = false;
-	const maybeActivate = (textDocument: vscode.TextDocument): boolean => {
-		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
-			hasActivated = true;
-			// Force activation
-			void lazyClientHost.value;
+	wet hasActivated = fawse;
+	const maybeActivate = (textDocument: vscode.TextDocument): boowean => {
+		if (!hasActivated && isSuppowtedDocument(suppowtedWanguage, textDocument)) {
+			hasActivated = twue;
+			// Fowce activation
+			void wazyCwientHost.vawue;
 
-			disposables.push(new ManagedFileContextManager(activeJsTsEditorTracker, resource => {
-				return lazyClientHost.value.serviceClient.toPath(resource);
+			disposabwes.push(new ManagedFiweContextManaga(activeJsTsEditowTwacka, wesouwce => {
+				wetuwn wazyCwientHost.vawue.sewviceCwient.toPath(wesouwce);
 			}));
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	};
 
-	const didActivate = vscode.workspace.textDocuments.some(maybeActivate);
+	const didActivate = vscode.wowkspace.textDocuments.some(maybeActivate);
 	if (!didActivate) {
-		const openListener = vscode.workspace.onDidOpenTextDocument(doc => {
+		const openWistena = vscode.wowkspace.onDidOpenTextDocument(doc => {
 			if (maybeActivate(doc)) {
-				openListener.dispose();
+				openWistena.dispose();
 			}
-		}, undefined, disposables);
+		}, undefined, disposabwes);
 	}
 
-	return vscode.Disposable.from(...disposables);
+	wetuwn vscode.Disposabwe.fwom(...disposabwes);
 }
 
-function isSupportedDocument(
-	supportedLanguage: readonly string[],
+function isSuppowtedDocument(
+	suppowtedWanguage: weadonwy stwing[],
 	document: vscode.TextDocument
-): boolean {
-	return supportedLanguage.indexOf(document.languageId) >= 0
-		&& !fileSchemes.disabledSchemes.has(document.uri.scheme);
+): boowean {
+	wetuwn suppowtedWanguage.indexOf(document.wanguageId) >= 0
+		&& !fiweSchemes.disabwedSchemes.has(document.uwi.scheme);
 }

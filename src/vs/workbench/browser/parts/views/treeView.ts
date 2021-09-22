@@ -1,1285 +1,1285 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/views';
-import { toDisposable, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId, IMenuService, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer, TREE_ITEM_DATA_TRANSFER_TYPE } from 'vs/workbench/common/views';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IThemeService, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import * as DOM from 'vs/base/browser/dom';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { URI } from 'vs/base/common/uri';
-import { dirname, basename } from 'vs/base/common/resources';
-import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { localize } from 'vs/nls';
-import { timeout } from 'vs/base/common/async';
-import { textLinkForeground, textCodeBlockBackground, focusBorder, listFilterMatchHighlight, listFilterMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
-import { isString } from 'vs/base/common/types';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Codicon } from 'vs/base/common/codicons';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Command } from 'vs/editor/common/modes';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+impowt 'vs/css!./media/views';
+impowt { toDisposabwe, IDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { MenuId, IMenuSewvice, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice, ContextKeyExpw, WawContextKey, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ITweeView, ITweeViewDescwiptow, IViewsWegistwy, Extensions, IViewDescwiptowSewvice, ITweeItem, TweeItemCowwapsibweState, ITweeViewDataPwovida, TweeViewItemHandweAwg, ITweeItemWabew, ViewContaina, ViewContainewWocation, WesowvabweTweeItem, ITweeViewDwagAndDwopContwowwa, ITweeDataTwansfa, TWEE_ITEM_DATA_TWANSFEW_TYPE } fwom 'vs/wowkbench/common/views';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IThemeSewvice, FiweThemeIcon, FowdewThemeIcon, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IAction, ActionWunna } fwom 'vs/base/common/actions';
+impowt { cweateAndFiwwInContextMenuActions, cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { WesouwceWabews, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { ActionBaw, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { diwname, basename } fwom 'vs/base/common/wesouwces';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WowkbenchAsyncDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { textWinkFowegwound, textCodeBwockBackgwound, focusBowda, wistFiwtewMatchHighwight, wistFiwtewMatchHighwightBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWistViwtuawDewegate, IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ITweeWendewa, ITweeNode, IAsyncDataSouwce, ITweeContextMenuEvent, ITweeDwagAndDwop, ITweeDwagOvewWeaction, TweeDwagOvewBubbwe } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { CowwapseAwwAction } fwom 'vs/base/bwowsa/ui/twee/tweeDefauwts';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { SIDE_BAW_BACKGWOUND, PANEW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { IHovewDewegate, IHovewDewegateOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IIconWabewMawkdownStwing } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { wendewMawkdownAsPwaintext } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { API_OPEN_DIFF_EDITOW_COMMAND_ID, API_OPEN_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Command } fwom 'vs/editow/common/modes';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
 
-export class TreeViewPane extends ViewPane {
+expowt cwass TweeViewPane extends ViewPane {
 
-	protected readonly treeView: ITreeView;
+	pwotected weadonwy tweeView: ITweeView;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super({ ...(options as IViewPaneOptions), titleMenuId: MenuId.ViewTitle, donotForwardArgs: true }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		const { treeView } = (<ITreeViewDescriptor>Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getView(options.id));
-		this.treeView = treeView;
-		this._register(this.treeView.onDidChangeActions(() => this.updateActions(), this));
-		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
-		this._register(this.treeView.onDidChangeDescription((newDescription) => this.updateTitleDescription(newDescription)));
-		this._register(toDisposable(() => this.treeView.setVisibility(false)));
-		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
-		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
-		if (options.title !== this.treeView.title) {
-			this.updateTitle(this.treeView.title);
+		supa({ ...(options as IViewPaneOptions), titweMenuId: MenuId.ViewTitwe, donotFowwawdAwgs: twue }, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		const { tweeView } = (<ITweeViewDescwiptow>Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy).getView(options.id));
+		this.tweeView = tweeView;
+		this._wegista(this.tweeView.onDidChangeActions(() => this.updateActions(), this));
+		this._wegista(this.tweeView.onDidChangeTitwe((newTitwe) => this.updateTitwe(newTitwe)));
+		this._wegista(this.tweeView.onDidChangeDescwiption((newDescwiption) => this.updateTitweDescwiption(newDescwiption)));
+		this._wegista(toDisposabwe(() => this.tweeView.setVisibiwity(fawse)));
+		this._wegista(this.onDidChangeBodyVisibiwity(() => this.updateTweeVisibiwity()));
+		this._wegista(this.tweeView.onDidChangeWewcomeState(() => this._onDidChangeViewWewcomeState.fiwe()));
+		if (options.titwe !== this.tweeView.titwe) {
+			this.updateTitwe(this.tweeView.titwe);
 		}
-		if (options.titleDescription !== this.treeView.description) {
-			this.updateTitleDescription(this.treeView.description);
+		if (options.titweDescwiption !== this.tweeView.descwiption) {
+			this.updateTitweDescwiption(this.tweeView.descwiption);
 		}
 
-		this.updateTreeVisibility();
+		this.updateTweeVisibiwity();
 	}
 
-	override focus(): void {
-		super.focus();
-		this.treeView.focus();
+	ovewwide focus(): void {
+		supa.focus();
+		this.tweeView.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-		this.renderTreeView(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
+		this.wendewTweeView(containa);
 	}
 
-	override shouldShowWelcome(): boolean {
-		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
+	ovewwide shouwdShowWewcome(): boowean {
+		wetuwn ((this.tweeView.dataPwovida === undefined) || !!this.tweeView.dataPwovida.isTweeEmpty) && (this.tweeView.message === undefined);
 	}
 
-	override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.layoutTreeView(height, width);
+	ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.wayoutTweeView(height, width);
 	}
 
-	override getOptimalWidth(): number {
-		return this.treeView.getOptimalWidth();
+	ovewwide getOptimawWidth(): numba {
+		wetuwn this.tweeView.getOptimawWidth();
 	}
 
-	protected renderTreeView(container: HTMLElement): void {
-		this.treeView.show(container);
+	pwotected wendewTweeView(containa: HTMWEwement): void {
+		this.tweeView.show(containa);
 	}
 
-	protected layoutTreeView(height: number, width: number): void {
-		this.treeView.layout(height, width);
+	pwotected wayoutTweeView(height: numba, width: numba): void {
+		this.tweeView.wayout(height, width);
 	}
 
-	private updateTreeVisibility(): void {
-		this.treeView.setVisibility(this.isBodyVisible());
+	pwivate updateTweeVisibiwity(): void {
+		this.tweeView.setVisibiwity(this.isBodyVisibwe());
 	}
 }
 
-class Root implements ITreeItem {
-	label = { label: 'root' };
-	handle = '0';
-	parentHandle: string | undefined = undefined;
-	collapsibleState = TreeItemCollapsibleState.Expanded;
-	children: ITreeItem[] | undefined = undefined;
+cwass Woot impwements ITweeItem {
+	wabew = { wabew: 'woot' };
+	handwe = '0';
+	pawentHandwe: stwing | undefined = undefined;
+	cowwapsibweState = TweeItemCowwapsibweState.Expanded;
+	chiwdwen: ITweeItem[] | undefined = undefined;
 }
 
-const noDataProviderMessage = localize('no-dataprovider', "There is no data provider registered that can provide view data.");
+const noDataPwovidewMessage = wocawize('no-datapwovida', "Thewe is no data pwovida wegistewed that can pwovide view data.");
 
-class Tree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
+cwass Twee extends WowkbenchAsyncDataTwee<ITweeItem, ITweeItem, FuzzyScowe> { }
 
-abstract class AbstractTreeView extends Disposable implements ITreeView {
+abstwact cwass AbstwactTweeView extends Disposabwe impwements ITweeView {
 
-	private isVisible: boolean = false;
-	private _hasIconForParentNode = false;
-	private _hasIconForLeafNode = false;
+	pwivate isVisibwe: boowean = fawse;
+	pwivate _hasIconFowPawentNode = fawse;
+	pwivate _hasIconFowWeafNode = fawse;
 
-	private readonly collapseAllContextKey: RawContextKey<boolean>;
-	private readonly collapseAllContext: IContextKey<boolean>;
-	private readonly collapseAllToggleContextKey: RawContextKey<boolean>;
-	private readonly collapseAllToggleContext: IContextKey<boolean>;
-	private readonly refreshContextKey: RawContextKey<boolean>;
-	private readonly refreshContext: IContextKey<boolean>;
+	pwivate weadonwy cowwapseAwwContextKey: WawContextKey<boowean>;
+	pwivate weadonwy cowwapseAwwContext: IContextKey<boowean>;
+	pwivate weadonwy cowwapseAwwToggweContextKey: WawContextKey<boowean>;
+	pwivate weadonwy cowwapseAwwToggweContext: IContextKey<boowean>;
+	pwivate weadonwy wefweshContextKey: WawContextKey<boowean>;
+	pwivate weadonwy wefweshContext: IContextKey<boowean>;
 
-	private focused: boolean = false;
-	private domNode!: HTMLElement;
-	private treeContainer!: HTMLElement;
-	private _messageValue: string | undefined;
-	private _canSelectMany: boolean = false;
-	private messageElement!: HTMLDivElement;
-	private tree: Tree | undefined;
-	private treeLabels: ResourceLabels | undefined;
-	private treeViewDnd: CustomTreeViewDragAndDrop;
+	pwivate focused: boowean = fawse;
+	pwivate domNode!: HTMWEwement;
+	pwivate tweeContaina!: HTMWEwement;
+	pwivate _messageVawue: stwing | undefined;
+	pwivate _canSewectMany: boowean = fawse;
+	pwivate messageEwement!: HTMWDivEwement;
+	pwivate twee: Twee | undefined;
+	pwivate tweeWabews: WesouwceWabews | undefined;
+	pwivate tweeViewDnd: CustomTweeViewDwagAndDwop;
 
-	private root: ITreeItem;
-	private elementsToRefresh: ITreeItem[] = [];
+	pwivate woot: ITweeItem;
+	pwivate ewementsToWefwesh: ITweeItem[] = [];
 
-	private readonly _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
-	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
+	pwivate weadonwy _onDidExpandItem: Emitta<ITweeItem> = this._wegista(new Emitta<ITweeItem>());
+	weadonwy onDidExpandItem: Event<ITweeItem> = this._onDidExpandItem.event;
 
-	private readonly _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
-	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
+	pwivate weadonwy _onDidCowwapseItem: Emitta<ITweeItem> = this._wegista(new Emitta<ITweeItem>());
+	weadonwy onDidCowwapseItem: Event<ITweeItem> = this._onDidCowwapseItem.event;
 
-	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
-	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
+	pwivate _onDidChangeSewection: Emitta<ITweeItem[]> = this._wegista(new Emitta<ITweeItem[]>());
+	weadonwy onDidChangeSewection: Event<ITweeItem[]> = this._onDidChangeSewection.event;
 
-	private readonly _onDidChangeVisibility: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity: Emitta<boowean> = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity: Event<boowean> = this._onDidChangeVisibiwity.event;
 
-	private readonly _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+	pwivate weadonwy _onDidChangeActions: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeActions: Event<void> = this._onDidChangeActions.event;
 
-	private readonly _onDidChangeWelcomeState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeWelcomeState: Event<void> = this._onDidChangeWelcomeState.event;
+	pwivate weadonwy _onDidChangeWewcomeState: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWewcomeState: Event<void> = this._onDidChangeWewcomeState.event;
 
-	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
+	pwivate weadonwy _onDidChangeTitwe: Emitta<stwing> = this._wegista(new Emitta<stwing>());
+	weadonwy onDidChangeTitwe: Event<stwing> = this._onDidChangeTitwe.event;
 
-	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
-	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
+	pwivate weadonwy _onDidChangeDescwiption: Emitta<stwing | undefined> = this._wegista(new Emitta<stwing | undefined>());
+	weadonwy onDidChangeDescwiption: Event<stwing | undefined> = this._onDidChangeDescwiption.event;
 
-	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidCompweteWefwesh: Emitta<void> = this._wegista(new Emitta<void>());
 
-	constructor(
-		readonly id: string,
-		private _title: string,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProgressService protected readonly progressService: IProgressService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		weadonwy id: stwing,
+		pwivate _titwe: stwing,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IPwogwessSewvice pwotected weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		super();
-		this.root = new Root();
-		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false, localize('treeView.enableCollapseAll', "Whether the the tree view with id {0} enables collapse all.", this.id));
-		this.collapseAllContext = this.collapseAllContextKey.bindTo(contextKeyService);
-		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false, localize('treeView.toggleCollapseAll', "Whether collapse all is toggled for the tree view with id {0}.", this.id));
-		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
-		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false, localize('treeView.enableRefresh', "Whether the tree view with id {0} enables refresh.", this.id));
-		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
-		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop);
+		supa();
+		this.woot = new Woot();
+		this.cowwapseAwwContextKey = new WawContextKey<boowean>(`tweeView.${this.id}.enabweCowwapseAww`, fawse, wocawize('tweeView.enabweCowwapseAww', "Whetha the the twee view with id {0} enabwes cowwapse aww.", this.id));
+		this.cowwapseAwwContext = this.cowwapseAwwContextKey.bindTo(contextKeySewvice);
+		this.cowwapseAwwToggweContextKey = new WawContextKey<boowean>(`tweeView.${this.id}.toggweCowwapseAww`, fawse, wocawize('tweeView.toggweCowwapseAww', "Whetha cowwapse aww is toggwed fow the twee view with id {0}.", this.id));
+		this.cowwapseAwwToggweContext = this.cowwapseAwwToggweContextKey.bindTo(contextKeySewvice);
+		this.wefweshContextKey = new WawContextKey<boowean>(`tweeView.${this.id}.enabweWefwesh`, fawse, wocawize('tweeView.enabweWefwesh', "Whetha the twee view with id {0} enabwes wefwesh.", this.id));
+		this.wefweshContext = this.wefweshContextKey.bindTo(contextKeySewvice);
+		this.tweeViewDnd = this.instantiationSewvice.cweateInstance(CustomTweeViewDwagAndDwop);
 
-		this._register(this.themeService.onDidFileIconThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
-		this._register(this.themeService.onDidColorThemeChange(() => this.doRefresh([this.root]) /** soft refresh **/));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('explorer.decorations')) {
-				this.doRefresh([this.root]); /** soft refresh **/
+		this._wegista(this.themeSewvice.onDidFiweIconThemeChange(() => this.doWefwesh([this.woot]) /** soft wefwesh **/));
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(() => this.doWefwesh([this.woot]) /** soft wefwesh **/));
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('expwowa.decowations')) {
+				this.doWefwesh([this.woot]); /** soft wefwesh **/
 			}
 		}));
-		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeWocation(({ views, fwom, to }) => {
 			if (views.some(v => v.id === this.id)) {
-				this.tree?.updateOptions({ overrideStyles: { listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND } });
+				this.twee?.updateOptions({ ovewwideStywes: { wistBackgwound: this.viewWocation === ViewContainewWocation.Panew ? PANEW_BACKGWOUND : SIDE_BAW_BACKGWOUND } });
 			}
 		}));
-		this.registerActions();
+		this.wegistewActions();
 
-		this.create();
+		this.cweate();
 	}
 
-	get viewContainer(): ViewContainer {
-		return this.viewDescriptorService.getViewContainerByViewId(this.id)!;
+	get viewContaina(): ViewContaina {
+		wetuwn this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!;
 	}
 
-	get viewLocation(): ViewContainerLocation {
-		return this.viewDescriptorService.getViewLocationById(this.id)!;
+	get viewWocation(): ViewContainewWocation {
+		wetuwn this.viewDescwiptowSewvice.getViewWocationById(this.id)!;
 	}
-	private _dragAndDropController: ITreeViewDragAndDropController | undefined;
-	get dragAndDropController(): ITreeViewDragAndDropController | undefined {
-		return this._dragAndDropController;
+	pwivate _dwagAndDwopContwowwa: ITweeViewDwagAndDwopContwowwa | undefined;
+	get dwagAndDwopContwowwa(): ITweeViewDwagAndDwopContwowwa | undefined {
+		wetuwn this._dwagAndDwopContwowwa;
 	}
-	set dragAndDropController(dnd: ITreeViewDragAndDropController | undefined) {
-		this._dragAndDropController = dnd;
-		this.treeViewDnd.controller = dnd;
-	}
-
-	private _dataProvider: ITreeViewDataProvider | undefined;
-	get dataProvider(): ITreeViewDataProvider | undefined {
-		return this._dataProvider;
+	set dwagAndDwopContwowwa(dnd: ITweeViewDwagAndDwopContwowwa | undefined) {
+		this._dwagAndDwopContwowwa = dnd;
+		this.tweeViewDnd.contwowwa = dnd;
 	}
 
-	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
-		if (dataProvider) {
-			const self = this;
-			this._dataProvider = new class implements ITreeViewDataProvider {
-				private _isEmpty: boolean = true;
-				private _onDidChangeEmpty: Emitter<void> = new Emitter();
-				public onDidChangeEmpty: Event<void> = this._onDidChangeEmpty.event;
+	pwivate _dataPwovida: ITweeViewDataPwovida | undefined;
+	get dataPwovida(): ITweeViewDataPwovida | undefined {
+		wetuwn this._dataPwovida;
+	}
 
-				get isTreeEmpty(): boolean {
-					return this._isEmpty;
+	set dataPwovida(dataPwovida: ITweeViewDataPwovida | undefined) {
+		if (dataPwovida) {
+			const sewf = this;
+			this._dataPwovida = new cwass impwements ITweeViewDataPwovida {
+				pwivate _isEmpty: boowean = twue;
+				pwivate _onDidChangeEmpty: Emitta<void> = new Emitta();
+				pubwic onDidChangeEmpty: Event<void> = this._onDidChangeEmpty.event;
+
+				get isTweeEmpty(): boowean {
+					wetuwn this._isEmpty;
 				}
 
-				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
-					let children: ITreeItem[];
-					if (node && node.children) {
-						children = node.children;
-					} else {
-						node = node ?? self.root;
-						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						children = node.children ?? [];
+				async getChiwdwen(node?: ITweeItem): Pwomise<ITweeItem[]> {
+					wet chiwdwen: ITweeItem[];
+					if (node && node.chiwdwen) {
+						chiwdwen = node.chiwdwen;
+					} ewse {
+						node = node ?? sewf.woot;
+						node.chiwdwen = await (node instanceof Woot ? dataPwovida.getChiwdwen() : dataPwovida.getChiwdwen(node));
+						chiwdwen = node.chiwdwen ?? [];
 					}
-					if (node instanceof Root) {
-						const oldEmpty = this._isEmpty;
-						this._isEmpty = children.length === 0;
-						if (oldEmpty !== this._isEmpty) {
-							this._onDidChangeEmpty.fire();
+					if (node instanceof Woot) {
+						const owdEmpty = this._isEmpty;
+						this._isEmpty = chiwdwen.wength === 0;
+						if (owdEmpty !== this._isEmpty) {
+							this._onDidChangeEmpty.fiwe();
 						}
 					}
-					return children;
+					wetuwn chiwdwen;
 				}
 			};
-			if (this._dataProvider.onDidChangeEmpty) {
-				this._register(this._dataProvider.onDidChangeEmpty(() => this._onDidChangeWelcomeState.fire()));
+			if (this._dataPwovida.onDidChangeEmpty) {
+				this._wegista(this._dataPwovida.onDidChangeEmpty(() => this._onDidChangeWewcomeState.fiwe()));
 			}
 			this.updateMessage();
-			this.refresh();
-		} else {
-			this._dataProvider = undefined;
+			this.wefwesh();
+		} ewse {
+			this._dataPwovida = undefined;
 			this.updateMessage();
 		}
 
-		this._onDidChangeWelcomeState.fire();
+		this._onDidChangeWewcomeState.fiwe();
 	}
 
-	private _message: string | undefined;
-	get message(): string | undefined {
-		return this._message;
+	pwivate _message: stwing | undefined;
+	get message(): stwing | undefined {
+		wetuwn this._message;
 	}
 
-	set message(message: string | undefined) {
+	set message(message: stwing | undefined) {
 		this._message = message;
 		this.updateMessage();
-		this._onDidChangeWelcomeState.fire();
+		this._onDidChangeWewcomeState.fiwe();
 	}
 
-	get title(): string {
-		return this._title;
+	get titwe(): stwing {
+		wetuwn this._titwe;
 	}
 
-	set title(name: string) {
-		this._title = name;
-		this._onDidChangeTitle.fire(this._title);
+	set titwe(name: stwing) {
+		this._titwe = name;
+		this._onDidChangeTitwe.fiwe(this._titwe);
 	}
 
-	private _description: string | undefined;
-	get description(): string | undefined {
-		return this._description;
+	pwivate _descwiption: stwing | undefined;
+	get descwiption(): stwing | undefined {
+		wetuwn this._descwiption;
 	}
 
-	set description(description: string | undefined) {
-		this._description = description;
-		this._onDidChangeDescription.fire(this._description);
+	set descwiption(descwiption: stwing | undefined) {
+		this._descwiption = descwiption;
+		this._onDidChangeDescwiption.fiwe(this._descwiption);
 	}
 
-	get canSelectMany(): boolean {
-		return this._canSelectMany;
+	get canSewectMany(): boowean {
+		wetuwn this._canSewectMany;
 	}
 
-	set canSelectMany(canSelectMany: boolean) {
-		const oldCanSelectMany = this._canSelectMany;
-		this._canSelectMany = canSelectMany;
-		if (this._canSelectMany !== oldCanSelectMany) {
-			this.tree?.updateOptions({ multipleSelectionSupport: this.canSelectMany });
+	set canSewectMany(canSewectMany: boowean) {
+		const owdCanSewectMany = this._canSewectMany;
+		this._canSewectMany = canSewectMany;
+		if (this._canSewectMany !== owdCanSewectMany) {
+			this.twee?.updateOptions({ muwtipweSewectionSuppowt: this.canSewectMany });
 		}
 	}
 
-	get hasIconForParentNode(): boolean {
-		return this._hasIconForParentNode;
+	get hasIconFowPawentNode(): boowean {
+		wetuwn this._hasIconFowPawentNode;
 	}
 
-	get hasIconForLeafNode(): boolean {
-		return this._hasIconForLeafNode;
+	get hasIconFowWeafNode(): boowean {
+		wetuwn this._hasIconFowWeafNode;
 	}
 
-	get visible(): boolean {
-		return this.isVisible;
+	get visibwe(): boowean {
+		wetuwn this.isVisibwe;
 	}
 
-	get showCollapseAllAction(): boolean {
-		return !!this.collapseAllContext.get();
+	get showCowwapseAwwAction(): boowean {
+		wetuwn !!this.cowwapseAwwContext.get();
 	}
 
-	set showCollapseAllAction(showCollapseAllAction: boolean) {
-		this.collapseAllContext.set(showCollapseAllAction);
+	set showCowwapseAwwAction(showCowwapseAwwAction: boowean) {
+		this.cowwapseAwwContext.set(showCowwapseAwwAction);
 	}
 
-	get showRefreshAction(): boolean {
-		return !!this.refreshContext.get();
+	get showWefweshAction(): boowean {
+		wetuwn !!this.wefweshContext.get();
 	}
 
-	set showRefreshAction(showRefreshAction: boolean) {
-		this.refreshContext.set(showRefreshAction);
+	set showWefweshAction(showWefweshAction: boowean) {
+		this.wefweshContext.set(showWefweshAction);
 	}
 
-	private registerActions() {
+	pwivate wegistewActions() {
 		const that = this;
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.treeView.${that.id}.refresh`,
-					title: localize('refresh', "Refresh"),
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.tweeView.${that.id}.wefwesh`,
+					titwe: wocawize('wefwesh', "Wefwesh"),
 					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.refreshContextKey),
-						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER - 1,
+						id: MenuId.ViewTitwe,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', that.id), that.wefweshContextKey),
+						gwoup: 'navigation',
+						owda: Numba.MAX_SAFE_INTEGa - 1,
 					},
-					icon: Codicon.refresh
+					icon: Codicon.wefwesh
 				});
 			}
-			async run(): Promise<void> {
-				return that.refresh();
+			async wun(): Pwomise<void> {
+				wetuwn that.wefwesh();
 			}
 		}));
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.actions.treeView.${that.id}.collapseAll`,
-					title: localize('collapseAll', "Collapse All"),
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: `wowkbench.actions.tweeView.${that.id}.cowwapseAww`,
+					titwe: wocawize('cowwapseAww', "Cowwapse Aww"),
 					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.collapseAllContextKey),
-						group: 'navigation',
-						order: Number.MAX_SAFE_INTEGER,
+						id: MenuId.ViewTitwe,
+						when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', that.id), that.cowwapseAwwContextKey),
+						gwoup: 'navigation',
+						owda: Numba.MAX_SAFE_INTEGa,
 					},
-					precondition: that.collapseAllToggleContextKey,
-					icon: Codicon.collapseAll
+					pwecondition: that.cowwapseAwwToggweContextKey,
+					icon: Codicon.cowwapseAww
 				});
 			}
-			async run(): Promise<void> {
-				if (that.tree) {
-					return new CollapseAllAction<ITreeItem, ITreeItem, FuzzyScore>(that.tree, true).run();
+			async wun(): Pwomise<void> {
+				if (that.twee) {
+					wetuwn new CowwapseAwwAction<ITweeItem, ITweeItem, FuzzyScowe>(that.twee, twue).wun();
 				}
 			}
 		}));
 	}
 
-	setVisibility(isVisible: boolean): void {
-		isVisible = !!isVisible;
-		if (this.isVisible === isVisible) {
-			return;
+	setVisibiwity(isVisibwe: boowean): void {
+		isVisibwe = !!isVisibwe;
+		if (this.isVisibwe === isVisibwe) {
+			wetuwn;
 		}
 
-		this.isVisible = isVisible;
+		this.isVisibwe = isVisibwe;
 
-		if (this.tree) {
-			if (this.isVisible) {
-				DOM.show(this.tree.getHTMLElement());
-			} else {
-				DOM.hide(this.tree.getHTMLElement()); // make sure the tree goes out of the tabindex world by hiding it
+		if (this.twee) {
+			if (this.isVisibwe) {
+				DOM.show(this.twee.getHTMWEwement());
+			} ewse {
+				DOM.hide(this.twee.getHTMWEwement()); // make suwe the twee goes out of the tabindex wowwd by hiding it
 			}
 
-			if (this.isVisible && this.elementsToRefresh.length) {
-				this.doRefresh(this.elementsToRefresh);
-				this.elementsToRefresh = [];
+			if (this.isVisibwe && this.ewementsToWefwesh.wength) {
+				this.doWefwesh(this.ewementsToWefwesh);
+				this.ewementsToWefwesh = [];
 			}
 		}
 
-		this._onDidChangeVisibility.fire(this.isVisible);
+		this._onDidChangeVisibiwity.fiwe(this.isVisibwe);
 
-		if (this.visible) {
+		if (this.visibwe) {
 			this.activate();
 		}
 	}
 
-	protected abstract activate(): void;
+	pwotected abstwact activate(): void;
 
-	focus(reveal: boolean = true): void {
-		if (this.tree && this.root.children && this.root.children.length > 0) {
-			// Make sure the current selected element is revealed
-			const selectedElement = this.tree.getSelection()[0];
-			if (selectedElement && reveal) {
-				this.tree.reveal(selectedElement, 0.5);
+	focus(weveaw: boowean = twue): void {
+		if (this.twee && this.woot.chiwdwen && this.woot.chiwdwen.wength > 0) {
+			// Make suwe the cuwwent sewected ewement is weveawed
+			const sewectedEwement = this.twee.getSewection()[0];
+			if (sewectedEwement && weveaw) {
+				this.twee.weveaw(sewectedEwement, 0.5);
 			}
 
-			// Pass Focus to Viewer
-			this.tree.domFocus();
-		} else if (this.tree) {
-			this.tree.domFocus();
-		} else {
+			// Pass Focus to Viewa
+			this.twee.domFocus();
+		} ewse if (this.twee) {
+			this.twee.domFocus();
+		} ewse {
 			this.domNode.focus();
 		}
 	}
 
-	show(container: HTMLElement): void {
-		DOM.append(container, this.domNode);
+	show(containa: HTMWEwement): void {
+		DOM.append(containa, this.domNode);
 	}
 
-	private create() {
-		this.domNode = DOM.$('.tree-explorer-viewlet-tree-view');
-		this.messageElement = DOM.append(this.domNode, DOM.$('.message'));
-		this.treeContainer = DOM.append(this.domNode, DOM.$('.customview-tree'));
-		this.treeContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
-		const focusTracker = this._register(DOM.trackFocus(this.domNode));
-		this._register(focusTracker.onDidFocus(() => this.focused = true));
-		this._register(focusTracker.onDidBlur(() => this.focused = false));
+	pwivate cweate() {
+		this.domNode = DOM.$('.twee-expwowa-viewwet-twee-view');
+		this.messageEwement = DOM.append(this.domNode, DOM.$('.message'));
+		this.tweeContaina = DOM.append(this.domNode, DOM.$('.customview-twee'));
+		this.tweeContaina.cwassWist.add('fiwe-icon-themabwe-twee', 'show-fiwe-icons');
+		const focusTwacka = this._wegista(DOM.twackFocus(this.domNode));
+		this._wegista(focusTwacka.onDidFocus(() => this.focused = twue));
+		this._wegista(focusTwacka.onDidBwuw(() => this.focused = fawse));
 	}
 
-	protected createTree() {
-		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
-		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
-		const aligner = new Aligner(this.themeService);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
-		const widgetAriaLabel = this._title;
+	pwotected cweateTwee() {
+		const actionViewItemPwovida = cweateActionViewItem.bind(undefined, this.instantiationSewvice);
+		const tweeMenus = this._wegista(this.instantiationSewvice.cweateInstance(TweeMenus, this.id));
+		this.tweeWabews = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabews, this));
+		const dataSouwce = this.instantiationSewvice.cweateInstance(TweeDataSouwce, this, <T>(task: Pwomise<T>) => this.pwogwessSewvice.withPwogwess({ wocation: this.id }, () => task));
+		const awigna = new Awigna(this.themeSewvice);
+		const wendewa = this.instantiationSewvice.cweateInstance(TweeWendewa, this.id, tweeMenus, this.tweeWabews, actionViewItemPwovida, awigna);
+		const widgetAwiaWabew = this._titwe;
 
-		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer, new TreeViewDelegate(), [renderer],
-			dataSource, {
-			identityProvider: new TreeViewIdentityProvider(),
-			accessibilityProvider: {
-				getAriaLabel(element: ITreeItem): string {
-					if (element.accessibilityInformation) {
-						return element.accessibilityInformation.label;
+		this.twee = this._wegista(this.instantiationSewvice.cweateInstance(Twee, this.id, this.tweeContaina, new TweeViewDewegate(), [wendewa],
+			dataSouwce, {
+			identityPwovida: new TweeViewIdentityPwovida(),
+			accessibiwityPwovida: {
+				getAwiaWabew(ewement: ITweeItem): stwing {
+					if (ewement.accessibiwityInfowmation) {
+						wetuwn ewement.accessibiwityInfowmation.wabew;
 					}
 
-					if (isString(element.tooltip)) {
-						return element.tooltip;
-					} else {
-						let buildAriaLabel: string = '';
-						if (element.label) {
-							buildAriaLabel += element.label.label + ' ';
+					if (isStwing(ewement.toowtip)) {
+						wetuwn ewement.toowtip;
+					} ewse {
+						wet buiwdAwiaWabew: stwing = '';
+						if (ewement.wabew) {
+							buiwdAwiaWabew += ewement.wabew.wabew + ' ';
 						}
-						if (element.description) {
-							buildAriaLabel += element.description;
+						if (ewement.descwiption) {
+							buiwdAwiaWabew += ewement.descwiption;
 						}
-						return buildAriaLabel;
+						wetuwn buiwdAwiaWabew;
 					}
 				},
-				getRole(element: ITreeItem): string | undefined {
-					return element.accessibilityInformation?.role ?? 'treeitem';
+				getWowe(ewement: ITweeItem): stwing | undefined {
+					wetuwn ewement.accessibiwityInfowmation?.wowe ?? 'tweeitem';
 				},
-				getWidgetAriaLabel(): string {
-					return widgetAriaLabel;
+				getWidgetAwiaWabew(): stwing {
+					wetuwn widgetAwiaWabew;
 				}
 			},
-			keyboardNavigationLabelProvider: {
-				getKeyboardNavigationLabel: (item: ITreeItem) => {
-					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
+			keyboawdNavigationWabewPwovida: {
+				getKeyboawdNavigationWabew: (item: ITweeItem) => {
+					wetuwn item.wabew ? item.wabew.wabew : (item.wesouwceUwi ? basename(UWI.wevive(item.wesouwceUwi)) : undefined);
 				}
 			},
-			expandOnlyOnTwistieClick: (e: ITreeItem) => !!e.command,
-			collapseByDefault: (e: ITreeItem): boolean => {
-				return e.collapsibleState !== TreeItemCollapsibleState.Expanded;
+			expandOnwyOnTwistieCwick: (e: ITweeItem) => !!e.command,
+			cowwapseByDefauwt: (e: ITweeItem): boowean => {
+				wetuwn e.cowwapsibweState !== TweeItemCowwapsibweState.Expanded;
 			},
-			multipleSelectionSupport: this.canSelectMany,
-			dnd: this.treeViewDnd,
-			overrideStyles: {
-				listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+			muwtipweSewectionSuppowt: this.canSewectMany,
+			dnd: this.tweeViewDnd,
+			ovewwideStywes: {
+				wistBackgwound: this.viewWocation === ViewContainewWocation.Sidebaw ? SIDE_BAW_BACKGWOUND : PANEW_BACKGWOUND
 			}
-		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
-		treeMenus.setContextKeyService(this.tree.contextKeyService);
-		aligner.tree = this.tree;
-		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
-		renderer.actionRunner = actionRunner;
+		}) as WowkbenchAsyncDataTwee<ITweeItem, ITweeItem, FuzzyScowe>);
+		tweeMenus.setContextKeySewvice(this.twee.contextKeySewvice);
+		awigna.twee = this.twee;
+		const actionWunna = new MuwtipweSewectionActionWunna(this.notificationSewvice, () => this.twee!.getSewection());
+		wendewa.actionWunna = actionWunna;
 
-		this.tree.contextKeyService.createKey<boolean>(this.id, true);
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(treeMenus, e, actionRunner)));
-		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.elements)));
-		this._register(this.tree.onDidChangeCollapseState(e => {
-			if (!e.node.element) {
-				return;
+		this.twee.contextKeySewvice.cweateKey<boowean>(this.id, twue);
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(tweeMenus, e, actionWunna)));
+		this._wegista(this.twee.onDidChangeSewection(e => this._onDidChangeSewection.fiwe(e.ewements)));
+		this._wegista(this.twee.onDidChangeCowwapseState(e => {
+			if (!e.node.ewement) {
+				wetuwn;
 			}
 
-			const element: ITreeItem = Array.isArray(e.node.element.element) ? e.node.element.element[0] : e.node.element.element;
-			if (e.node.collapsed) {
-				this._onDidCollapseItem.fire(element);
-			} else {
-				this._onDidExpandItem.fire(element);
+			const ewement: ITweeItem = Awway.isAwway(e.node.ewement.ewement) ? e.node.ewement.ewement[0] : e.node.ewement.ewement;
+			if (e.node.cowwapsed) {
+				this._onDidCowwapseItem.fiwe(ewement);
+			} ewse {
+				this._onDidExpandItem.fiwe(ewement);
 			}
 		}));
-		this.tree.setInput(this.root).then(() => this.updateContentAreas());
+		this.twee.setInput(this.woot).then(() => this.updateContentAweas());
 
-		this._register(this.tree.onDidOpen(async (e) => {
-			if (!e.browserEvent) {
-				return;
+		this._wegista(this.twee.onDidOpen(async (e) => {
+			if (!e.bwowsewEvent) {
+				wetuwn;
 			}
-			const selection = this.tree!.getSelection();
-			const command = await this.resolveCommand(selection.length === 1 ? selection[0] : undefined);
+			const sewection = this.twee!.getSewection();
+			const command = await this.wesowveCommand(sewection.wength === 1 ? sewection[0] : undefined);
 
 			if (command) {
-				let args = command.arguments || [];
-				if (command.id === API_OPEN_EDITOR_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
-					// Some commands owned by us should receive the
-					// `IOpenEvent` as context to open properly
-					args = [...args, e];
+				wet awgs = command.awguments || [];
+				if (command.id === API_OPEN_EDITOW_COMMAND_ID || command.id === API_OPEN_DIFF_EDITOW_COMMAND_ID) {
+					// Some commands owned by us shouwd weceive the
+					// `IOpenEvent` as context to open pwopewwy
+					awgs = [...awgs, e];
 				}
 
-				this.commandService.executeCommand(command.id, ...args);
+				this.commandSewvice.executeCommand(command.id, ...awgs);
 			}
 		}));
 
 	}
 
-	private async resolveCommand(element: ITreeItem | undefined): Promise<Command | undefined> {
-		let command = element?.command;
-		if (element && !command) {
-			if ((element instanceof ResolvableTreeItem) && element.hasResolve) {
-				await element.resolve(new CancellationTokenSource().token);
-				command = element.command;
+	pwivate async wesowveCommand(ewement: ITweeItem | undefined): Pwomise<Command | undefined> {
+		wet command = ewement?.command;
+		if (ewement && !command) {
+			if ((ewement instanceof WesowvabweTweeItem) && ewement.hasWesowve) {
+				await ewement.wesowve(new CancewwationTokenSouwce().token);
+				command = ewement.command;
 			}
 		}
-		return command;
+		wetuwn command;
 	}
 
-	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
-		this.hoverService.hideHover();
-		const node: ITreeItem | null = treeEvent.element;
-		if (node === null) {
-			return;
+	pwivate onContextMenu(tweeMenus: TweeMenus, tweeEvent: ITweeContextMenuEvent<ITweeItem>, actionWunna: MuwtipweSewectionActionWunna): void {
+		this.hovewSewvice.hideHova();
+		const node: ITweeItem | nuww = tweeEvent.ewement;
+		if (node === nuww) {
+			wetuwn;
 		}
-		const event: UIEvent = treeEvent.browserEvent;
+		const event: UIEvent = tweeEvent.bwowsewEvent;
 
-		event.preventDefault();
-		event.stopPropagation();
+		event.pweventDefauwt();
+		event.stopPwopagation();
 
-		this.tree!.setFocus([node]);
-		const actions = treeMenus.getResourceContextActions(node);
-		if (!actions.length) {
-			return;
+		this.twee!.setFocus([node]);
+		const actions = tweeMenus.getWesouwceContextActions(node);
+		if (!actions.wength) {
+			wetuwn;
 		}
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => treeEvent.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => tweeEvent.anchow,
 
 			getActions: () => actions,
 
 			getActionViewItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					wetuwn new ActionViewItem(action, action, { wabew: twue, keybinding: keybinding.getWabew() });
 				}
-				return undefined;
+				wetuwn undefined;
 			},
 
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree!.domFocus();
+			onHide: (wasCancewwed?: boowean) => {
+				if (wasCancewwed) {
+					this.twee!.domFocus();
 				}
 			},
 
-			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
+			getActionsContext: () => (<TweeViewItemHandweAwg>{ $tweeViewId: this.id, $tweeItemHandwe: node.handwe }),
 
-			actionRunner
+			actionWunna
 		});
 	}
 
-	protected updateMessage(): void {
+	pwotected updateMessage(): void {
 		if (this._message) {
 			this.showMessage(this._message);
-		} else if (!this.dataProvider) {
-			this.showMessage(noDataProviderMessage);
-		} else {
+		} ewse if (!this.dataPwovida) {
+			this.showMessage(noDataPwovidewMessage);
+		} ewse {
 			this.hideMessage();
 		}
-		this.updateContentAreas();
+		this.updateContentAweas();
 	}
 
-	private showMessage(message: string): void {
-		this.messageElement.classList.remove('hide');
-		this.resetMessageElement();
-		this._messageValue = message;
-		if (!isFalsyOrWhitespace(this._message)) {
-			this.messageElement.textContent = this._messageValue;
+	pwivate showMessage(message: stwing): void {
+		this.messageEwement.cwassWist.wemove('hide');
+		this.wesetMessageEwement();
+		this._messageVawue = message;
+		if (!isFawsyOwWhitespace(this._message)) {
+			this.messageEwement.textContent = this._messageVawue;
 		}
-		this.layout(this._height, this._width);
+		this.wayout(this._height, this._width);
 	}
 
-	private hideMessage(): void {
-		this.resetMessageElement();
-		this.messageElement.classList.add('hide');
-		this.layout(this._height, this._width);
+	pwivate hideMessage(): void {
+		this.wesetMessageEwement();
+		this.messageEwement.cwassWist.add('hide');
+		this.wayout(this._height, this._width);
 	}
 
-	private resetMessageElement(): void {
-		DOM.clearNode(this.messageElement);
+	pwivate wesetMessageEwement(): void {
+		DOM.cweawNode(this.messageEwement);
 	}
 
-	private _height: number = 0;
-	private _width: number = 0;
-	layout(height: number, width: number) {
+	pwivate _height: numba = 0;
+	pwivate _width: numba = 0;
+	wayout(height: numba, width: numba) {
 		if (height && width) {
 			this._height = height;
 			this._width = width;
-			const treeHeight = height - DOM.getTotalHeight(this.messageElement);
-			this.treeContainer.style.height = treeHeight + 'px';
-			if (this.tree) {
-				this.tree.layout(treeHeight, width);
+			const tweeHeight = height - DOM.getTotawHeight(this.messageEwement);
+			this.tweeContaina.stywe.height = tweeHeight + 'px';
+			if (this.twee) {
+				this.twee.wayout(tweeHeight, width);
 			}
 		}
 	}
 
-	getOptimalWidth(): number {
-		if (this.tree) {
-			const parentNode = this.tree.getHTMLElement();
-			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
-			return DOM.getLargestChildWidth(parentNode, childNodes);
+	getOptimawWidth(): numba {
+		if (this.twee) {
+			const pawentNode = this.twee.getHTMWEwement();
+			const chiwdNodes = ([] as HTMWEwement[]).swice.caww(pawentNode.quewySewectowAww('.outwine-item-wabew > a'));
+			wetuwn DOM.getWawgestChiwdWidth(pawentNode, chiwdNodes);
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	async refresh(elements?: ITreeItem[]): Promise<void> {
-		if (this.dataProvider && this.tree) {
-			if (this.refreshing) {
-				await Event.toPromise(this._onDidCompleteRefresh.event);
+	async wefwesh(ewements?: ITweeItem[]): Pwomise<void> {
+		if (this.dataPwovida && this.twee) {
+			if (this.wefweshing) {
+				await Event.toPwomise(this._onDidCompweteWefwesh.event);
 			}
-			if (!elements) {
-				elements = [this.root];
-				// remove all waiting elements to refresh if root is asked to refresh
-				this.elementsToRefresh = [];
+			if (!ewements) {
+				ewements = [this.woot];
+				// wemove aww waiting ewements to wefwesh if woot is asked to wefwesh
+				this.ewementsToWefwesh = [];
 			}
-			for (const element of elements) {
-				element.children = undefined; // reset children
+			fow (const ewement of ewements) {
+				ewement.chiwdwen = undefined; // weset chiwdwen
 			}
-			if (this.isVisible) {
-				return this.doRefresh(elements);
-			} else {
-				if (this.elementsToRefresh.length) {
-					const seen: Set<string> = new Set<string>();
-					this.elementsToRefresh.forEach(element => seen.add(element.handle));
-					for (const element of elements) {
-						if (!seen.has(element.handle)) {
-							this.elementsToRefresh.push(element);
+			if (this.isVisibwe) {
+				wetuwn this.doWefwesh(ewements);
+			} ewse {
+				if (this.ewementsToWefwesh.wength) {
+					const seen: Set<stwing> = new Set<stwing>();
+					this.ewementsToWefwesh.fowEach(ewement => seen.add(ewement.handwe));
+					fow (const ewement of ewements) {
+						if (!seen.has(ewement.handwe)) {
+							this.ewementsToWefwesh.push(ewement);
 						}
 					}
-				} else {
-					this.elementsToRefresh.push(...elements);
+				} ewse {
+					this.ewementsToWefwesh.push(...ewements);
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void> {
-		const tree = this.tree;
-		if (tree) {
-			itemOrItems = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
-			await Promise.all(itemOrItems.map(element => {
-				return tree.expand(element, false);
+	async expand(itemOwItems: ITweeItem | ITweeItem[]): Pwomise<void> {
+		const twee = this.twee;
+		if (twee) {
+			itemOwItems = Awway.isAwway(itemOwItems) ? itemOwItems : [itemOwItems];
+			await Pwomise.aww(itemOwItems.map(ewement => {
+				wetuwn twee.expand(ewement, fawse);
 			}));
 		}
 	}
 
-	setSelection(items: ITreeItem[]): void {
-		if (this.tree) {
-			this.tree.setSelection(items);
+	setSewection(items: ITweeItem[]): void {
+		if (this.twee) {
+			this.twee.setSewection(items);
 		}
 	}
 
-	setFocus(item: ITreeItem): void {
-		if (this.tree) {
+	setFocus(item: ITweeItem): void {
+		if (this.twee) {
 			this.focus();
-			this.tree.setFocus([item]);
+			this.twee.setFocus([item]);
 		}
 	}
 
-	async reveal(item: ITreeItem): Promise<void> {
-		if (this.tree) {
-			return this.tree.reveal(item);
+	async weveaw(item: ITweeItem): Pwomise<void> {
+		if (this.twee) {
+			wetuwn this.twee.weveaw(item);
 		}
 	}
 
-	private refreshing: boolean = false;
-	private async doRefresh(elements: ITreeItem[]): Promise<void> {
-		const tree = this.tree;
-		if (tree && this.visible) {
-			this.refreshing = true;
-			await Promise.all(elements.map(element => tree.updateChildren(element, true, true)));
-			this.refreshing = false;
-			this._onDidCompleteRefresh.fire();
-			this.updateContentAreas();
+	pwivate wefweshing: boowean = fawse;
+	pwivate async doWefwesh(ewements: ITweeItem[]): Pwomise<void> {
+		const twee = this.twee;
+		if (twee && this.visibwe) {
+			this.wefweshing = twue;
+			await Pwomise.aww(ewements.map(ewement => twee.updateChiwdwen(ewement, twue, twue)));
+			this.wefweshing = fawse;
+			this._onDidCompweteWefwesh.fiwe();
+			this.updateContentAweas();
 			if (this.focused) {
-				this.focus(false);
+				this.focus(fawse);
 			}
-			this.updateCollapseAllToggle();
+			this.updateCowwapseAwwToggwe();
 		}
 	}
 
-	private updateCollapseAllToggle() {
-		if (this.showCollapseAllAction) {
-			this.collapseAllToggleContext.set(!!this.root.children && (this.root.children.length > 0) &&
-				this.root.children.some(value => value.collapsibleState !== TreeItemCollapsibleState.None));
+	pwivate updateCowwapseAwwToggwe() {
+		if (this.showCowwapseAwwAction) {
+			this.cowwapseAwwToggweContext.set(!!this.woot.chiwdwen && (this.woot.chiwdwen.wength > 0) &&
+				this.woot.chiwdwen.some(vawue => vawue.cowwapsibweState !== TweeItemCowwapsibweState.None));
 		}
 	}
 
-	private updateContentAreas(): void {
-		const isTreeEmpty = !this.root.children || this.root.children.length === 0;
-		// Hide tree container only when there is a message and tree is empty and not refreshing
-		if (this._messageValue && isTreeEmpty && !this.refreshing) {
-			this.treeContainer.classList.add('hide');
-			this.domNode.setAttribute('tabindex', '0');
-		} else {
-			this.treeContainer.classList.remove('hide');
-			this.domNode.removeAttribute('tabindex');
+	pwivate updateContentAweas(): void {
+		const isTweeEmpty = !this.woot.chiwdwen || this.woot.chiwdwen.wength === 0;
+		// Hide twee containa onwy when thewe is a message and twee is empty and not wefweshing
+		if (this._messageVawue && isTweeEmpty && !this.wefweshing) {
+			this.tweeContaina.cwassWist.add('hide');
+			this.domNode.setAttwibute('tabindex', '0');
+		} ewse {
+			this.tweeContaina.cwassWist.wemove('hide');
+			this.domNode.wemoveAttwibute('tabindex');
 		}
 	}
 }
 
-class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
-	getId(element: ITreeItem): { toString(): string; } {
-		return element.handle;
+cwass TweeViewIdentityPwovida impwements IIdentityPwovida<ITweeItem> {
+	getId(ewement: ITweeItem): { toStwing(): stwing; } {
+		wetuwn ewement.handwe;
 	}
 }
 
-class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
+cwass TweeViewDewegate impwements IWistViwtuawDewegate<ITweeItem> {
 
-	getHeight(element: ITreeItem): number {
-		return TreeRenderer.ITEM_HEIGHT;
+	getHeight(ewement: ITweeItem): numba {
+		wetuwn TweeWendewa.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: ITreeItem): string {
-		return TreeRenderer.TREE_TEMPLATE_ID;
+	getTempwateId(ewement: ITweeItem): stwing {
+		wetuwn TweeWendewa.TWEE_TEMPWATE_ID;
 	}
 }
 
-class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
+cwass TweeDataSouwce impwements IAsyncDataSouwce<ITweeItem, ITweeItem> {
 
-	constructor(
-		private treeView: ITreeView,
-		private withProgress: <T>(task: Promise<T>) => Promise<T>
+	constwuctow(
+		pwivate tweeView: ITweeView,
+		pwivate withPwogwess: <T>(task: Pwomise<T>) => Pwomise<T>
 	) {
 	}
 
-	hasChildren(element: ITreeItem): boolean {
-		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
+	hasChiwdwen(ewement: ITweeItem): boowean {
+		wetuwn !!this.tweeView.dataPwovida && (ewement.cowwapsibweState !== TweeItemCowwapsibweState.None);
 	}
 
-	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
-		let result: ITreeItem[] = [];
-		if (this.treeView.dataProvider) {
-			try {
-				result = (await this.withProgress(this.treeView.dataProvider.getChildren(element))) ?? [];
+	async getChiwdwen(ewement: ITweeItem): Pwomise<ITweeItem[]> {
+		wet wesuwt: ITweeItem[] = [];
+		if (this.tweeView.dataPwovida) {
+			twy {
+				wesuwt = (await this.withPwogwess(this.tweeView.dataPwovida.getChiwdwen(ewement))) ?? [];
 			} catch (e) {
-				if (!(<string>e.message).startsWith('Bad progress location:')) {
-					throw e;
+				if (!(<stwing>e.message).stawtsWith('Bad pwogwess wocation:')) {
+					thwow e;
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-// todo@jrieken,sandy make this proper and contributable from extensions
-registerThemingParticipant((theme, collector) => {
+// todo@jwieken,sandy make this pwopa and contwibutabwe fwom extensions
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	const matchBackgroundColor = theme.getColor(listFilterMatchHighlight);
-	if (matchBackgroundColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; background-color: ${matchBackgroundColor}; }`);
+	const matchBackgwoundCowow = theme.getCowow(wistFiwtewMatchHighwight);
+	if (matchBackgwoundCowow) {
+		cowwectow.addWuwe(`.fiwe-icon-themabwe-twee .monaco-wist-wow .content .monaco-highwighted-wabew .highwight { cowow: unset !impowtant; backgwound-cowow: ${matchBackgwoundCowow}; }`);
+		cowwectow.addWuwe(`.monaco-tw-contents .monaco-highwighted-wabew .highwight { cowow: unset !impowtant; backgwound-cowow: ${matchBackgwoundCowow}; }`);
 	}
-	const matchBorderColor = theme.getColor(listFilterMatchHighlightBorder);
-	if (matchBorderColor) {
-		collector.addRule(`.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-tl-contents .monaco-highlighted-label .highlight { color: unset !important; border: 1px dotted ${matchBorderColor}; box-sizing: border-box; }`);
+	const matchBowdewCowow = theme.getCowow(wistFiwtewMatchHighwightBowda);
+	if (matchBowdewCowow) {
+		cowwectow.addWuwe(`.fiwe-icon-themabwe-twee .monaco-wist-wow .content .monaco-highwighted-wabew .highwight { cowow: unset !impowtant; bowda: 1px dotted ${matchBowdewCowow}; box-sizing: bowda-box; }`);
+		cowwectow.addWuwe(`.monaco-tw-contents .monaco-highwighted-wabew .highwight { cowow: unset !impowtant; bowda: 1px dotted ${matchBowdewCowow}; box-sizing: bowda-box; }`);
 	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.twee-expwowa-viewwet-twee-view > .message a { cowow: ${wink}; }`);
 	}
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message a:focus { outline: 1px solid ${focusBorderColor}; outline-offset: -1px; }`);
+	const focusBowdewCowow = theme.getCowow(focusBowda);
+	if (focusBowdewCowow) {
+		cowwectow.addWuwe(`.twee-expwowa-viewwet-twee-view > .message a:focus { outwine: 1px sowid ${focusBowdewCowow}; outwine-offset: -1px; }`);
 	}
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.tree-explorer-viewlet-tree-view > .message code { background-color: ${codeBackground}; }`);
+	const codeBackgwound = theme.getCowow(textCodeBwockBackgwound);
+	if (codeBackgwound) {
+		cowwectow.addWuwe(`.twee-expwowa-viewwet-twee-view > .message code { backgwound-cowow: ${codeBackgwound}; }`);
 	}
 });
 
-interface ITreeExplorerTemplateData {
-	elementDisposable: IDisposable;
-	container: HTMLElement;
-	resourceLabel: IResourceLabel;
-	icon: HTMLElement;
-	actionBar: ActionBar;
+intewface ITweeExpwowewTempwateData {
+	ewementDisposabwe: IDisposabwe;
+	containa: HTMWEwement;
+	wesouwceWabew: IWesouwceWabew;
+	icon: HTMWEwement;
+	actionBaw: ActionBaw;
 }
 
-class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
-	static readonly ITEM_HEIGHT = 22;
-	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
+cwass TweeWendewa extends Disposabwe impwements ITweeWendewa<ITweeItem, FuzzyScowe, ITweeExpwowewTempwateData> {
+	static weadonwy ITEM_HEIGHT = 22;
+	static weadonwy TWEE_TEMPWATE_ID = 'tweeExpwowa';
 
-	private _actionRunner: MultipleSelectionActionRunner | undefined;
-	private _hoverDelegate: IHoverDelegate;
+	pwivate _actionWunna: MuwtipweSewectionActionWunna | undefined;
+	pwivate _hovewDewegate: IHovewDewegate;
 
-	constructor(
-		private treeViewId: string,
-		private menus: TreeMenus,
-		private labels: ResourceLabels,
-		private actionViewItemProvider: IActionViewItemProvider,
-		private aligner: Aligner,
-		@IThemeService private readonly themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILabelService private readonly labelService: ILabelService,
-		@IHoverService private readonly hoverService: IHoverService
+	constwuctow(
+		pwivate tweeViewId: stwing,
+		pwivate menus: TweeMenus,
+		pwivate wabews: WesouwceWabews,
+		pwivate actionViewItemPwovida: IActionViewItemPwovida,
+		pwivate awigna: Awigna,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice
 	) {
-		super();
-		this._hoverDelegate = {
-			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-			delay: <number>this.configurationService.getValue('workbench.hover.delay')
+		supa();
+		this._hovewDewegate = {
+			showHova: (options: IHovewDewegateOptions) => this.hovewSewvice.showHova(options),
+			deway: <numba>this.configuwationSewvice.getVawue('wowkbench.hova.deway')
 		};
 	}
 
-	get templateId(): string {
-		return TreeRenderer.TREE_TEMPLATE_ID;
+	get tempwateId(): stwing {
+		wetuwn TweeWendewa.TWEE_TEMPWATE_ID;
 	}
 
-	set actionRunner(actionRunner: MultipleSelectionActionRunner) {
-		this._actionRunner = actionRunner;
+	set actionWunna(actionWunna: MuwtipweSewectionActionWunna) {
+		this._actionWunna = actionWunna;
 	}
 
-	renderTemplate(container: HTMLElement): ITreeExplorerTemplateData {
-		container.classList.add('custom-view-tree-node-item');
+	wendewTempwate(containa: HTMWEwement): ITweeExpwowewTempwateData {
+		containa.cwassWist.add('custom-view-twee-node-item');
 
-		const icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
+		const icon = DOM.append(containa, DOM.$('.custom-view-twee-node-item-icon'));
 
-		const resourceLabel = this.labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
-		const actionsContainer = DOM.append(resourceLabel.element, DOM.$('.actions'));
-		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: this.actionViewItemProvider
+		const wesouwceWabew = this.wabews.cweate(containa, { suppowtHighwights: twue, hovewDewegate: this._hovewDewegate });
+		const actionsContaina = DOM.append(wesouwceWabew.ewement, DOM.$('.actions'));
+		const actionBaw = new ActionBaw(actionsContaina, {
+			actionViewItemPwovida: this.actionViewItemPwovida
 		});
 
-		return { resourceLabel, icon, actionBar, container, elementDisposable: Disposable.None };
+		wetuwn { wesouwceWabew, icon, actionBaw, containa, ewementDisposabwe: Disposabwe.None };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IIconLabelMarkdownString | undefined {
-		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
-			if (resource && !node.tooltip) {
-				return undefined;
-			} else if (!node.tooltip) {
-				return label;
-			} else if (!isString(node.tooltip)) {
-				return { markdown: node.tooltip, markdownNotSupportedFallback: resource ? undefined : renderMarkdownAsPlaintext(node.tooltip) }; // Passing undefined as the fallback for a resource falls back to the old native hover
-			} else {
-				return node.tooltip;
+	pwivate getHova(wabew: stwing | undefined, wesouwce: UWI | nuww, node: ITweeItem): stwing | IIconWabewMawkdownStwing | undefined {
+		if (!(node instanceof WesowvabweTweeItem) || !node.hasWesowve) {
+			if (wesouwce && !node.toowtip) {
+				wetuwn undefined;
+			} ewse if (!node.toowtip) {
+				wetuwn wabew;
+			} ewse if (!isStwing(node.toowtip)) {
+				wetuwn { mawkdown: node.toowtip, mawkdownNotSuppowtedFawwback: wesouwce ? undefined : wendewMawkdownAsPwaintext(node.toowtip) }; // Passing undefined as the fawwback fow a wesouwce fawws back to the owd native hova
+			} ewse {
+				wetuwn node.toowtip;
 			}
 		}
 
-		return {
-			markdown: (token: CancellationToken): Promise<IMarkdownString | string | undefined> => {
-				return new Promise<IMarkdownString | string | undefined>(async (resolve) => {
-					await node.resolve(token);
-					resolve(node.tooltip);
+		wetuwn {
+			mawkdown: (token: CancewwationToken): Pwomise<IMawkdownStwing | stwing | undefined> => {
+				wetuwn new Pwomise<IMawkdownStwing | stwing | undefined>(async (wesowve) => {
+					await node.wesowve(token);
+					wesowve(node.toowtip);
 				});
 			},
-			markdownNotSupportedFallback: resource ? undefined : label ?? '' // Passing undefined as the fallback for a resource falls back to the old native hover
+			mawkdownNotSuppowtedFawwback: wesouwce ? undefined : wabew ?? '' // Passing undefined as the fawwback fow a wesouwce fawws back to the owd native hova
 		};
 	}
 
-	renderElement(element: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.dispose();
-		const node = element.element;
-		const resource = node.resourceUri ? URI.revive(node.resourceUri) : null;
-		const treeItemLabel: ITreeItemLabel | undefined = node.label ? node.label : (resource ? { label: basename(resource) } : undefined);
-		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
-		const label = treeItemLabel ? treeItemLabel.label : undefined;
-		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
-			if (start < 0) {
-				start = label.length + start;
+	wendewEwement(ewement: ITweeNode<ITweeItem, FuzzyScowe>, index: numba, tempwateData: ITweeExpwowewTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
+		const node = ewement.ewement;
+		const wesouwce = node.wesouwceUwi ? UWI.wevive(node.wesouwceUwi) : nuww;
+		const tweeItemWabew: ITweeItemWabew | undefined = node.wabew ? node.wabew : (wesouwce ? { wabew: basename(wesouwce) } : undefined);
+		const descwiption = isStwing(node.descwiption) ? node.descwiption : wesouwce && node.descwiption === twue ? this.wabewSewvice.getUwiWabew(diwname(wesouwce), { wewative: twue }) : undefined;
+		const wabew = tweeItemWabew ? tweeItemWabew.wabew : undefined;
+		const matches = (tweeItemWabew && tweeItemWabew.highwights && wabew) ? tweeItemWabew.highwights.map(([stawt, end]) => {
+			if (stawt < 0) {
+				stawt = wabew.wength + stawt;
 			}
 			if (end < 0) {
-				end = label.length + end;
+				end = wabew.wength + end;
 			}
-			if ((start >= label.length) || (end > label.length)) {
-				return ({ start: 0, end: 0 });
+			if ((stawt >= wabew.wength) || (end > wabew.wength)) {
+				wetuwn ({ stawt: 0, end: 0 });
 			}
-			if (start > end) {
-				const swap = start;
-				start = end;
+			if (stawt > end) {
+				const swap = stawt;
+				stawt = end;
 				end = swap;
 			}
-			return ({ start, end });
+			wetuwn ({ stawt, end });
 		}) : undefined;
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
-		const iconUrl = icon ? URI.revive(icon) : null;
-		const title = this.getHover(label, resource, node);
+		const icon = this.themeSewvice.getCowowTheme().type === CowowScheme.WIGHT ? node.icon : node.iconDawk;
+		const iconUww = icon ? UWI.wevive(icon) : nuww;
+		const titwe = this.getHova(wabew, wesouwce, node);
 
-		// reset
-		templateData.actionBar.clear();
-		templateData.icon.style.color = '';
+		// weset
+		tempwateData.actionBaw.cweaw();
+		tempwateData.icon.stywe.cowow = '';
 
-		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
-			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
-			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
-				fileKind: this.getFileKind(node),
-				title,
-				hideIcon: !!iconUrl || (!!node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)),
-				fileDecorations,
-				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
-				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough
+		if (wesouwce || this.isFiweKindThemeIcon(node.themeIcon)) {
+			const fiweDecowations = this.configuwationSewvice.getVawue<{ cowows: boowean, badges: boowean }>('expwowa.decowations');
+			const wabewWesouwce = wesouwce ? wesouwce : UWI.pawse('missing:_icon_wesouwce');
+			tempwateData.wesouwceWabew.setWesouwce({ name: wabew, descwiption, wesouwce: wabewWesouwce }, {
+				fiweKind: this.getFiweKind(node),
+				titwe,
+				hideIcon: !!iconUww || (!!node.themeIcon && !this.isFiweKindThemeIcon(node.themeIcon)),
+				fiweDecowations,
+				extwaCwasses: ['custom-view-twee-node-item-wesouwceWabew'],
+				matches: matches ? matches : cweateMatches(ewement.fiwtewData),
+				stwikethwough: tweeItemWabew?.stwikethwough
 			});
-		} else {
-			templateData.resourceLabel.setResource({ name: label, description }, {
-				title,
-				hideIcon: true,
-				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
-				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough
+		} ewse {
+			tempwateData.wesouwceWabew.setWesouwce({ name: wabew, descwiption }, {
+				titwe,
+				hideIcon: twue,
+				extwaCwasses: ['custom-view-twee-node-item-wesouwceWabew'],
+				matches: matches ? matches : cweateMatches(ewement.fiwtewData),
+				stwikethwough: tweeItemWabew?.stwikethwough
 			});
 		}
 
-		if (iconUrl) {
-			templateData.icon.className = 'custom-view-tree-node-item-icon';
-			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-		} else {
-			let iconClass: string | undefined;
-			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
-				iconClass = ThemeIcon.asClassName(node.themeIcon);
-				if (node.themeIcon.color) {
-					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
+		if (iconUww) {
+			tempwateData.icon.cwassName = 'custom-view-twee-node-item-icon';
+			tempwateData.icon.stywe.backgwoundImage = DOM.asCSSUww(iconUww);
+		} ewse {
+			wet iconCwass: stwing | undefined;
+			if (node.themeIcon && !this.isFiweKindThemeIcon(node.themeIcon)) {
+				iconCwass = ThemeIcon.asCwassName(node.themeIcon);
+				if (node.themeIcon.cowow) {
+					tempwateData.icon.stywe.cowow = this.themeSewvice.getCowowTheme().getCowow(node.themeIcon.cowow.id)?.toStwing() ?? '';
 				}
 			}
-			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
-			templateData.icon.style.backgroundImage = '';
+			tempwateData.icon.cwassName = iconCwass ? `custom-view-twee-node-item-icon ${iconCwass}` : '';
+			tempwateData.icon.stywe.backgwoundImage = '';
 		}
 
-		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
-		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
-		if (this._actionRunner) {
-			templateData.actionBar.actionRunner = this._actionRunner;
+		tempwateData.actionBaw.context = <TweeViewItemHandweAwg>{ $tweeViewId: this.tweeViewId, $tweeItemHandwe: node.handwe };
+		tempwateData.actionBaw.push(this.menus.getWesouwceActions(node), { icon: twue, wabew: fawse });
+		if (this._actionWunna) {
+			tempwateData.actionBaw.actionWunna = this._actionWunna;
 		}
-		this.setAlignment(templateData.container, node);
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
-		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
+		this.setAwignment(tempwateData.containa, node);
+		const disposabweStowe = new DisposabweStowe();
+		tempwateData.ewementDisposabwe = disposabweStowe;
+		disposabweStowe.add(this.themeSewvice.onDidFiweIconThemeChange(() => this.setAwignment(tempwateData.containa, node)));
 	}
 
-	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', this.aligner.alignIconWithTwisty(treeItem));
+	pwivate setAwignment(containa: HTMWEwement, tweeItem: ITweeItem) {
+		containa.pawentEwement!.cwassWist.toggwe('awign-icon-with-twisty', this.awigna.awignIconWithTwisty(tweeItem));
 	}
 
-	private isFileKindThemeIcon(icon: ThemeIcon | undefined): boolean {
+	pwivate isFiweKindThemeIcon(icon: ThemeIcon | undefined): boowean {
 		if (icon) {
-			return icon.id === FileThemeIcon.id || icon.id === FolderThemeIcon.id;
-		} else {
-			return false;
+			wetuwn icon.id === FiweThemeIcon.id || icon.id === FowdewThemeIcon.id;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	private getFileKind(node: ITreeItem): FileKind {
+	pwivate getFiweKind(node: ITweeItem): FiweKind {
 		if (node.themeIcon) {
 			switch (node.themeIcon.id) {
-				case FileThemeIcon.id:
-					return FileKind.FILE;
-				case FolderThemeIcon.id:
-					return FileKind.FOLDER;
+				case FiweThemeIcon.id:
+					wetuwn FiweKind.FIWE;
+				case FowdewThemeIcon.id:
+					wetuwn FiweKind.FOWDa;
 			}
 		}
-		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
+		wetuwn node.cowwapsibweState === TweeItemCowwapsibweState.Cowwapsed || node.cowwapsibweState === TweeItemCowwapsibweState.Expanded ? FiweKind.FOWDa : FiweKind.FIWE;
 	}
 
-	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.dispose();
+	disposeEwement(wesouwce: ITweeNode<ITweeItem, FuzzyScowe>, index: numba, tempwateData: ITweeExpwowewTempwateData): void {
+		tempwateData.ewementDisposabwe.dispose();
 	}
 
-	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
-		templateData.resourceLabel.dispose();
-		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
+	disposeTempwate(tempwateData: ITweeExpwowewTempwateData): void {
+		tempwateData.wesouwceWabew.dispose();
+		tempwateData.actionBaw.dispose();
+		tempwateData.ewementDisposabwe.dispose();
 	}
 }
 
-class Aligner extends Disposable {
-	private _tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> | undefined;
+cwass Awigna extends Disposabwe {
+	pwivate _twee: WowkbenchAsyncDataTwee<ITweeItem, ITweeItem, FuzzyScowe> | undefined;
 
-	constructor(private themeService: IThemeService) {
-		super();
+	constwuctow(pwivate themeSewvice: IThemeSewvice) {
+		supa();
 	}
 
-	set tree(tree: WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>) {
-		this._tree = tree;
+	set twee(twee: WowkbenchAsyncDataTwee<ITweeItem, ITweeItem, FuzzyScowe>) {
+		this._twee = twee;
 	}
 
-	public alignIconWithTwisty(treeItem: ITreeItem): boolean {
-		if (treeItem.collapsibleState !== TreeItemCollapsibleState.None) {
-			return false;
+	pubwic awignIconWithTwisty(tweeItem: ITweeItem): boowean {
+		if (tweeItem.cowwapsibweState !== TweeItemCowwapsibweState.None) {
+			wetuwn fawse;
 		}
-		if (!this.hasIcon(treeItem)) {
-			return false;
+		if (!this.hasIcon(tweeItem)) {
+			wetuwn fawse;
 		}
 
-		if (this._tree) {
-			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
-			if (this.hasIcon(parent)) {
-				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));
+		if (this._twee) {
+			const pawent: ITweeItem = this._twee.getPawentEwement(tweeItem) || this._twee.getInput();
+			if (this.hasIcon(pawent)) {
+				wetuwn !!pawent.chiwdwen && pawent.chiwdwen.some(c => c.cowwapsibweState !== TweeItemCowwapsibweState.None && !this.hasIcon(c));
 			}
-			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
-		} else {
-			return false;
+			wetuwn !!pawent.chiwdwen && pawent.chiwdwen.evewy(c => c.cowwapsibweState === TweeItemCowwapsibweState.None || !this.hasIcon(c));
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	private hasIcon(node: ITreeItem): boolean {
-		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
+	pwivate hasIcon(node: ITweeItem): boowean {
+		const icon = this.themeSewvice.getCowowTheme().type === CowowScheme.WIGHT ? node.icon : node.iconDawk;
 		if (icon) {
-			return true;
+			wetuwn twue;
 		}
-		if (node.resourceUri || node.themeIcon) {
-			const fileIconTheme = this.themeService.getFileIconTheme();
-			const isFolder = node.themeIcon ? node.themeIcon.id === FolderThemeIcon.id : node.collapsibleState !== TreeItemCollapsibleState.None;
-			if (isFolder) {
-				return fileIconTheme.hasFileIcons && fileIconTheme.hasFolderIcons;
+		if (node.wesouwceUwi || node.themeIcon) {
+			const fiweIconTheme = this.themeSewvice.getFiweIconTheme();
+			const isFowda = node.themeIcon ? node.themeIcon.id === FowdewThemeIcon.id : node.cowwapsibweState !== TweeItemCowwapsibweState.None;
+			if (isFowda) {
+				wetuwn fiweIconTheme.hasFiweIcons && fiweIconTheme.hasFowdewIcons;
 			}
-			return fileIconTheme.hasFileIcons;
+			wetuwn fiweIconTheme.hasFiweIcons;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-class MultipleSelectionActionRunner extends ActionRunner {
+cwass MuwtipweSewectionActionWunna extends ActionWunna {
 
-	constructor(notificationService: INotificationService, private getSelectedResources: (() => ITreeItem[])) {
-		super();
-		this._register(this.onDidRun(e => {
-			if (e.error && !isPromiseCanceledError(e.error)) {
-				notificationService.error(localize('command-error', 'Error running command {1}: {0}. This is likely caused by the extension that contributes {1}.', e.error.message, e.action.id));
+	constwuctow(notificationSewvice: INotificationSewvice, pwivate getSewectedWesouwces: (() => ITweeItem[])) {
+		supa();
+		this._wegista(this.onDidWun(e => {
+			if (e.ewwow && !isPwomiseCancewedEwwow(e.ewwow)) {
+				notificationSewvice.ewwow(wocawize('command-ewwow', 'Ewwow wunning command {1}: {0}. This is wikewy caused by the extension that contwibutes {1}.', e.ewwow.message, e.action.id));
 			}
 		}));
 	}
 
-	override async runAction(action: IAction, context: TreeViewItemHandleArg): Promise<void> {
-		const selection = this.getSelectedResources();
-		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
-		let actionInSelected: boolean = false;
-		if (selection.length > 1) {
-			selectionHandleArgs = selection.map(selected => {
-				if (selected.handle === context.$treeItemHandle) {
-					actionInSelected = true;
+	ovewwide async wunAction(action: IAction, context: TweeViewItemHandweAwg): Pwomise<void> {
+		const sewection = this.getSewectedWesouwces();
+		wet sewectionHandweAwgs: TweeViewItemHandweAwg[] | undefined = undefined;
+		wet actionInSewected: boowean = fawse;
+		if (sewection.wength > 1) {
+			sewectionHandweAwgs = sewection.map(sewected => {
+				if (sewected.handwe === context.$tweeItemHandwe) {
+					actionInSewected = twue;
 				}
-				return { $treeViewId: context.$treeViewId, $treeItemHandle: selected.handle };
+				wetuwn { $tweeViewId: context.$tweeViewId, $tweeItemHandwe: sewected.handwe };
 			});
 		}
 
-		if (!actionInSelected) {
-			selectionHandleArgs = undefined;
+		if (!actionInSewected) {
+			sewectionHandweAwgs = undefined;
 		}
 
-		await action.run(...[context, selectionHandleArgs]);
+		await action.wun(...[context, sewectionHandweAwgs]);
 	}
 }
 
-class TreeMenus extends Disposable implements IDisposable {
-	private contextKeyService: IContextKeyService | undefined;
+cwass TweeMenus extends Disposabwe impwements IDisposabwe {
+	pwivate contextKeySewvice: IContextKeySewvice | undefined;
 
-	constructor(
-		private id: string,
-		@IMenuService private readonly menuService: IMenuService
+	constwuctow(
+		pwivate id: stwing,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice
 	) {
-		super();
+		supa();
 	}
 
-	getResourceActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).primary;
+	getWesouwceActions(ewement: ITweeItem): IAction[] {
+		wetuwn this.getActions(MenuId.ViewItemContext, { key: 'viewItem', vawue: ewement.contextVawue }).pwimawy;
 	}
 
-	getResourceContextActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, { key: 'viewItem', value: element.contextValue }).secondary;
+	getWesouwceContextActions(ewement: ITweeItem): IAction[] {
+		wetuwn this.getActions(MenuId.ViewItemContext, { key: 'viewItem', vawue: ewement.contextVawue }).secondawy;
 	}
 
-	public setContextKeyService(service: IContextKeyService) {
-		this.contextKeyService = service;
+	pubwic setContextKeySewvice(sewvice: IContextKeySewvice) {
+		this.contextKeySewvice = sewvice;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
-		if (!this.contextKeyService) {
-			return { primary: [], secondary: [] };
+	pwivate getActions(menuId: MenuId, context: { key: stwing, vawue?: stwing }): { pwimawy: IAction[]; secondawy: IAction[]; } {
+		if (!this.contextKeySewvice) {
+			wetuwn { pwimawy: [], secondawy: [] };
 		}
 
-		const contextKeyService = this.contextKeyService.createOverlay([
+		const contextKeySewvice = this.contextKeySewvice.cweateOvewway([
 			['view', this.id],
-			[context.key, context.value]
+			[context.key, context.vawue]
 		]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+		const menu = this.menuSewvice.cweateMenu(menuId, contextKeySewvice);
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const wesuwt = { pwimawy, secondawy };
+		cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue }, wesuwt, 'inwine');
 		menu.dispose();
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class CustomTreeView extends AbstractTreeView {
+expowt cwass CustomTweeView extends AbstwactTweeView {
 
-	private activated: boolean = false;
+	pwivate activated: boowean = fawse;
 
-	constructor(
-		id: string,
-		title: string,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IProgressService progressService: IProgressService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHoverService hoverService: IHoverService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+	constwuctow(
+		id: stwing,
+		titwe: stwing,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
+		supa(id, titwe, themeSewvice, instantiationSewvice, commandSewvice, configuwationSewvice, pwogwessSewvice, contextMenuSewvice, keybindingSewvice, notificationSewvice, viewDescwiptowSewvice, hovewSewvice, contextKeySewvice);
 	}
 
-	protected activate() {
+	pwotected activate() {
 		if (!this.activated) {
-			this.createTree();
-			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+			this.cweateTwee();
+			this.pwogwessSewvice.withPwogwess({ wocation: this.id }, () => this.extensionSewvice.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
 					this.updateMessage();
 				});
-			this.activated = true;
+			this.activated = twue;
 		}
 	}
 }
 
-export class TreeView extends AbstractTreeView {
+expowt cwass TweeView extends AbstwactTweeView {
 
-	private activated: boolean = false;
+	pwivate activated: boowean = fawse;
 
-	protected activate() {
+	pwotected activate() {
 		if (!this.activated) {
-			this.createTree();
-			this.activated = true;
+			this.cweateTwee();
+			this.activated = twue;
 		}
 	}
 }
 
-export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+expowt cwass CustomTweeViewDwagAndDwop impwements ITweeDwagAndDwop<ITweeItem> {
+	constwuctow(@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice) { }
 
-	private dndController: ITreeViewDragAndDropController | undefined;
-	set controller(controller: ITreeViewDragAndDropController | undefined) {
-		this.dndController = controller;
+	pwivate dndContwowwa: ITweeViewDwagAndDwopContwowwa | undefined;
+	set contwowwa(contwowwa: ITweeViewDwagAndDwopContwowwa | undefined) {
+		this.dndContwowwa = contwowwa;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (originalEvent.dataTransfer) {
-			originalEvent.dataTransfer.setData(TREE_ITEM_DATA_TRANSFER_TYPE,
-				JSON.stringify((data as ElementsDragAndDropData<ITreeItem, ITreeItem[]>).getData().map(treeItem => treeItem.handle)));
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		if (owiginawEvent.dataTwansfa) {
+			owiginawEvent.dataTwansfa.setData(TWEE_ITEM_DATA_TWANSFEW_TYPE,
+				JSON.stwingify((data as EwementsDwagAndDwopData<ITweeItem, ITweeItem[]>).getData().map(tweeItem => tweeItem.handwe)));
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		if (!this.dndController) {
-			return false;
+	onDwagOva(data: IDwagAndDwopData, tawgetEwement: ITweeItem, tawgetIndex: numba, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction {
+		if (!this.dndContwowwa) {
+			wetuwn fawse;
 		}
-		return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true };
+		wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, autoExpand: twue };
 	}
 
-	getDragURI(element: ITreeItem): string | null {
-		if (!this.dndController) {
-			return null;
+	getDwagUWI(ewement: ITweeItem): stwing | nuww {
+		if (!this.dndContwowwa) {
+			wetuwn nuww;
 		}
-		return element.resourceUri ? URI.revive(element.resourceUri).toString() : element.handle;
+		wetuwn ewement.wesouwceUwi ? UWI.wevive(ewement.wesouwceUwi).toStwing() : ewement.handwe;
 	}
 
-	getDragLabel?(elements: ITreeItem[]): string | undefined {
-		if (!this.dndController) {
-			return undefined;
+	getDwagWabew?(ewements: ITweeItem[]): stwing | undefined {
+		if (!this.dndContwowwa) {
+			wetuwn undefined;
 		}
-		if (elements.length > 1) {
-			return String(elements.length);
+		if (ewements.wength > 1) {
+			wetuwn Stwing(ewements.wength);
 		}
-		const element = elements[0];
-		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
+		const ewement = ewements[0];
+		wetuwn ewement.wabew ? ewement.wabew.wabew : (ewement.wesouwceUwi ? this.wabewSewvice.getUwiWabew(UWI.wevive(ewement.wesouwceUwi)) : undefined);
 	}
 
-	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
-		if (!originalEvent.dataTransfer || !this.dndController || !targetNode) {
-			return;
+	async dwop(data: IDwagAndDwopData, tawgetNode: ITweeItem | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): Pwomise<void> {
+		if (!owiginawEvent.dataTwansfa || !this.dndContwowwa || !tawgetNode) {
+			wetuwn;
 		}
-		const treeDataTransfer: ITreeDataTransfer = {
+		const tweeDataTwansfa: ITweeDataTwansfa = {
 			items: new Map()
 		};
-		let stringCount = Array.from(originalEvent.dataTransfer.items).reduce((previous, current) => {
-			if (current.kind === 'string') {
-				return previous + 1;
+		wet stwingCount = Awway.fwom(owiginawEvent.dataTwansfa.items).weduce((pwevious, cuwwent) => {
+			if (cuwwent.kind === 'stwing') {
+				wetuwn pwevious + 1;
 			}
-			return previous;
+			wetuwn pwevious;
 		}, 0);
-		await new Promise<void>(resolve => {
-			if (!originalEvent.dataTransfer || !this.dndController || !targetNode) {
-				return;
+		await new Pwomise<void>(wesowve => {
+			if (!owiginawEvent.dataTwansfa || !this.dndContwowwa || !tawgetNode) {
+				wetuwn;
 			}
-			for (const dataItem of originalEvent.dataTransfer.items) {
-				if (dataItem.kind === 'string') {
+			fow (const dataItem of owiginawEvent.dataTwansfa.items) {
+				if (dataItem.kind === 'stwing') {
 					const type = dataItem.type;
-					dataItem.getAsString(dataValue => {
-						treeDataTransfer.items.set(type, {
-							asString: () => Promise.resolve(dataValue)
+					dataItem.getAsStwing(dataVawue => {
+						tweeDataTwansfa.items.set(type, {
+							asStwing: () => Pwomise.wesowve(dataVawue)
 						});
-						stringCount--;
-						if (stringCount === 0) {
-							resolve();
+						stwingCount--;
+						if (stwingCount === 0) {
+							wesowve();
 						}
 					});
 				}
 			}
 		});
-		return this.dndController.onDrop(treeDataTransfer, targetNode);
+		wetuwn this.dndContwowwa.onDwop(tweeDataTwansfa, tawgetNode);
 	}
 }

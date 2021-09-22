@@ -1,2174 +1,2174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditingService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, RemoteFileSystemProvider, TestProductService, TestEnvironmentService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath, dirname, basename } from 'vs/base/common/resources';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
-import { SignService } from 'vs/platform/sign/browser/signService';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
-import { hash } from 'vs/base/common/hash';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { ConfiguwationEditingEwwowCode } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwationEditingSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWowkspaceContextSewvice, WowkbenchState, IWowkspaceFowdewsChangeEvent } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ConfiguwationTawget, IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wowkbenchInstantiationSewvice, WemoteFiweSystemPwovida, TestPwoductSewvice, TestEnviwonmentSewvice, TestTextFiweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { TextModewWesowvewSewvice } fwom 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { JSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditingSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { joinPath, diwname, basename } fwom 'vs/base/common/wesouwces';
+impowt { isWinux, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWemoteAgentEnviwonment } fwom 'vs/pwatfowm/wemote/common/wemoteAgentEnviwonment';
+impowt { IConfiguwationCache } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { SignSewvice } fwom 'vs/pwatfowm/sign/bwowsa/signSewvice';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { IKeybindingEditingSewvice, KeybindingsEditingSewvice } fwom 'vs/wowkbench/sewvices/keybinding/common/keybindingEditing';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { ConfiguwationCache as BwowsewConfiguwationCache } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationCache';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/bwowsa/wemoteAgentSewviceImpw';
+impowt { WemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/bwowsa/wemoteAuthowityWesowvewSewvice';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IUsewConfiguwationFiweSewvice, UsewConfiguwationFiweSewvice } fwom 'vs/pwatfowm/configuwation/common/usewConfiguwationFiweSewvice';
 
-function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
-	return {
-		id: hash(folder.toString()).toString(16),
-		uri: folder
+function convewtToWowkspacePaywoad(fowda: UWI): ISingweFowdewWowkspaceIdentifia {
+	wetuwn {
+		id: hash(fowda.toStwing()).toStwing(16),
+		uwi: fowda
 	};
 }
 
-class ConfigurationCache extends BrowserConfigurationCache {
-	override needsCaching() { return false; }
+cwass ConfiguwationCache extends BwowsewConfiguwationCache {
+	ovewwide needsCaching() { wetuwn fawse; }
 }
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const WOOT = UWI.fiwe('tests').with({ scheme: 'vscode-tests' });
 
-suite('WorkspaceContextService - Folder', () => {
+suite('WowkspaceContextSewvice - Fowda', () => {
 
-	let folderName = 'Folder A', folder: URI, testObject: WorkspaceService;
-	const disposables = new DisposableStore();
+	wet fowdewName = 'Fowda A', fowda: UWI, testObject: WowkspaceSewvice;
+	const disposabwes = new DisposabweStowe();
 
 	setup(async () => {
-		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		const fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		folder = joinPath(ROOT, folderName);
-		await fileService.createFolder(folder);
+		fowda = joinPath(WOOT, fowdewName);
+		await fiweSewvice.cweateFowda(fowda);
 
-		const environmentService = TestEnvironmentService;
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, new RemoteAgentService(null, environmentService, TestProductService, new RemoteAuthorityResolverService(undefined, undefined), new SignService(undefined), new NullLogService()), new UriIdentityService(fileService), new NullLogService()));
-		await (<WorkspaceService>testObject).initialize(convertToWorkspacePayload(folder));
+		const enviwonmentSewvice = TestEnviwonmentSewvice;
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, new WemoteAgentSewvice(nuww, enviwonmentSewvice, TestPwoductSewvice, new WemoteAuthowityWesowvewSewvice(undefined, undefined), new SignSewvice(undefined), new NuwwWogSewvice()), new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
+		await (<WowkspaceSewvice>testObject).initiawize(convewtToWowkspacePaywoad(fowda));
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('getWorkspace()', () => {
-		const actual = testObject.getWorkspace();
+	test('getWowkspace()', () => {
+		const actuaw = testObject.getWowkspace();
 
-		assert.strictEqual(actual.folders.length, 1);
-		assert.strictEqual(actual.folders[0].uri.path, folder.path);
-		assert.strictEqual(actual.folders[0].name, folderName);
-		assert.strictEqual(actual.folders[0].index, 0);
-		assert.ok(!actual.configuration);
+		assewt.stwictEquaw(actuaw.fowdews.wength, 1);
+		assewt.stwictEquaw(actuaw.fowdews[0].uwi.path, fowda.path);
+		assewt.stwictEquaw(actuaw.fowdews[0].name, fowdewName);
+		assewt.stwictEquaw(actuaw.fowdews[0].index, 0);
+		assewt.ok(!actuaw.configuwation);
 	});
 
-	test('getWorkbenchState()', () => {
-		const actual = testObject.getWorkbenchState();
+	test('getWowkbenchState()', () => {
+		const actuaw = testObject.getWowkbenchState();
 
-		assert.strictEqual(actual, WorkbenchState.FOLDER);
+		assewt.stwictEquaw(actuaw, WowkbenchState.FOWDa);
 	});
 
-	test('getWorkspaceFolder()', () => {
-		const actual = testObject.getWorkspaceFolder(joinPath(folder, 'a'));
+	test('getWowkspaceFowda()', () => {
+		const actuaw = testObject.getWowkspaceFowda(joinPath(fowda, 'a'));
 
-		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
+		assewt.stwictEquaw(actuaw, testObject.getWowkspace().fowdews[0]);
 	});
 
-	test('isCurrentWorkspace() => true', () => {
-		assert.ok(testObject.isCurrentWorkspace(folder));
+	test('isCuwwentWowkspace() => twue', () => {
+		assewt.ok(testObject.isCuwwentWowkspace(fowda));
 	});
 
-	test('isCurrentWorkspace() => false', () => {
-		assert.ok(!testObject.isCurrentWorkspace(joinPath(dirname(folder), 'abc')));
+	test('isCuwwentWowkspace() => fawse', () => {
+		assewt.ok(!testObject.isCuwwentWowkspace(joinPath(diwname(fowda), 'abc')));
 	});
 
-	test('workspace is complete', () => testObject.getCompleteWorkspace());
+	test('wowkspace is compwete', () => testObject.getCompweteWowkspace());
 });
 
-suite('WorkspaceContextService - Workspace', () => {
+suite('WowkspaceContextSewvice - Wowkspace', () => {
 
-	let testObject: WorkspaceService;
-	const disposables = new DisposableStore();
+	wet testObject: WowkspaceSewvice;
+	const disposabwes = new DisposabweStowe();
 
 	setup(async () => {
-		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		const fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const appSettingsHome = joinPath(ROOT, 'user');
-		const folderA = joinPath(ROOT, 'a');
-		const folderB = joinPath(ROOT, 'b');
-		const configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const appSettingsHome = joinPath(WOOT, 'usa');
+		const fowdewA = joinPath(WOOT, 'a');
+		const fowdewB = joinPath(WOOT, 'b');
+		const configWesouwce = joinPath(WOOT, 'vsctests.code-wowkspace');
+		const wowkspace = { fowdews: [{ path: fowdewA.path }, { path: fowdewB.path }] };
 
-		await fileService.createFolder(appSettingsHome);
-		await fileService.createFolder(folderA);
-		await fileService.createFolder(folderB);
-		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await fiweSewvice.cweateFowda(appSettingsHome);
+		await fiweSewvice.cweateFowda(fowdewA);
+		await fiweSewvice.cweateFowda(fowdewB);
+		await fiweSewvice.wwiteFiwe(configWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = TestEnvironmentService;
-		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		const instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		const enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteAgentSewvice = disposabwes.add(instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww));
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
 
-		instantiationService.stub(IWorkspaceContextService, testObject);
-		instantiationService.stub(IConfigurationService, testObject);
-		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, testObject);
+		instantiationSewvice.stub(IConfiguwationSewvice, testObject);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
 
-		await testObject.initialize(getWorkspaceIdentifier(configResource));
-		testObject.acquireInstantiationService(instantiationService);
+		await testObject.initiawize(getWowkspaceIdentifia(configWesouwce));
+		testObject.acquiweInstantiationSewvice(instantiationSewvice);
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('workspace folders', () => {
-		const actual = testObject.getWorkspace().folders;
+	test('wowkspace fowdews', () => {
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 2);
-		assert.strictEqual(basename(actual[0].uri), 'a');
-		assert.strictEqual(basename(actual[1].uri), 'b');
+		assewt.stwictEquaw(actuaw.wength, 2);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'a');
+		assewt.stwictEquaw(basename(actuaw[1].uwi), 'b');
 	});
 
-	test('getWorkbenchState()', () => {
-		const actual = testObject.getWorkbenchState();
+	test('getWowkbenchState()', () => {
+		const actuaw = testObject.getWowkbenchState();
 
-		assert.strictEqual(actual, WorkbenchState.WORKSPACE);
+		assewt.stwictEquaw(actuaw, WowkbenchState.WOWKSPACE);
 	});
 
 
-	test('workspace is complete', () => testObject.getCompleteWorkspace());
+	test('wowkspace is compwete', () => testObject.getCompweteWowkspace());
 
 });
 
-suite('WorkspaceContextService - Workspace Editing', () => {
+suite('WowkspaceContextSewvice - Wowkspace Editing', () => {
 
-	let testObject: WorkspaceService, fileService: IFileService;
-	const disposables = new DisposableStore();
+	wet testObject: WowkspaceSewvice, fiweSewvice: IFiweSewvice;
+	const disposabwes = new DisposabweStowe();
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const appSettingsHome = joinPath(ROOT, 'user');
-		const folderA = joinPath(ROOT, 'a');
-		const folderB = joinPath(ROOT, 'b');
-		const configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const appSettingsHome = joinPath(WOOT, 'usa');
+		const fowdewA = joinPath(WOOT, 'a');
+		const fowdewB = joinPath(WOOT, 'b');
+		const configWesouwce = joinPath(WOOT, 'vsctests.code-wowkspace');
+		const wowkspace = { fowdews: [{ path: fowdewA.path }, { path: fowdewB.path }] };
 
-		await fileService.createFolder(appSettingsHome);
-		await fileService.createFolder(folderA);
-		await fileService.createFolder(folderB);
-		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await fiweSewvice.cweateFowda(appSettingsHome);
+		await fiweSewvice.cweateFowda(fowdewA);
+		await fiweSewvice.cweateFowda(fowdewB);
+		await fiweSewvice.wwiteFiwe(configWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		const instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		const enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteAgentSewvice = instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww);
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
 
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IWorkspaceContextService, testObject);
-		instantiationService.stub(IConfigurationService, testObject);
-		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, testObject);
+		instantiationSewvice.stub(IConfiguwationSewvice, testObject);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
 
-		await testObject.initialize(getWorkspaceIdentifier(configResource));
-		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
-		testObject.acquireInstantiationService(instantiationService);
+		await testObject.initiawize(getWowkspaceIdentifia(configWesouwce));
+		instantiationSewvice.stub(ITextFiweSewvice, disposabwes.add(instantiationSewvice.cweateInstance(TestTextFiweSewvice)));
+		instantiationSewvice.stub(ITextModewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(TextModewWesowvewSewvice)));
+		testObject.acquiweInstantiationSewvice(instantiationSewvice);
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('add folders', async () => {
-		await testObject.addFolders([{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }]);
-		const actual = testObject.getWorkspace().folders;
+	test('add fowdews', async () => {
+		await testObject.addFowdews([{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }]);
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 4);
-		assert.strictEqual(basename(actual[0].uri), 'a');
-		assert.strictEqual(basename(actual[1].uri), 'b');
-		assert.strictEqual(basename(actual[2].uri), 'd');
-		assert.strictEqual(basename(actual[3].uri), 'c');
+		assewt.stwictEquaw(actuaw.wength, 4);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'a');
+		assewt.stwictEquaw(basename(actuaw[1].uwi), 'b');
+		assewt.stwictEquaw(basename(actuaw[2].uwi), 'd');
+		assewt.stwictEquaw(basename(actuaw[3].uwi), 'c');
 	});
 
-	test('add folders (at specific index)', async () => {
-		await testObject.addFolders([{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }], 0);
-		const actual = testObject.getWorkspace().folders;
+	test('add fowdews (at specific index)', async () => {
+		await testObject.addFowdews([{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }], 0);
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 4);
-		assert.strictEqual(basename(actual[0].uri), 'd');
-		assert.strictEqual(basename(actual[1].uri), 'c');
-		assert.strictEqual(basename(actual[2].uri), 'a');
-		assert.strictEqual(basename(actual[3].uri), 'b');
+		assewt.stwictEquaw(actuaw.wength, 4);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'd');
+		assewt.stwictEquaw(basename(actuaw[1].uwi), 'c');
+		assewt.stwictEquaw(basename(actuaw[2].uwi), 'a');
+		assewt.stwictEquaw(basename(actuaw[3].uwi), 'b');
 	});
 
-	test('add folders (at specific wrong index)', async () => {
-		await testObject.addFolders([{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }], 10);
-		const actual = testObject.getWorkspace().folders;
+	test('add fowdews (at specific wwong index)', async () => {
+		await testObject.addFowdews([{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }], 10);
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 4);
-		assert.strictEqual(basename(actual[0].uri), 'a');
-		assert.strictEqual(basename(actual[1].uri), 'b');
-		assert.strictEqual(basename(actual[2].uri), 'd');
-		assert.strictEqual(basename(actual[3].uri), 'c');
+		assewt.stwictEquaw(actuaw.wength, 4);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'a');
+		assewt.stwictEquaw(basename(actuaw[1].uwi), 'b');
+		assewt.stwictEquaw(basename(actuaw[2].uwi), 'd');
+		assewt.stwictEquaw(basename(actuaw[3].uwi), 'c');
 	});
 
-	test('add folders (with name)', async () => {
-		await testObject.addFolders([{ uri: joinPath(ROOT, 'd'), name: 'DDD' }, { uri: joinPath(ROOT, 'c'), name: 'CCC' }]);
-		const actual = testObject.getWorkspace().folders;
+	test('add fowdews (with name)', async () => {
+		await testObject.addFowdews([{ uwi: joinPath(WOOT, 'd'), name: 'DDD' }, { uwi: joinPath(WOOT, 'c'), name: 'CCC' }]);
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 4);
-		assert.strictEqual(basename(actual[0].uri), 'a');
-		assert.strictEqual(basename(actual[1].uri), 'b');
-		assert.strictEqual(basename(actual[2].uri), 'd');
-		assert.strictEqual(basename(actual[3].uri), 'c');
-		assert.strictEqual(actual[2].name, 'DDD');
-		assert.strictEqual(actual[3].name, 'CCC');
+		assewt.stwictEquaw(actuaw.wength, 4);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'a');
+		assewt.stwictEquaw(basename(actuaw[1].uwi), 'b');
+		assewt.stwictEquaw(basename(actuaw[2].uwi), 'd');
+		assewt.stwictEquaw(basename(actuaw[3].uwi), 'c');
+		assewt.stwictEquaw(actuaw[2].name, 'DDD');
+		assewt.stwictEquaw(actuaw[3].name, 'CCC');
 	});
 
-	test('add folders triggers change event', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
+	test('add fowdews twiggews change event', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
 
-		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
-		await testObject.addFolders(addedFolders);
+		const addedFowdews = [{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }];
+		await testObject.addFowdews(addedFowdews);
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepStrictEqual(actual_1.removed, []);
-		assert.deepStrictEqual(actual_1.changed, []);
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added.map(w => w.uwi.toStwing()), addedFowdews.map(a => a.uwi.toStwing()));
+		assewt.deepStwictEquaw(actuaw_1.wemoved, []);
+		assewt.deepStwictEquaw(actuaw_1.changed, []);
 	});
 
-	test('remove folders', async () => {
-		await testObject.removeFolders([testObject.getWorkspace().folders[0].uri]);
-		const actual = testObject.getWorkspace().folders;
+	test('wemove fowdews', async () => {
+		await testObject.wemoveFowdews([testObject.getWowkspace().fowdews[0].uwi]);
+		const actuaw = testObject.getWowkspace().fowdews;
 
-		assert.strictEqual(actual.length, 1);
-		assert.strictEqual(basename(actual[0].uri), 'b');
+		assewt.stwictEquaw(actuaw.wength, 1);
+		assewt.stwictEquaw(basename(actuaw[0].uwi), 'b');
 	});
 
-	test('remove folders triggers change event', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const removedFolder = testObject.getWorkspace().folders[0];
-		await testObject.removeFolders([removedFolder.uri]);
+	test('wemove fowdews twiggews change event', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const wemovedFowda = testObject.getWowkspace().fowdews[0];
+		await testObject.wemoveFowdews([wemovedFowda.uwi]);
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added, []);
-		assert.deepStrictEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
-		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added, []);
+		assewt.deepStwictEquaw(actuaw_1.wemoved.map(w => w.uwi.toStwing()), [wemovedFowda.uwi.toStwing()]);
+		assewt.deepStwictEquaw(actuaw_1.changed.map(c => c.uwi.toStwing()), [testObject.getWowkspace().fowdews[0].uwi.toStwing()]);
 	});
 
-	test('remove folders and add them back by writing into the file', async () => {
-		const folders = testObject.getWorkspace().folders;
-		await testObject.removeFolders([folders[0].uri]);
+	test('wemove fowdews and add them back by wwiting into the fiwe', async () => {
+		const fowdews = testObject.getWowkspace().fowdews;
+		await testObject.wemoveFowdews([fowdews[0].uwi]);
 
-		const promise = new Promise<void>((resolve, reject) => {
-			testObject.onDidChangeWorkspaceFolders(actual => {
-				try {
-					assert.deepStrictEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
-					resolve();
-				} catch (error) {
-					reject(error);
+		const pwomise = new Pwomise<void>((wesowve, weject) => {
+			testObject.onDidChangeWowkspaceFowdews(actuaw => {
+				twy {
+					assewt.deepStwictEquaw(actuaw.added.map(w => w.uwi.toStwing()), [fowdews[0].uwi.toStwing()]);
+					wesowve();
+				} catch (ewwow) {
+					weject(ewwow);
 				}
 			});
 		});
 
-		const workspace = { folders: [{ path: folders[0].uri.path }, { path: folders[1].uri.path }] };
-		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
-		await promise;
+		const wowkspace = { fowdews: [{ path: fowdews[0].uwi.path }, { path: fowdews[1].uwi.path }] };
+		await fiweSewvice.wwiteFiwe(testObject.getWowkspace().configuwation!, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
+		await pwomise;
 	});
 
-	test('update folders (remove last and add to end)', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
-		const removedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		await testObject.updateFolders(addedFolders, removedFolders);
+	test('update fowdews (wemove wast and add to end)', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const addedFowdews = [{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }];
+		const wemovedFowdews = [testObject.getWowkspace().fowdews[1]].map(f => f.uwi);
+		await testObject.updateFowdews(addedFowdews, wemovedFowdews);
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
-		assert.deepStrictEqual(actual_1.changed, []);
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added.map(w => w.uwi.toStwing()), addedFowdews.map(a => a.uwi.toStwing()));
+		assewt.deepStwictEquaw(actuaw_1.wemoved.map(w_1 => w_1.uwi.toStwing()), wemovedFowdews.map(a_1 => a_1.toStwing()));
+		assewt.deepStwictEquaw(actuaw_1.changed, []);
 	});
 
-	test('update folders (rename first via add and remove)', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const addedFolders = [{ uri: joinPath(ROOT, 'a'), name: 'The Folder' }];
-		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
-		await testObject.updateFolders(addedFolders, removedFolders, 0);
+	test('update fowdews (wename fiwst via add and wemove)', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const addedFowdews = [{ uwi: joinPath(WOOT, 'a'), name: 'The Fowda' }];
+		const wemovedFowdews = [testObject.getWowkspace().fowdews[0]].map(f => f.uwi);
+		await testObject.updateFowdews(addedFowdews, wemovedFowdews, 0);
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added, []);
-		assert.deepStrictEqual(actual_1.removed, []);
-		assert.deepStrictEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added, []);
+		assewt.deepStwictEquaw(actuaw_1.wemoved, []);
+		assewt.deepStwictEquaw(actuaw_1.changed.map(w => w.uwi.toStwing()), wemovedFowdews.map(a => a.toStwing()));
 	});
 
-	test('update folders (remove first and add to end)', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const addedFolders = [{ uri: joinPath(ROOT, 'd') }, { uri: joinPath(ROOT, 'c') }];
-		const removedFolders = [testObject.getWorkspace().folders[0]].map(f => f.uri);
-		const changedFolders = [testObject.getWorkspace().folders[1]].map(f => f.uri);
-		await testObject.updateFolders(addedFolders, removedFolders);
+	test('update fowdews (wemove fiwst and add to end)', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const addedFowdews = [{ uwi: joinPath(WOOT, 'd') }, { uwi: joinPath(WOOT, 'c') }];
+		const wemovedFowdews = [testObject.getWowkspace().fowdews[0]].map(f => f.uwi);
+		const changedFowdews = [testObject.getWowkspace().fowdews[1]].map(f => f.uwi);
+		await testObject.updateFowdews(addedFowdews, wemovedFowdews);
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
-		assert.deepStrictEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added.map(w => w.uwi.toStwing()), addedFowdews.map(a => a.uwi.toStwing()));
+		assewt.deepStwictEquaw(actuaw_1.wemoved.map(w_1 => w_1.uwi.toStwing()), wemovedFowdews.map(a_1 => a_1.toStwing()));
+		assewt.deepStwictEquaw(actuaw_1.changed.map(w_2 => w_2.uwi.toStwing()), changedFowdews.map(a_2 => a_2.toStwing()));
 	});
 
-	test('reorder folders trigger change event', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.path }, { path: testObject.getWorkspace().folders[0].uri.path }] };
-		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
-		await testObject.reloadConfiguration();
+	test('weowda fowdews twigga change event', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const wowkspace = { fowdews: [{ path: testObject.getWowkspace().fowdews[1].uwi.path }, { path: testObject.getWowkspace().fowdews[0].uwi.path }] };
+		await fiweSewvice.wwiteFiwe(testObject.getWowkspace().configuwation!, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added, []);
-		assert.deepStrictEqual(actual_1.removed, []);
-		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added, []);
+		assewt.deepStwictEquaw(actuaw_1.wemoved, []);
+		assewt.deepStwictEquaw(actuaw_1.changed.map(c => c.uwi.toStwing()), testObject.getWowkspace().fowdews.map(f => f.uwi.toStwing()).wevewse());
 	});
 
-	test('rename folders trigger change event', async () => {
-		const target = sinon.spy();
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.path, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.path }] };
-		fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
-		await testObject.reloadConfiguration();
+	test('wename fowdews twigga change event', async () => {
+		const tawget = sinon.spy();
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		const wowkspace = { fowdews: [{ path: testObject.getWowkspace().fowdews[0].uwi.path, name: '1' }, { path: testObject.getWowkspace().fowdews[1].uwi.path }] };
+		fiweSewvice.wwiteFiwe(testObject.getWowkspace().configuwation!, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(target.callCount, 2, `Should be called only once but called ${target.callCount} times`);
-		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[1][0]);
-		assert.deepStrictEqual(actual_1.added, []);
-		assert.deepStrictEqual(actual_1.removed, []);
-		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+		assewt.stwictEquaw(tawget.cawwCount, 2, `Shouwd be cawwed onwy once but cawwed ${tawget.cawwCount} times`);
+		const actuaw_1 = (<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]);
+		assewt.deepStwictEquaw(actuaw_1.added, []);
+		assewt.deepStwictEquaw(actuaw_1.wemoved, []);
+		assewt.deepStwictEquaw(actuaw_1.changed.map(c => c.uwi.toStwing()), [testObject.getWowkspace().fowdews[0].uwi.toStwing()]);
 	});
 
 });
 
-suite('WorkspaceService - Initialization', () => {
+suite('WowkspaceSewvice - Initiawization', () => {
 
-	let configResource: URI, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	wet configWesouwce: UWI, testObject: WowkspaceSewvice, fiweSewvice: IFiweSewvice, enviwonmentSewvice: BwowsewWowkbenchEnviwonmentSewvice;
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	const disposabwes = new DisposabweStowe();
 
 	suiteSetup(() => {
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'initialization.testSetting1': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+			'pwopewties': {
+				'initiawization.testSetting1': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				},
-				'initialization.testSetting2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+				'initiawization.testSetting2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				}
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const appSettingsHome = joinPath(ROOT, 'user');
-		const folderA = joinPath(ROOT, 'a');
-		const folderB = joinPath(ROOT, 'b');
-		configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const appSettingsHome = joinPath(WOOT, 'usa');
+		const fowdewA = joinPath(WOOT, 'a');
+		const fowdewB = joinPath(WOOT, 'b');
+		configWesouwce = joinPath(WOOT, 'vsctests.code-wowkspace');
+		const wowkspace = { fowdews: [{ path: fowdewA.path }, { path: fowdewB.path }] };
 
-		await fileService.createFolder(appSettingsHome);
-		await fileService.createFolder(folderA);
-		await fileService.createFolder(folderB);
-		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await fiweSewvice.cweateFowda(appSettingsHome);
+		await fiweSewvice.cweateFowda(fowdewA);
+		await fiweSewvice.cweateFowda(fowdewB);
+		await fiweSewvice.wwiteFiwe(configWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IWorkspaceContextService, testObject);
-		instantiationService.stub(IConfigurationService, testObject);
-		instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteAgentSewvice = instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww);
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, testObject);
+		instantiationSewvice.stub(IConfiguwationSewvice, testObject);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
 
-		await testObject.initialize({ id: '' });
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		testObject.acquireInstantiationService(instantiationService);
+		await testObject.initiawize({ id: '' });
+		instantiationSewvice.stub(ITextFiweSewvice, instantiationSewvice.cweateInstance(TestTextFiweSewvice));
+		instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>instantiationSewvice.cweateInstance(TextModewWesowvewSewvice));
+		testObject.acquiweInstantiationSewvice(instantiationSewvice);
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initiawize a fowda wowkspace fwom an empty wowkspace with no configuwation changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "initiawization.testSetting1": "usewVawue" }'));
 
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
 
-		const folder = joinPath(ROOT, 'a');
-		await testObject.initialize(convertToWorkspacePayload(folder));
+		const fowda = joinPath(WOOT, 'a');
+		await testObject.initiawize(convewtToWowkspacePaywoad(fowda));
 
-		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
-		assert.strictEqual(target.callCount, 4);
-		assert.deepStrictEqual(target.args[0], [WorkbenchState.FOLDER]);
-		assert.deepStrictEqual(target.args[1], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
-
-	});
-
-	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with configuration changes', async () => {
-
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
-
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
-
-		const folder = joinPath(ROOT, 'a');
-		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue" }'));
-		await testObject.initialize(convertToWorkspacePayload(folder));
-
-		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
-		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
+		assewt.stwictEquaw(testObject.getVawue('initiawization.testSetting1'), 'usewVawue');
+		assewt.stwictEquaw(tawget.cawwCount, 4);
+		assewt.deepStwictEquaw(tawget.awgs[0], [WowkbenchState.FOWDa]);
+		assewt.deepStwictEquaw(tawget.awgs[1], [undefined]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).added.map(f => f.uwi.toStwing()), [fowda.toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).wemoved, []);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).changed, []);
 
 	});
 
-	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initiawize a fowda wowkspace fwom an empty wowkspace with configuwation changes', async () => {
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "initiawization.testSetting1": "usewVawue" }'));
 
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
 
-		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		const fowda = joinPath(WOOT, 'a');
+		await fiweSewvice.wwiteFiwe(joinPath(fowda, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "initiawization.testSetting1": "wowkspaceVawue" }'));
+		await testObject.initiawize(convewtToWowkspacePaywoad(fowda));
 
-		assert.strictEqual(target.callCount, 4);
-		assert.deepStrictEqual(target.args[0], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[1], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
-
-	});
-
-	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
-
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
-
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
-
-		await fileService.writeFile(joinPath(ROOT, 'a', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue1" }'));
-		await fileService.writeFile(joinPath(ROOT, 'b', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting2": "workspaceValue2" }'));
-		await testObject.initialize(getWorkspaceIdentifier(configResource));
-
-		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
+		assewt.stwictEquaw(testObject.getVawue('initiawization.testSetting1'), 'wowkspaceVawue');
+		assewt.stwictEquaw(tawget.cawwCount, 5);
+		assewt.deepStwictEquaw((<IConfiguwationChangeEvent>tawget.awgs[0][0]).affectedKeys, ['initiawization.testSetting1']);
+		assewt.deepStwictEquaw(tawget.awgs[1], [WowkbenchState.FOWDa]);
+		assewt.deepStwictEquaw(tawget.awgs[2], [undefined]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).added.map(f => f.uwi.toStwing()), [fowda.toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).wemoved, []);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).changed, []);
 
 	});
 
-	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initiawize a muwti woot wowkspace fwom an empty wowkspace with no configuwation changes', async () => {
 
-		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "initiawization.testSetting1": "usewVawue" }'));
 
-		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
 
-		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
-		assert.strictEqual(target.callCount, 2);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
+		await testObject.initiawize(getWowkspaceIdentifia(configWesouwce));
 
-	});
-
-	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with configuration changes', async () => {
-
-		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
-
-		await fileService.writeFile(joinPath(ROOT, 'b', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
-		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'b')));
-
-		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
-		assert.strictEqual(target.callCount, 3);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
+		assewt.stwictEquaw(tawget.cawwCount, 4);
+		assewt.deepStwictEquaw(tawget.awgs[0], [WowkbenchState.WOWKSPACE]);
+		assewt.deepStwictEquaw(tawget.awgs[1], [undefined]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).added.map(fowda => fowda.uwi.toStwing()), [joinPath(WOOT, 'a').toStwing(), joinPath(WOOT, 'b').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).wemoved, []);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[3][0]).changed, []);
 
 	});
 
-	(isMacintosh ? test.skip : test)('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
-		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
-		const target = sinon.spy();
-		testObject.onDidChangeWorkbenchState(target);
-		testObject.onDidChangeWorkspaceName(target);
-		testObject.onWillChangeWorkspaceFolders(target);
-		testObject.onDidChangeWorkspaceFolders(target);
-		testObject.onDidChangeConfiguration(target);
+	(isMacintosh ? test.skip : test)('initiawize a muwti woot wowkspace fwom an empty wowkspace with configuwation changes', async () => {
 
-		await fileService.writeFile(joinPath(ROOT, 'a', '.vscode', 'settings.json'), VSBuffer.fromString('{ "initialization.testSetting1": "workspaceValue2" }'));
-		await testObject.initialize(getWorkspaceIdentifier(configResource));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "initiawization.testSetting1": "usewVawue" }'));
 
-		assert.strictEqual(target.callCount, 5);
-		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepStrictEqual(target.args[2], [undefined]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).removed, []);
-		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[4][0]).changed, []);
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
+
+		await fiweSewvice.wwiteFiwe(joinPath(WOOT, 'a', '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "initiawization.testSetting1": "wowkspaceVawue1" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(WOOT, 'b', '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "initiawization.testSetting2": "wowkspaceVawue2" }'));
+		await testObject.initiawize(getWowkspaceIdentifia(configWesouwce));
+
+		assewt.stwictEquaw(tawget.cawwCount, 5);
+		assewt.deepStwictEquaw((<IConfiguwationChangeEvent>tawget.awgs[0][0]).affectedKeys, ['initiawization.testSetting1', 'initiawization.testSetting2']);
+		assewt.deepStwictEquaw(tawget.awgs[1], [WowkbenchState.WOWKSPACE]);
+		assewt.deepStwictEquaw(tawget.awgs[2], [undefined]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).added.map(fowda => fowda.uwi.toStwing()), [joinPath(WOOT, 'a').toStwing(), joinPath(WOOT, 'b').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).wemoved, []);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).changed, []);
+
+	});
+
+	(isMacintosh ? test.skip : test)('initiawize a fowda wowkspace fwom a fowda wowkspace with no configuwation changes', async () => {
+
+		await testObject.initiawize(convewtToWowkspacePaywoad(joinPath(WOOT, 'a')));
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "initiawization.testSetting1": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
+
+		await testObject.initiawize(convewtToWowkspacePaywoad(joinPath(WOOT, 'b')));
+
+		assewt.stwictEquaw(testObject.getVawue('initiawization.testSetting1'), 'usewVawue');
+		assewt.stwictEquaw(tawget.cawwCount, 2);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]).added.map(fowdew_1 => fowdew_1.uwi.toStwing()), [joinPath(WOOT, 'b').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]).wemoved.map(fowdew_2 => fowdew_2.uwi.toStwing()), [joinPath(WOOT, 'a').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[1][0]).changed, []);
+
+	});
+
+	(isMacintosh ? test.skip : test)('initiawize a fowda wowkspace fwom a fowda wowkspace with configuwation changes', async () => {
+
+		await testObject.initiawize(convewtToWowkspacePaywoad(joinPath(WOOT, 'a')));
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
+
+		await fiweSewvice.wwiteFiwe(joinPath(WOOT, 'b', '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "initiawization.testSetting1": "wowkspaceVawue2" }'));
+		await testObject.initiawize(convewtToWowkspacePaywoad(joinPath(WOOT, 'b')));
+
+		assewt.stwictEquaw(testObject.getVawue('initiawization.testSetting1'), 'wowkspaceVawue2');
+		assewt.stwictEquaw(tawget.cawwCount, 3);
+		assewt.deepStwictEquaw((<IConfiguwationChangeEvent>tawget.awgs[0][0]).affectedKeys, ['initiawization.testSetting1']);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[2][0]).added.map(fowdew_1 => fowdew_1.uwi.toStwing()), [joinPath(WOOT, 'b').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[2][0]).wemoved.map(fowdew_2 => fowdew_2.uwi.toStwing()), [joinPath(WOOT, 'a').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[2][0]).changed, []);
+
+	});
+
+	(isMacintosh ? test.skip : test)('initiawize a muwti fowda wowkspace fwom a fowda wowkspacce twiggews change events in the wight owda', async () => {
+		await testObject.initiawize(convewtToWowkspacePaywoad(joinPath(WOOT, 'a')));
+		const tawget = sinon.spy();
+		testObject.onDidChangeWowkbenchState(tawget);
+		testObject.onDidChangeWowkspaceName(tawget);
+		testObject.onWiwwChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeWowkspaceFowdews(tawget);
+		testObject.onDidChangeConfiguwation(tawget);
+
+		await fiweSewvice.wwiteFiwe(joinPath(WOOT, 'a', '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "initiawization.testSetting1": "wowkspaceVawue2" }'));
+		await testObject.initiawize(getWowkspaceIdentifia(configWesouwce));
+
+		assewt.stwictEquaw(tawget.cawwCount, 5);
+		assewt.deepStwictEquaw((<IConfiguwationChangeEvent>tawget.awgs[0][0]).affectedKeys, ['initiawization.testSetting1']);
+		assewt.deepStwictEquaw(tawget.awgs[1], [WowkbenchState.WOWKSPACE]);
+		assewt.deepStwictEquaw(tawget.awgs[2], [undefined]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).added.map(fowdew_1 => fowdew_1.uwi.toStwing()), [joinPath(WOOT, 'b').toStwing()]);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).wemoved, []);
+		assewt.deepStwictEquaw((<IWowkspaceFowdewsChangeEvent>tawget.awgs[4][0]).changed, []);
 	});
 
 });
 
-suite('WorkspaceConfigurationService - Folder', () => {
+suite('WowkspaceConfiguwationSewvice - Fowda', () => {
 
-	let testObject: WorkspaceService, workspaceService: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables: DisposableStore = new DisposableStore();
+	wet testObject: WowkspaceSewvice, wowkspaceSewvice: WowkspaceSewvice, fiweSewvice: IFiweSewvice, enviwonmentSewvice: BwowsewWowkbenchEnviwonmentSewvice;
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	const disposabwes: DisposabweStowe = new DisposabweStowe();
 
 	suiteSetup(() => {
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.applicationSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.fowda.appwicationSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'configurationService.folder.machineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+				'configuwationSewvice.fowda.machineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				},
-				'configurationService.folder.machineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				'configuwationSewvice.fowda.machineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				},
-				'configurationService.folder.testSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+				'configuwationSewvice.fowda.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				},
-				'configurationService.folder.languageSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+				'configuwationSewvice.fowda.wanguageSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 				},
-				'configurationService.folder.restrictedSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					restricted: true
+				'configuwationSewvice.fowda.westwictedSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					westwicted: twue
 				},
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const folder = joinPath(ROOT, 'a');
-		await fileService.createFolder(folder);
+		const fowda = joinPath(WOOT, 'a');
+		await fiweSewvice.cweateFowda(fowda);
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		workspaceService = testObject = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IWorkspaceContextService, testObject);
-		instantiationService.stub(IConfigurationService, testObject);
-		instantiationService.stub(IEnvironmentService, environmentService);
+		const instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteAgentSewvice = instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww);
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		wowkspaceSewvice = testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, testObject);
+		instantiationSewvice.stub(IConfiguwationSewvice, testObject);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
 
-		await workspaceService.initialize(convertToWorkspacePayload(folder));
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
-		workspaceService.acquireInstantiationService(instantiationService);
+		await wowkspaceSewvice.initiawize(convewtToWowkspacePaywoad(fowda));
+		instantiationSewvice.stub(IKeybindingEditingSewvice, instantiationSewvice.cweateInstance(KeybindingsEditingSewvice));
+		instantiationSewvice.stub(ITextFiweSewvice, instantiationSewvice.cweateInstance(TestTextFiweSewvice));
+		instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>instantiationSewvice.cweateInstance(TextModewWesowvewSewvice));
+		instantiationSewvice.stub(IUsewConfiguwationFiweSewvice, new UsewConfiguwationFiweSewvice(enviwonmentSewvice, fiweSewvice, wogSewvice));
+		wowkspaceSewvice.acquiweInstantiationSewvice(instantiationSewvice);
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('defaults', () => {
-		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet' } });
+	test('defauwts', () => {
+		assewt.deepStwictEquaw(testObject.getVawue('configuwationSewvice'), { 'fowda': { 'appwicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOvewwidabweSetting': 'isSet', 'testSetting': 'isSet', 'wanguageSetting': 'isSet', 'westwictedSetting': 'isSet' } });
 	});
 
-	test('globals override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
+	test('gwobaws ovewwide defauwts', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'usewVawue');
 	});
 
-	test('globals', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('testworkbench.editor.tabs'), true);
+	test('gwobaws', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "testwowkbench.editow.tabs": twue }'));
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('testwowkbench.editow.tabs'), twue);
 	});
 
-	test('workspace settings', async () => {
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "testworkbench.editor.icons": true }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('testworkbench.editor.icons'), true);
+	test('wowkspace settings', async () => {
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "testwowkbench.editow.icons": twue }'));
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('testwowkbench.editow.icons'), twue);
 	});
 
-	test('workspace settings override user settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
+	test('wowkspace settings ovewwide usa settings', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'wowkspaceVawue');
 	});
 
-	test('machine overridable settings override user Settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineOverridableSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineOverridableSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineOverridableSetting'), 'workspaceValue');
+	test('machine ovewwidabwe settings ovewwide usa Settings', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineOvewwidabweSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineOvewwidabweSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineOvewwidabweSetting'), 'wowkspaceVawue');
 	});
 
-	test('workspace settings override user settings after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.newSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		configurationRegistry.registerConfiguration({
+	test('wowkspace settings ovewwide usa settings afta defauwts awe wegistewed ', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.newSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.newSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.newSetting': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'configuwationSewvice.fowda.newSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.folder.newSetting'), 'workspaceValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.newSetting'), 'wowkspaceVawue');
 	});
 
-	test('machine overridable settings override user settings after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.newMachineOverridableSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.newMachineOverridableSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		configurationRegistry.registerConfiguration({
+	test('machine ovewwidabwe settings ovewwide usa settings afta defauwts awe wegistewed ', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.newMachineOvewwidabweSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.newMachineOvewwidabweSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.newMachineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+			'pwopewties': {
+				'configuwationSewvice.fowda.newMachineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.folder.newMachineOverridableSetting'), 'workspaceValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.newMachineOvewwidabweSetting'), 'wowkspaceVawue');
 	});
 
-	test('application settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "workspaceValue" }'));
+	test('appwication settings awe not wead fwom wowkspace', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting'), 'usewVawue');
 	});
 
-	test('application settings are not read from workspace when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "workspaceValue" }'));
+	test('appwication settings awe not wead fwom wowkspace when wowkspace fowda uwi is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting": "workspaceValue" }'));
+	test('machine settings awe not wead fwom wowkspace', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting": "workspaceValue" }'));
+	test('machine settings awe not wead fwom wowkspace when wowkspace fowda uwi is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('get application scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting-2": "workspaceValue" }'));
+	test('get appwication scope settings awe not woaded afta defauwts awe wegistewed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting-2": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting-2": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-2'), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-2'), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.applicationSetting-2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
-				}
-			}
-		});
-
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-2'), 'userValue');
-
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-2'), 'userValue');
-	});
-
-	test('get application scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting-3": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting-3": "workspaceValue" }'));
-
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-
-		configurationRegistry.registerConfiguration({
-			'id': '_test',
-			'type': 'object',
-			'properties': {
-				'configurationService.folder.applicationSetting-3': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.fowda.appwicationSetting-2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-2'), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-2'), 'usewVawue');
 	});
 
-	test('get machine scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-2": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting-2": "workspaceValue" }'));
+	test('get appwication scope settings awe not woaded afta defauwts awe wegistewed when wowkspace fowda uwi is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting-3": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting-3": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-2'), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.machineSetting-2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+			'pwopewties': {
+				'configuwationSewvice.fowda.appwicationSetting-3': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-2'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-2'), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('get machine scope settings are not loaded after defaults are registered when workspace folder uri is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting-3": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.machineSetting-3": "workspaceValue" }'));
+	test('get machine scope settings awe not woaded afta defauwts awe wegistewed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting-2": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting-2": "wowkspaceVawue" }'));
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-2'), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.folder.machineSetting-3': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+			'pwopewties': {
+				'configuwationSewvice.fowda.machineSetting-2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-2'), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting-3', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-2'), 'usewVawue');
 	});
 
-	test('reload configuration emits events after global configuraiton changes', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.reloadConfiguration();
-		assert.ok(target.called);
+	test('get machine scope settings awe not woaded afta defauwts awe wegistewed when wowkspace fowda uwi is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting-3": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting-3": "wowkspaceVawue" }'));
+
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
+
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': '_test',
+			'type': 'object',
+			'pwopewties': {
+				'configuwationSewvice.fowda.machineSetting-3': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
+				}
+			}
+		});
+
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
+
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting-3', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('reload configuration emits events after workspace configuraiton changes', async () => {
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.reloadConfiguration();
-		assert.ok(target.called);
+	test('wewoad configuwation emits events afta gwobaw configuwaiton changes', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "testwowkbench.editow.tabs": twue }'));
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.wewoadConfiguwation();
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('reload configuration should not emit event if no changes', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(() => { target(); });
-		await testObject.reloadConfiguration();
-		assert.ok(!target.called);
+	test('wewoad configuwation emits events afta wowkspace configuwaiton changes', async () => {
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.wewoadConfiguwation();
+		assewt.ok(tawget.cawwed);
+	});
+
+	test('wewoad configuwation shouwd not emit event if no changes', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "testwowkbench.editow.tabs": twue }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(() => { tawget(); });
+		await testObject.wewoadConfiguwation();
+		assewt.ok(!tawget.cawwed);
 	});
 
 	test('inspect', async () => {
-		let actual = testObject.inspect('something.missing');
-		assert.strictEqual(actual.defaultValue, undefined);
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, undefined);
+		wet actuaw = testObject.inspect('something.missing');
+		assewt.stwictEquaw(actuaw.defauwtVawue, undefined);
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, undefined);
 
-		actual = testObject.inspect('configurationService.folder.testSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'isSet');
+		actuaw = testObject.inspect('configuwationSewvice.fowda.testSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'isSet');
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.inspect('configurationService.folder.testSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, 'userValue');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'userValue');
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.inspect('configuwationSewvice.fowda.testSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, 'usewVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'usewVawue');
 
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.inspect('configurationService.folder.testSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, 'userValue');
-		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'workspaceValue');
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.inspect('configuwationSewvice.fowda.testSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, 'usewVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, 'wowkspaceVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'wowkspaceVawue');
 	});
 
 	test('keys', async () => {
-		let actual = testObject.keys();
-		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepStrictEqual(actual.user, []);
-		assert.deepStrictEqual(actual.workspace, []);
-		assert.deepStrictEqual(actual.workspaceFolder, []);
+		wet actuaw = testObject.keys();
+		assewt.ok(actuaw.defauwt.indexOf('configuwationSewvice.fowda.testSetting') !== -1);
+		assewt.deepStwictEquaw(actuaw.usa, []);
+		assewt.deepStwictEquaw(actuaw.wowkspace, []);
+		assewt.deepStwictEquaw(actuaw.wowkspaceFowda, []);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.keys();
-		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepStrictEqual(actual.user, ['configurationService.folder.testSetting']);
-		assert.deepStrictEqual(actual.workspace, []);
-		assert.deepStrictEqual(actual.workspaceFolder, []);
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.keys();
+		assewt.ok(actuaw.defauwt.indexOf('configuwationSewvice.fowda.testSetting') !== -1);
+		assewt.deepStwictEquaw(actuaw.usa, ['configuwationSewvice.fowda.testSetting']);
+		assewt.deepStwictEquaw(actuaw.wowkspace, []);
+		assewt.deepStwictEquaw(actuaw.wowkspaceFowda, []);
 
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.keys();
-		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepStrictEqual(actual.user, ['configurationService.folder.testSetting']);
-		assert.deepStrictEqual(actual.workspace, ['configurationService.folder.testSetting']);
-		assert.deepStrictEqual(actual.workspaceFolder, []);
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.keys();
+		assewt.ok(actuaw.defauwt.indexOf('configuwationSewvice.fowda.testSetting') !== -1);
+		assewt.deepStwictEquaw(actuaw.usa, ['configuwationSewvice.fowda.testSetting']);
+		assewt.deepStwictEquaw(actuaw.wowkspace, ['configuwationSewvice.fowda.testSetting']);
+		assewt.deepStwictEquaw(actuaw.wowkspaceFowda, []);
 	});
 
-	test('update user configuration', () => {
-		return testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'value'));
+	test('update usa configuwation', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', ConfiguwationTawget.USa)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'vawue'));
 	});
 
-	test('update workspace configuration', () => {
-		return testObject.updateValue('tasks.service.testSetting', 'value', ConfigurationTarget.WORKSPACE)
-			.then(() => assert.strictEqual(testObject.getValue('tasks.service.testSetting'), 'value'));
+	test('update wowkspace configuwation', () => {
+		wetuwn testObject.updateVawue('tasks.sewvice.testSetting', 'vawue', ConfiguwationTawget.WOWKSPACE)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('tasks.sewvice.testSetting'), 'vawue'));
 	});
 
-	test('update resource configuration', () => {
-		return testObject.updateValue('configurationService.folder.testSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'value'));
+	test('update wesouwce configuwation', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'vawue'));
 	});
 
-	test('update resource language configuration', () => {
-		return testObject.updateValue('configurationService.folder.languageSetting', 'value', { resource: workspaceService.getWorkspace().folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting'), 'value'));
+	test('update wesouwce wanguage configuwation', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.wanguageSetting', 'vawue', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.wanguageSetting'), 'vawue'));
 	});
 
-	test('update application setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.folder.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
+	test('update appwication setting into wowkspace configuwation in a wowkspace is not suppowted', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.appwicationSetting', 'wowkspaceVawue', {}, ConfiguwationTawget.WOWKSPACE, twue)
+			.then(() => assewt.faiw('Shouwd not be suppowted'), (e) => assewt.stwictEquaw(e.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_APPWICATION));
 	});
 
-	test('update machine setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.folder.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
+	test('update machine setting into wowkspace configuwation in a wowkspace is not suppowted', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.machineSetting', 'wowkspaceVawue', {}, ConfiguwationTawget.WOWKSPACE, twue)
+			.then(() => assewt.faiw('Shouwd not be suppowted'), (e) => assewt.stwictEquaw(e.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_MACHINE));
 	});
 
-	test('update tasks configuration', () => {
-		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
-			.then(() => assert.deepStrictEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
+	test('update tasks configuwation', () => {
+		wetuwn testObject.updateVawue('tasks', { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfiguwationTawget.WOWKSPACE)
+			.then(() => assewt.deepStwictEquaw(testObject.getVawue('tasks'), { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
 	});
 
-	test('update user configuration should trigger change event before promise is resolve', () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER)
-			.then(() => assert.ok(target.called));
+	test('update usa configuwation shouwd twigga change event befowe pwomise is wesowve', () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', ConfiguwationTawget.USa)
+			.then(() => assewt.ok(tawget.cawwed));
 	});
 
-	test('update workspace configuration should trigger change event before promise is resolve', () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.WORKSPACE)
-			.then(() => assert.ok(target.called));
+	test('update wowkspace configuwation shouwd twigga change event befowe pwomise is wesowve', () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', ConfiguwationTawget.WOWKSPACE)
+			.then(() => assewt.ok(tawget.cawwed));
 	});
 
-	test('update memory configuration', () => {
-		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'memoryValue'));
+	test('update memowy configuwation', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'memowyVawue', ConfiguwationTawget.MEMOWY)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'memowyVawue'));
 	});
 
-	test('update memory configuration should trigger change event before promise is resolve', () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
-			.then(() => assert.ok(target.called));
+	test('update memowy configuwation shouwd twigga change event befowe pwomise is wesowve', () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		wetuwn testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'memowyVawue', ConfiguwationTawget.MEMOWY)
+			.then(() => assewt.ok(tawget.cawwed));
 	});
 
-	test('remove setting from all targets', async () => {
-		const key = 'configurationService.folder.testSetting';
-		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
-		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+	test('wemove setting fwom aww tawgets', async () => {
+		const key = 'configuwationSewvice.fowda.testSetting';
+		await testObject.updateVawue(key, 'wowkspaceVawue', ConfiguwationTawget.WOWKSPACE);
+		await testObject.updateVawue(key, 'usewVawue', ConfiguwationTawget.USa);
 
-		await testObject.updateValue(key, undefined);
-		await testObject.reloadConfiguration();
+		await testObject.updateVawue(key, undefined);
+		await testObject.wewoadConfiguwation();
 
-		const actual = testObject.inspect(key, { resource: workspaceService.getWorkspace().folders[0].uri });
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		const actuaw = testObject.inspect(key, { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi });
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
 	});
 
-	test('update user configuration to default value when target is not passed', async () => {
-		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
-		await testObject.updateValue('configurationService.folder.testSetting', 'isSet');
-		assert.strictEqual(testObject.inspect('configurationService.folder.testSetting').userValue, undefined);
+	test('update usa configuwation to defauwt vawue when tawget is not passed', async () => {
+		await testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', ConfiguwationTawget.USa);
+		await testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'isSet');
+		assewt.stwictEquaw(testObject.inspect('configuwationSewvice.fowda.testSetting').usewVawue, undefined);
 	});
 
-	test('update user configuration to default value when target is passed', async () => {
-		await testObject.updateValue('configurationService.folder.testSetting', 'value', ConfigurationTarget.USER);
-		await testObject.updateValue('configurationService.folder.testSetting', 'isSet', ConfigurationTarget.USER);
-		assert.strictEqual(testObject.inspect('configurationService.folder.testSetting').userValue, 'isSet');
+	test('update usa configuwation to defauwt vawue when tawget is passed', async () => {
+		await testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'vawue', ConfiguwationTawget.USa);
+		await testObject.updateVawue('configuwationSewvice.fowda.testSetting', 'isSet', ConfiguwationTawget.USa);
+		assewt.stwictEquaw(testObject.inspect('configuwationSewvice.fowda.testSetting').usewVawue, 'isSet');
 	});
 
-	test('update task configuration should trigger change event before promise is resolve', () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
-			.then(() => assert.ok(target.called));
+	test('update task configuwation shouwd twigga change event befowe pwomise is wesowve', () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		wetuwn testObject.updateVawue('tasks', { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfiguwationTawget.WOWKSPACE)
+			.then(() => assewt.ok(tawget.cawwed));
 	});
 
-	test('no change event when there are no global tasks', async () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
+	test('no change event when thewe awe no gwobaw tasks', async () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
 		await timeout(5);
-		assert.ok(target.notCalled);
+		assewt.ok(tawget.notCawwed);
 	});
 
-	test('change event when there are global tasks', async () => {
-		await fileService.writeFile(joinPath(environmentService.userRoamingDataHome, 'tasks.json'), VSBuffer.fromString('{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }'));
-		return new Promise<void>((c) => testObject.onDidChangeConfiguration(() => c()));
+	test('change event when thewe awe gwobaw tasks', async () => {
+		await fiweSewvice.wwiteFiwe(joinPath(enviwonmentSewvice.usewWoamingDataHome, 'tasks.json'), VSBuffa.fwomStwing('{ "vewsion": "1.0.0", "tasks": [{ "taskName": "myTask" }'));
+		wetuwn new Pwomise<void>((c) => testObject.onDidChangeConfiguwation(() => c()));
 	});
 
-	test('creating workspace settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		await testObject.reloadConfiguration();
-		await new Promise<void>(async (c) => {
-			const disposable = testObject.onDidChangeConfiguration(e => {
-				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
-				assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
-				disposable.dispose();
+	test('cweating wowkspace settings', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		await new Pwomise<void>(async (c) => {
+			const disposabwe = testObject.onDidChangeConfiguwation(e => {
+				assewt.ok(e.affectsConfiguwation('configuwationSewvice.fowda.testSetting'));
+				assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'wowkspaceVawue');
+				disposabwe.dispose();
 				c();
 			});
-			await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+			await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
 		});
 	});
 
-	test('deleting workspace settings', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
-		const workspaceSettingsResource = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json');
-		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
-		const e = await new Promise<IConfigurationChangeEvent>(async (c) => {
-			Event.once(testObject.onDidChangeConfiguration)(c);
-			await fileService.del(workspaceSettingsResource);
+	test('deweting wowkspace settings', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "usewVawue" }'));
+		const wowkspaceSettingsWesouwce = joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json');
+		await fiweSewvice.wwiteFiwe(wowkspaceSettingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.testSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
+		const e = await new Pwomise<IConfiguwationChangeEvent>(async (c) => {
+			Event.once(testObject.onDidChangeConfiguwation)(c);
+			await fiweSewvice.dew(wowkspaceSettingsWesouwce);
 		});
-		assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
-		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
+		assewt.ok(e.affectsConfiguwation('configuwationSewvice.fowda.testSetting'));
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.testSetting'), 'usewVawue');
 	});
 
-	test('restricted setting is read from workspace when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+	test('westwicted setting is wead fwom wowkspace when wowkspace is twusted', async () => {
+		testObject.updateWowkspaceTwust(twue);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.westwictedSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.fowda.westwictedSetting']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(wowkspaceSewvice.getWowkspace().fowdews[0].uwi), ['configuwationSewvice.fowda.westwictedSetting']);
 	});
 
-	test('restricted setting is not read from workspace when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+	test('westwicted setting is not wead fwom wowkspace when wowkspace is changed to twusted', async () => {
+		testObject.updateWowkspaceTwust(twue);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		testObject.updateWorkspaceTrust(false);
+		testObject.updateWowkspaceTwust(fawse);
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.westwictedSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.fowda.westwictedSetting']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(wowkspaceSewvice.getWowkspace().fowdews[0].uwi), ['configuwationSewvice.fowda.westwictedSetting']);
 	});
 
-	test('change event is triggered when workspace is changed to untrusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+	test('change event is twiggewed when wowkspace is changed to untwusted', async () => {
+		testObject.updateWowkspaceTwust(twue);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrust(false);
+		const pwomise = Event.toPwomise(testObject.onDidChangeConfiguwation);
+		testObject.updateWowkspaceTwust(fawse);
 
-		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
-		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
+		const event = await pwomise;
+		assewt.ok(event.affectedKeys.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.ok(event.affectsConfiguwation('configuwationSewvice.fowda.westwictedSetting'));
 	});
 
-	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+	test('westwicted setting is not wead fwom wowkspace when wowkspace is not twusted', async () => {
+		testObject.updateWowkspaceTwust(fawse);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.westwictedSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.fowda.westwictedSetting']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(wowkspaceSewvice.getWowkspace().fowdews[0].uwi), ['configuwationSewvice.fowda.westwictedSetting']);
 	});
 
-	test('restricted setting is read when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+	test('westwicted setting is wead when wowkspace is changed to twusted', async () => {
+		testObject.updateWowkspaceTwust(fawse);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		testObject.updateWorkspaceTrust(true);
+		testObject.updateWowkspaceTwust(twue);
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.westwictedSetting', { wesouwce: wowkspaceSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.fowda.westwictedSetting']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(wowkspaceSewvice.getWowkspace().fowdews[0].uwi), ['configuwationSewvice.fowda.westwictedSetting']);
 	});
 
-	test('change event is triggered when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+	test('change event is twiggewed when wowkspace is changed to twusted', async () => {
+		testObject.updateWowkspaceTwust(fawse);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrust(true);
+		const pwomise = Event.toPwomise(testObject.onDidChangeConfiguwation);
+		testObject.updateWowkspaceTwust(twue);
 
-		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
-		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
+		const event = await pwomise;
+		assewt.ok(event.affectedKeys.incwudes('configuwationSewvice.fowda.westwictedSetting'));
+		assewt.ok(event.affectsConfiguwation('configuwationSewvice.fowda.westwictedSetting'));
 	});
 
-	test('adding an restricted setting triggers change event', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
-		testObject.updateWorkspaceTrust(false);
+	test('adding an westwicted setting twiggews change event', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "usewVawue" }'));
+		testObject.updateWowkspaceTwust(fawse);
 
-		const promise = Event.toPromise(testObject.onDidChangeRestrictedSettings);
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
+		const pwomise = Event.toPwomise(testObject.onDidChangeWestwictedSettings);
+		await fiweSewvice.wwiteFiwe(joinPath(wowkspaceSewvice.getWowkspace().fowdews[0].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.westwictedSetting": "wowkspaceVawue" }'));
 
-		return promise;
+		wetuwn pwomise;
 	});
 });
 
-suite('WorkspaceConfigurationService-Multiroot', () => {
+suite('WowkspaceConfiguwationSewvice-Muwtiwoot', () => {
 
-	let workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: WorkspaceService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	wet wowkspaceContextSewvice: IWowkspaceContextSewvice, jsonEditingSewvce: IJSONEditingSewvice, testObject: WowkspaceSewvice, fiweSewvice: IFiweSewvice, enviwonmentSewvice: BwowsewWowkbenchEnviwonmentSewvice;
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	const disposabwes = new DisposabweStowe();
 
 	suiteSetup(() => {
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				},
-				'configurationService.workspace.applicationSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+				'configuwationSewvice.wowkspace.appwicationSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'configurationService.workspace.machineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+				'configuwationSewvice.wowkspace.machineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				},
-				'configurationService.workspace.machineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				'configuwationSewvice.wowkspace.machineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				},
-				'configurationService.workspace.testResourceSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+				'configuwationSewvice.wowkspace.testWesouwceSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				},
-				'configurationService.workspace.testLanguageSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+				'configuwationSewvice.wowkspace.testWanguageSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 				},
-				'configurationService.workspace.testRestrictedSetting1': {
-					'type': 'string',
-					'default': 'isSet',
-					restricted: true,
-					scope: ConfigurationScope.RESOURCE
+				'configuwationSewvice.wowkspace.testWestwictedSetting1': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					westwicted: twue,
+					scope: ConfiguwationScope.WESOUWCE
 				},
-				'configurationService.workspace.testRestrictedSetting2': {
-					'type': 'string',
-					'default': 'isSet',
-					restricted: true,
-					scope: ConfigurationScope.RESOURCE
+				'configuwationSewvice.wowkspace.testWestwictedSetting2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					westwicted: twue,
+					scope: ConfiguwationScope.WESOUWCE
 				}
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const appSettingsHome = joinPath(ROOT, 'user');
-		const folderA = joinPath(ROOT, 'a');
-		const folderB = joinPath(ROOT, 'b');
-		const configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const appSettingsHome = joinPath(WOOT, 'usa');
+		const fowdewA = joinPath(WOOT, 'a');
+		const fowdewB = joinPath(WOOT, 'b');
+		const configWesouwce = joinPath(WOOT, 'vsctests.code-wowkspace');
+		const wowkspace = { fowdews: [{ path: fowdewA.path }, { path: fowdewB.path }] };
 
-		await fileService.createFolder(appSettingsHome);
-		await fileService.createFolder(folderA);
-		await fileService.createFolder(folderB);
-		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await fiweSewvice.cweateFowda(appSettingsHome);
+		await fiweSewvice.cweateFowda(fowdewA);
+		await fiweSewvice.cweateFowda(fowdewB);
+		await fiweSewvice.wwiteFiwe(configWesouwce, VSBuffa.fwomStwing(JSON.stwingify(wowkspace, nuww, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		environmentService = TestEnvironmentService;
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		const workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		const instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteAgentSewvice = instantiationSewvice.cweateInstance(WemoteAgentSewvice, nuww);
+		instantiationSewvice.stub(IWemoteAgentSewvice, wemoteAgentSewvice);
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		const wowkspaceSewvice = disposabwes.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
 
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		instantiationService.stub(IConfigurationService, workspaceService);
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, wowkspaceSewvice);
+		instantiationSewvice.stub(IConfiguwationSewvice, wowkspaceSewvice);
+		instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, enviwonmentSewvice);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
 
-		await workspaceService.initialize(getWorkspaceIdentifier(configResource));
-		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
-		workspaceService.acquireInstantiationService(instantiationService);
+		await wowkspaceSewvice.initiawize(getWowkspaceIdentifia(configWesouwce));
+		instantiationSewvice.stub(IKeybindingEditingSewvice, instantiationSewvice.cweateInstance(KeybindingsEditingSewvice));
+		instantiationSewvice.stub(ITextFiweSewvice, instantiationSewvice.cweateInstance(TestTextFiweSewvice));
+		instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>instantiationSewvice.cweateInstance(TextModewWesowvewSewvice));
+		instantiationSewvice.stub(IUsewConfiguwationFiweSewvice, new UsewConfiguwationFiweSewvice(enviwonmentSewvice, fiweSewvice, wogSewvice));
+		wowkspaceSewvice.acquiweInstantiationSewvice(instantiationSewvice);
 
-		workspaceContextService = workspaceService;
-		jsonEditingServce = instantiationService.createInstance(JSONEditingService);
-		testObject = workspaceService;
+		wowkspaceContextSewvice = wowkspaceSewvice;
+		jsonEditingSewvce = instantiationSewvice.cweateInstance(JSONEditingSewvice);
+		testObject = wowkspaceSewvice;
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('application settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
+	test('appwication settings awe not wead fwom wowkspace', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.appwicationSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting'), 'usewVawue');
 	});
 
-	test('application settings are not read from workspace when folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.applicationSetting': 'workspaceValue' } }], true);
+	test('appwication settings awe not wead fwom wowkspace when fowda is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.appwicationSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.appwicationSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.appwicationSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
+	test('machine settings awe not wead fwom wowkspace', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.machineSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting'), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace when folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.machineSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.machineSetting': 'workspaceValue' } }], true);
+	test('machine settings awe not wead fwom wowkspace when fowda is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.fowda.machineSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.machineSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.machineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.fowda.machineSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('get application scope settings are not loaded after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting': 'workspaceValue' } }], true);
+	test('get appwication scope settings awe not woaded afta defauwts awe wegistewed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.newSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.newSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting'), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting'), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.newSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.newSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting'), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting'), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting'), 'usewVawue');
 	});
 
-	test('get application scope settings are not loaded after defaults are registered when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newSetting-2": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newSetting-2': 'workspaceValue' } }], true);
+	test('get appwication scope settings awe not woaded afta defauwts awe wegistewed when wowkspace fowda is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.newSetting-2": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.newSetting-2': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting-2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.newSetting-2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.newSetting-2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting-2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newSetting-2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newSetting-2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('workspace settings override user settings after defaults are registered for machine overridable settings ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.newMachineOverridableSetting": "userValue" }'));
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['settings'], value: { 'configurationService.workspace.newMachineOverridableSetting': 'workspaceValue' } }], true);
+	test('wowkspace settings ovewwide usa settings afta defauwts awe wegistewed fow machine ovewwidabwe settings ', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.newMachineOvewwidabweSetting": "usewVawue" }'));
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.newMachineOvewwidabweSetting': 'wowkspaceVawue' } }], twue);
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newMachineOvewwidabweSetting'), 'wowkspaceVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.newMachineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.newMachineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newMachineOvewwidabweSetting'), 'wowkspaceVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.newMachineOverridableSetting'), 'workspaceValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.newMachineOvewwidabweSetting'), 'wowkspaceVawue');
 
 	});
 
-	test('application settings are not read from workspace folder', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }'));
+	test('appwication settings awe not wead fwom wowkspace fowda', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.appwicationSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.appwicationSetting": "wowkspaceFowdewVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.applicationSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.appwicationSetting'), 'usewVawue');
 	});
 
-	test('application settings are not read from workspace folder when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.applicationSetting": "workspaceFolderValue" }'));
+	test('appwication settings awe not wead fwom wowkspace fowda when wowkspace fowda is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.appwicationSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.appwicationSetting": "wowkspaceFowdewVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.applicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.appwicationSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace folder', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }'));
+	test('machine settings awe not wead fwom wowkspace fowda', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.machineSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.machineSetting": "wowkspaceFowdewVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.machineSetting'), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.machineSetting'), 'usewVawue');
 	});
 
-	test('machine settings are not read from workspace folder when workspace folder is passed', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.machineSetting": "workspaceFolderValue" }'));
+	test('machine settings awe not wead fwom wowkspace fowda when wowkspace fowda is passed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.machineSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.machineSetting": "wowkspaceFowdewVawue" }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.machineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.machineSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('application settings are not read from workspace folder after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewApplicationSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewApplicationSetting": "workspaceFolderValue" }'));
+	test('appwication settings awe not wead fwom wowkspace fowda afta defauwts awe wegistewed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewAppwicationSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewAppwicationSetting": "wowkspaceFowdewVawue" }'));
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewAppwicationSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testNewApplicationSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testNewAppwicationSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewAppwicationSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewApplicationSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewAppwicationSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('application settings are not read from workspace folder after defaults are registered', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "userValue" }'));
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewMachineSetting": "workspaceFolderValue" }'));
-		await testObject.reloadConfiguration();
+	test('appwication settings awe not wead fwom wowkspace fowda afta defauwts awe wegistewed', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewMachineSetting": "usewVawue" }'));
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewMachineSetting": "wowkspaceFowdewVawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewMachineSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testNewMachineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testNewMachineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				}
 			}
 		});
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewMachineSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewMachineSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'userValue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewMachineSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'usewVawue');
 	});
 
-	test('resource setting in folder is read after it is registered later', async () => {
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewResourceSetting2": "workspaceFolderValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }], true);
-		await testObject.reloadConfiguration();
-		configurationRegistry.registerConfiguration({
+	test('wesouwce setting in fowda is wead afta it is wegistewed wata', async () => {
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewWesouwceSetting2": "wowkspaceFowdewVawue" }'));
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testNewWesouwceSetting2': 'wowkspaceVawue' } }], twue);
+		await testObject.wewoadConfiguwation();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testNewResourceSetting2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testNewWesouwceSetting2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewResourceSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewWesouwceSetting2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 	});
 
-	test('resource language setting in folder is read after it is registered later', async () => {
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewResourceLanguageSetting2": "workspaceFolderValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testNewResourceLanguageSetting2': 'workspaceValue' } }], true);
-		await testObject.reloadConfiguration();
-		configurationRegistry.registerConfiguration({
+	test('wesouwce wanguage setting in fowda is wead afta it is wegistewed wata', async () => {
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewWesouwceWanguageSetting2": "wowkspaceFowdewVawue" }'));
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testNewWesouwceWanguageSetting2': 'wowkspaceVawue' } }], twue);
+		await testObject.wewoadConfiguwation();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testNewResourceLanguageSetting2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testNewWesouwceWanguageSetting2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewResourceLanguageSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewWesouwceWanguageSetting2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 	});
 
-	test('machine overridable setting in folder is read after it is registered later', async () => {
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testNewMachineOverridableSetting2": "workspaceFolderValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testNewMachineOverridableSetting2': 'workspaceValue' } }], true);
-		await testObject.reloadConfiguration();
-		configurationRegistry.registerConfiguration({
+	test('machine ovewwidabwe setting in fowda is wead afta it is wegistewed wata', async () => {
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testNewMachineOvewwidabweSetting2": "wowkspaceFowdewVawue" }'));
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testNewMachineOvewwidabweSetting2': 'wowkspaceVawue' } }], twue);
+		await testObject.wewoadConfiguwation();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.workspace.testNewMachineOverridableSetting2': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+			'pwopewties': {
+				'configuwationSewvice.wowkspace.testNewMachineOvewwidabweSetting2': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testNewMachineOverridableSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testNewMachineOvewwidabweSetting2', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 	});
 
 	test('inspect', async () => {
-		let actual = testObject.inspect('something.missing');
-		assert.strictEqual(actual.defaultValue, undefined);
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, undefined);
+		wet actuaw = testObject.inspect('something.missing');
+		assewt.stwictEquaw(actuaw.defauwtVawue, undefined);
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, undefined);
 
-		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'isSet');
+		actuaw = testObject.inspect('configuwationSewvice.wowkspace.testWesouwceSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'isSet');
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "userValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, 'userValue');
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'userValue');
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWesouwceSetting": "usewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.inspect('configuwationSewvice.wowkspace.testWesouwceSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, 'usewVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'usewVawue');
 
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }], true);
-		await testObject.reloadConfiguration();
-		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, 'userValue');
-		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
-		assert.strictEqual(actual.value, 'workspaceValue');
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testWesouwceSetting': 'wowkspaceVawue' } }], twue);
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.inspect('configuwationSewvice.wowkspace.testWesouwceSetting');
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, 'usewVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, 'wowkspaceVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
+		assewt.stwictEquaw(actuaw.vawue, 'wowkspaceVawue');
 
-		await fileService.writeFile(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }'));
-		await testObject.reloadConfiguration();
-		actual = testObject.inspect('configurationService.workspace.testResourceSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri });
-		assert.strictEqual(actual.defaultValue, 'isSet');
-		assert.strictEqual(actual.userValue, 'userValue');
-		assert.strictEqual(actual.workspaceValue, 'workspaceValue');
-		assert.strictEqual(actual.workspaceFolderValue, 'workspaceFolderValue');
-		assert.strictEqual(actual.value, 'workspaceFolderValue');
+		await fiweSewvice.wwiteFiwe(wowkspaceContextSewvice.getWowkspace().fowdews[0].toWesouwce('.vscode/settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWesouwceSetting": "wowkspaceFowdewVawue" }'));
+		await testObject.wewoadConfiguwation();
+		actuaw = testObject.inspect('configuwationSewvice.wowkspace.testWesouwceSetting', { wesouwce: wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi });
+		assewt.stwictEquaw(actuaw.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(actuaw.usewVawue, 'usewVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, 'wowkspaceVawue');
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, 'wowkspaceFowdewVawue');
+		assewt.stwictEquaw(actuaw.vawue, 'wowkspaceFowdewVawue');
 	});
 
-	test('get launch configuration', async () => {
-		const expectedLaunchConfiguration = {
-			'version': '0.1.0',
-			'configurations': [
+	test('get waunch configuwation', async () => {
+		const expectedWaunchConfiguwation = {
+			'vewsion': '0.1.0',
+			'configuwations': [
 				{
 					'type': 'node',
-					'request': 'launch',
-					'name': 'Gulp Build',
-					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
-					'stopOnEntry': true,
-					'args': [
-						'watch-extension:json-client'
+					'wequest': 'waunch',
+					'name': 'Guwp Buiwd',
+					'pwogwam': '${wowkspaceFowda}/node_moduwes/guwp/bin/guwp.js',
+					'stopOnEntwy': twue,
+					'awgs': [
+						'watch-extension:json-cwient'
 					],
-					'cwd': '${workspaceFolder}'
+					'cwd': '${wowkspaceFowda}'
 				}
 			]
 		};
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['launch'], value: expectedLaunchConfiguration }], true);
-		await testObject.reloadConfiguration();
-		const actual = testObject.getValue('launch');
-		assert.deepStrictEqual(actual, expectedLaunchConfiguration);
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['waunch'], vawue: expectedWaunchConfiguwation }], twue);
+		await testObject.wewoadConfiguwation();
+		const actuaw = testObject.getVawue('waunch');
+		assewt.deepStwictEquaw(actuaw, expectedWaunchConfiguwation);
 	});
 
-	test('inspect launch configuration', async () => {
-		const expectedLaunchConfiguration = {
-			'version': '0.1.0',
-			'configurations': [
+	test('inspect waunch configuwation', async () => {
+		const expectedWaunchConfiguwation = {
+			'vewsion': '0.1.0',
+			'configuwations': [
 				{
 					'type': 'node',
-					'request': 'launch',
-					'name': 'Gulp Build',
-					'program': '${workspaceFolder}/node_modules/gulp/bin/gulp.js',
-					'stopOnEntry': true,
-					'args': [
-						'watch-extension:json-client'
+					'wequest': 'waunch',
+					'name': 'Guwp Buiwd',
+					'pwogwam': '${wowkspaceFowda}/node_moduwes/guwp/bin/guwp.js',
+					'stopOnEntwy': twue,
+					'awgs': [
+						'watch-extension:json-cwient'
 					],
-					'cwd': '${workspaceFolder}'
+					'cwd': '${wowkspaceFowda}'
 				}
 			]
 		};
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['launch'], value: expectedLaunchConfiguration }], true);
-		await testObject.reloadConfiguration();
-		const actual = testObject.inspect('launch').workspaceValue;
-		assert.deepStrictEqual(actual, expectedLaunchConfiguration);
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['waunch'], vawue: expectedWaunchConfiguwation }], twue);
+		await testObject.wewoadConfiguwation();
+		const actuaw = testObject.inspect('waunch').wowkspaceVawue;
+		assewt.deepStwictEquaw(actuaw, expectedWaunchConfiguwation);
 	});
 
 
-	test('get tasks configuration', async () => {
-		const expectedTasksConfiguration = {
-			'version': '2.0.0',
+	test('get tasks configuwation', async () => {
+		const expectedTasksConfiguwation = {
+			'vewsion': '2.0.0',
 			'tasks': [
 				{
-					'label': 'Run Dev',
-					'type': 'shell',
-					'command': './scripts/code.sh',
+					'wabew': 'Wun Dev',
+					'type': 'sheww',
+					'command': './scwipts/code.sh',
 					'windows': {
-						'command': '.\\scripts\\code.bat'
+						'command': '.\\scwipts\\code.bat'
 					},
-					'problemMatcher': []
+					'pwobwemMatcha': []
 				}
 			]
 		};
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
-		await testObject.reloadConfiguration();
-		const actual = testObject.getValue('tasks');
-		assert.deepStrictEqual(actual, expectedTasksConfiguration);
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['tasks'], vawue: expectedTasksConfiguwation }], twue);
+		await testObject.wewoadConfiguwation();
+		const actuaw = testObject.getVawue('tasks');
+		assewt.deepStwictEquaw(actuaw, expectedTasksConfiguwation);
 	});
 
-	test('inspect tasks configuration', async () => {
-		const expectedTasksConfiguration = {
-			'version': '2.0.0',
+	test('inspect tasks configuwation', async () => {
+		const expectedTasksConfiguwation = {
+			'vewsion': '2.0.0',
 			'tasks': [
 				{
-					'label': 'Run Dev',
-					'type': 'shell',
-					'command': './scripts/code.sh',
+					'wabew': 'Wun Dev',
+					'type': 'sheww',
+					'command': './scwipts/code.sh',
 					'windows': {
-						'command': '.\\scripts\\code.bat'
+						'command': '.\\scwipts\\code.bat'
 					},
-					'problemMatcher': []
+					'pwobwemMatcha': []
 				}
 			]
 		};
-		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
-		await testObject.reloadConfiguration();
-		const actual = testObject.inspect('tasks').workspaceValue;
-		assert.deepStrictEqual(actual, expectedTasksConfiguration);
+		await jsonEditingSewvce.wwite(wowkspaceContextSewvice.getWowkspace().configuwation!, [{ path: ['tasks'], vawue: expectedTasksConfiguwation }], twue);
+		await testObject.wewoadConfiguwation();
+		const actuaw = testObject.inspect('tasks').wowkspaceVawue;
+		assewt.deepStwictEquaw(actuaw, expectedTasksConfiguwation);
 	});
 
-	test('update user configuration', async () => {
-		await testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER);
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'userValue');
+	test('update usa configuwation', async () => {
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'usewVawue', ConfiguwationTawget.USa);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testSetting'), 'usewVawue');
 	});
 
-	test('update user configuration should trigger change event before promise is resolve', async () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER);
-		assert.ok(target.called);
+	test('update usa configuwation shouwd twigga change event befowe pwomise is wesowve', async () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'usewVawue', ConfiguwationTawget.USa);
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('update workspace configuration', async () => {
-		await testObject.updateValue('configurationService.workspace.testSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE);
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'workspaceValue');
+	test('update wowkspace configuwation', async () => {
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'wowkspaceVawue', ConfiguwationTawget.WOWKSPACE);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testSetting'), 'wowkspaceVawue');
 	});
 
-	test('update workspace configuration should trigger change event before promise is resolve', async () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.updateValue('configurationService.workspace.testSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE);
-		assert.ok(target.called);
+	test('update wowkspace configuwation shouwd twigga change event befowe pwomise is wesowve', async () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'wowkspaceVawue', ConfiguwationTawget.WOWKSPACE);
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('update application setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.workspace.applicationSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION));
+	test('update appwication setting into wowkspace configuwation in a wowkspace is not suppowted', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.wowkspace.appwicationSetting', 'wowkspaceVawue', {}, ConfiguwationTawget.WOWKSPACE, twue)
+			.then(() => assewt.faiw('Shouwd not be suppowted'), (e) => assewt.stwictEquaw(e.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_APPWICATION));
 	});
 
-	test('update machine setting into workspace configuration in a workspace is not supported', () => {
-		return testObject.updateValue('configurationService.workspace.machineSetting', 'workspaceValue', {}, ConfigurationTarget.WORKSPACE, true)
-			.then(() => assert.fail('Should not be supported'), (e) => assert.strictEqual(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE));
+	test('update machine setting into wowkspace configuwation in a wowkspace is not suppowted', () => {
+		wetuwn testObject.updateVawue('configuwationSewvice.wowkspace.machineSetting', 'wowkspaceVawue', {}, ConfiguwationTawget.WOWKSPACE, twue)
+			.then(() => assewt.faiw('Shouwd not be suppowted'), (e) => assewt.stwictEquaw(e.code, ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_MACHINE));
 	});
 
-	test('update workspace folder configuration', () => {
-		const workspace = workspaceContextService.getWorkspace();
-		return testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
-			.then(() => assert.strictEqual(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue'));
+	test('update wowkspace fowda configuwation', () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		wetuwn testObject.updateVawue('configuwationSewvice.wowkspace.testWesouwceSetting', 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa)
+			.then(() => assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWesouwceSetting', { wesouwce: wowkspace.fowdews[0].uwi }), 'wowkspaceFowdewVawue'));
 	});
 
-	test('update resource language configuration in workspace folder', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('configurationService.workspace.testLanguageSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testLanguageSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue');
+	test('update wesouwce wanguage configuwation in wowkspace fowda', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testWanguageSetting', 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWanguageSetting', { wesouwce: wowkspace.fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 	});
 
-	test('update workspace folder configuration should trigger change event before promise is resolve', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.ok(target.called);
+	test('update wowkspace fowda configuwation shouwd twigga change event befowe pwomise is wesowve', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testWesouwceSetting', 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('update workspace folder configuration second time should trigger change event before promise is resolve', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.updateValue('configurationService.workspace.testResourceSetting', 'workspaceFolderValue2', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.ok(target.called);
+	test('update wowkspace fowda configuwation second time shouwd twigga change event befowe pwomise is wesowve', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testWesouwceSetting', 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testWesouwceSetting', 'wowkspaceFowdewVawue2', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('update machine overridable setting in folder', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('configurationService.workspace.machineOverridableSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.strictEqual(testObject.getValue('configurationService.workspace.machineOverridableSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue');
+	test('update machine ovewwidabwe setting in fowda', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		await testObject.updateVawue('configuwationSewvice.wowkspace.machineOvewwidabweSetting', 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.machineOvewwidabweSetting', { wesouwce: wowkspace.fowdews[0].uwi }), 'wowkspaceFowdewVawue');
 	});
 
-	test('update memory configuration', async () => {
-		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue');
+	test('update memowy configuwation', async () => {
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'memowyVawue', ConfiguwationTawget.MEMOWY);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testSetting'), 'memowyVawue');
 	});
 
-	test('update memory configuration should trigger change event before promise is resolve', async () => {
-		const target = sinon.spy();
-		testObject.onDidChangeConfiguration(target);
-		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
-		assert.ok(target.called);
+	test('update memowy configuwation shouwd twigga change event befowe pwomise is wesowve', async () => {
+		const tawget = sinon.spy();
+		testObject.onDidChangeConfiguwation(tawget);
+		await testObject.updateVawue('configuwationSewvice.wowkspace.testSetting', 'memowyVawue', ConfiguwationTawget.MEMOWY);
+		assewt.ok(tawget.cawwed);
 	});
 
-	test('remove setting from all targets', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		const key = 'configurationService.workspace.testResourceSetting';
-		await testObject.updateValue(key, 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
-		await testObject.updateValue(key, 'userValue', ConfigurationTarget.USER);
+	test('wemove setting fwom aww tawgets', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		const key = 'configuwationSewvice.wowkspace.testWesouwceSetting';
+		await testObject.updateVawue(key, 'wowkspaceFowdewVawue', { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		await testObject.updateVawue(key, 'wowkspaceVawue', ConfiguwationTawget.WOWKSPACE);
+		await testObject.updateVawue(key, 'usewVawue', ConfiguwationTawget.USa);
 
-		await testObject.updateValue(key, undefined, { resource: workspace.folders[0].uri });
-		await testObject.reloadConfiguration();
+		await testObject.updateVawue(key, undefined, { wesouwce: wowkspace.fowdews[0].uwi });
+		await testObject.wewoadConfiguwation();
 
-		const actual = testObject.inspect(key, { resource: workspace.folders[0].uri });
-		assert.strictEqual(actual.userValue, undefined);
-		assert.strictEqual(actual.workspaceValue, undefined);
-		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		const actuaw = testObject.inspect(key, { wesouwce: wowkspace.fowdews[0].uwi });
+		assewt.stwictEquaw(actuaw.usewVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceVawue, undefined);
+		assewt.stwictEquaw(actuaw.wowkspaceFowdewVawue, undefined);
 	});
 
-	test('update tasks configuration in a folder', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.deepStrictEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
+	test('update tasks configuwation in a fowda', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		await testObject.updateVawue('tasks', { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.deepStwictEquaw(testObject.getVawue('tasks', { wesouwce: wowkspace.fowdews[0].uwi }), { 'vewsion': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
 	});
 
-	test('update launch configuration in a workspace', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		await testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
-		assert.deepStrictEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] });
+	test('update waunch configuwation in a wowkspace', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		await testObject.updateVawue('waunch', { 'vewsion': '1.0.0', configuwations: [{ 'name': 'myWaunch' }] }, { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE, twue);
+		assewt.deepStwictEquaw(testObject.getVawue('waunch'), { 'vewsion': '1.0.0', configuwations: [{ 'name': 'myWaunch' }] });
 	});
 
-	test('update tasks configuration in a workspace', async () => {
-		const workspace = workspaceContextService.getWorkspace();
-		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
-		await testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
-		assert.deepStrictEqual(testObject.getValue('tasks'), tasks);
+	test('update tasks configuwation in a wowkspace', async () => {
+		const wowkspace = wowkspaceContextSewvice.getWowkspace();
+		const tasks = { 'vewsion': '2.0.0', tasks: [{ 'wabew': 'myTask' }] };
+		await testObject.updateVawue('tasks', tasks, { wesouwce: wowkspace.fowdews[0].uwi }, ConfiguwationTawget.WOWKSPACE, twue);
+		assewt.deepStwictEquaw(testObject.getVawue('tasks'), tasks);
 	});
 
-	test('configuration of newly added folder is available on configuration change event', async () => {
-		const workspaceService = <WorkspaceService>testObject;
-		const uri = workspaceService.getWorkspace().folders[1].uri;
-		await workspaceService.removeFolders([uri]);
-		await fileService.writeFile(joinPath(uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }'));
+	test('configuwation of newwy added fowda is avaiwabwe on configuwation change event', async () => {
+		const wowkspaceSewvice = <WowkspaceSewvice>testObject;
+		const uwi = wowkspaceSewvice.getWowkspace().fowdews[1].uwi;
+		await wowkspaceSewvice.wemoveFowdews([uwi]);
+		await fiweSewvice.wwiteFiwe(joinPath(uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWesouwceSetting": "wowkspaceFowdewVawue" }'));
 
-		return new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(() => {
-				try {
-					assert.strictEqual(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: uri }), 'workspaceFolderValue');
+		wetuwn new Pwomise<void>((c, e) => {
+			testObject.onDidChangeConfiguwation(() => {
+				twy {
+					assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWesouwceSetting', { wesouwce: uwi }), 'wowkspaceFowdewVawue');
 					c();
-				} catch (error) {
-					e(error);
+				} catch (ewwow) {
+					e(ewwow);
 				}
 			});
-			workspaceService.addFolders([{ uri }]);
+			wowkspaceSewvice.addFowdews([{ uwi }]);
 		});
 	});
 
-	test('restricted setting is read from workspace folders when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+	test('westwicted setting is wead fwom wowkspace fowdews when wowkspace is twusted', async () => {
+		testObject.updateWowkspaceTwust(twue);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
-		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWestwictedSetting1": "usewVawue", "configuwationSewvice.wowkspace.testWestwictedSetting2": "usewVawue" }'));
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testWestwictedSetting1': 'wowkspaceVawue' } }], twue);
+		await fiweSewvice.wwiteFiwe(joinPath(testObject.getWowkspace().fowdews[1].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWestwictedSetting2": "wowkspaceFowdew2Vawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'workspaceFolder2Value');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting1'));
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting2'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.workspace.testRestrictedSetting1']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWestwictedSetting1', { wesouwce: testObject.getWowkspace().fowdews[0].uwi }), 'wowkspaceVawue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWestwictedSetting2', { wesouwce: testObject.getWowkspace().fowdews[1].uwi }), 'wowkspaceFowdew2Vawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.wowkspace.testWestwictedSetting1'));
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.wowkspace.testWestwictedSetting2'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.wowkspace.testWestwictedSetting1']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(testObject.getWowkspace().fowdews[0].uwi), undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(testObject.getWowkspace().fowdews[1].uwi), ['configuwationSewvice.wowkspace.testWestwictedSetting2']);
 	});
 
-	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+	test('westwicted setting is not wead fwom wowkspace when wowkspace is not twusted', async () => {
+		testObject.updateWowkspaceTwust(fawse);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
-		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
-		await testObject.reloadConfiguration();
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWestwictedSetting1": "usewVawue", "configuwationSewvice.wowkspace.testWestwictedSetting2": "usewVawue" }'));
+		await jsonEditingSewvce.wwite((wowkspaceContextSewvice.getWowkspace().configuwation!), [{ path: ['settings'], vawue: { 'configuwationSewvice.wowkspace.testWestwictedSetting1': 'wowkspaceVawue' } }], twue);
+		await fiweSewvice.wwiteFiwe(joinPath(testObject.getWowkspace().fowdews[1].uwi, '.vscode', 'settings.json'), VSBuffa.fwomStwing('{ "configuwationSewvice.wowkspace.testWestwictedSetting2": "wowkspaceFowdew2Vawue" }'));
+		await testObject.wewoadConfiguwation();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'userValue');
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'userValue');
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting1'));
-		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting2'));
-		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.workspace.testRestrictedSetting1']);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
-		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
-		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWestwictedSetting1', { wesouwce: testObject.getWowkspace().fowdews[0].uwi }), 'usewVawue');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wowkspace.testWestwictedSetting2', { wesouwce: testObject.getWowkspace().fowdews[1].uwi }), 'usewVawue');
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.wowkspace.testWestwictedSetting1'));
+		assewt.ok(testObject.westwictedSettings.defauwt.incwudes('configuwationSewvice.wowkspace.testWestwictedSetting2'));
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWocaw, undefined);
+		assewt.stwictEquaw(testObject.westwictedSettings.usewWemote, undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspace, ['configuwationSewvice.wowkspace.testWestwictedSetting1']);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.size, 1);
+		assewt.stwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(testObject.getWowkspace().fowdews[0].uwi), undefined);
+		assewt.deepStwictEquaw(testObject.westwictedSettings.wowkspaceFowda?.get(testObject.getWowkspace().fowdews[1].uwi), ['configuwationSewvice.wowkspace.testWestwictedSetting2']);
 	});
 
 });
 
-suite('WorkspaceConfigurationService - Remote Folder', () => {
+suite('WowkspaceConfiguwationSewvice - Wemote Fowda', () => {
 
-	let testObject: WorkspaceService, folder: URI,
-		machineSettingsResource: URI, remoteSettingsResource: URI, fileSystemProvider: InMemoryFileSystemProvider, resolveRemoteEnvironment: () => void,
-		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService;
-	const remoteAuthority = 'configuraiton-tests';
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	const disposables = new DisposableStore();
+	wet testObject: WowkspaceSewvice, fowda: UWI,
+		machineSettingsWesouwce: UWI, wemoteSettingsWesouwce: UWI, fiweSystemPwovida: InMemowyFiweSystemPwovida, wesowveWemoteEnviwonment: () => void,
+		instantiationSewvice: TestInstantiationSewvice, fiweSewvice: IFiweSewvice, enviwonmentSewvice: BwowsewWowkbenchEnviwonmentSewvice;
+	const wemoteAuthowity = 'configuwaiton-tests';
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+	const disposabwes = new DisposabweStowe();
 
 	suiteSetup(() => {
-		configurationRegistry.registerConfiguration({
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.remote.applicationSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.APPLICATION
+			'pwopewties': {
+				'configuwationSewvice.wemote.appwicationSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.APPWICATION
 				},
-				'configurationService.remote.machineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+				'configuwationSewvice.wemote.machineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				},
-				'configurationService.remote.machineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+				'configuwationSewvice.wemote.machineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				},
-				'configurationService.remote.testSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE
+				'configuwationSewvice.wemote.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.WESOUWCE
 				}
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida);
 
-		const appSettingsHome = joinPath(ROOT, 'user');
-		folder = joinPath(ROOT, 'a');
-		await fileService.createFolder(folder);
-		await fileService.createFolder(appSettingsHome);
-		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
-		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+		const appSettingsHome = joinPath(WOOT, 'usa');
+		fowda = joinPath(WOOT, 'a');
+		await fiweSewvice.cweateFowda(fowda);
+		await fiweSewvice.cweateFowda(appSettingsHome);
+		machineSettingsWesouwce = joinPath(WOOT, 'machine-settings.json');
+		wemoteSettingsWesouwce = machineSettingsWesouwce.with({ scheme: Schemas.vscodeWemote, authowity: wemoteAuthowity });
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		environmentService = TestEnvironmentService;
-		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
-		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		const configurationCache: IConfigurationCache = { read: () => Promise.resolve(''), write: () => Promise.resolve(), remove: () => Promise.resolve(), needsCaching: () => false };
-		testObject = disposables.add(new WorkspaceService({ configurationCache, remoteAuthority }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
-		instantiationService.stub(IWorkspaceContextService, testObject);
-		instantiationService.stub(IConfigurationService, testObject);
-		instantiationService.stub(IEnvironmentService, environmentService);
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
+		instantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		enviwonmentSewvice = TestEnviwonmentSewvice;
+		const wemoteEnviwonmentPwomise = new Pwomise<Pawtiaw<IWemoteAgentEnviwonment>>(c => wesowveWemoteEnviwonment = () => c({ settingsPath: wemoteSettingsWesouwce }));
+		const wemoteAgentSewvice = instantiationSewvice.stub(IWemoteAgentSewvice, <Pawtiaw<IWemoteAgentSewvice>>{ getEnviwonment: () => wemoteEnviwonmentPwomise });
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		const configuwationCache: IConfiguwationCache = { wead: () => Pwomise.wesowve(''), wwite: () => Pwomise.wesowve(), wemove: () => Pwomise.wesowve(), needsCaching: () => fawse };
+		testObject = disposabwes.add(new WowkspaceSewvice({ configuwationCache, wemoteAuthowity }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
+		instantiationSewvice.stub(IWowkspaceContextSewvice, testObject);
+		instantiationSewvice.stub(IConfiguwationSewvice, testObject);
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IUsewConfiguwationFiweSewvice, new UsewConfiguwationFiweSewvice(enviwonmentSewvice, fiweSewvice, wogSewvice));
 	});
 
-	async function initialize(): Promise<void> {
-		await testObject.initialize(convertToWorkspacePayload(folder));
-		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
-		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
-		testObject.acquireInstantiationService(instantiationService);
+	async function initiawize(): Pwomise<void> {
+		await testObject.initiawize(convewtToWowkspacePaywoad(fowda));
+		instantiationSewvice.stub(ITextFiweSewvice, instantiationSewvice.cweateInstance(TestTextFiweSewvice));
+		instantiationSewvice.stub(ITextModewSewvice, <ITextModewSewvice>instantiationSewvice.cweateInstance(TextModewWesowvewSewvice));
+		testObject.acquiweInstantiationSewvice(instantiationSewvice);
 	}
 
-	function registerRemoteFileSystemProvider(): void {
-		instantiationService.get(IFileService).registerProvider(Schemas.vscodeRemote, new RemoteFileSystemProvider(fileSystemProvider, remoteAuthority));
+	function wegistewWemoteFiweSystemPwovida(): void {
+		instantiationSewvice.get(IFiweSewvice).wegistewPwovida(Schemas.vscodeWemote, new WemoteFiweSystemPwovida(fiweSystemPwovida, wemoteAuthowity));
 	}
 
-	function registerRemoteFileSystemProviderOnActivation(): void {
-		const disposable = instantiationService.get(IFileService).onWillActivateFileSystemProvider(e => {
-			if (e.scheme === Schemas.vscodeRemote) {
-				disposable.dispose();
-				e.join(Promise.resolve().then(() => registerRemoteFileSystemProvider()));
+	function wegistewWemoteFiweSystemPwovidewOnActivation(): void {
+		const disposabwe = instantiationSewvice.get(IFiweSewvice).onWiwwActivateFiweSystemPwovida(e => {
+			if (e.scheme === Schemas.vscodeWemote) {
+				disposabwe.dispose();
+				e.join(Pwomise.wesowve().then(() => wegistewWemoteFiweSystemPwovida()));
 			}
 		});
 	}
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('remote settings override globals', async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	test('wemote settings ovewwide gwobaws', async () => {
+		await fiweSewvice.wwiteFiwe(machineSettingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineSetting": "wemoteVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineSetting'), 'wemoteVawue');
 	});
 
-	test('remote settings override globals after remote provider is registered on activation', async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
-		resolveRemoteEnvironment();
-		registerRemoteFileSystemProviderOnActivation();
-		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	test('wemote settings ovewwide gwobaws afta wemote pwovida is wegistewed on activation', async () => {
+		await fiweSewvice.wwiteFiwe(machineSettingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineSetting": "wemoteVawue" }'));
+		wesowveWemoteEnviwonment();
+		wegistewWemoteFiweSystemPwovidewOnActivation();
+		await initiawize();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineSetting'), 'wemoteVawue');
 	});
 
-	test('remote settings override globals after remote environment is resolved', async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
-		registerRemoteFileSystemProvider();
-		await initialize();
-		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
-				try {
-					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	test('wemote settings ovewwide gwobaws afta wemote enviwonment is wesowved', async () => {
+		await fiweSewvice.wwiteFiwe(machineSettingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineSetting": "wemoteVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		await initiawize();
+		const pwomise = new Pwomise<void>((c, e) => {
+			testObject.onDidChangeConfiguwation(event => {
+				twy {
+					assewt.stwictEquaw(event.souwce, ConfiguwationTawget.USa);
+					assewt.deepStwictEquaw(event.affectedKeys, ['configuwationSewvice.wemote.machineSetting']);
+					assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineSetting'), 'wemoteVawue');
 					c();
-				} catch (error) {
-					e(error);
+				} catch (ewwow) {
+					e(ewwow);
 				}
 			});
 		});
-		resolveRemoteEnvironment();
-		return promise;
+		wesowveWemoteEnviwonment();
+		wetuwn pwomise;
 	});
 
-	test('remote settings override globals after remote provider is registered on activation and remote environment is resolved', async () => {
-		await fileService.writeFile(machineSettingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "remoteValue" }'));
-		registerRemoteFileSystemProviderOnActivation();
-		await initialize();
-		const promise = new Promise<void>((c, e) => {
-			testObject.onDidChangeConfiguration(event => {
-				try {
-					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
-					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
+	test('wemote settings ovewwide gwobaws afta wemote pwovida is wegistewed on activation and wemote enviwonment is wesowved', async () => {
+		await fiweSewvice.wwiteFiwe(machineSettingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineSetting": "wemoteVawue" }'));
+		wegistewWemoteFiweSystemPwovidewOnActivation();
+		await initiawize();
+		const pwomise = new Pwomise<void>((c, e) => {
+			testObject.onDidChangeConfiguwation(event => {
+				twy {
+					assewt.stwictEquaw(event.souwce, ConfiguwationTawget.USa);
+					assewt.deepStwictEquaw(event.affectedKeys, ['configuwationSewvice.wemote.machineSetting']);
+					assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineSetting'), 'wemoteVawue');
 					c();
-				} catch (error) {
-					e(error);
+				} catch (ewwow) {
+					e(ewwow);
 				}
 			});
 		});
-		resolveRemoteEnvironment();
-		return promise;
+		wesowveWemoteEnviwonment();
+		wetuwn pwomise;
 	});
 
-	test('machine settings in local user settings does not override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineSetting": "globalValue" }'));
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
+	test('machine settings in wocaw usa settings does not ovewwide defauwts', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineSetting": "gwobawVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineSetting'), 'isSet');
 	});
 
-	test('machine overridable settings in local user settings does not override defaults', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.machineOverridableSetting": "globalValue" }'));
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		assert.strictEqual(testObject.getValue('configurationService.remote.machineOverridableSetting'), 'isSet');
+	test('machine ovewwidabwe settings in wocaw usa settings does not ovewwide defauwts', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.machineOvewwidabweSetting": "gwobawVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.machineOvewwidabweSetting'), 'isSet');
 	});
 
-	test('non machine setting is written in local settings', async () => {
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		await testObject.updateValue('configurationService.remote.applicationSetting', 'applicationValue');
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.inspect('configurationService.remote.applicationSetting').userLocalValue, 'applicationValue');
+	test('non machine setting is wwitten in wocaw settings', async () => {
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		await testObject.updateVawue('configuwationSewvice.wemote.appwicationSetting', 'appwicationVawue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.inspect('configuwationSewvice.wemote.appwicationSetting').usewWocawVawue, 'appwicationVawue');
 	});
 
-	test('machine setting is written in remote settings', async () => {
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		await testObject.updateValue('configurationService.remote.machineSetting', 'machineValue');
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.inspect('configurationService.remote.machineSetting').userRemoteValue, 'machineValue');
+	test('machine setting is wwitten in wemote settings', async () => {
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		await testObject.updateVawue('configuwationSewvice.wemote.machineSetting', 'machineVawue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.inspect('configuwationSewvice.wemote.machineSetting').usewWemoteVawue, 'machineVawue');
 	});
 
-	test('machine overridable setting is written in remote settings', async () => {
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		await testObject.updateValue('configurationService.remote.machineOverridableSetting', 'machineValue');
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.inspect('configurationService.remote.machineOverridableSetting').userRemoteValue, 'machineValue');
+	test('machine ovewwidabwe setting is wwitten in wemote settings', async () => {
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		await testObject.updateVawue('configuwationSewvice.wemote.machineOvewwidabweSetting', 'machineVawue');
+		await testObject.wewoadConfiguwation();
+		assewt.stwictEquaw(testObject.inspect('configuwationSewvice.wemote.machineOvewwidabweSetting').usewWemoteVawue, 'machineVawue');
 	});
 
-	test('machine settings in local user settings does not override defaults after defalts are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineSetting": "userValue" }'));
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		configurationRegistry.registerConfiguration({
+	test('machine settings in wocaw usa settings does not ovewwide defauwts afta defawts awe wegistewed ', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.newMachineSetting": "usewVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.remote.newMachineSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE
+			'pwopewties': {
+				'configuwationSewvice.wemote.newMachineSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.remote.newMachineSetting'), 'isSet');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.newMachineSetting'), 'isSet');
 	});
 
-	test('machine overridable settings in local user settings does not override defaults after defaults are registered ', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.remote.newMachineOverridableSetting": "userValue" }'));
-		registerRemoteFileSystemProvider();
-		resolveRemoteEnvironment();
-		await initialize();
-		configurationRegistry.registerConfiguration({
+	test('machine ovewwidabwe settings in wocaw usa settings does not ovewwide defauwts afta defauwts awe wegistewed ', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.settingsWesouwce, VSBuffa.fwomStwing('{ "configuwationSewvice.wemote.newMachineOvewwidabweSetting": "usewVawue" }'));
+		wegistewWemoteFiweSystemPwovida();
+		wesowveWemoteEnviwonment();
+		await initiawize();
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.remote.newMachineOverridableSetting': {
-					'type': 'string',
-					'default': 'isSet',
-					scope: ConfigurationScope.MACHINE_OVERRIDABLE
+			'pwopewties': {
+				'configuwationSewvice.wemote.newMachineOvewwidabweSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
+					scope: ConfiguwationScope.MACHINE_OVEWWIDABWE
 				}
 			}
 		});
-		assert.strictEqual(testObject.getValue('configurationService.remote.newMachineOverridableSetting'), 'isSet');
+		assewt.stwictEquaw(testObject.getVawue('configuwationSewvice.wemote.newMachineOvewwidabweSetting'), 'isSet');
 	});
 
 });
 
-suite('ConfigurationService - Configuration Defaults', () => {
+suite('ConfiguwationSewvice - Configuwation Defauwts', () => {
 
-	const disposableStore: DisposableStore = new DisposableStore();
+	const disposabweStowe: DisposabweStowe = new DisposabweStowe();
 
 	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configurationService.defaultOverridesSetting': {
-					'type': 'string',
-					'default': 'isSet',
+			'pwopewties': {
+				'configuwationSewvice.defauwtOvewwidesSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet',
 				},
 			}
 		});
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('when default value is not overriden', () => {
-		const testObject = createConfigurationService({});
-		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'isSet');
+	test('when defauwt vawue is not ovewwiden', () => {
+		const testObject = cweateConfiguwationSewvice({});
+		assewt.deepStwictEquaw(testObject.getVawue('configuwationSewvice.defauwtOvewwidesSetting'), 'isSet');
 	});
 
-	test('when default value is overriden', () => {
-		const testObject = createConfigurationService({ 'configurationService.defaultOverridesSetting': 'overriddenValue' });
-		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'overriddenValue');
+	test('when defauwt vawue is ovewwiden', () => {
+		const testObject = cweateConfiguwationSewvice({ 'configuwationSewvice.defauwtOvewwidesSetting': 'ovewwiddenVawue' });
+		assewt.deepStwictEquaw(testObject.getVawue('configuwationSewvice.defauwtOvewwidesSetting'), 'ovewwiddenVawue');
 	});
 
-	function createConfigurationService(configurationDefaults: Record<string, any>): IConfigurationService {
-		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService()).createInstance(RemoteAgentService, null);
-		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(ROOT, 'logs'), workspaceId: '', configurationDefaults }, TestProductService);
-		const fileService = new FileService(new NullLogService());
-		return disposableStore.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+	function cweateConfiguwationSewvice(configuwationDefauwts: Wecowd<stwing, any>): IConfiguwationSewvice {
+		const wemoteAgentSewvice = (<TestInstantiationSewvice>wowkbenchInstantiationSewvice()).cweateInstance(WemoteAgentSewvice, nuww);
+		const enviwonmentSewvice = new BwowsewWowkbenchEnviwonmentSewvice({ wogsPath: joinPath(WOOT, 'wogs'), wowkspaceId: '', configuwationDefauwts }, TestPwoductSewvice);
+		const fiweSewvice = new FiweSewvice(new NuwwWogSewvice());
+		wetuwn disposabweStowe.add(new WowkspaceSewvice({ configuwationCache: new ConfiguwationCache() }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, new UwiIdentitySewvice(fiweSewvice), new NuwwWogSewvice()));
 	}
 
 });
 
-function getWorkspaceId(configPath: URI): string {
-	let workspaceConfigPath = configPath.toString();
-	if (!isLinux) {
-		workspaceConfigPath = workspaceConfigPath.toLowerCase(); // sanitize for platform file system
+function getWowkspaceId(configPath: UWI): stwing {
+	wet wowkspaceConfigPath = configPath.toStwing();
+	if (!isWinux) {
+		wowkspaceConfigPath = wowkspaceConfigPath.toWowewCase(); // sanitize fow pwatfowm fiwe system
 	}
-	return hash(workspaceConfigPath).toString(16);
+	wetuwn hash(wowkspaceConfigPath).toStwing(16);
 }
 
-export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
-	return {
+expowt function getWowkspaceIdentifia(configPath: UWI): IWowkspaceIdentifia {
+	wetuwn {
 		configPath,
-		id: getWorkspaceId(configPath)
+		id: getWowkspaceId(configPath)
 	};
 }

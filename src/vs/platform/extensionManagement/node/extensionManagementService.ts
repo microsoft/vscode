@@ -1,418 +1,418 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { joinPath } from 'vs/base/common/resources';
-import * as semver from 'vs/base/common/semver/semver';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as pfs from 'vs/base/node/pfs';
-import { IFile, zip } from 'vs/base/node/zip';
-import * as nls from 'vs/nls';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, INSTALL_ERROR_VALIDATING, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import {
-	ExtensionManagementError, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
-	InstallVSIXOptions, TargetPlatform
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
-import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
-import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
-import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
-import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as path fwom 'vs/base/common/path';
+impowt { isWinux, isMacintosh, pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { awch } fwom 'vs/base/common/pwocess';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt * as semva fwom 'vs/base/common/semva/semva';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { IFiwe, zip } fwom 'vs/base/node/zip';
+impowt * as nws fwom 'vs/nws';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { AbstwactExtensionManagementSewvice, AbstwactExtensionTask, IInstawwExtensionTask, INSTAWW_EWWOW_VAWIDATING, IUninstawwExtensionTask, joinEwwows, UninstawwExtensionTaskOptions } fwom 'vs/pwatfowm/extensionManagement/common/abstwactExtensionManagementSewvice';
+impowt {
+	ExtensionManagementEwwow, getTawgetPwatfowm, IExtensionGawwewySewvice, IExtensionIdentifia, IExtensionManagementSewvice, IGawwewyExtension, IGawwewyMetadata, IWocawExtension, InstawwOpewation, InstawwOptions,
+	InstawwVSIXOptions, TawgetPwatfowm
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { aweSameExtensions, ExtensionIdentifiewWithVewsion, getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { ExtensionsDownwoada } fwom 'vs/pwatfowm/extensionManagement/node/extensionDownwoada';
+impowt { ExtensionsWifecycwe } fwom 'vs/pwatfowm/extensionManagement/node/extensionWifecycwe';
+impowt { getManifest } fwom 'vs/pwatfowm/extensionManagement/node/extensionManagementUtiw';
+impowt { ExtensionsManifestCache } fwom 'vs/pwatfowm/extensionManagement/node/extensionsManifestCache';
+impowt { ExtensionsScanna, IWocawExtensionManifest, IMetadata } fwom 'vs/pwatfowm/extensionManagement/node/extensionsScanna';
+impowt { ExtensionsWatcha } fwom 'vs/pwatfowm/extensionManagement/node/extensionsWatcha';
+impowt { ExtensionType, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { isEngineVawid } fwom 'vs/pwatfowm/extensions/common/extensionVawidatow';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
 
-const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
-const INSTALL_ERROR_DOWNLOADING = 'downloading';
+const INSTAWW_EWWOW_UNSET_UNINSTAWWED = 'unsetUninstawwed';
+const INSTAWW_EWWOW_DOWNWOADING = 'downwoading';
 
-interface InstallableExtension {
-	zipPath: string;
-	identifierWithVersion: ExtensionIdentifierWithVersion;
+intewface InstawwabweExtension {
+	zipPath: stwing;
+	identifiewWithVewsion: ExtensionIdentifiewWithVewsion;
 	metadata?: IMetadata;
 }
 
-export class ExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
+expowt cwass ExtensionManagementSewvice extends AbstwactExtensionManagementSewvice impwements IExtensionManagementSewvice {
 
-	private readonly extensionsScanner: ExtensionsScanner;
-	private readonly manifestCache: ExtensionsManifestCache;
-	private readonly extensionsDownloader: ExtensionsDownloader;
+	pwivate weadonwy extensionsScanna: ExtensionsScanna;
+	pwivate weadonwy manifestCache: ExtensionsManifestCache;
+	pwivate weadonwy extensionsDownwoada: ExtensionsDownwoada;
 
-	constructor(
-		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@IDownloadService private downloadService: IDownloadService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
+	constwuctow(
+		@IExtensionGawwewySewvice gawwewySewvice: IExtensionGawwewySewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@INativeEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IDownwoadSewvice pwivate downwoadSewvice: IDownwoadSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
 	) {
-		super(galleryService, telemetryService, logService);
-		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
-		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
-		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
-		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
-		const extensionsWatcher = this._register(new ExtensionsWatcher(this, fileService, environmentService, logService));
+		supa(gawwewySewvice, tewemetwySewvice, wogSewvice);
+		const extensionWifecycwe = this._wegista(instantiationSewvice.cweateInstance(ExtensionsWifecycwe));
+		this.extensionsScanna = this._wegista(instantiationSewvice.cweateInstance(ExtensionsScanna, extension => extensionWifecycwe.postUninstaww(extension)));
+		this.manifestCache = this._wegista(new ExtensionsManifestCache(enviwonmentSewvice, this));
+		this.extensionsDownwoada = this._wegista(instantiationSewvice.cweateInstance(ExtensionsDownwoada));
+		const extensionsWatcha = this._wegista(new ExtensionsWatcha(this, fiweSewvice, enviwonmentSewvice, wogSewvice));
 
-		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(({ added, removed }) => {
-			if (added.length) {
-				this._onDidInstallExtensions.fire(added.map(local => ({ identifier: local.identifier, operation: InstallOperation.None, local })));
+		this._wegista(extensionsWatcha.onDidChangeExtensionsByAnothewSouwce(({ added, wemoved }) => {
+			if (added.wength) {
+				this._onDidInstawwExtensions.fiwe(added.map(wocaw => ({ identifia: wocaw.identifia, opewation: InstawwOpewation.None, wocaw })));
 			}
-			removed.forEach(extension => this._onDidUninstallExtension.fire({ identifier: extension }));
+			wemoved.fowEach(extension => this._onDidUninstawwExtension.fiwe({ identifia: extension }));
 		}));
 	}
 
-	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
-	getTargetPlatform(): Promise<TargetPlatform> {
-		if (!this._targetPlatformPromise) {
-			this._targetPlatformPromise = (async () => {
-				const isAlpineLinux = await this.isAlpineLinux();
-				const targetPlatform = getTargetPlatform(isAlpineLinux ? 'alpine' : platform, arch);
-				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
-				return targetPlatform;
+	pwivate _tawgetPwatfowmPwomise: Pwomise<TawgetPwatfowm> | undefined;
+	getTawgetPwatfowm(): Pwomise<TawgetPwatfowm> {
+		if (!this._tawgetPwatfowmPwomise) {
+			this._tawgetPwatfowmPwomise = (async () => {
+				const isAwpineWinux = await this.isAwpineWinux();
+				const tawgetPwatfowm = getTawgetPwatfowm(isAwpineWinux ? 'awpine' : pwatfowm, awch);
+				this.wogSewvice.debug('ExtensionManagementSewvice#TawgetPwatfowm:', tawgetPwatfowm);
+				wetuwn tawgetPwatfowm;
 			})();
 		}
-		return this._targetPlatformPromise;
+		wetuwn this._tawgetPwatfowmPwomise;
 	}
 
-	private async isAlpineLinux(): Promise<boolean> {
-		if (!isLinux) {
-			return false;
+	pwivate async isAwpineWinux(): Pwomise<boowean> {
+		if (!isWinux) {
+			wetuwn fawse;
 		}
-		let content: string | undefined;
-		try {
-			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));
-			content = fileContent.value.toString();
-		} catch (error) {
-			try {
-				const fileContent = await this.fileService.readFile(URI.file('/usr/lib/os-release'));
-				content = fileContent.value.toString();
-			} catch (error) {
-				/* Ignore */
-				this.logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
+		wet content: stwing | undefined;
+		twy {
+			const fiweContent = await this.fiweSewvice.weadFiwe(UWI.fiwe('/etc/os-wewease'));
+			content = fiweContent.vawue.toStwing();
+		} catch (ewwow) {
+			twy {
+				const fiweContent = await this.fiweSewvice.weadFiwe(UWI.fiwe('/usw/wib/os-wewease'));
+				content = fiweContent.vawue.toStwing();
+			} catch (ewwow) {
+				/* Ignowe */
+				this.wogSewvice.debug(`Ewwow whiwe getting the os-wewease fiwe.`, getEwwowMessage(ewwow));
 			}
 		}
-		return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
+		wetuwn !!content && (content.match(/^ID=([^\u001b\w\n]*)/m) || [])[1] === 'awpine';
 	}
 
-	async zip(extension: ILocalExtension): Promise<URI> {
-		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
-		const files = await this.collectFiles(extension);
-		const location = await zip(joinPath(this.environmentService.tmpDir, generateUuid()).fsPath, files);
-		return URI.file(location);
+	async zip(extension: IWocawExtension): Pwomise<UWI> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#zip', extension.identifia.id);
+		const fiwes = await this.cowwectFiwes(extension);
+		const wocation = await zip(joinPath(this.enviwonmentSewvice.tmpDiw, genewateUuid()).fsPath, fiwes);
+		wetuwn UWI.fiwe(wocation);
 	}
 
-	async unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		this.logService.trace('ExtensionManagementService#unzip', zipLocation.toString());
-		const local = await this.install(zipLocation);
-		return local.identifier;
+	async unzip(zipWocation: UWI): Pwomise<IExtensionIdentifia> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#unzip', zipWocation.toStwing());
+		const wocaw = await this.instaww(zipWocation);
+		wetuwn wocaw.identifia;
 	}
 
-	async getManifest(vsix: URI): Promise<IExtensionManifest> {
-		const downloadLocation = await this.downloadVsix(vsix);
-		const zipPath = path.resolve(downloadLocation.fsPath);
-		return getManifest(zipPath);
+	async getManifest(vsix: UWI): Pwomise<IExtensionManifest> {
+		const downwoadWocation = await this.downwoadVsix(vsix);
+		const zipPath = path.wesowve(downwoadWocation.fsPath);
+		wetuwn getManifest(zipPath);
 	}
 
-	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
-		return this.extensionsScanner.scanExtensions(type);
+	getInstawwed(type: ExtensionType | nuww = nuww): Pwomise<IWocawExtension[]> {
+		wetuwn this.extensionsScanna.scanExtensions(type);
 	}
 
-	async install(vsix: URI, options: InstallVSIXOptions = {}): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#install', vsix.toString());
+	async instaww(vsix: UWI, options: InstawwVSIXOptions = {}): Pwomise<IWocawExtension> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#instaww', vsix.toStwing());
 
-		const downloadLocation = await this.downloadVsix(vsix);
-		const manifest = await getManifest(path.resolve(downloadLocation.fsPath));
-		if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, product.version, product.date)) {
-			throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", getGalleryExtensionId(manifest.publisher, manifest.name), product.version));
+		const downwoadWocation = await this.downwoadVsix(vsix);
+		const manifest = await getManifest(path.wesowve(downwoadWocation.fsPath));
+		if (manifest.engines && manifest.engines.vscode && !isEngineVawid(manifest.engines.vscode, pwoduct.vewsion, pwoduct.date)) {
+			thwow new Ewwow(nws.wocawize('incompatibwe', "Unabwe to instaww extension '{0}' as it is not compatibwe with VS Code '{1}'.", getGawwewyExtensionId(manifest.pubwisha, manifest.name), pwoduct.vewsion));
 		}
 
-		return this.installExtension(manifest, downloadLocation, options);
+		wetuwn this.instawwExtension(manifest, downwoadWocation, options);
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), ...metadata });
-		this.manifestCache.invalidate();
-		return local;
+	async updateMetadata(wocaw: IWocawExtension, metadata: IGawwewyMetadata): Pwomise<IWocawExtension> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#updateMetadata', wocaw.identifia.id);
+		wocaw = await this.extensionsScanna.saveMetadataFowWocawExtension(wocaw, { ...((<IWocawExtensionManifest>wocaw.manifest).__metadata || {}), ...metadata });
+		this.manifestCache.invawidate();
+		wetuwn wocaw;
 	}
 
-	async updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension> {
-		this.logService.trace('ExtensionManagementService#updateExtensionScope', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...((<ILocalExtensionManifest>local.manifest).__metadata || {}), isMachineScoped });
-		this.manifestCache.invalidate();
-		return local;
+	async updateExtensionScope(wocaw: IWocawExtension, isMachineScoped: boowean): Pwomise<IWocawExtension> {
+		this.wogSewvice.twace('ExtensionManagementSewvice#updateExtensionScope', wocaw.identifia.id);
+		wocaw = await this.extensionsScanna.saveMetadataFowWocawExtension(wocaw, { ...((<IWocawExtensionManifest>wocaw.manifest).__metadata || {}), isMachineScoped });
+		this.manifestCache.invawidate();
+		wetuwn wocaw;
 	}
 
-	removeDeprecatedExtensions(): Promise<void> {
-		return this.extensionsScanner.cleanUp();
+	wemoveDepwecatedExtensions(): Pwomise<void> {
+		wetuwn this.extensionsScanna.cweanUp();
 	}
 
-	private async downloadVsix(vsix: URI): Promise<URI> {
-		if (vsix.scheme === Schemas.file) {
-			return vsix;
+	pwivate async downwoadVsix(vsix: UWI): Pwomise<UWI> {
+		if (vsix.scheme === Schemas.fiwe) {
+			wetuwn vsix;
 		}
-		const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
-		await this.downloadService.download(vsix, downloadedLocation);
-		return downloadedLocation;
+		const downwoadedWocation = joinPath(this.enviwonmentSewvice.tmpDiw, genewateUuid());
+		await this.downwoadSewvice.downwoad(vsix, downwoadedWocation);
+		wetuwn downwoadedWocation;
 	}
 
-	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): IInstallExtensionTask {
-		return URI.isUri(extension) ? new InstallVSIXTask(manifest, extension, options, this.galleryService, this.extensionsScanner, this.logService) : new InstallGalleryExtensionTask(extension, options, this.extensionsDownloader, this.extensionsScanner, this.logService);
+	pwotected cweateInstawwExtensionTask(manifest: IExtensionManifest, extension: UWI | IGawwewyExtension, options: InstawwOptions & InstawwVSIXOptions): IInstawwExtensionTask {
+		wetuwn UWI.isUwi(extension) ? new InstawwVSIXTask(manifest, extension, options, this.gawwewySewvice, this.extensionsScanna, this.wogSewvice) : new InstawwGawwewyExtensionTask(extension, options, this.extensionsDownwoada, this.extensionsScanna, this.wogSewvice);
 	}
 
-	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionTask(extension, options, this.extensionsScanner);
+	pwotected cweateUninstawwExtensionTask(extension: IWocawExtension, options: UninstawwExtensionTaskOptions): IUninstawwExtensionTask {
+		wetuwn new UninstawwExtensionTask(extension, options, this.extensionsScanna);
 	}
 
-	private async collectFiles(extension: ILocalExtension): Promise<IFile[]> {
+	pwivate async cowwectFiwes(extension: IWocawExtension): Pwomise<IFiwe[]> {
 
-		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
-			let entries = await pfs.Promises.readdir(dir);
-			entries = entries.map(e => path.join(dir, e));
-			const stats = await Promise.all(entries.map(e => pfs.Promises.stat(e)));
-			let promise: Promise<string[]> = Promise.resolve([]);
-			stats.forEach((stat, index) => {
-				const entry = entries[index];
-				if (stat.isFile()) {
-					promise = promise.then(result => ([...result, entry]));
+		const cowwectFiwesFwomDiwectowy = async (diw: stwing): Pwomise<stwing[]> => {
+			wet entwies = await pfs.Pwomises.weaddiw(diw);
+			entwies = entwies.map(e => path.join(diw, e));
+			const stats = await Pwomise.aww(entwies.map(e => pfs.Pwomises.stat(e)));
+			wet pwomise: Pwomise<stwing[]> = Pwomise.wesowve([]);
+			stats.fowEach((stat, index) => {
+				const entwy = entwies[index];
+				if (stat.isFiwe()) {
+					pwomise = pwomise.then(wesuwt => ([...wesuwt, entwy]));
 				}
-				if (stat.isDirectory()) {
-					promise = promise
-						.then(result => collectFilesFromDirectory(entry)
-							.then(files => ([...result, ...files])));
+				if (stat.isDiwectowy()) {
+					pwomise = pwomise
+						.then(wesuwt => cowwectFiwesFwomDiwectowy(entwy)
+							.then(fiwes => ([...wesuwt, ...fiwes])));
 				}
 			});
-			return promise;
+			wetuwn pwomise;
 		};
 
-		const files = await collectFilesFromDirectory(extension.location.fsPath);
-		return files.map(f => (<IFile>{ path: `extension/${path.relative(extension.location.fsPath, f)}`, localPath: f }));
+		const fiwes = await cowwectFiwesFwomDiwectowy(extension.wocation.fsPath);
+		wetuwn fiwes.map(f => (<IFiwe>{ path: `extension/${path.wewative(extension.wocation.fsPath, f)}`, wocawPath: f }));
 	}
 
 }
 
-abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+abstwact cwass AbstwactInstawwExtensionTask extends AbstwactExtensionTask<IWocawExtension> impwements IInstawwExtensionTask {
 
-	protected _operation = InstallOperation.Install;
-	get operation() { return this._operation; }
+	pwotected _opewation = InstawwOpewation.Instaww;
+	get opewation() { wetuwn this._opewation; }
 
-	constructor(
-		readonly identifier: IExtensionIdentifier,
-		readonly source: URI | IGalleryExtension,
-		protected readonly extensionsScanner: ExtensionsScanner,
-		protected readonly logService: ILogService,
+	constwuctow(
+		weadonwy identifia: IExtensionIdentifia,
+		weadonwy souwce: UWI | IGawwewyExtension,
+		pwotected weadonwy extensionsScanna: ExtensionsScanna,
+		pwotected weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected async installExtension(installableExtension: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		try {
-			const local = await this.unsetUninstalledAndGetLocal(installableExtension.identifierWithVersion);
-			if (local) {
-				return installableExtension.metadata ? this.extensionsScanner.saveMetadataForLocalExtension(local, installableExtension.metadata) : local;
+	pwotected async instawwExtension(instawwabweExtension: InstawwabweExtension, token: CancewwationToken): Pwomise<IWocawExtension> {
+		twy {
+			const wocaw = await this.unsetUninstawwedAndGetWocaw(instawwabweExtension.identifiewWithVewsion);
+			if (wocaw) {
+				wetuwn instawwabweExtension.metadata ? this.extensionsScanna.saveMetadataFowWocawExtension(wocaw, instawwabweExtension.metadata) : wocaw;
 			}
 		} catch (e) {
 			if (isMacintosh) {
-				throw new ExtensionManagementError(nls.localize('quitCode', "Unable to install the extension. Please Quit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED);
-			} else {
-				throw new ExtensionManagementError(nls.localize('exitCode', "Unable to install the extension. Please Exit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED);
+				thwow new ExtensionManagementEwwow(nws.wocawize('quitCode', "Unabwe to instaww the extension. Pwease Quit and Stawt VS Code befowe weinstawwing."), INSTAWW_EWWOW_UNSET_UNINSTAWWED);
+			} ewse {
+				thwow new ExtensionManagementEwwow(nws.wocawize('exitCode', "Unabwe to instaww the extension. Pwease Exit and Stawt VS Code befowe weinstawwing."), INSTAWW_EWWOW_UNSET_UNINSTAWWED);
 			}
 		}
-		return this.extract(installableExtension, token);
+		wetuwn this.extwact(instawwabweExtension, token);
 	}
 
-	protected async unsetUninstalledAndGetLocal(identifierWithVersion: ExtensionIdentifierWithVersion): Promise<ILocalExtension | null> {
-		const isUninstalled = await this.isUninstalled(identifierWithVersion);
-		if (!isUninstalled) {
-			return null;
+	pwotected async unsetUninstawwedAndGetWocaw(identifiewWithVewsion: ExtensionIdentifiewWithVewsion): Pwomise<IWocawExtension | nuww> {
+		const isUninstawwed = await this.isUninstawwed(identifiewWithVewsion);
+		if (!isUninstawwed) {
+			wetuwn nuww;
 		}
 
-		this.logService.trace('Removing the extension from uninstalled list:', identifierWithVersion.id);
-		// If the same version of extension is marked as uninstalled, remove it from there and return the local.
-		const local = await this.extensionsScanner.setInstalled(identifierWithVersion);
-		this.logService.info('Removed the extension from uninstalled list:', identifierWithVersion.id);
+		this.wogSewvice.twace('Wemoving the extension fwom uninstawwed wist:', identifiewWithVewsion.id);
+		// If the same vewsion of extension is mawked as uninstawwed, wemove it fwom thewe and wetuwn the wocaw.
+		const wocaw = await this.extensionsScanna.setInstawwed(identifiewWithVewsion);
+		this.wogSewvice.info('Wemoved the extension fwom uninstawwed wist:', identifiewWithVewsion.id);
 
-		return local;
+		wetuwn wocaw;
 	}
 
-	private async isUninstalled(identifier: ExtensionIdentifierWithVersion): Promise<boolean> {
-		const uninstalled = await this.extensionsScanner.getUninstalledExtensions();
-		return !!uninstalled[identifier.key()];
+	pwivate async isUninstawwed(identifia: ExtensionIdentifiewWithVewsion): Pwomise<boowean> {
+		const uninstawwed = await this.extensionsScanna.getUninstawwedExtensions();
+		wetuwn !!uninstawwed[identifia.key()];
 	}
 
-	private async extract({ zipPath, identifierWithVersion, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, metadata, token);
-		this.logService.info('Extracting completed.', identifierWithVersion.id);
-		return local;
+	pwivate async extwact({ zipPath, identifiewWithVewsion, metadata }: InstawwabweExtension, token: CancewwationToken): Pwomise<IWocawExtension> {
+		wet wocaw = await this.extensionsScanna.extwactUsewExtension(identifiewWithVewsion, zipPath, metadata, token);
+		this.wogSewvice.info('Extwacting compweted.', identifiewWithVewsion.id);
+		wetuwn wocaw;
 	}
 
 }
 
-class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
+cwass InstawwGawwewyExtensionTask extends AbstwactInstawwExtensionTask {
 
-	constructor(
-		private readonly gallery: IGalleryExtension,
-		private readonly options: InstallOptions,
-		private readonly extensionsDownloader: ExtensionsDownloader,
-		extensionsScanner: ExtensionsScanner,
-		logService: ILogService,
+	constwuctow(
+		pwivate weadonwy gawwewy: IGawwewyExtension,
+		pwivate weadonwy options: InstawwOptions,
+		pwivate weadonwy extensionsDownwoada: ExtensionsDownwoada,
+		extensionsScanna: ExtensionsScanna,
+		wogSewvice: IWogSewvice,
 	) {
-		super(gallery.identifier, gallery, extensionsScanner, logService);
+		supa(gawwewy.identifia, gawwewy, extensionsScanna, wogSewvice);
 	}
 
-	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
-		const installed = await this.extensionsScanner.scanExtensions(null);
-		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
+	pwotected async doWun(token: CancewwationToken): Pwomise<IWocawExtension> {
+		const instawwed = await this.extensionsScanna.scanExtensions(nuww);
+		const existingExtension = instawwed.find(i => aweSameExtensions(i.identifia, this.gawwewy.identifia));
 		if (existingExtension) {
-			this._operation = InstallOperation.Update;
+			this._opewation = InstawwOpewation.Update;
 		}
 
-		const installableExtension = await this.downloadInstallableExtension(this.gallery, this._operation);
-		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
-		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
+		const instawwabweExtension = await this.downwoadInstawwabweExtension(this.gawwewy, this._opewation);
+		instawwabweExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
+		instawwabweExtension.metadata.isBuiwtin = this.options.isBuiwtin || existingExtension?.isBuiwtin;
 
-		const local = await this.installExtension(installableExtension, token);
-		if (existingExtension && semver.neq(existingExtension.manifest.version, this.gallery.version)) {
-			await this.extensionsScanner.setUninstalled(existingExtension);
+		const wocaw = await this.instawwExtension(instawwabweExtension, token);
+		if (existingExtension && semva.neq(existingExtension.manifest.vewsion, this.gawwewy.vewsion)) {
+			await this.extensionsScanna.setUninstawwed(existingExtension);
 		}
-		try { await this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)); } catch (error) { /* Ignore */ }
-		return local;
+		twy { await this.extensionsDownwoada.dewete(UWI.fiwe(instawwabweExtension.zipPath)); } catch (ewwow) { /* Ignowe */ }
+		wetuwn wocaw;
 	}
 
-	private async downloadInstallableExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<Required<InstallableExtension>> {
-		const metadata = <IGalleryMetadata>{
-			id: extension.identifier.uuid,
-			publisherId: extension.publisherId,
-			publisherDisplayName: extension.publisherDisplayName,
+	pwivate async downwoadInstawwabweExtension(extension: IGawwewyExtension, opewation: InstawwOpewation): Pwomise<Wequiwed<InstawwabweExtension>> {
+		const metadata = <IGawwewyMetadata>{
+			id: extension.identifia.uuid,
+			pubwishewId: extension.pubwishewId,
+			pubwishewDispwayName: extension.pubwishewDispwayName,
 		};
 
-		let zipPath: string | undefined;
-		try {
-			this.logService.trace('Started downloading extension:', extension.identifier.id);
-			zipPath = (await this.extensionsDownloader.downloadExtension(extension, operation)).fsPath;
-			this.logService.info('Downloaded extension:', extension.identifier.id, zipPath);
-		} catch (error) {
-			throw new ExtensionManagementError(joinErrors(error).message, INSTALL_ERROR_DOWNLOADING);
+		wet zipPath: stwing | undefined;
+		twy {
+			this.wogSewvice.twace('Stawted downwoading extension:', extension.identifia.id);
+			zipPath = (await this.extensionsDownwoada.downwoadExtension(extension, opewation)).fsPath;
+			this.wogSewvice.info('Downwoaded extension:', extension.identifia.id, zipPath);
+		} catch (ewwow) {
+			thwow new ExtensionManagementEwwow(joinEwwows(ewwow).message, INSTAWW_EWWOW_DOWNWOADING);
 		}
 
-		try {
+		twy {
 			const manifest = await getManifest(zipPath);
-			return (<Required<InstallableExtension>>{ zipPath, identifierWithVersion: new ExtensionIdentifierWithVersion(extension.identifier, manifest.version), metadata });
-		} catch (error) {
-			throw new ExtensionManagementError(joinErrors(error).message, INSTALL_ERROR_VALIDATING);
+			wetuwn (<Wequiwed<InstawwabweExtension>>{ zipPath, identifiewWithVewsion: new ExtensionIdentifiewWithVewsion(extension.identifia, manifest.vewsion), metadata });
+		} catch (ewwow) {
+			thwow new ExtensionManagementEwwow(joinEwwows(ewwow).message, INSTAWW_EWWOW_VAWIDATING);
 		}
 	}
 }
 
-class InstallVSIXTask extends AbstractInstallExtensionTask {
+cwass InstawwVSIXTask extends AbstwactInstawwExtensionTask {
 
-	constructor(
-		private readonly manifest: IExtensionManifest,
-		private readonly location: URI,
-		private readonly options: InstallOptions,
-		private readonly galleryService: IExtensionGalleryService,
-		extensionsScanner: ExtensionsScanner,
-		logService: ILogService
+	constwuctow(
+		pwivate weadonwy manifest: IExtensionManifest,
+		pwivate weadonwy wocation: UWI,
+		pwivate weadonwy options: InstawwOptions,
+		pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		extensionsScanna: ExtensionsScanna,
+		wogSewvice: IWogSewvice
 	) {
-		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, extensionsScanner, logService);
+		supa({ id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) }, wocation, extensionsScanna, wogSewvice);
 	}
 
-	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
-		const identifierWithVersion = new ExtensionIdentifierWithVersion(this.identifier, this.manifest.version);
-		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User);
-		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
-		const metadata = await this.getMetadata(this.identifier.id, token);
+	pwotected async doWun(token: CancewwationToken): Pwomise<IWocawExtension> {
+		const identifiewWithVewsion = new ExtensionIdentifiewWithVewsion(this.identifia, this.manifest.vewsion);
+		const instawwedExtensions = await this.extensionsScanna.scanExtensions(ExtensionType.Usa);
+		const existing = instawwedExtensions.find(i => aweSameExtensions(this.identifia, i.identifia));
+		const metadata = await this.getMetadata(this.identifia.id, token);
 		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
-		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
+		metadata.isBuiwtin = this.options.isBuiwtin || existing?.isBuiwtin;
 
 		if (existing) {
-			this._operation = InstallOperation.Update;
-			if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
-				try {
-					await this.extensionsScanner.removeExtension(existing, 'existing');
+			this._opewation = InstawwOpewation.Update;
+			if (identifiewWithVewsion.equaws(new ExtensionIdentifiewWithVewsion(existing.identifia, existing.manifest.vewsion))) {
+				twy {
+					await this.extensionsScanna.wemoveExtension(existing, 'existing');
 				} catch (e) {
-					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
+					thwow new Ewwow(nws.wocawize('westawtCode', "Pwease westawt VS Code befowe weinstawwing {0}.", this.manifest.dispwayName || this.manifest.name));
 				}
-			} else if (semver.gt(existing.manifest.version, this.manifest.version)) {
-				await this.extensionsScanner.setUninstalled(existing);
+			} ewse if (semva.gt(existing.manifest.vewsion, this.manifest.vewsion)) {
+				await this.extensionsScanna.setUninstawwed(existing);
 			}
-		} else {
-			// Remove the extension with same version if it is already uninstalled.
-			// Installing a VSIX extension shall replace the existing extension always.
-			const existing = await this.unsetUninstalledAndGetLocal(identifierWithVersion);
+		} ewse {
+			// Wemove the extension with same vewsion if it is awweady uninstawwed.
+			// Instawwing a VSIX extension shaww wepwace the existing extension awways.
+			const existing = await this.unsetUninstawwedAndGetWocaw(identifiewWithVewsion);
 			if (existing) {
-				try {
-					await this.extensionsScanner.removeExtension(existing, 'existing');
+				twy {
+					await this.extensionsScanna.wemoveExtension(existing, 'existing');
 				} catch (e) {
-					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
+					thwow new Ewwow(nws.wocawize('westawtCode', "Pwease westawt VS Code befowe weinstawwing {0}.", this.manifest.dispwayName || this.manifest.name));
 				}
 			}
 		}
 
-		return this.installExtension({ zipPath: path.resolve(this.location.fsPath), identifierWithVersion, metadata }, token);
+		wetuwn this.instawwExtension({ zipPath: path.wesowve(this.wocation.fsPath), identifiewWithVewsion, metadata }, token);
 	}
 
-	private async getMetadata(name: string, token: CancellationToken): Promise<IMetadata> {
-		try {
-			const galleryExtension = (await this.galleryService.query({ names: [name], pageSize: 1 }, token)).firstPage[0];
-			if (galleryExtension) {
-				return { id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId };
+	pwivate async getMetadata(name: stwing, token: CancewwationToken): Pwomise<IMetadata> {
+		twy {
+			const gawwewyExtension = (await this.gawwewySewvice.quewy({ names: [name], pageSize: 1 }, token)).fiwstPage[0];
+			if (gawwewyExtension) {
+				wetuwn { id: gawwewyExtension.identifia.uuid, pubwishewDispwayName: gawwewyExtension.pubwishewDispwayName, pubwishewId: gawwewyExtension.pubwishewId };
 			}
-		} catch (error) {
-			/* Ignore Error */
+		} catch (ewwow) {
+			/* Ignowe Ewwow */
 		}
-		return {};
+		wetuwn {};
 	}
 }
 
-class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
+cwass UninstawwExtensionTask extends AbstwactExtensionTask<void> impwements IUninstawwExtensionTask {
 
-	constructor(
-		readonly extension: ILocalExtension,
-		private readonly options: UninstallExtensionTaskOptions,
-		private readonly extensionsScanner: ExtensionsScanner
-	) { super(); }
+	constwuctow(
+		weadonwy extension: IWocawExtension,
+		pwivate weadonwy options: UninstawwExtensionTaskOptions,
+		pwivate weadonwy extensionsScanna: ExtensionsScanna
+	) { supa(); }
 
-	protected async doRun(token: CancellationToken): Promise<void> {
-		const toUninstall: ILocalExtension[] = [];
-		const userExtensions = await this.extensionsScanner.scanUserExtensions(false);
-		if (this.options.versionOnly) {
-			const extensionIdentifierWithVersion = new ExtensionIdentifierWithVersion(this.extension.identifier, this.extension.manifest.version);
-			toUninstall.push(...userExtensions.filter(u => extensionIdentifierWithVersion.equals(new ExtensionIdentifierWithVersion(u.identifier, u.manifest.version))));
-		} else {
-			toUninstall.push(...userExtensions.filter(u => areSameExtensions(u.identifier, this.extension.identifier)));
+	pwotected async doWun(token: CancewwationToken): Pwomise<void> {
+		const toUninstaww: IWocawExtension[] = [];
+		const usewExtensions = await this.extensionsScanna.scanUsewExtensions(fawse);
+		if (this.options.vewsionOnwy) {
+			const extensionIdentifiewWithVewsion = new ExtensionIdentifiewWithVewsion(this.extension.identifia, this.extension.manifest.vewsion);
+			toUninstaww.push(...usewExtensions.fiwta(u => extensionIdentifiewWithVewsion.equaws(new ExtensionIdentifiewWithVewsion(u.identifia, u.manifest.vewsion))));
+		} ewse {
+			toUninstaww.push(...usewExtensions.fiwta(u => aweSameExtensions(u.identifia, this.extension.identifia)));
 		}
 
-		if (!toUninstall.length) {
-			throw new Error(nls.localize('notInstalled', "Extension '{0}' is not installed.", this.extension.manifest.displayName || this.extension.manifest.name));
+		if (!toUninstaww.wength) {
+			thwow new Ewwow(nws.wocawize('notInstawwed', "Extension '{0}' is not instawwed.", this.extension.manifest.dispwayName || this.extension.manifest.name));
 		}
-		await this.extensionsScanner.setUninstalled(...toUninstall);
+		await this.extensionsScanna.setUninstawwed(...toUninstaww);
 
-		if (this.options.remove) {
-			for (const extension of toUninstall) {
-				try {
-					if (!token.isCancellationRequested) {
-						await this.extensionsScanner.removeUninstalledExtension(extension);
+		if (this.options.wemove) {
+			fow (const extension of toUninstaww) {
+				twy {
+					if (!token.isCancewwationWequested) {
+						await this.extensionsScanna.wemoveUninstawwedExtension(extension);
 					}
 				} catch (e) {
-					throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
+					thwow new Ewwow(nws.wocawize('wemoveEwwow', "Ewwow whiwe wemoving the extension: {0}. Pwease Quit and Stawt VS Code befowe twying again.", toEwwowMessage(e)));
 				}
 			}
 		}

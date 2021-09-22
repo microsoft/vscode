@@ -1,361 +1,361 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorModel } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CONTEXT_DEBUGGERS_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/contrib/debug/common/debug';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowModew } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Extensions as JSONExtensions, IJSONContwibutionWegistwy } fwom 'vs/pwatfowm/jsonschemas/common/jsonContwibutionWegistwy';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { CONTEXT_DEBUGGEWS_AVAIWABWE, IAdaptewDescwiptow, IAdaptewManaga, IConfig, IDebugAdapta, IDebugAdaptewDescwiptowFactowy, IDebugAdaptewFactowy, IDebugConfiguwation, IDebugSession, INTEWNAW_CONSOWE_OPTIONS_SCHEMA } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Debugga } fwom 'vs/wowkbench/contwib/debug/common/debugga';
+impowt { bweakpointsExtPoint, debuggewsExtPoint, waunchSchema, pwesentationSchema } fwom 'vs/wowkbench/contwib/debug/common/debugSchemas';
+impowt { TaskDefinitionWegistwy } fwom 'vs/wowkbench/contwib/tasks/common/taskDefinitionWegistwy';
+impowt { waunchSchemaId } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const jsonWegistwy = Wegistwy.as<IJSONContwibutionWegistwy>(JSONExtensions.JSONContwibution);
 
-export class AdapterManager extends Disposable implements IAdapterManager {
+expowt cwass AdaptewManaga extends Disposabwe impwements IAdaptewManaga {
 
-	private debuggers: Debugger[];
-	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
-	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
-	private debuggersAvailable: IContextKey<boolean>;
-	private readonly _onDidRegisterDebugger = new Emitter<void>();
-	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointModeIdsSet = new Set<string>();
-	private debuggerWhenKeys = new Set<string>();
+	pwivate debuggews: Debugga[];
+	pwivate adaptewDescwiptowFactowies: IDebugAdaptewDescwiptowFactowy[];
+	pwivate debugAdaptewFactowies = new Map<stwing, IDebugAdaptewFactowy>();
+	pwivate debuggewsAvaiwabwe: IContextKey<boowean>;
+	pwivate weadonwy _onDidWegistewDebugga = new Emitta<void>();
+	pwivate weadonwy _onDidDebuggewsExtPointWead = new Emitta<void>();
+	pwivate bweakpointModeIdsSet = new Set<stwing>();
+	pwivate debuggewWhenKeys = new Set<stwing>();
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IModeService private readonly modeService: IModeService,
-		@IDialogService private readonly dialogService: IDialogService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
 	) {
-		super();
-		this.adapterDescriptorFactories = [];
-		this.debuggers = [];
-		this.registerListeners();
-		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(this.debuggerWhenKeys)) {
-				this.debuggersAvailable.set(this.hasEnabledDebuggers());
+		supa();
+		this.adaptewDescwiptowFactowies = [];
+		this.debuggews = [];
+		this.wegistewWistenews();
+		this.debuggewsAvaiwabwe = CONTEXT_DEBUGGEWS_AVAIWABWE.bindTo(contextKeySewvice);
+		this._wegista(this.contextKeySewvice.onDidChangeContext(e => {
+			if (e.affectsSome(this.debuggewWhenKeys)) {
+				this.debuggewsAvaiwabwe.set(this.hasEnabwedDebuggews());
 			}
 		}));
 	}
 
-	private registerListeners(): void {
-		debuggersExtPoint.setHandler((extensions, delta) => {
-			delta.added.forEach(added => {
-				added.value.forEach(rawAdapter => {
-					if (!rawAdapter.type || (typeof rawAdapter.type !== 'string')) {
-						added.collector.error(nls.localize('debugNoType', "Debugger 'type' can not be omitted and must be of type 'string'."));
+	pwivate wegistewWistenews(): void {
+		debuggewsExtPoint.setHandwa((extensions, dewta) => {
+			dewta.added.fowEach(added => {
+				added.vawue.fowEach(wawAdapta => {
+					if (!wawAdapta.type || (typeof wawAdapta.type !== 'stwing')) {
+						added.cowwectow.ewwow(nws.wocawize('debugNoType', "Debugga 'type' can not be omitted and must be of type 'stwing'."));
 					}
 
-					if (rawAdapter.type !== '*') {
-						const existing = this.getDebugger(rawAdapter.type);
+					if (wawAdapta.type !== '*') {
+						const existing = this.getDebugga(wawAdapta.type);
 						if (existing) {
-							existing.merge(rawAdapter, added.description);
-						} else {
-							const dbg = this.instantiationService.createInstance(Debugger, this, rawAdapter, added.description);
-							dbg.when?.keys().forEach(key => this.debuggerWhenKeys.add(key));
-							this.debuggers.push(dbg);
+							existing.mewge(wawAdapta, added.descwiption);
+						} ewse {
+							const dbg = this.instantiationSewvice.cweateInstance(Debugga, this, wawAdapta, added.descwiption);
+							dbg.when?.keys().fowEach(key => this.debuggewWhenKeys.add(key));
+							this.debuggews.push(dbg);
 						}
 					}
 				});
 			});
 
-			// take care of all wildcard contributions
-			extensions.forEach(extension => {
-				extension.value.forEach(rawAdapter => {
-					if (rawAdapter.type === '*') {
-						this.debuggers.forEach(dbg => dbg.merge(rawAdapter, extension.description));
+			// take cawe of aww wiwdcawd contwibutions
+			extensions.fowEach(extension => {
+				extension.vawue.fowEach(wawAdapta => {
+					if (wawAdapta.type === '*') {
+						this.debuggews.fowEach(dbg => dbg.mewge(wawAdapta, extension.descwiption));
 					}
 				});
 			});
 
-			delta.removed.forEach(removed => {
-				const removedTypes = removed.value.map(rawAdapter => rawAdapter.type);
-				this.debuggers = this.debuggers.filter(d => removedTypes.indexOf(d.type) === -1);
+			dewta.wemoved.fowEach(wemoved => {
+				const wemovedTypes = wemoved.vawue.map(wawAdapta => wawAdapta.type);
+				this.debuggews = this.debuggews.fiwta(d => wemovedTypes.indexOf(d.type) === -1);
 			});
 
-			// update the schema to include all attributes, snippets and types from extensions.
-			const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
-			const taskSchema = TaskDefinitionRegistry.getJsonSchema();
+			// update the schema to incwude aww attwibutes, snippets and types fwom extensions.
+			const items = (<IJSONSchema>waunchSchema.pwopewties!['configuwations'].items);
+			const taskSchema = TaskDefinitionWegistwy.getJsonSchema();
 			const definitions: IJSONSchemaMap = {
 				'common': {
-					properties: {
+					pwopewties: {
 						'name': {
-							type: 'string',
-							description: nls.localize('debugName', "Name of configuration; appears in the launch configuration dropdown menu."),
-							default: 'Launch'
+							type: 'stwing',
+							descwiption: nws.wocawize('debugName', "Name of configuwation; appeaws in the waunch configuwation dwopdown menu."),
+							defauwt: 'Waunch'
 						},
-						'debugServer': {
-							type: 'number',
-							description: nls.localize('debugServer', "For debug extension development only: if a port is specified VS Code tries to connect to a debug adapter running in server mode"),
-							default: 4711
+						'debugSewva': {
+							type: 'numba',
+							descwiption: nws.wocawize('debugSewva', "Fow debug extension devewopment onwy: if a powt is specified VS Code twies to connect to a debug adapta wunning in sewva mode"),
+							defauwt: 4711
 						},
-						'preLaunchTask': {
+						'pweWaunchTask': {
 							anyOf: [taskSchema, {
-								type: ['string']
+								type: ['stwing']
 							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
+							defauwt: '',
+							defauwtSnippets: [{ body: { task: '', type: '' } }],
+							descwiption: nws.wocawize('debugPwewaunchTask', "Task to wun befowe debug session stawts.")
 						},
 						'postDebugTask': {
 							anyOf: [taskSchema, {
-								type: ['string'],
+								type: ['stwing'],
 							}],
-							default: '',
-							defaultSnippets: [{ body: { task: '', type: '' } }],
-							description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
+							defauwt: '',
+							defauwtSnippets: [{ body: { task: '', type: '' } }],
+							descwiption: nws.wocawize('debugPostDebugTask', "Task to wun afta debug session ends.")
 						},
-						'presentation': presentationSchema,
-						'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+						'pwesentation': pwesentationSchema,
+						'intewnawConsoweOptions': INTEWNAW_CONSOWE_OPTIONS_SCHEMA,
 					}
 				}
 			};
-			launchSchema.definitions = definitions;
+			waunchSchema.definitions = definitions;
 			items.oneOf = [];
-			items.defaultSnippets = [];
-			this.debuggers.forEach(adapter => {
-				const schemaAttributes = adapter.getSchemaAttributes(definitions);
-				if (schemaAttributes && items.oneOf) {
-					items.oneOf.push(...schemaAttributes);
+			items.defauwtSnippets = [];
+			this.debuggews.fowEach(adapta => {
+				const schemaAttwibutes = adapta.getSchemaAttwibutes(definitions);
+				if (schemaAttwibutes && items.oneOf) {
+					items.oneOf.push(...schemaAttwibutes);
 				}
-				const configurationSnippets = adapter.configurationSnippets;
-				if (configurationSnippets && items.defaultSnippets) {
-					items.defaultSnippets.push(...configurationSnippets);
+				const configuwationSnippets = adapta.configuwationSnippets;
+				if (configuwationSnippets && items.defauwtSnippets) {
+					items.defauwtSnippets.push(...configuwationSnippets);
 				}
 			});
-			jsonRegistry.registerSchema(launchSchemaId, launchSchema);
+			jsonWegistwy.wegistewSchema(waunchSchemaId, waunchSchema);
 
-			this._onDidDebuggersExtPointRead.fire();
+			this._onDidDebuggewsExtPointWead.fiwe();
 		});
 
-		breakpointsExtPoint.setHandler((extensions, delta) => {
-			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+		bweakpointsExtPoint.setHandwa((extensions, dewta) => {
+			dewta.wemoved.fowEach(wemoved => {
+				wemoved.vawue.fowEach(bweakpoints => this.bweakpointModeIdsSet.dewete(bweakpoints.wanguage));
 			});
-			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
+			dewta.added.fowEach(added => {
+				added.vawue.fowEach(bweakpoints => this.bweakpointModeIdsSet.add(bweakpoints.wanguage));
 			});
 		});
 	}
 
-	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
-		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
-		this.debuggersAvailable.set(this.hasEnabledDebuggers());
-		this._onDidRegisterDebugger.fire();
+	wegistewDebugAdaptewFactowy(debugTypes: stwing[], debugAdaptewWauncha: IDebugAdaptewFactowy): IDisposabwe {
+		debugTypes.fowEach(debugType => this.debugAdaptewFactowies.set(debugType, debugAdaptewWauncha));
+		this.debuggewsAvaiwabwe.set(this.hasEnabwedDebuggews());
+		this._onDidWegistewDebugga.fiwe();
 
-		return {
+		wetuwn {
 			dispose: () => {
-				debugTypes.forEach(debugType => this.debugAdapterFactories.delete(debugType));
+				debugTypes.fowEach(debugType => this.debugAdaptewFactowies.dewete(debugType));
 			}
 		};
 	}
 
-	hasEnabledDebuggers(): boolean {
-		for (let [type] of this.debugAdapterFactories) {
-			const dbg = this.getDebugger(type);
-			if (dbg && this.isDebuggerEnabled(dbg)) {
-				return true;
+	hasEnabwedDebuggews(): boowean {
+		fow (wet [type] of this.debugAdaptewFactowies) {
+			const dbg = this.getDebugga(type);
+			if (dbg && this.isDebuggewEnabwed(dbg)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let factory = this.debugAdapterFactories.get(session.configuration.type);
-		if (factory) {
-			return factory.createDebugAdapter(session);
+	cweateDebugAdapta(session: IDebugSession): IDebugAdapta | undefined {
+		wet factowy = this.debugAdaptewFactowies.get(session.configuwation.type);
+		if (factowy) {
+			wetuwn factowy.cweateDebugAdapta(session);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let factory = this.debugAdapterFactories.get(debugType);
-		if (factory) {
-			return factory.substituteVariables(folder, config);
+	substituteVawiabwes(debugType: stwing, fowda: IWowkspaceFowda | undefined, config: IConfig): Pwomise<IConfig> {
+		wet factowy = this.debugAdaptewFactowies.get(debugType);
+		if (factowy) {
+			wetuwn factowy.substituteVawiabwes(fowda, config);
 		}
-		return Promise.resolve(config);
+		wetuwn Pwomise.wesowve(config);
 	}
 
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		let factory = this.debugAdapterFactories.get(debugType);
-		if (factory) {
-			return factory.runInTerminal(args, sessionId);
+	wunInTewminaw(debugType: stwing, awgs: DebugPwotocow.WunInTewminawWequestAwguments, sessionId: stwing): Pwomise<numba | undefined> {
+		wet factowy = this.debugAdaptewFactowies.get(debugType);
+		if (factowy) {
+			wetuwn factowy.wunInTewminaw(awgs, sessionId);
 		}
-		return Promise.resolve(void 0);
+		wetuwn Pwomise.wesowve(void 0);
 	}
 
-	registerDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): IDisposable {
-		this.adapterDescriptorFactories.push(debugAdapterProvider);
-		return {
+	wegistewDebugAdaptewDescwiptowFactowy(debugAdaptewPwovida: IDebugAdaptewDescwiptowFactowy): IDisposabwe {
+		this.adaptewDescwiptowFactowies.push(debugAdaptewPwovida);
+		wetuwn {
 			dispose: () => {
-				this.unregisterDebugAdapterDescriptorFactory(debugAdapterProvider);
+				this.unwegistewDebugAdaptewDescwiptowFactowy(debugAdaptewPwovida);
 			}
 		};
 	}
 
-	unregisterDebugAdapterDescriptorFactory(debugAdapterProvider: IDebugAdapterDescriptorFactory): void {
-		const ix = this.adapterDescriptorFactories.indexOf(debugAdapterProvider);
+	unwegistewDebugAdaptewDescwiptowFactowy(debugAdaptewPwovida: IDebugAdaptewDescwiptowFactowy): void {
+		const ix = this.adaptewDescwiptowFactowies.indexOf(debugAdaptewPwovida);
 		if (ix >= 0) {
-			this.adapterDescriptorFactories.splice(ix, 1);
+			this.adaptewDescwiptowFactowies.spwice(ix, 1);
 		}
 	}
 
-	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
-		const config = session.configuration;
-		const providers = this.adapterDescriptorFactories.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
-		if (providers.length === 1) {
-			return providers[0].createDebugAdapterDescriptor(session);
-		} else {
-			// TODO@AW handle n > 1 case
+	getDebugAdaptewDescwiptow(session: IDebugSession): Pwomise<IAdaptewDescwiptow | undefined> {
+		const config = session.configuwation;
+		const pwovidews = this.adaptewDescwiptowFactowies.fiwta(p => p.type === config.type && p.cweateDebugAdaptewDescwiptow);
+		if (pwovidews.wength === 1) {
+			wetuwn pwovidews[0].cweateDebugAdaptewDescwiptow(session);
+		} ewse {
+			// TODO@AW handwe n > 1 case
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	getDebuggerLabel(type: string): string | undefined {
-		const dbgr = this.getDebugger(type);
-		if (dbgr) {
-			return dbgr.label;
-		}
-
-		return undefined;
-	}
-
-	get onDidRegisterDebugger(): Event<void> {
-		return this._onDidRegisterDebugger.event;
-	}
-
-	get onDidDebuggersExtPointRead(): Event<void> {
-		return this._onDidDebuggersExtPointRead.event;
-	}
-
-	canSetBreakpointsIn(model: ITextModel): boolean {
-		const modeId = model.getLanguageIdentifier().language;
-		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
-			// do not allow breakpoints in our settings files and output
-			return false;
-		}
-		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
-			return true;
+	getDebuggewWabew(type: stwing): stwing | undefined {
+		const dbgw = this.getDebugga(type);
+		if (dbgw) {
+			wetuwn dbgw.wabew;
 		}
 
-		return this.breakpointModeIdsSet.has(modeId);
+		wetuwn undefined;
 	}
 
-	isDebuggerEnabled(dbg: Debugger): boolean {
-		return !dbg.when || this.contextKeyService.contextMatchesRules(dbg.when);
+	get onDidWegistewDebugga(): Event<void> {
+		wetuwn this._onDidWegistewDebugga.event;
 	}
 
-	getDebugger(type: string): Debugger | undefined {
-		return this.debuggers.find(dbg => strings.equalsIgnoreCase(dbg.type, type));
+	get onDidDebuggewsExtPointWead(): Event<void> {
+		wetuwn this._onDidDebuggewsExtPointWead.event;
 	}
 
-	isDebuggerInterestedInLanguage(language: string): boolean {
-		return !!this.debuggers
-			.filter(d => this.isDebuggerEnabled(d))
-			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+	canSetBweakpointsIn(modew: ITextModew): boowean {
+		const modeId = modew.getWanguageIdentifia().wanguage;
+		if (!modeId || modeId === 'jsonc' || modeId === 'wog') {
+			// do not awwow bweakpoints in ouw settings fiwes and output
+			wetuwn fawse;
+		}
+		if (this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').awwowBweakpointsEvewywhewe) {
+			wetuwn twue;
+		}
+
+		wetuwn this.bweakpointModeIdsSet.has(modeId);
 	}
 
-	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
+	isDebuggewEnabwed(dbg: Debugga): boowean {
+		wetuwn !dbg.when || this.contextKeySewvice.contextMatchesWuwes(dbg.when);
+	}
+
+	getDebugga(type: stwing): Debugga | undefined {
+		wetuwn this.debuggews.find(dbg => stwings.equawsIgnoweCase(dbg.type, type));
+	}
+
+	isDebuggewIntewestedInWanguage(wanguage: stwing): boowean {
+		wetuwn !!this.debuggews
+			.fiwta(d => this.isDebuggewEnabwed(d))
+			.find(a => wanguage && a.wanguages && a.wanguages.indexOf(wanguage) >= 0);
+	}
+
+	async guessDebugga(gettingConfiguwations: boowean, type?: stwing): Pwomise<Debugga | undefined> {
 		if (type) {
-			const adapter = this.getDebugger(type);
-			return adapter && this.isDebuggerEnabled(adapter) ? adapter : undefined;
+			const adapta = this.getDebugga(type);
+			wetuwn adapta && this.isDebuggewEnabwed(adapta) ? adapta : undefined;
 		}
 
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		let candidates: Debugger[] = [];
-		let languageLabel: string | null = null;
-		let model: IEditorModel | null = null;
-		if (isCodeEditor(activeTextEditorControl)) {
-			model = activeTextEditorControl.getModel();
-			const language = model ? model.getLanguageIdentifier().language : undefined;
-			if (language) {
-				languageLabel = this.modeService.getLanguageName(language);
+		const activeTextEditowContwow = this.editowSewvice.activeTextEditowContwow;
+		wet candidates: Debugga[] = [];
+		wet wanguageWabew: stwing | nuww = nuww;
+		wet modew: IEditowModew | nuww = nuww;
+		if (isCodeEditow(activeTextEditowContwow)) {
+			modew = activeTextEditowContwow.getModew();
+			const wanguage = modew ? modew.getWanguageIdentifia().wanguage : undefined;
+			if (wanguage) {
+				wanguageWabew = this.modeSewvice.getWanguageName(wanguage);
 			}
-			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
-			if (adapters.length === 1) {
-				return adapters[0];
+			const adaptews = this.debuggews.fiwta(a => wanguage && a.wanguages && a.wanguages.indexOf(wanguage) >= 0);
+			if (adaptews.wength === 1) {
+				wetuwn adaptews[0];
 			}
-			if (adapters.length > 1) {
-				candidates = adapters;
+			if (adaptews.wength > 1) {
+				candidates = adaptews;
 			}
 		}
 
-		// We want to get the debuggers that have configuration providers in the case we are fetching configurations
-		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
-		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
-			await this.activateDebuggers('onDebugInitialConfigurations');
-			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+		// We want to get the debuggews that have configuwation pwovidews in the case we awe fetching configuwations
+		// Ow if a bweakpoint can be set in the cuwwent fiwe (good hint that an extension can handwe it)
+		if ((!wanguageWabew || gettingConfiguwations || (modew && this.canSetBweakpointsIn(modew))) && candidates.wength === 0) {
+			await this.activateDebuggews('onDebugInitiawConfiguwations');
+			candidates = this.debuggews.fiwta(dbg => dbg.hasInitiawConfiguwation() || dbg.hasConfiguwationPwovida());
 		}
 
-		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
+		candidates.sowt((fiwst, second) => fiwst.wabew.wocaweCompawe(second.wabew));
+		const picks: { wabew: stwing, debugga?: Debugga, type?: stwing }[] = candidates.map(c => ({ wabew: c.wabew, debugga: c }));
 
-		if (picks.length === 0 && languageLabel) {
-			if (languageLabel.indexOf(' ') >= 0) {
-				languageLabel = `'${languageLabel}'`;
+		if (picks.wength === 0 && wanguageWabew) {
+			if (wanguageWabew.indexOf(' ') >= 0) {
+				wanguageWabew = `'${wanguageWabew}'`;
 			}
-			const message = nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel);
-			const buttonLabel = nls.localize('findExtension', "Find {0} extension", languageLabel);
-			const showResult = await this.dialogService.show(Severity.Warning, message, [buttonLabel, nls.localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
-				await this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
+			const message = nws.wocawize('CouwdNotFindWanguage', "You don't have an extension fow debugging {0}. Shouwd we find a {0} extension in the Mawketpwace?", wanguageWabew);
+			const buttonWabew = nws.wocawize('findExtension', "Find {0} extension", wanguageWabew);
+			const showWesuwt = await this.diawogSewvice.show(Sevewity.Wawning, message, [buttonWabew, nws.wocawize('cancew', "Cancew")], { cancewId: 1 });
+			if (showWesuwt.choice === 0) {
+				await this.commandSewvice.executeCommand('debug.instawwAdditionawDebuggews', wanguageWabew);
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
-		picks.push({ type: 'separator', label: '' });
-		const placeHolder = nls.localize('selectDebug', "Select environment");
+		picks.push({ type: 'sepawatow', wabew: '' });
+		const pwaceHowda = nws.wocawize('sewectDebug', "Sewect enviwonment");
 
-		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
+		picks.push({ wabew: wanguageWabew ? nws.wocawize('instawwWanguage', "Instaww an extension fow {0}...", wanguageWabew) : nws.wocawize('instawwExt', "Instaww extension...") });
+		wetuwn this.quickInputSewvice.pick<{ wabew: stwing, debugga?: Debugga }>(picks, { activeItem: picks[0], pwaceHowda })
 			.then(picked => {
-				if (picked && picked.debugger) {
-					return picked.debugger;
+				if (picked && picked.debugga) {
+					wetuwn picked.debugga;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
+					this.commandSewvice.executeCommand('debug.instawwAdditionawDebuggews', wanguageWabew);
 				}
-				return undefined;
+				wetuwn undefined;
 			});
 	}
 
-	async activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
-		const promises: Promise<any>[] = [
-			this.extensionService.activateByEvent(activationEvent),
-			this.extensionService.activateByEvent('onDebug')
+	async activateDebuggews(activationEvent: stwing, debugType?: stwing): Pwomise<void> {
+		const pwomises: Pwomise<any>[] = [
+			this.extensionSewvice.activateByEvent(activationEvent),
+			this.extensionSewvice.activateByEvent('onDebug')
 		];
 		if (debugType) {
-			promises.push(this.extensionService.activateByEvent(`${activationEvent}:${debugType}`));
+			pwomises.push(this.extensionSewvice.activateByEvent(`${activationEvent}:${debugType}`));
 		}
-		await Promise.all(promises);
+		await Pwomise.aww(pwomises);
 	}
 }

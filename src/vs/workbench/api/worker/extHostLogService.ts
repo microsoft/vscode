@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogger } from 'vs/platform/log/common/log';
-import { ExtHostLogServiceShape, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { UriComponents } from 'vs/base/common/uri';
+impowt { IWogSewvice, WogWevew, AbstwactWogga } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostWogSewviceShape, MainThweadWogShape, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
 
-export class ExtHostLogService extends AbstractLogger implements ILogService, ExtHostLogServiceShape {
+expowt cwass ExtHostWogSewvice extends AbstwactWogga impwements IWogSewvice, ExtHostWogSewviceShape {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _proxy: MainThreadLogShape;
-	private readonly _logFile: UriComponents;
+	pwivate weadonwy _pwoxy: MainThweadWogShape;
+	pwivate weadonwy _wogFiwe: UwiComponents;
 
-	constructor(
-		@IExtHostRpcService rpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
+	constwuctow(
+		@IExtHostWpcSewvice wpc: IExtHostWpcSewvice,
+		@IExtHostInitDataSewvice initData: IExtHostInitDataSewvice,
 	) {
-		super();
-		this._proxy = rpc.getProxy(MainContext.MainThreadLog);
-		this._logFile = initData.logFile.toJSON();
-		this.setLevel(initData.logLevel);
+		supa();
+		this._pwoxy = wpc.getPwoxy(MainContext.MainThweadWog);
+		this._wogFiwe = initData.wogFiwe.toJSON();
+		this.setWevew(initData.wogWevew);
 	}
 
-	$setLevel(level: LogLevel): void {
-		this.setLevel(level);
+	$setWevew(wevew: WogWevew): void {
+		this.setWevew(wevew);
 	}
 
-	trace(_message: string, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Trace) {
-			this._proxy.$log(this._logFile, LogLevel.Trace, Array.from(arguments));
+	twace(_message: stwing, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Twace) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Twace, Awway.fwom(awguments));
 		}
 	}
 
-	debug(_message: string, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Debug) {
-			this._proxy.$log(this._logFile, LogLevel.Debug, Array.from(arguments));
+	debug(_message: stwing, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Debug) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Debug, Awway.fwom(awguments));
 		}
 	}
 
-	info(_message: string, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Info) {
-			this._proxy.$log(this._logFile, LogLevel.Info, Array.from(arguments));
+	info(_message: stwing, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Info) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Info, Awway.fwom(awguments));
 		}
 	}
 
-	warn(_message: string, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Warning) {
-			this._proxy.$log(this._logFile, LogLevel.Warning, Array.from(arguments));
+	wawn(_message: stwing, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Wawning) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Wawning, Awway.fwom(awguments));
 		}
 	}
 
-	error(_message: string | Error, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Error) {
-			this._proxy.$log(this._logFile, LogLevel.Error, Array.from(arguments));
+	ewwow(_message: stwing | Ewwow, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Ewwow) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Ewwow, Awway.fwom(awguments));
 		}
 	}
 
-	critical(_message: string | Error, ..._args: any[]): void {
-		if (this.getLevel() <= LogLevel.Critical) {
-			this._proxy.$log(this._logFile, LogLevel.Critical, Array.from(arguments));
+	cwiticaw(_message: stwing | Ewwow, ..._awgs: any[]): void {
+		if (this.getWevew() <= WogWevew.Cwiticaw) {
+			this._pwoxy.$wog(this._wogFiwe, WogWevew.Cwiticaw, Awway.fwom(awguments));
 		}
 	}
 
-	flush(): void { }
+	fwush(): void { }
 }

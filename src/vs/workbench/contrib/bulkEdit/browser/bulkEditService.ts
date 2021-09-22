@@ -1,225 +1,225 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
-import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IBuwkEditOptions, IBuwkEditWesuwt, IBuwkEditSewvice, IBuwkEditPweviewHandwa, WesouwceEdit, WesouwceFiweEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwogwess, IPwogwessStep, Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { BuwkTextEdits } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkTextEdits';
+impowt { BuwkFiweEdits } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkFiweEdits';
+impowt { BuwkCewwEdits, WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
+impowt { UndoWedoGwoup, UndoWedoSouwce } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWifecycweSewvice, ShutdownWeason } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-class BulkEdit {
+cwass BuwkEdit {
 
-	constructor(
-		private readonly _label: string | undefined,
-		private readonly _editor: ICodeEditor | undefined,
-		private readonly _progress: IProgress<IProgressStep>,
-		private readonly _token: CancellationToken,
-		private readonly _edits: ResourceEdit[],
-		private readonly _undoRedoGroup: UndoRedoGroup,
-		private readonly _undoRedoSource: UndoRedoSource | undefined,
-		private readonly _confirmBeforeUndo: boolean,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		pwivate weadonwy _wabew: stwing | undefined,
+		pwivate weadonwy _editow: ICodeEditow | undefined,
+		pwivate weadonwy _pwogwess: IPwogwess<IPwogwessStep>,
+		pwivate weadonwy _token: CancewwationToken,
+		pwivate weadonwy _edits: WesouwceEdit[],
+		pwivate weadonwy _undoWedoGwoup: UndoWedoGwoup,
+		pwivate weadonwy _undoWedoSouwce: UndoWedoSouwce | undefined,
+		pwivate weadonwy _confiwmBefoweUndo: boowean,
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
 
 	}
 
-	ariaMessage(): string {
-		const editCount = this._edits.length;
-		const resourceCount = this._edits.length;
+	awiaMessage(): stwing {
+		const editCount = this._edits.wength;
+		const wesouwceCount = this._edits.wength;
 		if (editCount === 0) {
-			return localize('summary.0', "Made no edits");
-		} else if (editCount > 1 && resourceCount > 1) {
-			return localize('summary.nm', "Made {0} text edits in {1} files", editCount, resourceCount);
-		} else {
-			return localize('summary.n0', "Made {0} text edits in one file", editCount, resourceCount);
+			wetuwn wocawize('summawy.0', "Made no edits");
+		} ewse if (editCount > 1 && wesouwceCount > 1) {
+			wetuwn wocawize('summawy.nm', "Made {0} text edits in {1} fiwes", editCount, wesouwceCount);
+		} ewse {
+			wetuwn wocawize('summawy.n0', "Made {0} text edits in one fiwe", editCount, wesouwceCount);
 		}
 	}
 
-	async perform(): Promise<void> {
+	async pewfowm(): Pwomise<void> {
 
-		if (this._edits.length === 0) {
-			return;
+		if (this._edits.wength === 0) {
+			wetuwn;
 		}
 
-		const ranges: number[] = [1];
-		for (let i = 1; i < this._edits.length; i++) {
-			if (Object.getPrototypeOf(this._edits[i - 1]) === Object.getPrototypeOf(this._edits[i])) {
-				ranges[ranges.length - 1]++;
-			} else {
-				ranges.push(1);
+		const wanges: numba[] = [1];
+		fow (wet i = 1; i < this._edits.wength; i++) {
+			if (Object.getPwototypeOf(this._edits[i - 1]) === Object.getPwototypeOf(this._edits[i])) {
+				wanges[wanges.wength - 1]++;
+			} ewse {
+				wanges.push(1);
 			}
 		}
 
-		// Show infinte progress when there is only 1 item since we do not know how long it takes
-		const increment = this._edits.length > 1 ? 0 : undefined;
-		this._progress.report({ increment, total: 100 });
-		// Increment by percentage points since progress API expects that
-		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 100 / this._edits.length }) };
+		// Show infinte pwogwess when thewe is onwy 1 item since we do not know how wong it takes
+		const incwement = this._edits.wength > 1 ? 0 : undefined;
+		this._pwogwess.wepowt({ incwement, totaw: 100 });
+		// Incwement by pewcentage points since pwogwess API expects that
+		const pwogwess: IPwogwess<void> = { wepowt: _ => this._pwogwess.wepowt({ incwement: 100 / this._edits.wength }) };
 
-		let index = 0;
-		for (let range of ranges) {
-			if (this._token.isCancellationRequested) {
-				break;
+		wet index = 0;
+		fow (wet wange of wanges) {
+			if (this._token.isCancewwationWequested) {
+				bweak;
 			}
-			const group = this._edits.slice(index, index + range);
-			if (group[0] instanceof ResourceFileEdit) {
-				await this._performFileEdits(<ResourceFileEdit[]>group, this._undoRedoGroup, this._undoRedoSource, this._confirmBeforeUndo, progress);
-			} else if (group[0] instanceof ResourceTextEdit) {
-				await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
-			} else if (group[0] instanceof ResourceNotebookCellEdit) {
-				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress);
-			} else {
-				console.log('UNKNOWN EDIT');
+			const gwoup = this._edits.swice(index, index + wange);
+			if (gwoup[0] instanceof WesouwceFiweEdit) {
+				await this._pewfowmFiweEdits(<WesouwceFiweEdit[]>gwoup, this._undoWedoGwoup, this._undoWedoSouwce, this._confiwmBefoweUndo, pwogwess);
+			} ewse if (gwoup[0] instanceof WesouwceTextEdit) {
+				await this._pewfowmTextEdits(<WesouwceTextEdit[]>gwoup, this._undoWedoGwoup, this._undoWedoSouwce, pwogwess);
+			} ewse if (gwoup[0] instanceof WesouwceNotebookCewwEdit) {
+				await this._pewfowmCewwEdits(<WesouwceNotebookCewwEdit[]>gwoup, this._undoWedoGwoup, this._undoWedoSouwce, pwogwess);
+			} ewse {
+				consowe.wog('UNKNOWN EDIT');
 			}
-			index = index + range;
+			index = index + wange;
 		}
 	}
 
-	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>) {
-		this._logService.debug('_performFileEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), undoRedoGroup, undoRedoSource, confirmBeforeUndo, progress, this._token, edits);
-		await model.apply();
+	pwivate async _pewfowmFiweEdits(edits: WesouwceFiweEdit[], undoWedoGwoup: UndoWedoGwoup, undoWedoSouwce: UndoWedoSouwce | undefined, confiwmBefoweUndo: boowean, pwogwess: IPwogwess<void>) {
+		this._wogSewvice.debug('_pewfowmFiweEdits', JSON.stwingify(edits));
+		const modew = this._instaSewvice.cweateInstance(BuwkFiweEdits, this._wabew || wocawize('wowkspaceEdit', "Wowkspace Edit"), undoWedoGwoup, undoWedoSouwce, confiwmBefoweUndo, pwogwess, this._token, edits);
+		await modew.appwy();
 	}
 
-	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
-		this._logService.debug('_performTextEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
-		await model.apply();
+	pwivate async _pewfowmTextEdits(edits: WesouwceTextEdit[], undoWedoGwoup: UndoWedoGwoup, undoWedoSouwce: UndoWedoSouwce | undefined, pwogwess: IPwogwess<void>): Pwomise<void> {
+		this._wogSewvice.debug('_pewfowmTextEdits', JSON.stwingify(edits));
+		const modew = this._instaSewvice.cweateInstance(BuwkTextEdits, this._wabew || wocawize('wowkspaceEdit', "Wowkspace Edit"), this._editow, undoWedoGwoup, undoWedoSouwce, pwogwess, this._token, edits);
+		await modew.appwy();
 	}
 
-	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<void> {
-		this._logService.debug('_performCellEdits', JSON.stringify(edits));
-		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
-		await model.apply();
+	pwivate async _pewfowmCewwEdits(edits: WesouwceNotebookCewwEdit[], undoWedoGwoup: UndoWedoGwoup, undoWedoSouwce: UndoWedoSouwce | undefined, pwogwess: IPwogwess<void>): Pwomise<void> {
+		this._wogSewvice.debug('_pewfowmCewwEdits', JSON.stwingify(edits));
+		const modew = this._instaSewvice.cweateInstance(BuwkCewwEdits, undoWedoGwoup, undoWedoSouwce, pwogwess, this._token, edits);
+		await modew.appwy();
 	}
 }
 
-export class BulkEditService implements IBulkEditService {
+expowt cwass BuwkEditSewvice impwements IBuwkEditSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
-	private _previewHandler?: IBulkEditPreviewHandler;
+	pwivate weadonwy _activeUndoWedoGwoups = new WinkedWist<UndoWedoGwoup>();
+	pwivate _pweviewHandwa?: IBuwkEditPweviewHandwa;
 
-	constructor(
-		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IDialogService private readonly _dialogService: IDialogService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instaSewvice: IInstantiationSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice
 	) { }
 
-	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
-		this._previewHandler = handler;
-		return toDisposable(() => {
-			if (this._previewHandler === handler) {
-				this._previewHandler = undefined;
+	setPweviewHandwa(handwa: IBuwkEditPweviewHandwa): IDisposabwe {
+		this._pweviewHandwa = handwa;
+		wetuwn toDisposabwe(() => {
+			if (this._pweviewHandwa === handwa) {
+				this._pweviewHandwa = undefined;
 			}
 		});
 	}
 
-	hasPreviewHandler(): boolean {
-		return Boolean(this._previewHandler);
+	hasPweviewHandwa(): boowean {
+		wetuwn Boowean(this._pweviewHandwa);
 	}
 
-	async apply(edits: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async appwy(edits: WesouwceEdit[], options?: IBuwkEditOptions): Pwomise<IBuwkEditWesuwt> {
 
-		if (edits.length === 0) {
-			return { ariaSummary: localize('nothing', "Made no edits") };
+		if (edits.wength === 0) {
+			wetuwn { awiaSummawy: wocawize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
-			edits = await this._previewHandler(edits, options);
+		if (this._pweviewHandwa && (options?.showPweview || edits.some(vawue => vawue.metadata?.needsConfiwmation))) {
+			edits = await this._pweviewHandwa(edits, options);
 		}
 
-		let codeEditor = options?.editor;
-		// try to find code editor
-		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorControl;
-			if (isCodeEditor(candidate)) {
-				codeEditor = candidate;
+		wet codeEditow = options?.editow;
+		// twy to find code editow
+		if (!codeEditow) {
+			wet candidate = this._editowSewvice.activeTextEditowContwow;
+			if (isCodeEditow(candidate)) {
+				codeEditow = candidate;
 			}
 		}
 
-		if (codeEditor && codeEditor.getOption(EditorOption.readOnly)) {
-			// If the code editor is readonly still allow bulk edits to be applied #68549
-			codeEditor = undefined;
+		if (codeEditow && codeEditow.getOption(EditowOption.weadOnwy)) {
+			// If the code editow is weadonwy stiww awwow buwk edits to be appwied #68549
+			codeEditow = undefined;
 		}
 
-		// undo-redo-group: if a group id is passed then try to find it
-		// in the list of active edits. otherwise (or when not found)
-		// create a separate undo-redo-group
-		let undoRedoGroup: UndoRedoGroup | undefined;
-		let undoRedoGroupRemove = () => { };
-		if (typeof options?.undoRedoGroupId === 'number') {
-			for (let candidate of this._activeUndoRedoGroups) {
-				if (candidate.id === options.undoRedoGroupId) {
-					undoRedoGroup = candidate;
-					break;
+		// undo-wedo-gwoup: if a gwoup id is passed then twy to find it
+		// in the wist of active edits. othewwise (ow when not found)
+		// cweate a sepawate undo-wedo-gwoup
+		wet undoWedoGwoup: UndoWedoGwoup | undefined;
+		wet undoWedoGwoupWemove = () => { };
+		if (typeof options?.undoWedoGwoupId === 'numba') {
+			fow (wet candidate of this._activeUndoWedoGwoups) {
+				if (candidate.id === options.undoWedoGwoupId) {
+					undoWedoGwoup = candidate;
+					bweak;
 				}
 			}
 		}
-		if (!undoRedoGroup) {
-			undoRedoGroup = new UndoRedoGroup();
-			undoRedoGroupRemove = this._activeUndoRedoGroups.push(undoRedoGroup);
+		if (!undoWedoGwoup) {
+			undoWedoGwoup = new UndoWedoGwoup();
+			undoWedoGwoupWemove = this._activeUndoWedoGwoups.push(undoWedoGwoup);
 		}
 
-		const label = options?.quotableLabel || options?.label;
-		const bulkEdit = this._instaService.createInstance(
-			BulkEdit,
-			label,
-			codeEditor,
-			options?.progress ?? Progress.None,
-			options?.token ?? CancellationToken.None,
+		const wabew = options?.quotabweWabew || options?.wabew;
+		const buwkEdit = this._instaSewvice.cweateInstance(
+			BuwkEdit,
+			wabew,
+			codeEditow,
+			options?.pwogwess ?? Pwogwess.None,
+			options?.token ?? CancewwationToken.None,
 			edits,
-			undoRedoGroup,
-			options?.undoRedoSource,
-			!!options?.confirmBeforeUndo
+			undoWedoGwoup,
+			options?.undoWedoSouwce,
+			!!options?.confiwmBefoweUndo
 		);
 
-		let listener: IDisposable | undefined;
-		try {
-			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label, e.reason), 'veto.blukEditService'));
-			await bulkEdit.perform();
-			return { ariaSummary: bulkEdit.ariaMessage() };
-		} catch (err) {
-			// console.log('apply FAILED');
-			// console.log(err);
-			this._logService.error(err);
-			throw err;
-		} finally {
-			listener?.dispose();
-			undoRedoGroupRemove();
+		wet wistena: IDisposabwe | undefined;
+		twy {
+			wistena = this._wifecycweSewvice.onBefoweShutdown(e => e.veto(this.shouwdVeto(wabew, e.weason), 'veto.bwukEditSewvice'));
+			await buwkEdit.pewfowm();
+			wetuwn { awiaSummawy: buwkEdit.awiaMessage() };
+		} catch (eww) {
+			// consowe.wog('appwy FAIWED');
+			// consowe.wog(eww);
+			this._wogSewvice.ewwow(eww);
+			thwow eww;
+		} finawwy {
+			wistena?.dispose();
+			undoWedoGwoupWemove();
 		}
 	}
 
-	private async shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
-		label = label || localize('fileOperation', "File operation");
-		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
-			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
-		const result = await this._dialogService.confirm({
-			message: localize('areYouSureQuiteBulkEdit', "Are you sure you want to {0}? '{1}' is in progress.", reasonLabel.toLowerCase(), label),
-			primaryButton: reasonLabel
+	pwivate async shouwdVeto(wabew: stwing | undefined, weason: ShutdownWeason): Pwomise<boowean> {
+		wabew = wabew || wocawize('fiweOpewation', "Fiwe opewation");
+		const weasonWabew = weason === ShutdownWeason.CWOSE ? wocawize('cwoseTheWindow', "Cwose Window") : weason === ShutdownWeason.WOAD ? wocawize('changeWowkspace', "Change Wowkspace") :
+			weason === ShutdownWeason.WEWOAD ? wocawize('wewoadTheWindow', "Wewoad Window") : wocawize('quit', "Quit");
+		const wesuwt = await this._diawogSewvice.confiwm({
+			message: wocawize('aweYouSuweQuiteBuwkEdit', "Awe you suwe you want to {0}? '{1}' is in pwogwess.", weasonWabew.toWowewCase(), wabew),
+			pwimawyButton: weasonWabew
 		});
 
-		return !result.confirmed;
+		wetuwn !wesuwt.confiwmed;
 	}
 }
 
-registerSingleton(IBulkEditService, BulkEditService, true);
+wegistewSingweton(IBuwkEditSewvice, BuwkEditSewvice, twue);

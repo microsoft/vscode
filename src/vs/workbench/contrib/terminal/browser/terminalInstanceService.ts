@@ -1,191 +1,191 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { Terminal as XTermTerminal } from 'xterm';
-import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { basename } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+impowt { IWemoteTewminawSewvice, ITewminawInstance, ITewminawInstanceSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt type { Tewminaw as XTewmTewminaw } fwom 'xtewm';
+impowt type { SeawchAddon as XTewmSeawchAddon } fwom 'xtewm-addon-seawch';
+impowt type { Unicode11Addon as XTewmUnicode11Addon } fwom 'xtewm-addon-unicode11';
+impowt type { WebgwAddon as XTewmWebgwAddon } fwom 'xtewm-addon-webgw';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IShewwWaunchConfig, ITewminawPwofiwe, TewminawWocation, TewminawShewwType, WindowsShewwType } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IInstantiationSewvice, optionaw } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { escapeNonWindowsPath } fwom 'vs/pwatfowm/tewminaw/common/tewminawEnviwonment';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { TewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawInstance';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TewminawConfigHewpa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawConfigHewpa';
+impowt { IWocawTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
 
-let Terminal: typeof XTermTerminal;
-let SearchAddon: typeof XTermSearchAddon;
-let Unicode11Addon: typeof XTermUnicode11Addon;
-let WebglAddon: typeof XTermWebglAddon;
+wet Tewminaw: typeof XTewmTewminaw;
+wet SeawchAddon: typeof XTewmSeawchAddon;
+wet Unicode11Addon: typeof XTewmUnicode11Addon;
+wet WebgwAddon: typeof XTewmWebgwAddon;
 
-export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
-	declare _serviceBrand: undefined;
-	private readonly _localTerminalService?: ILocalTerminalService;
-	private _terminalFocusContextKey: IContextKey<boolean>;
-	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
-	private _configHelper: TerminalConfigHelper;
+expowt cwass TewminawInstanceSewvice extends Disposabwe impwements ITewminawInstanceSewvice {
+	decwawe _sewviceBwand: undefined;
+	pwivate weadonwy _wocawTewminawSewvice?: IWocawTewminawSewvice;
+	pwivate _tewminawFocusContextKey: IContextKey<boowean>;
+	pwivate _tewminawShewwTypeContextKey: IContextKey<stwing>;
+	pwivate _tewminawAwtBuffewActiveContextKey: IContextKey<boowean>;
+	pwivate _configHewpa: TewminawConfigHewpa;
 
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
-	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
+	pwivate weadonwy _onDidCweateInstance = new Emitta<ITewminawInstance>();
+	get onDidCweateInstance(): Event<ITewminawInstance> { wetuwn this._onDidCweateInstance.event; }
 
-	constructor(
-		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
+	constwuctow(
+		@IWemoteTewminawSewvice pwivate weadonwy _wemoteTewminawSewvice: IWemoteTewminawSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@optionaw(IWocawTewminawSewvice) wocawTewminawSewvice: IWocawTewminawSewvice
 	) {
-		super();
-		this._localTerminalService = localTerminalService;
-		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
-		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
-		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+		supa();
+		this._wocawTewminawSewvice = wocawTewminawSewvice;
+		this._tewminawFocusContextKey = TewminawContextKeys.focus.bindTo(this._contextKeySewvice);
+		this._tewminawShewwTypeContextKey = TewminawContextKeys.shewwType.bindTo(this._contextKeySewvice);
+		this._tewminawAwtBuffewActiveContextKey = TewminawContextKeys.awtBuffewActive.bindTo(this._contextKeySewvice);
+		this._configHewpa = _instantiationSewvice.cweateInstance(TewminawConfigHewpa);
 	}
 
-	createInstance(profile: ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(config);
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalFocusContextKey,
-			this._terminalShellTypeContextKey,
-			this._terminalAltBufferActiveContextKey,
-			this._configHelper,
-			shellLaunchConfig,
-			resource
+	cweateInstance(pwofiwe: ITewminawPwofiwe, tawget?: TewminawWocation, wesouwce?: UWI): ITewminawInstance;
+	cweateInstance(shewwWaunchConfig: IShewwWaunchConfig, tawget?: TewminawWocation, wesouwce?: UWI): ITewminawInstance;
+	cweateInstance(config: IShewwWaunchConfig | ITewminawPwofiwe, tawget?: TewminawWocation, wesouwce?: UWI): ITewminawInstance {
+		const shewwWaunchConfig = this._convewtPwofiweToShewwWaunchConfig(config);
+		const instance = this._instantiationSewvice.cweateInstance(TewminawInstance,
+			this._tewminawFocusContextKey,
+			this._tewminawShewwTypeContextKey,
+			this._tewminawAwtBuffewActiveContextKey,
+			this._configHewpa,
+			shewwWaunchConfig,
+			wesouwce
 		);
-		instance.target = target;
-		this._onDidCreateInstance.fire(instance);
-		return instance;
+		instance.tawget = tawget;
+		this._onDidCweateInstance.fiwe(instance);
+		wetuwn instance;
 	}
 
-	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
-		// Profile was provided
-		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
-			const profile = shellLaunchConfigOrProfile;
-			return {
-				executable: profile.path,
-				args: profile.args,
-				env: profile.env,
-				icon: profile.icon,
-				color: profile.color,
-				name: profile.overrideName ? profile.profileName : undefined,
+	pwivate _convewtPwofiweToShewwWaunchConfig(shewwWaunchConfigOwPwofiwe?: IShewwWaunchConfig | ITewminawPwofiwe, cwd?: stwing | UWI): IShewwWaunchConfig {
+		// Pwofiwe was pwovided
+		if (shewwWaunchConfigOwPwofiwe && 'pwofiweName' in shewwWaunchConfigOwPwofiwe) {
+			const pwofiwe = shewwWaunchConfigOwPwofiwe;
+			wetuwn {
+				executabwe: pwofiwe.path,
+				awgs: pwofiwe.awgs,
+				env: pwofiwe.env,
+				icon: pwofiwe.icon,
+				cowow: pwofiwe.cowow,
+				name: pwofiwe.ovewwideName ? pwofiwe.pwofiweName : undefined,
 				cwd
 			};
 		}
 
-		// Shell launch config was provided
-		if (shellLaunchConfigOrProfile) {
+		// Sheww waunch config was pwovided
+		if (shewwWaunchConfigOwPwofiwe) {
 			if (cwd) {
-				shellLaunchConfigOrProfile.cwd = cwd;
+				shewwWaunchConfigOwPwofiwe.cwd = cwd;
 			}
-			return shellLaunchConfigOrProfile;
+			wetuwn shewwWaunchConfigOwPwofiwe;
 		}
 
-		// Return empty shell launch config
-		return {};
+		// Wetuwn empty sheww waunch config
+		wetuwn {};
 	}
 
-	async getXtermConstructor(): Promise<typeof XTermTerminal> {
-		if (!Terminal) {
-			Terminal = (await import('xterm')).Terminal;
+	async getXtewmConstwuctow(): Pwomise<typeof XTewmTewminaw> {
+		if (!Tewminaw) {
+			Tewminaw = (await impowt('xtewm')).Tewminaw;
 		}
-		return Terminal;
+		wetuwn Tewminaw;
 	}
 
-	async getXtermSearchConstructor(): Promise<typeof XTermSearchAddon> {
-		if (!SearchAddon) {
-			SearchAddon = (await import('xterm-addon-search')).SearchAddon;
+	async getXtewmSeawchConstwuctow(): Pwomise<typeof XTewmSeawchAddon> {
+		if (!SeawchAddon) {
+			SeawchAddon = (await impowt('xtewm-addon-seawch')).SeawchAddon;
 		}
-		return SearchAddon;
+		wetuwn SeawchAddon;
 	}
 
-	async getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon> {
+	async getXtewmUnicode11Constwuctow(): Pwomise<typeof XTewmUnicode11Addon> {
 		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+			Unicode11Addon = (await impowt('xtewm-addon-unicode11')).Unicode11Addon;
 		}
-		return Unicode11Addon;
+		wetuwn Unicode11Addon;
 	}
 
-	async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
-		if (!WebglAddon) {
-			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
+	async getXtewmWebgwConstwuctow(): Pwomise<typeof XTewmWebgwAddon> {
+		if (!WebgwAddon) {
+			WebgwAddon = (await impowt('xtewm-addon-webgw')).WebgwAddon;
 		}
-		return WebglAddon;
+		wetuwn WebgwAddon;
 	}
 
-	async preparePathForTerminalAsync(originalPath: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> {
-		return new Promise<string>(c => {
-			if (!executable) {
-				c(originalPath);
-				return;
+	async pwepawePathFowTewminawAsync(owiginawPath: stwing, executabwe: stwing | undefined, titwe: stwing, shewwType: TewminawShewwType, isWemote: boowean): Pwomise<stwing> {
+		wetuwn new Pwomise<stwing>(c => {
+			if (!executabwe) {
+				c(owiginawPath);
+				wetuwn;
 			}
 
-			const hasSpace = originalPath.indexOf(' ') !== -1;
-			const hasParens = originalPath.indexOf('(') !== -1 || originalPath.indexOf(')') !== -1;
+			const hasSpace = owiginawPath.indexOf(' ') !== -1;
+			const hasPawens = owiginawPath.indexOf('(') !== -1 || owiginawPath.indexOf(')') !== -1;
 
-			const pathBasename = basename(executable, '.exe');
-			const isPowerShell = pathBasename === 'pwsh' ||
-				title === 'pwsh' ||
-				pathBasename === 'powershell' ||
-				title === 'powershell';
+			const pathBasename = basename(executabwe, '.exe');
+			const isPowewSheww = pathBasename === 'pwsh' ||
+				titwe === 'pwsh' ||
+				pathBasename === 'powewsheww' ||
+				titwe === 'powewsheww';
 
-			if (isPowerShell && (hasSpace || originalPath.indexOf('\'') !== -1)) {
-				c(`& '${originalPath.replace(/'/g, '\'\'')}'`);
-				return;
+			if (isPowewSheww && (hasSpace || owiginawPath.indexOf('\'') !== -1)) {
+				c(`& '${owiginawPath.wepwace(/'/g, '\'\'')}'`);
+				wetuwn;
 			}
 
-			if (hasParens && isPowerShell) {
-				c(`& '${originalPath}'`);
-				return;
+			if (hasPawens && isPowewSheww) {
+				c(`& '${owiginawPath}'`);
+				wetuwn;
 			}
 
 			if (isWindows) {
-				// 17063 is the build number where wsl path was introduced.
-				// Update Windows uriPath to be executed in WSL.
-				if (shellType !== undefined) {
-					if (shellType === WindowsShellType.GitBash) {
-						c(originalPath.replace(/\\/g, '/'));
+				// 17063 is the buiwd numba whewe wsw path was intwoduced.
+				// Update Windows uwiPath to be executed in WSW.
+				if (shewwType !== undefined) {
+					if (shewwType === WindowsShewwType.GitBash) {
+						c(owiginawPath.wepwace(/\\/g, '/'));
 					}
-					else if (shellType === WindowsShellType.Wsl) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
-						c(offProcService?.getWslPath(originalPath) || originalPath);
+					ewse if (shewwType === WindowsShewwType.Wsw) {
+						const offPwocSewvice = isWemote ? this._wemoteTewminawSewvice : this._wocawTewminawSewvice;
+						c(offPwocSewvice?.getWswPath(owiginawPath) || owiginawPath);
 					}
 
-					else if (hasSpace) {
-						c('"' + originalPath + '"');
-					} else {
-						c(originalPath);
+					ewse if (hasSpace) {
+						c('"' + owiginawPath + '"');
+					} ewse {
+						c(owiginawPath);
 					}
-				} else {
-					const lowerExecutable = executable.toLowerCase();
-					if (lowerExecutable.indexOf('wsl') !== -1 || (lowerExecutable.indexOf('bash.exe') !== -1 && lowerExecutable.toLowerCase().indexOf('git') === -1)) {
-						const offProcService = isRemote ? this._remoteTerminalService : this._localTerminalService;
-						c(offProcService?.getWslPath(originalPath) || originalPath);
-					} else if (hasSpace) {
-						c('"' + originalPath + '"');
-					} else {
-						c(originalPath);
+				} ewse {
+					const wowewExecutabwe = executabwe.toWowewCase();
+					if (wowewExecutabwe.indexOf('wsw') !== -1 || (wowewExecutabwe.indexOf('bash.exe') !== -1 && wowewExecutabwe.toWowewCase().indexOf('git') === -1)) {
+						const offPwocSewvice = isWemote ? this._wemoteTewminawSewvice : this._wocawTewminawSewvice;
+						c(offPwocSewvice?.getWswPath(owiginawPath) || owiginawPath);
+					} ewse if (hasSpace) {
+						c('"' + owiginawPath + '"');
+					} ewse {
+						c(owiginawPath);
 					}
 				}
 
-				return;
+				wetuwn;
 			}
 
-			c(escapeNonWindowsPath(originalPath));
+			c(escapeNonWindowsPath(owiginawPath));
 		});
 	}
 }
 
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
+wegistewSingweton(ITewminawInstanceSewvice, TewminawInstanceSewvice, twue);

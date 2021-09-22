@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { WanguageIdentifia, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { BwacketEwectwicChawactewSuppowt, IEwectwicAction } fwom 'vs/editow/common/modes/suppowts/ewectwicChawacta';
+impowt { WichEditBwackets } fwom 'vs/editow/common/modes/suppowts/wichEditBwackets';
+impowt { TokenText, cweateFakeScopedWineTokens } fwom 'vs/editow/test/common/modesTestUtiws';
 
-const fakeLanguageIdentifier = new LanguageIdentifier('test', 3);
+const fakeWanguageIdentifia = new WanguageIdentifia('test', 3);
 
-suite('Editor Modes - Auto Indentation', () => {
-	function _testOnElectricCharacter(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): IElectricAction | null {
-		return electricCharacterSupport.onElectricCharacter(character, createFakeScopedLineTokens(line), offset);
+suite('Editow Modes - Auto Indentation', () => {
+	function _testOnEwectwicChawacta(ewectwicChawactewSuppowt: BwacketEwectwicChawactewSuppowt, wine: TokenText[], chawacta: stwing, offset: numba): IEwectwicAction | nuww {
+		wetuwn ewectwicChawactewSuppowt.onEwectwicChawacta(chawacta, cweateFakeScopedWineTokens(wine), offset);
 	}
 
-	function testDoesNothing(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): void {
-		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
-		assert.deepStrictEqual(actual, null);
+	function testDoesNothing(ewectwicChawactewSuppowt: BwacketEwectwicChawactewSuppowt, wine: TokenText[], chawacta: stwing, offset: numba): void {
+		wet actuaw = _testOnEwectwicChawacta(ewectwicChawactewSuppowt, wine, chawacta, offset);
+		assewt.deepStwictEquaw(actuaw, nuww);
 	}
 
-	function testMatchBracket(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number, matchOpenBracket: string): void {
-		let actual = _testOnElectricCharacter(electricCharacterSupport, line, character, offset);
-		assert.deepStrictEqual(actual, { matchOpenBracket: matchOpenBracket });
+	function testMatchBwacket(ewectwicChawactewSuppowt: BwacketEwectwicChawactewSuppowt, wine: TokenText[], chawacta: stwing, offset: numba, matchOpenBwacket: stwing): void {
+		wet actuaw = _testOnEwectwicChawacta(ewectwicChawactewSuppowt, wine, chawacta, offset);
+		assewt.deepStwictEquaw(actuaw, { matchOpenBwacket: matchOpenBwacket });
 	}
 
-	test('getElectricCharacters uses all sources and dedups', () => {
-		let sup = new BracketElectricCharacterSupport(
-			new RichEditBrackets(fakeLanguageIdentifier, [
+	test('getEwectwicChawactews uses aww souwces and dedups', () => {
+		wet sup = new BwacketEwectwicChawactewSuppowt(
+			new WichEditBwackets(fakeWanguageIdentifia, [
 				['{', '}'],
 				['(', ')']
 			])
 		);
 
-		assert.deepStrictEqual(sup.getElectricCharacters(), ['}', ')']);
+		assewt.deepStwictEquaw(sup.getEwectwicChawactews(), ['}', ')']);
 	});
 
-	test('matchOpenBracket', () => {
-		let sup = new BracketElectricCharacterSupport(
-			new RichEditBrackets(fakeLanguageIdentifier, [
+	test('matchOpenBwacket', () => {
+		wet sup = new BwacketEwectwicChawactewSuppowt(
+			new WichEditBwackets(fakeWanguageIdentifia, [
 				['{', '}'],
 				['(', ')']
 			])
 		);
 
-		testDoesNothing(sup, [{ text: '\t{', type: StandardTokenType.Other }], '\t', 1);
-		testDoesNothing(sup, [{ text: '\t{', type: StandardTokenType.Other }], '\t', 2);
-		testDoesNothing(sup, [{ text: '\t\t', type: StandardTokenType.Other }], '{', 3);
+		testDoesNothing(sup, [{ text: '\t{', type: StandawdTokenType.Otha }], '\t', 1);
+		testDoesNothing(sup, [{ text: '\t{', type: StandawdTokenType.Otha }], '\t', 2);
+		testDoesNothing(sup, [{ text: '\t\t', type: StandawdTokenType.Otha }], '{', 3);
 
-		testDoesNothing(sup, [{ text: '\t}', type: StandardTokenType.Other }], '\t', 1);
-		testDoesNothing(sup, [{ text: '\t}', type: StandardTokenType.Other }], '\t', 2);
-		testMatchBracket(sup, [{ text: '\t\t', type: StandardTokenType.Other }], '}', 3, '}');
+		testDoesNothing(sup, [{ text: '\t}', type: StandawdTokenType.Otha }], '\t', 1);
+		testDoesNothing(sup, [{ text: '\t}', type: StandawdTokenType.Otha }], '\t', 2);
+		testMatchBwacket(sup, [{ text: '\t\t', type: StandawdTokenType.Otha }], '}', 3, '}');
 	});
 });

@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Command } from '../commandManager';
+impowt * as vscode fwom 'vscode';
+impowt { Command } fwom '../commandManaga';
 
-export class MoveCursorToPositionCommand implements Command {
-	public readonly id = '_markdown.moveCursorToPosition';
+expowt cwass MoveCuwsowToPositionCommand impwements Command {
+	pubwic weadonwy id = '_mawkdown.moveCuwsowToPosition';
 
-	public execute(line: number, character: number) {
-		if (!vscode.window.activeTextEditor) {
-			return;
+	pubwic execute(wine: numba, chawacta: numba) {
+		if (!vscode.window.activeTextEditow) {
+			wetuwn;
 		}
-		const position = new vscode.Position(line, character);
-		const selection = new vscode.Selection(position, position);
-		vscode.window.activeTextEditor.revealRange(selection);
-		vscode.window.activeTextEditor.selection = selection;
+		const position = new vscode.Position(wine, chawacta);
+		const sewection = new vscode.Sewection(position, position);
+		vscode.window.activeTextEditow.weveawWange(sewection);
+		vscode.window.activeTextEditow.sewection = sewection;
 	}
 }

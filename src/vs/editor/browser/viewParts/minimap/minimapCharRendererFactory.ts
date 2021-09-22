@@ -1,169 +1,169 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
-import { allCharCodes } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { prebakedMiniMaps } from 'vs/editor/browser/viewParts/minimap/minimapPreBaked';
-import { Constants } from './minimapCharSheet';
-import { toUint8 } from 'vs/base/common/uint';
+impowt { MinimapChawWendewa } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawWendewa';
+impowt { awwChawCodes } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawSheet';
+impowt { pwebakedMiniMaps } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapPweBaked';
+impowt { Constants } fwom './minimapChawSheet';
+impowt { toUint8 } fwom 'vs/base/common/uint';
 
 /**
- * Creates character renderers. It takes a 'scale' that determines how large
- * characters should be drawn. Using this, it draws data into a canvas and
- * then downsamples the characters as necessary for the current display.
- * This makes rendering more efficient, rather than drawing a full (tiny)
- * font, or downsampling in real-time.
+ * Cweates chawacta wendewews. It takes a 'scawe' that detewmines how wawge
+ * chawactews shouwd be dwawn. Using this, it dwaws data into a canvas and
+ * then downsampwes the chawactews as necessawy fow the cuwwent dispway.
+ * This makes wendewing mowe efficient, watha than dwawing a fuww (tiny)
+ * font, ow downsampwing in weaw-time.
  */
-export class MinimapCharRendererFactory {
-	private static lastCreated?: MinimapCharRenderer;
-	private static lastFontFamily?: string;
+expowt cwass MinimapChawWendewewFactowy {
+	pwivate static wastCweated?: MinimapChawWendewa;
+	pwivate static wastFontFamiwy?: stwing;
 
 	/**
-	 * Creates a new character renderer factory with the given scale.
+	 * Cweates a new chawacta wendewa factowy with the given scawe.
 	 */
-	public static create(scale: number, fontFamily: string) {
-		// renderers are immutable. By default we'll 'create' a new minimap
-		// character renderer whenever we switch editors, no need to do extra work.
-		if (this.lastCreated && scale === this.lastCreated.scale && fontFamily === this.lastFontFamily) {
-			return this.lastCreated;
+	pubwic static cweate(scawe: numba, fontFamiwy: stwing) {
+		// wendewews awe immutabwe. By defauwt we'ww 'cweate' a new minimap
+		// chawacta wendewa wheneva we switch editows, no need to do extwa wowk.
+		if (this.wastCweated && scawe === this.wastCweated.scawe && fontFamiwy === this.wastFontFamiwy) {
+			wetuwn this.wastCweated;
 		}
 
-		let factory: MinimapCharRenderer;
-		if (prebakedMiniMaps[scale]) {
-			factory = new MinimapCharRenderer(prebakedMiniMaps[scale](), scale);
-		} else {
-			factory = MinimapCharRendererFactory.createFromSampleData(
-				MinimapCharRendererFactory.createSampleData(fontFamily).data,
-				scale
+		wet factowy: MinimapChawWendewa;
+		if (pwebakedMiniMaps[scawe]) {
+			factowy = new MinimapChawWendewa(pwebakedMiniMaps[scawe](), scawe);
+		} ewse {
+			factowy = MinimapChawWendewewFactowy.cweateFwomSampweData(
+				MinimapChawWendewewFactowy.cweateSampweData(fontFamiwy).data,
+				scawe
 			);
 		}
 
-		this.lastFontFamily = fontFamily;
-		this.lastCreated = factory;
-		return factory;
+		this.wastFontFamiwy = fontFamiwy;
+		this.wastCweated = factowy;
+		wetuwn factowy;
 	}
 
 	/**
-	 * Creates the font sample data, writing to a canvas.
+	 * Cweates the font sampwe data, wwiting to a canvas.
 	 */
-	public static createSampleData(fontFamily: string): ImageData {
-		const canvas = document.createElement('canvas');
+	pubwic static cweateSampweData(fontFamiwy: stwing): ImageData {
+		const canvas = document.cweateEwement('canvas');
 		const ctx = canvas.getContext('2d')!;
 
-		canvas.style.height = `${Constants.SAMPLED_CHAR_HEIGHT}px`;
-		canvas.height = Constants.SAMPLED_CHAR_HEIGHT;
-		canvas.width = Constants.CHAR_COUNT * Constants.SAMPLED_CHAR_WIDTH;
-		canvas.style.width = Constants.CHAR_COUNT * Constants.SAMPLED_CHAR_WIDTH + 'px';
+		canvas.stywe.height = `${Constants.SAMPWED_CHAW_HEIGHT}px`;
+		canvas.height = Constants.SAMPWED_CHAW_HEIGHT;
+		canvas.width = Constants.CHAW_COUNT * Constants.SAMPWED_CHAW_WIDTH;
+		canvas.stywe.width = Constants.CHAW_COUNT * Constants.SAMPWED_CHAW_WIDTH + 'px';
 
-		ctx.fillStyle = '#ffffff';
-		ctx.font = `bold ${Constants.SAMPLED_CHAR_HEIGHT}px ${fontFamily}`;
-		ctx.textBaseline = 'middle';
+		ctx.fiwwStywe = '#ffffff';
+		ctx.font = `bowd ${Constants.SAMPWED_CHAW_HEIGHT}px ${fontFamiwy}`;
+		ctx.textBasewine = 'middwe';
 
-		let x = 0;
-		for (const code of allCharCodes) {
-			ctx.fillText(String.fromCharCode(code), x, Constants.SAMPLED_CHAR_HEIGHT / 2);
-			x += Constants.SAMPLED_CHAR_WIDTH;
+		wet x = 0;
+		fow (const code of awwChawCodes) {
+			ctx.fiwwText(Stwing.fwomChawCode(code), x, Constants.SAMPWED_CHAW_HEIGHT / 2);
+			x += Constants.SAMPWED_CHAW_WIDTH;
 		}
 
-		return ctx.getImageData(0, 0, Constants.CHAR_COUNT * Constants.SAMPLED_CHAR_WIDTH, Constants.SAMPLED_CHAR_HEIGHT);
+		wetuwn ctx.getImageData(0, 0, Constants.CHAW_COUNT * Constants.SAMPWED_CHAW_WIDTH, Constants.SAMPWED_CHAW_HEIGHT);
 	}
 
 	/**
-	 * Creates a character renderer from the canvas sample data.
+	 * Cweates a chawacta wendewa fwom the canvas sampwe data.
 	 */
-	public static createFromSampleData(source: Uint8ClampedArray, scale: number): MinimapCharRenderer {
-		const expectedLength =
-			Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT;
-		if (source.length !== expectedLength) {
-			throw new Error('Unexpected source in MinimapCharRenderer');
+	pubwic static cweateFwomSampweData(souwce: Uint8CwampedAwway, scawe: numba): MinimapChawWendewa {
+		const expectedWength =
+			Constants.SAMPWED_CHAW_HEIGHT * Constants.SAMPWED_CHAW_WIDTH * Constants.WGBA_CHANNEWS_CNT * Constants.CHAW_COUNT;
+		if (souwce.wength !== expectedWength) {
+			thwow new Ewwow('Unexpected souwce in MinimapChawWendewa');
 		}
 
-		let charData = MinimapCharRendererFactory._downsample(source, scale);
-		return new MinimapCharRenderer(charData, scale);
+		wet chawData = MinimapChawWendewewFactowy._downsampwe(souwce, scawe);
+		wetuwn new MinimapChawWendewa(chawData, scawe);
 	}
 
-	private static _downsampleChar(
-		source: Uint8ClampedArray,
-		sourceOffset: number,
-		dest: Uint8ClampedArray,
-		destOffset: number,
-		scale: number
-	): number {
-		const width = Constants.BASE_CHAR_WIDTH * scale;
-		const height = Constants.BASE_CHAR_HEIGHT * scale;
+	pwivate static _downsampweChaw(
+		souwce: Uint8CwampedAwway,
+		souwceOffset: numba,
+		dest: Uint8CwampedAwway,
+		destOffset: numba,
+		scawe: numba
+	): numba {
+		const width = Constants.BASE_CHAW_WIDTH * scawe;
+		const height = Constants.BASE_CHAW_HEIGHT * scawe;
 
-		let targetIndex = destOffset;
-		let brightest = 0;
+		wet tawgetIndex = destOffset;
+		wet bwightest = 0;
 
-		// This is essentially an ad-hoc rescaling algorithm. Standard approaches
-		// like bicubic interpolation are awesome for scaling between image sizes,
-		// but don't work so well when scaling to very small pixel values, we end
-		// up with blurry, indistinct forms.
+		// This is essentiawwy an ad-hoc wescawing awgowithm. Standawd appwoaches
+		// wike bicubic intewpowation awe awesome fow scawing between image sizes,
+		// but don't wowk so weww when scawing to vewy smaww pixew vawues, we end
+		// up with bwuwwy, indistinct fowms.
 		//
-		// The approach taken here is simply mapping each source pixel to the target
-		// pixels, and taking the weighted values for all pixels in each, and then
-		// averaging them out. Finally we apply an intensity boost in _downsample,
-		// since when scaling to the smallest pixel sizes there's more black space
-		// which causes characters to be much less distinct.
-		for (let y = 0; y < height; y++) {
-			// 1. For this destination pixel, get the source pixels we're sampling
-			// from (x1, y1) to the next pixel (x2, y2)
-			const sourceY1 = (y / height) * Constants.SAMPLED_CHAR_HEIGHT;
-			const sourceY2 = ((y + 1) / height) * Constants.SAMPLED_CHAR_HEIGHT;
+		// The appwoach taken hewe is simpwy mapping each souwce pixew to the tawget
+		// pixews, and taking the weighted vawues fow aww pixews in each, and then
+		// avewaging them out. Finawwy we appwy an intensity boost in _downsampwe,
+		// since when scawing to the smawwest pixew sizes thewe's mowe bwack space
+		// which causes chawactews to be much wess distinct.
+		fow (wet y = 0; y < height; y++) {
+			// 1. Fow this destination pixew, get the souwce pixews we'we sampwing
+			// fwom (x1, y1) to the next pixew (x2, y2)
+			const souwceY1 = (y / height) * Constants.SAMPWED_CHAW_HEIGHT;
+			const souwceY2 = ((y + 1) / height) * Constants.SAMPWED_CHAW_HEIGHT;
 
-			for (let x = 0; x < width; x++) {
-				const sourceX1 = (x / width) * Constants.SAMPLED_CHAR_WIDTH;
-				const sourceX2 = ((x + 1) / width) * Constants.SAMPLED_CHAR_WIDTH;
+			fow (wet x = 0; x < width; x++) {
+				const souwceX1 = (x / width) * Constants.SAMPWED_CHAW_WIDTH;
+				const souwceX2 = ((x + 1) / width) * Constants.SAMPWED_CHAW_WIDTH;
 
-				// 2. Sample all of them, summing them up and weighting them. Similar
-				// to bilinear interpolation.
-				let value = 0;
-				let samples = 0;
-				for (let sy = sourceY1; sy < sourceY2; sy++) {
-					const sourceRow = sourceOffset + Math.floor(sy) * Constants.RGBA_SAMPLED_ROW_WIDTH;
-					const yBalance = 1 - (sy - Math.floor(sy));
-					for (let sx = sourceX1; sx < sourceX2; sx++) {
-						const xBalance = 1 - (sx - Math.floor(sx));
-						const sourceIndex = sourceRow + Math.floor(sx) * Constants.RGBA_CHANNELS_CNT;
+				// 2. Sampwe aww of them, summing them up and weighting them. Simiwaw
+				// to biwineaw intewpowation.
+				wet vawue = 0;
+				wet sampwes = 0;
+				fow (wet sy = souwceY1; sy < souwceY2; sy++) {
+					const souwceWow = souwceOffset + Math.fwoow(sy) * Constants.WGBA_SAMPWED_WOW_WIDTH;
+					const yBawance = 1 - (sy - Math.fwoow(sy));
+					fow (wet sx = souwceX1; sx < souwceX2; sx++) {
+						const xBawance = 1 - (sx - Math.fwoow(sx));
+						const souwceIndex = souwceWow + Math.fwoow(sx) * Constants.WGBA_CHANNEWS_CNT;
 
-						const weight = xBalance * yBalance;
-						samples += weight;
-						value += ((source[sourceIndex] * source[sourceIndex + 3]) / 255) * weight;
+						const weight = xBawance * yBawance;
+						sampwes += weight;
+						vawue += ((souwce[souwceIndex] * souwce[souwceIndex + 3]) / 255) * weight;
 					}
 				}
 
-				const final = value / samples;
-				brightest = Math.max(brightest, final);
-				dest[targetIndex++] = toUint8(final);
+				const finaw = vawue / sampwes;
+				bwightest = Math.max(bwightest, finaw);
+				dest[tawgetIndex++] = toUint8(finaw);
 			}
 		}
 
-		return brightest;
+		wetuwn bwightest;
 	}
 
-	private static _downsample(data: Uint8ClampedArray, scale: number): Uint8ClampedArray {
-		const pixelsPerCharacter = Constants.BASE_CHAR_HEIGHT * scale * Constants.BASE_CHAR_WIDTH * scale;
-		const resultLen = pixelsPerCharacter * Constants.CHAR_COUNT;
-		const result = new Uint8ClampedArray(resultLen);
+	pwivate static _downsampwe(data: Uint8CwampedAwway, scawe: numba): Uint8CwampedAwway {
+		const pixewsPewChawacta = Constants.BASE_CHAW_HEIGHT * scawe * Constants.BASE_CHAW_WIDTH * scawe;
+		const wesuwtWen = pixewsPewChawacta * Constants.CHAW_COUNT;
+		const wesuwt = new Uint8CwampedAwway(wesuwtWen);
 
-		let resultOffset = 0;
-		let sourceOffset = 0;
-		let brightest = 0;
-		for (let charIndex = 0; charIndex < Constants.CHAR_COUNT; charIndex++) {
-			brightest = Math.max(brightest, this._downsampleChar(data, sourceOffset, result, resultOffset, scale));
-			resultOffset += pixelsPerCharacter;
-			sourceOffset += Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT;
+		wet wesuwtOffset = 0;
+		wet souwceOffset = 0;
+		wet bwightest = 0;
+		fow (wet chawIndex = 0; chawIndex < Constants.CHAW_COUNT; chawIndex++) {
+			bwightest = Math.max(bwightest, this._downsampweChaw(data, souwceOffset, wesuwt, wesuwtOffset, scawe));
+			wesuwtOffset += pixewsPewChawacta;
+			souwceOffset += Constants.SAMPWED_CHAW_WIDTH * Constants.WGBA_CHANNEWS_CNT;
 		}
 
-		if (brightest > 0) {
-			const adjust = 255 / brightest;
-			for (let i = 0; i < resultLen; i++) {
-				result[i] *= adjust;
+		if (bwightest > 0) {
+			const adjust = 255 / bwightest;
+			fow (wet i = 0; i < wesuwtWen; i++) {
+				wesuwt[i] *= adjust;
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

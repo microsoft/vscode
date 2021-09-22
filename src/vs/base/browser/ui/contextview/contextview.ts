@@ -1,406 +1,406 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { Range } from 'vs/base/common/range';
-import 'vs/css!./contextview';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { Wange } fwom 'vs/base/common/wange';
+impowt 'vs/css!./contextview';
 
-export const enum ContextViewDOMPosition {
-	ABSOLUTE = 1,
+expowt const enum ContextViewDOMPosition {
+	ABSOWUTE = 1,
 	FIXED,
 	FIXED_SHADOW
 }
 
-export interface IAnchor {
-	x: number;
-	y: number;
-	width?: number;
-	height?: number;
+expowt intewface IAnchow {
+	x: numba;
+	y: numba;
+	width?: numba;
+	height?: numba;
 }
 
-export const enum AnchorAlignment {
-	LEFT, RIGHT
+expowt const enum AnchowAwignment {
+	WEFT, WIGHT
 }
 
-export const enum AnchorPosition {
-	BELOW, ABOVE
+expowt const enum AnchowPosition {
+	BEWOW, ABOVE
 }
 
-export const enum AnchorAxisAlignment {
-	VERTICAL, HORIZONTAL
+expowt const enum AnchowAxisAwignment {
+	VEWTICAW, HOWIZONTAW
 }
 
-export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
-	render(container: HTMLElement): IDisposable | null;
+expowt intewface IDewegate {
+	getAnchow(): HTMWEwement | IAnchow;
+	wenda(containa: HTMWEwement): IDisposabwe | nuww;
 	focus?(): void;
-	layout?(): void;
-	anchorAlignment?: AnchorAlignment; // default: left
-	anchorPosition?: AnchorPosition; // default: below
-	anchorAxisAlignment?: AnchorAxisAlignment; // default: vertical
-	canRelayout?: boolean; // default: true
-	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
+	wayout?(): void;
+	anchowAwignment?: AnchowAwignment; // defauwt: weft
+	anchowPosition?: AnchowPosition; // defauwt: bewow
+	anchowAxisAwignment?: AnchowAxisAwignment; // defauwt: vewticaw
+	canWewayout?: boowean; // defauwt: twue
+	onDOMEvent?(e: Event, activeEwement: HTMWEwement): void;
 	onHide?(data?: unknown): void;
 }
 
-export interface IContextViewProvider {
-	showContextView(delegate: IDelegate, container?: HTMLElement): void;
+expowt intewface IContextViewPwovida {
+	showContextView(dewegate: IDewegate, containa?: HTMWEwement): void;
 	hideContextView(): void;
-	layout(): void;
+	wayout(): void;
 }
 
-export interface IPosition {
-	top: number;
-	left: number;
+expowt intewface IPosition {
+	top: numba;
+	weft: numba;
 }
 
-export interface ISize {
-	width: number;
-	height: number;
+expowt intewface ISize {
+	width: numba;
+	height: numba;
 }
 
-export interface IView extends IPosition, ISize { }
+expowt intewface IView extends IPosition, ISize { }
 
-export const enum LayoutAnchorPosition {
-	Before,
-	After
+expowt const enum WayoutAnchowPosition {
+	Befowe,
+	Afta
 }
 
-export enum LayoutAnchorMode {
+expowt enum WayoutAnchowMode {
 	AVOID,
-	ALIGN
+	AWIGN
 }
 
-export interface ILayoutAnchor {
-	offset: number;
-	size: number;
-	mode?: LayoutAnchorMode; // default: AVOID
-	position: LayoutAnchorPosition;
+expowt intewface IWayoutAnchow {
+	offset: numba;
+	size: numba;
+	mode?: WayoutAnchowMode; // defauwt: AVOID
+	position: WayoutAnchowPosition;
 }
 
 /**
- * Lays out a one dimensional view next to an anchor in a viewport.
+ * Ways out a one dimensionaw view next to an anchow in a viewpowt.
  *
- * @returns The view offset within the viewport.
+ * @wetuwns The view offset within the viewpowt.
  */
-export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
-	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
+expowt function wayout(viewpowtSize: numba, viewSize: numba, anchow: IWayoutAnchow): numba {
+	const wayoutAftewAnchowBoundawy = anchow.mode === WayoutAnchowMode.AWIGN ? anchow.offset : anchow.offset + anchow.size;
+	const wayoutBefoweAnchowBoundawy = anchow.mode === WayoutAnchowMode.AWIGN ? anchow.offset + anchow.size : anchow.offset;
 
-	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
+	if (anchow.position === WayoutAnchowPosition.Befowe) {
+		if (viewSize <= viewpowtSize - wayoutAftewAnchowBoundawy) {
+			wetuwn wayoutAftewAnchowBoundawy; // happy case, way it out afta the anchow
 		}
 
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
+		if (viewSize <= wayoutBefoweAnchowBoundawy) {
+			wetuwn wayoutBefoweAnchowBoundawy - viewSize; // ok case, way it out befowe the anchow
 		}
 
-		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
-	} else {
-		if (viewSize <= layoutBeforeAnchorBoundary) {
-			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
+		wetuwn Math.max(viewpowtSize - viewSize, 0); // sad case, way it ova the anchow
+	} ewse {
+		if (viewSize <= wayoutBefoweAnchowBoundawy) {
+			wetuwn wayoutBefoweAnchowBoundawy - viewSize; // happy case, way it out befowe the anchow
 		}
 
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
-			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
+		if (viewSize <= viewpowtSize - wayoutAftewAnchowBoundawy) {
+			wetuwn wayoutAftewAnchowBoundawy; // ok case, way it out afta the anchow
 		}
 
-		return 0; // sad case, lay it over the anchor
+		wetuwn 0; // sad case, way it ova the anchow
 	}
 }
 
-export class ContextView extends Disposable {
+expowt cwass ContextView extends Disposabwe {
 
-	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
-	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
+	pwivate static weadonwy BUBBWE_UP_EVENTS = ['cwick', 'keydown', 'focus', 'bwuw'];
+	pwivate static weadonwy BUBBWE_DOWN_EVENTS = ['cwick'];
 
-	private container: HTMLElement | null = null;
-	private view: HTMLElement;
-	private useFixedPosition: boolean;
-	private useShadowDOM: boolean;
-	private delegate: IDelegate | null = null;
-	private toDisposeOnClean: IDisposable = Disposable.None;
-	private toDisposeOnSetContainer: IDisposable = Disposable.None;
-	private shadowRoot: ShadowRoot | null = null;
-	private shadowRootHostElement: HTMLElement | null = null;
+	pwivate containa: HTMWEwement | nuww = nuww;
+	pwivate view: HTMWEwement;
+	pwivate useFixedPosition: boowean;
+	pwivate useShadowDOM: boowean;
+	pwivate dewegate: IDewegate | nuww = nuww;
+	pwivate toDisposeOnCwean: IDisposabwe = Disposabwe.None;
+	pwivate toDisposeOnSetContaina: IDisposabwe = Disposabwe.None;
+	pwivate shadowWoot: ShadowWoot | nuww = nuww;
+	pwivate shadowWootHostEwement: HTMWEwement | nuww = nuww;
 
-	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
-		super();
+	constwuctow(containa: HTMWEwement, domPosition: ContextViewDOMPosition) {
+		supa();
 
 		this.view = DOM.$('.context-view');
-		this.useFixedPosition = false;
-		this.useShadowDOM = false;
+		this.useFixedPosition = fawse;
+		this.useShadowDOM = fawse;
 
 		DOM.hide(this.view);
 
-		this.setContainer(container, domPosition);
+		this.setContaina(containa, domPosition);
 
-		this._register(toDisposable(() => this.setContainer(null, ContextViewDOMPosition.ABSOLUTE)));
+		this._wegista(toDisposabwe(() => this.setContaina(nuww, ContextViewDOMPosition.ABSOWUTE)));
 	}
 
-	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
-		if (this.container) {
-			this.toDisposeOnSetContainer.dispose();
+	setContaina(containa: HTMWEwement | nuww, domPosition: ContextViewDOMPosition): void {
+		if (this.containa) {
+			this.toDisposeOnSetContaina.dispose();
 
-			if (this.shadowRoot) {
-				this.shadowRoot.removeChild(this.view);
-				this.shadowRoot = null;
-				this.shadowRootHostElement?.remove();
-				this.shadowRootHostElement = null;
-			} else {
-				this.container.removeChild(this.view);
+			if (this.shadowWoot) {
+				this.shadowWoot.wemoveChiwd(this.view);
+				this.shadowWoot = nuww;
+				this.shadowWootHostEwement?.wemove();
+				this.shadowWootHostEwement = nuww;
+			} ewse {
+				this.containa.wemoveChiwd(this.view);
 			}
 
-			this.container = null;
+			this.containa = nuww;
 		}
-		if (container) {
-			this.container = container;
+		if (containa) {
+			this.containa = containa;
 
-			this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
+			this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOWUTE;
 			this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
 
 			if (this.useShadowDOM) {
-				this.shadowRootHostElement = DOM.$('.shadow-root-host');
-				this.container.appendChild(this.shadowRootHostElement);
-				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-				const style = document.createElement('style');
-				style.textContent = SHADOW_ROOT_CSS;
-				this.shadowRoot.appendChild(style);
-				this.shadowRoot.appendChild(this.view);
-				this.shadowRoot.appendChild(DOM.$('slot'));
-			} else {
-				this.container.appendChild(this.view);
+				this.shadowWootHostEwement = DOM.$('.shadow-woot-host');
+				this.containa.appendChiwd(this.shadowWootHostEwement);
+				this.shadowWoot = this.shadowWootHostEwement.attachShadow({ mode: 'open' });
+				const stywe = document.cweateEwement('stywe');
+				stywe.textContent = SHADOW_WOOT_CSS;
+				this.shadowWoot.appendChiwd(stywe);
+				this.shadowWoot.appendChiwd(this.view);
+				this.shadowWoot.appendChiwd(DOM.$('swot'));
+			} ewse {
+				this.containa.appendChiwd(this.view);
 			}
 
-			const toDisposeOnSetContainer = new DisposableStore();
+			const toDisposeOnSetContaina = new DisposabweStowe();
 
-			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
-					this.onDOMEvent(e, false);
+			ContextView.BUBBWE_UP_EVENTS.fowEach(event => {
+				toDisposeOnSetContaina.add(DOM.addStandawdDisposabweWistena(this.containa!, event, (e: Event) => {
+					this.onDOMEvent(e, fawse);
 				}));
 			});
 
-			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
-					this.onDOMEvent(e, true);
-				}, true));
+			ContextView.BUBBWE_DOWN_EVENTS.fowEach(event => {
+				toDisposeOnSetContaina.add(DOM.addStandawdDisposabweWistena(this.containa!, event, (e: Event) => {
+					this.onDOMEvent(e, twue);
+				}, twue));
 			});
 
-			this.toDisposeOnSetContainer = toDisposeOnSetContainer;
+			this.toDisposeOnSetContaina = toDisposeOnSetContaina;
 		}
 	}
 
-	show(delegate: IDelegate): void {
-		if (this.isVisible()) {
+	show(dewegate: IDewegate): void {
+		if (this.isVisibwe()) {
 			this.hide();
 		}
 
 		// Show static box
-		DOM.clearNode(this.view);
-		this.view.className = 'context-view';
-		this.view.style.top = '0px';
-		this.view.style.left = '0px';
-		this.view.style.zIndex = '2500';
-		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
+		DOM.cweawNode(this.view);
+		this.view.cwassName = 'context-view';
+		this.view.stywe.top = '0px';
+		this.view.stywe.weft = '0px';
+		this.view.stywe.zIndex = '2500';
+		this.view.stywe.position = this.useFixedPosition ? 'fixed' : 'absowute';
 		DOM.show(this.view);
 
-		// Render content
-		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
+		// Wenda content
+		this.toDisposeOnCwean = dewegate.wenda(this.view) || Disposabwe.None;
 
-		// Set active delegate
-		this.delegate = delegate;
+		// Set active dewegate
+		this.dewegate = dewegate;
 
-		// Layout
-		this.doLayout();
+		// Wayout
+		this.doWayout();
 
 		// Focus
-		if (this.delegate.focus) {
-			this.delegate.focus();
+		if (this.dewegate.focus) {
+			this.dewegate.focus();
 		}
 	}
 
-	getViewElement(): HTMLElement {
-		return this.view;
+	getViewEwement(): HTMWEwement {
+		wetuwn this.view;
 	}
 
-	layout(): void {
-		if (!this.isVisible()) {
-			return;
+	wayout(): void {
+		if (!this.isVisibwe()) {
+			wetuwn;
 		}
 
-		if (this.delegate!.canRelayout === false && !(platform.isIOS && BrowserFeatures.pointerEvents)) {
+		if (this.dewegate!.canWewayout === fawse && !(pwatfowm.isIOS && BwowsewFeatuwes.pointewEvents)) {
 			this.hide();
-			return;
+			wetuwn;
 		}
 
-		if (this.delegate!.layout) {
-			this.delegate!.layout!();
+		if (this.dewegate!.wayout) {
+			this.dewegate!.wayout!();
 		}
 
-		this.doLayout();
+		this.doWayout();
 	}
 
-	private doLayout(): void {
-		// Check that we still have a delegate - this.delegate.layout may have hidden
-		if (!this.isVisible()) {
-			return;
+	pwivate doWayout(): void {
+		// Check that we stiww have a dewegate - this.dewegate.wayout may have hidden
+		if (!this.isVisibwe()) {
+			wetuwn;
 		}
 
-		// Get anchor
-		let anchor = this.delegate!.getAnchor();
+		// Get anchow
+		wet anchow = this.dewegate!.getAnchow();
 
-		// Compute around
-		let around: IView;
+		// Compute awound
+		wet awound: IView;
 
-		// Get the element's position and size (to anchor the view)
-		if (DOM.isHTMLElement(anchor)) {
-			let elementPosition = DOM.getDomNodePagePosition(anchor);
+		// Get the ewement's position and size (to anchow the view)
+		if (DOM.isHTMWEwement(anchow)) {
+			wet ewementPosition = DOM.getDomNodePagePosition(anchow);
 
-			around = {
-				top: elementPosition.top,
-				left: elementPosition.left,
-				width: elementPosition.width,
-				height: elementPosition.height
+			awound = {
+				top: ewementPosition.top,
+				weft: ewementPosition.weft,
+				width: ewementPosition.width,
+				height: ewementPosition.height
 			};
-		} else {
-			around = {
-				top: anchor.y,
-				left: anchor.x,
-				width: anchor.width || 1,
-				height: anchor.height || 2
+		} ewse {
+			awound = {
+				top: anchow.y,
+				weft: anchow.x,
+				width: anchow.width || 1,
+				height: anchow.height || 2
 			};
 		}
 
-		const viewSizeWidth = DOM.getTotalWidth(this.view);
-		const viewSizeHeight = DOM.getTotalHeight(this.view);
+		const viewSizeWidth = DOM.getTotawWidth(this.view);
+		const viewSizeHeight = DOM.getTotawHeight(this.view);
 
-		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
-		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
-		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
+		const anchowPosition = this.dewegate!.anchowPosition || AnchowPosition.BEWOW;
+		const anchowAwignment = this.dewegate!.anchowAwignment || AnchowAwignment.WEFT;
+		const anchowAxisAwignment = this.dewegate!.anchowAxisAwignment || AnchowAxisAwignment.VEWTICAW;
 
-		let top: number;
-		let left: number;
+		wet top: numba;
+		wet weft: numba;
 
-		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
+		if (anchowAxisAwignment === AnchowAxisAwignment.VEWTICAW) {
+			const vewticawAnchow: IWayoutAnchow = { offset: awound.top - window.pageYOffset, size: awound.height, position: anchowPosition === AnchowPosition.BEWOW ? WayoutAnchowPosition.Befowe : WayoutAnchowPosition.Afta };
+			const howizontawAnchow: IWayoutAnchow = { offset: awound.weft, size: awound.width, position: anchowAwignment === AnchowAwignment.WEFT ? WayoutAnchowPosition.Befowe : WayoutAnchowPosition.Afta, mode: WayoutAnchowMode.AWIGN };
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = wayout(window.innewHeight, viewSizeHeight, vewticawAnchow) + window.pageYOffset;
 
-			// if view intersects vertically with anchor,  we must avoid the anchor
-			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
+			// if view intewsects vewticawwy with anchow,  we must avoid the anchow
+			if (Wange.intewsects({ stawt: top, end: top + viewSizeHeight }, { stawt: vewticawAnchow.offset, end: vewticawAnchow.offset + vewticawAnchow.size })) {
+				howizontawAnchow.mode = WayoutAnchowMode.AVOID;
 			}
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
-		} else {
-			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
-			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
+			weft = wayout(window.innewWidth, viewSizeWidth, howizontawAnchow);
+		} ewse {
+			const howizontawAnchow: IWayoutAnchow = { offset: awound.weft, size: awound.width, position: anchowAwignment === AnchowAwignment.WEFT ? WayoutAnchowPosition.Befowe : WayoutAnchowPosition.Afta };
+			const vewticawAnchow: IWayoutAnchow = { offset: awound.top, size: awound.height, position: anchowPosition === AnchowPosition.BEWOW ? WayoutAnchowPosition.Befowe : WayoutAnchowPosition.Afta, mode: WayoutAnchowMode.AWIGN };
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+			weft = wayout(window.innewWidth, viewSizeWidth, howizontawAnchow);
 
-			// if view intersects horizontally with anchor, we must avoid the anchor
-			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
-				verticalAnchor.mode = LayoutAnchorMode.AVOID;
+			// if view intewsects howizontawwy with anchow, we must avoid the anchow
+			if (Wange.intewsects({ stawt: weft, end: weft + viewSizeWidth }, { stawt: howizontawAnchow.offset, end: howizontawAnchow.offset + howizontawAnchow.size })) {
+				vewticawAnchow.mode = WayoutAnchowMode.AVOID;
 			}
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = wayout(window.innewHeight, viewSizeHeight, vewticawAnchow) + window.pageYOffset;
 		}
 
-		this.view.classList.remove('top', 'bottom', 'left', 'right');
-		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		this.view.classList.toggle('fixed', this.useFixedPosition);
+		this.view.cwassWist.wemove('top', 'bottom', 'weft', 'wight');
+		this.view.cwassWist.add(anchowPosition === AnchowPosition.BEWOW ? 'bottom' : 'top');
+		this.view.cwassWist.add(anchowAwignment === AnchowAwignment.WEFT ? 'weft' : 'wight');
+		this.view.cwassWist.toggwe('fixed', this.useFixedPosition);
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
-		this.view.style.width = 'initial';
+		const containewPosition = DOM.getDomNodePagePosition(this.containa!);
+		this.view.stywe.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containewPosition.top)}px`;
+		this.view.stywe.weft = `${weft - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).weft : containewPosition.weft)}px`;
+		this.view.stywe.width = 'initiaw';
 	}
 
 	hide(data?: unknown): void {
-		const delegate = this.delegate;
-		this.delegate = null;
+		const dewegate = this.dewegate;
+		this.dewegate = nuww;
 
-		if (delegate?.onHide) {
-			delegate.onHide(data);
+		if (dewegate?.onHide) {
+			dewegate.onHide(data);
 		}
 
-		this.toDisposeOnClean.dispose();
+		this.toDisposeOnCwean.dispose();
 
 		DOM.hide(this.view);
 	}
 
-	private isVisible(): boolean {
-		return !!this.delegate;
+	pwivate isVisibwe(): boowean {
+		wetuwn !!this.dewegate;
 	}
 
-	private onDOMEvent(e: Event, onCapture: boolean): void {
-		if (this.delegate) {
-			if (this.delegate.onDOMEvent) {
-				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
-			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.container)) {
+	pwivate onDOMEvent(e: Event, onCaptuwe: boowean): void {
+		if (this.dewegate) {
+			if (this.dewegate.onDOMEvent) {
+				this.dewegate.onDOMEvent(e, <HTMWEwement>document.activeEwement);
+			} ewse if (onCaptuwe && !DOM.isAncestow(<HTMWEwement>e.tawget, this.containa)) {
 				this.hide();
 			}
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.hide();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-let SHADOW_ROOT_CSS = /* css */ `
+wet SHADOW_WOOT_CSS = /* css */ `
 	:host {
-		all: initial; /* 1st rule so subsequent properties are reset. */
+		aww: initiaw; /* 1st wuwe so subsequent pwopewties awe weset. */
 	}
 
 	@font-face {
-		font-family: "codicon";
-		font-display: block;
-		src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+		font-famiwy: "codicon";
+		font-dispway: bwock;
+		swc: uww("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") fowmat("twuetype");
 	}
 
-	.codicon[class*='codicon-'] {
-		font: normal normal normal 16px/1 codicon;
-		display: inline-block;
-		text-decoration: none;
-		text-rendering: auto;
-		text-align: center;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		user-select: none;
-		-webkit-user-select: none;
-		-ms-user-select: none;
+	.codicon[cwass*='codicon-'] {
+		font: nowmaw nowmaw nowmaw 16px/1 codicon;
+		dispway: inwine-bwock;
+		text-decowation: none;
+		text-wendewing: auto;
+		text-awign: centa;
+		-webkit-font-smoothing: antiawiased;
+		-moz-osx-font-smoothing: gwayscawe;
+		usa-sewect: none;
+		-webkit-usa-sewect: none;
+		-ms-usa-sewect: none;
 	}
 
 	:host {
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+		font-famiwy: -appwe-system, BwinkMacSystemFont, "Segoe WPC", "Segoe UI", "HewveticaNeue-Wight", system-ui, "Ubuntu", "Dwoid Sans", sans-sewif;
 	}
 
-	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+	:host-context(.mac) { font-famiwy: -appwe-system, BwinkMacSystemFont, sans-sewif; }
+	:host-context(.mac:wang(zh-Hans)) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang SC", "Hiwagino Sans GB", sans-sewif; }
+	:host-context(.mac:wang(zh-Hant)) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang TC", sans-sewif; }
+	:host-context(.mac:wang(ja)) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Hiwagino Kaku Gothic Pwo", sans-sewif; }
+	:host-context(.mac:wang(ko)) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Nanum Gothic", "Appwe SD Gothic Neo", "AppweGothic", sans-sewif; }
 
-	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-	:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-	:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+	:host-context(.windows) { font-famiwy: "Segoe WPC", "Segoe UI", sans-sewif; }
+	:host-context(.windows:wang(zh-Hans)) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft YaHei", sans-sewif; }
+	:host-context(.windows:wang(zh-Hant)) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft Jhenghei", sans-sewif; }
+	:host-context(.windows:wang(ja)) { font-famiwy: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiwyo UI", sans-sewif; }
+	:host-context(.windows:wang(ko)) { font-famiwy: "Segoe WPC", "Segoe UI", "Mawgun Gothic", "Dotom", sans-sewif; }
 
-	:host-context(.linux) { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-	:host-context(.linux:lang(zh-Hans)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+	:host-context(.winux) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", sans-sewif; }
+	:host-context(.winux:wang(zh-Hans)) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans SC", "Souwce Han Sans CN", "Souwce Han Sans", sans-sewif; }
+	:host-context(.winux:wang(zh-Hant)) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans TC", "Souwce Han Sans TW", "Souwce Han Sans", sans-sewif; }
+	:host-context(.winux:wang(ja)) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans J", "Souwce Han Sans JP", "Souwce Han Sans", sans-sewif; }
+	:host-context(.winux:wang(ko)) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans K", "Souwce Han Sans JW", "Souwce Han Sans", "UnDotum", "FBaekmuk Guwim", sans-sewif; }
 `;

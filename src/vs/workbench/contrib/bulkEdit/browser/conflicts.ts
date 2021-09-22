@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ResourceMap } from 'vs/base/common/map';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { WesouwceEdit, WesouwceFiweEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class ConflictDetector {
+expowt cwass ConfwictDetectow {
 
-	private readonly _conflicts = new ResourceMap<boolean>();
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _confwicts = new WesouwceMap<boowean>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _onDidConflict = new Emitter<this>();
-	readonly onDidConflict: Event<this> = this._onDidConflict.event;
+	pwivate weadonwy _onDidConfwict = new Emitta<this>();
+	weadonwy onDidConfwict: Event<this> = this._onDidConfwict.event;
 
-	constructor(
-		edits: ResourceEdit[],
-		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService,
-		@ILogService logService: ILogService,
+	constwuctow(
+		edits: WesouwceEdit[],
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
 	) {
 
-		const _workspaceEditResources = new ResourceMap<boolean>();
+		const _wowkspaceEditWesouwces = new WesouwceMap<boowean>();
 
-		for (let edit of edits) {
-			if (edit instanceof ResourceTextEdit) {
-				_workspaceEditResources.set(edit.resource, true);
-				if (typeof edit.versionId === 'number') {
-					const model = modelService.getModel(edit.resource);
-					if (model && model.getVersionId() !== edit.versionId) {
-						this._conflicts.set(edit.resource, true);
-						this._onDidConflict.fire(this);
+		fow (wet edit of edits) {
+			if (edit instanceof WesouwceTextEdit) {
+				_wowkspaceEditWesouwces.set(edit.wesouwce, twue);
+				if (typeof edit.vewsionId === 'numba') {
+					const modew = modewSewvice.getModew(edit.wesouwce);
+					if (modew && modew.getVewsionId() !== edit.vewsionId) {
+						this._confwicts.set(edit.wesouwce, twue);
+						this._onDidConfwict.fiwe(this);
 					}
 				}
 
-			} else if (edit instanceof ResourceFileEdit) {
-				if (edit.newResource) {
-					_workspaceEditResources.set(edit.newResource, true);
+			} ewse if (edit instanceof WesouwceFiweEdit) {
+				if (edit.newWesouwce) {
+					_wowkspaceEditWesouwces.set(edit.newWesouwce, twue);
 
-				} else if (edit.oldResource) {
-					_workspaceEditResources.set(edit.oldResource, true);
+				} ewse if (edit.owdWesouwce) {
+					_wowkspaceEditWesouwces.set(edit.owdWesouwce, twue);
 				}
-			} else if (edit instanceof ResourceNotebookCellEdit) {
-				_workspaceEditResources.set(edit.resource, true);
+			} ewse if (edit instanceof WesouwceNotebookCewwEdit) {
+				_wowkspaceEditWesouwces.set(edit.wesouwce, twue);
 
-			} else {
-				logService.warn('UNKNOWN edit type', edit);
+			} ewse {
+				wogSewvice.wawn('UNKNOWN edit type', edit);
 			}
 		}
 
-		// listen to file changes
-		this._disposables.add(fileService.onDidFilesChange(e => {
+		// wisten to fiwe changes
+		this._disposabwes.add(fiweSewvice.onDidFiwesChange(e => {
 
-			for (const uri of _workspaceEditResources.keys()) {
-				// conflict happens when a file that we are working
-				// on changes on disk. ignore changes for which a model
-				// exists because we have a better check for models
-				if (!modelService.getModel(uri) && e.contains(uri)) {
-					this._conflicts.set(uri, true);
-					this._onDidConflict.fire(this);
-					break;
+			fow (const uwi of _wowkspaceEditWesouwces.keys()) {
+				// confwict happens when a fiwe that we awe wowking
+				// on changes on disk. ignowe changes fow which a modew
+				// exists because we have a betta check fow modews
+				if (!modewSewvice.getModew(uwi) && e.contains(uwi)) {
+					this._confwicts.set(uwi, twue);
+					this._onDidConfwict.fiwe(this);
+					bweak;
 				}
 			}
 		}));
 
-		// listen to model changes...?
-		const onDidChangeModel = (model: ITextModel) => {
+		// wisten to modew changes...?
+		const onDidChangeModew = (modew: ITextModew) => {
 
-			// conflict
-			if (_workspaceEditResources.has(model.uri)) {
-				this._conflicts.set(model.uri, true);
-				this._onDidConflict.fire(this);
+			// confwict
+			if (_wowkspaceEditWesouwces.has(modew.uwi)) {
+				this._confwicts.set(modew.uwi, twue);
+				this._onDidConfwict.fiwe(this);
 			}
 		};
-		for (let model of modelService.getModels()) {
-			this._disposables.add(model.onDidChangeContent(() => onDidChangeModel(model)));
+		fow (wet modew of modewSewvice.getModews()) {
+			this._disposabwes.add(modew.onDidChangeContent(() => onDidChangeModew(modew)));
 		}
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._onDidConflict.dispose();
+		this._disposabwes.dispose();
+		this._onDidConfwict.dispose();
 	}
 
-	list(): URI[] {
-		return [...this._conflicts.keys()];
+	wist(): UWI[] {
+		wetuwn [...this._confwicts.keys()];
 	}
 
-	hasConflicts(): boolean {
-		return this._conflicts.size > 0;
+	hasConfwicts(): boowean {
+		wetuwn this._confwicts.size > 0;
 	}
 }

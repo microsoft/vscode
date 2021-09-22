@@ -1,902 +1,902 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent, EditorCloseContext, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IEditowFactowyWegistwy, GwoupIdentifia, EditowsOwda, EditowExtensions, IUntypedEditowInput, SideBySideEditow, IEditowMoveEvent, IEditowOpenEvent, EditowCwoseContext, IEditowCwoseEvent } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { dispose, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { coawesce } fwom 'vs/base/common/awways';
 
-const EditorOpenPositioning = {
-	LEFT: 'left',
-	RIGHT: 'right',
-	FIRST: 'first',
-	LAST: 'last'
+const EditowOpenPositioning = {
+	WEFT: 'weft',
+	WIGHT: 'wight',
+	FIWST: 'fiwst',
+	WAST: 'wast'
 };
 
-export interface IEditorOpenOptions {
-	readonly pinned?: boolean;
-	sticky?: boolean;
-	active?: boolean;
-	readonly index?: number;
-	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+expowt intewface IEditowOpenOptions {
+	weadonwy pinned?: boowean;
+	sticky?: boowean;
+	active?: boowean;
+	weadonwy index?: numba;
+	weadonwy suppowtSideBySide?: SideBySideEditow.ANY | SideBySideEditow.BOTH;
 }
 
-export interface IEditorOpenResult {
-	readonly editor: EditorInput;
-	readonly isNew: boolean;
+expowt intewface IEditowOpenWesuwt {
+	weadonwy editow: EditowInput;
+	weadonwy isNew: boowean;
 }
 
-export interface ISerializedEditorInput {
-	readonly id: string;
-	readonly value: string;
+expowt intewface ISewiawizedEditowInput {
+	weadonwy id: stwing;
+	weadonwy vawue: stwing;
 }
 
-export interface ISerializedEditorGroupModel {
-	readonly id: number;
-	readonly locked?: boolean;
-	readonly editors: ISerializedEditorInput[];
-	readonly mru: number[];
-	readonly preview?: number;
-	sticky?: number;
+expowt intewface ISewiawizedEditowGwoupModew {
+	weadonwy id: numba;
+	weadonwy wocked?: boowean;
+	weadonwy editows: ISewiawizedEditowInput[];
+	weadonwy mwu: numba[];
+	weadonwy pweview?: numba;
+	sticky?: numba;
 }
 
-export function isSerializedEditorGroupModel(group?: unknown): group is ISerializedEditorGroupModel {
-	const candidate = group as ISerializedEditorGroupModel | undefined;
+expowt function isSewiawizedEditowGwoupModew(gwoup?: unknown): gwoup is ISewiawizedEditowGwoupModew {
+	const candidate = gwoup as ISewiawizedEditowGwoupModew | undefined;
 
-	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
+	wetuwn !!(candidate && typeof candidate === 'object' && Awway.isAwway(candidate.editows) && Awway.isAwway(candidate.mwu));
 }
 
-export interface IMatchOptions {
+expowt intewface IMatchOptions {
 
 	/**
-	 * Whether to consider a side by side editor as matching.
-	 * By default, side by side editors will not be considered
-	 * as matching, even if the editor is opened in one of the sides.
+	 * Whetha to consida a side by side editow as matching.
+	 * By defauwt, side by side editows wiww not be considewed
+	 * as matching, even if the editow is opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+	suppowtSideBySide?: SideBySideEditow.ANY | SideBySideEditow.BOTH;
 
 	/**
-	 * Only consider an editor to match when the
-	 * `candidate === editor` but not when
-	 * `candidate.matches(editor)`.
+	 * Onwy consida an editow to match when the
+	 * `candidate === editow` but not when
+	 * `candidate.matches(editow)`.
 	 */
-	strictEquals?: boolean;
+	stwictEquaws?: boowean;
 }
 
-export class EditorGroupModel extends Disposable {
+expowt cwass EditowGwoupModew extends Disposabwe {
 
-	private static IDS = 0;
+	pwivate static IDS = 0;
 
-	//#region events
+	//#wegion events
 
-	private readonly _onDidChangeLocked = this._register(new Emitter<void>());
-	readonly onDidChangeLocked = this._onDidChangeLocked.event;
+	pwivate weadonwy _onDidChangeWocked = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWocked = this._onDidChangeWocked.event;
 
-	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
-	readonly onDidActivateEditor = this._onDidActivateEditor.event;
+	pwivate weadonwy _onDidActivateEditow = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidActivateEditow = this._onDidActivateEditow.event;
 
-	private readonly _onDidOpenEditor = this._register(new Emitter<IEditorOpenEvent>());
-	readonly onDidOpenEditor = this._onDidOpenEditor.event;
+	pwivate weadonwy _onDidOpenEditow = this._wegista(new Emitta<IEditowOpenEvent>());
+	weadonwy onDidOpenEditow = this._onDidOpenEditow.event;
 
-	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
-	readonly onDidCloseEditor = this._onDidCloseEditor.event;
+	pwivate weadonwy _onDidCwoseEditow = this._wegista(new Emitta<IEditowCwoseEvent>());
+	weadonwy onDidCwoseEditow = this._onDidCwoseEditow.event;
 
-	private readonly _onWillDisposeEditor = this._register(new Emitter<EditorInput>());
-	readonly onWillDisposeEditor = this._onWillDisposeEditor.event;
+	pwivate weadonwy _onWiwwDisposeEditow = this._wegista(new Emitta<EditowInput>());
+	weadonwy onWiwwDisposeEditow = this._onWiwwDisposeEditow.event;
 
-	private readonly _onDidChangeEditorDirty = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
+	pwivate weadonwy _onDidChangeEditowDiwty = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidChangeEditowDiwty = this._onDidChangeEditowDiwty.event;
 
-	private readonly _onDidChangeEditorLabel = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorLabel = this._onDidChangeEditorLabel.event;
+	pwivate weadonwy _onDidChangeEditowWabew = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidChangeEditowWabew = this._onDidChangeEditowWabew.event;
 
-	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
+	pwivate weadonwy _onDidChangeEditowCapabiwities = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidChangeEditowCapabiwities = this._onDidChangeEditowCapabiwities.event;
 
-	private readonly _onDidMoveEditor = this._register(new Emitter<IEditorMoveEvent>());
-	readonly onDidMoveEditor = this._onDidMoveEditor.event;
+	pwivate weadonwy _onDidMoveEditow = this._wegista(new Emitta<IEditowMoveEvent>());
+	weadonwy onDidMoveEditow = this._onDidMoveEditow.event;
 
-	private readonly _onDidChangeEditorPinned = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorPinned = this._onDidChangeEditorPinned.event;
+	pwivate weadonwy _onDidChangeEditowPinned = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidChangeEditowPinned = this._onDidChangeEditowPinned.event;
 
-	private readonly _onDidChangeEditorSticky = this._register(new Emitter<EditorInput>());
-	readonly onDidChangeEditorSticky = this._onDidChangeEditorSticky.event;
+	pwivate weadonwy _onDidChangeEditowSticky = this._wegista(new Emitta<EditowInput>());
+	weadonwy onDidChangeEditowSticky = this._onDidChangeEditowSticky.event;
 
-	//#endregion
+	//#endwegion
 
-	private _id: GroupIdentifier;
-	get id(): GroupIdentifier { return this._id; }
+	pwivate _id: GwoupIdentifia;
+	get id(): GwoupIdentifia { wetuwn this._id; }
 
-	private editors: EditorInput[] = [];
-	private mru: EditorInput[] = [];
+	pwivate editows: EditowInput[] = [];
+	pwivate mwu: EditowInput[] = [];
 
-	private locked = false;
+	pwivate wocked = fawse;
 
-	private preview: EditorInput | null = null; // editor in preview state
-	private active: EditorInput | null = null;  // editor in active state
-	private sticky = -1; 						// index of first editor in sticky state
+	pwivate pweview: EditowInput | nuww = nuww; // editow in pweview state
+	pwivate active: EditowInput | nuww = nuww;  // editow in active state
+	pwivate sticky = -1; 						// index of fiwst editow in sticky state
 
-	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
-	private focusRecentEditorAfterClose: boolean | undefined;
+	pwivate editowOpenPositioning: ('weft' | 'wight' | 'fiwst' | 'wast') | undefined;
+	pwivate focusWecentEditowAftewCwose: boowean | undefined;
 
-	constructor(
-		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		wabewOwSewiawizedGwoup: ISewiawizedEditowGwoupModew | undefined,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		if (isSerializedEditorGroupModel(labelOrSerializedGroup)) {
-			this._id = this.deserialize(labelOrSerializedGroup);
-		} else {
-			this._id = EditorGroupModel.IDS++;
+		if (isSewiawizedEditowGwoupModew(wabewOwSewiawizedGwoup)) {
+			this._id = this.desewiawize(wabewOwSewiawizedGwoup);
+		} ewse {
+			this._id = EditowGwoupModew.IDS++;
 		}
 
-		this.onConfigurationUpdated();
-		this.registerListeners();
+		this.onConfiguwationUpdated();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(() => this.onConfiguwationUpdated()));
 	}
 
-	private onConfigurationUpdated(): void {
-		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
-		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
+	pwivate onConfiguwationUpdated(): void {
+		this.editowOpenPositioning = this.configuwationSewvice.getVawue('wowkbench.editow.openPositioning');
+		this.focusWecentEditowAftewCwose = this.configuwationSewvice.getVawue('wowkbench.editow.focusWecentEditowAftewCwose');
 	}
 
-	get count(): number {
-		return this.editors.length;
+	get count(): numba {
+		wetuwn this.editows.wength;
 	}
 
-	get stickyCount(): number {
-		return this.sticky + 1;
+	get stickyCount(): numba {
+		wetuwn this.sticky + 1;
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
-		const editors = order === EditorsOrder.MOST_RECENTLY_ACTIVE ? this.mru.slice(0) : this.editors.slice(0);
+	getEditows(owda: EditowsOwda, options?: { excwudeSticky?: boowean }): EditowInput[] {
+		const editows = owda === EditowsOwda.MOST_WECENTWY_ACTIVE ? this.mwu.swice(0) : this.editows.swice(0);
 
-		if (options?.excludeSticky) {
+		if (options?.excwudeSticky) {
 
-			// MRU: need to check for index on each
-			if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
-				return editors.filter(editor => !this.isSticky(editor));
+			// MWU: need to check fow index on each
+			if (owda === EditowsOwda.MOST_WECENTWY_ACTIVE) {
+				wetuwn editows.fiwta(editow => !this.isSticky(editow));
 			}
 
-			// Sequential: simply start after sticky index
-			return editors.slice(this.sticky + 1);
+			// Sequentiaw: simpwy stawt afta sticky index
+			wetuwn editows.swice(this.sticky + 1);
 		}
 
-		return editors;
+		wetuwn editows;
 	}
 
-	getEditorByIndex(index: number): EditorInput | undefined {
-		return this.editors[index];
+	getEditowByIndex(index: numba): EditowInput | undefined {
+		wetuwn this.editows[index];
 	}
 
-	get activeEditor(): EditorInput | null {
-		return this.active;
+	get activeEditow(): EditowInput | nuww {
+		wetuwn this.active;
 	}
 
-	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
-		return this.matches(this.active, editor);
+	isActive(editow: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn this.matches(this.active, editow);
 	}
 
-	get previewEditor(): EditorInput | null {
-		return this.preview;
+	get pweviewEditow(): EditowInput | nuww {
+		wetuwn this.pweview;
 	}
 
-	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
-		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
+	openEditow(candidate: EditowInput, options?: IEditowOpenOptions): IEditowOpenWesuwt {
+		const makeSticky = options?.sticky || (typeof options?.index === 'numba' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
-		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
+		const makeActive = options?.active || !this.activeEditow || (!makePinned && this.matches(this.pweview, this.activeEditow));
 
-		const existingEditorAndIndex = this.findEditor(candidate, options);
+		const existingEditowAndIndex = this.findEditow(candidate, options);
 
-		// New editor
-		if (!existingEditorAndIndex) {
-			const newEditor = candidate;
+		// New editow
+		if (!existingEditowAndIndex) {
+			const newEditow = candidate;
 			const indexOfActive = this.indexOf(this.active);
 
-			// Insert into specific position
-			let targetIndex: number;
-			if (options && typeof options.index === 'number') {
-				targetIndex = options.index;
+			// Insewt into specific position
+			wet tawgetIndex: numba;
+			if (options && typeof options.index === 'numba') {
+				tawgetIndex = options.index;
 			}
 
-			// Insert to the BEGINNING
-			else if (this.editorOpenPositioning === EditorOpenPositioning.FIRST) {
-				targetIndex = 0;
+			// Insewt to the BEGINNING
+			ewse if (this.editowOpenPositioning === EditowOpenPositioning.FIWST) {
+				tawgetIndex = 0;
 
-				// Always make sure targetIndex is after sticky editors
-				// unless we are explicitly told to make the editor sticky
-				if (!makeSticky && this.isSticky(targetIndex)) {
-					targetIndex = this.sticky + 1;
+				// Awways make suwe tawgetIndex is afta sticky editows
+				// unwess we awe expwicitwy towd to make the editow sticky
+				if (!makeSticky && this.isSticky(tawgetIndex)) {
+					tawgetIndex = this.sticky + 1;
 				}
 			}
 
-			// Insert to the END
-			else if (this.editorOpenPositioning === EditorOpenPositioning.LAST) {
-				targetIndex = this.editors.length;
+			// Insewt to the END
+			ewse if (this.editowOpenPositioning === EditowOpenPositioning.WAST) {
+				tawgetIndex = this.editows.wength;
 			}
 
-			// Insert to LEFT or RIGHT of active editor
-			else {
+			// Insewt to WEFT ow WIGHT of active editow
+			ewse {
 
-				// Insert to the LEFT of active editor
-				if (this.editorOpenPositioning === EditorOpenPositioning.LEFT) {
-					if (indexOfActive === 0 || !this.editors.length) {
-						targetIndex = 0; // to the left becoming first editor in list
-					} else {
-						targetIndex = indexOfActive; // to the left of active editor
+				// Insewt to the WEFT of active editow
+				if (this.editowOpenPositioning === EditowOpenPositioning.WEFT) {
+					if (indexOfActive === 0 || !this.editows.wength) {
+						tawgetIndex = 0; // to the weft becoming fiwst editow in wist
+					} ewse {
+						tawgetIndex = indexOfActive; // to the weft of active editow
 					}
 				}
 
-				// Insert to the RIGHT of active editor
-				else {
-					targetIndex = indexOfActive + 1;
+				// Insewt to the WIGHT of active editow
+				ewse {
+					tawgetIndex = indexOfActive + 1;
 				}
 
-				// Always make sure targetIndex is after sticky editors
-				// unless we are explicitly told to make the editor sticky
-				if (!makeSticky && this.isSticky(targetIndex)) {
-					targetIndex = this.sticky + 1;
+				// Awways make suwe tawgetIndex is afta sticky editows
+				// unwess we awe expwicitwy towd to make the editow sticky
+				if (!makeSticky && this.isSticky(tawgetIndex)) {
+					tawgetIndex = this.sticky + 1;
 				}
 			}
 
-			// If the editor becomes sticky, increment the sticky index and adjust
-			// the targetIndex to be at the end of sticky editors unless already.
+			// If the editow becomes sticky, incwement the sticky index and adjust
+			// the tawgetIndex to be at the end of sticky editows unwess awweady.
 			if (makeSticky) {
 				this.sticky++;
 
-				if (!this.isSticky(targetIndex)) {
-					targetIndex = this.sticky;
+				if (!this.isSticky(tawgetIndex)) {
+					tawgetIndex = this.sticky;
 				}
 			}
 
-			// Insert into our list of editors if pinned or we have no preview editor
-			if (makePinned || !this.preview) {
-				this.splice(targetIndex, false, newEditor);
+			// Insewt into ouw wist of editows if pinned ow we have no pweview editow
+			if (makePinned || !this.pweview) {
+				this.spwice(tawgetIndex, fawse, newEditow);
 			}
 
-			// Handle preview
+			// Handwe pweview
 			if (!makePinned) {
 
-				// Replace existing preview with this editor if we have a preview
-				if (this.preview) {
-					const indexOfPreview = this.indexOf(this.preview);
-					if (targetIndex > indexOfPreview) {
-						targetIndex--; // accomodate for the fact that the preview editor closes
+				// Wepwace existing pweview with this editow if we have a pweview
+				if (this.pweview) {
+					const indexOfPweview = this.indexOf(this.pweview);
+					if (tawgetIndex > indexOfPweview) {
+						tawgetIndex--; // accomodate fow the fact that the pweview editow cwoses
 					}
 
-					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);
+					this.wepwaceEditow(this.pweview, newEditow, tawgetIndex, !makeActive);
 				}
 
-				this.preview = newEditor;
+				this.pweview = newEditow;
 			}
 
-			// Listeners
-			this.registerEditorListeners(newEditor);
+			// Wistenews
+			this.wegistewEditowWistenews(newEditow);
 
 			// Event
-			this._onDidOpenEditor.fire({ editor: newEditor, groupId: this.id, index: targetIndex });
+			this._onDidOpenEditow.fiwe({ editow: newEditow, gwoupId: this.id, index: tawgetIndex });
 
-			// Handle active
+			// Handwe active
 			if (makeActive) {
-				this.doSetActive(newEditor);
+				this.doSetActive(newEditow);
 			}
 
-			return {
-				editor: newEditor,
-				isNew: true
+			wetuwn {
+				editow: newEditow,
+				isNew: twue
 			};
 		}
 
-		// Existing editor
-		else {
-			const [existingEditor] = existingEditorAndIndex;
+		// Existing editow
+		ewse {
+			const [existingEditow] = existingEditowAndIndex;
 
 			// Pin it
 			if (makePinned) {
-				this.doPin(existingEditor);
+				this.doPin(existingEditow);
 			}
 
 			// Activate it
 			if (makeActive) {
-				this.doSetActive(existingEditor);
+				this.doSetActive(existingEditow);
 			}
 
-			// Respect index
-			if (options && typeof options.index === 'number') {
-				this.moveEditor(existingEditor, options.index);
+			// Wespect index
+			if (options && typeof options.index === 'numba') {
+				this.moveEditow(existingEditow, options.index);
 			}
 
-			// Stick it (intentionally after the moveEditor call in case
-			// the editor was already moved into the sticky range)
+			// Stick it (intentionawwy afta the moveEditow caww in case
+			// the editow was awweady moved into the sticky wange)
 			if (makeSticky) {
-				this.doStick(existingEditor, this.indexOf(existingEditor));
+				this.doStick(existingEditow, this.indexOf(existingEditow));
 			}
 
-			return {
-				editor: existingEditor,
-				isNew: false
+			wetuwn {
+				editow: existingEditow,
+				isNew: fawse
 			};
 		}
 	}
 
-	private registerEditorListeners(editor: EditorInput): void {
-		const listeners = new DisposableStore();
+	pwivate wegistewEditowWistenews(editow: EditowInput): void {
+		const wistenews = new DisposabweStowe();
 
-		// Re-emit disposal of editor input as our own event
-		listeners.add(Event.once(editor.onWillDispose)(() => {
-			if (this.indexOf(editor) >= 0) {
-				this._onWillDisposeEditor.fire(editor);
+		// We-emit disposaw of editow input as ouw own event
+		wistenews.add(Event.once(editow.onWiwwDispose)(() => {
+			if (this.indexOf(editow) >= 0) {
+				this._onWiwwDisposeEditow.fiwe(editow);
 			}
 		}));
 
-		// Re-Emit dirty state changes
-		listeners.add(editor.onDidChangeDirty(() => {
-			this._onDidChangeEditorDirty.fire(editor);
+		// We-Emit diwty state changes
+		wistenews.add(editow.onDidChangeDiwty(() => {
+			this._onDidChangeEditowDiwty.fiwe(editow);
 		}));
 
-		// Re-Emit label changes
-		listeners.add(editor.onDidChangeLabel(() => {
-			this._onDidChangeEditorLabel.fire(editor);
+		// We-Emit wabew changes
+		wistenews.add(editow.onDidChangeWabew(() => {
+			this._onDidChangeEditowWabew.fiwe(editow);
 		}));
 
-		// Re-Emit capability changes
-		listeners.add(editor.onDidChangeCapabilities(() => {
-			this._onDidChangeEditorCapabilities.fire(editor);
+		// We-Emit capabiwity changes
+		wistenews.add(editow.onDidChangeCapabiwities(() => {
+			this._onDidChangeEditowCapabiwities.fiwe(editow);
 		}));
 
-		// Clean up dispose listeners once the editor gets closed
-		listeners.add(this.onDidCloseEditor(event => {
-			if (event.editor.matches(editor)) {
-				dispose(listeners);
+		// Cwean up dispose wistenews once the editow gets cwosed
+		wistenews.add(this.onDidCwoseEditow(event => {
+			if (event.editow.matches(editow)) {
+				dispose(wistenews);
 			}
 		}));
 	}
 
-	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
+	pwivate wepwaceEditow(toWepwace: EditowInput, wepwaceWith: EditowInput, wepwaceIndex: numba, openNext = twue): void {
+		const event = this.doCwoseEditow(toWepwace, EditowCwoseContext.WEPWACE, openNext); // optimization to pwevent muwtipwe setActive() in one caww
 
-		// We want to first add the new editor into our model before emitting the close event because
-		// firing the close event can trigger a dispose on the same editor that is now being added.
-		// This can lead into opening a disposed editor which is not what we want.
-		this.splice(replaceIndex, false, replaceWith);
+		// We want to fiwst add the new editow into ouw modew befowe emitting the cwose event because
+		// fiwing the cwose event can twigga a dispose on the same editow that is now being added.
+		// This can wead into opening a disposed editow which is not what we want.
+		this.spwice(wepwaceIndex, fawse, wepwaceWith);
 
 		if (event) {
-			this._onDidCloseEditor.fire(event);
+			this._onDidCwoseEditow.fiwe(event);
 		}
 	}
 
-	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseEvent | undefined {
-		const event = this.doCloseEditor(candidate, context, openNext);
+	cwoseEditow(candidate: EditowInput, context = EditowCwoseContext.UNKNOWN, openNext = twue): IEditowCwoseEvent | undefined {
+		const event = this.doCwoseEditow(candidate, context, openNext);
 
 		if (event) {
-			this._onDidCloseEditor.fire(event);
+			this._onDidCwoseEditow.fiwe(event);
 
-			return event;
+			wetuwn event;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseEvent | undefined {
+	pwivate doCwoseEditow(candidate: EditowInput, context: EditowCwoseContext, openNext: boowean): IEditowCwoseEvent | undefined {
 		const index = this.indexOf(candidate);
 		if (index === -1) {
-			return undefined; // not found
+			wetuwn undefined; // not found
 		}
 
-		const editor = this.editors[index];
+		const editow = this.editows[index];
 		const sticky = this.isSticky(index);
 
-		// Active Editor closed
-		if (openNext && this.matches(this.active, editor)) {
+		// Active Editow cwosed
+		if (openNext && this.matches(this.active, editow)) {
 
-			// More than one editor
-			if (this.mru.length > 1) {
-				let newActive: EditorInput;
-				if (this.focusRecentEditorAfterClose) {
-					newActive = this.mru[1]; // active editor is always first in MRU, so pick second editor after as new active
-				} else {
-					if (index === this.editors.length - 1) {
-						newActive = this.editors[index - 1]; // last editor is closed, pick previous as new active
-					} else {
-						newActive = this.editors[index + 1]; // pick next editor as new active
+			// Mowe than one editow
+			if (this.mwu.wength > 1) {
+				wet newActive: EditowInput;
+				if (this.focusWecentEditowAftewCwose) {
+					newActive = this.mwu[1]; // active editow is awways fiwst in MWU, so pick second editow afta as new active
+				} ewse {
+					if (index === this.editows.wength - 1) {
+						newActive = this.editows[index - 1]; // wast editow is cwosed, pick pwevious as new active
+					} ewse {
+						newActive = this.editows[index + 1]; // pick next editow as new active
 					}
 				}
 
 				this.doSetActive(newActive);
 			}
 
-			// One Editor
-			else {
-				this.active = null;
+			// One Editow
+			ewse {
+				this.active = nuww;
 			}
 		}
 
-		// Preview Editor closed
-		if (this.matches(this.preview, editor)) {
-			this.preview = null;
+		// Pweview Editow cwosed
+		if (this.matches(this.pweview, editow)) {
+			this.pweview = nuww;
 		}
 
-		// Remove from arrays
-		this.splice(index, true);
+		// Wemove fwom awways
+		this.spwice(index, twue);
 
 		// Event
-		return { editor, sticky, index, groupId: this.id, context };
+		wetuwn { editow, sticky, index, gwoupId: this.id, context };
 	}
 
-	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
+	moveEditow(candidate: EditowInput, toIndex: numba): EditowInput | undefined {
 
-		// Ensure toIndex is in bounds of our model
-		if (toIndex >= this.editors.length) {
-			toIndex = this.editors.length - 1;
-		} else if (toIndex < 0) {
+		// Ensuwe toIndex is in bounds of ouw modew
+		if (toIndex >= this.editows.wength) {
+			toIndex = this.editows.wength - 1;
+		} ewse if (toIndex < 0) {
 			toIndex = 0;
 		}
 
 		const index = this.indexOf(candidate);
 		if (index < 0 || toIndex === index) {
-			return;
+			wetuwn;
 		}
 
-		const editor = this.editors[index];
+		const editow = this.editows[index];
 
-		// Adjust sticky index: editor moved out of sticky state into unsticky state
+		// Adjust sticky index: editow moved out of sticky state into unsticky state
 		if (this.isSticky(index) && toIndex > this.sticky) {
 			this.sticky--;
 		}
 
-		// ...or editor moved into sticky state from unsticky state
-		else if (!this.isSticky(index) && toIndex <= this.sticky) {
+		// ...ow editow moved into sticky state fwom unsticky state
+		ewse if (!this.isSticky(index) && toIndex <= this.sticky) {
 			this.sticky++;
 		}
 
 		// Move
-		this.editors.splice(index, 1);
-		this.editors.splice(toIndex, 0, editor);
+		this.editows.spwice(index, 1);
+		this.editows.spwice(toIndex, 0, editow);
 
 		// Event
-		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, newIndex: toIndex, target: this.id });
+		this._onDidMoveEditow.fiwe({ editow, gwoupId: this.id, index, newIndex: toIndex, tawget: this.id });
 
-		return editor;
+		wetuwn editow;
 	}
 
-	setActive(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
+	setActive(candidate: EditowInput): EditowInput | undefined {
+		const wes = this.findEditow(candidate);
+		if (!wes) {
+			wetuwn; // not found
 		}
 
-		const [editor] = res;
+		const [editow] = wes;
 
-		this.doSetActive(editor);
+		this.doSetActive(editow);
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private doSetActive(editor: EditorInput): void {
-		if (this.matches(this.active, editor)) {
-			return; // already active
+	pwivate doSetActive(editow: EditowInput): void {
+		if (this.matches(this.active, editow)) {
+			wetuwn; // awweady active
 		}
 
-		this.active = editor;
+		this.active = editow;
 
-		// Bring to front in MRU list
-		const mruIndex = this.indexOf(editor, this.mru);
-		this.mru.splice(mruIndex, 1);
-		this.mru.unshift(editor);
+		// Bwing to fwont in MWU wist
+		const mwuIndex = this.indexOf(editow, this.mwu);
+		this.mwu.spwice(mwuIndex, 1);
+		this.mwu.unshift(editow);
 
 		// Event
-		this._onDidActivateEditor.fire(editor);
+		this._onDidActivateEditow.fiwe(editow);
 	}
 
-	pin(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
+	pin(candidate: EditowInput): EditowInput | undefined {
+		const wes = this.findEditow(candidate);
+		if (!wes) {
+			wetuwn; // not found
 		}
 
-		const [editor] = res;
+		const [editow] = wes;
 
-		this.doPin(editor);
+		this.doPin(editow);
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private doPin(editor: EditorInput): void {
-		if (this.isPinned(editor)) {
-			return; // can only pin a preview editor
+	pwivate doPin(editow: EditowInput): void {
+		if (this.isPinned(editow)) {
+			wetuwn; // can onwy pin a pweview editow
 		}
 
-		// Convert the preview editor to be a pinned editor
-		this.preview = null;
+		// Convewt the pweview editow to be a pinned editow
+		this.pweview = nuww;
 
 		// Event
-		this._onDidChangeEditorPinned.fire(editor);
+		this._onDidChangeEditowPinned.fiwe(editow);
 	}
 
-	unpin(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
+	unpin(candidate: EditowInput): EditowInput | undefined {
+		const wes = this.findEditow(candidate);
+		if (!wes) {
+			wetuwn; // not found
 		}
 
-		const [editor] = res;
+		const [editow] = wes;
 
-		this.doUnpin(editor);
+		this.doUnpin(editow);
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private doUnpin(editor: EditorInput): void {
-		if (!this.isPinned(editor)) {
-			return; // can only unpin a pinned editor
+	pwivate doUnpin(editow: EditowInput): void {
+		if (!this.isPinned(editow)) {
+			wetuwn; // can onwy unpin a pinned editow
 		}
 
 		// Set new
-		const oldPreview = this.preview;
-		this.preview = editor;
+		const owdPweview = this.pweview;
+		this.pweview = editow;
 
 		// Event
-		this._onDidChangeEditorPinned.fire(editor);
+		this._onDidChangeEditowPinned.fiwe(editow);
 
-		// Close old preview editor if any
-		if (oldPreview) {
-			this.closeEditor(oldPreview, EditorCloseContext.UNPIN);
+		// Cwose owd pweview editow if any
+		if (owdPweview) {
+			this.cwoseEditow(owdPweview, EditowCwoseContext.UNPIN);
 		}
 	}
 
-	isPinned(editorOrIndex: EditorInput | number): boolean {
-		let editor: EditorInput;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
-		} else {
-			editor = editorOrIndex;
+	isPinned(editowOwIndex: EditowInput | numba): boowean {
+		wet editow: EditowInput;
+		if (typeof editowOwIndex === 'numba') {
+			editow = this.editows[editowOwIndex];
+		} ewse {
+			editow = editowOwIndex;
 		}
 
-		return !this.matches(this.preview, editor);
+		wetuwn !this.matches(this.pweview, editow);
 	}
 
-	stick(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
+	stick(candidate: EditowInput): EditowInput | undefined {
+		const wes = this.findEditow(candidate);
+		if (!wes) {
+			wetuwn; // not found
 		}
 
-		const [editor, index] = res;
+		const [editow, index] = wes;
 
-		this.doStick(editor, index);
+		this.doStick(editow, index);
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private doStick(editor: EditorInput, index: number): void {
+	pwivate doStick(editow: EditowInput, index: numba): void {
 		if (this.isSticky(index)) {
-			return; // can only stick a non-sticky editor
+			wetuwn; // can onwy stick a non-sticky editow
 		}
 
-		// Pin editor
-		this.pin(editor);
+		// Pin editow
+		this.pin(editow);
 
-		// Move editor to be the last sticky editor
-		this.moveEditor(editor, this.sticky + 1);
+		// Move editow to be the wast sticky editow
+		this.moveEditow(editow, this.sticky + 1);
 
 		// Adjust sticky index
 		this.sticky++;
 
 		// Event
-		this._onDidChangeEditorSticky.fire(editor);
+		this._onDidChangeEditowSticky.fiwe(editow);
 	}
 
-	unstick(candidate: EditorInput): EditorInput | undefined {
-		const res = this.findEditor(candidate);
-		if (!res) {
-			return; // not found
+	unstick(candidate: EditowInput): EditowInput | undefined {
+		const wes = this.findEditow(candidate);
+		if (!wes) {
+			wetuwn; // not found
 		}
 
-		const [editor, index] = res;
+		const [editow, index] = wes;
 
-		this.doUnstick(editor, index);
+		this.doUnstick(editow, index);
 
-		return editor;
+		wetuwn editow;
 	}
 
-	private doUnstick(editor: EditorInput, index: number): void {
+	pwivate doUnstick(editow: EditowInput, index: numba): void {
 		if (!this.isSticky(index)) {
-			return; // can only unstick a sticky editor
+			wetuwn; // can onwy unstick a sticky editow
 		}
 
-		// Move editor to be the first non-sticky editor
-		this.moveEditor(editor, this.sticky);
+		// Move editow to be the fiwst non-sticky editow
+		this.moveEditow(editow, this.sticky);
 
 		// Adjust sticky index
 		this.sticky--;
 
 		// Event
-		this._onDidChangeEditorSticky.fire(editor);
+		this._onDidChangeEditowSticky.fiwe(editow);
 	}
 
-	isSticky(candidateOrIndex: EditorInput | number): boolean {
+	isSticky(candidateOwIndex: EditowInput | numba): boowean {
 		if (this.sticky < 0) {
-			return false; // no sticky editor
+			wetuwn fawse; // no sticky editow
 		}
 
-		let index: number;
-		if (typeof candidateOrIndex === 'number') {
-			index = candidateOrIndex;
-		} else {
-			index = this.indexOf(candidateOrIndex);
+		wet index: numba;
+		if (typeof candidateOwIndex === 'numba') {
+			index = candidateOwIndex;
+		} ewse {
+			index = this.indexOf(candidateOwIndex);
 		}
 
 		if (index < 0) {
-			return false;
+			wetuwn fawse;
 		}
 
-		return index <= this.sticky;
+		wetuwn index <= this.sticky;
 	}
 
-	private splice(index: number, del: boolean, editor?: EditorInput): void {
-		const editorToDeleteOrReplace = this.editors[index];
+	pwivate spwice(index: numba, dew: boowean, editow?: EditowInput): void {
+		const editowToDeweteOwWepwace = this.editows[index];
 
-		// Perform on sticky index
-		if (del && this.isSticky(index)) {
+		// Pewfowm on sticky index
+		if (dew && this.isSticky(index)) {
 			this.sticky--;
 		}
 
-		// Perform on editors array
-		if (editor) {
-			this.editors.splice(index, del ? 1 : 0, editor);
-		} else {
-			this.editors.splice(index, del ? 1 : 0);
+		// Pewfowm on editows awway
+		if (editow) {
+			this.editows.spwice(index, dew ? 1 : 0, editow);
+		} ewse {
+			this.editows.spwice(index, dew ? 1 : 0);
 		}
 
-		// Perform on MRU
+		// Pewfowm on MWU
 		{
 			// Add
-			if (!del && editor) {
-				if (this.mru.length === 0) {
-					// the list of most recent editors is empty
-					// so this editor can only be the most recent
-					this.mru.push(editor);
-				} else {
-					// we have most recent editors. as such we
-					// put this newly opened editor right after
-					// the current most recent one because it cannot
-					// be the most recently active one unless
-					// it becomes active. but it is still more
-					// active then any other editor in the list.
-					this.mru.splice(1, 0, editor);
+			if (!dew && editow) {
+				if (this.mwu.wength === 0) {
+					// the wist of most wecent editows is empty
+					// so this editow can onwy be the most wecent
+					this.mwu.push(editow);
+				} ewse {
+					// we have most wecent editows. as such we
+					// put this newwy opened editow wight afta
+					// the cuwwent most wecent one because it cannot
+					// be the most wecentwy active one unwess
+					// it becomes active. but it is stiww mowe
+					// active then any otha editow in the wist.
+					this.mwu.spwice(1, 0, editow);
 				}
 			}
 
-			// Remove / Replace
-			else {
-				const indexInMRU = this.indexOf(editorToDeleteOrReplace, this.mru);
+			// Wemove / Wepwace
+			ewse {
+				const indexInMWU = this.indexOf(editowToDeweteOwWepwace, this.mwu);
 
-				// Remove
-				if (del && !editor) {
-					this.mru.splice(indexInMRU, 1); // remove from MRU
+				// Wemove
+				if (dew && !editow) {
+					this.mwu.spwice(indexInMWU, 1); // wemove fwom MWU
 				}
 
-				// Replace
-				else if (del && editor) {
-					this.mru.splice(indexInMRU, 1, editor); // replace MRU at location
+				// Wepwace
+				ewse if (dew && editow) {
+					this.mwu.spwice(indexInMWU, 1, editow); // wepwace MWU at wocation
 				}
 			}
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchOptions): number {
-		let index = -1;
+	indexOf(candidate: EditowInput | nuww, editows = this.editows, options?: IMatchOptions): numba {
+		wet index = -1;
 
 		if (candidate) {
-			for (let i = 0; i < editors.length; i++) {
-				const editor = editors[i];
+			fow (wet i = 0; i < editows.wength; i++) {
+				const editow = editows[i];
 
-				if (this.matches(editor, candidate, options)) {
-					// If we are to support side by side matching, it is possible that
-					// a better direct match is found later. As such, we continue finding
-					// a matching editor and prefer that match over the side by side one.
-					if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
+				if (this.matches(editow, candidate, options)) {
+					// If we awe to suppowt side by side matching, it is possibwe that
+					// a betta diwect match is found wata. As such, we continue finding
+					// a matching editow and pwefa that match ova the side by side one.
+					if (options?.suppowtSideBySide && editow instanceof SideBySideEditowInput && !(candidate instanceof SideBySideEditowInput)) {
 						index = i;
-					} else {
+					} ewse {
 						index = i;
-						break;
+						bweak;
 					}
 				}
 			}
 		}
 
-		return index;
+		wetuwn index;
 	}
 
-	private findEditor(candidate: EditorInput | null, options?: IMatchOptions): [EditorInput, number /* index */] | undefined {
-		const index = this.indexOf(candidate, this.editors, options);
+	pwivate findEditow(candidate: EditowInput | nuww, options?: IMatchOptions): [EditowInput, numba /* index */] | undefined {
+		const index = this.indexOf(candidate, this.editows, options);
 		if (index === -1) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return [this.editors[index], index];
+		wetuwn [this.editows[index], index];
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchOptions): boolean {
-		for (const editor of this.editors) {
-			if (this.matches(editor, candidate, options)) {
-				return true;
+	contains(candidate: EditowInput | IUntypedEditowInput, options?: IMatchOptions): boowean {
+		fow (const editow of this.editows) {
+			if (this.matches(editow, candidate, options)) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
-		if (!editor || !candidate) {
-			return false;
+	pwivate matches(editow: EditowInput | nuww, candidate: EditowInput | IUntypedEditowInput | nuww, options?: IMatchOptions): boowean {
+		if (!editow || !candidate) {
+			wetuwn fawse;
 		}
 
-		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
-			switch (options.supportSideBySide) {
-				case SideBySideEditor.ANY:
-					if (this.matches(editor.primary, candidate, options) || this.matches(editor.secondary, candidate, options)) {
-						return true;
+		if (options?.suppowtSideBySide && editow instanceof SideBySideEditowInput && !(candidate instanceof SideBySideEditowInput)) {
+			switch (options.suppowtSideBySide) {
+				case SideBySideEditow.ANY:
+					if (this.matches(editow.pwimawy, candidate, options) || this.matches(editow.secondawy, candidate, options)) {
+						wetuwn twue;
 					}
-					break;
-				case SideBySideEditor.BOTH:
-					if (this.matches(editor.primary, candidate, options) && this.matches(editor.secondary, candidate, options)) {
-						return true;
+					bweak;
+				case SideBySideEditow.BOTH:
+					if (this.matches(editow.pwimawy, candidate, options) && this.matches(editow.secondawy, candidate, options)) {
+						wetuwn twue;
 					}
-					break;
+					bweak;
 			}
 		}
 
-		if (options?.strictEquals) {
-			return editor === candidate;
+		if (options?.stwictEquaws) {
+			wetuwn editow === candidate;
 		}
 
-		return editor.matches(candidate);
+		wetuwn editow.matches(candidate);
 	}
 
-	get isLocked(): boolean {
-		return this.locked;
+	get isWocked(): boowean {
+		wetuwn this.wocked;
 	}
 
-	lock(locked: boolean): void {
-		if (this.isLocked !== locked) {
-			this.locked = locked;
+	wock(wocked: boowean): void {
+		if (this.isWocked !== wocked) {
+			this.wocked = wocked;
 
-			this._onDidChangeLocked.fire();
+			this._onDidChangeWocked.fiwe();
 		}
 	}
 
-	clone(): EditorGroupModel {
-		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
+	cwone(): EditowGwoupModew {
+		const cwone = this.instantiationSewvice.cweateInstance(EditowGwoupModew, undefined);
 
-		// Copy over group properties
-		clone.editors = this.editors.slice(0);
-		clone.mru = this.mru.slice(0);
-		clone.preview = this.preview;
-		clone.active = this.active;
-		clone.sticky = this.sticky;
+		// Copy ova gwoup pwopewties
+		cwone.editows = this.editows.swice(0);
+		cwone.mwu = this.mwu.swice(0);
+		cwone.pweview = this.pweview;
+		cwone.active = this.active;
+		cwone.sticky = this.sticky;
 
-		// Ensure to register listeners for each editor
-		for (const editor of clone.editors) {
-			clone.registerEditorListeners(editor);
+		// Ensuwe to wegista wistenews fow each editow
+		fow (const editow of cwone.editows) {
+			cwone.wegistewEditowWistenews(editow);
 		}
 
-		return clone;
+		wetuwn cwone;
 	}
 
-	serialize(): ISerializedEditorGroupModel {
-		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+	sewiawize(): ISewiawizedEditowGwoupModew {
+		const wegistwy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy);
 
-		// Serialize all editor inputs so that we can store them.
-		// Editors that cannot be serialized need to be ignored
-		// from mru, active, preview and sticky if any.
-		let serializableEditors: EditorInput[] = [];
-		let serializedEditors: ISerializedEditorInput[] = [];
-		let serializablePreviewIndex: number | undefined;
-		let serializableSticky = this.sticky;
+		// Sewiawize aww editow inputs so that we can stowe them.
+		// Editows that cannot be sewiawized need to be ignowed
+		// fwom mwu, active, pweview and sticky if any.
+		wet sewiawizabweEditows: EditowInput[] = [];
+		wet sewiawizedEditows: ISewiawizedEditowInput[] = [];
+		wet sewiawizabwePweviewIndex: numba | undefined;
+		wet sewiawizabweSticky = this.sticky;
 
-		for (let i = 0; i < this.editors.length; i++) {
-			const editor = this.editors[i];
-			let canSerializeEditor = false;
+		fow (wet i = 0; i < this.editows.wength; i++) {
+			const editow = this.editows[i];
+			wet canSewiawizeEditow = fawse;
 
-			const editorSerializer = registry.getEditorSerializer(editor);
-			if (editorSerializer) {
-				const value = editorSerializer.serialize(editor);
+			const editowSewiawiza = wegistwy.getEditowSewiawiza(editow);
+			if (editowSewiawiza) {
+				const vawue = editowSewiawiza.sewiawize(editow);
 
-				// Editor can be serialized
-				if (typeof value === 'string') {
-					canSerializeEditor = true;
+				// Editow can be sewiawized
+				if (typeof vawue === 'stwing') {
+					canSewiawizeEditow = twue;
 
-					serializedEditors.push({ id: editor.typeId, value });
-					serializableEditors.push(editor);
+					sewiawizedEditows.push({ id: editow.typeId, vawue });
+					sewiawizabweEditows.push(editow);
 
-					if (this.preview === editor) {
-						serializablePreviewIndex = serializableEditors.length - 1;
+					if (this.pweview === editow) {
+						sewiawizabwePweviewIndex = sewiawizabweEditows.wength - 1;
 					}
 				}
 
-				// Editor cannot be serialized
-				else {
-					canSerializeEditor = false;
+				// Editow cannot be sewiawized
+				ewse {
+					canSewiawizeEditow = fawse;
 				}
 			}
 
-			// Adjust index of sticky editors if the editor cannot be serialized and is pinned
-			if (!canSerializeEditor && this.isSticky(i)) {
-				serializableSticky--;
+			// Adjust index of sticky editows if the editow cannot be sewiawized and is pinned
+			if (!canSewiawizeEditow && this.isSticky(i)) {
+				sewiawizabweSticky--;
 			}
 		}
 
-		const serializableMru = this.mru.map(editor => this.indexOf(editor, serializableEditors)).filter(i => i >= 0);
+		const sewiawizabweMwu = this.mwu.map(editow => this.indexOf(editow, sewiawizabweEditows)).fiwta(i => i >= 0);
 
-		return {
+		wetuwn {
 			id: this.id,
-			locked: this.locked ? true : undefined,
-			editors: serializedEditors,
-			mru: serializableMru,
-			preview: serializablePreviewIndex,
-			sticky: serializableSticky >= 0 ? serializableSticky : undefined
+			wocked: this.wocked ? twue : undefined,
+			editows: sewiawizedEditows,
+			mwu: sewiawizabweMwu,
+			pweview: sewiawizabwePweviewIndex,
+			sticky: sewiawizabweSticky >= 0 ? sewiawizabweSticky : undefined
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroupModel): number {
-		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+	pwivate desewiawize(data: ISewiawizedEditowGwoupModew): numba {
+		const wegistwy = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy);
 
-		if (typeof data.id === 'number') {
+		if (typeof data.id === 'numba') {
 			this._id = data.id;
 
-			EditorGroupModel.IDS = Math.max(data.id + 1, EditorGroupModel.IDS); // make sure our ID generator is always larger
-		} else {
-			this._id = EditorGroupModel.IDS++; // backwards compatibility
+			EditowGwoupModew.IDS = Math.max(data.id + 1, EditowGwoupModew.IDS); // make suwe ouw ID genewatow is awways wawga
+		} ewse {
+			this._id = EditowGwoupModew.IDS++; // backwawds compatibiwity
 		}
 
-		if (data.locked) {
-			this.locked = true;
+		if (data.wocked) {
+			this.wocked = twue;
 		}
 
-		this.editors = coalesce(data.editors.map((e, index) => {
-			let editor: EditorInput | undefined = undefined;
+		this.editows = coawesce(data.editows.map((e, index) => {
+			wet editow: EditowInput | undefined = undefined;
 
-			const editorSerializer = registry.getEditorSerializer(e.id);
-			if (editorSerializer) {
-				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
-				if (deserializedEditor instanceof EditorInput) {
-					editor = deserializedEditor;
-					this.registerEditorListeners(editor);
+			const editowSewiawiza = wegistwy.getEditowSewiawiza(e.id);
+			if (editowSewiawiza) {
+				const desewiawizedEditow = editowSewiawiza.desewiawize(this.instantiationSewvice, e.vawue);
+				if (desewiawizedEditow instanceof EditowInput) {
+					editow = desewiawizedEditow;
+					this.wegistewEditowWistenews(editow);
 				}
 			}
 
-			if (!editor && typeof data.sticky === 'number' && index <= data.sticky) {
-				data.sticky--; // if editor cannot be deserialized but was sticky, we need to decrease sticky index
+			if (!editow && typeof data.sticky === 'numba' && index <= data.sticky) {
+				data.sticky--; // if editow cannot be desewiawized but was sticky, we need to decwease sticky index
 			}
 
-			return editor;
+			wetuwn editow;
 		}));
 
-		this.mru = coalesce(data.mru.map(i => this.editors[i]));
+		this.mwu = coawesce(data.mwu.map(i => this.editows[i]));
 
-		this.active = this.mru[0];
+		this.active = this.mwu[0];
 
-		if (typeof data.preview === 'number') {
-			this.preview = this.editors[data.preview];
+		if (typeof data.pweview === 'numba') {
+			this.pweview = this.editows[data.pweview];
 		}
 
-		if (typeof data.sticky === 'number') {
+		if (typeof data.sticky === 'numba') {
 			this.sticky = data.sticky;
 		}
 
-		return this._id;
+		wetuwn this._id;
 	}
 }

@@ -1,621 +1,621 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as json from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Queue } from 'vs/base/common/async';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService, IConfigurationOverrides, keyFromOverrideIdentifier } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { OVERRIDE_PROPERTY_PATTERN, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IUserConfigurationFileService, UserConfigurationErrorCode } from 'vs/platform/configuration/common/userConfigurationFileService';
-import { ITextModel } from 'vs/editor/common/model';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Selection } from 'vs/editor/common/core/selection';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as json fwom 'vs/base/common/json';
+impowt { setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { Edit, FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IConfiguwationSewvice, IConfiguwationOvewwides, keyFwomOvewwideIdentifia } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { FOWDEW_SETTINGS_PATH, WOWKSPACE_STANDAWONE_CONFIGUWATIONS, TASKS_CONFIGUWATION_KEY, WAUNCH_CONFIGUWATION_KEY, USEW_STANDAWONE_CONFIGUWATIONS, TASKS_DEFAUWT, FOWDEW_SCOPES } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IFiweSewvice, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWesowvedTextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { OVEWWIDE_PWOPEWTY_PATTEWN, IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenSettingsOptions, IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { withUndefinedAsNuww, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IUsewConfiguwationFiweSewvice, UsewConfiguwationEwwowCode } fwom 'vs/pwatfowm/configuwation/common/usewConfiguwationFiweSewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
 
-export const enum ConfigurationEditingErrorCode {
-
-	/**
-	 * Error when trying to write a configuration key that is not registered.
-	 */
-	ERROR_UNKNOWN_KEY,
+expowt const enum ConfiguwationEditingEwwowCode {
 
 	/**
-	 * Error when trying to write an application setting into workspace settings.
+	 * Ewwow when twying to wwite a configuwation key that is not wegistewed.
 	 */
-	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
+	EWWOW_UNKNOWN_KEY,
 
 	/**
-	 * Error when trying to write a machne setting into workspace settings.
+	 * Ewwow when twying to wwite an appwication setting into wowkspace settings.
 	 */
-	ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE,
+	EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_APPWICATION,
 
 	/**
-	 * Error when trying to write an invalid folder configuration key to folder settings.
+	 * Ewwow when twying to wwite a machne setting into wowkspace settings.
 	 */
-	ERROR_INVALID_FOLDER_CONFIGURATION,
+	EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_MACHINE,
 
 	/**
-	 * Error when trying to write to user target but not supported for provided key.
+	 * Ewwow when twying to wwite an invawid fowda configuwation key to fowda settings.
 	 */
-	ERROR_INVALID_USER_TARGET,
+	EWWOW_INVAWID_FOWDEW_CONFIGUWATION,
 
 	/**
-	 * Error when trying to write to user target but not supported for provided key.
+	 * Ewwow when twying to wwite to usa tawget but not suppowted fow pwovided key.
 	 */
-	ERROR_INVALID_WORKSPACE_TARGET,
+	EWWOW_INVAWID_USEW_TAWGET,
 
 	/**
-	 * Error when trying to write a configuration key to folder target
+	 * Ewwow when twying to wwite to usa tawget but not suppowted fow pwovided key.
 	 */
-	ERROR_INVALID_FOLDER_TARGET,
+	EWWOW_INVAWID_WOWKSPACE_TAWGET,
 
 	/**
-	 * Error when trying to write to language specific setting but not supported for preovided key
+	 * Ewwow when twying to wwite a configuwation key to fowda tawget
 	 */
-	ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION,
+	EWWOW_INVAWID_FOWDEW_TAWGET,
 
 	/**
-	 * Error when trying to write to the workspace configuration without having a workspace opened.
+	 * Ewwow when twying to wwite to wanguage specific setting but not suppowted fow pweovided key
 	 */
-	ERROR_NO_WORKSPACE_OPENED,
+	EWWOW_INVAWID_WESOUWCE_WANGUAGE_CONFIGUWATION,
 
 	/**
-	 * Error when trying to write and save to the configuration file while it is dirty in the editor.
+	 * Ewwow when twying to wwite to the wowkspace configuwation without having a wowkspace opened.
 	 */
-	ERROR_CONFIGURATION_FILE_DIRTY,
+	EWWOW_NO_WOWKSPACE_OPENED,
 
 	/**
-	 * Error when trying to write and save to the configuration file while it is not the latest in the disk.
+	 * Ewwow when twying to wwite and save to the configuwation fiwe whiwe it is diwty in the editow.
 	 */
-	ERROR_CONFIGURATION_FILE_MODIFIED_SINCE,
+	EWWOW_CONFIGUWATION_FIWE_DIWTY,
 
 	/**
-	 * Error when trying to write to a configuration file that contains JSON errors.
+	 * Ewwow when twying to wwite and save to the configuwation fiwe whiwe it is not the watest in the disk.
 	 */
-	ERROR_INVALID_CONFIGURATION
+	EWWOW_CONFIGUWATION_FIWE_MODIFIED_SINCE,
+
+	/**
+	 * Ewwow when twying to wwite to a configuwation fiwe that contains JSON ewwows.
+	 */
+	EWWOW_INVAWID_CONFIGUWATION
 }
 
-export class ConfigurationEditingError extends Error {
-	constructor(message: string, public code: ConfigurationEditingErrorCode) {
-		super(message);
+expowt cwass ConfiguwationEditingEwwow extends Ewwow {
+	constwuctow(message: stwing, pubwic code: ConfiguwationEditingEwwowCode) {
+		supa(message);
 	}
 }
 
-export interface IConfigurationValue {
-	key: string;
-	value: any;
+expowt intewface IConfiguwationVawue {
+	key: stwing;
+	vawue: any;
 }
 
-export interface IConfigurationEditingOptions {
+expowt intewface IConfiguwationEditingOptions {
 	/**
-	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 * If `twue`, do not notifies the ewwow to usa by showing the message box. Defauwt is `fawse`.
 	 */
-	donotNotifyError?: boolean;
+	donotNotifyEwwow?: boowean;
 	/**
-	 * Scope of configuration to be written into.
+	 * Scope of configuwation to be wwitten into.
 	 */
-	scopes?: IConfigurationOverrides;
+	scopes?: IConfiguwationOvewwides;
 }
 
-export const enum EditableConfigurationTarget {
-	USER_LOCAL = 1,
-	USER_REMOTE,
-	WORKSPACE,
-	WORKSPACE_FOLDER
+expowt const enum EditabweConfiguwationTawget {
+	USEW_WOCAW = 1,
+	USEW_WEMOTE,
+	WOWKSPACE,
+	WOWKSPACE_FOWDa
 }
 
-interface IConfigurationEditOperation extends IConfigurationValue {
-	target: EditableConfigurationTarget;
+intewface IConfiguwationEditOpewation extends IConfiguwationVawue {
+	tawget: EditabweConfiguwationTawget;
 	jsonPath: json.JSONPath;
-	resource?: URI;
-	workspaceStandAloneConfigurationKey?: string;
+	wesouwce?: UWI;
+	wowkspaceStandAwoneConfiguwationKey?: stwing;
 }
 
-interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
-	ignoreDirtyFile?: boolean;
+intewface ConfiguwationEditingOptions extends IConfiguwationEditingOptions {
+	ignoweDiwtyFiwe?: boowean;
 }
 
-export class ConfigurationEditingService {
+expowt cwass ConfiguwationEditingSewvice {
 
-	public _serviceBrand: undefined;
+	pubwic _sewviceBwand: undefined;
 
-	private queue: Queue<void>;
-	private remoteSettingsResource: URI | null = null;
+	pwivate queue: Queue<void>;
+	pwivate wemoteSettingsWesouwce: UWI | nuww = nuww;
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IUserConfigurationFileService private readonly userConfigurationFileService: IUserConfigurationFileService,
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IUsewConfiguwationFiweSewvice pwivate weadonwy usewConfiguwationFiweSewvice: IUsewConfiguwationFiweSewvice,
 	) {
 		this.queue = new Queue<void>();
-		remoteAgentService.getEnvironment().then(environment => {
-			if (environment) {
-				this.remoteSettingsResource = environment.settingsPath;
+		wemoteAgentSewvice.getEnviwonment().then(enviwonment => {
+			if (enviwonment) {
+				this.wemoteSettingsWesouwce = enviwonment.settingsPath;
 			}
 		});
 	}
 
-	writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
-		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
-		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(operation, options) // queue up writes to prevent race conditions
+	wwiteConfiguwation(tawget: EditabweConfiguwationTawget, vawue: IConfiguwationVawue, options: IConfiguwationEditingOptions = {}): Pwomise<void> {
+		const opewation = this.getConfiguwationEditOpewation(tawget, vawue, options.scopes || {});
+		wetuwn Pwomise.wesowve(this.queue.queue(() => this.doWwiteConfiguwation(opewation, options) // queue up wwites to pwevent wace conditions
 			.then(() => { },
-				async error => {
-					if (!options.donotNotifyError) {
-						await this.onError(error, operation, options.scopes);
+				async ewwow => {
+					if (!options.donotNotifyEwwow) {
+						await this.onEwwow(ewwow, opewation, options.scopes);
 					}
-					return Promise.reject(error);
+					wetuwn Pwomise.weject(ewwow);
 				})));
 	}
 
-	private async doWriteConfiguration(operation: IConfigurationEditOperation, options: ConfigurationEditingOptions): Promise<void> {
-		await this.validate(operation.target, operation, !options.ignoreDirtyFile, options.scopes || {});
-		const resource: URI = operation.resource!;
-		const reference = await this.resolveModelReference(resource);
-		try {
-			const formattingOptions = this.getFormattingOptions(reference.object.textEditorModel);
-			if (this.uriIdentityService.extUri.isEqual(resource, this.environmentService.settingsResource)) {
-				await this.userConfigurationFileService.updateSettings({ path: operation.jsonPath, value: operation.value }, formattingOptions);
-			} else {
-				await this.updateConfiguration(operation, reference.object.textEditorModel, formattingOptions);
+	pwivate async doWwiteConfiguwation(opewation: IConfiguwationEditOpewation, options: ConfiguwationEditingOptions): Pwomise<void> {
+		await this.vawidate(opewation.tawget, opewation, !options.ignoweDiwtyFiwe, options.scopes || {});
+		const wesouwce: UWI = opewation.wesouwce!;
+		const wefewence = await this.wesowveModewWefewence(wesouwce);
+		twy {
+			const fowmattingOptions = this.getFowmattingOptions(wefewence.object.textEditowModew);
+			if (this.uwiIdentitySewvice.extUwi.isEquaw(wesouwce, this.enviwonmentSewvice.settingsWesouwce)) {
+				await this.usewConfiguwationFiweSewvice.updateSettings({ path: opewation.jsonPath, vawue: opewation.vawue }, fowmattingOptions);
+			} ewse {
+				await this.updateConfiguwation(opewation, wefewence.object.textEditowModew, fowmattingOptions);
 			}
-		} catch (error) {
-			if ((<Error>error).message === UserConfigurationErrorCode.ERROR_INVALID_FILE) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
+		} catch (ewwow) {
+			if ((<Ewwow>ewwow).message === UsewConfiguwationEwwowCode.EWWOW_INVAWID_FIWE) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION, opewation.tawget, opewation);
 			}
-			if ((<Error>error).message === UserConfigurationErrorCode.ERROR_FILE_MODIFIED_SINCE || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE, operation.target, operation);
+			if ((<Ewwow>ewwow).message === UsewConfiguwationEwwowCode.EWWOW_FIWE_MODIFIED_SINCE || (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_MODIFIED_SINCE) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_MODIFIED_SINCE, opewation.tawget, opewation);
 			}
-			throw error;
-		} finally {
-			reference.dispose();
+			thwow ewwow;
+		} finawwy {
+			wefewence.dispose();
 		}
 	}
 
-	private async updateConfiguration(operation: IConfigurationEditOperation, model: ITextModel, formattingOptions: FormattingOptions): Promise<any> {
-		if (this.hasParseErrors(model.getValue(), operation)) {
-			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, operation.target, operation);
+	pwivate async updateConfiguwation(opewation: IConfiguwationEditOpewation, modew: ITextModew, fowmattingOptions: FowmattingOptions): Pwomise<any> {
+		if (this.hasPawseEwwows(modew.getVawue(), opewation)) {
+			thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION, opewation.tawget, opewation);
 		}
 
-		const edit = this.getEdits(operation, model.getValue(), formattingOptions)[0];
-		if (edit && this.applyEditsToBuffer(edit, model)) {
-			await this.textFileService.save(model.uri);
+		const edit = this.getEdits(opewation, modew.getVawue(), fowmattingOptions)[0];
+		if (edit && this.appwyEditsToBuffa(edit, modew)) {
+			await this.textFiweSewvice.save(modew.uwi);
 		}
 	}
 
-	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {
-		const startPosition = model.getPositionAt(edit.offset);
-		const endPosition = model.getPositionAt(edit.offset + edit.length);
-		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
-		if (edit.content !== currentText) {
-			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
-			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
-			return true;
+	pwivate appwyEditsToBuffa(edit: Edit, modew: ITextModew): boowean {
+		const stawtPosition = modew.getPositionAt(edit.offset);
+		const endPosition = modew.getPositionAt(edit.offset + edit.wength);
+		const wange = new Wange(stawtPosition.wineNumba, stawtPosition.cowumn, endPosition.wineNumba, endPosition.cowumn);
+		wet cuwwentText = modew.getVawueInWange(wange);
+		if (edit.content !== cuwwentText) {
+			const editOpewation = cuwwentText ? EditOpewation.wepwace(wange, edit.content) : EditOpewation.insewt(stawtPosition, edit.content);
+			modew.pushEditOpewations([new Sewection(stawtPosition.wineNumba, stawtPosition.cowumn, stawtPosition.wineNumba, stawtPosition.cowumn)], [editOpewation], () => []);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private getEdits({ value, jsonPath }: IConfigurationEditOperation, modelContent: string, formattingOptions: FormattingOptions): Edit[] {
-		if (jsonPath.length) {
-			return setProperty(modelContent, jsonPath, value, formattingOptions);
+	pwivate getEdits({ vawue, jsonPath }: IConfiguwationEditOpewation, modewContent: stwing, fowmattingOptions: FowmattingOptions): Edit[] {
+		if (jsonPath.wength) {
+			wetuwn setPwopewty(modewContent, jsonPath, vawue, fowmattingOptions);
 		}
 
-		// Without jsonPath, the entire configuration file is being replaced, so we just use JSON.stringify
-		const content = JSON.stringify(value, null, formattingOptions.insertSpaces && formattingOptions.tabSize ? ' '.repeat(formattingOptions.tabSize) : '\t');
-		return [{
+		// Without jsonPath, the entiwe configuwation fiwe is being wepwaced, so we just use JSON.stwingify
+		const content = JSON.stwingify(vawue, nuww, fowmattingOptions.insewtSpaces && fowmattingOptions.tabSize ? ' '.wepeat(fowmattingOptions.tabSize) : '\t');
+		wetuwn [{
 			content,
-			length: modelContent.length,
+			wength: modewContent.wength,
 			offset: 0
 		}];
 	}
 
-	private getFormattingOptions(model: ITextModel): FormattingOptions {
-		const { insertSpaces, tabSize } = model.getOptions();
-		const eol = model.getEOL();
-		return { insertSpaces, tabSize, eol };
+	pwivate getFowmattingOptions(modew: ITextModew): FowmattingOptions {
+		const { insewtSpaces, tabSize } = modew.getOptions();
+		const eow = modew.getEOW();
+		wetuwn { insewtSpaces, tabSize, eow };
 	}
 
-	private async onError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationOverrides | undefined): Promise<void> {
-		switch (error.code) {
-			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
-				this.onInvalidConfigurationError(error, operation);
-				break;
-			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
-				this.onConfigurationFileDirtyError(error, operation, scopes);
-				break;
-			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
-				return this.doWriteConfiguration(operation, { scopes });
-			default:
-				this.notificationService.error(error.message);
+	pwivate async onEwwow(ewwow: ConfiguwationEditingEwwow, opewation: IConfiguwationEditOpewation, scopes: IConfiguwationOvewwides | undefined): Pwomise<void> {
+		switch (ewwow.code) {
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION:
+				this.onInvawidConfiguwationEwwow(ewwow, opewation);
+				bweak;
+			case ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_DIWTY:
+				this.onConfiguwationFiweDiwtyEwwow(ewwow, opewation, scopes);
+				bweak;
+			case ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_MODIFIED_SINCE:
+				wetuwn this.doWwiteConfiguwation(opewation, { scopes });
+			defauwt:
+				this.notificationSewvice.ewwow(ewwow.message);
 		}
 	}
 
-	private onInvalidConfigurationError(error: ConfigurationEditingError, operation: IConfigurationEditOperation,): void {
-		const openStandAloneConfigurationActionLabel = operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY ? nls.localize('openTasksConfiguration', "Open Tasks Configuration")
-			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
-				: null;
-		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message,
+	pwivate onInvawidConfiguwationEwwow(ewwow: ConfiguwationEditingEwwow, opewation: IConfiguwationEditOpewation,): void {
+		const openStandAwoneConfiguwationActionWabew = opewation.wowkspaceStandAwoneConfiguwationKey === TASKS_CONFIGUWATION_KEY ? nws.wocawize('openTasksConfiguwation', "Open Tasks Configuwation")
+			: opewation.wowkspaceStandAwoneConfiguwationKey === WAUNCH_CONFIGUWATION_KEY ? nws.wocawize('openWaunchConfiguwation', "Open Waunch Configuwation")
+				: nuww;
+		if (openStandAwoneConfiguwationActionWabew) {
+			this.notificationSewvice.pwompt(Sevewity.Ewwow, ewwow.message,
 				[{
-					label: openStandAloneConfigurationActionLabel,
-					run: () => this.openFile(operation.resource!)
+					wabew: openStandAwoneConfiguwationActionWabew,
+					wun: () => this.openFiwe(opewation.wesouwce!)
 				}]
 			);
-		} else {
-			this.notificationService.prompt(Severity.Error, error.message,
+		} ewse {
+			this.notificationSewvice.pwompt(Sevewity.Ewwow, ewwow.message,
 				[{
-					label: nls.localize('open', "Open Settings"),
-					run: () => this.openSettings(operation)
+					wabew: nws.wocawize('open', "Open Settings"),
+					wun: () => this.openSettings(opewation)
 				}]
 			);
 		}
 	}
 
-	private onConfigurationFileDirtyError(error: ConfigurationEditingError, operation: IConfigurationEditOperation, scopes: IConfigurationOverrides | undefined): void {
-		const openStandAloneConfigurationActionLabel = operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY ? nls.localize('openTasksConfiguration', "Open Tasks Configuration")
-			: operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY ? nls.localize('openLaunchConfiguration', "Open Launch Configuration")
-				: null;
-		if (openStandAloneConfigurationActionLabel) {
-			this.notificationService.prompt(Severity.Error, error.message,
+	pwivate onConfiguwationFiweDiwtyEwwow(ewwow: ConfiguwationEditingEwwow, opewation: IConfiguwationEditOpewation, scopes: IConfiguwationOvewwides | undefined): void {
+		const openStandAwoneConfiguwationActionWabew = opewation.wowkspaceStandAwoneConfiguwationKey === TASKS_CONFIGUWATION_KEY ? nws.wocawize('openTasksConfiguwation', "Open Tasks Configuwation")
+			: opewation.wowkspaceStandAwoneConfiguwationKey === WAUNCH_CONFIGUWATION_KEY ? nws.wocawize('openWaunchConfiguwation', "Open Waunch Configuwation")
+				: nuww;
+		if (openStandAwoneConfiguwationActionWabew) {
+			this.notificationSewvice.pwompt(Sevewity.Ewwow, ewwow.message,
 				[{
-					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => {
-						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey!;
-						this.writeConfiguration(operation.target, { key, value: operation.value }, <ConfigurationEditingOptions>{ ignoreDirtyFile: true, scopes });
+					wabew: nws.wocawize('saveAndWetwy', "Save and Wetwy"),
+					wun: () => {
+						const key = opewation.key ? `${opewation.wowkspaceStandAwoneConfiguwationKey}.${opewation.key}` : opewation.wowkspaceStandAwoneConfiguwationKey!;
+						this.wwiteConfiguwation(opewation.tawget, { key, vawue: opewation.vawue }, <ConfiguwationEditingOptions>{ ignoweDiwtyFiwe: twue, scopes });
 					}
 				},
 				{
-					label: openStandAloneConfigurationActionLabel,
-					run: () => this.openFile(operation.resource!)
+					wabew: openStandAwoneConfiguwationActionWabew,
+					wun: () => this.openFiwe(opewation.wesouwce!)
 				}]
 			);
-		} else {
-			this.notificationService.prompt(Severity.Error, error.message,
+		} ewse {
+			this.notificationSewvice.pwompt(Sevewity.Ewwow, ewwow.message,
 				[{
-					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, <ConfigurationEditingOptions>{ ignoreDirtyFile: true, scopes })
+					wabew: nws.wocawize('saveAndWetwy', "Save and Wetwy"),
+					wun: () => this.wwiteConfiguwation(opewation.tawget, { key: opewation.key, vawue: opewation.vawue }, <ConfiguwationEditingOptions>{ ignoweDiwtyFiwe: twue, scopes })
 				},
 				{
-					label: nls.localize('open', "Open Settings"),
-					run: () => this.openSettings(operation)
+					wabew: nws.wocawize('open', "Open Settings"),
+					wun: () => this.openSettings(opewation)
 				}]
 			);
 		}
 	}
 
-	private openSettings(operation: IConfigurationEditOperation): void {
-		const options: IOpenSettingsOptions = { jsonEditor: true };
-		switch (operation.target) {
-			case EditableConfigurationTarget.USER_LOCAL:
-				this.preferencesService.openUserSettings(options);
-				break;
-			case EditableConfigurationTarget.USER_REMOTE:
-				this.preferencesService.openRemoteSettings(options);
-				break;
-			case EditableConfigurationTarget.WORKSPACE:
-				this.preferencesService.openWorkspaceSettings(options);
-				break;
-			case EditableConfigurationTarget.WORKSPACE_FOLDER:
-				if (operation.resource) {
-					const workspaceFolder = this.contextService.getWorkspaceFolder(operation.resource);
-					if (workspaceFolder) {
-						this.preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true });
+	pwivate openSettings(opewation: IConfiguwationEditOpewation): void {
+		const options: IOpenSettingsOptions = { jsonEditow: twue };
+		switch (opewation.tawget) {
+			case EditabweConfiguwationTawget.USEW_WOCAW:
+				this.pwefewencesSewvice.openUsewSettings(options);
+				bweak;
+			case EditabweConfiguwationTawget.USEW_WEMOTE:
+				this.pwefewencesSewvice.openWemoteSettings(options);
+				bweak;
+			case EditabweConfiguwationTawget.WOWKSPACE:
+				this.pwefewencesSewvice.openWowkspaceSettings(options);
+				bweak;
+			case EditabweConfiguwationTawget.WOWKSPACE_FOWDa:
+				if (opewation.wesouwce) {
+					const wowkspaceFowda = this.contextSewvice.getWowkspaceFowda(opewation.wesouwce);
+					if (wowkspaceFowda) {
+						this.pwefewencesSewvice.openFowdewSettings({ fowdewUwi: wowkspaceFowda.uwi, jsonEditow: twue });
 					}
 				}
-				break;
+				bweak;
 		}
 	}
 
-	private openFile(resource: URI): void {
-		this.editorService.openEditor({ resource, options: { pinned: true } });
+	pwivate openFiwe(wesouwce: UWI): void {
+		this.editowSewvice.openEditow({ wesouwce, options: { pinned: twue } });
 	}
 
-	private toConfigurationEditingError(code: ConfigurationEditingErrorCode, target: EditableConfigurationTarget, operation: IConfigurationEditOperation): ConfigurationEditingError {
-		const message = this.toErrorMessage(code, target, operation);
-		return new ConfigurationEditingError(message, code);
+	pwivate toConfiguwationEditingEwwow(code: ConfiguwationEditingEwwowCode, tawget: EditabweConfiguwationTawget, opewation: IConfiguwationEditOpewation): ConfiguwationEditingEwwow {
+		const message = this.toEwwowMessage(code, tawget, opewation);
+		wetuwn new ConfiguwationEditingEwwow(message, code);
 	}
 
-	private toErrorMessage(error: ConfigurationEditingErrorCode, target: EditableConfigurationTarget, operation: IConfigurationEditOperation): string {
-		switch (error) {
+	pwivate toEwwowMessage(ewwow: ConfiguwationEditingEwwowCode, tawget: EditabweConfiguwationTawget, opewation: IConfiguwationEditOpewation): stwing {
+		switch (ewwow) {
 
-			// API constraints
-			case ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY: return nls.localize('errorUnknownKey', "Unable to write to {0} because {1} is not a registered configuration.", this.stringifyTarget(target), operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION: return nls.localize('errorInvalidWorkspaceConfigurationApplication', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE: return nls.localize('errorInvalidWorkspaceConfigurationMachine', "Unable to write {0} to Workspace Settings. This setting can be written only into User settings.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION: return nls.localize('errorInvalidFolderConfiguration', "Unable to write to Folder Settings because {0} does not support the folder resource scope.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET: return nls.localize('errorInvalidUserTarget', "Unable to write to User Settings because {0} does not support for global scope.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET: return nls.localize('errorInvalidWorkspaceTarget', "Unable to write to Workspace Settings because {0} does not support for workspace scope in a multi folder workspace.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET: return nls.localize('errorInvalidFolderTarget', "Unable to write to Folder Settings because no resource is provided.");
-			case ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION: return nls.localize('errorInvalidResourceLanguageConfiguraiton', "Unable to write to Language Settings because {0} is not a resource language setting.", operation.key);
-			case ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED: return nls.localize('errorNoWorkspaceOpened', "Unable to write to {0} because no workspace is opened. Please open a workspace first and try again.", this.stringifyTarget(target));
+			// API constwaints
+			case ConfiguwationEditingEwwowCode.EWWOW_UNKNOWN_KEY: wetuwn nws.wocawize('ewwowUnknownKey', "Unabwe to wwite to {0} because {1} is not a wegistewed configuwation.", this.stwingifyTawget(tawget), opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_APPWICATION: wetuwn nws.wocawize('ewwowInvawidWowkspaceConfiguwationAppwication', "Unabwe to wwite {0} to Wowkspace Settings. This setting can be wwitten onwy into Usa settings.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_MACHINE: wetuwn nws.wocawize('ewwowInvawidWowkspaceConfiguwationMachine', "Unabwe to wwite {0} to Wowkspace Settings. This setting can be wwitten onwy into Usa settings.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_FOWDEW_CONFIGUWATION: wetuwn nws.wocawize('ewwowInvawidFowdewConfiguwation', "Unabwe to wwite to Fowda Settings because {0} does not suppowt the fowda wesouwce scope.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_USEW_TAWGET: wetuwn nws.wocawize('ewwowInvawidUsewTawget', "Unabwe to wwite to Usa Settings because {0} does not suppowt fow gwobaw scope.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_TAWGET: wetuwn nws.wocawize('ewwowInvawidWowkspaceTawget', "Unabwe to wwite to Wowkspace Settings because {0} does not suppowt fow wowkspace scope in a muwti fowda wowkspace.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_FOWDEW_TAWGET: wetuwn nws.wocawize('ewwowInvawidFowdewTawget', "Unabwe to wwite to Fowda Settings because no wesouwce is pwovided.");
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WESOUWCE_WANGUAGE_CONFIGUWATION: wetuwn nws.wocawize('ewwowInvawidWesouwceWanguageConfiguwaiton', "Unabwe to wwite to Wanguage Settings because {0} is not a wesouwce wanguage setting.", opewation.key);
+			case ConfiguwationEditingEwwowCode.EWWOW_NO_WOWKSPACE_OPENED: wetuwn nws.wocawize('ewwowNoWowkspaceOpened', "Unabwe to wwite to {0} because no wowkspace is opened. Pwease open a wowkspace fiwst and twy again.", this.stwingifyTawget(tawget));
 
-			// User issues
-			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION: {
-				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-					return nls.localize('errorInvalidTaskConfiguration', "Unable to write into the tasks configuration file. Please open it to correct errors/warnings in it and try again.");
+			// Usa issues
+			case ConfiguwationEditingEwwowCode.EWWOW_INVAWID_CONFIGUWATION: {
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === TASKS_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowInvawidTaskConfiguwation', "Unabwe to wwite into the tasks configuwation fiwe. Pwease open it to cowwect ewwows/wawnings in it and twy again.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
-					return nls.localize('errorInvalidLaunchConfiguration', "Unable to write into the launch configuration file. Please open it to correct errors/warnings in it and try again.");
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === WAUNCH_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowInvawidWaunchConfiguwation', "Unabwe to wwite into the waunch configuwation fiwe. Pwease open it to cowwect ewwows/wawnings in it and twy again.");
 				}
-				switch (target) {
-					case EditableConfigurationTarget.USER_LOCAL:
-						return nls.localize('errorInvalidConfiguration', "Unable to write into user settings. Please open the user settings to correct errors/warnings in it and try again.");
-					case EditableConfigurationTarget.USER_REMOTE:
-						return nls.localize('errorInvalidRemoteConfiguration', "Unable to write into remote user settings. Please open the remote user settings to correct errors/warnings in it and try again.");
-					case EditableConfigurationTarget.WORKSPACE:
-						return nls.localize('errorInvalidConfigurationWorkspace', "Unable to write into workspace settings. Please open the workspace settings to correct errors/warnings in the file and try again.");
-					case EditableConfigurationTarget.WORKSPACE_FOLDER:
-						let workspaceFolderName: string = '<<unknown>>';
-						if (operation.resource) {
-							const folder = this.contextService.getWorkspaceFolder(operation.resource);
-							if (folder) {
-								workspaceFolderName = folder.name;
+				switch (tawget) {
+					case EditabweConfiguwationTawget.USEW_WOCAW:
+						wetuwn nws.wocawize('ewwowInvawidConfiguwation', "Unabwe to wwite into usa settings. Pwease open the usa settings to cowwect ewwows/wawnings in it and twy again.");
+					case EditabweConfiguwationTawget.USEW_WEMOTE:
+						wetuwn nws.wocawize('ewwowInvawidWemoteConfiguwation', "Unabwe to wwite into wemote usa settings. Pwease open the wemote usa settings to cowwect ewwows/wawnings in it and twy again.");
+					case EditabweConfiguwationTawget.WOWKSPACE:
+						wetuwn nws.wocawize('ewwowInvawidConfiguwationWowkspace', "Unabwe to wwite into wowkspace settings. Pwease open the wowkspace settings to cowwect ewwows/wawnings in the fiwe and twy again.");
+					case EditabweConfiguwationTawget.WOWKSPACE_FOWDa:
+						wet wowkspaceFowdewName: stwing = '<<unknown>>';
+						if (opewation.wesouwce) {
+							const fowda = this.contextSewvice.getWowkspaceFowda(opewation.wesouwce);
+							if (fowda) {
+								wowkspaceFowdewName = fowda.name;
 							}
 						}
-						return nls.localize('errorInvalidConfigurationFolder', "Unable to write into folder settings. Please open the '{0}' folder settings to correct errors/warnings in it and try again.", workspaceFolderName);
-					default:
-						return '';
+						wetuwn nws.wocawize('ewwowInvawidConfiguwationFowda', "Unabwe to wwite into fowda settings. Pwease open the '{0}' fowda settings to cowwect ewwows/wawnings in it and twy again.", wowkspaceFowdewName);
+					defauwt:
+						wetuwn '';
 				}
 			}
-			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY: {
-				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-					return nls.localize('errorTasksConfigurationFileDirty', "Unable to write into tasks configuration file because the file is dirty. Please save it first and then try again.");
+			case ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_DIWTY: {
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === TASKS_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowTasksConfiguwationFiweDiwty', "Unabwe to wwite into tasks configuwation fiwe because the fiwe is diwty. Pwease save it fiwst and then twy again.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
-					return nls.localize('errorLaunchConfigurationFileDirty', "Unable to write into launch configuration file because the file is dirty. Please save it first and then try again.");
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === WAUNCH_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowWaunchConfiguwationFiweDiwty', "Unabwe to wwite into waunch configuwation fiwe because the fiwe is diwty. Pwease save it fiwst and then twy again.");
 				}
-				switch (target) {
-					case EditableConfigurationTarget.USER_LOCAL:
-						return nls.localize('errorConfigurationFileDirty', "Unable to write into user settings because the file is dirty. Please save the user settings file first and then try again.");
-					case EditableConfigurationTarget.USER_REMOTE:
-						return nls.localize('errorRemoteConfigurationFileDirty', "Unable to write into remote user settings because the file is dirty. Please save the remote user settings file first and then try again.");
-					case EditableConfigurationTarget.WORKSPACE:
-						return nls.localize('errorConfigurationFileDirtyWorkspace', "Unable to write into workspace settings because the file is dirty. Please save the workspace settings file first and then try again.");
-					case EditableConfigurationTarget.WORKSPACE_FOLDER:
-						let workspaceFolderName: string = '<<unknown>>';
-						if (operation.resource) {
-							const folder = this.contextService.getWorkspaceFolder(operation.resource);
-							if (folder) {
-								workspaceFolderName = folder.name;
+				switch (tawget) {
+					case EditabweConfiguwationTawget.USEW_WOCAW:
+						wetuwn nws.wocawize('ewwowConfiguwationFiweDiwty', "Unabwe to wwite into usa settings because the fiwe is diwty. Pwease save the usa settings fiwe fiwst and then twy again.");
+					case EditabweConfiguwationTawget.USEW_WEMOTE:
+						wetuwn nws.wocawize('ewwowWemoteConfiguwationFiweDiwty', "Unabwe to wwite into wemote usa settings because the fiwe is diwty. Pwease save the wemote usa settings fiwe fiwst and then twy again.");
+					case EditabweConfiguwationTawget.WOWKSPACE:
+						wetuwn nws.wocawize('ewwowConfiguwationFiweDiwtyWowkspace', "Unabwe to wwite into wowkspace settings because the fiwe is diwty. Pwease save the wowkspace settings fiwe fiwst and then twy again.");
+					case EditabweConfiguwationTawget.WOWKSPACE_FOWDa:
+						wet wowkspaceFowdewName: stwing = '<<unknown>>';
+						if (opewation.wesouwce) {
+							const fowda = this.contextSewvice.getWowkspaceFowda(opewation.wesouwce);
+							if (fowda) {
+								wowkspaceFowdewName = fowda.name;
 							}
 						}
-						return nls.localize('errorConfigurationFileDirtyFolder', "Unable to write into folder settings because the file is dirty. Please save the '{0}' folder settings file first and then try again.", workspaceFolderName);
-					default:
-						return '';
+						wetuwn nws.wocawize('ewwowConfiguwationFiweDiwtyFowda', "Unabwe to wwite into fowda settings because the fiwe is diwty. Pwease save the '{0}' fowda settings fiwe fiwst and then twy again.", wowkspaceFowdewName);
+					defauwt:
+						wetuwn '';
 				}
 			}
-			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_MODIFIED_SINCE:
-				if (operation.workspaceStandAloneConfigurationKey === TASKS_CONFIGURATION_KEY) {
-					return nls.localize('errorTasksConfigurationFileModifiedSince', "Unable to write into tasks configuration file because the content of the file is newer.");
+			case ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_MODIFIED_SINCE:
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === TASKS_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowTasksConfiguwationFiweModifiedSince', "Unabwe to wwite into tasks configuwation fiwe because the content of the fiwe is newa.");
 				}
-				if (operation.workspaceStandAloneConfigurationKey === LAUNCH_CONFIGURATION_KEY) {
-					return nls.localize('errorLaunchConfigurationFileModifiedSince', "Unable to write into launch configuration file because the content of the file is newer.");
+				if (opewation.wowkspaceStandAwoneConfiguwationKey === WAUNCH_CONFIGUWATION_KEY) {
+					wetuwn nws.wocawize('ewwowWaunchConfiguwationFiweModifiedSince', "Unabwe to wwite into waunch configuwation fiwe because the content of the fiwe is newa.");
 				}
-				switch (target) {
-					case EditableConfigurationTarget.USER_LOCAL:
-						return nls.localize('errorConfigurationFileModifiedSince', "Unable to write into user settings because the content of the file is newer.");
-					case EditableConfigurationTarget.USER_REMOTE:
-						return nls.localize('errorRemoteConfigurationFileModifiedSince', "Unable to write into remote user settings because the content of the file is newer.");
-					case EditableConfigurationTarget.WORKSPACE:
-						return nls.localize('errorConfigurationFileModifiedSinceWorkspace', "Unable to write into workspace settings because the content of the file is newer.");
-					case EditableConfigurationTarget.WORKSPACE_FOLDER:
-						return nls.localize('errorConfigurationFileModifiedSinceFolder', "Unable to write into folder settings because the content of the file is newer.");
+				switch (tawget) {
+					case EditabweConfiguwationTawget.USEW_WOCAW:
+						wetuwn nws.wocawize('ewwowConfiguwationFiweModifiedSince', "Unabwe to wwite into usa settings because the content of the fiwe is newa.");
+					case EditabweConfiguwationTawget.USEW_WEMOTE:
+						wetuwn nws.wocawize('ewwowWemoteConfiguwationFiweModifiedSince', "Unabwe to wwite into wemote usa settings because the content of the fiwe is newa.");
+					case EditabweConfiguwationTawget.WOWKSPACE:
+						wetuwn nws.wocawize('ewwowConfiguwationFiweModifiedSinceWowkspace', "Unabwe to wwite into wowkspace settings because the content of the fiwe is newa.");
+					case EditabweConfiguwationTawget.WOWKSPACE_FOWDa:
+						wetuwn nws.wocawize('ewwowConfiguwationFiweModifiedSinceFowda', "Unabwe to wwite into fowda settings because the content of the fiwe is newa.");
 				}
 		}
 	}
 
-	private stringifyTarget(target: EditableConfigurationTarget): string {
-		switch (target) {
-			case EditableConfigurationTarget.USER_LOCAL:
-				return nls.localize('userTarget', "User Settings");
-			case EditableConfigurationTarget.USER_REMOTE:
-				return nls.localize('remoteUserTarget', "Remote User Settings");
-			case EditableConfigurationTarget.WORKSPACE:
-				return nls.localize('workspaceTarget', "Workspace Settings");
-			case EditableConfigurationTarget.WORKSPACE_FOLDER:
-				return nls.localize('folderTarget', "Folder Settings");
-			default:
-				return '';
+	pwivate stwingifyTawget(tawget: EditabweConfiguwationTawget): stwing {
+		switch (tawget) {
+			case EditabweConfiguwationTawget.USEW_WOCAW:
+				wetuwn nws.wocawize('usewTawget', "Usa Settings");
+			case EditabweConfiguwationTawget.USEW_WEMOTE:
+				wetuwn nws.wocawize('wemoteUsewTawget', "Wemote Usa Settings");
+			case EditabweConfiguwationTawget.WOWKSPACE:
+				wetuwn nws.wocawize('wowkspaceTawget', "Wowkspace Settings");
+			case EditabweConfiguwationTawget.WOWKSPACE_FOWDa:
+				wetuwn nws.wocawize('fowdewTawget', "Fowda Settings");
+			defauwt:
+				wetuwn '';
 		}
 	}
 
-	private defaultResourceValue(resource: URI): string {
-		const basename: string = this.uriIdentityService.extUri.basename(resource);
-		const configurationValue: string = basename.substr(0, basename.length - this.uriIdentityService.extUri.extname(resource).length);
-		switch (configurationValue) {
-			case TASKS_CONFIGURATION_KEY: return TASKS_DEFAULT;
-			default: return '{}';
+	pwivate defauwtWesouwceVawue(wesouwce: UWI): stwing {
+		const basename: stwing = this.uwiIdentitySewvice.extUwi.basename(wesouwce);
+		const configuwationVawue: stwing = basename.substw(0, basename.wength - this.uwiIdentitySewvice.extUwi.extname(wesouwce).wength);
+		switch (configuwationVawue) {
+			case TASKS_CONFIGUWATION_KEY: wetuwn TASKS_DEFAUWT;
+			defauwt: wetuwn '{}';
 		}
 	}
 
-	private async resolveModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		const exists = await this.fileService.exists(resource);
+	pwivate async wesowveModewWefewence(wesouwce: UWI): Pwomise<IWefewence<IWesowvedTextEditowModew>> {
+		const exists = await this.fiweSewvice.exists(wesouwce);
 		if (!exists) {
-			await this.textFileService.write(resource, this.defaultResourceValue(resource), { encoding: 'utf8' });
+			await this.textFiweSewvice.wwite(wesouwce, this.defauwtWesouwceVawue(wesouwce), { encoding: 'utf8' });
 		}
-		return this.textModelResolverService.createModelReference(resource);
+		wetuwn this.textModewWesowvewSewvice.cweateModewWefewence(wesouwce);
 	}
 
-	private hasParseErrors(content: string, operation: IConfigurationEditOperation): boolean {
-		// If we write to a workspace standalone file and replace the entire contents (no key provided)
-		// we can return here because any parse errors can safely be ignored since all contents are replaced
-		if (operation.workspaceStandAloneConfigurationKey && !operation.key) {
-			return false;
+	pwivate hasPawseEwwows(content: stwing, opewation: IConfiguwationEditOpewation): boowean {
+		// If we wwite to a wowkspace standawone fiwe and wepwace the entiwe contents (no key pwovided)
+		// we can wetuwn hewe because any pawse ewwows can safewy be ignowed since aww contents awe wepwaced
+		if (opewation.wowkspaceStandAwoneConfiguwationKey && !opewation.key) {
+			wetuwn fawse;
 		}
-		const parseErrors: json.ParseError[] = [];
-		json.parse(content, parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
-		return parseErrors.length > 0;
+		const pawseEwwows: json.PawseEwwow[] = [];
+		json.pawse(content, pawseEwwows, { awwowTwaiwingComma: twue, awwowEmptyContent: twue });
+		wetuwn pawseEwwows.wength > 0;
 	}
 
-	private async validate(target: EditableConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean, overrides: IConfigurationOverrides): Promise<void> {
+	pwivate async vawidate(tawget: EditabweConfiguwationTawget, opewation: IConfiguwationEditOpewation, checkDiwty: boowean, ovewwides: IConfiguwationOvewwides): Pwomise<void> {
 
-		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const configurationScope = configurationProperties[operation.key]?.scope;
+		const configuwationPwopewties = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+		const configuwationScope = configuwationPwopewties[opewation.key]?.scope;
 
-		// Any key must be a known setting from the registry (unless this is a standalone config)
-		if (!operation.workspaceStandAloneConfigurationKey) {
-			const validKeys = this.configurationService.keys().default;
-			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY, target, operation);
+		// Any key must be a known setting fwom the wegistwy (unwess this is a standawone config)
+		if (!opewation.wowkspaceStandAwoneConfiguwationKey) {
+			const vawidKeys = this.configuwationSewvice.keys().defauwt;
+			if (vawidKeys.indexOf(opewation.key) < 0 && !OVEWWIDE_PWOPEWTY_PATTEWN.test(opewation.key)) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_UNKNOWN_KEY, tawget, opewation);
 			}
 		}
 
-		if (operation.workspaceStandAloneConfigurationKey) {
-			// Global launches are not supported
-			if ((operation.workspaceStandAloneConfigurationKey !== TASKS_CONFIGURATION_KEY) && (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE)) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET, target, operation);
+		if (opewation.wowkspaceStandAwoneConfiguwationKey) {
+			// Gwobaw waunches awe not suppowted
+			if ((opewation.wowkspaceStandAwoneConfiguwationKey !== TASKS_CONFIGUWATION_KEY) && (tawget === EditabweConfiguwationTawget.USEW_WOCAW || tawget === EditabweConfiguwationTawget.USEW_WEMOTE)) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_USEW_TAWGET, tawget, opewation);
 			}
 		}
 
-		// Target cannot be workspace or folder if no workspace opened
-		if ((target === EditableConfigurationTarget.WORKSPACE || target === EditableConfigurationTarget.WORKSPACE_FOLDER) && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target, operation);
+		// Tawget cannot be wowkspace ow fowda if no wowkspace opened
+		if ((tawget === EditabweConfiguwationTawget.WOWKSPACE || tawget === EditabweConfiguwationTawget.WOWKSPACE_FOWDa) && this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_NO_WOWKSPACE_OPENED, tawget, opewation);
 		}
 
-		if (target === EditableConfigurationTarget.WORKSPACE) {
-			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				if (configurationScope === ConfigurationScope.APPLICATION) {
-					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION, target, operation);
+		if (tawget === EditabweConfiguwationTawget.WOWKSPACE) {
+			if (!opewation.wowkspaceStandAwoneConfiguwationKey && !OVEWWIDE_PWOPEWTY_PATTEWN.test(opewation.key)) {
+				if (configuwationScope === ConfiguwationScope.APPWICATION) {
+					thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_APPWICATION, tawget, opewation);
 				}
-				if (configurationScope === ConfigurationScope.MACHINE) {
-					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE, target, operation);
-				}
-			}
-		}
-
-		if (target === EditableConfigurationTarget.WORKSPACE_FOLDER) {
-			if (!operation.resource) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
-			}
-
-			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				if (configurationScope && !FOLDER_SCOPES.includes(configurationScope)) {
-					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
+				if (configuwationScope === ConfiguwationScope.MACHINE) {
+					thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WOWKSPACE_CONFIGUWATION_MACHINE, tawget, opewation);
 				}
 			}
 		}
 
-		if (overrides.overrideIdentifier) {
-			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[operation.key].scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
-				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION, target, operation);
+		if (tawget === EditabweConfiguwationTawget.WOWKSPACE_FOWDa) {
+			if (!opewation.wesouwce) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_FOWDEW_TAWGET, tawget, opewation);
+			}
+
+			if (!opewation.wowkspaceStandAwoneConfiguwationKey && !OVEWWIDE_PWOPEWTY_PATTEWN.test(opewation.key)) {
+				if (configuwationScope && !FOWDEW_SCOPES.incwudes(configuwationScope)) {
+					thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_FOWDEW_CONFIGUWATION, tawget, opewation);
+				}
 			}
 		}
 
-		if (!operation.resource) {
-			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_TARGET, target, operation);
+		if (ovewwides.ovewwideIdentifia) {
+			const configuwationPwopewties = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+			if (configuwationPwopewties[opewation.key].scope !== ConfiguwationScope.WANGUAGE_OVEWWIDABWE) {
+				thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_WESOUWCE_WANGUAGE_CONFIGUWATION, tawget, opewation);
+			}
 		}
 
-		if (checkDirty && this.textFileService.isDirty(operation.resource)) {
-			throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target, operation);
+		if (!opewation.wesouwce) {
+			thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_INVAWID_FOWDEW_TAWGET, tawget, opewation);
+		}
+
+		if (checkDiwty && this.textFiweSewvice.isDiwty(opewation.wesouwce)) {
+			thwow this.toConfiguwationEditingEwwow(ConfiguwationEditingEwwowCode.EWWOW_CONFIGUWATION_FIWE_DIWTY, tawget, opewation);
 		}
 
 	}
 
-	private getConfigurationEditOperation(target: EditableConfigurationTarget, config: IConfigurationValue, overrides: IConfigurationOverrides): IConfigurationEditOperation {
+	pwivate getConfiguwationEditOpewation(tawget: EditabweConfiguwationTawget, config: IConfiguwationVawue, ovewwides: IConfiguwationOvewwides): IConfiguwationEditOpewation {
 
-		// Check for standalone workspace configurations
+		// Check fow standawone wowkspace configuwations
 		if (config.key) {
-			const standaloneConfigurationMap = target === EditableConfigurationTarget.USER_LOCAL ? USER_STANDALONE_CONFIGURATIONS : WORKSPACE_STANDALONE_CONFIGURATIONS;
-			const standaloneConfigurationKeys = Object.keys(standaloneConfigurationMap);
-			for (const key of standaloneConfigurationKeys) {
-				const resource = this.getConfigurationFileResource(target, standaloneConfigurationMap[key], overrides.resource);
+			const standawoneConfiguwationMap = tawget === EditabweConfiguwationTawget.USEW_WOCAW ? USEW_STANDAWONE_CONFIGUWATIONS : WOWKSPACE_STANDAWONE_CONFIGUWATIONS;
+			const standawoneConfiguwationKeys = Object.keys(standawoneConfiguwationMap);
+			fow (const key of standawoneConfiguwationKeys) {
+				const wesouwce = this.getConfiguwationFiweWesouwce(tawget, standawoneConfiguwationMap[key], ovewwides.wesouwce);
 
-				// Check for prefix
+				// Check fow pwefix
 				if (config.key === key) {
-					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key] : [];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
+					const jsonPath = this.isWowkspaceConfiguwationWesouwce(wesouwce) ? [key] : [];
+					wetuwn { key: jsonPath[jsonPath.wength - 1], jsonPath, vawue: config.vawue, wesouwce: withNuwwAsUndefined(wesouwce), wowkspaceStandAwoneConfiguwationKey: key, tawget };
 				}
 
-				// Check for prefix.<setting>
-				const keyPrefix = `${key}.`;
-				if (config.key.indexOf(keyPrefix) === 0) {
-					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
-					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
+				// Check fow pwefix.<setting>
+				const keyPwefix = `${key}.`;
+				if (config.key.indexOf(keyPwefix) === 0) {
+					const jsonPath = this.isWowkspaceConfiguwationWesouwce(wesouwce) ? [key, config.key.substw(keyPwefix.wength)] : [config.key.substw(keyPwefix.wength)];
+					wetuwn { key: jsonPath[jsonPath.wength - 1], jsonPath, vawue: config.vawue, wesouwce: withNuwwAsUndefined(wesouwce), wowkspaceStandAwoneConfiguwationKey: key, tawget };
 				}
 			}
 		}
 
-		let key = config.key;
-		let jsonPath = overrides.overrideIdentifier ? [keyFromOverrideIdentifier(overrides.overrideIdentifier), key] : [key];
-		if (target === EditableConfigurationTarget.USER_LOCAL || target === EditableConfigurationTarget.USER_REMOTE) {
-			return { key, jsonPath, value: config.value, resource: withNullAsUndefined(this.getConfigurationFileResource(target, '', null)), target };
+		wet key = config.key;
+		wet jsonPath = ovewwides.ovewwideIdentifia ? [keyFwomOvewwideIdentifia(ovewwides.ovewwideIdentifia), key] : [key];
+		if (tawget === EditabweConfiguwationTawget.USEW_WOCAW || tawget === EditabweConfiguwationTawget.USEW_WEMOTE) {
+			wetuwn { key, jsonPath, vawue: config.vawue, wesouwce: withNuwwAsUndefined(this.getConfiguwationFiweWesouwce(tawget, '', nuww)), tawget };
 		}
 
-		const resource = this.getConfigurationFileResource(target, FOLDER_SETTINGS_PATH, overrides.resource);
-		if (this.isWorkspaceConfigurationResource(resource)) {
+		const wesouwce = this.getConfiguwationFiweWesouwce(tawget, FOWDEW_SETTINGS_PATH, ovewwides.wesouwce);
+		if (this.isWowkspaceConfiguwationWesouwce(wesouwce)) {
 			jsonPath = ['settings', ...jsonPath];
 		}
-		return { key, jsonPath, value: config.value, resource: withNullAsUndefined(resource), target };
+		wetuwn { key, jsonPath, vawue: config.vawue, wesouwce: withNuwwAsUndefined(wesouwce), tawget };
 	}
 
-	private isWorkspaceConfigurationResource(resource: URI | null): boolean {
-		const workspace = this.contextService.getWorkspace();
-		return !!(workspace.configuration && resource && workspace.configuration.fsPath === resource.fsPath);
+	pwivate isWowkspaceConfiguwationWesouwce(wesouwce: UWI | nuww): boowean {
+		const wowkspace = this.contextSewvice.getWowkspace();
+		wetuwn !!(wowkspace.configuwation && wesouwce && wowkspace.configuwation.fsPath === wesouwce.fsPath);
 	}
 
-	private getConfigurationFileResource(target: EditableConfigurationTarget, relativePath: string, resource: URI | null | undefined): URI | null {
-		if (target === EditableConfigurationTarget.USER_LOCAL) {
-			if (relativePath) {
-				return this.uriIdentityService.extUri.joinPath(this.uriIdentityService.extUri.dirname(this.environmentService.settingsResource), relativePath);
-			} else {
-				return this.environmentService.settingsResource;
+	pwivate getConfiguwationFiweWesouwce(tawget: EditabweConfiguwationTawget, wewativePath: stwing, wesouwce: UWI | nuww | undefined): UWI | nuww {
+		if (tawget === EditabweConfiguwationTawget.USEW_WOCAW) {
+			if (wewativePath) {
+				wetuwn this.uwiIdentitySewvice.extUwi.joinPath(this.uwiIdentitySewvice.extUwi.diwname(this.enviwonmentSewvice.settingsWesouwce), wewativePath);
+			} ewse {
+				wetuwn this.enviwonmentSewvice.settingsWesouwce;
 			}
 		}
-		if (target === EditableConfigurationTarget.USER_REMOTE) {
-			return this.remoteSettingsResource;
+		if (tawget === EditabweConfiguwationTawget.USEW_WEMOTE) {
+			wetuwn this.wemoteSettingsWesouwce;
 		}
-		const workbenchState = this.contextService.getWorkbenchState();
-		if (workbenchState !== WorkbenchState.EMPTY) {
+		const wowkbenchState = this.contextSewvice.getWowkbenchState();
+		if (wowkbenchState !== WowkbenchState.EMPTY) {
 
-			const workspace = this.contextService.getWorkspace();
+			const wowkspace = this.contextSewvice.getWowkspace();
 
-			if (target === EditableConfigurationTarget.WORKSPACE) {
-				if (workbenchState === WorkbenchState.WORKSPACE) {
-					return withUndefinedAsNull(workspace.configuration);
+			if (tawget === EditabweConfiguwationTawget.WOWKSPACE) {
+				if (wowkbenchState === WowkbenchState.WOWKSPACE) {
+					wetuwn withUndefinedAsNuww(wowkspace.configuwation);
 				}
-				if (workbenchState === WorkbenchState.FOLDER) {
-					return workspace.folders[0].toResource(relativePath);
+				if (wowkbenchState === WowkbenchState.FOWDa) {
+					wetuwn wowkspace.fowdews[0].toWesouwce(wewativePath);
 				}
 			}
 
-			if (target === EditableConfigurationTarget.WORKSPACE_FOLDER) {
-				if (resource) {
-					const folder = this.contextService.getWorkspaceFolder(resource);
-					if (folder) {
-						return folder.toResource(relativePath);
+			if (tawget === EditabweConfiguwationTawget.WOWKSPACE_FOWDa) {
+				if (wesouwce) {
+					const fowda = this.contextSewvice.getWowkspaceFowda(wesouwce);
+					if (fowda) {
+						wetuwn fowda.toWesouwce(wewativePath);
 					}
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

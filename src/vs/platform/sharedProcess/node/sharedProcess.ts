@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
+impowt { ISandboxConfiguwation } fwom 'vs/base/pawts/sandbox/common/sandboxTypes';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
 
-export interface ISharedProcess {
+expowt intewface IShawedPwocess {
 
 	/**
-	 * Toggles the visibility of the otherwise hidden
-	 * shared process window.
+	 * Toggwes the visibiwity of the othewwise hidden
+	 * shawed pwocess window.
 	 */
-	toggle(): Promise<void>;
+	toggwe(): Pwomise<void>;
 }
 
-export interface ISharedProcessConfiguration extends ISandboxConfiguration {
-	readonly machineId: string;
+expowt intewface IShawedPwocessConfiguwation extends ISandboxConfiguwation {
+	weadonwy machineId: stwing;
 
-	readonly args: NativeParsedArgs;
+	weadonwy awgs: NativePawsedAwgs;
 
-	readonly logLevel: LogLevel;
+	weadonwy wogWevew: WogWevew;
 
-	readonly backupWorkspacesPath: string;
+	weadonwy backupWowkspacesPath: stwing;
 }

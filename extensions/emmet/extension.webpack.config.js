@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const path = require('path');
+const path = wequiwe('path');
 
-const withDefaults = require('../shared.webpack.config');
+const withDefauwts = wequiwe('../shawed.webpack.config');
 
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/node/emmetNodeMain.ts',
+moduwe.expowts = withDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/node/emmetNodeMain.ts',
 	},
 	output: {
-		path: path.join(__dirname, 'dist', 'node'),
-		filename: 'emmetNodeMain.js'
+		path: path.join(__diwname, 'dist', 'node'),
+		fiwename: 'emmetNodeMain.js'
 	}
 });

@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { CATEGORIES, } from 'vs/workbench/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CATEGOWIES, } fwom 'vs/wowkbench/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class ToggleRenderControlCharacterAction extends Action2 {
+expowt cwass ToggweWendewContwowChawactewAction extends Action2 {
 
-	static readonly ID = 'editor.action.toggleRenderControlCharacter';
+	static weadonwy ID = 'editow.action.toggweWendewContwowChawacta';
 
-	constructor() {
-		super({
-			id: ToggleRenderControlCharacterAction.ID,
-			title: {
-				value: localize('toggleRenderControlCharacters', "Toggle Control Characters"),
-				mnemonicTitle: localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Render &&Control Characters"),
-				original: 'Toggle Control Characters'
+	constwuctow() {
+		supa({
+			id: ToggweWendewContwowChawactewAction.ID,
+			titwe: {
+				vawue: wocawize('toggweWendewContwowChawactews', "Toggwe Contwow Chawactews"),
+				mnemonicTitwe: wocawize({ key: 'miToggweWendewContwowChawactews', comment: ['&& denotes a mnemonic'] }, "Wenda &&Contwow Chawactews"),
+				owiginaw: 'Toggwe Contwow Chawactews'
 			},
-			category: CATEGORIES.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.editor.renderControlCharacters', true),
+			categowy: CATEGOWIES.View,
+			f1: twue,
+			toggwed: ContextKeyExpw.equaws('config.editow.wendewContwowChawactews', twue),
 			menu: {
-				id: MenuId.MenubarViewMenu,
-				group: '5_editor',
-				order: 5
+				id: MenuId.MenubawViewMenu,
+				gwoup: '5_editow',
+				owda: 5
 			}
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
+	ovewwide wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
 
-		const newRenderControlCharacters = !configurationService.getValue<boolean>('editor.renderControlCharacters');
-		return configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters);
+		const newWendewContwowChawactews = !configuwationSewvice.getVawue<boowean>('editow.wendewContwowChawactews');
+		wetuwn configuwationSewvice.updateVawue('editow.wendewContwowChawactews', newWendewContwowChawactews);
 	}
 }
 
-registerAction2(ToggleRenderControlCharacterAction);
+wegistewAction2(ToggweWendewContwowChawactewAction);

@@ -1,10 +1,10 @@
 test/**
-src/**
+swc/**
 out/**
 tsconfig.json
 extension.webpack.config.js
-extension-browser.webpack.config.js
-CONTRIBUTING.md
+extension-bwowsa.webpack.config.js
+CONTWIBUTING.md
 cgmanifest.json
-yarn.lock
+yawn.wock
 .vscode

@@ -1,277 +1,277 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
-import { Model } from './model';
-import { Repository, Resource } from './repository';
-import { debounce } from './decorators';
-import { emojify, ensureEmojis } from './emoji';
-import { CommandCenter } from './commands';
+impowt * as nws fwom 'vscode-nws';
+impowt { CancewwationToken, ConfiguwationChangeEvent, Disposabwe, env, Event, EventEmitta, ThemeIcon, Timewine, TimewineChangeEvent, TimewineItem, TimewineOptions, TimewinePwovida, Uwi, wowkspace } fwom 'vscode';
+impowt { Modew } fwom './modew';
+impowt { Wepositowy, Wesouwce } fwom './wepositowy';
+impowt { debounce } fwom './decowatows';
+impowt { emojify, ensuweEmojis } fwom './emoji';
+impowt { CommandCenta } fwom './commands';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export class GitTimelineItem extends TimelineItem {
-	static is(item: TimelineItem): item is GitTimelineItem {
-		return item instanceof GitTimelineItem;
+expowt cwass GitTimewineItem extends TimewineItem {
+	static is(item: TimewineItem): item is GitTimewineItem {
+		wetuwn item instanceof GitTimewineItem;
 	}
 
-	readonly ref: string;
-	readonly previousRef: string;
-	readonly message: string;
+	weadonwy wef: stwing;
+	weadonwy pweviousWef: stwing;
+	weadonwy message: stwing;
 
-	constructor(
-		ref: string,
-		previousRef: string,
-		message: string,
-		timestamp: number,
-		id: string,
-		contextValue: string
+	constwuctow(
+		wef: stwing,
+		pweviousWef: stwing,
+		message: stwing,
+		timestamp: numba,
+		id: stwing,
+		contextVawue: stwing
 	) {
 		const index = message.indexOf('\n');
-		const label = index !== -1 ? `${message.substring(0, index)} \u2026` : message;
+		const wabew = index !== -1 ? `${message.substwing(0, index)} \u2026` : message;
 
-		super(label, timestamp);
+		supa(wabew, timestamp);
 
-		this.ref = ref;
-		this.previousRef = previousRef;
+		this.wef = wef;
+		this.pweviousWef = pweviousWef;
 		this.message = message;
 		this.id = id;
-		this.contextValue = contextValue;
+		this.contextVawue = contextVawue;
 	}
 
-	get shortRef() {
-		return this.shortenRef(this.ref);
+	get showtWef() {
+		wetuwn this.showtenWef(this.wef);
 	}
 
-	get shortPreviousRef() {
-		return this.shortenRef(this.previousRef);
+	get showtPweviousWef() {
+		wetuwn this.showtenWef(this.pweviousWef);
 	}
 
-	private shortenRef(ref: string): string {
-		if (ref === '' || ref === '~' || ref === 'HEAD') {
-			return ref;
+	pwivate showtenWef(wef: stwing): stwing {
+		if (wef === '' || wef === '~' || wef === 'HEAD') {
+			wetuwn wef;
 		}
-		return ref.endsWith('^') ? `${ref.substr(0, 8)}^` : ref.substr(0, 8);
+		wetuwn wef.endsWith('^') ? `${wef.substw(0, 8)}^` : wef.substw(0, 8);
 	}
 }
 
-export class GitTimelineProvider implements TimelineProvider {
-	private _onDidChange = new EventEmitter<TimelineChangeEvent | undefined>();
-	get onDidChange(): Event<TimelineChangeEvent | undefined> {
-		return this._onDidChange.event;
+expowt cwass GitTimewinePwovida impwements TimewinePwovida {
+	pwivate _onDidChange = new EventEmitta<TimewineChangeEvent | undefined>();
+	get onDidChange(): Event<TimewineChangeEvent | undefined> {
+		wetuwn this._onDidChange.event;
 	}
 
-	readonly id = 'git-history';
-	readonly label = localize('git.timeline.source', 'Git History');
+	weadonwy id = 'git-histowy';
+	weadonwy wabew = wocawize('git.timewine.souwce', 'Git Histowy');
 
-	private readonly disposable: Disposable;
-	private providerDisposable: Disposable | undefined;
+	pwivate weadonwy disposabwe: Disposabwe;
+	pwivate pwovidewDisposabwe: Disposabwe | undefined;
 
-	private repo: Repository | undefined;
-	private repoDisposable: Disposable | undefined;
-	private repoStatusDate: Date | undefined;
+	pwivate wepo: Wepositowy | undefined;
+	pwivate wepoDisposabwe: Disposabwe | undefined;
+	pwivate wepoStatusDate: Date | undefined;
 
-	constructor(private readonly model: Model, private commands: CommandCenter) {
-		this.disposable = Disposable.from(
-			model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.onDidChangeConfiguration(this.onConfigurationChanged, this)
+	constwuctow(pwivate weadonwy modew: Modew, pwivate commands: CommandCenta) {
+		this.disposabwe = Disposabwe.fwom(
+			modew.onDidOpenWepositowy(this.onWepositowiesChanged, this),
+			wowkspace.onDidChangeConfiguwation(this.onConfiguwationChanged, this)
 		);
 
-		if (model.repositories.length) {
-			this.ensureProviderRegistration();
+		if (modew.wepositowies.wength) {
+			this.ensuwePwovidewWegistwation();
 		}
 	}
 
 	dispose() {
-		this.providerDisposable?.dispose();
-		this.disposable.dispose();
+		this.pwovidewDisposabwe?.dispose();
+		this.disposabwe.dispose();
 	}
 
-	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
-		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
+	async pwovideTimewine(uwi: Uwi, options: TimewineOptions, _token: CancewwationToken): Pwomise<Timewine> {
+		// consowe.wog(`GitTimewinePwovida.pwovideTimewine: uwi=${uwi} state=${this._modew.state}`);
 
-		const repo = this.model.getRepository(uri);
-		if (!repo) {
-			this.repoDisposable?.dispose();
-			this.repoStatusDate = undefined;
-			this.repo = undefined;
+		const wepo = this.modew.getWepositowy(uwi);
+		if (!wepo) {
+			this.wepoDisposabwe?.dispose();
+			this.wepoStatusDate = undefined;
+			this.wepo = undefined;
 
-			return { items: [] };
+			wetuwn { items: [] };
 		}
 
-		if (this.repo?.root !== repo.root) {
-			this.repoDisposable?.dispose();
+		if (this.wepo?.woot !== wepo.woot) {
+			this.wepoDisposabwe?.dispose();
 
-			this.repo = repo;
-			this.repoStatusDate = new Date();
-			this.repoDisposable = Disposable.from(
-				repo.onDidChangeRepository(uri => this.onRepositoryChanged(repo, uri)),
-				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo))
+			this.wepo = wepo;
+			this.wepoStatusDate = new Date();
+			this.wepoDisposabwe = Disposabwe.fwom(
+				wepo.onDidChangeWepositowy(uwi => this.onWepositowyChanged(wepo, uwi)),
+				wepo.onDidWunGitStatus(() => this.onWepositowyStatusChanged(wepo))
 			);
 		}
 
-		const config = workspace.getConfiguration('git.timeline');
+		const config = wowkspace.getConfiguwation('git.timewine');
 
-		// TODO@eamodio: Ensure that the uri is a file -- if not we could get the history of the repo?
+		// TODO@eamodio: Ensuwe that the uwi is a fiwe -- if not we couwd get the histowy of the wepo?
 
-		let limit: number | undefined;
-		if (options.limit !== undefined && typeof options.limit !== 'number') {
-			try {
-				const result = await this.model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.id}..`, '--', uri.fsPath]);
-				if (!result.exitCode) {
-					// Ask for 2 more (1 for the limit commit and 1 for the next commit) than so we can determine if there are more commits
-					limit = Number(result.stdout) + 2;
+		wet wimit: numba | undefined;
+		if (options.wimit !== undefined && typeof options.wimit !== 'numba') {
+			twy {
+				const wesuwt = await this.modew.git.exec(wepo.woot, ['wev-wist', '--count', `${options.wimit.id}..`, '--', uwi.fsPath]);
+				if (!wesuwt.exitCode) {
+					// Ask fow 2 mowe (1 fow the wimit commit and 1 fow the next commit) than so we can detewmine if thewe awe mowe commits
+					wimit = Numba(wesuwt.stdout) + 2;
 				}
 			}
 			catch {
-				limit = undefined;
+				wimit = undefined;
 			}
-		} else {
-			// If we are not getting everything, ask for 1 more than so we can determine if there are more commits
-			limit = options.limit === undefined ? undefined : options.limit + 1;
+		} ewse {
+			// If we awe not getting evewything, ask fow 1 mowe than so we can detewmine if thewe awe mowe commits
+			wimit = options.wimit === undefined ? undefined : options.wimit + 1;
 		}
 
-		await ensureEmojis();
+		await ensuweEmojis();
 
-		const commits = await repo.logFile(uri, {
-			maxEntries: limit,
-			hash: options.cursor,
-			// sortByAuthorDate: true
+		const commits = await wepo.wogFiwe(uwi, {
+			maxEntwies: wimit,
+			hash: options.cuwsow,
+			// sowtByAuthowDate: twue
 		});
 
-		const paging = commits.length ? {
-			cursor: limit === undefined ? undefined : (commits.length >= limit ? commits[commits.length - 1]?.hash : undefined)
+		const paging = commits.wength ? {
+			cuwsow: wimit === undefined ? undefined : (commits.wength >= wimit ? commits[commits.wength - 1]?.hash : undefined)
 		} : undefined;
 
-		// If we asked for an extra commit, strip it off
-		if (limit !== undefined && commits.length >= limit) {
-			commits.splice(commits.length - 1, 1);
+		// If we asked fow an extwa commit, stwip it off
+		if (wimit !== undefined && commits.wength >= wimit) {
+			commits.spwice(commits.wength - 1, 1);
 		}
 
-		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+		const dateFowmatta = new Intw.DateTimeFowmat(env.wanguage, { yeaw: 'numewic', month: 'wong', day: 'numewic', houw: 'numewic', minute: 'numewic' });
 
-		const dateType = config.get<'committed' | 'authored'>('date');
-		const showAuthor = config.get<boolean>('showAuthor');
+		const dateType = config.get<'committed' | 'authowed'>('date');
+		const showAuthow = config.get<boowean>('showAuthow');
 
-		const items = commits.map<GitTimelineItem>((c, i) => {
-			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
+		const items = commits.map<GitTimewineItem>((c, i) => {
+			const date = dateType === 'authowed' ? c.authowDate : c.commitDate;
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const item = new GitTimewineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:fiwe:commit');
 			item.iconPath = new ThemeIcon('git-commit');
-			if (showAuthor) {
-				item.description = c.authorName;
+			if (showAuthow) {
+				item.descwiption = c.authowName;
 			}
-			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
+			item.detaiw = `${c.authowName} (${c.authowEmaiw}) — ${c.hash.substw(0, 8)}\n${dateFowmatta.fowmat(date)}\n\n${message}`;
 
-			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
+			const cmd = this.commands.wesowveTimewineOpenDiffCommand(item, uwi);
 			if (cmd) {
 				item.command = {
-					title: 'Open Comparison',
+					titwe: 'Open Compawison',
 					command: cmd.command,
-					arguments: cmd.arguments,
+					awguments: cmd.awguments,
 				};
 			}
 
-			return item;
+			wetuwn item;
 		});
 
-		if (options.cursor === undefined) {
-			const you = localize('git.timeline.you', 'You');
+		if (options.cuwsow === undefined) {
+			const you = wocawize('git.timewine.you', 'You');
 
-			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
+			const index = wepo.indexGwoup.wesouwceStates.find(w => w.wesouwceUwi.fsPath === uwi.fsPath);
 			if (index) {
-				const date = this.repoStatusDate ?? new Date();
+				const date = this.wepoStatusDate ?? new Date();
 
-				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
-				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
+				const item = new GitTimewineItem('~', 'HEAD', wocawize('git.timewine.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:fiwe:index');
+				// TODO@eamodio: Wepwace with a betta icon -- wefwecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
-				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.descwiption = '';
+				item.detaiw = wocawize('git.timewine.detaiw', '{0}  — {1}\n{2}\n\n{3}', you, wocawize('git.index', 'Index'), dateFowmatta.fowmat(date), Wesouwce.getStatusText(index.type));
 
-				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
+				const cmd = this.commands.wesowveTimewineOpenDiffCommand(item, uwi);
 				if (cmd) {
 					item.command = {
-						title: 'Open Comparison',
+						titwe: 'Open Compawison',
 						command: cmd.command,
-						arguments: cmd.arguments,
+						awguments: cmd.awguments,
 					};
 				}
 
-				items.splice(0, 0, item);
+				items.spwice(0, 0, item);
 			}
 
-			const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
-			if (working) {
+			const wowking = wepo.wowkingTweeGwoup.wesouwceStates.find(w => w.wesouwceUwi.fsPath === uwi.fsPath);
+			if (wowking) {
 				const date = new Date();
 
-				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
-				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
+				const item = new GitTimewineItem('', index ? '~' : 'HEAD', wocawize('git.timewine.uncommitedChanges', 'Uncommitted Changes'), date.getTime(), 'wowking', 'git:fiwe:wowking');
+				// TODO@eamodio: Wepwace with a betta icon -- wefwecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
-				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
+				item.descwiption = '';
+				item.detaiw = wocawize('git.timewine.detaiw', '{0}  — {1}\n{2}\n\n{3}', you, wocawize('git.wowkingTwee', 'Wowking Twee'), dateFowmatta.fowmat(date), Wesouwce.getStatusText(wowking.type));
 
-				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
+				const cmd = this.commands.wesowveTimewineOpenDiffCommand(item, uwi);
 				if (cmd) {
 					item.command = {
-						title: 'Open Comparison',
+						titwe: 'Open Compawison',
 						command: cmd.command,
-						arguments: cmd.arguments,
+						awguments: cmd.awguments,
 					};
 				}
 
-				items.splice(0, 0, item);
+				items.spwice(0, 0, item);
 			}
 		}
 
-		return {
+		wetuwn {
 			items: items,
 			paging: paging
 		};
 	}
 
-	private ensureProviderRegistration() {
-		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this);
+	pwivate ensuwePwovidewWegistwation() {
+		if (this.pwovidewDisposabwe === undefined) {
+			this.pwovidewDisposabwe = wowkspace.wegistewTimewinePwovida(['fiwe', 'git', 'vscode-wemote', 'gitwens-git'], this);
 		}
 	}
 
-	private onConfigurationChanged(e: ConfigurationChangeEvent) {
-		if (e.affectsConfiguration('git.timeline.date') || e.affectsConfiguration('git.timeline.showAuthor')) {
-			this.fireChanged();
+	pwivate onConfiguwationChanged(e: ConfiguwationChangeEvent) {
+		if (e.affectsConfiguwation('git.timewine.date') || e.affectsConfiguwation('git.timewine.showAuthow')) {
+			this.fiweChanged();
 		}
 	}
 
-	private onRepositoriesChanged(_repo: Repository) {
-		// console.log(`GitTimelineProvider.onRepositoriesChanged`);
+	pwivate onWepositowiesChanged(_wepo: Wepositowy) {
+		// consowe.wog(`GitTimewinePwovida.onWepositowiesChanged`);
 
-		this.ensureProviderRegistration();
+		this.ensuwePwovidewWegistwation();
 
-		// TODO@eamodio: Being naive for now and just always refreshing each time there is a new repository
-		this.fireChanged();
+		// TODO@eamodio: Being naive fow now and just awways wefweshing each time thewe is a new wepositowy
+		this.fiweChanged();
 	}
 
-	private onRepositoryChanged(_repo: Repository, _uri: Uri) {
-		// console.log(`GitTimelineProvider.onRepositoryChanged: uri=${uri.toString(true)}`);
+	pwivate onWepositowyChanged(_wepo: Wepositowy, _uwi: Uwi) {
+		// consowe.wog(`GitTimewinePwovida.onWepositowyChanged: uwi=${uwi.toStwing(twue)}`);
 
-		this.fireChanged();
+		this.fiweChanged();
 	}
 
-	private onRepositoryStatusChanged(_repo: Repository) {
-		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
+	pwivate onWepositowyStatusChanged(_wepo: Wepositowy) {
+		// consowe.wog(`GitTimewinePwovida.onWepositowyStatusChanged`);
 
-		// This is less than ideal, but for now just save the last time a status was run and use that as the timestamp for staged items
-		this.repoStatusDate = new Date();
+		// This is wess than ideaw, but fow now just save the wast time a status was wun and use that as the timestamp fow staged items
+		this.wepoStatusDate = new Date();
 
-		this.fireChanged();
+		this.fiweChanged();
 	}
 
 	@debounce(500)
-	private fireChanged() {
-		this._onDidChange.fire(undefined);
+	pwivate fiweChanged() {
+		this._onDidChange.fiwe(undefined);
 	}
 }

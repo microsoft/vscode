@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
-import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { escape } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { sewiawizeWebviewMessage, desewiawizeWebviewMessage } fwom 'vs/wowkbench/api/common/extHostWebviewMessaging';
+impowt { Webview, WebviewContentOptions, WebviewExtensionDescwiption, WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
 
-export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
+expowt cwass MainThweadWebviews extends Disposabwe impwements extHostPwotocow.MainThweadWebviewsShape {
 
-	private static readonly standardSupportedLinkSchemes = new Set([
+	pwivate static weadonwy standawdSuppowtedWinkSchemes = new Set([
 		Schemas.http,
 		Schemas.https,
-		Schemas.mailto,
+		Schemas.maiwto,
 		Schemas.vscode,
-		'vscode-insider',
+		'vscode-insida',
 	]);
 
-	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
+	pwivate weadonwy _pwoxy: extHostPwotocow.ExtHostWebviewsShape;
 
-	private readonly _webviews = new Map<string, Webview>();
+	pwivate weadonwy _webviews = new Map<stwing, Webview>();
 
-	constructor(
-		context: extHostProtocol.IExtHostContext,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IProductService private readonly _productService: IProductService,
+	constwuctow(
+		context: extHostPwotocow.IExtHostContext,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice,
 	) {
-		super();
+		supa();
 
-		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
+		this._pwoxy = context.getPwoxy(extHostPwotocow.ExtHostContext.ExtHostWebviews);
 	}
 
-	public addWebview(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay, options: { serializeBuffersForPostMessage: boolean }): void {
-		if (this._webviews.has(handle)) {
-			throw new Error('Webview already registered');
+	pubwic addWebview(handwe: extHostPwotocow.WebviewHandwe, webview: WebviewOvewway, options: { sewiawizeBuffewsFowPostMessage: boowean }): void {
+		if (this._webviews.has(handwe)) {
+			thwow new Ewwow('Webview awweady wegistewed');
 		}
 
-		this._webviews.set(handle, webview);
-		this.hookupWebviewEventDelegate(handle, webview, options);
+		this._webviews.set(handwe, webview);
+		this.hookupWebviewEventDewegate(handwe, webview, options);
 	}
 
-	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebview(handle);
-		webview.html = value;
+	pubwic $setHtmw(handwe: extHostPwotocow.WebviewHandwe, vawue: stwing): void {
+		const webview = this.getWebview(handwe);
+		webview.htmw = vawue;
 	}
 
-	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewOptions): void {
-		const webview = this.getWebview(handle);
-		webview.contentOptions = reviveWebviewContentOptions(options);
+	pubwic $setOptions(handwe: extHostPwotocow.WebviewHandwe, options: extHostPwotocow.IWebviewOptions): void {
+		const webview = this.getWebview(handwe);
+		webview.contentOptions = weviveWebviewContentOptions(options);
 	}
 
-	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
-		const webview = this.getWebview(handle);
-		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
-		webview.postMessage(message, arrayBuffers);
-		return true;
+	pubwic async $postMessage(handwe: extHostPwotocow.WebviewHandwe, jsonMessage: stwing, ...buffews: VSBuffa[]): Pwomise<boowean> {
+		const webview = this.getWebview(handwe);
+		const { message, awwayBuffews } = desewiawizeWebviewMessage(jsonMessage, buffews);
+		webview.postMessage(message, awwayBuffews);
+		wetuwn twue;
 	}
 
-	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay, options: { serializeBuffersForPostMessage: boolean }) {
-		const disposables = new DisposableStore();
+	pwivate hookupWebviewEventDewegate(handwe: extHostPwotocow.WebviewHandwe, webview: WebviewOvewway, options: { sewiawizeBuffewsFowPostMessage: boowean }) {
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
+		disposabwes.add(webview.onDidCwickWink((uwi) => this.onDidCwickWink(handwe, uwi)));
 
-		disposables.add(webview.onMessage((message) => {
-			const serialized = serializeWebviewMessage(message.message, options);
-			this._proxy.$onMessage(handle, serialized.message, ...serialized.buffers);
+		disposabwes.add(webview.onMessage((message) => {
+			const sewiawized = sewiawizeWebviewMessage(message.message, options);
+			this._pwoxy.$onMessage(handwe, sewiawized.message, ...sewiawized.buffews);
 		}));
 
-		disposables.add(webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
+		disposabwes.add(webview.onMissingCsp((extension: ExtensionIdentifia) => this._pwoxy.$onMissingCsp(handwe, extension.vawue)));
 
-		disposables.add(webview.onDidDispose(() => {
-			disposables.dispose();
-			this._webviews.delete(handle);
+		disposabwes.add(webview.onDidDispose(() => {
+			disposabwes.dispose();
+			this._webviews.dewete(handwe);
 		}));
 	}
 
-	private onDidClickLink(handle: extHostProtocol.WebviewHandle, link: string): void {
-		const webview = this.getWebview(handle);
-		if (this.isSupportedLink(webview, URI.parse(link))) {
-			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
+	pwivate onDidCwickWink(handwe: extHostPwotocow.WebviewHandwe, wink: stwing): void {
+		const webview = this.getWebview(handwe);
+		if (this.isSuppowtedWink(webview, UWI.pawse(wink))) {
+			this._openewSewvice.open(wink, { fwomUsewGestuwe: twue, awwowContwibutedOpenews: twue, awwowCommands: twue });
 		}
 	}
 
-	private isSupportedLink(webview: Webview, link: URI): boolean {
-		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
-			return true;
+	pwivate isSuppowtedWink(webview: Webview, wink: UWI): boowean {
+		if (MainThweadWebviews.standawdSuppowtedWinkSchemes.has(wink.scheme)) {
+			wetuwn twue;
 		}
-		if (!isWeb && this._productService.urlProtocol === link.scheme) {
-			return true;
+		if (!isWeb && this._pwoductSewvice.uwwPwotocow === wink.scheme) {
+			wetuwn twue;
 		}
-		return !!webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
+		wetuwn !!webview.contentOptions.enabweCommandUwis && wink.scheme === Schemas.command;
 	}
 
-	private getWebview(handle: extHostProtocol.WebviewHandle): Webview {
-		const webview = this._webviews.get(handle);
+	pwivate getWebview(handwe: extHostPwotocow.WebviewHandwe): Webview {
+		const webview = this._webviews.get(handwe);
 		if (!webview) {
-			throw new Error(`Unknown webview handle:${handle}`);
+			thwow new Ewwow(`Unknown webview handwe:${handwe}`);
 		}
-		return webview;
+		wetuwn webview;
 	}
 
-	public getWebviewResolvedFailedContent(viewType: string) {
-		return `<!DOCTYPE html>
-		<html>
+	pubwic getWebviewWesowvedFaiwedContent(viewType: stwing) {
+		wetuwn `<!DOCTYPE htmw>
+		<htmw>
 			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none';">
+				<meta http-equiv="Content-type" content="text/htmw;chawset=UTF-8">
+				<meta http-equiv="Content-Secuwity-Powicy" content="defauwt-swc 'none';">
 			</head>
-			<body>${localize('errorMessage', "An error occurred while loading view: {0}", escape(viewType))}</body>
-		</html>`;
+			<body>${wocawize('ewwowMessage', "An ewwow occuwwed whiwe woading view: {0}", escape(viewType))}</body>
+		</htmw>`;
 	}
 }
 
-export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExtensionDescription): WebviewExtensionDescription {
-	return { id: extensionData.id, location: URI.revive(extensionData.location) };
+expowt function weviveWebviewExtension(extensionData: extHostPwotocow.WebviewExtensionDescwiption): WebviewExtensionDescwiption {
+	wetuwn { id: extensionData.id, wocation: UWI.wevive(extensionData.wocation) };
 }
 
-export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewOptions): WebviewContentOptions {
-	return {
-		allowScripts: webviewOptions.enableScripts,
-		allowForms: webviewOptions.enableForms,
-		enableCommandUris: webviewOptions.enableCommandUris,
-		localResourceRoots: Array.isArray(webviewOptions.localResourceRoots) ? webviewOptions.localResourceRoots.map(r => URI.revive(r)) : undefined,
-		portMapping: webviewOptions.portMapping,
+expowt function weviveWebviewContentOptions(webviewOptions: extHostPwotocow.IWebviewOptions): WebviewContentOptions {
+	wetuwn {
+		awwowScwipts: webviewOptions.enabweScwipts,
+		awwowFowms: webviewOptions.enabweFowms,
+		enabweCommandUwis: webviewOptions.enabweCommandUwis,
+		wocawWesouwceWoots: Awway.isAwway(webviewOptions.wocawWesouwceWoots) ? webviewOptions.wocawWesouwceWoots.map(w => UWI.wevive(w)) : undefined,
+		powtMapping: webviewOptions.powtMapping,
 	};
 }

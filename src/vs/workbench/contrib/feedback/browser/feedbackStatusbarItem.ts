@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { FeedbackWidget, IFeedback, IFeedbackDelegate } from 'vs/workbench/contrib/feedback/browser/feedback';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { localize } from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { HIDE_NOTIFICATIONS_CENTER, HIDE_NOTIFICATION_TOAST } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { isIOS } from 'vs/base/common/platform';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FeedbackWidget, IFeedback, IFeedbackDewegate } fwom 'vs/wowkbench/contwib/feedback/bwowsa/feedback';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IStatusbawSewvice, StatusbawAwignment, IStatusbawEntwy, IStatusbawEntwyAccessow } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { HIDE_NOTIFICATIONS_CENTa, HIDE_NOTIFICATION_TOAST } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
 
-class TwitterFeedbackService implements IFeedbackDelegate {
+cwass TwittewFeedbackSewvice impwements IFeedbackDewegate {
 
-	private static TWITTER_URL: string = 'https://twitter.com/intent/tweet';
-	private static VIA_NAME: string = 'code';
-	private static HASHTAGS: string[] = ['HappyCoding'];
+	pwivate static TWITTEW_UWW: stwing = 'https://twitta.com/intent/tweet';
+	pwivate static VIA_NAME: stwing = 'code';
+	pwivate static HASHTAGS: stwing[] = ['HappyCoding'];
 
-	private combineHashTagsAsString(): string {
-		return TwitterFeedbackService.HASHTAGS.join(',');
+	pwivate combineHashTagsAsStwing(): stwing {
+		wetuwn TwittewFeedbackSewvice.HASHTAGS.join(',');
 	}
 
-	submitFeedback(feedback: IFeedback, openerService: IOpenerService): void {
-		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : ''}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${encodeURIComponent(feedback.feedback)}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
-		const url = TwitterFeedbackService.TWITTER_URL + queryString;
+	submitFeedback(feedback: IFeedback, openewSewvice: IOpenewSewvice): void {
+		const quewyStwing = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsStwing()}&` : ''}wef_swc=twswc%5Etfw&wewated=twittewapi%2Ctwitta&text=${encodeUWIComponent(feedback.feedback)}&tw_p=tweetbutton&via=${TwittewFeedbackSewvice.VIA_NAME}`;
+		const uww = TwittewFeedbackSewvice.TWITTEW_UWW + quewyStwing;
 
-		openerService.open(URI.parse(url));
+		openewSewvice.open(UWI.pawse(uww));
 	}
 
-	getCharacterLimit(sentiment: number): number {
-		let length: number = 0;
+	getChawactewWimit(sentiment: numba): numba {
+		wet wength: numba = 0;
 		if (sentiment === 1) {
-			TwitterFeedbackService.HASHTAGS.forEach(element => {
-				length += element.length + 2;
+			TwittewFeedbackSewvice.HASHTAGS.fowEach(ewement => {
+				wength += ewement.wength + 2;
 			});
 		}
 
-		if (TwitterFeedbackService.VIA_NAME) {
-			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
+		if (TwittewFeedbackSewvice.VIA_NAME) {
+			wength += ` via @${TwittewFeedbackSewvice.VIA_NAME}`.wength;
 		}
 
-		return 280 - length;
+		wetuwn 280 - wength;
 	}
 }
 
-export class FeedbackStatusbarConribution extends Disposable implements IWorkbenchContribution {
+expowt cwass FeedbackStatusbawConwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private static readonly TOGGLE_FEEDBACK_COMMAND = 'help.tweetFeedback';
+	pwivate static weadonwy TOGGWE_FEEDBACK_COMMAND = 'hewp.tweetFeedback';
 
-	private widget: FeedbackWidget | undefined;
-	private entry: IStatusbarEntryAccessor | undefined;
+	pwivate widget: FeedbackWidget | undefined;
+	pwivate entwy: IStatusbawEntwyAccessow | undefined;
 
-	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IProductService productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 	) {
-		super();
+		supa();
 
-		if (productService.sendASmile && !isIOS) {
-			this.createFeedbackStatusEntry();
-			this.registerListeners();
+		if (pwoductSewvice.sendASmiwe && !isIOS) {
+			this.cweateFeedbackStatusEntwy();
+			this.wegistewWistenews();
 		}
 	}
 
-	private createFeedbackStatusEntry(): void {
+	pwivate cweateFeedbackStatusEntwy(): void {
 
-		// Status entry
-		this.entry = this._register(this.statusbarService.addEntry(this.getStatusEntry(), 'status.feedback', StatusbarAlignment.RIGHT, -100 /* towards the end of the right hand side */));
+		// Status entwy
+		this.entwy = this._wegista(this.statusbawSewvice.addEntwy(this.getStatusEntwy(), 'status.feedback', StatusbawAwignment.WIGHT, -100 /* towawds the end of the wight hand side */));
 
-		// Command to toggle
-		CommandsRegistry.registerCommand(FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND, () => this.toggleFeedback());
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		// Command to toggwe
+		CommandsWegistwy.wegistewCommand(FeedbackStatusbawConwibution.TOGGWE_FEEDBACK_COMMAND, () => this.toggweFeedback());
+		MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 			command: {
-				id: FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND,
-				category: CATEGORIES.Help,
-				title: localize('status.feedback', "Tweet Feedback")
+				id: FeedbackStatusbawConwibution.TOGGWE_FEEDBACK_COMMAND,
+				categowy: CATEGOWIES.Hewp,
+				titwe: wocawize('status.feedback', "Tweet Feedback")
 			}
 		});
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Hide feedback widget whenever notifications appear
-		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
-			if (visible) {
+		// Hide feedback widget wheneva notifications appeaw
+		this._wegista(this.wayoutSewvice.onDidChangeNotificationsVisibiwity(visibwe => {
+			if (visibwe) {
 				this.widget?.hide();
 			}
 		}));
 	}
 
-	private createFeedbackWidget(): void {
-		const statusContainer = document.getElementById('status.feedback');
-		if (statusContainer) {
-			const icon = assertIsDefined(statusContainer.getElementsByClassName('codicon').item(0) as HTMLElement | null);
+	pwivate cweateFeedbackWidget(): void {
+		const statusContaina = document.getEwementById('status.feedback');
+		if (statusContaina) {
+			const icon = assewtIsDefined(statusContaina.getEwementsByCwassName('codicon').item(0) as HTMWEwement | nuww);
 
-			this.widget = this._register(this.instantiationService.createInstance(FeedbackWidget, icon, {
-				contextViewProvider: this.contextViewService,
-				feedbackService: this.instantiationService.createInstance(TwitterFeedbackService),
-				onFeedbackVisibilityChange: visible => this.entry?.update(this.getStatusEntry(visible))
+			this.widget = this._wegista(this.instantiationSewvice.cweateInstance(FeedbackWidget, icon, {
+				contextViewPwovida: this.contextViewSewvice,
+				feedbackSewvice: this.instantiationSewvice.cweateInstance(TwittewFeedbackSewvice),
+				onFeedbackVisibiwityChange: visibwe => this.entwy?.update(this.getStatusEntwy(visibwe))
 			}));
 		}
 	}
 
-	private toggleFeedback(): void {
+	pwivate toggweFeedback(): void {
 		if (!this.widget) {
-			this.createFeedbackWidget();
+			this.cweateFeedbackWidget();
 		}
 
-		// Hide when visible
-		if (this.widget?.isVisible()) {
+		// Hide when visibwe
+		if (this.widget?.isVisibwe()) {
 			this.widget.hide();
 		}
 
 		// Show when hidden
-		else {
-			this.commandService.executeCommand(HIDE_NOTIFICATION_TOAST);
-			this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
+		ewse {
+			this.commandSewvice.executeCommand(HIDE_NOTIFICATION_TOAST);
+			this.commandSewvice.executeCommand(HIDE_NOTIFICATIONS_CENTa);
 			this.widget?.show();
 		}
 	}
 
-	private getStatusEntry(showBeak?: boolean): IStatusbarEntry {
-		return {
-			name: localize('status.feedback.name', "Feedback"),
+	pwivate getStatusEntwy(showBeak?: boowean): IStatusbawEntwy {
+		wetuwn {
+			name: wocawize('status.feedback.name', "Feedback"),
 			text: '$(feedback)',
-			ariaLabel: localize('status.feedback', "Tweet Feedback"),
-			tooltip: localize('status.feedback', "Tweet Feedback"),
-			command: FeedbackStatusbarConribution.TOGGLE_FEEDBACK_COMMAND,
+			awiaWabew: wocawize('status.feedback', "Tweet Feedback"),
+			toowtip: wocawize('status.feedback', "Tweet Feedback"),
+			command: FeedbackStatusbawConwibution.TOGGWE_FEEDBACK_COMMAND,
 			showBeak
 		};
 	}

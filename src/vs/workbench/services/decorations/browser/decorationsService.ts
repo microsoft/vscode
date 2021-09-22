@@ -1,443 +1,443 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isThenable } from 'vs/base/common/async';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { iconRegistry } from 'vs/base/common/codicons';
-import { asArray } from 'vs/base/common/arrays';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Emitta, DebounceEmitta } fwom 'vs/base/common/event';
+impowt { IDecowationsSewvice, IDecowation, IWesouwceDecowationChangeEvent, IDecowationsPwovida, IDecowationData } fwom '../common/decowations';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { IDisposabwe, toDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isThenabwe } fwom 'vs/base/common/async';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
+impowt { cweateStyweSheet, cweateCSSWuwe, wemoveCSSWuwesContainingSewectow } fwom 'vs/base/bwowsa/dom';
+impowt { IThemeSewvice, ICowowTheme, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { wocawize } fwom 'vs/nws';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { asAwway } fwom 'vs/base/common/awways';
 
-class DecorationRule {
+cwass DecowationWuwe {
 
-	static keyOf(data: IDecorationData | IDecorationData[]): string {
-		if (Array.isArray(data)) {
-			return data.map(DecorationRule.keyOf).join(',');
-		} else {
-			const { color, letter } = data;
-			if (ThemeIcon.isThemeIcon(letter)) {
-				return `${color}+${letter.id}`;
-			} else {
-				return `${color}/${letter}`;
+	static keyOf(data: IDecowationData | IDecowationData[]): stwing {
+		if (Awway.isAwway(data)) {
+			wetuwn data.map(DecowationWuwe.keyOf).join(',');
+		} ewse {
+			const { cowow, wetta } = data;
+			if (ThemeIcon.isThemeIcon(wetta)) {
+				wetuwn `${cowow}+${wetta.id}`;
+			} ewse {
+				wetuwn `${cowow}/${wetta}`;
 			}
 		}
 	}
 
-	private static readonly _classNamesPrefix = 'monaco-decoration';
+	pwivate static weadonwy _cwassNamesPwefix = 'monaco-decowation';
 
-	readonly data: IDecorationData | IDecorationData[];
-	readonly itemColorClassName: string;
-	readonly itemBadgeClassName: string;
-	readonly iconBadgeClassName: string;
-	readonly bubbleBadgeClassName: string;
+	weadonwy data: IDecowationData | IDecowationData[];
+	weadonwy itemCowowCwassName: stwing;
+	weadonwy itemBadgeCwassName: stwing;
+	weadonwy iconBadgeCwassName: stwing;
+	weadonwy bubbweBadgeCwassName: stwing;
 
-	private _refCounter: number = 0;
+	pwivate _wefCounta: numba = 0;
 
-	constructor(data: IDecorationData | IDecorationData[], key: string) {
+	constwuctow(data: IDecowationData | IDecowationData[], key: stwing) {
 		this.data = data;
-		const suffix = hash(key).toString(36);
-		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
-		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
-		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
-		this.iconBadgeClassName = `${DecorationRule._classNamesPrefix}-iconBadge-${suffix}`;
+		const suffix = hash(key).toStwing(36);
+		this.itemCowowCwassName = `${DecowationWuwe._cwassNamesPwefix}-itemCowow-${suffix}`;
+		this.itemBadgeCwassName = `${DecowationWuwe._cwassNamesPwefix}-itemBadge-${suffix}`;
+		this.bubbweBadgeCwassName = `${DecowationWuwe._cwassNamesPwefix}-bubbweBadge-${suffix}`;
+		this.iconBadgeCwassName = `${DecowationWuwe._cwassNamesPwefix}-iconBadge-${suffix}`;
 	}
 
-	acquire(): void {
-		this._refCounter += 1;
+	acquiwe(): void {
+		this._wefCounta += 1;
 	}
 
-	release(): boolean {
-		return --this._refCounter === 0;
+	wewease(): boowean {
+		wetuwn --this._wefCounta === 0;
 	}
 
-	appendCSSRules(element: HTMLStyleElement, theme: IColorTheme): void {
-		if (!Array.isArray(this.data)) {
-			this._appendForOne(this.data, element, theme);
-		} else {
-			this._appendForMany(this.data, element, theme);
+	appendCSSWuwes(ewement: HTMWStyweEwement, theme: ICowowTheme): void {
+		if (!Awway.isAwway(this.data)) {
+			this._appendFowOne(this.data, ewement, theme);
+		} ewse {
+			this._appendFowMany(this.data, ewement, theme);
 		}
 	}
 
-	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: IColorTheme): void {
-		const { color, letter } = data;
-		// label
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
-		if (ThemeIcon.isThemeIcon(letter)) {
-			this._createIconCSSRule(letter, color, element, theme);
-		} else if (letter) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
+	pwivate _appendFowOne(data: IDecowationData, ewement: HTMWStyweEwement, theme: ICowowTheme): void {
+		const { cowow, wetta } = data;
+		// wabew
+		cweateCSSWuwe(`.${this.itemCowowCwassName}`, `cowow: ${getCowow(theme, cowow)};`, ewement);
+		if (ThemeIcon.isThemeIcon(wetta)) {
+			this._cweateIconCSSWuwe(wetta, cowow, ewement, theme);
+		} ewse if (wetta) {
+			cweateCSSWuwe(`.${this.itemBadgeCwassName}::afta`, `content: "${wetta}"; cowow: ${getCowow(theme, cowow)};`, ewement);
 		}
 	}
 
-	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: IColorTheme): void {
-		// label
-		const { color } = data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
+	pwivate _appendFowMany(data: IDecowationData[], ewement: HTMWStyweEwement, theme: ICowowTheme): void {
+		// wabew
+		const { cowow } = data[0];
+		cweateCSSWuwe(`.${this.itemCowowCwassName}`, `cowow: ${getCowow(theme, cowow)};`, ewement);
 
-		// badge or icon
-		let letters: string[] = [];
-		let icon: ThemeIcon | undefined;
+		// badge ow icon
+		wet wettews: stwing[] = [];
+		wet icon: ThemeIcon | undefined;
 
-		for (let d of data) {
-			if (ThemeIcon.isThemeIcon(d.letter)) {
-				icon = d.letter;
-				break;
-			} else if (d.letter) {
-				letters.push(d.letter);
+		fow (wet d of data) {
+			if (ThemeIcon.isThemeIcon(d.wetta)) {
+				icon = d.wetta;
+				bweak;
+			} ewse if (d.wetta) {
+				wettews.push(d.wetta);
 			}
 		}
 
 		if (icon) {
-			this._createIconCSSRule(icon, color, element, theme);
-		} else {
-			if (letters.length) {
-				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
+			this._cweateIconCSSWuwe(icon, cowow, ewement, theme);
+		} ewse {
+			if (wettews.wength) {
+				cweateCSSWuwe(`.${this.itemBadgeCwassName}::afta`, `content: "${wettews.join(', ')}"; cowow: ${getCowow(theme, cowow)};`, ewement);
 			}
 
-			// bubble badge
-			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
-			createCSSRule(
-				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
-				element
+			// bubbwe badge
+			// TODO @misowowi update bubbwe badge to adopt wetta: ThemeIcon instead of unicode
+			cweateCSSWuwe(
+				`.${this.bubbweBadgeCwassName}::afta`,
+				`content: "\uea71"; cowow: ${getCowow(theme, cowow)}; font-famiwy: codicon; font-size: 14px; mawgin-wight: 14px; opacity: 0.4;`,
+				ewement
 			);
 		}
 	}
 
-	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement, theme: IColorTheme) {
+	pwivate _cweateIconCSSWuwe(icon: ThemeIcon, cowow: stwing | undefined, ewement: HTMWStyweEwement, theme: ICowowTheme) {
 
-		const index = icon.id.lastIndexOf('~');
-		const id = index < 0 ? icon.id : icon.id.substr(0, index);
-		const modifier = index < 0 ? '' : icon.id.substr(index + 1);
+		const index = icon.id.wastIndexOf('~');
+		const id = index < 0 ? icon.id : icon.id.substw(0, index);
+		const modifia = index < 0 ? '' : icon.id.substw(index + 1);
 
-		const codicon = iconRegistry.get(id);
-		if (!codicon || !('fontCharacter' in codicon.definition)) {
-			return;
+		const codicon = iconWegistwy.get(id);
+		if (!codicon || !('fontChawacta' in codicon.definition)) {
+			wetuwn;
 		}
-		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
-		createCSSRule(
-			`.${this.iconBadgeClassName}::after`,
-			`content: "${String.fromCharCode(charCode)}";
-			color: ${getColor(theme, color)};
-			font-family: codicon;
+		const chawCode = pawseInt(codicon.definition.fontChawacta.substw(1), 16);
+		cweateCSSWuwe(
+			`.${this.iconBadgeCwassName}::afta`,
+			`content: "${Stwing.fwomChawCode(chawCode)}";
+			cowow: ${getCowow(theme, cowow)};
+			font-famiwy: codicon;
 			font-size: 16px;
-			margin-right: 14px;
-			font-weight: normal;
-			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			mawgin-wight: 14px;
+			font-weight: nowmaw;
+			${modifia === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
 			`,
-			element
+			ewement
 		);
 	}
 
-	removeCSSRules(element: HTMLStyleElement): void {
-		removeCSSRulesContainingSelector(this.itemColorClassName, element);
-		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
-		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
-		removeCSSRulesContainingSelector(this.iconBadgeClassName, element);
+	wemoveCSSWuwes(ewement: HTMWStyweEwement): void {
+		wemoveCSSWuwesContainingSewectow(this.itemCowowCwassName, ewement);
+		wemoveCSSWuwesContainingSewectow(this.itemBadgeCwassName, ewement);
+		wemoveCSSWuwesContainingSewectow(this.bubbweBadgeCwassName, ewement);
+		wemoveCSSWuwesContainingSewectow(this.iconBadgeCwassName, ewement);
 	}
 }
 
-class DecorationStyles {
+cwass DecowationStywes {
 
-	private readonly _styleElement = createStyleSheet();
-	private readonly _decorationRules = new Map<string, DecorationRule>();
-	private readonly _dispoables = new DisposableStore();
+	pwivate weadonwy _styweEwement = cweateStyweSheet();
+	pwivate weadonwy _decowationWuwes = new Map<stwing, DecowationWuwe>();
+	pwivate weadonwy _dispoabwes = new DisposabweStowe();
 
-	constructor(private readonly _themeService: IThemeService) {
-		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
+	constwuctow(pwivate weadonwy _themeSewvice: IThemeSewvice) {
+		this._themeSewvice.onDidCowowThemeChange(this._onThemeChange, this, this._dispoabwes);
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
-		this._styleElement.remove();
+		this._dispoabwes.dispose();
+		this._styweEwement.wemove();
 	}
 
-	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
+	asDecowation(data: IDecowationData[], onwyChiwdwen: boowean): IDecowation {
 
-		// sort by weight
-		data.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+		// sowt by weight
+		data.sowt((a, b) => (b.weight || 0) - (a.weight || 0));
 
-		let key = DecorationRule.keyOf(data);
-		let rule = this._decorationRules.get(key);
+		wet key = DecowationWuwe.keyOf(data);
+		wet wuwe = this._decowationWuwes.get(key);
 
-		if (!rule) {
-			// new css rule
-			rule = new DecorationRule(data, key);
-			this._decorationRules.set(key, rule);
-			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
+		if (!wuwe) {
+			// new css wuwe
+			wuwe = new DecowationWuwe(data, key);
+			this._decowationWuwes.set(key, wuwe);
+			wuwe.appendCSSWuwes(this._styweEwement, this._themeSewvice.getCowowTheme());
 		}
 
-		rule.acquire();
+		wuwe.acquiwe();
 
-		let labelClassName = rule.itemColorClassName;
-		let badgeClassName = rule.itemBadgeClassName;
-		let iconClassName = rule.iconBadgeClassName;
-		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
-		let strikethrough = data.some(d => d.strikethrough);
+		wet wabewCwassName = wuwe.itemCowowCwassName;
+		wet badgeCwassName = wuwe.itemBadgeCwassName;
+		wet iconCwassName = wuwe.iconBadgeCwassName;
+		wet toowtip = data.fiwta(d => !isFawsyOwWhitespace(d.toowtip)).map(d => d.toowtip).join(' • ');
+		wet stwikethwough = data.some(d => d.stwikethwough);
 
-		if (onlyChildren) {
-			// show items from its children only
-			badgeClassName = rule.bubbleBadgeClassName;
-			tooltip = localize('bubbleTitle', "Contains emphasized items");
+		if (onwyChiwdwen) {
+			// show items fwom its chiwdwen onwy
+			badgeCwassName = wuwe.bubbweBadgeCwassName;
+			toowtip = wocawize('bubbweTitwe', "Contains emphasized items");
 		}
 
-		return {
-			labelClassName,
-			badgeClassName,
-			iconClassName,
-			strikethrough,
-			tooltip,
+		wetuwn {
+			wabewCwassName,
+			badgeCwassName,
+			iconCwassName,
+			stwikethwough,
+			toowtip,
 			dispose: () => {
-				if (rule?.release()) {
-					this._decorationRules.delete(key);
-					rule.removeCSSRules(this._styleElement);
-					rule = undefined;
+				if (wuwe?.wewease()) {
+					this._decowationWuwes.dewete(key);
+					wuwe.wemoveCSSWuwes(this._styweEwement);
+					wuwe = undefined;
 				}
 			}
 		};
 	}
 
-	private _onThemeChange(): void {
-		this._decorationRules.forEach(rule => {
-			rule.removeCSSRules(this._styleElement);
-			rule.appendCSSRules(this._styleElement, this._themeService.getColorTheme());
+	pwivate _onThemeChange(): void {
+		this._decowationWuwes.fowEach(wuwe => {
+			wuwe.wemoveCSSWuwes(this._styweEwement);
+			wuwe.appendCSSWuwes(this._styweEwement, this._themeSewvice.getCowowTheme());
 		});
 	}
 }
 
-class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
+cwass FiweDecowationChangeEvent impwements IWesouwceDecowationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
+	pwivate weadonwy _data = TewnawySeawchTwee.fowUwis<twue>(_uwi => twue); // events ignowe aww path casings
 
-	constructor(all: URI | URI[]) {
-		for (let uri of asArray(all)) {
-			this._data.set(uri, true);
+	constwuctow(aww: UWI | UWI[]) {
+		fow (wet uwi of asAwway(aww)) {
+			this._data.set(uwi, twue);
 		}
 	}
 
-	affectsResource(uri: URI): boolean {
-		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
+	affectsWesouwce(uwi: UWI): boowean {
+		wetuwn this._data.get(uwi) ?? this._data.findSupewstw(uwi) !== undefined;
 	}
 
-	static merge(all: (URI | URI[])[]): URI[] {
-		let res: URI[] = [];
-		for (let uriOrArray of all) {
-			if (Array.isArray(uriOrArray)) {
-				res = res.concat(uriOrArray);
-			} else {
-				res.push(uriOrArray);
+	static mewge(aww: (UWI | UWI[])[]): UWI[] {
+		wet wes: UWI[] = [];
+		fow (wet uwiOwAwway of aww) {
+			if (Awway.isAwway(uwiOwAwway)) {
+				wes = wes.concat(uwiOwAwway);
+			} ewse {
+				wes.push(uwiOwAwway);
 			}
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-class DecorationDataRequest {
-	constructor(
-		readonly source: CancellationTokenSource,
-		readonly thenable: Promise<void>,
+cwass DecowationDataWequest {
+	constwuctow(
+		weadonwy souwce: CancewwationTokenSouwce,
+		weadonwy thenabwe: Pwomise<void>,
 	) { }
 }
 
-class DecorationProviderWrapper {
+cwass DecowationPwovidewWwappa {
 
-	readonly data: TernarySearchTree<URI, DecorationDataRequest | IDecorationData | null>;
-	private readonly _dispoable: IDisposable;
+	weadonwy data: TewnawySeawchTwee<UWI, DecowationDataWequest | IDecowationData | nuww>;
+	pwivate weadonwy _dispoabwe: IDisposabwe;
 
-	constructor(
-		readonly provider: IDecorationsProvider,
-		uriIdentityService: IUriIdentityService,
-		private readonly _uriEmitter: Emitter<URI | URI[]>,
-		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
+	constwuctow(
+		weadonwy pwovida: IDecowationsPwovida,
+		uwiIdentitySewvice: IUwiIdentitySewvice,
+		pwivate weadonwy _uwiEmitta: Emitta<UWI | UWI[]>,
+		pwivate weadonwy _fwushEmitta: Emitta<IWesouwceDecowationChangeEvent>
 	) {
 
-		this.data = TernarySearchTree.forUris(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+		this.data = TewnawySeawchTwee.fowUwis(uwi => uwiIdentitySewvice.extUwi.ignowePathCasing(uwi));
 
-		this._dispoable = this.provider.onDidChange(uris => {
-			if (!uris) {
-				// flush event -> drop all data, can affect everything
-				this.data.clear();
-				this._flushEmitter.fire({ affectsResource() { return true; } });
+		this._dispoabwe = this.pwovida.onDidChange(uwis => {
+			if (!uwis) {
+				// fwush event -> dwop aww data, can affect evewything
+				this.data.cweaw();
+				this._fwushEmitta.fiwe({ affectsWesouwce() { wetuwn twue; } });
 
-			} else {
-				// selective changes -> drop for resource, fetch again, send event
-				// perf: the map stores thenables, decorations, or `null`-markers.
-				// we make us of that and ignore all uris in which we have never
-				// been interested.
-				for (const uri of uris) {
-					this._fetchData(uri);
+			} ewse {
+				// sewective changes -> dwop fow wesouwce, fetch again, send event
+				// pewf: the map stowes thenabwes, decowations, ow `nuww`-mawkews.
+				// we make us of that and ignowe aww uwis in which we have neva
+				// been intewested.
+				fow (const uwi of uwis) {
+					this._fetchData(uwi);
 				}
 			}
 		});
 	}
 
 	dispose(): void {
-		this._dispoable.dispose();
-		this.data.clear();
+		this._dispoabwe.dispose();
+		this.data.cweaw();
 	}
 
-	knowsAbout(uri: URI): boolean {
-		return this.data.has(uri) || Boolean(this.data.findSuperstr(uri));
+	knowsAbout(uwi: UWI): boowean {
+		wetuwn this.data.has(uwi) || Boowean(this.data.findSupewstw(uwi));
 	}
 
-	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
+	getOwWetwieve(uwi: UWI, incwudeChiwdwen: boowean, cawwback: (data: IDecowationData, isChiwd: boowean) => void): void {
 
-		let item = this.data.get(uri);
+		wet item = this.data.get(uwi);
 
 		if (item === undefined) {
-			// unknown -> trigger request
-			item = this._fetchData(uri);
+			// unknown -> twigga wequest
+			item = this._fetchData(uwi);
 		}
 
-		if (item && !(item instanceof DecorationDataRequest)) {
-			// found something (which isn't pending anymore)
-			callback(item, false);
+		if (item && !(item instanceof DecowationDataWequest)) {
+			// found something (which isn't pending anymowe)
+			cawwback(item, fawse);
 		}
 
-		if (includeChildren) {
-			// (resolved) children
-			const iter = this.data.findSuperstr(uri);
-			if (iter) {
-				for (const [, value] of iter) {
-					if (value && !(value instanceof DecorationDataRequest)) {
-						callback(value, true);
+		if (incwudeChiwdwen) {
+			// (wesowved) chiwdwen
+			const ita = this.data.findSupewstw(uwi);
+			if (ita) {
+				fow (const [, vawue] of ita) {
+					if (vawue && !(vawue instanceof DecowationDataWequest)) {
+						cawwback(vawue, twue);
 					}
 				}
 			}
 		}
 	}
 
-	private _fetchData(uri: URI): IDecorationData | null {
+	pwivate _fetchData(uwi: UWI): IDecowationData | nuww {
 
-		// check for pending request and cancel it
-		const pendingRequest = this.data.get(uri);
-		if (pendingRequest instanceof DecorationDataRequest) {
-			pendingRequest.source.cancel();
-			this.data.delete(uri);
+		// check fow pending wequest and cancew it
+		const pendingWequest = this.data.get(uwi);
+		if (pendingWequest instanceof DecowationDataWequest) {
+			pendingWequest.souwce.cancew();
+			this.data.dewete(uwi);
 		}
 
-		const source = new CancellationTokenSource();
-		const dataOrThenable = this.provider.provideDecorations(uri, source.token);
-		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
-			// sync -> we have a result now
-			return this._keepItem(uri, dataOrThenable);
+		const souwce = new CancewwationTokenSouwce();
+		const dataOwThenabwe = this.pwovida.pwovideDecowations(uwi, souwce.token);
+		if (!isThenabwe<IDecowationData | Pwomise<IDecowationData | undefined> | undefined>(dataOwThenabwe)) {
+			// sync -> we have a wesuwt now
+			wetuwn this._keepItem(uwi, dataOwThenabwe);
 
-		} else {
-			// async -> we have a result soon
-			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
-				if (this.data.get(uri) === request) {
-					this._keepItem(uri, data);
+		} ewse {
+			// async -> we have a wesuwt soon
+			const wequest = new DecowationDataWequest(souwce, Pwomise.wesowve(dataOwThenabwe).then(data => {
+				if (this.data.get(uwi) === wequest) {
+					this._keepItem(uwi, data);
 				}
-			}).catch(err => {
-				if (!isPromiseCanceledError(err) && this.data.get(uri) === request) {
-					this.data.delete(uri);
+			}).catch(eww => {
+				if (!isPwomiseCancewedEwwow(eww) && this.data.get(uwi) === wequest) {
+					this.data.dewete(uwi);
 				}
 			}));
 
-			this.data.set(uri, request);
-			return null;
+			this.data.set(uwi, wequest);
+			wetuwn nuww;
 		}
 	}
 
-	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
-		const deco = data ? data : null;
-		const old = this.data.set(uri, deco);
-		if (deco || old) {
-			// only fire event when something changed
-			this._uriEmitter.fire(uri);
+	pwivate _keepItem(uwi: UWI, data: IDecowationData | undefined): IDecowationData | nuww {
+		const deco = data ? data : nuww;
+		const owd = this.data.set(uwi, deco);
+		if (deco || owd) {
+			// onwy fiwe event when something changed
+			this._uwiEmitta.fiwe(uwi);
 		}
-		return deco;
+		wetuwn deco;
 	}
 }
 
-export class DecorationsService implements IDecorationsService {
+expowt cwass DecowationsSewvice impwements IDecowationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: FileDecorationChangeEvent.merge });
-	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
-	private readonly _decorationStyles: DecorationStyles;
+	pwivate weadonwy _data = new WinkedWist<DecowationPwovidewWwappa>();
+	pwivate weadonwy _onDidChangeDecowationsDewayed = new DebounceEmitta<UWI | UWI[]>({ mewge: FiweDecowationChangeEvent.mewge });
+	pwivate weadonwy _onDidChangeDecowations = new Emitta<IWesouwceDecowationChangeEvent>();
+	pwivate weadonwy _decowationStywes: DecowationStywes;
 
-	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+	weadonwy onDidChangeDecowations = this._onDidChangeDecowations.event;
 
-	constructor(
-		@IThemeService themeService: IThemeService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+	constwuctow(
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		this._decorationStyles = new DecorationStyles(themeService);
+		this._decowationStywes = new DecowationStywes(themeSewvice);
 
-		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
+		this._onDidChangeDecowationsDewayed.event(event => { this._onDidChangeDecowations.fiwe(new FiweDecowationChangeEvent(event)); });
 	}
 
 	dispose(): void {
-		this._decorationStyles.dispose();
-		this._onDidChangeDecorations.dispose();
-		this._onDidChangeDecorationsDelayed.dispose();
+		this._decowationStywes.dispose();
+		this._onDidChangeDecowations.dispose();
+		this._onDidChangeDecowationsDewayed.dispose();
 	}
 
-	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
+	wegistewDecowationsPwovida(pwovida: IDecowationsPwovida): IDisposabwe {
 
-		const wrapper = new DecorationProviderWrapper(
-			provider,
-			this._uriIdentityService,
-			this._onDidChangeDecorationsDelayed,
-			this._onDidChangeDecorations
+		const wwappa = new DecowationPwovidewWwappa(
+			pwovida,
+			this._uwiIdentitySewvice,
+			this._onDidChangeDecowationsDewayed,
+			this._onDidChangeDecowations
 		);
-		const remove = this._data.unshift(wrapper);
+		const wemove = this._data.unshift(wwappa);
 
-		this._onDidChangeDecorations.fire({
-			// everything might have changed
-			affectsResource() { return true; }
+		this._onDidChangeDecowations.fiwe({
+			// evewything might have changed
+			affectsWesouwce() { wetuwn twue; }
 		});
 
-		return toDisposable(() => {
-			// fire event that says 'yes' for any resource
-			// known to this provider. then dispose and remove it.
-			remove();
-			this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
-			wrapper.dispose();
+		wetuwn toDisposabwe(() => {
+			// fiwe event that says 'yes' fow any wesouwce
+			// known to this pwovida. then dispose and wemove it.
+			wemove();
+			this._onDidChangeDecowations.fiwe({ affectsWesouwce: uwi => wwappa.knowsAbout(uwi) });
+			wwappa.dispose();
 		});
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
-		let data: IDecorationData[] = [];
-		let containsChildren: boolean = false;
-		for (let wrapper of this._data) {
-			wrapper.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
-				if (!isChild || deco.bubble) {
+	getDecowation(uwi: UWI, incwudeChiwdwen: boowean): IDecowation | undefined {
+		wet data: IDecowationData[] = [];
+		wet containsChiwdwen: boowean = fawse;
+		fow (wet wwappa of this._data) {
+			wwappa.getOwWetwieve(uwi, incwudeChiwdwen, (deco, isChiwd) => {
+				if (!isChiwd || deco.bubbwe) {
 					data.push(deco);
-					containsChildren = isChild || containsChildren;
+					containsChiwdwen = isChiwd || containsChiwdwen;
 				}
 			});
 		}
-		return data.length === 0
+		wetuwn data.wength === 0
 			? undefined
-			: this._decorationStyles.asDecoration(data, containsChildren);
+			: this._decowationStywes.asDecowation(data, containsChiwdwen);
 	}
 }
-function getColor(theme: IColorTheme, color: string | undefined) {
-	if (color) {
-		const foundColor = theme.getColor(color);
-		if (foundColor) {
-			return foundColor;
+function getCowow(theme: ICowowTheme, cowow: stwing | undefined) {
+	if (cowow) {
+		const foundCowow = theme.getCowow(cowow);
+		if (foundCowow) {
+			wetuwn foundCowow;
 		}
 	}
-	return 'inherit';
+	wetuwn 'inhewit';
 }
 
-registerSingleton(IDecorationsService, DecorationsService, true);
+wegistewSingweton(IDecowationsSewvice, DecowationsSewvice, twue);

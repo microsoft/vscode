@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, WebContents } from 'electron';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
+impowt { ipcMain, WebContents } fwom 'ewectwon';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CwientConnectionEvent, IPCSewva } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Pwotocow as EwectwonPwotocow } fwom 'vs/base/pawts/ipc/common/ipc.ewectwon';
 
-interface IIPCEvent {
-	event: { sender: WebContents; };
-	message: Buffer | null;
+intewface IIPCEvent {
+	event: { senda: WebContents; };
+	message: Buffa | nuww;
 }
 
-function createScopedOnMessageEvent(senderId: number, eventName: string): Event<VSBuffer | null> {
-	const onMessage = Event.fromNodeEventEmitter<IIPCEvent>(ipcMain, eventName, (event, message) => ({ event, message }));
-	const onMessageFromSender = Event.filter(onMessage, ({ event }) => event.sender.id === senderId);
+function cweateScopedOnMessageEvent(sendewId: numba, eventName: stwing): Event<VSBuffa | nuww> {
+	const onMessage = Event.fwomNodeEventEmitta<IIPCEvent>(ipcMain, eventName, (event, message) => ({ event, message }));
+	const onMessageFwomSenda = Event.fiwta(onMessage, ({ event }) => event.senda.id === sendewId);
 
-	return Event.map(onMessageFromSender, ({ message }) => message ? VSBuffer.wrap(message) : message);
+	wetuwn Event.map(onMessageFwomSenda, ({ message }) => message ? VSBuffa.wwap(message) : message);
 }
 
 /**
- * An implementation of `IPCServer` on top of Electron `ipcMain` API.
+ * An impwementation of `IPCSewva` on top of Ewectwon `ipcMain` API.
  */
-export class Server extends IPCServer {
+expowt cwass Sewva extends IPCSewva {
 
-	private static readonly Clients = new Map<number, IDisposable>();
+	pwivate static weadonwy Cwients = new Map<numba, IDisposabwe>();
 
-	private static getOnDidClientConnect(): Event<ClientConnectionEvent> {
-		const onHello = Event.fromNodeEventEmitter<WebContents>(ipcMain, 'vscode:hello', ({ sender }) => sender);
+	pwivate static getOnDidCwientConnect(): Event<CwientConnectionEvent> {
+		const onHewwo = Event.fwomNodeEventEmitta<WebContents>(ipcMain, 'vscode:hewwo', ({ senda }) => senda);
 
-		return Event.map(onHello, webContents => {
+		wetuwn Event.map(onHewwo, webContents => {
 			const id = webContents.id;
-			const client = Server.Clients.get(id);
+			const cwient = Sewva.Cwients.get(id);
 
-			if (client) {
-				client.dispose();
+			if (cwient) {
+				cwient.dispose();
 			}
 
-			const onDidClientReconnect = new Emitter<void>();
-			Server.Clients.set(id, toDisposable(() => onDidClientReconnect.fire()));
+			const onDidCwientWeconnect = new Emitta<void>();
+			Sewva.Cwients.set(id, toDisposabwe(() => onDidCwientWeconnect.fiwe()));
 
-			const onMessage = createScopedOnMessageEvent(id, 'vscode:message') as Event<VSBuffer>;
-			const onDidClientDisconnect = Event.any(Event.signal(createScopedOnMessageEvent(id, 'vscode:disconnect')), onDidClientReconnect.event);
-			const protocol = new ElectronProtocol(webContents, onMessage);
+			const onMessage = cweateScopedOnMessageEvent(id, 'vscode:message') as Event<VSBuffa>;
+			const onDidCwientDisconnect = Event.any(Event.signaw(cweateScopedOnMessageEvent(id, 'vscode:disconnect')), onDidCwientWeconnect.event);
+			const pwotocow = new EwectwonPwotocow(webContents, onMessage);
 
-			return { protocol, onDidClientDisconnect };
+			wetuwn { pwotocow, onDidCwientDisconnect };
 		});
 	}
 
-	constructor() {
-		super(Server.getOnDidClientConnect());
+	constwuctow() {
+		supa(Sewva.getOnDidCwientConnect());
 	}
 }

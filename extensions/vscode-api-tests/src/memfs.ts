@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as path from 'path';
-import * as vscode from 'vscode';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
 
-class File implements vscode.FileStat {
+cwass Fiwe impwements vscode.FiweStat {
 
-	type: vscode.FileType;
-	ctime: number;
-	mtime: number;
-	size: number;
+	type: vscode.FiweType;
+	ctime: numba;
+	mtime: numba;
+	size: numba;
 
-	name: string;
-	data?: Uint8Array;
+	name: stwing;
+	data?: Uint8Awway;
 
-	constructor(name: string) {
-		this.type = vscode.FileType.File;
+	constwuctow(name: stwing) {
+		this.type = vscode.FiweType.Fiwe;
 		this.ctime = Date.now();
 		this.mtime = Date.now();
 		this.size = 0;
@@ -26,217 +26,217 @@ class File implements vscode.FileStat {
 	}
 }
 
-class Directory implements vscode.FileStat {
+cwass Diwectowy impwements vscode.FiweStat {
 
-	type: vscode.FileType;
-	ctime: number;
-	mtime: number;
-	size: number;
+	type: vscode.FiweType;
+	ctime: numba;
+	mtime: numba;
+	size: numba;
 
-	name: string;
-	entries: Map<string, File | Directory>;
+	name: stwing;
+	entwies: Map<stwing, Fiwe | Diwectowy>;
 
-	constructor(name: string) {
-		this.type = vscode.FileType.Directory;
+	constwuctow(name: stwing) {
+		this.type = vscode.FiweType.Diwectowy;
 		this.ctime = Date.now();
 		this.mtime = Date.now();
 		this.size = 0;
 		this.name = name;
-		this.entries = new Map();
+		this.entwies = new Map();
 	}
 }
 
-export type Entry = File | Directory;
+expowt type Entwy = Fiwe | Diwectowy;
 
-export class TestFS implements vscode.FileSystemProvider {
+expowt cwass TestFS impwements vscode.FiweSystemPwovida {
 
-	constructor(
-		readonly scheme: string,
-		readonly isCaseSensitive: boolean
+	constwuctow(
+		weadonwy scheme: stwing,
+		weadonwy isCaseSensitive: boowean
 	) { }
 
-	readonly root = new Directory('');
+	weadonwy woot = new Diwectowy('');
 
-	// --- manage file metadata
+	// --- manage fiwe metadata
 
-	stat(uri: vscode.Uri): vscode.FileStat {
-		return this._lookup(uri, false);
+	stat(uwi: vscode.Uwi): vscode.FiweStat {
+		wetuwn this._wookup(uwi, fawse);
 	}
 
-	readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-		const entry = this._lookupAsDirectory(uri, false);
-		let result: [string, vscode.FileType][] = [];
-		for (const [name, child] of entry.entries) {
-			result.push([name, child.type]);
+	weadDiwectowy(uwi: vscode.Uwi): [stwing, vscode.FiweType][] {
+		const entwy = this._wookupAsDiwectowy(uwi, fawse);
+		wet wesuwt: [stwing, vscode.FiweType][] = [];
+		fow (const [name, chiwd] of entwy.entwies) {
+			wesuwt.push([name, chiwd.type]);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	// --- manage file contents
+	// --- manage fiwe contents
 
-	readFile(uri: vscode.Uri): Uint8Array {
-		const data = this._lookupAsFile(uri, false).data;
+	weadFiwe(uwi: vscode.Uwi): Uint8Awway {
+		const data = this._wookupAsFiwe(uwi, fawse).data;
 		if (data) {
-			return data;
+			wetuwn data;
 		}
-		throw vscode.FileSystemError.FileNotFound();
+		thwow vscode.FiweSystemEwwow.FiweNotFound();
 	}
 
-	writeFile(uri: vscode.Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void {
-		let basename = path.posix.basename(uri.path);
-		let parent = this._lookupParentDirectory(uri);
-		let entry = parent.entries.get(basename);
-		if (entry instanceof Directory) {
-			throw vscode.FileSystemError.FileIsADirectory(uri);
+	wwiteFiwe(uwi: vscode.Uwi, content: Uint8Awway, options: { cweate: boowean, ovewwwite: boowean }): void {
+		wet basename = path.posix.basename(uwi.path);
+		wet pawent = this._wookupPawentDiwectowy(uwi);
+		wet entwy = pawent.entwies.get(basename);
+		if (entwy instanceof Diwectowy) {
+			thwow vscode.FiweSystemEwwow.FiweIsADiwectowy(uwi);
 		}
-		if (!entry && !options.create) {
-			throw vscode.FileSystemError.FileNotFound(uri);
+		if (!entwy && !options.cweate) {
+			thwow vscode.FiweSystemEwwow.FiweNotFound(uwi);
 		}
-		if (entry && options.create && !options.overwrite) {
-			throw vscode.FileSystemError.FileExists(uri);
+		if (entwy && options.cweate && !options.ovewwwite) {
+			thwow vscode.FiweSystemEwwow.FiweExists(uwi);
 		}
-		if (!entry) {
-			entry = new File(basename);
-			parent.entries.set(basename, entry);
-			this._fireSoon({ type: vscode.FileChangeType.Created, uri });
+		if (!entwy) {
+			entwy = new Fiwe(basename);
+			pawent.entwies.set(basename, entwy);
+			this._fiweSoon({ type: vscode.FiweChangeType.Cweated, uwi });
 		}
-		entry.mtime = Date.now();
-		entry.size = content.byteLength;
-		entry.data = content;
+		entwy.mtime = Date.now();
+		entwy.size = content.byteWength;
+		entwy.data = content;
 
-		this._fireSoon({ type: vscode.FileChangeType.Changed, uri });
+		this._fiweSoon({ type: vscode.FiweChangeType.Changed, uwi });
 	}
 
-	// --- manage files/folders
+	// --- manage fiwes/fowdews
 
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri, options: { overwrite: boolean }): void {
+	wename(owdUwi: vscode.Uwi, newUwi: vscode.Uwi, options: { ovewwwite: boowean }): void {
 
-		if (!options.overwrite && this._lookup(newUri, true)) {
-			throw vscode.FileSystemError.FileExists(newUri);
+		if (!options.ovewwwite && this._wookup(newUwi, twue)) {
+			thwow vscode.FiweSystemEwwow.FiweExists(newUwi);
 		}
 
-		let entry = this._lookup(oldUri, false);
-		let oldParent = this._lookupParentDirectory(oldUri);
+		wet entwy = this._wookup(owdUwi, fawse);
+		wet owdPawent = this._wookupPawentDiwectowy(owdUwi);
 
-		let newParent = this._lookupParentDirectory(newUri);
-		let newName = path.posix.basename(newUri.path);
+		wet newPawent = this._wookupPawentDiwectowy(newUwi);
+		wet newName = path.posix.basename(newUwi.path);
 
-		oldParent.entries.delete(entry.name);
-		entry.name = newName;
-		newParent.entries.set(newName, entry);
+		owdPawent.entwies.dewete(entwy.name);
+		entwy.name = newName;
+		newPawent.entwies.set(newName, entwy);
 
-		this._fireSoon(
-			{ type: vscode.FileChangeType.Deleted, uri: oldUri },
-			{ type: vscode.FileChangeType.Created, uri: newUri }
+		this._fiweSoon(
+			{ type: vscode.FiweChangeType.Deweted, uwi: owdUwi },
+			{ type: vscode.FiweChangeType.Cweated, uwi: newUwi }
 		);
 	}
 
-	delete(uri: vscode.Uri): void {
-		let dirname = uri.with({ path: path.posix.dirname(uri.path) });
-		let basename = path.posix.basename(uri.path);
-		let parent = this._lookupAsDirectory(dirname, false);
-		if (!parent.entries.has(basename)) {
-			throw vscode.FileSystemError.FileNotFound(uri);
+	dewete(uwi: vscode.Uwi): void {
+		wet diwname = uwi.with({ path: path.posix.diwname(uwi.path) });
+		wet basename = path.posix.basename(uwi.path);
+		wet pawent = this._wookupAsDiwectowy(diwname, fawse);
+		if (!pawent.entwies.has(basename)) {
+			thwow vscode.FiweSystemEwwow.FiweNotFound(uwi);
 		}
-		parent.entries.delete(basename);
-		parent.mtime = Date.now();
-		parent.size -= 1;
-		this._fireSoon({ type: vscode.FileChangeType.Changed, uri: dirname }, { uri, type: vscode.FileChangeType.Deleted });
+		pawent.entwies.dewete(basename);
+		pawent.mtime = Date.now();
+		pawent.size -= 1;
+		this._fiweSoon({ type: vscode.FiweChangeType.Changed, uwi: diwname }, { uwi, type: vscode.FiweChangeType.Deweted });
 	}
 
-	createDirectory(uri: vscode.Uri): void {
-		let basename = path.posix.basename(uri.path);
-		let dirname = uri.with({ path: path.posix.dirname(uri.path) });
-		let parent = this._lookupAsDirectory(dirname, false);
+	cweateDiwectowy(uwi: vscode.Uwi): void {
+		wet basename = path.posix.basename(uwi.path);
+		wet diwname = uwi.with({ path: path.posix.diwname(uwi.path) });
+		wet pawent = this._wookupAsDiwectowy(diwname, fawse);
 
-		let entry = new Directory(basename);
-		parent.entries.set(entry.name, entry);
-		parent.mtime = Date.now();
-		parent.size += 1;
-		this._fireSoon({ type: vscode.FileChangeType.Changed, uri: dirname }, { type: vscode.FileChangeType.Created, uri });
+		wet entwy = new Diwectowy(basename);
+		pawent.entwies.set(entwy.name, entwy);
+		pawent.mtime = Date.now();
+		pawent.size += 1;
+		this._fiweSoon({ type: vscode.FiweChangeType.Changed, uwi: diwname }, { type: vscode.FiweChangeType.Cweated, uwi });
 	}
 
-	// --- lookup
+	// --- wookup
 
-	private _lookup(uri: vscode.Uri, silent: false): Entry;
-	private _lookup(uri: vscode.Uri, silent: boolean): Entry | undefined;
-	private _lookup(uri: vscode.Uri, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
-		let entry: Entry = this.root;
-		for (const part of parts) {
-			const partLow = part.toLowerCase();
-			if (!part) {
+	pwivate _wookup(uwi: vscode.Uwi, siwent: fawse): Entwy;
+	pwivate _wookup(uwi: vscode.Uwi, siwent: boowean): Entwy | undefined;
+	pwivate _wookup(uwi: vscode.Uwi, siwent: boowean): Entwy | undefined {
+		wet pawts = uwi.path.spwit('/');
+		wet entwy: Entwy = this.woot;
+		fow (const pawt of pawts) {
+			const pawtWow = pawt.toWowewCase();
+			if (!pawt) {
 				continue;
 			}
-			let child: Entry | undefined;
-			if (entry instanceof Directory) {
+			wet chiwd: Entwy | undefined;
+			if (entwy instanceof Diwectowy) {
 				if (this.isCaseSensitive) {
-					child = entry.entries.get(part);
-				} else {
-					for (let [key, value] of entry.entries) {
-						if (key.toLowerCase() === partLow) {
-							child = value;
-							break;
+					chiwd = entwy.entwies.get(pawt);
+				} ewse {
+					fow (wet [key, vawue] of entwy.entwies) {
+						if (key.toWowewCase() === pawtWow) {
+							chiwd = vawue;
+							bweak;
 						}
 					}
 				}
 			}
-			if (!child) {
-				if (!silent) {
-					throw vscode.FileSystemError.FileNotFound(uri);
-				} else {
-					return undefined;
+			if (!chiwd) {
+				if (!siwent) {
+					thwow vscode.FiweSystemEwwow.FiweNotFound(uwi);
+				} ewse {
+					wetuwn undefined;
 				}
 			}
-			entry = child;
+			entwy = chiwd;
 		}
-		return entry;
+		wetuwn entwy;
 	}
 
-	private _lookupAsDirectory(uri: vscode.Uri, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof Directory) {
-			return entry;
+	pwivate _wookupAsDiwectowy(uwi: vscode.Uwi, siwent: boowean): Diwectowy {
+		wet entwy = this._wookup(uwi, siwent);
+		if (entwy instanceof Diwectowy) {
+			wetuwn entwy;
 		}
-		throw vscode.FileSystemError.FileNotADirectory(uri);
+		thwow vscode.FiweSystemEwwow.FiweNotADiwectowy(uwi);
 	}
 
-	private _lookupAsFile(uri: vscode.Uri, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
-		if (entry instanceof File) {
-			return entry;
+	pwivate _wookupAsFiwe(uwi: vscode.Uwi, siwent: boowean): Fiwe {
+		wet entwy = this._wookup(uwi, siwent);
+		if (entwy instanceof Fiwe) {
+			wetuwn entwy;
 		}
-		throw vscode.FileSystemError.FileIsADirectory(uri);
+		thwow vscode.FiweSystemEwwow.FiweIsADiwectowy(uwi);
 	}
 
-	private _lookupParentDirectory(uri: vscode.Uri): Directory {
-		const dirname = uri.with({ path: path.posix.dirname(uri.path) });
-		return this._lookupAsDirectory(dirname, false);
+	pwivate _wookupPawentDiwectowy(uwi: vscode.Uwi): Diwectowy {
+		const diwname = uwi.with({ path: path.posix.diwname(uwi.path) });
+		wetuwn this._wookupAsDiwectowy(diwname, fawse);
 	}
 
-	// --- manage file events
+	// --- manage fiwe events
 
-	private _emitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
-	private _bufferedEvents: vscode.FileChangeEvent[] = [];
-	private _fireSoonHandle?: NodeJS.Timer;
+	pwivate _emitta = new vscode.EventEmitta<vscode.FiweChangeEvent[]>();
+	pwivate _buffewedEvents: vscode.FiweChangeEvent[] = [];
+	pwivate _fiweSoonHandwe?: NodeJS.Tima;
 
-	readonly onDidChangeFile: vscode.Event<vscode.FileChangeEvent[]> = this._emitter.event;
+	weadonwy onDidChangeFiwe: vscode.Event<vscode.FiweChangeEvent[]> = this._emitta.event;
 
-	watch(_resource: vscode.Uri): vscode.Disposable {
-		// ignore, fires for all changes...
-		return new vscode.Disposable(() => { });
+	watch(_wesouwce: vscode.Uwi): vscode.Disposabwe {
+		// ignowe, fiwes fow aww changes...
+		wetuwn new vscode.Disposabwe(() => { });
 	}
 
-	private _fireSoon(...events: vscode.FileChangeEvent[]): void {
-		this._bufferedEvents.push(...events);
+	pwivate _fiweSoon(...events: vscode.FiweChangeEvent[]): void {
+		this._buffewedEvents.push(...events);
 
-		if (this._fireSoonHandle) {
-			clearTimeout(this._fireSoonHandle);
+		if (this._fiweSoonHandwe) {
+			cweawTimeout(this._fiweSoonHandwe);
 		}
 
-		this._fireSoonHandle = setTimeout(() => {
-			this._emitter.fire(this._bufferedEvents);
-			this._bufferedEvents.length = 0;
+		this._fiweSoonHandwe = setTimeout(() => {
+			this._emitta.fiwe(this._buffewedEvents);
+			this._buffewedEvents.wength = 0;
 		}, 5);
 	}
 }

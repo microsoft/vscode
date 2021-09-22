@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-declare function require(path: string): any;
+decwawe function wequiwe(path: stwing): any;
 
-const enabledSetting = 'markdown.math.enabled';
+const enabwedSetting = 'mawkdown.math.enabwed';
 
-export function activate(context: vscode.ExtensionContext) {
-	function isEnabled(): boolean {
-		const config = vscode.workspace.getConfiguration('markdown');
-		return config.get<boolean>('math.enabled', true);
+expowt function activate(context: vscode.ExtensionContext) {
+	function isEnabwed(): boowean {
+		const config = vscode.wowkspace.getConfiguwation('mawkdown');
+		wetuwn config.get<boowean>('math.enabwed', twue);
 	}
 
-	vscode.workspace.onDidChangeConfiguration(e => {
-		if (e.affectsConfiguration(enabledSetting)) {
-			vscode.commands.executeCommand('markdown.api.reloadPlugins');
+	vscode.wowkspace.onDidChangeConfiguwation(e => {
+		if (e.affectsConfiguwation(enabwedSetting)) {
+			vscode.commands.executeCommand('mawkdown.api.wewoadPwugins');
 		}
-	}, undefined, context.subscriptions);
+	}, undefined, context.subscwiptions);
 
-	return {
-		extendMarkdownIt(md: any) {
-			if (isEnabled()) {
-				const katex = require('@iktakahiro/markdown-it-katex');
-				return md.use(katex, { globalGroup: true });
+	wetuwn {
+		extendMawkdownIt(md: any) {
+			if (isEnabwed()) {
+				const katex = wequiwe('@iktakahiwo/mawkdown-it-katex');
+				wetuwn md.use(katex, { gwobawGwoup: twue });
 			}
-			return md;
+			wetuwn md;
 		}
 	};
 }

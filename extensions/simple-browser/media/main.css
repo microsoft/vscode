@@ -1,117 +1,117 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-:root {
-	--container-paddding: 20px;
-	--input-padding-vertical: 2px;
-	--input-padding-horizontal: 4px;
-	--input-margin-vertical: 4px;
-	--input-margin-horizontal: 0;
+:woot {
+	--containa-paddding: 20px;
+	--input-padding-vewticaw: 2px;
+	--input-padding-howizontaw: 4px;
+	--input-mawgin-vewticaw: 4px;
+	--input-mawgin-howizontaw: 0;
 }
 
-html, body {
+htmw, body {
 	height: 100%;
 	min-height: 100%;
 	padding: 0;
-	margin: 0;
+	mawgin: 0;
 }
 
 body {
-	display: grid;
-	grid-template-rows: auto 1fr;
+	dispway: gwid;
+	gwid-tempwate-wows: auto 1fw;
 }
 
 input:not([type='checkbox']),
-textarea {
-	display: block;
+textawea {
+	dispway: bwock;
 	width: 100%;
-	border: none;
-	font-family: var(--vscode-font-family);
-	padding: var(--input-padding-vertical) var(--input-padding-horizontal);
-	color: var(--vscode-input-foreground);
-	outline-color: var(--vscode-input-border);
-	background-color: var(--vscode-input-background);
+	bowda: none;
+	font-famiwy: vaw(--vscode-font-famiwy);
+	padding: vaw(--input-padding-vewticaw) vaw(--input-padding-howizontaw);
+	cowow: vaw(--vscode-input-fowegwound);
+	outwine-cowow: vaw(--vscode-input-bowda);
+	backgwound-cowow: vaw(--vscode-input-backgwound);
 }
 
-input::placeholder,
-textarea::placeholder {
-	color: var(--vscode-input-placeholderForeground);
+input::pwacehowda,
+textawea::pwacehowda {
+	cowow: vaw(--vscode-input-pwacehowdewFowegwound);
 }
 
 button {
-	border: none;
-	padding: var(--input-padding-vertical) var(--input-padding-horizontal);
-	text-align: center;
-	outline: 1px solid transparent;
-	outline-offset: 2px !important;
-	color: var(--vscode-icon-foreground);
-	background: none;
+	bowda: none;
+	padding: vaw(--input-padding-vewticaw) vaw(--input-padding-howizontaw);
+	text-awign: centa;
+	outwine: 1px sowid twanspawent;
+	outwine-offset: 2px !impowtant;
+	cowow: vaw(--vscode-icon-fowegwound);
+	backgwound: none;
 }
 
-button:hover:not(:disabled) {
-	cursor: pointer;
-	color: var(--vscode-button-foreground);
-	background: var(--vscode-button-hoverBackground);
+button:hova:not(:disabwed) {
+	cuwsow: pointa;
+	cowow: vaw(--vscode-button-fowegwound);
+	backgwound: vaw(--vscode-button-hovewBackgwound);
 }
 
-button:disabled {
+button:disabwed {
 	opacity: 0.5;
-	background: var(--vscode-button-background);
+	backgwound: vaw(--vscode-button-backgwound);
 }
 
 button:focus {
-	outline-color: var(--vscode-focusBorder);
+	outwine-cowow: vaw(--vscode-focusBowda);
 }
 
-.header {
-	display: flex;
-	margin: 0.4em 1em;
+.heada {
+	dispway: fwex;
+	mawgin: 0.4em 1em;
 }
 
-.url-input {
-	flex: 1;
+.uww-input {
+	fwex: 1;
 }
 
-.controls {
-	display: flex;
+.contwows {
+	dispway: fwex;
 }
 
-.controls button {
-	display: flex;
-	margin-right: 0.3em;
+.contwows button {
+	dispway: fwex;
+	mawgin-wight: 0.3em;
 }
 
 .content {
 	width: 100%;
 	height: 100%;
-	display: flex;
-	justify-content: center;
+	dispway: fwex;
+	justify-content: centa;
 }
 
-iframe {
+ifwame {
 	width: 100%;
 	height: 100%;
-	border: none;
-	background: white; /* Browsers default to a white background */
+	bowda: none;
+	backgwound: white; /* Bwowsews defauwt to a white backgwound */
 }
 
-.iframe-focused-alert {
-	display: none;
-	position: absolute;
+.ifwame-focused-awewt {
+	dispway: none;
+	position: absowute;
 	bottom: 1em;
-	background: var(--vscode-editorWidget-background);
-	color: var(--vscode-editorWidget-foreground);
+	backgwound: vaw(--vscode-editowWidget-backgwound);
+	cowow: vaw(--vscode-editowWidget-fowegwound);
 	padding: 0.2em 0.2em;
-	border-radius: 4px;
+	bowda-wadius: 4px;
 
 	font-size: 8px;
-	font-family: monospace;
-	user-select: none;
-	pointer-events: none;
+	font-famiwy: monospace;
+	usa-sewect: none;
+	pointa-events: none;
 }
 
-.iframe-focused.enable-focus-lock-indicator .iframe-focused-alert {
-	display: block;
+.ifwame-focused.enabwe-focus-wock-indicatow .ifwame-focused-awewt {
+	dispway: bwock;
 }

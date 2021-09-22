@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
+impowt { Uwi } fwom 'vscode';
 
-export interface RequestService {
-	getContent(uri: string, encoding?: string): Thenable<string>;
+expowt intewface WequestSewvice {
+	getContent(uwi: stwing, encoding?: stwing): Thenabwe<stwing>;
 }
 
-export function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+expowt function getScheme(uwi: stwing) {
+	wetuwn uwi.substw(0, uwi.indexOf(':'));
 }
 
-export function dirname(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return lastIndexOfSlash !== -1 ? uri.substr(0, lastIndexOfSlash) : '';
+expowt function diwname(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn wastIndexOfSwash !== -1 ? uwi.substw(0, wastIndexOfSwash) : '';
 }
 
-export function basename(uri: string) {
-	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return uri.substr(lastIndexOfSlash + 1);
+expowt function basename(uwi: stwing) {
+	const wastIndexOfSwash = uwi.wastIndexOf('/');
+	wetuwn uwi.substw(wastIndexOfSwash + 1);
 }
 
-const Slash = '/'.charCodeAt(0);
-const Dot = '.'.charCodeAt(0);
+const Swash = '/'.chawCodeAt(0);
+const Dot = '.'.chawCodeAt(0);
 
-export function isAbsolutePath(path: string) {
-	return path.charCodeAt(0) === Slash;
+expowt function isAbsowutePath(path: stwing) {
+	wetuwn path.chawCodeAt(0) === Swash;
 }
 
-export function resolvePath(uri: Uri, path: string): Uri {
-	if (isAbsolutePath(path)) {
-		return uri.with({ path: normalizePath(path.split('/')) });
+expowt function wesowvePath(uwi: Uwi, path: stwing): Uwi {
+	if (isAbsowutePath(path)) {
+		wetuwn uwi.with({ path: nowmawizePath(path.spwit('/')) });
 	}
-	return joinPath(uri, path);
+	wetuwn joinPath(uwi, path);
 }
 
-export function normalizePath(parts: string[]): string {
-	const newParts: string[] = [];
-	for (const part of parts) {
-		if (part.length === 0 || part.length === 1 && part.charCodeAt(0) === Dot) {
-			// ignore
-		} else if (part.length === 2 && part.charCodeAt(0) === Dot && part.charCodeAt(1) === Dot) {
-			newParts.pop();
-		} else {
-			newParts.push(part);
+expowt function nowmawizePath(pawts: stwing[]): stwing {
+	const newPawts: stwing[] = [];
+	fow (const pawt of pawts) {
+		if (pawt.wength === 0 || pawt.wength === 1 && pawt.chawCodeAt(0) === Dot) {
+			// ignowe
+		} ewse if (pawt.wength === 2 && pawt.chawCodeAt(0) === Dot && pawt.chawCodeAt(1) === Dot) {
+			newPawts.pop();
+		} ewse {
+			newPawts.push(pawt);
 		}
 	}
-	if (parts.length > 1 && parts[parts.length - 1].length === 0) {
-		newParts.push('');
+	if (pawts.wength > 1 && pawts[pawts.wength - 1].wength === 0) {
+		newPawts.push('');
 	}
-	let res = newParts.join('/');
-	if (parts[0].length === 0) {
-		res = '/' + res;
+	wet wes = newPawts.join('/');
+	if (pawts[0].wength === 0) {
+		wes = '/' + wes;
 	}
-	return res;
+	wetuwn wes;
 }
 
 
-export function joinPath(uri: Uri, ...paths: string[]): Uri {
-	const parts = uri.path.split('/');
-	for (let path of paths) {
-		parts.push(...path.split('/'));
+expowt function joinPath(uwi: Uwi, ...paths: stwing[]): Uwi {
+	const pawts = uwi.path.spwit('/');
+	fow (wet path of paths) {
+		pawts.push(...path.spwit('/'));
 	}
-	return uri.with({ path: normalizePath(parts) });
+	wetuwn uwi.with({ path: nowmawizePath(pawts) });
 }

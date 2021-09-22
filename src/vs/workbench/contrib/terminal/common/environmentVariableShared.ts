@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+impowt { IEnviwonmentVawiabweMutatow, ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
 
-// This file is shared between the renderer and extension host
+// This fiwe is shawed between the wendewa and extension host
 
-export function serializeEnvironmentVariableCollection(collection: ReadonlyMap<string, IEnvironmentVariableMutator>): ISerializableEnvironmentVariableCollection {
-	return [...collection.entries()];
+expowt function sewiawizeEnviwonmentVawiabweCowwection(cowwection: WeadonwyMap<stwing, IEnviwonmentVawiabweMutatow>): ISewiawizabweEnviwonmentVawiabweCowwection {
+	wetuwn [...cowwection.entwies()];
 }
 
-export function deserializeEnvironmentVariableCollection(
-	serializedCollection: ISerializableEnvironmentVariableCollection
-): Map<string, IEnvironmentVariableMutator> {
-	return new Map<string, IEnvironmentVariableMutator>(serializedCollection);
+expowt function desewiawizeEnviwonmentVawiabweCowwection(
+	sewiawizedCowwection: ISewiawizabweEnviwonmentVawiabweCowwection
+): Map<stwing, IEnviwonmentVawiabweMutatow> {
+	wetuwn new Map<stwing, IEnviwonmentVawiabweMutatow>(sewiawizedCowwection);
 }

@@ -1,796 +1,796 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewLines';
-import * as platform from 'vs/base/common/platform';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { DomReadingContext, ViewLine, ViewLineOptions } from 'vs/editor/browser/viewParts/lines/viewLine';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition, HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { Viewport } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Constants } from 'vs/base/common/uint';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+impowt 'vs/css!./viewWines';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { IVisibweWinesHost, VisibweWinesCowwection } fwom 'vs/editow/bwowsa/view/viewWaya';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { DomWeadingContext, ViewWine, ViewWineOptions } fwom 'vs/editow/bwowsa/viewPawts/wines/viewWine';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IViewWines, WineVisibweWanges, VisibweWanges, HowizontawPosition, HowizontawWange } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { Viewpowt } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME } fwom 'vs/base/bwowsa/ui/mouseCuwsow/mouseCuwsow';
 
-class LastRenderedData {
+cwass WastWendewedData {
 
-	private _currentVisibleRange: Range;
+	pwivate _cuwwentVisibweWange: Wange;
 
-	constructor() {
-		this._currentVisibleRange = new Range(1, 1, 1, 1);
+	constwuctow() {
+		this._cuwwentVisibweWange = new Wange(1, 1, 1, 1);
 	}
 
-	public getCurrentVisibleRange(): Range {
-		return this._currentVisibleRange;
+	pubwic getCuwwentVisibweWange(): Wange {
+		wetuwn this._cuwwentVisibweWange;
 	}
 
-	public setCurrentVisibleRange(currentVisibleRange: Range): void {
-		this._currentVisibleRange = currentVisibleRange;
-	}
-}
-
-class HorizontalRevealRangeRequest {
-	public readonly type = 'range';
-	public readonly minLineNumber: number;
-	public readonly maxLineNumber: number;
-
-	constructor(
-		public readonly lineNumber: number,
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly startScrollTop: number,
-		public readonly stopScrollTop: number,
-		public readonly scrollType: ScrollType
-	) {
-		this.minLineNumber = lineNumber;
-		this.maxLineNumber = lineNumber;
+	pubwic setCuwwentVisibweWange(cuwwentVisibweWange: Wange): void {
+		this._cuwwentVisibweWange = cuwwentVisibweWange;
 	}
 }
 
-class HorizontalRevealSelectionsRequest {
-	public readonly type = 'selections';
-	public readonly minLineNumber: number;
-	public readonly maxLineNumber: number;
+cwass HowizontawWeveawWangeWequest {
+	pubwic weadonwy type = 'wange';
+	pubwic weadonwy minWineNumba: numba;
+	pubwic weadonwy maxWineNumba: numba;
 
-	constructor(
-		public readonly selections: Selection[],
-		public readonly startScrollTop: number,
-		public readonly stopScrollTop: number,
-		public readonly scrollType: ScrollType
+	constwuctow(
+		pubwic weadonwy wineNumba: numba,
+		pubwic weadonwy stawtCowumn: numba,
+		pubwic weadonwy endCowumn: numba,
+		pubwic weadonwy stawtScwowwTop: numba,
+		pubwic weadonwy stopScwowwTop: numba,
+		pubwic weadonwy scwowwType: ScwowwType
 	) {
-		let minLineNumber = selections[0].startLineNumber;
-		let maxLineNumber = selections[0].endLineNumber;
-		for (let i = 1, len = selections.length; i < len; i++) {
-			const selection = selections[i];
-			minLineNumber = Math.min(minLineNumber, selection.startLineNumber);
-			maxLineNumber = Math.max(maxLineNumber, selection.endLineNumber);
+		this.minWineNumba = wineNumba;
+		this.maxWineNumba = wineNumba;
+	}
+}
+
+cwass HowizontawWeveawSewectionsWequest {
+	pubwic weadonwy type = 'sewections';
+	pubwic weadonwy minWineNumba: numba;
+	pubwic weadonwy maxWineNumba: numba;
+
+	constwuctow(
+		pubwic weadonwy sewections: Sewection[],
+		pubwic weadonwy stawtScwowwTop: numba,
+		pubwic weadonwy stopScwowwTop: numba,
+		pubwic weadonwy scwowwType: ScwowwType
+	) {
+		wet minWineNumba = sewections[0].stawtWineNumba;
+		wet maxWineNumba = sewections[0].endWineNumba;
+		fow (wet i = 1, wen = sewections.wength; i < wen; i++) {
+			const sewection = sewections[i];
+			minWineNumba = Math.min(minWineNumba, sewection.stawtWineNumba);
+			maxWineNumba = Math.max(maxWineNumba, sewection.endWineNumba);
 		}
-		this.minLineNumber = minLineNumber;
-		this.maxLineNumber = maxLineNumber;
+		this.minWineNumba = minWineNumba;
+		this.maxWineNumba = maxWineNumba;
 	}
 }
 
-type HorizontalRevealRequest = HorizontalRevealRangeRequest | HorizontalRevealSelectionsRequest;
+type HowizontawWeveawWequest = HowizontawWeveawWangeWequest | HowizontawWeveawSewectionsWequest;
 
-export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, IViewLines {
+expowt cwass ViewWines extends ViewPawt impwements IVisibweWinesHost<ViewWine>, IViewWines {
 	/**
-	 * Adds this amount of pixels to the right of lines (no-one wants to type near the edge of the viewport)
+	 * Adds this amount of pixews to the wight of wines (no-one wants to type neaw the edge of the viewpowt)
 	 */
-	private static readonly HORIZONTAL_EXTRA_PX = 30;
+	pwivate static weadonwy HOWIZONTAW_EXTWA_PX = 30;
 
-	private readonly _linesContent: FastDomNode<HTMLElement>;
-	private readonly _textRangeRestingSpot: HTMLElement;
-	private readonly _visibleLines: VisibleLinesCollection<ViewLine>;
-	private readonly domNode: FastDomNode<HTMLElement>;
+	pwivate weadonwy _winesContent: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _textWangeWestingSpot: HTMWEwement;
+	pwivate weadonwy _visibweWines: VisibweWinesCowwection<ViewWine>;
+	pwivate weadonwy domNode: FastDomNode<HTMWEwement>;
 
 	// --- config
-	private _lineHeight: number;
-	private _typicalHalfwidthCharacterWidth: number;
-	private _isViewportWrapping: boolean;
-	private _revealHorizontalRightPadding: number;
-	private _cursorSurroundingLines: number;
-	private _cursorSurroundingLinesStyle: 'default' | 'all';
-	private _canUseLayerHinting: boolean;
-	private _viewLineOptions: ViewLineOptions;
+	pwivate _wineHeight: numba;
+	pwivate _typicawHawfwidthChawactewWidth: numba;
+	pwivate _isViewpowtWwapping: boowean;
+	pwivate _weveawHowizontawWightPadding: numba;
+	pwivate _cuwsowSuwwoundingWines: numba;
+	pwivate _cuwsowSuwwoundingWinesStywe: 'defauwt' | 'aww';
+	pwivate _canUseWayewHinting: boowean;
+	pwivate _viewWineOptions: ViewWineOptions;
 
 	// --- width
-	private _maxLineWidth: number;
-	private readonly _asyncUpdateLineWidths: RunOnceScheduler;
-	private readonly _asyncCheckMonospaceFontAssumptions: RunOnceScheduler;
+	pwivate _maxWineWidth: numba;
+	pwivate weadonwy _asyncUpdateWineWidths: WunOnceScheduwa;
+	pwivate weadonwy _asyncCheckMonospaceFontAssumptions: WunOnceScheduwa;
 
-	private _horizontalRevealRequest: HorizontalRevealRequest | null;
-	private readonly _lastRenderedData: LastRenderedData;
+	pwivate _howizontawWeveawWequest: HowizontawWeveawWequest | nuww;
+	pwivate weadonwy _wastWendewedData: WastWendewedData;
 
-	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
-		super(context);
-		this._linesContent = linesContent;
-		this._textRangeRestingSpot = document.createElement('div');
-		this._visibleLines = new VisibleLinesCollection(this);
-		this.domNode = this._visibleLines.domNode;
+	constwuctow(context: ViewContext, winesContent: FastDomNode<HTMWEwement>) {
+		supa(context);
+		this._winesContent = winesContent;
+		this._textWangeWestingSpot = document.cweateEwement('div');
+		this._visibweWines = new VisibweWinesCowwection(this);
+		this.domNode = this._visibweWines.domNode;
 
-		const conf = this._context.configuration;
-		const options = this._context.configuration.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const conf = this._context.configuwation;
+		const options = this._context.configuwation.options;
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
-		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
-		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
-		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._typicawHawfwidthChawactewWidth = fontInfo.typicawHawfwidthChawactewWidth;
+		this._isViewpowtWwapping = wwappingInfo.isViewpowtWwapping;
+		this._weveawHowizontawWightPadding = options.get(EditowOption.weveawHowizontawWightPadding);
+		this._cuwsowSuwwoundingWines = options.get(EditowOption.cuwsowSuwwoundingWines);
+		this._cuwsowSuwwoundingWinesStywe = options.get(EditowOption.cuwsowSuwwoundingWinesStywe);
+		this._canUseWayewHinting = !options.get(EditowOption.disabweWayewHinting);
+		this._viewWineOptions = new ViewWineOptions(conf, this._context.theme.type);
 
-		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
-		this.domNode.setClassName(`view-lines ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		Configuration.applyFontInfo(this.domNode, fontInfo);
+		PawtFingewpwints.wwite(this.domNode, PawtFingewpwint.ViewWines);
+		this.domNode.setCwassName(`view-wines ${MOUSE_CUWSOW_TEXT_CSS_CWASS_NAME}`);
+		Configuwation.appwyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height
-		this._maxLineWidth = 0;
-		this._asyncUpdateLineWidths = new RunOnceScheduler(() => {
-			this._updateLineWidthsSlow();
+		this._maxWineWidth = 0;
+		this._asyncUpdateWineWidths = new WunOnceScheduwa(() => {
+			this._updateWineWidthsSwow();
 		}, 200);
-		this._asyncCheckMonospaceFontAssumptions = new RunOnceScheduler(() => {
+		this._asyncCheckMonospaceFontAssumptions = new WunOnceScheduwa(() => {
 			this._checkMonospaceFontAssumptions();
 		}, 2000);
 
-		this._lastRenderedData = new LastRenderedData();
+		this._wastWendewedData = new WastWendewedData();
 
-		this._horizontalRevealRequest = null;
+		this._howizontawWeveawWequest = nuww;
 	}
 
-	public override dispose(): void {
-		this._asyncUpdateLineWidths.dispose();
+	pubwic ovewwide dispose(): void {
+		this._asyncUpdateWineWidths.dispose();
 		this._asyncCheckMonospaceFontAssumptions.dispose();
-		super.dispose();
+		supa.dispose();
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this.domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this.domNode;
 	}
 
-	// ---- begin IVisibleLinesHost
+	// ---- begin IVisibweWinesHost
 
-	public createVisibleLine(): ViewLine {
-		return new ViewLine(this._viewLineOptions);
+	pubwic cweateVisibweWine(): ViewWine {
+		wetuwn new ViewWine(this._viewWineOptions);
 	}
 
-	// ---- end IVisibleLinesHost
+	// ---- end IVisibweWinesHost
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._visibleLines.onConfigurationChanged(e);
-		if (e.hasChanged(EditorOption.wrappingInfo)) {
-			this._maxLineWidth = 0;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		this._visibweWines.onConfiguwationChanged(e);
+		if (e.hasChanged(EditowOption.wwappingInfo)) {
+			this._maxWineWidth = 0;
 		}
 
-		const options = this._context.configuration.options;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const wrappingInfo = options.get(EditorOption.wrappingInfo);
+		const options = this._context.configuwation.options;
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const wwappingInfo = options.get(EditowOption.wwappingInfo);
 
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this._isViewportWrapping = wrappingInfo.isViewportWrapping;
-		this._revealHorizontalRightPadding = options.get(EditorOption.revealHorizontalRightPadding);
-		this._cursorSurroundingLines = options.get(EditorOption.cursorSurroundingLines);
-		this._cursorSurroundingLinesStyle = options.get(EditorOption.cursorSurroundingLinesStyle);
-		this._canUseLayerHinting = !options.get(EditorOption.disableLayerHinting);
-		Configuration.applyFontInfo(this.domNode, fontInfo);
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._typicawHawfwidthChawactewWidth = fontInfo.typicawHawfwidthChawactewWidth;
+		this._isViewpowtWwapping = wwappingInfo.isViewpowtWwapping;
+		this._weveawHowizontawWightPadding = options.get(EditowOption.weveawHowizontawWightPadding);
+		this._cuwsowSuwwoundingWines = options.get(EditowOption.cuwsowSuwwoundingWines);
+		this._cuwsowSuwwoundingWinesStywe = options.get(EditowOption.cuwsowSuwwoundingWinesStywe);
+		this._canUseWayewHinting = !options.get(EditowOption.disabweWayewHinting);
+		Configuwation.appwyFontInfo(this.domNode, fontInfo);
 
 		this._onOptionsMaybeChanged();
 
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			this._maxLineWidth = 0;
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			this._maxWineWidth = 0;
 		}
 
-		return true;
+		wetuwn twue;
 	}
-	private _onOptionsMaybeChanged(): boolean {
-		const conf = this._context.configuration;
+	pwivate _onOptionsMaybeChanged(): boowean {
+		const conf = this._context.configuwation;
 
-		const newViewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
-		if (!this._viewLineOptions.equals(newViewLineOptions)) {
-			this._viewLineOptions = newViewLineOptions;
+		const newViewWineOptions = new ViewWineOptions(conf, this._context.theme.type);
+		if (!this._viewWineOptions.equaws(newViewWineOptions)) {
+			this._viewWineOptions = newViewWineOptions;
 
-			const startLineNumber = this._visibleLines.getStartLineNumber();
-			const endLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-				const line = this._visibleLines.getVisibleLine(lineNumber);
-				line.onOptionsChanged(this._viewLineOptions);
+			const stawtWineNumba = this._visibweWines.getStawtWineNumba();
+			const endWineNumba = this._visibweWines.getEndWineNumba();
+			fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+				const wine = this._visibweWines.getVisibweWine(wineNumba);
+				wine.onOptionsChanged(this._viewWineOptions);
 			}
-			return true;
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		let r = false;
-		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-			r = this._visibleLines.getVisibleLine(lineNumber).onSelectionChanged() || r;
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+		wet w = fawse;
+		fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+			w = this._visibweWines.getVisibweWine(wineNumba).onSewectionChanged() || w;
 		}
-		return r;
+		wetuwn w;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		if (true/*e.inlineDecorationsChanged*/) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		if (twue/*e.inwineDecowationsChanged*/) {
+			const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+			const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+			fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+				this._visibweWines.getVisibweWine(wineNumba).onDecowationsChanged();
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		const shouldRender = this._visibleLines.onFlushed(e);
-		this._maxLineWidth = 0;
-		return shouldRender;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		const shouwdWenda = this._visibweWines.onFwushed(e);
+		this._maxWineWidth = 0;
+		wetuwn shouwdWenda;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._visibleLines.onLinesChanged(e);
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn this._visibweWines.onWinesChanged(e);
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return this._visibleLines.onLinesDeleted(e);
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn this._visibweWines.onWinesDeweted(e);
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return this._visibleLines.onLinesInserted(e);
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn this._visibweWines.onWinesInsewted(e);
 	}
-	public override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		// Using the future viewport here in order to handle multiple
-		// incoming reveal range requests that might all desire to be animated
-		const desiredScrollTop = this._computeScrollTopToRevealRange(this._context.viewLayout.getFutureViewport(), e.source, e.range, e.selections, e.verticalType);
+	pubwic ovewwide onWeveawWangeWequest(e: viewEvents.ViewWeveawWangeWequestEvent): boowean {
+		// Using the futuwe viewpowt hewe in owda to handwe muwtipwe
+		// incoming weveaw wange wequests that might aww desiwe to be animated
+		const desiwedScwowwTop = this._computeScwowwTopToWeveawWange(this._context.viewWayout.getFutuweViewpowt(), e.souwce, e.wange, e.sewections, e.vewticawType);
 
-		if (desiredScrollTop === -1) {
-			// marker to abort the reveal range request
-			return false;
+		if (desiwedScwowwTop === -1) {
+			// mawka to abowt the weveaw wange wequest
+			wetuwn fawse;
 		}
 
-		// validate the new desired scroll top
-		let newScrollPosition = this._context.viewLayout.validateScrollPosition({ scrollTop: desiredScrollTop });
+		// vawidate the new desiwed scwoww top
+		wet newScwowwPosition = this._context.viewWayout.vawidateScwowwPosition({ scwowwTop: desiwedScwowwTop });
 
-		if (e.revealHorizontal) {
-			if (e.range && e.range.startLineNumber !== e.range.endLineNumber) {
-				// Two or more lines? => scroll to base (That's how you see most of the two lines)
-				newScrollPosition = {
-					scrollTop: newScrollPosition.scrollTop,
-					scrollLeft: 0
+		if (e.weveawHowizontaw) {
+			if (e.wange && e.wange.stawtWineNumba !== e.wange.endWineNumba) {
+				// Two ow mowe wines? => scwoww to base (That's how you see most of the two wines)
+				newScwowwPosition = {
+					scwowwTop: newScwowwPosition.scwowwTop,
+					scwowwWeft: 0
 				};
-			} else if (e.range) {
-				// We don't necessarily know the horizontal offset of this range since the line might not be in the view...
-				this._horizontalRevealRequest = new HorizontalRevealRangeRequest(e.range.startLineNumber, e.range.startColumn, e.range.endColumn, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
-			} else if (e.selections && e.selections.length > 0) {
-				this._horizontalRevealRequest = new HorizontalRevealSelectionsRequest(e.selections, this._context.viewLayout.getCurrentScrollTop(), newScrollPosition.scrollTop, e.scrollType);
+			} ewse if (e.wange) {
+				// We don't necessawiwy know the howizontaw offset of this wange since the wine might not be in the view...
+				this._howizontawWeveawWequest = new HowizontawWeveawWangeWequest(e.wange.stawtWineNumba, e.wange.stawtCowumn, e.wange.endCowumn, this._context.viewWayout.getCuwwentScwowwTop(), newScwowwPosition.scwowwTop, e.scwowwType);
+			} ewse if (e.sewections && e.sewections.wength > 0) {
+				this._howizontawWeveawWequest = new HowizontawWeveawSewectionsWequest(e.sewections, this._context.viewWayout.getCuwwentScwowwTop(), newScwowwPosition.scwowwTop, e.scwowwType);
 			}
-		} else {
-			this._horizontalRevealRequest = null;
+		} ewse {
+			this._howizontawWeveawWequest = nuww;
 		}
 
-		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
-		const scrollType = (scrollTopDelta <= this._lineHeight ? ScrollType.Immediate : e.scrollType);
-		this._context.model.setScrollPosition(newScrollPosition, scrollType);
+		const scwowwTopDewta = Math.abs(this._context.viewWayout.getCuwwentScwowwTop() - newScwowwPosition.scwowwTop);
+		const scwowwType = (scwowwTopDewta <= this._wineHeight ? ScwowwType.Immediate : e.scwowwType);
+		this._context.modew.setScwowwPosition(newScwowwPosition, scwowwType);
 
-		return true;
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		if (this._horizontalRevealRequest && e.scrollLeftChanged) {
-			// cancel any outstanding horizontal reveal request if someone else scrolls horizontally.
-			this._horizontalRevealRequest = null;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		if (this._howizontawWeveawWequest && e.scwowwWeftChanged) {
+			// cancew any outstanding howizontaw weveaw wequest if someone ewse scwowws howizontawwy.
+			this._howizontawWeveawWequest = nuww;
 		}
-		if (this._horizontalRevealRequest && e.scrollTopChanged) {
-			const min = Math.min(this._horizontalRevealRequest.startScrollTop, this._horizontalRevealRequest.stopScrollTop);
-			const max = Math.max(this._horizontalRevealRequest.startScrollTop, this._horizontalRevealRequest.stopScrollTop);
-			if (e.scrollTop < min || e.scrollTop > max) {
-				// cancel any outstanding horizontal reveal request if someone else scrolls vertically.
-				this._horizontalRevealRequest = null;
+		if (this._howizontawWeveawWequest && e.scwowwTopChanged) {
+			const min = Math.min(this._howizontawWeveawWequest.stawtScwowwTop, this._howizontawWeveawWequest.stopScwowwTop);
+			const max = Math.max(this._howizontawWeveawWequest.stawtScwowwTop, this._howizontawWeveawWequest.stopScwowwTop);
+			if (e.scwowwTop < min || e.scwowwTop > max) {
+				// cancew any outstanding howizontaw weveaw wequest if someone ewse scwowws vewticawwy.
+				this._howizontawWeveawWequest = nuww;
 			}
 		}
-		this.domNode.setWidth(e.scrollWidth);
-		return this._visibleLines.onScrollChanged(e) || true;
+		this.domNode.setWidth(e.scwowwWidth);
+		wetuwn this._visibweWines.onScwowwChanged(e) || twue;
 	}
 
-	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._visibleLines.onTokensChanged(e);
+	pubwic ovewwide onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		wetuwn this._visibweWines.onTokensChanged(e);
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		this._context.model.setMaxLineWidth(this._maxLineWidth);
-		return this._visibleLines.onZonesChanged(e);
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		this._context.modew.setMaxWineWidth(this._maxWineWidth);
+		wetuwn this._visibweWines.onZonesChanged(e);
 	}
-	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
-	}
-
-	// ---- end view event handlers
-
-	// ----------- HELPERS FOR OTHERS
-
-	public getPositionFromDOMInfo(spanNode: HTMLElement, offset: number): Position | null {
-		const viewLineDomNode = this._getViewLineDomNode(spanNode);
-		if (viewLineDomNode === null) {
-			// Couldn't find view line node
-			return null;
-		}
-		const lineNumber = this._getLineNumberFor(viewLineDomNode);
-
-		if (lineNumber === -1) {
-			// Couldn't find view line node
-			return null;
-		}
-
-		if (lineNumber < 1 || lineNumber > this._context.model.getLineCount()) {
-			// lineNumber is outside range
-			return null;
-		}
-
-		if (this._context.model.getLineMaxColumn(lineNumber) === 1) {
-			// Line is empty
-			return new Position(lineNumber, 1);
-		}
-
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
-			// Couldn't find line
-			return null;
-		}
-
-		let column = this._visibleLines.getVisibleLine(lineNumber).getColumnOfNodeOffset(lineNumber, spanNode, offset);
-		const minColumn = this._context.model.getLineMinColumn(lineNumber);
-		if (column < minColumn) {
-			column = minColumn;
-		}
-		return new Position(lineNumber, column);
+	pubwic ovewwide onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boowean {
+		wetuwn this._onOptionsMaybeChanged();
 	}
 
-	private _getViewLineDomNode(node: HTMLElement | null): HTMLElement | null {
-		while (node && node.nodeType === 1) {
-			if (node.className === ViewLine.CLASS_NAME) {
-				return node;
+	// ---- end view event handwews
+
+	// ----------- HEWPEWS FOW OTHEWS
+
+	pubwic getPositionFwomDOMInfo(spanNode: HTMWEwement, offset: numba): Position | nuww {
+		const viewWineDomNode = this._getViewWineDomNode(spanNode);
+		if (viewWineDomNode === nuww) {
+			// Couwdn't find view wine node
+			wetuwn nuww;
+		}
+		const wineNumba = this._getWineNumbewFow(viewWineDomNode);
+
+		if (wineNumba === -1) {
+			// Couwdn't find view wine node
+			wetuwn nuww;
+		}
+
+		if (wineNumba < 1 || wineNumba > this._context.modew.getWineCount()) {
+			// wineNumba is outside wange
+			wetuwn nuww;
+		}
+
+		if (this._context.modew.getWineMaxCowumn(wineNumba) === 1) {
+			// Wine is empty
+			wetuwn new Position(wineNumba, 1);
+		}
+
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+		if (wineNumba < wendStawtWineNumba || wineNumba > wendEndWineNumba) {
+			// Couwdn't find wine
+			wetuwn nuww;
+		}
+
+		wet cowumn = this._visibweWines.getVisibweWine(wineNumba).getCowumnOfNodeOffset(wineNumba, spanNode, offset);
+		const minCowumn = this._context.modew.getWineMinCowumn(wineNumba);
+		if (cowumn < minCowumn) {
+			cowumn = minCowumn;
+		}
+		wetuwn new Position(wineNumba, cowumn);
+	}
+
+	pwivate _getViewWineDomNode(node: HTMWEwement | nuww): HTMWEwement | nuww {
+		whiwe (node && node.nodeType === 1) {
+			if (node.cwassName === ViewWine.CWASS_NAME) {
+				wetuwn node;
 			}
-			node = node.parentElement;
+			node = node.pawentEwement;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * @returns the line number of this view line dom node.
+	 * @wetuwns the wine numba of this view wine dom node.
 	 */
-	private _getLineNumberFor(domNode: HTMLElement): number {
-		const startLineNumber = this._visibleLines.getStartLineNumber();
-		const endLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const line = this._visibleLines.getVisibleLine(lineNumber);
-			if (domNode === line.getDomNode()) {
-				return lineNumber;
+	pwivate _getWineNumbewFow(domNode: HTMWEwement): numba {
+		const stawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const endWineNumba = this._visibweWines.getEndWineNumba();
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			const wine = this._visibweWines.getVisibweWine(wineNumba);
+			if (domNode === wine.getDomNode()) {
+				wetuwn wineNumba;
 			}
 		}
-		return -1;
+		wetuwn -1;
 	}
 
-	public getLineWidth(lineNumber: number): number {
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
-			// Couldn't find line
-			return -1;
+	pubwic getWineWidth(wineNumba: numba): numba {
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+		if (wineNumba < wendStawtWineNumba || wineNumba > wendEndWineNumba) {
+			// Couwdn't find wine
+			wetuwn -1;
 		}
 
-		return this._visibleLines.getVisibleLine(lineNumber).getWidth();
+		wetuwn this._visibweWines.getVisibweWine(wineNumba).getWidth();
 	}
 
-	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
+	pubwic winesVisibweWangesFowWange(_wange: Wange, incwudeNewWines: boowean): WineVisibweWanges[] | nuww {
+		if (this.shouwdWenda()) {
+			// Cannot wead fwom the DOM because it is diwty
+			// i.e. the modew & the dom awe out of sync, so I'd be weading something stawe
+			wetuwn nuww;
 		}
 
-		const originalEndLineNumber = _range.endLineNumber;
-		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
-		if (!range) {
-			return null;
+		const owiginawEndWineNumba = _wange.endWineNumba;
+		const wange = Wange.intewsectWanges(_wange, this._wastWendewedData.getCuwwentVisibweWange());
+		if (!wange) {
+			wetuwn nuww;
 		}
 
-		let visibleRanges: LineVisibleRanges[] = [], visibleRangesLen = 0;
-		const domReadingContext = new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot);
+		wet visibweWanges: WineVisibweWanges[] = [], visibweWangesWen = 0;
+		const domWeadingContext = new DomWeadingContext(this.domNode.domNode, this._textWangeWestingSpot);
 
-		let nextLineModelLineNumber: number = 0;
-		if (includeNewLines) {
-			nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+		wet nextWineModewWineNumba: numba = 0;
+		if (incwudeNewWines) {
+			nextWineModewWineNumba = this._context.modew.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(wange.stawtWineNumba, 1)).wineNumba;
 		}
 
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+		fow (wet wineNumba = wange.stawtWineNumba; wineNumba <= wange.endWineNumba; wineNumba++) {
 
-			if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
+			if (wineNumba < wendStawtWineNumba || wineNumba > wendEndWineNumba) {
 				continue;
 			}
 
-			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const endColumn = lineNumber === range.endLineNumber ? range.endColumn : this._context.model.getLineMaxColumn(lineNumber);
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
+			const stawtCowumn = wineNumba === wange.stawtWineNumba ? wange.stawtCowumn : 1;
+			const endCowumn = wineNumba === wange.endWineNumba ? wange.endCowumn : this._context.modew.getWineMaxCowumn(wineNumba);
+			const visibweWangesFowWine = this._visibweWines.getVisibweWine(wineNumba).getVisibweWangesFowWange(wineNumba, stawtCowumn, endCowumn, domWeadingContext);
 
-			if (!visibleRangesForLine) {
+			if (!visibweWangesFowWine) {
 				continue;
 			}
 
-			if (includeNewLines && lineNumber < originalEndLineNumber) {
-				const currentLineModelLineNumber = nextLineModelLineNumber;
-				nextLineModelLineNumber = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
+			if (incwudeNewWines && wineNumba < owiginawEndWineNumba) {
+				const cuwwentWineModewWineNumba = nextWineModewWineNumba;
+				nextWineModewWineNumba = this._context.modew.coowdinatesConvewta.convewtViewPositionToModewPosition(new Position(wineNumba + 1, 1)).wineNumba;
 
-				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
-					visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1].width += this._typicalHalfwidthCharacterWidth;
+				if (cuwwentWineModewWineNumba !== nextWineModewWineNumba) {
+					visibweWangesFowWine.wanges[visibweWangesFowWine.wanges.wength - 1].width += this._typicawHawfwidthChawactewWidth;
 				}
 			}
 
-			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges));
+			visibweWanges[visibweWangesWen++] = new WineVisibweWanges(visibweWangesFowWine.outsideWendewedWine, wineNumba, HowizontawWange.fwom(visibweWangesFowWine.wanges));
 		}
 
-		if (visibleRangesLen === 0) {
-			return null;
+		if (visibweWangesWen === 0) {
+			wetuwn nuww;
 		}
 
-		return visibleRanges;
+		wetuwn visibweWanges;
 	}
 
-	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
+	pwivate _visibweWangesFowWineWange(wineNumba: numba, stawtCowumn: numba, endCowumn: numba): VisibweWanges | nuww {
+		if (this.shouwdWenda()) {
+			// Cannot wead fwom the DOM because it is diwty
+			// i.e. the modew & the dom awe out of sync, so I'd be weading something stawe
+			wetuwn nuww;
 		}
 
-		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
-			return null;
+		if (wineNumba < this._visibweWines.getStawtWineNumba() || wineNumba > this._visibweWines.getEndWineNumba()) {
+			wetuwn nuww;
 		}
 
-		return this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, new DomReadingContext(this.domNode.domNode, this._textRangeRestingSpot));
+		wetuwn this._visibweWines.getVisibweWine(wineNumba).getVisibweWangesFowWange(wineNumba, stawtCowumn, endCowumn, new DomWeadingContext(this.domNode.domNode, this._textWangeWestingSpot));
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
-		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
-		if (!visibleRanges) {
-			return null;
+	pubwic visibweWangeFowPosition(position: Position): HowizontawPosition | nuww {
+		const visibweWanges = this._visibweWangesFowWineWange(position.wineNumba, position.cowumn, position.cowumn);
+		if (!visibweWanges) {
+			wetuwn nuww;
 		}
-		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
+		wetuwn new HowizontawPosition(visibweWanges.outsideWendewedWine, visibweWanges.wanges[0].weft);
 	}
 
-	// --- implementation
+	// --- impwementation
 
-	public updateLineWidths(): void {
-		this._updateLineWidths(false);
+	pubwic updateWineWidths(): void {
+		this._updateWineWidths(fawse);
 	}
 
 	/**
-	 * Updates the max line width if it is fast to compute.
-	 * Returns true if all lines were taken into account.
-	 * Returns false if some lines need to be reevaluated (in a slow fashion).
+	 * Updates the max wine width if it is fast to compute.
+	 * Wetuwns twue if aww wines wewe taken into account.
+	 * Wetuwns fawse if some wines need to be weevawuated (in a swow fashion).
 	 */
-	private _updateLineWidthsFast(): boolean {
-		return this._updateLineWidths(true);
+	pwivate _updateWineWidthsFast(): boowean {
+		wetuwn this._updateWineWidths(twue);
 	}
 
-	private _updateLineWidthsSlow(): void {
-		this._updateLineWidths(false);
+	pwivate _updateWineWidthsSwow(): void {
+		this._updateWineWidths(fawse);
 	}
 
-	private _updateLineWidths(fast: boolean): boolean {
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+	pwivate _updateWineWidths(fast: boowean): boowean {
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
 
-		let localMaxLineWidth = 1;
-		let allWidthsComputed = true;
-		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+		wet wocawMaxWineWidth = 1;
+		wet awwWidthsComputed = twue;
+		fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+			const visibweWine = this._visibweWines.getVisibweWine(wineNumba);
 
-			if (fast && !visibleLine.getWidthIsFast()) {
-				// Cannot compute width in a fast way for this line
-				allWidthsComputed = false;
+			if (fast && !visibweWine.getWidthIsFast()) {
+				// Cannot compute width in a fast way fow this wine
+				awwWidthsComputed = fawse;
 				continue;
 			}
 
-			localMaxLineWidth = Math.max(localMaxLineWidth, visibleLine.getWidth());
+			wocawMaxWineWidth = Math.max(wocawMaxWineWidth, visibweWine.getWidth());
 		}
 
-		if (allWidthsComputed && rendStartLineNumber === 1 && rendEndLineNumber === this._context.model.getLineCount()) {
-			// we know the max line width for all the lines
-			this._maxLineWidth = 0;
+		if (awwWidthsComputed && wendStawtWineNumba === 1 && wendEndWineNumba === this._context.modew.getWineCount()) {
+			// we know the max wine width fow aww the wines
+			this._maxWineWidth = 0;
 		}
 
-		this._ensureMaxLineWidth(localMaxLineWidth);
+		this._ensuweMaxWineWidth(wocawMaxWineWidth);
 
-		return allWidthsComputed;
+		wetuwn awwWidthsComputed;
 	}
 
-	private _checkMonospaceFontAssumptions(): void {
-		// Problems with monospace assumptions are more apparent for longer lines,
-		// as small rounding errors start to sum up, so we will select the longest
-		// line for a closer inspection
-		let longestLineNumber = -1;
-		let longestWidth = -1;
-		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
-			if (visibleLine.needsMonospaceFontCheck()) {
-				const lineWidth = visibleLine.getWidth();
-				if (lineWidth > longestWidth) {
-					longestWidth = lineWidth;
-					longestLineNumber = lineNumber;
+	pwivate _checkMonospaceFontAssumptions(): void {
+		// Pwobwems with monospace assumptions awe mowe appawent fow wonga wines,
+		// as smaww wounding ewwows stawt to sum up, so we wiww sewect the wongest
+		// wine fow a cwosa inspection
+		wet wongestWineNumba = -1;
+		wet wongestWidth = -1;
+		const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+		fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+			const visibweWine = this._visibweWines.getVisibweWine(wineNumba);
+			if (visibweWine.needsMonospaceFontCheck()) {
+				const wineWidth = visibweWine.getWidth();
+				if (wineWidth > wongestWidth) {
+					wongestWidth = wineWidth;
+					wongestWineNumba = wineNumba;
 				}
 			}
 		}
 
-		if (longestLineNumber === -1) {
-			return;
+		if (wongestWineNumba === -1) {
+			wetuwn;
 		}
 
-		if (!this._visibleLines.getVisibleLine(longestLineNumber).monospaceAssumptionsAreValid()) {
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
-				visibleLine.onMonospaceAssumptionsInvalidated();
+		if (!this._visibweWines.getVisibweWine(wongestWineNumba).monospaceAssumptionsAweVawid()) {
+			fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+				const visibweWine = this._visibweWines.getVisibweWine(wineNumba);
+				visibweWine.onMonospaceAssumptionsInvawidated();
 			}
 		}
 	}
 
-	public prepareRender(): void {
-		throw new Error('Not supported');
+	pubwic pwepaweWenda(): void {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public render(): void {
-		throw new Error('Not supported');
+	pubwic wenda(): void {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public renderText(viewportData: ViewportData): void {
-		// (1) render lines - ensures lines are in the DOM
-		this._visibleLines.renderLines(viewportData);
-		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);
-		this.domNode.setWidth(this._context.viewLayout.getScrollWidth());
-		this.domNode.setHeight(Math.min(this._context.viewLayout.getScrollHeight(), 1000000));
+	pubwic wendewText(viewpowtData: ViewpowtData): void {
+		// (1) wenda wines - ensuwes wines awe in the DOM
+		this._visibweWines.wendewWines(viewpowtData);
+		this._wastWendewedData.setCuwwentVisibweWange(viewpowtData.visibweWange);
+		this.domNode.setWidth(this._context.viewWayout.getScwowwWidth());
+		this.domNode.setHeight(Math.min(this._context.viewWayout.getScwowwHeight(), 1000000));
 
-		// (2) compute horizontal scroll position:
-		//  - this must happen after the lines are in the DOM since it might need a line that rendered just now
-		//  - it might change `scrollWidth` and `scrollLeft`
-		if (this._horizontalRevealRequest) {
+		// (2) compute howizontaw scwoww position:
+		//  - this must happen afta the wines awe in the DOM since it might need a wine that wendewed just now
+		//  - it might change `scwowwWidth` and `scwowwWeft`
+		if (this._howizontawWeveawWequest) {
 
-			const horizontalRevealRequest = this._horizontalRevealRequest;
+			const howizontawWeveawWequest = this._howizontawWeveawWequest;
 
-			// Check that we have the line that contains the horizontal range in the viewport
-			if (viewportData.startLineNumber <= horizontalRevealRequest.minLineNumber && horizontalRevealRequest.maxLineNumber <= viewportData.endLineNumber) {
+			// Check that we have the wine that contains the howizontaw wange in the viewpowt
+			if (viewpowtData.stawtWineNumba <= howizontawWeveawWequest.minWineNumba && howizontawWeveawWequest.maxWineNumba <= viewpowtData.endWineNumba) {
 
-				this._horizontalRevealRequest = null;
+				this._howizontawWeveawWequest = nuww;
 
-				// allow `visibleRangesForRange2` to work
-				this.onDidRender();
+				// awwow `visibweWangesFowWange2` to wowk
+				this.onDidWenda();
 
-				// compute new scroll position
-				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
+				// compute new scwoww position
+				const newScwowwWeft = this._computeScwowwWeftToWeveaw(howizontawWeveawWequest);
 
-				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
-						// ensure `scrollWidth` is large enough
-						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
+				if (newScwowwWeft) {
+					if (!this._isViewpowtWwapping) {
+						// ensuwe `scwowwWidth` is wawge enough
+						this._ensuweMaxWineWidth(newScwowwWeft.maxHowizontawOffset);
 					}
-					// set `scrollLeft`
-					this._context.model.setScrollPosition({
-						scrollLeft: newScrollLeft.scrollLeft
-					}, horizontalRevealRequest.scrollType);
+					// set `scwowwWeft`
+					this._context.modew.setScwowwPosition({
+						scwowwWeft: newScwowwWeft.scwowwWeft
+					}, howizontawWeveawWequest.scwowwType);
 				}
 			}
 		}
 
-		// Update max line width (not so important, it is just so the horizontal scrollbar doesn't get too small)
-		if (!this._updateLineWidthsFast()) {
-			// Computing the width of some lines would be slow => delay it
-			this._asyncUpdateLineWidths.schedule();
+		// Update max wine width (not so impowtant, it is just so the howizontaw scwowwbaw doesn't get too smaww)
+		if (!this._updateWineWidthsFast()) {
+			// Computing the width of some wines wouwd be swow => deway it
+			this._asyncUpdateWineWidths.scheduwe();
 		}
 
-		if (platform.isLinux && !this._asyncCheckMonospaceFontAssumptions.isScheduled()) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
-				if (visibleLine.needsMonospaceFontCheck()) {
-					this._asyncCheckMonospaceFontAssumptions.schedule();
-					break;
+		if (pwatfowm.isWinux && !this._asyncCheckMonospaceFontAssumptions.isScheduwed()) {
+			const wendStawtWineNumba = this._visibweWines.getStawtWineNumba();
+			const wendEndWineNumba = this._visibweWines.getEndWineNumba();
+			fow (wet wineNumba = wendStawtWineNumba; wineNumba <= wendEndWineNumba; wineNumba++) {
+				const visibweWine = this._visibweWines.getVisibweWine(wineNumba);
+				if (visibweWine.needsMonospaceFontCheck()) {
+					this._asyncCheckMonospaceFontAssumptions.scheduwe();
+					bweak;
 				}
 			}
 		}
 
-		// (3) handle scrolling
-		this._linesContent.setLayerHinting(this._canUseLayerHinting);
-		this._linesContent.setContain('strict');
-		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
-		this._linesContent.setTop(-adjustedScrollTop);
-		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
+		// (3) handwe scwowwing
+		this._winesContent.setWayewHinting(this._canUseWayewHinting);
+		this._winesContent.setContain('stwict');
+		const adjustedScwowwTop = this._context.viewWayout.getCuwwentScwowwTop() - viewpowtData.bigNumbewsDewta;
+		this._winesContent.setTop(-adjustedScwowwTop);
+		this._winesContent.setWeft(-this._context.viewWayout.getCuwwentScwowwWeft());
 	}
 
 	// --- width
 
-	private _ensureMaxLineWidth(lineWidth: number): void {
-		const iLineWidth = Math.ceil(lineWidth);
-		if (this._maxLineWidth < iLineWidth) {
-			this._maxLineWidth = iLineWidth;
-			this._context.model.setMaxLineWidth(this._maxLineWidth);
+	pwivate _ensuweMaxWineWidth(wineWidth: numba): void {
+		const iWineWidth = Math.ceiw(wineWidth);
+		if (this._maxWineWidth < iWineWidth) {
+			this._maxWineWidth = iWineWidth;
+			this._context.modew.setMaxWineWidth(this._maxWineWidth);
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: viewEvents.VerticalRevealType): number {
-		const viewportStartY = viewport.top;
-		const viewportHeight = viewport.height;
-		const viewportEndY = viewportStartY + viewportHeight;
-		let boxIsSingleRange: boolean;
-		let boxStartY: number;
-		let boxEndY: number;
+	pwivate _computeScwowwTopToWeveawWange(viewpowt: Viewpowt, souwce: stwing | nuww | undefined, wange: Wange | nuww, sewections: Sewection[] | nuww, vewticawType: viewEvents.VewticawWeveawType): numba {
+		const viewpowtStawtY = viewpowt.top;
+		const viewpowtHeight = viewpowt.height;
+		const viewpowtEndY = viewpowtStawtY + viewpowtHeight;
+		wet boxIsSingweWange: boowean;
+		wet boxStawtY: numba;
+		wet boxEndY: numba;
 
-		// Have a box that includes one extra line height (for the horizontal scrollbar)
-		if (selections && selections.length > 0) {
-			let minLineNumber = selections[0].startLineNumber;
-			let maxLineNumber = selections[0].endLineNumber;
-			for (let i = 1, len = selections.length; i < len; i++) {
-				const selection = selections[i];
-				minLineNumber = Math.min(minLineNumber, selection.startLineNumber);
-				maxLineNumber = Math.max(maxLineNumber, selection.endLineNumber);
+		// Have a box that incwudes one extwa wine height (fow the howizontaw scwowwbaw)
+		if (sewections && sewections.wength > 0) {
+			wet minWineNumba = sewections[0].stawtWineNumba;
+			wet maxWineNumba = sewections[0].endWineNumba;
+			fow (wet i = 1, wen = sewections.wength; i < wen; i++) {
+				const sewection = sewections[i];
+				minWineNumba = Math.min(minWineNumba, sewection.stawtWineNumba);
+				maxWineNumba = Math.max(maxWineNumba, sewection.endWineNumba);
 			}
-			boxIsSingleRange = false;
-			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(minLineNumber);
-			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(maxLineNumber) + this._lineHeight;
-		} else if (range) {
-			boxIsSingleRange = true;
-			boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
-			boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
-		} else {
-			return -1;
+			boxIsSingweWange = fawse;
+			boxStawtY = this._context.viewWayout.getVewticawOffsetFowWineNumba(minWineNumba);
+			boxEndY = this._context.viewWayout.getVewticawOffsetFowWineNumba(maxWineNumba) + this._wineHeight;
+		} ewse if (wange) {
+			boxIsSingweWange = twue;
+			boxStawtY = this._context.viewWayout.getVewticawOffsetFowWineNumba(wange.stawtWineNumba);
+			boxEndY = this._context.viewWayout.getVewticawOffsetFowWineNumba(wange.endWineNumba) + this._wineHeight;
+		} ewse {
+			wetuwn -1;
 		}
 
-		const shouldIgnoreScrollOff = source === 'mouse' && this._cursorSurroundingLinesStyle === 'default';
+		const shouwdIgnoweScwowwOff = souwce === 'mouse' && this._cuwsowSuwwoundingWinesStywe === 'defauwt';
 
-		if (!shouldIgnoreScrollOff) {
-			const context = Math.min((viewportHeight / this._lineHeight) / 2, this._cursorSurroundingLines);
-			boxStartY -= context * this._lineHeight;
-			boxEndY += Math.max(0, (context - 1)) * this._lineHeight;
+		if (!shouwdIgnoweScwowwOff) {
+			const context = Math.min((viewpowtHeight / this._wineHeight) / 2, this._cuwsowSuwwoundingWines);
+			boxStawtY -= context * this._wineHeight;
+			boxEndY += Math.max(0, (context - 1)) * this._wineHeight;
 		}
 
-		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
-			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
-			boxEndY += this._lineHeight;
+		if (vewticawType === viewEvents.VewticawWeveawType.Simpwe || vewticawType === viewEvents.VewticawWeveawType.Bottom) {
+			// Weveaw one wine mowe when the wast wine wouwd be covewed by the scwowwbaw - awwow down case ow weveawing a wine expwicitwy at bottom
+			boxEndY += this._wineHeight;
 		}
 
-		let newScrollTop: number;
+		wet newScwowwTop: numba;
 
-		if (boxEndY - boxStartY > viewportHeight) {
-			// the box is larger than the viewport ... scroll to its top
-			if (!boxIsSingleRange) {
-				// do not reveal multiple cursors if there are more than fit the viewport
-				return -1;
+		if (boxEndY - boxStawtY > viewpowtHeight) {
+			// the box is wawga than the viewpowt ... scwoww to its top
+			if (!boxIsSingweWange) {
+				// do not weveaw muwtipwe cuwsows if thewe awe mowe than fit the viewpowt
+				wetuwn -1;
 			}
-			newScrollTop = boxStartY;
-		} else if (verticalType === viewEvents.VerticalRevealType.NearTop || verticalType === viewEvents.VerticalRevealType.NearTopIfOutsideViewport) {
-			if (verticalType === viewEvents.VerticalRevealType.NearTopIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
-				// Box is already in the viewport... do nothing
-				newScrollTop = viewportStartY;
-			} else {
-				// We want a gap that is 20% of the viewport, but with a minimum of 5 lines
-				const desiredGapAbove = Math.max(5 * this._lineHeight, viewportHeight * 0.2);
-				// Try to scroll just above the box with the desired gap
-				const desiredScrollTop = boxStartY - desiredGapAbove;
-				// But ensure that the box is not pushed out of viewport
-				const minScrollTop = boxEndY - viewportHeight;
-				newScrollTop = Math.max(minScrollTop, desiredScrollTop);
+			newScwowwTop = boxStawtY;
+		} ewse if (vewticawType === viewEvents.VewticawWeveawType.NeawTop || vewticawType === viewEvents.VewticawWeveawType.NeawTopIfOutsideViewpowt) {
+			if (vewticawType === viewEvents.VewticawWeveawType.NeawTopIfOutsideViewpowt && viewpowtStawtY <= boxStawtY && boxEndY <= viewpowtEndY) {
+				// Box is awweady in the viewpowt... do nothing
+				newScwowwTop = viewpowtStawtY;
+			} ewse {
+				// We want a gap that is 20% of the viewpowt, but with a minimum of 5 wines
+				const desiwedGapAbove = Math.max(5 * this._wineHeight, viewpowtHeight * 0.2);
+				// Twy to scwoww just above the box with the desiwed gap
+				const desiwedScwowwTop = boxStawtY - desiwedGapAbove;
+				// But ensuwe that the box is not pushed out of viewpowt
+				const minScwowwTop = boxEndY - viewpowtHeight;
+				newScwowwTop = Math.max(minScwowwTop, desiwedScwowwTop);
 			}
-		} else if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport) {
-			if (verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
-				// Box is already in the viewport... do nothing
-				newScrollTop = viewportStartY;
-			} else {
-				// Box is outside the viewport... center it
-				const boxMiddleY = (boxStartY + boxEndY) / 2;
-				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
+		} ewse if (vewticawType === viewEvents.VewticawWeveawType.Centa || vewticawType === viewEvents.VewticawWeveawType.CentewIfOutsideViewpowt) {
+			if (vewticawType === viewEvents.VewticawWeveawType.CentewIfOutsideViewpowt && viewpowtStawtY <= boxStawtY && boxEndY <= viewpowtEndY) {
+				// Box is awweady in the viewpowt... do nothing
+				newScwowwTop = viewpowtStawtY;
+			} ewse {
+				// Box is outside the viewpowt... centa it
+				const boxMiddweY = (boxStawtY + boxEndY) / 2;
+				newScwowwTop = Math.max(0, boxMiddweY - viewpowtHeight / 2);
 			}
-		} else {
-			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
+		} ewse {
+			newScwowwTop = this._computeMinimumScwowwing(viewpowtStawtY, viewpowtEndY, boxStawtY, boxEndY, vewticawType === viewEvents.VewticawWeveawType.Top, vewticawType === viewEvents.VewticawWeveawType.Bottom);
 		}
 
-		return newScrollTop;
+		wetuwn newScwowwTop;
 	}
 
-	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; } | null {
+	pwivate _computeScwowwWeftToWeveaw(howizontawWeveawWequest: HowizontawWeveawWequest): { scwowwWeft: numba; maxHowizontawOffset: numba; } | nuww {
 
-		const viewport = this._context.viewLayout.getCurrentViewport();
-		const viewportStartX = viewport.left;
-		const viewportEndX = viewportStartX + viewport.width;
+		const viewpowt = this._context.viewWayout.getCuwwentViewpowt();
+		const viewpowtStawtX = viewpowt.weft;
+		const viewpowtEndX = viewpowtStawtX + viewpowt.width;
 
-		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
-		let boxEndX = 0;
-		if (horizontalRevealRequest.type === 'range') {
-			const visibleRanges = this._visibleRangesForLineRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
-			if (!visibleRanges) {
-				return null;
+		wet boxStawtX = Constants.MAX_SAFE_SMAWW_INTEGa;
+		wet boxEndX = 0;
+		if (howizontawWeveawWequest.type === 'wange') {
+			const visibweWanges = this._visibweWangesFowWineWange(howizontawWeveawWequest.wineNumba, howizontawWeveawWequest.stawtCowumn, howizontawWeveawWequest.endCowumn);
+			if (!visibweWanges) {
+				wetuwn nuww;
 			}
-			for (const visibleRange of visibleRanges.ranges) {
-				boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
-				boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
+			fow (const visibweWange of visibweWanges.wanges) {
+				boxStawtX = Math.min(boxStawtX, Math.wound(visibweWange.weft));
+				boxEndX = Math.max(boxEndX, Math.wound(visibweWange.weft + visibweWange.width));
 			}
-		} else {
-			for (const selection of horizontalRevealRequest.selections) {
-				if (selection.startLineNumber !== selection.endLineNumber) {
-					return null;
+		} ewse {
+			fow (const sewection of howizontawWeveawWequest.sewections) {
+				if (sewection.stawtWineNumba !== sewection.endWineNumba) {
+					wetuwn nuww;
 				}
-				const visibleRanges = this._visibleRangesForLineRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
-				if (!visibleRanges) {
-					return null;
+				const visibweWanges = this._visibweWangesFowWineWange(sewection.stawtWineNumba, sewection.stawtCowumn, sewection.endCowumn);
+				if (!visibweWanges) {
+					wetuwn nuww;
 				}
-				for (const visibleRange of visibleRanges.ranges) {
-					boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
-					boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
+				fow (const visibweWange of visibweWanges.wanges) {
+					boxStawtX = Math.min(boxStawtX, Math.wound(visibweWange.weft));
+					boxEndX = Math.max(boxEndX, Math.wound(visibweWange.weft + visibweWange.width));
 				}
 			}
 		}
 
-		boxStartX = Math.max(0, boxStartX - ViewLines.HORIZONTAL_EXTRA_PX);
-		boxEndX += this._revealHorizontalRightPadding;
+		boxStawtX = Math.max(0, boxStawtX - ViewWines.HOWIZONTAW_EXTWA_PX);
+		boxEndX += this._weveawHowizontawWightPadding;
 
-		if (horizontalRevealRequest.type === 'selections' && boxEndX - boxStartX > viewport.width) {
-			return null;
+		if (howizontawWeveawWequest.type === 'sewections' && boxEndX - boxStawtX > viewpowt.width) {
+			wetuwn nuww;
 		}
 
-		const newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
-		return {
-			scrollLeft: newScrollLeft,
-			maxHorizontalOffset: boxEndX
+		const newScwowwWeft = this._computeMinimumScwowwing(viewpowtStawtX, viewpowtEndX, boxStawtX, boxEndX);
+		wetuwn {
+			scwowwWeft: newScwowwWeft,
+			maxHowizontawOffset: boxEndX
 		};
 	}
 
-	private _computeMinimumScrolling(viewportStart: number, viewportEnd: number, boxStart: number, boxEnd: number, revealAtStart?: boolean, revealAtEnd?: boolean): number {
-		viewportStart = viewportStart | 0;
-		viewportEnd = viewportEnd | 0;
-		boxStart = boxStart | 0;
+	pwivate _computeMinimumScwowwing(viewpowtStawt: numba, viewpowtEnd: numba, boxStawt: numba, boxEnd: numba, weveawAtStawt?: boowean, weveawAtEnd?: boowean): numba {
+		viewpowtStawt = viewpowtStawt | 0;
+		viewpowtEnd = viewpowtEnd | 0;
+		boxStawt = boxStawt | 0;
 		boxEnd = boxEnd | 0;
-		revealAtStart = !!revealAtStart;
-		revealAtEnd = !!revealAtEnd;
+		weveawAtStawt = !!weveawAtStawt;
+		weveawAtEnd = !!weveawAtEnd;
 
-		const viewportLength = viewportEnd - viewportStart;
-		const boxLength = boxEnd - boxStart;
+		const viewpowtWength = viewpowtEnd - viewpowtStawt;
+		const boxWength = boxEnd - boxStawt;
 
-		if (boxLength < viewportLength) {
-			// The box would fit in the viewport
+		if (boxWength < viewpowtWength) {
+			// The box wouwd fit in the viewpowt
 
-			if (revealAtStart) {
-				return boxStart;
+			if (weveawAtStawt) {
+				wetuwn boxStawt;
 			}
 
-			if (revealAtEnd) {
-				return Math.max(0, boxEnd - viewportLength);
+			if (weveawAtEnd) {
+				wetuwn Math.max(0, boxEnd - viewpowtWength);
 			}
 
-			if (boxStart < viewportStart) {
-				// The box is above the viewport
-				return boxStart;
-			} else if (boxEnd > viewportEnd) {
-				// The box is below the viewport
-				return Math.max(0, boxEnd - viewportLength);
+			if (boxStawt < viewpowtStawt) {
+				// The box is above the viewpowt
+				wetuwn boxStawt;
+			} ewse if (boxEnd > viewpowtEnd) {
+				// The box is bewow the viewpowt
+				wetuwn Math.max(0, boxEnd - viewpowtWength);
 			}
-		} else {
-			// The box would not fit in the viewport
-			// Reveal the beginning of the box
-			return boxStart;
+		} ewse {
+			// The box wouwd not fit in the viewpowt
+			// Weveaw the beginning of the box
+			wetuwn boxStawt;
 		}
 
-		return viewportStart;
+		wetuwn viewpowtStawt;
 	}
 }

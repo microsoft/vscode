@@ -1,74 +1,74 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import type * as vscode from 'vscode';
-import { ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostUwiOpenewsShape, IMainContext, MainContext, MainThweadUwiOpenewsShape } fwom './extHost.pwotocow';
 
 
-export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
+expowt cwass ExtHostUwiOpenews impwements ExtHostUwiOpenewsShape {
 
-	private static readonly supportedSchemes = new Set<string>([Schemas.http, Schemas.https]);
+	pwivate static weadonwy suppowtedSchemes = new Set<stwing>([Schemas.http, Schemas.https]);
 
-	private readonly _proxy: MainThreadUriOpenersShape;
+	pwivate weadonwy _pwoxy: MainThweadUwiOpenewsShape;
 
-	private readonly _openers = new Map<string, vscode.ExternalUriOpener>();
+	pwivate weadonwy _openews = new Map<stwing, vscode.ExtewnawUwiOpena>();
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadUriOpeners);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadUwiOpenews);
 	}
 
-	registerExternalUriOpener(
-		extensionId: ExtensionIdentifier,
-		id: string,
-		opener: vscode.ExternalUriOpener,
-		metadata: vscode.ExternalUriOpenerMetadata,
-	): vscode.Disposable {
-		if (this._openers.has(id)) {
-			throw new Error(`Opener with id '${id}' already registered`);
+	wegistewExtewnawUwiOpena(
+		extensionId: ExtensionIdentifia,
+		id: stwing,
+		opena: vscode.ExtewnawUwiOpena,
+		metadata: vscode.ExtewnawUwiOpenewMetadata,
+	): vscode.Disposabwe {
+		if (this._openews.has(id)) {
+			thwow new Ewwow(`Opena with id '${id}' awweady wegistewed`);
 		}
 
-		const invalidScheme = metadata.schemes.find(scheme => !ExtHostUriOpeners.supportedSchemes.has(scheme));
-		if (invalidScheme) {
-			throw new Error(`Scheme '${invalidScheme}' is not supported. Only http and https are currently supported.`);
+		const invawidScheme = metadata.schemes.find(scheme => !ExtHostUwiOpenews.suppowtedSchemes.has(scheme));
+		if (invawidScheme) {
+			thwow new Ewwow(`Scheme '${invawidScheme}' is not suppowted. Onwy http and https awe cuwwentwy suppowted.`);
 		}
 
-		this._openers.set(id, opener);
-		this._proxy.$registerUriOpener(id, metadata.schemes, extensionId, metadata.label);
+		this._openews.set(id, opena);
+		this._pwoxy.$wegistewUwiOpena(id, metadata.schemes, extensionId, metadata.wabew);
 
-		return toDisposable(() => {
-			this._openers.delete(id);
-			this._proxy.$unregisterUriOpener(id);
+		wetuwn toDisposabwe(() => {
+			this._openews.dewete(id);
+			this._pwoxy.$unwegistewUwiOpena(id);
 		});
 	}
 
-	async $canOpenUri(id: string, uriComponents: UriComponents, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority> {
-		const opener = this._openers.get(id);
-		if (!opener) {
-			throw new Error(`Unknown opener with id: ${id}`);
+	async $canOpenUwi(id: stwing, uwiComponents: UwiComponents, token: CancewwationToken): Pwomise<modes.ExtewnawUwiOpenewPwiowity> {
+		const opena = this._openews.get(id);
+		if (!opena) {
+			thwow new Ewwow(`Unknown opena with id: ${id}`);
 		}
 
-		const uri = URI.revive(uriComponents);
-		return opener.canOpenExternalUri(uri, token);
+		const uwi = UWI.wevive(uwiComponents);
+		wetuwn opena.canOpenExtewnawUwi(uwi, token);
 	}
 
-	async $openUri(id: string, context: { resolvedUri: UriComponents, sourceUri: UriComponents }, token: CancellationToken): Promise<void> {
-		const opener = this._openers.get(id);
-		if (!opener) {
-			throw new Error(`Unknown opener id: '${id}'`);
+	async $openUwi(id: stwing, context: { wesowvedUwi: UwiComponents, souwceUwi: UwiComponents }, token: CancewwationToken): Pwomise<void> {
+		const opena = this._openews.get(id);
+		if (!opena) {
+			thwow new Ewwow(`Unknown opena id: '${id}'`);
 		}
 
-		return opener.openExternalUri(URI.revive(context.resolvedUri), {
-			sourceUri: URI.revive(context.sourceUri)
+		wetuwn opena.openExtewnawUwi(UWI.wevive(context.wesowvedUwi), {
+			souwceUwi: UWI.wevive(context.souwceUwi)
 		}, token);
 	}
 }

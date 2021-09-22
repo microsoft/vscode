@@ -1,282 +1,282 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+impowt { CowowId, FontStywe, WanguageId, MetadataConsts, StandawdTokenType, TokenMetadata } fwom 'vs/editow/common/modes';
 
-export interface IViewLineTokens {
-	equals(other: IViewLineTokens): boolean;
-	getCount(): number;
-	getForeground(tokenIndex: number): ColorId;
-	getEndOffset(tokenIndex: number): number;
-	getClassName(tokenIndex: number): string;
-	getInlineStyle(tokenIndex: number, colorMap: string[]): string;
-	findTokenIndexAtOffset(offset: number): number;
+expowt intewface IViewWineTokens {
+	equaws(otha: IViewWineTokens): boowean;
+	getCount(): numba;
+	getFowegwound(tokenIndex: numba): CowowId;
+	getEndOffset(tokenIndex: numba): numba;
+	getCwassName(tokenIndex: numba): stwing;
+	getInwineStywe(tokenIndex: numba, cowowMap: stwing[]): stwing;
+	findTokenIndexAtOffset(offset: numba): numba;
 }
 
-export class LineTokens implements IViewLineTokens {
-	_lineTokensBrand: void = undefined;
+expowt cwass WineTokens impwements IViewWineTokens {
+	_wineTokensBwand: void = undefined;
 
-	private readonly _tokens: Uint32Array;
-	private readonly _tokensCount: number;
-	private readonly _text: string;
+	pwivate weadonwy _tokens: Uint32Awway;
+	pwivate weadonwy _tokensCount: numba;
+	pwivate weadonwy _text: stwing;
 
-	public static defaultTokenMetadata = (
-		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	pubwic static defauwtTokenMetadata = (
+		(FontStywe.None << MetadataConsts.FONT_STYWE_OFFSET)
+		| (CowowId.DefauwtFowegwound << MetadataConsts.FOWEGWOUND_OFFSET)
+		| (CowowId.DefauwtBackgwound << MetadataConsts.BACKGWOUND_OFFSET)
 	) >>> 0;
 
-	public static createEmpty(lineContent: string): LineTokens {
-		const defaultMetadata = LineTokens.defaultTokenMetadata;
+	pubwic static cweateEmpty(wineContent: stwing): WineTokens {
+		const defauwtMetadata = WineTokens.defauwtTokenMetadata;
 
-		const tokens = new Uint32Array(2);
-		tokens[0] = lineContent.length;
-		tokens[1] = defaultMetadata;
+		const tokens = new Uint32Awway(2);
+		tokens[0] = wineContent.wength;
+		tokens[1] = defauwtMetadata;
 
-		return new LineTokens(tokens, lineContent);
+		wetuwn new WineTokens(tokens, wineContent);
 	}
 
-	constructor(tokens: Uint32Array, text: string) {
+	constwuctow(tokens: Uint32Awway, text: stwing) {
 		this._tokens = tokens;
-		this._tokensCount = (this._tokens.length >>> 1);
+		this._tokensCount = (this._tokens.wength >>> 1);
 		this._text = text;
 	}
 
-	public equals(other: IViewLineTokens): boolean {
-		if (other instanceof LineTokens) {
-			return this.slicedEquals(other, 0, this._tokensCount);
+	pubwic equaws(otha: IViewWineTokens): boowean {
+		if (otha instanceof WineTokens) {
+			wetuwn this.swicedEquaws(otha, 0, this._tokensCount);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public slicedEquals(other: LineTokens, sliceFromTokenIndex: number, sliceTokenCount: number): boolean {
-		if (this._text !== other._text) {
-			return false;
+	pubwic swicedEquaws(otha: WineTokens, swiceFwomTokenIndex: numba, swiceTokenCount: numba): boowean {
+		if (this._text !== otha._text) {
+			wetuwn fawse;
 		}
-		if (this._tokensCount !== other._tokensCount) {
-			return false;
+		if (this._tokensCount !== otha._tokensCount) {
+			wetuwn fawse;
 		}
-		const from = (sliceFromTokenIndex << 1);
-		const to = from + (sliceTokenCount << 1);
-		for (let i = from; i < to; i++) {
-			if (this._tokens[i] !== other._tokens[i]) {
-				return false;
+		const fwom = (swiceFwomTokenIndex << 1);
+		const to = fwom + (swiceTokenCount << 1);
+		fow (wet i = fwom; i < to; i++) {
+			if (this._tokens[i] !== otha._tokens[i]) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public getLineContent(): string {
-		return this._text;
+	pubwic getWineContent(): stwing {
+		wetuwn this._text;
 	}
 
-	public getCount(): number {
-		return this._tokensCount;
+	pubwic getCount(): numba {
+		wetuwn this._tokensCount;
 	}
 
-	public getStartOffset(tokenIndex: number): number {
+	pubwic getStawtOffset(tokenIndex: numba): numba {
 		if (tokenIndex > 0) {
-			return this._tokens[(tokenIndex - 1) << 1];
+			wetuwn this._tokens[(tokenIndex - 1) << 1];
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public getMetadata(tokenIndex: number): number {
+	pubwic getMetadata(tokenIndex: numba): numba {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return metadata;
+		wetuwn metadata;
 	}
 
-	public getLanguageId(tokenIndex: number): LanguageId {
+	pubwic getWanguageId(tokenIndex: numba): WanguageId {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getLanguageId(metadata);
+		wetuwn TokenMetadata.getWanguageId(metadata);
 	}
 
-	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+	pubwic getStandawdTokenType(tokenIndex: numba): StandawdTokenType {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getTokenType(metadata);
+		wetuwn TokenMetadata.getTokenType(metadata);
 	}
 
-	public getForeground(tokenIndex: number): ColorId {
+	pubwic getFowegwound(tokenIndex: numba): CowowId {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getForeground(metadata);
+		wetuwn TokenMetadata.getFowegwound(metadata);
 	}
 
-	public getClassName(tokenIndex: number): string {
+	pubwic getCwassName(tokenIndex: numba): stwing {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getClassNameFromMetadata(metadata);
+		wetuwn TokenMetadata.getCwassNameFwomMetadata(metadata);
 	}
 
-	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
+	pubwic getInwineStywe(tokenIndex: numba, cowowMap: stwing[]): stwing {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getInlineStyleFromMetadata(metadata, colorMap);
+		wetuwn TokenMetadata.getInwineStyweFwomMetadata(metadata, cowowMap);
 	}
 
-	public getEndOffset(tokenIndex: number): number {
-		return this._tokens[tokenIndex << 1];
+	pubwic getEndOffset(tokenIndex: numba): numba {
+		wetuwn this._tokens[tokenIndex << 1];
 	}
 
 	/**
 	 * Find the token containing offset `offset`.
-	 * @param offset The search offset
-	 * @return The index of the token containing the offset.
+	 * @pawam offset The seawch offset
+	 * @wetuwn The index of the token containing the offset.
 	 */
-	public findTokenIndexAtOffset(offset: number): number {
-		return LineTokens.findIndexInTokensArray(this._tokens, offset);
+	pubwic findTokenIndexAtOffset(offset: numba): numba {
+		wetuwn WineTokens.findIndexInTokensAwway(this._tokens, offset);
 	}
 
-	public inflate(): IViewLineTokens {
-		return this;
+	pubwic infwate(): IViewWineTokens {
+		wetuwn this;
 	}
 
-	public sliceAndInflate(startOffset: number, endOffset: number, deltaOffset: number): IViewLineTokens {
-		return new SlicedLineTokens(this, startOffset, endOffset, deltaOffset);
+	pubwic swiceAndInfwate(stawtOffset: numba, endOffset: numba, dewtaOffset: numba): IViewWineTokens {
+		wetuwn new SwicedWineTokens(this, stawtOffset, endOffset, dewtaOffset);
 	}
 
-	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
-		const tokenCount = (tokens.length >>> 1);
-		const lastTokenIndex = tokenCount - 1;
-		for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
+	pubwic static convewtToEndOffset(tokens: Uint32Awway, wineTextWength: numba): void {
+		const tokenCount = (tokens.wength >>> 1);
+		const wastTokenIndex = tokenCount - 1;
+		fow (wet tokenIndex = 0; tokenIndex < wastTokenIndex; tokenIndex++) {
 			tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
 		}
-		tokens[lastTokenIndex << 1] = lineTextLength;
+		tokens[wastTokenIndex << 1] = wineTextWength;
 	}
 
-	public static findIndexInTokensArray(tokens: Uint32Array, desiredIndex: number): number {
-		if (tokens.length <= 2) {
-			return 0;
+	pubwic static findIndexInTokensAwway(tokens: Uint32Awway, desiwedIndex: numba): numba {
+		if (tokens.wength <= 2) {
+			wetuwn 0;
 		}
 
-		let low = 0;
-		let high = (tokens.length >>> 1) - 1;
+		wet wow = 0;
+		wet high = (tokens.wength >>> 1) - 1;
 
-		while (low < high) {
+		whiwe (wow < high) {
 
-			const mid = low + Math.floor((high - low) / 2);
+			const mid = wow + Math.fwoow((high - wow) / 2);
 			const endOffset = tokens[(mid << 1)];
 
-			if (endOffset === desiredIndex) {
-				return mid + 1;
-			} else if (endOffset < desiredIndex) {
-				low = mid + 1;
-			} else if (endOffset > desiredIndex) {
+			if (endOffset === desiwedIndex) {
+				wetuwn mid + 1;
+			} ewse if (endOffset < desiwedIndex) {
+				wow = mid + 1;
+			} ewse if (endOffset > desiwedIndex) {
 				high = mid;
 			}
 		}
 
-		return low;
+		wetuwn wow;
 	}
 
 	/**
-	 * @pure
-	 * @param insertTokens Must be sorted by offset.
+	 * @puwe
+	 * @pawam insewtTokens Must be sowted by offset.
 	*/
-	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
-		if (insertTokens.length === 0) {
-			return this;
+	pubwic withInsewted(insewtTokens: { offset: numba, text: stwing, tokenMetadata: numba }[]): WineTokens {
+		if (insewtTokens.wength === 0) {
+			wetuwn this;
 		}
 
-		let nextOriginalTokenIdx = 0;
-		let nextInsertTokenIdx = 0;
-		let text = '';
-		const newTokens = new Array<number>();
+		wet nextOwiginawTokenIdx = 0;
+		wet nextInsewtTokenIdx = 0;
+		wet text = '';
+		const newTokens = new Awway<numba>();
 
-		let originalEndOffset = 0;
-		while (true) {
-			let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : -1;
-			let nextInsertToken = nextInsertTokenIdx < insertTokens.length ? insertTokens[nextInsertTokenIdx] : null;
+		wet owiginawEndOffset = 0;
+		whiwe (twue) {
+			wet nextOwiginawTokenEndOffset = nextOwiginawTokenIdx < this._tokensCount ? this._tokens[nextOwiginawTokenIdx << 1] : -1;
+			wet nextInsewtToken = nextInsewtTokenIdx < insewtTokens.wength ? insewtTokens[nextInsewtTokenIdx] : nuww;
 
-			if (nextOriginalTokenEndOffset !== -1 && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
-				// original token ends before next insert token
-				text += this._text.substring(originalEndOffset, nextOriginalTokenEndOffset);
-				const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
-				newTokens.push(text.length, metadata);
-				nextOriginalTokenIdx++;
-				originalEndOffset = nextOriginalTokenEndOffset;
+			if (nextOwiginawTokenEndOffset !== -1 && (nextInsewtToken === nuww || nextOwiginawTokenEndOffset <= nextInsewtToken.offset)) {
+				// owiginaw token ends befowe next insewt token
+				text += this._text.substwing(owiginawEndOffset, nextOwiginawTokenEndOffset);
+				const metadata = this._tokens[(nextOwiginawTokenIdx << 1) + 1];
+				newTokens.push(text.wength, metadata);
+				nextOwiginawTokenIdx++;
+				owiginawEndOffset = nextOwiginawTokenEndOffset;
 
-			} else if (nextInsertToken) {
-				if (nextInsertToken.offset > originalEndOffset) {
-					// insert token is in the middle of the next token.
-					text += this._text.substring(originalEndOffset, nextInsertToken.offset);
-					const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
-					newTokens.push(text.length, metadata);
-					originalEndOffset = nextInsertToken.offset;
+			} ewse if (nextInsewtToken) {
+				if (nextInsewtToken.offset > owiginawEndOffset) {
+					// insewt token is in the middwe of the next token.
+					text += this._text.substwing(owiginawEndOffset, nextInsewtToken.offset);
+					const metadata = this._tokens[(nextOwiginawTokenIdx << 1) + 1];
+					newTokens.push(text.wength, metadata);
+					owiginawEndOffset = nextInsewtToken.offset;
 				}
 
-				text += nextInsertToken.text;
-				newTokens.push(text.length, nextInsertToken.tokenMetadata);
-				nextInsertTokenIdx++;
-			} else {
-				break;
+				text += nextInsewtToken.text;
+				newTokens.push(text.wength, nextInsewtToken.tokenMetadata);
+				nextInsewtTokenIdx++;
+			} ewse {
+				bweak;
 			}
 		}
 
-		return new LineTokens(new Uint32Array(newTokens), text);
+		wetuwn new WineTokens(new Uint32Awway(newTokens), text);
 	}
 }
 
-export class SlicedLineTokens implements IViewLineTokens {
+expowt cwass SwicedWineTokens impwements IViewWineTokens {
 
-	private readonly _source: LineTokens;
-	private readonly _startOffset: number;
-	private readonly _endOffset: number;
-	private readonly _deltaOffset: number;
+	pwivate weadonwy _souwce: WineTokens;
+	pwivate weadonwy _stawtOffset: numba;
+	pwivate weadonwy _endOffset: numba;
+	pwivate weadonwy _dewtaOffset: numba;
 
-	private readonly _firstTokenIndex: number;
-	private readonly _tokensCount: number;
+	pwivate weadonwy _fiwstTokenIndex: numba;
+	pwivate weadonwy _tokensCount: numba;
 
-	constructor(source: LineTokens, startOffset: number, endOffset: number, deltaOffset: number) {
-		this._source = source;
-		this._startOffset = startOffset;
+	constwuctow(souwce: WineTokens, stawtOffset: numba, endOffset: numba, dewtaOffset: numba) {
+		this._souwce = souwce;
+		this._stawtOffset = stawtOffset;
 		this._endOffset = endOffset;
-		this._deltaOffset = deltaOffset;
-		this._firstTokenIndex = source.findTokenIndexAtOffset(startOffset);
+		this._dewtaOffset = dewtaOffset;
+		this._fiwstTokenIndex = souwce.findTokenIndexAtOffset(stawtOffset);
 
 		this._tokensCount = 0;
-		for (let i = this._firstTokenIndex, len = source.getCount(); i < len; i++) {
-			const tokenStartOffset = source.getStartOffset(i);
-			if (tokenStartOffset >= endOffset) {
-				break;
+		fow (wet i = this._fiwstTokenIndex, wen = souwce.getCount(); i < wen; i++) {
+			const tokenStawtOffset = souwce.getStawtOffset(i);
+			if (tokenStawtOffset >= endOffset) {
+				bweak;
 			}
 			this._tokensCount++;
 		}
 	}
 
-	public equals(other: IViewLineTokens): boolean {
-		if (other instanceof SlicedLineTokens) {
-			return (
-				this._startOffset === other._startOffset
-				&& this._endOffset === other._endOffset
-				&& this._deltaOffset === other._deltaOffset
-				&& this._source.slicedEquals(other._source, this._firstTokenIndex, this._tokensCount)
+	pubwic equaws(otha: IViewWineTokens): boowean {
+		if (otha instanceof SwicedWineTokens) {
+			wetuwn (
+				this._stawtOffset === otha._stawtOffset
+				&& this._endOffset === otha._endOffset
+				&& this._dewtaOffset === otha._dewtaOffset
+				&& this._souwce.swicedEquaws(otha._souwce, this._fiwstTokenIndex, this._tokensCount)
 			);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public getCount(): number {
-		return this._tokensCount;
+	pubwic getCount(): numba {
+		wetuwn this._tokensCount;
 	}
 
-	public getForeground(tokenIndex: number): ColorId {
-		return this._source.getForeground(this._firstTokenIndex + tokenIndex);
+	pubwic getFowegwound(tokenIndex: numba): CowowId {
+		wetuwn this._souwce.getFowegwound(this._fiwstTokenIndex + tokenIndex);
 	}
 
-	public getEndOffset(tokenIndex: number): number {
-		const tokenEndOffset = this._source.getEndOffset(this._firstTokenIndex + tokenIndex);
-		return Math.min(this._endOffset, tokenEndOffset) - this._startOffset + this._deltaOffset;
+	pubwic getEndOffset(tokenIndex: numba): numba {
+		const tokenEndOffset = this._souwce.getEndOffset(this._fiwstTokenIndex + tokenIndex);
+		wetuwn Math.min(this._endOffset, tokenEndOffset) - this._stawtOffset + this._dewtaOffset;
 	}
 
-	public getClassName(tokenIndex: number): string {
-		return this._source.getClassName(this._firstTokenIndex + tokenIndex);
+	pubwic getCwassName(tokenIndex: numba): stwing {
+		wetuwn this._souwce.getCwassName(this._fiwstTokenIndex + tokenIndex);
 	}
 
-	public getInlineStyle(tokenIndex: number, colorMap: string[]): string {
-		return this._source.getInlineStyle(this._firstTokenIndex + tokenIndex, colorMap);
+	pubwic getInwineStywe(tokenIndex: numba, cowowMap: stwing[]): stwing {
+		wetuwn this._souwce.getInwineStywe(this._fiwstTokenIndex + tokenIndex, cowowMap);
 	}
 
-	public findTokenIndexAtOffset(offset: number): number {
-		return this._source.findTokenIndexAtOffset(offset + this._startOffset - this._deltaOffset) - this._firstTokenIndex;
+	pubwic findTokenIndexAtOffset(offset: numba): numba {
+		wetuwn this._souwce.findTokenIndexAtOffset(offset + this._stawtOffset - this._dewtaOffset) - this._fiwstTokenIndex;
 	}
 }

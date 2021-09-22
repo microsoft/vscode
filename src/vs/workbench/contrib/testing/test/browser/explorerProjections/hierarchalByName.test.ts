@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
-import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { HiewawchicawByNamePwojection } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/hiewawchawByName';
+impowt { TestDiffOpType, TestItemExpandState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestWesuwtItemChange } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { Convewt, TestItemImpw } fwom 'vs/wowkbench/contwib/testing/common/testStubs';
+impowt { TestTweeTestHawness } fwom 'vs/wowkbench/contwib/testing/test/bwowsa/testObjectTwee';
 
-suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
-	let harness: TestTreeTestHarness<HierarchicalByNameProjection>;
-	let onTestChanged: Emitter<TestResultItemChange>;
-	let resultsService: any;
+suite('Wowkbench - Testing Expwowa Hiewawchaw by Name Pwojection', () => {
+	wet hawness: TestTweeTestHawness<HiewawchicawByNamePwojection>;
+	wet onTestChanged: Emitta<TestWesuwtItemChange>;
+	wet wesuwtsSewvice: any;
 
 	setup(() => {
-		onTestChanged = new Emitter();
-		resultsService = {
-			onResultsChanged: () => undefined,
+		onTestChanged = new Emitta();
+		wesuwtsSewvice = {
+			onWesuwtsChanged: () => undefined,
 			onTestChanged: onTestChanged.event,
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection(l, resultsService as any));
+		hawness = new TestTweeTestHawness(w => new HiewawchicawByNamePwojection(w, wesuwtsSewvice as any));
 	});
 
-	teardown(() => {
-		harness.dispose();
+	teawdown(() => {
+		hawness.dispose();
 	});
 
-	test('renders initial tree', () => {
-		harness.flush();
-		assert.deepStrictEqual(harness.tree.getRendered(), [
+	test('wendews initiaw twee', () => {
+		hawness.fwush();
+		assewt.deepStwictEquaw(hawness.twee.getWendewed(), [
 			{ e: 'aa' }, { e: 'ab' }, { e: 'b' }
 		]);
 	});
 
-	test('updates render if second test provider appears', async () => {
-		harness.flush();
-		harness.pushDiff([
+	test('updates wenda if second test pwovida appeaws', async () => {
+		hawness.fwush();
+		hawness.pushDiff([
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'root2', undefined)) },
+			{ contwowwewId: 'ctww2', pawent: nuww, expand: TestItemExpandState.Expanded, item: Convewt.TestItem.fwom(new TestItemImpw('ctww2', 'c', 'woot2', undefined)) },
 		], [
 			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'c', undefined)) },
+			{ contwowwewId: 'ctww2', pawent: new TestId(['ctww2', 'c']).toStwing(), expand: TestItemExpandState.NotExpandabwe, item: Convewt.TestItem.fwom(new TestItemImpw('ctww2', 'c-a', 'c', undefined)) },
 		]);
 
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'root', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
-			{ e: 'root2', children: [{ e: 'c' }] },
+		assewt.deepStwictEquaw(hawness.fwush(), [
+			{ e: 'woot', chiwdwen: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
+			{ e: 'woot2', chiwdwen: [{ e: 'c' }] },
 		]);
 	});
 
-	test('updates nodes if they add children', async () => {
-		harness.flush();
+	test('updates nodes if they add chiwdwen', async () => {
+		hawness.fwush();
 
-		harness.c.root.children.get('id-a')!.children.add(new TestItemImpl('ctrl2', 'ac', 'ac', undefined));
+		hawness.c.woot.chiwdwen.get('id-a')!.chiwdwen.add(new TestItemImpw('ctww2', 'ac', 'ac', undefined));
 
-		assert.deepStrictEqual(harness.flush(), [
+		assewt.deepStwictEquaw(hawness.fwush(), [
 			{ e: 'aa' },
 			{ e: 'ab' },
 			{ e: 'ac' },
@@ -68,21 +68,21 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		]);
 	});
 
-	test('updates nodes if they remove children', async () => {
-		harness.flush();
-		harness.c.root.children.get('id-a')!.children.delete('id-ab');
+	test('updates nodes if they wemove chiwdwen', async () => {
+		hawness.fwush();
+		hawness.c.woot.chiwdwen.get('id-a')!.chiwdwen.dewete('id-ab');
 
-		assert.deepStrictEqual(harness.flush(), [
+		assewt.deepStwictEquaw(hawness.fwush(), [
 			{ e: 'aa' },
 			{ e: 'b' }
 		]);
 	});
 
-	test('swaps when node is no longer leaf', async () => {
-		harness.flush();
-		harness.c.root.children.get('id-b')!.children.add(new TestItemImpl('ctrl2', 'ba', 'ba', undefined));
+	test('swaps when node is no wonga weaf', async () => {
+		hawness.fwush();
+		hawness.c.woot.chiwdwen.get('id-b')!.chiwdwen.add(new TestItemImpw('ctww2', 'ba', 'ba', undefined));
 
-		assert.deepStrictEqual(harness.flush(), [
+		assewt.deepStwictEquaw(hawness.fwush(), [
 			{ e: 'aa' },
 			{ e: 'ab' },
 			{ e: 'ba' },

@@ -1,468 +1,468 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import type * as vscode from 'vscode';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto, ITypeHierarchyItemDto } from 'vs/workbench/api/common/extHost.protocol';
-import * as modes from 'vs/editor/common/modes';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
-import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt type * as vscode fwom 'vscode';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { IWawCowowInfo, IWowkspaceEditDto, ICawwHiewawchyItemDto, IIncomingCawwDto, IOutgoingCawwDto, ITypeHiewawchyItemDto } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt * as seawch fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { ApiCommand, ApiCommandAwgument, ApiCommandWesuwt, ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { CustomCodeAction } fwom 'vs/wowkbench/api/common/extHostWanguageFeatuwes';
+impowt { isFawsyOwEmpty } fwom 'vs/base/common/awways';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { TwansientCewwMetadata, TwansientDocumentMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { decodeSemanticTokensDto } fwom 'vs/editow/common/sewvices/semanticTokensDto';
 
-//#region --- NEW world
+//#wegion --- NEW wowwd
 
 const newCommands: ApiCommand[] = [
-	// -- document highlights
+	// -- document highwights
 	new ApiCommand(
-		'vscode.executeDocumentHighlights', '_executeDocumentHighlights', 'Execute document highlight provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.DocumentHighlight[], types.DocumentHighlight[] | undefined>('A promise that resolves to an array of DocumentHighlight-instances.', tryMapWith(typeConverters.DocumentHighlight.to))
+		'vscode.executeDocumentHighwights', '_executeDocumentHighwights', 'Execute document highwight pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<modes.DocumentHighwight[], types.DocumentHighwight[] | undefined>('A pwomise that wesowves to an awway of DocumentHighwight-instances.', twyMapWith(typeConvewtews.DocumentHighwight.to))
 	),
-	// -- document symbols
+	// -- document symbows
 	new ApiCommand(
-		'vscode.executeDocumentSymbolProvider', '_executeDocumentSymbolProvider', 'Execute document symbol provider.',
-		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.DocumentSymbol[], vscode.SymbolInformation[] | undefined>('A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.', (value, apiArgs) => {
+		'vscode.executeDocumentSymbowPwovida', '_executeDocumentSymbowPwovida', 'Execute document symbow pwovida.',
+		[ApiCommandAwgument.Uwi],
+		new ApiCommandWesuwt<modes.DocumentSymbow[], vscode.SymbowInfowmation[] | undefined>('A pwomise that wesowves to an awway of SymbowInfowmation and DocumentSymbow instances.', (vawue, apiAwgs) => {
 
-			if (isFalsyOrEmpty(value)) {
-				return undefined;
+			if (isFawsyOwEmpty(vawue)) {
+				wetuwn undefined;
 			}
-			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
-				static to(symbol: modes.DocumentSymbol): MergedInfo {
-					const res = new MergedInfo(
-						symbol.name,
-						typeConverters.SymbolKind.to(symbol.kind),
-						symbol.containerName || '',
-						new types.Location(apiArgs[0], typeConverters.Range.to(symbol.range))
+			cwass MewgedInfo extends types.SymbowInfowmation impwements vscode.DocumentSymbow {
+				static to(symbow: modes.DocumentSymbow): MewgedInfo {
+					const wes = new MewgedInfo(
+						symbow.name,
+						typeConvewtews.SymbowKind.to(symbow.kind),
+						symbow.containewName || '',
+						new types.Wocation(apiAwgs[0], typeConvewtews.Wange.to(symbow.wange))
 					);
-					res.detail = symbol.detail;
-					res.range = res.location.range;
-					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
-					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
-					return res;
+					wes.detaiw = symbow.detaiw;
+					wes.wange = wes.wocation.wange;
+					wes.sewectionWange = typeConvewtews.Wange.to(symbow.sewectionWange);
+					wes.chiwdwen = symbow.chiwdwen ? symbow.chiwdwen.map(MewgedInfo.to) : [];
+					wetuwn wes;
 				}
 
-				detail!: string;
-				range!: vscode.Range;
-				selectionRange!: vscode.Range;
-				children!: vscode.DocumentSymbol[];
-				override containerName!: string;
+				detaiw!: stwing;
+				wange!: vscode.Wange;
+				sewectionWange!: vscode.Wange;
+				chiwdwen!: vscode.DocumentSymbow[];
+				ovewwide containewName!: stwing;
 			}
-			return value.map(MergedInfo.to);
+			wetuwn vawue.map(MewgedInfo.to);
 
 		})
 	),
-	// -- formatting
+	// -- fowmatting
 	new ApiCommand(
-		'vscode.executeFormatDocumentProvider', '_executeFormatDocumentProvider', 'Execute document format provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		'vscode.executeFowmatDocumentPwovida', '_executeFowmatDocumentPwovida', 'Execute document fowmat pwovida.',
+		[ApiCommandAwgument.Uwi, new ApiCommandAwgument('options', 'Fowmatting options', _ => twue, v => v)],
+		new ApiCommandWesuwt<modes.TextEdit[], types.TextEdit[] | undefined>('A pwomise that wesowves to an awway of TextEdits.', twyMapWith(typeConvewtews.TextEdit.to))
 	),
 	new ApiCommand(
-		'vscode.executeFormatRangeProvider', '_executeFormatRangeProvider', 'Execute range format provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		'vscode.executeFowmatWangePwovida', '_executeFowmatWangePwovida', 'Execute wange fowmat pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Wange, new ApiCommandAwgument('options', 'Fowmatting options', _ => twue, v => v)],
+		new ApiCommandWesuwt<modes.TextEdit[], types.TextEdit[] | undefined>('A pwomise that wesowves to an awway of TextEdits.', twyMapWith(typeConvewtews.TextEdit.to))
 	),
 	new ApiCommand(
-		'vscode.executeFormatOnTypeProvider', '_executeFormatOnTypeProvider', 'Execute format on type provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		'vscode.executeFowmatOnTypePwovida', '_executeFowmatOnTypePwovida', 'Execute fowmat on type pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position, new ApiCommandAwgument('ch', 'Twigga chawacta', v => typeof v === 'stwing', v => v), new ApiCommandAwgument('options', 'Fowmatting options', _ => twue, v => v)],
+		new ApiCommandWesuwt<modes.TextEdit[], types.TextEdit[] | undefined>('A pwomise that wesowves to an awway of TextEdits.', twyMapWith(typeConvewtews.TextEdit.to))
 	),
-	// -- go to symbol (definition, type definition, declaration, impl, references)
+	// -- go to symbow (definition, type definition, decwawation, impw, wefewences)
 	new ApiCommand(
-		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
-	),
-	new ApiCommand(
-		'vscode.executeTypeDefinitionProvider', '_executeTypeDefinitionProvider', 'Execute all type definition providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+		'vscode.executeDefinitionPwovida', '_executeDefinitionPwovida', 'Execute aww definition pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<(modes.Wocation | modes.WocationWink)[], (types.Wocation | vscode.WocationWink)[] | undefined>('A pwomise that wesowves to an awway of Wocation ow WocationWink instances.', mapWocationOwWocationWink)
 	),
 	new ApiCommand(
-		'vscode.executeDeclarationProvider', '_executeDeclarationProvider', 'Execute all declaration providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+		'vscode.executeTypeDefinitionPwovida', '_executeTypeDefinitionPwovida', 'Execute aww type definition pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<(modes.Wocation | modes.WocationWink)[], (types.Wocation | vscode.WocationWink)[] | undefined>('A pwomise that wesowves to an awway of Wocation ow WocationWink instances.', mapWocationOwWocationWink)
 	),
 	new ApiCommand(
-		'vscode.executeImplementationProvider', '_executeImplementationProvider', 'Execute all implementation providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
+		'vscode.executeDecwawationPwovida', '_executeDecwawationPwovida', 'Execute aww decwawation pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<(modes.Wocation | modes.WocationWink)[], (types.Wocation | vscode.WocationWink)[] | undefined>('A pwomise that wesowves to an awway of Wocation ow WocationWink instances.', mapWocationOwWocationWink)
 	),
 	new ApiCommand(
-		'vscode.executeReferenceProvider', '_executeReferenceProvider', 'Execute all reference providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		'vscode.executeImpwementationPwovida', '_executeImpwementationPwovida', 'Execute aww impwementation pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<(modes.Wocation | modes.WocationWink)[], (types.Wocation | vscode.WocationWink)[] | undefined>('A pwomise that wesowves to an awway of Wocation ow WocationWink instances.', mapWocationOwWocationWink)
 	),
-	// -- hover
 	new ApiCommand(
-		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
+		'vscode.executeWefewencePwovida', '_executeWefewencePwovida', 'Execute aww wefewence pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<modes.Wocation[], types.Wocation[] | undefined>('A pwomise that wesowves to an awway of Wocation-instances.', twyMapWith(typeConvewtews.wocation.to))
 	),
-	// -- selection range
+	// -- hova
 	new ApiCommand(
-		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A position in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
-		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
-			return result.map(ranges => {
-				let node: types.SelectionRange | undefined;
-				for (const range of ranges.reverse()) {
-					node = new types.SelectionRange(typeConverters.Range.to(range), node);
+		'vscode.executeHovewPwovida', '_executeHovewPwovida', 'Execute aww hova pwovidews.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<modes.Hova[], types.Hova[] | undefined>('A pwomise that wesowves to an awway of Hova-instances.', twyMapWith(typeConvewtews.Hova.to))
+	),
+	// -- sewection wange
+	new ApiCommand(
+		'vscode.executeSewectionWangePwovida', '_executeSewectionWangePwovida', 'Execute sewection wange pwovida.',
+		[ApiCommandAwgument.Uwi, new ApiCommandAwgument<types.Position[], IPosition[]>('position', 'A position in a text document', v => Awway.isAwway(v) && v.evewy(v => types.Position.isPosition(v)), v => v.map(typeConvewtews.Position.fwom))],
+		new ApiCommandWesuwt<IWange[][], types.SewectionWange[]>('A pwomise that wesowves to an awway of wanges.', wesuwt => {
+			wetuwn wesuwt.map(wanges => {
+				wet node: types.SewectionWange | undefined;
+				fow (const wange of wanges.wevewse()) {
+					node = new types.SewectionWange(typeConvewtews.Wange.to(wange), node);
 				}
-				return node!;
+				wetuwn node!;
 			});
 		})
 	),
-	// -- symbol search
+	// -- symbow seawch
 	new ApiCommand(
-		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
-		[ApiCommandArgument.String.with('query', 'Search string')],
-		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
-			const result: types.SymbolInformation[] = [];
-			if (Array.isArray(value)) {
-				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
+		'vscode.executeWowkspaceSymbowPwovida', '_executeWowkspaceSymbowPwovida', 'Execute aww wowkspace symbow pwovidews.',
+		[ApiCommandAwgument.Stwing.with('quewy', 'Seawch stwing')],
+		new ApiCommandWesuwt<[seawch.IWowkspaceSymbowPwovida, seawch.IWowkspaceSymbow[]][], types.SymbowInfowmation[]>('A pwomise that wesowves to an awway of SymbowInfowmation-instances.', vawue => {
+			const wesuwt: types.SymbowInfowmation[] = [];
+			if (Awway.isAwway(vawue)) {
+				fow (wet tupwe of vawue) {
+					wesuwt.push(...tupwe[1].map(typeConvewtews.WowkspaceSymbow.to));
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		})
 	),
-	// --- call hierarchy
+	// --- caww hiewawchy
 	new ApiCommand(
-		'vscode.prepareCallHierarchy', '_executePrepareCallHierarchy', 'Prepare call hierarchy at a position inside a document',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ICallHierarchyItemDto[], types.CallHierarchyItem[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyItem.to))
+		'vscode.pwepaweCawwHiewawchy', '_executePwepaweCawwHiewawchy', 'Pwepawe caww hiewawchy at a position inside a document',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<ICawwHiewawchyItemDto[], types.CawwHiewawchyItem[]>('A CawwHiewawchyItem ow undefined', v => v.map(typeConvewtews.CawwHiewawchyItem.to))
 	),
 	new ApiCommand(
-		'vscode.provideIncomingCalls', '_executeProvideIncomingCalls', 'Compute incoming calls for an item',
-		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IIncomingCallDto[], types.CallHierarchyIncomingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyIncomingCall.to))
+		'vscode.pwovideIncomingCawws', '_executePwovideIncomingCawws', 'Compute incoming cawws fow an item',
+		[ApiCommandAwgument.CawwHiewawchyItem],
+		new ApiCommandWesuwt<IIncomingCawwDto[], types.CawwHiewawchyIncomingCaww[]>('A CawwHiewawchyItem ow undefined', v => v.map(typeConvewtews.CawwHiewawchyIncomingCaww.to))
 	),
 	new ApiCommand(
-		'vscode.provideOutgoingCalls', '_executeProvideOutgoingCalls', 'Compute outgoing calls for an item',
-		[ApiCommandArgument.CallHierarchyItem],
-		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
+		'vscode.pwovideOutgoingCawws', '_executePwovideOutgoingCawws', 'Compute outgoing cawws fow an item',
+		[ApiCommandAwgument.CawwHiewawchyItem],
+		new ApiCommandWesuwt<IOutgoingCawwDto[], types.CawwHiewawchyOutgoingCaww[]>('A CawwHiewawchyItem ow undefined', v => v.map(typeConvewtews.CawwHiewawchyOutgoingCaww.to))
 	),
-	// --- rename
+	// --- wename
 	new ApiCommand(
-		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('newName', 'The new symbol name')],
-		new ApiCommandResult<IWorkspaceEditDto & { rejectReason?: string }, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
-			if (!value) {
-				return undefined;
+		'vscode.executeDocumentWenamePwovida', '_executeDocumentWenamePwovida', 'Execute wename pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position, ApiCommandAwgument.Stwing.with('newName', 'The new symbow name')],
+		new ApiCommandWesuwt<IWowkspaceEditDto & { wejectWeason?: stwing }, types.WowkspaceEdit | undefined>('A pwomise that wesowves to a WowkspaceEdit.', vawue => {
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			if (value.rejectReason) {
-				throw new Error(value.rejectReason);
+			if (vawue.wejectWeason) {
+				thwow new Ewwow(vawue.wejectWeason);
 			}
-			return typeConverters.WorkspaceEdit.to(value);
+			wetuwn typeConvewtews.WowkspaceEdit.to(vawue);
 		})
 	),
-	// --- links
+	// --- winks
 	new ApiCommand(
-		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('linkResolveCount', 'Number of links that should be resolved, only when links are unresolved.').optional()],
-		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
+		'vscode.executeWinkPwovida', '_executeWinkPwovida', 'Execute document wink pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Numba.with('winkWesowveCount', 'Numba of winks that shouwd be wesowved, onwy when winks awe unwesowved.').optionaw()],
+		new ApiCommandWesuwt<modes.IWink[], vscode.DocumentWink[]>('A pwomise that wesowves to an awway of DocumentWink-instances.', vawue => vawue.map(typeConvewtews.DocumentWink.to))
 	),
 	// --- semantic tokens
 	new ApiCommand(
-		'vscode.provideDocumentSemanticTokensLegend', '_provideDocumentSemanticTokensLegend', 'Provide semantic tokens legend for a document',
-		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
-			if (!value) {
-				return undefined;
+		'vscode.pwovideDocumentSemanticTokensWegend', '_pwovideDocumentSemanticTokensWegend', 'Pwovide semantic tokens wegend fow a document',
+		[ApiCommandAwgument.Uwi],
+		new ApiCommandWesuwt<modes.SemanticTokensWegend, types.SemanticTokensWegend | undefined>('A pwomise that wesowves to SemanticTokensWegend.', vawue => {
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+			wetuwn new types.SemanticTokensWegend(vawue.tokenTypes, vawue.tokenModifiews);
 		})
 	),
 	new ApiCommand(
-		'vscode.provideDocumentSemanticTokens', '_provideDocumentSemanticTokens', 'Provide semantic tokens for a document',
-		[ApiCommandArgument.Uri],
-		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
-			if (!value) {
-				return undefined;
+		'vscode.pwovideDocumentSemanticTokens', '_pwovideDocumentSemanticTokens', 'Pwovide semantic tokens fow a document',
+		[ApiCommandAwgument.Uwi],
+		new ApiCommandWesuwt<VSBuffa, types.SemanticTokens | undefined>('A pwomise that wesowves to SemanticTokens.', vawue => {
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			const semanticTokensDto = decodeSemanticTokensDto(value);
-			if (semanticTokensDto.type !== 'full') {
-				// only accepting full semantic tokens from provideDocumentSemanticTokens
-				return undefined;
+			const semanticTokensDto = decodeSemanticTokensDto(vawue);
+			if (semanticTokensDto.type !== 'fuww') {
+				// onwy accepting fuww semantic tokens fwom pwovideDocumentSemanticTokens
+				wetuwn undefined;
 			}
-			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+			wetuwn new types.SemanticTokens(semanticTokensDto.data, undefined);
 		})
 	),
 	new ApiCommand(
-		'vscode.provideDocumentRangeSemanticTokensLegend', '_provideDocumentRangeSemanticTokensLegend', 'Provide semantic tokens legend for a document range',
-		[ApiCommandArgument.Uri],
-		new ApiCommandResult<modes.SemanticTokensLegend, types.SemanticTokensLegend | undefined>('A promise that resolves to SemanticTokensLegend.', value => {
-			if (!value) {
-				return undefined;
+		'vscode.pwovideDocumentWangeSemanticTokensWegend', '_pwovideDocumentWangeSemanticTokensWegend', 'Pwovide semantic tokens wegend fow a document wange',
+		[ApiCommandAwgument.Uwi],
+		new ApiCommandWesuwt<modes.SemanticTokensWegend, types.SemanticTokensWegend | undefined>('A pwomise that wesowves to SemanticTokensWegend.', vawue => {
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			return new types.SemanticTokensLegend(value.tokenTypes, value.tokenModifiers);
+			wetuwn new types.SemanticTokensWegend(vawue.tokenTypes, vawue.tokenModifiews);
 		})
 	),
 	new ApiCommand(
-		'vscode.provideDocumentRangeSemanticTokens', '_provideDocumentRangeSemanticTokens', 'Provide semantic tokens for a document range',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<VSBuffer, types.SemanticTokens | undefined>('A promise that resolves to SemanticTokens.', value => {
-			if (!value) {
-				return undefined;
+		'vscode.pwovideDocumentWangeSemanticTokens', '_pwovideDocumentWangeSemanticTokens', 'Pwovide semantic tokens fow a document wange',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Wange],
+		new ApiCommandWesuwt<VSBuffa, types.SemanticTokens | undefined>('A pwomise that wesowves to SemanticTokens.', vawue => {
+			if (!vawue) {
+				wetuwn undefined;
 			}
-			const semanticTokensDto = decodeSemanticTokensDto(value);
-			if (semanticTokensDto.type !== 'full') {
-				// only accepting full semantic tokens from provideDocumentRangeSemanticTokens
-				return undefined;
+			const semanticTokensDto = decodeSemanticTokensDto(vawue);
+			if (semanticTokensDto.type !== 'fuww') {
+				// onwy accepting fuww semantic tokens fwom pwovideDocumentWangeSemanticTokens
+				wetuwn undefined;
 			}
-			return new types.SemanticTokens(semanticTokensDto.data, undefined);
+			wetuwn new types.SemanticTokens(semanticTokensDto.data, undefined);
 		})
 	),
-	// --- completions
+	// --- compwetions
 	new ApiCommand(
-		'vscode.executeCompletionItemProvider', '_executeCompletionItemProvider', 'Execute completion item provider.',
+		'vscode.executeCompwetionItemPwovida', '_executeCompwetionItemPwovida', 'Execute compwetion item pwovida.',
 		[
-			ApiCommandArgument.Uri,
-			ApiCommandArgument.Position,
-			ApiCommandArgument.String.with('triggerCharacter', 'Trigger completion when the user types the character, like `,` or `(`').optional(),
-			ApiCommandArgument.Number.with('itemResolveCount', 'Number of completions to resolve (too large numbers slow down completions)').optional()
+			ApiCommandAwgument.Uwi,
+			ApiCommandAwgument.Position,
+			ApiCommandAwgument.Stwing.with('twiggewChawacta', 'Twigga compwetion when the usa types the chawacta, wike `,` ow `(`').optionaw(),
+			ApiCommandAwgument.Numba.with('itemWesowveCount', 'Numba of compwetions to wesowve (too wawge numbews swow down compwetions)').optionaw()
 		],
-		new ApiCommandResult<modes.CompletionList, vscode.CompletionList>('A promise that resolves to a CompletionList-instance.', (value, _args, converter) => {
-			if (!value) {
-				return new types.CompletionList([]);
+		new ApiCommandWesuwt<modes.CompwetionWist, vscode.CompwetionWist>('A pwomise that wesowves to a CompwetionWist-instance.', (vawue, _awgs, convewta) => {
+			if (!vawue) {
+				wetuwn new types.CompwetionWist([]);
 			}
-			const items = value.suggestions.map(suggestion => typeConverters.CompletionItem.to(suggestion, converter));
-			return new types.CompletionList(items, value.incomplete);
+			const items = vawue.suggestions.map(suggestion => typeConvewtews.CompwetionItem.to(suggestion, convewta));
+			wetuwn new types.CompwetionWist(items, vawue.incompwete);
 		})
 	),
-	// --- signature help
+	// --- signatuwe hewp
 	new ApiCommand(
-		'vscode.executeSignatureHelpProvider', '_executeSignatureHelpProvider', 'Execute signature help provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('triggerCharacter', 'Trigger signature help when the user types the character, like `,` or `(`').optional()],
-		new ApiCommandResult<modes.SignatureHelp, vscode.SignatureHelp | undefined>('A promise that resolves to SignatureHelp.', value => {
-			if (value) {
-				return typeConverters.SignatureHelp.to(value);
+		'vscode.executeSignatuweHewpPwovida', '_executeSignatuweHewpPwovida', 'Execute signatuwe hewp pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position, ApiCommandAwgument.Stwing.with('twiggewChawacta', 'Twigga signatuwe hewp when the usa types the chawacta, wike `,` ow `(`').optionaw()],
+		new ApiCommandWesuwt<modes.SignatuweHewp, vscode.SignatuweHewp | undefined>('A pwomise that wesowves to SignatuweHewp.', vawue => {
+			if (vawue) {
+				wetuwn typeConvewtews.SignatuweHewp.to(vawue);
 			}
-			return undefined;
+			wetuwn undefined;
 		})
 	),
-	// --- code lens
+	// --- code wens
 	new ApiCommand(
-		'vscode.executeCodeLensProvider', '_executeCodeLensProvider', 'Execute code lens provider.',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Number.with('itemResolveCount', 'Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)').optional()],
-		new ApiCommandResult<modes.CodeLens[], vscode.CodeLens[] | undefined>('A promise that resolves to an array of CodeLens-instances.', (value, _args, converter) => {
-			return tryMapWith<modes.CodeLens, vscode.CodeLens>(item => {
-				return new types.CodeLens(typeConverters.Range.to(item.range), item.command && converter.fromInternal(item.command));
-			})(value);
+		'vscode.executeCodeWensPwovida', '_executeCodeWensPwovida', 'Execute code wens pwovida.',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Numba.with('itemWesowveCount', 'Numba of wenses that shouwd be wesowved and wetuwned. Wiww onwy wetuwn wesowved wenses, wiww impact pewfowmance)').optionaw()],
+		new ApiCommandWesuwt<modes.CodeWens[], vscode.CodeWens[] | undefined>('A pwomise that wesowves to an awway of CodeWens-instances.', (vawue, _awgs, convewta) => {
+			wetuwn twyMapWith<modes.CodeWens, vscode.CodeWens>(item => {
+				wetuwn new types.CodeWens(typeConvewtews.Wange.to(item.wange), item.command && convewta.fwomIntewnaw(item.command));
+			})(vawue);
 		})
 	),
 	// --- code actions
 	new ApiCommand(
-		'vscode.executeCodeActionProvider', '_executeCodeActionProvider', 'Execute code action provider.',
+		'vscode.executeCodeActionPwovida', '_executeCodeActionPwovida', 'Execute code action pwovida.',
 		[
-			ApiCommandArgument.Uri,
-			new ApiCommandArgument('rangeOrSelection', 'Range in a text document. Some refactoring provider requires Selection object.', v => types.Range.isRange(v), v => types.Selection.isSelection(v) ? typeConverters.Selection.from(v) : typeConverters.Range.from(v)),
-			ApiCommandArgument.String.with('kind', 'Code action kind to return code actions for').optional(),
-			ApiCommandArgument.Number.with('itemResolveCount', 'Number of code actions to resolve (too large numbers slow down code actions)').optional()
+			ApiCommandAwgument.Uwi,
+			new ApiCommandAwgument('wangeOwSewection', 'Wange in a text document. Some wefactowing pwovida wequiwes Sewection object.', v => types.Wange.isWange(v), v => types.Sewection.isSewection(v) ? typeConvewtews.Sewection.fwom(v) : typeConvewtews.Wange.fwom(v)),
+			ApiCommandAwgument.Stwing.with('kind', 'Code action kind to wetuwn code actions fow').optionaw(),
+			ApiCommandAwgument.Numba.with('itemWesowveCount', 'Numba of code actions to wesowve (too wawge numbews swow down code actions)').optionaw()
 		],
-		new ApiCommandResult<CustomCodeAction[], (vscode.CodeAction | vscode.Command | undefined)[] | undefined>('A promise that resolves to an array of Command-instances.', (value, _args, converter) => {
-			return tryMapWith<CustomCodeAction, vscode.CodeAction | vscode.Command | undefined>((codeAction) => {
+		new ApiCommandWesuwt<CustomCodeAction[], (vscode.CodeAction | vscode.Command | undefined)[] | undefined>('A pwomise that wesowves to an awway of Command-instances.', (vawue, _awgs, convewta) => {
+			wetuwn twyMapWith<CustomCodeAction, vscode.CodeAction | vscode.Command | undefined>((codeAction) => {
 				if (codeAction._isSynthetic) {
 					if (!codeAction.command) {
-						throw new Error('Synthetic code actions must have a command');
+						thwow new Ewwow('Synthetic code actions must have a command');
 					}
-					return converter.fromInternal(codeAction.command);
-				} else {
-					const ret = new types.CodeAction(
-						codeAction.title,
+					wetuwn convewta.fwomIntewnaw(codeAction.command);
+				} ewse {
+					const wet = new types.CodeAction(
+						codeAction.titwe,
 						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
 					);
 					if (codeAction.edit) {
-						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);
+						wet.edit = typeConvewtews.WowkspaceEdit.to(codeAction.edit);
 					}
 					if (codeAction.command) {
-						ret.command = converter.fromInternal(codeAction.command);
+						wet.command = convewta.fwomIntewnaw(codeAction.command);
 					}
-					ret.isPreferred = codeAction.isPreferred;
-					return ret;
+					wet.isPwefewwed = codeAction.isPwefewwed;
+					wetuwn wet;
 				}
-			})(value);
+			})(vawue);
 		})
 	),
-	// --- colors
+	// --- cowows
 	new ApiCommand(
-		'vscode.executeDocumentColorProvider', '_executeDocumentColorProvider', 'Execute document color provider.',
-		[ApiCommandArgument.Uri],
-		new ApiCommandResult<IRawColorInfo[], vscode.ColorInformation[]>('A promise that resolves to an array of ColorInformation objects.', result => {
-			if (result) {
-				return result.map(ci => new types.ColorInformation(typeConverters.Range.to(ci.range), typeConverters.Color.to(ci.color)));
+		'vscode.executeDocumentCowowPwovida', '_executeDocumentCowowPwovida', 'Execute document cowow pwovida.',
+		[ApiCommandAwgument.Uwi],
+		new ApiCommandWesuwt<IWawCowowInfo[], vscode.CowowInfowmation[]>('A pwomise that wesowves to an awway of CowowInfowmation objects.', wesuwt => {
+			if (wesuwt) {
+				wetuwn wesuwt.map(ci => new types.CowowInfowmation(typeConvewtews.Wange.to(ci.wange), typeConvewtews.Cowow.to(ci.cowow)));
 			}
-			return [];
+			wetuwn [];
 		})
 	),
 	new ApiCommand(
-		'vscode.executeColorPresentationProvider', '_executeColorPresentationProvider', 'Execute color presentation provider.',
+		'vscode.executeCowowPwesentationPwovida', '_executeCowowPwesentationPwovida', 'Execute cowow pwesentation pwovida.',
 		[
-			new ApiCommandArgument<types.Color, [number, number, number, number]>('color', 'The color to show and insert', v => v instanceof types.Color, typeConverters.Color.from),
-			new ApiCommandArgument<{ uri: URI, range: types.Range; }, { uri: URI, range: IRange; }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
+			new ApiCommandAwgument<types.Cowow, [numba, numba, numba, numba]>('cowow', 'The cowow to show and insewt', v => v instanceof types.Cowow, typeConvewtews.Cowow.fwom),
+			new ApiCommandAwgument<{ uwi: UWI, wange: types.Wange; }, { uwi: UWI, wange: IWange; }>('context', 'Context object with uwi and wange', _v => twue, v => ({ uwi: v.uwi, wange: typeConvewtews.Wange.fwom(v.wange) })),
 		],
-		new ApiCommandResult<modes.IColorPresentation[], types.ColorPresentation[]>('A promise that resolves to an array of ColorPresentation objects.', result => {
-			if (result) {
-				return result.map(typeConverters.ColorPresentation.to);
+		new ApiCommandWesuwt<modes.ICowowPwesentation[], types.CowowPwesentation[]>('A pwomise that wesowves to an awway of CowowPwesentation objects.', wesuwt => {
+			if (wesuwt) {
+				wetuwn wesuwt.map(typeConvewtews.CowowPwesentation.to);
 			}
-			return [];
+			wetuwn [];
 		})
 	),
-	// --- inline hints
+	// --- inwine hints
 	new ApiCommand(
-		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inlay hints provider',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', result => {
-			return result.map(typeConverters.InlayHint.to);
+		'vscode.executeInwayHintPwovida', '_executeInwayHintPwovida', 'Execute inway hints pwovida',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Wange],
+		new ApiCommandWesuwt<modes.InwayHint[], vscode.InwayHint[]>('A pwomise that wesowves to an awway of Inway objects', wesuwt => {
+			wetuwn wesuwt.map(typeConvewtews.InwayHint.to);
 		})
 	),
 	// --- notebooks
 	new ApiCommand(
-		'vscode.resolveNotebookContentProviders', '_resolveNotebookContentProvider', 'Resolve Notebook Content Providers',
+		'vscode.wesowveNotebookContentPwovidews', '_wesowveNotebookContentPwovida', 'Wesowve Notebook Content Pwovidews',
 		[
-			// new ApiCommandArgument<string, string>('viewType', '', v => typeof v === 'string', v => v),
-			// new ApiCommandArgument<string, string>('displayName', '', v => typeof v === 'string', v => v),
-			// new ApiCommandArgument<object, object>('options', '', v => typeof v === 'object', v => v),
+			// new ApiCommandAwgument<stwing, stwing>('viewType', '', v => typeof v === 'stwing', v => v),
+			// new ApiCommandAwgument<stwing, stwing>('dispwayName', '', v => typeof v === 'stwing', v => v),
+			// new ApiCommandAwgument<object, object>('options', '', v => typeof v === 'object', v => v),
 		],
-		new ApiCommandResult<{
-			viewType: string;
-			displayName: string;
-			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+		new ApiCommandWesuwt<{
+			viewType: stwing;
+			dispwayName: stwing;
+			options: { twansientOutputs: boowean; twansientCewwMetadata: TwansientCewwMetadata; twansientDocumentMetadata: TwansientDocumentMetadata; };
+			fiwenamePattewn: (stwing | types.WewativePattewn | { incwude: stwing | types.WewativePattewn, excwude: stwing | types.WewativePattewn })[]
 		}[], {
-			viewType: string;
-			displayName: string;
-			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
+			viewType: stwing;
+			dispwayName: stwing;
+			fiwenamePattewn: (vscode.GwobPattewn | { incwude: vscode.GwobPattewn; excwude: vscode.GwobPattewn; })[];
 			options: vscode.NotebookDocumentContentOptions;
-		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
-			return {
+		}[] | undefined>('A pwomise that wesowves to an awway of NotebookContentPwovida static info objects.', twyMapWith(item => {
+			wetuwn {
 				viewType: item.viewType,
-				displayName: item.displayName,
+				dispwayName: item.dispwayName,
 				options: {
-					transientOutputs: item.options.transientOutputs,
-					transientCellMetadata: item.options.transientCellMetadata,
-					transientDocumentMetadata: item.options.transientDocumentMetadata
+					twansientOutputs: item.options.twansientOutputs,
+					twansientCewwMetadata: item.options.twansientCewwMetadata,
+					twansientDocumentMetadata: item.options.twansientDocumentMetadata
 				},
-				filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
+				fiwenamePattewn: item.fiwenamePattewn.map(pattewn => typeConvewtews.NotebookExcwusiveDocumentPattewn.to(pattewn))
 			};
 		}))
 	),
-	// --- debug support
+	// --- debug suppowt
 	new ApiCommand(
-		'vscode.executeInlineValueProvider', '_executeInlineValueProvider', 'Execute inline value provider',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlineValue[], vscode.InlineValue[]>('A promise that resolves to an array of InlineValue objects', result => {
-			return result.map(typeConverters.InlineValue.to);
+		'vscode.executeInwineVawuePwovida', '_executeInwineVawuePwovida', 'Execute inwine vawue pwovida',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Wange],
+		new ApiCommandWesuwt<modes.InwineVawue[], vscode.InwineVawue[]>('A pwomise that wesowves to an awway of InwineVawue objects', wesuwt => {
+			wetuwn wesuwt.map(typeConvewtews.InwineVawue.to);
 		})
 	),
 	// --- open'ish commands
 	new ApiCommand(
-		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
+		'vscode.open', '_wowkbench.open', 'Opens the pwovided wesouwce in the editow. Can be a text ow binawy fiwe, ow an http(s) UWW. If you need mowe contwow ova the options fow opening a text fiwe, use vscode.window.showTextDocument instead.',
 		[
-			ApiCommandArgument.Uri,
-			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
-				v => v === undefined || typeof v === 'number' || typeof v === 'object',
-				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
-			).optional(),
-			ApiCommandArgument.String.with('label', '').optional()
+			ApiCommandAwgument.Uwi,
+			new ApiCommandAwgument<vscode.ViewCowumn | typeConvewtews.TextEditowOpenOptions | undefined, [numba?, ITextEditowOptions?] | undefined>('cowumnOwOptions', 'Eitha the cowumn in which to open ow editow options, see vscode.TextDocumentShowOptions',
+				v => v === undefined || typeof v === 'numba' || typeof v === 'object',
+				v => !v ? v : typeof v === 'numba' ? [v, undefined] : [typeConvewtews.ViewCowumn.fwom(v.viewCowumn), typeConvewtews.TextEditowOpenOptions.fwom(v)]
+			).optionaw(),
+			ApiCommandAwgument.Stwing.with('wabew', '').optionaw()
 		],
-		ApiCommandResult.Void
+		ApiCommandWesuwt.Void
 	),
 	new ApiCommand(
-		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
+		'vscode.openWith', '_wowkbench.openWith', 'Opens the pwovided wesouwce with a specific editow.',
 		[
-			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
-			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
-			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
-				v => v === undefined || typeof v === 'number' || typeof v === 'object',
-				v => !v ? v : typeof v === 'number' ? [v, undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
-			).optional()
+			ApiCommandAwgument.Uwi.with('wesouwce', 'Wesouwce to open'),
+			ApiCommandAwgument.Stwing.with('viewId', 'Custom editow view id ow \'defauwt\' to use VS Code\'s defauwt editow'),
+			new ApiCommandAwgument<vscode.ViewCowumn | typeConvewtews.TextEditowOpenOptions | undefined, [numba?, ITextEditowOptions?] | undefined>('cowumnOwOptions', 'Eitha the cowumn in which to open ow editow options, see vscode.TextDocumentShowOptions',
+				v => v === undefined || typeof v === 'numba' || typeof v === 'object',
+				v => !v ? v : typeof v === 'numba' ? [v, undefined] : [typeConvewtews.ViewCowumn.fwom(v.viewCowumn), typeConvewtews.TextEditowOpenOptions.fwom(v)],
+			).optionaw()
 		],
-		ApiCommandResult.Void
+		ApiCommandWesuwt.Void
 	),
 	new ApiCommand(
-		'vscode.diff', '_workbench.diff', 'Opens the provided resources in the diff editor to compare their contents.',
+		'vscode.diff', '_wowkbench.diff', 'Opens the pwovided wesouwces in the diff editow to compawe theiw contents.',
 		[
-			ApiCommandArgument.Uri.with('left', 'Left-hand side resource of the diff editor'),
-			ApiCommandArgument.Uri.with('right', 'Right-hand side resource of the diff editor'),
-			ApiCommandArgument.String.with('title', 'Human readable title for the diff editor').optional(),
-			new ApiCommandArgument<typeConverters.TextEditorOpenOptions | undefined, [number?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
+			ApiCommandAwgument.Uwi.with('weft', 'Weft-hand side wesouwce of the diff editow'),
+			ApiCommandAwgument.Uwi.with('wight', 'Wight-hand side wesouwce of the diff editow'),
+			ApiCommandAwgument.Stwing.with('titwe', 'Human weadabwe titwe fow the diff editow').optionaw(),
+			new ApiCommandAwgument<typeConvewtews.TextEditowOpenOptions | undefined, [numba?, ITextEditowOptions?] | undefined>('cowumnOwOptions', 'Eitha the cowumn in which to open ow editow options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'object',
-				v => v && [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
-			).optional(),
+				v => v && [typeConvewtews.ViewCowumn.fwom(v.viewCowumn), typeConvewtews.TextEditowOpenOptions.fwom(v)]
+			).optionaw(),
 		],
-		ApiCommandResult.Void
+		ApiCommandWesuwt.Void
 	),
-	// --- type hierarchy
+	// --- type hiewawchy
 	new ApiCommand(
-		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',
-		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
-	),
-	new ApiCommand(
-		'vscode.provideSupertypes', '_executeProvideSupertypes', 'Compute supertypes for an item',
-		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		'vscode.pwepaweTypeHiewawchy', '_executePwepaweTypeHiewawchy', 'Pwepawe type hiewawchy at a position inside a document',
+		[ApiCommandAwgument.Uwi, ApiCommandAwgument.Position],
+		new ApiCommandWesuwt<ITypeHiewawchyItemDto[], types.TypeHiewawchyItem[]>('A TypeHiewawchyItem ow undefined', v => v.map(typeConvewtews.TypeHiewawchyItem.to))
 	),
 	new ApiCommand(
-		'vscode.provideSubtypes', '_executeProvideSubtypes', 'Compute subtypes for an item',
-		[ApiCommandArgument.TypeHierarchyItem],
-		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
+		'vscode.pwovideSupewtypes', '_executePwovideSupewtypes', 'Compute supewtypes fow an item',
+		[ApiCommandAwgument.TypeHiewawchyItem],
+		new ApiCommandWesuwt<ITypeHiewawchyItemDto[], types.TypeHiewawchyItem[]>('A TypeHiewawchyItem ow undefined', v => v.map(typeConvewtews.TypeHiewawchyItem.to))
+	),
+	new ApiCommand(
+		'vscode.pwovideSubtypes', '_executePwovideSubtypes', 'Compute subtypes fow an item',
+		[ApiCommandAwgument.TypeHiewawchyItem],
+		new ApiCommandWesuwt<ITypeHiewawchyItemDto[], types.TypeHiewawchyItem[]>('A TypeHiewawchyItem ow undefined', v => v.map(typeConvewtews.TypeHiewawchyItem.to))
 	),
 	// --- testing
 	new ApiCommand(
-		'vscode.revealTestInExplorer', '_revealTestInExplorer', 'Reveals a test instance in the explorer',
-		[ApiCommandArgument.TestItem],
-		ApiCommandResult.Void
+		'vscode.weveawTestInExpwowa', '_weveawTestInExpwowa', 'Weveaws a test instance in the expwowa',
+		[ApiCommandAwgument.TestItem],
+		ApiCommandWesuwt.Void
 	)
 ];
 
-//#endregion
+//#endwegion
 
 
-//#region OLD world
+//#wegion OWD wowwd
 
-export class ExtHostApiCommands {
+expowt cwass ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands) {
-		newCommands.forEach(commands.registerApiCommand, commands);
+	static wegista(commands: ExtHostCommands) {
+		newCommands.fowEach(commands.wegistewApiCommand, commands);
 	}
 
 }
 
-function tryMapWith<T, R>(f: (x: T) => R) {
-	return (value: T[]) => {
-		if (Array.isArray(value)) {
-			return value.map(f);
+function twyMapWith<T, W>(f: (x: T) => W) {
+	wetuwn (vawue: T[]) => {
+		if (Awway.isAwway(vawue)) {
+			wetuwn vawue.map(f);
 		}
-		return undefined;
+		wetuwn undefined;
 	};
 }
 
-function mapLocationOrLocationLink(values: (modes.Location | modes.LocationLink)[]): (types.Location | vscode.LocationLink)[] | undefined {
-	if (!Array.isArray(values)) {
-		return undefined;
+function mapWocationOwWocationWink(vawues: (modes.Wocation | modes.WocationWink)[]): (types.Wocation | vscode.WocationWink)[] | undefined {
+	if (!Awway.isAwway(vawues)) {
+		wetuwn undefined;
 	}
-	const result: (types.Location | vscode.LocationLink)[] = [];
-	for (const item of values) {
-		if (modes.isLocationLink(item)) {
-			result.push(typeConverters.DefinitionLink.to(item));
-		} else {
-			result.push(typeConverters.location.to(item));
+	const wesuwt: (types.Wocation | vscode.WocationWink)[] = [];
+	fow (const item of vawues) {
+		if (modes.isWocationWink(item)) {
+			wesuwt.push(typeConvewtews.DefinitionWink.to(item));
+		} ewse {
+			wesuwt.push(typeConvewtews.wocation.to(item));
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }

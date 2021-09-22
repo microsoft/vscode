@@ -1,1139 +1,1139 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { OverviewRulerLane } from 'vs/editor/common/model';
-import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
-import { score } from 'vs/editor/common/modes/languageSelector';
-import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, ExtHostLogServiceShape, UIKind, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
-import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { createExtHostComments } from 'vs/workbench/api/common/extHostComments';
-import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { ExtHostDiagnostics } from 'vs/workbench/api/common/extHostDiagnostics';
-import { ExtHostDialogs } from 'vs/workbench/api/common/extHostDialogs';
-import { ExtHostDocumentContentProvider } from 'vs/workbench/api/common/extHostDocumentContentProviders';
-import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/common/extHostDocumentSaveParticipant';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { Extension, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
-import { ExtHostLanguageFeatures, InlineCompletionController } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
-import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
-import { ExtHostProgress } from 'vs/workbench/api/common/extHostProgress';
-import { createExtHostQuickOpen } from 'vs/workbench/api/common/extHostQuickOpen';
-import { ExtHostSCM } from 'vs/workbench/api/common/extHostSCM';
-import { ExtHostStatusBar } from 'vs/workbench/api/common/extHostStatusBar';
-import { IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
-import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { values } from 'vs/base/common/collections';
-import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
-import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
-import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
-import { IExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
-import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostTheming } from 'vs/workbench/api/common/extHostTheming';
-import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
-import { ExtHostTimeline } from 'vs/workbench/api/common/extHostTimeline';
-import { ExtHostNotebookConcatDocument } from 'vs/workbench/api/common/extHostNotebookConcatDocument';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { ExtHostWebviewViews } from 'vs/workbench/api/common/extHostWebviewView';
-import { ExtHostCustomEditors } from 'vs/workbench/api/common/extHostCustomEditors';
-import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
-import { ExtHostUriOpeners } from 'vs/workbench/api/common/extHostUriOpener';
-import { IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
-import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
-import { ExtHostNotebookRenderers } from 'vs/workbench/api/common/extHostNotebookRenderers';
-import { Schemas } from 'vs/base/common/network';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
-import { ExtHostNotebookEditors } from 'vs/workbench/api/common/extHostNotebookEditors';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextEditowCuwsowStywe } fwom 'vs/editow/common/config/editowOptions';
+impowt { OvewviewWuwewWane } fwom 'vs/editow/common/modew';
+impowt * as wanguageConfiguwation fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { scowe } fwom 'vs/editow/common/modes/wanguageSewectow';
+impowt * as fiwes fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ExtHostContext, MainContext, ExtHostWogSewviceShape, UIKind, CandidatePowtSouwce } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostApiCommands } fwom 'vs/wowkbench/api/common/extHostApiCommands';
+impowt { ExtHostCwipboawd } fwom 'vs/wowkbench/api/common/extHostCwipboawd';
+impowt { IExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { cweateExtHostComments } fwom 'vs/wowkbench/api/common/extHostComments';
+impowt { ExtHostConfigPwovida, IExtHostConfiguwation } fwom 'vs/wowkbench/api/common/extHostConfiguwation';
+impowt { ExtHostDiagnostics } fwom 'vs/wowkbench/api/common/extHostDiagnostics';
+impowt { ExtHostDiawogs } fwom 'vs/wowkbench/api/common/extHostDiawogs';
+impowt { ExtHostDocumentContentPwovida } fwom 'vs/wowkbench/api/common/extHostDocumentContentPwovidews';
+impowt { ExtHostDocumentSavePawticipant } fwom 'vs/wowkbench/api/common/extHostDocumentSavePawticipant';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt { IExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { Extension, IExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { ExtHostFiweSystem } fwom 'vs/wowkbench/api/common/extHostFiweSystem';
+impowt { ExtHostFiweSystemEventSewvice } fwom 'vs/wowkbench/api/common/extHostFiweSystemEventSewvice';
+impowt { ExtHostWanguageFeatuwes, InwineCompwetionContwowwa } fwom 'vs/wowkbench/api/common/extHostWanguageFeatuwes';
+impowt { ExtHostWanguages } fwom 'vs/wowkbench/api/common/extHostWanguages';
+impowt { ExtHostMessageSewvice } fwom 'vs/wowkbench/api/common/extHostMessageSewvice';
+impowt { IExtHostOutputSewvice } fwom 'vs/wowkbench/api/common/extHostOutput';
+impowt { ExtHostPwogwess } fwom 'vs/wowkbench/api/common/extHostPwogwess';
+impowt { cweateExtHostQuickOpen } fwom 'vs/wowkbench/api/common/extHostQuickOpen';
+impowt { ExtHostSCM } fwom 'vs/wowkbench/api/common/extHostSCM';
+impowt { ExtHostStatusBaw } fwom 'vs/wowkbench/api/common/extHostStatusBaw';
+impowt { IExtHostStowage } fwom 'vs/wowkbench/api/common/extHostStowage';
+impowt { IExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt { ExtHostEditows } fwom 'vs/wowkbench/api/common/extHostTextEditows';
+impowt { ExtHostTweeViews } fwom 'vs/wowkbench/api/common/extHostTweeViews';
+impowt * as typeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt * as extHostTypes fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { ExtHostUwws } fwom 'vs/wowkbench/api/common/extHostUwws';
+impowt { ExtHostWebviews } fwom 'vs/wowkbench/api/common/extHostWebview';
+impowt { IExtHostWindow } fwom 'vs/wowkbench/api/common/extHostWindow';
+impowt { IExtHostWowkspace } fwom 'vs/wowkbench/api/common/extHostWowkspace';
+impowt { thwowPwoposedApiEwwow, checkPwoposedApiEnabwed } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { PwoxyIdentifia } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { ExtensionDescwiptionWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionDescwiptionWegistwy';
+impowt type * as vscode fwom 'vscode';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { vawues } fwom 'vs/base/common/cowwections';
+impowt { ExtHostEditowInsets } fwom 'vs/wowkbench/api/common/extHostCodeInsets';
+impowt { ExtHostWabewSewvice } fwom 'vs/wowkbench/api/common/extHostWabewSewvice';
+impowt { getWemoteName } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostDecowations } fwom 'vs/wowkbench/api/common/extHostDecowations';
+impowt { IExtHostTask } fwom 'vs/wowkbench/api/common/extHostTask';
+impowt { IExtHostDebugSewvice } fwom 'vs/wowkbench/api/common/extHostDebugSewvice';
+impowt { IExtHostSeawch } fwom 'vs/wowkbench/api/common/extHostSeawch';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostTheming } fwom 'vs/wowkbench/api/common/extHostTheming';
+impowt { IExtHostTunnewSewvice } fwom 'vs/wowkbench/api/common/extHostTunnewSewvice';
+impowt { IExtHostApiDepwecationSewvice } fwom 'vs/wowkbench/api/common/extHostApiDepwecationSewvice';
+impowt { ExtHostAuthentication } fwom 'vs/wowkbench/api/common/extHostAuthentication';
+impowt { ExtHostTimewine } fwom 'vs/wowkbench/api/common/extHostTimewine';
+impowt { ExtHostNotebookConcatDocument } fwom 'vs/wowkbench/api/common/extHostNotebookConcatDocument';
+impowt { IExtensionStowagePaths } fwom 'vs/wowkbench/api/common/extHostStowagePaths';
+impowt { IExtHostConsumewFiweSystem } fwom 'vs/wowkbench/api/common/extHostFiweSystemConsuma';
+impowt { ExtHostWebviewViews } fwom 'vs/wowkbench/api/common/extHostWebviewView';
+impowt { ExtHostCustomEditows } fwom 'vs/wowkbench/api/common/extHostCustomEditows';
+impowt { ExtHostWebviewPanews } fwom 'vs/wowkbench/api/common/extHostWebviewPanews';
+impowt { ExtHostBuwkEdits } fwom 'vs/wowkbench/api/common/extHostBuwkEdits';
+impowt { IExtHostFiweSystemInfo } fwom 'vs/wowkbench/api/common/extHostFiweSystemInfo';
+impowt { ExtHostTesting } fwom 'vs/wowkbench/api/common/extHostTesting';
+impowt { ExtHostUwiOpenews } fwom 'vs/wowkbench/api/common/extHostUwiOpena';
+impowt { IExtHostSecwetState } fwom 'vs/wowkbench/api/common/exHostSecwetState';
+impowt { IExtHostEditowTabs } fwom 'vs/wowkbench/api/common/extHostEditowTabs';
+impowt { IExtHostTewemetwy } fwom 'vs/wowkbench/api/common/extHostTewemetwy';
+impowt { ExtHostNotebookKewnews } fwom 'vs/wowkbench/api/common/extHostNotebookKewnews';
+impowt { TextSeawchCompweteMessageType } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { ExtHostNotebookWendewews } fwom 'vs/wowkbench/api/common/extHostNotebookWendewews';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { matchesScheme } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ExtHostNotebookEditows } fwom 'vs/wowkbench/api/common/extHostNotebookEditows';
+impowt { ExtHostNotebookDocuments } fwom 'vs/wowkbench/api/common/extHostNotebookDocuments';
+impowt { ExtHostIntewactive } fwom 'vs/wowkbench/api/common/extHostIntewactive';
 
-export interface IExtensionApiFactory {
-	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
+expowt intewface IExtensionApiFactowy {
+	(extension: IExtensionDescwiption, wegistwy: ExtensionDescwiptionWegistwy, configPwovida: ExtHostConfigPwovida): typeof vscode;
 }
 
 /**
- * This method instantiates and returns the extension API surface
+ * This method instantiates and wetuwns the extension API suwface
  */
-export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): IExtensionApiFactory {
+expowt function cweateApiFactowyAndWegistewActows(accessow: SewvicesAccessow): IExtensionApiFactowy {
 
-	// services
-	const initData = accessor.get(IExtHostInitDataService);
-	const extHostFileSystemInfo = accessor.get(IExtHostFileSystemInfo);
-	const extHostConsumerFileSystem = accessor.get(IExtHostConsumerFileSystem);
-	const extensionService = accessor.get(IExtHostExtensionService);
-	const extHostWorkspace = accessor.get(IExtHostWorkspace);
-	const extHostTelemetry = accessor.get(IExtHostTelemetry);
-	const extHostConfiguration = accessor.get(IExtHostConfiguration);
-	const uriTransformer = accessor.get(IURITransformerService);
-	const rpcProtocol = accessor.get(IExtHostRpcService);
-	const extHostStorage = accessor.get(IExtHostStorage);
-	const extensionStoragePaths = accessor.get(IExtensionStoragePaths);
-	const extHostLogService = accessor.get(ILogService);
-	const extHostTunnelService = accessor.get(IExtHostTunnelService);
-	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
-	const extHostWindow = accessor.get(IExtHostWindow);
-	const extHostSecretState = accessor.get(IExtHostSecretState);
-	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
+	// sewvices
+	const initData = accessow.get(IExtHostInitDataSewvice);
+	const extHostFiweSystemInfo = accessow.get(IExtHostFiweSystemInfo);
+	const extHostConsumewFiweSystem = accessow.get(IExtHostConsumewFiweSystem);
+	const extensionSewvice = accessow.get(IExtHostExtensionSewvice);
+	const extHostWowkspace = accessow.get(IExtHostWowkspace);
+	const extHostTewemetwy = accessow.get(IExtHostTewemetwy);
+	const extHostConfiguwation = accessow.get(IExtHostConfiguwation);
+	const uwiTwansfowma = accessow.get(IUWITwansfowmewSewvice);
+	const wpcPwotocow = accessow.get(IExtHostWpcSewvice);
+	const extHostStowage = accessow.get(IExtHostStowage);
+	const extensionStowagePaths = accessow.get(IExtensionStowagePaths);
+	const extHostWogSewvice = accessow.get(IWogSewvice);
+	const extHostTunnewSewvice = accessow.get(IExtHostTunnewSewvice);
+	const extHostApiDepwecation = accessow.get(IExtHostApiDepwecationSewvice);
+	const extHostWindow = accessow.get(IExtHostWindow);
+	const extHostSecwetState = accessow.get(IExtHostSecwetState);
+	const extHostEditowTabs = accessow.get(IExtHostEditowTabs);
 
-	// register addressable instances
-	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
-	rpcProtocol.set(ExtHostContext.ExtHostLogService, <ExtHostLogServiceShape><any>extHostLogService);
-	rpcProtocol.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
-	rpcProtocol.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
-	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
-	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
-	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
-	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
-	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
-	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
-	rpcProtocol.set(ExtHostContext.ExtHostEditorTabs, extHostEditorTabs);
+	// wegista addwessabwe instances
+	wpcPwotocow.set(ExtHostContext.ExtHostFiweSystemInfo, extHostFiweSystemInfo);
+	wpcPwotocow.set(ExtHostContext.ExtHostWogSewvice, <ExtHostWogSewviceShape><any>extHostWogSewvice);
+	wpcPwotocow.set(ExtHostContext.ExtHostWowkspace, extHostWowkspace);
+	wpcPwotocow.set(ExtHostContext.ExtHostConfiguwation, extHostConfiguwation);
+	wpcPwotocow.set(ExtHostContext.ExtHostExtensionSewvice, extensionSewvice);
+	wpcPwotocow.set(ExtHostContext.ExtHostStowage, extHostStowage);
+	wpcPwotocow.set(ExtHostContext.ExtHostTunnewSewvice, extHostTunnewSewvice);
+	wpcPwotocow.set(ExtHostContext.ExtHostWindow, extHostWindow);
+	wpcPwotocow.set(ExtHostContext.ExtHostSecwetState, extHostSecwetState);
+	wpcPwotocow.set(ExtHostContext.ExtHostTewemetwy, extHostTewemetwy);
+	wpcPwotocow.set(ExtHostContext.ExtHostEditowTabs, extHostEditowTabs);
 
-	// automatically create and register addressable instances
-	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
-	const extHostDocumentsAndEditors = rpcProtocol.set(ExtHostContext.ExtHostDocumentsAndEditors, accessor.get(IExtHostDocumentsAndEditors));
-	const extHostCommands = rpcProtocol.set(ExtHostContext.ExtHostCommands, accessor.get(IExtHostCommands));
-	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, accessor.get(IExtHostTerminalService));
-	const extHostDebugService = rpcProtocol.set(ExtHostContext.ExtHostDebugService, accessor.get(IExtHostDebugService));
-	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, accessor.get(IExtHostSearch));
-	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, accessor.get(IExtHostTask));
-	const extHostOutputService = rpcProtocol.set(ExtHostContext.ExtHostOutputService, accessor.get(IExtHostOutputService));
+	// automaticawwy cweate and wegista addwessabwe instances
+	const extHostDecowations = wpcPwotocow.set(ExtHostContext.ExtHostDecowations, accessow.get(IExtHostDecowations));
+	const extHostDocumentsAndEditows = wpcPwotocow.set(ExtHostContext.ExtHostDocumentsAndEditows, accessow.get(IExtHostDocumentsAndEditows));
+	const extHostCommands = wpcPwotocow.set(ExtHostContext.ExtHostCommands, accessow.get(IExtHostCommands));
+	const extHostTewminawSewvice = wpcPwotocow.set(ExtHostContext.ExtHostTewminawSewvice, accessow.get(IExtHostTewminawSewvice));
+	const extHostDebugSewvice = wpcPwotocow.set(ExtHostContext.ExtHostDebugSewvice, accessow.get(IExtHostDebugSewvice));
+	const extHostSeawch = wpcPwotocow.set(ExtHostContext.ExtHostSeawch, accessow.get(IExtHostSeawch));
+	const extHostTask = wpcPwotocow.set(ExtHostContext.ExtHostTask, accessow.get(IExtHostTask));
+	const extHostOutputSewvice = wpcPwotocow.set(ExtHostContext.ExtHostOutputSewvice, accessow.get(IExtHostOutputSewvice));
 
-	// manually create and register addressable instances
-	const extHostUrls = rpcProtocol.set(ExtHostContext.ExtHostUrls, new ExtHostUrls(rpcProtocol));
-	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
-	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
-	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extensionStoragePaths));
-	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostLogService, extHostNotebook));
-	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, rpcProtocol, extHostNotebook));
-	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
-	const extHostNotebookRenderers = rpcProtocol.set(ExtHostContext.ExtHostNotebookRenderers, new ExtHostNotebookRenderers(rpcProtocol, extHostNotebook));
-	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
-	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
-	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData));
-	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo));
-	const extHostLanguages = rpcProtocol.set(ExtHostContext.ExtHostLanguages, new ExtHostLanguages(rpcProtocol, extHostDocuments, extHostCommands.converter, uriTransformer));
-	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation));
-	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
-	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
-	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
-	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
-	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, createExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
-	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
-	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHosLabelService, new ExtHostLabelService(rpcProtocol));
-	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
-	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
-	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, { remote: initData.remote }, extHostWorkspace, extHostLogService, extHostApiDeprecation));
-	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
-	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
-	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
-	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostCommands));
-	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
-	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands));
+	// manuawwy cweate and wegista addwessabwe instances
+	const extHostUwws = wpcPwotocow.set(ExtHostContext.ExtHostUwws, new ExtHostUwws(wpcPwotocow));
+	const extHostDocuments = wpcPwotocow.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(wpcPwotocow, extHostDocumentsAndEditows));
+	const extHostDocumentContentPwovidews = wpcPwotocow.set(ExtHostContext.ExtHostDocumentContentPwovidews, new ExtHostDocumentContentPwovida(wpcPwotocow, extHostDocumentsAndEditows, extHostWogSewvice));
+	const extHostDocumentSavePawticipant = wpcPwotocow.set(ExtHostContext.ExtHostDocumentSavePawticipant, new ExtHostDocumentSavePawticipant(extHostWogSewvice, extHostDocuments, wpcPwotocow.getPwoxy(MainContext.MainThweadBuwkEdits)));
+	const extHostNotebook = wpcPwotocow.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookContwowwa(wpcPwotocow, extHostCommands, extHostDocumentsAndEditows, extHostDocuments, extensionStowagePaths));
+	const extHostNotebookDocuments = wpcPwotocow.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostWogSewvice, extHostNotebook));
+	const extHostNotebookEditows = wpcPwotocow.set(ExtHostContext.ExtHostNotebookEditows, new ExtHostNotebookEditows(extHostWogSewvice, wpcPwotocow, extHostNotebook));
+	const extHostNotebookKewnews = wpcPwotocow.set(ExtHostContext.ExtHostNotebookKewnews, new ExtHostNotebookKewnews(wpcPwotocow, initData, extHostNotebook, extHostCommands, extHostWogSewvice));
+	const extHostNotebookWendewews = wpcPwotocow.set(ExtHostContext.ExtHostNotebookWendewews, new ExtHostNotebookWendewews(wpcPwotocow, extHostNotebook));
+	const extHostEditows = wpcPwotocow.set(ExtHostContext.ExtHostEditows, new ExtHostEditows(wpcPwotocow, extHostDocumentsAndEditows));
+	const extHostTweeViews = wpcPwotocow.set(ExtHostContext.ExtHostTweeViews, new ExtHostTweeViews(wpcPwotocow.getPwoxy(MainContext.MainThweadTweeViews), extHostCommands, extHostWogSewvice));
+	const extHostEditowInsets = wpcPwotocow.set(ExtHostContext.ExtHostEditowInsets, new ExtHostEditowInsets(wpcPwotocow.getPwoxy(MainContext.MainThweadEditowInsets), extHostEditows, initData));
+	const extHostDiagnostics = wpcPwotocow.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(wpcPwotocow, extHostWogSewvice, extHostFiweSystemInfo));
+	const extHostWanguages = wpcPwotocow.set(ExtHostContext.ExtHostWanguages, new ExtHostWanguages(wpcPwotocow, extHostDocuments, extHostCommands.convewta, uwiTwansfowma));
+	const extHostWanguageFeatuwes = wpcPwotocow.set(ExtHostContext.ExtHostWanguageFeatuwes, new ExtHostWanguageFeatuwes(wpcPwotocow, uwiTwansfowma, extHostDocuments, extHostCommands, extHostDiagnostics, extHostWogSewvice, extHostApiDepwecation));
+	const extHostFiweSystem = wpcPwotocow.set(ExtHostContext.ExtHostFiweSystem, new ExtHostFiweSystem(wpcPwotocow, extHostWanguageFeatuwes));
+	const extHostFiweSystemEvent = wpcPwotocow.set(ExtHostContext.ExtHostFiweSystemEventSewvice, new ExtHostFiweSystemEventSewvice(wpcPwotocow, extHostWogSewvice, extHostDocumentsAndEditows));
+	const extHostQuickOpen = wpcPwotocow.set(ExtHostContext.ExtHostQuickOpen, cweateExtHostQuickOpen(wpcPwotocow, extHostWowkspace, extHostCommands));
+	const extHostSCM = wpcPwotocow.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(wpcPwotocow, extHostCommands, extHostWogSewvice));
+	const extHostComment = wpcPwotocow.set(ExtHostContext.ExtHostComments, cweateExtHostComments(wpcPwotocow, extHostCommands, extHostDocuments));
+	const extHostPwogwess = wpcPwotocow.set(ExtHostContext.ExtHostPwogwess, new ExtHostPwogwess(wpcPwotocow.getPwoxy(MainContext.MainThweadPwogwess)));
+	const extHostWabewSewvice = wpcPwotocow.set(ExtHostContext.ExtHosWabewSewvice, new ExtHostWabewSewvice(wpcPwotocow));
+	const extHostTheming = wpcPwotocow.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(wpcPwotocow));
+	const extHostAuthentication = wpcPwotocow.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(wpcPwotocow));
+	const extHostTimewine = wpcPwotocow.set(ExtHostContext.ExtHostTimewine, new ExtHostTimewine(wpcPwotocow, extHostCommands));
+	const extHostWebviews = wpcPwotocow.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(wpcPwotocow, { wemote: initData.wemote }, extHostWowkspace, extHostWogSewvice, extHostApiDepwecation));
+	const extHostWebviewPanews = wpcPwotocow.set(ExtHostContext.ExtHostWebviewPanews, new ExtHostWebviewPanews(wpcPwotocow, extHostWebviews, extHostWowkspace));
+	const extHostCustomEditows = wpcPwotocow.set(ExtHostContext.ExtHostCustomEditows, new ExtHostCustomEditows(wpcPwotocow, extHostDocuments, extensionStowagePaths, extHostWebviews, extHostWebviewPanews));
+	const extHostWebviewViews = wpcPwotocow.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(wpcPwotocow, extHostWebviews));
+	const extHostTesting = wpcPwotocow.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(wpcPwotocow, extHostCommands));
+	const extHostUwiOpenews = wpcPwotocow.set(ExtHostContext.ExtHostUwiOpenews, new ExtHostUwiOpenews(wpcPwotocow));
+	wpcPwotocow.set(ExtHostContext.ExtHostIntewactive, new ExtHostIntewactive(wpcPwotocow, extHostNotebook, extHostDocumentsAndEditows, extHostCommands));
 
-	// Check that no named customers are missing
-	const expected: ProxyIdentifier<any>[] = values(ExtHostContext);
-	rpcProtocol.assertRegistered(expected);
+	// Check that no named customews awe missing
+	const expected: PwoxyIdentifia<any>[] = vawues(ExtHostContext);
+	wpcPwotocow.assewtWegistewed(expected);
 
-	// Other instances
-	const extHostBulkEdits = new ExtHostBulkEdits(rpcProtocol, extHostDocumentsAndEditors);
-	const extHostClipboard = new ExtHostClipboard(rpcProtocol);
-	const extHostMessageService = new ExtHostMessageService(rpcProtocol, extHostLogService);
-	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
-	const extHostStatusBar = new ExtHostStatusBar(rpcProtocol, extHostCommands.converter);
+	// Otha instances
+	const extHostBuwkEdits = new ExtHostBuwkEdits(wpcPwotocow, extHostDocumentsAndEditows);
+	const extHostCwipboawd = new ExtHostCwipboawd(wpcPwotocow);
+	const extHostMessageSewvice = new ExtHostMessageSewvice(wpcPwotocow, extHostWogSewvice);
+	const extHostDiawogs = new ExtHostDiawogs(wpcPwotocow);
+	const extHostStatusBaw = new ExtHostStatusBaw(wpcPwotocow, extHostCommands.convewta);
 
-	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands);
+	// Wegista API-ish commands
+	ExtHostApiCommands.wegista(extHostCommands);
 
-	return function (extension: IExtensionDescription, extensionRegistry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode {
+	wetuwn function (extension: IExtensionDescwiption, extensionWegistwy: ExtensionDescwiptionWegistwy, configPwovida: ExtHostConfigPwovida): typeof vscode {
 
-		// Check document selectors for being overly generic. Technically this isn't a problem but
-		// in practice many extensions say they support `fooLang` but need fs-access to do so. Those
-		// extension should specify then the `file`-scheme, e.g. `{ scheme: 'fooLang', language: 'fooLang' }`
-		// We only inform once, it is not a warning because we just want to raise awareness and because
-		// we cannot say if the extension is doing it right or wrong...
-		const checkSelector = (function () {
-			let done = (!extension.isUnderDevelopment);
-			function informOnce(selector: vscode.DocumentSelector) {
+		// Check document sewectows fow being ovewwy genewic. Technicawwy this isn't a pwobwem but
+		// in pwactice many extensions say they suppowt `fooWang` but need fs-access to do so. Those
+		// extension shouwd specify then the `fiwe`-scheme, e.g. `{ scheme: 'fooWang', wanguage: 'fooWang' }`
+		// We onwy infowm once, it is not a wawning because we just want to waise awaweness and because
+		// we cannot say if the extension is doing it wight ow wwong...
+		const checkSewectow = (function () {
+			wet done = (!extension.isUndewDevewopment);
+			function infowmOnce(sewectow: vscode.DocumentSewectow) {
 				if (!done) {
-					extHostLogService.info(`Extension '${extension.identifier.value}' uses a document selector without scheme. Learn more about this: https://go.microsoft.com/fwlink/?linkid=872305`);
-					done = true;
+					extHostWogSewvice.info(`Extension '${extension.identifia.vawue}' uses a document sewectow without scheme. Weawn mowe about this: https://go.micwosoft.com/fwwink/?winkid=872305`);
+					done = twue;
 				}
 			}
-			return function perform(selector: vscode.DocumentSelector): vscode.DocumentSelector {
-				if (Array.isArray(selector)) {
-					selector.forEach(perform);
-				} else if (typeof selector === 'string') {
-					informOnce(selector);
-				} else {
-					const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
-					if (typeof filter.scheme === 'undefined') {
-						informOnce(selector);
+			wetuwn function pewfowm(sewectow: vscode.DocumentSewectow): vscode.DocumentSewectow {
+				if (Awway.isAwway(sewectow)) {
+					sewectow.fowEach(pewfowm);
+				} ewse if (typeof sewectow === 'stwing') {
+					infowmOnce(sewectow);
+				} ewse {
+					const fiwta = sewectow as vscode.DocumentFiwta; // TODO: micwosoft/TypeScwipt#42768
+					if (typeof fiwta.scheme === 'undefined') {
+						infowmOnce(sewectow);
 					}
-					if (!extension.enableProposedApi && typeof filter.exclusive === 'boolean') {
-						throwProposedApiError(extension);
+					if (!extension.enabwePwoposedApi && typeof fiwta.excwusive === 'boowean') {
+						thwowPwoposedApiEwwow(extension);
 					}
 				}
-				return selector;
+				wetuwn sewectow;
 			};
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
-				if (options?.forceNewSession) {
-					checkProposedApiEnabled(extension);
+			getSession(pwovidewId: stwing, scopes: weadonwy stwing[], options?: vscode.AuthenticationGetSessionOptions) {
+				if (options?.fowceNewSession) {
+					checkPwoposedApiEnabwed(extension);
 				}
-				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
+				wetuwn extHostAuthentication.getSession(extension, pwovidewId, scopes, options as any);
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
-				return extHostAuthentication.onDidChangeSessions;
+				wetuwn extHostAuthentication.onDidChangeSessions;
 			},
-			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
-				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
+			wegistewAuthenticationPwovida(id: stwing, wabew: stwing, pwovida: vscode.AuthenticationPwovida, options?: vscode.AuthenticationPwovidewOptions): vscode.Disposabwe {
+				wetuwn extHostAuthentication.wegistewAuthenticationPwovida(id, wabew, pwovida, options);
 			}
 		};
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
-			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(true, id, command, thisArgs);
+			wegistewCommand(id: stwing, command: <T>(...awgs: any[]) => T | Thenabwe<T>, thisAwgs?: any): vscode.Disposabwe {
+				wetuwn extHostCommands.wegistewCommand(twue, id, command, thisAwgs);
 			},
-			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
-					const activeTextEditor = extHostEditors.getActiveTextEditor();
-					if (!activeTextEditor) {
-						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
-						return undefined;
+			wegistewTextEditowCommand(id: stwing, cawwback: (textEditow: vscode.TextEditow, edit: vscode.TextEditowEdit, ...awgs: any[]) => void, thisAwg?: any): vscode.Disposabwe {
+				wetuwn extHostCommands.wegistewCommand(twue, id, (...awgs: any[]): any => {
+					const activeTextEditow = extHostEditows.getActiveTextEditow();
+					if (!activeTextEditow) {
+						extHostWogSewvice.wawn('Cannot execute ' + id + ' because thewe is no active text editow.');
+						wetuwn undefined;
 					}
 
-					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
-						callback.apply(thisArg, [activeTextEditor, edit, ...args]);
+					wetuwn activeTextEditow.edit((edit: vscode.TextEditowEdit) => {
+						cawwback.appwy(thisAwg, [activeTextEditow, edit, ...awgs]);
 
-					}).then((result) => {
-						if (!result) {
-							extHostLogService.warn('Edits from command ' + id + ' were not applied.');
+					}).then((wesuwt) => {
+						if (!wesuwt) {
+							extHostWogSewvice.wawn('Edits fwom command ' + id + ' wewe not appwied.');
 						}
-					}, (err) => {
-						extHostLogService.warn('An error occurred while running command ' + id, err);
+					}, (eww) => {
+						extHostWogSewvice.wawn('An ewwow occuwwed whiwe wunning command ' + id, eww);
 					});
 				});
 			},
-			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
-				checkProposedApiEnabled(extension);
-				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
-					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
-					if (!activeTextEditor) {
-						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
-						return undefined;
+			wegistewDiffInfowmationCommand: (id: stwing, cawwback: (diff: vscode.WineChange[], ...awgs: any[]) => any, thisAwg?: any): vscode.Disposabwe => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostCommands.wegistewCommand(twue, id, async (...awgs: any[]): Pwomise<any> => {
+					const activeTextEditow = extHostDocumentsAndEditows.activeEditow(twue);
+					if (!activeTextEditow) {
+						extHostWogSewvice.wawn('Cannot execute ' + id + ' because thewe is no active text editow.');
+						wetuwn undefined;
 					}
 
-					const diff = await extHostEditors.getDiffInformation(activeTextEditor.id);
-					callback.apply(thisArg, [diff, ...args]);
+					const diff = await extHostEditows.getDiffInfowmation(activeTextEditow.id);
+					cawwback.appwy(thisAwg, [diff, ...awgs]);
 				});
 			},
-			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand<T>(id, ...args);
+			executeCommand<T>(id: stwing, ...awgs: any[]): Thenabwe<T> {
+				wetuwn extHostCommands.executeCommand<T>(id, ...awgs);
 			},
-			getCommands(filterInternal: boolean = false): Thenable<string[]> {
-				return extHostCommands.getCommands(filterInternal);
+			getCommands(fiwtewIntewnaw: boowean = fawse): Thenabwe<stwing[]> {
+				wetuwn extHostCommands.getCommands(fiwtewIntewnaw);
 			}
 		};
 
 		// namespace: env
 		const env: typeof vscode.env = {
-			get machineId() { return initData.telemetryInfo.machineId; },
-			get sessionId() { return initData.telemetryInfo.sessionId; },
-			get language() { return initData.environment.appLanguage; },
-			get appName() { return initData.environment.appName; },
-			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
-			get appHost() { return initData.environment.appHost; },
-			get uriScheme() { return initData.environment.appUriScheme; },
-			get clipboard(): vscode.Clipboard { return extHostClipboard.value; },
-			get shell() {
-				return extHostTerminalService.getDefaultShell(false);
+			get machineId() { wetuwn initData.tewemetwyInfo.machineId; },
+			get sessionId() { wetuwn initData.tewemetwyInfo.sessionId; },
+			get wanguage() { wetuwn initData.enviwonment.appWanguage; },
+			get appName() { wetuwn initData.enviwonment.appName; },
+			get appWoot() { wetuwn initData.enviwonment.appWoot?.fsPath ?? ''; },
+			get appHost() { wetuwn initData.enviwonment.appHost; },
+			get uwiScheme() { wetuwn initData.enviwonment.appUwiScheme; },
+			get cwipboawd(): vscode.Cwipboawd { wetuwn extHostCwipboawd.vawue; },
+			get sheww() {
+				wetuwn extHostTewminawSewvice.getDefauwtSheww(fawse);
 			},
-			get isTelemetryEnabled() {
-				return extHostTelemetry.getTelemetryEnabled();
+			get isTewemetwyEnabwed() {
+				wetuwn extHostTewemetwy.getTewemetwyEnabwed();
 			},
-			get onDidChangeTelemetryEnabled(): Event<boolean> {
-				return extHostTelemetry.onDidChangeTelemetryEnabled;
+			get onDidChangeTewemetwyEnabwed(): Event<boowean> {
+				wetuwn extHostTewemetwy.onDidChangeTewemetwyEnabwed;
 			},
-			get isNewAppInstall() {
-				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
-				return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // install age is less than a day
+			get isNewAppInstaww() {
+				const instawwAge = Date.now() - new Date(initData.tewemetwyInfo.fiwstSessionDate).getTime();
+				wetuwn isNaN(instawwAge) ? fawse : instawwAge < 1000 * 60 * 60 * 24; // instaww age is wess than a day
 			},
-			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string; }) {
-				return extHostWindow.openUri(uri, {
-					allowTunneling: !!initData.remote.authority,
-					allowContributedOpeners: options?.allowContributedOpeners,
+			openExtewnaw(uwi: UWI, options?: { awwowContwibutedOpenews?: boowean | stwing; }) {
+				wetuwn extHostWindow.openUwi(uwi, {
+					awwowTunnewing: !!initData.wemote.authowity,
+					awwowContwibutedOpenews: options?.awwowContwibutedOpenews,
 				});
 			},
-			async asExternalUri(uri: URI) {
-				if (uri.scheme === initData.environment.appUriScheme) {
-					return extHostUrls.createAppUri(uri);
+			async asExtewnawUwi(uwi: UWI) {
+				if (uwi.scheme === initData.enviwonment.appUwiScheme) {
+					wetuwn extHostUwws.cweateAppUwi(uwi);
 				}
 
-				try {
-					return await extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
-				} catch (err) {
-					if (matchesScheme(uri, Schemas.http) || matchesScheme(uri, Schemas.https)) {
-						return uri;
+				twy {
+					wetuwn await extHostWindow.asExtewnawUwi(uwi, { awwowTunnewing: !!initData.wemote.authowity });
+				} catch (eww) {
+					if (matchesScheme(uwi, Schemas.http) || matchesScheme(uwi, Schemas.https)) {
+						wetuwn uwi;
 					}
 
-					throw err;
+					thwow eww;
 				}
 			},
-			get remoteName() {
-				return getRemoteName(initData.remote.authority);
+			get wemoteName() {
+				wetuwn getWemoteName(initData.wemote.authowity);
 			},
-			get remoteAuthority() {
-				checkProposedApiEnabled(extension);
-				return initData.remote.authority;
+			get wemoteAuthowity() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn initData.wemote.authowity;
 			},
 			get uiKind() {
-				return initData.uiKind;
+				wetuwn initData.uiKind;
 			}
 		};
-		if (!initData.environment.extensionTestsLocationURI) {
-			// allow to patch env-function when running tests
-			Object.freeze(env);
+		if (!initData.enviwonment.extensionTestsWocationUWI) {
+			// awwow to patch env-function when wunning tests
+			Object.fweeze(env);
 		}
 
-		const extensionKind = initData.remote.isRemote
-			? extHostTypes.ExtensionKind.Workspace
+		const extensionKind = initData.wemote.isWemote
+			? extHostTypes.ExtensionKind.Wowkspace
 			: extHostTypes.ExtensionKind.UI;
 
 		const tests: typeof vscode.tests = {
-			createTestController(provider, label) {
-				return extHostTesting.createTestController(provider, label);
+			cweateTestContwowwa(pwovida, wabew) {
+				wetuwn extHostTesting.cweateTestContwowwa(pwovida, wabew);
 			},
-			createTestObserver() {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.createTestObserver();
+			cweateTestObsewva() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTesting.cweateTestObsewva();
 			},
-			runTests(provider) {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.runTests(provider);
+			wunTests(pwovida) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTesting.wunTests(pwovida);
 			},
-			get onDidChangeTestResults() {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.onResultsChanged;
+			get onDidChangeTestWesuwts() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTesting.onWesuwtsChanged;
 			},
-			get testResults() {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.results;
+			get testWesuwts() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTesting.wesuwts;
 			},
 		};
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
-			getExtension(extensionId: string): vscode.Extension<any> | undefined {
-				const desc = extensionRegistry.getExtensionDescription(extensionId);
+			getExtension(extensionId: stwing): vscode.Extension<any> | undefined {
+				const desc = extensionWegistwy.getExtensionDescwiption(extensionId);
 				if (desc) {
-					return new Extension(extensionService, extension.identifier, desc, extensionKind);
+					wetuwn new Extension(extensionSewvice, extension.identifia, desc, extensionKind);
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			get all(): vscode.Extension<any>[] {
-				return extensionRegistry.getAllExtensionDescriptions().map((desc) => new Extension(extensionService, extension.identifier, desc, extensionKind));
+			get aww(): vscode.Extension<any>[] {
+				wetuwn extensionWegistwy.getAwwExtensionDescwiptions().map((desc) => new Extension(extensionSewvice, extension.identifia, desc, extensionKind));
 			},
 			get onDidChange() {
-				return extensionRegistry.onDidChange;
+				wetuwn extensionWegistwy.onDidChange;
 			}
 		};
 
-		// namespace: languages
-		const languages: typeof vscode.languages = {
-			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
-				return extHostDiagnostics.createDiagnosticCollection(extension.identifier, name);
+		// namespace: wanguages
+		const wanguages: typeof vscode.wanguages = {
+			cweateDiagnosticCowwection(name?: stwing): vscode.DiagnosticCowwection {
+				wetuwn extHostDiagnostics.cweateDiagnosticCowwection(extension.identifia, name);
 			},
 			get onDidChangeDiagnostics() {
-				return extHostDiagnostics.onDidChangeDiagnostics;
+				wetuwn extHostDiagnostics.onDidChangeDiagnostics;
 			},
-			getDiagnostics: (resource?: vscode.Uri) => {
-				return <any>extHostDiagnostics.getDiagnostics(resource);
+			getDiagnostics: (wesouwce?: vscode.Uwi) => {
+				wetuwn <any>extHostDiagnostics.getDiagnostics(wesouwce);
 			},
-			getLanguages(): Thenable<string[]> {
-				return extHostLanguages.getLanguages();
+			getWanguages(): Thenabwe<stwing[]> {
+				wetuwn extHostWanguages.getWanguages();
 			},
-			setTextDocumentLanguage(document: vscode.TextDocument, languageId: string): Thenable<vscode.TextDocument> {
-				return extHostLanguages.changeLanguage(document.uri, languageId);
+			setTextDocumentWanguage(document: vscode.TextDocument, wanguageId: stwing): Thenabwe<vscode.TextDocument> {
+				wetuwn extHostWanguages.changeWanguage(document.uwi, wanguageId);
 			},
-			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
+			match(sewectow: vscode.DocumentSewectow, document: vscode.TextDocument): numba {
+				wetuwn scowe(typeConvewtews.WanguageSewectow.fwom(sewectow), document.uwi, document.wanguageId, twue);
 			},
-			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
-				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
+			wegistewCodeActionsPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.CodeActionPwovida, metadata?: vscode.CodeActionPwovidewMetadata): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewCodeActionPwovida(extension, checkSewectow(sewectow), pwovida, metadata);
 			},
-			registerCodeLensProvider(selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerCodeLensProvider(extension, checkSelector(selector), provider);
+			wegistewCodeWensPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.CodeWensPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewCodeWensPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.DefinitionProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDefinitionProvider(extension, checkSelector(selector), provider);
+			wegistewDefinitionPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DefinitionPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDefinitionPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerDeclarationProvider(selector: vscode.DocumentSelector, provider: vscode.DeclarationProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDeclarationProvider(extension, checkSelector(selector), provider);
+			wegistewDecwawationPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DecwawationPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDecwawationPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerImplementationProvider(selector: vscode.DocumentSelector, provider: vscode.ImplementationProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerImplementationProvider(extension, checkSelector(selector), provider);
+			wegistewImpwementationPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.ImpwementationPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewImpwementationPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerTypeDefinitionProvider(selector: vscode.DocumentSelector, provider: vscode.TypeDefinitionProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerTypeDefinitionProvider(extension, checkSelector(selector), provider);
+			wegistewTypeDefinitionPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.TypeDefinitionPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewTypeDefinitionPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerHoverProvider(selector: vscode.DocumentSelector, provider: vscode.HoverProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerHoverProvider(extension, checkSelector(selector), provider, extension.identifier);
+			wegistewHovewPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.HovewPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewHovewPwovida(extension, checkSewectow(sewectow), pwovida, extension.identifia);
 			},
-			registerEvaluatableExpressionProvider(selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
+			wegistewEvawuatabweExpwessionPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.EvawuatabweExpwessionPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewEvawuatabweExpwessionPwovida(extension, checkSewectow(sewectow), pwovida, extension.identifia);
 			},
-			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
+			wegistewInwineVawuesPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.InwineVawuesPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewInwineVawuesPwovida(extension, checkSewectow(sewectow), pwovida, extension.identifia);
 			},
-			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
+			wegistewDocumentHighwightPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentHighwightPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentHighwightPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerLinkedEditingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerLinkedEditingRangeProvider(extension, checkSelector(selector), provider);
+			wegistewWinkedEditingWangePwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.WinkedEditingWangePwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewWinkedEditingWangePwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerReferenceProvider(selector: vscode.DocumentSelector, provider: vscode.ReferenceProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerReferenceProvider(extension, checkSelector(selector), provider);
+			wegistewWefewencePwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.WefewencePwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewWefewencePwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerRenameProvider(selector: vscode.DocumentSelector, provider: vscode.RenameProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerRenameProvider(extension, checkSelector(selector), provider);
+			wegistewWenamePwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.WenamePwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewWenamePwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
+			wegistewDocumentSymbowPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentSymbowPwovida, metadata?: vscode.DocumentSymbowPwovidewMetadata): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentSymbowPwovida(extension, checkSewectow(sewectow), pwovida, metadata);
 			},
-			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
+			wegistewWowkspaceSymbowPwovida(pwovida: vscode.WowkspaceSymbowPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewWowkspaceSymbowPwovida(extension, pwovida);
 			},
-			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentFormattingEditProvider(extension, checkSelector(selector), provider);
+			wegistewDocumentFowmattingEditPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentFowmattingEditPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentFowmattingEditPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentRangeFormattingEditProvider(extension, checkSelector(selector), provider);
+			wegistewDocumentWangeFowmattingEditPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWangeFowmattingEditPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentWangeFowmattingEditPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
-				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
+			wegistewOnTypeFowmattingEditPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.OnTypeFowmattingEditPwovida, fiwstTwiggewChawacta: stwing, ...moweTwiggewChawactews: stwing[]): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewOnTypeFowmattingEditPwovida(extension, checkSewectow(sewectow), pwovida, [fiwstTwiggewChawacta].concat(moweTwiggewChawactews));
 			},
-			registerDocumentSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+			wegistewDocumentSemanticTokensPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentSemanticTokensPwovida, wegend: vscode.SemanticTokensWegend): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentSemanticTokensPwovida(extension, checkSewectow(sewectow), pwovida, wegend);
 			},
-			registerDocumentRangeSemanticTokensProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentRangeSemanticTokensProvider(extension, checkSelector(selector), provider, legend);
+			wegistewDocumentWangeSemanticTokensPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWangeSemanticTokensPwovida, wegend: vscode.SemanticTokensWegend): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentWangeSemanticTokensPwovida(extension, checkSewectow(sewectow), pwovida, wegend);
 			},
-			registerSignatureHelpProvider(selector: vscode.DocumentSelector, provider: vscode.SignatureHelpProvider, firstItem?: string | vscode.SignatureHelpProviderMetadata, ...remaining: string[]): vscode.Disposable {
-				if (typeof firstItem === 'object') {
-					return extHostLanguageFeatures.registerSignatureHelpProvider(extension, checkSelector(selector), provider, firstItem);
+			wegistewSignatuweHewpPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.SignatuweHewpPwovida, fiwstItem?: stwing | vscode.SignatuweHewpPwovidewMetadata, ...wemaining: stwing[]): vscode.Disposabwe {
+				if (typeof fiwstItem === 'object') {
+					wetuwn extHostWanguageFeatuwes.wegistewSignatuweHewpPwovida(extension, checkSewectow(sewectow), pwovida, fiwstItem);
 				}
-				return extHostLanguageFeatures.registerSignatureHelpProvider(extension, checkSelector(selector), provider, typeof firstItem === 'undefined' ? [] : [firstItem, ...remaining]);
+				wetuwn extHostWanguageFeatuwes.wegistewSignatuweHewpPwovida(extension, checkSewectow(sewectow), pwovida, typeof fiwstItem === 'undefined' ? [] : [fiwstItem, ...wemaining]);
 			},
-			registerCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.CompletionItemProvider, ...triggerCharacters: string[]): vscode.Disposable {
-				return extHostLanguageFeatures.registerCompletionItemProvider(extension, checkSelector(selector), provider, triggerCharacters);
+			wegistewCompwetionItemPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.CompwetionItemPwovida, ...twiggewChawactews: stwing[]): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewCompwetionItemPwovida(extension, checkSewectow(sewectow), pwovida, twiggewChawactews);
 			},
-			registerInlineCompletionItemProvider(selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider);
+			wegistewInwineCompwetionItemPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.InwineCompwetionItemPwovida): vscode.Disposabwe {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWanguageFeatuwes.wegistewInwineCompwetionsPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
+			wegistewDocumentWinkPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentWinkPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewDocumentWinkPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerColorProvider(extension, checkSelector(selector), provider);
+			wegistewCowowPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.DocumentCowowPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewCowowPwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerFoldingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.FoldingRangeProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerFoldingRangeProvider(extension, checkSelector(selector), provider);
+			wegistewFowdingWangePwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.FowdingWangePwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewFowdingWangePwovida(extension, checkSewectow(sewectow), pwovida);
 			},
-			registerSelectionRangeProvider(selector: vscode.DocumentSelector, provider: vscode.SelectionRangeProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerSelectionRangeProvider(extension, selector, provider);
+			wegistewSewectionWangePwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.SewectionWangePwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewSewectionWangePwovida(extension, sewectow, pwovida);
 			},
-			registerCallHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.CallHierarchyProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerCallHierarchyProvider(extension, selector, provider);
+			wegistewCawwHiewawchyPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.CawwHiewawchyPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewCawwHiewawchyPwovida(extension, sewectow, pwovida);
 			},
-			registerTypeHierarchyProvider(selector: vscode.DocumentSelector, provider: vscode.TypeHierarchyProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerTypeHierarchyProvider(extension, selector, provider);
+			wegistewTypeHiewawchyPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.TypeHiewawchyPwovida): vscode.Disposabwe {
+				wetuwn extHostWanguageFeatuwes.wegistewTypeHiewawchyPwovida(extension, sewectow, pwovida);
 			},
-			setLanguageConfiguration: (language: string, configuration: vscode.LanguageConfiguration): vscode.Disposable => {
-				return extHostLanguageFeatures.setLanguageConfiguration(extension, language, configuration);
+			setWanguageConfiguwation: (wanguage: stwing, configuwation: vscode.WanguageConfiguwation): vscode.Disposabwe => {
+				wetuwn extHostWanguageFeatuwes.setWanguageConfiguwation(extension, wanguage, configuwation);
 			},
-			getTokenInformationAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
-				checkProposedApiEnabled(extension);
-				return extHostLanguages.tokenAtPosition(doc, pos);
+			getTokenInfowmationAtPosition(doc: vscode.TextDocument, pos: vscode.Position) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWanguages.tokenAtPosition(doc, pos);
 			},
-			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
-				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
+			wegistewInwayHintsPwovida(sewectow: vscode.DocumentSewectow, pwovida: vscode.InwayHintsPwovida): vscode.Disposabwe {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWanguageFeatuwes.wegistewInwayHintsPwovida(extension, sewectow, pwovida);
 			},
-			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
-				checkProposedApiEnabled(extension);
-				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
+			cweateWanguageStatusItem(id: stwing, sewectow: vscode.DocumentSewectow): vscode.WanguageStatusItem {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWanguages.cweateWanguageStatusItem(extension, id, sewectow);
 			}
 		};
 
 		// namespace: window
 		const window: typeof vscode.window = {
-			get activeTextEditor() {
-				return extHostEditors.getActiveTextEditor();
+			get activeTextEditow() {
+				wetuwn extHostEditows.getActiveTextEditow();
 			},
-			get visibleTextEditors() {
-				return extHostEditors.getVisibleTextEditors();
+			get visibweTextEditows() {
+				wetuwn extHostEditows.getVisibweTextEditows();
 			},
-			get activeTerminal() {
-				return extHostTerminalService.activeTerminal;
+			get activeTewminaw() {
+				wetuwn extHostTewminawSewvice.activeTewminaw;
 			},
-			get terminals() {
-				return extHostTerminalService.terminals;
+			get tewminaws() {
+				wetuwn extHostTewminawSewvice.tewminaws;
 			},
-			async showTextDocument(documentOrUri: vscode.TextDocument | vscode.Uri, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): Promise<vscode.TextEditor> {
-				const document = await (URI.isUri(documentOrUri)
-					? Promise.resolve(workspace.openTextDocument(documentOrUri))
-					: Promise.resolve(<vscode.TextDocument>documentOrUri));
+			async showTextDocument(documentOwUwi: vscode.TextDocument | vscode.Uwi, cowumnOwOptions?: vscode.ViewCowumn | vscode.TextDocumentShowOptions, pwesewveFocus?: boowean): Pwomise<vscode.TextEditow> {
+				const document = await (UWI.isUwi(documentOwUwi)
+					? Pwomise.wesowve(wowkspace.openTextDocument(documentOwUwi))
+					: Pwomise.wesowve(<vscode.TextDocument>documentOwUwi));
 
-				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
+				wetuwn extHostEditows.showTextDocument(document, cowumnOwOptions, pwesewveFocus);
 			},
-			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-				return extHostEditors.createTextEditorDecorationType(extension, options);
+			cweateTextEditowDecowationType(options: vscode.DecowationWendewOptions): vscode.TextEditowDecowationType {
+				wetuwn extHostEditows.cweateTextEditowDecowationType(extension, options);
 			},
-			onDidChangeActiveTextEditor(listener, thisArg?, disposables?) {
-				return extHostEditors.onDidChangeActiveTextEditor(listener, thisArg, disposables);
+			onDidChangeActiveTextEditow(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostEditows.onDidChangeActiveTextEditow(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeVisibleTextEditors(listener, thisArg, disposables) {
-				return extHostEditors.onDidChangeVisibleTextEditors(listener, thisArg, disposables);
+			onDidChangeVisibweTextEditows(wistena, thisAwg, disposabwes) {
+				wetuwn extHostEditows.onDidChangeVisibweTextEditows(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeTextEditorSelection(listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return extHostEditors.onDidChangeTextEditorSelection(listener, thisArgs, disposables);
+			onDidChangeTextEditowSewection(wistena: (e: vscode.TextEditowSewectionChangeEvent) => any, thisAwgs?: any, disposabwes?: extHostTypes.Disposabwe[]) {
+				wetuwn extHostEditows.onDidChangeTextEditowSewection(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeTextEditorOptions(listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return extHostEditors.onDidChangeTextEditorOptions(listener, thisArgs, disposables);
+			onDidChangeTextEditowOptions(wistena: (e: vscode.TextEditowOptionsChangeEvent) => any, thisAwgs?: any, disposabwes?: extHostTypes.Disposabwe[]) {
+				wetuwn extHostEditows.onDidChangeTextEditowOptions(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeTextEditorVisibleRanges(listener: (e: vscode.TextEditorVisibleRangesChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return extHostEditors.onDidChangeTextEditorVisibleRanges(listener, thisArgs, disposables);
+			onDidChangeTextEditowVisibweWanges(wistena: (e: vscode.TextEditowVisibweWangesChangeEvent) => any, thisAwgs?: any, disposabwes?: extHostTypes.Disposabwe[]) {
+				wetuwn extHostEditows.onDidChangeTextEditowVisibweWanges(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
-				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
+			onDidChangeTextEditowViewCowumn(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostEditows.onDidChangeTextEditowViewCowumn(wistena, thisAwg, disposabwes);
 			},
-			onDidCloseTerminal(listener, thisArg?, disposables?) {
-				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
+			onDidCwoseTewminaw(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostTewminawSewvice.onDidCwoseTewminaw(wistena, thisAwg, disposabwes);
 			},
-			onDidOpenTerminal(listener, thisArg?, disposables?) {
-				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
+			onDidOpenTewminaw(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostTewminawSewvice.onDidOpenTewminaw(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeActiveTerminal(listener, thisArg?, disposables?) {
-				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
+			onDidChangeActiveTewminaw(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostTewminawSewvice.onDidChangeActiveTewminaw(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeTerminalDimensions(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostTerminalService.onDidChangeTerminalDimensions(listener, thisArg, disposables);
+			onDidChangeTewminawDimensions(wistena, thisAwg?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTewminawSewvice.onDidChangeTewminawDimensions(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeTerminalState(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostTerminalService.onDidChangeTerminalState(listener, thisArg, disposables);
+			onDidChangeTewminawState(wistena, thisAwg?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTewminawSewvice.onDidChangeTewminawState(wistena, thisAwg, disposabwes);
 			},
-			onDidWriteTerminalData(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostTerminalService.onDidWriteTerminalData(listener, thisArg, disposables);
+			onDidWwiteTewminawData(wistena, thisAwg?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTewminawSewvice.onDidWwiteTewminawData(wistena, thisAwg, disposabwes);
 			},
 			get state() {
-				return extHostWindow.state;
+				wetuwn extHostWindow.state;
 			},
-			onDidChangeWindowState(listener, thisArg?, disposables?) {
-				return extHostWindow.onDidChangeWindowState(listener, thisArg, disposables);
+			onDidChangeWindowState(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostWindow.onDidChangeWindowState(wistena, thisAwg, disposabwes);
 			},
-			showInformationMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Info, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+			showInfowmationMessage(message: stwing, ...west: Awway<vscode.MessageOptions | stwing | vscode.MessageItem>) {
+				wetuwn <Thenabwe<any>>extHostMessageSewvice.showMessage(extension, Sevewity.Info, message, west[0], <Awway<stwing | vscode.MessageItem>>west.swice(1));
 			},
-			showWarningMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Warning, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+			showWawningMessage(message: stwing, ...west: Awway<vscode.MessageOptions | stwing | vscode.MessageItem>) {
+				wetuwn <Thenabwe<any>>extHostMessageSewvice.showMessage(extension, Sevewity.Wawning, message, west[0], <Awway<stwing | vscode.MessageItem>>west.swice(1));
 			},
-			showErrorMessage(message: string, ...rest: Array<vscode.MessageOptions | string | vscode.MessageItem>) {
-				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
+			showEwwowMessage(message: stwing, ...west: Awway<vscode.MessageOptions | stwing | vscode.MessageItem>) {
+				wetuwn <Thenabwe<any>>extHostMessageSewvice.showMessage(extension, Sevewity.Ewwow, message, west[0], <Awway<stwing | vscode.MessageItem>>west.swice(1));
 			},
-			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, !!extension.enableProposedApi, options, token);
+			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancewwationToken): any {
+				wetuwn extHostQuickOpen.showQuickPick(items, !!extension.enabwePwoposedApi, options, token);
 			},
-			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
-				return extHostQuickOpen.showWorkspaceFolderPick(options);
+			showWowkspaceFowdewPick(options?: vscode.WowkspaceFowdewPickOptions) {
+				wetuwn extHostQuickOpen.showWowkspaceFowdewPick(options);
 			},
-			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
-				return extHostQuickOpen.showInput(options, token);
+			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancewwationToken) {
+				wetuwn extHostQuickOpen.showInput(options, token);
 			},
-			showOpenDialog(options) {
-				return extHostDialogs.showOpenDialog(options);
+			showOpenDiawog(options) {
+				wetuwn extHostDiawogs.showOpenDiawog(options);
 			},
-			showSaveDialog(options) {
-				return extHostDialogs.showSaveDialog(options);
+			showSaveDiawog(options) {
+				wetuwn extHostDiawogs.showSaveDiawog(options);
 			},
-			createStatusBarItem(alignmentOrId?: vscode.StatusBarAlignment | string, priorityOrAlignment?: number | vscode.StatusBarAlignment, priorityArg?: number): vscode.StatusBarItem {
-				let id: string | undefined;
-				let alignment: number | undefined;
-				let priority: number | undefined;
+			cweateStatusBawItem(awignmentOwId?: vscode.StatusBawAwignment | stwing, pwiowityOwAwignment?: numba | vscode.StatusBawAwignment, pwiowityAwg?: numba): vscode.StatusBawItem {
+				wet id: stwing | undefined;
+				wet awignment: numba | undefined;
+				wet pwiowity: numba | undefined;
 
-				if (typeof alignmentOrId === 'string') {
-					id = alignmentOrId;
-					alignment = priorityOrAlignment;
-					priority = priorityArg;
-				} else {
-					alignment = alignmentOrId;
-					priority = priorityOrAlignment;
+				if (typeof awignmentOwId === 'stwing') {
+					id = awignmentOwId;
+					awignment = pwiowityOwAwignment;
+					pwiowity = pwiowityAwg;
+				} ewse {
+					awignment = awignmentOwId;
+					pwiowity = pwiowityOwAwignment;
 				}
 
-				return extHostStatusBar.createStatusBarEntry(extension, id, alignment, priority);
+				wetuwn extHostStatusBaw.cweateStatusBawEntwy(extension, id, awignment, pwiowity);
 			},
-			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
-				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
+			setStatusBawMessage(text: stwing, timeoutOwThenabwe?: numba | Thenabwe<any>): vscode.Disposabwe {
+				wetuwn extHostStatusBaw.setStatusBawMessage(text, timeoutOwThenabwe);
 			},
-			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
-				extHostApiDeprecation.report('window.withScmProgress', extension,
-					`Use 'withProgress' instead.`);
+			withScmPwogwess<W>(task: (pwogwess: vscode.Pwogwess<numba>) => Thenabwe<W>) {
+				extHostApiDepwecation.wepowt('window.withScmPwogwess', extension,
+					`Use 'withPwogwess' instead.`);
 
-				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, (progress, token) => task({ report(n: number) { /*noop*/ } }));
+				wetuwn extHostPwogwess.withPwogwess(extension, { wocation: extHostTypes.PwogwessWocation.SouwceContwow }, (pwogwess, token) => task({ wepowt(n: numba) { /*noop*/ } }));
 			},
-			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
-				return extHostProgress.withProgress(extension, options, task);
+			withPwogwess<W>(options: vscode.PwogwessOptions, task: (pwogwess: vscode.Pwogwess<{ message?: stwing; wowked?: numba }>, token: vscode.CancewwationToken) => Thenabwe<W>) {
+				wetuwn extHostPwogwess.withPwogwess(extension, options, task);
 			},
-			createOutputChannel(name: string): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, extension);
+			cweateOutputChannew(name: stwing): vscode.OutputChannew {
+				wetuwn extHostOutputSewvice.cweateOutputChannew(name, extension);
 			},
-			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
-				return extHostWebviewPanels.createWebviewPanel(extension, viewType, title, showOptions, options);
+			cweateWebviewPanew(viewType: stwing, titwe: stwing, showOptions: vscode.ViewCowumn | { viewCowumn: vscode.ViewCowumn, pwesewveFocus?: boowean }, options?: vscode.WebviewPanewOptions & vscode.WebviewOptions): vscode.WebviewPanew {
+				wetuwn extHostWebviewPanews.cweateWebviewPanew(extension, viewType, titwe, showOptions, options);
 			},
-			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options?: vscode.WebviewOptions): vscode.WebviewEditorInset {
-				checkProposedApiEnabled(extension);
-				return extHostEditorInsets.createWebviewEditorInset(editor, line, height, options, extension);
+			cweateWebviewTextEditowInset(editow: vscode.TextEditow, wine: numba, height: numba, options?: vscode.WebviewOptions): vscode.WebviewEditowInset {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostEditowInsets.cweateWebviewEditowInset(editow, wine, height, options, extension);
 			},
-			createTerminal(nameOrOptions?: vscode.TerminalOptions | vscode.ExtensionTerminalOptions | string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-				if (typeof nameOrOptions === 'object') {
-					if ('location' in nameOrOptions) {
-						checkProposedApiEnabled(extension);
+			cweateTewminaw(nameOwOptions?: vscode.TewminawOptions | vscode.ExtensionTewminawOptions | stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): vscode.Tewminaw {
+				if (typeof nameOwOptions === 'object') {
+					if ('wocation' in nameOwOptions) {
+						checkPwoposedApiEnabwed(extension);
 					}
-					if ('pty' in nameOrOptions) {
-						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
+					if ('pty' in nameOwOptions) {
+						wetuwn extHostTewminawSewvice.cweateExtensionTewminaw(nameOwOptions);
 					}
-					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
+					wetuwn extHostTewminawSewvice.cweateTewminawFwomOptions(nameOwOptions);
 				}
-				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
+				wetuwn extHostTewminawSewvice.cweateTewminaw(nameOwOptions, shewwPath, shewwAwgs);
 			},
-			registerTerminalLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
-				return extHostTerminalService.registerLinkProvider(provider);
+			wegistewTewminawWinkPwovida(pwovida: vscode.TewminawWinkPwovida): vscode.Disposabwe {
+				wetuwn extHostTewminawSewvice.wegistewWinkPwovida(pwovida);
 			},
-			registerTerminalProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
-				return extHostTerminalService.registerProfileProvider(extension, id, provider);
+			wegistewTewminawPwofiwePwovida(id: stwing, pwovida: vscode.TewminawPwofiwePwovida): vscode.Disposabwe {
+				wetuwn extHostTewminawSewvice.wegistewPwofiwePwovida(extension, id, pwovida);
 			},
-			registerTreeDataProvider(viewId: string, treeDataProvider: vscode.TreeDataProvider<any>): vscode.Disposable {
-				return extHostTreeViews.registerTreeDataProvider(viewId, treeDataProvider, extension);
+			wegistewTweeDataPwovida(viewId: stwing, tweeDataPwovida: vscode.TweeDataPwovida<any>): vscode.Disposabwe {
+				wetuwn extHostTweeViews.wegistewTweeDataPwovida(viewId, tweeDataPwovida, extension);
 			},
-			createTreeView(viewId: string, options: { treeDataProvider: vscode.TreeDataProvider<any> }): vscode.TreeView<any> {
-				return extHostTreeViews.createTreeView(viewId, options, extension);
+			cweateTweeView(viewId: stwing, options: { tweeDataPwovida: vscode.TweeDataPwovida<any> }): vscode.TweeView<any> {
+				wetuwn extHostTweeViews.cweateTweeView(viewId, options, extension);
 			},
-			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
-				return extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializer);
+			wegistewWebviewPanewSewiawiza: (viewType: stwing, sewiawiza: vscode.WebviewPanewSewiawiza) => {
+				wetuwn extHostWebviewPanews.wegistewWebviewPanewSewiawiza(extension, viewType, sewiawiza);
 			},
-			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
-				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
+			wegistewCustomEditowPwovida: (viewType: stwing, pwovida: vscode.CustomTextEditowPwovida | vscode.CustomWeadonwyEditowPwovida, options: { webviewOptions?: vscode.WebviewPanewOptions, suppowtsMuwtipweEditowsPewDocument?: boowean } = {}) => {
+				wetuwn extHostCustomEditows.wegistewCustomEditowPwovida(extension, viewType, pwovida, options);
 			},
-			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
-				return extHostDecorations.registerFileDecorationProvider(provider, extension.identifier);
+			wegistewFiweDecowationPwovida(pwovida: vscode.FiweDecowationPwovida) {
+				wetuwn extHostDecowations.wegistewFiweDecowationPwovida(pwovida, extension.identifia);
 			},
-			registerUriHandler(handler: vscode.UriHandler) {
-				return extHostUrls.registerUriHandler(extension.identifier, handler);
+			wegistewUwiHandwa(handwa: vscode.UwiHandwa) {
+				wetuwn extHostUwws.wegistewUwiHandwa(extension.identifia, handwa);
 			},
-			createQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
-				return extHostQuickOpen.createQuickPick(extension.identifier, !!extension.enableProposedApi);
+			cweateQuickPick<T extends vscode.QuickPickItem>(): vscode.QuickPick<T> {
+				wetuwn extHostQuickOpen.cweateQuickPick(extension.identifia, !!extension.enabwePwoposedApi);
 			},
-			createInputBox(): vscode.InputBox {
-				return extHostQuickOpen.createInputBox(extension.identifier);
+			cweateInputBox(): vscode.InputBox {
+				wetuwn extHostQuickOpen.cweateInputBox(extension.identifia);
 			},
-			get activeColorTheme(): vscode.ColorTheme {
-				return extHostTheming.activeColorTheme;
+			get activeCowowTheme(): vscode.CowowTheme {
+				wetuwn extHostTheming.activeCowowTheme;
 			},
-			onDidChangeActiveColorTheme(listener, thisArg?, disposables?) {
-				return extHostTheming.onDidChangeActiveColorTheme(listener, thisArg, disposables);
+			onDidChangeActiveCowowTheme(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostTheming.onDidChangeActiveCowowTheme(wistena, thisAwg, disposabwes);
 			},
-			registerWebviewViewProvider(viewId: string, provider: vscode.WebviewViewProvider, options?: {
+			wegistewWebviewViewPwovida(viewId: stwing, pwovida: vscode.WebviewViewPwovida, options?: {
 				webviewOptions?: {
-					retainContextWhenHidden?: boolean
+					wetainContextWhenHidden?: boowean
 				}
 			}) {
-				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
+				wetuwn extHostWebviewViews.wegistewWebviewViewPwovida(extension, viewId, pwovida, options?.webviewOptions);
 			},
-			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.activeNotebookEditor;
+			get activeNotebookEditow(): vscode.NotebookEditow | undefined {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.activeNotebookEditow;
 			},
-			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
+			onDidChangeActiveNotebookEditow(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeActiveNotebookEditow(wistena, thisAwgs, disposabwes);
 			},
-			get visibleNotebookEditors() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.visibleNotebookEditors;
+			get visibweNotebookEditows() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.visibweNotebookEditows;
 			},
-			get onDidChangeVisibleNotebookEditors() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeVisibleNotebookEditors;
+			get onDidChangeVisibweNotebookEditows() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeVisibweNotebookEditows;
 			},
-			onDidChangeNotebookEditorSelection(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookEditors.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
+			onDidChangeNotebookEditowSewection(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebookEditows.onDidChangeNotebookEditowSewection(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookEditors.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
+			onDidChangeNotebookEditowVisibweWanges(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebookEditows.onDidChangeNotebookEditowVisibweWanges(wistena, thisAwgs, disposabwes);
 			},
-			showNotebookDocument(uriOrDocument, options?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.showNotebookDocument(uriOrDocument, options);
+			showNotebookDocument(uwiOwDocument, options?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.showNotebookDocument(uwiOwDocument, options);
 			},
-			registerExternalUriOpener(id: string, opener: vscode.ExternalUriOpener, metadata: vscode.ExternalUriOpenerMetadata) {
-				checkProposedApiEnabled(extension);
-				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
+			wegistewExtewnawUwiOpena(id: stwing, opena: vscode.ExtewnawUwiOpena, metadata: vscode.ExtewnawUwiOpenewMetadata) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostUwiOpenews.wegistewExtewnawUwiOpena(extension.identifia, id, opena, metadata);
 			},
 			get tabs() {
-				checkProposedApiEnabled(extension);
-				return extHostEditorTabs.tabs;
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostEditowTabs.tabs;
 			},
 			get activeTab() {
-				checkProposedApiEnabled(extension);
-				return extHostEditorTabs.activeTab;
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostEditowTabs.activeTab;
 			},
 			get onDidChangeTabs() {
-				checkProposedApiEnabled(extension);
-				return extHostEditorTabs.onDidChangeTabs;
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostEditowTabs.onDidChangeTabs;
 			},
 			get onDidChangeActiveTab() {
-				checkProposedApiEnabled(extension);
-				return extHostEditorTabs.onDidChangeActiveTab;
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostEditowTabs.onDidChangeActiveTab;
 			},
-			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
-				checkProposedApiEnabled(extension);
-				return InlineCompletionController.get(provider);
+			getInwineCompwetionItemContwowwa<T extends vscode.InwineCompwetionItem>(pwovida: vscode.InwineCompwetionItemPwovida<T>): vscode.InwineCompwetionContwowwa<T> {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn InwineCompwetionContwowwa.get(pwovida);
 			}
 		};
 
-		// namespace: workspace
+		// namespace: wowkspace
 
-		const workspace: typeof vscode.workspace = {
-			get rootPath() {
-				extHostApiDeprecation.report('workspace.rootPath', extension,
-					`Please use 'workspace.workspaceFolders' instead. More details: https://aka.ms/vscode-eliminating-rootpath`);
+		const wowkspace: typeof vscode.wowkspace = {
+			get wootPath() {
+				extHostApiDepwecation.wepowt('wowkspace.wootPath', extension,
+					`Pwease use 'wowkspace.wowkspaceFowdews' instead. Mowe detaiws: https://aka.ms/vscode-ewiminating-wootpath`);
 
-				return extHostWorkspace.getPath();
+				wetuwn extHostWowkspace.getPath();
 			},
-			set rootPath(value) {
-				throw errors.readonly();
+			set wootPath(vawue) {
+				thwow ewwows.weadonwy();
 			},
-			getWorkspaceFolder(resource) {
-				return extHostWorkspace.getWorkspaceFolder(resource);
+			getWowkspaceFowda(wesouwce) {
+				wetuwn extHostWowkspace.getWowkspaceFowda(wesouwce);
 			},
-			get workspaceFolders() {
-				return extHostWorkspace.getWorkspaceFolders();
+			get wowkspaceFowdews() {
+				wetuwn extHostWowkspace.getWowkspaceFowdews();
 			},
 			get name() {
-				return extHostWorkspace.name;
+				wetuwn extHostWowkspace.name;
 			},
-			set name(value) {
-				throw errors.readonly();
+			set name(vawue) {
+				thwow ewwows.weadonwy();
 			},
-			get workspaceFile() {
-				return extHostWorkspace.workspaceFile;
+			get wowkspaceFiwe() {
+				wetuwn extHostWowkspace.wowkspaceFiwe;
 			},
-			set workspaceFile(value) {
-				throw errors.readonly();
+			set wowkspaceFiwe(vawue) {
+				thwow ewwows.weadonwy();
 			},
-			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
+			updateWowkspaceFowdews: (index, deweteCount, ...wowkspaceFowdewsToAdd) => {
+				wetuwn extHostWowkspace.updateWowkspaceFowdews(extension, index, deweteCount || 0, ...wowkspaceFowdewsToAdd);
 			},
-			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
-				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
+			onDidChangeWowkspaceFowdews: function (wistena, thisAwgs?, disposabwes?) {
+				wetuwn extHostWowkspace.onDidChangeWowkspace(wistena, thisAwgs, disposabwes);
 			},
-			asRelativePath: (pathOrUri, includeWorkspace?) => {
-				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
+			asWewativePath: (pathOwUwi, incwudeWowkspace?) => {
+				wetuwn extHostWowkspace.getWewativePath(pathOwUwi, incwudeWowkspace);
 			},
-			findFiles: (include, exclude, maxResults?, token?) => {
-				// Note, undefined/null have different meanings on "exclude"
-				return extHostWorkspace.findFiles(typeConverters.GlobPattern.from(include), typeConverters.GlobPattern.from(exclude), maxResults, extension.identifier, token);
+			findFiwes: (incwude, excwude, maxWesuwts?, token?) => {
+				// Note, undefined/nuww have diffewent meanings on "excwude"
+				wetuwn extHostWowkspace.findFiwes(typeConvewtews.GwobPattewn.fwom(incwude), typeConvewtews.GwobPattewn.fwom(excwude), maxWesuwts, extension.identifia, token);
 			},
-			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
-				let options: vscode.FindTextInFilesOptions;
-				let callback: (result: vscode.TextSearchResult) => void;
+			findTextInFiwes: (quewy: vscode.TextSeawchQuewy, optionsOwCawwback: vscode.FindTextInFiwesOptions | ((wesuwt: vscode.TextSeawchWesuwt) => void), cawwbackOwToken?: vscode.CancewwationToken | ((wesuwt: vscode.TextSeawchWesuwt) => void), token?: vscode.CancewwationToken) => {
+				wet options: vscode.FindTextInFiwesOptions;
+				wet cawwback: (wesuwt: vscode.TextSeawchWesuwt) => void;
 
-				if (typeof optionsOrCallback === 'object') {
-					options = optionsOrCallback;
-					callback = callbackOrToken as (result: vscode.TextSearchResult) => void;
-				} else {
+				if (typeof optionsOwCawwback === 'object') {
+					options = optionsOwCawwback;
+					cawwback = cawwbackOwToken as (wesuwt: vscode.TextSeawchWesuwt) => void;
+				} ewse {
 					options = {};
-					callback = optionsOrCallback;
-					token = callbackOrToken as vscode.CancellationToken;
+					cawwback = optionsOwCawwback;
+					token = cawwbackOwToken as vscode.CancewwationToken;
 				}
 
-				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
+				wetuwn extHostWowkspace.findTextInFiwes(quewy, options || {}, cawwback, extension.identifia, token);
 			},
-			saveAll: (includeUntitled?) => {
-				return extHostWorkspace.saveAll(includeUntitled);
+			saveAww: (incwudeUntitwed?) => {
+				wetuwn extHostWowkspace.saveAww(incwudeUntitwed);
 			},
-			applyEdit(edit: vscode.WorkspaceEdit): Thenable<boolean> {
-				return extHostBulkEdits.applyWorkspaceEdit(edit);
+			appwyEdit(edit: vscode.WowkspaceEdit): Thenabwe<boowean> {
+				wetuwn extHostBuwkEdits.appwyWowkspaceEdit(edit);
 			},
-			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
-				return extHostFileSystemEvent.createFileSystemWatcher(typeConverters.GlobPattern.from(pattern), ignoreCreate, ignoreChange, ignoreDelete);
+			cweateFiweSystemWatcha: (pattewn, ignoweCweate, ignoweChange, ignoweDewete): vscode.FiweSystemWatcha => {
+				wetuwn extHostFiweSystemEvent.cweateFiweSystemWatcha(typeConvewtews.GwobPattewn.fwom(pattewn), ignoweCweate, ignoweChange, ignoweDewete);
 			},
 			get textDocuments() {
-				return extHostDocuments.getAllDocumentData().map(data => data.document);
+				wetuwn extHostDocuments.getAwwDocumentData().map(data => data.document);
 			},
-			set textDocuments(value) {
-				throw errors.readonly();
+			set textDocuments(vawue) {
+				thwow ewwows.weadonwy();
 			},
-			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
-				let uriPromise: Thenable<URI>;
+			openTextDocument(uwiOwFiweNameOwOptions?: vscode.Uwi | stwing | { wanguage?: stwing; content?: stwing; }) {
+				wet uwiPwomise: Thenabwe<UWI>;
 
-				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
-				if (typeof uriOrFileNameOrOptions === 'string') {
-					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
-				} else if (URI.isUri(uriOrFileNameOrOptions)) {
-					uriPromise = Promise.resolve(uriOrFileNameOrOptions);
-				} else if (!options || typeof options === 'object') {
-					uriPromise = extHostDocuments.createDocumentData(options);
-				} else {
-					throw new Error('illegal argument - uriOrFileNameOrOptions');
+				const options = uwiOwFiweNameOwOptions as { wanguage?: stwing; content?: stwing; };
+				if (typeof uwiOwFiweNameOwOptions === 'stwing') {
+					uwiPwomise = Pwomise.wesowve(UWI.fiwe(uwiOwFiweNameOwOptions));
+				} ewse if (UWI.isUwi(uwiOwFiweNameOwOptions)) {
+					uwiPwomise = Pwomise.wesowve(uwiOwFiweNameOwOptions);
+				} ewse if (!options || typeof options === 'object') {
+					uwiPwomise = extHostDocuments.cweateDocumentData(options);
+				} ewse {
+					thwow new Ewwow('iwwegaw awgument - uwiOwFiweNameOwOptions');
 				}
 
-				return uriPromise.then(uri => {
-					return extHostDocuments.ensureDocumentData(uri).then(documentData => {
-						return documentData.document;
+				wetuwn uwiPwomise.then(uwi => {
+					wetuwn extHostDocuments.ensuweDocumentData(uwi).then(documentData => {
+						wetuwn documentData.document;
 					});
 				});
 			},
-			onDidOpenTextDocument: (listener, thisArgs?, disposables?) => {
-				return extHostDocuments.onDidAddDocument(listener, thisArgs, disposables);
+			onDidOpenTextDocument: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostDocuments.onDidAddDocument(wistena, thisAwgs, disposabwes);
 			},
-			onDidCloseTextDocument: (listener, thisArgs?, disposables?) => {
-				return extHostDocuments.onDidRemoveDocument(listener, thisArgs, disposables);
+			onDidCwoseTextDocument: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostDocuments.onDidWemoveDocument(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeTextDocument: (listener, thisArgs?, disposables?) => {
-				return extHostDocuments.onDidChangeDocument(listener, thisArgs, disposables);
+			onDidChangeTextDocument: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostDocuments.onDidChangeDocument(wistena, thisAwgs, disposabwes);
 			},
-			onDidSaveTextDocument: (listener, thisArgs?, disposables?) => {
-				return extHostDocuments.onDidSaveDocument(listener, thisArgs, disposables);
+			onDidSaveTextDocument: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostDocuments.onDidSaveDocument(wistena, thisAwgs, disposabwes);
 			},
-			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
-				return extHostDocumentSaveParticipant.getOnWillSaveTextDocumentEvent(extension)(listener, thisArgs, disposables);
+			onWiwwSaveTextDocument: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostDocumentSavePawticipant.getOnWiwwSaveTextDocumentEvent(extension)(wistena, thisAwgs, disposabwes);
 			},
 			get notebookDocuments(): vscode.NotebookDocument[] {
-				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
+				wetuwn extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
 			},
-			async openNotebookDocument(uriOrType?: URI | string, content?: vscode.NotebookData) {
-				let uri: URI;
-				if (URI.isUri(uriOrType)) {
-					uri = uriOrType;
-					await extHostNotebook.openNotebookDocument(uriOrType);
-				} else if (typeof uriOrType === 'string') {
-					uri = URI.revive(await extHostNotebook.createNotebookDocument({ viewType: uriOrType, content }));
-				} else {
-					throw new Error('Invalid arguments');
+			async openNotebookDocument(uwiOwType?: UWI | stwing, content?: vscode.NotebookData) {
+				wet uwi: UWI;
+				if (UWI.isUwi(uwiOwType)) {
+					uwi = uwiOwType;
+					await extHostNotebook.openNotebookDocument(uwiOwType);
+				} ewse if (typeof uwiOwType === 'stwing') {
+					uwi = UWI.wevive(await extHostNotebook.cweateNotebookDocument({ viewType: uwiOwType, content }));
+				} ewse {
+					thwow new Ewwow('Invawid awguments');
 				}
-				return extHostNotebook.getNotebookDocument(uri).apiNotebook;
+				wetuwn extHostNotebook.getNotebookDocument(uwi).apiNotebook;
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
-				return extHostNotebook.onDidOpenNotebookDocument;
+				wetuwn extHostNotebook.onDidOpenNotebookDocument;
 			},
-			get onDidCloseNotebookDocument(): Event<vscode.NotebookDocument> {
-				return extHostNotebook.onDidCloseNotebookDocument;
+			get onDidCwoseNotebookDocument(): Event<vscode.NotebookDocument> {
+				wetuwn extHostNotebook.onDidCwoseNotebookDocument;
 			},
-			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
-				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
+			wegistewNotebookSewiawiza(viewType: stwing, sewiawiza: vscode.NotebookSewiawiza, options?: vscode.NotebookDocumentContentOptions, wegistwation?: vscode.NotebookWegistwationData) {
+				wetuwn extHostNotebook.wegistewNotebookSewiawiza(extension, viewType, sewiawiza, options, extension.enabwePwoposedApi ? wegistwation : undefined);
 			},
-			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, extension.enableProposedApi ? registration : undefined);
+			wegistewNotebookContentPwovida: (viewType: stwing, pwovida: vscode.NotebookContentPwovida, options?: vscode.NotebookDocumentContentOptions, wegistwation?: vscode.NotebookWegistwationData) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.wegistewNotebookContentPwovida(extension, viewType, pwovida, options, extension.enabwePwoposedApi ? wegistwation : undefined);
 			},
-			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
-				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);
+			onDidChangeConfiguwation: (wistena: (_: any) => any, thisAwgs?: any, disposabwes?: extHostTypes.Disposabwe[]) => {
+				wetuwn configPwovida.onDidChangeConfiguwation(wistena, thisAwgs, disposabwes);
 			},
-			getConfiguration(section?: string, scope?: vscode.ConfigurationScope | null): vscode.WorkspaceConfiguration {
-				scope = arguments.length === 1 ? undefined : scope;
-				return configProvider.getConfiguration(section, scope, extension);
+			getConfiguwation(section?: stwing, scope?: vscode.ConfiguwationScope | nuww): vscode.WowkspaceConfiguwation {
+				scope = awguments.wength === 1 ? undefined : scope;
+				wetuwn configPwovida.getConfiguwation(section, scope, extension);
 			},
-			registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider) {
-				return extHostDocumentContentProviders.registerTextDocumentContentProvider(scheme, provider);
+			wegistewTextDocumentContentPwovida(scheme: stwing, pwovida: vscode.TextDocumentContentPwovida) {
+				wetuwn extHostDocumentContentPwovidews.wegistewTextDocumentContentPwovida(scheme, pwovida);
 			},
-			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				extHostApiDeprecation.report('window.registerTaskProvider', extension,
-					`Use the corresponding function on the 'tasks' namespace instead`);
+			wegistewTaskPwovida: (type: stwing, pwovida: vscode.TaskPwovida) => {
+				extHostApiDepwecation.wepowt('window.wegistewTaskPwovida', extension,
+					`Use the cowwesponding function on the 'tasks' namespace instead`);
 
-				return extHostTask.registerTaskProvider(extension, type, provider);
+				wetuwn extHostTask.wegistewTaskPwovida(extension, type, pwovida);
 			},
-			registerFileSystemProvider(scheme, provider, options) {
-				return extHostFileSystem.registerFileSystemProvider(extension.identifier, scheme, provider, options);
+			wegistewFiweSystemPwovida(scheme, pwovida, options) {
+				wetuwn extHostFiweSystem.wegistewFiweSystemPwovida(extension.identifia, scheme, pwovida, options);
 			},
 			get fs() {
-				return extHostConsumerFileSystem.value;
+				wetuwn extHostConsumewFiweSystem.vawue;
 			},
-			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostSearch.registerFileSearchProvider(scheme, provider);
+			wegistewFiweSeawchPwovida: (scheme: stwing, pwovida: vscode.FiweSeawchPwovida) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostSeawch.wegistewFiweSeawchPwovida(scheme, pwovida);
 			},
-			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostSearch.registerTextSearchProvider(scheme, provider);
+			wegistewTextSeawchPwovida: (scheme: stwing, pwovida: vscode.TextSeawchPwovida) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostSeawch.wegistewTextSeawchPwovida(scheme, pwovida);
 			},
-			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
-				checkProposedApiEnabled(extension);
-				return extensionService.registerRemoteAuthorityResolver(authorityPrefix, resolver);
+			wegistewWemoteAuthowityWesowva: (authowityPwefix: stwing, wesowva: vscode.WemoteAuthowityWesowva) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extensionSewvice.wegistewWemoteAuthowityWesowva(authowityPwefix, wesowva);
 			},
-			registerResourceLabelFormatter: (formatter: vscode.ResourceLabelFormatter) => {
-				checkProposedApiEnabled(extension);
-				return extHostLabelService.$registerResourceLabelFormatter(formatter);
+			wegistewWesouwceWabewFowmatta: (fowmatta: vscode.WesouwceWabewFowmatta) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWabewSewvice.$wegistewWesouwceWabewFowmatta(fowmatta);
 			},
-			onDidCreateFiles: (listener, thisArg, disposables) => {
-				return extHostFileSystemEvent.onDidCreateFile(listener, thisArg, disposables);
+			onDidCweateFiwes: (wistena, thisAwg, disposabwes) => {
+				wetuwn extHostFiweSystemEvent.onDidCweateFiwe(wistena, thisAwg, disposabwes);
 			},
-			onDidDeleteFiles: (listener, thisArg, disposables) => {
-				return extHostFileSystemEvent.onDidDeleteFile(listener, thisArg, disposables);
+			onDidDeweteFiwes: (wistena, thisAwg, disposabwes) => {
+				wetuwn extHostFiweSystemEvent.onDidDeweteFiwe(wistena, thisAwg, disposabwes);
 			},
-			onDidRenameFiles: (listener, thisArg, disposables) => {
-				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
+			onDidWenameFiwes: (wistena, thisAwg, disposabwes) => {
+				wetuwn extHostFiweSystemEvent.onDidWenameFiwe(wistena, thisAwg, disposabwes);
 			},
-			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				return extHostFileSystemEvent.getOnWillCreateFileEvent(extension)(listener, thisArg, disposables);
+			onWiwwCweateFiwes: (wistena: (e: vscode.FiweWiwwCweateEvent) => any, thisAwg?: any, disposabwes?: vscode.Disposabwe[]) => {
+				wetuwn extHostFiweSystemEvent.getOnWiwwCweateFiweEvent(extension)(wistena, thisAwg, disposabwes);
 			},
-			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				return extHostFileSystemEvent.getOnWillDeleteFileEvent(extension)(listener, thisArg, disposables);
+			onWiwwDeweteFiwes: (wistena: (e: vscode.FiweWiwwDeweteEvent) => any, thisAwg?: any, disposabwes?: vscode.Disposabwe[]) => {
+				wetuwn extHostFiweSystemEvent.getOnWiwwDeweteFiweEvent(extension)(wistena, thisAwg, disposabwes);
 			},
-			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
-				return extHostFileSystemEvent.getOnWillRenameFileEvent(extension)(listener, thisArg, disposables);
+			onWiwwWenameFiwes: (wistena: (e: vscode.FiweWiwwWenameEvent) => any, thisAwg?: any, disposabwes?: vscode.Disposabwe[]) => {
+				wetuwn extHostFiweSystemEvent.getOnWiwwWenameFiweEvent(extension)(wistena, thisAwg, disposabwes);
 			},
-			openTunnel: (forward: vscode.TunnelOptions) => {
-				checkProposedApiEnabled(extension);
-				return extHostTunnelService.openTunnel(extension, forward).then(value => {
-					if (!value) {
-						throw new Error('cannot open tunnel');
+			openTunnew: (fowwawd: vscode.TunnewOptions) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTunnewSewvice.openTunnew(extension, fowwawd).then(vawue => {
+					if (!vawue) {
+						thwow new Ewwow('cannot open tunnew');
 					}
-					return value;
+					wetuwn vawue;
 				});
 			},
-			get tunnels() {
-				checkProposedApiEnabled(extension);
-				return extHostTunnelService.getTunnels();
+			get tunnews() {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTunnewSewvice.getTunnews();
 			},
-			onDidChangeTunnels: (listener, thisArg?, disposables?) => {
-				checkProposedApiEnabled(extension);
-				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
+			onDidChangeTunnews: (wistena, thisAwg?, disposabwes?) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTunnewSewvice.onDidChangeTunnews(wistena, thisAwg, disposabwes);
 			},
-			registerPortAttributesProvider: (portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostTunnelService.registerPortsAttributesProvider(portSelector, provider);
+			wegistewPowtAttwibutesPwovida: (powtSewectow: { pid?: numba, powtWange?: [numba, numba], commandMatcha?: WegExp }, pwovida: vscode.PowtAttwibutesPwovida) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTunnewSewvice.wegistewPowtsAttwibutesPwovida(powtSewectow, pwovida);
 			},
-			registerTimelineProvider: (scheme: string | string[], provider: vscode.TimelineProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			wegistewTimewinePwovida: (scheme: stwing | stwing[], pwovida: vscode.TimewinePwovida) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostTimewine.wegistewTimewinePwovida(scheme, pwovida, extension.identifia, extHostCommands.convewta);
 			},
-			get isTrusted() {
-				return extHostWorkspace.trusted;
+			get isTwusted() {
+				wetuwn extHostWowkspace.twusted;
 			},
-			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
-				checkProposedApiEnabled(extension);
-				return extHostWorkspace.requestWorkspaceTrust(options);
+			wequestWowkspaceTwust: (options?: vscode.WowkspaceTwustWequestOptions) => {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostWowkspace.wequestWowkspaceTwust(options);
 			},
-			onDidGrantWorkspaceTrust: (listener, thisArgs?, disposables?) => {
-				return extHostWorkspace.onDidGrantWorkspaceTrust(listener, thisArgs, disposables);
+			onDidGwantWowkspaceTwust: (wistena, thisAwgs?, disposabwes?) => {
+				wetuwn extHostWowkspace.onDidGwantWowkspaceTwust(wistena, thisAwgs, disposabwes);
 			}
 		};
 
 		// namespace: scm
 		const scm: typeof vscode.scm = {
 			get inputBox() {
-				extHostApiDeprecation.report('scm.inputBox', extension,
-					`Use 'SourceControl.inputBox' instead`);
+				extHostApiDepwecation.wepowt('scm.inputBox', extension,
+					`Use 'SouwceContwow.inputBox' instead`);
 
-				return extHostSCM.getLastInputBox(extension)!; // Strict null override - Deprecated api
+				wetuwn extHostSCM.getWastInputBox(extension)!; // Stwict nuww ovewwide - Depwecated api
 			},
-			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
-				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			cweateSouwceContwow(id: stwing, wabew: stwing, wootUwi?: vscode.Uwi) {
+				wetuwn extHostSCM.cweateSouwceContwow(extension, id, wabew, wootUwi);
 			}
 		};
 
 		// namespace: comments
 		const comments: typeof vscode.comments = {
-			createCommentController(id: string, label: string) {
-				return extHostComment.createCommentController(extension, id, label);
+			cweateCommentContwowwa(id: stwing, wabew: stwing) {
+				wetuwn extHostComment.cweateCommentContwowwa(extension, id, wabew);
 			}
 		};
 
 		// namespace: debug
 		const debug: typeof vscode.debug = {
 			get activeDebugSession() {
-				return extHostDebugService.activeDebugSession;
+				wetuwn extHostDebugSewvice.activeDebugSession;
 			},
-			get activeDebugConsole() {
-				return extHostDebugService.activeDebugConsole;
+			get activeDebugConsowe() {
+				wetuwn extHostDebugSewvice.activeDebugConsowe;
 			},
-			get breakpoints() {
-				return extHostDebugService.breakpoints;
+			get bweakpoints() {
+				wetuwn extHostDebugSewvice.bweakpoints;
 			},
-			onDidStartDebugSession(listener, thisArg?, disposables?) {
-				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
+			onDidStawtDebugSession(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostDebugSewvice.onDidStawtDebugSession(wistena, thisAwg, disposabwes);
 			},
-			onDidTerminateDebugSession(listener, thisArg?, disposables?) {
-				return extHostDebugService.onDidTerminateDebugSession(listener, thisArg, disposables);
+			onDidTewminateDebugSession(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostDebugSewvice.onDidTewminateDebugSession(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeActiveDebugSession(listener, thisArg?, disposables?) {
-				return extHostDebugService.onDidChangeActiveDebugSession(listener, thisArg, disposables);
+			onDidChangeActiveDebugSession(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostDebugSewvice.onDidChangeActiveDebugSession(wistena, thisAwg, disposabwes);
 			},
-			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
-				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
+			onDidWeceiveDebugSessionCustomEvent(wistena, thisAwg?, disposabwes?) {
+				wetuwn extHostDebugSewvice.onDidWeceiveDebugSessionCustomEvent(wistena, thisAwg, disposabwes);
 			},
-			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
-				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
+			onDidChangeBweakpoints(wistena, thisAwgs?, disposabwes?) {
+				wetuwn extHostDebugSewvice.onDidChangeBweakpoints(wistena, thisAwgs, disposabwes);
 			},
-			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, triggerKind || extHostTypes.DebugConfigurationProviderTriggerKind.Initial);
+			wegistewDebugConfiguwationPwovida(debugType: stwing, pwovida: vscode.DebugConfiguwationPwovida, twiggewKind?: vscode.DebugConfiguwationPwovidewTwiggewKind) {
+				wetuwn extHostDebugSewvice.wegistewDebugConfiguwationPwovida(debugType, pwovida, twiggewKind || extHostTypes.DebugConfiguwationPwovidewTwiggewKind.Initiaw);
 			},
-			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
-				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
+			wegistewDebugAdaptewDescwiptowFactowy(debugType: stwing, factowy: vscode.DebugAdaptewDescwiptowFactowy) {
+				wetuwn extHostDebugSewvice.wegistewDebugAdaptewDescwiptowFactowy(extension, debugType, factowy);
 			},
-			registerDebugAdapterTrackerFactory(debugType: string, factory: vscode.DebugAdapterTrackerFactory) {
-				return extHostDebugService.registerDebugAdapterTrackerFactory(debugType, factory);
+			wegistewDebugAdaptewTwackewFactowy(debugType: stwing, factowy: vscode.DebugAdaptewTwackewFactowy) {
+				wetuwn extHostDebugSewvice.wegistewDebugAdaptewTwackewFactowy(debugType, factowy);
 			},
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, parentSessionOrOptions?: vscode.DebugSession | vscode.DebugSessionOptions) {
-				if (!parentSessionOrOptions || (typeof parentSessionOrOptions === 'object' && 'configuration' in parentSessionOrOptions)) {
-					return extHostDebugService.startDebugging(folder, nameOrConfig, { parentSession: parentSessionOrOptions });
+			stawtDebugging(fowda: vscode.WowkspaceFowda | undefined, nameOwConfig: stwing | vscode.DebugConfiguwation, pawentSessionOwOptions?: vscode.DebugSession | vscode.DebugSessionOptions) {
+				if (!pawentSessionOwOptions || (typeof pawentSessionOwOptions === 'object' && 'configuwation' in pawentSessionOwOptions)) {
+					wetuwn extHostDebugSewvice.stawtDebugging(fowda, nameOwConfig, { pawentSession: pawentSessionOwOptions });
 				}
-				return extHostDebugService.startDebugging(folder, nameOrConfig, parentSessionOrOptions || {});
+				wetuwn extHostDebugSewvice.stawtDebugging(fowda, nameOwConfig, pawentSessionOwOptions || {});
 			},
 			stopDebugging(session?: vscode.DebugSession) {
-				return extHostDebugService.stopDebugging(session);
+				wetuwn extHostDebugSewvice.stopDebugging(session);
 			},
-			addBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
-				return extHostDebugService.addBreakpoints(breakpoints);
+			addBweakpoints(bweakpoints: weadonwy vscode.Bweakpoint[]) {
+				wetuwn extHostDebugSewvice.addBweakpoints(bweakpoints);
 			},
-			removeBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
-				return extHostDebugService.removeBreakpoints(breakpoints);
+			wemoveBweakpoints(bweakpoints: weadonwy vscode.Bweakpoint[]) {
+				wetuwn extHostDebugSewvice.wemoveBweakpoints(bweakpoints);
 			},
-			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {
-				return extHostDebugService.asDebugSourceUri(source, session);
+			asDebugSouwceUwi(souwce: vscode.DebugPwotocowSouwce, session?: vscode.DebugSession): vscode.Uwi {
+				wetuwn extHostDebugSewvice.asDebugSouwceUwi(souwce, session);
 			}
 		};
 
 		const tasks: typeof vscode.tasks = {
-			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
-				return extHostTask.registerTaskProvider(extension, type, provider);
+			wegistewTaskPwovida: (type: stwing, pwovida: vscode.TaskPwovida) => {
+				wetuwn extHostTask.wegistewTaskPwovida(extension, type, pwovida);
 			},
-			fetchTasks: (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
-				return extHostTask.fetchTasks(filter);
+			fetchTasks: (fiwta?: vscode.TaskFiwta): Thenabwe<vscode.Task[]> => {
+				wetuwn extHostTask.fetchTasks(fiwta);
 			},
-			executeTask: (task: vscode.Task): Thenable<vscode.TaskExecution> => {
-				return extHostTask.executeTask(extension, task);
+			executeTask: (task: vscode.Task): Thenabwe<vscode.TaskExecution> => {
+				wetuwn extHostTask.executeTask(extension, task);
 			},
 			get taskExecutions(): vscode.TaskExecution[] {
-				return extHostTask.taskExecutions;
+				wetuwn extHostTask.taskExecutions;
 			},
-			onDidStartTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
+			onDidStawtTask: (wistenews, thisAwgs?, disposabwes?) => {
+				wetuwn extHostTask.onDidStawtTask(wistenews, thisAwgs, disposabwes);
 			},
-			onDidEndTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
+			onDidEndTask: (wistenews, thisAwgs?, disposabwes?) => {
+				wetuwn extHostTask.onDidEndTask(wistenews, thisAwgs, disposabwes);
 			},
-			onDidStartTaskProcess: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidStartTaskProcess(listeners, thisArgs, disposables);
+			onDidStawtTaskPwocess: (wistenews, thisAwgs?, disposabwes?) => {
+				wetuwn extHostTask.onDidStawtTaskPwocess(wistenews, thisAwgs, disposabwes);
 			},
-			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidEndTaskProcess(listeners, thisArgs, disposables);
+			onDidEndTaskPwocess: (wistenews, thisAwgs?, disposabwes?) => {
+				wetuwn extHostTask.onDidEndTaskPwocess(wistenews, thisAwgs, disposabwes);
 			}
 		};
 
 		// namespace: notebook
 		const notebooks: typeof vscode.notebooks = {
-			createNotebookController(id: string, notebookType: string, label: string, handler?, rendererScripts?: vscode.NotebookRendererScript[]) {
-				return extHostNotebookKernels.createNotebookController(extension, id, notebookType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
+			cweateNotebookContwowwa(id: stwing, notebookType: stwing, wabew: stwing, handwa?, wendewewScwipts?: vscode.NotebookWendewewScwipt[]) {
+				wetuwn extHostNotebookKewnews.cweateNotebookContwowwa(extension, id, notebookType, wabew, handwa, extension.enabwePwoposedApi ? wendewewScwipts : undefined);
 			},
-			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
-				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
+			wegistewNotebookCewwStatusBawItemPwovida: (notebookType: stwing, pwovida: vscode.NotebookCewwStatusBawItemPwovida) => {
+				wetuwn extHostNotebook.wegistewNotebookCewwStatusBawItemPwovida(extension, notebookType, pwovida);
 			},
 			get onDidSaveNotebookDocument(): Event<vscode.NotebookDocument> {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookDocuments.onDidSaveNotebookDocument;
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebookDocuments.onDidSaveNotebookDocument;
 			},
-			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookEditors.createNotebookEditorDecorationType(options);
+			cweateNotebookEditowDecowationType(options: vscode.NotebookDecowationWendewOptions): vscode.NotebookEditowDecowationType {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebookEditows.cweateNotebookEditowDecowationType(options);
 			},
-			createRendererMessaging(rendererId) {
-				return extHostNotebookRenderers.createRendererMessaging(extension, rendererId);
+			cweateWendewewMessaging(wendewewId) {
+				wetuwn extHostNotebookWendewews.cweateWendewewMessaging(extension, wendewewId);
 			},
-			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookDocuments.onDidChangeNotebookDocumentMetadata(listener, thisArgs, disposables);
+			onDidChangeNotebookDocumentMetadata(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebookDocuments.onDidChangeNotebookDocumentMetadata(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
+			onDidChangeNotebookCewws(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeNotebookCewws(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
+			onDidChangeNotebookCewwExecutionState(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeNotebookCewwExecutionState(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
+			onDidChangeCewwOutputs(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeCewwOutputs(wistena, thisAwgs, disposabwes);
 			},
-			onDidChangeCellMetadata(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeCellMetadata(listener, thisArgs, disposables);
+			onDidChangeCewwMetadata(wistena, thisAwgs?, disposabwes?) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn extHostNotebook.onDidChangeCewwMetadata(wistena, thisAwgs, disposabwes);
 			},
-			createConcatTextDocument(notebook, selector) {
-				checkProposedApiEnabled(extension);
-				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
+			cweateConcatTextDocument(notebook, sewectow) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, sewectow);
 			},
 		};
 
-		return <typeof vscode>{
-			version: initData.version,
+		wetuwn <typeof vscode>{
+			vewsion: initData.vewsion,
 			// namespaces
 			authentication,
 			commands,
@@ -1141,166 +1141,166 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			debug,
 			env,
 			extensions,
-			languages,
+			wanguages,
 			notebooks,
 			scm,
 			tasks,
 			tests,
 			window,
-			workspace,
+			wowkspace,
 			// types
-			Breakpoint: extHostTypes.Breakpoint,
-			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
-			CallHierarchyItem: extHostTypes.CallHierarchyItem,
-			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
-			CancellationError: errors.CancellationError,
-			CancellationTokenSource: CancellationTokenSource,
-			CandidatePortSource: CandidatePortSource,
+			Bweakpoint: extHostTypes.Bweakpoint,
+			CawwHiewawchyIncomingCaww: extHostTypes.CawwHiewawchyIncomingCaww,
+			CawwHiewawchyItem: extHostTypes.CawwHiewawchyItem,
+			CawwHiewawchyOutgoingCaww: extHostTypes.CawwHiewawchyOutgoingCaww,
+			CancewwationEwwow: ewwows.CancewwationEwwow,
+			CancewwationTokenSouwce: CancewwationTokenSouwce,
+			CandidatePowtSouwce: CandidatePowtSouwce,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
-			CodeActionTriggerKind: extHostTypes.CodeActionTriggerKind,
-			CodeLens: extHostTypes.CodeLens,
-			Color: extHostTypes.Color,
-			ColorInformation: extHostTypes.ColorInformation,
-			ColorPresentation: extHostTypes.ColorPresentation,
-			ColorThemeKind: extHostTypes.ColorThemeKind,
+			CodeActionTwiggewKind: extHostTypes.CodeActionTwiggewKind,
+			CodeWens: extHostTypes.CodeWens,
+			Cowow: extHostTypes.Cowow,
+			CowowInfowmation: extHostTypes.CowowInfowmation,
+			CowowPwesentation: extHostTypes.CowowPwesentation,
+			CowowThemeKind: extHostTypes.CowowThemeKind,
 			CommentMode: extHostTypes.CommentMode,
-			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
-			CompletionItem: extHostTypes.CompletionItem,
-			CompletionItemKind: extHostTypes.CompletionItemKind,
-			CompletionItemTag: extHostTypes.CompletionItemTag,
-			CompletionList: extHostTypes.CompletionList,
-			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
-			ConfigurationTarget: extHostTypes.ConfigurationTarget,
+			CommentThweadCowwapsibweState: extHostTypes.CommentThweadCowwapsibweState,
+			CompwetionItem: extHostTypes.CompwetionItem,
+			CompwetionItemKind: extHostTypes.CompwetionItemKind,
+			CompwetionItemTag: extHostTypes.CompwetionItemTag,
+			CompwetionWist: extHostTypes.CompwetionWist,
+			CompwetionTwiggewKind: extHostTypes.CompwetionTwiggewKind,
+			ConfiguwationTawget: extHostTypes.ConfiguwationTawget,
 			CustomExecution: extHostTypes.CustomExecution,
-			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
-			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
-			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,
-			DebugAdapterServer: extHostTypes.DebugAdapterServer,
-			DebugConfigurationProviderTriggerKind: extHostTypes.DebugConfigurationProviderTriggerKind,
-			DebugConsoleMode: extHostTypes.DebugConsoleMode,
-			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
+			DebugAdaptewExecutabwe: extHostTypes.DebugAdaptewExecutabwe,
+			DebugAdaptewInwineImpwementation: extHostTypes.DebugAdaptewInwineImpwementation,
+			DebugAdaptewNamedPipeSewva: extHostTypes.DebugAdaptewNamedPipeSewva,
+			DebugAdaptewSewva: extHostTypes.DebugAdaptewSewva,
+			DebugConfiguwationPwovidewTwiggewKind: extHostTypes.DebugConfiguwationPwovidewTwiggewKind,
+			DebugConsoweMode: extHostTypes.DebugConsoweMode,
+			DecowationWangeBehaviow: extHostTypes.DecowationWangeBehaviow,
 			Diagnostic: extHostTypes.Diagnostic,
-			DiagnosticRelatedInformation: extHostTypes.DiagnosticRelatedInformation,
-			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
+			DiagnosticWewatedInfowmation: extHostTypes.DiagnosticWewatedInfowmation,
+			DiagnosticSevewity: extHostTypes.DiagnosticSevewity,
 			DiagnosticTag: extHostTypes.DiagnosticTag,
-			Disposable: extHostTypes.Disposable,
-			DocumentHighlight: extHostTypes.DocumentHighlight,
-			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
-			DocumentLink: extHostTypes.DocumentLink,
-			DocumentSymbol: extHostTypes.DocumentSymbol,
-			EndOfLine: extHostTypes.EndOfLine,
-			EnvironmentVariableMutatorType: extHostTypes.EnvironmentVariableMutatorType,
-			EvaluatableExpression: extHostTypes.EvaluatableExpression,
-			InlineValueText: extHostTypes.InlineValueText,
-			InlineValueVariableLookup: extHostTypes.InlineValueVariableLookup,
-			InlineValueEvaluatableExpression: extHostTypes.InlineValueEvaluatableExpression,
-			InlineCompletionTriggerKind: extHostTypes.InlineCompletionTriggerKind,
-			EventEmitter: Emitter,
+			Disposabwe: extHostTypes.Disposabwe,
+			DocumentHighwight: extHostTypes.DocumentHighwight,
+			DocumentHighwightKind: extHostTypes.DocumentHighwightKind,
+			DocumentWink: extHostTypes.DocumentWink,
+			DocumentSymbow: extHostTypes.DocumentSymbow,
+			EndOfWine: extHostTypes.EndOfWine,
+			EnviwonmentVawiabweMutatowType: extHostTypes.EnviwonmentVawiabweMutatowType,
+			EvawuatabweExpwession: extHostTypes.EvawuatabweExpwession,
+			InwineVawueText: extHostTypes.InwineVawueText,
+			InwineVawueVawiabweWookup: extHostTypes.InwineVawueVawiabweWookup,
+			InwineVawueEvawuatabweExpwession: extHostTypes.InwineVawueEvawuatabweExpwession,
+			InwineCompwetionTwiggewKind: extHostTypes.InwineCompwetionTwiggewKind,
+			EventEmitta: Emitta,
 			ExtensionKind: extHostTypes.ExtensionKind,
 			ExtensionMode: extHostTypes.ExtensionMode,
-			ExternalUriOpenerPriority: extHostTypes.ExternalUriOpenerPriority,
-			FileChangeType: extHostTypes.FileChangeType,
-			FileDecoration: extHostTypes.FileDecoration,
-			FileSystemError: extHostTypes.FileSystemError,
-			FileType: files.FileType,
-			FilePermission: files.FilePermission,
-			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeKind: extHostTypes.FoldingRangeKind,
-			FunctionBreakpoint: extHostTypes.FunctionBreakpoint,
-			InlineCompletionItem: extHostTypes.InlineSuggestion,
-			InlineCompletionList: extHostTypes.InlineSuggestions,
-			Hover: extHostTypes.Hover,
-			IndentAction: languageConfiguration.IndentAction,
-			Location: extHostTypes.Location,
-			MarkdownString: extHostTypes.MarkdownString,
-			OverviewRulerLane: OverviewRulerLane,
-			ParameterInformation: extHostTypes.ParameterInformation,
-			PortAutoForwardAction: extHostTypes.PortAutoForwardAction,
+			ExtewnawUwiOpenewPwiowity: extHostTypes.ExtewnawUwiOpenewPwiowity,
+			FiweChangeType: extHostTypes.FiweChangeType,
+			FiweDecowation: extHostTypes.FiweDecowation,
+			FiweSystemEwwow: extHostTypes.FiweSystemEwwow,
+			FiweType: fiwes.FiweType,
+			FiwePewmission: fiwes.FiwePewmission,
+			FowdingWange: extHostTypes.FowdingWange,
+			FowdingWangeKind: extHostTypes.FowdingWangeKind,
+			FunctionBweakpoint: extHostTypes.FunctionBweakpoint,
+			InwineCompwetionItem: extHostTypes.InwineSuggestion,
+			InwineCompwetionWist: extHostTypes.InwineSuggestions,
+			Hova: extHostTypes.Hova,
+			IndentAction: wanguageConfiguwation.IndentAction,
+			Wocation: extHostTypes.Wocation,
+			MawkdownStwing: extHostTypes.MawkdownStwing,
+			OvewviewWuwewWane: OvewviewWuwewWane,
+			PawametewInfowmation: extHostTypes.PawametewInfowmation,
+			PowtAutoFowwawdAction: extHostTypes.PowtAutoFowwawdAction,
 			Position: extHostTypes.Position,
-			ProcessExecution: extHostTypes.ProcessExecution,
-			ProgressLocation: extHostTypes.ProgressLocation,
+			PwocessExecution: extHostTypes.PwocessExecution,
+			PwogwessWocation: extHostTypes.PwogwessWocation,
 			QuickInputButtons: extHostTypes.QuickInputButtons,
-			Range: extHostTypes.Range,
-			RelativePattern: extHostTypes.RelativePattern,
-			Selection: extHostTypes.Selection,
-			SelectionRange: extHostTypes.SelectionRange,
+			Wange: extHostTypes.Wange,
+			WewativePattewn: extHostTypes.WewativePattewn,
+			Sewection: extHostTypes.Sewection,
+			SewectionWange: extHostTypes.SewectionWange,
 			SemanticTokens: extHostTypes.SemanticTokens,
-			SemanticTokensBuilder: extHostTypes.SemanticTokensBuilder,
+			SemanticTokensBuiwda: extHostTypes.SemanticTokensBuiwda,
 			SemanticTokensEdit: extHostTypes.SemanticTokensEdit,
 			SemanticTokensEdits: extHostTypes.SemanticTokensEdits,
-			SemanticTokensLegend: extHostTypes.SemanticTokensLegend,
-			ShellExecution: extHostTypes.ShellExecution,
-			ShellQuoting: extHostTypes.ShellQuoting,
-			SignatureHelp: extHostTypes.SignatureHelp,
-			SignatureHelpTriggerKind: extHostTypes.SignatureHelpTriggerKind,
-			SignatureInformation: extHostTypes.SignatureInformation,
-			SnippetString: extHostTypes.SnippetString,
-			SourceBreakpoint: extHostTypes.SourceBreakpoint,
-			StandardTokenType: extHostTypes.StandardTokenType,
-			StatusBarAlignment: extHostTypes.StatusBarAlignment,
-			SymbolInformation: extHostTypes.SymbolInformation,
-			SymbolKind: extHostTypes.SymbolKind,
-			SymbolTag: extHostTypes.SymbolTag,
+			SemanticTokensWegend: extHostTypes.SemanticTokensWegend,
+			ShewwExecution: extHostTypes.ShewwExecution,
+			ShewwQuoting: extHostTypes.ShewwQuoting,
+			SignatuweHewp: extHostTypes.SignatuweHewp,
+			SignatuweHewpTwiggewKind: extHostTypes.SignatuweHewpTwiggewKind,
+			SignatuweInfowmation: extHostTypes.SignatuweInfowmation,
+			SnippetStwing: extHostTypes.SnippetStwing,
+			SouwceBweakpoint: extHostTypes.SouwceBweakpoint,
+			StandawdTokenType: extHostTypes.StandawdTokenType,
+			StatusBawAwignment: extHostTypes.StatusBawAwignment,
+			SymbowInfowmation: extHostTypes.SymbowInfowmation,
+			SymbowKind: extHostTypes.SymbowKind,
+			SymbowTag: extHostTypes.SymbowTag,
 			Task: extHostTypes.Task,
-			TaskGroup: extHostTypes.TaskGroup,
-			TaskPanelKind: extHostTypes.TaskPanelKind,
-			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskGwoup: extHostTypes.TaskGwoup,
+			TaskPanewKind: extHostTypes.TaskPanewKind,
+			TaskWeveawKind: extHostTypes.TaskWeveawKind,
 			TaskScope: extHostTypes.TaskScope,
-			TerminalLink: extHostTypes.TerminalLink,
-			TerminalLocation: extHostTypes.TerminalLocation,
-			TerminalProfile: extHostTypes.TerminalProfile,
-			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
+			TewminawWink: extHostTypes.TewminawWink,
+			TewminawWocation: extHostTypes.TewminawWocation,
+			TewminawPwofiwe: extHostTypes.TewminawPwofiwe,
+			TextDocumentSaveWeason: extHostTypes.TextDocumentSaveWeason,
 			TextEdit: extHostTypes.TextEdit,
-			TextEditorCursorStyle: TextEditorCursorStyle,
-			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
-			TextEditorRevealType: extHostTypes.TextEditorRevealType,
-			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
-			TextDocumentChangeReason: extHostTypes.TextDocumentChangeReason,
-			ThemeColor: extHostTypes.ThemeColor,
+			TextEditowCuwsowStywe: TextEditowCuwsowStywe,
+			TextEditowWineNumbewsStywe: extHostTypes.TextEditowWineNumbewsStywe,
+			TextEditowWeveawType: extHostTypes.TextEditowWeveawType,
+			TextEditowSewectionChangeKind: extHostTypes.TextEditowSewectionChangeKind,
+			TextDocumentChangeWeason: extHostTypes.TextDocumentChangeWeason,
+			ThemeCowow: extHostTypes.ThemeCowow,
 			ThemeIcon: extHostTypes.ThemeIcon,
-			TreeItem: extHostTypes.TreeItem,
-			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
-			TypeHierarchyItem: extHostTypes.TypeHierarchyItem,
+			TweeItem: extHostTypes.TweeItem,
+			TweeItemCowwapsibweState: extHostTypes.TweeItemCowwapsibweState,
+			TypeHiewawchyItem: extHostTypes.TypeHiewawchyItem,
 			UIKind: UIKind,
-			Uri: URI,
-			ViewColumn: extHostTypes.ViewColumn,
-			WorkspaceEdit: extHostTypes.WorkspaceEdit,
-			// proposed api types
-			InlayHint: extHostTypes.InlayHint,
-			InlayHintKind: extHostTypes.InlayHintKind,
-			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
-			ResolvedAuthority: extHostTypes.ResolvedAuthority,
-			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
-			ExtensionRuntime: extHostTypes.ExtensionRuntime,
-			TimelineItem: extHostTypes.TimelineItem,
-			NotebookRange: extHostTypes.NotebookRange,
-			NotebookCellKind: extHostTypes.NotebookCellKind,
-			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
-			NotebookCellData: extHostTypes.NotebookCellData,
+			Uwi: UWI,
+			ViewCowumn: extHostTypes.ViewCowumn,
+			WowkspaceEdit: extHostTypes.WowkspaceEdit,
+			// pwoposed api types
+			InwayHint: extHostTypes.InwayHint,
+			InwayHintKind: extHostTypes.InwayHintKind,
+			WemoteAuthowityWesowvewEwwow: extHostTypes.WemoteAuthowityWesowvewEwwow,
+			WesowvedAuthowity: extHostTypes.WesowvedAuthowity,
+			SouwceContwowInputBoxVawidationType: extHostTypes.SouwceContwowInputBoxVawidationType,
+			ExtensionWuntime: extHostTypes.ExtensionWuntime,
+			TimewineItem: extHostTypes.TimewineItem,
+			NotebookWange: extHostTypes.NotebookWange,
+			NotebookCewwKind: extHostTypes.NotebookCewwKind,
+			NotebookCewwExecutionState: extHostTypes.NotebookCewwExecutionState,
+			NotebookCewwData: extHostTypes.NotebookCewwData,
 			NotebookData: extHostTypes.NotebookData,
-			NotebookRendererScript: extHostTypes.NotebookRendererScript,
-			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
-			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
-			NotebookCellOutput: extHostTypes.NotebookCellOutput,
-			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
-			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
-			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
-			PortAttributes: extHostTypes.PortAttributes,
-			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
-			TestResultState: extHostTypes.TestResultState,
-			TestRunRequest: extHostTypes.TestRunRequest,
+			NotebookWendewewScwipt: extHostTypes.NotebookWendewewScwipt,
+			NotebookCewwStatusBawAwignment: extHostTypes.NotebookCewwStatusBawAwignment,
+			NotebookEditowWeveawType: extHostTypes.NotebookEditowWeveawType,
+			NotebookCewwOutput: extHostTypes.NotebookCewwOutput,
+			NotebookCewwOutputItem: extHostTypes.NotebookCewwOutputItem,
+			NotebookCewwStatusBawItem: extHostTypes.NotebookCewwStatusBawItem,
+			NotebookContwowwewAffinity: extHostTypes.NotebookContwowwewAffinity,
+			PowtAttwibutes: extHostTypes.PowtAttwibutes,
+			WinkedEditingWanges: extHostTypes.WinkedEditingWanges,
+			TestWesuwtState: extHostTypes.TestWesuwtState,
+			TestWunWequest: extHostTypes.TestWunWequest,
 			TestMessage: extHostTypes.TestMessage,
 			TestTag: extHostTypes.TestTag,
-			TestRunProfileKind: extHostTypes.TestRunProfileKind,
-			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
-			CoveredCount: extHostTypes.CoveredCount,
-			FileCoverage: extHostTypes.FileCoverage,
-			StatementCoverage: extHostTypes.StatementCoverage,
-			BranchCoverage: extHostTypes.BranchCoverage,
-			FunctionCoverage: extHostTypes.FunctionCoverage,
-			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
-			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
+			TestWunPwofiweKind: extHostTypes.TestWunPwofiweKind,
+			TextSeawchCompweteMessageType: TextSeawchCompweteMessageType,
+			CovewedCount: extHostTypes.CovewedCount,
+			FiweCovewage: extHostTypes.FiweCovewage,
+			StatementCovewage: extHostTypes.StatementCovewage,
+			BwanchCovewage: extHostTypes.BwanchCovewage,
+			FunctionCovewage: extHostTypes.FunctionCovewage,
+			WowkspaceTwustState: extHostTypes.WowkspaceTwustState,
+			WanguageStatusSevewity: extHostTypes.WanguageStatusSevewity,
 		};
 	};
 }

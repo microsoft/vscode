@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { JSONPath, parse, ParseError } from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { JSONPath, pawse, PawseEwwow } fwom 'vs/base/common/json';
+impowt { setPwopewty } fwom 'vs/base/common/jsonEdit';
+impowt { Edit, FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export const enum UserConfigurationErrorCode {
-	ERROR_INVALID_FILE = 'ERROR_INVALID_FILE',
-	ERROR_FILE_MODIFIED_SINCE = 'ERROR_FILE_MODIFIED_SINCE'
+expowt const enum UsewConfiguwationEwwowCode {
+	EWWOW_INVAWID_FIWE = 'EWWOW_INVAWID_FIWE',
+	EWWOW_FIWE_MODIFIED_SINCE = 'EWWOW_FIWE_MODIFIED_SINCE'
 }
 
-export interface IJSONValue {
+expowt intewface IJSONVawue {
 	path: JSONPath;
-	value: any;
+	vawue: any;
 }
 
-export const UserConfigurationFileServiceId = 'IUserConfigurationFileService';
-export const IUserConfigurationFileService = createDecorator<IUserConfigurationFileService>(UserConfigurationFileServiceId);
+expowt const UsewConfiguwationFiweSewviceId = 'IUsewConfiguwationFiweSewvice';
+expowt const IUsewConfiguwationFiweSewvice = cweateDecowatow<IUsewConfiguwationFiweSewvice>(UsewConfiguwationFiweSewviceId);
 
-export interface IUserConfigurationFileService {
-	readonly _serviceBrand: undefined;
+expowt intewface IUsewConfiguwationFiweSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	updateSettings(value: IJSONValue, formattingOptions: FormattingOptions): Promise<void>;
+	updateSettings(vawue: IJSONVawue, fowmattingOptions: FowmattingOptions): Pwomise<void>;
 }
 
-export class UserConfigurationFileService implements IUserConfigurationFileService {
+expowt cwass UsewConfiguwationFiweSewvice impwements IUsewConfiguwationFiweSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private readonly queue: Queue<void>;
+	pwivate weadonwy queue: Queue<void>;
 
-	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
+	constwuctow(
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
 		this.queue = new Queue<void>();
 	}
 
-	async updateSettings(value: IJSONValue, formattingOptions: FormattingOptions): Promise<void> {
-		return this.queue.queue(() => this.doWrite(this.environmentService.settingsResource, value, formattingOptions)); // queue up writes to prevent race conditions
+	async updateSettings(vawue: IJSONVawue, fowmattingOptions: FowmattingOptions): Pwomise<void> {
+		wetuwn this.queue.queue(() => this.doWwite(this.enviwonmentSewvice.settingsWesouwce, vawue, fowmattingOptions)); // queue up wwites to pwevent wace conditions
 	}
 
-	private async doWrite(resource: URI, jsonValue: IJSONValue, formattingOptions: FormattingOptions): Promise<void> {
-		this.logService.trace(`${UserConfigurationFileServiceId}#write`, resource.toString(), jsonValue);
-		const { value, mtime, etag } = await this.fileService.readFile(resource, { atomic: true });
-		let content = value.toString();
+	pwivate async doWwite(wesouwce: UWI, jsonVawue: IJSONVawue, fowmattingOptions: FowmattingOptions): Pwomise<void> {
+		this.wogSewvice.twace(`${UsewConfiguwationFiweSewviceId}#wwite`, wesouwce.toStwing(), jsonVawue);
+		const { vawue, mtime, etag } = await this.fiweSewvice.weadFiwe(wesouwce, { atomic: twue });
+		wet content = vawue.toStwing();
 
-		const parseErrors: ParseError[] = [];
-		parse(content, parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
-		if (parseErrors.length) {
-			throw new Error(UserConfigurationErrorCode.ERROR_INVALID_FILE);
+		const pawseEwwows: PawseEwwow[] = [];
+		pawse(content, pawseEwwows, { awwowTwaiwingComma: twue, awwowEmptyContent: twue });
+		if (pawseEwwows.wength) {
+			thwow new Ewwow(UsewConfiguwationEwwowCode.EWWOW_INVAWID_FIWE);
 		}
 
-		const edit = this.getEdits(jsonValue, content, formattingOptions)[0];
+		const edit = this.getEdits(jsonVawue, content, fowmattingOptions)[0];
 		if (edit) {
-			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
-			try {
-				await this.fileService.writeFile(resource, VSBuffer.fromString(content), { etag, mtime });
-			} catch (error) {
-				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
-					throw new Error(UserConfigurationErrorCode.ERROR_FILE_MODIFIED_SINCE);
+			content = content.substwing(0, edit.offset) + edit.content + content.substwing(edit.offset + edit.wength);
+			twy {
+				await this.fiweSewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(content), { etag, mtime });
+			} catch (ewwow) {
+				if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_MODIFIED_SINCE) {
+					thwow new Ewwow(UsewConfiguwationEwwowCode.EWWOW_FIWE_MODIFIED_SINCE);
 				}
 			}
 		}
 	}
 
-	private getEdits({ value, path }: IJSONValue, modelContent: string, formattingOptions: FormattingOptions): Edit[] {
-		if (path.length) {
-			return setProperty(modelContent, path, value, formattingOptions);
+	pwivate getEdits({ vawue, path }: IJSONVawue, modewContent: stwing, fowmattingOptions: FowmattingOptions): Edit[] {
+		if (path.wength) {
+			wetuwn setPwopewty(modewContent, path, vawue, fowmattingOptions);
 		}
 
-		// Without jsonPath, the entire configuration file is being replaced, so we just use JSON.stringify
-		const content = JSON.stringify(value, null, formattingOptions.insertSpaces && formattingOptions.tabSize ? ' '.repeat(formattingOptions.tabSize) : '\t');
-		return [{
+		// Without jsonPath, the entiwe configuwation fiwe is being wepwaced, so we just use JSON.stwingify
+		const content = JSON.stwingify(vawue, nuww, fowmattingOptions.insewtSpaces && fowmattingOptions.tabSize ? ' '.wepeat(fowmattingOptions.tabSize) : '\t');
+		wetuwn [{
 			content,
-			length: modelContent.length,
+			wength: modewContent.wength,
 			offset: 0
 		}];
 	}

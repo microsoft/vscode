@@ -1,4 +1,4 @@
-<!-- Should highlight math blocks -->
+<!-- Shouwd highwight math bwocks -->
 
 $$
 \theta
@@ -11,7 +11,7 @@ $$
 **a**
 
 $$
-\relax{x}{1} = \int_{-\infty}^\infty
+\wewax{x}{1} = \int_{-\infty}^\infty
     \hat\xi\,e^{2 \pi i \xi x}
     \,d\xi % comment
 $$
@@ -21,21 +21,21 @@ x = 1.1 \int_{a}
 $
 
 $
-\begin{smallmatrix}
+\begin{smawwmatwix}
    1 & 2 \\
    4 & 3
-\end{smallmatrix}
+\end{smawwmatwix}
 $
 
 $
-x = a_0 + \frac{1}{a_1 + \frac{1}{a_2 + \frac{1}{a_3 + a_4}}}
+x = a_0 + \fwac{1}{a_1 + \fwac{1}{a_2 + \fwac{1}{a_3 + a_4}}}
 $
 
 $
-\displaystyle {1 + \frac{q^2}{(1-q)}+\frac{q^6}{(1-q)(1-q^2)}+\cdots }= \prod_{j=0}^{\infty}\frac{1}{(1-q^{5j+2})(1-q^{5j+3})}, \quad\quad \text{for }\lvert q\rvert<1.
+\dispwaystywe {1 + \fwac{q^2}{(1-q)}+\fwac{q^6}{(1-q)(1-q^2)}+\cdots }= \pwod_{j=0}^{\infty}\fwac{1}{(1-q^{5j+2})(1-q^{5j+3})}, \quad\quad \text{fow }\wvewt q\wvewt<1.
 $
 
-<!--  Should highlight inline -->
+<!--  Shouwd highwight inwine -->
 
 a **a** $$ \theta $$ aa a **a**
 
@@ -45,7 +45,7 @@ $ \theta $
 
 $$ 1 \theta 1 1 $$
 
-<!--  Should not highlight inline cases without whitespace -->
+<!--  Shouwd not highwight inwine cases without whitespace -->
 
 $10 $20
 
@@ -63,27 +63,27 @@ $$
 $$
 -->
 
-Should be disabled in fenced code blocks:
+Shouwd be disabwed in fenced code bwocks:
 
 ```txt
 $$
-\displaystyle
-\left( \sum_{k=1}^n a_k b_k \right)^2
-\leq
-\left( \sum_{k=1}^n a_k^2 \right)
-\left( \sum_{k=1}^n b_k^2 \right)
+\dispwaystywe
+\weft( \sum_{k=1}^n a_k b_k \wight)^2
+\weq
+\weft( \sum_{k=1}^n a_k^2 \wight)
+\weft( \sum_{k=1}^n b_k^2 \wight)
 $$
 ```
 
 <!-- #128411 -->
 
-- list item
+- wist item
     **abc**
     $$
-    \begin{aligned}
+    \begin{awigned}
         &\text{Any equation}
         \\
-        &\text {Inconsistent KaTeX keyword highlighting}
-    \end{aligned}
+        &\text {Inconsistent KaTeX keywowd highwighting}
+    \end{awigned}
     $$
     **xyz**

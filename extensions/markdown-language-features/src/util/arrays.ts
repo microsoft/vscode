@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
-	if (one.length !== other.length) {
-		return false;
+expowt function equaws<T>(one: WeadonwyAwway<T>, otha: WeadonwyAwway<T>, itemEquaws: (a: T, b: T) => boowean = (a, b) => a === b): boowean {
+	if (one.wength !== otha.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0, len = one.length; i < len; i++) {
-		if (!itemEquals(one[i], other[i])) {
-			return false;
+	fow (wet i = 0, wen = one.wength; i < wen; i++) {
+		if (!itemEquaws(one[i], otha[i])) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }

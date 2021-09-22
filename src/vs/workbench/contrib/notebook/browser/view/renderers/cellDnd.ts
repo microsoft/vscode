@@ -1,409 +1,409 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { expandCewwWangesWithHiddenCewws, ICewwViewModew, INotebookEditowDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { BaseCewwWendewTempwate, INotebookCewwWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
+impowt { cwoneNotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwEditType, SewectionStateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { cewwWangesToIndexes, ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
 
 const $ = DOM.$;
 
-export const DRAGGING_CLASS = 'cell-dragging';
-export const GLOBAL_DRAG_CLASS = 'global-drag-active';
+expowt const DWAGGING_CWASS = 'ceww-dwagging';
+expowt const GWOBAW_DWAG_CWASS = 'gwobaw-dwag-active';
 
-type DragImageProvider = () => HTMLElement;
+type DwagImagePwovida = () => HTMWEwement;
 
-interface CellDragEvent {
-	browserEvent: DragEvent;
-	draggedOverCell: ICellViewModel;
-	cellTop: number;
-	cellHeight: number;
-	dragPosRatio: number;
+intewface CewwDwagEvent {
+	bwowsewEvent: DwagEvent;
+	dwaggedOvewCeww: ICewwViewModew;
+	cewwTop: numba;
+	cewwHeight: numba;
+	dwagPosWatio: numba;
 }
 
-export class CellDragAndDropController extends Disposable {
-	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
-	// to figure out how to prevent that
-	private currentDraggedCell: ICellViewModel | undefined;
+expowt cwass CewwDwagAndDwopContwowwa extends Disposabwe {
+	// TODO@wobwouwens - shouwd pwobabwy use dataTwansfa hewe, but any dataTwansfa set makes the editow think I am dwopping a fiwe, need
+	// to figuwe out how to pwevent that
+	pwivate cuwwentDwaggedCeww: ICewwViewModew | undefined;
 
-	private listInsertionIndicator: HTMLElement;
+	pwivate wistInsewtionIndicatow: HTMWEwement;
 
-	private list!: INotebookCellList;
+	pwivate wist!: INotebookCewwWist;
 
-	private isScrolling = false;
-	private readonly scrollingDelayer: Delayer<void>;
+	pwivate isScwowwing = fawse;
+	pwivate weadonwy scwowwingDewaya: Dewaya<void>;
 
-	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
+	pwivate weadonwy wistOnWiwwScwowwWistena = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		private readonly notebookEditor: INotebookEditorDelegate,
-		insertionIndicatorContainer: HTMLElement
+	constwuctow(
+		pwivate weadonwy notebookEditow: INotebookEditowDewegate,
+		insewtionIndicatowContaina: HTMWEwement
 	) {
-		super();
+		supa();
 
-		this.listInsertionIndicator = DOM.append(insertionIndicatorContainer, $('.cell-list-insertion-indicator'));
+		this.wistInsewtionIndicatow = DOM.append(insewtionIndicatowContaina, $('.ceww-wist-insewtion-indicatow'));
 
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
+		this._wegista(DOM.addDisposabweWistena(document.body, DOM.EventType.DWAG_STAWT, this.onGwobawDwagStawt.bind(this), twue));
+		this._wegista(DOM.addDisposabweWistena(document.body, DOM.EventType.DWAG_END, this.onGwobawDwagEnd.bind(this), twue));
 
-		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
-			this._register(DOM.addDisposableListener(
-				notebookEditor.getDomNode(),
+		const addCewwDwagWistena = (eventType: stwing, handwa: (e: CewwDwagEvent) => void) => {
+			this._wegista(DOM.addDisposabweWistena(
+				notebookEditow.getDomNode(),
 				eventType,
 				e => {
-					const cellDragEvent = this.toCellDragEvent(e);
-					if (cellDragEvent) {
-						handler(cellDragEvent);
+					const cewwDwagEvent = this.toCewwDwagEvent(e);
+					if (cewwDwagEvent) {
+						handwa(cewwDwagEvent);
 					}
 				}));
 		};
 
-		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
-			event.browserEvent.preventDefault();
-			this.onCellDragover(event);
+		addCewwDwagWistena(DOM.EventType.DWAG_OVa, event => {
+			event.bwowsewEvent.pweventDefauwt();
+			this.onCewwDwagova(event);
 		});
-		addCellDragListener(DOM.EventType.DROP, event => {
-			event.browserEvent.preventDefault();
-			this.onCellDrop(event);
+		addCewwDwagWistena(DOM.EventType.DWOP, event => {
+			event.bwowsewEvent.pweventDefauwt();
+			this.onCewwDwop(event);
 		});
-		addCellDragListener(DOM.EventType.DRAG_LEAVE, event => {
-			event.browserEvent.preventDefault();
-			this.onCellDragLeave(event);
+		addCewwDwagWistena(DOM.EventType.DWAG_WEAVE, event => {
+			event.bwowsewEvent.pweventDefauwt();
+			this.onCewwDwagWeave(event);
 		});
 
-		this.scrollingDelayer = this._register(new Delayer(200));
+		this.scwowwingDewaya = this._wegista(new Dewaya(200));
 	}
 
-	setList(value: INotebookCellList) {
-		this.list = value;
+	setWist(vawue: INotebookCewwWist) {
+		this.wist = vawue;
 
-		this.listOnWillScrollListener.value = this.list.onWillScroll(e => {
-			if (!e.scrollTopChanged) {
-				return;
+		this.wistOnWiwwScwowwWistena.vawue = this.wist.onWiwwScwoww(e => {
+			if (!e.scwowwTopChanged) {
+				wetuwn;
 			}
 
-			this.setInsertIndicatorVisibility(false);
-			this.isScrolling = true;
-			this.scrollingDelayer.trigger(() => {
-				this.isScrolling = false;
+			this.setInsewtIndicatowVisibiwity(fawse);
+			this.isScwowwing = twue;
+			this.scwowwingDewaya.twigga(() => {
+				this.isScwowwing = fawse;
 			});
 		});
 	}
 
-	private setInsertIndicatorVisibility(visible: boolean) {
-		this.listInsertionIndicator.style.opacity = visible ? '1' : '0';
+	pwivate setInsewtIndicatowVisibiwity(visibwe: boowean) {
+		this.wistInsewtionIndicatow.stywe.opacity = visibwe ? '1' : '0';
 	}
 
-	private toCellDragEvent(event: DragEvent): CellDragEvent | undefined {
-		const targetTop = this.notebookEditor.getDomNode().getBoundingClientRect().top;
-		const dragOffset = this.list.scrollTop + event.clientY - targetTop;
-		const draggedOverCell = this.list.elementAt(dragOffset);
-		if (!draggedOverCell) {
-			return undefined;
+	pwivate toCewwDwagEvent(event: DwagEvent): CewwDwagEvent | undefined {
+		const tawgetTop = this.notebookEditow.getDomNode().getBoundingCwientWect().top;
+		const dwagOffset = this.wist.scwowwTop + event.cwientY - tawgetTop;
+		const dwaggedOvewCeww = this.wist.ewementAt(dwagOffset);
+		if (!dwaggedOvewCeww) {
+			wetuwn undefined;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
-		const cellHeight = this.list.elementHeight(draggedOverCell);
+		const cewwTop = this.wist.getAbsowuteTopOfEwement(dwaggedOvewCeww);
+		const cewwHeight = this.wist.ewementHeight(dwaggedOvewCeww);
 
-		const dragPosInElement = dragOffset - cellTop;
-		const dragPosRatio = dragPosInElement / cellHeight;
+		const dwagPosInEwement = dwagOffset - cewwTop;
+		const dwagPosWatio = dwagPosInEwement / cewwHeight;
 
-		return <CellDragEvent>{
-			browserEvent: event,
-			draggedOverCell,
-			cellTop,
-			cellHeight,
-			dragPosRatio
+		wetuwn <CewwDwagEvent>{
+			bwowsewEvent: event,
+			dwaggedOvewCeww,
+			cewwTop,
+			cewwHeight,
+			dwagPosWatio
 		};
 	}
 
-	clearGlobalDragState() {
-		this.notebookEditor.getDomNode().classList.remove(GLOBAL_DRAG_CLASS);
+	cweawGwobawDwagState() {
+		this.notebookEditow.getDomNode().cwassWist.wemove(GWOBAW_DWAG_CWASS);
 	}
 
-	private onGlobalDragStart() {
-		this.notebookEditor.getDomNode().classList.add(GLOBAL_DRAG_CLASS);
+	pwivate onGwobawDwagStawt() {
+		this.notebookEditow.getDomNode().cwassWist.add(GWOBAW_DWAG_CWASS);
 	}
 
-	private onGlobalDragEnd() {
-		this.notebookEditor.getDomNode().classList.remove(GLOBAL_DRAG_CLASS);
+	pwivate onGwobawDwagEnd() {
+		this.notebookEditow.getDomNode().cwassWist.wemove(GWOBAW_DWAG_CWASS);
 	}
 
-	private onCellDragover(event: CellDragEvent): void {
-		if (!event.browserEvent.dataTransfer) {
-			return;
+	pwivate onCewwDwagova(event: CewwDwagEvent): void {
+		if (!event.bwowsewEvent.dataTwansfa) {
+			wetuwn;
 		}
 
-		if (!this.currentDraggedCell) {
-			event.browserEvent.dataTransfer.dropEffect = 'none';
-			return;
+		if (!this.cuwwentDwaggedCeww) {
+			event.bwowsewEvent.dataTwansfa.dwopEffect = 'none';
+			wetuwn;
 		}
 
-		if (this.isScrolling || this.currentDraggedCell === event.draggedOverCell) {
-			this.setInsertIndicatorVisibility(false);
-			return;
+		if (this.isScwowwing || this.cuwwentDwaggedCeww === event.dwaggedOvewCeww) {
+			this.setInsewtIndicatowVisibiwity(fawse);
+			wetuwn;
 		}
 
-		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
-		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
-		this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
+		const dwopDiwection = this.getDwopInsewtDiwection(event.dwagPosWatio);
+		const insewtionIndicatowAbsowutePos = dwopDiwection === 'above' ? event.cewwTop : event.cewwTop + event.cewwHeight;
+		this.updateInsewtIndicatow(dwopDiwection, insewtionIndicatowAbsowutePos);
 	}
 
-	private updateInsertIndicator(dropDirection: string, insertionIndicatorAbsolutePos: number) {
-		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + bottomToolbarGap / 2;
-		if (insertionIndicatorTop >= 0) {
-			this.listInsertionIndicator.style.top = `${insertionIndicatorTop}px`;
-			this.setInsertIndicatorVisibility(true);
-		} else {
-			this.setInsertIndicatorVisibility(false);
-		}
-	}
-
-	private getDropInsertDirection(dragPosRatio: number): 'above' | 'below' {
-		return dragPosRatio < 0.5 ? 'above' : 'below';
-	}
-
-	private onCellDrop(event: CellDragEvent): void {
-		const draggedCell = this.currentDraggedCell!;
-
-		if (this.isScrolling || this.currentDraggedCell === event.draggedOverCell) {
-			return;
-		}
-
-		this.dragCleanup();
-
-		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
-		this._dropImpl(draggedCell, dropDirection, event.browserEvent, event.draggedOverCell);
-	}
-
-	private getCellRangeAroundDragTarget(draggedCellIndex: number) {
-		const selections = this.notebookEditor.getSelections();
-		const modelRanges = expandCellRangesWithHiddenCells(this.notebookEditor, selections);
-		const nearestRange = modelRanges.find(range => range.start <= draggedCellIndex && draggedCellIndex < range.end);
-
-		if (nearestRange) {
-			return nearestRange;
-		} else {
-			return { start: draggedCellIndex, end: draggedCellIndex + 1 };
+	pwivate updateInsewtIndicatow(dwopDiwection: stwing, insewtionIndicatowAbsowutePos: numba) {
+		const { bottomToowbawGap } = this.notebookEditow.notebookOptions.computeBottomToowbawDimensions(this.notebookEditow.textModew?.viewType);
+		const insewtionIndicatowTop = insewtionIndicatowAbsowutePos - this.wist.scwowwTop + bottomToowbawGap / 2;
+		if (insewtionIndicatowTop >= 0) {
+			this.wistInsewtionIndicatow.stywe.top = `${insewtionIndicatowTop}px`;
+			this.setInsewtIndicatowVisibiwity(twue);
+		} ewse {
+			this.setInsewtIndicatowVisibiwity(fawse);
 		}
 	}
 
-	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean, altKey: boolean; }, draggedOverCell: ICellViewModel) {
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
-		const cellHeight = this.list.elementHeight(draggedOverCell);
-		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
-		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + bottomToolbarGap / 2;
-		const editorHeight = this.notebookEditor.getDomNode().getBoundingClientRect().height;
-		if (insertionIndicatorTop < 0 || insertionIndicatorTop > editorHeight) {
-			// Ignore drop, insertion point is off-screen
-			return;
+	pwivate getDwopInsewtDiwection(dwagPosWatio: numba): 'above' | 'bewow' {
+		wetuwn dwagPosWatio < 0.5 ? 'above' : 'bewow';
+	}
+
+	pwivate onCewwDwop(event: CewwDwagEvent): void {
+		const dwaggedCeww = this.cuwwentDwaggedCeww!;
+
+		if (this.isScwowwing || this.cuwwentDwaggedCeww === event.dwaggedOvewCeww) {
+			wetuwn;
 		}
 
-		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
+		this.dwagCweanup();
 
-		if (!this.notebookEditor.hasModel()) {
-			return;
+		const dwopDiwection = this.getDwopInsewtDiwection(event.dwagPosWatio);
+		this._dwopImpw(dwaggedCeww, dwopDiwection, event.bwowsewEvent, event.dwaggedOvewCeww);
+	}
+
+	pwivate getCewwWangeAwoundDwagTawget(dwaggedCewwIndex: numba) {
+		const sewections = this.notebookEditow.getSewections();
+		const modewWanges = expandCewwWangesWithHiddenCewws(this.notebookEditow, sewections);
+		const neawestWange = modewWanges.find(wange => wange.stawt <= dwaggedCewwIndex && dwaggedCewwIndex < wange.end);
+
+		if (neawestWange) {
+			wetuwn neawestWange;
+		} ewse {
+			wetuwn { stawt: dwaggedCewwIndex, end: dwaggedCewwIndex + 1 };
+		}
+	}
+
+	pwivate _dwopImpw(dwaggedCeww: ICewwViewModew, dwopDiwection: 'above' | 'bewow', ctx: { ctwwKey: boowean, awtKey: boowean; }, dwaggedOvewCeww: ICewwViewModew) {
+		const cewwTop = this.wist.getAbsowuteTopOfEwement(dwaggedOvewCeww);
+		const cewwHeight = this.wist.ewementHeight(dwaggedOvewCeww);
+		const insewtionIndicatowAbsowutePos = dwopDiwection === 'above' ? cewwTop : cewwTop + cewwHeight;
+		const { bottomToowbawGap } = this.notebookEditow.notebookOptions.computeBottomToowbawDimensions(this.notebookEditow.textModew?.viewType);
+		const insewtionIndicatowTop = insewtionIndicatowAbsowutePos - this.wist.scwowwTop + bottomToowbawGap / 2;
+		const editowHeight = this.notebookEditow.getDomNode().getBoundingCwientWect().height;
+		if (insewtionIndicatowTop < 0 || insewtionIndicatowTop > editowHeight) {
+			// Ignowe dwop, insewtion point is off-scween
+			wetuwn;
 		}
 
-		const textModel = this.notebookEditor.textModel;
+		const isCopy = (ctx.ctwwKey && !pwatfowm.isMacintosh) || (ctx.awtKey && pwatfowm.isMacintosh);
+
+		if (!this.notebookEditow.hasModew()) {
+			wetuwn;
+		}
+
+		const textModew = this.notebookEditow.textModew;
 
 		if (isCopy) {
-			const draggedCellIndex = this.notebookEditor.getCellIndex(draggedCell);
-			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
+			const dwaggedCewwIndex = this.notebookEditow.getCewwIndex(dwaggedCeww);
+			const wange = this.getCewwWangeAwoundDwagTawget(dwaggedCewwIndex);
 
-			let originalToIdx = this.notebookEditor.getCellIndex(draggedOverCell);
-			if (dropDirection === 'below') {
-				const relativeToIndex = this.notebookEditor.getCellIndex(draggedOverCell);
-				const newIdx = this.notebookEditor.getNextVisibleCellIndex(relativeToIndex);
-				originalToIdx = newIdx;
+			wet owiginawToIdx = this.notebookEditow.getCewwIndex(dwaggedOvewCeww);
+			if (dwopDiwection === 'bewow') {
+				const wewativeToIndex = this.notebookEditow.getCewwIndex(dwaggedOvewCeww);
+				const newIdx = this.notebookEditow.getNextVisibweCewwIndex(wewativeToIndex);
+				owiginawToIdx = newIdx;
 			}
 
-			let finalSelection: ICellRange;
-			let finalFocus: ICellRange;
+			wet finawSewection: ICewwWange;
+			wet finawFocus: ICewwWange;
 
-			if (originalToIdx <= range.start) {
-				finalSelection = { start: originalToIdx, end: originalToIdx + range.end - range.start };
-				finalFocus = { start: originalToIdx + draggedCellIndex - range.start, end: originalToIdx + draggedCellIndex - range.start + 1 };
-			} else {
-				const delta = (originalToIdx - range.start);
-				finalSelection = { start: range.start + delta, end: range.end + delta };
-				finalFocus = { start: draggedCellIndex + delta, end: draggedCellIndex + delta + 1 };
+			if (owiginawToIdx <= wange.stawt) {
+				finawSewection = { stawt: owiginawToIdx, end: owiginawToIdx + wange.end - wange.stawt };
+				finawFocus = { stawt: owiginawToIdx + dwaggedCewwIndex - wange.stawt, end: owiginawToIdx + dwaggedCewwIndex - wange.stawt + 1 };
+			} ewse {
+				const dewta = (owiginawToIdx - wange.stawt);
+				finawSewection = { stawt: wange.stawt + dewta, end: wange.end + dewta };
+				finawFocus = { stawt: dwaggedCewwIndex + dewta, end: dwaggedCewwIndex + dewta + 1 };
 			}
 
-			textModel.applyEdits([
+			textModew.appwyEdits([
 				{
-					editType: CellEditType.Replace,
-					index: originalToIdx,
+					editType: CewwEditType.Wepwace,
+					index: owiginawToIdx,
 					count: 0,
-					cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(this.notebookEditor.cellAt(index)!.model))
+					cewws: cewwWangesToIndexes([wange]).map(index => cwoneNotebookCewwTextModew(this.notebookEditow.cewwAt(index)!.modew))
 				}
-			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
-			this.notebookEditor.revealCellRangeInView(finalSelection);
-		} else {
-			const draggedCellIndex = this.notebookEditor.getCellIndex(draggedCell);
-			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
-			let originalToIdx = this.notebookEditor.getCellIndex(draggedOverCell);
-			if (dropDirection === 'below') {
-				const relativeToIndex = this.notebookEditor.getCellIndex(draggedOverCell);
-				const newIdx = this.notebookEditor.getNextVisibleCellIndex(relativeToIndex);
-				originalToIdx = newIdx;
+			], twue, { kind: SewectionStateType.Index, focus: this.notebookEditow.getFocus(), sewections: this.notebookEditow.getSewections() }, () => ({ kind: SewectionStateType.Index, focus: finawFocus, sewections: [finawSewection] }), undefined, twue);
+			this.notebookEditow.weveawCewwWangeInView(finawSewection);
+		} ewse {
+			const dwaggedCewwIndex = this.notebookEditow.getCewwIndex(dwaggedCeww);
+			const wange = this.getCewwWangeAwoundDwagTawget(dwaggedCewwIndex);
+			wet owiginawToIdx = this.notebookEditow.getCewwIndex(dwaggedOvewCeww);
+			if (dwopDiwection === 'bewow') {
+				const wewativeToIndex = this.notebookEditow.getCewwIndex(dwaggedOvewCeww);
+				const newIdx = this.notebookEditow.getNextVisibweCewwIndex(wewativeToIndex);
+				owiginawToIdx = newIdx;
 			}
 
-			if (originalToIdx >= range.start && originalToIdx <= range.end) {
-				return;
+			if (owiginawToIdx >= wange.stawt && owiginawToIdx <= wange.end) {
+				wetuwn;
 			}
 
-			let finalSelection: ICellRange;
-			let finalFocus: ICellRange;
+			wet finawSewection: ICewwWange;
+			wet finawFocus: ICewwWange;
 
-			if (originalToIdx <= range.start) {
-				finalSelection = { start: originalToIdx, end: originalToIdx + range.end - range.start };
-				finalFocus = { start: originalToIdx + draggedCellIndex - range.start, end: originalToIdx + draggedCellIndex - range.start + 1 };
-			} else {
-				const delta = (originalToIdx - range.end);
-				finalSelection = { start: range.start + delta, end: range.end + delta };
-				finalFocus = { start: draggedCellIndex + delta, end: draggedCellIndex + delta + 1 };
+			if (owiginawToIdx <= wange.stawt) {
+				finawSewection = { stawt: owiginawToIdx, end: owiginawToIdx + wange.end - wange.stawt };
+				finawFocus = { stawt: owiginawToIdx + dwaggedCewwIndex - wange.stawt, end: owiginawToIdx + dwaggedCewwIndex - wange.stawt + 1 };
+			} ewse {
+				const dewta = (owiginawToIdx - wange.end);
+				finawSewection = { stawt: wange.stawt + dewta, end: wange.end + dewta };
+				finawFocus = { stawt: dwaggedCewwIndex + dewta, end: dwaggedCewwIndex + dewta + 1 };
 			}
 
-			textModel.applyEdits([
+			textModew.appwyEdits([
 				{
-					editType: CellEditType.Move,
-					index: range.start,
-					length: range.end - range.start,
-					newIdx: originalToIdx <= range.start ? originalToIdx : (originalToIdx - (range.end - range.start))
+					editType: CewwEditType.Move,
+					index: wange.stawt,
+					wength: wange.end - wange.stawt,
+					newIdx: owiginawToIdx <= wange.stawt ? owiginawToIdx : (owiginawToIdx - (wange.end - wange.stawt))
 				}
-			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
-			this.notebookEditor.revealCellRangeInView(finalSelection);
+			], twue, { kind: SewectionStateType.Index, focus: this.notebookEditow.getFocus(), sewections: this.notebookEditow.getSewections() }, () => ({ kind: SewectionStateType.Index, focus: finawFocus, sewections: [finawSewection] }), undefined, twue);
+			this.notebookEditow.weveawCewwWangeInView(finawSewection);
 		}
 	}
 
-	private onCellDragLeave(event: CellDragEvent): void {
-		if (!event.browserEvent.relatedTarget || !DOM.isAncestor(event.browserEvent.relatedTarget as HTMLElement, this.notebookEditor.getDomNode())) {
-			this.setInsertIndicatorVisibility(false);
+	pwivate onCewwDwagWeave(event: CewwDwagEvent): void {
+		if (!event.bwowsewEvent.wewatedTawget || !DOM.isAncestow(event.bwowsewEvent.wewatedTawget as HTMWEwement, this.notebookEditow.getDomNode())) {
+			this.setInsewtIndicatowVisibiwity(fawse);
 		}
 	}
 
-	private dragCleanup(): void {
-		if (this.currentDraggedCell) {
-			this.currentDraggedCell.dragging = false;
-			this.currentDraggedCell = undefined;
+	pwivate dwagCweanup(): void {
+		if (this.cuwwentDwaggedCeww) {
+			this.cuwwentDwaggedCeww.dwagging = fawse;
+			this.cuwwentDwaggedCeww = undefined;
 		}
 
-		this.setInsertIndicatorVisibility(false);
+		this.setInsewtIndicatowVisibiwity(fawse);
 	}
 
-	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandle: HTMLElement, dragImageProvider: DragImageProvider): void {
-		const container = templateData.container;
-		dragHandle.setAttribute('draggable', 'true');
+	wegistewDwagHandwe(tempwateData: BaseCewwWendewTempwate, cewwWoot: HTMWEwement, dwagHandwe: HTMWEwement, dwagImagePwovida: DwagImagePwovida): void {
+		const containa = tempwateData.containa;
+		dwagHandwe.setAttwibute('dwaggabwe', 'twue');
 
-		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
-				return;
+		tempwateData.disposabwes.add(DOM.addDisposabweWistena(dwagHandwe, DOM.EventType.DWAG_END, () => {
+			if (!this.notebookEditow.notebookOptions.getWayoutConfiguwation().dwagAndDwopEnabwed || !!this.notebookEditow.isWeadOnwy) {
+				wetuwn;
 			}
 
-			// Note, templateData may have a different element rendered into it by now
-			container.classList.remove(DRAGGING_CLASS);
-			this.dragCleanup();
+			// Note, tempwateData may have a diffewent ewement wendewed into it by now
+			containa.cwassWist.wemove(DWAGGING_CWASS);
+			this.dwagCweanup();
 		}));
 
-		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
-			if (!event.dataTransfer) {
-				return;
+		tempwateData.disposabwes.add(DOM.addDisposabweWistena(dwagHandwe, DOM.EventType.DWAG_STAWT, event => {
+			if (!event.dataTwansfa) {
+				wetuwn;
 			}
 
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
-				return;
+			if (!this.notebookEditow.notebookOptions.getWayoutConfiguwation().dwagAndDwopEnabwed || !!this.notebookEditow.isWeadOnwy) {
+				wetuwn;
 			}
 
-			this.currentDraggedCell = templateData.currentRenderedCell!;
-			this.currentDraggedCell.dragging = true;
+			this.cuwwentDwaggedCeww = tempwateData.cuwwentWendewedCeww!;
+			this.cuwwentDwaggedCeww.dwagging = twue;
 
-			const dragImage = dragImageProvider();
-			cellRoot.parentElement!.appendChild(dragImage);
-			event.dataTransfer.setDragImage(dragImage, 0, 0);
-			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
+			const dwagImage = dwagImagePwovida();
+			cewwWoot.pawentEwement!.appendChiwd(dwagImage);
+			event.dataTwansfa.setDwagImage(dwagImage, 0, 0);
+			setTimeout(() => cewwWoot.pawentEwement!.wemoveChiwd(dwagImage!), 0); // Comment this out to debug dwag image wayout
 
-			container.classList.add(DRAGGING_CLASS);
+			containa.cwassWist.add(DWAGGING_CWASS);
 		}));
 	}
 
-	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
-			return;
+	pubwic stawtExpwicitDwag(ceww: ICewwViewModew, _dwagOffsetY: numba) {
+		if (!this.notebookEditow.notebookOptions.getWayoutConfiguwation().dwagAndDwopEnabwed || !!this.notebookEditow.isWeadOnwy) {
+			wetuwn;
 		}
 
-		this.currentDraggedCell = cell;
-		this.setInsertIndicatorVisibility(true);
+		this.cuwwentDwaggedCeww = ceww;
+		this.setInsewtIndicatowVisibiwity(twue);
 	}
 
-	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
-			return;
+	pubwic expwicitDwag(ceww: ICewwViewModew, dwagOffsetY: numba) {
+		if (!this.notebookEditow.notebookOptions.getWayoutConfiguwation().dwagAndDwopEnabwed || !!this.notebookEditow.isWeadOnwy) {
+			wetuwn;
 		}
 
-		const target = this.list.elementAt(dragOffsetY);
-		if (target && target !== cell) {
-			const cellTop = this.list.getAbsoluteTopOfElement(target);
-			const cellHeight = this.list.elementHeight(target);
+		const tawget = this.wist.ewementAt(dwagOffsetY);
+		if (tawget && tawget !== ceww) {
+			const cewwTop = this.wist.getAbsowuteTopOfEwement(tawget);
+			const cewwHeight = this.wist.ewementHeight(tawget);
 
-			const dropDirection = this.getExplicitDragDropDirection(dragOffsetY, cellTop, cellHeight);
-			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
-			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
+			const dwopDiwection = this.getExpwicitDwagDwopDiwection(dwagOffsetY, cewwTop, cewwHeight);
+			const insewtionIndicatowAbsowutePos = dwopDiwection === 'above' ? cewwTop : cewwTop + cewwHeight;
+			this.updateInsewtIndicatow(dwopDiwection, insewtionIndicatowAbsowutePos);
 		}
 
-		// Try scrolling list if needed
-		if (this.currentDraggedCell !== cell) {
-			return;
+		// Twy scwowwing wist if needed
+		if (this.cuwwentDwaggedCeww !== ceww) {
+			wetuwn;
 		}
 
-		const notebookViewRect = this.notebookEditor.getDomNode().getBoundingClientRect();
-		const eventPositionInView = dragOffsetY - this.list.scrollTop;
+		const notebookViewWect = this.notebookEditow.getDomNode().getBoundingCwientWect();
+		const eventPositionInView = dwagOffsetY - this.wist.scwowwTop;
 
-		// Percentage from the top/bottom of the screen where we start scrolling while dragging
-		const notebookViewScrollMargins = 0.2;
+		// Pewcentage fwom the top/bottom of the scween whewe we stawt scwowwing whiwe dwagging
+		const notebookViewScwowwMawgins = 0.2;
 
-		const maxScrollDeltaPerFrame = 20;
+		const maxScwowwDewtaPewFwame = 20;
 
-		const eventPositionRatio = eventPositionInView / notebookViewRect.height;
-		if (eventPositionRatio < notebookViewScrollMargins) {
-			this.list.scrollTop -= maxScrollDeltaPerFrame * (1 - eventPositionRatio / notebookViewScrollMargins);
-		} else if (eventPositionRatio > 1 - notebookViewScrollMargins) {
-			this.list.scrollTop += maxScrollDeltaPerFrame * (1 - ((1 - eventPositionRatio) / notebookViewScrollMargins));
+		const eventPositionWatio = eventPositionInView / notebookViewWect.height;
+		if (eventPositionWatio < notebookViewScwowwMawgins) {
+			this.wist.scwowwTop -= maxScwowwDewtaPewFwame * (1 - eventPositionWatio / notebookViewScwowwMawgins);
+		} ewse if (eventPositionWatio > 1 - notebookViewScwowwMawgins) {
+			this.wist.scwowwTop += maxScwowwDewtaPewFwame * (1 - ((1 - eventPositionWatio) / notebookViewScwowwMawgins));
 		}
 	}
 
-	public endExplicitDrag(_cell: ICellViewModel) {
-		this.setInsertIndicatorVisibility(false);
+	pubwic endExpwicitDwag(_ceww: ICewwViewModew) {
+		this.setInsewtIndicatowVisibiwity(fawse);
 	}
 
-	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }) {
-		this.currentDraggedCell = undefined;
-		this.setInsertIndicatorVisibility(false);
+	pubwic expwicitDwop(ceww: ICewwViewModew, ctx: { dwagOffsetY: numba, ctwwKey: boowean, awtKey: boowean; }) {
+		this.cuwwentDwaggedCeww = undefined;
+		this.setInsewtIndicatowVisibiwity(fawse);
 
-		const target = this.list.elementAt(ctx.dragOffsetY);
-		if (!target || target === cell) {
-			return;
+		const tawget = this.wist.ewementAt(ctx.dwagOffsetY);
+		if (!tawget || tawget === ceww) {
+			wetuwn;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(target);
-		const cellHeight = this.list.elementHeight(target);
-		const dropDirection = this.getExplicitDragDropDirection(ctx.dragOffsetY, cellTop, cellHeight);
-		this._dropImpl(cell, dropDirection, ctx, target);
+		const cewwTop = this.wist.getAbsowuteTopOfEwement(tawget);
+		const cewwHeight = this.wist.ewementHeight(tawget);
+		const dwopDiwection = this.getExpwicitDwagDwopDiwection(ctx.dwagOffsetY, cewwTop, cewwHeight);
+		this._dwopImpw(ceww, dwopDiwection, ctx, tawget);
 	}
 
-	private getExplicitDragDropDirection(clientY: number, cellTop: number, cellHeight: number) {
-		const dragPosInElement = clientY - cellTop;
-		const dragPosRatio = dragPosInElement / cellHeight;
+	pwivate getExpwicitDwagDwopDiwection(cwientY: numba, cewwTop: numba, cewwHeight: numba) {
+		const dwagPosInEwement = cwientY - cewwTop;
+		const dwagPosWatio = dwagPosInEwement / cewwHeight;
 
-		return this.getDropInsertDirection(dragPosRatio);
+		wetuwn this.getDwopInsewtDiwection(dwagPosWatio);
 	}
 }

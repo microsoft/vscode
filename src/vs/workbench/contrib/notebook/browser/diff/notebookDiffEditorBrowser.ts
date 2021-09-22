@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { Event } from 'vs/base/common/event';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt { ICewwOutputViewModew, ICommonCewwInfo, IGenewicCewwViewModew, IInsetWendewOutput, NotebookWayoutInfo } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { DiffEwementViewModewBase } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { OutputWendewa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/outputWendewa';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
-export enum DiffSide {
-	Original = 0,
+expowt enum DiffSide {
+	Owiginaw = 0,
 	Modified = 1
 }
 
-export interface IDiffCellInfo extends ICommonCellInfo {
-	diffElement: DiffElementViewModelBase;
+expowt intewface IDiffCewwInfo extends ICommonCewwInfo {
+	diffEwement: DiffEwementViewModewBase;
 }
 
-export interface INotebookTextDiffEditor {
+expowt intewface INotebookTextDiffEditow {
 	notebookOptions: NotebookOptions;
-	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>;
-	getOverflowContainerDomNode(): HTMLElement;
-	getLayoutInfo(): NotebookLayoutInfo;
-	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;
-	getOutputRenderer(): OutputRenderer;
-	createOutput(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
-	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide): void;
-	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: ICellOutputViewModel, diffSide: DiffSide): void;
-	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: ICellOutputViewModel): void;
+	weadonwy textModew?: NotebookTextModew;
+	onMouseUp: Event<{ weadonwy event: MouseEvent; weadonwy tawget: DiffEwementViewModewBase; }>;
+	onDidDynamicOutputWendewed: Event<{ ceww: IGenewicCewwViewModew, output: ICewwOutputViewModew }>;
+	getOvewfwowContainewDomNode(): HTMWEwement;
+	getWayoutInfo(): NotebookWayoutInfo;
+	wayoutNotebookCeww(ceww: DiffEwementViewModewBase, height: numba): void;
+	getOutputWendewa(): OutputWendewa;
+	cweateOutput(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: IDiffNestedCewwViewModew, output: IInsetWendewOutput, getOffset: () => numba, diffSide: DiffSide): void;
+	showInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: IDiffNestedCewwViewModew, dispwayOutput: ICewwOutputViewModew, diffSide: DiffSide): void;
+	wemoveInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: IDiffNestedCewwViewModew, output: ICewwOutputViewModew, diffSide: DiffSide): void;
+	hideInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: IDiffNestedCewwViewModew, output: ICewwOutputViewModew): void;
 	/**
-	 * Trigger the editor to scroll from scroll event programmatically
+	 * Twigga the editow to scwoww fwom scwoww event pwogwammaticawwy
 	 */
-	triggerScroll(event: IMouseWheelEvent): void;
-	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
-	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	twiggewScwoww(event: IMouseWheewEvent): void;
+	getCewwByInfo(cewwInfo: ICommonCewwInfo): IGenewicCewwViewModew;
+	focusNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'editow' | 'containa' | 'output'): void;
+	focusNextNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'editow' | 'containa' | 'output'): void;
+	updateOutputHeight(cewwInfo: ICommonCewwInfo, output: ICewwOutputViewModew, height: numba, isInit: boowean): void;
+	dewtaCewwOutputContainewCwassNames(diffSide: DiffSide, cewwId: stwing, added: stwing[], wemoved: stwing[]): void;
 }
 
-export interface IDiffNestedCellViewModel {
-
-}
-
-export interface CellDiffCommonRenderTemplate {
-	readonly leftBorder: HTMLElement;
-	readonly rightBorder: HTMLElement;
-	readonly topBorder: HTMLElement;
-	readonly bottomBorder: HTMLElement;
-}
-
-export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTemplate {
-	readonly container: HTMLElement;
-	readonly body: HTMLElement;
-	readonly diffEditorContainer: HTMLElement;
-	readonly diagonalFill: HTMLElement;
-	readonly elementDisposables: DisposableStore;
-	readonly sourceEditor: CodeEditorWidget;
-	readonly metadataHeaderContainer: HTMLElement;
-	readonly metadataInfoContainer: HTMLElement;
-	readonly outputHeaderContainer: HTMLElement;
-	readonly outputInfoContainer: HTMLElement;
+expowt intewface IDiffNestedCewwViewModew {
 
 }
 
-
-export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTemplate {
-	readonly container: HTMLElement;
-	readonly body: HTMLElement;
-	readonly diffEditorContainer: HTMLElement;
-	readonly elementDisposables: DisposableStore;
-	readonly sourceEditor: DiffEditorWidget;
-	readonly editorContainer: HTMLElement;
-	readonly inputToolbarContainer: HTMLElement;
-	readonly toolbar: ToolBar;
-	readonly metadataHeaderContainer: HTMLElement;
-	readonly metadataInfoContainer: HTMLElement;
-	readonly outputHeaderContainer: HTMLElement;
-	readonly outputInfoContainer: HTMLElement;
+expowt intewface CewwDiffCommonWendewTempwate {
+	weadonwy weftBowda: HTMWEwement;
+	weadonwy wightBowda: HTMWEwement;
+	weadonwy topBowda: HTMWEwement;
+	weadonwy bottomBowda: HTMWEwement;
 }
 
-export interface IDiffElementLayoutInfo {
-	totalHeight: number;
-	width: number;
-	editorHeight: number;
-	editorMargin: number;
-	metadataHeight: number;
-	metadataStatusHeight: number;
-	rawOutputHeight: number;
-	outputTotalHeight: number;
-	outputStatusHeight: number;
-	bodyMargin: number
+expowt intewface CewwDiffSingweSideWendewTempwate extends CewwDiffCommonWendewTempwate {
+	weadonwy containa: HTMWEwement;
+	weadonwy body: HTMWEwement;
+	weadonwy diffEditowContaina: HTMWEwement;
+	weadonwy diagonawFiww: HTMWEwement;
+	weadonwy ewementDisposabwes: DisposabweStowe;
+	weadonwy souwceEditow: CodeEditowWidget;
+	weadonwy metadataHeadewContaina: HTMWEwement;
+	weadonwy metadataInfoContaina: HTMWEwement;
+	weadonwy outputHeadewContaina: HTMWEwement;
+	weadonwy outputInfoContaina: HTMWEwement;
+
 }
 
-type IDiffElementSelfLayoutChangeEvent = { [K in keyof IDiffElementLayoutInfo]?: boolean };
 
-export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayoutChangeEvent {
-	font?: BareFontInfo;
-	outerWidth?: boolean;
-	metadataEditor?: boolean;
-	outputEditor?: boolean;
-	outputView?: boolean;
+expowt intewface CewwDiffSideBySideWendewTempwate extends CewwDiffCommonWendewTempwate {
+	weadonwy containa: HTMWEwement;
+	weadonwy body: HTMWEwement;
+	weadonwy diffEditowContaina: HTMWEwement;
+	weadonwy ewementDisposabwes: DisposabweStowe;
+	weadonwy souwceEditow: DiffEditowWidget;
+	weadonwy editowContaina: HTMWEwement;
+	weadonwy inputToowbawContaina: HTMWEwement;
+	weadonwy toowbaw: ToowBaw;
+	weadonwy metadataHeadewContaina: HTMWEwement;
+	weadonwy metadataInfoContaina: HTMWEwement;
+	weadonwy outputHeadewContaina: HTMWEwement;
+	weadonwy outputInfoContaina: HTMWEwement;
 }
 
-export const DIFF_CELL_MARGIN = 16;
-export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
-export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
+expowt intewface IDiffEwementWayoutInfo {
+	totawHeight: numba;
+	width: numba;
+	editowHeight: numba;
+	editowMawgin: numba;
+	metadataHeight: numba;
+	metadataStatusHeight: numba;
+	wawOutputHeight: numba;
+	outputTotawHeight: numba;
+	outputStatusHeight: numba;
+	bodyMawgin: numba
+}
+
+type IDiffEwementSewfWayoutChangeEvent = { [K in keyof IDiffEwementWayoutInfo]?: boowean };
+
+expowt intewface CewwDiffViewModewWayoutChangeEvent extends IDiffEwementSewfWayoutChangeEvent {
+	font?: BaweFontInfo;
+	outewWidth?: boowean;
+	metadataEditow?: boowean;
+	outputEditow?: boowean;
+	outputView?: boowean;
+}
+
+expowt const DIFF_CEWW_MAWGIN = 16;
+expowt const NOTEBOOK_DIFF_CEWW_PWOPEWTY = new WawContextKey<boowean>('notebookDiffCewwPwopewtyChanged', fawse);
+expowt const NOTEBOOK_DIFF_CEWW_PWOPEWTY_EXPANDED = new WawContextKey<boowean>('notebookDiffCewwPwopewtyExpanded', fawse);

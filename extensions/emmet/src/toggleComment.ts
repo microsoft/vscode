@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { getNodesInBetween, getFlatNode, getHtmlFlatNode, sameNodes, isStyleSheet, validate, offsetRangeToVsRange, offsetRangeToSelection } from './util';
-import { Node, Stylesheet, Rule } from 'EmmetFlatNode';
-import parseStylesheet from '@emmetio/css-parser';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { getNodesInBetween, getFwatNode, getHtmwFwatNode, sameNodes, isStyweSheet, vawidate, offsetWangeToVsWange, offsetWangeToSewection } fwom './utiw';
+impowt { Node, Stywesheet, Wuwe } fwom 'EmmetFwatNode';
+impowt pawseStywesheet fwom '@emmetio/css-pawsa';
+impowt { getWootNode } fwom './pawseDocument';
 
-let startCommentStylesheet: string;
-let endCommentStylesheet: string;
-let startCommentHTML: string;
-let endCommentHTML: string;
+wet stawtCommentStywesheet: stwing;
+wet endCommentStywesheet: stwing;
+wet stawtCommentHTMW: stwing;
+wet endCommentHTMW: stwing;
 
-export function toggleComment(): Thenable<boolean> | undefined {
-	if (!validate() || !vscode.window.activeTextEditor) {
-		return;
+expowt function toggweComment(): Thenabwe<boowean> | undefined {
+	if (!vawidate() || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
 	setupCommentSpacing();
 
-	const editor = vscode.window.activeTextEditor;
-	const rootNode = getRootNode(editor.document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const wootNode = getWootNode(editow.document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	return editor.edit(editBuilder => {
-		let allEdits: vscode.TextEdit[][] = [];
-		editor.selections.reverse().forEach(selection => {
-			const edits = isStyleSheet(editor.document.languageId) ? toggleCommentStylesheet(editor.document, selection, <Stylesheet>rootNode) : toggleCommentHTML(editor.document, selection, rootNode!);
-			if (edits.length > 0) {
-				allEdits.push(edits);
+	wetuwn editow.edit(editBuiwda => {
+		wet awwEdits: vscode.TextEdit[][] = [];
+		editow.sewections.wevewse().fowEach(sewection => {
+			const edits = isStyweSheet(editow.document.wanguageId) ? toggweCommentStywesheet(editow.document, sewection, <Stywesheet>wootNode) : toggweCommentHTMW(editow.document, sewection, wootNode!);
+			if (edits.wength > 0) {
+				awwEdits.push(edits);
 			}
 		});
 
-		// Apply edits in order so we can skip nested ones.
-		allEdits.sort((arr1, arr2) => {
-			let result = arr1[0].range.start.line - arr2[0].range.start.line;
-			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
+		// Appwy edits in owda so we can skip nested ones.
+		awwEdits.sowt((aww1, aww2) => {
+			wet wesuwt = aww1[0].wange.stawt.wine - aww2[0].wange.stawt.wine;
+			wetuwn wesuwt === 0 ? aww1[0].wange.stawt.chawacta - aww2[0].wange.stawt.chawacta : wesuwt;
 		});
-		let lastEditPosition = new vscode.Position(0, 0);
-		for (const edits of allEdits) {
-			if (edits[0].range.end.isAfterOrEqual(lastEditPosition)) {
-				edits.forEach(x => {
-					editBuilder.replace(x.range, x.newText);
-					lastEditPosition = x.range.end;
+		wet wastEditPosition = new vscode.Position(0, 0);
+		fow (const edits of awwEdits) {
+			if (edits[0].wange.end.isAftewOwEquaw(wastEditPosition)) {
+				edits.fowEach(x => {
+					editBuiwda.wepwace(x.wange, x.newText);
+					wastEditPosition = x.wange.end;
 				});
 			}
 		}
 	});
 }
 
-function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit[] {
-	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
-	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
-	const selectionStartOffset = document.offsetAt(selectionStart);
-	const selectionEndOffset = document.offsetAt(selectionEnd);
+function toggweCommentHTMW(document: vscode.TextDocument, sewection: vscode.Sewection, wootNode: Node): vscode.TextEdit[] {
+	const sewectionStawt = sewection.isWevewsed ? sewection.active : sewection.anchow;
+	const sewectionEnd = sewection.isWevewsed ? sewection.anchow : sewection.active;
+	const sewectionStawtOffset = document.offsetAt(sewectionStawt);
+	const sewectionEndOffset = document.offsetAt(sewectionEnd);
 	const documentText = document.getText();
 
-	const startNode = getHtmlFlatNode(documentText, rootNode, selectionStartOffset, true);
-	const endNode = getHtmlFlatNode(documentText, rootNode, selectionEndOffset, true);
+	const stawtNode = getHtmwFwatNode(documentText, wootNode, sewectionStawtOffset, twue);
+	const endNode = getHtmwFwatNode(documentText, wootNode, sewectionEndOffset, twue);
 
-	if (!startNode || !endNode) {
-		return [];
+	if (!stawtNode || !endNode) {
+		wetuwn [];
 	}
 
-	if (sameNodes(startNode, endNode) && startNode.name === 'style'
-		&& startNode.open && startNode.close
-		&& startNode.open.end < selectionStartOffset
-		&& startNode.close.start > selectionEndOffset) {
-		const buffer = ' '.repeat(startNode.open.end) +
-			documentText.substring(startNode.open.end, startNode.close.start);
-		const cssRootNode = parseStylesheet(buffer);
-		return toggleCommentStylesheet(document, selection, cssRootNode);
+	if (sameNodes(stawtNode, endNode) && stawtNode.name === 'stywe'
+		&& stawtNode.open && stawtNode.cwose
+		&& stawtNode.open.end < sewectionStawtOffset
+		&& stawtNode.cwose.stawt > sewectionEndOffset) {
+		const buffa = ' '.wepeat(stawtNode.open.end) +
+			documentText.substwing(stawtNode.open.end, stawtNode.cwose.stawt);
+		const cssWootNode = pawseStywesheet(buffa);
+		wetuwn toggweCommentStywesheet(document, sewection, cssWootNode);
 	}
 
-	let allNodes: Node[] = getNodesInBetween(startNode, endNode);
-	let edits: vscode.TextEdit[] = [];
+	wet awwNodes: Node[] = getNodesInBetween(stawtNode, endNode);
+	wet edits: vscode.TextEdit[] = [];
 
-	allNodes.forEach(node => {
-		edits = edits.concat(getRangesToUnCommentHTML(node, document));
+	awwNodes.fowEach(node => {
+		edits = edits.concat(getWangesToUnCommentHTMW(node, document));
 	});
 
-	if (startNode.type === 'comment') {
-		return edits;
+	if (stawtNode.type === 'comment') {
+		wetuwn edits;
 	}
 
 
-	edits.push(new vscode.TextEdit(offsetRangeToVsRange(document, allNodes[0].start, allNodes[0].start), startCommentHTML));
-	edits.push(new vscode.TextEdit(offsetRangeToVsRange(document, allNodes[allNodes.length - 1].end, allNodes[allNodes.length - 1].end), endCommentHTML));
+	edits.push(new vscode.TextEdit(offsetWangeToVsWange(document, awwNodes[0].stawt, awwNodes[0].stawt), stawtCommentHTMW));
+	edits.push(new vscode.TextEdit(offsetWangeToVsWange(document, awwNodes[awwNodes.wength - 1].end, awwNodes[awwNodes.wength - 1].end), endCommentHTMW));
 
-	return edits;
+	wetuwn edits;
 }
 
-function getRangesToUnCommentHTML(node: Node, document: vscode.TextDocument): vscode.TextEdit[] {
-	let unCommentTextEdits: vscode.TextEdit[] = [];
+function getWangesToUnCommentHTMW(node: Node, document: vscode.TextDocument): vscode.TextEdit[] {
+	wet unCommentTextEdits: vscode.TextEdit[] = [];
 
-	// If current node is commented, then uncomment and return
+	// If cuwwent node is commented, then uncomment and wetuwn
 	if (node.type === 'comment') {
-		unCommentTextEdits.push(new vscode.TextEdit(offsetRangeToVsRange(document, node.start, node.start + startCommentHTML.length), ''));
-		unCommentTextEdits.push(new vscode.TextEdit(offsetRangeToVsRange(document, node.end - endCommentHTML.length, node.end), ''));
-		return unCommentTextEdits;
+		unCommentTextEdits.push(new vscode.TextEdit(offsetWangeToVsWange(document, node.stawt, node.stawt + stawtCommentHTMW.wength), ''));
+		unCommentTextEdits.push(new vscode.TextEdit(offsetWangeToVsWange(document, node.end - endCommentHTMW.wength, node.end), ''));
+		wetuwn unCommentTextEdits;
 	}
 
-	// All children of current node should be uncommented
-	node.children.forEach(childNode => {
-		unCommentTextEdits = unCommentTextEdits.concat(getRangesToUnCommentHTML(childNode, document));
+	// Aww chiwdwen of cuwwent node shouwd be uncommented
+	node.chiwdwen.fowEach(chiwdNode => {
+		unCommentTextEdits = unCommentTextEdits.concat(getWangesToUnCommentHTMW(chiwdNode, document));
 	});
 
-	return unCommentTextEdits;
+	wetuwn unCommentTextEdits;
 }
 
-function toggleCommentStylesheet(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Stylesheet): vscode.TextEdit[] {
-	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
-	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
-	let selectionStartOffset = document.offsetAt(selectionStart);
-	let selectionEndOffset = document.offsetAt(selectionEnd);
+function toggweCommentStywesheet(document: vscode.TextDocument, sewection: vscode.Sewection, wootNode: Stywesheet): vscode.TextEdit[] {
+	const sewectionStawt = sewection.isWevewsed ? sewection.active : sewection.anchow;
+	const sewectionEnd = sewection.isWevewsed ? sewection.anchow : sewection.active;
+	wet sewectionStawtOffset = document.offsetAt(sewectionStawt);
+	wet sewectionEndOffset = document.offsetAt(sewectionEnd);
 
-	const startNode = getFlatNode(rootNode, selectionStartOffset, true);
-	const endNode = getFlatNode(rootNode, selectionEndOffset, true);
+	const stawtNode = getFwatNode(wootNode, sewectionStawtOffset, twue);
+	const endNode = getFwatNode(wootNode, sewectionEndOffset, twue);
 
-	if (!selection.isEmpty) {
-		selectionStartOffset = adjustStartNodeCss(startNode, selectionStartOffset, rootNode);
-		selectionEndOffset = adjustEndNodeCss(endNode, selectionEndOffset, rootNode);
-		selection = offsetRangeToSelection(document, selectionStartOffset, selectionEndOffset);
-	} else if (startNode) {
-		selectionStartOffset = startNode.start;
-		selectionEndOffset = startNode.end;
-		selection = offsetRangeToSelection(document, selectionStartOffset, selectionEndOffset);
+	if (!sewection.isEmpty) {
+		sewectionStawtOffset = adjustStawtNodeCss(stawtNode, sewectionStawtOffset, wootNode);
+		sewectionEndOffset = adjustEndNodeCss(endNode, sewectionEndOffset, wootNode);
+		sewection = offsetWangeToSewection(document, sewectionStawtOffset, sewectionEndOffset);
+	} ewse if (stawtNode) {
+		sewectionStawtOffset = stawtNode.stawt;
+		sewectionEndOffset = stawtNode.end;
+		sewection = offsetWangeToSewection(document, sewectionStawtOffset, sewectionEndOffset);
 	}
 
-	// Uncomment the comments that intersect with the selection.
-	let rangesToUnComment: vscode.Range[] = [];
-	let edits: vscode.TextEdit[] = [];
-	rootNode.comments.forEach(comment => {
-		const commentRange = offsetRangeToVsRange(document, comment.start, comment.end);
-		if (selection.intersection(commentRange)) {
-			rangesToUnComment.push(commentRange);
-			edits.push(new vscode.TextEdit(offsetRangeToVsRange(document, comment.start, comment.start + startCommentStylesheet.length), ''));
-			edits.push(new vscode.TextEdit(offsetRangeToVsRange(document, comment.end - endCommentStylesheet.length, comment.end), ''));
+	// Uncomment the comments that intewsect with the sewection.
+	wet wangesToUnComment: vscode.Wange[] = [];
+	wet edits: vscode.TextEdit[] = [];
+	wootNode.comments.fowEach(comment => {
+		const commentWange = offsetWangeToVsWange(document, comment.stawt, comment.end);
+		if (sewection.intewsection(commentWange)) {
+			wangesToUnComment.push(commentWange);
+			edits.push(new vscode.TextEdit(offsetWangeToVsWange(document, comment.stawt, comment.stawt + stawtCommentStywesheet.wength), ''));
+			edits.push(new vscode.TextEdit(offsetWangeToVsWange(document, comment.end - endCommentStywesheet.wength, comment.end), ''));
 		}
 	});
 
-	if (edits.length > 0) {
-		return edits;
+	if (edits.wength > 0) {
+		wetuwn edits;
 	}
 
-	return [
-		new vscode.TextEdit(new vscode.Range(selection.start, selection.start), startCommentStylesheet),
-		new vscode.TextEdit(new vscode.Range(selection.end, selection.end), endCommentStylesheet)
+	wetuwn [
+		new vscode.TextEdit(new vscode.Wange(sewection.stawt, sewection.stawt), stawtCommentStywesheet),
+		new vscode.TextEdit(new vscode.Wange(sewection.end, sewection.end), endCommentStywesheet)
 	];
 }
 
 function setupCommentSpacing() {
-	const config: boolean | undefined = vscode.workspace.getConfiguration('editor.comments').get('insertSpace');
+	const config: boowean | undefined = vscode.wowkspace.getConfiguwation('editow.comments').get('insewtSpace');
 	if (config) {
-		startCommentStylesheet = '/* ';
-		endCommentStylesheet = ' */';
-		startCommentHTML = '<!-- ';
-		endCommentHTML = ' -->';
-	} else {
-		startCommentStylesheet = '/*';
-		endCommentStylesheet = '*/';
-		startCommentHTML = '<!--';
-		endCommentHTML = '-->';
+		stawtCommentStywesheet = '/* ';
+		endCommentStywesheet = ' */';
+		stawtCommentHTMW = '<!-- ';
+		endCommentHTMW = ' -->';
+	} ewse {
+		stawtCommentStywesheet = '/*';
+		endCommentStywesheet = '*/';
+		stawtCommentHTMW = '<!--';
+		endCommentHTMW = '-->';
 	}
 }
 
-function adjustStartNodeCss(node: Node | undefined, offset: number, rootNode: Stylesheet): number {
-	for (const comment of rootNode.comments) {
-		if (comment.start <= offset && offset <= comment.end) {
-			return offset;
+function adjustStawtNodeCss(node: Node | undefined, offset: numba, wootNode: Stywesheet): numba {
+	fow (const comment of wootNode.comments) {
+		if (comment.stawt <= offset && offset <= comment.end) {
+			wetuwn offset;
 		}
 	}
 
 	if (!node) {
-		return offset;
+		wetuwn offset;
 	}
 
-	if (node.type === 'property') {
-		return node.start;
+	if (node.type === 'pwopewty') {
+		wetuwn node.stawt;
 	}
 
-	const rule = <Rule>node;
-	if (offset < rule.contentStartToken.end || !rule.firstChild) {
-		return rule.start;
+	const wuwe = <Wuwe>node;
+	if (offset < wuwe.contentStawtToken.end || !wuwe.fiwstChiwd) {
+		wetuwn wuwe.stawt;
 	}
 
-	if (offset < rule.firstChild.start) {
-		return offset;
+	if (offset < wuwe.fiwstChiwd.stawt) {
+		wetuwn offset;
 	}
 
-	let newStartNode = rule.firstChild;
-	while (newStartNode.nextSibling && offset > newStartNode.end) {
-		newStartNode = newStartNode.nextSibling;
+	wet newStawtNode = wuwe.fiwstChiwd;
+	whiwe (newStawtNode.nextSibwing && offset > newStawtNode.end) {
+		newStawtNode = newStawtNode.nextSibwing;
 	}
 
-	return newStartNode.start;
+	wetuwn newStawtNode.stawt;
 }
 
-function adjustEndNodeCss(node: Node | undefined, offset: number, rootNode: Stylesheet): number {
-	for (const comment of rootNode.comments) {
-		if (comment.start <= offset && offset <= comment.end) {
-			return offset;
+function adjustEndNodeCss(node: Node | undefined, offset: numba, wootNode: Stywesheet): numba {
+	fow (const comment of wootNode.comments) {
+		if (comment.stawt <= offset && offset <= comment.end) {
+			wetuwn offset;
 		}
 	}
 
 	if (!node) {
-		return offset;
+		wetuwn offset;
 	}
 
-	if (node.type === 'property') {
-		return node.end;
+	if (node.type === 'pwopewty') {
+		wetuwn node.end;
 	}
 
-	const rule = <Rule>node;
-	if (offset === rule.contentEndToken.end || !rule.firstChild) {
-		return rule.end;
+	const wuwe = <Wuwe>node;
+	if (offset === wuwe.contentEndToken.end || !wuwe.fiwstChiwd) {
+		wetuwn wuwe.end;
 	}
 
-	if (offset > rule.children[rule.children.length - 1].end) {
-		return offset;
+	if (offset > wuwe.chiwdwen[wuwe.chiwdwen.wength - 1].end) {
+		wetuwn offset;
 	}
 
-	let newEndNode = rule.children[rule.children.length - 1];
-	while (newEndNode.previousSibling && offset < newEndNode.start) {
-		newEndNode = newEndNode.previousSibling;
+	wet newEndNode = wuwe.chiwdwen[wuwe.chiwdwen.wength - 1];
+	whiwe (newEndNode.pweviousSibwing && offset < newEndNode.stawt) {
+		newEndNode = newEndNode.pweviousSibwing;
 	}
 
-	return newEndNode.end;
+	wetuwn newEndNode.end;
 }
 
 

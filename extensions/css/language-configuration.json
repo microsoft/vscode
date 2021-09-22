@@ -1,35 +1,35 @@
 {
 	"comments": {
-		"blockComment": ["/*", "*/"]
+		"bwockComment": ["/*", "*/"]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}", "notIn": ["string", "comment"] },
-		{ "open": "[", "close": "]", "notIn": ["string", "comment"] },
-		{ "open": "(", "close": ")", "notIn": ["string", "comment"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "'", "close": "'", "notIn": ["string", "comment"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}", "notIn": ["stwing", "comment"] },
+		{ "open": "[", "cwose": "]", "notIn": ["stwing", "comment"] },
+		{ "open": "(", "cwose": ")", "notIn": ["stwing", "comment"] },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing", "comment"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"folding": {
-		"markers": {
-			"start": "^\\s*\\/\\*\\s*#region\\b\\s*(.*?)\\s*\\*\\/",
-			"end": "^\\s*\\/\\*\\s*#endregion\\b.*\\*\\/"
+	"fowding": {
+		"mawkews": {
+			"stawt": "^\\s*\\/\\*\\s*#wegion\\b\\s*(.*?)\\s*\\*\\/",
+			"end": "^\\s*\\/\\*\\s*#endwegion\\b.*\\*\\/"
 		}
 	},
-	"indentationRules": {
-		"increaseIndentPattern": "(^.*\\{[^}]*$)",
-		"decreaseIndentPattern": "^\\s*\\}"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "(^.*\\{[^}]*$)",
+		"decweaseIndentPattewn": "^\\s*\\}"
 	},
-	"wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])"
+	"wowdPattewn": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\\w-?]+%?|[@#!.])"
 }

@@ -1,597 +1,597 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
-import * as strings from 'vs/base/common/strings';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+impowt { IScwowwPosition, Scwowwabwe } fwom 'vs/base/common/scwowwabwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IViewWineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { INewScwowwPosition, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWinePwefewence, IActiveIndentGuideInfo, IModewDecowationOptions, TextModewWesowvedOptions, ITextModew, InjectedTextOptions, PositionAffinity } fwom 'vs/editow/common/modew';
+impowt { VewticawWeveawType } fwom 'vs/editow/common/view/viewEvents';
+impowt { IPawtiawViewWinesViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { IEditowWhitespace, IWhitespaceChangeAccessow } fwom 'vs/editow/common/viewWayout/winesWayout';
+impowt { EditowTheme } fwom 'vs/editow/common/view/viewContext';
+impowt { ICuwsowSimpweModew, PawtiawCuwsowState, CuwsowState, ICowumnSewectData, EditOpewationType, CuwsowConfiguwation } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { CuwsowChangeWeason } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
+impowt { WineInjectedText } fwom 'vs/editow/common/modew/textModewEvents';
 
-export interface IViewWhitespaceViewportData {
-	readonly id: string;
-	readonly afterLineNumber: number;
-	readonly verticalOffset: number;
-	readonly height: number;
+expowt intewface IViewWhitespaceViewpowtData {
+	weadonwy id: stwing;
+	weadonwy aftewWineNumba: numba;
+	weadonwy vewticawOffset: numba;
+	weadonwy height: numba;
 }
 
-export class Viewport {
-	readonly _viewportBrand: void = undefined;
+expowt cwass Viewpowt {
+	weadonwy _viewpowtBwand: void = undefined;
 
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
+	weadonwy top: numba;
+	weadonwy weft: numba;
+	weadonwy width: numba;
+	weadonwy height: numba;
 
-	constructor(top: number, left: number, width: number, height: number) {
+	constwuctow(top: numba, weft: numba, width: numba, height: numba) {
 		this.top = top | 0;
-		this.left = left | 0;
+		this.weft = weft | 0;
 		this.width = width | 0;
 		this.height = height | 0;
 	}
 }
 
-export interface IViewLayout {
+expowt intewface IViewWayout {
 
-	getScrollable(): Scrollable;
+	getScwowwabwe(): Scwowwabwe;
 
-	getScrollWidth(): number;
-	getScrollHeight(): number;
+	getScwowwWidth(): numba;
+	getScwowwHeight(): numba;
 
-	getCurrentScrollLeft(): number;
-	getCurrentScrollTop(): number;
-	getCurrentViewport(): Viewport;
+	getCuwwentScwowwWeft(): numba;
+	getCuwwentScwowwTop(): numba;
+	getCuwwentViewpowt(): Viewpowt;
 
-	getFutureViewport(): Viewport;
+	getFutuweViewpowt(): Viewpowt;
 
-	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+	vawidateScwowwPosition(scwowwPosition: INewScwowwPosition): IScwowwPosition;
 
-	getLinesViewportData(): IPartialViewLinesViewportData;
-	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
-	getWhitespaces(): IEditorWhitespace[];
+	getWinesViewpowtData(): IPawtiawViewWinesViewpowtData;
+	getWinesViewpowtDataAtScwowwTop(scwowwTop: numba): IPawtiawViewWinesViewpowtData;
+	getWhitespaces(): IEditowWhitespace[];
 
-	isAfterLines(verticalOffset: number): boolean;
-	isInTopPadding(verticalOffset: number): boolean;
-	isInBottomPadding(verticalOffset: number): boolean;
-	getLineNumberAtVerticalOffset(verticalOffset: number): number;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
+	isAftewWines(vewticawOffset: numba): boowean;
+	isInTopPadding(vewticawOffset: numba): boowean;
+	isInBottomPadding(vewticawOffset: numba): boowean;
+	getWineNumbewAtVewticawOffset(vewticawOffset: numba): numba;
+	getVewticawOffsetFowWineNumba(wineNumba: numba): numba;
+	getWhitespaceAtVewticawOffset(vewticawOffset: numba): IViewWhitespaceViewpowtData | nuww;
 
 	/**
-	 * Get the layout information for whitespaces currently in the viewport
+	 * Get the wayout infowmation fow whitespaces cuwwentwy in the viewpowt
 	 */
-	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+	getWhitespaceViewpowtData(): IViewWhitespaceViewpowtData[];
 }
 
-export interface ICoordinatesConverter {
-	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewPosition: Position): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
+expowt intewface ICoowdinatesConvewta {
+	// View -> Modew convewsion and wewated methods
+	convewtViewPositionToModewPosition(viewPosition: Position): Position;
+	convewtViewWangeToModewWange(viewWange: Wange): Wange;
+	vawidateViewPosition(viewPosition: Position, expectedModewPosition: Position): Position;
+	vawidateViewWange(viewWange: Wange, expectedModewWange: Wange): Wange;
 
-	// Model -> View conversion and related methods
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position;
+	// Modew -> View convewsion and wewated methods
+	convewtModewPositionToViewPosition(modewPosition: Position, affinity?: PositionAffinity): Position;
 	/**
-	 * @param affinity Only has an effect if the range is empty.
+	 * @pawam affinity Onwy has an effect if the wange is empty.
 	*/
-	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
-	modelPositionIsVisible(modelPosition: Position): boolean;
-	getModelLineViewLineCount(modelLineNumber: number): number;
+	convewtModewWangeToViewWange(modewWange: Wange, affinity?: PositionAffinity): Wange;
+	modewPositionIsVisibwe(modewPosition: Position): boowean;
+	getModewWineViewWineCount(modewWineNumba: numba): numba;
 }
 
-export class OutputPosition {
-	outputLineIndex: number;
-	outputOffset: number;
+expowt cwass OutputPosition {
+	outputWineIndex: numba;
+	outputOffset: numba;
 
-	constructor(outputLineIndex: number, outputOffset: number) {
-		this.outputLineIndex = outputLineIndex;
+	constwuctow(outputWineIndex: numba, outputOffset: numba) {
+		this.outputWineIndex = outputWineIndex;
 		this.outputOffset = outputOffset;
 	}
 
-	toString(): string {
-		return `${this.outputLineIndex}:${this.outputOffset}`;
+	toStwing(): stwing {
+		wetuwn `${this.outputWineIndex}:${this.outputOffset}`;
 	}
 
-	toPosition(baseLineNumber: number, wrappedTextIndentLength: number): Position {
-		const delta = (this.outputLineIndex > 0 ? wrappedTextIndentLength : 0);
-		return new Position(baseLineNumber + this.outputLineIndex, delta + this.outputOffset + 1);
+	toPosition(baseWineNumba: numba, wwappedTextIndentWength: numba): Position {
+		const dewta = (this.outputWineIndex > 0 ? wwappedTextIndentWength : 0);
+		wetuwn new Position(baseWineNumba + this.outputWineIndex, dewta + this.outputOffset + 1);
 	}
 }
 
-export class LineBreakData {
-	constructor(
-		public breakOffsets: number[],
-		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number,
-		public injectionOffsets: number[] | null,
-		public injectionOptions: InjectedTextOptions[] | null
+expowt cwass WineBweakData {
+	constwuctow(
+		pubwic bweakOffsets: numba[],
+		pubwic bweakOffsetsVisibweCowumn: numba[],
+		pubwic wwappedTextIndentWength: numba,
+		pubwic injectionOffsets: numba[] | nuww,
+		pubwic injectionOptions: InjectedTextOptions[] | nuww
 	) { }
 
-	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
-		let inputOffset = 0;
-		if (outputLineIndex === 0) {
+	pubwic getInputOffsetOfOutputPosition(outputWineIndex: numba, outputOffset: numba): numba {
+		wet inputOffset = 0;
+		if (outputWineIndex === 0) {
 			inputOffset = outputOffset;
-		} else {
-			inputOffset = this.breakOffsets[outputLineIndex - 1] + outputOffset;
+		} ewse {
+			inputOffset = this.bweakOffsets[outputWineIndex - 1] + outputOffset;
 		}
 
-		if (this.injectionOffsets !== null) {
-			for (let i = 0; i < this.injectionOffsets.length; i++) {
+		if (this.injectionOffsets !== nuww) {
+			fow (wet i = 0; i < this.injectionOffsets.wength; i++) {
 				if (inputOffset > this.injectionOffsets[i]) {
-					if (inputOffset < this.injectionOffsets[i] + this.injectionOptions![i].content.length) {
+					if (inputOffset < this.injectionOffsets[i] + this.injectionOptions![i].content.wength) {
 						// `inputOffset` is within injected text
 						inputOffset = this.injectionOffsets[i];
-					} else {
-						inputOffset -= this.injectionOptions![i].content.length;
+					} ewse {
+						inputOffset -= this.injectionOptions![i].content.wength;
 					}
-				} else {
-					break;
+				} ewse {
+					bweak;
 				}
 			}
 		}
 
-		return inputOffset;
+		wetuwn inputOffset;
 	}
 
-	public getOutputPositionOfInputOffset(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
-		let delta = 0;
-		if (this.injectionOffsets !== null) {
-			for (let i = 0; i < this.injectionOffsets.length; i++) {
+	pubwic getOutputPositionOfInputOffset(inputOffset: numba, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
+		wet dewta = 0;
+		if (this.injectionOffsets !== nuww) {
+			fow (wet i = 0; i < this.injectionOffsets.wength; i++) {
 				if (inputOffset < this.injectionOffsets[i]) {
-					break;
+					bweak;
 				}
 
-				if (affinity !== PositionAffinity.Right && inputOffset === this.injectionOffsets[i]) {
-					break;
+				if (affinity !== PositionAffinity.Wight && inputOffset === this.injectionOffsets[i]) {
+					bweak;
 				}
 
-				delta += this.injectionOptions![i].content.length;
+				dewta += this.injectionOptions![i].content.wength;
 			}
 		}
-		inputOffset += delta;
+		inputOffset += dewta;
 
-		return this.getOutputPositionOfOffsetInUnwrappedLine(inputOffset, affinity);
+		wetuwn this.getOutputPositionOfOffsetInUnwwappedWine(inputOffset, affinity);
 	}
 
-	public getOutputPositionOfOffsetInUnwrappedLine(inputOffset: number, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
-		let low = 0;
-		let high = this.breakOffsets.length - 1;
-		let mid = 0;
-		let midStart = 0;
+	pubwic getOutputPositionOfOffsetInUnwwappedWine(inputOffset: numba, affinity: PositionAffinity = PositionAffinity.None): OutputPosition {
+		wet wow = 0;
+		wet high = this.bweakOffsets.wength - 1;
+		wet mid = 0;
+		wet midStawt = 0;
 
-		while (low <= high) {
-			mid = low + ((high - low) / 2) | 0;
+		whiwe (wow <= high) {
+			mid = wow + ((high - wow) / 2) | 0;
 
-			const midStop = this.breakOffsets[mid];
-			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
+			const midStop = this.bweakOffsets[mid];
+			midStawt = mid > 0 ? this.bweakOffsets[mid - 1] : 0;
 
-			if (affinity === PositionAffinity.Left) {
-				if (inputOffset <= midStart) {
+			if (affinity === PositionAffinity.Weft) {
+				if (inputOffset <= midStawt) {
 					high = mid - 1;
-				} else if (inputOffset > midStop) {
-					low = mid + 1;
-				} else {
-					break;
+				} ewse if (inputOffset > midStop) {
+					wow = mid + 1;
+				} ewse {
+					bweak;
 				}
-			} else {
-				if (inputOffset < midStart) {
+			} ewse {
+				if (inputOffset < midStawt) {
 					high = mid - 1;
-				} else if (inputOffset >= midStop) {
-					low = mid + 1;
-				} else {
-					break;
+				} ewse if (inputOffset >= midStop) {
+					wow = mid + 1;
+				} ewse {
+					bweak;
 				}
 			}
 		}
 
-		return new OutputPosition(mid, inputOffset - midStart);
+		wetuwn new OutputPosition(mid, inputOffset - midStawt);
 	}
 
-	public outputPositionToOffsetInUnwrappedLine(outputLineIndex: number, outputOffset: number): number {
-		let result = (outputLineIndex > 0 ? this.breakOffsets[outputLineIndex - 1] : 0) + outputOffset;
-		if (outputLineIndex > 0) {
-			result -= this.wrappedTextIndentLength;
+	pubwic outputPositionToOffsetInUnwwappedWine(outputWineIndex: numba, outputOffset: numba): numba {
+		wet wesuwt = (outputWineIndex > 0 ? this.bweakOffsets[outputWineIndex - 1] : 0) + outputOffset;
+		if (outputWineIndex > 0) {
+			wesuwt -= this.wwappedTextIndentWength;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public normalizeOffsetAroundInjections(offsetInUnwrappedLine: number, affinity: PositionAffinity): number {
-		const injectedText = this.getInjectedTextAtOffset(offsetInUnwrappedLine);
+	pubwic nowmawizeOffsetAwoundInjections(offsetInUnwwappedWine: numba, affinity: PositionAffinity): numba {
+		const injectedText = this.getInjectedTextAtOffset(offsetInUnwwappedWine);
 		if (!injectedText) {
-			return offsetInUnwrappedLine;
+			wetuwn offsetInUnwwappedWine;
 		}
 
 		if (affinity === PositionAffinity.None) {
-			if (offsetInUnwrappedLine === injectedText.offsetInUnwrappedLine + injectedText.length) {
+			if (offsetInUnwwappedWine === injectedText.offsetInUnwwappedWine + injectedText.wength) {
 				// go to the end of this injected text
-				return injectedText.offsetInUnwrappedLine + injectedText.length;
-			} else {
-				// go to the start of this injected text
-				return injectedText.offsetInUnwrappedLine;
+				wetuwn injectedText.offsetInUnwwappedWine + injectedText.wength;
+			} ewse {
+				// go to the stawt of this injected text
+				wetuwn injectedText.offsetInUnwwappedWine;
 			}
 		}
 
-		if (affinity === PositionAffinity.Right) {
-			let result = injectedText.offsetInUnwrappedLine + injectedText.length;
-			let index = injectedText.injectedTextIndex;
-			// traverse all injected text that touch eachother
-			while (index + 1 < this.injectionOffsets!.length && this.injectionOffsets![index + 1] === this.injectionOffsets![index]) {
-				result += this.injectionOptions![index + 1].content.length;
+		if (affinity === PositionAffinity.Wight) {
+			wet wesuwt = injectedText.offsetInUnwwappedWine + injectedText.wength;
+			wet index = injectedText.injectedTextIndex;
+			// twavewse aww injected text that touch eachotha
+			whiwe (index + 1 < this.injectionOffsets!.wength && this.injectionOffsets![index + 1] === this.injectionOffsets![index]) {
+				wesuwt += this.injectionOptions![index + 1].content.wength;
 				index++;
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 
-		// affinity is left
-		let result = injectedText.offsetInUnwrappedLine;
-		let index = injectedText.injectedTextIndex;
-		// traverse all injected text that touch eachother
-		while (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
-			result -= this.injectionOptions![index - 1].content.length;
+		// affinity is weft
+		wet wesuwt = injectedText.offsetInUnwwappedWine;
+		wet index = injectedText.injectedTextIndex;
+		// twavewse aww injected text that touch eachotha
+		whiwe (index - 1 >= 0 && this.injectionOffsets![index - 1] === this.injectionOffsets![index]) {
+			wesuwt -= this.injectionOptions![index - 1].content.wength;
 			index++;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getInjectedText(outputLineIndex: number, outputOffset: number): InjectedText | null {
-		const offset = this.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputOffset);
+	pubwic getInjectedText(outputWineIndex: numba, outputOffset: numba): InjectedText | nuww {
+		const offset = this.outputPositionToOffsetInUnwwappedWine(outputWineIndex, outputOffset);
 		const injectedText = this.getInjectedTextAtOffset(offset);
 		if (!injectedText) {
-			return null;
+			wetuwn nuww;
 		}
-		return {
+		wetuwn {
 			options: this.injectionOptions![injectedText.injectedTextIndex]
 		};
 	}
 
-	private getInjectedTextAtOffset(offsetInUnwrappedLine: number): { injectedTextIndex: number, offsetInUnwrappedLine: number, length: number } | undefined {
+	pwivate getInjectedTextAtOffset(offsetInUnwwappedWine: numba): { injectedTextIndex: numba, offsetInUnwwappedWine: numba, wength: numba } | undefined {
 		const injectionOffsets = this.injectionOffsets;
 		const injectionOptions = this.injectionOptions;
 
-		if (injectionOffsets !== null) {
-			let totalInjectedTextLengthBefore = 0;
-			for (let i = 0; i < injectionOffsets.length; i++) {
-				const length = injectionOptions![i].content.length;
-				const injectedTextStartOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore;
-				const injectedTextEndOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore + length;
+		if (injectionOffsets !== nuww) {
+			wet totawInjectedTextWengthBefowe = 0;
+			fow (wet i = 0; i < injectionOffsets.wength; i++) {
+				const wength = injectionOptions![i].content.wength;
+				const injectedTextStawtOffsetInUnwwappedWine = injectionOffsets[i] + totawInjectedTextWengthBefowe;
+				const injectedTextEndOffsetInUnwwappedWine = injectionOffsets[i] + totawInjectedTextWengthBefowe + wength;
 
-				if (injectedTextStartOffsetInUnwrappedLine > offsetInUnwrappedLine) {
-					// Injected text starts later.
-					break; // All later injected texts have an even larger offset.
+				if (injectedTextStawtOffsetInUnwwappedWine > offsetInUnwwappedWine) {
+					// Injected text stawts wata.
+					bweak; // Aww wata injected texts have an even wawga offset.
 				}
 
-				if (offsetInUnwrappedLine <= injectedTextEndOffsetInUnwrappedLine) {
-					// Injected text ends after or with the given position (but also starts with or before it).
-					return {
+				if (offsetInUnwwappedWine <= injectedTextEndOffsetInUnwwappedWine) {
+					// Injected text ends afta ow with the given position (but awso stawts with ow befowe it).
+					wetuwn {
 						injectedTextIndex: i,
-						offsetInUnwrappedLine: injectedTextStartOffsetInUnwrappedLine,
-						length
+						offsetInUnwwappedWine: injectedTextStawtOffsetInUnwwappedWine,
+						wength
 					};
 				}
 
-				totalInjectedTextLengthBefore += length;
+				totawInjectedTextWengthBefowe += wength;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface ILineBreaksComputer {
+expowt intewface IWineBweaksComputa {
 	/**
-	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
+	 * Pass in `pweviousWineBweakData` if the onwy diffewence is in bweaking cowumns!!!
 	 */
-	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null): void;
-	finalize(): (LineBreakData | null)[];
+	addWequest(wineText: stwing, injectedText: WineInjectedText[] | nuww, pweviousWineBweakData: WineBweakData | nuww): void;
+	finawize(): (WineBweakData | nuww)[];
 }
 
-export interface IViewModel extends ICursorSimpleModel {
+expowt intewface IViewModew extends ICuwsowSimpweModew {
 
-	readonly model: ITextModel;
+	weadonwy modew: ITextModew;
 
-	readonly coordinatesConverter: ICoordinatesConverter;
+	weadonwy coowdinatesConvewta: ICoowdinatesConvewta;
 
-	readonly viewLayout: IViewLayout;
+	weadonwy viewWayout: IViewWayout;
 
-	readonly cursorConfig: CursorConfiguration;
+	weadonwy cuwsowConfig: CuwsowConfiguwation;
 
-	addViewEventHandler(eventHandler: ViewEventHandler): void;
-	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+	addViewEventHandwa(eventHandwa: ViewEventHandwa): void;
+	wemoveViewEventHandwa(eventHandwa: ViewEventHandwa): void;
 
 	/**
-	 * Gives a hint that a lot of requests are about to come in for these line numbers.
+	 * Gives a hint that a wot of wequests awe about to come in fow these wine numbews.
 	 */
-	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
-	tokenizeViewport(): void;
-	setHasFocus(hasFocus: boolean): void;
-	onCompositionStart(): void;
+	setViewpowt(stawtWineNumba: numba, endWineNumba: numba, centewedWineNumba: numba): void;
+	tokenizeViewpowt(): void;
+	setHasFocus(hasFocus: boowean): void;
+	onCompositionStawt(): void;
 	onCompositionEnd(): void;
-	onDidColorThemeChange(): void;
+	onDidCowowThemeChange(): void;
 
-	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
-	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
-	getViewLineData(lineNumber: number): ViewLineData;
-	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
-	getCompletelyVisibleViewRange(): Range;
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	getDecowationsInViewpowt(visibweWange: Wange): ViewModewDecowation[];
+	getViewWineWendewingData(visibweWange: Wange, wineNumba: numba): ViewWineWendewingData;
+	getViewWineData(wineNumba: numba): ViewWineData;
+	getMinimapWinesWendewingData(stawtWineNumba: numba, endWineNumba: numba, needed: boowean[]): MinimapWinesWendewingData;
+	getCompwetewyVisibweViewWange(): Wange;
+	getCompwetewyVisibweViewWangeAtScwowwTop(scwowwTop: numba): Wange;
 
-	getTextModelOptions(): TextModelResolvedOptions;
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineLength(lineNumber: number): number;
-	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
-	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
-	getLineMinColumn(lineNumber: number): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations;
-	invalidateOverviewRulerColorCache(): void;
-	invalidateMinimapColorCache(): void;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
+	getTextModewOptions(): TextModewWesowvedOptions;
+	getWineCount(): numba;
+	getWineContent(wineNumba: numba): stwing;
+	getWineWength(wineNumba: numba): numba;
+	getActiveIndentGuide(wineNumba: numba, minWineNumba: numba, maxWineNumba: numba): IActiveIndentGuideInfo;
+	getWinesIndentGuides(stawtWineNumba: numba, endWineNumba: numba): numba[];
+	getWineMinCowumn(wineNumba: numba): numba;
+	getWineMaxCowumn(wineNumba: numba): numba;
+	getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba;
+	getWineWastNonWhitespaceCowumn(wineNumba: numba): numba;
+	getAwwOvewviewWuwewDecowations(theme: EditowTheme): IOvewviewWuwewDecowations;
+	invawidateOvewviewWuwewCowowCache(): void;
+	invawidateMinimapCowowCache(): void;
+	getVawueInWange(wange: Wange, eow: EndOfWinePwefewence): stwing;
 
-	getInjectedTextAt(viewPosition: Position): InjectedText | null;
+	getInjectedTextAt(viewPosition: Position): InjectedText | nuww;
 
-	getModelLineMaxColumn(modelLineNumber: number): number;
-	validateModelPosition(modelPosition: IPosition): Position;
-	validateModelRange(range: IRange): Range;
+	getModewWineMaxCowumn(modewWineNumba: numba): numba;
+	vawidateModewPosition(modewPosition: IPosition): Position;
+	vawidateModewWange(wange: IWange): Wange;
 
-	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-	getEOL(): string;
-	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
-	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
+	deduceModewPositionWewativeToViewPosition(viewAnchowPosition: Position, dewtaOffset: numba, wineFeedCnt: numba): Position;
+	getEOW(): stwing;
+	getPwainTextToCopy(modewWanges: Wange[], emptySewectionCwipboawd: boowean, fowceCWWF: boowean): stwing | stwing[];
+	getWichTextToCopy(modewWanges: Wange[], emptySewectionCwipboawd: boowean): { htmw: stwing, mode: stwing } | nuww;
 
-	//#region model
+	//#wegion modew
 
-	pushStackElement(): void;
+	pushStackEwement(): void;
 
-	//#endregion
+	//#endwegion
 
-	createLineBreaksComputer(): ILineBreaksComputer;
+	cweateWineBweaksComputa(): IWineBweaksComputa;
 
-	//#region cursor
-	getPrimaryCursorState(): CursorState;
-	getLastAddedCursorIndex(): number;
-	getCursorStates(): CursorState[];
-	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	getCursorColumnSelectData(): IColumnSelectData;
-	getCursorAutoClosedCharacters(): Range[];
-	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
-	getPrevEditOperationType(): EditOperationType;
-	setPrevEditOperationType(type: EditOperationType): void;
-	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void;
-	revealTopMostCursor(source: string | null | undefined): void;
-	revealBottomMostCursor(source: string | null | undefined): void;
-	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
-	//#endregion
+	//#wegion cuwsow
+	getPwimawyCuwsowState(): CuwsowState;
+	getWastAddedCuwsowIndex(): numba;
+	getCuwsowStates(): CuwsowState[];
+	setCuwsowStates(souwce: stwing | nuww | undefined, weason: CuwsowChangeWeason, states: PawtiawCuwsowState[] | nuww): void;
+	getCuwsowCowumnSewectData(): ICowumnSewectData;
+	getCuwsowAutoCwosedChawactews(): Wange[];
+	setCuwsowCowumnSewectData(cowumnSewectData: ICowumnSewectData): void;
+	getPwevEditOpewationType(): EditOpewationType;
+	setPwevEditOpewationType(type: EditOpewationType): void;
+	weveawPwimawyCuwsow(souwce: stwing | nuww | undefined, weveawHowizontaw: boowean): void;
+	weveawTopMostCuwsow(souwce: stwing | nuww | undefined): void;
+	weveawBottomMostCuwsow(souwce: stwing | nuww | undefined): void;
+	weveawWange(souwce: stwing | nuww | undefined, weveawHowizontaw: boowean, viewWange: Wange, vewticawType: VewticawWeveawType, scwowwType: ScwowwType): void;
+	//#endwegion
 
-	//#region viewLayout
-	getVerticalOffsetForLineNumber(viewLineNumber: number): number;
-	getScrollTop(): number;
-	setScrollTop(newScrollTop: number, scrollType: ScrollType): void;
-	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
-	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
-	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
-	setMaxLineWidth(maxLineWidth: number): void;
-	//#endregion
+	//#wegion viewWayout
+	getVewticawOffsetFowWineNumba(viewWineNumba: numba): numba;
+	getScwowwTop(): numba;
+	setScwowwTop(newScwowwTop: numba, scwowwType: ScwowwType): void;
+	setScwowwPosition(position: INewScwowwPosition, type: ScwowwType): void;
+	dewtaScwowwNow(dewtaScwowwWeft: numba, dewtaScwowwTop: numba): void;
+	changeWhitespace(cawwback: (accessow: IWhitespaceChangeAccessow) => void): void;
+	setMaxWineWidth(maxWineWidth: numba): void;
+	//#endwegion
 }
 
-export class InjectedText {
-	constructor(public readonly options: InjectedTextOptions) { }
+expowt cwass InjectedText {
+	constwuctow(pubwic weadonwy options: InjectedTextOptions) { }
 }
 
-export class MinimapLinesRenderingData {
-	public readonly tabSize: number;
-	public readonly data: Array<ViewLineData | null>;
+expowt cwass MinimapWinesWendewingData {
+	pubwic weadonwy tabSize: numba;
+	pubwic weadonwy data: Awway<ViewWineData | nuww>;
 
-	constructor(
-		tabSize: number,
-		data: Array<ViewLineData | null>
+	constwuctow(
+		tabSize: numba,
+		data: Awway<ViewWineData | nuww>
 	) {
 		this.tabSize = tabSize;
 		this.data = data;
 	}
 }
 
-export class ViewLineData {
-	_viewLineDataBrand: void = undefined;
+expowt cwass ViewWineData {
+	_viewWineDataBwand: void = undefined;
 
 	/**
-	 * The content at this view line.
+	 * The content at this view wine.
 	 */
-	public readonly content: string;
+	pubwic weadonwy content: stwing;
 	/**
-	 * Does this line continue with a wrapped line?
+	 * Does this wine continue with a wwapped wine?
 	 */
-	public readonly continuesWithWrappedLine: boolean;
+	pubwic weadonwy continuesWithWwappedWine: boowean;
 	/**
-	 * The minimum allowed column at this view line.
+	 * The minimum awwowed cowumn at this view wine.
 	 */
-	public readonly minColumn: number;
+	pubwic weadonwy minCowumn: numba;
 	/**
-	 * The maximum allowed column at this view line.
+	 * The maximum awwowed cowumn at this view wine.
 	 */
-	public readonly maxColumn: number;
+	pubwic weadonwy maxCowumn: numba;
 	/**
-	 * The visible column at the start of the line (after the fauxIndent).
+	 * The visibwe cowumn at the stawt of the wine (afta the fauxIndent).
 	 */
-	public readonly startVisibleColumn: number;
+	pubwic weadonwy stawtVisibweCowumn: numba;
 	/**
-	 * The tokens at this view line.
+	 * The tokens at this view wine.
 	 */
-	public readonly tokens: IViewLineTokens;
+	pubwic weadonwy tokens: IViewWineTokens;
 
 	/**
-	 * Additional inline decorations for this line.
+	 * Additionaw inwine decowations fow this wine.
 	*/
-	public readonly inlineDecorations: readonly SingleLineInlineDecoration[] | null;
+	pubwic weadonwy inwineDecowations: weadonwy SingweWineInwineDecowation[] | nuww;
 
-	constructor(
-		content: string,
-		continuesWithWrappedLine: boolean,
-		minColumn: number,
-		maxColumn: number,
-		startVisibleColumn: number,
-		tokens: IViewLineTokens,
-		inlineDecorations: readonly SingleLineInlineDecoration[] | null
+	constwuctow(
+		content: stwing,
+		continuesWithWwappedWine: boowean,
+		minCowumn: numba,
+		maxCowumn: numba,
+		stawtVisibweCowumn: numba,
+		tokens: IViewWineTokens,
+		inwineDecowations: weadonwy SingweWineInwineDecowation[] | nuww
 	) {
 		this.content = content;
-		this.continuesWithWrappedLine = continuesWithWrappedLine;
-		this.minColumn = minColumn;
-		this.maxColumn = maxColumn;
-		this.startVisibleColumn = startVisibleColumn;
+		this.continuesWithWwappedWine = continuesWithWwappedWine;
+		this.minCowumn = minCowumn;
+		this.maxCowumn = maxCowumn;
+		this.stawtVisibweCowumn = stawtVisibweCowumn;
 		this.tokens = tokens;
-		this.inlineDecorations = inlineDecorations;
+		this.inwineDecowations = inwineDecowations;
 	}
 }
 
-export class ViewLineRenderingData {
+expowt cwass ViewWineWendewingData {
 	/**
-	 * The minimum allowed column at this view line.
+	 * The minimum awwowed cowumn at this view wine.
 	 */
-	public readonly minColumn: number;
+	pubwic weadonwy minCowumn: numba;
 	/**
-	 * The maximum allowed column at this view line.
+	 * The maximum awwowed cowumn at this view wine.
 	 */
-	public readonly maxColumn: number;
+	pubwic weadonwy maxCowumn: numba;
 	/**
-	 * The content at this view line.
+	 * The content at this view wine.
 	 */
-	public readonly content: string;
+	pubwic weadonwy content: stwing;
 	/**
-	 * Does this line continue with a wrapped line?
+	 * Does this wine continue with a wwapped wine?
 	 */
-	public readonly continuesWithWrappedLine: boolean;
+	pubwic weadonwy continuesWithWwappedWine: boowean;
 	/**
-	 * Describes if `content` contains RTL characters.
+	 * Descwibes if `content` contains WTW chawactews.
 	 */
-	public readonly containsRTL: boolean;
+	pubwic weadonwy containsWTW: boowean;
 	/**
-	 * Describes if `content` contains non basic ASCII chars.
+	 * Descwibes if `content` contains non basic ASCII chaws.
 	 */
-	public readonly isBasicASCII: boolean;
+	pubwic weadonwy isBasicASCII: boowean;
 	/**
-	 * The tokens at this view line.
+	 * The tokens at this view wine.
 	 */
-	public readonly tokens: IViewLineTokens;
+	pubwic weadonwy tokens: IViewWineTokens;
 	/**
-	 * Inline decorations at this view line.
+	 * Inwine decowations at this view wine.
 	 */
-	public readonly inlineDecorations: InlineDecoration[];
+	pubwic weadonwy inwineDecowations: InwineDecowation[];
 	/**
-	 * The tab size for this view model.
+	 * The tab size fow this view modew.
 	 */
-	public readonly tabSize: number;
+	pubwic weadonwy tabSize: numba;
 	/**
-	 * The visible column at the start of the line (after the fauxIndent)
+	 * The visibwe cowumn at the stawt of the wine (afta the fauxIndent)
 	 */
-	public readonly startVisibleColumn: number;
+	pubwic weadonwy stawtVisibweCowumn: numba;
 
-	constructor(
-		minColumn: number,
-		maxColumn: number,
-		content: string,
-		continuesWithWrappedLine: boolean,
-		mightContainRTL: boolean,
-		mightContainNonBasicASCII: boolean,
-		tokens: IViewLineTokens,
-		inlineDecorations: InlineDecoration[],
-		tabSize: number,
-		startVisibleColumn: number,
+	constwuctow(
+		minCowumn: numba,
+		maxCowumn: numba,
+		content: stwing,
+		continuesWithWwappedWine: boowean,
+		mightContainWTW: boowean,
+		mightContainNonBasicASCII: boowean,
+		tokens: IViewWineTokens,
+		inwineDecowations: InwineDecowation[],
+		tabSize: numba,
+		stawtVisibweCowumn: numba,
 	) {
-		this.minColumn = minColumn;
-		this.maxColumn = maxColumn;
+		this.minCowumn = minCowumn;
+		this.maxCowumn = maxCowumn;
 		this.content = content;
-		this.continuesWithWrappedLine = continuesWithWrappedLine;
+		this.continuesWithWwappedWine = continuesWithWwappedWine;
 
-		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
-		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);
+		this.isBasicASCII = ViewWineWendewingData.isBasicASCII(content, mightContainNonBasicASCII);
+		this.containsWTW = ViewWineWendewingData.containsWTW(content, this.isBasicASCII, mightContainWTW);
 
 		this.tokens = tokens;
-		this.inlineDecorations = inlineDecorations;
+		this.inwineDecowations = inwineDecowations;
 		this.tabSize = tabSize;
-		this.startVisibleColumn = startVisibleColumn;
+		this.stawtVisibweCowumn = stawtVisibweCowumn;
 	}
 
-	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
+	pubwic static isBasicASCII(wineContent: stwing, mightContainNonBasicASCII: boowean): boowean {
 		if (mightContainNonBasicASCII) {
-			return strings.isBasicASCII(lineContent);
+			wetuwn stwings.isBasicASCII(wineContent);
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public static containsRTL(lineContent: string, isBasicASCII: boolean, mightContainRTL: boolean): boolean {
-		if (!isBasicASCII && mightContainRTL) {
-			return strings.containsRTL(lineContent);
+	pubwic static containsWTW(wineContent: stwing, isBasicASCII: boowean, mightContainWTW: boowean): boowean {
+		if (!isBasicASCII && mightContainWTW) {
+			wetuwn stwings.containsWTW(wineContent);
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-export const enum InlineDecorationType {
-	Regular = 0,
-	Before = 1,
-	After = 2,
-	RegularAffectingLetterSpacing = 3
+expowt const enum InwineDecowationType {
+	Weguwaw = 0,
+	Befowe = 1,
+	Afta = 2,
+	WeguwawAffectingWettewSpacing = 3
 }
 
-export class InlineDecoration {
-	constructor(
-		public readonly range: Range,
-		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType
+expowt cwass InwineDecowation {
+	constwuctow(
+		pubwic weadonwy wange: Wange,
+		pubwic weadonwy inwineCwassName: stwing,
+		pubwic weadonwy type: InwineDecowationType
 	) {
 	}
 }
 
-export class SingleLineInlineDecoration {
-	constructor(
-		public readonly startOffset: number,
-		public readonly endOffset: number,
-		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean
+expowt cwass SingweWineInwineDecowation {
+	constwuctow(
+		pubwic weadonwy stawtOffset: numba,
+		pubwic weadonwy endOffset: numba,
+		pubwic weadonwy inwineCwassName: stwing,
+		pubwic weadonwy inwineCwassNameAffectsWettewSpacing: boowean
 	) {
 	}
 
-	toInlineDecoration(lineNumber: number): InlineDecoration {
-		return new InlineDecoration(
-			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
-			this.inlineClassName,
-			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
+	toInwineDecowation(wineNumba: numba): InwineDecowation {
+		wetuwn new InwineDecowation(
+			new Wange(wineNumba, this.stawtOffset + 1, wineNumba, this.endOffset + 1),
+			this.inwineCwassName,
+			this.inwineCwassNameAffectsWettewSpacing ? InwineDecowationType.WeguwawAffectingWettewSpacing : InwineDecowationType.Weguwaw
 		);
 	}
 }
 
-export class ViewModelDecoration {
-	_viewModelDecorationBrand: void = undefined;
+expowt cwass ViewModewDecowation {
+	_viewModewDecowationBwand: void = undefined;
 
-	public readonly range: Range;
-	public readonly options: IModelDecorationOptions;
+	pubwic weadonwy wange: Wange;
+	pubwic weadonwy options: IModewDecowationOptions;
 
-	constructor(range: Range, options: IModelDecorationOptions) {
-		this.range = range;
+	constwuctow(wange: Wange, options: IModewDecowationOptions) {
+		this.wange = wange;
 		this.options = options;
 	}
 }
 
 /**
- * Decorations are encoded in a number array using the following scheme:
- *  - 3*i = lane
- *  - 3*i+1 = startLineNumber
- *  - 3*i+2 = endLineNumber
+ * Decowations awe encoded in a numba awway using the fowwowing scheme:
+ *  - 3*i = wane
+ *  - 3*i+1 = stawtWineNumba
+ *  - 3*i+2 = endWineNumba
  */
-export interface IOverviewRulerDecorations {
-	[color: string]: number[];
+expowt intewface IOvewviewWuwewDecowations {
+	[cowow: stwing]: numba[];
 }

@@ -1,581 +1,581 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
-	DocumentRangeFormattingRequest, Disposable, TextDocumentPositionParams, ServerCapabilities,
-	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
-} from 'vscode-languageserver';
-import {
-	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
-	Range, DocumentLink, SymbolInformation, TextDocumentIdentifier
-} from './modes/languageModes';
+impowt {
+	Connection, TextDocuments, InitiawizePawams, InitiawizeWesuwt, WequestType,
+	DocumentWangeFowmattingWequest, Disposabwe, TextDocumentPositionPawams, SewvewCapabiwities,
+	ConfiguwationWequest, ConfiguwationPawams, DidChangeWowkspaceFowdewsNotification,
+	DocumentCowowWequest, CowowPwesentationWequest, TextDocumentSyncKind, NotificationType, WequestType0, DocumentFowmattingWequest, FowmattingOptions, TextEdit
+} fwom 'vscode-wanguagesewva';
+impowt {
+	getWanguageModes, WanguageModes, Settings, TextDocument, Position, Diagnostic, WowkspaceFowda, CowowInfowmation,
+	Wange, DocumentWink, SymbowInfowmation, TextDocumentIdentifia
+} fwom './modes/wanguageModes';
 
-import { format } from './modes/formatting';
-import { pushAll } from './utils/arrays';
-import { getDocumentContext } from './utils/documentContext';
-import { URI } from 'vscode-uri';
-import { formatError, runSafe } from './utils/runner';
+impowt { fowmat } fwom './modes/fowmatting';
+impowt { pushAww } fwom './utiws/awways';
+impowt { getDocumentContext } fwom './utiws/documentContext';
+impowt { UWI } fwom 'vscode-uwi';
+impowt { fowmatEwwow, wunSafe } fwom './utiws/wunna';
 
-import { getFoldingRanges } from './modes/htmlFolding';
-import { fetchHTMLDataProviders } from './customData';
-import { getSelectionRanges } from './modes/selectionRanges';
-import { SemanticTokenProvider, newSemanticTokenProvider } from './modes/semanticTokens';
-import { RequestService, getRequestService } from './requests';
+impowt { getFowdingWanges } fwom './modes/htmwFowding';
+impowt { fetchHTMWDataPwovidews } fwom './customData';
+impowt { getSewectionWanges } fwom './modes/sewectionWanges';
+impowt { SemanticTokenPwovida, newSemanticTokenPwovida } fwom './modes/semanticTokens';
+impowt { WequestSewvice, getWequestSewvice } fwom './wequests';
 
 namespace CustomDataChangedNotification {
-	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
+	expowt const type: NotificationType<stwing[]> = new NotificationType('htmw/customDataChanged');
 }
 
-namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string | null, any> = new RequestType('html/tag');
+namespace TagCwoseWequest {
+	expowt const type: WequestType<TextDocumentPositionPawams, stwing | nuww, any> = new WequestType('htmw/tag');
 }
 
-// experimental: semantic tokens
-interface SemanticTokenParams {
-	textDocument: TextDocumentIdentifier;
-	ranges?: Range[];
+// expewimentaw: semantic tokens
+intewface SemanticTokenPawams {
+	textDocument: TextDocumentIdentifia;
+	wanges?: Wange[];
 }
-namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
+namespace SemanticTokenWequest {
+	expowt const type: WequestType<SemanticTokenPawams, numba[] | nuww, any> = new WequestType('htmw/semanticTokens');
 }
-namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
+namespace SemanticTokenWegendWequest {
+	expowt const type: WequestType0<{ types: stwing[]; modifiews: stwing[] } | nuww, any> = new WequestType0('htmw/semanticTokenWegend');
 }
 
-export interface RuntimeEnvironment {
-	file?: RequestService;
-	http?: RequestService
-	configureHttpRequests?(proxy: string, strictSSL: boolean): void;
-	readonly timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+expowt intewface WuntimeEnviwonment {
+	fiwe?: WequestSewvice;
+	http?: WequestSewvice
+	configuweHttpWequests?(pwoxy: stwing, stwictSSW: boowean): void;
+	weadonwy tima: {
+		setImmediate(cawwback: (...awgs: any[]) => void, ...awgs: any[]): Disposabwe;
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe;
 	}
 }
 
-export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
+expowt function stawtSewva(connection: Connection, wuntime: WuntimeEnviwonment) {
 
-	// Create a text document manager.
+	// Cweate a text document managa.
 	const documents = new TextDocuments(TextDocument);
-	// Make the text document manager listen on the connection
-	// for open, change and close text document events
-	documents.listen(connection);
+	// Make the text document managa wisten on the connection
+	// fow open, change and cwose text document events
+	documents.wisten(connection);
 
-	let workspaceFolders: WorkspaceFolder[] = [];
+	wet wowkspaceFowdews: WowkspaceFowda[] = [];
 
-	let languageModes: LanguageModes;
+	wet wanguageModes: WanguageModes;
 
-	let clientSnippetSupport = false;
-	let dynamicFormatterRegistration = false;
-	let scopedSettingsSupport = false;
-	let workspaceFoldersSupport = false;
-	let foldingRangeLimit = Number.MAX_VALUE;
+	wet cwientSnippetSuppowt = fawse;
+	wet dynamicFowmattewWegistwation = fawse;
+	wet scopedSettingsSuppowt = fawse;
+	wet wowkspaceFowdewsSuppowt = fawse;
+	wet fowdingWangeWimit = Numba.MAX_VAWUE;
 
-	const notReady = () => Promise.reject('Not Ready');
-	let requestService: RequestService = { getContent: notReady, stat: notReady, readDirectory: notReady };
+	const notWeady = () => Pwomise.weject('Not Weady');
+	wet wequestSewvice: WequestSewvice = { getContent: notWeady, stat: notWeady, weadDiwectowy: notWeady };
 
 
 
-	let globalSettings: Settings = {};
-	let documentSettings: { [key: string]: Thenable<Settings> } = {};
-	// remove document settings on close
-	documents.onDidClose(e => {
-		delete documentSettings[e.document.uri];
+	wet gwobawSettings: Settings = {};
+	wet documentSettings: { [key: stwing]: Thenabwe<Settings> } = {};
+	// wemove document settings on cwose
+	documents.onDidCwose(e => {
+		dewete documentSettings[e.document.uwi];
 	});
 
-	function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings | undefined> {
-		if (scopedSettingsSupport && needsDocumentSettings()) {
-			let promise = documentSettings[textDocument.uri];
-			if (!promise) {
-				const scopeUri = textDocument.uri;
-				const configRequestParam: ConfigurationParams = { items: [{ scopeUri, section: 'css' }, { scopeUri, section: 'html' }, { scopeUri, section: 'javascript' }] };
-				promise = connection.sendRequest(ConfigurationRequest.type, configRequestParam).then(s => ({ css: s[0], html: s[1], javascript: s[2] }));
-				documentSettings[textDocument.uri] = promise;
+	function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boowean): Thenabwe<Settings | undefined> {
+		if (scopedSettingsSuppowt && needsDocumentSettings()) {
+			wet pwomise = documentSettings[textDocument.uwi];
+			if (!pwomise) {
+				const scopeUwi = textDocument.uwi;
+				const configWequestPawam: ConfiguwationPawams = { items: [{ scopeUwi, section: 'css' }, { scopeUwi, section: 'htmw' }, { scopeUwi, section: 'javascwipt' }] };
+				pwomise = connection.sendWequest(ConfiguwationWequest.type, configWequestPawam).then(s => ({ css: s[0], htmw: s[1], javascwipt: s[2] }));
+				documentSettings[textDocument.uwi] = pwomise;
 			}
-			return promise;
+			wetuwn pwomise;
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	// After the server has started the client sends an initialize request. The server receives
-	// in the passed params the rootPath of the workspace plus the client capabilities
-	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initializationOptions = params.initializationOptions;
+	// Afta the sewva has stawted the cwient sends an initiawize wequest. The sewva weceives
+	// in the passed pawams the wootPath of the wowkspace pwus the cwient capabiwities
+	connection.onInitiawize((pawams: InitiawizePawams): InitiawizeWesuwt => {
+		const initiawizationOptions = pawams.initiawizationOptions;
 
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
-			workspaceFolders = [];
-			if (params.rootPath) {
-				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
+		wowkspaceFowdews = (<any>pawams).wowkspaceFowdews;
+		if (!Awway.isAwway(wowkspaceFowdews)) {
+			wowkspaceFowdews = [];
+			if (pawams.wootPath) {
+				wowkspaceFowdews.push({ name: '', uwi: UWI.fiwe(pawams.wootPath).toStwing() });
 			}
 		}
 
-		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
+		wequestSewvice = getWequestSewvice(initiawizationOptions?.handwedSchemas || ['fiwe'], connection, wuntime);
 
-		const workspace = {
-			get settings() { return globalSettings; },
-			get folders() { return workspaceFolders; }
+		const wowkspace = {
+			get settings() { wetuwn gwobawSettings; },
+			get fowdews() { wetuwn wowkspaceFowdews; }
 		};
 
-		languageModes = getLanguageModes(initializationOptions?.embeddedLanguages || { css: true, javascript: true }, workspace, params.capabilities, requestService);
+		wanguageModes = getWanguageModes(initiawizationOptions?.embeddedWanguages || { css: twue, javascwipt: twue }, wowkspace, pawams.capabiwities, wequestSewvice);
 
-		const dataPaths: string[] = initializationOptions?.dataPaths || [];
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
-			languageModes.updateDataProviders(dataProviders);
+		const dataPaths: stwing[] = initiawizationOptions?.dataPaths || [];
+		fetchHTMWDataPwovidews(dataPaths, wequestSewvice).then(dataPwovidews => {
+			wanguageModes.updateDataPwovidews(dataPwovidews);
 		});
 
-		documents.onDidClose(e => {
-			languageModes.onDocumentRemoved(e.document);
+		documents.onDidCwose(e => {
+			wanguageModes.onDocumentWemoved(e.document);
 		});
 		connection.onShutdown(() => {
-			languageModes.dispose();
+			wanguageModes.dispose();
 		});
 
-		function getClientCapability<T>(name: string, def: T) {
-			const keys = name.split('.');
-			let c: any = params.capabilities;
-			for (let i = 0; c && i < keys.length; i++) {
-				if (!c.hasOwnProperty(keys[i])) {
-					return def;
+		function getCwientCapabiwity<T>(name: stwing, def: T) {
+			const keys = name.spwit('.');
+			wet c: any = pawams.capabiwities;
+			fow (wet i = 0; c && i < keys.wength; i++) {
+				if (!c.hasOwnPwopewty(keys[i])) {
+					wetuwn def;
 				}
 				c = c[keys[i]];
 			}
-			return c;
+			wetuwn c;
 		}
 
-		clientSnippetSupport = getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
-		dynamicFormatterRegistration = getClientCapability('textDocument.rangeFormatting.dynamicRegistration', false) && (typeof initializationOptions?.provideFormatter !== 'boolean');
-		scopedSettingsSupport = getClientCapability('workspace.configuration', false);
-		workspaceFoldersSupport = getClientCapability('workspace.workspaceFolders', false);
-		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
-		const capabilities: ServerCapabilities = {
-			textDocumentSync: TextDocumentSyncKind.Incremental,
-			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
-			hoverProvider: true,
-			documentHighlightProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
-			documentLinkProvider: { resolveProvider: false },
-			documentSymbolProvider: true,
-			definitionProvider: true,
-			signatureHelpProvider: { triggerCharacters: ['('] },
-			referencesProvider: true,
-			colorProvider: {},
-			foldingRangeProvider: true,
-			selectionRangeProvider: true,
-			renameProvider: true,
-			linkedEditingRangeProvider: true
+		cwientSnippetSuppowt = getCwientCapabiwity('textDocument.compwetion.compwetionItem.snippetSuppowt', fawse);
+		dynamicFowmattewWegistwation = getCwientCapabiwity('textDocument.wangeFowmatting.dynamicWegistwation', fawse) && (typeof initiawizationOptions?.pwovideFowmatta !== 'boowean');
+		scopedSettingsSuppowt = getCwientCapabiwity('wowkspace.configuwation', fawse);
+		wowkspaceFowdewsSuppowt = getCwientCapabiwity('wowkspace.wowkspaceFowdews', fawse);
+		fowdingWangeWimit = getCwientCapabiwity('textDocument.fowdingWange.wangeWimit', Numba.MAX_VAWUE);
+		const capabiwities: SewvewCapabiwities = {
+			textDocumentSync: TextDocumentSyncKind.Incwementaw,
+			compwetionPwovida: cwientSnippetSuppowt ? { wesowvePwovida: twue, twiggewChawactews: ['.', ':', '<', '"', '=', '/'] } : undefined,
+			hovewPwovida: twue,
+			documentHighwightPwovida: twue,
+			documentWangeFowmattingPwovida: pawams.initiawizationOptions?.pwovideFowmatta === twue,
+			documentFowmattingPwovida: pawams.initiawizationOptions?.pwovideFowmatta === twue,
+			documentWinkPwovida: { wesowvePwovida: fawse },
+			documentSymbowPwovida: twue,
+			definitionPwovida: twue,
+			signatuweHewpPwovida: { twiggewChawactews: ['('] },
+			wefewencesPwovida: twue,
+			cowowPwovida: {},
+			fowdingWangePwovida: twue,
+			sewectionWangePwovida: twue,
+			wenamePwovida: twue,
+			winkedEditingWangePwovida: twue
 		};
-		return { capabilities };
+		wetuwn { capabiwities };
 	});
 
-	connection.onInitialized(() => {
-		if (workspaceFoldersSupport) {
-			connection.client.register(DidChangeWorkspaceFoldersNotification.type);
+	connection.onInitiawized(() => {
+		if (wowkspaceFowdewsSuppowt) {
+			connection.cwient.wegista(DidChangeWowkspaceFowdewsNotification.type);
 
-			connection.onNotification(DidChangeWorkspaceFoldersNotification.type, e => {
+			connection.onNotification(DidChangeWowkspaceFowdewsNotification.type, e => {
 				const toAdd = e.event.added;
-				const toRemove = e.event.removed;
-				const updatedFolders = [];
-				if (workspaceFolders) {
-					for (const folder of workspaceFolders) {
-						if (!toRemove.some(r => r.uri === folder.uri) && !toAdd.some(r => r.uri === folder.uri)) {
-							updatedFolders.push(folder);
+				const toWemove = e.event.wemoved;
+				const updatedFowdews = [];
+				if (wowkspaceFowdews) {
+					fow (const fowda of wowkspaceFowdews) {
+						if (!toWemove.some(w => w.uwi === fowda.uwi) && !toAdd.some(w => w.uwi === fowda.uwi)) {
+							updatedFowdews.push(fowda);
 						}
 					}
 				}
-				workspaceFolders = updatedFolders.concat(toAdd);
-				documents.all().forEach(triggerValidation);
+				wowkspaceFowdews = updatedFowdews.concat(toAdd);
+				documents.aww().fowEach(twiggewVawidation);
 			});
 		}
 	});
 
-	let formatterRegistrations: Thenable<Disposable>[] | null = null;
+	wet fowmattewWegistwations: Thenabwe<Disposabwe>[] | nuww = nuww;
 
-	// The settings have changed. Is send on server activation as well.
-	connection.onDidChangeConfiguration((change) => {
-		globalSettings = change.settings;
-		documentSettings = {}; // reset all document settings
-		documents.all().forEach(triggerValidation);
+	// The settings have changed. Is send on sewva activation as weww.
+	connection.onDidChangeConfiguwation((change) => {
+		gwobawSettings = change.settings;
+		documentSettings = {}; // weset aww document settings
+		documents.aww().fowEach(twiggewVawidation);
 
-		// dynamically enable & disable the formatter
-		if (dynamicFormatterRegistration) {
-			const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
-			if (enableFormatter) {
-				if (!formatterRegistrations) {
-					const documentSelector = [{ language: 'html' }, { language: 'handlebars' }];
-					formatterRegistrations = [
-						connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector }),
-						connection.client.register(DocumentFormattingRequest.type, { documentSelector })
+		// dynamicawwy enabwe & disabwe the fowmatta
+		if (dynamicFowmattewWegistwation) {
+			const enabweFowmatta = gwobawSettings && gwobawSettings.htmw && gwobawSettings.htmw.fowmat && gwobawSettings.htmw.fowmat.enabwe;
+			if (enabweFowmatta) {
+				if (!fowmattewWegistwations) {
+					const documentSewectow = [{ wanguage: 'htmw' }, { wanguage: 'handwebaws' }];
+					fowmattewWegistwations = [
+						connection.cwient.wegista(DocumentWangeFowmattingWequest.type, { documentSewectow }),
+						connection.cwient.wegista(DocumentFowmattingWequest.type, { documentSewectow })
 					];
 				}
-			} else if (formatterRegistrations) {
-				formatterRegistrations.forEach(p => p.then(r => r.dispose()));
-				formatterRegistrations = null;
+			} ewse if (fowmattewWegistwations) {
+				fowmattewWegistwations.fowEach(p => p.then(w => w.dispose()));
+				fowmattewWegistwations = nuww;
 			}
 		}
 	});
 
-	const pendingValidationRequests: { [uri: string]: Disposable } = {};
-	const validationDelayMs = 500;
+	const pendingVawidationWequests: { [uwi: stwing]: Disposabwe } = {};
+	const vawidationDewayMs = 500;
 
 	// The content of a text document has changed. This event is emitted
-	// when the text document first opened or when its content has changed.
+	// when the text document fiwst opened ow when its content has changed.
 	documents.onDidChangeContent(change => {
-		triggerValidation(change.document);
+		twiggewVawidation(change.document);
 	});
 
-	// a document has closed: clear all diagnostics
-	documents.onDidClose(event => {
-		cleanPendingValidation(event.document);
-		connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+	// a document has cwosed: cweaw aww diagnostics
+	documents.onDidCwose(event => {
+		cweanPendingVawidation(event.document);
+		connection.sendDiagnostics({ uwi: event.document.uwi, diagnostics: [] });
 	});
 
-	function cleanPendingValidation(textDocument: TextDocument): void {
-		const request = pendingValidationRequests[textDocument.uri];
-		if (request) {
-			request.dispose();
-			delete pendingValidationRequests[textDocument.uri];
+	function cweanPendingVawidation(textDocument: TextDocument): void {
+		const wequest = pendingVawidationWequests[textDocument.uwi];
+		if (wequest) {
+			wequest.dispose();
+			dewete pendingVawidationWequests[textDocument.uwi];
 		}
 	}
 
-	function triggerValidation(textDocument: TextDocument): void {
-		cleanPendingValidation(textDocument);
-		pendingValidationRequests[textDocument.uri] = runtime.timer.setTimeout(() => {
-			delete pendingValidationRequests[textDocument.uri];
-			validateTextDocument(textDocument);
-		}, validationDelayMs);
+	function twiggewVawidation(textDocument: TextDocument): void {
+		cweanPendingVawidation(textDocument);
+		pendingVawidationWequests[textDocument.uwi] = wuntime.tima.setTimeout(() => {
+			dewete pendingVawidationWequests[textDocument.uwi];
+			vawidateTextDocument(textDocument);
+		}, vawidationDewayMs);
 	}
 
-	function isValidationEnabled(languageId: string, settings: Settings = globalSettings) {
-		const validationSettings = settings && settings.html && settings.html.validate;
-		if (validationSettings) {
-			return languageId === 'css' && validationSettings.styles !== false || languageId === 'javascript' && validationSettings.scripts !== false;
+	function isVawidationEnabwed(wanguageId: stwing, settings: Settings = gwobawSettings) {
+		const vawidationSettings = settings && settings.htmw && settings.htmw.vawidate;
+		if (vawidationSettings) {
+			wetuwn wanguageId === 'css' && vawidationSettings.stywes !== fawse || wanguageId === 'javascwipt' && vawidationSettings.scwipts !== fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	async function validateTextDocument(textDocument: TextDocument) {
-		try {
-			const version = textDocument.version;
+	async function vawidateTextDocument(textDocument: TextDocument) {
+		twy {
+			const vewsion = textDocument.vewsion;
 			const diagnostics: Diagnostic[] = [];
-			if (textDocument.languageId === 'html') {
-				const modes = languageModes.getAllModesInDocument(textDocument);
-				const settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
-				const latestTextDocument = documents.get(textDocument.uri);
-				if (latestTextDocument && latestTextDocument.version === version) { // check no new version has come in after in after the async op
-					for (const mode of modes) {
-						if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
-							pushAll(diagnostics, await mode.doValidation(latestTextDocument, settings));
+			if (textDocument.wanguageId === 'htmw') {
+				const modes = wanguageModes.getAwwModesInDocument(textDocument);
+				const settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doVawidation));
+				const watestTextDocument = documents.get(textDocument.uwi);
+				if (watestTextDocument && watestTextDocument.vewsion === vewsion) { // check no new vewsion has come in afta in afta the async op
+					fow (const mode of modes) {
+						if (mode.doVawidation && isVawidationEnabwed(mode.getId(), settings)) {
+							pushAww(diagnostics, await mode.doVawidation(watestTextDocument, settings));
 						}
 					}
-					connection.sendDiagnostics({ uri: latestTextDocument.uri, diagnostics });
+					connection.sendDiagnostics({ uwi: watestTextDocument.uwi, diagnostics });
 				}
 			}
 		} catch (e) {
-			connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
+			connection.consowe.ewwow(fowmatEwwow(`Ewwow whiwe vawidating ${textDocument.uwi}`, e));
 		}
 	}
 
-	connection.onCompletion(async (textDocumentPosition, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(textDocumentPosition.textDocument.uri);
+	connection.onCompwetion(async (textDocumentPosition, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(textDocumentPosition.textDocument.uwi);
 			if (!document) {
-				return null;
+				wetuwn nuww;
 			}
-			const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-			if (!mode || !mode.doComplete) {
-				return { isIncomplete: true, items: [] };
+			const mode = wanguageModes.getModeAtPosition(document, textDocumentPosition.position);
+			if (!mode || !mode.doCompwete) {
+				wetuwn { isIncompwete: twue, items: [] };
 			}
-			const doComplete = mode.doComplete;
+			const doCompwete = mode.doCompwete;
 
-			if (mode.getId() !== 'html') {
-				/* __GDPR__
-					"html.embbedded.complete" : {
-						"languageId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			if (mode.getId() !== 'htmw') {
+				/* __GDPW__
+					"htmw.embbedded.compwete" : {
+						"wanguageId" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 					}
 				 */
-				connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
+				connection.tewemetwy.wogEvent({ key: 'htmw.embbedded.compwete', vawue: { wanguageId: mode.getId() } });
 			}
 
-			const settings = await getDocumentSettings(document, () => doComplete.length > 2);
-			const documentContext = getDocumentContext(document.uri, workspaceFolders);
-			return doComplete(document, textDocumentPosition.position, documentContext, settings);
+			const settings = await getDocumentSettings(document, () => doCompwete.wength > 2);
+			const documentContext = getDocumentContext(document.uwi, wowkspaceFowdews);
+			wetuwn doCompwete(document, textDocumentPosition.position, documentContext, settings);
 
-		}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
+		}, nuww, `Ewwow whiwe computing compwetions fow ${textDocumentPosition.textDocument.uwi}`, token);
 	});
 
-	connection.onCompletionResolve((item, token) => {
-		return runSafe(runtime, async () => {
+	connection.onCompwetionWesowve((item, token) => {
+		wetuwn wunSafe(wuntime, async () => {
 			const data = item.data;
-			if (data && data.languageId && data.uri) {
-				const mode = languageModes.getMode(data.languageId);
-				const document = documents.get(data.uri);
-				if (mode && mode.doResolve && document) {
-					return mode.doResolve(document, item);
+			if (data && data.wanguageId && data.uwi) {
+				const mode = wanguageModes.getMode(data.wanguageId);
+				const document = documents.get(data.uwi);
+				if (mode && mode.doWesowve && document) {
+					wetuwn mode.doWesowve(document, item);
 				}
 			}
-			return item;
-		}, item, `Error while resolving completion proposal`, token);
+			wetuwn item;
+		}, item, `Ewwow whiwe wesowving compwetion pwoposaw`, token);
 	});
 
-	connection.onHover((textDocumentPosition, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(textDocumentPosition.textDocument.uri);
+	connection.onHova((textDocumentPosition, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(textDocumentPosition.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
-				const doHover = mode?.doHover;
-				if (doHover) {
-					const settings = await getDocumentSettings(document, () => doHover.length > 2);
-					return doHover(document, textDocumentPosition.position, settings);
+				const mode = wanguageModes.getModeAtPosition(document, textDocumentPosition.position);
+				const doHova = mode?.doHova;
+				if (doHova) {
+					const settings = await getDocumentSettings(document, () => doHova.wength > 2);
+					wetuwn doHova(document, textDocumentPosition.position, settings);
 				}
 			}
-			return null;
-		}, null, `Error while computing hover for ${textDocumentPosition.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing hova fow ${textDocumentPosition.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentHighlight((documentHighlightParams, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(documentHighlightParams.textDocument.uri);
+	connection.onDocumentHighwight((documentHighwightPawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(documentHighwightPawams.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, documentHighlightParams.position);
-				if (mode && mode.findDocumentHighlight) {
-					return mode.findDocumentHighlight(document, documentHighlightParams.position);
+				const mode = wanguageModes.getModeAtPosition(document, documentHighwightPawams.position);
+				if (mode && mode.findDocumentHighwight) {
+					wetuwn mode.findDocumentHighwight(document, documentHighwightPawams.position);
 				}
 			}
-			return [];
-		}, [], `Error while computing document highlights for ${documentHighlightParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing document highwights fow ${documentHighwightPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDefinition((definitionParams, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(definitionParams.textDocument.uri);
+	connection.onDefinition((definitionPawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(definitionPawams.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, definitionParams.position);
+				const mode = wanguageModes.getModeAtPosition(document, definitionPawams.position);
 				if (mode && mode.findDefinition) {
-					return mode.findDefinition(document, definitionParams.position);
+					wetuwn mode.findDefinition(document, definitionPawams.position);
 				}
 			}
-			return [];
-		}, null, `Error while computing definitions for ${definitionParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, nuww, `Ewwow whiwe computing definitions fow ${definitionPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onReferences((referenceParams, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(referenceParams.textDocument.uri);
+	connection.onWefewences((wefewencePawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(wefewencePawams.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, referenceParams.position);
-				if (mode && mode.findReferences) {
-					return mode.findReferences(document, referenceParams.position);
+				const mode = wanguageModes.getModeAtPosition(document, wefewencePawams.position);
+				if (mode && mode.findWefewences) {
+					wetuwn mode.findWefewences(document, wefewencePawams.position);
 				}
 			}
-			return [];
-		}, [], `Error while computing references for ${referenceParams.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing wefewences fow ${wefewencePawams.textDocument.uwi}`, token);
 	});
 
-	connection.onSignatureHelp((signatureHelpParms, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(signatureHelpParms.textDocument.uri);
+	connection.onSignatuweHewp((signatuweHewpPawms, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(signatuweHewpPawms.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, signatureHelpParms.position);
-				if (mode && mode.doSignatureHelp) {
-					return mode.doSignatureHelp(document, signatureHelpParms.position);
+				const mode = wanguageModes.getModeAtPosition(document, signatuweHewpPawms.position);
+				if (mode && mode.doSignatuweHewp) {
+					wetuwn mode.doSignatuweHewp(document, signatuweHewpPawms.position);
 				}
 			}
-			return null;
-		}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing signatuwe hewp fow ${signatuweHewpPawms.textDocument.uwi}`, token);
 	});
 
-	async function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): Promise<TextEdit[]> {
-		const document = documents.get(textDocument.uri);
+	async function onFowmat(textDocument: TextDocumentIdentifia, wange: Wange | undefined, options: FowmattingOptions): Pwomise<TextEdit[]> {
+		const document = documents.get(textDocument.uwi);
 		if (document) {
-			let settings = await getDocumentSettings(document, () => true);
+			wet settings = await getDocumentSettings(document, () => twue);
 			if (!settings) {
-				settings = globalSettings;
+				settings = gwobawSettings;
 			}
-			const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-			const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+			const unfowmattedTags: stwing = settings && settings.htmw && settings.htmw.fowmat && settings.htmw.fowmat.unfowmatted || '';
+			const enabwedModes = { css: !unfowmattedTags.match(/\bstywe\b/), javascwipt: !unfowmattedTags.match(/\bscwipt\b/) };
 
-			return format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+			wetuwn fowmat(wanguageModes, document, wange ?? getFuwwWange(document), options, settings, enabwedModes);
 		}
-		return [];
+		wetuwn [];
 	}
 
-	connection.onDocumentRangeFormatting((formatParams, token) => {
-		return runSafe(runtime, () => onFormat(formatParams.textDocument, formatParams.range, formatParams.options), [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+	connection.onDocumentWangeFowmatting((fowmatPawams, token) => {
+		wetuwn wunSafe(wuntime, () => onFowmat(fowmatPawams.textDocument, fowmatPawams.wange, fowmatPawams.options), [], `Ewwow whiwe fowmatting wange fow ${fowmatPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentFormatting((formatParams, token) => {
-		return runSafe(runtime, () => onFormat(formatParams.textDocument, undefined, formatParams.options), [], `Error while formatting ${formatParams.textDocument.uri}`, token);
+	connection.onDocumentFowmatting((fowmatPawams, token) => {
+		wetuwn wunSafe(wuntime, () => onFowmat(fowmatPawams.textDocument, undefined, fowmatPawams.options), [], `Ewwow whiwe fowmatting ${fowmatPawams.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentLinks((documentLinkParam, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(documentLinkParam.textDocument.uri);
-			const links: DocumentLink[] = [];
+	connection.onDocumentWinks((documentWinkPawam, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(documentWinkPawam.textDocument.uwi);
+			const winks: DocumentWink[] = [];
 			if (document) {
-				const documentContext = getDocumentContext(document.uri, workspaceFolders);
-				for (const m of languageModes.getAllModesInDocument(document)) {
-					if (m.findDocumentLinks) {
-						pushAll(links, await m.findDocumentLinks(document, documentContext));
+				const documentContext = getDocumentContext(document.uwi, wowkspaceFowdews);
+				fow (const m of wanguageModes.getAwwModesInDocument(document)) {
+					if (m.findDocumentWinks) {
+						pushAww(winks, await m.findDocumentWinks(document, documentContext));
 					}
 				}
 			}
-			return links;
-		}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`, token);
+			wetuwn winks;
+		}, [], `Ewwow whiwe document winks fow ${documentWinkPawam.textDocument.uwi}`, token);
 	});
 
-	connection.onDocumentSymbol((documentSymbolParms, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(documentSymbolParms.textDocument.uri);
-			const symbols: SymbolInformation[] = [];
+	connection.onDocumentSymbow((documentSymbowPawms, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(documentSymbowPawms.textDocument.uwi);
+			const symbows: SymbowInfowmation[] = [];
 			if (document) {
-				for (const m of languageModes.getAllModesInDocument(document)) {
-					if (m.findDocumentSymbols) {
-						pushAll(symbols, await m.findDocumentSymbols(document));
+				fow (const m of wanguageModes.getAwwModesInDocument(document)) {
+					if (m.findDocumentSymbows) {
+						pushAww(symbows, await m.findDocumentSymbows(document));
 					}
 				}
 			}
-			return symbols;
-		}, [], `Error while computing document symbols for ${documentSymbolParms.textDocument.uri}`, token);
+			wetuwn symbows;
+		}, [], `Ewwow whiwe computing document symbows fow ${documentSymbowPawms.textDocument.uwi}`, token);
 	});
 
-	connection.onRequest(DocumentColorRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
-			const infos: ColorInformation[] = [];
-			const document = documents.get(params.textDocument.uri);
+	connection.onWequest(DocumentCowowWequest.type, (pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const infos: CowowInfowmation[] = [];
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				for (const m of languageModes.getAllModesInDocument(document)) {
-					if (m.findDocumentColors) {
-						pushAll(infos, await m.findDocumentColors(document));
+				fow (const m of wanguageModes.getAwwModesInDocument(document)) {
+					if (m.findDocumentCowows) {
+						pushAww(infos, await m.findDocumentCowows(document));
 					}
 				}
 			}
-			return infos;
-		}, [], `Error while computing document colors for ${params.textDocument.uri}`, token);
+			wetuwn infos;
+		}, [], `Ewwow whiwe computing document cowows fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onRequest(ColorPresentationRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onWequest(CowowPwesentationWequest.type, (pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, params.range.start);
-				if (mode && mode.getColorPresentations) {
-					return mode.getColorPresentations(document, params.color, params.range);
+				const mode = wanguageModes.getModeAtPosition(document, pawams.wange.stawt);
+				if (mode && mode.getCowowPwesentations) {
+					wetuwn mode.getCowowPwesentations(document, pawams.cowow, pawams.wange);
 				}
 			}
-			return [];
-		}, [], `Error while computing color presentations for ${params.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing cowow pwesentations fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onRequest(TagCloseRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onWequest(TagCwoseWequest.type, (pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				const pos = params.position;
-				if (pos.character > 0) {
-					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doAutoClose) {
-						return mode.doAutoClose(document, pos);
+				const pos = pawams.position;
+				if (pos.chawacta > 0) {
+					const mode = wanguageModes.getModeAtPosition(document, Position.cweate(pos.wine, pos.chawacta - 1));
+					if (mode && mode.doAutoCwose) {
+						wetuwn mode.doAutoCwose(document, pos);
 					}
 				}
 			}
-			return null;
-		}, null, `Error while computing tag close actions for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing tag cwose actions fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onFoldingRanges((params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onFowdingWanges((pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				return getFoldingRanges(languageModes, document, foldingRangeLimit, token);
+				wetuwn getFowdingWanges(wanguageModes, document, fowdingWangeWimit, token);
 			}
-			return null;
-		}, null, `Error while computing folding regions for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing fowding wegions fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onSelectionRanges((params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onSewectionWanges((pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				return getSelectionRanges(languageModes, document, params.positions);
+				wetuwn getSewectionWanges(wanguageModes, document, pawams.positions);
 			}
-			return [];
-		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
+			wetuwn [];
+		}, [], `Ewwow whiwe computing sewection wanges fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onRenameRequest((params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
-			const position: Position = params.position;
+	connection.onWenameWequest((pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
+			const position: Position = pawams.position;
 
 			if (document) {
-				const mode = languageModes.getModeAtPosition(document, params.position);
+				const mode = wanguageModes.getModeAtPosition(document, pawams.position);
 
-				if (mode && mode.doRename) {
-					return mode.doRename(document, position, params.newName);
+				if (mode && mode.doWename) {
+					wetuwn mode.doWename(document, position, pawams.newName);
 				}
 			}
-			return null;
-		}, null, `Error while computing rename for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing wename fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.languages.onLinkedEditingRange((params, token) => {
-		return <any> /* todo remove when microsoft/vscode-languageserver-node#700 fixed */ runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.wanguages.onWinkedEditingWange((pawams, token) => {
+		wetuwn <any> /* todo wemove when micwosoft/vscode-wanguagesewva-node#700 fixed */ wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				const pos = params.position;
-				if (pos.character > 0) {
-					const mode = languageModes.getModeAtPosition(document, Position.create(pos.line, pos.character - 1));
-					if (mode && mode.doLinkedEditing) {
-						const ranges = await mode.doLinkedEditing(document, pos);
-						if (ranges) {
-							return { ranges };
+				const pos = pawams.position;
+				if (pos.chawacta > 0) {
+					const mode = wanguageModes.getModeAtPosition(document, Position.cweate(pos.wine, pos.chawacta - 1));
+					if (mode && mode.doWinkedEditing) {
+						const wanges = await mode.doWinkedEditing(document, pos);
+						if (wanges) {
+							wetuwn { wanges };
 						}
 					}
 				}
 			}
-			return null;
-		}, null, `Error while computing synced regions for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing synced wegions fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	let semanticTokensProvider: SemanticTokenProvider | undefined;
-	function getSemanticTokenProvider() {
-		if (!semanticTokensProvider) {
-			semanticTokensProvider = newSemanticTokenProvider(languageModes);
+	wet semanticTokensPwovida: SemanticTokenPwovida | undefined;
+	function getSemanticTokenPwovida() {
+		if (!semanticTokensPwovida) {
+			semanticTokensPwovida = newSemanticTokenPwovida(wanguageModes);
 		}
-		return semanticTokensProvider;
+		wetuwn semanticTokensPwovida;
 	}
 
-	connection.onRequest(SemanticTokenRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
-			const document = documents.get(params.textDocument.uri);
+	connection.onWequest(SemanticTokenWequest.type, (pawams, token) => {
+		wetuwn wunSafe(wuntime, async () => {
+			const document = documents.get(pawams.textDocument.uwi);
 			if (document) {
-				return getSemanticTokenProvider().getSemanticTokens(document, params.ranges);
+				wetuwn getSemanticTokenPwovida().getSemanticTokens(document, pawams.wanges);
 			}
-			return null;
-		}, null, `Error while computing semantic tokens for ${params.textDocument.uri}`, token);
+			wetuwn nuww;
+		}, nuww, `Ewwow whiwe computing semantic tokens fow ${pawams.textDocument.uwi}`, token);
 	});
 
-	connection.onRequest(SemanticTokenLegendRequest.type, token => {
-		return runSafe(runtime, async () => {
-			return getSemanticTokenProvider().legend;
-		}, null, `Error while computing semantic tokens legend`, token);
+	connection.onWequest(SemanticTokenWegendWequest.type, token => {
+		wetuwn wunSafe(wuntime, async () => {
+			wetuwn getSemanticTokenPwovida().wegend;
+		}, nuww, `Ewwow whiwe computing semantic tokens wegend`, token);
 	});
 
 	connection.onNotification(CustomDataChangedNotification.type, dataPaths => {
-		fetchHTMLDataProviders(dataPaths, requestService).then(dataProviders => {
-			languageModes.updateDataProviders(dataProviders);
+		fetchHTMWDataPwovidews(dataPaths, wequestSewvice).then(dataPwovidews => {
+			wanguageModes.updateDataPwovidews(dataPwovidews);
 		});
 	});
 
-	// Listen on the connection
-	connection.listen();
+	// Wisten on the connection
+	connection.wisten();
 }
 
-function getFullRange(document: TextDocument): Range {
-	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
+function getFuwwWange(document: TextDocument): Wange {
+	wetuwn Wange.cweate(Position.cweate(0, 0), document.positionAt(document.getText().wength));
 }

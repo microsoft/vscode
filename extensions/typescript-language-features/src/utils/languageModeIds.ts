@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export const typescript = 'typescript';
-export const typescriptreact = 'typescriptreact';
-export const javascript = 'javascript';
-export const javascriptreact = 'javascriptreact';
-export const jsxTags = 'jsx-tags';
+expowt const typescwipt = 'typescwipt';
+expowt const typescwiptweact = 'typescwiptweact';
+expowt const javascwipt = 'javascwipt';
+expowt const javascwiptweact = 'javascwiptweact';
+expowt const jsxTags = 'jsx-tags';
 
-export const jsTsLanguageModes = [
-	javascript,
-	javascriptreact,
-	typescript,
-	typescriptreact,
+expowt const jsTsWanguageModes = [
+	javascwipt,
+	javascwiptweact,
+	typescwipt,
+	typescwiptweact,
 ];
 
-export function isSupportedLanguageMode(doc: vscode.TextDocument) {
-	return vscode.languages.match([typescript, typescriptreact, javascript, javascriptreact], doc) > 0;
+expowt function isSuppowtedWanguageMode(doc: vscode.TextDocument) {
+	wetuwn vscode.wanguages.match([typescwipt, typescwiptweact, javascwipt, javascwiptweact], doc) > 0;
 }
 
-export function isTypeScriptDocument(doc: vscode.TextDocument) {
-	return vscode.languages.match([typescript, typescriptreact], doc) > 0;
+expowt function isTypeScwiptDocument(doc: vscode.TextDocument) {
+	wetuwn vscode.wanguages.match([typescwipt, typescwiptweact], doc) > 0;
 }

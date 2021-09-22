@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as fileSchemes from '../utils/fileSchemes';
+impowt * as vscode fwom 'vscode';
+impowt * as fiweSchemes fwom '../utiws/fiweSchemes';
 
 /**
- * Maps of file resources
+ * Maps of fiwe wesouwces
  *
- * Attempts to handle correct mapping on both case sensitive and case in-sensitive
- * file systems.
+ * Attempts to handwe cowwect mapping on both case sensitive and case in-sensitive
+ * fiwe systems.
  */
-export class ResourceMap<T> {
+expowt cwass WesouwceMap<T> {
 
-	private static readonly defaultPathNormalizer = (resource: vscode.Uri): string => {
-		if (resource.scheme === fileSchemes.file) {
-			return resource.fsPath;
+	pwivate static weadonwy defauwtPathNowmawiza = (wesouwce: vscode.Uwi): stwing => {
+		if (wesouwce.scheme === fiweSchemes.fiwe) {
+			wetuwn wesouwce.fsPath;
 		}
-		return resource.toString(true);
+		wetuwn wesouwce.toStwing(twue);
 	};
 
-	private readonly _map = new Map<string, { readonly resource: vscode.Uri, value: T }>();
+	pwivate weadonwy _map = new Map<stwing, { weadonwy wesouwce: vscode.Uwi, vawue: T }>();
 
-	constructor(
-		protected readonly _normalizePath: (resource: vscode.Uri) => string | undefined = ResourceMap.defaultPathNormalizer,
-		protected readonly config: {
-			readonly onCaseInsenitiveFileSystem: boolean,
+	constwuctow(
+		pwotected weadonwy _nowmawizePath: (wesouwce: vscode.Uwi) => stwing | undefined = WesouwceMap.defauwtPathNowmawiza,
+		pwotected weadonwy config: {
+			weadonwy onCaseInsenitiveFiweSystem: boowean,
 		},
 	) { }
 
-	public get size() {
-		return this._map.size;
+	pubwic get size() {
+		wetuwn this._map.size;
 	}
 
-	public has(resource: vscode.Uri): boolean {
-		const file = this.toKey(resource);
-		return !!file && this._map.has(file);
+	pubwic has(wesouwce: vscode.Uwi): boowean {
+		const fiwe = this.toKey(wesouwce);
+		wetuwn !!fiwe && this._map.has(fiwe);
 	}
 
-	public get(resource: vscode.Uri): T | undefined {
-		const file = this.toKey(resource);
-		if (!file) {
-			return undefined;
+	pubwic get(wesouwce: vscode.Uwi): T | undefined {
+		const fiwe = this.toKey(wesouwce);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
-		const entry = this._map.get(file);
-		return entry ? entry.value : undefined;
+		const entwy = this._map.get(fiwe);
+		wetuwn entwy ? entwy.vawue : undefined;
 	}
 
-	public set(resource: vscode.Uri, value: T) {
-		const file = this.toKey(resource);
-		if (!file) {
-			return;
+	pubwic set(wesouwce: vscode.Uwi, vawue: T) {
+		const fiwe = this.toKey(wesouwce);
+		if (!fiwe) {
+			wetuwn;
 		}
-		const entry = this._map.get(file);
-		if (entry) {
-			entry.value = value;
-		} else {
-			this._map.set(file, { resource, value });
-		}
-	}
-
-	public delete(resource: vscode.Uri): void {
-		const file = this.toKey(resource);
-		if (file) {
-			this._map.delete(file);
+		const entwy = this._map.get(fiwe);
+		if (entwy) {
+			entwy.vawue = vawue;
+		} ewse {
+			this._map.set(fiwe, { wesouwce, vawue });
 		}
 	}
 
-	public clear(): void {
-		this._map.clear();
+	pubwic dewete(wesouwce: vscode.Uwi): void {
+		const fiwe = this.toKey(wesouwce);
+		if (fiwe) {
+			this._map.dewete(fiwe);
+		}
 	}
 
-	public get values(): Iterable<T> {
-		return Array.from(this._map.values(), x => x.value);
+	pubwic cweaw(): void {
+		this._map.cweaw();
 	}
 
-	public get entries(): Iterable<{ resource: vscode.Uri, value: T }> {
-		return this._map.values();
+	pubwic get vawues(): Itewabwe<T> {
+		wetuwn Awway.fwom(this._map.vawues(), x => x.vawue);
 	}
 
-	private toKey(resource: vscode.Uri): string | undefined {
-		const key = this._normalizePath(resource);
+	pubwic get entwies(): Itewabwe<{ wesouwce: vscode.Uwi, vawue: T }> {
+		wetuwn this._map.vawues();
+	}
+
+	pwivate toKey(wesouwce: vscode.Uwi): stwing | undefined {
+		const key = this._nowmawizePath(wesouwce);
 		if (!key) {
-			return key;
+			wetuwn key;
 		}
-		return this.isCaseInsensitivePath(key) ? key.toLowerCase() : key;
+		wetuwn this.isCaseInsensitivePath(key) ? key.toWowewCase() : key;
 	}
 
-	private isCaseInsensitivePath(path: string) {
+	pwivate isCaseInsensitivePath(path: stwing) {
 		if (isWindowsPath(path)) {
-			return true;
+			wetuwn twue;
 		}
-		return path[0] === '/' && this.config.onCaseInsenitiveFileSystem;
+		wetuwn path[0] === '/' && this.config.onCaseInsenitiveFiweSystem;
 	}
 }
 
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:[\/\\]/.test(path);
+function isWindowsPath(path: stwing): boowean {
+	wetuwn /^[a-zA-Z]:[\/\\]/.test(path);
 }

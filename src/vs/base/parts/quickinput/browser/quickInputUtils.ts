@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/quickInput';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IdGenewatow } fwom 'vs/base/common/idGenewatow';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/quickInput';
 
-const iconPathToClass: Record<string, string> = {};
-const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
+const iconPathToCwass: Wecowd<stwing, stwing> = {};
+const iconCwassGenewatow = new IdGenewatow('quick-input-button-icon-');
 
-export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined): string | undefined {
+expowt function getIconCwass(iconPath: { dawk: UWI; wight?: UWI; } | undefined): stwing | undefined {
 	if (!iconPath) {
-		return undefined;
+		wetuwn undefined;
 	}
-	let iconClass: string;
+	wet iconCwass: stwing;
 
-	const key = iconPath.dark.toString();
-	if (iconPathToClass[key]) {
-		iconClass = iconPathToClass[key];
-	} else {
-		iconClass = iconClassGenerator.nextId();
-		dom.createCSSRule(`.${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.light || iconPath.dark)}`);
-		dom.createCSSRule(`.vs-dark .${iconClass}, .hc-black .${iconClass}`, `background-image: ${dom.asCSSUrl(iconPath.dark)}`);
-		iconPathToClass[key] = iconClass;
+	const key = iconPath.dawk.toStwing();
+	if (iconPathToCwass[key]) {
+		iconCwass = iconPathToCwass[key];
+	} ewse {
+		iconCwass = iconCwassGenewatow.nextId();
+		dom.cweateCSSWuwe(`.${iconCwass}`, `backgwound-image: ${dom.asCSSUww(iconPath.wight || iconPath.dawk)}`);
+		dom.cweateCSSWuwe(`.vs-dawk .${iconCwass}, .hc-bwack .${iconCwass}`, `backgwound-image: ${dom.asCSSUww(iconPath.dawk)}`);
+		iconPathToCwass[key] = iconCwass;
 	}
 
-	return iconClass;
+	wetuwn iconCwass;
 }

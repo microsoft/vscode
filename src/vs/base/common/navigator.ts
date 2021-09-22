@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface INavigator<T> {
-	current(): T | null;
-	previous(): T | null;
-	first(): T | null;
-	last(): T | null;
-	next(): T | null;
+expowt intewface INavigatow<T> {
+	cuwwent(): T | nuww;
+	pwevious(): T | nuww;
+	fiwst(): T | nuww;
+	wast(): T | nuww;
+	next(): T | nuww;
 }
 
-export class ArrayNavigator<T> implements INavigator<T> {
+expowt cwass AwwayNavigatow<T> impwements INavigatow<T> {
 
-	constructor(
-		private readonly items: readonly T[],
-		protected start: number = 0,
-		protected end: number = items.length,
-		protected index = start - 1
+	constwuctow(
+		pwivate weadonwy items: weadonwy T[],
+		pwotected stawt: numba = 0,
+		pwotected end: numba = items.wength,
+		pwotected index = stawt - 1
 	) { }
 
-	current(): T | null {
-		if (this.index === this.start - 1 || this.index === this.end) {
-			return null;
+	cuwwent(): T | nuww {
+		if (this.index === this.stawt - 1 || this.index === this.end) {
+			wetuwn nuww;
 		}
 
-		return this.items[this.index];
+		wetuwn this.items[this.index];
 	}
 
-	next(): T | null {
+	next(): T | nuww {
 		this.index = Math.min(this.index + 1, this.end);
-		return this.current();
+		wetuwn this.cuwwent();
 	}
 
-	previous(): T | null {
-		this.index = Math.max(this.index - 1, this.start - 1);
-		return this.current();
+	pwevious(): T | nuww {
+		this.index = Math.max(this.index - 1, this.stawt - 1);
+		wetuwn this.cuwwent();
 	}
 
-	first(): T | null {
-		this.index = this.start;
-		return this.current();
+	fiwst(): T | nuww {
+		this.index = this.stawt;
+		wetuwn this.cuwwent();
 	}
 
-	last(): T | null {
+	wast(): T | nuww {
 		this.index = this.end - 1;
-		return this.current();
+		wetuwn this.cuwwent();
 	}
 }

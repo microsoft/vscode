@@ -1,328 +1,328 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+impowt { newWwiteabweBuffewStweam, VSBuffa, VSBuffewWeadabweStweam, VSBuffewWwiteabweStweam } fwom 'vs/base/common/buffa';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IComputedStateAccessow, wefweshComputedState } fwom 'vs/wowkbench/contwib/testing/common/getComputedState';
+impowt { IObsewvabweVawue, MutabweObsewvabweVawue, staticObsewvabweVawue } fwom 'vs/wowkbench/contwib/testing/common/obsewvabweVawue';
+impowt { IWichWocation, ISewiawizedTestWesuwts, ITestItem, ITestMessage, ITestOutputMessage, ITestWunTask, ITestTaskState, WesowvedTestWunWequest, TestItemExpandState, TestMessageType, TestWesuwtItem, TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestCovewage } fwom 'vs/wowkbench/contwib/testing/common/testCovewage';
+impowt { maxPwiowity, statesInOwda } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
 
-export interface ITestRunTaskResults extends ITestRunTask {
+expowt intewface ITestWunTaskWesuwts extends ITestWunTask {
 	/**
-	 * Contains test coverage for the result, if it's available.
+	 * Contains test covewage fow the wesuwt, if it's avaiwabwe.
 	 */
-	readonly coverage: IObservableValue<TestCoverage | undefined>;
+	weadonwy covewage: IObsewvabweVawue<TestCovewage | undefined>;
 
 	/**
-	 * Messages from the task not associated with any specific test.
+	 * Messages fwom the task not associated with any specific test.
 	 */
-	readonly otherMessages: ITestOutputMessage[];
+	weadonwy othewMessages: ITestOutputMessage[];
 }
 
-export interface ITestResult {
+expowt intewface ITestWesuwt {
 	/**
-	 * Count of the number of tests in each run state.
+	 * Count of the numba of tests in each wun state.
 	 */
-	readonly counts: Readonly<TestStateCount>;
+	weadonwy counts: Weadonwy<TestStateCount>;
 
 	/**
-	 * Unique ID of this set of test results.
+	 * Unique ID of this set of test wesuwts.
 	 */
-	readonly id: string;
+	weadonwy id: stwing;
 
 	/**
-	 * If the test is completed, the unix milliseconds time at which it was
-	 * completed. If undefined, the test is still running.
+	 * If the test is compweted, the unix miwwiseconds time at which it was
+	 * compweted. If undefined, the test is stiww wunning.
 	 */
-	readonly completedAt: number | undefined;
+	weadonwy compwetedAt: numba | undefined;
 
 	/**
-	 * Whether this test result is triggered from an auto run.
+	 * Whetha this test wesuwt is twiggewed fwom an auto wun.
 	 */
-	readonly request: ResolvedTestRunRequest;
+	weadonwy wequest: WesowvedTestWunWequest;
 
 	/**
-	 * Human-readable name of the test result.
+	 * Human-weadabwe name of the test wesuwt.
 	 */
-	readonly name: string;
+	weadonwy name: stwing;
 
 	/**
-	 * Gets all tests involved in the run.
+	 * Gets aww tests invowved in the wun.
 	 */
-	tests: IterableIterator<TestResultItem>;
+	tests: ItewabweItewatow<TestWesuwtItem>;
 
 	/**
-	 * List of this result's subtasks.
+	 * Wist of this wesuwt's subtasks.
 	 */
-	tasks: ReadonlyArray<ITestRunTaskResults>;
+	tasks: WeadonwyAwway<ITestWunTaskWesuwts>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
 	 */
-	getStateById(testExtId: string): TestResultItem | undefined;
+	getStateById(testExtId: stwing): TestWesuwtItem | undefined;
 
 	/**
-	 * Loads the output of the result as a stream.
+	 * Woads the output of the wesuwt as a stweam.
 	 */
-	getOutput(): Promise<VSBufferReadableStream>;
+	getOutput(): Pwomise<VSBuffewWeadabweStweam>;
 
 	/**
-	 * Serializes the test result. Used to save and restore results
-	 * in the workspace.
+	 * Sewiawizes the test wesuwt. Used to save and westowe wesuwts
+	 * in the wowkspace.
 	 */
-	toJSON(): ISerializedTestResults | undefined;
+	toJSON(): ISewiawizedTestWesuwts | undefined;
 }
 
-export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
-	let i: TestResultItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? results.getStateById(i.parent) : undefined;
+expowt const wesuwtItemPawents = function* (wesuwts: ITestWesuwt, item: TestWesuwtItem) {
+	wet i: TestWesuwtItem | undefined = item;
+	whiwe (i) {
+		yiewd i;
+		i = i.pawent ? wesuwts.getStateById(i.pawent) : undefined;
 	}
 };
 
 /**
- * Count of the number of tests in each run state.
+ * Count of the numba of tests in each wun state.
  */
-export type TestStateCount = { [K in TestResultState]: number };
+expowt type TestStateCount = { [K in TestWesuwtState]: numba };
 
-export const makeEmptyCounts = () => {
-	const o: Partial<TestStateCount> = {};
-	for (const state of statesInOrder) {
+expowt const makeEmptyCounts = () => {
+	const o: Pawtiaw<TestStateCount> = {};
+	fow (const state of statesInOwda) {
 		o[state] = 0;
 	}
 
-	return o as TestStateCount;
+	wetuwn o as TestStateCount;
 };
 
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
+expowt const sumCounts = (counts: Itewabwe<TestStateCount>) => {
+	const totaw = makeEmptyCounts();
+	fow (const count of counts) {
+		fow (const state of statesInOwda) {
+			totaw[state] += count[state];
 		}
 	}
 
-	return total;
+	wetuwn totaw;
 };
 
-export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
-	for (const state of statesInOrder) {
+expowt const maxCountPwiowity = (counts: Weadonwy<TestStateCount>) => {
+	fow (const state of statesInOwda) {
 		if (counts[state] > 0) {
-			return state;
+			wetuwn state;
 		}
 	}
 
-	return TestResultState.Unset;
+	wetuwn TestWesuwtState.Unset;
 };
 
 /**
- * Deals with output of a {@link LiveTestResult}. By default we pass-through
- * data into the underlying write stream, but if a client requests to read it
- * we splice in the written data and then continue streaming incoming data.
+ * Deaws with output of a {@wink WiveTestWesuwt}. By defauwt we pass-thwough
+ * data into the undewwying wwite stweam, but if a cwient wequests to wead it
+ * we spwice in the wwitten data and then continue stweaming incoming data.
  */
-export class LiveOutputController {
-	/** Set on close() to a promise that is resolved once closing is complete */
-	private closed?: Promise<void>;
-	/** Data written so far. This is available until the file closes. */
-	private previouslyWritten: VSBuffer[] | undefined = [];
+expowt cwass WiveOutputContwowwa {
+	/** Set on cwose() to a pwomise that is wesowved once cwosing is compwete */
+	pwivate cwosed?: Pwomise<void>;
+	/** Data wwitten so faw. This is avaiwabwe untiw the fiwe cwoses. */
+	pwivate pweviouswyWwitten: VSBuffa[] | undefined = [];
 
-	private readonly dataEmitter = new Emitter<VSBuffer>();
-	private readonly endEmitter = new Emitter<void>();
-	private _offset = 0;
+	pwivate weadonwy dataEmitta = new Emitta<VSBuffa>();
+	pwivate weadonwy endEmitta = new Emitta<void>();
+	pwivate _offset = 0;
 
 	/**
-	 * Gets the number of written bytes.
+	 * Gets the numba of wwitten bytes.
 	 */
-	public get offset() {
-		return this._offset;
+	pubwic get offset() {
+		wetuwn this._offset;
 	}
 
-	constructor(
-		private readonly writer: Lazy<[VSBufferWriteableStream, Promise<void>]>,
-		private readonly reader: () => Promise<VSBufferReadableStream>,
+	constwuctow(
+		pwivate weadonwy wwita: Wazy<[VSBuffewWwiteabweStweam, Pwomise<void>]>,
+		pwivate weadonwy weada: () => Pwomise<VSBuffewWeadabweStweam>,
 	) { }
 
 	/**
 	 * Appends data to the output.
 	 */
-	public append(data: VSBuffer): Promise<void> | void {
-		if (this.closed) {
-			return this.closed;
+	pubwic append(data: VSBuffa): Pwomise<void> | void {
+		if (this.cwosed) {
+			wetuwn this.cwosed;
 		}
 
-		this.previouslyWritten?.push(data);
-		this.dataEmitter.fire(data);
-		this._offset += data.byteLength;
+		this.pweviouswyWwitten?.push(data);
+		this.dataEmitta.fiwe(data);
+		this._offset += data.byteWength;
 
-		return this.writer.getValue()[0].write(data);
+		wetuwn this.wwita.getVawue()[0].wwite(data);
 	}
 
 	/**
-	 * Reads the value of the stream.
+	 * Weads the vawue of the stweam.
 	 */
-	public read() {
-		if (!this.previouslyWritten) {
-			return this.reader();
+	pubwic wead() {
+		if (!this.pweviouswyWwitten) {
+			wetuwn this.weada();
 		}
 
-		const stream = newWriteableBufferStream();
-		for (const chunk of this.previouslyWritten) {
-			stream.write(chunk);
+		const stweam = newWwiteabweBuffewStweam();
+		fow (const chunk of this.pweviouswyWwitten) {
+			stweam.wwite(chunk);
 		}
 
-		const disposable = new DisposableStore();
-		disposable.add(this.dataEmitter.event(d => stream.write(d)));
-		disposable.add(this.endEmitter.event(() => stream.end()));
-		stream.on('end', () => disposable.dispose());
+		const disposabwe = new DisposabweStowe();
+		disposabwe.add(this.dataEmitta.event(d => stweam.wwite(d)));
+		disposabwe.add(this.endEmitta.event(() => stweam.end()));
+		stweam.on('end', () => disposabwe.dispose());
 
-		return Promise.resolve(stream);
+		wetuwn Pwomise.wesowve(stweam);
 	}
 
 	/**
-	 * Closes the output, signalling no more writes will be made.
-	 * @returns a promise that resolves when the output is written
+	 * Cwoses the output, signawwing no mowe wwites wiww be made.
+	 * @wetuwns a pwomise that wesowves when the output is wwitten
 	 */
-	public close(): Promise<void> {
-		if (this.closed) {
-			return this.closed;
+	pubwic cwose(): Pwomise<void> {
+		if (this.cwosed) {
+			wetuwn this.cwosed;
 		}
 
-		if (!this.writer.hasValue()) {
-			this.closed = Promise.resolve();
-		} else {
-			const [stream, ended] = this.writer.getValue();
-			stream.end();
-			this.closed = ended;
+		if (!this.wwita.hasVawue()) {
+			this.cwosed = Pwomise.wesowve();
+		} ewse {
+			const [stweam, ended] = this.wwita.getVawue();
+			stweam.end();
+			this.cwosed = ended;
 		}
 
-		this.endEmitter.fire();
-		this.closed.then(() => {
-			this.previouslyWritten = undefined;
-			this.dataEmitter.dispose();
-			this.endEmitter.dispose();
+		this.endEmitta.fiwe();
+		this.cwosed.then(() => {
+			this.pweviouswyWwitten = undefined;
+			this.dataEmitta.dispose();
+			this.endEmitta.dispose();
 		});
 
-		return this.closed;
+		wetuwn this.cwosed;
 	}
 }
 
-interface TestResultItemWithChildren extends TestResultItem {
-	/** Children in the run */
-	children: TestResultItemWithChildren[];
+intewface TestWesuwtItemWithChiwdwen extends TestWesuwtItem {
+	/** Chiwdwen in the wun */
+	chiwdwen: TestWesuwtItemWithChiwdwen[];
 }
 
-const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
-	parent,
-	controllerId,
-	expand: TestItemExpandState.NotExpandable,
+const itemToNode = (contwowwewId: stwing, item: ITestItem, pawent: stwing | nuww): TestWesuwtItemWithChiwdwen => ({
+	pawent,
+	contwowwewId,
+	expand: TestItemExpandState.NotExpandabwe,
 	item: { ...item },
-	children: [],
+	chiwdwen: [],
 	tasks: [],
-	ownComputedState: TestResultState.Unset,
-	computedState: TestResultState.Unset,
-	retired: false,
+	ownComputedState: TestWesuwtState.Unset,
+	computedState: TestWesuwtState.Unset,
+	wetiwed: fawse,
 });
 
-export const enum TestResultItemChangeReason {
-	Retired,
-	ParentRetired,
+expowt const enum TestWesuwtItemChangeWeason {
+	Wetiwed,
+	PawentWetiwed,
 	ComputedStateChange,
 	OwnStateChange,
 }
 
-export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
-	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
-	| { reason: TestResultItemChangeReason.OwnStateChange; previous: TestResultState }
+expowt type TestWesuwtItemChange = { item: TestWesuwtItem; wesuwt: ITestWesuwt } & (
+	| { weason: TestWesuwtItemChangeWeason.Wetiwed | TestWesuwtItemChangeWeason.PawentWetiwed | TestWesuwtItemChangeWeason.ComputedStateChange }
+	| { weason: TestWesuwtItemChangeWeason.OwnStateChange; pwevious: TestWesuwtState }
 );
 
 /**
- * Results of a test. These are created when the test initially started running
- * and marked as "complete" when the run finishes.
+ * Wesuwts of a test. These awe cweated when the test initiawwy stawted wunning
+ * and mawked as "compwete" when the wun finishes.
  */
-export class LiveTestResult implements ITestResult {
-	private readonly completeEmitter = new Emitter<void>();
-	private readonly changeEmitter = new Emitter<TestResultItemChange>();
-	private readonly testById = new Map<string, TestResultItemWithChildren>();
-	private _completedAt?: number;
+expowt cwass WiveTestWesuwt impwements ITestWesuwt {
+	pwivate weadonwy compweteEmitta = new Emitta<void>();
+	pwivate weadonwy changeEmitta = new Emitta<TestWesuwtItemChange>();
+	pwivate weadonwy testById = new Map<stwing, TestWesuwtItemWithChiwdwen>();
+	pwivate _compwetedAt?: numba;
 
-	public readonly onChange = this.changeEmitter.event;
-	public readonly onComplete = this.completeEmitter.event;
-	public readonly tasks: ITestRunTaskResults[] = [];
-	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
+	pubwic weadonwy onChange = this.changeEmitta.event;
+	pubwic weadonwy onCompwete = this.compweteEmitta.event;
+	pubwic weadonwy tasks: ITestWunTaskWesuwts[] = [];
+	pubwic weadonwy name = wocawize('wunFinished', 'Test wun at {0}', new Date().toWocaweStwing());
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get completedAt() {
-		return this._completedAt;
+	pubwic get compwetedAt() {
+		wetuwn this._compwetedAt;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly counts: { [K in TestResultState]: number } = makeEmptyCounts();
+	pubwic weadonwy counts: { [K in TestWesuwtState]: numba } = makeEmptyCounts();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get tests() {
-		return this.testById.values();
+	pubwic get tests() {
+		wetuwn this.testById.vawues();
 	}
 
-	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
+	pwivate weadonwy computedStateAccessow: IComputedStateAccessow<TestWesuwtItemWithChiwdwen> = {
 		getOwnState: i => i.ownComputedState,
-		getCurrentComputedState: i => i.computedState,
+		getCuwwentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
-		getChildren: i => i.children,
-		getParents: i => {
+		getChiwdwen: i => i.chiwdwen,
+		getPawents: i => {
 			const { testById: testByExtId } = this;
-			return (function* () {
-				for (let parentId = i.parent; parentId;) {
-					const parent = testByExtId.get(parentId);
-					if (!parent) {
-						break;
+			wetuwn (function* () {
+				fow (wet pawentId = i.pawent; pawentId;) {
+					const pawent = testByExtId.get(pawentId);
+					if (!pawent) {
+						bweak;
 					}
 
-					yield parent;
-					parentId = parent.parent;
+					yiewd pawent;
+					pawentId = pawent.pawent;
 				}
 			})();
 		},
 	};
 
-	constructor(
-		public readonly id: string,
-		public readonly output: LiveOutputController,
-		public readonly persist: boolean,
-		public readonly request: ResolvedTestRunRequest,
+	constwuctow(
+		pubwic weadonwy id: stwing,
+		pubwic weadonwy output: WiveOutputContwowwa,
+		pubwic weadonwy pewsist: boowean,
+		pubwic weadonwy wequest: WesowvedTestWunWequest,
 	) {
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getStateById(extTestId: string) {
-		return this.testById.get(extTestId);
+	pubwic getStateById(extTestId: stwing) {
+		wetuwn this.testById.get(extTestId);
 	}
 
 	/**
-	 * Appends output that occurred during the test run.
+	 * Appends output that occuwwed duwing the test wun.
 	 */
-	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
+	pubwic appendOutput(output: VSBuffa, taskId: stwing, wocation?: IWichWocation, testId?: stwing): void {
 		this.output.append(output);
 		const message: ITestOutputMessage = {
-			location,
-			message: output.toString(),
+			wocation,
+			message: output.toStwing(),
 			offset: this.output.offset,
 			type: TestMessageType.Info,
 		};
@@ -330,109 +330,109 @@ export class LiveTestResult implements ITestResult {
 		const index = this.mustGetTaskIndex(taskId);
 		if (testId) {
 			this.testById.get(testId)?.tasks[index].messages.push(message);
-		} else {
-			this.tasks[index].otherMessages.push(message);
+		} ewse {
+			this.tasks[index].othewMessages.push(message);
 		}
 	}
 
 	/**
-	 * Adds a new run task to the results.
+	 * Adds a new wun task to the wesuwts.
 	 */
-	public addTask(task: ITestRunTask) {
-		const index = this.tasks.length;
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [] });
+	pubwic addTask(task: ITestWunTask) {
+		const index = this.tasks.wength;
+		this.tasks.push({ ...task, covewage: new MutabweObsewvabweVawue(undefined), othewMessages: [] });
 
-		for (const test of this.tests) {
-			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
-			this.fireUpdateAndRefresh(test, index, TestResultState.Queued);
+		fow (const test of this.tests) {
+			test.tasks.push({ duwation: undefined, messages: [], state: TestWesuwtState.Unset });
+			this.fiweUpdateAndWefwesh(test, index, TestWesuwtState.Queued);
 		}
 	}
 
 	/**
-	 * Add the chain of tests to the run. The first test in the chain should
-	 * be either a test root, or a previously-known test.
+	 * Add the chain of tests to the wun. The fiwst test in the chain shouwd
+	 * be eitha a test woot, ow a pweviouswy-known test.
 	 */
-	public addTestChainToRun(controllerId: string, chain: ReadonlyArray<ITestItem>) {
-		let parent = this.testById.get(chain[0].extId);
-		if (!parent) { // must be a test root
-			parent = this.addTestToRun(controllerId, chain[0], null);
+	pubwic addTestChainToWun(contwowwewId: stwing, chain: WeadonwyAwway<ITestItem>) {
+		wet pawent = this.testById.get(chain[0].extId);
+		if (!pawent) { // must be a test woot
+			pawent = this.addTestToWun(contwowwewId, chain[0], nuww);
 		}
 
-		for (let i = 1; i < chain.length; i++) {
-			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
+		fow (wet i = 1; i < chain.wength; i++) {
+			pawent = this.addTestToWun(contwowwewId, chain[i], pawent.item.extId);
 		}
 
-		for (let i = 0; i < this.tasks.length; i++) {
-			this.fireUpdateAndRefresh(parent, i, TestResultState.Queued);
+		fow (wet i = 0; i < this.tasks.wength; i++) {
+			this.fiweUpdateAndWefwesh(pawent, i, TestWesuwtState.Queued);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * Updates the state of the test by its internal ID.
+	 * Updates the state of the test by its intewnaw ID.
 	 */
-	public updateState(testId: string, taskId: string, state: TestResultState, duration?: number) {
-		const entry = this.testById.get(testId);
-		if (!entry) {
-			return;
+	pubwic updateState(testId: stwing, taskId: stwing, state: TestWesuwtState, duwation?: numba) {
+		const entwy = this.testById.get(testId);
+		if (!entwy) {
+			wetuwn;
 		}
 
 		const index = this.mustGetTaskIndex(taskId);
-		if (duration !== undefined) {
-			entry.tasks[index].duration = duration;
-			entry.ownDuration = Math.max(entry.ownDuration || 0, duration);
+		if (duwation !== undefined) {
+			entwy.tasks[index].duwation = duwation;
+			entwy.ownDuwation = Math.max(entwy.ownDuwation || 0, duwation);
 		}
 
-		this.fireUpdateAndRefresh(entry, index, state);
+		this.fiweUpdateAndWefwesh(entwy, index, state);
 	}
 
 	/**
-	 * Appends a message for the test in the run.
+	 * Appends a message fow the test in the wun.
 	 */
-	public appendMessage(testId: string, taskId: string, message: ITestMessage) {
-		const entry = this.testById.get(testId);
-		if (!entry) {
-			return;
+	pubwic appendMessage(testId: stwing, taskId: stwing, message: ITestMessage) {
+		const entwy = this.testById.get(testId);
+		if (!entwy) {
+			wetuwn;
 		}
 
-		entry.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
-		this.changeEmitter.fire({
-			item: entry,
-			result: this,
-			reason: TestResultItemChangeReason.OwnStateChange,
-			previous: entry.ownComputedState,
+		entwy.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
+		this.changeEmitta.fiwe({
+			item: entwy,
+			wesuwt: this,
+			weason: TestWesuwtItemChangeWeason.OwnStateChange,
+			pwevious: entwy.ownComputedState,
 		});
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getOutput() {
-		return this.output.read();
+	pubwic getOutput() {
+		wetuwn this.output.wead();
 	}
 
 	/**
-	 * Marks a test as retired. This can trigger it to be rerun in live mode.
+	 * Mawks a test as wetiwed. This can twigga it to be wewun in wive mode.
 	 */
-	public retire(testId: string) {
-		const root = this.testById.get(testId);
-		if (!root || root.retired) {
-			return;
+	pubwic wetiwe(testId: stwing) {
+		const woot = this.testById.get(testId);
+		if (!woot || woot.wetiwed) {
+			wetuwn;
 		}
 
-		const queue = [[root]];
-		while (queue.length) {
-			for (const entry of queue.pop()!) {
-				if (!entry.retired) {
-					entry.retired = true;
-					queue.push(entry.children);
-					this.changeEmitter.fire({
-						result: this,
-						item: entry,
-						reason: entry === root
-							? TestResultItemChangeReason.Retired
-							: TestResultItemChangeReason.ParentRetired
+		const queue = [[woot]];
+		whiwe (queue.wength) {
+			fow (const entwy of queue.pop()!) {
+				if (!entwy.wetiwed) {
+					entwy.wetiwed = twue;
+					queue.push(entwy.chiwdwen);
+					this.changeEmitta.fiwe({
+						wesuwt: this,
+						item: entwy,
+						weason: entwy === woot
+							? TestWesuwtItemChangeWeason.Wetiwed
+							: TestWesuwtItemChangeWeason.PawentWetiwed
 					});
 				}
 			}
@@ -440,193 +440,193 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	/**
-	 * Marks the task in the test run complete.
+	 * Mawks the task in the test wun compwete.
 	 */
-	public markTaskComplete(taskId: string) {
-		this.tasks[this.mustGetTaskIndex(taskId)].running = false;
-		this.setAllToState(
-			TestResultState.Unset,
+	pubwic mawkTaskCompwete(taskId: stwing) {
+		this.tasks[this.mustGetTaskIndex(taskId)].wunning = fawse;
+		this.setAwwToState(
+			TestWesuwtState.Unset,
 			taskId,
-			t => t.state === TestResultState.Queued || t.state === TestResultState.Running,
+			t => t.state === TestWesuwtState.Queued || t.state === TestWesuwtState.Wunning,
 		);
 	}
 
 	/**
-	 * Notifies the service that all tests are complete.
+	 * Notifies the sewvice that aww tests awe compwete.
 	 */
-	public markComplete() {
-		if (this._completedAt !== undefined) {
-			throw new Error('cannot complete a test result multiple times');
+	pubwic mawkCompwete() {
+		if (this._compwetedAt !== undefined) {
+			thwow new Ewwow('cannot compwete a test wesuwt muwtipwe times');
 		}
 
-		for (const task of this.tasks) {
-			if (task.running) {
-				this.markTaskComplete(task.id);
+		fow (const task of this.tasks) {
+			if (task.wunning) {
+				this.mawkTaskCompwete(task.id);
 			}
 		}
 
-		this._completedAt = Date.now();
-		this.completeEmitter.fire();
+		this._compwetedAt = Date.now();
+		this.compweteEmitta.fiwe();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
+	pubwic toJSON(): ISewiawizedTestWesuwts | undefined {
+		wetuwn this.compwetedAt && this.pewsist ? this.doSewiawize.getVawue() : undefined;
 	}
 
 	/**
-	 * Updates all tests in the collection to the given state.
+	 * Updates aww tests in the cowwection to the given state.
 	 */
-	protected setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
+	pwotected setAwwToState(state: TestWesuwtState, taskId: stwing, when: (task: ITestTaskState, item: TestWesuwtItem) => boowean) {
 		const index = this.mustGetTaskIndex(taskId);
-		for (const test of this.testById.values()) {
+		fow (const test of this.testById.vawues()) {
 			if (when(test.tasks[index], test)) {
-				this.fireUpdateAndRefresh(test, index, state);
+				this.fiweUpdateAndWefwesh(test, index, state);
 			}
 		}
 	}
 
-	private fireUpdateAndRefresh(entry: TestResultItem, taskIndex: number, newState: TestResultState) {
-		const previousOwnComputed = entry.ownComputedState;
-		entry.tasks[taskIndex].state = newState;
-		const newOwnComputed = maxPriority(...entry.tasks.map(t => t.state));
-		if (newOwnComputed === previousOwnComputed) {
-			return;
+	pwivate fiweUpdateAndWefwesh(entwy: TestWesuwtItem, taskIndex: numba, newState: TestWesuwtState) {
+		const pweviousOwnComputed = entwy.ownComputedState;
+		entwy.tasks[taskIndex].state = newState;
+		const newOwnComputed = maxPwiowity(...entwy.tasks.map(t => t.state));
+		if (newOwnComputed === pweviousOwnComputed) {
+			wetuwn;
 		}
 
-		entry.ownComputedState = newOwnComputed;
-		this.counts[previousOwnComputed]--;
+		entwy.ownComputedState = newOwnComputed;
+		this.counts[pweviousOwnComputed]--;
 		this.counts[newOwnComputed]++;
-		refreshComputedState(this.computedStateAccessor, entry).forEach(t =>
-			this.changeEmitter.fire(
-				t === entry
-					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous: previousOwnComputed }
-					: { item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange }
+		wefweshComputedState(this.computedStateAccessow, entwy).fowEach(t =>
+			this.changeEmitta.fiwe(
+				t === entwy
+					? { item: entwy, wesuwt: this, weason: TestWesuwtItemChangeWeason.OwnStateChange, pwevious: pweviousOwnComputed }
+					: { item: t, wesuwt: this, weason: TestWesuwtItemChangeWeason.ComputedStateChange }
 			),
 		);
 	}
 
-	private addTestToRun(controllerId: string, item: ITestItem, parent: string | null) {
-		const node = itemToNode(controllerId, item, parent);
+	pwivate addTestToWun(contwowwewId: stwing, item: ITestItem, pawent: stwing | nuww) {
+		const node = itemToNode(contwowwewId, item, pawent);
 		this.testById.set(item.extId, node);
-		this.counts[TestResultState.Unset]++;
+		this.counts[TestWesuwtState.Unset]++;
 
-		if (parent) {
-			this.testById.get(parent)?.children.push(node);
+		if (pawent) {
+			this.testById.get(pawent)?.chiwdwen.push(node);
 		}
 
-		if (this.tasks.length) {
-			for (let i = 0; i < this.tasks.length; i++) {
-				node.tasks.push({ duration: undefined, messages: [], state: TestResultState.Queued });
+		if (this.tasks.wength) {
+			fow (wet i = 0; i < this.tasks.wength; i++) {
+				node.tasks.push({ duwation: undefined, messages: [], state: TestWesuwtState.Queued });
 			}
 		}
 
-		return node;
+		wetuwn node;
 	}
 
-	private mustGetTaskIndex(taskId: string) {
+	pwivate mustGetTaskIndex(taskId: stwing) {
 		const index = this.tasks.findIndex(t => t.id === taskId);
 		if (index === -1) {
-			throw new Error(`Unknown task ${taskId} in updateState`);
+			thwow new Ewwow(`Unknown task ${taskId} in updateState`);
 		}
 
-		return index;
+		wetuwn index;
 	}
 
-	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
+	pwivate weadonwy doSewiawize = new Wazy((): ISewiawizedTestWesuwts => ({
 		id: this.id,
-		completedAt: this.completedAt!,
-		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
+		compwetedAt: this.compwetedAt!,
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.othewMessages })),
 		name: this.name,
-		request: this.request,
-		items: [...this.testById.values()].map(entry => ({
-			...entry,
-			retired: undefined,
-			src: undefined,
-			children: [...entry.children.map(c => c.item.extId)],
+		wequest: this.wequest,
+		items: [...this.testById.vawues()].map(entwy => ({
+			...entwy,
+			wetiwed: undefined,
+			swc: undefined,
+			chiwdwen: [...entwy.chiwdwen.map(c => c.item.extId)],
 		})),
 	}));
 }
 
 /**
- * Test results hydrated from a previously-serialized test run.
+ * Test wesuwts hydwated fwom a pweviouswy-sewiawized test wun.
  */
-export class HydratedTestResult implements ITestResult {
+expowt cwass HydwatedTestWesuwt impwements ITestWesuwt {
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly counts = makeEmptyCounts();
+	pubwic weadonwy counts = makeEmptyCounts();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly id: string;
+	pubwic weadonwy id: stwing;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly completedAt: number;
+	pubwic weadonwy compwetedAt: numba;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly tasks: ITestRunTaskResults[];
+	pubwic weadonwy tasks: ITestWunTaskWesuwts[];
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get tests() {
-		return this.testById.values();
+	pubwic get tests() {
+		wetuwn this.testById.vawues();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly name: string;
+	pubwic weadonwy name: stwing;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly request: ResolvedTestRunRequest;
+	pubwic weadonwy wequest: WesowvedTestWunWequest;
 
-	private readonly testById = new Map<string, TestResultItem>();
+	pwivate weadonwy testById = new Map<stwing, TestWesuwtItem>();
 
-	constructor(
-		private readonly serialized: ISerializedTestResults,
-		private readonly outputLoader: () => Promise<VSBufferReadableStream>,
-		private readonly persist = true,
+	constwuctow(
+		pwivate weadonwy sewiawized: ISewiawizedTestWesuwts,
+		pwivate weadonwy outputWoada: () => Pwomise<VSBuffewWeadabweStweam>,
+		pwivate weadonwy pewsist = twue,
 	) {
-		this.id = serialized.id;
-		this.completedAt = serialized.completedAt;
-		this.tasks = serialized.tasks.map((task, i) => ({
+		this.id = sewiawized.id;
+		this.compwetedAt = sewiawized.compwetedAt;
+		this.tasks = sewiawized.tasks.map((task, i) => ({
 			id: task.id,
 			name: task.name,
-			running: false,
-			coverage: staticObservableValue(undefined),
-			otherMessages: task.messages.map(m => ({
+			wunning: fawse,
+			covewage: staticObsewvabweVawue(undefined),
+			othewMessages: task.messages.map(m => ({
 				message: m.message,
 				type: m.type,
 				offset: m.offset,
-				location: m.location && {
-					uri: URI.revive(m.location.uri),
-					range: Range.lift(m.location.range)
+				wocation: m.wocation && {
+					uwi: UWI.wevive(m.wocation.uwi),
+					wange: Wange.wift(m.wocation.wange)
 				},
 			}))
 		}));
-		this.name = serialized.name;
-		this.request = serialized.request;
+		this.name = sewiawized.name;
+		this.wequest = sewiawized.wequest;
 
-		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item, retired: true };
-			cast.item.uri = URI.revive(cast.item.uri);
+		fow (const item of sewiawized.items) {
+			const cast: TestWesuwtItem = { ...item, wetiwed: twue };
+			cast.item.uwi = UWI.wevive(cast.item.uwi);
 
-			for (const task of cast.tasks) {
-				for (const message of task.messages) {
-					if (message.location) {
-						message.location.uri = URI.revive(message.location.uri);
-						message.location.range = Range.lift(message.location.range);
+			fow (const task of cast.tasks) {
+				fow (const message of task.messages) {
+					if (message.wocation) {
+						message.wocation.uwi = UWI.wevive(message.wocation.uwi);
+						message.wocation.wange = Wange.wift(message.wocation.wange);
 					}
 				}
 			}
@@ -637,23 +637,23 @@ export class HydratedTestResult implements ITestResult {
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getStateById(extTestId: string) {
-		return this.testById.get(extTestId);
+	pubwic getStateById(extTestId: stwing) {
+		wetuwn this.testById.get(extTestId);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getOutput() {
-		return this.outputLoader();
+	pubwic getOutput() {
+		wetuwn this.outputWoada();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public toJSON(): ISerializedTestResults | undefined {
-		return this.persist ? this.serialized : undefined;
+	pubwic toJSON(): ISewiawizedTestWesuwts | undefined {
+		wetuwn this.pewsist ? this.sewiawized : undefined;
 	}
 }

@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import * as platform from 'vs/base/common/platform';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+impowt { KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
 
-if (platform.isMacintosh) {
+if (pwatfowm.isMacintosh) {
 
-	// On the mac, cmd+x, cmd+c and cmd+v do not result in cut / copy / paste
-	// We therefore add a basic keybinding rule that invokes document.execCommand
-	// This is to cover <input>s...
+	// On the mac, cmd+x, cmd+c and cmd+v do not wesuwt in cut / copy / paste
+	// We thewefowe add a basic keybinding wuwe that invokes document.execCommand
+	// This is to cova <input>s...
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 		id: 'execCut',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-		handler: bindExecuteCommand('cut'),
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_X,
+		handwa: bindExecuteCommand('cut'),
 		weight: 0,
 		when: undefined,
 	});
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 		id: 'execCopy',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-		handler: bindExecuteCommand('copy'),
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C,
+		handwa: bindExecuteCommand('copy'),
 		weight: 0,
 		when: undefined,
 	});
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 		id: 'execPaste',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-		handler: bindExecuteCommand('paste'),
+		pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_V,
+		handwa: bindExecuteCommand('paste'),
 		weight: 0,
 		when: undefined,
 	});
 
 	function bindExecuteCommand(command: 'cut' | 'copy' | 'paste') {
-		return () => {
+		wetuwn () => {
 			document.execCommand(command);
 		};
 	}

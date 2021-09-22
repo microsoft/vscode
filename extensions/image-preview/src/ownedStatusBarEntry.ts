@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt { Disposabwe } fwom './dispose';
 
-export abstract class PreviewStatusBarEntry extends Disposable {
-	private _showOwner: string | undefined;
+expowt abstwact cwass PweviewStatusBawEntwy extends Disposabwe {
+	pwivate _showOwna: stwing | undefined;
 
-	protected readonly entry: vscode.StatusBarItem;
+	pwotected weadonwy entwy: vscode.StatusBawItem;
 
-	constructor(id: string, name: string, alignment: vscode.StatusBarAlignment, priority: number) {
-		super();
-		this.entry = this._register(vscode.window.createStatusBarItem(id, alignment, priority));
-		this.entry.name = name;
+	constwuctow(id: stwing, name: stwing, awignment: vscode.StatusBawAwignment, pwiowity: numba) {
+		supa();
+		this.entwy = this._wegista(vscode.window.cweateStatusBawItem(id, awignment, pwiowity));
+		this.entwy.name = name;
 	}
 
-	protected showItem(owner: string, text: string) {
-		this._showOwner = owner;
-		this.entry.text = text;
-		this.entry.show();
+	pwotected showItem(owna: stwing, text: stwing) {
+		this._showOwna = owna;
+		this.entwy.text = text;
+		this.entwy.show();
 	}
 
-	public hide(owner: string) {
-		if (owner === this._showOwner) {
-			this.entry.hide();
-			this._showOwner = undefined;
+	pubwic hide(owna: stwing) {
+		if (owna === this._showOwna) {
+			this.entwy.hide();
+			this._showOwna = undefined;
 		}
 	}
 }

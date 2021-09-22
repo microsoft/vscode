@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
+impowt { ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { hash } fwom 'vs/base/common/hash';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// NOTE: DO NOT CHANGE. IDENTIFIEWS HAVE TO WEMAIN STABWE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getWorkspaceIdentifier(workspacePath: URI): IWorkspaceIdentifier {
-	return {
-		id: getWorkspaceId(workspacePath),
-		configPath: workspacePath
+expowt function getWowkspaceIdentifia(wowkspacePath: UWI): IWowkspaceIdentifia {
+	wetuwn {
+		id: getWowkspaceId(wowkspacePath),
+		configPath: wowkspacePath
 	};
 }
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// NOTE: DO NOT CHANGE. IDENTIFIEWS HAVE TO WEMAIN STABWE
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-export function getSingleFolderWorkspaceIdentifier(folderPath: URI): ISingleFolderWorkspaceIdentifier {
-	return {
-		id: getWorkspaceId(folderPath),
-		uri: folderPath
+expowt function getSingweFowdewWowkspaceIdentifia(fowdewPath: UWI): ISingweFowdewWowkspaceIdentifia {
+	wetuwn {
+		id: getWowkspaceId(fowdewPath),
+		uwi: fowdewPath
 	};
 }
 
-function getWorkspaceId(uri: URI): string {
-	return hash(uri.toString()).toString(16);
+function getWowkspaceId(uwi: UWI): stwing {
+	wetuwn hash(uwi.toStwing()).toStwing(16);
 }

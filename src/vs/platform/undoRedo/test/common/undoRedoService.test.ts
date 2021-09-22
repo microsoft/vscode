@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { IUndoWedoEwement, UndoWedoEwementType, UndoWedoGwoup } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
 
-suite('UndoRedoService', () => {
+suite('UndoWedoSewvice', () => {
 
-	function createUndoRedoService(dialogService: IDialogService = new TestDialogService()): UndoRedoService {
-		const notificationService = new TestNotificationService();
-		return new UndoRedoService(dialogService, notificationService);
+	function cweateUndoWedoSewvice(diawogSewvice: IDiawogSewvice = new TestDiawogSewvice()): UndoWedoSewvice {
+		const notificationSewvice = new TestNotificationSewvice();
+		wetuwn new UndoWedoSewvice(diawogSewvice, notificationSewvice);
 	}
 
-	test('simple single resource elements', () => {
-		const resource = URI.file('test.txt');
-		const service = createUndoRedoService();
+	test('simpwe singwe wesouwce ewements', () => {
+		const wesouwce = UWI.fiwe('test.txt');
+		const sewvice = cweateUndoWedoSewvice();
 
-		assert.strictEqual(service.canUndo(resource), false);
-		assert.strictEqual(service.canRedo(resource), false);
-		assert.strictEqual(service.hasElements(resource), false);
-		assert.ok(service.getLastElement(resource) === null);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), fawse);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === nuww);
 
-		let undoCall1 = 0;
-		let redoCall1 = 0;
-		const element1: IUndoRedoElement = {
-			type: UndoRedoElementType.Resource,
-			resource: resource,
-			label: 'typing 1',
-			undo: () => { undoCall1++; },
-			redo: () => { redoCall1++; }
+		wet undoCaww1 = 0;
+		wet wedoCaww1 = 0;
+		const ewement1: IUndoWedoEwement = {
+			type: UndoWedoEwementType.Wesouwce,
+			wesouwce: wesouwce,
+			wabew: 'typing 1',
+			undo: () => { undoCaww1++; },
+			wedo: () => { wedoCaww1++; }
 		};
-		service.pushElement(element1);
+		sewvice.pushEwement(ewement1);
 
-		assert.strictEqual(undoCall1, 0);
-		assert.strictEqual(redoCall1, 0);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), false);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === element1);
+		assewt.stwictEquaw(undoCaww1, 0);
+		assewt.stwictEquaw(wedoCaww1, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === ewement1);
 
-		service.undo(resource);
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 0);
-		assert.strictEqual(service.canUndo(resource), false);
-		assert.strictEqual(service.canRedo(resource), true);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === null);
+		sewvice.undo(wesouwce);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === nuww);
 
-		service.redo(resource);
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), false);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === element1);
+		sewvice.wedo(wesouwce);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === ewement1);
 
-		let undoCall2 = 0;
-		let redoCall2 = 0;
-		const element2: IUndoRedoElement = {
-			type: UndoRedoElementType.Resource,
-			resource: resource,
-			label: 'typing 2',
-			undo: () => { undoCall2++; },
-			redo: () => { redoCall2++; }
+		wet undoCaww2 = 0;
+		wet wedoCaww2 = 0;
+		const ewement2: IUndoWedoEwement = {
+			type: UndoWedoEwementType.Wesouwce,
+			wesouwce: wesouwce,
+			wabew: 'typing 2',
+			undo: () => { undoCaww2++; },
+			wedo: () => { wedoCaww2++; }
 		};
-		service.pushElement(element2);
+		sewvice.pushEwement(ewement2);
 
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(undoCall2, 0);
-		assert.strictEqual(redoCall2, 0);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), false);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === element2);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(undoCaww2, 0);
+		assewt.stwictEquaw(wedoCaww2, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === ewement2);
 
-		service.undo(resource);
+		sewvice.undo(wesouwce);
 
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(undoCall2, 1);
-		assert.strictEqual(redoCall2, 0);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), true);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === null);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(undoCaww2, 1);
+		assewt.stwictEquaw(wedoCaww2, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === nuww);
 
-		let undoCall3 = 0;
-		let redoCall3 = 0;
-		const element3: IUndoRedoElement = {
-			type: UndoRedoElementType.Resource,
-			resource: resource,
-			label: 'typing 2',
-			undo: () => { undoCall3++; },
-			redo: () => { redoCall3++; }
+		wet undoCaww3 = 0;
+		wet wedoCaww3 = 0;
+		const ewement3: IUndoWedoEwement = {
+			type: UndoWedoEwementType.Wesouwce,
+			wesouwce: wesouwce,
+			wabew: 'typing 2',
+			undo: () => { undoCaww3++; },
+			wedo: () => { wedoCaww3++; }
 		};
-		service.pushElement(element3);
+		sewvice.pushEwement(ewement3);
 
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(undoCall2, 1);
-		assert.strictEqual(redoCall2, 0);
-		assert.strictEqual(undoCall3, 0);
-		assert.strictEqual(redoCall3, 0);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), false);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === element3);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(undoCaww2, 1);
+		assewt.stwictEquaw(wedoCaww2, 0);
+		assewt.stwictEquaw(undoCaww3, 0);
+		assewt.stwictEquaw(wedoCaww3, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === ewement3);
 
-		service.undo(resource);
+		sewvice.undo(wesouwce);
 
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(undoCall2, 1);
-		assert.strictEqual(redoCall2, 0);
-		assert.strictEqual(undoCall3, 1);
-		assert.strictEqual(redoCall3, 0);
-		assert.strictEqual(service.canUndo(resource), true);
-		assert.strictEqual(service.canRedo(resource), true);
-		assert.strictEqual(service.hasElements(resource), true);
-		assert.ok(service.getLastElement(resource) === null);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(undoCaww2, 1);
+		assewt.stwictEquaw(wedoCaww2, 0);
+		assewt.stwictEquaw(undoCaww3, 1);
+		assewt.stwictEquaw(wedoCaww3, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce) === nuww);
 	});
 
-	test('multi resource elements', async () => {
-		const resource1 = URI.file('test1.txt');
-		const resource2 = URI.file('test2.txt');
-		const service = createUndoRedoService(new class extends mock<IDialogService>() {
-			override async show() {
-				return {
-					choice: 0 // confirm!
+	test('muwti wesouwce ewements', async () => {
+		const wesouwce1 = UWI.fiwe('test1.txt');
+		const wesouwce2 = UWI.fiwe('test2.txt');
+		const sewvice = cweateUndoWedoSewvice(new cwass extends mock<IDiawogSewvice>() {
+			ovewwide async show() {
+				wetuwn {
+					choice: 0 // confiwm!
 				};
 			}
 		});
 
-		let undoCall1 = 0, undoCall11 = 0, undoCall12 = 0;
-		let redoCall1 = 0, redoCall11 = 0, redoCall12 = 0;
-		const element1: IUndoRedoElement = {
-			type: UndoRedoElementType.Workspace,
-			resources: [resource1, resource2],
-			label: 'typing 1',
-			undo: () => { undoCall1++; },
-			redo: () => { redoCall1++; },
-			split: () => {
-				return [
+		wet undoCaww1 = 0, undoCaww11 = 0, undoCaww12 = 0;
+		wet wedoCaww1 = 0, wedoCaww11 = 0, wedoCaww12 = 0;
+		const ewement1: IUndoWedoEwement = {
+			type: UndoWedoEwementType.Wowkspace,
+			wesouwces: [wesouwce1, wesouwce2],
+			wabew: 'typing 1',
+			undo: () => { undoCaww1++; },
+			wedo: () => { wedoCaww1++; },
+			spwit: () => {
+				wetuwn [
 					{
-						type: UndoRedoElementType.Resource,
-						resource: resource1,
-						label: 'typing 1.1',
-						undo: () => { undoCall11++; },
-						redo: () => { redoCall11++; }
+						type: UndoWedoEwementType.Wesouwce,
+						wesouwce: wesouwce1,
+						wabew: 'typing 1.1',
+						undo: () => { undoCaww11++; },
+						wedo: () => { wedoCaww11++; }
 					},
 					{
-						type: UndoRedoElementType.Resource,
-						resource: resource2,
-						label: 'typing 1.2',
-						undo: () => { undoCall12++; },
-						redo: () => { redoCall12++; }
+						type: UndoWedoEwementType.Wesouwce,
+						wesouwce: wesouwce2,
+						wabew: 'typing 1.2',
+						undo: () => { undoCaww12++; },
+						wedo: () => { wedoCaww12++; }
 					}
 				];
 			}
 		};
-		service.pushElement(element1);
+		sewvice.pushEwement(ewement1);
 
-		assert.strictEqual(service.canUndo(resource1), true);
-		assert.strictEqual(service.canRedo(resource1), false);
-		assert.strictEqual(service.hasElements(resource1), true);
-		assert.ok(service.getLastElement(resource1) === element1);
-		assert.strictEqual(service.canUndo(resource2), true);
-		assert.strictEqual(service.canRedo(resource2), false);
-		assert.strictEqual(service.hasElements(resource2), true);
-		assert.ok(service.getLastElement(resource2) === element1);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce1), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce1), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce1), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce1) === ewement1);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce2), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce2), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce2), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce2) === ewement1);
 
-		await service.undo(resource1);
+		await sewvice.undo(wesouwce1);
 
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 0);
-		assert.strictEqual(service.canUndo(resource1), false);
-		assert.strictEqual(service.canRedo(resource1), true);
-		assert.strictEqual(service.hasElements(resource1), true);
-		assert.ok(service.getLastElement(resource1) === null);
-		assert.strictEqual(service.canUndo(resource2), false);
-		assert.strictEqual(service.canRedo(resource2), true);
-		assert.strictEqual(service.hasElements(resource2), true);
-		assert.ok(service.getLastElement(resource2) === null);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce1), fawse);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce1), twue);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce1), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce1) === nuww);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce2), fawse);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce2), twue);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce2), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce2) === nuww);
 
-		await service.redo(resource2);
-		assert.strictEqual(undoCall1, 1);
-		assert.strictEqual(redoCall1, 1);
-		assert.strictEqual(undoCall11, 0);
-		assert.strictEqual(redoCall11, 0);
-		assert.strictEqual(undoCall12, 0);
-		assert.strictEqual(redoCall12, 0);
-		assert.strictEqual(service.canUndo(resource1), true);
-		assert.strictEqual(service.canRedo(resource1), false);
-		assert.strictEqual(service.hasElements(resource1), true);
-		assert.ok(service.getLastElement(resource1) === element1);
-		assert.strictEqual(service.canUndo(resource2), true);
-		assert.strictEqual(service.canRedo(resource2), false);
-		assert.strictEqual(service.hasElements(resource2), true);
-		assert.ok(service.getLastElement(resource2) === element1);
+		await sewvice.wedo(wesouwce2);
+		assewt.stwictEquaw(undoCaww1, 1);
+		assewt.stwictEquaw(wedoCaww1, 1);
+		assewt.stwictEquaw(undoCaww11, 0);
+		assewt.stwictEquaw(wedoCaww11, 0);
+		assewt.stwictEquaw(undoCaww12, 0);
+		assewt.stwictEquaw(wedoCaww12, 0);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce1), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce1), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce1), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce1) === ewement1);
+		assewt.stwictEquaw(sewvice.canUndo(wesouwce2), twue);
+		assewt.stwictEquaw(sewvice.canWedo(wesouwce2), fawse);
+		assewt.stwictEquaw(sewvice.hasEwements(wesouwce2), twue);
+		assewt.ok(sewvice.getWastEwement(wesouwce2) === ewement1);
 
 	});
 
-	test('UndoRedoGroup.None uses id 0', () => {
-		assert.strictEqual(UndoRedoGroup.None.id, 0);
-		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
-		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
+	test('UndoWedoGwoup.None uses id 0', () => {
+		assewt.stwictEquaw(UndoWedoGwoup.None.id, 0);
+		assewt.stwictEquaw(UndoWedoGwoup.None.nextOwda(), 0);
+		assewt.stwictEquaw(UndoWedoGwoup.None.nextOwda(), 0);
 	});
 
 });

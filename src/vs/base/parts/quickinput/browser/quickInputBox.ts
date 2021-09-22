@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IInputBoxStyles, InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import 'vs/css!./media/quickInput';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { IInputBoxStywes, InputBox, IWange, MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt 'vs/css!./media/quickInput';
 
 const $ = dom.$;
 
-export class QuickInputBox extends Disposable {
+expowt cwass QuickInputBox extends Disposabwe {
 
-	private container: HTMLElement;
-	private inputBox: InputBox;
+	pwivate containa: HTMWEwement;
+	pwivate inputBox: InputBox;
 
-	constructor(
-		private parent: HTMLElement
+	constwuctow(
+		pwivate pawent: HTMWEwement
 	) {
-		super();
-		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = this._register(new InputBox(this.container, undefined));
+		supa();
+		this.containa = dom.append(this.pawent, $('.quick-input-box'));
+		this.inputBox = this._wegista(new InputBox(this.containa, undefined));
 	}
 
-	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			handler(new StandardKeyboardEvent(e));
+	onKeyDown = (handwa: (event: StandawdKeyboawdEvent) => void): IDisposabwe => {
+		wetuwn dom.addDisposabweWistena(this.inputBox.inputEwement, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			handwa(new StandawdKeyboawdEvent(e));
 		});
 	};
 
-	onMouseDown = (handler: (event: StandardMouseEvent) => void): IDisposable => {
-		return dom.addDisposableListener(this.inputBox.inputElement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			handler(new StandardMouseEvent(e));
+	onMouseDown = (handwa: (event: StandawdMouseEvent) => void): IDisposabwe => {
+		wetuwn dom.addDisposabweWistena(this.inputBox.inputEwement, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			handwa(new StandawdMouseEvent(e));
 		});
 	};
 
-	onDidChange = (handler: (event: string) => void): IDisposable => {
-		return this.inputBox.onDidChange(handler);
+	onDidChange = (handwa: (event: stwing) => void): IDisposabwe => {
+		wetuwn this.inputBox.onDidChange(handwa);
 	};
 
-	get value() {
-		return this.inputBox.value;
+	get vawue() {
+		wetuwn this.inputBox.vawue;
 	}
 
-	set value(value: string) {
-		this.inputBox.value = value;
+	set vawue(vawue: stwing) {
+		this.inputBox.vawue = vawue;
 	}
 
-	select(range: IRange | null = null): void {
-		this.inputBox.select(range);
+	sewect(wange: IWange | nuww = nuww): void {
+		this.inputBox.sewect(wange);
 	}
 
-	isSelectionAtEnd(): boolean {
-		return this.inputBox.isSelectionAtEnd();
+	isSewectionAtEnd(): boowean {
+		wetuwn this.inputBox.isSewectionAtEnd();
 	}
 
-	setPlaceholder(placeholder: string): void {
-		this.inputBox.setPlaceHolder(placeholder);
+	setPwacehowda(pwacehowda: stwing): void {
+		this.inputBox.setPwaceHowda(pwacehowda);
 	}
 
-	get placeholder() {
-		return this.inputBox.inputElement.getAttribute('placeholder') || '';
+	get pwacehowda() {
+		wetuwn this.inputBox.inputEwement.getAttwibute('pwacehowda') || '';
 	}
 
-	set placeholder(placeholder: string) {
-		this.inputBox.setPlaceHolder(placeholder);
+	set pwacehowda(pwacehowda: stwing) {
+		this.inputBox.setPwaceHowda(pwacehowda);
 	}
 
-	get ariaLabel() {
-		return this.inputBox.getAriaLabel();
+	get awiaWabew() {
+		wetuwn this.inputBox.getAwiaWabew();
 	}
 
-	set ariaLabel(ariaLabel: string) {
-		this.inputBox.setAriaLabel(ariaLabel);
+	set awiaWabew(awiaWabew: stwing) {
+		this.inputBox.setAwiaWabew(awiaWabew);
 	}
 
-	get password() {
-		return this.inputBox.inputElement.type === 'password';
+	get passwowd() {
+		wetuwn this.inputBox.inputEwement.type === 'passwowd';
 	}
 
-	set password(password: boolean) {
-		this.inputBox.inputElement.type = password ? 'password' : 'text';
+	set passwowd(passwowd: boowean) {
+		this.inputBox.inputEwement.type = passwowd ? 'passwowd' : 'text';
 	}
 
-	set enabled(enabled: boolean) {
-		this.inputBox.setEnabled(enabled);
+	set enabwed(enabwed: boowean) {
+		this.inputBox.setEnabwed(enabwed);
 	}
 
-	hasFocus(): boolean {
-		return this.inputBox.hasFocus();
+	hasFocus(): boowean {
+		wetuwn this.inputBox.hasFocus();
 	}
 
-	setAttribute(name: string, value: string): void {
-		this.inputBox.inputElement.setAttribute(name, value);
+	setAttwibute(name: stwing, vawue: stwing): void {
+		this.inputBox.inputEwement.setAttwibute(name, vawue);
 	}
 
-	removeAttribute(name: string): void {
-		this.inputBox.inputElement.removeAttribute(name);
+	wemoveAttwibute(name: stwing): void {
+		this.inputBox.inputEwement.wemoveAttwibute(name);
 	}
 
-	showDecoration(decoration: Severity): void {
-		if (decoration === Severity.Ignore) {
+	showDecowation(decowation: Sevewity): void {
+		if (decowation === Sevewity.Ignowe) {
 			this.inputBox.hideMessage();
-		} else {
-			this.inputBox.showMessage({ type: decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR, content: '' });
+		} ewse {
+			this.inputBox.showMessage({ type: decowation === Sevewity.Info ? MessageType.INFO : decowation === Sevewity.Wawning ? MessageType.WAWNING : MessageType.EWWOW, content: '' });
 		}
 	}
 
-	stylesForType(decoration: Severity) {
-		return this.inputBox.stylesForType(decoration === Severity.Info ? MessageType.INFO : decoration === Severity.Warning ? MessageType.WARNING : MessageType.ERROR);
+	stywesFowType(decowation: Sevewity) {
+		wetuwn this.inputBox.stywesFowType(decowation === Sevewity.Info ? MessageType.INFO : decowation === Sevewity.Wawning ? MessageType.WAWNING : MessageType.EWWOW);
 	}
 
 	setFocus(): void {
 		this.inputBox.focus();
 	}
 
-	layout(): void {
-		this.inputBox.layout();
+	wayout(): void {
+		this.inputBox.wayout();
 	}
 
-	style(styles: IInputBoxStyles): void {
-		this.inputBox.style(styles);
+	stywe(stywes: IInputBoxStywes): void {
+		this.inputBox.stywe(stywes);
 	}
 }

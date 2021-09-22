@@ -1,2312 +1,2312 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { Event, Emitter } from 'vs/base/common/event';
-import { basename, dirname } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider } from './util';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
-import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
-import { ISplice } from 'vs/base/common/sequence';
-import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
-import { Iterable } from 'vs/base/common/iterator';
-import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { URI } from 'vs/base/common/uri';
-import { FileKind } from 'vs/platform/files/common/files';
-import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
-import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
-import { coalesce, flatten } from 'vs/base/common/arrays';
-import { memoize } from 'vs/base/common/decorators';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import * as platform from 'vs/base/common/platform';
-import { compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { Schemas } from 'vs/base/common/network';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { LinkDetector } from 'vs/editor/contrib/links/links';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { Codicon } from 'vs/base/common/codicons';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
-import { Selection } from 'vs/editor/common/core/selection';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+impowt 'vs/css!./media/scm';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { basename, diwname } fwom 'vs/base/common/wesouwces';
+impowt { IDisposabwe, Disposabwe, DisposabweStowe, combinedDisposabwe, dispose, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ViewPane, IViewPaneOptions, ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { append, $, Dimension, asCSSUww, twackFocus } fwom 'vs/base/bwowsa/dom';
+impowt { IWistViwtuawDewegate, IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ISCMWesouwceGwoup, ISCMWesouwce, InputVawidationType, ISCMWepositowy, ISCMInput, IInputVawidation, ISCMViewSewvice, ISCMViewVisibweWepositowyChangeEvent, ISCMSewvice, SCMInputChangeWeason, VIEW_PANE_ID } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { WesouwceWabews, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextViewSewvice, IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { MenuItemAction, IMenuSewvice, wegistewAction2, MenuId, IAction2Options, MenuWegistwy, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IAction, ActionWunna } fwom 'vs/base/common/actions';
+impowt { ActionBaw, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IThemeSewvice, wegistewThemingPawticipant, IFiweIconTheme, ThemeIcon, ICowowTheme, ICssStyweCowwectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { isSCMWesouwce, isSCMWesouwceGwoup, connectPwimawyMenuToInwineActionBaw, isSCMWepositowy, isSCMInput, cowwectContextMenuActions, getActionViewItemPwovida } fwom './utiw';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { WowkbenchCompwessibweObjectTwee, IOpenEvent } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IConfiguwationSewvice, ConfiguwationTawget, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { disposabweTimeout, ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { ITweeNode, ITweeFiwta, ITweeSowta, ITweeContextMenuEvent } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { WesouwceTwee, IWesouwceNode } fwom 'vs/base/common/wesouwceTwee';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { ICompwessibweTweeWendewa, ICompwessibweKeyboawdNavigationWabewPwovida } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { ICompwessedTweeNode, ICompwessedTweeEwement } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { compaweFiweNames, compawePaths } fwom 'vs/base/common/compawews';
+impowt { FuzzyScowe, cweateMatches, IMatch } fwom 'vs/base/common/fiwtews';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { coawesce, fwatten } fwom 'vs/base/common/awways';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { IStowageSewvice, StowageScope, StowageTawget, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { SIDE_BAW_BACKGWOUND, SIDE_BAW_BOWDa, PANEW_BACKGWOUND, PANEW_INPUT_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { CodeEditowWidget, ICodeEditowWidgetOptions } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IEditowConstwuctionOptions } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { getSimpweEditowOptions } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/simpweEditowOptions';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { EditowExtensionsWegistwy } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { MenuPweventa } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/menuPweventa';
+impowt { SewectionCwipboawdContwibutionID } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/sewectionCwipboawd';
+impowt { ContextMenuContwowwa } fwom 'vs/editow/contwib/contextmenu/contextmenu';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { compawe, fowmat } fwom 'vs/base/common/stwings';
+impowt { inputPwacehowdewFowegwound, inputVawidationInfoBowda, inputVawidationWawningBowda, inputVawidationEwwowBowda, inputVawidationInfoBackgwound, inputVawidationInfoFowegwound, inputVawidationWawningBackgwound, inputVawidationWawningFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowFowegwound, inputBackgwound, inputFowegwound, inputBowda, focusBowda, wegistewCowow, contwastBowda, editowSewectionBackgwound, sewectionBackgwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { ModesHovewContwowwa } fwom 'vs/editow/contwib/hova/hova';
+impowt { CowowDetectow } fwom 'vs/editow/contwib/cowowPicka/cowowDetectow';
+impowt { WinkDetectow } fwom 'vs/editow/contwib/winks/winks';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { DEFAUWT_FONT_FAMIWY } fwom 'vs/wowkbench/bwowsa/stywe';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { WepositowyWendewa } fwom 'vs/wowkbench/contwib/scm/bwowsa/scmWepositowyWendewa';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { WabewFuzzyScowe } fwom 'vs/base/bwowsa/ui/twee/abstwactTwee';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { API_OPEN_DIFF_EDITOW_COMMAND_ID, API_OPEN_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+type TweeEwement = ISCMWepositowy | ISCMInput | ISCMWesouwceGwoup | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup> | ISCMWesouwce;
 
-interface ISCMLayout {
-	height: number | undefined;
-	width: number | undefined;
-	readonly onDidChange: Event<void>;
+intewface ISCMWayout {
+	height: numba | undefined;
+	width: numba | undefined;
+	weadonwy onDidChange: Event<void>;
 }
 
-interface InputTemplate {
-	readonly inputWidget: SCMInputWidget;
-	disposable: IDisposable;
-	readonly templateDisposable: IDisposable;
+intewface InputTempwate {
+	weadonwy inputWidget: SCMInputWidget;
+	disposabwe: IDisposabwe;
+	weadonwy tempwateDisposabwe: IDisposabwe;
 }
 
-class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, InputTemplate> {
+cwass InputWendewa impwements ICompwessibweTweeWendewa<ISCMInput, FuzzyScowe, InputTempwate> {
 
-	static readonly DEFAULT_HEIGHT = 26;
+	static weadonwy DEFAUWT_HEIGHT = 26;
 
-	static readonly TEMPLATE_ID = 'input';
-	get templateId(): string { return InputRenderer.TEMPLATE_ID; }
+	static weadonwy TEMPWATE_ID = 'input';
+	get tempwateId(): stwing { wetuwn InputWendewa.TEMPWATE_ID; }
 
-	private inputWidgets = new Map<ISCMInput, SCMInputWidget>();
-	private contentHeights = new WeakMap<ISCMInput, number>();
-	private editorSelections = new WeakMap<ISCMInput, Selection[]>();
+	pwivate inputWidgets = new Map<ISCMInput, SCMInputWidget>();
+	pwivate contentHeights = new WeakMap<ISCMInput, numba>();
+	pwivate editowSewections = new WeakMap<ISCMInput, Sewection[]>();
 
-	constructor(
-		private outerLayout: ISCMLayout,
-		private overflowWidgetsDomNode: HTMLElement,
-		private updateHeight: (input: ISCMInput, height: number) => void,
-		@IInstantiationService private instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate outewWayout: ISCMWayout,
+		pwivate ovewfwowWidgetsDomNode: HTMWEwement,
+		pwivate updateHeight: (input: ISCMInput, height: numba) => void,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): InputTemplate {
+	wendewTempwate(containa: HTMWEwement): InputTempwate {
 		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+		(containa.pawentEwement!.pawentEwement!.quewySewectow('.monaco-tw-twistie')! as HTMWEwement).cwassWist.add('fowce-no-twistie');
 
-		const disposables = new DisposableStore();
-		const inputElement = append(container, $('.scm-input'));
-		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
-		disposables.add(inputWidget);
+		const disposabwes = new DisposabweStowe();
+		const inputEwement = append(containa, $('.scm-input'));
+		const inputWidget = this.instantiationSewvice.cweateInstance(SCMInputWidget, inputEwement, this.ovewfwowWidgetsDomNode);
+		disposabwes.add(inputWidget);
 
-		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
+		wetuwn { inputWidget, disposabwe: Disposabwe.None, tempwateDisposabwe: disposabwes };
 	}
 
-	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
-		templateData.disposable.dispose();
+	wendewEwement(node: ITweeNode<ISCMInput, FuzzyScowe>, index: numba, tempwateData: InputTempwate): void {
+		tempwateData.disposabwe.dispose();
 
-		const disposables = new DisposableStore();
-		const input = node.element;
-		templateData.inputWidget.input = input;
+		const disposabwes = new DisposabweStowe();
+		const input = node.ewement;
+		tempwateData.inputWidget.input = input;
 
-		// Remember widget
-		this.inputWidgets.set(input, templateData.inputWidget);
-		disposables.add({ dispose: () => this.inputWidgets.delete(input) });
+		// Wememba widget
+		this.inputWidgets.set(input, tempwateData.inputWidget);
+		disposabwes.add({ dispose: () => this.inputWidgets.dewete(input) });
 
-		// Widget cursor selections
-		const selections = this.editorSelections.get(input);
+		// Widget cuwsow sewections
+		const sewections = this.editowSewections.get(input);
 
-		if (selections) {
-			templateData.inputWidget.selections = selections;
+		if (sewections) {
+			tempwateData.inputWidget.sewections = sewections;
 		}
 
-		disposables.add(toDisposable(() => {
-			const selections = templateData.inputWidget.selections;
+		disposabwes.add(toDisposabwe(() => {
+			const sewections = tempwateData.inputWidget.sewections;
 
-			if (selections) {
-				this.editorSelections.set(input, selections);
+			if (sewections) {
+				this.editowSewections.set(input, sewections);
 			}
 		}));
 
-		// Rerender the element whenever the editor content height changes
+		// Wewenda the ewement wheneva the editow content height changes
 		const onDidChangeContentHeight = () => {
-			const contentHeight = templateData.inputWidget.getContentHeight();
-			const lastContentHeight = this.contentHeights.get(input)!;
+			const contentHeight = tempwateData.inputWidget.getContentHeight();
+			const wastContentHeight = this.contentHeights.get(input)!;
 			this.contentHeights.set(input, contentHeight);
 
-			if (lastContentHeight !== contentHeight) {
+			if (wastContentHeight !== contentHeight) {
 				this.updateHeight(input, contentHeight + 10);
-				templateData.inputWidget.layout();
+				tempwateData.inputWidget.wayout();
 			}
 		};
 
-		const startListeningContentHeightChange = () => {
-			disposables.add(templateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
+		const stawtWisteningContentHeightChange = () => {
+			disposabwes.add(tempwateData.inputWidget.onDidChangeContentHeight(onDidChangeContentHeight));
 			onDidChangeContentHeight();
 		};
 
-		// Setup height change listener on next tick
-		const timeout = disposableTimeout(startListeningContentHeightChange, 0);
-		disposables.add(timeout);
+		// Setup height change wistena on next tick
+		const timeout = disposabweTimeout(stawtWisteningContentHeightChange, 0);
+		disposabwes.add(timeout);
 
-		// Layout the editor whenever the outer layout happens
-		const layoutEditor = () => templateData.inputWidget.layout();
-		disposables.add(this.outerLayout.onDidChange(layoutEditor));
-		layoutEditor();
+		// Wayout the editow wheneva the outa wayout happens
+		const wayoutEditow = () => tempwateData.inputWidget.wayout();
+		disposabwes.add(this.outewWayout.onDidChange(wayoutEditow));
+		wayoutEditow();
 
-		templateData.disposable = disposables;
+		tempwateData.disposabwe = disposabwes;
 	}
 
-	renderCompressedElements(): void {
-		throw new Error('Should never happen since node is incompressible');
+	wendewCompwessedEwements(): void {
+		thwow new Ewwow('Shouwd neva happen since node is incompwessibwe');
 	}
 
-	disposeElement(group: ITreeNode<ISCMInput, FuzzyScore>, index: number, template: InputTemplate): void {
-		template.disposable.dispose();
+	disposeEwement(gwoup: ITweeNode<ISCMInput, FuzzyScowe>, index: numba, tempwate: InputTempwate): void {
+		tempwate.disposabwe.dispose();
 	}
 
-	disposeTemplate(templateData: InputTemplate): void {
-		templateData.disposable.dispose();
-		templateData.templateDisposable.dispose();
+	disposeTempwate(tempwateData: InputTempwate): void {
+		tempwateData.disposabwe.dispose();
+		tempwateData.tempwateDisposabwe.dispose();
 	}
 
-	getHeight(input: ISCMInput): number {
-		return (this.contentHeights.get(input) ?? InputRenderer.DEFAULT_HEIGHT) + 10;
+	getHeight(input: ISCMInput): numba {
+		wetuwn (this.contentHeights.get(input) ?? InputWendewa.DEFAUWT_HEIGHT) + 10;
 	}
 
-	getRenderedInputWidget(input: ISCMInput): SCMInputWidget | undefined {
-		return this.inputWidgets.get(input);
+	getWendewedInputWidget(input: ISCMInput): SCMInputWidget | undefined {
+		wetuwn this.inputWidgets.get(input);
 	}
 
 	getFocusedInput(): ISCMInput | undefined {
-		for (const [input, inputWidget] of this.inputWidgets) {
+		fow (const [input, inputWidget] of this.inputWidgets) {
 			if (inputWidget.hasFocus()) {
-				return input;
+				wetuwn input;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	clearValidation(): void {
-		for (const [, inputWidget] of this.inputWidgets) {
-			inputWidget.clearValidation();
+	cweawVawidation(): void {
+		fow (const [, inputWidget] of this.inputWidgets) {
+			inputWidget.cweawVawidation();
 		}
 	}
 }
 
-interface ResourceGroupTemplate {
-	readonly name: HTMLElement;
-	readonly count: CountBadge;
-	readonly actionBar: ActionBar;
-	elementDisposables: IDisposable;
-	readonly disposables: IDisposable;
+intewface WesouwceGwoupTempwate {
+	weadonwy name: HTMWEwement;
+	weadonwy count: CountBadge;
+	weadonwy actionBaw: ActionBaw;
+	ewementDisposabwes: IDisposabwe;
+	weadonwy disposabwes: IDisposabwe;
 }
 
-class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGroup, FuzzyScore, ResourceGroupTemplate> {
+cwass WesouwceGwoupWendewa impwements ICompwessibweTweeWendewa<ISCMWesouwceGwoup, FuzzyScowe, WesouwceGwoupTempwate> {
 
-	static readonly TEMPLATE_ID = 'resource group';
-	get templateId(): string { return ResourceGroupRenderer.TEMPLATE_ID; }
+	static weadonwy TEMPWATE_ID = 'wesouwce gwoup';
+	get tempwateId(): stwing { wetuwn WesouwceGwoupWendewa.TEMPWATE_ID; }
 
-	constructor(
-		private actionViewItemProvider: IActionViewItemProvider,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IThemeService private themeService: IThemeService,
+	constwuctow(
+		pwivate actionViewItemPwovida: IActionViewItemPwovida,
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice,
 	) { }
 
-	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
+	wendewTempwate(containa: HTMWEwement): WesouwceGwoupTempwate {
 		// hack
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
+		(containa.pawentEwement!.pawentEwement!.quewySewectow('.monaco-tw-twistie')! as HTMWEwement).cwassWist.add('fowce-twistie');
 
-		const element = append(container, $('.resource-group'));
-		const name = append(element, $('.name'));
-		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
-		const countContainer = append(element, $('.count'));
-		const count = new CountBadge(countContainer);
-		const styler = attachBadgeStyler(count, this.themeService);
-		const elementDisposables = Disposable.None;
-		const disposables = combinedDisposable(actionBar, styler);
+		const ewement = append(containa, $('.wesouwce-gwoup'));
+		const name = append(ewement, $('.name'));
+		const actionsContaina = append(ewement, $('.actions'));
+		const actionBaw = new ActionBaw(actionsContaina, { actionViewItemPwovida: this.actionViewItemPwovida });
+		const countContaina = append(ewement, $('.count'));
+		const count = new CountBadge(countContaina);
+		const stywa = attachBadgeStywa(count, this.themeSewvice);
+		const ewementDisposabwes = Disposabwe.None;
+		const disposabwes = combinedDisposabwe(actionBaw, stywa);
 
-		return { name, count, actionBar, elementDisposables, disposables };
+		wetuwn { name, count, actionBaw, ewementDisposabwes, disposabwes };
 	}
 
-	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposables.dispose();
+	wendewEwement(node: ITweeNode<ISCMWesouwceGwoup, FuzzyScowe>, index: numba, tempwate: WesouwceGwoupTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
 
-		const group = node.element;
-		template.name.textContent = group.label;
-		template.actionBar.clear();
-		template.actionBar.context = group;
-		template.count.setCount(group.elements.length);
+		const gwoup = node.ewement;
+		tempwate.name.textContent = gwoup.wabew;
+		tempwate.actionBaw.cweaw();
+		tempwate.actionBaw.context = gwoup;
+		tempwate.count.setCount(gwoup.ewements.wength);
 
-		const disposables = new DisposableStore();
-		const menus = this.scmViewService.menus.getRepositoryMenus(group.provider);
-		disposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
+		const disposabwes = new DisposabweStowe();
+		const menus = this.scmViewSewvice.menus.getWepositowyMenus(gwoup.pwovida);
+		disposabwes.add(connectPwimawyMenuToInwineActionBaw(menus.getWesouwceGwoupMenu(gwoup), tempwate.actionBaw));
 
-		template.elementDisposables = disposables;
+		tempwate.ewementDisposabwes = disposabwes;
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
-		throw new Error('Should never happen since node is incompressible');
+	wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ISCMWesouwceGwoup>, FuzzyScowe>, index: numba, tempwateData: WesouwceGwoupTempwate, height: numba | undefined): void {
+		thwow new Ewwow('Shouwd neva happen since node is incompwessibwe');
 	}
 
-	disposeElement(group: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
-		template.elementDisposables.dispose();
+	disposeEwement(gwoup: ITweeNode<ISCMWesouwceGwoup, FuzzyScowe>, index: numba, tempwate: WesouwceGwoupTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
 	}
 
-	disposeTemplate(template: ResourceGroupTemplate): void {
-		template.elementDisposables.dispose();
-		template.disposables.dispose();
+	disposeTempwate(tempwate: WesouwceGwoupTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
+		tempwate.disposabwes.dispose();
 	}
 }
 
-interface ResourceTemplate {
-	element: HTMLElement;
-	name: HTMLElement;
-	fileLabel: IResourceLabel;
-	decorationIcon: HTMLElement;
-	actionBar: ActionBar;
-	elementDisposables: IDisposable;
-	disposables: IDisposable;
+intewface WesouwceTempwate {
+	ewement: HTMWEwement;
+	name: HTMWEwement;
+	fiweWabew: IWesouwceWabew;
+	decowationIcon: HTMWEwement;
+	actionBaw: ActionBaw;
+	ewementDisposabwes: IDisposabwe;
+	disposabwes: IDisposabwe;
 }
 
-class RepositoryPaneActionRunner extends ActionRunner {
+cwass WepositowyPaneActionWunna extends ActionWunna {
 
-	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
-		super();
+	constwuctow(pwivate getSewectedWesouwces: () => (ISCMWesouwce | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>)[]) {
+		supa();
 	}
 
-	override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	ovewwide async wunAction(action: IAction, context: ISCMWesouwce | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>): Pwomise<any> {
 		if (!(action instanceof MenuItemAction)) {
-			return super.runAction(action, context);
+			wetuwn supa.wunAction(action, context);
 		}
 
-		const selection = this.getSelectedResources();
-		const contextIsSelected = selection.some(s => s === context);
-		const actualContext = contextIsSelected ? selection : [context];
-		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
-		await action.run(...args);
+		const sewection = this.getSewectedWesouwces();
+		const contextIsSewected = sewection.some(s => s === context);
+		const actuawContext = contextIsSewected ? sewection : [context];
+		const awgs = fwatten(actuawContext.map(e => WesouwceTwee.isWesouwceNode(e) ? WesouwceTwee.cowwect(e) : [e]));
+		await action.wun(...awgs);
 	}
 }
 
-class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore, ResourceTemplate> {
+cwass WesouwceWendewa impwements ICompwessibweTweeWendewa<ISCMWesouwce | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>, FuzzyScowe | WabewFuzzyScowe, WesouwceTempwate> {
 
-	static readonly TEMPLATE_ID = 'resource';
-	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
+	static weadonwy TEMPWATE_ID = 'wesouwce';
+	get tempwateId(): stwing { wetuwn WesouwceWendewa.TEMPWATE_ID; }
 
-	constructor(
-		private viewModelProvider: () => ViewModel,
-		private labels: ResourceLabels,
-		private actionViewItemProvider: IActionViewItemProvider,
-		private actionRunner: ActionRunner,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IThemeService private themeService: IThemeService
+	constwuctow(
+		pwivate viewModewPwovida: () => ViewModew,
+		pwivate wabews: WesouwceWabews,
+		pwivate actionViewItemPwovida: IActionViewItemPwovida,
+		pwivate actionWunna: ActionWunna,
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice
 	) { }
 
-	renderTemplate(container: HTMLElement): ResourceTemplate {
-		const element = append(container, $('.resource'));
-		const name = append(element, $('.name'));
-		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
-		const actionsContainer = append(fileLabel.element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: this.actionViewItemProvider,
-			actionRunner: this.actionRunner
+	wendewTempwate(containa: HTMWEwement): WesouwceTempwate {
+		const ewement = append(containa, $('.wesouwce'));
+		const name = append(ewement, $('.name'));
+		const fiweWabew = this.wabews.cweate(name, { suppowtDescwiptionHighwights: twue, suppowtHighwights: twue });
+		const actionsContaina = append(fiweWabew.ewement, $('.actions'));
+		const actionBaw = new ActionBaw(actionsContaina, {
+			actionViewItemPwovida: this.actionViewItemPwovida,
+			actionWunna: this.actionWunna
 		});
 
-		const decorationIcon = append(element, $('.decoration-icon'));
-		const disposables = combinedDisposable(actionBar, fileLabel);
+		const decowationIcon = append(ewement, $('.decowation-icon'));
+		const disposabwes = combinedDisposabwe(actionBaw, fiweWabew);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, elementDisposables: Disposable.None, disposables };
+		wetuwn { ewement, name, fiweWabew, decowationIcon, actionBaw, ewementDisposabwes: Disposabwe.None, disposabwes };
 	}
 
-	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposables.dispose();
+	wendewEwement(node: ITweeNode<ISCMWesouwce, FuzzyScowe | WabewFuzzyScowe> | ITweeNode<ISCMWesouwce | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>, FuzzyScowe | WabewFuzzyScowe>, index: numba, tempwate: WesouwceTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
 
-		const elementDisposables = new DisposableStore();
-		const resourceOrFolder = node.element;
-		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
-		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
-		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
-		const viewModel = this.viewModelProvider();
-		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const ewementDisposabwes = new DisposabweStowe();
+		const wesouwceOwFowda = node.ewement;
+		const iconWesouwce = WesouwceTwee.isWesouwceNode(wesouwceOwFowda) ? wesouwceOwFowda.ewement : wesouwceOwFowda;
+		const uwi = WesouwceTwee.isWesouwceNode(wesouwceOwFowda) ? wesouwceOwFowda.uwi : wesouwceOwFowda.souwceUwi;
+		const fiweKind = WesouwceTwee.isWesouwceNode(wesouwceOwFowda) ? FiweKind.FOWDa : FiweKind.FIWE;
+		const viewModew = this.viewModewPwovida();
+		const toowtip = !WesouwceTwee.isWesouwceNode(wesouwceOwFowda) && wesouwceOwFowda.decowations.toowtip || '';
 
-		template.actionBar.clear();
-		template.actionBar.context = resourceOrFolder;
+		tempwate.actionBaw.cweaw();
+		tempwate.actionBaw.context = wesouwceOwFowda;
 
-		let matches: IMatch[] | undefined;
-		let descriptionMatches: IMatch[] | undefined;
+		wet matches: IMatch[] | undefined;
+		wet descwiptionMatches: IMatch[] | undefined;
 
-		if (ResourceTree.isResourceNode(resourceOrFolder)) {
-			if (resourceOrFolder.element) {
-				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
-				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
-			} else {
-				matches = createMatches(node.filterData as FuzzyScore | undefined);
-				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
-				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				template.name.classList.remove('strike-through');
-				template.element.classList.remove('faded');
+		if (WesouwceTwee.isWesouwceNode(wesouwceOwFowda)) {
+			if (wesouwceOwFowda.ewement) {
+				const menus = this.scmViewSewvice.menus.getWepositowyMenus(wesouwceOwFowda.ewement.wesouwceGwoup.pwovida);
+				ewementDisposabwes.add(connectPwimawyMenuToInwineActionBaw(menus.getWesouwceMenu(wesouwceOwFowda.ewement), tempwate.actionBaw));
+				tempwate.name.cwassWist.toggwe('stwike-thwough', wesouwceOwFowda.ewement.decowations.stwikeThwough);
+				tempwate.ewement.cwassWist.toggwe('faded', wesouwceOwFowda.ewement.decowations.faded);
+			} ewse {
+				matches = cweateMatches(node.fiwtewData as FuzzyScowe | undefined);
+				const menus = this.scmViewSewvice.menus.getWepositowyMenus(wesouwceOwFowda.context.pwovida);
+				ewementDisposabwes.add(connectPwimawyMenuToInwineActionBaw(menus.getWesouwceFowdewMenu(wesouwceOwFowda.context), tempwate.actionBaw));
+				tempwate.name.cwassWist.wemove('stwike-thwough');
+				tempwate.ewement.cwassWist.wemove('faded');
 			}
-		} else {
-			[matches, descriptionMatches] = this._processFilterData(uri, node.filterData);
-			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
-			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
-			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
+		} ewse {
+			[matches, descwiptionMatches] = this._pwocessFiwtewData(uwi, node.fiwtewData);
+			const menus = this.scmViewSewvice.menus.getWepositowyMenus(wesouwceOwFowda.wesouwceGwoup.pwovida);
+			ewementDisposabwes.add(connectPwimawyMenuToInwineActionBaw(menus.getWesouwceMenu(wesouwceOwFowda), tempwate.actionBaw));
+			tempwate.name.cwassWist.toggwe('stwike-thwough', wesouwceOwFowda.decowations.stwikeThwough);
+			tempwate.ewement.cwassWist.toggwe('faded', wesouwceOwFowda.decowations.faded);
 		}
 
-		const render = () => {
-			const theme = this.themeService.getColorTheme();
-			const icon = iconResource && (theme.type === ColorScheme.LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
+		const wenda = () => {
+			const theme = this.themeSewvice.getCowowTheme();
+			const icon = iconWesouwce && (theme.type === CowowScheme.WIGHT ? iconWesouwce.decowations.icon : iconWesouwce.decowations.iconDawk);
 
-			template.fileLabel.setFile(uri, {
-				fileDecorations: { colors: false, badges: !icon },
-				hidePath: viewModel.mode === ViewModelMode.Tree,
-				fileKind,
+			tempwate.fiweWabew.setFiwe(uwi, {
+				fiweDecowations: { cowows: fawse, badges: !icon },
+				hidePath: viewModew.mode === ViewModewMode.Twee,
+				fiweKind,
 				matches,
-				descriptionMatches
+				descwiptionMatches
 			});
 
 			if (icon) {
 				if (ThemeIcon.isThemeIcon(icon)) {
-					template.decorationIcon.className = `decoration-icon ${ThemeIcon.asClassName(icon)}`;
-					if (icon.color) {
-						template.decorationIcon.style.color = theme.getColor(icon.color.id)?.toString() ?? '';
+					tempwate.decowationIcon.cwassName = `decowation-icon ${ThemeIcon.asCwassName(icon)}`;
+					if (icon.cowow) {
+						tempwate.decowationIcon.stywe.cowow = theme.getCowow(icon.cowow.id)?.toStwing() ?? '';
 					}
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = '';
-				} else {
-					template.decorationIcon.className = 'decoration-icon';
-					template.decorationIcon.style.color = '';
-					template.decorationIcon.style.display = '';
-					template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
+					tempwate.decowationIcon.stywe.dispway = '';
+					tempwate.decowationIcon.stywe.backgwoundImage = '';
+				} ewse {
+					tempwate.decowationIcon.cwassName = 'decowation-icon';
+					tempwate.decowationIcon.stywe.cowow = '';
+					tempwate.decowationIcon.stywe.dispway = '';
+					tempwate.decowationIcon.stywe.backgwoundImage = asCSSUww(icon);
 				}
-				template.decorationIcon.title = tooltip;
-			} else {
-				template.decorationIcon.className = 'decoration-icon';
-				template.decorationIcon.style.color = '';
-				template.decorationIcon.style.display = 'none';
-				template.decorationIcon.style.backgroundImage = '';
-				template.decorationIcon.title = '';
+				tempwate.decowationIcon.titwe = toowtip;
+			} ewse {
+				tempwate.decowationIcon.cwassName = 'decowation-icon';
+				tempwate.decowationIcon.stywe.cowow = '';
+				tempwate.decowationIcon.stywe.dispway = 'none';
+				tempwate.decowationIcon.stywe.backgwoundImage = '';
+				tempwate.decowationIcon.titwe = '';
 			}
 		};
 
-		elementDisposables.add(this.themeService.onDidColorThemeChange(render));
-		render();
+		ewementDisposabwes.add(this.themeSewvice.onDidCowowThemeChange(wenda));
+		wenda();
 
-		template.element.setAttribute('data-tooltip', tooltip);
-		template.elementDisposables = elementDisposables;
+		tempwate.ewement.setAttwibute('data-toowtip', toowtip);
+		tempwate.ewementDisposabwes = ewementDisposabwes;
 	}
 
-	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
-		template.elementDisposables.dispose();
+	disposeEwement(wesouwce: ITweeNode<ISCMWesouwce, FuzzyScowe | WabewFuzzyScowe> | ITweeNode<IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>, FuzzyScowe | WabewFuzzyScowe>, index: numba, tempwate: WesouwceTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
-		template.elementDisposables.dispose();
+	wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ISCMWesouwce> | ICompwessedTweeNode<IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>>, FuzzyScowe | WabewFuzzyScowe>, index: numba, tempwate: WesouwceTempwate, height: numba | undefined): void {
+		tempwate.ewementDisposabwes.dispose();
 
-		const elementDisposables = new DisposableStore();
-		const compressed = node.element as ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>;
-		const folder = compressed.elements[compressed.elements.length - 1];
+		const ewementDisposabwes = new DisposabweStowe();
+		const compwessed = node.ewement as ICompwessedTweeNode<IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>>;
+		const fowda = compwessed.ewements[compwessed.ewements.wength - 1];
 
-		const label = compressed.elements.map(e => e.name).join('/');
-		const fileKind = FileKind.FOLDER;
+		const wabew = compwessed.ewements.map(e => e.name).join('/');
+		const fiweKind = FiweKind.FOWDa;
 
-		const matches = createMatches(node.filterData as FuzzyScore | undefined);
-		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
-			fileDecorations: { colors: false, badges: true },
-			fileKind,
+		const matches = cweateMatches(node.fiwtewData as FuzzyScowe | undefined);
+		tempwate.fiweWabew.setWesouwce({ wesouwce: fowda.uwi, name: wabew }, {
+			fiweDecowations: { cowows: fawse, badges: twue },
+			fiweKind,
 			matches
 		});
 
-		template.actionBar.clear();
-		template.actionBar.context = folder;
+		tempwate.actionBaw.cweaw();
+		tempwate.actionBaw.context = fowda;
 
-		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
-		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
+		const menus = this.scmViewSewvice.menus.getWepositowyMenus(fowda.context.pwovida);
+		ewementDisposabwes.add(connectPwimawyMenuToInwineActionBaw(menus.getWesouwceFowdewMenu(fowda.context), tempwate.actionBaw));
 
-		template.name.classList.remove('strike-through');
-		template.element.classList.remove('faded');
-		template.decorationIcon.style.display = 'none';
-		template.decorationIcon.style.backgroundImage = '';
+		tempwate.name.cwassWist.wemove('stwike-thwough');
+		tempwate.ewement.cwassWist.wemove('faded');
+		tempwate.decowationIcon.stywe.dispway = 'none';
+		tempwate.decowationIcon.stywe.backgwoundImage = '';
 
-		template.element.setAttribute('data-tooltip', '');
-		template.elementDisposables = elementDisposables;
+		tempwate.ewement.setAttwibute('data-toowtip', '');
+		tempwate.ewementDisposabwes = ewementDisposabwes;
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResource> | ICompressedTreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate, height: number | undefined): void {
-		template.elementDisposables.dispose();
+	disposeCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<ISCMWesouwce> | ICompwessedTweeNode<IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>>, FuzzyScowe | WabewFuzzyScowe>, index: numba, tempwate: WesouwceTempwate, height: numba | undefined): void {
+		tempwate.ewementDisposabwes.dispose();
 	}
 
-	disposeTemplate(template: ResourceTemplate): void {
-		template.elementDisposables.dispose();
-		template.disposables.dispose();
+	disposeTempwate(tempwate: WesouwceTempwate): void {
+		tempwate.ewementDisposabwes.dispose();
+		tempwate.disposabwes.dispose();
 	}
 
-	private _processFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
-		if (!filterData) {
-			return [undefined, undefined];
+	pwivate _pwocessFiwtewData(uwi: UWI, fiwtewData: FuzzyScowe | WabewFuzzyScowe | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+		if (!fiwtewData) {
+			wetuwn [undefined, undefined];
 		}
 
-		if (!(filterData as LabelFuzzyScore).label) {
-			const matches = createMatches(filterData as FuzzyScore);
-			return [matches, undefined];
+		if (!(fiwtewData as WabewFuzzyScowe).wabew) {
+			const matches = cweateMatches(fiwtewData as FuzzyScowe);
+			wetuwn [matches, undefined];
 		}
 
-		const fileName = basename(uri);
-		const label = (filterData as LabelFuzzyScore).label;
-		const pathLength = label.length - fileName.length;
-		const matches = createMatches((filterData as LabelFuzzyScore).score);
+		const fiweName = basename(uwi);
+		const wabew = (fiwtewData as WabewFuzzyScowe).wabew;
+		const pathWength = wabew.wength - fiweName.wength;
+		const matches = cweateMatches((fiwtewData as WabewFuzzyScowe).scowe);
 
-		// FileName match
-		if (label === fileName) {
-			return [matches, undefined];
+		// FiweName match
+		if (wabew === fiweName) {
+			wetuwn [matches, undefined];
 		}
 
-		// FilePath match
-		let labelMatches: IMatch[] = [];
-		let descriptionMatches: IMatch[] = [];
+		// FiwePath match
+		wet wabewMatches: IMatch[] = [];
+		wet descwiptionMatches: IMatch[] = [];
 
-		for (const match of matches) {
-			if (match.start > pathLength) {
-				// Label match
-				labelMatches.push({
-					start: match.start - pathLength,
-					end: match.end - pathLength
+		fow (const match of matches) {
+			if (match.stawt > pathWength) {
+				// Wabew match
+				wabewMatches.push({
+					stawt: match.stawt - pathWength,
+					end: match.end - pathWength
 				});
-			} else if (match.end < pathLength) {
-				// Description match
-				descriptionMatches.push(match);
-			} else {
+			} ewse if (match.end < pathWength) {
+				// Descwiption match
+				descwiptionMatches.push(match);
+			} ewse {
 				// Spanning match
-				labelMatches.push({
-					start: 0,
-					end: match.end - pathLength
+				wabewMatches.push({
+					stawt: 0,
+					end: match.end - pathWength
 				});
-				descriptionMatches.push({
-					start: match.start,
-					end: pathLength
+				descwiptionMatches.push({
+					stawt: match.stawt,
+					end: pathWength
 				});
 			}
 		}
 
-		return [labelMatches, descriptionMatches];
+		wetuwn [wabewMatches, descwiptionMatches];
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TreeElement> {
+cwass WistDewegate impwements IWistViwtuawDewegate<TweeEwement> {
 
-	constructor(private readonly inputRenderer: InputRenderer) { }
+	constwuctow(pwivate weadonwy inputWendewa: InputWendewa) { }
 
-	getHeight(element: TreeElement) {
-		if (isSCMInput(element)) {
-			return this.inputRenderer.getHeight(element);
-		} else {
-			return 22;
+	getHeight(ewement: TweeEwement) {
+		if (isSCMInput(ewement)) {
+			wetuwn this.inputWendewa.getHeight(ewement);
+		} ewse {
+			wetuwn 22;
 		}
 	}
 
-	getTemplateId(element: TreeElement) {
-		if (isSCMRepository(element)) {
-			return RepositoryRenderer.TEMPLATE_ID;
-		} else if (isSCMInput(element)) {
-			return InputRenderer.TEMPLATE_ID;
-		} else if (ResourceTree.isResourceNode(element) || isSCMResource(element)) {
-			return ResourceRenderer.TEMPLATE_ID;
-		} else {
-			return ResourceGroupRenderer.TEMPLATE_ID;
-		}
-	}
-}
-
-class SCMTreeFilter implements ITreeFilter<TreeElement> {
-
-	filter(element: TreeElement): boolean {
-		if (ResourceTree.isResourceNode(element)) {
-			return true;
-		} else if (isSCMResourceGroup(element)) {
-			return element.elements.length > 0 || !element.hideWhenEmpty;
-		} else {
-			return true;
+	getTempwateId(ewement: TweeEwement) {
+		if (isSCMWepositowy(ewement)) {
+			wetuwn WepositowyWendewa.TEMPWATE_ID;
+		} ewse if (isSCMInput(ewement)) {
+			wetuwn InputWendewa.TEMPWATE_ID;
+		} ewse if (WesouwceTwee.isWesouwceNode(ewement) || isSCMWesouwce(ewement)) {
+			wetuwn WesouwceWendewa.TEMPWATE_ID;
+		} ewse {
+			wetuwn WesouwceGwoupWendewa.TEMPWATE_ID;
 		}
 	}
 }
 
-export class SCMTreeSorter implements ITreeSorter<TreeElement> {
+cwass SCMTweeFiwta impwements ITweeFiwta<TweeEwement> {
+
+	fiwta(ewement: TweeEwement): boowean {
+		if (WesouwceTwee.isWesouwceNode(ewement)) {
+			wetuwn twue;
+		} ewse if (isSCMWesouwceGwoup(ewement)) {
+			wetuwn ewement.ewements.wength > 0 || !ewement.hideWhenEmpty;
+		} ewse {
+			wetuwn twue;
+		}
+	}
+}
+
+expowt cwass SCMTweeSowta impwements ITweeSowta<TweeEwement> {
 
 	@memoize
-	private get viewModel(): ViewModel { return this.viewModelProvider(); }
+	pwivate get viewModew(): ViewModew { wetuwn this.viewModewPwovida(); }
 
-	constructor(private viewModelProvider: () => ViewModel) { }
+	constwuctow(pwivate viewModewPwovida: () => ViewModew) { }
 
-	compare(one: TreeElement, other: TreeElement): number {
-		if (isSCMRepository(one)) {
-			if (!isSCMRepository(other)) {
-				throw new Error('Invalid comparison');
+	compawe(one: TweeEwement, otha: TweeEwement): numba {
+		if (isSCMWepositowy(one)) {
+			if (!isSCMWepositowy(otha)) {
+				thwow new Ewwow('Invawid compawison');
 			}
 
-			return 0;
+			wetuwn 0;
 		}
 
 		if (isSCMInput(one)) {
-			return -1;
-		} else if (isSCMInput(other)) {
-			return 1;
+			wetuwn -1;
+		} ewse if (isSCMInput(otha)) {
+			wetuwn 1;
 		}
 
-		if (isSCMResourceGroup(one)) {
-			if (!isSCMResourceGroup(other)) {
-				throw new Error('Invalid comparison');
+		if (isSCMWesouwceGwoup(one)) {
+			if (!isSCMWesouwceGwoup(otha)) {
+				thwow new Ewwow('Invawid compawison');
 			}
 
-			return 0;
+			wetuwn 0;
 		}
 
-		// List
-		if (this.viewModel.mode === ViewModelMode.List) {
-			// FileName
-			if (this.viewModel.sortKey === ViewModelSortKey.Name) {
-				const oneName = basename((one as ISCMResource).sourceUri);
-				const otherName = basename((other as ISCMResource).sourceUri);
+		// Wist
+		if (this.viewModew.mode === ViewModewMode.Wist) {
+			// FiweName
+			if (this.viewModew.sowtKey === ViewModewSowtKey.Name) {
+				const oneName = basename((one as ISCMWesouwce).souwceUwi);
+				const othewName = basename((otha as ISCMWesouwce).souwceUwi);
 
-				return compareFileNames(oneName, otherName);
+				wetuwn compaweFiweNames(oneName, othewName);
 			}
 
 			// Status
-			if (this.viewModel.sortKey === ViewModelSortKey.Status) {
-				const oneTooltip = (one as ISCMResource).decorations.tooltip ?? '';
-				const otherTooltip = (other as ISCMResource).decorations.tooltip ?? '';
+			if (this.viewModew.sowtKey === ViewModewSowtKey.Status) {
+				const oneToowtip = (one as ISCMWesouwce).decowations.toowtip ?? '';
+				const othewToowtip = (otha as ISCMWesouwce).decowations.toowtip ?? '';
 
-				if (oneTooltip !== otherTooltip) {
-					return compare(oneTooltip, otherTooltip);
+				if (oneToowtip !== othewToowtip) {
+					wetuwn compawe(oneToowtip, othewToowtip);
 				}
 			}
 
-			// Path (default)
-			const onePath = (one as ISCMResource).sourceUri.fsPath;
-			const otherPath = (other as ISCMResource).sourceUri.fsPath;
+			// Path (defauwt)
+			const onePath = (one as ISCMWesouwce).souwceUwi.fsPath;
+			const othewPath = (otha as ISCMWesouwce).souwceUwi.fsPath;
 
-			return comparePaths(onePath, otherPath);
+			wetuwn compawePaths(onePath, othewPath);
 		}
 
-		// Tree
-		const oneIsDirectory = ResourceTree.isResourceNode(one);
-		const otherIsDirectory = ResourceTree.isResourceNode(other);
+		// Twee
+		const oneIsDiwectowy = WesouwceTwee.isWesouwceNode(one);
+		const othewIsDiwectowy = WesouwceTwee.isWesouwceNode(otha);
 
-		if (oneIsDirectory !== otherIsDirectory) {
-			return oneIsDirectory ? -1 : 1;
+		if (oneIsDiwectowy !== othewIsDiwectowy) {
+			wetuwn oneIsDiwectowy ? -1 : 1;
 		}
 
-		const oneName = ResourceTree.isResourceNode(one) ? one.name : basename((one as ISCMResource).sourceUri);
-		const otherName = ResourceTree.isResourceNode(other) ? other.name : basename((other as ISCMResource).sourceUri);
+		const oneName = WesouwceTwee.isWesouwceNode(one) ? one.name : basename((one as ISCMWesouwce).souwceUwi);
+		const othewName = WesouwceTwee.isWesouwceNode(otha) ? otha.name : basename((otha as ISCMWesouwce).souwceUwi);
 
-		return compareFileNames(oneName, otherName);
+		wetuwn compaweFiweNames(oneName, othewName);
 	}
 }
 
-export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
+expowt cwass SCMTweeKeyboawdNavigationWabewPwovida impwements ICompwessibweKeyboawdNavigationWabewPwovida<TweeEwement> {
 
-	constructor(
-		private viewModelProvider: () => ViewModel,
-		@ILabelService private readonly labelService: ILabelService,
+	constwuctow(
+		pwivate viewModewPwovida: () => ViewModew,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
 	) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
-		if (ResourceTree.isResourceNode(element)) {
-			return element.name;
-		} else if (isSCMRepository(element)) {
-			return undefined;
-		} else if (isSCMInput(element)) {
-			return undefined;
-		} else if (isSCMResourceGroup(element)) {
-			return element.label;
-		} else {
-			const viewModel = this.viewModelProvider();
-			if (viewModel.mode === ViewModelMode.List) {
-				// In List mode match using the file name and the path.
-				// Since we want to match both on the file name and the
-				// full path we return an array of labels. A match in the
-				// file name takes precedence over a match in the path.
-				const fileName = basename(element.sourceUri);
-				const filePath = this.labelService.getUriLabel(element.sourceUri, { relative: true });
+	getKeyboawdNavigationWabew(ewement: TweeEwement): { toStwing(): stwing; } | { toStwing(): stwing; }[] | undefined {
+		if (WesouwceTwee.isWesouwceNode(ewement)) {
+			wetuwn ewement.name;
+		} ewse if (isSCMWepositowy(ewement)) {
+			wetuwn undefined;
+		} ewse if (isSCMInput(ewement)) {
+			wetuwn undefined;
+		} ewse if (isSCMWesouwceGwoup(ewement)) {
+			wetuwn ewement.wabew;
+		} ewse {
+			const viewModew = this.viewModewPwovida();
+			if (viewModew.mode === ViewModewMode.Wist) {
+				// In Wist mode match using the fiwe name and the path.
+				// Since we want to match both on the fiwe name and the
+				// fuww path we wetuwn an awway of wabews. A match in the
+				// fiwe name takes pwecedence ova a match in the path.
+				const fiweName = basename(ewement.souwceUwi);
+				const fiwePath = this.wabewSewvice.getUwiWabew(ewement.souwceUwi, { wewative: twue });
 
-				return [fileName, filePath];
-			} else {
-				// In Tree mode only match using the file name
-				return basename(element.sourceUri);
+				wetuwn [fiweName, fiwePath];
+			} ewse {
+				// In Twee mode onwy match using the fiwe name
+				wetuwn basename(ewement.souwceUwi);
 			}
 		}
 	}
 
-	getCompressedNodeKeyboardNavigationLabel(elements: TreeElement[]): { toString(): string | undefined; } | undefined {
-		const folders = elements as IResourceNode<ISCMResource, ISCMResourceGroup>[];
-		return folders.map(e => e.name).join('/');
+	getCompwessedNodeKeyboawdNavigationWabew(ewements: TweeEwement[]): { toStwing(): stwing | undefined; } | undefined {
+		const fowdews = ewements as IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>[];
+		wetuwn fowdews.map(e => e.name).join('/');
 	}
 }
 
-function getSCMResourceId(element: TreeElement): string {
-	if (ResourceTree.isResourceNode(element)) {
-		const group = element.context;
-		return `folder:${group.provider.id}/${group.id}/$FOLDER/${element.uri.toString()}`;
-	} else if (isSCMRepository(element)) {
-		const provider = element.provider;
-		return `repo:${provider.id}`;
-	} else if (isSCMInput(element)) {
-		const provider = element.repository.provider;
-		return `input:${provider.id}`;
-	} else if (isSCMResource(element)) {
-		const group = element.resourceGroup;
-		const provider = group.provider;
-		return `resource:${provider.id}/${group.id}/${element.sourceUri.toString()}`;
-	} else {
-		const provider = element.provider;
-		return `group:${provider.id}/${element.id}`;
+function getSCMWesouwceId(ewement: TweeEwement): stwing {
+	if (WesouwceTwee.isWesouwceNode(ewement)) {
+		const gwoup = ewement.context;
+		wetuwn `fowda:${gwoup.pwovida.id}/${gwoup.id}/$FOWDa/${ewement.uwi.toStwing()}`;
+	} ewse if (isSCMWepositowy(ewement)) {
+		const pwovida = ewement.pwovida;
+		wetuwn `wepo:${pwovida.id}`;
+	} ewse if (isSCMInput(ewement)) {
+		const pwovida = ewement.wepositowy.pwovida;
+		wetuwn `input:${pwovida.id}`;
+	} ewse if (isSCMWesouwce(ewement)) {
+		const gwoup = ewement.wesouwceGwoup;
+		const pwovida = gwoup.pwovida;
+		wetuwn `wesouwce:${pwovida.id}/${gwoup.id}/${ewement.souwceUwi.toStwing()}`;
+	} ewse {
+		const pwovida = ewement.pwovida;
+		wetuwn `gwoup:${pwovida.id}/${ewement.id}`;
 	}
 }
 
-class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
+cwass SCMWesouwceIdentityPwovida impwements IIdentityPwovida<TweeEwement> {
 
-	getId(element: TreeElement): string {
-		return getSCMResourceId(element);
+	getId(ewement: TweeEwement): stwing {
+		wetuwn getSCMWesouwceId(ewement);
 	}
 }
 
-export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
+expowt cwass SCMAccessibiwityPwovida impwements IWistAccessibiwityPwovida<TweeEwement> {
 
-	constructor(
-		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	constwuctow(
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice
 	) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('scm', "Source Control Management");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('scm', "Souwce Contwow Management");
 	}
 
-	getAriaLabel(element: TreeElement): string {
-		if (ResourceTree.isResourceNode(element)) {
-			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
-		} else if (isSCMRepository(element)) {
-			let folderName = '';
-			if (element.provider.rootUri) {
-				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
+	getAwiaWabew(ewement: TweeEwement): stwing {
+		if (WesouwceTwee.isWesouwceNode(ewement)) {
+			wetuwn this.wabewSewvice.getUwiWabew(ewement.uwi, { wewative: twue, noPwefix: twue }) || ewement.name;
+		} ewse if (isSCMWepositowy(ewement)) {
+			wet fowdewName = '';
+			if (ewement.pwovida.wootUwi) {
+				const fowda = this.wowkspaceContextSewvice.getWowkspaceFowda(ewement.pwovida.wootUwi);
 
-				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
-					folderName = folder.name;
-				} else {
-					folderName = basename(element.provider.rootUri);
+				if (fowda?.uwi.toStwing() === ewement.pwovida.wootUwi.toStwing()) {
+					fowdewName = fowda.name;
+				} ewse {
+					fowdewName = basename(ewement.pwovida.wootUwi);
 				}
 			}
-			return `${folderName} ${element.provider.label}`;
-		} else if (isSCMInput(element)) {
-			return localize('input', "Source Control Input");
-		} else if (isSCMResourceGroup(element)) {
-			return element.label;
-		} else {
-			const result: string[] = [];
+			wetuwn `${fowdewName} ${ewement.pwovida.wabew}`;
+		} ewse if (isSCMInput(ewement)) {
+			wetuwn wocawize('input', "Souwce Contwow Input");
+		} ewse if (isSCMWesouwceGwoup(ewement)) {
+			wetuwn ewement.wabew;
+		} ewse {
+			const wesuwt: stwing[] = [];
 
-			result.push(basename(element.sourceUri));
+			wesuwt.push(basename(ewement.souwceUwi));
 
-			if (element.decorations.tooltip) {
-				result.push(element.decorations.tooltip);
+			if (ewement.decowations.toowtip) {
+				wesuwt.push(ewement.decowations.toowtip);
 			}
 
-			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
+			const path = this.wabewSewvice.getUwiWabew(diwname(ewement.souwceUwi), { wewative: twue, noPwefix: twue });
 
 			if (path) {
-				result.push(path);
+				wesuwt.push(path);
 			}
 
-			return result.join(', ');
+			wetuwn wesuwt.join(', ');
 		}
 	}
 }
 
-interface IGroupItem {
-	readonly element: ISCMResourceGroup;
-	readonly resources: ISCMResource[];
-	readonly tree: ResourceTree<ISCMResource, ISCMResourceGroup>;
+intewface IGwoupItem {
+	weadonwy ewement: ISCMWesouwceGwoup;
+	weadonwy wesouwces: ISCMWesouwce[];
+	weadonwy twee: WesouwceTwee<ISCMWesouwce, ISCMWesouwceGwoup>;
 	dispose(): void;
 }
 
-interface IRepositoryItem {
-	readonly element: ISCMRepository;
-	readonly groupItems: IGroupItem[];
+intewface IWepositowyItem {
+	weadonwy ewement: ISCMWepositowy;
+	weadonwy gwoupItems: IGwoupItem[];
 	dispose(): void;
 }
 
-interface ITreeViewState {
-	readonly collapsed: string[];
+intewface ITweeViewState {
+	weadonwy cowwapsed: stwing[];
 }
 
-function isRepositoryItem(item: IRepositoryItem | IGroupItem): item is IRepositoryItem {
-	return Array.isArray((item as IRepositoryItem).groupItems);
+function isWepositowyItem(item: IWepositowyItem | IGwoupItem): item is IWepositowyItem {
+	wetuwn Awway.isAwway((item as IWepositowyItem).gwoupItems);
 }
 
-function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean, viewState?: ITreeViewState): ICompressedTreeElement<TreeElement> {
-	const element = (node.childrenCount === 0 && node.element) ? node.element : node;
-	const collapsed = viewState ? viewState.collapsed.indexOf(getSCMResourceId(element)) > -1 : false;
+function asTweeEwement(node: IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>, fowceIncompwessibwe: boowean, viewState?: ITweeViewState): ICompwessedTweeEwement<TweeEwement> {
+	const ewement = (node.chiwdwenCount === 0 && node.ewement) ? node.ewement : node;
+	const cowwapsed = viewState ? viewState.cowwapsed.indexOf(getSCMWesouwceId(ewement)) > -1 : fawse;
 
-	return {
-		element,
-		children: Iterable.map(node.children, node => asTreeElement(node, false, viewState)),
-		incompressible: !!node.element || forceIncompressible,
-		collapsed,
-		collapsible: node.childrenCount > 0
+	wetuwn {
+		ewement,
+		chiwdwen: Itewabwe.map(node.chiwdwen, node => asTweeEwement(node, fawse, viewState)),
+		incompwessibwe: !!node.ewement || fowceIncompwessibwe,
+		cowwapsed,
+		cowwapsibwe: node.chiwdwenCount > 0
 	};
 }
 
-const enum ViewModelMode {
-	List = 'list',
-	Tree = 'tree'
+const enum ViewModewMode {
+	Wist = 'wist',
+	Twee = 'twee'
 }
 
-const enum ViewModelSortKey {
+const enum ViewModewSowtKey {
 	Path = 'path',
 	Name = 'name',
 	Status = 'status'
 }
 
 const Menus = {
-	ViewSort: new MenuId('SCMViewSort'),
-	Repositories: new MenuId('SCMRepositories'),
+	ViewSowt: new MenuId('SCMViewSowt'),
+	Wepositowies: new MenuId('SCMWepositowies'),
 };
 
 const ContextKeys = {
-	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
-	ViewModelSortKey: new RawContextKey<ViewModelSortKey>('scmViewModelSortKey', ViewModelSortKey.Path),
-	ViewModelAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewModelAreAllRepositoriesCollapsed', false),
-	ViewModelIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewModelIsAnyRepositoryCollapsible', false),
-	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
-	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
-	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
-	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
-	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
-	RepositoryVisibility(repository: ISCMRepository) {
-		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
+	ViewModewMode: new WawContextKey<ViewModewMode>('scmViewModewMode', ViewModewMode.Wist),
+	ViewModewSowtKey: new WawContextKey<ViewModewSowtKey>('scmViewModewSowtKey', ViewModewSowtKey.Path),
+	ViewModewAweAwwWepositowiesCowwapsed: new WawContextKey<boowean>('scmViewModewAweAwwWepositowiesCowwapsed', fawse),
+	ViewModewIsAnyWepositowyCowwapsibwe: new WawContextKey<boowean>('scmViewModewIsAnyWepositowyCowwapsibwe', fawse),
+	SCMPwovida: new WawContextKey<stwing | undefined>('scmPwovida', undefined),
+	SCMPwovidewWootUwi: new WawContextKey<stwing | undefined>('scmPwovidewWootUwi', undefined),
+	SCMPwovidewHasWootUwi: new WawContextKey<boowean>('scmPwovidewHasWootUwi', undefined),
+	WepositowyCount: new WawContextKey<numba>('scmWepositowyCount', 0),
+	WepositowyVisibiwityCount: new WawContextKey<numba>('scmWepositowyVisibweCount', 0),
+	WepositowyVisibiwity(wepositowy: ISCMWepositowy) {
+		wetuwn new WawContextKey<boowean>(`scmWepositowyVisibwe:${wepositowy.pwovida.id}`, fawse);
 	}
 };
 
-MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
-	title: localize('sortAction', "View & Sort"),
-	submenu: Menus.ViewSort,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
-	group: '0_view&sort'
+MenuWegistwy.appendMenuItem(MenuId.SCMTitwe, {
+	titwe: wocawize('sowtAction', "View & Sowt"),
+	submenu: Menus.ViewSowt,
+	when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', VIEW_PANE_ID), ContextKeys.WepositowyCount.notEquawsTo(0)),
+	gwoup: '0_view&sowt'
 });
 
-MenuRegistry.appendMenuItem(Menus.ViewSort, {
-	title: localize('repositories', "Repositories"),
-	submenu: Menus.Repositories,
-	group: '0_repositories'
+MenuWegistwy.appendMenuItem(Menus.ViewSowt, {
+	titwe: wocawize('wepositowies', "Wepositowies"),
+	submenu: Menus.Wepositowies,
+	gwoup: '0_wepositowies'
 });
 
-class RepositoryVisibilityAction extends Action2 {
+cwass WepositowyVisibiwityAction extends Action2 {
 
-	private repository: ISCMRepository;
+	pwivate wepositowy: ISCMWepositowy;
 
-	constructor(repository: ISCMRepository) {
-		const title = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
-		super({
-			id: `workbench.scm.action.toggleRepositoryVisibility.${repository.provider.id}`,
-			title,
-			f1: false,
-			precondition: ContextKeyExpr.or(ContextKeys.RepositoryVisibilityCount.notEqualsTo(1), ContextKeys.RepositoryVisibility(repository).isEqualTo(false)),
-			toggled: ContextKeys.RepositoryVisibility(repository).isEqualTo(true),
-			menu: { id: Menus.Repositories }
+	constwuctow(wepositowy: ISCMWepositowy) {
+		const titwe = wepositowy.pwovida.wootUwi ? basename(wepositowy.pwovida.wootUwi) : wepositowy.pwovida.wabew;
+		supa({
+			id: `wowkbench.scm.action.toggweWepositowyVisibiwity.${wepositowy.pwovida.id}`,
+			titwe,
+			f1: fawse,
+			pwecondition: ContextKeyExpw.ow(ContextKeys.WepositowyVisibiwityCount.notEquawsTo(1), ContextKeys.WepositowyVisibiwity(wepositowy).isEquawTo(fawse)),
+			toggwed: ContextKeys.WepositowyVisibiwity(wepositowy).isEquawTo(twue),
+			menu: { id: Menus.Wepositowies }
 		});
-		this.repository = repository;
+		this.wepositowy = wepositowy;
 	}
 
-	run(accessor: ServicesAccessor) {
-		const scmViewService = accessor.get(ISCMViewService);
-		scmViewService.toggleVisibility(this.repository);
+	wun(accessow: SewvicesAccessow) {
+		const scmViewSewvice = accessow.get(ISCMViewSewvice);
+		scmViewSewvice.toggweVisibiwity(this.wepositowy);
 	}
 }
 
-interface RepositoryVisibilityItem {
-	readonly contextKey: IContextKey<boolean>;
+intewface WepositowyVisibiwityItem {
+	weadonwy contextKey: IContextKey<boowean>;
 	dispose(): void;
 }
 
-class RepositoryVisibilityActionController {
+cwass WepositowyVisibiwityActionContwowwa {
 
-	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
-	private repositoryCountContextKey: IContextKey<number>;
-	private repositoryVisibilityCountContextKey: IContextKey<number>;
-	private disposables = new DisposableStore();
+	pwivate items = new Map<ISCMWepositowy, WepositowyVisibiwityItem>();
+	pwivate wepositowyCountContextKey: IContextKey<numba>;
+	pwivate wepositowyVisibiwityCountContextKey: IContextKey<numba>;
+	pwivate disposabwes = new DisposabweStowe();
 
-	constructor(
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@ISCMService scmService: ISCMService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+	constwuctow(
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@ISCMSewvice scmSewvice: ISCMSewvice,
+		@IContextKeySewvice pwivate contextKeySewvice: IContextKeySewvice
 	) {
-		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
-		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
+		this.wepositowyCountContextKey = ContextKeys.WepositowyCount.bindTo(contextKeySewvice);
+		this.wepositowyVisibiwityCountContextKey = ContextKeys.WepositowyVisibiwityCount.bindTo(contextKeySewvice);
 
-		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		scmViewSewvice.onDidChangeVisibweWepositowies(this.onDidChangeVisibweWepositowies, this, this.disposabwes);
+		scmSewvice.onDidAddWepositowy(this.onDidAddWepositowy, this, this.disposabwes);
+		scmSewvice.onDidWemoveWepositowy(this.onDidWemoveWepositowy, this, this.disposabwes);
 
-		for (const repository of scmService.repositories) {
-			this.onDidAddRepository(repository);
+		fow (const wepositowy of scmSewvice.wepositowies) {
+			this.onDidAddWepositowy(wepositowy);
 		}
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		const action = registerAction2(class extends RepositoryVisibilityAction {
-			constructor() {
-				super(repository);
+	pwivate onDidAddWepositowy(wepositowy: ISCMWepositowy): void {
+		const action = wegistewAction2(cwass extends WepositowyVisibiwityAction {
+			constwuctow() {
+				supa(wepositowy);
 			}
 		});
 
-		const contextKey = ContextKeys.RepositoryVisibility(repository).bindTo(this.contextKeyService);
-		contextKey.set(this.scmViewService.isVisible(repository));
+		const contextKey = ContextKeys.WepositowyVisibiwity(wepositowy).bindTo(this.contextKeySewvice);
+		contextKey.set(this.scmViewSewvice.isVisibwe(wepositowy));
 
-		this.items.set(repository, {
+		this.items.set(wepositowy, {
 			contextKey,
 			dispose() {
-				contextKey.reset();
+				contextKey.weset();
 				action.dispose();
 			}
 		});
 
-		this.updateRepositoriesCounts();
+		this.updateWepositowiesCounts();
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.items.get(repository)?.dispose();
-		this.items.delete(repository);
-		this.updateRepositoriesCounts();
+	pwivate onDidWemoveWepositowy(wepositowy: ISCMWepositowy): void {
+		this.items.get(wepositowy)?.dispose();
+		this.items.dewete(wepositowy);
+		this.updateWepositowiesCounts();
 	}
 
-	private onDidChangeVisibleRepositories(): void {
-		let count = 0;
+	pwivate onDidChangeVisibweWepositowies(): void {
+		wet count = 0;
 
-		for (const [repository, item] of this.items) {
-			const isVisible = this.scmViewService.isVisible(repository);
-			item.contextKey.set(isVisible);
+		fow (const [wepositowy, item] of this.items) {
+			const isVisibwe = this.scmViewSewvice.isVisibwe(wepositowy);
+			item.contextKey.set(isVisibwe);
 
-			if (isVisible) {
+			if (isVisibwe) {
 				count++;
 			}
 		}
 
-		this.repositoryCountContextKey.set(this.items.size);
-		this.repositoryVisibilityCountContextKey.set(count);
+		this.wepositowyCountContextKey.set(this.items.size);
+		this.wepositowyVisibiwityCountContextKey.set(count);
 	}
 
-	private updateRepositoriesCounts(): void {
-		this.repositoryCountContextKey.set(this.items.size);
-		this.repositoryVisibilityCountContextKey.set(Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0));
+	pwivate updateWepositowiesCounts(): void {
+		this.wepositowyCountContextKey.set(this.items.size);
+		this.wepositowyVisibiwityCountContextKey.set(Itewabwe.weduce(this.items.keys(), (w, wepositowy) => w + (this.scmViewSewvice.isVisibwe(wepositowy) ? 1 : 0), 0));
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
-		dispose(this.items.values());
-		this.items.clear();
+		this.disposabwes.dispose();
+		dispose(this.items.vawues());
+		this.items.cweaw();
 	}
 }
 
-class ViewModel {
+cwass ViewModew {
 
-	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
-	readonly onDidChangeMode = this._onDidChangeMode.event;
+	pwivate weadonwy _onDidChangeMode = new Emitta<ViewModewMode>();
+	weadonwy onDidChangeMode = this._onDidChangeMode.event;
 
-	private visible: boolean = false;
+	pwivate visibwe: boowean = fawse;
 
-	get mode(): ViewModelMode { return this._mode; }
-	set mode(mode: ViewModelMode) {
+	get mode(): ViewModewMode { wetuwn this._mode; }
+	set mode(mode: ViewModewMode) {
 		if (this._mode === mode) {
-			return;
+			wetuwn;
 		}
 
 		this._mode = mode;
 
-		for (const [, item] of this.items) {
-			for (const groupItem of item.groupItems) {
-				groupItem.tree.clear();
+		fow (const [, item] of this.items) {
+			fow (const gwoupItem of item.gwoupItems) {
+				gwoupItem.twee.cweaw();
 
-				if (mode === ViewModelMode.Tree) {
-					for (const resource of groupItem.resources) {
-						groupItem.tree.add(resource.sourceUri, resource);
+				if (mode === ViewModewMode.Twee) {
+					fow (const wesouwce of gwoupItem.wesouwces) {
+						gwoupItem.twee.add(wesouwce.souwceUwi, wesouwce);
 					}
 				}
 			}
 		}
 
-		this.refresh();
-		this._onDidChangeMode.fire(mode);
+		this.wefwesh();
+		this._onDidChangeMode.fiwe(mode);
 		this.modeContextKey.set(mode);
 	}
 
-	private _sortKey: ViewModelSortKey = ViewModelSortKey.Path;
-	get sortKey(): ViewModelSortKey { return this._sortKey; }
-	set sortKey(sortKey: ViewModelSortKey) {
-		if (sortKey !== this._sortKey) {
-			this._sortKey = sortKey;
-			this.refresh();
+	pwivate _sowtKey: ViewModewSowtKey = ViewModewSowtKey.Path;
+	get sowtKey(): ViewModewSowtKey { wetuwn this._sowtKey; }
+	set sowtKey(sowtKey: ViewModewSowtKey) {
+		if (sowtKey !== this._sowtKey) {
+			this._sowtKey = sowtKey;
+			this.wefwesh();
 		}
-		this.sortKeyContextKey.set(sortKey);
+		this.sowtKeyContextKey.set(sowtKey);
 	}
 
-	private _treeViewStateIsStale = false;
-	get treeViewState(): ITreeViewState | undefined {
-		if (this.visible && this._treeViewStateIsStale) {
+	pwivate _tweeViewStateIsStawe = fawse;
+	get tweeViewState(): ITweeViewState | undefined {
+		if (this.visibwe && this._tweeViewStateIsStawe) {
 			this.updateViewState();
-			this._treeViewStateIsStale = false;
+			this._tweeViewStateIsStawe = fawse;
 		}
 
-		return this._treeViewState;
+		wetuwn this._tweeViewState;
 	}
 
-	private items = new Map<ISCMRepository, IRepositoryItem>();
-	private visibilityDisposables = new DisposableStore();
-	private scrollTop: number | undefined;
-	private alwaysShowRepositories = false;
-	private firstVisible = true;
-	private disposables = new DisposableStore();
+	pwivate items = new Map<ISCMWepositowy, IWepositowyItem>();
+	pwivate visibiwityDisposabwes = new DisposabweStowe();
+	pwivate scwowwTop: numba | undefined;
+	pwivate awwaysShowWepositowies = fawse;
+	pwivate fiwstVisibwe = twue;
+	pwivate disposabwes = new DisposabweStowe();
 
-	private modeContextKey: IContextKey<ViewModelMode>;
-	private sortKeyContextKey: IContextKey<ViewModelSortKey>;
-	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
-	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
-	private scmProviderContextKey: IContextKey<string | undefined>;
-	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
-	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
+	pwivate modeContextKey: IContextKey<ViewModewMode>;
+	pwivate sowtKeyContextKey: IContextKey<ViewModewSowtKey>;
+	pwivate aweAwwWepositowiesCowwapsedContextKey: IContextKey<boowean>;
+	pwivate isAnyWepositowyCowwapsibweContextKey: IContextKey<boowean>;
+	pwivate scmPwovidewContextKey: IContextKey<stwing | undefined>;
+	pwivate scmPwovidewWootUwiContextKey: IContextKey<stwing | undefined>;
+	pwivate scmPwovidewHasWootUwiContextKey: IContextKey<boowean>;
 
-	constructor(
-		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
-		private inputRenderer: InputRenderer,
-		private _mode: ViewModelMode,
-		private _treeViewState: ITreeViewState | undefined,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IEditorService protected editorService: IEditorService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IUriIdentityService private uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate twee: WowkbenchCompwessibweObjectTwee<TweeEwement, FuzzyScowe>,
+		pwivate inputWendewa: InputWendewa,
+		pwivate _mode: ViewModewMode,
+		pwivate _tweeViewState: ITweeViewState | undefined,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IEditowSewvice pwotected editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice pwotected configuwationSewvice: IConfiguwationSewvice,
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@IUwiIdentitySewvice pwivate uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
+		this.modeContextKey = ContextKeys.ViewModewMode.bindTo(contextKeySewvice);
 		this.modeContextKey.set(_mode);
-		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.sortKeyContextKey.set(this._sortKey);
-		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
-		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
-		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
-		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
-		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
+		this.sowtKeyContextKey = ContextKeys.ViewModewSowtKey.bindTo(contextKeySewvice);
+		this.sowtKeyContextKey.set(this._sowtKey);
+		this.aweAwwWepositowiesCowwapsedContextKey = ContextKeys.ViewModewAweAwwWepositowiesCowwapsed.bindTo(contextKeySewvice);
+		this.isAnyWepositowyCowwapsibweContextKey = ContextKeys.ViewModewIsAnyWepositowyCowwapsibwe.bindTo(contextKeySewvice);
+		this.scmPwovidewContextKey = ContextKeys.SCMPwovida.bindTo(contextKeySewvice);
+		this.scmPwovidewWootUwiContextKey = ContextKeys.SCMPwovidewWootUwi.bindTo(contextKeySewvice);
+		this.scmPwovidewHasWootUwiContextKey = ContextKeys.SCMPwovidewHasWootUwi.bindTo(contextKeySewvice);
 
-		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		this.onDidChangeConfiguration();
+		configuwationSewvice.onDidChangeConfiguwation(this.onDidChangeConfiguwation, this, this.disposabwes);
+		this.onDidChangeConfiguwation();
 
-		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element))
-			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
+		Event.fiwta(this.twee.onDidChangeCowwapseState, e => isSCMWepositowy(e.node.ewement))
+			(this.updateWepositowyCowwapseAwwContextKeys, this, this.disposabwes);
 
-		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
+		this.disposabwes.add(this.twee.onDidChangeCowwapseState(() => this._tweeViewStateIsStawe = twue));
 	}
 
-	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
-			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-			this.refresh();
+	pwivate onDidChangeConfiguwation(e?: IConfiguwationChangeEvent): void {
+		if (!e || e.affectsConfiguwation('scm.awwaysShowWepositowies')) {
+			this.awwaysShowWepositowies = this.configuwationSewvice.getVawue<boowean>('scm.awwaysShowWepositowies');
+			this.wefwesh();
 		}
 	}
 
-	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
-		for (const repository of added) {
-			const disposable = combinedDisposable(
-				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
-				repository.input.onDidChangeVisibility(() => this.refresh(item))
+	pwivate _onDidChangeVisibweWepositowies({ added, wemoved }: ISCMViewVisibweWepositowyChangeEvent): void {
+		fow (const wepositowy of added) {
+			const disposabwe = combinedDisposabwe(
+				wepositowy.pwovida.gwoups.onDidSpwice(spwice => this._onDidSpwiceGwoups(item, spwice)),
+				wepositowy.input.onDidChangeVisibiwity(() => this.wefwesh(item))
 			);
-			const groupItems = repository.provider.groups.elements.map(group => this.createGroupItem(group));
-			const item: IRepositoryItem = {
-				element: repository, groupItems, dispose() {
-					dispose(this.groupItems);
-					disposable.dispose();
+			const gwoupItems = wepositowy.pwovida.gwoups.ewements.map(gwoup => this.cweateGwoupItem(gwoup));
+			const item: IWepositowyItem = {
+				ewement: wepositowy, gwoupItems, dispose() {
+					dispose(this.gwoupItems);
+					disposabwe.dispose();
 				}
 			};
 
-			this.items.set(repository, item);
+			this.items.set(wepositowy, item);
 		}
 
-		for (const repository of removed) {
-			const item = this.items.get(repository)!;
+		fow (const wepositowy of wemoved) {
+			const item = this.items.get(wepositowy)!;
 			item.dispose();
-			this.items.delete(repository);
+			this.items.dewete(wepositowy);
 		}
 
-		this.refresh();
+		this.wefwesh();
 	}
 
-	private _onDidSpliceGroups(item: IRepositoryItem, { start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
-		const itemsToInsert: IGroupItem[] = toInsert.map(group => this.createGroupItem(group));
-		const itemsToDispose = item.groupItems.splice(start, deleteCount, ...itemsToInsert);
+	pwivate _onDidSpwiceGwoups(item: IWepositowyItem, { stawt, deweteCount, toInsewt }: ISpwice<ISCMWesouwceGwoup>): void {
+		const itemsToInsewt: IGwoupItem[] = toInsewt.map(gwoup => this.cweateGwoupItem(gwoup));
+		const itemsToDispose = item.gwoupItems.spwice(stawt, deweteCount, ...itemsToInsewt);
 
-		for (const item of itemsToDispose) {
+		fow (const item of itemsToDispose) {
 			item.dispose();
 		}
 
-		this.refresh();
+		this.wefwesh();
 	}
 
-	private createGroupItem(group: ISCMResourceGroup): IGroupItem {
-		const tree = new ResourceTree<ISCMResource, ISCMResourceGroup>(group, group.provider.rootUri || URI.file('/'), this.uriIdentityService.extUri);
-		const resources: ISCMResource[] = [...group.elements];
-		const disposable = combinedDisposable(
-			group.onDidChange(() => this.tree.refilter()),
-			group.onDidSplice(splice => this._onDidSpliceGroup(item, splice))
+	pwivate cweateGwoupItem(gwoup: ISCMWesouwceGwoup): IGwoupItem {
+		const twee = new WesouwceTwee<ISCMWesouwce, ISCMWesouwceGwoup>(gwoup, gwoup.pwovida.wootUwi || UWI.fiwe('/'), this.uwiIdentitySewvice.extUwi);
+		const wesouwces: ISCMWesouwce[] = [...gwoup.ewements];
+		const disposabwe = combinedDisposabwe(
+			gwoup.onDidChange(() => this.twee.wefiwta()),
+			gwoup.onDidSpwice(spwice => this._onDidSpwiceGwoup(item, spwice))
 		);
 
-		const item: IGroupItem = { element: group, resources, tree, dispose() { disposable.dispose(); } };
+		const item: IGwoupItem = { ewement: gwoup, wesouwces, twee, dispose() { disposabwe.dispose(); } };
 
-		if (this._mode === ViewModelMode.Tree) {
-			for (const resource of resources) {
-				item.tree.add(resource.sourceUri, resource);
+		if (this._mode === ViewModewMode.Twee) {
+			fow (const wesouwce of wesouwces) {
+				item.twee.add(wesouwce.souwceUwi, wesouwce);
 			}
 		}
 
-		return item;
+		wetuwn item;
 	}
 
-	private _onDidSpliceGroup(item: IGroupItem, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
-		const before = item.resources.length;
-		const deleted = item.resources.splice(start, deleteCount, ...toInsert);
-		const after = item.resources.length;
+	pwivate _onDidSpwiceGwoup(item: IGwoupItem, { stawt, deweteCount, toInsewt }: ISpwice<ISCMWesouwce>): void {
+		const befowe = item.wesouwces.wength;
+		const deweted = item.wesouwces.spwice(stawt, deweteCount, ...toInsewt);
+		const afta = item.wesouwces.wength;
 
-		if (this._mode === ViewModelMode.Tree) {
-			for (const resource of deleted) {
-				item.tree.delete(resource.sourceUri);
+		if (this._mode === ViewModewMode.Twee) {
+			fow (const wesouwce of deweted) {
+				item.twee.dewete(wesouwce.souwceUwi);
 			}
 
-			for (const resource of toInsert) {
-				item.tree.add(resource.sourceUri, resource);
+			fow (const wesouwce of toInsewt) {
+				item.twee.add(wesouwce.souwceUwi, wesouwce);
 			}
 		}
 
-		if (before !== after && (before === 0 || after === 0)) {
-			this.refresh();
-		} else {
-			this.refresh(item);
+		if (befowe !== afta && (befowe === 0 || afta === 0)) {
+			this.wefwesh();
+		} ewse {
+			this.wefwesh(item);
 		}
 	}
 
-	setVisible(visible: boolean): void {
-		if (visible) {
-			this.visibilityDisposables = new DisposableStore();
-			this.scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.visibilityDisposables);
-			this._onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+	setVisibwe(visibwe: boowean): void {
+		if (visibwe) {
+			this.visibiwityDisposabwes = new DisposabweStowe();
+			this.scmViewSewvice.onDidChangeVisibweWepositowies(this._onDidChangeVisibweWepositowies, this, this.visibiwityDisposabwes);
+			this._onDidChangeVisibweWepositowies({ added: this.scmViewSewvice.visibweWepositowies, wemoved: Itewabwe.empty() });
 
-			if (typeof this.scrollTop === 'number') {
-				this.tree.scrollTop = this.scrollTop;
-				this.scrollTop = undefined;
+			if (typeof this.scwowwTop === 'numba') {
+				this.twee.scwowwTop = this.scwowwTop;
+				this.scwowwTop = undefined;
 			}
 
-			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
-			this.onDidActiveEditorChange();
-		} else {
+			this.editowSewvice.onDidActiveEditowChange(this.onDidActiveEditowChange, this, this.visibiwityDisposabwes);
+			this.onDidActiveEditowChange();
+		} ewse {
 			this.updateViewState();
 
-			this.visibilityDisposables.dispose();
-			this._onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
-			this.scrollTop = this.tree.scrollTop;
+			this.visibiwityDisposabwes.dispose();
+			this._onDidChangeVisibweWepositowies({ added: Itewabwe.empty(), wemoved: [...this.items.keys()] });
+			this.scwowwTop = this.twee.scwowwTop;
 		}
 
-		this.visible = visible;
-		this.updateRepositoryCollapseAllContextKeys();
+		this.visibwe = visibwe;
+		this.updateWepositowyCowwapseAwwContextKeys();
 	}
 
-	private refresh(item?: IRepositoryItem | IGroupItem): void {
-		if (!this.alwaysShowRepositories && this.items.size === 1) {
-			const provider = Iterable.first(this.items.values())!.element.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
-			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
-			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
-		} else {
-			this.scmProviderContextKey.set(undefined);
-			this.scmProviderRootUriContextKey.set(undefined);
-			this.scmProviderHasRootUriContextKey.set(false);
+	pwivate wefwesh(item?: IWepositowyItem | IGwoupItem): void {
+		if (!this.awwaysShowWepositowies && this.items.size === 1) {
+			const pwovida = Itewabwe.fiwst(this.items.vawues())!.ewement.pwovida;
+			this.scmPwovidewContextKey.set(pwovida.contextVawue);
+			this.scmPwovidewWootUwiContextKey.set(pwovida.wootUwi?.toStwing());
+			this.scmPwovidewHasWootUwiContextKey.set(!!pwovida.wootUwi);
+		} ewse {
+			this.scmPwovidewContextKey.set(undefined);
+			this.scmPwovidewWootUwiContextKey.set(undefined);
+			this.scmPwovidewHasWootUwiContextKey.set(fawse);
 		}
 
-		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
-			const item = Iterable.first(this.items.values())!;
-			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
-		} else if (item) {
-			this.tree.setChildren(item.element, this.render(item, this.treeViewState).children);
-		} else {
-			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
-			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
+		if (!this.awwaysShowWepositowies && (this.items.size === 1 && (!item || isWepositowyItem(item)))) {
+			const item = Itewabwe.fiwst(this.items.vawues())!;
+			this.twee.setChiwdwen(nuww, this.wenda(item, this.tweeViewState).chiwdwen);
+		} ewse if (item) {
+			this.twee.setChiwdwen(item.ewement, this.wenda(item, this.tweeViewState).chiwdwen);
+		} ewse {
+			const items = coawesce(this.scmViewSewvice.visibweWepositowies.map(w => this.items.get(w)));
+			this.twee.setChiwdwen(nuww, items.map(item => this.wenda(item, this.tweeViewState)));
 		}
 
-		this.updateRepositoryCollapseAllContextKeys();
+		this.updateWepositowyCowwapseAwwContextKeys();
 	}
 
-	private render(item: IRepositoryItem | IGroupItem, treeViewState?: ITreeViewState): ICompressedTreeElement<TreeElement> {
-		if (isRepositoryItem(item)) {
-			const children: ICompressedTreeElement<TreeElement>[] = [];
-			const hasSomeChanges = item.groupItems.some(item => item.element.elements.length > 0);
+	pwivate wenda(item: IWepositowyItem | IGwoupItem, tweeViewState?: ITweeViewState): ICompwessedTweeEwement<TweeEwement> {
+		if (isWepositowyItem(item)) {
+			const chiwdwen: ICompwessedTweeEwement<TweeEwement>[] = [];
+			const hasSomeChanges = item.gwoupItems.some(item => item.ewement.ewements.wength > 0);
 
-			if (item.element.input.visible) {
-				children.push({ element: item.element.input, incompressible: true, collapsible: false });
+			if (item.ewement.input.visibwe) {
+				chiwdwen.push({ ewement: item.ewement.input, incompwessibwe: twue, cowwapsibwe: fawse });
 			}
 
 			if (this.items.size === 1 || hasSomeChanges) {
-				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
+				chiwdwen.push(...item.gwoupItems.map(i => this.wenda(i, tweeViewState)));
 			}
 
-			const collapsed = treeViewState ? treeViewState.collapsed.indexOf(getSCMResourceId(item.element)) > -1 : false;
+			const cowwapsed = tweeViewState ? tweeViewState.cowwapsed.indexOf(getSCMWesouwceId(item.ewement)) > -1 : fawse;
 
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
-		} else {
-			const children = this.mode === ViewModelMode.List
-				? Iterable.map(item.resources, element => ({ element, incompressible: true }))
-				: Iterable.map(item.tree.root.children, node => asTreeElement(node, true, treeViewState));
+			wetuwn { ewement: item.ewement, chiwdwen, incompwessibwe: twue, cowwapsed, cowwapsibwe: twue };
+		} ewse {
+			const chiwdwen = this.mode === ViewModewMode.Wist
+				? Itewabwe.map(item.wesouwces, ewement => ({ ewement, incompwessibwe: twue }))
+				: Itewabwe.map(item.twee.woot.chiwdwen, node => asTweeEwement(node, twue, tweeViewState));
 
-			const collapsed = treeViewState ? treeViewState.collapsed.indexOf(getSCMResourceId(item.element)) > -1 : false;
+			const cowwapsed = tweeViewState ? tweeViewState.cowwapsed.indexOf(getSCMWesouwceId(item.ewement)) > -1 : fawse;
 
-			return { element: item.element, children, incompressible: true, collapsed, collapsible: true };
+			wetuwn { ewement: item.ewement, chiwdwen, incompwessibwe: twue, cowwapsed, cowwapsibwe: twue };
 		}
 	}
 
-	private updateViewState(): void {
-		const collapsed: string[] = [];
-		const visit = (node: ITreeNode<TreeElement | null, FuzzyScore>) => {
-			if (node.element && node.collapsible && node.collapsed) {
-				collapsed.push(getSCMResourceId(node.element));
+	pwivate updateViewState(): void {
+		const cowwapsed: stwing[] = [];
+		const visit = (node: ITweeNode<TweeEwement | nuww, FuzzyScowe>) => {
+			if (node.ewement && node.cowwapsibwe && node.cowwapsed) {
+				cowwapsed.push(getSCMWesouwceId(node.ewement));
 			}
 
-			for (const child of node.children) {
-				visit(child);
+			fow (const chiwd of node.chiwdwen) {
+				visit(chiwd);
 			}
 		};
 
-		visit(this.tree.getNode());
+		visit(this.twee.getNode());
 
-		this._treeViewState = { collapsed };
+		this._tweeViewState = { cowwapsed };
 	}
 
-	private onDidActiveEditorChange(): void {
-		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
-			return;
+	pwivate onDidActiveEditowChange(): void {
+		if (!this.configuwationSewvice.getVawue<boowean>('scm.autoWeveaw')) {
+			wetuwn;
 		}
 
-		if (this.firstVisible) {
-			this.firstVisible = false;
-			this.visibilityDisposables.add(disposableTimeout(() => this.onDidActiveEditorChange(), 250));
-			return;
+		if (this.fiwstVisibwe) {
+			this.fiwstVisibwe = fawse;
+			this.visibiwityDisposabwes.add(disposabweTimeout(() => this.onDidActiveEditowChange(), 250));
+			wetuwn;
 		}
 
-		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uwi = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-		if (!uri) {
-			return;
+		if (!uwi) {
+			wetuwn;
 		}
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			const item = this.items.get(repository);
+		fow (const wepositowy of this.scmViewSewvice.visibweWepositowies) {
+			const item = this.items.get(wepositowy);
 
 			if (!item) {
 				continue;
 			}
 
-			// go backwards from last group
-			for (let j = item.groupItems.length - 1; j >= 0; j--) {
-				const groupItem = item.groupItems[j];
-				const resource = this.mode === ViewModelMode.Tree
-					? groupItem.tree.getNode(uri)?.element
-					: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+			// go backwawds fwom wast gwoup
+			fow (wet j = item.gwoupItems.wength - 1; j >= 0; j--) {
+				const gwoupItem = item.gwoupItems[j];
+				const wesouwce = this.mode === ViewModewMode.Twee
+					? gwoupItem.twee.getNode(uwi)?.ewement
+					: gwoupItem.wesouwces.find(w => this.uwiIdentitySewvice.extUwi.isEquaw(w.souwceUwi, uwi));
 
-				if (resource) {
-					this.tree.reveal(resource);
-					this.tree.setSelection([resource]);
-					this.tree.setFocus([resource]);
-					return;
+				if (wesouwce) {
+					this.twee.weveaw(wesouwce);
+					this.twee.setSewection([wesouwce]);
+					this.twee.setFocus([wesouwce]);
+					wetuwn;
 				}
 			}
 		}
 	}
 
 	focus() {
-		if (this.tree.getFocus().length === 0) {
-			for (const repository of this.scmViewService.visibleRepositories) {
-				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
+		if (this.twee.getFocus().wength === 0) {
+			fow (const wepositowy of this.scmViewSewvice.visibweWepositowies) {
+				const widget = this.inputWendewa.getWendewedInputWidget(wepositowy.input);
 
 				if (widget) {
 					widget.focus();
-					return;
+					wetuwn;
 				}
 			}
 		}
 
-		this.tree.domFocus();
+		this.twee.domFocus();
 	}
 
-	private updateRepositoryCollapseAllContextKeys(): void {
-		if (!this.visible || this.scmViewService.visibleRepositories.length === 1) {
-			this.isAnyRepositoryCollapsibleContextKey.set(false);
-			this.areAllRepositoriesCollapsedContextKey.set(false);
-			return;
+	pwivate updateWepositowyCowwapseAwwContextKeys(): void {
+		if (!this.visibwe || this.scmViewSewvice.visibweWepositowies.wength === 1) {
+			this.isAnyWepositowyCowwapsibweContextKey.set(fawse);
+			this.aweAwwWepositowiesCowwapsedContextKey.set(fawse);
+			wetuwn;
 		}
 
-		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
-		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
+		this.isAnyWepositowyCowwapsibweContextKey.set(this.scmViewSewvice.visibweWepositowies.some(w => this.twee.hasEwement(w) && this.twee.isCowwapsibwe(w)));
+		this.aweAwwWepositowiesCowwapsedContextKey.set(this.scmViewSewvice.visibweWepositowies.evewy(w => this.twee.hasEwement(w) && (!this.twee.isCowwapsibwe(w) || this.twee.isCowwapsed(w))));
 	}
 
-	collapseAllRepositories(): void {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repository)) {
-				this.tree.collapse(repository);
+	cowwapseAwwWepositowies(): void {
+		fow (const wepositowy of this.scmViewSewvice.visibweWepositowies) {
+			if (this.twee.isCowwapsibwe(wepositowy)) {
+				this.twee.cowwapse(wepositowy);
 			}
 		}
 	}
 
-	expandAllRepositories(): void {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repository)) {
-				this.tree.expand(repository);
+	expandAwwWepositowies(): void {
+		fow (const wepositowy of this.scmViewSewvice.visibweWepositowies) {
+			if (this.twee.isCowwapsibwe(wepositowy)) {
+				this.twee.expand(wepositowy);
 			}
 		}
 	}
 
 	dispose(): void {
-		this.visibilityDisposables.dispose();
-		this.disposables.dispose();
-		dispose(this.items.values());
-		this.items.clear();
+		this.visibiwityDisposabwes.dispose();
+		this.disposabwes.dispose();
+		dispose(this.items.vawues());
+		this.items.cweaw();
 	}
 }
 
-class SetListViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
-		super({
-			id: 'workbench.scm.action.setListViewMode',
-			title: localize('setListViewMode', "View as List"),
+cwass SetWistViewModeAction extends ViewAction<SCMViewPane>  {
+	constwuctow(menu: Pawtiaw<IAction2Options['menu']> = {}) {
+		supa({
+			id: 'wowkbench.scm.action.setWistViewMode',
+			titwe: wocawize('setWistViewMode', "View as Wist"),
 			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.listFlat,
-			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
-			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
+			f1: fawse,
+			icon: Codicon.wistFwat,
+			toggwed: ContextKeys.ViewModewMode.isEquawTo(ViewModewMode.Wist),
+			menu: { id: Menus.ViewSowt, gwoup: '1_viewmode', ...menu }
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.mode = ViewModelMode.List;
+	async wunInView(_: SewvicesAccessow, view: SCMViewPane): Pwomise<void> {
+		view.viewModew.mode = ViewModewMode.Wist;
 	}
 }
 
-class SetListViewModeNavigationAction extends SetListViewModeAction {
-	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree)),
-			group: 'navigation',
-			order: -1000
+cwass SetWistViewModeNavigationAction extends SetWistViewModeAction {
+	constwuctow() {
+		supa({
+			id: MenuId.SCMTitwe,
+			when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', VIEW_PANE_ID), ContextKeys.WepositowyCount.notEquawsTo(0), ContextKeys.ViewModewMode.isEquawTo(ViewModewMode.Twee)),
+			gwoup: 'navigation',
+			owda: -1000
 		});
 	}
 }
 
-class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
-		super({
-			id: 'workbench.scm.action.setTreeViewMode',
-			title: localize('setTreeViewMode', "View as Tree"),
+cwass SetTweeViewModeAction extends ViewAction<SCMViewPane>  {
+	constwuctow(menu: Pawtiaw<IAction2Options['menu']> = {}) {
+		supa({
+			id: 'wowkbench.scm.action.setTweeViewMode',
+			titwe: wocawize('setTweeViewMode', "View as Twee"),
 			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.listTree,
-			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree),
-			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
+			f1: fawse,
+			icon: Codicon.wistTwee,
+			toggwed: ContextKeys.ViewModewMode.isEquawTo(ViewModewMode.Twee),
+			menu: { id: Menus.ViewSowt, gwoup: '1_viewmode', ...menu }
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.mode = ViewModelMode.Tree;
+	async wunInView(_: SewvicesAccessow, view: SCMViewPane): Pwomise<void> {
+		view.viewModew.mode = ViewModewMode.Twee;
 	}
 }
 
-class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
-	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List)),
-			group: 'navigation',
-			order: -1000
+cwass SetTweeViewModeNavigationAction extends SetTweeViewModeAction {
+	constwuctow() {
+		supa({
+			id: MenuId.SCMTitwe,
+			when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', VIEW_PANE_ID), ContextKeys.WepositowyCount.notEquawsTo(0), ContextKeys.ViewModewMode.isEquawTo(ViewModewMode.Wist)),
+			gwoup: 'navigation',
+			owda: -1000
 		});
 	}
 }
 
-registerAction2(SetListViewModeAction);
-registerAction2(SetTreeViewModeAction);
-registerAction2(SetListViewModeNavigationAction);
-registerAction2(SetTreeViewModeNavigationAction);
+wegistewAction2(SetWistViewModeAction);
+wegistewAction2(SetTweeViewModeAction);
+wegistewAction2(SetWistViewModeNavigationAction);
+wegistewAction2(SetTweeViewModeNavigationAction);
 
-abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
-	constructor(private sortKey: ViewModelSortKey, title: string) {
-		super({
-			id: `workbench.scm.action.setSortKey.${sortKey}`,
-			title: title,
+abstwact cwass SetSowtKeyAction extends ViewAction<SCMViewPane>  {
+	constwuctow(pwivate sowtKey: ViewModewSowtKey, titwe: stwing) {
+		supa({
+			id: `wowkbench.scm.action.setSowtKey.${sowtKey}`,
+			titwe: titwe,
 			viewId: VIEW_PANE_ID,
-			f1: false,
-			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
-			menu: { id: Menus.ViewSort, group: '2_sort' }
+			f1: fawse,
+			toggwed: ContextKeys.ViewModewSowtKey.isEquawTo(sowtKey),
+			menu: { id: Menus.ViewSowt, gwoup: '2_sowt' }
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.sortKey = this.sortKey;
+	async wunInView(_: SewvicesAccessow, view: SCMViewPane): Pwomise<void> {
+		view.viewModew.sowtKey = this.sowtKey;
 	}
 }
 
-class SetSortByNameAction extends SetSortKeyAction {
-	constructor() {
-		super(ViewModelSortKey.Name, localize('sortByName', "Sort by Name"));
+cwass SetSowtByNameAction extends SetSowtKeyAction {
+	constwuctow() {
+		supa(ViewModewSowtKey.Name, wocawize('sowtByName', "Sowt by Name"));
 	}
 }
 
-class SetSortByPathAction extends SetSortKeyAction {
-	constructor() {
-		super(ViewModelSortKey.Path, localize('sortByPath', "Sort by Path"));
+cwass SetSowtByPathAction extends SetSowtKeyAction {
+	constwuctow() {
+		supa(ViewModewSowtKey.Path, wocawize('sowtByPath', "Sowt by Path"));
 	}
 }
 
-class SetSortByStatusAction extends SetSortKeyAction {
-	constructor() {
-		super(ViewModelSortKey.Status, localize('sortByStatus', "Sort by Status"));
+cwass SetSowtByStatusAction extends SetSowtKeyAction {
+	constwuctow() {
+		supa(ViewModewSowtKey.Status, wocawize('sowtByStatus', "Sowt by Status"));
 	}
 }
 
-registerAction2(SetSortByNameAction);
-registerAction2(SetSortByPathAction);
-registerAction2(SetSortByStatusAction);
+wegistewAction2(SetSowtByNameAction);
+wegistewAction2(SetSowtByPathAction);
+wegistewAction2(SetSowtByStatusAction);
 
-class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+cwass CowwapseAwwWepositowiesAction extends ViewAction<SCMViewPane>  {
 
-	constructor() {
-		super({
-			id: `workbench.scm.action.collapseAllRepositories`,
-			title: localize('collapse all', "Collapse All Repositories"),
+	constwuctow() {
+		supa({
+			id: `wowkbench.scm.action.cowwapseAwwWepositowies`,
+			titwe: wocawize('cowwapse aww', "Cowwapse Aww Wepositowies"),
 			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.collapseAll,
+			f1: fawse,
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.SCMTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(false))
+				id: MenuId.SCMTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', VIEW_PANE_ID), ContextKeys.ViewModewIsAnyWepositowyCowwapsibwe.isEquawTo(twue), ContextKeys.ViewModewAweAwwWepositowiesCowwapsed.isEquawTo(fawse))
 			}
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.collapseAllRepositories();
+	async wunInView(_: SewvicesAccessow, view: SCMViewPane): Pwomise<void> {
+		view.viewModew.cowwapseAwwWepositowies();
 	}
 }
 
-class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+cwass ExpandAwwWepositowiesAction extends ViewAction<SCMViewPane>  {
 
-	constructor() {
-		super({
-			id: `workbench.scm.action.expandAllRepositories`,
-			title: localize('expand all', "Expand All Repositories"),
+	constwuctow() {
+		supa({
+			id: `wowkbench.scm.action.expandAwwWepositowies`,
+			titwe: wocawize('expand aww', "Expand Aww Wepositowies"),
 			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.expandAll,
+			f1: fawse,
+			icon: Codicon.expandAww,
 			menu: {
-				id: MenuId.SCMTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(true))
+				id: MenuId.SCMTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', VIEW_PANE_ID), ContextKeys.ViewModewIsAnyWepositowyCowwapsibwe.isEquawTo(twue), ContextKeys.ViewModewAweAwwWepositowiesCowwapsed.isEquawTo(twue))
 			}
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.expandAllRepositories();
+	async wunInView(_: SewvicesAccessow, view: SCMViewPane): Pwomise<void> {
+		view.viewModew.expandAwwWepositowies();
 	}
 }
 
-registerAction2(CollapseAllRepositoriesAction);
-registerAction2(ExpandAllRepositoriesAction);
+wegistewAction2(CowwapseAwwWepositowiesAction);
+wegistewAction2(ExpandAwwWepositowiesAction);
 
-class SCMInputWidget extends Disposable {
-	private static readonly ValidationTimeouts: { [severity: number]: number } = {
-		[InputValidationType.Information]: 5000,
-		[InputValidationType.Warning]: 8000,
-		[InputValidationType.Error]: 10000
+cwass SCMInputWidget extends Disposabwe {
+	pwivate static weadonwy VawidationTimeouts: { [sevewity: numba]: numba } = {
+		[InputVawidationType.Infowmation]: 5000,
+		[InputVawidationType.Wawning]: 8000,
+		[InputVawidationType.Ewwow]: 10000
 	};
 
-	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
+	pwivate weadonwy defauwtInputFontFamiwy = DEFAUWT_FONT_FAMIWY;
 
-	private element: HTMLElement;
-	private editorContainer: HTMLElement;
-	private placeholderTextContainer: HTMLElement;
-	private inputEditor: CodeEditorWidget;
+	pwivate ewement: HTMWEwement;
+	pwivate editowContaina: HTMWEwement;
+	pwivate pwacehowdewTextContaina: HTMWEwement;
+	pwivate inputEditow: CodeEditowWidget;
 
-	private model: { readonly input: ISCMInput; readonly textModel: ITextModel; } | undefined;
-	private repositoryContextKey: IContextKey<ISCMRepository | undefined>;
-	private repositoryDisposables = new DisposableStore();
+	pwivate modew: { weadonwy input: ISCMInput; weadonwy textModew: ITextModew; } | undefined;
+	pwivate wepositowyContextKey: IContextKey<ISCMWepositowy | undefined>;
+	pwivate wepositowyDisposabwes = new DisposabweStowe();
 
-	private validation: IInputValidation | undefined;
-	private validationDisposable: IDisposable = Disposable.None;
-	private validationHasFocus: boolean = false;
-	private _validationTimer: any;
+	pwivate vawidation: IInputVawidation | undefined;
+	pwivate vawidationDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate vawidationHasFocus: boowean = fawse;
+	pwivate _vawidationTima: any;
 
-	// This is due to "Setup height change listener on next tick" above
-	// https://github.com/microsoft/vscode/issues/108067
-	private lastLayoutWasTrash = false;
-	private shouldFocusAfterLayout = false;
+	// This is due to "Setup height change wistena on next tick" above
+	// https://github.com/micwosoft/vscode/issues/108067
+	pwivate wastWayoutWasTwash = fawse;
+	pwivate shouwdFocusAftewWayout = fawse;
 
-	readonly onDidChangeContentHeight: Event<void>;
+	weadonwy onDidChangeContentHeight: Event<void>;
 
 	get input(): ISCMInput | undefined {
-		return this.model?.input;
+		wetuwn this.modew?.input;
 	}
 
 	set input(input: ISCMInput | undefined) {
 		if (input === this.input) {
-			return;
+			wetuwn;
 		}
 
-		this.clearValidation();
-		this.editorContainer.classList.remove('synthetic-focus');
+		this.cweawVawidation();
+		this.editowContaina.cwassWist.wemove('synthetic-focus');
 
-		this.repositoryDisposables.dispose();
-		this.repositoryDisposables = new DisposableStore();
-		this.repositoryContextKey.set(input?.repository);
+		this.wepositowyDisposabwes.dispose();
+		this.wepositowyDisposabwes = new DisposabweStowe();
+		this.wepositowyContextKey.set(input?.wepositowy);
 
 		if (!input) {
-			this.model?.textModel.dispose();
-			this.inputEditor.setModel(undefined);
-			this.model = undefined;
-			return;
+			this.modew?.textModew.dispose();
+			this.inputEditow.setModew(undefined);
+			this.modew = undefined;
+			wetuwn;
 		}
 
-		let query: string | undefined;
+		wet quewy: stwing | undefined;
 
-		if (input.repository.provider.rootUri) {
-			query = `rootUri=${encodeURIComponent(input.repository.provider.rootUri.toString())}`;
+		if (input.wepositowy.pwovida.wootUwi) {
+			quewy = `wootUwi=${encodeUWIComponent(input.wepositowy.pwovida.wootUwi.toStwing())}`;
 		}
 
-		const uri = URI.from({
+		const uwi = UWI.fwom({
 			scheme: Schemas.vscode,
-			path: `scm/${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
-			query
+			path: `scm/${input.wepositowy.pwovida.contextVawue}/${input.wepositowy.pwovida.id}/input`,
+			quewy
 		});
 
-		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
-			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		if (this.configuwationSewvice.getVawue('editow.wowdBasedSuggestions', { wesouwce: uwi }) !== fawse) {
+			this.configuwationSewvice.updateVawue('editow.wowdBasedSuggestions', fawse, { wesouwce: uwi }, ConfiguwationTawget.MEMOWY);
 		}
 
-		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.modeService.create('scminput'), uri);
-		this.inputEditor.setModel(textModel);
+		const textModew = this.modewSewvice.getModew(uwi) ?? this.modewSewvice.cweateModew('', this.modeSewvice.cweate('scminput'), uwi);
+		this.inputEditow.setModew(textModew);
 
-		// Validation
-		const validationDelayer = new ThrottledDelayer<any>(200);
-		const validate = async () => {
-			const position = this.inputEditor.getSelection()?.getStartPosition();
-			const offset = position && textModel.getOffsetAt(position);
-			const value = textModel.getValue();
+		// Vawidation
+		const vawidationDewaya = new ThwottwedDewaya<any>(200);
+		const vawidate = async () => {
+			const position = this.inputEditow.getSewection()?.getStawtPosition();
+			const offset = position && textModew.getOffsetAt(position);
+			const vawue = textModew.getVawue();
 
-			this.setValidation(await input.validateInput(value, offset || 0));
+			this.setVawidation(await input.vawidateInput(vawue, offset || 0));
 		};
 
-		const triggerValidation = () => validationDelayer.trigger(validate);
-		this.repositoryDisposables.add(validationDelayer);
-		this.repositoryDisposables.add(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+		const twiggewVawidation = () => vawidationDewaya.twigga(vawidate);
+		this.wepositowyDisposabwes.add(vawidationDewaya);
+		this.wepositowyDisposabwes.add(this.inputEditow.onDidChangeCuwsowPosition(twiggewVawidation));
 
-		// Adaptive indentation rules
-		const opts = this.modelService.getCreationOptions(textModel.getLanguageIdentifier().language, textModel.uri, textModel.isForSimpleWidget);
-		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
-		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
+		// Adaptive indentation wuwes
+		const opts = this.modewSewvice.getCweationOptions(textModew.getWanguageIdentifia().wanguage, textModew.uwi, textModew.isFowSimpweWidget);
+		const onEnta = Event.fiwta(this.inputEditow.onKeyDown, e => e.keyCode === KeyCode.Enta);
+		this.wepositowyDisposabwes.add(onEnta(() => textModew.detectIndentation(opts.insewtSpaces, opts.tabSize)));
 
-		// Keep model in sync with API
-		textModel.setValue(input.value);
-		this.repositoryDisposables.add(input.onDidChange(({ value, reason }) => {
-			if (value === textModel.getValue()) { // circuit breaker
-				return;
+		// Keep modew in sync with API
+		textModew.setVawue(input.vawue);
+		this.wepositowyDisposabwes.add(input.onDidChange(({ vawue, weason }) => {
+			if (vawue === textModew.getVawue()) { // ciwcuit bweaka
+				wetuwn;
 			}
-			textModel.setValue(value);
+			textModew.setVawue(vawue);
 
-			const position = reason === SCMInputChangeReason.HistoryPrevious
-				? textModel.getFullModelRange().getStartPosition()
-				: textModel.getFullModelRange().getEndPosition();
-			this.inputEditor.setPosition(position);
-			this.inputEditor.revealPositionInCenterIfOutsideViewport(position);
+			const position = weason === SCMInputChangeWeason.HistowyPwevious
+				? textModew.getFuwwModewWange().getStawtPosition()
+				: textModew.getFuwwModewWange().getEndPosition();
+			this.inputEditow.setPosition(position);
+			this.inputEditow.weveawPositionInCentewIfOutsideViewpowt(position);
 		}));
-		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
-		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
-		this.repositoryDisposables.add(input.onDidChangeValidateInput((e) => triggerValidation()));
+		this.wepositowyDisposabwes.add(input.onDidChangeFocus(() => this.focus()));
+		this.wepositowyDisposabwes.add(input.onDidChangeVawidationMessage((e) => this.setVawidation(e, { focus: twue, timeout: twue })));
+		this.wepositowyDisposabwes.add(input.onDidChangeVawidateInput((e) => twiggewVawidation()));
 
-		// Keep API in sync with model, update placeholder visibility and validate
-		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
-		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
-			input.setValue(textModel.getValue(), true);
-			updatePlaceholderVisibility();
-			triggerValidation();
+		// Keep API in sync with modew, update pwacehowda visibiwity and vawidate
+		const updatePwacehowdewVisibiwity = () => this.pwacehowdewTextContaina.cwassWist.toggwe('hidden', textModew.getVawueWength() > 0);
+		this.wepositowyDisposabwes.add(textModew.onDidChangeContent(() => {
+			input.setVawue(textModew.getVawue(), twue);
+			updatePwacehowdewVisibiwity();
+			twiggewVawidation();
 		}));
-		updatePlaceholderVisibility();
+		updatePwacehowdewVisibiwity();
 
-		// Update placeholder text
-		const updatePlaceholderText = () => {
-			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
-			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholderText = format(input.placeholder, label);
+		// Update pwacehowda text
+		const updatePwacehowdewText = () => {
+			const binding = this.keybindingSewvice.wookupKeybinding('scm.acceptInput');
+			const wabew = binding ? binding.getWabew() : (pwatfowm.isMacintosh ? 'Cmd+Enta' : 'Ctww+Enta');
+			const pwacehowdewText = fowmat(input.pwacehowda, wabew);
 
-			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
-			this.placeholderTextContainer.textContent = placeholderText;
+			this.inputEditow.updateOptions({ awiaWabew: pwacehowdewText });
+			this.pwacehowdewTextContaina.textContent = pwacehowdewText;
 		};
-		this.repositoryDisposables.add(input.onDidChangePlaceholder(updatePlaceholderText));
-		this.repositoryDisposables.add(this.keybindingService.onDidUpdateKeybindings(updatePlaceholderText));
-		updatePlaceholderText();
+		this.wepositowyDisposabwes.add(input.onDidChangePwacehowda(updatePwacehowdewText));
+		this.wepositowyDisposabwes.add(this.keybindingSewvice.onDidUpdateKeybindings(updatePwacehowdewText));
+		updatePwacehowdewText();
 
-		// Update input template
-		let commitTemplate = '';
-		const updateTemplate = () => {
-			if (typeof input.repository.provider.commitTemplate === 'undefined' || !input.visible) {
-				return;
+		// Update input tempwate
+		wet commitTempwate = '';
+		const updateTempwate = () => {
+			if (typeof input.wepositowy.pwovida.commitTempwate === 'undefined' || !input.visibwe) {
+				wetuwn;
 			}
 
-			const oldCommitTemplate = commitTemplate;
-			commitTemplate = input.repository.provider.commitTemplate;
+			const owdCommitTempwate = commitTempwate;
+			commitTempwate = input.wepositowy.pwovida.commitTempwate;
 
-			const value = textModel.getValue();
+			const vawue = textModew.getVawue();
 
-			if (value && value !== oldCommitTemplate) {
-				return;
+			if (vawue && vawue !== owdCommitTempwate) {
+				wetuwn;
 			}
 
-			textModel.setValue(commitTemplate);
+			textModew.setVawue(commitTempwate);
 		};
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
-		updateTemplate();
+		this.wepositowyDisposabwes.add(input.wepositowy.pwovida.onDidChangeCommitTempwate(updateTempwate, this));
+		updateTempwate();
 
-		// Save model
-		this.model = { input, textModel };
+		// Save modew
+		this.modew = { input, textModew };
 	}
 
-	get selections(): Selection[] | null {
-		return this.inputEditor.getSelections();
+	get sewections(): Sewection[] | nuww {
+		wetuwn this.inputEditow.getSewections();
 	}
 
-	set selections(selections: Selection[] | null) {
-		if (selections) {
-			this.inputEditor.setSelections(selections);
+	set sewections(sewections: Sewection[] | nuww) {
+		if (sewections) {
+			this.inputEditow.setSewections(sewections);
 		}
 	}
 
-	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
-		if (this._validationTimer) {
-			clearTimeout(this._validationTimer);
-			this._validationTimer = 0;
+	pwivate setVawidation(vawidation: IInputVawidation | undefined, options?: { focus?: boowean; timeout?: boowean }) {
+		if (this._vawidationTima) {
+			cweawTimeout(this._vawidationTima);
+			this._vawidationTima = 0;
 		}
 
-		this.validation = validation;
-		this.renderValidation();
+		this.vawidation = vawidation;
+		this.wendewVawidation();
 
 		if (options?.focus && !this.hasFocus()) {
 			this.focus();
 		}
 
-		if (validation && options?.timeout) {
-			this._validationTimer = setTimeout(() => this.setValidation(undefined), SCMInputWidget.ValidationTimeouts[validation.type]);
+		if (vawidation && options?.timeout) {
+			this._vawidationTima = setTimeout(() => this.setVawidation(undefined), SCMInputWidget.VawidationTimeouts[vawidation.type]);
 		}
 	}
 
-	constructor(
-		container: HTMLElement,
-		overflowWidgetsDomNode: HTMLElement,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IOpenerService private readonly openerService: IOpenerService,
+	constwuctow(
+		containa: HTMWEwement,
+		ovewfwowWidgetsDomNode: HTMWEwement,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IModewSewvice pwivate modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate modeSewvice: IModeSewvice,
+		@IKeybindingSewvice pwivate keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice pwivate configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ISCMViewSewvice pwivate weadonwy scmViewSewvice: ISCMViewSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
 	) {
-		super();
+		supa();
 
-		this.element = append(container, $('.scm-editor'));
-		this.editorContainer = append(this.element, $('.scm-editor-container'));
-		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
+		this.ewement = append(containa, $('.scm-editow'));
+		this.editowContaina = append(this.ewement, $('.scm-editow-containa'));
+		this.pwacehowdewTextContaina = append(this.editowContaina, $('.scm-editow-pwacehowda'));
 
-		const fontFamily = this.getInputEditorFontFamily();
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
+		const fontFamiwy = this.getInputEditowFontFamiwy();
+		const fontSize = this.getInputEditowFontSize();
+		const wineHeight = this.computeWineHeight(fontSize);
 
-		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+		this.setPwacehowdewFontStywes(fontFamiwy, fontSize, wineHeight);
 
-		const contextKeyService2 = contextKeyService.createScoped(this.element);
-		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
+		const contextKeySewvice2 = contextKeySewvice.cweateScoped(this.ewement);
+		this.wepositowyContextKey = contextKeySewvice2.cweateKey('scmWepositowy', undefined);
 
-		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
-			lineDecorationsWidth: 4,
-			dragAndDrop: false,
-			cursorWidth: 1,
+		const editowOptions: IEditowConstwuctionOptions = {
+			...getSimpweEditowOptions(),
+			wineDecowationsWidth: 4,
+			dwagAndDwop: fawse,
+			cuwsowWidth: 1,
 			fontSize: fontSize,
-			lineHeight: lineHeight,
-			fontFamily: fontFamily,
-			wrappingStrategy: 'advanced',
-			wrappingIndent: 'none',
+			wineHeight: wineHeight,
+			fontFamiwy: fontFamiwy,
+			wwappingStwategy: 'advanced',
+			wwappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
-			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false },
-			overflowWidgetsDomNode,
-			renderWhitespace: 'none'
+			quickSuggestions: fawse,
+			scwowwbaw: { awwaysConsumeMouseWheew: fawse },
+			ovewfwowWidgetsDomNode,
+			wendewWhitespace: 'none'
 		};
 
-		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SuggestController.ID,
-				SnippetController2.ID,
-				MenuPreventer.ID,
-				SelectionClipboardContributionID,
-				ContextMenuController.ID,
-				ColorDetector.ID,
-				ModesHoverController.ID,
-				LinkDetector.ID
+		const codeEditowWidgetOptions: ICodeEditowWidgetOptions = {
+			isSimpweWidget: twue,
+			contwibutions: EditowExtensionsWegistwy.getSomeEditowContwibutions([
+				SuggestContwowwa.ID,
+				SnippetContwowwew2.ID,
+				MenuPweventa.ID,
+				SewectionCwipboawdContwibutionID,
+				ContextMenuContwowwa.ID,
+				CowowDetectow.ID,
+				ModesHovewContwowwa.ID,
+				WinkDetectow.ID
 			])
 		};
 
-		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
-		const instantiationService2 = instantiationService.createChild(services);
-		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
-		this._register(this.inputEditor);
+		const sewvices = new SewviceCowwection([IContextKeySewvice, contextKeySewvice2]);
+		const instantiationSewvice2 = instantiationSewvice.cweateChiwd(sewvices);
+		this.inputEditow = instantiationSewvice2.cweateInstance(CodeEditowWidget, this.editowContaina, editowOptions, codeEditowWidgetOptions);
+		this._wegista(this.inputEditow);
 
-		this._register(this.inputEditor.onDidFocusEditorText(() => {
-			if (this.input?.repository) {
-				this.scmViewService.focus(this.input.repository);
+		this._wegista(this.inputEditow.onDidFocusEditowText(() => {
+			if (this.input?.wepositowy) {
+				this.scmViewSewvice.focus(this.input.wepositowy);
 			}
 
-			this.editorContainer.classList.add('synthetic-focus');
-			this.renderValidation();
+			this.editowContaina.cwassWist.add('synthetic-focus');
+			this.wendewVawidation();
 		}));
-		this._register(this.inputEditor.onDidBlurEditorText(() => {
-			this.editorContainer.classList.remove('synthetic-focus');
+		this._wegista(this.inputEditow.onDidBwuwEditowText(() => {
+			this.editowContaina.cwassWist.wemove('synthetic-focus');
 
 			setTimeout(() => {
-				if (!this.validation || !this.validationHasFocus) {
-					this.clearValidation();
+				if (!this.vawidation || !this.vawidationHasFocus) {
+					this.cweawVawidation();
 				}
 			}, 0);
 		}));
 
-		const firstLineKey = contextKeyService2.createKey('scmInputIsInFirstPosition', false);
-		const lastLineKey = contextKeyService2.createKey('scmInputIsInLastPosition', false);
+		const fiwstWineKey = contextKeySewvice2.cweateKey('scmInputIsInFiwstPosition', fawse);
+		const wastWineKey = contextKeySewvice2.cweateKey('scmInputIsInWastPosition', fawse);
 
-		this._register(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
-			const viewModel = this.inputEditor._getViewModel()!;
-			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
-			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
-			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
-			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+		this._wegista(this.inputEditow.onDidChangeCuwsowPosition(({ position }) => {
+			const viewModew = this.inputEditow._getViewModew()!;
+			const wastWineNumba = viewModew.getWineCount();
+			const wastWineCow = viewModew.getWineContent(wastWineNumba).wength + 1;
+			const viewPosition = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(position);
+			fiwstWineKey.set(viewPosition.wineNumba === 1 && viewPosition.cowumn === 1);
+			wastWineKey.set(viewPosition.wineNumba === wastWineNumba && viewPosition.cowumn === wastWineCow);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'));
-		this._register(onInputFontFamilyChanged(() => {
-			const fontFamily = this.getInputEditorFontFamily();
-			const fontSize = this.getInputEditorFontSize();
-			const lineHeight = this.computeLineHeight(fontSize);
+		const onInputFontFamiwyChanged = Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.inputFontFamiwy') || e.affectsConfiguwation('scm.inputFontSize'));
+		this._wegista(onInputFontFamiwyChanged(() => {
+			const fontFamiwy = this.getInputEditowFontFamiwy();
+			const fontSize = this.getInputEditowFontSize();
+			const wineHeight = this.computeWineHeight(fontSize);
 
-			this.inputEditor.updateOptions({
-				fontFamily: fontFamily,
+			this.inputEditow.updateOptions({
+				fontFamiwy: fontFamiwy,
 				fontSize: fontSize,
-				lineHeight: lineHeight,
+				wineHeight: wineHeight,
 			});
 
-			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+			this.setPwacehowdewFontStywes(fontFamiwy, fontSize, wineHeight);
 		}));
 
-		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
+		this.onDidChangeContentHeight = Event.signaw(Event.fiwta(this.inputEditow.onDidContentSizeChange, e => e.contentHeightChanged));
 	}
 
-	getContentHeight(): number {
-		const editorContentHeight = this.inputEditor.getContentHeight();
-		return Math.min(editorContentHeight, 134);
+	getContentHeight(): numba {
+		const editowContentHeight = this.inputEditow.getContentHeight();
+		wetuwn Math.min(editowContentHeight, 134);
 	}
 
-	layout(): void {
-		const editorHeight = this.getContentHeight();
-		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
+	wayout(): void {
+		const editowHeight = this.getContentHeight();
+		const dimension = new Dimension(this.ewement.cwientWidth - 2, editowHeight);
 
 		if (dimension.width < 0) {
-			this.lastLayoutWasTrash = true;
-			return;
+			this.wastWayoutWasTwash = twue;
+			wetuwn;
 		}
 
-		this.lastLayoutWasTrash = false;
-		this.inputEditor.layout(dimension);
-		this.renderValidation();
+		this.wastWayoutWasTwash = fawse;
+		this.inputEditow.wayout(dimension);
+		this.wendewVawidation();
 
-		if (this.shouldFocusAfterLayout) {
-			this.shouldFocusAfterLayout = false;
+		if (this.shouwdFocusAftewWayout) {
+			this.shouwdFocusAftewWayout = fawse;
 			this.focus();
 		}
 	}
 
 	focus(): void {
-		if (this.lastLayoutWasTrash) {
-			this.lastLayoutWasTrash = false;
-			this.shouldFocusAfterLayout = true;
-			return;
+		if (this.wastWayoutWasTwash) {
+			this.wastWayoutWasTwash = fawse;
+			this.shouwdFocusAftewWayout = twue;
+			wetuwn;
 		}
 
-		this.inputEditor.focus();
-		this.editorContainer.classList.add('synthetic-focus');
+		this.inputEditow.focus();
+		this.editowContaina.cwassWist.add('synthetic-focus');
 	}
 
-	hasFocus(): boolean {
-		return this.inputEditor.hasTextFocus();
+	hasFocus(): boowean {
+		wetuwn this.inputEditow.hasTextFocus();
 	}
 
-	private renderValidation(): void {
-		this.clearValidation();
+	pwivate wendewVawidation(): void {
+		this.cweawVawidation();
 
-		this.editorContainer.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
-		this.editorContainer.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
-		this.editorContainer.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
+		this.editowContaina.cwassWist.toggwe('vawidation-info', this.vawidation?.type === InputVawidationType.Infowmation);
+		this.editowContaina.cwassWist.toggwe('vawidation-wawning', this.vawidation?.type === InputVawidationType.Wawning);
+		this.editowContaina.cwassWist.toggwe('vawidation-ewwow', this.vawidation?.type === InputVawidationType.Ewwow);
 
-		if (!this.validation || !this.inputEditor.hasTextFocus()) {
-			return;
+		if (!this.vawidation || !this.inputEditow.hasTextFocus()) {
+			wetuwn;
 		}
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		this.validationDisposable = this.contextViewService.showContextView({
-			getAnchor: () => this.editorContainer,
-			render: container => {
-				const element = append(container, $('.scm-editor-validation'));
-				element.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
-				element.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
-				element.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				element.style.width = `${this.editorContainer.clientWidth}px`;
+		this.vawidationDisposabwe = this.contextViewSewvice.showContextView({
+			getAnchow: () => this.editowContaina,
+			wenda: containa => {
+				const ewement = append(containa, $('.scm-editow-vawidation'));
+				ewement.cwassWist.toggwe('vawidation-info', this.vawidation!.type === InputVawidationType.Infowmation);
+				ewement.cwassWist.toggwe('vawidation-wawning', this.vawidation!.type === InputVawidationType.Wawning);
+				ewement.cwassWist.toggwe('vawidation-ewwow', this.vawidation!.type === InputVawidationType.Ewwow);
+				ewement.stywe.width = `${this.editowContaina.cwientWidth}px`;
 
-				const message = this.validation!.message;
-				if (typeof message === 'string') {
-					element.textContent = message;
-				} else {
-					const tracker = trackFocus(element);
-					disposables.add(tracker);
-					disposables.add(tracker.onDidFocus(() => (this.validationHasFocus = true)));
-					disposables.add(tracker.onDidBlur(() => {
-						this.validationHasFocus = false;
-						this.contextViewService.hideContextView();
+				const message = this.vawidation!.message;
+				if (typeof message === 'stwing') {
+					ewement.textContent = message;
+				} ewse {
+					const twacka = twackFocus(ewement);
+					disposabwes.add(twacka);
+					disposabwes.add(twacka.onDidFocus(() => (this.vawidationHasFocus = twue)));
+					disposabwes.add(twacka.onDidBwuw(() => {
+						this.vawidationHasFocus = fawse;
+						this.contextViewSewvice.hideContextView();
 					}));
 
-					const { element: mdElement } = this.instantiationService.createInstance(MarkdownRenderer, {}).render(message, {
-						actionHandler: {
-							callback: (content) => {
-								this.openerService.open(content, { allowCommands: typeof message !== 'string' && message.isTrusted });
-								this.contextViewService.hideContextView();
+					const { ewement: mdEwement } = this.instantiationSewvice.cweateInstance(MawkdownWendewa, {}).wenda(message, {
+						actionHandwa: {
+							cawwback: (content) => {
+								this.openewSewvice.open(content, { awwowCommands: typeof message !== 'stwing' && message.isTwusted });
+								this.contextViewSewvice.hideContextView();
 							},
-							disposables: disposables
+							disposabwes: disposabwes
 						},
 					});
-					element.appendChild(mdElement);
+					ewement.appendChiwd(mdEwement);
 				}
-				return Disposable.None;
+				wetuwn Disposabwe.None;
 			},
 			onHide: () => {
-				this.validationHasFocus = false;
-				disposables.dispose();
+				this.vawidationHasFocus = fawse;
+				disposabwes.dispose();
 			},
-			anchorAlignment: AnchorAlignment.LEFT
+			anchowAwignment: AnchowAwignment.WEFT
 		});
 	}
 
-	private getInputEditorFontFamily(): string {
-		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
+	pwivate getInputEditowFontFamiwy(): stwing {
+		const inputFontFamiwy = this.configuwationSewvice.getVawue<stwing>('scm.inputFontFamiwy').twim();
 
-		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+		if (inputFontFamiwy.toWowewCase() === 'editow') {
+			wetuwn this.configuwationSewvice.getVawue<stwing>('editow.fontFamiwy').twim();
 		}
 
-		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
-			return inputFontFamily;
+		if (inputFontFamiwy.wength !== 0 && inputFontFamiwy.toWowewCase() !== 'defauwt') {
+			wetuwn inputFontFamiwy;
 		}
 
-		return this.defaultInputFontFamily;
+		wetuwn this.defauwtInputFontFamiwy;
 	}
 
-	private getInputEditorFontSize(): number {
-		return this.configurationService.getValue<number>('scm.inputFontSize');
+	pwivate getInputEditowFontSize(): numba {
+		wetuwn this.configuwationSewvice.getVawue<numba>('scm.inputFontSize');
 	}
 
-	private computeLineHeight(fontSize: number): number {
-		return Math.round(fontSize * 1.5);
+	pwivate computeWineHeight(fontSize: numba): numba {
+		wetuwn Math.wound(fontSize * 1.5);
 	}
 
-	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
-		this.placeholderTextContainer.style.fontFamily = fontFamily;
-		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
-		this.placeholderTextContainer.style.lineHeight = `${lineHeight}px`;
+	pwivate setPwacehowdewFontStywes(fontFamiwy: stwing, fontSize: numba, wineHeight: numba): void {
+		this.pwacehowdewTextContaina.stywe.fontFamiwy = fontFamiwy;
+		this.pwacehowdewTextContaina.stywe.fontSize = `${fontSize}px`;
+		this.pwacehowdewTextContaina.stywe.wineHeight = `${wineHeight}px`;
 	}
 
-	clearValidation(): void {
-		this.validationDisposable.dispose();
-		this.validationHasFocus = false;
+	cweawVawidation(): void {
+		this.vawidationDisposabwe.dispose();
+		this.vawidationHasFocus = fawse;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.input = undefined;
-		this.repositoryDisposables.dispose();
-		this.clearValidation();
-		super.dispose();
+		this.wepositowyDisposabwes.dispose();
+		this.cweawVawidation();
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.scm-editor-validation a { color: ${link}; }`);
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.scm-editow-vawidation a { cowow: ${wink}; }`);
 	}
 
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.scm-editor-validation a:active, .scm-editor-validation a:hover { color: ${activeLink}; }`);
+	const activeWink = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWink) {
+		cowwectow.addWuwe(`.scm-editow-vawidation a:active, .scm-editow-vawidation a:hova { cowow: ${activeWink}; }`);
 	}
 });
 
-export class SCMViewPane extends ViewPane {
+expowt cwass SCMViewPane extends ViewPane {
 
-	private _onDidLayout: Emitter<void>;
-	private layoutCache: ISCMLayout;
+	pwivate _onDidWayout: Emitta<void>;
+	pwivate wayoutCache: ISCMWayout;
 
-	private listContainer!: HTMLElement;
-	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
-	private _viewModel!: ViewModel;
-	get viewModel(): ViewModel { return this._viewModel; }
-	private listLabels!: ResourceLabels;
-	private inputRenderer!: InputRenderer;
+	pwivate wistContaina!: HTMWEwement;
+	pwivate twee!: WowkbenchCompwessibweObjectTwee<TweeEwement, FuzzyScowe>;
+	pwivate _viewModew!: ViewModew;
+	get viewModew(): ViewModew { wetuwn this._viewModew; }
+	pwivate wistWabews!: WesouwceWabews;
+	pwivate inputWendewa!: InputWendewa;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@ISCMService private scmService: ISCMService,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorService private editorService: IEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IStorageService private storageService: IStorageService,
-		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMSewvice pwivate scmSewvice: ISCMSewvice,
+		@ISCMViewSewvice pwivate scmViewSewvice: ISCMViewSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@ICommandSewvice pwivate commandSewvice: ICommandSewvice,
+		@IEditowSewvice pwivate editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate menuSewvice: IMenuSewvice,
+		@IStowageSewvice pwivate stowageSewvice: IStowageSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa({ ...options, titweMenuId: MenuId.SCMTitwe }, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this._onDidLayout = new Emitter<void>();
-		this.layoutCache = {
+		this._onDidWayout = new Emitta<void>();
+		this.wayoutCache = {
 			height: undefined,
 			width: undefined,
-			onDidChange: this._onDidLayout.event
+			onDidChange: this._onDidWayout.event
 		};
 
-		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+		this._wegista(Event.any(this.scmSewvice.onDidAddWepositowy, this.scmSewvice.onDidWemoveWepositowy)(() => this._onDidChangeViewWewcomeState.fiwe()));
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		// List
-		this.listContainer = append(container, $('.scm-view.show-file-icons'));
+		// Wist
+		this.wistContaina = append(containa, $('.scm-view.show-fiwe-icons'));
 
-		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
+		const ovewfwowWidgetsDomNode = $('.scm-ovewfwow-widgets-containa.monaco-editow');
 
-		const updateActionsVisibility = () => this.listContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
-		updateActionsVisibility();
+		const updateActionsVisibiwity = () => this.wistContaina.cwassWist.toggwe('show-actions', this.configuwationSewvice.getVawue<boowean>('scm.awwaysShowActions'));
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.awwaysShowActions'))(updateActionsVisibiwity));
+		updateActionsVisibiwity();
 
-		const updateProviderCountVisibility = () => {
-			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
-			this.listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
-			this.listContainer.classList.toggle('auto-provider-counts', value === 'auto');
+		const updatePwovidewCountVisibiwity = () => {
+			const vawue = this.configuwationSewvice.getVawue<'hidden' | 'auto' | 'visibwe'>('scm.pwovidewCountBadge');
+			this.wistContaina.cwassWist.toggwe('hide-pwovida-counts', vawue === 'hidden');
+			this.wistContaina.cwassWist.toggwe('auto-pwovida-counts', vawue === 'auto');
 		};
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
-		updateProviderCountVisibility();
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.pwovidewCountBadge'))(updatePwovidewCountVisibiwity));
+		updatePwovidewCountVisibiwity();
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
-		const delegate = new ListDelegate(this.inputRenderer);
+		this.inputWendewa = this.instantiationSewvice.cweateInstance(InputWendewa, this.wayoutCache, ovewfwowWidgetsDomNode, (input, height) => this.twee.updateEwementHeight(input, height));
+		const dewegate = new WistDewegate(this.inputWendewa);
 
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this._register(this.listLabels);
+		this.wistWabews = this.instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity });
+		this._wegista(this.wistWabews);
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		this._register(actionRunner);
-		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
+		const actionWunna = new WepositowyPaneActionWunna(() => this.getSewectedWesouwces());
+		this._wegista(actionWunna);
+		this._wegista(actionWunna.onBefoweWun(() => this.twee.domFocus()));
 
-		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
-			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.inputRenderer,
-			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
+		const wendewews: ICompwessibweTweeWendewa<any, any, any>[] = [
+			this.instantiationSewvice.cweateInstance(WepositowyWendewa, getActionViewItemPwovida(this.instantiationSewvice)),
+			this.inputWendewa,
+			this.instantiationSewvice.cweateInstance(WesouwceGwoupWendewa, getActionViewItemPwovida(this.instantiationSewvice)),
+			this.instantiationSewvice.cweateInstance(WesouwceWendewa, () => this._viewModew, this.wistWabews, getActionViewItemPwovida(this.instantiationSewvice), actionWunna)
 		];
 
-		const filter = new SCMTreeFilter();
-		const sorter = new SCMTreeSorter(() => this._viewModel);
-		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this._viewModel);
-		const identityProvider = new SCMResourceIdentityProvider();
+		const fiwta = new SCMTweeFiwta();
+		const sowta = new SCMTweeSowta(() => this._viewModew);
+		const keyboawdNavigationWabewPwovida = this.instantiationSewvice.cweateInstance(SCMTweeKeyboawdNavigationWabewPwovida, () => this._viewModew);
+		const identityPwovida = new SCMWesouwceIdentityPwovida();
 
-		this.tree = this.instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
-			'SCM Tree Repo',
-			this.listContainer,
-			delegate,
-			renderers,
+		this.twee = this.instantiationSewvice.cweateInstance(
+			WowkbenchCompwessibweObjectTwee,
+			'SCM Twee Wepo',
+			this.wistContaina,
+			dewegate,
+			wendewews,
 			{
-				transformOptimization: false,
-				identityProvider,
-				horizontalScrolling: false,
-				setRowLineHeight: false,
-				filter,
-				sorter,
-				keyboardNavigationLabelProvider,
-				overrideStyles: {
-					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
+				twansfowmOptimization: fawse,
+				identityPwovida,
+				howizontawScwowwing: fawse,
+				setWowWineHeight: fawse,
+				fiwta,
+				sowta,
+				keyboawdNavigationWabewPwovida,
+				ovewwideStywes: {
+					wistBackgwound: this.viewDescwiptowSewvice.getViewWocationById(this.id) === ViewContainewWocation.Sidebaw ? SIDE_BAW_BACKGWOUND : PANEW_BACKGWOUND
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
-			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
+				accessibiwityPwovida: this.instantiationSewvice.cweateInstance(SCMAccessibiwityPwovida)
+			}) as WowkbenchCompwessibweObjectTwee<TweeEwement, FuzzyScowe>;
 
-		this._register(this.tree.onDidOpen(this.open, this));
+		this._wegista(this.twee.onDidOpen(this.open, this));
 
-		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
-		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
-		this._register(this.tree);
+		this._wegista(this.twee.onContextMenu(this.onWistContextMenu, this));
+		this._wegista(this.twee.onDidScwoww(this.inputWendewa.cweawVawidation, this.inputWendewa));
+		this._wegista(this.twee);
 
-		append(this.listContainer, overflowWidgetsDomNode);
+		append(this.wistContaina, ovewfwowWidgetsDomNode);
 
-		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		wet viewMode = this.configuwationSewvice.getVawue<'twee' | 'wist'>('scm.defauwtViewMode') === 'wist' ? ViewModewMode.Wist : ViewModewMode.Twee;
 
-		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
-		if (typeof storageMode === 'string') {
-			viewMode = storageMode;
+		const stowageMode = this.stowageSewvice.get(`scm.viewMode`, StowageScope.WOWKSPACE) as ViewModewMode;
+		if (typeof stowageMode === 'stwing') {
+			viewMode = stowageMode;
 		}
 
-		let viewState: ITreeViewState | undefined;
+		wet viewState: ITweeViewState | undefined;
 
-		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
-		if (storageViewState) {
-			try {
-				viewState = JSON.parse(storageViewState);
+		const stowageViewState = this.stowageSewvice.get(`scm.viewState`, StowageScope.WOWKSPACE);
+		if (stowageViewState) {
+			twy {
+				viewState = JSON.pawse(stowageViewState);
 			} catch {/* noop */ }
 		}
 
-		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
+		this._wegista(this.instantiationSewvice.cweateInstance(WepositowyVisibiwityActionContwowwa));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
-		this._register(this._viewModel);
+		this._viewModew = this.instantiationSewvice.cweateInstance(ViewModew, this.twee, this.inputWendewa, viewMode, viewState);
+		this._wegista(this._viewModew);
 
-		this.listContainer.classList.add('file-icon-themable-tree');
-		this.listContainer.classList.add('show-file-icons');
+		this.wistContaina.cwassWist.add('fiwe-icon-themabwe-twee');
+		this.wistContaina.cwassWist.add('show-fiwe-icons');
 
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
-		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
+		this.updateIndentStywes(this.themeSewvice.getFiweIconTheme());
+		this._wegista(this.themeSewvice.onDidFiweIconThemeChange(this.updateIndentStywes, this));
+		this._wegista(this._viewModew.onDidChangeMode(this.onDidChangeMode, this));
 
-		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
+		this._wegista(this.onDidChangeBodyVisibiwity(this._viewModew.setVisibwe, this._viewModew));
 
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'))(this.updateActions, this));
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('scm.awwaysShowWepositowies'))(this.updateActions, this));
 		this.updateActions();
 
-		this._register(this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(`scm.viewState`, JSON.stringify(this._viewModel.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._wegista(this.stowageSewvice.onWiwwSaveState(e => {
+			if (e.weason === WiwwSaveStateWeason.SHUTDOWN) {
+				this.stowageSewvice.stowe(`scm.viewState`, JSON.stwingify(this._viewModew.tweeViewState), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 			}
 		}));
 	}
 
-	private updateIndentStyles(theme: IFileIconTheme): void {
-		this.listContainer.classList.toggle('list-view-mode', this._viewModel.mode === ViewModelMode.List);
-		this.listContainer.classList.toggle('tree-view-mode', this._viewModel.mode === ViewModelMode.Tree);
-		this.listContainer.classList.toggle('align-icons-and-twisties', (this._viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		this.listContainer.classList.toggle('hide-arrows', this._viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+	pwivate updateIndentStywes(theme: IFiweIconTheme): void {
+		this.wistContaina.cwassWist.toggwe('wist-view-mode', this._viewModew.mode === ViewModewMode.Wist);
+		this.wistContaina.cwassWist.toggwe('twee-view-mode', this._viewModew.mode === ViewModewMode.Twee);
+		this.wistContaina.cwassWist.toggwe('awign-icons-and-twisties', (this._viewModew.mode === ViewModewMode.Wist && theme.hasFiweIcons) || (theme.hasFiweIcons && !theme.hasFowdewIcons));
+		this.wistContaina.cwassWist.toggwe('hide-awwows', this._viewModew.mode === ViewModewMode.Twee && theme.hidesExpwowewAwwows === twue);
 	}
 
-	private onDidChangeMode(): void {
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	pwivate onDidChangeMode(): void {
+		this.updateIndentStywes(this.themeSewvice.getFiweIconTheme());
+		this.stowageSewvice.stowe(`scm.viewMode`, this._viewModew.mode, StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+	ovewwide wayoutBody(height: numba | undefined = this.wayoutCache.height, width: numba | undefined = this.wayoutCache.width): void {
 		if (height === undefined) {
-			return;
+			wetuwn;
 		}
 
 		if (width !== undefined) {
-			super.layoutBody(height, width);
+			supa.wayoutBody(height, width);
 		}
 
-		this.layoutCache.height = height;
-		this.layoutCache.width = width;
-		this._onDidLayout.fire();
+		this.wayoutCache.height = height;
+		this.wayoutCache.width = width;
+		this._onDidWayout.fiwe();
 
-		this.listContainer.style.height = `${height}px`;
-		this.tree.layout(height, width);
+		this.wistContaina.stywe.height = `${height}px`;
+		this.twee.wayout(height, width);
 	}
 
-	override focus(): void {
-		super.focus();
+	ovewwide focus(): void {
+		supa.focus();
 
 		if (this.isExpanded()) {
-			this._viewModel.focus();
+			this._viewModew.focus();
 		}
 	}
 
-	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
-		if (!e.element) {
-			return;
-		} else if (isSCMRepository(e.element)) {
-			this.scmViewService.focus(e.element);
-			return;
-		} else if (isSCMResourceGroup(e.element)) {
-			const provider = e.element.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
-			if (repository) {
-				this.scmViewService.focus(repository);
+	pwivate async open(e: IOpenEvent<TweeEwement | undefined>): Pwomise<void> {
+		if (!e.ewement) {
+			wetuwn;
+		} ewse if (isSCMWepositowy(e.ewement)) {
+			this.scmViewSewvice.focus(e.ewement);
+			wetuwn;
+		} ewse if (isSCMWesouwceGwoup(e.ewement)) {
+			const pwovida = e.ewement.pwovida;
+			const wepositowy = this.scmSewvice.wepositowies.find(w => w.pwovida === pwovida);
+			if (wepositowy) {
+				this.scmViewSewvice.focus(wepositowy);
 			}
-			return;
-		} else if (ResourceTree.isResourceNode(e.element)) {
-			const provider = e.element.context.provider;
-			const repository = this.scmService.repositories.find(r => r.provider === provider);
-			if (repository) {
-				this.scmViewService.focus(repository);
+			wetuwn;
+		} ewse if (WesouwceTwee.isWesouwceNode(e.ewement)) {
+			const pwovida = e.ewement.context.pwovida;
+			const wepositowy = this.scmSewvice.wepositowies.find(w => w.pwovida === pwovida);
+			if (wepositowy) {
+				this.scmViewSewvice.focus(wepositowy);
 			}
-			return;
-		} else if (isSCMInput(e.element)) {
-			this.scmViewService.focus(e.element.repository);
+			wetuwn;
+		} ewse if (isSCMInput(e.ewement)) {
+			this.scmViewSewvice.focus(e.ewement.wepositowy);
 
-			const widget = this.inputRenderer.getRenderedInputWidget(e.element);
+			const widget = this.inputWendewa.getWendewedInputWidget(e.ewement);
 
 			if (widget) {
 				widget.focus();
 
-				const selection = this.tree.getSelection();
+				const sewection = this.twee.getSewection();
 
-				if (selection.length === 1 && selection[0] === e.element) {
-					setTimeout(() => this.tree.setSelection([]));
+				if (sewection.wength === 1 && sewection[0] === e.ewement) {
+					setTimeout(() => this.twee.setSewection([]));
 				}
 			}
 
-			return;
+			wetuwn;
 		}
 
-		// ISCMResource
-		if (e.element.command?.id === API_OPEN_EDITOR_COMMAND_ID || e.element.command?.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
-			await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
-		} else {
-			await e.element.open(!!e.editorOptions.preserveFocus);
+		// ISCMWesouwce
+		if (e.ewement.command?.id === API_OPEN_EDITOW_COMMAND_ID || e.ewement.command?.id === API_OPEN_DIFF_EDITOW_COMMAND_ID) {
+			await this.commandSewvice.executeCommand(e.ewement.command.id, ...(e.ewement.command.awguments || []), e);
+		} ewse {
+			await e.ewement.open(!!e.editowOptions.pwesewveFocus);
 
-			if (e.editorOptions.pinned) {
-				const activeEditorPane = this.editorService.activeEditorPane;
+			if (e.editowOptions.pinned) {
+				const activeEditowPane = this.editowSewvice.activeEditowPane;
 
-				if (activeEditorPane) {
-					activeEditorPane.group.pinEditor(activeEditorPane.input);
+				if (activeEditowPane) {
+					activeEditowPane.gwoup.pinEditow(activeEditowPane.input);
 				}
 			}
 		}
 
-		const provider = e.element.resourceGroup.provider;
-		const repository = this.scmService.repositories.find(r => r.provider === provider);
+		const pwovida = e.ewement.wesouwceGwoup.pwovida;
+		const wepositowy = this.scmSewvice.wepositowies.find(w => w.pwovida === pwovida);
 
-		if (repository) {
-			this.scmViewService.focus(repository);
+		if (wepositowy) {
+			this.scmViewSewvice.focus(wepositowy);
 		}
 	}
 
-	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
-		if (!e.element) {
-			const menu = this.menuService.createMenu(Menus.ViewSort, this.contextKeyService);
+	pwivate onWistContextMenu(e: ITweeContextMenuEvent<TweeEwement | nuww>): void {
+		if (!e.ewement) {
+			const menu = this.menuSewvice.cweateMenu(Menus.ViewSowt, this.contextKeySewvice);
 			const actions: IAction[] = [];
-			const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
+			const disposabwe = cweateAndFiwwInContextMenuActions(menu, undefined, actions);
 
-			return this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
+			wetuwn this.contextMenuSewvice.showContextMenu({
+				getAnchow: () => e.anchow,
 				getActions: () => actions,
 				onHide: () => {
-					disposable.dispose();
+					disposabwe.dispose();
 					menu.dispose();
 				}
 			});
 		}
 
-		const element = e.element;
-		let context: any = element;
-		let actions: IAction[] = [];
-		let disposable: IDisposable = Disposable.None;
+		const ewement = e.ewement;
+		wet context: any = ewement;
+		wet actions: IAction[] = [];
+		wet disposabwe: IDisposabwe = Disposabwe.None;
 
-		if (isSCMRepository(element)) {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
-			const menu = menus.repositoryMenu;
-			context = element.provider;
-			[actions, disposable] = collectContextMenuActions(menu);
-		} else if (isSCMInput(element)) {
+		if (isSCMWepositowy(ewement)) {
+			const menus = this.scmViewSewvice.menus.getWepositowyMenus(ewement.pwovida);
+			const menu = menus.wepositowyMenu;
+			context = ewement.pwovida;
+			[actions, disposabwe] = cowwectContextMenuActions(menu);
+		} ewse if (isSCMInput(ewement)) {
 			// noop
-		} else if (isSCMResourceGroup(element)) {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
-			const menu = menus.getResourceGroupMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu);
-		} else if (ResourceTree.isResourceNode(element)) {
-			if (element.element) {
-				const menus = this.scmViewService.menus.getRepositoryMenus(element.element.resourceGroup.provider);
-				const menu = menus.getResourceMenu(element.element);
-				[actions, disposable] = collectContextMenuActions(menu);
-			} else {
-				const menus = this.scmViewService.menus.getRepositoryMenus(element.context.provider);
-				const menu = menus.getResourceFolderMenu(element.context);
-				[actions, disposable] = collectContextMenuActions(menu);
+		} ewse if (isSCMWesouwceGwoup(ewement)) {
+			const menus = this.scmViewSewvice.menus.getWepositowyMenus(ewement.pwovida);
+			const menu = menus.getWesouwceGwoupMenu(ewement);
+			[actions, disposabwe] = cowwectContextMenuActions(menu);
+		} ewse if (WesouwceTwee.isWesouwceNode(ewement)) {
+			if (ewement.ewement) {
+				const menus = this.scmViewSewvice.menus.getWepositowyMenus(ewement.ewement.wesouwceGwoup.pwovida);
+				const menu = menus.getWesouwceMenu(ewement.ewement);
+				[actions, disposabwe] = cowwectContextMenuActions(menu);
+			} ewse {
+				const menus = this.scmViewSewvice.menus.getWepositowyMenus(ewement.context.pwovida);
+				const menu = menus.getWesouwceFowdewMenu(ewement.context);
+				[actions, disposabwe] = cowwectContextMenuActions(menu);
 			}
-		} else {
-			const menus = this.scmViewService.menus.getRepositoryMenus(element.resourceGroup.provider);
-			const menu = menus.getResourceMenu(element);
-			[actions, disposable] = collectContextMenuActions(menu);
+		} ewse {
+			const menus = this.scmViewSewvice.menus.getWepositowyMenus(ewement.wesouwceGwoup.pwovida);
+			const menu = menus.getWesouwceMenu(ewement);
+			[actions, disposabwe] = cowwectContextMenuActions(menu);
 		}
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		actionRunner.onBeforeRun(() => this.tree.domFocus());
+		const actionWunna = new WepositowyPaneActionWunna(() => this.getSewectedWesouwces());
+		actionWunna.onBefoweWun(() => this.twee.domFocus());
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
 			getActionsContext: () => context,
-			actionRunner,
+			actionWunna,
 			onHide() {
-				disposable.dispose();
+				disposabwe.dispose();
 			}
 		});
 	}
 
-	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
-		return this.tree.getSelection()
-			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
+	pwivate getSewectedWesouwces(): (ISCMWesouwce | IWesouwceNode<ISCMWesouwce, ISCMWesouwceGwoup>)[] {
+		wetuwn this.twee.getSewection()
+			.fiwta(w => !!w && !isSCMWesouwceGwoup(w))! as any;
 	}
 
-	override shouldShowWelcome(): boolean {
-		return this.scmService.repositories.length === 0;
+	ovewwide shouwdShowWewcome(): boowean {
+		wetuwn this.scmSewvice.wepositowies.wength === 0;
 	}
 }
 
-export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
+expowt const scmPwovidewSepawatowBowdewCowow = wegistewCowow('scm.pwovidewBowda', { dawk: '#454545', wight: '#C8C8C8', hc: contwastBowda }, wocawize('scm.pwovidewBowda', "SCM Pwovida sepawatow bowda."));
 
-registerThemingParticipant((theme, collector) => {
-	const inputBackgroundColor = theme.getColor(inputBackground);
-	if (inputBackgroundColor) {
-		collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background,
-		.scm-view .scm-editor-container .monaco-editor,
-		.scm-view .scm-editor-container .monaco-editor .margin
-		{ background-color: ${inputBackgroundColor} !important; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const inputBackgwoundCowow = theme.getCowow(inputBackgwound);
+	if (inputBackgwoundCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa .monaco-editow-backgwound,
+		.scm-view .scm-editow-containa .monaco-editow,
+		.scm-view .scm-editow-containa .monaco-editow .mawgin
+		{ backgwound-cowow: ${inputBackgwoundCowow} !impowtant; }`);
 	}
 
-	const selectionBackgroundColor = theme.getColor(selectionBackground) ?? theme.getColor(editorSelectionBackground);
-	if (selectionBackgroundColor) {
-		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
+	const sewectionBackgwoundCowow = theme.getCowow(sewectionBackgwound) ?? theme.getCowow(editowSewectionBackgwound);
+	if (sewectionBackgwoundCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa .monaco-editow .focused .sewected-text { backgwound-cowow: ${sewectionBackgwoundCowow}; }`);
 	}
 
-	const inputForegroundColor = theme.getColor(inputForeground);
-	if (inputForegroundColor) {
-		collector.addRule(`.scm-view .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+	const inputFowegwoundCowow = theme.getCowow(inputFowegwound);
+	if (inputFowegwoundCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa .mtk1 { cowow: ${inputFowegwoundCowow}; }`);
 	}
 
-	const inputBorderColor = theme.getColor(inputBorder);
-	if (inputBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	const inputBowdewCowow = theme.getCowow(inputBowda);
+	if (inputBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa { outwine: 1px sowid ${inputBowdewCowow}; }`);
 	}
 
-	const panelInputBorder = theme.getColor(PANEL_INPUT_BORDER);
-	if (panelInputBorder) {
-		collector.addRule(`.monaco-workbench .part.panel .scm-view .scm-editor-container { outline: 1px solid ${panelInputBorder}; }`);
+	const panewInputBowda = theme.getCowow(PANEW_INPUT_BOWDa);
+	if (panewInputBowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .pawt.panew .scm-view .scm-editow-containa { outwine: 1px sowid ${panewInputBowda}; }`);
 	}
 
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+	const focusBowdewCowow = theme.getCowow(focusBowda);
+	if (focusBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa.synthetic-focus { outwine: 1px sowid ${focusBowdewCowow}; }`);
 	}
 
-	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
-	if (inputPlaceholderForegroundColor) {
-		collector.addRule(`.scm-view .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+	const inputPwacehowdewFowegwoundCowow = theme.getCowow(inputPwacehowdewFowegwound);
+	if (inputPwacehowdewFowegwoundCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-pwacehowda { cowow: ${inputPwacehowdewFowegwoundCowow}; }`);
 	}
 
-	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
-	if (inputValidationInfoBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-info { border-color: ${inputValidationInfoBorderColor}; }`);
+	const inputVawidationInfoBowdewCowow = theme.getCowow(inputVawidationInfoBowda);
+	if (inputVawidationInfoBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa.vawidation-info { outwine: 1px sowid ${inputVawidationInfoBowdewCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-info { bowda-cowow: ${inputVawidationInfoBowdewCowow}; }`);
 	}
 
-	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
-	if (inputValidationInfoBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+	const inputVawidationInfoBackgwoundCowow = theme.getCowow(inputVawidationInfoBackgwound);
+	if (inputVawidationInfoBackgwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-info { backgwound-cowow: ${inputVawidationInfoBackgwoundCowow}; }`);
 	}
 
-	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
-	if (inputValidationInfoForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+	const inputVawidationInfoFowegwoundCowow = theme.getCowow(inputVawidationInfoFowegwound);
+	if (inputVawidationInfoFowegwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-info { cowow: ${inputVawidationInfoFowegwoundCowow}; }`);
 	}
 
-	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
-	if (inputValidationWarningBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-warning { border-color: ${inputValidationWarningBorderColor}; }`);
+	const inputVawidationWawningBowdewCowow = theme.getCowow(inputVawidationWawningBowda);
+	if (inputVawidationWawningBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa.vawidation-wawning { outwine: 1px sowid ${inputVawidationWawningBowdewCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-wawning { bowda-cowow: ${inputVawidationWawningBowdewCowow}; }`);
 	}
 
-	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
-	if (inputValidationWarningBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+	const inputVawidationWawningBackgwoundCowow = theme.getCowow(inputVawidationWawningBackgwound);
+	if (inputVawidationWawningBackgwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-wawning { backgwound-cowow: ${inputVawidationWawningBackgwoundCowow}; }`);
 	}
 
-	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
-	if (inputValidationWarningForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+	const inputVawidationWawningFowegwoundCowow = theme.getCowow(inputVawidationWawningFowegwound);
+	if (inputVawidationWawningFowegwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-wawning { cowow: ${inputVawidationWawningFowegwoundCowow}; }`);
 	}
 
-	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
-	if (inputValidationErrorBorderColor) {
-		collector.addRule(`.scm-view .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor} !important; }`);
-		collector.addRule(`.scm-editor-validation.validation-error { border-color: ${inputValidationErrorBorderColor}; }`);
+	const inputVawidationEwwowBowdewCowow = theme.getCowow(inputVawidationEwwowBowda);
+	if (inputVawidationEwwowBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-editow-containa.vawidation-ewwow { outwine: 1px sowid ${inputVawidationEwwowBowdewCowow} !impowtant; }`);
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-ewwow { bowda-cowow: ${inputVawidationEwwowBowdewCowow}; }`);
 	}
 
-	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
-	if (inputValidationErrorBackgroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+	const inputVawidationEwwowBackgwoundCowow = theme.getCowow(inputVawidationEwwowBackgwound);
+	if (inputVawidationEwwowBackgwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-ewwow { backgwound-cowow: ${inputVawidationEwwowBackgwoundCowow}; }`);
 	}
 
-	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
-	if (inputValidationErrorForegroundColor) {
-		collector.addRule(`.scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+	const inputVawidationEwwowFowegwoundCowow = theme.getCowow(inputVawidationEwwowFowegwound);
+	if (inputVawidationEwwowFowegwoundCowow) {
+		cowwectow.addWuwe(`.scm-editow-vawidation.vawidation-ewwow { cowow: ${inputVawidationEwwowFowegwoundCowow}; }`);
 	}
 
-	const repositoryStatusActionsBorderColor = theme.getColor(SIDE_BAR_BORDER);
-	if (repositoryStatusActionsBorderColor) {
-		collector.addRule(`.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
+	const wepositowyStatusActionsBowdewCowow = theme.getCowow(SIDE_BAW_BOWDa);
+	if (wepositowyStatusActionsBowdewCowow) {
+		cowwectow.addWuwe(`.scm-view .scm-pwovida > .status > .monaco-action-baw > .actions-containa { bowda-cowow: ${wepositowyStatusActionsBowdewCowow}; }`);
 	}
 });

@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token } from 'markdown-it';
-import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+impowt { Token } fwom 'mawkdown-it';
+impowt * as vscode fwom 'vscode';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { TabweOfContentsPwovida } fwom '../tabweOfContentsPwovida';
 
-const rangeLimit = 5000;
+const wangeWimit = 5000;
 
-export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvider {
+expowt defauwt cwass MawkdownFowdingPwovida impwements vscode.FowdingWangePwovida {
 
-	constructor(
-		private readonly engine: MarkdownEngine
+	constwuctow(
+		pwivate weadonwy engine: MawkdownEngine
 	) { }
 
-	public async provideFoldingRanges(
+	pubwic async pwovideFowdingWanges(
 		document: vscode.TextDocument,
-		_: vscode.FoldingContext,
-		_token: vscode.CancellationToken
-	): Promise<vscode.FoldingRange[]> {
-		const foldables = await Promise.all([
-			this.getRegions(document),
-			this.getHeaderFoldingRanges(document),
-			this.getBlockFoldingRanges(document)
+		_: vscode.FowdingContext,
+		_token: vscode.CancewwationToken
+	): Pwomise<vscode.FowdingWange[]> {
+		const fowdabwes = await Pwomise.aww([
+			this.getWegions(document),
+			this.getHeadewFowdingWanges(document),
+			this.getBwockFowdingWanges(document)
 		]);
-		return foldables.flat().slice(0, rangeLimit);
+		wetuwn fowdabwes.fwat().swice(0, wangeWimit);
 	}
 
-	private async getRegions(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
-		const tokens = await this.engine.parse(document);
-		const regionMarkers = tokens.filter(isRegionMarker)
-			.map(token => ({ line: token.map[0], isStart: isStartRegion(token.content) }));
+	pwivate async getWegions(document: vscode.TextDocument): Pwomise<vscode.FowdingWange[]> {
+		const tokens = await this.engine.pawse(document);
+		const wegionMawkews = tokens.fiwta(isWegionMawka)
+			.map(token => ({ wine: token.map[0], isStawt: isStawtWegion(token.content) }));
 
-		const nestingStack: { line: number, isStart: boolean }[] = [];
-		return regionMarkers
-			.map(marker => {
-				if (marker.isStart) {
-					nestingStack.push(marker);
-				} else if (nestingStack.length && nestingStack[nestingStack.length - 1].isStart) {
-					return new vscode.FoldingRange(nestingStack.pop()!.line, marker.line, vscode.FoldingRangeKind.Region);
-				} else {
-					// noop: invalid nesting (i.e. [end, start] or [start, end, end])
+		const nestingStack: { wine: numba, isStawt: boowean }[] = [];
+		wetuwn wegionMawkews
+			.map(mawka => {
+				if (mawka.isStawt) {
+					nestingStack.push(mawka);
+				} ewse if (nestingStack.wength && nestingStack[nestingStack.wength - 1].isStawt) {
+					wetuwn new vscode.FowdingWange(nestingStack.pop()!.wine, mawka.wine, vscode.FowdingWangeKind.Wegion);
+				} ewse {
+					// noop: invawid nesting (i.e. [end, stawt] ow [stawt, end, end])
 				}
-				return null;
+				wetuwn nuww;
 			})
-			.filter((region: vscode.FoldingRange | null): region is vscode.FoldingRange => !!region);
+			.fiwta((wegion: vscode.FowdingWange | nuww): wegion is vscode.FowdingWange => !!wegion);
 	}
 
-	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		return toc.map(entry => {
-			let endLine = entry.location.range.end.line;
-			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
-				endLine = endLine - 1;
+	pwivate async getHeadewFowdingWanges(document: vscode.TextDocument) {
+		const tocPwovida = new TabweOfContentsPwovida(this.engine, document);
+		const toc = await tocPwovida.getToc();
+		wetuwn toc.map(entwy => {
+			wet endWine = entwy.wocation.wange.end.wine;
+			if (document.wineAt(endWine).isEmptyOwWhitespace && endWine >= entwy.wine + 1) {
+				endWine = endWine - 1;
 			}
-			return new vscode.FoldingRange(entry.line, endLine);
+			wetuwn new vscode.FowdingWange(entwy.wine, endWine);
 		});
 	}
 
-	private async getBlockFoldingRanges(document: vscode.TextDocument): Promise<vscode.FoldingRange[]> {
-		const tokens = await this.engine.parse(document);
-		const multiLineListItems = tokens.filter(isFoldableToken);
-		return multiLineListItems.map(listItem => {
-			const start = listItem.map[0];
-			let end = listItem.map[1] - 1;
-			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
+	pwivate async getBwockFowdingWanges(document: vscode.TextDocument): Pwomise<vscode.FowdingWange[]> {
+		const tokens = await this.engine.pawse(document);
+		const muwtiWineWistItems = tokens.fiwta(isFowdabweToken);
+		wetuwn muwtiWineWistItems.map(wistItem => {
+			const stawt = wistItem.map[0];
+			wet end = wistItem.map[1] - 1;
+			if (document.wineAt(end).isEmptyOwWhitespace && end >= stawt + 1) {
 				end = end - 1;
 			}
-			return new vscode.FoldingRange(start, end, this.getFoldingRangeKind(listItem));
+			wetuwn new vscode.FowdingWange(stawt, end, this.getFowdingWangeKind(wistItem));
 		});
 	}
 
-	private getFoldingRangeKind(listItem: Token): vscode.FoldingRangeKind | undefined {
-		return listItem.type === 'html_block' && listItem.content.startsWith('<!--')
-			? vscode.FoldingRangeKind.Comment
+	pwivate getFowdingWangeKind(wistItem: Token): vscode.FowdingWangeKind | undefined {
+		wetuwn wistItem.type === 'htmw_bwock' && wistItem.content.stawtsWith('<!--')
+			? vscode.FowdingWangeKind.Comment
 			: undefined;
 	}
 }
 
-const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
-const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
+const isStawtWegion = (t: stwing) => /^\s*<!--\s*#?wegion\b.*-->/.test(t);
+const isEndWegion = (t: stwing) => /^\s*<!--\s*#?endwegion\b.*-->/.test(t);
 
-const isRegionMarker = (token: Token) =>
-	token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
+const isWegionMawka = (token: Token) =>
+	token.type === 'htmw_bwock' && (isStawtWegion(token.content) || isEndWegion(token.content));
 
-const isFoldableToken = (token: Token): boolean => {
+const isFowdabweToken = (token: Token): boowean => {
 	switch (token.type) {
 		case 'fence':
-		case 'list_item_open':
-			return token.map[1] > token.map[0];
+		case 'wist_item_open':
+			wetuwn token.map[1] > token.map[0];
 
-		case 'html_block':
-			if (isRegionMarker(token)) {
-				return false;
+		case 'htmw_bwock':
+			if (isWegionMawka(token)) {
+				wetuwn fawse;
 			}
-			return token.map[1] > token.map[0] + 1;
+			wetuwn token.map[1] > token.map[0] + 1;
 
-		default:
-			return false;
+		defauwt:
+			wetuwn fawse;
 	}
 };

@@ -1,1306 +1,1306 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
-import { lcut } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { memoize } from 'vs/base/common/decorators';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { getBaseWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe, IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap, TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { wcut } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { FindMatch, IModewDewtaDecowation, ITextModew, OvewviewWuwewWane, TwackedWangeStickiness, MinimapPosition } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { WepwacePattewn } fwom 'vs/wowkbench/sewvices/seawch/common/wepwace';
+impowt { IFiweMatch, IPattewnInfo, ISeawchCompwete, ISeawchPwogwessItem, ISeawchConfiguwationPwopewties, ISeawchSewvice, ITextQuewy, ITextSeawchPweviewOptions, ITextSeawchMatch, ITextSeawchStats, wesuwtIsMatch, ISeawchWange, OneWineWange, ITextSeawchContext, ITextSeawchWesuwt, SeawchSowtOwda, SeawchCompwetionExitCode } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ovewviewWuwewFindMatchFowegwound, minimapFindMatch } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWepwaceSewvice } fwom 'vs/wowkbench/contwib/seawch/common/wepwace';
+impowt { editowMatchesToTextSeawchWesuwts, addContextToEditowMatches } fwom 'vs/wowkbench/sewvices/seawch/common/seawchHewpews';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { compaweFiweNames, compaweFiweExtensions, compawePaths } fwom 'vs/base/common/compawews';
+impowt { IFiweSewvice, IFiweStatWithMetadata } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class Match {
+expowt cwass Match {
 
-	private static readonly MAX_PREVIEW_CHARS = 250;
+	pwivate static weadonwy MAX_PWEVIEW_CHAWS = 250;
 
-	private _id: string;
-	private _range: Range;
-	private _oneLinePreviewText: string;
-	private _rangeInPreviewText: ISearchRange;
+	pwivate _id: stwing;
+	pwivate _wange: Wange;
+	pwivate _oneWinePweviewText: stwing;
+	pwivate _wangeInPweviewText: ISeawchWange;
 
-	// For replace
-	private _fullPreviewRange: ISearchRange;
+	// Fow wepwace
+	pwivate _fuwwPweviewWange: ISeawchWange;
 
-	constructor(private _parent: FileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange) {
-		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
-		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
-			_fullPreviewRange.endColumn :
-			this._oneLinePreviewText.length;
-		this._rangeInPreviewText = new OneLineRange(1, _fullPreviewRange.startColumn + 1, adjustedEndCol + 1);
+	constwuctow(pwivate _pawent: FiweMatch, pwivate _fuwwPweviewWines: stwing[], _fuwwPweviewWange: ISeawchWange, _documentWange: ISeawchWange) {
+		this._oneWinePweviewText = _fuwwPweviewWines[_fuwwPweviewWange.stawtWineNumba];
+		const adjustedEndCow = _fuwwPweviewWange.stawtWineNumba === _fuwwPweviewWange.endWineNumba ?
+			_fuwwPweviewWange.endCowumn :
+			this._oneWinePweviewText.wength;
+		this._wangeInPweviewText = new OneWineWange(1, _fuwwPweviewWange.stawtCowumn + 1, adjustedEndCow + 1);
 
-		this._range = new Range(
-			_documentRange.startLineNumber + 1,
-			_documentRange.startColumn + 1,
-			_documentRange.endLineNumber + 1,
-			_documentRange.endColumn + 1);
+		this._wange = new Wange(
+			_documentWange.stawtWineNumba + 1,
+			_documentWange.stawtCowumn + 1,
+			_documentWange.endWineNumba + 1,
+			_documentWange.endCowumn + 1);
 
-		this._fullPreviewRange = _fullPreviewRange;
+		this._fuwwPweviewWange = _fuwwPweviewWange;
 
-		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
+		this._id = this._pawent.id() + '>' + this._wange + this.getMatchStwing();
 	}
 
-	id(): string {
-		return this._id;
+	id(): stwing {
+		wetuwn this._id;
 	}
 
-	parent(): FileMatch {
-		return this._parent;
+	pawent(): FiweMatch {
+		wetuwn this._pawent;
 	}
 
-	text(): string {
-		return this._oneLinePreviewText;
+	text(): stwing {
+		wetuwn this._oneWinePweviewText;
 	}
 
-	range(): Range {
-		return this._range;
+	wange(): Wange {
+		wetuwn this._wange;
 	}
 
 	@memoize
-	preview(): { before: string; inside: string; after: string; } {
-		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
-			inside = this.getMatchString(),
-			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
+	pweview(): { befowe: stwing; inside: stwing; afta: stwing; } {
+		wet befowe = this._oneWinePweviewText.substwing(0, this._wangeInPweviewText.stawtCowumn - 1),
+			inside = this.getMatchStwing(),
+			afta = this._oneWinePweviewText.substwing(this._wangeInPweviewText.endCowumn - 1);
 
-		before = lcut(before, 26);
-		before = before.trimLeft();
+		befowe = wcut(befowe, 26);
+		befowe = befowe.twimWeft();
 
-		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
-		inside = inside.substr(0, charsRemaining);
-		charsRemaining -= inside.length;
-		after = after.substr(0, charsRemaining);
+		wet chawsWemaining = Match.MAX_PWEVIEW_CHAWS - befowe.wength;
+		inside = inside.substw(0, chawsWemaining);
+		chawsWemaining -= inside.wength;
+		afta = afta.substw(0, chawsWemaining);
 
-		return {
-			before,
+		wetuwn {
+			befowe,
 			inside,
-			after,
+			afta,
 		};
 	}
 
-	get replaceString(): string {
-		const searchModel = this.parent().parent().searchModel;
-		if (!searchModel.replacePattern) {
-			throw new Error('searchModel.replacePattern must be set before accessing replaceString');
+	get wepwaceStwing(): stwing {
+		const seawchModew = this.pawent().pawent().seawchModew;
+		if (!seawchModew.wepwacePattewn) {
+			thwow new Ewwow('seawchModew.wepwacePattewn must be set befowe accessing wepwaceStwing');
 		}
 
-		const fullMatchText = this.fullMatchText();
-		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCase);
+		const fuwwMatchText = this.fuwwMatchText();
+		wet wepwaceStwing = seawchModew.wepwacePattewn.getWepwaceStwing(fuwwMatchText, seawchModew.pwesewveCase);
 
-		// If match string is not matching then regex pattern has a lookahead expression
-		if (replaceString === null) {
-			const fullMatchTextWithSurroundingContent = this.fullMatchText(true);
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithSurroundingContent, searchModel.preserveCase);
+		// If match stwing is not matching then wegex pattewn has a wookahead expwession
+		if (wepwaceStwing === nuww) {
+			const fuwwMatchTextWithSuwwoundingContent = this.fuwwMatchText(twue);
+			wepwaceStwing = seawchModew.wepwacePattewn.getWepwaceStwing(fuwwMatchTextWithSuwwoundingContent, seawchModew.pwesewveCase);
 
-			// Search/find normalize line endings - check whether \r prevents regex from matching
-			if (replaceString === null) {
-				const fullMatchTextWithoutCR = fullMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
-				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
+			// Seawch/find nowmawize wine endings - check whetha \w pwevents wegex fwom matching
+			if (wepwaceStwing === nuww) {
+				const fuwwMatchTextWithoutCW = fuwwMatchTextWithSuwwoundingContent.wepwace(/\w\n/g, '\n');
+				wepwaceStwing = seawchModew.wepwacePattewn.getWepwaceStwing(fuwwMatchTextWithoutCW, seawchModew.pwesewveCase);
 			}
 		}
 
-		// Match string is still not matching. Could be unsupported matches (multi-line).
-		if (replaceString === null) {
-			replaceString = searchModel.replacePattern.pattern;
+		// Match stwing is stiww not matching. Couwd be unsuppowted matches (muwti-wine).
+		if (wepwaceStwing === nuww) {
+			wepwaceStwing = seawchModew.wepwacePattewn.pattewn;
 		}
 
-		return replaceString;
+		wetuwn wepwaceStwing;
 	}
 
-	fullMatchText(includeSurrounding = false): string {
-		let thisMatchPreviewLines: string[];
-		if (includeSurrounding) {
-			thisMatchPreviewLines = this._fullPreviewLines;
-		} else {
-			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
-			thisMatchPreviewLines[thisMatchPreviewLines.length - 1] = thisMatchPreviewLines[thisMatchPreviewLines.length - 1].slice(0, this._fullPreviewRange.endColumn);
-			thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
+	fuwwMatchText(incwudeSuwwounding = fawse): stwing {
+		wet thisMatchPweviewWines: stwing[];
+		if (incwudeSuwwounding) {
+			thisMatchPweviewWines = this._fuwwPweviewWines;
+		} ewse {
+			thisMatchPweviewWines = this._fuwwPweviewWines.swice(this._fuwwPweviewWange.stawtWineNumba, this._fuwwPweviewWange.endWineNumba + 1);
+			thisMatchPweviewWines[thisMatchPweviewWines.wength - 1] = thisMatchPweviewWines[thisMatchPweviewWines.wength - 1].swice(0, this._fuwwPweviewWange.endCowumn);
+			thisMatchPweviewWines[0] = thisMatchPweviewWines[0].swice(this._fuwwPweviewWange.stawtCowumn);
 		}
 
-		return thisMatchPreviewLines.join('\n');
+		wetuwn thisMatchPweviewWines.join('\n');
 	}
 
-	rangeInPreview() {
-		// convert to editor's base 1 positions.
-		return {
-			...this._fullPreviewRange,
-			startColumn: this._fullPreviewRange.startColumn + 1,
-			endColumn: this._fullPreviewRange.endColumn + 1
+	wangeInPweview() {
+		// convewt to editow's base 1 positions.
+		wetuwn {
+			...this._fuwwPweviewWange,
+			stawtCowumn: this._fuwwPweviewWange.stawtCowumn + 1,
+			endCowumn: this._fuwwPweviewWange.endCowumn + 1
 		};
 	}
 
-	fullPreviewLines(): string[] {
-		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
+	fuwwPweviewWines(): stwing[] {
+		wetuwn this._fuwwPweviewWines.swice(this._fuwwPweviewWange.stawtWineNumba, this._fuwwPweviewWange.endWineNumba + 1);
 	}
 
-	getMatchString(): string {
-		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
+	getMatchStwing(): stwing {
+		wetuwn this._oneWinePweviewText.substwing(this._wangeInPweviewText.stawtCowumn - 1, this._wangeInPweviewText.endCowumn - 1);
 	}
 }
 
-export class FileMatch extends Disposable implements IFileMatch {
+expowt cwass FiweMatch extends Disposabwe impwements IFiweMatch {
 
-	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
-		description: 'search-current-find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+	pwivate static weadonwy _CUWWENT_FIND_MATCH = ModewDecowationOptions.wegista({
+		descwiption: 'seawch-cuwwent-find-match',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
 		zIndex: 13,
-		className: 'currentFindMatch',
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
+		cwassName: 'cuwwentFindMatch',
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewFindMatchFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapFindMatch),
+			position: MinimapPosition.Inwine
 		}
 	});
 
-	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
-		description: 'search-find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch',
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
+	pwivate static weadonwy _FIND_MATCH = ModewDecowationOptions.wegista({
+		descwiption: 'seawch-find-match',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'findMatch',
+		ovewviewWuwa: {
+			cowow: themeCowowFwomId(ovewviewWuwewFindMatchFowegwound),
+			position: OvewviewWuwewWane.Centa
 		},
 		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
+			cowow: themeCowowFwomId(minimapFindMatch),
+			position: MinimapPosition.Inwine
 		}
 	});
 
-	private static getDecorationOption(selected: boolean): ModelDecorationOptions {
-		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
+	pwivate static getDecowationOption(sewected: boowean): ModewDecowationOptions {
+		wetuwn (sewected ? FiweMatch._CUWWENT_FIND_MATCH : FiweMatch._FIND_MATCH);
 	}
 
-	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
-	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
+	pwivate _onChange = this._wegista(new Emitta<{ didWemove?: boowean; fowceUpdateModew?: boowean }>());
+	weadonwy onChange: Event<{ didWemove?: boowean; fowceUpdateModew?: boowean }> = this._onChange.event;
 
-	private _onDispose = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	pwivate _onDispose = this._wegista(new Emitta<void>());
+	weadonwy onDispose: Event<void> = this._onDispose.event;
 
-	private _resource: URI;
-	private _fileStat?: IFileStatWithMetadata;
-	private _model: ITextModel | null = null;
-	private _modelListener: IDisposable | null = null;
-	private _matches: Map<string, Match>;
-	private _removedMatches: Set<string>;
-	private _selectedMatch: Match | null = null;
+	pwivate _wesouwce: UWI;
+	pwivate _fiweStat?: IFiweStatWithMetadata;
+	pwivate _modew: ITextModew | nuww = nuww;
+	pwivate _modewWistena: IDisposabwe | nuww = nuww;
+	pwivate _matches: Map<stwing, Match>;
+	pwivate _wemovedMatches: Set<stwing>;
+	pwivate _sewectedMatch: Match | nuww = nuww;
 
-	private _updateScheduler: RunOnceScheduler;
-	private _modelDecorations: string[] = [];
+	pwivate _updateScheduwa: WunOnceScheduwa;
+	pwivate _modewDecowations: stwing[] = [];
 
-	private _context: Map<number, string> = new Map();
-	public get context(): Map<number, string> {
-		return new Map(this._context);
+	pwivate _context: Map<numba, stwing> = new Map();
+	pubwic get context(): Map<numba, stwing> {
+		wetuwn new Map(this._context);
 	}
 
-	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
-		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
+	constwuctow(pwivate _quewy: IPattewnInfo, pwivate _pweviewOptions: ITextSeawchPweviewOptions | undefined, pwivate _maxWesuwts: numba | undefined, pwivate _pawent: FowdewMatch, pwivate wawMatch: IFiweMatch,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice, @IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice
 	) {
-		super();
-		this._resource = this.rawMatch.resource;
-		this._matches = new Map<string, Match>();
-		this._removedMatches = new Set<string>();
-		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
+		supa();
+		this._wesouwce = this.wawMatch.wesouwce;
+		this._matches = new Map<stwing, Match>();
+		this._wemovedMatches = new Set<stwing>();
+		this._updateScheduwa = new WunOnceScheduwa(this.updateMatchesFowModew.bind(this), 250);
 
-		this.createMatches();
+		this.cweateMatches();
 	}
 
-	private createMatches(): void {
-		const model = this.modelService.getModel(this._resource);
-		if (model) {
-			this.bindModel(model);
-			this.updateMatchesForModel();
-		} else {
-			this.rawMatch.results!
-				.filter(resultIsMatch)
-				.forEach(rawMatch => {
-					textSearchResultToMatches(rawMatch, this)
-						.forEach(m => this.add(m));
+	pwivate cweateMatches(): void {
+		const modew = this.modewSewvice.getModew(this._wesouwce);
+		if (modew) {
+			this.bindModew(modew);
+			this.updateMatchesFowModew();
+		} ewse {
+			this.wawMatch.wesuwts!
+				.fiwta(wesuwtIsMatch)
+				.fowEach(wawMatch => {
+					textSeawchWesuwtToMatches(wawMatch, this)
+						.fowEach(m => this.add(m));
 				});
 
-			this.addContext(this.rawMatch.results);
+			this.addContext(this.wawMatch.wesuwts);
 		}
 	}
 
-	bindModel(model: ITextModel): void {
-		this._model = model;
-		this._modelListener = this._model.onDidChangeContent(() => {
-			this._updateScheduler.schedule();
+	bindModew(modew: ITextModew): void {
+		this._modew = modew;
+		this._modewWistena = this._modew.onDidChangeContent(() => {
+			this._updateScheduwa.scheduwe();
 		});
-		this._model.onWillDispose(() => this.onModelWillDispose());
-		this.updateHighlights();
+		this._modew.onWiwwDispose(() => this.onModewWiwwDispose());
+		this.updateHighwights();
 	}
 
-	private onModelWillDispose(): void {
-		// Update matches because model might have some dirty changes
-		this.updateMatchesForModel();
-		this.unbindModel();
+	pwivate onModewWiwwDispose(): void {
+		// Update matches because modew might have some diwty changes
+		this.updateMatchesFowModew();
+		this.unbindModew();
 	}
 
-	private unbindModel(): void {
-		if (this._model) {
-			this._updateScheduler.cancel();
-			this._model.deltaDecorations(this._modelDecorations, []);
-			this._model = null;
-			this._modelListener!.dispose();
+	pwivate unbindModew(): void {
+		if (this._modew) {
+			this._updateScheduwa.cancew();
+			this._modew.dewtaDecowations(this._modewDecowations, []);
+			this._modew = nuww;
+			this._modewWistena!.dispose();
 		}
 	}
 
-	private updateMatchesForModel(): void {
-		// this is called from a timeout and might fire
-		// after the model has been disposed
-		if (!this._model) {
-			return;
+	pwivate updateMatchesFowModew(): void {
+		// this is cawwed fwom a timeout and might fiwe
+		// afta the modew has been disposed
+		if (!this._modew) {
+			wetuwn;
 		}
-		this._matches = new Map<string, Match>();
+		this._matches = new Map<stwing, Match>();
 
-		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		const matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults);
+		const wowdSepawatows = this._quewy.isWowdMatch && this._quewy.wowdSepawatows ? this._quewy.wowdSepawatows : nuww;
+		const matches = this._modew
+			.findMatches(this._quewy.pattewn, this._modew.getFuwwModewWange(), !!this._quewy.isWegExp, !!this._quewy.isCaseSensitive, wowdSepawatows, fawse, this._maxWesuwts);
 
-		this.updateMatches(matches, true);
+		this.updateMatches(matches, twue);
 	}
 
-	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): void {
-		if (!this._model) {
-			return;
+	pwivate updatesMatchesFowWineAftewWepwace(wineNumba: numba, modewChange: boowean): void {
+		if (!this._modew) {
+			wetuwn;
 		}
 
-		const range = {
-			startLineNumber: lineNumber,
-			startColumn: this._model.getLineMinColumn(lineNumber),
-			endLineNumber: lineNumber,
-			endColumn: this._model.getLineMaxColumn(lineNumber)
+		const wange = {
+			stawtWineNumba: wineNumba,
+			stawtCowumn: this._modew.getWineMinCowumn(wineNumba),
+			endWineNumba: wineNumba,
+			endCowumn: this._modew.getWineMaxCowumn(wineNumba)
 		};
-		const oldMatches = Array.from(this._matches.values()).filter(match => match.range().startLineNumber === lineNumber);
-		oldMatches.forEach(match => this._matches.delete(match.id()));
+		const owdMatches = Awway.fwom(this._matches.vawues()).fiwta(match => match.wange().stawtWineNumba === wineNumba);
+		owdMatches.fowEach(match => this._matches.dewete(match.id()));
 
-		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults);
-		this.updateMatches(matches, modelChange);
+		const wowdSepawatows = this._quewy.isWowdMatch && this._quewy.wowdSepawatows ? this._quewy.wowdSepawatows : nuww;
+		const matches = this._modew.findMatches(this._quewy.pattewn, wange, !!this._quewy.isWegExp, !!this._quewy.isCaseSensitive, wowdSepawatows, fawse, this._maxWesuwts);
+		this.updateMatches(matches, modewChange);
 	}
 
-	private updateMatches(matches: FindMatch[], modelChange: boolean): void {
-		if (!this._model) {
-			return;
+	pwivate updateMatches(matches: FindMatch[], modewChange: boowean): void {
+		if (!this._modew) {
+			wetuwn;
 		}
 
-		const textSearchResults = editorMatchesToTextSearchResults(matches, this._model, this._previewOptions);
-		textSearchResults.forEach(textSearchResult => {
-			textSearchResultToMatches(textSearchResult, this).forEach(match => {
-				if (!this._removedMatches.has(match.id())) {
+		const textSeawchWesuwts = editowMatchesToTextSeawchWesuwts(matches, this._modew, this._pweviewOptions);
+		textSeawchWesuwts.fowEach(textSeawchWesuwt => {
+			textSeawchWesuwtToMatches(textSeawchWesuwt, this).fowEach(match => {
+				if (!this._wemovedMatches.has(match.id())) {
 					this.add(match);
-					if (this.isMatchSelected(match)) {
-						this._selectedMatch = match;
+					if (this.isMatchSewected(match)) {
+						this._sewectedMatch = match;
 					}
 				}
 			});
 		});
 
 		this.addContext(
-			addContextToEditorMatches(textSearchResults, this._model, this.parent().parent().query!)
-				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+			addContextToEditowMatches(textSeawchWesuwts, this._modew, this.pawent().pawent().quewy!)
+				.fiwta((wesuwt => !wesuwtIsMatch(wesuwt)) as ((a: any) => a is ITextSeawchContext))
+				.map(context => ({ ...context, wineNumba: context.wineNumba + 1 })));
 
-		this._onChange.fire({ forceUpdateModel: modelChange });
-		this.updateHighlights();
+		this._onChange.fiwe({ fowceUpdateModew: modewChange });
+		this.updateHighwights();
 	}
 
-	updateHighlights(): void {
-		if (!this._model) {
-			return;
+	updateHighwights(): void {
+		if (!this._modew) {
+			wetuwn;
 		}
 
-		if (this.parent().showHighlights) {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, this.matches().map(match => <IModelDeltaDecoration>{
-				range: match.range(),
-				options: FileMatch.getDecorationOption(this.isMatchSelected(match))
+		if (this.pawent().showHighwights) {
+			this._modewDecowations = this._modew.dewtaDecowations(this._modewDecowations, this.matches().map(match => <IModewDewtaDecowation>{
+				wange: match.wange(),
+				options: FiweMatch.getDecowationOption(this.isMatchSewected(match))
 			}));
-		} else {
-			this._modelDecorations = this._model.deltaDecorations(this._modelDecorations, []);
+		} ewse {
+			this._modewDecowations = this._modew.dewtaDecowations(this._modewDecowations, []);
 		}
 	}
 
-	id(): string {
-		return this.resource.toString();
+	id(): stwing {
+		wetuwn this.wesouwce.toStwing();
 	}
 
-	parent(): FolderMatch {
-		return this._parent;
+	pawent(): FowdewMatch {
+		wetuwn this._pawent;
 	}
 
 	matches(): Match[] {
-		return Array.from(this._matches.values());
+		wetuwn Awway.fwom(this._matches.vawues());
 	}
 
-	remove(match: Match): void {
-		this.removeMatch(match);
-		this._removedMatches.add(match.id());
-		this._onChange.fire({ didRemove: true });
+	wemove(match: Match): void {
+		this.wemoveMatch(match);
+		this._wemovedMatches.add(match.id());
+		this._onChange.fiwe({ didWemove: twue });
 	}
 
-	private replaceQ = Promise.resolve();
-	async replace(toReplace: Match): Promise<void> {
-		return this.replaceQ = this.replaceQ.finally(async () => {
-			await this.replaceService.replace(toReplace);
-			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+	pwivate wepwaceQ = Pwomise.wesowve();
+	async wepwace(toWepwace: Match): Pwomise<void> {
+		wetuwn this.wepwaceQ = this.wepwaceQ.finawwy(async () => {
+			await this.wepwaceSewvice.wepwace(toWepwace);
+			this.updatesMatchesFowWineAftewWepwace(toWepwace.wange().stawtWineNumba, fawse);
 		});
 	}
 
-	setSelectedMatch(match: Match | null): void {
+	setSewectedMatch(match: Match | nuww): void {
 		if (match) {
 			if (!this._matches.has(match.id())) {
-				return;
+				wetuwn;
 			}
-			if (this.isMatchSelected(match)) {
-				return;
+			if (this.isMatchSewected(match)) {
+				wetuwn;
 			}
 		}
 
-		this._selectedMatch = match;
-		this.updateHighlights();
+		this._sewectedMatch = match;
+		this.updateHighwights();
 	}
 
-	getSelectedMatch(): Match | null {
-		return this._selectedMatch;
+	getSewectedMatch(): Match | nuww {
+		wetuwn this._sewectedMatch;
 	}
 
-	isMatchSelected(match: Match): boolean {
-		return !!this._selectedMatch && this._selectedMatch.id() === match.id();
+	isMatchSewected(match: Match): boowean {
+		wetuwn !!this._sewectedMatch && this._sewectedMatch.id() === match.id();
 	}
 
-	count(): number {
-		return this.matches().length;
+	count(): numba {
+		wetuwn this.matches().wength;
 	}
 
-	get resource(): URI {
-		return this._resource;
+	get wesouwce(): UWI {
+		wetuwn this._wesouwce;
 	}
 
-	name(): string {
-		return getBaseLabel(this.resource);
+	name(): stwing {
+		wetuwn getBaseWabew(this.wesouwce);
 	}
 
-	addContext(results: ITextSearchResult[] | undefined) {
-		if (!results) { return; }
+	addContext(wesuwts: ITextSeawchWesuwt[] | undefined) {
+		if (!wesuwts) { wetuwn; }
 
-		results
-			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-			.forEach(context => this._context.set(context.lineNumber, context.text));
+		wesuwts
+			.fiwta((wesuwt => !wesuwtIsMatch(wesuwt)) as ((a: any) => a is ITextSeawchContext))
+			.fowEach(context => this._context.set(context.wineNumba, context.text));
 	}
 
-	add(match: Match, trigger?: boolean) {
+	add(match: Match, twigga?: boowean) {
 		this._matches.set(match.id(), match);
-		if (trigger) {
-			this._onChange.fire({ forceUpdateModel: true });
+		if (twigga) {
+			this._onChange.fiwe({ fowceUpdateModew: twue });
 		}
 	}
 
-	private removeMatch(match: Match) {
-		this._matches.delete(match.id());
-		if (this.isMatchSelected(match)) {
-			this.setSelectedMatch(null);
-		} else {
-			this.updateHighlights();
+	pwivate wemoveMatch(match: Match) {
+		this._matches.dewete(match.id());
+		if (this.isMatchSewected(match)) {
+			this.setSewectedMatch(nuww);
+		} ewse {
+			this.updateHighwights();
 		}
 	}
 
-	async resolveFileStat(fileService: IFileService): Promise<void> {
-		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true }).catch(() => undefined);
+	async wesowveFiweStat(fiweSewvice: IFiweSewvice): Pwomise<void> {
+		this._fiweStat = await fiweSewvice.wesowve(this.wesouwce, { wesowveMetadata: twue }).catch(() => undefined);
 	}
 
-	public get fileStat(): IFileStatWithMetadata | undefined {
-		return this._fileStat;
+	pubwic get fiweStat(): IFiweStatWithMetadata | undefined {
+		wetuwn this._fiweStat;
 	}
 
-	public set fileStat(stat: IFileStatWithMetadata | undefined) {
-		this._fileStat = stat;
+	pubwic set fiweStat(stat: IFiweStatWithMetadata | undefined) {
+		this._fiweStat = stat;
 	}
 
-	override dispose(): void {
-		this.setSelectedMatch(null);
-		this.unbindModel();
-		this._onDispose.fire();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.setSewectedMatch(nuww);
+		this.unbindModew();
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 }
 
-export interface IChangeEvent {
-	elements: FileMatch[];
-	added?: boolean;
-	removed?: boolean;
+expowt intewface IChangeEvent {
+	ewements: FiweMatch[];
+	added?: boowean;
+	wemoved?: boowean;
 }
 
-export class FolderMatch extends Disposable {
+expowt cwass FowdewMatch extends Disposabwe {
 
-	private _onChange = this._register(new Emitter<IChangeEvent>());
-	readonly onChange: Event<IChangeEvent> = this._onChange.event;
+	pwivate _onChange = this._wegista(new Emitta<IChangeEvent>());
+	weadonwy onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _onDispose = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	pwivate _onDispose = this._wegista(new Emitta<void>());
+	weadonwy onDispose: Event<void> = this._onDispose.event;
 
-	private _fileMatches: ResourceMap<FileMatch>;
-	private _unDisposedFileMatches: ResourceMap<FileMatch>;
-	private _replacingAll: boolean = false;
+	pwivate _fiweMatches: WesouwceMap<FiweMatch>;
+	pwivate _unDisposedFiweMatches: WesouwceMap<FiweMatch>;
+	pwivate _wepwacingAww: boowean = fawse;
 
-	constructor(protected _resource: URI | null, private _id: string, private _index: number, private _query: ITextQuery, private _parent: SearchResult, private _searchModel: SearchModel,
-		@IReplaceService private readonly replaceService: IReplaceService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(pwotected _wesouwce: UWI | nuww, pwivate _id: stwing, pwivate _index: numba, pwivate _quewy: ITextQuewy, pwivate _pawent: SeawchWesuwt, pwivate _seawchModew: SeawchModew,
+		@IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this._fileMatches = new ResourceMap<FileMatch>();
-		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
+		supa();
+		this._fiweMatches = new WesouwceMap<FiweMatch>();
+		this._unDisposedFiweMatches = new WesouwceMap<FiweMatch>();
 	}
 
-	get searchModel(): SearchModel {
-		return this._searchModel;
+	get seawchModew(): SeawchModew {
+		wetuwn this._seawchModew;
 	}
 
-	get showHighlights(): boolean {
-		return this._parent.showHighlights;
+	get showHighwights(): boowean {
+		wetuwn this._pawent.showHighwights;
 	}
 
-	set replacingAll(b: boolean) {
-		this._replacingAll = b;
+	set wepwacingAww(b: boowean) {
+		this._wepwacingAww = b;
 	}
 
-	id(): string {
-		return this._id;
+	id(): stwing {
+		wetuwn this._id;
 	}
 
-	get resource(): URI | null {
-		return this._resource;
+	get wesouwce(): UWI | nuww {
+		wetuwn this._wesouwce;
 	}
 
-	index(): number {
-		return this._index;
+	index(): numba {
+		wetuwn this._index;
 	}
 
-	name(): string {
-		return getBaseLabel(withNullAsUndefined(this.resource)) || '';
+	name(): stwing {
+		wetuwn getBaseWabew(withNuwwAsUndefined(this.wesouwce)) || '';
 	}
 
-	parent(): SearchResult {
-		return this._parent;
+	pawent(): SeawchWesuwt {
+		wetuwn this._pawent;
 	}
 
-	bindModel(model: ITextModel): void {
-		const fileMatch = this._fileMatches.get(model.uri);
-		if (fileMatch) {
-			fileMatch.bindModel(model);
+	bindModew(modew: ITextModew): void {
+		const fiweMatch = this._fiweMatches.get(modew.uwi);
+		if (fiweMatch) {
+			fiweMatch.bindModew(modew);
 		}
 	}
 
-	add(raw: IFileMatch[], silent: boolean): void {
-		const added: FileMatch[] = [];
-		const updated: FileMatch[] = [];
-		raw.forEach(rawFileMatch => {
-			const existingFileMatch = this._fileMatches.get(rawFileMatch.resource);
-			if (existingFileMatch) {
-				rawFileMatch
-					.results!
-					.filter(resultIsMatch)
-					.forEach(m => {
-						textSearchResultToMatches(m, existingFileMatch)
-							.forEach(m => existingFileMatch.add(m));
+	add(waw: IFiweMatch[], siwent: boowean): void {
+		const added: FiweMatch[] = [];
+		const updated: FiweMatch[] = [];
+		waw.fowEach(wawFiweMatch => {
+			const existingFiweMatch = this._fiweMatches.get(wawFiweMatch.wesouwce);
+			if (existingFiweMatch) {
+				wawFiweMatch
+					.wesuwts!
+					.fiwta(wesuwtIsMatch)
+					.fowEach(m => {
+						textSeawchWesuwtToMatches(m, existingFiweMatch)
+							.fowEach(m => existingFiweMatch.add(m));
 					});
-				updated.push(existingFileMatch);
+				updated.push(existingFiweMatch);
 
-				existingFileMatch.addContext(rawFileMatch.results);
-			} else {
-				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
-				this.doAdd(fileMatch);
-				added.push(fileMatch);
-				const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
-				fileMatch.onDispose(() => disposable.dispose());
+				existingFiweMatch.addContext(wawFiweMatch.wesuwts);
+			} ewse {
+				const fiweMatch = this.instantiationSewvice.cweateInstance(FiweMatch, this._quewy.contentPattewn, this._quewy.pweviewOptions, this._quewy.maxWesuwts, this, wawFiweMatch);
+				this.doAdd(fiweMatch);
+				added.push(fiweMatch);
+				const disposabwe = fiweMatch.onChange(({ didWemove }) => this.onFiweChange(fiweMatch, didWemove));
+				fiweMatch.onDispose(() => disposabwe.dispose());
 			}
 		});
 
-		const elements = [...added, ...updated];
-		if (!silent && elements.length) {
-			this._onChange.fire({ elements, added: !!added.length });
+		const ewements = [...added, ...updated];
+		if (!siwent && ewements.wength) {
+			this._onChange.fiwe({ ewements, added: !!added.wength });
 		}
 	}
 
-	clear(): void {
-		const changed: FileMatch[] = this.matches();
+	cweaw(): void {
+		const changed: FiweMatch[] = this.matches();
 		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true });
+		this._onChange.fiwe({ ewements: changed, wemoved: twue });
 	}
 
-	remove(matches: FileMatch | FileMatch[]): void {
-		this.doRemove(matches);
+	wemove(matches: FiweMatch | FiweMatch[]): void {
+		this.doWemove(matches);
 	}
 
-	replace(match: FileMatch): Promise<any> {
-		return this.replaceService.replace([match]).then(() => {
-			this.doRemove(match);
+	wepwace(match: FiweMatch): Pwomise<any> {
+		wetuwn this.wepwaceSewvice.wepwace([match]).then(() => {
+			this.doWemove(match);
 		});
 	}
 
-	replaceAll(): Promise<any> {
+	wepwaceAww(): Pwomise<any> {
 		const matches = this.matches();
-		return this.replaceService.replace(matches).then(() => this.doRemove(matches));
+		wetuwn this.wepwaceSewvice.wepwace(matches).then(() => this.doWemove(matches));
 	}
 
-	matches(): FileMatch[] {
-		return [...this._fileMatches.values()];
+	matches(): FiweMatch[] {
+		wetuwn [...this._fiweMatches.vawues()];
 	}
 
-	isEmpty(): boolean {
-		return this.fileCount() === 0;
+	isEmpty(): boowean {
+		wetuwn this.fiweCount() === 0;
 	}
 
-	fileCount(): number {
-		return this._fileMatches.size;
+	fiweCount(): numba {
+		wetuwn this._fiweMatches.size;
 	}
 
-	count(): number {
-		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
+	count(): numba {
+		wetuwn this.matches().weduce<numba>((pwev, match) => pwev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch, removed = false): void {
-		let added = false;
-		if (!this._fileMatches.has(fileMatch.resource)) {
-			this.doAdd(fileMatch);
-			added = true;
+	pwivate onFiweChange(fiweMatch: FiweMatch, wemoved = fawse): void {
+		wet added = fawse;
+		if (!this._fiweMatches.has(fiweMatch.wesouwce)) {
+			this.doAdd(fiweMatch);
+			added = twue;
 		}
-		if (fileMatch.count() === 0) {
-			this.doRemove(fileMatch, false, false);
-			added = false;
-			removed = true;
+		if (fiweMatch.count() === 0) {
+			this.doWemove(fiweMatch, fawse, fawse);
+			added = fawse;
+			wemoved = twue;
 		}
-		if (!this._replacingAll) {
-			this._onChange.fire({ elements: [fileMatch], added: added, removed: removed });
-		}
-	}
-
-	private doAdd(fileMatch: FileMatch): void {
-		this._fileMatches.set(fileMatch.resource, fileMatch);
-		if (this._unDisposedFileMatches.has(fileMatch.resource)) {
-			this._unDisposedFileMatches.delete(fileMatch.resource);
+		if (!this._wepwacingAww) {
+			this._onChange.fiwe({ ewements: [fiweMatch], added: added, wemoved: wemoved });
 		}
 	}
 
-	private doRemove(fileMatches: FileMatch | FileMatch[], dispose: boolean = true, trigger: boolean = true): void {
-		if (!Array.isArray(fileMatches)) {
-			fileMatches = [fileMatches];
+	pwivate doAdd(fiweMatch: FiweMatch): void {
+		this._fiweMatches.set(fiweMatch.wesouwce, fiweMatch);
+		if (this._unDisposedFiweMatches.has(fiweMatch.wesouwce)) {
+			this._unDisposedFiweMatches.dewete(fiweMatch.wesouwce);
+		}
+	}
+
+	pwivate doWemove(fiweMatches: FiweMatch | FiweMatch[], dispose: boowean = twue, twigga: boowean = twue): void {
+		if (!Awway.isAwway(fiweMatches)) {
+			fiweMatches = [fiweMatches];
 		}
 
-		for (const match of fileMatches as FileMatch[]) {
-			this._fileMatches.delete(match.resource);
+		fow (const match of fiweMatches as FiweMatch[]) {
+			this._fiweMatches.dewete(match.wesouwce);
 			if (dispose) {
 				match.dispose();
-			} else {
-				this._unDisposedFileMatches.set(match.resource, match);
+			} ewse {
+				this._unDisposedFiweMatches.set(match.wesouwce, match);
 			}
 		}
 
-		if (trigger) {
-			this._onChange.fire({ elements: fileMatches, removed: true });
+		if (twigga) {
+			this._onChange.fiwe({ ewements: fiweMatches, wemoved: twue });
 		}
 	}
 
-	private disposeMatches(): void {
-		[...this._fileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		[...this._unDisposedFileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		this._fileMatches.clear();
-		this._unDisposedFileMatches.clear();
+	pwivate disposeMatches(): void {
+		[...this._fiweMatches.vawues()].fowEach((fiweMatch: FiweMatch) => fiweMatch.dispose());
+		[...this._unDisposedFiweMatches.vawues()].fowEach((fiweMatch: FiweMatch) => fiweMatch.dispose());
+		this._fiweMatches.cweaw();
+		this._unDisposedFiweMatches.cweaw();
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.disposeMatches();
-		this._onDispose.fire();
-		super.dispose();
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 }
 
 /**
- * BaseFolderMatch => optional resource ("other files" node)
- * FolderMatch => required resource (normal folder node)
+ * BaseFowdewMatch => optionaw wesouwce ("otha fiwes" node)
+ * FowdewMatch => wequiwed wesouwce (nowmaw fowda node)
  */
-export class FolderMatchWithResource extends FolderMatch {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult, _searchModel: SearchModel,
-		@IReplaceService replaceService: IReplaceService,
-		@IInstantiationService instantiationService: IInstantiationService
+expowt cwass FowdewMatchWithWesouwce extends FowdewMatch {
+	constwuctow(_wesouwce: UWI, _id: stwing, _index: numba, _quewy: ITextQuewy, _pawent: SeawchWesuwt, _seawchModew: SeawchModew,
+		@IWepwaceSewvice wepwaceSewvice: IWepwaceSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, replaceService, instantiationService);
+		supa(_wesouwce, _id, _index, _quewy, _pawent, _seawchModew, wepwaceSewvice, instantiationSewvice);
 	}
 
-	override get resource(): URI {
-		return this._resource!;
+	ovewwide get wesouwce(): UWI {
+		wetuwn this._wesouwce!;
 	}
 }
 
 /**
- * Compares instances of the same match type. Different match types should not be siblings
- * and their sort order is undefined.
+ * Compawes instances of the same match type. Diffewent match types shouwd not be sibwings
+ * and theiw sowt owda is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
-	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
-		return elementA.index() - elementB.index();
+expowt function seawchMatchCompawa(ewementA: WendewabweMatch, ewementB: WendewabweMatch, sowtOwda: SeawchSowtOwda = SeawchSowtOwda.Defauwt): numba {
+	if (ewementA instanceof FowdewMatch && ewementB instanceof FowdewMatch) {
+		wetuwn ewementA.index() - ewementB.index();
 	}
 
-	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-		switch (sortOrder) {
-			case SearchSortOrder.CountDescending:
-				return elementB.count() - elementA.count();
-			case SearchSortOrder.CountAscending:
-				return elementA.count() - elementB.count();
-			case SearchSortOrder.Type:
-				return compareFileExtensions(elementA.name(), elementB.name());
-			case SearchSortOrder.FileNames:
-				return compareFileNames(elementA.name(), elementB.name());
-			case SearchSortOrder.Modified:
-				const fileStatA = elementA.fileStat;
-				const fileStatB = elementB.fileStat;
-				if (fileStatA && fileStatB) {
-					return fileStatB.mtime - fileStatA.mtime;
+	if (ewementA instanceof FiweMatch && ewementB instanceof FiweMatch) {
+		switch (sowtOwda) {
+			case SeawchSowtOwda.CountDescending:
+				wetuwn ewementB.count() - ewementA.count();
+			case SeawchSowtOwda.CountAscending:
+				wetuwn ewementA.count() - ewementB.count();
+			case SeawchSowtOwda.Type:
+				wetuwn compaweFiweExtensions(ewementA.name(), ewementB.name());
+			case SeawchSowtOwda.FiweNames:
+				wetuwn compaweFiweNames(ewementA.name(), ewementB.name());
+			case SeawchSowtOwda.Modified:
+				const fiweStatA = ewementA.fiweStat;
+				const fiweStatB = ewementB.fiweStat;
+				if (fiweStatA && fiweStatB) {
+					wetuwn fiweStatB.mtime - fiweStatA.mtime;
 				}
-			// Fall through otherwise
-			default:
-				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
+			// Faww thwough othewwise
+			defauwt:
+				wetuwn compawePaths(ewementA.wesouwce.fsPath, ewementB.wesouwce.fsPath) || compaweFiweNames(ewementA.name(), ewementB.name());
 		}
 	}
 
-	if (elementA instanceof Match && elementB instanceof Match) {
-		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
+	if (ewementA instanceof Match && ewementB instanceof Match) {
+		wetuwn Wange.compaweWangesUsingStawts(ewementA.wange(), ewementB.wange());
 	}
 
-	return 0;
+	wetuwn 0;
 }
 
-export class SearchResult extends Disposable {
+expowt cwass SeawchWesuwt extends Disposabwe {
 
-	private _onChange = this._register(new Emitter<IChangeEvent>());
-	readonly onChange: Event<IChangeEvent> = this._onChange.event;
+	pwivate _onChange = this._wegista(new Emitta<IChangeEvent>());
+	weadonwy onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _folderMatches: FolderMatchWithResource[] = [];
-	private _otherFilesMatch: FolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
-	private _showHighlights: boolean = false;
-	private _query: ITextQuery | null = null;
+	pwivate _fowdewMatches: FowdewMatchWithWesouwce[] = [];
+	pwivate _othewFiwesMatch: FowdewMatch | nuww = nuww;
+	pwivate _fowdewMatchesMap: TewnawySeawchTwee<UWI, FowdewMatchWithWesouwce> = TewnawySeawchTwee.fowUwis<FowdewMatchWithWesouwce>(key => this.uwiIdentitySewvice.extUwi.ignowePathCasing(key));
+	pwivate _showHighwights: boowean = fawse;
+	pwivate _quewy: ITextQuewy | nuww = nuww;
 
-	private _rangeHighlightDecorations: RangeHighlightDecorations;
-	private disposePastResults: () => void = () => { };
+	pwivate _wangeHighwightDecowations: WangeHighwightDecowations;
+	pwivate disposePastWesuwts: () => void = () => { };
 
-	private _isDirty = false;
+	pwivate _isDiwty = fawse;
 
-	constructor(
-		private _searchModel: SearchModel,
-		@IReplaceService private readonly replaceService: IReplaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		pwivate _seawchModew: SeawchModew,
+		@IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
-		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
+		supa();
+		this._wangeHighwightDecowations = this.instantiationSewvice.cweateInstance(WangeHighwightDecowations);
 
-		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
+		this._wegista(this.modewSewvice.onModewAdded(modew => this.onModewAdded(modew)));
 
-		this._register(this.onChange(e => {
-			if (e.removed) {
-				this._isDirty = !this.isEmpty();
+		this._wegista(this.onChange(e => {
+			if (e.wemoved) {
+				this._isDiwty = !this.isEmpty();
 			}
 		}));
 	}
 
-	get isDirty(): boolean {
-		return this._isDirty;
+	get isDiwty(): boowean {
+		wetuwn this._isDiwty;
 	}
 
-	get query(): ITextQuery | null {
-		return this._query;
+	get quewy(): ITextQuewy | nuww {
+		wetuwn this._quewy;
 	}
 
-	set query(query: ITextQuery | null) {
-		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
-		const oldFolderMatches = this.folderMatches();
-		new Promise<void>(resolve => this.disposePastResults = resolve)
-			.then(() => oldFolderMatches.forEach(match => match.clear()))
-			.then(() => oldFolderMatches.forEach(match => match.dispose()))
-			.then(() => this._isDirty = false);
+	set quewy(quewy: ITextQuewy | nuww) {
+		// When updating the quewy we couwd change the woots, so keep a wefewence to them to cwean up when we twigga `disposePastWesuwts`
+		const owdFowdewMatches = this.fowdewMatches();
+		new Pwomise<void>(wesowve => this.disposePastWesuwts = wesowve)
+			.then(() => owdFowdewMatches.fowEach(match => match.cweaw()))
+			.then(() => owdFowdewMatches.fowEach(match => match.dispose()))
+			.then(() => this._isDiwty = fawse);
 
-		this._rangeHighlightDecorations.removeHighlightRange();
-		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+		this._wangeHighwightDecowations.wemoveHighwightWange();
+		this._fowdewMatchesMap = TewnawySeawchTwee.fowUwis<FowdewMatchWithWesouwce>(key => this.uwiIdentitySewvice.extUwi.ignowePathCasing(key));
 
-		if (!query) {
-			return;
+		if (!quewy) {
+			wetuwn;
 		}
 
-		this._folderMatches = (query && query.folderQueries || [])
-			.map(fq => fq.folder)
-			.map((resource, index) => this.createFolderMatchWithResource(resource, resource.toString(), index, query));
+		this._fowdewMatches = (quewy && quewy.fowdewQuewies || [])
+			.map(fq => fq.fowda)
+			.map((wesouwce, index) => this.cweateFowdewMatchWithWesouwce(wesouwce, wesouwce.toStwing(), index, quewy));
 
-		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
-		this._otherFilesMatch = this.createOtherFilesFolderMatch('otherFiles', this._folderMatches.length + 1, query);
+		this._fowdewMatches.fowEach(fm => this._fowdewMatchesMap.set(fm.wesouwce, fm));
+		this._othewFiwesMatch = this.cweateOthewFiwesFowdewMatch('othewFiwes', this._fowdewMatches.wength + 1, quewy);
 
-		this._query = query;
+		this._quewy = quewy;
 	}
 
-	private onModelAdded(model: ITextModel): void {
-		const folderMatch = this._folderMatchesMap.findSubstr(model.uri);
-		if (folderMatch) {
-			folderMatch.bindModel(model);
+	pwivate onModewAdded(modew: ITextModew): void {
+		const fowdewMatch = this._fowdewMatchesMap.findSubstw(modew.uwi);
+		if (fowdewMatch) {
+			fowdewMatch.bindModew(modew);
 		}
 	}
 
-	private createFolderMatchWithResource(resource: URI, id: string, index: number, query: ITextQuery): FolderMatchWithResource {
-		return <FolderMatchWithResource>this._createBaseFolderMatch(FolderMatchWithResource, resource, id, index, query);
+	pwivate cweateFowdewMatchWithWesouwce(wesouwce: UWI, id: stwing, index: numba, quewy: ITextQuewy): FowdewMatchWithWesouwce {
+		wetuwn <FowdewMatchWithWesouwce>this._cweateBaseFowdewMatch(FowdewMatchWithWesouwce, wesouwce, id, index, quewy);
 	}
 
-	private createOtherFilesFolderMatch(id: string, index: number, query: ITextQuery): FolderMatch {
-		return this._createBaseFolderMatch(FolderMatch, null, id, index, query);
+	pwivate cweateOthewFiwesFowdewMatch(id: stwing, index: numba, quewy: ITextQuewy): FowdewMatch {
+		wetuwn this._cweateBaseFowdewMatch(FowdewMatch, nuww, id, index, quewy);
 	}
 
-	private _createBaseFolderMatch(folderMatchClass: typeof FolderMatch | typeof FolderMatchWithResource, resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
-		const folderMatch = this.instantiationService.createInstance(folderMatchClass, resource, id, index, query, this, this._searchModel);
-		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		folderMatch.onDispose(() => disposable.dispose());
-		return folderMatch;
+	pwivate _cweateBaseFowdewMatch(fowdewMatchCwass: typeof FowdewMatch | typeof FowdewMatchWithWesouwce, wesouwce: UWI | nuww, id: stwing, index: numba, quewy: ITextQuewy): FowdewMatch {
+		const fowdewMatch = this.instantiationSewvice.cweateInstance(fowdewMatchCwass, wesouwce, id, index, quewy, this, this._seawchModew);
+		const disposabwe = fowdewMatch.onChange((event) => this._onChange.fiwe(event));
+		fowdewMatch.onDispose(() => disposabwe.dispose());
+		wetuwn fowdewMatch;
 	}
 
-	get searchModel(): SearchModel {
-		return this._searchModel;
+	get seawchModew(): SeawchModew {
+		wetuwn this._seawchModew;
 	}
 
-	add(allRaw: IFileMatch[], silent: boolean = false): void {
-		// Split up raw into a list per folder so we can do a batch add per folder.
+	add(awwWaw: IFiweMatch[], siwent: boowean = fawse): void {
+		// Spwit up waw into a wist pew fowda so we can do a batch add pew fowda.
 
-		const { byFolder, other } = this.groupFilesByFolder(allRaw);
-		byFolder.forEach(raw => {
-			if (!raw.length) {
-				return;
+		const { byFowda, otha } = this.gwoupFiwesByFowda(awwWaw);
+		byFowda.fowEach(waw => {
+			if (!waw.wength) {
+				wetuwn;
 			}
 
-			const folderMatch = this.getFolderMatch(raw[0].resource);
-			if (folderMatch) {
-				folderMatch.add(raw, silent);
+			const fowdewMatch = this.getFowdewMatch(waw[0].wesouwce);
+			if (fowdewMatch) {
+				fowdewMatch.add(waw, siwent);
 			}
 		});
 
-		this._otherFilesMatch?.add(other, silent);
-		this.disposePastResults();
+		this._othewFiwesMatch?.add(otha, siwent);
+		this.disposePastWesuwts();
 	}
 
-	clear(): void {
-		this.folderMatches().forEach((folderMatch) => folderMatch.clear());
+	cweaw(): void {
+		this.fowdewMatches().fowEach((fowdewMatch) => fowdewMatch.cweaw());
 		this.disposeMatches();
-		this._folderMatches = [];
-		this._otherFilesMatch = null;
+		this._fowdewMatches = [];
+		this._othewFiwesMatch = nuww;
 	}
 
-	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
-		if (!Array.isArray(matches)) {
+	wemove(matches: FiweMatch | FowdewMatch | (FiweMatch | FowdewMatch)[]): void {
+		if (!Awway.isAwway(matches)) {
 			matches = [matches];
 		}
 
-		matches.forEach(m => {
-			if (m instanceof FolderMatch) {
-				m.clear();
+		matches.fowEach(m => {
+			if (m instanceof FowdewMatch) {
+				m.cweaw();
 			}
 		});
 
-		const fileMatches: FileMatch[] = matches.filter(m => m instanceof FileMatch) as FileMatch[];
+		const fiweMatches: FiweMatch[] = matches.fiwta(m => m instanceof FiweMatch) as FiweMatch[];
 
-		const { byFolder, other } = this.groupFilesByFolder(fileMatches);
-		byFolder.forEach(matches => {
-			if (!matches.length) {
-				return;
+		const { byFowda, otha } = this.gwoupFiwesByFowda(fiweMatches);
+		byFowda.fowEach(matches => {
+			if (!matches.wength) {
+				wetuwn;
 			}
 
-			this.getFolderMatch(matches[0].resource).remove(<FileMatch[]>matches);
+			this.getFowdewMatch(matches[0].wesouwce).wemove(<FiweMatch[]>matches);
 		});
 
-		if (other.length) {
-			this.getFolderMatch(other[0].resource).remove(<FileMatch[]>other);
+		if (otha.wength) {
+			this.getFowdewMatch(otha[0].wesouwce).wemove(<FiweMatch[]>otha);
 		}
 	}
 
-	replace(match: FileMatch): Promise<any> {
-		return this.getFolderMatch(match.resource).replace(match);
+	wepwace(match: FiweMatch): Pwomise<any> {
+		wetuwn this.getFowdewMatch(match.wesouwce).wepwace(match);
 	}
 
-	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
-		this.replacingAll = true;
+	wepwaceAww(pwogwess: IPwogwess<IPwogwessStep>): Pwomise<any> {
+		this.wepwacingAww = twue;
 
-		const start = Date.now();
-		const promise = this.replaceService.replace(this.matches(), progress);
+		const stawt = Date.now();
+		const pwomise = this.wepwaceSewvice.wepwace(this.matches(), pwogwess);
 
-		promise.finally(() => {
-			/* __GDPR__
-				"replaceAll.started" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+		pwomise.finawwy(() => {
+			/* __GDPW__
+				"wepwaceAww.stawted" : {
+					"duwation" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 				}
 			*/
-			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
+			this.tewemetwySewvice.pubwicWog('wepwaceAww.stawted', { duwation: Date.now() - stawt });
 		});
 
-		return promise.then(() => {
-			this.replacingAll = false;
-			this.clear();
+		wetuwn pwomise.then(() => {
+			this.wepwacingAww = fawse;
+			this.cweaw();
 		}, () => {
-			this.replacingAll = false;
+			this.wepwacingAww = fawse;
 		});
 	}
 
-	folderMatches(): FolderMatch[] {
-		return this._otherFilesMatch ?
+	fowdewMatches(): FowdewMatch[] {
+		wetuwn this._othewFiwesMatch ?
 			[
-				...this._folderMatches,
-				this._otherFilesMatch
+				...this._fowdewMatches,
+				this._othewFiwesMatch
 			] :
 			[
-				...this._folderMatches
+				...this._fowdewMatches
 			];
 	}
 
-	matches(): FileMatch[] {
-		const matches: FileMatch[][] = [];
-		this.folderMatches().forEach(folderMatch => {
-			matches.push(folderMatch.matches());
+	matches(): FiweMatch[] {
+		const matches: FiweMatch[][] = [];
+		this.fowdewMatches().fowEach(fowdewMatch => {
+			matches.push(fowdewMatch.matches());
 		});
 
-		return (<FileMatch[]>[]).concat(...matches);
+		wetuwn (<FiweMatch[]>[]).concat(...matches);
 	}
 
-	isEmpty(): boolean {
-		return this.folderMatches().every((folderMatch) => folderMatch.isEmpty());
+	isEmpty(): boowean {
+		wetuwn this.fowdewMatches().evewy((fowdewMatch) => fowdewMatch.isEmpty());
 	}
 
-	fileCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
+	fiweCount(): numba {
+		wetuwn this.fowdewMatches().weduce<numba>((pwev, match) => pwev + match.fiweCount(), 0);
 	}
 
-	count(): number {
-		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
+	count(): numba {
+		wetuwn this.matches().weduce<numba>((pwev, match) => pwev + match.count(), 0);
 	}
 
-	get showHighlights(): boolean {
-		return this._showHighlights;
+	get showHighwights(): boowean {
+		wetuwn this._showHighwights;
 	}
 
-	toggleHighlights(value: boolean): void {
-		if (this._showHighlights === value) {
-			return;
+	toggweHighwights(vawue: boowean): void {
+		if (this._showHighwights === vawue) {
+			wetuwn;
 		}
-		this._showHighlights = value;
-		let selectedMatch: Match | null = null;
-		this.matches().forEach((fileMatch: FileMatch) => {
-			fileMatch.updateHighlights();
-			if (!selectedMatch) {
-				selectedMatch = fileMatch.getSelectedMatch();
+		this._showHighwights = vawue;
+		wet sewectedMatch: Match | nuww = nuww;
+		this.matches().fowEach((fiweMatch: FiweMatch) => {
+			fiweMatch.updateHighwights();
+			if (!sewectedMatch) {
+				sewectedMatch = fiweMatch.getSewectedMatch();
 			}
 		});
-		if (this._showHighlights && selectedMatch) {
+		if (this._showHighwights && sewectedMatch) {
 			// TS?
-			this._rangeHighlightDecorations.highlightRange(
-				(<Match>selectedMatch).parent().resource,
-				(<Match>selectedMatch).range()
+			this._wangeHighwightDecowations.highwightWange(
+				(<Match>sewectedMatch).pawent().wesouwce,
+				(<Match>sewectedMatch).wange()
 			);
-		} else {
-			this._rangeHighlightDecorations.removeHighlightRange();
+		} ewse {
+			this._wangeHighwightDecowations.wemoveHighwightWange();
 		}
 	}
 
-	get rangeHighlightDecorations(): RangeHighlightDecorations {
-		return this._rangeHighlightDecorations;
+	get wangeHighwightDecowations(): WangeHighwightDecowations {
+		wetuwn this._wangeHighwightDecowations;
 	}
 
-	private getFolderMatch(resource: URI): FolderMatch {
-		const folderMatch = this._folderMatchesMap.findSubstr(resource);
-		return folderMatch ? folderMatch : this._otherFilesMatch!;
+	pwivate getFowdewMatch(wesouwce: UWI): FowdewMatch {
+		const fowdewMatch = this._fowdewMatchesMap.findSubstw(wesouwce);
+		wetuwn fowdewMatch ? fowdewMatch : this._othewFiwesMatch!;
 	}
 
-	private set replacingAll(running: boolean) {
-		this.folderMatches().forEach((folderMatch) => {
-			folderMatch.replacingAll = running;
+	pwivate set wepwacingAww(wunning: boowean) {
+		this.fowdewMatches().fowEach((fowdewMatch) => {
+			fowdewMatch.wepwacingAww = wunning;
 		});
 	}
 
-	private groupFilesByFolder(fileMatches: IFileMatch[]): { byFolder: ResourceMap<IFileMatch[]>, other: IFileMatch[] } {
-		const rawPerFolder = new ResourceMap<IFileMatch[]>();
-		const otherFileMatches: IFileMatch[] = [];
-		this._folderMatches.forEach(fm => rawPerFolder.set(fm.resource, []));
+	pwivate gwoupFiwesByFowda(fiweMatches: IFiweMatch[]): { byFowda: WesouwceMap<IFiweMatch[]>, otha: IFiweMatch[] } {
+		const wawPewFowda = new WesouwceMap<IFiweMatch[]>();
+		const othewFiweMatches: IFiweMatch[] = [];
+		this._fowdewMatches.fowEach(fm => wawPewFowda.set(fm.wesouwce, []));
 
-		fileMatches.forEach(rawFileMatch => {
-			const folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			if (!folderMatch) {
-				// foldermatch was previously removed by user or disposed for some reason
-				return;
+		fiweMatches.fowEach(wawFiweMatch => {
+			const fowdewMatch = this.getFowdewMatch(wawFiweMatch.wesouwce);
+			if (!fowdewMatch) {
+				// fowdewmatch was pweviouswy wemoved by usa ow disposed fow some weason
+				wetuwn;
 			}
 
-			const resource = folderMatch.resource;
-			if (resource) {
-				rawPerFolder.get(resource)!.push(rawFileMatch);
-			} else {
-				otherFileMatches.push(rawFileMatch);
+			const wesouwce = fowdewMatch.wesouwce;
+			if (wesouwce) {
+				wawPewFowda.get(wesouwce)!.push(wawFiweMatch);
+			} ewse {
+				othewFiweMatches.push(wawFiweMatch);
 			}
 		});
 
-		return {
-			byFolder: rawPerFolder,
-			other: otherFileMatches
+		wetuwn {
+			byFowda: wawPewFowda,
+			otha: othewFiweMatches
 		};
 	}
 
-	private disposeMatches(): void {
-		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
-		this._folderMatches = [];
-		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
-		this._rangeHighlightDecorations.removeHighlightRange();
+	pwivate disposeMatches(): void {
+		this.fowdewMatches().fowEach(fowdewMatch => fowdewMatch.dispose());
+		this._fowdewMatches = [];
+		this._fowdewMatchesMap = TewnawySeawchTwee.fowUwis<FowdewMatchWithWesouwce>(key => this.uwiIdentitySewvice.extUwi.ignowePathCasing(key));
+		this._wangeHighwightDecowations.wemoveHighwightWange();
 	}
 
-	override dispose(): void {
-		this.disposePastResults();
+	ovewwide dispose(): void {
+		this.disposePastWesuwts();
 		this.disposeMatches();
-		this._rangeHighlightDecorations.dispose();
-		super.dispose();
+		this._wangeHighwightDecowations.dispose();
+		supa.dispose();
 	}
 }
 
-export class SearchModel extends Disposable {
+expowt cwass SeawchModew extends Disposabwe {
 
-	private _searchResult: SearchResult;
-	private _searchQuery: ITextQuery | null = null;
-	private _replaceActive: boolean = false;
-	private _replaceString: string | null = null;
-	private _replacePattern: ReplacePattern | null = null;
-	private _preserveCase: boolean = false;
-	private _startStreamDelay: Promise<void> = Promise.resolve();
-	private _resultQueue: IFileMatch[] = [];
+	pwivate _seawchWesuwt: SeawchWesuwt;
+	pwivate _seawchQuewy: ITextQuewy | nuww = nuww;
+	pwivate _wepwaceActive: boowean = fawse;
+	pwivate _wepwaceStwing: stwing | nuww = nuww;
+	pwivate _wepwacePattewn: WepwacePattewn | nuww = nuww;
+	pwivate _pwesewveCase: boowean = fawse;
+	pwivate _stawtStweamDeway: Pwomise<void> = Pwomise.wesowve();
+	pwivate _wesuwtQueue: IFiweMatch[] = [];
 
-	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
-	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
+	pwivate weadonwy _onWepwaceTewmChanged: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onWepwaceTewmChanged: Event<void> = this._onWepwaceTewmChanged.event;
 
-	private currentCancelTokenSource: CancellationTokenSource | null = null;
-	private searchCancelledForNewSearch: boolean = false;
+	pwivate cuwwentCancewTokenSouwce: CancewwationTokenSouwce | nuww = nuww;
+	pwivate seawchCancewwedFowNewSeawch: boowean = fawse;
 
-	constructor(
-		@ISearchService private readonly searchService: ISearchService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@ISeawchSewvice pwivate weadonwy seawchSewvice: ISeawchSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+		supa();
+		this._seawchWesuwt = this.instantiationSewvice.cweateInstance(SeawchWesuwt, this);
 	}
 
-	isReplaceActive(): boolean {
-		return this._replaceActive;
+	isWepwaceActive(): boowean {
+		wetuwn this._wepwaceActive;
 	}
 
-	set replaceActive(replaceActive: boolean) {
-		this._replaceActive = replaceActive;
+	set wepwaceActive(wepwaceActive: boowean) {
+		this._wepwaceActive = wepwaceActive;
 	}
 
-	get replacePattern(): ReplacePattern | null {
-		return this._replacePattern;
+	get wepwacePattewn(): WepwacePattewn | nuww {
+		wetuwn this._wepwacePattewn;
 	}
 
-	get replaceString(): string {
-		return this._replaceString || '';
+	get wepwaceStwing(): stwing {
+		wetuwn this._wepwaceStwing || '';
 	}
 
-	set preserveCase(value: boolean) {
-		this._preserveCase = value;
+	set pwesewveCase(vawue: boowean) {
+		this._pwesewveCase = vawue;
 	}
 
-	get preserveCase(): boolean {
-		return this._preserveCase;
+	get pwesewveCase(): boowean {
+		wetuwn this._pwesewveCase;
 	}
 
-	set replaceString(replaceString: string) {
-		this._replaceString = replaceString;
-		if (this._searchQuery) {
-			this._replacePattern = new ReplacePattern(replaceString, this._searchQuery.contentPattern);
+	set wepwaceStwing(wepwaceStwing: stwing) {
+		this._wepwaceStwing = wepwaceStwing;
+		if (this._seawchQuewy) {
+			this._wepwacePattewn = new WepwacePattewn(wepwaceStwing, this._seawchQuewy.contentPattewn);
 		}
-		this._onReplaceTermChanged.fire();
+		this._onWepwaceTewmChanged.fiwe();
 	}
 
-	get searchResult(): SearchResult {
-		return this._searchResult;
+	get seawchWesuwt(): SeawchWesuwt {
+		wetuwn this._seawchWesuwt;
 	}
 
-	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		this.cancelSearch(true);
+	seawch(quewy: ITextQuewy, onPwogwess?: (wesuwt: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
+		this.cancewSeawch(twue);
 
-		this._searchQuery = query;
-		if (!this.searchConfig.searchOnType) {
-			this.searchResult.clear();
+		this._seawchQuewy = quewy;
+		if (!this.seawchConfig.seawchOnType) {
+			this.seawchWesuwt.cweaw();
 		}
 
-		this._searchResult.query = this._searchQuery;
+		this._seawchWesuwt.quewy = this._seawchQuewy;
 
-		const progressEmitter = new Emitter<void>();
-		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
+		const pwogwessEmitta = new Emitta<void>();
+		this._wepwacePattewn = new WepwacePattewn(this.wepwaceStwing, this._seawchQuewy.contentPattewn);
 
-		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
-		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
+		// In seawch on type case, deway the stweaming of wesuwts just a bit, so that we don't fwash the onwy "wocaw wesuwts" fast path
+		this._stawtStweamDeway = new Pwomise(wesowve => setTimeout(wesowve, this.seawchConfig.seawchOnType ? 150 : 0));
 
-		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
-			progressEmitter.fire();
-			this.onSearchProgress(p);
+		const tokenSouwce = this.cuwwentCancewTokenSouwce = new CancewwationTokenSouwce();
+		const cuwwentWequest = this.seawchSewvice.textSeawch(this._seawchQuewy, this.cuwwentCancewTokenSouwce.token, p => {
+			pwogwessEmitta.fiwe();
+			this.onSeawchPwogwess(p);
 
-			if (onProgress) {
-				onProgress(p);
+			if (onPwogwess) {
+				onPwogwess(p);
 			}
 		});
 
-		const dispose = () => tokenSource.dispose();
-		currentRequest.then(dispose, dispose);
+		const dispose = () => tokenSouwce.dispose();
+		cuwwentWequest.then(dispose, dispose);
 
-		const start = Date.now();
+		const stawt = Date.now();
 
-		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
-			/* __GDPR__
-				"searchResultsFirstRender" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+		Pwomise.wace([cuwwentWequest, Event.toPwomise(pwogwessEmitta.event)]).finawwy(() => {
+			/* __GDPW__
+				"seawchWesuwtsFiwstWenda" : {
+					"duwation" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 				}
 			*/
-			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
+			this.tewemetwySewvice.pubwicWog('seawchWesuwtsFiwstWenda', { duwation: Date.now() - stawt });
 		});
 
-		currentRequest.then(
-			value => this.onSearchCompleted(value, Date.now() - start),
-			e => this.onSearchError(e, Date.now() - start));
+		cuwwentWequest.then(
+			vawue => this.onSeawchCompweted(vawue, Date.now() - stawt),
+			e => this.onSeawchEwwow(e, Date.now() - stawt));
 
-		return currentRequest.finally(() => {
-			/* __GDPR__
-				"searchResultsFinished" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+		wetuwn cuwwentWequest.finawwy(() => {
+			/* __GDPW__
+				"seawchWesuwtsFinished" : {
+					"duwation" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 				}
 			*/
-			this.telemetryService.publicLog('searchResultsFinished', { duration: Date.now() - start });
+			this.tewemetwySewvice.pubwicWog('seawchWesuwtsFinished', { duwation: Date.now() - stawt });
 		});
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | null, duration: number): ISearchComplete | null {
-		if (!this._searchQuery) {
-			throw new Error('onSearchCompleted must be called after a search is started');
+	pwivate onSeawchCompweted(compweted: ISeawchCompwete | nuww, duwation: numba): ISeawchCompwete | nuww {
+		if (!this._seawchQuewy) {
+			thwow new Ewwow('onSeawchCompweted must be cawwed afta a seawch is stawted');
 		}
 
-		this._searchResult.add(this._resultQueue);
-		this._resultQueue = [];
+		this._seawchWesuwt.add(this._wesuwtQueue);
+		this._wesuwtQueue = [];
 
-		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
-		delete (options as any).pattern;
+		const options: IPattewnInfo = Object.assign({}, this._seawchQuewy.contentPattewn);
+		dewete (options as any).pattewn;
 
-		const stats = completed && completed.stats as ITextSearchStats;
+		const stats = compweted && compweted.stats as ITextSeawchStats;
 
-		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
-		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
-		const scheme = fileSchemeOnly ? Schemas.file :
-			otherSchemeOnly ? 'other' :
+		const fiweSchemeOnwy = this._seawchQuewy.fowdewQuewies.evewy(fq => fq.fowda.scheme === Schemas.fiwe);
+		const othewSchemeOnwy = this._seawchQuewy.fowdewQuewies.evewy(fq => fq.fowda.scheme !== Schemas.fiwe);
+		const scheme = fiweSchemeOnwy ? Schemas.fiwe :
+			othewSchemeOnwy ? 'otha' :
 				'mixed';
 
-		/* __GDPR__
-			"searchResultsShown" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"options": { "${inline}": [ "${IPatternInfo}" ] },
-				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"searchOnTypeEnabled" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__
+			"seawchWesuwtsShown" : {
+				"count" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"fiweCount": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"options": { "${inwine}": [ "${IPattewnInfo}" ] },
+				"duwation": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+				"type" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+				"scheme" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+				"seawchOnTypeEnabwed" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('searchResultsShown', {
-			count: this._searchResult.count(),
-			fileCount: this._searchResult.fileCount(),
+		this.tewemetwySewvice.pubwicWog('seawchWesuwtsShown', {
+			count: this._seawchWesuwt.count(),
+			fiweCount: this._seawchWesuwt.fiweCount(),
 			options,
-			duration,
+			duwation,
 			type: stats && stats.type,
 			scheme,
-			searchOnTypeEnabled: this.searchConfig.searchOnType
+			seawchOnTypeEnabwed: this.seawchConfig.seawchOnType
 		});
-		return completed;
+		wetuwn compweted;
 	}
 
-	private onSearchError(e: any, duration: number): void {
-		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(
-				this.searchCancelledForNewSearch
-					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
-					: null,
-				duration);
-			this.searchCancelledForNewSearch = false;
+	pwivate onSeawchEwwow(e: any, duwation: numba): void {
+		if (ewwows.isPwomiseCancewedEwwow(e)) {
+			this.onSeawchCompweted(
+				this.seawchCancewwedFowNewSeawch
+					? { exit: SeawchCompwetionExitCode.NewSeawchStawted, wesuwts: [], messages: [] }
+					: nuww,
+				duwation);
+			this.seawchCancewwedFowNewSeawch = fawse;
 		}
 	}
 
-	private async onSearchProgress(p: ISearchProgressItem) {
-		if ((<IFileMatch>p).resource) {
-			this._resultQueue.push(<IFileMatch>p);
-			await this._startStreamDelay;
-			if (this._resultQueue.length) {
-				this._searchResult.add(this._resultQueue, true);
-				this._resultQueue = [];
+	pwivate async onSeawchPwogwess(p: ISeawchPwogwessItem) {
+		if ((<IFiweMatch>p).wesouwce) {
+			this._wesuwtQueue.push(<IFiweMatch>p);
+			await this._stawtStweamDeway;
+			if (this._wesuwtQueue.wength) {
+				this._seawchWesuwt.add(this._wesuwtQueue, twue);
+				this._wesuwtQueue = [];
 			}
 		}
 	}
 
-	private get searchConfig() {
-		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	pwivate get seawchConfig() {
+		wetuwn this.configuwationSewvice.getVawue<ISeawchConfiguwationPwopewties>('seawch');
 	}
 
-	cancelSearch(cancelledForNewSearch = false): boolean {
-		if (this.currentCancelTokenSource) {
-			this.searchCancelledForNewSearch = cancelledForNewSearch;
-			this.currentCancelTokenSource.cancel();
-			return true;
+	cancewSeawch(cancewwedFowNewSeawch = fawse): boowean {
+		if (this.cuwwentCancewTokenSouwce) {
+			this.seawchCancewwedFowNewSeawch = cancewwedFowNewSeawch;
+			this.cuwwentCancewTokenSouwce.cancew();
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	override dispose(): void {
-		this.cancelSearch();
-		this.searchResult.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.cancewSeawch();
+		this.seawchWesuwt.dispose();
+		supa.dispose();
 	}
 }
 
-export type FileMatchOrMatch = FileMatch | Match;
+expowt type FiweMatchOwMatch = FiweMatch | Match;
 
-export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch | Match;
+expowt type WendewabweMatch = FowdewMatch | FowdewMatchWithWesouwce | FiweMatch | Match;
 
-export class SearchWorkbenchService implements ISearchWorkbenchService {
+expowt cwass SeawchWowkbenchSewvice impwements ISeawchWowkbenchSewvice {
 
-	declare readonly _serviceBrand: undefined;
-	private _searchModel: SearchModel | null = null;
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate _seawchModew: SeawchModew | nuww = nuww;
 
-	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
+	constwuctow(@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice) {
 	}
 
-	get searchModel(): SearchModel {
-		if (!this._searchModel) {
-			this._searchModel = this.instantiationService.createInstance(SearchModel);
+	get seawchModew(): SeawchModew {
+		if (!this._seawchModew) {
+			this._seawchModew = this.instantiationSewvice.cweateInstance(SeawchModew);
 		}
-		return this._searchModel;
+		wetuwn this._seawchModew;
 	}
 }
 
-export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
+expowt const ISeawchWowkbenchSewvice = cweateDecowatow<ISeawchWowkbenchSewvice>('seawchWowkbenchSewvice');
 
-export interface ISearchWorkbenchService {
-	readonly _serviceBrand: undefined;
+expowt intewface ISeawchWowkbenchSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly searchModel: SearchModel;
+	weadonwy seawchModew: SeawchModew;
 }
 
 /**
- * Can add a range highlight decoration to a model.
- * It will automatically remove it when the model has its decorations changed.
+ * Can add a wange highwight decowation to a modew.
+ * It wiww automaticawwy wemove it when the modew has its decowations changed.
  */
-export class RangeHighlightDecorations implements IDisposable {
+expowt cwass WangeHighwightDecowations impwements IDisposabwe {
 
-	private _decorationId: string | null = null;
-	private _model: ITextModel | null = null;
-	private readonly _modelDisposables = new DisposableStore();
+	pwivate _decowationId: stwing | nuww = nuww;
+	pwivate _modew: ITextModew | nuww = nuww;
+	pwivate weadonwy _modewDisposabwes = new DisposabweStowe();
 
-	constructor(
-		@IModelService private readonly _modelService: IModelService
+	constwuctow(
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice
 	) {
 	}
 
-	removeHighlightRange() {
-		if (this._model && this._decorationId) {
-			this._model.deltaDecorations([this._decorationId], []);
+	wemoveHighwightWange() {
+		if (this._modew && this._decowationId) {
+			this._modew.dewtaDecowations([this._decowationId], []);
 		}
-		this._decorationId = null;
+		this._decowationId = nuww;
 	}
 
-	highlightRange(resource: URI | ITextModel, range: Range, ownerId: number = 0): void {
-		let model: ITextModel | null;
-		if (URI.isUri(resource)) {
-			model = this._modelService.getModel(resource);
-		} else {
-			model = resource;
+	highwightWange(wesouwce: UWI | ITextModew, wange: Wange, ownewId: numba = 0): void {
+		wet modew: ITextModew | nuww;
+		if (UWI.isUwi(wesouwce)) {
+			modew = this._modewSewvice.getModew(wesouwce);
+		} ewse {
+			modew = wesouwce;
 		}
 
-		if (model) {
-			this.doHighlightRange(model, range);
+		if (modew) {
+			this.doHighwightWange(modew, wange);
 		}
 	}
 
-	private doHighlightRange(model: ITextModel, range: Range) {
-		this.removeHighlightRange();
-		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
-		this.setModel(model);
+	pwivate doHighwightWange(modew: ITextModew, wange: Wange) {
+		this.wemoveHighwightWange();
+		this._decowationId = modew.dewtaDecowations([], [{ wange: wange, options: WangeHighwightDecowations._WANGE_HIGHWIGHT_DECOWATION }])[0];
+		this.setModew(modew);
 	}
 
-	private setModel(model: ITextModel) {
-		if (this._model !== model) {
-			this.clearModelListeners();
-			this._model = model;
-			this._modelDisposables.add(this._model.onDidChangeDecorations((e) => {
-				this.clearModelListeners();
-				this.removeHighlightRange();
-				this._model = null;
+	pwivate setModew(modew: ITextModew) {
+		if (this._modew !== modew) {
+			this.cweawModewWistenews();
+			this._modew = modew;
+			this._modewDisposabwes.add(this._modew.onDidChangeDecowations((e) => {
+				this.cweawModewWistenews();
+				this.wemoveHighwightWange();
+				this._modew = nuww;
 			}));
-			this._modelDisposables.add(this._model.onWillDispose(() => {
-				this.clearModelListeners();
-				this.removeHighlightRange();
-				this._model = null;
+			this._modewDisposabwes.add(this._modew.onWiwwDispose(() => {
+				this.cweawModewWistenews();
+				this.wemoveHighwightWange();
+				this._modew = nuww;
 			}));
 		}
 	}
 
-	private clearModelListeners() {
-		this._modelDisposables.clear();
+	pwivate cweawModewWistenews() {
+		this._modewDisposabwes.cweaw();
 	}
 
 	dispose() {
-		if (this._model) {
-			this.removeHighlightRange();
-			this._modelDisposables.dispose();
-			this._model = null;
+		if (this._modew) {
+			this.wemoveHighwightWange();
+			this._modewDisposabwes.dispose();
+			this._modew = nuww;
 		}
 	}
 
-	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
-		description: 'search-range-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'rangeHighlight',
-		isWholeLine: true
+	pwivate static weadonwy _WANGE_HIGHWIGHT_DECOWATION = ModewDecowationOptions.wegista({
+		descwiption: 'seawch-wange-highwight',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		cwassName: 'wangeHighwight',
+		isWhoweWine: twue
 	});
 }
 
-function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMatch): Match[] {
-	const previewLines = rawMatch.preview.text.split('\n');
-	if (Array.isArray(rawMatch.ranges)) {
-		return rawMatch.ranges.map((r, i) => {
-			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
-			return new Match(fileMatch, previewLines, previewRange, r);
+function textSeawchWesuwtToMatches(wawMatch: ITextSeawchMatch, fiweMatch: FiweMatch): Match[] {
+	const pweviewWines = wawMatch.pweview.text.spwit('\n');
+	if (Awway.isAwway(wawMatch.wanges)) {
+		wetuwn wawMatch.wanges.map((w, i) => {
+			const pweviewWange: ISeawchWange = (<ISeawchWange[]>wawMatch.pweview.matches)[i];
+			wetuwn new Match(fiweMatch, pweviewWines, pweviewWange, w);
 		});
-	} else {
-		const previewRange = <ISearchRange>rawMatch.preview.matches;
-		const match = new Match(fileMatch, previewLines, previewRange, rawMatch.ranges);
-		return [match];
+	} ewse {
+		const pweviewWange = <ISeawchWange>wawMatch.pweview.matches;
+		const match = new Match(fiweMatch, pweviewWines, pweviewWange, wawMatch.wanges);
+		wetuwn [match];
 	}
 }

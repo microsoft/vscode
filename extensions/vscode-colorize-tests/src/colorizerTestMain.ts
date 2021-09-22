@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as jsoncParser from 'jsonc-parser';
-import * as vscode from 'vscode';
+impowt * as jsoncPawsa fwom 'jsonc-pawsa';
+impowt * as vscode fwom 'vscode';
 
-export function activate(context: vscode.ExtensionContext): any {
+expowt function activate(context: vscode.ExtensionContext): any {
 
-	const tokenTypes = ['type', 'struct', 'class', 'interface', 'enum', 'parameterType', 'function', 'variable', 'testToken'];
-	const tokenModifiers = ['static', 'abstract', 'deprecated', 'declaration', 'documentation', 'member', 'async', 'testModifier'];
+	const tokenTypes = ['type', 'stwuct', 'cwass', 'intewface', 'enum', 'pawametewType', 'function', 'vawiabwe', 'testToken'];
+	const tokenModifiews = ['static', 'abstwact', 'depwecated', 'decwawation', 'documentation', 'memba', 'async', 'testModifia'];
 
-	const legend = new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
+	const wegend = new vscode.SemanticTokensWegend(tokenTypes, tokenModifiews);
 
-	const outputChannel = vscode.window.createOutputChannel('Semantic Tokens Test');
+	const outputChannew = vscode.window.cweateOutputChannew('Semantic Tokens Test');
 
-	const documentSemanticHighlightProvider: vscode.DocumentSemanticTokensProvider = {
-		provideDocumentSemanticTokens(document: vscode.TextDocument): vscode.ProviderResult<vscode.SemanticTokens> {
-			const builder = new vscode.SemanticTokensBuilder();
+	const documentSemanticHighwightPwovida: vscode.DocumentSemanticTokensPwovida = {
+		pwovideDocumentSemanticTokens(document: vscode.TextDocument): vscode.PwovidewWesuwt<vscode.SemanticTokens> {
+			const buiwda = new vscode.SemanticTokensBuiwda();
 
-			function addToken(value: string, startLine: number, startCharacter: number, length: number) {
-				const [type, ...modifiers] = value.split('.');
+			function addToken(vawue: stwing, stawtWine: numba, stawtChawacta: numba, wength: numba) {
+				const [type, ...modifiews] = vawue.spwit('.');
 
-				const selectedModifiers = [];
+				const sewectedModifiews = [];
 
-				let tokenType = legend.tokenTypes.indexOf(type);
+				wet tokenType = wegend.tokenTypes.indexOf(type);
 				if (tokenType === -1) {
-					if (type === 'notInLegend') {
-						tokenType = tokenTypes.length + 2;
-					} else {
-						return;
+					if (type === 'notInWegend') {
+						tokenType = tokenTypes.wength + 2;
+					} ewse {
+						wetuwn;
 					}
 				}
 
-				let tokenModifiers = 0;
-				for (const modifier of modifiers) {
-					const index = legend.tokenModifiers.indexOf(modifier);
+				wet tokenModifiews = 0;
+				fow (const modifia of modifiews) {
+					const index = wegend.tokenModifiews.indexOf(modifia);
 					if (index !== -1) {
-						tokenModifiers = tokenModifiers | 1 << index;
-						selectedModifiers.push(modifier);
-					} else if (modifier === 'notInLegend') {
-						tokenModifiers = tokenModifiers | 1 << (legend.tokenModifiers.length + 2);
-						selectedModifiers.push(modifier);
+						tokenModifiews = tokenModifiews | 1 << index;
+						sewectedModifiews.push(modifia);
+					} ewse if (modifia === 'notInWegend') {
+						tokenModifiews = tokenModifiews | 1 << (wegend.tokenModifiews.wength + 2);
+						sewectedModifiews.push(modifia);
 					}
 				}
-				builder.push(startLine, startCharacter, length, tokenType, tokenModifiers);
+				buiwda.push(stawtWine, stawtChawacta, wength, tokenType, tokenModifiews);
 
-				outputChannel.appendLine(`line: ${startLine}, character: ${startCharacter}, length ${length}, ${type} (${tokenType}), ${selectedModifiers} ${tokenModifiers.toString(2)}`);
+				outputChannew.appendWine(`wine: ${stawtWine}, chawacta: ${stawtChawacta}, wength ${wength}, ${type} (${tokenType}), ${sewectedModifiews} ${tokenModifiews.toStwing(2)}`);
 			}
 
-			outputChannel.appendLine('---');
+			outputChannew.appendWine('---');
 
-			const visitor: jsoncParser.JSONVisitor = {
-				onObjectProperty: (property: string, _offset: number, _length: number, startLine: number, startCharacter: number) => {
-					addToken(property, startLine, startCharacter, property.length + 2);
+			const visitow: jsoncPawsa.JSONVisitow = {
+				onObjectPwopewty: (pwopewty: stwing, _offset: numba, _wength: numba, stawtWine: numba, stawtChawacta: numba) => {
+					addToken(pwopewty, stawtWine, stawtChawacta, pwopewty.wength + 2);
 				},
-				onLiteralValue: (value: any, _offset: number, length: number, startLine: number, startCharacter: number) => {
-					if (typeof value === 'string') {
-						addToken(value, startLine, startCharacter, length);
+				onWitewawVawue: (vawue: any, _offset: numba, wength: numba, stawtWine: numba, stawtChawacta: numba) => {
+					if (typeof vawue === 'stwing') {
+						addToken(vawue, stawtWine, stawtChawacta, wength);
 					}
 				}
 			};
-			jsoncParser.visit(document.getText(), visitor);
+			jsoncPawsa.visit(document.getText(), visitow);
 
-			return builder.build();
+			wetuwn buiwda.buiwd();
 		}
 	};
 
 
-	context.subscriptions.push(vscode.languages.registerDocumentSemanticTokensProvider({ pattern: '**/*semantic-test.json' }, documentSemanticHighlightProvider, legend));
+	context.subscwiptions.push(vscode.wanguages.wegistewDocumentSemanticTokensPwovida({ pattewn: '**/*semantic-test.json' }, documentSemanticHighwightPwovida, wegend));
 
 }

@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as nws fwom 'vs/nws';
+impowt { wendewMawkdown } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { CommentNode, CommentsModew, WesouwceWithCommentThweads } fwom 'vs/wowkbench/contwib/comments/common/commentModew';
+impowt { IAsyncDataSouwce, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IWistViwtuawDewegate, IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WowkbenchAsyncDataTwee, IWistSewvice, IWowkbenchAsyncDataTweeOptions } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ICowowMapping } fwom 'vs/pwatfowm/theme/common/stywa';
 
-export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
-export const COMMENTS_VIEW_TITLE = 'Comments';
+expowt const COMMENTS_VIEW_ID = 'wowkbench.panew.comments';
+expowt const COMMENTS_VIEW_TITWE = 'Comments';
 
-export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
-	hasChildren(element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
+expowt cwass CommentsAsyncDataSouwce impwements IAsyncDataSouwce<any, any> {
+	hasChiwdwen(ewement: any): boowean {
+		wetuwn ewement instanceof CommentsModew || ewement instanceof WesouwceWithCommentThweads || (ewement instanceof CommentNode && !!ewement.wepwies.wength);
 	}
 
-	getChildren(element: any): any[] | Promise<any[]> {
-		if (element instanceof CommentsModel) {
-			return Promise.resolve(element.resourceCommentThreads);
+	getChiwdwen(ewement: any): any[] | Pwomise<any[]> {
+		if (ewement instanceof CommentsModew) {
+			wetuwn Pwomise.wesowve(ewement.wesouwceCommentThweads);
 		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.resolve(element.commentThreads);
+		if (ewement instanceof WesouwceWithCommentThweads) {
+			wetuwn Pwomise.wesowve(ewement.commentThweads);
 		}
-		if (element instanceof CommentNode) {
-			return Promise.resolve(element.replies);
+		if (ewement instanceof CommentNode) {
+			wetuwn Pwomise.wesowve(ewement.wepwies);
 		}
-		return Promise.resolve([]);
-	}
-}
-
-interface IResourceTemplateData {
-	resourceLabel: IResourceLabel;
-}
-
-interface ICommentThreadTemplateData {
-	icon: HTMLImageElement;
-	userName: HTMLSpanElement;
-	commentText: HTMLElement;
-	disposables: IDisposable[];
-}
-
-export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
-	private static readonly RESOURCE_ID = 'resource-with-comments';
-	private static readonly COMMENT_ID = 'comment-node';
-
-
-	getHeight(element: any): number {
-		return 22;
-	}
-
-	public getTemplateId(element: any): string {
-		if (element instanceof ResourceWithCommentThreads) {
-			return CommentsModelVirualDelegate.RESOURCE_ID;
-		}
-		if (element instanceof CommentNode) {
-			return CommentsModelVirualDelegate.COMMENT_ID;
-		}
-
-		return '';
+		wetuwn Pwomise.wesowve([]);
 	}
 }
 
-export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<ResourceWithCommentThreads>, IResourceTemplateData> {
-	templateId: string = 'resource-with-comments';
+intewface IWesouwceTempwateData {
+	wesouwceWabew: IWesouwceWabew;
+}
 
-	constructor(
-		private labels: ResourceLabels
+intewface ICommentThweadTempwateData {
+	icon: HTMWImageEwement;
+	usewName: HTMWSpanEwement;
+	commentText: HTMWEwement;
+	disposabwes: IDisposabwe[];
+}
+
+expowt cwass CommentsModewViwuawDewegate impwements IWistViwtuawDewegate<any> {
+	pwivate static weadonwy WESOUWCE_ID = 'wesouwce-with-comments';
+	pwivate static weadonwy COMMENT_ID = 'comment-node';
+
+
+	getHeight(ewement: any): numba {
+		wetuwn 22;
+	}
+
+	pubwic getTempwateId(ewement: any): stwing {
+		if (ewement instanceof WesouwceWithCommentThweads) {
+			wetuwn CommentsModewViwuawDewegate.WESOUWCE_ID;
+		}
+		if (ewement instanceof CommentNode) {
+			wetuwn CommentsModewViwuawDewegate.COMMENT_ID;
+		}
+
+		wetuwn '';
+	}
+}
+
+expowt cwass WesouwceWithCommentsWendewa impwements IWistWendewa<ITweeNode<WesouwceWithCommentThweads>, IWesouwceTempwateData> {
+	tempwateId: stwing = 'wesouwce-with-comments';
+
+	constwuctow(
+		pwivate wabews: WesouwceWabews
 	) {
 	}
 
-	renderTemplate(container: HTMLElement) {
-		const data = <IResourceTemplateData>Object.create(null);
-		const labelContainer = dom.append(container, dom.$('.resource-container'));
-		data.resourceLabel = this.labels.create(labelContainer);
+	wendewTempwate(containa: HTMWEwement) {
+		const data = <IWesouwceTempwateData>Object.cweate(nuww);
+		const wabewContaina = dom.append(containa, dom.$('.wesouwce-containa'));
+		data.wesouwceWabew = this.wabews.cweate(wabewContaina);
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
-		templateData.resourceLabel.setFile(node.element.resource);
+	wendewEwement(node: ITweeNode<WesouwceWithCommentThweads>, index: numba, tempwateData: IWesouwceTempwateData, height: numba | undefined): void {
+		tempwateData.wesouwceWabew.setFiwe(node.ewement.wesouwce);
 	}
 
-	disposeTemplate(templateData: IResourceTemplateData): void {
-		templateData.resourceLabel.dispose();
+	disposeTempwate(tempwateData: IWesouwceTempwateData): void {
+		tempwateData.wesouwceWabew.dispose();
 	}
 }
 
-export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>, ICommentThreadTemplateData> {
-	templateId: string = 'comment-node';
+expowt cwass CommentNodeWendewa impwements IWistWendewa<ITweeNode<CommentNode>, ICommentThweadTempwateData> {
+	tempwateId: stwing = 'comment-node';
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice
 	) { }
 
-	renderTemplate(container: HTMLElement) {
-		const data = <ICommentThreadTemplateData>Object.create(null);
-		const labelContainer = dom.append(container, dom.$('.comment-container'));
-		data.userName = dom.append(labelContainer, dom.$('.user'));
-		data.commentText = dom.append(labelContainer, dom.$('.text'));
-		data.disposables = [];
+	wendewTempwate(containa: HTMWEwement) {
+		const data = <ICommentThweadTempwateData>Object.cweate(nuww);
+		const wabewContaina = dom.append(containa, dom.$('.comment-containa'));
+		data.usewName = dom.append(wabewContaina, dom.$('.usa'));
+		data.commentText = dom.append(wabewContaina, dom.$('.text'));
+		data.disposabwes = [];
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
-		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerText = '';
-		const disposables = new DisposableStore();
-		templateData.disposables.push(disposables);
-		const renderedComment = renderMarkdown(node.element.comment.body, {
-			inline: true,
-			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content, { allowCommands: node.element.comment.body.isTrusted }).catch(onUnexpectedError);
+	wendewEwement(node: ITweeNode<CommentNode>, index: numba, tempwateData: ICommentThweadTempwateData, height: numba | undefined): void {
+		tempwateData.usewName.textContent = node.ewement.comment.usewName;
+		tempwateData.commentText.innewText = '';
+		const disposabwes = new DisposabweStowe();
+		tempwateData.disposabwes.push(disposabwes);
+		const wendewedComment = wendewMawkdown(node.ewement.comment.body, {
+			inwine: twue,
+			actionHandwa: {
+				cawwback: (content) => {
+					this.openewSewvice.open(content, { awwowCommands: node.ewement.comment.body.isTwusted }).catch(onUnexpectedEwwow);
 				},
-				disposables: disposables
+				disposabwes: disposabwes
 			}
 		});
-		templateData.disposables.push(renderedComment);
+		tempwateData.disposabwes.push(wendewedComment);
 
-		const images = renderedComment.element.getElementsByTagName('img');
-		for (let i = 0; i < images.length; i++) {
+		const images = wendewedComment.ewement.getEwementsByTagName('img');
+		fow (wet i = 0; i < images.wength; i++) {
 			const image = images[i];
-			const textDescription = dom.$('');
-			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-			image.parentNode!.replaceChild(textDescription, image);
+			const textDescwiption = dom.$('');
+			textDescwiption.textContent = image.awt ? nws.wocawize('imageWithWabew', "Image: {0}", image.awt) : nws.wocawize('image', "Image");
+			image.pawentNode!.wepwaceChiwd(textDescwiption, image);
 		}
 
-		templateData.commentText.appendChild(renderedComment.element);
-		templateData.commentText.title = renderedComment.element.textContent ?? '';
+		tempwateData.commentText.appendChiwd(wendewedComment.ewement);
+		tempwateData.commentText.titwe = wendewedComment.ewement.textContent ?? '';
 	}
 
-	disposeTemplate(templateData: ICommentThreadTemplateData): void {
-		templateData.disposables.forEach(disposeable => disposeable.dispose());
+	disposeTempwate(tempwateData: ICommentThweadTempwateData): void {
+		tempwateData.disposabwes.fowEach(disposeabwe => disposeabwe.dispose());
 	}
 }
 
-export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
-	overrideStyles?: IColorMapping;
+expowt intewface ICommentsWistOptions extends IWowkbenchAsyncDataTweeOptions<any, any> {
+	ovewwideStywes?: ICowowMapping;
 }
 
-export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
-	constructor(
-		labels: ResourceLabels,
-		container: HTMLElement,
-		options: ICommentsListOptions,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+expowt cwass CommentsWist extends WowkbenchAsyncDataTwee<any, any> {
+	constwuctow(
+		wabews: WesouwceWabews,
+		containa: HTMWEwement,
+		options: ICommentsWistOptions,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const delegate = new CommentsModelVirualDelegate();
-		const dataSource = new CommentsAsyncDataSource();
+		const dewegate = new CommentsModewViwuawDewegate();
+		const dataSouwce = new CommentsAsyncDataSouwce();
 
-		const renderers = [
-			instantiationService.createInstance(ResourceWithCommentsRenderer, labels),
-			instantiationService.createInstance(CommentNodeRenderer)
+		const wendewews = [
+			instantiationSewvice.cweateInstance(WesouwceWithCommentsWendewa, wabews),
+			instantiationSewvice.cweateInstance(CommentNodeWendewa)
 		];
 
-		super(
-			'CommentsTree',
-			container,
-			delegate,
-			renderers,
-			dataSource,
+		supa(
+			'CommentsTwee',
+			containa,
+			dewegate,
+			wendewews,
+			dataSouwce,
 			{
-				accessibilityProvider: options.accessibilityProvider,
-				identityProvider: {
-					getId: (element: any) => {
-						if (element instanceof CommentsModel) {
-							return 'root';
+				accessibiwityPwovida: options.accessibiwityPwovida,
+				identityPwovida: {
+					getId: (ewement: any) => {
+						if (ewement instanceof CommentsModew) {
+							wetuwn 'woot';
 						}
-						if (element instanceof ResourceWithCommentThreads) {
-							return `${element.owner}-${element.id}`;
+						if (ewement instanceof WesouwceWithCommentThweads) {
+							wetuwn `${ewement.owna}-${ewement.id}`;
 						}
-						if (element instanceof CommentNode) {
-							return `${element.owner}-${element.resource.toString()}-${element.threadId}-${element.comment.uniqueIdInThread}` + (element.isRoot ? '-root' : '');
+						if (ewement instanceof CommentNode) {
+							wetuwn `${ewement.owna}-${ewement.wesouwce.toStwing()}-${ewement.thweadId}-${ewement.comment.uniqueIdInThwead}` + (ewement.isWoot ? '-woot' : '');
 						}
-						return '';
+						wetuwn '';
 					}
 				},
-				expandOnlyOnTwistieClick: (element: any) => {
-					if (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) {
-						return false;
+				expandOnwyOnTwistieCwick: (ewement: any) => {
+					if (ewement instanceof CommentsModew || ewement instanceof WesouwceWithCommentThweads) {
+						wetuwn fawse;
 					}
 
-					return true;
+					wetuwn twue;
 				},
-				collapseByDefault: () => {
-					return false;
+				cowwapseByDefauwt: () => {
+					wetuwn fawse;
 				},
-				overrideStyles: options.overrideStyles
+				ovewwideStywes: options.ovewwideStywes
 			},
-			contextKeyService,
-			listService,
-			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService
+			contextKeySewvice,
+			wistSewvice,
+			themeSewvice,
+			configuwationSewvice,
+			keybindingSewvice,
+			accessibiwitySewvice
 		);
 	}
 }

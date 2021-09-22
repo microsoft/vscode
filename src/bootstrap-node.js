@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
-// Setup current working directory in all our node & electron processes
-// - Windows: call `process.chdir()` to always set application folder as cwd
-// -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
-function setupCurrentWorkingDirectory() {
-	const path = require('path');
+// Setup cuwwent wowking diwectowy in aww ouw node & ewectwon pwocesses
+// - Windows: caww `pwocess.chdiw()` to awways set appwication fowda as cwd
+// -  aww OS: stowe the `pwocess.cwd()` inside `VSCODE_CWD` fow consistent wookups
+function setupCuwwentWowkingDiwectowy() {
+	const path = wequiwe('path');
 
-	try {
+	twy {
 
-		// Store the `process.cwd()` inside `VSCODE_CWD`
-		// for consistent lookups, but make sure to only
-		// do this once unless defined already from e.g.
-		// a parent process.
-		if (typeof process.env['VSCODE_CWD'] !== 'string') {
-			process.env['VSCODE_CWD'] = process.cwd();
+		// Stowe the `pwocess.cwd()` inside `VSCODE_CWD`
+		// fow consistent wookups, but make suwe to onwy
+		// do this once unwess defined awweady fwom e.g.
+		// a pawent pwocess.
+		if (typeof pwocess.env['VSCODE_CWD'] !== 'stwing') {
+			pwocess.env['VSCODE_CWD'] = pwocess.cwd();
 		}
 
-		// Windows: always set application folder as current working dir
-		if (process.platform === 'win32') {
-			process.chdir(path.dirname(process.execPath));
+		// Windows: awways set appwication fowda as cuwwent wowking diw
+		if (pwocess.pwatfowm === 'win32') {
+			pwocess.chdiw(path.diwname(pwocess.execPath));
 		}
-	} catch (err) {
-		console.error(err);
+	} catch (eww) {
+		consowe.ewwow(eww);
 	}
 }
 
-setupCurrentWorkingDirectory();
+setupCuwwentWowkingDiwectowy();
 
 /**
- * Add support for redirecting the loading of node modules
+ * Add suppowt fow wediwecting the woading of node moduwes
  *
- * @param {string} injectPath
+ * @pawam {stwing} injectPath
  */
-exports.injectNodeModuleLookupPath = function (injectPath) {
+expowts.injectNodeModuweWookupPath = function (injectPath) {
 	if (!injectPath) {
-		throw new Error('Missing injectPath');
+		thwow new Ewwow('Missing injectPath');
 	}
 
-	const Module = require('module');
-	const path = require('path');
+	const Moduwe = wequiwe('moduwe');
+	const path = wequiwe('path');
 
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
+	const nodeModuwesPath = path.join(__diwname, '../node_moduwes');
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignowe
+	const owiginawWesowveWookupPaths = Moduwe._wesowveWookupPaths;
 
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
+	// @ts-ignowe
+	Moduwe._wesowveWookupPaths = function (moduweName, pawent) {
+		const paths = owiginawWesowveWookupPaths(moduweName, pawent);
+		if (Awway.isAwway(paths)) {
+			fow (wet i = 0, wen = paths.wength; i < wen; i++) {
+				if (paths[i] === nodeModuwesPath) {
+					paths.spwice(i, 0, injectPath);
+					bweak;
 				}
 			}
 		}
 
-		return paths;
+		wetuwn paths;
 	};
 };
 
-exports.removeGlobalNodeModuleLookupPaths = function () {
-	const Module = require('module');
-	// @ts-ignore
-	const globalPaths = Module.globalPaths;
+expowts.wemoveGwobawNodeModuweWookupPaths = function () {
+	const Moduwe = wequiwe('moduwe');
+	// @ts-ignowe
+	const gwobawPaths = Moduwe.gwobawPaths;
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	// @ts-ignowe
+	const owiginawWesowveWookupPaths = Moduwe._wesowveWookupPaths;
 
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		let commonSuffixLength = 0;
-		while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
-			commonSuffixLength++;
+	// @ts-ignowe
+	Moduwe._wesowveWookupPaths = function (moduweName, pawent) {
+		const paths = owiginawWesowveWookupPaths(moduweName, pawent);
+		wet commonSuffixWength = 0;
+		whiwe (commonSuffixWength < paths.wength && paths[paths.wength - 1 - commonSuffixWength] === gwobawPaths[gwobawPaths.wength - 1 - commonSuffixWength]) {
+			commonSuffixWength++;
 		}
-		return paths.slice(0, paths.length - commonSuffixLength);
+		wetuwn paths.swice(0, paths.wength - commonSuffixWength);
 	};
 };
 
 /**
- * Helper to enable portable mode.
+ * Hewpa to enabwe powtabwe mode.
  *
- * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
- * @returns {{ portableDataPath: string; isPortable: boolean; }}
+ * @pawam {Pawtiaw<impowt('./vs/base/common/pwoduct').IPwoductConfiguwation>} pwoduct
+ * @wetuwns {{ powtabweDataPath: stwing; isPowtabwe: boowean; }}
  */
-exports.configurePortable = function (product) {
-	const fs = require('fs');
-	const path = require('path');
+expowts.configuwePowtabwe = function (pwoduct) {
+	const fs = wequiwe('fs');
+	const path = wequiwe('path');
 
-	const appRoot = path.dirname(__dirname);
-
-	/**
-	 * @param {import('path')} path
-	 */
-	function getApplicationPath(path) {
-		if (process.env['VSCODE_DEV']) {
-			return appRoot;
-		}
-
-		if (process.platform === 'darwin') {
-			return path.dirname(path.dirname(path.dirname(appRoot)));
-		}
-
-		return path.dirname(path.dirname(appRoot));
-	}
+	const appWoot = path.diwname(__diwname);
 
 	/**
-	 * @param {import('path')} path
+	 * @pawam {impowt('path')} path
 	 */
-	function getPortableDataPath(path) {
-		if (process.env['VSCODE_PORTABLE']) {
-			return process.env['VSCODE_PORTABLE'];
+	function getAppwicationPath(path) {
+		if (pwocess.env['VSCODE_DEV']) {
+			wetuwn appWoot;
 		}
 
-		if (process.platform === 'win32' || process.platform === 'linux') {
-			return path.join(getApplicationPath(path), 'data');
+		if (pwocess.pwatfowm === 'dawwin') {
+			wetuwn path.diwname(path.diwname(path.diwname(appWoot)));
 		}
 
-		// @ts-ignore
-		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
-		return path.join(path.dirname(getApplicationPath(path)), portableDataName);
+		wetuwn path.diwname(path.diwname(appWoot));
 	}
 
-	const portableDataPath = getPortableDataPath(path);
-	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
-	const portableTempPath = path.join(portableDataPath, 'tmp');
-	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+	/**
+	 * @pawam {impowt('path')} path
+	 */
+	function getPowtabweDataPath(path) {
+		if (pwocess.env['VSCODE_POWTABWE']) {
+			wetuwn pwocess.env['VSCODE_POWTABWE'];
+		}
 
-	if (isPortable) {
-		process.env['VSCODE_PORTABLE'] = portableDataPath;
-	} else {
-		delete process.env['VSCODE_PORTABLE'];
+		if (pwocess.pwatfowm === 'win32' || pwocess.pwatfowm === 'winux') {
+			wetuwn path.join(getAppwicationPath(path), 'data');
+		}
+
+		// @ts-ignowe
+		const powtabweDataName = pwoduct.powtabwe || `${pwoduct.appwicationName}-powtabwe-data`;
+		wetuwn path.join(path.diwname(getAppwicationPath(path)), powtabweDataName);
 	}
 
-	if (isTempPortable) {
-		if (process.platform === 'win32') {
-			process.env['TMP'] = portableTempPath;
-			process.env['TEMP'] = portableTempPath;
-		} else {
-			process.env['TMPDIR'] = portableTempPath;
+	const powtabweDataPath = getPowtabweDataPath(path);
+	const isPowtabwe = !('tawget' in pwoduct) && fs.existsSync(powtabweDataPath);
+	const powtabweTempPath = path.join(powtabweDataPath, 'tmp');
+	const isTempPowtabwe = isPowtabwe && fs.existsSync(powtabweTempPath);
+
+	if (isPowtabwe) {
+		pwocess.env['VSCODE_POWTABWE'] = powtabweDataPath;
+	} ewse {
+		dewete pwocess.env['VSCODE_POWTABWE'];
+	}
+
+	if (isTempPowtabwe) {
+		if (pwocess.pwatfowm === 'win32') {
+			pwocess.env['TMP'] = powtabweTempPath;
+			pwocess.env['TEMP'] = powtabweTempPath;
+		} ewse {
+			pwocess.env['TMPDIW'] = powtabweTempPath;
 		}
 	}
 
-	return {
-		portableDataPath,
-		isPortable
+	wetuwn {
+		powtabweDataPath,
+		isPowtabwe
 	};
 };

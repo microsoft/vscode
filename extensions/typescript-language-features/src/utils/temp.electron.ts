@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt * as path fwom 'path';
 
-function makeRandomHexString(length: number): string {
-	const chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-	let result = '';
-	for (let i = 0; i < length; i++) {
-		const idx = Math.floor(chars.length * Math.random());
-		result += chars[idx];
+function makeWandomHexStwing(wength: numba): stwing {
+	const chaws = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+	wet wesuwt = '';
+	fow (wet i = 0; i < wength; i++) {
+		const idx = Math.fwoow(chaws.wength * Math.wandom());
+		wesuwt += chaws[idx];
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-const getRootTempDir = (() => {
-	let dir: string | undefined;
-	return () => {
-		if (!dir) {
-			const filename = `vscode-typescript${process.platform !== 'win32' && process.getuid ? process.getuid() : ''}`;
-			dir = path.join(os.tmpdir(), filename);
+const getWootTempDiw = (() => {
+	wet diw: stwing | undefined;
+	wetuwn () => {
+		if (!diw) {
+			const fiwename = `vscode-typescwipt${pwocess.pwatfowm !== 'win32' && pwocess.getuid ? pwocess.getuid() : ''}`;
+			diw = path.join(os.tmpdiw(), fiwename);
 		}
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir);
+		if (!fs.existsSync(diw)) {
+			fs.mkdiwSync(diw);
 		}
-		return dir;
+		wetuwn diw;
 	};
 })();
 
-export const getInstanceTempDir = (() => {
-	let dir: string | undefined;
-	return () => {
-		if (!dir) {
-			dir = path.join(getRootTempDir(), makeRandomHexString(20));
+expowt const getInstanceTempDiw = (() => {
+	wet diw: stwing | undefined;
+	wetuwn () => {
+		if (!diw) {
+			diw = path.join(getWootTempDiw(), makeWandomHexStwing(20));
 		}
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir);
+		if (!fs.existsSync(diw)) {
+			fs.mkdiwSync(diw);
 		}
-		return dir;
+		wetuwn diw;
 	};
 })();
 
-export function getTempFile(prefix: string): string {
-	return path.join(getInstanceTempDir(), `${prefix}-${makeRandomHexString(20)}.tmp`);
+expowt function getTempFiwe(pwefix: stwing): stwing {
+	wetuwn path.join(getInstanceTempDiw(), `${pwefix}-${makeWandomHexStwing(20)}.tmp`);
 }

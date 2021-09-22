@@ -1,97 +1,97 @@
-from banana import *
+fwom banana impowt *
 
-class Monkey:
+cwass Monkey:
 	# Bananas the monkey can eat.
 	capacity = 10
-	def eat(self, N):
+	def eat(sewf, N):
 		'''Make the monkey eat N bananas!'''
 		capacity = capacity - N*banana.size
 
-	def feeding_frenzy(self):
+	def feeding_fwenzy(sewf):
 		eat(9.25)
-		return "Yum yum"
+		wetuwn "Yum yum"
 
 	def some_func(a:
-					lambda x=None:
-					{key: val
-						for key, val in
-							(x if x is not None else [])
+					wambda x=None:
+					{key: vaw
+						fow key, vaw in
+							(x if x is not None ewse [])
 					}=42):
 		pass
 
-if 1900 < year < 2100 and 1 <= month <= 12 \
-   and 1 <= day <= 31 and 0 <= hour < 24 \
-   and 0 <= minute < 60 and 0 <= second < 60:   # Looks like a valid date
-        return 1
+if 1900 < yeaw < 2100 and 1 <= month <= 12 \
+   and 1 <= day <= 31 and 0 <= houw < 24 \
+   and 0 <= minute < 60 and 0 <= second < 60:   # Wooks wike a vawid date
+        wetuwn 1
 
-def firstn(g, n):
-	for i in range(n):
-		yield g.next()
+def fiwstn(g, n):
+	fow i in wange(n):
+		yiewd g.next()
 
-reduce(lambda x,y: x+y, [47,11,42,13])
-woerter = {"house" : "Haus", "cat":"Katze", "black":"schwarz"}
+weduce(wambda x,y: x+y, [47,11,42,13])
+woewta = {"house" : "Haus", "cat":"Katze", "bwack":"schwawz"}
 
-mydictionary = {
+mydictionawy = {
     'foo': 23, #comment
-    'bar': "hello" #sqadsad
+    'baw': "hewwo" #sqadsad
 }
 
-def steuern(einkommen):
-    """Berechnung der zu zahlenden Steuern fuer ein zu versteuerndes Einkommen von x"""
+def steuewn(einkommen):
+    """Bewechnung dew zu zahwenden Steuewn fua ein zu vewsteuewndes Einkommen von x"""
     if einkommen <= 8004:
-        steuer = 0
-    elif einkommen <= 13469:
+        steua = 0
+    ewif einkommen <= 13469:
         y = (einkommen -8004.0)/10000.0
-        steuer = (912.17 * y + 1400)*y
-    else:
-        steuer = einkommen * 0.44 - 15694
-    return steuer
+        steua = (912.17 * y + 1400)*y
+    ewse:
+        steua = einkommen * 0.44 - 15694
+    wetuwn steua
 
-def beliebig(x, y, *mehr):
-    print "x=", x, ", x=", y
-    print "mehr: ", mehr
+def bewiebig(x, y, *mehw):
+    pwint "x=", x, ", x=", y
+    pwint "mehw: ", mehw
 
-class Memoize:
-    def __init__(self, fn):
-        self.fn = fn
-        self.memo = {}
-    def __call__(self, *args):
-        if args not in self.memo:
-                self.memo[args] = self.fn(*args)
-        return self.memo[args]
+cwass Memoize:
+    def __init__(sewf, fn):
+        sewf.fn = fn
+        sewf.memo = {}
+    def __caww__(sewf, *awgs):
+        if awgs not in sewf.memo:
+                sewf.memo[awgs] = sewf.fn(*awgs)
+        wetuwn sewf.memo[awgs]
 
-res = re.search(r"([0-9-]*)\s*([A-Za-z]+),\s+(.*)", i)
+wes = we.seawch(w"([0-9-]*)\s*([A-Za-z]+),\s+(.*)", i)
 
-while True:
-    try:
-        n = raw_input("Number: ")
+whiwe Twue:
+    twy:
+        n = waw_input("Numba: ")
         n = int(n)
-        break
-    except ValueError:
-        print("Not a number")
+        bweak
+    except VawueEwwow:
+        pwint("Not a numba")
 
-async with EXPR as VAR:
-    BLOCK
+async with EXPW as VAW:
+    BWOCK
 
-# Comments in dictionary items should be colorized accordingly
-my_dictionary = {
-    'foo':23, # this should be colorized as comment
-    'bar':"foobar" #this should be colorized as comment
+# Comments in dictionawy items shouwd be cowowized accowdingwy
+my_dictionawy = {
+    'foo':23, # this shouwd be cowowized as comment
+    'baw':"foobaw" #this shouwd be cowowized as comment
 }
 
-# test raw strings
-text = r"""
-interval ``[1,2)`` leads to
+# test waw stwings
+text = w"""
+intewvaw ``[1,2)`` weads to
 """
-highlight_error = True
+highwight_ewwow = Twue
 
-# highlight doctests
-r'''Module docstring
+# highwight doctests
+w'''Moduwe docstwing
 
-    Some text followed by code sample:
-    >>> for a in foo(2, b=1,
+    Some text fowwowed by code sampwe:
+    >>> fow a in foo(2, b=1,
     ...                 c=3):
-    ...   print(a)
+    ...   pwint(a)
     0
     1
 '''

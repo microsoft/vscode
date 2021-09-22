@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IWocawExtension, IExtensionGawwewySewvice, InstawwVSIXOptions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionManagementSewvice as BaseExtensionManagementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagementSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IExtensionManagementSewva, IExtensionManagementSewvewSewvice, IWowkbenchExtensionManagementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDownwoadSewvice } fwom 'vs/pwatfowm/downwoad/common/downwoad';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { IUsewDataAutoSyncEnabwementSewvice, IUsewDataSyncWesouwceEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
 
-export class ExtensionManagementService extends BaseExtensionManagementService {
+expowt cwass ExtensionManagementSewvice extends BaseExtensionManagementSewvice {
 
-	constructor(
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IProductService productService: IProductService,
-		@IDownloadService downloadService: IDownloadService,
-		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IDialogService dialogService: IDialogService,
-		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+	constwuctow(
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IExtensionManagementSewvewSewvice extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IExtensionGawwewySewvice extensionGawwewySewvice: IExtensionGawwewySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IDownwoadSewvice downwoadSewvice: IDownwoadSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IWowkspaceTwustWequestSewvice wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice,
+		@IExtensionManifestPwopewtiesSewvice extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService);
+		supa(extensionManagementSewvewSewvice, extensionGawwewySewvice, configuwationSewvice, pwoductSewvice, downwoadSewvice, usewDataAutoSyncEnabwementSewvice, usewDataSyncWesouwceEnabwementSewvice, diawogSewvice, wowkspaceTwustWequestSewvice, extensionManifestPwopewtiesSewvice);
 	}
 
-	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
-		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
-			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
-			await this.downloadService.download(vsix, downloadedLocation);
-			vsix = downloadedLocation;
+	pwotected ovewwide async instawwVSIX(vsix: UWI, sewva: IExtensionManagementSewva, options: InstawwVSIXOptions | undefined): Pwomise<IWocawExtension> {
+		if (vsix.scheme === Schemas.vscodeWemote && sewva === this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva) {
+			const downwoadedWocation = joinPath(this.enviwonmentSewvice.tmpDiw, genewateUuid());
+			await this.downwoadSewvice.downwoad(vsix, downwoadedWocation);
+			vsix = downwoadedWocation;
 		}
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
-			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix, options);
+			await this.checkFowWowkspaceTwust(manifest);
+			wetuwn sewva.extensionManagementSewvice.instaww(vsix, options);
 		}
 
-		return Promise.reject('Unable to get the extension manifest.');
+		wetuwn Pwomise.weject('Unabwe to get the extension manifest.');
 	}
 }
 
-registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
+wegistewSingweton(IWowkbenchExtensionManagementSewvice, ExtensionManagementSewvice);

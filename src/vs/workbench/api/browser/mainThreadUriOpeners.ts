@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ExtHostContext, ExtHostUriOpenersShape, IExtHostContext, MainContext, MainThreadUriOpenersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { defaultExternalUriOpenerId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { ContributedExternalUriOpenersStore } from 'vs/workbench/contrib/externalUriOpener/common/contributedOpeners';
-import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ExtHostContext, ExtHostUwiOpenewsShape, IExtHostContext, MainContext, MainThweadUwiOpenewsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { defauwtExtewnawUwiOpenewId } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/configuwation';
+impowt { ContwibutedExtewnawUwiOpenewsStowe } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/contwibutedOpenews';
+impowt { IExtewnawOpenewPwovida, IExtewnawUwiOpena, IExtewnawUwiOpenewSewvice } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/extewnawUwiOpenewSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { extHostNamedCustoma } fwom '../common/extHostCustomews';
 
-interface RegisteredOpenerMetadata {
-	readonly schemes: ReadonlySet<string>;
-	readonly extensionId: ExtensionIdentifier;
-	readonly label: string;
+intewface WegistewedOpenewMetadata {
+	weadonwy schemes: WeadonwySet<stwing>;
+	weadonwy extensionId: ExtensionIdentifia;
+	weadonwy wabew: stwing;
 }
 
-@extHostNamedCustomer(MainContext.MainThreadUriOpeners)
-export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpenersShape, IExternalOpenerProvider {
+@extHostNamedCustoma(MainContext.MainThweadUwiOpenews)
+expowt cwass MainThweadUwiOpenews extends Disposabwe impwements MainThweadUwiOpenewsShape, IExtewnawOpenewPwovida {
 
-	private readonly proxy: ExtHostUriOpenersShape;
-	private readonly _registeredOpeners = new Map<string, RegisteredOpenerMetadata>();
-	private readonly _contributedExternalUriOpenersStore: ContributedExternalUriOpenersStore;
+	pwivate weadonwy pwoxy: ExtHostUwiOpenewsShape;
+	pwivate weadonwy _wegistewedOpenews = new Map<stwing, WegistewedOpenewMetadata>();
+	pwivate weadonwy _contwibutedExtewnawUwiOpenewsStowe: ContwibutedExtewnawUwiOpenewsStowe;
 
-	constructor(
+	constwuctow(
 		context: IExtHostContext,
-		@IStorageService storageService: IStorageService,
-		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtewnawUwiOpenewSewvice extewnawUwiOpenewSewvice: IExtewnawUwiOpenewSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
 	) {
-		super();
-		this.proxy = context.getProxy(ExtHostContext.ExtHostUriOpeners);
+		supa();
+		this.pwoxy = context.getPwoxy(ExtHostContext.ExtHostUwiOpenews);
 
-		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+		this._wegista(extewnawUwiOpenewSewvice.wegistewExtewnawOpenewPwovida(this));
 
-		this._contributedExternalUriOpenersStore = this._register(new ContributedExternalUriOpenersStore(storageService, extensionService));
+		this._contwibutedExtewnawUwiOpenewsStowe = this._wegista(new ContwibutedExtewnawUwiOpenewsStowe(stowageSewvice, extensionSewvice));
 	}
 
-	public async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
+	pubwic async *getOpenews(tawgetUwi: UWI): AsyncItewabwe<IExtewnawUwiOpena> {
 
-		// Currently we only allow openers for http and https urls
-		if (targetUri.scheme !== Schemas.http && targetUri.scheme !== Schemas.https) {
-			return;
+		// Cuwwentwy we onwy awwow openews fow http and https uwws
+		if (tawgetUwi.scheme !== Schemas.http && tawgetUwi.scheme !== Schemas.https) {
+			wetuwn;
 		}
 
-		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`);
+		await this.extensionSewvice.activateByEvent(`onOpenExtewnawUwi:${tawgetUwi.scheme}`);
 
-		for (const [id, openerMetadata] of this._registeredOpeners) {
-			if (openerMetadata.schemes.has(targetUri.scheme)) {
-				yield this.createOpener(id, openerMetadata);
+		fow (const [id, openewMetadata] of this._wegistewedOpenews) {
+			if (openewMetadata.schemes.has(tawgetUwi.scheme)) {
+				yiewd this.cweateOpena(id, openewMetadata);
 			}
 		}
 	}
 
-	private createOpener(id: string, metadata: RegisteredOpenerMetadata): IExternalUriOpener {
-		return {
+	pwivate cweateOpena(id: stwing, metadata: WegistewedOpenewMetadata): IExtewnawUwiOpena {
+		wetuwn {
 			id: id,
-			label: metadata.label,
-			canOpen: (uri, token) => {
-				return this.proxy.$canOpenUri(id, uri, token);
+			wabew: metadata.wabew,
+			canOpen: (uwi, token) => {
+				wetuwn this.pwoxy.$canOpenUwi(id, uwi, token);
 			},
-			openExternalUri: async (uri, ctx, token) => {
-				try {
-					await this.proxy.$openUri(id, { resolvedUri: uri, sourceUri: ctx.sourceUri }, token);
+			openExtewnawUwi: async (uwi, ctx, token) => {
+				twy {
+					await this.pwoxy.$openUwi(id, { wesowvedUwi: uwi, souwceUwi: ctx.souwceUwi }, token);
 				} catch (e) {
-					if (!isPromiseCanceledError(e)) {
-						const openDefaultAction = new Action('default', localize('openerFailedUseDefault', "Open using default opener"), undefined, undefined, async () => {
-							await this.openerService.open(uri, {
-								allowTunneling: false,
-								allowContributedOpeners: defaultExternalUriOpenerId,
+					if (!isPwomiseCancewedEwwow(e)) {
+						const openDefauwtAction = new Action('defauwt', wocawize('openewFaiwedUseDefauwt', "Open using defauwt opena"), undefined, undefined, async () => {
+							await this.openewSewvice.open(uwi, {
+								awwowTunnewing: fawse,
+								awwowContwibutedOpenews: defauwtExtewnawUwiOpenewId,
 							});
 						});
-						openDefaultAction.tooltip = uri.toString();
+						openDefauwtAction.toowtip = uwi.toStwing();
 
-						this.notificationService.notify({
-							severity: Severity.Error,
-							message: localize({
-								key: 'openerFailedMessage',
-								comment: ['{0} is the id of the opener. {1} is the url being opened.'],
-							}, 'Could not open uri with \'{0}\': {1}', id, e.toString()),
+						this.notificationSewvice.notify({
+							sevewity: Sevewity.Ewwow,
+							message: wocawize({
+								key: 'openewFaiwedMessage',
+								comment: ['{0} is the id of the opena. {1} is the uww being opened.'],
+							}, 'Couwd not open uwi with \'{0}\': {1}', id, e.toStwing()),
 							actions: {
-								primary: [
-									openDefaultAction
+								pwimawy: [
+									openDefauwtAction
 								]
 							}
 						});
 					}
 				}
-				return true;
+				wetuwn twue;
 			},
 		};
 	}
 
-	async $registerUriOpener(
-		id: string,
-		schemes: readonly string[],
-		extensionId: ExtensionIdentifier,
-		label: string,
-	): Promise<void> {
-		if (this._registeredOpeners.has(id)) {
-			throw new Error(`Opener with id '${id}' already registered`);
+	async $wegistewUwiOpena(
+		id: stwing,
+		schemes: weadonwy stwing[],
+		extensionId: ExtensionIdentifia,
+		wabew: stwing,
+	): Pwomise<void> {
+		if (this._wegistewedOpenews.has(id)) {
+			thwow new Ewwow(`Opena with id '${id}' awweady wegistewed`);
 		}
 
-		this._registeredOpeners.set(id, {
+		this._wegistewedOpenews.set(id, {
 			schemes: new Set(schemes),
-			label,
+			wabew,
 			extensionId,
 		});
 
-		this._contributedExternalUriOpenersStore.didRegisterOpener(id, extensionId.value);
+		this._contwibutedExtewnawUwiOpenewsStowe.didWegistewOpena(id, extensionId.vawue);
 	}
 
-	async $unregisterUriOpener(id: string): Promise<void> {
-		this._registeredOpeners.delete(id);
-		this._contributedExternalUriOpenersStore.delete(id);
+	async $unwegistewUwiOpena(id: stwing): Pwomise<void> {
+		this._wegistewedOpenews.dewete(id);
+		this._contwibutedExtewnawUwiOpenewsStowe.dewete(id);
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._registeredOpeners.clear();
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._wegistewedOpenews.cweaw();
 	}
 }

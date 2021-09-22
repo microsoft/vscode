@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .notifications-toasts {
-	position: absolute;
+.monaco-wowkbench > .notifications-toasts {
+	position: absowute;
 	z-index: 1000;
-	right: 3px;
+	wight: 3px;
 	bottom: 26px;
-	display: none;
-	overflow: hidden;
+	dispway: none;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench.nostatusbar > .notifications-toasts {
+.monaco-wowkbench.nostatusbaw > .notifications-toasts {
 	bottom: 3px;
 }
 
-.monaco-workbench > .notifications-toasts.visible {
-	display: flex;
-	flex-direction: column;
+.monaco-wowkbench > .notifications-toasts.visibwe {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast-container {
-	overflow: hidden; /* this ensures that the notification toast does not shine through */
+.monaco-wowkbench > .notifications-toasts .notification-toast-containa {
+	ovewfwow: hidden; /* this ensuwes that the notification toast does not shine thwough */
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
-	margin: 8px; /* enables separation and drop shadows around toasts */
-	transform: translate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to prevent bleed through) */
+.monaco-wowkbench > .notifications-toasts .notification-toast-containa > .notification-toast {
+	mawgin: 8px; /* enabwes sepawation and dwop shadows awound toasts */
+	twansfowm: twanswate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to pwevent bweed thwough) */
 	opacity: 0; /*  fade the toast in */
-	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+	twansition:	twansfowm 300ms ease-out, opacity 300ms ease-out;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
+.monaco-wowkbench > .notifications-toasts .notification-toast-containa > .notification-toast.notification-fade-in {
 	opacity: 1;
-	transform: none;
+	twansfowm: none;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
+.monaco-wowkbench > .notifications-toasts .notification-toast-containa > .notification-toast.notification-fade-in-done {
 	opacity: 1;
-	transform: none;
-	transition:	none;
+	twansfowm: none;
+	twansition:	none;
 }

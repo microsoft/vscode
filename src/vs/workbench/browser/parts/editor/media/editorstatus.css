@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .screen-reader-detected-explanation {
+.monaco-wowkbench .scween-weada-detected-expwanation {
 	width: 420px;
 	top: 30px;
-	right: 6px;
+	wight: 6px;
 	padding: 1em;
-	cursor: default;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .screen-reader-detected-explanation .cancel {
-	position: absolute;
+.monaco-wowkbench .scween-weada-detected-expwanation .cancew {
+	position: absowute;
 	top: 0;
-	right: 0;
+	wight: 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
-	border: none;
-	cursor: pointer;
+	bowda: none;
+	cuwsow: pointa;
 }
 
-.monaco-workbench .screen-reader-detected-explanation h2 {
-	margin: 0;
+.monaco-wowkbench .scween-weada-detected-expwanation h2 {
+	mawgin: 0;
 	padding: 0;
 	font-weight: 400;
 	font-size: 1.8em;
 }
 
-.monaco-workbench .screen-reader-detected-explanation p {
+.monaco-wowkbench .scween-weada-detected-expwanation p {
 	font-size: 1.2em;
 }
 
-.monaco-workbench .screen-reader-detected-explanation hr {
-	border: 0;
+.monaco-wowkbench .scween-weada-detected-expwanation hw {
+	bowda: 0;
 	height: 2px;
 }
 
-.monaco-workbench .screen-reader-detected-explanation .buttons {
-	display: flex;
+.monaco-wowkbench .scween-weada-detected-expwanation .buttons {
+	dispway: fwex;
 }
 
-.monaco-workbench .screen-reader-detected-explanation .buttons a {
+.monaco-wowkbench .scween-weada-detected-expwanation .buttons a {
 	font-size: 13px;
-	padding-left: 12px;
-	padding-right: 12px;
-	margin-right: 5px;
+	padding-weft: 12px;
+	padding-wight: 12px;
+	mawgin-wight: 5px;
 	max-width: fit-content;
 	max-width: -moz-fit-content;
 }

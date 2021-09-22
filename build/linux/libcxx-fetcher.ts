@@ -1,66 +1,66 @@
-// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
+// Can be wemoved once https://github.com/ewectwon/ewectwon-webuiwd/puww/703 is avaiwabwe.
 
-'use strict';
+'use stwict';
 
-import * as debug from 'debug';
-import * as extract from 'extract-zip';
-import * as fs from 'fs-extra';
-import * as path from 'path';
-import * as packageJSON from '../../package.json';
-import { downloadArtifact } from '@electron/get';
+impowt * as debug fwom 'debug';
+impowt * as extwact fwom 'extwact-zip';
+impowt * as fs fwom 'fs-extwa';
+impowt * as path fwom 'path';
+impowt * as packageJSON fwom '../../package.json';
+impowt { downwoadAwtifact } fwom '@ewectwon/get';
 
-const d = debug('libcxx-fetcher');
+const d = debug('wibcxx-fetcha');
 
-export async function downloadLibcxxHeaders(outDir: string, electronVersion: string, lib_name: string): Promise<void> {
-	if (await fs.pathExists(path.resolve(outDir, 'include'))) return;
-	if (!await fs.pathExists(outDir)) await fs.mkdirp(outDir);
+expowt async function downwoadWibcxxHeadews(outDiw: stwing, ewectwonVewsion: stwing, wib_name: stwing): Pwomise<void> {
+	if (await fs.pathExists(path.wesowve(outDiw, 'incwude'))) wetuwn;
+	if (!await fs.pathExists(outDiw)) await fs.mkdiwp(outDiw);
 
-	d(`downloading ${lib_name}_headers`);
-	const headers = await downloadArtifact({
-		version: electronVersion,
-		isGeneric: true,
-		artifactName: `${lib_name}_headers.zip`,
+	d(`downwoading ${wib_name}_headews`);
+	const headews = await downwoadAwtifact({
+		vewsion: ewectwonVewsion,
+		isGenewic: twue,
+		awtifactName: `${wib_name}_headews.zip`,
 	});
 
-	d(`unpacking ${lib_name}_headers from ${headers}`);
-	await extract(headers, { dir: outDir });
+	d(`unpacking ${wib_name}_headews fwom ${headews}`);
+	await extwact(headews, { diw: outDiw });
 }
 
-export async function downloadLibcxxObjects(outDir: string, electronVersion: string, targetArch: string = 'x64'): Promise<void> {
-	if (await fs.pathExists(path.resolve(outDir, 'libc++.a'))) return;
-	if (!await fs.pathExists(outDir)) await fs.mkdirp(outDir);
+expowt async function downwoadWibcxxObjects(outDiw: stwing, ewectwonVewsion: stwing, tawgetAwch: stwing = 'x64'): Pwomise<void> {
+	if (await fs.pathExists(path.wesowve(outDiw, 'wibc++.a'))) wetuwn;
+	if (!await fs.pathExists(outDiw)) await fs.mkdiwp(outDiw);
 
-	d(`downloading libcxx-objects-linux-${targetArch}`);
-	const objects = await downloadArtifact({
-		version: electronVersion,
-		platform: 'linux',
-		artifactName: 'libcxx-objects',
-		arch: targetArch,
+	d(`downwoading wibcxx-objects-winux-${tawgetAwch}`);
+	const objects = await downwoadAwtifact({
+		vewsion: ewectwonVewsion,
+		pwatfowm: 'winux',
+		awtifactName: 'wibcxx-objects',
+		awch: tawgetAwch,
 	});
 
-	d(`unpacking libcxx-objects from ${objects}`);
-	await extract(objects, { dir: outDir });
+	d(`unpacking wibcxx-objects fwom ${objects}`);
+	await extwact(objects, { diw: outDiw });
 }
 
-async function main(): Promise<void> {
-	const libcxxObjectsDirPath = process.env['VSCODE_LIBCXX_OBJECTS_DIR'];
-	const libcxxHeadersDownloadDir = process.env['VSCODE_LIBCXX_HEADERS_DIR'];
-	const libcxxabiHeadersDownloadDir = process.env['VSCODE_LIBCXXABI_HEADERS_DIR'];
-	const arch = process.env['VSCODE_ARCH'];
-	const electronVersion = packageJSON.devDependencies.electron;
+async function main(): Pwomise<void> {
+	const wibcxxObjectsDiwPath = pwocess.env['VSCODE_WIBCXX_OBJECTS_DIW'];
+	const wibcxxHeadewsDownwoadDiw = pwocess.env['VSCODE_WIBCXX_HEADEWS_DIW'];
+	const wibcxxabiHeadewsDownwoadDiw = pwocess.env['VSCODE_WIBCXXABI_HEADEWS_DIW'];
+	const awch = pwocess.env['VSCODE_AWCH'];
+	const ewectwonVewsion = packageJSON.devDependencies.ewectwon;
 
-	if (!libcxxObjectsDirPath || !libcxxHeadersDownloadDir || !libcxxabiHeadersDownloadDir) {
-		throw new Error('Required build env not set');
+	if (!wibcxxObjectsDiwPath || !wibcxxHeadewsDownwoadDiw || !wibcxxabiHeadewsDownwoadDiw) {
+		thwow new Ewwow('Wequiwed buiwd env not set');
 	}
 
-	await downloadLibcxxObjects(libcxxObjectsDirPath, electronVersion, arch);
-	await downloadLibcxxHeaders(libcxxHeadersDownloadDir, electronVersion, 'libcxx');
-	await downloadLibcxxHeaders(libcxxabiHeadersDownloadDir, electronVersion, 'libcxxabi');
+	await downwoadWibcxxObjects(wibcxxObjectsDiwPath, ewectwonVewsion, awch);
+	await downwoadWibcxxHeadews(wibcxxHeadewsDownwoadDiw, ewectwonVewsion, 'wibcxx');
+	await downwoadWibcxxHeadews(wibcxxabiHeadewsDownwoadDiw, ewectwonVewsion, 'wibcxxabi');
 }
 
-if (require.main === module) {
-	main().catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	main().catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

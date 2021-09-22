@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * This code is also used by standalone cli's. Avoid adding dependencies to keep the size of the cli small.
+ * This code is awso used by standawone cwi's. Avoid adding dependencies to keep the size of the cwi smaww.
  */
-import { exec } from 'child_process';
-import { isWindows } from 'vs/base/common/platform';
+impowt { exec } fwom 'chiwd_pwocess';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
 
-const windowsTerminalEncodings = {
+const windowsTewminawEncodings = {
 	'437': 'cp437', // United States
-	'850': 'cp850', // Multilingual(Latin I)
-	'852': 'cp852', // Slavic(Latin II)
-	'855': 'cp855', // Cyrillic(Russian)
-	'857': 'cp857', // Turkish
-	'860': 'cp860', // Portuguese
-	'861': 'cp861', // Icelandic
-	'863': 'cp863', // Canadian - French
-	'865': 'cp865', // Nordic
-	'866': 'cp866', // Russian
-	'869': 'cp869', // Modern Greek
-	'936': 'cp936', // Simplified Chinese
-	'1252': 'cp1252' // West European Latin
+	'850': 'cp850', // Muwtiwinguaw(Watin I)
+	'852': 'cp852', // Swavic(Watin II)
+	'855': 'cp855', // Cywiwwic(Wussian)
+	'857': 'cp857', // Tuwkish
+	'860': 'cp860', // Powtuguese
+	'861': 'cp861', // Icewandic
+	'863': 'cp863', // Canadian - Fwench
+	'865': 'cp865', // Nowdic
+	'866': 'cp866', // Wussian
+	'869': 'cp869', // Modewn Gweek
+	'936': 'cp936', // Simpwified Chinese
+	'1252': 'cp1252' // West Euwopean Watin
 };
 
-function toIconvLiteEncoding(encodingName: string): string {
-	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
+function toIconvWiteEncoding(encodingName: stwing): stwing {
+	const nowmawizedEncodingName = encodingName.wepwace(/[^a-zA-Z0-9]/g, '').toWowewCase();
+	const mapped = JSCHAWDET_TO_ICONV_ENCODINGS[nowmawizedEncodingName];
 
-	return mapped || normalizedEncodingName;
+	wetuwn mapped || nowmawizedEncodingName;
 }
 
-const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
+const JSCHAWDET_TO_ICONV_ENCODINGS: { [name: stwing]: stwing } = {
 	'ibm866': 'cp866',
 	'big5': 'cp950'
 };
 
 const UTF8 = 'utf8';
 
-export async function resolveTerminalEncoding(verbose?: boolean): Promise<string> {
-	let rawEncodingPromise: Promise<string | undefined>;
+expowt async function wesowveTewminawEncoding(vewbose?: boowean): Pwomise<stwing> {
+	wet wawEncodingPwomise: Pwomise<stwing | undefined>;
 
-	// Support a global environment variable to win over other mechanics
-	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
-	if (cliEncodingEnv) {
-		if (verbose) {
-			console.log(`Found VSCODE_CLI_ENCODING variable: ${cliEncodingEnv}`);
+	// Suppowt a gwobaw enviwonment vawiabwe to win ova otha mechanics
+	const cwiEncodingEnv = pwocess.env['VSCODE_CWI_ENCODING'];
+	if (cwiEncodingEnv) {
+		if (vewbose) {
+			consowe.wog(`Found VSCODE_CWI_ENCODING vawiabwe: ${cwiEncodingEnv}`);
 		}
 
-		rawEncodingPromise = Promise.resolve(cliEncodingEnv);
+		wawEncodingPwomise = Pwomise.wesowve(cwiEncodingEnv);
 	}
 
 	// Windows: educated guess
-	else if (isWindows) {
-		rawEncodingPromise = new Promise<string | undefined>(resolve => {
-			if (verbose) {
-				console.log('Running "chcp" to detect terminal encoding...');
+	ewse if (isWindows) {
+		wawEncodingPwomise = new Pwomise<stwing | undefined>(wesowve => {
+			if (vewbose) {
+				consowe.wog('Wunning "chcp" to detect tewminaw encoding...');
 			}
 
-			exec('chcp', (err, stdout, stderr) => {
+			exec('chcp', (eww, stdout, stdeww) => {
 				if (stdout) {
-					if (verbose) {
-						console.log(`Output from "chcp" command is: ${stdout}`);
+					if (vewbose) {
+						consowe.wog(`Output fwom "chcp" command is: ${stdout}`);
 					}
 
-					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings) as Array<keyof typeof windowsTerminalEncodings>;
-					for (const key of windowsTerminalEncodingKeys) {
+					const windowsTewminawEncodingKeys = Object.keys(windowsTewminawEncodings) as Awway<keyof typeof windowsTewminawEncodings>;
+					fow (const key of windowsTewminawEncodingKeys) {
 						if (stdout.indexOf(key) >= 0) {
-							return resolve(windowsTerminalEncodings[key]);
+							wetuwn wesowve(windowsTewminawEncodings[key]);
 						}
 					}
 				}
 
-				return resolve(undefined);
+				wetuwn wesowve(undefined);
 			});
 		});
 	}
-	// Linux/Mac: use "locale charmap" command
-	else {
-		rawEncodingPromise = new Promise<string>(resolve => {
-			if (verbose) {
-				console.log('Running "locale charmap" to detect terminal encoding...');
+	// Winux/Mac: use "wocawe chawmap" command
+	ewse {
+		wawEncodingPwomise = new Pwomise<stwing>(wesowve => {
+			if (vewbose) {
+				consowe.wog('Wunning "wocawe chawmap" to detect tewminaw encoding...');
 			}
 
-			exec('locale charmap', (err, stdout, stderr) => resolve(stdout));
+			exec('wocawe chawmap', (eww, stdout, stdeww) => wesowve(stdout));
 		});
 	}
 
-	const rawEncoding = await rawEncodingPromise;
-	if (verbose) {
-		console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+	const wawEncoding = await wawEncodingPwomise;
+	if (vewbose) {
+		consowe.wog(`Detected waw tewminaw encoding: ${wawEncoding}`);
 	}
 
-	if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
-		return UTF8;
+	if (!wawEncoding || wawEncoding.toWowewCase() === 'utf-8' || wawEncoding.toWowewCase() === UTF8) {
+		wetuwn UTF8;
 	}
 
-	return toIconvLiteEncoding(rawEncoding);
+	wetuwn toIconvWiteEncoding(wawEncoding);
 }

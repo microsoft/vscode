@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
-import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
-import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { Schemas } from 'vs/base/common/network';
+impowt type { Tewminaw, IViewpowtWange, IBuffewWine } fwom 'xtewm';
+impowt { IWinkComputewTawget, WinkComputa } fwom 'vs/editow/common/modes/winkComputa';
+impowt { getXtewmWineContent, convewtWinkWangeToBuffa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkHewpews';
+impowt { TewminawWink, OPEN_FIWE_WABEW, FOWDEW_IN_WOWKSPACE_WABEW, FOWDEW_NOT_IN_WOWKSPACE_WABEW } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWink';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TewminawBaseWinkPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawBaseWinkPwovida';
+impowt { XtewmWinkMatchewHandwa } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/winks/tewminawWinkManaga';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
 
-export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
-	private _linkComputerTarget: ILinkComputerTarget | undefined;
+expowt cwass TewminawPwotocowWinkPwovida extends TewminawBaseWinkPwovida {
+	pwivate _winkComputewTawget: IWinkComputewTawget | undefined;
 
-	constructor(
-		private readonly _xterm: Terminal,
-		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
-		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
-		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
+	constwuctow(
+		pwivate weadonwy _xtewm: Tewminaw,
+		pwivate weadonwy _activateCawwback: (event: MouseEvent | undefined, uwi: stwing) => void,
+		pwivate weadonwy _wwapWinkHandwa: (handwa: (event: MouseEvent | undefined, wink: stwing) => void) => XtewmWinkMatchewHandwa,
+		pwivate weadonwy _toowtipCawwback: (wink: TewminawWink, viewpowtWange: IViewpowtWange, modifiewDownCawwback?: () => void, modifiewUpCawwback?: () => void) => void,
+		pwivate weadonwy _vawidationCawwback: (wink: stwing, cawwback: (wesuwt: { uwi: UWI, isDiwectowy: boowean } | undefined) => void) => void,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IHostSewvice pwivate weadonwy _hostSewvice: IHostSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 	}
 
-	protected async _provideLinks(y: number): Promise<TerminalLink[]> {
-		let startLine = y - 1;
-		let endLine = startLine;
+	pwotected async _pwovideWinks(y: numba): Pwomise<TewminawWink[]> {
+		wet stawtWine = y - 1;
+		wet endWine = stawtWine;
 
-		const lines: IBufferLine[] = [
-			this._xterm.buffer.active.getLine(startLine)!
+		const wines: IBuffewWine[] = [
+			this._xtewm.buffa.active.getWine(stawtWine)!
 		];
 
-		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
-			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
-			startLine--;
+		whiwe (stawtWine >= 0 && this._xtewm.buffa.active.getWine(stawtWine)?.isWwapped) {
+			wines.unshift(this._xtewm.buffa.active.getWine(stawtWine - 1)!);
+			stawtWine--;
 		}
 
-		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
-			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
-			endLine++;
+		whiwe (endWine < this._xtewm.buffa.active.wength && this._xtewm.buffa.active.getWine(endWine + 1)?.isWwapped) {
+			wines.push(this._xtewm.buffa.active.getWine(endWine + 1)!);
+			endWine++;
 		}
 
-		this._linkComputerTarget = new TerminalLinkAdapter(this._xterm, startLine, endLine);
-		const links = LinkComputer.computeLinks(this._linkComputerTarget);
+		this._winkComputewTawget = new TewminawWinkAdapta(this._xtewm, stawtWine, endWine);
+		const winks = WinkComputa.computeWinks(this._winkComputewTawget);
 
-		const result: TerminalLink[] = [];
-		for (const link of links) {
-			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
+		const wesuwt: TewminawWink[] = [];
+		fow (const wink of winks) {
+			const buffewWange = convewtWinkWangeToBuffa(wines, this._xtewm.cows, wink.wange, stawtWine);
 
-			// Check if the link is within the mouse position
-			const uri = link.url
-				? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
+			// Check if the wink is within the mouse position
+			const uwi = wink.uww
+				? (typeof wink.uww === 'stwing' ? UWI.pawse(wink.uww) : wink.uww)
 				: undefined;
 
-			if (!uri) {
+			if (!uwi) {
 				continue;
 			}
 
-			const linkText = link.url?.toString() || '';
+			const winkText = wink.uww?.toStwing() || '';
 
-			// Handle http links
-			if (uri.scheme !== Schemas.file) {
-				result.push(this._instantiationService.createInstance(TerminalLink,
-					this._xterm,
-					bufferRange,
-					linkText,
-					this._xterm.buffer.active.viewportY,
-					this._activateCallback,
-					this._tooltipCallback,
-					true,
+			// Handwe http winks
+			if (uwi.scheme !== Schemas.fiwe) {
+				wesuwt.push(this._instantiationSewvice.cweateInstance(TewminawWink,
+					this._xtewm,
+					buffewWange,
+					winkText,
+					this._xtewm.buffa.active.viewpowtY,
+					this._activateCawwback,
+					this._toowtipCawwback,
+					twue,
 					undefined
 				));
 				continue;
 			}
 
-			// Handle files and folders
-			const validatedLink = await new Promise<TerminalLink | undefined>(r => {
-				this._validationCallback(linkText, (result) => {
-					if (result) {
-						const label = result.isDirectory
-							? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
-							: OPEN_FILE_LABEL;
-						const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
-							if (result.isDirectory) {
-								this._handleLocalFolderLink(result.uri);
-							} else {
-								this._activateCallback(event, linkText);
+			// Handwe fiwes and fowdews
+			const vawidatedWink = await new Pwomise<TewminawWink | undefined>(w => {
+				this._vawidationCawwback(winkText, (wesuwt) => {
+					if (wesuwt) {
+						const wabew = wesuwt.isDiwectowy
+							? (this._isDiwectowyInsideWowkspace(wesuwt.uwi) ? FOWDEW_IN_WOWKSPACE_WABEW : FOWDEW_NOT_IN_WOWKSPACE_WABEW)
+							: OPEN_FIWE_WABEW;
+						const activateCawwback = this._wwapWinkHandwa((event: MouseEvent | undefined, text: stwing) => {
+							if (wesuwt.isDiwectowy) {
+								this._handweWocawFowdewWink(wesuwt.uwi);
+							} ewse {
+								this._activateCawwback(event, winkText);
 							}
 						});
-						r(this._instantiationService.createInstance(
-							TerminalLink,
-							this._xterm,
-							bufferRange,
-							linkText,
-							this._xterm.buffer.active.viewportY,
-							activateCallback,
-							this._tooltipCallback,
-							true,
-							label
+						w(this._instantiationSewvice.cweateInstance(
+							TewminawWink,
+							this._xtewm,
+							buffewWange,
+							winkText,
+							this._xtewm.buffa.active.viewpowtY,
+							activateCawwback,
+							this._toowtipCawwback,
+							twue,
+							wabew
 						));
-					} else {
-						r(undefined);
+					} ewse {
+						w(undefined);
 					}
 				});
 			});
-			if (validatedLink) {
-				result.push(validatedLink);
+			if (vawidatedWink) {
+				wesuwt.push(vawidatedWink);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async _handleLocalFolderLink(uri: URI): Promise<void> {
-		// If the folder is within one of the window's workspaces, focus it in the explorer
-		if (this._isDirectoryInsideWorkspace(uri)) {
-			await this._commandService.executeCommand('revealInExplorer', uri);
-			return;
+	pwivate async _handweWocawFowdewWink(uwi: UWI): Pwomise<void> {
+		// If the fowda is within one of the window's wowkspaces, focus it in the expwowa
+		if (this._isDiwectowyInsideWowkspace(uwi)) {
+			await this._commandSewvice.executeCommand('weveawInExpwowa', uwi);
+			wetuwn;
 		}
 
-		// Open a new window for the folder
-		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+		// Open a new window fow the fowda
+		this._hostSewvice.openWindow([{ fowdewUwi: uwi }], { fowceNewWindow: twue });
 	}
 
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
+	pwivate _isDiwectowyInsideWowkspace(uwi: UWI) {
+		const fowdews = this._wowkspaceContextSewvice.getWowkspace().fowdews;
+		fow (wet i = 0; i < fowdews.wength; i++) {
+			if (this._uwiIdentitySewvice.extUwi.isEquawOwPawent(uwi, fowdews[i].uwi)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-class TerminalLinkAdapter implements ILinkComputerTarget {
-	constructor(
-		private _xterm: Terminal,
-		private _lineStart: number,
-		private _lineEnd: number
+cwass TewminawWinkAdapta impwements IWinkComputewTawget {
+	constwuctow(
+		pwivate _xtewm: Tewminaw,
+		pwivate _wineStawt: numba,
+		pwivate _wineEnd: numba
 	) { }
 
-	getLineCount(): number {
-		return 1;
+	getWineCount(): numba {
+		wetuwn 1;
 	}
 
-	getLineContent(): string {
-		return getXtermLineContent(this._xterm.buffer.active, this._lineStart, this._lineEnd, this._xterm.cols);
+	getWineContent(): stwing {
+		wetuwn getXtewmWineContent(this._xtewm.buffa.active, this._wineStawt, this._wineEnd, this._xtewm.cows);
 	}
 }

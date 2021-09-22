@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
-import { toResource } from 'vs/base/test/common/utils';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, TestFilesConfigurationService, registerTestFileEditor, registerTestResourceEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel, snapshotToString, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { TextFiweEditowTwacka } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/textFiweEditowTwacka';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestFiwesConfiguwationSewvice, wegistewTestFiweEditow, wegistewTestWesouwceEditow, cweateEditowPawt } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IWesowvedTextFiweEditowModew, snapshotToStwing, ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { FiweChangesEvent, FiweChangeType, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { FIWE_EDITOW_INPUT_ID } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { TestWowkspaceTwustWequestSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { DEFAUWT_EDITOW_ASSOCIATION } fwom 'vs/wowkbench/common/editow';
 
-suite('Files - TextFileEditorTracker', () => {
+suite('Fiwes - TextFiweEditowTwacka', () => {
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
-	class TestTextFileEditorTracker extends TextFileEditorTracker {
+	cwass TestTextFiweEditowTwacka extends TextFiweEditowTwacka {
 
-		protected override getDirtyTextFileTrackerDelay(): number {
-			return 5; // encapsulated in a method for tests to override
+		pwotected ovewwide getDiwtyTextFiweTwackewDeway(): numba {
+			wetuwn 5; // encapsuwated in a method fow tests to ovewwide
 		}
 	}
 
 	setup(() => {
-		disposables.add(registerTestFileEditor());
-		disposables.add(registerTestResourceEditor());
+		disposabwes.add(wegistewTestFiweEditow());
+		disposabwes.add(wegistewTestWesouwceEditow());
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+	async function cweateTwacka(autoSaveEnabwed = fawse): Pwomise<TestSewviceAccessow> {
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
 
-		if (autoSaveEnabled) {
-			const configurationService = new TestConfigurationService();
-			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		if (autoSaveEnabwed) {
+			const configuwationSewvice = new TestConfiguwationSewvice();
+			configuwationSewvice.setUsewConfiguwation('fiwes', { autoSave: 'aftewDeway', autoSaveDeway: 1 });
 
-			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
 
-			instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
-				<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-				configurationService
+			instantiationSewvice.stub(IFiwesConfiguwationSewvice, new TestFiwesConfiguwationSewvice(
+				<IContextKeySewvice>instantiationSewvice.cweateInstance(MockContextKeySewvice),
+				configuwationSewvice
 			));
 		}
 
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
+		const pawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, pawt);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
+		instantiationSewvice.stub(IWowkspaceTwustWequestSewvice, new TestWowkspaceTwustWequestSewvice(fawse));
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice: EditowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		const accessor = instantiationService.createInstance(TestServiceAccessor);
-		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
+		const accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
+		disposabwes.add((<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes));
 
-		disposables.add(instantiationService.createInstance(TestTextFileEditorTracker));
+		disposabwes.add(instantiationSewvice.cweateInstance(TestTextFiweEditowTwacka));
 
-		return accessor;
+		wetuwn accessow;
 	}
 
-	test('file change event updates model', async function () {
-		const accessor = await createTracker();
+	test('fiwe change event updates modew', async function () {
+		const accessow = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		const modew = await accessow.textFiweSewvice.fiwes.wesowve(wesouwce) as IWesowvedTextFiweEditowModew;
 
-		model.textEditorModel.setValue('Super Good');
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), 'Super Good');
+		modew.textEditowModew.setVawue('Supa Good');
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), 'Supa Good');
 
-		await model.save();
+		await modew.save();
 
-		// change event (watcher)
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+		// change event (watcha)
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.UPDATED }], fawse));
 
-		await timeout(0); // due to event updating model async
+		await timeout(0); // due to event updating modew async
 
-		assert.strictEqual(snapshotToString(model.createSnapshot()!), 'Hello Html');
+		assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), 'Hewwo Htmw');
 	});
 
-	test('dirty text file model opens as editor', async function () {
-		const resource = toResource.call(this, '/path/index.txt');
+	test('diwty text fiwe modew opens as editow', async function () {
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, false, false);
+		await testDiwtyTextFiweModewOpensEditowDependingOnAutoSaveSetting(wesouwce, fawse, fawse);
 	});
 
-	test('dirty text file model does not open as editor if autosave is ON', async function () {
-		const resource = toResource.call(this, '/path/index.txt');
+	test('diwty text fiwe modew does not open as editow if autosave is ON', async function () {
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true, false);
+		await testDiwtyTextFiweModewOpensEditowDependingOnAutoSaveSetting(wesouwce, twue, fawse);
 	});
 
-	test('dirty text file model opens as editor when save fails', async function () {
-		const resource = toResource.call(this, '/path/index.txt');
+	test('diwty text fiwe modew opens as editow when save faiws', async function () {
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, false, true);
+		await testDiwtyTextFiweModewOpensEditowDependingOnAutoSaveSetting(wesouwce, fawse, twue);
 	});
 
-	test('dirty text file model opens as editor when save fails if autosave is ON', async function () {
-		const resource = toResource.call(this, '/path/index.txt');
+	test('diwty text fiwe modew opens as editow when save faiws if autosave is ON', async function () {
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		await testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource, true, true);
+		await testDiwtyTextFiweModewOpensEditowDependingOnAutoSaveSetting(wesouwce, twue, twue);
 	});
 
-	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean, error: boolean): Promise<void> {
-		const accessor = await createTracker(autoSave);
+	async function testDiwtyTextFiweModewOpensEditowDependingOnAutoSaveSetting(wesouwce: UWI, autoSave: boowean, ewwow: boowean): Pwomise<void> {
+		const accessow = await cweateTwacka(autoSave);
 
-		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
+		assewt.ok(!accessow.editowSewvice.isOpened({ wesouwce, typeId: FIWE_EDITOW_INPUT_ID, editowId: DEFAUWT_EDITOW_ASSOCIATION.id }));
 
-		if (error) {
-			accessor.textFileService.setWriteErrorOnce(new FileOperationError('fail to write', FileOperationResult.FILE_OTHER_ERROR));
+		if (ewwow) {
+			accessow.textFiweSewvice.setWwiteEwwowOnce(new FiweOpewationEwwow('faiw to wwite', FiweOpewationWesuwt.FIWE_OTHEW_EWWOW));
 		}
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		const modew = await accessow.textFiweSewvice.fiwes.wesowve(wesouwce) as IWesowvedTextFiweEditowModew;
 
-		model.textEditorModel.setValue('Super Good');
+		modew.textEditowModew.setVawue('Supa Good');
 
 		if (autoSave) {
-			await model.save();
+			await modew.save();
 			await timeout(10);
-			if (error) {
-				assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
-			} else {
-				assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
+			if (ewwow) {
+				assewt.ok(accessow.editowSewvice.isOpened({ wesouwce, typeId: FIWE_EDITOW_INPUT_ID, editowId: DEFAUWT_EDITOW_ASSOCIATION.id }));
+			} ewse {
+				assewt.ok(!accessow.editowSewvice.isOpened({ wesouwce, typeId: FIWE_EDITOW_INPUT_ID, editowId: DEFAUWT_EDITOW_ASSOCIATION.id }));
 			}
-		} else {
-			await awaitEditorOpening(accessor.editorService);
-			assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
+		} ewse {
+			await awaitEditowOpening(accessow.editowSewvice);
+			assewt.ok(accessow.editowSewvice.isOpened({ wesouwce, typeId: FIWE_EDITOW_INPUT_ID, editowId: DEFAUWT_EDITOW_ASSOCIATION.id }));
 		}
 	}
 
-	test('dirty untitled text file model opens as editor', async function () {
-		const accessor = await createTracker();
+	test('diwty untitwed text fiwe modew opens as editow', async function () {
+		const accessow = await cweateTwacka();
 
-		const untitledTextEditor = accessor.textEditorService.createTextEditor({ resource: undefined, forceUntitled: true }) as UntitledTextEditorInput;
-		const model = disposables.add(await untitledTextEditor.resolve());
+		const untitwedTextEditow = accessow.textEditowSewvice.cweateTextEditow({ wesouwce: undefined, fowceUntitwed: twue }) as UntitwedTextEditowInput;
+		const modew = disposabwes.add(await untitwedTextEditow.wesowve());
 
-		assert.ok(!accessor.editorService.isOpened(untitledTextEditor));
+		assewt.ok(!accessow.editowSewvice.isOpened(untitwedTextEditow));
 
-		model.textEditorModel?.setValue('Super Good');
+		modew.textEditowModew?.setVawue('Supa Good');
 
-		await awaitEditorOpening(accessor.editorService);
-		assert.ok(accessor.editorService.isOpened(untitledTextEditor));
+		await awaitEditowOpening(accessow.editowSewvice);
+		assewt.ok(accessow.editowSewvice.isOpened(untitwedTextEditow));
 	});
 
-	function awaitEditorOpening(editorService: IEditorService): Promise<void> {
-		return Event.toPromise(Event.once(editorService.onDidActiveEditorChange));
+	function awaitEditowOpening(editowSewvice: IEditowSewvice): Pwomise<void> {
+		wetuwn Event.toPwomise(Event.once(editowSewvice.onDidActiveEditowChange));
 	}
 
-	test('non-dirty files reload on window focus', async function () {
-		const accessor = await createTracker();
+	test('non-diwty fiwes wewoad on window focus', async function () {
+		const accessow = await cweateTwacka();
 
-		const resource = toResource.call(this, '/path/index.txt');
+		const wesouwce = toWesouwce.caww(this, '/path/index.txt');
 
-		await accessor.editorService.openEditor(accessor.textEditorService.createTextEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }));
+		await accessow.editowSewvice.openEditow(accessow.textEditowSewvice.cweateTextEditow({ wesouwce, options: { ovewwide: DEFAUWT_EDITOW_ASSOCIATION.id } }));
 
-		accessor.hostService.setFocus(false);
-		accessor.hostService.setFocus(true);
+		accessow.hostSewvice.setFocus(fawse);
+		accessow.hostSewvice.setFocus(twue);
 
-		await awaitModelResolveEvent(accessor.textFileService, resource);
+		await awaitModewWesowveEvent(accessow.textFiweSewvice, wesouwce);
 	});
 
-	function awaitModelResolveEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
-		return new Promise(resolve => {
-			const listener = textFileService.files.onDidResolve(e => {
-				if (isEqual(e.model.resource, resource)) {
-					listener.dispose();
-					resolve();
+	function awaitModewWesowveEvent(textFiweSewvice: ITextFiweSewvice, wesouwce: UWI): Pwomise<void> {
+		wetuwn new Pwomise(wesowve => {
+			const wistena = textFiweSewvice.fiwes.onDidWesowve(e => {
+				if (isEquaw(e.modew.wesouwce, wesouwce)) {
+					wistena.dispose();
+					wesowve();
 				}
 			});
 		});

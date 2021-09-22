@@ -1,392 +1,392 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import * as types from 'vs/base/common/types';
+impowt { twansfowmEwwowFowSewiawization } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt * as types fwom 'vs/base/common/types';
 
-const INITIALIZE = '$initialize';
+const INITIAWIZE = '$initiawize';
 
-export interface IWorker extends IDisposable {
-	getId(): number;
-	postMessage(message: any, transfer: ArrayBuffer[]): void;
+expowt intewface IWowka extends IDisposabwe {
+	getId(): numba;
+	postMessage(message: any, twansfa: AwwayBuffa[]): void;
 }
 
-export interface IWorkerCallback {
+expowt intewface IWowkewCawwback {
 	(message: any): void;
 }
 
-export interface IWorkerFactory {
-	create(moduleId: string, callback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker;
+expowt intewface IWowkewFactowy {
+	cweate(moduweId: stwing, cawwback: IWowkewCawwback, onEwwowCawwback: (eww: any) => void): IWowka;
 }
 
-let webWorkerWarningLogged = false;
-export function logOnceWebWorkerWarning(err: any): void {
+wet webWowkewWawningWogged = fawse;
+expowt function wogOnceWebWowkewWawning(eww: any): void {
 	if (!isWeb) {
-		// running tests
-		return;
+		// wunning tests
+		wetuwn;
 	}
-	if (!webWorkerWarningLogged) {
-		webWorkerWarningLogged = true;
-		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/microsoft/monaco-editor#faq');
+	if (!webWowkewWawningWogged) {
+		webWowkewWawningWogged = twue;
+		consowe.wawn('Couwd not cweate web wowka(s). Fawwing back to woading web wowka code in main thwead, which might cause UI fweezes. Pwease see https://github.com/micwosoft/monaco-editow#faq');
 	}
-	console.warn(err.message);
+	consowe.wawn(eww.message);
 }
 
-interface IMessage {
-	vsWorker: number;
-	req?: string;
-	seq?: string;
+intewface IMessage {
+	vsWowka: numba;
+	weq?: stwing;
+	seq?: stwing;
 }
 
-interface IRequestMessage extends IMessage {
-	req: string;
-	method: string;
-	args: any[];
+intewface IWequestMessage extends IMessage {
+	weq: stwing;
+	method: stwing;
+	awgs: any[];
 }
 
-interface IReplyMessage extends IMessage {
-	seq: string;
-	err: any;
-	res: any;
+intewface IWepwyMessage extends IMessage {
+	seq: stwing;
+	eww: any;
+	wes: any;
 }
 
-interface IMessageReply {
-	resolve: (value?: any) => void;
-	reject: (error?: any) => void;
+intewface IMessageWepwy {
+	wesowve: (vawue?: any) => void;
+	weject: (ewwow?: any) => void;
 }
 
-interface IMessageHandler {
-	sendMessage(msg: any, transfer?: ArrayBuffer[]): void;
-	handleMessage(method: string, args: any[]): Promise<any>;
+intewface IMessageHandwa {
+	sendMessage(msg: any, twansfa?: AwwayBuffa[]): void;
+	handweMessage(method: stwing, awgs: any[]): Pwomise<any>;
 }
 
-class SimpleWorkerProtocol {
+cwass SimpweWowkewPwotocow {
 
-	private _workerId: number;
-	private _lastSentReq: number;
-	private _pendingReplies: { [req: string]: IMessageReply; };
-	private _handler: IMessageHandler;
+	pwivate _wowkewId: numba;
+	pwivate _wastSentWeq: numba;
+	pwivate _pendingWepwies: { [weq: stwing]: IMessageWepwy; };
+	pwivate _handwa: IMessageHandwa;
 
-	constructor(handler: IMessageHandler) {
-		this._workerId = -1;
-		this._handler = handler;
-		this._lastSentReq = 0;
-		this._pendingReplies = Object.create(null);
-	}
-
-	public setWorkerId(workerId: number): void {
-		this._workerId = workerId;
+	constwuctow(handwa: IMessageHandwa) {
+		this._wowkewId = -1;
+		this._handwa = handwa;
+		this._wastSentWeq = 0;
+		this._pendingWepwies = Object.cweate(nuww);
 	}
 
-	public sendMessage(method: string, args: any[]): Promise<any> {
-		let req = String(++this._lastSentReq);
-		return new Promise<any>((resolve, reject) => {
-			this._pendingReplies[req] = {
-				resolve: resolve,
-				reject: reject
+	pubwic setWowkewId(wowkewId: numba): void {
+		this._wowkewId = wowkewId;
+	}
+
+	pubwic sendMessage(method: stwing, awgs: any[]): Pwomise<any> {
+		wet weq = Stwing(++this._wastSentWeq);
+		wetuwn new Pwomise<any>((wesowve, weject) => {
+			this._pendingWepwies[weq] = {
+				wesowve: wesowve,
+				weject: weject
 			};
 			this._send({
-				vsWorker: this._workerId,
-				req: req,
+				vsWowka: this._wowkewId,
+				weq: weq,
 				method: method,
-				args: args
+				awgs: awgs
 			});
 		});
 	}
 
-	public handleMessage(message: IMessage): void {
-		if (!message || !message.vsWorker) {
-			return;
+	pubwic handweMessage(message: IMessage): void {
+		if (!message || !message.vsWowka) {
+			wetuwn;
 		}
-		if (this._workerId !== -1 && message.vsWorker !== this._workerId) {
-			return;
+		if (this._wowkewId !== -1 && message.vsWowka !== this._wowkewId) {
+			wetuwn;
 		}
-		this._handleMessage(message);
+		this._handweMessage(message);
 	}
 
-	private _handleMessage(msg: IMessage): void {
+	pwivate _handweMessage(msg: IMessage): void {
 		if (msg.seq) {
-			let replyMessage = <IReplyMessage>msg;
-			if (!this._pendingReplies[replyMessage.seq]) {
-				console.warn('Got reply to unknown seq');
-				return;
+			wet wepwyMessage = <IWepwyMessage>msg;
+			if (!this._pendingWepwies[wepwyMessage.seq]) {
+				consowe.wawn('Got wepwy to unknown seq');
+				wetuwn;
 			}
 
-			let reply = this._pendingReplies[replyMessage.seq];
-			delete this._pendingReplies[replyMessage.seq];
+			wet wepwy = this._pendingWepwies[wepwyMessage.seq];
+			dewete this._pendingWepwies[wepwyMessage.seq];
 
-			if (replyMessage.err) {
-				let err = replyMessage.err;
-				if (replyMessage.err.$isError) {
-					err = new Error();
-					err.name = replyMessage.err.name;
-					err.message = replyMessage.err.message;
-					err.stack = replyMessage.err.stack;
+			if (wepwyMessage.eww) {
+				wet eww = wepwyMessage.eww;
+				if (wepwyMessage.eww.$isEwwow) {
+					eww = new Ewwow();
+					eww.name = wepwyMessage.eww.name;
+					eww.message = wepwyMessage.eww.message;
+					eww.stack = wepwyMessage.eww.stack;
 				}
-				reply.reject(err);
-				return;
+				wepwy.weject(eww);
+				wetuwn;
 			}
 
-			reply.resolve(replyMessage.res);
-			return;
+			wepwy.wesowve(wepwyMessage.wes);
+			wetuwn;
 		}
 
-		let requestMessage = <IRequestMessage>msg;
-		let req = requestMessage.req;
-		let result = this._handler.handleMessage(requestMessage.method, requestMessage.args);
-		result.then((r) => {
+		wet wequestMessage = <IWequestMessage>msg;
+		wet weq = wequestMessage.weq;
+		wet wesuwt = this._handwa.handweMessage(wequestMessage.method, wequestMessage.awgs);
+		wesuwt.then((w) => {
 			this._send({
-				vsWorker: this._workerId,
-				seq: req,
-				res: r,
-				err: undefined
+				vsWowka: this._wowkewId,
+				seq: weq,
+				wes: w,
+				eww: undefined
 			});
 		}, (e) => {
-			if (e.detail instanceof Error) {
-				// Loading errors have a detail property that points to the actual error
-				e.detail = transformErrorForSerialization(e.detail);
+			if (e.detaiw instanceof Ewwow) {
+				// Woading ewwows have a detaiw pwopewty that points to the actuaw ewwow
+				e.detaiw = twansfowmEwwowFowSewiawization(e.detaiw);
 			}
 			this._send({
-				vsWorker: this._workerId,
-				seq: req,
-				res: undefined,
-				err: transformErrorForSerialization(e)
+				vsWowka: this._wowkewId,
+				seq: weq,
+				wes: undefined,
+				eww: twansfowmEwwowFowSewiawization(e)
 			});
 		});
 	}
 
-	private _send(msg: IRequestMessage | IReplyMessage): void {
-		let transfer: ArrayBuffer[] = [];
-		if (msg.req) {
-			const m = <IRequestMessage>msg;
-			for (let i = 0; i < m.args.length; i++) {
-				if (m.args[i] instanceof ArrayBuffer) {
-					transfer.push(m.args[i]);
+	pwivate _send(msg: IWequestMessage | IWepwyMessage): void {
+		wet twansfa: AwwayBuffa[] = [];
+		if (msg.weq) {
+			const m = <IWequestMessage>msg;
+			fow (wet i = 0; i < m.awgs.wength; i++) {
+				if (m.awgs[i] instanceof AwwayBuffa) {
+					twansfa.push(m.awgs[i]);
 				}
 			}
-		} else {
-			const m = <IReplyMessage>msg;
-			if (m.res instanceof ArrayBuffer) {
-				transfer.push(m.res);
+		} ewse {
+			const m = <IWepwyMessage>msg;
+			if (m.wes instanceof AwwayBuffa) {
+				twansfa.push(m.wes);
 			}
 		}
-		this._handler.sendMessage(msg, transfer);
+		this._handwa.sendMessage(msg, twansfa);
 	}
 }
 
-export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
+expowt intewface IWowkewCwient<W> {
+	getPwoxyObject(): Pwomise<W>;
 	dispose(): void;
 }
 
 /**
- * Main thread side
+ * Main thwead side
  */
-export class SimpleWorkerClient<W extends object, H extends object> extends Disposable implements IWorkerClient<W> {
+expowt cwass SimpweWowkewCwient<W extends object, H extends object> extends Disposabwe impwements IWowkewCwient<W> {
 
-	private readonly _worker: IWorker;
-	private readonly _onModuleLoaded: Promise<string[]>;
-	private readonly _protocol: SimpleWorkerProtocol;
-	private readonly _lazyProxy: Promise<W>;
+	pwivate weadonwy _wowka: IWowka;
+	pwivate weadonwy _onModuweWoaded: Pwomise<stwing[]>;
+	pwivate weadonwy _pwotocow: SimpweWowkewPwotocow;
+	pwivate weadonwy _wazyPwoxy: Pwomise<W>;
 
-	constructor(workerFactory: IWorkerFactory, moduleId: string, host: H) {
-		super();
+	constwuctow(wowkewFactowy: IWowkewFactowy, moduweId: stwing, host: H) {
+		supa();
 
-		let lazyProxyReject: ((err: any) => void) | null = null;
+		wet wazyPwoxyWeject: ((eww: any) => void) | nuww = nuww;
 
-		this._worker = this._register(workerFactory.create(
-			'vs/base/common/worker/simpleWorker',
+		this._wowka = this._wegista(wowkewFactowy.cweate(
+			'vs/base/common/wowka/simpweWowka',
 			(msg: any) => {
-				this._protocol.handleMessage(msg);
+				this._pwotocow.handweMessage(msg);
 			},
-			(err: any) => {
-				// in Firefox, web workers fail lazily :(
-				// we will reject the proxy
-				if (lazyProxyReject) {
-					lazyProxyReject(err);
+			(eww: any) => {
+				// in Fiwefox, web wowkews faiw waziwy :(
+				// we wiww weject the pwoxy
+				if (wazyPwoxyWeject) {
+					wazyPwoxyWeject(eww);
 				}
 			}
 		));
 
-		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
-				this._worker.postMessage(msg, transfer);
+		this._pwotocow = new SimpweWowkewPwotocow({
+			sendMessage: (msg: any, twansfa: AwwayBuffa[]): void => {
+				this._wowka.postMessage(msg, twansfa);
 			},
-			handleMessage: (method: string, args: any[]): Promise<any> => {
+			handweMessage: (method: stwing, awgs: any[]): Pwomise<any> => {
 				if (typeof (host as any)[method] !== 'function') {
-					return Promise.reject(new Error('Missing method ' + method + ' on main thread host.'));
+					wetuwn Pwomise.weject(new Ewwow('Missing method ' + method + ' on main thwead host.'));
 				}
 
-				try {
-					return Promise.resolve((host as any)[method].apply(host, args));
+				twy {
+					wetuwn Pwomise.wesowve((host as any)[method].appwy(host, awgs));
 				} catch (e) {
-					return Promise.reject(e);
+					wetuwn Pwomise.weject(e);
 				}
 			}
 		});
-		this._protocol.setWorkerId(this._worker.getId());
+		this._pwotocow.setWowkewId(this._wowka.getId());
 
-		// Gather loader configuration
-		let loaderConfiguration: any = null;
-		if (typeof (<any>self).require !== 'undefined' && typeof (<any>self).require.getConfig === 'function') {
-			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = (<any>self).require.getConfig();
-		} else if (typeof (<any>self).requirejs !== 'undefined') {
-			// Get the configuration from requirejs
-			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
+		// Gatha woada configuwation
+		wet woadewConfiguwation: any = nuww;
+		if (typeof (<any>sewf).wequiwe !== 'undefined' && typeof (<any>sewf).wequiwe.getConfig === 'function') {
+			// Get the configuwation fwom the Monaco AMD Woada
+			woadewConfiguwation = (<any>sewf).wequiwe.getConfig();
+		} ewse if (typeof (<any>sewf).wequiwejs !== 'undefined') {
+			// Get the configuwation fwom wequiwejs
+			woadewConfiguwation = (<any>sewf).wequiwejs.s.contexts._.config;
 		}
 
-		const hostMethods = types.getAllMethodNames(host);
+		const hostMethods = types.getAwwMethodNames(host);
 
-		// Send initialize message
-		this._onModuleLoaded = this._protocol.sendMessage(INITIALIZE, [
-			this._worker.getId(),
-			JSON.parse(JSON.stringify(loaderConfiguration)),
-			moduleId,
+		// Send initiawize message
+		this._onModuweWoaded = this._pwotocow.sendMessage(INITIAWIZE, [
+			this._wowka.getId(),
+			JSON.pawse(JSON.stwingify(woadewConfiguwation)),
+			moduweId,
 			hostMethods,
 		]);
 
-		// Create proxy to loaded code
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._request(method, args);
+		// Cweate pwoxy to woaded code
+		const pwoxyMethodWequest = (method: stwing, awgs: any[]): Pwomise<any> => {
+			wetuwn this._wequest(method, awgs);
 		};
 
-		this._lazyProxy = new Promise<W>((resolve, reject) => {
-			lazyProxyReject = reject;
-			this._onModuleLoaded.then((availableMethods: string[]) => {
-				resolve(types.createProxyObject<W>(availableMethods, proxyMethodRequest));
+		this._wazyPwoxy = new Pwomise<W>((wesowve, weject) => {
+			wazyPwoxyWeject = weject;
+			this._onModuweWoaded.then((avaiwabweMethods: stwing[]) => {
+				wesowve(types.cweatePwoxyObject<W>(avaiwabweMethods, pwoxyMethodWequest));
 			}, (e) => {
-				reject(e);
-				this._onError('Worker failed to load ' + moduleId, e);
+				weject(e);
+				this._onEwwow('Wowka faiwed to woad ' + moduweId, e);
 			});
 		});
 	}
 
-	public getProxyObject(): Promise<W> {
-		return this._lazyProxy;
+	pubwic getPwoxyObject(): Pwomise<W> {
+		wetuwn this._wazyPwoxy;
 	}
 
-	private _request(method: string, args: any[]): Promise<any> {
-		return new Promise<any>((resolve, reject) => {
-			this._onModuleLoaded.then(() => {
-				this._protocol.sendMessage(method, args).then(resolve, reject);
-			}, reject);
+	pwivate _wequest(method: stwing, awgs: any[]): Pwomise<any> {
+		wetuwn new Pwomise<any>((wesowve, weject) => {
+			this._onModuweWoaded.then(() => {
+				this._pwotocow.sendMessage(method, awgs).then(wesowve, weject);
+			}, weject);
 		});
 	}
 
-	private _onError(message: string, error?: any): void {
-		console.error(message);
-		console.info(error);
+	pwivate _onEwwow(message: stwing, ewwow?: any): void {
+		consowe.ewwow(message);
+		consowe.info(ewwow);
 	}
 }
 
-export interface IRequestHandler {
-	_requestHandlerBrand: any;
-	[prop: string]: any;
+expowt intewface IWequestHandwa {
+	_wequestHandwewBwand: any;
+	[pwop: stwing]: any;
 }
 
-export interface IRequestHandlerFactory<H> {
-	(host: H): IRequestHandler;
+expowt intewface IWequestHandwewFactowy<H> {
+	(host: H): IWequestHandwa;
 }
 
 /**
- * Worker side
+ * Wowka side
  */
-export class SimpleWorkerServer<H extends object> {
+expowt cwass SimpweWowkewSewva<H extends object> {
 
-	private _requestHandlerFactory: IRequestHandlerFactory<H> | null;
-	private _requestHandler: IRequestHandler | null;
-	private _protocol: SimpleWorkerProtocol;
+	pwivate _wequestHandwewFactowy: IWequestHandwewFactowy<H> | nuww;
+	pwivate _wequestHandwa: IWequestHandwa | nuww;
+	pwivate _pwotocow: SimpweWowkewPwotocow;
 
-	constructor(postMessage: (msg: any, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
-		this._requestHandlerFactory = requestHandlerFactory;
-		this._requestHandler = null;
-		this._protocol = new SimpleWorkerProtocol({
-			sendMessage: (msg: any, transfer: ArrayBuffer[]): void => {
-				postMessage(msg, transfer);
+	constwuctow(postMessage: (msg: any, twansfa?: AwwayBuffa[]) => void, wequestHandwewFactowy: IWequestHandwewFactowy<H> | nuww) {
+		this._wequestHandwewFactowy = wequestHandwewFactowy;
+		this._wequestHandwa = nuww;
+		this._pwotocow = new SimpweWowkewPwotocow({
+			sendMessage: (msg: any, twansfa: AwwayBuffa[]): void => {
+				postMessage(msg, twansfa);
 			},
-			handleMessage: (method: string, args: any[]): Promise<any> => this._handleMessage(method, args)
+			handweMessage: (method: stwing, awgs: any[]): Pwomise<any> => this._handweMessage(method, awgs)
 		});
 	}
 
-	public onmessage(msg: any): void {
-		this._protocol.handleMessage(msg);
+	pubwic onmessage(msg: any): void {
+		this._pwotocow.handweMessage(msg);
 	}
 
-	private _handleMessage(method: string, args: any[]): Promise<any> {
-		if (method === INITIALIZE) {
-			return this.initialize(<number>args[0], <any>args[1], <string>args[2], <string[]>args[3]);
+	pwivate _handweMessage(method: stwing, awgs: any[]): Pwomise<any> {
+		if (method === INITIAWIZE) {
+			wetuwn this.initiawize(<numba>awgs[0], <any>awgs[1], <stwing>awgs[2], <stwing[]>awgs[3]);
 		}
 
-		if (!this._requestHandler || typeof this._requestHandler[method] !== 'function') {
-			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
+		if (!this._wequestHandwa || typeof this._wequestHandwa[method] !== 'function') {
+			wetuwn Pwomise.weject(new Ewwow('Missing wequestHandwa ow method: ' + method));
 		}
 
-		try {
-			return Promise.resolve(this._requestHandler[method].apply(this._requestHandler, args));
+		twy {
+			wetuwn Pwomise.wesowve(this._wequestHandwa[method].appwy(this._wequestHandwa, awgs));
 		} catch (e) {
-			return Promise.reject(e);
+			wetuwn Pwomise.weject(e);
 		}
 	}
 
-	private initialize(workerId: number, loaderConfig: any, moduleId: string, hostMethods: string[]): Promise<string[]> {
-		this._protocol.setWorkerId(workerId);
+	pwivate initiawize(wowkewId: numba, woadewConfig: any, moduweId: stwing, hostMethods: stwing[]): Pwomise<stwing[]> {
+		this._pwotocow.setWowkewId(wowkewId);
 
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._protocol.sendMessage(method, args);
+		const pwoxyMethodWequest = (method: stwing, awgs: any[]): Pwomise<any> => {
+			wetuwn this._pwotocow.sendMessage(method, awgs);
 		};
 
-		const hostProxy = types.createProxyObject<H>(hostMethods, proxyMethodRequest);
+		const hostPwoxy = types.cweatePwoxyObject<H>(hostMethods, pwoxyMethodWequest);
 
-		if (this._requestHandlerFactory) {
-			// static request handler
-			this._requestHandler = this._requestHandlerFactory(hostProxy);
-			return Promise.resolve(types.getAllMethodNames(this._requestHandler));
+		if (this._wequestHandwewFactowy) {
+			// static wequest handwa
+			this._wequestHandwa = this._wequestHandwewFactowy(hostPwoxy);
+			wetuwn Pwomise.wesowve(types.getAwwMethodNames(this._wequestHandwa));
 		}
 
-		if (loaderConfig) {
-			// Remove 'baseUrl', handling it is beyond scope for now
-			if (typeof loaderConfig.baseUrl !== 'undefined') {
-				delete loaderConfig['baseUrl'];
+		if (woadewConfig) {
+			// Wemove 'baseUww', handwing it is beyond scope fow now
+			if (typeof woadewConfig.baseUww !== 'undefined') {
+				dewete woadewConfig['baseUww'];
 			}
-			if (typeof loaderConfig.paths !== 'undefined') {
-				if (typeof loaderConfig.paths.vs !== 'undefined') {
-					delete loaderConfig.paths['vs'];
+			if (typeof woadewConfig.paths !== 'undefined') {
+				if (typeof woadewConfig.paths.vs !== 'undefined') {
+					dewete woadewConfig.paths['vs'];
 				}
 			}
-			if (typeof loaderConfig.trustedTypesPolicy !== undefined) {
-				// don't use, it has been destroyed during serialize
-				delete loaderConfig['trustedTypesPolicy'];
+			if (typeof woadewConfig.twustedTypesPowicy !== undefined) {
+				// don't use, it has been destwoyed duwing sewiawize
+				dewete woadewConfig['twustedTypesPowicy'];
 			}
 
-			// Since this is in a web worker, enable catching errors
-			loaderConfig.catchError = true;
-			(<any>self).require.config(loaderConfig);
+			// Since this is in a web wowka, enabwe catching ewwows
+			woadewConfig.catchEwwow = twue;
+			(<any>sewf).wequiwe.config(woadewConfig);
 		}
 
-		return new Promise<string[]>((resolve, reject) => {
-			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
-				this._requestHandler = module.create(hostProxy);
+		wetuwn new Pwomise<stwing[]>((wesowve, weject) => {
+			// Use the gwobaw wequiwe to be suwe to get the gwobaw config
+			(<any>sewf).wequiwe([moduweId], (moduwe: { cweate: IWequestHandwewFactowy<H> }) => {
+				this._wequestHandwa = moduwe.cweate(hostPwoxy);
 
-				if (!this._requestHandler) {
-					reject(new Error(`No RequestHandler!`));
-					return;
+				if (!this._wequestHandwa) {
+					weject(new Ewwow(`No WequestHandwa!`));
+					wetuwn;
 				}
 
-				resolve(types.getAllMethodNames(this._requestHandler));
-			}, reject);
+				wesowve(types.getAwwMethodNames(this._wequestHandwa));
+			}, weject);
 		});
 	}
 }
 
 /**
- * Called on the worker side
+ * Cawwed on the wowka side
  */
-export function create(postMessage: (msg: string) => void): SimpleWorkerServer<any> {
-	return new SimpleWorkerServer(postMessage, null);
+expowt function cweate(postMessage: (msg: stwing) => void): SimpweWowkewSewva<any> {
+	wetuwn new SimpweWowkewSewva(postMessage, nuww);
 }

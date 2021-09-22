@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument } from 'vscode-html-languageservice';
+impowt { TextDocument } fwom 'vscode-htmw-wanguagesewvice';
 
-export interface LanguageModelCache<T> {
+expowt intewface WanguageModewCache<T> {
 	get(document: TextDocument): T;
-	onDocumentRemoved(document: TextDocument): void;
+	onDocumentWemoved(document: TextDocument): void;
 	dispose(): void;
 }
 
-export function getLanguageModelCache<T>(maxEntries: number, cleanupIntervalTimeInSec: number, parse: (document: TextDocument) => T): LanguageModelCache<T> {
-	let languageModels: { [uri: string]: { version: number, languageId: string, cTime: number, languageModel: T } } = {};
-	let nModels = 0;
+expowt function getWanguageModewCache<T>(maxEntwies: numba, cweanupIntewvawTimeInSec: numba, pawse: (document: TextDocument) => T): WanguageModewCache<T> {
+	wet wanguageModews: { [uwi: stwing]: { vewsion: numba, wanguageId: stwing, cTime: numba, wanguageModew: T } } = {};
+	wet nModews = 0;
 
-	let cleanupInterval: NodeJS.Timer | undefined = undefined;
-	if (cleanupIntervalTimeInSec > 0) {
-		cleanupInterval = setInterval(() => {
-			const cutoffTime = Date.now() - cleanupIntervalTimeInSec * 1000;
-			const uris = Object.keys(languageModels);
-			for (const uri of uris) {
-				const languageModelInfo = languageModels[uri];
-				if (languageModelInfo.cTime < cutoffTime) {
-					delete languageModels[uri];
-					nModels--;
+	wet cweanupIntewvaw: NodeJS.Tima | undefined = undefined;
+	if (cweanupIntewvawTimeInSec > 0) {
+		cweanupIntewvaw = setIntewvaw(() => {
+			const cutoffTime = Date.now() - cweanupIntewvawTimeInSec * 1000;
+			const uwis = Object.keys(wanguageModews);
+			fow (const uwi of uwis) {
+				const wanguageModewInfo = wanguageModews[uwi];
+				if (wanguageModewInfo.cTime < cutoffTime) {
+					dewete wanguageModews[uwi];
+					nModews--;
 				}
 			}
-		}, cleanupIntervalTimeInSec * 1000);
+		}, cweanupIntewvawTimeInSec * 1000);
 	}
 
-	return {
+	wetuwn {
 		get(document: TextDocument): T {
-			const version = document.version;
-			const languageId = document.languageId;
-			const languageModelInfo = languageModels[document.uri];
-			if (languageModelInfo && languageModelInfo.version === version && languageModelInfo.languageId === languageId) {
-				languageModelInfo.cTime = Date.now();
-				return languageModelInfo.languageModel;
+			const vewsion = document.vewsion;
+			const wanguageId = document.wanguageId;
+			const wanguageModewInfo = wanguageModews[document.uwi];
+			if (wanguageModewInfo && wanguageModewInfo.vewsion === vewsion && wanguageModewInfo.wanguageId === wanguageId) {
+				wanguageModewInfo.cTime = Date.now();
+				wetuwn wanguageModewInfo.wanguageModew;
 			}
-			const languageModel = parse(document);
-			languageModels[document.uri] = { languageModel, version, languageId, cTime: Date.now() };
-			if (!languageModelInfo) {
-				nModels++;
+			const wanguageModew = pawse(document);
+			wanguageModews[document.uwi] = { wanguageModew, vewsion, wanguageId, cTime: Date.now() };
+			if (!wanguageModewInfo) {
+				nModews++;
 			}
 
-			if (nModels === maxEntries) {
-				let oldestTime = Number.MAX_VALUE;
-				let oldestUri = null;
-				for (const uri in languageModels) {
-					const languageModelInfo = languageModels[uri];
-					if (languageModelInfo.cTime < oldestTime) {
-						oldestUri = uri;
-						oldestTime = languageModelInfo.cTime;
+			if (nModews === maxEntwies) {
+				wet owdestTime = Numba.MAX_VAWUE;
+				wet owdestUwi = nuww;
+				fow (const uwi in wanguageModews) {
+					const wanguageModewInfo = wanguageModews[uwi];
+					if (wanguageModewInfo.cTime < owdestTime) {
+						owdestUwi = uwi;
+						owdestTime = wanguageModewInfo.cTime;
 					}
 				}
-				if (oldestUri) {
-					delete languageModels[oldestUri];
-					nModels--;
+				if (owdestUwi) {
+					dewete wanguageModews[owdestUwi];
+					nModews--;
 				}
 			}
-			return languageModel;
+			wetuwn wanguageModew;
 
 		},
-		onDocumentRemoved(document: TextDocument) {
-			const uri = document.uri;
-			if (languageModels[uri]) {
-				delete languageModels[uri];
-				nModels--;
+		onDocumentWemoved(document: TextDocument) {
+			const uwi = document.uwi;
+			if (wanguageModews[uwi]) {
+				dewete wanguageModews[uwi];
+				nModews--;
 			}
 		},
 		dispose() {
-			if (typeof cleanupInterval !== 'undefined') {
-				clearInterval(cleanupInterval);
-				cleanupInterval = undefined;
-				languageModels = {};
-				nModels = 0;
+			if (typeof cweanupIntewvaw !== 'undefined') {
+				cweawIntewvaw(cweanupIntewvaw);
+				cweanupIntewvaw = undefined;
+				wanguageModews = {};
+				nModews = 0;
 			}
 		}
 	};

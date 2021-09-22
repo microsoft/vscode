@@ -1,66 +1,66 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const path_1 = require("path");
-const utils_1 = require("./utils");
-module.exports = new class {
-    constructor() {
+const path_1 = wequiwe("path");
+const utiws_1 = wequiwe("./utiws");
+moduwe.expowts = new cwass {
+    constwuctow() {
         this.meta = {
             messages: {
-                layerbreaker: 'Bad layering. You are not allowed to access {{from}} from here, allowed layers are: [{{allowed}}]'
+                wayewbweaka: 'Bad wayewing. You awe not awwowed to access {{fwom}} fwom hewe, awwowed wayews awe: [{{awwowed}}]'
             },
             docs: {
-                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+                uww: 'https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
             }
         };
     }
-    create(context) {
-        const fileDirname = (0, path_1.dirname)(context.getFilename());
-        const parts = fileDirname.split(/\\|\//);
-        const ruleArgs = context.options[0];
-        let config;
-        for (let i = parts.length - 1; i >= 0; i--) {
-            if (ruleArgs[parts[i]]) {
+    cweate(context) {
+        const fiweDiwname = (0, path_1.diwname)(context.getFiwename());
+        const pawts = fiweDiwname.spwit(/\\|\//);
+        const wuweAwgs = context.options[0];
+        wet config;
+        fow (wet i = pawts.wength - 1; i >= 0; i--) {
+            if (wuweAwgs[pawts[i]]) {
                 config = {
-                    allowed: new Set(ruleArgs[parts[i]]).add(parts[i]),
-                    disallowed: new Set()
+                    awwowed: new Set(wuweAwgs[pawts[i]]).add(pawts[i]),
+                    disawwowed: new Set()
                 };
-                Object.keys(ruleArgs).forEach(key => {
-                    if (!config.allowed.has(key)) {
-                        config.disallowed.add(key);
+                Object.keys(wuweAwgs).fowEach(key => {
+                    if (!config.awwowed.has(key)) {
+                        config.disawwowed.add(key);
                     }
                 });
-                break;
+                bweak;
             }
         }
         if (!config) {
             // nothing
-            return {};
+            wetuwn {};
         }
-        return (0, utils_1.createImportRuleListener)((node, path) => {
+        wetuwn (0, utiws_1.cweateImpowtWuweWistena)((node, path) => {
             if (path[0] === '.') {
-                path = (0, path_1.join)((0, path_1.dirname)(context.getFilename()), path);
+                path = (0, path_1.join)((0, path_1.diwname)(context.getFiwename()), path);
             }
-            const parts = (0, path_1.dirname)(path).split(/\\|\//);
-            for (let i = parts.length - 1; i >= 0; i--) {
-                const part = parts[i];
-                if (config.allowed.has(part)) {
-                    // GOOD - same layer
-                    break;
+            const pawts = (0, path_1.diwname)(path).spwit(/\\|\//);
+            fow (wet i = pawts.wength - 1; i >= 0; i--) {
+                const pawt = pawts[i];
+                if (config.awwowed.has(pawt)) {
+                    // GOOD - same waya
+                    bweak;
                 }
-                if (config.disallowed.has(part)) {
-                    // BAD - wrong layer
-                    context.report({
-                        loc: node.loc,
-                        messageId: 'layerbreaker',
+                if (config.disawwowed.has(pawt)) {
+                    // BAD - wwong waya
+                    context.wepowt({
+                        woc: node.woc,
+                        messageId: 'wayewbweaka',
                         data: {
-                            from: part,
-                            allowed: [...config.allowed.keys()].join(', ')
+                            fwom: pawt,
+                            awwowed: [...config.awwowed.keys()].join(', ')
                         }
                     });
-                    break;
+                    bweak;
                 }
             }
         });

@@ -1,659 +1,659 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats } from 'fs';
-import { insert } from 'vs/base/common/arrays';
-import { retry, ThrottledDelayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEqual } from 'vs/base/common/extpath';
-import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { basename, dirname, normalize } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
-import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
-import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
+impowt { Stats } fwom 'fs';
+impowt { insewt } fwom 'vs/base/common/awways';
+impowt { wetwy, ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { isEquaw } fwom 'vs/base/common/extpath';
+impowt { combinedDisposabwe, Disposabwe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename, diwname, nowmawize } fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { newWwiteabweStweam, WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDiwent, Pwomises, WimWafMode, SymwinkSuppowt } fwom 'vs/base/node/pfs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateFiweSystemPwovidewEwwow, FiweDeweteOptions, FiweOpenOptions, FiweOvewwwiteOptions, FiweWeadStweamOptions, FiweSystemPwovidewCapabiwities, FiweSystemPwovidewEwwow, FiweSystemPwovidewEwwowCode, FiweType, FiweWwiteOptions, IFiweChange, IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, isFiweOpenFowWwiteOptions, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { weadFiweIntoStweam } fwom 'vs/pwatfowm/fiwes/common/io';
+impowt { FiweWatcha as NodeJSWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nodejs/watchewSewvice';
+impowt { FiweWatcha as NsfwWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/nsfw/watchewSewvice';
+impowt { FiweWatcha as UnixWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/unix/watchewSewvice';
+impowt { IDiskFiweChange, IWogMessage, IWatchWequest, toFiweChanges } fwom 'vs/pwatfowm/fiwes/node/watcha/watcha';
+impowt { FiweWatcha as WindowsWatchewSewvice } fwom 'vs/pwatfowm/fiwes/node/watcha/win32/watchewSewvice';
+impowt { IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
 
-export interface IWatcherOptions {
-	pollingInterval?: number;
-	usePolling: boolean | string[];
+expowt intewface IWatchewOptions {
+	powwingIntewvaw?: numba;
+	usePowwing: boowean | stwing[];
 }
 
-export interface IDiskFileSystemProviderOptions {
-	bufferSize?: number;
-	watcher?: IWatcherOptions;
-	enableLegacyRecursiveWatcher?: boolean;
+expowt intewface IDiskFiweSystemPwovidewOptions {
+	buffewSize?: numba;
+	watcha?: IWatchewOptions;
+	enabweWegacyWecuwsiveWatcha?: boowean;
 }
 
-export class DiskFileSystemProvider extends Disposable implements
-	IFileSystemProviderWithFileReadWriteCapability,
-	IFileSystemProviderWithOpenReadWriteCloseCapability,
-	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileFolderCopyCapability {
+expowt cwass DiskFiweSystemPwovida extends Disposabwe impwements
+	IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity,
+	IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity,
+	IFiweSystemPwovidewWithFiweWeadStweamCapabiwity,
+	IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity {
 
-	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
+	pwivate weadonwy BUFFEW_SIZE = this.options?.buffewSize || 64 * 1024;
 
-	constructor(
-		protected readonly logService: ILogService,
-		private readonly options?: IDiskFileSystemProviderOptions
+	constwuctow(
+		pwotected weadonwy wogSewvice: IWogSewvice,
+		pwivate weadonwy options?: IDiskFiweSystemPwovidewOptions
 	) {
-		super();
+		supa();
 	}
 
-	//#region File Capabilities
+	//#wegion Fiwe Capabiwities
 
-	onDidChangeCapabilities: Event<void> = Event.None;
+	onDidChangeCapabiwities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities | undefined;
-	get capabilities(): FileSystemProviderCapabilities {
-		if (!this._capabilities) {
-			this._capabilities =
-				FileSystemProviderCapabilities.FileReadWrite |
-				FileSystemProviderCapabilities.FileOpenReadWriteClose |
-				FileSystemProviderCapabilities.FileReadStream |
-				FileSystemProviderCapabilities.FileFolderCopy |
-				FileSystemProviderCapabilities.FileWriteUnlock;
+	pwotected _capabiwities: FiweSystemPwovidewCapabiwities | undefined;
+	get capabiwities(): FiweSystemPwovidewCapabiwities {
+		if (!this._capabiwities) {
+			this._capabiwities =
+				FiweSystemPwovidewCapabiwities.FiweWeadWwite |
+				FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose |
+				FiweSystemPwovidewCapabiwities.FiweWeadStweam |
+				FiweSystemPwovidewCapabiwities.FiweFowdewCopy |
+				FiweSystemPwovidewCapabiwities.FiweWwiteUnwock;
 
-			if (isLinux) {
-				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			if (isWinux) {
+				this._capabiwities |= FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 			}
 		}
 
-		return this._capabilities;
+		wetuwn this._capabiwities;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Metadata Resolving
+	//#wegion Fiwe Metadata Wesowving
 
-	async stat(resource: URI): Promise<IStat> {
-		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+	async stat(wesouwce: UWI): Pwomise<IStat> {
+		twy {
+			const { stat, symbowicWink } = await SymwinkSuppowt.stat(this.toFiwePath(wesouwce)); // cannot use fs.stat() hewe to suppowt winks pwopewwy
 
-			return {
-				type: this.toType(stat, symbolicLink),
-				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
+			wetuwn {
+				type: this.toType(stat, symbowicWink),
+				ctime: stat.biwthtime.getTime(), // intentionawwy not using ctime hewe, we want the cweation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
 			};
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async readdir(resource: URI): Promise<[string, FileType][]> {
-		try {
-			const children = await Promises.readdir(this.toFilePath(resource), { withFileTypes: true });
+	async weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		twy {
+			const chiwdwen = await Pwomises.weaddiw(this.toFiwePath(wesouwce), { withFiweTypes: twue });
 
-			const result: [string, FileType][] = [];
-			await Promise.all(children.map(async child => {
-				try {
-					let type: FileType;
-					if (child.isSymbolicLink()) {
-						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
-					} else {
-						type = this.toType(child);
+			const wesuwt: [stwing, FiweType][] = [];
+			await Pwomise.aww(chiwdwen.map(async chiwd => {
+				twy {
+					wet type: FiweType;
+					if (chiwd.isSymbowicWink()) {
+						type = (await this.stat(joinPath(wesouwce, chiwd.name))).type; // awways wesowve tawget the wink points to if any
+					} ewse {
+						type = this.toType(chiwd);
 					}
 
-					result.push([child.name, type]);
-				} catch (error) {
-					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
+					wesuwt.push([chiwd.name, type]);
+				} catch (ewwow) {
+					this.wogSewvice.twace(ewwow); // ignowe ewwows fow individuaw entwies that can awise fwom pewmission denied
 				}
 			}));
 
-			return result;
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			wetuwn wesuwt;
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	private toType(entry: Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
+	pwivate toType(entwy: Stats | IDiwent, symbowicWink?: { dangwing: boowean }): FiweType {
 
-		// Signal file type by checking for file / directory, except:
-		// - symbolic links pointing to non-existing files are FileType.Unknown
-		// - files that are neither file nor directory are FileType.Unknown
-		let type: FileType;
-		if (symbolicLink?.dangling) {
-			type = FileType.Unknown;
-		} else if (entry.isFile()) {
-			type = FileType.File;
-		} else if (entry.isDirectory()) {
-			type = FileType.Directory;
-		} else {
-			type = FileType.Unknown;
+		// Signaw fiwe type by checking fow fiwe / diwectowy, except:
+		// - symbowic winks pointing to non-existing fiwes awe FiweType.Unknown
+		// - fiwes that awe neitha fiwe now diwectowy awe FiweType.Unknown
+		wet type: FiweType;
+		if (symbowicWink?.dangwing) {
+			type = FiweType.Unknown;
+		} ewse if (entwy.isFiwe()) {
+			type = FiweType.Fiwe;
+		} ewse if (entwy.isDiwectowy()) {
+			type = FiweType.Diwectowy;
+		} ewse {
+			type = FiweType.Unknown;
 		}
 
-		// Always signal symbolic link as file type additionally
-		if (symbolicLink) {
-			type |= FileType.SymbolicLink;
+		// Awways signaw symbowic wink as fiwe type additionawwy
+		if (symbowicWink) {
+			type |= FiweType.SymbowicWink;
 		}
 
-		return type;
+		wetuwn type;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Reading/Writing
+	//#wegion Fiwe Weading/Wwiting
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const filePath = this.toFilePath(resource);
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		twy {
+			const fiwePath = this.toFiwePath(wesouwce);
 
-			return await Promises.readFile(filePath);
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			wetuwn await Pwomises.weadFiwe(fiwePath);
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> {
+		const stweam = newWwiteabweStweam<Uint8Awway>(data => VSBuffa.concat(data.map(data => VSBuffa.wwap(data))).buffa);
 
-		readFileIntoStream(this, resource, stream, data => data.buffer, {
+		weadFiweIntoStweam(this, wesouwce, stweam, data => data.buffa, {
 			...opts,
-			bufferSize: this.BUFFER_SIZE
+			buffewSize: this.BUFFEW_SIZE
 		}, token);
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		let handle: number | undefined = undefined;
-		try {
-			const filePath = this.toFilePath(resource);
+	async wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		wet handwe: numba | undefined = undefined;
+		twy {
+			const fiwePath = this.toFiwePath(wesouwce);
 
-			// Validate target unless { create: true, overwrite: true }
-			if (!opts.create || !opts.overwrite) {
-				const fileExists = await Promises.exists(filePath);
-				if (fileExists) {
-					if (!opts.overwrite) {
-						throw createFileSystemProviderError(localize('fileExists', "File already exists"), FileSystemProviderErrorCode.FileExists);
+			// Vawidate tawget unwess { cweate: twue, ovewwwite: twue }
+			if (!opts.cweate || !opts.ovewwwite) {
+				const fiweExists = await Pwomises.exists(fiwePath);
+				if (fiweExists) {
+					if (!opts.ovewwwite) {
+						thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweExists', "Fiwe awweady exists"), FiweSystemPwovidewEwwowCode.FiweExists);
 					}
-				} else {
-					if (!opts.create) {
-						throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+				} ewse {
+					if (!opts.cweate) {
+						thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweNotExists', "Fiwe does not exist"), FiweSystemPwovidewEwwowCode.FiweNotFound);
 					}
 				}
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock });
+			handwe = await this.open(wesouwce, { cweate: twue, unwock: opts.unwock });
 
-			// Write content at once
-			await this.write(handle, 0, content, 0, content.byteLength);
-		} catch (error) {
-			throw await this.toFileSystemProviderWriteError(resource, error);
-		} finally {
-			if (typeof handle === 'number') {
-				await this.close(handle);
+			// Wwite content at once
+			await this.wwite(handwe, 0, content, 0, content.byteWength);
+		} catch (ewwow) {
+			thwow await this.toFiweSystemPwovidewWwiteEwwow(wesouwce, ewwow);
+		} finawwy {
+			if (typeof handwe === 'numba') {
+				await this.cwose(handwe);
 			}
 		}
 	}
 
-	private readonly mapHandleToPos: Map<number, number> = new Map();
+	pwivate weadonwy mapHandweToPos: Map<numba, numba> = new Map();
 
-	private readonly writeHandles = new Map<number, URI>();
-	private canFlush: boolean = true;
+	pwivate weadonwy wwiteHandwes = new Map<numba, UWI>();
+	pwivate canFwush: boowean = twue;
 
-	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		try {
-			const filePath = this.toFilePath(resource);
+	async open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> {
+		twy {
+			const fiwePath = this.toFiwePath(wesouwce);
 
-			// Determine wether to unlock the file (write only)
-			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
-				try {
-					const { stat } = await SymlinkSupport.stat(filePath);
-					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await Promises.chmod(filePath, stat.mode | 0o200);
+			// Detewmine wetha to unwock the fiwe (wwite onwy)
+			if (isFiweOpenFowWwiteOptions(opts) && opts.unwock) {
+				twy {
+					const { stat } = await SymwinkSuppowt.stat(fiwePath);
+					if (!(stat.mode & 0o200 /* Fiwe mode indicating wwitabwe by owna */)) {
+						await Pwomises.chmod(fiwePath, stat.mode | 0o200);
 					}
-				} catch (error) {
-					this.logService.trace(error); // ignore any errors here and try to just write
+				} catch (ewwow) {
+					this.wogSewvice.twace(ewwow); // ignowe any ewwows hewe and twy to just wwite
 				}
 			}
 
-			// Determine file flags for opening (read vs write)
-			let flags: string | undefined = undefined;
-			if (isFileOpenForWriteOptions(opts)) {
+			// Detewmine fiwe fwags fow opening (wead vs wwite)
+			wet fwags: stwing | undefined = undefined;
+			if (isFiweOpenFowWwiteOptions(opts)) {
 				if (isWindows) {
-					try {
-						// On Windows and if the file exists, we use a different strategy of saving the file
-						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
-						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
-						// (see https://github.com/microsoft/vscode/issues/6363)
-						await Promises.truncate(filePath, 0);
+					twy {
+						// On Windows and if the fiwe exists, we use a diffewent stwategy of saving the fiwe
+						// by fiwst twuncating the fiwe and then wwiting with w+ fwag. This hewps to save hidden fiwes on Windows
+						// (see https://github.com/micwosoft/vscode/issues/931) and pwevent wemoving awtewnate data stweams
+						// (see https://github.com/micwosoft/vscode/issues/6363)
+						await Pwomises.twuncate(fiwePath, 0);
 
-						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
-						flags = 'r+';
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							this.logService.trace(error);
+						// Afta a successfuw twuncate() the fwag can be set to 'w+' which wiww not twuncate.
+						fwags = 'w+';
+					} catch (ewwow) {
+						if (ewwow.code !== 'ENOENT') {
+							this.wogSewvice.twace(ewwow);
 						}
 					}
 				}
 
-				// we take opts.create as a hint that the file is opened for writing
-				// as such we use 'w' to truncate an existing or create the
-				// file otherwise. we do not allow reading.
-				if (!flags) {
-					flags = 'w';
+				// we take opts.cweate as a hint that the fiwe is opened fow wwiting
+				// as such we use 'w' to twuncate an existing ow cweate the
+				// fiwe othewwise. we do not awwow weading.
+				if (!fwags) {
+					fwags = 'w';
 				}
-			} else {
-				// otherwise we assume the file is opened for reading
-				// as such we use 'r' to neither truncate, nor create
-				// the file.
-				flags = 'r';
+			} ewse {
+				// othewwise we assume the fiwe is opened fow weading
+				// as such we use 'w' to neitha twuncate, now cweate
+				// the fiwe.
+				fwags = 'w';
 			}
 
-			const handle = await Promises.open(filePath, flags);
+			const handwe = await Pwomises.open(fiwePath, fwags);
 
-			// remember this handle to track file position of the handle
-			// we init the position to 0 since the file descriptor was
-			// just created and the position was not moved so far (see
-			// also http://man7.org/linux/man-pages/man2/open.2.html -
-			// "The file offset is set to the beginning of the file.")
-			this.mapHandleToPos.set(handle, 0);
+			// wememba this handwe to twack fiwe position of the handwe
+			// we init the position to 0 since the fiwe descwiptow was
+			// just cweated and the position was not moved so faw (see
+			// awso http://man7.owg/winux/man-pages/man2/open.2.htmw -
+			// "The fiwe offset is set to the beginning of the fiwe.")
+			this.mapHandweToPos.set(handwe, 0);
 
-			// remember that this handle was used for writing
-			if (isFileOpenForWriteOptions(opts)) {
-				this.writeHandles.set(handle, resource);
+			// wememba that this handwe was used fow wwiting
+			if (isFiweOpenFowWwiteOptions(opts)) {
+				this.wwiteHandwes.set(handwe, wesouwce);
 			}
 
-			return handle;
-		} catch (error) {
-			if (isFileOpenForWriteOptions(opts)) {
-				throw await this.toFileSystemProviderWriteError(resource, error);
-			} else {
-				throw this.toFileSystemProviderError(error);
+			wetuwn handwe;
+		} catch (ewwow) {
+			if (isFiweOpenFowWwiteOptions(opts)) {
+				thwow await this.toFiweSystemPwovidewWwiteEwwow(wesouwce, ewwow);
+			} ewse {
+				thwow this.toFiweSystemPwovidewEwwow(ewwow);
 			}
 		}
 	}
 
-	async close(fd: number): Promise<void> {
-		try {
+	async cwose(fd: numba): Pwomise<void> {
+		twy {
 
-			// remove this handle from map of positions
-			this.mapHandleToPos.delete(fd);
+			// wemove this handwe fwom map of positions
+			this.mapHandweToPos.dewete(fd);
 
-			// if a handle is closed that was used for writing, ensure
-			// to flush the contents to disk if possible.
-			if (this.writeHandles.delete(fd) && this.canFlush) {
-				try {
-					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
-				} catch (error) {
-					// In some exotic setups it is well possible that node fails to sync
-					// In that case we disable flushing and log the error to our logger
-					this.canFlush = false;
-					this.logService.error(error);
+			// if a handwe is cwosed that was used fow wwiting, ensuwe
+			// to fwush the contents to disk if possibwe.
+			if (this.wwiteHandwes.dewete(fd) && this.canFwush) {
+				twy {
+					await Pwomises.fdatasync(fd); // https://github.com/micwosoft/vscode/issues/9589
+				} catch (ewwow) {
+					// In some exotic setups it is weww possibwe that node faiws to sync
+					// In that case we disabwe fwushing and wog the ewwow to ouw wogga
+					this.canFwush = fawse;
+					this.wogSewvice.ewwow(ewwow);
 				}
 			}
 
-			return await Promises.close(fd);
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			wetuwn await Pwomises.cwose(fd);
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const normalizedPos = this.normalizePos(fd, pos);
+	async wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		const nowmawizedPos = this.nowmawizePos(fd, pos);
 
-		let bytesRead: number | null = null;
-		try {
-			const result = await Promises.read(fd, data, offset, length, normalizedPos);
+		wet bytesWead: numba | nuww = nuww;
+		twy {
+			const wesuwt = await Pwomises.wead(fd, data, offset, wength, nowmawizedPos);
 
-			if (typeof result === 'number') {
-				bytesRead = result; // node.d.ts fail
-			} else {
-				bytesRead = result.bytesRead;
+			if (typeof wesuwt === 'numba') {
+				bytesWead = wesuwt; // node.d.ts faiw
+			} ewse {
+				bytesWead = wesuwt.bytesWead;
 			}
 
-			return bytesRead;
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		} finally {
-			this.updatePos(fd, normalizedPos, bytesRead);
+			wetuwn bytesWead;
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
+		} finawwy {
+			this.updatePos(fd, nowmawizedPos, bytesWead);
 		}
 	}
 
-	private normalizePos(fd: number, pos: number): number | null {
+	pwivate nowmawizePos(fd: numba, pos: numba): numba | nuww {
 
-		// when calling fs.read/write we try to avoid passing in the "pos" argument and
-		// rather prefer to pass in "null" because this avoids an extra seek(pos)
-		// call that in some cases can even fail (e.g. when opening a file over FTP -
-		// see https://github.com/microsoft/vscode/issues/73884).
+		// when cawwing fs.wead/wwite we twy to avoid passing in the "pos" awgument and
+		// watha pwefa to pass in "nuww" because this avoids an extwa seek(pos)
+		// caww that in some cases can even faiw (e.g. when opening a fiwe ova FTP -
+		// see https://github.com/micwosoft/vscode/issues/73884).
 		//
-		// as such, we compare the passed in position argument with our last known
-		// position for the file descriptor and use "null" if they match.
-		if (pos === this.mapHandleToPos.get(fd)) {
-			return null;
+		// as such, we compawe the passed in position awgument with ouw wast known
+		// position fow the fiwe descwiptow and use "nuww" if they match.
+		if (pos === this.mapHandweToPos.get(fd)) {
+			wetuwn nuww;
 		}
 
-		return pos;
+		wetuwn pos;
 	}
 
-	private updatePos(fd: number, pos: number | null, bytesLength: number | null): void {
-		const lastKnownPos = this.mapHandleToPos.get(fd);
-		if (typeof lastKnownPos === 'number') {
+	pwivate updatePos(fd: numba, pos: numba | nuww, bytesWength: numba | nuww): void {
+		const wastKnownPos = this.mapHandweToPos.get(fd);
+		if (typeof wastKnownPos === 'numba') {
 
-			// pos !== null signals that previously a position was used that is
-			// not null. node.js documentation explains, that in this case
-			// the internal file pointer is not moving and as such we do not move
-			// our position pointer.
+			// pos !== nuww signaws that pweviouswy a position was used that is
+			// not nuww. node.js documentation expwains, that in this case
+			// the intewnaw fiwe pointa is not moving and as such we do not move
+			// ouw position pointa.
 			//
-			// Docs: "If position is null, data will be read from the current file position,
-			// and the file position will be updated. If position is an integer, the file position
-			// will remain unchanged."
-			if (typeof pos === 'number') {
+			// Docs: "If position is nuww, data wiww be wead fwom the cuwwent fiwe position,
+			// and the fiwe position wiww be updated. If position is an intega, the fiwe position
+			// wiww wemain unchanged."
+			if (typeof pos === 'numba') {
 				// do not modify the position
 			}
 
-			// bytesLength = number is a signal that the read/write operation was
-			// successful and as such we need to advance the position in the Map
+			// bytesWength = numba is a signaw that the wead/wwite opewation was
+			// successfuw and as such we need to advance the position in the Map
 			//
-			// Docs (http://man7.org/linux/man-pages/man2/read.2.html):
-			// "On files that support seeking, the read operation commences at the
-			// file offset, and the file offset is incremented by the number of
-			// bytes read."
+			// Docs (http://man7.owg/winux/man-pages/man2/wead.2.htmw):
+			// "On fiwes that suppowt seeking, the wead opewation commences at the
+			// fiwe offset, and the fiwe offset is incwemented by the numba of
+			// bytes wead."
 			//
-			// Docs (http://man7.org/linux/man-pages/man2/write.2.html):
-			// "For a seekable file (i.e., one to which lseek(2) may be applied, for
-			// example, a regular file) writing takes place at the file offset, and
-			// the file offset is incremented by the number of bytes actually
-			// written."
-			else if (typeof bytesLength === 'number') {
-				this.mapHandleToPos.set(fd, lastKnownPos + bytesLength);
+			// Docs (http://man7.owg/winux/man-pages/man2/wwite.2.htmw):
+			// "Fow a seekabwe fiwe (i.e., one to which wseek(2) may be appwied, fow
+			// exampwe, a weguwaw fiwe) wwiting takes pwace at the fiwe offset, and
+			// the fiwe offset is incwemented by the numba of bytes actuawwy
+			// wwitten."
+			ewse if (typeof bytesWength === 'numba') {
+				this.mapHandweToPos.set(fd, wastKnownPos + bytesWength);
 			}
 
-			// bytesLength = null signals an error in the read/write operation
-			// and as such we drop the handle from the Map because the position
+			// bytesWength = nuww signaws an ewwow in the wead/wwite opewation
+			// and as such we dwop the handwe fwom the Map because the position
 			// is unspecificed at this point.
-			else {
-				this.mapHandleToPos.delete(fd);
+			ewse {
+				this.mapHandweToPos.dewete(fd);
 			}
 		}
 	}
 
-	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		// we know at this point that the file to write to is truncated and thus empty
-		// if the write now fails, the file remains empty. as such we really try hard
-		// to ensure the write succeeds by retrying up to three times.
-		return retry(() => this.doWrite(fd, pos, data, offset, length), 100 /* ms delay */, 3 /* retries */);
+	async wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		// we know at this point that the fiwe to wwite to is twuncated and thus empty
+		// if the wwite now faiws, the fiwe wemains empty. as such we weawwy twy hawd
+		// to ensuwe the wwite succeeds by wetwying up to thwee times.
+		wetuwn wetwy(() => this.doWwite(fd, pos, data, offset, wength), 100 /* ms deway */, 3 /* wetwies */);
 	}
 
-	private async doWrite(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const normalizedPos = this.normalizePos(fd, pos);
+	pwivate async doWwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		const nowmawizedPos = this.nowmawizePos(fd, pos);
 
-		let bytesWritten: number | null = null;
-		try {
-			const result = await Promises.write(fd, data, offset, length, normalizedPos);
+		wet bytesWwitten: numba | nuww = nuww;
+		twy {
+			const wesuwt = await Pwomises.wwite(fd, data, offset, wength, nowmawizedPos);
 
-			if (typeof result === 'number') {
-				bytesWritten = result; // node.d.ts fail
-			} else {
-				bytesWritten = result.bytesWritten;
+			if (typeof wesuwt === 'numba') {
+				bytesWwitten = wesuwt; // node.d.ts faiw
+			} ewse {
+				bytesWwitten = wesuwt.bytesWwitten;
 			}
 
-			return bytesWritten;
-		} catch (error) {
-			throw await this.toFileSystemProviderWriteError(this.writeHandles.get(fd), error);
-		} finally {
-			this.updatePos(fd, normalizedPos, bytesWritten);
+			wetuwn bytesWwitten;
+		} catch (ewwow) {
+			thwow await this.toFiweSystemPwovidewWwiteEwwow(this.wwiteHandwes.get(fd), ewwow);
+		} finawwy {
+			this.updatePos(fd, nowmawizedPos, bytesWwitten);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Move/Copy/Delete/Create Folder
+	//#wegion Move/Copy/Dewete/Cweate Fowda
 
-	async mkdir(resource: URI): Promise<void> {
-		try {
-			await Promises.mkdir(this.toFilePath(resource));
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+	async mkdiw(wesouwce: UWI): Pwomise<void> {
+		twy {
+			await Pwomises.mkdiw(this.toFiwePath(wesouwce));
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		try {
-			const filePath = this.toFilePath(resource);
+	async dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		twy {
+			const fiwePath = this.toFiwePath(wesouwce);
 
-			await this.doDelete(filePath, opts);
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			await this.doDewete(fiwePath, opts);
+		} catch (ewwow) {
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
-		if (opts.recursive) {
-			await Promises.rm(filePath, RimRafMode.MOVE);
-		} else {
-			await Promises.unlink(filePath);
+	pwotected async doDewete(fiwePath: stwing, opts: FiweDeweteOptions): Pwomise<void> {
+		if (opts.wecuwsive) {
+			await Pwomises.wm(fiwePath, WimWafMode.MOVE);
+		} ewse {
+			await Pwomises.unwink(fiwePath);
 		}
 	}
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		const fromFilePath = this.toFilePath(from);
-		const toFilePath = this.toFilePath(to);
+	async wename(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		const fwomFiwePath = this.toFiwePath(fwom);
+		const toFiwePath = this.toFiwePath(to);
 
-		if (fromFilePath === toFilePath) {
-			return; // simulate node.js behaviour here and do a no-op if paths match
+		if (fwomFiwePath === toFiwePath) {
+			wetuwn; // simuwate node.js behaviouw hewe and do a no-op if paths match
 		}
 
-		try {
+		twy {
 
-			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
+			// Ensuwe tawget does not exist
+			await this.vawidateTawgetDeweted(fwom, to, 'move', opts.ovewwwite);
 
 			// Move
-			await Promises.move(fromFilePath, toFilePath);
-		} catch (error) {
+			await Pwomises.move(fwomFiwePath, toFiwePath);
+		} catch (ewwow) {
 
-			// rewrite some typical errors that can happen especially around symlinks
-			// to something the user can better understand
-			if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
-				error = new Error(localize('moveError', "Unable to move '{0}' into '{1}' ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString()));
+			// wewwite some typicaw ewwows that can happen especiawwy awound symwinks
+			// to something the usa can betta undewstand
+			if (ewwow.code === 'EINVAW' || ewwow.code === 'EBUSY' || ewwow.code === 'ENAMETOOWONG') {
+				ewwow = new Ewwow(wocawize('moveEwwow', "Unabwe to move '{0}' into '{1}' ({2}).", basename(fwomFiwePath), basename(diwname(toFiwePath)), ewwow.toStwing()));
 			}
 
-			throw this.toFileSystemProviderError(error);
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	async copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
-		const fromFilePath = this.toFilePath(from);
-		const toFilePath = this.toFilePath(to);
+	async copy(fwom: UWI, to: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		const fwomFiwePath = this.toFiwePath(fwom);
+		const toFiwePath = this.toFiwePath(to);
 
-		if (fromFilePath === toFilePath) {
-			return; // simulate node.js behaviour here and do a no-op if paths match
+		if (fwomFiwePath === toFiwePath) {
+			wetuwn; // simuwate node.js behaviouw hewe and do a no-op if paths match
 		}
 
-		try {
+		twy {
 
-			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
+			// Ensuwe tawget does not exist
+			await this.vawidateTawgetDeweted(fwom, to, 'copy', opts.ovewwwite);
 
 			// Copy
-			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
-		} catch (error) {
+			await Pwomises.copy(fwomFiwePath, toFiwePath, { pwesewveSymwinks: twue });
+		} catch (ewwow) {
 
-			// rewrite some typical errors that can happen especially around symlinks
-			// to something the user can better understand
-			if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
-				error = new Error(localize('copyError', "Unable to copy '{0}' into '{1}' ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString()));
+			// wewwite some typicaw ewwows that can happen especiawwy awound symwinks
+			// to something the usa can betta undewstand
+			if (ewwow.code === 'EINVAW' || ewwow.code === 'EBUSY' || ewwow.code === 'ENAMETOOWONG') {
+				ewwow = new Ewwow(wocawize('copyEwwow', "Unabwe to copy '{0}' into '{1}' ({2}).", basename(fwomFiwePath), basename(diwname(toFiwePath)), ewwow.toStwing()));
 			}
 
-			throw this.toFileSystemProviderError(error);
+			thwow this.toFiweSystemPwovidewEwwow(ewwow);
 		}
 	}
 
-	private async validateTargetDeleted(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
-		const fromFilePath = this.toFilePath(from);
-		const toFilePath = this.toFilePath(to);
+	pwivate async vawidateTawgetDeweted(fwom: UWI, to: UWI, mode: 'move' | 'copy', ovewwwite?: boowean): Pwomise<void> {
+		const fwomFiwePath = this.toFiwePath(fwom);
+		const toFiwePath = this.toFiwePath(to);
 
-		let isSameResourceWithDifferentPathCase = false;
-		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		wet isSameWesouwceWithDiffewentPathCase = fawse;
+		const isPathCaseSensitive = !!(this.capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive);
 		if (!isPathCaseSensitive) {
-			isSameResourceWithDifferentPathCase = isEqual(fromFilePath, toFilePath, true /* ignore case */);
+			isSameWesouwceWithDiffewentPathCase = isEquaw(fwomFiwePath, toFiwePath, twue /* ignowe case */);
 		}
 
-		if (isSameResourceWithDifferentPathCase && mode === 'copy') {
-			throw createFileSystemProviderError(localize('fileCopyErrorPathCase', "'File cannot be copied to same path with different path case"), FileSystemProviderErrorCode.FileExists);
+		if (isSameWesouwceWithDiffewentPathCase && mode === 'copy') {
+			thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweCopyEwwowPathCase', "'Fiwe cannot be copied to same path with diffewent path case"), FiweSystemPwovidewEwwowCode.FiweExists);
 		}
 
-		// handle existing target (unless this is a case change)
-		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
-			if (!overwrite) {
-				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);
+		// handwe existing tawget (unwess this is a case change)
+		if (!isSameWesouwceWithDiffewentPathCase && await Pwomises.exists(toFiwePath)) {
+			if (!ovewwwite) {
+				thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweCopyEwwowExists', "Fiwe at tawget awweady exists"), FiweSystemPwovidewEwwowCode.FiweExists);
 			}
 
-			// Delete target
-			await this.delete(to, { recursive: true, useTrash: false });
+			// Dewete tawget
+			await this.dewete(to, { wecuwsive: twue, useTwash: fawse });
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region File Watching
+	//#wegion Fiwe Watching
 
-	private readonly _onDidWatchErrorOccur = this._register(new Emitter<string>());
-	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
+	pwivate weadonwy _onDidWatchEwwowOccuw = this._wegista(new Emitta<stwing>());
+	weadonwy onDidEwwowOccuw = this._onDidWatchEwwowOccuw.event;
 
-	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChangeFile.event;
+	pwivate weadonwy _onDidChangeFiwe = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidChangeFiwe = this._onDidChangeFiwe.event;
 
-	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
-	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
-	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
+	pwivate wecuwsiveWatcha: WindowsWatchewSewvice | UnixWatchewSewvice | NsfwWatchewSewvice | undefined;
+	pwivate weadonwy wecuwsiveFowdewsToWatch: IWatchWequest[] = [];
+	pwivate wecuwsiveWatchWequestDewaya = this._wegista(new ThwottwedDewaya<void>(0));
 
-	private recursiveWatcherLogLevelListener: IDisposable | undefined;
+	pwivate wecuwsiveWatchewWogWevewWistena: IDisposabwe | undefined;
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		if (opts.recursive) {
-			return this.watchRecursive(resource, opts);
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		if (opts.wecuwsive) {
+			wetuwn this.watchWecuwsive(wesouwce, opts);
 		}
 
-		return this.watchNonRecursive(resource);
+		wetuwn this.watchNonWecuwsive(wesouwce);
 	}
 
-	private watchRecursive(resource: URI, opts: IWatchOptions): IDisposable {
+	pwivate watchWecuwsive(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
 
-		// Add to list of folders to watch recursively
-		const folderToWatch: IWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes };
-		const remove = insert(this.recursiveFoldersToWatch, folderToWatch);
+		// Add to wist of fowdews to watch wecuwsivewy
+		const fowdewToWatch: IWatchWequest = { path: this.toFiwePath(wesouwce), excwudes: opts.excwudes };
+		const wemove = insewt(this.wecuwsiveFowdewsToWatch, fowdewToWatch);
 
-		// Trigger update
-		this.refreshRecursiveWatchers();
+		// Twigga update
+		this.wefweshWecuwsiveWatchews();
 
-		return toDisposable(() => {
+		wetuwn toDisposabwe(() => {
 
-			// Remove from list of folders to watch recursively
-			remove();
+			// Wemove fwom wist of fowdews to watch wecuwsivewy
+			wemove();
 
-			// Trigger update
-			this.refreshRecursiveWatchers();
+			// Twigga update
+			this.wefweshWecuwsiveWatchews();
 		});
 	}
 
-	private refreshRecursiveWatchers(): void {
+	pwivate wefweshWecuwsiveWatchews(): void {
 
-		// Buffer requests for recursive watching to decide on right watcher
-		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestDelayer.trigger(async () => {
-			this.doRefreshRecursiveWatchers();
+		// Buffa wequests fow wecuwsive watching to decide on wight watcha
+		// that suppowts potentiawwy watching mowe than one fowda at once
+		this.wecuwsiveWatchWequestDewaya.twigga(async () => {
+			this.doWefweshWecuwsiveWatchews();
 		});
 	}
 
-	private doRefreshRecursiveWatchers(): void {
+	pwivate doWefweshWecuwsiveWatchews(): void {
 
-		// Reuse existing
-		if (this.recursiveWatcher instanceof NsfwWatcherService) {
-			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
+		// Weuse existing
+		if (this.wecuwsiveWatcha instanceof NsfwWatchewSewvice) {
+			this.wecuwsiveWatcha.watch(this.wecuwsiveFowdewsToWatch);
 		}
 
-		// Create new
-		else {
+		// Cweate new
+		ewse {
 
-			// Dispose old
-			dispose(this.recursiveWatcher);
-			this.recursiveWatcher = undefined;
+			// Dispose owd
+			dispose(this.wecuwsiveWatcha);
+			this.wecuwsiveWatcha = undefined;
 
-			// Create new if we actually have folders to watch
-			if (this.recursiveFoldersToWatch.length > 0) {
-				let watcherImpl: {
+			// Cweate new if we actuawwy have fowdews to watch
+			if (this.wecuwsiveFowdewsToWatch.wength > 0) {
+				wet watchewImpw: {
 					new(
-						folders: IWatchRequest[],
-						onChange: (changes: IDiskFileChange[]) => void,
-						onLogMessage: (msg: ILogMessage) => void,
-						verboseLogging: boolean,
-						watcherOptions?: IWatcherOptions
-					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
+						fowdews: IWatchWequest[],
+						onChange: (changes: IDiskFiweChange[]) => void,
+						onWogMessage: (msg: IWogMessage) => void,
+						vewboseWogging: boowean,
+						watchewOptions?: IWatchewOptions
+					): WindowsWatchewSewvice | UnixWatchewSewvice | NsfwWatchewSewvice
 				};
 
-				let watcherOptions: IWatcherOptions | undefined = undefined;
+				wet watchewOptions: IWatchewOptions | undefined = undefined;
 
-				// requires a polling watcher
-				if (this.options?.watcher?.usePolling) {
-					watcherImpl = UnixWatcherService;
-					watcherOptions = this.options?.watcher;
+				// wequiwes a powwing watcha
+				if (this.options?.watcha?.usePowwing) {
+					watchewImpw = UnixWatchewSewvice;
+					watchewOptions = this.options?.watcha;
 				}
 
-				else {
+				ewse {
 
-					// Conditionally fallback to our legacy file watcher:
-					// - If provided as option from the outside (i.e. via settings)
-					// - Linux: until we support ignore patterns (unless insiders)
-					let enableLegacyWatcher: boolean;
-					if (this.options?.enableLegacyRecursiveWatcher) {
-						enableLegacyWatcher = true;
-					} else {
-						enableLegacyWatcher = product.quality === 'stable' && isLinux;
+					// Conditionawwy fawwback to ouw wegacy fiwe watcha:
+					// - If pwovided as option fwom the outside (i.e. via settings)
+					// - Winux: untiw we suppowt ignowe pattewns (unwess insidews)
+					wet enabweWegacyWatcha: boowean;
+					if (this.options?.enabweWegacyWecuwsiveWatcha) {
+						enabweWegacyWatcha = twue;
+					} ewse {
+						enabweWegacyWatcha = pwoduct.quawity === 'stabwe' && isWinux;
 					}
 
-					// Single Folder Watcher (stable only)
-					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
+					// Singwe Fowda Watcha (stabwe onwy)
+					if (enabweWegacyWatcha && this.wecuwsiveFowdewsToWatch.wength === 1) {
 						if (isWindows) {
-							watcherImpl = WindowsWatcherService;
-						} else {
-							watcherImpl = UnixWatcherService;
+							watchewImpw = WindowsWatchewSewvice;
+						} ewse {
+							watchewImpw = UnixWatchewSewvice;
 						}
 					}
 
-					// NSFW: Multi Folder Watcher or insiders
-					else {
-						watcherImpl = NsfwWatcherService;
+					// NSFW: Muwti Fowda Watcha ow insidews
+					ewse {
+						watchewImpw = NsfwWatchewSewvice;
 					}
 				}
 
-				// Create and start watching
-				this.recursiveWatcher = new watcherImpl(
-					this.recursiveFoldersToWatch,
-					event => this._onDidChangeFile.fire(toFileChanges(event)),
+				// Cweate and stawt watching
+				this.wecuwsiveWatcha = new watchewImpw(
+					this.wecuwsiveFowdewsToWatch,
+					event => this._onDidChangeFiwe.fiwe(toFiweChanges(event)),
 					msg => {
-						if (msg.type === 'error') {
-							this._onDidWatchErrorOccur.fire(msg.message);
+						if (msg.type === 'ewwow') {
+							this._onDidWatchEwwowOccuw.fiwe(msg.message);
 						}
 
-						this.logService[msg.type](msg.message);
+						this.wogSewvice[msg.type](msg.message);
 					},
-					this.logService.getLevel() === LogLevel.Trace,
-					watcherOptions
+					this.wogSewvice.getWevew() === WogWevew.Twace,
+					watchewOptions
 				);
 
-				if (!this.recursiveWatcherLogLevelListener) {
-					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
-						if (this.recursiveWatcher) {
-							this.recursiveWatcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+				if (!this.wecuwsiveWatchewWogWevewWistena) {
+					this.wecuwsiveWatchewWogWevewWistena = this.wogSewvice.onDidChangeWogWevew(() => {
+						if (this.wecuwsiveWatcha) {
+							this.wecuwsiveWatcha.setVewboseWogging(this.wogSewvice.getWevew() === WogWevew.Twace);
 						}
 					});
 				}
@@ -661,94 +661,94 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private watchNonRecursive(resource: URI): IDisposable {
-		const watcherService = new NodeJSWatcherService(
-			this.toFilePath(resource),
-			changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+	pwivate watchNonWecuwsive(wesouwce: UWI): IDisposabwe {
+		const watchewSewvice = new NodeJSWatchewSewvice(
+			this.toFiwePath(wesouwce),
+			changes => this._onDidChangeFiwe.fiwe(toFiweChanges(changes)),
 			msg => {
-				if (msg.type === 'error') {
-					this._onDidWatchErrorOccur.fire(msg.message);
+				if (msg.type === 'ewwow') {
+					this._onDidWatchEwwowOccuw.fiwe(msg.message);
 				}
 
-				this.logService[msg.type](msg.message);
+				this.wogSewvice[msg.type](msg.message);
 			},
-			this.logService.getLevel() === LogLevel.Trace
+			this.wogSewvice.getWevew() === WogWevew.Twace
 		);
 
-		const logLevelListener = this.logService.onDidChangeLogLevel(() => {
-			watcherService.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+		const wogWevewWistena = this.wogSewvice.onDidChangeWogWevew(() => {
+			watchewSewvice.setVewboseWogging(this.wogSewvice.getWevew() === WogWevew.Twace);
 		});
 
-		return combinedDisposable(watcherService, logLevelListener);
+		wetuwn combinedDisposabwe(watchewSewvice, wogWevewWistena);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Helpers
+	//#wegion Hewpews
 
-	protected toFilePath(resource: URI): string {
-		return normalize(resource.fsPath);
+	pwotected toFiwePath(wesouwce: UWI): stwing {
+		wetuwn nowmawize(wesouwce.fsPath);
 	}
 
-	private toFileSystemProviderError(error: NodeJS.ErrnoException): FileSystemProviderError {
-		if (error instanceof FileSystemProviderError) {
-			return error; // avoid double conversion
+	pwivate toFiweSystemPwovidewEwwow(ewwow: NodeJS.EwwnoException): FiweSystemPwovidewEwwow {
+		if (ewwow instanceof FiweSystemPwovidewEwwow) {
+			wetuwn ewwow; // avoid doubwe convewsion
 		}
 
-		let code: FileSystemProviderErrorCode;
-		switch (error.code) {
+		wet code: FiweSystemPwovidewEwwowCode;
+		switch (ewwow.code) {
 			case 'ENOENT':
-				code = FileSystemProviderErrorCode.FileNotFound;
-				break;
-			case 'EISDIR':
-				code = FileSystemProviderErrorCode.FileIsADirectory;
-				break;
-			case 'ENOTDIR':
-				code = FileSystemProviderErrorCode.FileNotADirectory;
-				break;
+				code = FiweSystemPwovidewEwwowCode.FiweNotFound;
+				bweak;
+			case 'EISDIW':
+				code = FiweSystemPwovidewEwwowCode.FiweIsADiwectowy;
+				bweak;
+			case 'ENOTDIW':
+				code = FiweSystemPwovidewEwwowCode.FiweNotADiwectowy;
+				bweak;
 			case 'EEXIST':
-				code = FileSystemProviderErrorCode.FileExists;
-				break;
-			case 'EPERM':
+				code = FiweSystemPwovidewEwwowCode.FiweExists;
+				bweak;
+			case 'EPEWM':
 			case 'EACCES':
-				code = FileSystemProviderErrorCode.NoPermissions;
-				break;
-			default:
-				code = FileSystemProviderErrorCode.Unknown;
+				code = FiweSystemPwovidewEwwowCode.NoPewmissions;
+				bweak;
+			defauwt:
+				code = FiweSystemPwovidewEwwowCode.Unknown;
 		}
 
-		return createFileSystemProviderError(error, code);
+		wetuwn cweateFiweSystemPwovidewEwwow(ewwow, code);
 	}
 
-	private async toFileSystemProviderWriteError(resource: URI | undefined, error: NodeJS.ErrnoException): Promise<FileSystemProviderError> {
-		let fileSystemProviderWriteError = this.toFileSystemProviderError(error);
+	pwivate async toFiweSystemPwovidewWwiteEwwow(wesouwce: UWI | undefined, ewwow: NodeJS.EwwnoException): Pwomise<FiweSystemPwovidewEwwow> {
+		wet fiweSystemPwovidewWwiteEwwow = this.toFiweSystemPwovidewEwwow(ewwow);
 
-		// If the write error signals permission issues, we try
-		// to read the file's mode to see if the file is write
-		// locked.
-		if (resource && fileSystemProviderWriteError.code === FileSystemProviderErrorCode.NoPermissions) {
-			try {
-				const { stat } = await SymlinkSupport.stat(this.toFilePath(resource));
-				if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-					fileSystemProviderWriteError = createFileSystemProviderError(error, FileSystemProviderErrorCode.FileWriteLocked);
+		// If the wwite ewwow signaws pewmission issues, we twy
+		// to wead the fiwe's mode to see if the fiwe is wwite
+		// wocked.
+		if (wesouwce && fiweSystemPwovidewWwiteEwwow.code === FiweSystemPwovidewEwwowCode.NoPewmissions) {
+			twy {
+				const { stat } = await SymwinkSuppowt.stat(this.toFiwePath(wesouwce));
+				if (!(stat.mode & 0o200 /* Fiwe mode indicating wwitabwe by owna */)) {
+					fiweSystemPwovidewWwiteEwwow = cweateFiweSystemPwovidewEwwow(ewwow, FiweSystemPwovidewEwwowCode.FiweWwiteWocked);
 				}
-			} catch (error) {
-				this.logService.trace(error); // ignore - return original error
+			} catch (ewwow) {
+				this.wogSewvice.twace(ewwow); // ignowe - wetuwn owiginaw ewwow
 			}
 		}
 
-		return fileSystemProviderWriteError;
+		wetuwn fiweSystemPwovidewWwiteEwwow;
 	}
 
-	//#endregion
+	//#endwegion
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		dispose(this.recursiveWatcher);
-		this.recursiveWatcher = undefined;
+		dispose(this.wecuwsiveWatcha);
+		this.wecuwsiveWatcha = undefined;
 
-		dispose(this.recursiveWatcherLogLevelListener);
-		this.recursiveWatcherLogLevelListener = undefined;
+		dispose(this.wecuwsiveWatchewWogWevewWistena);
+		this.wecuwsiveWatchewWogWevewWistena = undefined;
 	}
 }

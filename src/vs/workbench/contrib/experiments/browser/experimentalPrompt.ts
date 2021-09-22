@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { language } from 'vs/base/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { INotificationSewvice, Sevewity, IPwomptChoice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IExpewimentSewvice, IExpewiment, ExpewimentActionType, IExpewimentActionPwomptPwopewties, IExpewimentActionPwomptCommand, ExpewimentState } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
+expowt cwass ExpewimentawPwompts extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IExperimentService private readonly experimentService: IExperimentService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@ICommandService private readonly commandService: ICommandService
+	constwuctow(
+		@IExpewimentSewvice pwivate weadonwy expewimentSewvice: IExpewimentSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice
 
 	) {
-		super();
-		this._register(this.experimentService.onExperimentEnabled(e => {
-			if (e.action && e.action.type === ExperimentActionType.Prompt && e.state === ExperimentState.Run) {
-				this.showExperimentalPrompts(e);
+		supa();
+		this._wegista(this.expewimentSewvice.onExpewimentEnabwed(e => {
+			if (e.action && e.action.type === ExpewimentActionType.Pwompt && e.state === ExpewimentState.Wun) {
+				this.showExpewimentawPwompts(e);
 			}
 		}, this));
 	}
 
-	private showExperimentalPrompts(experiment: IExperiment): void {
-		if (!experiment || !experiment.enabled || !experiment.action || experiment.state !== ExperimentState.Run) {
-			return;
+	pwivate showExpewimentawPwompts(expewiment: IExpewiment): void {
+		if (!expewiment || !expewiment.enabwed || !expewiment.action || expewiment.state !== ExpewimentState.Wun) {
+			wetuwn;
 		}
 
-		const logTelemetry = (commandText?: string) => {
-			/* __GDPR__
-				"experimentalPrompts" : {
-					"experimentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"commandText": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"cancelled": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		const wogTewemetwy = (commandText?: stwing) => {
+			/* __GDPW__
+				"expewimentawPwompts" : {
+					"expewimentId": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"commandText": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+					"cancewwed": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 				}
 			*/
-			this.telemetryService.publicLog('experimentalPrompts', {
-				experimentId: experiment.id,
+			this.tewemetwySewvice.pubwicWog('expewimentawPwompts', {
+				expewimentId: expewiment.id,
 				commandText,
-				cancelled: !commandText
+				cancewwed: !commandText
 			});
 		};
 
-		const actionProperties = (<IExperimentActionPromptProperties>experiment.action.properties);
-		const promptText = ExperimentalPrompts.getLocalizedText(actionProperties.promptText, language || '');
-		if (!actionProperties || !promptText) {
-			return;
+		const actionPwopewties = (<IExpewimentActionPwomptPwopewties>expewiment.action.pwopewties);
+		const pwomptText = ExpewimentawPwompts.getWocawizedText(actionPwopewties.pwomptText, wanguage || '');
+		if (!actionPwopewties || !pwomptText) {
+			wetuwn;
 		}
-		if (!actionProperties.commands) {
-			actionProperties.commands = [];
+		if (!actionPwopewties.commands) {
+			actionPwopewties.commands = [];
 		}
 
-		const choices: IPromptChoice[] = actionProperties.commands.map((command: IExperimentActionPromptCommand) => {
-			const commandText = ExperimentalPrompts.getLocalizedText(command.text, language || '');
-			return {
-				label: commandText,
-				run: () => {
-					logTelemetry(commandText);
-					if (command.externalLink) {
-						this.openerService.open(URI.parse(command.externalLink));
-					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
-						this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
-							.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-							.then(viewlet => {
-								if (viewlet) {
-									viewlet.search('curated:' + command.curatedExtensionsKey);
+		const choices: IPwomptChoice[] = actionPwopewties.commands.map((command: IExpewimentActionPwomptCommand) => {
+			const commandText = ExpewimentawPwompts.getWocawizedText(command.text, wanguage || '');
+			wetuwn {
+				wabew: commandText,
+				wun: () => {
+					wogTewemetwy(commandText);
+					if (command.extewnawWink) {
+						this.openewSewvice.open(UWI.pawse(command.extewnawWink));
+					} ewse if (command.cuwatedExtensionsKey && Awway.isAwway(command.cuwatedExtensionsWist)) {
+						this.paneCompositeSewvice.openPaneComposite('wowkbench.view.extensions', ViewContainewWocation.Sidebaw, twue)
+							.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+							.then(viewwet => {
+								if (viewwet) {
+									viewwet.seawch('cuwated:' + command.cuwatedExtensionsKey);
 								}
 							});
-					} else if (command.codeCommand) {
-						this.commandService.executeCommand(command.codeCommand.id, ...command.codeCommand.arguments);
+					} ewse if (command.codeCommand) {
+						this.commandSewvice.executeCommand(command.codeCommand.id, ...command.codeCommand.awguments);
 					}
 
-					this.experimentService.markAsCompleted(experiment.id);
+					this.expewimentSewvice.mawkAsCompweted(expewiment.id);
 
 				}
 			};
 		});
 
-		this.notificationService.prompt(Severity.Info, promptText, choices, {
-			onCancel: () => {
-				logTelemetry();
-				this.experimentService.markAsCompleted(experiment.id);
+		this.notificationSewvice.pwompt(Sevewity.Info, pwomptText, choices, {
+			onCancew: () => {
+				wogTewemetwy();
+				this.expewimentSewvice.mawkAsCompweted(expewiment.id);
 			}
 		});
 	}
 
-	static getLocalizedText(text: string | { [key: string]: string; }, displayLanguage: string): string {
-		if (typeof text === 'string') {
-			return text;
+	static getWocawizedText(text: stwing | { [key: stwing]: stwing; }, dispwayWanguage: stwing): stwing {
+		if (typeof text === 'stwing') {
+			wetuwn text;
 		}
-		const msgInEnglish = text['en'] || text['en-us'];
-		displayLanguage = displayLanguage.toLowerCase();
-		if (!text[displayLanguage] && displayLanguage.indexOf('-') === 2) {
-			displayLanguage = displayLanguage.substr(0, 2);
+		const msgInEngwish = text['en'] || text['en-us'];
+		dispwayWanguage = dispwayWanguage.toWowewCase();
+		if (!text[dispwayWanguage] && dispwayWanguage.indexOf('-') === 2) {
+			dispwayWanguage = dispwayWanguage.substw(0, 2);
 		}
-		return text[displayLanguage] || msgInEnglish;
+		wetuwn text[dispwayWanguage] || msgInEngwish;
 	}
 }

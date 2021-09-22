@@ -1,18 +1,18 @@
 {
-	"registrations": [
+	"wegistwations": [
 		{
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "davidrios/pug-tmbundle",
-					"repositoryUrl": "https://github.com/davidrios/pug-tmbundle",
+					"name": "davidwios/pug-tmbundwe",
+					"wepositowyUww": "https://github.com/davidwios/pug-tmbundwe",
 					"commitHash": "e67e895f6fb64932aa122e471000fa55d826bff6"
 				}
 			},
-			"license": "MIT",
-			"description": "The file syntaxes/pug.tmLanguage.json was derived from Syntaxes/Pug.JSON-tmLanguage in https://github.com/davidrios/pug-tmbundle.",
-			"version": "0.0.0"
+			"wicense": "MIT",
+			"descwiption": "The fiwe syntaxes/pug.tmWanguage.json was dewived fwom Syntaxes/Pug.JSON-tmWanguage in https://github.com/davidwios/pug-tmbundwe.",
+			"vewsion": "0.0.0"
 		}
 	],
-	"version": 1
+	"vewsion": 1
 }

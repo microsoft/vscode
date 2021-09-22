@@ -1,1093 +1,1093 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
 define({
-	Sleep: {
-		vkey: 'VK_SLEEP',
-		value: '',
+	Sweep: {
+		vkey: 'VK_SWEEP',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	WakeUp: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyA: {
 		vkey: 'VK_A',
-		value: 'a',
+		vawue: 'a',
 		withShift: 'A',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyB: {
 		vkey: 'VK_B',
-		value: 'b',
+		vawue: 'b',
 		withShift: 'B',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyC: {
 		vkey: 'VK_C',
-		value: 'c',
+		vawue: 'c',
 		withShift: 'C',
-		withAltGr: '₢',
-		withShiftAltGr: ''
+		withAwtGw: '₢',
+		withShiftAwtGw: ''
 	},
 	KeyD: {
 		vkey: 'VK_D',
-		value: 'd',
+		vawue: 'd',
 		withShift: 'D',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyE: {
 		vkey: 'VK_E',
-		value: 'e',
+		vawue: 'e',
 		withShift: 'E',
-		withAltGr: '°',
-		withShiftAltGr: ''
+		withAwtGw: '°',
+		withShiftAwtGw: ''
 	},
 	KeyF: {
 		vkey: 'VK_F',
-		value: 'f',
+		vawue: 'f',
 		withShift: 'F',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyG: {
 		vkey: 'VK_G',
-		value: 'g',
+		vawue: 'g',
 		withShift: 'G',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyH: {
 		vkey: 'VK_H',
-		value: 'h',
+		vawue: 'h',
 		withShift: 'H',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyI: {
 		vkey: 'VK_I',
-		value: 'i',
+		vawue: 'i',
 		withShift: 'I',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyJ: {
 		vkey: 'VK_J',
-		value: 'j',
+		vawue: 'j',
 		withShift: 'J',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyK: {
 		vkey: 'VK_K',
-		value: 'k',
+		vawue: 'k',
 		withShift: 'K',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyL: {
-		vkey: 'VK_L',
-		value: 'l',
-		withShift: 'L',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyM: {
-		vkey: 'VK_M',
-		value: 'm',
-		withShift: 'M',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyN: {
-		vkey: 'VK_N',
-		value: 'n',
-		withShift: 'N',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyO: {
-		vkey: 'VK_O',
-		value: 'o',
-		withShift: 'O',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyP: {
-		vkey: 'VK_P',
-		value: 'p',
-		withShift: 'P',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyQ: {
-		vkey: 'VK_Q',
-		value: 'q',
-		withShift: 'Q',
-		withAltGr: '/',
-		withShiftAltGr: ''
-	},
-	KeyR: {
-		vkey: 'VK_R',
-		value: 'r',
-		withShift: 'R',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyS: {
-		vkey: 'VK_S',
-		value: 's',
-		withShift: 'S',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyT: {
-		vkey: 'VK_T',
-		value: 't',
-		withShift: 'T',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyU: {
-		vkey: 'VK_U',
-		value: 'u',
-		withShift: 'U',
-		withAltGr: '',
-		withShiftAltGr: ''
-	},
-	KeyV: {
-		vkey: 'VK_V',
-		value: 'v',
-		withShift: 'V',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyW: {
 		vkey: 'VK_W',
-		value: 'w',
+		vawue: 'w',
 		withShift: 'W',
-		withAltGr: '?',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyM: {
+		vkey: 'VK_M',
+		vawue: 'm',
+		withShift: 'M',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyN: {
+		vkey: 'VK_N',
+		vawue: 'n',
+		withShift: 'N',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyO: {
+		vkey: 'VK_O',
+		vawue: 'o',
+		withShift: 'O',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyP: {
+		vkey: 'VK_P',
+		vawue: 'p',
+		withShift: 'P',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyQ: {
+		vkey: 'VK_Q',
+		vawue: 'q',
+		withShift: 'Q',
+		withAwtGw: '/',
+		withShiftAwtGw: ''
+	},
+	KeyW: {
+		vkey: 'VK_W',
+		vawue: 'w',
+		withShift: 'W',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyS: {
+		vkey: 'VK_S',
+		vawue: 's',
+		withShift: 'S',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyT: {
+		vkey: 'VK_T',
+		vawue: 't',
+		withShift: 'T',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyU: {
+		vkey: 'VK_U',
+		vawue: 'u',
+		withShift: 'U',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyV: {
+		vkey: 'VK_V',
+		vawue: 'v',
+		withShift: 'V',
+		withAwtGw: '',
+		withShiftAwtGw: ''
+	},
+	KeyW: {
+		vkey: 'VK_W',
+		vawue: 'w',
+		withShift: 'W',
+		withAwtGw: '?',
+		withShiftAwtGw: ''
 	},
 	KeyX: {
 		vkey: 'VK_X',
-		value: 'x',
+		vawue: 'x',
 		withShift: 'X',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyY: {
 		vkey: 'VK_Y',
-		value: 'y',
+		vawue: 'y',
 		withShift: 'Y',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	KeyZ: {
 		vkey: 'VK_Z',
-		value: 'z',
+		vawue: 'z',
 		withShift: 'Z',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Digit1: {
 		vkey: 'VK_1',
-		value: '1',
+		vawue: '1',
 		withShift: '!',
-		withAltGr: '¹',
-		withShiftAltGr: ''
+		withAwtGw: '¹',
+		withShiftAwtGw: ''
 	},
 	Digit2: {
 		vkey: 'VK_2',
-		value: '2',
+		vawue: '2',
 		withShift: '@',
-		withAltGr: '²',
-		withShiftAltGr: ''
+		withAwtGw: '²',
+		withShiftAwtGw: ''
 	},
 	Digit3: {
 		vkey: 'VK_3',
-		value: '3',
+		vawue: '3',
 		withShift: '#',
-		withAltGr: '³',
-		withShiftAltGr: ''
+		withAwtGw: '³',
+		withShiftAwtGw: ''
 	},
 	Digit4: {
 		vkey: 'VK_4',
-		value: '4',
+		vawue: '4',
 		withShift: '$',
-		withAltGr: '£',
-		withShiftAltGr: ''
+		withAwtGw: '£',
+		withShiftAwtGw: ''
 	},
 	Digit5: {
 		vkey: 'VK_5',
-		value: '5',
+		vawue: '5',
 		withShift: '%',
-		withAltGr: '¢',
-		withShiftAltGr: ''
+		withAwtGw: '¢',
+		withShiftAwtGw: ''
 	},
 	Digit6: {
 		vkey: 'VK_6',
-		value: '6',
+		vawue: '6',
 		withShift: '¨',
-		withAltGr: '¬',
-		withShiftAltGr: ''
+		withAwtGw: '¬',
+		withShiftAwtGw: ''
 	},
 	Digit7: {
 		vkey: 'VK_7',
-		value: '7',
+		vawue: '7',
 		withShift: '&',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Digit8: {
 		vkey: 'VK_8',
-		value: '8',
+		vawue: '8',
 		withShift: '*',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Digit9: {
 		vkey: 'VK_9',
-		value: '9',
+		vawue: '9',
 		withShift: '(',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Digit0: {
 		vkey: 'VK_0',
-		value: '0',
+		vawue: '0',
 		withShift: ')',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Enter: {
-		vkey: 'VK_RETURN',
-		value: '',
+	Enta: {
+		vkey: 'VK_WETUWN',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Escape: {
 		vkey: 'VK_ESCAPE',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Backspace: {
 		vkey: 'VK_BACK',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Tab: {
 		vkey: 'VK_TAB',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Space: {
 		vkey: 'VK_SPACE',
-		value: ' ',
+		vawue: ' ',
 		withShift: ' ',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Minus: {
 		vkey: 'VK_OEM_MINUS',
-		value: '-',
+		vawue: '-',
 		withShift: '_',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Equal: {
-		vkey: 'VK_OEM_PLUS',
-		value: '=',
+	Equaw: {
+		vkey: 'VK_OEM_PWUS',
+		vawue: '=',
 		withShift: '+',
-		withAltGr: '§',
-		withShiftAltGr: ''
+		withAwtGw: '§',
+		withShiftAwtGw: ''
 	},
-	BracketLeft: {
+	BwacketWeft: {
 		vkey: 'VK_OEM_4',
-		value: '´',
+		vawue: '´',
 		withShift: '`',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BracketRight: {
+	BwacketWight: {
 		vkey: 'VK_OEM_6',
-		value: '[',
+		vawue: '[',
 		withShift: '{',
-		withAltGr: 'ª',
-		withShiftAltGr: ''
+		withAwtGw: 'ª',
+		withShiftAwtGw: ''
 	},
-	Backslash: {
+	Backswash: {
 		vkey: 'VK_OEM_5',
-		value: ']',
+		vawue: ']',
 		withShift: '}',
-		withAltGr: 'º',
-		withShiftAltGr: ''
+		withAwtGw: 'º',
+		withShiftAwtGw: ''
 	},
-	Semicolon: {
+	Semicowon: {
 		vkey: 'VK_OEM_1',
-		value: 'ç',
+		vawue: 'ç',
 		withShift: 'Ç',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Quote: {
 		vkey: 'VK_OEM_7',
-		value: '~',
+		vawue: '~',
 		withShift: '^',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Backquote: {
 		vkey: 'VK_OEM_3',
-		value: '\'',
+		vawue: '\'',
 		withShift: '"',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Comma: {
 		vkey: 'VK_OEM_COMMA',
-		value: ',',
+		vawue: ',',
 		withShift: '<',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Period: {
-		vkey: 'VK_OEM_PERIOD',
-		value: '.',
+	Pewiod: {
+		vkey: 'VK_OEM_PEWIOD',
+		vawue: '.',
 		withShift: '>',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Slash: {
+	Swash: {
 		vkey: 'VK_OEM_2',
-		value: ';',
+		vawue: ';',
 		withShift: ':',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	CapsLock: {
-		vkey: 'VK_CAPITAL',
-		value: '',
+	CapsWock: {
+		vkey: 'VK_CAPITAW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F1: {
 		vkey: 'VK_F1',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F2: {
 		vkey: 'VK_F2',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F3: {
 		vkey: 'VK_F3',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F4: {
 		vkey: 'VK_F4',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F5: {
 		vkey: 'VK_F5',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F6: {
 		vkey: 'VK_F6',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F7: {
 		vkey: 'VK_F7',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F8: {
 		vkey: 'VK_F8',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F9: {
 		vkey: 'VK_F9',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F10: {
 		vkey: 'VK_F10',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F11: {
 		vkey: 'VK_F11',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F12: {
 		vkey: 'VK_F12',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	PrintScreen: {
+	PwintScween: {
 		vkey: 'VK_SNAPSHOT',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ScrollLock: {
-		vkey: 'VK_SCROLL',
-		value: '',
+	ScwowwWock: {
+		vkey: 'VK_SCWOWW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Pause: {
-		vkey: 'VK_NUMLOCK',
-		value: '',
+		vkey: 'VK_NUMWOCK',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Insert: {
-		vkey: 'VK_INSERT',
-		value: '',
+	Insewt: {
+		vkey: 'VK_INSEWT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Home: {
 		vkey: 'VK_HOME',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	PageUp: {
-		vkey: 'VK_PRIOR',
-		value: '',
+		vkey: 'VK_PWIOW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Delete: {
-		vkey: 'VK_DELETE',
-		value: '',
+	Dewete: {
+		vkey: 'VK_DEWETE',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	End: {
 		vkey: 'VK_END',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	PageDown: {
 		vkey: 'VK_NEXT',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ArrowRight: {
-		vkey: 'VK_RIGHT',
-		value: '',
+	AwwowWight: {
+		vkey: 'VK_WIGHT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ArrowLeft: {
-		vkey: 'VK_LEFT',
-		value: '',
+	AwwowWeft: {
+		vkey: 'VK_WEFT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ArrowDown: {
+	AwwowDown: {
 		vkey: 'VK_DOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ArrowUp: {
+	AwwowUp: {
 		vkey: 'VK_UP',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumLock: {
+	NumWock: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	NumpadDivide: {
 		vkey: 'VK_DIVIDE',
-		value: '/',
+		vawue: '/',
 		withShift: '/',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumpadMultiply: {
-		vkey: 'VK_MULTIPLY',
-		value: '*',
+	NumpadMuwtipwy: {
+		vkey: 'VK_MUWTIPWY',
+		vawue: '*',
 		withShift: '*',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumpadSubtract: {
-		vkey: 'VK_SUBTRACT',
-		value: '-',
+	NumpadSubtwact: {
+		vkey: 'VK_SUBTWACT',
+		vawue: '-',
 		withShift: '-',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	NumpadAdd: {
 		vkey: 'VK_ADD',
-		value: '+',
+		vawue: '+',
 		withShift: '+',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumpadEnter: {
-		vkey: 'VK_RETURN',
-		value: '',
+	NumpadEnta: {
+		vkey: 'VK_WETUWN',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad1: {
 		vkey: 'VK_END',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad2: {
 		vkey: 'VK_DOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad3: {
 		vkey: 'VK_NEXT',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad4: {
-		vkey: 'VK_LEFT',
-		value: '',
+		vkey: 'VK_WEFT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad5: {
-		vkey: 'VK_CLEAR',
-		value: '',
+		vkey: 'VK_CWEAW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad6: {
-		vkey: 'VK_RIGHT',
-		value: '',
+		vkey: 'VK_WIGHT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad7: {
 		vkey: 'VK_HOME',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad8: {
 		vkey: 'VK_UP',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad9: {
-		vkey: 'VK_PRIOR',
-		value: '',
+		vkey: 'VK_PWIOW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Numpad0: {
-		vkey: 'VK_INSERT',
-		value: '',
+		vkey: 'VK_INSEWT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumpadDecimal: {
-		vkey: 'VK_DELETE',
-		value: '',
+	NumpadDecimaw: {
+		vkey: 'VK_DEWETE',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	IntlBackslash: {
+	IntwBackswash: {
 		vkey: 'VK_OEM_102',
-		value: '\\',
+		vawue: '\\',
 		withShift: '|',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	ContextMenu: {
 		vkey: 'VK_APPS',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Power: {
+	Powa: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NumpadEqual: {
-		vkey: 'VK_CLEAR',
-		value: '',
+	NumpadEquaw: {
+		vkey: 'VK_CWEAW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F13: {
 		vkey: 'VK_F13',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F14: {
 		vkey: 'VK_F14',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F15: {
 		vkey: 'VK_F15',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F16: {
 		vkey: 'VK_F16',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F17: {
 		vkey: 'VK_F17',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F18: {
 		vkey: 'VK_F18',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F19: {
 		vkey: 'VK_F19',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F20: {
 		vkey: 'VK_F20',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F21: {
 		vkey: 'VK_F21',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F22: {
 		vkey: 'VK_F22',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F23: {
 		vkey: 'VK_F23',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	F24: {
 		vkey: 'VK_F24',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Help: {
+	Hewp: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Undo: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Cut: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Copy: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Paste: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	AudioVolumeMute: {
-		vkey: 'VK_VOLUME_MUTE',
-		value: '',
+	AudioVowumeMute: {
+		vkey: 'VK_VOWUME_MUTE',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	AudioVolumeUp: {
-		vkey: 'VK_VOLUME_UP',
-		value: '',
+	AudioVowumeUp: {
+		vkey: 'VK_VOWUME_UP',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	AudioVolumeDown: {
-		vkey: 'VK_VOLUME_DOWN',
-		value: '',
+	AudioVowumeDown: {
+		vkey: 'VK_VOWUME_DOWN',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	NumpadComma: {
 		vkey: 'VK_ABNT_C2',
-		value: '.',
+		vawue: '.',
 		withShift: '.',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	IntlRo: {
+	IntwWo: {
 		vkey: 'VK_ABNT_C1',
-		value: '/',
+		vawue: '/',
 		withShift: '?',
-		withAltGr: '°',
-		withShiftAltGr: ''
+		withAwtGw: '°',
+		withShiftAwtGw: ''
 	},
 	KanaMode: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	IntlYen: {
+	IntwYen: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Convert: {
+	Convewt: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	NonConvert: {
+	NonConvewt: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Lang1: {
+	Wang1: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Lang2: {
+	Wang2: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Lang3: {
+	Wang3: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	Lang4: {
+	Wang4: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ControlLeft: {
-		vkey: 'VK_CONTROL',
-		value: '',
+	ContwowWeft: {
+		vkey: 'VK_CONTWOW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ShiftLeft: {
+	ShiftWeft: {
 		vkey: 'VK_SHIFT',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	AltLeft: {
+	AwtWeft: {
 		vkey: 'VK_MENU',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MetaLeft: {
-		vkey: 'VK_LWIN',
-		value: '',
+	MetaWeft: {
+		vkey: 'VK_WWIN',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ControlRight: {
-		vkey: 'VK_CONTROL',
-		value: '',
+	ContwowWight: {
+		vkey: 'VK_CONTWOW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	ShiftRight: {
+	ShiftWight: {
 		vkey: 'VK_SHIFT',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	AltRight: {
+	AwtWight: {
 		vkey: 'VK_MENU',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MetaRight: {
-		vkey: 'VK_RWIN',
-		value: '',
+	MetaWight: {
+		vkey: 'VK_WWIN',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MediaTrackNext: {
-		vkey: 'VK_MEDIA_NEXT_TRACK',
-		value: '',
+	MediaTwackNext: {
+		vkey: 'VK_MEDIA_NEXT_TWACK',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MediaTrackPrevious: {
-		vkey: 'VK_MEDIA_PREV_TRACK',
-		value: '',
+	MediaTwackPwevious: {
+		vkey: 'VK_MEDIA_PWEV_TWACK',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	MediaStop: {
 		vkey: 'VK_MEDIA_STOP',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
 	Eject: {
 		vkey: 'VK_UNKNOWN',
-		value: '',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MediaPlayPause: {
-		vkey: 'VK_MEDIA_PLAY_PAUSE',
-		value: '',
+	MediaPwayPause: {
+		vkey: 'VK_MEDIA_PWAY_PAUSE',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	MediaSelect: {
-		vkey: 'VK_LAUNCH_MEDIA_SELECT',
-		value: '',
+	MediaSewect: {
+		vkey: 'VK_WAUNCH_MEDIA_SEWECT',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	LaunchMail: {
-		vkey: 'VK_LAUNCH_MAIL',
-		value: '',
+	WaunchMaiw: {
+		vkey: 'VK_WAUNCH_MAIW',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	LaunchApp2: {
-		vkey: 'VK_LAUNCH_APP2',
-		value: '',
+	WaunchApp2: {
+		vkey: 'VK_WAUNCH_APP2',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	LaunchApp1: {
-		vkey: 'VK_LAUNCH_APP1',
-		value: '',
+	WaunchApp1: {
+		vkey: 'VK_WAUNCH_APP1',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserSearch: {
-		vkey: 'VK_BROWSER_SEARCH',
-		value: '',
+	BwowsewSeawch: {
+		vkey: 'VK_BWOWSEW_SEAWCH',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserHome: {
-		vkey: 'VK_BROWSER_HOME',
-		value: '',
+	BwowsewHome: {
+		vkey: 'VK_BWOWSEW_HOME',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserBack: {
-		vkey: 'VK_BROWSER_BACK',
-		value: '',
+	BwowsewBack: {
+		vkey: 'VK_BWOWSEW_BACK',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserForward: {
-		vkey: 'VK_BROWSER_FORWARD',
-		value: '',
+	BwowsewFowwawd: {
+		vkey: 'VK_BWOWSEW_FOWWAWD',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserStop: {
-		vkey: 'VK_BROWSER_STOP',
-		value: '',
+	BwowsewStop: {
+		vkey: 'VK_BWOWSEW_STOP',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserRefresh: {
-		vkey: 'VK_BROWSER_REFRESH',
-		value: '',
+	BwowsewWefwesh: {
+		vkey: 'VK_BWOWSEW_WEFWESH',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	},
-	BrowserFavorites: {
-		vkey: 'VK_BROWSER_FAVORITES',
-		value: '',
+	BwowsewFavowites: {
+		vkey: 'VK_BWOWSEW_FAVOWITES',
+		vawue: '',
 		withShift: '',
-		withAltGr: '',
-		withShiftAltGr: ''
+		withAwtGw: '',
+		withShiftAwtGw: ''
 	}
 });

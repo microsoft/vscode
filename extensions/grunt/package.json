@@ -1,81 +1,81 @@
 {
-  "name": "grunt",
-  "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VS Code.",
-  "displayName": "Grunt support for VS Code",
-  "version": "1.0.0",
-  "icon": "images/grunt.png",
-  "license": "MIT",
+  "name": "gwunt",
+  "pubwisha": "vscode",
+  "descwiption": "Extension to add Gwunt capabiwities to VS Code.",
+  "dispwayName": "Gwunt suppowt fow VS Code",
+  "vewsion": "1.0.0",
+  "icon": "images/gwunt.png",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "categories": [
-    "Other"
+  "categowies": [
+    "Otha"
   ],
-  "scripts": {
-    "compile": "gulp compile-extension:grunt",
-    "watch": "gulp watch-extension:grunt"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:gwunt",
+    "watch": "guwp watch-extension:gwunt"
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "vscode-nws": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onCommand:wowkbench.action.tasks.wunTask"
   ],
-  "capabilities": {
-    "virtualWorkspaces": false,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": fawse,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
-    "configuration": {
-      "id": "grunt",
+  "contwibutes": {
+    "configuwation": {
+      "id": "gwunt",
       "type": "object",
-      "title": "Grunt",
-      "properties": {
-        "grunt.autoDetect": {
-          "scope": "application",
-          "type": "string",
+      "titwe": "Gwunt",
+      "pwopewties": {
+        "gwunt.autoDetect": {
+          "scope": "appwication",
+          "type": "stwing",
           "enum": [
             "off",
             "on"
           ],
-          "default": "off",
-          "description": "%config.grunt.autoDetect%"
+          "defauwt": "off",
+          "descwiption": "%config.gwunt.autoDetect%"
         }
       }
     },
     "taskDefinitions": [
       {
-        "type": "grunt",
-        "required": [
+        "type": "gwunt",
+        "wequiwed": [
           "task"
         ],
-        "properties": {
+        "pwopewties": {
           "task": {
-            "type": "string",
-            "description": "%grunt.taskDefinition.type.description%"
+            "type": "stwing",
+            "descwiption": "%gwunt.taskDefinition.type.descwiption%"
           },
-          "args": {
-            "type": "array",
-            "description": "%grunt.taskDefinition.args.description%"
+          "awgs": {
+            "type": "awway",
+            "descwiption": "%gwunt.taskDefinition.awgs.descwiption%"
           },
-          "file": {
-            "type": "string",
-            "description": "%grunt.taskDefinition.file.description%"
+          "fiwe": {
+            "type": "stwing",
+            "descwiption": "%gwunt.taskDefinition.fiwe.descwiption%"
           }
         },
-        "when": "shellExecutionSupported"
+        "when": "shewwExecutionSuppowted"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

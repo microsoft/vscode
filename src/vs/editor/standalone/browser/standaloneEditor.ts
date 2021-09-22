@@ -1,402 +1,402 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./standalone-tokens';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { EditorOptions, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Token } from 'vs/editor/common/core/token';
-import { IEditor, EditorType } from 'vs/editor/common/editorCommon';
-import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
-import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
-import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
-import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
-import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
-import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IMarker, IMarkerData } from 'vs/platform/markers/common/markers';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
-import { splitLines } from 'vs/base/common/strings';
-import { IModelService } from 'vs/editor/common/services/modelService';
+impowt 'vs/css!./standawone-tokens';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { OpenewSewvice } fwom 'vs/editow/bwowsa/sewvices/openewSewvice';
+impowt { DiffNavigatow, IDiffNavigatow } fwom 'vs/editow/bwowsa/widget/diffNavigatow';
+impowt { EditowOptions, ConfiguwationChangedEvent } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo, FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { Token } fwom 'vs/editow/common/cowe/token';
+impowt { IEditow, EditowType } fwom 'vs/editow/common/editowCommon';
+impowt { FindMatch, ITextModew, TextModewWesowvedOptions } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { NUWW_STATE, nuwwTokenize } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWebWowkewOptions, MonacoWebWowka, cweateWebWowka as actuawCweateWebWowka } fwom 'vs/editow/common/sewvices/webWowka';
+impowt * as standawoneEnums fwom 'vs/editow/common/standawone/standawoneEnums';
+impowt { Cowowiza, ICowowizewEwementOptions, ICowowizewOptions } fwom 'vs/editow/standawone/bwowsa/cowowiza';
+impowt { SimpweEditowModewWesowvewSewvice } fwom 'vs/editow/standawone/bwowsa/simpweSewvices';
+impowt { IStandawoneEditowConstwuctionOptions, IStandawoneCodeEditow, IStandawoneDiffEditow, StandawoneDiffEditow, StandawoneEditow, cweateTextModew, IStandawoneDiffEditowConstwuctionOptions } fwom 'vs/editow/standawone/bwowsa/standawoneCodeEditow';
+impowt { DynamicStandawoneSewvices, IEditowOvewwideSewvices, StaticSewvices } fwom 'vs/editow/standawone/bwowsa/standawoneSewvices';
+impowt { IStandawoneThemeData, IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextViewSewvice, IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IMawka, IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { cweawAwwFontInfos } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { IEditowPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { StandawoneThemeSewviceImpw } fwom 'vs/editow/standawone/bwowsa/standawoneThemeSewviceImpw';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
 
-type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+type Omit<T, K extends keyof T> = Pick<T, Excwude<keyof T, K>>;
 
-function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
-	let services = new DynamicStandaloneServices(domElement, override);
+function withAwwStandawoneSewvices<T extends IEditow>(domEwement: HTMWEwement, ovewwide: IEditowOvewwideSewvices, cawwback: (sewvices: DynamicStandawoneSewvices) => T): T {
+	wet sewvices = new DynamicStandawoneSewvices(domEwement, ovewwide);
 
-	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
-	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
-		services.set(ITextModelService, simpleEditorModelResolverService);
+	wet simpweEditowModewWesowvewSewvice: SimpweEditowModewWesowvewSewvice | nuww = nuww;
+	if (!sewvices.has(ITextModewSewvice)) {
+		simpweEditowModewWesowvewSewvice = new SimpweEditowModewWesowvewSewvice(StaticSewvices.modewSewvice.get());
+		sewvices.set(ITextModewSewvice, simpweEditowModewWesowvewSewvice);
 	}
 
-	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
+	if (!sewvices.has(IOpenewSewvice)) {
+		sewvices.set(IOpenewSewvice, new OpenewSewvice(sewvices.get(ICodeEditowSewvice), sewvices.get(ICommandSewvice)));
 	}
 
-	let result = callback(services);
+	wet wesuwt = cawwback(sewvices);
 
-	if (simpleEditorModelResolverService) {
-		simpleEditorModelResolverService.setEditor(result);
+	if (simpweEditowModewWesowvewSewvice) {
+		simpweEditowModewWesowvewSewvice.setEditow(wesuwt);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Create a new editor under `domElement`.
- * `domElement` should be empty (not contain other dom nodes).
- * The editor will read the size of `domElement`.
+ * Cweate a new editow unda `domEwement`.
+ * `domEwement` shouwd be empty (not contain otha dom nodes).
+ * The editow wiww wead the size of `domEwement`.
  */
-export function create(domElement: HTMLElement, options?: IStandaloneEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneCodeEditor {
-	return withAllStandaloneServices(domElement, override || {}, (services) => {
-		return new StandaloneEditor(
-			domElement,
+expowt function cweate(domEwement: HTMWEwement, options?: IStandawoneEditowConstwuctionOptions, ovewwide?: IEditowOvewwideSewvices): IStandawoneCodeEditow {
+	wetuwn withAwwStandawoneSewvices(domEwement, ovewwide || {}, (sewvices) => {
+		wetuwn new StandawoneEditow(
+			domEwement,
 			options,
-			services,
-			services.get(IInstantiationService),
-			services.get(ICodeEditorService),
-			services.get(ICommandService),
-			services.get(IContextKeyService),
-			services.get(IKeybindingService),
-			services.get(IContextViewService),
-			services.get(IStandaloneThemeService),
-			services.get(INotificationService),
-			services.get(IConfigurationService),
-			services.get(IAccessibilityService),
-			services.get(IModelService),
-			services.get(IModeService),
+			sewvices,
+			sewvices.get(IInstantiationSewvice),
+			sewvices.get(ICodeEditowSewvice),
+			sewvices.get(ICommandSewvice),
+			sewvices.get(IContextKeySewvice),
+			sewvices.get(IKeybindingSewvice),
+			sewvices.get(IContextViewSewvice),
+			sewvices.get(IStandawoneThemeSewvice),
+			sewvices.get(INotificationSewvice),
+			sewvices.get(IConfiguwationSewvice),
+			sewvices.get(IAccessibiwitySewvice),
+			sewvices.get(IModewSewvice),
+			sewvices.get(IModeSewvice),
 		);
 	});
 }
 
 /**
- * Emitted when an editor is created.
- * Creating a diff editor might cause this listener to be invoked with the two editors.
+ * Emitted when an editow is cweated.
+ * Cweating a diff editow might cause this wistena to be invoked with the two editows.
  * @event
  */
-export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): IDisposable {
-	return StaticServices.codeEditorService.get().onCodeEditorAdd((editor) => {
-		listener(<ICodeEditor>editor);
+expowt function onDidCweateEditow(wistena: (codeEditow: ICodeEditow) => void): IDisposabwe {
+	wetuwn StaticSewvices.codeEditowSewvice.get().onCodeEditowAdd((editow) => {
+		wistena(<ICodeEditow>editow);
 	});
 }
 
 /**
- * Create a new diff editor under `domElement`.
- * `domElement` should be empty (not contain other dom nodes).
- * The editor will read the size of `domElement`.
+ * Cweate a new diff editow unda `domEwement`.
+ * `domEwement` shouwd be empty (not contain otha dom nodes).
+ * The editow wiww wead the size of `domEwement`.
  */
-export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
-	return withAllStandaloneServices(domElement, override || {}, (services) => {
-		return new StandaloneDiffEditor(
-			domElement,
+expowt function cweateDiffEditow(domEwement: HTMWEwement, options?: IStandawoneDiffEditowConstwuctionOptions, ovewwide?: IEditowOvewwideSewvices): IStandawoneDiffEditow {
+	wetuwn withAwwStandawoneSewvices(domEwement, ovewwide || {}, (sewvices) => {
+		wetuwn new StandawoneDiffEditow(
+			domEwement,
 			options,
-			services,
-			services.get(IInstantiationService),
-			services.get(IContextKeyService),
-			services.get(IKeybindingService),
-			services.get(IContextViewService),
-			services.get(IEditorWorkerService),
-			services.get(ICodeEditorService),
-			services.get(IStandaloneThemeService),
-			services.get(INotificationService),
-			services.get(IConfigurationService),
-			services.get(IContextMenuService),
-			services.get(IEditorProgressService),
-			services.get(IClipboardService)
+			sewvices,
+			sewvices.get(IInstantiationSewvice),
+			sewvices.get(IContextKeySewvice),
+			sewvices.get(IKeybindingSewvice),
+			sewvices.get(IContextViewSewvice),
+			sewvices.get(IEditowWowkewSewvice),
+			sewvices.get(ICodeEditowSewvice),
+			sewvices.get(IStandawoneThemeSewvice),
+			sewvices.get(INotificationSewvice),
+			sewvices.get(IConfiguwationSewvice),
+			sewvices.get(IContextMenuSewvice),
+			sewvices.get(IEditowPwogwessSewvice),
+			sewvices.get(ICwipboawdSewvice)
 		);
 	});
 }
 
-export interface IDiffNavigatorOptions {
-	readonly followsCaret?: boolean;
-	readonly ignoreCharChanges?: boolean;
-	readonly alwaysRevealFirst?: boolean;
+expowt intewface IDiffNavigatowOptions {
+	weadonwy fowwowsCawet?: boowean;
+	weadonwy ignoweChawChanges?: boowean;
+	weadonwy awwaysWeveawFiwst?: boowean;
 }
 
-export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
-	return new DiffNavigator(diffEditor, opts);
+expowt function cweateDiffNavigatow(diffEditow: IStandawoneDiffEditow, opts?: IDiffNavigatowOptions): IDiffNavigatow {
+	wetuwn new DiffNavigatow(diffEditow, opts);
 }
 
 /**
- * Create a new editor model.
- * You can specify the language that should be set for this model or let the language be inferred from the `uri`.
+ * Cweate a new editow modew.
+ * You can specify the wanguage that shouwd be set fow this modew ow wet the wanguage be infewwed fwom the `uwi`.
  */
-export function createModel(value: string, language?: string, uri?: URI): ITextModel {
-	return createTextModel(
-		StaticServices.modelService.get(),
-		StaticServices.modeService.get(),
-		value,
-		language,
-		uri
+expowt function cweateModew(vawue: stwing, wanguage?: stwing, uwi?: UWI): ITextModew {
+	wetuwn cweateTextModew(
+		StaticSewvices.modewSewvice.get(),
+		StaticSewvices.modeSewvice.get(),
+		vawue,
+		wanguage,
+		uwi
 	);
 }
 
 /**
- * Change the language for a model.
+ * Change the wanguage fow a modew.
  */
-export function setModelLanguage(model: ITextModel, languageId: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().create(languageId));
+expowt function setModewWanguage(modew: ITextModew, wanguageId: stwing): void {
+	StaticSewvices.modewSewvice.get().setMode(modew, StaticSewvices.modeSewvice.get().cweate(wanguageId));
 }
 
 /**
- * Set the markers for a model.
+ * Set the mawkews fow a modew.
  */
-export function setModelMarkers(model: ITextModel, owner: string, markers: IMarkerData[]): void {
-	if (model) {
-		StaticServices.markerService.get().changeOne(owner, model.uri, markers);
+expowt function setModewMawkews(modew: ITextModew, owna: stwing, mawkews: IMawkewData[]): void {
+	if (modew) {
+		StaticSewvices.mawkewSewvice.get().changeOne(owna, modew.uwi, mawkews);
 	}
 }
 
 /**
- * Get markers for owner and/or resource
+ * Get mawkews fow owna and/ow wesouwce
  *
- * @returns list of markers
+ * @wetuwns wist of mawkews
  */
-export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
-	return StaticServices.markerService.get().read(filter);
+expowt function getModewMawkews(fiwta: { owna?: stwing, wesouwce?: UWI, take?: numba }): IMawka[] {
+	wetuwn StaticSewvices.mawkewSewvice.get().wead(fiwta);
 }
 
 /**
- * Emitted when markers change for a model.
+ * Emitted when mawkews change fow a modew.
  * @event
  */
-export function onDidChangeMarkers(listener: (e: readonly URI[]) => void): IDisposable {
-	return StaticServices.markerService.get().onMarkerChanged(listener);
+expowt function onDidChangeMawkews(wistena: (e: weadonwy UWI[]) => void): IDisposabwe {
+	wetuwn StaticSewvices.mawkewSewvice.get().onMawkewChanged(wistena);
 }
 
 /**
- * Get the model that has `uri` if it exists.
+ * Get the modew that has `uwi` if it exists.
  */
-export function getModel(uri: URI): ITextModel | null {
-	return StaticServices.modelService.get().getModel(uri);
+expowt function getModew(uwi: UWI): ITextModew | nuww {
+	wetuwn StaticSewvices.modewSewvice.get().getModew(uwi);
 }
 
 /**
- * Get all the created models.
+ * Get aww the cweated modews.
  */
-export function getModels(): ITextModel[] {
-	return StaticServices.modelService.get().getModels();
+expowt function getModews(): ITextModew[] {
+	wetuwn StaticSewvices.modewSewvice.get().getModews();
 }
 
 /**
- * Emitted when a model is created.
+ * Emitted when a modew is cweated.
  * @event
  */
-export function onDidCreateModel(listener: (model: ITextModel) => void): IDisposable {
-	return StaticServices.modelService.get().onModelAdded(listener);
+expowt function onDidCweateModew(wistena: (modew: ITextModew) => void): IDisposabwe {
+	wetuwn StaticSewvices.modewSewvice.get().onModewAdded(wistena);
 }
 
 /**
- * Emitted right before a model is disposed.
+ * Emitted wight befowe a modew is disposed.
  * @event
  */
-export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisposable {
-	return StaticServices.modelService.get().onModelRemoved(listener);
+expowt function onWiwwDisposeModew(wistena: (modew: ITextModew) => void): IDisposabwe {
+	wetuwn StaticSewvices.modewSewvice.get().onModewWemoved(wistena);
 }
 
 /**
- * Emitted when a different language is set to a model.
+ * Emitted when a diffewent wanguage is set to a modew.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
-	return StaticServices.modelService.get().onModelModeChanged((e) => {
-		listener({
-			model: e.model,
-			oldLanguage: e.oldModeId
+expowt function onDidChangeModewWanguage(wistena: (e: { weadonwy modew: ITextModew; weadonwy owdWanguage: stwing; }) => void): IDisposabwe {
+	wetuwn StaticSewvices.modewSewvice.get().onModewModeChanged((e) => {
+		wistena({
+			modew: e.modew,
+			owdWanguage: e.owdModeId
 		});
 	});
 }
 
 /**
- * Create a new web worker that has model syncing capabilities built in.
- * Specify an AMD module to load that will `create` an object that will be proxied.
+ * Cweate a new web wowka that has modew syncing capabiwities buiwt in.
+ * Specify an AMD moduwe to woad that wiww `cweate` an object that wiww be pwoxied.
  */
-export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> {
-	return actualCreateWebWorker<T>(StaticServices.modelService.get(), opts);
+expowt function cweateWebWowka<T>(opts: IWebWowkewOptions): MonacoWebWowka<T> {
+	wetuwn actuawCweateWebWowka<T>(StaticSewvices.modewSewvice.get(), opts);
 }
 
 /**
- * Colorize the contents of `domNode` using attribute `data-lang`.
+ * Cowowize the contents of `domNode` using attwibute `data-wang`.
  */
-export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
-	themeService.registerEditorContainer(domNode);
-	return Colorizer.colorizeElement(themeService, StaticServices.modeService.get(), domNode, options);
+expowt function cowowizeEwement(domNode: HTMWEwement, options: ICowowizewEwementOptions): Pwomise<void> {
+	const themeSewvice = <StandawoneThemeSewviceImpw>StaticSewvices.standawoneThemeSewvice.get();
+	themeSewvice.wegistewEditowContaina(domNode);
+	wetuwn Cowowiza.cowowizeEwement(themeSewvice, StaticSewvices.modeSewvice.get(), domNode, options);
 }
 
 /**
- * Colorize `text` using language `languageId`.
+ * Cowowize `text` using wanguage `wanguageId`.
  */
-export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
-	themeService.registerEditorContainer(document.body);
-	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
+expowt function cowowize(text: stwing, wanguageId: stwing, options: ICowowizewOptions): Pwomise<stwing> {
+	const themeSewvice = <StandawoneThemeSewviceImpw>StaticSewvices.standawoneThemeSewvice.get();
+	themeSewvice.wegistewEditowContaina(document.body);
+	wetuwn Cowowiza.cowowize(StaticSewvices.modeSewvice.get(), text, wanguageId, options);
 }
 
 /**
- * Colorize a line in a model.
+ * Cowowize a wine in a modew.
  */
-export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
-	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
-	themeService.registerEditorContainer(document.body);
-	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
+expowt function cowowizeModewWine(modew: ITextModew, wineNumba: numba, tabSize: numba = 4): stwing {
+	const themeSewvice = <StandawoneThemeSewviceImpw>StaticSewvices.standawoneThemeSewvice.get();
+	themeSewvice.wegistewEditowContaina(document.body);
+	wetuwn Cowowiza.cowowizeModewWine(modew, wineNumba, tabSize);
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenize2'> {
-	let tokenizationSupport = modes.TokenizationRegistry.get(language);
-	if (tokenizationSupport) {
-		return tokenizationSupport;
+function getSafeTokenizationSuppowt(wanguage: stwing): Omit<modes.ITokenizationSuppowt, 'tokenize2'> {
+	wet tokenizationSuppowt = modes.TokenizationWegistwy.get(wanguage);
+	if (tokenizationSuppowt) {
+		wetuwn tokenizationSuppowt;
 	}
-	return {
-		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, hasEOL: boolean, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset)
+	wetuwn {
+		getInitiawState: () => NUWW_STATE,
+		tokenize: (wine: stwing, hasEOW: boowean, state: modes.IState, dewtaOffset: numba) => nuwwTokenize(wanguage, wine, state, dewtaOffset)
 	};
 }
 
 /**
- * Tokenize `text` using language `languageId`
+ * Tokenize `text` using wanguage `wanguageId`
  */
-export function tokenize(text: string, languageId: string): Token[][] {
-	let modeService = StaticServices.modeService.get();
-	// Needed in order to get the mode registered for subsequent look-ups
-	modeService.triggerMode(languageId);
+expowt function tokenize(text: stwing, wanguageId: stwing): Token[][] {
+	wet modeSewvice = StaticSewvices.modeSewvice.get();
+	// Needed in owda to get the mode wegistewed fow subsequent wook-ups
+	modeSewvice.twiggewMode(wanguageId);
 
-	let tokenizationSupport = getSafeTokenizationSupport(languageId);
-	let lines = splitLines(text);
-	let result: Token[][] = [];
-	let state = tokenizationSupport.getInitialState();
-	for (let i = 0, len = lines.length; i < len; i++) {
-		let line = lines[i];
-		let tokenizationResult = tokenizationSupport.tokenize(line, true, state, 0);
+	wet tokenizationSuppowt = getSafeTokenizationSuppowt(wanguageId);
+	wet wines = spwitWines(text);
+	wet wesuwt: Token[][] = [];
+	wet state = tokenizationSuppowt.getInitiawState();
+	fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+		wet wine = wines[i];
+		wet tokenizationWesuwt = tokenizationSuppowt.tokenize(wine, twue, state, 0);
 
-		result[i] = tokenizationResult.tokens;
-		state = tokenizationResult.endState;
+		wesuwt[i] = tokenizationWesuwt.tokens;
+		state = tokenizationWesuwt.endState;
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Define a new theme or update an existing theme.
+ * Define a new theme ow update an existing theme.
  */
-export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
-	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
+expowt function defineTheme(themeName: stwing, themeData: IStandawoneThemeData): void {
+	StaticSewvices.standawoneThemeSewvice.get().defineTheme(themeName, themeData);
 }
 
 /**
  * Switches to a theme.
  */
-export function setTheme(themeName: string): void {
-	StaticServices.standaloneThemeService.get().setTheme(themeName);
+expowt function setTheme(themeName: stwing): void {
+	StaticSewvices.standawoneThemeSewvice.get().setTheme(themeName);
 }
 
 /**
- * Clears all cached font measurements and triggers re-measurement.
+ * Cweaws aww cached font measuwements and twiggews we-measuwement.
  */
-export function remeasureFonts(): void {
-	clearAllFontInfos();
+expowt function wemeasuweFonts(): void {
+	cweawAwwFontInfos();
 }
 
 /**
- * Register a command.
+ * Wegista a command.
  */
-export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable {
-	return CommandsRegistry.registerCommand({ id, handler });
+expowt function wegistewCommand(id: stwing, handwa: (accessow: any, ...awgs: any[]) => void): IDisposabwe {
+	wetuwn CommandsWegistwy.wegistewCommand({ id, handwa });
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export function createMonacoEditorAPI(): typeof monaco.editor {
-	return {
+expowt function cweateMonacoEditowAPI(): typeof monaco.editow {
+	wetuwn {
 		// methods
-		create: <any>create,
-		onDidCreateEditor: <any>onDidCreateEditor,
-		createDiffEditor: <any>createDiffEditor,
-		createDiffNavigator: <any>createDiffNavigator,
+		cweate: <any>cweate,
+		onDidCweateEditow: <any>onDidCweateEditow,
+		cweateDiffEditow: <any>cweateDiffEditow,
+		cweateDiffNavigatow: <any>cweateDiffNavigatow,
 
-		createModel: <any>createModel,
-		setModelLanguage: <any>setModelLanguage,
-		setModelMarkers: <any>setModelMarkers,
-		getModelMarkers: <any>getModelMarkers,
-		onDidChangeMarkers: <any>onDidChangeMarkers,
-		getModels: <any>getModels,
-		getModel: <any>getModel,
-		onDidCreateModel: <any>onDidCreateModel,
-		onWillDisposeModel: <any>onWillDisposeModel,
-		onDidChangeModelLanguage: <any>onDidChangeModelLanguage,
+		cweateModew: <any>cweateModew,
+		setModewWanguage: <any>setModewWanguage,
+		setModewMawkews: <any>setModewMawkews,
+		getModewMawkews: <any>getModewMawkews,
+		onDidChangeMawkews: <any>onDidChangeMawkews,
+		getModews: <any>getModews,
+		getModew: <any>getModew,
+		onDidCweateModew: <any>onDidCweateModew,
+		onWiwwDisposeModew: <any>onWiwwDisposeModew,
+		onDidChangeModewWanguage: <any>onDidChangeModewWanguage,
 
 
-		createWebWorker: <any>createWebWorker,
-		colorizeElement: <any>colorizeElement,
-		colorize: <any>colorize,
-		colorizeModelLine: <any>colorizeModelLine,
+		cweateWebWowka: <any>cweateWebWowka,
+		cowowizeEwement: <any>cowowizeEwement,
+		cowowize: <any>cowowize,
+		cowowizeModewWine: <any>cowowizeModewWine,
 		tokenize: <any>tokenize,
 		defineTheme: <any>defineTheme,
 		setTheme: <any>setTheme,
-		remeasureFonts: remeasureFonts,
-		registerCommand: registerCommand,
+		wemeasuweFonts: wemeasuweFonts,
+		wegistewCommand: wegistewCommand,
 
 		// enums
-		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
-		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
-		CursorChangeReason: standaloneEnums.CursorChangeReason,
-		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
-		EditorAutoIndentStrategy: standaloneEnums.EditorAutoIndentStrategy,
-		EditorOption: standaloneEnums.EditorOption,
-		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
-		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
-		MinimapPosition: standaloneEnums.MinimapPosition,
-		MouseTargetType: standaloneEnums.MouseTargetType,
-		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
-		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
-		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
-		RenderMinimap: standaloneEnums.RenderMinimap,
-		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-		ScrollType: standaloneEnums.ScrollType,
-		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
-		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
-		WrappingIndent: standaloneEnums.WrappingIndent,
+		AccessibiwitySuppowt: standawoneEnums.AccessibiwitySuppowt,
+		ContentWidgetPositionPwefewence: standawoneEnums.ContentWidgetPositionPwefewence,
+		CuwsowChangeWeason: standawoneEnums.CuwsowChangeWeason,
+		DefauwtEndOfWine: standawoneEnums.DefauwtEndOfWine,
+		EditowAutoIndentStwategy: standawoneEnums.EditowAutoIndentStwategy,
+		EditowOption: standawoneEnums.EditowOption,
+		EndOfWinePwefewence: standawoneEnums.EndOfWinePwefewence,
+		EndOfWineSequence: standawoneEnums.EndOfWineSequence,
+		MinimapPosition: standawoneEnums.MinimapPosition,
+		MouseTawgetType: standawoneEnums.MouseTawgetType,
+		OvewwayWidgetPositionPwefewence: standawoneEnums.OvewwayWidgetPositionPwefewence,
+		OvewviewWuwewWane: standawoneEnums.OvewviewWuwewWane,
+		WendewWineNumbewsType: standawoneEnums.WendewWineNumbewsType,
+		WendewMinimap: standawoneEnums.WendewMinimap,
+		ScwowwbawVisibiwity: standawoneEnums.ScwowwbawVisibiwity,
+		ScwowwType: standawoneEnums.ScwowwType,
+		TextEditowCuwsowBwinkingStywe: standawoneEnums.TextEditowCuwsowBwinkingStywe,
+		TextEditowCuwsowStywe: standawoneEnums.TextEditowCuwsowStywe,
+		TwackedWangeStickiness: standawoneEnums.TwackedWangeStickiness,
+		WwappingIndent: standawoneEnums.WwappingIndent,
 
-		// classes
-		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
-		BareFontInfo: <any>BareFontInfo,
+		// cwasses
+		ConfiguwationChangedEvent: <any>ConfiguwationChangedEvent,
+		BaweFontInfo: <any>BaweFontInfo,
 		FontInfo: <any>FontInfo,
-		TextModelResolvedOptions: <any>TextModelResolvedOptions,
+		TextModewWesowvedOptions: <any>TextModewWesowvedOptions,
 		FindMatch: <any>FindMatch,
 
-		// vars
-		EditorType: EditorType,
-		EditorOptions: <any>EditorOptions
+		// vaws
+		EditowType: EditowType,
+		EditowOptions: <any>EditowOptions
 
 	};
 }

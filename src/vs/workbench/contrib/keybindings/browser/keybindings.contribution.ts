@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+impowt * as nws fwom 'vs/nws';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { wendewewWogChannewId } fwom 'vs/wowkbench/contwib/wogs/common/wogConstants';
+impowt { IOutputSewvice } fwom 'vs/wowkbench/contwib/output/common/output';
 
-class ToggleKeybindingsLogAction extends Action2 {
+cwass ToggweKeybindingsWogAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.toggleKeybindingsLog',
-			title: { value: nls.localize('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"), original: 'Toggle Keyboard Shortcuts Troubleshooting' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweKeybindingsWog',
+			titwe: { vawue: nws.wocawize('toggweKeybindingsWog', "Toggwe Keyboawd Showtcuts Twoubweshooting"), owiginaw: 'Toggwe Keyboawd Showtcuts Twoubweshooting' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const logging = accessor.get(IKeybindingService).toggleLogging();
-		if (logging) {
-			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogChannelId);
+	wun(accessow: SewvicesAccessow): void {
+		const wogging = accessow.get(IKeybindingSewvice).toggweWogging();
+		if (wogging) {
+			const outputSewvice = accessow.get(IOutputSewvice);
+			outputSewvice.showChannew(wendewewWogChannewId);
 		}
 	}
 }
 
-registerAction2(ToggleKeybindingsLogAction);
+wegistewAction2(ToggweKeybindingsWogAction);

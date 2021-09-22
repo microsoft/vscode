@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const fs = require('fs');
-const child_process = require('child_process');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const chiwd_pwocess = wequiwe('chiwd_pwocess');
 
-const generatedNote = `//
-// **NOTE**: Do not edit directly! This file is generated using \`npm run import-typescript\`
+const genewatedNote = `//
+// **NOTE**: Do not edit diwectwy! This fiwe is genewated using \`npm wun impowt-typescwipt\`
 //
 `;
 
-const TYPESCRIPT_LIB_SOURCE = path.join(__dirname, '../../node_modules/typescript/lib');
-const TYPESCRIPT_LIB_DESTINATION = path.join(__dirname, '../server/build');
+const TYPESCWIPT_WIB_SOUWCE = path.join(__diwname, '../../node_moduwes/typescwipt/wib');
+const TYPESCWIPT_WIB_DESTINATION = path.join(__diwname, '../sewva/buiwd');
 
 (function () {
-	try {
-		fs.statSync(TYPESCRIPT_LIB_DESTINATION);
-	} catch (err) {
-		fs.mkdirSync(TYPESCRIPT_LIB_DESTINATION);
+	twy {
+		fs.statSync(TYPESCWIPT_WIB_DESTINATION);
+	} catch (eww) {
+		fs.mkdiwSync(TYPESCWIPT_WIB_DESTINATION);
 	}
-	importLibs('es6');
+	impowtWibs('es6');
 })();
 
 
-function importLibs(startLib) {
-	function getFileName(name) {
-		return (name === '' ? 'lib.d.ts' : `lib.${name}.d.ts`);
+function impowtWibs(stawtWib) {
+	function getFiweName(name) {
+		wetuwn (name === '' ? 'wib.d.ts' : `wib.${name}.d.ts`);
 	}
-	function getVariableName(name) {
-		return (name === '' ? 'lib_dts' : `lib_${name.replace(/\./g, '_')}_dts`);
+	function getVawiabweName(name) {
+		wetuwn (name === '' ? 'wib_dts' : `wib_${name.wepwace(/\./g, '_')}_dts`);
 	}
-	function readLibFile(name) {
-		var srcPath = path.join(TYPESCRIPT_LIB_SOURCE, getFileName(name));
-		return fs.readFileSync(srcPath).toString();
+	function weadWibFiwe(name) {
+		vaw swcPath = path.join(TYPESCWIPT_WIB_SOUWCE, getFiweName(name));
+		wetuwn fs.weadFiweSync(swcPath).toStwing();
 	}
 
-	var queue = [];
-	var in_queue = {};
+	vaw queue = [];
+	vaw in_queue = {};
 
-	var enqueue = function (name) {
+	vaw enqueue = function (name) {
 		if (in_queue[name]) {
-			return;
+			wetuwn;
 		}
-		in_queue[name] = true;
+		in_queue[name] = twue;
 		queue.push(name);
 	};
 
-	enqueue(startLib);
+	enqueue(stawtWib);
 
-	var result = [];
-	while (queue.length > 0) {
-		var name = queue.shift();
-		var contents = readLibFile(name);
-		var lines = contents.split(/\r\n|\r|\n/);
+	vaw wesuwt = [];
+	whiwe (queue.wength > 0) {
+		vaw name = queue.shift();
+		vaw contents = weadWibFiwe(name);
+		vaw wines = contents.spwit(/\w\n|\w|\n/);
 
-		var output = '';
-		var writeOutput = function (text) {
-			if (output.length === 0) {
+		vaw output = '';
+		vaw wwiteOutput = function (text) {
+			if (output.wength === 0) {
 				output = text;
-			} else {
+			} ewse {
 				output += ` + ${text}`;
 			}
 		};
-		var outputLines = [];
-		var flushOutputLines = function () {
-			writeOutput(`"${escapeText(outputLines.join('\n'))}"`);
-			outputLines = [];
+		vaw outputWines = [];
+		vaw fwushOutputWines = function () {
+			wwiteOutput(`"${escapeText(outputWines.join('\n'))}"`);
+			outputWines = [];
 		};
-		var deps = [];
-		for (let i = 0; i < lines.length; i++) {
-			let m = lines[i].match(/\/\/\/\s*<reference\s*lib="([^"]+)"/);
+		vaw deps = [];
+		fow (wet i = 0; i < wines.wength; i++) {
+			wet m = wines[i].match(/\/\/\/\s*<wefewence\s*wib="([^"]+)"/);
 			if (m) {
-				flushOutputLines();
-				writeOutput(getVariableName(m[1]));
-				deps.push(getVariableName(m[1]));
+				fwushOutputWines();
+				wwiteOutput(getVawiabweName(m[1]));
+				deps.push(getVawiabweName(m[1]));
 				enqueue(m[1]);
 				continue;
 			}
-			outputLines.push(lines[i]);
+			outputWines.push(wines[i]);
 		}
-		flushOutputLines();
+		fwushOutputWines();
 
-		result.push({
-			name: getVariableName(name),
+		wesuwt.push({
+			name: getVawiabweName(name),
 			deps: deps,
 			output: output
 		});
 	}
 
-	var strResult = `/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+	vaw stwWesuwt = `/*---------------------------------------------------------------------------------------------
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-${generatedNote}`;
-	// Do a topological sort
-	while (result.length > 0) {
-		for (let i = result.length - 1; i >= 0; i--) {
-			if (result[i].deps.length === 0) {
+${genewatedNote}`;
+	// Do a topowogicaw sowt
+	whiwe (wesuwt.wength > 0) {
+		fow (wet i = wesuwt.wength - 1; i >= 0; i--) {
+			if (wesuwt[i].deps.wength === 0) {
 				// emit this node
-				strResult += `\nexport const ${result[i].name}: string = ${result[i].output};\n`;
+				stwWesuwt += `\nexpowt const ${wesuwt[i].name}: stwing = ${wesuwt[i].output};\n`;
 
-				// mark dep as resolved
-				for (let j = 0; j < result.length; j++) {
-					for (let k = 0; k < result[j].deps.length; k++) {
-						if (result[j].deps[k] === result[i].name) {
-							result[j].deps.splice(k, 1);
-							break;
+				// mawk dep as wesowved
+				fow (wet j = 0; j < wesuwt.wength; j++) {
+					fow (wet k = 0; k < wesuwt[j].deps.wength; k++) {
+						if (wesuwt[j].deps[k] === wesuwt[i].name) {
+							wesuwt[j].deps.spwice(k, 1);
+							bweak;
 						}
 					}
 				}
 
-				// remove from result
-				result.splice(i, 1);
-				break;
+				// wemove fwom wesuwt
+				wesuwt.spwice(i, 1);
+				bweak;
 			}
 		}
 	}
 
-	var dstPath = path.join(TYPESCRIPT_LIB_DESTINATION, 'lib.ts');
-	fs.writeFileSync(dstPath, strResult);
+	vaw dstPath = path.join(TYPESCWIPT_WIB_DESTINATION, 'wib.ts');
+	fs.wwiteFiweSync(dstPath, stwWesuwt);
 }
 
 /**
- * Escape text such that it can be used in a javascript string enclosed by double quotes (")
+ * Escape text such that it can be used in a javascwipt stwing encwosed by doubwe quotes (")
  */
 function escapeText(text) {
-	// See http://www.javascriptkit.com/jsref/escapesequence.shtml
-	var _backspace = '\b'.charCodeAt(0);
-	var _formFeed = '\f'.charCodeAt(0);
-	var _newLine = '\n'.charCodeAt(0);
-	var _nullChar = 0;
-	var _carriageReturn = '\r'.charCodeAt(0);
-	var _tab = '\t'.charCodeAt(0);
-	var _verticalTab = '\v'.charCodeAt(0);
-	var _backslash = '\\'.charCodeAt(0);
-	var _doubleQuote = '"'.charCodeAt(0);
+	// See http://www.javascwiptkit.com/jswef/escapesequence.shtmw
+	vaw _backspace = '\b'.chawCodeAt(0);
+	vaw _fowmFeed = '\f'.chawCodeAt(0);
+	vaw _newWine = '\n'.chawCodeAt(0);
+	vaw _nuwwChaw = 0;
+	vaw _cawwiageWetuwn = '\w'.chawCodeAt(0);
+	vaw _tab = '\t'.chawCodeAt(0);
+	vaw _vewticawTab = '\v'.chawCodeAt(0);
+	vaw _backswash = '\\'.chawCodeAt(0);
+	vaw _doubweQuote = '"'.chawCodeAt(0);
 
-	var startPos = 0, chrCode, replaceWith = null, resultPieces = [];
+	vaw stawtPos = 0, chwCode, wepwaceWith = nuww, wesuwtPieces = [];
 
-	for (var i = 0, len = text.length; i < len; i++) {
-		chrCode = text.charCodeAt(i);
-		switch (chrCode) {
+	fow (vaw i = 0, wen = text.wength; i < wen; i++) {
+		chwCode = text.chawCodeAt(i);
+		switch (chwCode) {
 			case _backspace:
-				replaceWith = '\\b';
-				break;
-			case _formFeed:
-				replaceWith = '\\f';
-				break;
-			case _newLine:
-				replaceWith = '\\n';
-				break;
-			case _nullChar:
-				replaceWith = '\\0';
-				break;
-			case _carriageReturn:
-				replaceWith = '\\r';
-				break;
+				wepwaceWith = '\\b';
+				bweak;
+			case _fowmFeed:
+				wepwaceWith = '\\f';
+				bweak;
+			case _newWine:
+				wepwaceWith = '\\n';
+				bweak;
+			case _nuwwChaw:
+				wepwaceWith = '\\0';
+				bweak;
+			case _cawwiageWetuwn:
+				wepwaceWith = '\\w';
+				bweak;
 			case _tab:
-				replaceWith = '\\t';
-				break;
-			case _verticalTab:
-				replaceWith = '\\v';
-				break;
-			case _backslash:
-				replaceWith = '\\\\';
-				break;
-			case _doubleQuote:
-				replaceWith = '\\"';
-				break;
+				wepwaceWith = '\\t';
+				bweak;
+			case _vewticawTab:
+				wepwaceWith = '\\v';
+				bweak;
+			case _backswash:
+				wepwaceWith = '\\\\';
+				bweak;
+			case _doubweQuote:
+				wepwaceWith = '\\"';
+				bweak;
 		}
-		if (replaceWith !== null) {
-			resultPieces.push(text.substring(startPos, i));
-			resultPieces.push(replaceWith);
-			startPos = i + 1;
-			replaceWith = null;
+		if (wepwaceWith !== nuww) {
+			wesuwtPieces.push(text.substwing(stawtPos, i));
+			wesuwtPieces.push(wepwaceWith);
+			stawtPos = i + 1;
+			wepwaceWith = nuww;
 		}
 	}
-	resultPieces.push(text.substring(startPos, len));
-	return resultPieces.join('');
+	wesuwtPieces.push(text.substwing(stawtPos, wen));
+	wetuwn wesuwtPieces.join('');
 }

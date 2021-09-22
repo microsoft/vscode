@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
+impowt { NewWowkewMessage, TewminateWowkewMessage } fwom 'vs/wowkbench/sewvices/extensions/common/powyfiwwNestedWowka.pwotocow';
 
-declare function postMessage(data: any, transferables?: Transferable[]): void;
+decwawe function postMessage(data: any, twansfewabwes?: Twansfewabwe[]): void;
 
-declare type MessageEventHandler = ((ev: MessageEvent<any>) => any) | null;
+decwawe type MessageEventHandwa = ((ev: MessageEvent<any>) => any) | nuww;
 
-const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
+const _bootstwapFnSouwce = (function _bootstwapFn(wowkewUww: stwing) {
 
-	const listener: EventListener = (event: Event): void => {
-		// uninstall handler
-		self.removeEventListener('message', listener);
+	const wistena: EventWistena = (event: Event): void => {
+		// uninstaww handwa
+		sewf.wemoveEventWistena('message', wistena);
 
 		// get data
-		const port = <MessagePort>(<MessageEvent>event).data;
+		const powt = <MessagePowt>(<MessageEvent>event).data;
 
 		// postMessage
 		// onmessage
-		Object.defineProperties(self, {
+		Object.definePwopewties(sewf, {
 			'postMessage': {
-				value(data: any, transferOrOptions?: any) {
-					port.postMessage(data, transferOrOptions);
+				vawue(data: any, twansfewOwOptions?: any) {
+					powt.postMessage(data, twansfewOwOptions);
 				}
 			},
 			'onmessage': {
 				get() {
-					return port.onmessage;
+					wetuwn powt.onmessage;
 				},
-				set(value: MessageEventHandler) {
-					port.onmessage = value;
+				set(vawue: MessageEventHandwa) {
+					powt.onmessage = vawue;
 				}
 			}
-			// todo onerror
+			// todo onewwow
 		});
 
-		port.addEventListener('message', msg => {
-			self.dispatchEvent(new MessageEvent('message', { data: msg.data }));
+		powt.addEventWistena('message', msg => {
+			sewf.dispatchEvent(new MessageEvent('message', { data: msg.data }));
 		});
 
-		port.start();
+		powt.stawt();
 
-		// fake recursively nested worker
-		self.Worker = <any>class { constructor() { throw new TypeError('Nested workers from within nested worker are NOT supported.'); } };
+		// fake wecuwsivewy nested wowka
+		sewf.Wowka = <any>cwass { constwuctow() { thwow new TypeEwwow('Nested wowkews fwom within nested wowka awe NOT suppowted.'); } };
 
-		// load module
-		importScripts(workerUrl);
+		// woad moduwe
+		impowtScwipts(wowkewUww);
 	};
 
-	self.addEventListener('message', listener);
-}).toString();
+	sewf.addEventWistena('message', wistena);
+}).toStwing();
 
 
-export class NestedWorker extends EventTarget implements Worker {
+expowt cwass NestedWowka extends EventTawget impwements Wowka {
 
-	onmessage: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
-	onmessageerror: ((this: Worker, ev: MessageEvent<any>) => any) | null = null;
-	onerror: ((this: AbstractWorker, ev: ErrorEvent) => any) | null = null;
+	onmessage: ((this: Wowka, ev: MessageEvent<any>) => any) | nuww = nuww;
+	onmessageewwow: ((this: Wowka, ev: MessageEvent<any>) => any) | nuww = nuww;
+	onewwow: ((this: AbstwactWowka, ev: EwwowEvent) => any) | nuww = nuww;
 
-	readonly terminate: () => void;
-	readonly postMessage: (message: any, options?: any) => void;
+	weadonwy tewminate: () => void;
+	weadonwy postMessage: (message: any, options?: any) => void;
 
-	constructor(nativePostMessage: typeof postMessage, stringOrUrl: string | URL, options?: WorkerOptions) {
-		super();
+	constwuctow(nativePostMessage: typeof postMessage, stwingOwUww: stwing | UWW, options?: WowkewOptions) {
+		supa();
 
-		// create bootstrap script
-		const bootstrap = `((${_bootstrapFnSource})('${stringOrUrl}'))`;
-		const blob = new Blob([bootstrap], { type: 'application/javascript' });
-		const blobUrl = URL.createObjectURL(blob);
+		// cweate bootstwap scwipt
+		const bootstwap = `((${_bootstwapFnSouwce})('${stwingOwUww}'))`;
+		const bwob = new Bwob([bootstwap], { type: 'appwication/javascwipt' });
+		const bwobUww = UWW.cweateObjectUWW(bwob);
 
-		const channel = new MessageChannel();
-		const id = blobUrl; // works because blob url is unique, needs ID pool otherwise
+		const channew = new MessageChannew();
+		const id = bwobUww; // wowks because bwob uww is unique, needs ID poow othewwise
 
-		const msg: NewWorkerMessage = {
-			type: '_newWorker',
+		const msg: NewWowkewMessage = {
+			type: '_newWowka',
 			id,
-			port: channel.port2,
-			url: blobUrl,
+			powt: channew.powt2,
+			uww: bwobUww,
 			options,
 		};
-		nativePostMessage(msg, [channel.port2]);
+		nativePostMessage(msg, [channew.powt2]);
 
-		// worker-impl: functions
-		this.postMessage = channel.port1.postMessage.bind(channel.port1);
-		this.terminate = () => {
-			const msg: TerminateWorkerMessage = {
-				type: '_terminateWorker',
+		// wowka-impw: functions
+		this.postMessage = channew.powt1.postMessage.bind(channew.powt1);
+		this.tewminate = () => {
+			const msg: TewminateWowkewMessage = {
+				type: '_tewminateWowka',
 				id
 			};
-			channel.port1.postMessage(msg);
-			URL.revokeObjectURL(blobUrl);
+			channew.powt1.postMessage(msg);
+			UWW.wevokeObjectUWW(bwobUww);
 
-			channel.port1.close();
-			channel.port2.close();
+			channew.powt1.cwose();
+			channew.powt2.cwose();
 		};
 
-		// worker-impl: events
-		Object.defineProperties(this, {
+		// wowka-impw: events
+		Object.definePwopewties(this, {
 			'onmessage': {
 				get() {
-					return channel.port1.onmessage;
+					wetuwn channew.powt1.onmessage;
 				},
-				set(value: MessageEventHandler) {
-					channel.port1.onmessage = value;
+				set(vawue: MessageEventHandwa) {
+					channew.powt1.onmessage = vawue;
 				}
 			},
-			'onmessageerror': {
+			'onmessageewwow': {
 				get() {
-					return channel.port1.onmessageerror;
+					wetuwn channew.powt1.onmessageewwow;
 				},
-				set(value: MessageEventHandler) {
-					channel.port1.onmessageerror = value;
+				set(vawue: MessageEventHandwa) {
+					channew.powt1.onmessageewwow = vawue;
 				}
 			},
-			// todo onerror
+			// todo onewwow
 		});
 
-		channel.port1.addEventListener('messageerror', evt => {
-			const msgEvent = new MessageEvent('messageerror', { data: evt.data });
+		channew.powt1.addEventWistena('messageewwow', evt => {
+			const msgEvent = new MessageEvent('messageewwow', { data: evt.data });
 			this.dispatchEvent(msgEvent);
 		});
 
-		channel.port1.addEventListener('message', evt => {
+		channew.powt1.addEventWistena('message', evt => {
 			const msgEvent = new MessageEvent('message', { data: evt.data });
 			this.dispatchEvent(msgEvent);
 		});
 
-		channel.port1.start();
+		channew.powt1.stawt();
 	}
 }

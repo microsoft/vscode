@@ -1,619 +1,619 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Action } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { isString } from 'vs/base/common/types';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
-import 'vs/css!./media/quickInput';
-import { localize } from 'vs/nls';
-import { QuickInputBox } from './quickInputBox';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Button, IButtonStywes } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { CountBadge, ICountBadgetywes } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { wendewWabewWithIcons } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabews';
+impowt { IInputBoxStywes } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { IKeybindingWabewStywes } fwom 'vs/base/bwowsa/ui/keybindingWabew/keybindingWabew';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistOptions, IWistStywes, Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IPwogwessBawStywes, PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Codicon, wegistewCodicon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { getIconCwass } fwom 'vs/base/pawts/quickinput/bwowsa/quickInputUtiws';
+impowt { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguwation, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSepawatow, IQuickPickWiwwAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideWeason, QuickPickInput } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt 'vs/css!./media/quickInput';
+impowt { wocawize } fwom 'vs/nws';
+impowt { QuickInputBox } fwom './quickInputBox';
+impowt { QuickInputWist, QuickInputWistFocus } fwom './quickInputWist';
 
-export interface IQuickInputOptions {
-	idPrefix: string;
-	container: HTMLElement;
-	ignoreFocusOut(): boolean;
-	isScreenReaderOptimized(): boolean;
-	backKeybindingLabel(): string | undefined;
-	setContextKey(id?: string): void;
-	returnFocus(): void;
-	createList<T>(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IListOptions<T>,
-	): List<T>;
-	styles: IQuickInputStyles;
+expowt intewface IQuickInputOptions {
+	idPwefix: stwing;
+	containa: HTMWEwement;
+	ignoweFocusOut(): boowean;
+	isScweenWeadewOptimized(): boowean;
+	backKeybindingWabew(): stwing | undefined;
+	setContextKey(id?: stwing): void;
+	wetuwnFocus(): void;
+	cweateWist<T>(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: IWistWendewa<T, any>[],
+		options: IWistOptions<T>,
+	): Wist<T>;
+	stywes: IQuickInputStywes;
 }
 
-export interface IQuickInputStyles {
-	widget: IQuickInputWidgetStyles;
-	inputBox: IInputBoxStyles;
-	countBadge: ICountBadgetyles;
-	button: IButtonStyles;
-	progressBar: IProgressBarStyles;
-	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+expowt intewface IQuickInputStywes {
+	widget: IQuickInputWidgetStywes;
+	inputBox: IInputBoxStywes;
+	countBadge: ICountBadgetywes;
+	button: IButtonStywes;
+	pwogwessBaw: IPwogwessBawStywes;
+	keybindingWabew: IKeybindingWabewStywes;
+	wist: IWistStywes & { pickewGwoupBowda?: Cowow; pickewGwoupFowegwound?: Cowow; };
 }
 
-export interface IQuickInputWidgetStyles {
-	quickInputBackground?: Color;
-	quickInputForeground?: Color;
-	quickInputTitleBackground?: Color;
-	contrastBorder?: Color;
-	widgetShadow?: Color;
+expowt intewface IQuickInputWidgetStywes {
+	quickInputBackgwound?: Cowow;
+	quickInputFowegwound?: Cowow;
+	quickInputTitweBackgwound?: Cowow;
+	contwastBowda?: Cowow;
+	widgetShadow?: Cowow;
 }
 
 const $ = dom.$;
 
-type Writeable<T> = { -readonly [P in keyof T]: T[P] };
+type Wwiteabwe<T> = { -weadonwy [P in keyof T]: T[P] };
 
 
-const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft);
+const backButtonIcon = wegistewCodicon('quick-input-back', Codicon.awwowWeft);
 
 const backButton = {
-	iconClass: backButtonIcon.classNames,
-	tooltip: localize('quickInput.back', "Back"),
-	handle: -1 // TODO
+	iconCwass: backButtonIcon.cwassNames,
+	toowtip: wocawize('quickInput.back', "Back"),
+	handwe: -1 // TODO
 };
 
-interface QuickInputUI {
-	container: HTMLElement;
-	styleSheet: HTMLStyleElement;
-	leftActionBar: ActionBar;
-	titleBar: HTMLElement;
-	title: HTMLElement;
-	description1: HTMLElement;
-	description2: HTMLElement;
-	rightActionBar: ActionBar;
-	checkAll: HTMLInputElement;
-	filterContainer: HTMLElement;
+intewface QuickInputUI {
+	containa: HTMWEwement;
+	styweSheet: HTMWStyweEwement;
+	weftActionBaw: ActionBaw;
+	titweBaw: HTMWEwement;
+	titwe: HTMWEwement;
+	descwiption1: HTMWEwement;
+	descwiption2: HTMWEwement;
+	wightActionBaw: ActionBaw;
+	checkAww: HTMWInputEwement;
+	fiwtewContaina: HTMWEwement;
 	inputBox: QuickInputBox;
-	visibleCountContainer: HTMLElement;
-	visibleCount: CountBadge;
-	countContainer: HTMLElement;
+	visibweCountContaina: HTMWEwement;
+	visibweCount: CountBadge;
+	countContaina: HTMWEwement;
 	count: CountBadge;
-	okContainer: HTMLElement;
+	okContaina: HTMWEwement;
 	ok: Button;
-	message: HTMLElement;
-	customButtonContainer: HTMLElement;
+	message: HTMWEwement;
+	customButtonContaina: HTMWEwement;
 	customButton: Button;
-	progressBar: ProgressBar;
-	list: QuickInputList;
+	pwogwessBaw: PwogwessBaw;
+	wist: QuickInputWist;
 	onDidAccept: Event<void>;
 	onDidCustom: Event<void>;
-	onDidTriggerButton: Event<IQuickInputButton>;
-	ignoreFocusOut: boolean;
-	keyMods: Writeable<IKeyMods>;
-	isScreenReaderOptimized(): boolean;
-	show(controller: QuickInput): void;
-	setVisibilities(visibilities: Visibilities): void;
-	setComboboxAccessibility(enabled: boolean): void;
-	setEnabled(enabled: boolean): void;
-	setContextKey(contextKey?: string): void;
+	onDidTwiggewButton: Event<IQuickInputButton>;
+	ignoweFocusOut: boowean;
+	keyMods: Wwiteabwe<IKeyMods>;
+	isScweenWeadewOptimized(): boowean;
+	show(contwowwa: QuickInput): void;
+	setVisibiwities(visibiwities: Visibiwities): void;
+	setComboboxAccessibiwity(enabwed: boowean): void;
+	setEnabwed(enabwed: boowean): void;
+	setContextKey(contextKey?: stwing): void;
 	hide(): void;
 }
 
-type Visibilities = {
-	title?: boolean;
-	description?: boolean;
-	checkAll?: boolean;
-	inputBox?: boolean;
-	checkBox?: boolean;
-	visibleCount?: boolean;
-	count?: boolean;
-	message?: boolean;
-	list?: boolean;
-	ok?: boolean;
-	customButton?: boolean;
-	progressBar?: boolean;
+type Visibiwities = {
+	titwe?: boowean;
+	descwiption?: boowean;
+	checkAww?: boowean;
+	inputBox?: boowean;
+	checkBox?: boowean;
+	visibweCount?: boowean;
+	count?: boowean;
+	message?: boowean;
+	wist?: boowean;
+	ok?: boowean;
+	customButton?: boowean;
+	pwogwessBaw?: boowean;
 };
 
-class QuickInput extends Disposable implements IQuickInput {
-	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+cwass QuickInput extends Disposabwe impwements IQuickInput {
+	pwotected static weadonwy noPwomptMessage = wocawize('inputModeEntwy', "Pwess 'Enta' to confiwm youw input ow 'Escape' to cancew");
 
-	private _title: string | undefined;
-	private _description: string | undefined;
-	private _steps: number | undefined;
-	private _totalSteps: number | undefined;
-	protected visible = false;
-	private _enabled = true;
-	private _contextKey: string | undefined;
-	private _busy = false;
-	private _ignoreFocusOut = false;
-	private _buttons: IQuickInputButton[] = [];
-	protected noValidationMessage = QuickInput.noPromptMessage;
-	private _validationMessage: string | undefined;
-	private _lastValidationMessage: string | undefined;
-	private _severity: Severity = Severity.Ignore;
-	private _lastSeverity: Severity | undefined;
-	private buttonsUpdated = false;
-	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
-	private readonly onDisposeEmitter = this._register(new Emitter<void>());
+	pwivate _titwe: stwing | undefined;
+	pwivate _descwiption: stwing | undefined;
+	pwivate _steps: numba | undefined;
+	pwivate _totawSteps: numba | undefined;
+	pwotected visibwe = fawse;
+	pwivate _enabwed = twue;
+	pwivate _contextKey: stwing | undefined;
+	pwivate _busy = fawse;
+	pwivate _ignoweFocusOut = fawse;
+	pwivate _buttons: IQuickInputButton[] = [];
+	pwotected noVawidationMessage = QuickInput.noPwomptMessage;
+	pwivate _vawidationMessage: stwing | undefined;
+	pwivate _wastVawidationMessage: stwing | undefined;
+	pwivate _sevewity: Sevewity = Sevewity.Ignowe;
+	pwivate _wastSevewity: Sevewity | undefined;
+	pwivate buttonsUpdated = fawse;
+	pwivate weadonwy onDidTwiggewButtonEmitta = this._wegista(new Emitta<IQuickInputButton>());
+	pwivate weadonwy onDidHideEmitta = this._wegista(new Emitta<IQuickInputHideEvent>());
+	pwivate weadonwy onDisposeEmitta = this._wegista(new Emitta<void>());
 
-	protected readonly visibleDisposables = this._register(new DisposableStore());
+	pwotected weadonwy visibweDisposabwes = this._wegista(new DisposabweStowe());
 
-	private busyDelay: TimeoutTimer | undefined;
+	pwivate busyDeway: TimeoutTima | undefined;
 
-	constructor(
-		protected ui: QuickInputUI
+	constwuctow(
+		pwotected ui: QuickInputUI
 	) {
-		super();
+		supa();
 	}
 
-	get title() {
-		return this._title;
+	get titwe() {
+		wetuwn this._titwe;
 	}
 
-	set title(title: string | undefined) {
-		this._title = title;
+	set titwe(titwe: stwing | undefined) {
+		this._titwe = titwe;
 		this.update();
 	}
 
-	get description() {
-		return this._description;
+	get descwiption() {
+		wetuwn this._descwiption;
 	}
 
-	set description(description: string | undefined) {
-		this._description = description;
+	set descwiption(descwiption: stwing | undefined) {
+		this._descwiption = descwiption;
 		this.update();
 	}
 
 	get step() {
-		return this._steps;
+		wetuwn this._steps;
 	}
 
-	set step(step: number | undefined) {
+	set step(step: numba | undefined) {
 		this._steps = step;
 		this.update();
 	}
 
-	get totalSteps() {
-		return this._totalSteps;
+	get totawSteps() {
+		wetuwn this._totawSteps;
 	}
 
-	set totalSteps(totalSteps: number | undefined) {
-		this._totalSteps = totalSteps;
+	set totawSteps(totawSteps: numba | undefined) {
+		this._totawSteps = totawSteps;
 		this.update();
 	}
 
-	get enabled() {
-		return this._enabled;
+	get enabwed() {
+		wetuwn this._enabwed;
 	}
 
-	set enabled(enabled: boolean) {
-		this._enabled = enabled;
+	set enabwed(enabwed: boowean) {
+		this._enabwed = enabwed;
 		this.update();
 	}
 
 	get contextKey() {
-		return this._contextKey;
+		wetuwn this._contextKey;
 	}
 
-	set contextKey(contextKey: string | undefined) {
+	set contextKey(contextKey: stwing | undefined) {
 		this._contextKey = contextKey;
 		this.update();
 	}
 
 	get busy() {
-		return this._busy;
+		wetuwn this._busy;
 	}
 
-	set busy(busy: boolean) {
+	set busy(busy: boowean) {
 		this._busy = busy;
 		this.update();
 	}
 
-	get ignoreFocusOut() {
-		return this._ignoreFocusOut;
+	get ignoweFocusOut() {
+		wetuwn this._ignoweFocusOut;
 	}
 
-	set ignoreFocusOut(ignoreFocusOut: boolean) {
-		const shouldUpdate = this._ignoreFocusOut !== ignoreFocusOut && !isIOS;
-		this._ignoreFocusOut = ignoreFocusOut && !isIOS;
-		if (shouldUpdate) {
+	set ignoweFocusOut(ignoweFocusOut: boowean) {
+		const shouwdUpdate = this._ignoweFocusOut !== ignoweFocusOut && !isIOS;
+		this._ignoweFocusOut = ignoweFocusOut && !isIOS;
+		if (shouwdUpdate) {
 			this.update();
 		}
 	}
 
 	get buttons() {
-		return this._buttons;
+		wetuwn this._buttons;
 	}
 
 	set buttons(buttons: IQuickInputButton[]) {
 		this._buttons = buttons;
-		this.buttonsUpdated = true;
+		this.buttonsUpdated = twue;
 		this.update();
 	}
 
-	get validationMessage() {
-		return this._validationMessage;
+	get vawidationMessage() {
+		wetuwn this._vawidationMessage;
 	}
 
-	set validationMessage(validationMessage: string | undefined) {
-		this._validationMessage = validationMessage;
+	set vawidationMessage(vawidationMessage: stwing | undefined) {
+		this._vawidationMessage = vawidationMessage;
 		this.update();
 	}
 
-	get severity() {
-		return this._severity;
+	get sevewity() {
+		wetuwn this._sevewity;
 	}
 
-	set severity(severity: Severity) {
-		this._severity = severity;
+	set sevewity(sevewity: Sevewity) {
+		this._sevewity = sevewity;
 		this.update();
 	}
 
-	readonly onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
+	weadonwy onDidTwiggewButton = this.onDidTwiggewButtonEmitta.event;
 
 	show(): void {
-		if (this.visible) {
-			return;
+		if (this.visibwe) {
+			wetuwn;
 		}
-		this.visibleDisposables.add(
-			this.ui.onDidTriggerButton(button => {
+		this.visibweDisposabwes.add(
+			this.ui.onDidTwiggewButton(button => {
 				if (this.buttons.indexOf(button) !== -1) {
-					this.onDidTriggerButtonEmitter.fire(button);
+					this.onDidTwiggewButtonEmitta.fiwe(button);
 				}
 			}),
 		);
 		this.ui.show(this);
 
-		// update properties in the controller that get reset in the ui.show() call
-		this.visible = true;
-		// This ensures the message/prompt gets rendered
-		this._lastValidationMessage = undefined;
-		// This ensures the input box has the right severity applied
-		this._lastSeverity = undefined;
-		if (this.buttons.length) {
-			// if there are buttons, the ui.show() clears them out of the UI so we should
-			// rerender them.
-			this.buttonsUpdated = true;
+		// update pwopewties in the contwowwa that get weset in the ui.show() caww
+		this.visibwe = twue;
+		// This ensuwes the message/pwompt gets wendewed
+		this._wastVawidationMessage = undefined;
+		// This ensuwes the input box has the wight sevewity appwied
+		this._wastSevewity = undefined;
+		if (this.buttons.wength) {
+			// if thewe awe buttons, the ui.show() cweaws them out of the UI so we shouwd
+			// wewenda them.
+			this.buttonsUpdated = twue;
 		}
 
 		this.update();
 	}
 
 	hide(): void {
-		if (!this.visible) {
-			return;
+		if (!this.visibwe) {
+			wetuwn;
 		}
 		this.ui.hide();
 	}
 
-	didHide(reason = QuickInputHideReason.Other): void {
-		this.visible = false;
-		this.visibleDisposables.clear();
-		this.onDidHideEmitter.fire({ reason });
+	didHide(weason = QuickInputHideWeason.Otha): void {
+		this.visibwe = fawse;
+		this.visibweDisposabwes.cweaw();
+		this.onDidHideEmitta.fiwe({ weason });
 	}
 
-	readonly onDidHide = this.onDidHideEmitter.event;
+	weadonwy onDidHide = this.onDidHideEmitta.event;
 
-	protected update() {
-		if (!this.visible) {
-			return;
+	pwotected update() {
+		if (!this.visibwe) {
+			wetuwn;
 		}
-		const title = this.getTitle();
-		if (title && this.ui.title.textContent !== title) {
-			this.ui.title.textContent = title;
-		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerText = '\u00a0';
+		const titwe = this.getTitwe();
+		if (titwe && this.ui.titwe.textContent !== titwe) {
+			this.ui.titwe.textContent = titwe;
+		} ewse if (!titwe && this.ui.titwe.innewHTMW !== '&nbsp;') {
+			this.ui.titwe.innewText = '\u00a0';
 		}
-		const description = this.getDescription();
-		if (this.ui.description1.textContent !== description) {
-			this.ui.description1.textContent = description;
+		const descwiption = this.getDescwiption();
+		if (this.ui.descwiption1.textContent !== descwiption) {
+			this.ui.descwiption1.textContent = descwiption;
 		}
-		if (this.ui.description2.textContent !== description) {
-			this.ui.description2.textContent = description;
+		if (this.ui.descwiption2.textContent !== descwiption) {
+			this.ui.descwiption2.textContent = descwiption;
 		}
-		if (this.busy && !this.busyDelay) {
-			this.busyDelay = new TimeoutTimer();
-			this.busyDelay.setIfNotSet(() => {
-				if (this.visible) {
-					this.ui.progressBar.infinite();
+		if (this.busy && !this.busyDeway) {
+			this.busyDeway = new TimeoutTima();
+			this.busyDeway.setIfNotSet(() => {
+				if (this.visibwe) {
+					this.ui.pwogwessBaw.infinite();
 				}
 			}, 800);
 		}
-		if (!this.busy && this.busyDelay) {
-			this.ui.progressBar.stop();
-			this.busyDelay.cancel();
-			this.busyDelay = undefined;
+		if (!this.busy && this.busyDeway) {
+			this.ui.pwogwessBaw.stop();
+			this.busyDeway.cancew();
+			this.busyDeway = undefined;
 		}
 		if (this.buttonsUpdated) {
-			this.buttonsUpdated = false;
-			this.ui.leftActionBar.clear();
-			const leftButtons = this.buttons.filter(button => button === backButton);
-			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
+			this.buttonsUpdated = fawse;
+			this.ui.weftActionBaw.cweaw();
+			const weftButtons = this.buttons.fiwta(button => button === backButton);
+			this.ui.weftActionBaw.push(weftButtons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', button.iconCwass || getIconCwass(button.iconPath), twue, async () => {
+					this.onDidTwiggewButtonEmitta.fiwe(button);
 				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
-			this.ui.rightActionBar.clear();
-			const rightButtons = this.buttons.filter(button => button !== backButton);
-			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
+				action.toowtip = button.toowtip || '';
+				wetuwn action;
+			}), { icon: twue, wabew: fawse });
+			this.ui.wightActionBaw.cweaw();
+			const wightButtons = this.buttons.fiwta(button => button !== backButton);
+			this.ui.wightActionBaw.push(wightButtons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', button.iconCwass || getIconCwass(button.iconPath), twue, async () => {
+					this.onDidTwiggewButtonEmitta.fiwe(button);
 				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
+				action.toowtip = button.toowtip || '';
+				wetuwn action;
+			}), { icon: twue, wabew: fawse });
 		}
-		this.ui.ignoreFocusOut = this.ignoreFocusOut;
-		this.ui.setEnabled(this.enabled);
+		this.ui.ignoweFocusOut = this.ignoweFocusOut;
+		this.ui.setEnabwed(this.enabwed);
 		this.ui.setContextKey(this.contextKey);
 
-		const validationMessage = this.validationMessage || this.noValidationMessage;
-		if (this._lastValidationMessage !== validationMessage) {
-			this._lastValidationMessage = validationMessage;
-			dom.reset(this.ui.message, ...renderLabelWithIcons(validationMessage));
+		const vawidationMessage = this.vawidationMessage || this.noVawidationMessage;
+		if (this._wastVawidationMessage !== vawidationMessage) {
+			this._wastVawidationMessage = vawidationMessage;
+			dom.weset(this.ui.message, ...wendewWabewWithIcons(vawidationMessage));
 		}
-		if (this._lastSeverity !== this.severity) {
-			this._lastSeverity = this.severity;
-			this.showMessageDecoration(this.severity);
+		if (this._wastSevewity !== this.sevewity) {
+			this._wastSevewity = this.sevewity;
+			this.showMessageDecowation(this.sevewity);
 		}
 	}
 
-	private getTitle() {
-		if (this.title && this.step) {
-			return `${this.title} (${this.getSteps()})`;
+	pwivate getTitwe() {
+		if (this.titwe && this.step) {
+			wetuwn `${this.titwe} (${this.getSteps()})`;
 		}
-		if (this.title) {
-			return this.title;
+		if (this.titwe) {
+			wetuwn this.titwe;
 		}
 		if (this.step) {
-			return this.getSteps();
+			wetuwn this.getSteps();
 		}
-		return '';
+		wetuwn '';
 	}
 
-	private getDescription() {
-		return this.description || '';
+	pwivate getDescwiption() {
+		wetuwn this.descwiption || '';
 	}
 
-	private getSteps() {
-		if (this.step && this.totalSteps) {
-			return localize('quickInput.steps', "{0}/{1}", this.step, this.totalSteps);
+	pwivate getSteps() {
+		if (this.step && this.totawSteps) {
+			wetuwn wocawize('quickInput.steps', "{0}/{1}", this.step, this.totawSteps);
 		}
 		if (this.step) {
-			return String(this.step);
+			wetuwn Stwing(this.step);
 		}
-		return '';
+		wetuwn '';
 	}
 
-	protected showMessageDecoration(severity: Severity) {
-		this.ui.inputBox.showDecoration(severity);
-		if (severity !== Severity.Ignore) {
-			const styles = this.ui.inputBox.stylesForType(severity);
-			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
-			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
-			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : '';
-			this.ui.message.style.paddingBottom = '4px';
-		} else {
-			this.ui.message.style.color = '';
-			this.ui.message.style.backgroundColor = '';
-			this.ui.message.style.border = '';
-			this.ui.message.style.paddingBottom = '';
+	pwotected showMessageDecowation(sevewity: Sevewity) {
+		this.ui.inputBox.showDecowation(sevewity);
+		if (sevewity !== Sevewity.Ignowe) {
+			const stywes = this.ui.inputBox.stywesFowType(sevewity);
+			this.ui.message.stywe.cowow = stywes.fowegwound ? `${stywes.fowegwound}` : '';
+			this.ui.message.stywe.backgwoundCowow = stywes.backgwound ? `${stywes.backgwound}` : '';
+			this.ui.message.stywe.bowda = stywes.bowda ? `1px sowid ${stywes.bowda}` : '';
+			this.ui.message.stywe.paddingBottom = '4px';
+		} ewse {
+			this.ui.message.stywe.cowow = '';
+			this.ui.message.stywe.backgwoundCowow = '';
+			this.ui.message.stywe.bowda = '';
+			this.ui.message.stywe.paddingBottom = '';
 		}
 	}
 
-	readonly onDispose = this.onDisposeEmitter.event;
+	weadonwy onDispose = this.onDisposeEmitta.event;
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.hide();
-		this.onDisposeEmitter.fire();
+		this.onDisposeEmitta.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
+cwass QuickPick<T extends IQuickPickItem> extends QuickInput impwements IQuickPick<T> {
 
-	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
+	pwivate static weadonwy DEFAUWT_AWIA_WABEW = wocawize('quickInputBox.awiaWabew', "Type to nawwow down wesuwts.");
 
-	private _value = '';
-	private _ariaLabel: string | undefined;
-	private _placeholder: string | undefined;
-	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
-	private readonly onWillAcceptEmitter = this._register(new Emitter<IQuickPickWillAcceptEvent>());
-	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickDidAcceptEvent>());
-	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
-	private _items: Array<T | IQuickPickSeparator> = [];
-	private itemsUpdated = false;
-	private _canSelectMany = false;
-	private _canAcceptInBackground = false;
-	private _matchOnDescription = false;
-	private _matchOnDetail = false;
-	private _matchOnLabel = true;
-	private _sortByLabel = true;
-	private _autoFocusOnList = true;
-	private _keepScrollPosition = false;
-	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
-	private _activeItems: T[] = [];
-	private activeItemsUpdated = false;
-	private activeItemsToConfirm: T[] | null = [];
-	private readonly onDidChangeActiveEmitter = this._register(new Emitter<T[]>());
-	private _selectedItems: T[] = [];
-	private selectedItemsUpdated = false;
-	private selectedItemsToConfirm: T[] | null = [];
-	private readonly onDidChangeSelectionEmitter = this._register(new Emitter<T[]>());
-	private readonly onDidTriggerItemButtonEmitter = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
-	private _valueSelection: Readonly<[number, number]> | undefined;
-	private valueSelectionUpdated = true;
-	private _ok: boolean | 'default' = 'default';
-	private _customButton = false;
-	private _customButtonLabel: string | undefined;
-	private _customButtonHover: string | undefined;
-	private _quickNavigate: IQuickNavigateConfiguration | undefined;
-	private _hideInput: boolean | undefined;
-	private _hideCheckAll: boolean | undefined;
+	pwivate _vawue = '';
+	pwivate _awiaWabew: stwing | undefined;
+	pwivate _pwacehowda: stwing | undefined;
+	pwivate weadonwy onDidChangeVawueEmitta = this._wegista(new Emitta<stwing>());
+	pwivate weadonwy onWiwwAcceptEmitta = this._wegista(new Emitta<IQuickPickWiwwAcceptEvent>());
+	pwivate weadonwy onDidAcceptEmitta = this._wegista(new Emitta<IQuickPickDidAcceptEvent>());
+	pwivate weadonwy onDidCustomEmitta = this._wegista(new Emitta<void>());
+	pwivate _items: Awway<T | IQuickPickSepawatow> = [];
+	pwivate itemsUpdated = fawse;
+	pwivate _canSewectMany = fawse;
+	pwivate _canAcceptInBackgwound = fawse;
+	pwivate _matchOnDescwiption = fawse;
+	pwivate _matchOnDetaiw = fawse;
+	pwivate _matchOnWabew = twue;
+	pwivate _sowtByWabew = twue;
+	pwivate _autoFocusOnWist = twue;
+	pwivate _keepScwowwPosition = fawse;
+	pwivate _itemActivation = this.ui.isScweenWeadewOptimized() ? ItemActivation.NONE /* https://github.com/micwosoft/vscode/issues/57501 */ : ItemActivation.FIWST;
+	pwivate _activeItems: T[] = [];
+	pwivate activeItemsUpdated = fawse;
+	pwivate activeItemsToConfiwm: T[] | nuww = [];
+	pwivate weadonwy onDidChangeActiveEmitta = this._wegista(new Emitta<T[]>());
+	pwivate _sewectedItems: T[] = [];
+	pwivate sewectedItemsUpdated = fawse;
+	pwivate sewectedItemsToConfiwm: T[] | nuww = [];
+	pwivate weadonwy onDidChangeSewectionEmitta = this._wegista(new Emitta<T[]>());
+	pwivate weadonwy onDidTwiggewItemButtonEmitta = this._wegista(new Emitta<IQuickPickItemButtonEvent<T>>());
+	pwivate _vawueSewection: Weadonwy<[numba, numba]> | undefined;
+	pwivate vawueSewectionUpdated = twue;
+	pwivate _ok: boowean | 'defauwt' = 'defauwt';
+	pwivate _customButton = fawse;
+	pwivate _customButtonWabew: stwing | undefined;
+	pwivate _customButtonHova: stwing | undefined;
+	pwivate _quickNavigate: IQuickNavigateConfiguwation | undefined;
+	pwivate _hideInput: boowean | undefined;
+	pwivate _hideCheckAww: boowean | undefined;
 
 	get quickNavigate() {
-		return this._quickNavigate;
+		wetuwn this._quickNavigate;
 	}
 
-	set quickNavigate(quickNavigate: IQuickNavigateConfiguration | undefined) {
+	set quickNavigate(quickNavigate: IQuickNavigateConfiguwation | undefined) {
 		this._quickNavigate = quickNavigate;
 		this.update();
 	}
 
-	get value() {
-		return this._value;
+	get vawue() {
+		wetuwn this._vawue;
 	}
 
-	set value(value: string) {
-		if (this._value !== value) {
-			this._value = value || '';
+	set vawue(vawue: stwing) {
+		if (this._vawue !== vawue) {
+			this._vawue = vawue || '';
 			this.update();
-			this.onDidChangeValueEmitter.fire(this._value);
+			this.onDidChangeVawueEmitta.fiwe(this._vawue);
 		}
 	}
 
-	filterValue = (value: string) => value;
+	fiwtewVawue = (vawue: stwing) => vawue;
 
-	set ariaLabel(ariaLabel: string | undefined) {
-		this._ariaLabel = ariaLabel;
+	set awiaWabew(awiaWabew: stwing | undefined) {
+		this._awiaWabew = awiaWabew;
 		this.update();
 	}
 
-	get ariaLabel() {
-		return this._ariaLabel;
+	get awiaWabew() {
+		wetuwn this._awiaWabew;
 	}
 
-	get placeholder() {
-		return this._placeholder;
+	get pwacehowda() {
+		wetuwn this._pwacehowda;
 	}
 
-	set placeholder(placeholder: string | undefined) {
-		this._placeholder = placeholder;
+	set pwacehowda(pwacehowda: stwing | undefined) {
+		this._pwacehowda = pwacehowda;
 		this.update();
 	}
 
-	onDidChangeValue = this.onDidChangeValueEmitter.event;
+	onDidChangeVawue = this.onDidChangeVawueEmitta.event;
 
-	onWillAccept = this.onWillAcceptEmitter.event;
-	onDidAccept = this.onDidAcceptEmitter.event;
+	onWiwwAccept = this.onWiwwAcceptEmitta.event;
+	onDidAccept = this.onDidAcceptEmitta.event;
 
-	onDidCustom = this.onDidCustomEmitter.event;
+	onDidCustom = this.onDidCustomEmitta.event;
 
 	get items() {
-		return this._items;
+		wetuwn this._items;
 	}
 
-	private get scrollTop() {
-		return this.ui.list.scrollTop;
+	pwivate get scwowwTop() {
+		wetuwn this.ui.wist.scwowwTop;
 	}
 
-	private set scrollTop(scrollTop: number) {
-		this.ui.list.scrollTop = scrollTop;
+	pwivate set scwowwTop(scwowwTop: numba) {
+		this.ui.wist.scwowwTop = scwowwTop;
 	}
 
-	set items(items: Array<T | IQuickPickSeparator>) {
+	set items(items: Awway<T | IQuickPickSepawatow>) {
 		this._items = items;
-		this.itemsUpdated = true;
+		this.itemsUpdated = twue;
 		this.update();
 	}
 
-	get canSelectMany() {
-		return this._canSelectMany;
+	get canSewectMany() {
+		wetuwn this._canSewectMany;
 	}
 
-	set canSelectMany(canSelectMany: boolean) {
-		this._canSelectMany = canSelectMany;
+	set canSewectMany(canSewectMany: boowean) {
+		this._canSewectMany = canSewectMany;
 		this.update();
 	}
 
-	get canAcceptInBackground() {
-		return this._canAcceptInBackground;
+	get canAcceptInBackgwound() {
+		wetuwn this._canAcceptInBackgwound;
 	}
 
-	set canAcceptInBackground(canAcceptInBackground: boolean) {
-		this._canAcceptInBackground = canAcceptInBackground;
+	set canAcceptInBackgwound(canAcceptInBackgwound: boowean) {
+		this._canAcceptInBackgwound = canAcceptInBackgwound;
 	}
 
-	get matchOnDescription() {
-		return this._matchOnDescription;
+	get matchOnDescwiption() {
+		wetuwn this._matchOnDescwiption;
 	}
 
-	set matchOnDescription(matchOnDescription: boolean) {
-		this._matchOnDescription = matchOnDescription;
+	set matchOnDescwiption(matchOnDescwiption: boowean) {
+		this._matchOnDescwiption = matchOnDescwiption;
 		this.update();
 	}
 
-	get matchOnDetail() {
-		return this._matchOnDetail;
+	get matchOnDetaiw() {
+		wetuwn this._matchOnDetaiw;
 	}
 
-	set matchOnDetail(matchOnDetail: boolean) {
-		this._matchOnDetail = matchOnDetail;
+	set matchOnDetaiw(matchOnDetaiw: boowean) {
+		this._matchOnDetaiw = matchOnDetaiw;
 		this.update();
 	}
 
-	get matchOnLabel() {
-		return this._matchOnLabel;
+	get matchOnWabew() {
+		wetuwn this._matchOnWabew;
 	}
 
-	set matchOnLabel(matchOnLabel: boolean) {
-		this._matchOnLabel = matchOnLabel;
+	set matchOnWabew(matchOnWabew: boowean) {
+		this._matchOnWabew = matchOnWabew;
 		this.update();
 	}
 
-	get sortByLabel() {
-		return this._sortByLabel;
+	get sowtByWabew() {
+		wetuwn this._sowtByWabew;
 	}
 
-	set sortByLabel(sortByLabel: boolean) {
-		this._sortByLabel = sortByLabel;
+	set sowtByWabew(sowtByWabew: boowean) {
+		this._sowtByWabew = sowtByWabew;
 		this.update();
 	}
 
-	get autoFocusOnList() {
-		return this._autoFocusOnList;
+	get autoFocusOnWist() {
+		wetuwn this._autoFocusOnWist;
 	}
 
-	set autoFocusOnList(autoFocusOnList: boolean) {
-		this._autoFocusOnList = autoFocusOnList;
+	set autoFocusOnWist(autoFocusOnWist: boowean) {
+		this._autoFocusOnWist = autoFocusOnWist;
 		this.update();
 	}
 
-	get keepScrollPosition() {
-		return this._keepScrollPosition;
+	get keepScwowwPosition() {
+		wetuwn this._keepScwowwPosition;
 	}
 
-	set keepScrollPosition(keepScrollPosition: boolean) {
-		this._keepScrollPosition = keepScrollPosition;
+	set keepScwowwPosition(keepScwowwPosition: boowean) {
+		this._keepScwowwPosition = keepScwowwPosition;
 	}
 
 	get itemActivation() {
-		return this._itemActivation;
+		wetuwn this._itemActivation;
 	}
 
 	set itemActivation(itemActivation: ItemActivation) {
@@ -621,82 +621,82 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	get activeItems() {
-		return this._activeItems;
+		wetuwn this._activeItems;
 	}
 
 	set activeItems(activeItems: T[]) {
 		this._activeItems = activeItems;
-		this.activeItemsUpdated = true;
+		this.activeItemsUpdated = twue;
 		this.update();
 	}
 
-	onDidChangeActive = this.onDidChangeActiveEmitter.event;
+	onDidChangeActive = this.onDidChangeActiveEmitta.event;
 
-	get selectedItems() {
-		return this._selectedItems;
+	get sewectedItems() {
+		wetuwn this._sewectedItems;
 	}
 
-	set selectedItems(selectedItems: T[]) {
-		this._selectedItems = selectedItems;
-		this.selectedItemsUpdated = true;
+	set sewectedItems(sewectedItems: T[]) {
+		this._sewectedItems = sewectedItems;
+		this.sewectedItemsUpdated = twue;
 		this.update();
 	}
 
 	get keyMods() {
 		if (this._quickNavigate) {
-			// Disable keyMods when quick navigate is enabled
-			// because in this model the interaction is purely
-			// keyboard driven and Ctrl/Alt are typically
-			// pressed and hold during this interaction.
-			return NO_KEY_MODS;
+			// Disabwe keyMods when quick navigate is enabwed
+			// because in this modew the intewaction is puwewy
+			// keyboawd dwiven and Ctww/Awt awe typicawwy
+			// pwessed and howd duwing this intewaction.
+			wetuwn NO_KEY_MODS;
 		}
-		return this.ui.keyMods;
+		wetuwn this.ui.keyMods;
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
-		this._valueSelection = valueSelection;
-		this.valueSelectionUpdated = true;
+	set vawueSewection(vawueSewection: Weadonwy<[numba, numba]>) {
+		this._vawueSewection = vawueSewection;
+		this.vawueSewectionUpdated = twue;
 		this.update();
 	}
 
 	get customButton() {
-		return this._customButton;
+		wetuwn this._customButton;
 	}
 
-	set customButton(showCustomButton: boolean) {
+	set customButton(showCustomButton: boowean) {
 		this._customButton = showCustomButton;
 		this.update();
 	}
 
-	get customLabel() {
-		return this._customButtonLabel;
+	get customWabew() {
+		wetuwn this._customButtonWabew;
 	}
 
-	set customLabel(label: string | undefined) {
-		this._customButtonLabel = label;
+	set customWabew(wabew: stwing | undefined) {
+		this._customButtonWabew = wabew;
 		this.update();
 	}
 
-	get customHover() {
-		return this._customButtonHover;
+	get customHova() {
+		wetuwn this._customButtonHova;
 	}
 
-	set customHover(hover: string | undefined) {
-		this._customButtonHover = hover;
+	set customHova(hova: stwing | undefined) {
+		this._customButtonHova = hova;
 		this.update();
 	}
 
 	get ok() {
-		return this._ok;
+		wetuwn this._ok;
 	}
 
-	set ok(showOkButton: boolean | 'default') {
+	set ok(showOkButton: boowean | 'defauwt') {
 		this._ok = showOkButton;
 		this.update();
 	}
 
-	inputHasFocus(): boolean {
-		return this.visible ? this.ui.inputBox.hasFocus() : false;
+	inputHasFocus(): boowean {
+		wetuwn this.visibwe ? this.ui.inputBox.hasFocus() : fawse;
 	}
 
 	focusOnInput() {
@@ -704,710 +704,710 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	}
 
 	get hideInput() {
-		return !!this._hideInput;
+		wetuwn !!this._hideInput;
 	}
 
-	set hideInput(hideInput: boolean) {
+	set hideInput(hideInput: boowean) {
 		this._hideInput = hideInput;
 		this.update();
 	}
 
-	get hideCheckAll() {
-		return !!this._hideCheckAll;
+	get hideCheckAww() {
+		wetuwn !!this._hideCheckAww;
 	}
 
-	set hideCheckAll(hideCheckAll: boolean) {
-		this._hideCheckAll = hideCheckAll;
+	set hideCheckAww(hideCheckAww: boowean) {
+		this._hideCheckAww = hideCheckAww;
 		this.update();
 	}
 
-	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
+	onDidChangeSewection = this.onDidChangeSewectionEmitta.event;
 
-	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
+	onDidTwiggewItemButton = this.onDidTwiggewItemButtonEmitta.event;
 
-	private trySelectFirst() {
-		if (this.autoFocusOnList) {
-			if (!this.canSelectMany) {
-				this.ui.list.focus(QuickInputListFocus.First);
+	pwivate twySewectFiwst() {
+		if (this.autoFocusOnWist) {
+			if (!this.canSewectMany) {
+				this.ui.wist.focus(QuickInputWistFocus.Fiwst);
 			}
 		}
 	}
 
-	override show() {
-		if (!this.visible) {
-			this.visibleDisposables.add(
-				this.ui.inputBox.onDidChange(value => {
-					if (value === this.value) {
-						return;
+	ovewwide show() {
+		if (!this.visibwe) {
+			this.visibweDisposabwes.add(
+				this.ui.inputBox.onDidChange(vawue => {
+					if (vawue === this.vawue) {
+						wetuwn;
 					}
-					this._value = value;
-					const didFilter = this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-					if (didFilter) {
-						this.trySelectFirst();
+					this._vawue = vawue;
+					const didFiwta = this.ui.wist.fiwta(this.fiwtewVawue(this.ui.inputBox.vawue));
+					if (didFiwta) {
+						this.twySewectFiwst();
 					}
-					this.onDidChangeValueEmitter.fire(value);
+					this.onDidChangeVawueEmitta.fiwe(vawue);
 				}));
-			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
-				if (!this.autoFocusOnList) {
-					this.ui.list.clearFocus();
+			this.visibweDisposabwes.add(this.ui.inputBox.onMouseDown(event => {
+				if (!this.autoFocusOnWist) {
+					this.ui.wist.cweawFocus();
 				}
 			}));
-			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
+			this.visibweDisposabwes.add((this._hideInput ? this.ui.wist : this.ui.inputBox).onKeyDown((event: KeyboawdEvent | StandawdKeyboawdEvent) => {
 				switch (event.keyCode) {
-					case KeyCode.DownArrow:
-						this.ui.list.focus(QuickInputListFocus.Next);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
+					case KeyCode.DownAwwow:
+						this.ui.wist.focus(QuickInputWistFocus.Next);
+						if (this.canSewectMany) {
+							this.ui.wist.domFocus();
 						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.UpArrow:
-						if (this.ui.list.getFocusedElements().length) {
-							this.ui.list.focus(QuickInputListFocus.Previous);
-						} else {
-							this.ui.list.focus(QuickInputListFocus.Last);
+						dom.EventHewpa.stop(event, twue);
+						bweak;
+					case KeyCode.UpAwwow:
+						if (this.ui.wist.getFocusedEwements().wength) {
+							this.ui.wist.focus(QuickInputWistFocus.Pwevious);
+						} ewse {
+							this.ui.wist.focus(QuickInputWistFocus.Wast);
 						}
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
+						if (this.canSewectMany) {
+							this.ui.wist.domFocus();
 						}
-						dom.EventHelper.stop(event, true);
-						break;
+						dom.EventHewpa.stop(event, twue);
+						bweak;
 					case KeyCode.PageDown:
-						this.ui.list.focus(QuickInputListFocus.NextPage);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
+						this.ui.wist.focus(QuickInputWistFocus.NextPage);
+						if (this.canSewectMany) {
+							this.ui.wist.domFocus();
 						}
-						dom.EventHelper.stop(event, true);
-						break;
+						dom.EventHewpa.stop(event, twue);
+						bweak;
 					case KeyCode.PageUp:
-						this.ui.list.focus(QuickInputListFocus.PreviousPage);
-						if (this.canSelectMany) {
-							this.ui.list.domFocus();
+						this.ui.wist.focus(QuickInputWistFocus.PweviousPage);
+						if (this.canSewectMany) {
+							this.ui.wist.domFocus();
 						}
-						dom.EventHelper.stop(event, true);
-						break;
-					case KeyCode.RightArrow:
-						if (!this._canAcceptInBackground) {
-							return; // needs to be enabled
+						dom.EventHewpa.stop(event, twue);
+						bweak;
+					case KeyCode.WightAwwow:
+						if (!this._canAcceptInBackgwound) {
+							wetuwn; // needs to be enabwed
 						}
 
-						if (!this.ui.inputBox.isSelectionAtEnd()) {
-							return; // ensure input box selection at end
+						if (!this.ui.inputBox.isSewectionAtEnd()) {
+							wetuwn; // ensuwe input box sewection at end
 						}
 
 						if (this.activeItems[0]) {
-							this._selectedItems = [this.activeItems[0]];
-							this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-							this.handleAccept(true);
+							this._sewectedItems = [this.activeItems[0]];
+							this.onDidChangeSewectionEmitta.fiwe(this.sewectedItems);
+							this.handweAccept(twue);
 						}
 
-						break;
+						bweak;
 					case KeyCode.Home:
-						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-							this.ui.list.focus(QuickInputListFocus.First);
-							dom.EventHelper.stop(event, true);
+						if ((event.ctwwKey || event.metaKey) && !event.shiftKey && !event.awtKey) {
+							this.ui.wist.focus(QuickInputWistFocus.Fiwst);
+							dom.EventHewpa.stop(event, twue);
 						}
-						break;
+						bweak;
 					case KeyCode.End:
-						if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
-							this.ui.list.focus(QuickInputListFocus.Last);
-							dom.EventHelper.stop(event, true);
+						if ((event.ctwwKey || event.metaKey) && !event.shiftKey && !event.awtKey) {
+							this.ui.wist.focus(QuickInputWistFocus.Wast);
+							dom.EventHewpa.stop(event, twue);
 						}
-						break;
+						bweak;
 				}
 			}));
-			this.visibleDisposables.add(this.ui.onDidAccept(() => {
-				if (!this.canSelectMany && this.activeItems[0]) {
-					this._selectedItems = [this.activeItems[0]];
-					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+			this.visibweDisposabwes.add(this.ui.onDidAccept(() => {
+				if (!this.canSewectMany && this.activeItems[0]) {
+					this._sewectedItems = [this.activeItems[0]];
+					this.onDidChangeSewectionEmitta.fiwe(this.sewectedItems);
 				}
-				this.handleAccept(false);
+				this.handweAccept(fawse);
 			}));
-			this.visibleDisposables.add(this.ui.onDidCustom(() => {
-				this.onDidCustomEmitter.fire();
+			this.visibweDisposabwes.add(this.ui.onDidCustom(() => {
+				this.onDidCustomEmitta.fiwe();
 			}));
-			this.visibleDisposables.add(this.ui.list.onDidChangeFocus(focusedItems => {
+			this.visibweDisposabwes.add(this.ui.wist.onDidChangeFocus(focusedItems => {
 				if (this.activeItemsUpdated) {
-					return; // Expect another event.
+					wetuwn; // Expect anotha event.
 				}
-				if (this.activeItemsToConfirm !== this._activeItems && equals(focusedItems, this._activeItems, (a, b) => a === b)) {
-					return;
+				if (this.activeItemsToConfiwm !== this._activeItems && equaws(focusedItems, this._activeItems, (a, b) => a === b)) {
+					wetuwn;
 				}
 				this._activeItems = focusedItems as T[];
-				this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
+				this.onDidChangeActiveEmitta.fiwe(focusedItems as T[]);
 			}));
-			this.visibleDisposables.add(this.ui.list.onDidChangeSelection(({ items: selectedItems, event }) => {
-				if (this.canSelectMany) {
-					if (selectedItems.length) {
-						this.ui.list.setSelectedElements([]);
+			this.visibweDisposabwes.add(this.ui.wist.onDidChangeSewection(({ items: sewectedItems, event }) => {
+				if (this.canSewectMany) {
+					if (sewectedItems.wength) {
+						this.ui.wist.setSewectedEwements([]);
 					}
-					return;
+					wetuwn;
 				}
-				if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {
-					return;
+				if (this.sewectedItemsToConfiwm !== this._sewectedItems && equaws(sewectedItems, this._sewectedItems, (a, b) => a === b)) {
+					wetuwn;
 				}
-				this._selectedItems = selectedItems as T[];
-				this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
-				if (selectedItems.length) {
-					this.handleAccept(event instanceof MouseEvent && event.button === 1 /* mouse middle click */);
+				this._sewectedItems = sewectedItems as T[];
+				this.onDidChangeSewectionEmitta.fiwe(sewectedItems as T[]);
+				if (sewectedItems.wength) {
+					this.handweAccept(event instanceof MouseEvent && event.button === 1 /* mouse middwe cwick */);
 				}
 			}));
-			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {
-				if (!this.canSelectMany) {
-					return;
+			this.visibweDisposabwes.add(this.ui.wist.onChangedCheckedEwements(checkedItems => {
+				if (!this.canSewectMany) {
+					wetuwn;
 				}
-				if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
-					return;
+				if (this.sewectedItemsToConfiwm !== this._sewectedItems && equaws(checkedItems, this._sewectedItems, (a, b) => a === b)) {
+					wetuwn;
 				}
-				this._selectedItems = checkedItems as T[];
-				this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
+				this._sewectedItems = checkedItems as T[];
+				this.onDidChangeSewectionEmitta.fiwe(checkedItems as T[]);
 			}));
-			this.visibleDisposables.add(this.ui.list.onButtonTriggered(event => this.onDidTriggerItemButtonEmitter.fire(event as IQuickPickItemButtonEvent<T>)));
-			this.visibleDisposables.add(this.registerQuickNavigation());
-			this.valueSelectionUpdated = true;
+			this.visibweDisposabwes.add(this.ui.wist.onButtonTwiggewed(event => this.onDidTwiggewItemButtonEmitta.fiwe(event as IQuickPickItemButtonEvent<T>)));
+			this.visibweDisposabwes.add(this.wegistewQuickNavigation());
+			this.vawueSewectionUpdated = twue;
 		}
-		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
+		supa.show(); // TODO: Why have show() bubbwe up whiwe update() twickwes down? (Couwd move setComboboxAccessibiwity() hewe.)
 	}
 
-	private handleAccept(inBackground: boolean): void {
+	pwivate handweAccept(inBackgwound: boowean): void {
 
-		// Figure out veto via `onWillAccept` event
-		let veto = false;
-		this.onWillAcceptEmitter.fire({ veto: () => veto = true });
+		// Figuwe out veto via `onWiwwAccept` event
+		wet veto = fawse;
+		this.onWiwwAcceptEmitta.fiwe({ veto: () => veto = twue });
 
 		// Continue with `onDidAccept` if no veto
 		if (!veto) {
-			this.onDidAcceptEmitter.fire({ inBackground });
+			this.onDidAcceptEmitta.fiwe({ inBackgwound });
 		}
 	}
 
-	private registerQuickNavigation() {
-		return dom.addDisposableListener(this.ui.container, dom.EventType.KEY_UP, e => {
-			if (this.canSelectMany || !this._quickNavigate) {
-				return;
+	pwivate wegistewQuickNavigation() {
+		wetuwn dom.addDisposabweWistena(this.ui.containa, dom.EventType.KEY_UP, e => {
+			if (this.canSewectMany || !this._quickNavigate) {
+				wetuwn;
 			}
 
-			const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
-			const keyCode = keyboardEvent.keyCode;
+			const keyboawdEvent: StandawdKeyboawdEvent = new StandawdKeyboawdEvent(e);
+			const keyCode = keyboawdEvent.keyCode;
 
-			// Select element when keys are pressed that signal it
+			// Sewect ewement when keys awe pwessed that signaw it
 			const quickNavKeys = this._quickNavigate.keybindings;
-			const wasTriggerKeyPressed = quickNavKeys.some(k => {
-				const [firstPart, chordPart] = k.getParts();
-				if (chordPart) {
-					return false;
+			const wasTwiggewKeyPwessed = quickNavKeys.some(k => {
+				const [fiwstPawt, chowdPawt] = k.getPawts();
+				if (chowdPawt) {
+					wetuwn fawse;
 				}
 
-				if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
-					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
-						return false; // this is an optimistic check for the shift key being used to navigate back in quick input
+				if (fiwstPawt.shiftKey && keyCode === KeyCode.Shift) {
+					if (keyboawdEvent.ctwwKey || keyboawdEvent.awtKey || keyboawdEvent.metaKey) {
+						wetuwn fawse; // this is an optimistic check fow the shift key being used to navigate back in quick input
 					}
 
-					return true;
+					wetuwn twue;
 				}
 
-				if (firstPart.altKey && keyCode === KeyCode.Alt) {
-					return true;
+				if (fiwstPawt.awtKey && keyCode === KeyCode.Awt) {
+					wetuwn twue;
 				}
 
-				if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
-					return true;
+				if (fiwstPawt.ctwwKey && keyCode === KeyCode.Ctww) {
+					wetuwn twue;
 				}
 
-				if (firstPart.metaKey && keyCode === KeyCode.Meta) {
-					return true;
+				if (fiwstPawt.metaKey && keyCode === KeyCode.Meta) {
+					wetuwn twue;
 				}
 
-				return false;
+				wetuwn fawse;
 			});
 
-			if (wasTriggerKeyPressed) {
+			if (wasTwiggewKeyPwessed) {
 				if (this.activeItems[0]) {
-					this._selectedItems = [this.activeItems[0]];
-					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-					this.handleAccept(false);
+					this._sewectedItems = [this.activeItems[0]];
+					this.onDidChangeSewectionEmitta.fiwe(this.sewectedItems);
+					this.handweAccept(fawse);
 				}
-				// Unset quick navigate after press. It is only valid once
-				// and should not result in any behaviour change afterwards
-				// if the picker remains open because there was no active item
+				// Unset quick navigate afta pwess. It is onwy vawid once
+				// and shouwd not wesuwt in any behaviouw change aftewwawds
+				// if the picka wemains open because thewe was no active item
 				this._quickNavigate = undefined;
 			}
 		});
 	}
 
-	protected override update() {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide update() {
+		if (!this.visibwe) {
+			wetuwn;
 		}
-		// store the scrollTop before it is reset
-		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
-		const hideInput = !!this._hideInput && this._items.length > 0;
-		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
-		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
-			description: !!this.description,
-			checkAll: this.canSelectMany && !this._hideCheckAll,
-			checkBox: this.canSelectMany,
+		// stowe the scwowwTop befowe it is weset
+		const scwowwTopBefowe = this.keepScwowwPosition ? this.scwowwTop : 0;
+		const hideInput = !!this._hideInput && this._items.wength > 0;
+		this.ui.containa.cwassWist.toggwe('hidden-input', hideInput && !this.descwiption);
+		const visibiwities: Visibiwities = {
+			titwe: !!this.titwe || !!this.step || !!this.buttons.wength,
+			descwiption: !!this.descwiption,
+			checkAww: this.canSewectMany && !this._hideCheckAww,
+			checkBox: this.canSewectMany,
 			inputBox: !hideInput,
-			progressBar: !hideInput,
-			visibleCount: true,
-			count: this.canSelectMany,
-			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
-			list: true,
-			message: !!this.validationMessage,
+			pwogwessBaw: !hideInput,
+			visibweCount: twue,
+			count: this.canSewectMany,
+			ok: this.ok === 'defauwt' ? this.canSewectMany : this.ok,
+			wist: twue,
+			message: !!this.vawidationMessage,
 			customButton: this.customButton
 		};
-		this.ui.setVisibilities(visibilities);
-		super.update();
-		if (this.ui.inputBox.value !== this.value) {
-			this.ui.inputBox.value = this.value;
+		this.ui.setVisibiwities(visibiwities);
+		supa.update();
+		if (this.ui.inputBox.vawue !== this.vawue) {
+			this.ui.inputBox.vawue = this.vawue;
 		}
-		if (this.valueSelectionUpdated) {
-			this.valueSelectionUpdated = false;
-			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
+		if (this.vawueSewectionUpdated) {
+			this.vawueSewectionUpdated = fawse;
+			this.ui.inputBox.sewect(this._vawueSewection && { stawt: this._vawueSewection[0], end: this._vawueSewection[1] });
 		}
-		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
-			this.ui.inputBox.placeholder = (this.placeholder || '');
+		if (this.ui.inputBox.pwacehowda !== (this.pwacehowda || '')) {
+			this.ui.inputBox.pwacehowda = (this.pwacehowda || '');
 		}
-		const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
-		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
-			this.ui.inputBox.ariaLabel = ariaLabel;
+		const awiaWabew = this.awiaWabew || this.pwacehowda || QuickPick.DEFAUWT_AWIA_WABEW;
+		if (this.ui.inputBox.awiaWabew !== awiaWabew) {
+			this.ui.inputBox.awiaWabew = awiaWabew;
 		}
-		this.ui.list.matchOnDescription = this.matchOnDescription;
-		this.ui.list.matchOnDetail = this.matchOnDetail;
-		this.ui.list.matchOnLabel = this.matchOnLabel;
-		this.ui.list.sortByLabel = this.sortByLabel;
+		this.ui.wist.matchOnDescwiption = this.matchOnDescwiption;
+		this.ui.wist.matchOnDetaiw = this.matchOnDetaiw;
+		this.ui.wist.matchOnWabew = this.matchOnWabew;
+		this.ui.wist.sowtByWabew = this.sowtByWabew;
 		if (this.itemsUpdated) {
-			this.itemsUpdated = false;
-			this.ui.list.setElements(this.items);
-			this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
-			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
-			this.ui.count.setCount(this.ui.list.getCheckedCount());
+			this.itemsUpdated = fawse;
+			this.ui.wist.setEwements(this.items);
+			this.ui.wist.fiwta(this.fiwtewVawue(this.ui.inputBox.vawue));
+			this.ui.checkAww.checked = this.ui.wist.getAwwVisibweChecked();
+			this.ui.visibweCount.setCount(this.ui.wist.getVisibweCount());
+			this.ui.count.setCount(this.ui.wist.getCheckedCount());
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
+					this._itemActivation = ItemActivation.FIWST; // onwy vawid once, then unset
+					bweak;
 				case ItemActivation.SECOND:
-					this.ui.list.focus(QuickInputListFocus.Second);
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
-				case ItemActivation.LAST:
-					this.ui.list.focus(QuickInputListFocus.Last);
-					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
-					break;
-				default:
-					this.trySelectFirst();
-					break;
+					this.ui.wist.focus(QuickInputWistFocus.Second);
+					this._itemActivation = ItemActivation.FIWST; // onwy vawid once, then unset
+					bweak;
+				case ItemActivation.WAST:
+					this.ui.wist.focus(QuickInputWistFocus.Wast);
+					this._itemActivation = ItemActivation.FIWST; // onwy vawid once, then unset
+					bweak;
+				defauwt:
+					this.twySewectFiwst();
+					bweak;
 			}
 		}
-		if (this.ui.container.classList.contains('show-checkboxes') !== !!this.canSelectMany) {
-			if (this.canSelectMany) {
-				this.ui.list.clearFocus();
-			} else {
-				this.trySelectFirst();
+		if (this.ui.containa.cwassWist.contains('show-checkboxes') !== !!this.canSewectMany) {
+			if (this.canSewectMany) {
+				this.ui.wist.cweawFocus();
+			} ewse {
+				this.twySewectFiwst();
 			}
 		}
 		if (this.activeItemsUpdated) {
-			this.activeItemsUpdated = false;
-			this.activeItemsToConfirm = this._activeItems;
-			this.ui.list.setFocusedElements(this.activeItems);
-			if (this.activeItemsToConfirm === this._activeItems) {
-				this.activeItemsToConfirm = null;
+			this.activeItemsUpdated = fawse;
+			this.activeItemsToConfiwm = this._activeItems;
+			this.ui.wist.setFocusedEwements(this.activeItems);
+			if (this.activeItemsToConfiwm === this._activeItems) {
+				this.activeItemsToConfiwm = nuww;
 			}
 		}
-		if (this.selectedItemsUpdated) {
-			this.selectedItemsUpdated = false;
-			this.selectedItemsToConfirm = this._selectedItems;
-			if (this.canSelectMany) {
-				this.ui.list.setCheckedElements(this.selectedItems);
-			} else {
-				this.ui.list.setSelectedElements(this.selectedItems);
+		if (this.sewectedItemsUpdated) {
+			this.sewectedItemsUpdated = fawse;
+			this.sewectedItemsToConfiwm = this._sewectedItems;
+			if (this.canSewectMany) {
+				this.ui.wist.setCheckedEwements(this.sewectedItems);
+			} ewse {
+				this.ui.wist.setSewectedEwements(this.sewectedItems);
 			}
-			if (this.selectedItemsToConfirm === this._selectedItems) {
-				this.selectedItemsToConfirm = null;
+			if (this.sewectedItemsToConfiwm === this._sewectedItems) {
+				this.sewectedItemsToConfiwm = nuww;
 			}
 		}
-		this.ui.customButton.label = this.customLabel || '';
-		this.ui.customButton.element.title = this.customHover || '';
-		this.ui.setComboboxAccessibility(true);
-		if (!visibilities.inputBox) {
-			// we need to move focus into the tree to detect keybindings
-			// properly when the input box is not visible (quick nav)
-			this.ui.list.domFocus();
+		this.ui.customButton.wabew = this.customWabew || '';
+		this.ui.customButton.ewement.titwe = this.customHova || '';
+		this.ui.setComboboxAccessibiwity(twue);
+		if (!visibiwities.inputBox) {
+			// we need to move focus into the twee to detect keybindings
+			// pwopewwy when the input box is not visibwe (quick nav)
+			this.ui.wist.domFocus();
 
-			// Focus the first element in the list if multiselect is enabled
-			if (this.canSelectMany) {
-				this.ui.list.focus(QuickInputListFocus.First);
+			// Focus the fiwst ewement in the wist if muwtisewect is enabwed
+			if (this.canSewectMany) {
+				this.ui.wist.focus(QuickInputWistFocus.Fiwst);
 			}
 		}
 
-		// Set the scroll position to what it was before updating the items
-		if (this.keepScrollPosition) {
-			this.scrollTop = scrollTopBefore;
+		// Set the scwoww position to what it was befowe updating the items
+		if (this.keepScwowwPosition) {
+			this.scwowwTop = scwowwTopBefowe;
 		}
 	}
 }
 
-class InputBox extends QuickInput implements IInputBox {
-	private _value = '';
-	private _valueSelection: Readonly<[number, number]> | undefined;
-	private valueSelectionUpdated = true;
-	private _placeholder: string | undefined;
-	private _password = false;
-	private _prompt: string | undefined;
-	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
-	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
+cwass InputBox extends QuickInput impwements IInputBox {
+	pwivate _vawue = '';
+	pwivate _vawueSewection: Weadonwy<[numba, numba]> | undefined;
+	pwivate vawueSewectionUpdated = twue;
+	pwivate _pwacehowda: stwing | undefined;
+	pwivate _passwowd = fawse;
+	pwivate _pwompt: stwing | undefined;
+	pwivate weadonwy onDidVawueChangeEmitta = this._wegista(new Emitta<stwing>());
+	pwivate weadonwy onDidAcceptEmitta = this._wegista(new Emitta<void>());
 
-	get value() {
-		return this._value;
+	get vawue() {
+		wetuwn this._vawue;
 	}
 
-	set value(value: string) {
-		this._value = value || '';
+	set vawue(vawue: stwing) {
+		this._vawue = vawue || '';
 		this.update();
 	}
 
-	set valueSelection(valueSelection: Readonly<[number, number]>) {
-		this._valueSelection = valueSelection;
-		this.valueSelectionUpdated = true;
+	set vawueSewection(vawueSewection: Weadonwy<[numba, numba]>) {
+		this._vawueSewection = vawueSewection;
+		this.vawueSewectionUpdated = twue;
 		this.update();
 	}
 
-	get placeholder() {
-		return this._placeholder;
+	get pwacehowda() {
+		wetuwn this._pwacehowda;
 	}
 
-	set placeholder(placeholder: string | undefined) {
-		this._placeholder = placeholder;
+	set pwacehowda(pwacehowda: stwing | undefined) {
+		this._pwacehowda = pwacehowda;
 		this.update();
 	}
 
-	get password() {
-		return this._password;
+	get passwowd() {
+		wetuwn this._passwowd;
 	}
 
-	set password(password: boolean) {
-		this._password = password;
+	set passwowd(passwowd: boowean) {
+		this._passwowd = passwowd;
 		this.update();
 	}
 
-	get prompt() {
-		return this._prompt;
+	get pwompt() {
+		wetuwn this._pwompt;
 	}
 
-	set prompt(prompt: string | undefined) {
-		this._prompt = prompt;
-		this.noValidationMessage = prompt
-			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
-			: QuickInput.noPromptMessage;
+	set pwompt(pwompt: stwing | undefined) {
+		this._pwompt = pwompt;
+		this.noVawidationMessage = pwompt
+			? wocawize('inputModeEntwyDescwiption', "{0} (Pwess 'Enta' to confiwm ow 'Escape' to cancew)", pwompt)
+			: QuickInput.noPwomptMessage;
 		this.update();
 	}
 
-	readonly onDidChangeValue = this.onDidValueChangeEmitter.event;
+	weadonwy onDidChangeVawue = this.onDidVawueChangeEmitta.event;
 
-	readonly onDidAccept = this.onDidAcceptEmitter.event;
+	weadonwy onDidAccept = this.onDidAcceptEmitta.event;
 
-	override show() {
-		if (!this.visible) {
-			this.visibleDisposables.add(
-				this.ui.inputBox.onDidChange(value => {
-					if (value === this.value) {
-						return;
+	ovewwide show() {
+		if (!this.visibwe) {
+			this.visibweDisposabwes.add(
+				this.ui.inputBox.onDidChange(vawue => {
+					if (vawue === this.vawue) {
+						wetuwn;
 					}
-					this._value = value;
-					this.onDidValueChangeEmitter.fire(value);
+					this._vawue = vawue;
+					this.onDidVawueChangeEmitta.fiwe(vawue);
 				}));
-			this.visibleDisposables.add(this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()));
-			this.valueSelectionUpdated = true;
+			this.visibweDisposabwes.add(this.ui.onDidAccept(() => this.onDidAcceptEmitta.fiwe()));
+			this.vawueSewectionUpdated = twue;
 		}
-		super.show();
+		supa.show();
 	}
 
-	protected override update() {
-		if (!this.visible) {
-			return;
+	pwotected ovewwide update() {
+		if (!this.visibwe) {
+			wetuwn;
 		}
-		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
-			description: !!this.description || !!this.step,
-			inputBox: true, message: true
+		const visibiwities: Visibiwities = {
+			titwe: !!this.titwe || !!this.step || !!this.buttons.wength,
+			descwiption: !!this.descwiption || !!this.step,
+			inputBox: twue, message: twue
 		};
-		this.ui.setVisibilities(visibilities);
-		super.update();
-		if (this.ui.inputBox.value !== this.value) {
-			this.ui.inputBox.value = this.value;
+		this.ui.setVisibiwities(visibiwities);
+		supa.update();
+		if (this.ui.inputBox.vawue !== this.vawue) {
+			this.ui.inputBox.vawue = this.vawue;
 		}
-		if (this.valueSelectionUpdated) {
-			this.valueSelectionUpdated = false;
-			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
+		if (this.vawueSewectionUpdated) {
+			this.vawueSewectionUpdated = fawse;
+			this.ui.inputBox.sewect(this._vawueSewection && { stawt: this._vawueSewection[0], end: this._vawueSewection[1] });
 		}
-		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
-			this.ui.inputBox.placeholder = (this.placeholder || '');
+		if (this.ui.inputBox.pwacehowda !== (this.pwacehowda || '')) {
+			this.ui.inputBox.pwacehowda = (this.pwacehowda || '');
 		}
-		if (this.ui.inputBox.password !== this.password) {
-			this.ui.inputBox.password = this.password;
+		if (this.ui.inputBox.passwowd !== this.passwowd) {
+			this.ui.inputBox.passwowd = this.passwowd;
 		}
 
 	}
 }
 
-export class QuickInputController extends Disposable {
-	private static readonly MAX_WIDTH = 600; // Max total width of quick input widget
+expowt cwass QuickInputContwowwa extends Disposabwe {
+	pwivate static weadonwy MAX_WIDTH = 600; // Max totaw width of quick input widget
 
-	private idPrefix: string;
-	private ui: QuickInputUI | undefined;
-	private dimension?: dom.IDimension;
-	private titleBarOffset?: number;
-	private comboboxAccessibility = false;
-	private enabled = true;
-	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
-	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
-	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
+	pwivate idPwefix: stwing;
+	pwivate ui: QuickInputUI | undefined;
+	pwivate dimension?: dom.IDimension;
+	pwivate titweBawOffset?: numba;
+	pwivate comboboxAccessibiwity = fawse;
+	pwivate enabwed = twue;
+	pwivate weadonwy onDidAcceptEmitta = this._wegista(new Emitta<void>());
+	pwivate weadonwy onDidCustomEmitta = this._wegista(new Emitta<void>());
+	pwivate weadonwy onDidTwiggewButtonEmitta = this._wegista(new Emitta<IQuickInputButton>());
+	pwivate keyMods: Wwiteabwe<IKeyMods> = { ctwwCmd: fawse, awt: fawse };
 
-	private controller: QuickInput | null = null;
+	pwivate contwowwa: QuickInput | nuww = nuww;
 
-	private parentElement: HTMLElement;
-	private styles: IQuickInputStyles;
+	pwivate pawentEwement: HTMWEwement;
+	pwivate stywes: IQuickInputStywes;
 
-	private onShowEmitter = this._register(new Emitter<void>());
-	readonly onShow = this.onShowEmitter.event;
+	pwivate onShowEmitta = this._wegista(new Emitta<void>());
+	weadonwy onShow = this.onShowEmitta.event;
 
-	private onHideEmitter = this._register(new Emitter<void>());
-	readonly onHide = this.onHideEmitter.event;
+	pwivate onHideEmitta = this._wegista(new Emitta<void>());
+	weadonwy onHide = this.onHideEmitta.event;
 
-	private previousFocusElement?: HTMLElement;
+	pwivate pweviousFocusEwement?: HTMWEwement;
 
-	constructor(private options: IQuickInputOptions) {
-		super();
-		this.idPrefix = options.idPrefix;
-		this.parentElement = options.container;
-		this.styles = options.styles;
-		this.registerKeyModsListeners();
+	constwuctow(pwivate options: IQuickInputOptions) {
+		supa();
+		this.idPwefix = options.idPwefix;
+		this.pawentEwement = options.containa;
+		this.stywes = options.stywes;
+		this.wegistewKeyModsWistenews();
 	}
 
-	private registerKeyModsListeners() {
-		const listener = (e: KeyboardEvent | MouseEvent) => {
-			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
-			this.keyMods.alt = e.altKey;
+	pwivate wegistewKeyModsWistenews() {
+		const wistena = (e: KeyboawdEvent | MouseEvent) => {
+			this.keyMods.ctwwCmd = e.ctwwKey || e.metaKey;
+			this.keyMods.awt = e.awtKey;
 		};
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.MOUSE_DOWN, listener, true));
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.KEY_DOWN, wistena, twue));
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.KEY_UP, wistena, twue));
+		this._wegista(dom.addDisposabweWistena(window, dom.EventType.MOUSE_DOWN, wistena, twue));
 	}
 
-	private getUI() {
+	pwivate getUI() {
 		if (this.ui) {
-			return this.ui;
+			wetuwn this.ui;
 		}
 
-		const container = dom.append(this.parentElement, $('.quick-input-widget.show-file-icons'));
-		container.tabIndex = -1;
-		container.style.display = 'none';
+		const containa = dom.append(this.pawentEwement, $('.quick-input-widget.show-fiwe-icons'));
+		containa.tabIndex = -1;
+		containa.stywe.dispway = 'none';
 
-		const styleSheet = dom.createStyleSheet(container);
+		const styweSheet = dom.cweateStyweSheet(containa);
 
-		const titleBar = dom.append(container, $('.quick-input-titlebar'));
+		const titweBaw = dom.append(containa, $('.quick-input-titwebaw'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar));
-		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
+		const weftActionBaw = this._wegista(new ActionBaw(titweBaw));
+		weftActionBaw.domNode.cwassWist.add('quick-input-weft-action-baw');
 
-		const title = dom.append(titleBar, $('.quick-input-title'));
+		const titwe = dom.append(titweBaw, $('.quick-input-titwe'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar));
-		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
+		const wightActionBaw = this._wegista(new ActionBaw(titweBaw));
+		wightActionBaw.domNode.cwassWist.add('quick-input-wight-action-baw');
 
-		const description1 = dom.append(container, $('.quick-input-description'));
-		const headerContainer = dom.append(container, $('.quick-input-header'));
+		const descwiption1 = dom.append(containa, $('.quick-input-descwiption'));
+		const headewContaina = dom.append(containa, $('.quick-input-heada'));
 
-		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
-		checkAll.type = 'checkbox';
-		this._register(dom.addStandardDisposableListener(checkAll, dom.EventType.CHANGE, e => {
-			const checked = checkAll.checked;
-			list.setAllVisibleChecked(checked);
+		const checkAww = <HTMWInputEwement>dom.append(headewContaina, $('input.quick-input-check-aww'));
+		checkAww.type = 'checkbox';
+		this._wegista(dom.addStandawdDisposabweWistena(checkAww, dom.EventType.CHANGE, e => {
+			const checked = checkAww.checked;
+			wist.setAwwVisibweChecked(checked);
 		}));
-		this._register(dom.addDisposableListener(checkAll, dom.EventType.CLICK, e => {
-			if (e.x || e.y) { // Avoid 'click' triggered by 'space'...
+		this._wegista(dom.addDisposabweWistena(checkAww, dom.EventType.CWICK, e => {
+			if (e.x || e.y) { // Avoid 'cwick' twiggewed by 'space'...
 				inputBox.setFocus();
 			}
 		}));
 
-		const description2 = dom.append(headerContainer, $('.quick-input-description'));
-		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
-		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
+		const descwiption2 = dom.append(headewContaina, $('.quick-input-descwiption'));
+		const extwaContaina = dom.append(headewContaina, $('.quick-input-and-message'));
+		const fiwtewContaina = dom.append(extwaContaina, $('.quick-input-fiwta'));
 
-		const inputBox = this._register(new QuickInputBox(filterContainer));
-		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
+		const inputBox = this._wegista(new QuickInputBox(fiwtewContaina));
+		inputBox.setAttwibute('awia-descwibedby', `${this.idPwefix}message`);
 
-		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
-		visibleCountContainer.setAttribute('aria-live', 'polite');
-		visibleCountContainer.setAttribute('aria-atomic', 'true');
-		const visibleCount = new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") });
+		const visibweCountContaina = dom.append(fiwtewContaina, $('.quick-input-visibwe-count'));
+		visibweCountContaina.setAttwibute('awia-wive', 'powite');
+		visibweCountContaina.setAttwibute('awia-atomic', 'twue');
+		const visibweCount = new CountBadge(visibweCountContaina, { countFowmat: wocawize({ key: 'quickInput.visibweCount', comment: ['This tewws the usa how many items awe shown in a wist of items to sewect fwom. The items can be anything. Cuwwentwy not visibwe, but wead by scween weadews.'] }, "{0} Wesuwts") });
 
-		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
-		countContainer.setAttribute('aria-live', 'polite');
-		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
+		const countContaina = dom.append(fiwtewContaina, $('.quick-input-count'));
+		countContaina.setAttwibute('awia-wive', 'powite');
+		const count = new CountBadge(countContaina, { countFowmat: wocawize({ key: 'quickInput.countSewected', comment: ['This tewws the usa how many items awe sewected in a wist of items to sewect fwom. The items can be anything.'] }, "{0} Sewected") });
 
-		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(okContainer);
-		ok.label = localize('ok', "OK");
-		this._register(ok.onDidClick(e => {
-			this.onDidAcceptEmitter.fire();
+		const okContaina = dom.append(headewContaina, $('.quick-input-action'));
+		const ok = new Button(okContaina);
+		ok.wabew = wocawize('ok', "OK");
+		this._wegista(ok.onDidCwick(e => {
+			this.onDidAcceptEmitta.fiwe();
 		}));
 
-		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = new Button(customButtonContainer);
-		customButton.label = localize('custom', "Custom");
-		this._register(customButton.onDidClick(e => {
-			this.onDidCustomEmitter.fire();
+		const customButtonContaina = dom.append(headewContaina, $('.quick-input-action'));
+		const customButton = new Button(customButtonContaina);
+		customButton.wabew = wocawize('custom', "Custom");
+		this._wegista(customButton.onDidCwick(e => {
+			this.onDidCustomEmitta.fiwe();
 		}));
 
-		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
+		const message = dom.append(extwaContaina, $(`#${this.idPwefix}message.quick-input-message`));
 
-		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
-		this._register(list.onChangedAllVisibleChecked(checked => {
-			checkAll.checked = checked;
+		const wist = this._wegista(new QuickInputWist(containa, this.idPwefix + 'wist', this.options));
+		this._wegista(wist.onChangedAwwVisibweChecked(checked => {
+			checkAww.checked = checked;
 		}));
-		this._register(list.onChangedVisibleCount(c => {
-			visibleCount.setCount(c);
+		this._wegista(wist.onChangedVisibweCount(c => {
+			visibweCount.setCount(c);
 		}));
-		this._register(list.onChangedCheckedCount(c => {
+		this._wegista(wist.onChangedCheckedCount(c => {
 			count.setCount(c);
 		}));
-		this._register(list.onLeave(() => {
-			// Defer to avoid the input field reacting to the triggering key.
+		this._wegista(wist.onWeave(() => {
+			// Defa to avoid the input fiewd weacting to the twiggewing key.
 			setTimeout(() => {
 				inputBox.setFocus();
-				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
-					list.clearFocus();
+				if (this.contwowwa instanceof QuickPick && this.contwowwa.canSewectMany) {
+					wist.cweawFocus();
 				}
 			}, 0);
 		}));
-		this._register(list.onDidChangeFocus(() => {
-			if (this.comboboxAccessibility) {
-				this.getUI().inputBox.setAttribute('aria-activedescendant', this.getUI().list.getActiveDescendant() || '');
+		this._wegista(wist.onDidChangeFocus(() => {
+			if (this.comboboxAccessibiwity) {
+				this.getUI().inputBox.setAttwibute('awia-activedescendant', this.getUI().wist.getActiveDescendant() || '');
 			}
 		}));
 
-		const progressBar = new ProgressBar(container);
-		progressBar.getContainer().classList.add('quick-input-progress');
+		const pwogwessBaw = new PwogwessBaw(containa);
+		pwogwessBaw.getContaina().cwassWist.add('quick-input-pwogwess');
 
-		const focusTracker = dom.trackFocus(container);
-		this._register(focusTracker);
-		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
-			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
-		}, true));
-		this._register(focusTracker.onDidBlur(() => {
-			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
-				this.hide(QuickInputHideReason.Blur);
+		const focusTwacka = dom.twackFocus(containa);
+		this._wegista(focusTwacka);
+		this._wegista(dom.addDisposabweWistena(containa, dom.EventType.FOCUS, e => {
+			this.pweviousFocusEwement = e.wewatedTawget instanceof HTMWEwement ? e.wewatedTawget : undefined;
+		}, twue));
+		this._wegista(focusTwacka.onDidBwuw(() => {
+			if (!this.getUI().ignoweFocusOut && !this.options.ignoweFocusOut()) {
+				this.hide(QuickInputHideWeason.Bwuw);
 			}
-			this.previousFocusElement = undefined;
+			this.pweviousFocusEwement = undefined;
 		}));
-		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
+		this._wegista(dom.addDisposabweWistena(containa, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
 		}));
-		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
+		this._wegista(dom.addDisposabweWistena(containa, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => {
+			const event = new StandawdKeyboawdEvent(e);
 			switch (event.keyCode) {
-				case KeyCode.Enter:
-					dom.EventHelper.stop(e, true);
-					this.onDidAcceptEmitter.fire();
-					break;
+				case KeyCode.Enta:
+					dom.EventHewpa.stop(e, twue);
+					this.onDidAcceptEmitta.fiwe();
+					bweak;
 				case KeyCode.Escape:
-					dom.EventHelper.stop(e, true);
-					this.hide(QuickInputHideReason.Gesture);
-					break;
+					dom.EventHewpa.stop(e, twue);
+					this.hide(QuickInputHideWeason.Gestuwe);
+					bweak;
 				case KeyCode.Tab:
-					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const selectors = ['.action-label.codicon'];
-						if (container.classList.contains('show-checkboxes')) {
-							selectors.push('input');
-						} else {
-							selectors.push('input[type=text]');
+					if (!event.awtKey && !event.ctwwKey && !event.metaKey) {
+						const sewectows = ['.action-wabew.codicon'];
+						if (containa.cwassWist.contains('show-checkboxes')) {
+							sewectows.push('input');
+						} ewse {
+							sewectows.push('input[type=text]');
 						}
-						if (this.getUI().list.isDisplayed()) {
-							selectors.push('.monaco-list');
+						if (this.getUI().wist.isDispwayed()) {
+							sewectows.push('.monaco-wist');
 						}
-						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
-						if (event.shiftKey && event.target === stops[0]) {
-							dom.EventHelper.stop(e, true);
-							stops[stops.length - 1].focus();
-						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
-							dom.EventHelper.stop(e, true);
+						const stops = containa.quewySewectowAww<HTMWEwement>(sewectows.join(', '));
+						if (event.shiftKey && event.tawget === stops[0]) {
+							dom.EventHewpa.stop(e, twue);
+							stops[stops.wength - 1].focus();
+						} ewse if (!event.shiftKey && event.tawget === stops[stops.wength - 1]) {
+							dom.EventHewpa.stop(e, twue);
 							stops[0].focus();
 						}
 					}
-					break;
+					bweak;
 			}
 		}));
 
 		this.ui = {
-			container,
-			styleSheet,
-			leftActionBar,
-			titleBar,
-			title,
-			description1,
-			description2,
-			rightActionBar,
-			checkAll,
-			filterContainer,
+			containa,
+			styweSheet,
+			weftActionBaw,
+			titweBaw,
+			titwe,
+			descwiption1,
+			descwiption2,
+			wightActionBaw,
+			checkAww,
+			fiwtewContaina,
 			inputBox,
-			visibleCountContainer,
-			visibleCount,
-			countContainer,
+			visibweCountContaina,
+			visibweCount,
+			countContaina,
 			count,
-			okContainer,
+			okContaina,
 			ok,
 			message,
-			customButtonContainer,
+			customButtonContaina,
 			customButton,
-			list,
-			progressBar,
-			onDidAccept: this.onDidAcceptEmitter.event,
-			onDidCustom: this.onDidCustomEmitter.event,
-			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
-			ignoreFocusOut: false,
+			wist,
+			pwogwessBaw,
+			onDidAccept: this.onDidAcceptEmitta.event,
+			onDidCustom: this.onDidCustomEmitta.event,
+			onDidTwiggewButton: this.onDidTwiggewButtonEmitta.event,
+			ignoweFocusOut: fawse,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.options.isScreenReaderOptimized(),
-			show: controller => this.show(controller),
+			isScweenWeadewOptimized: () => this.options.isScweenWeadewOptimized(),
+			show: contwowwa => this.show(contwowwa),
 			hide: () => this.hide(),
-			setVisibilities: visibilities => this.setVisibilities(visibilities),
-			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
-			setEnabled: enabled => this.setEnabled(enabled),
+			setVisibiwities: visibiwities => this.setVisibiwities(visibiwities),
+			setComboboxAccessibiwity: enabwed => this.setComboboxAccessibiwity(enabwed),
+			setEnabwed: enabwed => this.setEnabwed(enabwed),
 			setContextKey: contextKey => this.options.setContextKey(contextKey),
 		};
-		this.updateStyles();
-		return this.ui;
+		this.updateStywes();
+		wetuwn this.ui;
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
-		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
-		return new Promise<R>((doResolve, reject) => {
-			let resolve = (result: R) => {
-				resolve = doResolve;
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancewwationToken = CancewwationToken.None): Pwomise<(O extends { canPickMany: twue } ? T[] : T) | undefined> {
+		type W = (O extends { canPickMany: twue } ? T[] : T) | undefined;
+		wetuwn new Pwomise<W>((doWesowve, weject) => {
+			wet wesowve = (wesuwt: W) => {
+				wesowve = doWesowve;
 				if (options.onKeyMods) {
 					options.onKeyMods(input.keyMods);
 				}
-				doResolve(result);
+				doWesowve(wesuwt);
 			};
-			if (token.isCancellationRequested) {
-				resolve(undefined);
-				return;
+			if (token.isCancewwationWequested) {
+				wesowve(undefined);
+				wetuwn;
 			}
-			const input = this.createQuickPick<T>();
-			let activeItem: T | undefined;
-			const disposables = [
+			const input = this.cweateQuickPick<T>();
+			wet activeItem: T | undefined;
+			const disposabwes = [
 				input,
 				input.onDidAccept(() => {
-					if (input.canSelectMany) {
-						resolve(<R>input.selectedItems.slice());
+					if (input.canSewectMany) {
+						wesowve(<W>input.sewectedItems.swice());
 						input.hide();
-					} else {
-						const result = input.activeItems[0];
-						if (result) {
-							resolve(<R>result);
+					} ewse {
+						const wesuwt = input.activeItems[0];
+						if (wesuwt) {
+							wesowve(<W>wesuwt);
 							input.hide();
 						}
 					}
@@ -1418,405 +1418,405 @@ export class QuickInputController extends Disposable {
 						options.onDidFocus(focused);
 					}
 				}),
-				input.onDidChangeSelection(items => {
-					if (!input.canSelectMany) {
-						const result = items[0];
-						if (result) {
-							resolve(<R>result);
+				input.onDidChangeSewection(items => {
+					if (!input.canSewectMany) {
+						const wesuwt = items[0];
+						if (wesuwt) {
+							wesowve(<W>wesuwt);
 							input.hide();
 						}
 					}
 				}),
-				input.onDidTriggerItemButton(event => options.onDidTriggerItemButton && options.onDidTriggerItemButton({
+				input.onDidTwiggewItemButton(event => options.onDidTwiggewItemButton && options.onDidTwiggewItemButton({
 					...event,
-					removeItem: () => {
+					wemoveItem: () => {
 						const index = input.items.indexOf(event.item);
 						if (index !== -1) {
-							const items = input.items.slice();
-							const removed = items.splice(index, 1);
-							const activeItems = input.activeItems.filter(activeItem => activeItem !== removed[0]);
-							const keepScrollPositionBefore = input.keepScrollPosition;
-							input.keepScrollPosition = true;
+							const items = input.items.swice();
+							const wemoved = items.spwice(index, 1);
+							const activeItems = input.activeItems.fiwta(activeItem => activeItem !== wemoved[0]);
+							const keepScwowwPositionBefowe = input.keepScwowwPosition;
+							input.keepScwowwPosition = twue;
 							input.items = items;
 							if (activeItems) {
 								input.activeItems = activeItems;
 							}
-							input.keepScrollPosition = keepScrollPositionBefore;
+							input.keepScwowwPosition = keepScwowwPositionBefowe;
 						}
 					}
 				})),
-				input.onDidChangeValue(value => {
-					if (activeItem && !value && (input.activeItems.length !== 1 || input.activeItems[0] !== activeItem)) {
+				input.onDidChangeVawue(vawue => {
+					if (activeItem && !vawue && (input.activeItems.wength !== 1 || input.activeItems[0] !== activeItem)) {
 						input.activeItems = [activeItem];
 					}
 				}),
-				token.onCancellationRequested(() => {
+				token.onCancewwationWequested(() => {
 					input.hide();
 				}),
 				input.onDidHide(() => {
-					dispose(disposables);
-					resolve(undefined);
+					dispose(disposabwes);
+					wesowve(undefined);
 				}),
 			];
-			input.title = options.title;
-			input.canSelectMany = !!options.canPickMany;
-			input.placeholder = options.placeHolder;
-			input.ignoreFocusOut = !!options.ignoreFocusLost;
-			input.matchOnDescription = !!options.matchOnDescription;
-			input.matchOnDetail = !!options.matchOnDetail;
-			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
-			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
+			input.titwe = options.titwe;
+			input.canSewectMany = !!options.canPickMany;
+			input.pwacehowda = options.pwaceHowda;
+			input.ignoweFocusOut = !!options.ignoweFocusWost;
+			input.matchOnDescwiption = !!options.matchOnDescwiption;
+			input.matchOnDetaiw = !!options.matchOnDetaiw;
+			input.matchOnWabew = (options.matchOnWabew === undefined) || options.matchOnWabew; // defauwt to twue
+			input.autoFocusOnWist = (options.autoFocusOnWist === undefined) || options.autoFocusOnWist; // defauwt to twue
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
-			input.busy = true;
-			Promise.all([picks, options.activeItem])
+			input.busy = twue;
+			Pwomise.aww([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
 					activeItem = _activeItem;
-					input.busy = false;
+					input.busy = fawse;
 					input.items = items;
-					if (input.canSelectMany) {
-						input.selectedItems = items.filter(item => item.type !== 'separator' && item.picked) as T[];
+					if (input.canSewectMany) {
+						input.sewectedItems = items.fiwta(item => item.type !== 'sepawatow' && item.picked) as T[];
 					}
 					if (activeItem) {
 						input.activeItems = [activeItem];
 					}
 				});
 			input.show();
-			Promise.resolve(picks).then(undefined, err => {
-				reject(err);
+			Pwomise.wesowve(picks).then(undefined, eww => {
+				weject(eww);
 				input.hide();
 			});
 		});
 	}
 
-	private setValidationOnInput(input: IInputBox, validationResult: string | {
-		content: string;
-		severity: Severity;
-	} | null | undefined) {
-		if (validationResult && isString(validationResult)) {
-			input.severity = Severity.Error;
-			input.validationMessage = validationResult;
-		} else if (validationResult && !isString(validationResult)) {
-			input.severity = validationResult.severity;
-			input.validationMessage = validationResult.content;
-		} else {
-			input.severity = Severity.Ignore;
-			input.validationMessage = undefined;
+	pwivate setVawidationOnInput(input: IInputBox, vawidationWesuwt: stwing | {
+		content: stwing;
+		sevewity: Sevewity;
+	} | nuww | undefined) {
+		if (vawidationWesuwt && isStwing(vawidationWesuwt)) {
+			input.sevewity = Sevewity.Ewwow;
+			input.vawidationMessage = vawidationWesuwt;
+		} ewse if (vawidationWesuwt && !isStwing(vawidationWesuwt)) {
+			input.sevewity = vawidationWesuwt.sevewity;
+			input.vawidationMessage = vawidationWesuwt.content;
+		} ewse {
+			input.sevewity = Sevewity.Ignowe;
+			input.vawidationMessage = undefined;
 		}
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return new Promise<string | undefined>((resolve) => {
-			if (token.isCancellationRequested) {
-				resolve(undefined);
-				return;
+	input(options: IInputOptions = {}, token: CancewwationToken = CancewwationToken.None): Pwomise<stwing | undefined> {
+		wetuwn new Pwomise<stwing | undefined>((wesowve) => {
+			if (token.isCancewwationWequested) {
+				wesowve(undefined);
+				wetuwn;
 			}
-			const input = this.createInputBox();
-			const validateInput = options.validateInput || (() => <Promise<undefined>>Promise.resolve(undefined));
-			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
-			let validationValue = options.value || '';
-			let validation = Promise.resolve(validateInput(validationValue));
-			const disposables = [
+			const input = this.cweateInputBox();
+			const vawidateInput = options.vawidateInput || (() => <Pwomise<undefined>>Pwomise.wesowve(undefined));
+			const onDidVawueChange = Event.debounce(input.onDidChangeVawue, (wast, cuw) => cuw, 100);
+			wet vawidationVawue = options.vawue || '';
+			wet vawidation = Pwomise.wesowve(vawidateInput(vawidationVawue));
+			const disposabwes = [
 				input,
-				onDidValueChange(value => {
-					if (value !== validationValue) {
-						validation = Promise.resolve(validateInput(value));
-						validationValue = value;
+				onDidVawueChange(vawue => {
+					if (vawue !== vawidationVawue) {
+						vawidation = Pwomise.wesowve(vawidateInput(vawue));
+						vawidationVawue = vawue;
 					}
-					validation.then(result => {
-						if (value === validationValue) {
-							this.setValidationOnInput(input, result);
+					vawidation.then(wesuwt => {
+						if (vawue === vawidationVawue) {
+							this.setVawidationOnInput(input, wesuwt);
 						}
 					});
 				}),
 				input.onDidAccept(() => {
-					const value = input.value;
-					if (value !== validationValue) {
-						validation = Promise.resolve(validateInput(value));
-						validationValue = value;
+					const vawue = input.vawue;
+					if (vawue !== vawidationVawue) {
+						vawidation = Pwomise.wesowve(vawidateInput(vawue));
+						vawidationVawue = vawue;
 					}
-					validation.then(result => {
-						if (!result || (!isString(result) && result.severity !== Severity.Error)) {
-							resolve(value);
+					vawidation.then(wesuwt => {
+						if (!wesuwt || (!isStwing(wesuwt) && wesuwt.sevewity !== Sevewity.Ewwow)) {
+							wesowve(vawue);
 							input.hide();
-						} else if (value === validationValue) {
-							this.setValidationOnInput(input, result);
+						} ewse if (vawue === vawidationVawue) {
+							this.setVawidationOnInput(input, wesuwt);
 						}
 					});
 				}),
-				token.onCancellationRequested(() => {
+				token.onCancewwationWequested(() => {
 					input.hide();
 				}),
 				input.onDidHide(() => {
-					dispose(disposables);
-					resolve(undefined);
+					dispose(disposabwes);
+					wesowve(undefined);
 				}),
 			];
 
-			input.title = options.title;
-			input.value = options.value || '';
-			input.valueSelection = options.valueSelection;
-			input.prompt = options.prompt;
-			input.placeholder = options.placeHolder;
-			input.password = !!options.password;
-			input.ignoreFocusOut = !!options.ignoreFocusLost;
+			input.titwe = options.titwe;
+			input.vawue = options.vawue || '';
+			input.vawueSewection = options.vawueSewection;
+			input.pwompt = options.pwompt;
+			input.pwacehowda = options.pwaceHowda;
+			input.passwowd = !!options.passwowd;
+			input.ignoweFocusOut = !!options.ignoweFocusWost;
 			input.show();
 		});
 	}
 
 	backButton = backButton;
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+	cweateQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		const ui = this.getUI();
-		return new QuickPick<T>(ui);
+		wetuwn new QuickPick<T>(ui);
 	}
 
-	createInputBox(): IInputBox {
+	cweateInputBox(): IInputBox {
 		const ui = this.getUI();
-		return new InputBox(ui);
+		wetuwn new InputBox(ui);
 	}
 
-	private show(controller: QuickInput) {
+	pwivate show(contwowwa: QuickInput) {
 		const ui = this.getUI();
-		this.onShowEmitter.fire();
-		const oldController = this.controller;
-		this.controller = controller;
-		if (oldController) {
-			oldController.didHide();
+		this.onShowEmitta.fiwe();
+		const owdContwowwa = this.contwowwa;
+		this.contwowwa = contwowwa;
+		if (owdContwowwa) {
+			owdContwowwa.didHide();
 		}
 
-		this.setEnabled(true);
-		ui.leftActionBar.clear();
-		ui.title.textContent = '';
-		ui.description1.textContent = '';
-		ui.description2.textContent = '';
-		ui.rightActionBar.clear();
-		ui.checkAll.checked = false;
-		// ui.inputBox.value = ''; Avoid triggering an event.
-		ui.inputBox.placeholder = '';
-		ui.inputBox.password = false;
-		ui.inputBox.showDecoration(Severity.Ignore);
-		ui.visibleCount.setCount(0);
+		this.setEnabwed(twue);
+		ui.weftActionBaw.cweaw();
+		ui.titwe.textContent = '';
+		ui.descwiption1.textContent = '';
+		ui.descwiption2.textContent = '';
+		ui.wightActionBaw.cweaw();
+		ui.checkAww.checked = fawse;
+		// ui.inputBox.vawue = ''; Avoid twiggewing an event.
+		ui.inputBox.pwacehowda = '';
+		ui.inputBox.passwowd = fawse;
+		ui.inputBox.showDecowation(Sevewity.Ignowe);
+		ui.visibweCount.setCount(0);
 		ui.count.setCount(0);
-		dom.reset(ui.message);
-		ui.progressBar.stop();
-		ui.list.setElements([]);
-		ui.list.matchOnDescription = false;
-		ui.list.matchOnDetail = false;
-		ui.list.matchOnLabel = true;
-		ui.list.sortByLabel = true;
-		ui.ignoreFocusOut = false;
-		this.setComboboxAccessibility(false);
-		ui.inputBox.ariaLabel = '';
+		dom.weset(ui.message);
+		ui.pwogwessBaw.stop();
+		ui.wist.setEwements([]);
+		ui.wist.matchOnDescwiption = fawse;
+		ui.wist.matchOnDetaiw = fawse;
+		ui.wist.matchOnWabew = twue;
+		ui.wist.sowtByWabew = twue;
+		ui.ignoweFocusOut = fawse;
+		this.setComboboxAccessibiwity(fawse);
+		ui.inputBox.awiaWabew = '';
 
-		const backKeybindingLabel = this.options.backKeybindingLabel();
-		backButton.tooltip = backKeybindingLabel ? localize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingLabel) : localize('quickInput.back', "Back");
+		const backKeybindingWabew = this.options.backKeybindingWabew();
+		backButton.toowtip = backKeybindingWabew ? wocawize('quickInput.backWithKeybinding', "Back ({0})", backKeybindingWabew) : wocawize('quickInput.back', "Back");
 
-		ui.container.style.display = '';
-		this.updateLayout();
+		ui.containa.stywe.dispway = '';
+		this.updateWayout();
 		ui.inputBox.setFocus();
 	}
 
-	private setVisibilities(visibilities: Visibilities) {
+	pwivate setVisibiwities(visibiwities: Visibiwities) {
 		const ui = this.getUI();
-		ui.title.style.display = visibilities.title ? '' : 'none';
-		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
-		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
-		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
-		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
-		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
-		ui.countContainer.style.display = visibilities.count ? '' : 'none';
-		ui.okContainer.style.display = visibilities.ok ? '' : 'none';
-		ui.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
-		ui.message.style.display = visibilities.message ? '' : 'none';
-		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
-		ui.list.display(!!visibilities.list);
-		ui.container.classList[visibilities.checkBox ? 'add' : 'remove']('show-checkboxes');
-		this.updateLayout(); // TODO
+		ui.titwe.stywe.dispway = visibiwities.titwe ? '' : 'none';
+		ui.descwiption1.stywe.dispway = visibiwities.descwiption && (visibiwities.inputBox || visibiwities.checkAww) ? '' : 'none';
+		ui.descwiption2.stywe.dispway = visibiwities.descwiption && !(visibiwities.inputBox || visibiwities.checkAww) ? '' : 'none';
+		ui.checkAww.stywe.dispway = visibiwities.checkAww ? '' : 'none';
+		ui.fiwtewContaina.stywe.dispway = visibiwities.inputBox ? '' : 'none';
+		ui.visibweCountContaina.stywe.dispway = visibiwities.visibweCount ? '' : 'none';
+		ui.countContaina.stywe.dispway = visibiwities.count ? '' : 'none';
+		ui.okContaina.stywe.dispway = visibiwities.ok ? '' : 'none';
+		ui.customButtonContaina.stywe.dispway = visibiwities.customButton ? '' : 'none';
+		ui.message.stywe.dispway = visibiwities.message ? '' : 'none';
+		ui.pwogwessBaw.getContaina().stywe.dispway = visibiwities.pwogwessBaw ? '' : 'none';
+		ui.wist.dispway(!!visibiwities.wist);
+		ui.containa.cwassWist[visibiwities.checkBox ? 'add' : 'wemove']('show-checkboxes');
+		this.updateWayout(); // TODO
 	}
 
-	private setComboboxAccessibility(enabled: boolean) {
-		if (enabled !== this.comboboxAccessibility) {
+	pwivate setComboboxAccessibiwity(enabwed: boowean) {
+		if (enabwed !== this.comboboxAccessibiwity) {
 			const ui = this.getUI();
-			this.comboboxAccessibility = enabled;
-			if (this.comboboxAccessibility) {
-				ui.inputBox.setAttribute('role', 'combobox');
-				ui.inputBox.setAttribute('aria-haspopup', 'true');
-				ui.inputBox.setAttribute('aria-autocomplete', 'list');
-				ui.inputBox.setAttribute('aria-activedescendant', ui.list.getActiveDescendant() || '');
-			} else {
-				ui.inputBox.removeAttribute('role');
-				ui.inputBox.removeAttribute('aria-haspopup');
-				ui.inputBox.removeAttribute('aria-autocomplete');
-				ui.inputBox.removeAttribute('aria-activedescendant');
+			this.comboboxAccessibiwity = enabwed;
+			if (this.comboboxAccessibiwity) {
+				ui.inputBox.setAttwibute('wowe', 'combobox');
+				ui.inputBox.setAttwibute('awia-haspopup', 'twue');
+				ui.inputBox.setAttwibute('awia-autocompwete', 'wist');
+				ui.inputBox.setAttwibute('awia-activedescendant', ui.wist.getActiveDescendant() || '');
+			} ewse {
+				ui.inputBox.wemoveAttwibute('wowe');
+				ui.inputBox.wemoveAttwibute('awia-haspopup');
+				ui.inputBox.wemoveAttwibute('awia-autocompwete');
+				ui.inputBox.wemoveAttwibute('awia-activedescendant');
 			}
 		}
 	}
 
-	private setEnabled(enabled: boolean) {
-		if (enabled !== this.enabled) {
-			this.enabled = enabled;
-			for (const item of this.getUI().leftActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+	pwivate setEnabwed(enabwed: boowean) {
+		if (enabwed !== this.enabwed) {
+			this.enabwed = enabwed;
+			fow (const item of this.getUI().weftActionBaw.viewItems) {
+				(item as ActionViewItem).getAction().enabwed = enabwed;
 			}
-			for (const item of this.getUI().rightActionBar.viewItems) {
-				(item as ActionViewItem).getAction().enabled = enabled;
+			fow (const item of this.getUI().wightActionBaw.viewItems) {
+				(item as ActionViewItem).getAction().enabwed = enabwed;
 			}
-			this.getUI().checkAll.disabled = !enabled;
-			// this.getUI().inputBox.enabled = enabled; Avoid loosing focus.
-			this.getUI().ok.enabled = enabled;
-			this.getUI().list.enabled = enabled;
+			this.getUI().checkAww.disabwed = !enabwed;
+			// this.getUI().inputBox.enabwed = enabwed; Avoid woosing focus.
+			this.getUI().ok.enabwed = enabwed;
+			this.getUI().wist.enabwed = enabwed;
 		}
 	}
 
-	hide(reason?: QuickInputHideReason) {
-		const controller = this.controller;
-		if (controller) {
-			const focusChanged = !this.ui?.container.contains(document.activeElement);
-			this.controller = null;
-			this.onHideEmitter.fire();
-			this.getUI().container.style.display = 'none';
+	hide(weason?: QuickInputHideWeason) {
+		const contwowwa = this.contwowwa;
+		if (contwowwa) {
+			const focusChanged = !this.ui?.containa.contains(document.activeEwement);
+			this.contwowwa = nuww;
+			this.onHideEmitta.fiwe();
+			this.getUI().containa.stywe.dispway = 'none';
 			if (!focusChanged) {
-				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
-					this.previousFocusElement.focus();
-					this.previousFocusElement = undefined;
-				} else {
-					this.options.returnFocus();
+				if (this.pweviousFocusEwement && this.pweviousFocusEwement.offsetPawent) {
+					this.pweviousFocusEwement.focus();
+					this.pweviousFocusEwement = undefined;
+				} ewse {
+					this.options.wetuwnFocus();
 				}
 			}
-			controller.didHide(reason);
+			contwowwa.didHide(weason);
 		}
 	}
 
 	focus() {
-		if (this.isDisplayed()) {
+		if (this.isDispwayed()) {
 			this.getUI().inputBox.setFocus();
 		}
 	}
 
-	toggle() {
-		if (this.isDisplayed() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
-			this.getUI().list.toggleCheckbox();
+	toggwe() {
+		if (this.isDispwayed() && this.contwowwa instanceof QuickPick && this.contwowwa.canSewectMany) {
+			this.getUI().wist.toggweCheckbox();
 		}
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
-		if (this.isDisplayed() && this.getUI().list.isDisplayed()) {
-			this.getUI().list.focus(next ? QuickInputListFocus.Next : QuickInputListFocus.Previous);
-			if (quickNavigate && this.controller instanceof QuickPick) {
-				this.controller.quickNavigate = quickNavigate;
+	navigate(next: boowean, quickNavigate?: IQuickNavigateConfiguwation) {
+		if (this.isDispwayed() && this.getUI().wist.isDispwayed()) {
+			this.getUI().wist.focus(next ? QuickInputWistFocus.Next : QuickInputWistFocus.Pwevious);
+			if (quickNavigate && this.contwowwa instanceof QuickPick) {
+				this.contwowwa.quickNavigate = quickNavigate;
 			}
 		}
 	}
 
-	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false }) {
-		// When accepting the item programmatically, it is important that
-		// we update `keyMods` either from the provided set or unset it
-		// because the accept did not happen from mouse or keyboard
-		// interaction on the list itself
-		this.keyMods.alt = keyMods.alt;
-		this.keyMods.ctrlCmd = keyMods.ctrlCmd;
+	async accept(keyMods: IKeyMods = { awt: fawse, ctwwCmd: fawse }) {
+		// When accepting the item pwogwammaticawwy, it is impowtant that
+		// we update `keyMods` eitha fwom the pwovided set ow unset it
+		// because the accept did not happen fwom mouse ow keyboawd
+		// intewaction on the wist itsewf
+		this.keyMods.awt = keyMods.awt;
+		this.keyMods.ctwwCmd = keyMods.ctwwCmd;
 
-		this.onDidAcceptEmitter.fire();
+		this.onDidAcceptEmitta.fiwe();
 	}
 
 	async back() {
-		this.onDidTriggerButtonEmitter.fire(this.backButton);
+		this.onDidTwiggewButtonEmitta.fiwe(this.backButton);
 	}
 
-	async cancel() {
+	async cancew() {
 		this.hide();
 	}
 
-	layout(dimension: dom.IDimension, titleBarOffset: number): void {
+	wayout(dimension: dom.IDimension, titweBawOffset: numba): void {
 		this.dimension = dimension;
-		this.titleBarOffset = titleBarOffset;
-		this.updateLayout();
+		this.titweBawOffset = titweBawOffset;
+		this.updateWayout();
 	}
 
-	private updateLayout() {
+	pwivate updateWayout() {
 		if (this.ui) {
-			this.ui.container.style.top = `${this.titleBarOffset}px`;
+			this.ui.containa.stywe.top = `${this.titweBawOffset}px`;
 
-			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
-			style.width = width + 'px';
-			style.marginLeft = '-' + (width / 2) + 'px';
+			const stywe = this.ui.containa.stywe;
+			const width = Math.min(this.dimension!.width * 0.62 /* gowden cut */, QuickInputContwowwa.MAX_WIDTH);
+			stywe.width = width + 'px';
+			stywe.mawginWeft = '-' + (width / 2) + 'px';
 
-			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.inputBox.wayout();
+			this.ui.wist.wayout(this.dimension && this.dimension.height * 0.4);
 		}
 	}
 
-	applyStyles(styles: IQuickInputStyles) {
-		this.styles = styles;
-		this.updateStyles();
+	appwyStywes(stywes: IQuickInputStywes) {
+		this.stywes = stywes;
+		this.updateStywes();
 	}
 
-	private updateStyles() {
+	pwivate updateStywes() {
 		if (this.ui) {
 			const {
-				quickInputTitleBackground,
-				quickInputBackground,
-				quickInputForeground,
-				contrastBorder,
+				quickInputTitweBackgwound,
+				quickInputBackgwound,
+				quickInputFowegwound,
+				contwastBowda,
 				widgetShadow,
-			} = this.styles.widget;
-			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ? quickInputTitleBackground.toString() : '';
-			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
-			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
-			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
-			this.ui.inputBox.style(this.styles.inputBox);
-			this.ui.count.style(this.styles.countBadge);
-			this.ui.ok.style(this.styles.button);
-			this.ui.customButton.style(this.styles.button);
-			this.ui.progressBar.style(this.styles.progressBar);
-			this.ui.list.style(this.styles.list);
+			} = this.stywes.widget;
+			this.ui.titweBaw.stywe.backgwoundCowow = quickInputTitweBackgwound ? quickInputTitweBackgwound.toStwing() : '';
+			this.ui.containa.stywe.backgwoundCowow = quickInputBackgwound ? quickInputBackgwound.toStwing() : '';
+			this.ui.containa.stywe.cowow = quickInputFowegwound ? quickInputFowegwound.toStwing() : '';
+			this.ui.containa.stywe.bowda = contwastBowda ? `1px sowid ${contwastBowda}` : '';
+			this.ui.containa.stywe.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
+			this.ui.inputBox.stywe(this.stywes.inputBox);
+			this.ui.count.stywe(this.stywes.countBadge);
+			this.ui.ok.stywe(this.stywes.button);
+			this.ui.customButton.stywe(this.stywes.button);
+			this.ui.pwogwessBaw.stywe(this.stywes.pwogwessBaw);
+			this.ui.wist.stywe(this.stywes.wist);
 
-			const content: string[] = [];
-			if (this.styles.list.pickerGroupBorder) {
-				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
+			const content: stwing[] = [];
+			if (this.stywes.wist.pickewGwoupBowda) {
+				content.push(`.quick-input-wist .quick-input-wist-entwy { bowda-top-cowow:  ${this.stywes.wist.pickewGwoupBowda}; }`);
 			}
-			if (this.styles.list.pickerGroupForeground) {
-				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
+			if (this.stywes.wist.pickewGwoupFowegwound) {
+				content.push(`.quick-input-wist .quick-input-wist-sepawatow { cowow:  ${this.stywes.wist.pickewGwoupFowegwound}; }`);
 			}
 
 			if (
-				this.styles.keybindingLabel.keybindingLabelBackground ||
-				this.styles.keybindingLabel.keybindingLabelBorder ||
-				this.styles.keybindingLabel.keybindingLabelBottomBorder ||
-				this.styles.keybindingLabel.keybindingLabelShadow ||
-				this.styles.keybindingLabel.keybindingLabelForeground
+				this.stywes.keybindingWabew.keybindingWabewBackgwound ||
+				this.stywes.keybindingWabew.keybindingWabewBowda ||
+				this.stywes.keybindingWabew.keybindingWabewBottomBowda ||
+				this.stywes.keybindingWabew.keybindingWabewShadow ||
+				this.stywes.keybindingWabew.keybindingWabewFowegwound
 			) {
-				content.push('.quick-input-list .monaco-keybinding > .monaco-keybinding-key {');
-				if (this.styles.keybindingLabel.keybindingLabelBackground) {
-					content.push(`background-color: ${this.styles.keybindingLabel.keybindingLabelBackground};`);
+				content.push('.quick-input-wist .monaco-keybinding > .monaco-keybinding-key {');
+				if (this.stywes.keybindingWabew.keybindingWabewBackgwound) {
+					content.push(`backgwound-cowow: ${this.stywes.keybindingWabew.keybindingWabewBackgwound};`);
 				}
-				if (this.styles.keybindingLabel.keybindingLabelBorder) {
-					// Order matters here. `border-color` must come before `border-bottom-color`.
-					content.push(`border-color: ${this.styles.keybindingLabel.keybindingLabelBorder};`);
+				if (this.stywes.keybindingWabew.keybindingWabewBowda) {
+					// Owda mattews hewe. `bowda-cowow` must come befowe `bowda-bottom-cowow`.
+					content.push(`bowda-cowow: ${this.stywes.keybindingWabew.keybindingWabewBowda};`);
 				}
-				if (this.styles.keybindingLabel.keybindingLabelBottomBorder) {
-					content.push(`border-bottom-color: ${this.styles.keybindingLabel.keybindingLabelBottomBorder};`);
+				if (this.stywes.keybindingWabew.keybindingWabewBottomBowda) {
+					content.push(`bowda-bottom-cowow: ${this.stywes.keybindingWabew.keybindingWabewBottomBowda};`);
 				}
-				if (this.styles.keybindingLabel.keybindingLabelShadow) {
-					content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabel.keybindingLabelShadow};`);
+				if (this.stywes.keybindingWabew.keybindingWabewShadow) {
+					content.push(`box-shadow: inset 0 -1px 0 ${this.stywes.keybindingWabew.keybindingWabewShadow};`);
 				}
-				if (this.styles.keybindingLabel.keybindingLabelForeground) {
-					content.push(`color: ${this.styles.keybindingLabel.keybindingLabelForeground};`);
+				if (this.stywes.keybindingWabew.keybindingWabewFowegwound) {
+					content.push(`cowow: ${this.stywes.keybindingWabew.keybindingWabewFowegwound};`);
 				}
 				content.push('}');
 			}
 
-			const newStyles = content.join('\n');
-			if (newStyles !== this.ui.styleSheet.textContent) {
-				this.ui.styleSheet.textContent = newStyles;
+			const newStywes = content.join('\n');
+			if (newStywes !== this.ui.styweSheet.textContent) {
+				this.ui.styweSheet.textContent = newStywes;
 			}
 		}
 	}
 
-	private isDisplayed() {
-		return this.ui && this.ui.container.style.display !== 'none';
+	pwivate isDispwayed() {
+		wetuwn this.ui && this.ui.containa.stywe.dispway !== 'none';
 	}
 }

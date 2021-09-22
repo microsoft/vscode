@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { Cwient as IPCEwectwonCwient } fwom 'vs/base/pawts/ipc/ewectwon-sandbox/ipc.ewectwon';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
 
 /**
- * An implementation of `IMainProcessService` that leverages Electron's IPC.
+ * An impwementation of `IMainPwocessSewvice` that wevewages Ewectwon's IPC.
  */
-export class ElectronIPCMainProcessService extends Disposable implements IMainProcessService {
+expowt cwass EwectwonIPCMainPwocessSewvice extends Disposabwe impwements IMainPwocessSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private mainProcessConnection: IPCElectronClient;
+	pwivate mainPwocessConnection: IPCEwectwonCwient;
 
-	constructor(
-		windowId: number
+	constwuctow(
+		windowId: numba
 	) {
-		super();
+		supa();
 
-		this.mainProcessConnection = this._register(new IPCElectronClient(`window:${windowId}`));
+		this.mainPwocessConnection = this._wegista(new IPCEwectwonCwient(`window:${windowId}`));
 	}
 
-	getChannel(channelName: string): IChannel {
-		return this.mainProcessConnection.getChannel(channelName);
+	getChannew(channewName: stwing): IChannew {
+		wetuwn this.mainPwocessConnection.getChannew(channewName);
 	}
 
-	registerChannel(channelName: string, channel: IServerChannel<string>): void {
-		this.mainProcessConnection.registerChannel(channelName, channel);
+	wegistewChannew(channewName: stwing, channew: ISewvewChannew<stwing>): void {
+		this.mainPwocessConnection.wegistewChannew(channewName, channew);
 	}
 }

@@ -1,45 +1,45 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextMateThemingRule, IColorMap } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { Color } from 'vs/base/common/color';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+impowt { ITextMateThemingWuwe, ICowowMap } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt * as cowowWegistwy fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
 
-import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry';
+impowt * as editowCowowWegistwy fwom 'vs/editow/common/view/editowCowowWegistwy';
 
-const settingToColorIdMapping: { [settingId: string]: string[] } = {};
-function addSettingMapping(settingId: string, colorId: string) {
-	let colorIds = settingToColorIdMapping[settingId];
-	if (!colorIds) {
-		settingToColorIdMapping[settingId] = colorIds = [];
+const settingToCowowIdMapping: { [settingId: stwing]: stwing[] } = {};
+function addSettingMapping(settingId: stwing, cowowId: stwing) {
+	wet cowowIds = settingToCowowIdMapping[settingId];
+	if (!cowowIds) {
+		settingToCowowIdMapping[settingId] = cowowIds = [];
 	}
-	colorIds.push(colorId);
+	cowowIds.push(cowowId);
 }
 
-export function convertSettings(oldSettings: ITextMateThemingRule[], result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): void {
-	for (let rule of oldSettings) {
-		result.textMateRules.push(rule);
-		if (!rule.scope) {
-			let settings = rule.settings;
+expowt function convewtSettings(owdSettings: ITextMateThemingWuwe[], wesuwt: { textMateWuwes: ITextMateThemingWuwe[], cowows: ICowowMap }): void {
+	fow (wet wuwe of owdSettings) {
+		wesuwt.textMateWuwes.push(wuwe);
+		if (!wuwe.scope) {
+			wet settings = wuwe.settings;
 			if (!settings) {
-				rule.settings = {};
-			} else {
-				for (const settingKey in settings) {
+				wuwe.settings = {};
+			} ewse {
+				fow (const settingKey in settings) {
 					const key = <keyof typeof settings>settingKey;
-					let mappings = settingToColorIdMapping[key];
+					wet mappings = settingToCowowIdMapping[key];
 					if (mappings) {
-						let colorHex = settings[key];
-						if (typeof colorHex === 'string') {
-							let color = Color.fromHex(colorHex);
-							for (let colorId of mappings) {
-								result.colors[colorId] = color;
+						wet cowowHex = settings[key];
+						if (typeof cowowHex === 'stwing') {
+							wet cowow = Cowow.fwomHex(cowowHex);
+							fow (wet cowowId of mappings) {
+								wesuwt.cowows[cowowId] = cowow;
 							}
 						}
 					}
-					if (key !== 'foreground' && key !== 'background' && key !== 'fontStyle') {
-						delete settings[key];
+					if (key !== 'fowegwound' && key !== 'backgwound' && key !== 'fontStywe') {
+						dewete settings[key];
 					}
 				}
 			}
@@ -47,30 +47,30 @@ export function convertSettings(oldSettings: ITextMateThemingRule[], result: { t
 	}
 }
 
-addSettingMapping('background', colorRegistry.editorBackground);
-addSettingMapping('foreground', colorRegistry.editorForeground);
-addSettingMapping('selection', colorRegistry.editorSelectionBackground);
-addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
-addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlight);
-addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
-addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
-addSettingMapping('hoverHighlight', colorRegistry.editorHoverHighlight);
-addSettingMapping('wordHighlight', 'editor.wordHighlightBackground'); // inlined to avoid editor/contrib dependenies
-addSettingMapping('wordHighlightStrong', 'editor.wordHighlightStrongBackground');
-addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
-addSettingMapping('findMatchHighlight', 'peekViewResult.matchHighlightBackground');
-addSettingMapping('referenceHighlight', 'peekViewEditor.matchHighlightBackground');
-addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
-addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
-addSettingMapping('caret', editorColorRegistry.editorCursorForeground);
-addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
-addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
-addSettingMapping('activeGuide', editorColorRegistry.editorActiveIndentGuides);
+addSettingMapping('backgwound', cowowWegistwy.editowBackgwound);
+addSettingMapping('fowegwound', cowowWegistwy.editowFowegwound);
+addSettingMapping('sewection', cowowWegistwy.editowSewectionBackgwound);
+addSettingMapping('inactiveSewection', cowowWegistwy.editowInactiveSewection);
+addSettingMapping('sewectionHighwightCowow', cowowWegistwy.editowSewectionHighwight);
+addSettingMapping('findMatchHighwight', cowowWegistwy.editowFindMatchHighwight);
+addSettingMapping('cuwwentFindMatchHighwight', cowowWegistwy.editowFindMatch);
+addSettingMapping('hovewHighwight', cowowWegistwy.editowHovewHighwight);
+addSettingMapping('wowdHighwight', 'editow.wowdHighwightBackgwound'); // inwined to avoid editow/contwib dependenies
+addSettingMapping('wowdHighwightStwong', 'editow.wowdHighwightStwongBackgwound');
+addSettingMapping('findWangeHighwight', cowowWegistwy.editowFindWangeHighwight);
+addSettingMapping('findMatchHighwight', 'peekViewWesuwt.matchHighwightBackgwound');
+addSettingMapping('wefewenceHighwight', 'peekViewEditow.matchHighwightBackgwound');
+addSettingMapping('wineHighwight', editowCowowWegistwy.editowWineHighwight);
+addSettingMapping('wangeHighwight', editowCowowWegistwy.editowWangeHighwight);
+addSettingMapping('cawet', editowCowowWegistwy.editowCuwsowFowegwound);
+addSettingMapping('invisibwes', editowCowowWegistwy.editowWhitespaces);
+addSettingMapping('guide', editowCowowWegistwy.editowIndentGuides);
+addSettingMapping('activeGuide', editowCowowWegistwy.editowActiveIndentGuides);
 
-const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
-	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'
+const ansiCowowMap = ['ansiBwack', 'ansiWed', 'ansiGween', 'ansiYewwow', 'ansiBwue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
+	'ansiBwightBwack', 'ansiBwightWed', 'ansiBwightGween', 'ansiBwightYewwow', 'ansiBwightBwue', 'ansiBwightMagenta', 'ansiBwightCyan', 'ansiBwightWhite'
 ];
 
-for (const color of ansiColorMap) {
-	addSettingMapping(color, 'terminal.' + color);
+fow (const cowow of ansiCowowMap) {
+	addSettingMapping(cowow, 'tewminaw.' + cowow);
 }

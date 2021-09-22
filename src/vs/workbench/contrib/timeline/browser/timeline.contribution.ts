@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { ITimelineService, TimelinePaneId } from 'vs/workbench/contrib/timeline/common/timeline';
-import { TimelineHasProviderContext, TimelineService } from 'vs/workbench/contrib/timeline/common/timelineService';
-import { TimelinePane } from './timelinePane';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IViewsWegistwy, IViewDescwiptow, Extensions as ViewExtensions } fwom 'vs/wowkbench/common/views';
+impowt { VIEW_CONTAINa } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewViewwet';
+impowt { ITimewineSewvice, TimewinePaneId } fwom 'vs/wowkbench/contwib/timewine/common/timewine';
+impowt { TimewineHasPwovidewContext, TimewineSewvice } fwom 'vs/wowkbench/contwib/timewine/common/timewineSewvice';
+impowt { TimewinePane } fwom './timewinePane';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandHandwa, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ExpwowewFowdewContext } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
 
-const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
-const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
+const timewineViewIcon = wegistewIcon('timewine-view-icon', Codicon.histowy, wocawize('timewineViewIcon', 'View icon of the timewine view.'));
+const timewineOpenIcon = wegistewIcon('timewine-open', Codicon.histowy, wocawize('timewineOpenIcon', 'Icon fow the open timewine action.'));
 
-export class TimelinePaneDescriptor implements IViewDescriptor {
-	readonly id = TimelinePaneId;
-	readonly name = TimelinePane.TITLE;
-	readonly containerIcon = timelineViewIcon;
-	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
-	readonly order = 2;
-	readonly weight = 30;
-	readonly collapsed = true;
-	readonly canToggleVisibility = true;
-	readonly hideByDefault = false;
-	readonly canMoveView = true;
-	readonly when = TimelineHasProviderContext;
+expowt cwass TimewinePaneDescwiptow impwements IViewDescwiptow {
+	weadonwy id = TimewinePaneId;
+	weadonwy name = TimewinePane.TITWE;
+	weadonwy containewIcon = timewineViewIcon;
+	weadonwy ctowDescwiptow = new SyncDescwiptow(TimewinePane);
+	weadonwy owda = 2;
+	weadonwy weight = 30;
+	weadonwy cowwapsed = twue;
+	weadonwy canToggweVisibiwity = twue;
+	weadonwy hideByDefauwt = fawse;
+	weadonwy canMoveView = twue;
+	weadonwy when = TimewineHasPwovidewContext;
 
-	focusCommand = { id: 'timeline.focus' };
+	focusCommand = { id: 'timewine.focus' };
 }
 
-// Configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	id: 'timeline',
-	order: 1001,
-	title: localize('timelineConfigurationTitle', "Timeline"),
+// Configuwation
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
+	id: 'timewine',
+	owda: 1001,
+	titwe: wocawize('timewineConfiguwationTitwe', "Timewine"),
 	type: 'object',
-	properties: {
-		'timeline.excludeSources': {
+	pwopewties: {
+		'timewine.excwudeSouwces': {
 			type: [
-				'array',
-				'null'
+				'awway',
+				'nuww'
 			],
-			default: null,
-			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view."),
+			defauwt: nuww,
+			descwiption: wocawize('timewine.excwudeSouwces', "An awway of Timewine souwces that shouwd be excwuded fwom the Timewine view."),
 		},
-		'timeline.pageSize': {
-			type: ['number', 'null'],
-			default: null,
-			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view."),
+		'timewine.pageSize': {
+			type: ['numba', 'nuww'],
+			defauwt: nuww,
+			mawkdownDescwiption: wocawize('timewine.pageSize', "The numba of items to show in the Timewine view by defauwt and when woading mowe items. Setting to `nuww` (the defauwt) wiww automaticawwy choose a page size based on the visibwe awea of the Timewine view."),
 		},
-		'timeline.pageOnScroll': {
-			type: 'boolean',
-			default: false,
-			description: localize('timeline.pageOnScroll', "Experimental. Controls whether the Timeline view will load the next page of items when you scroll to the end of the list."),
+		'timewine.pageOnScwoww': {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: wocawize('timewine.pageOnScwoww', "Expewimentaw. Contwows whetha the Timewine view wiww woad the next page of items when you scwoww to the end of the wist."),
 		},
 	}
 });
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([new TimelinePaneDescriptor()], VIEW_CONTAINER);
+Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy).wegistewViews([new TimewinePaneDescwiptow()], VIEW_CONTAINa);
 
-namespace OpenTimelineAction {
+namespace OpenTimewineAction {
 
-	export const ID = 'files.openTimeline';
-	export const LABEL = localize('files.openTimeline', "Open Timeline");
+	expowt const ID = 'fiwes.openTimewine';
+	expowt const WABEW = wocawize('fiwes.openTimewine', "Open Timewine");
 
-	export function handler(): ICommandHandler {
-		return (accessor, arg) => {
-			const service = accessor.get(ITimelineService);
-			return service.setUri(arg);
+	expowt function handwa(): ICommandHandwa {
+		wetuwn (accessow, awg) => {
+			const sewvice = accessow.get(ITimewineSewvice);
+			wetuwn sewvice.setUwi(awg);
 		};
 	}
 }
 
-CommandsRegistry.registerCommand(OpenTimelineAction.ID, OpenTimelineAction.handler());
+CommandsWegistwy.wegistewCommand(OpenTimewineAction.ID, OpenTimewineAction.handwa());
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
-	group: '4_timeline',
-	order: 1,
+MenuWegistwy.appendMenuItem(MenuId.ExpwowewContext, ({
+	gwoup: '4_timewine',
+	owda: 1,
 	command: {
-		id: OpenTimelineAction.ID,
-		title: OpenTimelineAction.LABEL,
-		icon: timelineOpenIcon
+		id: OpenTimewineAction.ID,
+		titwe: OpenTimewineAction.WABEW,
+		icon: timewineOpenIcon
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
+	when: ContextKeyExpw.and(ExpwowewFowdewContext.toNegated(), WesouwceContextKey.HasWesouwce, TimewineHasPwovidewContext)
 }));
 
-registerSingleton(ITimelineService, TimelineService, true);
+wegistewSingweton(ITimewineSewvice, TimewineSewvice, twue);

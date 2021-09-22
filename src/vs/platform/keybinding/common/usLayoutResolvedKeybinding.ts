@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding, KeyCode, KeyCodeUtils, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
+impowt { Keybinding, KeyCode, KeyCodeUtiws, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { BaseWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/baseWesowvedKeybinding';
 
 /**
- * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
+ * Do not instantiate. Use KeybindingSewvice to get a WesowvedKeybinding seeded with infowmation about the cuwwent kb wayout.
  */
-export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKeybinding> {
+expowt cwass USWayoutWesowvedKeybinding extends BaseWesowvedKeybinding<SimpweKeybinding> {
 
-	constructor(actual: Keybinding, os: OperatingSystem) {
-		super(os, actual.parts);
+	constwuctow(actuaw: Keybinding, os: OpewatingSystem) {
+		supa(os, actuaw.pawts);
 	}
 
-	private _keyCodeToUILabel(keyCode: KeyCode): string {
-		if (this._os === OperatingSystem.Macintosh) {
+	pwivate _keyCodeToUIWabew(keyCode: KeyCode): stwing {
+		if (this._os === OpewatingSystem.Macintosh) {
 			switch (keyCode) {
-				case KeyCode.LeftArrow:
-					return '←';
-				case KeyCode.UpArrow:
-					return '↑';
-				case KeyCode.RightArrow:
-					return '→';
-				case KeyCode.DownArrow:
-					return '↓';
+				case KeyCode.WeftAwwow:
+					wetuwn '←';
+				case KeyCode.UpAwwow:
+					wetuwn '↑';
+				case KeyCode.WightAwwow:
+					wetuwn '→';
+				case KeyCode.DownAwwow:
+					wetuwn '↓';
 			}
 		}
-		return KeyCodeUtils.toString(keyCode);
+		wetuwn KeyCodeUtiws.toStwing(keyCode);
 	}
 
-	protected _getLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		return this._keyCodeToUILabel(keybinding.keyCode);
+		wetuwn this._keyCodeToUIWabew(keybinding.keyCode);
 	}
 
-	protected _getAriaLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getAwiaWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		return KeyCodeUtils.toString(keybinding.keyCode);
+		wetuwn KeyCodeUtiws.toStwing(keybinding.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
+	pwivate _keyCodeToEwectwonAccewewatow(keyCode: KeyCode): stwing | nuww {
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
+			// Ewectwon cannot handwe numpad keys
+			wetuwn nuww;
 		}
 
 		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
+			case KeyCode.UpAwwow:
+				wetuwn 'Up';
+			case KeyCode.DownAwwow:
+				wetuwn 'Down';
+			case KeyCode.WeftAwwow:
+				wetuwn 'Weft';
+			case KeyCode.WightAwwow:
+				wetuwn 'Wight';
 		}
 
-		return KeyCodeUtils.toString(keyCode);
+		wetuwn KeyCodeUtiws.toStwing(keyCode);
 	}
 
-	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
+	pwotected _getEwectwonAccewewatow(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn nuww;
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+		wetuwn this._keyCodeToEwectwonAccewewatow(keybinding.keyCode);
 	}
 
-	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return '';
+	pwotected _getUsewSettingsWabew(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isDupwicateModifiewCase()) {
+			wetuwn '';
 		}
-		const result = KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
-		return (result ? result.toLowerCase() : result);
+		const wesuwt = KeyCodeUtiws.toUsewSettingsUS(keybinding.keyCode);
+		wetuwn (wesuwt ? wesuwt.toWowewCase() : wesuwt);
 	}
 
-	protected _isWYSIWYG(): boolean {
-		return true;
+	pwotected _isWYSIWYG(): boowean {
+		wetuwn twue;
 	}
 
-	protected _getDispatchPart(keybinding: SimpleKeybinding): string | null {
-		return USLayoutResolvedKeybinding.getDispatchStr(keybinding);
+	pwotected _getDispatchPawt(keybinding: SimpweKeybinding): stwing | nuww {
+		wetuwn USWayoutWesowvedKeybinding.getDispatchStw(keybinding);
 	}
 
-	public static getDispatchStr(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isModifierKey()) {
-			return null;
+	pubwic static getDispatchStw(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.isModifiewKey()) {
+			wetuwn nuww;
 		}
-		let result = '';
+		wet wesuwt = '';
 
-		if (keybinding.ctrlKey) {
-			result += 'ctrl+';
+		if (keybinding.ctwwKey) {
+			wesuwt += 'ctww+';
 		}
 		if (keybinding.shiftKey) {
-			result += 'shift+';
+			wesuwt += 'shift+';
 		}
-		if (keybinding.altKey) {
-			result += 'alt+';
+		if (keybinding.awtKey) {
+			wesuwt += 'awt+';
 		}
 		if (keybinding.metaKey) {
-			result += 'meta+';
+			wesuwt += 'meta+';
 		}
-		result += KeyCodeUtils.toString(keybinding.keyCode);
+		wesuwt += KeyCodeUtiws.toStwing(keybinding.keyCode);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
-			return 'ctrl';
+	pwotected _getSingweModifiewDispatchPawt(keybinding: SimpweKeybinding): stwing | nuww {
+		if (keybinding.keyCode === KeyCode.Ctww && !keybinding.shiftKey && !keybinding.awtKey && !keybinding.metaKey) {
+			wetuwn 'ctww';
 		}
-		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
-			return 'shift';
+		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctwwKey && !keybinding.awtKey && !keybinding.metaKey) {
+			wetuwn 'shift';
 		}
-		if (keybinding.keyCode === KeyCode.Alt && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
-			return 'alt';
+		if (keybinding.keyCode === KeyCode.Awt && !keybinding.ctwwKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			wetuwn 'awt';
 		}
-		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
-			return 'meta';
+		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctwwKey && !keybinding.shiftKey && !keybinding.awtKey) {
+			wetuwn 'meta';
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

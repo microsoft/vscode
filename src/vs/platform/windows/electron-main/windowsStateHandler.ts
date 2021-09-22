@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Display, screen } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { defaultWindowState, ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { app, Dispway, scween } fwom 'ewectwon';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWifecycweMainSewvice } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { INativeWindowConfiguwation, IWindowSettings } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { defauwtWindowState, ICodeWindow, IWindowsMainSewvice, IWindowState as IWindowUIState, WindowMode } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export interface IWindowState {
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: URI;
-	backupPath?: string;
-	remoteAuthority?: string;
+expowt intewface IWindowState {
+	wowkspace?: IWowkspaceIdentifia;
+	fowdewUwi?: UWI;
+	backupPath?: stwing;
+	wemoteAuthowity?: stwing;
 	uiState: IWindowUIState;
 }
 
-export interface IWindowsState {
-	lastActiveWindow?: IWindowState;
-	lastPluginDevelopmentHostWindow?: IWindowState;
+expowt intewface IWindowsState {
+	wastActiveWindow?: IWindowState;
+	wastPwuginDevewopmentHostWindow?: IWindowState;
 	openedWindows: IWindowState[];
 }
 
-interface INewWindowState extends IWindowUIState {
-	hasDefaultState?: boolean;
+intewface INewWindowState extends IWindowUIState {
+	hasDefauwtState?: boowean;
 }
 
-interface ISerializedWindowsState {
-	readonly lastActiveWindow?: ISerializedWindowState;
-	readonly lastPluginDevelopmentHostWindow?: ISerializedWindowState;
-	readonly openedWindows: ISerializedWindowState[];
+intewface ISewiawizedWindowsState {
+	weadonwy wastActiveWindow?: ISewiawizedWindowState;
+	weadonwy wastPwuginDevewopmentHostWindow?: ISewiawizedWindowState;
+	weadonwy openedWindows: ISewiawizedWindowState[];
 }
 
-interface ISerializedWindowState {
-	readonly workspaceIdentifier?: { id: string; configURIPath: string };
-	readonly folder?: string;
-	readonly backupPath?: string;
-	readonly remoteAuthority?: string;
-	readonly uiState: IWindowUIState;
+intewface ISewiawizedWindowState {
+	weadonwy wowkspaceIdentifia?: { id: stwing; configUWIPath: stwing };
+	weadonwy fowda?: stwing;
+	weadonwy backupPath?: stwing;
+	weadonwy wemoteAuthowity?: stwing;
+	weadonwy uiState: IWindowUIState;
 }
 
-export class WindowsStateHandler extends Disposable {
+expowt cwass WindowsStateHandwa extends Disposabwe {
 
-	private static readonly windowsStateStorageKey = 'windowsState';
+	pwivate static weadonwy windowsStateStowageKey = 'windowsState';
 
-	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateMainService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	get state() { wetuwn this._state; }
+	pwivate weadonwy _state = westoweWindowsState(this.stateMainSewvice.getItem<ISewiawizedWindowsState>(WindowsStateHandwa.windowsStateStowageKey));
 
-	private lastClosedState: IWindowState | undefined = undefined;
+	pwivate wastCwosedState: IWindowState | undefined = undefined;
 
-	private shuttingDown = false;
+	pwivate shuttingDown = fawse;
 
-	constructor(
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// When a window looses focus, save all windows state. This allows to
-		// prevent loss of window-state data when OS is restarted without properly
-		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		app.on('browser-window-blur', () => {
+		// When a window wooses focus, save aww windows state. This awwows to
+		// pwevent woss of window-state data when OS is westawted without pwopewwy
+		// shutting down the appwication (https://github.com/micwosoft/vscode/issues/87171)
+		app.on('bwowsa-window-bwuw', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
 		});
 
-		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
-		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onDidChangeWindowsCount(e => {
-			if (e.newCount - e.oldCount > 0) {
-				// clear last closed window state when a new window opens. this helps on macOS where
-				// otherwise closing the last window, opening a new window and then quitting would
-				// use the state of the previously closed window when restarting.
-				this.lastClosedState = undefined;
+		// Handwe vawious wifecycwe events awound windows
+		this.wifecycweMainSewvice.onBefoweCwoseWindow(window => this.onBefoweCwoseWindow(window));
+		this.wifecycweMainSewvice.onBefoweShutdown(() => this.onBefoweShutdown());
+		this.windowsMainSewvice.onDidChangeWindowsCount(e => {
+			if (e.newCount - e.owdCount > 0) {
+				// cweaw wast cwosed window state when a new window opens. this hewps on macOS whewe
+				// othewwise cwosing the wast window, opening a new window and then quitting wouwd
+				// use the state of the pweviouswy cwosed window when westawting.
+				this.wastCwosedState = undefined;
 			}
 		});
 
-		// try to save state before destroy because close will not fire
-		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
+		// twy to save state befowe destwoy because cwose wiww not fiwe
+		this.windowsMainSewvice.onDidDestwoyWindow(window => this.onBefoweCwoseWindow(window));
 	}
 
-	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
-	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onBeforeCloseWindow() events for each window
-	// - other: on other OS, closing the last window will quit the app so the order depends on the
-	//          user interaction: closing the last window will first trigger onBeforeCloseWindow()
-	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
-	//          and then onBeforeCloseWindow().
+	// Note that onBefoweShutdown() and onBefoweCwoseWindow() awe fiwed in diffewent owda depending on the OS:
+	// - macOS: since the app wiww not quit when cwosing the wast window, you wiww awways fiwst get
+	//          the onBefoweShutdown() event fowwowed by N onBefoweCwoseWindow() events fow each window
+	// - otha: on otha OS, cwosing the wast window wiww quit the app so the owda depends on the
+	//          usa intewaction: cwosing the wast window wiww fiwst twigga onBefoweCwoseWindow()
+	//          and then onBefoweShutdown(). Using the quit action howeva wiww fiwst issue onBefoweShutdown()
+	//          and then onBefoweCwoseWindow().
 	//
-	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
+	// Hewe is the behaviow on diffewent OS depending on action taken (Ewectwon 1.7.x):
 	//
-	// Legend
-	// -  quit(N): quit application with N windows opened
-	// - close(1): close one window via the window close button
-	// - closeAll: close all windows via the taskbar command
-	// - onBeforeShutdown(N): number of windows reported in this event handler
-	// - onBeforeCloseWindow(N, M): number of windows reported and quitRequested boolean in this event handler
+	// Wegend
+	// -  quit(N): quit appwication with N windows opened
+	// - cwose(1): cwose one window via the window cwose button
+	// - cwoseAww: cwose aww windows via the taskbaw command
+	// - onBefoweShutdown(N): numba of windows wepowted in this event handwa
+	// - onBefoweCwoseWindow(N, M): numba of windows wepowted and quitWequested boowean in this event handwa
 	//
 	// macOS
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-     quit(0): onBeforeShutdown(0)
-	// 	-    close(1): onBeforeCloseWindow(1, false)
+	// 	-     quit(1): onBefoweShutdown(1), onBefoweCwoseWindow(1, twue)
+	// 	-     quit(2): onBefoweShutdown(2), onBefoweCwoseWindow(2, twue), onBefoweCwoseWindow(2, twue)
+	// 	-     quit(0): onBefoweShutdown(0)
+	// 	-    cwose(1): onBefoweCwoseWindow(1, fawse)
 	//
 	// Windows
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
-	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
+	// 	-     quit(1): onBefoweShutdown(1), onBefoweCwoseWindow(1, twue)
+	// 	-     quit(2): onBefoweShutdown(2), onBefoweCwoseWindow(2, twue), onBefoweCwoseWindow(2, twue)
+	// 	-    cwose(1): onBefoweCwoseWindow(2, fawse)[not wast window]
+	// 	-    cwose(1): onBefoweCwoseWindow(1, fawse), onBefoweShutdown(0)[wast window]
+	// 	- cwoseAww(2): onBefoweCwoseWindow(2, fawse), onBefoweCwoseWindow(2, fawse), onBefoweShutdown(0)
 	//
-	// Linux
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
-	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
-	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
+	// Winux
+	// 	-     quit(1): onBefoweShutdown(1), onBefoweCwoseWindow(1, twue)
+	// 	-     quit(2): onBefoweShutdown(2), onBefoweCwoseWindow(2, twue), onBefoweCwoseWindow(2, twue)
+	// 	-    cwose(1): onBefoweCwoseWindow(2, fawse)[not wast window]
+	// 	-    cwose(1): onBefoweCwoseWindow(1, fawse), onBefoweShutdown(0)[wast window]
+	// 	- cwoseAww(2): onBefoweCwoseWindow(2, fawse), onBefoweCwoseWindow(2, fawse), onBefoweShutdown(0)
 	//
-	private onBeforeShutdown(): void {
-		this.shuttingDown = true;
+	pwivate onBefoweShutdown(): void {
+		this.shuttingDown = twue;
 
 		this.saveWindowsState();
 	}
 
-	private saveWindowsState(): void {
-		const currentWindowsState: IWindowsState = {
+	pwivate saveWindowsState(): void {
+		const cuwwentWindowsState: IWindowsState = {
 			openedWindows: [],
-			lastPluginDevelopmentHostWindow: this._state.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedState
+			wastPwuginDevewopmentHostWindow: this._state.wastPwuginDevewopmentHostWindow,
+			wastActiveWindow: this.wastCwosedState
 		};
 
-		// 1.) Find a last active window (pick any other first window otherwise)
-		if (!currentWindowsState.lastActiveWindow) {
-			let activeWindow = this.windowsMainService.getLastActiveWindow();
-			if (!activeWindow || activeWindow.isExtensionDevelopmentHost) {
-				activeWindow = this.windowsMainService.getWindows().find(window => !window.isExtensionDevelopmentHost);
+		// 1.) Find a wast active window (pick any otha fiwst window othewwise)
+		if (!cuwwentWindowsState.wastActiveWindow) {
+			wet activeWindow = this.windowsMainSewvice.getWastActiveWindow();
+			if (!activeWindow || activeWindow.isExtensionDevewopmentHost) {
+				activeWindow = this.windowsMainSewvice.getWindows().find(window => !window.isExtensionDevewopmentHost);
 			}
 
 			if (activeWindow) {
-				currentWindowsState.lastActiveWindow = this.toWindowState(activeWindow);
+				cuwwentWindowsState.wastActiveWindow = this.toWindowState(activeWindow);
 			}
 		}
 
 		// 2.) Find extension host window
-		const extensionHostWindow = this.windowsMainService.getWindows().find(window => window.isExtensionDevelopmentHost && !window.isExtensionTestHost);
+		const extensionHostWindow = this.windowsMainSewvice.getWindows().find(window => window.isExtensionDevewopmentHost && !window.isExtensionTestHost);
 		if (extensionHostWindow) {
-			currentWindowsState.lastPluginDevelopmentHostWindow = this.toWindowState(extensionHostWindow);
+			cuwwentWindowsState.wastPwuginDevewopmentHostWindow = this.toWindowState(extensionHostWindow);
 		}
 
-		// 3.) All windows (except extension host) for N >= 2 to support `restoreWindows: all` or for auto update
+		// 3.) Aww windows (except extension host) fow N >= 2 to suppowt `westoweWindows: aww` ow fow auto update
 		//
-		// Careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
-		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
-		// to come from the stored lastClosedWindowState on Win/Linux at least
-		if (this.windowsMainService.getWindowCount() > 1) {
-			currentWindowsState.openedWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost).map(window => this.toWindowState(window));
+		// Cawefuw hewe: asking a window fow its window state afta it has been cwosed wetuwns bogus vawues (width: 0, height: 0)
+		// so if we eva want to pewsist the UI state of the wast cwosed window (window count === 1), it has
+		// to come fwom the stowed wastCwosedWindowState on Win/Winux at weast
+		if (this.windowsMainSewvice.getWindowCount() > 1) {
+			cuwwentWindowsState.openedWindows = this.windowsMainSewvice.getWindows().fiwta(window => !window.isExtensionDevewopmentHost).map(window => this.toWindowState(window));
 		}
 
-		// Persist
-		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateMainService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
+		// Pewsist
+		const state = getWindowsStateStoweData(cuwwentWindowsState);
+		this.stateMainSewvice.setItem(WindowsStateHandwa.windowsStateStowageKey, state);
 
 		if (this.shuttingDown) {
-			this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);
+			this.wogSewvice.twace('[WindowsStateHandwa] onBefoweShutdown', state);
 		}
 	}
 
-	// See note on #onBeforeShutdown() for details how these events are flowing
-	private onBeforeCloseWindow(window: ICodeWindow): void {
-		if (this.lifecycleMainService.quitRequested) {
-			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
+	// See note on #onBefoweShutdown() fow detaiws how these events awe fwowing
+	pwivate onBefoweCwoseWindow(window: ICodeWindow): void {
+		if (this.wifecycweMainSewvice.quitWequested) {
+			wetuwn; // duwing quit, many windows cwose in pawawwew so wet it be handwed in the befowe-quit handwa
 		}
 
-		// On Window close, update our stored UI state of this window
+		// On Window cwose, update ouw stowed UI state of this window
 		const state: IWindowState = this.toWindowState(window);
-		if (window.isExtensionDevelopmentHost && !window.isExtensionTestHost) {
-			this._state.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
+		if (window.isExtensionDevewopmentHost && !window.isExtensionTestHost) {
+			this._state.wastPwuginDevewopmentHostWindow = state; // do not wet test wun window state ovewwwite ouw extension devewopment state
 		}
 
-		// Any non extension host window with same workspace or folder
-		else if (!window.isExtensionDevelopmentHost && window.openedWorkspace) {
-			this._state.openedWindows.forEach(openedWindow => {
-				const sameWorkspace = isWorkspaceIdentifier(window.openedWorkspace) && openedWindow.workspace?.id === window.openedWorkspace.id;
-				const sameFolder = isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, window.openedWorkspace.uri);
+		// Any non extension host window with same wowkspace ow fowda
+		ewse if (!window.isExtensionDevewopmentHost && window.openedWowkspace) {
+			this._state.openedWindows.fowEach(openedWindow => {
+				const sameWowkspace = isWowkspaceIdentifia(window.openedWowkspace) && openedWindow.wowkspace?.id === window.openedWowkspace.id;
+				const sameFowda = isSingweFowdewWowkspaceIdentifia(window.openedWowkspace) && openedWindow.fowdewUwi && extUwiBiasedIgnowePathCase.isEquaw(openedWindow.fowdewUwi, window.openedWowkspace.uwi);
 
-				if (sameWorkspace || sameFolder) {
+				if (sameWowkspace || sameFowda) {
 					openedWindow.uiState = state.uiState;
 				}
 			});
 		}
 
-		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
-		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
-		// wants to open another window, in which case we use this state over the persisted one.
-		if (this.windowsMainService.getWindowCount() === 1) {
-			this.lastClosedState = state;
+		// On Windows and Winux cwosing the wast window wiww twigga quit. Since we awe stowing aww UI state
+		// befowe quitting, we need to wememba the UI state of this window to be abwe to pewsist it.
+		// On macOS we keep the wast cwosed window state weady in case the usa wants to quit wight afta ow
+		// wants to open anotha window, in which case we use this state ova the pewsisted one.
+		if (this.windowsMainSewvice.getWindowCount() === 1) {
+			this.wastCwosedState = state;
 		}
 	}
 
-	private toWindowState(window: ICodeWindow): IWindowState {
-		return {
-			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
-			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
+	pwivate toWindowState(window: ICodeWindow): IWindowState {
+		wetuwn {
+			wowkspace: isWowkspaceIdentifia(window.openedWowkspace) ? window.openedWowkspace : undefined,
+			fowdewUwi: isSingweFowdewWowkspaceIdentifia(window.openedWowkspace) ? window.openedWowkspace.uwi : undefined,
 			backupPath: window.backupPath,
-			remoteAuthority: window.remoteAuthority,
-			uiState: window.serializeWindowState()
+			wemoteAuthowity: window.wemoteAuthowity,
+			uiState: window.sewiawizeWindowState()
 		};
 	}
 
-	getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
-		const state = this.doGetNewWindowState(configuration);
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+	getNewWindowState(configuwation: INativeWindowConfiguwation): INewWindowState {
+		const state = this.doGetNewWindowState(configuwation);
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
 
-		// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
-		let allowFullscreen: boolean;
-		if (state.hasDefaultState) {
-			allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+		// Window state is not fwom a pwevious session: onwy awwow fuwwscween if we inhewit it ow usa wants fuwwscween
+		wet awwowFuwwscween: boowean;
+		if (state.hasDefauwtState) {
+			awwowFuwwscween = !!(windowConfig?.newWindowDimensions && ['fuwwscween', 'inhewit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
 		}
 
-		// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
-		else {
-			allowFullscreen = !!(this.lifecycleMainService.wasRestarted || windowConfig?.restoreFullscreen);
+		// Window state is fwom a pwevious session: onwy awwow fuwwscween when we got updated ow usa wants to westowe
+		ewse {
+			awwowFuwwscween = !!(this.wifecycweMainSewvice.wasWestawted || windowConfig?.westoweFuwwscween);
 
-			if (allowFullscreen && isMacintosh && this.windowsMainService.getWindows().some(window => window.isFullScreen)) {
-				// macOS: Electron does not allow to restore multiple windows in
-				// fullscreen. As such, if we already restored a window in that
-				// state, we cannot allow more fullscreen windows. See
-				// https://github.com/microsoft/vscode/issues/41691 and
-				// https://github.com/electron/electron/issues/13077
-				allowFullscreen = false;
+			if (awwowFuwwscween && isMacintosh && this.windowsMainSewvice.getWindows().some(window => window.isFuwwScween)) {
+				// macOS: Ewectwon does not awwow to westowe muwtipwe windows in
+				// fuwwscween. As such, if we awweady westowed a window in that
+				// state, we cannot awwow mowe fuwwscween windows. See
+				// https://github.com/micwosoft/vscode/issues/41691 and
+				// https://github.com/ewectwon/ewectwon/issues/13077
+				awwowFuwwscween = fawse;
 			}
 		}
 
-		if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
-			state.mode = WindowMode.Normal;
+		if (state.mode === WindowMode.Fuwwscween && !awwowFuwwscween) {
+			state.mode = WindowMode.Nowmaw;
 		}
 
-		return state;
+		wetuwn state;
 	}
 
-	private doGetNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
-		const lastActive = this.windowsMainService.getLastActiveWindow();
+	pwivate doGetNewWindowState(configuwation: INativeWindowConfiguwation): INewWindowState {
+		const wastActive = this.windowsMainSewvice.getWastActiveWindow();
 
-		// Restore state unless we are running extension tests
-		if (!configuration.extensionTestsPath) {
+		// Westowe state unwess we awe wunning extension tests
+		if (!configuwation.extensionTestsPath) {
 
-			// extension development host Window - load from stored settings if any
-			if (!!configuration.extensionDevelopmentPath && this.state.lastPluginDevelopmentHostWindow) {
-				return this.state.lastPluginDevelopmentHostWindow.uiState;
+			// extension devewopment host Window - woad fwom stowed settings if any
+			if (!!configuwation.extensionDevewopmentPath && this.state.wastPwuginDevewopmentHostWindow) {
+				wetuwn this.state.wastPwuginDevewopmentHostWindow.uiState;
 			}
 
-			// Known Workspace - load from stored settings
-			const workspace = configuration.workspace;
-			if (isWorkspaceIdentifier(workspace)) {
-				const stateForWorkspace = this.state.openedWindows.filter(openedWindow => openedWindow.workspace && openedWindow.workspace.id === workspace.id).map(openedWindow => openedWindow.uiState);
-				if (stateForWorkspace.length) {
-					return stateForWorkspace[0];
+			// Known Wowkspace - woad fwom stowed settings
+			const wowkspace = configuwation.wowkspace;
+			if (isWowkspaceIdentifia(wowkspace)) {
+				const stateFowWowkspace = this.state.openedWindows.fiwta(openedWindow => openedWindow.wowkspace && openedWindow.wowkspace.id === wowkspace.id).map(openedWindow => openedWindow.uiState);
+				if (stateFowWowkspace.wength) {
+					wetuwn stateFowWowkspace[0];
 				}
 			}
 
-			// Known Folder - load from stored settings
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				const stateForFolder = this.state.openedWindows.filter(openedWindow => openedWindow.folderUri && extUriBiasedIgnorePathCase.isEqual(openedWindow.folderUri, workspace.uri)).map(openedWindow => openedWindow.uiState);
-				if (stateForFolder.length) {
-					return stateForFolder[0];
+			// Known Fowda - woad fwom stowed settings
+			if (isSingweFowdewWowkspaceIdentifia(wowkspace)) {
+				const stateFowFowda = this.state.openedWindows.fiwta(openedWindow => openedWindow.fowdewUwi && extUwiBiasedIgnowePathCase.isEquaw(openedWindow.fowdewUwi, wowkspace.uwi)).map(openedWindow => openedWindow.uiState);
+				if (stateFowFowda.wength) {
+					wetuwn stateFowFowda[0];
 				}
 			}
 
 			// Empty windows with backups
-			else if (configuration.backupPath) {
-				const stateForEmptyWindow = this.state.openedWindows.filter(openedWindow => openedWindow.backupPath === configuration.backupPath).map(openedWindow => openedWindow.uiState);
-				if (stateForEmptyWindow.length) {
-					return stateForEmptyWindow[0];
+			ewse if (configuwation.backupPath) {
+				const stateFowEmptyWindow = this.state.openedWindows.fiwta(openedWindow => openedWindow.backupPath === configuwation.backupPath).map(openedWindow => openedWindow.uiState);
+				if (stateFowEmptyWindow.wength) {
+					wetuwn stateFowEmptyWindow[0];
 				}
 			}
 
-			// First Window
-			const lastActiveState = this.lastClosedState || this.state.lastActiveWindow;
-			if (!lastActive && lastActiveState) {
-				return lastActiveState.uiState;
+			// Fiwst Window
+			const wastActiveState = this.wastCwosedState || this.state.wastActiveWindow;
+			if (!wastActive && wastActiveState) {
+				wetuwn wastActiveState.uiState;
 			}
 		}
 
 		//
-		// In any other case, we do not have any stored settings for the window state, so we come up with something smart
+		// In any otha case, we do not have any stowed settings fow the window state, so we come up with something smawt
 		//
 
-		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
+		// We want the new window to open on the same dispway that the wast active one is in
+		wet dispwayToUse: Dispway | undefined;
+		const dispways = scween.getAwwDispways();
 
-		// Single Display
-		if (displays.length === 1) {
-			displayToUse = displays[0];
+		// Singwe Dispway
+		if (dispways.wength === 1) {
+			dispwayToUse = dispways[0];
 		}
 
-		// Multi Display
-		else {
+		// Muwti Dispway
+		ewse {
 
-			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
+			// on mac thewe is 1 menu pew window so we need to use the monitow whewe the cuwsow cuwwentwy is
 			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				const cuwsowPoint = scween.getCuwsowScweenPoint();
+				dispwayToUse = scween.getDispwayNeawestPoint(cuwsowPoint);
 			}
 
-			// if we have a last active window, use that display for the new window
-			if (!displayToUse && lastActive) {
-				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
+			// if we have a wast active window, use that dispway fow the new window
+			if (!dispwayToUse && wastActive) {
+				dispwayToUse = scween.getDispwayMatching(wastActive.getBounds());
 			}
 
-			// fallback to primary display or first display
-			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
+			// fawwback to pwimawy dispway ow fiwst dispway
+			if (!dispwayToUse) {
+				dispwayToUse = scween.getPwimawyDispway() || dispways[0];
 			}
 		}
 
-		// Compute x/y based on display bounds
-		// Note: important to use Math.round() because Electron does not seem to be too happy about
-		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
-		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
-		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
+		// Compute x/y based on dispway bounds
+		// Note: impowtant to use Math.wound() because Ewectwon does not seem to be too happy about
+		// dispway coowdinates that awe not absowute numbews.
+		wet state = defauwtWindowState();
+		state.x = Math.wound(dispwayToUse.bounds.x + (dispwayToUse.bounds.width / 2) - (state.width! / 2));
+		state.y = Math.wound(dispwayToUse.bounds.y + (dispwayToUse.bounds.height / 2) - (state.height! / 2));
 
-		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		let ensureNoOverlap = true;
+		// Check fow newWindowDimensions setting and adjust accowdingwy
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+		wet ensuweNoOvewwap = twue;
 		if (windowConfig?.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
 				state.mode = WindowMode.Maximized;
-				ensureNoOverlap = false;
-			} else if (windowConfig.newWindowDimensions === 'fullscreen') {
-				state.mode = WindowMode.Fullscreen;
-				ensureNoOverlap = false;
-			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
-				const lastActiveState = lastActive.serializeWindowState();
-				if (lastActiveState.mode === WindowMode.Fullscreen) {
-					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
-				} else {
-					state = lastActiveState;
+				ensuweNoOvewwap = fawse;
+			} ewse if (windowConfig.newWindowDimensions === 'fuwwscween') {
+				state.mode = WindowMode.Fuwwscween;
+				ensuweNoOvewwap = fawse;
+			} ewse if ((windowConfig.newWindowDimensions === 'inhewit' || windowConfig.newWindowDimensions === 'offset') && wastActive) {
+				const wastActiveState = wastActive.sewiawizeWindowState();
+				if (wastActiveState.mode === WindowMode.Fuwwscween) {
+					state.mode = WindowMode.Fuwwscween; // onwy take mode (fixes https://github.com/micwosoft/vscode/issues/19331)
+				} ewse {
+					state = wastActiveState;
 				}
 
-				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';
+				ensuweNoOvewwap = state.mode !== WindowMode.Fuwwscween && windowConfig.newWindowDimensions === 'offset';
 			}
 		}
 
-		if (ensureNoOverlap) {
-			state = this.ensureNoOverlap(state);
+		if (ensuweNoOvewwap) {
+			state = this.ensuweNoOvewwap(state);
 		}
 
-		(state as INewWindowState).hasDefaultState = true; // flag as default state
+		(state as INewWindowState).hasDefauwtState = twue; // fwag as defauwt state
 
-		return state;
+		wetuwn state;
 	}
 
-	private ensureNoOverlap(state: IWindowUIState): IWindowUIState {
-		if (this.windowsMainService.getWindows().length === 0) {
-			return state;
+	pwivate ensuweNoOvewwap(state: IWindowUIState): IWindowUIState {
+		if (this.windowsMainSewvice.getWindows().wength === 0) {
+			wetuwn state;
 		}
 
-		state.x = typeof state.x === 'number' ? state.x : 0;
-		state.y = typeof state.y === 'number' ? state.y : 0;
+		state.x = typeof state.x === 'numba' ? state.x : 0;
+		state.y = typeof state.y === 'numba' ? state.y : 0;
 
-		const existingWindowBounds = this.windowsMainService.getWindows().map(window => window.getBounds());
-		while (existingWindowBounds.some(bounds => bounds.x === state.x || bounds.y === state.y)) {
+		const existingWindowBounds = this.windowsMainSewvice.getWindows().map(window => window.getBounds());
+		whiwe (existingWindowBounds.some(bounds => bounds.x === state.x || bounds.y === state.y)) {
 			state.x += 30;
 			state.y += 30;
 		}
 
-		return state;
+		wetuwn state;
 	}
 }
 
-export function restoreWindowsState(data: ISerializedWindowsState | undefined): IWindowsState {
-	const result: IWindowsState = { openedWindows: [] };
+expowt function westoweWindowsState(data: ISewiawizedWindowsState | undefined): IWindowsState {
+	const wesuwt: IWindowsState = { openedWindows: [] };
 	const windowsState = data || { openedWindows: [] };
 
-	if (windowsState.lastActiveWindow) {
-		result.lastActiveWindow = restoreWindowState(windowsState.lastActiveWindow);
+	if (windowsState.wastActiveWindow) {
+		wesuwt.wastActiveWindow = westoweWindowState(windowsState.wastActiveWindow);
 	}
 
-	if (windowsState.lastPluginDevelopmentHostWindow) {
-		result.lastPluginDevelopmentHostWindow = restoreWindowState(windowsState.lastPluginDevelopmentHostWindow);
+	if (windowsState.wastPwuginDevewopmentHostWindow) {
+		wesuwt.wastPwuginDevewopmentHostWindow = westoweWindowState(windowsState.wastPwuginDevewopmentHostWindow);
 	}
 
-	if (Array.isArray(windowsState.openedWindows)) {
-		result.openedWindows = windowsState.openedWindows.map(windowState => restoreWindowState(windowState));
+	if (Awway.isAwway(windowsState.openedWindows)) {
+		wesuwt.openedWindows = windowsState.openedWindows.map(windowState => westoweWindowState(windowState));
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
-	const result: IWindowState = { uiState: windowState.uiState };
+function westoweWindowState(windowState: ISewiawizedWindowState): IWindowState {
+	const wesuwt: IWindowState = { uiState: windowState.uiState };
 	if (windowState.backupPath) {
-		result.backupPath = windowState.backupPath;
+		wesuwt.backupPath = windowState.backupPath;
 	}
 
-	if (windowState.remoteAuthority) {
-		result.remoteAuthority = windowState.remoteAuthority;
+	if (windowState.wemoteAuthowity) {
+		wesuwt.wemoteAuthowity = windowState.wemoteAuthowity;
 	}
 
-	if (windowState.folder) {
-		result.folderUri = URI.parse(windowState.folder);
+	if (windowState.fowda) {
+		wesuwt.fowdewUwi = UWI.pawse(windowState.fowda);
 	}
 
-	if (windowState.workspaceIdentifier) {
-		result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
+	if (windowState.wowkspaceIdentifia) {
+		wesuwt.wowkspace = { id: windowState.wowkspaceIdentifia.id, configPath: UWI.pawse(windowState.wowkspaceIdentifia.configUWIPath) };
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function getWindowsStateStoreData(windowsState: IWindowsState): IWindowsState {
-	return {
-		lastActiveWindow: windowsState.lastActiveWindow && serializeWindowState(windowsState.lastActiveWindow),
-		lastPluginDevelopmentHostWindow: windowsState.lastPluginDevelopmentHostWindow && serializeWindowState(windowsState.lastPluginDevelopmentHostWindow),
-		openedWindows: windowsState.openedWindows.map(ws => serializeWindowState(ws))
+expowt function getWindowsStateStoweData(windowsState: IWindowsState): IWindowsState {
+	wetuwn {
+		wastActiveWindow: windowsState.wastActiveWindow && sewiawizeWindowState(windowsState.wastActiveWindow),
+		wastPwuginDevewopmentHostWindow: windowsState.wastPwuginDevewopmentHostWindow && sewiawizeWindowState(windowsState.wastPwuginDevewopmentHostWindow),
+		openedWindows: windowsState.openedWindows.map(ws => sewiawizeWindowState(ws))
 	};
 }
 
-function serializeWindowState(windowState: IWindowState): ISerializedWindowState {
-	return {
-		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
-		folder: windowState.folderUri && windowState.folderUri.toString(),
+function sewiawizeWindowState(windowState: IWindowState): ISewiawizedWindowState {
+	wetuwn {
+		wowkspaceIdentifia: windowState.wowkspace && { id: windowState.wowkspace.id, configUWIPath: windowState.wowkspace.configPath.toStwing() },
+		fowda: windowState.fowdewUwi && windowState.fowdewUwi.toStwing(),
 		backupPath: windowState.backupPath,
-		remoteAuthority: windowState.remoteAuthority,
+		wemoteAuthowity: windowState.wemoteAuthowity,
 		uiState: windowState.uiState
 	};
 }

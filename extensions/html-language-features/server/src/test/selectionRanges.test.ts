@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes';
-import { getSelectionRanges } from '../modes/selectionRanges';
-import { getNodeFSRequestService } from '../node/nodeFs';
+impowt 'mocha';
+impowt * as assewt fwom 'assewt';
+impowt { getWanguageModes, CwientCapabiwities, TextDocument, SewectionWange } fwom '../modes/wanguageModes';
+impowt { getSewectionWanges } fwom '../modes/sewectionWanges';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
 
-async function assertRanges(content: string, expected: (number | string)[][]): Promise<void> {
-	let message = `${content} gives selection range:\n`;
+async function assewtWanges(content: stwing, expected: (numba | stwing)[][]): Pwomise<void> {
+	wet message = `${content} gives sewection wange:\n`;
 
 	const offset = content.indexOf('|');
-	content = content.substr(0, offset) + content.substr(offset + 1);
+	content = content.substw(0, offset) + content.substw(offset + 1);
 
-	let workspace = {
+	wet wowkspace = {
 		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
+		fowdews: [{ name: 'foo', uwi: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
 
-	const document = TextDocument.create('test://foo.html', 'html', 1, content);
-	const actualRanges = await getSelectionRanges(languageModes, document, [document.positionAt(offset)]);
-	assert.strictEqual(actualRanges.length, 1);
-	const offsetPairs: [number, string][] = [];
-	let curr: SelectionRange | undefined = actualRanges[0];
-	while (curr) {
-		offsetPairs.push([document.offsetAt(curr.range.start), document.getText(curr.range)]);
-		curr = curr.parent;
+	const document = TextDocument.cweate('test://foo.htmw', 'htmw', 1, content);
+	const actuawWanges = await getSewectionWanges(wanguageModes, document, [document.positionAt(offset)]);
+	assewt.stwictEquaw(actuawWanges.wength, 1);
+	const offsetPaiws: [numba, stwing][] = [];
+	wet cuww: SewectionWange | undefined = actuawWanges[0];
+	whiwe (cuww) {
+		offsetPaiws.push([document.offsetAt(cuww.wange.stawt), document.getText(cuww.wange)]);
+		cuww = cuww.pawent;
 	}
 
-	message += `${JSON.stringify(offsetPairs)}\n but should give:\n${JSON.stringify(expected)}\n`;
-	assert.deepStrictEqual(offsetPairs, expected, message);
+	message += `${JSON.stwingify(offsetPaiws)}\n but shouwd give:\n${JSON.stwingify(expected)}\n`;
+	assewt.deepStwictEquaw(offsetPaiws, expected, message);
 }
 
-suite('HTML SelectionRange', () => {
-	test('Embedded JavaScript', async () => {
-		await assertRanges('<html><head><script>  function foo() { return ((1|+2)*6) }</script></head></html>', [
+suite('HTMW SewectionWange', () => {
+	test('Embedded JavaScwipt', async () => {
+		await assewtWanges('<htmw><head><scwipt>  function foo() { wetuwn ((1|+2)*6) }</scwipt></head></htmw>', [
 			[48, '1'],
 			[48, '1+2'],
 			[47, '(1+2)'],
 			[47, '(1+2)*6'],
 			[46, '((1+2)*6)'],
-			[39, 'return ((1+2)*6)'],
-			[22, 'function foo() { return ((1+2)*6) }'],
-			[20, '  function foo() { return ((1+2)*6) }'],
-			[12, '<script>  function foo() { return ((1+2)*6) }</script>'],
-			[6, '<head><script>  function foo() { return ((1+2)*6) }</script></head>'],
-			[0, '<html><head><script>  function foo() { return ((1+2)*6) }</script></head></html>'],
+			[39, 'wetuwn ((1+2)*6)'],
+			[22, 'function foo() { wetuwn ((1+2)*6) }'],
+			[20, '  function foo() { wetuwn ((1+2)*6) }'],
+			[12, '<scwipt>  function foo() { wetuwn ((1+2)*6) }</scwipt>'],
+			[6, '<head><scwipt>  function foo() { wetuwn ((1+2)*6) }</scwipt></head>'],
+			[0, '<htmw><head><scwipt>  function foo() { wetuwn ((1+2)*6) }</scwipt></head></htmw>'],
 		]);
 	});
 
 	test('Embedded CSS', async () => {
-		await assertRanges('<html><head><style>foo { display: |none; } </style></head></html>', [
+		await assewtWanges('<htmw><head><stywe>foo { dispway: |none; } </stywe></head></htmw>', [
 			[34, 'none'],
-			[25, 'display: none'],
-			[24, ' display: none; '],
-			[23, '{ display: none; }'],
-			[19, 'foo { display: none; }'],
-			[19, 'foo { display: none; } '],
-			[12, '<style>foo { display: none; } </style>'],
-			[6, '<head><style>foo { display: none; } </style></head>'],
-			[0, '<html><head><style>foo { display: none; } </style></head></html>'],
+			[25, 'dispway: none'],
+			[24, ' dispway: none; '],
+			[23, '{ dispway: none; }'],
+			[19, 'foo { dispway: none; }'],
+			[19, 'foo { dispway: none; } '],
+			[12, '<stywe>foo { dispway: none; } </stywe>'],
+			[6, '<head><stywe>foo { dispway: none; } </stywe></head>'],
+			[0, '<htmw><head><stywe>foo { dispway: none; } </stywe></head></htmw>'],
 		]);
 	});
 
-	test('Embedded style', async () => {
-		await assertRanges('<div style="color: |red"></div>', [
-			[19, 'red'],
-			[12, 'color: red'],
-			[11, '"color: red"'],
-			[5, 'style="color: red"'],
-			[1, 'div style="color: red"'],
-			[0, '<div style="color: red"></div>']
+	test('Embedded stywe', async () => {
+		await assewtWanges('<div stywe="cowow: |wed"></div>', [
+			[19, 'wed'],
+			[12, 'cowow: wed'],
+			[11, '"cowow: wed"'],
+			[5, 'stywe="cowow: wed"'],
+			[1, 'div stywe="cowow: wed"'],
+			[0, '<div stywe="cowow: wed"></div>']
 		]);
 	});
 

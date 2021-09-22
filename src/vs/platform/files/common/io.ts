@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { IDataTransformer, IErrorTransformer, WriteableStream } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, ensureFileSystemProviderError, FileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
-import product from 'vs/platform/product/common/product';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { IDataTwansfowma, IEwwowTwansfowma, WwiteabweStweam } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { cweateFiweSystemPwovidewEwwow, ensuweFiweSystemPwovidewEwwow, FiweWeadStweamOptions, FiweSystemPwovidewEwwowCode, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
 
-export interface ICreateReadStreamOptions extends FileReadStreamOptions {
-
-	/**
-	 * The size of the buffer to use before sending to the stream.
-	 */
-	bufferSize: number;
+expowt intewface ICweateWeadStweamOptions extends FiweWeadStweamOptions {
 
 	/**
-	 * Allows to massage any possibly error that happens during reading.
+	 * The size of the buffa to use befowe sending to the stweam.
 	 */
-	errorTransformer?: IErrorTransformer;
+	buffewSize: numba;
+
+	/**
+	 * Awwows to massage any possibwy ewwow that happens duwing weading.
+	 */
+	ewwowTwansfowma?: IEwwowTwansfowma;
 }
 
 /**
- * A helper to read a file from a provider with open/read/close capability into a stream.
+ * A hewpa to wead a fiwe fwom a pwovida with open/wead/cwose capabiwity into a stweam.
  */
-export async function readFileIntoStream<T>(
-	provider: IFileSystemProviderWithOpenReadWriteCloseCapability,
-	resource: URI,
-	target: WriteableStream<T>,
-	transformer: IDataTransformer<VSBuffer, T>,
-	options: ICreateReadStreamOptions,
-	token: CancellationToken
-): Promise<void> {
-	let error: Error | undefined = undefined;
+expowt async function weadFiweIntoStweam<T>(
+	pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity,
+	wesouwce: UWI,
+	tawget: WwiteabweStweam<T>,
+	twansfowma: IDataTwansfowma<VSBuffa, T>,
+	options: ICweateWeadStweamOptions,
+	token: CancewwationToken
+): Pwomise<void> {
+	wet ewwow: Ewwow | undefined = undefined;
 
-	try {
-		await doReadFileIntoStream(provider, resource, target, transformer, options, token);
-	} catch (err) {
-		error = err;
-	} finally {
-		if (error && options.errorTransformer) {
-			error = options.errorTransformer(error);
+	twy {
+		await doWeadFiweIntoStweam(pwovida, wesouwce, tawget, twansfowma, options, token);
+	} catch (eww) {
+		ewwow = eww;
+	} finawwy {
+		if (ewwow && options.ewwowTwansfowma) {
+			ewwow = options.ewwowTwansfowma(ewwow);
 		}
 
-		if (typeof error !== 'undefined') {
-			target.error(error);
+		if (typeof ewwow !== 'undefined') {
+			tawget.ewwow(ewwow);
 		}
 
-		target.end();
+		tawget.end();
 	}
 }
 
-async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, target: WriteableStream<T>, transformer: IDataTransformer<VSBuffer, T>, options: ICreateReadStreamOptions, token: CancellationToken): Promise<void> {
+async function doWeadFiweIntoStweam<T>(pwovida: IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, wesouwce: UWI, tawget: WwiteabweStweam<T>, twansfowma: IDataTwansfowma<VSBuffa, T>, options: ICweateWeadStweamOptions, token: CancewwationToken): Pwomise<void> {
 
-	// Check for cancellation
-	throwIfCancelled(token);
+	// Check fow cancewwation
+	thwowIfCancewwed(token);
 
-	// open handle through provider
-	const handle = await provider.open(resource, { create: false });
+	// open handwe thwough pwovida
+	const handwe = await pwovida.open(wesouwce, { cweate: fawse });
 
-	try {
+	twy {
 
-		// Check for cancellation
-		throwIfCancelled(token);
+		// Check fow cancewwation
+		thwowIfCancewwed(token);
 
-		let totalBytesRead = 0;
-		let bytesRead = 0;
-		let allowedRemainingBytes = (options && typeof options.length === 'number') ? options.length : undefined;
+		wet totawBytesWead = 0;
+		wet bytesWead = 0;
+		wet awwowedWemainingBytes = (options && typeof options.wength === 'numba') ? options.wength : undefined;
 
-		let buffer = VSBuffer.alloc(Math.min(options.bufferSize, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : options.bufferSize));
+		wet buffa = VSBuffa.awwoc(Math.min(options.buffewSize, typeof awwowedWemainingBytes === 'numba' ? awwowedWemainingBytes : options.buffewSize));
 
-		let posInFile = options && typeof options.position === 'number' ? options.position : 0;
-		let posInBuffer = 0;
+		wet posInFiwe = options && typeof options.position === 'numba' ? options.position : 0;
+		wet posInBuffa = 0;
 		do {
-			// read from source (handle) at current position (pos) into buffer (buffer) at
-			// buffer position (posInBuffer) up to the size of the buffer (buffer.byteLength).
-			bytesRead = await provider.read(handle, posInFile, buffer.buffer, posInBuffer, buffer.byteLength - posInBuffer);
+			// wead fwom souwce (handwe) at cuwwent position (pos) into buffa (buffa) at
+			// buffa position (posInBuffa) up to the size of the buffa (buffa.byteWength).
+			bytesWead = await pwovida.wead(handwe, posInFiwe, buffa.buffa, posInBuffa, buffa.byteWength - posInBuffa);
 
-			posInFile += bytesRead;
-			posInBuffer += bytesRead;
-			totalBytesRead += bytesRead;
+			posInFiwe += bytesWead;
+			posInBuffa += bytesWead;
+			totawBytesWead += bytesWead;
 
-			if (typeof allowedRemainingBytes === 'number') {
-				allowedRemainingBytes -= bytesRead;
+			if (typeof awwowedWemainingBytes === 'numba') {
+				awwowedWemainingBytes -= bytesWead;
 			}
 
-			// when buffer full, create a new one and emit it through stream
-			if (posInBuffer === buffer.byteLength) {
-				await target.write(transformer(buffer));
+			// when buffa fuww, cweate a new one and emit it thwough stweam
+			if (posInBuffa === buffa.byteWength) {
+				await tawget.wwite(twansfowma(buffa));
 
-				buffer = VSBuffer.alloc(Math.min(options.bufferSize, typeof allowedRemainingBytes === 'number' ? allowedRemainingBytes : options.bufferSize));
+				buffa = VSBuffa.awwoc(Math.min(options.buffewSize, typeof awwowedWemainingBytes === 'numba' ? awwowedWemainingBytes : options.buffewSize));
 
-				posInBuffer = 0;
+				posInBuffa = 0;
 			}
-		} while (bytesRead > 0 && (typeof allowedRemainingBytes !== 'number' || allowedRemainingBytes > 0) && throwIfCancelled(token) && throwIfTooLarge(totalBytesRead, options));
+		} whiwe (bytesWead > 0 && (typeof awwowedWemainingBytes !== 'numba' || awwowedWemainingBytes > 0) && thwowIfCancewwed(token) && thwowIfTooWawge(totawBytesWead, options));
 
-		// wrap up with last buffer (also respect maxBytes if provided)
-		if (posInBuffer > 0) {
-			let lastChunkLength = posInBuffer;
-			if (typeof allowedRemainingBytes === 'number') {
-				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
+		// wwap up with wast buffa (awso wespect maxBytes if pwovided)
+		if (posInBuffa > 0) {
+			wet wastChunkWength = posInBuffa;
+			if (typeof awwowedWemainingBytes === 'numba') {
+				wastChunkWength = Math.min(posInBuffa, awwowedWemainingBytes);
 			}
 
-			target.write(transformer(buffer.slice(0, lastChunkLength)));
+			tawget.wwite(twansfowma(buffa.swice(0, wastChunkWength)));
 		}
-	} catch (error) {
-		throw ensureFileSystemProviderError(error);
-	} finally {
-		await provider.close(handle);
+	} catch (ewwow) {
+		thwow ensuweFiweSystemPwovidewEwwow(ewwow);
+	} finawwy {
+		await pwovida.cwose(handwe);
 	}
 }
 
-function throwIfCancelled(token: CancellationToken): boolean {
-	if (token.isCancellationRequested) {
-		throw canceled();
+function thwowIfCancewwed(token: CancewwationToken): boowean {
+	if (token.isCancewwationWequested) {
+		thwow cancewed();
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-function throwIfTooLarge(totalBytesRead: number, options: ICreateReadStreamOptions): boolean {
+function thwowIfTooWawge(totawBytesWead: numba, options: ICweateWeadStweamOptions): boowean {
 
-	// Return early if file is too large to load and we have configured limits
-	if (options?.limits) {
-		if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
-			throw createFileSystemProviderError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow {0} to use more memory", product.nameShort), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
+	// Wetuwn eawwy if fiwe is too wawge to woad and we have configuwed wimits
+	if (options?.wimits) {
+		if (typeof options.wimits.memowy === 'numba' && totawBytesWead > options.wimits.memowy) {
+			thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweTooWawgeFowHeapEwwow', "To open a fiwe of this size, you need to westawt and awwow {0} to use mowe memowy", pwoduct.nameShowt), FiweSystemPwovidewEwwowCode.FiweExceedsMemowyWimit);
 		}
 
-		if (typeof options.limits.size === 'number' && totalBytesRead > options.limits.size) {
-			throw createFileSystemProviderError(localize('fileTooLargeError', "File is too large to open"), FileSystemProviderErrorCode.FileTooLarge);
+		if (typeof options.wimits.size === 'numba' && totawBytesWead > options.wimits.size) {
+			thwow cweateFiweSystemPwovidewEwwow(wocawize('fiweTooWawgeEwwow', "Fiwe is too wawge to open"), FiweSystemPwovidewEwwowCode.FiweTooWawge);
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }

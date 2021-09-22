@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { OS } from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt * as nws fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { KeybindingsEditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/bwowsa/keybindingsEditowModew';
 
-export interface IKeybindingsEditorSearchOptions {
-	searchValue: string;
-	recordKeybindings: boolean;
-	sortByPrecedence: boolean;
+expowt intewface IKeybindingsEditowSeawchOptions {
+	seawchVawue: stwing;
+	wecowdKeybindings: boowean;
+	sowtByPwecedence: boowean;
 }
 
-export class KeybindingsEditorInput extends EditorInput {
+expowt cwass KeybindingsEditowInput extends EditowInput {
 
-	static readonly ID: string = 'workbench.input.keybindings';
-	readonly keybindingsModel: KeybindingsEditorModel;
+	static weadonwy ID: stwing = 'wowkbench.input.keybindings';
+	weadonwy keybindingsModew: KeybindingsEditowModew;
 
-	searchOptions: IKeybindingsEditorSearchOptions | null = null;
+	seawchOptions: IKeybindingsEditowSeawchOptions | nuww = nuww;
 
-	readonly resource = undefined;
+	weadonwy wesouwce = undefined;
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		super();
+	constwuctow(@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice) {
+		supa();
 
-		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
+		this.keybindingsModew = instantiationSewvice.cweateInstance(KeybindingsEditowModew, OS);
 	}
 
-	override get typeId(): string {
-		return KeybindingsEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn KeybindingsEditowInput.ID;
 	}
 
-	override getName(): string {
-		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
+	ovewwide getName(): stwing {
+		wetuwn nws.wocawize('keybindingsInputName', "Keyboawd Showtcuts");
 	}
 
-	override async resolve(): Promise<KeybindingsEditorModel> {
-		return this.keybindingsModel;
+	ovewwide async wesowve(): Pwomise<KeybindingsEditowModew> {
+		wetuwn this.keybindingsModew;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return super.matches(otherInput) || otherInput instanceof KeybindingsEditorInput;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		wetuwn supa.matches(othewInput) || othewInput instanceof KeybindingsEditowInput;
 	}
 
-	override dispose(): void {
-		this.keybindingsModel.dispose();
+	ovewwide dispose(): void {
+		this.keybindingsModew.dispose();
 
-		super.dispose();
+		supa.dispose();
 	}
 }

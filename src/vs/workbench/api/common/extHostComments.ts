@@ -1,402 +1,402 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import * as modes from 'vs/editor/common/modes';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges } from './extHost.protocol';
-import { ExtHostCommands } from './extHostCommands';
+impowt { asPwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtHostDocuments } fwom 'vs/wowkbench/api/common/extHostDocuments';
+impowt * as extHostTypeConvewta fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt * as types fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { ExtHostCommentsShape, IMainContext, MainContext, CommentThweadChanges } fwom './extHost.pwotocow';
+impowt { ExtHostCommands } fwom './extHostCommands';
 
-type ProviderHandle = number;
+type PwovidewHandwe = numba;
 
-export interface ExtHostComments {
-	createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController;
+expowt intewface ExtHostComments {
+	cweateCommentContwowwa(extension: IExtensionDescwiption, id: stwing, wabew: stwing): vscode.CommentContwowwa;
 }
 
-export function createExtHostComments(mainContext: IMainContext, commands: ExtHostCommands, documents: ExtHostDocuments): ExtHostCommentsShape & ExtHostComments {
-	const proxy = mainContext.getProxy(MainContext.MainThreadComments);
+expowt function cweateExtHostComments(mainContext: IMainContext, commands: ExtHostCommands, documents: ExtHostDocuments): ExtHostCommentsShape & ExtHostComments {
+	const pwoxy = mainContext.getPwoxy(MainContext.MainThweadComments);
 
-	class ExtHostCommentsImpl implements ExtHostCommentsShape, ExtHostComments, IDisposable {
+	cwass ExtHostCommentsImpw impwements ExtHostCommentsShape, ExtHostComments, IDisposabwe {
 
-		private static handlePool = 0;
-
-
-		private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
-
-		private _commentControllersByExtension: Map<string, ExtHostCommentController[]> = new Map<string, ExtHostCommentController[]>();
+		pwivate static handwePoow = 0;
 
 
-		constructor(
+		pwivate _commentContwowwews: Map<PwovidewHandwe, ExtHostCommentContwowwa> = new Map<PwovidewHandwe, ExtHostCommentContwowwa>();
+
+		pwivate _commentContwowwewsByExtension: Map<stwing, ExtHostCommentContwowwa[]> = new Map<stwing, ExtHostCommentContwowwa[]>();
+
+
+		constwuctow(
 		) {
-			commands.registerArgumentProcessor({
-				processArgument: arg => {
-					if (arg && arg.$mid === MarshalledId.CommentController) {
-						const commentController = this._commentControllers.get(arg.handle);
+			commands.wegistewAwgumentPwocessow({
+				pwocessAwgument: awg => {
+					if (awg && awg.$mid === MawshawwedId.CommentContwowwa) {
+						const commentContwowwa = this._commentContwowwews.get(awg.handwe);
 
-						if (!commentController) {
-							return arg;
+						if (!commentContwowwa) {
+							wetuwn awg;
 						}
 
-						return commentController;
-					} else if (arg && arg.$mid === MarshalledId.CommentThread) {
-						const commentController = this._commentControllers.get(arg.commentControlHandle);
+						wetuwn commentContwowwa;
+					} ewse if (awg && awg.$mid === MawshawwedId.CommentThwead) {
+						const commentContwowwa = this._commentContwowwews.get(awg.commentContwowHandwe);
 
-						if (!commentController) {
-							return arg;
+						if (!commentContwowwa) {
+							wetuwn awg;
 						}
 
-						const commentThread = commentController.getCommentThread(arg.commentThreadHandle);
+						const commentThwead = commentContwowwa.getCommentThwead(awg.commentThweadHandwe);
 
-						if (!commentThread) {
-							return arg;
+						if (!commentThwead) {
+							wetuwn awg;
 						}
 
-						return commentThread;
-					} else if (arg && arg.$mid === MarshalledId.CommentThreadReply) {
-						const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
+						wetuwn commentThwead;
+					} ewse if (awg && awg.$mid === MawshawwedId.CommentThweadWepwy) {
+						const commentContwowwa = this._commentContwowwews.get(awg.thwead.commentContwowHandwe);
 
-						if (!commentController) {
-							return arg;
+						if (!commentContwowwa) {
+							wetuwn awg;
 						}
 
-						const commentThread = commentController.getCommentThread(arg.thread.commentThreadHandle);
+						const commentThwead = commentContwowwa.getCommentThwead(awg.thwead.commentThweadHandwe);
 
-						if (!commentThread) {
-							return arg;
+						if (!commentThwead) {
+							wetuwn awg;
 						}
 
-						return {
-							thread: commentThread,
-							text: arg.text
+						wetuwn {
+							thwead: commentThwead,
+							text: awg.text
 						};
-					} else if (arg && arg.$mid === MarshalledId.CommentNode) {
-						const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
+					} ewse if (awg && awg.$mid === MawshawwedId.CommentNode) {
+						const commentContwowwa = this._commentContwowwews.get(awg.thwead.commentContwowHandwe);
 
-						if (!commentController) {
-							return arg;
+						if (!commentContwowwa) {
+							wetuwn awg;
 						}
 
-						const commentThread = commentController.getCommentThread(arg.thread.commentThreadHandle);
+						const commentThwead = commentContwowwa.getCommentThwead(awg.thwead.commentThweadHandwe);
 
-						if (!commentThread) {
-							return arg;
+						if (!commentThwead) {
+							wetuwn awg;
 						}
 
-						let commentUniqueId = arg.commentUniqueId;
+						wet commentUniqueId = awg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						wet comment = commentThwead.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
-							return arg;
+							wetuwn awg;
 						}
 
-						return comment;
+						wetuwn comment;
 
-					} else if (arg && arg.$mid === MarshalledId.CommentThreadNode) {
-						const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
+					} ewse if (awg && awg.$mid === MawshawwedId.CommentThweadNode) {
+						const commentContwowwa = this._commentContwowwews.get(awg.thwead.commentContwowHandwe);
 
-						if (!commentController) {
-							return arg;
+						if (!commentContwowwa) {
+							wetuwn awg;
 						}
 
-						const commentThread = commentController.getCommentThread(arg.thread.commentThreadHandle);
+						const commentThwead = commentContwowwa.getCommentThwead(awg.thwead.commentThweadHandwe);
 
-						if (!commentThread) {
-							return arg;
+						if (!commentThwead) {
+							wetuwn awg;
 						}
 
-						let body = arg.text;
-						let commentUniqueId = arg.commentUniqueId;
+						wet body = awg.text;
+						wet commentUniqueId = awg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						wet comment = commentThwead.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
-							return arg;
+							wetuwn awg;
 						}
 
 						comment.body = body;
-						return comment;
+						wetuwn comment;
 					}
 
-					return arg;
+					wetuwn awg;
 				}
 			});
 		}
 
-		createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController {
-			const handle = ExtHostCommentsImpl.handlePool++;
-			const commentController = new ExtHostCommentController(extension, handle, id, label);
-			this._commentControllers.set(commentController.handle, commentController);
+		cweateCommentContwowwa(extension: IExtensionDescwiption, id: stwing, wabew: stwing): vscode.CommentContwowwa {
+			const handwe = ExtHostCommentsImpw.handwePoow++;
+			const commentContwowwa = new ExtHostCommentContwowwa(extension, handwe, id, wabew);
+			this._commentContwowwews.set(commentContwowwa.handwe, commentContwowwa);
 
-			const commentControllers = this._commentControllersByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
-			commentControllers.push(commentController);
-			this._commentControllersByExtension.set(ExtensionIdentifier.toKey(extension.identifier), commentControllers);
+			const commentContwowwews = this._commentContwowwewsByExtension.get(ExtensionIdentifia.toKey(extension.identifia)) || [];
+			commentContwowwews.push(commentContwowwa);
+			this._commentContwowwewsByExtension.set(ExtensionIdentifia.toKey(extension.identifia), commentContwowwews);
 
-			return commentController.value;
+			wetuwn commentContwowwa.vawue;
 		}
 
-		$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange): void {
-			const commentController = this._commentControllers.get(commentControllerHandle);
+		$cweateCommentThweadTempwate(commentContwowwewHandwe: numba, uwiComponents: UwiComponents, wange: IWange): void {
+			const commentContwowwa = this._commentContwowwews.get(commentContwowwewHandwe);
 
-			if (!commentController) {
-				return;
+			if (!commentContwowwa) {
+				wetuwn;
 			}
 
-			commentController.$createCommentThreadTemplate(uriComponents, range);
+			commentContwowwa.$cweateCommentThweadTempwate(uwiComponents, wange);
 		}
 
-		async $updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange) {
-			const commentController = this._commentControllers.get(commentControllerHandle);
+		async $updateCommentThweadTempwate(commentContwowwewHandwe: numba, thweadHandwe: numba, wange: IWange) {
+			const commentContwowwa = this._commentContwowwews.get(commentContwowwewHandwe);
 
-			if (!commentController) {
-				return;
+			if (!commentContwowwa) {
+				wetuwn;
 			}
 
-			commentController.$updateCommentThreadTemplate(threadHandle, range);
+			commentContwowwa.$updateCommentThweadTempwate(thweadHandwe, wange);
 		}
 
-		$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number) {
-			const commentController = this._commentControllers.get(commentControllerHandle);
+		$deweteCommentThwead(commentContwowwewHandwe: numba, commentThweadHandwe: numba) {
+			const commentContwowwa = this._commentContwowwews.get(commentContwowwewHandwe);
 
-			if (commentController) {
-				commentController.$deleteCommentThread(commentThreadHandle);
+			if (commentContwowwa) {
+				commentContwowwa.$deweteCommentThwead(commentThweadHandwe);
 			}
 		}
 
-		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
-			const commentController = this._commentControllers.get(commentControllerHandle);
+		$pwovideCommentingWanges(commentContwowwewHandwe: numba, uwiComponents: UwiComponents, token: CancewwationToken): Pwomise<IWange[] | undefined> {
+			const commentContwowwa = this._commentContwowwews.get(commentContwowwewHandwe);
 
-			if (!commentController || !commentController.commentingRangeProvider) {
-				return Promise.resolve(undefined);
+			if (!commentContwowwa || !commentContwowwa.commentingWangePwovida) {
+				wetuwn Pwomise.wesowve(undefined);
 			}
 
-			const document = documents.getDocument(URI.revive(uriComponents));
-			return asPromise(() => {
-				return commentController.commentingRangeProvider!.provideCommentingRanges(document, token);
-			}).then(ranges => ranges ? ranges.map(x => extHostTypeConverter.Range.from(x)) : undefined);
+			const document = documents.getDocument(UWI.wevive(uwiComponents));
+			wetuwn asPwomise(() => {
+				wetuwn commentContwowwa.commentingWangePwovida!.pwovideCommentingWanges(document, token);
+			}).then(wanges => wanges ? wanges.map(x => extHostTypeConvewta.Wange.fwom(x)) : undefined);
 		}
 
-		$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
-			const commentController = this._commentControllers.get(commentControllerHandle);
+		$toggweWeaction(commentContwowwewHandwe: numba, thweadHandwe: numba, uwi: UwiComponents, comment: modes.Comment, weaction: modes.CommentWeaction): Pwomise<void> {
+			const commentContwowwa = this._commentContwowwews.get(commentContwowwewHandwe);
 
-			if (!commentController || !commentController.reactionHandler) {
-				return Promise.resolve(undefined);
+			if (!commentContwowwa || !commentContwowwa.weactionHandwa) {
+				wetuwn Pwomise.wesowve(undefined);
 			}
 
-			return asPromise(() => {
-				const commentThread = commentController.getCommentThread(threadHandle);
-				if (commentThread) {
-					const vscodeComment = commentThread.getCommentByUniqueId(comment.uniqueIdInThread);
+			wetuwn asPwomise(() => {
+				const commentThwead = commentContwowwa.getCommentThwead(thweadHandwe);
+				if (commentThwead) {
+					const vscodeComment = commentThwead.getCommentByUniqueId(comment.uniqueIdInThwead);
 
-					if (commentController !== undefined && vscodeComment) {
-						if (commentController.reactionHandler) {
-							return commentController.reactionHandler(vscodeComment, convertFromReaction(reaction));
+					if (commentContwowwa !== undefined && vscodeComment) {
+						if (commentContwowwa.weactionHandwa) {
+							wetuwn commentContwowwa.weactionHandwa(vscodeComment, convewtFwomWeaction(weaction));
 						}
 					}
 				}
 
-				return Promise.resolve(undefined);
+				wetuwn Pwomise.wesowve(undefined);
 			});
 		}
 		dispose() {
 
 		}
 	}
-	type CommentThreadModification = Partial<{
-		range: vscode.Range,
-		label: string | undefined,
-		contextValue: string | undefined,
+	type CommentThweadModification = Pawtiaw<{
+		wange: vscode.Wange,
+		wabew: stwing | undefined,
+		contextVawue: stwing | undefined,
 		comments: vscode.Comment[],
-		collapsibleState: vscode.CommentThreadCollapsibleState
-		canReply: boolean;
+		cowwapsibweState: vscode.CommentThweadCowwapsibweState
+		canWepwy: boowean;
 	}>;
 
-	class ExtHostCommentThread implements vscode.CommentThread {
-		private static _handlePool: number = 0;
-		readonly handle = ExtHostCommentThread._handlePool++;
-		public commentHandle: number = 0;
+	cwass ExtHostCommentThwead impwements vscode.CommentThwead {
+		pwivate static _handwePoow: numba = 0;
+		weadonwy handwe = ExtHostCommentThwead._handwePoow++;
+		pubwic commentHandwe: numba = 0;
 
-		private modifications: CommentThreadModification = Object.create(null);
+		pwivate modifications: CommentThweadModification = Object.cweate(nuww);
 
-		set threadId(id: string) {
+		set thweadId(id: stwing) {
 			this._id = id;
 		}
 
-		get threadId(): string {
-			return this._id!;
+		get thweadId(): stwing {
+			wetuwn this._id!;
 		}
 
-		get id(): string {
-			return this._id!;
+		get id(): stwing {
+			wetuwn this._id!;
 		}
 
-		get resource(): vscode.Uri {
-			return this._uri;
+		get wesouwce(): vscode.Uwi {
+			wetuwn this._uwi;
 		}
 
-		get uri(): vscode.Uri {
-			return this._uri;
+		get uwi(): vscode.Uwi {
+			wetuwn this._uwi;
 		}
 
-		private readonly _onDidUpdateCommentThread = new Emitter<void>();
-		readonly onDidUpdateCommentThread = this._onDidUpdateCommentThread.event;
+		pwivate weadonwy _onDidUpdateCommentThwead = new Emitta<void>();
+		weadonwy onDidUpdateCommentThwead = this._onDidUpdateCommentThwead.event;
 
-		set range(range: vscode.Range) {
-			if (!range.isEqual(this._range)) {
-				this._range = range;
-				this.modifications.range = range;
-				this._onDidUpdateCommentThread.fire();
+		set wange(wange: vscode.Wange) {
+			if (!wange.isEquaw(this._wange)) {
+				this._wange = wange;
+				this.modifications.wange = wange;
+				this._onDidUpdateCommentThwead.fiwe();
 			}
 		}
 
-		get range(): vscode.Range {
-			return this._range;
+		get wange(): vscode.Wange {
+			wetuwn this._wange;
 		}
 
-		private _canReply: boolean = true;
+		pwivate _canWepwy: boowean = twue;
 
-		set canReply(state: boolean) {
-			if (this._canReply !== state) {
-				this._canReply = state;
-				this.modifications.canReply = state;
-				this._onDidUpdateCommentThread.fire();
+		set canWepwy(state: boowean) {
+			if (this._canWepwy !== state) {
+				this._canWepwy = state;
+				this.modifications.canWepwy = state;
+				this._onDidUpdateCommentThwead.fiwe();
 			}
 		}
-		get canReply() {
-			return this._canReply;
+		get canWepwy() {
+			wetuwn this._canWepwy;
 		}
 
-		private _label: string | undefined;
+		pwivate _wabew: stwing | undefined;
 
-		get label(): string | undefined {
-			return this._label;
+		get wabew(): stwing | undefined {
+			wetuwn this._wabew;
 		}
 
-		set label(label: string | undefined) {
-			this._label = label;
-			this.modifications.label = label;
-			this._onDidUpdateCommentThread.fire();
+		set wabew(wabew: stwing | undefined) {
+			this._wabew = wabew;
+			this.modifications.wabew = wabew;
+			this._onDidUpdateCommentThwead.fiwe();
 		}
 
-		private _contextValue: string | undefined;
+		pwivate _contextVawue: stwing | undefined;
 
-		get contextValue(): string | undefined {
-			return this._contextValue;
+		get contextVawue(): stwing | undefined {
+			wetuwn this._contextVawue;
 		}
 
-		set contextValue(context: string | undefined) {
-			this._contextValue = context;
-			this.modifications.contextValue = context;
-			this._onDidUpdateCommentThread.fire();
+		set contextVawue(context: stwing | undefined) {
+			this._contextVawue = context;
+			this.modifications.contextVawue = context;
+			this._onDidUpdateCommentThwead.fiwe();
 		}
 
 		get comments(): vscode.Comment[] {
-			return this._comments;
+			wetuwn this._comments;
 		}
 
 		set comments(newComments: vscode.Comment[]) {
 			this._comments = newComments;
 			this.modifications.comments = newComments;
-			this._onDidUpdateCommentThread.fire();
+			this._onDidUpdateCommentThwead.fiwe();
 		}
 
-		private _collapseState?: vscode.CommentThreadCollapsibleState;
+		pwivate _cowwapseState?: vscode.CommentThweadCowwapsibweState;
 
-		get collapsibleState(): vscode.CommentThreadCollapsibleState {
-			return this._collapseState!;
+		get cowwapsibweState(): vscode.CommentThweadCowwapsibweState {
+			wetuwn this._cowwapseState!;
 		}
 
-		set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
-			this._collapseState = newState;
-			this.modifications.collapsibleState = newState;
-			this._onDidUpdateCommentThread.fire();
+		set cowwapsibweState(newState: vscode.CommentThweadCowwapsibweState) {
+			this._cowwapseState = newState;
+			this.modifications.cowwapsibweState = newState;
+			this._onDidUpdateCommentThwead.fiwe();
 		}
 
-		private _localDisposables: types.Disposable[];
+		pwivate _wocawDisposabwes: types.Disposabwe[];
 
-		private _isDiposed: boolean;
+		pwivate _isDiposed: boowean;
 
-		public get isDisposed(): boolean {
-			return this._isDiposed;
+		pubwic get isDisposed(): boowean {
+			wetuwn this._isDiposed;
 		}
 
-		private _commentsMap: Map<vscode.Comment, number> = new Map<vscode.Comment, number>();
+		pwivate _commentsMap: Map<vscode.Comment, numba> = new Map<vscode.Comment, numba>();
 
-		private _acceptInputDisposables = new MutableDisposable<DisposableStore>();
+		pwivate _acceptInputDisposabwes = new MutabweDisposabwe<DisposabweStowe>();
 
-		readonly value: vscode.CommentThread;
+		weadonwy vawue: vscode.CommentThwead;
 
-		constructor(
-			commentControllerId: string,
-			private _commentControllerHandle: number,
-			private _id: string | undefined,
-			private _uri: vscode.Uri,
-			private _range: vscode.Range,
-			private _comments: vscode.Comment[],
-			extensionId: ExtensionIdentifier
+		constwuctow(
+			commentContwowwewId: stwing,
+			pwivate _commentContwowwewHandwe: numba,
+			pwivate _id: stwing | undefined,
+			pwivate _uwi: vscode.Uwi,
+			pwivate _wange: vscode.Wange,
+			pwivate _comments: vscode.Comment[],
+			extensionId: ExtensionIdentifia
 		) {
-			this._acceptInputDisposables.value = new DisposableStore();
+			this._acceptInputDisposabwes.vawue = new DisposabweStowe();
 
 			if (this._id === undefined) {
-				this._id = `${commentControllerId}.${this.handle}`;
+				this._id = `${commentContwowwewId}.${this.handwe}`;
 			}
 
-			proxy.$createCommentThread(
-				_commentControllerHandle,
-				this.handle,
+			pwoxy.$cweateCommentThwead(
+				_commentContwowwewHandwe,
+				this.handwe,
 				this._id,
-				this._uri,
-				extHostTypeConverter.Range.from(this._range),
+				this._uwi,
+				extHostTypeConvewta.Wange.fwom(this._wange),
 				extensionId
 			);
 
-			this._localDisposables = [];
-			this._isDiposed = false;
+			this._wocawDisposabwes = [];
+			this._isDiposed = fawse;
 
-			this._localDisposables.push(this.onDidUpdateCommentThread(() => {
-				this.eventuallyUpdateCommentThread();
+			this._wocawDisposabwes.push(this.onDidUpdateCommentThwead(() => {
+				this.eventuawwyUpdateCommentThwead();
 			}));
 
-			// set up comments after ctor to batch update events.
+			// set up comments afta ctow to batch update events.
 			this.comments = _comments;
 
-			this._localDisposables.push({
+			this._wocawDisposabwes.push({
 				dispose: () => {
-					proxy.$deleteCommentThread(
-						_commentControllerHandle,
-						this.handle
+					pwoxy.$deweteCommentThwead(
+						_commentContwowwewHandwe,
+						this.handwe
 					);
 				}
 			});
 
 			const that = this;
-			this.value = {
-				get uri() { return that.uri; },
-				get range() { return that.range; },
-				set range(value: vscode.Range) { that.range = value; },
-				get comments() { return that.comments; },
-				set comments(value: vscode.Comment[]) { that.comments = value; },
-				get collapsibleState() { return that.collapsibleState; },
-				set collapsibleState(value: vscode.CommentThreadCollapsibleState) { that.collapsibleState = value; },
-				get canReply() { return that.canReply; },
-				set canReply(state: boolean) { that.canReply = state; },
-				get contextValue() { return that.contextValue; },
-				set contextValue(value: string | undefined) { that.contextValue = value; },
-				get label() { return that.label; },
-				set label(value: string | undefined) { that.label = value; },
+			this.vawue = {
+				get uwi() { wetuwn that.uwi; },
+				get wange() { wetuwn that.wange; },
+				set wange(vawue: vscode.Wange) { that.wange = vawue; },
+				get comments() { wetuwn that.comments; },
+				set comments(vawue: vscode.Comment[]) { that.comments = vawue; },
+				get cowwapsibweState() { wetuwn that.cowwapsibweState; },
+				set cowwapsibweState(vawue: vscode.CommentThweadCowwapsibweState) { that.cowwapsibweState = vawue; },
+				get canWepwy() { wetuwn that.canWepwy; },
+				set canWepwy(state: boowean) { that.canWepwy = state; },
+				get contextVawue() { wetuwn that.contextVawue; },
+				set contextVawue(vawue: stwing | undefined) { that.contextVawue = vawue; },
+				get wabew() { wetuwn that.wabew; },
+				set wabew(vawue: stwing | undefined) { that.wabew = vawue; },
 				dispose: () => {
 					that.dispose();
 				}
@@ -405,246 +405,246 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 
 		@debounce(100)
-		eventuallyUpdateCommentThread(): void {
+		eventuawwyUpdateCommentThwead(): void {
 			if (this._isDiposed) {
-				return;
+				wetuwn;
 			}
 
-			if (!this._acceptInputDisposables.value) {
-				this._acceptInputDisposables.value = new DisposableStore();
+			if (!this._acceptInputDisposabwes.vawue) {
+				this._acceptInputDisposabwes.vawue = new DisposabweStowe();
 			}
 
-			const modified = (value: keyof CommentThreadModification): boolean =>
-				Object.prototype.hasOwnProperty.call(this.modifications, value);
+			const modified = (vawue: keyof CommentThweadModification): boowean =>
+				Object.pwototype.hasOwnPwopewty.caww(this.modifications, vawue);
 
-			const formattedModifications: CommentThreadChanges = {};
-			if (modified('range')) {
-				formattedModifications.range = extHostTypeConverter.Range.from(this._range);
+			const fowmattedModifications: CommentThweadChanges = {};
+			if (modified('wange')) {
+				fowmattedModifications.wange = extHostTypeConvewta.Wange.fwom(this._wange);
 			}
-			if (modified('label')) {
-				formattedModifications.label = this.label;
+			if (modified('wabew')) {
+				fowmattedModifications.wabew = this.wabew;
 			}
-			if (modified('contextValue')) {
-				formattedModifications.contextValue = this.contextValue;
+			if (modified('contextVawue')) {
+				fowmattedModifications.contextVawue = this.contextVawue;
 			}
 			if (modified('comments')) {
-				formattedModifications.comments =
-					this._comments.map(cmt => convertToModeComment(this, cmt, this._commentsMap));
+				fowmattedModifications.comments =
+					this._comments.map(cmt => convewtToModeComment(this, cmt, this._commentsMap));
 			}
-			if (modified('collapsibleState')) {
-				formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
+			if (modified('cowwapsibweState')) {
+				fowmattedModifications.cowwapseState = convewtToCowwapsibweState(this._cowwapseState);
 			}
-			if (modified('canReply')) {
-				formattedModifications.canReply = this.canReply;
+			if (modified('canWepwy')) {
+				fowmattedModifications.canWepwy = this.canWepwy;
 			}
 			this.modifications = {};
 
-			proxy.$updateCommentThread(
-				this._commentControllerHandle,
-				this.handle,
+			pwoxy.$updateCommentThwead(
+				this._commentContwowwewHandwe,
+				this.handwe,
 				this._id!,
-				this._uri,
-				formattedModifications
+				this._uwi,
+				fowmattedModifications
 			);
 		}
 
-		getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
-			for (let key of this._commentsMap) {
-				let comment = key[0];
-				let id = key[1];
+		getCommentByUniqueId(uniqueId: numba): vscode.Comment | undefined {
+			fow (wet key of this._commentsMap) {
+				wet comment = key[0];
+				wet id = key[1];
 				if (uniqueId === id) {
-					return comment;
+					wetuwn comment;
 				}
 			}
 
-			return;
+			wetuwn;
 		}
 
 		dispose() {
-			this._isDiposed = true;
-			this._acceptInputDisposables.dispose();
-			this._localDisposables.forEach(disposable => disposable.dispose());
+			this._isDiposed = twue;
+			this._acceptInputDisposabwes.dispose();
+			this._wocawDisposabwes.fowEach(disposabwe => disposabwe.dispose());
 		}
 	}
 
-	type ReactionHandler = (comment: vscode.Comment, reaction: vscode.CommentReaction) => Promise<void>;
+	type WeactionHandwa = (comment: vscode.Comment, weaction: vscode.CommentWeaction) => Pwomise<void>;
 
-	class ExtHostCommentController {
-		get id(): string {
-			return this._id;
+	cwass ExtHostCommentContwowwa {
+		get id(): stwing {
+			wetuwn this._id;
 		}
 
-		get label(): string {
-			return this._label;
+		get wabew(): stwing {
+			wetuwn this._wabew;
 		}
 
-		public get handle(): number {
-			return this._handle;
+		pubwic get handwe(): numba {
+			wetuwn this._handwe;
 		}
 
-		private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
-		commentingRangeProvider?: vscode.CommentingRangeProvider;
+		pwivate _thweads: Map<numba, ExtHostCommentThwead> = new Map<numba, ExtHostCommentThwead>();
+		commentingWangePwovida?: vscode.CommentingWangePwovida;
 
-		private _reactionHandler?: ReactionHandler;
+		pwivate _weactionHandwa?: WeactionHandwa;
 
-		get reactionHandler(): ReactionHandler | undefined {
-			return this._reactionHandler;
+		get weactionHandwa(): WeactionHandwa | undefined {
+			wetuwn this._weactionHandwa;
 		}
 
-		set reactionHandler(handler: ReactionHandler | undefined) {
-			this._reactionHandler = handler;
+		set weactionHandwa(handwa: WeactionHandwa | undefined) {
+			this._weactionHandwa = handwa;
 
-			proxy.$updateCommentControllerFeatures(this.handle, { reactionHandler: !!handler });
+			pwoxy.$updateCommentContwowwewFeatuwes(this.handwe, { weactionHandwa: !!handwa });
 		}
 
-		private _options: modes.CommentOptions | undefined;
+		pwivate _options: modes.CommentOptions | undefined;
 
 		get options() {
-			return this._options;
+			wetuwn this._options;
 		}
 
 		set options(options: modes.CommentOptions | undefined) {
 			this._options = options;
 
-			proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
+			pwoxy.$updateCommentContwowwewFeatuwes(this.handwe, { options: this._options });
 		}
 
 
-		private _localDisposables: types.Disposable[];
-		readonly value: vscode.CommentController;
+		pwivate _wocawDisposabwes: types.Disposabwe[];
+		weadonwy vawue: vscode.CommentContwowwa;
 
-		constructor(
-			private _extension: IExtensionDescription,
-			private _handle: number,
-			private _id: string,
-			private _label: string
+		constwuctow(
+			pwivate _extension: IExtensionDescwiption,
+			pwivate _handwe: numba,
+			pwivate _id: stwing,
+			pwivate _wabew: stwing
 		) {
-			proxy.$registerCommentController(this.handle, _id, _label);
+			pwoxy.$wegistewCommentContwowwa(this.handwe, _id, _wabew);
 
 			const that = this;
-			this.value = Object.freeze({
+			this.vawue = Object.fweeze({
 				id: that.id,
-				label: that.label,
-				get options() { return that.options; },
+				wabew: that.wabew,
+				get options() { wetuwn that.options; },
 				set options(options: vscode.CommentOptions | undefined) { that.options = options; },
-				get commentingRangeProvider(): vscode.CommentingRangeProvider | undefined { return that.commentingRangeProvider; },
-				set commentingRangeProvider(commentingRangeProvider: vscode.CommentingRangeProvider | undefined) { that.commentingRangeProvider = commentingRangeProvider; },
-				get reactionHandler(): ReactionHandler | undefined { return that.reactionHandler; },
-				set reactionHandler(handler: ReactionHandler | undefined) { that.reactionHandler = handler; },
-				createCommentThread(uri: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): vscode.CommentThread {
-					return that.createCommentThread(uri, range, comments).value;
+				get commentingWangePwovida(): vscode.CommentingWangePwovida | undefined { wetuwn that.commentingWangePwovida; },
+				set commentingWangePwovida(commentingWangePwovida: vscode.CommentingWangePwovida | undefined) { that.commentingWangePwovida = commentingWangePwovida; },
+				get weactionHandwa(): WeactionHandwa | undefined { wetuwn that.weactionHandwa; },
+				set weactionHandwa(handwa: WeactionHandwa | undefined) { that.weactionHandwa = handwa; },
+				cweateCommentThwead(uwi: vscode.Uwi, wange: vscode.Wange, comments: vscode.Comment[]): vscode.CommentThwead {
+					wetuwn that.cweateCommentThwead(uwi, wange, comments).vawue;
 				},
 				dispose: () => { that.dispose(); },
 			});
 
-			this._localDisposables = [];
-			this._localDisposables.push({
+			this._wocawDisposabwes = [];
+			this._wocawDisposabwes.push({
 				dispose: () => {
-					proxy.$unregisterCommentController(this.handle);
+					pwoxy.$unwegistewCommentContwowwa(this.handwe);
 				}
 			});
 		}
 
-		createCommentThread(resource: vscode.Uri, range: vscode.Range, comments: vscode.Comment[]): ExtHostCommentThread;
-		createCommentThread(arg0: vscode.Uri | string, arg1: vscode.Uri | vscode.Range, arg2: vscode.Range | vscode.Comment[], arg3?: vscode.Comment[]): vscode.CommentThread {
-			if (typeof arg0 === 'string') {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, arg0, arg1 as vscode.Uri, arg2 as vscode.Range, arg3 as vscode.Comment[], this._extension.identifier);
-				this._threads.set(commentThread.handle, commentThread);
-				return commentThread;
-			} else {
-				const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, arg0 as vscode.Uri, arg1 as vscode.Range, arg2 as vscode.Comment[], this._extension.identifier);
-				this._threads.set(commentThread.handle, commentThread);
-				return commentThread;
+		cweateCommentThwead(wesouwce: vscode.Uwi, wange: vscode.Wange, comments: vscode.Comment[]): ExtHostCommentThwead;
+		cweateCommentThwead(awg0: vscode.Uwi | stwing, awg1: vscode.Uwi | vscode.Wange, awg2: vscode.Wange | vscode.Comment[], awg3?: vscode.Comment[]): vscode.CommentThwead {
+			if (typeof awg0 === 'stwing') {
+				const commentThwead = new ExtHostCommentThwead(this.id, this.handwe, awg0, awg1 as vscode.Uwi, awg2 as vscode.Wange, awg3 as vscode.Comment[], this._extension.identifia);
+				this._thweads.set(commentThwead.handwe, commentThwead);
+				wetuwn commentThwead;
+			} ewse {
+				const commentThwead = new ExtHostCommentThwead(this.id, this.handwe, undefined, awg0 as vscode.Uwi, awg1 as vscode.Wange, awg2 as vscode.Comment[], this._extension.identifia);
+				this._thweads.set(commentThwead.handwe, commentThwead);
+				wetuwn commentThwead;
 			}
 		}
 
-		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange): ExtHostCommentThread {
-			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension.identifier);
-			commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
-			this._threads.set(commentThread.handle, commentThread);
-			return commentThread;
+		$cweateCommentThweadTempwate(uwiComponents: UwiComponents, wange: IWange): ExtHostCommentThwead {
+			const commentThwead = new ExtHostCommentThwead(this.id, this.handwe, undefined, UWI.wevive(uwiComponents), extHostTypeConvewta.Wange.to(wange), [], this._extension.identifia);
+			commentThwead.cowwapsibweState = modes.CommentThweadCowwapsibweState.Expanded;
+			this._thweads.set(commentThwead.handwe, commentThwead);
+			wetuwn commentThwead;
 		}
 
-		$updateCommentThreadTemplate(threadHandle: number, range: IRange): void {
-			let thread = this._threads.get(threadHandle);
-			if (thread) {
-				thread.range = extHostTypeConverter.Range.to(range);
+		$updateCommentThweadTempwate(thweadHandwe: numba, wange: IWange): void {
+			wet thwead = this._thweads.get(thweadHandwe);
+			if (thwead) {
+				thwead.wange = extHostTypeConvewta.Wange.to(wange);
 			}
 		}
 
-		$deleteCommentThread(threadHandle: number): void {
-			let thread = this._threads.get(threadHandle);
+		$deweteCommentThwead(thweadHandwe: numba): void {
+			wet thwead = this._thweads.get(thweadHandwe);
 
-			if (thread) {
-				thread.dispose();
+			if (thwead) {
+				thwead.dispose();
 			}
 
-			this._threads.delete(threadHandle);
+			this._thweads.dewete(thweadHandwe);
 		}
 
-		getCommentThread(handle: number): ExtHostCommentThread | undefined {
-			return this._threads.get(handle);
+		getCommentThwead(handwe: numba): ExtHostCommentThwead | undefined {
+			wetuwn this._thweads.get(handwe);
 		}
 
 		dispose(): void {
-			this._threads.forEach(value => {
-				value.dispose();
+			this._thweads.fowEach(vawue => {
+				vawue.dispose();
 			});
 
-			this._localDisposables.forEach(disposable => disposable.dispose());
+			this._wocawDisposabwes.fowEach(disposabwe => disposabwe.dispose());
 		}
 	}
 
-	function convertToModeComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>): modes.Comment {
-		let commentUniqueId = commentsMap.get(vscodeComment)!;
+	function convewtToModeComment(thwead: ExtHostCommentThwead, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, numba>): modes.Comment {
+		wet commentUniqueId = commentsMap.get(vscodeComment)!;
 		if (!commentUniqueId) {
-			commentUniqueId = ++thread.commentHandle;
+			commentUniqueId = ++thwead.commentHandwe;
 			commentsMap.set(vscodeComment, commentUniqueId);
 		}
 
-		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
+		const iconPath = vscodeComment.authow && vscodeComment.authow.iconPath ? vscodeComment.authow.iconPath.toStwing() : undefined;
 
-		return {
+		wetuwn {
 			mode: vscodeComment.mode,
-			contextValue: vscodeComment.contextValue,
-			uniqueIdInThread: commentUniqueId,
-			body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
-			userName: vscodeComment.author.name,
-			userIconPath: iconPath,
-			label: vscodeComment.label,
-			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined
+			contextVawue: vscodeComment.contextVawue,
+			uniqueIdInThwead: commentUniqueId,
+			body: extHostTypeConvewta.MawkdownStwing.fwom(vscodeComment.body),
+			usewName: vscodeComment.authow.name,
+			usewIconPath: iconPath,
+			wabew: vscodeComment.wabew,
+			commentWeactions: vscodeComment.weactions ? vscodeComment.weactions.map(weaction => convewtToWeaction(weaction)) : undefined
 		};
 	}
 
-	function convertToReaction(reaction: vscode.CommentReaction): modes.CommentReaction {
-		return {
-			label: reaction.label,
-			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
-			count: reaction.count,
-			hasReacted: reaction.authorHasReacted,
+	function convewtToWeaction(weaction: vscode.CommentWeaction): modes.CommentWeaction {
+		wetuwn {
+			wabew: weaction.wabew,
+			iconPath: weaction.iconPath ? extHostTypeConvewta.pathOwUWIToUWI(weaction.iconPath) : undefined,
+			count: weaction.count,
+			hasWeacted: weaction.authowHasWeacted,
 		};
 	}
 
-	function convertFromReaction(reaction: modes.CommentReaction): vscode.CommentReaction {
-		return {
-			label: reaction.label || '',
-			count: reaction.count || 0,
-			iconPath: reaction.iconPath ? URI.revive(reaction.iconPath) : '',
-			authorHasReacted: reaction.hasReacted || false
+	function convewtFwomWeaction(weaction: modes.CommentWeaction): vscode.CommentWeaction {
+		wetuwn {
+			wabew: weaction.wabew || '',
+			count: weaction.count || 0,
+			iconPath: weaction.iconPath ? UWI.wevive(weaction.iconPath) : '',
+			authowHasWeacted: weaction.hasWeacted || fawse
 		};
 	}
 
-	function convertToCollapsibleState(kind: vscode.CommentThreadCollapsibleState | undefined): modes.CommentThreadCollapsibleState {
+	function convewtToCowwapsibweState(kind: vscode.CommentThweadCowwapsibweState | undefined): modes.CommentThweadCowwapsibweState {
 		if (kind !== undefined) {
 			switch (kind) {
-				case types.CommentThreadCollapsibleState.Expanded:
-					return modes.CommentThreadCollapsibleState.Expanded;
-				case types.CommentThreadCollapsibleState.Collapsed:
-					return modes.CommentThreadCollapsibleState.Collapsed;
+				case types.CommentThweadCowwapsibweState.Expanded:
+					wetuwn modes.CommentThweadCowwapsibweState.Expanded;
+				case types.CommentThweadCowwapsibweState.Cowwapsed:
+					wetuwn modes.CommentThweadCowwapsibweState.Cowwapsed;
 			}
 		}
-		return modes.CommentThreadCollapsibleState.Collapsed;
+		wetuwn modes.CommentThweadCowwapsibweState.Cowwapsed;
 	}
 
-	return new ExtHostCommentsImpl();
+	wetuwn new ExtHostCommentsImpw();
 }

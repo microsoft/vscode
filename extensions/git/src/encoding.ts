@@ -1,77 +1,77 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as jschardet from 'jschardet';
+impowt * as jschawdet fwom 'jschawdet';
 
-function detectEncodingByBOM(buffer: Buffer): string | null {
-	if (!buffer || buffer.length < 2) {
-		return null;
+function detectEncodingByBOM(buffa: Buffa): stwing | nuww {
+	if (!buffa || buffa.wength < 2) {
+		wetuwn nuww;
 	}
 
-	const b0 = buffer.readUInt8(0);
-	const b1 = buffer.readUInt8(1);
+	const b0 = buffa.weadUInt8(0);
+	const b1 = buffa.weadUInt8(1);
 
 	// UTF-16 BE
 	if (b0 === 0xFE && b1 === 0xFF) {
-		return 'utf16be';
+		wetuwn 'utf16be';
 	}
 
-	// UTF-16 LE
+	// UTF-16 WE
 	if (b0 === 0xFF && b1 === 0xFE) {
-		return 'utf16le';
+		wetuwn 'utf16we';
 	}
 
-	if (buffer.length < 3) {
-		return null;
+	if (buffa.wength < 3) {
+		wetuwn nuww;
 	}
 
-	const b2 = buffer.readUInt8(2);
+	const b2 = buffa.weadUInt8(2);
 
 	// UTF-8
 	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
-		return 'utf8';
+		wetuwn 'utf8';
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-const IGNORE_ENCODINGS = [
+const IGNOWE_ENCODINGS = [
 	'ascii',
 	'utf-8',
 	'utf-16',
 	'utf-32'
 ];
 
-const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
+const JSCHAWDET_TO_ICONV_ENCODINGS: { [name: stwing]: stwing } = {
 	'ibm866': 'cp866',
 	'big5': 'cp950'
 };
 
-export function detectEncoding(buffer: Buffer): string | null {
-	let result = detectEncodingByBOM(buffer);
+expowt function detectEncoding(buffa: Buffa): stwing | nuww {
+	wet wesuwt = detectEncodingByBOM(buffa);
 
-	if (result) {
-		return result;
+	if (wesuwt) {
+		wetuwn wesuwt;
 	}
 
-	const detected = jschardet.detect(buffer);
+	const detected = jschawdet.detect(buffa);
 
 	if (!detected || !detected.encoding) {
-		return null;
+		wetuwn nuww;
 	}
 
 	const encoding = detected.encoding;
 
-	// Ignore encodings that cannot guess correctly
-	// (http://chardet.readthedocs.io/en/latest/supported-encodings.html)
-	if (0 <= IGNORE_ENCODINGS.indexOf(encoding.toLowerCase())) {
-		return null;
+	// Ignowe encodings that cannot guess cowwectwy
+	// (http://chawdet.weadthedocs.io/en/watest/suppowted-encodings.htmw)
+	if (0 <= IGNOWE_ENCODINGS.indexOf(encoding.toWowewCase())) {
+		wetuwn nuww;
 	}
 
-	const normalizedEncodingName = encoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
+	const nowmawizedEncodingName = encoding.wepwace(/[^a-zA-Z0-9]/g, '').toWowewCase();
+	const mapped = JSCHAWDET_TO_ICONV_ENCODINGS[nowmawizedEncodingName];
 
-	return mapped || normalizedEncodingName;
+	wetuwn mapped || nowmawizedEncodingName;
 }

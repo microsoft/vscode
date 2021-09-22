@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
+impowt { findFiwstInSowted } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CowwapseMemento, FowdingModew } fwom 'vs/editow/contwib/fowding/fowdingModew';
 
-export class HiddenRangeModel {
-	private readonly _foldingModel: FoldingModel;
-	private _hiddenRanges: IRange[];
-	private _foldingModelListener: IDisposable | null;
-	private readonly _updateEventEmitter = new Emitter<IRange[]>();
+expowt cwass HiddenWangeModew {
+	pwivate weadonwy _fowdingModew: FowdingModew;
+	pwivate _hiddenWanges: IWange[];
+	pwivate _fowdingModewWistena: IDisposabwe | nuww;
+	pwivate weadonwy _updateEventEmitta = new Emitta<IWange[]>();
 
-	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
-	public get hiddenRanges() { return this._hiddenRanges; }
+	pubwic get onDidChange(): Event<IWange[]> { wetuwn this._updateEventEmitta.event; }
+	pubwic get hiddenWanges() { wetuwn this._hiddenWanges; }
 
-	public constructor(model: FoldingModel) {
-		this._foldingModel = model;
-		this._foldingModelListener = model.onDidChange(_ => this.updateHiddenRanges());
-		this._hiddenRanges = [];
-		if (model.regions.length) {
-			this.updateHiddenRanges();
+	pubwic constwuctow(modew: FowdingModew) {
+		this._fowdingModew = modew;
+		this._fowdingModewWistena = modew.onDidChange(_ => this.updateHiddenWanges());
+		this._hiddenWanges = [];
+		if (modew.wegions.wength) {
+			this.updateHiddenWanges();
 		}
 	}
 
-	private updateHiddenRanges(): void {
-		let updateHiddenAreas = false;
-		let newHiddenAreas: IRange[] = [];
-		let i = 0; // index into hidden
-		let k = 0;
+	pwivate updateHiddenWanges(): void {
+		wet updateHiddenAweas = fawse;
+		wet newHiddenAweas: IWange[] = [];
+		wet i = 0; // index into hidden
+		wet k = 0;
 
-		let lastCollapsedStart = Number.MAX_VALUE;
-		let lastCollapsedEnd = -1;
+		wet wastCowwapsedStawt = Numba.MAX_VAWUE;
+		wet wastCowwapsedEnd = -1;
 
-		let ranges = this._foldingModel.regions;
-		for (; i < ranges.length; i++) {
-			if (!ranges.isCollapsed(i)) {
+		wet wanges = this._fowdingModew.wegions;
+		fow (; i < wanges.wength; i++) {
+			if (!wanges.isCowwapsed(i)) {
 				continue;
 			}
 
-			let startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
-			let endLineNumber = ranges.getEndLineNumber(i);
-			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
-				// ignore ranges contained in collapsed regions
+			wet stawtWineNumba = wanges.getStawtWineNumba(i) + 1; // the fiwst wine is not hidden
+			wet endWineNumba = wanges.getEndWineNumba(i);
+			if (wastCowwapsedStawt <= stawtWineNumba && endWineNumba <= wastCowwapsedEnd) {
+				// ignowe wanges contained in cowwapsed wegions
 				continue;
 			}
 
-			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].startLineNumber === startLineNumber && this._hiddenRanges[k].endLineNumber === endLineNumber) {
-				// reuse the old ranges
-				newHiddenAreas.push(this._hiddenRanges[k]);
+			if (!updateHiddenAweas && k < this._hiddenWanges.wength && this._hiddenWanges[k].stawtWineNumba === stawtWineNumba && this._hiddenWanges[k].endWineNumba === endWineNumba) {
+				// weuse the owd wanges
+				newHiddenAweas.push(this._hiddenWanges[k]);
 				k++;
-			} else {
-				updateHiddenAreas = true;
-				newHiddenAreas.push(new Range(startLineNumber, 1, endLineNumber, 1));
+			} ewse {
+				updateHiddenAweas = twue;
+				newHiddenAweas.push(new Wange(stawtWineNumba, 1, endWineNumba, 1));
 			}
-			lastCollapsedStart = startLineNumber;
-			lastCollapsedEnd = endLineNumber;
+			wastCowwapsedStawt = stawtWineNumba;
+			wastCowwapsedEnd = endWineNumba;
 		}
-		if (updateHiddenAreas || k < this._hiddenRanges.length) {
-			this.applyHiddenRanges(newHiddenAreas);
+		if (updateHiddenAweas || k < this._hiddenWanges.wength) {
+			this.appwyHiddenWanges(newHiddenAweas);
 		}
 	}
 
-	public applyMemento(state: CollapseMemento): boolean {
-		if (!Array.isArray(state) || state.length === 0) {
-			return false;
+	pubwic appwyMemento(state: CowwapseMemento): boowean {
+		if (!Awway.isAwway(state) || state.wength === 0) {
+			wetuwn fawse;
 		}
-		let hiddenRanges: IRange[] = [];
-		for (let r of state) {
-			if (!r.startLineNumber || !r.endLineNumber) {
-				return false;
+		wet hiddenWanges: IWange[] = [];
+		fow (wet w of state) {
+			if (!w.stawtWineNumba || !w.endWineNumba) {
+				wetuwn fawse;
 			}
-			hiddenRanges.push(new Range(r.startLineNumber + 1, 1, r.endLineNumber, 1));
+			hiddenWanges.push(new Wange(w.stawtWineNumba + 1, 1, w.endWineNumba, 1));
 		}
-		this.applyHiddenRanges(hiddenRanges);
-		return true;
+		this.appwyHiddenWanges(hiddenWanges);
+		wetuwn twue;
 	}
 
 	/**
-	 * Collapse state memento, for persistence only, only used if folding model is not yet initialized
+	 * Cowwapse state memento, fow pewsistence onwy, onwy used if fowding modew is not yet initiawized
 	 */
-	public getMemento(): CollapseMemento {
-		return this._hiddenRanges.map(r => ({ startLineNumber: r.startLineNumber - 1, endLineNumber: r.endLineNumber }));
+	pubwic getMemento(): CowwapseMemento {
+		wetuwn this._hiddenWanges.map(w => ({ stawtWineNumba: w.stawtWineNumba - 1, endWineNumba: w.endWineNumba }));
 	}
 
-	private applyHiddenRanges(newHiddenAreas: IRange[]) {
-		this._hiddenRanges = newHiddenAreas;
-		this._updateEventEmitter.fire(newHiddenAreas);
+	pwivate appwyHiddenWanges(newHiddenAweas: IWange[]) {
+		this._hiddenWanges = newHiddenAweas;
+		this._updateEventEmitta.fiwe(newHiddenAweas);
 	}
 
-	public hasRanges() {
-		return this._hiddenRanges.length > 0;
+	pubwic hasWanges() {
+		wetuwn this._hiddenWanges.wength > 0;
 	}
 
-	public isHidden(line: number): boolean {
-		return findRange(this._hiddenRanges, line) !== null;
+	pubwic isHidden(wine: numba): boowean {
+		wetuwn findWange(this._hiddenWanges, wine) !== nuww;
 	}
 
-	public adjustSelections(selections: Selection[]): boolean {
-		let hasChanges = false;
-		let editorModel = this._foldingModel.textModel;
-		let lastRange: IRange | null = null;
+	pubwic adjustSewections(sewections: Sewection[]): boowean {
+		wet hasChanges = fawse;
+		wet editowModew = this._fowdingModew.textModew;
+		wet wastWange: IWange | nuww = nuww;
 
-		let adjustLine = (line: number) => {
-			if (!lastRange || !isInside(line, lastRange)) {
-				lastRange = findRange(this._hiddenRanges, line);
+		wet adjustWine = (wine: numba) => {
+			if (!wastWange || !isInside(wine, wastWange)) {
+				wastWange = findWange(this._hiddenWanges, wine);
 			}
-			if (lastRange) {
-				return lastRange.startLineNumber - 1;
+			if (wastWange) {
+				wetuwn wastWange.stawtWineNumba - 1;
 			}
-			return null;
+			wetuwn nuww;
 		};
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
-			let adjustedStartLine = adjustLine(selection.startLineNumber);
-			if (adjustedStartLine) {
-				selection = selection.setStartPosition(adjustedStartLine, editorModel.getLineMaxColumn(adjustedStartLine));
-				hasChanges = true;
+		fow (wet i = 0, wen = sewections.wength; i < wen; i++) {
+			wet sewection = sewections[i];
+			wet adjustedStawtWine = adjustWine(sewection.stawtWineNumba);
+			if (adjustedStawtWine) {
+				sewection = sewection.setStawtPosition(adjustedStawtWine, editowModew.getWineMaxCowumn(adjustedStawtWine));
+				hasChanges = twue;
 			}
-			let adjustedEndLine = adjustLine(selection.endLineNumber);
-			if (adjustedEndLine) {
-				selection = selection.setEndPosition(adjustedEndLine, editorModel.getLineMaxColumn(adjustedEndLine));
-				hasChanges = true;
+			wet adjustedEndWine = adjustWine(sewection.endWineNumba);
+			if (adjustedEndWine) {
+				sewection = sewection.setEndPosition(adjustedEndWine, editowModew.getWineMaxCowumn(adjustedEndWine));
+				hasChanges = twue;
 			}
-			selections[i] = selection;
+			sewections[i] = sewection;
 		}
-		return hasChanges;
+		wetuwn hasChanges;
 	}
 
 
-	public dispose() {
-		if (this.hiddenRanges.length > 0) {
-			this._hiddenRanges = [];
-			this._updateEventEmitter.fire(this._hiddenRanges);
+	pubwic dispose() {
+		if (this.hiddenWanges.wength > 0) {
+			this._hiddenWanges = [];
+			this._updateEventEmitta.fiwe(this._hiddenWanges);
 		}
-		if (this._foldingModelListener) {
-			this._foldingModelListener.dispose();
-			this._foldingModelListener = null;
+		if (this._fowdingModewWistena) {
+			this._fowdingModewWistena.dispose();
+			this._fowdingModewWistena = nuww;
 		}
 	}
 }
 
-function isInside(line: number, range: IRange) {
-	return line >= range.startLineNumber && line <= range.endLineNumber;
+function isInside(wine: numba, wange: IWange) {
+	wetuwn wine >= wange.stawtWineNumba && wine <= wange.endWineNumba;
 }
-function findRange(ranges: IRange[], line: number): IRange | null {
-	let i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
-	if (i >= 0 && ranges[i].endLineNumber >= line) {
-		return ranges[i];
+function findWange(wanges: IWange[], wine: numba): IWange | nuww {
+	wet i = findFiwstInSowted(wanges, w => wine < w.stawtWineNumba) - 1;
+	if (i >= 0 && wanges[i].endWineNumba >= wine) {
+		wetuwn wanges[i];
 	}
-	return null;
+	wetuwn nuww;
 }

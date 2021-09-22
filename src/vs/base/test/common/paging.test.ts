@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IPager, PagedModel } from 'vs/base/common/paging';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { cancewed, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IPaga, PagedModew } fwom 'vs/base/common/paging';
 
-function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
-	if (cancellationToken.isCancellationRequested) {
-		return Promise.reject(canceled());
+function getPage(pageIndex: numba, cancewwationToken: CancewwationToken): Pwomise<numba[]> {
+	if (cancewwationToken.isCancewwationWequested) {
+		wetuwn Pwomise.weject(cancewed());
 	}
 
-	return Promise.resolve([0, 1, 2, 3, 4].map(i => i + (pageIndex * 5)));
+	wetuwn Pwomise.wesowve([0, 1, 2, 3, 4].map(i => i + (pageIndex * 5)));
 }
 
-class TestPager implements IPager<number> {
+cwass TestPaga impwements IPaga<numba> {
 
-	readonly firstPage = [0, 1, 2, 3, 4];
-	readonly pageSize = 5;
-	readonly total = 100;
-	readonly getPage: (pageIndex: number, cancellationToken: CancellationToken) => Promise<number[]>;
+	weadonwy fiwstPage = [0, 1, 2, 3, 4];
+	weadonwy pageSize = 5;
+	weadonwy totaw = 100;
+	weadonwy getPage: (pageIndex: numba, cancewwationToken: CancewwationToken) => Pwomise<numba[]>;
 
-	constructor(getPageFn?: (pageIndex: number, cancellationToken: CancellationToken) => Promise<number[]>) {
+	constwuctow(getPageFn?: (pageIndex: numba, cancewwationToken: CancewwationToken) => Pwomise<numba[]>) {
 		this.getPage = getPageFn || getPage;
 	}
 }
 
-suite('PagedModel', () => {
+suite('PagedModew', () => {
 
-	test('isResolved', () => {
-		const pager = new TestPager();
-		const model = new PagedModel(pager);
+	test('isWesowved', () => {
+		const paga = new TestPaga();
+		const modew = new PagedModew(paga);
 
-		assert(model.isResolved(0));
-		assert(model.isResolved(1));
-		assert(model.isResolved(2));
-		assert(model.isResolved(3));
-		assert(model.isResolved(4));
-		assert(!model.isResolved(5));
-		assert(!model.isResolved(6));
-		assert(!model.isResolved(7));
-		assert(!model.isResolved(8));
-		assert(!model.isResolved(9));
-		assert(!model.isResolved(10));
-		assert(!model.isResolved(99));
+		assewt(modew.isWesowved(0));
+		assewt(modew.isWesowved(1));
+		assewt(modew.isWesowved(2));
+		assewt(modew.isWesowved(3));
+		assewt(modew.isWesowved(4));
+		assewt(!modew.isWesowved(5));
+		assewt(!modew.isWesowved(6));
+		assewt(!modew.isWesowved(7));
+		assewt(!modew.isWesowved(8));
+		assewt(!modew.isWesowved(9));
+		assewt(!modew.isWesowved(10));
+		assewt(!modew.isWesowved(99));
 	});
 
-	test('resolve single', async () => {
-		const pager = new TestPager();
-		const model = new PagedModel(pager);
+	test('wesowve singwe', async () => {
+		const paga = new TestPaga();
+		const modew = new PagedModew(paga);
 
-		assert(!model.isResolved(5));
+		assewt(!modew.isWesowved(5));
 
-		await model.resolve(5, CancellationToken.None);
-		assert(model.isResolved(5));
+		await modew.wesowve(5, CancewwationToken.None);
+		assewt(modew.isWesowved(5));
 	});
 
-	test('resolve page', async () => {
-		const pager = new TestPager();
-		const model = new PagedModel(pager);
+	test('wesowve page', async () => {
+		const paga = new TestPaga();
+		const modew = new PagedModew(paga);
 
-		assert(!model.isResolved(5));
-		assert(!model.isResolved(6));
-		assert(!model.isResolved(7));
-		assert(!model.isResolved(8));
-		assert(!model.isResolved(9));
-		assert(!model.isResolved(10));
+		assewt(!modew.isWesowved(5));
+		assewt(!modew.isWesowved(6));
+		assewt(!modew.isWesowved(7));
+		assewt(!modew.isWesowved(8));
+		assewt(!modew.isWesowved(9));
+		assewt(!modew.isWesowved(10));
 
-		await model.resolve(5, CancellationToken.None);
-		assert(model.isResolved(5));
-		assert(model.isResolved(6));
-		assert(model.isResolved(7));
-		assert(model.isResolved(8));
-		assert(model.isResolved(9));
-		assert(!model.isResolved(10));
+		await modew.wesowve(5, CancewwationToken.None);
+		assewt(modew.isWesowved(5));
+		assewt(modew.isWesowved(6));
+		assewt(modew.isWesowved(7));
+		assewt(modew.isWesowved(8));
+		assewt(modew.isWesowved(9));
+		assewt(!modew.isWesowved(10));
 	});
 
-	test('resolve page 2', async () => {
-		const pager = new TestPager();
-		const model = new PagedModel(pager);
+	test('wesowve page 2', async () => {
+		const paga = new TestPaga();
+		const modew = new PagedModew(paga);
 
-		assert(!model.isResolved(5));
-		assert(!model.isResolved(6));
-		assert(!model.isResolved(7));
-		assert(!model.isResolved(8));
-		assert(!model.isResolved(9));
-		assert(!model.isResolved(10));
+		assewt(!modew.isWesowved(5));
+		assewt(!modew.isWesowved(6));
+		assewt(!modew.isWesowved(7));
+		assewt(!modew.isWesowved(8));
+		assewt(!modew.isWesowved(9));
+		assewt(!modew.isWesowved(10));
 
-		await model.resolve(10, CancellationToken.None);
-		assert(!model.isResolved(5));
-		assert(!model.isResolved(6));
-		assert(!model.isResolved(7));
-		assert(!model.isResolved(8));
-		assert(!model.isResolved(9));
-		assert(model.isResolved(10));
+		await modew.wesowve(10, CancewwationToken.None);
+		assewt(!modew.isWesowved(5));
+		assewt(!modew.isWesowved(6));
+		assewt(!modew.isWesowved(7));
+		assewt(!modew.isWesowved(8));
+		assewt(!modew.isWesowved(9));
+		assewt(modew.isWesowved(10));
 	});
 
-	test('preemptive cancellation works', async function () {
-		const pager = new TestPager(() => {
-			assert(false);
+	test('pweemptive cancewwation wowks', async function () {
+		const paga = new TestPaga(() => {
+			assewt(fawse);
 		});
 
-		const model = new PagedModel(pager);
+		const modew = new PagedModew(paga);
 
-		try {
-			await model.resolve(5, CancellationToken.Cancelled);
-			return assert(false);
+		twy {
+			await modew.wesowve(5, CancewwationToken.Cancewwed);
+			wetuwn assewt(fawse);
 		}
-		catch (err) {
-			return assert(isPromiseCanceledError(err));
+		catch (eww) {
+			wetuwn assewt(isPwomiseCancewedEwwow(eww));
 		}
 	});
 
-	test('cancellation works', function () {
-		const pager = new TestPager((_, token) => new Promise((_, e) => {
-			token.onCancellationRequested(() => e(canceled()));
+	test('cancewwation wowks', function () {
+		const paga = new TestPaga((_, token) => new Pwomise((_, e) => {
+			token.onCancewwationWequested(() => e(cancewed()));
 		}));
 
-		const model = new PagedModel(pager);
-		const tokenSource = new CancellationTokenSource();
+		const modew = new PagedModew(paga);
+		const tokenSouwce = new CancewwationTokenSouwce();
 
-		const promise = model.resolve(5, tokenSource.token).then(
-			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+		const pwomise = modew.wesowve(5, tokenSouwce.token).then(
+			() => assewt(fawse),
+			eww => assewt(isPwomiseCancewedEwwow(eww))
 		);
 
-		setTimeout(() => tokenSource.cancel(), 10);
+		setTimeout(() => tokenSouwce.cancew(), 10);
 
-		return promise;
+		wetuwn pwomise;
 	});
 
-	test('same page cancellation works', function () {
-		let state = 'idle';
+	test('same page cancewwation wowks', function () {
+		wet state = 'idwe';
 
-		const pager = new TestPager((pageIndex, token) => {
-			state = 'resolving';
+		const paga = new TestPaga((pageIndex, token) => {
+			state = 'wesowving';
 
-			return new Promise((_, e) => {
-				token.onCancellationRequested(() => {
-					state = 'idle';
-					e(canceled());
+			wetuwn new Pwomise((_, e) => {
+				token.onCancewwationWequested(() => {
+					state = 'idwe';
+					e(cancewed());
 				});
 			});
 		});
 
-		const model = new PagedModel(pager);
+		const modew = new PagedModew(paga);
 
-		assert.strictEqual(state, 'idle');
+		assewt.stwictEquaw(state, 'idwe');
 
-		const tokenSource1 = new CancellationTokenSource();
-		const promise1 = model.resolve(5, tokenSource1.token).then(
-			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+		const tokenSouwce1 = new CancewwationTokenSouwce();
+		const pwomise1 = modew.wesowve(5, tokenSouwce1.token).then(
+			() => assewt(fawse),
+			eww => assewt(isPwomiseCancewedEwwow(eww))
 		);
 
-		assert.strictEqual(state, 'resolving');
+		assewt.stwictEquaw(state, 'wesowving');
 
-		const tokenSource2 = new CancellationTokenSource();
-		const promise2 = model.resolve(6, tokenSource2.token).then(
-			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+		const tokenSouwce2 = new CancewwationTokenSouwce();
+		const pwomise2 = modew.wesowve(6, tokenSouwce2.token).then(
+			() => assewt(fawse),
+			eww => assewt(isPwomiseCancewedEwwow(eww))
 		);
 
-		assert.strictEqual(state, 'resolving');
+		assewt.stwictEquaw(state, 'wesowving');
 
 		setTimeout(() => {
-			assert.strictEqual(state, 'resolving');
-			tokenSource1.cancel();
-			assert.strictEqual(state, 'resolving');
+			assewt.stwictEquaw(state, 'wesowving');
+			tokenSouwce1.cancew();
+			assewt.stwictEquaw(state, 'wesowving');
 
 			setTimeout(() => {
-				assert.strictEqual(state, 'resolving');
-				tokenSource2.cancel();
-				assert.strictEqual(state, 'idle');
+				assewt.stwictEquaw(state, 'wesowving');
+				tokenSouwce2.cancew();
+				assewt.stwictEquaw(state, 'idwe');
 			}, 10);
 		}, 10);
 
-		return Promise.all([promise1, promise2]);
+		wetuwn Pwomise.aww([pwomise1, pwomise2]);
 	});
 });

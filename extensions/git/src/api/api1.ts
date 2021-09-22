@@ -1,381 +1,381 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Model } from '../model';
-import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
-import { mapEvent } from '../util';
-import { toGitUri } from '../uri';
-import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
-import { GitExtensionImpl } from './extension';
+impowt { Modew } fwom '../modew';
+impowt { Wepositowy as BaseWepositowy, Wesouwce } fwom '../wepositowy';
+impowt { InputBox, Git, API, Wepositowy, Wemote, WepositowyState, Bwanch, FowcePushMode, Wef, Submoduwe, Commit, Change, WepositowyUIState, Status, WogOptions, APIState, CommitOptions, WefType, WemoteSouwcePwovida, CwedentiawsPwovida, BwanchQuewy, PushEwwowHandwa, PubwishEvent, FetchOptions } fwom './git';
+impowt { Event, SouwceContwowInputBox, Uwi, SouwceContwow, Disposabwe, commands } fwom 'vscode';
+impowt { mapEvent } fwom '../utiw';
+impowt { toGitUwi } fwom '../uwi';
+impowt { pickWemoteSouwce, PickWemoteSouwceOptions } fwom '../wemoteSouwce';
+impowt { GitExtensionImpw } fwom './extension';
 
-class ApiInputBox implements InputBox {
-	set value(value: string) { this._inputBox.value = value; }
-	get value(): string { return this._inputBox.value; }
-	constructor(private _inputBox: SourceControlInputBox) { }
+cwass ApiInputBox impwements InputBox {
+	set vawue(vawue: stwing) { this._inputBox.vawue = vawue; }
+	get vawue(): stwing { wetuwn this._inputBox.vawue; }
+	constwuctow(pwivate _inputBox: SouwceContwowInputBox) { }
 }
 
-export class ApiChange implements Change {
+expowt cwass ApiChange impwements Change {
 
-	get uri(): Uri { return this.resource.resourceUri; }
-	get originalUri(): Uri { return this.resource.original; }
-	get renameUri(): Uri | undefined { return this.resource.renameResourceUri; }
-	get status(): Status { return this.resource.type; }
+	get uwi(): Uwi { wetuwn this.wesouwce.wesouwceUwi; }
+	get owiginawUwi(): Uwi { wetuwn this.wesouwce.owiginaw; }
+	get wenameUwi(): Uwi | undefined { wetuwn this.wesouwce.wenameWesouwceUwi; }
+	get status(): Status { wetuwn this.wesouwce.type; }
 
-	constructor(private readonly resource: Resource) { }
+	constwuctow(pwivate weadonwy wesouwce: Wesouwce) { }
 }
 
-export class ApiRepositoryState implements RepositoryState {
+expowt cwass ApiWepositowyState impwements WepositowyState {
 
-	get HEAD(): Branch | undefined { return this._repository.HEAD; }
-	get refs(): Ref[] { return [...this._repository.refs]; }
-	get remotes(): Remote[] { return [...this._repository.remotes]; }
-	get submodules(): Submodule[] { return [...this._repository.submodules]; }
-	get rebaseCommit(): Commit | undefined { return this._repository.rebaseCommit; }
+	get HEAD(): Bwanch | undefined { wetuwn this._wepositowy.HEAD; }
+	get wefs(): Wef[] { wetuwn [...this._wepositowy.wefs]; }
+	get wemotes(): Wemote[] { wetuwn [...this._wepositowy.wemotes]; }
+	get submoduwes(): Submoduwe[] { wetuwn [...this._wepositowy.submoduwes]; }
+	get webaseCommit(): Commit | undefined { wetuwn this._wepositowy.webaseCommit; }
 
-	get mergeChanges(): Change[] { return this._repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
-	get indexChanges(): Change[] { return this._repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
-	get workingTreeChanges(): Change[] { return this._repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
+	get mewgeChanges(): Change[] { wetuwn this._wepositowy.mewgeGwoup.wesouwceStates.map(w => new ApiChange(w)); }
+	get indexChanges(): Change[] { wetuwn this._wepositowy.indexGwoup.wesouwceStates.map(w => new ApiChange(w)); }
+	get wowkingTweeChanges(): Change[] { wetuwn this._wepositowy.wowkingTweeGwoup.wesouwceStates.map(w => new ApiChange(w)); }
 
-	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
+	weadonwy onDidChange: Event<void> = this._wepositowy.onDidWunGitStatus;
 
-	constructor(private _repository: BaseRepository) { }
+	constwuctow(pwivate _wepositowy: BaseWepositowy) { }
 }
 
-export class ApiRepositoryUIState implements RepositoryUIState {
+expowt cwass ApiWepositowyUIState impwements WepositowyUIState {
 
-	get selected(): boolean { return this._sourceControl.selected; }
+	get sewected(): boowean { wetuwn this._souwceContwow.sewected; }
 
-	readonly onDidChange: Event<void> = mapEvent<boolean, void>(this._sourceControl.onDidChangeSelection, () => null);
+	weadonwy onDidChange: Event<void> = mapEvent<boowean, void>(this._souwceContwow.onDidChangeSewection, () => nuww);
 
-	constructor(private _sourceControl: SourceControl) { }
+	constwuctow(pwivate _souwceContwow: SouwceContwow) { }
 }
 
-export class ApiRepository implements Repository {
+expowt cwass ApiWepositowy impwements Wepositowy {
 
-	readonly rootUri: Uri = Uri.file(this._repository.root);
-	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
-	readonly state: RepositoryState = new ApiRepositoryState(this._repository);
-	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this._repository.sourceControl);
+	weadonwy wootUwi: Uwi = Uwi.fiwe(this._wepositowy.woot);
+	weadonwy inputBox: InputBox = new ApiInputBox(this._wepositowy.inputBox);
+	weadonwy state: WepositowyState = new ApiWepositowyState(this._wepositowy);
+	weadonwy ui: WepositowyUIState = new ApiWepositowyUIState(this._wepositowy.souwceContwow);
 
-	constructor(private _repository: BaseRepository) { }
+	constwuctow(pwivate _wepositowy: BaseWepositowy) { }
 
-	apply(patch: string, reverse?: boolean): Promise<void> {
-		return this._repository.apply(patch, reverse);
+	appwy(patch: stwing, wevewse?: boowean): Pwomise<void> {
+		wetuwn this._wepositowy.appwy(patch, wevewse);
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
-		return this._repository.getConfigs();
+	getConfigs(): Pwomise<{ key: stwing; vawue: stwing; }[]> {
+		wetuwn this._wepositowy.getConfigs();
 	}
 
-	getConfig(key: string): Promise<string> {
-		return this._repository.getConfig(key);
+	getConfig(key: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.getConfig(key);
 	}
 
-	setConfig(key: string, value: string): Promise<string> {
-		return this._repository.setConfig(key, value);
+	setConfig(key: stwing, vawue: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.setConfig(key, vawue);
 	}
 
-	getGlobalConfig(key: string): Promise<string> {
-		return this._repository.getGlobalConfig(key);
+	getGwobawConfig(key: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.getGwobawConfig(key);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
-		return this._repository.getObjectDetails(treeish, path);
+	getObjectDetaiws(tweeish: stwing, path: stwing): Pwomise<{ mode: stwing; object: stwing; size: numba; }> {
+		wetuwn this._wepositowy.getObjectDetaiws(tweeish, path);
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
-		return this._repository.detectObjectType(object);
+	detectObjectType(object: stwing): Pwomise<{ mimetype: stwing, encoding?: stwing }> {
+		wetuwn this._wepositowy.detectObjectType(object);
 	}
 
-	buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this._repository.buffer(ref, filePath);
+	buffa(wef: stwing, fiwePath: stwing): Pwomise<Buffa> {
+		wetuwn this._wepositowy.buffa(wef, fiwePath);
 	}
 
-	show(ref: string, path: string): Promise<string> {
-		return this._repository.show(ref, path);
+	show(wef: stwing, path: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.show(wef, path);
 	}
 
-	getCommit(ref: string): Promise<Commit> {
-		return this._repository.getCommit(ref);
+	getCommit(wef: stwing): Pwomise<Commit> {
+		wetuwn this._wepositowy.getCommit(wef);
 	}
 
-	clean(paths: string[]) {
-		return this._repository.clean(paths.map(p => Uri.file(p)));
+	cwean(paths: stwing[]) {
+		wetuwn this._wepositowy.cwean(paths.map(p => Uwi.fiwe(p)));
 	}
 
-	diff(cached?: boolean) {
-		return this._repository.diff(cached);
+	diff(cached?: boowean) {
+		wetuwn this._wepositowy.diff(cached);
 	}
 
-	diffWithHEAD(): Promise<Change[]>;
-	diffWithHEAD(path: string): Promise<string>;
-	diffWithHEAD(path?: string): Promise<string | Change[]> {
-		return this._repository.diffWithHEAD(path);
+	diffWithHEAD(): Pwomise<Change[]>;
+	diffWithHEAD(path: stwing): Pwomise<stwing>;
+	diffWithHEAD(path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this._wepositowy.diffWithHEAD(path);
 	}
 
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffWith(ref, path);
+	diffWith(wef: stwing): Pwomise<Change[]>;
+	diffWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this._wepositowy.diffWith(wef, path);
 	}
 
-	diffIndexWithHEAD(): Promise<Change[]>;
-	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
-		return this._repository.diffIndexWithHEAD(path);
+	diffIndexWithHEAD(): Pwomise<Change[]>;
+	diffIndexWithHEAD(path: stwing): Pwomise<stwing>;
+	diffIndexWithHEAD(path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this._wepositowy.diffIndexWithHEAD(path);
 	}
 
-	diffIndexWith(ref: string): Promise<Change[]>;
-	diffIndexWith(ref: string, path: string): Promise<string>;
-	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffIndexWith(ref, path);
+	diffIndexWith(wef: stwing): Pwomise<Change[]>;
+	diffIndexWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffIndexWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this._wepositowy.diffIndexWith(wef, path);
 	}
 
-	diffBlobs(object1: string, object2: string): Promise<string> {
-		return this._repository.diffBlobs(object1, object2);
+	diffBwobs(object1: stwing, object2: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.diffBwobs(object1, object2);
 	}
 
-	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
-	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffBetween(ref1, ref2, path);
+	diffBetween(wef1: stwing, wef2: stwing): Pwomise<Change[]>;
+	diffBetween(wef1: stwing, wef2: stwing, path: stwing): Pwomise<stwing>;
+	diffBetween(wef1: stwing, wef2: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		wetuwn this._wepositowy.diffBetween(wef1, wef2, path);
 	}
 
-	hashObject(data: string): Promise<string> {
-		return this._repository.hashObject(data);
+	hashObject(data: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.hashObject(data);
 	}
 
-	createBranch(name: string, checkout: boolean, ref?: string | undefined): Promise<void> {
-		return this._repository.branch(name, checkout, ref);
+	cweateBwanch(name: stwing, checkout: boowean, wef?: stwing | undefined): Pwomise<void> {
+		wetuwn this._wepositowy.bwanch(name, checkout, wef);
 	}
 
-	deleteBranch(name: string, force?: boolean): Promise<void> {
-		return this._repository.deleteBranch(name, force);
+	deweteBwanch(name: stwing, fowce?: boowean): Pwomise<void> {
+		wetuwn this._wepositowy.deweteBwanch(name, fowce);
 	}
 
-	getBranch(name: string): Promise<Branch> {
-		return this._repository.getBranch(name);
+	getBwanch(name: stwing): Pwomise<Bwanch> {
+		wetuwn this._wepositowy.getBwanch(name);
 	}
 
-	getBranches(query: BranchQuery): Promise<Ref[]> {
-		return this._repository.getBranches(query);
+	getBwanches(quewy: BwanchQuewy): Pwomise<Wef[]> {
+		wetuwn this._wepositowy.getBwanches(quewy);
 	}
 
-	setBranchUpstream(name: string, upstream: string): Promise<void> {
-		return this._repository.setBranchUpstream(name, upstream);
+	setBwanchUpstweam(name: stwing, upstweam: stwing): Pwomise<void> {
+		wetuwn this._wepositowy.setBwanchUpstweam(name, upstweam);
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		return this._repository.getMergeBase(ref1, ref2);
+	getMewgeBase(wef1: stwing, wef2: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.getMewgeBase(wef1, wef2);
 	}
 
-	status(): Promise<void> {
-		return this._repository.status();
+	status(): Pwomise<void> {
+		wetuwn this._wepositowy.status();
 	}
 
-	checkout(treeish: string): Promise<void> {
-		return this._repository.checkout(treeish);
+	checkout(tweeish: stwing): Pwomise<void> {
+		wetuwn this._wepositowy.checkout(tweeish);
 	}
 
-	addRemote(name: string, url: string): Promise<void> {
-		return this._repository.addRemote(name, url);
+	addWemote(name: stwing, uww: stwing): Pwomise<void> {
+		wetuwn this._wepositowy.addWemote(name, uww);
 	}
 
-	removeRemote(name: string): Promise<void> {
-		return this._repository.removeRemote(name);
+	wemoveWemote(name: stwing): Pwomise<void> {
+		wetuwn this._wepositowy.wemoveWemote(name);
 	}
 
-	renameRemote(name: string, newName: string): Promise<void> {
-		return this._repository.renameRemote(name, newName);
+	wenameWemote(name: stwing, newName: stwing): Pwomise<void> {
+		wetuwn this._wepositowy.wenameWemote(name, newName);
 	}
 
-	fetch(arg0?: FetchOptions | string | undefined,
-		ref?: string | undefined,
-		depth?: number | undefined,
-		prune?: boolean | undefined
-	): Promise<void> {
-		if (arg0 !== undefined && typeof arg0 !== 'string') {
-			return this._repository.fetch(arg0);
+	fetch(awg0?: FetchOptions | stwing | undefined,
+		wef?: stwing | undefined,
+		depth?: numba | undefined,
+		pwune?: boowean | undefined
+	): Pwomise<void> {
+		if (awg0 !== undefined && typeof awg0 !== 'stwing') {
+			wetuwn this._wepositowy.fetch(awg0);
 		}
 
-		return this._repository.fetch({ remote: arg0, ref, depth, prune });
+		wetuwn this._wepositowy.fetch({ wemote: awg0, wef, depth, pwune });
 	}
 
-	pull(unshallow?: boolean): Promise<void> {
-		return this._repository.pull(undefined, unshallow);
+	puww(unshawwow?: boowean): Pwomise<void> {
+		wetuwn this._wepositowy.puww(undefined, unshawwow);
 	}
 
-	push(remoteName?: string, branchName?: string, setUpstream: boolean = false, force?: ForcePushMode): Promise<void> {
-		return this._repository.pushTo(remoteName, branchName, setUpstream, force);
+	push(wemoteName?: stwing, bwanchName?: stwing, setUpstweam: boowean = fawse, fowce?: FowcePushMode): Pwomise<void> {
+		wetuwn this._wepositowy.pushTo(wemoteName, bwanchName, setUpstweam, fowce);
 	}
 
-	blame(path: string): Promise<string> {
-		return this._repository.blame(path);
+	bwame(path: stwing): Pwomise<stwing> {
+		wetuwn this._wepositowy.bwame(path);
 	}
 
-	log(options?: LogOptions): Promise<Commit[]> {
-		return this._repository.log(options);
+	wog(options?: WogOptions): Pwomise<Commit[]> {
+		wetuwn this._wepositowy.wog(options);
 	}
 
-	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this._repository.commit(message, opts);
+	commit(message: stwing, opts?: CommitOptions): Pwomise<void> {
+		wetuwn this._wepositowy.commit(message, opts);
 	}
 }
 
-export class ApiGit implements Git {
+expowt cwass ApiGit impwements Git {
 
-	get path(): string { return this._model.git.path; }
+	get path(): stwing { wetuwn this._modew.git.path; }
 
-	constructor(private _model: Model) { }
+	constwuctow(pwivate _modew: Modew) { }
 }
 
-export class ApiImpl implements API {
+expowt cwass ApiImpw impwements API {
 
-	readonly git = new ApiGit(this._model);
+	weadonwy git = new ApiGit(this._modew);
 
 	get state(): APIState {
-		return this._model.state;
+		wetuwn this._modew.state;
 	}
 
 	get onDidChangeState(): Event<APIState> {
-		return this._model.onDidChangeState;
+		wetuwn this._modew.onDidChangeState;
 	}
 
-	get onDidPublish(): Event<PublishEvent> {
-		return this._model.onDidPublish;
+	get onDidPubwish(): Event<PubwishEvent> {
+		wetuwn this._modew.onDidPubwish;
 	}
 
-	get onDidOpenRepository(): Event<Repository> {
-		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
+	get onDidOpenWepositowy(): Event<Wepositowy> {
+		wetuwn mapEvent(this._modew.onDidOpenWepositowy, w => new ApiWepositowy(w));
 	}
 
-	get onDidCloseRepository(): Event<Repository> {
-		return mapEvent(this._model.onDidCloseRepository, r => new ApiRepository(r));
+	get onDidCwoseWepositowy(): Event<Wepositowy> {
+		wetuwn mapEvent(this._modew.onDidCwoseWepositowy, w => new ApiWepositowy(w));
 	}
 
-	get repositories(): Repository[] {
-		return this._model.repositories.map(r => new ApiRepository(r));
+	get wepositowies(): Wepositowy[] {
+		wetuwn this._modew.wepositowies.map(w => new ApiWepositowy(w));
 	}
 
-	toGitUri(uri: Uri, ref: string): Uri {
-		return toGitUri(uri, ref);
+	toGitUwi(uwi: Uwi, wef: stwing): Uwi {
+		wetuwn toGitUwi(uwi, wef);
 	}
 
-	getRepository(uri: Uri): Repository | null {
-		const result = this._model.getRepository(uri);
-		return result ? new ApiRepository(result) : null;
+	getWepositowy(uwi: Uwi): Wepositowy | nuww {
+		const wesuwt = this._modew.getWepositowy(uwi);
+		wetuwn wesuwt ? new ApiWepositowy(wesuwt) : nuww;
 	}
 
-	async init(root: Uri): Promise<Repository | null> {
-		const path = root.fsPath;
-		await this._model.git.init(path);
-		await this._model.openRepository(path);
-		return this.getRepository(root) || null;
+	async init(woot: Uwi): Pwomise<Wepositowy | nuww> {
+		const path = woot.fsPath;
+		await this._modew.git.init(path);
+		await this._modew.openWepositowy(path);
+		wetuwn this.getWepositowy(woot) || nuww;
 	}
 
-	async openRepository(root: Uri): Promise<Repository | null> {
-		await this._model.openRepository(root.fsPath);
-		return this.getRepository(root) || null;
+	async openWepositowy(woot: Uwi): Pwomise<Wepositowy | nuww> {
+		await this._modew.openWepositowy(woot.fsPath);
+		wetuwn this.getWepositowy(woot) || nuww;
 	}
 
-	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
-		return this._model.registerRemoteSourceProvider(provider);
+	wegistewWemoteSouwcePwovida(pwovida: WemoteSouwcePwovida): Disposabwe {
+		wetuwn this._modew.wegistewWemoteSouwcePwovida(pwovida);
 	}
 
-	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
-		return this._model.registerCredentialsProvider(provider);
+	wegistewCwedentiawsPwovida(pwovida: CwedentiawsPwovida): Disposabwe {
+		wetuwn this._modew.wegistewCwedentiawsPwovida(pwovida);
 	}
 
-	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
-		return this._model.registerPushErrorHandler(handler);
+	wegistewPushEwwowHandwa(handwa: PushEwwowHandwa): Disposabwe {
+		wetuwn this._modew.wegistewPushEwwowHandwa(handwa);
 	}
 
-	constructor(private _model: Model) { }
+	constwuctow(pwivate _modew: Modew) { }
 }
 
-function getRefType(type: RefType): string {
+function getWefType(type: WefType): stwing {
 	switch (type) {
-		case RefType.Head: return 'Head';
-		case RefType.RemoteHead: return 'RemoteHead';
-		case RefType.Tag: return 'Tag';
+		case WefType.Head: wetuwn 'Head';
+		case WefType.WemoteHead: wetuwn 'WemoteHead';
+		case WefType.Tag: wetuwn 'Tag';
 	}
 
-	return 'unknown';
+	wetuwn 'unknown';
 }
 
-function getStatus(status: Status): string {
+function getStatus(status: Status): stwing {
 	switch (status) {
-		case Status.INDEX_MODIFIED: return 'INDEX_MODIFIED';
-		case Status.INDEX_ADDED: return 'INDEX_ADDED';
-		case Status.INDEX_DELETED: return 'INDEX_DELETED';
-		case Status.INDEX_RENAMED: return 'INDEX_RENAMED';
-		case Status.INDEX_COPIED: return 'INDEX_COPIED';
-		case Status.MODIFIED: return 'MODIFIED';
-		case Status.DELETED: return 'DELETED';
-		case Status.UNTRACKED: return 'UNTRACKED';
-		case Status.IGNORED: return 'IGNORED';
-		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
-		case Status.ADDED_BY_US: return 'ADDED_BY_US';
-		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
-		case Status.DELETED_BY_US: return 'DELETED_BY_US';
-		case Status.DELETED_BY_THEM: return 'DELETED_BY_THEM';
-		case Status.BOTH_ADDED: return 'BOTH_ADDED';
-		case Status.BOTH_DELETED: return 'BOTH_DELETED';
-		case Status.BOTH_MODIFIED: return 'BOTH_MODIFIED';
+		case Status.INDEX_MODIFIED: wetuwn 'INDEX_MODIFIED';
+		case Status.INDEX_ADDED: wetuwn 'INDEX_ADDED';
+		case Status.INDEX_DEWETED: wetuwn 'INDEX_DEWETED';
+		case Status.INDEX_WENAMED: wetuwn 'INDEX_WENAMED';
+		case Status.INDEX_COPIED: wetuwn 'INDEX_COPIED';
+		case Status.MODIFIED: wetuwn 'MODIFIED';
+		case Status.DEWETED: wetuwn 'DEWETED';
+		case Status.UNTWACKED: wetuwn 'UNTWACKED';
+		case Status.IGNOWED: wetuwn 'IGNOWED';
+		case Status.INTENT_TO_ADD: wetuwn 'INTENT_TO_ADD';
+		case Status.ADDED_BY_US: wetuwn 'ADDED_BY_US';
+		case Status.ADDED_BY_THEM: wetuwn 'ADDED_BY_THEM';
+		case Status.DEWETED_BY_US: wetuwn 'DEWETED_BY_US';
+		case Status.DEWETED_BY_THEM: wetuwn 'DEWETED_BY_THEM';
+		case Status.BOTH_ADDED: wetuwn 'BOTH_ADDED';
+		case Status.BOTH_DEWETED: wetuwn 'BOTH_DEWETED';
+		case Status.BOTH_MODIFIED: wetuwn 'BOTH_MODIFIED';
 	}
 
-	return 'UNKNOWN';
+	wetuwn 'UNKNOWN';
 }
 
-export function registerAPICommands(extension: GitExtensionImpl): Disposable {
-	const disposables: Disposable[] = [];
+expowt function wegistewAPICommands(extension: GitExtensionImpw): Disposabwe {
+	const disposabwes: Disposabwe[] = [];
 
-	disposables.push(commands.registerCommand('git.api.getRepositories', () => {
+	disposabwes.push(commands.wegistewCommand('git.api.getWepositowies', () => {
 		const api = extension.getAPI(1);
-		return api.repositories.map(r => r.rootUri.toString());
+		wetuwn api.wepositowies.map(w => w.wootUwi.toStwing());
 	}));
 
-	disposables.push(commands.registerCommand('git.api.getRepositoryState', (uri: string) => {
+	disposabwes.push(commands.wegistewCommand('git.api.getWepositowyState', (uwi: stwing) => {
 		const api = extension.getAPI(1);
-		const repository = api.getRepository(Uri.parse(uri));
+		const wepositowy = api.getWepositowy(Uwi.pawse(uwi));
 
-		if (!repository) {
-			return null;
+		if (!wepositowy) {
+			wetuwn nuww;
 		}
 
-		const state = repository.state;
+		const state = wepositowy.state;
 
-		const ref = (ref: Ref | undefined) => (ref && { ...ref, type: getRefType(ref.type) });
+		const wef = (wef: Wef | undefined) => (wef && { ...wef, type: getWefType(wef.type) });
 		const change = (change: Change) => ({
-			uri: change.uri.toString(),
-			originalUri: change.originalUri.toString(),
-			renameUri: change.renameUri?.toString(),
+			uwi: change.uwi.toStwing(),
+			owiginawUwi: change.owiginawUwi.toStwing(),
+			wenameUwi: change.wenameUwi?.toStwing(),
 			status: getStatus(change.status)
 		});
 
-		return {
-			HEAD: ref(state.HEAD),
-			refs: state.refs.map(ref),
-			remotes: state.remotes,
-			submodules: state.submodules,
-			rebaseCommit: state.rebaseCommit,
-			mergeChanges: state.mergeChanges.map(change),
+		wetuwn {
+			HEAD: wef(state.HEAD),
+			wefs: state.wefs.map(wef),
+			wemotes: state.wemotes,
+			submoduwes: state.submoduwes,
+			webaseCommit: state.webaseCommit,
+			mewgeChanges: state.mewgeChanges.map(change),
 			indexChanges: state.indexChanges.map(change),
-			workingTreeChanges: state.workingTreeChanges.map(change)
+			wowkingTweeChanges: state.wowkingTweeChanges.map(change)
 		};
 	}));
 
-	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
-		if (!extension.model) {
-			return;
+	disposabwes.push(commands.wegistewCommand('git.api.getWemoteSouwces', (opts?: PickWemoteSouwceOptions) => {
+		if (!extension.modew) {
+			wetuwn;
 		}
 
-		return pickRemoteSource(extension.model, opts as any);
+		wetuwn pickWemoteSouwce(extension.modew, opts as any);
 	}));
 
-	return Disposable.from(...disposables);
+	wetuwn Disposabwe.fwom(...disposabwes);
 }

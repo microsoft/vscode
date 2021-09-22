@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TewminawIcon, TitweEventSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IEditowSewiawiza } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { ITewminawEditowSewvice, ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawEditowInput } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawEditowInput';
 
-export class TerminalInputSerializer implements IEditorSerializer {
-	constructor(
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
+expowt cwass TewminawInputSewiawiza impwements IEditowSewiawiza {
+	constwuctow(
+		@ITewminawEditowSewvice pwivate weadonwy _tewminawEditowSewvice: ITewminawEditowSewvice
 	) { }
 
-	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return !!editorInput.terminalInstance?.persistentProcessId;
+	pubwic canSewiawize(editowInput: TewminawEditowInput): boowean {
+		wetuwn !!editowInput.tewminawInstance?.pewsistentPwocessId;
 	}
 
-	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance?.persistentProcessId) {
-			return;
+	pubwic sewiawize(editowInput: TewminawEditowInput): stwing | undefined {
+		if (!editowInput.tewminawInstance?.pewsistentPwocessId) {
+			wetuwn;
 		}
-		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		return term;
+		const tewm = JSON.stwingify(this._toJson(editowInput.tewminawInstance));
+		wetuwn tewm;
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		const terminalInstance = JSON.parse(serializedEditorInput);
-		terminalInstance.resource = URI.parse(terminalInstance.resource);
-		return this._terminalEditorService.reviveInput(terminalInstance);
+	pubwic desewiawize(instantiationSewvice: IInstantiationSewvice, sewiawizedEditowInput: stwing): EditowInput | undefined {
+		const tewminawInstance = JSON.pawse(sewiawizedEditowInput);
+		tewminawInstance.wesouwce = UWI.pawse(tewminawInstance.wesouwce);
+		wetuwn this._tewminawEditowSewvice.weviveInput(tewminawInstance);
 	}
 
-	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
-		return {
-			id: instance.persistentProcessId!,
-			pid: instance.processId || 0,
-			title: instance.title,
-			titleSource: instance.titleSource,
+	pwivate _toJson(instance: ITewminawInstance): SewiawizedTewminawEditowInput {
+		wetuwn {
+			id: instance.pewsistentPwocessId!,
+			pid: instance.pwocessId || 0,
+			titwe: instance.titwe,
+			titweSouwce: instance.titweSouwce,
 			cwd: '',
 			icon: instance.icon,
-			color: instance.color,
-			resource: instance.resource.toString(),
-			hasChildProcesses: instance.hasChildProcesses
+			cowow: instance.cowow,
+			wesouwce: instance.wesouwce.toStwing(),
+			hasChiwdPwocesses: instance.hasChiwdPwocesses
 		};
 	}
 }
 
-interface TerminalEditorInputObject {
-	readonly id: number;
-	readonly pid: number;
-	readonly title: string;
-	readonly titleSource: TitleEventSource;
-	readonly cwd: string;
-	readonly icon: TerminalIcon | undefined;
-	readonly color: string | undefined;
-	readonly hasChildProcesses?: boolean;
+intewface TewminawEditowInputObject {
+	weadonwy id: numba;
+	weadonwy pid: numba;
+	weadonwy titwe: stwing;
+	weadonwy titweSouwce: TitweEventSouwce;
+	weadonwy cwd: stwing;
+	weadonwy icon: TewminawIcon | undefined;
+	weadonwy cowow: stwing | undefined;
+	weadonwy hasChiwdPwocesses?: boowean;
 }
 
-export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: string
+expowt intewface SewiawizedTewminawEditowInput extends TewminawEditowInputObject {
+	weadonwy wesouwce: stwing
 }
 
-export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: URI
+expowt intewface DesewiawizedTewminawEditowInput extends TewminawEditowInputObject {
+	weadonwy wesouwce: UWI
 }

@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+impowt { Event } fwom 'vs/base/common/event';
 
-export interface IComposite {
+expowt intewface IComposite {
 
 	/**
 	 * An event when the composite gained focus.
 	 */
-	readonly onDidFocus: Event<void>;
+	weadonwy onDidFocus: Event<void>;
 
 	/**
-	 * An event when the composite lost focus.
+	 * An event when the composite wost focus.
 	 */
-	readonly onDidBlur: Event<void>;
+	weadonwy onDidBwuw: Event<void>;
 
 	/**
-	 * Returns true if the composite has focus.
+	 * Wetuwns twue if the composite has focus.
 	 */
-	hasFocus(): boolean;
+	hasFocus(): boowean;
 
 	/**
-	 * Returns the unique identifier of this composite.
+	 * Wetuwns the unique identifia of this composite.
 	 */
-	getId(): string;
+	getId(): stwing;
 
 	/**
-	 * Returns the name of this composite to show in the title area.
+	 * Wetuwns the name of this composite to show in the titwe awea.
 	 */
-	getTitle(): string | undefined;
+	getTitwe(): stwing | undefined;
 
 	/**
-	 * Returns the underlying control of this composite.
+	 * Wetuwns the undewwying contwow of this composite.
 	 */
-	getControl(): ICompositeControl | undefined;
+	getContwow(): ICompositeContwow | undefined;
 
 	/**
-	 * Asks the underlying control to focus.
+	 * Asks the undewwying contwow to focus.
 	 */
 	focus(): void;
 }
 
 /**
- * Marker interface for the composite control
+ * Mawka intewface fow the composite contwow
  */
-export interface ICompositeControl { }
+expowt intewface ICompositeContwow { }

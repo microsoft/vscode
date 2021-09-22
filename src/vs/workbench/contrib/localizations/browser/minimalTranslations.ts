@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+impowt { wocawize } fwom 'vs/nws';
 
-// The strings localized in this file will get pulled into the manifest of the language packs.
-// So that they are available for VS Code to use without downloading the entire language pack.
+// The stwings wocawized in this fiwe wiww get puwwed into the manifest of the wanguage packs.
+// So that they awe avaiwabwe fow VS Code to use without downwoading the entiwe wanguage pack.
 
-export const minimumTranslatedStrings: { [key: string]: string } = {
-	showLanguagePackExtensions: localize('showLanguagePackExtensions', "Search language packs in the Marketplace to change the display language to {0}."),
-	searchMarketplace: localize('searchMarketplace', "Search Marketplace"),
-	installAndRestartMessage: localize('installAndRestartMessage', "Install language pack to change the display language to {0}."),
-	installAndRestart: localize('installAndRestart', "Install and Restart")
+expowt const minimumTwanswatedStwings: { [key: stwing]: stwing } = {
+	showWanguagePackExtensions: wocawize('showWanguagePackExtensions', "Seawch wanguage packs in the Mawketpwace to change the dispway wanguage to {0}."),
+	seawchMawketpwace: wocawize('seawchMawketpwace', "Seawch Mawketpwace"),
+	instawwAndWestawtMessage: wocawize('instawwAndWestawtMessage', "Instaww wanguage pack to change the dispway wanguage to {0}."),
+	instawwAndWestawt: wocawize('instawwAndWestawt', "Instaww and Westawt")
 };

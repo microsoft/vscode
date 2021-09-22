@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { isWeb, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
 	id: 'update',
-	order: 15,
-	title: localize('updateConfigurationTitle', "Update"),
+	owda: 15,
+	titwe: wocawize('updateConfiguwationTitwe', "Update"),
 	type: 'object',
-	properties: {
+	pwopewties: {
 		'update.mode': {
-			type: 'string',
-			enum: ['none', 'manual', 'start', 'default'],
-			default: 'default',
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
-			tags: ['usesOnlineServices'],
-			enumDescriptions: [
-				localize('none', "Disable updates."),
-				localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
-				localize('start', "Check for updates only on startup. Disable automatic background update checks."),
-				localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically.")
+			type: 'stwing',
+			enum: ['none', 'manuaw', 'stawt', 'defauwt'],
+			defauwt: 'defauwt',
+			scope: ConfiguwationScope.APPWICATION,
+			descwiption: wocawize('updateMode', "Configuwe whetha you weceive automatic updates. Wequiwes a westawt afta change. The updates awe fetched fwom a Micwosoft onwine sewvice."),
+			tags: ['usesOnwineSewvices'],
+			enumDescwiptions: [
+				wocawize('none', "Disabwe updates."),
+				wocawize('manuaw', "Disabwe automatic backgwound update checks. Updates wiww be avaiwabwe if you manuawwy check fow updates."),
+				wocawize('stawt', "Check fow updates onwy on stawtup. Disabwe automatic backgwound update checks."),
+				wocawize('defauwt', "Enabwe automatic update checks. Code wiww check fow updates automaticawwy and pewiodicawwy.")
 			]
 		},
-		'update.channel': {
-			type: 'string',
-			default: 'default',
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."),
-			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
+		'update.channew': {
+			type: 'stwing',
+			defauwt: 'defauwt',
+			scope: ConfiguwationScope.APPWICATION,
+			descwiption: wocawize('updateMode', "Configuwe whetha you weceive automatic updates. Wequiwes a westawt afta change. The updates awe fetched fwom a Micwosoft onwine sewvice."),
+			depwecationMessage: wocawize('depwecated', "This setting is depwecated, pwease use '{0}' instead.", 'update.mode')
 		},
-		'update.enableWindowsBackgroundUpdates': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
-			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background on Windows."),
-			included: isWindows && !isWeb
+		'update.enabweWindowsBackgwoundUpdates': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.APPWICATION,
+			titwe: wocawize('enabweWindowsBackgwoundUpdatesTitwe', "Enabwe Backgwound Updates on Windows"),
+			descwiption: wocawize('enabweWindowsBackgwoundUpdates', "Enabwe to downwoad and instaww new VS Code vewsions in the backgwound on Windows."),
+			incwuded: isWindows && !isWeb
 		},
-		'update.showReleaseNotes': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
-			tags: ['usesOnlineServices']
+		'update.showWeweaseNotes': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.APPWICATION,
+			descwiption: wocawize('showWeweaseNotes', "Show Wewease Notes afta an update. The Wewease Notes awe fetched fwom a Micwosoft onwine sewvice."),
+			tags: ['usesOnwineSewvices']
 		}
 	}
 });

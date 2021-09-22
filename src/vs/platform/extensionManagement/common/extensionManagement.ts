@@ -1,470 +1,470 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { FileAccess } from 'vs/base/common/network';
-import { IPager } from 'vs/base/common/paging';
-import { Platform } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ExtensionType, IExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { Pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ExtensionType, IExtension, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
-export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-export const WEB_EXTENSION_TAG = '__web_extension';
+expowt const EXTENSION_IDENTIFIEW_PATTEWN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
+expowt const EXTENSION_IDENTIFIEW_WEGEX = new WegExp(EXTENSION_IDENTIFIEW_PATTEWN);
+expowt const WEB_EXTENSION_TAG = '__web_extension';
 
-export const enum TargetPlatform {
+expowt const enum TawgetPwatfowm {
 	WIN32_X64 = 'win32-x64',
 	WIN32_IA32 = 'win32-ia32',
-	WIN32_ARM64 = 'win32-arm64',
+	WIN32_AWM64 = 'win32-awm64',
 
-	LINUX_X64 = 'linux-x64',
-	LINUX_ARM64 = 'linux-arm64',
-	LINUX_ARMHF = 'linux-armhf',
+	WINUX_X64 = 'winux-x64',
+	WINUX_AWM64 = 'winux-awm64',
+	WINUX_AWMHF = 'winux-awmhf',
 
-	ALPINE_X64 = 'alpine-x64',
-	ALPINE_ARM64 = 'alpine-arm64',
+	AWPINE_X64 = 'awpine-x64',
+	AWPINE_AWM64 = 'awpine-awm64',
 
-	DARWIN_X64 = 'darwin-x64',
-	DARWIN_ARM64 = 'darwin-arm64',
+	DAWWIN_X64 = 'dawwin-x64',
+	DAWWIN_AWM64 = 'dawwin-awm64',
 
 	WEB = 'web',
 
-	UNIVERSAL = 'universal',
+	UNIVEWSAW = 'univewsaw',
 	UNKNOWN = 'unknown',
 	UNDEFINED = 'undefined',
 }
 
-export function TargetPlatformToString(targetPlatform: TargetPlatform) {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return 'Windows 64 bit';
-		case TargetPlatform.WIN32_IA32: return 'Windows 32 bit';
-		case TargetPlatform.WIN32_ARM64: return 'Windows ARM';
+expowt function TawgetPwatfowmToStwing(tawgetPwatfowm: TawgetPwatfowm) {
+	switch (tawgetPwatfowm) {
+		case TawgetPwatfowm.WIN32_X64: wetuwn 'Windows 64 bit';
+		case TawgetPwatfowm.WIN32_IA32: wetuwn 'Windows 32 bit';
+		case TawgetPwatfowm.WIN32_AWM64: wetuwn 'Windows AWM';
 
-		case TargetPlatform.LINUX_X64: return 'Linux 64 bit';
-		case TargetPlatform.LINUX_ARM64: return 'Linux ARM 64';
-		case TargetPlatform.LINUX_ARMHF: return 'Linux ARM';
+		case TawgetPwatfowm.WINUX_X64: wetuwn 'Winux 64 bit';
+		case TawgetPwatfowm.WINUX_AWM64: wetuwn 'Winux AWM 64';
+		case TawgetPwatfowm.WINUX_AWMHF: wetuwn 'Winux AWM';
 
-		case TargetPlatform.ALPINE_X64: return 'Alpine Linux 64 bit';
-		case TargetPlatform.ALPINE_ARM64: return 'Alpine ARM 64';
+		case TawgetPwatfowm.AWPINE_X64: wetuwn 'Awpine Winux 64 bit';
+		case TawgetPwatfowm.AWPINE_AWM64: wetuwn 'Awpine AWM 64';
 
-		case TargetPlatform.DARWIN_X64: return 'Mac';
-		case TargetPlatform.DARWIN_ARM64: return 'Mac Silicon';
+		case TawgetPwatfowm.DAWWIN_X64: wetuwn 'Mac';
+		case TawgetPwatfowm.DAWWIN_AWM64: wetuwn 'Mac Siwicon';
 
-		case TargetPlatform.WEB: return 'Web';
+		case TawgetPwatfowm.WEB: wetuwn 'Web';
 
-		case TargetPlatform.UNIVERSAL: return TargetPlatform.UNIVERSAL;
-		case TargetPlatform.UNKNOWN: return TargetPlatform.UNKNOWN;
-		case TargetPlatform.UNDEFINED: return TargetPlatform.UNDEFINED;
+		case TawgetPwatfowm.UNIVEWSAW: wetuwn TawgetPwatfowm.UNIVEWSAW;
+		case TawgetPwatfowm.UNKNOWN: wetuwn TawgetPwatfowm.UNKNOWN;
+		case TawgetPwatfowm.UNDEFINED: wetuwn TawgetPwatfowm.UNDEFINED;
 	}
 }
 
-export function toTargetPlatform(targetPlatform: string): TargetPlatform {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return TargetPlatform.WIN32_X64;
-		case TargetPlatform.WIN32_IA32: return TargetPlatform.WIN32_IA32;
-		case TargetPlatform.WIN32_ARM64: return TargetPlatform.WIN32_ARM64;
+expowt function toTawgetPwatfowm(tawgetPwatfowm: stwing): TawgetPwatfowm {
+	switch (tawgetPwatfowm) {
+		case TawgetPwatfowm.WIN32_X64: wetuwn TawgetPwatfowm.WIN32_X64;
+		case TawgetPwatfowm.WIN32_IA32: wetuwn TawgetPwatfowm.WIN32_IA32;
+		case TawgetPwatfowm.WIN32_AWM64: wetuwn TawgetPwatfowm.WIN32_AWM64;
 
-		case TargetPlatform.LINUX_X64: return TargetPlatform.LINUX_X64;
-		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
-		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
+		case TawgetPwatfowm.WINUX_X64: wetuwn TawgetPwatfowm.WINUX_X64;
+		case TawgetPwatfowm.WINUX_AWM64: wetuwn TawgetPwatfowm.WINUX_AWM64;
+		case TawgetPwatfowm.WINUX_AWMHF: wetuwn TawgetPwatfowm.WINUX_AWMHF;
 
-		case TargetPlatform.ALPINE_X64: return TargetPlatform.ALPINE_X64;
-		case TargetPlatform.ALPINE_ARM64: return TargetPlatform.ALPINE_ARM64;
+		case TawgetPwatfowm.AWPINE_X64: wetuwn TawgetPwatfowm.AWPINE_X64;
+		case TawgetPwatfowm.AWPINE_AWM64: wetuwn TawgetPwatfowm.AWPINE_AWM64;
 
-		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
-		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
+		case TawgetPwatfowm.DAWWIN_X64: wetuwn TawgetPwatfowm.DAWWIN_X64;
+		case TawgetPwatfowm.DAWWIN_AWM64: wetuwn TawgetPwatfowm.DAWWIN_AWM64;
 
-		case TargetPlatform.WEB: return TargetPlatform.WEB;
+		case TawgetPwatfowm.WEB: wetuwn TawgetPwatfowm.WEB;
 
-		case TargetPlatform.UNIVERSAL: return TargetPlatform.UNIVERSAL;
-		default: return TargetPlatform.UNKNOWN;
+		case TawgetPwatfowm.UNIVEWSAW: wetuwn TawgetPwatfowm.UNIVEWSAW;
+		defauwt: wetuwn TawgetPwatfowm.UNKNOWN;
 	}
 }
 
-export function getTargetPlatform(platform: Platform | 'alpine', arch: string | undefined): TargetPlatform {
-	switch (platform) {
-		case Platform.Windows:
-			if (arch === 'x64') {
-				return TargetPlatform.WIN32_X64;
+expowt function getTawgetPwatfowm(pwatfowm: Pwatfowm | 'awpine', awch: stwing | undefined): TawgetPwatfowm {
+	switch (pwatfowm) {
+		case Pwatfowm.Windows:
+			if (awch === 'x64') {
+				wetuwn TawgetPwatfowm.WIN32_X64;
 			}
-			if (arch === 'ia32') {
-				return TargetPlatform.WIN32_IA32;
+			if (awch === 'ia32') {
+				wetuwn TawgetPwatfowm.WIN32_IA32;
 			}
-			if (arch === 'arm64') {
-				return TargetPlatform.WIN32_ARM64;
+			if (awch === 'awm64') {
+				wetuwn TawgetPwatfowm.WIN32_AWM64;
 			}
-			return TargetPlatform.UNKNOWN;
+			wetuwn TawgetPwatfowm.UNKNOWN;
 
-		case Platform.Linux:
-			if (arch === 'x64') {
-				return TargetPlatform.LINUX_X64;
+		case Pwatfowm.Winux:
+			if (awch === 'x64') {
+				wetuwn TawgetPwatfowm.WINUX_X64;
 			}
-			if (arch === 'arm64') {
-				return TargetPlatform.LINUX_ARM64;
+			if (awch === 'awm64') {
+				wetuwn TawgetPwatfowm.WINUX_AWM64;
 			}
-			if (arch === 'arm') {
-				return TargetPlatform.LINUX_ARMHF;
+			if (awch === 'awm') {
+				wetuwn TawgetPwatfowm.WINUX_AWMHF;
 			}
-			return TargetPlatform.UNKNOWN;
+			wetuwn TawgetPwatfowm.UNKNOWN;
 
-		case 'alpine':
-			if (arch === 'x64') {
-				return TargetPlatform.ALPINE_X64;
+		case 'awpine':
+			if (awch === 'x64') {
+				wetuwn TawgetPwatfowm.AWPINE_X64;
 			}
-			if (arch === 'arm64') {
-				return TargetPlatform.ALPINE_ARM64;
+			if (awch === 'awm64') {
+				wetuwn TawgetPwatfowm.AWPINE_AWM64;
 			}
-			return TargetPlatform.UNKNOWN;
+			wetuwn TawgetPwatfowm.UNKNOWN;
 
-		case Platform.Mac:
-			if (arch === 'x64') {
-				return TargetPlatform.DARWIN_X64;
+		case Pwatfowm.Mac:
+			if (awch === 'x64') {
+				wetuwn TawgetPwatfowm.DAWWIN_X64;
 			}
-			if (arch === 'arm64') {
-				return TargetPlatform.DARWIN_ARM64;
+			if (awch === 'awm64') {
+				wetuwn TawgetPwatfowm.DAWWIN_AWM64;
 			}
-			return TargetPlatform.UNKNOWN;
+			wetuwn TawgetPwatfowm.UNKNOWN;
 
-		case Platform.Web: return TargetPlatform.WEB;
+		case Pwatfowm.Web: wetuwn TawgetPwatfowm.WEB;
 	}
 }
 
-export function isNotWebExtensionInWebTargetPlatform(allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not a web extension in web target platform
-	return productTargetPlatform === TargetPlatform.WEB && !allTargetPlatforms.includes(TargetPlatform.WEB);
+expowt function isNotWebExtensionInWebTawgetPwatfowm(awwTawgetPwatfowms: TawgetPwatfowm[], pwoductTawgetPwatfowm: TawgetPwatfowm): boowean {
+	// Not a web extension in web tawget pwatfowm
+	wetuwn pwoductTawgetPwatfowm === TawgetPwatfowm.WEB && !awwTawgetPwatfowms.incwudes(TawgetPwatfowm.WEB);
 }
 
-export function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not compatible when extension is not a web extension in web target platform
-	if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, productTargetPlatform)) {
-		return false;
+expowt function isTawgetPwatfowmCompatibwe(extensionTawgetPwatfowm: TawgetPwatfowm, awwTawgetPwatfowms: TawgetPwatfowm[], pwoductTawgetPwatfowm: TawgetPwatfowm): boowean {
+	// Not compatibwe when extension is not a web extension in web tawget pwatfowm
+	if (isNotWebExtensionInWebTawgetPwatfowm(awwTawgetPwatfowms, pwoductTawgetPwatfowm)) {
+		wetuwn fawse;
 	}
 
-	// Compatible when extension target platform is not defined
-	if (extensionTargetPlatform === TargetPlatform.UNDEFINED) {
-		return true;
+	// Compatibwe when extension tawget pwatfowm is not defined
+	if (extensionTawgetPwatfowm === TawgetPwatfowm.UNDEFINED) {
+		wetuwn twue;
 	}
 
-	// Compatible when extension target platform is universal
-	if (extensionTargetPlatform === TargetPlatform.UNIVERSAL) {
-		return true;
+	// Compatibwe when extension tawget pwatfowm is univewsaw
+	if (extensionTawgetPwatfowm === TawgetPwatfowm.UNIVEWSAW) {
+		wetuwn twue;
 	}
 
-	// Not compatible when extension target platform is unknown
-	if (extensionTargetPlatform === TargetPlatform.UNKNOWN) {
-		return false;
+	// Not compatibwe when extension tawget pwatfowm is unknown
+	if (extensionTawgetPwatfowm === TawgetPwatfowm.UNKNOWN) {
+		wetuwn fawse;
 	}
 
-	// Compatible when extension and product target platforms matches
-	if (extensionTargetPlatform === productTargetPlatform) {
-		return true;
+	// Compatibwe when extension and pwoduct tawget pwatfowms matches
+	if (extensionTawgetPwatfowm === pwoductTawgetPwatfowm) {
+		wetuwn twue;
 	}
 
-	// Fallback
-	const fallbackTargetPlatforms = getFallbackTargetPlarforms(productTargetPlatform);
-	return fallbackTargetPlatforms.includes(extensionTargetPlatform);
+	// Fawwback
+	const fawwbackTawgetPwatfowms = getFawwbackTawgetPwawfowms(pwoductTawgetPwatfowm);
+	wetuwn fawwbackTawgetPwatfowms.incwudes(extensionTawgetPwatfowm);
 }
 
-export function getFallbackTargetPlarforms(targetPlatform: TargetPlatform): TargetPlatform[] {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return [TargetPlatform.WIN32_IA32];
-		case TargetPlatform.WIN32_ARM64: return [TargetPlatform.WIN32_IA32];
+expowt function getFawwbackTawgetPwawfowms(tawgetPwatfowm: TawgetPwatfowm): TawgetPwatfowm[] {
+	switch (tawgetPwatfowm) {
+		case TawgetPwatfowm.WIN32_X64: wetuwn [TawgetPwatfowm.WIN32_IA32];
+		case TawgetPwatfowm.WIN32_AWM64: wetuwn [TawgetPwatfowm.WIN32_IA32];
 	}
-	return [];
+	wetuwn [];
 }
 
-export interface IGalleryExtensionProperties {
-	dependencies?: string[];
-	extensionPack?: string[];
-	engine?: string;
-	localizedLanguages?: string[];
-	targetPlatform: TargetPlatform;
+expowt intewface IGawwewyExtensionPwopewties {
+	dependencies?: stwing[];
+	extensionPack?: stwing[];
+	engine?: stwing;
+	wocawizedWanguages?: stwing[];
+	tawgetPwatfowm: TawgetPwatfowm;
 }
 
-export interface IGalleryExtensionAsset {
-	uri: string;
-	fallbackUri: string;
+expowt intewface IGawwewyExtensionAsset {
+	uwi: stwing;
+	fawwbackUwi: stwing;
 }
 
-export interface IGalleryExtensionAssets {
-	manifest: IGalleryExtensionAsset | null;
-	readme: IGalleryExtensionAsset | null;
-	changelog: IGalleryExtensionAsset | null;
-	license: IGalleryExtensionAsset | null;
-	repository: IGalleryExtensionAsset | null;
-	download: IGalleryExtensionAsset;
-	icon: IGalleryExtensionAsset;
-	coreTranslations: [string, IGalleryExtensionAsset][];
+expowt intewface IGawwewyExtensionAssets {
+	manifest: IGawwewyExtensionAsset | nuww;
+	weadme: IGawwewyExtensionAsset | nuww;
+	changewog: IGawwewyExtensionAsset | nuww;
+	wicense: IGawwewyExtensionAsset | nuww;
+	wepositowy: IGawwewyExtensionAsset | nuww;
+	downwoad: IGawwewyExtensionAsset;
+	icon: IGawwewyExtensionAsset;
+	coweTwanswations: [stwing, IGawwewyExtensionAsset][];
 }
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+expowt function isIExtensionIdentifia(thing: any): thing is IExtensionIdentifia {
+	wetuwn thing
 		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
+		&& typeof thing.id === 'stwing'
+		&& (!thing.uuid || typeof thing.uuid === 'stwing');
 }
 
-/* __GDPR__FRAGMENT__
-	"ExtensionIdentifier" : {
-		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"uuid": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+/* __GDPW__FWAGMENT__
+	"ExtensionIdentifia" : {
+		"id" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"uuid": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 	}
  */
-export interface IExtensionIdentifier {
-	id: string;
-	uuid?: string;
+expowt intewface IExtensionIdentifia {
+	id: stwing;
+	uuid?: stwing;
 }
 
-export interface IExtensionIdentifierWithVersion extends IExtensionIdentifier {
-	id: string;
-	uuid?: string;
-	version: string;
+expowt intewface IExtensionIdentifiewWithVewsion extends IExtensionIdentifia {
+	id: stwing;
+	uuid?: stwing;
+	vewsion: stwing;
 }
 
-export interface IGalleryExtensionIdentifier extends IExtensionIdentifier {
-	uuid: string;
+expowt intewface IGawwewyExtensionIdentifia extends IExtensionIdentifia {
+	uuid: stwing;
 }
 
-export interface IGalleryExtensionVersion {
-	version: string;
-	date: string;
+expowt intewface IGawwewyExtensionVewsion {
+	vewsion: stwing;
+	date: stwing;
 }
 
-export interface IGalleryExtension {
-	name: string;
-	identifier: IGalleryExtensionIdentifier;
-	version: string;
-	displayName: string;
-	publisherId: string;
-	publisher: string;
-	publisherDisplayName: string;
-	description: string;
-	installCount: number;
-	rating: number;
-	ratingCount: number;
-	categories: readonly string[];
-	tags: readonly string[];
-	releaseDate: number;
-	lastUpdated: number;
-	preview: boolean;
-	allTargetPlatforms: TargetPlatform[];
-	assets: IGalleryExtensionAssets;
-	properties: IGalleryExtensionProperties;
-	telemetryData: any;
+expowt intewface IGawwewyExtension {
+	name: stwing;
+	identifia: IGawwewyExtensionIdentifia;
+	vewsion: stwing;
+	dispwayName: stwing;
+	pubwishewId: stwing;
+	pubwisha: stwing;
+	pubwishewDispwayName: stwing;
+	descwiption: stwing;
+	instawwCount: numba;
+	wating: numba;
+	watingCount: numba;
+	categowies: weadonwy stwing[];
+	tags: weadonwy stwing[];
+	weweaseDate: numba;
+	wastUpdated: numba;
+	pweview: boowean;
+	awwTawgetPwatfowms: TawgetPwatfowm[];
+	assets: IGawwewyExtensionAssets;
+	pwopewties: IGawwewyExtensionPwopewties;
+	tewemetwyData: any;
 }
 
-export interface IGalleryMetadata {
-	id: string;
-	publisherId: string;
-	publisherDisplayName: string;
+expowt intewface IGawwewyMetadata {
+	id: stwing;
+	pubwishewId: stwing;
+	pubwishewDispwayName: stwing;
 }
 
-export interface ILocalExtension extends IExtension {
-	isMachineScoped: boolean;
-	publisherId: string | null;
-	publisherDisplayName: string | null;
-	installedTimestamp?: number;
+expowt intewface IWocawExtension extends IExtension {
+	isMachineScoped: boowean;
+	pubwishewId: stwing | nuww;
+	pubwishewDispwayName: stwing | nuww;
+	instawwedTimestamp?: numba;
 }
 
-export const enum SortBy {
-	NoneOrRelevance = 0,
-	LastUpdatedDate = 1,
-	Title = 2,
-	PublisherName = 3,
-	InstallCount = 4,
-	PublishedDate = 10,
-	AverageRating = 6,
-	WeightedRating = 12
+expowt const enum SowtBy {
+	NoneOwWewevance = 0,
+	WastUpdatedDate = 1,
+	Titwe = 2,
+	PubwishewName = 3,
+	InstawwCount = 4,
+	PubwishedDate = 10,
+	AvewageWating = 6,
+	WeightedWating = 12
 }
 
-export const enum SortOrder {
-	Default = 0,
+expowt const enum SowtOwda {
+	Defauwt = 0,
 	Ascending = 1,
 	Descending = 2
 }
 
-export interface IQueryOptions {
-	text?: string;
-	ids?: string[];
-	names?: string[];
-	pageSize?: number;
-	sortBy?: SortBy;
-	sortOrder?: SortOrder;
-	source?: string;
+expowt intewface IQuewyOptions {
+	text?: stwing;
+	ids?: stwing[];
+	names?: stwing[];
+	pageSize?: numba;
+	sowtBy?: SowtBy;
+	sowtOwda?: SowtOwda;
+	souwce?: stwing;
 }
 
-export const enum StatisticType {
-	Install = 'install',
-	Uninstall = 'uninstall'
+expowt const enum StatisticType {
+	Instaww = 'instaww',
+	Uninstaww = 'uninstaww'
 }
 
-export interface IReportedExtension {
-	id: IExtensionIdentifier;
-	malicious: boolean;
+expowt intewface IWepowtedExtension {
+	id: IExtensionIdentifia;
+	mawicious: boowean;
 }
 
-export const enum InstallOperation {
+expowt const enum InstawwOpewation {
 	None = 0,
-	Install,
+	Instaww,
 	Update
 }
 
-export interface ITranslation {
-	contents: { [key: string]: {} };
+expowt intewface ITwanswation {
+	contents: { [key: stwing]: {} };
 }
 
-export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
-export interface IExtensionGalleryService {
-	readonly _serviceBrand: undefined;
-	isEnabled(): boolean;
-	query(token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
-	getExtensions(identifiers: ReadonlyArray<IExtensionIdentifier | IExtensionIdentifierWithVersion>, token: CancellationToken): Promise<IGalleryExtension[]>;
-	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
-	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
-	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getManifest(extension: IGalleryExtension, token: CancellationToken): Promise<IExtensionManifest | null>;
-	getChangelog(extension: IGalleryExtension, token: CancellationToken): Promise<string>;
-	getCoreTranslation(extension: IGalleryExtension, languageId: string): Promise<ITranslation | null>;
-	getExtensionsReport(): Promise<IReportedExtension[]>;
-	isExtensionCompatible(extension: IGalleryExtension, targetPlatform: TargetPlatform): Promise<boolean>;
-	getCompatibleExtension(extension: IGalleryExtension, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
-	getCompatibleExtension(id: IExtensionIdentifier, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
-	getAllCompatibleVersions(extension: IGalleryExtension, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+expowt const IExtensionGawwewySewvice = cweateDecowatow<IExtensionGawwewySewvice>('extensionGawwewySewvice');
+expowt intewface IExtensionGawwewySewvice {
+	weadonwy _sewviceBwand: undefined;
+	isEnabwed(): boowean;
+	quewy(token: CancewwationToken): Pwomise<IPaga<IGawwewyExtension>>;
+	quewy(options: IQuewyOptions, token: CancewwationToken): Pwomise<IPaga<IGawwewyExtension>>;
+	getExtensions(identifiews: WeadonwyAwway<IExtensionIdentifia | IExtensionIdentifiewWithVewsion>, token: CancewwationToken): Pwomise<IGawwewyExtension[]>;
+	downwoad(extension: IGawwewyExtension, wocation: UWI, opewation: InstawwOpewation): Pwomise<void>;
+	wepowtStatistic(pubwisha: stwing, name: stwing, vewsion: stwing, type: StatisticType): Pwomise<void>;
+	getWeadme(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<stwing>;
+	getManifest(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<IExtensionManifest | nuww>;
+	getChangewog(extension: IGawwewyExtension, token: CancewwationToken): Pwomise<stwing>;
+	getCoweTwanswation(extension: IGawwewyExtension, wanguageId: stwing): Pwomise<ITwanswation | nuww>;
+	getExtensionsWepowt(): Pwomise<IWepowtedExtension[]>;
+	isExtensionCompatibwe(extension: IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<boowean>;
+	getCompatibweExtension(extension: IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<IGawwewyExtension | nuww>;
+	getCompatibweExtension(id: IExtensionIdentifia, tawgetPwatfowm: TawgetPwatfowm): Pwomise<IGawwewyExtension | nuww>;
+	getAwwCompatibweVewsions(extension: IGawwewyExtension, tawgetPwatfowm: TawgetPwatfowm): Pwomise<IGawwewyExtensionVewsion[]>;
 }
 
-export interface InstallExtensionEvent {
-	identifier: IExtensionIdentifier;
-	source: URI | IGalleryExtension;
+expowt intewface InstawwExtensionEvent {
+	identifia: IExtensionIdentifia;
+	souwce: UWI | IGawwewyExtension;
 }
 
-export interface InstallExtensionResult {
-	readonly identifier: IExtensionIdentifier;
-	readonly operation: InstallOperation;
-	readonly source?: URI | IGalleryExtension;
-	readonly local?: ILocalExtension;
+expowt intewface InstawwExtensionWesuwt {
+	weadonwy identifia: IExtensionIdentifia;
+	weadonwy opewation: InstawwOpewation;
+	weadonwy souwce?: UWI | IGawwewyExtension;
+	weadonwy wocaw?: IWocawExtension;
 }
 
-export interface DidUninstallExtensionEvent {
-	identifier: IExtensionIdentifier;
-	error?: string;
+expowt intewface DidUninstawwExtensionEvent {
+	identifia: IExtensionIdentifia;
+	ewwow?: stwing;
 }
 
-export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
-export const INSTALL_ERROR_MALICIOUS = 'malicious';
-export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
+expowt const INSTAWW_EWWOW_NOT_SUPPOWTED = 'notsuppowted';
+expowt const INSTAWW_EWWOW_MAWICIOUS = 'mawicious';
+expowt const INSTAWW_EWWOW_INCOMPATIBWE = 'incompatibwe';
 
-export class ExtensionManagementError extends Error {
-	constructor(message: string, readonly code: string) {
-		super(message);
+expowt cwass ExtensionManagementEwwow extends Ewwow {
+	constwuctow(message: stwing, weadonwy code: stwing) {
+		supa(message);
 		this.name = code;
 	}
 }
 
-export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean, installGivenVersion?: boolean };
-export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
-export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
+expowt type InstawwOptions = { isBuiwtin?: boowean, isMachineScoped?: boowean, donotIncwudePackAndDependencies?: boowean, instawwGivenVewsion?: boowean };
+expowt type InstawwVSIXOptions = Omit<InstawwOptions, 'instawwGivenVewsion'> & { instawwOnwyNewwyAddedFwomExtensionPack?: boowean };
+expowt type UninstawwOptions = { donotIncwudePack?: boowean, donotCheckDependents?: boowean };
 
-export interface IExtensionManagementParticipant {
-	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
-	postUninstall(local: ILocalExtension, options: UninstallOptions, token: CancellationToken): Promise<void>;
+expowt intewface IExtensionManagementPawticipant {
+	postInstaww(wocaw: IWocawExtension, souwce: UWI | IGawwewyExtension, options: InstawwOptions | InstawwVSIXOptions, token: CancewwationToken): Pwomise<void>;
+	postUninstaww(wocaw: IWocawExtension, options: UninstawwOptions, token: CancewwationToken): Pwomise<void>;
 }
 
-export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
-export interface IExtensionManagementService {
-	readonly _serviceBrand: undefined;
+expowt const IExtensionManagementSewvice = cweateDecowatow<IExtensionManagementSewvice>('extensionManagementSewvice');
+expowt intewface IExtensionManagementSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<IExtensionIdentifier>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	onInstawwExtension: Event<InstawwExtensionEvent>;
+	onDidInstawwExtensions: Event<weadonwy InstawwExtensionWesuwt[]>;
+	onUninstawwExtension: Event<IExtensionIdentifia>;
+	onDidUninstawwExtension: Event<DidUninstawwExtensionEvent>;
 
-	zip(extension: ILocalExtension): Promise<URI>;
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
-	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
-	canInstall(extension: IGalleryExtension): Promise<boolean>;
-	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
-	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
-	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
-	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
-	getExtensionsReport(): Promise<IReportedExtension[]>;
+	zip(extension: IWocawExtension): Pwomise<UWI>;
+	unzip(zipWocation: UWI): Pwomise<IExtensionIdentifia>;
+	getManifest(vsix: UWI): Pwomise<IExtensionManifest>;
+	instaww(vsix: UWI, options?: InstawwVSIXOptions): Pwomise<IWocawExtension>;
+	canInstaww(extension: IGawwewyExtension): Pwomise<boowean>;
+	instawwFwomGawwewy(extension: IGawwewyExtension, options?: InstawwOptions): Pwomise<IWocawExtension>;
+	uninstaww(extension: IWocawExtension, options?: UninstawwOptions): Pwomise<void>;
+	weinstawwFwomGawwewy(extension: IWocawExtension): Pwomise<void>;
+	getInstawwed(type?: ExtensionType): Pwomise<IWocawExtension[]>;
+	getExtensionsWepowt(): Pwomise<IWepowtedExtension[]>;
 
-	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
-	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+	updateMetadata(wocaw: IWocawExtension, metadata: IGawwewyMetadata): Pwomise<IWocawExtension>;
+	updateExtensionScope(wocaw: IWocawExtension, isMachineScoped: boowean): Pwomise<IWocawExtension>;
 
-	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
-	getTargetPlatform(): Promise<TargetPlatform>;
+	wegistewPawticipant(pawiticipant: IExtensionManagementPawticipant): void;
+	getTawgetPwatfowm(): Pwomise<TawgetPwatfowm>;
 }
 
-export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';
-export const ENABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/enabled';
-export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensionEnablementService>('IGlobalExtensionEnablementService');
+expowt const DISABWED_EXTENSIONS_STOWAGE_PATH = 'extensionsIdentifiews/disabwed';
+expowt const ENABWED_EXTENSIONS_STOWAGE_PATH = 'extensionsIdentifiews/enabwed';
+expowt const IGwobawExtensionEnabwementSewvice = cweateDecowatow<IGwobawExtensionEnabwementSewvice>('IGwobawExtensionEnabwementSewvice');
 
-export interface IGlobalExtensionEnablementService {
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>;
+expowt intewface IGwobawExtensionEnabwementSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidChangeEnabwement: Event<{ weadonwy extensions: IExtensionIdentifia[], weadonwy souwce?: stwing }>;
 
-	getDisabledExtensions(): IExtensionIdentifier[];
-	enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
-	disableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
+	getDisabwedExtensions(): IExtensionIdentifia[];
+	enabweExtension(extension: IExtensionIdentifia, souwce?: stwing): Pwomise<boowean>;
+	disabweExtension(extension: IExtensionIdentifia, souwce?: stwing): Pwomise<boowean>;
 
 }
 
-export type IConfigBasedExtensionTip = {
-	readonly extensionId: string,
-	readonly extensionName: string,
-	readonly isExtensionPack: boolean,
-	readonly configName: string,
-	readonly important: boolean,
+expowt type IConfigBasedExtensionTip = {
+	weadonwy extensionId: stwing,
+	weadonwy extensionName: stwing,
+	weadonwy isExtensionPack: boowean,
+	weadonwy configName: stwing,
+	weadonwy impowtant: boowean,
 };
 
-export type IExecutableBasedExtensionTip = {
-	readonly extensionId: string,
-	readonly extensionName: string,
-	readonly isExtensionPack: boolean,
-	readonly exeName: string,
-	readonly exeFriendlyName: string,
-	readonly windowsPath?: string,
+expowt type IExecutabweBasedExtensionTip = {
+	weadonwy extensionId: stwing,
+	weadonwy extensionName: stwing,
+	weadonwy isExtensionPack: boowean,
+	weadonwy exeName: stwing,
+	weadonwy exeFwiendwyName: stwing,
+	weadonwy windowsPath?: stwing,
 };
 
-export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[]; };
+expowt type IWowkspaceTips = { weadonwy wemoteSet: stwing[]; weadonwy wecommendations: stwing[]; };
 
-export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
-export interface IExtensionTipsService {
-	readonly _serviceBrand: undefined;
+expowt const IExtensionTipsSewvice = cweateDecowatow<IExtensionTipsSewvice>('IExtensionTipsSewvice');
+expowt intewface IExtensionTipsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]>;
-	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
-	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
-	getAllWorkspacesTips(): Promise<IWorkspaceTips[]>;
+	getConfigBasedTips(fowda: UWI): Pwomise<IConfigBasedExtensionTip[]>;
+	getImpowtantExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]>;
+	getOthewExecutabweBasedTips(): Pwomise<IExecutabweBasedExtensionTip[]>;
+	getAwwWowkspacesTips(): Pwomise<IWowkspaceTips[]>;
 }
 
 
-export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
-export const ExtensionsLabel = localize('extensions', "Extensions");
-export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
-export const ExtensionsChannelId = 'extensions';
-export const PreferencesLabel = localize('preferences', "Preferences");
-export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };
+expowt const DefauwtIconPath = FiweAccess.asBwowsewUwi('./media/defauwtIcon.png', wequiwe).toStwing(twue);
+expowt const ExtensionsWabew = wocawize('extensions', "Extensions");
+expowt const ExtensionsWocawizedWabew = { vawue: ExtensionsWabew, owiginaw: 'Extensions' };
+expowt const ExtensionsChannewId = 'extensions';
+expowt const PwefewencesWabew = wocawize('pwefewences', "Pwefewences");
+expowt const PwefewencesWocawizedWabew = { vawue: PwefewencesWabew, owiginaw: 'Pwefewences' };
 
 
-export interface CLIOutput {
-	log(s: string): void;
-	error(s: string): void;
+expowt intewface CWIOutput {
+	wog(s: stwing): void;
+	ewwow(s: stwing): void;
 }
 
-export const IExtensionManagementCLIService = createDecorator<IExtensionManagementCLIService>('IExtensionManagementCLIService');
-export interface IExtensionManagementCLIService {
-	readonly _serviceBrand: undefined;
+expowt const IExtensionManagementCWISewvice = cweateDecowatow<IExtensionManagementCWISewvice>('IExtensionManagementCWISewvice');
+expowt intewface IExtensionManagementCWISewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	listExtensions(showVersions: boolean, category?: string, output?: CLIOutput): Promise<void>;
-	installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], isMachineScoped: boolean, force: boolean, output?: CLIOutput): Promise<void>;
-	uninstallExtensions(extensions: (string | URI)[], force: boolean, output?: CLIOutput): Promise<void>;
-	locateExtension(extensions: string[], output?: CLIOutput): Promise<void>;
+	wistExtensions(showVewsions: boowean, categowy?: stwing, output?: CWIOutput): Pwomise<void>;
+	instawwExtensions(extensions: (stwing | UWI)[], buiwtinExtensionIds: stwing[], isMachineScoped: boowean, fowce: boowean, output?: CWIOutput): Pwomise<void>;
+	uninstawwExtensions(extensions: (stwing | UWI)[], fowce: boowean, output?: CWIOutput): Pwomise<void>;
+	wocateExtension(extensions: stwing[], output?: CWIOutput): Pwomise<void>;
 }

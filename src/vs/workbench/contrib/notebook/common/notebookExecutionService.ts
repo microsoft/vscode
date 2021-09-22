@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOutputDto, IOutputItemDto } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export enum CellExecutionUpdateType {
+expowt enum CewwExecutionUpdateType {
 	Output = 1,
 	OutputItems = 2,
 	ExecutionState = 3,
-	Complete = 4,
+	Compwete = 4,
 }
 
-export interface ICellExecuteOutputEdit {
-	editType: CellExecutionUpdateType.Output;
-	cellHandle: number;
-	append?: boolean;
+expowt intewface ICewwExecuteOutputEdit {
+	editType: CewwExecutionUpdateType.Output;
+	cewwHandwe: numba;
+	append?: boowean;
 	outputs: IOutputDto[]
 }
 
-export interface ICellExecuteOutputItemEdit {
-	editType: CellExecutionUpdateType.OutputItems;
-	append?: boolean;
-	outputId: string;
+expowt intewface ICewwExecuteOutputItemEdit {
+	editType: CewwExecutionUpdateType.OutputItems;
+	append?: boowean;
+	outputId: stwing;
 	items: IOutputItemDto[]
 }
 
-export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate | ICellExecutionComplete;
+expowt type ICewwExecuteUpdate = ICewwExecuteOutputEdit | ICewwExecuteOutputItemEdit | ICewwExecutionStateUpdate | ICewwExecutionCompwete;
 
-export interface ICellExecutionStateUpdate {
-	editType: CellExecutionUpdateType.ExecutionState;
-	executionOrder?: number;
-	runStartTime?: number;
+expowt intewface ICewwExecutionStateUpdate {
+	editType: CewwExecutionUpdateType.ExecutionState;
+	executionOwda?: numba;
+	wunStawtTime?: numba;
 }
 
-export interface ICellExecutionComplete {
-	editType: CellExecutionUpdateType.Complete;
-	runEndTime?: number;
-	lastRunSuccess?: boolean;
+expowt intewface ICewwExecutionCompwete {
+	editType: CewwExecutionUpdateType.Compwete;
+	wunEndTime?: numba;
+	wastWunSuccess?: boowean;
 }
 
-export interface INotebookCellExecution {
-	readonly notebook: URI;
-	readonly cellHandle: number;
-	update(updates: ICellExecuteUpdate[]): void;
+expowt intewface INotebookCewwExecution {
+	weadonwy notebook: UWI;
+	weadonwy cewwHandwe: numba;
+	update(updates: ICewwExecuteUpdate[]): void;
 }
 
-export const INotebookExecutionService = createDecorator<INotebookExecutionService>('INotebookExecutionService');
+expowt const INotebookExecutionSewvice = cweateDecowatow<INotebookExecutionSewvice>('INotebookExecutionSewvice');
 
-export interface INotebookExecutionService {
-	_serviceBrand: undefined;
+expowt intewface INotebookExecutionSewvice {
+	_sewviceBwand: undefined;
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
+	cweateNotebookCewwExecution(notebook: UWI, cewwHandwe: numba): INotebookCewwExecution;
 }

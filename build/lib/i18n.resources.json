@@ -1,422 +1,422 @@
 {
-	"editor": [
+	"editow": [
 		{
-			"name": "vs/platform",
-			"project": "vscode-editor"
+			"name": "vs/pwatfowm",
+			"pwoject": "vscode-editow"
 		},
 		{
-			"name": "vs/editor/contrib",
-			"project": "vscode-editor"
+			"name": "vs/editow/contwib",
+			"pwoject": "vscode-editow"
 		},
 		{
-			"name": "vs/editor",
-			"project": "vscode-editor"
+			"name": "vs/editow",
+			"pwoject": "vscode-editow"
 		},
 		{
 			"name": "vs/base",
-			"project": "vscode-editor"
+			"pwoject": "vscode-editow"
 		}
 	],
-	"workbench": [
+	"wowkbench": [
 		{
 			"name": "vs/code",
-			"project": "vscode-workbench"
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/api/common",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/api/common",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/bulkEdit",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/buwkEdit",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/cli",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/cwi",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeEditor",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/codeEditow",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/callHierarchy",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/cawwHiewawchy",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/typeHierarchy",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/typeHiewawchy",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/codeActions",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/codeActions",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/comments",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/comments",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/debug",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/debug",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/dialogs",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/diawogs",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/emmet",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/emmet",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/experiments",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/expewiments",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/extensions",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/extensions",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/externalTerminal",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/extewnawTewminaw",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/feedback",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/feedback",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/files",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/fiwes",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/html",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/htmw",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/issue",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/issue",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/interactive",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/intewactive",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/languageStatus",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wanguageStatus",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/keybindings",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/keybindings",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/markers",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/mawkews",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/localizations",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wocawizations",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/logs",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wogs",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/output",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/output",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/performance",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/pewfowmance",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/preferences",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/pwefewences",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/notebook",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/notebook",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/quickaccess",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/quickaccess",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/userData",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/usewData",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/remote",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wemote",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/relauncher",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wewauncha",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/sash",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/sash",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/scm",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/scm",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/search",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/seawch",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/searchEditor",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/seawchEditow",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/snippets",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/snippets",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/format",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/fowmat",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/tags",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/tags",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/surveys",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/suwveys",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/tasks",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/tasks",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/testing",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/testing",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/terminal",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/tewminaw",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/themes",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/themes",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/trust",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/twust",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/update",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/update",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/url",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/uww",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/watermark",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/watewmawk",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/webview",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/webview",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/webviewPanel",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/webviewPanew",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/workspace",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wowkspace",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/workspaces",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wowkspaces",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/customEditor",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/customEditow",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/externalUriOpener",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/extewnawUwiOpena",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcome",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wewcome",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/outline",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/outwine",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/userDataSync",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/usewDataSync",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/views",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/views",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/languageDetection",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/wanguageDetection",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/actions",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/actions",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/authToken",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/authToken",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/backup",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/backup",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/bulkEdit",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/buwkEdit",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/clipboard",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/cwipboawd",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/commands",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/commands",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/configuration",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/configuwation",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/configurationResolver",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/configuwationWesowva",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/dialogs",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/diawogs",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/editor",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/editow",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/extensions",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/extensions",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/extensionManagement",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/extensionManagement",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/files",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/fiwes",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/history",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/histowy",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/log",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wog",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/integrity",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/integwity",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/keybinding",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/keybinding",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/lifecycle",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wifecycwe",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/mode",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/mode",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/progress",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/pwogwess",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/remote",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wemote",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/search",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/seawch",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/textfile",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/textfiwe",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/themes",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/themes",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/textMate",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/textMate",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/workingCopy",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wowkingCopy",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/workspaces",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wowkspaces",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/decorations",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/decowations",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/label",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/wabew",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/preferences",
-			"project": "vscode-preferences"
+			"name": "vs/wowkbench/sewvices/pwefewences",
+			"pwoject": "vscode-pwefewences"
 		},
 		{
-			"name": "vs/workbench/services/notification",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/notification",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/userData",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/usewData",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/userDataSync",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/usewDataSync",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/views",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/views",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/contrib/timeline",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/contwib/timewine",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/authentication",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/authentication",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/extensionRecommendations",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/extensionWecommendations",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/gettingStarted",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/gettingStawted",
+			"pwoject": "vscode-wowkbench"
 		},
 		{
-			"name": "vs/workbench/services/host",
-			"project": "vscode-workbench"
+			"name": "vs/wowkbench/sewvices/host",
+			"pwoject": "vscode-wowkbench"
 		}
 	]
 }

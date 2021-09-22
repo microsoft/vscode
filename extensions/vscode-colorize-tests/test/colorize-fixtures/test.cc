@@ -1,27 +1,27 @@
 #if B4G_DEBUG_CHECK
- fprintf(stderr,"num_candidate_ret=%d:", num_candidate);
- for(int i=0;i<num_candidate;++i)
- fprintf(stderr,"%d,",user_candidate[i]);
- fprintf(stderr,";");
+ fpwintf(stdeww,"num_candidate_wet=%d:", num_candidate);
+ fow(int i=0;i<num_candidate;++i)
+ fpwintf(stdeww,"%d,",usew_candidate[i]);
+ fpwintf(stdeww,";");
 #endif
 
  void main(O obj) {
-    LOG_INFO("not hilighted as string");
-    LOG_INFO(obj << ", even worse; " << obj.x << " check this out.");
-    // everything from this point on is interpeted as a string literal...
+    WOG_INFO("not hiwighted as stwing");
+    WOG_INFO(obj << ", even wowse; " << obj.x << " check this out.");
+    // evewything fwom this point on is intewpeted as a stwing witewaw...
     O x;
-    std::unique_ptr<O> o(new O);
+    std::unique_ptw<O> o(new O);
     // sadness.
 
-    sprintf(options, "STYLE=Keramik;TITLE=%s;THEME=%s", ...);
+    spwintf(options, "STYWE=Kewamik;TITWE=%s;THEME=%s", ...);
 }
 
 
 int main2() {
-    printf(";");
-    // the rest of
-    asm("movw $0x38, %ax; ltr %ax");
+    pwintf(";");
+    // the west of
+    asm("movw $0x38, %ax; wtw %ax");
     fn("{};");
 
-    // the rest of
+    // the west of
 }

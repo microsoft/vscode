@@ -1,321 +1,321 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsCenter';
-import 'vs/css!./media/notificationsActions';
-import { NOTIFICATIONS_BORDER, NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Emitter } from 'vs/base/common/event';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { NotificationsCenterVisibleContext, INotificationsCenterController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isAncestor, Dimension } from 'vs/base/browser/dom';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { localize } from 'vs/nls';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IAction } from 'vs/base/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
+impowt 'vs/css!./media/notificationsCenta';
+impowt 'vs/css!./media/notificationsActions';
+impowt { NOTIFICATIONS_BOWDa, NOTIFICATIONS_CENTEW_HEADEW_FOWEGWOUND, NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND, NOTIFICATIONS_CENTEW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { IThemeSewvice, wegistewThemingPawticipant, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { INotificationsModew, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } fwom 'vs/wowkbench/common/notifications';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { NotificationsCentewVisibweContext, INotificationsCentewContwowwa } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { NotificationsWist } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsWist';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { isAncestow, Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { CweawAwwNotificationsAction, HideNotificationsCentewAction, NotificationActionWunna } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsActions';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { assewtAwwDefined, assewtIsDefined } fwom 'vs/base/common/types';
 
-export class NotificationsCenter extends Themable implements INotificationsCenterController {
+expowt cwass NotificationsCenta extends Themabwe impwements INotificationsCentewContwowwa {
 
-	private static readonly MAX_DIMENSIONS = new Dimension(450, 400);
+	pwivate static weadonwy MAX_DIMENSIONS = new Dimension(450, 400);
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	private notificationsCenterContainer: HTMLElement | undefined;
-	private notificationsCenterHeader: HTMLElement | undefined;
-	private notificationsCenterTitle: HTMLSpanElement | undefined;
-	private notificationsList: NotificationsList | undefined;
-	private _isVisible: boolean | undefined;
-	private workbenchDimensions: Dimension | undefined;
-	private readonly notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(this.contextKeyService);
-	private clearAllAction: ClearAllNotificationsAction | undefined;
+	pwivate notificationsCentewContaina: HTMWEwement | undefined;
+	pwivate notificationsCentewHeada: HTMWEwement | undefined;
+	pwivate notificationsCentewTitwe: HTMWSpanEwement | undefined;
+	pwivate notificationsWist: NotificationsWist | undefined;
+	pwivate _isVisibwe: boowean | undefined;
+	pwivate wowkbenchDimensions: Dimension | undefined;
+	pwivate weadonwy notificationsCentewVisibweContextKey = NotificationsCentewVisibweContext.bindTo(this.contextKeySewvice);
+	pwivate cweawAwwAction: CweawAwwNotificationsAction | undefined;
 
-	constructor(
-		private readonly container: HTMLElement,
-		private readonly model: INotificationsModel,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+	constwuctow(
+		pwivate weadonwy containa: HTMWEwement,
+		pwivate weadonwy modew: INotificationsModew,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.notificationsCenterVisibleContextKey = NotificationsCenterVisibleContext.bindTo(contextKeyService);
+		this.notificationsCentewVisibweContextKey = NotificationsCentewVisibweContext.bindTo(contextKeySewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
-		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.modew.onDidChangeNotification(e => this.onDidChangeNotification(e)));
+		this._wegista(this.wayoutSewvice.onDidWayout(dimension => this.wayout(Dimension.wift(dimension))));
 	}
 
-	get isVisible(): boolean {
-		return !!this._isVisible;
+	get isVisibwe(): boowean {
+		wetuwn !!this._isVisibwe;
 	}
 
 	show(): void {
-		if (this._isVisible) {
-			const notificationsList = assertIsDefined(this.notificationsList);
-			notificationsList.show(true /* focus */);
+		if (this._isVisibwe) {
+			const notificationsWist = assewtIsDefined(this.notificationsWist);
+			notificationsWist.show(twue /* focus */);
 
-			return; // already visible
+			wetuwn; // awweady visibwe
 		}
 
-		// Lazily create if showing for the first time
-		if (!this.notificationsCenterContainer) {
-			this.create();
+		// Waziwy cweate if showing fow the fiwst time
+		if (!this.notificationsCentewContaina) {
+			this.cweate();
 		}
 
-		// Title
-		this.updateTitle();
+		// Titwe
+		this.updateTitwe();
 
-		// Make visible
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
-		this._isVisible = true;
-		notificationsCenterContainer.classList.add('visible');
-		notificationsList.show();
+		// Make visibwe
+		const [notificationsWist, notificationsCentewContaina] = assewtAwwDefined(this.notificationsWist, this.notificationsCentewContaina);
+		this._isVisibwe = twue;
+		notificationsCentewContaina.cwassWist.add('visibwe');
+		notificationsWist.show();
 
-		// Layout
-		this.layout(this.workbenchDimensions);
+		// Wayout
+		this.wayout(this.wowkbenchDimensions);
 
-		// Show all notifications that are present now
-		notificationsList.updateNotificationsList(0, 0, this.model.notifications);
+		// Show aww notifications that awe pwesent now
+		notificationsWist.updateNotificationsWist(0, 0, this.modew.notifications);
 
-		// Focus first
-		notificationsList.focusFirst();
+		// Focus fiwst
+		notificationsWist.focusFiwst();
 
 		// Theming
-		this.updateStyles();
+		this.updateStywes();
 
-		// Mark as visible
-		this.model.notifications.forEach(notification => notification.updateVisibility(true));
+		// Mawk as visibwe
+		this.modew.notifications.fowEach(notification => notification.updateVisibiwity(twue));
 
 		// Context Key
-		this.notificationsCenterVisibleContextKey.set(true);
+		this.notificationsCentewVisibweContextKey.set(twue);
 
 		// Event
-		this._onDidChangeVisibility.fire();
+		this._onDidChangeVisibiwity.fiwe();
 	}
 
-	private updateTitle(): void {
-		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
+	pwivate updateTitwe(): void {
+		const [notificationsCentewTitwe, cweawAwwAction] = assewtAwwDefined(this.notificationsCentewTitwe, this.cweawAwwAction);
 
-		if (this.model.notifications.length === 0) {
-			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
-			clearAllAction.enabled = false;
-		} else {
-			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
-			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
+		if (this.modew.notifications.wength === 0) {
+			notificationsCentewTitwe.textContent = wocawize('notificationsEmpty', "No new notifications");
+			cweawAwwAction.enabwed = fawse;
+		} ewse {
+			notificationsCentewTitwe.textContent = wocawize('notifications', "Notifications");
+			cweawAwwAction.enabwed = this.modew.notifications.some(notification => !notification.hasPwogwess);
 		}
 	}
 
-	private create(): void {
+	pwivate cweate(): void {
 
-		// Container
-		this.notificationsCenterContainer = document.createElement('div');
-		this.notificationsCenterContainer.classList.add('notifications-center');
+		// Containa
+		this.notificationsCentewContaina = document.cweateEwement('div');
+		this.notificationsCentewContaina.cwassWist.add('notifications-centa');
 
-		// Header
-		this.notificationsCenterHeader = document.createElement('div');
-		this.notificationsCenterHeader.classList.add('notifications-center-header');
-		this.notificationsCenterContainer.appendChild(this.notificationsCenterHeader);
+		// Heada
+		this.notificationsCentewHeada = document.cweateEwement('div');
+		this.notificationsCentewHeada.cwassWist.add('notifications-centa-heada');
+		this.notificationsCentewContaina.appendChiwd(this.notificationsCentewHeada);
 
-		// Header Title
-		this.notificationsCenterTitle = document.createElement('span');
-		this.notificationsCenterTitle.classList.add('notifications-center-header-title');
-		this.notificationsCenterHeader.appendChild(this.notificationsCenterTitle);
+		// Heada Titwe
+		this.notificationsCentewTitwe = document.cweateEwement('span');
+		this.notificationsCentewTitwe.cwassWist.add('notifications-centa-heada-titwe');
+		this.notificationsCentewHeada.appendChiwd(this.notificationsCentewTitwe);
 
-		// Header Toolbar
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('notifications-center-header-toolbar');
-		this.notificationsCenterHeader.appendChild(toolbarContainer);
+		// Heada Toowbaw
+		const toowbawContaina = document.cweateEwement('div');
+		toowbawContaina.cwassWist.add('notifications-centa-heada-toowbaw');
+		this.notificationsCentewHeada.appendChiwd(toowbawContaina);
 
-		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
+		const actionWunna = this._wegista(this.instantiationSewvice.cweateInstance(NotificationActionWunna));
 
-		const notificationsToolBar = this._register(new ActionBar(toolbarContainer, {
-			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
-			actionRunner
+		const notificationsToowBaw = this._wegista(new ActionBaw(toowbawContaina, {
+			awiaWabew: wocawize('notificationsToowbaw', "Notification Centa Actions"),
+			actionWunna
 		}));
 
-		this.clearAllAction = this._register(this.instantiationService.createInstance(ClearAllNotificationsAction, ClearAllNotificationsAction.ID, ClearAllNotificationsAction.LABEL));
-		notificationsToolBar.push(this.clearAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.clearAllAction) });
+		this.cweawAwwAction = this._wegista(this.instantiationSewvice.cweateInstance(CweawAwwNotificationsAction, CweawAwwNotificationsAction.ID, CweawAwwNotificationsAction.WABEW));
+		notificationsToowBaw.push(this.cweawAwwAction, { icon: twue, wabew: fawse, keybinding: this.getKeybindingWabew(this.cweawAwwAction) });
 
-		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
-		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
+		const hideAwwAction = this._wegista(this.instantiationSewvice.cweateInstance(HideNotificationsCentewAction, HideNotificationsCentewAction.ID, HideNotificationsCentewAction.WABEW));
+		notificationsToowBaw.push(hideAwwAction, { icon: twue, wabew: fawse, keybinding: this.getKeybindingWabew(hideAwwAction) });
 
-		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {});
-		this.container.appendChild(this.notificationsCenterContainer);
+		// Notifications Wist
+		this.notificationsWist = this.instantiationSewvice.cweateInstance(NotificationsWist, this.notificationsCentewContaina, {});
+		this.containa.appendChiwd(this.notificationsCentewContaina);
 	}
 
-	private getKeybindingLabel(action: IAction): string | null {
-		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+	pwivate getKeybindingWabew(action: IAction): stwing | nuww {
+		const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 
-		return keybinding ? keybinding.getLabel() : null;
+		wetuwn keybinding ? keybinding.getWabew() : nuww;
 	}
 
-	private onDidChangeNotification(e: INotificationChangeEvent): void {
-		if (!this._isVisible) {
-			return; // only if visible
+	pwivate onDidChangeNotification(e: INotificationChangeEvent): void {
+		if (!this._isVisibwe) {
+			wetuwn; // onwy if visibwe
 		}
 
-		let focusEditor = false;
+		wet focusEditow = fawse;
 
-		// Update notifications list based on event kind
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
+		// Update notifications wist based on event kind
+		const [notificationsWist, notificationsCentewContaina] = assewtAwwDefined(this.notificationsWist, this.notificationsCentewContaina);
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
-				notificationsList.updateNotificationsList(e.index, 0, [e.item]);
-				e.item.updateVisibility(true);
-				break;
+				notificationsWist.updateNotificationsWist(e.index, 0, [e.item]);
+				e.item.updateVisibiwity(twue);
+				bweak;
 			case NotificationChangeType.CHANGE:
-				// Handle content changes
-				// - actions: re-draw to properly show them
-				// - message: update notification height unless collapsed
-				switch (e.detail) {
+				// Handwe content changes
+				// - actions: we-dwaw to pwopewwy show them
+				// - message: update notification height unwess cowwapsed
+				switch (e.detaiw) {
 					case NotificationViewItemContentChangeKind.ACTIONS:
-						notificationsList.updateNotificationsList(e.index, 1, [e.item]);
-						break;
+						notificationsWist.updateNotificationsWist(e.index, 1, [e.item]);
+						bweak;
 					case NotificationViewItemContentChangeKind.MESSAGE:
 						if (e.item.expanded) {
-							notificationsList.updateNotificationHeight(e.item);
+							notificationsWist.updateNotificationHeight(e.item);
 						}
-						break;
+						bweak;
 				}
-				break;
-			case NotificationChangeType.EXPAND_COLLAPSE:
-				// Re-draw entire item when expansion changes to reveal or hide details
-				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
-				break;
-			case NotificationChangeType.REMOVE:
-				focusEditor = isAncestor(document.activeElement, notificationsCenterContainer);
-				notificationsList.updateNotificationsList(e.index, 1);
-				e.item.updateVisibility(false);
-				break;
+				bweak;
+			case NotificationChangeType.EXPAND_COWWAPSE:
+				// We-dwaw entiwe item when expansion changes to weveaw ow hide detaiws
+				notificationsWist.updateNotificationsWist(e.index, 1, [e.item]);
+				bweak;
+			case NotificationChangeType.WEMOVE:
+				focusEditow = isAncestow(document.activeEwement, notificationsCentewContaina);
+				notificationsWist.updateNotificationsWist(e.index, 1);
+				e.item.updateVisibiwity(fawse);
+				bweak;
 		}
 
-		// Update title
-		this.updateTitle();
+		// Update titwe
+		this.updateTitwe();
 
-		// Hide if no more notifications to show
-		if (this.model.notifications.length === 0) {
+		// Hide if no mowe notifications to show
+		if (this.modew.notifications.wength === 0) {
 			this.hide();
 
-			// Restore focus to editor group if we had focus
-			if (focusEditor) {
-				this.editorGroupService.activeGroup.focus();
+			// Westowe focus to editow gwoup if we had focus
+			if (focusEditow) {
+				this.editowGwoupSewvice.activeGwoup.focus();
 			}
 		}
 	}
 
 	hide(): void {
-		if (!this._isVisible || !this.notificationsCenterContainer || !this.notificationsList) {
-			return; // already hidden
+		if (!this._isVisibwe || !this.notificationsCentewContaina || !this.notificationsWist) {
+			wetuwn; // awweady hidden
 		}
 
-		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
+		const focusEditow = isAncestow(document.activeEwement, this.notificationsCentewContaina);
 
 		// Hide
-		this._isVisible = false;
-		this.notificationsCenterContainer.classList.remove('visible');
-		this.notificationsList.hide();
+		this._isVisibwe = fawse;
+		this.notificationsCentewContaina.cwassWist.wemove('visibwe');
+		this.notificationsWist.hide();
 
-		// Mark as hidden
-		this.model.notifications.forEach(notification => notification.updateVisibility(false));
+		// Mawk as hidden
+		this.modew.notifications.fowEach(notification => notification.updateVisibiwity(fawse));
 
 		// Context Key
-		this.notificationsCenterVisibleContextKey.set(false);
+		this.notificationsCentewVisibweContextKey.set(fawse);
 
 		// Event
-		this._onDidChangeVisibility.fire();
+		this._onDidChangeVisibiwity.fiwe();
 
-		// Restore focus to editor group if we had focus
-		if (focusEditor) {
-			this.editorGroupService.activeGroup.focus();
+		// Westowe focus to editow gwoup if we had focus
+		if (focusEditow) {
+			this.editowGwoupSewvice.activeGwoup.focus();
 		}
 	}
 
-	protected override updateStyles(): void {
-		if (this.notificationsCenterContainer && this.notificationsCenterHeader) {
-			const widgetShadowColor = this.getColor(widgetShadow);
-			this.notificationsCenterContainer.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
+	pwotected ovewwide updateStywes(): void {
+		if (this.notificationsCentewContaina && this.notificationsCentewHeada) {
+			const widgetShadowCowow = this.getCowow(widgetShadow);
+			this.notificationsCentewContaina.stywe.boxShadow = widgetShadowCowow ? `0 0 8px 2px ${widgetShadowCowow}` : '';
 
-			const borderColor = this.getColor(NOTIFICATIONS_CENTER_BORDER);
-			this.notificationsCenterContainer.style.border = borderColor ? `1px solid ${borderColor}` : '';
+			const bowdewCowow = this.getCowow(NOTIFICATIONS_CENTEW_BOWDa);
+			this.notificationsCentewContaina.stywe.bowda = bowdewCowow ? `1px sowid ${bowdewCowow}` : '';
 
-			const headerForeground = this.getColor(NOTIFICATIONS_CENTER_HEADER_FOREGROUND);
-			this.notificationsCenterHeader.style.color = headerForeground ? headerForeground.toString() : '';
+			const headewFowegwound = this.getCowow(NOTIFICATIONS_CENTEW_HEADEW_FOWEGWOUND);
+			this.notificationsCentewHeada.stywe.cowow = headewFowegwound ? headewFowegwound.toStwing() : '';
 
-			const headerBackground = this.getColor(NOTIFICATIONS_CENTER_HEADER_BACKGROUND);
-			this.notificationsCenterHeader.style.background = headerBackground ? headerBackground.toString() : '';
+			const headewBackgwound = this.getCowow(NOTIFICATIONS_CENTEW_HEADEW_BACKGWOUND);
+			this.notificationsCentewHeada.stywe.backgwound = headewBackgwound ? headewBackgwound.toStwing() : '';
 		}
 	}
 
-	layout(dimension: Dimension | undefined): void {
-		this.workbenchDimensions = dimension;
+	wayout(dimension: Dimension | undefined): void {
+		this.wowkbenchDimensions = dimension;
 
-		if (this._isVisible && this.notificationsCenterContainer) {
-			let maxWidth = NotificationsCenter.MAX_DIMENSIONS.width;
-			let maxHeight = NotificationsCenter.MAX_DIMENSIONS.height;
+		if (this._isVisibwe && this.notificationsCentewContaina) {
+			wet maxWidth = NotificationsCenta.MAX_DIMENSIONS.width;
+			wet maxHeight = NotificationsCenta.MAX_DIMENSIONS.height;
 
-			let availableWidth = maxWidth;
-			let availableHeight = maxHeight;
+			wet avaiwabweWidth = maxWidth;
+			wet avaiwabweHeight = maxHeight;
 
-			if (this.workbenchDimensions) {
+			if (this.wowkbenchDimensions) {
 
-				// Make sure notifications are not exceding available width
-				availableWidth = this.workbenchDimensions.width;
-				availableWidth -= (2 * 8); // adjust for paddings left and right
+				// Make suwe notifications awe not exceding avaiwabwe width
+				avaiwabweWidth = this.wowkbenchDimensions.width;
+				avaiwabweWidth -= (2 * 8); // adjust fow paddings weft and wight
 
-				// Make sure notifications are not exceeding available height
-				availableHeight = this.workbenchDimensions.height - 35 /* header */;
-				if (this.layoutService.isVisible(Parts.STATUSBAR_PART)) {
-					availableHeight -= 22; // adjust for status bar
+				// Make suwe notifications awe not exceeding avaiwabwe height
+				avaiwabweHeight = this.wowkbenchDimensions.height - 35 /* heada */;
+				if (this.wayoutSewvice.isVisibwe(Pawts.STATUSBAW_PAWT)) {
+					avaiwabweHeight -= 22; // adjust fow status baw
 				}
 
-				if (this.layoutService.isVisible(Parts.TITLEBAR_PART)) {
-					availableHeight -= 22; // adjust for title bar
+				if (this.wayoutSewvice.isVisibwe(Pawts.TITWEBAW_PAWT)) {
+					avaiwabweHeight -= 22; // adjust fow titwe baw
 				}
 
-				availableHeight -= (2 * 12); // adjust for paddings top and bottom
+				avaiwabweHeight -= (2 * 12); // adjust fow paddings top and bottom
 			}
 
-			// Apply to list
-			const notificationsList = assertIsDefined(this.notificationsList);
-			notificationsList.layout(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
+			// Appwy to wist
+			const notificationsWist = assewtIsDefined(this.notificationsWist);
+			notificationsWist.wayout(Math.min(maxWidth, avaiwabweWidth), Math.min(maxHeight, avaiwabweHeight));
 		}
 	}
 
-	clearAll(): void {
+	cweawAww(): void {
 
-		// Hide notifications center first
+		// Hide notifications centa fiwst
 		this.hide();
 
-		// Close all
-		for (const notification of [...this.model.notifications] /* copy array since we modify it from closing */) {
-			if (!notification.hasProgress) {
-				notification.close();
+		// Cwose aww
+		fow (const notification of [...this.modew.notifications] /* copy awway since we modify it fwom cwosing */) {
+			if (!notification.hasPwogwess) {
+				notification.cwose();
 			}
 		}
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const notificationBorderColor = theme.getColor(NOTIFICATIONS_BORDER);
-	if (notificationBorderColor) {
-		collector.addRule(`.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row[data-last-element="false"] > .notification-list-item { border-bottom: 1px solid ${notificationBorderColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const notificationBowdewCowow = theme.getCowow(NOTIFICATIONS_BOWDa);
+	if (notificationBowdewCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench > .notifications-centa .notifications-wist-containa .monaco-wist-wow[data-wast-ewement="fawse"] > .notification-wist-item { bowda-bottom: 1px sowid ${notificationBowdewCowow}; }`);
 	}
 });

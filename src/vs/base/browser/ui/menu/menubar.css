@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Menubar styles */
+/* Menubaw stywes */
 
-.menubar {
-	display: flex;
-	flex-shrink: 1;
-	box-sizing: border-box;
+.menubaw {
+	dispway: fwex;
+	fwex-shwink: 1;
+	box-sizing: bowda-box;
 	height: 30px;
-	overflow: hidden;
-	flex-wrap: wrap;
+	ovewfwow: hidden;
+	fwex-wwap: wwap;
 }
 
-.fullscreen .menubar:not(.compact) {
-	margin: 0px;
+.fuwwscween .menubaw:not(.compact) {
+	mawgin: 0px;
 	padding: 0px 5px;
 }
 
-.menubar > .menubar-menu-button {
-	align-items: center;
-	box-sizing: border-box;
+.menubaw > .menubaw-menu-button {
+	awign-items: centa;
+	box-sizing: bowda-box;
 	padding: 0px 8px;
-	cursor: default;
-	-webkit-app-region: no-drag;
+	cuwsow: defauwt;
+	-webkit-app-wegion: no-dwag;
 	zoom: 1;
-	white-space: nowrap;
-	outline: 0;
+	white-space: nowwap;
+	outwine: 0;
 }
 
-.menubar.compact {
-	flex-shrink: 0;
-	overflow: visible; /* to avoid the compact menu to be repositioned when clicking */
+.menubaw.compact {
+	fwex-shwink: 0;
+	ovewfwow: visibwe; /* to avoid the compact menu to be wepositioned when cwicking */
 }
 
-.menubar.compact > .menubar-menu-button {
+.menubaw.compact > .menubaw-menu-button {
 	width: 100%;
 	height: 100%;
 	padding: 0px;
 }
 
-.menubar .menubar-menu-items-holder {
+.menubaw .menubaw-menu-items-howda {
 	position: fixed;
-	left: 0px;
+	weft: 0px;
 	opacity: 1;
 	z-index: 2000;
 }
 
-.menubar.compact .menubar-menu-items-holder {
+.menubaw.compact .menubaw-menu-items-howda {
 	position: fixed;
 }
 
-.menubar .menubar-menu-items-holder.monaco-menu-container {
-	outline: 0;
-	border: none;
+.menubaw .menubaw-menu-items-howda.monaco-menu-containa {
+	outwine: 0;
+	bowda: none;
 }
 
-.menubar .menubar-menu-items-holder.monaco-menu-container :focus {
-	outline: 0;
+.menubaw .menubaw-menu-items-howda.monaco-menu-containa :focus {
+	outwine: 0;
 }
 
-.menubar .toolbar-toggle-more {
+.menubaw .toowbaw-toggwe-mowe {
 	width: 20px;
 	height: 100%;
 }
 
-.menubar.compact .toolbar-toggle-more {
-	position: relative;
-	left: 0px;
+.menubaw.compact .toowbaw-toggwe-mowe {
+	position: wewative;
+	weft: 0px;
 	top: 0px;
-	cursor: pointer;
+	cuwsow: pointa;
 	width: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.menubar .toolbar-toggle-more {
+.menubaw .toowbaw-toggwe-mowe {
 	padding: 0;
-	vertical-align: sub;
+	vewticaw-awign: sub;
 }
 
-.menubar.compact .toolbar-toggle-more::before {
-	content: "\eb94" !important;
+.menubaw.compact .toowbaw-toggwe-mowe::befowe {
+	content: "\eb94" !impowtant;
 }
 
-/* Match behavior of outline for activity bar icons */
-.menubar.compact > .menubar-menu-button.open,
-.menubar.compact > .menubar-menu-button:focus,
-.menubar.compact > .menubar-menu-button:hover {
-	outline-width: 1px !important;
-	outline-offset: -8px !important;
+/* Match behaviow of outwine fow activity baw icons */
+.menubaw.compact > .menubaw-menu-button.open,
+.menubaw.compact > .menubaw-menu-button:focus,
+.menubaw.compact > .menubaw-menu-button:hova {
+	outwine-width: 1px !impowtant;
+	outwine-offset: -8px !impowtant;
 }

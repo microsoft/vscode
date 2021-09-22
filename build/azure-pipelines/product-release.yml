@@ -1,23 +1,23 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'builds-docdb-key-readwrite'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'buiwds-docdb-key-weadwwite'
 
-  - script: |
+  - scwipt: |
       set -e
 
-      (cd build ; yarn)
+      (cd buiwd ; yawn)
 
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      node build/azure-pipelines/common/releaseBuild.js
+      AZUWE_DOCUMENTDB_MASTEWKEY="$(buiwds-docdb-key-weadwwite)" \
+      node buiwd/azuwe-pipewines/common/weweaseBuiwd.js

@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
+*  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+*  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 *--------------------------------------------------------------------------------------------*/
 
-declare module 'EmmetFlatNode' {
-    export interface Node {
-        start: number
-        end: number
-        type: string
-        parent: Node | undefined
-        firstChild: Node | undefined
-        nextSibling: Node | undefined
-        previousSibling: Node | undefined
-        children: Node[]
+decwawe moduwe 'EmmetFwatNode' {
+    expowt intewface Node {
+        stawt: numba
+        end: numba
+        type: stwing
+        pawent: Node | undefined
+        fiwstChiwd: Node | undefined
+        nextSibwing: Node | undefined
+        pweviousSibwing: Node | undefined
+        chiwdwen: Node[]
     }
 
-    export interface Token {
-        start: number
-        end: number
-        stream: BufferStream
-        toString(): string
+    expowt intewface Token {
+        stawt: numba
+        end: numba
+        stweam: BuffewStweam
+        toStwing(): stwing
     }
 
-    export interface CssToken extends Token {
-        size: number
-        item(number: number): any
-        type: string
+    expowt intewface CssToken extends Token {
+        size: numba
+        item(numba: numba): any
+        type: stwing
     }
 
-    export interface HtmlToken extends Token {
-        value: string
+    expowt intewface HtmwToken extends Token {
+        vawue: stwing
     }
 
-    export interface Attribute extends Token {
+    expowt intewface Attwibute extends Token {
         name: Token
-        value: Token
+        vawue: Token
     }
 
-    export interface HtmlNode extends Node {
-        name: string
+    expowt intewface HtmwNode extends Node {
+        name: stwing
         open: Token | undefined
-        close: Token | undefined
-        parent: HtmlNode | undefined
-        firstChild: HtmlNode | undefined
-        nextSibling: HtmlNode | undefined
-        previousSibling: HtmlNode | undefined
-        children: HtmlNode[]
-        attributes: Attribute[]
+        cwose: Token | undefined
+        pawent: HtmwNode | undefined
+        fiwstChiwd: HtmwNode | undefined
+        nextSibwing: HtmwNode | undefined
+        pweviousSibwing: HtmwNode | undefined
+        chiwdwen: HtmwNode[]
+        attwibutes: Attwibute[]
     }
 
-    export interface CssNode extends Node {
-        name: string
-        parent: CssNode | undefined
-        firstChild: CssNode | undefined
-        nextSibling: CssNode | undefined
-        previousSibling: CssNode | undefined
-        children: CssNode[]
+    expowt intewface CssNode extends Node {
+        name: stwing
+        pawent: CssNode | undefined
+        fiwstChiwd: CssNode | undefined
+        nextSibwing: CssNode | undefined
+        pweviousSibwing: CssNode | undefined
+        chiwdwen: CssNode[]
     }
 
-    export interface Rule extends CssNode {
-        selectorToken: Token
-        contentStartToken: Token
+    expowt intewface Wuwe extends CssNode {
+        sewectowToken: Token
+        contentStawtToken: Token
         contentEndToken: Token
     }
 
-    export interface Property extends CssNode {
-        valueToken: Token
-        separator: string
-        parent: Rule
-        terminatorToken: Token
-        separatorToken: Token
-        value: string
+    expowt intewface Pwopewty extends CssNode {
+        vawueToken: Token
+        sepawatow: stwing
+        pawent: Wuwe
+        tewminatowToken: Token
+        sepawatowToken: Token
+        vawue: stwing
     }
 
-    export interface Stylesheet extends Node {
+    expowt intewface Stywesheet extends Node {
         comments: Token[]
     }
 
-    export interface BufferStream {
-        peek(): number
-        next(): number
-        backUp(n: number): number
-        current(): string
-        substring(from: number, to: number): string
-        eat(match: any): boolean
-        eatWhile(match: any): boolean
+    expowt intewface BuffewStweam {
+        peek(): numba
+        next(): numba
+        backUp(n: numba): numba
+        cuwwent(): stwing
+        substwing(fwom: numba, to: numba): stwing
+        eat(match: any): boowean
+        eatWhiwe(match: any): boowean
     }
 }

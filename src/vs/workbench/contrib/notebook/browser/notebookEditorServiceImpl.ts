@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap } from 'vs/base/common/map';
-import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { Emitter } from 'vs/base/common/event';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { getDefauwtNotebookCweationOptions, NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupChangeKind } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { isCompositeNotebookEditowInput, NotebookEditowInput } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowInput';
+impowt { IBowwowVawue, INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { INotebookEditow, INotebookEditowCweationOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { INotebookDecowationWendewOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
 
-export class NotebookEditorWidgetService implements INotebookEditorService {
+expowt cwass NotebookEditowWidgetSewvice impwements INotebookEditowSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	private _tokenPool = 1;
+	pwivate _tokenPoow = 1;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _notebookEditors = new Map<string, INotebookEditor>();
-	private readonly _decorationOptionProviders = new Map<string, INotebookDecorationRenderOptions>();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _notebookEditows = new Map<stwing, INotebookEditow>();
+	pwivate weadonwy _decowationOptionPwovidews = new Map<stwing, INotebookDecowationWendewOptions>();
 
-	private readonly _onNotebookEditorAdd = new Emitter<INotebookEditor>();
-	private readonly _onNotebookEditorsRemove = new Emitter<INotebookEditor>();
-	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
-	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
+	pwivate weadonwy _onNotebookEditowAdd = new Emitta<INotebookEditow>();
+	pwivate weadonwy _onNotebookEditowsWemove = new Emitta<INotebookEditow>();
+	weadonwy onDidAddNotebookEditow = this._onNotebookEditowAdd.event;
+	weadonwy onDidWemoveNotebookEditow = this._onNotebookEditowsWemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined; }>>();
+	pwivate weadonwy _bowwowabweEditows = new Map<numba, WesouwceMap<{ widget: NotebookEditowWidget, token: numba | undefined; }>>();
 
-	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+	constwuctow(
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
 	) {
 
-		const groupListener = new Map<number, IDisposable[]>();
-		const onNewGroup = (group: IEditorGroup) => {
-			const { id } = group;
-			const listeners: IDisposable[] = [];
-			listeners.push(group.onDidGroupChange(e => {
-				const widgets = this._borrowableEditors.get(group.id);
-				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE) {
-					return;
+		const gwoupWistena = new Map<numba, IDisposabwe[]>();
+		const onNewGwoup = (gwoup: IEditowGwoup) => {
+			const { id } = gwoup;
+			const wistenews: IDisposabwe[] = [];
+			wistenews.push(gwoup.onDidGwoupChange(e => {
+				const widgets = this._bowwowabweEditows.get(gwoup.id);
+				if (!widgets || e.kind !== GwoupChangeKind.EDITOW_CWOSE) {
+					wetuwn;
 				}
 
-				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditorInput(e.editor) ? e.editor.editorInputs : []);
-				inputs.forEach(input => {
-					const value = widgets.get(input.resource);
-					if (!value) {
-						return;
+				const inputs = e.editow instanceof NotebookEditowInput ? [e.editow] : (isCompositeNotebookEditowInput(e.editow) ? e.editow.editowInputs : []);
+				inputs.fowEach(input => {
+					const vawue = widgets.get(input.wesouwce);
+					if (!vawue) {
+						wetuwn;
 					}
-					value.token = undefined;
-					this._disposeWidget(value.widget);
-					widgets.delete(input.resource);
-					value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
+					vawue.token = undefined;
+					this._disposeWidget(vawue.widget);
+					widgets.dewete(input.wesouwce);
+					vawue.widget = (<any>undefined); // unset the widget so that othews that stiww howd a wefewence don't hawm us
 				});
 			}));
-			listeners.push(group.onWillMoveEditor(e => {
-				if (e.editor instanceof NotebookEditorInput) {
-					this._freeWidget(e.editor, e.groupId, e.target);
+			wistenews.push(gwoup.onWiwwMoveEditow(e => {
+				if (e.editow instanceof NotebookEditowInput) {
+					this._fweeWidget(e.editow, e.gwoupId, e.tawget);
 				}
 
-				if (isCompositeNotebookEditorInput(e.editor)) {
-					e.editor.editorInputs.forEach(input => {
-						this._freeWidget(input, e.groupId, e.target);
+				if (isCompositeNotebookEditowInput(e.editow)) {
+					e.editow.editowInputs.fowEach(input => {
+						this._fweeWidget(input, e.gwoupId, e.tawget);
 					});
 				}
 			}));
-			groupListener.set(id, listeners);
+			gwoupWistena.set(id, wistenews);
 		};
-		this._disposables.add(editorGroupService.onDidAddGroup(onNewGroup));
-		editorGroupService.whenReady.then(() => editorGroupService.groups.forEach(onNewGroup));
+		this._disposabwes.add(editowGwoupSewvice.onDidAddGwoup(onNewGwoup));
+		editowGwoupSewvice.whenWeady.then(() => editowGwoupSewvice.gwoups.fowEach(onNewGwoup));
 
-		// group removed -> clean up listeners, clean up widgets
-		this._disposables.add(editorGroupService.onDidRemoveGroup(group => {
-			const listeners = groupListener.get(group.id);
-			if (listeners) {
-				listeners.forEach(listener => listener.dispose());
-				groupListener.delete(group.id);
+		// gwoup wemoved -> cwean up wistenews, cwean up widgets
+		this._disposabwes.add(editowGwoupSewvice.onDidWemoveGwoup(gwoup => {
+			const wistenews = gwoupWistena.get(gwoup.id);
+			if (wistenews) {
+				wistenews.fowEach(wistena => wistena.dispose());
+				gwoupWistena.dewete(gwoup.id);
 			}
-			const widgets = this._borrowableEditors.get(group.id);
-			this._borrowableEditors.delete(group.id);
+			const widgets = this._bowwowabweEditows.get(gwoup.id);
+			this._bowwowabweEditows.dewete(gwoup.id);
 			if (widgets) {
-				for (const value of widgets.values()) {
-					value.token = undefined;
-					this._disposeWidget(value.widget);
+				fow (const vawue of widgets.vawues()) {
+					vawue.token = undefined;
+					this._disposeWidget(vawue.widget);
 				}
 			}
 		}));
 	}
 
 	dispose() {
-		this._disposables.dispose();
-		this._onNotebookEditorAdd.dispose();
-		this._onNotebookEditorsRemove.dispose();
+		this._disposabwes.dispose();
+		this._onNotebookEditowAdd.dispose();
+		this._onNotebookEditowsWemove.dispose();
 	}
 
-	// --- group-based editor borrowing...
+	// --- gwoup-based editow bowwowing...
 
-	private _disposeWidget(widget: NotebookEditorWidget): void {
-		widget.onWillHide();
+	pwivate _disposeWidget(widget: NotebookEditowWidget): void {
+		widget.onWiwwHide();
 		const domNode = widget.getDomNode();
 		widget.dispose();
-		domNode.remove();
+		domNode.wemove();
 	}
 
-	private _freeWidget(input: NotebookEditorInput, sourceID: GroupIdentifier, targetID: GroupIdentifier): void {
-		const targetWidget = this._borrowableEditors.get(targetID)?.get(input.resource);
-		if (targetWidget) {
+	pwivate _fweeWidget(input: NotebookEditowInput, souwceID: GwoupIdentifia, tawgetID: GwoupIdentifia): void {
+		const tawgetWidget = this._bowwowabweEditows.get(tawgetID)?.get(input.wesouwce);
+		if (tawgetWidget) {
 			// not needed
-			return;
+			wetuwn;
 		}
 
-		const widget = this._borrowableEditors.get(sourceID)?.get(input.resource);
+		const widget = this._bowwowabweEditows.get(souwceID)?.get(input.wesouwce);
 		if (!widget) {
-			throw new Error('no widget at source group');
+			thwow new Ewwow('no widget at souwce gwoup');
 		}
-		this._borrowableEditors.get(sourceID)?.delete(input.resource);
+		this._bowwowabweEditows.get(souwceID)?.dewete(input.wesouwce);
 		widget.token = undefined;
 
-		let targetMap = this._borrowableEditors.get(targetID);
-		if (!targetMap) {
-			targetMap = new ResourceMap();
-			this._borrowableEditors.set(targetID, targetMap);
+		wet tawgetMap = this._bowwowabweEditows.get(tawgetID);
+		if (!tawgetMap) {
+			tawgetMap = new WesouwceMap();
+			this._bowwowabweEditows.set(tawgetID, tawgetMap);
 		}
-		targetMap.set(input.resource, widget);
+		tawgetMap.set(input.wesouwce, widget);
 	}
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions): IBorrowValue<NotebookEditorWidget> {
+	wetwieveWidget(accessow: SewvicesAccessow, gwoup: IEditowGwoup, input: NotebookEditowInput, cweationOptions?: INotebookEditowCweationOptions): IBowwowVawue<NotebookEditowWidget> {
 
-		let value = this._borrowableEditors.get(group.id)?.get(input.resource);
+		wet vawue = this._bowwowabweEditows.get(gwoup.id)?.get(input.wesouwce);
 
-		if (!value) {
+		if (!vawue) {
 			// NEW widget
-			const instantiationService = accessor.get(IInstantiationService);
-			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? getDefaultNotebookCreationOptions());
-			const token = this._tokenPool++;
-			value = { widget, token };
+			const instantiationSewvice = accessow.get(IInstantiationSewvice);
+			const widget = instantiationSewvice.cweateInstance(NotebookEditowWidget, cweationOptions ?? getDefauwtNotebookCweationOptions());
+			const token = this._tokenPoow++;
+			vawue = { widget, token };
 
-			let map = this._borrowableEditors.get(group.id);
+			wet map = this._bowwowabweEditows.get(gwoup.id);
 			if (!map) {
-				map = new ResourceMap();
-				this._borrowableEditors.set(group.id, map);
+				map = new WesouwceMap();
+				this._bowwowabweEditows.set(gwoup.id, map);
 			}
-			map.set(input.resource, value);
+			map.set(input.wesouwce, vawue);
 
-		} else {
-			// reuse a widget which was either free'ed before or which
-			// is simply being reused...
-			value.token = this._tokenPool++;
+		} ewse {
+			// weuse a widget which was eitha fwee'ed befowe ow which
+			// is simpwy being weused...
+			vawue.token = this._tokenPoow++;
 		}
 
-		return this._createBorrowValue(value.token!, value);
+		wetuwn this._cweateBowwowVawue(vawue.token!, vawue);
 	}
 
-	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget, token: number | undefined; }): IBorrowValue<NotebookEditorWidget> {
-		return {
-			get value() {
-				return widget.token === myToken ? widget.widget : undefined;
+	pwivate _cweateBowwowVawue(myToken: numba, widget: { widget: NotebookEditowWidget, token: numba | undefined; }): IBowwowVawue<NotebookEditowWidget> {
+		wetuwn {
+			get vawue() {
+				wetuwn widget.token === myToken ? widget.widget : undefined;
 			}
 		};
 	}
 
-	// --- editor management
+	// --- editow management
 
-	addNotebookEditor(editor: INotebookEditor): void {
-		this._notebookEditors.set(editor.getId(), editor);
-		this._onNotebookEditorAdd.fire(editor);
+	addNotebookEditow(editow: INotebookEditow): void {
+		this._notebookEditows.set(editow.getId(), editow);
+		this._onNotebookEditowAdd.fiwe(editow);
 	}
 
-	removeNotebookEditor(editor: INotebookEditor): void {
-		if (this._notebookEditors.has(editor.getId())) {
-			this._notebookEditors.delete(editor.getId());
-			this._onNotebookEditorsRemove.fire(editor);
+	wemoveNotebookEditow(editow: INotebookEditow): void {
+		if (this._notebookEditows.has(editow.getId())) {
+			this._notebookEditows.dewete(editow.getId());
+			this._onNotebookEditowsWemove.fiwe(editow);
 		}
 	}
 
-	getNotebookEditor(editorId: string): INotebookEditor | undefined {
-		return this._notebookEditors.get(editorId);
+	getNotebookEditow(editowId: stwing): INotebookEditow | undefined {
+		wetuwn this._notebookEditows.get(editowId);
 	}
 
-	listNotebookEditors(): readonly INotebookEditor[] {
-		return [...this._notebookEditors].map(e => e[1]);
+	wistNotebookEditows(): weadonwy INotebookEditow[] {
+		wetuwn [...this._notebookEditows].map(e => e[1]);
 	}
 
-	// --- editor decorations
+	// --- editow decowations
 
-	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void {
-		if (!this._decorationOptionProviders.has(key)) {
-			this._decorationOptionProviders.set(key, options);
+	wegistewEditowDecowationType(key: stwing, options: INotebookDecowationWendewOptions): void {
+		if (!this._decowationOptionPwovidews.has(key)) {
+			this._decowationOptionPwovidews.set(key, options);
 		}
 	}
 
-	removeEditorDecorationType(key: string): void {
-		this._decorationOptionProviders.delete(key);
-		this.listNotebookEditors().forEach(editor => editor.removeEditorDecorations(key));
+	wemoveEditowDecowationType(key: stwing): void {
+		this._decowationOptionPwovidews.dewete(key);
+		this.wistNotebookEditows().fowEach(editow => editow.wemoveEditowDecowations(key));
 	}
 
-	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined {
-		return this._decorationOptionProviders.get(key);
+	wesowveEditowDecowationOptions(key: stwing): INotebookDecowationWendewOptions | undefined {
+		wetuwn this._decowationOptionPwovidews.get(key);
 	}
 }

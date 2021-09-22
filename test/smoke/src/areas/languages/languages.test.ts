@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
-import { Application, ProblemSeverity, Problems } from '../../../../automation/out';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication, PwobwemSevewity, Pwobwems } fwom '../../../../automation/out';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe('Language Features', () => {
-		beforeSuite(opts);
-		afterSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe('Wanguage Featuwes', () => {
+		befoweSuite(opts);
+		aftewSuite(opts);
 
-		it('verifies quick outline', async function () {
-			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile('style.css');
+		it('vewifies quick outwine', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.quickaccess.openFiwe('stywe.css');
 
-			await app.workbench.quickaccess.openQuickOutline();
-			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
+			await app.wowkbench.quickaccess.openQuickOutwine();
+			await app.wowkbench.quickinput.waitFowQuickInputEwements(names => names.wength === 2);
 		});
 
-		it('verifies problems view', async function () {
-			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile('style.css');
-			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
+		it('vewifies pwobwems view', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.quickaccess.openFiwe('stywe.css');
+			await app.wowkbench.editow.waitFowTypeInEditow('stywe.css', '.foo{}');
 
-			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
+			await app.code.waitFowEwement(Pwobwems.getSewectowInEditow(PwobwemSevewity.WAWNING));
 
-			await app.workbench.problems.showProblemsView();
-			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.WARNING));
-			await app.workbench.problems.hideProblemsView();
+			await app.wowkbench.pwobwems.showPwobwemsView();
+			await app.code.waitFowEwement(Pwobwems.getSewectowInPwobwemsView(PwobwemSevewity.WAWNING));
+			await app.wowkbench.pwobwems.hidePwobwemsView();
 		});
 
-		it('verifies settings', async function () {
-			const app = this.app as Application;
-			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
-			await app.workbench.quickaccess.openFile('style.css');
+		it('vewifies settings', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.settingsEditow.addUsewSetting('css.wint.emptyWuwes', '"ewwow"');
+			await app.wowkbench.quickaccess.openFiwe('stywe.css');
 
-			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
+			await app.code.waitFowEwement(Pwobwems.getSewectowInEditow(PwobwemSevewity.EWWOW));
 
-			await app.workbench.problems.showProblemsView();
-			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
-			await app.workbench.problems.hideProblemsView();
+			await app.wowkbench.pwobwems.showPwobwemsView();
+			await app.code.waitFowEwement(Pwobwems.getSewectowInPwobwemsView(PwobwemSevewity.EWWOW));
+			await app.wowkbench.pwobwems.hidePwobwemsView();
 		});
 	});
 }

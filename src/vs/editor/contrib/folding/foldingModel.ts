@@ -1,559 +1,559 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { FoldingRegion, FoldingRegions, ILineRange } from './foldingRanges';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IModewDecowationOptions, IModewDecowationsChangeAccessow, IModewDewtaDecowation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { FowdingWegion, FowdingWegions, IWineWange } fwom './fowdingWanges';
 
-export interface IDecorationProvider {
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean): IModelDecorationOptions;
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
+expowt intewface IDecowationPwovida {
+	getDecowationOption(isCowwapsed: boowean, isHidden: boowean): IModewDecowationOptions;
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[];
+	changeDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T): T | nuww;
 }
 
-export interface FoldingModelChangeEvent {
-	model: FoldingModel;
-	collapseStateChanged?: FoldingRegion[];
+expowt intewface FowdingModewChangeEvent {
+	modew: FowdingModew;
+	cowwapseStateChanged?: FowdingWegion[];
 }
 
-export type CollapseMemento = ILineRange[];
+expowt type CowwapseMemento = IWineWange[];
 
-export class FoldingModel {
-	private readonly _textModel: ITextModel;
-	private readonly _decorationProvider: IDecorationProvider;
+expowt cwass FowdingModew {
+	pwivate weadonwy _textModew: ITextModew;
+	pwivate weadonwy _decowationPwovida: IDecowationPwovida;
 
-	private _regions: FoldingRegions;
-	private _editorDecorationIds: string[];
-	private _isInitialized: boolean;
+	pwivate _wegions: FowdingWegions;
+	pwivate _editowDecowationIds: stwing[];
+	pwivate _isInitiawized: boowean;
 
-	private readonly _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
-	public readonly onDidChange: Event<FoldingModelChangeEvent> = this._updateEventEmitter.event;
+	pwivate weadonwy _updateEventEmitta = new Emitta<FowdingModewChangeEvent>();
+	pubwic weadonwy onDidChange: Event<FowdingModewChangeEvent> = this._updateEventEmitta.event;
 
-	public get regions(): FoldingRegions { return this._regions; }
-	public get textModel() { return this._textModel; }
-	public get isInitialized() { return this._isInitialized; }
-	public get decorationProvider() { return this._decorationProvider; }
+	pubwic get wegions(): FowdingWegions { wetuwn this._wegions; }
+	pubwic get textModew() { wetuwn this._textModew; }
+	pubwic get isInitiawized() { wetuwn this._isInitiawized; }
+	pubwic get decowationPwovida() { wetuwn this._decowationPwovida; }
 
-	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider) {
-		this._textModel = textModel;
-		this._decorationProvider = decorationProvider;
-		this._regions = new FoldingRegions(new Uint32Array(0), new Uint32Array(0));
-		this._editorDecorationIds = [];
-		this._isInitialized = false;
+	constwuctow(textModew: ITextModew, decowationPwovida: IDecowationPwovida) {
+		this._textModew = textModew;
+		this._decowationPwovida = decowationPwovida;
+		this._wegions = new FowdingWegions(new Uint32Awway(0), new Uint32Awway(0));
+		this._editowDecowationIds = [];
+		this._isInitiawized = fawse;
 	}
 
-	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
-		if (!toggledRegions.length) {
-			return;
+	pubwic toggweCowwapseState(toggwedWegions: FowdingWegion[]) {
+		if (!toggwedWegions.wength) {
+			wetuwn;
 		}
-		toggledRegions = toggledRegions.sort((r1, r2) => r1.regionIndex - r2.regionIndex);
+		toggwedWegions = toggwedWegions.sowt((w1, w2) => w1.wegionIndex - w2.wegionIndex);
 
-		const processed: { [key: string]: boolean | undefined } = {};
-		this._decorationProvider.changeDecorations(accessor => {
-			let k = 0; // index from [0 ... this.regions.length]
-			let dirtyRegionEndLine = -1; // end of the range where decorations need to be updated
-			let lastHiddenLine = -1; // the end of the last hidden lines
-			const updateDecorationsUntil = (index: number) => {
-				while (k < index) {
-					const endLineNumber = this._regions.getEndLineNumber(k);
-					const isCollapsed = this._regions.isCollapsed(k);
-					if (endLineNumber <= dirtyRegionEndLine) {
-						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine));
+		const pwocessed: { [key: stwing]: boowean | undefined } = {};
+		this._decowationPwovida.changeDecowations(accessow => {
+			wet k = 0; // index fwom [0 ... this.wegions.wength]
+			wet diwtyWegionEndWine = -1; // end of the wange whewe decowations need to be updated
+			wet wastHiddenWine = -1; // the end of the wast hidden wines
+			const updateDecowationsUntiw = (index: numba) => {
+				whiwe (k < index) {
+					const endWineNumba = this._wegions.getEndWineNumba(k);
+					const isCowwapsed = this._wegions.isCowwapsed(k);
+					if (endWineNumba <= diwtyWegionEndWine) {
+						accessow.changeDecowationOptions(this._editowDecowationIds[k], this._decowationPwovida.getDecowationOption(isCowwapsed, endWineNumba <= wastHiddenWine));
 					}
-					if (isCollapsed && endLineNumber > lastHiddenLine) {
-						lastHiddenLine = endLineNumber;
+					if (isCowwapsed && endWineNumba > wastHiddenWine) {
+						wastHiddenWine = endWineNumba;
 					}
 					k++;
 				}
 			};
-			for (let region of toggledRegions) {
-				let index = region.regionIndex;
-				let editorDecorationId = this._editorDecorationIds[index];
-				if (editorDecorationId && !processed[editorDecorationId]) {
-					processed[editorDecorationId] = true;
+			fow (wet wegion of toggwedWegions) {
+				wet index = wegion.wegionIndex;
+				wet editowDecowationId = this._editowDecowationIds[index];
+				if (editowDecowationId && !pwocessed[editowDecowationId]) {
+					pwocessed[editowDecowationId] = twue;
 
-					updateDecorationsUntil(index); // update all decorations up to current index using the old dirtyRegionEndLine
+					updateDecowationsUntiw(index); // update aww decowations up to cuwwent index using the owd diwtyWegionEndWine
 
-					let newCollapseState = !this._regions.isCollapsed(index);
-					this._regions.setCollapsed(index, newCollapseState);
+					wet newCowwapseState = !this._wegions.isCowwapsed(index);
+					this._wegions.setCowwapsed(index, newCowwapseState);
 
-					dirtyRegionEndLine = Math.max(dirtyRegionEndLine, this._regions.getEndLineNumber(index));
+					diwtyWegionEndWine = Math.max(diwtyWegionEndWine, this._wegions.getEndWineNumba(index));
 				}
 			}
-			updateDecorationsUntil(this._regions.length);
+			updateDecowationsUntiw(this._wegions.wength);
 		});
-		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
+		this._updateEventEmitta.fiwe({ modew: this, cowwapseStateChanged: toggwedWegions });
 	}
 
-	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
-		let newEditorDecorations: IModelDeltaDecoration[] = [];
+	pubwic update(newWegions: FowdingWegions, bwockedWineNumews: numba[] = []): void {
+		wet newEditowDecowations: IModewDewtaDecowation[] = [];
 
-		let isBlocked = (startLineNumber: number, endLineNumber: number) => {
-			for (let blockedLineNumber of blockedLineNumers) {
-				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
-					return true;
+		wet isBwocked = (stawtWineNumba: numba, endWineNumba: numba) => {
+			fow (wet bwockedWineNumba of bwockedWineNumews) {
+				if (stawtWineNumba < bwockedWineNumba && bwockedWineNumba <= endWineNumba) { // fiwst wine is visibwe
+					wetuwn twue;
 				}
 			}
-			return false;
+			wetuwn fawse;
 		};
 
-		let lastHiddenLine = -1;
+		wet wastHiddenWine = -1;
 
-		let initRange = (index: number, isCollapsed: boolean) => {
-			const startLineNumber = newRegions.getStartLineNumber(index);
-			const endLineNumber = newRegions.getEndLineNumber(index);
-			if (!isCollapsed) {
-				isCollapsed = newRegions.isCollapsed(index);
+		wet initWange = (index: numba, isCowwapsed: boowean) => {
+			const stawtWineNumba = newWegions.getStawtWineNumba(index);
+			const endWineNumba = newWegions.getEndWineNumba(index);
+			if (!isCowwapsed) {
+				isCowwapsed = newWegions.isCowwapsed(index);
 			}
-			if (isCollapsed && isBlocked(startLineNumber, endLineNumber)) {
-				isCollapsed = false;
+			if (isCowwapsed && isBwocked(stawtWineNumba, endWineNumba)) {
+				isCowwapsed = fawse;
 			}
-			newRegions.setCollapsed(index, isCollapsed);
+			newWegions.setCowwapsed(index, isCowwapsed);
 
-			const maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
-			const decorationRange = {
-				startLineNumber: startLineNumber,
-				startColumn: Math.max(maxColumn - 1, 1), // make it length == 1 to detect deletions
-				endLineNumber: startLineNumber,
-				endColumn: maxColumn
+			const maxCowumn = this._textModew.getWineMaxCowumn(stawtWineNumba);
+			const decowationWange = {
+				stawtWineNumba: stawtWineNumba,
+				stawtCowumn: Math.max(maxCowumn - 1, 1), // make it wength == 1 to detect dewetions
+				endWineNumba: stawtWineNumba,
+				endCowumn: maxCowumn
 			};
-			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine) });
-			if (isCollapsed && endLineNumber > lastHiddenLine) {
-				lastHiddenLine = endLineNumber;
+			newEditowDecowations.push({ wange: decowationWange, options: this._decowationPwovida.getDecowationOption(isCowwapsed, endWineNumba <= wastHiddenWine) });
+			if (isCowwapsed && endWineNumba > wastHiddenWine) {
+				wastHiddenWine = endWineNumba;
 			}
 		};
-		let i = 0;
-		let nextCollapsed = () => {
-			while (i < this._regions.length) {
-				let isCollapsed = this._regions.isCollapsed(i);
+		wet i = 0;
+		wet nextCowwapsed = () => {
+			whiwe (i < this._wegions.wength) {
+				wet isCowwapsed = this._wegions.isCowwapsed(i);
 				i++;
-				if (isCollapsed) {
-					return i - 1;
+				if (isCowwapsed) {
+					wetuwn i - 1;
 				}
 			}
-			return -1;
+			wetuwn -1;
 		};
 
-		let k = 0;
-		let collapsedIndex = nextCollapsed();
-		while (collapsedIndex !== -1 && k < newRegions.length) {
-			// get the latest range
-			let decRange = this._textModel.getDecorationRange(this._editorDecorationIds[collapsedIndex]);
-			if (decRange) {
-				let collapsedStartLineNumber = decRange.startLineNumber;
-				if (decRange.startColumn === Math.max(decRange.endColumn - 1, 1) && this._textModel.getLineMaxColumn(collapsedStartLineNumber) === decRange.endColumn) { // test that the decoration is still covering the full line else it got deleted
-					while (k < newRegions.length) {
-						let startLineNumber = newRegions.getStartLineNumber(k);
-						if (collapsedStartLineNumber >= startLineNumber) {
-							initRange(k, collapsedStartLineNumber === startLineNumber);
+		wet k = 0;
+		wet cowwapsedIndex = nextCowwapsed();
+		whiwe (cowwapsedIndex !== -1 && k < newWegions.wength) {
+			// get the watest wange
+			wet decWange = this._textModew.getDecowationWange(this._editowDecowationIds[cowwapsedIndex]);
+			if (decWange) {
+				wet cowwapsedStawtWineNumba = decWange.stawtWineNumba;
+				if (decWange.stawtCowumn === Math.max(decWange.endCowumn - 1, 1) && this._textModew.getWineMaxCowumn(cowwapsedStawtWineNumba) === decWange.endCowumn) { // test that the decowation is stiww covewing the fuww wine ewse it got deweted
+					whiwe (k < newWegions.wength) {
+						wet stawtWineNumba = newWegions.getStawtWineNumba(k);
+						if (cowwapsedStawtWineNumba >= stawtWineNumba) {
+							initWange(k, cowwapsedStawtWineNumba === stawtWineNumba);
 							k++;
-						} else {
-							break;
+						} ewse {
+							bweak;
 						}
 					}
 				}
 			}
-			collapsedIndex = nextCollapsed();
+			cowwapsedIndex = nextCowwapsed();
 		}
-		while (k < newRegions.length) {
-			initRange(k, false);
+		whiwe (k < newWegions.wength) {
+			initWange(k, fawse);
 			k++;
 		}
 
-		this._editorDecorationIds = this._decorationProvider.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
-		this._regions = newRegions;
-		this._isInitialized = true;
-		this._updateEventEmitter.fire({ model: this });
+		this._editowDecowationIds = this._decowationPwovida.dewtaDecowations(this._editowDecowationIds, newEditowDecowations);
+		this._wegions = newWegions;
+		this._isInitiawized = twue;
+		this._updateEventEmitta.fiwe({ modew: this });
 	}
 
 	/**
-	 * Collapse state memento, for persistence only
+	 * Cowwapse state memento, fow pewsistence onwy
 	 */
-	public getMemento(): CollapseMemento | undefined {
-		let collapsedRanges: ILineRange[] = [];
-		for (let i = 0; i < this._regions.length; i++) {
-			if (this._regions.isCollapsed(i)) {
-				let range = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
-				if (range) {
-					let startLineNumber = range.startLineNumber;
-					let endLineNumber = range.endLineNumber + this._regions.getEndLineNumber(i) - this._regions.getStartLineNumber(i);
-					collapsedRanges.push({ startLineNumber, endLineNumber });
+	pubwic getMemento(): CowwapseMemento | undefined {
+		wet cowwapsedWanges: IWineWange[] = [];
+		fow (wet i = 0; i < this._wegions.wength; i++) {
+			if (this._wegions.isCowwapsed(i)) {
+				wet wange = this._textModew.getDecowationWange(this._editowDecowationIds[i]);
+				if (wange) {
+					wet stawtWineNumba = wange.stawtWineNumba;
+					wet endWineNumba = wange.endWineNumba + this._wegions.getEndWineNumba(i) - this._wegions.getStawtWineNumba(i);
+					cowwapsedWanges.push({ stawtWineNumba, endWineNumba });
 				}
 			}
 		}
-		if (collapsedRanges.length > 0) {
-			return collapsedRanges;
+		if (cowwapsedWanges.wength > 0) {
+			wetuwn cowwapsedWanges;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * Apply persisted state, for persistence only
+	 * Appwy pewsisted state, fow pewsistence onwy
 	 */
-	public applyMemento(state: CollapseMemento) {
-		if (!Array.isArray(state)) {
-			return;
+	pubwic appwyMemento(state: CowwapseMemento) {
+		if (!Awway.isAwway(state)) {
+			wetuwn;
 		}
-		let toToogle: FoldingRegion[] = [];
-		for (let range of state) {
-			let region = this.getRegionAtLine(range.startLineNumber);
-			if (region && !region.isCollapsed) {
-				toToogle.push(region);
+		wet toToogwe: FowdingWegion[] = [];
+		fow (wet wange of state) {
+			wet wegion = this.getWegionAtWine(wange.stawtWineNumba);
+			if (wegion && !wegion.isCowwapsed) {
+				toToogwe.push(wegion);
 			}
 		}
-		this.toggleCollapseState(toToogle);
+		this.toggweCowwapseState(toToogwe);
 	}
 
-	public dispose() {
-		this._decorationProvider.deltaDecorations(this._editorDecorationIds, []);
+	pubwic dispose() {
+		this._decowationPwovida.dewtaDecowations(this._editowDecowationIds, []);
 	}
 
-	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
-		if (this._regions) {
-			let index = this._regions.findRange(lineNumber);
-			let level = 1;
-			while (index >= 0) {
-				let current = this._regions.toRegion(index);
-				if (!filter || filter(current, level)) {
-					result.push(current);
+	getAwwWegionsAtWine(wineNumba: numba, fiwta?: (w: FowdingWegion, wevew: numba) => boowean): FowdingWegion[] {
+		wet wesuwt: FowdingWegion[] = [];
+		if (this._wegions) {
+			wet index = this._wegions.findWange(wineNumba);
+			wet wevew = 1;
+			whiwe (index >= 0) {
+				wet cuwwent = this._wegions.toWegion(index);
+				if (!fiwta || fiwta(cuwwent, wevew)) {
+					wesuwt.push(cuwwent);
 				}
-				level++;
-				index = current.parentIndex;
+				wevew++;
+				index = cuwwent.pawentIndex;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	getRegionAtLine(lineNumber: number): FoldingRegion | null {
-		if (this._regions) {
-			let index = this._regions.findRange(lineNumber);
+	getWegionAtWine(wineNumba: numba): FowdingWegion | nuww {
+		if (this._wegions) {
+			wet index = this._wegions.findWange(wineNumba);
 			if (index >= 0) {
-				return this._regions.toRegion(index);
+				wetuwn this._wegions.toWegion(index);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getRegionsInside(region: FoldingRegion | null, filter?: RegionFilter | RegionFilterWithLevel): FoldingRegion[] {
-		let result: FoldingRegion[] = [];
-		let index = region ? region.regionIndex + 1 : 0;
-		let endLineNumber = region ? region.endLineNumber : Number.MAX_VALUE;
+	getWegionsInside(wegion: FowdingWegion | nuww, fiwta?: WegionFiwta | WegionFiwtewWithWevew): FowdingWegion[] {
+		wet wesuwt: FowdingWegion[] = [];
+		wet index = wegion ? wegion.wegionIndex + 1 : 0;
+		wet endWineNumba = wegion ? wegion.endWineNumba : Numba.MAX_VAWUE;
 
-		if (filter && filter.length === 2) {
-			const levelStack: FoldingRegion[] = [];
-			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
-				if (this._regions.getStartLineNumber(i) < endLineNumber) {
-					while (levelStack.length > 0 && !current.containedBy(levelStack[levelStack.length - 1])) {
-						levelStack.pop();
+		if (fiwta && fiwta.wength === 2) {
+			const wevewStack: FowdingWegion[] = [];
+			fow (wet i = index, wen = this._wegions.wength; i < wen; i++) {
+				wet cuwwent = this._wegions.toWegion(i);
+				if (this._wegions.getStawtWineNumba(i) < endWineNumba) {
+					whiwe (wevewStack.wength > 0 && !cuwwent.containedBy(wevewStack[wevewStack.wength - 1])) {
+						wevewStack.pop();
 					}
-					levelStack.push(current);
-					if (filter(current, levelStack.length)) {
-						result.push(current);
+					wevewStack.push(cuwwent);
+					if (fiwta(cuwwent, wevewStack.wength)) {
+						wesuwt.push(cuwwent);
 					}
-				} else {
-					break;
+				} ewse {
+					bweak;
 				}
 			}
-		} else {
-			for (let i = index, len = this._regions.length; i < len; i++) {
-				let current = this._regions.toRegion(i);
-				if (this._regions.getStartLineNumber(i) < endLineNumber) {
-					if (!filter || (filter as RegionFilter)(current)) {
-						result.push(current);
+		} ewse {
+			fow (wet i = index, wen = this._wegions.wength; i < wen; i++) {
+				wet cuwwent = this._wegions.toWegion(i);
+				if (this._wegions.getStawtWineNumba(i) < endWineNumba) {
+					if (!fiwta || (fiwta as WegionFiwta)(cuwwent)) {
+						wesuwt.push(cuwwent);
 					}
-				} else {
-					break;
+				} ewse {
+					bweak;
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 }
 
-type RegionFilter = (r: FoldingRegion) => boolean;
-type RegionFilterWithLevel = (r: FoldingRegion, level: number) => boolean;
+type WegionFiwta = (w: FowdingWegion) => boowean;
+type WegionFiwtewWithWevew = (w: FowdingWegion, wevew: numba) => boowean;
 
 
 /**
- * Collapse or expand the regions at the given locations
- * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
- * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
+ * Cowwapse ow expand the wegions at the given wocations
+ * @pawam wevews The numba of wevews. Use 1 to onwy impact the wegions at the wocation, use Numba.MAX_VAWUE fow aww wevews.
+ * @pawam wineNumbews the wocation of the wegions to cowwapse ow expand, ow if not set, aww wegions in the modew.
  */
-export function toggleCollapseState(foldingModel: FoldingModel, levels: number, lineNumbers: number[]) {
-	let toToggle: FoldingRegion[] = [];
-	for (let lineNumber of lineNumbers) {
-		let region = foldingModel.getRegionAtLine(lineNumber);
-		if (region) {
-			const doCollapse = !region.isCollapsed;
-			toToggle.push(region);
-			if (levels > 1) {
-				let regionsInside = foldingModel.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
-				toToggle.push(...regionsInside);
+expowt function toggweCowwapseState(fowdingModew: FowdingModew, wevews: numba, wineNumbews: numba[]) {
+	wet toToggwe: FowdingWegion[] = [];
+	fow (wet wineNumba of wineNumbews) {
+		wet wegion = fowdingModew.getWegionAtWine(wineNumba);
+		if (wegion) {
+			const doCowwapse = !wegion.isCowwapsed;
+			toToggwe.push(wegion);
+			if (wevews > 1) {
+				wet wegionsInside = fowdingModew.getWegionsInside(wegion, (w, wevew: numba) => w.isCowwapsed !== doCowwapse && wevew < wevews);
+				toToggwe.push(...wegionsInside);
 			}
 		}
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 
 /**
- * Collapse or expand the regions at the given locations including all children.
- * @param doCollapse Whether to collapse or expand
- * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
- * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
+ * Cowwapse ow expand the wegions at the given wocations incwuding aww chiwdwen.
+ * @pawam doCowwapse Whetha to cowwapse ow expand
+ * @pawam wevews The numba of wevews. Use 1 to onwy impact the wegions at the wocation, use Numba.MAX_VAWUE fow aww wevews.
+ * @pawam wineNumbews the wocation of the wegions to cowwapse ow expand, ow if not set, aww wegions in the modew.
  */
-export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollapse: boolean, levels = Number.MAX_VALUE, lineNumbers?: number[]): void {
-	let toToggle: FoldingRegion[] = [];
-	if (lineNumbers && lineNumbers.length > 0) {
-		for (let lineNumber of lineNumbers) {
-			let region = foldingModel.getRegionAtLine(lineNumber);
-			if (region) {
-				if (region.isCollapsed !== doCollapse) {
-					toToggle.push(region);
+expowt function setCowwapseStateWevewsDown(fowdingModew: FowdingModew, doCowwapse: boowean, wevews = Numba.MAX_VAWUE, wineNumbews?: numba[]): void {
+	wet toToggwe: FowdingWegion[] = [];
+	if (wineNumbews && wineNumbews.wength > 0) {
+		fow (wet wineNumba of wineNumbews) {
+			wet wegion = fowdingModew.getWegionAtWine(wineNumba);
+			if (wegion) {
+				if (wegion.isCowwapsed !== doCowwapse) {
+					toToggwe.push(wegion);
 				}
-				if (levels > 1) {
-					let regionsInside = foldingModel.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
-					toToggle.push(...regionsInside);
+				if (wevews > 1) {
+					wet wegionsInside = fowdingModew.getWegionsInside(wegion, (w, wevew: numba) => w.isCowwapsed !== doCowwapse && wevew < wevews);
+					toToggwe.push(...wegionsInside);
 				}
 			}
 		}
-	} else {
-		let regionsInside = foldingModel.getRegionsInside(null, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
-		toToggle.push(...regionsInside);
+	} ewse {
+		wet wegionsInside = fowdingModew.getWegionsInside(nuww, (w, wevew: numba) => w.isCowwapsed !== doCowwapse && wevew < wevews);
+		toToggwe.push(...wegionsInside);
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Collapse or expand the regions at the given locations including all parents.
- * @param doCollapse Whether to collapse or expand
- * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
- * @param lineNumbers the location of the regions to collapse or expand.
+ * Cowwapse ow expand the wegions at the given wocations incwuding aww pawents.
+ * @pawam doCowwapse Whetha to cowwapse ow expand
+ * @pawam wevews The numba of wevews. Use 1 to onwy impact the wegions at the wocation, use Numba.MAX_VAWUE fow aww wevews.
+ * @pawam wineNumbews the wocation of the wegions to cowwapse ow expand.
  */
-export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse: boolean, levels: number, lineNumbers: number[]): void {
-	let toToggle: FoldingRegion[] = [];
-	for (let lineNumber of lineNumbers) {
-		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, level) => region.isCollapsed !== doCollapse && level <= levels);
-		toToggle.push(...regions);
+expowt function setCowwapseStateWevewsUp(fowdingModew: FowdingModew, doCowwapse: boowean, wevews: numba, wineNumbews: numba[]): void {
+	wet toToggwe: FowdingWegion[] = [];
+	fow (wet wineNumba of wineNumbews) {
+		wet wegions = fowdingModew.getAwwWegionsAtWine(wineNumba, (wegion, wevew) => wegion.isCowwapsed !== doCowwapse && wevew <= wevews);
+		toToggwe.push(...wegions);
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Collapse or expand a region at the given locations. If the inner most region is already collapsed/expanded, uses the first parent instead.
- * @param doCollapse Whether to collapse or expand
- * @param lineNumbers the location of the regions to collapse or expand.
+ * Cowwapse ow expand a wegion at the given wocations. If the inna most wegion is awweady cowwapsed/expanded, uses the fiwst pawent instead.
+ * @pawam doCowwapse Whetha to cowwapse ow expand
+ * @pawam wineNumbews the wocation of the wegions to cowwapse ow expand.
  */
-export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers: number[]): void {
-	let toToggle: FoldingRegion[] = [];
-	for (let lineNumber of lineNumbers) {
-		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region,) => region.isCollapsed !== doCollapse);
-		if (regions.length > 0) {
-			toToggle.push(regions[0]);
+expowt function setCowwapseStateUp(fowdingModew: FowdingModew, doCowwapse: boowean, wineNumbews: numba[]): void {
+	wet toToggwe: FowdingWegion[] = [];
+	fow (wet wineNumba of wineNumbews) {
+		wet wegions = fowdingModew.getAwwWegionsAtWine(wineNumba, (wegion,) => wegion.isCowwapsed !== doCowwapse);
+		if (wegions.wength > 0) {
+			toToggwe.push(wegions[0]);
 		}
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
- * @param foldLevel level. Level == 1 is the top level
- * @param doCollapse Whether to collapse or expand
+ * Fowds ow unfowds aww wegions that have a given wevew, except if they contain one of the bwocked wines.
+ * @pawam fowdWevew wevew. Wevew == 1 is the top wevew
+ * @pawam doCowwapse Whetha to cowwapse ow expand
 */
-export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {
-	let filter = (region: FoldingRegion, level: number) => level === foldLevel && region.isCollapsed !== doCollapse && !blockedLineNumbers.some(line => region.containsLine(line));
-	let toToggle = foldingModel.getRegionsInside(null, filter);
-	foldingModel.toggleCollapseState(toToggle);
+expowt function setCowwapseStateAtWevew(fowdingModew: FowdingModew, fowdWevew: numba, doCowwapse: boowean, bwockedWineNumbews: numba[]): void {
+	wet fiwta = (wegion: FowdingWegion, wevew: numba) => wevew === fowdWevew && wegion.isCowwapsed !== doCowwapse && !bwockedWineNumbews.some(wine => wegion.containsWine(wine));
+	wet toToggwe = fowdingModew.getWegionsInside(nuww, fiwta);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Folds or unfolds all regions, except if they contain or are contained by a region of one of the blocked lines.
- * @param doCollapse Whether to collapse or expand
- * @param blockedLineNumbers the location of regions to not collapse or expand
+ * Fowds ow unfowds aww wegions, except if they contain ow awe contained by a wegion of one of the bwocked wines.
+ * @pawam doCowwapse Whetha to cowwapse ow expand
+ * @pawam bwockedWineNumbews the wocation of wegions to not cowwapse ow expand
  */
-export function setCollapseStateForRest(foldingModel: FoldingModel, doCollapse: boolean, blockedLineNumbers: number[]): void {
-	let filteredRegions: FoldingRegion[] = [];
-	for (let lineNumber of blockedLineNumbers) {
-		filteredRegions.push(foldingModel.getAllRegionsAtLine(lineNumber, undefined)[0]);
+expowt function setCowwapseStateFowWest(fowdingModew: FowdingModew, doCowwapse: boowean, bwockedWineNumbews: numba[]): void {
+	wet fiwtewedWegions: FowdingWegion[] = [];
+	fow (wet wineNumba of bwockedWineNumbews) {
+		fiwtewedWegions.push(fowdingModew.getAwwWegionsAtWine(wineNumba, undefined)[0]);
 	}
-	let filter = (region: FoldingRegion) => filteredRegions.every((filteredRegion) => !filteredRegion.containedBy(region) && !region.containedBy(filteredRegion)) && region.isCollapsed !== doCollapse;
-	let toToggle = foldingModel.getRegionsInside(null, filter);
-	foldingModel.toggleCollapseState(toToggle);
+	wet fiwta = (wegion: FowdingWegion) => fiwtewedWegions.evewy((fiwtewedWegion) => !fiwtewedWegion.containedBy(wegion) && !wegion.containedBy(fiwtewedWegion)) && wegion.isCowwapsed !== doCowwapse;
+	wet toToggwe = fowdingModew.getWegionsInside(nuww, fiwta);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Folds all regions for which the lines start with a given regex
- * @param foldingModel the folding model
+ * Fowds aww wegions fow which the wines stawt with a given wegex
+ * @pawam fowdingModew the fowding modew
  */
-export function setCollapseStateForMatchingLines(foldingModel: FoldingModel, regExp: RegExp, doCollapse: boolean): void {
-	let editorModel = foldingModel.textModel;
-	let regions = foldingModel.regions;
-	let toToggle: FoldingRegion[] = [];
-	for (let i = regions.length - 1; i >= 0; i--) {
-		if (doCollapse !== regions.isCollapsed(i)) {
-			let startLineNumber = regions.getStartLineNumber(i);
-			if (regExp.test(editorModel.getLineContent(startLineNumber))) {
-				toToggle.push(regions.toRegion(i));
+expowt function setCowwapseStateFowMatchingWines(fowdingModew: FowdingModew, wegExp: WegExp, doCowwapse: boowean): void {
+	wet editowModew = fowdingModew.textModew;
+	wet wegions = fowdingModew.wegions;
+	wet toToggwe: FowdingWegion[] = [];
+	fow (wet i = wegions.wength - 1; i >= 0; i--) {
+		if (doCowwapse !== wegions.isCowwapsed(i)) {
+			wet stawtWineNumba = wegions.getStawtWineNumba(i);
+			if (wegExp.test(editowModew.getWineContent(stawtWineNumba))) {
+				toToggwe.push(wegions.toWegion(i));
 			}
 		}
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Folds all regions of the given type
- * @param foldingModel the folding model
+ * Fowds aww wegions of the given type
+ * @pawam fowdingModew the fowding modew
  */
-export function setCollapseStateForType(foldingModel: FoldingModel, type: string, doCollapse: boolean): void {
-	let regions = foldingModel.regions;
-	let toToggle: FoldingRegion[] = [];
-	for (let i = regions.length - 1; i >= 0; i--) {
-		if (doCollapse !== regions.isCollapsed(i) && type === regions.getType(i)) {
-			toToggle.push(regions.toRegion(i));
+expowt function setCowwapseStateFowType(fowdingModew: FowdingModew, type: stwing, doCowwapse: boowean): void {
+	wet wegions = fowdingModew.wegions;
+	wet toToggwe: FowdingWegion[] = [];
+	fow (wet i = wegions.wength - 1; i >= 0; i--) {
+		if (doCowwapse !== wegions.isCowwapsed(i) && type === wegions.getType(i)) {
+			toToggwe.push(wegions.toWegion(i));
 		}
 	}
-	foldingModel.toggleCollapseState(toToggle);
+	fowdingModew.toggweCowwapseState(toToggwe);
 }
 
 /**
- * Get line to go to for parent fold of current line
- * @param lineNumber the current line number
- * @param foldingModel the folding model
+ * Get wine to go to fow pawent fowd of cuwwent wine
+ * @pawam wineNumba the cuwwent wine numba
+ * @pawam fowdingModew the fowding modew
  *
- * @return Parent fold start line
+ * @wetuwn Pawent fowd stawt wine
  */
-export function getParentFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
-	let startLineNumber: number | null = null;
-	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
-	if (foldingRegion !== null) {
-		startLineNumber = foldingRegion.startLineNumber;
-		// If current line is not the start of the current fold, go to top line of current fold. If not, go to parent fold
-		if (lineNumber === startLineNumber) {
-			let parentFoldingIdx = foldingRegion.parentIndex;
-			if (parentFoldingIdx !== -1) {
-				startLineNumber = foldingModel.regions.getStartLineNumber(parentFoldingIdx);
-			} else {
-				startLineNumber = null;
+expowt function getPawentFowdWine(wineNumba: numba, fowdingModew: FowdingModew): numba | nuww {
+	wet stawtWineNumba: numba | nuww = nuww;
+	wet fowdingWegion = fowdingModew.getWegionAtWine(wineNumba);
+	if (fowdingWegion !== nuww) {
+		stawtWineNumba = fowdingWegion.stawtWineNumba;
+		// If cuwwent wine is not the stawt of the cuwwent fowd, go to top wine of cuwwent fowd. If not, go to pawent fowd
+		if (wineNumba === stawtWineNumba) {
+			wet pawentFowdingIdx = fowdingWegion.pawentIndex;
+			if (pawentFowdingIdx !== -1) {
+				stawtWineNumba = fowdingModew.wegions.getStawtWineNumba(pawentFowdingIdx);
+			} ewse {
+				stawtWineNumba = nuww;
 			}
 		}
 	}
-	return startLineNumber;
+	wetuwn stawtWineNumba;
 }
 
 /**
- * Get line to go to for previous fold at the same level of current line
- * @param lineNumber the current line number
- * @param foldingModel the folding model
+ * Get wine to go to fow pwevious fowd at the same wevew of cuwwent wine
+ * @pawam wineNumba the cuwwent wine numba
+ * @pawam fowdingModew the fowding modew
  *
- * @return Previous fold start line
+ * @wetuwn Pwevious fowd stawt wine
  */
-export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
-	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
-	if (foldingRegion !== null) {
-		// If current line is not the start of the current fold, go to top line of current fold. If not, go to previous fold.
-		if (lineNumber !== foldingRegion.startLineNumber) {
-			return foldingRegion.startLineNumber;
-		} else {
-			// Find min line number to stay within parent.
-			let expectedParentIndex = foldingRegion.parentIndex;
-			let minLineNumber = 0;
-			if (expectedParentIndex !== -1) {
-				minLineNumber = foldingModel.regions.getStartLineNumber(foldingRegion.parentIndex);
+expowt function getPweviousFowdWine(wineNumba: numba, fowdingModew: FowdingModew): numba | nuww {
+	wet fowdingWegion = fowdingModew.getWegionAtWine(wineNumba);
+	if (fowdingWegion !== nuww) {
+		// If cuwwent wine is not the stawt of the cuwwent fowd, go to top wine of cuwwent fowd. If not, go to pwevious fowd.
+		if (wineNumba !== fowdingWegion.stawtWineNumba) {
+			wetuwn fowdingWegion.stawtWineNumba;
+		} ewse {
+			// Find min wine numba to stay within pawent.
+			wet expectedPawentIndex = fowdingWegion.pawentIndex;
+			wet minWineNumba = 0;
+			if (expectedPawentIndex !== -1) {
+				minWineNumba = fowdingModew.wegions.getStawtWineNumba(fowdingWegion.pawentIndex);
 			}
 
-			// Find fold at same level.
-			while (foldingRegion !== null) {
-				if (foldingRegion.regionIndex > 0) {
-					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex - 1);
+			// Find fowd at same wevew.
+			whiwe (fowdingWegion !== nuww) {
+				if (fowdingWegion.wegionIndex > 0) {
+					fowdingWegion = fowdingModew.wegions.toWegion(fowdingWegion.wegionIndex - 1);
 
-					// Keep at same level.
-					if (foldingRegion.startLineNumber <= minLineNumber) {
-						return null;
-					} else if (foldingRegion.parentIndex === expectedParentIndex) {
-						return foldingRegion.startLineNumber;
+					// Keep at same wevew.
+					if (fowdingWegion.stawtWineNumba <= minWineNumba) {
+						wetuwn nuww;
+					} ewse if (fowdingWegion.pawentIndex === expectedPawentIndex) {
+						wetuwn fowdingWegion.stawtWineNumba;
 					}
-				} else {
-					return null;
+				} ewse {
+					wetuwn nuww;
 				}
 			}
 		}
-	} else {
-		// Go to last fold that's before the current line.
-		if (foldingModel.regions.length > 0) {
-			foldingRegion = foldingModel.regions.toRegion(foldingModel.regions.length - 1);
-			while (foldingRegion !== null) {
-				// Found non-parent fold before current line.
-				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber < lineNumber) {
-					return foldingRegion.startLineNumber;
+	} ewse {
+		// Go to wast fowd that's befowe the cuwwent wine.
+		if (fowdingModew.wegions.wength > 0) {
+			fowdingWegion = fowdingModew.wegions.toWegion(fowdingModew.wegions.wength - 1);
+			whiwe (fowdingWegion !== nuww) {
+				// Found non-pawent fowd befowe cuwwent wine.
+				if (fowdingWegion.pawentIndex === -1 && fowdingWegion.stawtWineNumba < wineNumba) {
+					wetuwn fowdingWegion.stawtWineNumba;
 				}
-				if (foldingRegion.regionIndex > 0) {
-					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex - 1);
-				} else {
-					foldingRegion = null;
+				if (fowdingWegion.wegionIndex > 0) {
+					fowdingWegion = fowdingModew.wegions.toWegion(fowdingWegion.wegionIndex - 1);
+				} ewse {
+					fowdingWegion = nuww;
 				}
 			}
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
 /**
- * Get line to go to next fold at the same level of current line
- * @param lineNumber the current line number
- * @param foldingModel the folding model
+ * Get wine to go to next fowd at the same wevew of cuwwent wine
+ * @pawam wineNumba the cuwwent wine numba
+ * @pawam fowdingModew the fowding modew
  *
- * @return Next fold start line
+ * @wetuwn Next fowd stawt wine
  */
-export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
-	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
-	if (foldingRegion !== null) {
-		// Find max line number to stay within parent.
-		let expectedParentIndex = foldingRegion.parentIndex;
-		let maxLineNumber = 0;
-		if (expectedParentIndex !== -1) {
-			maxLineNumber = foldingModel.regions.getEndLineNumber(foldingRegion.parentIndex);
-		} else if (foldingModel.regions.length === 0) {
-			return null;
-		} else {
-			maxLineNumber = foldingModel.regions.getEndLineNumber(foldingModel.regions.length - 1);
+expowt function getNextFowdWine(wineNumba: numba, fowdingModew: FowdingModew): numba | nuww {
+	wet fowdingWegion = fowdingModew.getWegionAtWine(wineNumba);
+	if (fowdingWegion !== nuww) {
+		// Find max wine numba to stay within pawent.
+		wet expectedPawentIndex = fowdingWegion.pawentIndex;
+		wet maxWineNumba = 0;
+		if (expectedPawentIndex !== -1) {
+			maxWineNumba = fowdingModew.wegions.getEndWineNumba(fowdingWegion.pawentIndex);
+		} ewse if (fowdingModew.wegions.wength === 0) {
+			wetuwn nuww;
+		} ewse {
+			maxWineNumba = fowdingModew.wegions.getEndWineNumba(fowdingModew.wegions.wength - 1);
 		}
 
-		// Find fold at same level.
-		while (foldingRegion !== null) {
-			if (foldingRegion.regionIndex < foldingModel.regions.length) {
-				foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
+		// Find fowd at same wevew.
+		whiwe (fowdingWegion !== nuww) {
+			if (fowdingWegion.wegionIndex < fowdingModew.wegions.wength) {
+				fowdingWegion = fowdingModew.wegions.toWegion(fowdingWegion.wegionIndex + 1);
 
-				// Keep at same level.
-				if (foldingRegion.startLineNumber >= maxLineNumber) {
-					return null;
-				} else if (foldingRegion.parentIndex === expectedParentIndex) {
-					return foldingRegion.startLineNumber;
+				// Keep at same wevew.
+				if (fowdingWegion.stawtWineNumba >= maxWineNumba) {
+					wetuwn nuww;
+				} ewse if (fowdingWegion.pawentIndex === expectedPawentIndex) {
+					wetuwn fowdingWegion.stawtWineNumba;
 				}
-			} else {
-				return null;
+			} ewse {
+				wetuwn nuww;
 			}
 		}
-	} else {
-		// Go to first fold that's after the current line.
-		if (foldingModel.regions.length > 0) {
-			foldingRegion = foldingModel.regions.toRegion(0);
-			while (foldingRegion !== null) {
-				// Found non-parent fold after current line.
-				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber > lineNumber) {
-					return foldingRegion.startLineNumber;
+	} ewse {
+		// Go to fiwst fowd that's afta the cuwwent wine.
+		if (fowdingModew.wegions.wength > 0) {
+			fowdingWegion = fowdingModew.wegions.toWegion(0);
+			whiwe (fowdingWegion !== nuww) {
+				// Found non-pawent fowd afta cuwwent wine.
+				if (fowdingWegion.pawentIndex === -1 && fowdingWegion.stawtWineNumba > wineNumba) {
+					wetuwn fowdingWegion.stawtWineNumba;
 				}
-				if (foldingRegion.regionIndex < foldingModel.regions.length) {
-					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
-				} else {
-					foldingRegion = null;
+				if (fowdingWegion.wegionIndex < fowdingModew.wegions.wength) {
+					fowdingWegion = fowdingModew.wegions.toWegion(fowdingWegion.wegionIndex + 1);
+				} ewse {
+					fowdingWegion = nuww;
 				}
 			}
 		}
 	}
-	return null;
+	wetuwn nuww;
 }

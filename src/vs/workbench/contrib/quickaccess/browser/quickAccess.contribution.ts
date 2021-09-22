@@ -1,135 +1,135 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
-import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
-import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeyMod } from 'vs/base/common/keyCodes';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { HewpQuickAccessPwovida } fwom 'vs/pwatfowm/quickinput/bwowsa/hewpQuickAccess';
+impowt { ViewQuickAccessPwovida, OpenViewPickewAction, QuickAccessViewPickewAction } fwom 'vs/wowkbench/contwib/quickaccess/bwowsa/viewQuickAccess';
+impowt { CommandsQuickAccessPwovida, ShowAwwCommandsAction, CweawCommandHistowyAction } fwom 'vs/wowkbench/contwib/quickaccess/bwowsa/commandsQuickAccess';
+impowt { MenuWegistwy, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { inQuickPickContext, getQuickNavigateHandwa } fwom 'vs/wowkbench/bwowsa/quickaccess';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
 
-//#region Quick Access Proviers
+//#wegion Quick Access Pwoviews
 
-const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+const quickAccessWegistwy = Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess);
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: HelpQuickAccessProvider,
-	prefix: HelpQuickAccessProvider.PREFIX,
-	placeholder: localize('helpQuickAccessPlaceholder', "Type '{0}' to get help on the actions you can take from here.", HelpQuickAccessProvider.PREFIX),
-	helpEntries: [{ description: localize('helpQuickAccess', "Show all Quick Access Providers"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: HewpQuickAccessPwovida,
+	pwefix: HewpQuickAccessPwovida.PWEFIX,
+	pwacehowda: wocawize('hewpQuickAccessPwacehowda', "Type '{0}' to get hewp on the actions you can take fwom hewe.", HewpQuickAccessPwovida.PWEFIX),
+	hewpEntwies: [{ descwiption: wocawize('hewpQuickAccess', "Show aww Quick Access Pwovidews"), needsEditow: fawse }]
 });
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: ViewQuickAccessProvider,
-	prefix: ViewQuickAccessProvider.PREFIX,
-	contextKey: 'inViewsPicker',
-	placeholder: localize('viewQuickAccessPlaceholder', "Type the name of a view, output channel or terminal to open."),
-	helpEntries: [{ description: localize('viewQuickAccess', "Open View"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: ViewQuickAccessPwovida,
+	pwefix: ViewQuickAccessPwovida.PWEFIX,
+	contextKey: 'inViewsPicka',
+	pwacehowda: wocawize('viewQuickAccessPwacehowda', "Type the name of a view, output channew ow tewminaw to open."),
+	hewpEntwies: [{ descwiption: wocawize('viewQuickAccess', "Open View"), needsEditow: fawse }]
 });
 
-quickAccessRegistry.registerQuickAccessProvider({
-	ctor: CommandsQuickAccessProvider,
-	prefix: CommandsQuickAccessProvider.PREFIX,
-	contextKey: 'inCommandsPicker',
-	placeholder: localize('commandsQuickAccessPlaceholder', "Type the name of a command to run."),
-	helpEntries: [{ description: localize('commandsQuickAccess', "Show and Run Commands"), needsEditor: false }]
+quickAccessWegistwy.wegistewQuickAccessPwovida({
+	ctow: CommandsQuickAccessPwovida,
+	pwefix: CommandsQuickAccessPwovida.PWEFIX,
+	contextKey: 'inCommandsPicka',
+	pwacehowda: wocawize('commandsQuickAccessPwacehowda', "Type the name of a command to wun."),
+	hewpEntwies: [{ descwiption: wocawize('commandsQuickAccess', "Show and Wun Commands"), needsEditow: fawse }]
 });
 
-//#endregion
+//#endwegion
 
 
-//#region Menu contributions
+//#wegion Menu contwibutions
 
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '1_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '1_open',
 	command: {
-		id: ShowAllCommandsAction.ID,
-		title: localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette...")
+		id: ShowAwwCommandsAction.ID,
+		titwe: wocawize({ key: 'miCommandPawette', comment: ['&& denotes a mnemonic'] }, "&&Command Pawette...")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '1_open',
+MenuWegistwy.appendMenuItem(MenuId.MenubawViewMenu, {
+	gwoup: '1_open',
 	command: {
-		id: OpenViewPickerAction.ID,
-		title: localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
+		id: OpenViewPickewAction.ID,
+		titwe: wocawize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
 	},
-	order: 2
+	owda: 2
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '5_infile_nav',
+MenuWegistwy.appendMenuItem(MenuId.MenubawGoMenu, {
+	gwoup: '5_infiwe_nav',
 	command: {
-		id: 'workbench.action.gotoLine',
-		title: localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line/Column...")
+		id: 'wowkbench.action.gotoWine',
+		titwe: wocawize({ key: 'miGotoWine', comment: ['&& denotes a mnemonic'] }, "Go to &&Wine/Cowumn...")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-	group: '1_command',
+MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+	gwoup: '1_command',
 	command: {
-		id: ShowAllCommandsAction.ID,
-		title: localize('commandPalette', "Command Palette...")
+		id: ShowAwwCommandsAction.ID,
+		titwe: wocawize('commandPawette', "Command Pawette...")
 	},
-	order: 1
+	owda: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-	group: 'z_commands',
-	when: EditorContextKeys.editorSimpleInput.toNegated(),
+MenuWegistwy.appendMenuItem(MenuId.EditowContext, {
+	gwoup: 'z_commands',
+	when: EditowContextKeys.editowSimpweInput.toNegated(),
 	command: {
-		id: ShowAllCommandsAction.ID,
-		title: localize('commandPalette', "Command Palette..."),
+		id: ShowAwwCommandsAction.ID,
+		titwe: wocawize('commandPawette', "Command Pawette..."),
 	},
-	order: 1
+	owda: 1
 });
 
-//#endregion
+//#endwegion
 
 
-//#region Workbench actions and commands
+//#wegion Wowkbench actions and commands
 
-registerAction2(ClearCommandHistoryAction);
-registerAction2(ShowAllCommandsAction);
-registerAction2(OpenViewPickerAction);
-registerAction2(QuickAccessViewPickerAction);
+wegistewAction2(CweawCommandHistowyAction);
+wegistewAction2(ShowAwwCommandsAction);
+wegistewAction2(OpenViewPickewAction);
+wegistewAction2(QuickAccessViewPickewAction);
 
-const inViewsPickerContextKey = 'inViewsPicker';
-const inViewsPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(inViewsPickerContextKey));
-const viewPickerKeybinding = QuickAccessViewPickerAction.KEYBINDING;
+const inViewsPickewContextKey = 'inViewsPicka';
+const inViewsPickewContext = ContextKeyExpw.and(inQuickPickContext, ContextKeyExpw.has(inViewsPickewContextKey));
+const viewPickewKeybinding = QuickAccessViewPickewAction.KEYBINDING;
 
-const quickAccessNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigateNextInViewPickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigateNextInViewPickerId, true),
-	when: inViewsPickerContext,
-	primary: viewPickerKeybinding.primary,
-	linux: viewPickerKeybinding.linux,
-	mac: viewPickerKeybinding.mac
+const quickAccessNavigateNextInViewPickewId = 'wowkbench.action.quickOpenNavigateNextInViewPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigateNextInViewPickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigateNextInViewPickewId, twue),
+	when: inViewsPickewContext,
+	pwimawy: viewPickewKeybinding.pwimawy,
+	winux: viewPickewKeybinding.winux,
+	mac: viewPickewKeybinding.mac
 });
 
-const quickAccessNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: quickAccessNavigatePreviousInViewPickerId,
-	weight: KeybindingWeight.WorkbenchContrib + 50,
-	handler: getQuickNavigateHandler(quickAccessNavigatePreviousInViewPickerId, false),
-	when: inViewsPickerContext,
-	primary: viewPickerKeybinding.primary | KeyMod.Shift,
-	linux: viewPickerKeybinding.linux,
+const quickAccessNavigatePweviousInViewPickewId = 'wowkbench.action.quickOpenNavigatePweviousInViewPicka';
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: quickAccessNavigatePweviousInViewPickewId,
+	weight: KeybindingWeight.WowkbenchContwib + 50,
+	handwa: getQuickNavigateHandwa(quickAccessNavigatePweviousInViewPickewId, fawse),
+	when: inViewsPickewContext,
+	pwimawy: viewPickewKeybinding.pwimawy | KeyMod.Shift,
+	winux: viewPickewKeybinding.winux,
 	mac: {
-		primary: viewPickerKeybinding.mac.primary | KeyMod.Shift
+		pwimawy: viewPickewKeybinding.mac.pwimawy | KeyMod.Shift
 	}
 });
 
-//#endregion
+//#endwegion

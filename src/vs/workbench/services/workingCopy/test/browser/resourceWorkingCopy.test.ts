@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { FiweChangesEvent, FiweChangeType } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWevewtOptions, ISaveOptions } fwom 'vs/wowkbench/common/editow';
+impowt { WesouwceWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wesouwceWowkingCopy';
+impowt { WowkingCopyCapabiwities, IWowkingCopyBackup } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-suite('ResourceWorkingCopy', function () {
+suite('WesouwceWowkingCopy', function () {
 
-	class TestResourceWorkingCopy extends ResourceWorkingCopy {
+	cwass TestWesouwceWowkingCopy extends WesouwceWowkingCopy {
 		name = 'testName';
 		typeId = 'testTypeId';
-		capabilities = WorkingCopyCapabilities.None;
-		onDidChangeDirty = Event.None;
+		capabiwities = WowkingCopyCapabiwities.None;
+		onDidChangeDiwty = Event.None;
 		onDidChangeContent = Event.None;
-		isDirty(): boolean { return false; }
-		async backup(token: CancellationToken): Promise<IWorkingCopyBackup> { throw new Error('Method not implemented.'); }
-		async save(options?: ISaveOptions): Promise<boolean> { return false; }
-		async revert(options?: IRevertOptions): Promise<void> { }
+		isDiwty(): boowean { wetuwn fawse; }
+		async backup(token: CancewwationToken): Pwomise<IWowkingCopyBackup> { thwow new Ewwow('Method not impwemented.'); }
+		async save(options?: ISaveOptions): Pwomise<boowean> { wetuwn fawse; }
+		async wevewt(options?: IWevewtOptions): Pwomise<void> { }
 
 	}
 
-	let resource = URI.file('test/resource');
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let workingCopy: TestResourceWorkingCopy;
+	wet wesouwce = UWI.fiwe('test/wesouwce');
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
+	wet wowkingCopy: TestWesouwceWowkingCopy;
 
-	function createWorkingCopy(uri: URI = resource) {
-		return new TestResourceWorkingCopy(uri, accessor.fileService);
+	function cweateWowkingCopy(uwi: UWI = wesouwce) {
+		wetuwn new TestWesouwceWowkingCopy(uwi, accessow.fiweSewvice);
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		workingCopy = createWorkingCopy();
+		wowkingCopy = cweateWowkingCopy();
 	});
 
-	teardown(() => {
-		workingCopy.dispose();
+	teawdown(() => {
+		wowkingCopy.dispose();
 	});
 
-	test('orphaned tracking', async () => {
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+	test('owphaned twacking', async () => {
+		assewt.stwictEquaw(wowkingCopy.isOwphaned(), fawse);
 
-		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+		wet onDidChangeOwphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
+		accessow.fiweSewvice.notExistsSet.set(wesouwce, twue);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.DEWETED }], fawse));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), true);
+		await onDidChangeOwphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.isOwphaned(), twue);
 
-		onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.delete(resource);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
+		onDidChangeOwphanedPwomise = Event.toPwomise(wowkingCopy.onDidChangeOwphaned);
+		accessow.fiweSewvice.notExistsSet.dewete(wesouwce);
+		accessow.fiweSewvice.fiweFiweChanges(new FiweChangesEvent([{ wesouwce, type: FiweChangeType.ADDED }], fawse));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+		await onDidChangeOwphanedPwomise;
+		assewt.stwictEquaw(wowkingCopy.isOwphaned(), fawse);
 	});
 
 
 	test('dispose, isDisposed', async () => {
-		assert.strictEqual(workingCopy.isDisposed(), false);
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), fawse);
 
-		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
-			disposedEvent = true;
+		wet disposedEvent = fawse;
+		wowkingCopy.onWiwwDispose(() => {
+			disposedEvent = twue;
 		});
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 
-		assert.strictEqual(workingCopy.isDisposed(), true);
-		assert.strictEqual(disposedEvent, true);
+		assewt.stwictEquaw(wowkingCopy.isDisposed(), twue);
+		assewt.stwictEquaw(disposedEvent, twue);
 	});
 });

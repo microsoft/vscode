@@ -1,509 +1,509 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/activityaction';
-import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession } from 'vs/editor/common/modes';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+impowt 'vs/css!./media/activityaction';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EventType, addDisposabweWistena, EventHewpa } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventType as TouchEventType, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { Action, IAction, Sepawatow, SubmenuAction, toAction } fwom 'vs/base/common/actions';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IMenuSewvice, MenuId, IMenu, wegistewAction2, Action2, IAction2Options } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { activeContwastBowda, focusBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ActivityAction, ActivityActionViewItem, IActivityHovewOptions, ICompositeBaw, ICompositeBawCowows, ToggweCompositePinnedAction } fwom 'vs/wowkbench/bwowsa/pawts/compositeBawActions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IActivity } fwom 'vs/wowkbench/common/activity';
+impowt { ACTIVITY_BAW_FOWEGWOUND, ACTIVITY_BAW_ACTIVE_BOWDa, ACTIVITY_BAW_ACTIVE_FOCUS_BOWDa, ACTIVITY_BAW_ACTIVE_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { getCuwwentAuthenticationSessionInfo, IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { AuthenticationSession } fwom 'vs/editow/common/modes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { AnchowAwignment, AnchowAxisAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { getTitweBawStywe } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IPaneCompositePawt } fwom 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
 
-export class ViewContainerActivityAction extends ActivityAction {
+expowt cwass ViewContainewActivityAction extends ActivityAction {
 
-	private static readonly preventDoubleClickDelay = 300;
+	pwivate static weadonwy pweventDoubweCwickDeway = 300;
 
-	private lastRun = 0;
+	pwivate wastWun = 0;
 
-	constructor(
+	constwuctow(
 		activity: IActivity,
-		private readonly paneCompositePart: IPaneCompositePart,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		pwivate weadonwy paneCompositePawt: IPaneCompositePawt,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super(activity);
+		supa(activity);
 	}
 
 	updateActivity(activity: IActivity): void {
 		this.activity = activity;
 	}
 
-	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
+	ovewwide async wun(event: any | { pwesewveFocus: boowean }): Pwomise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return; // do not run on right click
+			wetuwn; // do not wun on wight cwick
 		}
 
-		// prevent accident trigger on a doubleclick (to help nervous people)
+		// pwevent accident twigga on a doubwecwick (to hewp newvous peopwe)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
-			return;
+		if (now > this.wastWun /* https://github.com/micwosoft/vscode/issues/25830 */ && now - this.wastWun < ViewContainewActivityAction.pweventDoubweCwickDeway) {
+			wetuwn;
 		}
-		this.lastRun = now;
+		this.wastWun = now;
 
-		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.paneCompositePart.getActivePaneComposite();
-		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
+		const sideBawVisibwe = this.wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT);
+		const activeViewwet = this.paneCompositePawt.getActivePaneComposite();
+		const focusBehaviow = this.configuwationSewvice.getVawue<stwing>('wowkbench.activityBaw.iconCwickBehaviow');
 
-		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
-		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
-			switch (focusBehavior) {
+		const focus = (event && 'pwesewveFocus' in event) ? !event.pwesewveFocus : twue;
+		if (sideBawVisibwe && activeViewwet?.getId() === this.activity.id) {
+			switch (focusBehaviow) {
 				case 'focus':
-					this.logAction('refocus');
-					this.paneCompositePart.openPaneComposite(this.activity.id, focus);
-					break;
-				case 'toggle':
-				default:
-					// Hide sidebar if selected viewlet already visible
-					this.logAction('hide');
-					this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-					break;
+					this.wogAction('wefocus');
+					this.paneCompositePawt.openPaneComposite(this.activity.id, focus);
+					bweak;
+				case 'toggwe':
+				defauwt:
+					// Hide sidebaw if sewected viewwet awweady visibwe
+					this.wogAction('hide');
+					this.wayoutSewvice.setPawtHidden(twue, Pawts.SIDEBAW_PAWT);
+					bweak;
 			}
 
-			return;
+			wetuwn;
 		}
 
-		this.logAction('show');
-		await this.paneCompositePart.openPaneComposite(this.activity.id, focus);
+		this.wogAction('show');
+		await this.paneCompositePawt.openPaneComposite(this.activity.id, focus);
 
-		return this.activate();
+		wetuwn this.activate();
 	}
 
-	private logAction(action: string) {
-		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	pwivate wogAction(action: stwing) {
+		type ActivityBawActionCwassification = {
+			viewwetId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
+			action: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight'; };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.tewemetwySewvice.pubwicWog2<{ viewwetId: Stwing, action: Stwing; }, ActivityBawActionCwassification>('activityBawAction', { viewwetId: this.activity.id, action });
 	}
 }
 
-class MenuActivityActionViewItem extends ActivityActionViewItem {
+cwass MenuActivityActionViewItem extends ActivityActionViewItem {
 
-	constructor(
-		private readonly menuId: MenuId,
+	constwuctow(
+		pwivate weadonwy menuId: MenuId,
 		action: ActivityAction,
-		private contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		pwivate contextMenuActionsPwovida: () => IAction[],
+		cowows: (theme: ICowowTheme) => ICompositeBawCowows,
+		hovewOptions: IActivityHovewOptions,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IMenuSewvice pwotected weadonwy menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice pwotected weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
+		supa(action, { dwaggabwe: fawse, cowows, icon: twue, hasPopup: twue, hovewOptions }, themeSewvice, hovewSewvice, configuwationSewvice, keybindingSewvice);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 
-		// Context menus are triggered on mouse down so that an item can be picked
-		// and executed with releasing the mouse over it
+		// Context menus awe twiggewed on mouse down so that an item can be picked
+		// and executed with weweasing the mouse ova it
 
-		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(this.containa, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			EventHewpa.stop(e, twue);
 			this.showContextMenu(e);
 		}));
 
-		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(this.containa, EventType.KEY_UP, (e: KeyboawdEvent) => {
+			wet event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space)) {
+				EventHewpa.stop(e, twue);
 				this.showContextMenu();
 			}
 		}));
 
-		this._register(addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
-			EventHelper.stop(e, true);
+		this._wegista(addDisposabweWistena(this.containa, TouchEventType.Tap, (e: GestuweEvent) => {
+			EventHewpa.stop(e, twue);
 			this.showContextMenu();
 		}));
 	}
 
-	private async showContextMenu(e?: MouseEvent): Promise<void> {
-		const disposables = new DisposableStore();
+	pwivate async showContextMenu(e?: MouseEvent): Pwomise<void> {
+		const disposabwes = new DisposabweStowe();
 
-		let actions: IAction[];
+		wet actions: IAction[];
 		if (e?.button !== 2) {
-			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
-			actions = await this.resolveMainMenuActions(menu, disposables);
-		} else {
-			actions = await this.resolveContextMenuActions(disposables);
+			const menu = disposabwes.add(this.menuSewvice.cweateMenu(this.menuId, this.contextKeySewvice));
+			actions = await this.wesowveMainMenuActions(menu, disposabwes);
+		} ewse {
+			actions = await this.wesowveContextMenuActions(disposabwes);
 		}
 
-		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
-		const position = this.configurationService.getValue('workbench.sideBar.location');
+		const isUsingCustomMenu = isWeb || (getTitweBawStywe(this.configuwationSewvice) !== 'native' && !isMacintosh); // see #40262
+		const position = this.configuwationSewvice.getVawue('wowkbench.sideBaw.wocation');
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => isUsingCustomMenu ? this.container : e || this.container,
-			anchorAlignment: isUsingCustomMenu ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
-			anchorAxisAlignment: isUsingCustomMenu ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => isUsingCustomMenu ? this.containa : e || this.containa,
+			anchowAwignment: isUsingCustomMenu ? (position === 'weft' ? AnchowAwignment.WIGHT : AnchowAwignment.WEFT) : undefined,
+			anchowAxisAwignment: isUsingCustomMenu ? AnchowAxisAwignment.HOWIZONTAW : AnchowAxisAwignment.VEWTICAW,
 			getActions: () => actions,
-			onHide: () => disposables.dispose()
+			onHide: () => disposabwes.dispose()
 		});
 	}
 
-	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	pwotected async wesowveMainMenuActions(menu: IMenu, disposabwes: DisposabweStowe): Pwomise<IAction[]> {
 		const actions: IAction[] = [];
 
-		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
+		disposabwes.add(cweateAndFiwwInActionBawActions(menu, undefined, { pwimawy: [], secondawy: actions }));
 
-		return actions;
+		wetuwn actions;
 	}
 
-	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
-		return this.contextMenuActionsProvider();
+	pwotected async wesowveContextMenuActions(disposabwes: DisposabweStowe): Pwomise<IAction[]> {
+		wetuwn this.contextMenuActionsPwovida();
 	}
 }
 
-export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
+expowt cwass AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
-	static readonly ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+	static weadonwy ACCOUNTS_VISIBIWITY_PWEFEWENCE_KEY = 'wowkbench.activity.showAccounts';
 
-	constructor(
+	constwuctow(
 		action: ActivityAction,
-		contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		contextMenuActionsPwovida: () => IAction[],
+		cowows: (theme: ICowowTheme) => ICompositeBawCowows,
+		activityHovewOptions: IActivityHovewOptions,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IAuthenticationSewvice pwivate weadonwy authenticationSewvice: IAuthenticationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		supa(MenuId.AccountsContext, action, contextMenuActionsPwovida, cowows, activityHovewOptions, themeSewvice, hovewSewvice, menuSewvice, contextMenuSewvice, contextKeySewvice, configuwationSewvice, enviwonmentSewvice, keybindingSewvice);
 	}
 
-	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
-		await super.resolveMainMenuActions(accountsMenu, disposables);
+	pwotected ovewwide async wesowveMainMenuActions(accountsMenu: IMenu, disposabwes: DisposabweStowe): Pwomise<IAction[]> {
+		await supa.wesowveMainMenuActions(accountsMenu, disposabwes);
 
-		const otherCommands = accountsMenu.getActions();
-		const providers = this.authenticationService.getProviderIds();
-		const allSessions = providers.map(async providerId => {
-			try {
-				const sessions = await this.authenticationService.getSessions(providerId);
+		const othewCommands = accountsMenu.getActions();
+		const pwovidews = this.authenticationSewvice.getPwovidewIds();
+		const awwSessions = pwovidews.map(async pwovidewId => {
+			twy {
+				const sessions = await this.authenticationSewvice.getSessions(pwovidewId);
 
-				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
-				sessions.forEach(session => {
-					if (groupedSessions[session.account.label]) {
-						groupedSessions[session.account.label].push(session);
-					} else {
-						groupedSessions[session.account.label] = [session];
+				const gwoupedSessions: { [wabew: stwing]: AuthenticationSession[]; } = {};
+				sessions.fowEach(session => {
+					if (gwoupedSessions[session.account.wabew]) {
+						gwoupedSessions[session.account.wabew].push(session);
+					} ewse {
+						gwoupedSessions[session.account.wabew] = [session];
 					}
 				});
 
-				return { providerId, sessions: groupedSessions };
+				wetuwn { pwovidewId, sessions: gwoupedSessions };
 			} catch {
-				return { providerId };
+				wetuwn { pwovidewId };
 			}
 		});
 
-		const result = await Promise.all(allSessions);
-		let menus: IAction[] = [];
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
-		result.forEach(sessionInfo => {
-			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
+		const wesuwt = await Pwomise.aww(awwSessions);
+		wet menus: IAction[] = [];
+		const authenticationSession = this.enviwonmentSewvice.options?.cwedentiawsPwovida ? await getCuwwentAuthenticationSessionInfo(this.enviwonmentSewvice, this.pwoductSewvice) : undefined;
+		wesuwt.fowEach(sessionInfo => {
+			const pwovidewDispwayName = this.authenticationSewvice.getWabew(sessionInfo.pwovidewId);
 
 			if (sessionInfo.sessions) {
-				Object.keys(sessionInfo.sessions).forEach(accountName => {
-					const manageExtensionsAction = disposables.add(new Action(`configureSessions${accountName}`, localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, () => {
-						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+				Object.keys(sessionInfo.sessions).fowEach(accountName => {
+					const manageExtensionsAction = disposabwes.add(new Action(`configuweSessions${accountName}`, wocawize('manageTwustedExtensions', "Manage Twusted Extensions"), '', twue, () => {
+						wetuwn this.authenticationSewvice.manageTwustedExtensionsFowAccount(sessionInfo.pwovidewId, accountName);
 					}));
 
-					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), '', true, () => {
-						return this.authenticationService.removeAccountSessions(sessionInfo.providerId, accountName, sessionInfo.sessions[accountName]);
+					const signOutAction = disposabwes.add(new Action('signOut', wocawize('signOut', "Sign Out"), '', twue, () => {
+						wetuwn this.authenticationSewvice.wemoveAccountSessions(sessionInfo.pwovidewId, accountName, sessionInfo.sessions[accountName]);
 					}));
 
-					const providerSubMenuActions = [manageExtensionsAction];
+					const pwovidewSubMenuActions = [manageExtensionsAction];
 
-					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id));
-					if (!hasEmbedderAccountSession || authenticationSession?.canSignOut) {
-						providerSubMenuActions.push(signOutAction);
+					const hasEmbeddewAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id));
+					if (!hasEmbeddewAccountSession || authenticationSession?.canSignOut) {
+						pwovidewSubMenuActions.push(signOutAction);
 					}
 
-					const providerSubMenu = disposables.add(new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions));
-					menus.push(providerSubMenu);
+					const pwovidewSubMenu = disposabwes.add(new SubmenuAction('activitybaw.submenu', `${accountName} (${pwovidewDispwayName})`, pwovidewSubMenuActions));
+					menus.push(pwovidewSubMenu);
 				});
-			} else {
-				const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName)));
-				menus.push(providerUnavailableAction);
+			} ewse {
+				const pwovidewUnavaiwabweAction = disposabwes.add(new Action('pwovidewUnavaiwabwe', wocawize('authPwovidewUnavaiwabwe', '{0} is cuwwentwy unavaiwabwe', pwovidewDispwayName)));
+				menus.push(pwovidewUnavaiwabweAction);
 			}
 		});
 
-		if (providers.length && !menus.length) {
-			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('noAccounts', "You are not signed in to any accounts"), undefined, false));
-			menus.push(noAccountsAvailableAction);
+		if (pwovidews.wength && !menus.wength) {
+			const noAccountsAvaiwabweAction = disposabwes.add(new Action('noAccountsAvaiwabwe', wocawize('noAccounts', "You awe not signed in to any accounts"), undefined, fawse));
+			menus.push(noAccountsAvaiwabweAction);
 		}
 
-		if (menus.length && otherCommands.length) {
-			menus.push(disposables.add(new Separator()));
+		if (menus.wength && othewCommands.wength) {
+			menus.push(disposabwes.add(new Sepawatow()));
 		}
 
-		otherCommands.forEach((group, i) => {
-			const actions = group[1];
+		othewCommands.fowEach((gwoup, i) => {
+			const actions = gwoup[1];
 			menus = menus.concat(actions);
-			if (i !== otherCommands.length - 1) {
-				menus.push(disposables.add(new Separator()));
+			if (i !== othewCommands.wength - 1) {
+				menus.push(disposabwes.add(new Sepawatow()));
 			}
 		});
 
-		return menus;
+		wetuwn menus;
 	}
 
-	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
-		const actions = await super.resolveContextMenuActions(disposables);
+	pwotected ovewwide async wesowveContextMenuActions(disposabwes: DisposabweStowe): Pwomise<IAction[]> {
+		const actions = await supa.wesowveContextMenuActions(disposabwes);
 
 		actions.unshift(...[
-			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER) }),
-			new Separator()
+			toAction({ id: 'hideAccounts', wabew: wocawize('hideAccounts', "Hide Accounts"), wun: () => this.stowageSewvice.stowe(AccountsActivityActionViewItem.ACCOUNTS_VISIBIWITY_PWEFEWENCE_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa) }),
+			new Sepawatow()
 		]);
 
-		return actions;
+		wetuwn actions;
 	}
 }
 
-export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
+expowt cwass GwobawActivityActionViewItem extends MenuActivityActionViewItem {
 
-	constructor(
+	constwuctow(
 		action: ActivityAction,
-		contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		contextMenuActionsPwovida: () => IAction[],
+		cowows: (theme: ICowowTheme) => ICompositeBawCowows,
+		activityHovewOptions: IActivityHovewOptions,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IHovewSewvice hovewSewvice: IHovewSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		supa(MenuId.GwobawActivity, action, contextMenuActionsPwovida, cowows, activityHovewOptions, themeSewvice, hovewSewvice, menuSewvice, contextMenuSewvice, contextKeySewvice, configuwationSewvice, enviwonmentSewvice, keybindingSewvice);
 	}
 }
 
-export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
+expowt cwass PwaceHowdewViewContainewActivityAction extends ViewContainewActivityAction { }
 
-export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
+expowt cwass PwaceHowdewToggweCompositePinnedAction extends ToggweCompositePinnedAction {
 
-	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+	constwuctow(id: stwing, compositeBaw: ICompositeBaw) {
+		supa({ id, name: id, cssCwass: undefined }, compositeBaw);
 	}
 
 	setActivity(activity: IActivity): void {
-		this.label = activity.name;
+		this.wabew = activity.name;
 	}
 }
 
-class SwitchSideBarViewAction extends Action2 {
+cwass SwitchSideBawViewAction extends Action2 {
 
-	constructor(
-		desc: Readonly<IAction2Options>,
-		private readonly offset: number
+	constwuctow(
+		desc: Weadonwy<IAction2Options>,
+		pwivate weadonwy offset: numba
 	) {
-		super(desc);
+		supa(desc);
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
 
-		const visibleViewletIds = paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
+		const visibweViewwetIds = paneCompositeSewvice.getVisibwePaneCompositeIds(ViewContainewWocation.Sidebaw);
 
-		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (!activeViewlet) {
-			return;
+		const activeViewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
+		if (!activeViewwet) {
+			wetuwn;
 		}
-		let targetViewletId: string | undefined;
-		for (let i = 0; i < visibleViewletIds.length; i++) {
-			if (visibleViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + this.offset) % visibleViewletIds.length];
-				break;
+		wet tawgetViewwetId: stwing | undefined;
+		fow (wet i = 0; i < visibweViewwetIds.wength; i++) {
+			if (visibweViewwetIds[i] === activeViewwet.getId()) {
+				tawgetViewwetId = visibweViewwetIds[(i + visibweViewwetIds.wength + this.offset) % visibweViewwetIds.wength];
+				bweak;
 			}
 		}
 
-		await paneCompositeService.openPaneComposite(targetViewletId, ViewContainerLocation.Sidebar, true);
+		await paneCompositeSewvice.openPaneComposite(tawgetViewwetId, ViewContainewWocation.Sidebaw, twue);
 	}
 }
 
-registerAction2(
-	class PreviousSideBarViewAction extends SwitchSideBarViewAction {
-		constructor() {
-			super({
-				id: 'workbench.action.previousSideBarView',
-				title: { value: localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
-				category: CATEGORIES.View,
-				f1: true
+wegistewAction2(
+	cwass PweviousSideBawViewAction extends SwitchSideBawViewAction {
+		constwuctow() {
+			supa({
+				id: 'wowkbench.action.pweviousSideBawView',
+				titwe: { vawue: wocawize('pweviousSideBawView', "Pwevious Side Baw View"), owiginaw: 'Pwevious Side Baw View' },
+				categowy: CATEGOWIES.View,
+				f1: twue
 			}, -1);
 		}
 	}
 );
 
-registerAction2(
-	class NextSideBarViewAction extends SwitchSideBarViewAction {
-		constructor() {
-			super({
-				id: 'workbench.action.nextSideBarView',
-				title: { value: localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
-				category: CATEGORIES.View,
-				f1: true
+wegistewAction2(
+	cwass NextSideBawViewAction extends SwitchSideBawViewAction {
+		constwuctow() {
+			supa({
+				id: 'wowkbench.action.nextSideBawView',
+				titwe: { vawue: wocawize('nextSideBawView', "Next Side Baw View"), owiginaw: 'Next Side Baw View' },
+				categowy: CATEGOWIES.View,
+				f1: twue
 			}, 1);
 		}
 	}
 );
 
-registerAction2(
-	class FocusActivityBarAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.focusActivityBar',
-				title: { value: localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
-				category: CATEGORIES.View,
-				f1: true
+wegistewAction2(
+	cwass FocusActivityBawAction extends Action2 {
+		constwuctow() {
+			supa({
+				id: 'wowkbench.action.focusActivityBaw',
+				titwe: { vawue: wocawize('focusActivityBaw', "Focus Activity Baw"), owiginaw: 'Focus Activity Baw' },
+				categowy: CATEGOWIES.View,
+				f1: twue
 			});
 		}
 
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const layoutService = accessor.get(IWorkbenchLayoutService);
-			layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
-			layoutService.focusPart(Parts.ACTIVITYBAR_PART);
+		async wun(accessow: SewvicesAccessow): Pwomise<void> {
+			const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+			wayoutSewvice.setPawtHidden(fawse, Pawts.ACTIVITYBAW_PAWT);
+			wayoutSewvice.focusPawt(Pawts.ACTIVITYBAW_PAWT);
 		}
 	});
 
-registerThemingParticipant((theme, collector) => {
-	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-	if (activityBarForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon),
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
-				background-color: ${activityBarForegroundColor} !important;
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const activityBawFowegwoundCowow = theme.getCowow(ACTIVITY_BAW_FOWEGWOUND);
+	if (activityBawFowegwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active .action-wabew:not(.codicon),
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:focus .action-wabew:not(.codicon),
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:hova .action-wabew:not(.codicon) {
+				backgwound-cowow: ${activityBawFowegwoundCowow} !impowtant;
 			}
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
-				color: ${activityBarForegroundColor} !important;
-			}
-		`);
-	}
-
-	const activityBarActiveBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
-	if (activityBarActiveBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
-				border-left-color: ${activityBarActiveBorderColor};
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active .action-wabew.codicon,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:focus .action-wabew.codicon,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:hova .action-wabew.codicon {
+				cowow: ${activityBawFowegwoundCowow} !impowtant;
 			}
 		`);
 	}
 
-	const activityBarActiveFocusBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_FOCUS_BORDER);
-	if (activityBarActiveFocusBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus::before {
-				visibility: hidden;
-			}
-
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
-				visibility: visible;
-				border-left-color: ${activityBarActiveFocusBorderColor};
+	const activityBawActiveBowdewCowow = theme.getCowow(ACTIVITY_BAW_ACTIVE_BOWDa);
+	if (activityBawActiveBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked .active-item-indicatow:befowe {
+				bowda-weft-cowow: ${activityBawActiveBowdewCowow};
 			}
 		`);
 	}
 
-	const activityBarActiveBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
-	if (activityBarActiveBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+	const activityBawActiveFocusBowdewCowow = theme.getCowow(ACTIVITY_BAW_ACTIVE_FOCUS_BOWDa);
+	if (activityBawActiveFocusBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:focus::befowe {
+				visibiwity: hidden;
+			}
+
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:focus .active-item-indicatow:befowe {
+				visibiwity: visibwe;
+				bowda-weft-cowow: ${activityBawActiveFocusBowdewCowow};
+			}
+		`);
+	}
+
+	const activityBawActiveBackgwoundCowow = theme.getCowow(ACTIVITY_BAW_ACTIVE_BACKGWOUND);
+	if (activityBawActiveBackgwoundCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked .active-item-indicatow {
 				z-index: 0;
-				background-color: ${activityBarActiveBackgroundColor};
+				backgwound-cowow: ${activityBawActiveBackgwoundCowow};
 			}
 		`);
 	}
 
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:before {
+	// Stywing with Outwine cowow (e.g. high contwast theme)
+	const outwine = theme.getCowow(activeContwastBowda);
+	if (outwine) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:befowe {
 				content: "";
-				position: absolute;
+				position: absowute;
 				top: 9px;
-				left: 9px;
+				weft: 9px;
 				height: 32px;
 				width: 32px;
 				z-index: 1;
 			}
 
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before {
-				outline: 1px solid;
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active:hova:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:hova:befowe {
+				outwine: 1px sowid;
 			}
 
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
-				outline: 1px dashed;
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:hova:befowe {
+				outwine: 1px dashed;
 			}
 
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-				border-left-color: ${outline};
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:focus .active-item-indicatow:befowe {
+				bowda-weft-cowow: ${outwine};
 			}
 
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:hover:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:hover:before,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover:before {
-				outline-color: ${outline};
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.active:hova:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item.checked:hova:befowe,
+			.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:hova:befowe {
+				outwine-cowow: ${outwine};
 			}
 		`);
 	}
 
-	// Styling without outline color
-	else {
-		const focusBorderColor = theme.getColor(focusBorder);
-		if (focusBorderColor) {
-			collector.addRule(`
-				.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-						border-left-color: ${focusBorderColor};
+	// Stywing without outwine cowow
+	ewse {
+		const focusBowdewCowow = theme.getCowow(focusBowda);
+		if (focusBowdewCowow) {
+			cowwectow.addWuwe(`
+				.monaco-wowkbench .activitybaw > .content :not(.monaco-menu) > .monaco-action-baw .action-item:focus .active-item-indicatow:befowe {
+						bowda-weft-cowow: ${focusBowdewCowow};
 					}
 				`);
 		}

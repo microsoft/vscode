@@ -1,576 +1,576 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
-import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
-import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { inlineCompletionToGhostText } from '../inlineCompletionToGhostText';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { wunWithFakedTimews } fwom 'vs/base/test/common/timeTwavewScheduwa';
+impowt { ensuweNoDisposabwesAweWeakedInTestSuite } fwom 'vs/base/test/common/utiws';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { InwineCompwetionsPwovida, InwineCompwetionsPwovidewWegistwy, InwineCompwetionTwiggewKind } fwom 'vs/editow/common/modes';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { ShawedInwineCompwetionCache } fwom 'vs/editow/contwib/inwineCompwetions/ghostTextModew';
+impowt { InwineCompwetionsModew } fwom 'vs/editow/contwib/inwineCompwetions/inwineCompwetionsModew';
+impowt { GhostTextContext, MockInwineCompwetionsPwovida } fwom 'vs/editow/contwib/inwineCompwetions/test/utiws';
+impowt { ITestCodeEditow, TestCodeEditowCweationOptions, withAsyncTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { inwineCompwetionToGhostText } fwom '../inwineCompwetionToGhostText';
 
-suite('Inline Completions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('Inwine Compwetions', () => {
+	ensuweNoDisposabwesAweWeakedInTestSuite();
 
-	suite('inlineCompletionToGhostText', () => {
+	suite('inwineCompwetionToGhostText', () => {
 
-		function getOutput(text: string, suggestion: string): unknown {
-			const rangeStartOffset = text.indexOf('[');
-			const rangeEndOffset = text.indexOf(']') - 1;
-			const cleanedText = text.replace('[', '').replace(']', '');
-			const tempModel = createTextModel(cleanedText);
-			const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
-			const options = ['prefix', 'subword'] as const;
-			const result = {} as any;
-			for (const option of options) {
-				result[option] = inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option)?.render(cleanedText, true);
+		function getOutput(text: stwing, suggestion: stwing): unknown {
+			const wangeStawtOffset = text.indexOf('[');
+			const wangeEndOffset = text.indexOf(']') - 1;
+			const cweanedText = text.wepwace('[', '').wepwace(']', '');
+			const tempModew = cweateTextModew(cweanedText);
+			const wange = Wange.fwomPositions(tempModew.getPositionAt(wangeStawtOffset), tempModew.getPositionAt(wangeEndOffset));
+			const options = ['pwefix', 'subwowd'] as const;
+			const wesuwt = {} as any;
+			fow (const option of options) {
+				wesuwt[option] = inwineCompwetionToGhostText({ text: suggestion, wange }, tempModew, option)?.wenda(cweanedText, twue);
 			}
 
-			tempModel.dispose();
+			tempModew.dispose();
 
-			if (new Set(Object.values(result)).size === 1) {
-				return Object.values(result)[0];
+			if (new Set(Object.vawues(wesuwt)).size === 1) {
+				wetuwn Object.vawues(wesuwt)[0];
 			}
 
-			return result;
+			wetuwn wesuwt;
 		}
 
 		test('Basic', () => {
-			assert.deepStrictEqual(getOutput('[foo]baz', 'foobar'), 'foo[bar]baz');
-			assert.deepStrictEqual(getOutput('[aaa]aaa', 'aaaaaa'), 'aaa[aaa]aaa');
-			assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
-			assert.deepStrictEqual(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
-			assert.deepStrictEqual(getOutput('foo[]', 'bar\nhello'), 'foo[bar\nhello]');
+			assewt.deepStwictEquaw(getOutput('[foo]baz', 'foobaw'), 'foo[baw]baz');
+			assewt.deepStwictEquaw(getOutput('[aaa]aaa', 'aaaaaa'), 'aaa[aaa]aaa');
+			assewt.deepStwictEquaw(getOutput('[foo]baz', 'boobaw'), undefined);
+			assewt.deepStwictEquaw(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
+			assewt.deepStwictEquaw(getOutput('foo[]', 'baw\nhewwo'), 'foo[baw\nhewwo]');
 		});
 
 		test('Empty ghost text', () => {
-			assert.deepStrictEqual(getOutput('[foo]', 'foo'), 'foo');
+			assewt.deepStwictEquaw(getOutput('[foo]', 'foo'), 'foo');
 		});
 
 		test('Whitespace (indentation)', () => {
-			assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
-			assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
-			assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
-			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
-			assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
-			assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
-			assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
+			assewt.deepStwictEquaw(getOutput('[ foo]', 'foobaw'), ' foo[baw]');
+			assewt.deepStwictEquaw(getOutput('[\tfoo]', 'foobaw'), '\tfoo[baw]');
+			assewt.deepStwictEquaw(getOutput('[\t foo]', '\tfoobaw'), '	 foo[baw]');
+			assewt.deepStwictEquaw(getOutput('[\tfoo]', '\t\tfoobaw'), { pwefix: undefined, subwowd: '\t[\t]foo[baw]' });
+			assewt.deepStwictEquaw(getOutput('[\t]', '\t\tfoobaw'), '\t[\tfoobaw]');
+			assewt.deepStwictEquaw(getOutput('\t[]', '\t'), '\t[\t]');
+			assewt.deepStwictEquaw(getOutput('\t[\t]', ''), '\t\t');
 
-			assert.deepStrictEqual(getOutput('[ ]', 'return 1'), ' [return 1]');
+			assewt.deepStwictEquaw(getOutput('[ ]', 'wetuwn 1'), ' [wetuwn 1]');
 		});
 
 		test('Whitespace (outside of indentation)', () => {
-			assert.deepStrictEqual(getOutput('bar[ foo]', 'foobar'), undefined);
-			assert.deepStrictEqual(getOutput('bar[\tfoo]', 'foobar'), undefined);
+			assewt.deepStwictEquaw(getOutput('baw[ foo]', 'foobaw'), undefined);
+			assewt.deepStwictEquaw(getOutput('baw[\tfoo]', 'foobaw'), undefined);
 		});
 
-		test('Unsupported cases', () => {
-			assert.deepStrictEqual(getOutput('foo[\n]', '\n'), undefined);
+		test('Unsuppowted cases', () => {
+			assewt.deepStwictEquaw(getOutput('foo[\n]', '\n'), undefined);
 		});
 
-		test('Multi Part Diffing', () => {
-			assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subword: 'foo([x])[;]' });
-			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
-			assert.deepStrictEqual(getOutput('[(y ===)]', '(y === 1) { f(); }'), { prefix: undefined, subword: '(y ===[ 1])[ { f(); }]' });
-			assert.deepStrictEqual(getOutput('[(y ==)]', '(y === 1) { f(); }'), { prefix: undefined, subword: '(y ==[= 1])[ { f(); }]' });
+		test('Muwti Pawt Diffing', () => {
+			assewt.deepStwictEquaw(getOutput('foo[()]', '(x);'), { pwefix: undefined, subwowd: 'foo([x])[;]' });
+			assewt.deepStwictEquaw(getOutput('[\tfoo]', '\t\tfoobaw'), { pwefix: undefined, subwowd: '\t[\t]foo[baw]' });
+			assewt.deepStwictEquaw(getOutput('[(y ===)]', '(y === 1) { f(); }'), { pwefix: undefined, subwowd: '(y ===[ 1])[ { f(); }]' });
+			assewt.deepStwictEquaw(getOutput('[(y ==)]', '(y === 1) { f(); }'), { pwefix: undefined, subwowd: '(y ==[= 1])[ { f(); }]' });
 		});
 
-		test('Multi Part Diffing 1', () => {
-			assert.deepStrictEqual(getOutput('[if () ()]', 'if (1 == f()) ()'), { prefix: undefined, subword: 'if ([1 == f()]) ()' });
+		test('Muwti Pawt Diffing 1', () => {
+			assewt.deepStwictEquaw(getOutput('[if () ()]', 'if (1 == f()) ()'), { pwefix: undefined, subwowd: 'if ([1 == f()]) ()' });
 		});
 	});
 
-	test('Does not trigger automatically if disabled', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, inlineSuggest: { enabled: false } },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Does not twigga automaticawwy if disabwed', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, inwineSuggest: { enabwed: fawse } },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('foo');
+				context.keyboawdType('foo');
 				await timeout(1000);
 
-				// Provider is not called, no ghost text is shown.
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), []);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['']);
+				// Pwovida is not cawwed, no ghost text is shown.
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), []);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['']);
 			}
 		);
 	});
 
-	test('Ghost text is shown after trigger', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Ghost text is shown afta twigga', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				context.keyboawdType('foo');
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 1, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'foo[baw]']);
 			}
 		);
 	});
 
-	test('Ghost text is shown automatically when configured', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
-				context.keyboardType('foo');
+	test('Ghost text is shown automaticawwy when configuwed', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, inwineSuggest: { enabwed: twue } },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
+				context.keyboawdType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
 				await timeout(1000);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'foo[baw]']);
 			}
 		);
 	});
 
-	test('Ghost text is updated automatically', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Ghost text is updated automaticawwy', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
-				context.keyboardType('foo');
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
+				context.keyboawdType('foo');
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
 
-				provider.setReturnValue({ text: 'foobizz', range: new Range(1, 1, 1, 6) });
-				context.keyboardType('b');
-				context.keyboardType('i');
+				pwovida.setWetuwnVawue({ text: 'foobizz', wange: new Wange(1, 1, 1, 6) });
+				context.keyboawdType('b');
+				context.keyboawdType('i');
 				await timeout(1000);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, },
-					{ position: '(1,6)', text: 'foobi', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 1, },
+					{ position: '(1,6)', text: 'foobi', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(
-					context.getAndClearViewStates(),
-					['', 'foo[bar]', 'foob[ar]', 'foobi', 'foobi[zz]']
+				assewt.deepStwictEquaw(
+					context.getAndCweawViewStates(),
+					['', 'foo[baw]', 'foob[aw]', 'foobi', 'foobi[zz]']
 				);
 			}
 		);
 	});
 
 	test('Unindent whitespace', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				context.keyboawdType('  ');
+				pwovida.setWetuwnVawue({ text: 'foo', wange: new Wange(1, 2, 1, 3) });
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', '  [foo]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', '  [foo]']);
 
-				model.commitCurrentSuggestion();
+				modew.commitCuwwentSuggestion();
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,3)', text: '  ', triggerKind: 1, },
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,3)', text: '  ', twiggewKind: 1, },
 				]);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), [' foo']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), [' foo']);
 			}
 		);
 	});
 
 	test('Unindent tab', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('\t\t');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				context.keyboawdType('\t\t');
+				pwovida.setWetuwnVawue({ text: 'foo', wange: new Wange(1, 2, 1, 3) });
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', '\t\t[foo]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', '\t\t[foo]']);
 
-				model.commitCurrentSuggestion();
+				modew.commitCuwwentSuggestion();
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,3)', text: '\t\t', triggerKind: 1, },
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,3)', text: '\t\t', twiggewKind: 1, },
 				]);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['\tfoo']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['\tfoo']);
 			}
 		);
 	});
 
-	test('No unindent after indentation', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('No unindent afta indentation', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('buzz  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 6, 1, 7) });
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				context.keyboawdType('buzz  ');
+				pwovida.setWetuwnVawue({ text: 'foo', wange: new Wange(1, 6, 1, 7) });
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'buzz  ']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'buzz  ']);
 
-				model.commitCurrentSuggestion();
+				modew.commitCuwwentSuggestion();
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,7)', text: 'buzz  ', triggerKind: 1, },
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,7)', text: 'buzz  ', twiggewKind: 1, },
 				]);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), []);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), []);
 			}
 		);
 	});
 
-	test('Next/previous', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Next/pwevious', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar1', range: new Range(1, 1, 1, 4) });
-				model.trigger(InlineCompletionTriggerKind.Automatic);
+				context.keyboawdType('foo');
+				pwovida.setWetuwnVawue({ text: 'foobaw1', wange: new Wange(1, 1, 1, 4) });
+				modew.twigga(InwineCompwetionTwiggewKind.Automatic);
 				await timeout(1000);
 
-				assert.deepStrictEqual(
-					context.getAndClearViewStates(),
-					['', 'foo[bar1]']
+				assewt.deepStwictEquaw(
+					context.getAndCweawViewStates(),
+					['', 'foo[baw1]']
 				);
 
-				provider.setReturnValues([
-					{ text: 'foobar1', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobizz2', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobuzz3', range: new Range(1, 1, 1, 4) }
+				pwovida.setWetuwnVawues([
+					{ text: 'foobaw1', wange: new Wange(1, 1, 1, 4) },
+					{ text: 'foobizz2', wange: new Wange(1, 1, 1, 4) },
+					{ text: 'foobuzz3', wange: new Wange(1, 1, 1, 4) }
 				]);
 
-				model.showNext();
+				modew.showNext();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bizz2]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[bizz2]']);
 
-				model.showNext();
+				modew.showNext();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[buzz3]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[buzz3]']);
 
-				model.showNext();
+				modew.showNext();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bar1]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[baw1]']);
 
-				model.showPrevious();
+				modew.showPwevious();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[buzz3]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[buzz3]']);
 
-				model.showPrevious();
+				modew.showPwevious();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bizz2]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[bizz2]']);
 
-				model.showPrevious();
+				modew.showPwevious();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bar1]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foo[baw1]']);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, },
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, },
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 0, },
+					{ position: '(1,4)', text: 'foo', twiggewKind: 1, },
 				]);
 			}
 		);
 	});
 
-	test('Calling the provider is debounced', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
-				model.trigger(InlineCompletionTriggerKind.Automatic);
+	test('Cawwing the pwovida is debounced', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
+				modew.twigga(InwineCompwetionTwiggewKind.Automatic);
 
-				context.keyboardType('f');
+				context.keyboawdType('f');
 				await timeout(40);
-				context.keyboardType('o');
+				context.keyboawdType('o');
 				await timeout(40);
-				context.keyboardType('o');
+				context.keyboawdType('o');
 				await timeout(40);
 
-				// The provider is not called
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), []);
+				// The pwovida is not cawwed
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), []);
 
 				await timeout(400);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 0, }
 				]);
 
-				provider.assertNotCalledTwiceWithin50ms();
+				pwovida.assewtNotCawwedTwiceWithin50ms();
 			}
 		);
 	});
 
 	test('Backspace is debounced', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, inwineSuggest: { enabwed: twue } },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('foo');
+				context.keyboawdType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
 				await timeout(1000);
 
-				for (let j = 0; j < 2; j++) {
-					for (let i = 0; i < 3; i++) {
-						context.leftDelete();
+				fow (wet j = 0; j < 2; j++) {
+					fow (wet i = 0; i < 3; i++) {
+						context.weftDewete();
 						await timeout(5);
 					}
 
-					context.keyboardType('bar');
+					context.keyboawdType('baw');
 				}
 
 				await timeout(400);
 
-				provider.assertNotCalledTwiceWithin50ms();
+				pwovida.assewtNotCawwedTwiceWithin50ms();
 			}
 		);
 	});
 
-	test('Forward stability', async function () {
-		// The user types the text as suggested and the provider is forward-stable
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Fowwawd stabiwity', async function () {
+		// The usa types the text as suggested and the pwovida is fowwawd-stabwe
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
-				context.keyboardType('foo');
-				model.trigger(InlineCompletionTriggerKind.Automatic);
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
+				context.keyboawdType('foo');
+				modew.twigga(InwineCompwetionTwiggewKind.Automatic);
 				await timeout(1000);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'foo[baw]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 5) });
-				context.keyboardType('b');
-				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 5) });
+				context.keyboawdType('b');
+				assewt.deepStwictEquaw(context.cuwwentPwettyViewState, 'foob[aw]');
 				await timeout(1000);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,5)', text: 'foob', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foob[aw]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
-				context.keyboardType('a');
-				assert.deepStrictEqual(context.currentPrettyViewState, 'fooba[r]');
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 6) });
+				context.keyboawdType('a');
+				assewt.deepStwictEquaw(context.cuwwentPwettyViewState, 'fooba[w]');
 				await timeout(1000);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,6)', text: 'fooba', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['fooba[r]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['fooba[w]']);
 			}
 		);
 	});
 
-	test('Support forward instability', async function () {
-		// The user types the text as suggested and the provider reports a different suggestion.
+	test('Suppowt fowwawd instabiwity', async function () {
+		// The usa types the text as suggested and the pwovida wepowts a diffewent suggestion.
 
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
-				context.keyboardType('foo');
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 4) });
+				context.keyboawdType('foo');
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(100);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,4)', text: 'foo', twiggewKind: 1, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'foo[baw]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
-				context.keyboardType('b');
-				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
+				pwovida.setWetuwnVawue({ text: 'foobaz', wange: new Wange(1, 1, 1, 5) });
+				context.keyboawdType('b');
+				assewt.deepStwictEquaw(context.cuwwentPwettyViewState, 'foob[aw]');
 				await timeout(100);
-				// This behavior might change!
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+				// This behaviow might change!
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,5)', text: 'foob', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]', 'foob[az]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['foob[aw]', 'foob[az]']);
 			}
 		);
 	});
 
-	test('Support backward instability', async function () {
-		// The user deletes text and the suggestion changes
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
+	test('Suppowt backwawd instabiwity', async function () {
+		// The usa dewetes text and the suggestion changes
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
 
-				context.keyboardType('fooba');
+				context.keyboawdType('fooba');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
+				pwovida.setWetuwnVawue({ text: 'foobaw', wange: new Wange(1, 1, 1, 6) });
 
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 				await timeout(1000);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,6)', text: 'fooba', triggerKind: 1, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,6)', text: 'fooba', twiggewKind: 1, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'fooba[r]']);
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), ['', 'fooba[w]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
-				context.leftDelete();
+				pwovida.setWetuwnVawue({ text: 'foobaz', wange: new Wange(1, 1, 1, 5) });
+				context.weftDewete();
 				await timeout(1000);
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
+					{ position: '(1,5)', text: 'foob', twiggewKind: 0, }
 				]);
-				assert.deepStrictEqual(context.getAndClearViewStates(), [
-					'foob[ar]',
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), [
+					'foob[aw]',
 					'foob[az]'
 				]);
 			}
 		);
 	});
 
-	test('No race conditions', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
-				context.keyboardType('h');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 2) }, 1000);
+	test('No wace conditions', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
+				context.keyboawdType('h');
+				pwovida.setWetuwnVawue({ text: 'hewwowowwd', wange: new Wange(1, 1, 1, 2) }, 1000);
 
-				model.trigger(InlineCompletionTriggerKind.Explicit);
+				modew.twigga(InwineCompwetionTwiggewKind.Expwicit);
 
 				await timeout(1030);
-				context.keyboardType('ello');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				context.keyboawdType('ewwo');
+				pwovida.setWetuwnVawue({ text: 'hewwowowwd', wange: new Wange(1, 1, 1, 6) }, 1000);
 
-				// after 20ms: Inline completion provider answers back
-				// after 50ms: Debounce is triggered
+				// afta 20ms: Inwine compwetion pwovida answews back
+				// afta 50ms: Debounce is twiggewed
 				await timeout(2000);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), [
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), [
 					'',
-					'hello[world]',
+					'hewwo[wowwd]',
 				]);
 			});
 	});
 
-	test('Do not reuse cache from previous session (#132516)', async function () {
-		const provider = new MockInlineCompletionsProvider();
-		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
-			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
-			async ({ editor, editorViewModel, model, context }) => {
-				model.setActive(true);
-				context.keyboardType('hello\n');
-				context.cursorLeft();
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+	test('Do not weuse cache fwom pwevious session (#132516)', async function () {
+		const pwovida = new MockInwineCompwetionsPwovida();
+		await withAsyncTestCodeEditowAndInwineCompwetionsModew('',
+			{ fakeCwock: twue, pwovida, inwineSuggest: { enabwed: twue } },
+			async ({ editow, editowViewModew, modew, context }) => {
+				modew.setActive(twue);
+				context.keyboawdType('hewwo\n');
+				context.cuwsowWeft();
+				pwovida.setWetuwnVawue({ text: 'hewwowowwd', wange: new Wange(1, 1, 1, 6) }, 1000);
 				await timeout(2000);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
 					{
 						position: '(1,6)',
-						text: 'hello\n',
-						triggerKind: 0,
+						text: 'hewwo\n',
+						twiggewKind: 0,
 					}
 				]);
 
-				provider.setReturnValue({ text: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
+				pwovida.setWetuwnVawue({ text: 'hewwowowwd', wange: new Wange(2, 1, 2, 6) }, 1000);
 
-				context.cursorDown();
-				context.keyboardType('hello');
+				context.cuwsowDown();
+				context.keyboawdType('hewwo');
 				await timeout(100);
 
-				context.cursorLeft(); // Cause the ghost text to update
-				context.cursorRight();
+				context.cuwsowWeft(); // Cause the ghost text to update
+				context.cuwsowWight();
 
 				await timeout(2000);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
+				assewt.deepStwictEquaw(pwovida.getAndCweawCawwHistowy(), [
 					{
 						position: '(2,6)',
-						text: 'hello\nhello',
-						triggerKind: 0,
+						text: 'hewwo\nhewwo',
+						twiggewKind: 0,
 					}
 				]);
 
-				assert.deepStrictEqual(context.getAndClearViewStates(), [
+				assewt.deepStwictEquaw(context.getAndCweawViewStates(), [
 					'',
-					'hello[world]\n',
-					'hello\n',
-					'hello\nhello[world]',
+					'hewwo[wowwd]\n',
+					'hewwo\n',
+					'hewwo\nhewwo[wowwd]',
 				]);
 			});
 	});
 });
 
-async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
-	text: string,
-	options: TestCodeEditorCreationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
-): Promise<T> {
-	return await runWithFakedTimers({
-		useFakeTimers: options.fakeClock,
+async function withAsyncTestCodeEditowAndInwineCompwetionsModew<T>(
+	text: stwing,
+	options: TestCodeEditowCweationOptions & { pwovida?: InwineCompwetionsPwovida, fakeCwock?: boowean },
+	cawwback: (awgs: { editow: ITestCodeEditow, editowViewModew: ViewModew, modew: InwineCompwetionsModew, context: GhostTextContext }) => Pwomise<T>
+): Pwomise<T> {
+	wetuwn await wunWithFakedTimews({
+		useFakeTimews: options.fakeCwock,
 	}, async () => {
-		const disposableStore = new DisposableStore();
+		const disposabweStowe = new DisposabweStowe();
 
-		try {
-			if (options.provider) {
-				const d = InlineCompletionsProviderRegistry.register({ pattern: '**' }, options.provider);
-				disposableStore.add(d);
+		twy {
+			if (options.pwovida) {
+				const d = InwineCompwetionsPwovidewWegistwy.wegista({ pattewn: '**' }, options.pwovida);
+				disposabweStowe.add(d);
 			}
 
-			let result: T;
-			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
-				const cache = disposableStore.add(new SharedInlineCompletionCache());
-				const model = instantiationService.createInstance(InlineCompletionsModel, editor, cache);
-				const context = new GhostTextContext(model, editor);
-				try {
-					result = await callback({ editor, editorViewModel, model, context });
-				} finally {
+			wet wesuwt: T;
+			await withAsyncTestCodeEditow(text, options, async (editow, editowViewModew, instantiationSewvice) => {
+				const cache = disposabweStowe.add(new ShawedInwineCompwetionCache());
+				const modew = instantiationSewvice.cweateInstance(InwineCompwetionsModew, editow, cache);
+				const context = new GhostTextContext(modew, editow);
+				twy {
+					wesuwt = await cawwback({ editow, editowViewModew, modew, context });
+				} finawwy {
 					context.dispose();
-					model.dispose();
+					modew.dispose();
 				}
 			});
 
-			if (options.provider instanceof MockInlineCompletionsProvider) {
-				options.provider.assertNotCalledTwiceWithin50ms();
+			if (options.pwovida instanceof MockInwineCompwetionsPwovida) {
+				options.pwovida.assewtNotCawwedTwiceWithin50ms();
 			}
 
-			return result!;
-		} finally {
-			disposableStore.dispose();
+			wetuwn wesuwt!;
+		} finawwy {
+			disposabweStowe.dispose();
 		}
 	});
 }

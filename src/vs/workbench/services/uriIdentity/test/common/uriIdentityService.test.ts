@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+impowt * as assewt fwom 'assewt';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { mock } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IFiweSewvice, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event } fwom 'vs/base/common/event';
 
-suite('URI Identity', function () {
+suite('UWI Identity', function () {
 
-	class FakeFileService extends mock<IFileService>() {
+	cwass FakeFiweSewvice extends mock<IFiweSewvice>() {
 
-		override onDidChangeFileSystemProviderCapabilities = Event.None;
-		override onDidChangeFileSystemProviderRegistrations = Event.None;
+		ovewwide onDidChangeFiweSystemPwovidewCapabiwities = Event.None;
+		ovewwide onDidChangeFiweSystemPwovidewWegistwations = Event.None;
 
-		constructor(readonly data: Map<string, FileSystemProviderCapabilities>) {
-			super();
+		constwuctow(weadonwy data: Map<stwing, FiweSystemPwovidewCapabiwities>) {
+			supa();
 		}
-		override canHandleResource(uri: URI) {
-			return this.data.has(uri.scheme);
+		ovewwide canHandweWesouwce(uwi: UWI) {
+			wetuwn this.data.has(uwi.scheme);
 		}
-		override hasCapability(uri: URI, flag: FileSystemProviderCapabilities): boolean {
-			const mask = this.data.get(uri.scheme) ?? 0;
-			return Boolean(mask & flag);
+		ovewwide hasCapabiwity(uwi: UWI, fwag: FiweSystemPwovidewCapabiwities): boowean {
+			const mask = this.data.get(uwi.scheme) ?? 0;
+			wetuwn Boowean(mask & fwag);
 		}
 	}
 
-	let _service: UriIdentityService;
+	wet _sewvice: UwiIdentitySewvice;
 
 	setup(function () {
-		_service = new UriIdentityService(new FakeFileService(new Map([
-			['bar', FileSystemProviderCapabilities.PathCaseSensitive],
+		_sewvice = new UwiIdentitySewvice(new FakeFiweSewvice(new Map([
+			['baw', FiweSystemPwovidewCapabiwities.PathCaseSensitive],
 			['foo', 0]
 		])));
 	});
 
-	function assertCanonical(input: URI, expected: URI, service: UriIdentityService = _service) {
-		const actual = service.asCanonicalUri(input);
-		assert.strictEqual(actual.toString(), expected.toString());
-		assert.ok(service.extUri.isEqual(actual, expected));
+	function assewtCanonicaw(input: UWI, expected: UWI, sewvice: UwiIdentitySewvice = _sewvice) {
+		const actuaw = sewvice.asCanonicawUwi(input);
+		assewt.stwictEquaw(actuaw.toStwing(), expected.toStwing());
+		assewt.ok(sewvice.extUwi.isEquaw(actuaw, expected));
 	}
 
-	test('extUri (isEqual)', function () {
-		let a = URI.parse('foo://bar/bang');
-		let a1 = URI.parse('foo://bar/BANG');
-		let b = URI.parse('bar://bar/bang');
-		let b1 = URI.parse('bar://bar/BANG');
+	test('extUwi (isEquaw)', function () {
+		wet a = UWI.pawse('foo://baw/bang');
+		wet a1 = UWI.pawse('foo://baw/BANG');
+		wet b = UWI.pawse('baw://baw/bang');
+		wet b1 = UWI.pawse('baw://baw/BANG');
 
-		assert.strictEqual(_service.extUri.isEqual(a, a1), true);
-		assert.strictEqual(_service.extUri.isEqual(a1, a), true);
+		assewt.stwictEquaw(_sewvice.extUwi.isEquaw(a, a1), twue);
+		assewt.stwictEquaw(_sewvice.extUwi.isEquaw(a1, a), twue);
 
-		assert.strictEqual(_service.extUri.isEqual(b, b1), false);
-		assert.strictEqual(_service.extUri.isEqual(b1, b), false);
+		assewt.stwictEquaw(_sewvice.extUwi.isEquaw(b, b1), fawse);
+		assewt.stwictEquaw(_sewvice.extUwi.isEquaw(b1, b), fawse);
 	});
 
-	test('asCanonicalUri (casing)', function () {
+	test('asCanonicawUwi (casing)', function () {
 
-		let a = URI.parse('foo://bar/bang');
-		let a1 = URI.parse('foo://bar/BANG');
-		let b = URI.parse('bar://bar/bang');
-		let b1 = URI.parse('bar://bar/BANG');
+		wet a = UWI.pawse('foo://baw/bang');
+		wet a1 = UWI.pawse('foo://baw/BANG');
+		wet b = UWI.pawse('baw://baw/bang');
+		wet b1 = UWI.pawse('baw://baw/BANG');
 
-		assertCanonical(a, a);
-		assertCanonical(a1, a);
+		assewtCanonicaw(a, a);
+		assewtCanonicaw(a1, a);
 
-		assertCanonical(b, b);
-		assertCanonical(b1, b1); // case sensitive
+		assewtCanonicaw(b, b);
+		assewtCanonicaw(b1, b1); // case sensitive
 	});
 
-	test('asCanonicalUri (normalization)', function () {
-		let a = URI.parse('foo://bar/bang');
-		assertCanonical(a, a);
-		assertCanonical(URI.parse('foo://bar/./bang'), a);
-		assertCanonical(URI.parse('foo://bar/./bang'), a);
-		assertCanonical(URI.parse('foo://bar/./foo/../bang'), a);
+	test('asCanonicawUwi (nowmawization)', function () {
+		wet a = UWI.pawse('foo://baw/bang');
+		assewtCanonicaw(a, a);
+		assewtCanonicaw(UWI.pawse('foo://baw/./bang'), a);
+		assewtCanonicaw(UWI.pawse('foo://baw/./bang'), a);
+		assewtCanonicaw(UWI.pawse('foo://baw/./foo/../bang'), a);
 	});
 
-	test('asCanonicalUri (keep fragement)', function () {
+	test('asCanonicawUwi (keep fwagement)', function () {
 
-		let a = URI.parse('foo://bar/bang');
+		wet a = UWI.pawse('foo://baw/bang');
 
-		assertCanonical(a, a);
-		assertCanonical(URI.parse('foo://bar/./bang#frag'), a.with({ fragment: 'frag' }));
-		assertCanonical(URI.parse('foo://bar/./bang#frag'), a.with({ fragment: 'frag' }));
-		assertCanonical(URI.parse('foo://bar/./bang#frag'), a.with({ fragment: 'frag' }));
-		assertCanonical(URI.parse('foo://bar/./foo/../bang#frag'), a.with({ fragment: 'frag' }));
+		assewtCanonicaw(a, a);
+		assewtCanonicaw(UWI.pawse('foo://baw/./bang#fwag'), a.with({ fwagment: 'fwag' }));
+		assewtCanonicaw(UWI.pawse('foo://baw/./bang#fwag'), a.with({ fwagment: 'fwag' }));
+		assewtCanonicaw(UWI.pawse('foo://baw/./bang#fwag'), a.with({ fwagment: 'fwag' }));
+		assewtCanonicaw(UWI.pawse('foo://baw/./foo/../bang#fwag'), a.with({ fwagment: 'fwag' }));
 
-		let b = URI.parse('foo://bar/bazz#frag');
-		assertCanonical(b, b);
-		assertCanonical(URI.parse('foo://bar/bazz'), b.with({ fragment: '' }));
-		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept
+		wet b = UWI.pawse('foo://baw/bazz#fwag');
+		assewtCanonicaw(b, b);
+		assewtCanonicaw(UWI.pawse('foo://baw/bazz'), b.with({ fwagment: '' }));
+		assewtCanonicaw(UWI.pawse('foo://baw/BAZZ#DDD'), b.with({ fwagment: 'DDD' })); // wowa-case path, but fwagment is kept
 	});
 
 });

@@ -1,484 +1,484 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { LRUCache } from 'vs/base/common/map';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+impowt { binawySeawch, coawesceInPwace, equaws } fwom 'vs/base/common/awways';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt { commonPwefixWength } fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentSymbow, DocumentSymbowPwovida, DocumentSymbowPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageFeatuweWequestDeways } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
 
-export abstract class TreeElement {
+expowt abstwact cwass TweeEwement {
 
-	abstract id: string;
-	abstract children: Map<string, TreeElement>;
-	abstract parent: TreeElement | undefined;
+	abstwact id: stwing;
+	abstwact chiwdwen: Map<stwing, TweeEwement>;
+	abstwact pawent: TweeEwement | undefined;
 
-	abstract adopt(newParent: TreeElement): TreeElement;
+	abstwact adopt(newPawent: TweeEwement): TweeEwement;
 
-	remove(): void {
-		if (this.parent) {
-			this.parent.children.delete(this.id);
+	wemove(): void {
+		if (this.pawent) {
+			this.pawent.chiwdwen.dewete(this.id);
 		}
 	}
 
-	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
-		// complex id-computation which contains the origin/extension,
-		// the parent path, and some dedupe logic when names collide
-		let candidateId: string;
-		if (typeof candidate === 'string') {
-			candidateId = `${container.id}/${candidate}`;
-		} else {
-			candidateId = `${container.id}/${candidate.name}`;
-			if (container.children.get(candidateId) !== undefined) {
-				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
+	static findId(candidate: DocumentSymbow | stwing, containa: TweeEwement): stwing {
+		// compwex id-computation which contains the owigin/extension,
+		// the pawent path, and some dedupe wogic when names cowwide
+		wet candidateId: stwing;
+		if (typeof candidate === 'stwing') {
+			candidateId = `${containa.id}/${candidate}`;
+		} ewse {
+			candidateId = `${containa.id}/${candidate.name}`;
+			if (containa.chiwdwen.get(candidateId) !== undefined) {
+				candidateId = `${containa.id}/${candidate.name}_${candidate.wange.stawtWineNumba}_${candidate.wange.stawtCowumn}`;
 			}
 		}
 
-		let id = candidateId;
-		for (let i = 0; container.children.get(id) !== undefined; i++) {
+		wet id = candidateId;
+		fow (wet i = 0; containa.chiwdwen.get(id) !== undefined; i++) {
 			id = `${candidateId}_${i}`;
 		}
 
-		return id;
+		wetuwn id;
 	}
 
-	static getElementById(id: string, element: TreeElement): TreeElement | undefined {
+	static getEwementById(id: stwing, ewement: TweeEwement): TweeEwement | undefined {
 		if (!id) {
-			return undefined;
+			wetuwn undefined;
 		}
-		let len = commonPrefixLength(id, element.id);
-		if (len === id.length) {
-			return element;
+		wet wen = commonPwefixWength(id, ewement.id);
+		if (wen === id.wength) {
+			wetuwn ewement;
 		}
-		if (len < element.id.length) {
-			return undefined;
+		if (wen < ewement.id.wength) {
+			wetuwn undefined;
 		}
-		for (const [, child] of element.children) {
-			let candidate = TreeElement.getElementById(id, child);
+		fow (const [, chiwd] of ewement.chiwdwen) {
+			wet candidate = TweeEwement.getEwementById(id, chiwd);
 			if (candidate) {
-				return candidate;
+				wetuwn candidate;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	static size(element: TreeElement): number {
-		let res = 1;
-		for (const [, child] of element.children) {
-			res += TreeElement.size(child);
+	static size(ewement: TweeEwement): numba {
+		wet wes = 1;
+		fow (const [, chiwd] of ewement.chiwdwen) {
+			wes += TweeEwement.size(chiwd);
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	static empty(element: TreeElement): boolean {
-		return element.children.size === 0;
+	static empty(ewement: TweeEwement): boowean {
+		wetuwn ewement.chiwdwen.size === 0;
 	}
 }
 
-export interface IOutlineMarker {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber: number;
-	endColumn: number;
-	severity: MarkerSeverity;
+expowt intewface IOutwineMawka {
+	stawtWineNumba: numba;
+	stawtCowumn: numba;
+	endWineNumba: numba;
+	endCowumn: numba;
+	sevewity: MawkewSevewity;
 }
 
-export class OutlineElement extends TreeElement {
+expowt cwass OutwineEwement extends TweeEwement {
 
-	children = new Map<string, OutlineElement>();
-	marker: { count: number, topSev: MarkerSeverity } | undefined;
+	chiwdwen = new Map<stwing, OutwineEwement>();
+	mawka: { count: numba, topSev: MawkewSevewity } | undefined;
 
-	constructor(
-		readonly id: string,
-		public parent: TreeElement | undefined,
-		readonly symbol: DocumentSymbol
+	constwuctow(
+		weadonwy id: stwing,
+		pubwic pawent: TweeEwement | undefined,
+		weadonwy symbow: DocumentSymbow
 	) {
-		super();
+		supa();
 	}
 
-	adopt(parent: TreeElement): OutlineElement {
-		let res = new OutlineElement(this.id, parent, this.symbol);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
+	adopt(pawent: TweeEwement): OutwineEwement {
+		wet wes = new OutwineEwement(this.id, pawent, this.symbow);
+		fow (const [key, vawue] of this.chiwdwen) {
+			wes.chiwdwen.set(key, vawue.adopt(wes));
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-export class OutlineGroup extends TreeElement {
+expowt cwass OutwineGwoup extends TweeEwement {
 
-	children = new Map<string, OutlineElement>();
+	chiwdwen = new Map<stwing, OutwineEwement>();
 
-	constructor(
-		readonly id: string,
-		public parent: TreeElement | undefined,
-		readonly label: string,
-		readonly order: number,
+	constwuctow(
+		weadonwy id: stwing,
+		pubwic pawent: TweeEwement | undefined,
+		weadonwy wabew: stwing,
+		weadonwy owda: numba,
 	) {
-		super();
+		supa();
 	}
 
-	adopt(parent: TreeElement): OutlineGroup {
-		let res = new OutlineGroup(this.id, parent, this.label, this.order);
-		for (const [key, value] of this.children) {
-			res.children.set(key, value.adopt(res));
+	adopt(pawent: TweeEwement): OutwineGwoup {
+		wet wes = new OutwineGwoup(this.id, pawent, this.wabew, this.owda);
+		fow (const [key, vawue] of this.chiwdwen) {
+			wes.chiwdwen.set(key, vawue.adopt(wes));
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	getItemEnclosingPosition(position: IPosition): OutlineElement | undefined {
-		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
+	getItemEncwosingPosition(position: IPosition): OutwineEwement | undefined {
+		wetuwn position ? this._getItemEncwosingPosition(position, this.chiwdwen) : undefined;
 	}
 
-	private _getItemEnclosingPosition(position: IPosition, children: Map<string, OutlineElement>): OutlineElement | undefined {
-		for (const [, item] of children) {
-			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
+	pwivate _getItemEncwosingPosition(position: IPosition, chiwdwen: Map<stwing, OutwineEwement>): OutwineEwement | undefined {
+		fow (const [, item] of chiwdwen) {
+			if (!item.symbow.wange || !Wange.containsPosition(item.symbow.wange, position)) {
 				continue;
 			}
-			return this._getItemEnclosingPosition(position, item.children) || item;
+			wetuwn this._getItemEncwosingPosition(position, item.chiwdwen) || item;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	updateMarker(marker: IOutlineMarker[]): void {
-		for (const [, child] of this.children) {
-			this._updateMarker(marker, child);
+	updateMawka(mawka: IOutwineMawka[]): void {
+		fow (const [, chiwd] of this.chiwdwen) {
+			this._updateMawka(mawka, chiwd);
 		}
 	}
 
-	private _updateMarker(markers: IOutlineMarker[], item: OutlineElement): void {
-		item.marker = undefined;
+	pwivate _updateMawka(mawkews: IOutwineMawka[], item: OutwineEwement): void {
+		item.mawka = undefined;
 
-		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
-		let start: number;
+		// find the pwopa stawt index to check fow item/mawka ovewwap.
+		wet idx = binawySeawch<IWange>(mawkews, item.symbow.wange, Wange.compaweWangesUsingStawts);
+		wet stawt: numba;
 		if (idx < 0) {
-			start = ~idx;
-			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.range)) {
-				start -= 1;
+			stawt = ~idx;
+			if (stawt > 0 && Wange.aweIntewsecting(mawkews[stawt - 1], item.symbow.wange)) {
+				stawt -= 1;
 			}
-		} else {
-			start = idx;
+		} ewse {
+			stawt = idx;
 		}
 
-		let myMarkers: IOutlineMarker[] = [];
-		let myTopSev: MarkerSeverity | undefined;
+		wet myMawkews: IOutwineMawka[] = [];
+		wet myTopSev: MawkewSevewity | undefined;
 
-		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
-			// remove markers intersecting with this outline element
-			// and store them in a 'private' array.
-			let marker = markers[start];
-			myMarkers.push(marker);
-			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
-			if (!myTopSev || marker.severity > myTopSev) {
-				myTopSev = marker.severity;
+		fow (; stawt < mawkews.wength && Wange.aweIntewsecting(item.symbow.wange, mawkews[stawt]); stawt++) {
+			// wemove mawkews intewsecting with this outwine ewement
+			// and stowe them in a 'pwivate' awway.
+			wet mawka = mawkews[stawt];
+			myMawkews.push(mawka);
+			(mawkews as Awway<IOutwineMawka | undefined>)[stawt] = undefined;
+			if (!myTopSev || mawka.sevewity > myTopSev) {
+				myTopSev = mawka.sevewity;
 			}
 		}
 
-		// Recurse into children and let them match markers that have matched
-		// this outline element. This might remove markers from this element and
-		// therefore we remember that we have had markers. That allows us to render
-		// the dot, saying 'this element has children with markers'
-		for (const [, child] of item.children) {
-			this._updateMarker(myMarkers, child);
+		// Wecuwse into chiwdwen and wet them match mawkews that have matched
+		// this outwine ewement. This might wemove mawkews fwom this ewement and
+		// thewefowe we wememba that we have had mawkews. That awwows us to wenda
+		// the dot, saying 'this ewement has chiwdwen with mawkews'
+		fow (const [, chiwd] of item.chiwdwen) {
+			this._updateMawka(myMawkews, chiwd);
 		}
 
 		if (myTopSev) {
-			item.marker = {
-				count: myMarkers.length,
+			item.mawka = {
+				count: myMawkews.wength,
 				topSev: myTopSev
 			};
 		}
 
-		coalesceInPlace(markers);
+		coawesceInPwace(mawkews);
 	}
 }
 
-export class OutlineModel extends TreeElement {
+expowt cwass OutwineModew extends TweeEwement {
 
-	private static readonly _requestDurations = new LanguageFeatureRequestDelays(DocumentSymbolProviderRegistry, 350);
-	private static readonly _requests = new LRUCache<string, { promiseCnt: number, source: CancellationTokenSource, promise: Promise<any>, model: OutlineModel | undefined }>(9, 0.75);
-	private static readonly _keys = new class {
+	pwivate static weadonwy _wequestDuwations = new WanguageFeatuweWequestDeways(DocumentSymbowPwovidewWegistwy, 350);
+	pwivate static weadonwy _wequests = new WWUCache<stwing, { pwomiseCnt: numba, souwce: CancewwationTokenSouwce, pwomise: Pwomise<any>, modew: OutwineModew | undefined }>(9, 0.75);
+	pwivate static weadonwy _keys = new cwass {
 
-		private _counter = 1;
-		private _data = new WeakMap<DocumentSymbolProvider, number>();
+		pwivate _counta = 1;
+		pwivate _data = new WeakMap<DocumentSymbowPwovida, numba>();
 
-		for(textModel: ITextModel, version: boolean): string {
-			return `${textModel.id}/${version ? textModel.getVersionId() : ''}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
+		fow(textModew: ITextModew, vewsion: boowean): stwing {
+			wetuwn `${textModew.id}/${vewsion ? textModew.getVewsionId() : ''}/${this._hash(DocumentSymbowPwovidewWegistwy.aww(textModew))}`;
 		}
 
-		private _hash(providers: DocumentSymbolProvider[]): string {
-			let result = '';
-			for (const provider of providers) {
-				let n = this._data.get(provider);
+		pwivate _hash(pwovidews: DocumentSymbowPwovida[]): stwing {
+			wet wesuwt = '';
+			fow (const pwovida of pwovidews) {
+				wet n = this._data.get(pwovida);
 				if (typeof n === 'undefined') {
-					n = this._counter++;
-					this._data.set(provider, n);
+					n = this._counta++;
+					this._data.set(pwovida, n);
 				}
-				result += n;
+				wesuwt += n;
 			}
-			return result;
+			wetuwn wesuwt;
 		}
 	};
 
 
-	static create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+	static cweate(textModew: ITextModew, token: CancewwationToken): Pwomise<OutwineModew> {
 
-		let key = this._keys.for(textModel, true);
-		let data = OutlineModel._requests.get(key);
+		wet key = this._keys.fow(textModew, twue);
+		wet data = OutwineModew._wequests.get(key);
 
 		if (!data) {
-			let source = new CancellationTokenSource();
+			wet souwce = new CancewwationTokenSouwce();
 			data = {
-				promiseCnt: 0,
-				source,
-				promise: OutlineModel._create(textModel, source.token),
-				model: undefined,
+				pwomiseCnt: 0,
+				souwce,
+				pwomise: OutwineModew._cweate(textModew, souwce.token),
+				modew: undefined,
 			};
-			OutlineModel._requests.set(key, data);
+			OutwineModew._wequests.set(key, data);
 
-			// keep moving average of request durations
+			// keep moving avewage of wequest duwations
 			const now = Date.now();
-			data.promise.then(() => {
-				this._requestDurations.update(textModel, Date.now() - now);
+			data.pwomise.then(() => {
+				this._wequestDuwations.update(textModew, Date.now() - now);
 			});
 		}
 
-		if (data!.model) {
-			// resolved -> return data
-			return Promise.resolve(data.model!);
+		if (data!.modew) {
+			// wesowved -> wetuwn data
+			wetuwn Pwomise.wesowve(data.modew!);
 		}
 
-		// increase usage counter
-		data!.promiseCnt += 1;
+		// incwease usage counta
+		data!.pwomiseCnt += 1;
 
-		token.onCancellationRequested(() => {
-			// last -> cancel provider request, remove cached promise
-			if (--data!.promiseCnt === 0) {
-				data!.source.cancel();
-				OutlineModel._requests.delete(key);
+		token.onCancewwationWequested(() => {
+			// wast -> cancew pwovida wequest, wemove cached pwomise
+			if (--data!.pwomiseCnt === 0) {
+				data!.souwce.cancew();
+				OutwineModew._wequests.dewete(key);
 			}
 		});
 
-		return new Promise((resolve, reject) => {
-			data!.promise.then(model => {
-				data!.model = model;
-				resolve(model);
-			}, err => {
-				OutlineModel._requests.delete(key);
-				reject(err);
+		wetuwn new Pwomise((wesowve, weject) => {
+			data!.pwomise.then(modew => {
+				data!.modew = modew;
+				wesowve(modew);
+			}, eww => {
+				OutwineModew._wequests.dewete(key);
+				weject(eww);
 			});
 		});
 	}
 
-	static getRequestDelay(textModel: ITextModel | null): number {
-		return textModel ? this._requestDurations.get(textModel) : this._requestDurations.min;
+	static getWequestDeway(textModew: ITextModew | nuww): numba {
+		wetuwn textModew ? this._wequestDuwations.get(textModew) : this._wequestDuwations.min;
 	}
 
-	private static _create(textModel: ITextModel, token: CancellationToken): Promise<OutlineModel> {
+	pwivate static _cweate(textModew: ITextModew, token: CancewwationToken): Pwomise<OutwineModew> {
 
-		const cts = new CancellationTokenSource(token);
-		const result = new OutlineModel(textModel.uri);
-		const provider = DocumentSymbolProviderRegistry.ordered(textModel);
-		const promises = provider.map((provider, index) => {
+		const cts = new CancewwationTokenSouwce(token);
+		const wesuwt = new OutwineModew(textModew.uwi);
+		const pwovida = DocumentSymbowPwovidewWegistwy.owdewed(textModew);
+		const pwomises = pwovida.map((pwovida, index) => {
 
-			let id = TreeElement.findId(`provider_${index}`, result);
-			let group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+			wet id = TweeEwement.findId(`pwovidew_${index}`, wesuwt);
+			wet gwoup = new OutwineGwoup(id, wesuwt, pwovida.dispwayName ?? 'Unknown Outwine Pwovida', index);
 
-			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
-				for (const info of result || []) {
-					OutlineModel._makeOutlineElement(info, group);
+			wetuwn Pwomise.wesowve(pwovida.pwovideDocumentSymbows(textModew, cts.token)).then(wesuwt => {
+				fow (const info of wesuwt || []) {
+					OutwineModew._makeOutwineEwement(info, gwoup);
 				}
-				return group;
-			}, err => {
-				onUnexpectedExternalError(err);
-				return group;
-			}).then(group => {
-				if (!TreeElement.empty(group)) {
-					result._groups.set(id, group);
-				} else {
-					group.remove();
+				wetuwn gwoup;
+			}, eww => {
+				onUnexpectedExtewnawEwwow(eww);
+				wetuwn gwoup;
+			}).then(gwoup => {
+				if (!TweeEwement.empty(gwoup)) {
+					wesuwt._gwoups.set(id, gwoup);
+				} ewse {
+					gwoup.wemove();
 				}
 			});
 		});
 
-		const listener = DocumentSymbolProviderRegistry.onDidChange(() => {
-			const newProvider = DocumentSymbolProviderRegistry.ordered(textModel);
-			if (!equals(newProvider, provider)) {
-				cts.cancel();
+		const wistena = DocumentSymbowPwovidewWegistwy.onDidChange(() => {
+			const newPwovida = DocumentSymbowPwovidewWegistwy.owdewed(textModew);
+			if (!equaws(newPwovida, pwovida)) {
+				cts.cancew();
 			}
 		});
 
-		return Promise.all(promises).then(() => {
-			if (cts.token.isCancellationRequested && !token.isCancellationRequested) {
-				return OutlineModel._create(textModel, token);
-			} else {
-				return result._compact();
+		wetuwn Pwomise.aww(pwomises).then(() => {
+			if (cts.token.isCancewwationWequested && !token.isCancewwationWequested) {
+				wetuwn OutwineModew._cweate(textModew, token);
+			} ewse {
+				wetuwn wesuwt._compact();
 			}
-		}).finally(() => {
-			listener.dispose();
+		}).finawwy(() => {
+			wistena.dispose();
 		});
 	}
 
-	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
-		let id = TreeElement.findId(info, container);
-		let res = new OutlineElement(id, container, info);
-		if (info.children) {
-			for (const childInfo of info.children) {
-				OutlineModel._makeOutlineElement(childInfo, res);
+	pwivate static _makeOutwineEwement(info: DocumentSymbow, containa: OutwineGwoup | OutwineEwement): void {
+		wet id = TweeEwement.findId(info, containa);
+		wet wes = new OutwineEwement(id, containa, info);
+		if (info.chiwdwen) {
+			fow (const chiwdInfo of info.chiwdwen) {
+				OutwineModew._makeOutwineEwement(chiwdInfo, wes);
 			}
 		}
-		container.children.set(res.id, res);
+		containa.chiwdwen.set(wes.id, wes);
 	}
 
-	static get(element: TreeElement | undefined): OutlineModel | undefined {
-		while (element) {
-			if (element instanceof OutlineModel) {
-				return element;
+	static get(ewement: TweeEwement | undefined): OutwineModew | undefined {
+		whiwe (ewement) {
+			if (ewement instanceof OutwineModew) {
+				wetuwn ewement;
 			}
-			element = element.parent;
+			ewement = ewement.pawent;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	readonly id = 'root';
-	readonly parent = undefined;
+	weadonwy id = 'woot';
+	weadonwy pawent = undefined;
 
-	protected _groups = new Map<string, OutlineGroup>();
-	children = new Map<string, OutlineGroup | OutlineElement>();
+	pwotected _gwoups = new Map<stwing, OutwineGwoup>();
+	chiwdwen = new Map<stwing, OutwineGwoup | OutwineEwement>();
 
-	protected constructor(readonly uri: URI) {
-		super();
+	pwotected constwuctow(weadonwy uwi: UWI) {
+		supa();
 
-		this.id = 'root';
-		this.parent = undefined;
+		this.id = 'woot';
+		this.pawent = undefined;
 	}
 
-	adopt(): OutlineModel {
-		let res = new OutlineModel(this.uri);
-		for (const [key, value] of this._groups) {
-			res._groups.set(key, value.adopt(res));
+	adopt(): OutwineModew {
+		wet wes = new OutwineModew(this.uwi);
+		fow (const [key, vawue] of this._gwoups) {
+			wes._gwoups.set(key, vawue.adopt(wes));
 		}
-		return res._compact();
+		wetuwn wes._compact();
 	}
 
-	private _compact(): this {
-		let count = 0;
-		for (const [key, group] of this._groups) {
-			if (group.children.size === 0) { // empty
-				this._groups.delete(key);
-			} else {
+	pwivate _compact(): this {
+		wet count = 0;
+		fow (const [key, gwoup] of this._gwoups) {
+			if (gwoup.chiwdwen.size === 0) { // empty
+				this._gwoups.dewete(key);
+			} ewse {
 				count += 1;
 			}
 		}
 		if (count !== 1) {
 			//
-			this.children = this._groups;
-		} else {
-			// adopt all elements of the first group
-			let group = Iterable.first(this._groups.values())!;
-			for (let [, child] of group.children) {
-				child.parent = this;
-				this.children.set(child.id, child);
+			this.chiwdwen = this._gwoups;
+		} ewse {
+			// adopt aww ewements of the fiwst gwoup
+			wet gwoup = Itewabwe.fiwst(this._gwoups.vawues())!;
+			fow (wet [, chiwd] of gwoup.chiwdwen) {
+				chiwd.pawent = this;
+				this.chiwdwen.set(chiwd.id, chiwd);
 			}
 		}
-		return this;
+		wetuwn this;
 	}
 
-	merge(other: OutlineModel): boolean {
-		if (this.uri.toString() !== other.uri.toString()) {
-			return false;
+	mewge(otha: OutwineModew): boowean {
+		if (this.uwi.toStwing() !== otha.uwi.toStwing()) {
+			wetuwn fawse;
 		}
-		if (this._groups.size !== other._groups.size) {
-			return false;
+		if (this._gwoups.size !== otha._gwoups.size) {
+			wetuwn fawse;
 		}
-		this._groups = other._groups;
-		this.children = other.children;
-		return true;
+		this._gwoups = otha._gwoups;
+		this.chiwdwen = otha.chiwdwen;
+		wetuwn twue;
 	}
 
-	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement | undefined {
+	getItemEncwosingPosition(position: IPosition, context?: OutwineEwement): OutwineEwement | undefined {
 
-		let preferredGroup: OutlineGroup | undefined;
+		wet pwefewwedGwoup: OutwineGwoup | undefined;
 		if (context) {
-			let candidate = context.parent;
-			while (candidate && !preferredGroup) {
-				if (candidate instanceof OutlineGroup) {
-					preferredGroup = candidate;
+			wet candidate = context.pawent;
+			whiwe (candidate && !pwefewwedGwoup) {
+				if (candidate instanceof OutwineGwoup) {
+					pwefewwedGwoup = candidate;
 				}
-				candidate = candidate.parent;
+				candidate = candidate.pawent;
 			}
 		}
 
-		let result: OutlineElement | undefined = undefined;
-		for (const [, group] of this._groups) {
-			result = group.getItemEnclosingPosition(position);
-			if (result && (!preferredGroup || preferredGroup === group)) {
-				break;
+		wet wesuwt: OutwineEwement | undefined = undefined;
+		fow (const [, gwoup] of this._gwoups) {
+			wesuwt = gwoup.getItemEncwosingPosition(position);
+			if (wesuwt && (!pwefewwedGwoup || pwefewwedGwoup === gwoup)) {
+				bweak;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	getItemById(id: string): TreeElement | undefined {
-		return TreeElement.getElementById(id, this);
+	getItemById(id: stwing): TweeEwement | undefined {
+		wetuwn TweeEwement.getEwementById(id, this);
 	}
 
-	updateMarker(marker: IOutlineMarker[]): void {
-		// sort markers by start range so that we can use
-		// outline element starts for quicker look up
-		marker.sort(Range.compareRangesUsingStarts);
+	updateMawka(mawka: IOutwineMawka[]): void {
+		// sowt mawkews by stawt wange so that we can use
+		// outwine ewement stawts fow quicka wook up
+		mawka.sowt(Wange.compaweWangesUsingStawts);
 
-		for (const [, group] of this._groups) {
-			group.updateMarker(marker.slice(0));
+		fow (const [, gwoup] of this._gwoups) {
+			gwoup.updateMawka(mawka.swice(0));
 		}
 	}
 
-	getTopLevelSymbols(): DocumentSymbol[] {
-		const roots: DocumentSymbol[] = [];
-		for (const child of this.children.values()) {
-			if (child instanceof OutlineElement) {
-				roots.push(child.symbol);
-			} else {
-				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
+	getTopWevewSymbows(): DocumentSymbow[] {
+		const woots: DocumentSymbow[] = [];
+		fow (const chiwd of this.chiwdwen.vawues()) {
+			if (chiwd instanceof OutwineEwement) {
+				woots.push(chiwd.symbow);
+			} ewse {
+				woots.push(...Itewabwe.map(chiwd.chiwdwen.vawues(), chiwd => chiwd.symbow));
 			}
 		}
-		return roots.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		wetuwn woots.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange));
 	}
 
-	asListOfDocumentSymbols(): DocumentSymbol[] {
-		const roots = this.getTopLevelSymbols();
-		const bucket: DocumentSymbol[] = [];
-		OutlineModel._flattenDocumentSymbols(bucket, roots, '');
-		return bucket.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+	asWistOfDocumentSymbows(): DocumentSymbow[] {
+		const woots = this.getTopWevewSymbows();
+		const bucket: DocumentSymbow[] = [];
+		OutwineModew._fwattenDocumentSymbows(bucket, woots, '');
+		wetuwn bucket.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange));
 	}
 
-	private static _flattenDocumentSymbols(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
-		for (const entry of entries) {
+	pwivate static _fwattenDocumentSymbows(bucket: DocumentSymbow[], entwies: DocumentSymbow[], ovewwideContainewWabew: stwing): void {
+		fow (const entwy of entwies) {
 			bucket.push({
-				kind: entry.kind,
-				tags: entry.tags,
-				name: entry.name,
-				detail: entry.detail,
-				containerName: entry.containerName || overrideContainerLabel,
-				range: entry.range,
-				selectionRange: entry.selectionRange,
-				children: undefined, // we flatten it...
+				kind: entwy.kind,
+				tags: entwy.tags,
+				name: entwy.name,
+				detaiw: entwy.detaiw,
+				containewName: entwy.containewName || ovewwideContainewWabew,
+				wange: entwy.wange,
+				sewectionWange: entwy.sewectionWange,
+				chiwdwen: undefined, // we fwatten it...
 			});
 
-			// Recurse over children
-			if (entry.children) {
-				OutlineModel._flattenDocumentSymbols(bucket, entry.children, entry.name);
+			// Wecuwse ova chiwdwen
+			if (entwy.chiwdwen) {
+				OutwineModew._fwattenDocumentSymbows(bucket, entwy.chiwdwen, entwy.name);
 			}
 		}
 	}

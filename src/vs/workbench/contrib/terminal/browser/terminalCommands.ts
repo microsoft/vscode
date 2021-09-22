@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ITewminawGwoupSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
 
-export function setupTerminalCommands(): void {
-	registerOpenTerminalAtIndexCommands();
+expowt function setupTewminawCommands(): void {
+	wegistewOpenTewminawAtIndexCommands();
 }
 
-function registerOpenTerminalAtIndexCommands(): void {
-	for (let i = 0; i < 9; i++) {
-		const terminalIndex = i;
-		const visibleIndex = i + 1;
+function wegistewOpenTewminawAtIndexCommands(): void {
+	fow (wet i = 0; i < 9; i++) {
+		const tewminawIndex = i;
+		const visibweIndex = i + 1;
 
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: `workbench.action.terminal.focusAtIndex${visibleIndex}`,
-			weight: KeybindingWeight.WorkbenchContrib,
+		KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+			id: `wowkbench.action.tewminaw.focusAtIndex${visibweIndex}`,
+			weight: KeybindingWeight.WowkbenchContwib,
 			when: undefined,
-			primary: 0,
-			handler: accessor => {
-				accessor.get(ITerminalGroupService).setActiveInstanceByIndex(terminalIndex);
-				return accessor.get(ITerminalGroupService).showPanel(true);
+			pwimawy: 0,
+			handwa: accessow => {
+				accessow.get(ITewminawGwoupSewvice).setActiveInstanceByIndex(tewminawIndex);
+				wetuwn accessow.get(ITewminawGwoupSewvice).showPanew(twue);
 			}
 		});
 	}

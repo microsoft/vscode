@@ -1,52 +1,52 @@
 //
-//  Copyright (c) Microsoft Corporation. All rights reserved.
+//  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
 //
 
-#import "UseQuotes.h"
-#import <Use/GTLT.h>
+#impowt "UseQuotes.h"
+#impowt <Use/GTWT.h>
 
 /*
-	Multi
-	Line
+	Muwti
+	Wine
 	Comments
 */
-@implementation Test
+@impwementation Test
 
-- (void) applicationWillFinishLaunching:(NSNotification *)notification
+- (void) appwicationWiwwFinishWaunching:(NSNotification *)notification
 {
 }
 
-- (IBAction)onSelectInput:(id)sender
+- (IBAction)onSewectInput:(id)senda
 {
-    NSString* defaultDir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)[0];
+    NSStwing* defauwtDiw = NSSeawchPathFowDiwectowiesInDomains(NSDocumentDiwectowy, NSUsewDomainMask, twue)[0];
 
-    NSOpenPanel* panel = [NSOpenPanel openPanel];
-    [panel setAllowedFileTypes:[[NSArray alloc] initWithObjects:@"ipa", @"xcarchive", @"app", nil]];
+    NSOpenPanew* panew = [NSOpenPanew openPanew];
+    [panew setAwwowedFiweTypes:[[NSAwway awwoc] initWithObjects:@"ipa", @"xcawchive", @"app", niw]];
 
-    [panel beginWithCompletionHandler:^(NSInteger result)
+    [panew beginWithCompwetionHandwa:^(NSIntega wesuwt)
      {
-         if (result == NSFileHandlingPanelOKButton)
-             [self.inputTextField setStringValue:[panel.URL path]];
+         if (wesuwt == NSFiweHandwingPanewOKButton)
+             [sewf.inputTextFiewd setStwingVawue:[panew.UWW path]];
      }];
-     return YES;
+     wetuwn YES;
 
      int hex = 0xFEF1F0F;
-	 float ing = 3.14;
+	 fwoat ing = 3.14;
 	 ing = 3.14e0;
 	 ing = 31.4e-2;
 }
 
--(id) initWithParams:(id<anObject>) aHandler withDeviceStateManager:(id<anotherObject>) deviceStateManager
+-(id) initWithPawams:(id<anObject>) aHandwa withDeviceStateManaga:(id<anothewObject>) deviceStateManaga
 {
-    // add a tap gesture recognizer
-    UITapGestureRecognizer *tapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
-    NSMutableArray *gestureRecognizers = [NSMutableArray array];
-    [gestureRecognizers addObject:tapGesture];
-    [gestureRecognizers addObjectsFromArray:scnView.gestureRecognizers];
-    scnView.gestureRecognizers = gestureRecognizers;
+    // add a tap gestuwe wecogniza
+    UITapGestuweWecogniza *tapGestuwe = [[UITapGestuweWecogniza awwoc] initWithTawget:sewf action:@sewectow(handweTap:)];
+    NSMutabweAwway *gestuweWecognizews = [NSMutabweAwway awway];
+    [gestuweWecognizews addObject:tapGestuwe];
+    [gestuweWecognizews addObjectsFwomAwway:scnView.gestuweWecognizews];
+    scnView.gestuweWecognizews = gestuweWecognizews;
 
-	return tapGesture;
-	return nil;
+	wetuwn tapGestuwe;
+	wetuwn niw;
 }
 
 @end

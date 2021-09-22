@@ -1,416 +1,416 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .review-widget {
+.monaco-editow .weview-widget {
 	width: 100%;
-	position: absolute;
+	position: absowute;
 }
 
-.monaco-editor .review-widget .hidden {
-	display: none !important;
+.monaco-editow .weview-widget .hidden {
+	dispway: none !impowtant;
 }
 
-.monaco-editor .review-widget .body {
-	overflow: hidden;
+.monaco-editow .weview-widget .body {
+	ovewfwow: hidden;
 }
 
-.monaco-editor .review-widget .body .review-comment {
+.monaco-editow .weview-widget .body .weview-comment {
 	padding: 8px 16px 8px 20px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-actions {
-	margin-left: auto;
+.monaco-editow .weview-widget .body .weview-comment .comment-actions {
+	mawgin-weft: auto;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-actions .monaco-toolbar {
+.monaco-editow .weview-widget .body .weview-comment .comment-actions .monaco-toowbaw {
 	height: 21px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title {
-	display: flex;
+.monaco-editow .weview-widget .body .weview-comment .comment-titwe {
+	dispway: fwex;
 	width: 100%;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.codicon {
-	line-height: 18px;
+.monaco-editow .weview-widget .body .weview-comment .comment-titwe .action-wabew.codicon {
+	wine-height: 18px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .monaco-dropdown .toolbar-toggle-more {
+.monaco-editow .weview-widget .body .weview-comment .comment-titwe .monaco-dwopdown .toowbaw-toggwe-mowe {
 	width: 16px;
 	height: 18px;
-	line-height: 18px;
-	vertical-align: middle;
+	wine-height: 18px;
+	vewticaw-awign: middwe;
 }
 
-.monaco-editor .review-widget .body .comment-body blockquote {
-	margin: 0 7px 0 5px;
+.monaco-editow .weview-widget .body .comment-body bwockquote {
+	mawgin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
-	border-left-width: 5px;
-	border-left-style: solid;
+	bowda-weft-width: 5px;
+	bowda-weft-stywe: sowid;
 }
 
-.monaco-editor .review-widget .body .review-comment .avatar-container {
-	margin-top: 4px !important;
+.monaco-editow .weview-widget .body .weview-comment .avataw-containa {
+	mawgin-top: 4px !impowtant;
 }
 
-.monaco-editor .review-widget .body .review-comment .avatar-container img.avatar {
+.monaco-editow .weview-widget .body .weview-comment .avataw-containa img.avataw {
 	height: 28px;
 	width: 28px;
-	display: inline-block;
-	overflow: hidden;
-	line-height: 1;
-	vertical-align: middle;
-	border-radius: 3px;
-	border-style: none;
+	dispway: inwine-bwock;
+	ovewfwow: hidden;
+	wine-height: 1;
+	vewticaw-awign: middwe;
+	bowda-wadius: 3px;
+	bowda-stywe: none;
 }
 
-.monaco-editor .review-widget .body .comment-reactions .monaco-text-button {
-	margin: 0 7px 0 0;
+.monaco-editow .weview-widget .body .comment-weactions .monaco-text-button {
+	mawgin: 0 7px 0 0;
 	width: 30px;
-	background-color: transparent;
-	border: 1px solid grey;
-	border-radius: 3px;
+	backgwound-cowow: twanspawent;
+	bowda: 1px sowid gwey;
+	bowda-wadius: 3px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents {
-	padding-left: 20px;
-	user-select: text;
-	-webkit-user-select: text;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents {
+	padding-weft: 20px;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 	width: 100%;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.monaco-editor .review-widget .body pre {
-	overflow: auto;
-	word-wrap: normal;
-	white-space: pre;
-}
-
-
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .author {
-	line-height: 22px;
+.monaco-editow .weview-widget .body pwe {
+	ovewfwow: auto;
+	wowd-wwap: nowmaw;
+	white-space: pwe;
 }
 
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
-	margin: 0 5px 0 5px;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .authow {
+	wine-height: 22px;
+}
+
+
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .isPending {
+	mawgin: 0 5px 0 5px;
 	padding: 0 2px 0 2px;
-	font-style: italic;
+	font-stywe: itawic;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-body {
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-body {
 	padding-top: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions {
-	margin-top: 8px;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions {
+	mawgin-top: 8px;
 	min-height: 25px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label {
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item .action-wabew {
 	padding: 1px 4px;
-	white-space: pre;
-	text-align: center;
+	white-space: pwe;
+	text-awign: centa;
 	font-size: 12px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-icon {
-	background-size: 14px;
-	background-position: left center;
-	background-repeat: no-repeat;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item .action-wabew .weaction-icon {
+	backgwound-size: 14px;
+	backgwound-position: weft centa;
+	backgwound-wepeat: no-wepeat;
 	width: 14px;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	display: inline-block;
-	margin-right: 4px;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
+	dispway: inwine-bwock;
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-label {
-	line-height: 20px;
-	margin-right: 4px;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item .action-wabew .weaction-wabew {
+	wine-height: 20px;
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: none;
-	background-size: 16px;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew.toowbaw-toggwe-pickWeactions {
+	dispway: none;
+	backgwound-size: 16px;
 	width: 26px;
 	height: 16px;
-	background-repeat: no-repeat;
-	background-position: center;
-	margin-top: 3px;
-	border: none;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: centa;
+	mawgin-top: 3px;
+	bowda: none;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
-	display: inline-block;
-	background-size: 16px;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions:hova .action-item a.action-wabew.toowbaw-toggwe-pickWeactions {
+	dispway: inwine-bwock;
+	backgwound-size: 16px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label {
-	display: block;
+.monaco-editow .weview-widget .body .weview-comment .comment-titwe .action-wabew {
+	dispway: bwock;
 	height: 16px;
-	line-height: 16px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
+	wine-height: 16px;
+	backgwound-size: 16px;
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
-	border: 1px solid;
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew {
+	bowda: 1px sowid;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
+.monaco-editow .weview-widget .body .weview-comment .weview-comment-contents .comment-weactions .action-item a.action-wabew.disabwed {
 	opacity: 0.6;
 }
 
-.monaco-editor .review-widget .body .comment-body p,
-.monaco-editor .review-widget .body .comment-body ul {
-	margin: 8px 0;
+.monaco-editow .weview-widget .body .comment-body p,
+.monaco-editow .weview-widget .body .comment-body uw {
+	mawgin: 8px 0;
 }
 
-.monaco-editor .review-widget .body .comment-body p:first-child,
-.monaco-editor .review-widget .body .comment-body ul:first-child {
-	margin-top: 0;
+.monaco-editow .weview-widget .body .comment-body p:fiwst-chiwd,
+.monaco-editow .weview-widget .body .comment-body uw:fiwst-chiwd {
+	mawgin-top: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body p:last-child,
-.monaco-editor .review-widget .body.comment-body ul:last-child {
-	margin-bottom: 0;
+.monaco-editow .weview-widget .body .comment-body p:wast-chiwd,
+.monaco-editow .weview-widget .body.comment-body uw:wast-chiwd {
+	mawgin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body ul {
-	padding-left: 20px;
+.monaco-editow .weview-widget .body .comment-body uw {
+	padding-weft: 20px;
 }
 
-.monaco-editor .review-widget .body .comment-body li > p {
-	margin-bottom: 0;
+.monaco-editow .weview-widget .body .comment-body wi > p {
+	mawgin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body li > ul {
-	margin-top: 0;
+.monaco-editow .weview-widget .body .comment-body wi > uw {
+	mawgin-top: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body code {
-	border-radius: 3px;
+.monaco-editow .weview-widget .body .comment-body code {
+	bowda-wadius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-editor .review-widget .body .comment-body span {
-	white-space: pre;
+.monaco-editow .weview-widget .body .comment-body span {
+	white-space: pwe;
 }
 
-.monaco-editor .review-widget .body .comment-body img {
+.monaco-editow .weview-widget .body .comment-body img {
 	max-width: 100%;
 }
 
-.monaco-editor .review-widget .body .comment-form {
-	margin: 8px 20px;
+.monaco-editow .weview-widget .body .comment-fowm {
+	mawgin: 8px 20px;
 }
 
-.monaco-editor .review-widget .validation-error {
-	display: inline-block;
-	overflow: hidden;
-	text-align: left;
+.monaco-editow .weview-widget .vawidation-ewwow {
+	dispway: inwine-bwock;
+	ovewfwow: hidden;
+	text-awign: weft;
 	width: 100%;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 	padding: 0.4em;
 	font-size: 12px;
-	line-height: 17px;
+	wine-height: 17px;
 	min-height: 34px;
-	margin-top: -1px;
-	margin-left: -1px;
-	word-wrap: break-word;
+	mawgin-top: -1px;
+	mawgin-weft: -1px;
+	wowd-wwap: bweak-wowd;
 }
 
-.monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
-	display: none;
+.monaco-editow .weview-widget .body .comment-fowm.expand .weview-thwead-wepwy-button {
+	dispway: none;
 }
 
-.monaco-editor .review-widget .body .comment-form.expand .monaco-editor,
-.monaco-editor .review-widget .body .comment-form.expand .form-actions {
-	display: block;
+.monaco-editow .weview-widget .body .comment-fowm.expand .monaco-editow,
+.monaco-editow .weview-widget .body .comment-fowm.expand .fowm-actions {
+	dispway: bwock;
 	box-sizing: content-box;
 }
 
-.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {
-	text-align: left;
-	display: block;
+.monaco-editow .weview-widget .body .comment-fowm .weview-thwead-wepwy-button {
+	text-awign: weft;
+	dispway: bwock;
 	width: 100%;
-	resize: vertical;
-	border-radius: 0;
-	box-sizing: border-box;
+	wesize: vewticaw;
+	bowda-wadius: 0;
+	box-sizing: bowda-box;
 	padding: 6px 12px;
 	font-weight: 600;
-	line-height: 20px;
-	white-space: nowrap;
-	border: 0px;
-	outline: 1px solid transparent;
+	wine-height: 20px;
+	white-space: nowwap;
+	bowda: 0px;
+	outwine: 1px sowid twanspawent;
 }
 
-.monaco-editor .review-widget .body .comment-form .review-thread-reply-button:focus {
-	outline-style: solid;
-	outline-width: 1px;
+.monaco-editow .weview-widget .body .comment-fowm .weview-thwead-wepwy-button:focus {
+	outwine-stywe: sowid;
+	outwine-width: 1px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-editor,
-.monaco-editor .review-widget .body .edit-container .monaco-editor {
+.monaco-editow .weview-widget .body .comment-fowm .monaco-editow,
+.monaco-editow .weview-widget .body .edit-containa .monaco-editow {
 	width: 100%;
 	min-height: 90px;
 	max-height: 500px;
-	border-radius: 3px;
-	border: 0px;
+	bowda-wadius: 3px;
+	bowda: 0px;
 	box-sizing: content-box;
 	padding: 6px 0 6px 12px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-editor,
-.monaco-editor .review-widget .body .comment-form .form-actions {
-	display: none;
+.monaco-editow .weview-widget .body .comment-fowm .monaco-editow,
+.monaco-editow .weview-widget .body .comment-fowm .fowm-actions {
+	dispway: none;
 }
 
-.monaco-editor .review-widget .body .comment-form .form-actions,
-.monaco-editor .review-widget .body .edit-container .form-actions {
-	overflow: auto;
+.monaco-editow .weview-widget .body .comment-fowm .fowm-actions,
+.monaco-editow .weview-widget .body .edit-containa .fowm-actions {
+	ovewfwow: auto;
 	padding: 10px 0;
 }
 
-.monaco-editor .review-widget .body .edit-container .form-actions {
-	display: flex;
-	justify-content: flex-end;
+.monaco-editow .weview-widget .body .edit-containa .fowm-actions {
+	dispway: fwex;
+	justify-content: fwex-end;
 }
 
-.monaco-editor .review-widget .body .edit-textarea {
+.monaco-editow .weview-widget .body .edit-textawea {
 	height: 90px;
-	margin: 5px 0 10px 0;
+	mawgin: 5px 0 10px 0;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-text-button,
-.monaco-editor .review-widget .body .edit-container .monaco-text-button {
+.monaco-editow .weview-widget .body .comment-fowm .monaco-text-button,
+.monaco-editow .weview-widget .body .edit-containa .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;
-	margin-left: 5px;
-	margin-bottom: 5px;
+	mawgin-weft: 5px;
+	mawgin-bottom: 5px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-text-button {
-	float: right;
+.monaco-editow .weview-widget .body .comment-fowm .monaco-text-button {
+	fwoat: wight;
 }
 
-.monaco-editor .review-widget .head {
-	box-sizing: border-box;
-	display: flex;
+.monaco-editow .weview-widget .head {
+	box-sizing: bowda-box;
+	dispway: fwex;
 	height: 100%;
 }
 
-.monaco-editor .review-widget .head .review-title {
-	display: inline-block;
+.monaco-editow .weview-widget .head .weview-titwe {
+	dispway: inwine-bwock;
 	font-size: 13px;
-	margin-left: 20px;
-	cursor: default;
+	mawgin-weft: 20px;
+	cuwsow: defauwt;
 }
 
-.monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
+.monaco-editow .weview-widget .head .weview-titwe .diwname:not(:empty) {
 	font-size: 0.9em;
-	margin-left: 0.5em;
+	mawgin-weft: 0.5em;
 }
 
-.monaco-editor .review-widget .head .review-actions {
-	flex: 1;
-	text-align: right;
-	padding-right: 2px;
+.monaco-editow .weview-widget .head .weview-actions {
+	fwex: 1;
+	text-awign: wight;
+	padding-wight: 2px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar {
-	display: inline-block;
+.monaco-editow .weview-widget .head .weview-actions > .monaco-action-baw {
+	dispway: inwine-bwock;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar,
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar > .actions-container {
+.monaco-editow .weview-widget .head .weview-actions > .monaco-action-baw,
+.monaco-editow .weview-widget .head .weview-actions > .monaco-action-baw > .actions-containa {
 	height: 100%;
 }
 
-.monaco-editor .review-widget .action-item {
+.monaco-editow .weview-widget .action-item {
 	min-width: 18px;
 	min-height: 20px;
-	margin-left: 4px;
+	mawgin-weft: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label {
+.monaco-editow .weview-widget .head .weview-actions > .monaco-action-baw .action-wabew {
 	width: 16px;
 	height: 100%;
-	margin: 0;
-	line-height: inherit;
-	background-repeat: no-repeat;
-	background-position: center center;
+	mawgin: 0;
+	wine-height: inhewit;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: centa centa;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
-	margin: 0;
+.monaco-editow .weview-widget .head .weview-actions > .monaco-action-baw .action-wabew.codicon {
+	mawgin: 0;
 }
 
-.monaco-editor .review-widget > .body {
-	border-top: 1px solid;
-	position: relative;
+.monaco-editow .weview-widget > .body {
+	bowda-top: 1px sowid;
+	position: wewative;
 }
 
-.monaco-editor .comment-range-glyph {
-	margin-left: 5px;
-	width: 4px !important;
-	cursor: pointer;
+.monaco-editow .comment-wange-gwyph {
+	mawgin-weft: 5px;
+	width: 4px !impowtant;
+	cuwsow: pointa;
 	z-index: 10;
 }
 
-div.preview.inline .monaco-editor .comment-range-glyph {
-	display: none !important;
+div.pweview.inwine .monaco-editow .comment-wange-gwyph {
+	dispway: none !impowtant;
 }
 
-.monaco-editor .comment-range-glyph:before {
-	position: absolute;
+.monaco-editow .comment-wange-gwyph:befowe {
+	position: absowute;
 	content: "";
 	height: 100%;
 	width: 0;
-	left: -2px;
-	transition: width 80ms linear, left 80ms linear;
+	weft: -2px;
+	twansition: width 80ms wineaw, weft 80ms wineaw;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
-.monaco-editor .comment-range-glyph.comment-thread:before {
-	position: absolute;
+.monaco-editow .mawgin-view-ovewways > div:hova > .comment-wange-gwyph.comment-diff-added:befowe,
+.monaco-editow .comment-wange-gwyph.comment-thwead:befowe {
+	position: absowute;
 	height: 100%;
 	width: 9px;
-	left: -6px;
+	weft: -6px;
 	z-index: 10;
-	color: black;
-	text-align: center;
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
+	cowow: bwack;
+	text-awign: centa;
+	dispway: fwex;
+	fwex-diwection: wow;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before {
+.monaco-editow .mawgin-view-ovewways > div:hova > .comment-wange-gwyph.comment-diff-added:befowe {
 	content: "+";
 }
 
-.monaco-editor .comment-range-glyph.comment-thread {
+.monaco-editow .comment-wange-gwyph.comment-thwead {
 	z-index: 20;
 }
 
-.monaco-editor .comment-range-glyph.comment-thread:before {
+.monaco-editow .comment-wange-gwyph.comment-thwead:befowe {
 	content: "◆";
 	font-size: 10px;
-	line-height: 100%;
+	wine-height: 100%;
 	z-index: 20;
 }
 
-.monaco-editor.inline-comment .margin-view-overlays .folding {
-	margin-left: 7px;
+.monaco-editow.inwine-comment .mawgin-view-ovewways .fowding {
+	mawgin-weft: 7px;
 }
 
-.monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
-	margin-left: 14px;
+.monaco-editow.inwine-comment .mawgin-view-ovewways .diwty-diff-gwyph {
+	mawgin-weft: 14px;
 }

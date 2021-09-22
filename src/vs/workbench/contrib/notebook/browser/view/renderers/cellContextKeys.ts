@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, INotebookEditorDelegate, NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { CewwEditState, CewwFocusMode, CewwViewModewStateChangeEvent, INotebookEditowDewegate, NotebookCewwExecutionStateContext, NOTEBOOK_CEWW_EDITABWE, NOTEBOOK_CEWW_EDITOW_FOCUSED, NOTEBOOK_CEWW_EXECUTING, NOTEBOOK_CEWW_EXECUTION_STATE, NOTEBOOK_CEWW_FOCUSED, NOTEBOOK_CEWW_HAS_OUTPUTS, NOTEBOOK_CEWW_INPUT_COWWAPSED, NOTEBOOK_CEWW_WINE_NUMBEWS, NOTEBOOK_CEWW_MAWKDOWN_EDIT_MODE, NOTEBOOK_CEWW_OUTPUT_COWWAPSED, NOTEBOOK_CEWW_TYPE } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { MawkupCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/mawkupCewwViewModew';
+impowt { NotebookCewwExecutionState } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export class CellContextKeyManager extends Disposable {
+expowt cwass CewwContextKeyManaga extends Disposabwe {
 
-	private cellType!: IContextKey<'code' | 'markup'>;
-	private cellEditable!: IContextKey<boolean>;
-	private cellFocused!: IContextKey<boolean>;
-	private cellEditorFocused!: IContextKey<boolean>;
-	private cellRunState!: IContextKey<NotebookCellExecutionStateContext>;
-	private cellExecuting!: IContextKey<boolean>;
-	private cellHasOutputs!: IContextKey<boolean>;
-	private cellContentCollapsed!: IContextKey<boolean>;
-	private cellOutputCollapsed!: IContextKey<boolean>;
-	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
+	pwivate cewwType!: IContextKey<'code' | 'mawkup'>;
+	pwivate cewwEditabwe!: IContextKey<boowean>;
+	pwivate cewwFocused!: IContextKey<boowean>;
+	pwivate cewwEditowFocused!: IContextKey<boowean>;
+	pwivate cewwWunState!: IContextKey<NotebookCewwExecutionStateContext>;
+	pwivate cewwExecuting!: IContextKey<boowean>;
+	pwivate cewwHasOutputs!: IContextKey<boowean>;
+	pwivate cewwContentCowwapsed!: IContextKey<boowean>;
+	pwivate cewwOutputCowwapsed!: IContextKey<boowean>;
+	pwivate cewwWineNumbews!: IContextKey<'on' | 'off' | 'inhewit'>;
 
-	private markdownEditMode!: IContextKey<boolean>;
+	pwivate mawkdownEditMode!: IContextKey<boowean>;
 
-	private readonly elementDisposables = this._register(new DisposableStore());
+	pwivate weadonwy ewementDisposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		private readonly contextKeyService: IContextKeyService,
-		private readonly notebookEditor: INotebookEditorDelegate,
-		private element: CodeCellViewModel | MarkupCellViewModel
+	constwuctow(
+		pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		pwivate weadonwy notebookEditow: INotebookEditowDewegate,
+		pwivate ewement: CodeCewwViewModew | MawkupCewwViewModew
 	) {
-		super();
+		supa();
 
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this.contextKeyService);
-			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
-			this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this.contextKeyService);
-			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this.contextKeyService);
-			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
-			this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this.contextKeyService);
-			this.cellExecuting = NOTEBOOK_CELL_EXECUTING.bindTo(this.contextKeyService);
-			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
-			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
-			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
-			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this.contextKeyService);
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			this.cewwType = NOTEBOOK_CEWW_TYPE.bindTo(this.contextKeySewvice);
+			this.cewwEditabwe = NOTEBOOK_CEWW_EDITABWE.bindTo(this.contextKeySewvice);
+			this.cewwFocused = NOTEBOOK_CEWW_FOCUSED.bindTo(this.contextKeySewvice);
+			this.cewwEditowFocused = NOTEBOOK_CEWW_EDITOW_FOCUSED.bindTo(this.contextKeySewvice);
+			this.mawkdownEditMode = NOTEBOOK_CEWW_MAWKDOWN_EDIT_MODE.bindTo(this.contextKeySewvice);
+			this.cewwWunState = NOTEBOOK_CEWW_EXECUTION_STATE.bindTo(this.contextKeySewvice);
+			this.cewwExecuting = NOTEBOOK_CEWW_EXECUTING.bindTo(this.contextKeySewvice);
+			this.cewwHasOutputs = NOTEBOOK_CEWW_HAS_OUTPUTS.bindTo(this.contextKeySewvice);
+			this.cewwContentCowwapsed = NOTEBOOK_CEWW_INPUT_COWWAPSED.bindTo(this.contextKeySewvice);
+			this.cewwOutputCowwapsed = NOTEBOOK_CEWW_OUTPUT_COWWAPSED.bindTo(this.contextKeySewvice);
+			this.cewwWineNumbews = NOTEBOOK_CEWW_WINE_NUMBEWS.bindTo(this.contextKeySewvice);
 
-			this.updateForElement(element);
+			this.updateFowEwement(ewement);
 		});
 	}
 
-	public updateForElement(element: MarkupCellViewModel | CodeCellViewModel) {
-		this.elementDisposables.clear();
-		this.elementDisposables.add(element.onDidChangeState(e => this.onDidChangeState(e)));
+	pubwic updateFowEwement(ewement: MawkupCewwViewModew | CodeCewwViewModew) {
+		this.ewementDisposabwes.cweaw();
+		this.ewementDisposabwes.add(ewement.onDidChangeState(e => this.onDidChangeState(e)));
 
-		if (element instanceof CodeCellViewModel) {
-			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
+		if (ewement instanceof CodeCewwViewModew) {
+			this.ewementDisposabwes.add(ewement.onDidChangeOutputs(() => this.updateFowOutputs()));
 		}
 
-		this.elementDisposables.add(element.model.onDidChangeMetadata(() => this.updateForCollapseState()));
-		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
+		this.ewementDisposabwes.add(ewement.modew.onDidChangeMetadata(() => this.updateFowCowwapseState()));
+		this.ewementDisposabwes.add(this.notebookEditow.onDidChangeActiveCeww(() => this.updateFowFocusState()));
 
-		this.element = element;
-		if (this.element instanceof MarkupCellViewModel) {
-			this.cellType.set('markup');
-		} else if (this.element instanceof CodeCellViewModel) {
-			this.cellType.set('code');
+		this.ewement = ewement;
+		if (this.ewement instanceof MawkupCewwViewModew) {
+			this.cewwType.set('mawkup');
+		} ewse if (this.ewement instanceof CodeCewwViewModew) {
+			this.cewwType.set('code');
 		}
 
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.updateForFocusState();
-			this.updateForInternalMetadata();
-			this.updateForEditState();
-			this.updateForCollapseState();
-			this.updateForOutputs();
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			this.updateFowFocusState();
+			this.updateFowIntewnawMetadata();
+			this.updateFowEditState();
+			this.updateFowCowwapseState();
+			this.updateFowOutputs();
 
-			this.cellLineNumbers.set(this.element.lineNumbers);
+			this.cewwWineNumbews.set(this.ewement.wineNumbews);
 		});
 	}
 
-	private onDidChangeState(e: CellViewModelStateChangeEvent) {
-		this.contextKeyService.bufferChangeEvents(() => {
-			if (e.internalMetadataChanged) {
-				this.updateForInternalMetadata();
+	pwivate onDidChangeState(e: CewwViewModewStateChangeEvent) {
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			if (e.intewnawMetadataChanged) {
+				this.updateFowIntewnawMetadata();
 			}
 
 			if (e.editStateChanged) {
-				this.updateForEditState();
+				this.updateFowEditState();
 			}
 
 			if (e.focusModeChanged) {
-				this.updateForFocusState();
+				this.updateFowFocusState();
 			}
 
-			if (e.cellLineNumberChanged) {
-				this.cellLineNumbers.set(this.element.lineNumbers);
+			if (e.cewwWineNumbewChanged) {
+				this.cewwWineNumbews.set(this.ewement.wineNumbews);
 			}
 
-			// if (e.collapseStateChanged) {
-			// 	this.updateForCollapseState();
+			// if (e.cowwapseStateChanged) {
+			// 	this.updateFowCowwapseState();
 			// }
 		});
 	}
 
-	private updateForFocusState() {
-		const activeCell = this.notebookEditor.getActiveCell();
-		this.cellFocused.set(this.notebookEditor.getActiveCell() === this.element);
+	pwivate updateFowFocusState() {
+		const activeCeww = this.notebookEditow.getActiveCeww();
+		this.cewwFocused.set(this.notebookEditow.getActiveCeww() === this.ewement);
 
-		if (activeCell === this.element) {
-			this.cellEditorFocused.set(this.element.focusMode === CellFocusMode.Editor);
-		} else {
-			this.cellEditorFocused.set(false);
+		if (activeCeww === this.ewement) {
+			this.cewwEditowFocused.set(this.ewement.focusMode === CewwFocusMode.Editow);
+		} ewse {
+			this.cewwEditowFocused.set(fawse);
 		}
 
 	}
 
-	private updateForInternalMetadata() {
-		const internalMetadata = this.element.internalMetadata;
-		this.cellEditable.set(!this.notebookEditor.isReadOnly);
+	pwivate updateFowIntewnawMetadata() {
+		const intewnawMetadata = this.ewement.intewnawMetadata;
+		this.cewwEditabwe.set(!this.notebookEditow.isWeadOnwy);
 
-		const runState = internalMetadata.runState;
-		if (this.element instanceof MarkupCellViewModel) {
-			this.cellRunState.reset();
-			this.cellExecuting.reset();
-		} else if (runState === NotebookCellExecutionState.Executing) {
-			this.cellRunState.set('executing');
-			this.cellExecuting.set(true);
-		} else if (runState === NotebookCellExecutionState.Pending) {
-			this.cellRunState.set('pending');
-			this.cellExecuting.set(true);
-		} else if (internalMetadata.lastRunSuccess === true) {
-			this.cellRunState.set('succeeded');
-			this.cellExecuting.set(false);
-		} else if (internalMetadata.lastRunSuccess === false) {
-			this.cellRunState.set('failed');
-			this.cellExecuting.set(false);
-		} else {
-			this.cellRunState.set('idle');
-			this.cellExecuting.set(false);
+		const wunState = intewnawMetadata.wunState;
+		if (this.ewement instanceof MawkupCewwViewModew) {
+			this.cewwWunState.weset();
+			this.cewwExecuting.weset();
+		} ewse if (wunState === NotebookCewwExecutionState.Executing) {
+			this.cewwWunState.set('executing');
+			this.cewwExecuting.set(twue);
+		} ewse if (wunState === NotebookCewwExecutionState.Pending) {
+			this.cewwWunState.set('pending');
+			this.cewwExecuting.set(twue);
+		} ewse if (intewnawMetadata.wastWunSuccess === twue) {
+			this.cewwWunState.set('succeeded');
+			this.cewwExecuting.set(fawse);
+		} ewse if (intewnawMetadata.wastWunSuccess === fawse) {
+			this.cewwWunState.set('faiwed');
+			this.cewwExecuting.set(fawse);
+		} ewse {
+			this.cewwWunState.set('idwe');
+			this.cewwExecuting.set(fawse);
 		}
 	}
 
-	private updateForEditState() {
-		if (this.element instanceof MarkupCellViewModel) {
-			this.markdownEditMode.set(this.element.getEditState() === CellEditState.Editing);
-		} else {
-			this.markdownEditMode.set(false);
+	pwivate updateFowEditState() {
+		if (this.ewement instanceof MawkupCewwViewModew) {
+			this.mawkdownEditMode.set(this.ewement.getEditState() === CewwEditState.Editing);
+		} ewse {
+			this.mawkdownEditMode.set(fawse);
 		}
 	}
 
-	private updateForCollapseState() {
-		this.cellContentCollapsed.set(!!this.element.metadata.inputCollapsed);
-		this.cellOutputCollapsed.set(!!this.element.metadata.outputCollapsed);
+	pwivate updateFowCowwapseState() {
+		this.cewwContentCowwapsed.set(!!this.ewement.metadata.inputCowwapsed);
+		this.cewwOutputCowwapsed.set(!!this.ewement.metadata.outputCowwapsed);
 	}
 
-	private updateForOutputs() {
-		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasOutputs.set(this.element.outputsViewModels.length > 0);
-		} else {
-			this.cellHasOutputs.set(false);
+	pwivate updateFowOutputs() {
+		if (this.ewement instanceof CodeCewwViewModew) {
+			this.cewwHasOutputs.set(this.ewement.outputsViewModews.wength > 0);
+		} ewse {
+			this.cewwHasOutputs.set(fawse);
 		}
 	}
 }

@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.win'; // 40%
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/es-latin.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-in.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-uk.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/fr.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pt-br.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/es.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-intl.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ru.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pl.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/it.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/sv.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/tr.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/pt.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/dk.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/no.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/thai.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/hu.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de-swiss.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en-belgian.win';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/cz.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en.win'; // 40%
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/es-watin.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-in.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/de.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-uk.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/fw.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/pt-bw.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/es.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-intw.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wu.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/pw.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/it.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/sv.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/tw.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/pt.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/dk.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/no.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/thai.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/hu.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/de-swiss.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en-bewgian.win';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/cz.win';
 
-export { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+expowt { KeyboawdWayoutContwibution } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/_.contwibution';

@@ -1,25 +1,25 @@
 {
-  "name": "typescript-language-features",
-  "description": "%description%",
-  "displayName": "%displayName%",
-  "version": "1.0.0",
-  "author": "vscode",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "typescwipt-wanguage-featuwes",
+  "descwiption": "%descwiption%",
+  "dispwayName": "%dispwayName%",
+  "vewsion": "1.0.0",
+  "authow": "vscode",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
-  "capabilities": {
-    "virtualWorkspaces": {
-      "supported": "limited",
-      "description": "%virtualWorkspaces%"
+  "enabwePwoposedApi": twue,
+  "capabiwities": {
+    "viwtuawWowkspaces": {
+      "suppowted": "wimited",
+      "descwiption": "%viwtuawWowkspaces%"
     },
-    "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "typescript.tsdk",
-        "typescript.tsserver.pluginPaths",
-        "typescript.npm"
+    "untwustedWowkspaces": {
+      "suppowted": "wimited",
+      "descwiption": "%wowkspaceTwust%",
+      "westwictedConfiguwations": [
+        "typescwipt.tsdk",
+        "typescwipt.tssewva.pwuginPaths",
+        "typescwipt.npm"
       ]
     }
   },
@@ -27,1341 +27,1341 @@
     "vscode": "^1.30.0"
   },
   "icon": "media/icon.png",
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
   "dependencies": {
-    "jsonc-parser": "^2.2.1",
-    "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.7.3",
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-nls": "^5.0.0"
+    "jsonc-pawsa": "^2.2.1",
+    "semva": "5.5.1",
+    "typescwipt-vscode-sh-pwugin": "^0.7.3",
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-nws": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "14.x",
-    "@types/semver": "^5.5.0"
+    "@types/semva": "^5.5.0"
   },
-  "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  "scwipts": {
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:typescwipt-wanguage-featuwes",
+    "compiwe-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none",
+    "watch-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none --watch --info-vewbosity vewbose"
   },
   "activationEvents": [
-    "onLanguage:javascript",
-    "onLanguage:javascriptreact",
-    "onLanguage:typescript",
-    "onLanguage:typescriptreact",
-    "onLanguage:jsx-tags",
-    "onCommand:typescript.reloadProjects",
-    "onCommand:javascript.reloadProjects",
-    "onCommand:typescript.selectTypeScriptVersion",
-    "onCommand:javascript.goToProjectConfig",
-    "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog",
-    "onCommand:workbench.action.tasks.runTask",
-    "onCommand:_typescript.configurePlugin",
-    "onCommand:_typescript.learnMoreAboutRefactorings",
-    "onCommand:typescript.fileReferences",
-    "onLanguage:jsonc"
+    "onWanguage:javascwipt",
+    "onWanguage:javascwiptweact",
+    "onWanguage:typescwipt",
+    "onWanguage:typescwiptweact",
+    "onWanguage:jsx-tags",
+    "onCommand:typescwipt.wewoadPwojects",
+    "onCommand:javascwipt.wewoadPwojects",
+    "onCommand:typescwipt.sewectTypeScwiptVewsion",
+    "onCommand:javascwipt.goToPwojectConfig",
+    "onCommand:typescwipt.goToPwojectConfig",
+    "onCommand:typescwipt.openTsSewvewWog",
+    "onCommand:wowkbench.action.tasks.wunTask",
+    "onCommand:_typescwipt.configuwePwugin",
+    "onCommand:_typescwipt.weawnMoweAboutWefactowings",
+    "onCommand:typescwipt.fiweWefewences",
+    "onWanguage:jsonc"
   ],
   "main": "./out/extension",
-  "browser": "./dist/browser/extension",
-  "contributes": {
-    "jsonValidation": [
+  "bwowsa": "./dist/bwowsa/extension",
+  "contwibutes": {
+    "jsonVawidation": [
       {
-        "fileMatch": "package.json",
-        "url": "./schemas/package.schema.json"
+        "fiweMatch": "package.json",
+        "uww": "./schemas/package.schema.json"
       },
       {
-        "fileMatch": "tsconfig.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "fiweMatch": "tsconfig.json",
+        "uww": "https://json.schemastowe.owg/tsconfig"
       },
       {
-        "fileMatch": "tsconfig.json",
-        "url": "./schemas/tsconfig.schema.json"
+        "fiweMatch": "tsconfig.json",
+        "uww": "./schemas/tsconfig.schema.json"
       },
       {
-        "fileMatch": "tsconfig.*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "fiweMatch": "tsconfig.*.json",
+        "uww": "https://json.schemastowe.owg/tsconfig"
       },
       {
-        "fileMatch": "tsconfig-*.json",
-        "url": "./schemas/tsconfig.schema.json"
+        "fiweMatch": "tsconfig-*.json",
+        "uww": "./schemas/tsconfig.schema.json"
       },
       {
-        "fileMatch": "tsconfig-*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "fiweMatch": "tsconfig-*.json",
+        "uww": "https://json.schemastowe.owg/tsconfig"
       },
       {
-        "fileMatch": "tsconfig.*.json",
-        "url": "./schemas/tsconfig.schema.json"
+        "fiweMatch": "tsconfig.*.json",
+        "uww": "./schemas/tsconfig.schema.json"
       },
       {
-        "fileMatch": "typings.json",
-        "url": "https://json.schemastore.org/typings"
+        "fiweMatch": "typings.json",
+        "uww": "https://json.schemastowe.owg/typings"
       },
       {
-        "fileMatch": ".bowerrc",
-        "url": "https://json.schemastore.org/bowerrc"
+        "fiweMatch": ".bowewwc",
+        "uww": "https://json.schemastowe.owg/bowewwc"
       },
       {
-        "fileMatch": ".babelrc",
-        "url": "https://json.schemastore.org/babelrc"
+        "fiweMatch": ".babewwc",
+        "uww": "https://json.schemastowe.owg/babewwc"
       },
       {
-        "fileMatch": ".babelrc.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "fiweMatch": ".babewwc.json",
+        "uww": "https://json.schemastowe.owg/babewwc"
       },
       {
-        "fileMatch": "babel.config.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "fiweMatch": "babew.config.json",
+        "uww": "https://json.schemastowe.owg/babewwc"
       },
       {
-        "fileMatch": "jsconfig.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "fiweMatch": "jsconfig.json",
+        "uww": "https://json.schemastowe.owg/jsconfig"
       },
       {
-        "fileMatch": "jsconfig.json",
-        "url": "./schemas/jsconfig.schema.json"
+        "fiweMatch": "jsconfig.json",
+        "uww": "./schemas/jsconfig.schema.json"
       },
       {
-        "fileMatch": "jsconfig.*.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "fiweMatch": "jsconfig.*.json",
+        "uww": "https://json.schemastowe.owg/jsconfig"
       },
       {
-        "fileMatch": "jsconfig.*.json",
-        "url": "./schemas/jsconfig.schema.json"
+        "fiweMatch": "jsconfig.*.json",
+        "uww": "./schemas/jsconfig.schema.json"
       }
     ],
-    "configuration": {
+    "configuwation": {
       "type": "object",
-      "title": "%configuration.typescript%",
-      "order": 20,
-      "properties": {
-        "typescript.tsdk": {
-          "type": "string",
-          "markdownDescription": "%typescript.tsdk.desc%",
+      "titwe": "%configuwation.typescwipt%",
+      "owda": 20,
+      "pwopewties": {
+        "typescwipt.tsdk": {
+          "type": "stwing",
+          "mawkdownDescwiption": "%typescwipt.tsdk.desc%",
           "scope": "window"
         },
-        "typescript.disableAutomaticTypeAcquisition": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%typescript.disableAutomaticTypeAcquisition%",
+        "typescwipt.disabweAutomaticTypeAcquisition": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%typescwipt.disabweAutomaticTypeAcquisition%",
           "scope": "window",
           "tags": [
-            "usesOnlineServices"
+            "usesOnwineSewvices"
           ]
         },
-        "typescript.enablePromptUseWorkspaceTsdk": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.enablePromptUseWorkspaceTsdk%",
+        "typescwipt.enabwePwomptUseWowkspaceTsdk": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%typescwipt.enabwePwomptUseWowkspaceTsdk%",
           "scope": "window"
         },
-        "typescript.npm": {
-          "type": "string",
-          "markdownDescription": "%typescript.npm%",
+        "typescwipt.npm": {
+          "type": "stwing",
+          "mawkdownDescwiption": "%typescwipt.npm%",
           "scope": "machine"
         },
-        "typescript.check.npmIsInstalled": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%typescript.check.npmIsInstalled%",
+        "typescwipt.check.npmIsInstawwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%typescwipt.check.npmIsInstawwed%",
           "scope": "window"
         },
-        "javascript.referencesCodeLens.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%javascript.referencesCodeLens.enabled%",
+        "javascwipt.wefewencesCodeWens.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%javascwipt.wefewencesCodeWens.enabwed%",
           "scope": "window"
         },
-        "javascript.referencesCodeLens.showOnAllFunctions": {
-          "type": "boolean",
-          "default": false,
-          "description": "%javascript.referencesCodeLens.showOnAllFunctions%",
+        "javascwipt.wefewencesCodeWens.showOnAwwFunctions": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%javascwipt.wefewencesCodeWens.showOnAwwFunctions%",
           "scope": "window"
         },
-        "typescript.referencesCodeLens.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.referencesCodeLens.enabled%",
+        "typescwipt.wefewencesCodeWens.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%typescwipt.wefewencesCodeWens.enabwed%",
           "scope": "window"
         },
-        "typescript.referencesCodeLens.showOnAllFunctions": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
+        "typescwipt.wefewencesCodeWens.showOnAwwFunctions": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%typescwipt.wefewencesCodeWens.showOnAwwFunctions%",
           "scope": "window"
         },
-        "typescript.implementationsCodeLens.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.implementationsCodeLens.enabled%",
+        "typescwipt.impwementationsCodeWens.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%typescwipt.impwementationsCodeWens.enabwed%",
           "scope": "window"
         },
-        "typescript.tsserver.enableTracing": {
-          "type": "boolean",
-          "default": false,
-          "description": "%typescript.tsserver.enableTracing%",
+        "typescwipt.tssewva.enabweTwacing": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%typescwipt.tssewva.enabweTwacing%",
           "scope": "window"
         },
-        "typescript.tsserver.log": {
-          "type": "string",
+        "typescwipt.tssewva.wog": {
+          "type": "stwing",
           "enum": [
             "off",
-            "terse",
-            "normal",
-            "verbose"
+            "tewse",
+            "nowmaw",
+            "vewbose"
           ],
-          "default": "off",
-          "description": "%typescript.tsserver.log%",
+          "defauwt": "off",
+          "descwiption": "%typescwipt.tssewva.wog%",
           "scope": "window"
         },
-        "typescript.tsserver.pluginPaths": {
-          "type": "array",
+        "typescwipt.tssewva.pwuginPaths": {
+          "type": "awway",
           "items": {
-            "type": "string",
-            "description": "%typescript.tsserver.pluginPaths.item%"
+            "type": "stwing",
+            "descwiption": "%typescwipt.tssewva.pwuginPaths.item%"
           },
-          "default": [],
-          "description": "%typescript.tsserver.pluginPaths%",
+          "defauwt": [],
+          "descwiption": "%typescwipt.tssewva.pwuginPaths%",
           "scope": "machine"
         },
-        "typescript.tsserver.trace": {
-          "type": "string",
+        "typescwipt.tssewva.twace": {
+          "type": "stwing",
           "enum": [
             "off",
             "messages",
-            "verbose"
+            "vewbose"
           ],
-          "default": "off",
-          "description": "%typescript.tsserver.trace%",
+          "defauwt": "off",
+          "descwiption": "%typescwipt.tssewva.twace%",
           "scope": "window"
         },
-        "javascript.suggest.completeFunctionCalls": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.suggest.completeFunctionCalls%",
-          "scope": "resource"
+        "javascwipt.suggest.compweteFunctionCawws": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%configuwation.suggest.compweteFunctionCawws%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.completeFunctionCalls": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.suggest.completeFunctionCalls%",
-          "scope": "resource"
+        "typescwipt.suggest.compweteFunctionCawws": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%configuwation.suggest.compweteFunctionCawws%",
+          "scope": "wesouwce"
         },
-        "javascript.suggest.includeAutomaticOptionalChainCompletions": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
-          "scope": "resource"
+        "javascwipt.suggest.incwudeAutomaticOptionawChainCompwetions": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.incwudeAutomaticOptionawChainCompwetions%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.includeAutomaticOptionalChainCompletions": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
-          "scope": "resource"
+        "typescwipt.suggest.incwudeAutomaticOptionawChainCompwetions": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.incwudeAutomaticOptionawChainCompwetions%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.parameterNames.enabled": {
-          "type": "string",
+        "typescwipt.inwayHints.pawametewNames.enabwed": {
+          "type": "stwing",
           "enum": [
             "none",
-            "literals",
-            "all"
+            "witewaws",
+            "aww"
           ],
-          "enumDescriptions": [
-            "%inlayHints.parameterNames.none%",
-            "%inlayHints.parameterNames.literals%",
-            "%inlayHints.parameterNames.all%"
+          "enumDescwiptions": [
+            "%inwayHints.pawametewNames.none%",
+            "%inwayHints.pawametewNames.witewaws%",
+            "%inwayHints.pawametewNames.aww%"
           ],
-          "default": "none",
-          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
-          "scope": "resource"
+          "defauwt": "none",
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewNames.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
-          "scope": "resource"
+        "typescwipt.inwayHints.pawametewNames.suppwessWhenAwgumentMatchesName": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewNames.suppwessWhenAwgumentMatchesName%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.parameterTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
-          "scope": "resource"
+        "typescwipt.inwayHints.pawametewTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.variableTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
-          "scope": "resource"
+        "typescwipt.inwayHints.vawiabweTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.vawiabweTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.propertyDeclarationTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
-          "scope": "resource"
+        "typescwipt.inwayHints.pwopewtyDecwawationTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pwopewtyDecwawationTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.functionLikeReturnTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
-          "scope": "resource"
+        "typescwipt.inwayHints.functionWikeWetuwnTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.functionWikeWetuwnTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.inlayHints.enumMemberValues.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-          "scope": "resource"
+        "typescwipt.inwayHints.enumMembewVawues.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.enumMembewVawues.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.parameterNames.enabled": {
-          "type": "string",
+        "javascwipt.inwayHints.pawametewNames.enabwed": {
+          "type": "stwing",
           "enum": [
             "none",
-            "literals",
-            "all"
+            "witewaws",
+            "aww"
           ],
-          "enumDescriptions": [
-            "%inlayHints.parameterNames.none%",
-            "%inlayHints.parameterNames.literals%",
-            "%inlayHints.parameterNames.all%"
+          "enumDescwiptions": [
+            "%inwayHints.pawametewNames.none%",
+            "%inwayHints.pawametewNames.witewaws%",
+            "%inwayHints.pawametewNames.aww%"
           ],
-          "default": "none",
-          "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
-          "scope": "resource"
+          "defauwt": "none",
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewNames.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
-          "scope": "resource"
+        "javascwipt.inwayHints.pawametewNames.suppwessWhenAwgumentMatchesName": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewNames.suppwessWhenAwgumentMatchesName%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.parameterTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
-          "scope": "resource"
+        "javascwipt.inwayHints.pawametewTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pawametewTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.variableTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
-          "scope": "resource"
+        "javascwipt.inwayHints.vawiabweTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.vawiabweTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.propertyDeclarationTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
-          "scope": "resource"
+        "javascwipt.inwayHints.pwopewtyDecwawationTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.pwopewtyDecwawationTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.functionLikeReturnTypes.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
-          "scope": "resource"
+        "javascwipt.inwayHints.functionWikeWetuwnTypes.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.functionWikeWetuwnTypes.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.inlayHints.enumMemberValues.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-          "scope": "resource"
+        "javascwipt.inwayHints.enumMembewVawues.enabwed": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.inwayHints.enumMembewVawues.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.suggest.includeCompletionsForImportStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
-          "scope": "resource"
+        "javascwipt.suggest.incwudeCompwetionsFowImpowtStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.incwudeCompwetionsFowImpowtStatements%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.includeCompletionsForImportStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
-          "scope": "resource"
+        "typescwipt.suggest.incwudeCompwetionsFowImpowtStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.incwudeCompwetionsFowImpowtStatements%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.includeCompletionsWithSnippetText": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.includeCompletionsWithSnippetText%",
-          "scope": "resource"
+        "typescwipt.suggest.incwudeCompwetionsWithSnippetText": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.incwudeCompwetionsWithSnippetText%",
+          "scope": "wesouwce"
         },
-        "typescript.reportStyleChecksAsWarnings": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.reportStyleChecksAsWarnings%",
+        "typescwipt.wepowtStyweChecksAsWawnings": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.wepowtStyweChecksAsWawnings%",
           "scope": "window"
         },
-        "typescript.validate.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.validate.enable%",
+        "typescwipt.vawidate.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.vawidate.enabwe%",
           "scope": "window"
         },
-        "typescript.format.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.format.enable%",
+        "typescwipt.fowmat.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.fowmat.enabwe%",
           "scope": "window"
         },
-        "typescript.format.insertSpaceAfterCommaDelimiter": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterCommaDelimiter%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewCommaDewimita": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewCommaDewimita%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterConstructor": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterConstructor%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewConstwuctow": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewConstwuctow%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterSemicolonInForStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterSemicolonInForStatements%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewSemicowonInFowStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewSemicowonInFowStatements%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceBeforeAndAfterBinaryOperators": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceBefoweAndAftewBinawyOpewatows": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceBefoweAndAftewBinawyOpewatows%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewKeywowdsInContwowFwowStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewKeywowdsInContwowFwowStatements%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceBeforeFunctionParenthesis": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceBeforeFunctionParenthesis%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceBefoweFunctionPawenthesis": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceBefoweFunctionPawenthesis%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces%",
+          "scope": "wesouwce"
         },
-        "typescript.format.insertSpaceAfterTypeAssertion": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterTypeAssertion%",
-          "scope": "resource"
+        "typescwipt.fowmat.insewtSpaceAftewTypeAssewtion": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewTypeAssewtion%",
+          "scope": "wesouwce"
         },
-        "typescript.format.placeOpenBraceOnNewLineForFunctions": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForFunctions%",
-          "scope": "resource"
+        "typescwipt.fowmat.pwaceOpenBwaceOnNewWineFowFunctions": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.pwaceOpenBwaceOnNewWineFowFunctions%",
+          "scope": "wesouwce"
         },
-        "typescript.format.placeOpenBraceOnNewLineForControlBlocks": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
-          "scope": "resource"
+        "typescwipt.fowmat.pwaceOpenBwaceOnNewWineFowContwowBwocks": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.pwaceOpenBwaceOnNewWineFowContwowBwocks%",
+          "scope": "wesouwce"
         },
-        "typescript.format.semicolons": {
-          "type": "string",
-          "default": "ignore",
-          "description": "%format.semicolons%",
-          "scope": "resource",
+        "typescwipt.fowmat.semicowons": {
+          "type": "stwing",
+          "defauwt": "ignowe",
+          "descwiption": "%fowmat.semicowons%",
+          "scope": "wesouwce",
           "enum": [
-            "ignore",
-            "insert",
-            "remove"
+            "ignowe",
+            "insewt",
+            "wemove"
           ],
-          "enumDescriptions": [
-            "%format.semicolons.ignore%",
-            "%format.semicolons.insert%",
-            "%format.semicolons.remove%"
+          "enumDescwiptions": [
+            "%fowmat.semicowons.ignowe%",
+            "%fowmat.semicowons.insewt%",
+            "%fowmat.semicowons.wemove%"
           ]
         },
-        "javascript.validate.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%javascript.validate.enable%",
+        "javascwipt.vawidate.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%javascwipt.vawidate.enabwe%",
           "scope": "window"
         },
-        "javascript.format.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "%javascript.format.enable%",
+        "javascwipt.fowmat.enabwe": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%javascwipt.fowmat.enabwe%",
           "scope": "window"
         },
-        "javascript.format.insertSpaceAfterCommaDelimiter": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterCommaDelimiter%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewCommaDewimita": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewCommaDewimita%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterConstructor": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterConstructor%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewConstwuctow": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewConstwuctow%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterSemicolonInForStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterSemicolonInForStatements%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewSemicowonInFowStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewSemicowonInFowStatements%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceBeforeAndAfterBinaryOperators": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceBefoweAndAftewBinawyOpewatows": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceBefoweAndAftewBinawyOpewatows%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterKeywordsInControlFlowStatements": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewKeywowdsInContwowFwowStatements": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewKeywowdsInContwowFwowStatements%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceBeforeFunctionParenthesis": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceBeforeFunctionParenthesis%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceBefoweFunctionPawenthesis": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceBefoweFunctionPawenthesis%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": {
-          "type": "boolean",
-          "default": true,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingEmptyBwaces%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces%",
+          "scope": "wesouwce"
         },
-        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%",
-          "scope": "resource"
+        "javascwipt.fowmat.insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.insewtSpaceAftewOpeningAndBefoweCwosingJsxExpwessionBwaces%",
+          "scope": "wesouwce"
         },
-        "javascript.format.placeOpenBraceOnNewLineForFunctions": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForFunctions%",
-          "scope": "resource"
+        "javascwipt.fowmat.pwaceOpenBwaceOnNewWineFowFunctions": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.pwaceOpenBwaceOnNewWineFowFunctions%",
+          "scope": "wesouwce"
         },
-        "javascript.format.placeOpenBraceOnNewLineForControlBlocks": {
-          "type": "boolean",
-          "default": false,
-          "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
-          "scope": "resource"
+        "javascwipt.fowmat.pwaceOpenBwaceOnNewWineFowContwowBwocks": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%fowmat.pwaceOpenBwaceOnNewWineFowContwowBwocks%",
+          "scope": "wesouwce"
         },
-        "javascript.format.semicolons": {
-          "type": "string",
-          "default": "ignore",
-          "description": "%format.semicolons%",
-          "scope": "resource",
+        "javascwipt.fowmat.semicowons": {
+          "type": "stwing",
+          "defauwt": "ignowe",
+          "descwiption": "%fowmat.semicowons%",
+          "scope": "wesouwce",
           "enum": [
-            "ignore",
-            "insert",
-            "remove"
+            "ignowe",
+            "insewt",
+            "wemove"
           ],
-          "enumDescriptions": [
-            "%format.semicolons.ignore%",
-            "%format.semicolons.insert%",
-            "%format.semicolons.remove%"
+          "enumDescwiptions": [
+            "%fowmat.semicowons.ignowe%",
+            "%fowmat.semicowons.insewt%",
+            "%fowmat.semicowons.wemove%"
           ]
         },
-        "javascript.implicitProjectConfig.checkJs": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
-          "markdownDeprecationMessage": "%configuration.javascript.checkJs.checkJs.deprecation%",
+        "javascwipt.impwicitPwojectConfig.checkJs": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.checkJs%",
+          "mawkdownDepwecationMessage": "%configuwation.javascwipt.checkJs.checkJs.depwecation%",
           "scope": "window"
         },
-        "js/ts.implicitProjectConfig.checkJs": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.implicitProjectConfig.checkJs%",
+        "js/ts.impwicitPwojectConfig.checkJs": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.checkJs%",
           "scope": "window"
         },
-        "javascript.implicitProjectConfig.experimentalDecorators": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
-          "markdownDeprecationMessage": "%configuration.javascript.checkJs.experimentalDecorators.deprecation%",
+        "javascwipt.impwicitPwojectConfig.expewimentawDecowatows": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.expewimentawDecowatows%",
+          "mawkdownDepwecationMessage": "%configuwation.javascwipt.checkJs.expewimentawDecowatows.depwecation%",
           "scope": "window"
         },
-        "js/ts.implicitProjectConfig.experimentalDecorators": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.implicitProjectConfig.experimentalDecorators%",
+        "js/ts.impwicitPwojectConfig.expewimentawDecowatows": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.expewimentawDecowatows%",
           "scope": "window"
         },
-        "js/ts.implicitProjectConfig.strictNullChecks": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "%configuration.implicitProjectConfig.strictNullChecks%",
+        "js/ts.impwicitPwojectConfig.stwictNuwwChecks": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.stwictNuwwChecks%",
           "scope": "window"
         },
-        "js/ts.implicitProjectConfig.strictFunctionTypes": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
+        "js/ts.impwicitPwojectConfig.stwictFunctionTypes": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.impwicitPwojectConfig.stwictFunctionTypes%",
           "scope": "window"
         },
-        "javascript.suggest.names": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.suggest.names%",
-          "scope": "resource"
+        "javascwipt.suggest.names": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.suggest.names%",
+          "scope": "wesouwce"
         },
-        "typescript.tsc.autoDetect": {
-          "type": "string",
-          "default": "on",
+        "typescwipt.tsc.autoDetect": {
+          "type": "stwing",
+          "defauwt": "on",
           "enum": [
             "on",
             "off",
-            "build",
+            "buiwd",
             "watch"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.tsc.autoDetect.on%",
-            "%typescript.tsc.autoDetect.off%",
-            "%typescript.tsc.autoDetect.build%",
-            "%typescript.tsc.autoDetect.watch%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.tsc.autoDetect.on%",
+            "%typescwipt.tsc.autoDetect.off%",
+            "%typescwipt.tsc.autoDetect.buiwd%",
+            "%typescwipt.tsc.autoDetect.watch%"
           ],
-          "description": "%typescript.tsc.autoDetect%",
+          "descwiption": "%typescwipt.tsc.autoDetect%",
           "scope": "window"
         },
-        "javascript.suggest.paths": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.paths%",
-          "scope": "resource"
+        "javascwipt.suggest.paths": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.paths%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.paths": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.paths%",
-          "scope": "resource"
+        "typescwipt.suggest.paths": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.paths%",
+          "scope": "wesouwce"
         },
-        "javascript.suggest.autoImports": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.autoImports%",
-          "scope": "resource"
+        "javascwipt.suggest.autoImpowts": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.autoImpowts%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.autoImports": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.autoImports%",
-          "scope": "resource"
+        "typescwipt.suggest.autoImpowts": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.autoImpowts%",
+          "scope": "wesouwce"
         },
-        "javascript.suggest.completeJSDocs": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+        "javascwipt.suggest.compweteJSDocs": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.compweteJSDocs%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.completeJSDocs": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.suggest.completeJSDocs%",
-          "scope": "resource"
+        "typescwipt.suggest.compweteJSDocs": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suggest.compweteJSDocs%",
+          "scope": "wesouwce"
         },
-        "javascript.suggest.jsdoc.generateReturns": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-          "scope": "resource"
+        "javascwipt.suggest.jsdoc.genewateWetuwns": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.suggest.jsdoc.genewateWetuwns%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.jsdoc.generateReturns": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
-          "scope": "resource"
+        "typescwipt.suggest.jsdoc.genewateWetuwns": {
+          "type": "boowean",
+          "defauwt": twue,
+          "mawkdownDescwiption": "%configuwation.suggest.jsdoc.genewateWetuwns%",
+          "scope": "wesouwce"
         },
-        "typescript.locale": {
-          "type": "string",
+        "typescwipt.wocawe": {
+          "type": "stwing",
           "enum": [
             "de",
             "es",
             "en",
-            "fr",
+            "fw",
             "it",
             "ja",
             "ko",
-            "ru",
+            "wu",
             "zh-CN",
             "zh-TW"
           ],
-          "markdownDescription": "%typescript.locale%",
+          "mawkdownDescwiption": "%typescwipt.wocawe%",
           "scope": "window"
         },
-        "javascript.suggestionActions.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%javascript.suggestionActions.enabled%",
-          "scope": "resource"
+        "javascwipt.suggestionActions.enabwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%javascwipt.suggestionActions.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.suggestionActions.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.suggestionActions.enabled%",
-          "scope": "resource"
+        "typescwipt.suggestionActions.enabwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.suggestionActions.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.preferences.quoteStyle": {
-          "type": "string",
+        "javascwipt.pwefewences.quoteStywe": {
+          "type": "stwing",
           "enum": [
             "auto",
-            "single",
-            "double"
+            "singwe",
+            "doubwe"
           ],
-          "default": "auto",
-          "markdownDescription": "%typescript.preferences.quoteStyle%",
-          "scope": "resource"
+          "defauwt": "auto",
+          "mawkdownDescwiption": "%typescwipt.pwefewences.quoteStywe%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.quoteStyle": {
-          "type": "string",
+        "typescwipt.pwefewences.quoteStywe": {
+          "type": "stwing",
           "enum": [
             "auto",
-            "single",
-            "double"
+            "singwe",
+            "doubwe"
           ],
-          "default": "auto",
-          "markdownDescription": "%typescript.preferences.quoteStyle%",
-          "scope": "resource"
+          "defauwt": "auto",
+          "mawkdownDescwiption": "%typescwipt.pwefewences.quoteStywe%",
+          "scope": "wesouwce"
         },
-        "javascript.preferences.importModuleSpecifier": {
-          "type": "string",
+        "javascwipt.pwefewences.impowtModuweSpecifia": {
+          "type": "stwing",
           "enum": [
-            "shortest",
-            "relative",
-            "non-relative",
-            "project-relative"
+            "showtest",
+            "wewative",
+            "non-wewative",
+            "pwoject-wewative"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.shortest%",
-            "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%",
-            "%typescript.preferences.importModuleSpecifier.projectRelative%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.pwefewences.impowtModuweSpecifia.showtest%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.wewative%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.nonWewative%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.pwojectWewative%"
           ],
-          "default": "shortest",
-          "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
+          "defauwt": "showtest",
+          "descwiption": "%typescwipt.pwefewences.impowtModuweSpecifia%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.importModuleSpecifier": {
-          "type": "string",
+        "typescwipt.pwefewences.impowtModuweSpecifia": {
+          "type": "stwing",
           "enum": [
-            "shortest",
-            "relative",
-            "non-relative",
-            "project-relative"
+            "showtest",
+            "wewative",
+            "non-wewative",
+            "pwoject-wewative"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifier.shortest%",
-            "%typescript.preferences.importModuleSpecifier.relative%",
-            "%typescript.preferences.importModuleSpecifier.nonRelative%",
-            "%typescript.preferences.importModuleSpecifier.projectRelative%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.pwefewences.impowtModuweSpecifia.showtest%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.wewative%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.nonWewative%",
+            "%typescwipt.pwefewences.impowtModuweSpecifia.pwojectWewative%"
           ],
-          "default": "shortest",
-          "description": "%typescript.preferences.importModuleSpecifier%",
-          "scope": "resource"
+          "defauwt": "showtest",
+          "descwiption": "%typescwipt.pwefewences.impowtModuweSpecifia%",
+          "scope": "wesouwce"
         },
-        "javascript.preferences.importModuleSpecifierEnding": {
-          "type": "string",
+        "javascwipt.pwefewences.impowtModuweSpecifiewEnding": {
+          "type": "stwing",
           "enum": [
             "auto",
-            "minimal",
+            "minimaw",
             "index",
             "js"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifierEnding.auto%",
-            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
-            "%typescript.preferences.importModuleSpecifierEnding.index%",
-            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.auto%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.minimaw%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.index%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.js%"
           ],
-          "default": "auto",
-          "description": "%typescript.preferences.importModuleSpecifierEnding%",
-          "scope": "resource"
+          "defauwt": "auto",
+          "descwiption": "%typescwipt.pwefewences.impowtModuweSpecifiewEnding%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.importModuleSpecifierEnding": {
-          "type": "string",
+        "typescwipt.pwefewences.impowtModuweSpecifiewEnding": {
+          "type": "stwing",
           "enum": [
             "auto",
-            "minimal",
+            "minimaw",
             "index",
             "js"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.preferences.importModuleSpecifierEnding.auto%",
-            "%typescript.preferences.importModuleSpecifierEnding.minimal%",
-            "%typescript.preferences.importModuleSpecifierEnding.index%",
-            "%typescript.preferences.importModuleSpecifierEnding.js%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.auto%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.minimaw%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.index%",
+            "%typescwipt.pwefewences.impowtModuweSpecifiewEnding.js%"
           ],
-          "default": "auto",
-          "description": "%typescript.preferences.importModuleSpecifierEnding%",
-          "scope": "resource"
+          "defauwt": "auto",
+          "descwiption": "%typescwipt.pwefewences.impowtModuweSpecifiewEnding%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.includePackageJsonAutoImports": {
-          "type": "string",
+        "typescwipt.pwefewences.incwudePackageJsonAutoImpowts": {
+          "type": "stwing",
           "enum": [
             "auto",
             "on",
             "off"
           ],
-          "enumDescriptions": [
-            "%typescript.preferences.includePackageJsonAutoImports.auto%",
-            "%typescript.preferences.includePackageJsonAutoImports.on%",
-            "%typescript.preferences.includePackageJsonAutoImports.off%"
+          "enumDescwiptions": [
+            "%typescwipt.pwefewences.incwudePackageJsonAutoImpowts.auto%",
+            "%typescwipt.pwefewences.incwudePackageJsonAutoImpowts.on%",
+            "%typescwipt.pwefewences.incwudePackageJsonAutoImpowts.off%"
           ],
-          "default": "auto",
-          "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
+          "defauwt": "auto",
+          "mawkdownDescwiption": "%typescwipt.pwefewences.incwudePackageJsonAutoImpowts%",
           "scope": "window"
         },
-        "javascript.preferences.renameShorthandProperties": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.preferences.useAliasesForRenames%",
-          "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-          "scope": "resource"
+        "javascwipt.pwefewences.wenameShowthandPwopewties": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.pwefewences.useAwiasesFowWenames%",
+          "depwecationMessage": "%typescwipt.pwefewences.wenameShowthandPwopewties.depwecationMessage%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.renameShorthandProperties": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.preferences.useAliasesForRenames%",
-          "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
-          "scope": "resource"
+        "typescwipt.pwefewences.wenameShowthandPwopewties": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.pwefewences.useAwiasesFowWenames%",
+          "depwecationMessage": "%typescwipt.pwefewences.wenameShowthandPwopewties.depwecationMessage%",
+          "scope": "wesouwce"
         },
-        "javascript.preferences.useAliasesForRenames": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.preferences.useAliasesForRenames%",
-          "scope": "resource"
+        "javascwipt.pwefewences.useAwiasesFowWenames": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.pwefewences.useAwiasesFowWenames%",
+          "scope": "wesouwce"
         },
-        "typescript.preferences.useAliasesForRenames": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.preferences.useAliasesForRenames%",
-          "scope": "resource"
+        "typescwipt.pwefewences.useAwiasesFowWenames": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.pwefewences.useAwiasesFowWenames%",
+          "scope": "wesouwce"
         },
-        "typescript.updateImportsOnFileMove.enabled": {
-          "type": "string",
+        "typescwipt.updateImpowtsOnFiweMove.enabwed": {
+          "type": "stwing",
           "enum": [
-            "prompt",
-            "always",
-            "never"
+            "pwompt",
+            "awways",
+            "neva"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.updateImportsOnFileMove.enabled.prompt%",
-            "%typescript.updateImportsOnFileMove.enabled.always%",
-            "%typescript.updateImportsOnFileMove.enabled.never%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.pwompt%",
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.awways%",
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.neva%"
           ],
-          "default": "prompt",
-          "description": "%typescript.updateImportsOnFileMove.enabled%",
-          "scope": "resource"
+          "defauwt": "pwompt",
+          "descwiption": "%typescwipt.updateImpowtsOnFiweMove.enabwed%",
+          "scope": "wesouwce"
         },
-        "javascript.updateImportsOnFileMove.enabled": {
-          "type": "string",
+        "javascwipt.updateImpowtsOnFiweMove.enabwed": {
+          "type": "stwing",
           "enum": [
-            "prompt",
-            "always",
-            "never"
+            "pwompt",
+            "awways",
+            "neva"
           ],
-          "markdownEnumDescriptions": [
-            "%typescript.updateImportsOnFileMove.enabled.prompt%",
-            "%typescript.updateImportsOnFileMove.enabled.always%",
-            "%typescript.updateImportsOnFileMove.enabled.never%"
+          "mawkdownEnumDescwiptions": [
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.pwompt%",
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.awways%",
+            "%typescwipt.updateImpowtsOnFiweMove.enabwed.neva%"
           ],
-          "default": "prompt",
-          "description": "%typescript.updateImportsOnFileMove.enabled%",
-          "scope": "resource"
+          "defauwt": "pwompt",
+          "descwiption": "%typescwipt.updateImpowtsOnFiweMove.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.autoClosingTags": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.autoClosingTags%"
+        "typescwipt.autoCwosingTags": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.autoCwosingTags%"
         },
-        "javascript.autoClosingTags": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.autoClosingTags%"
+        "javascwipt.autoCwosingTags": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.autoCwosingTags%"
         },
-        "javascript.suggest.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+        "javascwipt.suggest.enabwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.suggest.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.suggest.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.suggest.enabled%",
-          "scope": "resource"
+        "typescwipt.suggest.enabwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%typescwipt.suggest.enabwed%",
+          "scope": "wesouwce"
         },
-        "typescript.surveys.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.surveys.enabled%",
+        "typescwipt.suwveys.enabwed": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.suwveys.enabwed%",
           "scope": "window"
         },
-        "typescript.tsserver.useSeparateSyntaxServer": {
-          "type": "boolean",
-          "default": true,
-          "description": "%configuration.tsserver.useSeparateSyntaxServer%",
-          "markdownDeprecationMessage": "%configuration.tsserver.useSeparateSyntaxServer.deprecation%",
+        "typescwipt.tssewva.useSepawateSyntaxSewva": {
+          "type": "boowean",
+          "defauwt": twue,
+          "descwiption": "%configuwation.tssewva.useSepawateSyntaxSewva%",
+          "mawkdownDepwecationMessage": "%configuwation.tssewva.useSepawateSyntaxSewva.depwecation%",
           "scope": "window"
         },
-        "typescript.tsserver.useSyntaxServer": {
-          "type": "string",
+        "typescwipt.tssewva.useSyntaxSewva": {
+          "type": "stwing",
           "scope": "window",
-          "description": "%configuration.tsserver.useSyntaxServer%",
-          "default": "auto",
+          "descwiption": "%configuwation.tssewva.useSyntaxSewva%",
+          "defauwt": "auto",
           "enum": [
-            "always",
-            "never",
+            "awways",
+            "neva",
             "auto"
           ],
-          "enumDescriptions": [
-            "%configuration.tsserver.useSyntaxServer.always%",
-            "%configuration.tsserver.useSyntaxServer.never%",
-            "%configuration.tsserver.useSyntaxServer.auto%"
+          "enumDescwiptions": [
+            "%configuwation.tssewva.useSyntaxSewva.awways%",
+            "%configuwation.tssewva.useSyntaxSewva.neva%",
+            "%configuwation.tssewva.useSyntaxSewva.auto%"
           ]
         },
-        "typescript.tsserver.maxTsServerMemory": {
-          "type": "number",
-          "default": 3072,
-          "description": "%configuration.tsserver.maxTsServerMemory%",
+        "typescwipt.tssewva.maxTsSewvewMemowy": {
+          "type": "numba",
+          "defauwt": 3072,
+          "descwiption": "%configuwation.tssewva.maxTsSewvewMemowy%",
           "scope": "window"
         },
-        "typescript.tsserver.experimental.enableProjectDiagnostics": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
+        "typescwipt.tssewva.expewimentaw.enabwePwojectDiagnostics": {
+          "type": "boowean",
+          "defauwt": fawse,
+          "descwiption": "%configuwation.tssewva.expewimentaw.enabwePwojectDiagnostics%",
           "scope": "window"
         },
-        "typescript.tsserver.watchOptions": {
+        "typescwipt.tssewva.watchOptions": {
           "type": "object",
-          "description": "%configuration.tsserver.watchOptions%",
+          "descwiption": "%configuwation.tssewva.watchOptions%",
           "scope": "window",
-          "properties": {
-            "watchFile": {
-              "type": "string",
-              "description": "%configuration.tsserver.watchOptions.watchFile%",
+          "pwopewties": {
+            "watchFiwe": {
+              "type": "stwing",
+              "descwiption": "%configuwation.tssewva.watchOptions.watchFiwe%",
               "enum": [
-                "fixedChunkSizePolling",
-                "fixedPollingInterval",
-                "priorityPollingInterval",
-                "dynamicPriorityPolling",
+                "fixedChunkSizePowwing",
+                "fixedPowwingIntewvaw",
+                "pwiowityPowwingIntewvaw",
+                "dynamicPwiowityPowwing",
                 "useFsEvents",
-                "useFsEventsOnParentDirectory"
+                "useFsEventsOnPawentDiwectowy"
               ],
-              "enumDescriptions": [
-                "%configuration.tsserver.watchOptions.watchFile.fixedChunkSizePolling%",
-                "%configuration.tsserver.watchOptions.watchFile.fixedPollingInterval%",
-                "%configuration.tsserver.watchOptions.watchFile.priorityPollingInterval%",
-                "%configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling%",
-                "%configuration.tsserver.watchOptions.watchFile.useFsEvents%",
-                "%configuration.tsserver.watchOptions.watchFile.useFsEventsOnParentDirectory%"
+              "enumDescwiptions": [
+                "%configuwation.tssewva.watchOptions.watchFiwe.fixedChunkSizePowwing%",
+                "%configuwation.tssewva.watchOptions.watchFiwe.fixedPowwingIntewvaw%",
+                "%configuwation.tssewva.watchOptions.watchFiwe.pwiowityPowwingIntewvaw%",
+                "%configuwation.tssewva.watchOptions.watchFiwe.dynamicPwiowityPowwing%",
+                "%configuwation.tssewva.watchOptions.watchFiwe.useFsEvents%",
+                "%configuwation.tssewva.watchOptions.watchFiwe.useFsEventsOnPawentDiwectowy%"
               ],
-              "default": "useFsEvents"
+              "defauwt": "useFsEvents"
             },
-            "watchDirectory": {
-              "type": "string",
-              "description": "%configuration.tsserver.watchOptions.watchDirectory%",
+            "watchDiwectowy": {
+              "type": "stwing",
+              "descwiption": "%configuwation.tssewva.watchOptions.watchDiwectowy%",
               "enum": [
-                "fixedChunkSizePolling",
-                "fixedPollingInterval",
-                "dynamicPriorityPolling",
+                "fixedChunkSizePowwing",
+                "fixedPowwingIntewvaw",
+                "dynamicPwiowityPowwing",
                 "useFsEvents"
               ],
-              "enumDescriptions": [
-                "%configuration.tsserver.watchOptions.watchDirectory.fixedChunkSizePolling%",
-                "%configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval%",
-                "%configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling%",
-                "%configuration.tsserver.watchOptions.watchDirectory.useFsEvents%"
+              "enumDescwiptions": [
+                "%configuwation.tssewva.watchOptions.watchDiwectowy.fixedChunkSizePowwing%",
+                "%configuwation.tssewva.watchOptions.watchDiwectowy.fixedPowwingIntewvaw%",
+                "%configuwation.tssewva.watchOptions.watchDiwectowy.dynamicPwiowityPowwing%",
+                "%configuwation.tssewva.watchOptions.watchDiwectowy.useFsEvents%"
               ],
-              "default": "useFsEvents"
+              "defauwt": "useFsEvents"
             },
-            "fallbackPolling": {
-              "type": "string",
-              "description": "%configuration.tsserver.watchOptions.fallbackPolling%",
+            "fawwbackPowwing": {
+              "type": "stwing",
+              "descwiption": "%configuwation.tssewva.watchOptions.fawwbackPowwing%",
               "enum": [
-                "fixedPollingInterval",
-                "priorityPollingInterval",
-                "dynamicPriorityPolling"
+                "fixedPowwingIntewvaw",
+                "pwiowityPowwingIntewvaw",
+                "dynamicPwiowityPowwing"
               ],
-              "enumDescriptions": [
-                "configuration.tsserver.watchOptions.fallbackPolling.fixedPollingInterval",
-                "configuration.tsserver.watchOptions.fallbackPolling.priorityPollingInterval",
-                "configuration.tsserver.watchOptions.fallbackPolling.dynamicPriorityPolling"
+              "enumDescwiptions": [
+                "configuwation.tssewva.watchOptions.fawwbackPowwing.fixedPowwingIntewvaw",
+                "configuwation.tssewva.watchOptions.fawwbackPowwing.pwiowityPowwingIntewvaw",
+                "configuwation.tssewva.watchOptions.fawwbackPowwing.dynamicPwiowityPowwing"
               ]
             },
-            "synchronousWatchDirectory": {
-              "type": "boolean",
-              "description": "%configuration.tsserver.watchOptions.synchronousWatchDirectory%"
+            "synchwonousWatchDiwectowy": {
+              "type": "boowean",
+              "descwiption": "%configuwation.tssewva.watchOptions.synchwonousWatchDiwectowy%"
             }
           }
         },
-        "typescript.workspaceSymbols.scope": {
-          "type": "string",
+        "typescwipt.wowkspaceSymbows.scope": {
+          "type": "stwing",
           "enum": [
-            "allOpenProjects",
-            "currentProject"
+            "awwOpenPwojects",
+            "cuwwentPwoject"
           ],
-          "enumDescriptions": [
-            "%typescript.workspaceSymbols.scope.allOpenProjects%",
-            "%typescript.workspaceSymbols.scope.currentProject%"
+          "enumDescwiptions": [
+            "%typescwipt.wowkspaceSymbows.scope.awwOpenPwojects%",
+            "%typescwipt.wowkspaceSymbows.scope.cuwwentPwoject%"
           ],
-          "default": "allOpenProjects",
-          "markdownDescription": "%typescript.workspaceSymbols.scope%",
+          "defauwt": "awwOpenPwojects",
+          "mawkdownDescwiption": "%typescwipt.wowkspaceSymbows.scope%",
           "scope": "window"
         }
       }
     },
     "commands": [
       {
-        "command": "typescript.reloadProjects",
-        "title": "%reloadProjects.title%",
-        "category": "TypeScript"
+        "command": "typescwipt.wewoadPwojects",
+        "titwe": "%wewoadPwojects.titwe%",
+        "categowy": "TypeScwipt"
       },
       {
-        "command": "javascript.reloadProjects",
-        "title": "%reloadProjects.title%",
-        "category": "JavaScript"
+        "command": "javascwipt.wewoadPwojects",
+        "titwe": "%wewoadPwojects.titwe%",
+        "categowy": "JavaScwipt"
       },
       {
-        "command": "typescript.selectTypeScriptVersion",
-        "title": "%typescript.selectTypeScriptVersion.title%",
-        "category": "TypeScript"
+        "command": "typescwipt.sewectTypeScwiptVewsion",
+        "titwe": "%typescwipt.sewectTypeScwiptVewsion.titwe%",
+        "categowy": "TypeScwipt"
       },
       {
-        "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
-        "category": "TypeScript"
+        "command": "typescwipt.goToPwojectConfig",
+        "titwe": "%goToPwojectConfig.titwe%",
+        "categowy": "TypeScwipt"
       },
       {
-        "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
-        "category": "JavaScript"
+        "command": "javascwipt.goToPwojectConfig",
+        "titwe": "%goToPwojectConfig.titwe%",
+        "categowy": "JavaScwipt"
       },
       {
-        "command": "typescript.openTsServerLog",
-        "title": "%typescript.openTsServerLog.title%",
-        "category": "TypeScript"
+        "command": "typescwipt.openTsSewvewWog",
+        "titwe": "%typescwipt.openTsSewvewWog.titwe%",
+        "categowy": "TypeScwipt"
       },
       {
-        "command": "typescript.restartTsServer",
-        "title": "%typescript.restartTsServer%",
-        "category": "TypeScript"
+        "command": "typescwipt.westawtTsSewva",
+        "titwe": "%typescwipt.westawtTsSewva%",
+        "categowy": "TypeScwipt"
       },
       {
-        "command": "typescript.findAllFileReferences",
-        "title": "%typescript.findAllFileReferences%",
-        "category": "TypeScript"
+        "command": "typescwipt.findAwwFiweWefewences",
+        "titwe": "%typescwipt.findAwwFiweWefewences%",
+        "categowy": "TypeScwipt"
       }
     ],
     "menus": {
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "typescript.reloadProjects",
-          "when": "editorLangId == typescript && typescript.isManagedFile"
+          "command": "typescwipt.wewoadPwojects",
+          "when": "editowWangId == typescwipt && typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.reloadProjects",
-          "when": "editorLangId == typescriptreact && typescript.isManagedFile"
+          "command": "typescwipt.wewoadPwojects",
+          "when": "editowWangId == typescwiptweact && typescwipt.isManagedFiwe"
         },
         {
-          "command": "javascript.reloadProjects",
-          "when": "editorLangId == javascript && typescript.isManagedFile"
+          "command": "javascwipt.wewoadPwojects",
+          "when": "editowWangId == javascwipt && typescwipt.isManagedFiwe"
         },
         {
-          "command": "javascript.reloadProjects",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+          "command": "javascwipt.wewoadPwojects",
+          "when": "editowWangId == javascwiptweact && typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.goToProjectConfig",
-          "when": "editorLangId == typescript && typescript.isManagedFile"
+          "command": "typescwipt.goToPwojectConfig",
+          "when": "editowWangId == typescwipt && typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.goToProjectConfig",
-          "when": "editorLangId == typescriptreact"
+          "command": "typescwipt.goToPwojectConfig",
+          "when": "editowWangId == typescwiptweact"
         },
         {
-          "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == javascript && typescript.isManagedFile"
+          "command": "javascwipt.goToPwojectConfig",
+          "when": "editowWangId == javascwipt && typescwipt.isManagedFiwe"
         },
         {
-          "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+          "command": "javascwipt.goToPwojectConfig",
+          "when": "editowWangId == javascwiptweact && typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.selectTypeScriptVersion",
-          "when": "typescript.isManagedFile"
+          "command": "typescwipt.sewectTypeScwiptVewsion",
+          "when": "typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.openTsServerLog",
-          "when": "typescript.isManagedFile"
+          "command": "typescwipt.openTsSewvewWog",
+          "when": "typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.restartTsServer",
-          "when": "typescript.isManagedFile"
+          "command": "typescwipt.westawtTsSewva",
+          "when": "typescwipt.isManagedFiwe"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && typescript.isManagedFile"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && typescwipt.isManagedFiwe"
         }
       ],
-      "explorer/context": [
+      "expwowa/context": [
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript",
-          "group": "4_search"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == typescwipt",
+          "gwoup": "4_seawch"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact",
-          "group": "4_search"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == typescwiptweact",
+          "gwoup": "4_seawch"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript",
-          "group": "4_search"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == javascwipt",
+          "gwoup": "4_seawch"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact",
-          "group": "4_search"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == javascwiptweact",
+          "gwoup": "4_seawch"
         }
       ],
-      "editor/title/context": [
+      "editow/titwe/context": [
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == javascwipt"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == javascwiptweact"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == typescwipt"
         },
         {
-          "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+          "command": "typescwipt.findAwwFiweWefewences",
+          "when": "tsSuppowtsFiweWefewences && wesouwceWangId == typescwiptweact"
         }
       ]
     },
-    "breakpoints": [
+    "bweakpoints": [
       {
-        "language": "typescript"
+        "wanguage": "typescwipt"
       },
       {
-        "language": "typescriptreact"
+        "wanguage": "typescwiptweact"
       }
     ],
     "taskDefinitions": [
       {
-        "type": "typescript",
-        "required": [
+        "type": "typescwipt",
+        "wequiwed": [
           "tsconfig"
         ],
-        "properties": {
+        "pwopewties": {
           "tsconfig": {
-            "type": "string",
-            "description": "%taskDefinition.tsconfig.description%"
+            "type": "stwing",
+            "descwiption": "%taskDefinition.tsconfig.descwiption%"
           },
           "option": {
-            "type": "string"
+            "type": "stwing"
           }
         },
-        "when": "shellExecutionSupported"
+        "when": "shewwExecutionSuppowted"
       }
     ],
-    "problemPatterns": [
+    "pwobwemPattewns": [
       {
         "name": "tsc",
-        "regexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(error|warning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
-        "file": 1,
-        "line": 2,
-        "column": 3,
-        "severity": 4,
+        "wegexp": "^([^\\s].*)[\\(:](\\d+)[,:](\\d+)(?:\\):\\s+|\\s+-\\s+)(ewwow|wawning|info)\\s+TS(\\d+)\\s*:\\s*(.*)$",
+        "fiwe": 1,
+        "wine": 2,
+        "cowumn": 3,
+        "sevewity": 4,
         "code": 5,
         "message": 6
       }
     ],
-    "problemMatchers": [
+    "pwobwemMatchews": [
       {
         "name": "tsc",
-        "label": "%typescript.problemMatchers.tsc.label%",
-        "owner": "typescript",
-        "source": "ts",
-        "applyTo": "closedDocuments",
-        "fileLocation": [
-          "relative",
+        "wabew": "%typescwipt.pwobwemMatchews.tsc.wabew%",
+        "owna": "typescwipt",
+        "souwce": "ts",
+        "appwyTo": "cwosedDocuments",
+        "fiweWocation": [
+          "wewative",
           "${cwd}"
         ],
-        "pattern": "$tsc"
+        "pattewn": "$tsc"
       },
       {
         "name": "tsc-watch",
-        "label": "%typescript.problemMatchers.tscWatch.label%",
-        "owner": "typescript",
-        "source": "ts",
-        "applyTo": "closedDocuments",
-        "fileLocation": [
-          "relative",
+        "wabew": "%typescwipt.pwobwemMatchews.tscWatch.wabew%",
+        "owna": "typescwipt",
+        "souwce": "ts",
+        "appwyTo": "cwosedDocuments",
+        "fiweWocation": [
+          "wewative",
           "${cwd}"
         ],
-        "pattern": "$tsc",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+        "pattewn": "$tsc",
+        "backgwound": {
+          "activeOnStawt": twue,
+          "beginsPattewn": {
+            "wegexp": "^\\s*(?:message TS6032:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) Fiwe change detected\\. Stawting incwementaw compiwation\\.\\.\\."
           },
-          "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+          "endsPattewn": {
+            "wegexp": "^\\s*(?:message TS6042:|\\[?\\D*.{1,2}[:.].{1,2}[:.].{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compiwation compwete\\.|Found \\d+ ewwows?\\.) Watching fow fiwe changes\\."
           }
         }
       }
     ],
     "codeActions": [
       {
-        "languages": [
-          "javascript",
-          "javascriptreact",
-          "typescript",
-          "typescriptreact"
+        "wanguages": [
+          "javascwipt",
+          "javascwiptweact",
+          "typescwipt",
+          "typescwiptweact"
         ],
         "actions": [
           {
-            "kind": "refactor.extract.constant",
-            "title": "%codeActions.refactor.extract.constant.title%",
-            "description": "%codeActions.refactor.extract.constant.description%"
+            "kind": "wefactow.extwact.constant",
+            "titwe": "%codeActions.wefactow.extwact.constant.titwe%",
+            "descwiption": "%codeActions.wefactow.extwact.constant.descwiption%"
           },
           {
-            "kind": "refactor.extract.function",
-            "title": "%codeActions.refactor.extract.function.title%",
-            "description": "%codeActions.refactor.extract.function.description%"
+            "kind": "wefactow.extwact.function",
+            "titwe": "%codeActions.wefactow.extwact.function.titwe%",
+            "descwiption": "%codeActions.wefactow.extwact.function.descwiption%"
           },
           {
-            "kind": "refactor.extract.interface",
-            "title": "%codeActions.refactor.extract.interface.title%",
-            "description": "%codeActions.refactor.extract.interface.description%"
+            "kind": "wefactow.extwact.intewface",
+            "titwe": "%codeActions.wefactow.extwact.intewface.titwe%",
+            "descwiption": "%codeActions.wefactow.extwact.intewface.descwiption%"
           },
           {
-            "kind": "refactor.extract.type",
-            "title": "%codeActions.refactor.extract.type.title%",
-            "description": "%codeActions.refactor.extract.type.description%"
+            "kind": "wefactow.extwact.type",
+            "titwe": "%codeActions.wefactow.extwact.type.titwe%",
+            "descwiption": "%codeActions.wefactow.extwact.type.descwiption%"
           },
           {
-            "kind": "refactor.rewrite.import",
-            "title": "%codeActions.refactor.rewrite.import.title%",
-            "description": "%codeActions.refactor.rewrite.import.description%"
+            "kind": "wefactow.wewwite.impowt",
+            "titwe": "%codeActions.wefactow.wewwite.impowt.titwe%",
+            "descwiption": "%codeActions.wefactow.wewwite.impowt.descwiption%"
           },
           {
-            "kind": "refactor.rewrite.export",
-            "title": "%codeActions.refactor.rewrite.export.title%",
-            "description": "%codeActions.refactor.rewrite.export.description%"
+            "kind": "wefactow.wewwite.expowt",
+            "titwe": "%codeActions.wefactow.wewwite.expowt.titwe%",
+            "descwiption": "%codeActions.wefactow.wewwite.expowt.descwiption%"
           },
           {
-            "kind": "refactor.rewrite.arrow.braces",
-            "title": "%codeActions.refactor.rewrite.arrow.braces.title%",
-            "description": "%codeActions.refactor.rewrite.arrow.braces.description%"
+            "kind": "wefactow.wewwite.awwow.bwaces",
+            "titwe": "%codeActions.wefactow.wewwite.awwow.bwaces.titwe%",
+            "descwiption": "%codeActions.wefactow.wewwite.awwow.bwaces.descwiption%"
           },
           {
-            "kind": "refactor.rewrite.parameters.toDestructured",
-            "title": "%codeActions.refactor.rewrite.parameters.toDestructured.title%"
+            "kind": "wefactow.wewwite.pawametews.toDestwuctuwed",
+            "titwe": "%codeActions.wefactow.wewwite.pawametews.toDestwuctuwed.titwe%"
           },
           {
-            "kind": "refactor.rewrite.property.generateAccessors",
-            "title": "%codeActions.refactor.rewrite.property.generateAccessors.title%",
-            "description": "%codeActions.refactor.rewrite.property.generateAccessors.description%"
+            "kind": "wefactow.wewwite.pwopewty.genewateAccessows",
+            "titwe": "%codeActions.wefactow.wewwite.pwopewty.genewateAccessows.titwe%",
+            "descwiption": "%codeActions.wefactow.wewwite.pwopewty.genewateAccessows.descwiption%"
           },
           {
-            "kind": "refactor.move.newFile",
-            "title": "%codeActions.refactor.move.newFile.title%",
-            "description": "%codeActions.refactor.move.newFile.description%"
+            "kind": "wefactow.move.newFiwe",
+            "titwe": "%codeActions.wefactow.move.newFiwe.titwe%",
+            "descwiption": "%codeActions.wefactow.move.newFiwe.descwiption%"
           },
           {
-            "kind": "source.organizeImports",
-            "title": "%codeActions.source.organizeImports.title%"
+            "kind": "souwce.owganizeImpowts",
+            "titwe": "%codeActions.souwce.owganizeImpowts.titwe%"
           }
         ]
       }
     ],
-    "typescriptServerPlugins": [
+    "typescwiptSewvewPwugins": [
       {
-        "name": "typescript-vscode-sh-plugin",
-        "enableForWorkspaceTypeScriptVersions": true
+        "name": "typescwipt-vscode-sh-pwugin",
+        "enabweFowWowkspaceTypeScwiptVewsions": twue
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

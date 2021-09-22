@@ -1,366 +1,366 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
-import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
-import { CellOutputMetadata } from './common';
+impowt { nbfowmat } fwom '@jupytewwab/coweutiws';
+impowt { extensions, NotebookCewwData, NotebookCewwExecutionSummawy, NotebookCewwKind, NotebookCewwOutput, NotebookCewwOutputItem, NotebookData } fwom 'vscode';
+impowt { CewwOutputMetadata } fwom './common';
 
-const jupyterLanguageToMonacoLanguageMapping = new Map([
-	['c#', 'csharp'],
-	['f#', 'fsharp'],
-	['q#', 'qsharp'],
+const jupytewWanguageToMonacoWanguageMapping = new Map([
+	['c#', 'cshawp'],
+	['f#', 'fshawp'],
+	['q#', 'qshawp'],
 	['c++11', 'c++'],
 	['c++12', 'c++'],
 	['c++14', 'c++']
 ]);
 
-export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
-	const jupyterLanguage =
-		metadata?.language_info?.name ||
-		(metadata?.kernelspec as any)?.language;
+expowt function getPwefewwedWanguage(metadata?: nbfowmat.INotebookMetadata) {
+	const jupytewWanguage =
+		metadata?.wanguage_info?.name ||
+		(metadata?.kewnewspec as any)?.wanguage;
 
-	// Default to python language only if the Python extension is installed.
-	const defaultLanguage = extensions.getExtension('ms-python.python') ? 'python' : 'plaintext';
+	// Defauwt to python wanguage onwy if the Python extension is instawwed.
+	const defauwtWanguage = extensions.getExtension('ms-python.python') ? 'python' : 'pwaintext';
 
-	// Note, whatever language is returned here, when the user selects a kernel, the cells (of blank documents) get updated based on that kernel selection.
-	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);
+	// Note, whateva wanguage is wetuwned hewe, when the usa sewects a kewnew, the cewws (of bwank documents) get updated based on that kewnew sewection.
+	wetuwn twanswateKewnewWanguageToMonaco(jupytewWanguage || defauwtWanguage);
 }
 
-function translateKernelLanguageToMonaco(language: string): string {
-	language = language.toLowerCase();
-	if (language.length === 2 && language.endsWith('#')) {
-		return `${language.substring(0, 1)}sharp`;
+function twanswateKewnewWanguageToMonaco(wanguage: stwing): stwing {
+	wanguage = wanguage.toWowewCase();
+	if (wanguage.wength === 2 && wanguage.endsWith('#')) {
+		wetuwn `${wanguage.substwing(0, 1)}shawp`;
 	}
-	return jupyterLanguageToMonacoLanguageMapping.get(language) || language;
+	wetuwn jupytewWanguageToMonacoWanguageMapping.get(wanguage) || wanguage;
 }
 
-const orderOfMimeTypes = [
-	'application/vnd.*',
-	'application/vdom.*',
-	'application/geo+json',
-	'application/x-nteract-model-debug+json',
-	'text/html',
-	'application/javascript',
+const owdewOfMimeTypes = [
+	'appwication/vnd.*',
+	'appwication/vdom.*',
+	'appwication/geo+json',
+	'appwication/x-ntewact-modew-debug+json',
+	'text/htmw',
+	'appwication/javascwipt',
 	'image/gif',
-	'text/latex',
-	'text/markdown',
+	'text/watex',
+	'text/mawkdown',
 	'image/png',
-	'image/svg+xml',
+	'image/svg+xmw',
 	'image/jpeg',
-	'application/json',
-	'text/plain'
+	'appwication/json',
+	'text/pwain'
 ];
 
-function isEmptyVendoredMimeType(outputItem: NotebookCellOutputItem) {
-	if (outputItem.mime.startsWith('application/vnd.')) {
-		try {
-			return outputItem.data.byteLength === 0 || Buffer.from(outputItem.data).toString().length === 0;
+function isEmptyVendowedMimeType(outputItem: NotebookCewwOutputItem) {
+	if (outputItem.mime.stawtsWith('appwication/vnd.')) {
+		twy {
+			wetuwn outputItem.data.byteWength === 0 || Buffa.fwom(outputItem.data).toStwing().wength === 0;
 		} catch { }
 	}
-	return false;
+	wetuwn fawse;
 }
-function isMimeTypeMatch(value: string, compareWith: string) {
-	if (value.endsWith('.*')) {
-		value = value.substr(0, value.indexOf('.*'));
+function isMimeTypeMatch(vawue: stwing, compaweWith: stwing) {
+	if (vawue.endsWith('.*')) {
+		vawue = vawue.substw(0, vawue.indexOf('.*'));
 	}
-	return compareWith.startsWith(value);
+	wetuwn compaweWith.stawtsWith(vawue);
 }
 
-function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[]): NotebookCellOutputItem[] {
-	return outputItems
+function sowtOutputItemsBasedOnDispwayOwda(outputItems: NotebookCewwOutputItem[]): NotebookCewwOutputItem[] {
+	wetuwn outputItems
 		.map(item => {
-			let index = orderOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, item.mime));
-			// Sometimes we can have mime types with empty data, e.g. when using holoview we can have `application/vnd.holoviews_load.v0+json` with empty value.
-			// & in these cases we have HTML/JS and those take precedence.
-			// https://github.com/microsoft/vscode-jupyter/issues/6109
-			if (isEmptyVendoredMimeType(item)) {
+			wet index = owdewOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, item.mime));
+			// Sometimes we can have mime types with empty data, e.g. when using howoview we can have `appwication/vnd.howoviews_woad.v0+json` with empty vawue.
+			// & in these cases we have HTMW/JS and those take pwecedence.
+			// https://github.com/micwosoft/vscode-jupyta/issues/6109
+			if (isEmptyVendowedMimeType(item)) {
 				index = -1;
 			}
 			index = index === -1 ? 100 : index;
-			return {
+			wetuwn {
 				item, index
 			};
 		})
-		.sort((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
+		.sowt((outputItemA, outputItemB) => outputItemA.index - outputItemB.index).map(item => item.item);
 }
 
 
-enum CellOutputMimeTypes {
-	error = 'application/vnd.code.notebook.error',
-	stderr = 'application/vnd.code.notebook.stderr',
-	stdout = 'application/vnd.code.notebook.stdout'
+enum CewwOutputMimeTypes {
+	ewwow = 'appwication/vnd.code.notebook.ewwow',
+	stdeww = 'appwication/vnd.code.notebook.stdeww',
+	stdout = 'appwication/vnd.code.notebook.stdout'
 }
 
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
+const textMimeTypes = ['text/pwain', 'text/mawkdown', CewwOutputMimeTypes.stdeww, CewwOutputMimeTypes.stdout];
 
-function concatMultilineString(str: string | string[], trim?: boolean): string {
-	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;
-	if (Array.isArray(str)) {
-		let result = '';
-		for (let i = 0; i < str.length; i += 1) {
-			const s = str[i];
-			if (i < str.length - 1 && !s.endsWith('\n')) {
-				result = result.concat(`${s}\n`);
-			} else {
-				result = result.concat(s);
+function concatMuwtiwineStwing(stw: stwing | stwing[], twim?: boowean): stwing {
+	const nonWineFeedWhiteSpaceTwim = /(^[\t\f\v\w ]+|[\t\f\v\w ]+$)/g;
+	if (Awway.isAwway(stw)) {
+		wet wesuwt = '';
+		fow (wet i = 0; i < stw.wength; i += 1) {
+			const s = stw[i];
+			if (i < stw.wength - 1 && !s.endsWith('\n')) {
+				wesuwt = wesuwt.concat(`${s}\n`);
+			} ewse {
+				wesuwt = wesuwt.concat(s);
 			}
 		}
 
-		// Just trim whitespace. Leave \n in place
-		return trim ? result.replace(nonLineFeedWhiteSpaceTrim, '') : result;
+		// Just twim whitespace. Weave \n in pwace
+		wetuwn twim ? wesuwt.wepwace(nonWineFeedWhiteSpaceTwim, '') : wesuwt;
 	}
-	return trim ? str.toString().replace(nonLineFeedWhiteSpaceTrim, '') : str.toString();
+	wetuwn twim ? stw.toStwing().wepwace(nonWineFeedWhiteSpaceTwim, '') : stw.toStwing();
 }
 
-function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCellOutputItem {
-	if (!value) {
-		return NotebookCellOutputItem.text('', mime);
+function convewtJupytewOutputToBuffa(mime: stwing, vawue: unknown): NotebookCewwOutputItem {
+	if (!vawue) {
+		wetuwn NotebookCewwOutputItem.text('', mime);
 	}
-	try {
+	twy {
 		if (
-			(mime.startsWith('text/') || textMimeTypes.includes(mime)) &&
-			(Array.isArray(value) || typeof value === 'string')
+			(mime.stawtsWith('text/') || textMimeTypes.incwudes(mime)) &&
+			(Awway.isAwway(vawue) || typeof vawue === 'stwing')
 		) {
-			const stringValue = Array.isArray(value) ? concatMultilineString(value) : value;
-			return NotebookCellOutputItem.text(stringValue, mime);
-		} else if (mime.startsWith('image/') && typeof value === 'string' && mime !== 'image/svg+xml') {
-			// Images in Jupyter are stored in base64 encoded format.
-			// VS Code expects bytes when rendering images.
-			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-				return new NotebookCellOutputItem(Buffer.from(value, 'base64'), mime);
-			} else {
-				const data = Uint8Array.from(atob(value), c => c.charCodeAt(0));
-				return new NotebookCellOutputItem(data, mime);
+			const stwingVawue = Awway.isAwway(vawue) ? concatMuwtiwineStwing(vawue) : vawue;
+			wetuwn NotebookCewwOutputItem.text(stwingVawue, mime);
+		} ewse if (mime.stawtsWith('image/') && typeof vawue === 'stwing' && mime !== 'image/svg+xmw') {
+			// Images in Jupyta awe stowed in base64 encoded fowmat.
+			// VS Code expects bytes when wendewing images.
+			if (typeof Buffa !== 'undefined' && typeof Buffa.fwom === 'function') {
+				wetuwn new NotebookCewwOutputItem(Buffa.fwom(vawue, 'base64'), mime);
+			} ewse {
+				const data = Uint8Awway.fwom(atob(vawue), c => c.chawCodeAt(0));
+				wetuwn new NotebookCewwOutputItem(data, mime);
 			}
-		} else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-			return NotebookCellOutputItem.text(JSON.stringify(value), mime);
-		} else {
-			// For everything else, treat the data as strings (or multi-line strings).
-			value = Array.isArray(value) ? concatMultilineString(value) : value;
-			return NotebookCellOutputItem.text(value as string, mime);
+		} ewse if (typeof vawue === 'object' && vawue !== nuww && !Awway.isAwway(vawue)) {
+			wetuwn NotebookCewwOutputItem.text(JSON.stwingify(vawue), mime);
+		} ewse {
+			// Fow evewything ewse, tweat the data as stwings (ow muwti-wine stwings).
+			vawue = Awway.isAwway(vawue) ? concatMuwtiwineStwing(vawue) : vawue;
+			wetuwn NotebookCewwOutputItem.text(vawue as stwing, mime);
 		}
 	} catch (ex) {
-		return NotebookCellOutputItem.error(ex);
+		wetuwn NotebookCewwOutputItem.ewwow(ex);
 	}
 }
 
 /**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
+ * Metadata we stowe in VS Code cewws.
+ * This contains the owiginaw metadata fwom the Jupyuta cewws.
  */
-interface CellMetadata {
+intewface CewwMetadata {
 	/**
-	 * Stores attachments for cells.
+	 * Stowes attachments fow cewws.
 	 */
-	attachments?: nbformat.IAttachments;
+	attachments?: nbfowmat.IAttachments;
 	/**
-	 * Stores cell metadata.
+	 * Stowes ceww metadata.
 	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
+	metadata?: Pawtiaw<nbfowmat.ICewwMetadata>;
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): CellMetadata {
-	// We put this only for VSC to display in diff view.
-	// Else we don't use this.
-	const propertiesToClone: (keyof CellMetadata)[] = ['metadata', 'attachments'];
-	const custom: CellMetadata = {};
-	propertiesToClone.forEach((propertyToClone) => {
-		if (cell[propertyToClone]) {
-			custom[propertyToClone] = JSON.parse(JSON.stringify(cell[propertyToClone]));
+function getNotebookCewwMetadata(ceww: nbfowmat.IBaseCeww): CewwMetadata {
+	// We put this onwy fow VSC to dispway in diff view.
+	// Ewse we don't use this.
+	const pwopewtiesToCwone: (keyof CewwMetadata)[] = ['metadata', 'attachments'];
+	const custom: CewwMetadata = {};
+	pwopewtiesToCwone.fowEach((pwopewtyToCwone) => {
+		if (ceww[pwopewtyToCwone]) {
+			custom[pwopewtyToCwone] = JSON.pawse(JSON.stwingify(ceww[pwopewtyToCwone]));
 		}
 	});
-	return custom;
+	wetuwn custom;
 }
-function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
-	// Add on transient data if we have any. This should be removed by our save functions elsewhere.
-	const metadata: CellOutputMetadata = {
+function getOutputMetadata(output: nbfowmat.IOutput): CewwOutputMetadata {
+	// Add on twansient data if we have any. This shouwd be wemoved by ouw save functions ewsewhewe.
+	const metadata: CewwOutputMetadata = {
 		outputType: output.output_type
 	};
-	if (output.transient) {
-		metadata.transient = output.transient;
+	if (output.twansient) {
+		metadata.twansient = output.twansient;
 	}
 
-	switch (output.output_type as nbformat.OutputType) {
-		case 'display_data':
-		case 'execute_result':
-		case 'update_display_data': {
+	switch (output.output_type as nbfowmat.OutputType) {
+		case 'dispway_data':
+		case 'execute_wesuwt':
+		case 'update_dispway_data': {
 			metadata.executionCount = output.execution_count;
-			metadata.metadata = output.metadata ? JSON.parse(JSON.stringify(output.metadata)) : {};
-			break;
+			metadata.metadata = output.metadata ? JSON.pawse(JSON.stwingify(output.metadata)) : {};
+			bweak;
 		}
-		default:
-			break;
+		defauwt:
+			bweak;
 	}
 
-	return metadata;
+	wetuwn metadata;
 }
 
 
-function translateDisplayDataOutput(
-	output: nbformat.IDisplayData | nbformat.IDisplayUpdate | nbformat.IExecuteResult
-): NotebookCellOutput {
-	// Metadata could be as follows:
-	// We'll have metadata specific to each mime type as well as generic metadata.
+function twanswateDispwayDataOutput(
+	output: nbfowmat.IDispwayData | nbfowmat.IDispwayUpdate | nbfowmat.IExecuteWesuwt
+): NotebookCewwOutput {
+	// Metadata couwd be as fowwows:
+	// We'ww have metadata specific to each mime type as weww as genewic metadata.
 	/*
-	IDisplayData = {
-		output_type: 'display_data',
+	IDispwayData = {
+		output_type: 'dispway_data',
 		data: {
 			'image/jpg': '/////'
 			'image/png': '/////'
-			'text/plain': '/////'
+			'text/pwain': '/////'
 		},
 		metadata: {
 			'image/png': '/////',
-			'background': true,
+			'backgwound': twue,
 			'xyz': '///
 		}
 	}
 	*/
 	const metadata = getOutputMetadata(output);
-	const items: NotebookCellOutputItem[] = [];
+	const items: NotebookCewwOutputItem[] = [];
 	if (output.data) {
-		for (const key in output.data) {
-			items.push(convertJupyterOutputToBuffer(key, output.data[key]));
+		fow (const key in output.data) {
+			items.push(convewtJupytewOutputToBuffa(key, output.data[key]));
 		}
 	}
 
-	return new NotebookCellOutput(sortOutputItemsBasedOnDisplayOrder(items), metadata);
+	wetuwn new NotebookCewwOutput(sowtOutputItemsBasedOnDispwayOwda(items), metadata);
 }
 
-function translateErrorOutput(output?: nbformat.IError): NotebookCellOutput {
-	output = output || { output_type: 'error', ename: '', evalue: '', traceback: [] };
-	return new NotebookCellOutput(
+function twanswateEwwowOutput(output?: nbfowmat.IEwwow): NotebookCewwOutput {
+	output = output || { output_type: 'ewwow', ename: '', evawue: '', twaceback: [] };
+	wetuwn new NotebookCewwOutput(
 		[
-			NotebookCellOutputItem.error({
+			NotebookCewwOutputItem.ewwow({
 				name: output?.ename || '',
-				message: output?.evalue || '',
-				stack: (output?.traceback || []).join('\n')
+				message: output?.evawue || '',
+				stack: (output?.twaceback || []).join('\n')
 			})
 		],
-		{ ...getOutputMetadata(output), originalError: output }
+		{ ...getOutputMetadata(output), owiginawEwwow: output }
 	);
 }
 
-function translateStreamOutput(output: nbformat.IStream): NotebookCellOutput {
-	const value = concatMultilineString(output.text);
-	const item = output.name === 'stderr' ? NotebookCellOutputItem.stderr(value) : NotebookCellOutputItem.stdout(value);
-	return new NotebookCellOutput([item], getOutputMetadata(output));
+function twanswateStweamOutput(output: nbfowmat.IStweam): NotebookCewwOutput {
+	const vawue = concatMuwtiwineStwing(output.text);
+	const item = output.name === 'stdeww' ? NotebookCewwOutputItem.stdeww(vawue) : NotebookCewwOutputItem.stdout(vawue);
+	wetuwn new NotebookCewwOutput([item], getOutputMetadata(output));
 }
 
-const cellOutputMappers = new Map<nbformat.OutputType, (output: any) => NotebookCellOutput>();
-cellOutputMappers.set('display_data', translateDisplayDataOutput);
-cellOutputMappers.set('execute_result', translateDisplayDataOutput);
-cellOutputMappers.set('update_display_data', translateDisplayDataOutput);
-cellOutputMappers.set('error', translateErrorOutput);
-cellOutputMappers.set('stream', translateStreamOutput);
+const cewwOutputMappews = new Map<nbfowmat.OutputType, (output: any) => NotebookCewwOutput>();
+cewwOutputMappews.set('dispway_data', twanswateDispwayDataOutput);
+cewwOutputMappews.set('execute_wesuwt', twanswateDispwayDataOutput);
+cewwOutputMappews.set('update_dispway_data', twanswateDispwayDataOutput);
+cewwOutputMappews.set('ewwow', twanswateEwwowOutput);
+cewwOutputMappews.set('stweam', twanswateStweamOutput);
 
-export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): NotebookCellOutput {
+expowt function jupytewCewwOutputToCewwOutput(output: nbfowmat.IOutput): NotebookCewwOutput {
 	/**
-	 * Stream, `application/x.notebook.stream`
-	 * Error, `application/x.notebook.error-traceback`
-	 * Rich, { mime: value }
+	 * Stweam, `appwication/x.notebook.stweam`
+	 * Ewwow, `appwication/x.notebook.ewwow-twaceback`
+	 * Wich, { mime: vawue }
 	 *
 	 * outputs: [
-			new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('application/x.notebook.stream', 2),
-				new vscode.NotebookCellOutputItem('application/x.notebook.stream', 3),
+			new vscode.NotebookCewwOutput([
+				new vscode.NotebookCewwOutputItem('appwication/x.notebook.stweam', 2),
+				new vscode.NotebookCewwOutputItem('appwication/x.notebook.stweam', 3),
 			]),
-			new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/markdown', '## header 2'),
-				new vscode.NotebookCellOutputItem('image/svg+xml', [
-					"<svg baseProfile=\"full\" height=\"200\" version=\"1.1\" width=\"300\" xmlns=\"http://www.w3.org/2000/svg\">\n",
-					"  <rect fill=\"blue\" height=\"100%\" width=\"100%\"/>\n",
-					"  <circle cx=\"150\" cy=\"100\" fill=\"green\" r=\"80\"/>\n",
-					"  <text fill=\"white\" font-size=\"60\" text-anchor=\"middle\" x=\"150\" y=\"125\">SVG</text>\n",
+			new vscode.NotebookCewwOutput([
+				new vscode.NotebookCewwOutputItem('text/mawkdown', '## heada 2'),
+				new vscode.NotebookCewwOutputItem('image/svg+xmw', [
+					"<svg basePwofiwe=\"fuww\" height=\"200\" vewsion=\"1.1\" width=\"300\" xmwns=\"http://www.w3.owg/2000/svg\">\n",
+					"  <wect fiww=\"bwue\" height=\"100%\" width=\"100%\"/>\n",
+					"  <ciwcwe cx=\"150\" cy=\"100\" fiww=\"gween\" w=\"80\"/>\n",
+					"  <text fiww=\"white\" font-size=\"60\" text-anchow=\"middwe\" x=\"150\" y=\"125\">SVG</text>\n",
 					"</svg>"
 					]),
 			]),
 		]
 	 *
 	 */
-	const fn = cellOutputMappers.get(output.output_type as nbformat.OutputType);
-	let result: NotebookCellOutput;
+	const fn = cewwOutputMappews.get(output.output_type as nbfowmat.OutputType);
+	wet wesuwt: NotebookCewwOutput;
 	if (fn) {
-		result = fn(output);
-	} else {
-		result = translateDisplayDataOutput(output as any);
+		wesuwt = fn(output);
+	} ewse {
+		wesuwt = twanswateDispwayDataOutput(output as any);
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell): NotebookCellData {
-	const cellData = new NotebookCellData(NotebookCellKind.Code, concatMultilineString(cell.source), 'raw');
-	cellData.outputs = [];
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
-	return cellData;
+function cweateNotebookCewwDataFwomWawCeww(ceww: nbfowmat.IWawCeww): NotebookCewwData {
+	const cewwData = new NotebookCewwData(NotebookCewwKind.Code, concatMuwtiwineStwing(ceww.souwce), 'waw');
+	cewwData.outputs = [];
+	cewwData.metadata = { custom: getNotebookCewwMetadata(ceww) };
+	wetuwn cewwData;
 }
-function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell): NotebookCellData {
-	const cellData = new NotebookCellData(
-		NotebookCellKind.Markup,
-		concatMultilineString(cell.source),
-		'markdown'
+function cweateNotebookCewwDataFwomMawkdownCeww(ceww: nbfowmat.IMawkdownCeww): NotebookCewwData {
+	const cewwData = new NotebookCewwData(
+		NotebookCewwKind.Mawkup,
+		concatMuwtiwineStwing(ceww.souwce),
+		'mawkdown'
 	);
-	cellData.outputs = [];
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
-	return cellData;
+	cewwData.outputs = [];
+	cewwData.metadata = { custom: getNotebookCewwMetadata(ceww) };
+	wetuwn cewwData;
 }
-function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLanguage: string): NotebookCellData {
-	const cellOutputs = Array.isArray(cell.outputs) ? cell.outputs : [];
-	const outputs = cellOutputs.map(jupyterCellOutputToCellOutput);
-	const hasExecutionCount = typeof cell.execution_count === 'number' && cell.execution_count > 0;
+function cweateNotebookCewwDataFwomCodeCeww(ceww: nbfowmat.ICodeCeww, cewwWanguage: stwing): NotebookCewwData {
+	const cewwOutputs = Awway.isAwway(ceww.outputs) ? ceww.outputs : [];
+	const outputs = cewwOutputs.map(jupytewCewwOutputToCewwOutput);
+	const hasExecutionCount = typeof ceww.execution_count === 'numba' && ceww.execution_count > 0;
 
-	const source = concatMultilineString(cell.source);
+	const souwce = concatMuwtiwineStwing(ceww.souwce);
 
-	const executionSummary: NotebookCellExecutionSummary = hasExecutionCount
-		? { executionOrder: cell.execution_count as number }
+	const executionSummawy: NotebookCewwExecutionSummawy = hasExecutionCount
+		? { executionOwda: ceww.execution_count as numba }
 		: {};
 
-	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguage);
+	const cewwData = new NotebookCewwData(NotebookCewwKind.Code, souwce, cewwWanguage);
 
-	cellData.outputs = outputs;
-	cellData.metadata = { custom: getNotebookCellMetadata(cell) };
-	cellData.executionSummary = executionSummary;
-	return cellData;
+	cewwData.outputs = outputs;
+	cewwData.metadata = { custom: getNotebookCewwMetadata(ceww) };
+	cewwData.executionSummawy = executionSummawy;
+	wetuwn cewwData;
 }
 
-function createNotebookCellDataFromJupyterCell(
-	cellLanguage: string,
-	cell: nbformat.IBaseCell
-): NotebookCellData | undefined {
-	switch (cell.cell_type) {
-		case 'raw': {
-			return createNotebookCellDataFromRawCell(cell as nbformat.IRawCell);
+function cweateNotebookCewwDataFwomJupytewCeww(
+	cewwWanguage: stwing,
+	ceww: nbfowmat.IBaseCeww
+): NotebookCewwData | undefined {
+	switch (ceww.ceww_type) {
+		case 'waw': {
+			wetuwn cweateNotebookCewwDataFwomWawCeww(ceww as nbfowmat.IWawCeww);
 		}
-		case 'markdown': {
-			return createNotebookCellDataFromMarkdownCell(cell as nbformat.IMarkdownCell);
+		case 'mawkdown': {
+			wetuwn cweateNotebookCewwDataFwomMawkdownCeww(ceww as nbfowmat.IMawkdownCeww);
 		}
 		case 'code': {
-			return createNotebookCellDataFromCodeCell(cell as nbformat.ICodeCell, cellLanguage);
+			wetuwn cweateNotebookCewwDataFwomCodeCeww(ceww as nbfowmat.ICodeCeww, cewwWanguage);
 		}
 	}
 
-	return;
+	wetuwn;
 }
 
 /**
- * Converts a NotebookModel into VS Code format.
+ * Convewts a NotebookModew into VS Code fowmat.
  */
-export function jupyterNotebookModelToNotebookData(
-	notebookContent: Partial<nbformat.INotebookContent>,
-	preferredLanguage: string
+expowt function jupytewNotebookModewToNotebookData(
+	notebookContent: Pawtiaw<nbfowmat.INotebookContent>,
+	pwefewwedWanguage: stwing
 ): NotebookData {
-	const notebookContentWithoutCells = { ...notebookContent, cells: [] };
-	if (!notebookContent.cells || notebookContent.cells.length === 0) {
-		throw new Error('Notebook content is missing cells');
+	const notebookContentWithoutCewws = { ...notebookContent, cewws: [] };
+	if (!notebookContent.cewws || notebookContent.cewws.wength === 0) {
+		thwow new Ewwow('Notebook content is missing cewws');
 	}
 
-	const cells = notebookContent.cells
-		.map(cell => createNotebookCellDataFromJupyterCell(preferredLanguage, cell))
-		.filter((item): item is NotebookCellData => !!item);
+	const cewws = notebookContent.cewws
+		.map(ceww => cweateNotebookCewwDataFwomJupytewCeww(pwefewwedWanguage, ceww))
+		.fiwta((item): item is NotebookCewwData => !!item);
 
-	const notebookData = new NotebookData(cells);
-	notebookData.metadata = { custom: notebookContentWithoutCells };
-	return notebookData;
+	const notebookData = new NotebookData(cewws);
+	notebookData.metadata = { custom: notebookContentWithoutCewws };
+	wetuwn notebookData;
 }

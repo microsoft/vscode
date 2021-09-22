@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import { Emitter } from 'vs/base/common/event';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, IWorkspace, isWorkspace } from 'vs/platform/workspace/common/workspace';
-import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
-import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { match } from 'vs/base/common/glob';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWowkspaceContextSewvice, IWowkspace, isWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { basenameOwAuthowity, basename, joinPath, diwname } fwom 'vs/base/common/wesouwces';
+impowt { tiwdify, getPathWabew } fwom 'vs/base/common/wabews';
+impowt { IWowkspaceIdentifia, WOWKSPACE_EXTENSION, toWowkspaceIdentifia, isWowkspaceIdentifia, isUntitwedWowkspace, isSingweFowdewWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWabewSewvice, WesouwceWabewFowmatta, WesouwceWabewFowmatting, IFowmattewChangeEvent } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { match } fwom 'vs/base/common/gwob';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
 
-const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
-	extensionPoint: 'resourceLabelFormatters',
+const wesouwceWabewFowmattewsExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<WesouwceWabewFowmatta[]>({
+	extensionPoint: 'wesouwceWabewFowmattews',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.resourceLabelFormatters', 'Contributes resource label formatting rules.'),
-		type: 'array',
+		descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews', 'Contwibutes wesouwce wabew fowmatting wuwes.'),
+		type: 'awway',
 		items: {
 			type: 'object',
-			required: ['scheme', 'formatting'],
-			properties: {
+			wequiwed: ['scheme', 'fowmatting'],
+			pwopewties: {
 				scheme: {
-					type: 'string',
-					description: localize('vscode.extension.contributes.resourceLabelFormatters.scheme', 'URI scheme on which to match the formatter on. For example "file". Simple glob patterns are supported.'),
+					type: 'stwing',
+					descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.scheme', 'UWI scheme on which to match the fowmatta on. Fow exampwe "fiwe". Simpwe gwob pattewns awe suppowted.'),
 				},
-				authority: {
-					type: 'string',
-					description: localize('vscode.extension.contributes.resourceLabelFormatters.authority', 'URI authority on which to match the formatter on. Simple glob patterns are supported.'),
+				authowity: {
+					type: 'stwing',
+					descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.authowity', 'UWI authowity on which to match the fowmatta on. Simpwe gwob pattewns awe suppowted.'),
 				},
-				formatting: {
-					description: localize('vscode.extension.contributes.resourceLabelFormatters.formatting', "Rules for formatting uri resource labels."),
+				fowmatting: {
+					descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.fowmatting', "Wuwes fow fowmatting uwi wesouwce wabews."),
 					type: 'object',
-					properties: {
-						label: {
-							type: 'string',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.label', "Label rules to display. For example: myLabel:/${path}. ${path}, ${scheme} and ${authority} are supported as variables.")
+					pwopewties: {
+						wabew: {
+							type: 'stwing',
+							descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.wabew', "Wabew wuwes to dispway. Fow exampwe: myWabew:/${path}. ${path}, ${scheme} and ${authowity} awe suppowted as vawiabwes.")
 						},
-						separator: {
-							type: 'string',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.separator', "Separator to be used in the uri label display. '/' or '\' as an example.")
+						sepawatow: {
+							type: 'stwing',
+							descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.sepawatow', "Sepawatow to be used in the uwi wabew dispway. '/' ow '\' as an exampwe.")
 						},
-						stripPathStartingSeparator: {
-							type: 'boolean',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.stripPathStartingSeparator', "Controls whether `${path}` substitutions should have starting separator characters stripped.")
+						stwipPathStawtingSepawatow: {
+							type: 'boowean',
+							descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.stwipPathStawtingSepawatow', "Contwows whetha `${path}` substitutions shouwd have stawting sepawatow chawactews stwipped.")
 						},
-						tildify: {
-							type: 'boolean',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.tildify', "Controls if the start of the uri label should be tildified when possible.")
+						tiwdify: {
+							type: 'boowean',
+							descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.tiwdify', "Contwows if the stawt of the uwi wabew shouwd be tiwdified when possibwe.")
 						},
-						workspaceSuffix: {
-							type: 'string',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.formatting.workspaceSuffix', "Suffix appended to the workspace label.")
+						wowkspaceSuffix: {
+							type: 'stwing',
+							descwiption: wocawize('vscode.extension.contwibutes.wesouwceWabewFowmattews.fowmatting.wowkspaceSuffix', "Suffix appended to the wowkspace wabew.")
 						}
 					}
 				}
@@ -70,275 +70,275 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 	}
 });
 
-const sepRegexp = /\//g;
-const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
+const sepWegexp = /\//g;
+const wabewMatchingWegexp = /\$\{(scheme|authowity|path|(quewy)\.(.+?))\}/g;
 
-function hasDriveLetterIgnorePlatform(path: string): boolean {
-	return !!(path && path[2] === ':');
+function hasDwiveWettewIgnowePwatfowm(path: stwing): boowean {
+	wetuwn !!(path && path[2] === ':');
 }
 
-class ResourceLabelFormattersHandler implements IWorkbenchContribution {
-	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
+cwass WesouwceWabewFowmattewsHandwa impwements IWowkbenchContwibution {
+	pwivate fowmattewsDisposabwes = new Map<WesouwceWabewFowmatta, IDisposabwe>();
 
-	constructor(@ILabelService labelService: ILabelService) {
-		resourceLabelFormattersExtPoint.setHandler((extensions, delta) => {
-			delta.added.forEach(added => added.value.forEach(formatter => {
-				if (!added.description.enableProposedApi && formatter.formatting.workspaceTooltip) {
-					// workspaceTooltip is only proposed
-					formatter.formatting.workspaceTooltip = undefined;
+	constwuctow(@IWabewSewvice wabewSewvice: IWabewSewvice) {
+		wesouwceWabewFowmattewsExtPoint.setHandwa((extensions, dewta) => {
+			dewta.added.fowEach(added => added.vawue.fowEach(fowmatta => {
+				if (!added.descwiption.enabwePwoposedApi && fowmatta.fowmatting.wowkspaceToowtip) {
+					// wowkspaceToowtip is onwy pwoposed
+					fowmatta.fowmatting.wowkspaceToowtip = undefined;
 				}
-				this.formattersDisposables.set(formatter, labelService.registerFormatter(formatter));
+				this.fowmattewsDisposabwes.set(fowmatta, wabewSewvice.wegistewFowmatta(fowmatta));
 			}));
-			delta.removed.forEach(removed => removed.value.forEach(formatter => {
-				this.formattersDisposables.get(formatter)!.dispose();
+			dewta.wemoved.fowEach(wemoved => wemoved.vawue.fowEach(fowmatta => {
+				this.fowmattewsDisposabwes.get(fowmatta)!.dispose();
 			}));
 		});
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WesouwceWabewFowmattewsHandwa, WifecycwePhase.Westowed);
 
-export class LabelService extends Disposable implements ILabelService {
+expowt cwass WabewSewvice extends Disposabwe impwements IWabewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private formatters: ResourceLabelFormatter[] = [];
+	pwivate fowmattews: WesouwceWabewFowmatta[] = [];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
-	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+	pwivate weadonwy _onDidChangeFowmattews = this._wegista(new Emitta<IFowmattewChangeEvent>({ weakWawningThweshowd: 400 }));
+	weadonwy onDidChangeFowmattews = this._onDidChangeFowmattews.event;
 
-	constructor(
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService
+	constwuctow(
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice
 	) {
-		super();
+		supa();
 	}
 
-	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
-		let bestResult: ResourceLabelFormatter | undefined;
+	findFowmatting(wesouwce: UWI): WesouwceWabewFowmatting | undefined {
+		wet bestWesuwt: WesouwceWabewFowmatta | undefined;
 
-		this.formatters.forEach(formatter => {
-			if (formatter.scheme === resource.scheme) {
-				if (!formatter.authority && (!bestResult || formatter.priority)) {
-					bestResult = formatter;
-					return;
+		this.fowmattews.fowEach(fowmatta => {
+			if (fowmatta.scheme === wesouwce.scheme) {
+				if (!fowmatta.authowity && (!bestWesuwt || fowmatta.pwiowity)) {
+					bestWesuwt = fowmatta;
+					wetuwn;
 				}
-				if (!formatter.authority) {
-					return;
+				if (!fowmatta.authowity) {
+					wetuwn;
 				}
 
-				if (match(formatter.authority.toLowerCase(), resource.authority.toLowerCase()) && (!bestResult || !bestResult.authority || formatter.authority.length > bestResult.authority.length || ((formatter.authority.length === bestResult.authority.length) && formatter.priority))) {
-					bestResult = formatter;
+				if (match(fowmatta.authowity.toWowewCase(), wesouwce.authowity.toWowewCase()) && (!bestWesuwt || !bestWesuwt.authowity || fowmatta.authowity.wength > bestWesuwt.authowity.wength || ((fowmatta.authowity.wength === bestWesuwt.authowity.wength) && fowmatta.pwiowity))) {
+					bestWesuwt = fowmatta;
 				}
 			}
 		});
 
-		return bestResult ? bestResult.formatting : undefined;
+		wetuwn bestWesuwt ? bestWesuwt.fowmatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' } = {}): string {
-		let formatting = this.findFormatting(resource);
-		if (formatting && options.separator) {
-			// mixin separator if defined from the outside
-			formatting = { ...formatting, separator: options.separator };
+	getUwiWabew(wesouwce: UWI, options: { wewative?: boowean, noPwefix?: boowean, endWithSepawatow?: boowean, sepawatow?: '/' | '\\' } = {}): stwing {
+		wet fowmatting = this.findFowmatting(wesouwce);
+		if (fowmatting && options.sepawatow) {
+			// mixin sepawatow if defined fwom the outside
+			fowmatting = { ...fowmatting, sepawatow: options.sepawatow };
 		}
 
-		const label = this.doGetUriLabel(resource, formatting, options);
+		const wabew = this.doGetUwiWabew(wesouwce, fowmatting, options);
 
-		// Without formatting we still need to support the separator
-		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
-		if (!formatting && options.separator) {
-			return label.replace(sepRegexp, options.separator);
+		// Without fowmatting we stiww need to suppowt the sepawatow
+		// as pwovided in options (https://github.com/micwosoft/vscode/issues/130019)
+		if (!fowmatting && options.sepawatow) {
+			wetuwn wabew.wepwace(sepWegexp, options.sepawatow);
 		}
 
-		return label;
+		wetuwn wabew;
 	}
 
-	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
-		if (!formatting) {
-			return getPathLabel(resource.path, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
+	pwivate doGetUwiWabew(wesouwce: UWI, fowmatting?: WesouwceWabewFowmatting, options: { wewative?: boowean, noPwefix?: boowean, endWithSepawatow?: boowean } = {}): stwing {
+		if (!fowmatting) {
+			wetuwn getPathWabew(wesouwce.path, { usewHome: this.pathSewvice.wesowvedUsewHome }, options.wewative ? this.contextSewvice : undefined);
 		}
 
-		let label: string | undefined;
-		const baseResource = this.contextService?.getWorkspaceFolder(resource);
+		wet wabew: stwing | undefined;
+		const baseWesouwce = this.contextSewvice?.getWowkspaceFowda(wesouwce);
 
-		if (options.relative && baseResource) {
-			const baseResourceLabel = this.formatUri(baseResource.uri, formatting, options.noPrefix);
-			let relativeLabel = this.formatUri(resource, formatting, options.noPrefix);
+		if (options.wewative && baseWesouwce) {
+			const baseWesouwceWabew = this.fowmatUwi(baseWesouwce.uwi, fowmatting, options.noPwefix);
+			wet wewativeWabew = this.fowmatUwi(wesouwce, fowmatting, options.noPwefix);
 
-			let overlap = 0;
-			while (relativeLabel[overlap] && relativeLabel[overlap] === baseResourceLabel[overlap]) { overlap++; }
-			if (!relativeLabel[overlap] || relativeLabel[overlap] === formatting.separator) {
-				relativeLabel = relativeLabel.substring(1 + overlap);
-			} else if (overlap === baseResourceLabel.length && baseResource.uri.path === '/') {
-				relativeLabel = relativeLabel.substring(overlap);
+			wet ovewwap = 0;
+			whiwe (wewativeWabew[ovewwap] && wewativeWabew[ovewwap] === baseWesouwceWabew[ovewwap]) { ovewwap++; }
+			if (!wewativeWabew[ovewwap] || wewativeWabew[ovewwap] === fowmatting.sepawatow) {
+				wewativeWabew = wewativeWabew.substwing(1 + ovewwap);
+			} ewse if (ovewwap === baseWesouwceWabew.wength && baseWesouwce.uwi.path === '/') {
+				wewativeWabew = wewativeWabew.substwing(ovewwap);
 			}
 
-			const hasMultipleRoots = this.contextService.getWorkspace().folders.length > 1;
-			if (hasMultipleRoots && !options.noPrefix) {
-				const rootName = baseResource?.name ?? basenameOrAuthority(baseResource.uri);
-				relativeLabel = relativeLabel ? (rootName + ' • ' + relativeLabel) : rootName; // always show root basename if there are multiple
+			const hasMuwtipweWoots = this.contextSewvice.getWowkspace().fowdews.wength > 1;
+			if (hasMuwtipweWoots && !options.noPwefix) {
+				const wootName = baseWesouwce?.name ?? basenameOwAuthowity(baseWesouwce.uwi);
+				wewativeWabew = wewativeWabew ? (wootName + ' • ' + wewativeWabew) : wootName; // awways show woot basename if thewe awe muwtipwe
 			}
 
-			label = relativeLabel;
-		} else {
-			label = this.formatUri(resource, formatting, options.noPrefix);
+			wabew = wewativeWabew;
+		} ewse {
+			wabew = this.fowmatUwi(wesouwce, fowmatting, options.noPwefix);
 		}
 
-		return options.endWithSeparator ? this.appendSeparatorIfMissing(label, formatting) : label;
+		wetuwn options.endWithSepawatow ? this.appendSepawatowIfMissing(wabew, fowmatting) : wabew;
 	}
 
-	getUriBasenameLabel(resource: URI): string {
-		const formatting = this.findFormatting(resource);
-		const label = this.doGetUriLabel(resource, formatting);
-		if (formatting) {
-			switch (formatting.separator) {
-				case paths.win32.sep: return paths.win32.basename(label);
-				case paths.posix.sep: return paths.posix.basename(label);
+	getUwiBasenameWabew(wesouwce: UWI): stwing {
+		const fowmatting = this.findFowmatting(wesouwce);
+		const wabew = this.doGetUwiWabew(wesouwce, fowmatting);
+		if (fowmatting) {
+			switch (fowmatting.sepawatow) {
+				case paths.win32.sep: wetuwn paths.win32.basename(wabew);
+				case paths.posix.sep: wetuwn paths.posix.basename(wabew);
 			}
 		}
 
-		return paths.basename(label);
+		wetuwn paths.basename(wabew);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: boolean }): string {
-		if (isWorkspace(workspace)) {
-			const identifier = toWorkspaceIdentifier(workspace);
-			if (identifier) {
-				return this.getWorkspaceLabel(identifier, options);
+	getWowkspaceWabew(wowkspace: IWowkspace | IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | UWI, options?: { vewbose: boowean }): stwing {
+		if (isWowkspace(wowkspace)) {
+			const identifia = toWowkspaceIdentifia(wowkspace);
+			if (identifia) {
+				wetuwn this.getWowkspaceWabew(identifia, options);
 			}
 
-			return '';
+			wetuwn '';
 		}
 
-		// Workspace: Single Folder (as URI)
-		if (URI.isUri(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+		// Wowkspace: Singwe Fowda (as UWI)
+		if (UWI.isUwi(wowkspace)) {
+			wetuwn this.doGetSingweFowdewWowkspaceWabew(wowkspace, options);
 		}
 
-		// Workspace: Single Folder (as workspace identifier)
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
+		// Wowkspace: Singwe Fowda (as wowkspace identifia)
+		if (isSingweFowdewWowkspaceIdentifia(wowkspace)) {
+			wetuwn this.doGetSingweFowdewWowkspaceWabew(wowkspace.uwi, options);
 		}
 
-		// Workspace: Multi Root
-		if (isWorkspaceIdentifier(workspace)) {
-			return this.doGetWorkspaceLabel(workspace.configPath, options);
+		// Wowkspace: Muwti Woot
+		if (isWowkspaceIdentifia(wowkspace)) {
+			wetuwn this.doGetWowkspaceWabew(wowkspace.configPath, options);
 		}
 
-		return '';
+		wetuwn '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: boolean }): string {
+	pwivate doGetWowkspaceWabew(wowkspaceUwi: UWI, options?: { vewbose: boowean }): stwing {
 
-		// Workspace: Untitled
-		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
-			return localize('untitledWorkspace', "Untitled (Workspace)");
+		// Wowkspace: Untitwed
+		if (isUntitwedWowkspace(wowkspaceUwi, this.enviwonmentSewvice)) {
+			wetuwn wocawize('untitwedWowkspace', "Untitwed (Wowkspace)");
 		}
 
-		// Workspace: Saved
-		let filename = basename(workspaceUri);
-		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+		// Wowkspace: Saved
+		wet fiwename = basename(wowkspaceUwi);
+		if (fiwename.endsWith(WOWKSPACE_EXTENSION)) {
+			fiwename = fiwename.substw(0, fiwename.wength - WOWKSPACE_EXTENSION.wength - 1);
 		}
 
-		let label;
-		if (options?.verbose) {
-			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
-		} else {
-			label = localize('workspaceName', "{0} (Workspace)", filename);
+		wet wabew;
+		if (options?.vewbose) {
+			wabew = wocawize('wowkspaceNameVewbose', "{0} (Wowkspace)", this.getUwiWabew(joinPath(diwname(wowkspaceUwi), fiwename)));
+		} ewse {
+			wabew = wocawize('wowkspaceName', "{0} (Wowkspace)", fiwename);
 		}
 
-		return this.appendWorkspaceSuffix(label, workspaceUri);
+		wetuwn this.appendWowkspaceSuffix(wabew, wowkspaceUwi);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
-		return this.appendWorkspaceSuffix(label, folderUri);
+	pwivate doGetSingweFowdewWowkspaceWabew(fowdewUwi: UWI, options?: { vewbose: boowean }): stwing {
+		const wabew = options?.vewbose ? this.getUwiWabew(fowdewUwi) : basename(fowdewUwi) || '/';
+		wetuwn this.appendWowkspaceSuffix(wabew, fowdewUwi);
 	}
 
-	getSeparator(scheme: string, authority?: string): '/' | '\\' {
-		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter?.separator || '/';
+	getSepawatow(scheme: stwing, authowity?: stwing): '/' | '\\' {
+		const fowmatta = this.findFowmatting(UWI.fwom({ scheme, authowity }));
+		wetuwn fowmatta?.sepawatow || '/';
 	}
 
-	getHostLabel(scheme: string, authority?: string): string {
-		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter?.workspaceSuffix || '';
+	getHostWabew(scheme: stwing, authowity?: stwing): stwing {
+		const fowmatta = this.findFowmatting(UWI.fwom({ scheme, authowity }));
+		wetuwn fowmatta?.wowkspaceSuffix || '';
 	}
 
-	getHostTooltip(scheme: string, authority?: string): string | undefined {
-		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter?.workspaceTooltip;
+	getHostToowtip(scheme: stwing, authowity?: stwing): stwing | undefined {
+		const fowmatta = this.findFowmatting(UWI.fwom({ scheme, authowity }));
+		wetuwn fowmatta?.wowkspaceToowtip;
 	}
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		this.formatters.push(formatter);
-		this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
+	wegistewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe {
+		this.fowmattews.push(fowmatta);
+		this._onDidChangeFowmattews.fiwe({ scheme: fowmatta.scheme });
 
-		return {
+		wetuwn {
 			dispose: () => {
-				this.formatters = this.formatters.filter(f => f !== formatter);
-				this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
+				this.fowmattews = this.fowmattews.fiwta(f => f !== fowmatta);
+				this._onDidChangeFowmattews.fiwe({ scheme: fowmatta.scheme });
 			}
 		};
 	}
 
-	private formatUri(resource: URI, formatting: ResourceLabelFormatting, forceNoTildify?: boolean): string {
-		let label = formatting.label.replace(labelMatchingRegexp, (match, token, qsToken, qsValue) => {
+	pwivate fowmatUwi(wesouwce: UWI, fowmatting: WesouwceWabewFowmatting, fowceNoTiwdify?: boowean): stwing {
+		wet wabew = fowmatting.wabew.wepwace(wabewMatchingWegexp, (match, token, qsToken, qsVawue) => {
 			switch (token) {
-				case 'scheme': return resource.scheme;
-				case 'authority': return resource.authority;
+				case 'scheme': wetuwn wesouwce.scheme;
+				case 'authowity': wetuwn wesouwce.authowity;
 				case 'path':
-					return formatting.stripPathStartingSeparator
-						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-						: resource.path;
-				default: {
-					if (qsToken === 'query') {
-						const { query } = resource;
-						if (query && query[0] === '{' && query[query.length - 1] === '}') {
-							try {
-								return JSON.parse(query)[qsValue] || '';
+					wetuwn fowmatting.stwipPathStawtingSepawatow
+						? wesouwce.path.swice(wesouwce.path[0] === fowmatting.sepawatow ? 1 : 0)
+						: wesouwce.path;
+				defauwt: {
+					if (qsToken === 'quewy') {
+						const { quewy } = wesouwce;
+						if (quewy && quewy[0] === '{' && quewy[quewy.wength - 1] === '}') {
+							twy {
+								wetuwn JSON.pawse(quewy)[qsVawue] || '';
 							}
 							catch { }
 						}
 					}
-					return '';
+					wetuwn '';
 				}
 			}
 		});
 
-		// convert \c:\something => C:\something
-		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
-			label = label.charAt(1).toUpperCase() + label.substr(2);
+		// convewt \c:\something => C:\something
+		if (fowmatting.nowmawizeDwiveWetta && hasDwiveWettewIgnowePwatfowm(wabew)) {
+			wabew = wabew.chawAt(1).toUppewCase() + wabew.substw(2);
 		}
 
-		if (formatting.tildify && !forceNoTildify) {
-			const userHome = this.pathService.resolvedUserHome;
-			if (userHome) {
-				label = tildify(label, userHome.fsPath);
+		if (fowmatting.tiwdify && !fowceNoTiwdify) {
+			const usewHome = this.pathSewvice.wesowvedUsewHome;
+			if (usewHome) {
+				wabew = tiwdify(wabew, usewHome.fsPath);
 			}
 		}
-		if (formatting.authorityPrefix && resource.authority) {
-			label = formatting.authorityPrefix + label;
+		if (fowmatting.authowityPwefix && wesouwce.authowity) {
+			wabew = fowmatting.authowityPwefix + wabew;
 		}
 
-		return label.replace(sepRegexp, formatting.separator);
+		wetuwn wabew.wepwace(sepWegexp, fowmatting.sepawatow);
 	}
 
-	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
-		let appendedLabel = label;
-		if (!label.endsWith(formatting.separator)) {
-			appendedLabel += formatting.separator;
+	pwivate appendSepawatowIfMissing(wabew: stwing, fowmatting: WesouwceWabewFowmatting): stwing {
+		wet appendedWabew = wabew;
+		if (!wabew.endsWith(fowmatting.sepawatow)) {
+			appendedWabew += fowmatting.sepawatow;
 		}
-		return appendedLabel;
+		wetuwn appendedWabew;
 	}
 
-	private appendWorkspaceSuffix(label: string, uri: URI): string {
-		const formatting = this.findFormatting(uri);
-		const suffix = formatting && (typeof formatting.workspaceSuffix === 'string') ? formatting.workspaceSuffix : undefined;
-		return suffix ? `${label} [${suffix}]` : label;
+	pwivate appendWowkspaceSuffix(wabew: stwing, uwi: UWI): stwing {
+		const fowmatting = this.findFowmatting(uwi);
+		const suffix = fowmatting && (typeof fowmatting.wowkspaceSuffix === 'stwing') ? fowmatting.wowkspaceSuffix : undefined;
+		wetuwn suffix ? `${wabew} [${suffix}]` : wabew;
 	}
 }
 
-registerSingleton(ILabelService, LabelService, true);
+wegistewSingweton(IWabewSewvice, WabewSewvice, twue);

@@ -1,93 +1,93 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: "github-distwo-mixin-passwowd,ESWP-PKI,eswp-aad-usewname,eswp-aad-passwowd"
 
-  - script: |
+  - scwipt: |
       set -e
-      cat << EOF > ~/.netrc
+      cat << EOF > ~/.netwc
       machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
+      wogin vscode
+      passwowd $(github-distwo-mixin-passwowd)
       EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+      git config usa.emaiw "vscode@micwosoft.com"
+      git config usa.name "VSCode"
+    dispwayName: Pwepawe toowing
 
-  - script: |
+  - scwipt: |
       set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+      git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo")
+    dispwayName: Mewge distwo
 
-  - script: |
+  - scwipt: |
       set -e
-      yarn --cwd build
-      yarn --cwd build compile
-    displayName: Compile build tools
+      yawn --cwd buiwd
+      yawn --cwd buiwd compiwe
+    dispwayName: Compiwe buiwd toows
 
-  - download: current
-    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-    displayName: Download $(VSCODE_ARCH) artifact
+  - downwoad: cuwwent
+    awtifact: unsigned_vscode_cwient_dawwin_$(VSCODE_AWCH)_awchive
+    dispwayName: Downwoad $(VSCODE_AWCH) awtifact
 
-  - script: |
+  - scwipt: |
       set -e
-      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Unzip & move
+      unzip $(Pipewine.Wowkspace)/unsigned_vscode_cwient_dawwin_$(VSCODE_AWCH)_awchive/VSCode-dawwin-$(VSCODE_AWCH).zip -d $(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      mv $(Pipewine.Wowkspace)/unsigned_vscode_cwient_dawwin_$(VSCODE_AWCH)_awchive/VSCode-dawwin-$(VSCODE_AWCH).zip $(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH).zip
+    dispwayName: Unzip & move
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      vewsion: 2.x
 
-  - task: EsrpClientTool@1
-    displayName: Download ESRPClient
+  - task: EswpCwientToow@1
+    dispwayName: Downwoad ESWPCwient
 
-  - script: |
+  - scwipt: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Codesign
+      node buiwd/azuwe-pipewines/common/sign "$(eswpcwient.toowpath)/$(eswpcwient.toowname)" dawwin-sign $(ESWP-PKI) $(eswp-aad-usewname) $(eswp-aad-passwowd) $(agent.buiwddiwectowy) VSCode-dawwin-$(VSCODE_AWCH).zip
+    dispwayName: Codesign
 
-  - script: |
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
-      echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
-    displayName: Export bundle identifier
+  - scwipt: |
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      BUNDWE_IDENTIFIa=$(node -p "wequiwe(\"$APP_WOOT/$APP_NAME/Contents/Wesouwces/app/pwoduct.json\").dawwinBundweIdentifia")
+      echo "##vso[task.setvawiabwe vawiabwe=BundweIdentifia]$BUNDWE_IDENTIFIa"
+    dispwayName: Expowt bundwe identifia
 
-  - script: |
+  - scwipt: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(agent.builddirectory) VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Notarize
+      node buiwd/azuwe-pipewines/common/sign "$(eswpcwient.toowpath)/$(eswpcwient.toowname)" dawwin-notawize $(ESWP-PKI) $(eswp-aad-usewname) $(eswp-aad-passwowd) $(agent.buiwddiwectowy) VSCode-dawwin-$(VSCODE_AWCH).zip
+    dispwayName: Notawize
 
-  - script: |
+  - scwipt: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
-    displayName: Verify start after signing (export configuration)
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      "$APP_WOOT/$APP_NAME/Contents/Wesouwces/app/bin/code" --expowt-defauwt-configuwation=.buiwd
+    dispwayName: Vewify stawt afta signing (expowt configuwation)
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - script: |
-      # For legacy purposes, arch for x64 is just 'darwin'
-      case $VSCODE_ARCH in
-        x64) ASSET_ID="darwin" ;;
-        arm64) ASSET_ID="darwin-arm64" ;;
-        universal) ASSET_ID="darwin-universal" ;;
+  - scwipt: |
+      # Fow wegacy puwposes, awch fow x64 is just 'dawwin'
+      case $VSCODE_AWCH in
+        x64) ASSET_ID="dawwin" ;;
+        awm64) ASSET_ID="dawwin-awm64" ;;
+        univewsaw) ASSET_ID="dawwin-univewsaw" ;;
       esac
-      echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
-    displayName: Set asset id variable
+      echo "##vso[task.setvawiabwe vawiabwe=ASSET_ID]$ASSET_ID"
+    dispwayName: Set asset id vawiabwe
 
-  - script: mv $(agent.builddirectory)/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin.zip
-    displayName: Rename x64 build to it's legacy name
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+  - scwipt: mv $(agent.buiwddiwectowy)/VSCode-dawwin-x64.zip $(agent.buiwddiwectowy)/VSCode-dawwin.zip
+    dispwayName: Wename x64 buiwd to it's wegacy name
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/VSCode-$(ASSET_ID).zip
-    artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive
+  - pubwish: $(Agent.BuiwdDiwectowy)/VSCode-$(ASSET_ID).zip
+    awtifact: vscode_cwient_dawwin_$(VSCODE_AWCH)_awchive

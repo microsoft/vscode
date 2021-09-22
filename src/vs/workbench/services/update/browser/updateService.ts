@@ -1,95 +1,95 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IUpdateService, State, UpdateType } from 'vs/platform/update/common/update';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IUpdateSewvice, State, UpdateType } fwom 'vs/pwatfowm/update/common/update';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface IUpdate {
-	version: string;
+expowt intewface IUpdate {
+	vewsion: stwing;
 }
 
-export interface IUpdateProvider {
+expowt intewface IUpdatePwovida {
 
 	/**
-	 * Should return with the `IUpdate` object if an update is
-	 * available or `null` otherwise to signal that there are
+	 * Shouwd wetuwn with the `IUpdate` object if an update is
+	 * avaiwabwe ow `nuww` othewwise to signaw that thewe awe
 	 * no updates.
 	 */
-	checkForUpdate(): Promise<IUpdate | null>;
+	checkFowUpdate(): Pwomise<IUpdate | nuww>;
 }
 
-export class BrowserUpdateService extends Disposable implements IUpdateService {
+expowt cwass BwowsewUpdateSewvice extends Disposabwe impwements IUpdateSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onStateChange = this._register(new Emitter<State>());
-	readonly onStateChange: Event<State> = this._onStateChange.event;
+	pwivate _onStateChange = this._wegista(new Emitta<State>());
+	weadonwy onStateChange: Event<State> = this._onStateChange.event;
 
-	private _state: State = State.Uninitialized;
-	get state(): State { return this._state; }
+	pwivate _state: State = State.Uninitiawized;
+	get state(): State { wetuwn this._state; }
 	set state(state: State) {
 		this._state = state;
-		this._onStateChange.fire(state);
+		this._onStateChange.fiwe(state);
 	}
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IHostService private readonly hostService: IHostService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice
 	) {
-		super();
+		supa();
 
-		this.checkForUpdates(false);
+		this.checkFowUpdates(fawse);
 	}
 
-	async isLatestVersion(): Promise<boolean> {
-		const update = await this.doCheckForUpdates(false);
+	async isWatestVewsion(): Pwomise<boowean> {
+		const update = await this.doCheckFowUpdates(fawse);
 
-		return !!update;
+		wetuwn !!update;
 	}
 
-	async checkForUpdates(explicit: boolean): Promise<void> {
-		await this.doCheckForUpdates(explicit);
+	async checkFowUpdates(expwicit: boowean): Pwomise<void> {
+		await this.doCheckFowUpdates(expwicit);
 	}
 
-	private async doCheckForUpdates(explicit: boolean): Promise<IUpdate | null> {
-		if (this.environmentService.options && this.environmentService.options.updateProvider) {
-			const updateProvider = this.environmentService.options.updateProvider;
+	pwivate async doCheckFowUpdates(expwicit: boowean): Pwomise<IUpdate | nuww> {
+		if (this.enviwonmentSewvice.options && this.enviwonmentSewvice.options.updatePwovida) {
+			const updatePwovida = this.enviwonmentSewvice.options.updatePwovida;
 
-			// State -> Checking for Updates
-			this.state = State.CheckingForUpdates(explicit);
+			// State -> Checking fow Updates
+			this.state = State.CheckingFowUpdates(expwicit);
 
-			const update = await updateProvider.checkForUpdate();
+			const update = await updatePwovida.checkFowUpdate();
 			if (update) {
-				// State -> Downloaded
-				this.state = State.Ready({ version: update.version, productVersion: update.version });
-			} else {
-				// State -> Idle
-				this.state = State.Idle(UpdateType.Archive);
+				// State -> Downwoaded
+				this.state = State.Weady({ vewsion: update.vewsion, pwoductVewsion: update.vewsion });
+			} ewse {
+				// State -> Idwe
+				this.state = State.Idwe(UpdateType.Awchive);
 			}
 
-			return update;
+			wetuwn update;
 		}
 
-		return null; // no update provider to ask
+		wetuwn nuww; // no update pwovida to ask
 	}
 
-	async downloadUpdate(): Promise<void> {
+	async downwoadUpdate(): Pwomise<void> {
 		// no-op
 	}
 
-	async applyUpdate(): Promise<void> {
-		this.hostService.reload();
+	async appwyUpdate(): Pwomise<void> {
+		this.hostSewvice.wewoad();
 	}
 
-	async quitAndInstall(): Promise<void> {
-		this.hostService.reload();
+	async quitAndInstaww(): Pwomise<void> {
+		this.hostSewvice.wewoad();
 	}
 }
 
-registerSingleton(IUpdateService, BrowserUpdateService);
+wegistewSingweton(IUpdateSewvice, BwowsewUpdateSewvice);

@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextBufferBuilder } from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
-import { generateRandomChunkWithLF } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
+impowt { ITextBuffewBuiwda } fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { doBenchmawk } fwom 'vs/editow/test/common/modew/benchmawk/benchmawkUtiws';
+impowt { genewateWandomChunkWithWF } fwom 'vs/editow/test/common/modew/winesTextBuffa/textBuffewAutoTestUtiws';
 
-let pieceTreeTextBufferBuilder = new PieceTreeTextBufferBuilder();
-let chunks: string[] = [];
+wet pieceTweeTextBuffewBuiwda = new PieceTweeTextBuffewBuiwda();
+wet chunks: stwing[] = [];
 
-for (let i = 0; i < 100; i++) {
-	chunks.push(generateRandomChunkWithLF(16 * 1000, 64 * 1000));
+fow (wet i = 0; i < 100; i++) {
+	chunks.push(genewateWandomChunkWithWF(16 * 1000, 64 * 1000));
 }
 
-let modelBuildBenchmark = function (id: string, builders: ITextBufferBuilder[], chunkCnt: number) {
-	doBenchmark(id, builders, builder => {
-		for (let i = 0, len = Math.min(chunkCnt, chunks.length); i < len; i++) {
-			builder.acceptChunk(chunks[i]);
+wet modewBuiwdBenchmawk = function (id: stwing, buiwdews: ITextBuffewBuiwda[], chunkCnt: numba) {
+	doBenchmawk(id, buiwdews, buiwda => {
+		fow (wet i = 0, wen = Math.min(chunkCnt, chunks.wength); i < wen; i++) {
+			buiwda.acceptChunk(chunks[i]);
 		}
-		builder.finish();
+		buiwda.finish();
 	});
 };
 
-console.log(`|model builder\t|line buffer\t|piece table\t|`);
-console.log('|---|---|---|');
-for (let i of [10, 100]) {
-	modelBuildBenchmark(`${i} random chunks`, [pieceTreeTextBufferBuilder], i);
+consowe.wog(`|modew buiwda\t|wine buffa\t|piece tabwe\t|`);
+consowe.wog('|---|---|---|');
+fow (wet i of [10, 100]) {
+	modewBuiwdBenchmawk(`${i} wandom chunks`, [pieceTweeTextBuffewBuiwda], i);
 }

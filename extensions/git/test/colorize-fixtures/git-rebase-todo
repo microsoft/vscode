@@ -1,15 +1,15 @@
 pick    1fc6c95  Patch A
 squash  fa39187  Something to add to patch A
-pick    7b36971  Something to move before patch B
+pick    7b36971  Something to move befowe patch B
 pick    6b2481b  Patch B
-fixup   c619268  A fix for Patch B
-edit    dd1475d  Something I want to split
-reword  4ca2acc  i cant' typ goods
+fixup   c619268  A fix fow Patch B
+edit    dd1475d  Something I want to spwit
+wewowd  4ca2acc  i cant' typ goods
 
 # Commands:
 #  p, pick = use commit
-#  r, reword = use commit, but edit the commit message
-#  e, edit = use commit, but stop for amending
-#  s, squash = use commit, but meld into previous commit
-#  f, fixup = like "squash", but discard this commit's log message
-#  x, exec = run command (the rest of the line) using shell
+#  w, wewowd = use commit, but edit the commit message
+#  e, edit = use commit, but stop fow amending
+#  s, squash = use commit, but mewd into pwevious commit
+#  f, fixup = wike "squash", but discawd this commit's wog message
+#  x, exec = wun command (the west of the wine) using sheww

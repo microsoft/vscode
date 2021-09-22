@@ -1,988 +1,988 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/activitybarpart';
-import { localize } from 'vs/nls';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
-import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined, isString } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isNative } from 'vs/base/common/platform';
-import { Before2D } from 'vs/workbench/browser/dnd';
-import { Codicon } from 'vs/base/common/codicons';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { GestureEvent } from 'vs/base/browser/touch';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+impowt 'vs/css!./media/activitybawpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ActionsOwientation, ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { GWOBAW_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } fwom 'vs/wowkbench/common/activity';
+impowt { Pawt } fwom 'vs/wowkbench/bwowsa/pawt';
+impowt { GwobawActivityActionViewItem, ViewContainewActivityAction, PwaceHowdewToggweCompositePinnedAction, PwaceHowdewViewContainewActivityAction, AccountsActivityActionViewItem } fwom 'vs/wowkbench/bwowsa/pawts/activitybaw/activitybawActions';
+impowt { IBadge, NumbewBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IWowkbenchWayoutSewvice, Pawts, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe, toDisposabwe, DisposabweStowe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ToggweActivityBawVisibiwityAction, ToggweSidebawPositionAction } fwom 'vs/wowkbench/bwowsa/actions/wayoutActions';
+impowt { IThemeSewvice, ICowowTheme, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ACTIVITY_BAW_BACKGWOUND, ACTIVITY_BAW_BOWDa, ACTIVITY_BAW_FOWEGWOUND, ACTIVITY_BAW_ACTIVE_BOWDa, ACTIVITY_BAW_BADGE_BACKGWOUND, ACTIVITY_BAW_BADGE_FOWEGWOUND, ACTIVITY_BAW_INACTIVE_FOWEGWOUND, ACTIVITY_BAW_ACTIVE_BACKGWOUND, ACTIVITY_BAW_DWAG_AND_DWOP_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { CompositeBaw, ICompositeBawItem, CompositeDwagAndDwop } fwom 'vs/wowkbench/bwowsa/pawts/compositeBaw';
+impowt { Dimension, cweateCSSWuwe, asCSSUww, addDisposabweWistena, EventType, isAncestow } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice, StowageScope, IStowageVawueChangeEvent, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ToggweCompositePinnedAction, ICompositeBawCowows, ActivityAction, ICompositeActivity, IActivityHovewOptions } fwom 'vs/wowkbench/bwowsa/pawts/compositeBawActions';
+impowt { IViewDescwiptowSewvice, ViewContaina, IViewContainewModew, ViewContainewWocation, getEnabwedViewContainewContextKey } fwom 'vs/wowkbench/common/views';
+impowt { IContextKeySewvice, ContextKeyExpw, IContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { assewtIsDefined, isStwing } fwom 'vs/base/common/types';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { CustomMenubawContwow } fwom 'vs/wowkbench/bwowsa/pawts/titwebaw/menubawContwow';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { getMenuBawVisibiwity } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { isNative } fwom 'vs/base/common/pwatfowm';
+impowt { Befowe2D } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { IAction, Sepawatow, toAction } fwom 'vs/base/common/actions';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { StwingSHA1 } fwom 'vs/base/common/hash';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { IPaneCompositePawt, IPaneCompositeSewectowPawt } fwom 'vs/wowkbench/bwowsa/pawts/paneCompositePawt';
 
-interface IPlaceholderViewContainer {
-	readonly id: string;
-	readonly name?: string;
-	readonly iconUrl?: UriComponents;
-	readonly themeIcon?: ThemeIcon;
-	readonly isBuiltin?: boolean;
-	readonly views?: { when?: string; }[];
+intewface IPwacehowdewViewContaina {
+	weadonwy id: stwing;
+	weadonwy name?: stwing;
+	weadonwy iconUww?: UwiComponents;
+	weadonwy themeIcon?: ThemeIcon;
+	weadonwy isBuiwtin?: boowean;
+	weadonwy views?: { when?: stwing; }[];
 }
 
-interface IPinnedViewContainer {
-	readonly id: string;
-	readonly pinned: boolean;
-	readonly order?: number;
-	readonly visible: boolean;
+intewface IPinnedViewContaina {
+	weadonwy id: stwing;
+	weadonwy pinned: boowean;
+	weadonwy owda?: numba;
+	weadonwy visibwe: boowean;
 }
 
-interface ICachedViewContainer {
-	readonly id: string;
-	name?: string;
-	icon?: URI | ThemeIcon;
-	readonly pinned: boolean;
-	readonly order?: number;
-	visible: boolean;
-	isBuiltin?: boolean;
-	views?: { when?: string; }[];
+intewface ICachedViewContaina {
+	weadonwy id: stwing;
+	name?: stwing;
+	icon?: UWI | ThemeIcon;
+	weadonwy pinned: boowean;
+	weadonwy owda?: numba;
+	visibwe: boowean;
+	isBuiwtin?: boowean;
+	views?: { when?: stwing; }[];
 }
 
-export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
+expowt cwass ActivitybawPawt extends Pawt impwements IPaneCompositeSewectowPawt {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';
-	private static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.activity.placeholderViewlets';
-	private static readonly ACTION_HEIGHT = 48;
-	private static readonly ACCOUNTS_ACTION_INDEX = 0;
+	pwivate static weadonwy PINNED_VIEW_CONTAINEWS = 'wowkbench.activity.pinnedViewwets2';
+	pwivate static weadonwy PWACEHOWDEW_VIEW_CONTAINEWS = 'wowkbench.activity.pwacehowdewViewwets';
+	pwivate static weadonwy ACTION_HEIGHT = 48;
+	pwivate static weadonwy ACCOUNTS_ACTION_INDEX = 0;
 
-	private static readonly GEAR_ICON = registerIcon('settings-view-bar-icon', Codicon.settingsGear, localize('settingsViewBarIcon', "Settings icon in the view bar."));
-	private static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
+	pwivate static weadonwy GEAW_ICON = wegistewIcon('settings-view-baw-icon', Codicon.settingsGeaw, wocawize('settingsViewBawIcon', "Settings icon in the view baw."));
+	pwivate static weadonwy ACCOUNTS_ICON = wegistewIcon('accounts-view-baw-icon', Codicon.account, wocawize('accountsViewBawIcon', "Accounts icon in the view baw."));
 
-	//#region IView
+	//#wegion IView
 
-	readonly minimumWidth: number = 48;
-	readonly maximumWidth: number = 48;
-	readonly minimumHeight: number = 0;
-	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	weadonwy minimumWidth: numba = 48;
+	weadonwy maximumWidth: numba = 48;
+	weadonwy minimumHeight: numba = 0;
+	weadonwy maximumHeight: numba = Numba.POSITIVE_INFINITY;
 
-	//#endregion
+	//#endwegion
 
-	private content: HTMLElement | undefined;
+	pwivate content: HTMWEwement | undefined;
 
-	private menuBar: CustomMenubarControl | undefined;
-	private menuBarContainer: HTMLElement | undefined;
+	pwivate menuBaw: CustomMenubawContwow | undefined;
+	pwivate menuBawContaina: HTMWEwement | undefined;
 
-	private compositeBar: CompositeBar;
-	private compositeBarContainer: HTMLElement | undefined;
+	pwivate compositeBaw: CompositeBaw;
+	pwivate compositeBawContaina: HTMWEwement | undefined;
 
-	private globalActivityAction: ActivityAction | undefined;
-	private globalActivityActionBar: ActionBar | undefined;
-	private globalActivitiesContainer: HTMLElement | undefined;
-	private readonly globalActivity: ICompositeActivity[] = [];
+	pwivate gwobawActivityAction: ActivityAction | undefined;
+	pwivate gwobawActivityActionBaw: ActionBaw | undefined;
+	pwivate gwobawActivitiesContaina: HTMWEwement | undefined;
+	pwivate weadonwy gwobawActivity: ICompositeActivity[] = [];
 
-	private accountsActivityAction: ActivityAction | undefined;
+	pwivate accountsActivityAction: ActivityAction | undefined;
 
-	private readonly accountsActivity: ICompositeActivity[] = [];
+	pwivate weadonwy accountsActivity: ICompositeActivity[] = [];
 
-	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
-	private readonly viewContainerDisposables = new Map<string, IDisposable>();
+	pwivate weadonwy compositeActions = new Map<stwing, { activityAction: ViewContainewActivityAction, pinnedAction: ToggweCompositePinnedAction; }>();
+	pwivate weadonwy viewContainewDisposabwes = new Map<stwing, IDisposabwe>();
 
-	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
+	pwivate weadonwy keyboawdNavigationDisposabwes = this._wegista(new DisposabweStowe());
 
-	private readonly location = ViewContainerLocation.Sidebar;
-	private hasExtensionsRegistered: boolean = false;
+	pwivate weadonwy wocation = ViewContainewWocation.Sidebaw;
+	pwivate hasExtensionsWegistewed: boowean = fawse;
 
-	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
+	pwivate weadonwy enabwedViewContainewsContextKeys: Map<stwing, IContextKey<boowean>> = new Map<stwing, IContextKey<boowean>>();
 
-	constructor(
-		private readonly paneCompositePart: IPaneCompositePart,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+	constwuctow(
+		pwivate weadonwy paneCompositePawt: IPaneCompositePawt,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IViewDescwiptowSewvice pwivate weadonwy viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		supa(Pawts.ACTIVITYBAW_PAWT, { hasTitwe: fawse }, themeSewvice, stowageSewvice, wayoutSewvice);
 
-		for (const cachedViewContainer of this.cachedViewContainers) {
-			cachedViewContainer.visible = !this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer);
+		fow (const cachedViewContaina of this.cachedViewContainews) {
+			cachedViewContaina.visibwe = !this.shouwdBeHidden(cachedViewContaina.id, cachedViewContaina);
 		}
-		this.compositeBar = this.createCompositeBar();
+		this.compositeBaw = this.cweateCompositeBaw();
 
-		this.onDidRegisterViewContainers(this.getViewContainers());
+		this.onDidWegistewViewContainews(this.getViewContainews());
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private createCompositeBar() {
-		const cachedItems = this.cachedViewContainers
-			.map(container => ({
-				id: container.id,
-				name: container.name,
-				visible: container.visible,
-				order: container.order,
-				pinned: container.pinned
+	pwivate cweateCompositeBaw() {
+		const cachedItems = this.cachedViewContainews
+			.map(containa => ({
+				id: containa.id,
+				name: containa.name,
+				visibwe: containa.visibwe,
+				owda: containa.owda,
+				pinned: containa.pinned
 			}));
 
-		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
-			icon: true,
-			orientation: ActionsOrientation.VERTICAL,
-			activityHoverOptions: this.getActivityHoverOptions(),
-			preventLoopNavigation: true,
-			openComposite: async (compositeId, preserveFocus) => {
-				return (await this.paneCompositePart.openPaneComposite(compositeId, !preserveFocus)) ?? null;
+		wetuwn this._wegista(this.instantiationSewvice.cweateInstance(CompositeBaw, cachedItems, {
+			icon: twue,
+			owientation: ActionsOwientation.VEWTICAW,
+			activityHovewOptions: this.getActivityHovewOptions(),
+			pweventWoopNavigation: twue,
+			openComposite: async (compositeId, pwesewveFocus) => {
+				wetuwn (await this.paneCompositePawt.openPaneComposite(compositeId, !pwesewveFocus)) ?? nuww;
 			},
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.paneCompositePart.getActivePaneComposite()?.getId() === compositeId ? this.paneCompositePart.hideActivePaneComposite() : this.paneCompositePart.openPaneComposite(compositeId) }),
-			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => {
+			getOnCompositeCwickAction: compositeId => toAction({ id: compositeId, wabew: '', wun: async () => this.paneCompositePawt.getActivePaneComposite()?.getId() === compositeId ? this.paneCompositePawt.hideActivePaneComposite() : this.paneCompositePawt.openPaneComposite(compositeId) }),
+			fiwwExtwaContextMenuActions: (actions, e?: MouseEvent | GestuweEvent) => {
 				// Menu
-				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
-				if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-					actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
+				const menuBawVisibiwity = getMenuBawVisibiwity(this.configuwationSewvice);
+				if (menuBawVisibiwity === 'compact' || menuBawVisibiwity === 'hidden' || menuBawVisibiwity === 'toggwe') {
+					actions.unshift(...[toAction({ id: 'toggweMenuVisibiwity', wabew: wocawize('menu', "Menu"), checked: menuBawVisibiwity === 'compact', wun: () => this.configuwationSewvice.updateVawue('window.menuBawVisibiwity', menuBawVisibiwity === 'compact' ? 'toggwe' : 'compact') }), new Sepawatow()]);
 				}
 
-				if (menuBarVisibility === 'compact' && this.menuBarContainer && e?.target) {
-					if (isAncestor(e.target as Node, this.menuBarContainer)) {
-						actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue('window.menuBarVisibility', 'toggle') }), new Separator()]);
+				if (menuBawVisibiwity === 'compact' && this.menuBawContaina && e?.tawget) {
+					if (isAncestow(e.tawget as Node, this.menuBawContaina)) {
+						actions.unshift(...[toAction({ id: 'hideCompactMenu', wabew: wocawize('hideMenu', "Hide Menu"), wun: () => this.configuwationSewvice.updateVawue('window.menuBawVisibiwity', 'toggwe') }), new Sepawatow()]);
 					}
 				}
 
 				// Accounts
-				actions.push(new Separator());
-				actions.push(toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference }));
-				actions.push(new Separator());
+				actions.push(new Sepawatow());
+				actions.push(toAction({ id: 'toggweAccountsVisibiwity', wabew: wocawize('accounts', "Accounts"), checked: this.accountsVisibiwityPwefewence, wun: () => this.accountsVisibiwityPwefewence = !this.accountsVisibiwityPwefewence }));
+				actions.push(new Sepawatow());
 
-				// Toggle Sidebar
-				actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
+				// Toggwe Sidebaw
+				actions.push(toAction({ id: ToggweSidebawPositionAction.ID, wabew: ToggweSidebawPositionAction.getWabew(this.wayoutSewvice), wun: () => this.instantiationSewvice.invokeFunction(accessow => new ToggweSidebawPositionAction().wun(accessow)) }));
 
-				// Toggle Activity Bar
-				actions.push(toAction({ id: ToggleActivityBarVisibilityAction.ID, label: localize('hideActivitBar', "Hide Activity Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleActivityBarVisibilityAction().run(accessor)) }));
+				// Toggwe Activity Baw
+				actions.push(toAction({ id: ToggweActivityBawVisibiwityAction.ID, wabew: wocawize('hideActivitBaw', "Hide Activity Baw"), wun: () => this.instantiationSewvice.invokeFunction(accessow => new ToggweActivityBawVisibiwityAction().wun(accessow)) }));
 			},
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
-			hidePart: () => this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART),
-			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
-				async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
-				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore),
-				() => this.compositeBar.getCompositeBarItems(),
+			getContextMenuActionsFowComposite: compositeId => this.getContextMenuActionsFowComposite(compositeId),
+			getDefauwtCompositeId: () => this.viewDescwiptowSewvice.getDefauwtViewContaina(this.wocation)!.id,
+			hidePawt: () => this.wayoutSewvice.setPawtHidden(twue, Pawts.SIDEBAW_PAWT),
+			dndHandwa: new CompositeDwagAndDwop(this.viewDescwiptowSewvice, ViewContainewWocation.Sidebaw,
+				async (id: stwing, focus?: boowean) => { wetuwn await this.paneCompositePawt.openPaneComposite(id, focus) ?? nuww; },
+				(fwom: stwing, to: stwing, befowe?: Befowe2D) => this.compositeBaw.move(fwom, to, befowe?.vewticawwyBefowe),
+				() => this.compositeBaw.getCompositeBawItems(),
 			),
 			compositeSize: 52,
-			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
-			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
+			cowows: (theme: ICowowTheme) => this.getActivitybawItemCowows(theme),
+			ovewfwowActionSize: ActivitybawPawt.ACTION_HEIGHT
 		}));
 	}
 
-	private getActivityHoverOptions(): IActivityHoverOptions {
-		return {
-			position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
+	pwivate getActivityHovewOptions(): IActivityHovewOptions {
+		wetuwn {
+			position: () => this.wayoutSewvice.getSideBawPosition() === Position.WEFT ? HovewPosition.WIGHT : HovewPosition.WEFT,
 		};
 	}
 
-	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
+	pwivate getContextMenuActionsFowComposite(compositeId: stwing): IAction[] {
 		const actions: IAction[] = [];
 
-		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
-		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
-		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation) }));
-		} else {
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			if (viewContainerModel.allViewDescriptors.length === 1) {
-				const viewToReset = viewContainerModel.allViewDescriptors[0];
-				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
-				if (defaultContainer !== viewContainer) {
-					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer) }));
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(compositeId)!;
+		const defauwtWocation = this.viewDescwiptowSewvice.getDefauwtViewContainewWocation(viewContaina)!;
+		if (defauwtWocation !== this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina)) {
+			actions.push(toAction({ id: 'wesetWocationAction', wabew: wocawize('wesetWocation', "Weset Wocation"), wun: () => this.viewDescwiptowSewvice.moveViewContainewToWocation(viewContaina, defauwtWocation) }));
+		} ewse {
+			const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			if (viewContainewModew.awwViewDescwiptows.wength === 1) {
+				const viewToWeset = viewContainewModew.awwViewDescwiptows[0];
+				const defauwtContaina = this.viewDescwiptowSewvice.getDefauwtContainewById(viewToWeset.id)!;
+				if (defauwtContaina !== viewContaina) {
+					actions.push(toAction({ id: 'wesetWocationAction', wabew: wocawize('wesetWocation', "Weset Wocation"), wun: () => this.viewDescwiptowSewvice.moveViewsToContaina([viewToWeset], defauwtContaina) }));
 				}
 			}
 		}
 
-		return actions;
+		wetuwn actions;
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// View Container Changes
-		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
-		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
+		// View Containa Changes
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeViewContainews(({ added, wemoved }) => this.onDidChangeViewContainews(added, wemoved)));
+		this._wegista(this.viewDescwiptowSewvice.onDidChangeContainewWocation(({ viewContaina, fwom, to }) => this.onDidChangeViewContainewWocation(viewContaina, fwom, to)));
 
-		// View Container Visibility Changes
-		this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true));
-		this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false));
+		// View Containa Visibiwity Changes
+		this.paneCompositePawt.onDidPaneCompositeOpen(e => this.onDidChangeViewContainewVisibiwity(e.getId(), twue));
+		this.paneCompositePawt.onDidPaneCompositeCwose(e => this.onDidChangeViewContainewVisibiwity(e.getId(), fawse));
 
-		// Extension registration
-		let disposables = this._register(new DisposableStore());
-		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			disposables.clear();
-			this.onDidRegisterExtensions();
-			this.compositeBar.onDidChange(() => this.saveCachedViewContainers(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+		// Extension wegistwation
+		wet disposabwes = this._wegista(new DisposabweStowe());
+		this._wegista(this.extensionSewvice.onDidWegistewExtensions(() => {
+			disposabwes.cweaw();
+			this.onDidWegistewExtensions();
+			this.compositeBaw.onDidChange(() => this.saveCachedViewContainews(), this, disposabwes);
+			this.stowageSewvice.onDidChangeVawue(e => this.onDidStowageVawueChange(e), this, disposabwes);
 		}));
 
-		// Register for configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.menuBarVisibility')) {
-				if (getMenuBarVisibility(this.configurationService) === 'compact') {
-					this.installMenubar();
-				} else {
-					this.uninstallMenubar();
+		// Wegista fow configuwation changes
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('window.menuBawVisibiwity')) {
+				if (getMenuBawVisibiwity(this.configuwationSewvice) === 'compact') {
+					this.instawwMenubaw();
+				} ewse {
+					this.uninstawwMenubaw();
 				}
 			}
 		}));
 	}
 
-	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
-		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
-		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
+	pwivate onDidChangeViewContainews(added: weadonwy { containa: ViewContaina, wocation: ViewContainewWocation; }[], wemoved: weadonwy { containa: ViewContaina, wocation: ViewContainewWocation; }[]) {
+		wemoved.fiwta(({ wocation }) => wocation === ViewContainewWocation.Sidebaw).fowEach(({ containa }) => this.onDidDewegistewViewContaina(containa));
+		this.onDidWegistewViewContainews(added.fiwta(({ wocation }) => wocation === ViewContainewWocation.Sidebaw).map(({ containa }) => containa));
 	}
 
-	private onDidChangeViewContainerLocation(container: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation) {
-		if (from === this.location) {
-			this.onDidDeregisterViewContainer(container);
+	pwivate onDidChangeViewContainewWocation(containa: ViewContaina, fwom: ViewContainewWocation, to: ViewContainewWocation) {
+		if (fwom === this.wocation) {
+			this.onDidDewegistewViewContaina(containa);
 		}
 
-		if (to === this.location) {
-			this.onDidRegisterViewContainers([container]);
-		}
-	}
-
-	private onDidChangeViewContainerVisibility(id: string, visible: boolean) {
-		if (visible) {
-			// Activate view container action on opening of a view container
-			this.onDidViewContainerVisible(id);
-		} else {
-			// Deactivate view container action on close
-			this.compositeBar.deactivateComposite(id);
+		if (to === this.wocation) {
+			this.onDidWegistewViewContainews([containa]);
 		}
 	}
 
-	private onDidRegisterExtensions(): void {
-		this.hasExtensionsRegistered = true;
+	pwivate onDidChangeViewContainewVisibiwity(id: stwing, visibwe: boowean) {
+		if (visibwe) {
+			// Activate view containa action on opening of a view containa
+			this.onDidViewContainewVisibwe(id);
+		} ewse {
+			// Deactivate view containa action on cwose
+			this.compositeBaw.deactivateComposite(id);
+		}
+	}
 
-		// show/hide/remove composites
-		for (const { id } of this.cachedViewContainers) {
-			const viewContainer = this.getViewContainer(id);
-			if (viewContainer) {
-				this.showOrHideViewContainer(viewContainer);
-			} else {
-				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
-					this.removeComposite(id);
-				} else {
+	pwivate onDidWegistewExtensions(): void {
+		this.hasExtensionsWegistewed = twue;
+
+		// show/hide/wemove composites
+		fow (const { id } of this.cachedViewContainews) {
+			const viewContaina = this.getViewContaina(id);
+			if (viewContaina) {
+				this.showOwHideViewContaina(viewContaina);
+			} ewse {
+				if (this.viewDescwiptowSewvice.isViewContainewWemovedPewmanentwy(id)) {
+					this.wemoveComposite(id);
+				} ewse {
 					this.hideComposite(id);
 				}
 			}
 		}
 
-		this.saveCachedViewContainers();
+		this.saveCachedViewContainews();
 	}
 
-	private onDidViewContainerVisible(id: string): void {
-		const viewContainer = this.getViewContainer(id);
-		if (viewContainer) {
+	pwivate onDidViewContainewVisibwe(id: stwing): void {
+		const viewContaina = this.getViewContaina(id);
+		if (viewContaina) {
 
-			// Update the composite bar by adding
-			this.addComposite(viewContainer);
-			this.compositeBar.activateComposite(viewContainer.id);
+			// Update the composite baw by adding
+			this.addComposite(viewContaina);
+			this.compositeBaw.activateComposite(viewContaina.id);
 
-			if (this.shouldBeHidden(viewContainer)) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (viewContainerModel.activeViewDescriptors.length === 0) {
-					// Update the composite bar by hiding
-					this.hideComposite(viewContainer.id);
+			if (this.shouwdBeHidden(viewContaina)) {
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+				if (viewContainewModew.activeViewDescwiptows.wength === 0) {
+					// Update the composite baw by hiding
+					this.hideComposite(viewContaina.id);
 				}
 			}
 		}
 	}
 
-	showActivity(viewContainerOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (this.getViewContainer(viewContainerOrActionId)) {
-			return this.compositeBar.showActivity(viewContainerOrActionId, badge, clazz, priority);
+	showActivity(viewContainewOwActionId: stwing, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe {
+		if (this.getViewContaina(viewContainewOwActionId)) {
+			wetuwn this.compositeBaw.showActivity(viewContainewOwActionId, badge, cwazz, pwiowity);
 		}
 
-		if (viewContainerOrActionId === GLOBAL_ACTIVITY_ID) {
-			return this.showGlobalActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
+		if (viewContainewOwActionId === GWOBAW_ACTIVITY_ID) {
+			wetuwn this.showGwobawActivity(GWOBAW_ACTIVITY_ID, badge, cwazz, pwiowity);
 		}
 
-		if (viewContainerOrActionId === ACCOUNTS_ACTIVITY_ID) {
-			return this.showGlobalActivity(ACCOUNTS_ACTIVITY_ID, badge, clazz, priority);
+		if (viewContainewOwActionId === ACCOUNTS_ACTIVITY_ID) {
+			wetuwn this.showGwobawActivity(ACCOUNTS_ACTIVITY_ID, badge, cwazz, pwiowity);
 		}
 
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	private showGlobalActivity(activityId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (typeof priority !== 'number') {
-			priority = 0;
+	pwivate showGwobawActivity(activityId: stwing, badge: IBadge, cwazz?: stwing, pwiowity?: numba): IDisposabwe {
+		if (typeof pwiowity !== 'numba') {
+			pwiowity = 0;
 		}
 
-		const activity: ICompositeActivity = { badge, clazz, priority };
-		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
+		const activity: ICompositeActivity = { badge, cwazz, pwiowity };
+		const activityCache = activityId === GWOBAW_ACTIVITY_ID ? this.gwobawActivity : this.accountsActivity;
 
-		for (let i = 0; i <= activityCache.length; i++) {
-			if (i === activityCache.length) {
+		fow (wet i = 0; i <= activityCache.wength; i++) {
+			if (i === activityCache.wength) {
 				activityCache.push(activity);
-				break;
-			} else if (activityCache[i].priority <= priority) {
-				activityCache.splice(i, 0, activity);
-				break;
+				bweak;
+			} ewse if (activityCache[i].pwiowity <= pwiowity) {
+				activityCache.spwice(i, 0, activity);
+				bweak;
 			}
 		}
-		this.updateGlobalActivity(activityId);
+		this.updateGwobawActivity(activityId);
 
-		return toDisposable(() => this.removeGlobalActivity(activityId, activity));
+		wetuwn toDisposabwe(() => this.wemoveGwobawActivity(activityId, activity));
 	}
 
-	private removeGlobalActivity(activityId: string, activity: ICompositeActivity): void {
-		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
+	pwivate wemoveGwobawActivity(activityId: stwing, activity: ICompositeActivity): void {
+		const activityCache = activityId === GWOBAW_ACTIVITY_ID ? this.gwobawActivity : this.accountsActivity;
 		const index = activityCache.indexOf(activity);
 		if (index !== -1) {
-			activityCache.splice(index, 1);
-			this.updateGlobalActivity(activityId);
+			activityCache.spwice(index, 1);
+			this.updateGwobawActivity(activityId);
 		}
 	}
 
-	private updateGlobalActivity(activityId: string): void {
-		const activityAction = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivityAction : this.accountsActivityAction;
+	pwivate updateGwobawActivity(activityId: stwing): void {
+		const activityAction = activityId === GWOBAW_ACTIVITY_ID ? this.gwobawActivityAction : this.accountsActivityAction;
 		if (!activityAction) {
-			return;
+			wetuwn;
 		}
 
-		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
-		if (activityCache.length) {
-			const [{ badge, clazz, priority }] = activityCache;
-			if (badge instanceof NumberBadge && activityCache.length > 1) {
-				const cumulativeNumberBadge = this.getCumulativeNumberBadge(activityCache, priority);
-				activityAction.setBadge(cumulativeNumberBadge);
-			} else {
-				activityAction.setBadge(badge, clazz);
+		const activityCache = activityId === GWOBAW_ACTIVITY_ID ? this.gwobawActivity : this.accountsActivity;
+		if (activityCache.wength) {
+			const [{ badge, cwazz, pwiowity }] = activityCache;
+			if (badge instanceof NumbewBadge && activityCache.wength > 1) {
+				const cumuwativeNumbewBadge = this.getCumuwativeNumbewBadge(activityCache, pwiowity);
+				activityAction.setBadge(cumuwativeNumbewBadge);
+			} ewse {
+				activityAction.setBadge(badge, cwazz);
 			}
-		} else {
+		} ewse {
 			activityAction.setBadge(undefined);
 		}
 	}
 
-	private getCumulativeNumberBadge(activityCache: ICompositeActivity[], priority: number): NumberBadge {
-		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
-		const number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
-		const descriptorFn = (): string => {
-			return numberActivities.reduce((result, activity, index) => {
-				result = result + (<NumberBadge>activity.badge).getDescription();
-				if (index < numberActivities.length - 1) {
-					result = `${result}\n`;
+	pwivate getCumuwativeNumbewBadge(activityCache: ICompositeActivity[], pwiowity: numba): NumbewBadge {
+		const numbewActivities = activityCache.fiwta(activity => activity.badge instanceof NumbewBadge && activity.pwiowity === pwiowity);
+		const numba = numbewActivities.weduce((wesuwt, activity) => { wetuwn wesuwt + (<NumbewBadge>activity.badge).numba; }, 0);
+		const descwiptowFn = (): stwing => {
+			wetuwn numbewActivities.weduce((wesuwt, activity, index) => {
+				wesuwt = wesuwt + (<NumbewBadge>activity.badge).getDescwiption();
+				if (index < numbewActivities.wength - 1) {
+					wesuwt = `${wesuwt}\n`;
 				}
 
-				return result;
+				wetuwn wesuwt;
 			}, '');
 		};
 
-		return new NumberBadge(number, descriptorFn);
+		wetuwn new NumbewBadge(numba, descwiptowFn);
 	}
 
-	private uninstallMenubar() {
-		if (this.menuBar) {
-			this.menuBar.dispose();
-			this.menuBar = undefined;
+	pwivate uninstawwMenubaw() {
+		if (this.menuBaw) {
+			this.menuBaw.dispose();
+			this.menuBaw = undefined;
 		}
 
-		if (this.menuBarContainer) {
-			this.menuBarContainer.remove();
-			this.menuBarContainer = undefined;
-			this.registerKeyboardNavigationListeners();
+		if (this.menuBawContaina) {
+			this.menuBawContaina.wemove();
+			this.menuBawContaina = undefined;
+			this.wegistewKeyboawdNavigationWistenews();
 		}
 	}
 
-	private installMenubar() {
-		if (this.menuBar) {
-			return; // prevent menu bar from installing twice #110720
+	pwivate instawwMenubaw() {
+		if (this.menuBaw) {
+			wetuwn; // pwevent menu baw fwom instawwing twice #110720
 		}
 
-		this.menuBarContainer = document.createElement('div');
-		this.menuBarContainer.classList.add('menubar');
+		this.menuBawContaina = document.cweateEwement('div');
+		this.menuBawContaina.cwassWist.add('menubaw');
 
-		const content = assertIsDefined(this.content);
-		content.prepend(this.menuBarContainer);
+		const content = assewtIsDefined(this.content);
+		content.pwepend(this.menuBawContaina);
 
-		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.menuBar.create(this.menuBarContainer);
+		// Menubaw: instaww a custom menu baw depending on configuwation
+		this.menuBaw = this._wegista(this.instantiationSewvice.cweateInstance(CustomMenubawContwow));
+		this.menuBaw.cweate(this.menuBawContaina);
 
-		this.registerKeyboardNavigationListeners();
+		this.wegistewKeyboawdNavigationWistenews();
 	}
 
-	override createContentArea(parent: HTMLElement): HTMLElement {
-		this.element = parent;
+	ovewwide cweateContentAwea(pawent: HTMWEwement): HTMWEwement {
+		this.ewement = pawent;
 
-		this.content = document.createElement('div');
-		this.content.classList.add('content');
-		parent.appendChild(this.content);
+		this.content = document.cweateEwement('div');
+		this.content.cwassWist.add('content');
+		pawent.appendChiwd(this.content);
 
-		// Install menubar if compact
-		if (getMenuBarVisibility(this.configurationService) === 'compact') {
-			this.installMenubar();
+		// Instaww menubaw if compact
+		if (getMenuBawVisibiwity(this.configuwationSewvice) === 'compact') {
+			this.instawwMenubaw();
 		}
 
-		// View Containers action bar
-		this.compositeBarContainer = this.compositeBar.create(this.content);
+		// View Containews action baw
+		this.compositeBawContaina = this.compositeBaw.cweate(this.content);
 
-		// Global action bar
-		this.globalActivitiesContainer = document.createElement('div');
-		this.content.appendChild(this.globalActivitiesContainer);
+		// Gwobaw action baw
+		this.gwobawActivitiesContaina = document.cweateEwement('div');
+		this.content.appendChiwd(this.gwobawActivitiesContaina);
 
-		this.createGlobalActivityActionBar(this.globalActivitiesContainer);
+		this.cweateGwobawActivityActionBaw(this.gwobawActivitiesContaina);
 
-		// Keyboard Navigation
-		this.registerKeyboardNavigationListeners();
+		// Keyboawd Navigation
+		this.wegistewKeyboawdNavigationWistenews();
 
-		return this.content;
+		wetuwn this.content;
 	}
 
-	private registerKeyboardNavigationListeners(): void {
-		this.keyboardNavigationDisposables.clear();
+	pwivate wegistewKeyboawdNavigationWistenews(): void {
+		this.keyboawdNavigationDisposabwes.cweaw();
 
-		// Up/Down arrow on compact menu
-		if (this.menuBarContainer) {
-			this.keyboardNavigationDisposables.add(addDisposableListener(this.menuBarContainer, EventType.KEY_DOWN, e => {
-				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus();
+		// Up/Down awwow on compact menu
+		if (this.menuBawContaina) {
+			this.keyboawdNavigationDisposabwes.add(addDisposabweWistena(this.menuBawContaina, EventType.KEY_DOWN, e => {
+				const kbEvent = new StandawdKeyboawdEvent(e);
+				if (kbEvent.equaws(KeyCode.DownAwwow) || kbEvent.equaws(KeyCode.WightAwwow)) {
+					if (this.compositeBaw) {
+						this.compositeBaw.focus();
 					}
 				}
 			}));
 		}
 
 		// Up/Down on Activity Icons
-		if (this.compositeBarContainer) {
-			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
-				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
-					if (this.globalActivityActionBar) {
-						this.globalActivityActionBar.focus(true);
+		if (this.compositeBawContaina) {
+			this.keyboawdNavigationDisposabwes.add(addDisposabweWistena(this.compositeBawContaina, EventType.KEY_DOWN, e => {
+				const kbEvent = new StandawdKeyboawdEvent(e);
+				if (kbEvent.equaws(KeyCode.DownAwwow) || kbEvent.equaws(KeyCode.WightAwwow)) {
+					if (this.gwobawActivityActionBaw) {
+						this.gwobawActivityActionBaw.focus(twue);
 					}
-				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.menuBar) {
-						this.menuBar.toggleFocus();
+				} ewse if (kbEvent.equaws(KeyCode.UpAwwow) || kbEvent.equaws(KeyCode.WeftAwwow)) {
+					if (this.menuBaw) {
+						this.menuBaw.toggweFocus();
 					}
 				}
 			}));
 		}
 
-		// Up arrow on global icons
-		if (this.globalActivitiesContainer) {
-			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
-				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					if (this.compositeBar) {
-						this.compositeBar.focus(this.getVisiblePaneCompositeIds().length - 1);
+		// Up awwow on gwobaw icons
+		if (this.gwobawActivitiesContaina) {
+			this.keyboawdNavigationDisposabwes.add(addDisposabweWistena(this.gwobawActivitiesContaina, EventType.KEY_DOWN, e => {
+				const kbEvent = new StandawdKeyboawdEvent(e);
+				if (kbEvent.equaws(KeyCode.UpAwwow) || kbEvent.equaws(KeyCode.WeftAwwow)) {
+					if (this.compositeBaw) {
+						this.compositeBaw.focus(this.getVisibwePaneCompositeIds().wength - 1);
 					}
 				}
 			}));
 		}
 	}
 
-	private createGlobalActivityActionBar(container: HTMLElement): void {
-		this.globalActivityActionBar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
-				if (action.id === 'workbench.actions.manage') {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
+	pwivate cweateGwobawActivityActionBaw(containa: HTMWEwement): void {
+		this.gwobawActivityActionBaw = this._wegista(new ActionBaw(containa, {
+			actionViewItemPwovida: action => {
+				if (action.id === 'wowkbench.actions.manage') {
+					wetuwn this.instantiationSewvice.cweateInstance(GwobawActivityActionViewItem, action as ActivityAction, () => this.compositeBaw.getContextMenuActions(), (theme: ICowowTheme) => this.getActivitybawItemCowows(theme), this.getActivityHovewOptions());
 				}
 
-				if (action.id === 'workbench.actions.accounts') {
-					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
+				if (action.id === 'wowkbench.actions.accounts') {
+					wetuwn this.instantiationSewvice.cweateInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBaw.getContextMenuActions(), (theme: ICowowTheme) => this.getActivitybawItemCowows(theme), this.getActivityHovewOptions());
 				}
 
-				throw new Error(`No view item for action '${action.id}'`);
+				thwow new Ewwow(`No view item fow action '${action.id}'`);
 			},
-			orientation: ActionsOrientation.VERTICAL,
-			ariaLabel: localize('manage', "Manage"),
-			animated: false,
-			preventLoopNavigation: true
+			owientation: ActionsOwientation.VEWTICAW,
+			awiaWabew: wocawize('manage', "Manage"),
+			animated: fawse,
+			pweventWoopNavigation: twue
 		}));
 
-		this.globalActivityAction = this._register(new ActivityAction({
-			id: 'workbench.actions.manage',
-			name: localize('manage', "Manage"),
-			cssClass: ThemeIcon.asClassName(ActivitybarPart.GEAR_ICON)
+		this.gwobawActivityAction = this._wegista(new ActivityAction({
+			id: 'wowkbench.actions.manage',
+			name: wocawize('manage', "Manage"),
+			cssCwass: ThemeIcon.asCwassName(ActivitybawPawt.GEAW_ICON)
 		}));
 
-		if (this.accountsVisibilityPreference) {
-			this.accountsActivityAction = this._register(new ActivityAction({
-				id: 'workbench.actions.accounts',
-				name: localize('accounts', "Accounts"),
-				cssClass: ThemeIcon.asClassName(ActivitybarPart.ACCOUNTS_ICON)
+		if (this.accountsVisibiwityPwefewence) {
+			this.accountsActivityAction = this._wegista(new ActivityAction({
+				id: 'wowkbench.actions.accounts',
+				name: wocawize('accounts', "Accounts"),
+				cssCwass: ThemeIcon.asCwassName(ActivitybawPawt.ACCOUNTS_ICON)
 			}));
 
-			this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
+			this.gwobawActivityActionBaw.push(this.accountsActivityAction, { index: ActivitybawPawt.ACCOUNTS_ACTION_INDEX });
 		}
 
-		this.globalActivityActionBar.push(this.globalActivityAction);
+		this.gwobawActivityActionBaw.push(this.gwobawActivityAction);
 	}
 
-	private toggleAccountsActivity() {
-		if (this.globalActivityActionBar) {
+	pwivate toggweAccountsActivity() {
+		if (this.gwobawActivityActionBaw) {
 			if (this.accountsActivityAction) {
-				this.globalActivityActionBar.pull(ActivitybarPart.ACCOUNTS_ACTION_INDEX);
+				this.gwobawActivityActionBaw.puww(ActivitybawPawt.ACCOUNTS_ACTION_INDEX);
 				this.accountsActivityAction = undefined;
-			} else {
-				this.accountsActivityAction = this._register(new ActivityAction({
-					id: 'workbench.actions.accounts',
-					name: localize('accounts', "Accounts"),
-					cssClass: Codicon.account.classNames
+			} ewse {
+				this.accountsActivityAction = this._wegista(new ActivityAction({
+					id: 'wowkbench.actions.accounts',
+					name: wocawize('accounts', "Accounts"),
+					cssCwass: Codicon.account.cwassNames
 				}));
-				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
+				this.gwobawActivityActionBaw.push(this.accountsActivityAction, { index: ActivitybawPawt.ACCOUNTS_ACTION_INDEX });
 			}
 		}
 
-		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
+		this.updateGwobawActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
-		let compositeActions = this.compositeActions.get(compositeId);
+	pwivate getCompositeActions(compositeId: stwing): { activityAction: ViewContainewActivityAction, pinnedAction: ToggweCompositePinnedAction; } {
+		wet compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
-			const viewContainer = this.getViewContainer(compositeId);
-			if (viewContainer) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			const viewContaina = this.getViewContaina(compositeId);
+			if (viewContaina) {
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toActivity(viewContainerModel), this.paneCompositePart),
-					pinnedAction: new ToggleCompositePinnedAction(this.toActivity(viewContainerModel), this.compositeBar)
+					activityAction: this.instantiationSewvice.cweateInstance(ViewContainewActivityAction, this.toActivity(viewContainewModew), this.paneCompositePawt),
+					pinnedAction: new ToggweCompositePinnedAction(this.toActivity(viewContainewModew), this.compositeBaw)
 				};
-			} else {
-				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
+			} ewse {
+				const cachedComposite = this.cachedViewContainews.fiwta(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, ActivitybarPart.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined), this.paneCompositePart),
-					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
+					activityAction: this.instantiationSewvice.cweateInstance(PwaceHowdewViewContainewActivityAction, ActivitybawPawt.toActivity(compositeId, compositeId, cachedComposite?.icon, undefined), this.paneCompositePawt),
+					pinnedAction: new PwaceHowdewToggweCompositePinnedAction(compositeId, this.compositeBaw)
 				};
 			}
 
 			this.compositeActions.set(compositeId, compositeActions);
 		}
 
-		return compositeActions;
+		wetuwn compositeActions;
 	}
 
-	private onDidRegisterViewContainers(viewContainers: readonly ViewContainer[]): void {
-		for (const viewContainer of viewContainers) {
-			this.addComposite(viewContainer);
+	pwivate onDidWegistewViewContainews(viewContainews: weadonwy ViewContaina[]): void {
+		fow (const viewContaina of viewContainews) {
+			this.addComposite(viewContaina);
 
-			// Pin it by default if it is new
-			const cachedViewContainer = this.cachedViewContainers.filter(({ id }) => id === viewContainer.id)[0];
-			if (!cachedViewContainer) {
-				this.compositeBar.pin(viewContainer.id);
+			// Pin it by defauwt if it is new
+			const cachedViewContaina = this.cachedViewContainews.fiwta(({ id }) => id === viewContaina.id)[0];
+			if (!cachedViewContaina) {
+				this.compositeBaw.pin(viewContaina.id);
 			}
 
 			// Active
-			const visibleViewContainer = this.paneCompositePart.getActivePaneComposite();
-			if (visibleViewContainer?.getId() === viewContainer.id) {
-				this.compositeBar.activateComposite(viewContainer.id);
+			const visibweViewContaina = this.paneCompositePawt.getActivePaneComposite();
+			if (visibweViewContaina?.getId() === viewContaina.id) {
+				this.compositeBaw.activateComposite(viewContaina.id);
 			}
 
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.updateActivity(viewContainer, viewContainerModel);
-			this.showOrHideViewContainer(viewContainer);
+			const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+			this.updateActivity(viewContaina, viewContainewModew);
+			this.showOwHideViewContaina(viewContaina);
 
-			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.showOrHideViewContainer(viewContainer)));
+			const disposabwes = new DisposabweStowe();
+			disposabwes.add(viewContainewModew.onDidChangeContainewInfo(() => this.updateActivity(viewContaina, viewContainewModew)));
+			disposabwes.add(viewContainewModew.onDidChangeActiveViewDescwiptows(() => this.showOwHideViewContaina(viewContaina)));
 
-			this.viewContainerDisposables.set(viewContainer.id, disposables);
+			this.viewContainewDisposabwes.set(viewContaina.id, disposabwes);
 		}
 	}
 
-	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
-		const disposable = this.viewContainerDisposables.get(viewContainer.id);
-		if (disposable) {
-			disposable.dispose();
+	pwivate onDidDewegistewViewContaina(viewContaina: ViewContaina): void {
+		const disposabwe = this.viewContainewDisposabwes.get(viewContaina.id);
+		if (disposabwe) {
+			disposabwe.dispose();
 		}
 
-		this.viewContainerDisposables.delete(viewContainer.id);
-		this.removeComposite(viewContainer.id);
+		this.viewContainewDisposabwes.dewete(viewContaina.id);
+		this.wemoveComposite(viewContaina.id);
 	}
 
-	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const activity: IActivity = this.toActivity(viewContainerModel);
-		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
+	pwivate updateActivity(viewContaina: ViewContaina, viewContainewModew: IViewContainewModew): void {
+		const activity: IActivity = this.toActivity(viewContainewModew);
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContaina.id);
 		activityAction.updateActivity(activity);
 
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+		if (pinnedAction instanceof PwaceHowdewToggweCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
 
-		this.saveCachedViewContainers();
+		this.saveCachedViewContainews();
 	}
 
-	private toActivity(viewContainerModel: IViewContainerModel): IActivity {
-		return ActivitybarPart.toActivity(viewContainerModel.viewContainer.id, viewContainerModel.title, viewContainerModel.icon, viewContainerModel.keybindingId);
+	pwivate toActivity(viewContainewModew: IViewContainewModew): IActivity {
+		wetuwn ActivitybawPawt.toActivity(viewContainewModew.viewContaina.id, viewContainewModew.titwe, viewContainewModew.icon, viewContainewModew.keybindingId);
 	}
 
-	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
-		let cssClass: string | undefined = undefined;
-		let iconUrl: URI | undefined = undefined;
-		if (URI.isUri(icon)) {
-			iconUrl = icon;
-			const cssUrl = asCSSUrl(icon);
-			const hash = new StringSHA1();
-			hash.update(cssUrl);
-			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			createCSSRule(iconClass, `
-				mask: ${cssUrl} no-repeat 50% 50%;
+	pwivate static toActivity(id: stwing, name: stwing, icon: UWI | ThemeIcon | undefined, keybindingId: stwing | undefined): IActivity {
+		wet cssCwass: stwing | undefined = undefined;
+		wet iconUww: UWI | undefined = undefined;
+		if (UWI.isUwi(icon)) {
+			iconUww = icon;
+			const cssUww = asCSSUww(icon);
+			const hash = new StwingSHA1();
+			hash.update(cssUww);
+			cssCwass = `activity-${id.wepwace(/\./g, '-')}-${hash.digest()}`;
+			const iconCwass = `.monaco-wowkbench .activitybaw .monaco-action-baw .action-wabew.${cssCwass}`;
+			cweateCSSWuwe(iconCwass, `
+				mask: ${cssUww} no-wepeat 50% 50%;
 				mask-size: 24px;
-				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
+				-webkit-mask: ${cssUww} no-wepeat 50% 50%;
 				-webkit-mask-size: 24px;
 			`);
-		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+		} ewse if (ThemeIcon.isThemeIcon(icon)) {
+			cssCwass = ThemeIcon.asCwassName(icon);
 		}
 
-		return { id, name, cssClass, iconUrl, keybindingId };
+		wetuwn { id, name, cssCwass, iconUww, keybindingId };
 	}
 
-	private showOrHideViewContainer(viewContainer: ViewContainer): void {
-		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+	pwivate showOwHideViewContaina(viewContaina: ViewContaina): void {
+		wet contextKey = this.enabwedViewContainewsContextKeys.get(viewContaina.id);
 		if (!contextKey) {
-			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
-			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+			contextKey = this.contextKeySewvice.cweateKey(getEnabwedViewContainewContextKey(viewContaina.id), fawse);
+			this.enabwedViewContainewsContextKeys.set(viewContaina.id, contextKey);
 		}
-		if (this.shouldBeHidden(viewContainer)) {
-			contextKey.set(false);
-			this.hideComposite(viewContainer.id);
-		} else {
-			contextKey.set(true);
-			this.addComposite(viewContainer);
+		if (this.shouwdBeHidden(viewContaina)) {
+			contextKey.set(fawse);
+			this.hideComposite(viewContaina.id);
+		} ewse {
+			contextKey.set(twue);
+			this.addComposite(viewContaina);
 		}
 	}
 
-	private shouldBeHidden(viewContainerOrId: string | ViewContainer, cachedViewContainer?: ICachedViewContainer): boolean {
-		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
-		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
+	pwivate shouwdBeHidden(viewContainewOwId: stwing | ViewContaina, cachedViewContaina?: ICachedViewContaina): boowean {
+		const viewContaina = isStwing(viewContainewOwId) ? this.getViewContaina(viewContainewOwId) : viewContainewOwId;
+		const viewContainewId = isStwing(viewContainewOwId) ? viewContainewOwId : viewContainewOwId.id;
 
-		if (viewContainer) {
-			if (viewContainer.hideIfEmpty) {
-				if (this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0) {
-					return false;
+		if (viewContaina) {
+			if (viewContaina.hideIfEmpty) {
+				if (this.viewDescwiptowSewvice.getViewContainewModew(viewContaina).activeViewDescwiptows.wength > 0) {
+					wetuwn fawse;
 				}
-			} else {
-				return false;
+			} ewse {
+				wetuwn fawse;
 			}
 		}
 
-		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
-		if (!this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
-			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
+		// Check cache onwy if extensions awe not yet wegistewed and cuwwent window is not native (desktop) wemote connection window
+		if (!this.hasExtensionsWegistewed && !(this.enviwonmentSewvice.wemoteAuthowity && isNative)) {
+			cachedViewContaina = cachedViewContaina || this.cachedViewContainews.find(({ id }) => id === viewContainewId);
 
-			// Show builtin ViewContainer if not registered yet
-			if (!viewContainer && cachedViewContainer?.isBuiltin) {
-				return false;
+			// Show buiwtin ViewContaina if not wegistewed yet
+			if (!viewContaina && cachedViewContaina?.isBuiwtin) {
+				wetuwn fawse;
 			}
 
-			if (cachedViewContainer?.views?.length) {
-				return cachedViewContainer.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)));
+			if (cachedViewContaina?.views?.wength) {
+				wetuwn cachedViewContaina.views.evewy(({ when }) => !!when && !this.contextKeySewvice.contextMatchesWuwes(ContextKeyExpw.desewiawize(when)));
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private addComposite(viewContainer: ViewContainer): void {
-		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
+	pwivate addComposite(viewContaina: ViewContaina): void {
+		this.compositeBaw.addComposite({ id: viewContaina.id, name: viewContaina.titwe, owda: viewContaina.owda, wequestedIndex: viewContaina.wequestedIndex });
 	}
 
-	private hideComposite(compositeId: string): void {
-		this.compositeBar.hideComposite(compositeId);
+	pwivate hideComposite(compositeId: stwing): void {
+		this.compositeBaw.hideComposite(compositeId);
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.dewete(compositeId);
 		}
 	}
 
-	private removeComposite(compositeId: string): void {
-		this.compositeBar.removeComposite(compositeId);
+	pwivate wemoveComposite(compositeId: stwing): void {
+		this.compositeBaw.wemoveComposite(compositeId);
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
-			this.compositeActions.delete(compositeId);
+			this.compositeActions.dewete(compositeId);
 		}
 	}
 
-	getPinnedPaneCompositeIds(): string[] {
-		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(v => v.id);
-		return this.getViewContainers()
-			.filter(v => this.compositeBar.isPinned(v.id))
-			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
+	getPinnedPaneCompositeIds(): stwing[] {
+		const pinnedCompositeIds = this.compositeBaw.getPinnedComposites().map(v => v.id);
+		wetuwn this.getViewContainews()
+			.fiwta(v => this.compositeBaw.isPinned(v.id))
+			.sowt((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
 			.map(v => v.id);
 	}
 
-	getVisiblePaneCompositeIds(): string[] {
-		return this.compositeBar.getVisibleComposites()
-			.filter(v => this.paneCompositePart.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+	getVisibwePaneCompositeIds(): stwing[] {
+		wetuwn this.compositeBaw.getVisibweComposites()
+			.fiwta(v => this.paneCompositePawt.getActivePaneComposite()?.getId() === v.id || this.compositeBaw.isPinned(v.id))
 			.map(v => v.id);
 	}
 
 	focus(): void {
-		this.compositeBar.focus();
+		this.compositeBaw.focus();
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		const container = assertIsDefined(this.getContainer());
-		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
-		container.style.backgroundColor = background;
+		const containa = assewtIsDefined(this.getContaina());
+		const backgwound = this.getCowow(ACTIVITY_BAW_BACKGWOUND) || '';
+		containa.stywe.backgwoundCowow = backgwound;
 
-		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
-		container.classList.toggle('bordered', !!borderColor);
-		container.style.borderColor = borderColor ? borderColor : '';
+		const bowdewCowow = this.getCowow(ACTIVITY_BAW_BOWDa) || this.getCowow(contwastBowda) || '';
+		containa.cwassWist.toggwe('bowdewed', !!bowdewCowow);
+		containa.stywe.bowdewCowow = bowdewCowow ? bowdewCowow : '';
 	}
 
-	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {
-		return {
-			activeForegroundColor: theme.getColor(ACTIVITY_BAR_FOREGROUND),
-			inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_INACTIVE_FOREGROUND),
-			activeBorderColor: theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER),
-			activeBackground: theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND),
-			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
-			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
-			dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
-			activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
+	pwivate getActivitybawItemCowows(theme: ICowowTheme): ICompositeBawCowows {
+		wetuwn {
+			activeFowegwoundCowow: theme.getCowow(ACTIVITY_BAW_FOWEGWOUND),
+			inactiveFowegwoundCowow: theme.getCowow(ACTIVITY_BAW_INACTIVE_FOWEGWOUND),
+			activeBowdewCowow: theme.getCowow(ACTIVITY_BAW_ACTIVE_BOWDa),
+			activeBackgwound: theme.getCowow(ACTIVITY_BAW_ACTIVE_BACKGWOUND),
+			badgeBackgwound: theme.getCowow(ACTIVITY_BAW_BADGE_BACKGWOUND),
+			badgeFowegwound: theme.getCowow(ACTIVITY_BAW_BADGE_FOWEGWOUND),
+			dwagAndDwopBowda: theme.getCowow(ACTIVITY_BAW_DWAG_AND_DWOP_BOWDa),
+			activeBackgwoundCowow: undefined, inactiveBackgwoundCowow: undefined, activeBowdewBottomCowow: undefined,
 		};
 	}
 
-	override layout(width: number, height: number): void {
-		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
-			return;
+	ovewwide wayout(width: numba, height: numba): void {
+		if (!this.wayoutSewvice.isVisibwe(Pawts.ACTIVITYBAW_PAWT)) {
+			wetuwn;
 		}
 
-		// Layout contents
-		const contentAreaSize = super.layoutContents(width, height).contentSize;
+		// Wayout contents
+		const contentAweaSize = supa.wayoutContents(width, height).contentSize;
 
-		// Layout composite bar
-		let availableHeight = contentAreaSize.height;
-		if (this.menuBarContainer) {
-			availableHeight -= this.menuBarContainer.clientHeight;
+		// Wayout composite baw
+		wet avaiwabweHeight = contentAweaSize.height;
+		if (this.menuBawContaina) {
+			avaiwabweHeight -= this.menuBawContaina.cwientHeight;
 		}
-		if (this.globalActivityActionBar) {
-			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.gwobawActivityActionBaw) {
+			avaiwabweHeight -= (this.gwobawActivityActionBaw.viewItems.wength * ActivitybawPawt.ACTION_HEIGHT); // adjust height fow gwobaw actions showing
 		}
-		this.compositeBar.layout(new Dimension(width, availableHeight));
+		this.compositeBaw.wayout(new Dimension(width, avaiwabweHeight));
 	}
 
-	private getViewContainer(id: string): ViewContainer | undefined {
-		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		return viewContainer && this.viewDescriptorService.getViewContainerLocation(viewContainer) === this.location ? viewContainer : undefined;
+	pwivate getViewContaina(id: stwing): ViewContaina | undefined {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewById(id);
+		wetuwn viewContaina && this.viewDescwiptowSewvice.getViewContainewWocation(viewContaina) === this.wocation ? viewContaina : undefined;
 	}
 
-	private getViewContainers(): readonly ViewContainer[] {
-		return this.viewDescriptorService.getViewContainersByLocation(this.location);
+	pwivate getViewContainews(): weadonwy ViewContaina[] {
+		wetuwn this.viewDescwiptowSewvice.getViewContainewsByWocation(this.wocation);
 	}
 
-	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.GLOBAL
-			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
-			this._pinnedViewContainersValue = undefined;
-			this._cachedViewContainers = undefined;
+	pwivate onDidStowageVawueChange(e: IStowageVawueChangeEvent): void {
+		if (e.key === ActivitybawPawt.PINNED_VIEW_CONTAINEWS && e.scope === StowageScope.GWOBAW
+			&& this.pinnedViewContainewsVawue !== this.getStowedPinnedViewContainewsVawue() /* This checks if cuwwent window changed the vawue ow not */) {
+			this._pinnedViewContainewsVawue = undefined;
+			this._cachedViewContainews = undefined;
 
-			const newCompositeItems: ICompositeBarItem[] = [];
-			const compositeItems = this.compositeBar.getCompositeBarItems();
+			const newCompositeItems: ICompositeBawItem[] = [];
+			const compositeItems = this.compositeBaw.getCompositeBawItems();
 
-			for (const cachedViewContainer of this.cachedViewContainers) {
+			fow (const cachedViewContaina of this.cachedViewContainews) {
 				newCompositeItems.push({
-					id: cachedViewContainer.id,
-					name: cachedViewContainer.name,
-					order: cachedViewContainer.order,
-					pinned: cachedViewContainer.pinned,
-					visible: !!compositeItems.find(({ id }) => id === cachedViewContainer.id)
+					id: cachedViewContaina.id,
+					name: cachedViewContaina.name,
+					owda: cachedViewContaina.owda,
+					pinned: cachedViewContaina.pinned,
+					visibwe: !!compositeItems.find(({ id }) => id === cachedViewContaina.id)
 				});
 			}
 
-			for (let index = 0; index < compositeItems.length; index++) {
-				// Add items currently exists but does not exist in new.
+			fow (wet index = 0; index < compositeItems.wength; index++) {
+				// Add items cuwwentwy exists but does not exist in new.
 				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					newCompositeItems.splice(index, 0, compositeItems[index]);
+					newCompositeItems.spwice(index, 0, compositeItems[index]);
 				}
 			}
 
-			this.compositeBar.setCompositeBarItems(newCompositeItems);
+			this.compositeBaw.setCompositeBawItems(newCompositeItems);
 		}
 
-		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.GLOBAL) {
-			this.toggleAccountsActivity();
+		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBIWITY_PWEFEWENCE_KEY && e.scope === StowageScope.GWOBAW) {
+			this.toggweAccountsActivity();
 		}
 	}
 
-	private saveCachedViewContainers(): void {
-		const state: ICachedViewContainer[] = [];
+	pwivate saveCachedViewContainews(): void {
+		const state: ICachedViewContaina[] = [];
 
-		const compositeItems = this.compositeBar.getCompositeBarItems();
-		for (const compositeItem of compositeItems) {
-			const viewContainer = this.getViewContainer(compositeItem.id);
-			if (viewContainer) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				const views: { when: string | undefined; }[] = [];
-				for (const { when } of viewContainerModel.allViewDescriptors) {
-					views.push({ when: when ? when.serialize() : undefined });
+		const compositeItems = this.compositeBaw.getCompositeBawItems();
+		fow (const compositeItem of compositeItems) {
+			const viewContaina = this.getViewContaina(compositeItem.id);
+			if (viewContaina) {
+				const viewContainewModew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+				const views: { when: stwing | undefined; }[] = [];
+				fow (const { when } of viewContainewModew.awwViewDescwiptows) {
+					views.push({ when: when ? when.sewiawize() : undefined });
 				}
 				state.push({
 					id: compositeItem.id,
-					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && this.environmentService.remoteAuthority && isNative ? undefined : viewContainerModel.icon, /* Donot cache uri icons in desktop with remote connection */
+					name: viewContainewModew.titwe,
+					icon: UWI.isUwi(viewContainewModew.icon) && this.enviwonmentSewvice.wemoteAuthowity && isNative ? undefined : viewContainewModew.icon, /* Donot cache uwi icons in desktop with wemote connection */
 					views,
 					pinned: compositeItem.pinned,
-					order: compositeItem.order,
-					visible: compositeItem.visible,
-					isBuiltin: !viewContainer.extensionId
+					owda: compositeItem.owda,
+					visibwe: compositeItem.visibwe,
+					isBuiwtin: !viewContaina.extensionId
 				});
-			} else {
-				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
+			} ewse {
+				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, owda: compositeItem.owda, visibwe: fawse, isBuiwtin: fawse });
 			}
 		}
 
-		this.storeCachedViewContainersState(state);
+		this.stoweCachedViewContainewsState(state);
 	}
 
-	private _cachedViewContainers: ICachedViewContainer[] | undefined = undefined;
-	private get cachedViewContainers(): ICachedViewContainer[] {
-		if (this._cachedViewContainers === undefined) {
-			this._cachedViewContainers = this.getPinnedViewContainers();
-			for (const placeholderViewContainer of this.getPlaceholderViewContainers()) {
-				const cachedViewContainer = this._cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
-				if (cachedViewContainer) {
-					cachedViewContainer.name = placeholderViewContainer.name;
-					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
-						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
-					cachedViewContainer.views = placeholderViewContainer.views;
-					cachedViewContainer.isBuiltin = placeholderViewContainer.isBuiltin;
+	pwivate _cachedViewContainews: ICachedViewContaina[] | undefined = undefined;
+	pwivate get cachedViewContainews(): ICachedViewContaina[] {
+		if (this._cachedViewContainews === undefined) {
+			this._cachedViewContainews = this.getPinnedViewContainews();
+			fow (const pwacehowdewViewContaina of this.getPwacehowdewViewContainews()) {
+				const cachedViewContaina = this._cachedViewContainews.fiwta(cached => cached.id === pwacehowdewViewContaina.id)[0];
+				if (cachedViewContaina) {
+					cachedViewContaina.name = pwacehowdewViewContaina.name;
+					cachedViewContaina.icon = pwacehowdewViewContaina.themeIcon ? pwacehowdewViewContaina.themeIcon :
+						pwacehowdewViewContaina.iconUww ? UWI.wevive(pwacehowdewViewContaina.iconUww) : undefined;
+					cachedViewContaina.views = pwacehowdewViewContaina.views;
+					cachedViewContaina.isBuiwtin = pwacehowdewViewContaina.isBuiwtin;
 				}
 			}
 		}
 
-		return this._cachedViewContainers;
+		wetuwn this._cachedViewContainews;
 	}
 
-	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {
-		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, visible, order }) => (<IPinnedViewContainer>{
+	pwivate stoweCachedViewContainewsState(cachedViewContainews: ICachedViewContaina[]): void {
+		this.setPinnedViewContainews(cachedViewContainews.map(({ id, pinned, visibwe, owda }) => (<IPinnedViewContaina>{
 			id,
 			pinned,
-			visible,
-			order
+			visibwe,
+			owda
 		})));
 
-		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => (<IPlaceholderViewContainer>{
+		this.setPwacehowdewViewContainews(cachedViewContainews.map(({ id, icon, name, views, isBuiwtin }) => (<IPwacehowdewViewContaina>{
 			id,
-			iconUrl: URI.isUri(icon) ? icon : undefined,
+			iconUww: UWI.isUwi(icon) ? icon : undefined,
 			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
-			isBuiltin,
+			isBuiwtin,
 			views
 		})));
 	}
 
-	private getPinnedViewContainers(): IPinnedViewContainer[] {
-		return JSON.parse(this.pinnedViewContainersValue);
+	pwivate getPinnedViewContainews(): IPinnedViewContaina[] {
+		wetuwn JSON.pawse(this.pinnedViewContainewsVawue);
 	}
 
-	private setPinnedViewContainers(pinnedViewContainers: IPinnedViewContainer[]): void {
-		this.pinnedViewContainersValue = JSON.stringify(pinnedViewContainers);
+	pwivate setPinnedViewContainews(pinnedViewContainews: IPinnedViewContaina[]): void {
+		this.pinnedViewContainewsVawue = JSON.stwingify(pinnedViewContainews);
 	}
 
-	private _pinnedViewContainersValue: string | undefined;
-	private get pinnedViewContainersValue(): string {
-		if (!this._pinnedViewContainersValue) {
-			this._pinnedViewContainersValue = this.getStoredPinnedViewContainersValue();
+	pwivate _pinnedViewContainewsVawue: stwing | undefined;
+	pwivate get pinnedViewContainewsVawue(): stwing {
+		if (!this._pinnedViewContainewsVawue) {
+			this._pinnedViewContainewsVawue = this.getStowedPinnedViewContainewsVawue();
 		}
 
-		return this._pinnedViewContainersValue;
+		wetuwn this._pinnedViewContainewsVawue;
 	}
 
-	private set pinnedViewContainersValue(pinnedViewContainersValue: string) {
-		if (this.pinnedViewContainersValue !== pinnedViewContainersValue) {
-			this._pinnedViewContainersValue = pinnedViewContainersValue;
-			this.setStoredPinnedViewContainersValue(pinnedViewContainersValue);
-		}
-	}
-
-	private getStoredPinnedViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PINNED_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
-	}
-
-	private setStoredPinnedViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.USER);
-	}
-
-	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
-		return JSON.parse(this.placeholderViewContainersValue);
-	}
-
-	private setPlaceholderViewContainers(placeholderViewContainers: IPlaceholderViewContainer[]): void {
-		this.placeholderViewContainersValue = JSON.stringify(placeholderViewContainers);
-	}
-
-	private _placeholderViewContainersValue: string | undefined;
-	private get placeholderViewContainersValue(): string {
-		if (!this._placeholderViewContainersValue) {
-			this._placeholderViewContainersValue = this.getStoredPlaceholderViewContainersValue();
-		}
-
-		return this._placeholderViewContainersValue;
-	}
-
-	private set placeholderViewContainersValue(placeholderViewContainesValue: string) {
-		if (this.placeholderViewContainersValue !== placeholderViewContainesValue) {
-			this._placeholderViewContainersValue = placeholderViewContainesValue;
-			this.setStoredPlaceholderViewContainersValue(placeholderViewContainesValue);
+	pwivate set pinnedViewContainewsVawue(pinnedViewContainewsVawue: stwing) {
+		if (this.pinnedViewContainewsVawue !== pinnedViewContainewsVawue) {
+			this._pinnedViewContainewsVawue = pinnedViewContainewsVawue;
+			this.setStowedPinnedViewContainewsVawue(pinnedViewContainewsVawue);
 		}
 	}
 
-	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.GLOBAL, '[]');
+	pwivate getStowedPinnedViewContainewsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(ActivitybawPawt.PINNED_VIEW_CONTAINEWS, StowageScope.GWOBAW, '[]');
 	}
 
-	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate setStowedPinnedViewContainewsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(ActivitybawPawt.PINNED_VIEW_CONTAINEWS, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private get accountsVisibilityPreference(): boolean {
-		return this.storageService.getBoolean(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, StorageScope.GLOBAL, true);
+	pwivate getPwacehowdewViewContainews(): IPwacehowdewViewContaina[] {
+		wetuwn JSON.pawse(this.pwacehowdewViewContainewsVawue);
 	}
 
-	private set accountsVisibilityPreference(value: boolean) {
-		this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate setPwacehowdewViewContainews(pwacehowdewViewContainews: IPwacehowdewViewContaina[]): void {
+		this.pwacehowdewViewContainewsVawue = JSON.stwingify(pwacehowdewViewContainews);
+	}
+
+	pwivate _pwacehowdewViewContainewsVawue: stwing | undefined;
+	pwivate get pwacehowdewViewContainewsVawue(): stwing {
+		if (!this._pwacehowdewViewContainewsVawue) {
+			this._pwacehowdewViewContainewsVawue = this.getStowedPwacehowdewViewContainewsVawue();
+		}
+
+		wetuwn this._pwacehowdewViewContainewsVawue;
+	}
+
+	pwivate set pwacehowdewViewContainewsVawue(pwacehowdewViewContainesVawue: stwing) {
+		if (this.pwacehowdewViewContainewsVawue !== pwacehowdewViewContainesVawue) {
+			this._pwacehowdewViewContainewsVawue = pwacehowdewViewContainesVawue;
+			this.setStowedPwacehowdewViewContainewsVawue(pwacehowdewViewContainesVawue);
+		}
+	}
+
+	pwivate getStowedPwacehowdewViewContainewsVawue(): stwing {
+		wetuwn this.stowageSewvice.get(ActivitybawPawt.PWACEHOWDEW_VIEW_CONTAINEWS, StowageScope.GWOBAW, '[]');
+	}
+
+	pwivate setStowedPwacehowdewViewContainewsVawue(vawue: stwing): void {
+		this.stowageSewvice.stowe(ActivitybawPawt.PWACEHOWDEW_VIEW_CONTAINEWS, vawue, StowageScope.GWOBAW, StowageTawget.MACHINE);
+	}
+
+	pwivate get accountsVisibiwityPwefewence(): boowean {
+		wetuwn this.stowageSewvice.getBoowean(AccountsActivityActionViewItem.ACCOUNTS_VISIBIWITY_PWEFEWENCE_KEY, StowageScope.GWOBAW, twue);
+	}
+
+	pwivate set accountsVisibiwityPwefewence(vawue: boowean) {
+		this.stowageSewvice.stowe(AccountsActivityActionViewItem.ACCOUNTS_VISIBIWITY_PWEFEWENCE_KEY, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
 	toJSON(): object {
-		return {
-			type: Parts.ACTIVITYBAR_PART
+		wetuwn {
+			type: Pawts.ACTIVITYBAW_PAWT
 		};
 	}
 }

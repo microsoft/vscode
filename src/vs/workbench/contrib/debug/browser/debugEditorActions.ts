@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { PanelFocusContext } from 'vs/workbench/common/panel';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action } from 'vs/base/common/actions';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+impowt * as nws fwom 'vs/nws';
+impowt { KeyMod, KeyChowd, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { wegistewEditowAction, EditowAction, IActionOptions, EditowAction2 } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDebugSewvice, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditowContwibution, EDITOW_CONTWIBUTION_ID, BweakpointWidgetContext, BWEAKPOINT_EDITOW_CONTWIBUTION_ID, IBweakpointEditowContwibution, WEPW_VIEW_ID, CONTEXT_STEP_INTO_TAWGETS_SUPPOWTED, WATCH_VIEW_ID, CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_EXCEPTION_WIDGET_VISIBWE, CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED, CONTEXT_WANGUAGE_SUPPOWTS_DISASSEMBWE_WEQUEST, CONTEXT_FOCUSED_STACK_FWAME_HAS_INSTWUCTION_POINTEW_WEFEWENCE, CONTEXT_CAWWSTACK_ITEM_TYPE } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { openBweakpointSouwce } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointsView';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { PanewFocusContext } fwom 'vs/wowkbench/common/panew';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { getDomNodePagePosition } fwom 'vs/base/bwowsa/dom';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { wegistewAction2, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { DisassembwyViewInput } fwom 'vs/wowkbench/contwib/debug/common/disassembwyViewInput';
 
-class ToggleBreakpointAction extends EditorAction2 {
-	constructor() {
-		super({
-			id: 'editor.debug.action.toggleBreakpoint',
-			title: {
-				value: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-				original: 'Debug: Toggle Breakpoint',
-				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
+cwass ToggweBweakpointAction extends EditowAction2 {
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.toggweBweakpoint',
+			titwe: {
+				vawue: nws.wocawize('toggweBweakpointAction', "Debug: Toggwe Bweakpoint"),
+				owiginaw: 'Debug: Toggwe Bweakpoint',
+				mnemonicTitwe: nws.wocawize({ key: 'miToggweBweakpoint', comment: ['&& denotes a mnemonic'] }, "Toggwe &&Bweakpoint")
 			},
-			f1: true,
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			f1: twue,
+			pwecondition: CONTEXT_DEBUGGEWS_AVAIWABWE,
 			keybinding: {
-				when: EditorContextKeys.editorTextFocus,
-				primary: KeyCode.F9,
-				weight: KeybindingWeight.EditorContrib
+				when: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyCode.F9,
+				weight: KeybindingWeight.EditowContwib
 			},
 			menu: {
-				when: CONTEXT_DEBUGGERS_AVAILABLE,
-				id: MenuId.MenubarDebugMenu,
-				group: '4_new_breakpoint',
-				order: 1
+				when: CONTEXT_DEBUGGEWS_AVAIWABWE,
+				id: MenuId.MenubawDebugMenu,
+				gwoup: '4_new_bweakpoint',
+				owda: 1
 			}
 		});
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
-		// TODO: add disassembly F9
-		if (editor.hasModel()) {
-			const debugService = accessor.get(IDebugService);
-			const modelUri = editor.getModel().uri;
-			const canSet = debugService.canSetBreakpointsIn(editor.getModel());
-			// Does not account for multi line selections, Set to remove multiple cursor on the same line
-			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
+	async wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, ...awgs: any[]): Pwomise<void> {
+		// TODO: add disassembwy F9
+		if (editow.hasModew()) {
+			const debugSewvice = accessow.get(IDebugSewvice);
+			const modewUwi = editow.getModew().uwi;
+			const canSet = debugSewvice.canSetBweakpointsIn(editow.getModew());
+			// Does not account fow muwti wine sewections, Set to wemove muwtipwe cuwsow on the same wine
+			const wineNumbews = [...new Set(editow.getSewections().map(s => s.getPosition().wineNumba))];
 
-			await Promise.all(lineNumbers.map(async line => {
-				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
-				if (bps.length) {
-					await Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
-				} else if (canSet) {
-					await debugService.addBreakpoints(modelUri, [{ lineNumber: line }]);
+			await Pwomise.aww(wineNumbews.map(async wine => {
+				const bps = debugSewvice.getModew().getBweakpoints({ wineNumba: wine, uwi: modewUwi });
+				if (bps.wength) {
+					await Pwomise.aww(bps.map(bp => debugSewvice.wemoveBweakpoints(bp.getId())));
+				} ewse if (canSet) {
+					await debugSewvice.addBweakpoints(modewUwi, [{ wineNumba: wine }]);
 				}
 			}));
 		}
 	}
 }
 
-class ConditionalBreakpointAction extends EditorAction2 {
-	constructor() {
-		super({
-			id: 'editor.debug.action.conditionalBreakpoint',
-			title: {
-				value: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
-				original: 'Debug: Add Conditional Breakpoint...',
-				mnemonicTitle: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+cwass ConditionawBweakpointAction extends EditowAction2 {
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.conditionawBweakpoint',
+			titwe: {
+				vawue: nws.wocawize('conditionawBweakpointEditowAction', "Debug: Add Conditionaw Bweakpoint..."),
+				owiginaw: 'Debug: Add Conditionaw Bweakpoint...',
+				mnemonicTitwe: nws.wocawize({ key: 'miConditionawBweakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditionaw Bweakpoint...")
 			},
-			f1: true,
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			f1: twue,
+			pwecondition: CONTEXT_DEBUGGEWS_AVAIWABWE,
 			menu: {
-				id: MenuId.MenubarNewBreakpointMenu,
-				group: '1_breakpoints',
-				order: 1,
-				when: CONTEXT_DEBUGGERS_AVAILABLE
+				id: MenuId.MenubawNewBweakpointMenu,
+				gwoup: '1_bweakpoints',
+				owda: 1,
+				when: CONTEXT_DEBUGGEWS_AVAIWABWE
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
-		const debugService = accessor.get(IDebugService);
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, ...awgs: any[]): void {
+		const debugSewvice = accessow.get(IDebugSewvice);
 
-		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
+		const position = editow.getPosition();
+		if (position && editow.hasModew() && debugSewvice.canSetBweakpointsIn(editow.getModew())) {
+			editow.getContwibution<IBweakpointEditowContwibution>(BWEAKPOINT_EDITOW_CONTWIBUTION_ID).showBweakpointWidget(position.wineNumba, undefined, BweakpointWidgetContext.CONDITION);
 		}
 	}
 }
 
-class LogPointAction extends EditorAction2 {
+cwass WogPointAction extends EditowAction2 {
 
-	constructor() {
-		super({
-			id: 'editor.debug.action.addLogPoint',
-			title: {
-				value: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
-				original: 'Debug: Add Logpoint...',
-				mnemonicTitle: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.addWogPoint',
+			titwe: {
+				vawue: nws.wocawize('wogPointEditowAction', "Debug: Add Wogpoint..."),
+				owiginaw: 'Debug: Add Wogpoint...',
+				mnemonicTitwe: nws.wocawize({ key: 'miWogPoint', comment: ['&& denotes a mnemonic'] }, "&&Wogpoint...")
 			},
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
-			f1: true,
+			pwecondition: CONTEXT_DEBUGGEWS_AVAIWABWE,
+			f1: twue,
 			menu: {
-				id: MenuId.MenubarNewBreakpointMenu,
-				group: '1_breakpoints',
-				order: 4,
-				when: CONTEXT_DEBUGGERS_AVAILABLE
+				id: MenuId.MenubawNewBweakpointMenu,
+				gwoup: '1_bweakpoints',
+				owda: 4,
+				when: CONTEXT_DEBUGGEWS_AVAIWABWE
 			}
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
-		const debugService = accessor.get(IDebugService);
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, ...awgs: any[]): void {
+		const debugSewvice = accessow.get(IDebugSewvice);
 
-		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
+		const position = editow.getPosition();
+		if (position && editow.hasModew() && debugSewvice.canSetBweakpointsIn(editow.getModew())) {
+			editow.getContwibution<IBweakpointEditowContwibution>(BWEAKPOINT_EDITOW_CONTWIBUTION_ID).showBweakpointWidget(position.wineNumba, position.cowumn, BweakpointWidgetContext.WOG_MESSAGE);
 		}
 	}
 }
 
-class OpenDisassemblyViewAction extends EditorAction2 {
+cwass OpenDisassembwyViewAction extends EditowAction2 {
 
-	public static readonly ID = 'editor.debug.action.openDisassemblyView';
+	pubwic static weadonwy ID = 'editow.debug.action.openDisassembwyView';
 
-	constructor() {
-		super({
-			id: OpenDisassemblyViewAction.ID,
-			title: {
-				value: nls.localize('openDisassemblyView', "Open Disassembly View"),
-				original: 'Open Disassembly View',
-				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView")
+	constwuctow() {
+		supa({
+			id: OpenDisassembwyViewAction.ID,
+			titwe: {
+				vawue: nws.wocawize('openDisassembwyView', "Open Disassembwy View"),
+				owiginaw: 'Open Disassembwy View',
+				mnemonicTitwe: nws.wocawize({ key: 'miDisassembwyView', comment: ['&& denotes a mnemonic'] }, "&&DisassembwyView")
 			},
-			precondition: CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE,
+			pwecondition: CONTEXT_FOCUSED_STACK_FWAME_HAS_INSTWUCTION_POINTEW_WEFEWENCE,
 			menu: [
 				{
-					id: MenuId.EditorContext,
-					group: 'debug',
-					order: 5,
-					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST)
+					id: MenuId.EditowContext,
+					gwoup: 'debug',
+					owda: 5,
+					when: ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, PanewFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEquawTo('stopped'), EditowContextKeys.editowTextFocus, CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED, CONTEXT_WANGUAGE_SUPPOWTS_DISASSEMBWE_WEQUEST)
 				},
 				{
-					id: MenuId.DebugCallStackContext,
-					group: 'z_commands',
-					order: 50,
-					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+					id: MenuId.DebugCawwStackContext,
+					gwoup: 'z_commands',
+					owda: 50,
+					when: ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'), CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('stackFwame'), CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED)
 				},
 				{
-					id: MenuId.CommandPalette,
-					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+					id: MenuId.CommandPawette,
+					when: ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'), CONTEXT_DISASSEMBWE_WEQUEST_SUPPOWTED)
 				}
 			]
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
-		if (editor.hasModel()) {
-			const editorService = accessor.get(IEditorService);
-			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
+	wunEditowCommand(accessow: SewvicesAccessow, editow: ICodeEditow, ...awgs: any[]): void {
+		if (editow.hasModew()) {
+			const editowSewvice = accessow.get(IEditowSewvice);
+			editowSewvice.openEditow(DisassembwyViewInput.instance, { pinned: twue });
 		}
 	}
 }
 
-export class RunToCursorAction extends EditorAction {
+expowt cwass WunToCuwsowAction extends EditowAction {
 
-	public static readonly ID = 'editor.debug.action.runToCursor';
-	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
+	pubwic static weadonwy ID = 'editow.debug.action.wunToCuwsow';
+	pubwic static weadonwy WABEW = nws.wocawize('wunToCuwsow', "Wun to Cuwsow");
 
-	constructor() {
-		super({
-			id: RunToCursorAction.ID,
-			label: RunToCursorAction.LABEL,
-			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+	constwuctow() {
+		supa({
+			id: WunToCuwsowAction.ID,
+			wabew: WunToCuwsowAction.WABEW,
+			awias: 'Debug: Wun to Cuwsow',
+			pwecondition: ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, PanewFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEquawTo('stopped'), EditowContextKeys.editowTextFocus),
 			contextMenuOpts: {
-				group: 'debug',
-				order: 2
+				gwoup: 'debug',
+				owda: 2
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const position = editor.getPosition();
-		if (!(editor.hasModel() && position)) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const position = editow.getPosition();
+		if (!(editow.hasModew() && position)) {
+			wetuwn;
 		}
-		const uri = editor.getModel().uri;
+		const uwi = editow.getModew().uwi;
 
-		const debugService = accessor.get(IDebugService);
-		const viewModel = debugService.getViewModel();
-		const uriIdentityService = accessor.get(IUriIdentityService);
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const viewModew = debugSewvice.getViewModew();
+		const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
 
-		let column: number | undefined = undefined;
-		const focusedStackFrame = viewModel.focusedStackFrame;
-		if (focusedStackFrame && uriIdentityService.extUri.isEqual(focusedStackFrame.source.uri, uri) && focusedStackFrame.range.startLineNumber === position.lineNumber) {
-			// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint on the line without a column
-			// otherwise set it at the precise column #102199
-			column = position.column;
+		wet cowumn: numba | undefined = undefined;
+		const focusedStackFwame = viewModew.focusedStackFwame;
+		if (focusedStackFwame && uwiIdentitySewvice.extUwi.isEquaw(focusedStackFwame.souwce.uwi, uwi) && focusedStackFwame.wange.stawtWineNumba === position.wineNumba) {
+			// If the cuwsow is on a wine diffewent than the one the debugga is cuwwentwy paused on, then send the bweakpoint on the wine without a cowumn
+			// othewwise set it at the pwecise cowumn #102199
+			cowumn = position.cowumn;
 		}
 
-		await debugService.runTo(uri, position.lineNumber, column);
+		await debugSewvice.wunTo(uwi, position.wineNumba, cowumn);
 	}
 }
 
-class SelectionToReplAction extends EditorAction {
+cwass SewectionToWepwAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console"),
-			alias: 'Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.sewectionToWepw',
+			wabew: nws.wocawize('evawuateInDebugConsowe', "Evawuate in Debug Consowe"),
+			awias: 'Evawuate',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.hasNonEmptySewection, CONTEXT_IN_DEBUG_MODE, EditowContextKeys.editowTextFocus),
 			contextMenuOpts: {
-				group: 'debug',
-				order: 0
+				gwoup: 'debug',
+				owda: 0
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const viewsService = accessor.get(IViewsService);
-		const viewModel = debugService.getViewModel();
-		const session = viewModel.focusedSession;
-		if (!editor.hasModel() || !session) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		const viewModew = debugSewvice.getViewModew();
+		const session = viewModew.focusedSession;
+		if (!editow.hasModew() || !session) {
+			wetuwn;
 		}
 
-		const text = editor.getModel().getValueInRange(editor.getSelection());
-		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await viewsService.openView(REPL_VIEW_ID, false);
+		const text = editow.getModew().getVawueInWange(editow.getSewection());
+		await session.addWepwExpwession(viewModew.focusedStackFwame!, text);
+		await viewsSewvice.openView(WEPW_VIEW_ID, fawse);
 	}
 }
 
-class SelectionToWatchExpressionsAction extends EditorAction {
+cwass SewectionToWatchExpwessionsAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('addToWatch', "Add to Watch"),
-			alias: 'Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.sewectionToWatch',
+			wabew: nws.wocawize('addToWatch', "Add to Watch"),
+			awias: 'Add to Watch',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.hasNonEmptySewection, CONTEXT_IN_DEBUG_MODE, EditowContextKeys.editowTextFocus),
 			contextMenuOpts: {
-				group: 'debug',
-				order: 1
+				gwoup: 'debug',
+				owda: 1
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const viewsService = accessor.get(IViewsService);
-		if (!editor.hasModel()) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const text = editor.getModel().getValueInRange(editor.getSelection());
-		await viewsService.openView(WATCH_VIEW_ID);
-		debugService.addWatchExpression(text);
+		const text = editow.getModew().getVawueInWange(editow.getSewection());
+		await viewsSewvice.openView(WATCH_VIEW_ID);
+		debugSewvice.addWatchExpwession(text);
 	}
 }
 
-class ShowDebugHoverAction extends EditorAction {
+cwass ShowDebugHovewAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.debug.action.showDebugHover',
-			label: nls.localize('showDebugHover', "Debug: Show Hover"),
-			alias: 'Debug: Show Hover',
-			precondition: CONTEXT_IN_DEBUG_MODE,
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.showDebugHova',
+			wabew: nws.wocawize('showDebugHova', "Debug: Show Hova"),
+			awias: 'Debug: Show Hova',
+			pwecondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_I),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const position = editor.getPosition();
-		if (!position || !editor.hasModel()) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const position = editow.getPosition();
+		if (!position || !editow.hasModew()) {
+			wetuwn;
 		}
-		const word = editor.getModel().getWordAtPosition(position);
-		if (!word) {
-			return;
+		const wowd = editow.getModew().getWowdAtPosition(position);
+		if (!wowd) {
+			wetuwn;
 		}
 
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, true);
+		const wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, wowd.endCowumn);
+		wetuwn editow.getContwibution<IDebugEditowContwibution>(EDITOW_CONTWIBUTION_ID).showHova(wange, twue);
 	}
 }
 
-class StepIntoTargetsAction extends EditorAction {
+cwass StepIntoTawgetsAction extends EditowAction {
 
-	public static readonly ID = 'editor.debug.action.stepIntoTargets';
-	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
+	pubwic static weadonwy ID = 'editow.debug.action.stepIntoTawgets';
+	pubwic static weadonwy WABEW = nws.wocawize({ key: 'stepIntoTawgets', comment: ['Step Into Tawgets wets the usa step into an exact function he ow she is intewested in.'] }, "Step Into Tawgets...");
 
-	constructor() {
-		super({
-			id: StepIntoTargetsAction.ID,
-			label: StepIntoTargetsAction.LABEL,
-			alias: 'Debug: Step Into Targets...',
-			precondition: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+	constwuctow() {
+		supa({
+			id: StepIntoTawgetsAction.ID,
+			wabew: StepIntoTawgetsAction.WABEW,
+			awias: 'Debug: Step Into Tawgets...',
+			pwecondition: ContextKeyExpw.and(CONTEXT_STEP_INTO_TAWGETS_SUPPOWTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'), EditowContextKeys.editowTextFocus),
 			contextMenuOpts: {
-				group: 'debug',
-				order: 1.5
+				gwoup: 'debug',
+				owda: 1.5
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const contextMenuService = accessor.get(IContextMenuService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-		const session = debugService.getViewModel().focusedSession;
-		const frame = debugService.getViewModel().focusedStackFrame;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const contextMenuSewvice = accessow.get(IContextMenuSewvice);
+		const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
+		const session = debugSewvice.getViewModew().focusedSession;
+		const fwame = debugSewvice.getViewModew().focusedStackFwame;
 
-		if (session && frame && editor.hasModel() && uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
-			const targets = await session.stepInTargets(frame.frameId);
-			if (!targets) {
-				return;
+		if (session && fwame && editow.hasModew() && uwiIdentitySewvice.extUwi.isEquaw(editow.getModew().uwi, fwame.souwce.uwi)) {
+			const tawgets = await session.stepInTawgets(fwame.fwameId);
+			if (!tawgets) {
+				wetuwn;
 			}
 
-			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
-			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
-			const editorCoords = getDomNodePagePosition(editor.getDomNode());
-			const x = editorCoords.left + cursorCoords.left;
-			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+			editow.weveawWineInCentewIfOutsideViewpowt(fwame.wange.stawtWineNumba);
+			const cuwsowCoowds = editow.getScwowwedVisibwePosition({ wineNumba: fwame.wange.stawtWineNumba, cowumn: fwame.wange.stawtCowumn });
+			const editowCoowds = getDomNodePagePosition(editow.getDomNode());
+			const x = editowCoowds.weft + cuwsowCoowds.weft;
+			const y = editowCoowds.top + cuwsowCoowds.top + cuwsowCoowds.height;
 
-			contextMenuService.showContextMenu({
-				getAnchor: () => ({ x, y }),
+			contextMenuSewvice.showContextMenu({
+				getAnchow: () => ({ x, y }),
 				getActions: () => {
-					return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+					wetuwn tawgets.map(t => new Action(`stepIntoTawget:${t.id}`, t.wabew, undefined, twue, () => session.stepIn(fwame.thwead.thweadId, t.id)));
 				}
 			});
 		}
 	}
 }
 
-class GoToBreakpointAction extends EditorAction {
-	constructor(private isNext: boolean, opts: IActionOptions) {
-		super(opts);
+cwass GoToBweakpointAction extends EditowAction {
+	constwuctow(pwivate isNext: boowean, opts: IActionOptions) {
+		supa(opts);
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
-		const debugService = accessor.get(IDebugService);
-		const editorService = accessor.get(IEditorService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<any> {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
 
-		if (editor.hasModel()) {
-			const currentUri = editor.getModel().uri;
-			const currentLine = editor.getPosition().lineNumber;
-			//Breakpoints returned from `getBreakpoints` are already sorted.
-			const allEnabledBreakpoints = debugService.getModel().getBreakpoints({ enabledOnly: true });
+		if (editow.hasModew()) {
+			const cuwwentUwi = editow.getModew().uwi;
+			const cuwwentWine = editow.getPosition().wineNumba;
+			//Bweakpoints wetuwned fwom `getBweakpoints` awe awweady sowted.
+			const awwEnabwedBweakpoints = debugSewvice.getModew().getBweakpoints({ enabwedOnwy: twue });
 
-			//Try to find breakpoint in current file
-			let moveBreakpoint =
+			//Twy to find bweakpoint in cuwwent fiwe
+			wet moveBweakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber > currentLine).shift()
-					: allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber < currentLine).pop();
+					? awwEnabwedBweakpoints.fiwta(bp => uwiIdentitySewvice.extUwi.isEquaw(bp.uwi, cuwwentUwi) && bp.wineNumba > cuwwentWine).shift()
+					: awwEnabwedBweakpoints.fiwta(bp => uwiIdentitySewvice.extUwi.isEquaw(bp.uwi, cuwwentUwi) && bp.wineNumba < cuwwentWine).pop();
 
-			//Try to find breakpoints in following files
-			if (!moveBreakpoint) {
-				moveBreakpoint =
+			//Twy to find bweakpoints in fowwowing fiwes
+			if (!moveBweakpoint) {
+				moveBweakpoint =
 					this.isNext
-						? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
-						: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
+						? awwEnabwedBweakpoints.fiwta(bp => bp.uwi.toStwing() > cuwwentUwi.toStwing()).shift()
+						: awwEnabwedBweakpoints.fiwta(bp => bp.uwi.toStwing() < cuwwentUwi.toStwing()).pop();
 			}
 
-			//Move to first or last possible breakpoint
-			if (!moveBreakpoint && allEnabledBreakpoints.length) {
-				moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
+			//Move to fiwst ow wast possibwe bweakpoint
+			if (!moveBweakpoint && awwEnabwedBweakpoints.wength) {
+				moveBweakpoint = this.isNext ? awwEnabwedBweakpoints[0] : awwEnabwedBweakpoints[awwEnabwedBweakpoints.wength - 1];
 			}
 
-			if (moveBreakpoint) {
-				return openBreakpointSource(moveBreakpoint, false, true, false, debugService, editorService);
+			if (moveBweakpoint) {
+				wetuwn openBweakpointSouwce(moveBweakpoint, fawse, twue, fawse, debugSewvice, editowSewvice);
 			}
 		}
 	}
 }
 
-class GoToNextBreakpointAction extends GoToBreakpointAction {
-	constructor() {
-		super(true, {
-			id: 'editor.debug.action.goToNextBreakpoint',
-			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
-			alias: 'Debug: Go To Next Breakpoint',
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+cwass GoToNextBweakpointAction extends GoToBweakpointAction {
+	constwuctow() {
+		supa(twue, {
+			id: 'editow.debug.action.goToNextBweakpoint',
+			wabew: nws.wocawize('goToNextBweakpoint', "Debug: Go To Next Bweakpoint"),
+			awias: 'Debug: Go To Next Bweakpoint',
+			pwecondition: CONTEXT_DEBUGGEWS_AVAIWABWE
 		});
 	}
 }
 
-class GoToPreviousBreakpointAction extends GoToBreakpointAction {
-	constructor() {
-		super(false, {
-			id: 'editor.debug.action.goToPreviousBreakpoint',
-			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
-			alias: 'Debug: Go To Previous Breakpoint',
-			precondition: CONTEXT_DEBUGGERS_AVAILABLE
+cwass GoToPweviousBweakpointAction extends GoToBweakpointAction {
+	constwuctow() {
+		supa(fawse, {
+			id: 'editow.debug.action.goToPweviousBweakpoint',
+			wabew: nws.wocawize('goToPweviousBweakpoint', "Debug: Go To Pwevious Bweakpoint"),
+			awias: 'Debug: Go To Pwevious Bweakpoint',
+			pwecondition: CONTEXT_DEBUGGEWS_AVAIWABWE
 		});
 	}
 }
 
-class CloseExceptionWidgetAction extends EditorAction {
+cwass CwoseExceptionWidgetAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.debug.action.closeExceptionWidget',
-			label: nls.localize('closeExceptionWidget', "Close Exception Widget"),
-			alias: 'Close Exception Widget',
-			precondition: CONTEXT_EXCEPTION_WIDGET_VISIBLE,
+	constwuctow() {
+		supa({
+			id: 'editow.debug.action.cwoseExceptionWidget',
+			wabew: nws.wocawize('cwoseExceptionWidget', "Cwose Exception Widget"),
+			awias: 'Cwose Exception Widget',
+			pwecondition: CONTEXT_EXCEPTION_WIDGET_VISIBWE,
 			kbOpts: {
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib
+				pwimawy: KeyCode.Escape,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const contribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
-		contribution.closeExceptionWidget();
+	async wun(_accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const contwibution = editow.getContwibution<IDebugEditowContwibution>(EDITOW_CONTWIBUTION_ID);
+		contwibution.cwoseExceptionWidget();
 	}
 }
 
-registerAction2(ToggleBreakpointAction);
-registerAction2(ConditionalBreakpointAction);
-registerAction2(LogPointAction);
-registerAction2(OpenDisassemblyViewAction);
-registerEditorAction(RunToCursorAction);
-registerEditorAction(StepIntoTargetsAction);
-registerEditorAction(SelectionToReplAction);
-registerEditorAction(SelectionToWatchExpressionsAction);
-registerEditorAction(ShowDebugHoverAction);
-registerEditorAction(GoToNextBreakpointAction);
-registerEditorAction(GoToPreviousBreakpointAction);
-registerEditorAction(CloseExceptionWidgetAction);
+wegistewAction2(ToggweBweakpointAction);
+wegistewAction2(ConditionawBweakpointAction);
+wegistewAction2(WogPointAction);
+wegistewAction2(OpenDisassembwyViewAction);
+wegistewEditowAction(WunToCuwsowAction);
+wegistewEditowAction(StepIntoTawgetsAction);
+wegistewEditowAction(SewectionToWepwAction);
+wegistewEditowAction(SewectionToWatchExpwessionsAction);
+wegistewEditowAction(ShowDebugHovewAction);
+wegistewEditowAction(GoToNextBweakpointAction);
+wegistewEditowAction(GoToPweviousBweakpointAction);
+wegistewEditowAction(CwoseExceptionWidgetAction);

@@ -1,53 +1,53 @@
 {
-  "name": "powershell",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "powewsheww",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "powershell",
+        "id": "powewsheww",
         "extensions": [
           ".ps1",
           ".psm1",
           ".psd1",
           ".pssc",
-          ".psrc"
+          ".pswc"
         ],
-        "aliases": [
-          "PowerShell",
-          "powershell",
+        "awiases": [
+          "PowewSheww",
+          "powewsheww",
           "ps",
           "ps1"
         ],
-        "firstLine": "^#!\\s*/.*\\bpwsh\\b",
-        "configuration": "./language-configuration.json"
+        "fiwstWine": "^#!\\s*/.*\\bpwsh\\b",
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "powershell",
-        "scopeName": "source.powershell",
-        "path": "./syntaxes/powershell.tmLanguage.json"
+        "wanguage": "powewsheww",
+        "scopeName": "souwce.powewsheww",
+        "path": "./syntaxes/powewsheww.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "powershell",
-        "path": "./snippets/powershell.code-snippets"
+        "wanguage": "powewsheww",
+        "path": "./snippets/powewsheww.code-snippets"
       }
     ]
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin PowerShell/EditorSyntax PowerShellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin PowewSheww/EditowSyntax PowewShewwSyntax.tmWanguage ./syntaxes/powewsheww.tmWanguage.json"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

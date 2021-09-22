@@ -1,466 +1,466 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as resources from 'vs/base/common/resources';
-import { ITextModel } from 'vs/editor/common/model';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Disposable, toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WunOnceScheduwa, ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { Disposabwe, toDisposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { isNumba } fwom 'vs/base/common/types';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IWogga, IWoggewSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export interface IOutputChannelModel extends IDisposable {
-	readonly onDidAppendedContent: Event<void>;
-	readonly onDispose: Event<void>;
-	append(output: string): void;
+expowt intewface IOutputChannewModew extends IDisposabwe {
+	weadonwy onDidAppendedContent: Event<void>;
+	weadonwy onDispose: Event<void>;
+	append(output: stwing): void;
 	update(): void;
-	loadModel(): Promise<ITextModel>;
-	clear(till?: number): void;
+	woadModew(): Pwomise<ITextModew>;
+	cweaw(tiww?: numba): void;
 }
 
-export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
+expowt const IOutputChannewModewSewvice = cweateDecowatow<IOutputChannewModewSewvice>('outputChannewModewSewvice');
 
-export interface IOutputChannelModelService {
-	readonly _serviceBrand: undefined;
+expowt intewface IOutputChannewModewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel;
+	cweateOutputChannewModew(id: stwing, modewUwi: UWI, mimeType: stwing, fiwe?: UWI): IOutputChannewModew;
 
 }
 
-export abstract class AbstractOutputChannelModelService {
+expowt abstwact cwass AbstwactOutputChannewModewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		private readonly outputLocation: URI,
-		@IFileService protected readonly fileService: IFileService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
+	constwuctow(
+		pwivate weadonwy outputWocation: UWI,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice
 	) { }
 
-	createOutputChannelModel(id: string, modelUri: URI, mimeType: string, file?: URI): IOutputChannelModel {
-		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, mimeType, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, mimeType, this.outputDir);
+	cweateOutputChannewModew(id: stwing, modewUwi: UWI, mimeType: stwing, fiwe?: UWI): IOutputChannewModew {
+		wetuwn fiwe ? this.instantiationSewvice.cweateInstance(FiweOutputChannewModew, modewUwi, mimeType, fiwe) : this.instantiationSewvice.cweateInstance(DewegatedOutputChannewModew, id, modewUwi, mimeType, this.outputDiw);
 	}
 
-	private _outputDir: Promise<URI> | null = null;
-	private get outputDir(): Promise<URI> {
-		if (!this._outputDir) {
-			this._outputDir = this.fileService.createFolder(this.outputLocation).then(() => this.outputLocation);
+	pwivate _outputDiw: Pwomise<UWI> | nuww = nuww;
+	pwivate get outputDiw(): Pwomise<UWI> {
+		if (!this._outputDiw) {
+			this._outputDiw = this.fiweSewvice.cweateFowda(this.outputWocation).then(() => this.outputWocation);
 		}
-		return this._outputDir;
+		wetuwn this._outputDiw;
 	}
 
 }
 
-export abstract class AbstractFileOutputChannelModel extends Disposable implements IOutputChannelModel {
+expowt abstwact cwass AbstwactFiweOutputChannewModew extends Disposabwe impwements IOutputChannewModew {
 
-	protected readonly _onDidAppendedContent = this._register(new Emitter<void>());
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
+	pwotected weadonwy _onDidAppendedContent = this._wegista(new Emitta<void>());
+	weadonwy onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	protected readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	pwotected weadonwy _onDispose = this._wegista(new Emitta<void>());
+	weadonwy onDispose: Event<void> = this._onDispose.event;
 
-	protected modelUpdater: RunOnceScheduler;
-	protected model: ITextModel | null = null;
+	pwotected modewUpdata: WunOnceScheduwa;
+	pwotected modew: ITextModew | nuww = nuww;
 
-	protected startOffset: number = 0;
-	protected endOffset: number = 0;
+	pwotected stawtOffset: numba = 0;
+	pwotected endOffset: numba = 0;
 
-	constructor(
-		private readonly modelUri: URI,
-		private readonly mimeType: string,
-		protected readonly file: URI,
-		protected fileService: IFileService,
-		protected modelService: IModelService,
-		protected modeService: IModeService,
+	constwuctow(
+		pwivate weadonwy modewUwi: UWI,
+		pwivate weadonwy mimeType: stwing,
+		pwotected weadonwy fiwe: UWI,
+		pwotected fiweSewvice: IFiweSewvice,
+		pwotected modewSewvice: IModewSewvice,
+		pwotected modeSewvice: IModeSewvice,
 	) {
-		super();
-		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
-		this._register(toDisposable(() => this.modelUpdater.cancel()));
+		supa();
+		this.modewUpdata = new WunOnceScheduwa(() => this.updateModew(), 300);
+		this._wegista(toDisposabwe(() => this.modewUpdata.cancew()));
 	}
 
-	clear(till?: number): void {
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
-			this.onUpdateModelCancelled();
+	cweaw(tiww?: numba): void {
+		if (this.modewUpdata.isScheduwed()) {
+			this.modewUpdata.cancew();
+			this.onUpdateModewCancewwed();
 		}
-		if (this.model) {
-			this.model.setValue('');
+		if (this.modew) {
+			this.modew.setVawue('');
 		}
-		this.endOffset = isNumber(till) ? till : this.endOffset;
-		this.startOffset = this.endOffset;
+		this.endOffset = isNumba(tiww) ? tiww : this.endOffset;
+		this.stawtOffset = this.endOffset;
 	}
 
 	update(): void { }
 
-	protected createModel(content: string): ITextModel {
-		if (this.model) {
-			this.model.setValue(content);
-		} else {
-			this.model = this.modelService.createModel(content, this.modeService.create(this.mimeType), this.modelUri);
-			this.onModelCreated(this.model);
-			const disposable = this.model.onWillDispose(() => {
-				this.onModelWillDispose(this.model);
-				this.model = null;
-				dispose(disposable);
+	pwotected cweateModew(content: stwing): ITextModew {
+		if (this.modew) {
+			this.modew.setVawue(content);
+		} ewse {
+			this.modew = this.modewSewvice.cweateModew(content, this.modeSewvice.cweate(this.mimeType), this.modewUwi);
+			this.onModewCweated(this.modew);
+			const disposabwe = this.modew.onWiwwDispose(() => {
+				this.onModewWiwwDispose(this.modew);
+				this.modew = nuww;
+				dispose(disposabwe);
 			});
 		}
-		return this.model;
+		wetuwn this.modew;
 	}
 
-	appendToModel(content: string): void {
-		if (this.model && content) {
-			const lastLine = this.model.getLineCount();
-			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);
-			this.model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
-			this._onDidAppendedContent.fire();
+	appendToModew(content: stwing): void {
+		if (this.modew && content) {
+			const wastWine = this.modew.getWineCount();
+			const wastWineMaxCowumn = this.modew.getWineMaxCowumn(wastWine);
+			this.modew.appwyEdits([EditOpewation.insewt(new Position(wastWine, wastWineMaxCowumn), content)]);
+			this._onDidAppendedContent.fiwe();
 		}
 	}
 
-	abstract loadModel(): Promise<ITextModel>;
-	abstract append(message: string): void;
+	abstwact woadModew(): Pwomise<ITextModew>;
+	abstwact append(message: stwing): void;
 
-	protected onModelCreated(model: ITextModel) { }
-	protected onModelWillDispose(model: ITextModel | null) { }
-	protected onUpdateModelCancelled() { }
-	protected updateModel() { }
+	pwotected onModewCweated(modew: ITextModew) { }
+	pwotected onModewWiwwDispose(modew: ITextModew | nuww) { }
+	pwotected onUpdateModewCancewwed() { }
+	pwotected updateModew() { }
 
-	override dispose(): void {
-		this._onDispose.fire();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 }
 
-class OutputFileListener extends Disposable {
+cwass OutputFiweWistena extends Disposabwe {
 
-	private readonly _onDidContentChange = new Emitter<number | undefined>();
-	readonly onDidContentChange: Event<number | undefined> = this._onDidContentChange.event;
+	pwivate weadonwy _onDidContentChange = new Emitta<numba | undefined>();
+	weadonwy onDidContentChange: Event<numba | undefined> = this._onDidContentChange.event;
 
-	private watching: boolean = false;
-	private syncDelayer: ThrottledDelayer<void>;
-	private etag: string | undefined;
+	pwivate watching: boowean = fawse;
+	pwivate syncDewaya: ThwottwedDewaya<void>;
+	pwivate etag: stwing | undefined;
 
-	constructor(
-		private readonly file: URI,
-		private readonly fileService: IFileService,
-		private readonly logService: ILogService
+	constwuctow(
+		pwivate weadonwy fiwe: UWI,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
-		this.syncDelayer = new ThrottledDelayer<void>(500);
+		supa();
+		this.syncDewaya = new ThwottwedDewaya<void>(500);
 	}
 
-	watch(eTag: string | undefined): void {
+	watch(eTag: stwing | undefined): void {
 		if (!this.watching) {
 			this.etag = eTag;
-			this.poll();
-			this.logService.trace('Started polling', this.file.toString());
-			this.watching = true;
+			this.poww();
+			this.wogSewvice.twace('Stawted powwing', this.fiwe.toStwing());
+			this.watching = twue;
 		}
 	}
 
-	private poll(): void {
-		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop);
+	pwivate poww(): void {
+		const woop = () => this.doWatch().then(() => this.poww());
+		this.syncDewaya.twigga(woop);
 	}
 
-	private async doWatch(): Promise<void> {
-		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
+	pwivate async doWatch(): Pwomise<void> {
+		const stat = await this.fiweSewvice.wesowve(this.fiwe, { wesowveMetadata: twue });
 		if (stat.etag !== this.etag) {
 			this.etag = stat.etag;
-			this._onDidContentChange.fire(stat.size);
+			this._onDidContentChange.fiwe(stat.size);
 		}
 	}
 
 	unwatch(): void {
 		if (this.watching) {
-			this.syncDelayer.cancel();
-			this.watching = false;
-			this.logService.trace('Stopped polling', this.file.toString());
+			this.syncDewaya.cancew();
+			this.watching = fawse;
+			this.wogSewvice.twace('Stopped powwing', this.fiwe.toStwing());
 		}
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		this.unwatch();
-		super.dispose();
+		supa.dispose();
 	}
 }
 
 /**
- * An output channel driven by a file and does not support appending messages.
+ * An output channew dwiven by a fiwe and does not suppowt appending messages.
  */
-class FileOutputChannelModel extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+cwass FiweOutputChannewModew extends AbstwactFiweOutputChannewModew impwements IOutputChannewModew {
 
-	private readonly fileHandler: OutputFileListener;
+	pwivate weadonwy fiweHandwa: OutputFiweWistena;
 
-	private updateInProgress: boolean = false;
-	private etag: string | undefined = '';
-	private loadModelPromise: Promise<ITextModel> | null = null;
+	pwivate updateInPwogwess: boowean = fawse;
+	pwivate etag: stwing | undefined = '';
+	pwivate woadModewPwomise: Pwomise<ITextModew> | nuww = nuww;
 
-	constructor(
-		modelUri: URI,
-		mimeType: string,
-		file: URI,
-		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService
+	constwuctow(
+		modewUwi: UWI,
+		mimeType: stwing,
+		fiwe: UWI,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService);
+		supa(modewUwi, mimeType, fiwe, fiweSewvice, modewSewvice, modeSewvice);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
-		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
-		this._register(toDisposable(() => this.fileHandler.unwatch()));
+		this.fiweHandwa = this._wegista(new OutputFiweWistena(this.fiwe, this.fiweSewvice, wogSewvice));
+		this._wegista(this.fiweHandwa.onDidContentChange(size => this.update(size)));
+		this._wegista(toDisposabwe(() => this.fiweHandwa.unwatch()));
 	}
 
-	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = new Promise<ITextModel>(async (c, e) => {
-			try {
-				let content = '';
-				if (await this.fileService.exists(this.file)) {
-					const fileContent = await this.fileService.readFile(this.file, { position: this.startOffset });
-					this.endOffset = this.startOffset + fileContent.value.byteLength;
-					this.etag = fileContent.etag;
-					content = fileContent.value.toString();
-				} else {
-					this.startOffset = 0;
+	woadModew(): Pwomise<ITextModew> {
+		this.woadModewPwomise = new Pwomise<ITextModew>(async (c, e) => {
+			twy {
+				wet content = '';
+				if (await this.fiweSewvice.exists(this.fiwe)) {
+					const fiweContent = await this.fiweSewvice.weadFiwe(this.fiwe, { position: this.stawtOffset });
+					this.endOffset = this.stawtOffset + fiweContent.vawue.byteWength;
+					this.etag = fiweContent.etag;
+					content = fiweContent.vawue.toStwing();
+				} ewse {
+					this.stawtOffset = 0;
 					this.endOffset = 0;
 				}
-				c(this.createModel(content));
-			} catch (error) {
-				e(error);
+				c(this.cweateModew(content));
+			} catch (ewwow) {
+				e(ewwow);
 			}
 		});
-		return this.loadModelPromise;
+		wetuwn this.woadModewPwomise;
 	}
 
-	override clear(till?: number): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
-		loadModelPromise.then(() => {
-			super.clear(till);
+	ovewwide cweaw(tiww?: numba): void {
+		const woadModewPwomise: Pwomise<any> = this.woadModewPwomise ? this.woadModewPwomise : Pwomise.wesowve();
+		woadModewPwomise.then(() => {
+			supa.cweaw(tiww);
 			this.update();
 		});
 	}
 
-	append(message: string): void {
-		throw new Error('Not supported');
+	append(message: stwing): void {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	protected override updateModel(): void {
-		if (this.model) {
-			this.fileService.readFile(this.file, { position: this.endOffset })
+	pwotected ovewwide updateModew(): void {
+		if (this.modew) {
+			this.fiweSewvice.weadFiwe(this.fiwe, { position: this.endOffset })
 				.then(content => {
 					this.etag = content.etag;
-					if (content.value) {
-						this.endOffset = this.endOffset + content.value.byteLength;
-						this.appendToModel(content.value.toString());
+					if (content.vawue) {
+						this.endOffset = this.endOffset + content.vawue.byteWength;
+						this.appendToModew(content.vawue.toStwing());
 					}
-					this.updateInProgress = false;
-				}, () => this.updateInProgress = false);
-		} else {
-			this.updateInProgress = false;
+					this.updateInPwogwess = fawse;
+				}, () => this.updateInPwogwess = fawse);
+		} ewse {
+			this.updateInPwogwess = fawse;
 		}
 	}
 
-	protected override onModelCreated(model: ITextModel): void {
-		this.fileHandler.watch(this.etag);
+	pwotected ovewwide onModewCweated(modew: ITextModew): void {
+		this.fiweHandwa.watch(this.etag);
 	}
 
-	protected override onModelWillDispose(model: ITextModel | null): void {
-		this.fileHandler.unwatch();
+	pwotected ovewwide onModewWiwwDispose(modew: ITextModew | nuww): void {
+		this.fiweHandwa.unwatch();
 	}
 
-	protected override onUpdateModelCancelled(): void {
-		this.updateInProgress = false;
+	pwotected ovewwide onUpdateModewCancewwed(): void {
+		this.updateInPwogwess = fawse;
 	}
 
-	protected getByteLength(str: string): number {
-		return VSBuffer.fromString(str).byteLength;
+	pwotected getByteWength(stw: stwing): numba {
+		wetuwn VSBuffa.fwomStwing(stw).byteWength;
 	}
 
-	override update(size?: number): void {
-		if (this.model) {
-			if (!this.updateInProgress) {
-				this.updateInProgress = true;
-				if (isNumber(size) && this.endOffset > size) { // Reset - Content is removed
-					this.startOffset = this.endOffset = 0;
-					this.model.setValue('');
+	ovewwide update(size?: numba): void {
+		if (this.modew) {
+			if (!this.updateInPwogwess) {
+				this.updateInPwogwess = twue;
+				if (isNumba(size) && this.endOffset > size) { // Weset - Content is wemoved
+					this.stawtOffset = this.endOffset = 0;
+					this.modew.setVawue('');
 				}
-				this.modelUpdater.schedule();
+				this.modewUpdata.scheduwe();
 			}
 		}
 	}
 }
 
-class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
+cwass OutputChannewBackedByFiwe extends AbstwactFiweOutputChannewModew impwements IOutputChannewModew {
 
-	private logger: ILogger;
-	private appendedMessage: string;
-	private loadingFromFileInProgress: boolean;
-	private resettingDelayer: ThrottledDelayer<void>;
-	private readonly rotatingFilePath: URI;
+	pwivate wogga: IWogga;
+	pwivate appendedMessage: stwing;
+	pwivate woadingFwomFiweInPwogwess: boowean;
+	pwivate wesettingDewaya: ThwottwedDewaya<void>;
+	pwivate weadonwy wotatingFiwePath: UWI;
 
-	constructor(
-		id: string,
-		modelUri: URI,
-		mimeType: string,
-		file: URI,
-		@IFileService fileService: IFileService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILoggerService loggerService: ILoggerService
+	constwuctow(
+		id: stwing,
+		modewUwi: UWI,
+		mimeType: stwing,
+		fiwe: UWI,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWoggewSewvice woggewSewvice: IWoggewSewvice
 	) {
-		super(modelUri, mimeType, file, fileService, modelService, modeService);
+		supa(modewUwi, mimeType, fiwe, fiweSewvice, modewSewvice, modeSewvice);
 		this.appendedMessage = '';
-		this.loadingFromFileInProgress = false;
+		this.woadingFwomFiweInPwogwess = fawse;
 
-		// Donot rotate to check for the file reset
-		this.logger = loggerService.createLogger(this.file, { always: true, donotRotate: true, donotUseFormatters: true });
+		// Donot wotate to check fow the fiwe weset
+		this.wogga = woggewSewvice.cweateWogga(this.fiwe, { awways: twue, donotWotate: twue, donotUseFowmattews: twue });
 
-		const rotatingFilePathDirectory = resources.dirname(this.file);
-		this.rotatingFilePath = resources.joinPath(rotatingFilePathDirectory, `${id}.1.log`);
+		const wotatingFiwePathDiwectowy = wesouwces.diwname(this.fiwe);
+		this.wotatingFiwePath = wesouwces.joinPath(wotatingFiwePathDiwectowy, `${id}.1.wog`);
 
-		this._register(fileService.watch(rotatingFilePathDirectory));
-		this._register(fileService.onDidFilesChange(e => {
-			if (e.contains(this.rotatingFilePath)) {
-				this.resettingDelayer.trigger(() => this.resetModel());
+		this._wegista(fiweSewvice.watch(wotatingFiwePathDiwectowy));
+		this._wegista(fiweSewvice.onDidFiwesChange(e => {
+			if (e.contains(this.wotatingFiwePath)) {
+				this.wesettingDewaya.twigga(() => this.wesetModew());
 			}
 		}));
 
-		this.resettingDelayer = new ThrottledDelayer<void>(50);
+		this.wesettingDewaya = new ThwottwedDewaya<void>(50);
 	}
 
-	append(message: string): void {
-		// update end offset always as message is read
-		this.endOffset = this.endOffset + VSBuffer.fromString(message).byteLength;
-		if (this.loadingFromFileInProgress) {
+	append(message: stwing): void {
+		// update end offset awways as message is wead
+		this.endOffset = this.endOffset + VSBuffa.fwomStwing(message).byteWength;
+		if (this.woadingFwomFiweInPwogwess) {
 			this.appendedMessage += message;
-		} else {
-			this.write(message);
-			if (this.model) {
+		} ewse {
+			this.wwite(message);
+			if (this.modew) {
 				this.appendedMessage += message;
-				if (!this.modelUpdater.isScheduled()) {
-					this.modelUpdater.schedule();
+				if (!this.modewUpdata.isScheduwed()) {
+					this.modewUpdata.scheduwe();
 				}
 			}
 		}
 	}
 
-	override clear(till?: number): void {
-		super.clear(till);
+	ovewwide cweaw(tiww?: numba): void {
+		supa.cweaw(tiww);
 		this.appendedMessage = '';
 	}
 
-	loadModel(): Promise<ITextModel> {
-		this.loadingFromFileInProgress = true;
-		if (this.modelUpdater.isScheduled()) {
-			this.modelUpdater.cancel();
+	woadModew(): Pwomise<ITextModew> {
+		this.woadingFwomFiweInPwogwess = twue;
+		if (this.modewUpdata.isScheduwed()) {
+			this.modewUpdata.cancew();
 		}
 		this.appendedMessage = '';
-		return this.loadFile()
+		wetuwn this.woadFiwe()
 			.then(content => {
-				if (this.endOffset !== this.startOffset + VSBuffer.fromString(content).byteLength) {
-					// Queue content is not written into the file
-					// Flush it and load file again
-					this.flush();
-					return this.loadFile();
+				if (this.endOffset !== this.stawtOffset + VSBuffa.fwomStwing(content).byteWength) {
+					// Queue content is not wwitten into the fiwe
+					// Fwush it and woad fiwe again
+					this.fwush();
+					wetuwn this.woadFiwe();
 				}
-				return content;
+				wetuwn content;
 			})
 			.then(content => {
 				if (this.appendedMessage) {
-					this.write(this.appendedMessage);
+					this.wwite(this.appendedMessage);
 					this.appendedMessage = '';
 				}
-				this.loadingFromFileInProgress = false;
-				return this.createModel(content);
+				this.woadingFwomFiweInPwogwess = fawse;
+				wetuwn this.cweateModew(content);
 			});
 	}
 
-	private resetModel(): Promise<void> {
-		this.startOffset = 0;
+	pwivate wesetModew(): Pwomise<void> {
+		this.stawtOffset = 0;
 		this.endOffset = 0;
-		if (this.model) {
-			return this.loadModel().then(() => undefined);
+		if (this.modew) {
+			wetuwn this.woadModew().then(() => undefined);
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	private loadFile(): Promise<string> {
-		return this.fileService.readFile(this.file, { position: this.startOffset })
-			.then(content => this.appendedMessage ? content.value + this.appendedMessage : content.value.toString());
+	pwivate woadFiwe(): Pwomise<stwing> {
+		wetuwn this.fiweSewvice.weadFiwe(this.fiwe, { position: this.stawtOffset })
+			.then(content => this.appendedMessage ? content.vawue + this.appendedMessage : content.vawue.toStwing());
 	}
 
-	protected override updateModel(): void {
-		if (this.model && this.appendedMessage) {
-			this.appendToModel(this.appendedMessage);
+	pwotected ovewwide updateModew(): void {
+		if (this.modew && this.appendedMessage) {
+			this.appendToModew(this.appendedMessage);
 			this.appendedMessage = '';
 		}
 	}
 
-	private write(content: string): void {
-		this.logger.info(content);
+	pwivate wwite(content: stwing): void {
+		this.wogga.info(content);
 	}
 
-	private flush(): void {
-		this.logger.flush();
+	pwivate fwush(): void {
+		this.wogga.fwush();
 	}
 }
 
-class DelegatedOutputChannelModel extends Disposable implements IOutputChannelModel {
+cwass DewegatedOutputChannewModew extends Disposabwe impwements IOutputChannewModew {
 
-	private readonly _onDidAppendedContent: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
+	pwivate weadonwy _onDidAppendedContent: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidAppendedContent: Event<void> = this._onDidAppendedContent.event;
 
-	private readonly _onDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDispose: Event<void> = this._onDispose.event;
+	pwivate weadonwy _onDispose: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDispose: Event<void> = this._onDispose.event;
 
-	private readonly outputChannelModel: Promise<IOutputChannelModel>;
+	pwivate weadonwy outputChannewModew: Pwomise<IOutputChannewModew>;
 
-	constructor(
-		id: string,
-		modelUri: URI,
-		mimeType: string,
-		outputDir: Promise<URI>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService,
+	constwuctow(
+		id: stwing,
+		modewUwi: UWI,
+		mimeType: stwing,
+		outputDiw: Pwomise<UWI>,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
 	) {
-		super();
-		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir);
+		supa();
+		this.outputChannewModew = this.cweateOutputChannewModew(id, modewUwi, mimeType, outputDiw);
 	}
 
-	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: string, outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
-		const outputDir = await outputDirPromise;
-		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
-		await this.fileService.createFile(file);
-		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file));
-		this._register(outputChannelModel.onDidAppendedContent(() => this._onDidAppendedContent.fire()));
-		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
-		return outputChannelModel;
+	pwivate async cweateOutputChannewModew(id: stwing, modewUwi: UWI, mimeType: stwing, outputDiwPwomise: Pwomise<UWI>): Pwomise<IOutputChannewModew> {
+		const outputDiw = await outputDiwPwomise;
+		const fiwe = wesouwces.joinPath(outputDiw, `${id.wepwace(/[\\/:\*\?"<>\|]/g, '')}.wog`);
+		await this.fiweSewvice.cweateFiwe(fiwe);
+		const outputChannewModew = this._wegista(this.instantiationSewvice.cweateInstance(OutputChannewBackedByFiwe, id, modewUwi, mimeType, fiwe));
+		this._wegista(outputChannewModew.onDidAppendedContent(() => this._onDidAppendedContent.fiwe()));
+		this._wegista(outputChannewModew.onDispose(() => this._onDispose.fiwe()));
+		wetuwn outputChannewModew;
 	}
 
-	append(output: string): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.append(output));
+	append(output: stwing): void {
+		this.outputChannewModew.then(outputChannewModew => outputChannewModew.append(output));
 	}
 
 	update(): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update());
+		this.outputChannewModew.then(outputChannewModew => outputChannewModew.update());
 	}
 
-	loadModel(): Promise<ITextModel> {
-		return this.outputChannelModel.then(outputChannelModel => outputChannelModel.loadModel());
+	woadModew(): Pwomise<ITextModew> {
+		wetuwn this.outputChannewModew.then(outputChannewModew => outputChannewModew.woadModew());
 	}
 
-	clear(till?: number): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
+	cweaw(tiww?: numba): void {
+		this.outputChannewModew.then(outputChannewModew => outputChannewModew.cweaw(tiww));
 	}
 
 }

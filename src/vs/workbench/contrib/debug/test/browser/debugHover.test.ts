@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+impowt * as assewt fwom 'assewt';
+impowt { findExpwessionInStackFwame } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugHova';
+impowt { cweateMockSession } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/cawwStack.test';
+impowt { StackFwame, Thwead, Scope, Vawiabwe } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt type { IScope, IExpwession } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { cweateMockDebugModew, mockUwiIdentitySewvice } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
 
-suite('Debug - Hover', () => {
-	test('find expression in stack frame', async () => {
-		const model = createMockDebugModel();
-		const session = createMockSession(model);
-		let stackFrame: StackFrame;
+suite('Debug - Hova', () => {
+	test('find expwession in stack fwame', async () => {
+		const modew = cweateMockDebugModew();
+		const session = cweateMockSession(modew);
+		wet stackFwame: StackFwame;
 
-		const thread = new class extends Thread {
-			public override getCallStack(): StackFrame[] {
-				return [stackFrame];
+		const thwead = new cwass extends Thwead {
+			pubwic ovewwide getCawwStack(): StackFwame[] {
+				wetuwn [stackFwame];
 			}
-		}(session, 'mockthread', 1);
+		}(session, 'mockthwead', 1);
 
-		const firstSource = new Source({
-			name: 'internalModule.js',
-			path: 'a/b/c/d/internalModule.js',
-			sourceReference: 10,
-		}, 'aDebugSessionId', mockUriIdentityService);
+		const fiwstSouwce = new Souwce({
+			name: 'intewnawModuwe.js',
+			path: 'a/b/c/d/intewnawModuwe.js',
+			souwceWefewence: 10,
+		}, 'aDebugSessionId', mockUwiIdentitySewvice);
 
-		let scope: Scope;
-		stackFrame = new class extends StackFrame {
-			override getScopes(): Promise<IScope[]> {
-				return Promise.resolve([scope]);
+		wet scope: Scope;
+		stackFwame = new cwass extends StackFwame {
+			ovewwide getScopes(): Pwomise<IScope[]> {
+				wetuwn Pwomise.wesowve([scope]);
 			}
-		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
+		}(thwead, 1, fiwstSouwce, 'app.js', 'nowmaw', { stawtWineNumba: 1, stawtCowumn: 1, endWineNumba: 1, endCowumn: 10 }, 1, twue);
 
 
-		let variableA: Variable;
-		let variableB: Variable;
-		scope = new class extends Scope {
-			override getChildren(): Promise<IExpression[]> {
-				return Promise.resolve([variableA]);
+		wet vawiabweA: Vawiabwe;
+		wet vawiabweB: Vawiabwe;
+		scope = new cwass extends Scope {
+			ovewwide getChiwdwen(): Pwomise<IExpwession[]> {
+				wetuwn Pwomise.wesowve([vawiabweA]);
 			}
-		}(stackFrame, 1, 'local', 1, false, 10, 10);
+		}(stackFwame, 1, 'wocaw', 1, fawse, 10, 10);
 
-		variableA = new class extends Variable {
-			override getChildren(): Promise<IExpression[]> {
-				return Promise.resolve([variableB]);
+		vawiabweA = new cwass extends Vawiabwe {
+			ovewwide getChiwdwen(): Pwomise<IExpwession[]> {
+				wetuwn Pwomise.wesowve([vawiabweB]);
 			}
-		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'string');
-		variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
+		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'stwing');
+		vawiabweB = new Vawiabwe(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'stwing');
 
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['B']), undefined);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'B']), variableB);
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'C']), undefined);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, []), undefined);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['A']), vawiabweA);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['doesNotExist', 'no']), undefined);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['a']), undefined);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['B']), undefined);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['A', 'B']), vawiabweB);
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['A', 'C']), undefined);
 
-		// We do not search in expensive scopes
-		scope.expensive = true;
-		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), undefined);
+		// We do not seawch in expensive scopes
+		scope.expensive = twue;
+		assewt.stwictEquaw(await findExpwessionInStackFwame(stackFwame, ['A']), undefined);
 	});
 });

@@ -1,3324 +1,3324 @@
 [
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "; from http://clojure-doc.org/articles/tutorials/introduction.html",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": "; fwom http://cwojuwe-doc.owg/awticwes/tutowiaws/intwoduction.htmw",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "require",
-		"t": "source.clojure meta.expression.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"c": "wequiwe",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " '",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "clojure.string",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "cwojuwe.stwing",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":as",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "str",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "stw",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "the-answer",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "the-answa",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "42",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "3",
-		"t": "source.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "            ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " A vector",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " A vectow",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":two",
-		"t": "source.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.begin.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "three",
-		"t": "source.clojure meta.vector.clojure string.quoted.double.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "thwee",
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.end.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.clojure meta.map.clojure punctuation.section.map.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe punctuation.section.map.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":a",
-		"t": "source.clojure meta.map.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.map.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.map.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.map.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.map.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.map.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.clojure meta.map.clojure punctuation.section.map.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.map.cwojuwe punctuation.section.map.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#{",
-		"t": "source.clojure meta.set.clojure punctuation.section.set.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe punctuation.section.set.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":a",
-		"t": "source.clojure meta.set.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.set.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.set.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.set.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":c",
-		"t": "source.clojure meta.set.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.clojure meta.set.clojure punctuation.section.set.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.set.cwojuwe punctuation.section.set.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "'(",
-		"t": "source.clojure meta.quoted-expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "3",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.quoted-expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-stuff",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.begin.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "shirt",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "shiwt",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.end.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.begin.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "coat",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.end.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.begin.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "hat",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure string.quoted.double.clojure punctuation.definition.string.end.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "   ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " this is more typical usage.",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " this is mowe typicaw usage.",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-func",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-func2",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg1",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg1",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "                   ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg2",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg2",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "         ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "other-func",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "otha-func",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg-a",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg-a",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "                     ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "foo-bar",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "foo-baw",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg-x",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "                              ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "arg-y",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg-x",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "                              ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "awg-y",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "                              ",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "+",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg-xx",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "                                 ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "arg-yy",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg-xx",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "                                 ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg-zz",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg-yy",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "                                 ",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "awg-zz",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "                     ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "arg-b",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "awg-b",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "'(",
-		"t": "source.clojure meta.quoted-expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "+",
-		"t": "source.clojure meta.quoted-expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "3",
-		"t": "source.clojure meta.quoted-expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.quoted-expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "; ⇒ (+ 1 2 3)",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "let",
-		"t": "source.clojure meta.expression.clojure storage.control.clojure",
-		"r": {
-			"dark_plus": "storage: #569CD6",
-			"light_plus": "storage: #0000FF",
-			"dark_vs": "storage: #569CD6",
-			"light_vs": "storage: #0000FF",
-			"hc_black": "storage: #569CD6"
+		"c": "wet",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe stowage.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "stowage: #569CD6",
+			"wight_pwus": "stowage: #0000FF",
+			"dawk_vs": "stowage: #569CD6",
+			"wight_vs": "stowage: #0000FF",
+			"hc_bwack": "stowage: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "width",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "     ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "10",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "height",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "    ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "20",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "      ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "thickness",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "println",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"c": "pwintwn",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure string.quoted.double.clojure punctuation.definition.string.begin.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "hello from inside the `let`.",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure string.quoted.double.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"c": "hewwo fwom inside the `wet`.",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe stwing.quoted.doubwe.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure string.quoted.double.clojure punctuation.definition.string.end.clojure",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe stwing.quoted.doubwe.cwojuwe punctuation.definition.stwing.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "*",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "width",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "     ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "height",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "     ",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "thickness",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "; Vectors",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": "; Vectows",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "v",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "   ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":a",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":c",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.vector.clojure punctuation.section.vector.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "li",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "wi",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "'(",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":a",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":c",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.quoted-expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.quoted-expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "conj",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "v",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":d",
-		"t": "source.clojure meta.expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "          ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " ⇒ [:a :b :c :d]",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "conj",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "li",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "wi",
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":d",
-		"t": "source.clojure meta.expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "          ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " ⇒ (:d :a :b :c)",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "v",
-		"t": "source.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "   ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " ⇒ is still [:a :b :c]",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " ⇒ is stiww [:a :b :c]",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "li",
-		"t": "source.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "wi",
+		"t": "souwce.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "  ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": " ⇒ is still (:a :b :c)",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": " ⇒ is stiww (:a :b :c)",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "; Maps",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "m",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure punctuation.section.map.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe punctuation.section.map.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":a",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "2",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.map.clojure punctuation.section.map.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.map.cwojuwe punctuation.section.map.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "assoc",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "m",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":c",
-		"t": "source.clojure meta.expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "3",
-		"t": "source.clojure meta.expression.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "        ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " ⇒ {:a 1 :c 3 :b 2}",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "dissoc",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "m",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":b",
-		"t": "source.clojure meta.expression.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "         ",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": " ⇒ {:a 1}",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "def",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure keyword.control.clojure",
-		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe keywowd.contwow.cwojuwe",
+		"w": {
+			"dawk_pwus": "keywowd.contwow: #C586C0",
+			"wight_pwus": "keywowd.contwow: #AF00DB",
+			"dawk_vs": "keywowd.contwow: #569CD6",
+			"wight_vs": "keywowd.contwow: #0000FF",
+			"hc_bwack": "keywowd.contwow: #C586C0"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-atom",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe entity.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "atom",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure meta.map.clojure punctuation.section.map.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe meta.map.cwojuwe punctuation.section.map.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":foo",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure meta.map.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe meta.map.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure meta.map.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe meta.map.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure meta.map.clojure constant.numeric.long.clojure",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe meta.map.cwojuwe constant.numewic.wong.cwojuwe",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure meta.map.clojure punctuation.section.map.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe meta.map.cwojuwe punctuation.section.map.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.definition.gwobaw.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
-		"c": "; ⇒ #'user/my-atom",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"c": "; ⇒ #'usa/my-atom",
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-atom",
-		"t": "source.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "; ⇒ {:foo 1}",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "(",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "swap!",
-		"t": "source.clojure meta.expression.clojure entity.name.function.clojure",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe entity.name.function.cwojuwe",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-atom",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "update-in",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "[",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.begin.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.begin.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ":foo",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure constant.keyword.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe constant.keywowd.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
-		"t": "source.clojure meta.expression.clojure meta.vector.clojure punctuation.section.vector.end.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.vectow.cwojuwe punctuation.section.vectow.end.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.clojure meta.expression.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "inc",
-		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ")",
-		"t": "source.clojure meta.expression.clojure punctuation.section.expression.end.trailing.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.expwession.cwojuwe punctuation.section.expwession.end.twaiwing.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "; ⇒ {:foo 2}",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "@",
-		"t": "source.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "my-atom",
-		"t": "source.clojure meta.symbol.clojure",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.cwojuwe meta.symbow.cwojuwe",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ";",
-		"t": "source.clojure comment.line.semicolon.clojure punctuation.definition.comment.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe punctuation.definition.comment.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	},
 	{
 		"c": "; ⇒ {:foo 2}",
-		"t": "source.clojure comment.line.semicolon.clojure",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
+		"t": "souwce.cwojuwe comment.wine.semicowon.cwojuwe",
+		"w": {
+			"dawk_pwus": "comment: #6A9955",
+			"wight_pwus": "comment: #008000",
+			"dawk_vs": "comment: #6A9955",
+			"wight_vs": "comment: #008000",
+			"hc_bwack": "comment: #7CA668"
 		}
 	}
 ]

@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export interface TSConfig {
-	readonly uri: vscode.Uri;
-	readonly fsPath: string;
-	readonly posixPath: string;
-	readonly workspaceFolder?: vscode.WorkspaceFolder;
+expowt intewface TSConfig {
+	weadonwy uwi: vscode.Uwi;
+	weadonwy fsPath: stwing;
+	weadonwy posixPath: stwing;
+	weadonwy wowkspaceFowda?: vscode.WowkspaceFowda;
 }
 
-export class TsConfigProvider {
-	public async getConfigsForWorkspace(token: vscode.CancellationToken): Promise<Iterable<TSConfig>> {
-		if (!vscode.workspace.workspaceFolders) {
-			return [];
+expowt cwass TsConfigPwovida {
+	pubwic async getConfigsFowWowkspace(token: vscode.CancewwationToken): Pwomise<Itewabwe<TSConfig>> {
+		if (!vscode.wowkspace.wowkspaceFowdews) {
+			wetuwn [];
 		}
 
-		const configs = new Map<string, TSConfig>();
-		for (const config of await this.findConfigFiles(token)) {
-			const root = vscode.workspace.getWorkspaceFolder(config);
-			if (root) {
+		const configs = new Map<stwing, TSConfig>();
+		fow (const config of await this.findConfigFiwes(token)) {
+			const woot = vscode.wowkspace.getWowkspaceFowda(config);
+			if (woot) {
 				configs.set(config.fsPath, {
-					uri: config,
+					uwi: config,
 					fsPath: config.fsPath,
 					posixPath: config.path,
-					workspaceFolder: root
+					wowkspaceFowda: woot
 				});
 			}
 		}
-		return configs.values();
+		wetuwn configs.vawues();
 	}
 
-	private async findConfigFiles(token: vscode.CancellationToken): Promise<vscode.Uri[]> {
-		return await vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**', undefined, token);
+	pwivate async findConfigFiwes(token: vscode.CancewwationToken): Pwomise<vscode.Uwi[]> {
+		wetuwn await vscode.wowkspace.findFiwes('**/tsconfig*.json', '**/{node_moduwes,.*}/**', undefined, token);
 	}
 }

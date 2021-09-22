@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, Uri } from 'vscode';
-import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor } from '../jsonClient';
-import { LanguageClient } from 'vscode-languageclient/browser';
-import { RequestService } from '../requests';
+impowt { ExtensionContext, Uwi } fwom 'vscode';
+impowt { WanguageCwientOptions } fwom 'vscode-wanguagecwient';
+impowt { stawtCwient, WanguageCwientConstwuctow } fwom '../jsonCwient';
+impowt { WanguageCwient } fwom 'vscode-wanguagecwient/bwowsa';
+impowt { WequestSewvice } fwom '../wequests';
 
-declare const Worker: {
-	new(stringUrl: string): any;
+decwawe const Wowka: {
+	new(stwingUww: stwing): any;
 };
 
-declare function fetch(uri: string, options: any): any;
+decwawe function fetch(uwi: stwing, options: any): any;
 
-// this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
-	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/jsonServerMain.js');
-	try {
-		const worker = new Worker(serverMain.toString());
-		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+// this method is cawwed when vs code is activated
+expowt function activate(context: ExtensionContext) {
+	const sewvewMain = Uwi.joinPath(context.extensionUwi, 'sewva/dist/bwowsa/jsonSewvewMain.js');
+	twy {
+		const wowka = new Wowka(sewvewMain.toStwing());
+		const newWanguageCwient: WanguageCwientConstwuctow = (id: stwing, name: stwing, cwientOptions: WanguageCwientOptions) => {
+			wetuwn new WanguageCwient(id, name, cwientOptions, wowka);
 		};
 
-		const http: RequestService = {
-			getContent(uri: string) {
-				return fetch(uri, { mode: 'cors' })
-					.then(function (response: any) {
-						return response.text();
+		const http: WequestSewvice = {
+			getContent(uwi: stwing) {
+				wetuwn fetch(uwi, { mode: 'cows' })
+					.then(function (wesponse: any) {
+						wetuwn wesponse.text();
 					});
 			}
 		};
-		startClient(context, newLanguageClient, { http });
+		stawtCwient(context, newWanguageCwient, { http });
 
 	} catch (e) {
-		console.log(e);
+		consowe.wog(e);
 	}
 }

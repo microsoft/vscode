@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadDecorationsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDecorations } from 'vs/workbench/api/common/extHostDecorations';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { MainThweadDecowationsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDecowations } fwom 'vs/wowkbench/api/common/extHostDecowations';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { nuwwExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-suite('ExtHostDecorations', function () {
+suite('ExtHostDecowations', function () {
 
-	let mainThreadShape: MainThreadDecorationsShape;
-	let extHostDecorations: ExtHostDecorations;
-	let providers = new Set<number>();
+	wet mainThweadShape: MainThweadDecowationsShape;
+	wet extHostDecowations: ExtHostDecowations;
+	wet pwovidews = new Set<numba>();
 
 	setup(function () {
 
-		providers.clear();
+		pwovidews.cweaw();
 
-		mainThreadShape = new class extends mock<MainThreadDecorationsShape>() {
-			override $registerDecorationProvider(handle: number) {
-				providers.add(handle);
+		mainThweadShape = new cwass extends mock<MainThweadDecowationsShape>() {
+			ovewwide $wegistewDecowationPwovida(handwe: numba) {
+				pwovidews.add(handwe);
 			}
 		};
 
-		extHostDecorations = new ExtHostDecorations(
-			new class extends mock<IExtHostRpcService>() {
-				override getProxy(): any {
-					return mainThreadShape;
+		extHostDecowations = new ExtHostDecowations(
+			new cwass extends mock<IExtHostWpcSewvice>() {
+				ovewwide getPwoxy(): any {
+					wetuwn mainThweadShape;
 				}
 			},
-			new NullLogService()
+			new NuwwWogSewvice()
 		);
 	});
 
-	test('SCM Decorations missing #100524', async function () {
+	test('SCM Decowations missing #100524', async function () {
 
-		let calledA = false;
-		let calledB = false;
+		wet cawwedA = fawse;
+		wet cawwedB = fawse;
 
-		// never returns
-		extHostDecorations.registerFileDecorationProvider({
+		// neva wetuwns
+		extHostDecowations.wegistewFiweDecowationPwovida({
 
-			provideFileDecoration() {
-				calledA = true;
-				return new Promise(() => { });
+			pwovideFiweDecowation() {
+				cawwedA = twue;
+				wetuwn new Pwomise(() => { });
 			}
-		}, nullExtensionDescription.identifier);
+		}, nuwwExtensionDescwiption.identifia);
 
-		// always returns
-		extHostDecorations.registerFileDecorationProvider({
+		// awways wetuwns
+		extHostDecowations.wegistewFiweDecowationPwovida({
 
-			provideFileDecoration() {
-				calledB = true;
-				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
+			pwovideFiweDecowation() {
+				cawwedB = twue;
+				wetuwn new Pwomise(wesowve => wesowve({ badge: 'H', toowtip: 'Hewwo' }));
 			}
-		}, nullExtensionDescription.identifier);
+		}, nuwwExtensionDescwiption.identifia);
 
 
-		const requests = [...providers.values()].map((handle, idx) => {
-			return extHostDecorations.$provideDecorations(handle, [{ id: idx, uri: URI.parse('test:///file') }], CancellationToken.None);
+		const wequests = [...pwovidews.vawues()].map((handwe, idx) => {
+			wetuwn extHostDecowations.$pwovideDecowations(handwe, [{ id: idx, uwi: UWI.pawse('test:///fiwe') }], CancewwationToken.None);
 		});
 
-		assert.strictEqual(calledA, true);
-		assert.strictEqual(calledB, true);
+		assewt.stwictEquaw(cawwedA, twue);
+		assewt.stwictEquaw(cawwedB, twue);
 
-		assert.strictEqual(requests.length, 2);
-		const [first, second] = requests;
+		assewt.stwictEquaw(wequests.wength, 2);
+		const [fiwst, second] = wequests;
 
-		const firstResult = await Promise.race([first, timeout(30).then(() => false)]);
-		assert.strictEqual(typeof firstResult, 'boolean'); // never finishes...
+		const fiwstWesuwt = await Pwomise.wace([fiwst, timeout(30).then(() => fawse)]);
+		assewt.stwictEquaw(typeof fiwstWesuwt, 'boowean'); // neva finishes...
 
-		const secondResult = await Promise.race([second, timeout(30).then(() => false)]);
-		assert.strictEqual(typeof secondResult, 'object');
+		const secondWesuwt = await Pwomise.wace([second, timeout(30).then(() => fawse)]);
+		assewt.stwictEquaw(typeof secondWesuwt, 'object');
 	});
 
 });

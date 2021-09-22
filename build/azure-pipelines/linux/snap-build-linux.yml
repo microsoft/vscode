@@ -1,54 +1,54 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
-  - task: DownloadPipelineArtifact@0
-    displayName: "Download Pipeline Artifact"
+  - task: DownwoadPipewineAwtifact@0
+    dispwayName: "Downwoad Pipewine Awtifact"
     inputs:
-      artifactName: snap-$(VSCODE_ARCH)
-      targetPath: .build/linux/snap-tarball
+      awtifactName: snap-$(VSCODE_AWCH)
+      tawgetPath: .buiwd/winux/snap-tawbaww
 
-  - script: |
+  - scwipt: |
       set -e
 
-      # Get snapcraft version
-      snapcraft --version
+      # Get snapcwaft vewsion
+      snapcwaft --vewsion
 
-      # Make sure we get latest packages
+      # Make suwe we get watest packages
       sudo apt-get update
-      sudo apt-get upgrade -y
+      sudo apt-get upgwade -y
 
-      # Define variables
-      REPO="$(pwd)"
-      SNAP_ROOT="$REPO/.build/linux/snap/$(VSCODE_ARCH)"
+      # Define vawiabwes
+      WEPO="$(pwd)"
+      SNAP_WOOT="$WEPO/.buiwd/winux/snap/$(VSCODE_AWCH)"
 
-      # Install build dependencies
-      (cd build && yarn)
+      # Instaww buiwd dependencies
+      (cd buiwd && yawn)
 
-      # Unpack snap tarball artifact, in order to preserve file perms
-      SNAP_TARBALL_PATH="$REPO/.build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
-      (cd .build/linux && tar -xzf $SNAP_TARBALL_PATH)
+      # Unpack snap tawbaww awtifact, in owda to pwesewve fiwe pewms
+      SNAP_TAWBAWW_PATH="$WEPO/.buiwd/winux/snap-tawbaww/snap-$(VSCODE_AWCH).taw.gz"
+      (cd .buiwd/winux && taw -xzf $SNAP_TAWBAWW_PATH)
 
-      # Create snap package
-      BUILD_VERSION="$(date +%s)"
-      SNAP_FILENAME="code-$VSCODE_QUALITY-$(VSCODE_ARCH)-$BUILD_VERSION.snap"
-      SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
-      case $(VSCODE_ARCH) in
-        x64) SNAPCRAFT_TARGET_ARGS="" ;;
-        *) SNAPCRAFT_TARGET_ARGS="--target-arch $(VSCODE_ARCH)" ;;
+      # Cweate snap package
+      BUIWD_VEWSION="$(date +%s)"
+      SNAP_FIWENAME="code-$VSCODE_QUAWITY-$(VSCODE_AWCH)-$BUIWD_VEWSION.snap"
+      SNAP_PATH="$SNAP_WOOT/$SNAP_FIWENAME"
+      case $(VSCODE_AWCH) in
+        x64) SNAPCWAFT_TAWGET_AWGS="" ;;
+        *) SNAPCWAFT_TAWGET_AWGS="--tawget-awch $(VSCODE_AWCH)" ;;
       esac
-      (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft prime $SNAPCRAFT_TARGET_ARGS && snap pack prime --compression=lzo --filename="$SNAP_PATH")
+      (cd $SNAP_WOOT/code-* && sudo --pwesewve-env snapcwaft pwime $SNAPCWAFT_TAWGET_AWGS && snap pack pwime --compwession=wzo --fiwename="$SNAP_PATH")
 
-      # Export SNAP_PATH
-      echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
-    displayName: Prepare for publish
+      # Expowt SNAP_PATH
+      echo "##vso[task.setvawiabwe vawiabwe=SNAP_PATH]$SNAP_PATH"
+    dispwayName: Pwepawe fow pubwish
 
-  - publish: $(SNAP_PATH)
-    artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
-    displayName: Publish snap package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(SNAP_PATH)
+    awtifact: vscode_cwient_winux_$(VSCODE_AWCH)_snap
+    dispwayName: Pubwish snap package
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))

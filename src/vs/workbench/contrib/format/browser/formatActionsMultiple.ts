@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { formatDocumentRangesWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode } from 'vs/editor/contrib/format/format';
-import { Range } from 'vs/editor/common/core/range';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { DocumentWangeFowmattingEditPwovidewWegistwy, DocumentFowmattingEditPwovida, DocumentWangeFowmattingEditPwovida } fwom 'vs/editow/common/modes';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { fowmatDocumentWangesWithPwovida, fowmatDocumentWithPwovida, getWeawAndSyntheticDocumentFowmattewsOwdewed, FowmattingConfwicts, FowmattingMode } fwom 'vs/editow/contwib/fowmat/fowmat';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IExtensionSewvice, toExtension } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { editowConfiguwationBaseNode } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
+type FowmattingEditPwovida = DocumentFowmattingEditPwovida | DocumentWangeFowmattingEditPwovida;
 
-class DefaultFormatter extends Disposable implements IWorkbenchContribution {
+cwass DefauwtFowmatta extends Disposabwe impwements IWowkbenchContwibution {
 
-	static readonly configName = 'editor.defaultFormatter';
+	static weadonwy configName = 'editow.defauwtFowmatta';
 
-	static extensionIds: (string | null)[] = [];
-	static extensionItemLabels: string[] = [];
-	static extensionDescriptions: string[] = [];
+	static extensionIds: (stwing | nuww)[] = [];
+	static extensionItemWabews: stwing[] = [];
+	static extensionDescwiptions: stwing[] = [];
 
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IDialogService private readonly _dialogService: IDialogService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IModeService private readonly _modeService: IModeService,
+	constwuctow(
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IWowkbenchExtensionEnabwementSewvice pwivate weadonwy _extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configSewvice: IConfiguwationSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy _diawogSewvice: IDiawogSewvice,
+		@IQuickInputSewvice pwivate weadonwy _quickInputSewvice: IQuickInputSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
 	) {
-		super();
-		this._register(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
-		this._register(FormattingConflicts.setFormatterSelector((formatter, document, mode) => this._selectFormatter(formatter, document, mode)));
-		this._updateConfigValues();
+		supa();
+		this._wegista(this._extensionSewvice.onDidChangeExtensions(this._updateConfigVawues, this));
+		this._wegista(FowmattingConfwicts.setFowmattewSewectow((fowmatta, document, mode) => this._sewectFowmatta(fowmatta, document, mode)));
+		this._updateConfigVawues();
 	}
 
-	private async _updateConfigValues(): Promise<void> {
-		let extensions = await this._extensionService.getExtensions();
+	pwivate async _updateConfigVawues(): Pwomise<void> {
+		wet extensions = await this._extensionSewvice.getExtensions();
 
-		extensions = extensions.sort((a, b) => {
-			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
-			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
+		extensions = extensions.sowt((a, b) => {
+			wet boostA = a.categowies?.find(cat => cat === 'Fowmattews' || cat === 'Pwogwamming Wanguages');
+			wet boostB = b.categowies?.find(cat => cat === 'Fowmattews' || cat === 'Pwogwamming Wanguages');
 
 			if (boostA && !boostB) {
-				return -1;
-			} else if (!boostA && boostB) {
-				return 1;
-			} else {
-				return a.name.localeCompare(b.name);
+				wetuwn -1;
+			} ewse if (!boostA && boostB) {
+				wetuwn 1;
+			} ewse {
+				wetuwn a.name.wocaweCompawe(b.name);
 			}
 		});
 
-		DefaultFormatter.extensionIds.length = 0;
-		DefaultFormatter.extensionItemLabels.length = 0;
-		DefaultFormatter.extensionDescriptions.length = 0;
+		DefauwtFowmatta.extensionIds.wength = 0;
+		DefauwtFowmatta.extensionItemWabews.wength = 0;
+		DefauwtFowmatta.extensionDescwiptions.wength = 0;
 
-		DefaultFormatter.extensionIds.push(null);
-		DefaultFormatter.extensionItemLabels.push(nls.localize('null', 'None'));
-		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
+		DefauwtFowmatta.extensionIds.push(nuww);
+		DefauwtFowmatta.extensionItemWabews.push(nws.wocawize('nuww', 'None'));
+		DefauwtFowmatta.extensionDescwiptions.push(nws.wocawize('nuwwFowmattewDescwiption', "None"));
 
-		for (const extension of extensions) {
-			if (extension.main || extension.browser) {
-				DefaultFormatter.extensionIds.push(extension.identifier.value);
-				DefaultFormatter.extensionItemLabels.push(extension.displayName ?? '');
-				DefaultFormatter.extensionDescriptions.push(extension.description ?? '');
+		fow (const extension of extensions) {
+			if (extension.main || extension.bwowsa) {
+				DefauwtFowmatta.extensionIds.push(extension.identifia.vawue);
+				DefauwtFowmatta.extensionItemWabews.push(extension.dispwayName ?? '');
+				DefauwtFowmatta.extensionDescwiptions.push(extension.descwiption ?? '');
 			}
 		}
 	}
 
-	static _maybeQuotes(s: string): string {
-		return s.match(/\s/) ? `'${s}'` : s;
+	static _maybeQuotes(s: stwing): stwing {
+		wetuwn s.match(/\s/) ? `'${s}'` : s;
 	}
 
-	private async _selectFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+	pwivate async _sewectFowmatta<T extends FowmattingEditPwovida>(fowmatta: T[], document: ITextModew, mode: FowmattingMode): Pwomise<T | undefined> {
 
-		const defaultFormatterId = this._configService.getValue<string>(DefaultFormatter.configName, {
-			resource: document.uri,
-			overrideIdentifier: document.getModeId()
+		const defauwtFowmattewId = this._configSewvice.getVawue<stwing>(DefauwtFowmatta.configName, {
+			wesouwce: document.uwi,
+			ovewwideIdentifia: document.getModeId()
 		});
 
-		if (defaultFormatterId) {
-			// good -> formatter configured
-			const defaultFormatter = formatter.find(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
-			if (defaultFormatter) {
-				// formatter available
-				return defaultFormatter;
+		if (defauwtFowmattewId) {
+			// good -> fowmatta configuwed
+			const defauwtFowmatta = fowmatta.find(fowmatta => ExtensionIdentifia.equaws(fowmatta.extensionId, defauwtFowmattewId));
+			if (defauwtFowmatta) {
+				// fowmatta avaiwabwe
+				wetuwn defauwtFowmatta;
 			}
 
-			// bad -> formatter gone
-			const extension = await this._extensionService.getExtension(defaultFormatterId);
-			if (extension && this._extensionEnablementService.isEnabled(toExtension(extension))) {
-				// formatter does not target this file
-				const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
-				const detail = nls.localize('miss', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName);
-				if (mode === FormattingMode.Silent) {
-					this._notificationService.status(detail, { hideAfter: 4000 });
-					return undefined;
-				} else {
-					const result = await this._dialogService.confirm({
-						message: nls.localize('miss.1', "Change Default Formatter"),
-						detail,
-						primaryButton: nls.localize('do.config', "Configure..."),
-						secondaryButton: nls.localize('cancel', "Cancel")
+			// bad -> fowmatta gone
+			const extension = await this._extensionSewvice.getExtension(defauwtFowmattewId);
+			if (extension && this._extensionEnabwementSewvice.isEnabwed(toExtension(extension))) {
+				// fowmatta does not tawget this fiwe
+				const wangName = this._modeSewvice.getWanguageName(document.getModeId()) || document.getModeId();
+				const detaiw = nws.wocawize('miss', "Extension '{0}' is configuwed as fowmatta but it cannot fowmat '{1}'-fiwes", extension.dispwayName || extension.name, wangName);
+				if (mode === FowmattingMode.Siwent) {
+					this._notificationSewvice.status(detaiw, { hideAfta: 4000 });
+					wetuwn undefined;
+				} ewse {
+					const wesuwt = await this._diawogSewvice.confiwm({
+						message: nws.wocawize('miss.1', "Change Defauwt Fowmatta"),
+						detaiw,
+						pwimawyButton: nws.wocawize('do.config', "Configuwe..."),
+						secondawyButton: nws.wocawize('cancew', "Cancew")
 					});
-					if (result.confirmed) {
-						return this._pickAndPersistDefaultFormatter(formatter, document);
-					} else {
-						return undefined;
+					if (wesuwt.confiwmed) {
+						wetuwn this._pickAndPewsistDefauwtFowmatta(fowmatta, document);
+					} ewse {
+						wetuwn undefined;
 					}
 				}
 			}
-		} else if (formatter.length === 1) {
-			// ok -> nothing configured but only one formatter available
-			return formatter[0];
+		} ewse if (fowmatta.wength === 1) {
+			// ok -> nothing configuwed but onwy one fowmatta avaiwabwe
+			wetuwn fowmatta[0];
 		}
 
-		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
-		const message = !defaultFormatterId
-			? nls.localize('config.needed', "There are multiple formatters for '{0}' files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName))
-			: nls.localize('config.bad', "Extension '{0}' is configured as formatter but not available. Select a different default formatter to continue.", defaultFormatterId);
+		const wangName = this._modeSewvice.getWanguageName(document.getModeId()) || document.getModeId();
+		const message = !defauwtFowmattewId
+			? nws.wocawize('config.needed', "Thewe awe muwtipwe fowmattews fow '{0}' fiwes. Sewect a defauwt fowmatta to continue.", DefauwtFowmatta._maybeQuotes(wangName))
+			: nws.wocawize('config.bad', "Extension '{0}' is configuwed as fowmatta but not avaiwabwe. Sewect a diffewent defauwt fowmatta to continue.", defauwtFowmattewId);
 
-		if (mode !== FormattingMode.Silent) {
-			// running from a user action -> show modal dialog so that users configure
-			// a default formatter
-			const result = await this._dialogService.confirm({
+		if (mode !== FowmattingMode.Siwent) {
+			// wunning fwom a usa action -> show modaw diawog so that usews configuwe
+			// a defauwt fowmatta
+			const wesuwt = await this._diawogSewvice.confiwm({
 				message,
-				primaryButton: nls.localize('do.config', "Configure..."),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				pwimawyButton: nws.wocawize('do.config', "Configuwe..."),
+				secondawyButton: nws.wocawize('cancew', "Cancew")
 			});
-			if (result.confirmed) {
-				return this._pickAndPersistDefaultFormatter(formatter, document);
+			if (wesuwt.confiwmed) {
+				wetuwn this._pickAndPewsistDefauwtFowmatta(fowmatta, document);
 			}
 
-		} else {
-			// no user action -> show a silent notification and proceed
-			this._notificationService.prompt(
-				Severity.Info,
+		} ewse {
+			// no usa action -> show a siwent notification and pwoceed
+			this._notificationSewvice.pwompt(
+				Sevewity.Info,
 				message,
-				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
-				{ silent: true }
+				[{ wabew: nws.wocawize('do.config', "Configuwe..."), wun: () => this._pickAndPewsistDefauwtFowmatta(fowmatta, document) }],
+				{ siwent: twue }
 			);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async _pickAndPersistDefaultFormatter<T extends FormattingEditProvider>(formatter: T[], document: ITextModel): Promise<T | undefined> {
-		const picks = formatter.map((formatter, index): IIndexedPick => {
-			return {
+	pwivate async _pickAndPewsistDefauwtFowmatta<T extends FowmattingEditPwovida>(fowmatta: T[], document: ITextModew): Pwomise<T | undefined> {
+		const picks = fowmatta.map((fowmatta, index): IIndexedPick => {
+			wetuwn {
 				index,
-				label: formatter.displayName || (formatter.extensionId ? formatter.extensionId.value : '?'),
-				description: formatter.extensionId && formatter.extensionId.value
+				wabew: fowmatta.dispwayName || (fowmatta.extensionId ? fowmatta.extensionId.vawue : '?'),
+				descwiption: fowmatta.extensionId && fowmatta.extensionId.vawue
 			};
 		});
-		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
-		const pick = await this._quickInputService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
-		if (!pick || !formatter[pick.index].extensionId) {
-			return undefined;
+		const wangName = this._modeSewvice.getWanguageName(document.getModeId()) || document.getModeId();
+		const pick = await this._quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('sewect', "Sewect a defauwt fowmatta fow '{0}' fiwes", DefauwtFowmatta._maybeQuotes(wangName)) });
+		if (!pick || !fowmatta[pick.index].extensionId) {
+			wetuwn undefined;
 		}
-		this._configService.updateValue(DefaultFormatter.configName, formatter[pick.index].extensionId!.value, {
-			resource: document.uri,
-			overrideIdentifier: document.getModeId()
+		this._configSewvice.updateVawue(DefauwtFowmatta.configName, fowmatta[pick.index].extensionId!.vawue, {
+			wesouwce: document.uwi,
+			ovewwideIdentifia: document.getModeId()
 		});
-		return formatter[pick.index];
+		wetuwn fowmatta[pick.index];
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	DefaultFormatter,
-	LifecyclePhase.Restored
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(
+	DefauwtFowmatta,
+	WifecycwePhase.Westowed
 );
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	...editorConfigurationBaseNode,
-	properties: {
-		[DefaultFormatter.configName]: {
-			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
-			type: ['string', 'null'],
-			default: null,
-			enum: DefaultFormatter.extensionIds,
-			enumItemLabels: DefaultFormatter.extensionItemLabels,
-			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
+	...editowConfiguwationBaseNode,
+	pwopewties: {
+		[DefauwtFowmatta.configName]: {
+			descwiption: nws.wocawize('fowmatta.defauwt', "Defines a defauwt fowmatta which takes pwecedence ova aww otha fowmatta settings. Must be the identifia of an extension contwibuting a fowmatta."),
+			type: ['stwing', 'nuww'],
+			defauwt: nuww,
+			enum: DefauwtFowmatta.extensionIds,
+			enumItemWabews: DefauwtFowmatta.extensionItemWabews,
+			mawkdownEnumDescwiptions: DefauwtFowmatta.extensionDescwiptions
 		}
 	}
 });
 
-interface IIndexedPick extends IQuickPickItem {
-	index: number;
+intewface IIndexedPick extends IQuickPickItem {
+	index: numba;
 }
 
-function logFormatterTelemetry<T extends { extensionId?: ExtensionIdentifier }>(telemetryService: ITelemetryService, mode: 'document' | 'range', options: T[], pick?: T) {
+function wogFowmattewTewemetwy<T extends { extensionId?: ExtensionIdentifia }>(tewemetwySewvice: ITewemetwySewvice, mode: 'document' | 'wange', options: T[], pick?: T) {
 
-	function extKey(obj: T): string {
-		return obj.extensionId ? ExtensionIdentifier.toKey(obj.extensionId) : 'unknown';
+	function extKey(obj: T): stwing {
+		wetuwn obj.extensionId ? ExtensionIdentifia.toKey(obj.extensionId) : 'unknown';
 	}
 	/*
-	 * __GDPR__
-		"formatterpick" : {
-			"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"extensions" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"pick" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	 * __GDPW__
+		"fowmattewpick" : {
+			"mode" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+			"extensions" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+			"pick" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 		}
 	 */
-	telemetryService.publicLog('formatterpick', {
+	tewemetwySewvice.pubwicWog('fowmattewpick', {
 		mode,
 		extensions: options.map(extKey),
 		pick: pick ? extKey(pick) : 'none'
 	});
 }
 
-async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, formatters: FormattingEditProvider[]): Promise<number | undefined> {
-	const quickPickService = accessor.get(IQuickInputService);
-	const configService = accessor.get(IConfigurationService);
-	const modeService = accessor.get(IModeService);
+async function showFowmattewPick(accessow: SewvicesAccessow, modew: ITextModew, fowmattews: FowmattingEditPwovida[]): Pwomise<numba | undefined> {
+	const quickPickSewvice = accessow.get(IQuickInputSewvice);
+	const configSewvice = accessow.get(IConfiguwationSewvice);
+	const modeSewvice = accessow.get(IModeSewvice);
 
-	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
-	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
+	const ovewwides = { wesouwce: modew.uwi, ovewwideIdentifia: modew.getModeId() };
+	const defauwtFowmatta = configSewvice.getVawue<stwing>(DefauwtFowmatta.configName, ovewwides);
 
-	let defaultFormatterPick: IIndexedPick | undefined;
+	wet defauwtFowmattewPick: IIndexedPick | undefined;
 
-	const picks = formatters.map((provider, index) => {
-		const isDefault = ExtensionIdentifier.equals(provider.extensionId, defaultFormatter);
+	const picks = fowmattews.map((pwovida, index) => {
+		const isDefauwt = ExtensionIdentifia.equaws(pwovida.extensionId, defauwtFowmatta);
 		const pick: IIndexedPick = {
 			index,
-			label: provider.displayName || '',
-			description: isDefault ? nls.localize('def', "(default)") : undefined,
+			wabew: pwovida.dispwayName || '',
+			descwiption: isDefauwt ? nws.wocawize('def', "(defauwt)") : undefined,
 		};
 
-		if (isDefault) {
-			// autofocus default pick
-			defaultFormatterPick = pick;
+		if (isDefauwt) {
+			// autofocus defauwt pick
+			defauwtFowmattewPick = pick;
 		}
 
-		return pick;
+		wetuwn pick;
 	});
 
-	const configurePick: IQuickPickItem = {
-		label: nls.localize('config', "Configure Default Formatter...")
+	const configuwePick: IQuickPickItem = {
+		wabew: nws.wocawize('config', "Configuwe Defauwt Fowmatta...")
 	};
 
-	const pick = await quickPickService.pick([...picks, { type: 'separator' }, configurePick],
+	const pick = await quickPickSewvice.pick([...picks, { type: 'sepawatow' }, configuwePick],
 		{
-			placeHolder: nls.localize('format.placeHolder', "Select a formatter"),
-			activeItem: defaultFormatterPick
+			pwaceHowda: nws.wocawize('fowmat.pwaceHowda', "Sewect a fowmatta"),
+			activeItem: defauwtFowmattewPick
 		}
 	);
 	if (!pick) {
 		// dismissed
-		return undefined;
+		wetuwn undefined;
 
-	} else if (pick === configurePick) {
-		// config default
-		const langName = modeService.getLanguageName(model.getModeId()) || model.getModeId();
-		const pick = await quickPickService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
-		if (pick && formatters[pick.index].extensionId) {
-			configService.updateValue(DefaultFormatter.configName, formatters[pick.index].extensionId!.value, overrides);
+	} ewse if (pick === configuwePick) {
+		// config defauwt
+		const wangName = modeSewvice.getWanguageName(modew.getModeId()) || modew.getModeId();
+		const pick = await quickPickSewvice.pick(picks, { pwaceHowda: nws.wocawize('sewect', "Sewect a defauwt fowmatta fow '{0}' fiwes", DefauwtFowmatta._maybeQuotes(wangName)) });
+		if (pick && fowmattews[pick.index].extensionId) {
+			configSewvice.updateVawue(DefauwtFowmatta.configName, fowmattews[pick.index].extensionId!.vawue, ovewwides);
 		}
-		return undefined;
+		wetuwn undefined;
 
-	} else {
+	} ewse {
 		// picked one
-		return (<IIndexedPick>pick).index;
+		wetuwn (<IIndexedPick>pick).index;
 	}
 
 }
 
-registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
+wegistewEditowAction(cwass FowmatDocumentMuwtipweAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.formatDocument.multiple',
-			label: nls.localize('formatDocument.label.multiple', "Format Document With..."),
-			alias: 'Format Document...',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasMultipleDocumentFormattingProvider),
+	constwuctow() {
+		supa({
+			id: 'editow.action.fowmatDocument.muwtipwe',
+			wabew: nws.wocawize('fowmatDocument.wabew.muwtipwe', "Fowmat Document With..."),
+			awias: 'Fowmat Document...',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasMuwtipweDocumentFowmattingPwovida),
 			contextMenuOpts: {
-				group: '1_modification',
-				order: 1.3
+				gwoup: '1_modification',
+				owda: 1.3
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
-		if (!editor.hasModel()) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow, awgs: any): Pwomise<void> {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const instaService = accessor.get(IInstantiationService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const model = editor.getModel();
-		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
-		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
+		const instaSewvice = accessow.get(IInstantiationSewvice);
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
+		const modew = editow.getModew();
+		const pwovida = getWeawAndSyntheticDocumentFowmattewsOwdewed(modew);
+		const pick = await instaSewvice.invokeFunction(showFowmattewPick, modew, pwovida);
+		if (typeof pick === 'numba') {
+			await instaSewvice.invokeFunction(fowmatDocumentWithPwovida, pwovida[pick], editow, FowmattingMode.Expwicit, CancewwationToken.None);
 		}
-		logFormatterTelemetry(telemetryService, 'document', provider, typeof pick === 'number' && provider[pick] || undefined);
+		wogFowmattewTewemetwy(tewemetwySewvice, 'document', pwovida, typeof pick === 'numba' && pwovida[pick] || undefined);
 	}
 });
 
-registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
+wegistewEditowAction(cwass FowmatSewectionMuwtipweAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.formatSelection.multiple',
-			label: nls.localize('formatSelection.label.multiple', "Format Selection With..."),
-			alias: 'Format Code...',
-			precondition: ContextKeyExpr.and(ContextKeyExpr.and(EditorContextKeys.writable), EditorContextKeys.hasMultipleDocumentSelectionFormattingProvider),
+	constwuctow() {
+		supa({
+			id: 'editow.action.fowmatSewection.muwtipwe',
+			wabew: nws.wocawize('fowmatSewection.wabew.muwtipwe', "Fowmat Sewection With..."),
+			awias: 'Fowmat Code...',
+			pwecondition: ContextKeyExpw.and(ContextKeyExpw.and(EditowContextKeys.wwitabwe), EditowContextKeys.hasMuwtipweDocumentSewectionFowmattingPwovida),
 			contextMenuOpts: {
-				when: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection),
-				group: '1_modification',
-				order: 1.31
+				when: ContextKeyExpw.and(EditowContextKeys.hasNonEmptySewection),
+				gwoup: '1_modification',
+				owda: 1.31
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		if (!editor.hasModel()) {
-			return;
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		const instaService = accessor.get(IInstantiationService);
-		const telemetryService = accessor.get(ITelemetryService);
+		const instaSewvice = accessow.get(IInstantiationSewvice);
+		const tewemetwySewvice = accessow.get(ITewemetwySewvice);
 
-		const model = editor.getModel();
-		let range: Range = editor.getSelection();
-		if (range.isEmpty()) {
-			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
-		}
-
-		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
-		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
-		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentRangesWithProvider, provider[pick], editor, range, CancellationToken.None);
+		const modew = editow.getModew();
+		wet wange: Wange = editow.getSewection();
+		if (wange.isEmpty()) {
+			wange = new Wange(wange.stawtWineNumba, 1, wange.stawtWineNumba, modew.getWineMaxCowumn(wange.stawtWineNumba));
 		}
 
-		logFormatterTelemetry(telemetryService, 'range', provider, typeof pick === 'number' && provider[pick] || undefined);
+		const pwovida = DocumentWangeFowmattingEditPwovidewWegistwy.owdewed(modew);
+		const pick = await instaSewvice.invokeFunction(showFowmattewPick, modew, pwovida);
+		if (typeof pick === 'numba') {
+			await instaSewvice.invokeFunction(fowmatDocumentWangesWithPwovida, pwovida[pick], editow, wange, CancewwationToken.None);
+		}
+
+		wogFowmattewTewemetwy(tewemetwySewvice, 'wange', pwovida, typeof pick === 'numba' && pwovida[pick] || undefined);
 	}
 });

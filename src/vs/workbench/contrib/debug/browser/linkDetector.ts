@@ -1,243 +1,243 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import * as osPath from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as osPath fwom 'vs/base/common/path';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
 
-const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
-const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
+const CONTWOW_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
+const WEB_WINK_WEGEX = new WegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTWOW_CODES + '"]{2,}[^\\s' + CONTWOW_CODES + '"\')}\\],:;.!?]', 'ug');
 
-const WIN_ABSOLUTE_PATH = /(?:[a-zA-Z]:(?:(?:\\|\/)[\w\.-]*)+)/;
-const WIN_RELATIVE_PATH = /(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
-const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.source})`);
+const WIN_ABSOWUTE_PATH = /(?:[a-zA-Z]:(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_WEWATIVE_PATH = /(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_PATH = new WegExp(`(${WIN_ABSOWUTE_PATH.souwce}|${WIN_WEWATIVE_PATH.souwce})`);
 const POSIX_PATH = /((?:\~|\.)?(?:\/[\w\.-]*)+)/;
-const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
-const PATH_LINK_REGEX = new RegExp(`${platform.isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
+const WINE_COWUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
+const PATH_WINK_WEGEX = new WegExp(`${pwatfowm.isWindows ? WIN_PATH.souwce : POSIX_PATH.souwce}${WINE_COWUMN.souwce}`, 'g');
 
-const MAX_LENGTH = 2000;
+const MAX_WENGTH = 2000;
 
-type LinkKind = 'web' | 'path' | 'text';
-type LinkPart = {
-	kind: LinkKind;
-	value: string;
-	captures: string[];
+type WinkKind = 'web' | 'path' | 'text';
+type WinkPawt = {
+	kind: WinkKind;
+	vawue: stwing;
+	captuwes: stwing[];
 };
 
-export class LinkDetector {
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IFileService private readonly fileService: IFileService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IPathService private readonly pathService: IPathService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+expowt cwass WinkDetectow {
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@ITunnewSewvice pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
 		// noop
 	}
 
 	/**
-	 * Matches and handles web urls, absolute and relative file links in the string provided.
-	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/>.
-	 * 'onclick' event is attached to all anchored links that opens them in the editor.
-	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
-	 * and added as a child of the returned <span>.
+	 * Matches and handwes web uwws, absowute and wewative fiwe winks in the stwing pwovided.
+	 * Wetuwns <span/> ewement that wwaps the pwocessed stwing, whewe matched winks awe wepwaced by <a/>.
+	 * 'oncwick' event is attached to aww anchowed winks that opens them in the editow.
+	 * When spwitWines is twue, each wine of the text, even if it contains no winks, is wwapped in a <span>
+	 * and added as a chiwd of the wetuwned <span>.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: IWorkspaceFolder): HTMLElement {
-		if (splitLines) {
-			const lines = text.split('\n');
-			for (let i = 0; i < lines.length - 1; i++) {
-				lines[i] = lines[i] + '\n';
+	winkify(text: stwing, spwitWines?: boowean, wowkspaceFowda?: IWowkspaceFowda): HTMWEwement {
+		if (spwitWines) {
+			const wines = text.spwit('\n');
+			fow (wet i = 0; i < wines.wength - 1; i++) {
+				wines[i] = wines[i] + '\n';
 			}
-			if (!lines[lines.length - 1]) {
-				// Remove the last element ('') that split added.
-				lines.pop();
+			if (!wines[wines.wength - 1]) {
+				// Wemove the wast ewement ('') that spwit added.
+				wines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder));
-			if (elements.length === 1) {
-				// Do not wrap single line with extra span.
-				return elements[0];
+			const ewements = wines.map(wine => this.winkify(wine, fawse, wowkspaceFowda));
+			if (ewements.wength === 1) {
+				// Do not wwap singwe wine with extwa span.
+				wetuwn ewements[0];
 			}
-			const container = document.createElement('span');
-			elements.forEach(e => container.appendChild(e));
-			return container;
+			const containa = document.cweateEwement('span');
+			ewements.fowEach(e => containa.appendChiwd(e));
+			wetuwn containa;
 		}
 
-		const container = document.createElement('span');
-		for (const part of this.detectLinks(text)) {
-			try {
-				switch (part.kind) {
+		const containa = document.cweateEwement('span');
+		fow (const pawt of this.detectWinks(text)) {
+			twy {
+				switch (pawt.kind) {
 					case 'text':
-						container.appendChild(document.createTextNode(part.value));
-						break;
+						containa.appendChiwd(document.cweateTextNode(pawt.vawue));
+						bweak;
 					case 'web':
-						container.appendChild(this.createWebLink(part.value));
-						break;
+						containa.appendChiwd(this.cweateWebWink(pawt.vawue));
+						bweak;
 					case 'path':
-						const path = part.captures[0];
-						const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
-						const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
-						container.appendChild(this.createPathLink(part.value, path, lineNumber, columnNumber, workspaceFolder));
-						break;
+						const path = pawt.captuwes[0];
+						const wineNumba = pawt.captuwes[1] ? Numba(pawt.captuwes[1]) : 0;
+						const cowumnNumba = pawt.captuwes[2] ? Numba(pawt.captuwes[2]) : 0;
+						containa.appendChiwd(this.cweatePathWink(pawt.vawue, path, wineNumba, cowumnNumba, wowkspaceFowda));
+						bweak;
 				}
 			} catch (e) {
-				container.appendChild(document.createTextNode(part.value));
+				containa.appendChiwd(document.cweateTextNode(pawt.vawue));
 			}
 		}
-		return container;
+		wetuwn containa;
 	}
 
-	private createWebLink(url: string): Node {
-		const link = this.createLink(url);
+	pwivate cweateWebWink(uww: stwing): Node {
+		const wink = this.cweateWink(uww);
 
-		const uri = URI.parse(url);
-		this.decorateLink(link, uri, async () => {
+		const uwi = UWI.pawse(uww);
+		this.decowateWink(wink, uwi, async () => {
 
-			if (uri.scheme === Schemas.file) {
-				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
-				const fsPath = uri.fsPath;
-				const path = await this.pathService.path;
-				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
+			if (uwi.scheme === Schemas.fiwe) {
+				// Just using fsPath hewe is unsafe: https://github.com/micwosoft/vscode/issues/109076
+				const fsPath = uwi.fsPath;
+				const path = await this.pathSewvice.path;
+				const fiweUww = osPath.nowmawize(((path.sep === osPath.posix.sep) && pwatfowm.isWindows) ? fsPath.wepwace(/\\/g, osPath.posix.sep) : fsPath);
 
-				const resolvedLink = await this.fileService.resolve(URI.parse(fileUrl));
-				if (!resolvedLink) {
-					return;
+				const wesowvedWink = await this.fiweSewvice.wesowve(UWI.pawse(fiweUww));
+				if (!wesowvedWink) {
+					wetuwn;
 				}
 
-				await this.editorService.openEditor({ resource: resolvedLink.resource, options: { pinned: true } });
-				return;
+				await this.editowSewvice.openEditow({ wesouwce: wesowvedWink.wesouwce, options: { pinned: twue } });
+				wetuwn;
 			}
 
-			this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority });
+			this.openewSewvice.open(uww, { awwowTunnewing: !!this.enviwonmentSewvice.wemoteAuthowity });
 		});
 
-		return link;
+		wetuwn wink;
 	}
 
-	private createPathLink(text: string, path: string, lineNumber: number, columnNumber: number, workspaceFolder: IWorkspaceFolder | undefined): Node {
+	pwivate cweatePathWink(text: stwing, path: stwing, wineNumba: numba, cowumnNumba: numba, wowkspaceFowda: IWowkspaceFowda | undefined): Node {
 		if (path[0] === '/' && path[1] === '/') {
-			// Most likely a url part which did not match, for example ftp://path.
-			return document.createTextNode(text);
+			// Most wikewy a uww pawt which did not match, fow exampwe ftp://path.
+			wetuwn document.cweateTextNode(text);
 		}
 
-		const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
+		const options = { sewection: { stawtWineNumba: wineNumba, stawtCowumn: cowumnNumba } };
 		if (path[0] === '.') {
-			if (!workspaceFolder) {
-				return document.createTextNode(text);
+			if (!wowkspaceFowda) {
+				wetuwn document.cweateTextNode(text);
 			}
-			const uri = workspaceFolder.toResource(path);
-			const link = this.createLink(text);
-			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
-			return link;
+			const uwi = wowkspaceFowda.toWesouwce(path);
+			const wink = this.cweateWink(text);
+			this.decowateWink(wink, uwi, (pwesewveFocus: boowean) => this.editowSewvice.openEditow({ wesouwce: uwi, options: { ...options, pwesewveFocus } }));
+			wetuwn wink;
 		}
 
 		if (path[0] === '~') {
-			const userHome = this.pathService.resolvedUserHome;
-			if (userHome) {
-				path = osPath.join(userHome.fsPath, path.substring(1));
+			const usewHome = this.pathSewvice.wesowvedUsewHome;
+			if (usewHome) {
+				path = osPath.join(usewHome.fsPath, path.substwing(1));
 			}
 		}
 
-		const link = this.createLink(text);
-		link.tabIndex = 0;
-		const uri = URI.file(osPath.normalize(path));
-		this.fileService.resolve(uri).then(stat => {
-			if (stat.isDirectory) {
-				return;
+		const wink = this.cweateWink(text);
+		wink.tabIndex = 0;
+		const uwi = UWI.fiwe(osPath.nowmawize(path));
+		this.fiweSewvice.wesowve(uwi).then(stat => {
+			if (stat.isDiwectowy) {
+				wetuwn;
 			}
-			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
+			this.decowateWink(wink, uwi, (pwesewveFocus: boowean) => this.editowSewvice.openEditow({ wesouwce: uwi, options: { ...options, pwesewveFocus } }));
 		}).catch(() => {
-			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
+			// If the uwi can not be wesowved we shouwd not spam the consowe with ewwow, wemain quite #86587
 		});
-		return link;
+		wetuwn wink;
 	}
 
-	private createLink(text: string): HTMLElement {
-		const link = document.createElement('a');
-		link.textContent = text;
-		return link;
+	pwivate cweateWink(text: stwing): HTMWEwement {
+		const wink = document.cweateEwement('a');
+		wink.textContent = text;
+		wetuwn wink;
 	}
 
-	private decorateLink(link: HTMLElement, uri: URI, onClick: (preserveFocus: boolean) => void) {
-		link.classList.add('link');
-		const followLink = this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
-		link.title = platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink);
-		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
-		link.onmouseleave = () => link.classList.remove('pointer');
-		link.onclick = (event) => {
-			const selection = window.getSelection();
-			if (!selection || selection.type === 'Range') {
-				return; // do not navigate when user is selecting
+	pwivate decowateWink(wink: HTMWEwement, uwi: UWI, onCwick: (pwesewveFocus: boowean) => void) {
+		wink.cwassWist.add('wink');
+		const fowwowWink = this.tunnewSewvice.canTunnew(uwi) ? wocawize('fowwowFowwawdedWink', "fowwow wink using fowwawded powt") : wocawize('fowwowWink', "fowwow wink");
+		wink.titwe = pwatfowm.isMacintosh ? wocawize('fiweWinkMac', "Cmd + cwick to {0}", fowwowWink) : wocawize('fiweWink', "Ctww + cwick to {0}", fowwowWink);
+		wink.onmousemove = (event) => { wink.cwassWist.toggwe('pointa', pwatfowm.isMacintosh ? event.metaKey : event.ctwwKey); };
+		wink.onmouseweave = () => wink.cwassWist.wemove('pointa');
+		wink.oncwick = (event) => {
+			const sewection = window.getSewection();
+			if (!sewection || sewection.type === 'Wange') {
+				wetuwn; // do not navigate when usa is sewecting
 			}
-			if (!(platform.isMacintosh ? event.metaKey : event.ctrlKey)) {
-				return;
+			if (!(pwatfowm.isMacintosh ? event.metaKey : event.ctwwKey)) {
+				wetuwn;
 			}
 
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			onClick(false);
+			event.pweventDefauwt();
+			event.stopImmediatePwopagation();
+			onCwick(fawse);
 		};
-		link.onkeydown = e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
-				event.preventDefault();
-				event.stopPropagation();
-				onClick(event.keyCode === KeyCode.Space);
+		wink.onkeydown = e => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.keyCode === KeyCode.Enta || event.keyCode === KeyCode.Space) {
+				event.pweventDefauwt();
+				event.stopPwopagation();
+				onCwick(event.keyCode === KeyCode.Space);
 			}
 		};
 	}
 
-	private detectLinks(text: string): LinkPart[] {
-		if (text.length > MAX_LENGTH) {
-			return [{ kind: 'text', value: text, captures: [] }];
+	pwivate detectWinks(text: stwing): WinkPawt[] {
+		if (text.wength > MAX_WENGTH) {
+			wetuwn [{ kind: 'text', vawue: text, captuwes: [] }];
 		}
 
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path'];
-		const result: LinkPart[] = [];
+		const wegexes: WegExp[] = [WEB_WINK_WEGEX, PATH_WINK_WEGEX];
+		const kinds: WinkKind[] = ['web', 'path'];
+		const wesuwt: WinkPawt[] = [];
 
-		const splitOne = (text: string, regexIndex: number) => {
-			if (regexIndex >= regexes.length) {
-				result.push({ value: text, kind: 'text', captures: [] });
-				return;
+		const spwitOne = (text: stwing, wegexIndex: numba) => {
+			if (wegexIndex >= wegexes.wength) {
+				wesuwt.push({ vawue: text, kind: 'text', captuwes: [] });
+				wetuwn;
 			}
-			const regex = regexes[regexIndex];
-			let currentIndex = 0;
-			let match;
-			regex.lastIndex = 0;
-			while ((match = regex.exec(text)) !== null) {
-				const stringBeforeMatch = text.substring(currentIndex, match.index);
-				if (stringBeforeMatch) {
-					splitOne(stringBeforeMatch, regexIndex + 1);
+			const wegex = wegexes[wegexIndex];
+			wet cuwwentIndex = 0;
+			wet match;
+			wegex.wastIndex = 0;
+			whiwe ((match = wegex.exec(text)) !== nuww) {
+				const stwingBefoweMatch = text.substwing(cuwwentIndex, match.index);
+				if (stwingBefoweMatch) {
+					spwitOne(stwingBefoweMatch, wegexIndex + 1);
 				}
-				const value = match[0];
-				result.push({
-					value: value,
-					kind: kinds[regexIndex],
-					captures: match.slice(1)
+				const vawue = match[0];
+				wesuwt.push({
+					vawue: vawue,
+					kind: kinds[wegexIndex],
+					captuwes: match.swice(1)
 				});
-				currentIndex = match.index + value.length;
+				cuwwentIndex = match.index + vawue.wength;
 			}
-			const stringAfterMatches = text.substring(currentIndex);
-			if (stringAfterMatches) {
-				splitOne(stringAfterMatches, regexIndex + 1);
+			const stwingAftewMatches = text.substwing(cuwwentIndex);
+			if (stwingAftewMatches) {
+				spwitOne(stwingAftewMatches, wegexIndex + 1);
 			}
 		};
 
-		splitOne(text, 0);
-		return result;
+		spwitOne(text, 0);
+		wetuwn wesuwt;
 	}
 }

@@ -1,471 +1,471 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebysideeditor';
-import { localize } from 'vs/nls';
-import { Dimension, $, clearNode, multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Event, Relay, Emitter } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SIDE_BY_SIDE_EDITOR_BORDER } from 'vs/workbench/common/theme';
-import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/css!./media/sidebysideeditow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Dimension, $, cweawNode, muwtibyteAwaweBtoa } fwom 'vs/base/bwowsa/dom';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEditowContwow, IEditowPane, IEditowOpenContext, EditowExtensions, SIDE_BY_SIDE_EDITOW_ID, SideBySideEditow as Side } fwom 'vs/wowkbench/common/editow';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { SpwitView, Sizing, Owientation } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { Event, Weway, Emitta } fwom 'vs/base/common/event';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IConfiguwationChangeEvent, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { DEFAUWT_EDITOW_MIN_DIMENSIONS } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { SIDE_BY_SIDE_EDITOW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { AbstwactEditowWithViewState } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowWithViewState';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-interface ISideBySideEditorViewState {
-	primary: object;
-	secondary: object;
-	focus: Side.PRIMARY | Side.SECONDARY | undefined;
-	ratio: number | undefined;
+intewface ISideBySideEditowViewState {
+	pwimawy: object;
+	secondawy: object;
+	focus: Side.PWIMAWY | Side.SECONDAWY | undefined;
+	watio: numba | undefined;
 }
 
-function isSideBySideEditorViewState(thing: unknown): thing is ISideBySideEditorViewState {
-	const candidate = thing as ISideBySideEditorViewState | undefined;
+function isSideBySideEditowViewState(thing: unknown): thing is ISideBySideEditowViewState {
+	const candidate = thing as ISideBySideEditowViewState | undefined;
 
-	return typeof candidate?.primary === 'object' && typeof candidate.secondary === 'object';
+	wetuwn typeof candidate?.pwimawy === 'object' && typeof candidate.secondawy === 'object';
 }
 
-export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> {
+expowt cwass SideBySideEditow extends AbstwactEditowWithViewState<ISideBySideEditowViewState> {
 
-	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
+	static weadonwy ID: stwing = SIDE_BY_SIDE_EDITOW_ID;
 
-	static SIDE_BY_SIDE_LAYOUT_SETTING = 'workbench.editor.splitInGroupLayout';
+	static SIDE_BY_SIDE_WAYOUT_SETTING = 'wowkbench.editow.spwitInGwoupWayout';
 
-	private static readonly VIEW_STATE_PREFERENCE_KEY = 'sideBySideEditorViewState';
+	pwivate static weadonwy VIEW_STATE_PWEFEWENCE_KEY = 'sideBySideEditowViewState';
 
-	//#region Layout Constraints
+	//#wegion Wayout Constwaints
 
-	private get minimumPrimaryWidth() { return this.primaryEditorPane ? this.primaryEditorPane.minimumWidth : 0; }
-	private get maximumPrimaryWidth() { return this.primaryEditorPane ? this.primaryEditorPane.maximumWidth : Number.POSITIVE_INFINITY; }
-	private get minimumPrimaryHeight() { return this.primaryEditorPane ? this.primaryEditorPane.minimumHeight : 0; }
-	private get maximumPrimaryHeight() { return this.primaryEditorPane ? this.primaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
+	pwivate get minimumPwimawyWidth() { wetuwn this.pwimawyEditowPane ? this.pwimawyEditowPane.minimumWidth : 0; }
+	pwivate get maximumPwimawyWidth() { wetuwn this.pwimawyEditowPane ? this.pwimawyEditowPane.maximumWidth : Numba.POSITIVE_INFINITY; }
+	pwivate get minimumPwimawyHeight() { wetuwn this.pwimawyEditowPane ? this.pwimawyEditowPane.minimumHeight : 0; }
+	pwivate get maximumPwimawyHeight() { wetuwn this.pwimawyEditowPane ? this.pwimawyEditowPane.maximumHeight : Numba.POSITIVE_INFINITY; }
 
-	private get minimumSecondaryWidth() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumWidth : 0; }
-	private get maximumSecondaryWidth() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumWidth : Number.POSITIVE_INFINITY; }
-	private get minimumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
-	private get maximumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
+	pwivate get minimumSecondawyWidth() { wetuwn this.secondawyEditowPane ? this.secondawyEditowPane.minimumWidth : 0; }
+	pwivate get maximumSecondawyWidth() { wetuwn this.secondawyEditowPane ? this.secondawyEditowPane.maximumWidth : Numba.POSITIVE_INFINITY; }
+	pwivate get minimumSecondawyHeight() { wetuwn this.secondawyEditowPane ? this.secondawyEditowPane.minimumHeight : 0; }
+	pwivate get maximumSecondawyHeight() { wetuwn this.secondawyEditowPane ? this.secondawyEditowPane.maximumHeight : Numba.POSITIVE_INFINITY; }
 
-	override set minimumWidth(value: number) { /* noop */ }
-	override set maximumWidth(value: number) { /* noop */ }
-	override set minimumHeight(value: number) { /* noop */ }
-	override set maximumHeight(value: number) { /* noop */ }
+	ovewwide set minimumWidth(vawue: numba) { /* noop */ }
+	ovewwide set maximumWidth(vawue: numba) { /* noop */ }
+	ovewwide set minimumHeight(vawue: numba) { /* noop */ }
+	ovewwide set maximumHeight(vawue: numba) { /* noop */ }
 
-	override get minimumWidth() { return this.minimumPrimaryWidth + this.minimumSecondaryWidth; }
-	override get maximumWidth() { return this.maximumPrimaryWidth + this.maximumSecondaryWidth; }
-	override get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
-	override get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
+	ovewwide get minimumWidth() { wetuwn this.minimumPwimawyWidth + this.minimumSecondawyWidth; }
+	ovewwide get maximumWidth() { wetuwn this.maximumPwimawyWidth + this.maximumSecondawyWidth; }
+	ovewwide get minimumHeight() { wetuwn this.minimumPwimawyHeight + this.minimumSecondawyHeight; }
+	ovewwide get maximumHeight() { wetuwn this.maximumPwimawyHeight + this.maximumSecondawyHeight; }
 
-	//#endregion
+	//#endwegion
 
-	//#region Events
+	//#wegion Events
 
-	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	pwivate onDidCweateEditows = this._wegista(new Emitta<{ width: numba; height: numba; } | undefined>());
 
-	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	override readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
+	pwivate _onDidChangeSizeConstwaints = this._wegista(new Weway<{ width: numba; height: numba; } | undefined>());
+	ovewwide weadonwy onDidChangeSizeConstwaints = Event.any(this.onDidCweateEditows.event, this._onDidChangeSizeConstwaints.event);
 
-	//#endregion
+	//#endwegion
 
-	private primaryEditorPane: EditorPane | undefined = undefined;
-	private secondaryEditorPane: EditorPane | undefined = undefined;
+	pwivate pwimawyEditowPane: EditowPane | undefined = undefined;
+	pwivate secondawyEditowPane: EditowPane | undefined = undefined;
 
-	private primaryEditorContainer: HTMLElement | undefined;
-	private secondaryEditorContainer: HTMLElement | undefined;
+	pwivate pwimawyEditowContaina: HTMWEwement | undefined;
+	pwivate secondawyEditowContaina: HTMWEwement | undefined;
 
-	private splitview: SplitView | undefined;
+	pwivate spwitview: SpwitView | undefined;
 
-	private readonly splitviewDisposables = this._register(new DisposableStore());
-	private readonly editorDisposables = this._register(new DisposableStore());
+	pwivate weadonwy spwitviewDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy editowDisposabwes = this._wegista(new DisposabweStowe());
 
-	private orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
-	private dimension = new Dimension(0, 0);
+	pwivate owientation = this.configuwationSewvice.getVawue<'vewticaw' | 'howizontaw'>(SideBySideEditow.SIDE_BY_SIDE_WAYOUT_SETTING) === 'vewticaw' ? Owientation.VEWTICAW : Owientation.HOWIZONTAW;
+	pwivate dimension = new Dimension(0, 0);
 
-	private lastFocusedSide: Side.PRIMARY | Side.SECONDARY | undefined = undefined;
+	pwivate wastFocusedSide: Side.PWIMAWY | Side.SECONDAWY | undefined = undefined;
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(SideBySideEditor.ID, SideBySideEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		supa(SideBySideEditow.ID, SideBySideEditow.VIEW_STATE_PWEFEWENCE_KEY, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationUpdated(e)));
 	}
 
-	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING)) {
-			this.orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+	pwivate onConfiguwationUpdated(event: IConfiguwationChangeEvent): void {
+		if (event.affectsConfiguwation(SideBySideEditow.SIDE_BY_SIDE_WAYOUT_SETTING)) {
+			this.owientation = this.configuwationSewvice.getVawue<'vewticaw' | 'howizontaw'>(SideBySideEditow.SIDE_BY_SIDE_WAYOUT_SETTING) === 'vewticaw' ? Owientation.VEWTICAW : Owientation.HOWIZONTAW;
 
-			// If config updated from event, re-create the split
-			// editor using the new layout orientation if it was
-			// already created.
-			if (this.splitview) {
-				this.recreateSplitview();
+			// If config updated fwom event, we-cweate the spwit
+			// editow using the new wayout owientation if it was
+			// awweady cweated.
+			if (this.spwitview) {
+				this.wecweateSpwitview();
 			}
 		}
 	}
 
-	private recreateSplitview(): void {
-		const container = assertIsDefined(this.getContainer());
+	pwivate wecweateSpwitview(): void {
+		const containa = assewtIsDefined(this.getContaina());
 
-		// Clear old (if any) but remember ratio
-		const ratio = this.getSplitViewRatio();
-		if (this.splitview) {
-			container.removeChild(this.splitview.el);
-			this.splitviewDisposables.clear();
+		// Cweaw owd (if any) but wememba watio
+		const watio = this.getSpwitViewWatio();
+		if (this.spwitview) {
+			containa.wemoveChiwd(this.spwitview.ew);
+			this.spwitviewDisposabwes.cweaw();
 		}
 
-		// Create new
-		this.createSplitView(container, ratio);
+		// Cweate new
+		this.cweateSpwitView(containa, watio);
 
-		this.layout(this.dimension);
+		this.wayout(this.dimension);
 	}
 
-	private getSplitViewRatio(): number | undefined {
-		let ratio: number | undefined = undefined;
+	pwivate getSpwitViewWatio(): numba | undefined {
+		wet watio: numba | undefined = undefined;
 
-		if (this.splitview) {
-			const leftViewSize = this.splitview.getViewSize(0);
-			const rightViewSize = this.splitview.getViewSize(1);
+		if (this.spwitview) {
+			const weftViewSize = this.spwitview.getViewSize(0);
+			const wightViewSize = this.spwitview.getViewSize(1);
 
-			// Only return a ratio when the view size is significantly
-			// enough different for left and right view sizes
-			if (Math.abs(leftViewSize - rightViewSize) > 1) {
-				const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
-				ratio = leftViewSize / totalSize;
+			// Onwy wetuwn a watio when the view size is significantwy
+			// enough diffewent fow weft and wight view sizes
+			if (Math.abs(weftViewSize - wightViewSize) > 1) {
+				const totawSize = this.spwitview.owientation === Owientation.HOWIZONTAW ? this.dimension.width : this.dimension.height;
+				watio = weftViewSize / totawSize;
 			}
 		}
 
-		return ratio;
+		wetuwn watio;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		parent.classList.add('side-by-side-editor');
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		pawent.cwassWist.add('side-by-side-editow');
 
-		// Editor pane containers
-		this.secondaryEditorContainer = $('.side-by-side-editor-container.editor-instance');
-		this.primaryEditorContainer = $('.side-by-side-editor-container.editor-instance');
+		// Editow pane containews
+		this.secondawyEditowContaina = $('.side-by-side-editow-containa.editow-instance');
+		this.pwimawyEditowContaina = $('.side-by-side-editow-containa.editow-instance');
 
-		// Split view
-		this.createSplitView(parent);
+		// Spwit view
+		this.cweateSpwitView(pawent);
 	}
 
-	private createSplitView(parent: HTMLElement, ratio?: number): void {
+	pwivate cweateSpwitView(pawent: HTMWEwement, watio?: numba): void {
 
-		// Splitview widget
-		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
-		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
+		// Spwitview widget
+		this.spwitview = this.spwitviewDisposabwes.add(new SpwitView(pawent, { owientation: this.owientation }));
+		this.spwitviewDisposabwes.add(this.spwitview.onDidSashWeset(() => this.spwitview?.distwibuteViewSizes()));
 
-		// Figure out sizing
-		let leftSizing: number | Sizing = Sizing.Distribute;
-		let rightSizing: number | Sizing = Sizing.Distribute;
-		if (ratio) {
-			const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+		// Figuwe out sizing
+		wet weftSizing: numba | Sizing = Sizing.Distwibute;
+		wet wightSizing: numba | Sizing = Sizing.Distwibute;
+		if (watio) {
+			const totawSize = this.spwitview.owientation === Owientation.HOWIZONTAW ? this.dimension.width : this.dimension.height;
 
-			leftSizing = Math.round(totalSize * ratio);
-			rightSizing = totalSize - leftSizing;
+			weftSizing = Math.wound(totawSize * watio);
+			wightSizing = totawSize - weftSizing;
 
-			// We need to call `layout` for the `ratio` to have any effect
-			this.splitview.layout(this.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height);
+			// We need to caww `wayout` fow the `watio` to have any effect
+			this.spwitview.wayout(this.owientation === Owientation.HOWIZONTAW ? this.dimension.width : this.dimension.height);
 		}
 
-		// Secondary (left)
-		const secondaryEditorContainer = assertIsDefined(this.secondaryEditorContainer);
-		this.splitview.addView({
-			element: secondaryEditorContainer,
-			layout: size => this.layoutPane(this.secondaryEditorPane, size),
-			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
-			maximumSize: Number.POSITIVE_INFINITY,
+		// Secondawy (weft)
+		const secondawyEditowContaina = assewtIsDefined(this.secondawyEditowContaina);
+		this.spwitview.addView({
+			ewement: secondawyEditowContaina,
+			wayout: size => this.wayoutPane(this.secondawyEditowPane, size),
+			minimumSize: this.owientation === Owientation.HOWIZONTAW ? DEFAUWT_EDITOW_MIN_DIMENSIONS.width : DEFAUWT_EDITOW_MIN_DIMENSIONS.height,
+			maximumSize: Numba.POSITIVE_INFINITY,
 			onDidChange: Event.None
-		}, leftSizing);
+		}, weftSizing);
 
-		// Primary (right)
-		const primaryEditorContainer = assertIsDefined(this.primaryEditorContainer);
-		this.splitview.addView({
-			element: primaryEditorContainer,
-			layout: size => this.layoutPane(this.primaryEditorPane, size),
-			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
-			maximumSize: Number.POSITIVE_INFINITY,
+		// Pwimawy (wight)
+		const pwimawyEditowContaina = assewtIsDefined(this.pwimawyEditowContaina);
+		this.spwitview.addView({
+			ewement: pwimawyEditowContaina,
+			wayout: size => this.wayoutPane(this.pwimawyEditowPane, size),
+			minimumSize: this.owientation === Owientation.HOWIZONTAW ? DEFAUWT_EDITOW_MIN_DIMENSIONS.width : DEFAUWT_EDITOW_MIN_DIMENSIONS.height,
+			maximumSize: Numba.POSITIVE_INFINITY,
 			onDidChange: Event.None
-		}, rightSizing);
+		}, wightSizing);
 
-		this.updateStyles();
+		this.updateStywes();
 	}
 
-	override getTitle(): string {
+	ovewwide getTitwe(): stwing {
 		if (this.input) {
-			return this.input.getName();
+			wetuwn this.input.getName();
 		}
 
-		return localize('sideBySideEditor', "Side by Side Editor");
+		wetuwn wocawize('sideBySideEditow', "Side by Side Editow");
 	}
 
-	override async setInput(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const oldInput = this.input;
-		await super.setInput(input, options, context, token);
+	ovewwide async setInput(input: SideBySideEditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		const owdInput = this.input;
+		await supa.setInput(input, options, context, token);
 
-		// Create new side by side editors if either we have not
-		// been created before or the input no longer matches.
-		if (!oldInput || !input.matches(oldInput)) {
-			if (oldInput) {
-				this.disposeEditors();
+		// Cweate new side by side editows if eitha we have not
+		// been cweated befowe ow the input no wonga matches.
+		if (!owdInput || !input.matches(owdInput)) {
+			if (owdInput) {
+				this.disposeEditows();
 			}
 
-			this.createEditors(input);
+			this.cweateEditows(input);
 		}
 
-		// Restore any previous view state
-		const { primary, secondary, viewState } = this.loadViewState(input, options, context);
-		this.lastFocusedSide = viewState?.focus;
+		// Westowe any pwevious view state
+		const { pwimawy, secondawy, viewState } = this.woadViewState(input, options, context);
+		this.wastFocusedSide = viewState?.focus;
 
-		if (typeof viewState?.ratio === 'number' && this.splitview) {
-			const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+		if (typeof viewState?.watio === 'numba' && this.spwitview) {
+			const totawSize = this.spwitview.owientation === Owientation.HOWIZONTAW ? this.dimension.width : this.dimension.height;
 
-			this.splitview.resizeView(0, Math.round(totalSize * viewState.ratio));
-		} else {
-			this.splitview?.distributeViewSizes();
+			this.spwitview.wesizeView(0, Math.wound(totawSize * viewState.watio));
+		} ewse {
+			this.spwitview?.distwibuteViewSizes();
 		}
 
 		// Set input to both sides
-		await Promise.all([
-			this.secondaryEditorPane?.setInput(input.secondary as EditorInput, secondary, context, token),
-			this.primaryEditorPane?.setInput(input.primary as EditorInput, primary, context, token)
+		await Pwomise.aww([
+			this.secondawyEditowPane?.setInput(input.secondawy as EditowInput, secondawy, context, token),
+			this.pwimawyEditowPane?.setInput(input.pwimawy as EditowInput, pwimawy, context, token)
 		]);
 	}
 
-	private loadViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined, viewState: ISideBySideEditorViewState | undefined } {
-		const viewState = isSideBySideEditorViewState(options?.viewState) ? options?.viewState : this.loadEditorViewState(input, context);
+	pwivate woadViewState(input: SideBySideEditowInput, options: IEditowOptions | undefined, context: IEditowOpenContext): { pwimawy: IEditowOptions | undefined, secondawy: IEditowOptions | undefined, viewState: ISideBySideEditowViewState | undefined } {
+		const viewState = isSideBySideEditowViewState(options?.viewState) ? options?.viewState : this.woadEditowViewState(input, context);
 
-		const primaryOptions: IEditorOptions = {
+		const pwimawyOptions: IEditowOptions = {
 			...options,
-			viewState: viewState?.primary
+			viewState: viewState?.pwimawy
 		};
 
-		let secondaryOptions: IEditorOptions | undefined = undefined;
-		if (viewState?.secondary) {
-			secondaryOptions = {
-				viewState: viewState.secondary
+		wet secondawyOptions: IEditowOptions | undefined = undefined;
+		if (viewState?.secondawy) {
+			secondawyOptions = {
+				viewState: viewState.secondawy
 			};
 		}
 
-		return { primary: primaryOptions, secondary: secondaryOptions, viewState };
+		wetuwn { pwimawy: pwimawyOptions, secondawy: secondawyOptions, viewState };
 	}
 
-	private createEditors(newInput: SideBySideEditorInput): void {
+	pwivate cweateEditows(newInput: SideBySideEditowInput): void {
 
-		// Create editors
-		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
-		this.primaryEditorPane = this.doCreateEditor(newInput.primary as EditorInput, assertIsDefined(this.primaryEditorContainer));
+		// Cweate editows
+		this.secondawyEditowPane = this.doCweateEditow(newInput.secondawy as EditowInput, assewtIsDefined(this.secondawyEditowContaina));
+		this.pwimawyEditowPane = this.doCweateEditow(newInput.pwimawy as EditowInput, assewtIsDefined(this.pwimawyEditowContaina));
 
-		// Layout
-		this.layout(this.dimension);
+		// Wayout
+		this.wayout(this.dimension);
 
 		// Eventing
-		this._onDidChangeSizeConstraints.input = Event.any(
-			Event.map(this.secondaryEditorPane.onDidChangeSizeConstraints, () => undefined),
-			Event.map(this.primaryEditorPane.onDidChangeSizeConstraints, () => undefined)
+		this._onDidChangeSizeConstwaints.input = Event.any(
+			Event.map(this.secondawyEditowPane.onDidChangeSizeConstwaints, () => undefined),
+			Event.map(this.pwimawyEditowPane.onDidChangeSizeConstwaints, () => undefined)
 		);
-		this.onDidCreateEditors.fire(undefined);
+		this.onDidCweateEditows.fiwe(undefined);
 
-		// Track focus and signal active control change via event
-		this.editorDisposables.add(this.primaryEditorPane.onDidFocus(() => this.onDidFocusChange(Side.PRIMARY)));
-		this.editorDisposables.add(this.secondaryEditorPane.onDidFocus(() => this.onDidFocusChange(Side.SECONDARY)));
+		// Twack focus and signaw active contwow change via event
+		this.editowDisposabwes.add(this.pwimawyEditowPane.onDidFocus(() => this.onDidFocusChange(Side.PWIMAWY)));
+		this.editowDisposabwes.add(this.secondawyEditowPane.onDidFocus(() => this.onDidFocusChange(Side.SECONDAWY)));
 	}
 
-	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
-		const editorPaneDescriptor = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).getEditorPane(editorInput);
-		if (!editorPaneDescriptor) {
-			throw new Error('No editor pane descriptor for editor found');
+	pwivate doCweateEditow(editowInput: EditowInput, containa: HTMWEwement): EditowPane {
+		const editowPaneDescwiptow = Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).getEditowPane(editowInput);
+		if (!editowPaneDescwiptow) {
+			thwow new Ewwow('No editow pane descwiptow fow editow found');
 		}
 
-		// Create editor pane and make visible
-		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
-		editorPane.create(container);
-		editorPane.setVisible(this.isVisible(), this.group);
+		// Cweate editow pane and make visibwe
+		const editowPane = editowPaneDescwiptow.instantiate(this.instantiationSewvice);
+		editowPane.cweate(containa);
+		editowPane.setVisibwe(this.isVisibwe(), this.gwoup);
 
-		// Track for disposal
-		this.editorDisposables.add(editorPane);
+		// Twack fow disposaw
+		this.editowDisposabwes.add(editowPane);
 
-		return editorPane;
+		wetuwn editowPane;
 	}
 
-	private onDidFocusChange(side: Side.PRIMARY | Side.SECONDARY): void {
-		this.lastFocusedSide = side;
+	pwivate onDidFocusChange(side: Side.PWIMAWY | Side.SECONDAWY): void {
+		this.wastFocusedSide = side;
 
-		// Signal to outside that our active control changed
-		this._onDidChangeControl.fire();
+		// Signaw to outside that ouw active contwow changed
+		this._onDidChangeContwow.fiwe();
 	}
 
-	override setOptions(options: IEditorOptions | undefined): void {
-		this.primaryEditorPane?.setOptions(options);
+	ovewwide setOptions(options: IEditowOptions | undefined): void {
+		this.pwimawyEditowPane?.setOptions(options);
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	pwotected ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
 
-		// Forward to both sides
-		this.primaryEditorPane?.setVisible(visible, group);
-		this.secondaryEditorPane?.setVisible(visible, group);
+		// Fowwawd to both sides
+		this.pwimawyEditowPane?.setVisibwe(visibwe, gwoup);
+		this.secondawyEditowPane?.setVisibwe(visibwe, gwoup);
 
-		super.setEditorVisible(visible, group);
+		supa.setEditowVisibwe(visibwe, gwoup);
 	}
 
-	override clearInput(): void {
-		super.clearInput();
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
 
-		// Forward to both sides
-		this.primaryEditorPane?.clearInput();
-		this.secondaryEditorPane?.clearInput();
+		// Fowwawd to both sides
+		this.pwimawyEditowPane?.cweawInput();
+		this.secondawyEditowPane?.cweawInput();
 
-		// Since we do not keep side editors alive
-		// we dispose any editor created for recreation
-		this.disposeEditors();
+		// Since we do not keep side editows awive
+		// we dispose any editow cweated fow wecweation
+		this.disposeEditows();
 	}
 
-	override focus(): void {
-		this.getLastFocusedEditorPane()?.focus();
+	ovewwide focus(): void {
+		this.getWastFocusedEditowPane()?.focus();
 	}
 
-	private getLastFocusedEditorPane(): EditorPane | undefined {
-		if (this.lastFocusedSide === Side.SECONDARY) {
-			return this.secondaryEditorPane;
+	pwivate getWastFocusedEditowPane(): EditowPane | undefined {
+		if (this.wastFocusedSide === Side.SECONDAWY) {
+			wetuwn this.secondawyEditowPane;
 		}
 
-		return this.primaryEditorPane;
+		wetuwn this.pwimawyEditowPane;
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		const splitview = assertIsDefined(this.splitview);
-		splitview.layout(this.orientation === Orientation.HORIZONTAL ? dimension.width : dimension.height);
+		const spwitview = assewtIsDefined(this.spwitview);
+		spwitview.wayout(this.owientation === Owientation.HOWIZONTAW ? dimension.width : dimension.height);
 	}
 
-	private layoutPane(pane: EditorPane | undefined, size: number): void {
-		pane?.layout(this.orientation === Orientation.HORIZONTAL ? new Dimension(size, this.dimension.height) : new Dimension(this.dimension.width, size));
+	pwivate wayoutPane(pane: EditowPane | undefined, size: numba): void {
+		pane?.wayout(this.owientation === Owientation.HOWIZONTAW ? new Dimension(size, this.dimension.height) : new Dimension(this.dimension.width, size));
 	}
 
-	override getControl(): IEditorControl | undefined {
-		return this.getLastFocusedEditorPane()?.getControl();
+	ovewwide getContwow(): IEditowContwow | undefined {
+		wetuwn this.getWastFocusedEditowPane()?.getContwow();
 	}
 
-	getPrimaryEditorPane(): IEditorPane | undefined {
-		return this.primaryEditorPane;
+	getPwimawyEditowPane(): IEditowPane | undefined {
+		wetuwn this.pwimawyEditowPane;
 	}
 
-	getSecondaryEditorPane(): IEditorPane | undefined {
-		return this.secondaryEditorPane;
+	getSecondawyEditowPane(): IEditowPane | undefined {
+		wetuwn this.secondawyEditowPane;
 	}
 
-	protected tracksEditorViewState(input: EditorInput): boolean {
-		return input instanceof SideBySideEditorInput;
+	pwotected twacksEditowViewState(input: EditowInput): boowean {
+		wetuwn input instanceof SideBySideEditowInput;
 	}
 
-	protected computeEditorViewState(resource: URI): ISideBySideEditorViewState | undefined {
-		if (!this.input || !isEqual(resource, this.toEditorViewStateResource(this.input))) {
-			return; // unexpected state
+	pwotected computeEditowViewState(wesouwce: UWI): ISideBySideEditowViewState | undefined {
+		if (!this.input || !isEquaw(wesouwce, this.toEditowViewStateWesouwce(this.input))) {
+			wetuwn; // unexpected state
 		}
 
-		const primarViewState = this.primaryEditorPane?.getViewState();
-		const secondaryViewState = this.secondaryEditorPane?.getViewState();
+		const pwimawViewState = this.pwimawyEditowPane?.getViewState();
+		const secondawyViewState = this.secondawyEditowPane?.getViewState();
 
-		if (!primarViewState || !secondaryViewState) {
-			return; // we actually need view states
+		if (!pwimawViewState || !secondawyViewState) {
+			wetuwn; // we actuawwy need view states
 		}
 
-		return {
-			primary: primarViewState,
-			secondary: secondaryViewState,
-			focus: this.lastFocusedSide,
-			ratio: this.getSplitViewRatio()
+		wetuwn {
+			pwimawy: pwimawViewState,
+			secondawy: secondawyViewState,
+			focus: this.wastFocusedSide,
+			watio: this.getSpwitViewWatio()
 		};
 	}
 
-	protected toEditorViewStateResource(input: EditorInput): URI | undefined {
-		let primary: URI | undefined;
-		let secondary: URI | undefined;
+	pwotected toEditowViewStateWesouwce(input: EditowInput): UWI | undefined {
+		wet pwimawy: UWI | undefined;
+		wet secondawy: UWI | undefined;
 
-		if (input instanceof SideBySideEditorInput) {
-			primary = input.primary.resource;
-			secondary = input.secondary.resource;
+		if (input instanceof SideBySideEditowInput) {
+			pwimawy = input.pwimawy.wesouwce;
+			secondawy = input.secondawy.wesouwce;
 		}
 
-		if (!secondary || !primary) {
-			return undefined;
+		if (!secondawy || !pwimawy) {
+			wetuwn undefined;
 		}
 
-		// create a URI that is the Base64 concatenation of original + modified resource
-		return URI.from({ scheme: 'sideBySide', path: `${multibyteAwareBtoa(secondary.toString())}${multibyteAwareBtoa(primary.toString())}` });
+		// cweate a UWI that is the Base64 concatenation of owiginaw + modified wesouwce
+		wetuwn UWI.fwom({ scheme: 'sideBySide', path: `${muwtibyteAwaweBtoa(secondawy.toStwing())}${muwtibyteAwaweBtoa(pwimawy.toStwing())}` });
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
+	ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		if (this.primaryEditorContainer) {
-			if (this.orientation === Orientation.HORIZONTAL) {
-				this.primaryEditorContainer.style.borderLeftWidth = '1px';
-				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_BORDER)?.toString() ?? '';
+		if (this.pwimawyEditowContaina) {
+			if (this.owientation === Owientation.HOWIZONTAW) {
+				this.pwimawyEditowContaina.stywe.bowdewWeftWidth = '1px';
+				this.pwimawyEditowContaina.stywe.bowdewWeftStywe = 'sowid';
+				this.pwimawyEditowContaina.stywe.bowdewWeftCowow = this.getCowow(SIDE_BY_SIDE_EDITOW_BOWDa)?.toStwing() ?? '';
 
-				this.primaryEditorContainer.style.borderTopWidth = '0';
-			} else {
-				this.primaryEditorContainer.style.borderTopWidth = '1px';
-				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_BORDER)?.toString() ?? '';
+				this.pwimawyEditowContaina.stywe.bowdewTopWidth = '0';
+			} ewse {
+				this.pwimawyEditowContaina.stywe.bowdewTopWidth = '1px';
+				this.pwimawyEditowContaina.stywe.bowdewTopStywe = 'sowid';
+				this.pwimawyEditowContaina.stywe.bowdewTopCowow = this.getCowow(SIDE_BY_SIDE_EDITOW_BOWDa)?.toStwing() ?? '';
 
-				this.primaryEditorContainer.style.borderLeftWidth = '0';
+				this.pwimawyEditowContaina.stywe.bowdewWeftWidth = '0';
 			}
 		}
 	}
 
-	override dispose(): void {
-		this.disposeEditors();
+	ovewwide dispose(): void {
+		this.disposeEditows();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	private disposeEditors(): void {
-		this.editorDisposables.clear();
+	pwivate disposeEditows(): void {
+		this.editowDisposabwes.cweaw();
 
-		this.secondaryEditorPane = undefined;
-		this.primaryEditorPane = undefined;
+		this.secondawyEditowPane = undefined;
+		this.pwimawyEditowPane = undefined;
 
-		this.lastFocusedSide = undefined;
+		this.wastFocusedSide = undefined;
 
-		if (this.secondaryEditorContainer) {
-			clearNode(this.secondaryEditorContainer);
+		if (this.secondawyEditowContaina) {
+			cweawNode(this.secondawyEditowContaina);
 		}
 
-		if (this.primaryEditorContainer) {
-			clearNode(this.primaryEditorContainer);
+		if (this.pwimawyEditowContaina) {
+			cweawNode(this.pwimawyEditowContaina);
 		}
 	}
 }

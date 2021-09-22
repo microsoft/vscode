@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { BracketsUtils } from 'vs/editor/common/modes/supports/richEditBrackets';
+impowt * as assewt fwom 'assewt';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { BwacketsUtiws } fwom 'vs/editow/common/modes/suppowts/wichEditBwackets';
 
-suite('richEditBrackets', () => {
+suite('wichEditBwackets', () => {
 
-	function findPrevBracketInRange(reversedBracketRegex: RegExp, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
-		return BracketsUtils.findPrevBracketInRange(reversedBracketRegex, 1, lineText, currentTokenStart, currentTokenEnd);
+	function findPwevBwacketInWange(wevewsedBwacketWegex: WegExp, wineText: stwing, cuwwentTokenStawt: numba, cuwwentTokenEnd: numba): Wange | nuww {
+		wetuwn BwacketsUtiws.findPwevBwacketInWange(wevewsedBwacketWegex, 1, wineText, cuwwentTokenStawt, cuwwentTokenEnd);
 	}
 
-	function findNextBracketInRange(forwardBracketRegex: RegExp, lineText: string, currentTokenStart: number, currentTokenEnd: number): Range | null {
-		return BracketsUtils.findNextBracketInRange(forwardBracketRegex, 1, lineText, currentTokenStart, currentTokenEnd);
+	function findNextBwacketInWange(fowwawdBwacketWegex: WegExp, wineText: stwing, cuwwentTokenStawt: numba, cuwwentTokenEnd: numba): Wange | nuww {
+		wetuwn BwacketsUtiws.findNextBwacketInWange(fowwawdBwacketWegex, 1, wineText, cuwwentTokenStawt, cuwwentTokenEnd);
 	}
 
-	test('findPrevBracketInToken one char 1', () => {
-		let result = findPrevBracketInRange(/(\{)|(\})/i, '{', 0, 1);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 2);
+	test('findPwevBwacketInToken one chaw 1', () => {
+		wet wesuwt = findPwevBwacketInWange(/(\{)|(\})/i, '{', 0, 1);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 2);
 	});
 
-	test('findPrevBracketInToken one char 2', () => {
-		let result = findPrevBracketInRange(/(\{)|(\})/i, '{{', 0, 1);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 2);
+	test('findPwevBwacketInToken one chaw 2', () => {
+		wet wesuwt = findPwevBwacketInWange(/(\{)|(\})/i, '{{', 0, 1);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 2);
 	});
 
-	test('findPrevBracketInToken one char 3', () => {
-		let result = findPrevBracketInRange(/(\{)|(\})/i, '{hello world!', 0, 13);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 2);
+	test('findPwevBwacketInToken one chaw 3', () => {
+		wet wesuwt = findPwevBwacketInWange(/(\{)|(\})/i, '{hewwo wowwd!', 0, 13);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 2);
 	});
 
-	test('findPrevBracketInToken more chars 1', () => {
-		let result = findPrevBracketInRange(/(olleh)/i, 'hello world!', 0, 12);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 6);
+	test('findPwevBwacketInToken mowe chaws 1', () => {
+		wet wesuwt = findPwevBwacketInWange(/(owweh)/i, 'hewwo wowwd!', 0, 12);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 6);
 	});
 
-	test('findPrevBracketInToken more chars 2', () => {
-		let result = findPrevBracketInRange(/(olleh)/i, 'hello world!', 0, 5);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 6);
+	test('findPwevBwacketInToken mowe chaws 2', () => {
+		wet wesuwt = findPwevBwacketInWange(/(owweh)/i, 'hewwo wowwd!', 0, 5);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 6);
 	});
 
-	test('findPrevBracketInToken more chars 3', () => {
-		let result = findPrevBracketInRange(/(olleh)/i, ' hello world!', 0, 6);
-		assert.strictEqual(result!.startColumn, 2);
-		assert.strictEqual(result!.endColumn, 7);
+	test('findPwevBwacketInToken mowe chaws 3', () => {
+		wet wesuwt = findPwevBwacketInWange(/(owweh)/i, ' hewwo wowwd!', 0, 6);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 2);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 7);
 	});
 
-	test('findNextBracketInToken one char', () => {
-		let result = findNextBracketInRange(/(\{)|(\})/i, '{', 0, 1);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 2);
+	test('findNextBwacketInToken one chaw', () => {
+		wet wesuwt = findNextBwacketInWange(/(\{)|(\})/i, '{', 0, 1);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 2);
 	});
 
-	test('findNextBracketInToken more chars', () => {
-		let result = findNextBracketInRange(/(world)/i, 'hello world!', 0, 12);
-		assert.strictEqual(result!.startColumn, 7);
-		assert.strictEqual(result!.endColumn, 12);
+	test('findNextBwacketInToken mowe chaws', () => {
+		wet wesuwt = findNextBwacketInWange(/(wowwd)/i, 'hewwo wowwd!', 0, 12);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 7);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 12);
 	});
 
-	test('findNextBracketInToken with emoty result', () => {
-		let result = findNextBracketInRange(/(\{)|(\})/i, '', 0, 0);
-		assert.strictEqual(result, null);
+	test('findNextBwacketInToken with emoty wesuwt', () => {
+		wet wesuwt = findNextBwacketInWange(/(\{)|(\})/i, '', 0, 0);
+		assewt.stwictEquaw(wesuwt, nuww);
 	});
 
-	test('issue #3894: [Handlebars] Curly braces edit issues', () => {
-		let result = findPrevBracketInRange(/(\-\-!<)|(>\-\-)|(\{\{)|(\}\})/i, '{{asd}}', 0, 2);
-		assert.strictEqual(result!.startColumn, 1);
-		assert.strictEqual(result!.endColumn, 3);
+	test('issue #3894: [Handwebaws] Cuwwy bwaces edit issues', () => {
+		wet wesuwt = findPwevBwacketInWange(/(\-\-!<)|(>\-\-)|(\{\{)|(\}\})/i, '{{asd}}', 0, 2);
+		assewt.stwictEquaw(wesuwt!.stawtCowumn, 1);
+		assewt.stwictEquaw(wesuwt!.endCowumn, 3);
 	});
 
 });

@@ -1,511 +1,511 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { isWeb } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { joinPath } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { Queue } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { localize } from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { isString } from 'vs/base/common/types';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { ResourceMap } from 'vs/base/common/map';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { format2 } from 'vs/base/common/strings';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+impowt { IBuiwtinExtensionsScannewSewvice, ExtensionType, IExtensionIdentifia, IExtension, IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IScannedExtension, IWebExtensionsScannewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { FiweOpewationEwwow, FiweOpewationWesuwt, IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IExtensionGawwewySewvice, IGawwewyExtension } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { gwoupByExtension, aweSameExtensions, getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawizeManifest } fwom 'vs/pwatfowm/extensionManagement/common/extensionNws';
+impowt { wocawize } fwom 'vs/nws';
+impowt * as semva fwom 'vs/base/common/semva/semva';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { fowmat2 } fwom 'vs/base/common/stwings';
+impowt { IExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IsWebContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-interface IStoredWebExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly version: string;
-	readonly location: UriComponents;
-	readonly readmeUri?: UriComponents;
-	readonly changelogUri?: UriComponents;
-	readonly packageNLSUri?: UriComponents;
-	readonly metadata?: IStringDictionary<any>;
+intewface IStowedWebExtension {
+	weadonwy identifia: IExtensionIdentifia;
+	weadonwy vewsion: stwing;
+	weadonwy wocation: UwiComponents;
+	weadonwy weadmeUwi?: UwiComponents;
+	weadonwy changewogUwi?: UwiComponents;
+	weadonwy packageNWSUwi?: UwiComponents;
+	weadonwy metadata?: IStwingDictionawy<any>;
 }
 
-interface IWebExtension {
-	identifier: IExtensionIdentifier;
-	version: string;
-	location: URI;
-	readmeUri?: URI;
-	changelogUri?: URI;
-	packageNLSUri?: URI;
-	metadata?: IStringDictionary<any>;
+intewface IWebExtension {
+	identifia: IExtensionIdentifia;
+	vewsion: stwing;
+	wocation: UWI;
+	weadmeUwi?: UWI;
+	changewogUwi?: UWI;
+	packageNWSUwi?: UWI;
+	metadata?: IStwingDictionawy<any>;
 }
 
-export class WebExtensionsScannerService extends Disposable implements IWebExtensionsScannerService {
+expowt cwass WebExtensionsScannewSewvice extends Disposabwe impwements IWebExtensionsScannewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
-	private readonly cutomBuiltinExtensions: (string | URI)[];
-	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
+	pwivate weadonwy buiwtinExtensionsPwomise: Pwomise<IExtension[]> = Pwomise.wesowve([]);
+	pwivate weadonwy cutomBuiwtinExtensions: (stwing | UWI)[];
+	pwivate weadonwy customBuiwtinExtensionsPwomise: Pwomise<IExtension[]> = Pwomise.wesowve([]);
 
-	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
-	private readonly installedExtensionsResource: URI | undefined = undefined;
-	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
+	pwivate weadonwy customBuiwtinExtensionsCacheWesouwce: UWI | undefined = undefined;
+	pwivate weadonwy instawwedExtensionsWesouwce: UWI | undefined = undefined;
+	pwivate weadonwy wesouwcesAccessQueueMap = new WesouwceMap<Queue<IWebExtension[]>>();
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IBuiltinExtensionsScannerService private readonly builtinExtensionsScannerService: IBuiltinExtensionsScannerService,
-		@IFileService private readonly fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IProductService private readonly productService: IProductService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IBuiwtinExtensionsScannewSewvice pwivate weadonwy buiwtinExtensionsScannewSewvice: IBuiwtinExtensionsScannewSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IExtensionManifestPwopewtiesSewvice pwivate weadonwy extensionManifestPwopewtiesSewvice: IExtensionManifestPwopewtiesSewvice,
+		@IExtensionWesouwceWoadewSewvice pwivate weadonwy extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice,
 	) {
-		super();
-		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions) ? this.environmentService.options.additionalBuiltinExtensions : [];
+		supa();
+		this.cutomBuiwtinExtensions = this.enviwonmentSewvice.options && Awway.isAwway(this.enviwonmentSewvice.options.additionawBuiwtinExtensions) ? this.enviwonmentSewvice.options.additionawBuiwtinExtensions : [];
 		if (isWeb) {
-			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
-			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
-			this.builtinExtensionsPromise = this.readSystemExtensions();
-			this.customBuiltinExtensionsPromise = this.readCustomBuiltinExtensions();
-			this.registerActions();
+			this.instawwedExtensionsWesouwce = joinPath(enviwonmentSewvice.usewWoamingDataHome, 'extensions.json');
+			this.customBuiwtinExtensionsCacheWesouwce = joinPath(enviwonmentSewvice.usewWoamingDataHome, 'customBuiwtinExtensionsCache.json');
+			this.buiwtinExtensionsPwomise = this.weadSystemExtensions();
+			this.customBuiwtinExtensionsPwomise = this.weadCustomBuiwtinExtensions();
+			this.wegistewActions();
 		}
 	}
 
 	/**
-	 * All system extensions bundled with the product
+	 * Aww system extensions bundwed with the pwoduct
 	 */
-	private async readSystemExtensions(): Promise<IExtension[]> {
-		return this.builtinExtensionsScannerService.scanBuiltinExtensions();
+	pwivate async weadSystemExtensions(): Pwomise<IExtension[]> {
+		wetuwn this.buiwtinExtensionsScannewSewvice.scanBuiwtinExtensions();
 	}
 
 	/**
-	 * All extensions defined via `additionalBuiltinExtensions` API
+	 * Aww extensions defined via `additionawBuiwtinExtensions` API
 	 */
-	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
-		const extensionIds: string[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
-		for (const e of this.cutomBuiltinExtensions) {
-			if (isString(e)) {
+	pwivate async weadCustomBuiwtinExtensions(): Pwomise<IExtension[]> {
+		const extensionIds: stwing[] = [], extensionWocations: UWI[] = [], wesuwt: IExtension[] = [];
+		fow (const e of this.cutomBuiwtinExtensions) {
+			if (isStwing(e)) {
 				extensionIds.push(e);
-			} else {
-				extensionLocations.push(URI.revive(e));
+			} ewse {
+				extensionWocations.push(UWI.wevive(e));
 			}
 		}
 
-		await Promise.allSettled([
+		await Pwomise.awwSettwed([
 			(async () => {
-				if (extensionLocations.length) {
-					await Promise.allSettled(extensionLocations.map(async location => {
-						try {
-							const webExtension = await this.toWebExtensionFromLocation(location);
-							result.push(await this.toScannedExtension(webExtension, true));
-						} catch (error) {
-							this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
+				if (extensionWocations.wength) {
+					await Pwomise.awwSettwed(extensionWocations.map(async wocation => {
+						twy {
+							const webExtension = await this.toWebExtensionFwomWocation(wocation);
+							wesuwt.push(await this.toScannedExtension(webExtension, twue));
+						} catch (ewwow) {
+							this.wogSewvice.info(`Ewwow whiwe fetching the additionaw buiwtin extension ${wocation.toStwing()}.`, getEwwowMessage(ewwow));
 						}
 					}));
 				}
 			})(),
 			(async () => {
-				if (extensionIds.length) {
-					try {
-						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensionIds));
-					} catch (error) {
-						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
+				if (extensionIds.wength) {
+					twy {
+						wesuwt.push(...await this.getCustomBuiwtinExtensionsFwomGawwewy(extensionIds));
+					} catch (ewwow) {
+						this.wogSewvice.info('Ignowing fowwowing additionaw buiwtin extensions as thewe is an ewwow whiwe fetching them fwom gawwewy', extensionIds, getEwwowMessage(ewwow));
 					}
-				} else {
-					await this.writeCustomBuiltinExtensionsCache(() => []);
+				} ewse {
+					await this.wwiteCustomBuiwtinExtensionsCache(() => []);
 				}
 			})(),
 		]);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private async getCustomBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
-		if (!this.galleryService.isEnabled()) {
-			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
-			return [];
+	pwivate async getCustomBuiwtinExtensionsFwomGawwewy(extensionIds: stwing[]): Pwomise<IExtension[]> {
+		if (!this.gawwewySewvice.isEnabwed()) {
+			this.wogSewvice.info('Ignowing fetching additionaw buiwtin extensions fwom gawwewy as it is disabwed.');
+			wetuwn [];
 		}
 
-		let cachedStaticWebExtensions = await this.readCustomBuiltinExtensionsCache();
+		wet cachedStaticWebExtensions = await this.weadCustomBuiwtinExtensionsCache();
 
-		// Incase there are duplicates always take the latest version
-		const byExtension: IWebExtension[][] = groupByExtension(cachedStaticWebExtensions, e => e.identifier);
-		cachedStaticWebExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+		// Incase thewe awe dupwicates awways take the watest vewsion
+		const byExtension: IWebExtension[][] = gwoupByExtension(cachedStaticWebExtensions, e => e.identifia);
+		cachedStaticWebExtensions = byExtension.map(p => p.sowt((a, b) => semva.wcompawe(a.vewsion, b.vewsion))[0]);
 
 		const webExtensions: IWebExtension[] = [];
-		extensionIds = extensionIds.map(id => id.toLowerCase());
+		extensionIds = extensionIds.map(id => id.toWowewCase());
 
-		for (const webExtension of cachedStaticWebExtensions) {
-			const index = extensionIds.indexOf(webExtension.identifier.id.toLowerCase());
+		fow (const webExtension of cachedStaticWebExtensions) {
+			const index = extensionIds.indexOf(webExtension.identifia.id.toWowewCase());
 			if (index !== -1) {
 				webExtensions.push(webExtension);
-				extensionIds.splice(index, 1);
+				extensionIds.spwice(index, 1);
 			}
 		}
 
-		if (extensionIds.length) {
-			const galleryExtensions = await this.galleryService.getExtensions(extensionIds.map(id => ({ id })), CancellationToken.None);
-			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
-			if (missingExtensions.length) {
-				this.logService.info('Cannot find static extensions from gallery', missingExtensions);
+		if (extensionIds.wength) {
+			const gawwewyExtensions = await this.gawwewySewvice.getExtensions(extensionIds.map(id => ({ id })), CancewwationToken.None);
+			const missingExtensions = extensionIds.fiwta(id => !gawwewyExtensions.find(({ identifia }) => aweSameExtensions(identifia, { id })));
+			if (missingExtensions.wength) {
+				this.wogSewvice.info('Cannot find static extensions fwom gawwewy', missingExtensions);
 			}
 
-			await Promise.all(galleryExtensions.map(async gallery => {
-				try {
-					webExtensions.push(await this.toWebExtensionFromGallery(gallery));
-				} catch (error) {
-					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+			await Pwomise.aww(gawwewyExtensions.map(async gawwewy => {
+				twy {
+					webExtensions.push(await this.toWebExtensionFwomGawwewy(gawwewy));
+				} catch (ewwow) {
+					this.wogSewvice.info(`Ignowing additionaw buiwtin extension ${gawwewy.identifia.id} because thewe is an ewwow whiwe convewting it into web extension`, getEwwowMessage(ewwow));
 				}
 			}));
 		}
 
-		const result: IExtension[] = [];
+		const wesuwt: IExtension[] = [];
 
-		if (webExtensions.length) {
-			await Promise.all(webExtensions.map(async webExtension => {
-				try {
-					result.push(await this.toScannedExtension(webExtension, true));
-				} catch (error) {
-					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
+		if (webExtensions.wength) {
+			await Pwomise.aww(webExtensions.map(async webExtension => {
+				twy {
+					wesuwt.push(await this.toScannedExtension(webExtension, twue));
+				} catch (ewwow) {
+					this.wogSewvice.info(`Ignowing additionaw buiwtin extension ${webExtension.identifia.id} because thewe is an ewwow whiwe convewting it into scanned extension`, getEwwowMessage(ewwow));
 				}
 			}));
 		}
 
-		try {
-			await this.writeCustomBuiltinExtensionsCache(() => webExtensions);
-		} catch (error) {
-			this.logService.info(`Ignoring the error while adding additional builtin gallery extensions`, getErrorMessage(error));
+		twy {
+			await this.wwiteCustomBuiwtinExtensionsCache(() => webExtensions);
+		} catch (ewwow) {
+			this.wogSewvice.info(`Ignowing the ewwow whiwe adding additionaw buiwtin gawwewy extensions`, getEwwowMessage(ewwow));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async scanSystemExtensions(): Promise<IExtension[]> {
-		return this.builtinExtensionsPromise;
+	async scanSystemExtensions(): Pwomise<IExtension[]> {
+		wetuwn this.buiwtinExtensionsPwomise;
 	}
 
-	async scanUserExtensions(): Promise<IScannedExtension[]> {
-		const extensions = new Map<string, IScannedExtension>();
+	async scanUsewExtensions(): Pwomise<IScannedExtension[]> {
+		const extensions = new Map<stwing, IScannedExtension>();
 
-		// User Installed extensions
-		const installedExtensions = await this.scanInstalledExtensions();
-		for (const extension of installedExtensions) {
-			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		// Usa Instawwed extensions
+		const instawwedExtensions = await this.scanInstawwedExtensions();
+		fow (const extension of instawwedExtensions) {
+			extensions.set(extension.identifia.id.toWowewCase(), extension);
 		}
 
-		// Custom builtin extensions defined through `additionalBuiltinExtensions` API
-		const customBuiltinExtensions = await this.customBuiltinExtensionsPromise;
-		for (const extension of customBuiltinExtensions) {
-			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		// Custom buiwtin extensions defined thwough `additionawBuiwtinExtensions` API
+		const customBuiwtinExtensions = await this.customBuiwtinExtensionsPwomise;
+		fow (const extension of customBuiwtinExtensions) {
+			extensions.set(extension.identifia.id.toWowewCase(), extension);
 		}
 
-		return [...extensions.values()];
+		wetuwn [...extensions.vawues()];
 	}
 
-	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> {
-		const devExtensions = this.environmentService.options?.developmentOptions?.extensions;
-		const result: IExtension[] = [];
-		if (Array.isArray(devExtensions)) {
-			await Promise.allSettled(devExtensions.map(async devExtension => {
-				try {
-					const location = URI.revive(devExtension);
-					if (URI.isUri(location)) {
-						const webExtension = await this.toWebExtensionFromLocation(location);
-						result.push(await this.toScannedExtension(webExtension, false));
-					} else {
-						this.logService.info(`Skipping the extension under development ${devExtension} as it is not URI type.`);
+	async scanExtensionsUndewDevewopment(): Pwomise<IExtension[]> {
+		const devExtensions = this.enviwonmentSewvice.options?.devewopmentOptions?.extensions;
+		const wesuwt: IExtension[] = [];
+		if (Awway.isAwway(devExtensions)) {
+			await Pwomise.awwSettwed(devExtensions.map(async devExtension => {
+				twy {
+					const wocation = UWI.wevive(devExtension);
+					if (UWI.isUwi(wocation)) {
+						const webExtension = await this.toWebExtensionFwomWocation(wocation);
+						wesuwt.push(await this.toScannedExtension(webExtension, fawse));
+					} ewse {
+						this.wogSewvice.info(`Skipping the extension unda devewopment ${devExtension} as it is not UWI type.`);
 					}
-				} catch (error) {
-					this.logService.info(`Error while fetching the extension under development ${devExtension.toString()}.`, getErrorMessage(error));
+				} catch (ewwow) {
+					this.wogSewvice.info(`Ewwow whiwe fetching the extension unda devewopment ${devExtension.toStwing()}.`, getEwwowMessage(ewwow));
 				}
 			}));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null> {
+	async scanExistingExtension(extensionWocation: UWI, extensionType: ExtensionType): Pwomise<IExtension | nuww> {
 		if (extensionType === ExtensionType.System) {
 			const systemExtensions = await this.scanSystemExtensions();
-			return systemExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
+			wetuwn systemExtensions.find(e => e.wocation.toStwing() === extensionWocation.toStwing()) || nuww;
 		}
-		const userExtensions = await this.scanUserExtensions();
-		return userExtensions.find(e => e.location.toString() === extensionLocation.toString()) || null;
+		const usewExtensions = await this.scanUsewExtensions();
+		wetuwn usewExtensions.find(e => e.wocation.toStwing() === extensionWocation.toStwing()) || nuww;
 	}
 
-	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {
-		const packageJSONUri = joinPath(extensionLocation, 'package.json');
-		try {
-			const content = await this.extensionResourceLoaderService.readExtensionResource(packageJSONUri);
+	async scanExtensionManifest(extensionWocation: UWI): Pwomise<IExtensionManifest | nuww> {
+		const packageJSONUwi = joinPath(extensionWocation, 'package.json');
+		twy {
+			const content = await this.extensionWesouwceWoadewSewvice.weadExtensionWesouwce(packageJSONUwi);
 			if (content) {
-				return JSON.parse(content);
+				wetuwn JSON.pawse(content);
 			}
-		} catch (error) {
-			this.logService.warn(`Error while fetching package.json from ${packageJSONUri.toString()}`, getErrorMessage(error));
+		} catch (ewwow) {
+			this.wogSewvice.wawn(`Ewwow whiwe fetching package.json fwom ${packageJSONUwi.toStwing()}`, getEwwowMessage(ewwow));
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension> {
-		const webExtension = await this.toWebExtensionFromGallery(galleryExtension, metadata);
-		return this.addWebExtension(webExtension);
+	async addExtensionFwomGawwewy(gawwewyExtension: IGawwewyExtension, metadata?: IStwingDictionawy<any>): Pwomise<IExtension> {
+		const webExtension = await this.toWebExtensionFwomGawwewy(gawwewyExtension, metadata);
+		wetuwn this.addWebExtension(webExtension);
 	}
 
-	async addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension> {
-		const webExtension = await this.toWebExtensionFromLocation(location, undefined, undefined, metadata);
-		return this.addWebExtension(webExtension);
+	async addExtension(wocation: UWI, metadata?: IStwingDictionawy<any>): Pwomise<IExtension> {
+		const webExtension = await this.toWebExtensionFwomWocation(wocation, undefined, undefined, metadata);
+		wetuwn this.addWebExtension(webExtension);
 	}
 
-	async removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => installedExtensions.filter(extension => !(areSameExtensions(extension.identifier, identifier) && (version ? extension.version === version : true))));
+	async wemoveExtension(identifia: IExtensionIdentifia, vewsion?: stwing): Pwomise<void> {
+		await this.wwiteInstawwedExtensions(instawwedExtensions => instawwedExtensions.fiwta(extension => !(aweSameExtensions(extension.identifia, identifia) && (vewsion ? extension.vewsion === vewsion : twue))));
 	}
 
-	private async addWebExtension(webExtension: IWebExtension) {
-		const isBuiltin = this.cutomBuiltinExtensions.some(id => isString(id) && areSameExtensions(webExtension.identifier, { id }));
-		const extension = await this.toScannedExtension(webExtension, isBuiltin);
+	pwivate async addWebExtension(webExtension: IWebExtension) {
+		const isBuiwtin = this.cutomBuiwtinExtensions.some(id => isStwing(id) && aweSameExtensions(webExtension.identifia, { id }));
+		const extension = await this.toScannedExtension(webExtension, isBuiwtin);
 
-		// Update custom builtin extensions to custom builtin extensions cache
-		if (isBuiltin) {
-			await this.writeCustomBuiltinExtensionsCache(customBuiltinExtensions => {
-				// Remove the existing extension to avoid duplicates
-				customBuiltinExtensions = customBuiltinExtensions.filter(extension => !areSameExtensions(extension.identifier, webExtension.identifier));
-				customBuiltinExtensions.push(webExtension);
-				return customBuiltinExtensions;
+		// Update custom buiwtin extensions to custom buiwtin extensions cache
+		if (isBuiwtin) {
+			await this.wwiteCustomBuiwtinExtensionsCache(customBuiwtinExtensions => {
+				// Wemove the existing extension to avoid dupwicates
+				customBuiwtinExtensions = customBuiwtinExtensions.fiwta(extension => !aweSameExtensions(extension.identifia, webExtension.identifia));
+				customBuiwtinExtensions.push(webExtension);
+				wetuwn customBuiwtinExtensions;
 			});
 
-			const installedExtensions = await this.readInstalledExtensions();
-			// Also add to installed extensions if it is installed to update its version
-			if (installedExtensions.some(e => areSameExtensions(e.identifier, webExtension.identifier))) {
-				await this.addToInstalledExtensions(webExtension);
+			const instawwedExtensions = await this.weadInstawwedExtensions();
+			// Awso add to instawwed extensions if it is instawwed to update its vewsion
+			if (instawwedExtensions.some(e => aweSameExtensions(e.identifia, webExtension.identifia))) {
+				await this.addToInstawwedExtensions(webExtension);
 			}
 		}
 
-		// Add to installed extensions
-		else {
-			await this.addToInstalledExtensions(webExtension);
+		// Add to instawwed extensions
+		ewse {
+			await this.addToInstawwedExtensions(webExtension);
 		}
 
-		return extension;
+		wetuwn extension;
 	}
 
-	private async addToInstalledExtensions(webExtension: IWebExtension): Promise<void> {
-		await this.writeInstalledExtensions(installedExtensions => {
-			// Remove the existing extension to avoid duplicates
-			installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
-			installedExtensions.push(webExtension);
-			return installedExtensions;
+	pwivate async addToInstawwedExtensions(webExtension: IWebExtension): Pwomise<void> {
+		await this.wwiteInstawwedExtensions(instawwedExtensions => {
+			// Wemove the existing extension to avoid dupwicates
+			instawwedExtensions = instawwedExtensions.fiwta(e => !aweSameExtensions(e.identifia, webExtension.identifia));
+			instawwedExtensions.push(webExtension);
+			wetuwn instawwedExtensions;
 		});
 	}
 
-	private async scanInstalledExtensions(): Promise<IExtension[]> {
-		let installedExtensions = await this.readInstalledExtensions();
-		const byExtension: IWebExtension[][] = groupByExtension(installedExtensions, e => e.identifier);
-		installedExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+	pwivate async scanInstawwedExtensions(): Pwomise<IExtension[]> {
+		wet instawwedExtensions = await this.weadInstawwedExtensions();
+		const byExtension: IWebExtension[][] = gwoupByExtension(instawwedExtensions, e => e.identifia);
+		instawwedExtensions = byExtension.map(p => p.sowt((a, b) => semva.wcompawe(a.vewsion, b.vewsion))[0]);
 		const extensions: IExtension[] = [];
-		await Promise.all(installedExtensions.map(async installedExtension => {
-			try {
-				extensions.push(await this.toScannedExtension(installedExtension, false));
-			} catch (error) {
-				this.logService.error(error, 'Error while scanning user extension', installedExtension.identifier.id);
+		await Pwomise.aww(instawwedExtensions.map(async instawwedExtension => {
+			twy {
+				extensions.push(await this.toScannedExtension(instawwedExtension, fawse));
+			} catch (ewwow) {
+				this.wogSewvice.ewwow(ewwow, 'Ewwow whiwe scanning usa extension', instawwedExtension.identifia.id);
 			}
 		}));
-		return extensions;
+		wetuwn extensions;
 	}
 
-	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IWebExtension> {
-		if (!this.productService.extensionsGallery) {
-			throw new Error('No extension gallery service configured.');
+	pwivate async toWebExtensionFwomGawwewy(gawwewyExtension: IGawwewyExtension, metadata?: IStwingDictionawy<any>): Pwomise<IWebExtension> {
+		if (!this.pwoductSewvice.extensionsGawwewy) {
+			thwow new Ewwow('No extension gawwewy sewvice configuwed.');
 		}
-		const extensionLocation = URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
-		return this.toWebExtensionFromLocation(extensionLocation, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined, metadata);
+		const extensionWocation = UWI.pawse(fowmat2(this.pwoductSewvice.extensionsGawwewy.wesouwceUwwTempwate, { pubwisha: gawwewyExtension.pubwisha, name: gawwewyExtension.name, vewsion: gawwewyExtension.vewsion, path: 'extension' }));
+		wetuwn this.toWebExtensionFwomWocation(extensionWocation, gawwewyExtension.assets.weadme ? UWI.pawse(gawwewyExtension.assets.weadme.uwi) : undefined, gawwewyExtension.assets.changewog ? UWI.pawse(gawwewyExtension.assets.changewog.uwi) : undefined, metadata);
 	}
 
-	private async toWebExtensionFromLocation(extensionLocation: URI, readmeUri?: URI, changelogUri?: URI, metadata?: IStringDictionary<any>): Promise<IWebExtension> {
-		const packageJSONUri = joinPath(extensionLocation, 'package.json');
-		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
+	pwivate async toWebExtensionFwomWocation(extensionWocation: UWI, weadmeUwi?: UWI, changewogUwi?: UWI, metadata?: IStwingDictionawy<any>): Pwomise<IWebExtension> {
+		const packageJSONUwi = joinPath(extensionWocation, 'package.json');
+		const packageNWSUwi: UWI = joinPath(extensionWocation, 'package.nws.json');
 
-		const [packageJSONResult, packageNLSResult] = await Promise.allSettled([
-			this.extensionResourceLoaderService.readExtensionResource(packageJSONUri),
-			this.extensionResourceLoaderService.readExtensionResource(packageNLSUri),
+		const [packageJSONWesuwt, packageNWSWesuwt] = await Pwomise.awwSettwed([
+			this.extensionWesouwceWoadewSewvice.weadExtensionWesouwce(packageJSONUwi),
+			this.extensionWesouwceWoadewSewvice.weadExtensionWesouwce(packageNWSUwi),
 		]);
 
-		if (packageJSONResult.status === 'rejected') {
-			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'. ${getErrorMessage(packageJSONResult.reason)}`);
+		if (packageJSONWesuwt.status === 'wejected') {
+			thwow new Ewwow(`Cannot find the package.json fwom the wocation '${extensionWocation.toStwing()}'. ${getEwwowMessage(packageJSONWesuwt.weason)}`);
 		}
 
-		const content = packageJSONResult.value;
+		const content = packageJSONWesuwt.vawue;
 		if (!content) {
-			throw new Error(`Error while fetching package.json for extension '${extensionLocation.toString()}'. Server returned no content`);
+			thwow new Ewwow(`Ewwow whiwe fetching package.json fow extension '${extensionWocation.toStwing()}'. Sewva wetuwned no content`);
 		}
 
-		const manifest = JSON.parse(content);
-		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
-			throw new Error(localize('not a web extension', "Cannot add '{0}' because this extension is not a web extension.", manifest.displayName || manifest.name));
+		const manifest = JSON.pawse(content);
+		if (!this.extensionManifestPwopewtiesSewvice.canExecuteOnWeb(manifest)) {
+			thwow new Ewwow(wocawize('not a web extension', "Cannot add '{0}' because this extension is not a web extension.", manifest.dispwayName || manifest.name));
 		}
 
-		return {
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			version: manifest.version,
-			location: extensionLocation,
-			readmeUri,
-			changelogUri,
-			packageNLSUri: packageNLSResult.status === 'fulfilled' ? packageNLSUri : undefined,
+		wetuwn {
+			identifia: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) },
+			vewsion: manifest.vewsion,
+			wocation: extensionWocation,
+			weadmeUwi,
+			changewogUwi,
+			packageNWSUwi: packageNWSWesuwt.status === 'fuwfiwwed' ? packageNWSUwi : undefined,
 			metadata,
 		};
 	}
 
-	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IScannedExtension> {
-		const url = joinPath(webExtension.location, 'package.json');
+	pwivate async toScannedExtension(webExtension: IWebExtension, isBuiwtin: boowean): Pwomise<IScannedExtension> {
+		const uww = joinPath(webExtension.wocation, 'package.json');
 
-		let content;
-		try {
-			content = await this.extensionResourceLoaderService.readExtensionResource(url);
-		} catch (error) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}' from the location '${url}'. ${getErrorMessage(error)}`);
+		wet content;
+		twy {
+			content = await this.extensionWesouwceWoadewSewvice.weadExtensionWesouwce(uww);
+		} catch (ewwow) {
+			thwow new Ewwow(`Ewwow whiwe fetching package.json fow extension '${webExtension.identifia.id}' fwom the wocation '${uww}'. ${getEwwowMessage(ewwow)}`);
 		}
 
 		if (!content) {
-			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned no content for the request '${url}'`);
+			thwow new Ewwow(`Ewwow whiwe fetching package.json fow extension '${webExtension.identifia.id}'. Sewva wetuwned no content fow the wequest '${uww}'`);
 		}
 
-		let manifest: IExtensionManifest = JSON.parse(content);
-		if (webExtension.packageNLSUri) {
-			manifest = await this.translateManifest(manifest, webExtension.packageNLSUri);
+		wet manifest: IExtensionManifest = JSON.pawse(content);
+		if (webExtension.packageNWSUwi) {
+			manifest = await this.twanswateManifest(manifest, webExtension.packageNWSUwi);
 		}
 
-		return {
-			identifier: webExtension.identifier,
-			location: webExtension.location,
+		wetuwn {
+			identifia: webExtension.identifia,
+			wocation: webExtension.wocation,
 			manifest,
-			type: ExtensionType.User,
-			isBuiltin,
-			readmeUrl: webExtension.readmeUri,
-			changelogUrl: webExtension.changelogUri,
+			type: ExtensionType.Usa,
+			isBuiwtin,
+			weadmeUww: webExtension.weadmeUwi,
+			changewogUww: webExtension.changewogUwi,
 			metadata: webExtension.metadata
 		};
 	}
 
-	private async translateManifest(manifest: IExtensionManifest, nlsURL: URI): Promise<IExtensionManifest> {
-		try {
-			const content = await this.extensionResourceLoaderService.readExtensionResource(nlsURL);
+	pwivate async twanswateManifest(manifest: IExtensionManifest, nwsUWW: UWI): Pwomise<IExtensionManifest> {
+		twy {
+			const content = await this.extensionWesouwceWoadewSewvice.weadExtensionWesouwce(nwsUWW);
 			if (content) {
-				manifest = localizeManifest(manifest, JSON.parse(content));
+				manifest = wocawizeManifest(manifest, JSON.pawse(content));
 			}
-		} catch (error) { /* ignore */ }
-		return manifest;
+		} catch (ewwow) { /* ignowe */ }
+		wetuwn manifest;
 	}
 
-	private readInstalledExtensions(): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.installedExtensionsResource);
+	pwivate weadInstawwedExtensions(): Pwomise<IWebExtension[]> {
+		wetuwn this.withWebExtensions(this.instawwedExtensionsWesouwce);
 	}
 
-	private writeInstalledExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.installedExtensionsResource, updateFn);
+	pwivate wwiteInstawwedExtensions(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Pwomise<IWebExtension[]> {
+		wetuwn this.withWebExtensions(this.instawwedExtensionsWesouwce, updateFn);
 	}
 
-	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.customBuiltinExtensionsCacheResource);
+	pwivate weadCustomBuiwtinExtensionsCache(): Pwomise<IWebExtension[]> {
+		wetuwn this.withWebExtensions(this.customBuiwtinExtensionsCacheWesouwce);
 	}
 
-	private writeCustomBuiltinExtensionsCache(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		return this.withWebExtensions(this.customBuiltinExtensionsCacheResource, updateFn);
+	pwivate wwiteCustomBuiwtinExtensionsCache(updateFn: (extensions: IWebExtension[]) => IWebExtension[]): Pwomise<IWebExtension[]> {
+		wetuwn this.withWebExtensions(this.customBuiwtinExtensionsCacheWesouwce, updateFn);
 	}
 
-	private async withWebExtensions(file: URI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Promise<IWebExtension[]> {
-		if (!file) {
-			return [];
+	pwivate async withWebExtensions(fiwe: UWI | undefined, updateFn?: (extensions: IWebExtension[]) => IWebExtension[]): Pwomise<IWebExtension[]> {
+		if (!fiwe) {
+			wetuwn [];
 		}
-		return this.getResourceAccessQueue(file).queue(async () => {
-			let webExtensions: IWebExtension[] = [];
+		wetuwn this.getWesouwceAccessQueue(fiwe).queue(async () => {
+			wet webExtensions: IWebExtension[] = [];
 
-			// Read
-			try {
-				const content = await this.fileService.readFile(file);
-				const storedWebExtensions: IStoredWebExtension[] = JSON.parse(content.value.toString());
-				for (const e of storedWebExtensions) {
-					if (!e.location || !e.identifier || !e.version) {
-						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
+			// Wead
+			twy {
+				const content = await this.fiweSewvice.weadFiwe(fiwe);
+				const stowedWebExtensions: IStowedWebExtension[] = JSON.pawse(content.vawue.toStwing());
+				fow (const e of stowedWebExtensions) {
+					if (!e.wocation || !e.identifia || !e.vewsion) {
+						this.wogSewvice.info('Ignowing invawid extension whiwe scanning', stowedWebExtensions);
 						continue;
 					}
 					webExtensions.push({
-						identifier: e.identifier,
-						version: e.version,
-						location: URI.revive(e.location),
-						readmeUri: URI.revive(e.readmeUri),
-						changelogUri: URI.revive(e.changelogUri),
-						packageNLSUri: URI.revive(e.packageNLSUri),
+						identifia: e.identifia,
+						vewsion: e.vewsion,
+						wocation: UWI.wevive(e.wocation),
+						weadmeUwi: UWI.wevive(e.weadmeUwi),
+						changewogUwi: UWI.wevive(e.changewogUwi),
+						packageNWSUwi: UWI.wevive(e.packageNWSUwi),
 						metadata: e.metadata,
 					});
 				}
-			} catch (error) {
-				/* Ignore */
-				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-					this.logService.error(error);
+			} catch (ewwow) {
+				/* Ignowe */
+				if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+					this.wogSewvice.ewwow(ewwow);
 				}
 			}
 
 			// Update
 			if (updateFn) {
 				webExtensions = updateFn(webExtensions);
-				const storedWebExtensions: IStoredWebExtension[] = webExtensions.map(e => ({
-					identifier: e.identifier,
-					version: e.version,
-					location: e.location.toJSON(),
-					readmeUri: e.readmeUri?.toJSON(),
-					changelogUri: e.changelogUri?.toJSON(),
-					packageNLSUri: e.packageNLSUri?.toJSON(),
+				const stowedWebExtensions: IStowedWebExtension[] = webExtensions.map(e => ({
+					identifia: e.identifia,
+					vewsion: e.vewsion,
+					wocation: e.wocation.toJSON(),
+					weadmeUwi: e.weadmeUwi?.toJSON(),
+					changewogUwi: e.changewogUwi?.toJSON(),
+					packageNWSUwi: e.packageNWSUwi?.toJSON(),
 					metadata: e.metadata
 				}));
-				await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
+				await this.fiweSewvice.wwiteFiwe(fiwe, VSBuffa.fwomStwing(JSON.stwingify(stowedWebExtensions)));
 			}
 
-			return webExtensions;
+			wetuwn webExtensions;
 		});
 	}
 
-	private getResourceAccessQueue(file: URI): Queue<IWebExtension[]> {
-		let resourceQueue = this.resourcesAccessQueueMap.get(file);
-		if (!resourceQueue) {
-			resourceQueue = new Queue<IWebExtension[]>();
-			this.resourcesAccessQueueMap.set(file, resourceQueue);
+	pwivate getWesouwceAccessQueue(fiwe: UWI): Queue<IWebExtension[]> {
+		wet wesouwceQueue = this.wesouwcesAccessQueueMap.get(fiwe);
+		if (!wesouwceQueue) {
+			wesouwceQueue = new Queue<IWebExtension[]>();
+			this.wesouwcesAccessQueueMap.set(fiwe, wesouwceQueue);
 		}
-		return resourceQueue;
+		wetuwn wesouwceQueue;
 	}
 
-	private registerActions(): void {
+	pwivate wegistewActions(): void {
 		const that = this;
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
-					title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
-					category: CATEGORIES.Developer,
-					f1: true,
-					precondition: IsWebContext
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.extensions.action.openInstawwedWebExtensionsWesouwce',
+					titwe: { vawue: wocawize('openInstawwedWebExtensionsWesouwce', "Open Instawwed Web Extensions Wesouwce"), owiginaw: 'Open Instawwed Web Extensions Wesouwce' },
+					categowy: CATEGOWIES.Devewopa,
+					f1: twue,
+					pwecondition: IsWebContext
 				});
 			}
-			run(serviceAccessor: ServicesAccessor): void {
-				serviceAccessor.get(IEditorService).openEditor({ resource: that.installedExtensionsResource });
+			wun(sewviceAccessow: SewvicesAccessow): void {
+				sewviceAccessow.get(IEditowSewvice).openEditow({ wesouwce: that.instawwedExtensionsWesouwce });
 			}
 		}));
 	}
 
 }
 
-registerSingleton(IWebExtensionsScannerService, WebExtensionsScannerService);
+wegistewSingweton(IWebExtensionsScannewSewvice, WebExtensionsScannewSewvice);

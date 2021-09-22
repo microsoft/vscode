@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Interface types for Monarch language definitions
- * These descriptions are really supposed to be JSON values but if using typescript
- * to describe them, these type definitions can help check the validity.
+ * Intewface types fow Monawch wanguage definitions
+ * These descwiptions awe weawwy supposed to be JSON vawues but if using typescwipt
+ * to descwibe them, these type definitions can hewp check the vawidity.
  */
 
 /**
- * A Monarch language definition
+ * A Monawch wanguage definition
  */
-export interface IMonarchLanguage {
+expowt intewface IMonawchWanguage {
 	/**
-	 * map from string to ILanguageRule[]
+	 * map fwom stwing to IWanguageWuwe[]
 	 */
-	tokenizer: { [name: string]: IMonarchLanguageRule[] };
+	tokeniza: { [name: stwing]: IMonawchWanguageWuwe[] };
 	/**
-	 * is the language case insensitive?
+	 * is the wanguage case insensitive?
 	 */
-	ignoreCase?: boolean;
+	ignoweCase?: boowean;
 	/**
-	 * is the language unicode-aware? (i.e., /\u{1D306}/)
+	 * is the wanguage unicode-awawe? (i.e., /\u{1D306}/)
 	 */
-	unicode?: boolean;
+	unicode?: boowean;
 	/**
-	 * if no match in the tokenizer assign this token class (default 'source')
+	 * if no match in the tokeniza assign this token cwass (defauwt 'souwce')
 	 */
-	defaultToken?: string;
+	defauwtToken?: stwing;
 	/**
-	 * for example [['{','}','delimiter.curly']]
+	 * fow exampwe [['{','}','dewimita.cuwwy']]
 	 */
-	brackets?: IMonarchLanguageBracket[];
+	bwackets?: IMonawchWanguageBwacket[];
 	/**
-	 * start symbol in the tokenizer (by default the first entry is used)
+	 * stawt symbow in the tokeniza (by defauwt the fiwst entwy is used)
 	 */
-	start?: string;
+	stawt?: stwing;
 	/**
-	 * attach this to every token class (by default '.' + name)
+	 * attach this to evewy token cwass (by defauwt '.' + name)
 	 */
-	tokenPostfix?: string;
+	tokenPostfix?: stwing;
 	/**
-	 * include line feeds (in the form of a \n character) at the end of lines
-	 * Defaults to false
+	 * incwude wine feeds (in the fowm of a \n chawacta) at the end of wines
+	 * Defauwts to fawse
 	 */
-	includeLF?: boolean;
+	incwudeWF?: boowean;
 	/**
-	 * Other keys that can be referred to by the tokenizer.
+	 * Otha keys that can be wefewwed to by the tokeniza.
 	 */
-	[key: string]: any;
+	[key: stwing]: any;
 }
 
 /**
- * A rule is either a regular expression and an action
- * 		shorthands: [reg,act] == { regex: reg, action: act}
- *		and       : [reg,act,nxt] == { regex: reg, action: act{ next: nxt }}
+ * A wuwe is eitha a weguwaw expwession and an action
+ * 		showthands: [weg,act] == { wegex: weg, action: act}
+ *		and       : [weg,act,nxt] == { wegex: weg, action: act{ next: nxt }}
  */
-export type IShortMonarchLanguageRule1 = [string | RegExp, IMonarchLanguageAction];
+expowt type IShowtMonawchWanguageWuwe1 = [stwing | WegExp, IMonawchWanguageAction];
 
-export type IShortMonarchLanguageRule2 = [string | RegExp, IMonarchLanguageAction, string];
+expowt type IShowtMonawchWanguageWuwe2 = [stwing | WegExp, IMonawchWanguageAction, stwing];
 
-export interface IExpandedMonarchLanguageRule {
+expowt intewface IExpandedMonawchWanguageWuwe {
 	/**
 	 * match tokens
 	 */
-	regex?: string | RegExp;
+	wegex?: stwing | WegExp;
 	/**
 	 * action to take on match
 	 */
-	action?: IMonarchLanguageAction;
+	action?: IMonawchWanguageAction;
 
 	/**
-	 * or an include rule. include all rules from the included state
+	 * ow an incwude wuwe. incwude aww wuwes fwom the incwuded state
 	 */
-	include?: string;
+	incwude?: stwing;
 }
 
-export type IMonarchLanguageRule = IShortMonarchLanguageRule1
-	| IShortMonarchLanguageRule2
-	| IExpandedMonarchLanguageRule;
+expowt type IMonawchWanguageWuwe = IShowtMonawchWanguageWuwe1
+	| IShowtMonawchWanguageWuwe2
+	| IExpandedMonawchWanguageWuwe;
 
 /**
- * An action is either an array of actions...
- * ... or a case statement with guards...
- * ... or a basic action with a token value.
+ * An action is eitha an awway of actions...
+ * ... ow a case statement with guawds...
+ * ... ow a basic action with a token vawue.
  */
-export type IShortMonarchLanguageAction = string;
+expowt type IShowtMonawchWanguageAction = stwing;
 
-export interface IExpandedMonarchLanguageAction {
+expowt intewface IExpandedMonawchWanguageAction {
 	/**
-	 * array of actions for each parenthesized match group
+	 * awway of actions fow each pawenthesized match gwoup
 	 */
-	group?: IMonarchLanguageAction[];
+	gwoup?: IMonawchWanguageAction[];
 	/**
-	 * map from string to ILanguageAction
+	 * map fwom stwing to IWanguageAction
 	 */
 	cases?: Object;
 	/**
-	 * token class (ie. css class) (or "@brackets" or "@rematch")
+	 * token cwass (ie. css cwass) (ow "@bwackets" ow "@wematch")
 	 */
-	token?: string;
+	token?: stwing;
 	/**
-	 * the next state to push, or "@push", "@pop", "@popall"
+	 * the next state to push, ow "@push", "@pop", "@popaww"
 	 */
-	next?: string;
+	next?: stwing;
 	/**
 	 * switch to this state
 	 */
-	switchTo?: string;
+	switchTo?: stwing;
 	/**
-	 * go back n characters in the stream
+	 * go back n chawactews in the stweam
 	 */
-	goBack?: number;
+	goBack?: numba;
 	/**
-	 * @open or @close
+	 * @open ow @cwose
 	 */
-	bracket?: string;
+	bwacket?: stwing;
 	/**
-	 * switch to embedded language (using the mimetype) or get out using "@pop"
+	 * switch to embedded wanguage (using the mimetype) ow get out using "@pop"
 	 */
-	nextEmbedded?: string;
+	nextEmbedded?: stwing;
 	/**
-	 * log a message to the browser console window
+	 * wog a message to the bwowsa consowe window
 	 */
-	log?: string;
+	wog?: stwing;
 }
 
-export type IMonarchLanguageAction = IShortMonarchLanguageAction
-	| IExpandedMonarchLanguageAction
-	| IShortMonarchLanguageAction[]
-	| IExpandedMonarchLanguageAction[];
+expowt type IMonawchWanguageAction = IShowtMonawchWanguageAction
+	| IExpandedMonawchWanguageAction
+	| IShowtMonawchWanguageAction[]
+	| IExpandedMonawchWanguageAction[];
 
 /**
- * This interface can be shortened as an array, ie. ['{','}','delimiter.curly']
+ * This intewface can be showtened as an awway, ie. ['{','}','dewimita.cuwwy']
  */
-export interface IMonarchLanguageBracket {
+expowt intewface IMonawchWanguageBwacket {
 	/**
-	 * open bracket
+	 * open bwacket
 	 */
-	open: string;
+	open: stwing;
 	/**
-	 * closing bracket
+	 * cwosing bwacket
 	 */
-	close: string;
+	cwose: stwing;
 	/**
-	 * token class
+	 * token cwass
 	 */
-	token: string;
+	token: stwing;
 }

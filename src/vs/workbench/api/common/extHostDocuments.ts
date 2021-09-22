@@ -1,176 +1,176 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import type * as vscode from 'vscode';
-import { assertIsDefined } from 'vs/base/common/types';
-import { deepFreeze } from 'vs/base/common/objects';
-import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IModewChangedEvent } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { ExtHostDocumentsShape, IMainContext, MainContext, MainThweadDocumentsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocumentData, setWowdDefinitionFow } fwom 'vs/wowkbench/api/common/extHostDocumentData';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt * as TypeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt type * as vscode fwom 'vscode';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { deepFweeze } fwom 'vs/base/common/objects';
+impowt { TextDocumentChangeWeason } fwom 'vs/wowkbench/api/common/extHostTypes';
 
-export class ExtHostDocuments implements ExtHostDocumentsShape {
+expowt cwass ExtHostDocuments impwements ExtHostDocumentsShape {
 
-	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
-	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
+	pwivate weadonwy _onDidAddDocument = new Emitta<vscode.TextDocument>();
+	pwivate weadonwy _onDidWemoveDocument = new Emitta<vscode.TextDocument>();
+	pwivate weadonwy _onDidChangeDocument = new Emitta<vscode.TextDocumentChangeEvent>();
+	pwivate weadonwy _onDidSaveDocument = new Emitta<vscode.TextDocument>();
 
-	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
-	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
-	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
-	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
+	weadonwy onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
+	weadonwy onDidWemoveDocument: Event<vscode.TextDocument> = this._onDidWemoveDocument.event;
+	weadonwy onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
+	weadonwy onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 
-	private readonly _toDispose = new DisposableStore();
-	private _proxy: MainThreadDocumentsShape;
-	private _documentsAndEditors: ExtHostDocumentsAndEditors;
-	private _documentLoader = new Map<string, Promise<ExtHostDocumentData>>();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _pwoxy: MainThweadDocumentsShape;
+	pwivate _documentsAndEditows: ExtHostDocumentsAndEditows;
+	pwivate _documentWoada = new Map<stwing, Pwomise<ExtHostDocumentData>>();
 
-	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
-		this._documentsAndEditors = documentsAndEditors;
+	constwuctow(mainContext: IMainContext, documentsAndEditows: ExtHostDocumentsAndEditows) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadDocuments);
+		this._documentsAndEditows = documentsAndEditows;
 
-		this._documentsAndEditors.onDidRemoveDocuments(documents => {
-			for (const data of documents) {
-				this._onDidRemoveDocument.fire(data.document);
+		this._documentsAndEditows.onDidWemoveDocuments(documents => {
+			fow (const data of documents) {
+				this._onDidWemoveDocument.fiwe(data.document);
 			}
 		}, undefined, this._toDispose);
-		this._documentsAndEditors.onDidAddDocuments(documents => {
-			for (const data of documents) {
-				this._onDidAddDocument.fire(data.document);
+		this._documentsAndEditows.onDidAddDocuments(documents => {
+			fow (const data of documents) {
+				this._onDidAddDocument.fiwe(data.document);
 			}
 		}, undefined, this._toDispose);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._toDispose.dispose();
 	}
 
-	public getAllDocumentData(): ExtHostDocumentData[] {
-		return [...this._documentsAndEditors.allDocuments()];
+	pubwic getAwwDocumentData(): ExtHostDocumentData[] {
+		wetuwn [...this._documentsAndEditows.awwDocuments()];
 	}
 
-	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
-		if (!resource) {
-			return undefined;
+	pubwic getDocumentData(wesouwce: vscode.Uwi): ExtHostDocumentData | undefined {
+		if (!wesouwce) {
+			wetuwn undefined;
 		}
-		const data = this._documentsAndEditors.getDocument(resource);
+		const data = this._documentsAndEditows.getDocument(wesouwce);
 		if (data) {
-			return data;
+			wetuwn data;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public getDocument(resource: vscode.Uri): vscode.TextDocument {
-		const data = this.getDocumentData(resource);
+	pubwic getDocument(wesouwce: vscode.Uwi): vscode.TextDocument {
+		const data = this.getDocumentData(wesouwce);
 		if (!data?.document) {
-			throw new Error(`Unable to retrieve document from URI '${resource}'`);
+			thwow new Ewwow(`Unabwe to wetwieve document fwom UWI '${wesouwce}'`);
 		}
-		return data.document;
+		wetuwn data.document;
 	}
 
-	public ensureDocumentData(uri: URI): Promise<ExtHostDocumentData> {
+	pubwic ensuweDocumentData(uwi: UWI): Pwomise<ExtHostDocumentData> {
 
-		const cached = this._documentsAndEditors.getDocument(uri);
+		const cached = this._documentsAndEditows.getDocument(uwi);
 		if (cached) {
-			return Promise.resolve(cached);
+			wetuwn Pwomise.wesowve(cached);
 		}
 
-		let promise = this._documentLoader.get(uri.toString());
-		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
-				this._documentLoader.delete(uri.toString());
-				const canonicalUri = URI.revive(uriData);
-				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
-			}, err => {
-				this._documentLoader.delete(uri.toString());
-				return Promise.reject(err);
+		wet pwomise = this._documentWoada.get(uwi.toStwing());
+		if (!pwomise) {
+			pwomise = this._pwoxy.$twyOpenDocument(uwi).then(uwiData => {
+				this._documentWoada.dewete(uwi.toStwing());
+				const canonicawUwi = UWI.wevive(uwiData);
+				wetuwn assewtIsDefined(this._documentsAndEditows.getDocument(canonicawUwi));
+			}, eww => {
+				this._documentWoada.dewete(uwi.toStwing());
+				wetuwn Pwomise.weject(eww);
 			});
-			this._documentLoader.set(uri.toString(), promise);
+			this._documentWoada.set(uwi.toStwing(), pwomise);
 		}
 
-		return promise;
+		wetuwn pwomise;
 	}
 
-	public createDocumentData(options?: { language?: string; content?: string }): Promise<URI> {
-		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
+	pubwic cweateDocumentData(options?: { wanguage?: stwing; content?: stwing }): Pwomise<UWI> {
+		wetuwn this._pwoxy.$twyCweateDocument(options).then(data => UWI.wevive(data));
 	}
 
-	public $acceptModelModeChanged(uriComponents: UriComponents, newModeId: string): void {
-		const uri = URI.revive(uriComponents);
-		const data = this._documentsAndEditors.getDocument(uri);
+	pubwic $acceptModewModeChanged(uwiComponents: UwiComponents, newModeId: stwing): void {
+		const uwi = UWI.wevive(uwiComponents);
+		const data = this._documentsAndEditows.getDocument(uwi);
 		if (!data) {
-			throw new Error('unknown document');
+			thwow new Ewwow('unknown document');
 		}
-		// Treat a mode change as a remove + add
+		// Tweat a mode change as a wemove + add
 
-		this._onDidRemoveDocument.fire(data.document);
-		data._acceptLanguageId(newModeId);
-		this._onDidAddDocument.fire(data.document);
+		this._onDidWemoveDocument.fiwe(data.document);
+		data._acceptWanguageId(newModeId);
+		this._onDidAddDocument.fiwe(data.document);
 	}
 
-	public $acceptModelSaved(uriComponents: UriComponents): void {
-		const uri = URI.revive(uriComponents);
-		const data = this._documentsAndEditors.getDocument(uri);
+	pubwic $acceptModewSaved(uwiComponents: UwiComponents): void {
+		const uwi = UWI.wevive(uwiComponents);
+		const data = this._documentsAndEditows.getDocument(uwi);
 		if (!data) {
-			throw new Error('unknown document');
+			thwow new Ewwow('unknown document');
 		}
-		this.$acceptDirtyStateChanged(uriComponents, false);
-		this._onDidSaveDocument.fire(data.document);
+		this.$acceptDiwtyStateChanged(uwiComponents, fawse);
+		this._onDidSaveDocument.fiwe(data.document);
 	}
 
-	public $acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void {
-		const uri = URI.revive(uriComponents);
-		const data = this._documentsAndEditors.getDocument(uri);
+	pubwic $acceptDiwtyStateChanged(uwiComponents: UwiComponents, isDiwty: boowean): void {
+		const uwi = UWI.wevive(uwiComponents);
+		const data = this._documentsAndEditows.getDocument(uwi);
 		if (!data) {
-			throw new Error('unknown document');
+			thwow new Ewwow('unknown document');
 		}
-		data._acceptIsDirty(isDirty);
-		this._onDidChangeDocument.fire({
+		data._acceptIsDiwty(isDiwty);
+		this._onDidChangeDocument.fiwe({
 			document: data.document,
 			contentChanges: [],
-			reason: undefined
+			weason: undefined
 		});
 	}
 
-	public $acceptModelChanged(uriComponents: UriComponents, events: IModelChangedEvent, isDirty: boolean): void {
-		const uri = URI.revive(uriComponents);
-		const data = this._documentsAndEditors.getDocument(uri);
+	pubwic $acceptModewChanged(uwiComponents: UwiComponents, events: IModewChangedEvent, isDiwty: boowean): void {
+		const uwi = UWI.wevive(uwiComponents);
+		const data = this._documentsAndEditows.getDocument(uwi);
 		if (!data) {
-			throw new Error('unknown document');
+			thwow new Ewwow('unknown document');
 		}
-		data._acceptIsDirty(isDirty);
+		data._acceptIsDiwty(isDiwty);
 		data.onEvents(events);
 
-		let reason: vscode.TextDocumentChangeReason | undefined = undefined;
+		wet weason: vscode.TextDocumentChangeWeason | undefined = undefined;
 		if (events.isUndoing) {
-			reason = TextDocumentChangeReason.Undo;
-		} else if (events.isRedoing) {
-			reason = TextDocumentChangeReason.Redo;
+			weason = TextDocumentChangeWeason.Undo;
+		} ewse if (events.isWedoing) {
+			weason = TextDocumentChangeWeason.Wedo;
 		}
 
-		this._onDidChangeDocument.fire(deepFreeze({
+		this._onDidChangeDocument.fiwe(deepFweeze({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
-				return {
-					range: TypeConverters.Range.to(change.range),
-					rangeOffset: change.rangeOffset,
-					rangeLength: change.rangeLength,
+				wetuwn {
+					wange: TypeConvewtews.Wange.to(change.wange),
+					wangeOffset: change.wangeOffset,
+					wangeWength: change.wangeWength,
 					text: change.text
 				};
 			}),
-			reason
+			weason
 		}));
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-		setWordDefinitionFor(modeId, wordDefinition);
+	pubwic setWowdDefinitionFow(modeId: stwing, wowdDefinition: WegExp | undefined): void {
+		setWowdDefinitionFow(modeId, wowdDefinition);
 	}
 }

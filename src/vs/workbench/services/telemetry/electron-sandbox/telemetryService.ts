@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-sandbox/workbenchCommonProperties';
-import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { IFileService } from 'vs/platform/files/common/files';
+impowt { ITewemetwySewvice, ITewemetwyInfo, ITewemetwyData, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { suppowtsTewemetwy, NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { TewemetwyAppendewCwient } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyIpc';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { wesowveWowkbenchCommonPwopewties } fwom 'vs/wowkbench/sewvices/tewemetwy/ewectwon-sandbox/wowkbenchCommonPwopewties';
+impowt { TewemetwySewvice as BaseTewemetwySewvice, ITewemetwySewviceConfig } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { CwassifiedEvent, StwictPwopewtyCheck, GDPWCwassification } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export class TelemetryService extends Disposable implements ITelemetryService {
+expowt cwass TewemetwySewvice extends Disposabwe impwements ITewemetwySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry: boolean;
+	pwivate impw: ITewemetwySewvice;
+	pubwic weadonwy sendEwwowTewemetwy: boowean;
 
-	constructor(
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IProductService productService: IProductService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService
+	constwuctow(
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IShawedPwocessSewvice shawedPwocessSewvice: IShawedPwocessSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 
-		if (supportsTelemetry(productService, environmentService)) {
-			const channel = sharedProcessService.getChannel('telemetryAppender');
-			const config: ITelemetryServiceConfig = {
-				appenders: [new TelemetryAppenderClient(channel)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, fileService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, productService.msftInternalDomains, environmentService.installSourcePath, environmentService.remoteAuthority),
-				piiPaths: [environmentService.appRoot, environmentService.extensionsPath],
-				sendErrorTelemetry: true
+		if (suppowtsTewemetwy(pwoductSewvice, enviwonmentSewvice)) {
+			const channew = shawedPwocessSewvice.getChannew('tewemetwyAppenda');
+			const config: ITewemetwySewviceConfig = {
+				appendews: [new TewemetwyAppendewCwient(channew)],
+				commonPwopewties: wesowveWowkbenchCommonPwopewties(stowageSewvice, fiweSewvice, enviwonmentSewvice.os.wewease, enviwonmentSewvice.os.hostname, pwoductSewvice.commit, pwoductSewvice.vewsion, enviwonmentSewvice.machineId, pwoductSewvice.msftIntewnawDomains, enviwonmentSewvice.instawwSouwcePath, enviwonmentSewvice.wemoteAuthowity),
+				piiPaths: [enviwonmentSewvice.appWoot, enviwonmentSewvice.extensionsPath],
+				sendEwwowTewemetwy: twue
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService));
-		} else {
-			this.impl = NullTelemetryService;
+			this.impw = this._wegista(new BaseTewemetwySewvice(config, configuwationSewvice));
+		} ewse {
+			this.impw = NuwwTewemetwySewvice;
 		}
 
-		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
+		this.sendEwwowTewemetwy = this.impw.sendEwwowTewemetwy;
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		return this.impl.setExperimentProperty(name, value);
+	setExpewimentPwopewty(name: stwing, vawue: stwing): void {
+		wetuwn this.impw.setExpewimentPwopewty(name, vawue);
 	}
 
-	get telemetryLevel(): TelemetryLevel {
-		return this.impl.telemetryLevel;
+	get tewemetwyWevew(): TewemetwyWevew {
+		wetuwn this.impw.tewemetwyWevew;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	pubwicWog(eventName: stwing, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<void> {
+		wetuwn this.impw.pubwicWog(eventName, data, anonymizeFiwePaths);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>, anonymizeFiwePaths?: boowean) {
+		wetuwn this.pubwicWog(eventName, data as ITewemetwyData, anonymizeFiwePaths);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
-		return this.impl.publicLogError(errorEventName, data);
+	pubwicWogEwwow(ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<void> {
+		wetuwn this.impw.pubwicWogEwwow(ewwowEventName, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWog(eventName, data as ITewemetwyData);
 	}
 
 
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return this.impl.getTelemetryInfo();
+	getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		wetuwn this.impw.getTewemetwyInfo();
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService);
+wegistewSingweton(ITewemetwySewvice, TewemetwySewvice);

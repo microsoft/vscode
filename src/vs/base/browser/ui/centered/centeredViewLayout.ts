@@ -1,184 +1,184 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
-import { ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+impowt { $ } fwom 'vs/base/bwowsa/dom';
+impowt { IView, IViewSize } fwom 'vs/base/bwowsa/ui/gwid/gwid';
+impowt { IBoundawySashes } fwom 'vs/base/bwowsa/ui/gwid/gwidview';
+impowt { ISpwitViewStywes, IView as ISpwitViewView, Owientation, SpwitView } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-export interface CenteredViewState {
-	leftMarginRatio: number;
-	rightMarginRatio: number;
+expowt intewface CentewedViewState {
+	weftMawginWatio: numba;
+	wightMawginWatio: numba;
 }
 
-const GOLDEN_RATIO = {
-	leftMarginRatio: 0.1909,
-	rightMarginRatio: 0.1909
+const GOWDEN_WATIO = {
+	weftMawginWatio: 0.1909,
+	wightMawginWatio: 0.1909
 };
 
-function createEmptyView(background: Color | undefined): ISplitViewView {
-	const element = $('.centered-layout-margin');
-	element.style.height = '100%';
-	if (background) {
-		element.style.backgroundColor = background.toString();
+function cweateEmptyView(backgwound: Cowow | undefined): ISpwitViewView {
+	const ewement = $('.centewed-wayout-mawgin');
+	ewement.stywe.height = '100%';
+	if (backgwound) {
+		ewement.stywe.backgwoundCowow = backgwound.toStwing();
 	}
 
-	return {
-		element,
-		layout: () => undefined,
+	wetuwn {
+		ewement,
+		wayout: () => undefined,
 		minimumSize: 60,
-		maximumSize: Number.POSITIVE_INFINITY,
+		maximumSize: Numba.POSITIVE_INFINITY,
 		onDidChange: Event.None
 	};
 }
 
-function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
-	return {
-		element: view.element,
-		get maximumSize() { return view.maximumWidth; },
-		get minimumSize() { return view.minimumWidth; },
+function toSpwitViewView(view: IView, getHeight: () => numba): ISpwitViewView {
+	wetuwn {
+		ewement: view.ewement,
+		get maximumSize() { wetuwn view.maximumWidth; },
+		get minimumSize() { wetuwn view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
-		layout: (size, offset) => view.layout(size, getHeight(), 0, offset)
+		wayout: (size, offset) => view.wayout(size, getHeight(), 0, offset)
 	};
 }
 
-export interface ICenteredViewStyles extends ISplitViewStyles {
-	background: Color;
+expowt intewface ICentewedViewStywes extends ISpwitViewStywes {
+	backgwound: Cowow;
 }
 
-export class CenteredViewLayout implements IDisposable {
+expowt cwass CentewedViewWayout impwements IDisposabwe {
 
-	private splitView?: SplitView;
-	private width: number = 0;
-	private height: number = 0;
-	private style!: ICenteredViewStyles;
-	private didLayout = false;
-	private emptyViews: ISplitViewView[] | undefined;
-	private readonly splitViewDisposables = new DisposableStore();
+	pwivate spwitView?: SpwitView;
+	pwivate width: numba = 0;
+	pwivate height: numba = 0;
+	pwivate stywe!: ICentewedViewStywes;
+	pwivate didWayout = fawse;
+	pwivate emptyViews: ISpwitViewView[] | undefined;
+	pwivate weadonwy spwitViewDisposabwes = new DisposabweStowe();
 
-	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
-		this.container.appendChild(this.view.element);
-		// Make sure to hide the split view overflow like sashes #52892
-		this.container.style.overflow = 'hidden';
+	constwuctow(pwivate containa: HTMWEwement, pwivate view: IView, pubwic weadonwy state: CentewedViewState = { weftMawginWatio: GOWDEN_WATIO.weftMawginWatio, wightMawginWatio: GOWDEN_WATIO.wightMawginWatio }) {
+		this.containa.appendChiwd(this.view.ewement);
+		// Make suwe to hide the spwit view ovewfwow wike sashes #52892
+		this.containa.stywe.ovewfwow = 'hidden';
 	}
 
-	get minimumWidth(): number { return this.splitView ? this.splitView.minimumSize : this.view.minimumWidth; }
-	get maximumWidth(): number { return this.splitView ? this.splitView.maximumSize : this.view.maximumWidth; }
-	get minimumHeight(): number { return this.view.minimumHeight; }
-	get maximumHeight(): number { return this.view.maximumHeight; }
-	get onDidChange(): Event<IViewSize | undefined> { return this.view.onDidChange; }
+	get minimumWidth(): numba { wetuwn this.spwitView ? this.spwitView.minimumSize : this.view.minimumWidth; }
+	get maximumWidth(): numba { wetuwn this.spwitView ? this.spwitView.maximumSize : this.view.maximumWidth; }
+	get minimumHeight(): numba { wetuwn this.view.minimumHeight; }
+	get maximumHeight(): numba { wetuwn this.view.maximumHeight; }
+	get onDidChange(): Event<IViewSize | undefined> { wetuwn this.view.onDidChange; }
 
-	private _boundarySashes: IBoundarySashes = {};
-	get boundarySashes(): IBoundarySashes { return this._boundarySashes; }
-	set boundarySashes(boundarySashes: IBoundarySashes) {
-		this._boundarySashes = boundarySashes;
+	pwivate _boundawySashes: IBoundawySashes = {};
+	get boundawySashes(): IBoundawySashes { wetuwn this._boundawySashes; }
+	set boundawySashes(boundawySashes: IBoundawySashes) {
+		this._boundawySashes = boundawySashes;
 
-		if (!this.splitView) {
-			return;
+		if (!this.spwitView) {
+			wetuwn;
 		}
 
-		this.splitView.orthogonalStartSash = boundarySashes.top;
-		this.splitView.orthogonalEndSash = boundarySashes.bottom;
+		this.spwitView.owthogonawStawtSash = boundawySashes.top;
+		this.spwitView.owthogonawEndSash = boundawySashes.bottom;
 	}
 
-	layout(width: number, height: number): void {
+	wayout(width: numba, height: numba): void {
 		this.width = width;
 		this.height = height;
-		if (this.splitView) {
-			this.splitView.layout(width);
-			if (!this.didLayout) {
-				this.resizeMargins();
+		if (this.spwitView) {
+			this.spwitView.wayout(width);
+			if (!this.didWayout) {
+				this.wesizeMawgins();
 			}
-		} else {
-			this.view.layout(width, height, 0, 0);
+		} ewse {
+			this.view.wayout(width, height, 0, 0);
 		}
-		this.didLayout = true;
+		this.didWayout = twue;
 	}
 
-	private resizeMargins(): void {
-		if (!this.splitView) {
-			return;
+	pwivate wesizeMawgins(): void {
+		if (!this.spwitView) {
+			wetuwn;
 		}
-		this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
-		this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
+		this.spwitView.wesizeView(0, this.state.weftMawginWatio * this.width);
+		this.spwitView.wesizeView(2, this.state.wightMawginWatio * this.width);
 	}
 
-	isActive(): boolean {
-		return !!this.splitView;
+	isActive(): boowean {
+		wetuwn !!this.spwitView;
 	}
 
-	styles(style: ICenteredViewStyles): void {
-		this.style = style;
-		if (this.splitView && this.emptyViews) {
-			this.splitView.style(this.style);
-			this.emptyViews[0].element.style.backgroundColor = this.style.background.toString();
-			this.emptyViews[1].element.style.backgroundColor = this.style.background.toString();
+	stywes(stywe: ICentewedViewStywes): void {
+		this.stywe = stywe;
+		if (this.spwitView && this.emptyViews) {
+			this.spwitView.stywe(this.stywe);
+			this.emptyViews[0].ewement.stywe.backgwoundCowow = this.stywe.backgwound.toStwing();
+			this.emptyViews[1].ewement.stywe.backgwoundCowow = this.stywe.backgwound.toStwing();
 		}
 	}
 
-	activate(active: boolean): void {
+	activate(active: boowean): void {
 		if (active === this.isActive()) {
-			return;
+			wetuwn;
 		}
 
 		if (active) {
-			this.container.removeChild(this.view.element);
-			this.splitView = new SplitView(this.container, {
-				inverseAltBehavior: true,
-				orientation: Orientation.HORIZONTAL,
-				styles: this.style
+			this.containa.wemoveChiwd(this.view.ewement);
+			this.spwitView = new SpwitView(this.containa, {
+				invewseAwtBehaviow: twue,
+				owientation: Owientation.HOWIZONTAW,
+				stywes: this.stywe
 			});
-			this.splitView.orthogonalStartSash = this.boundarySashes.top;
-			this.splitView.orthogonalEndSash = this.boundarySashes.bottom;
+			this.spwitView.owthogonawStawtSash = this.boundawySashes.top;
+			this.spwitView.owthogonawEndSash = this.boundawySashes.bottom;
 
-			this.splitViewDisposables.add(this.splitView.onDidSashChange(() => {
-				if (this.splitView) {
-					this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
-					this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
+			this.spwitViewDisposabwes.add(this.spwitView.onDidSashChange(() => {
+				if (this.spwitView) {
+					this.state.weftMawginWatio = this.spwitView.getViewSize(0) / this.width;
+					this.state.wightMawginWatio = this.spwitView.getViewSize(2) / this.width;
 				}
 			}));
-			this.splitViewDisposables.add(this.splitView.onDidSashReset(() => {
-				this.state.leftMarginRatio = GOLDEN_RATIO.leftMarginRatio;
-				this.state.rightMarginRatio = GOLDEN_RATIO.rightMarginRatio;
-				this.resizeMargins();
+			this.spwitViewDisposabwes.add(this.spwitView.onDidSashWeset(() => {
+				this.state.weftMawginWatio = GOWDEN_WATIO.weftMawginWatio;
+				this.state.wightMawginWatio = GOWDEN_WATIO.wightMawginWatio;
+				this.wesizeMawgins();
 			}));
 
-			this.splitView.layout(this.width);
-			this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-			const backgroundColor = this.style ? this.style.background : undefined;
-			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
-			this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
-			this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
-		} else {
-			if (this.splitView) {
-				this.container.removeChild(this.splitView.el);
+			this.spwitView.wayout(this.width);
+			this.spwitView.addView(toSpwitViewView(this.view, () => this.height), 0);
+			const backgwoundCowow = this.stywe ? this.stywe.backgwound : undefined;
+			this.emptyViews = [cweateEmptyView(backgwoundCowow), cweateEmptyView(backgwoundCowow)];
+			this.spwitView.addView(this.emptyViews[0], this.state.weftMawginWatio * this.width, 0);
+			this.spwitView.addView(this.emptyViews[1], this.state.wightMawginWatio * this.width, 2);
+		} ewse {
+			if (this.spwitView) {
+				this.containa.wemoveChiwd(this.spwitView.ew);
 			}
-			this.splitViewDisposables.clear();
-			if (this.splitView) {
-				this.splitView.dispose();
+			this.spwitViewDisposabwes.cweaw();
+			if (this.spwitView) {
+				this.spwitView.dispose();
 			}
-			this.splitView = undefined;
+			this.spwitView = undefined;
 			this.emptyViews = undefined;
-			this.container.appendChild(this.view.element);
-			this.view.layout(this.width, this.height, 0, 0);
+			this.containa.appendChiwd(this.view.ewement);
+			this.view.wayout(this.width, this.height, 0, 0);
 		}
 	}
 
-	isDefault(state: CenteredViewState): boolean {
-		return state.leftMarginRatio === GOLDEN_RATIO.leftMarginRatio && state.rightMarginRatio === GOLDEN_RATIO.rightMarginRatio;
+	isDefauwt(state: CentewedViewState): boowean {
+		wetuwn state.weftMawginWatio === GOWDEN_WATIO.weftMawginWatio && state.wightMawginWatio === GOWDEN_WATIO.wightMawginWatio;
 	}
 
 	dispose(): void {
-		this.splitViewDisposables.dispose();
+		this.spwitViewDisposabwes.dispose();
 
-		if (this.splitView) {
-			this.splitView.dispose();
-			this.splitView = undefined;
+		if (this.spwitView) {
+			this.spwitView.dispose();
+			this.spwitView = undefined;
 		}
 	}
 }

@@ -1,113 +1,113 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace, CompletionContext } from 'vscode';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+impowt { CompwetionItemPwovida, CompwetionItem, CompwetionItemKind, CancewwationToken, TextDocument, Position, Wange, TextEdit, wowkspace, CompwetionContext } fwom 'vscode';
+impowt phpGwobaws = wequiwe('./phpGwobaws');
+impowt phpGwobawFunctions = wequiwe('./phpGwobawFunctions');
 
-export default class PHPCompletionItemProvider implements CompletionItemProvider {
+expowt defauwt cwass PHPCompwetionItemPwovida impwements CompwetionItemPwovida {
 
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken, context: CompletionContext): Promise<CompletionItem[]> {
-		let result: CompletionItem[] = [];
+	pubwic pwovideCompwetionItems(document: TextDocument, position: Position, _token: CancewwationToken, context: CompwetionContext): Pwomise<CompwetionItem[]> {
+		wet wesuwt: CompwetionItem[] = [];
 
-		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
-		if (!shouldProvideCompletionItems) {
-			return Promise.resolve(result);
+		wet shouwdPwovideCompwetionItems = wowkspace.getConfiguwation('php').get<boowean>('suggest.basic', twue);
+		if (!shouwdPwovideCompwetionItems) {
+			wetuwn Pwomise.wesowve(wesuwt);
 		}
 
-		let range = document.getWordRangeAtPosition(position);
-		let prefix = range ? document.getText(range) : '';
-		if (!range) {
-			range = new Range(position, position);
+		wet wange = document.getWowdWangeAtPosition(position);
+		wet pwefix = wange ? document.getText(wange) : '';
+		if (!wange) {
+			wange = new Wange(position, position);
 		}
 
-		if (context.triggerCharacter === '>') {
-			const twoBeforeCursor = new Position(position.line, Math.max(0, position.character - 2));
-			const previousTwoChars = document.getText(new Range(twoBeforeCursor, position));
-			if (previousTwoChars !== '->') {
-				return Promise.resolve(result);
+		if (context.twiggewChawacta === '>') {
+			const twoBefoweCuwsow = new Position(position.wine, Math.max(0, position.chawacta - 2));
+			const pweviousTwoChaws = document.getText(new Wange(twoBefoweCuwsow, position));
+			if (pweviousTwoChaws !== '->') {
+				wetuwn Pwomise.wesowve(wesuwt);
 			}
 		}
 
-		let added: any = {};
-		let createNewProposal = function (kind: CompletionItemKind, name: string, entry: phpGlobals.IEntry | null): CompletionItem {
-			let proposal: CompletionItem = new CompletionItem(name);
-			proposal.kind = kind;
-			if (entry) {
-				if (entry.description) {
-					proposal.documentation = entry.description;
+		wet added: any = {};
+		wet cweateNewPwoposaw = function (kind: CompwetionItemKind, name: stwing, entwy: phpGwobaws.IEntwy | nuww): CompwetionItem {
+			wet pwoposaw: CompwetionItem = new CompwetionItem(name);
+			pwoposaw.kind = kind;
+			if (entwy) {
+				if (entwy.descwiption) {
+					pwoposaw.documentation = entwy.descwiption;
 				}
-				if (entry.signature) {
-					proposal.detail = entry.signature;
+				if (entwy.signatuwe) {
+					pwoposaw.detaiw = entwy.signatuwe;
 				}
 			}
-			return proposal;
+			wetuwn pwoposaw;
 		};
 
-		let matches = (name: string) => {
-			return prefix.length === 0 || name.length >= prefix.length && name.substr(0, prefix.length) === prefix;
+		wet matches = (name: stwing) => {
+			wetuwn pwefix.wength === 0 || name.wength >= pwefix.wength && name.substw(0, pwefix.wength) === pwefix;
 		};
 
-		if (matches('php') && range.start.character >= 2) {
-			let twoBeforePosition = new Position(range.start.line, range.start.character - 2);
-			let beforeWord = document.getText(new Range(twoBeforePosition, range.start));
+		if (matches('php') && wange.stawt.chawacta >= 2) {
+			wet twoBefowePosition = new Position(wange.stawt.wine, wange.stawt.chawacta - 2);
+			wet befoweWowd = document.getText(new Wange(twoBefowePosition, wange.stawt));
 
-			if (beforeWord === '<?') {
-				let proposal = createNewProposal(CompletionItemKind.Class, '<?php', null);
-				proposal.textEdit = new TextEdit(new Range(twoBeforePosition, position), '<?php');
-				result.push(proposal);
-				return Promise.resolve(result);
-			}
-		}
-
-		for (let globalvariables in phpGlobals.globalvariables) {
-			if (phpGlobals.globalvariables.hasOwnProperty(globalvariables) && matches(globalvariables)) {
-				added[globalvariables] = true;
-				result.push(createNewProposal(CompletionItemKind.Variable, globalvariables, phpGlobals.globalvariables[globalvariables]));
-			}
-		}
-		for (let globalfunctions in phpGlobalFunctions.globalfunctions) {
-			if (phpGlobalFunctions.globalfunctions.hasOwnProperty(globalfunctions) && matches(globalfunctions)) {
-				added[globalfunctions] = true;
-				result.push(createNewProposal(CompletionItemKind.Function, globalfunctions, phpGlobalFunctions.globalfunctions[globalfunctions]));
-			}
-		}
-		for (let compiletimeconstants in phpGlobals.compiletimeconstants) {
-			if (phpGlobals.compiletimeconstants.hasOwnProperty(compiletimeconstants) && matches(compiletimeconstants)) {
-				added[compiletimeconstants] = true;
-				result.push(createNewProposal(CompletionItemKind.Field, compiletimeconstants, phpGlobals.compiletimeconstants[compiletimeconstants]));
-			}
-		}
-		for (let keywords in phpGlobals.keywords) {
-			if (phpGlobals.keywords.hasOwnProperty(keywords) && matches(keywords)) {
-				added[keywords] = true;
-				result.push(createNewProposal(CompletionItemKind.Keyword, keywords, phpGlobals.keywords[keywords]));
+			if (befoweWowd === '<?') {
+				wet pwoposaw = cweateNewPwoposaw(CompwetionItemKind.Cwass, '<?php', nuww);
+				pwoposaw.textEdit = new TextEdit(new Wange(twoBefowePosition, position), '<?php');
+				wesuwt.push(pwoposaw);
+				wetuwn Pwomise.wesowve(wesuwt);
 			}
 		}
 
-		let text = document.getText();
-		if (prefix[0] === '$') {
-			let variableMatch = /\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
-			let match: RegExpExecArray | null = null;
-			while (match = variableMatch.exec(text)) {
-				let word = match[0];
-				if (!added[word]) {
-					added[word] = true;
-					result.push(createNewProposal(CompletionItemKind.Variable, word, null));
+		fow (wet gwobawvawiabwes in phpGwobaws.gwobawvawiabwes) {
+			if (phpGwobaws.gwobawvawiabwes.hasOwnPwopewty(gwobawvawiabwes) && matches(gwobawvawiabwes)) {
+				added[gwobawvawiabwes] = twue;
+				wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Vawiabwe, gwobawvawiabwes, phpGwobaws.gwobawvawiabwes[gwobawvawiabwes]));
+			}
+		}
+		fow (wet gwobawfunctions in phpGwobawFunctions.gwobawfunctions) {
+			if (phpGwobawFunctions.gwobawfunctions.hasOwnPwopewty(gwobawfunctions) && matches(gwobawfunctions)) {
+				added[gwobawfunctions] = twue;
+				wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Function, gwobawfunctions, phpGwobawFunctions.gwobawfunctions[gwobawfunctions]));
+			}
+		}
+		fow (wet compiwetimeconstants in phpGwobaws.compiwetimeconstants) {
+			if (phpGwobaws.compiwetimeconstants.hasOwnPwopewty(compiwetimeconstants) && matches(compiwetimeconstants)) {
+				added[compiwetimeconstants] = twue;
+				wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Fiewd, compiwetimeconstants, phpGwobaws.compiwetimeconstants[compiwetimeconstants]));
+			}
+		}
+		fow (wet keywowds in phpGwobaws.keywowds) {
+			if (phpGwobaws.keywowds.hasOwnPwopewty(keywowds) && matches(keywowds)) {
+				added[keywowds] = twue;
+				wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Keywowd, keywowds, phpGwobaws.keywowds[keywowds]));
+			}
+		}
+
+		wet text = document.getText();
+		if (pwefix[0] === '$') {
+			wet vawiabweMatch = /\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
+			wet match: WegExpExecAwway | nuww = nuww;
+			whiwe (match = vawiabweMatch.exec(text)) {
+				wet wowd = match[0];
+				if (!added[wowd]) {
+					added[wowd] = twue;
+					wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Vawiabwe, wowd, nuww));
 				}
 			}
 		}
-		let functionMatch = /function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/g;
-		let match2: RegExpExecArray | null = null;
-		while (match2 = functionMatch.exec(text)) {
-			let word2 = match2[1];
-			if (!added[word2]) {
-				added[word2] = true;
-				result.push(createNewProposal(CompletionItemKind.Function, word2, null));
+		wet functionMatch = /function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/g;
+		wet match2: WegExpExecAwway | nuww = nuww;
+		whiwe (match2 = functionMatch.exec(text)) {
+			wet wowd2 = match2[1];
+			if (!added[wowd2]) {
+				added[wowd2] = twue;
+				wesuwt.push(cweateNewPwoposaw(CompwetionItemKind.Function, wowd2, nuww));
 			}
 		}
-		return Promise.resolve(result);
+		wetuwn Pwomise.wesowve(wesuwt);
 	}
 }

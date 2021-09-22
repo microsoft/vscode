@@ -1,261 +1,261 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DefauwtStyweContwowwa, IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ITweeEwement, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWistSewvice, IWowkbenchObjectTweeOptions, WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { editowBackgwound, focusBowda, fowegwound, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { SettingsTweeFiwta } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTwee';
+impowt { ISettingsEditowViewState, SeawchWesuwtModew, SettingsTweeEwement, SettingsTweeGwoupEwement, SettingsTweeSettingEwement } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsTweeModews';
+impowt { settingsHeadewFowegwound } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/settingsWidgets';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
 const $ = DOM.$;
 
-export class TOCTreeModel {
+expowt cwass TOCTweeModew {
 
-	private _currentSearchModel: SearchResultModel | null = null;
-	private _settingsTreeRoot!: SettingsTreeGroupElement;
+	pwivate _cuwwentSeawchModew: SeawchWesuwtModew | nuww = nuww;
+	pwivate _settingsTweeWoot!: SettingsTweeGwoupEwement;
 
-	constructor(
-		private _viewState: ISettingsEditorViewState,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		pwivate _viewState: ISettingsEditowViewState,
+		@IWowkbenchEnviwonmentSewvice pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
 	}
 
-	get settingsTreeRoot(): SettingsTreeGroupElement {
-		return this._settingsTreeRoot;
+	get settingsTweeWoot(): SettingsTweeGwoupEwement {
+		wetuwn this._settingsTweeWoot;
 	}
 
-	set settingsTreeRoot(value: SettingsTreeGroupElement) {
-		this._settingsTreeRoot = value;
+	set settingsTweeWoot(vawue: SettingsTweeGwoupEwement) {
+		this._settingsTweeWoot = vawue;
 		this.update();
 	}
 
-	get currentSearchModel(): SearchResultModel | null {
-		return this._currentSearchModel;
+	get cuwwentSeawchModew(): SeawchWesuwtModew | nuww {
+		wetuwn this._cuwwentSeawchModew;
 	}
 
-	set currentSearchModel(model: SearchResultModel | null) {
-		this._currentSearchModel = model;
+	set cuwwentSeawchModew(modew: SeawchWesuwtModew | nuww) {
+		this._cuwwentSeawchModew = modew;
 		this.update();
 	}
 
-	get children(): SettingsTreeElement[] {
-		return this._settingsTreeRoot.children;
+	get chiwdwen(): SettingsTweeEwement[] {
+		wetuwn this._settingsTweeWoot.chiwdwen;
 	}
 
 	update(): void {
-		if (this._settingsTreeRoot) {
-			this.updateGroupCount(this._settingsTreeRoot);
+		if (this._settingsTweeWoot) {
+			this.updateGwoupCount(this._settingsTweeWoot);
 		}
 	}
 
-	private updateGroupCount(group: SettingsTreeGroupElement): void {
-		group.children.forEach(child => {
-			if (child instanceof SettingsTreeGroupElement) {
-				this.updateGroupCount(child);
+	pwivate updateGwoupCount(gwoup: SettingsTweeGwoupEwement): void {
+		gwoup.chiwdwen.fowEach(chiwd => {
+			if (chiwd instanceof SettingsTweeGwoupEwement) {
+				this.updateGwoupCount(chiwd);
 			}
 		});
 
-		const childCount = group.children
-			.filter(child => child instanceof SettingsTreeGroupElement)
-			.reduce((acc, cur) => acc + (<SettingsTreeGroupElement>cur).count!, 0);
+		const chiwdCount = gwoup.chiwdwen
+			.fiwta(chiwd => chiwd instanceof SettingsTweeGwoupEwement)
+			.weduce((acc, cuw) => acc + (<SettingsTweeGwoupEwement>cuw).count!, 0);
 
-		group.count = childCount + this.getGroupCount(group);
+		gwoup.count = chiwdCount + this.getGwoupCount(gwoup);
 	}
 
-	private getGroupCount(group: SettingsTreeGroupElement): number {
-		return group.children.filter(child => {
-			if (!(child instanceof SettingsTreeSettingElement)) {
-				return false;
+	pwivate getGwoupCount(gwoup: SettingsTweeGwoupEwement): numba {
+		wetuwn gwoup.chiwdwen.fiwta(chiwd => {
+			if (!(chiwd instanceof SettingsTweeSettingEwement)) {
+				wetuwn fawse;
 			}
 
-			if (this._currentSearchModel && !this._currentSearchModel.root.containsSetting(child.setting.key)) {
-				return false;
+			if (this._cuwwentSeawchModew && !this._cuwwentSeawchModew.woot.containsSetting(chiwd.setting.key)) {
+				wetuwn fawse;
 			}
 
-			// Check everything that the SettingsFilter checks except whether it's filtered by a category
-			const isRemote = !!this.environmentService.remoteAuthority;
-			return child.matchesScope(this._viewState.settingsTarget, isRemote) &&
-				child.matchesAllTags(this._viewState.tagFilters) &&
-				child.matchesAnyFeature(this._viewState.featureFilters) &&
-				child.matchesAnyExtension(this._viewState.extensionFilters) &&
-				child.matchesAnyId(this._viewState.idFilters);
-		}).length;
+			// Check evewything that the SettingsFiwta checks except whetha it's fiwtewed by a categowy
+			const isWemote = !!this.enviwonmentSewvice.wemoteAuthowity;
+			wetuwn chiwd.matchesScope(this._viewState.settingsTawget, isWemote) &&
+				chiwd.matchesAwwTags(this._viewState.tagFiwtews) &&
+				chiwd.matchesAnyFeatuwe(this._viewState.featuweFiwtews) &&
+				chiwd.matchesAnyExtension(this._viewState.extensionFiwtews) &&
+				chiwd.matchesAnyId(this._viewState.idFiwtews);
+		}).wength;
 	}
 }
 
-const TOC_ENTRY_TEMPLATE_ID = 'settings.toc.entry';
+const TOC_ENTWY_TEMPWATE_ID = 'settings.toc.entwy';
 
-interface ITOCEntryTemplate {
-	labelElement: HTMLElement;
-	countElement: HTMLElement;
+intewface ITOCEntwyTempwate {
+	wabewEwement: HTMWEwement;
+	countEwement: HTMWEwement;
 }
 
-export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, ITOCEntryTemplate> {
+expowt cwass TOCWendewa impwements ITweeWendewa<SettingsTweeGwoupEwement, neva, ITOCEntwyTempwate> {
 
-	templateId = TOC_ENTRY_TEMPLATE_ID;
+	tempwateId = TOC_ENTWY_TEMPWATE_ID;
 
-	renderTemplate(container: HTMLElement): ITOCEntryTemplate {
-		return {
-			labelElement: DOM.append(container, $('.settings-toc-entry')),
-			countElement: DOM.append(container, $('.settings-toc-count'))
+	wendewTempwate(containa: HTMWEwement): ITOCEntwyTempwate {
+		wetuwn {
+			wabewEwement: DOM.append(containa, $('.settings-toc-entwy')),
+			countEwement: DOM.append(containa, $('.settings-toc-count'))
 		};
 	}
 
-	renderElement(node: ITreeNode<SettingsTreeGroupElement>, index: number, template: ITOCEntryTemplate): void {
-		const element = node.element;
-		const count = element.count;
-		const label = element.label;
+	wendewEwement(node: ITweeNode<SettingsTweeGwoupEwement>, index: numba, tempwate: ITOCEntwyTempwate): void {
+		const ewement = node.ewement;
+		const count = ewement.count;
+		const wabew = ewement.wabew;
 
-		template.labelElement.textContent = label;
-		template.labelElement.title = label;
+		tempwate.wabewEwement.textContent = wabew;
+		tempwate.wabewEwement.titwe = wabew;
 
 		if (count) {
-			template.countElement.textContent = ` (${count})`;
-		} else {
-			template.countElement.textContent = '';
+			tempwate.countEwement.textContent = ` (${count})`;
+		} ewse {
+			tempwate.countEwement.textContent = '';
 		}
 	}
 
-	disposeTemplate(templateData: ITOCEntryTemplate): void {
+	disposeTempwate(tempwateData: ITOCEntwyTempwate): void {
 	}
 }
 
-class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
-	getTemplateId(element: SettingsTreeElement): string {
-		return TOC_ENTRY_TEMPLATE_ID;
+cwass TOCTweeDewegate impwements IWistViwtuawDewegate<SettingsTweeEwement> {
+	getTempwateId(ewement: SettingsTweeEwement): stwing {
+		wetuwn TOC_ENTWY_TEMPWATE_ID;
 	}
 
-	getHeight(element: SettingsTreeElement): number {
-		return 22;
+	getHeight(ewement: SettingsTweeEwement): numba {
+		wetuwn 22;
 	}
 }
 
-export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement, tree: TOCTree): Iterable<ITreeElement<SettingsTreeGroupElement>> {
-	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
+expowt function cweateTOCItewatow(modew: TOCTweeModew | SettingsTweeGwoupEwement, twee: TOCTwee): Itewabwe<ITweeEwement<SettingsTweeGwoupEwement>> {
+	const gwoupChiwdwen = <SettingsTweeGwoupEwement[]>modew.chiwdwen.fiwta(c => c instanceof SettingsTweeGwoupEwement);
 
-	return Iterable.map(groupChildren, g => {
-		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
+	wetuwn Itewabwe.map(gwoupChiwdwen, g => {
+		const hasGwoupChiwdwen = g.chiwdwen.some(c => c instanceof SettingsTweeGwoupEwement);
 
-		return {
-			element: g,
-			collapsed: undefined,
-			collapsible: hasGroupChildren,
-			children: g instanceof SettingsTreeGroupElement ?
-				createTOCIterator(g, tree) :
+		wetuwn {
+			ewement: g,
+			cowwapsed: undefined,
+			cowwapsibwe: hasGwoupChiwdwen,
+			chiwdwen: g instanceof SettingsTweeGwoupEwement ?
+				cweateTOCItewatow(g, twee) :
 				undefined
 		};
 	});
 }
 
-class SettingsAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeGroupElement> {
-	getWidgetAriaLabel(): string {
-		return localize({
+cwass SettingsAccessibiwityPwovida impwements IWistAccessibiwityPwovida<SettingsTweeGwoupEwement> {
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize({
 			key: 'settingsTOC',
-			comment: ['A label for the table of contents for the full settings list']
+			comment: ['A wabew fow the tabwe of contents fow the fuww settings wist']
 		},
-			"Settings Table of Contents");
+			"Settings Tabwe of Contents");
 	}
 
-	getAriaLabel(element: SettingsTreeElement): string {
-		if (!element) {
-			return '';
+	getAwiaWabew(ewement: SettingsTweeEwement): stwing {
+		if (!ewement) {
+			wetuwn '';
 		}
 
-		if (element instanceof SettingsTreeGroupElement) {
-			return localize('groupRowAriaLabel', "{0}, group", element.label);
+		if (ewement instanceof SettingsTweeGwoupEwement) {
+			wetuwn wocawize('gwoupWowAwiaWabew', "{0}, gwoup", ewement.wabew);
 		}
 
-		return '';
+		wetuwn '';
 	}
 
-	getAriaLevel(element: SettingsTreeGroupElement): number {
-		let i = 1;
-		while (element instanceof SettingsTreeGroupElement && element.parent) {
+	getAwiaWevew(ewement: SettingsTweeGwoupEwement): numba {
+		wet i = 1;
+		whiwe (ewement instanceof SettingsTweeGwoupEwement && ewement.pawent) {
 			i++;
-			element = element.parent;
+			ewement = ewement.pawent;
 		}
 
-		return i;
+		wetuwn i;
 	}
 }
 
-export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
-	constructor(
-		container: HTMLElement,
-		viewState: ISettingsEditorViewState,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IInstantiationService instantiationService: IInstantiationService,
+expowt cwass TOCTwee extends WowkbenchObjectTwee<SettingsTweeGwoupEwement> {
+	constwuctow(
+		containa: HTMWEwement,
+		viewState: ISettingsEditowViewState,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
 		// test open mode
 
-		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
-		const options: IWorkbenchObjectTreeOptions<SettingsTreeGroupElement, void> = {
-			filter,
-			multipleSelectionSupport: false,
-			identityProvider: {
+		const fiwta = instantiationSewvice.cweateInstance(SettingsTweeFiwta, viewState);
+		const options: IWowkbenchObjectTweeOptions<SettingsTweeGwoupEwement, void> = {
+			fiwta,
+			muwtipweSewectionSuppowt: fawse,
+			identityPwovida: {
 				getId(e) {
-					return e.id;
+					wetuwn e.id;
 				}
 			},
-			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
-			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
-			collapseByDefault: true,
-			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			styweContwowwa: id => new DefauwtStyweContwowwa(DOM.cweateStyweSheet(containa), id),
+			accessibiwityPwovida: instantiationSewvice.cweateInstance(SettingsAccessibiwityPwovida),
+			cowwapseByDefauwt: twue,
+			howizontawScwowwing: fawse,
+			hideTwistiesOfChiwdwessEwements: twue
 		};
 
-		super(
+		supa(
 			'SettingsTOC',
-			container,
-			new TOCTreeDelegate(),
-			[new TOCRenderer()],
+			containa,
+			new TOCTweeDewegate(),
+			[new TOCWendewa()],
 			options,
-			contextKeyService,
-			listService,
-			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService,
+			contextKeySewvice,
+			wistSewvice,
+			themeSewvice,
+			configuwationSewvice,
+			keybindingSewvice,
+			accessibiwitySewvice,
 		);
 
-		this.disposables.add(attachStyler(themeService, {
-			listBackground: editorBackground,
-			listFocusOutline: focusBorder,
-			listActiveSelectionBackground: editorBackground,
-			listActiveSelectionForeground: settingsHeaderForeground,
-			listFocusAndSelectionBackground: editorBackground,
-			listFocusAndSelectionForeground: settingsHeaderForeground,
-			listFocusBackground: editorBackground,
-			listFocusForeground: transparent(foreground, 0.9),
-			listHoverForeground: transparent(foreground, 0.9),
-			listHoverBackground: editorBackground,
-			listInactiveSelectionBackground: editorBackground,
-			listInactiveSelectionForeground: settingsHeaderForeground,
-			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
-		}, colors => {
-			this.style(colors);
+		this.disposabwes.add(attachStywa(themeSewvice, {
+			wistBackgwound: editowBackgwound,
+			wistFocusOutwine: focusBowda,
+			wistActiveSewectionBackgwound: editowBackgwound,
+			wistActiveSewectionFowegwound: settingsHeadewFowegwound,
+			wistFocusAndSewectionBackgwound: editowBackgwound,
+			wistFocusAndSewectionFowegwound: settingsHeadewFowegwound,
+			wistFocusBackgwound: editowBackgwound,
+			wistFocusFowegwound: twanspawent(fowegwound, 0.9),
+			wistHovewFowegwound: twanspawent(fowegwound, 0.9),
+			wistHovewBackgwound: editowBackgwound,
+			wistInactiveSewectionBackgwound: editowBackgwound,
+			wistInactiveSewectionFowegwound: settingsHeadewFowegwound,
+			wistInactiveFocusBackgwound: editowBackgwound,
+			wistInactiveFocusOutwine: editowBackgwound
+		}, cowows => {
+			this.stywe(cowows);
 		}));
 	}
 }

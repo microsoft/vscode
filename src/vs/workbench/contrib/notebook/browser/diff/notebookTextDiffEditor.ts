@@ -1,1010 +1,1010 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { cellEditorBackground, getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { URI } from 'vs/base/common/uri';
-import { IDiffChange, IDiffResult } from 'vs/base/common/diff/diff';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { SequencerByKey } from 'vs/base/common/async';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { BackLayerWebView, INotebookDelegateForWebview } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { readFontInfo } from 'vs/editor/browser/config/configuration';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt * as nws fwom 'vs/nws';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { cewwEditowBackgwound, getDefauwtNotebookCweationOptions, notebookCewwBowda, NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { NotebookDiffEditowInput } fwom '../notebookDiffEditowInput';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DiffEwementViewModewBase, SideBySideDiffEwementViewModew, SingweSideDiffEwementViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CewwDiffSideBySideWendewa, CewwDiffSingweSideWendewa, NotebookCewwTextDiffWistDewegate, NotebookTextDiffWist } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookTextDiffWist';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { diffDiagonawFiww, diffInsewted, diffWemoved, editowBackgwound, focusBowda, fowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { INotebookEditowWowkewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookWowkewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo, FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { getPixewWatio, getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { CewwEditState, ICewwOutputViewModew, IDispwayOutputWayoutUpdateWequest, IGenewicCewwViewModew, IInsetWendewOutput, INotebookEditowCweationOptions, INotebookEditowOptions, NotebookWayoutInfo, NOTEBOOK_DIFF_EDITOW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { DiffSide, DIFF_CEWW_MAWGIN, IDiffCewwInfo, INotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { CewwUwi, INotebookDiffEditowModew, INotebookDiffWesuwt } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDiffChange, IDiffWesuwt } fwom 'vs/base/common/diff/diff';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { OutputWendewa } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/output/outputWendewa';
+impowt { SequencewByKey } fwom 'vs/base/common/async';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IMouseWheewEvent, StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { DiffNestedCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffNestedCewwViewModew';
+impowt { BackWayewWebView, INotebookDewegateFowWebview } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/backWayewWebView';
+impowt { NotebookDiffEditowEventDispatcha, NotebookDiffWayoutChangedEvent } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/eventDispatcha';
+impowt { weadFontInfo } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
 const $ = DOM.$;
 
-export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor, INotebookDelegateForWebview {
-	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
-	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
+expowt cwass NotebookTextDiffEditow extends EditowPane impwements INotebookTextDiffEditow, INotebookDewegateFowWebview {
+	cweationOptions: INotebookEditowCweationOptions = getDefauwtNotebookCweationOptions();
+	static weadonwy ID: stwing = NOTEBOOK_DIFF_EDITOW_ID;
 
-	private _rootElement!: HTMLElement;
-	private _overflowContainer!: HTMLElement;
-	private _dimension: DOM.Dimension | null = null;
-	private _diffElementViewModels: DiffElementViewModelBase[] = [];
-	private _list!: NotebookTextDiffList;
-	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
-	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
-	private _webviewTransparentCover: HTMLElement | null = null;
-	private _fontInfo: FontInfo | undefined;
+	pwivate _wootEwement!: HTMWEwement;
+	pwivate _ovewfwowContaina!: HTMWEwement;
+	pwivate _dimension: DOM.Dimension | nuww = nuww;
+	pwivate _diffEwementViewModews: DiffEwementViewModewBase[] = [];
+	pwivate _wist!: NotebookTextDiffWist;
+	pwivate _modifiedWebview: BackWayewWebView<IDiffCewwInfo> | nuww = nuww;
+	pwivate _owiginawWebview: BackWayewWebView<IDiffCewwInfo> | nuww = nuww;
+	pwivate _webviewTwanspawentCova: HTMWEwement | nuww = nuww;
+	pwivate _fontInfo: FontInfo | undefined;
 
-	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>());
-	public readonly onMouseUp = this._onMouseUp.event;
-	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
-	protected _scopeContextKeyService!: IContextKeyService;
-	private _model: INotebookDiffEditorModel | null = null;
-	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
-	private _outputRenderer: OutputRenderer;
+	pwivate weadonwy _onMouseUp = this._wegista(new Emitta<{ weadonwy event: MouseEvent; weadonwy tawget: DiffEwementViewModewBase; }>());
+	pubwic weadonwy onMouseUp = this._onMouseUp.event;
+	pwivate _eventDispatcha: NotebookDiffEditowEventDispatcha | undefined;
+	pwotected _scopeContextKeySewvice!: IContextKeySewvice;
+	pwivate _modew: INotebookDiffEditowModew | nuww = nuww;
+	pwivate weadonwy _modifiedWesouwceDisposabweStowe = this._wegista(new DisposabweStowe());
+	pwivate _outputWendewa: OutputWendewa;
 
-	get textModel() {
-		return this._model?.modified.notebook;
+	get textModew() {
+		wetuwn this._modew?.modified.notebook;
 	}
 
-	private _revealFirst: boolean;
-	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
+	pwivate _weveawFiwst: boowean;
+	pwivate weadonwy _insetModifyQueueByOutputId = new SequencewByKey<stwing>();
 
-	protected _onDidDynamicOutputRendered = this._register(new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel; }>());
-	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
+	pwotected _onDidDynamicOutputWendewed = this._wegista(new Emitta<{ ceww: IGenewicCewwViewModew, output: ICewwOutputViewModew; }>());
+	onDidDynamicOutputWendewed = this._onDidDynamicOutputWendewed.event;
 
-	private _notebookOptions: NotebookOptions;
+	pwivate _notebookOptions: NotebookOptions;
 
 	get notebookOptions() {
-		return this._notebookOptions;
+		wetuwn this._notebookOptions;
 	}
 
-	private readonly _localStore = this._register(new DisposableStore());
+	pwivate weadonwy _wocawStowe = this._wegista(new DisposabweStowe());
 
-	private _isDisposed: boolean = false;
+	pwivate _isDisposed: boowean = fawse;
 
 	get isDisposed() {
-		return this._isDisposed;
+		wetuwn this._isDisposed;
 	}
 
-	constructor(
-		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
+	constwuctow(
+		@IInstantiationSewvice weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextKeySewvice weadonwy contextKeySewvice: IContextKeySewvice,
+		@INotebookEditowWowkewSewvice weadonwy notebookEditowWowkewSewvice: INotebookEditowWowkewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
 	) {
-		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService);
-		this._register(this._notebookOptions);
-		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
-		this._revealFirst = true;
-		this._outputRenderer = this.instantiationService.createInstance(OutputRenderer, this);
+		supa(NotebookTextDiffEditow.ID, tewemetwySewvice, themeSewvice, stowageSewvice);
+		this._notebookOptions = new NotebookOptions(this.configuwationSewvice);
+		this._wegista(this._notebookOptions);
+		const editowOptions = this.configuwationSewvice.getVawue<ICodeEditowOptions>('editow');
+		this._fontInfo = weadFontInfo(BaweFontInfo.cweateFwomWawSettings(editowOptions, getZoomWevew(), getPixewWatio()));
+		this._weveawFiwst = twue;
+		this._outputWendewa = this.instantiationSewvice.cweateInstance(OutputWendewa, this);
 	}
 
-	toggleNotebookCellSelection(cell: IGenericCellViewModel) {
-		// throw new Error('Method not implemented.');
+	toggweNotebookCewwSewection(ceww: IGenewicCewwViewModew) {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
-		// throw new Error('Method not implemented.');
+	focusNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'output' | 'editow' | 'containa'): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
-		// throw new Error('Method not implemented.');
+	focusNextNotebookCeww(ceww: IGenewicCewwViewModew, focus: 'output' | 'editow' | 'containa'): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	updateOutputHeight(cellInfo: IDiffCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
-		const diffElement = cellInfo.diffElement;
-		const cell = this.getCellByInfo(cellInfo);
-		const outputIndex = cell.outputsViewModels.indexOf(output);
+	updateOutputHeight(cewwInfo: IDiffCewwInfo, output: ICewwOutputViewModew, outputHeight: numba, isInit: boowean): void {
+		const diffEwement = cewwInfo.diffEwement;
+		const ceww = this.getCewwByInfo(cewwInfo);
+		const outputIndex = ceww.outputsViewModews.indexOf(output);
 
-		if (diffElement instanceof SideBySideDiffElementViewModel) {
-			const info = CellUri.parse(cellInfo.cellUri);
+		if (diffEwement instanceof SideBySideDiffEwementViewModew) {
+			const info = CewwUwi.pawse(cewwInfo.cewwUwi);
 			if (!info) {
-				return;
+				wetuwn;
 			}
 
-			diffElement.updateOutputHeight(info.notebook.toString() === this._model?.original.resource.toString() ? DiffSide.Original : DiffSide.Modified, outputIndex, outputHeight);
-		} else {
-			diffElement.updateOutputHeight(diffElement.type === 'insert' ? DiffSide.Modified : DiffSide.Original, outputIndex, outputHeight);
+			diffEwement.updateOutputHeight(info.notebook.toStwing() === this._modew?.owiginaw.wesouwce.toStwing() ? DiffSide.Owiginaw : DiffSide.Modified, outputIndex, outputHeight);
+		} ewse {
+			diffEwement.updateOutputHeight(diffEwement.type === 'insewt' ? DiffSide.Modified : DiffSide.Owiginaw, outputIndex, outputHeight);
 		}
 
 		if (isInit) {
-			this._onDidDynamicOutputRendered.fire({ cell, output });
+			this._onDidDynamicOutputWendewed.fiwe({ ceww, output });
 		}
 	}
 
-	setMarkupCellEditState(cellId: string, editState: CellEditState): void {
-		// throw new Error('Method not implemented.');
+	setMawkupCewwEditState(cewwId: stwing, editState: CewwEditState): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		// throw new Error('Method not implemented.');
+	didStawtDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		// throw new Error('Method not implemented.');
+	didDwagMawkupCeww(cewwId: stwing, event: { dwagOffsetY: numba; }): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
-	didEndDragMarkupCell(cellId: string): void {
-		// throw new Error('Method not implemented.');
+	didEndDwagMawkupCeww(cewwId: stwing): void {
+		// thwow new Ewwow('Method not impwemented.');
 	}
-	didDropMarkupCell(cellId: string) {
-		// throw new Error('Method not implemented.');
+	didDwopMawkupCeww(cewwId: stwing) {
+		// thwow new Ewwow('Method not impwemented.');
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
-		this._overflowContainer = document.createElement('div');
-		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
-		DOM.append(parent, this._overflowContainer);
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		this._wootEwement = DOM.append(pawent, DOM.$('.notebook-text-diff-editow'));
+		this._ovewfwowContaina = document.cweateEwement('div');
+		this._ovewfwowContaina.cwassWist.add('notebook-ovewfwow-widget-containa', 'monaco-editow');
+		DOM.append(pawent, this._ovewfwowContaina);
 
-		const renderers = [
-			this.instantiationService.createInstance(CellDiffSingleSideRenderer, this),
-			this.instantiationService.createInstance(CellDiffSideBySideRenderer, this),
+		const wendewews = [
+			this.instantiationSewvice.cweateInstance(CewwDiffSingweSideWendewa, this),
+			this.instantiationSewvice.cweateInstance(CewwDiffSideBySideWendewa, this),
 		];
 
-		this._list = this.instantiationService.createInstance(
-			NotebookTextDiffList,
+		this._wist = this.instantiationSewvice.cweateInstance(
+			NotebookTextDiffWist,
 			'NotebookTextDiff',
-			this._rootElement,
-			this.instantiationService.createInstance(NotebookCellTextDiffListDelegate),
-			renderers,
-			this.contextKeyService,
+			this._wootEwement,
+			this.instantiationSewvice.cweateInstance(NotebookCewwTextDiffWistDewegate),
+			wendewews,
+			this.contextKeySewvice,
 			{
-				setRowLineHeight: false,
-				setRowHeight: false,
-				supportDynamicHeights: true,
-				horizontalScrolling: false,
-				keyboardSupport: false,
-				mouseSupport: true,
-				multipleSelectionSupport: false,
-				enableKeyboardNavigation: true,
-				additionalScrollHeight: 0,
-				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
-				styleController: (_suffix: string) => { return this._list!; },
-				overrideStyles: {
-					listBackground: editorBackground,
-					listActiveSelectionBackground: editorBackground,
-					listActiveSelectionForeground: foreground,
-					listFocusAndSelectionBackground: editorBackground,
-					listFocusAndSelectionForeground: foreground,
-					listFocusBackground: editorBackground,
-					listFocusForeground: foreground,
-					listHoverForeground: foreground,
-					listHoverBackground: editorBackground,
-					listHoverOutline: focusBorder,
-					listFocusOutline: focusBorder,
-					listInactiveSelectionBackground: editorBackground,
-					listInactiveSelectionForeground: foreground,
-					listInactiveFocusBackground: editorBackground,
-					listInactiveFocusOutline: editorBackground,
+				setWowWineHeight: fawse,
+				setWowHeight: fawse,
+				suppowtDynamicHeights: twue,
+				howizontawScwowwing: fawse,
+				keyboawdSuppowt: fawse,
+				mouseSuppowt: twue,
+				muwtipweSewectionSuppowt: fawse,
+				enabweKeyboawdNavigation: twue,
+				additionawScwowwHeight: 0,
+				// twansfowmOptimization: (isMacintosh && isNative) || getTitweBawStywe(this.configuwationSewvice, this.enviwonmentSewvice) === 'native',
+				styweContwowwa: (_suffix: stwing) => { wetuwn this._wist!; },
+				ovewwideStywes: {
+					wistBackgwound: editowBackgwound,
+					wistActiveSewectionBackgwound: editowBackgwound,
+					wistActiveSewectionFowegwound: fowegwound,
+					wistFocusAndSewectionBackgwound: editowBackgwound,
+					wistFocusAndSewectionFowegwound: fowegwound,
+					wistFocusBackgwound: editowBackgwound,
+					wistFocusFowegwound: fowegwound,
+					wistHovewFowegwound: fowegwound,
+					wistHovewBackgwound: editowBackgwound,
+					wistHovewOutwine: focusBowda,
+					wistFocusOutwine: focusBowda,
+					wistInactiveSewectionBackgwound: editowBackgwound,
+					wistInactiveSewectionFowegwound: fowegwound,
+					wistInactiveFocusBackgwound: editowBackgwound,
+					wistInactiveFocusOutwine: editowBackgwound,
 				},
-				accessibilityProvider: {
-					getAriaLabel() { return null; },
-					getWidgetAriaLabel() {
-						return nls.localize('notebookTreeAriaLabel', "Notebook Text Diff");
+				accessibiwityPwovida: {
+					getAwiaWabew() { wetuwn nuww; },
+					getWidgetAwiaWabew() {
+						wetuwn nws.wocawize('notebookTweeAwiaWabew', "Notebook Text Diff");
 					}
 				},
-				// focusNextPreviousDelegate: {
-				// 	onFocusNext: (applyFocusNext: () => void) => this._updateForCursorNavigationMode(applyFocusNext),
-				// 	onFocusPrevious: (applyFocusPrevious: () => void) => this._updateForCursorNavigationMode(applyFocusPrevious),
+				// focusNextPweviousDewegate: {
+				// 	onFocusNext: (appwyFocusNext: () => void) => this._updateFowCuwsowNavigationMode(appwyFocusNext),
+				// 	onFocusPwevious: (appwyFocusPwevious: () => void) => this._updateFowCuwsowNavigationMode(appwyFocusPwevious),
 				// }
 			}
 		);
 
-		this._register(this._list);
+		this._wegista(this._wist);
 
-		this._register(this._list.onMouseUp(e => {
-			if (e.element) {
-				this._onMouseUp.fire({ event: e.browserEvent, target: e.element });
+		this._wegista(this._wist.onMouseUp(e => {
+			if (e.ewement) {
+				this._onMouseUp.fiwe({ event: e.bwowsewEvent, tawget: e.ewement });
 			}
 		}));
 
-		// transparent cover
-		this._webviewTransparentCover = DOM.append(this._list.rowsContainer, $('.webview-cover'));
-		this._webviewTransparentCover.style.display = 'none';
+		// twanspawent cova
+		this._webviewTwanspawentCova = DOM.append(this._wist.wowsContaina, $('.webview-cova'));
+		this._webviewTwanspawentCova.stywe.dispway = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overflowContainer, (e: StandardMouseEvent) => {
-			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
-				this._webviewTransparentCover.style.display = 'block';
+		this._wegista(DOM.addStandawdDisposabweGenewicMouseDownWistna(this._ovewfwowContaina, (e: StandawdMouseEvent) => {
+			if (e.tawget.cwassWist.contains('swida') && this._webviewTwanspawentCova) {
+				this._webviewTwanspawentCova.stywe.dispway = 'bwock';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._overflowContainer, () => {
-			if (this._webviewTransparentCover) {
-				// no matter when
-				this._webviewTransparentCover.style.display = 'none';
+		this._wegista(DOM.addStandawdDisposabweGenewicMouseUpWistna(this._ovewfwowContaina, () => {
+			if (this._webviewTwanspawentCova) {
+				// no matta when
+				this._webviewTwanspawentCova.stywe.dispway = 'none';
 			}
 		}));
 
-		this._register(this._list.onDidScroll(e => {
-			this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
+		this._wegista(this._wist.onDidScwoww(e => {
+			this._webviewTwanspawentCova!.stywe.top = `${e.scwowwTop}px`;
 		}));
 
 
 	}
 
-	private _updateOutputsOffsetsInWebview(scrollTop: number, scrollHeight: number, activeWebview: BackLayerWebView<IDiffCellInfo>, getActiveNestedCell: (diffElement: DiffElementViewModelBase) => DiffNestedCellViewModel | undefined, diffSide: DiffSide) {
-		activeWebview.element.style.height = `${scrollHeight}px`;
+	pwivate _updateOutputsOffsetsInWebview(scwowwTop: numba, scwowwHeight: numba, activeWebview: BackWayewWebView<IDiffCewwInfo>, getActiveNestedCeww: (diffEwement: DiffEwementViewModewBase) => DiffNestedCewwViewModew | undefined, diffSide: DiffSide) {
+		activeWebview.ewement.stywe.height = `${scwowwHeight}px`;
 
 		if (activeWebview.insetMapping) {
-			const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-			const removedItems: ICellOutputViewModel[] = [];
-			activeWebview.insetMapping.forEach((value, key) => {
-				const cell = getActiveNestedCell(value.cellInfo.diffElement);
-				if (!cell) {
-					return;
+			const updateItems: IDispwayOutputWayoutUpdateWequest[] = [];
+			const wemovedItems: ICewwOutputViewModew[] = [];
+			activeWebview.insetMapping.fowEach((vawue, key) => {
+				const ceww = getActiveNestedCeww(vawue.cewwInfo.diffEwement);
+				if (!ceww) {
+					wetuwn;
 				}
 
-				const viewIndex = this._list.indexOf(value.cellInfo.diffElement);
+				const viewIndex = this._wist.indexOf(vawue.cewwInfo.diffEwement);
 
 				if (viewIndex === undefined) {
-					return;
+					wetuwn;
 				}
 
-				if (cell.outputsViewModels.indexOf(key) < 0) {
-					// output is already gone
-					removedItems.push(key);
-				} else {
-					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-					const outputIndex = cell.outputsViewModels.indexOf(key);
-					const outputOffset = value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
+				if (ceww.outputsViewModews.indexOf(key) < 0) {
+					// output is awweady gone
+					wemovedItems.push(key);
+				} ewse {
+					const cewwTop = this._wist.getAbsowuteTopOfEwement(vawue.cewwInfo.diffEwement);
+					const outputIndex = ceww.outputsViewModews.indexOf(key);
+					const outputOffset = vawue.cewwInfo.diffEwement.getOutputOffsetInCeww(diffSide, outputIndex);
 					updateItems.push({
-						cell,
+						ceww,
 						output: key,
-						cellTop: cellTop,
+						cewwTop: cewwTop,
 						outputOffset: outputOffset,
-						forceDisplay: false
+						fowceDispway: fawse
 					});
 				}
 
 			});
 
-			activeWebview.removeInsets(removedItems);
+			activeWebview.wemoveInsets(wemovedItems);
 
-			if (updateItems.length) {
-				activeWebview.updateScrollTops(updateItems, []);
+			if (updateItems.wength) {
+				activeWebview.updateScwowwTops(updateItems, []);
 			}
 		}
 	}
 
-	override async setInput(input: NotebookDiffEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+	ovewwide async setInput(input: NotebookDiffEditowInput, options: INotebookEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(input, options, context, token);
 
-		const model = await input.resolve();
-		if (this._model !== model) {
-			this._detachModel();
-			this._model = model;
-			this._attachModel();
+		const modew = await input.wesowve();
+		if (this._modew !== modew) {
+			this._detachModew();
+			this._modew = modew;
+			this._attachModew();
 		}
 
-		this._model = model;
-		if (this._model === null) {
-			return;
+		this._modew = modew;
+		if (this._modew === nuww) {
+			wetuwn;
 		}
 
-		this._revealFirst = true;
+		this._weveawFiwst = twue;
 
-		this._modifiedResourceDisposableStore.clear();
+		this._modifiedWesouwceDisposabweStowe.cweaw();
 
-		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
-			if (this._model !== null) {
-				this.updateLayout();
+		this._modifiedWesouwceDisposabweStowe.add(Event.any(this._modew.owiginaw.notebook.onDidChangeContent, this._modew.modified.notebook.onDidChangeContent)(e => {
+			if (this._modew !== nuww) {
+				this.updateWayout();
 			}
 		}));
 
-		await this._createOriginalWebview(generateUuid(), this._model.original.resource);
-		if (this._originalWebview) {
-			this._modifiedResourceDisposableStore.add(this._originalWebview);
+		await this._cweateOwiginawWebview(genewateUuid(), this._modew.owiginaw.wesouwce);
+		if (this._owiginawWebview) {
+			this._modifiedWesouwceDisposabweStowe.add(this._owiginawWebview);
 		}
-		await this._createModifiedWebview(generateUuid(), this._model.modified.resource);
+		await this._cweateModifiedWebview(genewateUuid(), this._modew.modified.wesouwce);
 		if (this._modifiedWebview) {
-			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
+			this._modifiedWesouwceDisposabweStowe.add(this._modifiedWebview);
 		}
 
-		await this.updateLayout();
+		await this.updateWayout();
 	}
 
-	private _detachModel() {
-		this._localStore.clear();
-		this._originalWebview?.dispose();
-		this._originalWebview?.element.remove();
-		this._originalWebview = null;
+	pwivate _detachModew() {
+		this._wocawStowe.cweaw();
+		this._owiginawWebview?.dispose();
+		this._owiginawWebview?.ewement.wemove();
+		this._owiginawWebview = nuww;
 		this._modifiedWebview?.dispose();
-		this._modifiedWebview?.element.remove();
-		this._modifiedWebview = null;
+		this._modifiedWebview?.ewement.wemove();
+		this._modifiedWebview = nuww;
 
-		this._modifiedResourceDisposableStore.clear();
-		this._list.clear();
+		this._modifiedWesouwceDisposabweStowe.cweaw();
+		this._wist.cweaw();
 
 	}
-	private _attachModel() {
-		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+	pwivate _attachModew() {
+		this._eventDispatcha = new NotebookDiffEditowEventDispatcha();
 		const updateInsets = () => {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			DOM.scheduweAtNextAnimationFwame(() => {
 				if (this._isDisposed) {
-					return;
+					wetuwn;
 				}
 
 				if (this._modifiedWebview) {
-					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._modifiedWebview, (diffElement: DiffElementViewModelBase) => {
-						return diffElement.modified;
+					this._updateOutputsOffsetsInWebview(this._wist.scwowwTop, this._wist.scwowwHeight, this._modifiedWebview, (diffEwement: DiffEwementViewModewBase) => {
+						wetuwn diffEwement.modified;
 					}, DiffSide.Modified);
 				}
 
-				if (this._originalWebview) {
-					this._updateOutputsOffsetsInWebview(this._list.scrollTop, this._list.scrollHeight, this._originalWebview, (diffElement: DiffElementViewModelBase) => {
-						return diffElement.original;
-					}, DiffSide.Original);
+				if (this._owiginawWebview) {
+					this._updateOutputsOffsetsInWebview(this._wist.scwowwTop, this._wist.scwowwHeight, this._owiginawWebview, (diffEwement: DiffEwementViewModewBase) => {
+						wetuwn diffEwement.owiginaw;
+					}, DiffSide.Owiginaw);
 				}
 			});
 		};
 
-		this._localStore.add(this._list.onDidChangeContentHeight(() => {
+		this._wocawStowe.add(this._wist.onDidChangeContentHeight(() => {
 			updateInsets();
 		}));
 
-		this._localStore.add(this._eventDispatcher.onDidChangeCellLayout(() => {
+		this._wocawStowe.add(this._eventDispatcha.onDidChangeCewwWayout(() => {
 			updateInsets();
 		}));
 	}
 
-	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
+	pwivate async _cweateModifiedWebview(id: stwing, wesouwce: UWI): Pwomise<void> {
 		if (this._modifiedWebview) {
 			this._modifiedWebview.dispose();
 		}
 
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
-		// attach the webview container to the DOM tree first
-		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
-		this._modifiedWebview.createWebview();
-		this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
-		this._modifiedWebview.element.style.left = `calc(50%)`;
+		this._modifiedWebview = this.instantiationSewvice.cweateInstance(BackWayewWebView, this, id, wesouwce, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackWayewWebView<IDiffCewwInfo>;
+		// attach the webview containa to the DOM twee fiwst
+		this._wist.wowsContaina.insewtAdjacentEwement('aftewbegin', this._modifiedWebview.ewement);
+		this._modifiedWebview.cweateWebview();
+		this._modifiedWebview.ewement.stywe.width = `cawc(50% - 16px)`;
+		this._modifiedWebview.ewement.stywe.weft = `cawc(50%)`;
 	}
 
-	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
-		if (this._originalWebview) {
-			this._originalWebview.dispose();
+	pwivate async _cweateOwiginawWebview(id: stwing, wesouwce: UWI): Pwomise<void> {
+		if (this._owiginawWebview) {
+			this._owiginawWebview.dispose();
 		}
 
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackLayerWebView<IDiffCellInfo>;
-		// attach the webview container to the DOM tree first
-		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
-		this._originalWebview.createWebview();
-		this._originalWebview.element.style.width = `calc(50% - 16px)`;
-		this._originalWebview.element.style.left = `16px`;
+		this._owiginawWebview = this.instantiationSewvice.cweateInstance(BackWayewWebView, this, id, wesouwce, this._notebookOptions.computeDiffWebviewOptions(), undefined) as BackWayewWebView<IDiffCewwInfo>;
+		// attach the webview containa to the DOM twee fiwst
+		this._wist.wowsContaina.insewtAdjacentEwement('aftewbegin', this._owiginawWebview.ewement);
+		this._owiginawWebview.cweateWebview();
+		this._owiginawWebview.ewement.stywe.width = `cawc(50% - 16px)`;
+		this._owiginawWebview.ewement.stywe.weft = `16px`;
 	}
 
-	async updateLayout() {
-		if (!this._model) {
-			return;
+	async updateWayout() {
+		if (!this._modew) {
+			wetuwn;
 		}
 
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
-		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
-		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this._model, this._eventDispatcher!, diffResult);
+		const diffWesuwt = await this.notebookEditowWowkewSewvice.computeDiff(this._modew.owiginaw.wesouwce, this._modew.modified.wesouwce);
+		NotebookTextDiffEditow.pwettyChanges(this._modew, diffWesuwt.cewwsDiff);
+		const { viewModews, fiwstChangeIndex } = NotebookTextDiffEditow.computeDiff(this.instantiationSewvice, this._modew, this._eventDispatcha!, diffWesuwt);
 
-		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
-		this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
+		this._owiginawWebview?.wemoveInsets([...this._owiginawWebview?.insetMapping.keys()]);
+		this._modifiedWebview?.wemoveInsets([...this._modifiedWebview?.insetMapping.keys()]);
 
-		this._setViewModel(viewModels);
-		// this._diffElementViewModels = viewModels;
-		// this._list.splice(0, this._list.length, this._diffElementViewModels);
+		this._setViewModew(viewModews);
+		// this._diffEwementViewModews = viewModews;
+		// this._wist.spwice(0, this._wist.wength, this._diffEwementViewModews);
 
-		if (this._revealFirst && firstChangeIndex !== -1 && firstChangeIndex < this._list.length) {
-			this._revealFirst = false;
-			this._list.setFocus([firstChangeIndex]);
-			this._list.reveal(firstChangeIndex, 0.3);
+		if (this._weveawFiwst && fiwstChangeIndex !== -1 && fiwstChangeIndex < this._wist.wength) {
+			this._weveawFiwst = fawse;
+			this._wist.setFocus([fiwstChangeIndex]);
+			this._wist.weveaw(fiwstChangeIndex, 0.3);
 		}
 	}
 
-	private _setViewModel(viewModels: DiffElementViewModelBase[]) {
-		let isSame = true;
-		if (this._diffElementViewModels.length === viewModels.length) {
-			for (let i = 0; i < viewModels.length; i++) {
-				const a = this._diffElementViewModels[i];
-				const b = viewModels[i];
+	pwivate _setViewModew(viewModews: DiffEwementViewModewBase[]) {
+		wet isSame = twue;
+		if (this._diffEwementViewModews.wength === viewModews.wength) {
+			fow (wet i = 0; i < viewModews.wength; i++) {
+				const a = this._diffEwementViewModews[i];
+				const b = viewModews[i];
 
-				if (a.original?.textModel.getHashValue() !== b.original?.textModel.getHashValue()
-					|| a.modified?.textModel.getHashValue() !== b.modified?.textModel.getHashValue()) {
-					isSame = false;
-					break;
+				if (a.owiginaw?.textModew.getHashVawue() !== b.owiginaw?.textModew.getHashVawue()
+					|| a.modified?.textModew.getHashVawue() !== b.modified?.textModew.getHashVawue()) {
+					isSame = fawse;
+					bweak;
 				}
 			}
-		} else {
-			isSame = false;
+		} ewse {
+			isSame = fawse;
 		}
 
 		if (isSame) {
-			return;
+			wetuwn;
 		}
 
-		this._diffElementViewModels = viewModels;
-		this._list.splice(0, this._list.length, this._diffElementViewModels);
+		this._diffEwementViewModews = viewModews;
+		this._wist.spwice(0, this._wist.wength, this._diffEwementViewModews);
 
 	}
 
 	/**
-	 * making sure that swapping cells are always translated to `insert+delete`.
+	 * making suwe that swapping cewws awe awways twanswated to `insewt+dewete`.
 	 */
-	static prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
-		const changes = diffResult.changes;
-		for (let i = 0; i < diffResult.changes.length - 1; i++) {
-			// then we know there is another change after current one
-			const curr = changes[i];
+	static pwettyChanges(modew: INotebookDiffEditowModew, diffWesuwt: IDiffWesuwt) {
+		const changes = diffWesuwt.changes;
+		fow (wet i = 0; i < diffWesuwt.changes.wength - 1; i++) {
+			// then we know thewe is anotha change afta cuwwent one
+			const cuww = changes[i];
 			const next = changes[i + 1];
-			const x = curr.originalStart;
-			const y = curr.modifiedStart;
+			const x = cuww.owiginawStawt;
+			const y = cuww.modifiedStawt;
 
 			if (
-				curr.originalLength === 1
-				&& curr.modifiedLength === 0
-				&& next.originalStart === x + 2
-				&& next.originalLength === 0
-				&& next.modifiedStart === y + 1
-				&& next.modifiedLength === 1
-				&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
-				&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
+				cuww.owiginawWength === 1
+				&& cuww.modifiedWength === 0
+				&& next.owiginawStawt === x + 2
+				&& next.owiginawWength === 0
+				&& next.modifiedStawt === y + 1
+				&& next.modifiedWength === 1
+				&& modew.owiginaw.notebook.cewws[x].getHashVawue() === modew.modified.notebook.cewws[y + 1].getHashVawue()
+				&& modew.owiginaw.notebook.cewws[x + 1].getHashVawue() === modew.modified.notebook.cewws[y].getHashVawue()
 			) {
 				// this is a swap
-				curr.originalStart = x;
-				curr.originalLength = 0;
-				curr.modifiedStart = y;
-				curr.modifiedLength = 1;
+				cuww.owiginawStawt = x;
+				cuww.owiginawWength = 0;
+				cuww.modifiedStawt = y;
+				cuww.modifiedWength = 1;
 
-				next.originalStart = x + 1;
-				next.originalLength = 1;
-				next.modifiedStart = y + 2;
-				next.modifiedLength = 0;
+				next.owiginawStawt = x + 1;
+				next.owiginawWength = 1;
+				next.modifiedStawt = y + 2;
+				next.modifiedWength = 0;
 
 				i++;
 			}
 		}
 	}
 
-	static computeDiff(instantiationService: IInstantiationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult) {
-		const cellChanges = diffResult.cellsDiff.changes;
-		const diffElementViewModels: DiffElementViewModelBase[] = [];
-		const originalModel = model.original.notebook;
-		const modifiedModel = model.modified.notebook;
-		let originalCellIndex = 0;
-		let modifiedCellIndex = 0;
+	static computeDiff(instantiationSewvice: IInstantiationSewvice, modew: INotebookDiffEditowModew, eventDispatcha: NotebookDiffEditowEventDispatcha, diffWesuwt: INotebookDiffWesuwt) {
+		const cewwChanges = diffWesuwt.cewwsDiff.changes;
+		const diffEwementViewModews: DiffEwementViewModewBase[] = [];
+		const owiginawModew = modew.owiginaw.notebook;
+		const modifiedModew = modew.modified.notebook;
+		wet owiginawCewwIndex = 0;
+		wet modifiedCewwIndex = 0;
 
-		let firstChangeIndex = -1;
+		wet fiwstChangeIndex = -1;
 
-		for (let i = 0; i < cellChanges.length; i++) {
-			const change = cellChanges[i];
-			// common cells
+		fow (wet i = 0; i < cewwChanges.wength; i++) {
+			const change = cewwChanges[i];
+			// common cewws
 
-			for (let j = 0; j < change.originalStart - originalCellIndex; j++) {
-				const originalCell = originalModel.cells[originalCellIndex + j];
-				const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
-				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
-					diffElementViewModels.push(new SideBySideDiffElementViewModel(
-						model.modified.notebook,
-						model.original.notebook,
-						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
-						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
+			fow (wet j = 0; j < change.owiginawStawt - owiginawCewwIndex; j++) {
+				const owiginawCeww = owiginawModew.cewws[owiginawCewwIndex + j];
+				const modifiedCeww = modifiedModew.cewws[modifiedCewwIndex + j];
+				if (owiginawCeww.getHashVawue() === modifiedCeww.getHashVawue()) {
+					diffEwementViewModews.push(new SideBySideDiffEwementViewModew(
+						modew.modified.notebook,
+						modew.owiginaw.notebook,
+						instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, owiginawCeww),
+						instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, modifiedCeww),
 						'unchanged',
-						eventDispatcher
+						eventDispatcha
 					));
-				} else {
-					if (firstChangeIndex === -1) {
-						firstChangeIndex = diffElementViewModels.length;
+				} ewse {
+					if (fiwstChangeIndex === -1) {
+						fiwstChangeIndex = diffEwementViewModews.wength;
 					}
 
-					diffElementViewModels.push(new SideBySideDiffElementViewModel(
-						model.modified.notebook,
-						model.original.notebook,
-						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
-						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
+					diffEwementViewModews.push(new SideBySideDiffEwementViewModew(
+						modew.modified.notebook,
+						modew.owiginaw.notebook,
+						instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, owiginawCeww),
+						instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, modifiedCeww),
 						'modified',
-						eventDispatcher!
+						eventDispatcha!
 					));
 				}
 			}
 
-			const modifiedLCS = NotebookTextDiffEditor.computeModifiedLCS(instantiationService, change, originalModel, modifiedModel, eventDispatcher);
-			if (modifiedLCS.length && firstChangeIndex === -1) {
-				firstChangeIndex = diffElementViewModels.length;
+			const modifiedWCS = NotebookTextDiffEditow.computeModifiedWCS(instantiationSewvice, change, owiginawModew, modifiedModew, eventDispatcha);
+			if (modifiedWCS.wength && fiwstChangeIndex === -1) {
+				fiwstChangeIndex = diffEwementViewModews.wength;
 			}
 
-			diffElementViewModels.push(...modifiedLCS);
-			originalCellIndex = change.originalStart + change.originalLength;
-			modifiedCellIndex = change.modifiedStart + change.modifiedLength;
+			diffEwementViewModews.push(...modifiedWCS);
+			owiginawCewwIndex = change.owiginawStawt + change.owiginawWength;
+			modifiedCewwIndex = change.modifiedStawt + change.modifiedWength;
 		}
 
-		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
-			diffElementViewModels.push(new SideBySideDiffElementViewModel(
-				model.modified.notebook,
-				model.original.notebook,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
+		fow (wet i = owiginawCewwIndex; i < owiginawModew.cewws.wength; i++) {
+			diffEwementViewModews.push(new SideBySideDiffEwementViewModew(
+				modew.modified.notebook,
+				modew.owiginaw.notebook,
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, owiginawModew.cewws[i]),
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, modifiedModew.cewws[i - owiginawCewwIndex + modifiedCewwIndex]),
 				'unchanged',
-				eventDispatcher
+				eventDispatcha
 			));
 		}
 
-		return {
-			viewModels: diffElementViewModels,
-			firstChangeIndex
+		wetuwn {
+			viewModews: diffEwementViewModews,
+			fiwstChangeIndex
 		};
 	}
 
-	static computeModifiedLCS(instantiationService: IInstantiationService, change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, eventDispatcher: NotebookDiffEditorEventDispatcher) {
-		const result: DiffElementViewModelBase[] = [];
-		// modified cells
-		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
+	static computeModifiedWCS(instantiationSewvice: IInstantiationSewvice, change: IDiffChange, owiginawModew: NotebookTextModew, modifiedModew: NotebookTextModew, eventDispatcha: NotebookDiffEditowEventDispatcha) {
+		const wesuwt: DiffEwementViewModewBase[] = [];
+		// modified cewws
+		const modifiedWen = Math.min(change.owiginawWength, change.modifiedWength);
 
-		for (let j = 0; j < modifiedLen; j++) {
-			const isTheSame = originalModel.cells[change.originalStart + j].getHashValue() === modifiedModel.cells[change.modifiedStart + j].getHashValue();
-			result.push(new SideBySideDiffElementViewModel(
-				modifiedModel,
-				originalModel,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
+		fow (wet j = 0; j < modifiedWen; j++) {
+			const isTheSame = owiginawModew.cewws[change.owiginawStawt + j].getHashVawue() === modifiedModew.cewws[change.modifiedStawt + j].getHashVawue();
+			wesuwt.push(new SideBySideDiffEwementViewModew(
+				modifiedModew,
+				owiginawModew,
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, owiginawModew.cewws[change.owiginawStawt + j]),
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, modifiedModew.cewws[change.modifiedStawt + j]),
 				isTheSame ? 'unchanged' : 'modified',
-				eventDispatcher
+				eventDispatcha
 			));
 		}
 
-		for (let j = modifiedLen; j < change.originalLength; j++) {
-			// deletion
-			result.push(new SingleSideDiffElementViewModel(
-				originalModel,
-				modifiedModel,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
+		fow (wet j = modifiedWen; j < change.owiginawWength; j++) {
+			// dewetion
+			wesuwt.push(new SingweSideDiffEwementViewModew(
+				owiginawModew,
+				modifiedModew,
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, owiginawModew.cewws[change.owiginawStawt + j]),
 				undefined,
-				'delete',
-				eventDispatcher
+				'dewete',
+				eventDispatcha
 			));
 		}
 
-		for (let j = modifiedLen; j < change.modifiedLength; j++) {
-			// insertion
-			result.push(new SingleSideDiffElementViewModel(
-				modifiedModel,
-				originalModel,
+		fow (wet j = modifiedWen; j < change.modifiedWength; j++) {
+			// insewtion
+			wesuwt.push(new SingweSideDiffEwementViewModew(
+				modifiedModew,
+				owiginawModew,
 				undefined,
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
-				'insert',
-				eventDispatcher
+				instantiationSewvice.cweateInstance(DiffNestedCewwViewModew, modifiedModew.cewws[change.modifiedStawt + j]),
+				'insewt',
+				eventDispatcha
 			));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	scheduleOutputHeightAck(cellInfo: IDiffCellInfo, outputId: string, height: number) {
-		const diffElement = cellInfo.diffElement;
-		// const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
-		let diffSide = DiffSide.Original;
+	scheduweOutputHeightAck(cewwInfo: IDiffCewwInfo, outputId: stwing, height: numba) {
+		const diffEwement = cewwInfo.diffEwement;
+		// const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._owiginawWebview;
+		wet diffSide = DiffSide.Owiginaw;
 
-		if (diffElement instanceof SideBySideDiffElementViewModel) {
-			const info = CellUri.parse(cellInfo.cellUri);
+		if (diffEwement instanceof SideBySideDiffEwementViewModew) {
+			const info = CewwUwi.pawse(cewwInfo.cewwUwi);
 			if (!info) {
-				return;
+				wetuwn;
 			}
 
-			diffSide = info.notebook.toString() === this._model?.original.resource.toString() ? DiffSide.Original : DiffSide.Modified;
-		} else {
-			diffSide = diffElement.type === 'insert' ? DiffSide.Modified : DiffSide.Original;
+			diffSide = info.notebook.toStwing() === this._modew?.owiginaw.wesouwce.toStwing() ? DiffSide.Owiginaw : DiffSide.Modified;
+		} ewse {
+			diffSide = diffEwement.type === 'insewt' ? DiffSide.Modified : DiffSide.Owiginaw;
 		}
 
-		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._owiginawWebview;
 
-		DOM.scheduleAtNextAnimationFrame(() => {
-			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
+		DOM.scheduweAtNextAnimationFwame(() => {
+			webview?.ackHeight([{ cewwId: cewwInfo.cewwId, outputId, height }]);
 		}, 10);
 	}
 
-	private pendingLayouts = new WeakMap<DiffElementViewModelBase, IDisposable>();
+	pwivate pendingWayouts = new WeakMap<DiffEwementViewModewBase, IDisposabwe>();
 
 
-	layoutNotebookCell(cell: DiffElementViewModelBase, height: number) {
-		const relayout = (cell: DiffElementViewModelBase, height: number) => {
-			this._list.updateElementHeight2(cell, height);
+	wayoutNotebookCeww(ceww: DiffEwementViewModewBase, height: numba) {
+		const wewayout = (ceww: DiffEwementViewModewBase, height: numba) => {
+			this._wist.updateEwementHeight2(ceww, height);
 		};
 
-		if (this.pendingLayouts.has(cell)) {
-			this.pendingLayouts.get(cell)!.dispose();
+		if (this.pendingWayouts.has(ceww)) {
+			this.pendingWayouts.get(ceww)!.dispose();
 		}
 
-		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-			this.pendingLayouts.delete(cell);
+		wet w: () => void;
+		const wayoutDisposabwe = DOM.scheduweAtNextAnimationFwame(() => {
+			this.pendingWayouts.dewete(ceww);
 
-			relayout(cell, height);
-			r();
+			wewayout(ceww, height);
+			w();
 		});
 
-		this.pendingLayouts.set(cell, toDisposable(() => {
-			layoutDisposable.dispose();
-			r();
+		this.pendingWayouts.set(ceww, toDisposabwe(() => {
+			wayoutDisposabwe.dispose();
+			w();
 		}));
 
-		return new Promise<void>(resolve => { r = resolve; });
+		wetuwn new Pwomise<void>(wesowve => { w = wesowve; });
 	}
 
-	setScrollTop(scrollTop: number): void {
-		this._list.scrollTop = scrollTop;
+	setScwowwTop(scwowwTop: numba): void {
+		this._wist.scwowwTop = scwowwTop;
 	}
 
-	triggerScroll(event: IMouseWheelEvent) {
-		this._list.triggerScrollFromMouseWheelEvent(event);
+	twiggewScwoww(event: IMouseWheewEvent) {
+		this._wist.twiggewScwowwFwomMouseWheewEvent(event);
 	}
 
-	createOutput(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void {
-		this._insetModifyQueueByOutputId.queue(output.source.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
-			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+	cweateOutput(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: DiffNestedCewwViewModew, output: IInsetWendewOutput, getOffset: () => numba, diffSide: DiffSide): void {
+		this._insetModifyQueueByOutputId.queue(output.souwce.modew.outputId + (diffSide === DiffSide.Modified ? '-wight' : 'weft'), async () => {
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._owiginawWebview;
 			if (!activeWebview) {
-				return;
+				wetuwn;
 			}
 
-			if (!activeWebview.insetMapping.has(output.source)) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
-			} else {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
-				const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-				activeWebview.updateScrollTops([{
-					cell: cellViewModel,
-					output: output.source,
-					cellTop,
+			if (!activeWebview.insetMapping.has(output.souwce)) {
+				const cewwTop = this._wist.getAbsowuteTopOfEwement(cewwDiffViewModew);
+				await activeWebview.cweateOutput({ diffEwement: cewwDiffViewModew, cewwHandwe: cewwViewModew.handwe, cewwId: cewwViewModew.id, cewwUwi: cewwViewModew.uwi }, output, cewwTop, getOffset());
+			} ewse {
+				const cewwTop = this._wist.getAbsowuteTopOfEwement(cewwDiffViewModew);
+				const outputIndex = cewwViewModew.outputsViewModews.indexOf(output.souwce);
+				const outputOffset = cewwDiffViewModew.getOutputOffsetInCeww(diffSide, outputIndex);
+				activeWebview.updateScwowwTops([{
+					ceww: cewwViewModew,
+					output: output.souwce,
+					cewwTop,
 					outputOffset,
-					forceDisplay: true
+					fowceDispway: twue
 				}], []);
 			}
 		});
 	}
 
-	updateMarkupCellHeight() {
+	updateMawkupCewwHeight() {
 		// TODO
 	}
 
-	getCellByInfo(cellInfo: IDiffCellInfo): IGenericCellViewModel {
-		return cellInfo.diffElement.getCellByUri(cellInfo.cellUri);
+	getCewwByInfo(cewwInfo: IDiffCewwInfo): IGenewicCewwViewModew {
+		wetuwn cewwInfo.diffEwement.getCewwByUwi(cewwInfo.cewwUwi);
 	}
 
-	getCellById(cellId: string): IGenericCellViewModel | undefined {
-		throw new Error('Not implemented');
+	getCewwById(cewwId: stwing): IGenewicCewwViewModew | undefined {
+		thwow new Ewwow('Not impwemented');
 	}
 
-	removeInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide) {
-		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
-			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+	wemoveInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: DiffNestedCewwViewModew, dispwayOutput: ICewwOutputViewModew, diffSide: DiffSide) {
+		this._insetModifyQueueByOutputId.queue(dispwayOutput.modew.outputId + (diffSide === DiffSide.Modified ? '-wight' : 'weft'), async () => {
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._owiginawWebview;
 			if (!activeWebview) {
-				return;
+				wetuwn;
 			}
 
-			if (!activeWebview.insetMapping.has(displayOutput)) {
-				return;
+			if (!activeWebview.insetMapping.has(dispwayOutput)) {
+				wetuwn;
 			}
 
-			activeWebview.removeInsets([displayOutput]);
+			activeWebview.wemoveInsets([dispwayOutput]);
 		});
 	}
 
-	showInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide) {
-		this._insetModifyQueueByOutputId.queue(displayOutput.model.outputId + (diffSide === DiffSide.Modified ? '-right' : 'left'), async () => {
-			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
+	showInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: DiffNestedCewwViewModew, dispwayOutput: ICewwOutputViewModew, diffSide: DiffSide) {
+		this._insetModifyQueueByOutputId.queue(dispwayOutput.modew.outputId + (diffSide === DiffSide.Modified ? '-wight' : 'weft'), async () => {
+			const activeWebview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._owiginawWebview;
 			if (!activeWebview) {
-				return;
+				wetuwn;
 			}
 
-			if (!activeWebview.insetMapping.has(displayOutput)) {
-				return;
+			if (!activeWebview.insetMapping.has(dispwayOutput)) {
+				wetuwn;
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
-			const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-			activeWebview.updateScrollTops([{
-				cell: cellViewModel,
-				output: displayOutput,
-				cellTop,
+			const cewwTop = this._wist.getAbsowuteTopOfEwement(cewwDiffViewModew);
+			const outputIndex = cewwViewModew.outputsViewModews.indexOf(dispwayOutput);
+			const outputOffset = cewwDiffViewModew.getOutputOffsetInCeww(diffSide, outputIndex);
+			activeWebview.updateScwowwTops([{
+				ceww: cewwViewModew,
+				output: dispwayOutput,
+				cewwTop,
 				outputOffset,
-				forceDisplay: true,
+				fowceDispway: twue,
 			}], []);
 		});
 	}
 
-	hideInset(cellDiffViewModel: DiffElementViewModelBase, cellViewModel: DiffNestedCellViewModel, output: ICellOutputViewModel) {
+	hideInset(cewwDiffViewModew: DiffEwementViewModewBase, cewwViewModew: DiffNestedCewwViewModew, output: ICewwOutputViewModew) {
 		this._modifiedWebview?.hideInset(output);
-		this._originalWebview?.hideInset(output);
+		this._owiginawWebview?.hideInset(output);
 	}
 
-	// private async _resolveWebview(rightEditor: boolean): Promise<BackLayerWebView | null> {
-	// 	if (rightEditor) {
+	// pwivate async _wesowveWebview(wightEditow: boowean): Pwomise<BackWayewWebView | nuww> {
+	// 	if (wightEditow) {
 
 	// 	}
 	// }
 
 	getDomNode() {
-		return this._rootElement;
+		wetuwn this._wootEwement;
 	}
 
-	getOverflowContainerDomNode(): HTMLElement {
-		return this._overflowContainer;
+	getOvewfwowContainewDomNode(): HTMWEwement {
+		wetuwn this._ovewfwowContaina;
 	}
 
-	override getControl(): NotebookEditorWidget | undefined {
-		return undefined;
+	ovewwide getContwow(): NotebookEditowWidget | undefined {
+		wetuwn undefined;
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
+		supa.setEditowVisibwe(visibwe, gwoup);
 	}
 
-	override focus() {
-		super.focus();
+	ovewwide focus() {
+		supa.focus();
 	}
 
-	override clearInput(): void {
-		super.clearInput();
+	ovewwide cweawInput(): void {
+		supa.cweawInput();
 
-		this._modifiedResourceDisposableStore.clear();
-		this._list?.splice(0, this._list?.length || 0);
-		this._model = null;
-		this._diffElementViewModels = [];
+		this._modifiedWesouwceDisposabweStowe.cweaw();
+		this._wist?.spwice(0, this._wist?.wength || 0);
+		this._modew = nuww;
+		this._diffEwementViewModews = [];
 	}
 
-	getOutputRenderer(): OutputRenderer {
-		return this._outputRenderer;
+	getOutputWendewa(): OutputWendewa {
+		wetuwn this._outputWendewa;
 	}
 
-	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {
-		if (diffSide === DiffSide.Original) {
-			this._originalWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
-		} else {
-			this._modifiedWebview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	dewtaCewwOutputContainewCwassNames(diffSide: DiffSide, cewwId: stwing, added: stwing[], wemoved: stwing[]) {
+		if (diffSide === DiffSide.Owiginaw) {
+			this._owiginawWebview?.dewtaCewwOutputContainewCwassNames(cewwId, added, wemoved);
+		} ewse {
+			this._modifiedWebview?.dewtaCewwOutputContainewCwassNames(cewwId, added, wemoved);
 		}
 	}
 
-	getLayoutInfo(): NotebookLayoutInfo {
-		if (!this._list) {
-			throw new Error('Editor is not initalized successfully');
+	getWayoutInfo(): NotebookWayoutInfo {
+		if (!this._wist) {
+			thwow new Ewwow('Editow is not initawized successfuwwy');
 		}
 
-		return {
+		wetuwn {
 			width: this._dimension!.width,
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!
 		};
 	}
 
-	getCellOutputLayoutInfo(nestedCell: DiffNestedCellViewModel) {
-		if (!this._model) {
-			throw new Error('Editor is not attached to model yet');
+	getCewwOutputWayoutInfo(nestedCeww: DiffNestedCewwViewModew) {
+		if (!this._modew) {
+			thwow new Ewwow('Editow is not attached to modew yet');
 		}
-		const documentModel = CellUri.parse(nestedCell.uri);
-		if (!documentModel) {
-			throw new Error('Nested cell in the diff editor has wrong Uri');
+		const documentModew = CewwUwi.pawse(nestedCeww.uwi);
+		if (!documentModew) {
+			thwow new Ewwow('Nested ceww in the diff editow has wwong Uwi');
 		}
 
-		const belongToOriginalDocument = this._model.original.notebook.uri.toString() === documentModel.notebook.toString();
-		const viewModel = this._diffElementViewModels.find(element => {
-			const textModel = belongToOriginalDocument ? element.original : element.modified;
-			if (!textModel) {
-				return false;
+		const bewongToOwiginawDocument = this._modew.owiginaw.notebook.uwi.toStwing() === documentModew.notebook.toStwing();
+		const viewModew = this._diffEwementViewModews.find(ewement => {
+			const textModew = bewongToOwiginawDocument ? ewement.owiginaw : ewement.modified;
+			if (!textModew) {
+				wetuwn fawse;
 			}
 
-			if (textModel.uri.toString() === nestedCell.uri.toString()) {
-				return true;
+			if (textModew.uwi.toStwing() === nestedCeww.uwi.toStwing()) {
+				wetuwn twue;
 			}
 
-			return false;
+			wetuwn fawse;
 		});
 
-		if (!viewModel) {
-			throw new Error('Nested cell in the diff editor does not match any diff element');
+		if (!viewModew) {
+			thwow new Ewwow('Nested ceww in the diff editow does not match any diff ewement');
 		}
 
-		if (viewModel.type === 'unchanged') {
-			return this.getLayoutInfo();
+		if (viewModew.type === 'unchanged') {
+			wetuwn this.getWayoutInfo();
 		}
 
-		if (viewModel.type === 'insert' || viewModel.type === 'delete') {
-			return {
+		if (viewModew.type === 'insewt' || viewModew.type === 'dewete') {
+			wetuwn {
 				width: this._dimension!.width / 2,
 				height: this._dimension!.height / 2,
 				fontInfo: this._fontInfo!
 			};
 		}
 
-		if (viewModel.checkIfOutputsModified()) {
-			return {
+		if (viewModew.checkIfOutputsModified()) {
+			wetuwn {
 				width: this._dimension!.width / 2,
 				height: this._dimension!.height / 2,
 				fontInfo: this._fontInfo!
 			};
-		} else {
-			return this.getLayoutInfo();
+		} ewse {
+			wetuwn this.getWayoutInfo();
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
-		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
+	wayout(dimension: DOM.Dimension): void {
+		this._wootEwement.cwassWist.toggwe('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this._wootEwement.cwassWist.toggwe('nawwow-width', dimension.width < 600);
 		this._dimension = dimension;
-		this._rootElement.style.height = `${dimension.height}px`;
+		this._wootEwement.stywe.height = `${dimension.height}px`;
 
-		this._list?.layout(this._dimension.height, this._dimension.width);
+		this._wist?.wayout(this._dimension.height, this._dimension.width);
 
 
 		if (this._modifiedWebview) {
-			this._modifiedWebview.element.style.width = `calc(50% - 16px)`;
-			this._modifiedWebview.element.style.left = `calc(50%)`;
+			this._modifiedWebview.ewement.stywe.width = `cawc(50% - 16px)`;
+			this._modifiedWebview.ewement.stywe.weft = `cawc(50%)`;
 		}
 
-		if (this._originalWebview) {
-			this._originalWebview.element.style.width = `calc(50% - 16px)`;
-			this._originalWebview.element.style.left = `16px`;
+		if (this._owiginawWebview) {
+			this._owiginawWebview.ewement.stywe.width = `cawc(50% - 16px)`;
+			this._owiginawWebview.ewement.stywe.weft = `16px`;
 		}
 
-		if (this._webviewTransparentCover) {
-			this._webviewTransparentCover.style.height = `${dimension.height}px`;
-			this._webviewTransparentCover.style.width = `${dimension.width}px`;
+		if (this._webviewTwanspawentCova) {
+			this._webviewTwanspawentCova.stywe.height = `${dimension.height}px`;
+			this._webviewTwanspawentCova.stywe.width = `${dimension.width}px`;
 		}
 
-		this._eventDispatcher?.emit([new NotebookDiffLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
+		this._eventDispatcha?.emit([new NotebookDiffWayoutChangedEvent({ width: twue, fontInfo: twue }, this.getWayoutInfo())]);
 	}
 
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
+	ovewwide dispose() {
+		this._isDisposed = twue;
+		supa.dispose();
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const cellBorderColor = theme.getColor(notebookCellBorder);
-	if (cellBorderColor) {
-		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .top-border { border-top: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .bottom-border { border-top: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .left-border { border-left: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-body .border-container .right-border { border-right: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
-		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
-			border-top: 1px solid ${cellBorderColor};
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const cewwBowdewCowow = theme.getCowow(notebookCewwBowda);
+	if (cewwBowdewCowow) {
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body .bowda-containa .top-bowda { bowda-top: 1px sowid ${cewwBowdewCowow};}`);
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body .bowda-containa .bottom-bowda { bowda-top: 1px sowid ${cewwBowdewCowow};}`);
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body .bowda-containa .weft-bowda { bowda-weft: 1px sowid ${cewwBowdewCowow};}`);
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body .bowda-containa .wight-bowda { bowda-wight: 1px sowid ${cewwBowdewCowow};}`);
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-diff-editow-containa .output-heada-containa,
+		.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa {
+			bowda-top: 1px sowid ${cewwBowdewCowow};
 		}`);
 	}
 
-	const diffDiagonalFillColor = theme.getColor(diffDiagonalFill);
-	collector.addRule(`
-	.notebook-text-diff-editor .diagonal-fill {
-		background-image: linear-gradient(
+	const diffDiagonawFiwwCowow = theme.getCowow(diffDiagonawFiww);
+	cowwectow.addWuwe(`
+	.notebook-text-diff-editow .diagonaw-fiww {
+		backgwound-image: wineaw-gwadient(
 			-45deg,
-			${diffDiagonalFillColor} 12.5%,
+			${diffDiagonawFiwwCowow} 12.5%,
 			#0000 12.5%, #0000 50%,
-			${diffDiagonalFillColor} 50%, ${diffDiagonalFillColor} 62.5%,
+			${diffDiagonawFiwwCowow} 50%, ${diffDiagonawFiwwCowow} 62.5%,
 			#0000 62.5%, #0000 100%
 		);
-		background-size: 8px 8px;
+		backgwound-size: 8px 8px;
 	}
 	`);
 
-	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .margin,
-		.notebook-text-diff-editor .cell-body .cell-diff-editor-container .source-container .monaco-editor .monaco-editor-background { background: ${editorBackgroundColor}; }`
+	const editowBackgwoundCowow = theme.getCowow(cewwEditowBackgwound) ?? theme.getCowow(editowBackgwound);
+	if (editowBackgwoundCowow) {
+		cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .souwce-containa .monaco-editow .mawgin,
+		.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa .souwce-containa .monaco-editow .monaco-editow-backgwound { backgwound: ${editowBackgwoundCowow}; }`
 		);
 	}
 
-	const added = theme.getColor(diffInserted);
+	const added = theme.getCowow(diffInsewted);
 	if (added) {
-		collector.addRule(
+		cowwectow.addWuwe(
 			`
-			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground { background-color: ${added}; }
-			.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-info-container .output-view-container div.foreground { background-color: ${added}; }
-			.monaco-workbench .notebook-text-diff-editor .cell-body.right .output-info-container .output-view-container div.output-empty-view { background-color: ${added}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa.modified .output-view-containa .output-view-containa-wight div.fowegwound { backgwound-cowow: ${added}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.wight .output-info-containa .output-view-containa div.fowegwound { backgwound-cowow: ${added}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.wight .output-info-containa .output-view-containa div.output-empty-view { backgwound-cowow: ${added}; }
 			`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container { background-color: ${added}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .monaco-editor-background {
-					background-color: ${added};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .souwce-containa { backgwound-cowow: ${added}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .souwce-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .souwce-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${added};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container { background-color: ${added}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .monaco-editor-background {
-					background-color: ${added};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .metadata-editow-containa { backgwound-cowow: ${added}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .metadata-editow-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .metadata-editow-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${added};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container { background-color: ${added}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .monaco-editor-background {
-					background-color: ${added};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .output-editow-containa { backgwound-cowow: ${added}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .output-editow-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .output-editow-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${added};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-header-container { background-color: ${added}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-header-container { background-color: ${added}; }
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .metadata-heada-containa { backgwound-cowow: ${added}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.insewted .output-heada-containa { backgwound-cowow: ${added}; }
 		`
 		);
 	}
-	const removed = theme.getColor(diffRemoved);
-	if (removed) {
-		collector.addRule(
+	const wemoved = theme.getCowow(diffWemoved);
+	if (wemoved) {
+		cowwectow.addWuwe(
 			`
-			.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground { background-color: ${removed}; }
-			.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-info-container .output-view-container div.foreground { background-color: ${removed}; }
-			.monaco-workbench .notebook-text-diff-editor .cell-body.left .output-info-container .output-view-container div.output-empty-view { background-color: ${removed}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.fuww .output-info-containa.modified .output-view-containa .output-view-containa-weft div.fowegwound { backgwound-cowow: ${wemoved}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.weft .output-info-containa .output-view-containa div.fowegwound { backgwound-cowow: ${wemoved}; }
+			.monaco-wowkbench .notebook-text-diff-editow .ceww-body.weft .output-info-containa .output-view-containa div.output-empty-view { backgwound-cowow: ${wemoved}; }
 
 			`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container { background-color: ${removed}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .monaco-editor-background {
-					background-color: ${removed};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .souwce-containa { backgwound-cowow: ${wemoved}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .souwce-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .souwce-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${wemoved};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container { background-color: ${removed}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .monaco-editor-background {
-					background-color: ${removed};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .metadata-editow-containa { backgwound-cowow: ${wemoved}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .metadata-editow-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .metadata-editow-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${wemoved};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container { background-color: ${removed}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .margin,
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .monaco-editor-background {
-					background-color: ${removed};
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .output-editow-containa { backgwound-cowow: ${wemoved}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .output-editow-containa .monaco-editow .mawgin,
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .output-editow-containa .monaco-editow .monaco-editow-backgwound {
+					backgwound-cowow: ${wemoved};
 			}
 		`
 		);
-		collector.addRule(`
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-header-container { background-color: ${removed}; }
-			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-header-container { background-color: ${removed}; }
+		cowwectow.addWuwe(`
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .metadata-heada-containa { backgwound-cowow: ${wemoved}; }
+			.notebook-text-diff-editow .ceww-body .ceww-diff-editow-containa.wemoved .output-heada-containa { backgwound-cowow: ${wemoved}; }
 		`
 		);
 	}
 
-	// const changed = theme.getColor(editorGutterModifiedBackground);
+	// const changed = theme.getCowow(editowGuttewModifiedBackgwound);
 
 	// if (changed) {
-	// 	collector.addRule(`
-	// 		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container.modified {
-	// 			background-color: ${changed};
+	// 	cowwectow.addWuwe(`
+	// 		.notebook-text-diff-editow .ceww-diff-editow-containa .metadata-heada-containa.modified {
+	// 			backgwound-cowow: ${changed};
 	// 		}
 	// 	`);
 	// }
 
-	collector.addRule(`.notebook-text-diff-editor .cell-body { margin: ${DIFF_CELL_MARGIN}px; }`);
+	cowwectow.addWuwe(`.notebook-text-diff-editow .ceww-body { mawgin: ${DIFF_CEWW_MAWGIN}px; }`);
 });

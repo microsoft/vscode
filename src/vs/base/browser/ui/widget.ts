@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Gesture } from 'vs/base/browser/touch';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent, StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IMouseEvent, StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export abstract class Widget extends Disposable {
+expowt abstwact cwass Widget extends Disposabwe {
 
-	protected onclick(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.CLICK, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	pwotected oncwick(domNode: HTMWEwement, wistena: (e: IMouseEvent) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.CWICK, (e: MouseEvent) => wistena(new StandawdMouseEvent(e))));
 	}
 
-	protected onmousedown(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	pwotected onmousedown(domNode: HTMWEwement, wistena: (e: IMouseEvent) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => wistena(new StandawdMouseEvent(e))));
 	}
 
-	protected onmouseover(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.MOUSE_OVER, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	pwotected onmouseova(domNode: HTMWEwement, wistena: (e: IMouseEvent) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.MOUSE_OVa, (e: MouseEvent) => wistena(new StandawdMouseEvent(e))));
 	}
 
-	protected onnonbubblingmouseout(domNode: HTMLElement, listener: (e: IMouseEvent) => void): void {
-		this._register(dom.addDisposableNonBubblingMouseOutListener(domNode, (e: MouseEvent) => listener(new StandardMouseEvent(e))));
+	pwotected onnonbubbwingmouseout(domNode: HTMWEwement, wistena: (e: IMouseEvent) => void): void {
+		this._wegista(dom.addDisposabweNonBubbwingMouseOutWistena(domNode, (e: MouseEvent) => wistena(new StandawdMouseEvent(e))));
 	}
 
-	protected onkeydown(domNode: HTMLElement, listener: (e: IKeyboardEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => listener(new StandardKeyboardEvent(e))));
+	pwotected onkeydown(domNode: HTMWEwement, wistena: (e: IKeyboawdEvent) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.KEY_DOWN, (e: KeyboawdEvent) => wistena(new StandawdKeyboawdEvent(e))));
 	}
 
-	protected onkeyup(domNode: HTMLElement, listener: (e: IKeyboardEvent) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.KEY_UP, (e: KeyboardEvent) => listener(new StandardKeyboardEvent(e))));
+	pwotected onkeyup(domNode: HTMWEwement, wistena: (e: IKeyboawdEvent) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.KEY_UP, (e: KeyboawdEvent) => wistena(new StandawdKeyboawdEvent(e))));
 	}
 
-	protected oninput(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.INPUT, listener));
+	pwotected oninput(domNode: HTMWEwement, wistena: (e: Event) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.INPUT, wistena));
 	}
 
-	protected onblur(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.BLUR, listener));
+	pwotected onbwuw(domNode: HTMWEwement, wistena: (e: Event) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.BWUW, wistena));
 	}
 
-	protected onfocus(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.FOCUS, listener));
+	pwotected onfocus(domNode: HTMWEwement, wistena: (e: Event) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.FOCUS, wistena));
 	}
 
-	protected onchange(domNode: HTMLElement, listener: (e: Event) => void): void {
-		this._register(dom.addDisposableListener(domNode, dom.EventType.CHANGE, listener));
+	pwotected onchange(domNode: HTMWEwement, wistena: (e: Event) => void): void {
+		this._wegista(dom.addDisposabweWistena(domNode, dom.EventType.CHANGE, wistena));
 	}
 
-	protected ignoreGesture(domNode: HTMLElement): void {
-		Gesture.ignoreTarget(domNode);
+	pwotected ignoweGestuwe(domNode: HTMWEwement): void {
+		Gestuwe.ignoweTawget(domNode);
 	}
 }

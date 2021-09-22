@@ -1,256 +1,256 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class FastDomNode<T extends HTMLElement> {
+expowt cwass FastDomNode<T extends HTMWEwement> {
 
-	public readonly domNode: T;
-	private _maxWidth: number;
-	private _width: number;
-	private _height: number;
-	private _top: number;
-	private _left: number;
-	private _bottom: number;
-	private _right: number;
-	private _fontFamily: string;
-	private _fontWeight: string;
-	private _fontSize: number;
-	private _fontFeatureSettings: string;
-	private _lineHeight: number;
-	private _letterSpacing: number;
-	private _className: string;
-	private _display: string;
-	private _position: string;
-	private _visibility: string;
-	private _backgroundColor: string;
-	private _layerHint: boolean;
-	private _contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint';
-	private _boxShadow: string;
+	pubwic weadonwy domNode: T;
+	pwivate _maxWidth: numba;
+	pwivate _width: numba;
+	pwivate _height: numba;
+	pwivate _top: numba;
+	pwivate _weft: numba;
+	pwivate _bottom: numba;
+	pwivate _wight: numba;
+	pwivate _fontFamiwy: stwing;
+	pwivate _fontWeight: stwing;
+	pwivate _fontSize: numba;
+	pwivate _fontFeatuweSettings: stwing;
+	pwivate _wineHeight: numba;
+	pwivate _wettewSpacing: numba;
+	pwivate _cwassName: stwing;
+	pwivate _dispway: stwing;
+	pwivate _position: stwing;
+	pwivate _visibiwity: stwing;
+	pwivate _backgwoundCowow: stwing;
+	pwivate _wayewHint: boowean;
+	pwivate _contain: 'none' | 'stwict' | 'content' | 'size' | 'wayout' | 'stywe' | 'paint';
+	pwivate _boxShadow: stwing;
 
-	constructor(domNode: T) {
+	constwuctow(domNode: T) {
 		this.domNode = domNode;
 		this._maxWidth = -1;
 		this._width = -1;
 		this._height = -1;
 		this._top = -1;
-		this._left = -1;
+		this._weft = -1;
 		this._bottom = -1;
-		this._right = -1;
-		this._fontFamily = '';
+		this._wight = -1;
+		this._fontFamiwy = '';
 		this._fontWeight = '';
 		this._fontSize = -1;
-		this._fontFeatureSettings = '';
-		this._lineHeight = -1;
-		this._letterSpacing = -100;
-		this._className = '';
-		this._display = '';
+		this._fontFeatuweSettings = '';
+		this._wineHeight = -1;
+		this._wettewSpacing = -100;
+		this._cwassName = '';
+		this._dispway = '';
 		this._position = '';
-		this._visibility = '';
-		this._backgroundColor = '';
-		this._layerHint = false;
+		this._visibiwity = '';
+		this._backgwoundCowow = '';
+		this._wayewHint = fawse;
 		this._contain = 'none';
 		this._boxShadow = '';
 	}
 
-	public setMaxWidth(maxWidth: number): void {
+	pubwic setMaxWidth(maxWidth: numba): void {
 		if (this._maxWidth === maxWidth) {
-			return;
+			wetuwn;
 		}
 		this._maxWidth = maxWidth;
-		this.domNode.style.maxWidth = this._maxWidth + 'px';
+		this.domNode.stywe.maxWidth = this._maxWidth + 'px';
 	}
 
-	public setWidth(width: number): void {
+	pubwic setWidth(width: numba): void {
 		if (this._width === width) {
-			return;
+			wetuwn;
 		}
 		this._width = width;
-		this.domNode.style.width = this._width + 'px';
+		this.domNode.stywe.width = this._width + 'px';
 	}
 
-	public setHeight(height: number): void {
+	pubwic setHeight(height: numba): void {
 		if (this._height === height) {
-			return;
+			wetuwn;
 		}
 		this._height = height;
-		this.domNode.style.height = this._height + 'px';
+		this.domNode.stywe.height = this._height + 'px';
 	}
 
-	public setTop(top: number): void {
+	pubwic setTop(top: numba): void {
 		if (this._top === top) {
-			return;
+			wetuwn;
 		}
 		this._top = top;
-		this.domNode.style.top = this._top + 'px';
+		this.domNode.stywe.top = this._top + 'px';
 	}
 
-	public unsetTop(): void {
+	pubwic unsetTop(): void {
 		if (this._top === -1) {
-			return;
+			wetuwn;
 		}
 		this._top = -1;
-		this.domNode.style.top = '';
+		this.domNode.stywe.top = '';
 	}
 
-	public setLeft(left: number): void {
-		if (this._left === left) {
-			return;
+	pubwic setWeft(weft: numba): void {
+		if (this._weft === weft) {
+			wetuwn;
 		}
-		this._left = left;
-		this.domNode.style.left = this._left + 'px';
+		this._weft = weft;
+		this.domNode.stywe.weft = this._weft + 'px';
 	}
 
-	public setBottom(bottom: number): void {
+	pubwic setBottom(bottom: numba): void {
 		if (this._bottom === bottom) {
-			return;
+			wetuwn;
 		}
 		this._bottom = bottom;
-		this.domNode.style.bottom = this._bottom + 'px';
+		this.domNode.stywe.bottom = this._bottom + 'px';
 	}
 
-	public setRight(right: number): void {
-		if (this._right === right) {
-			return;
+	pubwic setWight(wight: numba): void {
+		if (this._wight === wight) {
+			wetuwn;
 		}
-		this._right = right;
-		this.domNode.style.right = this._right + 'px';
+		this._wight = wight;
+		this.domNode.stywe.wight = this._wight + 'px';
 	}
 
-	public setFontFamily(fontFamily: string): void {
-		if (this._fontFamily === fontFamily) {
-			return;
+	pubwic setFontFamiwy(fontFamiwy: stwing): void {
+		if (this._fontFamiwy === fontFamiwy) {
+			wetuwn;
 		}
-		this._fontFamily = fontFamily;
-		this.domNode.style.fontFamily = this._fontFamily;
+		this._fontFamiwy = fontFamiwy;
+		this.domNode.stywe.fontFamiwy = this._fontFamiwy;
 	}
 
-	public setFontWeight(fontWeight: string): void {
+	pubwic setFontWeight(fontWeight: stwing): void {
 		if (this._fontWeight === fontWeight) {
-			return;
+			wetuwn;
 		}
 		this._fontWeight = fontWeight;
-		this.domNode.style.fontWeight = this._fontWeight;
+		this.domNode.stywe.fontWeight = this._fontWeight;
 	}
 
-	public setFontSize(fontSize: number): void {
+	pubwic setFontSize(fontSize: numba): void {
 		if (this._fontSize === fontSize) {
-			return;
+			wetuwn;
 		}
 		this._fontSize = fontSize;
-		this.domNode.style.fontSize = this._fontSize + 'px';
+		this.domNode.stywe.fontSize = this._fontSize + 'px';
 	}
 
-	public setFontFeatureSettings(fontFeatureSettings: string): void {
-		if (this._fontFeatureSettings === fontFeatureSettings) {
-			return;
+	pubwic setFontFeatuweSettings(fontFeatuweSettings: stwing): void {
+		if (this._fontFeatuweSettings === fontFeatuweSettings) {
+			wetuwn;
 		}
-		this._fontFeatureSettings = fontFeatureSettings;
-		this.domNode.style.fontFeatureSettings = this._fontFeatureSettings;
+		this._fontFeatuweSettings = fontFeatuweSettings;
+		this.domNode.stywe.fontFeatuweSettings = this._fontFeatuweSettings;
 	}
 
-	public setLineHeight(lineHeight: number): void {
-		if (this._lineHeight === lineHeight) {
-			return;
+	pubwic setWineHeight(wineHeight: numba): void {
+		if (this._wineHeight === wineHeight) {
+			wetuwn;
 		}
-		this._lineHeight = lineHeight;
-		this.domNode.style.lineHeight = this._lineHeight + 'px';
+		this._wineHeight = wineHeight;
+		this.domNode.stywe.wineHeight = this._wineHeight + 'px';
 	}
 
-	public setLetterSpacing(letterSpacing: number): void {
-		if (this._letterSpacing === letterSpacing) {
-			return;
+	pubwic setWettewSpacing(wettewSpacing: numba): void {
+		if (this._wettewSpacing === wettewSpacing) {
+			wetuwn;
 		}
-		this._letterSpacing = letterSpacing;
-		this.domNode.style.letterSpacing = this._letterSpacing + 'px';
+		this._wettewSpacing = wettewSpacing;
+		this.domNode.stywe.wettewSpacing = this._wettewSpacing + 'px';
 	}
 
-	public setClassName(className: string): void {
-		if (this._className === className) {
-			return;
+	pubwic setCwassName(cwassName: stwing): void {
+		if (this._cwassName === cwassName) {
+			wetuwn;
 		}
-		this._className = className;
-		this.domNode.className = this._className;
+		this._cwassName = cwassName;
+		this.domNode.cwassName = this._cwassName;
 	}
 
-	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
-		this.domNode.classList.toggle(className, shouldHaveIt);
-		this._className = this.domNode.className;
+	pubwic toggweCwassName(cwassName: stwing, shouwdHaveIt?: boowean): void {
+		this.domNode.cwassWist.toggwe(cwassName, shouwdHaveIt);
+		this._cwassName = this.domNode.cwassName;
 	}
 
-	public setDisplay(display: string): void {
-		if (this._display === display) {
-			return;
+	pubwic setDispway(dispway: stwing): void {
+		if (this._dispway === dispway) {
+			wetuwn;
 		}
-		this._display = display;
-		this.domNode.style.display = this._display;
+		this._dispway = dispway;
+		this.domNode.stywe.dispway = this._dispway;
 	}
 
-	public setPosition(position: string): void {
+	pubwic setPosition(position: stwing): void {
 		if (this._position === position) {
-			return;
+			wetuwn;
 		}
 		this._position = position;
-		this.domNode.style.position = this._position;
+		this.domNode.stywe.position = this._position;
 	}
 
-	public setVisibility(visibility: string): void {
-		if (this._visibility === visibility) {
-			return;
+	pubwic setVisibiwity(visibiwity: stwing): void {
+		if (this._visibiwity === visibiwity) {
+			wetuwn;
 		}
-		this._visibility = visibility;
-		this.domNode.style.visibility = this._visibility;
+		this._visibiwity = visibiwity;
+		this.domNode.stywe.visibiwity = this._visibiwity;
 	}
 
-	public setBackgroundColor(backgroundColor: string): void {
-		if (this._backgroundColor === backgroundColor) {
-			return;
+	pubwic setBackgwoundCowow(backgwoundCowow: stwing): void {
+		if (this._backgwoundCowow === backgwoundCowow) {
+			wetuwn;
 		}
-		this._backgroundColor = backgroundColor;
-		this.domNode.style.backgroundColor = this._backgroundColor;
+		this._backgwoundCowow = backgwoundCowow;
+		this.domNode.stywe.backgwoundCowow = this._backgwoundCowow;
 	}
 
-	public setLayerHinting(layerHint: boolean): void {
-		if (this._layerHint === layerHint) {
-			return;
+	pubwic setWayewHinting(wayewHint: boowean): void {
+		if (this._wayewHint === wayewHint) {
+			wetuwn;
 		}
-		this._layerHint = layerHint;
-		this.domNode.style.transform = this._layerHint ? 'translate3d(0px, 0px, 0px)' : '';
+		this._wayewHint = wayewHint;
+		this.domNode.stywe.twansfowm = this._wayewHint ? 'twanswate3d(0px, 0px, 0px)' : '';
 	}
 
-	public setBoxShadow(boxShadow: string): void {
+	pubwic setBoxShadow(boxShadow: stwing): void {
 		if (this._boxShadow === boxShadow) {
-			return;
+			wetuwn;
 		}
 		this._boxShadow = boxShadow;
-		this.domNode.style.boxShadow = boxShadow;
+		this.domNode.stywe.boxShadow = boxShadow;
 	}
 
-	public setContain(contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint'): void {
+	pubwic setContain(contain: 'none' | 'stwict' | 'content' | 'size' | 'wayout' | 'stywe' | 'paint'): void {
 		if (this._contain === contain) {
-			return;
+			wetuwn;
 		}
 		this._contain = contain;
-		(<any>this.domNode.style).contain = this._contain;
+		(<any>this.domNode.stywe).contain = this._contain;
 	}
 
-	public setAttribute(name: string, value: string): void {
-		this.domNode.setAttribute(name, value);
+	pubwic setAttwibute(name: stwing, vawue: stwing): void {
+		this.domNode.setAttwibute(name, vawue);
 	}
 
-	public removeAttribute(name: string): void {
-		this.domNode.removeAttribute(name);
+	pubwic wemoveAttwibute(name: stwing): void {
+		this.domNode.wemoveAttwibute(name);
 	}
 
-	public appendChild(child: FastDomNode<T>): void {
-		this.domNode.appendChild(child.domNode);
+	pubwic appendChiwd(chiwd: FastDomNode<T>): void {
+		this.domNode.appendChiwd(chiwd.domNode);
 	}
 
-	public removeChild(child: FastDomNode<T>): void {
-		this.domNode.removeChild(child.domNode);
+	pubwic wemoveChiwd(chiwd: FastDomNode<T>): void {
+		this.domNode.wemoveChiwd(chiwd.domNode);
 	}
 }
 
-export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNode<T> {
-	return new FastDomNode(domNode);
+expowt function cweateFastDomNode<T extends HTMWEwement>(domNode: T): FastDomNode<T> {
+	wetuwn new FastDomNode(domNode);
 }

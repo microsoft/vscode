@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
-import { URI } from 'vs/base/common/uri';
+impowt { wefineSewviceDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWindowConfiguwation } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt type { IWowkbenchConstwuctionOptions as IWowkbenchOptions } fwom 'vs/wowkbench/wowkbench.web.api';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IWorkbenchEnvironmentService>(IEnvironmentService);
+expowt const IWowkbenchEnviwonmentSewvice = wefineSewviceDecowatow<IEnviwonmentSewvice, IWowkbenchEnviwonmentSewvice>(IEnviwonmentSewvice);
 
-export interface IWorkbenchConfiguration extends IWindowConfiguration { }
+expowt intewface IWowkbenchConfiguwation extends IWindowConfiguwation { }
 
 /**
- * A workbench specific environment service that is only present in workbench
- * layer.
+ * A wowkbench specific enviwonment sewvice that is onwy pwesent in wowkbench
+ * waya.
  */
-export interface IWorkbenchEnvironmentService extends IEnvironmentService {
+expowt intewface IWowkbenchEnviwonmentSewvice extends IEnviwonmentSewvice {
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       PUT NON-WEB PROPERTIES INTO THE NATIVE WORKBENCH
-	//       ENVIRONMENT SERVICE
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE. AS SUCH:
+	//       PUT NON-WEB PWOPEWTIES INTO THE NATIVE WOWKBENCH
+	//       ENVIWONMENT SEWVICE
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	readonly options?: IWorkbenchOptions;
+	weadonwy options?: IWowkbenchOptions;
 
-	readonly remoteAuthority?: string;
+	weadonwy wemoteAuthowity?: stwing;
 
-	readonly logFile: URI;
+	weadonwy wogFiwe: UWI;
 
-	readonly extHostLogsPath: URI;
-	readonly logExtensionHostCommunication?: boolean;
-	readonly extensionEnabledProposedApi?: string[];
+	weadonwy extHostWogsPath: UWI;
+	weadonwy wogExtensionHostCommunication?: boowean;
+	weadonwy extensionEnabwedPwoposedApi?: stwing[];
 
-	readonly webviewExternalEndpoint: string;
+	weadonwy webviewExtewnawEndpoint: stwing;
 
-	readonly skipReleaseNotes: boolean;
-	readonly skipWelcome: boolean;
+	weadonwy skipWeweaseNotes: boowean;
+	weadonwy skipWewcome: boowean;
 
-	readonly debugRenderer: boolean;
+	weadonwy debugWendewa: boowean;
 
 	/**
-	 * @deprecated this property will go away eventually as it
-	 * duplicates many properties of the environment service
+	 * @depwecated this pwopewty wiww go away eventuawwy as it
+	 * dupwicates many pwopewties of the enviwonment sewvice
 	 *
-	 * Please consider using the environment service directly
+	 * Pwease consida using the enviwonment sewvice diwectwy
 	 * if you can.
 	 */
-	readonly configuration: IWorkbenchConfiguration;
+	weadonwy configuwation: IWowkbenchConfiguwation;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
-	//       - PUT NON-WEB PROPERTIES INTO NATIVE WB ENV SERVICE
+	// NOTE: KEEP THIS INTEWFACE AS SMAWW AS POSSIBWE. AS SUCH:
+	//       - PUT NON-WEB PWOPEWTIES INTO NATIVE WB ENV SEWVICE
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

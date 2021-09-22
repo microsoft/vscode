@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Based on @sergeche's work in his emmet plugin */
+/* Based on @sewgeche's wowk in his emmet pwugin */
 
-import { TextDocument } from 'vscode';
+impowt { TextDocument } fwom 'vscode';
 
 /**
- * A stream reader for VSCode's `TextDocument`
- * Based on @emmetio/stream-reader and @emmetio/atom-plugin
+ * A stweam weada fow VSCode's `TextDocument`
+ * Based on @emmetio/stweam-weada and @emmetio/atom-pwugin
  */
-export class DocumentStreamReader {
-	private document: TextDocument;
-	private start: number;
-	private _eof: number;
-	private _sof: number;
-	public pos: number;
+expowt cwass DocumentStweamWeada {
+	pwivate document: TextDocument;
+	pwivate stawt: numba;
+	pwivate _eof: numba;
+	pwivate _sof: numba;
+	pubwic pos: numba;
 
-	constructor(document: TextDocument, pos?: number, limit?: [number, number]) {
+	constwuctow(document: TextDocument, pos?: numba, wimit?: [numba, numba]) {
 		this.document = document;
-		this.start = this.pos = pos ? pos : 0;
-		this._sof = limit ? limit[0] : 0;
-		this._eof = limit ? limit[1] : document.getText().length;
+		this.stawt = this.pos = pos ? pos : 0;
+		this._sof = wimit ? wimit[0] : 0;
+		this._eof = wimit ? wimit[1] : document.getText().wength;
 	}
 
 	/**
-	 * Returns true only if the stream is at the start of the file.
+	 * Wetuwns twue onwy if the stweam is at the stawt of the fiwe.
 	 */
-	sof(): boolean {
-		return this.pos <= this._sof;
+	sof(): boowean {
+		wetuwn this.pos <= this._sof;
 	}
 
 	/**
-	 * Returns true only if the stream is at the end of the file.
+	 * Wetuwns twue onwy if the stweam is at the end of the fiwe.
 	 */
-	eof(): boolean {
-		return this.pos >= this._eof;
+	eof(): boowean {
+		wetuwn this.pos >= this._eof;
 	}
 
 	/**
-	 * Creates a new stream instance which is limited to given range for given document
+	 * Cweates a new stweam instance which is wimited to given wange fow given document
 	 */
-	limit(start: number, end: number): DocumentStreamReader {
-		return new DocumentStreamReader(this.document, start, [start, end]);
+	wimit(stawt: numba, end: numba): DocumentStweamWeada {
+		wetuwn new DocumentStweamWeada(this.document, stawt, [stawt, end]);
 	}
 
 	/**
-	 * Returns the next character code in the stream without advancing it.
-	 * Will return NaN at the end of the file.
+	 * Wetuwns the next chawacta code in the stweam without advancing it.
+	 * Wiww wetuwn NaN at the end of the fiwe.
 	 */
-	peek(): number {
+	peek(): numba {
 		if (this.eof()) {
-			return NaN;
+			wetuwn NaN;
 		}
-		return this.document.getText().charCodeAt(this.pos);
+		wetuwn this.document.getText().chawCodeAt(this.pos);
 	}
 
 	/**
-	 * Returns the next character in the stream and advances it.
-	 * Also returns NaN when no more characters are available.
+	 * Wetuwns the next chawacta in the stweam and advances it.
+	 * Awso wetuwns NaN when no mowe chawactews awe avaiwabwe.
 	 */
-	next(): number {
+	next(): numba {
 		if (this.eof()) {
-			return NaN;
+			wetuwn NaN;
 		}
 
-		const code = this.document.getText().charCodeAt(this.pos);
+		const code = this.document.getText().chawCodeAt(this.pos);
 		this.pos++;
 
 		if (this.eof()) {
-			// restrict pos to eof, if in case it got moved beyond eof
+			// westwict pos to eof, if in case it got moved beyond eof
 			this.pos = this._eof;
 		}
 
-		return code;
+		wetuwn code;
 	}
 
 	/**
-	 * Backs up the stream n characters. Backing it up further than the
-	 * start of the current token will cause things to break, so be careful.
+	 * Backs up the stweam n chawactews. Backing it up fuwtha than the
+	 * stawt of the cuwwent token wiww cause things to bweak, so be cawefuw.
 	 */
-	backUp(n: number): number {
+	backUp(n: numba): numba {
 		this.pos -= n;
 		if (this.pos < 0) {
 			this.pos = 0;
 		}
-		return this.peek();
+		wetuwn this.peek();
 	}
 
 	/**
-	 * Get the string between the start of the current token and the
-	 * current stream position.
+	 * Get the stwing between the stawt of the cuwwent token and the
+	 * cuwwent stweam position.
 	 */
-	current(): string {
-		return this.substring(this.start, this.pos);
+	cuwwent(): stwing {
+		wetuwn this.substwing(this.stawt, this.pos);
 	}
 
 	/**
-	 * Returns contents for given range
+	 * Wetuwns contents fow given wange
 	 */
-	substring(from: number, to: number): string {
-		return this.document.getText().substring(from, to);
+	substwing(fwom: numba, to: numba): stwing {
+		wetuwn this.document.getText().substwing(fwom, to);
 	}
 
 	/**
-	 * Creates error object with current stream state
+	 * Cweates ewwow object with cuwwent stweam state
 	 */
-	error(message: string): Error {
-		const err = new Error(`${message} at offset ${this.pos}`);
-		return err;
+	ewwow(message: stwing): Ewwow {
+		const eww = new Ewwow(`${message} at offset ${this.pos}`);
+		wetuwn eww;
 	}
 
 	/**
-	 * `match` can be a character code or a function that takes a character code
-	 * and returns a boolean. If the next character in the stream 'matches'
-	 * the given argument, it is consumed and returned.
-	 * Otherwise, `false` is returned.
+	 * `match` can be a chawacta code ow a function that takes a chawacta code
+	 * and wetuwns a boowean. If the next chawacta in the stweam 'matches'
+	 * the given awgument, it is consumed and wetuwned.
+	 * Othewwise, `fawse` is wetuwned.
 	 */
-	eat(match: number | Function): boolean {
+	eat(match: numba | Function): boowean {
 		const ch = this.peek();
 		const ok = typeof match === 'function' ? match(ch) : ch === match;
 
@@ -126,16 +126,16 @@ export class DocumentStreamReader {
 			this.next();
 		}
 
-		return ok;
+		wetuwn ok;
 	}
 
 	/**
-	 * Repeatedly calls <code>eat</code> with the given argument, until it
-	 * fails. Returns <code>true</code> if any characters were eaten.
+	 * Wepeatedwy cawws <code>eat</code> with the given awgument, untiw it
+	 * faiws. Wetuwns <code>twue</code> if any chawactews wewe eaten.
 	 */
-	eatWhile(match: number | Function): boolean {
-		const start = this.pos;
-		while (!this.eof() && this.eat(match)) { }
-		return this.pos !== start;
+	eatWhiwe(match: numba | Function): boowean {
+		const stawt = this.pos;
+		whiwe (!this.eof() && this.eat(match)) { }
+		wetuwn this.pos !== stawt;
 	}
 }

@@ -1,148 +1,148 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+impowt * as assewt fwom 'assewt';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DataTwee } fwom 'vs/base/bwowsa/ui/twee/dataTwee';
+impowt { IDataSouwce, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
 
-interface E {
-	value: number;
-	children?: E[];
+intewface E {
+	vawue: numba;
+	chiwdwen?: E[];
 }
 
-suite('DataTree', function () {
-	let tree: DataTree<E, E>;
+suite('DataTwee', function () {
+	wet twee: DataTwee<E, E>;
 
-	const root: E = {
-		value: -1,
-		children: [
-			{ value: 0, children: [{ value: 10 }, { value: 11 }, { value: 12 }] },
-			{ value: 1 },
-			{ value: 2 },
+	const woot: E = {
+		vawue: -1,
+		chiwdwen: [
+			{ vawue: 0, chiwdwen: [{ vawue: 10 }, { vawue: 11 }, { vawue: 12 }] },
+			{ vawue: 1 },
+			{ vawue: 2 },
 		]
 	};
 
 	const empty: E = {
-		value: -1,
-		children: []
+		vawue: -1,
+		chiwdwen: []
 	};
 
 	setup(() => {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<E> {
-			getHeight() { return 20; }
-			getTemplateId(): string { return 'default'; }
+		const dewegate = new cwass impwements IWistViwtuawDewegate<E> {
+			getHeight() { wetuwn 20; }
+			getTempwateId(): stwing { wetuwn 'defauwt'; }
 		};
 
-		const renderer = new class implements ITreeRenderer<E, void, HTMLElement> {
-			readonly templateId = 'default';
-			renderTemplate(container: HTMLElement): HTMLElement {
-				return container;
+		const wendewa = new cwass impwements ITweeWendewa<E, void, HTMWEwement> {
+			weadonwy tempwateId = 'defauwt';
+			wendewTempwate(containa: HTMWEwement): HTMWEwement {
+				wetuwn containa;
 			}
-			renderElement(element: ITreeNode<E, void>, index: number, templateData: HTMLElement): void {
-				templateData.textContent = `${element.element.value}`;
+			wendewEwement(ewement: ITweeNode<E, void>, index: numba, tempwateData: HTMWEwement): void {
+				tempwateData.textContent = `${ewement.ewement.vawue}`;
 			}
-			disposeTemplate(): void { }
+			disposeTempwate(): void { }
 		};
 
-		const dataSource = new class implements IDataSource<E, E> {
-			getChildren(element: E): E[] {
-				return element.children || [];
-			}
-		};
-
-		const identityProvider = new class implements IIdentityProvider<E> {
-			getId(element: E): { toString(): string; } {
-				return `${element.value}`;
+		const dataSouwce = new cwass impwements IDataSouwce<E, E> {
+			getChiwdwen(ewement: E): E[] {
+				wetuwn ewement.chiwdwen || [];
 			}
 		};
 
-		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, {
-			identityProvider
+		const identityPwovida = new cwass impwements IIdentityPwovida<E> {
+			getId(ewement: E): { toStwing(): stwing; } {
+				wetuwn `${ewement.vawue}`;
+			}
+		};
+
+		twee = new DataTwee<E, E>('test', containa, dewegate, [wendewa], dataSouwce, {
+			identityPwovida
 		});
-		tree.layout(200);
+		twee.wayout(200);
 	});
 
-	teardown(() => {
-		tree.dispose();
+	teawdown(() => {
+		twee.dispose();
 	});
 
-	test('view state is lost implicitly', () => {
-		tree.setInput(root);
+	test('view state is wost impwicitwy', () => {
+		twee.setInput(woot);
 
-		let navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 10);
-		assert.strictEqual(navigator.next()!.value, 11);
-		assert.strictEqual(navigator.next()!.value, 12);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		wet navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 10);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 11);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 12);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		tree.collapse(root.children![0]);
-		navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		twee.cowwapse(woot.chiwdwen![0]);
+		navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		tree.setSelection([root.children![1]]);
-		tree.setFocus([root.children![2]]);
+		twee.setSewection([woot.chiwdwen![1]]);
+		twee.setFocus([woot.chiwdwen![2]]);
 
-		tree.setInput(empty);
-		tree.setInput(root);
-		navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 10);
-		assert.strictEqual(navigator.next()!.value, 11);
-		assert.strictEqual(navigator.next()!.value, 12);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		twee.setInput(empty);
+		twee.setInput(woot);
+		navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 10);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 11);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 12);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		assert.deepStrictEqual(tree.getSelection(), []);
-		assert.deepStrictEqual(tree.getFocus(), []);
+		assewt.deepStwictEquaw(twee.getSewection(), []);
+		assewt.deepStwictEquaw(twee.getFocus(), []);
 	});
 
-	test('view state can be preserved', () => {
-		tree.setInput(root);
+	test('view state can be pwesewved', () => {
+		twee.setInput(woot);
 
-		let navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 10);
-		assert.strictEqual(navigator.next()!.value, 11);
-		assert.strictEqual(navigator.next()!.value, 12);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		wet navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 10);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 11);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 12);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		tree.collapse(root.children![0]);
-		navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		twee.cowwapse(woot.chiwdwen![0]);
+		navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		tree.setSelection([root.children![1]]);
-		tree.setFocus([root.children![2]]);
+		twee.setSewection([woot.chiwdwen![1]]);
+		twee.setFocus([woot.chiwdwen![2]]);
 
-		const viewState = tree.getViewState();
+		const viewState = twee.getViewState();
 
-		tree.setInput(empty);
-		tree.setInput(root, viewState);
-		navigator = tree.navigate();
-		assert.strictEqual(navigator.next()!.value, 0);
-		assert.strictEqual(navigator.next()!.value, 1);
-		assert.strictEqual(navigator.next()!.value, 2);
-		assert.strictEqual(navigator.next()!, null);
+		twee.setInput(empty);
+		twee.setInput(woot, viewState);
+		navigatow = twee.navigate();
+		assewt.stwictEquaw(navigatow.next()!.vawue, 0);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 1);
+		assewt.stwictEquaw(navigatow.next()!.vawue, 2);
+		assewt.stwictEquaw(navigatow.next()!, nuww);
 
-		assert.deepStrictEqual(tree.getSelection(), [root.children![1]]);
-		assert.deepStrictEqual(tree.getFocus(), [root.children![2]]);
+		assewt.deepStwictEquaw(twee.getSewection(), [woot.chiwdwen![1]]);
+		assewt.deepStwictEquaw(twee.getFocus(), [woot.chiwdwen![2]]);
 	});
 });

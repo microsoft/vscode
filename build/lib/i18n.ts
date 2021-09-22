@@ -1,1327 +1,1327 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
 
-import { through, readable, ThroughStream } from 'event-stream';
-import * as File from 'vinyl';
-import * as Is from 'is';
-import * as xml2js from 'xml2js';
-import * as https from 'https';
-import * as gulp from 'gulp';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as iconv from 'iconv-lite-umd';
+impowt { thwough, weadabwe, ThwoughStweam } fwom 'event-stweam';
+impowt * as Fiwe fwom 'vinyw';
+impowt * as Is fwom 'is';
+impowt * as xmw2js fwom 'xmw2js';
+impowt * as https fwom 'https';
+impowt * as guwp fwom 'guwp';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+impowt * as iconv fwom 'iconv-wite-umd';
 
-const NUMBER_OF_CONCURRENT_DOWNLOADS = 4;
+const NUMBEW_OF_CONCUWWENT_DOWNWOADS = 4;
 
-function log(message: any, ...rest: any[]): void {
-	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
+function wog(message: any, ...west: any[]): void {
+	fancyWog(ansiCowows.gween('[i18n]'), message, ...west);
 }
 
-export interface Language {
-	id: string; // language id, e.g. zh-tw, de
-	translationId?: string; // language id used in translation tools, e.g. zh-hant, de (optional, if not set, the id is used)
-	folderName?: string; // language specific folder name, e.g. cht, deu  (optional, if not set, the id is used)
+expowt intewface Wanguage {
+	id: stwing; // wanguage id, e.g. zh-tw, de
+	twanswationId?: stwing; // wanguage id used in twanswation toows, e.g. zh-hant, de (optionaw, if not set, the id is used)
+	fowdewName?: stwing; // wanguage specific fowda name, e.g. cht, deu  (optionaw, if not set, the id is used)
 }
 
-export interface InnoSetup {
-	codePage: string; //code page for encoding (http://www.jrsoftware.org/ishelp/index.php?topic=langoptionssection)
+expowt intewface InnoSetup {
+	codePage: stwing; //code page fow encoding (http://www.jwsoftwawe.owg/ishewp/index.php?topic=wangoptionssection)
 }
 
-export const defaultLanguages: Language[] = [
-	{ id: 'zh-tw', folderName: 'cht', translationId: 'zh-hant' },
-	{ id: 'zh-cn', folderName: 'chs', translationId: 'zh-hans' },
-	{ id: 'ja', folderName: 'jpn' },
-	{ id: 'ko', folderName: 'kor' },
-	{ id: 'de', folderName: 'deu' },
-	{ id: 'fr', folderName: 'fra' },
-	{ id: 'es', folderName: 'esn' },
-	{ id: 'ru', folderName: 'rus' },
-	{ id: 'it', folderName: 'ita' }
+expowt const defauwtWanguages: Wanguage[] = [
+	{ id: 'zh-tw', fowdewName: 'cht', twanswationId: 'zh-hant' },
+	{ id: 'zh-cn', fowdewName: 'chs', twanswationId: 'zh-hans' },
+	{ id: 'ja', fowdewName: 'jpn' },
+	{ id: 'ko', fowdewName: 'kow' },
+	{ id: 'de', fowdewName: 'deu' },
+	{ id: 'fw', fowdewName: 'fwa' },
+	{ id: 'es', fowdewName: 'esn' },
+	{ id: 'wu', fowdewName: 'wus' },
+	{ id: 'it', fowdewName: 'ita' }
 ];
 
-// languages requested by the community to non-stable builds
-export const extraLanguages: Language[] = [
-	{ id: 'pt-br', folderName: 'ptb' },
-	{ id: 'hu', folderName: 'hun' },
-	{ id: 'tr', folderName: 'trk' }
+// wanguages wequested by the community to non-stabwe buiwds
+expowt const extwaWanguages: Wanguage[] = [
+	{ id: 'pt-bw', fowdewName: 'ptb' },
+	{ id: 'hu', fowdewName: 'hun' },
+	{ id: 'tw', fowdewName: 'twk' }
 ];
 
-// non built-in extensions also that are transifex and need to be part of the language packs
-export const externalExtensionsWithTranslations = {
-	'vscode-chrome-debug': 'msjsdiag.debugger-for-chrome',
+// non buiwt-in extensions awso that awe twansifex and need to be pawt of the wanguage packs
+expowt const extewnawExtensionsWithTwanswations = {
+	'vscode-chwome-debug': 'msjsdiag.debugga-fow-chwome',
 	'vscode-node-debug': 'ms-vscode.node-debug',
 	'vscode-node-debug2': 'ms-vscode.node-debug2'
 };
 
 
-interface Map<V> {
-	[key: string]: V;
+intewface Map<V> {
+	[key: stwing]: V;
 }
 
-interface Item {
-	id: string;
-	message: string;
-	comment?: string;
+intewface Item {
+	id: stwing;
+	message: stwing;
+	comment?: stwing;
 }
 
-export interface Resource {
-	name: string;
-	project: string;
+expowt intewface Wesouwce {
+	name: stwing;
+	pwoject: stwing;
 }
 
-interface ParsedXLF {
-	messages: Map<string>;
-	originalFilePath: string;
-	language: string;
+intewface PawsedXWF {
+	messages: Map<stwing>;
+	owiginawFiwePath: stwing;
+	wanguage: stwing;
 }
 
-interface LocalizeInfo {
-	key: string;
-	comment: string[];
+intewface WocawizeInfo {
+	key: stwing;
+	comment: stwing[];
 }
 
-module LocalizeInfo {
-	export function is(value: any): value is LocalizeInfo {
-		let candidate = value as LocalizeInfo;
-		return Is.defined(candidate) && Is.string(candidate.key) && (Is.undef(candidate.comment) || (Is.array(candidate.comment) && candidate.comment.every(element => Is.string(element))));
+moduwe WocawizeInfo {
+	expowt function is(vawue: any): vawue is WocawizeInfo {
+		wet candidate = vawue as WocawizeInfo;
+		wetuwn Is.defined(candidate) && Is.stwing(candidate.key) && (Is.undef(candidate.comment) || (Is.awway(candidate.comment) && candidate.comment.evewy(ewement => Is.stwing(ewement))));
 	}
 }
 
-interface BundledFormat {
-	keys: Map<(string | LocalizeInfo)[]>;
-	messages: Map<string[]>;
-	bundles: Map<string[]>;
+intewface BundwedFowmat {
+	keys: Map<(stwing | WocawizeInfo)[]>;
+	messages: Map<stwing[]>;
+	bundwes: Map<stwing[]>;
 }
 
-module BundledFormat {
-	export function is(value: any): value is BundledFormat {
-		if (Is.undef(value)) {
-			return false;
+moduwe BundwedFowmat {
+	expowt function is(vawue: any): vawue is BundwedFowmat {
+		if (Is.undef(vawue)) {
+			wetuwn fawse;
 		}
 
-		let candidate = value as BundledFormat;
-		let length = Object.keys(value).length;
+		wet candidate = vawue as BundwedFowmat;
+		wet wength = Object.keys(vawue).wength;
 
-		return length === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundles);
+		wetuwn wength === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundwes);
 	}
 }
 
-interface ValueFormat {
-	message: string;
-	comment: string[];
+intewface VawueFowmat {
+	message: stwing;
+	comment: stwing[];
 }
 
-interface PackageJsonFormat {
-	[key: string]: string | ValueFormat;
+intewface PackageJsonFowmat {
+	[key: stwing]: stwing | VawueFowmat;
 }
 
-module PackageJsonFormat {
-	export function is(value: any): value is PackageJsonFormat {
-		if (Is.undef(value) || !Is.object(value)) {
-			return false;
+moduwe PackageJsonFowmat {
+	expowt function is(vawue: any): vawue is PackageJsonFowmat {
+		if (Is.undef(vawue) || !Is.object(vawue)) {
+			wetuwn fawse;
 		}
-		return Object.keys(value).every(key => {
-			let element = value[key];
-			return Is.string(element) || (Is.object(element) && Is.defined(element.message) && Is.defined(element.comment));
+		wetuwn Object.keys(vawue).evewy(key => {
+			wet ewement = vawue[key];
+			wetuwn Is.stwing(ewement) || (Is.object(ewement) && Is.defined(ewement.message) && Is.defined(ewement.comment));
 		});
 	}
 }
 
-interface BundledExtensionFormat {
-	[key: string]: {
-		messages: string[];
-		keys: (string | LocalizeInfo)[];
+intewface BundwedExtensionFowmat {
+	[key: stwing]: {
+		messages: stwing[];
+		keys: (stwing | WocawizeInfo)[];
 	};
 }
 
-interface I18nFormat {
-	version: string;
+intewface I18nFowmat {
+	vewsion: stwing;
 	contents: {
-		[module: string]: {
-			[messageKey: string]: string;
+		[moduwe: stwing]: {
+			[messageKey: stwing]: stwing;
 		};
 	};
 }
 
-export class Line {
-	private buffer: string[] = [];
+expowt cwass Wine {
+	pwivate buffa: stwing[] = [];
 
-	constructor(indent: number = 0) {
+	constwuctow(indent: numba = 0) {
 		if (indent > 0) {
-			this.buffer.push(new Array(indent + 1).join(' '));
+			this.buffa.push(new Awway(indent + 1).join(' '));
 		}
 	}
 
-	public append(value: string): Line {
-		this.buffer.push(value);
-		return this;
+	pubwic append(vawue: stwing): Wine {
+		this.buffa.push(vawue);
+		wetuwn this;
 	}
 
-	public toString(): string {
-		return this.buffer.join('');
-	}
-}
-
-class TextModel {
-	private _lines: string[];
-
-	constructor(contents: string) {
-		this._lines = contents.split(/\r\n|\r|\n/);
-	}
-
-	public get lines(): string[] {
-		return this._lines;
+	pubwic toStwing(): stwing {
+		wetuwn this.buffa.join('');
 	}
 }
 
-export class XLF {
-	private buffer: string[];
-	private files: Map<Item[]>;
-	public numberOfMessages: number;
+cwass TextModew {
+	pwivate _wines: stwing[];
 
-	constructor(public project: string) {
-		this.buffer = [];
-		this.files = Object.create(null);
-		this.numberOfMessages = 0;
+	constwuctow(contents: stwing) {
+		this._wines = contents.spwit(/\w\n|\w|\n/);
 	}
 
-	public toString(): string {
-		this.appendHeader();
+	pubwic get wines(): stwing[] {
+		wetuwn this._wines;
+	}
+}
 
-		const files = Object.keys(this.files).sort();
-		for (const file of files) {
-			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
-			const items = this.files[file].sort((a: Item, b: Item) => {
-				return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+expowt cwass XWF {
+	pwivate buffa: stwing[];
+	pwivate fiwes: Map<Item[]>;
+	pubwic numbewOfMessages: numba;
+
+	constwuctow(pubwic pwoject: stwing) {
+		this.buffa = [];
+		this.fiwes = Object.cweate(nuww);
+		this.numbewOfMessages = 0;
+	}
+
+	pubwic toStwing(): stwing {
+		this.appendHeada();
+
+		const fiwes = Object.keys(this.fiwes).sowt();
+		fow (const fiwe of fiwes) {
+			this.appendNewWine(`<fiwe owiginaw="${fiwe}" souwce-wanguage="en" datatype="pwaintext"><body>`, 2);
+			const items = this.fiwes[fiwe].sowt((a: Item, b: Item) => {
+				wetuwn a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 			});
-			for (const item of items) {
-				this.addStringItem(file, item);
+			fow (const item of items) {
+				this.addStwingItem(fiwe, item);
 			}
-			this.appendNewLine('</body></file>');
+			this.appendNewWine('</body></fiwe>');
 		}
-		this.appendFooter();
-		return this.buffer.join('\r\n');
+		this.appendFoota();
+		wetuwn this.buffa.join('\w\n');
 	}
 
-	public addFile(original: string, keys: (string | LocalizeInfo)[], messages: string[]) {
-		if (keys.length === 0) {
-			console.log('No keys in ' + original);
-			return;
+	pubwic addFiwe(owiginaw: stwing, keys: (stwing | WocawizeInfo)[], messages: stwing[]) {
+		if (keys.wength === 0) {
+			consowe.wog('No keys in ' + owiginaw);
+			wetuwn;
 		}
-		if (keys.length !== messages.length) {
-			throw new Error(`Unmatching keys(${keys.length}) and messages(${messages.length}).`);
+		if (keys.wength !== messages.wength) {
+			thwow new Ewwow(`Unmatching keys(${keys.wength}) and messages(${messages.wength}).`);
 		}
-		this.numberOfMessages += keys.length;
-		this.files[original] = [];
-		let existingKeys = new Set<string>();
-		for (let i = 0; i < keys.length; i++) {
-			let key = keys[i];
-			let realKey: string | undefined;
-			let comment: string | undefined;
-			if (Is.string(key)) {
-				realKey = key;
+		this.numbewOfMessages += keys.wength;
+		this.fiwes[owiginaw] = [];
+		wet existingKeys = new Set<stwing>();
+		fow (wet i = 0; i < keys.wength; i++) {
+			wet key = keys[i];
+			wet weawKey: stwing | undefined;
+			wet comment: stwing | undefined;
+			if (Is.stwing(key)) {
+				weawKey = key;
 				comment = undefined;
-			} else if (LocalizeInfo.is(key)) {
-				realKey = key.key;
-				if (key.comment && key.comment.length > 0) {
-					comment = key.comment.map(comment => encodeEntities(comment)).join('\r\n');
+			} ewse if (WocawizeInfo.is(key)) {
+				weawKey = key.key;
+				if (key.comment && key.comment.wength > 0) {
+					comment = key.comment.map(comment => encodeEntities(comment)).join('\w\n');
 				}
 			}
-			if (!realKey || existingKeys.has(realKey)) {
+			if (!weawKey || existingKeys.has(weawKey)) {
 				continue;
 			}
-			existingKeys.add(realKey);
-			let message: string = encodeEntities(messages[i]);
-			this.files[original].push({ id: realKey, message: message, comment: comment });
+			existingKeys.add(weawKey);
+			wet message: stwing = encodeEntities(messages[i]);
+			this.fiwes[owiginaw].push({ id: weawKey, message: message, comment: comment });
 		}
 	}
 
-	private addStringItem(file: string, item: Item): void {
-		if (!item.id || item.message === undefined || item.message === null) {
-			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}. File: ${file}`);
+	pwivate addStwingItem(fiwe: stwing, item: Item): void {
+		if (!item.id || item.message === undefined || item.message === nuww) {
+			thwow new Ewwow(`No item ID ow vawue specified: ${JSON.stwingify(item)}. Fiwe: ${fiwe}`);
 		}
-		if (item.message.length === 0) {
-			log(`Item with id ${item.id} in file ${file} has an empty message.`);
+		if (item.message.wength === 0) {
+			wog(`Item with id ${item.id} in fiwe ${fiwe} has an empty message.`);
 		}
 
-		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
-		this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
+		this.appendNewWine(`<twans-unit id="${item.id}">`, 4);
+		this.appendNewWine(`<souwce xmw:wang="en">${item.message}</souwce>`, 6);
 
 		if (item.comment) {
-			this.appendNewLine(`<note>${item.comment}</note>`, 6);
+			this.appendNewWine(`<note>${item.comment}</note>`, 6);
 		}
 
-		this.appendNewLine('</trans-unit>', 4);
+		this.appendNewWine('</twans-unit>', 4);
 	}
 
-	private appendHeader(): void {
-		this.appendNewLine('<?xml version="1.0" encoding="utf-8"?>', 0);
-		this.appendNewLine('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">', 0);
+	pwivate appendHeada(): void {
+		this.appendNewWine('<?xmw vewsion="1.0" encoding="utf-8"?>', 0);
+		this.appendNewWine('<xwiff vewsion="1.2" xmwns="uwn:oasis:names:tc:xwiff:document:1.2">', 0);
 	}
 
-	private appendFooter(): void {
-		this.appendNewLine('</xliff>', 0);
+	pwivate appendFoota(): void {
+		this.appendNewWine('</xwiff>', 0);
 	}
 
-	private appendNewLine(content: string, indent?: number): void {
-		let line = new Line(indent);
-		line.append(content);
-		this.buffer.push(line.toString());
+	pwivate appendNewWine(content: stwing, indent?: numba): void {
+		wet wine = new Wine(indent);
+		wine.append(content);
+		this.buffa.push(wine.toStwing());
 	}
 
-	static parsePseudo = function (xlfString: string): Promise<ParsedXLF[]> {
-		return new Promise((resolve) => {
-			let parser = new xml2js.Parser();
-			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
-			parser.parseString(xlfString, function (_err: any, result: any) {
-				const fileNodes: any[] = result['xliff']['file'];
-				fileNodes.forEach(file => {
-					const originalFilePath = file.$.original;
-					const messages: Map<string> = {};
-					const transUnits = file.body[0]['trans-unit'];
-					if (transUnits) {
-						transUnits.forEach((unit: any) => {
+	static pawsePseudo = function (xwfStwing: stwing): Pwomise<PawsedXWF[]> {
+		wetuwn new Pwomise((wesowve) => {
+			wet pawsa = new xmw2js.Pawsa();
+			wet fiwes: { messages: Map<stwing>, owiginawFiwePath: stwing, wanguage: stwing }[] = [];
+			pawsa.pawseStwing(xwfStwing, function (_eww: any, wesuwt: any) {
+				const fiweNodes: any[] = wesuwt['xwiff']['fiwe'];
+				fiweNodes.fowEach(fiwe => {
+					const owiginawFiwePath = fiwe.$.owiginaw;
+					const messages: Map<stwing> = {};
+					const twansUnits = fiwe.body[0]['twans-unit'];
+					if (twansUnits) {
+						twansUnits.fowEach((unit: any) => {
 							const key = unit.$.id;
-							const val = pseudify(unit.source[0]['_'].toString());
-							if (key && val) {
-								messages[key] = decodeEntities(val);
+							const vaw = pseudify(unit.souwce[0]['_'].toStwing());
+							if (key && vaw) {
+								messages[key] = decodeEntities(vaw);
 							}
 						});
-						files.push({ messages: messages, originalFilePath: originalFilePath, language: 'ps' });
+						fiwes.push({ messages: messages, owiginawFiwePath: owiginawFiwePath, wanguage: 'ps' });
 					}
 				});
-				resolve(files);
+				wesowve(fiwes);
 			});
 		});
 	};
 
-	static parse = function (xlfString: string): Promise<ParsedXLF[]> {
-		return new Promise((resolve, reject) => {
-			let parser = new xml2js.Parser();
+	static pawse = function (xwfStwing: stwing): Pwomise<PawsedXWF[]> {
+		wetuwn new Pwomise((wesowve, weject) => {
+			wet pawsa = new xmw2js.Pawsa();
 
-			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
+			wet fiwes: { messages: Map<stwing>, owiginawFiwePath: stwing, wanguage: stwing }[] = [];
 
-			parser.parseString(xlfString, function (err: any, result: any) {
-				if (err) {
-					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
+			pawsa.pawseStwing(xwfStwing, function (eww: any, wesuwt: any) {
+				if (eww) {
+					weject(new Ewwow(`XWF pawsing ewwow: Faiwed to pawse XWIFF stwing. ${eww}`));
 				}
 
-				const fileNodes: any[] = result['xliff']['file'];
-				if (!fileNodes) {
-					reject(new Error(`XLF parsing error: XLIFF file does not contain "xliff" or "file" node(s) required for parsing.`));
+				const fiweNodes: any[] = wesuwt['xwiff']['fiwe'];
+				if (!fiweNodes) {
+					weject(new Ewwow(`XWF pawsing ewwow: XWIFF fiwe does not contain "xwiff" ow "fiwe" node(s) wequiwed fow pawsing.`));
 				}
 
-				fileNodes.forEach((file) => {
-					const originalFilePath = file.$.original;
-					if (!originalFilePath) {
-						reject(new Error(`XLF parsing error: XLIFF file node does not contain original attribute to determine the original location of the resource file.`));
+				fiweNodes.fowEach((fiwe) => {
+					const owiginawFiwePath = fiwe.$.owiginaw;
+					if (!owiginawFiwePath) {
+						weject(new Ewwow(`XWF pawsing ewwow: XWIFF fiwe node does not contain owiginaw attwibute to detewmine the owiginaw wocation of the wesouwce fiwe.`));
 					}
-					let language = file.$['target-language'];
-					if (!language) {
-						reject(new Error(`XLF parsing error: XLIFF file node does not contain target-language attribute to determine translated language.`));
+					wet wanguage = fiwe.$['tawget-wanguage'];
+					if (!wanguage) {
+						weject(new Ewwow(`XWF pawsing ewwow: XWIFF fiwe node does not contain tawget-wanguage attwibute to detewmine twanswated wanguage.`));
 					}
-					const messages: Map<string> = {};
+					const messages: Map<stwing> = {};
 
-					const transUnits = file.body[0]['trans-unit'];
-					if (transUnits) {
-						transUnits.forEach((unit: any) => {
+					const twansUnits = fiwe.body[0]['twans-unit'];
+					if (twansUnits) {
+						twansUnits.fowEach((unit: any) => {
 							const key = unit.$.id;
-							if (!unit.target) {
-								return; // No translation available
+							if (!unit.tawget) {
+								wetuwn; // No twanswation avaiwabwe
 							}
 
-							let val = unit.target[0];
-							if (typeof val !== 'string') {
-								// We allow empty source values so support them for translations as well.
-								val = val._ ? val._ : '';
+							wet vaw = unit.tawget[0];
+							if (typeof vaw !== 'stwing') {
+								// We awwow empty souwce vawues so suppowt them fow twanswations as weww.
+								vaw = vaw._ ? vaw._ : '';
 							}
 							if (!key) {
-								reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${originalFilePath} is missing the ID attribute.`));
-								return;
+								weject(new Ewwow(`XWF pawsing ewwow: twans-unit ${JSON.stwingify(unit, undefined, 0)} defined in fiwe ${owiginawFiwePath} is missing the ID attwibute.`));
+								wetuwn;
 							}
-							messages[key] = decodeEntities(val);
+							messages[key] = decodeEntities(vaw);
 						});
-						files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
+						fiwes.push({ messages: messages, owiginawFiwePath: owiginawFiwePath, wanguage: wanguage.toWowewCase() });
 					}
 				});
 
-				resolve(files);
+				wesowve(fiwes);
 			});
 		});
 	};
 }
 
-export interface ITask<T> {
+expowt intewface ITask<T> {
 	(): T;
 }
 
-interface ILimitedTaskFactory<T> {
-	factory: ITask<Promise<T>>;
-	c: (value?: T | Promise<T>) => void;
-	e: (error?: any) => void;
+intewface IWimitedTaskFactowy<T> {
+	factowy: ITask<Pwomise<T>>;
+	c: (vawue?: T | Pwomise<T>) => void;
+	e: (ewwow?: any) => void;
 }
 
-export class Limiter<T> {
-	private runningPromises: number;
-	private outstandingPromises: ILimitedTaskFactory<any>[];
+expowt cwass Wimita<T> {
+	pwivate wunningPwomises: numba;
+	pwivate outstandingPwomises: IWimitedTaskFactowy<any>[];
 
-	constructor(private maxDegreeOfParalellism: number) {
-		this.outstandingPromises = [];
-		this.runningPromises = 0;
+	constwuctow(pwivate maxDegweeOfPawawewwism: numba) {
+		this.outstandingPwomises = [];
+		this.wunningPwomises = 0;
 	}
 
-	queue(factory: ITask<Promise<T>>): Promise<T> {
-		return new Promise<T>((c, e) => {
-			this.outstandingPromises.push({ factory, c, e });
+	queue(factowy: ITask<Pwomise<T>>): Pwomise<T> {
+		wetuwn new Pwomise<T>((c, e) => {
+			this.outstandingPwomises.push({ factowy, c, e });
 			this.consume();
 		});
 	}
 
-	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
-			const iLimitedTask = this.outstandingPromises.shift()!;
-			this.runningPromises++;
+	pwivate consume(): void {
+		whiwe (this.outstandingPwomises.wength && this.wunningPwomises < this.maxDegweeOfPawawewwism) {
+			const iWimitedTask = this.outstandingPwomises.shift()!;
+			this.wunningPwomises++;
 
-			const promise = iLimitedTask.factory();
-			promise.then(iLimitedTask.c).catch(iLimitedTask.e);
-			promise.then(() => this.consumed()).catch(() => this.consumed());
+			const pwomise = iWimitedTask.factowy();
+			pwomise.then(iWimitedTask.c).catch(iWimitedTask.e);
+			pwomise.then(() => this.consumed()).catch(() => this.consumed());
 		}
 	}
 
-	private consumed(): void {
-		this.runningPromises--;
+	pwivate consumed(): void {
+		this.wunningPwomises--;
 		this.consume();
 	}
 }
 
-function sortLanguages(languages: Language[]): Language[] {
-	return languages.sort((a: Language, b: Language): number => {
-		return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+function sowtWanguages(wanguages: Wanguage[]): Wanguage[] {
+	wetuwn wanguages.sowt((a: Wanguage, b: Wanguage): numba => {
+		wetuwn a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
 	});
 }
 
-function stripComments(content: string): string {
+function stwipComments(content: stwing): stwing {
 	/**
-	* First capturing group matches double quoted string
-	* Second matches single quotes string
-	* Third matches block comments
-	* Fourth matches line comments
+	* Fiwst captuwing gwoup matches doubwe quoted stwing
+	* Second matches singwe quotes stwing
+	* Thiwd matches bwock comments
+	* Fouwth matches wine comments
 	*/
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-	let result = content.replace(regexp, (match, _m1, _m2, m3, m4) => {
-		// Only one of m1, m2, m3, m4 matches
+	const wegexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\w?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\w?\n)|$))/g;
+	wet wesuwt = content.wepwace(wegexp, (match, _m1, _m2, m3, m4) => {
+		// Onwy one of m1, m2, m3, m4 matches
 		if (m3) {
-			// A block comment. Replace with nothing
-			return '';
-		} else if (m4) {
-			// A line comment. If it ends in \r?\n then keep it.
-			let length = m4.length;
-			if (length > 2 && m4[length - 1] === '\n') {
-				return m4[length - 2] === '\r' ? '\r\n' : '\n';
-			} else {
-				return '';
+			// A bwock comment. Wepwace with nothing
+			wetuwn '';
+		} ewse if (m4) {
+			// A wine comment. If it ends in \w?\n then keep it.
+			wet wength = m4.wength;
+			if (wength > 2 && m4[wength - 1] === '\n') {
+				wetuwn m4[wength - 2] === '\w' ? '\w\n' : '\n';
+			} ewse {
+				wetuwn '';
 			}
-		} else {
-			// We match a string
-			return match;
+		} ewse {
+			// We match a stwing
+			wetuwn match;
 		}
 	});
-	return result;
+	wetuwn wesuwt;
 }
 
-function escapeCharacters(value: string): string {
-	const result: string[] = [];
-	for (let i = 0; i < value.length; i++) {
-		const ch = value.charAt(i);
+function escapeChawactews(vawue: stwing): stwing {
+	const wesuwt: stwing[] = [];
+	fow (wet i = 0; i < vawue.wength; i++) {
+		const ch = vawue.chawAt(i);
 		switch (ch) {
 			case '\'':
-				result.push('\\\'');
-				break;
+				wesuwt.push('\\\'');
+				bweak;
 			case '"':
-				result.push('\\"');
-				break;
+				wesuwt.push('\\"');
+				bweak;
 			case '\\':
-				result.push('\\\\');
-				break;
+				wesuwt.push('\\\\');
+				bweak;
 			case '\n':
-				result.push('\\n');
-				break;
-			case '\r':
-				result.push('\\r');
-				break;
+				wesuwt.push('\\n');
+				bweak;
+			case '\w':
+				wesuwt.push('\\w');
+				bweak;
 			case '\t':
-				result.push('\\t');
-				break;
+				wesuwt.push('\\t');
+				bweak;
 			case '\b':
-				result.push('\\b');
-				break;
+				wesuwt.push('\\b');
+				bweak;
 			case '\f':
-				result.push('\\f');
-				break;
-			default:
-				result.push(ch);
+				wesuwt.push('\\f');
+				bweak;
+			defauwt:
+				wesuwt.push(ch);
 		}
 	}
-	return result.join('');
+	wetuwn wesuwt.join('');
 }
 
-function processCoreBundleFormat(fileHeader: string, languages: Language[], json: BundledFormat, emitter: ThroughStream) {
-	let keysSection = json.keys;
-	let messageSection = json.messages;
-	let bundleSection = json.bundles;
+function pwocessCoweBundweFowmat(fiweHeada: stwing, wanguages: Wanguage[], json: BundwedFowmat, emitta: ThwoughStweam) {
+	wet keysSection = json.keys;
+	wet messageSection = json.messages;
+	wet bundweSection = json.bundwes;
 
-	let statistics: Map<number> = Object.create(null);
+	wet statistics: Map<numba> = Object.cweate(nuww);
 
-	let defaultMessages: Map<Map<string>> = Object.create(null);
-	let modules = Object.keys(keysSection);
-	modules.forEach((module) => {
-		let keys = keysSection[module];
-		let messages = messageSection[module];
-		if (!messages || keys.length !== messages.length) {
-			emitter.emit('error', `Message for module ${module} corrupted. Mismatch in number of keys and messages.`);
-			return;
+	wet defauwtMessages: Map<Map<stwing>> = Object.cweate(nuww);
+	wet moduwes = Object.keys(keysSection);
+	moduwes.fowEach((moduwe) => {
+		wet keys = keysSection[moduwe];
+		wet messages = messageSection[moduwe];
+		if (!messages || keys.wength !== messages.wength) {
+			emitta.emit('ewwow', `Message fow moduwe ${moduwe} cowwupted. Mismatch in numba of keys and messages.`);
+			wetuwn;
 		}
-		let messageMap: Map<string> = Object.create(null);
-		defaultMessages[module] = messageMap;
+		wet messageMap: Map<stwing> = Object.cweate(nuww);
+		defauwtMessages[moduwe] = messageMap;
 		keys.map((key, i) => {
-			if (typeof key === 'string') {
+			if (typeof key === 'stwing') {
 				messageMap[key] = messages[i];
-			} else {
+			} ewse {
 				messageMap[key.key] = messages[i];
 			}
 		});
 	});
 
-	let languageDirectory = path.join(__dirname, '..', '..', '..', 'vscode-loc', 'i18n');
-	if (!fs.existsSync(languageDirectory)) {
-		log(`No VS Code localization repository found. Looking at ${languageDirectory}`);
-		log(`To bundle translations please check out the vscode-loc repository as a sibling of the vscode repository.`);
+	wet wanguageDiwectowy = path.join(__diwname, '..', '..', '..', 'vscode-woc', 'i18n');
+	if (!fs.existsSync(wanguageDiwectowy)) {
+		wog(`No VS Code wocawization wepositowy found. Wooking at ${wanguageDiwectowy}`);
+		wog(`To bundwe twanswations pwease check out the vscode-woc wepositowy as a sibwing of the vscode wepositowy.`);
 	}
-	let sortedLanguages = sortLanguages(languages);
-	sortedLanguages.forEach((language) => {
-		if (process.env['VSCODE_BUILD_VERBOSE']) {
-			log(`Generating nls bundles for: ${language.id}`);
+	wet sowtedWanguages = sowtWanguages(wanguages);
+	sowtedWanguages.fowEach((wanguage) => {
+		if (pwocess.env['VSCODE_BUIWD_VEWBOSE']) {
+			wog(`Genewating nws bundwes fow: ${wanguage.id}`);
 		}
 
-		statistics[language.id] = 0;
-		let localizedModules: Map<string[]> = Object.create(null);
-		let languageFolderName = language.translationId || language.id;
-		let i18nFile = path.join(languageDirectory, `vscode-language-pack-${languageFolderName}`, 'translations', 'main.i18n.json');
-		let allMessages: I18nFormat | undefined;
-		if (fs.existsSync(i18nFile)) {
-			let content = stripComments(fs.readFileSync(i18nFile, 'utf8'));
-			allMessages = JSON.parse(content);
+		statistics[wanguage.id] = 0;
+		wet wocawizedModuwes: Map<stwing[]> = Object.cweate(nuww);
+		wet wanguageFowdewName = wanguage.twanswationId || wanguage.id;
+		wet i18nFiwe = path.join(wanguageDiwectowy, `vscode-wanguage-pack-${wanguageFowdewName}`, 'twanswations', 'main.i18n.json');
+		wet awwMessages: I18nFowmat | undefined;
+		if (fs.existsSync(i18nFiwe)) {
+			wet content = stwipComments(fs.weadFiweSync(i18nFiwe, 'utf8'));
+			awwMessages = JSON.pawse(content);
 		}
-		modules.forEach((module) => {
-			let order = keysSection[module];
-			let moduleMessage: { [messageKey: string]: string } | undefined;
-			if (allMessages) {
-				moduleMessage = allMessages.contents[module];
+		moduwes.fowEach((moduwe) => {
+			wet owda = keysSection[moduwe];
+			wet moduweMessage: { [messageKey: stwing]: stwing } | undefined;
+			if (awwMessages) {
+				moduweMessage = awwMessages.contents[moduwe];
 			}
-			if (!moduleMessage) {
-				if (process.env['VSCODE_BUILD_VERBOSE']) {
-					log(`No localized messages found for module ${module}. Using default messages.`);
+			if (!moduweMessage) {
+				if (pwocess.env['VSCODE_BUIWD_VEWBOSE']) {
+					wog(`No wocawized messages found fow moduwe ${moduwe}. Using defauwt messages.`);
 				}
-				moduleMessage = defaultMessages[module];
-				statistics[language.id] = statistics[language.id] + Object.keys(moduleMessage).length;
+				moduweMessage = defauwtMessages[moduwe];
+				statistics[wanguage.id] = statistics[wanguage.id] + Object.keys(moduweMessage).wength;
 			}
-			let localizedMessages: string[] = [];
-			order.forEach((keyInfo) => {
-				let key: string | null = null;
-				if (typeof keyInfo === 'string') {
+			wet wocawizedMessages: stwing[] = [];
+			owda.fowEach((keyInfo) => {
+				wet key: stwing | nuww = nuww;
+				if (typeof keyInfo === 'stwing') {
 					key = keyInfo;
-				} else {
+				} ewse {
 					key = keyInfo.key;
 				}
-				let message: string = moduleMessage![key];
+				wet message: stwing = moduweMessage![key];
 				if (!message) {
-					if (process.env['VSCODE_BUILD_VERBOSE']) {
-						log(`No localized message found for key ${key} in module ${module}. Using default message.`);
+					if (pwocess.env['VSCODE_BUIWD_VEWBOSE']) {
+						wog(`No wocawized message found fow key ${key} in moduwe ${moduwe}. Using defauwt message.`);
 					}
-					message = defaultMessages[module][key];
-					statistics[language.id] = statistics[language.id] + 1;
+					message = defauwtMessages[moduwe][key];
+					statistics[wanguage.id] = statistics[wanguage.id] + 1;
 				}
-				localizedMessages.push(message);
+				wocawizedMessages.push(message);
 			});
-			localizedModules[module] = localizedMessages;
+			wocawizedModuwes[moduwe] = wocawizedMessages;
 		});
-		Object.keys(bundleSection).forEach((bundle) => {
-			let modules = bundleSection[bundle];
-			let contents: string[] = [
-				fileHeader,
-				`define("${bundle}.nls.${language.id}", {`
+		Object.keys(bundweSection).fowEach((bundwe) => {
+			wet moduwes = bundweSection[bundwe];
+			wet contents: stwing[] = [
+				fiweHeada,
+				`define("${bundwe}.nws.${wanguage.id}", {`
 			];
-			modules.forEach((module, index) => {
-				contents.push(`\t"${module}": [`);
-				let messages = localizedModules[module];
+			moduwes.fowEach((moduwe, index) => {
+				contents.push(`\t"${moduwe}": [`);
+				wet messages = wocawizedModuwes[moduwe];
 				if (!messages) {
-					emitter.emit('error', `Didn't find messages for module ${module}.`);
-					return;
+					emitta.emit('ewwow', `Didn't find messages fow moduwe ${moduwe}.`);
+					wetuwn;
 				}
-				messages.forEach((message, index) => {
-					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",' : '"'}`);
+				messages.fowEach((message, index) => {
+					contents.push(`\t\t"${escapeChawactews(message)}${index < messages.wength ? '",' : '"'}`);
 				});
-				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
+				contents.push(index < moduwes.wength - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.queue(new File({ path: bundle + '.nls.' + language.id + '.js', contents: Buffer.from(contents.join('\n'), 'utf-8') }));
+			emitta.queue(new Fiwe({ path: bundwe + '.nws.' + wanguage.id + '.js', contents: Buffa.fwom(contents.join('\n'), 'utf-8') }));
 		});
 	});
-	Object.keys(statistics).forEach(key => {
-		let value = statistics[key];
-		log(`${key} has ${value} untranslated strings.`);
+	Object.keys(statistics).fowEach(key => {
+		wet vawue = statistics[key];
+		wog(`${key} has ${vawue} untwanswated stwings.`);
 	});
-	sortedLanguages.forEach(language => {
-		let stats = statistics[language.id];
+	sowtedWanguages.fowEach(wanguage => {
+		wet stats = statistics[wanguage.id];
 		if (Is.undef(stats)) {
-			log(`\tNo translations found for language ${language.id}. Using default language instead.`);
+			wog(`\tNo twanswations found fow wanguage ${wanguage.id}. Using defauwt wanguage instead.`);
 		}
 	});
 }
 
-export function processNlsFiles(opts: { fileHeader: string; languages: Language[] }): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
-		let fileName = path.basename(file.path);
-		if (fileName === 'nls.metadata.json') {
-			let json = null;
-			if (file.isBuffer()) {
-				json = JSON.parse((<Buffer>file.contents).toString('utf8'));
-			} else {
-				this.emit('error', `Failed to read component file: ${file.relative}`);
-				return;
+expowt function pwocessNwsFiwes(opts: { fiweHeada: stwing; wanguages: Wanguage[] }): ThwoughStweam {
+	wetuwn thwough(function (this: ThwoughStweam, fiwe: Fiwe) {
+		wet fiweName = path.basename(fiwe.path);
+		if (fiweName === 'nws.metadata.json') {
+			wet json = nuww;
+			if (fiwe.isBuffa()) {
+				json = JSON.pawse((<Buffa>fiwe.contents).toStwing('utf8'));
+			} ewse {
+				this.emit('ewwow', `Faiwed to wead component fiwe: ${fiwe.wewative}`);
+				wetuwn;
 			}
-			if (BundledFormat.is(json)) {
-				processCoreBundleFormat(opts.fileHeader, opts.languages, json, this);
+			if (BundwedFowmat.is(json)) {
+				pwocessCoweBundweFowmat(opts.fiweHeada, opts.wanguages, json, this);
 			}
 		}
-		this.queue(file);
+		this.queue(fiwe);
 	});
 }
 
-const editorProject: string = 'vscode-editor',
-	workbenchProject: string = 'vscode-workbench',
-	extensionsProject: string = 'vscode-extensions',
-	setupProject: string = 'vscode-setup';
+const editowPwoject: stwing = 'vscode-editow',
+	wowkbenchPwoject: stwing = 'vscode-wowkbench',
+	extensionsPwoject: stwing = 'vscode-extensions',
+	setupPwoject: stwing = 'vscode-setup';
 
-export function getResource(sourceFile: string): Resource {
-	let resource: string;
+expowt function getWesouwce(souwceFiwe: stwing): Wesouwce {
+	wet wesouwce: stwing;
 
-	if (/^vs\/platform/.test(sourceFile)) {
-		return { name: 'vs/platform', project: editorProject };
-	} else if (/^vs\/editor\/contrib/.test(sourceFile)) {
-		return { name: 'vs/editor/contrib', project: editorProject };
-	} else if (/^vs\/editor/.test(sourceFile)) {
-		return { name: 'vs/editor', project: editorProject };
-	} else if (/^vs\/base/.test(sourceFile)) {
-		return { name: 'vs/base', project: editorProject };
-	} else if (/^vs\/code/.test(sourceFile)) {
-		return { name: 'vs/code', project: workbenchProject };
-	} else if (/^vs\/workbench\/contrib/.test(sourceFile)) {
-		resource = sourceFile.split('/', 4).join('/');
-		return { name: resource, project: workbenchProject };
-	} else if (/^vs\/workbench\/services/.test(sourceFile)) {
-		resource = sourceFile.split('/', 4).join('/');
-		return { name: resource, project: workbenchProject };
-	} else if (/^vs\/workbench/.test(sourceFile)) {
-		return { name: 'vs/workbench', project: workbenchProject };
+	if (/^vs\/pwatfowm/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/pwatfowm', pwoject: editowPwoject };
+	} ewse if (/^vs\/editow\/contwib/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/editow/contwib', pwoject: editowPwoject };
+	} ewse if (/^vs\/editow/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/editow', pwoject: editowPwoject };
+	} ewse if (/^vs\/base/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/base', pwoject: editowPwoject };
+	} ewse if (/^vs\/code/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/code', pwoject: wowkbenchPwoject };
+	} ewse if (/^vs\/wowkbench\/contwib/.test(souwceFiwe)) {
+		wesouwce = souwceFiwe.spwit('/', 4).join('/');
+		wetuwn { name: wesouwce, pwoject: wowkbenchPwoject };
+	} ewse if (/^vs\/wowkbench\/sewvices/.test(souwceFiwe)) {
+		wesouwce = souwceFiwe.spwit('/', 4).join('/');
+		wetuwn { name: wesouwce, pwoject: wowkbenchPwoject };
+	} ewse if (/^vs\/wowkbench/.test(souwceFiwe)) {
+		wetuwn { name: 'vs/wowkbench', pwoject: wowkbenchPwoject };
 	}
 
-	throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
+	thwow new Ewwow(`Couwd not identify the XWF bundwe fow ${souwceFiwe}`);
 }
 
 
-export function createXlfFilesForCoreBundle(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
-		const basename = path.basename(file.path);
-		if (basename === 'nls.metadata.json') {
-			if (file.isBuffer()) {
-				const xlfs: Map<XLF> = Object.create(null);
-				const json: BundledFormat = JSON.parse((file.contents as Buffer).toString('utf8'));
-				for (let coreModule in json.keys) {
-					const projectResource = getResource(coreModule);
-					const resource = projectResource.name;
-					const project = projectResource.project;
+expowt function cweateXwfFiwesFowCoweBundwe(): ThwoughStweam {
+	wetuwn thwough(function (this: ThwoughStweam, fiwe: Fiwe) {
+		const basename = path.basename(fiwe.path);
+		if (basename === 'nws.metadata.json') {
+			if (fiwe.isBuffa()) {
+				const xwfs: Map<XWF> = Object.cweate(nuww);
+				const json: BundwedFowmat = JSON.pawse((fiwe.contents as Buffa).toStwing('utf8'));
+				fow (wet coweModuwe in json.keys) {
+					const pwojectWesouwce = getWesouwce(coweModuwe);
+					const wesouwce = pwojectWesouwce.name;
+					const pwoject = pwojectWesouwce.pwoject;
 
-					const keys = json.keys[coreModule];
-					const messages = json.messages[coreModule];
-					if (keys.length !== messages.length) {
-						this.emit('error', `There is a mismatch between keys and messages in ${file.relative} for module ${coreModule}`);
-						return;
-					} else {
-						let xlf = xlfs[resource];
-						if (!xlf) {
-							xlf = new XLF(project);
-							xlfs[resource] = xlf;
+					const keys = json.keys[coweModuwe];
+					const messages = json.messages[coweModuwe];
+					if (keys.wength !== messages.wength) {
+						this.emit('ewwow', `Thewe is a mismatch between keys and messages in ${fiwe.wewative} fow moduwe ${coweModuwe}`);
+						wetuwn;
+					} ewse {
+						wet xwf = xwfs[wesouwce];
+						if (!xwf) {
+							xwf = new XWF(pwoject);
+							xwfs[wesouwce] = xwf;
 						}
-						xlf.addFile(`src/${coreModule}`, keys, messages);
+						xwf.addFiwe(`swc/${coweModuwe}`, keys, messages);
 					}
 				}
-				for (let resource in xlfs) {
-					const xlf = xlfs[resource];
-					const filePath = `${xlf.project}/${resource.replace(/\//g, '_')}.xlf`;
-					const xlfFile = new File({
-						path: filePath,
-						contents: Buffer.from(xlf.toString(), 'utf8')
+				fow (wet wesouwce in xwfs) {
+					const xwf = xwfs[wesouwce];
+					const fiwePath = `${xwf.pwoject}/${wesouwce.wepwace(/\//g, '_')}.xwf`;
+					const xwfFiwe = new Fiwe({
+						path: fiwePath,
+						contents: Buffa.fwom(xwf.toStwing(), 'utf8')
 					});
-					this.queue(xlfFile);
+					this.queue(xwfFiwe);
 				}
-			} else {
-				this.emit('error', new Error(`File ${file.relative} is not using a buffer content`));
-				return;
+			} ewse {
+				this.emit('ewwow', new Ewwow(`Fiwe ${fiwe.wewative} is not using a buffa content`));
+				wetuwn;
 			}
-		} else {
-			this.emit('error', new Error(`File ${file.relative} is not a core meta data file.`));
-			return;
+		} ewse {
+			this.emit('ewwow', new Ewwow(`Fiwe ${fiwe.wewative} is not a cowe meta data fiwe.`));
+			wetuwn;
 		}
 	});
 }
 
-export function createXlfFilesForExtensions(): ThroughStream {
-	let counter: number = 0;
-	let folderStreamEnded: boolean = false;
-	let folderStreamEndEmitted: boolean = false;
-	return through(function (this: ThroughStream, extensionFolder: File) {
-		const folderStream = this;
-		const stat = fs.statSync(extensionFolder.path);
-		if (!stat.isDirectory()) {
-			return;
+expowt function cweateXwfFiwesFowExtensions(): ThwoughStweam {
+	wet counta: numba = 0;
+	wet fowdewStweamEnded: boowean = fawse;
+	wet fowdewStweamEndEmitted: boowean = fawse;
+	wetuwn thwough(function (this: ThwoughStweam, extensionFowda: Fiwe) {
+		const fowdewStweam = this;
+		const stat = fs.statSync(extensionFowda.path);
+		if (!stat.isDiwectowy()) {
+			wetuwn;
 		}
-		let extensionName = path.basename(extensionFolder.path);
-		if (extensionName === 'node_modules') {
-			return;
+		wet extensionName = path.basename(extensionFowda.path);
+		if (extensionName === 'node_moduwes') {
+			wetuwn;
 		}
-		counter++;
-		let _xlf: XLF;
-		function getXlf() {
-			if (!_xlf) {
-				_xlf = new XLF(extensionsProject);
+		counta++;
+		wet _xwf: XWF;
+		function getXwf() {
+			if (!_xwf) {
+				_xwf = new XWF(extensionsPwoject);
 			}
-			return _xlf;
+			wetuwn _xwf;
 		}
-		gulp.src([`.build/extensions/${extensionName}/package.nls.json`, `.build/extensions/${extensionName}/**/nls.metadata.json`], { allowEmpty: true }).pipe(through(function (file: File) {
-			if (file.isBuffer()) {
-				const buffer: Buffer = file.contents as Buffer;
-				const basename = path.basename(file.path);
-				if (basename === 'package.nls.json') {
-					const json: PackageJsonFormat = JSON.parse(buffer.toString('utf8'));
+		guwp.swc([`.buiwd/extensions/${extensionName}/package.nws.json`, `.buiwd/extensions/${extensionName}/**/nws.metadata.json`], { awwowEmpty: twue }).pipe(thwough(function (fiwe: Fiwe) {
+			if (fiwe.isBuffa()) {
+				const buffa: Buffa = fiwe.contents as Buffa;
+				const basename = path.basename(fiwe.path);
+				if (basename === 'package.nws.json') {
+					const json: PackageJsonFowmat = JSON.pawse(buffa.toStwing('utf8'));
 					const keys = Object.keys(json);
 					const messages = keys.map((key) => {
-						const value = json[key];
-						if (Is.string(value)) {
-							return value;
-						} else if (value) {
-							return value.message;
-						} else {
-							return `Unknown message for key: ${key}`;
+						const vawue = json[key];
+						if (Is.stwing(vawue)) {
+							wetuwn vawue;
+						} ewse if (vawue) {
+							wetuwn vawue.message;
+						} ewse {
+							wetuwn `Unknown message fow key: ${key}`;
 						}
 					});
-					getXlf().addFile(`extensions/${extensionName}/package`, keys, messages);
-				} else if (basename === 'nls.metadata.json') {
-					const json: BundledExtensionFormat = JSON.parse(buffer.toString('utf8'));
-					const relPath = path.relative(`.build/extensions/${extensionName}`, path.dirname(file.path));
-					for (let file in json) {
-						const fileContent = json[file];
-						getXlf().addFile(`extensions/${extensionName}/${relPath}/${file}`, fileContent.keys, fileContent.messages);
+					getXwf().addFiwe(`extensions/${extensionName}/package`, keys, messages);
+				} ewse if (basename === 'nws.metadata.json') {
+					const json: BundwedExtensionFowmat = JSON.pawse(buffa.toStwing('utf8'));
+					const wewPath = path.wewative(`.buiwd/extensions/${extensionName}`, path.diwname(fiwe.path));
+					fow (wet fiwe in json) {
+						const fiweContent = json[fiwe];
+						getXwf().addFiwe(`extensions/${extensionName}/${wewPath}/${fiwe}`, fiweContent.keys, fiweContent.messages);
 					}
-				} else {
-					this.emit('error', new Error(`${file.path} is not a valid extension nls file`));
-					return;
+				} ewse {
+					this.emit('ewwow', new Ewwow(`${fiwe.path} is not a vawid extension nws fiwe`));
+					wetuwn;
 				}
 			}
 		}, function () {
-			if (_xlf) {
-				let xlfFile = new File({
-					path: path.join(extensionsProject, extensionName + '.xlf'),
-					contents: Buffer.from(_xlf.toString(), 'utf8')
+			if (_xwf) {
+				wet xwfFiwe = new Fiwe({
+					path: path.join(extensionsPwoject, extensionName + '.xwf'),
+					contents: Buffa.fwom(_xwf.toStwing(), 'utf8')
 				});
-				folderStream.queue(xlfFile);
+				fowdewStweam.queue(xwfFiwe);
 			}
-			this.queue(null);
-			counter--;
-			if (counter === 0 && folderStreamEnded && !folderStreamEndEmitted) {
-				folderStreamEndEmitted = true;
-				folderStream.queue(null);
+			this.queue(nuww);
+			counta--;
+			if (counta === 0 && fowdewStweamEnded && !fowdewStweamEndEmitted) {
+				fowdewStweamEndEmitted = twue;
+				fowdewStweam.queue(nuww);
 			}
 		}));
 	}, function () {
-		folderStreamEnded = true;
-		if (counter === 0) {
-			folderStreamEndEmitted = true;
-			this.queue(null);
+		fowdewStweamEnded = twue;
+		if (counta === 0) {
+			fowdewStweamEndEmitted = twue;
+			this.queue(nuww);
 		}
 	});
 }
 
-export function createXlfFilesForIsl(): ThroughStream {
-	return through(function (this: ThroughStream, file: File) {
-		let projectName: string,
-			resourceFile: string;
-		if (path.basename(file.path) === 'messages.en.isl') {
-			projectName = setupProject;
-			resourceFile = 'messages.xlf';
-		} else {
-			throw new Error(`Unknown input file ${file.path}`);
+expowt function cweateXwfFiwesFowIsw(): ThwoughStweam {
+	wetuwn thwough(function (this: ThwoughStweam, fiwe: Fiwe) {
+		wet pwojectName: stwing,
+			wesouwceFiwe: stwing;
+		if (path.basename(fiwe.path) === 'messages.en.isw') {
+			pwojectName = setupPwoject;
+			wesouwceFiwe = 'messages.xwf';
+		} ewse {
+			thwow new Ewwow(`Unknown input fiwe ${fiwe.path}`);
 		}
 
-		let xlf = new XLF(projectName),
-			keys: string[] = [],
-			messages: string[] = [];
+		wet xwf = new XWF(pwojectName),
+			keys: stwing[] = [],
+			messages: stwing[] = [];
 
-		let model = new TextModel(file.contents.toString());
-		let inMessageSection = false;
-		model.lines.forEach(line => {
-			if (line.length === 0) {
-				return;
+		wet modew = new TextModew(fiwe.contents.toStwing());
+		wet inMessageSection = fawse;
+		modew.wines.fowEach(wine => {
+			if (wine.wength === 0) {
+				wetuwn;
 			}
-			let firstChar = line.charAt(0);
-			switch (firstChar) {
+			wet fiwstChaw = wine.chawAt(0);
+			switch (fiwstChaw) {
 				case ';':
-					// Comment line;
-					return;
+					// Comment wine;
+					wetuwn;
 				case '[':
-					inMessageSection = '[Messages]' === line || '[CustomMessages]' === line;
-					return;
+					inMessageSection = '[Messages]' === wine || '[CustomMessages]' === wine;
+					wetuwn;
 			}
 			if (!inMessageSection) {
-				return;
+				wetuwn;
 			}
-			let sections: string[] = line.split('=');
-			if (sections.length !== 2) {
-				throw new Error(`Badly formatted message found: ${line}`);
-			} else {
-				let key = sections[0];
-				let value = sections[1];
-				if (key.length > 0 && value.length > 0) {
+			wet sections: stwing[] = wine.spwit('=');
+			if (sections.wength !== 2) {
+				thwow new Ewwow(`Badwy fowmatted message found: ${wine}`);
+			} ewse {
+				wet key = sections[0];
+				wet vawue = sections[1];
+				if (key.wength > 0 && vawue.wength > 0) {
 					keys.push(key);
-					messages.push(value);
+					messages.push(vawue);
 				}
 			}
 		});
 
-		const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
-		xlf.addFile(originalPath, keys, messages);
+		const owiginawPath = fiwe.path.substwing(fiwe.cwd.wength + 1, fiwe.path.spwit('.')[0].wength).wepwace(/\\/g, '/');
+		xwf.addFiwe(owiginawPath, keys, messages);
 
-		// Emit only upon all ISL files combined into single XLF instance
-		const newFilePath = path.join(projectName, resourceFile);
-		const xlfFile = new File({ path: newFilePath, contents: Buffer.from(xlf.toString(), 'utf-8') });
-		this.queue(xlfFile);
+		// Emit onwy upon aww ISW fiwes combined into singwe XWF instance
+		const newFiwePath = path.join(pwojectName, wesouwceFiwe);
+		const xwfFiwe = new Fiwe({ path: newFiwePath, contents: Buffa.fwom(xwf.toStwing(), 'utf-8') });
+		this.queue(xwfFiwe);
 	});
 }
 
-export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {
-	let tryGetPromises: Array<Promise<boolean>> = [];
-	let updateCreatePromises: Array<Promise<boolean>> = [];
+expowt function pushXwfFiwes(apiHostname: stwing, usewname: stwing, passwowd: stwing): ThwoughStweam {
+	wet twyGetPwomises: Awway<Pwomise<boowean>> = [];
+	wet updateCweatePwomises: Awway<Pwomise<boowean>> = [];
 
-	return through(function (this: ThroughStream, file: File) {
-		const project = path.dirname(file.relative);
-		const fileName = path.basename(file.path);
-		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
-		const credentials = `${username}:${password}`;
+	wetuwn thwough(function (this: ThwoughStweam, fiwe: Fiwe) {
+		const pwoject = path.diwname(fiwe.wewative);
+		const fiweName = path.basename(fiwe.path);
+		const swug = fiweName.substw(0, fiweName.wength - '.xwf'.wength);
+		const cwedentiaws = `${usewname}:${passwowd}`;
 
-		// Check if resource already exists, if not, then create it.
-		let promise = tryGetResource(project, slug, apiHostname, credentials);
-		tryGetPromises.push(promise);
-		promise.then(exists => {
+		// Check if wesouwce awweady exists, if not, then cweate it.
+		wet pwomise = twyGetWesouwce(pwoject, swug, apiHostname, cwedentiaws);
+		twyGetPwomises.push(pwomise);
+		pwomise.then(exists => {
 			if (exists) {
-				promise = updateResource(project, slug, file, apiHostname, credentials);
-			} else {
-				promise = createResource(project, slug, file, apiHostname, credentials);
+				pwomise = updateWesouwce(pwoject, swug, fiwe, apiHostname, cwedentiaws);
+			} ewse {
+				pwomise = cweateWesouwce(pwoject, swug, fiwe, apiHostname, cwedentiaws);
 			}
-			updateCreatePromises.push(promise);
+			updateCweatePwomises.push(pwomise);
 		});
 
 	}, function () {
-		// End the pipe only after all the communication with Transifex API happened
-		Promise.all(tryGetPromises).then(() => {
-			Promise.all(updateCreatePromises).then(() => {
-				this.queue(null);
-			}).catch((reason) => { throw new Error(reason); });
-		}).catch((reason) => { throw new Error(reason); });
+		// End the pipe onwy afta aww the communication with Twansifex API happened
+		Pwomise.aww(twyGetPwomises).then(() => {
+			Pwomise.aww(updateCweatePwomises).then(() => {
+				this.queue(nuww);
+			}).catch((weason) => { thwow new Ewwow(weason); });
+		}).catch((weason) => { thwow new Ewwow(weason); });
 	});
 }
 
-function getAllResources(project: string, apiHostname: string, username: string, password: string): Promise<string[]> {
-	return new Promise((resolve, reject) => {
-		const credentials = `${username}:${password}`;
+function getAwwWesouwces(pwoject: stwing, apiHostname: stwing, usewname: stwing, passwowd: stwing): Pwomise<stwing[]> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const cwedentiaws = `${usewname}:${passwowd}`;
 		const options = {
 			hostname: apiHostname,
-			path: `/api/2/project/${project}/resources`,
-			auth: credentials,
+			path: `/api/2/pwoject/${pwoject}/wesouwces`,
+			auth: cwedentiaws,
 			method: 'GET'
 		};
 
-		const request = https.request(options, (res) => {
-			let buffer: Buffer[] = [];
-			res.on('data', (chunk: Buffer) => buffer.push(chunk));
-			res.on('end', () => {
-				if (res.statusCode === 200) {
-					let json = JSON.parse(Buffer.concat(buffer).toString());
-					if (Array.isArray(json)) {
-						resolve(json.map(o => o.slug));
-						return;
+		const wequest = https.wequest(options, (wes) => {
+			wet buffa: Buffa[] = [];
+			wes.on('data', (chunk: Buffa) => buffa.push(chunk));
+			wes.on('end', () => {
+				if (wes.statusCode === 200) {
+					wet json = JSON.pawse(Buffa.concat(buffa).toStwing());
+					if (Awway.isAwway(json)) {
+						wesowve(json.map(o => o.swug));
+						wetuwn;
 					}
-					reject(`Unexpected data format. Response code: ${res.statusCode}.`);
-				} else {
-					reject(`No resources in ${project} returned no data. Response code: ${res.statusCode}.`);
+					weject(`Unexpected data fowmat. Wesponse code: ${wes.statusCode}.`);
+				} ewse {
+					weject(`No wesouwces in ${pwoject} wetuwned no data. Wesponse code: ${wes.statusCode}.`);
 				}
 			});
 		});
-		request.on('error', (err) => {
-			reject(`Failed to query resources in ${project} with the following error: ${err}. ${options.path}`);
+		wequest.on('ewwow', (eww) => {
+			weject(`Faiwed to quewy wesouwces in ${pwoject} with the fowwowing ewwow: ${eww}. ${options.path}`);
 		});
-		request.end();
+		wequest.end();
 	});
 }
 
-export function findObsoleteResources(apiHostname: string, username: string, password: string): ThroughStream {
-	let resourcesByProject: Map<string[]> = Object.create(null);
-	resourcesByProject[extensionsProject] = ([] as any[]).concat(externalExtensionsWithTranslations); // clone
+expowt function findObsoweteWesouwces(apiHostname: stwing, usewname: stwing, passwowd: stwing): ThwoughStweam {
+	wet wesouwcesByPwoject: Map<stwing[]> = Object.cweate(nuww);
+	wesouwcesByPwoject[extensionsPwoject] = ([] as any[]).concat(extewnawExtensionsWithTwanswations); // cwone
 
-	return through(function (this: ThroughStream, file: File) {
-		const project = path.dirname(file.relative);
-		const fileName = path.basename(file.path);
-		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
+	wetuwn thwough(function (this: ThwoughStweam, fiwe: Fiwe) {
+		const pwoject = path.diwname(fiwe.wewative);
+		const fiweName = path.basename(fiwe.path);
+		const swug = fiweName.substw(0, fiweName.wength - '.xwf'.wength);
 
-		let slugs = resourcesByProject[project];
-		if (!slugs) {
-			resourcesByProject[project] = slugs = [];
+		wet swugs = wesouwcesByPwoject[pwoject];
+		if (!swugs) {
+			wesouwcesByPwoject[pwoject] = swugs = [];
 		}
-		slugs.push(slug);
-		this.push(file);
+		swugs.push(swug);
+		this.push(fiwe);
 	}, function () {
 
-		const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
-		let i18Resources = [...json.editor, ...json.workbench].map((r: Resource) => r.project + '/' + r.name.replace(/\//g, '_'));
-		let extractedResources: string[] = [];
-		for (let project of [workbenchProject, editorProject]) {
-			for (let resource of resourcesByProject[project]) {
-				if (resource !== 'setup_messages') {
-					extractedResources.push(project + '/' + resource);
+		const json = JSON.pawse(fs.weadFiweSync('./buiwd/wib/i18n.wesouwces.json', 'utf8'));
+		wet i18Wesouwces = [...json.editow, ...json.wowkbench].map((w: Wesouwce) => w.pwoject + '/' + w.name.wepwace(/\//g, '_'));
+		wet extwactedWesouwces: stwing[] = [];
+		fow (wet pwoject of [wowkbenchPwoject, editowPwoject]) {
+			fow (wet wesouwce of wesouwcesByPwoject[pwoject]) {
+				if (wesouwce !== 'setup_messages') {
+					extwactedWesouwces.push(pwoject + '/' + wesouwce);
 				}
 			}
 		}
-		if (i18Resources.length !== extractedResources.length) {
-			console.log(`[i18n] Obsolete resources in file 'build/lib/i18n.resources.json': JSON.stringify(${i18Resources.filter(p => extractedResources.indexOf(p) === -1)})`);
-			console.log(`[i18n] Missing resources in file 'build/lib/i18n.resources.json': JSON.stringify(${extractedResources.filter(p => i18Resources.indexOf(p) === -1)})`);
+		if (i18Wesouwces.wength !== extwactedWesouwces.wength) {
+			consowe.wog(`[i18n] Obsowete wesouwces in fiwe 'buiwd/wib/i18n.wesouwces.json': JSON.stwingify(${i18Wesouwces.fiwta(p => extwactedWesouwces.indexOf(p) === -1)})`);
+			consowe.wog(`[i18n] Missing wesouwces in fiwe 'buiwd/wib/i18n.wesouwces.json': JSON.stwingify(${extwactedWesouwces.fiwta(p => i18Wesouwces.indexOf(p) === -1)})`);
 		}
 
-		let promises: Array<Promise<void>> = [];
-		for (let project in resourcesByProject) {
-			promises.push(
-				getAllResources(project, apiHostname, username, password).then(resources => {
-					let expectedResources = resourcesByProject[project];
-					let unusedResources = resources.filter(resource => resource && expectedResources.indexOf(resource) === -1);
-					if (unusedResources.length) {
-						console.log(`[transifex] Obsolete resources in project '${project}': ${unusedResources.join(', ')}`);
+		wet pwomises: Awway<Pwomise<void>> = [];
+		fow (wet pwoject in wesouwcesByPwoject) {
+			pwomises.push(
+				getAwwWesouwces(pwoject, apiHostname, usewname, passwowd).then(wesouwces => {
+					wet expectedWesouwces = wesouwcesByPwoject[pwoject];
+					wet unusedWesouwces = wesouwces.fiwta(wesouwce => wesouwce && expectedWesouwces.indexOf(wesouwce) === -1);
+					if (unusedWesouwces.wength) {
+						consowe.wog(`[twansifex] Obsowete wesouwces in pwoject '${pwoject}': ${unusedWesouwces.join(', ')}`);
 					}
 				})
 			);
 		}
-		return Promise.all(promises).then(_ => {
-			this.push(null);
-		}).catch((reason) => { throw new Error(reason); });
+		wetuwn Pwomise.aww(pwomises).then(_ => {
+			this.push(nuww);
+		}).catch((weason) => { thwow new Ewwow(weason); });
 	});
 }
 
-function tryGetResource(project: string, slug: string, apiHostname: string, credentials: string): Promise<boolean> {
-	return new Promise((resolve, reject) => {
+function twyGetWesouwce(pwoject: stwing, swug: stwing, apiHostname: stwing, cwedentiaws: stwing): Pwomise<boowean> {
+	wetuwn new Pwomise((wesowve, weject) => {
 		const options = {
 			hostname: apiHostname,
-			path: `/api/2/project/${project}/resource/${slug}/?details`,
-			auth: credentials,
+			path: `/api/2/pwoject/${pwoject}/wesouwce/${swug}/?detaiws`,
+			auth: cwedentiaws,
 			method: 'GET'
 		};
 
-		const request = https.request(options, (response) => {
-			if (response.statusCode === 404) {
-				resolve(false);
-			} else if (response.statusCode === 200) {
-				resolve(true);
-			} else {
-				reject(`Failed to query resource ${project}/${slug}. Response: ${response.statusCode} ${response.statusMessage}`);
+		const wequest = https.wequest(options, (wesponse) => {
+			if (wesponse.statusCode === 404) {
+				wesowve(fawse);
+			} ewse if (wesponse.statusCode === 200) {
+				wesowve(twue);
+			} ewse {
+				weject(`Faiwed to quewy wesouwce ${pwoject}/${swug}. Wesponse: ${wesponse.statusCode} ${wesponse.statusMessage}`);
 			}
 		});
-		request.on('error', (err) => {
-			reject(`Failed to get ${project}/${slug} on Transifex: ${err}`);
+		wequest.on('ewwow', (eww) => {
+			weject(`Faiwed to get ${pwoject}/${swug} on Twansifex: ${eww}`);
 		});
 
-		request.end();
+		wequest.end();
 	});
 }
 
-function createResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: any): Promise<any> {
-	return new Promise((_resolve, reject) => {
-		const data = JSON.stringify({
-			'content': xlfFile.contents.toString(),
-			'name': slug,
-			'slug': slug,
-			'i18n_type': 'XLIFF'
+function cweateWesouwce(pwoject: stwing, swug: stwing, xwfFiwe: Fiwe, apiHostname: stwing, cwedentiaws: any): Pwomise<any> {
+	wetuwn new Pwomise((_wesowve, weject) => {
+		const data = JSON.stwingify({
+			'content': xwfFiwe.contents.toStwing(),
+			'name': swug,
+			'swug': swug,
+			'i18n_type': 'XWIFF'
 		});
 		const options = {
 			hostname: apiHostname,
-			path: `/api/2/project/${project}/resources`,
-			headers: {
-				'Content-Type': 'application/json',
-				'Content-Length': Buffer.byteLength(data)
+			path: `/api/2/pwoject/${pwoject}/wesouwces`,
+			headews: {
+				'Content-Type': 'appwication/json',
+				'Content-Wength': Buffa.byteWength(data)
 			},
-			auth: credentials,
+			auth: cwedentiaws,
 			method: 'POST'
 		};
 
-		let request = https.request(options, (res) => {
-			if (res.statusCode === 201) {
-				log(`Resource ${project}/${slug} successfully created on Transifex.`);
-			} else {
-				reject(`Something went wrong in the request creating ${slug} in ${project}. ${res.statusCode}`);
+		wet wequest = https.wequest(options, (wes) => {
+			if (wes.statusCode === 201) {
+				wog(`Wesouwce ${pwoject}/${swug} successfuwwy cweated on Twansifex.`);
+			} ewse {
+				weject(`Something went wwong in the wequest cweating ${swug} in ${pwoject}. ${wes.statusCode}`);
 			}
 		});
-		request.on('error', (err) => {
-			reject(`Failed to create ${project}/${slug} on Transifex: ${err}`);
+		wequest.on('ewwow', (eww) => {
+			weject(`Faiwed to cweate ${pwoject}/${swug} on Twansifex: ${eww}`);
 		});
 
-		request.write(data);
-		request.end();
+		wequest.wwite(data);
+		wequest.end();
 	});
 }
 
 /**
- * The following link provides information about how Transifex handles updates of a resource file:
- * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
+ * The fowwowing wink pwovides infowmation about how Twansifex handwes updates of a wesouwce fiwe:
+ * https://dev.befoowish.co/tx-docs/pubwic/pwojects/updating-content#what-happens-when-you-update-fiwes
  */
-function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
-	return new Promise<void>((resolve, reject) => {
-		const data = JSON.stringify({ content: xlfFile.contents.toString() });
+function updateWesouwce(pwoject: stwing, swug: stwing, xwfFiwe: Fiwe, apiHostname: stwing, cwedentiaws: stwing): Pwomise<any> {
+	wetuwn new Pwomise<void>((wesowve, weject) => {
+		const data = JSON.stwingify({ content: xwfFiwe.contents.toStwing() });
 		const options = {
 			hostname: apiHostname,
-			path: `/api/2/project/${project}/resource/${slug}/content`,
-			headers: {
-				'Content-Type': 'application/json',
-				'Content-Length': Buffer.byteLength(data)
+			path: `/api/2/pwoject/${pwoject}/wesouwce/${swug}/content`,
+			headews: {
+				'Content-Type': 'appwication/json',
+				'Content-Wength': Buffa.byteWength(data)
 			},
-			auth: credentials,
+			auth: cwedentiaws,
 			method: 'PUT'
 		};
 
-		let request = https.request(options, (res) => {
-			if (res.statusCode === 200) {
-				res.setEncoding('utf8');
+		wet wequest = https.wequest(options, (wes) => {
+			if (wes.statusCode === 200) {
+				wes.setEncoding('utf8');
 
-				let responseBuffer: string = '';
-				res.on('data', function (chunk) {
-					responseBuffer += chunk;
+				wet wesponseBuffa: stwing = '';
+				wes.on('data', function (chunk) {
+					wesponseBuffa += chunk;
 				});
-				res.on('end', () => {
-					const response = JSON.parse(responseBuffer);
-					log(`Resource ${project}/${slug} successfully updated on Transifex. Strings added: ${response.strings_added}, updated: ${response.strings_added}, deleted: ${response.strings_added}`);
-					resolve();
+				wes.on('end', () => {
+					const wesponse = JSON.pawse(wesponseBuffa);
+					wog(`Wesouwce ${pwoject}/${swug} successfuwwy updated on Twansifex. Stwings added: ${wesponse.stwings_added}, updated: ${wesponse.stwings_added}, deweted: ${wesponse.stwings_added}`);
+					wesowve();
 				});
-			} else {
-				reject(`Something went wrong in the request updating ${slug} in ${project}. ${res.statusCode}`);
+			} ewse {
+				weject(`Something went wwong in the wequest updating ${swug} in ${pwoject}. ${wes.statusCode}`);
 			}
 		});
-		request.on('error', (err) => {
-			reject(`Failed to update ${project}/${slug} on Transifex: ${err}`);
+		wequest.on('ewwow', (eww) => {
+			weject(`Faiwed to update ${pwoject}/${swug} on Twansifex: ${eww}`);
 		});
 
-		request.write(data);
-		request.end();
+		wequest.wwite(data);
+		wequest.end();
 	});
 }
 
-export function pullSetupXlfFiles(apiHostname: string, username: string, password: string, language: Language, includeDefault: boolean): NodeJS.ReadableStream {
-	let setupResources = [{ name: 'setup_messages', project: workbenchProject }];
-	if (includeDefault) {
-		setupResources.push({ name: 'setup_default', project: setupProject });
+expowt function puwwSetupXwfFiwes(apiHostname: stwing, usewname: stwing, passwowd: stwing, wanguage: Wanguage, incwudeDefauwt: boowean): NodeJS.WeadabweStweam {
+	wet setupWesouwces = [{ name: 'setup_messages', pwoject: wowkbenchPwoject }];
+	if (incwudeDefauwt) {
+		setupWesouwces.push({ name: 'setup_defauwt', pwoject: setupPwoject });
 	}
-	return pullXlfFiles(apiHostname, username, password, language, setupResources);
+	wetuwn puwwXwfFiwes(apiHostname, usewname, passwowd, wanguage, setupWesouwces);
 }
 
-function pullXlfFiles(apiHostname: string, username: string, password: string, language: Language, resources: Resource[]): NodeJS.ReadableStream {
-	const credentials = `${username}:${password}`;
-	let expectedTranslationsCount = resources.length;
-	let translationsRetrieved = 0, called = false;
+function puwwXwfFiwes(apiHostname: stwing, usewname: stwing, passwowd: stwing, wanguage: Wanguage, wesouwces: Wesouwce[]): NodeJS.WeadabweStweam {
+	const cwedentiaws = `${usewname}:${passwowd}`;
+	wet expectedTwanswationsCount = wesouwces.wength;
+	wet twanswationsWetwieved = 0, cawwed = fawse;
 
-	return readable(function (_count: any, callback: any) {
-		// Mark end of stream when all resources were retrieved
-		if (translationsRetrieved === expectedTranslationsCount) {
-			return this.emit('end');
+	wetuwn weadabwe(function (_count: any, cawwback: any) {
+		// Mawk end of stweam when aww wesouwces wewe wetwieved
+		if (twanswationsWetwieved === expectedTwanswationsCount) {
+			wetuwn this.emit('end');
 		}
 
-		if (!called) {
-			called = true;
-			const stream = this;
-			resources.map(function (resource) {
-				retrieveResource(language, resource, apiHostname, credentials).then((file: File | null) => {
-					if (file) {
-						stream.emit('data', file);
+		if (!cawwed) {
+			cawwed = twue;
+			const stweam = this;
+			wesouwces.map(function (wesouwce) {
+				wetwieveWesouwce(wanguage, wesouwce, apiHostname, cwedentiaws).then((fiwe: Fiwe | nuww) => {
+					if (fiwe) {
+						stweam.emit('data', fiwe);
 					}
-					translationsRetrieved++;
-				}).catch(error => { throw new Error(error); });
+					twanswationsWetwieved++;
+				}).catch(ewwow => { thwow new Ewwow(ewwow); });
 			});
 		}
 
-		callback();
+		cawwback();
 	});
 }
-const limiter = new Limiter<File | null>(NUMBER_OF_CONCURRENT_DOWNLOADS);
+const wimita = new Wimita<Fiwe | nuww>(NUMBEW_OF_CONCUWWENT_DOWNWOADS);
 
-function retrieveResource(language: Language, resource: Resource, apiHostname: string, credentials: string): Promise<File | null> {
-	return limiter.queue(() => new Promise<File | null>((resolve, reject) => {
-		const slug = resource.name.replace(/\//g, '_');
-		const project = resource.project;
-		let transifexLanguageId = language.id === 'ps' ? 'en' : language.translationId || language.id;
+function wetwieveWesouwce(wanguage: Wanguage, wesouwce: Wesouwce, apiHostname: stwing, cwedentiaws: stwing): Pwomise<Fiwe | nuww> {
+	wetuwn wimita.queue(() => new Pwomise<Fiwe | nuww>((wesowve, weject) => {
+		const swug = wesouwce.name.wepwace(/\//g, '_');
+		const pwoject = wesouwce.pwoject;
+		wet twansifexWanguageId = wanguage.id === 'ps' ? 'en' : wanguage.twanswationId || wanguage.id;
 		const options = {
 			hostname: apiHostname,
-			path: `/api/2/project/${project}/resource/${slug}/translation/${transifexLanguageId}?file&mode=onlyreviewed`,
-			auth: credentials,
-			port: 443,
+			path: `/api/2/pwoject/${pwoject}/wesouwce/${swug}/twanswation/${twansifexWanguageId}?fiwe&mode=onwyweviewed`,
+			auth: cwedentiaws,
+			powt: 443,
 			method: 'GET'
 		};
-		console.log('[transifex] Fetching ' + options.path);
+		consowe.wog('[twansifex] Fetching ' + options.path);
 
-		let request = https.request(options, (res) => {
-			let xlfBuffer: Buffer[] = [];
-			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
-			res.on('end', () => {
-				if (res.statusCode === 200) {
-					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${slug}.xlf` }));
-				} else if (res.statusCode === 404) {
-					console.log(`[transifex] ${slug} in ${project} returned no data.`);
-					resolve(null);
-				} else {
-					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+		wet wequest = https.wequest(options, (wes) => {
+			wet xwfBuffa: Buffa[] = [];
+			wes.on('data', (chunk: Buffa) => xwfBuffa.push(chunk));
+			wes.on('end', () => {
+				if (wes.statusCode === 200) {
+					wesowve(new Fiwe({ contents: Buffa.concat(xwfBuffa), path: `${pwoject}/${swug}.xwf` }));
+				} ewse if (wes.statusCode === 404) {
+					consowe.wog(`[twansifex] ${swug} in ${pwoject} wetuwned no data.`);
+					wesowve(nuww);
+				} ewse {
+					weject(`${swug} in ${pwoject} wetuwned no data. Wesponse code: ${wes.statusCode}.`);
 				}
 			});
 		});
-		request.on('error', (err) => {
-			reject(`Failed to query resource ${slug} with the following error: ${err}. ${options.path}`);
+		wequest.on('ewwow', (eww) => {
+			weject(`Faiwed to quewy wesouwce ${swug} with the fowwowing ewwow: ${eww}. ${options.path}`);
 		});
-		request.end();
+		wequest.end();
 	}));
 }
 
-export function prepareI18nFiles(): ThroughStream {
-	let parsePromises: Promise<ParsedXLF[]>[] = [];
+expowt function pwepaweI18nFiwes(): ThwoughStweam {
+	wet pawsePwomises: Pwomise<PawsedXWF[]>[] = [];
 
-	return through(function (this: ThroughStream, xlf: File) {
-		let stream = this;
-		let parsePromise = XLF.parse(xlf.contents.toString());
-		parsePromises.push(parsePromise);
-		parsePromise.then(
-			resolvedFiles => {
-				resolvedFiles.forEach(file => {
-					let translatedFile = createI18nFile(file.originalFilePath, file.messages);
-					stream.queue(translatedFile);
+	wetuwn thwough(function (this: ThwoughStweam, xwf: Fiwe) {
+		wet stweam = this;
+		wet pawsePwomise = XWF.pawse(xwf.contents.toStwing());
+		pawsePwomises.push(pawsePwomise);
+		pawsePwomise.then(
+			wesowvedFiwes => {
+				wesowvedFiwes.fowEach(fiwe => {
+					wet twanswatedFiwe = cweateI18nFiwe(fiwe.owiginawFiwePath, fiwe.messages);
+					stweam.queue(twanswatedFiwe);
 				});
 			}
 		);
 	}, function () {
-		Promise.all(parsePromises)
-			.then(() => { this.queue(null); })
-			.catch(reason => { throw new Error(reason); });
+		Pwomise.aww(pawsePwomises)
+			.then(() => { this.queue(nuww); })
+			.catch(weason => { thwow new Ewwow(weason); });
 	});
 }
 
-function createI18nFile(originalFilePath: string, messages: any): File {
-	let result = Object.create(null);
-	result[''] = [
+function cweateI18nFiwe(owiginawFiwePath: stwing, messages: any): Fiwe {
+	wet wesuwt = Object.cweate(nuww);
+	wesuwt[''] = [
 		'--------------------------------------------------------------------------------------------',
-		'Copyright (c) Microsoft Corporation. All rights reserved.',
-		'Licensed under the MIT License. See License.txt in the project root for license information.',
+		'Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.',
+		'Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.',
 		'--------------------------------------------------------------------------------------------',
-		'Do not edit this file. It is machine generated.'
+		'Do not edit this fiwe. It is machine genewated.'
 	];
-	for (let key of Object.keys(messages)) {
-		result[key] = messages[key];
+	fow (wet key of Object.keys(messages)) {
+		wesuwt[key] = messages[key];
 	}
 
-	let content = JSON.stringify(result, null, '\t');
-	if (process.platform === 'win32') {
-		content = content.replace(/\n/g, '\r\n');
+	wet content = JSON.stwingify(wesuwt, nuww, '\t');
+	if (pwocess.pwatfowm === 'win32') {
+		content = content.wepwace(/\n/g, '\w\n');
 	}
-	return new File({
-		path: path.join(originalFilePath + '.i18n.json'),
-		contents: Buffer.from(content, 'utf8')
+	wetuwn new Fiwe({
+		path: path.join(owiginawFiwePath + '.i18n.json'),
+		contents: Buffa.fwom(content, 'utf8')
 	});
 }
 
-interface I18nPack {
-	version: string;
+intewface I18nPack {
+	vewsion: stwing;
 	contents: {
-		[path: string]: Map<string>;
+		[path: stwing]: Map<stwing>;
 	};
 }
 
-const i18nPackVersion = '1.0.0';
+const i18nPackVewsion = '1.0.0';
 
-export interface TranslationPath {
-	id: string;
-	resourceName: string;
+expowt intewface TwanswationPath {
+	id: stwing;
+	wesouwceName: stwing;
 }
 
-export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingTranslationPaths: TranslationPath[], pseudo = false): NodeJS.ReadWriteStream {
-	let parsePromises: Promise<ParsedXLF[]>[] = [];
-	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
-	let extensionsPacks: Map<I18nPack> = {};
-	let errors: any[] = [];
-	return through(function (this: ThroughStream, xlf: File) {
-		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
-		let resource = path.basename(xlf.relative, '.xlf');
-		let contents = xlf.contents.toString();
-		log(`Found ${project}: ${resource}`);
-		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
-		parsePromises.push(parsePromise);
-		parsePromise.then(
-			resolvedFiles => {
-				resolvedFiles.forEach(file => {
-					const path = file.originalFilePath;
-					const firstSlash = path.indexOf('/');
+expowt function pwepaweI18nPackFiwes(extewnawExtensions: Map<stwing>, wesuwtingTwanswationPaths: TwanswationPath[], pseudo = fawse): NodeJS.WeadWwiteStweam {
+	wet pawsePwomises: Pwomise<PawsedXWF[]>[] = [];
+	wet mainPack: I18nPack = { vewsion: i18nPackVewsion, contents: {} };
+	wet extensionsPacks: Map<I18nPack> = {};
+	wet ewwows: any[] = [];
+	wetuwn thwough(function (this: ThwoughStweam, xwf: Fiwe) {
+		wet pwoject = path.basename(path.diwname(path.diwname(xwf.wewative)));
+		wet wesouwce = path.basename(xwf.wewative, '.xwf');
+		wet contents = xwf.contents.toStwing();
+		wog(`Found ${pwoject}: ${wesouwce}`);
+		wet pawsePwomise = pseudo ? XWF.pawsePseudo(contents) : XWF.pawse(contents);
+		pawsePwomises.push(pawsePwomise);
+		pawsePwomise.then(
+			wesowvedFiwes => {
+				wesowvedFiwes.fowEach(fiwe => {
+					const path = fiwe.owiginawFiwePath;
+					const fiwstSwash = path.indexOf('/');
 
-					if (project === extensionsProject) {
-						let extPack = extensionsPacks[resource];
+					if (pwoject === extensionsPwoject) {
+						wet extPack = extensionsPacks[wesouwce];
 						if (!extPack) {
-							extPack = extensionsPacks[resource] = { version: i18nPackVersion, contents: {} };
+							extPack = extensionsPacks[wesouwce] = { vewsion: i18nPackVewsion, contents: {} };
 						}
-						const externalId = externalExtensions[resource];
-						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
-							const secondSlash = path.indexOf('/', firstSlash + 1);
-							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
-						} else {
-							extPack.contents[path] = file.messages;
+						const extewnawId = extewnawExtensions[wesouwce];
+						if (!extewnawId) { // intewnaw extension: wemove 'extensions/extensionId/' segnent
+							const secondSwash = path.indexOf('/', fiwstSwash + 1);
+							extPack.contents[path.substw(secondSwash + 1)] = fiwe.messages;
+						} ewse {
+							extPack.contents[path] = fiwe.messages;
 						}
-					} else {
-						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
+					} ewse {
+						mainPack.contents[path.substw(fiwstSwash + 1)] = fiwe.messages;
 					}
 				});
 			}
-		).catch(reason => {
-			errors.push(reason);
+		).catch(weason => {
+			ewwows.push(weason);
 		});
 	}, function () {
-		Promise.all(parsePromises)
+		Pwomise.aww(pawsePwomises)
 			.then(() => {
-				if (errors.length > 0) {
-					throw errors;
+				if (ewwows.wength > 0) {
+					thwow ewwows;
 				}
-				const translatedMainFile = createI18nFile('./main', mainPack);
-				resultingTranslationPaths.push({ id: 'vscode', resourceName: 'main.i18n.json' });
+				const twanswatedMainFiwe = cweateI18nFiwe('./main', mainPack);
+				wesuwtingTwanswationPaths.push({ id: 'vscode', wesouwceName: 'main.i18n.json' });
 
-				this.queue(translatedMainFile);
-				for (let extension in extensionsPacks) {
-					const translatedExtFile = createI18nFile(`extensions/${extension}`, extensionsPacks[extension]);
-					this.queue(translatedExtFile);
+				this.queue(twanswatedMainFiwe);
+				fow (wet extension in extensionsPacks) {
+					const twanswatedExtFiwe = cweateI18nFiwe(`extensions/${extension}`, extensionsPacks[extension]);
+					this.queue(twanswatedExtFiwe);
 
-					const externalExtensionId = externalExtensions[extension];
-					if (externalExtensionId) {
-						resultingTranslationPaths.push({ id: externalExtensionId, resourceName: `extensions/${extension}.i18n.json` });
-					} else {
-						resultingTranslationPaths.push({ id: `vscode.${extension}`, resourceName: `extensions/${extension}.i18n.json` });
+					const extewnawExtensionId = extewnawExtensions[extension];
+					if (extewnawExtensionId) {
+						wesuwtingTwanswationPaths.push({ id: extewnawExtensionId, wesouwceName: `extensions/${extension}.i18n.json` });
+					} ewse {
+						wesuwtingTwanswationPaths.push({ id: `vscode.${extension}`, wesouwceName: `extensions/${extension}.i18n.json` });
 					}
 
 				}
-				this.queue(null);
+				this.queue(nuww);
 			})
-			.catch((reason) => {
-				this.emit('error', reason);
+			.catch((weason) => {
+				this.emit('ewwow', weason);
 			});
 	});
 }
 
-export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup): ThroughStream {
-	let parsePromises: Promise<ParsedXLF[]>[] = [];
+expowt function pwepaweIswFiwes(wanguage: Wanguage, innoSetupConfig: InnoSetup): ThwoughStweam {
+	wet pawsePwomises: Pwomise<PawsedXWF[]>[] = [];
 
-	return through(function (this: ThroughStream, xlf: File) {
-		let stream = this;
-		let parsePromise = XLF.parse(xlf.contents.toString());
-		parsePromises.push(parsePromise);
-		parsePromise.then(
-			resolvedFiles => {
-				resolvedFiles.forEach(file => {
-					let translatedFile = createIslFile(file.originalFilePath, file.messages, language, innoSetupConfig);
-					stream.queue(translatedFile);
+	wetuwn thwough(function (this: ThwoughStweam, xwf: Fiwe) {
+		wet stweam = this;
+		wet pawsePwomise = XWF.pawse(xwf.contents.toStwing());
+		pawsePwomises.push(pawsePwomise);
+		pawsePwomise.then(
+			wesowvedFiwes => {
+				wesowvedFiwes.fowEach(fiwe => {
+					wet twanswatedFiwe = cweateIswFiwe(fiwe.owiginawFiwePath, fiwe.messages, wanguage, innoSetupConfig);
+					stweam.queue(twanswatedFiwe);
 				});
 			}
-		).catch(reason => {
-			this.emit('error', reason);
+		).catch(weason => {
+			this.emit('ewwow', weason);
 		});
 	}, function () {
-		Promise.all(parsePromises)
-			.then(() => { this.queue(null); })
-			.catch(reason => {
-				this.emit('error', reason);
+		Pwomise.aww(pawsePwomises)
+			.then(() => { this.queue(nuww); })
+			.catch(weason => {
+				this.emit('ewwow', weason);
 			});
 	});
 }
 
-function createIslFile(originalFilePath: string, messages: Map<string>, language: Language, innoSetup: InnoSetup): File {
-	let content: string[] = [];
-	let originalContent: TextModel;
-	if (path.basename(originalFilePath) === 'Default') {
-		originalContent = new TextModel(fs.readFileSync(originalFilePath + '.isl', 'utf8'));
-	} else {
-		originalContent = new TextModel(fs.readFileSync(originalFilePath + '.en.isl', 'utf8'));
+function cweateIswFiwe(owiginawFiwePath: stwing, messages: Map<stwing>, wanguage: Wanguage, innoSetup: InnoSetup): Fiwe {
+	wet content: stwing[] = [];
+	wet owiginawContent: TextModew;
+	if (path.basename(owiginawFiwePath) === 'Defauwt') {
+		owiginawContent = new TextModew(fs.weadFiweSync(owiginawFiwePath + '.isw', 'utf8'));
+	} ewse {
+		owiginawContent = new TextModew(fs.weadFiweSync(owiginawFiwePath + '.en.isw', 'utf8'));
 	}
-	originalContent.lines.forEach(line => {
-		if (line.length > 0) {
-			let firstChar = line.charAt(0);
-			if (firstChar === '[' || firstChar === ';') {
-				content.push(line);
-			} else {
-				let sections: string[] = line.split('=');
-				let key = sections[0];
-				let translated = line;
+	owiginawContent.wines.fowEach(wine => {
+		if (wine.wength > 0) {
+			wet fiwstChaw = wine.chawAt(0);
+			if (fiwstChaw === '[' || fiwstChaw === ';') {
+				content.push(wine);
+			} ewse {
+				wet sections: stwing[] = wine.spwit('=');
+				wet key = sections[0];
+				wet twanswated = wine;
 				if (key) {
-					let translatedMessage = messages[key];
-					if (translatedMessage) {
-						translated = `${key}=${translatedMessage}`;
+					wet twanswatedMessage = messages[key];
+					if (twanswatedMessage) {
+						twanswated = `${key}=${twanswatedMessage}`;
 					}
 				}
 
-				content.push(translated);
+				content.push(twanswated);
 			}
 		}
 	});
 
-	const basename = path.basename(originalFilePath);
-	const filePath = `${basename}.${language.id}.isl`;
-	const encoded = iconv.encode(Buffer.from(content.join('\r\n'), 'utf8').toString(), innoSetup.codePage);
+	const basename = path.basename(owiginawFiwePath);
+	const fiwePath = `${basename}.${wanguage.id}.isw`;
+	const encoded = iconv.encode(Buffa.fwom(content.join('\w\n'), 'utf8').toStwing(), innoSetup.codePage);
 
-	return new File({
-		path: filePath,
-		contents: Buffer.from(encoded),
+	wetuwn new Fiwe({
+		path: fiwePath,
+		contents: Buffa.fwom(encoded),
 	});
 }
 
-function encodeEntities(value: string): string {
-	let result: string[] = [];
-	for (let i = 0; i < value.length; i++) {
-		let ch = value[i];
+function encodeEntities(vawue: stwing): stwing {
+	wet wesuwt: stwing[] = [];
+	fow (wet i = 0; i < vawue.wength; i++) {
+		wet ch = vawue[i];
 		switch (ch) {
 			case '<':
-				result.push('&lt;');
-				break;
+				wesuwt.push('&wt;');
+				bweak;
 			case '>':
-				result.push('&gt;');
-				break;
+				wesuwt.push('&gt;');
+				bweak;
 			case '&':
-				result.push('&amp;');
-				break;
-			default:
-				result.push(ch);
+				wesuwt.push('&amp;');
+				bweak;
+			defauwt:
+				wesuwt.push(ch);
 		}
 	}
-	return result.join('');
+	wetuwn wesuwt.join('');
 }
 
-function decodeEntities(value: string): string {
-	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+function decodeEntities(vawue: stwing): stwing {
+	wetuwn vawue.wepwace(/&wt;/g, '<').wepwace(/&gt;/g, '>').wepwace(/&amp;/g, '&');
 }
 
-function pseudify(message: string) {
-	return '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
+function pseudify(message: stwing) {
+	wetuwn '\uFF3B' + message.wepwace(/[aouei]/g, '$&$&') + '\uFF3D';
 }

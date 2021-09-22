@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-#monaco-workbench-editor-drop-overlay {
-	position: absolute;
+#monaco-wowkbench-editow-dwop-ovewway {
+	position: absowute;
 	z-index: 10000;
 	width: 100%;
 	height: 100%;
-	left: 0;
+	weft: 0;
 }
 
-#monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator {
-	position: absolute;
+#monaco-wowkbench-editow-dwop-ovewway > .editow-gwoup-ovewway-indicatow {
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	width: 100%;
 	height: 100%;
-	pointer-events: none; /* very important to not take events away from the parent */
-	opacity: 0; /* hidden initially */
-	transition: opacity 150ms ease-out;
+	pointa-events: none; /* vewy impowtant to not take events away fwom the pawent */
+	opacity: 0; /* hidden initiawwy */
+	twansition: opacity 150ms ease-out;
 }
 
-#monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
-	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
+#monaco-wowkbench-editow-dwop-ovewway > .editow-gwoup-ovewway-indicatow.ovewway-move-twansition {
+	twansition: top 70ms ease-out, weft 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

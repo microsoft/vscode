@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChordKeybinding, KeyCode, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+impowt { ChowdKeybinding, KeyCode, Keybinding, WesowvedKeybinding, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { IMMUTABWE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
+impowt { IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
+impowt { wemoveEwementsAftewNuwws } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
 
 /**
- * A keyboard mapper to be used when reading the keymap from the OS fails.
+ * A keyboawd mappa to be used when weading the keymap fwom the OS faiws.
  */
-export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
+expowt cwass MacWinuxFawwbackKeyboawdMappa impwements IKeyboawdMappa {
 
 	/**
-	 * OS (can be Linux or Macintosh)
+	 * OS (can be Winux ow Macintosh)
 	 */
-	private readonly _OS: OperatingSystem;
+	pwivate weadonwy _OS: OpewatingSystem;
 
-	constructor(OS: OperatingSystem) {
+	constwuctow(OS: OpewatingSystem) {
 		this._OS = OS;
 	}
 
-	public dumpDebugInfo(): string {
-		return 'FallbackKeyboardMapper dispatching on keyCode';
+	pubwic dumpDebugInfo(): stwing {
+		wetuwn 'FawwbackKeyboawdMappa dispatching on keyCode';
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[] {
-		return [new USLayoutResolvedKeybinding(keybinding, this._OS)];
+	pubwic wesowveKeybinding(keybinding: Keybinding): WesowvedKeybinding[] {
+		wetuwn [new USWayoutWesowvedKeybinding(keybinding, this._OS)];
 	}
 
-	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-		let keybinding = new SimpleKeybinding(
-			keyboardEvent.ctrlKey,
-			keyboardEvent.shiftKey,
-			keyboardEvent.altKey,
-			keyboardEvent.metaKey,
-			keyboardEvent.keyCode
+	pubwic wesowveKeyboawdEvent(keyboawdEvent: IKeyboawdEvent): WesowvedKeybinding {
+		wet keybinding = new SimpweKeybinding(
+			keyboawdEvent.ctwwKey,
+			keyboawdEvent.shiftKey,
+			keyboawdEvent.awtKey,
+			keyboawdEvent.metaKey,
+			keyboawdEvent.keyCode
 		);
-		return new USLayoutResolvedKeybinding(keybinding.toChord(), this._OS);
+		wetuwn new USWayoutWesowvedKeybinding(keybinding.toChowd(), this._OS);
 	}
 
-	private _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
-		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
-		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-			return immutableKeyCode;
+	pwivate _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
+		const immutabweKeyCode = IMMUTABWE_CODE_TO_KEY_CODE[scanCode];
+		if (immutabweKeyCode !== KeyCode.DependsOnKbWayout) {
+			wetuwn immutabweKeyCode;
 		}
 
 		switch (scanCode) {
-			case ScanCode.KeyA: return KeyCode.KEY_A;
-			case ScanCode.KeyB: return KeyCode.KEY_B;
-			case ScanCode.KeyC: return KeyCode.KEY_C;
-			case ScanCode.KeyD: return KeyCode.KEY_D;
-			case ScanCode.KeyE: return KeyCode.KEY_E;
-			case ScanCode.KeyF: return KeyCode.KEY_F;
-			case ScanCode.KeyG: return KeyCode.KEY_G;
-			case ScanCode.KeyH: return KeyCode.KEY_H;
-			case ScanCode.KeyI: return KeyCode.KEY_I;
-			case ScanCode.KeyJ: return KeyCode.KEY_J;
-			case ScanCode.KeyK: return KeyCode.KEY_K;
-			case ScanCode.KeyL: return KeyCode.KEY_L;
-			case ScanCode.KeyM: return KeyCode.KEY_M;
-			case ScanCode.KeyN: return KeyCode.KEY_N;
-			case ScanCode.KeyO: return KeyCode.KEY_O;
-			case ScanCode.KeyP: return KeyCode.KEY_P;
-			case ScanCode.KeyQ: return KeyCode.KEY_Q;
-			case ScanCode.KeyR: return KeyCode.KEY_R;
-			case ScanCode.KeyS: return KeyCode.KEY_S;
-			case ScanCode.KeyT: return KeyCode.KEY_T;
-			case ScanCode.KeyU: return KeyCode.KEY_U;
-			case ScanCode.KeyV: return KeyCode.KEY_V;
-			case ScanCode.KeyW: return KeyCode.KEY_W;
-			case ScanCode.KeyX: return KeyCode.KEY_X;
-			case ScanCode.KeyY: return KeyCode.KEY_Y;
-			case ScanCode.KeyZ: return KeyCode.KEY_Z;
-			case ScanCode.Digit1: return KeyCode.KEY_1;
-			case ScanCode.Digit2: return KeyCode.KEY_2;
-			case ScanCode.Digit3: return KeyCode.KEY_3;
-			case ScanCode.Digit4: return KeyCode.KEY_4;
-			case ScanCode.Digit5: return KeyCode.KEY_5;
-			case ScanCode.Digit6: return KeyCode.KEY_6;
-			case ScanCode.Digit7: return KeyCode.KEY_7;
-			case ScanCode.Digit8: return KeyCode.KEY_8;
-			case ScanCode.Digit9: return KeyCode.KEY_9;
-			case ScanCode.Digit0: return KeyCode.KEY_0;
-			case ScanCode.Minus: return KeyCode.US_MINUS;
-			case ScanCode.Equal: return KeyCode.US_EQUAL;
-			case ScanCode.BracketLeft: return KeyCode.US_OPEN_SQUARE_BRACKET;
-			case ScanCode.BracketRight: return KeyCode.US_CLOSE_SQUARE_BRACKET;
-			case ScanCode.Backslash: return KeyCode.US_BACKSLASH;
-			case ScanCode.IntlHash: return KeyCode.Unknown; // missing
-			case ScanCode.Semicolon: return KeyCode.US_SEMICOLON;
-			case ScanCode.Quote: return KeyCode.US_QUOTE;
-			case ScanCode.Backquote: return KeyCode.US_BACKTICK;
-			case ScanCode.Comma: return KeyCode.US_COMMA;
-			case ScanCode.Period: return KeyCode.US_DOT;
-			case ScanCode.Slash: return KeyCode.US_SLASH;
-			case ScanCode.IntlBackslash: return KeyCode.OEM_102;
+			case ScanCode.KeyA: wetuwn KeyCode.KEY_A;
+			case ScanCode.KeyB: wetuwn KeyCode.KEY_B;
+			case ScanCode.KeyC: wetuwn KeyCode.KEY_C;
+			case ScanCode.KeyD: wetuwn KeyCode.KEY_D;
+			case ScanCode.KeyE: wetuwn KeyCode.KEY_E;
+			case ScanCode.KeyF: wetuwn KeyCode.KEY_F;
+			case ScanCode.KeyG: wetuwn KeyCode.KEY_G;
+			case ScanCode.KeyH: wetuwn KeyCode.KEY_H;
+			case ScanCode.KeyI: wetuwn KeyCode.KEY_I;
+			case ScanCode.KeyJ: wetuwn KeyCode.KEY_J;
+			case ScanCode.KeyK: wetuwn KeyCode.KEY_K;
+			case ScanCode.KeyW: wetuwn KeyCode.KEY_W;
+			case ScanCode.KeyM: wetuwn KeyCode.KEY_M;
+			case ScanCode.KeyN: wetuwn KeyCode.KEY_N;
+			case ScanCode.KeyO: wetuwn KeyCode.KEY_O;
+			case ScanCode.KeyP: wetuwn KeyCode.KEY_P;
+			case ScanCode.KeyQ: wetuwn KeyCode.KEY_Q;
+			case ScanCode.KeyW: wetuwn KeyCode.KEY_W;
+			case ScanCode.KeyS: wetuwn KeyCode.KEY_S;
+			case ScanCode.KeyT: wetuwn KeyCode.KEY_T;
+			case ScanCode.KeyU: wetuwn KeyCode.KEY_U;
+			case ScanCode.KeyV: wetuwn KeyCode.KEY_V;
+			case ScanCode.KeyW: wetuwn KeyCode.KEY_W;
+			case ScanCode.KeyX: wetuwn KeyCode.KEY_X;
+			case ScanCode.KeyY: wetuwn KeyCode.KEY_Y;
+			case ScanCode.KeyZ: wetuwn KeyCode.KEY_Z;
+			case ScanCode.Digit1: wetuwn KeyCode.KEY_1;
+			case ScanCode.Digit2: wetuwn KeyCode.KEY_2;
+			case ScanCode.Digit3: wetuwn KeyCode.KEY_3;
+			case ScanCode.Digit4: wetuwn KeyCode.KEY_4;
+			case ScanCode.Digit5: wetuwn KeyCode.KEY_5;
+			case ScanCode.Digit6: wetuwn KeyCode.KEY_6;
+			case ScanCode.Digit7: wetuwn KeyCode.KEY_7;
+			case ScanCode.Digit8: wetuwn KeyCode.KEY_8;
+			case ScanCode.Digit9: wetuwn KeyCode.KEY_9;
+			case ScanCode.Digit0: wetuwn KeyCode.KEY_0;
+			case ScanCode.Minus: wetuwn KeyCode.US_MINUS;
+			case ScanCode.Equaw: wetuwn KeyCode.US_EQUAW;
+			case ScanCode.BwacketWeft: wetuwn KeyCode.US_OPEN_SQUAWE_BWACKET;
+			case ScanCode.BwacketWight: wetuwn KeyCode.US_CWOSE_SQUAWE_BWACKET;
+			case ScanCode.Backswash: wetuwn KeyCode.US_BACKSWASH;
+			case ScanCode.IntwHash: wetuwn KeyCode.Unknown; // missing
+			case ScanCode.Semicowon: wetuwn KeyCode.US_SEMICOWON;
+			case ScanCode.Quote: wetuwn KeyCode.US_QUOTE;
+			case ScanCode.Backquote: wetuwn KeyCode.US_BACKTICK;
+			case ScanCode.Comma: wetuwn KeyCode.US_COMMA;
+			case ScanCode.Pewiod: wetuwn KeyCode.US_DOT;
+			case ScanCode.Swash: wetuwn KeyCode.US_SWASH;
+			case ScanCode.IntwBackswash: wetuwn KeyCode.OEM_102;
 		}
-		return KeyCode.Unknown;
+		wetuwn KeyCode.Unknown;
 	}
 
-	private _resolveSimpleUserBinding(binding: SimpleKeybinding | ScanCodeBinding | null): SimpleKeybinding | null {
+	pwivate _wesowveSimpweUsewBinding(binding: SimpweKeybinding | ScanCodeBinding | nuww): SimpweKeybinding | nuww {
 		if (!binding) {
-			return null;
+			wetuwn nuww;
 		}
-		if (binding instanceof SimpleKeybinding) {
-			return binding;
+		if (binding instanceof SimpweKeybinding) {
+			wetuwn binding;
 		}
 		const keyCode = this._scanCodeToKeyCode(binding.scanCode);
 		if (keyCode === KeyCode.Unknown) {
-			return null;
+			wetuwn nuww;
 		}
-		return new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, keyCode);
+		wetuwn new SimpweKeybinding(binding.ctwwKey, binding.shiftKey, binding.awtKey, binding.metaKey, keyCode);
 	}
 
-	public resolveUserBinding(input: (SimpleKeybinding | ScanCodeBinding)[]): ResolvedKeybinding[] {
-		const parts: SimpleKeybinding[] = removeElementsAfterNulls(input.map(keybinding => this._resolveSimpleUserBinding(keybinding)));
-		if (parts.length > 0) {
-			return [new USLayoutResolvedKeybinding(new ChordKeybinding(parts), this._OS)];
+	pubwic wesowveUsewBinding(input: (SimpweKeybinding | ScanCodeBinding)[]): WesowvedKeybinding[] {
+		const pawts: SimpweKeybinding[] = wemoveEwementsAftewNuwws(input.map(keybinding => this._wesowveSimpweUsewBinding(keybinding)));
+		if (pawts.wength > 0) {
+			wetuwn [new USWayoutWesowvedKeybinding(new ChowdKeybinding(pawts), this._OS)];
 		}
-		return [];
+		wetuwn [];
 	}
 }

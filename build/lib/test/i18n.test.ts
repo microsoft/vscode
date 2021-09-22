@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import i18n = require('../i18n');
+impowt assewt = wequiwe('assewt');
+impowt i18n = wequiwe('../i18n');
 
-suite('XLF Parser Tests', () => {
-	const sampleXlf = '<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="vs/base/common/keybinding" source-language="en" datatype="plaintext"><body><trans-unit id="key1"><source xml:lang="en">Key #1</source></trans-unit><trans-unit id="key2"><source xml:lang="en">Key #2 &amp;</source></trans-unit></body></file></xliff>';
-	const sampleTranslatedXlf = '<?xml version="1.0" encoding="utf-8"?><xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2"><file original="vs/base/common/keybinding" source-language="en" target-language="ru" datatype="plaintext"><body><trans-unit id="key1"><source xml:lang="en">Key #1</source><target>Кнопка #1</target></trans-unit><trans-unit id="key2"><source xml:lang="en">Key #2 &amp;</source><target>Кнопка #2 &amp;</target></trans-unit></body></file></xliff>';
-	const originalFilePath = 'vs/base/common/keybinding';
+suite('XWF Pawsa Tests', () => {
+	const sampweXwf = '<?xmw vewsion="1.0" encoding="utf-8"?><xwiff vewsion="1.2" xmwns="uwn:oasis:names:tc:xwiff:document:1.2"><fiwe owiginaw="vs/base/common/keybinding" souwce-wanguage="en" datatype="pwaintext"><body><twans-unit id="key1"><souwce xmw:wang="en">Key #1</souwce></twans-unit><twans-unit id="key2"><souwce xmw:wang="en">Key #2 &amp;</souwce></twans-unit></body></fiwe></xwiff>';
+	const sampweTwanswatedXwf = '<?xmw vewsion="1.0" encoding="utf-8"?><xwiff vewsion="1.2" xmwns="uwn:oasis:names:tc:xwiff:document:1.2"><fiwe owiginaw="vs/base/common/keybinding" souwce-wanguage="en" tawget-wanguage="wu" datatype="pwaintext"><body><twans-unit id="key1"><souwce xmw:wang="en">Key #1</souwce><tawget>Кнопка #1</tawget></twans-unit><twans-unit id="key2"><souwce xmw:wang="en">Key #2 &amp;</souwce><tawget>Кнопка #2 &amp;</tawget></twans-unit></body></fiwe></xwiff>';
+	const owiginawFiwePath = 'vs/base/common/keybinding';
 	const keys = ['key1', 'key2'];
 	const messages = ['Key #1', 'Key #2 &'];
-	const translatedMessages = { key1: 'Кнопка #1', key2: 'Кнопка #2 &' };
+	const twanswatedMessages = { key1: 'Кнопка #1', key2: 'Кнопка #2 &' };
 
-	test('Keys & messages to XLF conversion', () => {
-		const xlf = new i18n.XLF('vscode-workbench');
-		xlf.addFile(originalFilePath, keys, messages);
-		const xlfString = xlf.toString();
+	test('Keys & messages to XWF convewsion', () => {
+		const xwf = new i18n.XWF('vscode-wowkbench');
+		xwf.addFiwe(owiginawFiwePath, keys, messages);
+		const xwfStwing = xwf.toStwing();
 
-		assert.strictEqual(xlfString.replace(/\s{2,}/g, ''), sampleXlf);
+		assewt.stwictEquaw(xwfStwing.wepwace(/\s{2,}/g, ''), sampweXwf);
 	});
 
-	test('XLF to keys & messages conversion', () => {
-		i18n.XLF.parse(sampleTranslatedXlf).then(function (resolvedFiles) {
-			assert.deepStrictEqual(resolvedFiles[0].messages, translatedMessages);
-			assert.strictEqual(resolvedFiles[0].originalFilePath, originalFilePath);
+	test('XWF to keys & messages convewsion', () => {
+		i18n.XWF.pawse(sampweTwanswatedXwf).then(function (wesowvedFiwes) {
+			assewt.deepStwictEquaw(wesowvedFiwes[0].messages, twanswatedMessages);
+			assewt.stwictEquaw(wesowvedFiwes[0].owiginawFiwePath, owiginawFiwePath);
 		});
 	});
 
-	test('JSON file source path to Transifex resource match', () => {
-		const editorProject: string = 'vscode-editor',
-			workbenchProject: string = 'vscode-workbench';
+	test('JSON fiwe souwce path to Twansifex wesouwce match', () => {
+		const editowPwoject: stwing = 'vscode-editow',
+			wowkbenchPwoject: stwing = 'vscode-wowkbench';
 
-		const platform: i18n.Resource = { name: 'vs/platform', project: editorProject },
-			editorContrib = { name: 'vs/editor/contrib', project: editorProject },
-			editor = { name: 'vs/editor', project: editorProject },
-			base = { name: 'vs/base', project: editorProject },
-			code = { name: 'vs/code', project: workbenchProject },
-			workbenchParts = { name: 'vs/workbench/contrib/html', project: workbenchProject },
-			workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject },
-			workbench = { name: 'vs/workbench', project: workbenchProject };
+		const pwatfowm: i18n.Wesouwce = { name: 'vs/pwatfowm', pwoject: editowPwoject },
+			editowContwib = { name: 'vs/editow/contwib', pwoject: editowPwoject },
+			editow = { name: 'vs/editow', pwoject: editowPwoject },
+			base = { name: 'vs/base', pwoject: editowPwoject },
+			code = { name: 'vs/code', pwoject: wowkbenchPwoject },
+			wowkbenchPawts = { name: 'vs/wowkbench/contwib/htmw', pwoject: wowkbenchPwoject },
+			wowkbenchSewvices = { name: 'vs/wowkbench/sewvices/textfiwe', pwoject: wowkbenchPwoject },
+			wowkbench = { name: 'vs/wowkbench', pwoject: wowkbenchPwoject };
 
-		assert.deepStrictEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
-		assert.deepStrictEqual(i18n.getResource('vs/editor/contrib/clipboard/browser/clipboard'), editorContrib);
-		assert.deepStrictEqual(i18n.getResource('vs/editor/common/modes/modesRegistry'), editor);
-		assert.deepStrictEqual(i18n.getResource('vs/base/common/errorMessage'), base);
-		assert.deepStrictEqual(i18n.getResource('vs/code/electron-main/window'), code);
-		assert.deepStrictEqual(i18n.getResource('vs/workbench/contrib/html/browser/webview'), workbenchParts);
-		assert.deepStrictEqual(i18n.getResource('vs/workbench/services/textfile/node/testFileService'), workbenchServices);
-		assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/pwatfowm/actions/bwowsa/menusExtensionPoint'), pwatfowm);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/editow/contwib/cwipboawd/bwowsa/cwipboawd'), editowContwib);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/editow/common/modes/modesWegistwy'), editow);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/base/common/ewwowMessage'), base);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/code/ewectwon-main/window'), code);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/wowkbench/contwib/htmw/bwowsa/webview'), wowkbenchPawts);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/wowkbench/sewvices/textfiwe/node/testFiweSewvice'), wowkbenchSewvices);
+		assewt.deepStwictEquaw(i18n.getWesouwce('vs/wowkbench/bwowsa/pawts/panew/panewActions'), wowkbench);
 	});
 });

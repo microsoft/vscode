@@ -1,31 +1,31 @@
 {
 	"comments": {
-		"lineComment": "//",
-		"blockComment": [ "(*", "*)" ]
+		"wineComment": "//",
+		"bwockComment": [ "(*", "*)" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}" },
-		{ "open": "[", "close": "]" },
-		{ "open": "(", "close": ")" },
-		{ "open": "\"", "close": "\"", "notIn": ["string"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}" },
+		{ "open": "[", "cwose": "]" },
+		{ "open": "(", "cwose": ")" },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"folding": {
-		"offSide": true,
-		"markers": {
-			"start": "^\\s*//\\s*#region\\b|^\\s*\\(\\*\\s*#region(.*)\\*\\)",
-			"end": "^\\s*//\\s*#endregion\\b|^\\s*\\(\\*\\s*#endregion\\s*\\*\\)"
+	"fowding": {
+		"offSide": twue,
+		"mawkews": {
+			"stawt": "^\\s*//\\s*#wegion\\b|^\\s*\\(\\*\\s*#wegion(.*)\\*\\)",
+			"end": "^\\s*//\\s*#endwegion\\b|^\\s*\\(\\*\\s*#endwegion\\s*\\*\\)"
 		}
 	}
 }

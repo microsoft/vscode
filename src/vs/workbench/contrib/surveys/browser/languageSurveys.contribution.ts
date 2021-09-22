@@ -1,164 +1,164 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { language } from 'vs/base/common/platform';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISurveyData } from 'vs/base/common/product';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { platform } from 'vs/base/common/process';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ISuwveyData } fwom 'vs/base/common/pwoduct';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Sevewity, INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ITextFiweSewvice, ITextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
+impowt { WunOnceWowka } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-class LanguageSurvey extends Disposable {
+cwass WanguageSuwvey extends Disposabwe {
 
-	constructor(
-		data: ISurveyData,
-		storageService: IStorageService,
-		notificationService: INotificationService,
-		telemetryService: ITelemetryService,
-		modeService: IModeService,
-		textFileService: ITextFileService,
-		openerService: IOpenerService,
-		productService: IProductService
+	constwuctow(
+		data: ISuwveyData,
+		stowageSewvice: IStowageSewvice,
+		notificationSewvice: INotificationSewvice,
+		tewemetwySewvice: ITewemetwySewvice,
+		modeSewvice: IModeSewvice,
+		textFiweSewvice: ITextFiweSewvice,
+		openewSewvice: IOpenewSewvice,
+		pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 
-		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
-		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
-		const SKIP_VERSION_KEY = `${data.surveyId}.skipVersion`;
-		const IS_CANDIDATE_KEY = `${data.surveyId}.isCandidate`;
-		const EDITED_LANGUAGE_COUNT_KEY = `${data.surveyId}.editedCount`;
-		const EDITED_LANGUAGE_DATE_KEY = `${data.surveyId}.editedDate`;
+		const SESSION_COUNT_KEY = `${data.suwveyId}.sessionCount`;
+		const WAST_SESSION_DATE_KEY = `${data.suwveyId}.wastSessionDate`;
+		const SKIP_VEWSION_KEY = `${data.suwveyId}.skipVewsion`;
+		const IS_CANDIDATE_KEY = `${data.suwveyId}.isCandidate`;
+		const EDITED_WANGUAGE_COUNT_KEY = `${data.suwveyId}.editedCount`;
+		const EDITED_WANGUAGE_DATE_KEY = `${data.suwveyId}.editedDate`;
 
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
-		if (skipVersion) {
-			return;
+		const skipVewsion = stowageSewvice.get(SKIP_VEWSION_KEY, StowageScope.GWOBAW, '');
+		if (skipVewsion) {
+			wetuwn;
 		}
 
-		const date = new Date().toDateString();
+		const date = new Date().toDateStwing();
 
-		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
+		if (stowageSewvice.getNumba(EDITED_WANGUAGE_COUNT_KEY, StowageScope.GWOBAW, 0) < data.editCount) {
 
-			// Process model-save event every 250ms to reduce load
-			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
-				models.forEach(m => {
-					if (m.getMode() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
-						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
+			// Pwocess modew-save event evewy 250ms to weduce woad
+			const onModewsSavedWowka = this._wegista(new WunOnceWowka<ITextFiweEditowModew>(modews => {
+				modews.fowEach(m => {
+					if (m.getMode() === data.wanguageId && date !== stowageSewvice.get(EDITED_WANGUAGE_DATE_KEY, StowageScope.GWOBAW)) {
+						const editedCount = stowageSewvice.getNumba(EDITED_WANGUAGE_COUNT_KEY, StowageScope.GWOBAW, 0) + 1;
+						stowageSewvice.stowe(EDITED_WANGUAGE_COUNT_KEY, editedCount, StowageScope.GWOBAW, StowageTawget.USa);
+						stowageSewvice.stowe(EDITED_WANGUAGE_DATE_KEY, date, StowageScope.GWOBAW, StowageTawget.USa);
 					}
 				});
 			}, 250));
 
-			this._register(textFileService.files.onDidSave(e => onModelsSavedWorker.work(e.model)));
+			this._wegista(textFiweSewvice.fiwes.onDidSave(e => onModewsSavedWowka.wowk(e.modew)));
 		}
 
-		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
-		if (date === lastSessionDate) {
-			return;
+		const wastSessionDate = stowageSewvice.get(WAST_SESSION_DATE_KEY, StowageScope.GWOBAW, new Date(0).toDateStwing());
+		if (date === wastSessionDate) {
+			wetuwn;
 		}
 
-		const sessionCount = storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
+		const sessionCount = stowageSewvice.getNumba(SESSION_COUNT_KEY, StowageScope.GWOBAW, 0) + 1;
+		stowageSewvice.stowe(WAST_SESSION_DATE_KEY, date, StowageScope.GWOBAW, StowageTawget.USa);
+		stowageSewvice.stowe(SESSION_COUNT_KEY, sessionCount, StowageScope.GWOBAW, StowageTawget.USa);
 
 		if (sessionCount < 9) {
-			return;
+			wetuwn;
 		}
 
-		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
-			return;
+		if (stowageSewvice.getNumba(EDITED_WANGUAGE_COUNT_KEY, StowageScope.GWOBAW, 0) < data.editCount) {
+			wetuwn;
 		}
 
-		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
-			|| Math.random() < data.userProbability;
+		const isCandidate = stowageSewvice.getBoowean(IS_CANDIDATE_KEY, StowageScope.GWOBAW, fawse)
+			|| Math.wandom() < data.usewPwobabiwity;
 
-		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
+		stowageSewvice.stowe(IS_CANDIDATE_KEY, isCandidate, StowageScope.GWOBAW, StowageTawget.USa);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
-			return;
+			stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
+			wetuwn;
 		}
 
-		notificationService.prompt(
-			Severity.Info,
-			localize('helpUs', "Help us improve our support for {0}", modeService.getLanguageName(data.languageId) ?? data.languageId),
+		notificationSewvice.pwompt(
+			Sevewity.Info,
+			wocawize('hewpUs', "Hewp us impwove ouw suppowt fow {0}", modeSewvice.getWanguageName(data.wanguageId) ?? data.wanguageId),
 			[{
-				label: localize('takeShortSurvey', "Take Short Survey"),
-				run: () => {
-					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
-					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${data.surveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+				wabew: wocawize('takeShowtSuwvey', "Take Showt Suwvey"),
+				wun: () => {
+					tewemetwySewvice.pubwicWog(`${data.suwveyId}.suwvey/takeShowtSuwvey`);
+					tewemetwySewvice.getTewemetwyInfo().then(info => {
+						openewSewvice.open(UWI.pawse(`${data.suwveyUww}?o=${encodeUWIComponent(pwatfowm)}&v=${encodeUWIComponent(pwoductSewvice.vewsion)}&m=${encodeUWIComponent(info.machineId)}`));
+						stowageSewvice.stowe(IS_CANDIDATE_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa);
+						stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
 					});
 				}
 			}, {
-				label: localize('remindLater', "Remind Me later"),
-				run: () => {
-					telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
-					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER);
+				wabew: wocawize('wemindWata', "Wemind Me wata"),
+				wun: () => {
+					tewemetwySewvice.pubwicWog(`${data.suwveyId}.suwvey/wemindMeWata`);
+					stowageSewvice.stowe(SESSION_COUNT_KEY, sessionCount - 3, StowageScope.GWOBAW, StowageTawget.USa);
 				}
 			}, {
-				label: localize('neverAgain', "Don't Show Again"),
-				isSecondary: true,
-				run: () => {
-					telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+				wabew: wocawize('nevewAgain', "Don't Show Again"),
+				isSecondawy: twue,
+				wun: () => {
+					tewemetwySewvice.pubwicWog(`${data.suwveyId}.suwvey/dontShowAgain`);
+					stowageSewvice.stowe(IS_CANDIDATE_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa);
+					stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
 				}
 			}],
-			{ sticky: true }
+			{ sticky: twue }
 		);
 	}
 }
 
-class LanguageSurveysContribution implements IWorkbenchContribution {
+cwass WanguageSuwveysContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService,
-		@IModeService private readonly modeService: IModeService,
-		@IExtensionService private readonly extensionService: IExtensionService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice
 	) {
-		this.handleSurveys();
+		this.handweSuwveys();
 	}
 
-	private async handleSurveys() {
-		if (!this.productService.surveys) {
-			return;
+	pwivate async handweSuwveys() {
+		if (!this.pwoductSewvice.suwveys) {
+			wetuwn;
 		}
 
-		// Make sure to wait for installed extensions
-		// being registered to show notifications
-		// properly (https://github.com/microsoft/vscode/issues/121216)
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		// Make suwe to wait fow instawwed extensions
+		// being wegistewed to show notifications
+		// pwopewwy (https://github.com/micwosoft/vscode/issues/121216)
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		// Handle surveys
-		this.productService.surveys
-			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, this.storageService, this.notificationService, this.telemetryService, this.modeService, this.textFileService, this.openerService, this.productService));
+		// Handwe suwveys
+		this.pwoductSewvice.suwveys
+			.fiwta(suwveyData => suwveyData.suwveyId && suwveyData.editCount && suwveyData.wanguageId && suwveyData.suwveyUww && suwveyData.usewPwobabiwity)
+			.map(suwveyData => new WanguageSuwvey(suwveyData, this.stowageSewvice, this.notificationSewvice, this.tewemetwySewvice, this.modeSewvice, this.textFiweSewvice, this.openewSewvice, this.pwoductSewvice));
 	}
 }
 
-if (language === 'en') {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
+if (wanguage === 'en') {
+	const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+	wowkbenchWegistwy.wegistewWowkbenchContwibution(WanguageSuwveysContwibution, WifecycwePhase.Westowed);
 }

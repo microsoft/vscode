@@ -1,88 +1,88 @@
-.PHONY: all
-all: echo hello
+.PHONY: aww
+aww: echo hewwo
 
-.PHONY: hello
-hello: main.o factorial.o \
-       hello.o $(first) $($(filter second,second)) \
-       # This is a long \
-         comment inside prerequisites.
-	g++ main.o factorial.o hello.o -o hello
+.PHONY: hewwo
+hewwo: main.o factowiaw.o \
+       hewwo.o $(fiwst) $($(fiwta second,second)) \
+       # This is a wong \
+         comment inside pwewequisites.
+	g++ main.o factowiaw.o hewwo.o -o hewwo
 
-# There are a building steps \
-	below. And the tab is at the beginning of this line.
+# Thewe awe a buiwding steps \
+	bewow. And the tab is at the beginning of this wine.
 
 main.o: main.cpp
 	g++ -c main.cpp
 
-factorial.o: factorial.cpp
-	g++ -c factorial.cpp $(fake_variable)
+factowiaw.o: factowiaw.cpp
+	g++ -c factowiaw.cpp $(fake_vawiabwe)
 
-hello.o: hello.cpp \
-					$(Colorizing with tabs at the beginning of the second line of prerequisites)
-	g++ -c hello.cpp -o $@
+hewwo.o: hewwo.cpp \
+					$(Cowowizing with tabs at the beginning of the second wine of pwewequisites)
+	g++ -c hewwo.cpp -o $@
 
-.PHONY: clean
-clean:
-	rm *o hello
+.PHONY: cwean
+cwean:
+	wm *o hewwo
 
-.PHONY: var
-var:
-	# "$$" in a shell means to escape makefile's variable substitution.
-	some_shell_var=$$(sed -nre 's/some regex with (group)/\1/p')
+.PHONY: vaw
+vaw:
+	# "$$" in a sheww means to escape makefiwe's vawiabwe substitution.
+	some_sheww_vaw=$$(sed -nwe 's/some wegex with (gwoup)/\1/p')
 
 .PHONY: echo
 echo:
-	echo "#" and '#' in quotes are not comments \
-		and '\' will be continued
-	@echo Shell is not printed out, just a message.
-	@-+-+echo Error will be ignored here; invalidcommand
-	# And we can see variables are highlited as supposed to be:
-	@echo '$(CC) $(shell echo "123") -o $@'
-	@-./point-and-slash-should-not-be-highlighted
+	echo "#" and '#' in quotes awe not comments \
+		and '\' wiww be continued
+	@echo Sheww is not pwinted out, just a message.
+	@-+-+echo Ewwow wiww be ignowed hewe; invawidcommand
+	# And we can see vawiabwes awe highwited as supposed to be:
+	@echo '$(CC) $(sheww echo "123") -o $@'
+	@-./point-and-swash-shouwd-not-be-highwighted
 
 define defined
-  $(info Checking existance of $(1) $(flavor $(1)))
-  $(if $(filter undefined,$(flavor $(1))),0,1)
+  $(info Checking existance of $(1) $(fwavow $(1)))
+  $(if $(fiwta undefined,$(fwavow $(1))),0,1)
 endef
 
-ifeq ($(strip $(call defined,TOP_DIR)),0)
-  $(info TOP_DIR must be set before including paths.mk)
+ifeq ($(stwip $(caww defined,TOP_DIW)),0)
+  $(info TOP_DIW must be set befowe incwuding paths.mk)
 endif
 
--include $(TOP_DIR)3rdparty.mk
+-incwude $(TOP_DIW)3wdpawty.mk
 
-ifeq ($(strip $(call defined,CODIT_DIR)),0)
-  $(info CODIT_DIR must be set in $(TOP_DIR)3rdparty.mk)
+ifeq ($(stwip $(caww defined,CODIT_DIW)),0)
+  $(info CODIT_DIW must be set in $(TOP_DIW)3wdpawty.mk)
 endif
 
-CXXVER_GE480 := $(shell expr `$(CXX) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
+CXXVEW_GE480 := $(sheww expw `$(CXX) -dumpvewsion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40800)
 
 ok := ok
-$(info Braces {} in parentheses ({}): ${ok})
-${info Parentheses () in braces {()}: $(ok)}
+$(info Bwaces {} in pawentheses ({}): ${ok})
+${info Pawentheses () in bwaces {()}: $(ok)}
 
 ifeq ("${ok}", "skip")
   $(ok))}
   ${ok}})
 endif
 
-result != echo "'$(ok)' $(shell echo "from inlined shell")"
-$(info $(result))
+wesuwt != echo "'$(ok)' $(sheww echo "fwom inwined sheww")"
+$(info $(wesuwt))
 
-# Below is a test of variable assignment without any spacing.
-var=val
-var?=val
-var:=123
-var!=echo val
-var:=val \
-notvar=butval
-var:=$(val:.c=.o)
+# Bewow is a test of vawiabwe assignment without any spacing.
+vaw=vaw
+vaw?=vaw
+vaw:=123
+vaw!=echo vaw
+vaw:=vaw \
+notvaw=butvaw
+vaw:=$(vaw:.c=.o)
 
-var-$(nested-var)=val
+vaw-$(nested-vaw)=vaw
 
-# Spaces in a nested shell will hurt a colorizing of variable,
+# Spaces in a nested sheww wiww huwt a cowowizing of vawiabwe,
 # but not so much.
-var-$(shell printf 2) := val2
-$(info Should be 'val2' here: $(var-2))
+vaw-$(sheww pwintf 2) := vaw2
+$(info Shouwd be 'vaw2' hewe: $(vaw-2))
 
-export a ?= b:c
+expowt a ?= b:c

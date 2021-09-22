@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+impowt { IMawkewDecowationsSewvice } fwom 'vs/editow/common/sewvices/mawkewsDecowationSewvice';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
 
-export class MarkerDecorationsContribution implements IEditorContribution {
+expowt cwass MawkewDecowationsContwibution impwements IEditowContwibution {
 
-	public static readonly ID: string = 'editor.contrib.markerDecorations';
+	pubwic static weadonwy ID: stwing = 'editow.contwib.mawkewDecowations';
 
-	constructor(
-		_editor: ICodeEditor,
-		@IMarkerDecorationsService _markerDecorationsService: IMarkerDecorationsService
+	constwuctow(
+		_editow: ICodeEditow,
+		@IMawkewDecowationsSewvice _mawkewDecowationsSewvice: IMawkewDecowationsSewvice
 	) {
-		// Doesn't do anything, just requires `IMarkerDecorationsService` to make sure it gets instantiated
+		// Doesn't do anything, just wequiwes `IMawkewDecowationsSewvice` to make suwe it gets instantiated
 	}
 
 	dispose(): void {
 	}
 }
 
-registerEditorContribution(MarkerDecorationsContribution.ID, MarkerDecorationsContribution);
+wegistewEditowContwibution(MawkewDecowationsContwibution.ID, MawkewDecowationsContwibution);

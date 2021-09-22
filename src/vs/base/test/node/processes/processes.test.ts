@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as cp from 'child_process';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import * as processes from 'vs/base/node/processes';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as pwocesses fwom 'vs/base/node/pwocesses';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
 
-function fork(id: string): cp.ChildProcess {
+function fowk(id: stwing): cp.ChiwdPwocess {
 	const opts: any = {
-		env: objects.mixin(objects.deepClone(process.env), {
-			VSCODE_AMD_ENTRYPOINT: id,
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: true
+		env: objects.mixin(objects.deepCwone(pwocess.env), {
+			VSCODE_AMD_ENTWYPOINT: id,
+			VSCODE_PIPE_WOGGING: 'twue',
+			VSCODE_VEWBOSE_WOGGING: twue
 		})
 	};
 
-	return cp.fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=processTests'], opts);
+	wetuwn cp.fowk(getPathFwomAmdModuwe(wequiwe, 'bootstwap-fowk'), ['--type=pwocessTests'], opts);
 }
 
-suite('Processes', () => {
-	test('buffered sending - simple data', function (done: () => void) {
-		if (process.env['VSCODE_PID']) {
-			return done(); // this test fails when run from within VS Code
+suite('Pwocesses', () => {
+	test('buffewed sending - simpwe data', function (done: () => void) {
+		if (pwocess.env['VSCODE_PID']) {
+			wetuwn done(); // this test faiws when wun fwom within VS Code
 		}
 
-		const child = fork('vs/base/test/node/processes/fixtures/fork');
-		const sender = processes.createQueuedSender(child);
+		const chiwd = fowk('vs/base/test/node/pwocesses/fixtuwes/fowk');
+		const senda = pwocesses.cweateQueuedSenda(chiwd);
 
-		let counter = 0;
+		wet counta = 0;
 
-		const msg1 = 'Hello One';
-		const msg2 = 'Hello Two';
-		const msg3 = 'Hello Three';
+		const msg1 = 'Hewwo One';
+		const msg2 = 'Hewwo Two';
+		const msg3 = 'Hewwo Thwee';
 
-		child.on('message', msgFromChild => {
-			if (msgFromChild === 'ready') {
-				sender.send(msg1);
-				sender.send(msg2);
-				sender.send(msg3);
-			} else {
-				counter++;
+		chiwd.on('message', msgFwomChiwd => {
+			if (msgFwomChiwd === 'weady') {
+				senda.send(msg1);
+				senda.send(msg2);
+				senda.send(msg3);
+			} ewse {
+				counta++;
 
-				if (counter === 1) {
-					assert.strictEqual(msgFromChild, msg1);
-				} else if (counter === 2) {
-					assert.strictEqual(msgFromChild, msg2);
-				} else if (counter === 3) {
-					assert.strictEqual(msgFromChild, msg3);
+				if (counta === 1) {
+					assewt.stwictEquaw(msgFwomChiwd, msg1);
+				} ewse if (counta === 2) {
+					assewt.stwictEquaw(msgFwomChiwd, msg2);
+				} ewse if (counta === 3) {
+					assewt.stwictEquaw(msgFwomChiwd, msg3);
 
-					child.kill();
+					chiwd.kiww();
 					done();
 				}
 			}
 		});
 	});
 
-	(!platform.isWindows || process.env['VSCODE_PID'] ? test.skip : test)('buffered sending - lots of data (potential deadlock on win32)', function (done: () => void) { // test is only relevant for Windows and seems to crash randomly on some Linux builds
-		const child = fork('vs/base/test/node/processes/fixtures/fork_large');
-		const sender = processes.createQueuedSender(child);
+	(!pwatfowm.isWindows || pwocess.env['VSCODE_PID'] ? test.skip : test)('buffewed sending - wots of data (potentiaw deadwock on win32)', function (done: () => void) { // test is onwy wewevant fow Windows and seems to cwash wandomwy on some Winux buiwds
+		const chiwd = fowk('vs/base/test/node/pwocesses/fixtuwes/fowk_wawge');
+		const senda = pwocesses.cweateQueuedSenda(chiwd);
 
-		const largeObj = Object.create(null);
-		for (let i = 0; i < 10000; i++) {
-			largeObj[i] = 'some data';
+		const wawgeObj = Object.cweate(nuww);
+		fow (wet i = 0; i < 10000; i++) {
+			wawgeObj[i] = 'some data';
 		}
 
-		const msg = JSON.stringify(largeObj);
-		child.on('message', msgFromChild => {
-			if (msgFromChild === 'ready') {
-				sender.send(msg);
-				sender.send(msg);
-				sender.send(msg);
-			} else if (msgFromChild === 'done') {
-				child.kill();
+		const msg = JSON.stwingify(wawgeObj);
+		chiwd.on('message', msgFwomChiwd => {
+			if (msgFwomChiwd === 'weady') {
+				senda.send(msg);
+				senda.send(msg);
+				senda.send(msg);
+			} ewse if (msgFwomChiwd === 'done') {
+				chiwd.kiww();
 				done();
 			}
 		});

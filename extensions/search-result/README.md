@@ -1,5 +1,5 @@
-# Language Features for Search Result files
+# Wanguage Featuwes fow Seawch Wesuwt fiwes
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-This extension provides Syntax Highlighting, Symbol Information, Result Highlighting, and Go to Definition capabilities for the Search Results Editor.
+This extension pwovides Syntax Highwighting, Symbow Infowmation, Wesuwt Highwighting, and Go to Definition capabiwities fow the Seawch Wesuwts Editow.

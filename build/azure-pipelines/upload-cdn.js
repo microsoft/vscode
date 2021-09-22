@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-const path = require("path");
-const es = require("event-stream");
-const vfs = require("vinyl-fs");
-const util = require("../lib/util");
-const filter = require("gulp-filter");
-const gzip = require("gulp-gzip");
-const azure = require('gulp-azure-storage');
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+const path = wequiwe("path");
+const es = wequiwe("event-stweam");
+const vfs = wequiwe("vinyw-fs");
+const utiw = wequiwe("../wib/utiw");
+const fiwta = wequiwe("guwp-fiwta");
+const gzip = wequiwe("guwp-gzip");
+const azuwe = wequiwe('guwp-azuwe-stowage');
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
 function main() {
-    return vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
-        .pipe(filter(f => !f.isDirectory()))
-        .pipe(gzip({ append: false }))
-        .pipe(es.through(function (data) {
-        console.log('Uploading CDN file:', data.relative); // debug
+    wetuwn vfs.swc('**', { cwd: '../vscode-web', base: '../vscode-web', dot: twue })
+        .pipe(fiwta(f => !f.isDiwectowy()))
+        .pipe(gzip({ append: fawse }))
+        .pipe(es.thwough(function (data) {
+        consowe.wog('Upwoading CDN fiwe:', data.wewative); // debug
         this.emit('data', data);
     }))
-        .pipe(azure.upload({
-        account: process.env.AZURE_STORAGE_ACCOUNT,
-        key: process.env.AZURE_STORAGE_ACCESS_KEY,
-        container: process.env.VSCODE_QUALITY,
-        prefix: commit + '/',
+        .pipe(azuwe.upwoad({
+        account: pwocess.env.AZUWE_STOWAGE_ACCOUNT,
+        key: pwocess.env.AZUWE_STOWAGE_ACCESS_KEY,
+        containa: pwocess.env.VSCODE_QUAWITY,
+        pwefix: commit + '/',
         contentSettings: {
             contentEncoding: 'gzip',
-            cacheControl: 'max-age=31536000, public'
+            cacheContwow: 'max-age=31536000, pubwic'
         }
     }));
 }

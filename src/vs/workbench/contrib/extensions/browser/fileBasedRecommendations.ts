@@ -1,403 +1,403 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ImportantExtensionTip } from 'vs/base/common/product';
-import { forEach, IStringDictionary } from 'vs/base/common/collections';
-import { ITextModel } from 'vs/editor/common/model';
-import { Schemas } from 'vs/base/common/network';
-import { basename, extname } from 'vs/base/common/resources';
-import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { distinct } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { disposableTimeout } from 'vs/base/common/async';
-import { isWeb } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { EnabwementState } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { ExtensionWecommendationWeason, IExtensionIgnowedWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IExtensionsViewPaneContaina, IExtensionsWowkbenchSewvice, IExtension } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { StowageScope, IStowageSewvice, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ImpowtantExtensionTip } fwom 'vs/base/common/pwoduct';
+impowt { fowEach, IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, extname } fwom 'vs/base/common/wesouwces';
+impowt { match } fwom 'vs/base/common/gwob';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Mimes, guessMimeTypes } fwom 'vs/base/common/mime';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IExtensionWecommendationNotificationSewvice, WecommendationsNotificationWesuwt, WecommendationSouwce } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { CewwUwi } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-type FileExtensionSuggestionClassification = {
-	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	fileExtension: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+type FiweExtensionSuggestionCwassification = {
+	usewWeaction: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	fiweExtension: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 };
 
-const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
-const promptedFileExtensionsStorageKey = 'fileBasedRecommendations/promptedFileExtensions';
-const recommendationsStorageKey = 'extensionsAssistant/recommendations';
-const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
-const milliSecondsInADay = 1000 * 60 * 60 * 24;
+const pwomptedWecommendationsStowageKey = 'fiweBasedWecommendations/pwomptedWecommendations';
+const pwomptedFiweExtensionsStowageKey = 'fiweBasedWecommendations/pwomptedFiweExtensions';
+const wecommendationsStowageKey = 'extensionsAssistant/wecommendations';
+const seawchMawketpwace = wocawize('seawchMawketpwace', "Seawch Mawketpwace");
+const miwwiSecondsInADay = 1000 * 60 * 60 * 24;
 
-export class FileBasedRecommendations extends ExtensionRecommendations {
+expowt cwass FiweBasedWecommendations extends ExtensionWecommendations {
 
-	private readonly extensionTips = new Map<string, string>();
-	private readonly importantExtensionTips = new Map<string, ImportantExtensionTip>();
+	pwivate weadonwy extensionTips = new Map<stwing, stwing>();
+	pwivate weadonwy impowtantExtensionTips = new Map<stwing, ImpowtantExtensionTip>();
 
-	private readonly fileBasedRecommendationsByPattern = new Map<string, string[]>();
-	private readonly fileBasedRecommendationsByLanguage = new Map<string, string[]>();
-	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
-	private readonly processedFileExtensions: string[] = [];
-	private readonly processedLanguages: string[] = [];
+	pwivate weadonwy fiweBasedWecommendationsByPattewn = new Map<stwing, stwing[]>();
+	pwivate weadonwy fiweBasedWecommendationsByWanguage = new Map<stwing, stwing[]>();
+	pwivate weadonwy fiweBasedWecommendations = new Map<stwing, { wecommendedTime: numba }>();
+	pwivate weadonwy pwocessedFiweExtensions: stwing[] = [];
+	pwivate weadonwy pwocessedWanguages: stwing[] = [];
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
-		const recommendations: ExtensionRecommendation[] = [];
-		[...this.fileBasedRecommendations.keys()]
-			.sort((a, b) => {
-				if (this.fileBasedRecommendations.get(a)!.recommendedTime === this.fileBasedRecommendations.get(b)!.recommendedTime) {
-					if (this.importantExtensionTips.has(a)) {
-						return -1;
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> {
+		const wecommendations: ExtensionWecommendation[] = [];
+		[...this.fiweBasedWecommendations.keys()]
+			.sowt((a, b) => {
+				if (this.fiweBasedWecommendations.get(a)!.wecommendedTime === this.fiweBasedWecommendations.get(b)!.wecommendedTime) {
+					if (this.impowtantExtensionTips.has(a)) {
+						wetuwn -1;
 					}
-					if (this.importantExtensionTips.has(b)) {
-						return 1;
+					if (this.impowtantExtensionTips.has(b)) {
+						wetuwn 1;
 					}
 				}
-				return this.fileBasedRecommendations.get(a)!.recommendedTime > this.fileBasedRecommendations.get(b)!.recommendedTime ? -1 : 1;
+				wetuwn this.fiweBasedWecommendations.get(a)!.wecommendedTime > this.fiweBasedWecommendations.get(b)!.wecommendedTime ? -1 : 1;
 			})
-			.forEach(extensionId => {
-				recommendations.push({
+			.fowEach(extensionId => {
+				wecommendations.push({
 					extensionId,
-					reason: {
-						reasonId: ExtensionRecommendationReason.File,
-						reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
+					weason: {
+						weasonId: ExtensionWecommendationWeason.Fiwe,
+						weasonText: wocawize('fiweBasedWecommendation', "This extension is wecommended based on the fiwes you wecentwy opened.")
 					}
 				});
 			});
-		return recommendations;
+		wetuwn wecommendations;
 	}
 
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => this.importantExtensionTips.has(e.extensionId));
+	get impowtantWecommendations(): WeadonwyAwway<ExtensionWecommendation> {
+		wetuwn this.wecommendations.fiwta(e => this.impowtantExtensionTips.has(e.extensionId));
 	}
 
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> {
-		return this.recommendations.filter(e => !this.importantExtensionTips.has(e.extensionId));
+	get othewWecommendations(): WeadonwyAwway<ExtensionWecommendation> {
+		wetuwn this.wecommendations.fiwta(e => !this.impowtantExtensionTips.has(e.extensionId));
 	}
 
-	constructor(
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IProductService productService: IProductService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
-		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IFileService private readonly fileService: IFileService,
+	constwuctow(
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionWecommendationNotificationSewvice pwivate weadonwy extensionWecommendationNotificationSewvice: IExtensionWecommendationNotificationSewvice,
+		@IExtensionIgnowedWecommendationsSewvice pwivate weadonwy extensionIgnowedWecommendationsSewvice: IExtensionIgnowedWecommendationsSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
 	) {
-		super();
+		supa();
 
-		if (productService.extensionTips) {
-			forEach(productService.extensionTips, ({ key, value }) => this.extensionTips.set(key.toLowerCase(), value));
+		if (pwoductSewvice.extensionTips) {
+			fowEach(pwoductSewvice.extensionTips, ({ key, vawue }) => this.extensionTips.set(key.toWowewCase(), vawue));
 		}
-		if (productService.extensionImportantTips) {
-			forEach(productService.extensionImportantTips, ({ key, value }) => this.importantExtensionTips.set(key.toLowerCase(), value));
+		if (pwoductSewvice.extensionImpowtantTips) {
+			fowEach(pwoductSewvice.extensionImpowtantTips, ({ key, vawue }) => this.impowtantExtensionTips.set(key.toWowewCase(), vawue));
 		}
 	}
 
-	protected async doActivate(): Promise<void> {
-		await this.extensionService.whenInstalledExtensionsRegistered();
+	pwotected async doActivate(): Pwomise<void> {
+		await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-		const allRecommendations: string[] = [];
+		const awwWecommendations: stwing[] = [];
 
-		// group extension recommendations by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
-		for (const [extensionId, pattern] of this.extensionTips) {
-			const ids = this.fileBasedRecommendationsByPattern.get(pattern) || [];
+		// gwoup extension wecommendations by pattewn, wike {**/*.md} -> [ext.foo1, ext.baw2]
+		fow (const [extensionId, pattewn] of this.extensionTips) {
+			const ids = this.fiweBasedWecommendationsByPattewn.get(pattewn) || [];
 			ids.push(extensionId);
-			this.fileBasedRecommendationsByPattern.set(pattern, ids);
-			allRecommendations.push(extensionId);
+			this.fiweBasedWecommendationsByPattewn.set(pattewn, ids);
+			awwWecommendations.push(extensionId);
 		}
-		for (const [extensionId, value] of this.importantExtensionTips) {
-			if (value.pattern) {
-				const ids = this.fileBasedRecommendationsByPattern.get(value.pattern) || [];
+		fow (const [extensionId, vawue] of this.impowtantExtensionTips) {
+			if (vawue.pattewn) {
+				const ids = this.fiweBasedWecommendationsByPattewn.get(vawue.pattewn) || [];
 				ids.push(extensionId);
-				this.fileBasedRecommendationsByPattern.set(value.pattern, ids);
+				this.fiweBasedWecommendationsByPattewn.set(vawue.pattewn, ids);
 			}
-			if (value.languages) {
-				for (const language of value.languages) {
-					const ids = this.fileBasedRecommendationsByLanguage.get(language) || [];
+			if (vawue.wanguages) {
+				fow (const wanguage of vawue.wanguages) {
+					const ids = this.fiweBasedWecommendationsByWanguage.get(wanguage) || [];
 					ids.push(extensionId);
-					this.fileBasedRecommendationsByLanguage.set(language, ids);
+					this.fiweBasedWecommendationsByWanguage.set(wanguage, ids);
 				}
 			}
-			allRecommendations.push(extensionId);
+			awwWecommendations.push(extensionId);
 		}
 
-		const cachedRecommendations = this.getCachedRecommendations();
+		const cachedWecommendations = this.getCachedWecommendations();
 		const now = Date.now();
-		// Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
-		forEach(cachedRecommendations, ({ key, value }) => {
-			const diff = (now - value) / milliSecondsInADay;
-			if (diff <= 7 && allRecommendations.indexOf(key) > -1) {
-				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
+		// Wetiwe existing wecommendations if they awe owda than a week ow awe not pawt of this.pwoductSewvice.extensionTips anymowe
+		fowEach(cachedWecommendations, ({ key, vawue }) => {
+			const diff = (now - vawue) / miwwiSecondsInADay;
+			if (diff <= 7 && awwWecommendations.indexOf(key) > -1) {
+				this.fiweBasedWecommendations.set(key.toWowewCase(), { wecommendedTime: vawue });
 			}
 		});
 
-		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
-		this.modelService.getModels().forEach(model => this.onModelAdded(model));
+		this._wegista(this.modewSewvice.onModewAdded(modew => this.onModewAdded(modew)));
+		this.modewSewvice.getModews().fowEach(modew => this.onModewAdded(modew));
 	}
 
-	private onModelAdded(model: ITextModel): void {
-		const uri = model.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(model.uri)?.notebook : model.uri;
-		if (!uri) {
-			return;
+	pwivate onModewAdded(modew: ITextModew): void {
+		const uwi = modew.uwi.scheme === Schemas.vscodeNotebookCeww ? CewwUwi.pawse(modew.uwi)?.notebook : modew.uwi;
+		if (!uwi) {
+			wetuwn;
 		}
 
-		/* In Web, recommend only when the file can be handled */
+		/* In Web, wecommend onwy when the fiwe can be handwed */
 		if (isWeb) {
-			if (!this.fileService.canHandleResource(uri)) {
-				return;
+			if (!this.fiweSewvice.canHandweWesouwce(uwi)) {
+				wetuwn;
 			}
 		}
 
-		/* In Desktop, recommend only for files with these schemes */
-		else {
-			if (![Schemas.untitled, Schemas.file, Schemas.vscodeRemote].includes(uri.scheme)) {
-				return;
+		/* In Desktop, wecommend onwy fow fiwes with these schemes */
+		ewse {
+			if (![Schemas.untitwed, Schemas.fiwe, Schemas.vscodeWemote].incwudes(uwi.scheme)) {
+				wetuwn;
 			}
 		}
 
-		this.promptRecommendationsForModel(model);
-		const disposables = new DisposableStore();
-		disposables.add(model.onDidChangeLanguage(() => this.promptRecommendationsForModel(model)));
-		disposables.add(model.onWillDispose(() => disposables.dispose()));
+		this.pwomptWecommendationsFowModew(modew);
+		const disposabwes = new DisposabweStowe();
+		disposabwes.add(modew.onDidChangeWanguage(() => this.pwomptWecommendationsFowModew(modew)));
+		disposabwes.add(modew.onWiwwDispose(() => disposabwes.dispose()));
 	}
 
 	/**
-	 * Prompt the user to either install the recommended extension for the file type in the current editor model
-	 * or prompt to search the marketplace if it has extensions that can support the file type
+	 * Pwompt the usa to eitha instaww the wecommended extension fow the fiwe type in the cuwwent editow modew
+	 * ow pwompt to seawch the mawketpwace if it has extensions that can suppowt the fiwe type
 	 */
-	private promptRecommendationsForModel(model: ITextModel): void {
-		const uri = model.uri;
-		const language = model.getLanguageIdentifier().language;
-		const fileExtension = extname(uri).toLowerCase();
-		if (this.processedLanguages.includes(language) && this.processedFileExtensions.includes(fileExtension)) {
-			return;
+	pwivate pwomptWecommendationsFowModew(modew: ITextModew): void {
+		const uwi = modew.uwi;
+		const wanguage = modew.getWanguageIdentifia().wanguage;
+		const fiweExtension = extname(uwi).toWowewCase();
+		if (this.pwocessedWanguages.incwudes(wanguage) && this.pwocessedFiweExtensions.incwudes(fiweExtension)) {
+			wetuwn;
 		}
 
-		this.processedLanguages.push(language);
-		this.processedFileExtensions.push(fileExtension);
+		this.pwocessedWanguages.push(wanguage);
+		this.pwocessedFiweExtensions.push(fiweExtension);
 
-		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptRecommendations(uri, language, fileExtension), 0));
+		// we-scheduwe this bit of the opewation to be off the cwiticaw path - in case gwob-match is swow
+		this._wegista(disposabweTimeout(() => this.pwomptWecommendations(uwi, wanguage, fiweExtension), 0));
 	}
 
-	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
-		const importantRecommendations: string[] = (this.fileBasedRecommendationsByLanguage.get(language) || []).filter(extensionId => this.importantExtensionTips.has(extensionId));
-		let languageName: string | null = importantRecommendations.length ? this.modeService.getLanguageName(language) : null;
+	pwivate async pwomptWecommendations(uwi: UWI, wanguage: stwing, fiweExtension: stwing): Pwomise<void> {
+		const impowtantWecommendations: stwing[] = (this.fiweBasedWecommendationsByWanguage.get(wanguage) || []).fiwta(extensionId => this.impowtantExtensionTips.has(extensionId));
+		wet wanguageName: stwing | nuww = impowtantWecommendations.wength ? this.modeSewvice.getWanguageName(wanguage) : nuww;
 
-		const fileBasedRecommendations: string[] = [...importantRecommendations];
-		for (let [pattern, extensionIds] of this.fileBasedRecommendationsByPattern) {
-			extensionIds = extensionIds.filter(extensionId => !importantRecommendations.includes(extensionId));
-			if (!extensionIds.length) {
+		const fiweBasedWecommendations: stwing[] = [...impowtantWecommendations];
+		fow (wet [pattewn, extensionIds] of this.fiweBasedWecommendationsByPattewn) {
+			extensionIds = extensionIds.fiwta(extensionId => !impowtantWecommendations.incwudes(extensionId));
+			if (!extensionIds.wength) {
 				continue;
 			}
-			if (!match(pattern, uri.with({ fragment: '' }).toString())) {
+			if (!match(pattewn, uwi.with({ fwagment: '' }).toStwing())) {
 				continue;
 			}
-			for (const extensionId of extensionIds) {
-				fileBasedRecommendations.push(extensionId);
-				const importantExtensionTip = this.importantExtensionTips.get(extensionId);
-				if (importantExtensionTip && importantExtensionTip.pattern === pattern) {
-					importantRecommendations.push(extensionId);
+			fow (const extensionId of extensionIds) {
+				fiweBasedWecommendations.push(extensionId);
+				const impowtantExtensionTip = this.impowtantExtensionTips.get(extensionId);
+				if (impowtantExtensionTip && impowtantExtensionTip.pattewn === pattewn) {
+					impowtantWecommendations.push(extensionId);
 				}
 			}
 		}
 
-		// Update file based recommendations
-		for (const recommendation of fileBasedRecommendations) {
-			const filedBasedRecommendation = this.fileBasedRecommendations.get(recommendation) || { recommendedTime: Date.now(), sources: [] };
-			filedBasedRecommendation.recommendedTime = Date.now();
-			this.fileBasedRecommendations.set(recommendation, filedBasedRecommendation);
+		// Update fiwe based wecommendations
+		fow (const wecommendation of fiweBasedWecommendations) {
+			const fiwedBasedWecommendation = this.fiweBasedWecommendations.get(wecommendation) || { wecommendedTime: Date.now(), souwces: [] };
+			fiwedBasedWecommendation.wecommendedTime = Date.now();
+			this.fiweBasedWecommendations.set(wecommendation, fiwedBasedWecommendation);
 		}
 
-		this.storeCachedRecommendations();
+		this.stoweCachedWecommendations();
 
-		if (this.extensionRecommendationNotificationService.hasToIgnoreRecommendationNotifications()) {
-			return;
+		if (this.extensionWecommendationNotificationSewvice.hasToIgnoweWecommendationNotifications()) {
+			wetuwn;
 		}
 
-		const installed = await this.extensionsWorkbenchService.queryLocal();
-		if (importantRecommendations.length &&
-			await this.promptRecommendedExtensionForFileType(languageName || basename(uri), language, importantRecommendations, installed)) {
-			return;
+		const instawwed = await this.extensionsWowkbenchSewvice.quewyWocaw();
+		if (impowtantWecommendations.wength &&
+			await this.pwomptWecommendedExtensionFowFiweType(wanguageName || basename(uwi), wanguage, impowtantWecommendations, instawwed)) {
+			wetuwn;
 		}
 
-		fileExtension = fileExtension.substr(1); // Strip the dot
-		if (!fileExtension) {
-			return;
+		fiweExtension = fiweExtension.substw(1); // Stwip the dot
+		if (!fiweExtension) {
+			wetuwn;
 		}
 
-		const mimeTypes = guessMimeTypes(uri);
-		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
-			return;
+		const mimeTypes = guessMimeTypes(uwi);
+		if (mimeTypes.wength !== 1 || mimeTypes[0] !== Mimes.unknown) {
+			wetuwn;
 		}
 
-		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
+		this.pwomptWecommendedExtensionFowFiweExtension(fiweExtension, instawwed);
 	}
 
-	private async promptRecommendedExtensionForFileType(name: string, language: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
+	pwivate async pwomptWecommendedExtensionFowFiweType(name: stwing, wanguage: stwing, wecommendations: stwing[], instawwed: IExtension[]): Pwomise<boowean> {
 
-		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
-		if (recommendations.length === 0) {
-			return false;
+		wecommendations = this.fiwtewIgnowedOwNotAwwowed(wecommendations);
+		if (wecommendations.wength === 0) {
+			wetuwn fawse;
 		}
 
-		recommendations = this.filterInstalled(recommendations, installed);
-		if (recommendations.length === 0) {
-			return false;
+		wecommendations = this.fiwtewInstawwed(wecommendations, instawwed);
+		if (wecommendations.wength === 0) {
+			wetuwn fawse;
 		}
 
-		const extensionId = recommendations[0];
-		const entry = this.importantExtensionTips.get(extensionId);
-		if (!entry) {
-			return false;
+		const extensionId = wecommendations[0];
+		const entwy = this.impowtantExtensionTips.get(extensionId);
+		if (!entwy) {
+			wetuwn fawse;
 		}
 
-		const promptedRecommendations = this.getPromptedRecommendations();
-		if (promptedRecommendations[language] && promptedRecommendations[language].includes(extensionId)) {
-			return false;
+		const pwomptedWecommendations = this.getPwomptedWecommendations();
+		if (pwomptedWecommendations[wanguage] && pwomptedWecommendations[wanguage].incwudes(extensionId)) {
+			wetuwn fawse;
 		}
 
-		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`, RecommendationSource.FILE)
-			.then(result => {
-				if (result === RecommendationsNotificationResult.Accepted) {
-					this.addToPromptedRecommendations(language, [extensionId]);
+		this.extensionWecommendationNotificationSewvice.pwomptImpowtantExtensionsInstawwNotification([extensionId], wocawize('weawwyWecommended', "Do you want to instaww the wecommended extensions fow {0}?", name), `@id:${extensionId}`, WecommendationSouwce.FIWE)
+			.then(wesuwt => {
+				if (wesuwt === WecommendationsNotificationWesuwt.Accepted) {
+					this.addToPwomptedWecommendations(wanguage, [extensionId]);
 				}
 			});
-		return true;
+		wetuwn twue;
 	}
 
-	private getPromptedRecommendations(): IStringDictionary<string[]> {
-		return JSON.parse(this.storageService.get(promptedRecommendationsStorageKey, StorageScope.GLOBAL, '{}'));
+	pwivate getPwomptedWecommendations(): IStwingDictionawy<stwing[]> {
+		wetuwn JSON.pawse(this.stowageSewvice.get(pwomptedWecommendationsStowageKey, StowageScope.GWOBAW, '{}'));
 	}
 
-	private addToPromptedRecommendations(exeName: string, extensions: string[]) {
-		const promptedRecommendations = this.getPromptedRecommendations();
-		promptedRecommendations[exeName] = extensions;
-		this.storageService.store(promptedRecommendationsStorageKey, JSON.stringify(promptedRecommendations), StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate addToPwomptedWecommendations(exeName: stwing, extensions: stwing[]) {
+		const pwomptedWecommendations = this.getPwomptedWecommendations();
+		pwomptedWecommendations[exeName] = extensions;
+		this.stowageSewvice.stowe(pwomptedWecommendationsStowageKey, JSON.stwingify(pwomptedWecommendations), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private getPromptedFileExtensions(): string[] {
-		return JSON.parse(this.storageService.get(promptedFileExtensionsStorageKey, StorageScope.GLOBAL, '[]'));
+	pwivate getPwomptedFiweExtensions(): stwing[] {
+		wetuwn JSON.pawse(this.stowageSewvice.get(pwomptedFiweExtensionsStowageKey, StowageScope.GWOBAW, '[]'));
 	}
 
-	private addToPromptedFileExtensions(fileExtension: string) {
-		const promptedFileExtensions = this.getPromptedFileExtensions();
-		promptedFileExtensions.push(fileExtension);
-		this.storageService.store(promptedFileExtensionsStorageKey, JSON.stringify(distinct(promptedFileExtensions)), StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate addToPwomptedFiweExtensions(fiweExtension: stwing) {
+		const pwomptedFiweExtensions = this.getPwomptedFiweExtensions();
+		pwomptedFiweExtensions.push(fiweExtension);
+		this.stowageSewvice.stowe(pwomptedFiweExtensionsStowageKey, JSON.stwingify(distinct(pwomptedFiweExtensions)), StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: IExtension[]): Promise<void> {
-		const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
-		if (fileExtensionSuggestionIgnoreList.indexOf(fileExtension) > -1) {
-			return;
+	pwivate async pwomptWecommendedExtensionFowFiweExtension(fiweExtension: stwing, instawwed: IExtension[]): Pwomise<void> {
+		const fiweExtensionSuggestionIgnoweWist = <stwing[]>JSON.pawse(this.stowageSewvice.get('extensionsAssistant/fiweExtensionsSuggestionIgnowe', StowageScope.GWOBAW, '[]'));
+		if (fiweExtensionSuggestionIgnoweWist.indexOf(fiweExtension) > -1) {
+			wetuwn;
 		}
 
-		const promptedFileExtensions = this.getPromptedFileExtensions();
-		if (promptedFileExtensions.includes(fileExtension)) {
-			return;
+		const pwomptedFiweExtensions = this.getPwomptedFiweExtensions();
+		if (pwomptedFiweExtensions.incwudes(fiweExtension)) {
+			wetuwn;
 		}
 
-		const text = `ext:${fileExtension}`;
-		const pager = await this.extensionsWorkbenchService.queryGallery({ text, pageSize: 100 }, CancellationToken.None);
-		if (pager.firstPage.length === 0) {
-			return;
+		const text = `ext:${fiweExtension}`;
+		const paga = await this.extensionsWowkbenchSewvice.quewyGawwewy({ text, pageSize: 100 }, CancewwationToken.None);
+		if (paga.fiwstPage.wength === 0) {
+			wetuwn;
 		}
 
-		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
-		if (pager.firstPage.some(e => installedExtensionsIds.has(e.identifier.id.toLowerCase()))) {
-			return;
+		const instawwedExtensionsIds = instawwed.weduce((wesuwt, i) => { wesuwt.add(i.identifia.id.toWowewCase()); wetuwn wesuwt; }, new Set<stwing>());
+		if (paga.fiwstPage.some(e => instawwedExtensionsIds.has(e.identifia.id.toWowewCase()))) {
+			wetuwn;
 		}
 
-		this.notificationService.prompt(
-			Severity.Info,
-			localize('showLanguageExtensions', "The Marketplace has extensions that can help with '.{0}' files", fileExtension),
+		this.notificationSewvice.pwompt(
+			Sevewity.Info,
+			wocawize('showWanguageExtensions', "The Mawketpwace has extensions that can hewp with '.{0}' fiwes", fiweExtension),
 			[{
-				label: searchMarketplace,
-				run: () => {
-					this.addToPromptedFileExtensions(fileExtension);
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
-					this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
-						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-						.then(viewlet => {
-							viewlet.search(`ext:${fileExtension}`);
-							viewlet.focus();
+				wabew: seawchMawketpwace,
+				wun: () => {
+					this.addToPwomptedFiweExtensions(fiweExtension);
+					this.tewemetwySewvice.pubwicWog2<{ usewWeaction: stwing, fiweExtension: stwing }, FiweExtensionSuggestionCwassification>('fiweExtensionSuggestion:popup', { usewWeaction: 'ok', fiweExtension });
+					this.paneCompositeSewvice.openPaneComposite('wowkbench.view.extensions', ViewContainewWocation.Sidebaw, twue)
+						.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+						.then(viewwet => {
+							viewwet.seawch(`ext:${fiweExtension}`);
+							viewwet.focus();
 						});
 				}
 			}, {
-				label: localize('dontShowAgainExtension', "Don't Show Again for '.{0}' files", fileExtension),
-				run: () => {
-					fileExtensionSuggestionIgnoreList.push(fileExtension);
-					this.storageService.store(
-						'extensionsAssistant/fileExtensionsSuggestionIgnore',
-						JSON.stringify(fileExtensionSuggestionIgnoreList),
-						StorageScope.GLOBAL,
-						StorageTarget.USER);
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension });
+				wabew: wocawize('dontShowAgainExtension', "Don't Show Again fow '.{0}' fiwes", fiweExtension),
+				wun: () => {
+					fiweExtensionSuggestionIgnoweWist.push(fiweExtension);
+					this.stowageSewvice.stowe(
+						'extensionsAssistant/fiweExtensionsSuggestionIgnowe',
+						JSON.stwingify(fiweExtensionSuggestionIgnoweWist),
+						StowageScope.GWOBAW,
+						StowageTawget.USa);
+					this.tewemetwySewvice.pubwicWog2<{ usewWeaction: stwing, fiweExtension: stwing }, FiweExtensionSuggestionCwassification>('fiweExtensionSuggestion:popup', { usewWeaction: 'nevewShowAgain', fiweExtension });
 				}
 			}],
 			{
-				sticky: true,
-				onCancel: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension });
+				sticky: twue,
+				onCancew: () => {
+					this.tewemetwySewvice.pubwicWog2<{ usewWeaction: stwing, fiweExtension: stwing }, FiweExtensionSuggestionCwassification>('fiweExtensionSuggestion:popup', { usewWeaction: 'cancewwed', fiweExtension });
 				}
 			}
 		);
 	}
 
-	private filterIgnoredOrNotAllowed(recommendationsToSuggest: string[]): string[] {
-		const ignoredRecommendations = [...this.extensionIgnoredRecommendationsService.ignoredRecommendations, ...this.extensionRecommendationNotificationService.ignoredRecommendations];
-		return recommendationsToSuggest.filter(id => !ignoredRecommendations.includes(id));
+	pwivate fiwtewIgnowedOwNotAwwowed(wecommendationsToSuggest: stwing[]): stwing[] {
+		const ignowedWecommendations = [...this.extensionIgnowedWecommendationsSewvice.ignowedWecommendations, ...this.extensionWecommendationNotificationSewvice.ignowedWecommendations];
+		wetuwn wecommendationsToSuggest.fiwta(id => !ignowedWecommendations.incwudes(id));
 	}
 
-	private filterInstalled(recommendationsToSuggest: string[], installed: IExtension[]): string[] {
-		const installedExtensionsIds = installed.reduce((result, i) => {
-			if (i.enablementState !== EnablementState.DisabledByExtensionKind) {
-				result.add(i.identifier.id.toLowerCase());
+	pwivate fiwtewInstawwed(wecommendationsToSuggest: stwing[], instawwed: IExtension[]): stwing[] {
+		const instawwedExtensionsIds = instawwed.weduce((wesuwt, i) => {
+			if (i.enabwementState !== EnabwementState.DisabwedByExtensionKind) {
+				wesuwt.add(i.identifia.id.toWowewCase());
 			}
-			return result;
-		}, new Set<string>());
-		return recommendationsToSuggest.filter(id => !installedExtensionsIds.has(id.toLowerCase()));
+			wetuwn wesuwt;
+		}, new Set<stwing>());
+		wetuwn wecommendationsToSuggest.fiwta(id => !instawwedExtensionsIds.has(id.toWowewCase()));
 	}
 
-	private getCachedRecommendations(): IStringDictionary<number> {
-		let storedRecommendations = JSON.parse(this.storageService.get(recommendationsStorageKey, StorageScope.GLOBAL, '[]'));
-		if (Array.isArray(storedRecommendations)) {
-			storedRecommendations = storedRecommendations.reduce((result, id) => { result[id] = Date.now(); return result; }, <IStringDictionary<number>>{});
+	pwivate getCachedWecommendations(): IStwingDictionawy<numba> {
+		wet stowedWecommendations = JSON.pawse(this.stowageSewvice.get(wecommendationsStowageKey, StowageScope.GWOBAW, '[]'));
+		if (Awway.isAwway(stowedWecommendations)) {
+			stowedWecommendations = stowedWecommendations.weduce((wesuwt, id) => { wesuwt[id] = Date.now(); wetuwn wesuwt; }, <IStwingDictionawy<numba>>{});
 		}
-		const result: IStringDictionary<number> = {};
-		forEach(storedRecommendations, ({ key, value }) => {
-			if (typeof value === 'number') {
-				result[key.toLowerCase()] = value;
+		const wesuwt: IStwingDictionawy<numba> = {};
+		fowEach(stowedWecommendations, ({ key, vawue }) => {
+			if (typeof vawue === 'numba') {
+				wesuwt[key.toWowewCase()] = vawue;
 			}
 		});
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private storeCachedRecommendations(): void {
-		const storedRecommendations: IStringDictionary<number> = {};
-		this.fileBasedRecommendations.forEach((value, key) => storedRecommendations[key] = value.recommendedTime);
-		this.storageService.store(recommendationsStorageKey, JSON.stringify(storedRecommendations), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate stoweCachedWecommendations(): void {
+		const stowedWecommendations: IStwingDictionawy<numba> = {};
+		this.fiweBasedWecommendations.fowEach((vawue, key) => stowedWecommendations[key] = vawue.wecommendedTime);
+		this.stowageSewvice.stowe(wecommendationsStowageKey, JSON.stwingify(stowedWecommendations), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 }
 

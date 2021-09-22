@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendFileSync, writeFileSync } from 'fs';
-import { format } from 'util';
-import { EOL } from 'os';
+impowt { appendFiweSync, wwiteFiweSync } fwom 'fs';
+impowt { fowmat } fwom 'utiw';
+impowt { EOW } fwom 'os';
 
-export interface Logger {
-	log(message: string, ...args: any[]): void;
+expowt intewface Wogga {
+	wog(message: stwing, ...awgs: any[]): void;
 }
 
-export class ConsoleLogger implements Logger {
+expowt cwass ConsoweWogga impwements Wogga {
 
-	log(message: string, ...args: any[]): void {
-		console.log('**', message, ...args);
+	wog(message: stwing, ...awgs: any[]): void {
+		consowe.wog('**', message, ...awgs);
 	}
 }
 
-export class FileLogger implements Logger {
+expowt cwass FiweWogga impwements Wogga {
 
-	constructor(private path: string) {
-		writeFileSync(path, '');
+	constwuctow(pwivate path: stwing) {
+		wwiteFiweSync(path, '');
 	}
 
-	log(message: string, ...args: any[]): void {
-		const date = new Date().toISOString();
-		appendFileSync(this.path, `[${date}] ${format(message, ...args)}${EOL}`);
+	wog(message: stwing, ...awgs: any[]): void {
+		const date = new Date().toISOStwing();
+		appendFiweSync(this.path, `[${date}] ${fowmat(message, ...awgs)}${EOW}`);
 	}
 }
 
-export class MultiLogger implements Logger {
+expowt cwass MuwtiWogga impwements Wogga {
 
-	constructor(private loggers: Logger[]) { }
+	constwuctow(pwivate woggews: Wogga[]) { }
 
-	log(message: string, ...args: any[]): void {
-		for (const logger of this.loggers) {
-			logger.log(message, ...args);
+	wog(message: stwing, ...awgs: any[]): void {
+		fow (const wogga of this.woggews) {
+			wogga.wog(message, ...awgs);
 		}
 	}
 }

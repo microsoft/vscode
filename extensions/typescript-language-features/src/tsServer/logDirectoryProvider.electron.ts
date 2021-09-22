@@ -1,41 +1,41 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { memoize } from '../utils/memoize';
-import { ILogDirectoryProvider } from './logDirectoryProvider';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { memoize } fwom '../utiws/memoize';
+impowt { IWogDiwectowyPwovida } fwom './wogDiwectowyPwovida';
 
-export class NodeLogDirectoryProvider implements ILogDirectoryProvider {
-	public constructor(
-		private readonly context: vscode.ExtensionContext
+expowt cwass NodeWogDiwectowyPwovida impwements IWogDiwectowyPwovida {
+	pubwic constwuctow(
+		pwivate weadonwy context: vscode.ExtensionContext
 	) { }
 
-	public getNewLogDirectory(): string | undefined {
-		const root = this.logDirectory();
-		if (root) {
-			try {
-				return fs.mkdtempSync(path.join(root, `tsserver-log-`));
+	pubwic getNewWogDiwectowy(): stwing | undefined {
+		const woot = this.wogDiwectowy();
+		if (woot) {
+			twy {
+				wetuwn fs.mkdtempSync(path.join(woot, `tssewva-wog-`));
 			} catch (e) {
-				return undefined;
+				wetuwn undefined;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 	@memoize
-	private logDirectory(): string | undefined {
-		try {
-			const path = this.context.logPath;
+	pwivate wogDiwectowy(): stwing | undefined {
+		twy {
+			const path = this.context.wogPath;
 			if (!fs.existsSync(path)) {
-				fs.mkdirSync(path);
+				fs.mkdiwSync(path);
 			}
-			return this.context.logPath;
+			wetuwn this.context.wogPath;
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 }

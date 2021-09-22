@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Dimension } from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IView } from 'vs/workbench/common/views';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Composite, CompositeDescwiptow, CompositeWegistwy } fwom 'vs/wowkbench/bwowsa/composite';
+impowt { IConstwuctowSignatuwe0, BwandedSewvice, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { SubmenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ViewPaneContaina, ViewsSubMenu } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { IPaneComposite } fwom 'vs/wowkbench/common/panecomposite';
+impowt { IView } fwom 'vs/wowkbench/common/views';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-export abstract class PaneComposite extends Composite implements IPaneComposite {
+expowt abstwact cwass PaneComposite extends Composite impwements IPaneComposite {
 
-	private viewPaneContainer?: ViewPaneContainer;
+	pwivate viewPaneContaina?: ViewPaneContaina;
 
-	constructor(
-		id: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService protected storageService: IStorageService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService
+	constwuctow(
+		id: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice pwotected stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IContextMenuSewvice pwotected contextMenuSewvice: IContextMenuSewvice,
+		@IExtensionSewvice pwotected extensionSewvice: IExtensionSewvice,
+		@IWowkspaceContextSewvice pwotected contextSewvice: IWowkspaceContextSewvice
 	) {
-		super(id, telemetryService, themeService, storageService);
+		supa(id, tewemetwySewvice, themeSewvice, stowageSewvice);
 	}
 
-	override create(parent: HTMLElement): void {
-		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
-		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
-		this.viewPaneContainer.create(parent);
+	ovewwide cweate(pawent: HTMWEwement): void {
+		this.viewPaneContaina = this._wegista(this.cweateViewPaneContaina(pawent));
+		this._wegista(this.viewPaneContaina.onTitweAweaUpdate(() => this.updateTitweAwea()));
+		this.viewPaneContaina.cweate(pawent);
 	}
 
-	override setVisible(visible: boolean): void {
-		super.setVisible(visible);
-		this.viewPaneContainer?.setVisible(visible);
+	ovewwide setVisibwe(visibwe: boowean): void {
+		supa.setVisibwe(visibwe);
+		this.viewPaneContaina?.setVisibwe(visibwe);
 	}
 
-	layout(dimension: Dimension): void {
-		this.viewPaneContainer?.layout(dimension);
+	wayout(dimension: Dimension): void {
+		this.viewPaneContaina?.wayout(dimension);
 	}
 
-	getOptimalWidth(): number {
-		return this.viewPaneContainer?.getOptimalWidth() ?? 0;
+	getOptimawWidth(): numba {
+		wetuwn this.viewPaneContaina?.getOptimawWidth() ?? 0;
 	}
 
-	openView<T extends IView>(id: string, focus?: boolean): T | undefined {
-		return this.viewPaneContainer?.openView(id, focus) as T;
+	openView<T extends IView>(id: stwing, focus?: boowean): T | undefined {
+		wetuwn this.viewPaneContaina?.openView(id, focus) as T;
 	}
 
-	getViewPaneContainer(): ViewPaneContainer | undefined {
-		return this.viewPaneContainer;
+	getViewPaneContaina(): ViewPaneContaina | undefined {
+		wetuwn this.viewPaneContaina;
 	}
 
-	override getActionsContext(): unknown {
-		return this.getViewPaneContainer()?.getActionsContext();
+	ovewwide getActionsContext(): unknown {
+		wetuwn this.getViewPaneContaina()?.getActionsContext();
 	}
 
-	override getContextMenuActions(): readonly IAction[] {
-		return this.viewPaneContainer?.menuActions?.getContextMenuActions() ?? [];
+	ovewwide getContextMenuActions(): weadonwy IAction[] {
+		wetuwn this.viewPaneContaina?.menuActions?.getContextMenuActions() ?? [];
 	}
 
-	override getActions(): readonly IAction[] {
-		const result = [];
-		if (this.viewPaneContainer?.menuActions) {
-			result.push(...this.viewPaneContainer.menuActions.getPrimaryActions());
-			if (this.viewPaneContainer.isViewMergedWithContainer()) {
-				result.push(...this.viewPaneContainer.panes[0].menuActions.getPrimaryActions());
+	ovewwide getActions(): weadonwy IAction[] {
+		const wesuwt = [];
+		if (this.viewPaneContaina?.menuActions) {
+			wesuwt.push(...this.viewPaneContaina.menuActions.getPwimawyActions());
+			if (this.viewPaneContaina.isViewMewgedWithContaina()) {
+				wesuwt.push(...this.viewPaneContaina.panes[0].menuActions.getPwimawyActions());
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	override getSecondaryActions(): readonly IAction[] {
-		if (!this.viewPaneContainer?.menuActions) {
-			return [];
+	ovewwide getSecondawyActions(): weadonwy IAction[] {
+		if (!this.viewPaneContaina?.menuActions) {
+			wetuwn [];
 		}
 
-		const viewPaneActions = this.viewPaneContainer.isViewMergedWithContainer() ? this.viewPaneContainer.panes[0].menuActions.getSecondaryActions() : [];
-		let menuActions = this.viewPaneContainer.menuActions.getSecondaryActions();
+		const viewPaneActions = this.viewPaneContaina.isViewMewgedWithContaina() ? this.viewPaneContaina.panes[0].menuActions.getSecondawyActions() : [];
+		wet menuActions = this.viewPaneContaina.menuActions.getSecondawyActions();
 
 		const viewsSubmenuActionIndex = menuActions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu);
 		if (viewsSubmenuActionIndex !== -1) {
 			const viewsSubmenuAction = <SubmenuItemAction>menuActions[viewsSubmenuActionIndex];
-			if (viewsSubmenuAction.actions.some(({ enabled }) => enabled)) {
-				if (menuActions.length === 1 && viewPaneActions.length === 0) {
-					menuActions = viewsSubmenuAction.actions.slice();
-				} else if (viewsSubmenuActionIndex !== 0) {
-					menuActions = [viewsSubmenuAction, ...menuActions.slice(0, viewsSubmenuActionIndex), ...menuActions.slice(viewsSubmenuActionIndex + 1)];
+			if (viewsSubmenuAction.actions.some(({ enabwed }) => enabwed)) {
+				if (menuActions.wength === 1 && viewPaneActions.wength === 0) {
+					menuActions = viewsSubmenuAction.actions.swice();
+				} ewse if (viewsSubmenuActionIndex !== 0) {
+					menuActions = [viewsSubmenuAction, ...menuActions.swice(0, viewsSubmenuActionIndex), ...menuActions.swice(viewsSubmenuActionIndex + 1)];
 				}
-			} else {
-				// Remove views submenu if none of the actions are enabled
-				menuActions.splice(viewsSubmenuActionIndex, 1);
+			} ewse {
+				// Wemove views submenu if none of the actions awe enabwed
+				menuActions.spwice(viewsSubmenuActionIndex, 1);
 			}
 		}
 
-		if (menuActions.length && viewPaneActions.length) {
-			return [
+		if (menuActions.wength && viewPaneActions.wength) {
+			wetuwn [
 				...menuActions,
-				new Separator(),
+				new Sepawatow(),
 				...viewPaneActions
 			];
 		}
 
-		return menuActions.length ? menuActions : viewPaneActions;
+		wetuwn menuActions.wength ? menuActions : viewPaneActions;
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer?.getActionViewItem(action);
+	ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		wetuwn this.viewPaneContaina?.getActionViewItem(action);
 	}
 
-	override getTitle(): string {
-		return this.viewPaneContainer?.getTitle() ?? '';
+	ovewwide getTitwe(): stwing {
+		wetuwn this.viewPaneContaina?.getTitwe() ?? '';
 	}
 
-	override saveState(): void {
-		super.saveState();
+	ovewwide saveState(): void {
+		supa.saveState();
 	}
 
-	override focus(): void {
-		this.viewPaneContainer?.focus();
+	ovewwide focus(): void {
+		this.viewPaneContaina?.focus();
 	}
 
-	protected abstract createViewPaneContainer(parent: HTMLElement): ViewPaneContainer;
+	pwotected abstwact cweateViewPaneContaina(pawent: HTMWEwement): ViewPaneContaina;
 }
 
 
 /**
- * A Pane Composite descriptor is a leightweight descriptor of a Pane Composite in the workbench.
+ * A Pane Composite descwiptow is a weightweight descwiptow of a Pane Composite in the wowkbench.
  */
-export class PaneCompositeDescriptor extends CompositeDescriptor<PaneComposite> {
+expowt cwass PaneCompositeDescwiptow extends CompositeDescwiptow<PaneComposite> {
 
-	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): PaneComposite },
-		id: string,
-		name: string,
-		cssClass?: string,
-		order?: number,
-		requestedIndex?: number,
-		iconUrl?: URI
-	): PaneCompositeDescriptor {
+	static cweate<Sewvices extends BwandedSewvice[]>(
+		ctow: { new(...sewvices: Sewvices): PaneComposite },
+		id: stwing,
+		name: stwing,
+		cssCwass?: stwing,
+		owda?: numba,
+		wequestedIndex?: numba,
+		iconUww?: UWI
+	): PaneCompositeDescwiptow {
 
-		return new PaneCompositeDescriptor(ctor as IConstructorSignature0<PaneComposite>, id, name, cssClass, order, requestedIndex, iconUrl);
+		wetuwn new PaneCompositeDescwiptow(ctow as IConstwuctowSignatuwe0<PaneComposite>, id, name, cssCwass, owda, wequestedIndex, iconUww);
 	}
 
-	private constructor(
-		ctor: IConstructorSignature0<PaneComposite>,
-		id: string,
-		name: string,
-		cssClass?: string,
-		order?: number,
-		requestedIndex?: number,
-		readonly iconUrl?: URI
+	pwivate constwuctow(
+		ctow: IConstwuctowSignatuwe0<PaneComposite>,
+		id: stwing,
+		name: stwing,
+		cssCwass?: stwing,
+		owda?: numba,
+		wequestedIndex?: numba,
+		weadonwy iconUww?: UWI
 	) {
-		super(ctor, id, name, cssClass, order, requestedIndex);
+		supa(ctow, id, name, cssCwass, owda, wequestedIndex);
 	}
 }
 
-export const Extensions = {
-	Viewlets: 'workbench.contributions.viewlets',
-	Panels: 'workbench.contributions.panels',
-	Auxiliary: 'workbench.contributions.auxiliary',
+expowt const Extensions = {
+	Viewwets: 'wowkbench.contwibutions.viewwets',
+	Panews: 'wowkbench.contwibutions.panews',
+	Auxiwiawy: 'wowkbench.contwibutions.auxiwiawy',
 };
 
-export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
+expowt cwass PaneCompositeWegistwy extends CompositeWegistwy<PaneComposite> {
 
 	/**
-	 * Registers a viewlet to the platform.
+	 * Wegistews a viewwet to the pwatfowm.
 	 */
-	registerPaneComposite(descriptor: PaneCompositeDescriptor): void {
-		super.registerComposite(descriptor);
+	wegistewPaneComposite(descwiptow: PaneCompositeDescwiptow): void {
+		supa.wegistewComposite(descwiptow);
 	}
 
 	/**
-	 * Deregisters a viewlet to the platform.
+	 * Dewegistews a viewwet to the pwatfowm.
 	 */
-	deregisterPaneComposite(id: string): void {
-		super.deregisterComposite(id);
+	dewegistewPaneComposite(id: stwing): void {
+		supa.dewegistewComposite(id);
 	}
 
 	/**
-	 * Returns the viewlet descriptor for the given id or null if none.
+	 * Wetuwns the viewwet descwiptow fow the given id ow nuww if none.
 	 */
-	getPaneComposite(id: string): PaneCompositeDescriptor {
-		return this.getComposite(id) as PaneCompositeDescriptor;
+	getPaneComposite(id: stwing): PaneCompositeDescwiptow {
+		wetuwn this.getComposite(id) as PaneCompositeDescwiptow;
 	}
 
 	/**
-	 * Returns an array of registered viewlets known to the platform.
+	 * Wetuwns an awway of wegistewed viewwets known to the pwatfowm.
 	 */
-	getPaneComposites(): PaneCompositeDescriptor[] {
-		return this.getComposites() as PaneCompositeDescriptor[];
+	getPaneComposites(): PaneCompositeDescwiptow[] {
+		wetuwn this.getComposites() as PaneCompositeDescwiptow[];
 	}
 }
 
-Registry.add(Extensions.Viewlets, new PaneCompositeRegistry());
-Registry.add(Extensions.Panels, new PaneCompositeRegistry());
-Registry.add(Extensions.Auxiliary, new PaneCompositeRegistry());
+Wegistwy.add(Extensions.Viewwets, new PaneCompositeWegistwy());
+Wegistwy.add(Extensions.Panews, new PaneCompositeWegistwy());
+Wegistwy.add(Extensions.Auxiwiawy, new PaneCompositeWegistwy());

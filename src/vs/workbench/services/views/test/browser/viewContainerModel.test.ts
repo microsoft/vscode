@@ -1,518 +1,518 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { move } from 'vs/base/common/arrays';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { IViewsWegistwy, IViewDescwiptow, IViewContainewsWegistwy, Extensions as ViewContainewExtensions, ViewContainewWocation, IViewContainewModew, IViewDescwiptowSewvice, ViewContaina } fwom 'vs/wowkbench/common/views';
+impowt { IDisposabwe, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { move } fwom 'vs/base/common/awways';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { ViewDescwiptowSewvice } fwom 'vs/wowkbench/sewvices/views/bwowsa/viewDescwiptowSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const ViewContainewWegistwy = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy);
+const ViewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
 
-class ViewDescriptorSequence {
+cwass ViewDescwiptowSequence {
 
-	readonly elements: IViewDescriptor[];
-	private disposables: IDisposable[] = [];
+	weadonwy ewements: IViewDescwiptow[];
+	pwivate disposabwes: IDisposabwe[] = [];
 
-	constructor(model: IViewContainerModel) {
-		this.elements = [...model.visibleViewDescriptors];
-		model.onDidAddVisibleViewDescriptors(added => added.forEach(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor)), null, this.disposables);
-		model.onDidRemoveVisibleViewDescriptors(removed => removed.sort((a, b) => b.index - a.index).forEach(({ index }) => this.elements.splice(index, 1)), null, this.disposables);
-		model.onDidMoveVisibleViewDescriptors(({ from, to }) => move(this.elements, from.index, to.index), null, this.disposables);
+	constwuctow(modew: IViewContainewModew) {
+		this.ewements = [...modew.visibweViewDescwiptows];
+		modew.onDidAddVisibweViewDescwiptows(added => added.fowEach(({ viewDescwiptow, index }) => this.ewements.spwice(index, 0, viewDescwiptow)), nuww, this.disposabwes);
+		modew.onDidWemoveVisibweViewDescwiptows(wemoved => wemoved.sowt((a, b) => b.index - a.index).fowEach(({ index }) => this.ewements.spwice(index, 1)), nuww, this.disposabwes);
+		modew.onDidMoveVisibweViewDescwiptows(({ fwom, to }) => move(this.ewements, fwom.index, to.index), nuww, this.disposabwes);
 	}
 
 	dispose() {
-		this.disposables = dispose(this.disposables);
+		this.disposabwes = dispose(this.disposabwes);
 	}
 }
 
-suite('ViewContainerModel', () => {
+suite('ViewContainewModew', () => {
 
-	let container: ViewContainer;
-	let disposableStore: DisposableStore;
-	let contextKeyService: IContextKeyService;
-	let viewDescriptorService: IViewDescriptorService;
-	let storageService: IStorageService;
+	wet containa: ViewContaina;
+	wet disposabweStowe: DisposabweStowe;
+	wet contextKeySewvice: IContextKeySewvice;
+	wet viewDescwiptowSewvice: IViewDescwiptowSewvice;
+	wet stowageSewvice: IStowageSewvice;
 
 	setup(() => {
-		disposableStore = new DisposableStore();
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		contextKeyService = instantiationService.createInstance(ContextKeyService);
-		instantiationService.stub(IContextKeyService, contextKeyService);
-		storageService = instantiationService.get(IStorageService);
-		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+		disposabweStowe = new DisposabweStowe();
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		contextKeySewvice = instantiationSewvice.cweateInstance(ContextKeySewvice);
+		instantiationSewvice.stub(IContextKeySewvice, contextKeySewvice);
+		stowageSewvice = instantiationSewvice.get(IStowageSewvice);
+		viewDescwiptowSewvice = instantiationSewvice.cweateInstance(ViewDescwiptowSewvice);
 	});
 
-	teardown(() => {
-		disposableStore.dispose();
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
-		ViewContainerRegistry.deregisterViewContainer(container);
+	teawdown(() => {
+		disposabweStowe.dispose();
+		ViewsWegistwy.dewegistewViews(ViewsWegistwy.getViews(containa), containa);
+		ViewContainewWegistwy.dewegistewViewContaina(containa);
 	});
 
-	test('empty model', function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+	test('empty modew', function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
 	});
 
-	test('register/unregister', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+	test('wegista/unwegista', () => {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const viewDescriptor: IViewDescriptor = {
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1'
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 1);
-		assert.strictEqual(target.elements.length, 1);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
-		assert.deepStrictEqual(target.elements[0], viewDescriptor);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 1);
+		assewt.stwictEquaw(tawget.ewements.wength, 1);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows[0], viewDescwiptow);
+		assewt.deepStwictEquaw(tawget.ewements[0], viewDescwiptow);
 
-		ViewsRegistry.deregisterViews([viewDescriptor], container);
+		ViewsWegistwy.dewegistewViews([viewDescwiptow], containa);
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
 	test('when contexts', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const viewDescriptor: IViewDescriptor = {
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true)
+			when: ContextKeyExpw.equaws('showview1', twue)
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.strictEqual(target.elements.length, 0);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd not appeaw since context isnt in');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const key = contextKeyService.createKey('showview1', false);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.strictEqual(target.elements.length, 0);
+		const key = contextKeySewvice.cweateKey('showview1', fawse);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd stiww not appeaw since showview1 isnt twue');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 1, 'view should appear');
-		assert.strictEqual(target.elements.length, 1);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
-		assert.strictEqual(target.elements[0], viewDescriptor);
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 1, 'view shouwd appeaw');
+		assewt.stwictEquaw(tawget.ewements.wength, 1);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows[0], viewDescwiptow);
+		assewt.stwictEquaw(tawget.ewements[0], viewDescwiptow);
 
-		key.set(false);
-		await new Promise(c => setTimeout(c, 30));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear');
-		assert.strictEqual(target.elements.length, 0);
+		key.set(fawse);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd disappeaw');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		ViewsRegistry.deregisterViews([viewDescriptor], container);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.strictEqual(target.elements.length, 0);
+		ViewsWegistwy.dewegistewViews([viewDescwiptow], containa);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd not be thewe anymowe');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.strictEqual(target.elements.length, 0);
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd not be thewe anymowe');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
-	test('when contexts - multiple', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
+	test('when contexts - muwtipwe', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const view1: IViewDescwiptow = { id: 'view1', ctowDescwiptow: nuww!, name: 'Test View 1' };
+		const view2: IViewDescwiptow = { id: 'view2', ctowDescwiptow: nuww!, name: 'Test View 2', when: ContextKeyExpw.equaws('showview2', twue) };
 
-		ViewsRegistry.registerViews([view1, view2], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'only view1 should be visible');
-		assert.deepStrictEqual(target.elements, [view1], 'only view1 should be visible');
+		ViewsWegistwy.wegistewViews([view1, view2], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1], 'onwy view1 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view1], 'onwy view1 shouwd be visibwe');
 
-		const key = contextKeyService.createKey('showview2', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'still only view1 should be visible');
-		assert.deepStrictEqual(target.elements, [view1], 'still only view1 should be visible');
+		const key = contextKeySewvice.cweateKey('showview2', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1], 'stiww onwy view1 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view1], 'stiww onwy view1 shouwd be visibwe');
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2], 'both views should be visible');
-		assert.deepStrictEqual(target.elements, [view1, view2], 'both views should be visible');
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2], 'both views shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2], 'both views shouwd be visibwe');
 
-		ViewsRegistry.deregisterViews([view1, view2], container);
+		ViewsWegistwy.dewegistewViews([view1, view2], containa);
 	});
 
-	test('when contexts - multiple 2', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
+	test('when contexts - muwtipwe 2', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const view1: IViewDescwiptow = { id: 'view1', ctowDescwiptow: nuww!, name: 'Test View 1', when: ContextKeyExpw.equaws('showview1', twue) };
+		const view2: IViewDescwiptow = { id: 'view2', ctowDescwiptow: nuww!, name: 'Test View 2' };
 
-		ViewsRegistry.registerViews([view1, view2], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'only view2 should be visible');
-		assert.deepStrictEqual(target.elements, [view2], 'only view2 should be visible');
+		ViewsWegistwy.wegistewViews([view1, view2], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2], 'onwy view2 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2], 'onwy view2 shouwd be visibwe');
 
-		const key = contextKeyService.createKey('showview1', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'still only view2 should be visible');
-		assert.deepStrictEqual(target.elements, [view2], 'still only view2 should be visible');
+		const key = contextKeySewvice.cweateKey('showview1', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2], 'stiww onwy view2 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2], 'stiww onwy view2 shouwd be visibwe');
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2], 'both views should be visible');
-		assert.deepStrictEqual(target.elements, [view1, view2], 'both views should be visible');
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2], 'both views shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2], 'both views shouwd be visibwe');
 
-		ViewsRegistry.deregisterViews([view1, view2], container);
+		ViewsWegistwy.dewegistewViews([view1, view2], containa);
 	});
 
-	test('setVisible', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', canToggleVisibility: true };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3', canToggleVisibility: true };
+	test('setVisibwe', () => {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const view1: IViewDescwiptow = { id: 'view1', ctowDescwiptow: nuww!, name: 'Test View 1', canToggweVisibiwity: twue };
+		const view2: IViewDescwiptow = { id: 'view2', ctowDescwiptow: nuww!, name: 'Test View 2', canToggweVisibiwity: twue };
+		const view3: IViewDescwiptow = { id: 'view3', ctowDescwiptow: nuww!, name: 'Test View 3', canToggweVisibiwity: twue };
 
-		ViewsRegistry.registerViews([view1, view2, view3], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3]);
-		assert.deepStrictEqual(target.elements, [view1, view2, view3]);
+		ViewsWegistwy.wegistewViews([view1, view2, view3], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2, view3]);
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2, view3]);
 
-		testObject.setVisible('view2', true);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'nothing should happen');
-		assert.deepStrictEqual(target.elements, [view1, view2, view3]);
+		testObject.setVisibwe('view2', twue);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2, view3], 'nothing shouwd happen');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2, view3]);
 
-		testObject.setVisible('view2', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view3], 'view2 should hide');
-		assert.deepStrictEqual(target.elements, [view1, view3]);
+		testObject.setVisibwe('view2', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view3], 'view2 shouwd hide');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view3]);
 
-		testObject.setVisible('view1', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view3], 'view1 should hide');
-		assert.deepStrictEqual(target.elements, [view3]);
+		testObject.setVisibwe('view1', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view3], 'view1 shouwd hide');
+		assewt.deepStwictEquaw(tawget.ewements, [view3]);
 
-		testObject.setVisible('view3', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [], 'view3 shoud hide');
-		assert.deepStrictEqual(target.elements, []);
+		testObject.setVisibwe('view3', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [], 'view3 shoud hide');
+		assewt.deepStwictEquaw(tawget.ewements, []);
 
-		testObject.setVisible('view1', true);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'view1 should show');
-		assert.deepStrictEqual(target.elements, [view1]);
+		testObject.setVisibwe('view1', twue);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1], 'view1 shouwd show');
+		assewt.deepStwictEquaw(tawget.ewements, [view1]);
 
-		testObject.setVisible('view3', true);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view3], 'view3 should show');
-		assert.deepStrictEqual(target.elements, [view1, view3]);
+		testObject.setVisibwe('view3', twue);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view3], 'view3 shouwd show');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view3]);
 
-		testObject.setVisible('view2', true);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'view2 should show');
-		assert.deepStrictEqual(target.elements, [view1, view2, view3]);
+		testObject.setVisibwe('view2', twue);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2, view3], 'view2 shouwd show');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2, view3]);
 
-		ViewsRegistry.deregisterViews([view1, view2, view3], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, []);
-		assert.deepStrictEqual(target.elements, []);
+		ViewsWegistwy.dewegistewViews([view1, view2, view3], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, []);
+		assewt.deepStwictEquaw(tawget.ewements, []);
 	});
 
 	test('move', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3' };
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const view1: IViewDescwiptow = { id: 'view1', ctowDescwiptow: nuww!, name: 'Test View 1' };
+		const view2: IViewDescwiptow = { id: 'view2', ctowDescwiptow: nuww!, name: 'Test View 2' };
+		const view3: IViewDescwiptow = { id: 'view3', ctowDescwiptow: nuww!, name: 'Test View 3' };
 
-		ViewsRegistry.registerViews([view1, view2, view3], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
-		assert.deepStrictEqual(target.elements, [view1, view2, view3], 'sql views should be OK');
+		ViewsWegistwy.wegistewViews([view1, view2, view3], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2, view3], 'modew views shouwd be OK');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2, view3], 'sqw views shouwd be OK');
 
 		testObject.move('view3', 'view1');
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view3, view1, view2], 'view3 should go to the front');
-		assert.deepStrictEqual(target.elements, [view3, view1, view2]);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view3, view1, view2], 'view3 shouwd go to the fwont');
+		assewt.deepStwictEquaw(tawget.ewements, [view3, view1, view2]);
 
 		testObject.move('view1', 'view2');
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view3, view2, view1], 'view1 should go to the end');
-		assert.deepStrictEqual(target.elements, [view3, view2, view1]);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view3, view2, view1], 'view1 shouwd go to the end');
+		assewt.deepStwictEquaw(tawget.ewements, [view3, view2, view1]);
 
 		testObject.move('view1', 'view3');
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view3, view2], 'view1 should go to the front');
-		assert.deepStrictEqual(target.elements, [view1, view3, view2]);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view3, view2], 'view1 shouwd go to the fwont');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view3, view2]);
 
 		testObject.move('view2', 'view3');
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'view2 should go to the middle');
-		assert.deepStrictEqual(target.elements, [view1, view2, view3]);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view1, view2, view3], 'view2 shouwd go to the middwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view1, view2, view3]);
 	});
 
 	test('view states', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		stowageSewvice.stowe(`${containa.id}.state.hidden`, JSON.stwingify([{ id: 'view1', isHidden: twue }]), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const viewDescriptor: IViewDescriptor = {
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1'
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since it was set not visible in view state');
-		assert.strictEqual(target.elements.length, 0);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd not appeaw since it was set not visibwe in view state');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
 	test('view states and when contexts', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		stowageSewvice.stowe(`${containa.id}.state.hidden`, JSON.stwingify([{ id: 'view1', isHidden: twue }]), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const viewDescriptor: IViewDescriptor = {
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true)
+			when: ContextKeyExpw.equaws('showview1', twue)
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.strictEqual(target.elements.length, 0);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd not appeaw since context isnt in');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const key = contextKeyService.createKey('showview1', false);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.strictEqual(target.elements.length, 0);
+		const key = contextKeySewvice.cweateKey('showview1', fawse);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd stiww not appeaw since showview1 isnt twue');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
-		assert.strictEqual(target.elements.length, 0);
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd stiww not appeaw since it was set not visibwe in view state');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
-	test('view states and when contexts multiple views', async function () {
-		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+	test('view states and when contexts muwtipwe views', async function () {
+		stowageSewvice.stowe(`${containa.id}.state.hidden`, JSON.stwingify([{ id: 'view1', isHidden: twue }]), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const view1: IViewDescriptor = {
+		const view1: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview', true)
+			when: ContextKeyExpw.equaws('showview', twue)
 		};
-		const view2: IViewDescriptor = {
+		const view2: IViewDescwiptow = {
 			id: 'view2',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 2',
 		};
-		const view3: IViewDescriptor = {
+		const view3: IViewDescwiptow = {
 			id: 'view3',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 3',
-			when: ContextKeyExpr.equals('showview', true)
+			when: ContextKeyExpw.equaws('showview', twue)
 		};
 
-		ViewsRegistry.registerViews([view1, view2, view3], container);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepStrictEqual(target.elements, [view2]);
+		ViewsWegistwy.wegistewViews([view1, view2, view3], containa);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2], 'Onwy view2 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2]);
 
-		const key = contextKeyService.createKey('showview', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepStrictEqual(target.elements, [view2]);
+		const key = contextKeySewvice.cweateKey('showview', fawse);
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2], 'Onwy view2 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2]);
 
-		key.set(true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2, view3], 'view3 should be visible');
-		assert.deepStrictEqual(target.elements, [view2, view3]);
+		key.set(twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2, view3], 'view3 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2, view3]);
 
-		key.set(false);
-		await new Promise(c => setTimeout(c, 30));
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepStrictEqual(target.elements, [view2]);
+		key.set(fawse);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.deepStwictEquaw(testObject.visibweViewDescwiptows, [view2], 'Onwy view2 shouwd be visibwe');
+		assewt.deepStwictEquaw(tawget.ewements, [view2]);
 	});
 
-	test('remove event is not triggered if view was hidden and removed', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const viewDescriptor: IViewDescriptor = {
+	test('wemove event is not twiggewed if view was hidden and wemoved', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true),
-			canToggleVisibility: true
+			when: ContextKeyExpw.equaws('showview1', twue),
+			canToggweVisibiwity: twue
 		};
 
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		const key = contextKeyService.createKey('showview1', true);
-		await new Promise(c => setTimeout(c, 30));
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 1, 'view should appear after context is set');
-		assert.strictEqual(target.elements.length, 1);
+		const key = contextKeySewvice.cweateKey('showview1', twue);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 1, 'view shouwd appeaw afta context is set');
+		assewt.stwictEquaw(tawget.ewements.wength, 1);
 
-		testObject.setVisible('view1', false);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
-		assert.strictEqual(target.elements.length, 0);
+		testObject.setVisibwe('view1', fawse);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0, 'view shouwd disappeaw afta setting visibiwity to fawse');
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidRemoveVisibleViewDescriptors);
-		key.set(false);
-		await new Promise(c => setTimeout(c, 30));
-		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
+		const tawgetEvent = sinon.spy(testObject.onDidWemoveVisibweViewDescwiptows);
+		key.set(fawse);
+		await new Pwomise(c => setTimeout(c, 30));
+		assewt.ok(!tawgetEvent.cawwed, 'wemove event shouwd not be cawwed since it is awweady hidden');
 	});
 
-	test('add event is not triggered if view was set visible (when visible) and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const viewDescriptor: IViewDescriptor = {
+	test('add event is not twiggewed if view was set visibwe (when visibwe) and not active', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true),
-			canToggleVisibility: true
+			when: ContextKeyExpw.equaws('showview1', twue),
+			canToggweVisibiwity: twue
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
-		key.set(false);
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		const key = contextKeySewvice.cweateKey('showview1', twue);
+		key.set(fawse);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
-		testObject.setVisible('view1', true);
-		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		const tawgetEvent = sinon.spy(testObject.onDidAddVisibweViewDescwiptows);
+		testObject.setVisibwe('view1', twue);
+		assewt.ok(!tawgetEvent.cawwed, 'add event shouwd not be cawwed since it is awweady visibwe');
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
-	test('remove event is not triggered if view was hidden and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const viewDescriptor: IViewDescriptor = {
+	test('wemove event is not twiggewed if view was hidden and not active', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true),
-			canToggleVisibility: true
+			when: ContextKeyExpw.equaws('showview1', twue),
+			canToggweVisibiwity: twue
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
-		key.set(false);
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		const key = contextKeySewvice.cweateKey('showview1', twue);
+		key.set(fawse);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
-		testObject.setVisible('view1', false);
-		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		const tawgetEvent = sinon.spy(testObject.onDidAddVisibweViewDescwiptows);
+		testObject.setVisibwe('view1', fawse);
+		assewt.ok(!tawgetEvent.cawwed, 'add event shouwd not be cawwed since it is disabwed');
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
-	test('add event is not triggered if view was set visible (when not visible) and not active', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const viewDescriptor: IViewDescriptor = {
+	test('add event is not twiggewed if view was set visibwe (when not visibwe) and not active', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
+		const viewDescwiptow: IViewDescwiptow = {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			when: ContextKeyExpr.equals('showview1', true),
-			canToggleVisibility: true
+			when: ContextKeyExpw.equaws('showview1', twue),
+			canToggweVisibiwity: twue
 		};
 
-		const key = contextKeyService.createKey('showview1', true);
-		key.set(false);
-		ViewsRegistry.registerViews([viewDescriptor], container);
+		const key = contextKeySewvice.cweateKey('showview1', twue);
+		key.set(fawse);
+		ViewsWegistwy.wegistewViews([viewDescwiptow], containa);
 
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		testObject.setVisible('view1', false);
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		testObject.setVisibwe('view1', fawse);
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
-		testObject.setVisible('view1', true);
-		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
-		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
-		assert.strictEqual(target.elements.length, 0);
+		const tawgetEvent = sinon.spy(testObject.onDidAddVisibweViewDescwiptows);
+		testObject.setVisibwe('view1', twue);
+		assewt.ok(!tawgetEvent.cawwed, 'add event shouwd not be cawwed since it is disabwed');
+		assewt.stwictEquaw(testObject.visibweViewDescwiptows.wength, 0);
+		assewt.stwictEquaw(tawget.ewements.wength, 0);
 	});
 
-	test('added view descriptors are in ascending order in the event', async function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-		const testObject = viewDescriptorService.getViewContainerModel(container);
-		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+	test('added view descwiptows awe in ascending owda in the event', async function () {
+		containa = ViewContainewWegistwy.wegistewViewContaina({ id: 'test', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+		const testObject = viewDescwiptowSewvice.getViewContainewModew(containa);
+		const tawget = disposabweStowe.add(new ViewDescwiptowSequence(testObject));
 
-		ViewsRegistry.registerViews([{
+		ViewsWegistwy.wegistewViews([{
 			id: 'view5',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 5',
-			canToggleVisibility: true,
-			order: 5
+			canToggweVisibiwity: twue,
+			owda: 5
 		}, {
 			id: 'view2',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 2',
-			canToggleVisibility: true,
-			order: 2
-		}], container);
+			canToggweVisibiwity: twue,
+			owda: 2
+		}], containa);
 
-		assert.strictEqual(target.elements.length, 2);
-		assert.strictEqual(target.elements[0].id, 'view2');
-		assert.strictEqual(target.elements[1].id, 'view5');
+		assewt.stwictEquaw(tawget.ewements.wength, 2);
+		assewt.stwictEquaw(tawget.ewements[0].id, 'view2');
+		assewt.stwictEquaw(tawget.ewements[1].id, 'view5');
 
-		ViewsRegistry.registerViews([{
+		ViewsWegistwy.wegistewViews([{
 			id: 'view4',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 4',
-			canToggleVisibility: true,
-			order: 4
+			canToggweVisibiwity: twue,
+			owda: 4
 		}, {
 			id: 'view3',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 3',
-			canToggleVisibility: true,
-			order: 3
+			canToggweVisibiwity: twue,
+			owda: 3
 		}, {
 			id: 'view1',
-			ctorDescriptor: null!,
+			ctowDescwiptow: nuww!,
 			name: 'Test View 1',
-			canToggleVisibility: true,
-			order: 1
-		}], container);
+			canToggweVisibiwity: twue,
+			owda: 1
+		}], containa);
 
-		assert.strictEqual(target.elements.length, 5);
-		assert.strictEqual(target.elements[0].id, 'view1');
-		assert.strictEqual(target.elements[1].id, 'view2');
-		assert.strictEqual(target.elements[2].id, 'view3');
-		assert.strictEqual(target.elements[3].id, 'view4');
-		assert.strictEqual(target.elements[4].id, 'view5');
+		assewt.stwictEquaw(tawget.ewements.wength, 5);
+		assewt.stwictEquaw(tawget.ewements[0].id, 'view1');
+		assewt.stwictEquaw(tawget.ewements[1].id, 'view2');
+		assewt.stwictEquaw(tawget.ewements[2].id, 'view3');
+		assewt.stwictEquaw(tawget.ewements[3].id, 'view4');
+		assewt.stwictEquaw(tawget.ewements[4].id, 'view5');
 	});
 
 });

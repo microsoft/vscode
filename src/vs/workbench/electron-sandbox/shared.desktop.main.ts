@@ -1,355 +1,355 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { Workbench } from 'vs/workbench/browser/workbench';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
-import { domContentLoaded } from 'vs/base/browser/dom';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-sandbox/configurationCache';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { basename } from 'vs/base/common/path';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
-import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
-import { safeStringify } from 'vs/base/common/objects';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { zoomWevewToZoomFactow } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { Wowkbench } fwom 'vs/wowkbench/bwowsa/wowkbench';
+impowt { NativeWindow } fwom 'vs/wowkbench/ewectwon-sandbox/window';
+impowt { setZoomWevew, setZoomFactow, setFuwwscween } fwom 'vs/base/bwowsa/bwowsa';
+impowt { domContentWoaded } fwom 'vs/base/bwowsa/dom';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { INativeWowkbenchConfiguwation, INativeWowkbenchEnviwonmentSewvice, NativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia, IWowkspaceInitiawizationPaywoad, weviveIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWoggewSewvice, IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { NativeStowageSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-sandbox/stowageSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { WemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/ewectwon-sandbox/wemoteAuthowityWesowvewSewvice';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/ewectwon-sandbox/wemoteAgentSewviceImpw';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { WemoteFiweSystemPwovida } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentFiweSystemChannew';
+impowt { ConfiguwationCache } fwom 'vs/wowkbench/sewvices/configuwation/ewectwon-sandbox/configuwationCache';
+impowt { ISignSewvice } fwom 'vs/pwatfowm/sign/common/sign';
+impowt { basename } fwom 'vs/base/common/path';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { NativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/nativeHostSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { KeyboawdWayoutSewvice } fwom 'vs/wowkbench/sewvices/keybinding/ewectwon-sandbox/nativeKeyboawdWayout';
+impowt { IKeyboawdWayoutSewvice } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
+impowt { EwectwonIPCMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/mainPwocessSewvice';
+impowt { WoggewChannewCwient, WogWevewChannewCwient } fwom 'vs/pwatfowm/wog/common/wogIpc';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { NativeWogSewvice } fwom 'vs/wowkbench/sewvices/wog/ewectwon-sandbox/wogSewvice';
+impowt { WowkspaceTwustEnabwementSewvice, WowkspaceTwustManagementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceTwust';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { wegistewWindowDwiva } fwom 'vs/pwatfowm/dwiva/ewectwon-sandbox/dwiva';
+impowt { safeStwingify } fwom 'vs/base/common/objects';
 
-export abstract class SharedDesktopMain extends Disposable {
+expowt abstwact cwass ShawedDesktopMain extends Disposabwe {
 
-	constructor(
-		protected readonly configuration: INativeWorkbenchConfiguration
+	constwuctow(
+		pwotected weadonwy configuwation: INativeWowkbenchConfiguwation
 	) {
-		super();
+		supa();
 
 		this.init();
 	}
 
-	private init(): void {
+	pwivate init(): void {
 
-		// Massage configuration file URIs
-		this.reviveUris();
+		// Massage configuwation fiwe UWIs
+		this.weviveUwis();
 
-		// Browser config
-		const zoomLevel = this.configuration.zoomLevel || 0;
-		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.configuration.fullscreen);
+		// Bwowsa config
+		const zoomWevew = this.configuwation.zoomWevew || 0;
+		setZoomFactow(zoomWevewToZoomFactow(zoomWevew));
+		setZoomWevew(zoomWevew, twue /* isTwusted */);
+		setFuwwscween(!!this.configuwation.fuwwscween);
 	}
 
-	private reviveUris() {
+	pwivate weviveUwis() {
 
-		// Workspace
-		const workspace = reviveIdentifier(this.configuration.workspace);
-		if (isWorkspaceIdentifier(workspace) || isSingleFolderWorkspaceIdentifier(workspace)) {
-			this.configuration.workspace = workspace;
+		// Wowkspace
+		const wowkspace = weviveIdentifia(this.configuwation.wowkspace);
+		if (isWowkspaceIdentifia(wowkspace) || isSingweFowdewWowkspaceIdentifia(wowkspace)) {
+			this.configuwation.wowkspace = wowkspace;
 		}
 
-		// Files
-		const filesToWait = this.configuration.filesToWait;
-		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
-			if (Array.isArray(paths)) {
-				paths.forEach(path => {
-					if (path.fileUri) {
-						path.fileUri = URI.revive(path.fileUri);
+		// Fiwes
+		const fiwesToWait = this.configuwation.fiwesToWait;
+		const fiwesToWaitPaths = fiwesToWait?.paths;
+		[fiwesToWaitPaths, this.configuwation.fiwesToOpenOwCweate, this.configuwation.fiwesToDiff].fowEach(paths => {
+			if (Awway.isAwway(paths)) {
+				paths.fowEach(path => {
+					if (path.fiweUwi) {
+						path.fiweUwi = UWI.wevive(path.fiweUwi);
 					}
 				});
 			}
 		});
 
-		if (filesToWait) {
-			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
+		if (fiwesToWait) {
+			fiwesToWait.waitMawkewFiweUwi = UWI.wevive(fiwesToWait.waitMawkewFiweUwi);
 		}
 	}
 
-	async open(): Promise<void> {
+	async open(): Pwomise<void> {
 
-		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
+		// Init sewvices and wait fow DOM to be weady in pawawwew
+		const [sewvices] = await Pwomise.aww([this.initSewvices(), domContentWoaded()]);
 
-		// Create Workbench
-		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		// Cweate Wowkbench
+		const wowkbench = new Wowkbench(document.body, sewvices.sewviceCowwection, sewvices.wogSewvice);
 
-		// Listeners
-		this.registerListeners(workbench, services.storageService);
+		// Wistenews
+		this.wegistewWistenews(wowkbench, sewvices.stowageSewvice);
 
-		// Startup
-		const instantiationService = workbench.startup();
+		// Stawtup
+		const instantiationSewvice = wowkbench.stawtup();
 
 		// Window
-		this._register(instantiationService.createInstance(NativeWindow));
+		this._wegista(instantiationSewvice.cweateInstance(NativeWindow));
 
-		// Logging
-		services.logService.trace('workbench configuration', safeStringify(this.configuration));
+		// Wogging
+		sewvices.wogSewvice.twace('wowkbench configuwation', safeStwingify(this.configuwation));
 
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
+		// Dwiva
+		if (this.configuwation.dwiva) {
+			instantiationSewvice.invokeFunction(async accessow => this._wegista(await wegistewWindowDwiva(accessow, this.configuwation.windowId)));
 		}
 	}
 
-	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
+	pwivate wegistewWistenews(wowkbench: Wowkbench, stowageSewvice: NativeStowageSewvice): void {
 
-		// Workbench Lifecycle
-		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
-		this._register(workbench.onDidShutdown(() => this.dispose()));
+		// Wowkbench Wifecycwe
+		this._wegista(wowkbench.onWiwwShutdown(event => event.join(stowageSewvice.cwose(), 'join.cwoseStowage')));
+		this._wegista(wowkbench.onDidShutdown(() => this.dispose()));
 	}
 
-	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void | Promise<void>;
+	pwotected abstwact wegistewFiweSystemPwovidews(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice, nativeHostSewvice: INativeHostSewvice): void | Pwomise<void>;
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
-		const serviceCollection = new ServiceCollection();
-
-
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		//
-		// NOTE: Please do NOT register services here. Use `registerSingleton()`
-		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.sandbox.main.ts` if the service
-		//       is desktop only.
-		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
-		//
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-		// Main Process
-		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
-		serviceCollection.set(IMainProcessService, mainProcessService);
-
-		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		serviceCollection.set(IProductService, productService);
-
-		// Environment
-		const environmentService = new NativeWorkbenchEnvironmentService(this.configuration, productService);
-		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
-
-		// Logger
-		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
-		const loggerService = new LoggerChannelClient(environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
-		serviceCollection.set(ILoggerService, loggerService);
-
-		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, environmentService.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
-		serviceCollection.set(ILogService, logService);
-
-		// Remote
-		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
-		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+	pwivate async initSewvices(): Pwomise<{ sewviceCowwection: SewviceCowwection, wogSewvice: IWogSewvice, stowageSewvice: NativeStowageSewvice }> {
+		const sewviceCowwection = new SewviceCowwection();
 
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
-		// NOTE: Please do NOT register services here. Use `registerSingleton()`
-		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.sandbox.main.ts` if the service
-		//       is desktop only.
+		// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+		//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+		//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+		//       is desktop onwy.
 		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       DO NOT add sewvices to `wowkbench.desktop.main.ts`, awways add
+		//       to `wowkbench.sandbox.main.ts` to suppowt ouw Ewectwon sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+		// Main Pwocess
+		const mainPwocessSewvice = this._wegista(new EwectwonIPCMainPwocessSewvice(this.configuwation.windowId));
+		sewviceCowwection.set(IMainPwocessSewvice, mainPwocessSewvice);
+
+		// Pwoduct
+		const pwoductSewvice: IPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
+		sewviceCowwection.set(IPwoductSewvice, pwoductSewvice);
+
+		// Enviwonment
+		const enviwonmentSewvice = new NativeWowkbenchEnviwonmentSewvice(this.configuwation, pwoductSewvice);
+		sewviceCowwection.set(INativeWowkbenchEnviwonmentSewvice, enviwonmentSewvice);
+
+		// Wogga
+		const wogWevewChannewCwient = new WogWevewChannewCwient(mainPwocessSewvice.getChannew('wogWevew'));
+		const woggewSewvice = new WoggewChannewCwient(enviwonmentSewvice.configuwation.wogWevew, wogWevewChannewCwient.onDidChangeWogWevew, mainPwocessSewvice.getChannew('wogga'));
+		sewviceCowwection.set(IWoggewSewvice, woggewSewvice);
+
+		// Wog
+		const wogSewvice = this._wegista(new NativeWogSewvice(`wendewa${this.configuwation.windowId}`, enviwonmentSewvice.configuwation.wogWevew, woggewSewvice, wogWevewChannewCwient, enviwonmentSewvice));
+		sewviceCowwection.set(IWogSewvice, wogSewvice);
+
+		// Wemote
+		const wemoteAuthowityWesowvewSewvice = new WemoteAuthowityWesowvewSewvice();
+		sewviceCowwection.set(IWemoteAuthowityWesowvewSewvice, wemoteAuthowityWesowvewSewvice);
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+		//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+		//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+		//       is desktop onwy.
+		//
+		//       DO NOT add sewvices to `wowkbench.desktop.main.ts`, awways add
+		//       to `wowkbench.sandbox.main.ts` to suppowt ouw Ewectwon sandbox
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 		// Sign
-		const signService = ProxyChannel.toService<ISignService>(mainProcessService.getChannel('sign'));
-		serviceCollection.set(ISignService, signService);
+		const signSewvice = PwoxyChannew.toSewvice<ISignSewvice>(mainPwocessSewvice.getChannew('sign'));
+		sewviceCowwection.set(ISignSewvice, signSewvice);
 
-		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService, logService));
-		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+		// Wemote Agent
+		const wemoteAgentSewvice = this._wegista(new WemoteAgentSewvice(enviwonmentSewvice, pwoductSewvice, wemoteAuthowityWesowvewSewvice, signSewvice, wogSewvice));
+		sewviceCowwection.set(IWemoteAgentSewvice, wemoteAgentSewvice);
 
 		// Native Host
-		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
-		serviceCollection.set(INativeHostService, nativeHostService);
+		const nativeHostSewvice = new NativeHostSewvice(this.configuwation.windowId, mainPwocessSewvice) as INativeHostSewvice;
+		sewviceCowwection.set(INativeHostSewvice, nativeHostSewvice);
 
-		// Files
-		const fileService = this._register(new FileService(logService));
-		serviceCollection.set(IFileService, fileService);
+		// Fiwes
+		const fiweSewvice = this._wegista(new FiweSewvice(wogSewvice));
+		sewviceCowwection.set(IFiweSewvice, fiweSewvice);
 
-		const result = this.registerFileSystemProviders(environmentService, fileService, logService, nativeHostService);
-		if (result instanceof Promise) {
-			await result;
+		const wesuwt = this.wegistewFiweSystemPwovidews(enviwonmentSewvice, fiweSewvice, wogSewvice, nativeHostSewvice);
+		if (wesuwt instanceof Pwomise) {
+			await wesuwt;
 		}
 
-		// URI Identity
-		const uriIdentityService = new UriIdentityService(fileService);
-		serviceCollection.set(IUriIdentityService, uriIdentityService);
+		// UWI Identity
+		const uwiIdentitySewvice = new UwiIdentitySewvice(fiweSewvice);
+		sewviceCowwection.set(IUwiIdentitySewvice, uwiIdentitySewvice);
 
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
-		// NOTE: Please do NOT register services here. Use `registerSingleton()`
-		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.sandbox.main.ts` if the service
-		//       is desktop only.
+		// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+		//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+		//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+		//       is desktop onwy.
 		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       DO NOT add sewvices to `wowkbench.desktop.main.ts`, awways add
+		//       to `wowkbench.sandbox.main.ts` to suppowt ouw Ewectwon sandbox
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		const connection = remoteAgentService.getConnection();
+		const connection = wemoteAgentSewvice.getConnection();
 		if (connection) {
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
-			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
+			const wemoteFiweSystemPwovida = this._wegista(new WemoteFiweSystemPwovida(wemoteAgentSewvice));
+			fiweSewvice.wegistewPwovida(Schemas.vscodeWemote, wemoteFiweSystemPwovida);
 		}
 
-		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
+		const paywoad = this.wesowveWowkspaceInitiawizationPaywoad(enviwonmentSewvice);
 
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+		const [configuwationSewvice, stowageSewvice] = await Pwomise.aww([
+			this.cweateWowkspaceSewvice(paywoad, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, uwiIdentitySewvice, wogSewvice).then(sewvice => {
 
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+				// Wowkspace
+				sewviceCowwection.set(IWowkspaceContextSewvice, sewvice);
 
-				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
+				// Configuwation
+				sewviceCowwection.set(IWowkbenchConfiguwationSewvice, sewvice);
 
-				return service;
+				wetuwn sewvice;
 			}),
 
-			this.createStorageService(payload, environmentService, mainProcessService).then(service => {
+			this.cweateStowageSewvice(paywoad, enviwonmentSewvice, mainPwocessSewvice).then(sewvice => {
 
-				// Storage
-				serviceCollection.set(IStorageService, service);
+				// Stowage
+				sewviceCowwection.set(IStowageSewvice, sewvice);
 
-				return service;
+				wetuwn sewvice;
 			}),
 
-			this.createKeyboardLayoutService(mainProcessService).then(service => {
+			this.cweateKeyboawdWayoutSewvice(mainPwocessSewvice).then(sewvice => {
 
-				// KeyboardLayout
-				serviceCollection.set(IKeyboardLayoutService, service);
+				// KeyboawdWayout
+				sewviceCowwection.set(IKeyboawdWayoutSewvice, sewvice);
 
-				return service;
+				wetuwn sewvice;
 			})
 		]);
 
-		// Workspace Trust Service
-		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
-		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
+		// Wowkspace Twust Sewvice
+		const wowkspaceTwustEnabwementSewvice = new WowkspaceTwustEnabwementSewvice(configuwationSewvice, enviwonmentSewvice);
+		sewviceCowwection.set(IWowkspaceTwustEnabwementSewvice, wowkspaceTwustEnabwementSewvice);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
-		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		const wowkspaceTwustManagementSewvice = new WowkspaceTwustManagementSewvice(configuwationSewvice, wemoteAuthowityWesowvewSewvice, stowageSewvice, uwiIdentitySewvice, enviwonmentSewvice, configuwationSewvice, wowkspaceTwustEnabwementSewvice);
+		sewviceCowwection.set(IWowkspaceTwustManagementSewvice, wowkspaceTwustManagementSewvice);
 
-		// Update workspace trust so that configuration is updated accordingly
-		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
+		// Update wowkspace twust so that configuwation is updated accowdingwy
+		configuwationSewvice.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted());
+		this._wegista(wowkspaceTwustManagementSewvice.onDidChangeTwust(() => configuwationSewvice.updateWowkspaceTwust(wowkspaceTwustManagementSewvice.isWowkspaceTwusted())));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
-		// NOTE: Please do NOT register services here. Use `registerSingleton()`
-		//       from `workbench.common.main.ts` if the service is shared between
-		//       desktop and web or `workbench.sandbox.main.ts` if the service
-		//       is desktop only.
+		// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+		//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+		//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+		//       is desktop onwy.
 		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       DO NOT add sewvices to `wowkbench.desktop.main.ts`, awways add
+		//       to `wowkbench.sandbox.main.ts` to suppowt ouw Ewectwon sandbox
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService };
+		wetuwn { sewviceCowwection, wogSewvice, stowageSewvice };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {
-		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
+	pwivate wesowveWowkspaceInitiawizationPaywoad(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice): IWowkspaceInitiawizationPaywoad {
+		wet wowkspaceInitiawizationPaywoad: IWowkspaceInitiawizationPaywoad | undefined = this.configuwation.wowkspace;
 
-		// Fallback to empty workspace if we have no payload yet.
-		if (!workspaceInitializationPayload) {
-			let id: string;
-			if (this.configuration.backupPath) {
-				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
-			} else if (environmentService.isExtensionDevelopment) {
-				id = 'ext-dev'; // extension development window never stores backups and is a singleton
-			} else {
-				throw new Error('Unexpected window configuration without backupPath');
+		// Fawwback to empty wowkspace if we have no paywoad yet.
+		if (!wowkspaceInitiawizationPaywoad) {
+			wet id: stwing;
+			if (this.configuwation.backupPath) {
+				id = basename(this.configuwation.backupPath); // we know the backupPath must be a unique path so we wevewage its name as wowkspace ID
+			} ewse if (enviwonmentSewvice.isExtensionDevewopment) {
+				id = 'ext-dev'; // extension devewopment window neva stowes backups and is a singweton
+			} ewse {
+				thwow new Ewwow('Unexpected window configuwation without backupPath');
 			}
 
-			workspaceInitializationPayload = { id };
+			wowkspaceInitiawizationPaywoad = { id };
 		}
 
-		return workspaceInitializationPayload;
+		wetuwn wowkspaceInitiawizationPaywoad;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(environmentService.userDataPath), fileService) }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+	pwivate async cweateWowkspaceSewvice(paywoad: IWowkspaceInitiawizationPaywoad, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, fiweSewvice: FiweSewvice, wemoteAgentSewvice: IWemoteAgentSewvice, uwiIdentitySewvice: IUwiIdentitySewvice, wogSewvice: IWogSewvice): Pwomise<WowkspaceSewvice> {
+		const wowkspaceSewvice = new WowkspaceSewvice({ wemoteAuthowity: enviwonmentSewvice.wemoteAuthowity, configuwationCache: new ConfiguwationCache(UWI.fiwe(enviwonmentSewvice.usewDataPath), fiweSewvice) }, enviwonmentSewvice, fiweSewvice, wemoteAgentSewvice, uwiIdentitySewvice, wogSewvice);
 
-		try {
-			await workspaceService.initialize(payload);
+		twy {
+			await wowkspaceSewvice.initiawize(paywoad);
 
-			return workspaceService;
-		} catch (error) {
-			onUnexpectedError(error);
+			wetuwn wowkspaceSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 
-			return workspaceService;
-		}
-	}
-
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
-		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
-
-		try {
-			await storageService.initialize();
-
-			return storageService;
-		} catch (error) {
-			onUnexpectedError(error);
-
-			return storageService;
+			wetuwn wowkspaceSewvice;
 		}
 	}
 
-	private async createKeyboardLayoutService(mainProcessService: IMainProcessService): Promise<KeyboardLayoutService> {
-		const keyboardLayoutService = new KeyboardLayoutService(mainProcessService);
+	pwivate async cweateStowageSewvice(paywoad: IWowkspaceInitiawizationPaywoad, enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, mainPwocessSewvice: IMainPwocessSewvice): Pwomise<NativeStowageSewvice> {
+		const stowageSewvice = new NativeStowageSewvice(paywoad, mainPwocessSewvice, enviwonmentSewvice);
 
-		try {
-			await keyboardLayoutService.initialize();
+		twy {
+			await stowageSewvice.initiawize();
 
-			return keyboardLayoutService;
-		} catch (error) {
-			onUnexpectedError(error);
+			wetuwn stowageSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 
-			return keyboardLayoutService;
+			wetuwn stowageSewvice;
+		}
+	}
+
+	pwivate async cweateKeyboawdWayoutSewvice(mainPwocessSewvice: IMainPwocessSewvice): Pwomise<KeyboawdWayoutSewvice> {
+		const keyboawdWayoutSewvice = new KeyboawdWayoutSewvice(mainPwocessSewvice);
+
+		twy {
+			await keyboawdWayoutSewvice.initiawize();
+
+			wetuwn keyboawdWayoutSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
+
+			wetuwn keyboawdWayoutSewvice;
 		}
 	}
 }

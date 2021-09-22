@@ -1,419 +1,419 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/editorCommon';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
-import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { waceCancewwation } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Codicon, CSSIcon } fwom 'vs/base/common/codicons';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IDimension } fwom 'vs/editow/common/editowCommon';
+impowt { IWeadonwyTextBuffa } fwom 'vs/editow/common/modew';
+impowt { TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { tokenizeToStwing } fwom 'vs/editow/common/modes/textToHtmwTokeniza';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { CewwFocusMode, EXPAND_CEWW_INPUT_COMMAND_ID, IActiveNotebookEditowDewegate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CodeCewwWendewTempwate } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/notebookWendewingCommon';
+impowt { CewwOutputContaina } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwOutput';
+impowt { CwickTawgetType } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwWidgets';
+impowt { CodeCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/codeCewwViewModew';
+impowt { INotebookCewwStatusBawSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookCewwStatusBawSewvice';
 
 
-export class CodeCell extends Disposable {
-	private _outputContainerRenderer: CellOutputContainer;
-	private _untrustedStatusItem: IDisposable | null = null;
+expowt cwass CodeCeww extends Disposabwe {
+	pwivate _outputContainewWendewa: CewwOutputContaina;
+	pwivate _untwustedStatusItem: IDisposabwe | nuww = nuww;
 
-	private _renderedInputCollapseState: boolean | undefined;
-	private _renderedOutputCollapseState: boolean | undefined;
-	private _isDisposed: boolean = false;
+	pwivate _wendewedInputCowwapseState: boowean | undefined;
+	pwivate _wendewedOutputCowwapseState: boowean | undefined;
+	pwivate _isDisposed: boowean = fawse;
 
-	constructor(
-		private readonly notebookEditor: IActiveNotebookEditorDelegate,
-		private readonly viewCell: CodeCellViewModel,
-		private readonly templateData: CodeCellRenderTemplate,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IKeybindingService readonly keybindingService: IKeybindingService,
-		@IOpenerService readonly openerService: IOpenerService
+	constwuctow(
+		pwivate weadonwy notebookEditow: IActiveNotebookEditowDewegate,
+		pwivate weadonwy viewCeww: CodeCewwViewModew,
+		pwivate weadonwy tempwateData: CodeCewwWendewTempwate,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@INotebookCewwStatusBawSewvice weadonwy notebookCewwStatusBawSewvice: INotebookCewwStatusBawSewvice,
+		@IKeybindingSewvice weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IOpenewSewvice weadonwy openewSewvice: IOpenewSewvice
 	) {
-		super();
+		supa();
 
-		const width = this.viewCell.layoutInfo.editorWidth;
-		const lineNum = this.viewCell.lineCount;
-		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
+		const width = this.viewCeww.wayoutInfo.editowWidth;
+		const wineNum = this.viewCeww.wineCount;
+		const wineHeight = this.viewCeww.wayoutInfo.fontInfo?.wineHeight || 17;
+		const editowPadding = this.notebookEditow.notebookOptions.computeEditowPadding(this.viewCeww.intewnawMetadata);
 
-		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
-			: this.viewCell.layoutInfo.editorHeight;
+		const editowHeight = this.viewCeww.wayoutInfo.editowHeight === 0
+			? wineNum * wineHeight + editowPadding.top + editowPadding.bottom
+			: this.viewCeww.wayoutInfo.editowHeight;
 
-		this.layoutEditor(
+		this.wayoutEditow(
 			{
 				width: width,
-				height: editorHeight
+				height: editowHeight
 			}
 		);
 
-		const cts = new CancellationTokenSource();
-		this._register({ dispose() { cts.dispose(true); } });
-		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
+		const cts = new CancewwationTokenSouwce();
+		this._wegista({ dispose() { cts.dispose(twue); } });
+		waceCancewwation(viewCeww.wesowveTextModew(), cts.token).then(modew => {
 			if (this._isDisposed) {
-				return;
+				wetuwn;
 			}
 
-			if (model && templateData.editor) {
-				templateData.editor.setModel(model);
-				viewCell.attachTextEditor(templateData.editor);
-				const focusEditorIfNeeded = () => {
+			if (modew && tempwateData.editow) {
+				tempwateData.editow.setModew(modew);
+				viewCeww.attachTextEditow(tempwateData.editow);
+				const focusEditowIfNeeded = () => {
 					if (
-						notebookEditor.getActiveCell() === viewCell &&
-						viewCell.focusMode === CellFocusMode.Editor &&
-						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+						notebookEditow.getActiveCeww() === viewCeww &&
+						viewCeww.focusMode === CewwFocusMode.Editow &&
+						(this.notebookEditow.hasEditowFocus() || document.activeEwement === document.body)) // Don't steaw focus fwom otha wowkbench pawts, but if body has focus, we can take it
 					{
-						templateData.editor?.focus();
+						tempwateData.editow?.focus();
 					}
 				};
-				focusEditorIfNeeded();
+				focusEditowIfNeeded();
 
-				const realContentHeight = templateData.editor?.getContentHeight();
-				if (realContentHeight !== undefined && realContentHeight !== editorHeight) {
-					this.onCellHeightChange(realContentHeight);
+				const weawContentHeight = tempwateData.editow?.getContentHeight();
+				if (weawContentHeight !== undefined && weawContentHeight !== editowHeight) {
+					this.onCewwHeightChange(weawContentHeight);
 				}
 
-				focusEditorIfNeeded();
+				focusEditowIfNeeded();
 			}
 		});
 
-		const updateForFocusMode = () => {
-			if (this.notebookEditor.getFocus().start !== this.notebookEditor.getCellIndex(viewCell)) {
-				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+		const updateFowFocusMode = () => {
+			if (this.notebookEditow.getFocus().stawt !== this.notebookEditow.getCewwIndex(viewCeww)) {
+				tempwateData.containa.cwassWist.toggwe('ceww-editow-focus', viewCeww.focusMode === CewwFocusMode.Editow);
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
-				templateData.editor?.focus();
+			if (viewCeww.focusMode === CewwFocusMode.Editow && this.notebookEditow.getActiveCeww() === this.viewCeww) {
+				tempwateData.editow?.focus();
 			}
 
-			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			tempwateData.containa.cwassWist.toggwe('ceww-editow-focus', viewCeww.focusMode === CewwFocusMode.Editow);
 		};
-		this._register(viewCell.onDidChangeState((e) => {
+		this._wegista(viewCeww.onDidChangeState((e) => {
 			if (e.focusModeChanged) {
-				updateForFocusMode();
+				updateFowFocusMode();
 			}
 		}));
-		updateForFocusMode();
+		updateFowFocusMode();
 
-		const updateEditorOptions = () => {
-			const editor = templateData.editor;
-			if (!editor) {
-				return;
+		const updateEditowOptions = () => {
+			const editow = tempwateData.editow;
+			if (!editow) {
+				wetuwn;
 			}
 
-			const isReadonly = notebookEditor.isReadOnly;
-			const padding = notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata);
-			const options = editor.getOptions();
-			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
-				editor.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+			const isWeadonwy = notebookEditow.isWeadOnwy;
+			const padding = notebookEditow.notebookOptions.computeEditowPadding(viewCeww.intewnawMetadata);
+			const options = editow.getOptions();
+			if (options.get(EditowOption.weadOnwy) !== isWeadonwy || options.get(EditowOption.padding) !== padding) {
+				editow.updateOptions({ weadOnwy: notebookEditow.isWeadOnwy, padding: notebookEditow.notebookOptions.computeEditowPadding(viewCeww.intewnawMetadata) });
 			}
 		};
 
-		updateEditorOptions();
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.metadataChanged || e.internalMetadataChanged) {
-				updateEditorOptions();
+		updateEditowOptions();
+		this._wegista(viewCeww.onDidChangeState((e) => {
+			if (e.metadataChanged || e.intewnawMetadataChanged) {
+				updateEditowOptions();
 
-				if (this.updateForCollapseState()) {
-					this.relayoutCell();
+				if (this.updateFowCowwapseState()) {
+					this.wewayoutCeww();
 				}
 			}
 		}));
 
-		this._register(viewCell.onDidChangeLayout((e) => {
-			if (e.outerWidth !== undefined) {
-				const layoutInfo = templateData.editor.getLayoutInfo();
-				if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
-					this.onCellWidthChange();
+		this._wegista(viewCeww.onDidChangeWayout((e) => {
+			if (e.outewWidth !== undefined) {
+				const wayoutInfo = tempwateData.editow.getWayoutInfo();
+				if (wayoutInfo.width !== viewCeww.wayoutInfo.editowWidth) {
+					this.onCewwWidthChange();
 				}
 			}
 		}));
 
-		this._register(viewCell.onDidChangeLayout((e) => {
-			if (e.totalHeight) {
-				this.relayoutCell();
+		this._wegista(viewCeww.onDidChangeWayout((e) => {
+			if (e.totawHeight) {
+				this.wewayoutCeww();
 			}
 		}));
 
-		this._register(templateData.editor.onDidContentSizeChange((e) => {
+		this._wegista(tempwateData.editow.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
-					this.onCellHeightChange(e.contentHeight);
+				if (this.viewCeww.wayoutInfo.editowHeight !== e.contentHeight) {
+					this.onCewwHeightChange(e.contentHeight);
 				}
 			}
 		}));
 
-		this._register(templateData.editor.onDidChangeCursorSelection((e) => {
-			if (e.source === 'restoreState') {
-				// do not reveal the cell into view if this selection change was caused by restoring editors...
-				return;
+		this._wegista(tempwateData.editow.onDidChangeCuwsowSewection((e) => {
+			if (e.souwce === 'westoweState') {
+				// do not weveaw the ceww into view if this sewection change was caused by westowing editows...
+				wetuwn;
 			}
 
-			const primarySelection = templateData.editor.getSelection();
+			const pwimawySewection = tempwateData.editow.getSewection();
 
-			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(viewCell, primarySelection.positionLineNumber);
+			if (pwimawySewection) {
+				this.notebookEditow.weveawWineInViewAsync(viewCeww, pwimawySewection.positionWineNumba);
 			}
 		}));
 
-		// Apply decorations
-		this._register(viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					templateData.rootContainer.classList.add(options.className);
+		// Appwy decowations
+		this._wegista(viewCeww.onCewwDecowationsChanged((e) => {
+			e.added.fowEach(options => {
+				if (options.cwassName) {
+					tempwateData.wootContaina.cwassWist.add(options.cwassName);
 				}
 
-				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+				if (options.outputCwassName) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [options.outputCwassName], []);
 				}
 			});
 
-			e.removed.forEach(options => {
-				if (options.className) {
-					templateData.rootContainer.classList.remove(options.className);
+			e.wemoved.fowEach(options => {
+				if (options.cwassName) {
+					tempwateData.wootContaina.cwassWist.wemove(options.cwassName);
 				}
 
-				if (options.outputClassName) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [], [options.outputClassName]);
+				if (options.outputCwassName) {
+					this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [], [options.outputCwassName]);
 				}
 			});
 		}));
 
-		viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				templateData.rootContainer.classList.add(options.className);
+		viewCeww.getCewwDecowations().fowEach(options => {
+			if (options.cwassName) {
+				tempwateData.wootContaina.cwassWist.add(options.cwassName);
 			}
 
-			if (options.outputClassName) {
-				this.notebookEditor.deltaCellOutputContainerClassNames(this.viewCell.id, [options.outputClassName], []);
+			if (options.outputCwassName) {
+				this.notebookEditow.dewtaCewwOutputContainewCwassNames(this.viewCeww.id, [options.outputCwassName], []);
 			}
 		});
 
-		// Mouse click handlers
-		this._register(templateData.statusBar.onDidClick(e => {
-			if (e.type !== ClickTargetType.ContributedCommandItem) {
-				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(viewCell.internalMetadata));
-				if (target?.position) {
-					templateData.editor.setPosition(target.position);
-					templateData.editor.focus();
+		// Mouse cwick handwews
+		this._wegista(tempwateData.statusBaw.onDidCwick(e => {
+			if (e.type !== CwickTawgetType.ContwibutedCommandItem) {
+				const tawget = tempwateData.editow.getTawgetAtCwientPoint(e.event.cwientX, e.event.cwientY - this.notebookEditow.notebookOptions.computeEditowStatusbawHeight(viewCeww.intewnawMetadata));
+				if (tawget?.position) {
+					tempwateData.editow.setPosition(tawget.position);
+					tempwateData.editow.focus();
 				}
 			}
 		}));
 
-		this._register(templateData.editor.onMouseDown(e => {
-			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
-			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.
-			if (e.event.rightButton) {
-				e.event.preventDefault();
+		this._wegista(tempwateData.editow.onMouseDown(e => {
+			// pwevent defauwt on wight mouse cwick, othewwise it wiww twigga unexpected focus changes
+			// the catch is, it means we don't awwow customization of wight button mouse down handwews otha than the buiwt in ones.
+			if (e.event.wightButton) {
+				e.event.pweventDefauwt();
 			}
 		}));
 
 		// Focus Mode
 		const updateFocusMode = () => {
-			viewCell.focusMode =
-				(templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
-					? CellFocusMode.Editor
-					: CellFocusMode.Container;
+			viewCeww.focusMode =
+				(tempwateData.editow.hasWidgetFocus() || (document.activeEwement && this.tempwateData.statusBaw.statusBawContaina.contains(document.activeEwement)))
+					? CewwFocusMode.Editow
+					: CewwFocusMode.Containa;
 		};
 
-		this._register(templateData.editor.onDidFocusEditorWidget(() => {
+		this._wegista(tempwateData.editow.onDidFocusEditowWidget(() => {
 			updateFocusMode();
 		}));
-		this._register(templateData.editor.onDidBlurEditorWidget(() => {
-			// this is for a special case:
-			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
-			if (!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
+		this._wegista(tempwateData.editow.onDidBwuwEditowWidget(() => {
+			// this is fow a speciaw case:
+			// usews cwick the status baw empty space, which we wiww then focus the editow
+			// so we don't want to update the focus state too eagewwy, it wiww be updated with onDidFocusEditowWidget
+			if (!(document.activeEwement && this.tempwateData.statusBaw.statusBawContaina.contains(document.activeEwement))) {
 				updateFocusMode();
 			}
 		}));
 
-		// Render Outputs
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
-		this._outputContainerRenderer.render(editorHeight);
-		// Need to do this after the intial renderOutput
-		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.outputCollapsed === undefined) {
+		// Wenda Outputs
+		this._outputContainewWendewa = this.instantiationSewvice.cweateInstance(CewwOutputContaina, notebookEditow, viewCeww, tempwateData, { wimit: 500 });
+		this._outputContainewWendewa.wenda(editowHeight);
+		// Need to do this afta the intiaw wendewOutput
+		if (this.viewCeww.metadata.outputCowwapsed === undefined && this.viewCeww.metadata.outputCowwapsed === undefined) {
 			this.viewUpdateExpanded();
-			this.viewCell.layoutChange({});
+			this.viewCeww.wayoutChange({});
 		}
 
-		this.updateForCollapseState();
+		this.updateFowCowwapseState();
 	}
 
-	private updateForCollapseState(): boolean {
-		if (this.viewCell.metadata.outputCollapsed === this._renderedOutputCollapseState &&
-			this.viewCell.metadata.inputCollapsed === this._renderedInputCollapseState) {
-			return false;
+	pwivate updateFowCowwapseState(): boowean {
+		if (this.viewCeww.metadata.outputCowwapsed === this._wendewedOutputCowwapseState &&
+			this.viewCeww.metadata.inputCowwapsed === this._wendewedInputCowwapseState) {
+			wetuwn fawse;
 		}
 
-		this.viewCell.layoutChange({});
+		this.viewCeww.wayoutChange({});
 
-		if (this.viewCell.metadata.inputCollapsed) {
-			this._collapseInput();
-		} else {
+		if (this.viewCeww.metadata.inputCowwapsed) {
+			this._cowwapseInput();
+		} ewse {
 			this._showInput();
 		}
 
-		if (this.viewCell.metadata.outputCollapsed) {
-			this._collapseOutput();
-		} else {
+		if (this.viewCeww.metadata.outputCowwapsed) {
+			this._cowwapseOutput();
+		} ewse {
 			this._showOutput();
 		}
 
-		this.relayoutCell();
+		this.wewayoutCeww();
 
-		this._renderedOutputCollapseState = this.viewCell.metadata.outputCollapsed;
-		this._renderedInputCollapseState = this.viewCell.metadata.inputCollapsed;
+		this._wendewedOutputCowwapseState = this.viewCeww.metadata.outputCowwapsed;
+		this._wendewedInputCowwapseState = this.viewCeww.metadata.inputCowwapsed;
 
-		return true;
+		wetuwn twue;
 	}
 
-	private _collapseInput() {
-		// hide the editor and execution label, keep the run button
-		DOM.hide(this.templateData.editorPart);
-		DOM.hide(this.templateData.executionOrderLabel);
-		this.templateData.container.classList.toggle('input-collapsed', true);
+	pwivate _cowwapseInput() {
+		// hide the editow and execution wabew, keep the wun button
+		DOM.hide(this.tempwateData.editowPawt);
+		DOM.hide(this.tempwateData.executionOwdewWabew);
+		this.tempwateData.containa.cwassWist.toggwe('input-cowwapsed', twue);
 
-		// remove input preview
-		this._removeInputCollapsePreview();
+		// wemove input pweview
+		this._wemoveInputCowwapsePweview();
 
-		// update preview
-		const richEditorText = this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		const element = DOM.$('div');
-		element.classList.add('cell-collapse-preview');
-		DOM.safeInnerHtml(element, richEditorText);
-		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		// update pweview
+		const wichEditowText = this._getWichText(this.viewCeww.textBuffa, this.viewCeww.wanguage);
+		const ewement = DOM.$('div');
+		ewement.cwassWist.add('ceww-cowwapse-pweview');
+		DOM.safeInnewHtmw(ewement, wichEditowText);
+		this.tempwateData.cewwInputCowwapsedContaina.appendChiwd(ewement);
 		const expandIcon = DOM.$('span.expandInputIcon');
-		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
+		const keybinding = this.keybindingSewvice.wookupKeybinding(EXPAND_CEWW_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
-			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
+			ewement.titwe = wocawize('cewwExpandInputButtonWabewWithDoubweCwick', "Doubwe cwick to expand ceww input ({0})", keybinding.getWabew());
+			expandIcon.titwe = wocawize('cewwExpandInputButtonWabew', "Expand Ceww Input ({0})", keybinding.getWabew());
 		}
 
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
-		element.appendChild(expandIcon);
+		expandIcon.cwassWist.add(...CSSIcon.asCwassNameAwway(Codicon.mowe));
+		ewement.appendChiwd(expandIcon);
 
-		DOM.show(this.templateData.cellInputCollapsedContainer);
+		DOM.show(this.tempwateData.cewwInputCowwapsedContaina);
 	}
 
-	private _showInput() {
-		DOM.show(this.templateData.editorPart);
-		DOM.show(this.templateData.executionOrderLabel);
-		DOM.hide(this.templateData.cellInputCollapsedContainer);
+	pwivate _showInput() {
+		DOM.show(this.tempwateData.editowPawt);
+		DOM.show(this.tempwateData.executionOwdewWabew);
+		DOM.hide(this.tempwateData.cewwInputCowwapsedContaina);
 	}
 
-	private _getRichText(buffer: IReadonlyTextBuffer, language: string) {
-		return tokenizeToString(buffer.getLineContent(1), TokenizationRegistry.get(language)!);
+	pwivate _getWichText(buffa: IWeadonwyTextBuffa, wanguage: stwing) {
+		wetuwn tokenizeToStwing(buffa.getWineContent(1), TokenizationWegistwy.get(wanguage)!);
 	}
 
-	private _removeInputCollapsePreview() {
-		const children = this.templateData.cellInputCollapsedContainer.children;
-		const elements = [];
-		for (let i = 0; i < children.length; i++) {
-			if (children[i].classList.contains('cell-collapse-preview')) {
-				elements.push(children[i]);
+	pwivate _wemoveInputCowwapsePweview() {
+		const chiwdwen = this.tempwateData.cewwInputCowwapsedContaina.chiwdwen;
+		const ewements = [];
+		fow (wet i = 0; i < chiwdwen.wength; i++) {
+			if (chiwdwen[i].cwassWist.contains('ceww-cowwapse-pweview')) {
+				ewements.push(chiwdwen[i]);
 			}
 		}
 
-		elements.forEach(element => {
-			element.parentElement?.removeChild(element);
+		ewements.fowEach(ewement => {
+			ewement.pawentEwement?.wemoveChiwd(ewement);
 		});
 	}
 
-	private _updateOutputInnertContainer(hide: boolean) {
-		const children = this.templateData.outputContainer.children;
-		for (let i = 0; i < children.length; i++) {
-			if (children[i].classList.contains('output-inner-container')) {
+	pwivate _updateOutputInnewtContaina(hide: boowean) {
+		const chiwdwen = this.tempwateData.outputContaina.chiwdwen;
+		fow (wet i = 0; i < chiwdwen.wength; i++) {
+			if (chiwdwen[i].cwassWist.contains('output-inna-containa')) {
 				if (hide) {
-					DOM.hide(children[i] as HTMLElement);
-				} else {
-					DOM.show(children[i] as HTMLElement);
+					DOM.hide(chiwdwen[i] as HTMWEwement);
+				} ewse {
+					DOM.show(chiwdwen[i] as HTMWEwement);
 				}
 			}
 		}
 	}
 
-	private _collapseOutput() {
-		this.templateData.container.classList.toggle('output-collapsed', true);
-		DOM.show(this.templateData.cellOutputCollapsedContainer);
-		this._updateOutputInnertContainer(true);
-		this._outputContainerRenderer.viewUpdateHideOuputs();
+	pwivate _cowwapseOutput() {
+		this.tempwateData.containa.cwassWist.toggwe('output-cowwapsed', twue);
+		DOM.show(this.tempwateData.cewwOutputCowwapsedContaina);
+		this._updateOutputInnewtContaina(twue);
+		this._outputContainewWendewa.viewUpdateHideOuputs();
 	}
 
-	private _showOutput() {
-		this.templateData.container.classList.toggle('output-collapsed', false);
-		DOM.hide(this.templateData.cellOutputCollapsedContainer);
-		this._updateOutputInnertContainer(false);
-		this._outputContainerRenderer.viewUpdateShowOutputs();
+	pwivate _showOutput() {
+		this.tempwateData.containa.cwassWist.toggwe('output-cowwapsed', fawse);
+		DOM.hide(this.tempwateData.cewwOutputCowwapsedContaina);
+		this._updateOutputInnewtContaina(fawse);
+		this._outputContainewWendewa.viewUpdateShowOutputs();
 	}
 
-	private viewUpdateExpanded(): void {
+	pwivate viewUpdateExpanded(): void {
 		this._showInput();
 		this._showOutput();
-		this.templateData.container.classList.toggle('input-collapsed', false);
-		this.templateData.container.classList.toggle('output-collapsed', false);
-		this._outputContainerRenderer.viewUpdateShowOutputs();
-		this.relayoutCell();
+		this.tempwateData.containa.cwassWist.toggwe('input-cowwapsed', fawse);
+		this.tempwateData.containa.cwassWist.toggwe('output-cowwapsed', fawse);
+		this._outputContainewWendewa.viewUpdateShowOutputs();
+		this.wewayoutCeww();
 	}
 
-	private layoutEditor(dimension: IDimension): void {
-		this.templateData.editor?.layout(dimension);
+	pwivate wayoutEditow(dimension: IDimension): void {
+		this.tempwateData.editow?.wayout(dimension);
 	}
 
-	private onCellWidthChange(): void {
-		if (!this.templateData.editor.hasModel()) {
-			return;
+	pwivate onCewwWidthChange(): void {
+		if (!this.tempwateData.editow.hasModew()) {
+			wetuwn;
 		}
 
-		const realContentHeight = this.templateData.editor.getContentHeight();
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
-		this.layoutEditor(
+		const weawContentHeight = this.tempwateData.editow.getContentHeight();
+		this.viewCeww.editowHeight = weawContentHeight;
+		this.wewayoutCeww();
+		this.wayoutEditow(
 			{
-				width: this.viewCell.layoutInfo.editorWidth,
-				height: realContentHeight
+				width: this.viewCeww.wayoutInfo.editowWidth,
+				height: weawContentHeight
 			}
 		);
 	}
 
-	private onCellHeightChange(newHeight: number): void {
-		const viewLayout = this.templateData.editor.getLayoutInfo();
-		this.viewCell.editorHeight = newHeight;
-		this.relayoutCell();
-		this.layoutEditor(
+	pwivate onCewwHeightChange(newHeight: numba): void {
+		const viewWayout = this.tempwateData.editow.getWayoutInfo();
+		this.viewCeww.editowHeight = newHeight;
+		this.wewayoutCeww();
+		this.wayoutEditow(
 			{
-				width: viewLayout.width,
+				width: viewWayout.width,
 				height: newHeight
 			}
 		);
 	}
 
-	relayoutCell() {
-		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	wewayoutCeww() {
+		this.notebookEditow.wayoutNotebookCeww(this.viewCeww, this.viewCeww.wayoutInfo.totawHeight);
 	}
 
-	override dispose() {
-		this._isDisposed = true;
+	ovewwide dispose() {
+		this._isDisposed = twue;
 
-		this.viewCell.detachTextEditor();
-		this._removeInputCollapsePreview();
-		this._outputContainerRenderer.dispose();
-		this._untrustedStatusItem?.dispose();
-		this.templateData.focusIndicatorLeft.style.height = 'initial';
+		this.viewCeww.detachTextEditow();
+		this._wemoveInputCowwapsePweview();
+		this._outputContainewWendewa.dispose();
+		this._untwustedStatusItem?.dispose();
+		this.tempwateData.focusIndicatowWeft.stywe.height = 'initiaw';
 
-		super.dispose();
+		supa.dispose();
 	}
 }

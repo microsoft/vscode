@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { IStringDictionary } from 'vs/base/common/collections';
-import * as Types from 'vs/base/common/types';
-import * as Objects from 'vs/base/common/objects';
+impowt * as nws fwom 'vs/nws';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt * as Types fwom 'vs/base/common/types';
+impowt * as Objects fwom 'vs/base/common/objects';
 
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { ExtensionsWegistwy, ExtensionMessageCowwectow } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Emitter, Event } from 'vs/base/common/event';
+impowt * as Tasks fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
 
 
 const taskDefinitionSchema: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
-	properties: {
+	additionawPwopewties: fawse,
+	pwopewties: {
 		type: {
-			type: 'string',
-			description: nls.localize('TaskDefinition.description', 'The actual task type. Please note that types starting with a \'$\' are reserved for internal usage.')
+			type: 'stwing',
+			descwiption: nws.wocawize('TaskDefinition.descwiption', 'The actuaw task type. Pwease note that types stawting with a \'$\' awe wesewved fow intewnaw usage.')
 		},
-		required: {
-			type: 'array',
+		wequiwed: {
+			type: 'awway',
 			items: {
-				type: 'string'
+				type: 'stwing'
 			}
 		},
-		properties: {
+		pwopewties: {
 			type: 'object',
-			description: nls.localize('TaskDefinition.properties', 'Additional properties of the task type'),
-			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-07/schema#'
+			descwiption: nws.wocawize('TaskDefinition.pwopewties', 'Additionaw pwopewties of the task type'),
+			additionawPwopewties: {
+				$wef: 'http://json-schema.owg/dwaft-07/schema#'
 			}
 		},
 		when: {
-			type: 'string',
-			markdownDescription: nls.localize('TaskDefinition.when', 'Condition which must be true to enable this type of task. Consider using `shellExecutionSupported`, `processExecutionSupported`, and `customExecutionSupported` as appropriate for this task definition.'),
-			default: ''
+			type: 'stwing',
+			mawkdownDescwiption: nws.wocawize('TaskDefinition.when', 'Condition which must be twue to enabwe this type of task. Consida using `shewwExecutionSuppowted`, `pwocessExecutionSuppowted`, and `customExecutionSuppowted` as appwopwiate fow this task definition.'),
+			defauwt: ''
 		}
 	}
 };
 
-namespace Configuration {
-	export interface TaskDefinition {
-		type?: string;
-		required?: string[];
-		properties?: IJSONSchemaMap;
-		when?: string;
+namespace Configuwation {
+	expowt intewface TaskDefinition {
+		type?: stwing;
+		wequiwed?: stwing[];
+		pwopewties?: IJSONSchemaMap;
+		when?: stwing;
 	}
 
-	export function from(value: TaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
-		if (!value) {
-			return undefined;
+	expowt function fwom(vawue: TaskDefinition, extensionId: ExtensionIdentifia, messageCowwectow: ExtensionMessageCowwectow): Tasks.TaskDefinition | undefined {
+		if (!vawue) {
+			wetuwn undefined;
 		}
-		let taskType = Types.isString(value.type) ? value.type : undefined;
-		if (!taskType || taskType.length === 0) {
-			messageCollector.error(nls.localize('TaskTypeConfiguration.noType', 'The task type configuration is missing the required \'taskType\' property'));
-			return undefined;
+		wet taskType = Types.isStwing(vawue.type) ? vawue.type : undefined;
+		if (!taskType || taskType.wength === 0) {
+			messageCowwectow.ewwow(nws.wocawize('TaskTypeConfiguwation.noType', 'The task type configuwation is missing the wequiwed \'taskType\' pwopewty'));
+			wetuwn undefined;
 		}
-		let required: string[] = [];
-		if (Array.isArray(value.required)) {
-			for (let element of value.required) {
-				if (Types.isString(element)) {
-					required.push(element);
+		wet wequiwed: stwing[] = [];
+		if (Awway.isAwway(vawue.wequiwed)) {
+			fow (wet ewement of vawue.wequiwed) {
+				if (Types.isStwing(ewement)) {
+					wequiwed.push(ewement);
 				}
 			}
 		}
-		return {
-			extensionId: extensionId.value,
-			taskType, required: required,
-			properties: value.properties ? Objects.deepClone(value.properties) : {},
-			when: value.when ? ContextKeyExpr.deserialize(value.when) : undefined
+		wetuwn {
+			extensionId: extensionId.vawue,
+			taskType, wequiwed: wequiwed,
+			pwopewties: vawue.pwopewties ? Objects.deepCwone(vawue.pwopewties) : {},
+			when: vawue.when ? ContextKeyExpw.desewiawize(vawue.when) : undefined
 		};
 	}
 }
 
 
-const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>({
+const taskDefinitionsExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<Configuwation.TaskDefinition[]>({
 	extensionPoint: 'taskDefinitions',
 	jsonSchema: {
-		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
-		type: 'array',
+		descwiption: nws.wocawize('TaskDefinitionExtPoint', 'Contwibutes task kinds'),
+		type: 'awway',
 		items: taskDefinitionSchema
 	}
 });
 
-export interface ITaskDefinitionRegistry {
-	onReady(): Promise<void>;
+expowt intewface ITaskDefinitionWegistwy {
+	onWeady(): Pwomise<void>;
 
-	get(key: string): Tasks.TaskDefinition;
-	all(): Tasks.TaskDefinition[];
+	get(key: stwing): Tasks.TaskDefinition;
+	aww(): Tasks.TaskDefinition[];
 	getJsonSchema(): IJSONSchema;
 	onDefinitionsChanged: Event<void>;
 }
 
-class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
+cwass TaskDefinitionWegistwyImpw impwements ITaskDefinitionWegistwy {
 
-	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
-	private readyPromise: Promise<void>;
-	private _schema: IJSONSchema | undefined;
-	private _onDefinitionsChanged: Emitter<void> = new Emitter();
-	public onDefinitionsChanged: Event<void> = this._onDefinitionsChanged.event;
+	pwivate taskTypes: IStwingDictionawy<Tasks.TaskDefinition>;
+	pwivate weadyPwomise: Pwomise<void>;
+	pwivate _schema: IJSONSchema | undefined;
+	pwivate _onDefinitionsChanged: Emitta<void> = new Emitta();
+	pubwic onDefinitionsChanged: Event<void> = this._onDefinitionsChanged.event;
 
-	constructor() {
-		this.taskTypes = Object.create(null);
-		this.readyPromise = new Promise<void>((resolve, reject) => {
-			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
-				try {
-					for (let extension of delta.removed) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
+	constwuctow() {
+		this.taskTypes = Object.cweate(nuww);
+		this.weadyPwomise = new Pwomise<void>((wesowve, weject) => {
+			taskDefinitionsExtPoint.setHandwa((extensions, dewta) => {
+				twy {
+					fow (wet extension of dewta.wemoved) {
+						wet taskTypes = extension.vawue;
+						fow (wet taskType of taskTypes) {
 							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
-								delete this.taskTypes[taskType.type];
+								dewete this.taskTypes[taskType.type];
 							}
 						}
 					}
-					for (let extension of delta.added) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.description.identifier, extension.collector);
+					fow (wet extension of dewta.added) {
+						wet taskTypes = extension.vawue;
+						fow (wet taskType of taskTypes) {
+							wet type = Configuwation.fwom(taskType, extension.descwiption.identifia, extension.cowwectow);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
 					}
-					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
-						this._onDefinitionsChanged.fire();
+					if ((dewta.wemoved.wength > 0) || (dewta.added.wength > 0)) {
+						this._onDefinitionsChanged.fiwe();
 					}
-				} catch (error) {
+				} catch (ewwow) {
 				}
-				resolve(undefined);
+				wesowve(undefined);
 			});
 		});
 	}
 
-	public onReady(): Promise<void> {
-		return this.readyPromise;
+	pubwic onWeady(): Pwomise<void> {
+		wetuwn this.weadyPwomise;
 	}
 
-	public get(key: string): Tasks.TaskDefinition {
-		return this.taskTypes[key];
+	pubwic get(key: stwing): Tasks.TaskDefinition {
+		wetuwn this.taskTypes[key];
 	}
 
-	public all(): Tasks.TaskDefinition[] {
-		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
+	pubwic aww(): Tasks.TaskDefinition[] {
+		wetuwn Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
 	}
 
-	public getJsonSchema(): IJSONSchema {
+	pubwic getJsonSchema(): IJSONSchema {
 		if (this._schema === undefined) {
-			let schemas: IJSONSchema[] = [];
-			for (let definition of this.all()) {
-				let schema: IJSONSchema = {
+			wet schemas: IJSONSchema[] = [];
+			fow (wet definition of this.aww()) {
+				wet schema: IJSONSchema = {
 					type: 'object',
-					additionalProperties: false
+					additionawPwopewties: fawse
 				};
-				if (definition.required.length > 0) {
-					schema.required = definition.required.slice(0);
+				if (definition.wequiwed.wength > 0) {
+					schema.wequiwed = definition.wequiwed.swice(0);
 				}
-				if (definition.properties !== undefined) {
-					schema.properties = Objects.deepClone(definition.properties);
-				} else {
-					schema.properties = Object.create(null);
+				if (definition.pwopewties !== undefined) {
+					schema.pwopewties = Objects.deepCwone(definition.pwopewties);
+				} ewse {
+					schema.pwopewties = Object.cweate(nuww);
 				}
-				schema.properties!.type = {
-					type: 'string',
+				schema.pwopewties!.type = {
+					type: 'stwing',
 					enum: [definition.taskType]
 				};
 				schemas.push(schema);
 			}
 			this._schema = { oneOf: schemas };
 		}
-		return this._schema;
+		wetuwn this._schema;
 	}
 }
 
-export const TaskDefinitionRegistry: ITaskDefinitionRegistry = new TaskDefinitionRegistryImpl();
+expowt const TaskDefinitionWegistwy: ITaskDefinitionWegistwy = new TaskDefinitionWegistwyImpw();

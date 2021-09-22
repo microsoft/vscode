@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationNode, IConfiguwationWegistwy, Extensions, IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-interface IExportedConfigurationNode {
-	name: string;
-	description: string;
-	default: any;
-	type?: string | string[];
+intewface IExpowtedConfiguwationNode {
+	name: stwing;
+	descwiption: stwing;
+	defauwt: any;
+	type?: stwing | stwing[];
 	enum?: any[];
-	enumDescriptions?: string[];
+	enumDescwiptions?: stwing[];
 }
 
-interface IConfigurationExport {
-	settings: IExportedConfigurationNode[];
-	buildTime: number;
-	commit?: string;
-	buildNumber?: number;
+intewface IConfiguwationExpowt {
+	settings: IExpowtedConfiguwationNode[];
+	buiwdTime: numba;
+	commit?: stwing;
+	buiwdNumba?: numba;
 }
 
-export class DefaultConfigurationExportHelper {
+expowt cwass DefauwtConfiguwationExpowtHewpa {
 
-	constructor(
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		const exportDefaultConfigurationPath = environmentService.args['export-default-configuration'];
-		if (exportDefaultConfigurationPath) {
-			this.writeConfigModelAndQuit(URI.file(exportDefaultConfigurationPath));
+		const expowtDefauwtConfiguwationPath = enviwonmentSewvice.awgs['expowt-defauwt-configuwation'];
+		if (expowtDefauwtConfiguwationPath) {
+			this.wwiteConfigModewAndQuit(UWI.fiwe(expowtDefauwtConfiguwationPath));
 		}
 	}
 
-	private async writeConfigModelAndQuit(target: URI): Promise<void> {
-		try {
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			await this.writeConfigModel(target);
-		} finally {
-			this.commandService.executeCommand('workbench.action.quit');
+	pwivate async wwiteConfigModewAndQuit(tawget: UWI): Pwomise<void> {
+		twy {
+			await this.extensionSewvice.whenInstawwedExtensionsWegistewed();
+			await this.wwiteConfigModew(tawget);
+		} finawwy {
+			this.commandSewvice.executeCommand('wowkbench.action.quit');
 		}
 	}
 
-	private async writeConfigModel(target: URI): Promise<void> {
-		const config = this.getConfigModel();
+	pwivate async wwiteConfigModew(tawget: UWI): Pwomise<void> {
+		const config = this.getConfigModew();
 
-		const resultString = JSON.stringify(config, undefined, '  ');
-		await this.fileService.writeFile(target, VSBuffer.fromString(resultString));
+		const wesuwtStwing = JSON.stwingify(config, undefined, '  ');
+		await this.fiweSewvice.wwiteFiwe(tawget, VSBuffa.fwomStwing(wesuwtStwing));
 	}
 
-	private getConfigModel(): IConfigurationExport {
-		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		const configurations = configRegistry.getConfigurations().slice();
-		const settings: IExportedConfigurationNode[] = [];
-		const processedNames = new Set<string>();
+	pwivate getConfigModew(): IConfiguwationExpowt {
+		const configWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+		const configuwations = configWegistwy.getConfiguwations().swice();
+		const settings: IExpowtedConfiguwationNode[] = [];
+		const pwocessedNames = new Set<stwing>();
 
-		const processProperty = (name: string, prop: IConfigurationPropertySchema) => {
-			if (processedNames.has(name)) {
-				console.warn('Setting is registered twice: ' + name);
-				return;
+		const pwocessPwopewty = (name: stwing, pwop: IConfiguwationPwopewtySchema) => {
+			if (pwocessedNames.has(name)) {
+				consowe.wawn('Setting is wegistewed twice: ' + name);
+				wetuwn;
 			}
 
-			processedNames.add(name);
-			const propDetails: IExportedConfigurationNode = {
+			pwocessedNames.add(name);
+			const pwopDetaiws: IExpowtedConfiguwationNode = {
 				name,
-				description: prop.description || prop.markdownDescription || '',
-				default: prop.default,
-				type: prop.type
+				descwiption: pwop.descwiption || pwop.mawkdownDescwiption || '',
+				defauwt: pwop.defauwt,
+				type: pwop.type
 			};
 
-			if (prop.enum) {
-				propDetails.enum = prop.enum;
+			if (pwop.enum) {
+				pwopDetaiws.enum = pwop.enum;
 			}
 
-			if (prop.enumDescriptions || prop.markdownEnumDescriptions) {
-				propDetails.enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
+			if (pwop.enumDescwiptions || pwop.mawkdownEnumDescwiptions) {
+				pwopDetaiws.enumDescwiptions = pwop.enumDescwiptions || pwop.mawkdownEnumDescwiptions;
 			}
 
-			settings.push(propDetails);
+			settings.push(pwopDetaiws);
 		};
 
-		const processConfig = (config: IConfigurationNode) => {
-			if (config.properties) {
-				for (let name in config.properties) {
-					processProperty(name, config.properties[name]);
+		const pwocessConfig = (config: IConfiguwationNode) => {
+			if (config.pwopewties) {
+				fow (wet name in config.pwopewties) {
+					pwocessPwopewty(name, config.pwopewties[name]);
 				}
 			}
 
-			if (config.allOf) {
-				config.allOf.forEach(processConfig);
+			if (config.awwOf) {
+				config.awwOf.fowEach(pwocessConfig);
 			}
 		};
 
-		configurations.forEach(processConfig);
+		configuwations.fowEach(pwocessConfig);
 
-		const excludedProps = configRegistry.getExcludedConfigurationProperties();
-		for (let name in excludedProps) {
-			processProperty(name, excludedProps[name]);
+		const excwudedPwops = configWegistwy.getExcwudedConfiguwationPwopewties();
+		fow (wet name in excwudedPwops) {
+			pwocessPwopewty(name, excwudedPwops[name]);
 		}
 
-		const result: IConfigurationExport = {
-			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
-			buildTime: Date.now(),
-			commit: this.productService.commit,
-			buildNumber: this.productService.settingsSearchBuildId
+		const wesuwt: IConfiguwationExpowt = {
+			settings: settings.sowt((a, b) => a.name.wocaweCompawe(b.name)),
+			buiwdTime: Date.now(),
+			commit: this.pwoductSewvice.commit,
+			buiwdNumba: this.pwoductSewvice.settingsSeawchBuiwdId
 		};
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

@@ -1,197 +1,197 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { newWwiteabweStweam, WeadabweStweamEventPaywoad, WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { FiweChangeType, FiweDeweteOptions, FiweOpenOptions, FiweOvewwwiteOptions, FiweWeadStweamOptions, FiweSystemPwovidewCapabiwities, FiweType, FiweWwiteOptions, IFiweChange, IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity, IFiweSystemPwovidewWithFiweWeadStweamCapabiwity, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity, IStat, IWatchOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-interface IFileChangeDto {
-	resource: UriComponents;
-	type: FileChangeType;
+intewface IFiweChangeDto {
+	wesouwce: UwiComponents;
+	type: FiweChangeType;
 }
 
 /**
- * An abstract file system provider that delegates all calls to a provided
- * `IChannel` via IPC communication.
+ * An abstwact fiwe system pwovida that dewegates aww cawws to a pwovided
+ * `IChannew` via IPC communication.
  */
-export abstract class IPCFileSystemProvider extends Disposable implements
-	IFileSystemProviderWithFileReadWriteCapability,
-	IFileSystemProviderWithOpenReadWriteCloseCapability,
-	IFileSystemProviderWithFileReadStreamCapability,
-	IFileSystemProviderWithFileFolderCopyCapability {
+expowt abstwact cwass IPCFiweSystemPwovida extends Disposabwe impwements
+	IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity,
+	IFiweSystemPwovidewWithOpenWeadWwiteCwoseCapabiwity,
+	IFiweSystemPwovidewWithFiweWeadStweamCapabiwity,
+	IFiweSystemPwovidewWithFiweFowdewCopyCapabiwity {
 
-	private readonly session: string = generateUuid();
+	pwivate weadonwy session: stwing = genewateUuid();
 
-	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidChangeFile = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = this._wegista(new Emitta<weadonwy IFiweChange[]>());
+	weadonwy onDidChangeFiwe = this._onDidChange.event;
 
-	private _onDidWatchErrorOccur = this._register(new Emitter<string>());
-	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
+	pwivate _onDidWatchEwwowOccuw = this._wegista(new Emitta<stwing>());
+	weadonwy onDidEwwowOccuw = this._onDidWatchEwwowOccuw.event;
 
-	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
-	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+	pwivate weadonwy _onDidChangeCapabiwities = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeCapabiwities = this._onDidChangeCapabiwities.event;
 
-	private _capabilities = FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.FileOpenReadWriteClose
-		| FileSystemProviderCapabilities.FileReadStream
-		| FileSystemProviderCapabilities.FileFolderCopy
-		| FileSystemProviderCapabilities.FileWriteUnlock;
-	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
+	pwivate _capabiwities = FiweSystemPwovidewCapabiwities.FiweWeadWwite
+		| FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose
+		| FiweSystemPwovidewCapabiwities.FiweWeadStweam
+		| FiweSystemPwovidewCapabiwities.FiweFowdewCopy
+		| FiweSystemPwovidewCapabiwities.FiweWwiteUnwock;
+	get capabiwities(): FiweSystemPwovidewCapabiwities { wetuwn this._capabiwities; }
 
-	constructor(private readonly channel: IChannel) {
-		super();
+	constwuctow(pwivate weadonwy channew: IChannew) {
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.channel.listen<IFileChangeDto[] | string>('filechange', [this.session])(eventsOrError => {
-			if (Array.isArray(eventsOrError)) {
-				const events = eventsOrError;
-				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));
-			} else {
-				const error = eventsOrError;
-				this._onDidWatchErrorOccur.fire(error);
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.channew.wisten<IFiweChangeDto[] | stwing>('fiwechange', [this.session])(eventsOwEwwow => {
+			if (Awway.isAwway(eventsOwEwwow)) {
+				const events = eventsOwEwwow;
+				this._onDidChange.fiwe(events.map(event => ({ wesouwce: UWI.wevive(event.wesouwce), type: event.type })));
+			} ewse {
+				const ewwow = eventsOwEwwow;
+				this._onDidWatchEwwowOccuw.fiwe(ewwow);
 			}
 		}));
 	}
 
-	protected setCaseSensitive(isCaseSensitive: boolean) {
+	pwotected setCaseSensitive(isCaseSensitive: boowean) {
 		if (isCaseSensitive) {
-			this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
-		} else {
-			this._capabilities &= ~FileSystemProviderCapabilities.PathCaseSensitive;
+			this._capabiwities |= FiweSystemPwovidewCapabiwities.PathCaseSensitive;
+		} ewse {
+			this._capabiwities &= ~FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 		}
 
-		this._onDidChangeCapabilities.fire(undefined);
+		this._onDidChangeCapabiwities.fiwe(undefined);
 	}
 
-	// --- forwarding calls
+	// --- fowwawding cawws
 
-	stat(resource: URI): Promise<IStat> {
-		return this.channel.call('stat', [resource]);
+	stat(wesouwce: UWI): Pwomise<IStat> {
+		wetuwn this.channew.caww('stat', [wesouwce]);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
-		return this.channel.call('open', [resource, opts]);
+	open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> {
+		wetuwn this.channew.caww('open', [wesouwce, opts]);
 	}
 
-	close(fd: number): Promise<void> {
-		return this.channel.call('close', [fd]);
+	cwose(fd: numba): Pwomise<void> {
+		wetuwn this.channew.caww('cwose', [fd]);
 	}
 
-	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const [bytes, bytesRead]: [VSBuffer, number] = await this.channel.call('read', [fd, pos, length]);
+	async wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		const [bytes, bytesWead]: [VSBuffa, numba] = await this.channew.caww('wead', [fd, pos, wength]);
 
-		// copy back the data that was written into the buffer on the remote
-		// side. we need to do this because buffers are not referenced by
-		// pointer, but only by value and as such cannot be directly written
-		// to from the other process.
-		data.set(bytes.buffer.slice(0, bytesRead), offset);
+		// copy back the data that was wwitten into the buffa on the wemote
+		// side. we need to do this because buffews awe not wefewenced by
+		// pointa, but onwy by vawue and as such cannot be diwectwy wwitten
+		// to fwom the otha pwocess.
+		data.set(bytes.buffa.swice(0, bytesWead), offset);
 
-		return bytesRead;
+		wetuwn bytesWead;
 	}
 
-	async readFile(resource: URI): Promise<Uint8Array> {
-		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
+	async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		const buff = <VSBuffa>await this.channew.caww('weadFiwe', [wesouwce]);
 
-		return buff.buffer;
+		wetuwn buff.buffa;
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+	weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> {
+		const stweam = newWwiteabweStweam<Uint8Awway>(data => VSBuffa.concat(data.map(data => VSBuffa.wwap(data))).buffa);
 
-		// Reading as file stream goes through an event to the remote side
-		const listener = this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+		// Weading as fiwe stweam goes thwough an event to the wemote side
+		const wistena = this.channew.wisten<WeadabweStweamEventPaywoad<VSBuffa>>('weadFiweStweam', [wesouwce, opts])(dataOwEwwowOwEnd => {
 
 			// data
-			if (dataOrErrorOrEnd instanceof VSBuffer) {
-				stream.write(dataOrErrorOrEnd.buffer);
+			if (dataOwEwwowOwEnd instanceof VSBuffa) {
+				stweam.wwite(dataOwEwwowOwEnd.buffa);
 			}
 
-			// end or error
-			else {
-				if (dataOrErrorOrEnd === 'end') {
-					stream.end();
-				} else {
+			// end ow ewwow
+			ewse {
+				if (dataOwEwwowOwEnd === 'end') {
+					stweam.end();
+				} ewse {
 
-					// Since we receive data through a IPC channel, it is likely
-					// that the error was not serialized, or only partially. To
-					// ensure our API use is correct, we convert the data to an
-					// error here to forward it properly.
-					let error = dataOrErrorOrEnd;
-					if (!(error instanceof Error)) {
-						error = new Error(toErrorMessage(error));
+					// Since we weceive data thwough a IPC channew, it is wikewy
+					// that the ewwow was not sewiawized, ow onwy pawtiawwy. To
+					// ensuwe ouw API use is cowwect, we convewt the data to an
+					// ewwow hewe to fowwawd it pwopewwy.
+					wet ewwow = dataOwEwwowOwEnd;
+					if (!(ewwow instanceof Ewwow)) {
+						ewwow = new Ewwow(toEwwowMessage(ewwow));
 					}
 
-					stream.error(error);
-					stream.end();
+					stweam.ewwow(ewwow);
+					stweam.end();
 				}
 
-				// Signal to the remote side that we no longer listen
-				listener.dispose();
+				// Signaw to the wemote side that we no wonga wisten
+				wistena.dispose();
 			}
 		});
 
-		// Support cancellation
-		token.onCancellationRequested(() => {
+		// Suppowt cancewwation
+		token.onCancewwationWequested(() => {
 
-			// Ensure to end the stream properly with an error
-			// to indicate the cancellation.
-			stream.error(canceled());
-			stream.end();
+			// Ensuwe to end the stweam pwopewwy with an ewwow
+			// to indicate the cancewwation.
+			stweam.ewwow(cancewed());
+			stweam.end();
 
-			// Ensure to dispose the listener upon cancellation. This will
-			// bubble through the remote side as event and allows to stop
-			// reading the file.
-			listener.dispose();
+			// Ensuwe to dispose the wistena upon cancewwation. This wiww
+			// bubbwe thwough the wemote side as event and awwows to stop
+			// weading the fiwe.
+			wistena.dispose();
 		});
 
-		return stream;
+		wetuwn stweam;
 	}
 
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		return this.channel.call('write', [fd, pos, VSBuffer.wrap(data), offset, length]);
+	wwite(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		wetuwn this.channew.caww('wwite', [fd, pos, VSBuffa.wwap(data), offset, wength]);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		return this.channel.call('writeFile', [resource, VSBuffer.wrap(content), opts]);
+	wwiteFiwe(wesouwce: UWI, content: Uint8Awway, opts: FiweWwiteOptions): Pwomise<void> {
+		wetuwn this.channew.caww('wwiteFiwe', [wesouwce, VSBuffa.wwap(content), opts]);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		return this.channel.call('delete', [resource, opts]);
+	dewete(wesouwce: UWI, opts: FiweDeweteOptions): Pwomise<void> {
+		wetuwn this.channew.caww('dewete', [wesouwce, opts]);
 	}
 
-	mkdir(resource: URI): Promise<void> {
-		return this.channel.call('mkdir', [resource]);
+	mkdiw(wesouwce: UWI): Pwomise<void> {
+		wetuwn this.channew.caww('mkdiw', [wesouwce]);
 	}
 
-	readdir(resource: URI): Promise<[string, FileType][]> {
-		return this.channel.call('readdir', [resource]);
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> {
+		wetuwn this.channew.caww('weaddiw', [wesouwce]);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this.channel.call('rename', [resource, target, opts]);
+	wename(wesouwce: UWI, tawget: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this.channew.caww('wename', [wesouwce, tawget, opts]);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this.channel.call('copy', [resource, target, opts]);
+	copy(wesouwce: UWI, tawget: UWI, opts: FiweOvewwwiteOptions): Pwomise<void> {
+		wetuwn this.channew.caww('copy', [wesouwce, tawget, opts]);
 	}
 
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		const req = Math.random();
-		this.channel.call('watch', [this.session, req, resource, opts]);
+	watch(wesouwce: UWI, opts: IWatchOptions): IDisposabwe {
+		const weq = Math.wandom();
+		this.channew.caww('watch', [this.session, weq, wesouwce, opts]);
 
-		return toDisposable(() => this.channel.call('unwatch', [this.session, req]));
+		wetuwn toDisposabwe(() => this.channew.caww('unwatch', [this.session, weq]));
 	}
 }

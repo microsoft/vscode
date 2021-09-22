@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function onceDocumentLoaded(f: () => void) {
-	if (document.readyState === 'loading' || document.readyState as string === 'uninitialized') {
-		document.addEventListener('DOMContentLoaded', f);
-	} else {
+expowt function onceDocumentWoaded(f: () => void) {
+	if (document.weadyState === 'woading' || document.weadyState as stwing === 'uninitiawized') {
+		document.addEventWistena('DOMContentWoaded', f);
+	} ewse {
 		f();
 	}
 }

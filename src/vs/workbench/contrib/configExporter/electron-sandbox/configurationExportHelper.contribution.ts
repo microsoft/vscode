@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { DefaultConfigurationExportHelper } from 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { DefauwtConfiguwationExpowtHewpa } fwom 'vs/wowkbench/contwib/configExpowta/ewectwon-sandbox/configuwationExpowtHewpa';
 
-export class ExtensionPoints implements IWorkbenchContribution {
+expowt cwass ExtensionPoints impwements IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INativeWowkbenchEnviwonmentSewvice enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice
 	) {
-		// Config Exporter
-		if (environmentService.args['export-default-configuration']) {
-			instantiationService.createInstance(DefaultConfigurationExportHelper);
+		// Config Expowta
+		if (enviwonmentSewvice.awgs['expowt-defauwt-configuwation']) {
+			instantiationSewvice.cweateInstance(DefauwtConfiguwationExpowtHewpa);
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(ExtensionPoints, WifecycwePhase.Westowed);

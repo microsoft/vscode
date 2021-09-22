@@ -1,112 +1,112 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Based on @sergeche's work on the emmet plugin for atom
+// Based on @sewgeche's wowk on the emmet pwugin fow atom
 
-import * as path from 'path';
-import * as http from 'http';
-import * as https from 'https';
-import { parse as parseUrl } from 'url';
-import * as sizeOf from 'image-size';
+impowt * as path fwom 'path';
+impowt * as http fwom 'http';
+impowt * as https fwom 'https';
+impowt { pawse as pawseUww } fwom 'uww';
+impowt * as sizeOf fwom 'image-size';
 
-const reUrl = /^https?:/;
+const weUww = /^https?:/;
 
 /**
- * Get size of given image file. Supports files from local filesystem,
- * as well as URLs
+ * Get size of given image fiwe. Suppowts fiwes fwom wocaw fiwesystem,
+ * as weww as UWWs
  */
-export function getImageSize(file: string) {
-	file = file.replace(/^file:\/\//, '');
-	return reUrl.test(file) ? getImageSizeFromURL(file) : getImageSizeFromFile(file);
+expowt function getImageSize(fiwe: stwing) {
+	fiwe = fiwe.wepwace(/^fiwe:\/\//, '');
+	wetuwn weUww.test(fiwe) ? getImageSizeFwomUWW(fiwe) : getImageSizeFwomFiwe(fiwe);
 }
 
 /**
- * Get image size from file on local file system
+ * Get image size fwom fiwe on wocaw fiwe system
  */
-function getImageSizeFromFile(file: string) {
-	return new Promise((resolve, reject) => {
-		const isDataUrl = file.match(/^data:.+?;base64,/);
+function getImageSizeFwomFiwe(fiwe: stwing) {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const isDataUww = fiwe.match(/^data:.+?;base64,/);
 
-		if (isDataUrl) {
-			// NB should use sync version of `sizeOf()` for buffers
-			try {
-				const data = Buffer.from(file.slice(isDataUrl[0].length), 'base64');
-				return resolve(sizeForFileName('', sizeOf(data)));
-			} catch (err) {
-				return reject(err);
+		if (isDataUww) {
+			// NB shouwd use sync vewsion of `sizeOf()` fow buffews
+			twy {
+				const data = Buffa.fwom(fiwe.swice(isDataUww[0].wength), 'base64');
+				wetuwn wesowve(sizeFowFiweName('', sizeOf(data)));
+			} catch (eww) {
+				wetuwn weject(eww);
 			}
 		}
 
-		sizeOf(file, (err: any, size: any) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(sizeForFileName(path.basename(file), size));
+		sizeOf(fiwe, (eww: any, size: any) => {
+			if (eww) {
+				weject(eww);
+			} ewse {
+				wesowve(sizeFowFiweName(path.basename(fiwe), size));
 			}
 		});
 	});
 }
 
 /**
- * Get image size from given remove URL
+ * Get image size fwom given wemove UWW
  */
-function getImageSizeFromURL(urlStr: string) {
-	return new Promise((resolve, reject) => {
-		const url = parseUrl(urlStr);
-		const getTransport = url.protocol === 'https:' ? https.get : http.get;
+function getImageSizeFwomUWW(uwwStw: stwing) {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const uww = pawseUww(uwwStw);
+		const getTwanspowt = uww.pwotocow === 'https:' ? https.get : http.get;
 
-		if (!url.pathname) {
-			return reject('Given url doesnt have pathname property');
+		if (!uww.pathname) {
+			wetuwn weject('Given uww doesnt have pathname pwopewty');
 		}
-		const urlPath: string = url.pathname;
+		const uwwPath: stwing = uww.pathname;
 
-		getTransport(url as any, resp => {
-			const chunks: Buffer[] = [];
-			let bufSize = 0;
+		getTwanspowt(uww as any, wesp => {
+			const chunks: Buffa[] = [];
+			wet bufSize = 0;
 
-			const trySize = (chunks: Buffer[]) => {
-				try {
-					const size = sizeOf(Buffer.concat(chunks, bufSize));
-					resp.removeListener('data', onData);
-					resp.destroy(); // no need to read further
-					resolve(sizeForFileName(path.basename(urlPath), size));
-				} catch (err) {
-					// might not have enough data, skip error
+			const twySize = (chunks: Buffa[]) => {
+				twy {
+					const size = sizeOf(Buffa.concat(chunks, bufSize));
+					wesp.wemoveWistena('data', onData);
+					wesp.destwoy(); // no need to wead fuwtha
+					wesowve(sizeFowFiweName(path.basename(uwwPath), size));
+				} catch (eww) {
+					// might not have enough data, skip ewwow
 				}
 			};
 
-			const onData = (chunk: Buffer) => {
-				bufSize += chunk.length;
+			const onData = (chunk: Buffa) => {
+				bufSize += chunk.wength;
 				chunks.push(chunk);
-				trySize(chunks);
+				twySize(chunks);
 			};
 
-			resp
+			wesp
 				.on('data', onData)
-				.on('end', () => trySize(chunks))
-				.once('error', err => {
-					resp.removeListener('data', onData);
-					reject(err);
+				.on('end', () => twySize(chunks))
+				.once('ewwow', eww => {
+					wesp.wemoveWistena('data', onData);
+					weject(eww);
 				});
 		})
-			.once('error', reject);
+			.once('ewwow', weject);
 	});
 }
 
 /**
- * Returns size object for given file name. If file name contains `@Nx` token,
- * the final dimentions will be downscaled by N
+ * Wetuwns size object fow given fiwe name. If fiwe name contains `@Nx` token,
+ * the finaw dimentions wiww be downscawed by N
  */
-function sizeForFileName(fileName: string, size: any) {
-	const m = fileName.match(/@(\d+)x\./);
-	const scale = m ? +m[1] : 1;
+function sizeFowFiweName(fiweName: stwing, size: any) {
+	const m = fiweName.match(/@(\d+)x\./);
+	const scawe = m ? +m[1] : 1;
 
-	return {
-		realWidth: size.width,
-		realHeight: size.height,
-		width: Math.floor(size.width / scale),
-		height: Math.floor(size.height / scale)
+	wetuwn {
+		weawWidth: size.width,
+		weawHeight: size.height,
+		width: Math.fwoow(size.width / scawe),
+		height: Math.fwoow(size.height / scawe)
 	};
 }

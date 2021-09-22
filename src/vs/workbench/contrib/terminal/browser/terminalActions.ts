@@ -1,1459 +1,1459 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, ICommandActionTitle, ILocalizedString, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalLocation, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelper, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CONTEXT_ACCESSIBIWITY_MODE_ENABWED } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { Action2, ICommandActionTitwe, IWocawizedStwing, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPickOptions, IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ITewminawPwofiwe, TewminawWocation, TewminawSettingId, TitweEventSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { PICK_WOWKSPACE_FOWDEW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceCommands';
+impowt { CWOSE_EDITOW_COMMAND_ID } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { FindInFiwesCommand, IFindInFiwesAwgs } fwom 'vs/wowkbench/contwib/seawch/bwowsa/seawchActions';
+impowt { Diwection, ICweateTewminawOptions, IWemoteTewminawSewvice, ITewminawGwoupSewvice, ITewminawInstance, ITewminawInstanceSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawQuickAccessPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawQuickAccess';
+impowt { IWocawTewminawSewvice, IWemoteTewminawAttachTawget, ITewminawConfigHewpa, TewminawCommandId, TEWMINAW_ACTION_CATEGOWY } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { cweatePwofiweSchemaEnums } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwofiwes';
+impowt { tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export const switchTerminalActionViewItemSeparator = '─────────';
-export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
+expowt const switchTewminawActionViewItemSepawatow = '─────────';
+expowt const switchTewminawShowTabsTitwe = wocawize('showTewminawTabs', "Show Tabs");
 
-async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
-	switch (configHelper.config.splitCwd) {
-		case 'workspaceRoot':
-			if (folders !== undefined && commandService !== undefined) {
-				if (folders.length === 1) {
-					return folders[0].uri;
-				} else if (folders.length > 1) {
-					// Only choose a path when there's more than 1 folder
+async function getCwdFowSpwit(configHewpa: ITewminawConfigHewpa, instance: ITewminawInstance, fowdews?: IWowkspaceFowda[], commandSewvice?: ICommandSewvice): Pwomise<stwing | UWI | undefined> {
+	switch (configHewpa.config.spwitCwd) {
+		case 'wowkspaceWoot':
+			if (fowdews !== undefined && commandSewvice !== undefined) {
+				if (fowdews.wength === 1) {
+					wetuwn fowdews[0].uwi;
+				} ewse if (fowdews.wength > 1) {
+					// Onwy choose a path when thewe's mowe than 1 fowda
 					const options: IPickOptions<IQuickPickItem> = {
-						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+						pwaceHowda: wocawize('wowkbench.action.tewminaw.newWowkspacePwacehowda', "Sewect cuwwent wowking diwectowy fow new tewminaw")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-					if (!workspace) {
-						// Don't split the instance if the workspace picker was canceled
-						return undefined;
+					const wowkspace = await commandSewvice.executeCommand(PICK_WOWKSPACE_FOWDEW_COMMAND_ID, [options]);
+					if (!wowkspace) {
+						// Don't spwit the instance if the wowkspace picka was cancewed
+						wetuwn undefined;
 					}
-					return Promise.resolve(workspace.uri);
+					wetuwn Pwomise.wesowve(wowkspace.uwi);
 				}
 			}
-			return '';
-		case 'initial':
-			return instance.getInitialCwd();
-		case 'inherited':
-			return instance.getCwd();
+			wetuwn '';
+		case 'initiaw':
+			wetuwn instance.getInitiawCwd();
+		case 'inhewited':
+			wetuwn instance.getCwd();
 	}
 }
 
-export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
-	accessor.get(ITerminalService).doWithActiveInstance(async t => {
-		if (!args?.text) {
-			return;
+expowt const tewminawSendSequenceCommand = (accessow: SewvicesAccessow, awgs: { text?: stwing } | undefined) => {
+	accessow.get(ITewminawSewvice).doWithActiveInstance(async t => {
+		if (!awgs?.text) {
+			wetuwn;
 		}
-		const configurationResolverService = accessor.get(IConfigurationResolverService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
-		t.sendText(resolvedText, false);
+		const configuwationWesowvewSewvice = accessow.get(IConfiguwationWesowvewSewvice);
+		const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const histowySewvice = accessow.get(IHistowySewvice);
+		const activeWowkspaceWootUwi = histowySewvice.getWastActiveWowkspaceWoot(t.isWemote ? Schemas.vscodeWemote : Schemas.fiwe);
+		const wastActiveWowkspaceWoot = activeWowkspaceWootUwi ? withNuwwAsUndefined(wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi)) : undefined;
+		const wesowvedText = await configuwationWesowvewSewvice.wesowveAsync(wastActiveWowkspaceWoot, awgs.text);
+		t.sendText(wesowvedText, fawse);
 	});
 };
 
-const terminalIndexRe = /^([0-9]+): /;
+const tewminawIndexWe = /^([0-9]+): /;
 
-export class TerminalLaunchHelpAction extends Action {
+expowt cwass TewminawWaunchHewpAction extends Action {
 
-	constructor(
-		@IOpenerService private readonly _openerService: IOpenerService
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice
 	) {
-		super('workbench.action.terminal.launchHelp', localize('terminalLaunchHelp', "Open Help"));
+		supa('wowkbench.action.tewminaw.waunchHewp', wocawize('tewminawWaunchHewp', "Open Hewp"));
 	}
 
-	override async run(): Promise<void> {
-		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
+	ovewwide async wun(): Pwomise<void> {
+		this._openewSewvice.open('https://aka.ms/vscode-twoubweshoot-tewminaw-waunch');
 	}
 }
 
-export function registerTerminalActions() {
-	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
+expowt function wegistewTewminawActions() {
+	const categowy: IWocawizedStwing = { vawue: TEWMINAW_ACTION_CATEGOWY, owiginaw: 'Tewminaw' };
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NewInActiveWorkspace,
-				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Terminal (In Active Workspace)"), original: 'Create New Terminal (In Active Workspace)' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.NewInActiveWowkspace,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.newInActiveWowkspace', "Cweate New Tewminaw (In Active Wowkspace)"), owiginaw: 'Cweate New Tewminaw (In Active Wowkspace)' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal({ location: terminalService.defaultLocation });
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			if (tewminawSewvice.isPwocessSuppowtWegistewed) {
+				const instance = await tewminawSewvice.cweateTewminaw({ wocation: tewminawSewvice.defauwtWocation });
 				if (!instance) {
-					return;
+					wetuwn;
 				}
-				terminalService.setActiveInstance(instance);
+				tewminawSewvice.setActiveInstance(instance);
 			}
-			await terminalGroupService.showPanel(true);
+			await tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
 
-	// Register new with profile command
-	refreshTerminalActions([]);
+	// Wegista new with pwofiwe command
+	wefweshTewminawActions([]);
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.CreateTerminalEditor,
-				title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.CweateTewminawEditow,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.cweateTewminawEditow', "Cweate New Tewminaw in Editow Awea"), owiginaw: 'Cweate New Tewminaw in Editow Awea' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, args?: unknown) {
-			const terminalService = accessor.get(ITerminalService);
-			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
-			const instance = await terminalService.createTerminal(options);
-			instance.focusWhenReady();
+		async wun(accessow: SewvicesAccessow, awgs?: unknown) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const options = (typeof awgs === 'object' && awgs && 'wocation' in awgs) ? awgs as ICweateTewminawOptions : { wocation: TewminawWocation.Editow };
+			const instance = await tewminawSewvice.cweateTewminaw(options);
+			instance.focusWhenWeady();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.CreateTerminalEditorSide,
-				title: { value: localize('workbench.action.terminal.createTerminalEditorSide', "Create New Terminal in Editor Area to the Side"), original: 'Create New Terminal in Editor Area to the Side' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.CweateTewminawEditowSide,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.cweateTewminawEditowSide', "Cweate New Tewminaw in Editow Awea to the Side"), owiginaw: 'Cweate New Tewminaw in Editow Awea to the Side' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const instance = await terminalService.createTerminal({
-				location: { viewColumn: SIDE_GROUP }
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const instance = await tewminawSewvice.cweateTewminaw({
+				wocation: { viewCowumn: SIDE_GWOUP }
 			});
-			instance.focusWhenReady();
+			instance.focusWhenWeady();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.MoveToEditor,
-				title: terminalStrings.moveToEditor,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.MoveToEditow,
+				titwe: tewminawStwings.moveToEditow,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.doWithActiveInstance(instance => terminalService.moveToEditor(instance));
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			tewminawSewvice.doWithActiveInstance(instance => tewminawSewvice.moveToEditow(instance));
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.MoveToEditorInstance,
-				title: terminalStrings.moveToEditor,
-				f1: false,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen)
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.MoveToEditowInstance,
+				titwe: tewminawStwings.moveToEditow,
+				f1: fawse,
+				categowy,
+				pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.isOpen)
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const selectedInstances = getSelectedInstances(accessor);
-			if (!selectedInstances || selectedInstances.length === 0) {
-				return;
+		async wun(accessow: SewvicesAccessow) {
+			const sewectedInstances = getSewectedInstances(accessow);
+			if (!sewectedInstances || sewectedInstances.wength === 0) {
+				wetuwn;
 			}
-			const terminalService = accessor.get(ITerminalService);
-			for (const instance of selectedInstances) {
-				terminalService.moveToEditor(instance);
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			fow (const instance of sewectedInstances) {
+				tewminawSewvice.moveToEditow(instance);
 			}
-			selectedInstances[selectedInstances.length - 1].focus();
+			sewectedInstances[sewectedInstances.wength - 1].focus();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.MoveToTerminalPanel,
-				title: terminalStrings.moveToTerminalPanel,
-				f1: true,
-				category
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.MoveToTewminawPanew,
+				titwe: tewminawStwings.moveToTewminawPanew,
+				f1: twue,
+				categowy
 			});
 		}
-		async run(accessor: ServicesAccessor, resource: unknown) {
-			const castedResource = URI.isUri(resource) ? resource : undefined;
-			await accessor.get(ITerminalService).moveToTerminalView(castedResource);
+		async wun(accessow: SewvicesAccessow, wesouwce: unknown) {
+			const castedWesouwce = UWI.isUwi(wesouwce) ? wesouwce : undefined;
+			await accessow.get(ITewminawSewvice).moveToTewminawView(castedWesouwce);
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowTabs,
-				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ShowTabs,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.showTabs', "Show Tabs"), owiginaw: 'Show Tabs' },
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).showTabs();
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).showTabs();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusPreviousPane,
-				title: { value: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Terminal in Terminal Group"), original: 'Focus Previous Terminal in Terminal Group' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FocusPweviousPane,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focusPweviousPane', "Focus Pwevious Tewminaw in Tewminaw Gwoup"), owiginaw: 'Focus Pwevious Tewminaw in Tewminaw Gwoup' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.LeftArrow,
-					secondary: [KeyMod.Alt | KeyCode.UpArrow],
+					pwimawy: KeyMod.Awt | KeyCode.WeftAwwow,
+					secondawy: [KeyMod.Awt | KeyCode.UpAwwow],
 					mac: {
-						primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.LeftArrow,
-						secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.UpArrow]
+						pwimawy: KeyMod.Awt | KeyMod.CtwwCmd | KeyCode.WeftAwwow,
+						secondawy: [KeyMod.Awt | KeyMod.CtwwCmd | KeyCode.UpAwwow]
 					},
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			terminalGroupService.activeGroup?.focusPreviousPane();
-			await terminalGroupService.showPanel(true);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			tewminawGwoupSewvice.activeGwoup?.focusPweviousPane();
+			await tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusNextPane,
-				title: { value: localize('workbench.action.terminal.focusNextPane', "Focus Next Terminal in Terminal Group"), original: 'Focus Next Terminal in Terminal Group' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FocusNextPane,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focusNextPane', "Focus Next Tewminaw in Tewminaw Gwoup"), owiginaw: 'Focus Next Tewminaw in Tewminaw Gwoup' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.RightArrow,
-					secondary: [KeyMod.Alt | KeyCode.DownArrow],
+					pwimawy: KeyMod.Awt | KeyCode.WightAwwow,
+					secondawy: [KeyMod.Awt | KeyCode.DownAwwow],
 					mac: {
-						primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.RightArrow,
-						secondary: [KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.DownArrow]
+						pwimawy: KeyMod.Awt | KeyMod.CtwwCmd | KeyCode.WightAwwow,
+						secondawy: [KeyMod.Awt | KeyMod.CtwwCmd | KeyCode.DownAwwow]
 					},
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			terminalGroupService.activeGroup?.focusNextPane();
-			await terminalGroupService.showPanel(true);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			tewminawGwoupSewvice.activeGwoup?.focusNextPane();
+			await tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResizePaneLeft,
-				title: { value: localize('workbench.action.terminal.resizePaneLeft', "Resize Terminal Left"), original: 'Resize Terminal Left' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WesizePaneWeft,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wesizePaneWeft', "Wesize Tewminaw Weft"), owiginaw: 'Wesize Tewminaw Weft' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow },
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WeftAwwow },
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.WeftAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Left);
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).activeGwoup?.wesizePane(Diwection.Weft);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResizePaneRight,
-				title: { value: localize('workbench.action.terminal.resizePaneRight', "Resize Terminal Right"), original: 'Resize Terminal Right' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WesizePaneWight,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wesizePaneWight', "Wesize Tewminaw Wight"), owiginaw: 'Wesize Tewminaw Wight' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow },
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.WightAwwow },
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.WightAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Right);
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).activeGwoup?.wesizePane(Diwection.Wight);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResizePaneUp,
-				title: { value: localize('workbench.action.terminal.resizePaneUp', "Resize Terminal Up"), original: 'Resize Terminal Up' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WesizePaneUp,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wesizePaneUp', "Wesize Tewminaw Up"), owiginaw: 'Wesize Tewminaw Up' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.UpArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.UpAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Up);
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).activeGwoup?.wesizePane(Diwection.Up);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ResizePaneDown,
-				title: { value: localize('workbench.action.terminal.resizePaneDown', "Resize Terminal Down"), original: 'Resize Terminal Down' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WesizePaneDown,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wesizePaneDown', "Wesize Tewminaw Down"), owiginaw: 'Wesize Tewminaw Down' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.DownArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.WinCtww | KeyCode.DownAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Down);
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).activeGwoup?.wesizePane(Diwection.Down);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Focus,
-				title: terminalStrings.focus,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Focus,
+				titwe: tewminawStwings.focus,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instance = terminalService.activeInstance || await terminalService.createTerminal({ location: TerminalLocation.Panel });
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const instance = tewminawSewvice.activeInstance || await tewminawSewvice.cweateTewminaw({ wocation: TewminawWocation.Panew });
 			if (!instance) {
-				return;
+				wetuwn;
 			}
-			terminalService.setActiveInstance(instance);
-			return terminalGroupService.showPanel(true);
+			tewminawSewvice.setActiveInstance(instance);
+			wetuwn tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusTabs,
-				title: { value: localize('workbench.action.terminal.focus.tabsView', "Focus Terminal Tabs View"), original: 'Focus Terminal Tabs View' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FocusTabs,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focus.tabsView', "Focus Tewminaw Tabs View"), owiginaw: 'Focus Tewminaw Tabs View' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus),
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_BACKSWASH,
+					weight: KeybindingWeight.WowkbenchContwib,
+					when: ContextKeyExpw.ow(TewminawContextKeys.tabsFocus, TewminawContextKeys.focus),
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).focusTabs();
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawGwoupSewvice).focusTabs();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusNext,
-				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal Group"), original: 'Focus Next Terminal Group' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FocusNext,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focusNext', "Focus Next Tewminaw Gwoup"), owiginaw: 'Focus Next Tewminaw Gwoup' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.PageDown,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+						pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_CWOSE_SQUAWE_BWACKET
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.editowFocus.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			terminalGroupService.setActiveGroupToNext();
-			await terminalGroupService.showPanel(true);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			tewminawGwoupSewvice.setActiveGwoupToNext();
+			await tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusPrevious,
-				title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal Group"), original: 'Focus Previous Terminal Group' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FocusPwevious,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focusPwevious', "Focus Pwevious Tewminaw Gwoup"), owiginaw: 'Focus Pwevious Tewminaw Gwoup' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+					pwimawy: KeyMod.CtwwCmd | KeyCode.PageUp,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+						pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUAWE_BWACKET
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.editowFocus.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			terminalGroupService.setActiveGroupToPrevious();
-			await terminalGroupService.showPanel(true);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			tewminawGwoupSewvice.setActiveGwoupToPwevious();
+			await tewminawGwoupSewvice.showPanew(twue);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.RunSelectedText,
-				title: { value: localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal"), original: 'Run Selected Text In Active Terminal' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WunSewectedText,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wunSewectedText', "Wun Sewected Text In Active Tewminaw"), owiginaw: 'Wun Sewected Text In Active Tewminaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const codeEditorService = accessor.get(ICodeEditorService);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
 
-			const instance = await terminalService.getActiveOrCreateInstance();
-			const editor = codeEditorService.getActiveCodeEditor();
-			if (!editor || !editor.hasModel()) {
-				return;
+			const instance = await tewminawSewvice.getActiveOwCweateInstance();
+			const editow = codeEditowSewvice.getActiveCodeEditow();
+			if (!editow || !editow.hasModew()) {
+				wetuwn;
 			}
-			const selection = editor.getSelection();
-			let text: string;
-			if (selection.isEmpty()) {
-				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-			} else {
-				const endOfLinePreference = isWindows ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+			const sewection = editow.getSewection();
+			wet text: stwing;
+			if (sewection.isEmpty()) {
+				text = editow.getModew().getWineContent(sewection.sewectionStawtWineNumba).twim();
+			} ewse {
+				const endOfWinePwefewence = isWindows ? EndOfWinePwefewence.WF : EndOfWinePwefewence.CWWF;
+				text = editow.getModew().getVawueInWange(sewection, endOfWinePwefewence);
 			}
-			instance.sendText(text, true);
-			return terminalGroupService.showPanel();
+			instance.sendText(text, twue);
+			wetuwn tewminawGwoupSewvice.showPanew();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.RunActiveFile,
-				title: { value: localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal"), original: 'Run Active File In Active Terminal' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WunActiveFiwe,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wunActiveFiwe', "Wun Active Fiwe In Active Tewminaw"), owiginaw: 'Wun Active Fiwe In Active Tewminaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalInstanceService = accessor.get(ITerminalInstanceService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const notificationService = accessor.get(INotificationService);
-			const workbenchEnvironmentService = accessor.get(IWorkbenchEnvironmentService);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const tewminawInstanceSewvice = accessow.get(ITewminawInstanceSewvice);
+			const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const wowkbenchEnviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
 
-			const editor = codeEditorService.getActiveCodeEditor();
-			if (!editor || !editor.hasModel()) {
-				return;
+			const editow = codeEditowSewvice.getActiveCodeEditow();
+			if (!editow || !editow.hasModew()) {
+				wetuwn;
 			}
 
-			let instance = terminalService.activeInstance;
-			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
-			const uri = editor.getModel().uri;
-			if ((!isRemote && uri.scheme !== Schemas.file) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
-				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-				return;
+			wet instance = tewminawSewvice.activeInstance;
+			const isWemote = instance ? instance.isWemote : (wowkbenchEnviwonmentSewvice.wemoteAuthowity ? twue : fawse);
+			const uwi = editow.getModew().uwi;
+			if ((!isWemote && uwi.scheme !== Schemas.fiwe) || (isWemote && uwi.scheme !== Schemas.vscodeWemote)) {
+				notificationSewvice.wawn(wocawize('wowkbench.action.tewminaw.wunActiveFiwe.noFiwe', 'Onwy fiwes on disk can be wun in the tewminaw'));
+				wetuwn;
 			}
 
 			if (!instance) {
-				instance = await terminalService.getActiveOrCreateInstance();
+				instance = await tewminawSewvice.getActiveOwCweateInstance();
 			}
 
-			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			const path = await terminalInstanceService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
-			instance.sendText(path, true);
-			return terminalGroupService.showPanel();
+			// TODO: Convewt this to ctww+c, ctww+v fow pwsh?
+			const path = await tewminawInstanceSewvice.pwepawePathFowTewminawAsync(uwi.fsPath, instance.shewwWaunchConfig.executabwe, instance.titwe, instance.shewwType, instance.isWemote);
+			instance.sendText(path, twue);
+			wetuwn tewminawGwoupSewvice.showPanew();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollDownLine,
-				title: { value: localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)"), original: 'Scroll Down (Line)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwDownWine,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwDown', "Scwoww Down (Wine)"), owiginaw: 'Scwoww Down (Wine)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
-					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.PageDown,
+					winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.DownAwwow },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollDownLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwDownWine();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollDownPage,
-				title: { value: localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)"), original: 'Scroll Down (Page)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwDownPage,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwDownPage', "Scwoww Down (Page)"), owiginaw: 'Scwoww Down (Page)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.PageDown,
-					mac: { primary: KeyCode.PageDown },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Shift | KeyCode.PageDown,
+					mac: { pwimawy: KeyCode.PageDown },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollDownPage();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwDownPage();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollToBottom,
-				title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwToBottom,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwToBottom', "Scwoww to Bottom"), owiginaw: 'Scwoww to Bottom' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.End,
-					linux: { primary: KeyMod.Shift | KeyCode.End },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyCode.End,
+					winux: { pwimawy: KeyMod.Shift | KeyCode.End },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollToBottom();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwToBottom();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollUpLine,
-				title: { value: localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)"), original: 'Scroll Up (Line)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwUpWine,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwUp', "Scwoww Up (Wine)"), owiginaw: 'Scwoww Up (Wine)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
-					linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.PageUp,
+					winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollUpLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwUpWine();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollUpPage,
-				title: { value: localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)"), original: 'Scroll Up (Page)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwUpPage,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwUpPage', "Scwoww Up (Page)"), owiginaw: 'Scwoww Up (Page)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.PageUp,
-					mac: { primary: KeyCode.PageUp },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Shift | KeyCode.PageUp,
+					mac: { pwimawy: KeyCode.PageUp },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollUpPage();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwUpPage();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollToTop,
-				title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwToTop,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwToTop', "Scwoww to Top"), owiginaw: 'Scwoww to Top' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.Home,
-					linux: { primary: KeyMod.Shift | KeyCode.Home },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyCode.Home,
+					winux: { pwimawy: KeyMod.Shift | KeyCode.Home },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.awtBuffewActive.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.scrollToTop();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.scwowwToTop();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeExit,
-				title: { value: localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode"), original: 'Exit Navigation Mode' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.NavigationModeExit,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.navigationModeExit', "Exit Navigation Mode"), owiginaw: 'Exit Navigation Mode' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyCode.Escape,
-					when: ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyCode.Escape,
+					when: ContextKeyExpw.and(TewminawContextKeys.a11yTweeFocus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.exitNavigationMode();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.navigationMode?.exitNavigationMode();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusPrevious,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"), original: 'Focus Previous Line (Navigation Mode)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.NavigationModeFocusPwevious,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.navigationModeFocusPwevious', "Focus Pwevious Wine (Navigation Mode)"), owiginaw: 'Focus Pwevious Wine (Navigation Mode)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+					pwimawy: KeyMod.CtwwCmd | KeyCode.UpAwwow,
+					when: ContextKeyExpw.ow(
+						ContextKeyExpw.and(TewminawContextKeys.a11yTweeFocus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED),
+						ContextKeyExpw.and(TewminawContextKeys.focus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED)
 					),
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.navigationMode?.focusPweviousWine();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusNext,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.NavigationModeFocusNext,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.navigationModeFocusNext', "Focus Next Wine (Navigation Mode)"), owiginaw: 'Focus Next Wine (Navigation Mode)' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+					pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow,
+					when: ContextKeyExpw.ow(
+						ContextKeyExpw.and(TewminawContextKeys.a11yTweeFocus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED),
+						ContextKeyExpw.and(TewminawContextKeys.focus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED)
 					),
-					weight: KeybindingWeight.WorkbenchContrib
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.navigationMode?.focusNextWine();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ClearSelection,
-				title: { value: localize('workbench.action.terminal.clearSelection', "Clear Selection"), original: 'Clear Selection' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.CweawSewection,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.cweawSewection', "Cweaw Sewection"), owiginaw: 'Cweaw Sewection' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyCode.Escape,
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.textSelected, TerminalContextKeys.notFindVisible),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyCode.Escape,
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.textSewected, TewminawContextKeys.notFindVisibwe),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			const terminalInstance = accessor.get(ITerminalService).activeInstance;
-			if (terminalInstance && terminalInstance.hasSelection()) {
-				terminalInstance.clearSelection();
+		wun(accessow: SewvicesAccessow) {
+			const tewminawInstance = accessow.get(ITewminawSewvice).activeInstance;
+			if (tewminawInstance && tewminawInstance.hasSewection()) {
+				tewminawInstance.cweawSewection();
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeIcon,
-				title: terminalStrings.changeIcon,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeIcon,
+				titwe: tewminawStwings.changeIcon,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.changeIcon();
+		async wun(accessow: SewvicesAccessow, wesouwce: unknown) {
+			doWithInstance(accessow, wesouwce)?.changeIcon();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeIconPanel,
-				title: terminalStrings.changeIcon,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeIconPanew,
+				titwe: tewminawStwings.changeIcon,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.changeIcon();
+		async wun(accessow: SewvicesAccessow) {
+			wetuwn accessow.get(ITewminawGwoupSewvice).activeInstance?.changeIcon();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeIconInstance,
-				title: terminalStrings.changeIcon,
-				f1: false,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection)
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeIconInstance,
+				titwe: tewminawStwings.changeIcon,
+				f1: fawse,
+				categowy,
+				pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.tabsSinguwawSewection)
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return getSelectedInstances(accessor)?.[0].changeIcon();
+		async wun(accessow: SewvicesAccessow) {
+			wetuwn getSewectedInstances(accessow)?.[0].changeIcon();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeColor,
-				title: terminalStrings.changeColor,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeCowow,
+				titwe: tewminawStwings.changeCowow,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.changeColor();
+		async wun(accessow: SewvicesAccessow, wesouwce: unknown) {
+			doWithInstance(accessow, wesouwce)?.changeCowow();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeColorPanel,
-				title: terminalStrings.changeColor,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeCowowPanew,
+				titwe: tewminawStwings.changeCowow,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.changeColor();
+		async wun(accessow: SewvicesAccessow) {
+			wetuwn accessow.get(ITewminawGwoupSewvice).activeInstance?.changeCowow();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ChangeColorInstance,
-				title: terminalStrings.changeColor,
-				f1: false,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection)
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ChangeCowowInstance,
+				titwe: tewminawStwings.changeCowow,
+				f1: fawse,
+				categowy,
+				pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.tabsSinguwawSewection)
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return getSelectedInstances(accessor)?.[0].changeColor();
+		async wun(accessow: SewvicesAccessow) {
+			wetuwn getSewectedInstances(accessow)?.[0].changeCowow();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Rename,
-				title: terminalStrings.rename,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Wename,
+				titwe: tewminawStwings.wename,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, resource: unknown) {
-			doWithInstance(accessor, resource)?.rename();
+		async wun(accessow: SewvicesAccessow, wesouwce: unknown) {
+			doWithInstance(accessow, wesouwce)?.wename();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.RenamePanel,
-				title: terminalStrings.rename,
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WenamePanew,
+				titwe: tewminawStwings.wename,
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalGroupService).activeInstance?.rename();
+		async wun(accessow: SewvicesAccessow) {
+			wetuwn accessow.get(ITewminawGwoupSewvice).activeInstance?.wename();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.RenameInstance,
-				title: terminalStrings.rename,
-				f1: false,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.WenameInstance,
+				titwe: tewminawStwings.wename,
+				f1: fawse,
+				categowy,
 				keybinding: {
-					primary: KeyCode.F2,
+					pwimawy: KeyCode.F2,
 					mac: {
-						primary: KeyCode.Enter
+						pwimawy: KeyCode.Enta
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.tabsFocus),
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpw.and(TewminawContextKeys.tabsFocus),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
+				pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.tabsSinguwawSewection),
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const notificationService = accessor.get(INotificationService);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
 
-			const instance = getSelectedInstances(accessor)?.[0];
+			const instance = getSewectedInstances(accessow)?.[0];
 			if (!instance) {
-				return;
+				wetuwn;
 			}
 
-			await terminalService.setEditable(instance, {
-				validationMessage: value => validateTerminalName(value),
-				onFinish: async (value, success) => {
+			await tewminawSewvice.setEditabwe(instance, {
+				vawidationMessage: vawue => vawidateTewminawName(vawue),
+				onFinish: async (vawue, success) => {
 					if (success) {
-						try {
-							await instance.rename(value);
+						twy {
+							await instance.wename(vawue);
 						} catch (e) {
-							notificationService.error(e);
+							notificationSewvice.ewwow(e);
 						}
 					}
-					await terminalService.setEditable(instance, null);
+					await tewminawSewvice.setEditabwe(instance, nuww);
 				}
 			});
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindFocus,
-				title: { value: localize('workbench.action.terminal.focusFind', "Focus Find"), original: 'Focus Find' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FindFocus,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.focusFind', "Focus Find"), owiginaw: 'Focus Find' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-					when: ContextKeyExpr.or(TerminalContextKeys.findFocus, TerminalContextKeys.focus),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F,
+					when: ContextKeyExpw.ow(TewminawContextKeys.findFocus, TewminawContextKeys.focus),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().focusFindWidget();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).getFindHost().focusFindWidget();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindHide,
-				title: { value: localize('workbench.action.terminal.hideFind', "Hide Find"), original: 'Hide Find' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FindHide,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.hideFind', "Hide Find"), owiginaw: 'Hide Find' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyCode.Escape,
-					secondary: [KeyMod.Shift | KeyCode.Escape],
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.findVisible),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyCode.Escape,
+					secondawy: [KeyMod.Shift | KeyCode.Escape],
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, TewminawContextKeys.findVisibwe),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().hideFindWidget();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).getFindHost().hideFindWidget();
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.DetachSession,
-				title: { value: localize('workbench.action.terminal.detachSession', "Detach Session"), original: 'Detach Session' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.DetachSession,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.detachSession', "Detach Session"), owiginaw: 'Detach Session' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			await terminalService.activeInstance?.detachFromProcess();
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			await tewminawSewvice.activeInstance?.detachFwomPwocess();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.AttachToSession,
-				title: { value: localize('workbench.action.terminal.attachToSession', "Attach to Session"), original: 'Attach to Session' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.AttachToSession,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.attachToSession', "Attach to Session"), owiginaw: 'Attach to Session' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const quickInputService = accessor.get(IQuickInputService);
-			const terminalService = accessor.get(ITerminalService);
-			const labelService = accessor.get(ILabelService);
-			const remoteAgentService = accessor.get(IRemoteAgentService);
-			const notificationService = accessor.get(INotificationService);
-			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
+		async wun(accessow: SewvicesAccessow) {
+			const quickInputSewvice = accessow.get(IQuickInputSewvice);
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const wabewSewvice = accessow.get(IWabewSewvice);
+			const wemoteAgentSewvice = accessow.get(IWemoteAgentSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const offPwocTewminawSewvice = wemoteAgentSewvice.getConnection() ? accessow.get(IWemoteTewminawSewvice) : accessow.get(IWocawTewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
 
-			const terms = await offProcTerminalService.listProcesses();
+			const tewms = await offPwocTewminawSewvice.wistPwocesses();
 
-			offProcTerminalService.reduceConnectionGraceTime();
+			offPwocTewminawSewvice.weduceConnectionGwaceTime();
 
-			const unattachedTerms = terms.filter(term => !terminalService.isAttachedToTerminal(term));
-			const items = unattachedTerms.map(term => {
-				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
-				return {
-					label: term.title,
-					detail: term.workspaceName ? `${term.workspaceName} ⸱ ${cwdLabel}` : cwdLabel,
-					description: term.pid ? String(term.pid) : '',
-					term
+			const unattachedTewms = tewms.fiwta(tewm => !tewminawSewvice.isAttachedToTewminaw(tewm));
+			const items = unattachedTewms.map(tewm => {
+				const cwdWabew = wabewSewvice.getUwiWabew(UWI.fiwe(tewm.cwd));
+				wetuwn {
+					wabew: tewm.titwe,
+					detaiw: tewm.wowkspaceName ? `${tewm.wowkspaceName} ⸱ ${cwdWabew}` : cwdWabew,
+					descwiption: tewm.pid ? Stwing(tewm.pid) : '',
+					tewm
 				};
 			});
-			if (items.length === 0) {
-				notificationService.info(localize('noUnattachedTerminals', 'There are no unattached terminals to attach to'));
-				return;
+			if (items.wength === 0) {
+				notificationSewvice.info(wocawize('noUnattachedTewminaws', 'Thewe awe no unattached tewminaws to attach to'));
+				wetuwn;
 			}
-			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
-			if (selected) {
-				const instance = await terminalService.createTerminal({
-					config: { attachPersistentProcess: selected.term }
+			const sewected = await quickInputSewvice.pick<IWemoteTewminawPick>(items, { canPickMany: fawse });
+			if (sewected) {
+				const instance = await tewminawSewvice.cweateTewminaw({
+					config: { attachPewsistentPwocess: sewected.tewm }
 				});
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					terminalGroupService.showPanel(true);
+				tewminawSewvice.setActiveInstance(instance);
+				if (instance.tawget === TewminawWocation.Editow) {
+					await instance.focusWhenWeady(twue);
+				} ewse {
+					tewminawGwoupSewvice.showPanew(twue);
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.QuickOpenTerm,
-				title: { value: localize('quickAccessTerminal', "Switch Active Terminal"), original: 'Switch Active Terminal' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.QuickOpenTewm,
+				titwe: { vawue: wocawize('quickAccessTewminaw', "Switch Active Tewminaw"), owiginaw: 'Switch Active Tewminaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX);
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(IQuickInputSewvice).quickAccess.show(TewminawQuickAccessPwovida.PWEFIX);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollToPreviousCommand,
-				title: { value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"), original: 'Scroll To Previous Command' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwToPweviousCommand,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwToPweviousCommand', "Scwoww To Pwevious Command"), owiginaw: 'Scwoww To Pwevious Command' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.UpAwwow },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.scrollToPreviousCommand();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.scwowwToPweviousCommand();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ScrollToNextCommand,
-				title: { value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"), original: 'Scroll To Next Command' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ScwowwToNextCommand,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.scwowwToNextCommand', "Scwoww To Next Command"), owiginaw: 'Scwoww To Next Command' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow },
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, CONTEXT_ACCESSIBIWITY_MODE_ENABWED.negate()),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.scrollToNextCommand();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.scwowwToNextCommand();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectToPreviousCommand,
-				title: { value: localize('workbench.action.terminal.selectToPreviousCommand', "Select To Previous Command"), original: 'Select To Previous Command' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectToPweviousCommand,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectToPweviousCommand', "Sewect To Pwevious Command"), owiginaw: 'Sewect To Pwevious Command' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.UpAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToPreviousCommand();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.sewectToPweviousCommand();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectToNextCommand,
-				title: { value: localize('workbench.action.terminal.selectToNextCommand', "Select To Next Command"), original: 'Select To Next Command' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectToNextCommand,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectToNextCommand', "Sewect To Next Command"), owiginaw: 'Sewect To Next Command' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow },
-					when: TerminalContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.DownAwwow },
+					when: TewminawContextKeys.focus,
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToNextCommand();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.sewectToNextCommand();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectToPreviousLine,
-				title: { value: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"), original: 'Select To Previous Line' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectToPweviousWine,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectToPweviousWine', "Sewect To Pwevious Wine"), owiginaw: 'Sewect To Pwevious Wine' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToPreviousLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.sewectToPweviousWine();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectToNextLine,
-				title: { value: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"), original: 'Select To Next Line' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectToNextWine,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectToNextWine', "Sewect To Next Wine"), owiginaw: 'Sewect To Next Wine' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.commandTracker?.selectToNextLine();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => {
+				t.commandTwacka?.sewectToNextWine();
 				t.focus();
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleEscapeSequenceLogging,
-				title: { value: localize('workbench.action.terminal.toggleEscapeSequenceLogging', "Toggle Escape Sequence Logging"), original: 'Toggle Escape Sequence Logging' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ToggweEscapeSequenceWogging,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.toggweEscapeSequenceWogging', "Toggwe Escape Sequence Wogging"), owiginaw: 'Toggwe Escape Sequence Wogging' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.toggleEscapeSequenceLogging();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.toggweEscapeSequenceWogging();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			const title = localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal");
-			super({
-				id: TerminalCommandId.SendSequence,
-				title: { value: title, original: 'Send Custom Sequence To Terminal' },
-				category,
-				description: {
-					description: title,
-					args: [{
-						name: 'args',
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			const titwe = wocawize('wowkbench.action.tewminaw.sendSequence', "Send Custom Sequence To Tewminaw");
+			supa({
+				id: TewminawCommandId.SendSequence,
+				titwe: { vawue: titwe, owiginaw: 'Send Custom Sequence To Tewminaw' },
+				categowy,
+				descwiption: {
+					descwiption: titwe,
+					awgs: [{
+						name: 'awgs',
 						schema: {
 							type: 'object',
-							required: ['text'],
-							properties: {
-								text: { type: 'string' }
+							wequiwed: ['text'],
+							pwopewties: {
+								text: { type: 'stwing' }
 							},
 						}
 					}]
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor, args?: { text?: string }) {
-			terminalSendSequenceCommand(accessor, args);
+		wun(accessow: SewvicesAccessow, awgs?: { text?: stwing }) {
+			tewminawSendSequenceCommand(accessow, awgs);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			const title = localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory");
-			super({
-				id: TerminalCommandId.NewWithCwd,
-				title: { value: title, original: 'Create New Terminal Starting in a Custom Working Directory' },
-				category,
-				description: {
-					description: title,
-					args: [{
-						name: 'args',
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			const titwe = wocawize('wowkbench.action.tewminaw.newWithCwd', "Cweate New Tewminaw Stawting in a Custom Wowking Diwectowy");
+			supa({
+				id: TewminawCommandId.NewWithCwd,
+				titwe: { vawue: titwe, owiginaw: 'Cweate New Tewminaw Stawting in a Custom Wowking Diwectowy' },
+				categowy,
+				descwiption: {
+					descwiption: titwe,
+					awgs: [{
+						name: 'awgs',
 						schema: {
 							type: 'object',
-							required: ['cwd'],
-							properties: {
+							wequiwed: ['cwd'],
+							pwopewties: {
 								cwd: {
-									description: localize('workbench.action.terminal.newWithCwd.cwd', "The directory to start the terminal at"),
-									type: 'string'
+									descwiption: wocawize('wowkbench.action.tewminaw.newWithCwd.cwd', "The diwectowy to stawt the tewminaw at"),
+									type: 'stwing'
 								}
 							},
 						}
 					}]
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal(
+		async wun(accessow: SewvicesAccessow, awgs?: { cwd?: stwing }) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			if (tewminawSewvice.isPwocessSuppowtWegistewed) {
+				const instance = await tewminawSewvice.cweateTewminaw(
 					{
-						cwd: args?.cwd
+						cwd: awgs?.cwd
 					});
 				if (!instance) {
-					return;
+					wetuwn;
 				}
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					return terminalGroupService.showPanel(true);
+				tewminawSewvice.setActiveInstance(instance);
+				if (instance.tawget === TewminawWocation.Editow) {
+					await instance.focusWhenWeady(twue);
+				} ewse {
+					wetuwn tewminawGwoupSewvice.showPanew(twue);
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			const title = localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal");
-			super({
-				id: TerminalCommandId.RenameWithArgs,
-				title: { value: title, original: 'Rename the Currently Active Terminal' },
-				category,
-				description: {
-					description: title,
-					args: [{
-						name: 'args',
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			const titwe = wocawize('wowkbench.action.tewminaw.wenameWithAwg', "Wename the Cuwwentwy Active Tewminaw");
+			supa({
+				id: TewminawCommandId.WenameWithAwgs,
+				titwe: { vawue: titwe, owiginaw: 'Wename the Cuwwentwy Active Tewminaw' },
+				categowy,
+				descwiption: {
+					descwiption: titwe,
+					awgs: [{
+						name: 'awgs',
 						schema: {
 							type: 'object',
-							required: ['name'],
-							properties: {
+							wequiwed: ['name'],
+							pwopewties: {
 								name: {
-									description: localize('workbench.action.terminal.renameWithArg.name', "The new name for the terminal"),
-									type: 'string',
-									minLength: 1
+									descwiption: wocawize('wowkbench.action.tewminaw.wenameWithAwg.name', "The new name fow the tewminaw"),
+									type: 'stwing',
+									minWength: 1
 								}
 							}
 						}
 					}]
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor, args?: { name?: string }) {
-			const notificationService = accessor.get(INotificationService);
-			if (!args?.name) {
-				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
-				return;
+		wun(accessow: SewvicesAccessow, awgs?: { name?: stwing }) {
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			if (!awgs?.name) {
+				notificationSewvice.wawn(wocawize('wowkbench.action.tewminaw.wenameWithAwg.noName', "No name awgument pwovided"));
+				wetuwn;
 			}
-			accessor.get(ITerminalService).activeInstance?.refreshTabLabels(args.name, TitleEventSource.Api);
+			accessow.get(ITewminawSewvice).activeInstance?.wefweshTabWabews(awgs.name, TitweEventSouwce.Api);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleFindRegex,
-				title: { value: localize('workbench.action.terminal.toggleFindRegex', "Toggle Find Using Regex"), original: 'Toggle Find Using Regex' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ToggweFindWegex,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.toggweFindWegex', "Toggwe Find Using Wegex"), owiginaw: 'Toggwe Find Using Wegex' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_R,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W },
+					when: ContextKeyExpw.ow(TewminawContextKeys.focus, TewminawContextKeys.findFocus),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
+		wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const instanceHost = tewminawSewvice.getFindHost();
 			const state = instanceHost.getFindState();
-			state.change({ isRegex: !state.isRegex }, false);
+			state.change({ isWegex: !state.isWegex }, fawse);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleFindWholeWord,
-				title: { value: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle Find Using Whole Word"), original: 'Toggle Find Using Whole Word' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ToggweFindWhoweWowd,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.toggweFindWhoweWowd', "Toggwe Find Using Whowe Wowd"), owiginaw: 'Toggwe Find Using Whowe Wowd' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_W,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyCode.KEY_W,
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_W },
+					when: ContextKeyExpw.ow(TewminawContextKeys.focus, TewminawContextKeys.findFocus),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
+		wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const instanceHost = tewminawSewvice.getFindHost();
 			const state = instanceHost.getFindState();
-			state.change({ wholeWord: !state.wholeWord }, false);
+			state.change({ whoweWowd: !state.whoweWowd }, fawse);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleFindCaseSensitive,
-				title: { value: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle Find Using Case Sensitive"), original: 'Toggle Find Using Case Sensitive' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ToggweFindCaseSensitive,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.toggweFindCaseSensitive', "Toggwe Find Using Case Sensitive"), owiginaw: 'Toggwe Find Using Case Sensitive' },
+				f1: twue,
+				categowy,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_C,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.Awt | KeyCode.KEY_C,
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_C },
+					when: ContextKeyExpw.ow(TewminawContextKeys.focus, TewminawContextKeys.findFocus),
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const instanceHost = terminalService.getFindHost();
+		wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const instanceHost = tewminawSewvice.getFindHost();
 			const state = instanceHost.getFindState();
-			state.change({ matchCase: !state.matchCase }, false);
+			state.change({ matchCase: !state.matchCase }, fawse);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindNext,
-				title: { value: localize('workbench.action.terminal.findNext', "Find Next"), original: 'Find Next' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FindNext,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.findNext', "Find Next"), owiginaw: 'Find Next' },
+				f1: twue,
+				categowy,
 				keybinding: [
 					{
-						primary: KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
-						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-						weight: KeybindingWeight.WorkbenchContrib
+						pwimawy: KeyCode.F3,
+						mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_G, secondawy: [KeyCode.F3] },
+						when: ContextKeyExpw.ow(TewminawContextKeys.focus, TewminawContextKeys.findFocus),
+						weight: KeybindingWeight.WowkbenchContwib
 					},
 					{
-						primary: KeyMod.Shift | KeyCode.Enter,
-						when: TerminalContextKeys.findFocus,
-						weight: KeybindingWeight.WorkbenchContrib
+						pwimawy: KeyMod.Shift | KeyCode.Enta,
+						when: TewminawContextKeys.findFocus,
+						weight: KeybindingWeight.WowkbenchContwib
 					}
 				],
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findNext();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).getFindHost().findNext();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindPrevious,
-				title: { value: localize('workbench.action.terminal.findPrevious', "Find Previous"), original: 'Find Previous' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.FindPwevious,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.findPwevious', "Find Pwevious"), owiginaw: 'Find Pwevious' },
+				f1: twue,
+				categowy,
 				keybinding: [
 					{
-						primary: KeyMod.Shift | KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
-						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-						weight: KeybindingWeight.WorkbenchContrib
+						pwimawy: KeyMod.Shift | KeyCode.F3,
+						mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_G, secondawy: [KeyMod.Shift | KeyCode.F3] },
+						when: ContextKeyExpw.ow(TewminawContextKeys.focus, TewminawContextKeys.findFocus),
+						weight: KeybindingWeight.WowkbenchContwib
 					},
 					{
-						primary: KeyCode.Enter,
-						when: TerminalContextKeys.findFocus,
-						weight: KeybindingWeight.WorkbenchContrib
+						pwimawy: KeyCode.Enta,
+						when: TewminawContextKeys.findFocus,
+						weight: KeybindingWeight.WowkbenchContwib
 					}
 				],
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getFindHost().findPrevious();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).getFindHost().findPwevious();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SearchWorkspace,
-				title: { value: localize('workbench.action.terminal.searchWorkspace', "Search Workspace"), original: 'Search Workspace' },
-				f1: true,
-				category,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SeawchWowkspace,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.seawchWowkspace', "Seawch Wowkspace"), owiginaw: 'Seawch Wowkspace' },
+				f1: twue,
+				categowy,
 				keybinding: [
 					{
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
-						when: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.textSelected),
-						weight: KeybindingWeight.WorkbenchContrib + 50
+						pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_F,
+						when: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.focus, TewminawContextKeys.textSewected),
+						weight: KeybindingWeight.WowkbenchContwib + 50
 					}
 				],
-				precondition: TerminalContextKeys.processSupported
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			const query = accessor.get(ITerminalService).activeInstance?.selection;
-			FindInFilesCommand(accessor, { query } as IFindInFilesArgs);
+		wun(accessow: SewvicesAccessow) {
+			const quewy = accessow.get(ITewminawSewvice).activeInstance?.sewection;
+			FindInFiwesCommand(accessow, { quewy } as IFindInFiwesAwgs);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Relaunch,
-				title: { value: localize('workbench.action.terminal.relaunch', "Relaunch Active Terminal"), original: 'Relaunch Active Terminal' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Wewaunch,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.wewaunch', "Wewaunch Active Tewminaw"), owiginaw: 'Wewaunch Active Tewminaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.relaunch();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.wewaunch();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowEnvironmentInformation,
-				title: { value: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"), original: 'Show Environment Information' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ShowEnviwonmentInfowmation,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.showEnviwonmentInfowmation', "Show Enviwonment Infowmation"), owiginaw: 'Show Enviwonment Infowmation' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.showEnvironmentInfoHover();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.showEnviwonmentInfoHova();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Split,
-				title: terminalStrings.split,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Spwit,
+				titwe: tewminawStwings.spwit,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
-					weight: KeybindingWeight.WorkbenchContrib,
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_5,
+					weight: KeybindingWeight.WowkbenchContwib,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						pwimawy: KeyMod.CtwwCmd | KeyCode.US_BACKSWASH,
+						secondawy: [KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_5]
 					},
-					when: TerminalContextKeys.focus
+					when: TewminawContextKeys.focus
 				},
-				icon: Codicon.splitHorizontal,
-				description: {
-					description: 'workbench.action.terminal.split',
-					args: [{
-						name: 'profile',
+				icon: Codicon.spwitHowizontaw,
+				descwiption: {
+					descwiption: 'wowkbench.action.tewminaw.spwit',
+					awgs: [{
+						name: 'pwofiwe',
 						schema: {
 							type: 'object'
 						}
@@ -1461,183 +1461,183 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor, optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile) {
-			const commandService = accessor.get(ICommandService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalService = accessor.get(ITerminalService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = terminalService.getInstanceHost(options?.location).activeInstance;
+		async wun(accessow: SewvicesAccessow, optionsOwPwofiwe?: ICweateTewminawOptions | ITewminawPwofiwe) {
+			const commandSewvice = accessow.get(ICommandSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+			const options = convewtOptionsOwPwofiweToOptions(optionsOwPwofiwe);
+			const activeInstance = tewminawSewvice.getInstanceHost(options?.wocation).activeInstance;
 			if (!activeInstance) {
-				return;
+				wetuwn;
 			}
-			const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance, workspaceContextService.getWorkspace().folders, commandService);
+			const cwd = await getCwdFowSpwit(tewminawSewvice.configHewpa, activeInstance, wowkspaceContextSewvice.getWowkspace().fowdews, commandSewvice);
 			if (cwd === undefined) {
-				return undefined;
+				wetuwn undefined;
 			}
-			const instance = await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
+			const instance = await tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: activeInstance }, config: options?.config, cwd });
 			if (instance) {
-				if (instance.target === TerminalLocation.Editor) {
-					instance.focusWhenReady();
-				} else {
-					return terminalGroupService.showPanel(true);
+				if (instance.tawget === TewminawWocation.Editow) {
+					instance.focusWhenWeady();
+				} ewse {
+					wetuwn tewminawGwoupSewvice.showPanew(twue);
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SplitInstance,
-				title: terminalStrings.split,
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SpwitInstance,
+				titwe: tewminawStwings.spwit,
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_5,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						pwimawy: KeyMod.CtwwCmd | KeyCode.US_BACKSWASH,
+						secondawy: [KeyMod.WinCtww | KeyMod.Shift | KeyCode.KEY_5]
 					},
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.tabsFocus
+					weight: KeybindingWeight.WowkbenchContwib,
+					when: TewminawContextKeys.tabsFocus
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instances = getSelectedInstances(accessor);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const instances = getSewectedInstances(accessow);
 			if (instances) {
-				for (const t of instances) {
-					terminalService.setActiveInstance(t);
-					terminalService.doWithActiveInstance(async instance => {
-						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
-						await terminalService.createTerminal({ location: { parentTerminal: instance }, cwd });
-						await terminalGroupService.showPanel(true);
+				fow (const t of instances) {
+					tewminawSewvice.setActiveInstance(t);
+					tewminawSewvice.doWithActiveInstance(async instance => {
+						const cwd = await getCwdFowSpwit(tewminawSewvice.configHewpa, instance);
+						await tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: instance }, cwd });
+						await tewminawGwoupSewvice.showPanew(twue);
 					});
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Unsplit,
-				title: terminalStrings.unsplit,
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Unspwit,
+				titwe: tewminawStwings.unspwit,
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).doWithActiveInstance(async t => accessor.get(ITerminalGroupService).unsplitInstance(t));
+		async wun(accessow: SewvicesAccessow) {
+			await accessow.get(ITewminawSewvice).doWithActiveInstance(async t => accessow.get(ITewminawGwoupSewvice).unspwitInstance(t));
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.UnsplitInstance,
-				title: terminalStrings.unsplit,
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.UnspwitInstance,
+				titwe: tewminawStwings.unspwit,
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instances = getSelectedInstances(accessor);
-			// should not even need this check given the context key
-			// but TS complains
-			if (instances?.length === 1) {
-				const group = terminalGroupService.getGroupForInstance(instances[0]);
-				if (group && group?.terminalInstances.length > 1) {
-					terminalGroupService.unsplitInstance(instances[0]);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const instances = getSewectedInstances(accessow);
+			// shouwd not even need this check given the context key
+			// but TS compwains
+			if (instances?.wength === 1) {
+				const gwoup = tewminawGwoupSewvice.getGwoupFowInstance(instances[0]);
+				if (gwoup && gwoup?.tewminawInstances.wength > 1) {
+					tewminawGwoupSewvice.unspwitInstance(instances[0]);
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.JoinInstance,
-				title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection.toNegated())
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.JoinInstance,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.joinInstance', "Join Tewminaws"), owiginaw: 'Join Tewminaws' },
+				categowy,
+				pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.tabsSinguwawSewection.toNegated())
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const instances = getSelectedInstances(accessor);
-			if (instances && instances.length > 1) {
-				accessor.get(ITerminalGroupService).joinInstances(instances);
+		async wun(accessow: SewvicesAccessow) {
+			const instances = getSewectedInstances(accessow);
+			if (instances && instances.wength > 1) {
+				accessow.get(ITewminawGwoupSewvice).joinInstances(instances);
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SplitInActiveWorkspace,
-				title: { value: localize('workbench.action.terminal.splitInActiveWorkspace', "Split Terminal (In Active Workspace)"), original: 'Split Terminal (In Active Workspace)' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SpwitInActiveWowkspace,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.spwitInActiveWowkspace', "Spwit Tewminaw (In Active Wowkspace)"), owiginaw: 'Spwit Tewminaw (In Active Wowkspace)' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				const instance = await terminalService.createTerminal({ location: { parentTerminal: t }, cwd });
-				if (instance?.target !== TerminalLocation.Editor) {
-					await terminalGroupService.showPanel(true);
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			await tewminawSewvice.doWithActiveInstance(async t => {
+				const cwd = await getCwdFowSpwit(tewminawSewvice.configHewpa, t);
+				const instance = await tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: t }, cwd });
+				if (instance?.tawget !== TewminawWocation.Editow) {
+					await tewminawGwoupSewvice.showPanew(twue);
 				}
 			});
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectAll,
-				title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectAww,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectAww', "Sewect Aww"), owiginaw: 'Sewect Aww' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: [{
-					// Don't use ctrl+a by default as that would override the common go to start
-					// of prompt shell binding
-					primary: 0,
-					// Technically this doesn't need to be here as it will fall back to this
-					// behavior anyway when handed to xterm.js, having this handled by VS Code
-					// makes it easier for users to see how it works though.
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A },
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.focus
+					// Don't use ctww+a by defauwt as that wouwd ovewwide the common go to stawt
+					// of pwompt sheww binding
+					pwimawy: 0,
+					// Technicawwy this doesn't need to be hewe as it wiww faww back to this
+					// behaviow anyway when handed to xtewm.js, having this handwed by VS Code
+					// makes it easia fow usews to see how it wowks though.
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_A },
+					weight: KeybindingWeight.WowkbenchContwib,
+					when: TewminawContextKeys.focus
 				}]
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.selectAll();
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).activeInstance?.sewectAww();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.New,
-				title: { value: localize('workbench.action.terminal.new', "Create New Terminal"), original: 'Create New Terminal' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
-				icon: Codicon.plus,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.New,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.new', "Cweate New Tewminaw"), owiginaw: 'Cweate New Tewminaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
+				icon: Codicon.pwus,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
-					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
-					weight: KeybindingWeight.WorkbenchContrib
+					pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
+					mac: { pwimawy: KeyMod.WinCtww | KeyMod.Shift | KeyCode.US_BACKTICK },
+					weight: KeybindingWeight.WowkbenchContwib
 				},
-				description: {
-					description: 'workbench.action.terminal.new',
-					args: [{
-						name: 'eventOrOptions',
+				descwiption: {
+					descwiption: 'wowkbench.action.tewminaw.new',
+					awgs: [{
+						name: 'eventOwOptions',
 						schema: {
 							type: 'object'
 						}
@@ -1645,399 +1645,399 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptions: MouseEvent | ICreateTerminalOptions | undefined) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const commandService = accessor.get(ICommandService);
-			const folders = workspaceContextService.getWorkspace().folders;
-			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
-				const activeInstance = terminalService.activeInstance;
+		async wun(accessow: SewvicesAccessow, eventOwOptions: MouseEvent | ICweateTewminawOptions | undefined) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+			const commandSewvice = accessow.get(ICommandSewvice);
+			const fowdews = wowkspaceContextSewvice.getWowkspace().fowdews;
+			if (eventOwOptions && eventOwOptions instanceof MouseEvent && (eventOwOptions.awtKey || eventOwOptions.ctwwKey)) {
+				const activeInstance = tewminawSewvice.activeInstance;
 				if (activeInstance) {
-					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, cwd });
-					return;
+					const cwd = await getCwdFowSpwit(tewminawSewvice.configHewpa, activeInstance);
+					await tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: activeInstance }, cwd });
+					wetuwn;
 				}
 			}
 
-			if (terminalService.isProcessSupportRegistered) {
-				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
+			if (tewminawSewvice.isPwocessSuppowtWegistewed) {
+				eventOwOptions = !eventOwOptions || eventOwOptions instanceof MouseEvent ? {} : eventOwOptions;
 
-				let instance: ITerminalInstance | undefined;
-				if (folders.length <= 1) {
-					// Allow terminal service to handle the path when there is only a
-					// single root
-					instance = await terminalService.createTerminal(eventOrOptions);
-				} else {
+				wet instance: ITewminawInstance | undefined;
+				if (fowdews.wength <= 1) {
+					// Awwow tewminaw sewvice to handwe the path when thewe is onwy a
+					// singwe woot
+					instance = await tewminawSewvice.cweateTewminaw(eventOwOptions);
+				} ewse {
 					const options: IPickOptions<IQuickPickItem> = {
-						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+						pwaceHowda: wocawize('wowkbench.action.tewminaw.newWowkspacePwacehowda', "Sewect cuwwent wowking diwectowy fow new tewminaw")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-					if (!workspace) {
-						// Don't create the instance if the workspace picker was canceled
-						return;
+					const wowkspace = await commandSewvice.executeCommand(PICK_WOWKSPACE_FOWDEW_COMMAND_ID, [options]);
+					if (!wowkspace) {
+						// Don't cweate the instance if the wowkspace picka was cancewed
+						wetuwn;
 					}
-					eventOrOptions.cwd = workspace.uri;
-					instance = await terminalService.createTerminal(eventOrOptions);
+					eventOwOptions.cwd = wowkspace.uwi;
+					instance = await tewminawSewvice.cweateTewminaw(eventOwOptions);
 				}
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					await terminalGroupService.showPanel(true);
+				tewminawSewvice.setActiveInstance(instance);
+				if (instance.tawget === TewminawWocation.Editow) {
+					await instance.focusWhenWeady(twue);
+				} ewse {
+					await tewminawGwoupSewvice.showPanew(twue);
 				}
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Kill,
-				title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
-				icon: Codicon.trash
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Kiww,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.kiww', "Kiww the Active Tewminaw Instance"), owiginaw: 'Kiww the Active Tewminaw Instance' },
+				f1: twue,
+				categowy,
+				pwecondition: ContextKeyExpw.ow(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.isOpen),
+				icon: Codicon.twash
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalService = accessor.get(ITerminalService);
-			const instance = terminalGroupService.activeInstance;
+		async wun(accessow: SewvicesAccessow) {
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const instance = tewminawGwoupSewvice.activeInstance;
 			if (!instance) {
-				return;
+				wetuwn;
 			}
-			await terminalService.safeDisposeTerminal(instance);
-			if (terminalGroupService.instances.length > 0) {
-				await terminalGroupService.showPanel(true);
+			await tewminawSewvice.safeDisposeTewminaw(instance);
+			if (tewminawGwoupSewvice.instances.wength > 0) {
+				await tewminawGwoupSewvice.showPanew(twue);
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.KillEditor,
-				title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal in Editor Area"), original: 'Kill the Active Terminal in Editor Area' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.KiwwEditow,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.kiwwEditow', "Kiww the Active Tewminaw in Editow Awea"), owiginaw: 'Kiww the Active Tewminaw in Editow Awea' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
+					pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_W,
+					win: { pwimawy: KeyMod.CtwwCmd | KeyCode.F4, secondawy: [KeyMod.CtwwCmd | KeyCode.KEY_W] },
+					weight: KeybindingWeight.WowkbenchContwib,
+					when: ContextKeyExpw.and(TewminawContextKeys.focus, WesouwceContextKey.Scheme.isEquawTo(Schemas.vscodeTewminaw), TewminawContextKeys.editowFocus)
 				}
 
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID);
+		async wun(accessow: SewvicesAccessow) {
+			accessow.get(ICommandSewvice).executeCommand(CWOSE_EDITOW_COMMAND_ID);
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.KillInstance,
-				title: terminalStrings.kill,
-				f1: false,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.KiwwInstance,
+				titwe: tewminawStwings.kiww,
+				f1: fawse,
+				categowy,
+				pwecondition: ContextKeyExpw.ow(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.isOpen),
 				keybinding: {
-					primary: KeyCode.Delete,
+					pwimawy: KeyCode.Dewete,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-						secondary: [KeyCode.Delete]
+						pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace,
+						secondawy: [KeyCode.Dewete]
 					},
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.tabsFocus
+					weight: KeybindingWeight.WowkbenchContwib,
+					when: TewminawContextKeys.tabsFocus
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			const selectedInstances = getSelectedInstances(accessor);
-			if (!selectedInstances) {
-				return;
+		async wun(accessow: SewvicesAccessow) {
+			const sewectedInstances = getSewectedInstances(accessow);
+			if (!sewectedInstances) {
+				wetuwn;
 			}
-			const terminalService = accessor.get(ITerminalService);
-			for (const instance of selectedInstances) {
-				terminalService.safeDisposeTerminal(instance);
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			fow (const instance of sewectedInstances) {
+				tewminawSewvice.safeDisposeTewminaw(instance);
 			}
-			if (terminalService.instances.length > 0) {
-				accessor.get(ITerminalGroupService).focusTabs();
-				focusNext(accessor);
+			if (tewminawSewvice.instances.wength > 0) {
+				accessow.get(ITewminawGwoupSewvice).focusTabs();
+				focusNext(accessow);
 			}
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.Clear,
-				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.Cweaw,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.cweaw', "Cweaw"), owiginaw: 'Cweaw' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
 				keybinding: [{
-					primary: 0,
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K },
-					// Weight is higher than work workbench contributions so the keybinding remains
-					// highest priority when chords are registered afterwards
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus
+					pwimawy: 0,
+					mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_K },
+					// Weight is higha than wowk wowkbench contwibutions so the keybinding wemains
+					// highest pwiowity when chowds awe wegistewed aftewwawds
+					weight: KeybindingWeight.WowkbenchContwib + 1,
+					when: TewminawContextKeys.focus
 				}]
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.clear());
+		wun(accessow: SewvicesAccessow) {
+			accessow.get(ITewminawSewvice).doWithActiveInstance(t => t.cweaw());
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SelectDefaultProfile,
-				title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SewectDefauwtPwofiwe,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.sewectDefauwtPwofiwe', "Sewect Defauwt Pwofiwe"), owiginaw: 'Sewect Defauwt Pwofiwe' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
+		async wun(accessow: SewvicesAccessow) {
+			await accessow.get(ITewminawSewvice).showPwofiweQuickPick('setDefauwt');
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.CreateWithProfileButton,
-				title: TerminalCommandId.CreateWithProfileButton,
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.CweateWithPwofiweButton,
+				titwe: TewminawCommandId.CweateWithPwofiweButton,
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
+		async wun(accessow: SewvicesAccessow) {
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ConfigureTerminalSettings,
-				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.ConfiguweTewminawSettings,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.openSettings', "Configuwe Tewminaw Settings"), owiginaw: 'Configuwe Tewminaw Settings' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@feature:terminal' });
+		async wun(accessow: SewvicesAccessow) {
+			await accessow.get(IPwefewencesSewvice).openSettings({ jsonEditow: fawse, quewy: '@featuwe:tewminaw' });
 		}
 	});
 
-	// Some commands depend on platform features
-	if (BrowserFeatures.clipboard.writeText) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: TerminalCommandId.CopySelection,
-					title: { value: localize('workbench.action.terminal.copySelection', "Copy Selection"), original: 'Copy Selection' },
-					f1: true,
-					category,
-					// TODO: Why is copy still showing up when text isn't selected?
-					precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.textSelected),
+	// Some commands depend on pwatfowm featuwes
+	if (BwowsewFeatuwes.cwipboawd.wwiteText) {
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: TewminawCommandId.CopySewection,
+					titwe: { vawue: wocawize('wowkbench.action.tewminaw.copySewection', "Copy Sewection"), owiginaw: 'Copy Sewection' },
+					f1: twue,
+					categowy,
+					// TODO: Why is copy stiww showing up when text isn't sewected?
+					pwecondition: ContextKeyExpw.and(TewminawContextKeys.pwocessSuppowted, TewminawContextKeys.textSewected),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
+						pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C,
+						win: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_C] },
+						winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_C },
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: ContextKeyExpw.and(TewminawContextKeys.textSewected, TewminawContextKeys.focus)
 					}]
 				});
 			}
-			async run(accessor: ServicesAccessor) {
-				await accessor.get(ITerminalService).activeInstance?.copySelection();
+			async wun(accessow: SewvicesAccessow) {
+				await accessow.get(ITewminawSewvice).activeInstance?.copySewection();
 			}
 		});
 	}
 
-	if (BrowserFeatures.clipboard.readText) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: TerminalCommandId.Paste,
-					title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
-					f1: true,
-					category,
-					precondition: TerminalContextKeys.processSupported,
+	if (BwowsewFeatuwes.cwipboawd.weadText) {
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: TewminawCommandId.Paste,
+					titwe: { vawue: wocawize('wowkbench.action.tewminaw.paste', "Paste into Active Tewminaw"), owiginaw: 'Paste into Active Tewminaw' },
+					f1: twue,
+					categowy,
+					pwecondition: TewminawContextKeys.pwocessSuppowted,
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: TerminalContextKeys.focus
+						pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_V,
+						win: { pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_V, secondawy: [KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_V] },
+						winux: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_V },
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: TewminawContextKeys.focus
 					}],
 				});
 			}
-			async run(accessor: ServicesAccessor) {
-				await accessor.get(ITerminalService).activeInstance?.paste();
+			async wun(accessow: SewvicesAccessow) {
+				await accessow.get(ITewminawSewvice).activeInstance?.paste();
 			}
 		});
 	}
 
-	if (BrowserFeatures.clipboard.readText && isLinux) {
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: TerminalCommandId.PasteSelection,
-					title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
-					f1: true,
-					category,
-					precondition: TerminalContextKeys.processSupported,
+	if (BwowsewFeatuwes.cwipboawd.weadText && isWinux) {
+		wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: TewminawCommandId.PasteSewection,
+					titwe: { vawue: wocawize('wowkbench.action.tewminaw.pasteSewection', "Paste Sewection into Active Tewminaw"), owiginaw: 'Paste Sewection into Active Tewminaw' },
+					f1: twue,
+					categowy,
+					pwecondition: TewminawContextKeys.pwocessSuppowted,
 					keybinding: [{
-						linux: { primary: KeyMod.Shift | KeyCode.Insert },
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: TerminalContextKeys.focus
+						winux: { pwimawy: KeyMod.Shift | KeyCode.Insewt },
+						weight: KeybindingWeight.WowkbenchContwib,
+						when: TewminawContextKeys.focus
 					}],
 				});
 			}
-			async run(accessor: ServicesAccessor) {
-				await accessor.get(ITerminalService).activeInstance?.pasteSelection();
+			async wun(accessow: SewvicesAccessow) {
+				await accessow.get(ITewminawSewvice).activeInstance?.pasteSewection();
 			}
 		});
 	}
 
-	const switchTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' };
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SwitchTerminal,
-				title: switchTerminalTitle,
-				f1: false,
-				category,
-				precondition: TerminalContextKeys.processSupported
+	const switchTewminawTitwe: ICommandActionTitwe = { vawue: wocawize('wowkbench.action.tewminaw.switchTewminaw', "Switch Tewminaw"), owiginaw: 'Switch Tewminaw' };
+	wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.SwitchTewminaw,
+				titwe: switchTewminawTitwe,
+				f1: fawse,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted
 			});
 		}
-		async run(accessor: ServicesAccessor, item?: string) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			if (!item || !item.split) {
-				return Promise.resolve(null);
+		async wun(accessow: SewvicesAccessow, item?: stwing) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			if (!item || !item.spwit) {
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			if (item === switchTerminalActionViewItemSeparator) {
-				terminalService.refreshActiveGroup();
-				return Promise.resolve(null);
+			if (item === switchTewminawActionViewItemSepawatow) {
+				tewminawSewvice.wefweshActiveGwoup();
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			if (item === switchTerminalShowTabsTitle) {
-				accessor.get(IConfigurationService).updateValue(TerminalSettingId.TabsEnabled, true);
-				return;
+			if (item === switchTewminawShowTabsTitwe) {
+				accessow.get(IConfiguwationSewvice).updateVawue(TewminawSettingId.TabsEnabwed, twue);
+				wetuwn;
 			}
-			const indexMatches = terminalIndexRe.exec(item);
+			const indexMatches = tewminawIndexWe.exec(item);
 			if (indexMatches) {
-				terminalGroupService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
-				return terminalGroupService.showPanel(true);
+				tewminawGwoupSewvice.setActiveGwoupByIndex(Numba(indexMatches[1]) - 1);
+				wetuwn tewminawGwoupSewvice.showPanew(twue);
 			}
 
-			const quickSelectProfiles = terminalService.availableProfiles;
+			const quickSewectPwofiwes = tewminawSewvice.avaiwabwePwofiwes;
 
-			// Remove 'New ' from the selected item to get the profile name
-			const profileSelection = item.substring(4);
-			if (quickSelectProfiles) {
-				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
-				if (profile) {
-					const instance = await terminalService.createTerminal({
-						config: profile
+			// Wemove 'New ' fwom the sewected item to get the pwofiwe name
+			const pwofiweSewection = item.substwing(4);
+			if (quickSewectPwofiwes) {
+				const pwofiwe = quickSewectPwofiwes.find(pwofiwe => pwofiwe.pwofiweName === pwofiweSewection);
+				if (pwofiwe) {
+					const instance = await tewminawSewvice.cweateTewminaw({
+						config: pwofiwe
 					});
-					terminalService.setActiveInstance(instance);
-				} else {
-					console.warn(`No profile with name "${profileSelection}"`);
+					tewminawSewvice.setActiveInstance(instance);
+				} ewse {
+					consowe.wawn(`No pwofiwe with name "${pwofiweSewection}"`);
 				}
-			} else {
-				console.warn(`Unmatched terminal item: "${item}"`);
+			} ewse {
+				consowe.wawn(`Unmatched tewminaw item: "${item}"`);
 			}
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		}
 	});
 }
 
-interface IRemoteTerminalPick extends IQuickPickItem {
-	term: IRemoteTerminalAttachTarget;
+intewface IWemoteTewminawPick extends IQuickPickItem {
+	tewm: IWemoteTewminawAttachTawget;
 }
 
-function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
-	const listService = accessor.get(IListService);
-	const terminalService = accessor.get(ITerminalService);
-	if (!listService.lastFocusedList?.getSelection()) {
-		return undefined;
+function getSewectedInstances(accessow: SewvicesAccessow): ITewminawInstance[] | undefined {
+	const wistSewvice = accessow.get(IWistSewvice);
+	const tewminawSewvice = accessow.get(ITewminawSewvice);
+	if (!wistSewvice.wastFocusedWist?.getSewection()) {
+		wetuwn undefined;
 	}
-	const selections = listService.lastFocusedList.getSelection();
-	const focused = listService.lastFocusedList.getFocus();
-	const instances: ITerminalInstance[] = [];
+	const sewections = wistSewvice.wastFocusedWist.getSewection();
+	const focused = wistSewvice.wastFocusedWist.getFocus();
+	const instances: ITewminawInstance[] = [];
 
-	if (focused.length === 1 && !selections.includes(focused[0])) {
-		// focused length is always a max of 1
-		// if the focused one is not in the selected list, return that item
-		instances.push(terminalService.getInstanceFromIndex(focused[0]) as ITerminalInstance);
-		return instances;
+	if (focused.wength === 1 && !sewections.incwudes(focused[0])) {
+		// focused wength is awways a max of 1
+		// if the focused one is not in the sewected wist, wetuwn that item
+		instances.push(tewminawSewvice.getInstanceFwomIndex(focused[0]) as ITewminawInstance);
+		wetuwn instances;
 	}
 
-	// multi-select
-	for (const selection of selections) {
-		instances.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
+	// muwti-sewect
+	fow (const sewection of sewections) {
+		instances.push(tewminawSewvice.getInstanceFwomIndex(sewection) as ITewminawInstance);
 	}
-	return instances;
+	wetuwn instances;
 }
 
-function focusNext(accessor: ServicesAccessor): void {
-	const listService = accessor.get(IListService);
-	listService.lastFocusedList?.focusNext();
+function focusNext(accessow: SewvicesAccessow): void {
+	const wistSewvice = accessow.get(IWistSewvice);
+	wistSewvice.wastFocusedWist?.focusNext();
 }
 
-export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
-	if (!name || name.trim().length === 0) {
-		return {
-			content: localize('emptyTerminalNameError', "A name must be provided."),
-			severity: Severity.Error
+expowt function vawidateTewminawName(name: stwing): { content: stwing, sevewity: Sevewity } | nuww {
+	if (!name || name.twim().wength === 0) {
+		wetuwn {
+			content: wocawize('emptyTewminawNameEwwow', "A name must be pwovided."),
+			sevewity: Sevewity.Ewwow
 		};
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
-		return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
+function convewtOptionsOwPwofiweToOptions(optionsOwPwofiwe?: ICweateTewminawOptions | ITewminawPwofiwe): ICweateTewminawOptions | undefined {
+	if (typeof optionsOwPwofiwe === 'object' && 'pwofiweName' in optionsOwPwofiwe) {
+		wetuwn { config: optionsOwPwofiwe as ITewminawPwofiwe, wocation: (optionsOwPwofiwe as ICweateTewminawOptions).wocation };
 	}
-	return optionsOrProfile;
+	wetuwn optionsOwPwofiwe;
 }
 
-let newWithProfileAction: IDisposable;
+wet newWithPwofiweAction: IDisposabwe;
 
-export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
-	const profileEnum = createProfileSchemaEnums(detectedProfiles);
-	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
-	newWithProfileAction?.dispose();
-	newWithProfileAction = registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NewWithProfile,
-				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Terminal (With Profile)"), original: 'Create New Terminal (With Profile)' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported,
-				description: {
-					description: 'workbench.action.terminal.newWithProfile',
-					args: [{
-						name: 'args',
+expowt function wefweshTewminawActions(detectedPwofiwes: ITewminawPwofiwe[]) {
+	const pwofiweEnum = cweatePwofiweSchemaEnums(detectedPwofiwes);
+	const categowy: IWocawizedStwing = { vawue: TEWMINAW_ACTION_CATEGOWY, owiginaw: 'Tewminaw' };
+	newWithPwofiweAction?.dispose();
+	newWithPwofiweAction = wegistewAction2(cwass extends Action2 {
+		constwuctow() {
+			supa({
+				id: TewminawCommandId.NewWithPwofiwe,
+				titwe: { vawue: wocawize('wowkbench.action.tewminaw.newWithPwofiwe', "Cweate New Tewminaw (With Pwofiwe)"), owiginaw: 'Cweate New Tewminaw (With Pwofiwe)' },
+				f1: twue,
+				categowy,
+				pwecondition: TewminawContextKeys.pwocessSuppowted,
+				descwiption: {
+					descwiption: 'wowkbench.action.tewminaw.newWithPwofiwe',
+					awgs: [{
+						name: 'awgs',
 						schema: {
 							type: 'object',
-							required: ['profileName'],
-							properties: {
-								profileName: {
-									description: localize('workbench.action.terminal.newWithProfile.profileName', "The name of the profile to create"),
-									type: 'string',
-									enum: profileEnum.values,
-									markdownEnumDescriptions: profileEnum.markdownDescriptions
+							wequiwed: ['pwofiweName'],
+							pwopewties: {
+								pwofiweName: {
+									descwiption: wocawize('wowkbench.action.tewminaw.newWithPwofiwe.pwofiweName', "The name of the pwofiwe to cweate"),
+									type: 'stwing',
+									enum: pwofiweEnum.vawues,
+									mawkdownEnumDescwiptions: pwofiweEnum.mawkdownDescwiptions
 								}
 							}
 						}
@@ -2045,71 +2045,71 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
-			const terminalService = accessor.get(ITerminalService);
+		async wun(accessow: SewvicesAccessow, eventOwOptionsOwPwofiwe: MouseEvent | ICweateTewminawOptions | ITewminawPwofiwe | { pwofiweName: stwing } | undefined, pwofiwe?: ITewminawPwofiwe) {
+			const tewminawSewvice = accessow.get(ITewminawSewvice);
 
-			if (!terminalService.isProcessSupportRegistered) {
-				return;
+			if (!tewminawSewvice.isPwocessSuppowtWegistewed) {
+				wetuwn;
 			}
 
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const commandService = accessor.get(ICommandService);
+			const tewminawGwoupSewvice = accessow.get(ITewminawGwoupSewvice);
+			const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+			const commandSewvice = accessow.get(ICommandSewvice);
 
-			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
-			let options: ICreateTerminalOptions | undefined;
-			let instance: ITerminalInstance | undefined;
-			let cwd: string | URI | undefined;
+			wet event: MouseEvent | PointewEvent | KeyboawdEvent | undefined;
+			wet options: ICweateTewminawOptions | undefined;
+			wet instance: ITewminawInstance | undefined;
+			wet cwd: stwing | UWI | undefined;
 
-			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
-				const config = terminalService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
+			if (typeof eventOwOptionsOwPwofiwe === 'object' && eventOwOptionsOwPwofiwe && 'pwofiweName' in eventOwOptionsOwPwofiwe) {
+				const config = tewminawSewvice.avaiwabwePwofiwes.find(pwofiwe => pwofiwe.pwofiweName === eventOwOptionsOwPwofiwe.pwofiweName);
 				if (!config) {
-					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
+					thwow new Ewwow(`Couwd not find tewminaw pwofiwe "${eventOwOptionsOwPwofiwe.pwofiweName}"`);
 				}
 				options = { config };
-			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
-				event = eventOrOptionsOrProfile;
-				options = profile ? { config: profile } : undefined;
-			} else {
-				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
+			} ewse if (eventOwOptionsOwPwofiwe instanceof MouseEvent || eventOwOptionsOwPwofiwe instanceof PointewEvent || eventOwOptionsOwPwofiwe instanceof KeyboawdEvent) {
+				event = eventOwOptionsOwPwofiwe;
+				options = pwofiwe ? { config: pwofiwe } : undefined;
+			} ewse {
+				options = convewtOptionsOwPwofiweToOptions(eventOwOptionsOwPwofiwe);
 			}
 
-			// split terminal
-			if (event && (event.altKey || event.ctrlKey)) {
-				const parentTerminal = terminalService.activeInstance;
-				if (parentTerminal) {
-					cwd = await getCwdForSplit(terminalService.configHelper, parentTerminal);
-					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config, cwd });
-					return;
+			// spwit tewminaw
+			if (event && (event.awtKey || event.ctwwKey)) {
+				const pawentTewminaw = tewminawSewvice.activeInstance;
+				if (pawentTewminaw) {
+					cwd = await getCwdFowSpwit(tewminawSewvice.configHewpa, pawentTewminaw);
+					await tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw }, config: options?.config, cwd });
+					wetuwn;
 				}
 			}
 
-			const folders = workspaceContextService.getWorkspace().folders;
-			if (folders.length > 1) {
-				// multi-root workspace, create root picker
+			const fowdews = wowkspaceContextSewvice.getWowkspace().fowdews;
+			if (fowdews.wength > 1) {
+				// muwti-woot wowkspace, cweate woot picka
 				const options: IPickOptions<IQuickPickItem> = {
-					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+					pwaceHowda: wocawize('wowkbench.action.tewminaw.newWowkspacePwacehowda', "Sewect cuwwent wowking diwectowy fow new tewminaw")
 				};
-				const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-				if (!workspace) {
-					// Don't create the instance if the workspace picker was canceled
-					return;
+				const wowkspace = await commandSewvice.executeCommand(PICK_WOWKSPACE_FOWDEW_COMMAND_ID, [options]);
+				if (!wowkspace) {
+					// Don't cweate the instance if the wowkspace picka was cancewed
+					wetuwn;
 				}
-				cwd = workspace.uri;
+				cwd = wowkspace.uwi;
 			}
 
 			if (options) {
-				instance = await terminalService.createTerminal(options);
-			} else {
-				instance = await terminalService.showProfileQuickPick('createInstance', cwd);
+				instance = await tewminawSewvice.cweateTewminaw(options);
+			} ewse {
+				instance = await tewminawSewvice.showPwofiweQuickPick('cweateInstance', cwd);
 			}
 
 			if (instance) {
-				terminalService.setActiveInstance(instance);
-				if (instance.target === TerminalLocation.Editor) {
-					await instance.focusWhenReady(true);
-				} else {
-					await terminalGroupService.showPanel(true);
+				tewminawSewvice.setActiveInstance(instance);
+				if (instance.tawget === TewminawWocation.Editow) {
+					await instance.focusWhenWeady(twue);
+				} ewse {
+					await tewminawGwoupSewvice.showPanew(twue);
 				}
 			}
 		}
@@ -2117,9 +2117,9 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 }
 
 /** doc */
-function doWithInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
-	const terminalService = accessor.get(ITerminalService);
-	const castedResource = URI.isUri(resource) ? resource : undefined;
-	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
-	return instance;
+function doWithInstance(accessow: SewvicesAccessow, wesouwce: unknown): ITewminawInstance | undefined {
+	const tewminawSewvice = accessow.get(ITewminawSewvice);
+	const castedWesouwce = UWI.isUwi(wesouwce) ? wesouwce : undefined;
+	const instance = tewminawSewvice.getInstanceFwomWesouwce(castedWesouwce) || tewminawSewvice.activeInstance;
+	wetuwn instance;
 }

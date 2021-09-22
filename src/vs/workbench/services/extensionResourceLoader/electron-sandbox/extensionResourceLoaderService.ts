@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
 
-export class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
+expowt cwass ExtensionWesouwceWoadewSewvice impwements IExtensionWesouwceWoadewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IFileService private readonly _fileService: IFileService
+	constwuctow(
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice
 	) { }
 
-	async readExtensionResource(uri: URI): Promise<string> {
-		const result = await this._fileService.readFile(uri);
-		return result.value.toString();
+	async weadExtensionWesouwce(uwi: UWI): Pwomise<stwing> {
+		const wesuwt = await this._fiweSewvice.weadFiwe(uwi);
+		wetuwn wesuwt.vawue.toStwing();
 	}
 }
 
-registerSingleton(IExtensionResourceLoaderService, ExtensionResourceLoaderService);
+wegistewSingweton(IExtensionWesouwceWoadewSewvice, ExtensionWesouwceWoadewSewvice);

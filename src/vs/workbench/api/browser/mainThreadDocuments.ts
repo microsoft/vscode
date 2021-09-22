@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IReference, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { Emitter } from 'vs/base/common/event';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ResourceMap } from 'vs/base/common/map';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { IWefewence, dispose, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice, shouwdSynchwonizeModew } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IFiweSewvice, FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { MainThweadDocumentsAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocumentsAndEditows';
+impowt { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThweadDocumentsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { toWocawWesouwce, extUwi, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
 
-export class BoundModelReferenceCollection {
+expowt cwass BoundModewWefewenceCowwection {
 
-	private _data = new Array<{ uri: URI, length: number, dispose(): void }>();
-	private _length = 0;
+	pwivate _data = new Awway<{ uwi: UWI, wength: numba, dispose(): void }>();
+	pwivate _wength = 0;
 
-	constructor(
-		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3,
-		private readonly _maxLength: number = 1024 * 1024 * 80,
+	constwuctow(
+		pwivate weadonwy _extUwi: IExtUwi,
+		pwivate weadonwy _maxAge: numba = 1000 * 60 * 3,
+		pwivate weadonwy _maxWength: numba = 1024 * 1024 * 80,
 	) {
 		//
 	}
@@ -39,246 +39,246 @@ export class BoundModelReferenceCollection {
 		this._data = dispose(this._data);
 	}
 
-	remove(uri: URI): void {
-		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
-			if (this._extUri.isEqualOrParent(entry.uri, uri)) {
-				entry.dispose();
+	wemove(uwi: UWI): void {
+		fow (const entwy of [...this._data] /* copy awway because dispose wiww modify it */) {
+			if (this._extUwi.isEquawOwPawent(entwy.uwi, uwi)) {
+				entwy.dispose();
 			}
 		}
 	}
 
-	add(uri: URI, ref: IReference<any>, length: number = 0): void {
-		// const length = ref.object.textEditorModel.getValueLength();
-		let handle: any;
-		let entry: { uri: URI, length: number, dispose(): void };
+	add(uwi: UWI, wef: IWefewence<any>, wength: numba = 0): void {
+		// const wength = wef.object.textEditowModew.getVawueWength();
+		wet handwe: any;
+		wet entwy: { uwi: UWI, wength: numba, dispose(): void };
 		const dispose = () => {
-			const idx = this._data.indexOf(entry);
+			const idx = this._data.indexOf(entwy);
 			if (idx >= 0) {
-				this._length -= length;
-				ref.dispose();
-				clearTimeout(handle);
-				this._data.splice(idx, 1);
+				this._wength -= wength;
+				wef.dispose();
+				cweawTimeout(handwe);
+				this._data.spwice(idx, 1);
 			}
 		};
-		handle = setTimeout(dispose, this._maxAge);
-		entry = { uri, length, dispose };
+		handwe = setTimeout(dispose, this._maxAge);
+		entwy = { uwi, wength, dispose };
 
-		this._data.push(entry);
-		this._length += length;
-		this._cleanup();
+		this._data.push(entwy);
+		this._wength += wength;
+		this._cweanup();
 	}
 
-	private _cleanup(): void {
-		while (this._length > this._maxLength) {
+	pwivate _cweanup(): void {
+		whiwe (this._wength > this._maxWength) {
 			this._data[0].dispose();
 		}
 	}
 }
 
-class ModelTracker extends Disposable {
+cwass ModewTwacka extends Disposabwe {
 
-	private _knownVersionId: number;
+	pwivate _knownVewsionId: numba;
 
-	constructor(
-		private readonly _model: ITextModel,
-		private readonly _onIsCaughtUpWithContentChanges: Emitter<URI>,
-		private readonly _proxy: ExtHostDocumentsShape,
-		private readonly _textFileService: ITextFileService,
+	constwuctow(
+		pwivate weadonwy _modew: ITextModew,
+		pwivate weadonwy _onIsCaughtUpWithContentChanges: Emitta<UWI>,
+		pwivate weadonwy _pwoxy: ExtHostDocumentsShape,
+		pwivate weadonwy _textFiweSewvice: ITextFiweSewvice,
 	) {
-		super();
-		this._knownVersionId = this._model.getVersionId();
-		this._register(this._model.onDidChangeContent((e) => {
-			this._knownVersionId = e.versionId;
-			this._proxy.$acceptModelChanged(this._model.uri, e, this._textFileService.isDirty(this._model.uri));
+		supa();
+		this._knownVewsionId = this._modew.getVewsionId();
+		this._wegista(this._modew.onDidChangeContent((e) => {
+			this._knownVewsionId = e.vewsionId;
+			this._pwoxy.$acceptModewChanged(this._modew.uwi, e, this._textFiweSewvice.isDiwty(this._modew.uwi));
 			if (this.isCaughtUpWithContentChanges()) {
-				this._onIsCaughtUpWithContentChanges.fire(this._model.uri);
+				this._onIsCaughtUpWithContentChanges.fiwe(this._modew.uwi);
 			}
 		}));
 	}
 
-	public isCaughtUpWithContentChanges(): boolean {
-		return (this._model.getVersionId() === this._knownVersionId);
+	pubwic isCaughtUpWithContentChanges(): boowean {
+		wetuwn (this._modew.getVewsionId() === this._knownVewsionId);
 	}
 }
 
-export class MainThreadDocuments extends Disposable implements MainThreadDocumentsShape {
+expowt cwass MainThweadDocuments extends Disposabwe impwements MainThweadDocumentsShape {
 
-	private _onIsCaughtUpWithContentChanges = this._register(new Emitter<URI>());
-	public readonly onIsCaughtUpWithContentChanges = this._onIsCaughtUpWithContentChanges.event;
+	pwivate _onIsCaughtUpWithContentChanges = this._wegista(new Emitta<UWI>());
+	pubwic weadonwy onIsCaughtUpWithContentChanges = this._onIsCaughtUpWithContentChanges.event;
 
-	private readonly _proxy: ExtHostDocumentsShape;
-	private readonly _modelTrackers = new ResourceMap<ModelTracker>();
-	private readonly _modelIsSynced = new ResourceMap<void>();
-	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
+	pwivate weadonwy _pwoxy: ExtHostDocumentsShape;
+	pwivate weadonwy _modewTwackews = new WesouwceMap<ModewTwacka>();
+	pwivate weadonwy _modewIsSynced = new WesouwceMap<void>();
+	pwivate weadonwy _modewWefewenceCowwection: BoundModewWefewenceCowwection;
 
-	constructor(
-		documentsAndEditors: MainThreadDocumentsAndEditors,
+	constwuctow(
+		documentsAndEditows: MainThweadDocumentsAndEditows,
 		extHostContext: IExtHostContext,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IFileService private readonly _fileService: IFileService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IPathService private readonly _pathService: IPathService
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextFiweSewvice pwivate weadonwy _textFiweSewvice: ITextFiweSewvice,
+		@IFiweSewvice pwivate weadonwy _fiweSewvice: IFiweSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewWesowvewSewvice: ITextModewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IPathSewvice pwivate weadonwy _pathSewvice: IPathSewvice
 	) {
-		super();
+		supa();
 
-		this._modelReferenceCollection = this._register(new BoundModelReferenceCollection(_uriIdentityService.extUri));
+		this._modewWefewenceCowwection = this._wegista(new BoundModewWefewenceCowwection(_uwiIdentitySewvice.extUwi));
 
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostDocuments);
 
-		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
-		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._register(_modelService.onModelModeChanged(this._onModelModeChanged, this));
+		this._wegista(documentsAndEditows.onDocumentAdd(modews => modews.fowEach(this._onModewAdded, this)));
+		this._wegista(documentsAndEditows.onDocumentWemove(uwws => uwws.fowEach(this._onModewWemoved, this)));
+		this._wegista(_modewSewvice.onModewModeChanged(this._onModewModeChanged, this));
 
-		this._register(_textFileService.files.onDidSave(e => {
-			if (this._shouldHandleFileEvent(e.model.resource)) {
-				this._proxy.$acceptModelSaved(e.model.resource);
+		this._wegista(_textFiweSewvice.fiwes.onDidSave(e => {
+			if (this._shouwdHandweFiweEvent(e.modew.wesouwce)) {
+				this._pwoxy.$acceptModewSaved(e.modew.wesouwce);
 			}
 		}));
-		this._register(_textFileService.files.onDidChangeDirty(m => {
-			if (this._shouldHandleFileEvent(m.resource)) {
-				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+		this._wegista(_textFiweSewvice.fiwes.onDidChangeDiwty(m => {
+			if (this._shouwdHandweFiweEvent(m.wesouwce)) {
+				this._pwoxy.$acceptDiwtyStateChanged(m.wesouwce, m.isDiwty());
 			}
 		}));
 
-		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			const isMove = e.operation === FileOperation.MOVE;
-			if (isMove || e.operation === FileOperation.DELETE) {
-				for (const pair of e.files) {
-					const removed = isMove ? pair.source : pair.target;
-					if (removed) {
-						this._modelReferenceCollection.remove(removed);
+		this._wegista(wowkingCopyFiweSewvice.onDidWunWowkingCopyFiweOpewation(e => {
+			const isMove = e.opewation === FiweOpewation.MOVE;
+			if (isMove || e.opewation === FiweOpewation.DEWETE) {
+				fow (const paiw of e.fiwes) {
+					const wemoved = isMove ? paiw.souwce : paiw.tawget;
+					if (wemoved) {
+						this._modewWefewenceCowwection.wemove(wemoved);
 					}
 				}
 			}
 		}));
 	}
 
-	public override dispose(): void {
-		dispose(this._modelTrackers.values());
-		this._modelTrackers.clear();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		dispose(this._modewTwackews.vawues());
+		this._modewTwackews.cweaw();
+		supa.dispose();
 	}
 
-	public isCaughtUpWithContentChanges(resource: URI): boolean {
-		const tracker = this._modelTrackers.get(resource);
-		if (tracker) {
-			return tracker.isCaughtUpWithContentChanges();
+	pubwic isCaughtUpWithContentChanges(wesouwce: UWI): boowean {
+		const twacka = this._modewTwackews.get(wesouwce);
+		if (twacka) {
+			wetuwn twacka.isCaughtUpWithContentChanges();
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private _shouldHandleFileEvent(resource: URI): boolean {
-		const model = this._modelService.getModel(resource);
-		return !!model && shouldSynchronizeModel(model);
+	pwivate _shouwdHandweFiweEvent(wesouwce: UWI): boowean {
+		const modew = this._modewSewvice.getModew(wesouwce);
+		wetuwn !!modew && shouwdSynchwonizeModew(modew);
 	}
 
-	private _onModelAdded(model: ITextModel): void {
-		// Same filter as in mainThreadEditorsTracker
-		if (!shouldSynchronizeModel(model)) {
-			// don't synchronize too large models
-			return;
+	pwivate _onModewAdded(modew: ITextModew): void {
+		// Same fiwta as in mainThweadEditowsTwacka
+		if (!shouwdSynchwonizeModew(modew)) {
+			// don't synchwonize too wawge modews
+			wetuwn;
 		}
-		this._modelIsSynced.set(model.uri, undefined);
-		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
+		this._modewIsSynced.set(modew.uwi, undefined);
+		this._modewTwackews.set(modew.uwi, new ModewTwacka(modew, this._onIsCaughtUpWithContentChanges, this._pwoxy, this._textFiweSewvice));
 	}
 
-	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
-		let { model } = event;
-		if (!this._modelIsSynced.has(model.uri)) {
-			return;
+	pwivate _onModewModeChanged(event: { modew: ITextModew; owdModeId: stwing; }): void {
+		wet { modew } = event;
+		if (!this._modewIsSynced.has(modew.uwi)) {
+			wetuwn;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
+		this._pwoxy.$acceptModewModeChanged(modew.uwi, modew.getWanguageIdentifia().wanguage);
 	}
 
-	private _onModelRemoved(modelUrl: URI): void {
-		if (!this._modelIsSynced.has(modelUrl)) {
-			return;
+	pwivate _onModewWemoved(modewUww: UWI): void {
+		if (!this._modewIsSynced.has(modewUww)) {
+			wetuwn;
 		}
-		this._modelIsSynced.delete(modelUrl);
-		this._modelTrackers.get(modelUrl)!.dispose();
-		this._modelTrackers.delete(modelUrl);
+		this._modewIsSynced.dewete(modewUww);
+		this._modewTwackews.get(modewUww)!.dispose();
+		this._modewTwackews.dewete(modewUww);
 	}
 
-	// --- from extension host process
+	// --- fwom extension host pwocess
 
-	$trySaveDocument(uri: UriComponents): Promise<boolean> {
-		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
+	$twySaveDocument(uwi: UwiComponents): Pwomise<boowean> {
+		wetuwn this._textFiweSewvice.save(UWI.wevive(uwi)).then(tawget => !!tawget);
 	}
 
-	$tryOpenDocument(uriData: UriComponents): Promise<URI> {
-		const inputUri = URI.revive(uriData);
-		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
-			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
-		}
-
-		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
-
-		let promise: Promise<URI>;
-		switch (canonicalUri.scheme) {
-			case Schemas.untitled:
-				promise = this._handleUntitledScheme(canonicalUri);
-				break;
-			case Schemas.file:
-			default:
-				promise = this._handleAsResourceInput(canonicalUri);
-				break;
+	$twyOpenDocument(uwiData: UwiComponents): Pwomise<UWI> {
+		const inputUwi = UWI.wevive(uwiData);
+		if (!inputUwi.scheme || !(inputUwi.fsPath || inputUwi.authowity)) {
+			wetuwn Pwomise.weject(new Ewwow(`Invawid uwi. Scheme and authowity ow path must be set.`));
 		}
 
-		return promise.then(documentUri => {
-			if (!documentUri) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}`));
-			} else if (!extUri.isEqual(documentUri, canonicalUri)) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`));
-			} else if (!this._modelIsSynced.has(canonicalUri)) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`));
-			} else {
-				return canonicalUri;
+		const canonicawUwi = this._uwiIdentitySewvice.asCanonicawUwi(inputUwi);
+
+		wet pwomise: Pwomise<UWI>;
+		switch (canonicawUwi.scheme) {
+			case Schemas.untitwed:
+				pwomise = this._handweUntitwedScheme(canonicawUwi);
+				bweak;
+			case Schemas.fiwe:
+			defauwt:
+				pwomise = this._handweAsWesouwceInput(canonicawUwi);
+				bweak;
+		}
+
+		wetuwn pwomise.then(documentUwi => {
+			if (!documentUwi) {
+				wetuwn Pwomise.weject(new Ewwow(`cannot open ${canonicawUwi.toStwing()}`));
+			} ewse if (!extUwi.isEquaw(documentUwi, canonicawUwi)) {
+				wetuwn Pwomise.weject(new Ewwow(`cannot open ${canonicawUwi.toStwing()}. Detaiw: Actuaw document opened as ${documentUwi.toStwing()}`));
+			} ewse if (!this._modewIsSynced.has(canonicawUwi)) {
+				wetuwn Pwomise.weject(new Ewwow(`cannot open ${canonicawUwi.toStwing()}. Detaiw: Fiwes above 50MB cannot be synchwonized with extensions.`));
+			} ewse {
+				wetuwn canonicawUwi;
 			}
-		}, err => {
-			return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`));
+		}, eww => {
+			wetuwn Pwomise.weject(new Ewwow(`cannot open ${canonicawUwi.toStwing()}. Detaiw: ${toEwwowMessage(eww)}`));
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, content?: string }): Promise<URI> {
-		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
+	$twyCweateDocument(options?: { wanguage?: stwing, content?: stwing }): Pwomise<UWI> {
+		wetuwn this._doCweateUntitwed(undefined, options ? options.wanguage : undefined, options ? options.content : undefined);
 	}
 
-	private _handleAsResourceInput(uri: URI): Promise<URI> {
-		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
-			return ref.object.textEditorModel.uri;
+	pwivate _handweAsWesouwceInput(uwi: UWI): Pwomise<UWI> {
+		wetuwn this._textModewWesowvewSewvice.cweateModewWefewence(uwi).then(wef => {
+			this._modewWefewenceCowwection.add(uwi, wef, wef.object.textEditowModew.getVawueWength());
+			wetuwn wef.object.textEditowModew.uwi;
 		});
 	}
 
-	private _handleUntitledScheme(uri: URI): Promise<URI> {
-		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
-		return this._fileService.resolve(asLocalUri).then(stats => {
-			// don't create a new file ontop of an existing file
-			return Promise.reject(new Error('file already exists'));
-		}, err => {
-			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
+	pwivate _handweUntitwedScheme(uwi: UWI): Pwomise<UWI> {
+		const asWocawUwi = toWocawWesouwce(uwi, this._enviwonmentSewvice.wemoteAuthowity, this._pathSewvice.defauwtUwiScheme);
+		wetuwn this._fiweSewvice.wesowve(asWocawUwi).then(stats => {
+			// don't cweate a new fiwe ontop of an existing fiwe
+			wetuwn Pwomise.weject(new Ewwow('fiwe awweady exists'));
+		}, eww => {
+			wetuwn this._doCweateUntitwed(Boowean(uwi.path) ? uwi : undefined);
 		});
 	}
 
-	private _doCreateUntitled(associatedResource?: URI, mode?: string, initialValue?: string): Promise<URI> {
-		return this._textFileService.untitled.resolve({
-			associatedResource,
+	pwivate _doCweateUntitwed(associatedWesouwce?: UWI, mode?: stwing, initiawVawue?: stwing): Pwomise<UWI> {
+		wetuwn this._textFiweSewvice.untitwed.wesowve({
+			associatedWesouwce,
 			mode,
-			initialValue
-		}).then(model => {
-			const resource = model.resource;
+			initiawVawue
+		}).then(modew => {
+			const wesouwce = modew.wesouwce;
 
-			if (!this._modelIsSynced.has(resource)) {
-				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
+			if (!this._modewIsSynced.has(wesouwce)) {
+				thwow new Ewwow(`expected UWI ${wesouwce.toStwing()} to have come to WIFE`);
 			}
 
-			this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
+			this._pwoxy.$acceptDiwtyStateChanged(wesouwce, twue); // mawk as diwty
 
-			return resource;
+			wetuwn wesouwce;
 		});
 	}
 }

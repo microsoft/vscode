@@ -1,992 +1,992 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService, TestColorTheme } from 'vs/platform/theme/test/common/testThemeService';
-import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+impowt * as assewt fwom 'assewt';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { appendStywizedStwingToContaina, handweANSIOutput, cawcANSI8bitCowow } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugANSIHandwing';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice, TestCowowTheme } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { ansiCowowMap } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawCowowWegistwy';
+impowt { DebugModew } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { DebugSession } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugSession';
+impowt { cweateMockDebugModew } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/mockDebug';
+impowt { cweateMockSession } fwom 'vs/wowkbench/contwib/debug/test/bwowsa/cawwStack.test';
 
-suite('Debug - ANSI Handling', () => {
+suite('Debug - ANSI Handwing', () => {
 
-	let model: DebugModel;
-	let session: DebugSession;
-	let linkDetector: LinkDetector;
-	let themeService: IThemeService;
+	wet modew: DebugModew;
+	wet session: DebugSession;
+	wet winkDetectow: WinkDetectow;
+	wet themeSewvice: IThemeSewvice;
 
 	/**
-	 * Instantiate services for use by the functions being tested.
+	 * Instantiate sewvices fow use by the functions being tested.
 	 */
 	setup(() => {
-		model = createMockDebugModel();
-		session = createMockSession(model);
+		modew = cweateMockDebugModew();
+		session = cweateMockSession(modew);
 
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		linkDetector = instantiationService.createInstance(LinkDetector);
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		winkDetectow = instantiationSewvice.cweateInstance(WinkDetectow);
 
-		const colors: { [id: string]: string; } = {};
-		for (let color in ansiColorMap) {
-			colors[color] = <any>ansiColorMap[color].defaults.dark;
+		const cowows: { [id: stwing]: stwing; } = {};
+		fow (wet cowow in ansiCowowMap) {
+			cowows[cowow] = <any>ansiCowowMap[cowow].defauwts.dawk;
 		}
-		const testTheme = new TestColorTheme(colors);
-		themeService = new TestThemeService(testTheme);
+		const testTheme = new TestCowowTheme(cowows);
+		themeSewvice = new TestThemeSewvice(testTheme);
 	});
 
-	test('appendStylizedStringToContainer', () => {
-		const root: HTMLSpanElement = document.createElement('span');
-		let child: Node;
+	test('appendStywizedStwingToContaina', () => {
+		const woot: HTMWSpanEwement = document.cweateEwement('span');
+		wet chiwd: Node;
 
-		assert.strictEqual(0, root.children.length);
+		assewt.stwictEquaw(0, woot.chiwdwen.wength);
 
-		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root);
-		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root);
+		appendStywizedStwingToContaina(woot, 'content1', ['cwass1', 'cwass2'], winkDetectow, session.woot);
+		appendStywizedStwingToContaina(woot, 'content2', ['cwass2', 'cwass3'], winkDetectow, session.woot);
 
-		assert.strictEqual(2, root.children.length);
+		assewt.stwictEquaw(2, woot.chiwdwen.wength);
 
-		child = root.firstChild!;
-		if (child instanceof HTMLSpanElement) {
-			assert.strictEqual('content1', child.textContent);
-			assert(child.classList.contains('class1'));
-			assert(child.classList.contains('class2'));
-		} else {
-			assert.fail('Unexpected assertion error');
+		chiwd = woot.fiwstChiwd!;
+		if (chiwd instanceof HTMWSpanEwement) {
+			assewt.stwictEquaw('content1', chiwd.textContent);
+			assewt(chiwd.cwassWist.contains('cwass1'));
+			assewt(chiwd.cwassWist.contains('cwass2'));
+		} ewse {
+			assewt.faiw('Unexpected assewtion ewwow');
 		}
 
-		child = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
-			assert.strictEqual('content2', child.textContent);
-			assert(child.classList.contains('class2'));
-			assert(child.classList.contains('class3'));
-		} else {
-			assert.fail('Unexpected assertion error');
+		chiwd = woot.wastChiwd!;
+		if (chiwd instanceof HTMWSpanEwement) {
+			assewt.stwictEquaw('content2', chiwd.textContent);
+			assewt(chiwd.cwassWist.contains('cwass2'));
+			assewt(chiwd.cwassWist.contains('cwass3'));
+		} ewse {
+			assewt.faiw('Unexpected assewtion ewwow');
 		}
 	});
 
 	/**
-	 * Apply an ANSI sequence to {@link #getSequenceOutput}.
+	 * Appwy an ANSI sequence to {@wink #getSequenceOutput}.
 	 *
-	 * @param sequence The ANSI sequence to stylize.
-	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
+	 * @pawam sequence The ANSI sequence to stywize.
+	 * @wetuwns An {@wink HTMWSpanEwement} that contains the stywized text.
 	 */
-	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
-		assert.strictEqual(1, root.children.length);
-		const child: Node = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
-			return child;
-		} else {
-			assert.fail('Unexpected assertion error');
+	function getSequenceOutput(sequence: stwing): HTMWSpanEwement {
+		const woot: HTMWSpanEwement = handweANSIOutput(sequence, winkDetectow, themeSewvice, session.woot);
+		assewt.stwictEquaw(1, woot.chiwdwen.wength);
+		const chiwd: Node = woot.wastChiwd!;
+		if (chiwd instanceof HTMWSpanEwement) {
+			wetuwn chiwd;
+		} ewse {
+			assewt.faiw('Unexpected assewtion ewwow');
 		}
 	}
 
 	/**
-	 * Assert that a given ANSI sequence maintains added content following the ANSI code, and that
-	 * the provided {@param assertion} passes.
+	 * Assewt that a given ANSI sequence maintains added content fowwowing the ANSI code, and that
+	 * the pwovided {@pawam assewtion} passes.
 	 *
-	 * @param sequence The ANSI sequence to verify. The provided sequence should contain ANSI codes
-	 * only, and should not include actual text content as it is provided by this function.
-	 * @param assertion The function used to verify the output.
+	 * @pawam sequence The ANSI sequence to vewify. The pwovided sequence shouwd contain ANSI codes
+	 * onwy, and shouwd not incwude actuaw text content as it is pwovided by this function.
+	 * @pawam assewtion The function used to vewify the output.
 	 */
-	function assertSingleSequenceElement(sequence: string, assertion: (child: HTMLSpanElement) => void): void {
-		const child: HTMLSpanElement = getSequenceOutput(sequence + 'content');
-		assert.strictEqual('content', child.textContent);
-		assertion(child);
+	function assewtSingweSequenceEwement(sequence: stwing, assewtion: (chiwd: HTMWSpanEwement) => void): void {
+		const chiwd: HTMWSpanEwement = getSequenceOutput(sequence + 'content');
+		assewt.stwictEquaw('content', chiwd.textContent);
+		assewtion(chiwd);
 	}
 
 	/**
-	 * Assert that a given DOM element has the custom inline CSS style matching
-	 * the color value provided.
-	 * @param element The HTML span element to look at.
-	 * @param colorType If `foreground`, will check the element's css `color`;
-	 * if `background`, will check the element's css `backgroundColor`.
-	 * if `underline`, will check the elements css `textDecorationColor`.
-	 * @param color RGBA object to compare color to. If `undefined` or not provided,
-	 * will assert that no value is set.
-	 * @param message Optional custom message to pass to assertion.
-	 * @param colorShouldMatch Optional flag (defaults TO true) which allows caller to indicate that the color SHOULD NOT MATCH
-	 * (for testing changes to theme colors where we need color to have changed but we don't know exact color it should have
-	 * changed to (but we do know the color it should NO LONGER BE))
+	 * Assewt that a given DOM ewement has the custom inwine CSS stywe matching
+	 * the cowow vawue pwovided.
+	 * @pawam ewement The HTMW span ewement to wook at.
+	 * @pawam cowowType If `fowegwound`, wiww check the ewement's css `cowow`;
+	 * if `backgwound`, wiww check the ewement's css `backgwoundCowow`.
+	 * if `undewwine`, wiww check the ewements css `textDecowationCowow`.
+	 * @pawam cowow WGBA object to compawe cowow to. If `undefined` ow not pwovided,
+	 * wiww assewt that no vawue is set.
+	 * @pawam message Optionaw custom message to pass to assewtion.
+	 * @pawam cowowShouwdMatch Optionaw fwag (defauwts TO twue) which awwows cawwa to indicate that the cowow SHOUWD NOT MATCH
+	 * (fow testing changes to theme cowows whewe we need cowow to have changed but we don't know exact cowow it shouwd have
+	 * changed to (but we do know the cowow it shouwd NO WONGa BE))
 	 */
-	function assertInlineColor(element: HTMLSpanElement, colorType: 'background' | 'foreground' | 'underline', color?: RGBA | undefined, message?: string, colorShouldMatch: boolean = true): void {
-		if (color !== undefined) {
-			const cssColor = Color.Format.CSS.formatRGB(
-				new Color(color)
+	function assewtInwineCowow(ewement: HTMWSpanEwement, cowowType: 'backgwound' | 'fowegwound' | 'undewwine', cowow?: WGBA | undefined, message?: stwing, cowowShouwdMatch: boowean = twue): void {
+		if (cowow !== undefined) {
+			const cssCowow = Cowow.Fowmat.CSS.fowmatWGB(
+				new Cowow(cowow)
 			);
-			if (colorType === 'background') {
-				const styleBefore = element.style.backgroundColor;
-				element.style.backgroundColor = cssColor;
-				assert((styleBefore === element.style.backgroundColor) === colorShouldMatch, message || `Incorrect ${colorType} color style found (found color: ${styleBefore}, expected ${cssColor}).`);
-			} else if (colorType === 'foreground') {
-				const styleBefore = element.style.color;
-				element.style.color = cssColor;
-				assert((styleBefore === element.style.color) === colorShouldMatch, message || `Incorrect ${colorType} color style found (found color: ${styleBefore}, expected ${cssColor}).`);
-			} else {
-				const styleBefore = element.style.textDecorationColor;
-				element.style.textDecorationColor = cssColor;
-				assert((styleBefore === element.style.textDecorationColor) === colorShouldMatch, message || `Incorrect ${colorType} color style found (found color: ${styleBefore}, expected ${cssColor}).`);
+			if (cowowType === 'backgwound') {
+				const styweBefowe = ewement.stywe.backgwoundCowow;
+				ewement.stywe.backgwoundCowow = cssCowow;
+				assewt((styweBefowe === ewement.stywe.backgwoundCowow) === cowowShouwdMatch, message || `Incowwect ${cowowType} cowow stywe found (found cowow: ${styweBefowe}, expected ${cssCowow}).`);
+			} ewse if (cowowType === 'fowegwound') {
+				const styweBefowe = ewement.stywe.cowow;
+				ewement.stywe.cowow = cssCowow;
+				assewt((styweBefowe === ewement.stywe.cowow) === cowowShouwdMatch, message || `Incowwect ${cowowType} cowow stywe found (found cowow: ${styweBefowe}, expected ${cssCowow}).`);
+			} ewse {
+				const styweBefowe = ewement.stywe.textDecowationCowow;
+				ewement.stywe.textDecowationCowow = cssCowow;
+				assewt((styweBefowe === ewement.stywe.textDecowationCowow) === cowowShouwdMatch, message || `Incowwect ${cowowType} cowow stywe found (found cowow: ${styweBefowe}, expected ${cssCowow}).`);
 			}
-		} else {
-			if (colorType === 'background') {
-				assert(!element.style.backgroundColor, message || `Defined ${colorType} color style found when it should not have been defined`);
-			} else if (colorType === 'foreground') {
-				assert(!element.style.color, message || `Defined ${colorType} color style found when it should not have been defined`);
-			} else {
-				assert(!element.style.textDecorationColor, message || `Defined ${colorType} color style found when it should not have been defined`);
+		} ewse {
+			if (cowowType === 'backgwound') {
+				assewt(!ewement.stywe.backgwoundCowow, message || `Defined ${cowowType} cowow stywe found when it shouwd not have been defined`);
+			} ewse if (cowowType === 'fowegwound') {
+				assewt(!ewement.stywe.cowow, message || `Defined ${cowowType} cowow stywe found when it shouwd not have been defined`);
+			} ewse {
+				assewt(!ewement.stywe.textDecowationCowow, message || `Defined ${cowowType} cowow stywe found when it shouwd not have been defined`);
 			}
 		}
 
 	}
 
-	test('Expected single sequence operation', () => {
+	test('Expected singwe sequence opewation', () => {
 
-		// Bold code
-		assertSingleSequenceElement('\x1b[1m', (child) => {
-			assert(child.classList.contains('code-bold'), 'Bold formatting not detected after bold ANSI code.');
+		// Bowd code
+		assewtSingweSequenceEwement('\x1b[1m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-bowd'), 'Bowd fowmatting not detected afta bowd ANSI code.');
 		});
 
-		// Italic code
-		assertSingleSequenceElement('\x1b[3m', (child) => {
-			assert(child.classList.contains('code-italic'), 'Italic formatting not detected after italic ANSI code.');
+		// Itawic code
+		assewtSingweSequenceEwement('\x1b[3m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-itawic'), 'Itawic fowmatting not detected afta itawic ANSI code.');
 		});
 
-		// Underline code
-		assertSingleSequenceElement('\x1b[4m', (child) => {
-			assert(child.classList.contains('code-underline'), 'Underline formatting not detected after underline ANSI code.');
+		// Undewwine code
+		assewtSingweSequenceEwement('\x1b[4m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-undewwine'), 'Undewwine fowmatting not detected afta undewwine ANSI code.');
 		});
 
-		for (let i = 30; i <= 37; i++) {
-			const customClassName: string = 'code-foreground-colored';
+		fow (wet i = 30; i <= 37; i++) {
+			const customCwassName: stwing = 'code-fowegwound-cowowed';
 
-			// Foreground colour class
-			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(child.classList.contains(customClassName), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
+			// Fowegwound cowouw cwass
+			assewtSingweSequenceEwement('\x1b[' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName), `Custom fowegwound cwass not found on ewement afta fowegwound ANSI code #${i}.`);
 			});
 
-			// Cancellation code removes colour class
-			assertSingleSequenceElement('\x1b[' + i + ';39m', (child) => {
-				assert(child.classList.contains(customClassName) === false, 'Custom foreground class still found after foreground cancellation code.');
-				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after foreground cancellation code.');
-			});
-		}
-
-		for (let i = 40; i <= 47; i++) {
-			const customClassName: string = 'code-background-colored';
-
-			// Foreground colour class
-			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
-				assert(child.classList.contains(customClassName), `Custom background class not found on element after background ANSI code #${i}.`);
-			});
-
-			// Cancellation code removes colour class
-			assertSingleSequenceElement('\x1b[' + i + ';49m', (child) => {
-				assert(child.classList.contains(customClassName) === false, 'Custom background class still found after background cancellation code.');
-				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after background cancellation code.');
+			// Cancewwation code wemoves cowouw cwass
+			assewtSingweSequenceEwement('\x1b[' + i + ';39m', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName) === fawse, 'Custom fowegwound cwass stiww found afta fowegwound cancewwation code.');
+				assewtInwineCowow(chiwd, 'fowegwound', undefined, 'Custom cowow stywe stiww found afta fowegwound cancewwation code.');
 			});
 		}
 
-		// check all basic colors for underlines (full range is checked elsewhere, here we check cancelation)
-		for (let i = 0; i <= 255; i++) {
-			const customClassName: string = 'code-underline-colored';
+		fow (wet i = 40; i <= 47; i++) {
+			const customCwassName: stwing = 'code-backgwound-cowowed';
 
-			// Underline colour class
-			assertSingleSequenceElement('\x1b[58;5;' + i + 'm', (child) => {
-				assert(child.classList.contains(customClassName), `Custom underline color class not found on element after underline color ANSI code 58;5;${i}m.`);
+			// Fowegwound cowouw cwass
+			assewtSingweSequenceEwement('\x1b[' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName), `Custom backgwound cwass not found on ewement afta backgwound ANSI code #${i}.`);
 			});
 
-			// Cancellation underline color code removes colour class
-			assertSingleSequenceElement('\x1b[58;5;' + i + 'm\x1b[59m', (child) => {
-				assert(child.classList.contains(customClassName) === false, 'Custom underline color class still found after underline color cancellation code 59m.');
-				assertInlineColor(child, 'underline', undefined, 'Custom underline color style still found after underline color cancellation code 59m.');
+			// Cancewwation code wemoves cowouw cwass
+			assewtSingweSequenceEwement('\x1b[' + i + ';49m', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName) === fawse, 'Custom backgwound cwass stiww found afta backgwound cancewwation code.');
+				assewtInwineCowow(chiwd, 'fowegwound', undefined, 'Custom cowow stywe stiww found afta backgwound cancewwation code.');
 			});
 		}
 
-		// Different codes do not cancel each other
-		assertSingleSequenceElement('\x1b[1;3;4;30;41m', (child) => {
-			assert.strictEqual(5, child.classList.length, 'Incorrect number of classes found for different ANSI codes.');
+		// check aww basic cowows fow undewwines (fuww wange is checked ewsewhewe, hewe we check cancewation)
+		fow (wet i = 0; i <= 255; i++) {
+			const customCwassName: stwing = 'code-undewwine-cowowed';
 
-			assert(child.classList.contains('code-bold'));
-			assert(child.classList.contains('code-italic'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-underline'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-foreground-colored'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-background-colored'), 'Different ANSI codes should not cancel each other.');
+			// Undewwine cowouw cwass
+			assewtSingweSequenceEwement('\x1b[58;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName), `Custom undewwine cowow cwass not found on ewement afta undewwine cowow ANSI code 58;5;${i}m.`);
+			});
+
+			// Cancewwation undewwine cowow code wemoves cowouw cwass
+			assewtSingweSequenceEwement('\x1b[58;5;' + i + 'm\x1b[59m', (chiwd) => {
+				assewt(chiwd.cwassWist.contains(customCwassName) === fawse, 'Custom undewwine cowow cwass stiww found afta undewwine cowow cancewwation code 59m.');
+				assewtInwineCowow(chiwd, 'undewwine', undefined, 'Custom undewwine cowow stywe stiww found afta undewwine cowow cancewwation code 59m.');
+			});
+		}
+
+		// Diffewent codes do not cancew each otha
+		assewtSingweSequenceEwement('\x1b[1;3;4;30;41m', (chiwd) => {
+			assewt.stwictEquaw(5, chiwd.cwassWist.wength, 'Incowwect numba of cwasses found fow diffewent ANSI codes.');
+
+			assewt(chiwd.cwassWist.contains('code-bowd'));
+			assewt(chiwd.cwassWist.contains('code-itawic'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-undewwine'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), 'Diffewent ANSI codes shouwd not cancew each otha.');
 		});
 
-		// Different codes do not ACCUMULATE more than one copy of each class
-		assertSingleSequenceElement('\x1b[1;1;2;2;3;3;4;4;5;5;6;6;8;8;9;9;21;21;53;53;73;73;74;74m', (child) => {
-			assert(child.classList.contains('code-bold'));
-			assert(child.classList.contains('code-italic'), 'italic missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-underline') === false, 'underline PRESENT and double underline should have removed it- Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-dim'), 'dim missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-blink'), 'blink missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-rapid-blink'), 'rapid blink mkssing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-double-underline'), 'double underline missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-hidden'), 'hidden missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-strike-through'), 'strike-through missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-overline'), 'overline missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-superscript') === false, 'superscript PRESENT and subscript should have removed it- Doubles of each Different ANSI codes should not cancel each other or accumulate.');
-			assert(child.classList.contains('code-subscript'), 'subscript missing Doubles of each Different ANSI codes should not cancel each other or accumulate.');
+		// Diffewent codes do not ACCUMUWATE mowe than one copy of each cwass
+		assewtSingweSequenceEwement('\x1b[1;1;2;2;3;3;4;4;5;5;6;6;8;8;9;9;21;21;53;53;73;73;74;74m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-bowd'));
+			assewt(chiwd.cwassWist.contains('code-itawic'), 'itawic missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-undewwine') === fawse, 'undewwine PWESENT and doubwe undewwine shouwd have wemoved it- Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-dim'), 'dim missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-bwink'), 'bwink missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-wapid-bwink'), 'wapid bwink mkssing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-doubwe-undewwine'), 'doubwe undewwine missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-hidden'), 'hidden missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-stwike-thwough'), 'stwike-thwough missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-ovewwine'), 'ovewwine missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-supewscwipt') === fawse, 'supewscwipt PWESENT and subscwipt shouwd have wemoved it- Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
+			assewt(chiwd.cwassWist.contains('code-subscwipt'), 'subscwipt missing Doubwes of each Diffewent ANSI codes shouwd not cancew each otha ow accumuwate.');
 
-			assert.strictEqual(10, child.classList.length, 'Incorrect number of classes found for each style code sent twice ANSI codes.');
+			assewt.stwictEquaw(10, chiwd.cwassWist.wength, 'Incowwect numba of cwasses found fow each stywe code sent twice ANSI codes.');
 		});
 
 
 
-		// More Different codes do not cancel each other
-		assertSingleSequenceElement('\x1b[1;2;5;6;21;8;9m', (child) => {
-			assert.strictEqual(7, child.classList.length, 'Incorrect number of classes found for different ANSI codes.');
+		// Mowe Diffewent codes do not cancew each otha
+		assewtSingweSequenceEwement('\x1b[1;2;5;6;21;8;9m', (chiwd) => {
+			assewt.stwictEquaw(7, chiwd.cwassWist.wength, 'Incowwect numba of cwasses found fow diffewent ANSI codes.');
 
-			assert(child.classList.contains('code-bold'));
-			assert(child.classList.contains('code-dim'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-blink'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-rapid-blink'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-double-underline'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-hidden'), 'Different ANSI codes should not cancel each other.');
-			assert(child.classList.contains('code-strike-through'), 'Different ANSI codes should not cancel each other.');
+			assewt(chiwd.cwassWist.contains('code-bowd'));
+			assewt(chiwd.cwassWist.contains('code-dim'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-bwink'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-wapid-bwink'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-doubwe-undewwine'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-hidden'), 'Diffewent ANSI codes shouwd not cancew each otha.');
+			assewt(chiwd.cwassWist.contains('code-stwike-thwough'), 'Diffewent ANSI codes shouwd not cancew each otha.');
 		});
 
 
 
-		// New foreground codes don't remove old background codes and vice versa
-		assertSingleSequenceElement('\x1b[40;31;42;33m', (child) => {
-			assert.strictEqual(2, child.classList.length);
+		// New fowegwound codes don't wemove owd backgwound codes and vice vewsa
+		assewtSingweSequenceEwement('\x1b[40;31;42;33m', (chiwd) => {
+			assewt.stwictEquaw(2, chiwd.cwassWist.wength);
 
-			assert(child.classList.contains('code-background-colored'), 'New foreground ANSI code should not cancel existing background formatting.');
-			assert(child.classList.contains('code-foreground-colored'), 'New background ANSI code should not cancel existing foreground formatting.');
+			assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), 'New fowegwound ANSI code shouwd not cancew existing backgwound fowmatting.');
+			assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), 'New backgwound ANSI code shouwd not cancew existing fowegwound fowmatting.');
 		});
 
-		// Duplicate codes do not change output
-		assertSingleSequenceElement('\x1b[1;1;4;1;4;4;1;4m', (child) => {
-			assert(child.classList.contains('code-bold'), 'Duplicate formatting codes should have no effect.');
-			assert(child.classList.contains('code-underline'), 'Duplicate formatting codes should have no effect.');
+		// Dupwicate codes do not change output
+		assewtSingweSequenceEwement('\x1b[1;1;4;1;4;4;1;4m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-bowd'), 'Dupwicate fowmatting codes shouwd have no effect.');
+			assewt(chiwd.cwassWist.contains('code-undewwine'), 'Dupwicate fowmatting codes shouwd have no effect.');
 		});
 
-		// Extra terminating semicolon does not change output
-		assertSingleSequenceElement('\x1b[1;4;m', (child) => {
-			assert(child.classList.contains('code-bold'), 'Extra semicolon after ANSI codes should have no effect.');
-			assert(child.classList.contains('code-underline'), 'Extra semicolon after ANSI codes should have no effect.');
+		// Extwa tewminating semicowon does not change output
+		assewtSingweSequenceEwement('\x1b[1;4;m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-bowd'), 'Extwa semicowon afta ANSI codes shouwd have no effect.');
+			assewt(chiwd.cwassWist.contains('code-undewwine'), 'Extwa semicowon afta ANSI codes shouwd have no effect.');
 		});
 
-		// Cancellation code removes multiple codes
-		assertSingleSequenceElement('\x1b[1;4;30;41;32;43;34;45;36;47;0m', (child) => {
-			assert.strictEqual(0, child.classList.length, 'Cancellation ANSI code should clear ALL formatting.');
-			assertInlineColor(child, 'background', undefined, 'Cancellation ANSI code should clear ALL formatting.');
-			assertInlineColor(child, 'foreground', undefined, 'Cancellation ANSI code should clear ALL formatting.');
+		// Cancewwation code wemoves muwtipwe codes
+		assewtSingweSequenceEwement('\x1b[1;4;30;41;32;43;34;45;36;47;0m', (chiwd) => {
+			assewt.stwictEquaw(0, chiwd.cwassWist.wength, 'Cancewwation ANSI code shouwd cweaw AWW fowmatting.');
+			assewtInwineCowow(chiwd, 'backgwound', undefined, 'Cancewwation ANSI code shouwd cweaw AWW fowmatting.');
+			assewtInwineCowow(chiwd, 'fowegwound', undefined, 'Cancewwation ANSI code shouwd cweaw AWW fowmatting.');
 		});
 
 	});
 
-	test('Expected single 8-bit color sequence operation', () => {
-		// Basic and bright color codes specified with 8-bit color code format
-		for (let i = 0; i <= 15; i++) {
-			// As these are controlled by theme, difficult to check actual color value
-			// Foreground codes should add standard classes
-			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
-				assert(child.classList.contains('code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
+	test('Expected singwe 8-bit cowow sequence opewation', () => {
+		// Basic and bwight cowow codes specified with 8-bit cowow code fowmat
+		fow (wet i = 0; i <= 15; i++) {
+			// As these awe contwowwed by theme, difficuwt to check actuaw cowow vawue
+			// Fowegwound codes shouwd add standawd cwasses
+			assewtSingweSequenceEwement('\x1b[38;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), `Custom cowow cwass not found afta fowegwound 8-bit cowow code 38;5;${i}`);
 			});
 
-			// Background codes should add standard classes
-			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
-				assert(child.classList.contains('code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
-			});
-		}
-
-		// 8-bit advanced colors
-		for (let i = 16; i <= 255; i++) {
-			// Foreground codes should add custom class and inline style
-			assertSingleSequenceElement('\x1b[38;5;' + i + 'm', (child) => {
-				assert(child.classList.contains('code-foreground-colored'), `Custom color class not found after foreground 8-bit color code 38;5;${i}`);
-				assertInlineColor(child, 'foreground', (calcANSI8bitColor(i) as RGBA), `Incorrect or no color styling found after foreground 8-bit color code 38;5;${i}`);
-			});
-
-			// Background codes should add custom class and inline style
-			assertSingleSequenceElement('\x1b[48;5;' + i + 'm', (child) => {
-				assert(child.classList.contains('code-background-colored'), `Custom color class not found after background 8-bit color code 48;5;${i}`);
-				assertInlineColor(child, 'background', (calcANSI8bitColor(i) as RGBA), `Incorrect or no color styling found after background 8-bit color code 48;5;${i}`);
-			});
-
-			// Color underline codes should add custom class and inline style
-			assertSingleSequenceElement('\x1b[58;5;' + i + 'm', (child) => {
-				assert(child.classList.contains('code-underline-colored'), `Custom color class not found after underline 8-bit color code 58;5;${i}`);
-				assertInlineColor(child, 'underline', (calcANSI8bitColor(i) as RGBA), `Incorrect or no color styling found after underline 8-bit color code 58;5;${i}`);
+			// Backgwound codes shouwd add standawd cwasses
+			assewtSingweSequenceEwement('\x1b[48;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), `Custom cowow cwass not found afta backgwound 8-bit cowow code 48;5;${i}`);
 			});
 		}
 
-		// Bad (nonexistent) color should not render
-		assertSingleSequenceElement('\x1b[48;5;300m', (child) => {
-			assert.strictEqual(0, child.classList.length, 'Bad ANSI color codes should have no effect.');
+		// 8-bit advanced cowows
+		fow (wet i = 16; i <= 255; i++) {
+			// Fowegwound codes shouwd add custom cwass and inwine stywe
+			assewtSingweSequenceEwement('\x1b[38;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), `Custom cowow cwass not found afta fowegwound 8-bit cowow code 38;5;${i}`);
+				assewtInwineCowow(chiwd, 'fowegwound', (cawcANSI8bitCowow(i) as WGBA), `Incowwect ow no cowow stywing found afta fowegwound 8-bit cowow code 38;5;${i}`);
+			});
+
+			// Backgwound codes shouwd add custom cwass and inwine stywe
+			assewtSingweSequenceEwement('\x1b[48;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), `Custom cowow cwass not found afta backgwound 8-bit cowow code 48;5;${i}`);
+				assewtInwineCowow(chiwd, 'backgwound', (cawcANSI8bitCowow(i) as WGBA), `Incowwect ow no cowow stywing found afta backgwound 8-bit cowow code 48;5;${i}`);
+			});
+
+			// Cowow undewwine codes shouwd add custom cwass and inwine stywe
+			assewtSingweSequenceEwement('\x1b[58;5;' + i + 'm', (chiwd) => {
+				assewt(chiwd.cwassWist.contains('code-undewwine-cowowed'), `Custom cowow cwass not found afta undewwine 8-bit cowow code 58;5;${i}`);
+				assewtInwineCowow(chiwd, 'undewwine', (cawcANSI8bitCowow(i) as WGBA), `Incowwect ow no cowow stywing found afta undewwine 8-bit cowow code 58;5;${i}`);
+			});
+		}
+
+		// Bad (nonexistent) cowow shouwd not wenda
+		assewtSingweSequenceEwement('\x1b[48;5;300m', (chiwd) => {
+			assewt.stwictEquaw(0, chiwd.cwassWist.wength, 'Bad ANSI cowow codes shouwd have no effect.');
 		});
 
-		// Should ignore any codes after the ones needed to determine color
-		assertSingleSequenceElement('\x1b[48;5;100;42;77;99;4;24m', (child) => {
-			assert(child.classList.contains('code-background-colored'));
-			assert.strictEqual(1, child.classList.length);
-			assertInlineColor(child, 'background', (calcANSI8bitColor(100) as RGBA));
+		// Shouwd ignowe any codes afta the ones needed to detewmine cowow
+		assewtSingweSequenceEwement('\x1b[48;5;100;42;77;99;4;24m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'));
+			assewt.stwictEquaw(1, chiwd.cwassWist.wength);
+			assewtInwineCowow(chiwd, 'backgwound', (cawcANSI8bitCowow(100) as WGBA));
 		});
 	});
 
-	test('Expected single 24-bit color sequence operation', () => {
-		// 24-bit advanced colors
-		for (let r = 0; r <= 255; r += 64) {
-			for (let g = 0; g <= 255; g += 64) {
-				for (let b = 0; b <= 255; b += 64) {
-					let color = new RGBA(r, g, b);
-					// Foreground codes should add class and inline style
-					assertSingleSequenceElement(`\x1b[38;2;${r};${g};${b}m`, (child) => {
-						assert(child.classList.contains('code-foreground-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
-						assertInlineColor(child, 'foreground', color);
+	test('Expected singwe 24-bit cowow sequence opewation', () => {
+		// 24-bit advanced cowows
+		fow (wet w = 0; w <= 255; w += 64) {
+			fow (wet g = 0; g <= 255; g += 64) {
+				fow (wet b = 0; b <= 255; b += 64) {
+					wet cowow = new WGBA(w, g, b);
+					// Fowegwound codes shouwd add cwass and inwine stywe
+					assewtSingweSequenceEwement(`\x1b[38;2;${w};${g};${b}m`, (chiwd) => {
+						assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), 'DOM shouwd have "code-fowegwound-cowowed" cwass fow advanced ANSI cowows.');
+						assewtInwineCowow(chiwd, 'fowegwound', cowow);
 					});
 
-					// Background codes should add class and inline style
-					assertSingleSequenceElement(`\x1b[48;2;${r};${g};${b}m`, (child) => {
-						assert(child.classList.contains('code-background-colored'), 'DOM should have "code-foreground-colored" class for advanced ANSI colors.');
-						assertInlineColor(child, 'background', color);
+					// Backgwound codes shouwd add cwass and inwine stywe
+					assewtSingweSequenceEwement(`\x1b[48;2;${w};${g};${b}m`, (chiwd) => {
+						assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), 'DOM shouwd have "code-fowegwound-cowowed" cwass fow advanced ANSI cowows.');
+						assewtInwineCowow(chiwd, 'backgwound', cowow);
 					});
 
-					// Underline color codes should add class and inline style
-					assertSingleSequenceElement(`\x1b[58;2;${r};${g};${b}m`, (child) => {
-						assert(child.classList.contains('code-underline-colored'), 'DOM should have "code-underline-colored" class for advanced ANSI colors.');
-						assertInlineColor(child, 'underline', color);
+					// Undewwine cowow codes shouwd add cwass and inwine stywe
+					assewtSingweSequenceEwement(`\x1b[58;2;${w};${g};${b}m`, (chiwd) => {
+						assewt(chiwd.cwassWist.contains('code-undewwine-cowowed'), 'DOM shouwd have "code-undewwine-cowowed" cwass fow advanced ANSI cowows.');
+						assewtInwineCowow(chiwd, 'undewwine', cowow);
 					});
 				}
 			}
 		}
 
-		// Invalid color should not render
-		assertSingleSequenceElement('\x1b[38;2;4;4m', (child) => {
-			assert.strictEqual(0, child.classList.length, `Invalid color code "38;2;4;4" should not add a class (classes found: ${child.classList}).`);
-			assert(!child.style.color, `Invalid color code "38;2;4;4" should not add a custom color CSS (found color: ${child.style.color}).`);
+		// Invawid cowow shouwd not wenda
+		assewtSingweSequenceEwement('\x1b[38;2;4;4m', (chiwd) => {
+			assewt.stwictEquaw(0, chiwd.cwassWist.wength, `Invawid cowow code "38;2;4;4" shouwd not add a cwass (cwasses found: ${chiwd.cwassWist}).`);
+			assewt(!chiwd.stywe.cowow, `Invawid cowow code "38;2;4;4" shouwd not add a custom cowow CSS (found cowow: ${chiwd.stywe.cowow}).`);
 		});
 
-		// Bad (nonexistent) color should not render
-		assertSingleSequenceElement('\x1b[48;2;150;300;5m', (child) => {
-			assert.strictEqual(0, child.classList.length, `Nonexistent color code "48;2;150;300;5" should not add a class (classes found: ${child.classList}).`);
+		// Bad (nonexistent) cowow shouwd not wenda
+		assewtSingweSequenceEwement('\x1b[48;2;150;300;5m', (chiwd) => {
+			assewt.stwictEquaw(0, chiwd.cwassWist.wength, `Nonexistent cowow code "48;2;150;300;5" shouwd not add a cwass (cwasses found: ${chiwd.cwassWist}).`);
 		});
 
-		// Should ignore any codes after the ones needed to determine color
-		assertSingleSequenceElement('\x1b[48;2;100;42;77;99;200;75m', (child) => {
-			assert(child.classList.contains('code-background-colored'), `Color code with extra (valid) items "48;2;100;42;77;99;200;75" should still treat initial part as valid code and add class "code-background-custom".`);
-			assert.strictEqual(1, child.classList.length, `Color code with extra items "48;2;100;42;77;99;200;75" should add one and only one class. (classes found: ${child.classList}).`);
-			assertInlineColor(child, 'background', new RGBA(100, 42, 77), `Color code "48;2;100;42;77;99;200;75" should  style background-color as rgb(100,42,77).`);
+		// Shouwd ignowe any codes afta the ones needed to detewmine cowow
+		assewtSingweSequenceEwement('\x1b[48;2;100;42;77;99;200;75m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-backgwound-cowowed'), `Cowow code with extwa (vawid) items "48;2;100;42;77;99;200;75" shouwd stiww tweat initiaw pawt as vawid code and add cwass "code-backgwound-custom".`);
+			assewt.stwictEquaw(1, chiwd.cwassWist.wength, `Cowow code with extwa items "48;2;100;42;77;99;200;75" shouwd add one and onwy one cwass. (cwasses found: ${chiwd.cwassWist}).`);
+			assewtInwineCowow(chiwd, 'backgwound', new WGBA(100, 42, 77), `Cowow code "48;2;100;42;77;99;200;75" shouwd  stywe backgwound-cowow as wgb(100,42,77).`);
 		});
 	});
 
 
 	/**
-	 * Assert that a given ANSI sequence produces the expected number of {@link HTMLSpanElement} children. For
-	 * each child, run the provided assertion.
+	 * Assewt that a given ANSI sequence pwoduces the expected numba of {@wink HTMWSpanEwement} chiwdwen. Fow
+	 * each chiwd, wun the pwovided assewtion.
 	 *
-	 * @param sequence The ANSI sequence to verify.
-	 * @param assertions A set of assertions to run on the resulting children.
+	 * @pawam sequence The ANSI sequence to vewify.
+	 * @pawam assewtions A set of assewtions to wun on the wesuwting chiwdwen.
 	 */
-	function assertMultipleSequenceElements(sequence: string, assertions: Array<(child: HTMLSpanElement) => void>, elementsExpected?: number): void {
-		if (elementsExpected === undefined) {
-			elementsExpected = assertions.length;
+	function assewtMuwtipweSequenceEwements(sequence: stwing, assewtions: Awway<(chiwd: HTMWSpanEwement) => void>, ewementsExpected?: numba): void {
+		if (ewementsExpected === undefined) {
+			ewementsExpected = assewtions.wength;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
-		assert.strictEqual(elementsExpected, root.children.length);
-		for (let i = 0; i < elementsExpected; i++) {
-			const child: Node = root.children[i];
-			if (child instanceof HTMLSpanElement) {
-				assertions[i](child);
-			} else {
-				assert.fail('Unexpected assertion error');
+		const woot: HTMWSpanEwement = handweANSIOutput(sequence, winkDetectow, themeSewvice, session.woot);
+		assewt.stwictEquaw(ewementsExpected, woot.chiwdwen.wength);
+		fow (wet i = 0; i < ewementsExpected; i++) {
+			const chiwd: Node = woot.chiwdwen[i];
+			if (chiwd instanceof HTMWSpanEwement) {
+				assewtions[i](chiwd);
+			} ewse {
+				assewt.faiw('Unexpected assewtion ewwow');
 			}
 		}
 	}
 
-	test('Expected multiple sequence operation', () => {
+	test('Expected muwtipwe sequence opewation', () => {
 
-		// Multiple codes affect the same text
-		assertSingleSequenceElement('\x1b[1m\x1b[3m\x1b[4m\x1b[32m', (child) => {
-			assert(child.classList.contains('code-bold'), 'Bold class not found after multiple different ANSI codes.');
-			assert(child.classList.contains('code-italic'), 'Italic class not found after multiple different ANSI codes.');
-			assert(child.classList.contains('code-underline'), 'Underline class not found after multiple different ANSI codes.');
-			assert(child.classList.contains('code-foreground-colored'), 'Foreground color class not found after multiple different ANSI codes.');
+		// Muwtipwe codes affect the same text
+		assewtSingweSequenceEwement('\x1b[1m\x1b[3m\x1b[4m\x1b[32m', (chiwd) => {
+			assewt(chiwd.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta muwtipwe diffewent ANSI codes.');
+			assewt(chiwd.cwassWist.contains('code-itawic'), 'Itawic cwass not found afta muwtipwe diffewent ANSI codes.');
+			assewt(chiwd.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta muwtipwe diffewent ANSI codes.');
+			assewt(chiwd.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound cowow cwass not found afta muwtipwe diffewent ANSI codes.');
 		});
 
-		// Consecutive codes do not affect previous ones
-		assertMultipleSequenceElements('\x1b[1mbold\x1b[32mgreen\x1b[4munderline\x1b[3mitalic\x1b[0mnothing', [
-			(bold) => {
-				assert.strictEqual(1, bold.classList.length);
-				assert(bold.classList.contains('code-bold'), 'Bold class not found after bold ANSI code.');
+		// Consecutive codes do not affect pwevious ones
+		assewtMuwtipweSequenceEwements('\x1b[1mbowd\x1b[32mgween\x1b[4mundewwine\x1b[3mitawic\x1b[0mnothing', [
+			(bowd) => {
+				assewt.stwictEquaw(1, bowd.cwassWist.wength);
+				assewt(bowd.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta bowd ANSI code.');
 			},
-			(green) => {
-				assert.strictEqual(2, green.classList.length);
-				assert(green.classList.contains('code-bold'), 'Bold class not found after both bold and color ANSI codes.');
-				assert(green.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(gween) => {
+				assewt.stwictEquaw(2, gween.cwassWist.wength);
+				assewt(gween.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta both bowd and cowow ANSI codes.');
+				assewt(gween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
-			(underline) => {
-				assert.strictEqual(3, underline.classList.length);
-				assert(underline.classList.contains('code-bold'), 'Bold class not found after bold, color, and underline ANSI codes.');
-				assert(underline.classList.contains('code-foreground-colored'), 'Color class not found after color and underline ANSI codes.');
-				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code.');
+			(undewwine) => {
+				assewt.stwictEquaw(3, undewwine.cwassWist.wength);
+				assewt(undewwine.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta bowd, cowow, and undewwine ANSI codes.');
+				assewt(undewwine.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow and undewwine ANSI codes.');
+				assewt(undewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine ANSI code.');
 			},
-			(italic) => {
-				assert.strictEqual(4, italic.classList.length);
-				assert(italic.classList.contains('code-bold'), 'Bold class not found after bold, color, underline, and italic ANSI codes.');
-				assert(italic.classList.contains('code-foreground-colored'), 'Color class not found after color, underline, and italic ANSI codes.');
-				assert(italic.classList.contains('code-underline'), 'Underline class not found after underline and italic ANSI codes.');
-				assert(italic.classList.contains('code-italic'), 'Italic class not found after italic ANSI code.');
+			(itawic) => {
+				assewt.stwictEquaw(4, itawic.cwassWist.wength);
+				assewt(itawic.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta bowd, cowow, undewwine, and itawic ANSI codes.');
+				assewt(itawic.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow, undewwine, and itawic ANSI codes.');
+				assewt(itawic.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine and itawic ANSI codes.');
+				assewt(itawic.cwassWist.contains('code-itawic'), 'Itawic cwass not found afta itawic ANSI code.');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta weset ANSI code.');
 			},
 		], 5);
 
-		// Consecutive codes with ENDING/OFF codes do not LEAVE affect previous ones
-		assertMultipleSequenceElements('\x1b[1mbold\x1b[22m\x1b[32mgreen\x1b[4munderline\x1b[24m\x1b[3mitalic\x1b[23mjustgreen\x1b[0mnothing', [
-			(bold) => {
-				assert.strictEqual(1, bold.classList.length);
-				assert(bold.classList.contains('code-bold'), 'Bold class not found after bold ANSI code.');
+		// Consecutive codes with ENDING/OFF codes do not WEAVE affect pwevious ones
+		assewtMuwtipweSequenceEwements('\x1b[1mbowd\x1b[22m\x1b[32mgween\x1b[4mundewwine\x1b[24m\x1b[3mitawic\x1b[23mjustgween\x1b[0mnothing', [
+			(bowd) => {
+				assewt.stwictEquaw(1, bowd.cwassWist.wength);
+				assewt(bowd.cwassWist.contains('code-bowd'), 'Bowd cwass not found afta bowd ANSI code.');
 			},
-			(green) => {
-				assert.strictEqual(1, green.classList.length);
-				assert(green.classList.contains('code-bold') === false, 'Bold class found after both bold WAS TURNED OFF with 22m');
-				assert(green.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(gween) => {
+				assewt.stwictEquaw(1, gween.cwassWist.wength);
+				assewt(gween.cwassWist.contains('code-bowd') === fawse, 'Bowd cwass found afta both bowd WAS TUWNED OFF with 22m');
+				assewt(gween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
-			(underline) => {
-				assert.strictEqual(2, underline.classList.length);
-				assert(underline.classList.contains('code-foreground-colored'), 'Color class not found after color and underline ANSI codes.');
-				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code.');
+			(undewwine) => {
+				assewt.stwictEquaw(2, undewwine.cwassWist.wength);
+				assewt(undewwine.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow and undewwine ANSI codes.');
+				assewt(undewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine ANSI code.');
 			},
-			(italic) => {
-				assert.strictEqual(2, italic.classList.length);
-				assert(italic.classList.contains('code-foreground-colored'), 'Color class not found after color, underline, and italic ANSI codes.');
-				assert(italic.classList.contains('code-underline') === false, 'Underline class found after underline WAS TURNED OFF with 24m');
-				assert(italic.classList.contains('code-italic'), 'Italic class not found after italic ANSI code.');
+			(itawic) => {
+				assewt.stwictEquaw(2, itawic.cwassWist.wength);
+				assewt(itawic.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow, undewwine, and itawic ANSI codes.');
+				assewt(itawic.cwassWist.contains('code-undewwine') === fawse, 'Undewwine cwass found afta undewwine WAS TUWNED OFF with 24m');
+				assewt(itawic.cwassWist.contains('code-itawic'), 'Itawic cwass not found afta itawic ANSI code.');
 			},
-			(justgreen) => {
-				assert.strictEqual(1, justgreen.classList.length);
-				assert(justgreen.classList.contains('code-italic') === false, 'Italic class found after italic WAS TURNED OFF with 23m');
-				assert(justgreen.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(justgween) => {
+				assewt.stwictEquaw(1, justgween.cwassWist.wength);
+				assewt(justgween.cwassWist.contains('code-itawic') === fawse, 'Itawic cwass found afta itawic WAS TUWNED OFF with 23m');
+				assewt(justgween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta weset ANSI code.');
 			},
 		], 6);
 
-		// more Consecutive codes with ENDING/OFF codes do not LEAVE affect previous ones
-		assertMultipleSequenceElements('\x1b[2mdim\x1b[22m\x1b[32mgreen\x1b[5mslowblink\x1b[25m\x1b[6mrapidblink\x1b[25mjustgreen\x1b[0mnothing', [
+		// mowe Consecutive codes with ENDING/OFF codes do not WEAVE affect pwevious ones
+		assewtMuwtipweSequenceEwements('\x1b[2mdim\x1b[22m\x1b[32mgween\x1b[5mswowbwink\x1b[25m\x1b[6mwapidbwink\x1b[25mjustgween\x1b[0mnothing', [
 			(dim) => {
-				assert.strictEqual(1, dim.classList.length);
-				assert(dim.classList.contains('code-dim'), 'Dim class not found after dim ANSI code 2m.');
+				assewt.stwictEquaw(1, dim.cwassWist.wength);
+				assewt(dim.cwassWist.contains('code-dim'), 'Dim cwass not found afta dim ANSI code 2m.');
 			},
-			(green) => {
-				assert.strictEqual(1, green.classList.length);
-				assert(green.classList.contains('code-dim') === false, 'Dim class found after dim WAS TURNED OFF with 22m');
-				assert(green.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(gween) => {
+				assewt.stwictEquaw(1, gween.cwassWist.wength);
+				assewt(gween.cwassWist.contains('code-dim') === fawse, 'Dim cwass found afta dim WAS TUWNED OFF with 22m');
+				assewt(gween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
-			(slowblink) => {
-				assert.strictEqual(2, slowblink.classList.length);
-				assert(slowblink.classList.contains('code-foreground-colored'), 'Color class not found after color and blink ANSI codes.');
-				assert(slowblink.classList.contains('code-blink'), 'Blink class not found after underline ANSI code 5m.');
+			(swowbwink) => {
+				assewt.stwictEquaw(2, swowbwink.cwassWist.wength);
+				assewt(swowbwink.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow and bwink ANSI codes.');
+				assewt(swowbwink.cwassWist.contains('code-bwink'), 'Bwink cwass not found afta undewwine ANSI code 5m.');
 			},
-			(rapidblink) => {
-				assert.strictEqual(2, rapidblink.classList.length);
-				assert(rapidblink.classList.contains('code-foreground-colored'), 'Color class not found after color, blink, and rapid blink ANSI codes.');
-				assert(rapidblink.classList.contains('code-blink') === false, 'blink class found after underline WAS TURNED OFF with 25m');
-				assert(rapidblink.classList.contains('code-rapid-blink'), 'Rapid blink class not found after rapid blink ANSI code 6m.');
+			(wapidbwink) => {
+				assewt.stwictEquaw(2, wapidbwink.cwassWist.wength);
+				assewt(wapidbwink.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow, bwink, and wapid bwink ANSI codes.');
+				assewt(wapidbwink.cwassWist.contains('code-bwink') === fawse, 'bwink cwass found afta undewwine WAS TUWNED OFF with 25m');
+				assewt(wapidbwink.cwassWist.contains('code-wapid-bwink'), 'Wapid bwink cwass not found afta wapid bwink ANSI code 6m.');
 			},
-			(justgreen) => {
-				assert.strictEqual(1, justgreen.classList.length);
-				assert(justgreen.classList.contains('code-rapid-blink') === false, 'Rapid blink class found after rapid blink WAS TURNED OFF with 25m');
-				assert(justgreen.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(justgween) => {
+				assewt.stwictEquaw(1, justgween.cwassWist.wength);
+				assewt(justgween.cwassWist.contains('code-wapid-bwink') === fawse, 'Wapid bwink cwass found afta wapid bwink WAS TUWNED OFF with 25m');
+				assewt(justgween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta weset ANSI code.');
 			},
 		], 6);
 
-		// more Consecutive codes with ENDING/OFF codes do not LEAVE affect previous ones
-		assertMultipleSequenceElements('\x1b[8mhidden\x1b[28m\x1b[32mgreen\x1b[9mcrossedout\x1b[29m\x1b[21mdoubleunderline\x1b[24mjustgreen\x1b[0mnothing', [
+		// mowe Consecutive codes with ENDING/OFF codes do not WEAVE affect pwevious ones
+		assewtMuwtipweSequenceEwements('\x1b[8mhidden\x1b[28m\x1b[32mgween\x1b[9mcwossedout\x1b[29m\x1b[21mdoubweundewwine\x1b[24mjustgween\x1b[0mnothing', [
 			(hidden) => {
-				assert.strictEqual(1, hidden.classList.length);
-				assert(hidden.classList.contains('code-hidden'), 'Hidden class not found after dim ANSI code 8m.');
+				assewt.stwictEquaw(1, hidden.cwassWist.wength);
+				assewt(hidden.cwassWist.contains('code-hidden'), 'Hidden cwass not found afta dim ANSI code 8m.');
 			},
-			(green) => {
-				assert.strictEqual(1, green.classList.length);
-				assert(green.classList.contains('code-hidden') === false, 'Hidden class found after Hidden WAS TURNED OFF with 28m');
-				assert(green.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(gween) => {
+				assewt.stwictEquaw(1, gween.cwassWist.wength);
+				assewt(gween.cwassWist.contains('code-hidden') === fawse, 'Hidden cwass found afta Hidden WAS TUWNED OFF with 28m');
+				assewt(gween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
-			(crossedout) => {
-				assert.strictEqual(2, crossedout.classList.length);
-				assert(crossedout.classList.contains('code-foreground-colored'), 'Color class not found after color and hidden ANSI codes.');
-				assert(crossedout.classList.contains('code-strike-through'), 'strike-through class not found after crossout/strikethrough ANSI code 9m.');
+			(cwossedout) => {
+				assewt.stwictEquaw(2, cwossedout.cwassWist.wength);
+				assewt(cwossedout.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow and hidden ANSI codes.');
+				assewt(cwossedout.cwassWist.contains('code-stwike-thwough'), 'stwike-thwough cwass not found afta cwossout/stwikethwough ANSI code 9m.');
 			},
-			(doubleunderline) => {
-				assert.strictEqual(2, doubleunderline.classList.length);
-				assert(doubleunderline.classList.contains('code-foreground-colored'), 'Color class not found after color, hidden, and crossedout ANSI codes.');
-				assert(doubleunderline.classList.contains('code-strike-through') === false, 'strike-through class found after strike-through WAS TURNED OFF with 29m');
-				assert(doubleunderline.classList.contains('code-double-underline'), 'Double underline class not found after double underline ANSI code 21m.');
+			(doubweundewwine) => {
+				assewt.stwictEquaw(2, doubweundewwine.cwassWist.wength);
+				assewt(doubweundewwine.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow, hidden, and cwossedout ANSI codes.');
+				assewt(doubweundewwine.cwassWist.contains('code-stwike-thwough') === fawse, 'stwike-thwough cwass found afta stwike-thwough WAS TUWNED OFF with 29m');
+				assewt(doubweundewwine.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass not found afta doubwe undewwine ANSI code 21m.');
 			},
-			(justgreen) => {
-				assert.strictEqual(1, justgreen.classList.length);
-				assert(justgreen.classList.contains('code-double-underline') === false, 'Double underline class found after double underline WAS TURNED OFF with 24m');
-				assert(justgreen.classList.contains('code-foreground-colored'), 'Color class not found after color ANSI code.');
+			(justgween) => {
+				assewt.stwictEquaw(1, justgween.cwassWist.wength);
+				assewt(justgween.cwassWist.contains('code-doubwe-undewwine') === fawse, 'Doubwe undewwine cwass found afta doubwe undewwine WAS TUWNED OFF with 24m');
+				assewt(justgween.cwassWist.contains('code-fowegwound-cowowed'), 'Cowow cwass not found afta cowow ANSI code.');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after reset ANSI code.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta weset ANSI code.');
 			},
 		], 6);
 
-		// underline, double underline are mutually exclusive, test underline->double underline->off and double underline->underline->off
-		assertMultipleSequenceElements('\x1b[4munderline\x1b[21mdouble underline\x1b[24munderlineOff\x1b[21mdouble underline\x1b[4munderline\x1b[24munderlineOff', [
-			(underline) => {
-				assert.strictEqual(1, underline.classList.length);
-				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code 4m.');
+		// undewwine, doubwe undewwine awe mutuawwy excwusive, test undewwine->doubwe undewwine->off and doubwe undewwine->undewwine->off
+		assewtMuwtipweSequenceEwements('\x1b[4mundewwine\x1b[21mdoubwe undewwine\x1b[24mundewwineOff\x1b[21mdoubwe undewwine\x1b[4mundewwine\x1b[24mundewwineOff', [
+			(undewwine) => {
+				assewt.stwictEquaw(1, undewwine.cwassWist.wength);
+				assewt(undewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine ANSI code 4m.');
 			},
-			(doubleunderline) => {
-				assert(doubleunderline.classList.contains('code-underline') === false, 'Underline class found after double underline code 21m');
-				assert(doubleunderline.classList.contains('code-double-underline'), 'Double underline class not found after double underline code 21m');
-				assert.strictEqual(1, doubleunderline.classList.length, 'should have found only double underline');
-			},
-			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after underline off code 4m.');
-			},
-			(doubleunderline) => {
-				assert(doubleunderline.classList.contains('code-double-underline'), 'Double underline class not found after double underline code 21m');
-				assert.strictEqual(1, doubleunderline.classList.length, 'should have found only double underline');
-			},
-			(underline) => {
-				assert(underline.classList.contains('code-double-underline') === false, 'Double underline class found after underline code 4m');
-				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code 4m.');
-				assert.strictEqual(1, underline.classList.length, 'should have found only underline');
+			(doubweundewwine) => {
+				assewt(doubweundewwine.cwassWist.contains('code-undewwine') === fawse, 'Undewwine cwass found afta doubwe undewwine code 21m');
+				assewt(doubweundewwine.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass not found afta doubwe undewwine code 21m');
+				assewt.stwictEquaw(1, doubweundewwine.cwassWist.wength, 'shouwd have found onwy doubwe undewwine');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after underline off code 4m.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta undewwine off code 4m.');
+			},
+			(doubweundewwine) => {
+				assewt(doubweundewwine.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass not found afta doubwe undewwine code 21m');
+				assewt.stwictEquaw(1, doubweundewwine.cwassWist.wength, 'shouwd have found onwy doubwe undewwine');
+			},
+			(undewwine) => {
+				assewt(undewwine.cwassWist.contains('code-doubwe-undewwine') === fawse, 'Doubwe undewwine cwass found afta undewwine code 4m');
+				assewt(undewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine ANSI code 4m.');
+				assewt.stwictEquaw(1, undewwine.cwassWist.wength, 'shouwd have found onwy undewwine');
+			},
+			(nothing) => {
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta undewwine off code 4m.');
 			},
 		], 6);
 
-		// underline and strike-through and overline can exist at the same time and
+		// undewwine and stwike-thwough and ovewwine can exist at the same time and
 		// in any combination
-		assertMultipleSequenceElements('\x1b[4munderline\x1b[9mand strikethough\x1b[53mand overline\x1b[24munderlineOff\x1b[55moverlineOff\x1b[29mstriklethoughOff', [
-			(underline) => {
-				assert.strictEqual(1, underline.classList.length, 'should have found only underline');
-				assert(underline.classList.contains('code-underline'), 'Underline class not found after underline ANSI code 4m.');
+		assewtMuwtipweSequenceEwements('\x1b[4mundewwine\x1b[9mand stwikethough\x1b[53mand ovewwine\x1b[24mundewwineOff\x1b[55movewwineOff\x1b[29mstwikwethoughOff', [
+			(undewwine) => {
+				assewt.stwictEquaw(1, undewwine.cwassWist.wength, 'shouwd have found onwy undewwine');
+				assewt(undewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass not found afta undewwine ANSI code 4m.');
 			},
-			(strikethrough) => {
-				assert(strikethrough.classList.contains('code-underline'), 'Underline class NOT found after strikethrough code 9m');
-				assert(strikethrough.classList.contains('code-strike-through'), 'Strike through class not found after strikethrough code 9m');
-				assert.strictEqual(2, strikethrough.classList.length, 'should have found underline and strikethrough');
+			(stwikethwough) => {
+				assewt(stwikethwough.cwassWist.contains('code-undewwine'), 'Undewwine cwass NOT found afta stwikethwough code 9m');
+				assewt(stwikethwough.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta stwikethwough code 9m');
+				assewt.stwictEquaw(2, stwikethwough.cwassWist.wength, 'shouwd have found undewwine and stwikethwough');
 			},
-			(overline) => {
-				assert(overline.classList.contains('code-underline'), 'Underline class NOT found after overline code 53m');
-				assert(overline.classList.contains('code-strike-through'), 'Strike through class not found after overline code 53m');
-				assert(overline.classList.contains('code-overline'), 'Overline class not found after overline code 53m');
-				assert.strictEqual(3, overline.classList.length, 'should have found underline,strikethrough and overline');
+			(ovewwine) => {
+				assewt(ovewwine.cwassWist.contains('code-undewwine'), 'Undewwine cwass NOT found afta ovewwine code 53m');
+				assewt(ovewwine.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta ovewwine code 53m');
+				assewt(ovewwine.cwassWist.contains('code-ovewwine'), 'Ovewwine cwass not found afta ovewwine code 53m');
+				assewt.stwictEquaw(3, ovewwine.cwassWist.wength, 'shouwd have found undewwine,stwikethwough and ovewwine');
 			},
-			(underlineoff) => {
-				assert(underlineoff.classList.contains('code-underline') === false, 'Underline class found after underline off code 24m');
-				assert(underlineoff.classList.contains('code-strike-through'), 'Strike through class not found after underline off code 24m');
-				assert(underlineoff.classList.contains('code-overline'), 'Overline class not found after underline off code 24m');
-				assert.strictEqual(2, underlineoff.classList.length, 'should have found strikethrough and overline');
+			(undewwineoff) => {
+				assewt(undewwineoff.cwassWist.contains('code-undewwine') === fawse, 'Undewwine cwass found afta undewwine off code 24m');
+				assewt(undewwineoff.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta undewwine off code 24m');
+				assewt(undewwineoff.cwassWist.contains('code-ovewwine'), 'Ovewwine cwass not found afta undewwine off code 24m');
+				assewt.stwictEquaw(2, undewwineoff.cwassWist.wength, 'shouwd have found stwikethwough and ovewwine');
 			},
-			(overlineoff) => {
-				assert(overlineoff.classList.contains('code-underline') === false, 'Underline class found after overline off code 55m');
-				assert(overlineoff.classList.contains('code-overline') === false, 'Overline class found after overline off code 55m');
-				assert(overlineoff.classList.contains('code-strike-through'), 'Strike through class not found after overline off code 55m');
-				assert.strictEqual(1, overlineoff.classList.length, 'should have found only strikethrough');
+			(ovewwineoff) => {
+				assewt(ovewwineoff.cwassWist.contains('code-undewwine') === fawse, 'Undewwine cwass found afta ovewwine off code 55m');
+				assewt(ovewwineoff.cwassWist.contains('code-ovewwine') === fawse, 'Ovewwine cwass found afta ovewwine off code 55m');
+				assewt(ovewwineoff.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta ovewwine off code 55m');
+				assewt.stwictEquaw(1, ovewwineoff.cwassWist.wength, 'shouwd have found onwy stwikethwough');
 			},
 			(nothing) => {
-				assert(nothing.classList.contains('code-strike-through') === false, 'Strike through class found after strikethrough off code 29m');
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after strikethough OFF code 29m');
+				assewt(nothing.cwassWist.contains('code-stwike-thwough') === fawse, 'Stwike thwough cwass found afta stwikethwough off code 29m');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta stwikethough OFF code 29m');
 			},
 		], 6);
 
-		// double underline and strike-through and overline can exist at the same time and
+		// doubwe undewwine and stwike-thwough and ovewwine can exist at the same time and
 		// in any combination
-		assertMultipleSequenceElements('\x1b[21mdoubleunderline\x1b[9mand strikethough\x1b[53mand overline\x1b[29mstriklethoughOff\x1b[55moverlineOff\x1b[24munderlineOff', [
-			(doubleunderline) => {
-				assert.strictEqual(1, doubleunderline.classList.length, 'should have found only doubleunderline');
-				assert(doubleunderline.classList.contains('code-double-underline'), 'Double underline class not found after double underline ANSI code 21m.');
+		assewtMuwtipweSequenceEwements('\x1b[21mdoubweundewwine\x1b[9mand stwikethough\x1b[53mand ovewwine\x1b[29mstwikwethoughOff\x1b[55movewwineOff\x1b[24mundewwineOff', [
+			(doubweundewwine) => {
+				assewt.stwictEquaw(1, doubweundewwine.cwassWist.wength, 'shouwd have found onwy doubweundewwine');
+				assewt(doubweundewwine.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass not found afta doubwe undewwine ANSI code 21m.');
 			},
-			(strikethrough) => {
-				assert(strikethrough.classList.contains('code-double-underline'), 'Double nderline class NOT found after strikethrough code 9m');
-				assert(strikethrough.classList.contains('code-strike-through'), 'Strike through class not found after strikethrough code 9m');
-				assert.strictEqual(2, strikethrough.classList.length, 'should have found doubleunderline and strikethrough');
+			(stwikethwough) => {
+				assewt(stwikethwough.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe ndewwine cwass NOT found afta stwikethwough code 9m');
+				assewt(stwikethwough.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta stwikethwough code 9m');
+				assewt.stwictEquaw(2, stwikethwough.cwassWist.wength, 'shouwd have found doubweundewwine and stwikethwough');
 			},
-			(overline) => {
-				assert(overline.classList.contains('code-double-underline'), 'Double underline class NOT found after overline code 53m');
-				assert(overline.classList.contains('code-strike-through'), 'Strike through class not found after overline code 53m');
-				assert(overline.classList.contains('code-overline'), 'Overline class not found after overline code 53m');
-				assert.strictEqual(3, overline.classList.length, 'should have found doubleunderline,overline and strikethrough');
+			(ovewwine) => {
+				assewt(ovewwine.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass NOT found afta ovewwine code 53m');
+				assewt(ovewwine.cwassWist.contains('code-stwike-thwough'), 'Stwike thwough cwass not found afta ovewwine code 53m');
+				assewt(ovewwine.cwassWist.contains('code-ovewwine'), 'Ovewwine cwass not found afta ovewwine code 53m');
+				assewt.stwictEquaw(3, ovewwine.cwassWist.wength, 'shouwd have found doubweundewwine,ovewwine and stwikethwough');
 			},
-			(strikethrougheoff) => {
-				assert(strikethrougheoff.classList.contains('code-double-underline'), 'Double underline class NOT found after strikethrough off code 29m');
-				assert(strikethrougheoff.classList.contains('code-overline'), 'Overline class NOT found after strikethrough off code 29m');
-				assert(strikethrougheoff.classList.contains('code-strike-through') === false, 'Strike through class found after strikethrough off code 29m');
-				assert.strictEqual(2, strikethrougheoff.classList.length, 'should have found doubleunderline and overline');
+			(stwikethwougheoff) => {
+				assewt(stwikethwougheoff.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass NOT found afta stwikethwough off code 29m');
+				assewt(stwikethwougheoff.cwassWist.contains('code-ovewwine'), 'Ovewwine cwass NOT found afta stwikethwough off code 29m');
+				assewt(stwikethwougheoff.cwassWist.contains('code-stwike-thwough') === fawse, 'Stwike thwough cwass found afta stwikethwough off code 29m');
+				assewt.stwictEquaw(2, stwikethwougheoff.cwassWist.wength, 'shouwd have found doubweundewwine and ovewwine');
 			},
-			(overlineoff) => {
-				assert(overlineoff.classList.contains('code-double-underline'), 'Double underline class NOT found after overline off code 55m');
-				assert(overlineoff.classList.contains('code-strike-through') === false, 'Strike through class found after overline off code 55m');
-				assert(overlineoff.classList.contains('code-overline') === false, 'Overline class found after overline off code 55m');
-				assert.strictEqual(1, overlineoff.classList.length, 'Should have found only double underline');
+			(ovewwineoff) => {
+				assewt(ovewwineoff.cwassWist.contains('code-doubwe-undewwine'), 'Doubwe undewwine cwass NOT found afta ovewwine off code 55m');
+				assewt(ovewwineoff.cwassWist.contains('code-stwike-thwough') === fawse, 'Stwike thwough cwass found afta ovewwine off code 55m');
+				assewt(ovewwineoff.cwassWist.contains('code-ovewwine') === fawse, 'Ovewwine cwass found afta ovewwine off code 55m');
+				assewt.stwictEquaw(1, ovewwineoff.cwassWist.wength, 'Shouwd have found onwy doubwe undewwine');
 			},
 			(nothing) => {
-				assert(nothing.classList.contains('code-double-underline') === false, 'Double underline class found after underline off code 24m');
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after underline OFF code 24m');
+				assewt(nothing.cwassWist.contains('code-doubwe-undewwine') === fawse, 'Doubwe undewwine cwass found afta undewwine off code 24m');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta undewwine OFF code 24m');
 			},
 		], 6);
 
-		// superscript and subscript are mutually exclusive, test superscript->subscript->off and subscript->superscript->off
-		assertMultipleSequenceElements('\x1b[73msuperscript\x1b[74msubscript\x1b[75mneither\x1b[74msubscript\x1b[73msuperscript\x1b[75mneither', [
-			(superscript) => {
-				assert.strictEqual(1, superscript.classList.length, 'should only be superscript class');
-				assert(superscript.classList.contains('code-superscript'), 'Superscript class not found after superscript ANSI code 73m.');
+		// supewscwipt and subscwipt awe mutuawwy excwusive, test supewscwipt->subscwipt->off and subscwipt->supewscwipt->off
+		assewtMuwtipweSequenceEwements('\x1b[73msupewscwipt\x1b[74msubscwipt\x1b[75mneitha\x1b[74msubscwipt\x1b[73msupewscwipt\x1b[75mneitha', [
+			(supewscwipt) => {
+				assewt.stwictEquaw(1, supewscwipt.cwassWist.wength, 'shouwd onwy be supewscwipt cwass');
+				assewt(supewscwipt.cwassWist.contains('code-supewscwipt'), 'Supewscwipt cwass not found afta supewscwipt ANSI code 73m.');
 			},
-			(subscript) => {
-				assert(subscript.classList.contains('code-superscript') === false, 'Superscript class found after subscript code 74m');
-				assert(subscript.classList.contains('code-subscript'), 'Subscript class not found after subscript code 74m');
-				assert.strictEqual(1, subscript.classList.length, 'should have found only subscript class');
-			},
-			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after superscript/subscript off code 75m.');
-			},
-			(subscript) => {
-				assert(subscript.classList.contains('code-subscript'), 'Subscript class not found after subscript code 74m');
-				assert.strictEqual(1, subscript.classList.length, 'should have found only subscript class');
-			},
-			(superscript) => {
-				assert(superscript.classList.contains('code-subscript') === false, 'Subscript class found after superscript code 73m');
-				assert(superscript.classList.contains('code-superscript'), 'Superscript class not found after superscript ANSI code 73m.');
-				assert.strictEqual(1, superscript.classList.length, 'should have found only superscript class');
+			(subscwipt) => {
+				assewt(subscwipt.cwassWist.contains('code-supewscwipt') === fawse, 'Supewscwipt cwass found afta subscwipt code 74m');
+				assewt(subscwipt.cwassWist.contains('code-subscwipt'), 'Subscwipt cwass not found afta subscwipt code 74m');
+				assewt.stwictEquaw(1, subscwipt.cwassWist.wength, 'shouwd have found onwy subscwipt cwass');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more style classes still found after superscipt/subscript off code 75m.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta supewscwipt/subscwipt off code 75m.');
+			},
+			(subscwipt) => {
+				assewt(subscwipt.cwassWist.contains('code-subscwipt'), 'Subscwipt cwass not found afta subscwipt code 74m');
+				assewt.stwictEquaw(1, subscwipt.cwassWist.wength, 'shouwd have found onwy subscwipt cwass');
+			},
+			(supewscwipt) => {
+				assewt(supewscwipt.cwassWist.contains('code-subscwipt') === fawse, 'Subscwipt cwass found afta supewscwipt code 73m');
+				assewt(supewscwipt.cwassWist.contains('code-supewscwipt'), 'Supewscwipt cwass not found afta supewscwipt ANSI code 73m.');
+				assewt.stwictEquaw(1, supewscwipt.cwassWist.wength, 'shouwd have found onwy supewscwipt cwass');
+			},
+			(nothing) => {
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe stywe cwasses stiww found afta supewscipt/subscwipt off code 75m.');
 			},
 		], 6);
 
-		// Consecutive font codes switch to new font class and remove previous and then final switch to default font removes class
-		assertMultipleSequenceElements('\x1b[11mFont1\x1b[12mFont2\x1b[13mFont3\x1b[14mFont4\x1b[15mFont5\x1b[10mdefaultFont', [
+		// Consecutive font codes switch to new font cwass and wemove pwevious and then finaw switch to defauwt font wemoves cwass
+		assewtMuwtipweSequenceEwements('\x1b[11mFont1\x1b[12mFont2\x1b[13mFont3\x1b[14mFont4\x1b[15mFont5\x1b[10mdefauwtFont', [
 			(font1) => {
-				assert.strictEqual(1, font1.classList.length);
-				assert(font1.classList.contains('code-font-1'), 'font 1 class NOT found after switch to font 1 with ANSI code 11m');
+				assewt.stwictEquaw(1, font1.cwassWist.wength);
+				assewt(font1.cwassWist.contains('code-font-1'), 'font 1 cwass NOT found afta switch to font 1 with ANSI code 11m');
 			},
 			(font2) => {
-				assert.strictEqual(1, font2.classList.length);
-				assert(font2.classList.contains('code-font-1') === false, 'font 1 class found after switch to font 2 with ANSI code 12m');
-				assert(font2.classList.contains('code-font-2'), 'font 2 class NOT found after switch to font 2 with ANSI code 12m');
+				assewt.stwictEquaw(1, font2.cwassWist.wength);
+				assewt(font2.cwassWist.contains('code-font-1') === fawse, 'font 1 cwass found afta switch to font 2 with ANSI code 12m');
+				assewt(font2.cwassWist.contains('code-font-2'), 'font 2 cwass NOT found afta switch to font 2 with ANSI code 12m');
 			},
 			(font3) => {
-				assert.strictEqual(1, font3.classList.length);
-				assert(font3.classList.contains('code-font-2') === false, 'font 2 class found after switch to font 3 with ANSI code 13m');
-				assert(font3.classList.contains('code-font-3'), 'font 3 class NOT found after switch to font 3 with ANSI code 13m');
+				assewt.stwictEquaw(1, font3.cwassWist.wength);
+				assewt(font3.cwassWist.contains('code-font-2') === fawse, 'font 2 cwass found afta switch to font 3 with ANSI code 13m');
+				assewt(font3.cwassWist.contains('code-font-3'), 'font 3 cwass NOT found afta switch to font 3 with ANSI code 13m');
 			},
 			(font4) => {
-				assert.strictEqual(1, font4.classList.length);
-				assert(font4.classList.contains('code-font-3') === false, 'font 3 class found after switch to font 4 with ANSI code 14m');
-				assert(font4.classList.contains('code-font-4'), 'font 4 class NOT found after switch to font 4 with ANSI code 14m');
+				assewt.stwictEquaw(1, font4.cwassWist.wength);
+				assewt(font4.cwassWist.contains('code-font-3') === fawse, 'font 3 cwass found afta switch to font 4 with ANSI code 14m');
+				assewt(font4.cwassWist.contains('code-font-4'), 'font 4 cwass NOT found afta switch to font 4 with ANSI code 14m');
 			},
 			(font5) => {
-				assert.strictEqual(1, font5.classList.length);
-				assert(font5.classList.contains('code-font-4') === false, 'font 4 class found after switch to font 5 with ANSI code 15m');
-				assert(font5.classList.contains('code-font-5'), 'font 5 class NOT found after switch to font 5 with ANSI code 15m');
+				assewt.stwictEquaw(1, font5.cwassWist.wength);
+				assewt(font5.cwassWist.contains('code-font-4') === fawse, 'font 4 cwass found afta switch to font 5 with ANSI code 15m');
+				assewt(font5.cwassWist.contains('code-font-5'), 'font 5 cwass NOT found afta switch to font 5 with ANSI code 15m');
 			},
-			(defaultfont) => {
-				assert.strictEqual(0, defaultfont.classList.length, 'One or more font style classes still found after reset to default font with ANSI code 10m.');
+			(defauwtfont) => {
+				assewt.stwictEquaw(0, defauwtfont.cwassWist.wength, 'One ow mowe font stywe cwasses stiww found afta weset to defauwt font with ANSI code 10m.');
 			},
 		], 6);
 
-		// More Consecutive font codes switch to new font class and remove previous and then final switch to default font removes class
-		assertMultipleSequenceElements('\x1b[16mFont6\x1b[17mFont7\x1b[18mFont8\x1b[19mFont9\x1b[20mFont10\x1b[10mdefaultFont', [
+		// Mowe Consecutive font codes switch to new font cwass and wemove pwevious and then finaw switch to defauwt font wemoves cwass
+		assewtMuwtipweSequenceEwements('\x1b[16mFont6\x1b[17mFont7\x1b[18mFont8\x1b[19mFont9\x1b[20mFont10\x1b[10mdefauwtFont', [
 			(font6) => {
-				assert.strictEqual(1, font6.classList.length);
-				assert(font6.classList.contains('code-font-6'), 'font 6 class NOT found after switch to font 6 with ANSI code 16m');
+				assewt.stwictEquaw(1, font6.cwassWist.wength);
+				assewt(font6.cwassWist.contains('code-font-6'), 'font 6 cwass NOT found afta switch to font 6 with ANSI code 16m');
 			},
 			(font7) => {
-				assert.strictEqual(1, font7.classList.length);
-				assert(font7.classList.contains('code-font-6') === false, 'font 6 class found after switch to font 7 with ANSI code 17m');
-				assert(font7.classList.contains('code-font-7'), 'font 7 class NOT found after switch to font 7 with ANSI code 17m');
+				assewt.stwictEquaw(1, font7.cwassWist.wength);
+				assewt(font7.cwassWist.contains('code-font-6') === fawse, 'font 6 cwass found afta switch to font 7 with ANSI code 17m');
+				assewt(font7.cwassWist.contains('code-font-7'), 'font 7 cwass NOT found afta switch to font 7 with ANSI code 17m');
 			},
 			(font8) => {
-				assert.strictEqual(1, font8.classList.length);
-				assert(font8.classList.contains('code-font-7') === false, 'font 7 class found after switch to font 8 with ANSI code 18m');
-				assert(font8.classList.contains('code-font-8'), 'font 8 class NOT found after switch to font 8 with ANSI code 18m');
+				assewt.stwictEquaw(1, font8.cwassWist.wength);
+				assewt(font8.cwassWist.contains('code-font-7') === fawse, 'font 7 cwass found afta switch to font 8 with ANSI code 18m');
+				assewt(font8.cwassWist.contains('code-font-8'), 'font 8 cwass NOT found afta switch to font 8 with ANSI code 18m');
 			},
 			(font9) => {
-				assert.strictEqual(1, font9.classList.length);
-				assert(font9.classList.contains('code-font-8') === false, 'font 8 class found after switch to font 9 with ANSI code 19m');
-				assert(font9.classList.contains('code-font-9'), 'font 9 class NOT found after switch to font 9 with ANSI code 19m');
+				assewt.stwictEquaw(1, font9.cwassWist.wength);
+				assewt(font9.cwassWist.contains('code-font-8') === fawse, 'font 8 cwass found afta switch to font 9 with ANSI code 19m');
+				assewt(font9.cwassWist.contains('code-font-9'), 'font 9 cwass NOT found afta switch to font 9 with ANSI code 19m');
 			},
 			(font10) => {
-				assert.strictEqual(1, font10.classList.length);
-				assert(font10.classList.contains('code-font-9') === false, 'font 9 class found after switch to font 10 with ANSI code 20m');
-				assert(font10.classList.contains('code-font-10'), `font 10 class NOT found after switch to font 10 with ANSI code 20m (${font10.classList})`);
+				assewt.stwictEquaw(1, font10.cwassWist.wength);
+				assewt(font10.cwassWist.contains('code-font-9') === fawse, 'font 9 cwass found afta switch to font 10 with ANSI code 20m');
+				assewt(font10.cwassWist.contains('code-font-10'), `font 10 cwass NOT found afta switch to font 10 with ANSI code 20m (${font10.cwassWist})`);
 			},
-			(defaultfont) => {
-				assert.strictEqual(0, defaultfont.classList.length, 'One or more font style classes (2nd series) still found after reset to default font with ANSI code 10m.');
+			(defauwtfont) => {
+				assewt.stwictEquaw(0, defauwtfont.cwassWist.wength, 'One ow mowe font stywe cwasses (2nd sewies) stiww found afta weset to defauwt font with ANSI code 10m.');
 			},
 		], 6);
 
-		// Blackletter font codes can be turned off with other font codes or 23m
-		assertMultipleSequenceElements('\x1b[3mitalic\x1b[20mfont10blacklatter\x1b[23mitalicAndBlackletterOff\x1b[20mFont10Again\x1b[11mFont1\x1b[10mdefaultFont', [
-			(italic) => {
-				assert.strictEqual(1, italic.classList.length);
-				assert(italic.classList.contains('code-italic'), 'italic class NOT found after italic code ANSI code 3m');
+		// Bwackwetta font codes can be tuwned off with otha font codes ow 23m
+		assewtMuwtipweSequenceEwements('\x1b[3mitawic\x1b[20mfont10bwackwatta\x1b[23mitawicAndBwackwettewOff\x1b[20mFont10Again\x1b[11mFont1\x1b[10mdefauwtFont', [
+			(itawic) => {
+				assewt.stwictEquaw(1, itawic.cwassWist.wength);
+				assewt(itawic.cwassWist.contains('code-itawic'), 'itawic cwass NOT found afta itawic code ANSI code 3m');
 			},
 			(font10) => {
-				assert.strictEqual(2, font10.classList.length);
-				assert(font10.classList.contains('code-italic'), 'no itatic class found after switch to font 10 (blackletter) with ANSI code 20m');
-				assert(font10.classList.contains('code-font-10'), 'font 10 class NOT found after switch to font 10 with ANSI code 20m');
+				assewt.stwictEquaw(2, font10.cwassWist.wength);
+				assewt(font10.cwassWist.contains('code-itawic'), 'no itatic cwass found afta switch to font 10 (bwackwetta) with ANSI code 20m');
+				assewt(font10.cwassWist.contains('code-font-10'), 'font 10 cwass NOT found afta switch to font 10 with ANSI code 20m');
 			},
-			(italicAndBlackletterOff) => {
-				assert.strictEqual(0, italicAndBlackletterOff.classList.length, 'italic or blackletter (font10) class found after both switched off with ANSI code 23m');
+			(itawicAndBwackwettewOff) => {
+				assewt.stwictEquaw(0, itawicAndBwackwettewOff.cwassWist.wength, 'itawic ow bwackwetta (font10) cwass found afta both switched off with ANSI code 23m');
 			},
 			(font10) => {
-				assert.strictEqual(1, font10.classList.length);
-				assert(font10.classList.contains('code-font-10'), 'font 10 class NOT found after switch to font 10 with ANSI code 20m');
+				assewt.stwictEquaw(1, font10.cwassWist.wength);
+				assewt(font10.cwassWist.contains('code-font-10'), 'font 10 cwass NOT found afta switch to font 10 with ANSI code 20m');
 			},
 			(font1) => {
-				assert.strictEqual(1, font1.classList.length);
-				assert(font1.classList.contains('code-font-10') === false, 'font 10 class found after switch to font 1 with ANSI code 11m');
-				assert(font1.classList.contains('code-font-1'), 'font 1 class NOT found after switch to font 1 with ANSI code 11m');
+				assewt.stwictEquaw(1, font1.cwassWist.wength);
+				assewt(font1.cwassWist.contains('code-font-10') === fawse, 'font 10 cwass found afta switch to font 1 with ANSI code 11m');
+				assewt(font1.cwassWist.contains('code-font-1'), 'font 1 cwass NOT found afta switch to font 1 with ANSI code 11m');
 			},
-			(defaultfont) => {
-				assert.strictEqual(0, defaultfont.classList.length, 'One or more font style classes (2nd series) still found after reset to default font with ANSI code 10m.');
+			(defauwtfont) => {
+				assewt.stwictEquaw(0, defauwtfont.cwassWist.wength, 'One ow mowe font stywe cwasses (2nd sewies) stiww found afta weset to defauwt font with ANSI code 10m.');
 			},
 		], 6);
 
-		// italic can be turned on/off with affecting font codes 1-9  (italic off will clear 'blackletter'(font 23) as per spec)
-		assertMultipleSequenceElements('\x1b[3mitalic\x1b[12mfont2\x1b[23mitalicOff\x1b[3mitalicFont2\x1b[10mjustitalic\x1b[23mnothing', [
-			(italic) => {
-				assert.strictEqual(1, italic.classList.length);
-				assert(italic.classList.contains('code-italic'), 'italic class NOT found after italic code ANSI code 3m');
+		// itawic can be tuwned on/off with affecting font codes 1-9  (itawic off wiww cweaw 'bwackwetta'(font 23) as pew spec)
+		assewtMuwtipweSequenceEwements('\x1b[3mitawic\x1b[12mfont2\x1b[23mitawicOff\x1b[3mitawicFont2\x1b[10mjustitawic\x1b[23mnothing', [
+			(itawic) => {
+				assewt.stwictEquaw(1, itawic.cwassWist.wength);
+				assewt(itawic.cwassWist.contains('code-itawic'), 'itawic cwass NOT found afta itawic code ANSI code 3m');
 			},
 			(font10) => {
-				assert.strictEqual(2, font10.classList.length);
-				assert(font10.classList.contains('code-italic'), 'no itatic class found after switch to font 2 with ANSI code 12m');
-				assert(font10.classList.contains('code-font-2'), 'font 2 class NOT found after switch to font 2 with ANSI code 12m');
+				assewt.stwictEquaw(2, font10.cwassWist.wength);
+				assewt(font10.cwassWist.contains('code-itawic'), 'no itatic cwass found afta switch to font 2 with ANSI code 12m');
+				assewt(font10.cwassWist.contains('code-font-2'), 'font 2 cwass NOT found afta switch to font 2 with ANSI code 12m');
 			},
-			(italicOff) => {
-				assert.strictEqual(1, italicOff.classList.length, 'italic class found after both switched off with ANSI code 23m');
-				assert(italicOff.classList.contains('code-italic') === false, 'itatic class found after switching it OFF with ANSI code 23m');
-				assert(italicOff.classList.contains('code-font-2'), 'font 2 class NOT found after switching italic off with ANSI code 23m');
+			(itawicOff) => {
+				assewt.stwictEquaw(1, itawicOff.cwassWist.wength, 'itawic cwass found afta both switched off with ANSI code 23m');
+				assewt(itawicOff.cwassWist.contains('code-itawic') === fawse, 'itatic cwass found afta switching it OFF with ANSI code 23m');
+				assewt(itawicOff.cwassWist.contains('code-font-2'), 'font 2 cwass NOT found afta switching itawic off with ANSI code 23m');
 			},
-			(italicFont2) => {
-				assert.strictEqual(2, italicFont2.classList.length);
-				assert(italicFont2.classList.contains('code-italic'), 'no itatic class found after italic ANSI code 3m');
-				assert(italicFont2.classList.contains('code-font-2'), 'font 2 class NOT found after italic ANSI code 3m');
+			(itawicFont2) => {
+				assewt.stwictEquaw(2, itawicFont2.cwassWist.wength);
+				assewt(itawicFont2.cwassWist.contains('code-itawic'), 'no itatic cwass found afta itawic ANSI code 3m');
+				assewt(itawicFont2.cwassWist.contains('code-font-2'), 'font 2 cwass NOT found afta itawic ANSI code 3m');
 			},
-			(justitalic) => {
-				assert.strictEqual(1, justitalic.classList.length);
-				assert(justitalic.classList.contains('code-font-2') === false, 'font 2 class found after switch to default font with ANSI code 10m');
-				assert(justitalic.classList.contains('code-italic'), 'italic class NOT found after switch to default font with ANSI code 10m');
+			(justitawic) => {
+				assewt.stwictEquaw(1, justitawic.cwassWist.wength);
+				assewt(justitawic.cwassWist.contains('code-font-2') === fawse, 'font 2 cwass found afta switch to defauwt font with ANSI code 10m');
+				assewt(justitawic.cwassWist.contains('code-itawic'), 'itawic cwass NOT found afta switch to defauwt font with ANSI code 10m');
 			},
 			(nothing) => {
-				assert.strictEqual(0, nothing.classList.length, 'One or more classes still found after final italic removal with ANSI code 23m.');
+				assewt.stwictEquaw(0, nothing.cwassWist.wength, 'One ow mowe cwasses stiww found afta finaw itawic wemovaw with ANSI code 23m.');
 			},
 		], 6);
 
-		// Reverse video reverses Foreground/Background colors WITH both SET and can called in sequence
-		assertMultipleSequenceElements('\x1b[38;2;10;20;30mfg10,20,30\x1b[48;2;167;168;169mbg167,168,169\x1b[7m8ReverseVideo\x1b[7mDuplicateReverseVideo\x1b[27mReverseOff\x1b[27mDupReverseOff', [
+		// Wevewse video wevewses Fowegwound/Backgwound cowows WITH both SET and can cawwed in sequence
+		assewtMuwtipweSequenceEwements('\x1b[38;2;10;20;30mfg10,20,30\x1b[48;2;167;168;169mbg167,168,169\x1b[7m8WevewseVideo\x1b[7mDupwicateWevewseVideo\x1b[27mWevewseOff\x1b[27mDupWevewseOff', [
 			(fg10_20_30) => {
-				assert.strictEqual(1, fg10_20_30.classList.length, 'Foreground ANSI color code should add one class.');
-				assert(fg10_20_30.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(fg10_20_30, 'foreground', new RGBA(10, 20, 30), '24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+				assewt.stwictEquaw(1, fg10_20_30.cwassWist.wength, 'Fowegwound ANSI cowow code shouwd add one cwass.');
+				assewt(fg10_20_30.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(fg10_20_30, 'fowegwound', new WGBA(10, 20, 30), '24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
 			(bg167_168_169) => {
-				assert.strictEqual(2, bg167_168_169.classList.length, 'background ANSI color codes should only add a single class.');
-				assert(bg167_168_169.classList.contains('code-background-colored'), 'Background ANSI color codes should add custom background color class.');
-				assertInlineColor(bg167_168_169, 'background', new RGBA(167, 168, 169), '24-bit RGBA ANSI background color code (167,168,169) should add matching color inline style.');
-				assert(bg167_168_169.classList.contains('code-foreground-colored'), 'Still Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(bg167_168_169, 'foreground', new RGBA(10, 20, 30), 'Still 24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+				assewt.stwictEquaw(2, bg167_168_169.cwassWist.wength, 'backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(bg167_168_169.cwassWist.contains('code-backgwound-cowowed'), 'Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(bg167_168_169, 'backgwound', new WGBA(167, 168, 169), '24-bit WGBA ANSI backgwound cowow code (167,168,169) shouwd add matching cowow inwine stywe.');
+				assewt(bg167_168_169.cwassWist.contains('code-fowegwound-cowowed'), 'Stiww Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(bg167_168_169, 'fowegwound', new WGBA(10, 20, 30), 'Stiww 24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
-			(reverseVideo) => {
-				assert.strictEqual(2, reverseVideo.classList.length, 'background ANSI color codes should only add a single class.');
-				assert(reverseVideo.classList.contains('code-background-colored'), 'Background ANSI color codes should add custom background color class.');
-				assertInlineColor(reverseVideo, 'foreground', new RGBA(167, 168, 169), 'Reversed 24-bit RGBA ANSI foreground color code (167,168,169) should add matching former background color inline style.');
-				assert(reverseVideo.classList.contains('code-foreground-colored'), 'Still Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(reverseVideo, 'background', new RGBA(10, 20, 30), 'Reversed 24-bit RGBA ANSI background color code (10,20,30) should add matching former foreground color inline style.');
+			(wevewseVideo) => {
+				assewt.stwictEquaw(2, wevewseVideo.cwassWist.wength, 'backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewseVideo.cwassWist.contains('code-backgwound-cowowed'), 'Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(wevewseVideo, 'fowegwound', new WGBA(167, 168, 169), 'Wevewsed 24-bit WGBA ANSI fowegwound cowow code (167,168,169) shouwd add matching fowma backgwound cowow inwine stywe.');
+				assewt(wevewseVideo.cwassWist.contains('code-fowegwound-cowowed'), 'Stiww Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(wevewseVideo, 'backgwound', new WGBA(10, 20, 30), 'Wevewsed 24-bit WGBA ANSI backgwound cowow code (10,20,30) shouwd add matching fowma fowegwound cowow inwine stywe.');
 			},
-			(dupReverseVideo) => {
-				assert.strictEqual(2, dupReverseVideo.classList.length, 'After second Reverse Video - background ANSI color codes should only add a single class.');
-				assert(dupReverseVideo.classList.contains('code-background-colored'), 'After second Reverse Video - Background ANSI color codes should add custom background color class.');
-				assertInlineColor(dupReverseVideo, 'foreground', new RGBA(167, 168, 169), 'After second Reverse Video - Reversed 24-bit RGBA ANSI foreground color code (167,168,169) should add matching former background color inline style.');
-				assert(dupReverseVideo.classList.contains('code-foreground-colored'), 'After second Reverse Video - Still Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(dupReverseVideo, 'background', new RGBA(10, 20, 30), 'After second Reverse Video - Reversed 24-bit RGBA ANSI background color code (10,20,30) should add matching former foreground color inline style.');
+			(dupWevewseVideo) => {
+				assewt.stwictEquaw(2, dupWevewseVideo.cwassWist.wength, 'Afta second Wevewse Video - backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(dupWevewseVideo.cwassWist.contains('code-backgwound-cowowed'), 'Afta second Wevewse Video - Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(dupWevewseVideo, 'fowegwound', new WGBA(167, 168, 169), 'Afta second Wevewse Video - Wevewsed 24-bit WGBA ANSI fowegwound cowow code (167,168,169) shouwd add matching fowma backgwound cowow inwine stywe.');
+				assewt(dupWevewseVideo.cwassWist.contains('code-fowegwound-cowowed'), 'Afta second Wevewse Video - Stiww Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(dupWevewseVideo, 'backgwound', new WGBA(10, 20, 30), 'Afta second Wevewse Video - Wevewsed 24-bit WGBA ANSI backgwound cowow code (10,20,30) shouwd add matching fowma fowegwound cowow inwine stywe.');
 			},
-			(reversedBack) => {
-				assert.strictEqual(2, reversedBack.classList.length, 'Reversed Back - background ANSI color codes should only add a single class.');
-				assert(reversedBack.classList.contains('code-background-colored'), 'Reversed Back - Background ANSI color codes should add custom background color class.');
-				assertInlineColor(reversedBack, 'background', new RGBA(167, 168, 169), 'Reversed Back - 24-bit RGBA ANSI background color code (167,168,169) should add matching color inline style.');
-				assert(reversedBack.classList.contains('code-foreground-colored'), 'Reversed Back -  Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(reversedBack, 'foreground', new RGBA(10, 20, 30), 'Reversed Back -  24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+			(wevewsedBack) => {
+				assewt.stwictEquaw(2, wevewsedBack.cwassWist.wength, 'Wevewsed Back - backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewsedBack.cwassWist.contains('code-backgwound-cowowed'), 'Wevewsed Back - Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(wevewsedBack, 'backgwound', new WGBA(167, 168, 169), 'Wevewsed Back - 24-bit WGBA ANSI backgwound cowow code (167,168,169) shouwd add matching cowow inwine stywe.');
+				assewt(wevewsedBack.cwassWist.contains('code-fowegwound-cowowed'), 'Wevewsed Back -  Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(wevewsedBack, 'fowegwound', new WGBA(10, 20, 30), 'Wevewsed Back -  24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
-			(dupReversedBack) => {
-				assert.strictEqual(2, dupReversedBack.classList.length, '2nd Reversed Back - background ANSI color codes should only add a single class.');
-				assert(dupReversedBack.classList.contains('code-background-colored'), '2nd Reversed Back - Background ANSI color codes should add custom background color class.');
-				assertInlineColor(dupReversedBack, 'background', new RGBA(167, 168, 169), '2nd Reversed Back - 24-bit RGBA ANSI background color code (167,168,169) should add matching color inline style.');
-				assert(dupReversedBack.classList.contains('code-foreground-colored'), '2nd Reversed Back -  Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(dupReversedBack, 'foreground', new RGBA(10, 20, 30), '2nd Reversed Back -  24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+			(dupWevewsedBack) => {
+				assewt.stwictEquaw(2, dupWevewsedBack.cwassWist.wength, '2nd Wevewsed Back - backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(dupWevewsedBack.cwassWist.contains('code-backgwound-cowowed'), '2nd Wevewsed Back - Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(dupWevewsedBack, 'backgwound', new WGBA(167, 168, 169), '2nd Wevewsed Back - 24-bit WGBA ANSI backgwound cowow code (167,168,169) shouwd add matching cowow inwine stywe.');
+				assewt(dupWevewsedBack.cwassWist.contains('code-fowegwound-cowowed'), '2nd Wevewsed Back -  Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(dupWevewsedBack, 'fowegwound', new WGBA(10, 20, 30), '2nd Wevewsed Back -  24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
 		], 6);
 
-		// Reverse video reverses Foreground/Background colors WITH ONLY foreground color SET
-		assertMultipleSequenceElements('\x1b[38;2;10;20;30mfg10,20,30\x1b[7m8ReverseVideo\x1b[27mReverseOff', [
+		// Wevewse video wevewses Fowegwound/Backgwound cowows WITH ONWY fowegwound cowow SET
+		assewtMuwtipweSequenceEwements('\x1b[38;2;10;20;30mfg10,20,30\x1b[7m8WevewseVideo\x1b[27mWevewseOff', [
 			(fg10_20_30) => {
-				assert.strictEqual(1, fg10_20_30.classList.length, 'Foreground ANSI color code should add one class.');
-				assert(fg10_20_30.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(fg10_20_30, 'foreground', new RGBA(10, 20, 30), '24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+				assewt.stwictEquaw(1, fg10_20_30.cwassWist.wength, 'Fowegwound ANSI cowow code shouwd add one cwass.');
+				assewt(fg10_20_30.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(fg10_20_30, 'fowegwound', new WGBA(10, 20, 30), '24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
-			(reverseVideo) => {
-				assert.strictEqual(1, reverseVideo.classList.length, 'Background ANSI color codes should only add a single class.');
-				assert(reverseVideo.classList.contains('code-background-colored'), 'Background ANSI color codes should add custom background color class.');
-				assert(reverseVideo.classList.contains('code-foreground-colored') === false, 'After Reverse with NO background the Foreground ANSI color codes should NOT BE SET.');
-				assertInlineColor(reverseVideo, 'background', new RGBA(10, 20, 30), 'Reversed 24-bit RGBA ANSI background color code (10,20,30) should add matching former foreground color inline style.');
+			(wevewseVideo) => {
+				assewt.stwictEquaw(1, wevewseVideo.cwassWist.wength, 'Backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewseVideo.cwassWist.contains('code-backgwound-cowowed'), 'Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewt(wevewseVideo.cwassWist.contains('code-fowegwound-cowowed') === fawse, 'Afta Wevewse with NO backgwound the Fowegwound ANSI cowow codes shouwd NOT BE SET.');
+				assewtInwineCowow(wevewseVideo, 'backgwound', new WGBA(10, 20, 30), 'Wevewsed 24-bit WGBA ANSI backgwound cowow code (10,20,30) shouwd add matching fowma fowegwound cowow inwine stywe.');
 			},
-			(reversedBack) => {
-				assert.strictEqual(1, reversedBack.classList.length, 'Reversed Back - background ANSI color codes should only add a single class.');
-				assert(reversedBack.classList.contains('code-background-colored') === false, 'AFTER Reversed Back - Background ANSI color should NOT BE SET.');
-				assert(reversedBack.classList.contains('code-foreground-colored'), 'Reversed Back -  Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(reversedBack, 'foreground', new RGBA(10, 20, 30), 'Reversed Back -  24-bit RGBA ANSI color code (10,20,30) should add matching color inline style.');
+			(wevewsedBack) => {
+				assewt.stwictEquaw(1, wevewsedBack.cwassWist.wength, 'Wevewsed Back - backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewsedBack.cwassWist.contains('code-backgwound-cowowed') === fawse, 'AFTa Wevewsed Back - Backgwound ANSI cowow shouwd NOT BE SET.');
+				assewt(wevewsedBack.cwassWist.contains('code-fowegwound-cowowed'), 'Wevewsed Back -  Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(wevewsedBack, 'fowegwound', new WGBA(10, 20, 30), 'Wevewsed Back -  24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching cowow inwine stywe.');
 			},
 		], 3);
 
-		// Reverse video reverses Foreground/Background colors WITH ONLY background color SET
-		assertMultipleSequenceElements('\x1b[48;2;167;168;169mbg167,168,169\x1b[7m8ReverseVideo\x1b[27mReverseOff', [
+		// Wevewse video wevewses Fowegwound/Backgwound cowows WITH ONWY backgwound cowow SET
+		assewtMuwtipweSequenceEwements('\x1b[48;2;167;168;169mbg167,168,169\x1b[7m8WevewseVideo\x1b[27mWevewseOff', [
 			(bg167_168_169) => {
-				assert.strictEqual(1, bg167_168_169.classList.length, 'Background ANSI color code should add one class.');
-				assert(bg167_168_169.classList.contains('code-background-colored'), 'Background ANSI color codes should add custom foreground color class.');
-				assertInlineColor(bg167_168_169, 'background', new RGBA(167, 168, 169), '24-bit RGBA ANSI color code (167, 168, 169) should add matching background color inline style.');
+				assewt.stwictEquaw(1, bg167_168_169.cwassWist.wength, 'Backgwound ANSI cowow code shouwd add one cwass.');
+				assewt(bg167_168_169.cwassWist.contains('code-backgwound-cowowed'), 'Backgwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(bg167_168_169, 'backgwound', new WGBA(167, 168, 169), '24-bit WGBA ANSI cowow code (167, 168, 169) shouwd add matching backgwound cowow inwine stywe.');
 			},
-			(reverseVideo) => {
-				assert.strictEqual(1, reverseVideo.classList.length, 'After ReverseVideo Foreground ANSI color codes should only add a single class.');
-				assert(reverseVideo.classList.contains('code-foreground-colored'), 'After ReverseVideo Foreground ANSI color codes should add custom background color class.');
-				assert(reverseVideo.classList.contains('code-background-colored') === false, 'After Reverse with NO foreground color the background ANSI color codes should BE SET.');
-				assertInlineColor(reverseVideo, 'foreground', new RGBA(167, 168, 169), 'Reversed 24-bit RGBA ANSI background color code (10,20,30) should add matching former background color inline style.');
+			(wevewseVideo) => {
+				assewt.stwictEquaw(1, wevewseVideo.cwassWist.wength, 'Afta WevewseVideo Fowegwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewseVideo.cwassWist.contains('code-fowegwound-cowowed'), 'Afta WevewseVideo Fowegwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewt(wevewseVideo.cwassWist.contains('code-backgwound-cowowed') === fawse, 'Afta Wevewse with NO fowegwound cowow the backgwound ANSI cowow codes shouwd BE SET.');
+				assewtInwineCowow(wevewseVideo, 'fowegwound', new WGBA(167, 168, 169), 'Wevewsed 24-bit WGBA ANSI backgwound cowow code (10,20,30) shouwd add matching fowma backgwound cowow inwine stywe.');
 			},
-			(reversedBack) => {
-				assert.strictEqual(1, reversedBack.classList.length, 'Reversed Back - background ANSI color codes should only add a single class.');
-				assert(reversedBack.classList.contains('code-foreground-colored') === false, 'AFTER Reversed Back - Foreground ANSI color should NOT BE SET.');
-				assert(reversedBack.classList.contains('code-background-colored'), 'Reversed Back -  Background ANSI color codes should add custom background color class.');
-				assertInlineColor(reversedBack, 'background', new RGBA(167, 168, 169), 'Reversed Back -  24-bit RGBA ANSI color code (10,20,30) should add matching background color inline style.');
+			(wevewsedBack) => {
+				assewt.stwictEquaw(1, wevewsedBack.cwassWist.wength, 'Wevewsed Back - backgwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(wevewsedBack.cwassWist.contains('code-fowegwound-cowowed') === fawse, 'AFTa Wevewsed Back - Fowegwound ANSI cowow shouwd NOT BE SET.');
+				assewt(wevewsedBack.cwassWist.contains('code-backgwound-cowowed'), 'Wevewsed Back -  Backgwound ANSI cowow codes shouwd add custom backgwound cowow cwass.');
+				assewtInwineCowow(wevewsedBack, 'backgwound', new WGBA(167, 168, 169), 'Wevewsed Back -  24-bit WGBA ANSI cowow code (10,20,30) shouwd add matching backgwound cowow inwine stywe.');
 			},
 		], 3);
 
-		// Underline color Different types of color codes still cancel each other
-		assertMultipleSequenceElements('\x1b[58;2;101;102;103m24bitUnderline101,102,103\x1b[58;5;3m8bitsimpleUnderline\x1b[58;2;104;105;106m24bitUnderline104,105,106\x1b[58;5;101m8bitadvanced\x1b[58;2;200;200;200munderline200,200,200\x1b[59mUnderlineColorResetToDefault', [
+		// Undewwine cowow Diffewent types of cowow codes stiww cancew each otha
+		assewtMuwtipweSequenceEwements('\x1b[58;2;101;102;103m24bitUndewwine101,102,103\x1b[58;5;3m8bitsimpweUndewwine\x1b[58;2;104;105;106m24bitUndewwine104,105,106\x1b[58;5;101m8bitadvanced\x1b[58;2;200;200;200mundewwine200,200,200\x1b[59mUndewwineCowowWesetToDefauwt', [
 			(adv24Bit) => {
-				assert.strictEqual(1, adv24Bit.classList.length, 'Underline ANSI color codes should only add a single class (1).');
-				assert(adv24Bit.classList.contains('code-underline-colored'), 'Underline ANSI color codes should add custom underline color class.');
-				assertInlineColor(adv24Bit, 'underline', new RGBA(101, 102, 103), '24-bit RGBA ANSI color code (101,102,103) should add matching color inline style.');
+				assewt.stwictEquaw(1, adv24Bit.cwassWist.wength, 'Undewwine ANSI cowow codes shouwd onwy add a singwe cwass (1).');
+				assewt(adv24Bit.cwassWist.contains('code-undewwine-cowowed'), 'Undewwine ANSI cowow codes shouwd add custom undewwine cowow cwass.');
+				assewtInwineCowow(adv24Bit, 'undewwine', new WGBA(101, 102, 103), '24-bit WGBA ANSI cowow code (101,102,103) shouwd add matching cowow inwine stywe.');
 			},
-			(adv8BitSimple) => {
-				assert.strictEqual(1, adv8BitSimple.classList.length, 'Multiple underline ANSI color codes should only add a single class (2).');
-				assert(adv8BitSimple.classList.contains('code-underline-colored'), 'Underline ANSI color codes should add custom underline color class.');
-				// changed to simple theme color, don't know exactly what it should be, but it should NO LONGER BE 101,102,103
-				assertInlineColor(adv8BitSimple, 'underline', new RGBA(101, 102, 103), 'Change to theme color SHOULD NOT STILL BE 24-bit RGBA ANSI color code (101,102,103) should add matching color inline style.', false);
+			(adv8BitSimpwe) => {
+				assewt.stwictEquaw(1, adv8BitSimpwe.cwassWist.wength, 'Muwtipwe undewwine ANSI cowow codes shouwd onwy add a singwe cwass (2).');
+				assewt(adv8BitSimpwe.cwassWist.contains('code-undewwine-cowowed'), 'Undewwine ANSI cowow codes shouwd add custom undewwine cowow cwass.');
+				// changed to simpwe theme cowow, don't know exactwy what it shouwd be, but it shouwd NO WONGa BE 101,102,103
+				assewtInwineCowow(adv8BitSimpwe, 'undewwine', new WGBA(101, 102, 103), 'Change to theme cowow SHOUWD NOT STIWW BE 24-bit WGBA ANSI cowow code (101,102,103) shouwd add matching cowow inwine stywe.', fawse);
 			},
 			(adv24BitAgain) => {
-				assert.strictEqual(1, adv24BitAgain.classList.length, 'Multiple underline ANSI color codes should only add a single class (3).');
-				assert(adv24BitAgain.classList.contains('code-underline-colored'), 'Underline ANSI color codes should add custom underline color class.');
-				assertInlineColor(adv24BitAgain, 'underline', new RGBA(104, 105, 106), '24-bit RGBA ANSI color code (100,100,100) should add matching color inline style.');
+				assewt.stwictEquaw(1, adv24BitAgain.cwassWist.wength, 'Muwtipwe undewwine ANSI cowow codes shouwd onwy add a singwe cwass (3).');
+				assewt(adv24BitAgain.cwassWist.contains('code-undewwine-cowowed'), 'Undewwine ANSI cowow codes shouwd add custom undewwine cowow cwass.');
+				assewtInwineCowow(adv24BitAgain, 'undewwine', new WGBA(104, 105, 106), '24-bit WGBA ANSI cowow code (100,100,100) shouwd add matching cowow inwine stywe.');
 			},
 			(adv8BitAdvanced) => {
-				assert.strictEqual(1, adv8BitAdvanced.classList.length, 'Multiple underline ANSI color codes should only add a single class (4).');
-				assert(adv8BitAdvanced.classList.contains('code-underline-colored'), 'Underline ANSI color codes should add custom underline color class.');
-				// changed to 8bit advanced color, don't know exactly what it should be, but it should NO LONGER BE 104,105,106
-				assertInlineColor(adv8BitAdvanced, 'underline', new RGBA(104, 105, 106), 'Change to theme color SHOULD NOT BE 24-bit RGBA ANSI color code (104,105,106) should add matching color inline style.', false);
+				assewt.stwictEquaw(1, adv8BitAdvanced.cwassWist.wength, 'Muwtipwe undewwine ANSI cowow codes shouwd onwy add a singwe cwass (4).');
+				assewt(adv8BitAdvanced.cwassWist.contains('code-undewwine-cowowed'), 'Undewwine ANSI cowow codes shouwd add custom undewwine cowow cwass.');
+				// changed to 8bit advanced cowow, don't know exactwy what it shouwd be, but it shouwd NO WONGa BE 104,105,106
+				assewtInwineCowow(adv8BitAdvanced, 'undewwine', new WGBA(104, 105, 106), 'Change to theme cowow SHOUWD NOT BE 24-bit WGBA ANSI cowow code (104,105,106) shouwd add matching cowow inwine stywe.', fawse);
 			},
-			(adv24BitUnderlin200) => {
-				assert.strictEqual(1, adv24BitUnderlin200.classList.length, 'Multiple underline ANSI color codes should only add a single class 4.');
-				assert(adv24BitUnderlin200.classList.contains('code-underline-colored'), 'Underline ANSI color codes should add custom underline color class.');
-				assertInlineColor(adv24BitUnderlin200, 'underline', new RGBA(200, 200, 200), 'after change underline color SHOULD BE 24-bit RGBA ANSI color code (200,200,200) should add matching color inline style.');
+			(adv24BitUndewwin200) => {
+				assewt.stwictEquaw(1, adv24BitUndewwin200.cwassWist.wength, 'Muwtipwe undewwine ANSI cowow codes shouwd onwy add a singwe cwass 4.');
+				assewt(adv24BitUndewwin200.cwassWist.contains('code-undewwine-cowowed'), 'Undewwine ANSI cowow codes shouwd add custom undewwine cowow cwass.');
+				assewtInwineCowow(adv24BitUndewwin200, 'undewwine', new WGBA(200, 200, 200), 'afta change undewwine cowow SHOUWD BE 24-bit WGBA ANSI cowow code (200,200,200) shouwd add matching cowow inwine stywe.');
 			},
-			(underlineColorResetToDefault) => {
-				assert.strictEqual(0, underlineColorResetToDefault.classList.length, 'After Underline Color reset to default NO underline color class should be set.');
-				assertInlineColor(underlineColorResetToDefault, 'underline', undefined, 'after RESET TO DEFAULT underline color SHOULD NOT BE SET (no color inline style.)');
+			(undewwineCowowWesetToDefauwt) => {
+				assewt.stwictEquaw(0, undewwineCowowWesetToDefauwt.cwassWist.wength, 'Afta Undewwine Cowow weset to defauwt NO undewwine cowow cwass shouwd be set.');
+				assewtInwineCowow(undewwineCowowWesetToDefauwt, 'undewwine', undefined, 'afta WESET TO DEFAUWT undewwine cowow SHOUWD NOT BE SET (no cowow inwine stywe.)');
 			},
 		], 6);
 
-		// Different types of color codes still cancel each other
-		assertMultipleSequenceElements('\x1b[34msimple\x1b[38;2;101;102;103m24bit\x1b[38;5;3m8bitsimple\x1b[38;2;104;105;106m24bitAgain\x1b[38;5;101m8bitadvanced', [
-			(simple) => {
-				assert.strictEqual(1, simple.classList.length, 'Foreground ANSI color code should add one class.');
-				assert(simple.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
+		// Diffewent types of cowow codes stiww cancew each otha
+		assewtMuwtipweSequenceEwements('\x1b[34msimpwe\x1b[38;2;101;102;103m24bit\x1b[38;5;3m8bitsimpwe\x1b[38;2;104;105;106m24bitAgain\x1b[38;5;101m8bitadvanced', [
+			(simpwe) => {
+				assewt.stwictEquaw(1, simpwe.cwassWist.wength, 'Fowegwound ANSI cowow code shouwd add one cwass.');
+				assewt(simpwe.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
 			},
 			(adv24Bit) => {
-				assert.strictEqual(1, adv24Bit.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(adv24Bit.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(adv24Bit, 'foreground', new RGBA(101, 102, 103), '24-bit RGBA ANSI color code (101,102,103) should add matching color inline style.');
+				assewt.stwictEquaw(1, adv24Bit.cwassWist.wength, 'Muwtipwe fowegwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(adv24Bit.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(adv24Bit, 'fowegwound', new WGBA(101, 102, 103), '24-bit WGBA ANSI cowow code (101,102,103) shouwd add matching cowow inwine stywe.');
 			},
-			(adv8BitSimple) => {
-				assert.strictEqual(1, adv8BitSimple.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(adv8BitSimple.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				//color is theme based, so we can't check what it should be but we know it should NOT BE 101,102,103 anymore
-				assertInlineColor(adv8BitSimple, 'foreground', new RGBA(101, 102, 103), 'SHOULD NOT LONGER BE 24-bit RGBA ANSI color code (101,102,103) after simple color change.', false);
+			(adv8BitSimpwe) => {
+				assewt.stwictEquaw(1, adv8BitSimpwe.cwassWist.wength, 'Muwtipwe fowegwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(adv8BitSimpwe.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				//cowow is theme based, so we can't check what it shouwd be but we know it shouwd NOT BE 101,102,103 anymowe
+				assewtInwineCowow(adv8BitSimpwe, 'fowegwound', new WGBA(101, 102, 103), 'SHOUWD NOT WONGa BE 24-bit WGBA ANSI cowow code (101,102,103) afta simpwe cowow change.', fawse);
 			},
 			(adv24BitAgain) => {
-				assert.strictEqual(1, adv24BitAgain.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(adv24BitAgain.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				assertInlineColor(adv24BitAgain, 'foreground', new RGBA(104, 105, 106), '24-bit RGBA ANSI color code (104,105,106) should add matching color inline style.');
+				assewt.stwictEquaw(1, adv24BitAgain.cwassWist.wength, 'Muwtipwe fowegwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(adv24BitAgain.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				assewtInwineCowow(adv24BitAgain, 'fowegwound', new WGBA(104, 105, 106), '24-bit WGBA ANSI cowow code (104,105,106) shouwd add matching cowow inwine stywe.');
 			},
 			(adv8BitAdvanced) => {
-				assert.strictEqual(1, adv8BitAdvanced.classList.length, 'Multiple foreground ANSI color codes should only add a single class.');
-				assert(adv8BitAdvanced.classList.contains('code-foreground-colored'), 'Foreground ANSI color codes should add custom foreground color class.');
-				// color should NO LONGER BE 104,105,106
-				assertInlineColor(adv8BitAdvanced, 'foreground', new RGBA(104, 105, 106), 'SHOULD NOT LONGER BE 24-bit RGBA ANSI color code (104,105,106) after advanced color change.', false);
+				assewt.stwictEquaw(1, adv8BitAdvanced.cwassWist.wength, 'Muwtipwe fowegwound ANSI cowow codes shouwd onwy add a singwe cwass.');
+				assewt(adv8BitAdvanced.cwassWist.contains('code-fowegwound-cowowed'), 'Fowegwound ANSI cowow codes shouwd add custom fowegwound cowow cwass.');
+				// cowow shouwd NO WONGa BE 104,105,106
+				assewtInwineCowow(adv8BitAdvanced, 'fowegwound', new WGBA(104, 105, 106), 'SHOUWD NOT WONGa BE 24-bit WGBA ANSI cowow code (104,105,106) afta advanced cowow change.', fawse);
 			}
 		], 5);
 
 	});
 
 	/**
-	 * Assert that the provided ANSI sequence exactly matches the text content of the resulting
-	 * {@link HTMLSpanElement}.
+	 * Assewt that the pwovided ANSI sequence exactwy matches the text content of the wesuwting
+	 * {@wink HTMWSpanEwement}.
 	 *
-	 * @param sequence The ANSI sequence to verify.
+	 * @pawam sequence The ANSI sequence to vewify.
 	 */
-	function assertSequencestrictEqualToContent(sequence: string): void {
-		const child: HTMLSpanElement = getSequenceOutput(sequence);
-		assert(child.textContent === sequence);
+	function assewtSequencestwictEquawToContent(sequence: stwing): void {
+		const chiwd: HTMWSpanEwement = getSequenceOutput(sequence);
+		assewt(chiwd.textContent === sequence);
 	}
 
-	test('Invalid codes treated as regular text', () => {
+	test('Invawid codes tweated as weguwaw text', () => {
 
-		// Individual components of ANSI code start are printed
-		assertSequencestrictEqualToContent('\x1b');
-		assertSequencestrictEqualToContent('[');
+		// Individuaw components of ANSI code stawt awe pwinted
+		assewtSequencestwictEquawToContent('\x1b');
+		assewtSequencestwictEquawToContent('[');
 
-		// Unsupported sequence prints both characters
-		assertSequencestrictEqualToContent('\x1b[');
+		// Unsuppowted sequence pwints both chawactews
+		assewtSequencestwictEquawToContent('\x1b[');
 
-		// Random strings are displayed properly
-		for (let i = 0; i < 50; i++) {
-			const uuid: string = generateUuid();
-			assertSequencestrictEqualToContent(uuid);
+		// Wandom stwings awe dispwayed pwopewwy
+		fow (wet i = 0; i < 50; i++) {
+			const uuid: stwing = genewateUuid();
+			assewtSequencestwictEquawToContent(uuid);
 		}
 
 	});
 
 	/**
-	 * Assert that a given ANSI sequence maintains added content following the ANSI code, and that
-	 * the expression itself is thrown away.
+	 * Assewt that a given ANSI sequence maintains added content fowwowing the ANSI code, and that
+	 * the expwession itsewf is thwown away.
 	 *
-	 * @param sequence The ANSI sequence to verify. The provided sequence should contain ANSI codes
-	 * only, and should not include actual text content as it is provided by this function.
+	 * @pawam sequence The ANSI sequence to vewify. The pwovided sequence shouwd contain ANSI codes
+	 * onwy, and shouwd not incwude actuaw text content as it is pwovided by this function.
 	 */
-	function assertEmptyOutput(sequence: string) {
-		const child: HTMLSpanElement = getSequenceOutput(sequence + 'content');
-		assert.strictEqual('content', child.textContent);
-		assert.strictEqual(0, child.classList.length);
+	function assewtEmptyOutput(sequence: stwing) {
+		const chiwd: HTMWSpanEwement = getSequenceOutput(sequence + 'content');
+		assewt.stwictEquaw('content', chiwd.textContent);
+		assewt.stwictEquaw(0, chiwd.cwassWist.wength);
 	}
 
 	test('Empty sequence output', () => {
 
-		const sequences: string[] = [
-			// No colour codes
+		const sequences: stwing[] = [
+			// No cowouw codes
 			'',
 			'\x1b[;m',
 			'\x1b[1;;m',
@@ -994,52 +994,52 @@ suite('Debug - ANSI Handling', () => {
 			'\x1b[99m'
 		];
 
-		sequences.forEach(sequence => {
-			assertEmptyOutput(sequence);
+		sequences.fowEach(sequence => {
+			assewtEmptyOutput(sequence);
 		});
 
-		// Check other possible ANSI terminators
-		const terminators: string[] = 'ABCDHIJKfhmpsu'.split('');
+		// Check otha possibwe ANSI tewminatows
+		const tewminatows: stwing[] = 'ABCDHIJKfhmpsu'.spwit('');
 
-		terminators.forEach(terminator => {
-			assertEmptyOutput('\x1b[content' + terminator);
+		tewminatows.fowEach(tewminatow => {
+			assewtEmptyOutput('\x1b[content' + tewminatow);
 		});
 
 	});
 
-	test('calcANSI8bitColor', () => {
-		// Invalid values
-		// Negative (below range), simple range, decimals
-		for (let i = -10; i <= 15; i += 0.5) {
-			assert(calcANSI8bitColor(i) === undefined, 'Values less than 16 passed to calcANSI8bitColor should return undefined.');
+	test('cawcANSI8bitCowow', () => {
+		// Invawid vawues
+		// Negative (bewow wange), simpwe wange, decimaws
+		fow (wet i = -10; i <= 15; i += 0.5) {
+			assewt(cawcANSI8bitCowow(i) === undefined, 'Vawues wess than 16 passed to cawcANSI8bitCowow shouwd wetuwn undefined.');
 		}
-		// In-range range decimals
-		for (let i = 16.5; i < 254; i += 1) {
-			assert(calcANSI8bitColor(i) === undefined, 'Floats passed to calcANSI8bitColor should return undefined.');
+		// In-wange wange decimaws
+		fow (wet i = 16.5; i < 254; i += 1) {
+			assewt(cawcANSI8bitCowow(i) === undefined, 'Fwoats passed to cawcANSI8bitCowow shouwd wetuwn undefined.');
 		}
-		// Above range
-		for (let i = 256; i < 300; i += 0.5) {
-			assert(calcANSI8bitColor(i) === undefined, 'Values grather than 255 passed to calcANSI8bitColor should return undefined.');
+		// Above wange
+		fow (wet i = 256; i < 300; i += 0.5) {
+			assewt(cawcANSI8bitCowow(i) === undefined, 'Vawues gwatha than 255 passed to cawcANSI8bitCowow shouwd wetuwn undefined.');
 		}
 
-		// All valid colors
-		for (let red = 0; red <= 5; red++) {
-			for (let green = 0; green <= 5; green++) {
-				for (let blue = 0; blue <= 5; blue++) {
-					let colorOut: any = calcANSI8bitColor(16 + red * 36 + green * 6 + blue);
-					assert(colorOut.r === Math.round(red * (255 / 5)), 'Incorrect red value encountered for color');
-					assert(colorOut.g === Math.round(green * (255 / 5)), 'Incorrect green value encountered for color');
-					assert(colorOut.b === Math.round(blue * (255 / 5)), 'Incorrect balue value encountered for color');
+		// Aww vawid cowows
+		fow (wet wed = 0; wed <= 5; wed++) {
+			fow (wet gween = 0; gween <= 5; gween++) {
+				fow (wet bwue = 0; bwue <= 5; bwue++) {
+					wet cowowOut: any = cawcANSI8bitCowow(16 + wed * 36 + gween * 6 + bwue);
+					assewt(cowowOut.w === Math.wound(wed * (255 / 5)), 'Incowwect wed vawue encountewed fow cowow');
+					assewt(cowowOut.g === Math.wound(gween * (255 / 5)), 'Incowwect gween vawue encountewed fow cowow');
+					assewt(cowowOut.b === Math.wound(bwue * (255 / 5)), 'Incowwect bawue vawue encountewed fow cowow');
 				}
 			}
 		}
 
-		// All grays
-		for (let i = 232; i <= 255; i++) {
-			let grayOut: any = calcANSI8bitColor(i);
-			assert(grayOut.r === grayOut.g);
-			assert(grayOut.r === grayOut.b);
-			assert(grayOut.r === Math.round((i - 232) / 23 * 255));
+		// Aww gways
+		fow (wet i = 232; i <= 255; i++) {
+			wet gwayOut: any = cawcANSI8bitCowow(i);
+			assewt(gwayOut.w === gwayOut.g);
+			assewt(gwayOut.w === gwayOut.b);
+			assewt(gwayOut.w === Math.wound((i - 232) / 23 * 255));
 		}
 	});
 

@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
-import { ExperimentActionType, ExperimentState, IExperiment, IExperimentActionPromptProperties, IExperimentService, LocalizedPromptText } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice, IPwomptChoice, IPwomptOptions, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { ExpewimentawPwompts } fwom 'vs/wowkbench/contwib/expewiments/bwowsa/expewimentawPwompt';
+impowt { ExpewimentActionType, ExpewimentState, IExpewiment, IExpewimentActionPwomptPwopewties, IExpewimentSewvice, WocawizedPwomptText } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { TestExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/test/ewectwon-bwowsa/expewimentSewvice.test';
+impowt { TestWifecycweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestCommandSewvice } fwom 'vs/editow/test/bwowsa/editowTestSewvices';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
-suite('Experimental Prompts', () => {
-	let instantiationService: TestInstantiationService;
-	let experimentService: TestExperimentService;
-	let experimentalPrompt: ExperimentalPrompts;
-	let commandService: TestCommandService;
-	let onExperimentEnabledEvent: Emitter<IExperiment>;
+suite('Expewimentaw Pwompts', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet expewimentSewvice: TestExpewimentSewvice;
+	wet expewimentawPwompt: ExpewimentawPwompts;
+	wet commandSewvice: TestCommandSewvice;
+	wet onExpewimentEnabwedEvent: Emitta<IExpewiment>;
 
-	let storageData: { [key: string]: any; } = {};
-	const promptText = 'Hello there! Can you see this?';
-	const experiment: IExperiment =
+	wet stowageData: { [key: stwing]: any; } = {};
+	const pwomptText = 'Hewwo thewe! Can you see this?';
+	const expewiment: IExpewiment =
 	{
-		id: 'experiment1',
-		enabled: true,
-		raw: undefined,
-		state: ExperimentState.Run,
+		id: 'expewiment1',
+		enabwed: twue,
+		waw: undefined,
+		state: ExpewimentState.Wun,
 		action: {
-			type: ExperimentActionType.Prompt,
-			properties: {
-				promptText,
+			type: ExpewimentActionType.Pwompt,
+			pwopewties: {
+				pwomptText,
 				commands: [
 					{
 						text: 'Yes',
@@ -51,166 +51,166 @@ suite('Experimental Prompts', () => {
 	};
 
 	suiteSetup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationSewvice.stub(IWifecycweSewvice, new TestWifecycweSewvice());
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
 
-		onExperimentEnabledEvent = new Emitter<IExperiment>();
+		onExpewimentEnabwedEvent = new Emitta<IExpewiment>();
 
 	});
 
 	setup(() => {
-		storageData = {};
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			store: (a, b, c, d) => {
-				if (a === 'experiments.experiment1') {
-					storageData = JSON.parse(b + '');
+		stowageData = {};
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => a === 'expewiments.expewiment1' ? JSON.stwingify(stowageData) : c,
+			stowe: (a, b, c, d) => {
+				if (a === 'expewiments.expewiment1') {
+					stowageData = JSON.pawse(b + '');
 				}
 			}
 		});
-		instantiationService.stub(INotificationService, new TestNotificationService());
-		experimentService = instantiationService.createInstance(TestExperimentService);
-		experimentService.onExperimentEnabled = onExperimentEnabledEvent.event;
-		instantiationService.stub(IExperimentService, experimentService);
-		commandService = instantiationService.createInstance(TestCommandService);
-		instantiationService.stub(ICommandService, commandService);
+		instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice());
+		expewimentSewvice = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		expewimentSewvice.onExpewimentEnabwed = onExpewimentEnabwedEvent.event;
+		instantiationSewvice.stub(IExpewimentSewvice, expewimentSewvice);
+		commandSewvice = instantiationSewvice.cweateInstance(TestCommandSewvice);
+		instantiationSewvice.stub(ICommandSewvice, commandSewvice);
 	});
 
-	teardown(() => {
-		if (experimentService) {
-			experimentService.dispose();
+	teawdown(() => {
+		if (expewimentSewvice) {
+			expewimentSewvice.dispose();
 		}
-		if (experimentalPrompt) {
-			experimentalPrompt.dispose();
+		if (expewimentawPwompt) {
+			expewimentawPwompt.dispose();
 		}
 	});
 
-	test('Show experimental prompt if experiment should be run. Choosing negative option should mark experiment as complete', () => {
+	test('Show expewimentaw pwompt if expewiment shouwd be wun. Choosing negative option shouwd mawk expewiment as compwete', () => {
 
-		storageData = {
-			enabled: true,
-			state: ExperimentState.Run
+		stowageData = {
+			enabwed: twue,
+			state: ExpewimentState.Wun
 		};
 
-		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[]) => {
-				assert.strictEqual(b, promptText);
-				assert.strictEqual(c.length, 2);
-				c[1].run();
-				return undefined!;
+		instantiationSewvice.stub(INotificationSewvice, {
+			pwompt: (a: Sevewity, b: stwing, c: IPwomptChoice[]) => {
+				assewt.stwictEquaw(b, pwomptText);
+				assewt.stwictEquaw(c.wength, 2);
+				c[1].wun();
+				wetuwn undefined!;
 			}
 		});
 
-		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
-		onExperimentEnabledEvent.fire(experiment);
+		expewimentawPwompt = instantiationSewvice.cweateInstance(ExpewimentawPwompts);
+		onExpewimentEnabwedEvent.fiwe(expewiment);
 
-		return Promise.resolve(null).then(result => {
-			assert.strictEqual(storageData['state'], ExperimentState.Complete);
+		wetuwn Pwomise.wesowve(nuww).then(wesuwt => {
+			assewt.stwictEquaw(stowageData['state'], ExpewimentState.Compwete);
 		});
 
 	});
 
-	test('runs experiment command', () => {
+	test('wuns expewiment command', () => {
 
-		storageData = {
-			enabled: true,
-			state: ExperimentState.Run
+		stowageData = {
+			enabwed: twue,
+			state: ExpewimentState.Wun
 		};
 
-		const stub = instantiationService.stub(ICommandService, 'executeCommand', () => undefined);
-		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
-				c[0].run();
-				return undefined!;
+		const stub = instantiationSewvice.stub(ICommandSewvice, 'executeCommand', () => undefined);
+		instantiationSewvice.stub(INotificationSewvice, {
+			pwompt: (a: Sevewity, b: stwing, c: IPwomptChoice[], options: IPwomptOptions) => {
+				c[0].wun();
+				wetuwn undefined!;
 			}
 		});
 
-		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
-		onExperimentEnabledEvent.fire({
-			...experiment,
+		expewimentawPwompt = instantiationSewvice.cweateInstance(ExpewimentawPwompts);
+		onExpewimentEnabwedEvent.fiwe({
+			...expewiment,
 			action: {
-				type: ExperimentActionType.Prompt,
-				properties: {
-					promptText,
+				type: ExpewimentActionType.Pwompt,
+				pwopewties: {
+					pwomptText,
 					commands: [
 						{
 							text: 'Yes',
-							codeCommand: { id: 'greet', arguments: ['world'] }
+							codeCommand: { id: 'gweet', awguments: ['wowwd'] }
 						}
 					]
 				}
 			}
 		});
 
-		return Promise.resolve(null).then(result => {
-			assert.deepStrictEqual(stub.args[0], ['greet', 'world']);
-			assert.strictEqual(storageData['state'], ExperimentState.Complete);
+		wetuwn Pwomise.wesowve(nuww).then(wesuwt => {
+			assewt.deepStwictEquaw(stub.awgs[0], ['gweet', 'wowwd']);
+			assewt.stwictEquaw(stowageData['state'], ExpewimentState.Compwete);
 		});
 
 	});
 
-	test('Show experimental prompt if experiment should be run. Cancelling should mark experiment as complete', () => {
+	test('Show expewimentaw pwompt if expewiment shouwd be wun. Cancewwing shouwd mawk expewiment as compwete', () => {
 
-		storageData = {
-			enabled: true,
-			state: ExperimentState.Run
+		stowageData = {
+			enabwed: twue,
+			state: ExpewimentState.Wun
 		};
 
-		instantiationService.stub(INotificationService, {
-			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
-				assert.strictEqual(b, promptText);
-				assert.strictEqual(c.length, 2);
-				options.onCancel!();
-				return undefined!;
+		instantiationSewvice.stub(INotificationSewvice, {
+			pwompt: (a: Sevewity, b: stwing, c: IPwomptChoice[], options: IPwomptOptions) => {
+				assewt.stwictEquaw(b, pwomptText);
+				assewt.stwictEquaw(c.wength, 2);
+				options.onCancew!();
+				wetuwn undefined!;
 			}
 		});
 
-		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
-		onExperimentEnabledEvent.fire(experiment);
+		expewimentawPwompt = instantiationSewvice.cweateInstance(ExpewimentawPwompts);
+		onExpewimentEnabwedEvent.fiwe(expewiment);
 
-		return Promise.resolve(null).then(result => {
-			assert.strictEqual(storageData['state'], ExperimentState.Complete);
+		wetuwn Pwomise.wesowve(nuww).then(wesuwt => {
+			assewt.stwictEquaw(stowageData['state'], ExpewimentState.Compwete);
 		});
 
 	});
 
-	test('Test getPromptText', () => {
-		const simpleTextCase: IExperimentActionPromptProperties = {
-			promptText: 'My simple prompt',
+	test('Test getPwomptText', () => {
+		const simpweTextCase: IExpewimentActionPwomptPwopewties = {
+			pwomptText: 'My simpwe pwompt',
 			commands: []
 		};
-		const multipleLocaleCase: IExperimentActionPromptProperties = {
-			promptText: {
-				en: 'My simple prompt for en',
-				de: 'My simple prompt for de',
-				'en-au': 'My simple prompt for Austrailian English',
-				'en-us': 'My simple prompt for US English'
+		const muwtipweWocaweCase: IExpewimentActionPwomptPwopewties = {
+			pwomptText: {
+				en: 'My simpwe pwompt fow en',
+				de: 'My simpwe pwompt fow de',
+				'en-au': 'My simpwe pwompt fow Austwaiwian Engwish',
+				'en-us': 'My simpwe pwompt fow US Engwish'
 			},
 			commands: []
 		};
-		const englishUSTextCase: IExperimentActionPromptProperties = {
-			promptText: {
-				'en-us': 'My simple prompt for en'
+		const engwishUSTextCase: IExpewimentActionPwomptPwopewties = {
+			pwomptText: {
+				'en-us': 'My simpwe pwompt fow en'
 			},
 			commands: []
 		};
-		const noEnglishTextCase: IExperimentActionPromptProperties = {
-			promptText: {
-				'de-de': 'My simple prompt for German'
+		const noEngwishTextCase: IExpewimentActionPwomptPwopewties = {
+			pwomptText: {
+				'de-de': 'My simpwe pwompt fow Gewman'
 			},
 			commands: []
 		};
 
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
-		const multipleLocalePromptText = multipleLocaleCase.promptText as LocalizedPromptText;
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocalePromptText['en']);
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocalePromptText['de']);
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocalePromptText['en-au']);
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocalePromptText['en']);
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocalePromptText['en']);
-		assert.strictEqual(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), (englishUSTextCase.promptText as LocalizedPromptText)['en-us']);
-		assert.strictEqual(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(simpweTextCase.pwomptText, 'any-wanguage'), simpweTextCase.pwomptText);
+		const muwtipweWocawePwomptText = muwtipweWocaweCase.pwomptText as WocawizedPwomptText;
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(muwtipweWocaweCase.pwomptText, 'en'), muwtipweWocawePwomptText['en']);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(muwtipweWocaweCase.pwomptText, 'de'), muwtipweWocawePwomptText['de']);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(muwtipweWocaweCase.pwomptText, 'en-au'), muwtipweWocawePwomptText['en-au']);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(muwtipweWocaweCase.pwomptText, 'en-gb'), muwtipweWocawePwomptText['en']);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(muwtipweWocaweCase.pwomptText, 'fw'), muwtipweWocawePwomptText['en']);
+		assewt.stwictEquaw(ExpewimentawPwompts.getWocawizedText(engwishUSTextCase.pwomptText, 'fw'), (engwishUSTextCase.pwomptText as WocawizedPwomptText)['en-us']);
+		assewt.stwictEquaw(!!ExpewimentawPwompts.getWocawizedText(noEngwishTextCase.pwomptText, 'fw'), fawse);
 	});
 });

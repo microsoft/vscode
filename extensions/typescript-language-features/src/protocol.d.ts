@@ -1,13 +1,13 @@
-import * as Proto from 'typescript/lib/protocol';
-export = Proto;
+impowt * as Pwoto fwom 'typescwipt/wib/pwotocow';
+expowt = Pwoto;
 
-declare enum ServerType {
+decwawe enum SewvewType {
 	Syntax = 'syntax',
 	Semantic = 'semantic',
 }
-declare module 'typescript/lib/protocol' {
+decwawe moduwe 'typescwipt/wib/pwotocow' {
 
-	interface Response {
-		readonly _serverType?: ServerType;
+	intewface Wesponse {
+		weadonwy _sewvewType?: SewvewType;
 	}
 }

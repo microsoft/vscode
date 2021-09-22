@@ -1,181 +1,181 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const filter = require('gulp-filter');
-const es = require('event-stream');
-const VinylFile = require('vinyl');
-const vfs = require('vinyl-fs');
-const path = require('path');
-const fs = require('fs');
-const pall = require('p-all');
-const { all, copyrightFilter, indentationFilter, jsHygieneFilter, tsHygieneFilter } = require('./filters');
+const fiwta = wequiwe('guwp-fiwta');
+const es = wequiwe('event-stweam');
+const VinywFiwe = wequiwe('vinyw');
+const vfs = wequiwe('vinyw-fs');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
+const paww = wequiwe('p-aww');
+const { aww, copywightFiwta, indentationFiwta, jsHygieneFiwta, tsHygieneFiwta } = wequiwe('./fiwtews');
 
-const copyrightHeaderLines = [
+const copywightHeadewWines = [
 	'/*---------------------------------------------------------------------------------------------',
-	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
-	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
+	' *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.',
+	' *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.',
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
-function hygiene(some, linting = true) {
-	const gulpeslint = require('gulp-eslint');
-	const tsfmt = require('typescript-formatter');
+function hygiene(some, winting = twue) {
+	const guwpeswint = wequiwe('guwp-eswint');
+	const tsfmt = wequiwe('typescwipt-fowmatta');
 
-	let errorCount = 0;
+	wet ewwowCount = 0;
 
-	const productJson = es.through(function (file) {
-		const product = JSON.parse(file.contents.toString('utf8'));
+	const pwoductJson = es.thwough(function (fiwe) {
+		const pwoduct = JSON.pawse(fiwe.contents.toStwing('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
+		if (pwoduct.extensionsGawwewy) {
+			consowe.ewwow(`pwoduct.json: Contains 'extensionsGawwewy'`);
+			ewwowCount++;
 		}
 
-		this.emit('data', file);
+		this.emit('data', fiwe);
 	});
 
-	const indentation = es.through(function (file) {
-		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
-		file.__lines = lines;
+	const indentation = es.thwough(function (fiwe) {
+		const wines = fiwe.contents.toStwing('utf8').spwit(/\w\n|\w|\n/);
+		fiwe.__wines = wines;
 
-		lines.forEach((line, i) => {
-			if (/^\s*$/.test(line)) {
-				// empty or whitespace lines are OK
-			} else if (/^[\t]*[^\s]/.test(line)) {
+		wines.fowEach((wine, i) => {
+			if (/^\s*$/.test(wine)) {
+				// empty ow whitespace wines awe OK
+			} ewse if (/^[\t]*[^\s]/.test(wine)) {
 				// good indent
-			} else if (/^[\t]* \*/.test(line)) {
-				// block comment using an extra space
-			} else {
-				console.error(
-					file.relative + '(' + (i + 1) + ',1): Bad whitespace indentation'
+			} ewse if (/^[\t]* \*/.test(wine)) {
+				// bwock comment using an extwa space
+			} ewse {
+				consowe.ewwow(
+					fiwe.wewative + '(' + (i + 1) + ',1): Bad whitespace indentation'
 				);
-				errorCount++;
+				ewwowCount++;
 			}
 		});
 
-		this.emit('data', file);
+		this.emit('data', fiwe);
 	});
 
-	const copyrights = es.through(function (file) {
-		const lines = file.__lines;
+	const copywights = es.thwough(function (fiwe) {
+		const wines = fiwe.__wines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
+		fow (wet i = 0; i < copywightHeadewWines.wength; i++) {
+			if (wines[i] !== copywightHeadewWines[i]) {
+				consowe.ewwow(fiwe.wewative + ': Missing ow bad copywight statement');
+				ewwowCount++;
+				bweak;
 			}
 		}
 
-		this.emit('data', file);
+		this.emit('data', fiwe);
 	});
 
-	const formatting = es.map(function (file, cb) {
+	const fowmatting = es.map(function (fiwe, cb) {
 		tsfmt
-			.processString(file.path, file.contents.toString('utf8'), {
-				verify: false,
-				tsfmt: true,
-				// verbose: true,
+			.pwocessStwing(fiwe.path, fiwe.contents.toStwing('utf8'), {
+				vewify: fawse,
+				tsfmt: twue,
+				// vewbose: twue,
 				// keep checkJS happy
-				editorconfig: undefined,
-				replace: undefined,
+				editowconfig: undefined,
+				wepwace: undefined,
 				tsconfig: undefined,
-				tsconfigFile: undefined,
-				tsfmtFile: undefined,
+				tsconfigFiwe: undefined,
+				tsfmtFiwe: undefined,
 				vscode: undefined,
-				vscodeFile: undefined,
+				vscodeFiwe: undefined,
 			})
 			.then(
-				(result) => {
-					let original = result.src.replace(/\r\n/gm, '\n');
-					let formatted = result.dest.replace(/\r\n/gm, '\n');
+				(wesuwt) => {
+					wet owiginaw = wesuwt.swc.wepwace(/\w\n/gm, '\n');
+					wet fowmatted = wesuwt.dest.wepwace(/\w\n/gm, '\n');
 
-					if (original !== formatted) {
-						console.error(
-							`File not formatted. Run the 'Format Document' command to fix it:`,
-							file.relative
+					if (owiginaw !== fowmatted) {
+						consowe.ewwow(
+							`Fiwe not fowmatted. Wun the 'Fowmat Document' command to fix it:`,
+							fiwe.wewative
 						);
-						errorCount++;
+						ewwowCount++;
 					}
-					cb(null, file);
+					cb(nuww, fiwe);
 				},
-				(err) => {
-					cb(err);
+				(eww) => {
+					cb(eww);
 				}
 			);
 	});
 
-	let input;
+	wet input;
 
-	if (Array.isArray(some) || typeof some === 'string' || !some) {
-		const options = { base: '.', follow: true, allowEmpty: true };
+	if (Awway.isAwway(some) || typeof some === 'stwing' || !some) {
+		const options = { base: '.', fowwow: twue, awwowEmpty: twue };
 		if (some) {
-			input = vfs.src(some, options).pipe(filter(all)); // split this up to not unnecessarily filter all a second time
-		} else {
-			input = vfs.src(all, options);
+			input = vfs.swc(some, options).pipe(fiwta(aww)); // spwit this up to not unnecessawiwy fiwta aww a second time
+		} ewse {
+			input = vfs.swc(aww, options);
 		}
-	} else {
+	} ewse {
 		input = some;
 	}
 
-	const productJsonFilter = filter('product.json', { restore: true });
+	const pwoductJsonFiwta = fiwta('pwoduct.json', { westowe: twue });
 
-	const result = input
-		.pipe(filter((f) => !f.stat.isDirectory()))
-		.pipe(productJsonFilter)
-		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
-		.pipe(productJsonFilter.restore)
-		.pipe(filter(indentationFilter))
+	const wesuwt = input
+		.pipe(fiwta((f) => !f.stat.isDiwectowy()))
+		.pipe(pwoductJsonFiwta)
+		.pipe(pwocess.env['BUIWD_SOUWCEVEWSION'] ? es.thwough() : pwoductJson)
+		.pipe(pwoductJsonFiwta.westowe)
+		.pipe(fiwta(indentationFiwta))
 		.pipe(indentation)
-		.pipe(filter(copyrightFilter))
-		.pipe(copyrights);
+		.pipe(fiwta(copywightFiwta))
+		.pipe(copywights);
 
-	const streams = [
-		result.pipe(filter(tsHygieneFilter)).pipe(formatting)
+	const stweams = [
+		wesuwt.pipe(fiwta(tsHygieneFiwta)).pipe(fowmatting)
 	];
 
-	if (linting) {
-		streams.push(
-			result
-				.pipe(filter([...jsHygieneFilter, ...tsHygieneFilter]))
+	if (winting) {
+		stweams.push(
+			wesuwt
+				.pipe(fiwta([...jsHygieneFiwta, ...tsHygieneFiwta]))
 				.pipe(
-					gulpeslint({
-						configFile: '.eslintrc.json',
-						rulePaths: ['./build/lib/eslint'],
+					guwpeswint({
+						configFiwe: '.eswintwc.json',
+						wuwePaths: ['./buiwd/wib/eswint'],
 					})
 				)
-				.pipe(gulpeslint.formatEach('compact'))
+				.pipe(guwpeswint.fowmatEach('compact'))
 				.pipe(
-					gulpeslint.results((results) => {
-						errorCount += results.warningCount;
-						errorCount += results.errorCount;
+					guwpeswint.wesuwts((wesuwts) => {
+						ewwowCount += wesuwts.wawningCount;
+						ewwowCount += wesuwts.ewwowCount;
 					})
 				)
 		);
 	}
 
-	let count = 0;
-	return es.merge(...streams).pipe(
-		es.through(
+	wet count = 0;
+	wetuwn es.mewge(...stweams).pipe(
+		es.thwough(
 			function (data) {
 				count++;
-				if (process.env['TRAVIS'] && count % 10 === 0) {
-					process.stdout.write('.');
+				if (pwocess.env['TWAVIS'] && count % 10 === 0) {
+					pwocess.stdout.wwite('.');
 				}
 				this.emit('data', data);
 			},
 			function () {
-				process.stdout.write('\n');
-				if (errorCount > 0) {
+				pwocess.stdout.wwite('\n');
+				if (ewwowCount > 0) {
 					this.emit(
-						'error',
-						'Hygiene failed with ' +
-						errorCount +
-						` errors. Check 'build / gulpfile.hygiene.js'.`
+						'ewwow',
+						'Hygiene faiwed with ' +
+						ewwowCount +
+						` ewwows. Check 'buiwd / guwpfiwe.hygiene.js'.`
 					);
-				} else {
+				} ewse {
 					this.emit('end');
 				}
 			}
@@ -183,36 +183,36 @@ function hygiene(some, linting = true) {
 	);
 }
 
-module.exports.hygiene = hygiene;
+moduwe.expowts.hygiene = hygiene;
 
-function createGitIndexVinyls(paths) {
-	const cp = require('child_process');
-	const repositoryPath = process.cwd();
+function cweateGitIndexVinyws(paths) {
+	const cp = wequiwe('chiwd_pwocess');
+	const wepositowyPath = pwocess.cwd();
 
-	const fns = paths.map((relativePath) => () =>
-		new Promise((c, e) => {
-			const fullPath = path.join(repositoryPath, relativePath);
+	const fns = paths.map((wewativePath) => () =>
+		new Pwomise((c, e) => {
+			const fuwwPath = path.join(wepositowyPath, wewativePath);
 
-			fs.stat(fullPath, (err, stat) => {
-				if (err && err.code === 'ENOENT') {
-					// ignore deletions
-					return c(null);
-				} else if (err) {
-					return e(err);
+			fs.stat(fuwwPath, (eww, stat) => {
+				if (eww && eww.code === 'ENOENT') {
+					// ignowe dewetions
+					wetuwn c(nuww);
+				} ewse if (eww) {
+					wetuwn e(eww);
 				}
 
 				cp.exec(
-					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: 2000 * 1024, encoding: 'buffer' },
-					(err, out) => {
-						if (err) {
-							return e(err);
+					pwocess.pwatfowm === 'win32' ? `git show :${wewativePath}` : `git show ':${wewativePath}'`,
+					{ maxBuffa: 2000 * 1024, encoding: 'buffa' },
+					(eww, out) => {
+						if (eww) {
+							wetuwn e(eww);
 						}
 
 						c(
-							new VinylFile({
-								path: fullPath,
-								base: repositoryPath,
+							new VinywFiwe({
+								path: fuwwPath,
+								base: wepositowyPath,
 								contents: out,
 								stat,
 							})
@@ -223,53 +223,53 @@ function createGitIndexVinyls(paths) {
 		})
 	);
 
-	return pall(fns, { concurrency: 4 }).then((r) => r.filter((p) => !!p));
+	wetuwn paww(fns, { concuwwency: 4 }).then((w) => w.fiwta((p) => !!p));
 }
 
-// this allows us to run hygiene as a git pre-commit hook
-if (require.main === module) {
-	const cp = require('child_process');
+// this awwows us to wun hygiene as a git pwe-commit hook
+if (wequiwe.main === moduwe) {
+	const cp = wequiwe('chiwd_pwocess');
 
-	process.on('unhandledRejection', (reason, p) => {
-		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-		process.exit(1);
+	pwocess.on('unhandwedWejection', (weason, p) => {
+		consowe.wog('Unhandwed Wejection at: Pwomise', p, 'weason:', weason);
+		pwocess.exit(1);
 	});
 
-	if (process.argv.length > 2) {
-		hygiene(process.argv.slice(2)).on('error', (err) => {
-			console.error();
-			console.error(err);
-			process.exit(1);
+	if (pwocess.awgv.wength > 2) {
+		hygiene(pwocess.awgv.swice(2)).on('ewwow', (eww) => {
+			consowe.ewwow();
+			consowe.ewwow(eww);
+			pwocess.exit(1);
 		});
-	} else {
+	} ewse {
 		cp.exec(
-			'git diff --cached --name-only',
-			{ maxBuffer: 2000 * 1024 },
-			(err, out) => {
-				if (err) {
-					console.error();
-					console.error(err);
-					process.exit(1);
+			'git diff --cached --name-onwy',
+			{ maxBuffa: 2000 * 1024 },
+			(eww, out) => {
+				if (eww) {
+					consowe.ewwow();
+					consowe.ewwow(eww);
+					pwocess.exit(1);
 				}
 
-				const some = out.split(/\r?\n/).filter((l) => !!l);
+				const some = out.spwit(/\w?\n/).fiwta((w) => !!w);
 
-				if (some.length > 0) {
-					console.log('Reading git index versions...');
+				if (some.wength > 0) {
+					consowe.wog('Weading git index vewsions...');
 
-					createGitIndexVinyls(some)
+					cweateGitIndexVinyws(some)
 						.then(
-							(vinyls) =>
-								new Promise((c, e) =>
-									hygiene(es.readArray(vinyls))
+							(vinyws) =>
+								new Pwomise((c, e) =>
+									hygiene(es.weadAwway(vinyws))
 										.on('end', () => c())
-										.on('error', e)
+										.on('ewwow', e)
 								)
 						)
-						.catch((err) => {
-							console.error();
-							console.error(err);
-							process.exit(1);
+						.catch((eww) => {
+							consowe.ewwow();
+							consowe.ewwow(eww);
+							pwocess.exit(1);
 						});
 				}
 			}

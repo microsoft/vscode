@@ -1,187 +1,187 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILink, ILinksList, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe, isDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IWink, IWinksWist, WinkPwovida, WinkPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
 
-export class Link implements ILink {
+expowt cwass Wink impwements IWink {
 
-	private _link: ILink;
-	private readonly _provider: LinkProvider;
+	pwivate _wink: IWink;
+	pwivate weadonwy _pwovida: WinkPwovida;
 
-	constructor(link: ILink, provider: LinkProvider) {
-		this._link = link;
-		this._provider = provider;
+	constwuctow(wink: IWink, pwovida: WinkPwovida) {
+		this._wink = wink;
+		this._pwovida = pwovida;
 	}
 
-	toJSON(): ILink {
-		return {
-			range: this.range,
-			url: this.url,
-			tooltip: this.tooltip
+	toJSON(): IWink {
+		wetuwn {
+			wange: this.wange,
+			uww: this.uww,
+			toowtip: this.toowtip
 		};
 	}
 
-	get range(): IRange {
-		return this._link.range;
+	get wange(): IWange {
+		wetuwn this._wink.wange;
 	}
 
-	get url(): URI | string | undefined {
-		return this._link.url;
+	get uww(): UWI | stwing | undefined {
+		wetuwn this._wink.uww;
 	}
 
-	get tooltip(): string | undefined {
-		return this._link.tooltip;
+	get toowtip(): stwing | undefined {
+		wetuwn this._wink.toowtip;
 	}
 
-	async resolve(token: CancellationToken): Promise<URI | string> {
-		if (this._link.url) {
-			return this._link.url;
+	async wesowve(token: CancewwationToken): Pwomise<UWI | stwing> {
+		if (this._wink.uww) {
+			wetuwn this._wink.uww;
 		}
 
-		if (typeof this._provider.resolveLink === 'function') {
-			return Promise.resolve(this._provider.resolveLink(this._link, token)).then(value => {
-				this._link = value || this._link;
-				if (this._link.url) {
-					// recurse
-					return this.resolve(token);
+		if (typeof this._pwovida.wesowveWink === 'function') {
+			wetuwn Pwomise.wesowve(this._pwovida.wesowveWink(this._wink, token)).then(vawue => {
+				this._wink = vawue || this._wink;
+				if (this._wink.uww) {
+					// wecuwse
+					wetuwn this.wesowve(token);
 				}
 
-				return Promise.reject(new Error('missing'));
+				wetuwn Pwomise.weject(new Ewwow('missing'));
 			});
 		}
 
-		return Promise.reject(new Error('missing'));
+		wetuwn Pwomise.weject(new Ewwow('missing'));
 	}
 }
 
-export class LinksList {
+expowt cwass WinksWist {
 
-	readonly links: Link[];
+	weadonwy winks: Wink[];
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(tuples: [ILinksList, LinkProvider][]) {
+	constwuctow(tupwes: [IWinksWist, WinkPwovida][]) {
 
-		let links: Link[] = [];
-		for (const [list, provider] of tuples) {
-			// merge all links
-			const newLinks = list.links.map(link => new Link(link, provider));
-			links = LinksList._union(links, newLinks);
-			// register disposables
-			if (isDisposable(list)) {
-				this._disposables.add(list);
+		wet winks: Wink[] = [];
+		fow (const [wist, pwovida] of tupwes) {
+			// mewge aww winks
+			const newWinks = wist.winks.map(wink => new Wink(wink, pwovida));
+			winks = WinksWist._union(winks, newWinks);
+			// wegista disposabwes
+			if (isDisposabwe(wist)) {
+				this._disposabwes.add(wist);
 			}
 		}
-		this.links = links;
+		this.winks = winks;
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this.links.length = 0;
+		this._disposabwes.dispose();
+		this.winks.wength = 0;
 	}
 
-	private static _union(oldLinks: Link[], newLinks: Link[]): Link[] {
-		// reunite oldLinks with newLinks and remove duplicates
-		let result: Link[] = [];
-		let oldIndex: number;
-		let oldLen: number;
-		let newIndex: number;
-		let newLen: number;
+	pwivate static _union(owdWinks: Wink[], newWinks: Wink[]): Wink[] {
+		// weunite owdWinks with newWinks and wemove dupwicates
+		wet wesuwt: Wink[] = [];
+		wet owdIndex: numba;
+		wet owdWen: numba;
+		wet newIndex: numba;
+		wet newWen: numba;
 
-		for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-			const oldLink = oldLinks[oldIndex];
-			const newLink = newLinks[newIndex];
+		fow (owdIndex = 0, newIndex = 0, owdWen = owdWinks.wength, newWen = newWinks.wength; owdIndex < owdWen && newIndex < newWen;) {
+			const owdWink = owdWinks[owdIndex];
+			const newWink = newWinks[newIndex];
 
-			if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
-				// Remove the oldLink
-				oldIndex++;
+			if (Wange.aweIntewsectingOwTouching(owdWink.wange, newWink.wange)) {
+				// Wemove the owdWink
+				owdIndex++;
 				continue;
 			}
 
-			const comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
+			const compawisonWesuwt = Wange.compaweWangesUsingStawts(owdWink.wange, newWink.wange);
 
-			if (comparisonResult < 0) {
-				// oldLink is before
-				result.push(oldLink);
-				oldIndex++;
-			} else {
-				// newLink is before
-				result.push(newLink);
+			if (compawisonWesuwt < 0) {
+				// owdWink is befowe
+				wesuwt.push(owdWink);
+				owdIndex++;
+			} ewse {
+				// newWink is befowe
+				wesuwt.push(newWink);
 				newIndex++;
 			}
 		}
 
-		for (; oldIndex < oldLen; oldIndex++) {
-			result.push(oldLinks[oldIndex]);
+		fow (; owdIndex < owdWen; owdIndex++) {
+			wesuwt.push(owdWinks[owdIndex]);
 		}
-		for (; newIndex < newLen; newIndex++) {
-			result.push(newLinks[newIndex]);
+		fow (; newIndex < newWen; newIndex++) {
+			wesuwt.push(newWinks[newIndex]);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 }
 
-export function getLinks(model: ITextModel, token: CancellationToken): Promise<LinksList> {
+expowt function getWinks(modew: ITextModew, token: CancewwationToken): Pwomise<WinksWist> {
 
-	const lists: [ILinksList, LinkProvider][] = [];
+	const wists: [IWinksWist, WinkPwovida][] = [];
 
-	// ask all providers for links in parallel
-	const promises = LinkProviderRegistry.ordered(model).reverse().map((provider, i) => {
-		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
-			if (result) {
-				lists[i] = [result, provider];
+	// ask aww pwovidews fow winks in pawawwew
+	const pwomises = WinkPwovidewWegistwy.owdewed(modew).wevewse().map((pwovida, i) => {
+		wetuwn Pwomise.wesowve(pwovida.pwovideWinks(modew, token)).then(wesuwt => {
+			if (wesuwt) {
+				wists[i] = [wesuwt, pwovida];
 			}
-		}, onUnexpectedExternalError);
+		}, onUnexpectedExtewnawEwwow);
 	});
 
-	return Promise.all(promises).then(() => {
-		const result = new LinksList(coalesce(lists));
-		if (!token.isCancellationRequested) {
-			return result;
+	wetuwn Pwomise.aww(pwomises).then(() => {
+		const wesuwt = new WinksWist(coawesce(wists));
+		if (!token.isCancewwationWequested) {
+			wetuwn wesuwt;
 		}
-		result.dispose();
-		return new LinksList([]);
+		wesuwt.dispose();
+		wetuwn new WinksWist([]);
 	});
 }
 
 
-CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...args): Promise<ILink[]> => {
-	let [uri, resolveCount] = args;
-	assertType(uri instanceof URI);
+CommandsWegistwy.wegistewCommand('_executeWinkPwovida', async (accessow, ...awgs): Pwomise<IWink[]> => {
+	wet [uwi, wesowveCount] = awgs;
+	assewtType(uwi instanceof UWI);
 
-	if (typeof resolveCount !== 'number') {
-		resolveCount = 0;
+	if (typeof wesowveCount !== 'numba') {
+		wesowveCount = 0;
 	}
 
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		return [];
+	const modew = accessow.get(IModewSewvice).getModew(uwi);
+	if (!modew) {
+		wetuwn [];
 	}
-	const list = await getLinks(model, CancellationToken.None);
-	if (!list) {
-		return [];
-	}
-
-	// resolve links
-	for (let i = 0; i < Math.min(resolveCount, list.links.length); i++) {
-		await list.links[i].resolve(CancellationToken.None);
+	const wist = await getWinks(modew, CancewwationToken.None);
+	if (!wist) {
+		wetuwn [];
 	}
 
-	const result = list.links.slice(0);
-	list.dispose();
-	return result;
+	// wesowve winks
+	fow (wet i = 0; i < Math.min(wesowveCount, wist.winks.wength); i++) {
+		await wist.winks[i].wesowve(CancewwationToken.None);
+	}
+
+	const wesuwt = wist.winks.swice(0);
+	wist.dispose();
+	wetuwn wesuwt;
 });

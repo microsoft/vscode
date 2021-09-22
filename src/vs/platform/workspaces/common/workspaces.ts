@@ -1,553 +1,553 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { toSlashes } from 'vs/base/common/extpath';
-import * as json from 'vs/base/common/json';
-import * as jsonEdit from 'vs/base/common/jsonEdit';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { extname, isAbsolute } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkspace, IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { toSwashes } fwom 'vs/base/common/extpath';
+impowt * as json fwom 'vs/base/common/json';
+impowt * as jsonEdit fwom 'vs/base/common/jsonEdit';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt { nowmawizeDwiveWetta } fwom 'vs/base/common/wabews';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { extname, isAbsowute } fwom 'vs/base/common/path';
+impowt { isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { extname as wesouwceExtname, extUwiBiasedIgnowePathCase, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getWemoteAuthowity } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWowkspace, IWowkspaceFowda, WowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export const WORKSPACE_EXTENSION = 'code-workspace';
-const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
-export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
-export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
+expowt const WOWKSPACE_EXTENSION = 'code-wowkspace';
+const WOWKSPACE_SUFFIX = `.${WOWKSPACE_EXTENSION}`;
+expowt const WOWKSPACE_FIWTa = [{ name: wocawize('codeWowkspace', "Code Wowkspace"), extensions: [WOWKSPACE_EXTENSION] }];
+expowt const UNTITWED_WOWKSPACE_NAME = 'wowkspace.json';
 
-export function hasWorkspaceFileExtension(path: string | URI) {
-	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
+expowt function hasWowkspaceFiweExtension(path: stwing | UWI) {
+	const ext = (typeof path === 'stwing') ? extname(path) : wesouwceExtname(path);
 
-	return ext === WORKSPACE_SUFFIX;
+	wetuwn ext === WOWKSPACE_SUFFIX;
 }
 
-export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
+expowt const IWowkspacesSewvice = cweateDecowatow<IWowkspacesSewvice>('wowkspacesSewvice');
 
-export interface IWorkspacesService {
+expowt intewface IWowkspacesSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	// Workspaces Management
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
-	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+	// Wowkspaces Management
+	entewWowkspace(path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined>;
+	cweateUntitwedWowkspace(fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia>;
+	deweteUntitwedWowkspace(wowkspace: IWowkspaceIdentifia): Pwomise<void>;
+	getWowkspaceIdentifia(wowkspacePath: UWI): Pwomise<IWowkspaceIdentifia>;
 
-	// Workspaces History
-	readonly onDidChangeRecentlyOpened: Event<void>;
-	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
-	getRecentlyOpened(): Promise<IRecentlyOpened>;
+	// Wowkspaces Histowy
+	weadonwy onDidChangeWecentwyOpened: Event<void>;
+	addWecentwyOpened(wecents: IWecent[]): Pwomise<void>;
+	wemoveWecentwyOpened(wowkspaces: UWI[]): Pwomise<void>;
+	cweawWecentwyOpened(): Pwomise<void>;
+	getWecentwyOpened(): Pwomise<IWecentwyOpened>;
 
-	// Dirty Workspaces
-	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
+	// Diwty Wowkspaces
+	getDiwtyWowkspaces(): Pwomise<Awway<IWowkspaceIdentifia | UWI>>;
 }
 
-//#region Workspaces Recently Opened
+//#wegion Wowkspaces Wecentwy Opened
 
-export interface IRecentlyOpened {
-	workspaces: Array<IRecentWorkspace | IRecentFolder>;
-	files: IRecentFile[];
+expowt intewface IWecentwyOpened {
+	wowkspaces: Awway<IWecentWowkspace | IWecentFowda>;
+	fiwes: IWecentFiwe[];
 }
 
-export type IRecent = IRecentWorkspace | IRecentFolder | IRecentFile;
+expowt type IWecent = IWecentWowkspace | IWecentFowda | IWecentFiwe;
 
-export interface IRecentWorkspace {
-	workspace: IWorkspaceIdentifier;
-	label?: string;
-	remoteAuthority?: string;
+expowt intewface IWecentWowkspace {
+	wowkspace: IWowkspaceIdentifia;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-export interface IRecentFolder {
-	folderUri: URI;
-	label?: string;
-	remoteAuthority?: string;
+expowt intewface IWecentFowda {
+	fowdewUwi: UWI;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-export interface IRecentFile {
-	fileUri: URI;
-	label?: string;
-	remoteAuthority?: string;
+expowt intewface IWecentFiwe {
+	fiweUwi: UWI;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
-	return curr.hasOwnProperty('workspace');
+expowt function isWecentWowkspace(cuww: IWecent): cuww is IWecentWowkspace {
+	wetuwn cuww.hasOwnPwopewty('wowkspace');
 }
 
-export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
-	return curr.hasOwnProperty('folderUri');
+expowt function isWecentFowda(cuww: IWecent): cuww is IWecentFowda {
+	wetuwn cuww.hasOwnPwopewty('fowdewUwi');
 }
 
-export function isRecentFile(curr: IRecent): curr is IRecentFile {
-	return curr.hasOwnProperty('fileUri');
+expowt function isWecentFiwe(cuww: IWecent): cuww is IWecentFiwe {
+	wetuwn cuww.hasOwnPwopewty('fiweUwi');
 }
 
-//#endregion
+//#endwegion
 
-//#region Identifiers / Payload
+//#wegion Identifiews / Paywoad
 
-export interface IBaseWorkspaceIdentifier {
+expowt intewface IBaseWowkspaceIdentifia {
 
 	/**
-	 * Every workspace (multi-root, single folder or empty)
-	 * has a unique identifier. It is not possible to open
-	 * a workspace with the same `id` in multiple windows
+	 * Evewy wowkspace (muwti-woot, singwe fowda ow empty)
+	 * has a unique identifia. It is not possibwe to open
+	 * a wowkspace with the same `id` in muwtipwe windows
 	 */
-	id: string;
+	id: stwing;
 }
 
 /**
- * A single folder workspace identifier is a path to a folder + id.
+ * A singwe fowda wowkspace identifia is a path to a fowda + id.
  */
-export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+expowt intewface ISingweFowdewWowkspaceIdentifia extends IBaseWowkspaceIdentifia {
 
 	/**
-	 * Folder path as `URI`.
+	 * Fowda path as `UWI`.
 	 */
-	uri: URI;
+	uwi: UWI;
 }
 
-export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	uri: UriComponents;
+expowt intewface ISewiawizedSingweFowdewWowkspaceIdentifia extends IBaseWowkspaceIdentifia {
+	uwi: UwiComponents;
 }
 
-export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
-	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
+expowt function isSingweFowdewWowkspaceIdentifia(obj: unknown): obj is ISingweFowdewWowkspaceIdentifia {
+	const singweFowdewIdentifia = obj as ISingweFowdewWowkspaceIdentifia | undefined;
 
-	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
+	wetuwn typeof singweFowdewIdentifia?.id === 'stwing' && UWI.isUwi(singweFowdewIdentifia.uwi);
 }
 
 /**
- * A multi-root workspace identifier is a path to a workspace file + id.
+ * A muwti-woot wowkspace identifia is a path to a wowkspace fiwe + id.
  */
-export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+expowt intewface IWowkspaceIdentifia extends IBaseWowkspaceIdentifia {
 
 	/**
-	 * Workspace config file path as `URI`.
+	 * Wowkspace config fiwe path as `UWI`.
 	 */
-	configPath: URI;
+	configPath: UWI;
 }
 
-export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	configPath: UriComponents;
+expowt intewface ISewiawizedWowkspaceIdentifia extends IBaseWowkspaceIdentifia {
+	configPath: UwiComponents;
 }
 
-export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+expowt function toWowkspaceIdentifia(wowkspace: IWowkspace): IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | undefined {
 
-	// Multi root
-	if (workspace.configuration) {
-		return {
-			id: workspace.id,
-			configPath: workspace.configuration
+	// Muwti woot
+	if (wowkspace.configuwation) {
+		wetuwn {
+			id: wowkspace.id,
+			configPath: wowkspace.configuwation
 		};
 	}
 
-	// Single folder
-	if (workspace.folders.length === 1) {
-		return {
-			id: workspace.id,
-			uri: workspace.folders[0].uri
+	// Singwe fowda
+	if (wowkspace.fowdews.wength === 1) {
+		wetuwn {
+			id: wowkspace.id,
+			uwi: wowkspace.fowdews[0].uwi
 		};
 	}
 
-	// Empty workspace
-	return undefined;
+	// Empty wowkspace
+	wetuwn undefined;
 }
 
-export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
-	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
+expowt function isWowkspaceIdentifia(obj: unknown): obj is IWowkspaceIdentifia {
+	const wowkspaceIdentifia = obj as IWowkspaceIdentifia | undefined;
 
-	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
+	wetuwn typeof wowkspaceIdentifia?.id === 'stwing' && UWI.isUwi(wowkspaceIdentifia.configPath);
 }
 
-export function reviveIdentifier(identifier: undefined): undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
-export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
+expowt function weviveIdentifia(identifia: undefined): undefined;
+expowt function weviveIdentifia(identifia: ISewiawizedWowkspaceIdentifia): IWowkspaceIdentifia;
+expowt function weviveIdentifia(identifia: ISewiawizedSingweFowdewWowkspaceIdentifia): ISingweFowdewWowkspaceIdentifia;
+expowt function weviveIdentifia(identifia: IEmptyWowkspaceIdentifia): IEmptyWowkspaceIdentifia;
+expowt function weviveIdentifia(identifia: ISewiawizedWowkspaceIdentifia | ISewiawizedSingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined): IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined;
+expowt function weviveIdentifia(identifia: ISewiawizedWowkspaceIdentifia | ISewiawizedSingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined): IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia | undefined {
 
-	// Single Folder
-	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
-	if (singleFolderIdentifierCandidate?.uri) {
-		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
+	// Singwe Fowda
+	const singweFowdewIdentifiewCandidate = identifia as ISewiawizedSingweFowdewWowkspaceIdentifia | undefined;
+	if (singweFowdewIdentifiewCandidate?.uwi) {
+		wetuwn { id: singweFowdewIdentifiewCandidate.id, uwi: UWI.wevive(singweFowdewIdentifiewCandidate.uwi) };
 	}
 
-	// Multi folder
-	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
-	if (workspaceIdentifierCandidate?.configPath) {
-		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
+	// Muwti fowda
+	const wowkspaceIdentifiewCandidate = identifia as ISewiawizedWowkspaceIdentifia | undefined;
+	if (wowkspaceIdentifiewCandidate?.configPath) {
+		wetuwn { id: wowkspaceIdentifiewCandidate.id, configPath: UWI.wevive(wowkspaceIdentifiewCandidate.configPath) };
 	}
 
 	// Empty
-	if (identifier?.id) {
-		return { id: identifier.id };
+	if (identifia?.id) {
+		wetuwn { id: identifia.id };
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
-	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+expowt function isUntitwedWowkspace(path: UWI, enviwonmentSewvice: IEnviwonmentSewvice): boowean {
+	wetuwn extUwiBiasedIgnowePathCase.isEquawOwPawent(path, enviwonmentSewvice.untitwedWowkspacesHome);
 }
 
-export interface IEmptyWorkspaceIdentifier extends IBaseWorkspaceIdentifier { }
+expowt intewface IEmptyWowkspaceIdentifia extends IBaseWowkspaceIdentifia { }
 
-export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
+expowt type IWowkspaceInitiawizationPaywoad = IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia;
 
-//#endregion
+//#endwegion
 
-//#region Workspace File Utilities
+//#wegion Wowkspace Fiwe Utiwities
 
-export function isStoredWorkspaceFolder(obj: unknown): obj is IStoredWorkspaceFolder {
-	return isRawFileWorkspaceFolder(obj) || isRawUriWorkspaceFolder(obj);
+expowt function isStowedWowkspaceFowda(obj: unknown): obj is IStowedWowkspaceFowda {
+	wetuwn isWawFiweWowkspaceFowda(obj) || isWawUwiWowkspaceFowda(obj);
 }
 
-export function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
-	const candidate = obj as IRawFileWorkspaceFolder | undefined;
+expowt function isWawFiweWowkspaceFowda(obj: unknown): obj is IWawFiweWowkspaceFowda {
+	const candidate = obj as IWawFiweWowkspaceFowda | undefined;
 
-	return typeof candidate?.path === 'string' && (!candidate.name || typeof candidate.name === 'string');
+	wetuwn typeof candidate?.path === 'stwing' && (!candidate.name || typeof candidate.name === 'stwing');
 }
 
-export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
-	const candidate = obj as IRawUriWorkspaceFolder | undefined;
+expowt function isWawUwiWowkspaceFowda(obj: unknown): obj is IWawUwiWowkspaceFowda {
+	const candidate = obj as IWawUwiWowkspaceFowda | undefined;
 
-	return typeof candidate?.uri === 'string' && (!candidate.name || typeof candidate.name === 'string');
+	wetuwn typeof candidate?.uwi === 'stwing' && (!candidate.name || typeof candidate.name === 'stwing');
 }
 
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
+expowt intewface IWawFiweWowkspaceFowda {
+	path: stwing;
+	name?: stwing;
 }
 
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
+expowt intewface IWawUwiWowkspaceFowda {
+	uwi: stwing;
+	name?: stwing;
 }
 
-export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
+expowt type IStowedWowkspaceFowda = IWawFiweWowkspaceFowda | IWawUwiWowkspaceFowda;
 
-interface IBaseWorkspace {
+intewface IBaseWowkspace {
 
 	/**
-	 * If present, marks the window that opens the workspace
-	 * as a remote window with the given authority.
+	 * If pwesent, mawks the window that opens the wowkspace
+	 * as a wemote window with the given authowity.
 	 */
-	remoteAuthority?: string;
+	wemoteAuthowity?: stwing;
 
 	/**
-	 * Transient workspaces are meant to go away after being used
-	 * once, e.g. a window reload of a transient workspace will
+	 * Twansient wowkspaces awe meant to go away afta being used
+	 * once, e.g. a window wewoad of a twansient wowkspace wiww
 	 * open an empty window.
 	 *
-	 * See: https://github.com/microsoft/vscode/issues/119695
+	 * See: https://github.com/micwosoft/vscode/issues/119695
 	 */
-	transient?: boolean;
+	twansient?: boowean;
 }
 
-export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
-	folders: IWorkspaceFolder[];
+expowt intewface IWesowvedWowkspace extends IWowkspaceIdentifia, IBaseWowkspace {
+	fowdews: IWowkspaceFowda[];
 }
 
-export interface IStoredWorkspace extends IBaseWorkspace {
-	folders: IStoredWorkspaceFolder[];
+expowt intewface IStowedWowkspace extends IBaseWowkspace {
+	fowdews: IStowedWowkspaceFowda[];
 }
 
-export interface IWorkspaceFolderCreationData {
-	uri: URI;
-	name?: string;
+expowt intewface IWowkspaceFowdewCweationData {
+	uwi: UWI;
+	name?: stwing;
 }
 
-export interface IUntitledWorkspaceInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
+expowt intewface IUntitwedWowkspaceInfo {
+	wowkspace: IWowkspaceIdentifia;
+	wemoteAuthowity?: stwing;
 }
 
-export interface IEnterWorkspaceResult {
-	workspace: IWorkspaceIdentifier;
-	backupPath?: string;
+expowt intewface IEntewWowkspaceWesuwt {
+	wowkspace: IWowkspaceIdentifia;
+	backupPath?: stwing;
 }
 
 /**
- * Given a folder URI and the workspace config folder, computes the IStoredWorkspaceFolder using
-* a relative or absolute path or a uri.
- * Undefined is returned if the folderURI and the targetConfigFolderURI don't have the same schema or authority
+ * Given a fowda UWI and the wowkspace config fowda, computes the IStowedWowkspaceFowda using
+* a wewative ow absowute path ow a uwi.
+ * Undefined is wetuwned if the fowdewUWI and the tawgetConfigFowdewUWI don't have the same schema ow authowity
  *
- * @param folderURI a workspace folder
- * @param forceAbsolute if set, keep the path absolute
- * @param folderName a workspace name
- * @param targetConfigFolderURI the folder where the workspace is living in
- * @param useSlashForPath if set, use forward slashes for file paths on windows
+ * @pawam fowdewUWI a wowkspace fowda
+ * @pawam fowceAbsowute if set, keep the path absowute
+ * @pawam fowdewName a wowkspace name
+ * @pawam tawgetConfigFowdewUWI the fowda whewe the wowkspace is wiving in
+ * @pawam useSwashFowPath if set, use fowwawd swashes fow fiwe paths on windows
  */
-export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows, extUri: IExtUri): IStoredWorkspaceFolder {
-	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
-		return { name: folderName, uri: folderURI.toString(true) };
+expowt function getStowedWowkspaceFowda(fowdewUWI: UWI, fowceAbsowute: boowean, fowdewName: stwing | undefined, tawgetConfigFowdewUWI: UWI, useSwashFowPath = !isWindows, extUwi: IExtUwi): IStowedWowkspaceFowda {
+	if (fowdewUWI.scheme !== tawgetConfigFowdewUWI.scheme) {
+		wetuwn { name: fowdewName, uwi: fowdewUWI.toStwing(twue) };
 	}
 
-	let folderPath = !forceAbsolute ? extUri.relativePath(targetConfigFolderURI, folderURI) : undefined;
-	if (folderPath !== undefined) {
-		if (folderPath.length === 0) {
-			folderPath = '.';
-		} else if (isWindows && folderURI.scheme === Schemas.file && !useSlashForPath) {
-			// Windows gets special treatment:
-			// - use backslahes unless slash is used by other existing folders
-			folderPath = folderPath.replace(/\//g, '\\');
+	wet fowdewPath = !fowceAbsowute ? extUwi.wewativePath(tawgetConfigFowdewUWI, fowdewUWI) : undefined;
+	if (fowdewPath !== undefined) {
+		if (fowdewPath.wength === 0) {
+			fowdewPath = '.';
+		} ewse if (isWindows && fowdewUWI.scheme === Schemas.fiwe && !useSwashFowPath) {
+			// Windows gets speciaw tweatment:
+			// - use backswahes unwess swash is used by otha existing fowdews
+			fowdewPath = fowdewPath.wepwace(/\//g, '\\');
 		}
-	} else {
+	} ewse {
 
-		// use absolute path
-		if (folderURI.scheme === Schemas.file) {
-			folderPath = folderURI.fsPath;
+		// use absowute path
+		if (fowdewUWI.scheme === Schemas.fiwe) {
+			fowdewPath = fowdewUWI.fsPath;
 			if (isWindows) {
-				// Windows gets special treatment:
-				// - normalize all paths to get nice casing of drive letters
-				// - use backslahes unless slash is used by other existing folders
-				folderPath = normalizeDriveLetter(folderPath);
-				if (useSlashForPath) {
-					folderPath = toSlashes(folderPath);
+				// Windows gets speciaw tweatment:
+				// - nowmawize aww paths to get nice casing of dwive wettews
+				// - use backswahes unwess swash is used by otha existing fowdews
+				fowdewPath = nowmawizeDwiveWetta(fowdewPath);
+				if (useSwashFowPath) {
+					fowdewPath = toSwashes(fowdewPath);
 				}
 			}
-		} else {
-			if (!extUri.isEqualAuthority(folderURI.authority, targetConfigFolderURI.authority)) {
-				return { name: folderName, uri: folderURI.toString(true) };
+		} ewse {
+			if (!extUwi.isEquawAuthowity(fowdewUWI.authowity, tawgetConfigFowdewUWI.authowity)) {
+				wetuwn { name: fowdewName, uwi: fowdewUWI.toStwing(twue) };
 			}
-			folderPath = folderURI.path;
+			fowdewPath = fowdewUWI.path;
 		}
 	}
 
-	return { name: folderName, path: folderPath };
+	wetuwn { name: fowdewName, path: fowdewPath };
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFolder[] {
-	let result: WorkspaceFolder[] = [];
-	let seen: Set<string> = new Set();
+expowt function toWowkspaceFowdews(configuwedFowdews: IStowedWowkspaceFowda[], wowkspaceConfigFiwe: UWI, extUwi: IExtUwi): WowkspaceFowda[] {
+	wet wesuwt: WowkspaceFowda[] = [];
+	wet seen: Set<stwing> = new Set();
 
-	const relativeTo = extUri.dirname(workspaceConfigFile);
-	for (let configuredFolder of configuredFolders) {
-		let uri: URI | undefined = undefined;
-		if (isRawFileWorkspaceFolder(configuredFolder)) {
-			if (configuredFolder.path) {
-				uri = extUri.resolvePath(relativeTo, configuredFolder.path);
+	const wewativeTo = extUwi.diwname(wowkspaceConfigFiwe);
+	fow (wet configuwedFowda of configuwedFowdews) {
+		wet uwi: UWI | undefined = undefined;
+		if (isWawFiweWowkspaceFowda(configuwedFowda)) {
+			if (configuwedFowda.path) {
+				uwi = extUwi.wesowvePath(wewativeTo, configuwedFowda.path);
 			}
-		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
-			try {
-				uri = URI.parse(configuredFolder.uri);
-				if (uri.path[0] !== '/') {
-					uri = uri.with({ path: '/' + uri.path }); // this makes sure all workspace folder are absolute
+		} ewse if (isWawUwiWowkspaceFowda(configuwedFowda)) {
+			twy {
+				uwi = UWI.pawse(configuwedFowda.uwi);
+				if (uwi.path[0] !== '/') {
+					uwi = uwi.with({ path: '/' + uwi.path }); // this makes suwe aww wowkspace fowda awe absowute
 				}
 			} catch (e) {
-				console.warn(e); // ignore
+				consowe.wawn(e); // ignowe
 			}
 		}
 
-		if (uri) {
+		if (uwi) {
 
-			// remove duplicates
-			let comparisonKey = extUri.getComparisonKey(uri);
-			if (!seen.has(comparisonKey)) {
-				seen.add(comparisonKey);
+			// wemove dupwicates
+			wet compawisonKey = extUwi.getCompawisonKey(uwi);
+			if (!seen.has(compawisonKey)) {
+				seen.add(compawisonKey);
 
-				const name = configuredFolder.name || extUri.basenameOrAuthority(uri);
-				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
+				const name = configuwedFowda.name || extUwi.basenameOwAuthowity(uwi);
+				wesuwt.push(new WowkspaceFowda({ uwi, name, index: wesuwt.wength }, configuwedFowda));
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Rewrites the content of a workspace file to be saved at a new location.
- * Throws an exception if file is not a valid workspace file
+ * Wewwites the content of a wowkspace fiwe to be saved at a new wocation.
+ * Thwows an exception if fiwe is not a vawid wowkspace fiwe
  */
-export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI, extUri: IExtUri) {
-	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
+expowt function wewwiteWowkspaceFiweFowNewWocation(wawWowkspaceContents: stwing, configPathUWI: UWI, isFwomUntitwedWowkspace: boowean, tawgetConfigPathUWI: UWI, extUwi: IExtUwi) {
+	wet stowedWowkspace = doPawseStowedWowkspace(configPathUWI, wawWowkspaceContents);
 
-	const sourceConfigFolder = extUri.dirname(configPathURI);
-	const targetConfigFolder = extUri.dirname(targetConfigPathURI);
+	const souwceConfigFowda = extUwi.diwname(configPathUWI);
+	const tawgetConfigFowda = extUwi.diwname(tawgetConfigPathUWI);
 
-	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
-	const slashForPath = useSlashForPath(storedWorkspace.folders);
+	const wewwittenFowdews: IStowedWowkspaceFowda[] = [];
+	const swashFowPath = useSwashFowPath(stowedWowkspace.fowdews);
 
-	for (const folder of storedWorkspace.folders) {
-		const folderURI = isRawFileWorkspaceFolder(folder) ? extUri.resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
-		let absolute;
-		if (isFromUntitledWorkspace) {
-			absolute = false; // if it was an untitled workspace, try to make paths relative
-		} else {
-			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path); // for existing workspaces, preserve whether a path was absolute or relative
+	fow (const fowda of stowedWowkspace.fowdews) {
+		const fowdewUWI = isWawFiweWowkspaceFowda(fowda) ? extUwi.wesowvePath(souwceConfigFowda, fowda.path) : UWI.pawse(fowda.uwi);
+		wet absowute;
+		if (isFwomUntitwedWowkspace) {
+			absowute = fawse; // if it was an untitwed wowkspace, twy to make paths wewative
+		} ewse {
+			absowute = !isWawFiweWowkspaceFowda(fowda) || isAbsowute(fowda.path); // fow existing wowkspaces, pwesewve whetha a path was absowute ow wewative
 		}
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath, extUri));
+		wewwittenFowdews.push(getStowedWowkspaceFowda(fowdewUWI, absowute, fowda.name, tawgetConfigFowda, swashFowPath, extUwi));
 	}
 
-	// Preserve as much of the existing workspace as possible by using jsonEdit
-	// and only changing the folders portion.
-	const formattingOptions: FormattingOptions = { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' };
-	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, formattingOptions);
-	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
+	// Pwesewve as much of the existing wowkspace as possibwe by using jsonEdit
+	// and onwy changing the fowdews powtion.
+	const fowmattingOptions: FowmattingOptions = { insewtSpaces: fawse, tabSize: 4, eow: (isWinux || isMacintosh) ? '\n' : '\w\n' };
+	const edits = jsonEdit.setPwopewty(wawWowkspaceContents, ['fowdews'], wewwittenFowdews, fowmattingOptions);
+	wet newContent = jsonEdit.appwyEdits(wawWowkspaceContents, edits);
 
-	if (storedWorkspace.remoteAuthority === getRemoteAuthority(targetConfigPathURI)) {
-		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
-		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
+	if (stowedWowkspace.wemoteAuthowity === getWemoteAuthowity(tawgetConfigPathUWI)) {
+		// unsaved wemote wowkspaces have the wemoteAuthowity set. Wemove it when no wonga nexessawy.
+		newContent = jsonEdit.appwyEdits(newContent, jsonEdit.wemovePwopewty(newContent, ['wemoteAuthowity'], fowmattingOptions));
 	}
 
-	return newContent;
+	wetuwn newContent;
 }
 
-function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+function doPawseStowedWowkspace(path: UWI, contents: stwing): IStowedWowkspace {
 
-	// Parse workspace file
-	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
+	// Pawse wowkspace fiwe
+	wet stowedWowkspace: IStowedWowkspace = json.pawse(contents); // use fauwt towewant pawsa
 
-	// Filter out folders which do not have a path or uri set
-	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
-		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-	} else {
-		throw new Error(`${path} looks like an invalid workspace file.`);
+	// Fiwta out fowdews which do not have a path ow uwi set
+	if (stowedWowkspace && Awway.isAwway(stowedWowkspace.fowdews)) {
+		stowedWowkspace.fowdews = stowedWowkspace.fowdews.fiwta(fowda => isStowedWowkspaceFowda(fowda));
+	} ewse {
+		thwow new Ewwow(`${path} wooks wike an invawid wowkspace fiwe.`);
 	}
 
-	return storedWorkspace;
+	wetuwn stowedWowkspace;
 }
 
-export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
+expowt function useSwashFowPath(stowedFowdews: IStowedWowkspaceFowda[]): boowean {
 	if (isWindows) {
-		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf('/') >= 0);
+		wetuwn stowedFowdews.some(fowda => isWawFiweWowkspaceFowda(fowda) && fowda.path.indexOf('/') >= 0);
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-//#endregion
+//#endwegion
 
-//#region Workspace Storage
+//#wegion Wowkspace Stowage
 
-interface ISerializedRecentWorkspace {
-	workspace: {
-		id: string;
-		configPath: string;
+intewface ISewiawizedWecentWowkspace {
+	wowkspace: {
+		id: stwing;
+		configPath: stwing;
 	}
-	label?: string;
-	remoteAuthority?: string;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-interface ISerializedRecentFolder {
-	folderUri: string;
-	label?: string;
-	remoteAuthority?: string;
+intewface ISewiawizedWecentFowda {
+	fowdewUwi: stwing;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-interface ISerializedRecentFile {
-	fileUri: string;
-	label?: string;
-	remoteAuthority?: string;
+intewface ISewiawizedWecentFiwe {
+	fiweUwi: stwing;
+	wabew?: stwing;
+	wemoteAuthowity?: stwing;
 }
 
-interface ISerializedRecentlyOpenedLegacy {
-	workspaces3: Array<{ id: string; configURIPath: string; } | string>; // workspace or URI.toString() // added in 1.32
-	workspaceLabels?: Array<string | null>; // added in 1.33
-	files2: string[]; // files as URI.toString() // added in 1.32
-	fileLabels?: Array<string | null>; // added in 1.33
+intewface ISewiawizedWecentwyOpenedWegacy {
+	wowkspaces3: Awway<{ id: stwing; configUWIPath: stwing; } | stwing>; // wowkspace ow UWI.toStwing() // added in 1.32
+	wowkspaceWabews?: Awway<stwing | nuww>; // added in 1.33
+	fiwes2: stwing[]; // fiwes as UWI.toStwing() // added in 1.32
+	fiweWabews?: Awway<stwing | nuww>; // added in 1.33
 }
 
-interface ISerializedRecentlyOpened {
-	entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
+intewface ISewiawizedWecentwyOpened {
+	entwies: Awway<ISewiawizedWecentWowkspace | ISewiawizedWecentFowda | ISewiawizedWecentFiwe>; // since 1.55
 }
 
-export type RecentlyOpenedStorageData = object;
+expowt type WecentwyOpenedStowageData = object;
 
-function isSerializedRecentWorkspace(data: any): data is ISerializedRecentWorkspace {
-	return data.workspace && typeof data.workspace === 'object' && typeof data.workspace.id === 'string' && typeof data.workspace.configPath === 'string';
+function isSewiawizedWecentWowkspace(data: any): data is ISewiawizedWecentWowkspace {
+	wetuwn data.wowkspace && typeof data.wowkspace === 'object' && typeof data.wowkspace.id === 'stwing' && typeof data.wowkspace.configPath === 'stwing';
 }
 
-function isSerializedRecentFolder(data: any): data is ISerializedRecentFolder {
-	return typeof data.folderUri === 'string';
+function isSewiawizedWecentFowda(data: any): data is ISewiawizedWecentFowda {
+	wetuwn typeof data.fowdewUwi === 'stwing';
 }
 
-function isSerializedRecentFile(data: any): data is ISerializedRecentFile {
-	return typeof data.fileUri === 'string';
+function isSewiawizedWecentFiwe(data: any): data is ISewiawizedWecentFiwe {
+	wetuwn typeof data.fiweUwi === 'stwing';
 }
 
 
-export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
-	const result: IRecentlyOpened = { workspaces: [], files: [] };
+expowt function westoweWecentwyOpened(data: WecentwyOpenedStowageData | undefined, wogSewvice: IWogSewvice): IWecentwyOpened {
+	const wesuwt: IWecentwyOpened = { wowkspaces: [], fiwes: [] };
 	if (data) {
-		const restoreGracefully = function <T>(entries: T[], func: (entry: T, index: number) => void) {
-			for (let i = 0; i < entries.length; i++) {
-				try {
-					func(entries[i], i);
+		const westoweGwacefuwwy = function <T>(entwies: T[], func: (entwy: T, index: numba) => void) {
+			fow (wet i = 0; i < entwies.wength; i++) {
+				twy {
+					func(entwies[i], i);
 				} catch (e) {
-					logService.warn(`Error restoring recent entry ${JSON.stringify(entries[i])}: ${e.toString()}. Skip entry.`);
+					wogSewvice.wawn(`Ewwow westowing wecent entwy ${JSON.stwingify(entwies[i])}: ${e.toStwing()}. Skip entwy.`);
 				}
 			}
 		};
 
-		const storedRecents = data as ISerializedRecentlyOpened;
-		if (Array.isArray(storedRecents.entries)) {
-			restoreGracefully(storedRecents.entries, (entry) => {
-				const label = entry.label;
-				const remoteAuthority = entry.remoteAuthority;
+		const stowedWecents = data as ISewiawizedWecentwyOpened;
+		if (Awway.isAwway(stowedWecents.entwies)) {
+			westoweGwacefuwwy(stowedWecents.entwies, (entwy) => {
+				const wabew = entwy.wabew;
+				const wemoteAuthowity = entwy.wemoteAuthowity;
 
-				if (isSerializedRecentWorkspace(entry)) {
-					result.workspaces.push({ label, remoteAuthority, workspace: { id: entry.workspace.id, configPath: URI.parse(entry.workspace.configPath) } });
-				} else if (isSerializedRecentFolder(entry)) {
-					result.workspaces.push({ label, remoteAuthority, folderUri: URI.parse(entry.folderUri) });
-				} else if (isSerializedRecentFile(entry)) {
-					result.files.push({ label, remoteAuthority, fileUri: URI.parse(entry.fileUri) });
+				if (isSewiawizedWecentWowkspace(entwy)) {
+					wesuwt.wowkspaces.push({ wabew, wemoteAuthowity, wowkspace: { id: entwy.wowkspace.id, configPath: UWI.pawse(entwy.wowkspace.configPath) } });
+				} ewse if (isSewiawizedWecentFowda(entwy)) {
+					wesuwt.wowkspaces.push({ wabew, wemoteAuthowity, fowdewUwi: UWI.pawse(entwy.fowdewUwi) });
+				} ewse if (isSewiawizedWecentFiwe(entwy)) {
+					wesuwt.fiwes.push({ wabew, wemoteAuthowity, fiweUwi: UWI.pawse(entwy.fiweUwi) });
 				}
 			});
-		} else {
-			const storedRecents2 = data as ISerializedRecentlyOpenedLegacy;
-			if (Array.isArray(storedRecents2.workspaces3)) {
-				restoreGracefully(storedRecents2.workspaces3, (workspace, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.workspaceLabels) && storedRecents2.workspaceLabels[i]) || undefined;
-					if (typeof workspace === 'object' && typeof workspace.id === 'string' && typeof workspace.configURIPath === 'string') {
-						result.workspaces.push({ label, workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) } });
-					} else if (typeof workspace === 'string') {
-						result.workspaces.push({ label, folderUri: URI.parse(workspace) });
+		} ewse {
+			const stowedWecents2 = data as ISewiawizedWecentwyOpenedWegacy;
+			if (Awway.isAwway(stowedWecents2.wowkspaces3)) {
+				westoweGwacefuwwy(stowedWecents2.wowkspaces3, (wowkspace, i) => {
+					const wabew: stwing | undefined = (Awway.isAwway(stowedWecents2.wowkspaceWabews) && stowedWecents2.wowkspaceWabews[i]) || undefined;
+					if (typeof wowkspace === 'object' && typeof wowkspace.id === 'stwing' && typeof wowkspace.configUWIPath === 'stwing') {
+						wesuwt.wowkspaces.push({ wabew, wowkspace: { id: wowkspace.id, configPath: UWI.pawse(wowkspace.configUWIPath) } });
+					} ewse if (typeof wowkspace === 'stwing') {
+						wesuwt.wowkspaces.push({ wabew, fowdewUwi: UWI.pawse(wowkspace) });
 					}
 				});
 			}
-			if (Array.isArray(storedRecents2.files2)) {
-				restoreGracefully(storedRecents2.files2, (file, i) => {
-					const label: string | undefined = (Array.isArray(storedRecents2.fileLabels) && storedRecents2.fileLabels[i]) || undefined;
-					if (typeof file === 'string') {
-						result.files.push({ label, fileUri: URI.parse(file) });
+			if (Awway.isAwway(stowedWecents2.fiwes2)) {
+				westoweGwacefuwwy(stowedWecents2.fiwes2, (fiwe, i) => {
+					const wabew: stwing | undefined = (Awway.isAwway(stowedWecents2.fiweWabews) && stowedWecents2.fiweWabews[i]) || undefined;
+					if (typeof fiwe === 'stwing') {
+						wesuwt.fiwes.push({ wabew, fiweUwi: UWI.pawse(fiwe) });
 					}
 				});
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function toStoreData(recents: IRecentlyOpened): RecentlyOpenedStorageData {
-	const serialized: ISerializedRecentlyOpened = { entries: [] };
+expowt function toStoweData(wecents: IWecentwyOpened): WecentwyOpenedStowageData {
+	const sewiawized: ISewiawizedWecentwyOpened = { entwies: [] };
 
-	for (const recent of recents.workspaces) {
-		if (isRecentFolder(recent)) {
-			serialized.entries.push({ folderUri: recent.folderUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
-		} else {
-			serialized.entries.push({ workspace: { id: recent.workspace.id, configPath: recent.workspace.configPath.toString() }, label: recent.label, remoteAuthority: recent.remoteAuthority });
+	fow (const wecent of wecents.wowkspaces) {
+		if (isWecentFowda(wecent)) {
+			sewiawized.entwies.push({ fowdewUwi: wecent.fowdewUwi.toStwing(), wabew: wecent.wabew, wemoteAuthowity: wecent.wemoteAuthowity });
+		} ewse {
+			sewiawized.entwies.push({ wowkspace: { id: wecent.wowkspace.id, configPath: wecent.wowkspace.configPath.toStwing() }, wabew: wecent.wabew, wemoteAuthowity: wecent.wemoteAuthowity });
 		}
 	}
 
-	for (const recent of recents.files) {
-		serialized.entries.push({ fileUri: recent.fileUri.toString(), label: recent.label, remoteAuthority: recent.remoteAuthority });
+	fow (const wecent of wecents.fiwes) {
+		sewiawized.entwies.push({ fiweUwi: wecent.fiweUwi.toStwing(), wabew: wecent.wabew, wemoteAuthowity: wecent.wemoteAuthowity });
 	}
-	return serialized;
+	wetuwn sewiawized;
 }
 
-//#endregion
+//#endwegion

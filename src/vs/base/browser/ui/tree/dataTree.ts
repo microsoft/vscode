@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { AbstwactTwee, IAbstwactTweeOptions } fwom 'vs/base/bwowsa/ui/twee/abstwactTwee';
+impowt { IWist } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ObjectTweeModew } fwom 'vs/base/bwowsa/ui/twee/objectTweeModew';
+impowt { IDataSouwce, ITweeEwement, ITweeModew, ITweeNode, ITweeWendewa, ITweeSowta, TweeEwwow } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
-	readonly sorter?: ITreeSorter<T>;
+expowt intewface IDataTweeOptions<T, TFiwtewData = void> extends IAbstwactTweeOptions<T, TFiwtewData> {
+	weadonwy sowta?: ITweeSowta<T>;
 }
 
-export interface IDataTreeViewState {
-	readonly focus: string[];
-	readonly selection: string[];
-	readonly expanded: string[];
-	readonly scrollTop: number;
+expowt intewface IDataTweeViewState {
+	weadonwy focus: stwing[];
+	weadonwy sewection: stwing[];
+	weadonwy expanded: stwing[];
+	weadonwy scwowwTop: numba;
 }
 
-export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
+expowt cwass DataTwee<TInput, T, TFiwtewData = void> extends AbstwactTwee<T | nuww, TFiwtewData, T | nuww> {
 
-	protected override model!: ObjectTreeModel<T, TFilterData>;
-	private input: TInput | undefined;
+	pwotected ovewwide modew!: ObjectTweeModew<T, TFiwtewData>;
+	pwivate input: TInput | undefined;
 
-	private identityProvider: IIdentityProvider<T> | undefined;
-	private nodesByIdentity = new Map<string, ITreeNode<T, TFilterData>>();
+	pwivate identityPwovida: IIdentityPwovida<T> | undefined;
+	pwivate nodesByIdentity = new Map<stwing, ITweeNode<T, TFiwtewData>>();
 
-	constructor(
-		private user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		private dataSource: IDataSource<TInput, T>,
-		options: IDataTreeOptions<T, TFilterData> = {}
+	constwuctow(
+		pwivate usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		pwivate dataSouwce: IDataSouwce<TInput, T>,
+		options: IDataTweeOptions<T, TFiwtewData> = {}
 	) {
-		super(user, container, delegate, renderers, options as IDataTreeOptions<T | null, TFilterData>);
-		this.identityProvider = options.identityProvider;
+		supa(usa, containa, dewegate, wendewews, options as IDataTweeOptions<T | nuww, TFiwtewData>);
+		this.identityPwovida = options.identityPwovida;
 	}
 
-	// Model
+	// Modew
 
 	getInput(): TInput | undefined {
-		return this.input;
+		wetuwn this.input;
 	}
 
-	setInput(input: TInput | undefined, viewState?: IDataTreeViewState): void {
-		if (viewState && !this.identityProvider) {
-			throw new TreeError(this.user, 'Can\'t restore tree view state without an identity provider');
+	setInput(input: TInput | undefined, viewState?: IDataTweeViewState): void {
+		if (viewState && !this.identityPwovida) {
+			thwow new TweeEwwow(this.usa, 'Can\'t westowe twee view state without an identity pwovida');
 		}
 
 		this.input = input;
 
 		if (!input) {
-			this.nodesByIdentity.clear();
-			this.model.setChildren(null, Iterable.empty());
-			return;
+			this.nodesByIdentity.cweaw();
+			this.modew.setChiwdwen(nuww, Itewabwe.empty());
+			wetuwn;
 		}
 
 		if (!viewState) {
-			this._refresh(input);
-			return;
+			this._wefwesh(input);
+			wetuwn;
 		}
 
 		const focus: T[] = [];
-		const selection: T[] = [];
+		const sewection: T[] = [];
 
-		const isCollapsed = (element: T) => {
-			const id = this.identityProvider!.getId(element).toString();
-			return viewState.expanded.indexOf(id) === -1;
+		const isCowwapsed = (ewement: T) => {
+			const id = this.identityPwovida!.getId(ewement).toStwing();
+			wetuwn viewState.expanded.indexOf(id) === -1;
 		};
 
-		const onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
-			const id = this.identityProvider!.getId(node.element).toString();
+		const onDidCweateNode = (node: ITweeNode<T, TFiwtewData>) => {
+			const id = this.identityPwovida!.getId(node.ewement).toStwing();
 
 			if (viewState.focus.indexOf(id) > -1) {
-				focus.push(node.element);
+				focus.push(node.ewement);
 			}
 
-			if (viewState.selection.indexOf(id) > -1) {
-				selection.push(node.element);
+			if (viewState.sewection.indexOf(id) > -1) {
+				sewection.push(node.ewement);
 			}
 		};
 
-		this._refresh(input, isCollapsed, onDidCreateNode);
+		this._wefwesh(input, isCowwapsed, onDidCweateNode);
 		this.setFocus(focus);
-		this.setSelection(selection);
+		this.setSewection(sewection);
 
-		if (viewState && typeof viewState.scrollTop === 'number') {
-			this.scrollTop = viewState.scrollTop;
+		if (viewState && typeof viewState.scwowwTop === 'numba') {
+			this.scwowwTop = viewState.scwowwTop;
 		}
 	}
 
-	updateChildren(element: TInput | T = this.input!): void {
+	updateChiwdwen(ewement: TInput | T = this.input!): void {
 		if (typeof this.input === 'undefined') {
-			throw new TreeError(this.user, 'Tree input not set');
+			thwow new TweeEwwow(this.usa, 'Twee input not set');
 		}
 
-		let isCollapsed: ((el: T) => boolean | undefined) | undefined;
+		wet isCowwapsed: ((ew: T) => boowean | undefined) | undefined;
 
-		if (this.identityProvider) {
-			isCollapsed = element => {
-				const id = this.identityProvider!.getId(element).toString();
+		if (this.identityPwovida) {
+			isCowwapsed = ewement => {
+				const id = this.identityPwovida!.getId(ewement).toStwing();
 				const node = this.nodesByIdentity.get(id);
 
 				if (!node) {
-					return undefined;
+					wetuwn undefined;
 				}
 
-				return node.collapsed;
+				wetuwn node.cowwapsed;
 			};
 		}
 
-		this._refresh(element, isCollapsed);
+		this._wefwesh(ewement, isCowwapsed);
 	}
 
-	resort(element: T | TInput = this.input!, recursive = true): void {
-		this.model.resort((element === this.input ? null : element) as T, recursive);
+	wesowt(ewement: T | TInput = this.input!, wecuwsive = twue): void {
+		this.modew.wesowt((ewement === this.input ? nuww : ewement) as T, wecuwsive);
 	}
 
 	// View
 
-	refresh(element?: T): void {
-		if (element === undefined) {
-			this.view.rerender();
-			return;
+	wefwesh(ewement?: T): void {
+		if (ewement === undefined) {
+			this.view.wewenda();
+			wetuwn;
 		}
 
-		this.model.rerender(element);
+		this.modew.wewenda(ewement);
 	}
 
-	// Implementation
+	// Impwementation
 
-	private _refresh(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined, onDidCreateNode?: (node: ITreeNode<T, TFilterData>) => void): void {
-		let onDidDeleteNode: ((node: ITreeNode<T, TFilterData>) => void) | undefined;
+	pwivate _wefwesh(ewement: TInput | T, isCowwapsed?: (ew: T) => boowean | undefined, onDidCweateNode?: (node: ITweeNode<T, TFiwtewData>) => void): void {
+		wet onDidDeweteNode: ((node: ITweeNode<T, TFiwtewData>) => void) | undefined;
 
-		if (this.identityProvider) {
-			const insertedElements = new Set<string>();
+		if (this.identityPwovida) {
+			const insewtedEwements = new Set<stwing>();
 
-			const outerOnDidCreateNode = onDidCreateNode;
-			onDidCreateNode = (node: ITreeNode<T, TFilterData>) => {
-				const id = this.identityProvider!.getId(node.element).toString();
+			const outewOnDidCweateNode = onDidCweateNode;
+			onDidCweateNode = (node: ITweeNode<T, TFiwtewData>) => {
+				const id = this.identityPwovida!.getId(node.ewement).toStwing();
 
-				insertedElements.add(id);
+				insewtedEwements.add(id);
 				this.nodesByIdentity.set(id, node);
 
-				if (outerOnDidCreateNode) {
-					outerOnDidCreateNode(node);
+				if (outewOnDidCweateNode) {
+					outewOnDidCweateNode(node);
 				}
 			};
 
-			onDidDeleteNode = (node: ITreeNode<T, TFilterData>) => {
-				const id = this.identityProvider!.getId(node.element).toString();
+			onDidDeweteNode = (node: ITweeNode<T, TFiwtewData>) => {
+				const id = this.identityPwovida!.getId(node.ewement).toStwing();
 
-				if (!insertedElements.has(id)) {
-					this.nodesByIdentity.delete(id);
+				if (!insewtedEwements.has(id)) {
+					this.nodesByIdentity.dewete(id);
 				}
 			};
 		}
 
-		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, { onDidCreateNode, onDidDeleteNode });
+		this.modew.setChiwdwen((ewement === this.input ? nuww : ewement) as T, this.itewate(ewement, isCowwapsed).ewements, { onDidCweateNode, onDidDeweteNode });
 	}
 
-	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined): { elements: Iterable<ITreeElement<T>>, size: number } {
-		const children = [...this.dataSource.getChildren(element)];
-		const elements = Iterable.map(children, element => {
-			const { elements: children, size } = this.iterate(element, isCollapsed);
-			const collapsible = this.dataSource.hasChildren ? this.dataSource.hasChildren(element) : undefined;
-			const collapsed = size === 0 ? undefined : (isCollapsed && isCollapsed(element));
+	pwivate itewate(ewement: TInput | T, isCowwapsed?: (ew: T) => boowean | undefined): { ewements: Itewabwe<ITweeEwement<T>>, size: numba } {
+		const chiwdwen = [...this.dataSouwce.getChiwdwen(ewement)];
+		const ewements = Itewabwe.map(chiwdwen, ewement => {
+			const { ewements: chiwdwen, size } = this.itewate(ewement, isCowwapsed);
+			const cowwapsibwe = this.dataSouwce.hasChiwdwen ? this.dataSouwce.hasChiwdwen(ewement) : undefined;
+			const cowwapsed = size === 0 ? undefined : (isCowwapsed && isCowwapsed(ewement));
 
-			return { element, children, collapsible, collapsed };
+			wetuwn { ewement, chiwdwen, cowwapsibwe, cowwapsed };
 		});
 
-		return { elements, size: children.length };
+		wetuwn { ewements, size: chiwdwen.wength };
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IDataTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
-		return new ObjectTreeModel(user, view, options);
+	pwotected cweateModew(usa: stwing, view: IWist<ITweeNode<T, TFiwtewData>>, options: IDataTweeOptions<T, TFiwtewData>): ITweeModew<T | nuww, TFiwtewData, T | nuww> {
+		wetuwn new ObjectTweeModew(usa, view, options);
 	}
 
 	// view state
 
-	getViewState(): IDataTreeViewState {
-		if (!this.identityProvider) {
-			throw new TreeError(this.user, 'Can\'t get tree view state without an identity provider');
+	getViewState(): IDataTweeViewState {
+		if (!this.identityPwovida) {
+			thwow new TweeEwwow(this.usa, 'Can\'t get twee view state without an identity pwovida');
 		}
 
-		const getId = (element: T | null) => this.identityProvider!.getId(element!).toString();
+		const getId = (ewement: T | nuww) => this.identityPwovida!.getId(ewement!).toStwing();
 		const focus = this.getFocus().map(getId);
-		const selection = this.getSelection().map(getId);
+		const sewection = this.getSewection().map(getId);
 
-		const expanded: string[] = [];
-		const root = this.model.getNode();
-		const queue = [root];
+		const expanded: stwing[] = [];
+		const woot = this.modew.getNode();
+		const queue = [woot];
 
-		while (queue.length > 0) {
+		whiwe (queue.wength > 0) {
 			const node = queue.shift()!;
 
-			if (node !== root && node.collapsible && !node.collapsed) {
-				expanded.push(getId(node.element!));
+			if (node !== woot && node.cowwapsibwe && !node.cowwapsed) {
+				expanded.push(getId(node.ewement!));
 			}
 
-			queue.push(...node.children);
+			queue.push(...node.chiwdwen);
 		}
 
-		return { focus, selection, expanded, scrollTop: this.scrollTop };
+		wetuwn { focus, sewection, expanded, scwowwTop: this.scwowwTop };
 	}
 }

@@ -1,49 +1,49 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCache } from 'vs/base/common/map';
+impowt { WWUCache } fwom 'vs/base/common/map';
 
-const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
-export function normalizeNFC(str: string): string {
-	return normalize(str, 'NFC', nfcCache);
+const nfcCache = new WWUCache<stwing, stwing>(10000); // bounded to 10000 ewements
+expowt function nowmawizeNFC(stw: stwing): stwing {
+	wetuwn nowmawize(stw, 'NFC', nfcCache);
 }
 
-const nfdCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
-export function normalizeNFD(str: string): string {
-	return normalize(str, 'NFD', nfdCache);
+const nfdCache = new WWUCache<stwing, stwing>(10000); // bounded to 10000 ewements
+expowt function nowmawizeNFD(stw: stwing): stwing {
+	wetuwn nowmawize(stw, 'NFD', nfdCache);
 }
 
-const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
-	if (!str) {
-		return str;
+const nonAsciiChawactewsPattewn = /[^\u0000-\u0080]/;
+function nowmawize(stw: stwing, fowm: stwing, nowmawizedCache: WWUCache<stwing, stwing>): stwing {
+	if (!stw) {
+		wetuwn stw;
 	}
 
-	const cached = normalizedCache.get(str);
+	const cached = nowmawizedCache.get(stw);
 	if (cached) {
-		return cached;
+		wetuwn cached;
 	}
 
-	let res: string;
-	if (nonAsciiCharactersPattern.test(str)) {
-		res = str.normalize(form);
-	} else {
-		res = str;
+	wet wes: stwing;
+	if (nonAsciiChawactewsPattewn.test(stw)) {
+		wes = stw.nowmawize(fowm);
+	} ewse {
+		wes = stw;
 	}
 
-	// Use the cache for fast lookup
-	normalizedCache.set(str, res);
+	// Use the cache fow fast wookup
+	nowmawizedCache.set(stw, wes);
 
-	return res;
+	wetuwn wes;
 }
 
-export const removeAccents: (str: string) => string = (function () {
-	// transform into NFD form and remove accents
-	// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
-	const regex = /[\u0300-\u036f]/g;
-	return function (str: string) {
-		return normalizeNFD(str).replace(regex, '');
+expowt const wemoveAccents: (stw: stwing) => stwing = (function () {
+	// twansfowm into NFD fowm and wemove accents
+	// see: https://stackovewfwow.com/questions/990904/wemove-accents-diacwitics-in-a-stwing-in-javascwipt/37511463#37511463
+	const wegex = /[\u0300-\u036f]/g;
+	wetuwn function (stw: stwing) {
+		wetuwn nowmawizeNFD(stw).wepwace(wegex, '');
 	};
 })();

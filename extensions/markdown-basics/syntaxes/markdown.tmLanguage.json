@@ -1,2773 +1,2773 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/microsoft/vscode-markdown-tm-grammar/blob/master/syntaxes/markdown.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/micwosoft/vscode-mawkdown-tm-gwammaw/bwob/masta/syntaxes/mawkdown.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a612b96d62aa1ce305c4a55dc9d577316fab39da",
-	"name": "Markdown",
-	"scopeName": "text.html.markdown",
-	"patterns": [
+	"vewsion": "https://github.com/micwosoft/vscode-mawkdown-tm-gwammaw/commit/a612b96d62aa1ce305c4a55dc9d577316fab39da",
+	"name": "Mawkdown",
+	"scopeName": "text.htmw.mawkdown",
+	"pattewns": [
 		{
-			"include": "#frontMatter"
+			"incwude": "#fwontMatta"
 		},
 		{
-			"include": "#block"
+			"incwude": "#bwock"
 		}
 	],
-	"repository": {
-		"block": {
-			"patterns": [
+	"wepositowy": {
+		"bwock": {
+			"pattewns": [
 				{
-					"include": "#separator"
+					"incwude": "#sepawatow"
 				},
 				{
-					"include": "#heading"
+					"incwude": "#heading"
 				},
 				{
-					"include": "#blockquote"
+					"incwude": "#bwockquote"
 				},
 				{
-					"include": "#lists"
+					"incwude": "#wists"
 				},
 				{
-					"include": "#fenced_code_block"
+					"incwude": "#fenced_code_bwock"
 				},
 				{
-					"include": "#raw_block"
+					"incwude": "#waw_bwock"
 				},
 				{
-					"include": "#link-def"
+					"incwude": "#wink-def"
 				},
 				{
-					"include": "#html"
+					"incwude": "#htmw"
 				},
 				{
-					"include": "#paragraph"
+					"incwude": "#pawagwaph"
 				}
 			]
 		},
-		"blockquote": {
+		"bwockquote": {
 			"begin": "(^|\\G)[ ]{0,3}(>) ?",
-			"captures": {
+			"captuwes": {
 				"2": {
-					"name": "punctuation.definition.quote.begin.markdown"
+					"name": "punctuation.definition.quote.begin.mawkdown"
 				}
 			},
-			"name": "markup.quote.markdown",
-			"patterns": [
+			"name": "mawkup.quote.mawkdown",
+			"pattewns": [
 				{
-					"include": "#block"
+					"incwude": "#bwock"
 				}
 			],
-			"while": "(^|\\G)\\s*(>) ?"
+			"whiwe": "(^|\\G)\\s*(>) ?"
 		},
-		"fenced_code_block_css": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(css|css.erb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_css": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(css|css.ewb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.css",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.css",
+					"pattewns": [
 						{
-							"include": "source.css"
+							"incwude": "souwce.css"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_basic": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(html|htm|shtml|xhtml|inc|tmpl|tpl)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_basic": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(htmw|htm|shtmw|xhtmw|inc|tmpw|tpw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.html",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.htmw",
+					"pattewns": [
 						{
-							"include": "text.html.basic"
+							"incwude": "text.htmw.basic"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_ini": {
+		"fenced_code_bwock_ini": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ini|conf)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.ini",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.ini",
+					"pattewns": [
 						{
-							"include": "source.ini"
+							"incwude": "souwce.ini"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_java": {
+		"fenced_code_bwock_java": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(java|bsh)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.java",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.java",
+					"pattewns": [
 						{
-							"include": "source.java"
+							"incwude": "souwce.java"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_lua": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(lua)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wua": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wua)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.lua",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wua",
+					"pattewns": [
 						{
-							"include": "source.lua"
+							"incwude": "souwce.wua"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_makefile": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(Makefile|makefile|GNUmakefile|OCamlMakefile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_makefiwe": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(Makefiwe|makefiwe|GNUmakefiwe|OCamwMakefiwe)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.makefile",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.makefiwe",
+					"pattewns": [
 						{
-							"include": "source.makefile"
+							"incwude": "souwce.makefiwe"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_perl": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl|pl|pm|pod|t|PL|psgi|vcl)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_peww": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(peww|pw|pm|pod|t|PW|psgi|vcw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.perl",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.peww",
+					"pattewns": [
 						{
-							"include": "source.perl"
+							"incwude": "souwce.peww"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_r": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(R|r|s|S|Rprofile|\\{\\.r.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_w": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(W|w|s|S|Wpwofiwe|\\{\\.w.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.r",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.w",
+					"pattewns": [
 						{
-							"include": "source.r"
+							"incwude": "souwce.w"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_ruby": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ruby|rb|rbx|rjs|Rakefile|rake|cgi|fcgi|gemspec|irbrc|Capfile|ru|prawn|Cheffile|Gemfile|Guardfile|Hobofile|Vagrantfile|Appraisals|Rantfile|Berksfile|Berksfile.lock|Thorfile|Puppetfile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wuby": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wuby|wb|wbx|wjs|Wakefiwe|wake|cgi|fcgi|gemspec|iwbwc|Capfiwe|wu|pwawn|Cheffiwe|Gemfiwe|Guawdfiwe|Hobofiwe|Vagwantfiwe|Appwaisaws|Wantfiwe|Bewksfiwe|Bewksfiwe.wock|Thowfiwe|Puppetfiwe)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.ruby",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wuby",
+					"pattewns": [
 						{
-							"include": "source.ruby"
+							"incwude": "souwce.wuby"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_php": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(php|php3|php4|php5|phpt|phtml|aw|ctp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_php": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(php|php3|php4|php5|phpt|phtmw|aw|ctp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.php",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.php",
+					"pattewns": [
 						{
-							"include": "text.html.basic"
+							"incwude": "text.htmw.basic"
 						},
 						{
-							"include": "source.php"
+							"incwude": "souwce.php"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_sql": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(sql|ddl|dml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_sqw": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(sqw|ddw|dmw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.sql",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.sqw",
+					"pattewns": [
 						{
-							"include": "source.sql"
+							"incwude": "souwce.sqw"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_vs_net": {
+		"fenced_code_bwock_vs_net": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(vb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.vs_net",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.vs_net",
+					"pattewns": [
 						{
-							"include": "source.asp.vb.net"
+							"incwude": "souwce.asp.vb.net"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_xml": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xml|xsd|tld|jsp|pt|cpt|dtml|rss|opml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_xmw": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xmw|xsd|twd|jsp|pt|cpt|dtmw|wss|opmw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.xml",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.xmw",
+					"pattewns": [
 						{
-							"include": "text.xml"
+							"incwude": "text.xmw"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_xsl": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xsl|xslt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_xsw": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(xsw|xswt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.xsl",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.xsw",
+					"pattewns": [
 						{
-							"include": "text.xml.xsl"
+							"incwude": "text.xmw.xsw"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_yaml": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(yaml|yml)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_yamw": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(yamw|ymw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.yaml",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.yamw",
+					"pattewns": [
 						{
-							"include": "source.yaml"
+							"incwude": "souwce.yamw"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_dosbatch": {
+		"fenced_code_bwock_dosbatch": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(bat|batch)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.dosbatch",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.dosbatch",
+					"pattewns": [
 						{
-							"include": "source.batchfile"
+							"incwude": "souwce.batchfiwe"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_clojure": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(clj|cljs|clojure)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_cwojuwe": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cwj|cwjs|cwojuwe)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.clojure",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.cwojuwe",
+					"pattewns": [
 						{
-							"include": "source.clojure"
+							"incwude": "souwce.cwojuwe"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_coffee": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(coffee|Cakefile|coffee.erb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_coffee": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(coffee|Cakefiwe|coffee.ewb)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.coffee",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.coffee",
+					"pattewns": [
 						{
-							"include": "source.coffee"
+							"incwude": "souwce.coffee"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_c": {
+		"fenced_code_bwock_c": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(c|h)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.c",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.c",
+					"pattewns": [
 						{
-							"include": "source.c"
+							"incwude": "souwce.c"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_cpp": {
+		"fenced_code_bwock_cpp": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cpp|c\\+\\+|cxx)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.cpp source.cpp",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.cpp souwce.cpp",
+					"pattewns": [
 						{
-							"include": "source.cpp"
+							"incwude": "souwce.cpp"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_diff": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(patch|diff|rej)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_diff": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(patch|diff|wej)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.diff",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.diff",
+					"pattewns": [
 						{
-							"include": "source.diff"
+							"incwude": "souwce.diff"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_dockerfile": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dockerfile|Dockerfile)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_dockewfiwe": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dockewfiwe|Dockewfiwe)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.dockerfile",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.dockewfiwe",
+					"pattewns": [
 						{
-							"include": "source.dockerfile"
+							"incwude": "souwce.dockewfiwe"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_git_commit": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(COMMIT_EDITMSG|MERGE_MSG)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_git_commit": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(COMMIT_EDITMSG|MEWGE_MSG)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.git_commit",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.git_commit",
+					"pattewns": [
 						{
-							"include": "text.git-commit"
+							"incwude": "text.git-commit"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_git_rebase": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(git-rebase-todo)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_git_webase": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(git-webase-todo)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.git_rebase",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.git_webase",
+					"pattewns": [
 						{
-							"include": "text.git-rebase"
+							"incwude": "text.git-webase"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_go": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(go|golang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_go": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(go|gowang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.go",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.go",
+					"pattewns": [
 						{
-							"include": "source.go"
+							"incwude": "souwce.go"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_groovy": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(groovy|gvy)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_gwoovy": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(gwoovy|gvy)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.groovy",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.gwoovy",
+					"pattewns": [
 						{
-							"include": "source.groovy"
+							"incwude": "souwce.gwoovy"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_pug": {
+		"fenced_code_bwock_pug": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jade|pug)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.pug",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.pug",
+					"pattewns": [
 						{
-							"include": "text.pug"
+							"incwude": "text.pug"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_js": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascript|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_js": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(js|jsx|javascwipt|es6|mjs|cjs|\\{\\.js.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.javascript",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.javascwipt",
+					"pattewns": [
 						{
-							"include": "source.js"
+							"incwude": "souwce.js"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_js_regexp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(regexp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_js_wegexp": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wegexp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.js_regexp",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.js_wegexp",
+					"pattewns": [
 						{
-							"include": "source.js.regexp"
+							"incwude": "souwce.js.wegexp"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_json": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|sublime-settings|sublime-menu|sublime-keymap|sublime-mousemap|sublime-theme|sublime-build|sublime-project|sublime-completions)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_json": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(json|json5|subwime-settings|subwime-menu|subwime-keymap|subwime-mousemap|subwime-theme|subwime-buiwd|subwime-pwoject|subwime-compwetions)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.json",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.json",
+					"pattewns": [
 						{
-							"include": "source.json"
+							"incwude": "souwce.json"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_jsonc": {
+		"fenced_code_bwock_jsonc": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jsonc)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.jsonc",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.jsonc",
+					"pattewns": [
 						{
-							"include": "source.json.comments"
+							"incwude": "souwce.json.comments"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_less": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(less)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wess": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wess)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.less",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wess",
+					"pattewns": [
 						{
-							"include": "source.css.less"
+							"incwude": "souwce.css.wess"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_objc": {
+		"fenced_code_bwock_objc": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(objectivec|objective-c|mm|objc|obj-c|m|h)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.objc",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.objc",
+					"pattewns": [
 						{
-							"include": "source.objc"
+							"incwude": "souwce.objc"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_swift": {
+		"fenced_code_bwock_swift": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(swift)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.swift",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.swift",
+					"pattewns": [
 						{
-							"include": "source.swift"
+							"incwude": "souwce.swift"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_scss": {
+		"fenced_code_bwock_scss": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scss)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.scss",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.scss",
+					"pattewns": [
 						{
-							"include": "source.css.scss"
+							"incwude": "souwce.css.scss"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_perl6": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(perl6|p6|pl6|pm6|nqp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_peww6": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(peww6|p6|pw6|pm6|nqp)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.perl6",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.peww6",
+					"pattewns": [
 						{
-							"include": "source.perl.6"
+							"incwude": "souwce.peww.6"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_powershell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powershell|ps1|psm1|psd1)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_powewsheww": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(powewsheww|ps1|psm1|psd1)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.powershell",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.powewsheww",
+					"pattewns": [
 						{
-							"include": "source.powershell"
+							"incwude": "souwce.powewsheww"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_python": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(python|py|py3|rpy|pyw|cpy|SConstruct|Sconstruct|sconstruct|SConscript|gyp|gypi|\\{\\.python.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_python": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(python|py|py3|wpy|pyw|cpy|SConstwuct|Sconstwuct|sconstwuct|SConscwipt|gyp|gypi|\\{\\.python.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.python",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.python",
+					"pattewns": [
 						{
-							"include": "source.python"
+							"incwude": "souwce.python"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_regexp_python": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(re)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wegexp_python": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(we)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.regexp_python",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wegexp_python",
+					"pattewns": [
 						{
-							"include": "source.regexp.python"
+							"incwude": "souwce.wegexp.python"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_rust": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(rust|rs|\\{\\.rust.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wust": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wust|ws|\\{\\.wust.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.rust",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wust",
+					"pattewns": [
 						{
-							"include": "source.rust"
+							"incwude": "souwce.wust"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_scala": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scala|sbt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_scawa": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(scawa|sbt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.scala",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.scawa",
+					"pattewns": [
 						{
-							"include": "source.scala"
+							"incwude": "souwce.scawa"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_shell": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(shell|sh|bash|zsh|bashrc|bash_profile|bash_login|profile|bash_logout|.textmate_init|\\{\\.bash.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_sheww": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(sheww|sh|bash|zsh|bashwc|bash_pwofiwe|bash_wogin|pwofiwe|bash_wogout|.textmate_init|\\{\\.bash.+?\\})((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.shellscript",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.shewwscwipt",
+					"pattewns": [
 						{
-							"include": "source.shell"
+							"incwude": "souwce.sheww"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_ts": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(typescript|ts)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_ts": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(typescwipt|ts)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.typescript",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.typescwipt",
+					"pattewns": [
 						{
-							"include": "source.ts"
+							"incwude": "souwce.ts"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_tsx": {
+		"fenced_code_bwock_tsx": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(tsx)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.typescriptreact",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.typescwiptweact",
+					"pattewns": [
 						{
-							"include": "source.tsx"
+							"incwude": "souwce.tsx"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_csharp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cs|csharp|c#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_cshawp": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(cs|cshawp|c#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.csharp",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.cshawp",
+					"pattewns": [
 						{
-							"include": "source.cs"
+							"incwude": "souwce.cs"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_fsharp": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(fs|fsharp|f#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_fshawp": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(fs|fshawp|f#)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.fsharp",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.fshawp",
+					"pattewns": [
 						{
-							"include": "source.fsharp"
+							"incwude": "souwce.fshawp"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_dart": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dart)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_dawt": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dawt)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.dart",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.dawt",
+					"pattewns": [
 						{
-							"include": "source.dart"
+							"incwude": "souwce.dawt"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_handlebars": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handlebars|hbs)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_handwebaws": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(handwebaws|hbs)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.handlebars",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.handwebaws",
+					"pattewns": [
 						{
-							"include": "text.html.handlebars"
+							"incwude": "text.htmw.handwebaws"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_markdown": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(markdown|md)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_mawkdown": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(mawkdown|md)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.markdown",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.mawkdown",
+					"pattewns": [
 						{
-							"include": "text.html.markdown"
+							"incwude": "text.htmw.mawkdown"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_log": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(log)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_wog": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(wog)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.log",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.wog",
+					"pattewns": [
 						{
-							"include": "text.log"
+							"incwude": "text.wog"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_erlang": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(erlang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_ewwang": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ewwang)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.erlang",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.ewwang",
+					"pattewns": [
 						{
-							"include": "source.erlang"
+							"incwude": "souwce.ewwang"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block_elixir": {
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(elixir)((\\s+|:|\\{|\\?)[^`~]*)?$)",
-			"name": "markup.fenced_code.block.markdown",
+		"fenced_code_bwock_ewixiw": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(ewixiw)((\\s+|:|\\{|\\?)[^`~]*)?$)",
+			"name": "mawkup.fenced_code.bwock.mawkdown",
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language.markdown"
+					"name": "fenced_code.bwock.wanguage.mawkdown"
 				},
 				"5": {
-					"name": "fenced_code.block.language.attributes.markdown"
+					"name": "fenced_code.bwock.wanguage.attwibutes.mawkdown"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.block.elixir",
-					"patterns": [
+					"whiwe": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.bwock.ewixiw",
+					"pattewns": [
 						{
-							"include": "source.elixir"
+							"incwude": "souwce.ewixiw"
 						}
 					]
 				}
 			]
 		},
-		"fenced_code_block": {
-			"patterns": [
+		"fenced_code_bwock": {
+			"pattewns": [
 				{
-					"include": "#fenced_code_block_css"
+					"incwude": "#fenced_code_bwock_css"
 				},
 				{
-					"include": "#fenced_code_block_basic"
+					"incwude": "#fenced_code_bwock_basic"
 				},
 				{
-					"include": "#fenced_code_block_ini"
+					"incwude": "#fenced_code_bwock_ini"
 				},
 				{
-					"include": "#fenced_code_block_java"
+					"incwude": "#fenced_code_bwock_java"
 				},
 				{
-					"include": "#fenced_code_block_lua"
+					"incwude": "#fenced_code_bwock_wua"
 				},
 				{
-					"include": "#fenced_code_block_makefile"
+					"incwude": "#fenced_code_bwock_makefiwe"
 				},
 				{
-					"include": "#fenced_code_block_perl"
+					"incwude": "#fenced_code_bwock_peww"
 				},
 				{
-					"include": "#fenced_code_block_r"
+					"incwude": "#fenced_code_bwock_w"
 				},
 				{
-					"include": "#fenced_code_block_ruby"
+					"incwude": "#fenced_code_bwock_wuby"
 				},
 				{
-					"include": "#fenced_code_block_php"
+					"incwude": "#fenced_code_bwock_php"
 				},
 				{
-					"include": "#fenced_code_block_sql"
+					"incwude": "#fenced_code_bwock_sqw"
 				},
 				{
-					"include": "#fenced_code_block_vs_net"
+					"incwude": "#fenced_code_bwock_vs_net"
 				},
 				{
-					"include": "#fenced_code_block_xml"
+					"incwude": "#fenced_code_bwock_xmw"
 				},
 				{
-					"include": "#fenced_code_block_xsl"
+					"incwude": "#fenced_code_bwock_xsw"
 				},
 				{
-					"include": "#fenced_code_block_yaml"
+					"incwude": "#fenced_code_bwock_yamw"
 				},
 				{
-					"include": "#fenced_code_block_dosbatch"
+					"incwude": "#fenced_code_bwock_dosbatch"
 				},
 				{
-					"include": "#fenced_code_block_clojure"
+					"incwude": "#fenced_code_bwock_cwojuwe"
 				},
 				{
-					"include": "#fenced_code_block_coffee"
+					"incwude": "#fenced_code_bwock_coffee"
 				},
 				{
-					"include": "#fenced_code_block_c"
+					"incwude": "#fenced_code_bwock_c"
 				},
 				{
-					"include": "#fenced_code_block_cpp"
+					"incwude": "#fenced_code_bwock_cpp"
 				},
 				{
-					"include": "#fenced_code_block_diff"
+					"incwude": "#fenced_code_bwock_diff"
 				},
 				{
-					"include": "#fenced_code_block_dockerfile"
+					"incwude": "#fenced_code_bwock_dockewfiwe"
 				},
 				{
-					"include": "#fenced_code_block_git_commit"
+					"incwude": "#fenced_code_bwock_git_commit"
 				},
 				{
-					"include": "#fenced_code_block_git_rebase"
+					"incwude": "#fenced_code_bwock_git_webase"
 				},
 				{
-					"include": "#fenced_code_block_go"
+					"incwude": "#fenced_code_bwock_go"
 				},
 				{
-					"include": "#fenced_code_block_groovy"
+					"incwude": "#fenced_code_bwock_gwoovy"
 				},
 				{
-					"include": "#fenced_code_block_pug"
+					"incwude": "#fenced_code_bwock_pug"
 				},
 				{
-					"include": "#fenced_code_block_js"
+					"incwude": "#fenced_code_bwock_js"
 				},
 				{
-					"include": "#fenced_code_block_js_regexp"
+					"incwude": "#fenced_code_bwock_js_wegexp"
 				},
 				{
-					"include": "#fenced_code_block_json"
+					"incwude": "#fenced_code_bwock_json"
 				},
 				{
-					"include": "#fenced_code_block_jsonc"
+					"incwude": "#fenced_code_bwock_jsonc"
 				},
 				{
-					"include": "#fenced_code_block_less"
+					"incwude": "#fenced_code_bwock_wess"
 				},
 				{
-					"include": "#fenced_code_block_objc"
+					"incwude": "#fenced_code_bwock_objc"
 				},
 				{
-					"include": "#fenced_code_block_swift"
+					"incwude": "#fenced_code_bwock_swift"
 				},
 				{
-					"include": "#fenced_code_block_scss"
+					"incwude": "#fenced_code_bwock_scss"
 				},
 				{
-					"include": "#fenced_code_block_perl6"
+					"incwude": "#fenced_code_bwock_peww6"
 				},
 				{
-					"include": "#fenced_code_block_powershell"
+					"incwude": "#fenced_code_bwock_powewsheww"
 				},
 				{
-					"include": "#fenced_code_block_python"
+					"incwude": "#fenced_code_bwock_python"
 				},
 				{
-					"include": "#fenced_code_block_regexp_python"
+					"incwude": "#fenced_code_bwock_wegexp_python"
 				},
 				{
-					"include": "#fenced_code_block_rust"
+					"incwude": "#fenced_code_bwock_wust"
 				},
 				{
-					"include": "#fenced_code_block_scala"
+					"incwude": "#fenced_code_bwock_scawa"
 				},
 				{
-					"include": "#fenced_code_block_shell"
+					"incwude": "#fenced_code_bwock_sheww"
 				},
 				{
-					"include": "#fenced_code_block_ts"
+					"incwude": "#fenced_code_bwock_ts"
 				},
 				{
-					"include": "#fenced_code_block_tsx"
+					"incwude": "#fenced_code_bwock_tsx"
 				},
 				{
-					"include": "#fenced_code_block_csharp"
+					"incwude": "#fenced_code_bwock_cshawp"
 				},
 				{
-					"include": "#fenced_code_block_fsharp"
+					"incwude": "#fenced_code_bwock_fshawp"
 				},
 				{
-					"include": "#fenced_code_block_dart"
+					"incwude": "#fenced_code_bwock_dawt"
 				},
 				{
-					"include": "#fenced_code_block_handlebars"
+					"incwude": "#fenced_code_bwock_handwebaws"
 				},
 				{
-					"include": "#fenced_code_block_markdown"
+					"incwude": "#fenced_code_bwock_mawkdown"
 				},
 				{
-					"include": "#fenced_code_block_log"
+					"incwude": "#fenced_code_bwock_wog"
 				},
 				{
-					"include": "#fenced_code_block_erlang"
+					"incwude": "#fenced_code_bwock_ewwang"
 				},
 				{
-					"include": "#fenced_code_block_elixir"
+					"incwude": "#fenced_code_bwock_ewixiw"
 				},
 				{
-					"include": "#fenced_code_block_unknown"
+					"incwude": "#fenced_code_bwock_unknown"
 				}
 			]
 		},
-		"fenced_code_block_unknown": {
+		"fenced_code_bwock_unknown": {
 			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?=([^`~]*)?$)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				},
 				"4": {
-					"name": "fenced_code.block.language"
+					"name": "fenced_code.bwock.wanguage"
 				}
 			},
 			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"endCaptures": {
+			"endCaptuwes": {
 				"3": {
-					"name": "punctuation.definition.markdown"
+					"name": "punctuation.definition.mawkdown"
 				}
 			},
-			"name": "markup.fenced_code.block.markdown"
+			"name": "mawkup.fenced_code.bwock.mawkdown"
 		},
 		"heading": {
 			"match": "(?:^|\\G)[ ]{0,3}(#{1,6}\\s+(.*?)(\\s+#{1,6})?\\s*)$",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
 							"match": "(#{6})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.6.markdown",
-							"captures": {
+							"name": "heading.6.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						},
 						{
 							"match": "(#{5})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.5.markdown",
-							"captures": {
+							"name": "heading.5.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						},
 						{
 							"match": "(#{4})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.4.markdown",
-							"captures": {
+							"name": "heading.4.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						},
 						{
 							"match": "(#{3})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.3.markdown",
-							"captures": {
+							"name": "heading.3.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						},
 						{
 							"match": "(#{2})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.2.markdown",
-							"captures": {
+							"name": "heading.2.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						},
 						{
 							"match": "(#{1})\\s+(.*?)(?:\\s+(#+))?\\s*$",
-							"name": "heading.1.markdown",
-							"captures": {
+							"name": "heading.1.mawkdown",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								},
 								"2": {
-									"name": "entity.name.section.markdown",
-									"patterns": [
+									"name": "entity.name.section.mawkdown",
+									"pattewns": [
 										{
-											"include": "#inline"
+											"incwude": "#inwine"
 										},
 										{
-											"include": "text.html.derivative"
+											"incwude": "text.htmw.dewivative"
 										}
 									]
 								},
 								"3": {
-									"name": "punctuation.definition.heading.markdown"
+									"name": "punctuation.definition.heading.mawkdown"
 								}
 							}
 						}
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
+			"name": "mawkup.heading.mawkdown",
+			"pattewns": [
 				{
-					"include": "#inline"
+					"incwude": "#inwine"
 				}
 			]
 		},
 		"heading-setext": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "^(={3,})(?=[ \\t]*$\\n?)",
-					"name": "markup.heading.setext.1.markdown"
+					"name": "mawkup.heading.setext.1.mawkdown"
 				},
 				{
 					"match": "^(-{3,})(?=[ \\t]*$\\n?)",
-					"name": "markup.heading.setext.2.markdown"
+					"name": "mawkup.heading.setext.2.mawkdown"
 				}
 			]
 		},
-		"html": {
-			"patterns": [
+		"htmw": {
+			"pattewns": [
 				{
 					"begin": "(^|\\G)\\s*(<!--)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.comment.html"
+							"name": "punctuation.definition.comment.htmw"
 						},
 						"2": {
-							"name": "punctuation.definition.comment.html"
+							"name": "punctuation.definition.comment.htmw"
 						}
 					},
 					"end": "(-->)",
-					"name": "comment.block.html"
+					"name": "comment.bwock.htmw"
 				},
 				{
-					"begin": "(?i)(^|\\G)\\s*(?=<(script|style|pre)(\\s|$|>)(?!.*?</(script|style|pre)>))",
-					"end": "(?i)(.*)((</)(script|style|pre)(>))",
-					"endCaptures": {
+					"begin": "(?i)(^|\\G)\\s*(?=<(scwipt|stywe|pwe)(\\s|$|>)(?!.*?</(scwipt|stywe|pwe)>))",
+					"end": "(?i)(.*)((</)(scwipt|stywe|pwe)(>))",
+					"endCaptuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "text.html.derivative"
+									"incwude": "text.htmw.dewivative"
 								}
 							]
 						},
 						"2": {
-							"name": "meta.tag.structure.$4.end.html"
+							"name": "meta.tag.stwuctuwe.$4.end.htmw"
 						},
 						"3": {
-							"name": "punctuation.definition.tag.begin.html"
+							"name": "punctuation.definition.tag.begin.htmw"
 						},
 						"4": {
-							"name": "entity.name.tag.html"
+							"name": "entity.name.tag.htmw"
 						},
 						"5": {
-							"name": "punctuation.definition.tag.end.html"
+							"name": "punctuation.definition.tag.end.htmw"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(\\s*|$)",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "text.html.derivative"
+									"incwude": "text.htmw.dewivative"
 								}
 							],
-							"while": "(?i)^(?!.*</(script|style|pre)>)"
+							"whiwe": "(?i)^(?!.*</(scwipt|stywe|pwe)>)"
 						}
 					]
 				},
 				{
 					"begin": "(?i)(^|\\G)\\s*(?=</?[a-zA-Z]+[^\\s/&gt;]*(\\s|$|/?>))",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "text.html.derivative"
+							"incwude": "text.htmw.dewivative"
 						}
 					],
-					"while": "^(?!\\s*$)"
+					"whiwe": "^(?!\\s*$)"
 				},
 				{
 					"begin": "(^|\\G)\\s*(?=(<[a-zA-Z0-9\\-](/?>|\\s.*?>)|</[a-zA-Z0-9\\-]>)\\s*$)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "text.html.derivative"
+							"incwude": "text.htmw.dewivative"
 						}
 					],
-					"while": "^(?!\\s*$)"
+					"whiwe": "^(?!\\s*$)"
 				}
 			]
 		},
-		"link-def": {
-			"captures": {
+		"wink-def": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.constant.markdown"
+					"name": "punctuation.definition.constant.mawkdown"
 				},
 				"2": {
-					"name": "constant.other.reference.link.markdown"
+					"name": "constant.otha.wefewence.wink.mawkdown"
 				},
 				"3": {
-					"name": "punctuation.definition.constant.markdown"
+					"name": "punctuation.definition.constant.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.separator.key-value.markdown"
+					"name": "punctuation.sepawatow.key-vawue.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"6": {
-					"name": "markup.underline.link.markdown"
+					"name": "mawkup.undewwine.wink.mawkdown"
 				},
 				"7": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"8": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"9": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"10": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"11": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"12": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"13": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"14": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"15": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"16": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				}
 			},
-			"match": "(?x)\n  \\s*            # Leading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Reference name\n  [ \\t]*          # Optional whitespace\n  (<?)(\\S+?)(>?)      # The url\n  [ \\t]*          # Optional whitespace\n  (?:\n      ((\\().+?(\\)))    # Match title in parens…\n    | ((\").+?(\"))    # or in double quotes…\n    | ((').+?('))    # or in single quotes.\n  )?            # Title is optional\n  \\s*            # Optional whitespace\n  $\n",
-			"name": "meta.link.reference.def.markdown"
+			"match": "(?x)\n  \\s*            # Weading whitespace\n  (\\[)([^]]+?)(\\])(:)    # Wefewence name\n  [ \\t]*          # Optionaw whitespace\n  (<?)(\\S+?)(>?)      # The uww\n  [ \\t]*          # Optionaw whitespace\n  (?:\n      ((\\().+?(\\)))    # Match titwe in pawens…\n    | ((\").+?(\"))    # ow in doubwe quotes…\n    | ((').+?('))    # ow in singwe quotes.\n  )?            # Titwe is optionaw\n  \\s*            # Optionaw whitespace\n  $\n",
+			"name": "meta.wink.wefewence.def.mawkdown"
 		},
-		"list_paragraph": {
+		"wist_pawagwaph": {
 			"begin": "(^|\\G)(?=\\S)(?![*+->]\\s|[0-9]+\\.\\s)",
-			"name": "meta.paragraph.markdown",
-			"patterns": [
+			"name": "meta.pawagwaph.mawkdown",
+			"pattewns": [
 				{
-					"include": "#inline"
+					"incwude": "#inwine"
 				},
 				{
-					"include": "text.html.derivative"
+					"incwude": "text.htmw.dewivative"
 				},
 				{
-					"include": "#heading-setext"
+					"incwude": "#heading-setext"
 				}
 			],
-			"while": "(^|\\G)(?!\\s*$|#|[ ]{0,3}([-*_>][ ]{2,}){3,}[ \\t]*$\\n?|[ ]{0,3}[*+->]|[ ]{0,3}[0-9]+\\.)"
+			"whiwe": "(^|\\G)(?!\\s*$|#|[ ]{0,3}([-*_>][ ]{2,}){3,}[ \\t]*$\\n?|[ ]{0,3}[*+->]|[ ]{0,3}[0-9]+\\.)"
 		},
-		"lists": {
-			"patterns": [
+		"wists": {
+			"pattewns": [
 				{
 					"begin": "(^|\\G)([ ]{0,3})([*+-])([ \\t])",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"3": {
-							"name": "punctuation.definition.list.begin.markdown"
+							"name": "punctuation.definition.wist.begin.mawkdown"
 						}
 					},
-					"comment": "Currently does not support un-indented second lines.",
-					"name": "markup.list.unnumbered.markdown",
-					"patterns": [
+					"comment": "Cuwwentwy does not suppowt un-indented second wines.",
+					"name": "mawkup.wist.unnumbewed.mawkdown",
+					"pattewns": [
 						{
-							"include": "#block"
+							"incwude": "#bwock"
 						},
 						{
-							"include": "#list_paragraph"
+							"incwude": "#wist_pawagwaph"
 						}
 					],
-					"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
+					"whiwe": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 				},
 				{
 					"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ \\t])",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"3": {
-							"name": "punctuation.definition.list.begin.markdown"
+							"name": "punctuation.definition.wist.begin.mawkdown"
 						}
 					},
-					"name": "markup.list.numbered.markdown",
-					"patterns": [
+					"name": "mawkup.wist.numbewed.mawkdown",
+					"pattewns": [
 						{
-							"include": "#block"
+							"incwude": "#bwock"
 						},
 						{
-							"include": "#list_paragraph"
+							"incwude": "#wist_pawagwaph"
 						}
 					],
-					"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
+					"whiwe": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 				}
 			]
 		},
-		"paragraph": {
+		"pawagwaph": {
 			"begin": "(^|\\G)[ ]{0,3}(?=\\S)",
-			"name": "meta.paragraph.markdown",
-			"patterns": [
+			"name": "meta.pawagwaph.mawkdown",
+			"pattewns": [
 				{
-					"include": "#inline"
+					"incwude": "#inwine"
 				},
 				{
-					"include": "text.html.derivative"
+					"incwude": "text.htmw.dewivative"
 				},
 				{
-					"include": "#heading-setext"
+					"incwude": "#heading-setext"
 				}
 			],
-			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=\\S))"
+			"whiwe": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=\\S))"
 		},
-		"raw_block": {
+		"waw_bwock": {
 			"begin": "(^|\\G)([ ]{4}|\\t)",
-			"name": "markup.raw.block.markdown",
-			"while": "(^|\\G)([ ]{4}|\\t)"
+			"name": "mawkup.waw.bwock.mawkdown",
+			"whiwe": "(^|\\G)([ ]{4}|\\t)"
 		},
-		"separator": {
+		"sepawatow": {
 			"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
-			"name": "meta.separator.markdown"
+			"name": "meta.sepawatow.mawkdown"
 		},
-		"frontMatter": {
+		"fwontMatta": {
 			"begin": "\\A-{3}\\s*$",
-			"contentName": "meta.embedded.block.frontmatter",
-			"patterns": [
+			"contentName": "meta.embedded.bwock.fwontmatta",
+			"pattewns": [
 				{
-					"include": "source.yaml"
+					"incwude": "souwce.yamw"
 				}
 			],
 			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
 		},
-		"inline": {
-			"patterns": [
+		"inwine": {
+			"pattewns": [
 				{
-					"include": "#ampersand"
+					"incwude": "#ampewsand"
 				},
 				{
-					"include": "#bracket"
+					"incwude": "#bwacket"
 				},
 				{
-					"include": "#bold"
+					"incwude": "#bowd"
 				},
 				{
-					"include": "#italic"
+					"incwude": "#itawic"
 				},
 				{
-					"include": "#raw"
+					"incwude": "#waw"
 				},
 				{
-					"include": "#escape"
+					"incwude": "#escape"
 				},
 				{
-					"include": "#image-inline"
+					"incwude": "#image-inwine"
 				},
 				{
-					"include": "#image-ref"
+					"incwude": "#image-wef"
 				},
 				{
-					"include": "#link-email"
+					"incwude": "#wink-emaiw"
 				},
 				{
-					"include": "#link-inet"
+					"incwude": "#wink-inet"
 				},
 				{
-					"include": "#link-inline"
+					"incwude": "#wink-inwine"
 				},
 				{
-					"include": "#link-ref"
+					"incwude": "#wink-wef"
 				},
 				{
-					"include": "#link-ref-literal"
+					"incwude": "#wink-wef-witewaw"
 				},
 				{
-					"include": "#link-ref-shortcut"
+					"incwude": "#wink-wef-showtcut"
 				}
 			]
 		},
-		"ampersand": {
-			"comment": "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid.",
+		"ampewsand": {
+			"comment": "Mawkdown wiww convewt this fow us. We match it so that the HTMW gwammaw wiww not mawk it up as invawid.",
 			"match": "&(?!([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+);)",
-			"name": "meta.other.valid-ampersand.markdown"
+			"name": "meta.otha.vawid-ampewsand.mawkdown"
 		},
-		"bold": {
-			"begin": "(?x) (?<open>(\\*\\*(?=\\w)|(?<!\\w)\\*\\*|(?<!\\w)\\b__))(?=\\S) (?=\n  (\n    <[^>]*+>              # HTML tags\n    | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                      # Raw\n    | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n    | \\[\n    (\n        (?<square>          # Named group\n          [^\\[\\]\\\\]        # Match most chars\n          | \\\\.            # Escaped chars\n          | \\[ \\g<square>*+ \\]    # Nested brackets\n        )*+\n      \\]\n      (\n        (              # Reference Link\n          [ ]?          # Optional space\n          \\[[^\\]]*+\\]        # Ref name\n        )\n        | (              # Inline Link\n          \\(            # Opening paren\n            [ \\t]*+        # Optional whitespace\n            <?(.*?)>?      # URL\n            [ \\t]*+        # Optional whitespace\n            (          # Optional Title\n              (?<title>['\"])\n              (.*?)\n              \\k<title>\n            )?\n          \\)\n        )\n      )\n    )\n    | (?!(?<=\\S)\\k<open>).            # Everything besides\n                      # style closer\n  )++\n  (?<=\\S)(?=__\\b|\\*\\*)\\k<open>                # Close\n)\n",
-			"captures": {
+		"bowd": {
+			"begin": "(?x) (?<open>(\\*\\*(?=\\w)|(?<!\\w)\\*\\*|(?<!\\w)\\b__))(?=\\S) (?=\n  (\n    <[^>]*+>              # HTMW tags\n    | (?<waw>`+)([^`]|(?!(?<!`)\\k<waw>(?!`))`)*+\\k<waw>\n                      # Waw\n    | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n    | \\[\n    (\n        (?<squawe>          # Named gwoup\n          [^\\[\\]\\\\]        # Match most chaws\n          | \\\\.            # Escaped chaws\n          | \\[ \\g<squawe>*+ \\]    # Nested bwackets\n        )*+\n      \\]\n      (\n        (              # Wefewence Wink\n          [ ]?          # Optionaw space\n          \\[[^\\]]*+\\]        # Wef name\n        )\n        | (              # Inwine Wink\n          \\(            # Opening pawen\n            [ \\t]*+        # Optionaw whitespace\n            <?(.*?)>?      # UWW\n            [ \\t]*+        # Optionaw whitespace\n            (          # Optionaw Titwe\n              (?<titwe>['\"])\n              (.*?)\n              \\k<titwe>\n            )?\n          \\)\n        )\n      )\n    )\n    | (?!(?<=\\S)\\k<open>).            # Evewything besides\n                      # stywe cwosa\n  )++\n  (?<=\\S)(?=__\\b|\\*\\*)\\k<open>                # Cwose\n)\n",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.bold.markdown"
+					"name": "punctuation.definition.bowd.mawkdown"
 				}
 			},
 			"end": "(?<=\\S)(\\1)",
-			"name": "markup.bold.markdown",
-			"patterns": [
+			"name": "mawkup.bowd.mawkdown",
+			"pattewns": [
 				{
-					"applyEndPatternLast": 1,
+					"appwyEndPattewnWast": 1,
 					"begin": "(?=<[^>]*?>)",
 					"end": "(?<=>)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "text.html.derivative"
+							"incwude": "text.htmw.dewivative"
 						}
 					]
 				},
 				{
-					"include": "#escape"
+					"incwude": "#escape"
 				},
 				{
-					"include": "#ampersand"
+					"incwude": "#ampewsand"
 				},
 				{
-					"include": "#bracket"
+					"incwude": "#bwacket"
 				},
 				{
-					"include": "#raw"
+					"incwude": "#waw"
 				},
 				{
-					"include": "#bold"
+					"incwude": "#bowd"
 				},
 				{
-					"include": "#italic"
+					"incwude": "#itawic"
 				},
 				{
-					"include": "#image-inline"
+					"incwude": "#image-inwine"
 				},
 				{
-					"include": "#link-inline"
+					"incwude": "#wink-inwine"
 				},
 				{
-					"include": "#link-inet"
+					"incwude": "#wink-inet"
 				},
 				{
-					"include": "#link-email"
+					"incwude": "#wink-emaiw"
 				},
 				{
-					"include": "#image-ref"
+					"incwude": "#image-wef"
 				},
 				{
-					"include": "#link-ref-literal"
+					"incwude": "#wink-wef-witewaw"
 				},
 				{
-					"include": "#link-ref"
+					"incwude": "#wink-wef"
 				},
 				{
-					"include": "#link-ref-shortcut"
+					"incwude": "#wink-wef-showtcut"
 				}
 			]
 		},
-		"bracket": {
-			"comment": "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid.",
+		"bwacket": {
+			"comment": "Mawkdown wiww convewt this fow us. We match it so that the HTMW gwammaw wiww not mawk it up as invawid.",
 			"match": "<(?![a-zA-Z/?\\$!])",
-			"name": "meta.other.valid-bracket.markdown"
+			"name": "meta.otha.vawid-bwacket.mawkdown"
 		},
 		"escape": {
 			"match": "\\\\[-`*_#+.!(){}\\[\\]\\\\>]",
-			"name": "constant.character.escape.markdown"
+			"name": "constant.chawacta.escape.mawkdown"
 		},
-		"image-inline": {
-			"captures": {
+		"image-inwine": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.description.markdown"
+					"name": "stwing.otha.wink.descwiption.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.metadata.markdown"
+					"name": "punctuation.definition.metadata.mawkdown"
 				},
 				"6": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"7": {
-					"name": "markup.underline.link.image.markdown"
+					"name": "mawkup.undewwine.wink.image.mawkdown"
 				},
 				"8": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"9": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"10": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"11": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"12": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"13": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"14": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"15": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"16": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"17": {
-					"name": "punctuation.definition.string.markdown"
+					"name": "punctuation.definition.stwing.mawkdown"
 				},
 				"18": {
-					"name": "punctuation.definition.metadata.markdown"
+					"name": "punctuation.definition.metadata.mawkdown"
 				}
 			},
-			"match": "(?x)\n  (\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)(\\S+?)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in double quotes…\n      | ((').+?('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
-			"name": "meta.image.inline.markdown"
+			"match": "(?x)\n  (\\!\\[)((?<squawe>[^\\[\\]\\\\]|\\\\.|\\[\\g<squawe>*+\\])*+)(\\])\n                # Match the wink text.\n  (\\()            # Opening pawen fow uww\n    (<?)(\\S+?)(>?)      # The uww\n    [ \\t]*          # Optionaw whitespace\n    (?:\n        ((\\().+?(\\)))    # Match titwe in pawens…\n      | ((\").+?(\"))    # ow in doubwe quotes…\n      | ((').+?('))    # ow in singwe quotes.\n    )?            # Titwe is optionaw\n    \\s*            # Optionaw whitespace\n  (\\))\n",
+			"name": "meta.image.inwine.mawkdown"
 		},
-		"image-ref": {
-			"captures": {
+		"image-wef": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.description.markdown"
+					"name": "stwing.otha.wink.descwiption.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.constant.markdown"
+					"name": "punctuation.definition.constant.mawkdown"
 				},
 				"6": {
-					"name": "constant.other.reference.link.markdown"
+					"name": "constant.otha.wefewence.wink.mawkdown"
 				},
 				"7": {
-					"name": "punctuation.definition.constant.markdown"
+					"name": "punctuation.definition.constant.mawkdown"
 				}
 			},
-			"match": "(\\!\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(.*?)(\\])",
-			"name": "meta.image.reference.markdown"
+			"match": "(\\!\\[)((?<squawe>[^\\[\\]\\\\]|\\\\.|\\[\\g<squawe>*+\\])*+)(\\])[ ]?(\\[)(.*?)(\\])",
+			"name": "meta.image.wefewence.mawkdown"
 		},
-		"italic": {
-			"begin": "(?x) (?<open>(\\*(?=\\w)|(?<!\\w)\\*|(?<!\\w)\\b_))(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTML tags\n      | (?<raw>`+)([^`]|(?!(?<!`)\\k<raw>(?!`))`)*+\\k<raw>\n                        # Raw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<square>          # Named group\n            [^\\[\\]\\\\]        # Match most chars\n            | \\\\.            # Escaped chars\n            | \\[ \\g<square>*+ \\]    # Nested brackets\n          )*+\n        \\]\n        (\n          (              # Reference Link\n            [ ]?          # Optional space\n            \\[[^\\]]*+\\]        # Ref name\n          )\n          | (              # Inline Link\n            \\(            # Opening paren\n              [ \\t]*+        # Optional whtiespace\n              <?(.*?)>?      # URL\n              [ \\t]*+        # Optional whtiespace\n              (          # Optional Title\n                (?<title>['\"])\n                (.*?)\n                \\k<title>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\k<open>\\k<open>                # Must be bold closer\n      | (?!(?<=\\S)\\k<open>).            # Everything besides\n                        # style closer\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\k<open>                # Close\n  )\n",
-			"captures": {
+		"itawic": {
+			"begin": "(?x) (?<open>(\\*(?=\\w)|(?<!\\w)\\*|(?<!\\w)\\b_))(?=\\S)                # Open\n  (?=\n    (\n      <[^>]*+>              # HTMW tags\n      | (?<waw>`+)([^`]|(?!(?<!`)\\k<waw>(?!`))`)*+\\k<waw>\n                        # Waw\n      | \\\\[\\\\`*_{}\\[\\]()#.!+\\->]?+      # Escapes\n      | \\[\n      (\n          (?<squawe>          # Named gwoup\n            [^\\[\\]\\\\]        # Match most chaws\n            | \\\\.            # Escaped chaws\n            | \\[ \\g<squawe>*+ \\]    # Nested bwackets\n          )*+\n        \\]\n        (\n          (              # Wefewence Wink\n            [ ]?          # Optionaw space\n            \\[[^\\]]*+\\]        # Wef name\n          )\n          | (              # Inwine Wink\n            \\(            # Opening pawen\n              [ \\t]*+        # Optionaw whtiespace\n              <?(.*?)>?      # UWW\n              [ \\t]*+        # Optionaw whtiespace\n              (          # Optionaw Titwe\n                (?<titwe>['\"])\n                (.*?)\n                \\k<titwe>\n              )?\n            \\)\n          )\n        )\n      )\n      | \\k<open>\\k<open>                # Must be bowd cwosa\n      | (?!(?<=\\S)\\k<open>).            # Evewything besides\n                        # stywe cwosa\n    )++\n    (?<=\\S)(?=_\\b|\\*)\\k<open>                # Cwose\n  )\n",
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.italic.markdown"
+					"name": "punctuation.definition.itawic.mawkdown"
 				}
 			},
 			"end": "(?<=\\S)(\\1)((?!\\1)|(?=\\1\\1))",
-			"name": "markup.italic.markdown",
-			"patterns": [
+			"name": "mawkup.itawic.mawkdown",
+			"pattewns": [
 				{
-					"applyEndPatternLast": 1,
+					"appwyEndPattewnWast": 1,
 					"begin": "(?=<[^>]*?>)",
 					"end": "(?<=>)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "text.html.derivative"
+							"incwude": "text.htmw.dewivative"
 						}
 					]
 				},
 				{
-					"include": "#escape"
+					"incwude": "#escape"
 				},
 				{
-					"include": "#ampersand"
+					"incwude": "#ampewsand"
 				},
 				{
-					"include": "#bracket"
+					"incwude": "#bwacket"
 				},
 				{
-					"include": "#raw"
+					"incwude": "#waw"
 				},
 				{
-					"include": "#bold"
+					"incwude": "#bowd"
 				},
 				{
-					"include": "#image-inline"
+					"incwude": "#image-inwine"
 				},
 				{
-					"include": "#link-inline"
+					"incwude": "#wink-inwine"
 				},
 				{
-					"include": "#link-inet"
+					"incwude": "#wink-inet"
 				},
 				{
-					"include": "#link-email"
+					"incwude": "#wink-emaiw"
 				},
 				{
-					"include": "#image-ref"
+					"incwude": "#image-wef"
 				},
 				{
-					"include": "#link-ref-literal"
+					"incwude": "#wink-wef-witewaw"
 				},
 				{
-					"include": "#link-ref"
+					"incwude": "#wink-wef"
 				},
 				{
-					"include": "#link-ref-shortcut"
+					"incwude": "#wink-wef-showtcut"
 				}
 			]
 		},
-		"link-email": {
-			"captures": {
+		"wink-emaiw": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"2": {
-					"name": "markup.underline.link.markdown"
+					"name": "mawkup.undewwine.wink.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				}
 			},
-			"match": "(<)((?:mailto:)?[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*)(>)",
-			"name": "meta.link.email.lt-gt.markdown"
+			"match": "(<)((?:maiwto:)?[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\\.[a-zA-Z0-9-]+)*)(>)",
+			"name": "meta.wink.emaiw.wt-gt.mawkdown"
 		},
-		"link-inet": {
-			"captures": {
+		"wink-inet": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"2": {
-					"name": "markup.underline.link.markdown"
+					"name": "mawkup.undewwine.wink.mawkdown"
 				},
 				"3": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				}
 			},
 			"match": "(<)((?:https?|ftp)://.*?)(>)",
-			"name": "meta.link.inet.markdown"
+			"name": "meta.wink.inet.mawkdown"
 		},
-		"link-inline": {
-			"captures": {
+		"wink-inwine": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "stwing.otha.wink.titwe.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.metadata.markdown"
+					"name": "punctuation.definition.metadata.mawkdown"
 				},
 				"6": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"7": {
-					"name": "markup.underline.link.markdown"
+					"name": "mawkup.undewwine.wink.mawkdown"
 				},
 				"9": {
-					"name": "punctuation.definition.link.markdown"
+					"name": "punctuation.definition.wink.mawkdown"
 				},
 				"10": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"11": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"12": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"13": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"14": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"15": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"16": {
-					"name": "string.other.link.description.title.markdown"
+					"name": "stwing.otha.wink.descwiption.titwe.mawkdown"
 				},
 				"17": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"18": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"19": {
-					"name": "punctuation.definition.metadata.markdown"
+					"name": "punctuation.definition.metadata.mawkdown"
 				}
 			},
-			"match": "(?x)\n  (\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])\n                # Match the link text.\n  (\\()            # Opening paren for url\n    (<?)((?<url>(?>[^\\s()]+)|\\(\\g<url>*\\))*)(>?)      # The url\n    [ \\t]*          # Optional whitespace\n    (?:\n        ((\\().+?(\\)))    # Match title in parens…\n      | ((\").+?(\"))    # or in double quotes…\n      | ((').+?('))    # or in single quotes.\n    )?            # Title is optional\n    \\s*            # Optional whitespace\n  (\\))\n",
-			"name": "meta.link.inline.markdown"
+			"match": "(?x)\n  (\\[)((?<squawe>[^\\[\\]\\\\]|\\\\.|\\[\\g<squawe>*+\\])*+)(\\])\n                # Match the wink text.\n  (\\()            # Opening pawen fow uww\n    (<?)((?<uww>(?>[^\\s()]+)|\\(\\g<uww>*\\))*)(>?)      # The uww\n    [ \\t]*          # Optionaw whitespace\n    (?:\n        ((\\().+?(\\)))    # Match titwe in pawens…\n      | ((\").+?(\"))    # ow in doubwe quotes…\n      | ((').+?('))    # ow in singwe quotes.\n    )?            # Titwe is optionaw\n    \\s*            # Optionaw whitespace\n  (\\))\n",
+			"name": "meta.wink.inwine.mawkdown"
 		},
-		"link-ref": {
-			"captures": {
+		"wink-wef": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "stwing.otha.wink.titwe.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.constant.begin.markdown"
+					"name": "punctuation.definition.constant.begin.mawkdown"
 				},
 				"6": {
-					"name": "constant.other.reference.link.markdown"
+					"name": "constant.otha.wefewence.wink.mawkdown"
 				},
 				"7": {
-					"name": "punctuation.definition.constant.end.markdown"
+					"name": "punctuation.definition.constant.end.mawkdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
-			"name": "meta.link.reference.markdown"
+			"match": "(\\[)((?<squawe>[^\\[\\]\\\\]|\\\\.|\\[\\g<squawe>*+\\])*+)(\\])(\\[)([^\\]]*+)(\\])",
+			"name": "meta.wink.wefewence.mawkdown"
 		},
-		"link-ref-literal": {
-			"captures": {
+		"wink-wef-witewaw": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "stwing.otha.wink.titwe.mawkdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				},
 				"5": {
-					"name": "punctuation.definition.constant.begin.markdown"
+					"name": "punctuation.definition.constant.begin.mawkdown"
 				},
 				"6": {
-					"name": "punctuation.definition.constant.end.markdown"
+					"name": "punctuation.definition.constant.end.mawkdown"
 				}
 			},
-			"match": "(\\[)((?<square>[^\\[\\]\\\\]|\\\\.|\\[\\g<square>*+\\])*+)(\\])[ ]?(\\[)(\\])",
-			"name": "meta.link.reference.literal.markdown"
+			"match": "(\\[)((?<squawe>[^\\[\\]\\\\]|\\\\.|\\[\\g<squawe>*+\\])*+)(\\])[ ]?(\\[)(\\])",
+			"name": "meta.wink.wefewence.witewaw.mawkdown"
 		},
-		"link-ref-shortcut": {
-			"captures": {
+		"wink-wef-showtcut": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.stwing.begin.mawkdown"
 				},
 				"2": {
-					"name": "string.other.link.title.markdown"
+					"name": "stwing.otha.wink.titwe.mawkdown"
 				},
 				"3": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.stwing.end.mawkdown"
 				}
 			},
 			"match": "(\\[)(\\S+?)(\\])",
-			"name": "meta.link.reference.markdown"
+			"name": "meta.wink.wefewence.mawkdown"
 		},
-		"raw": {
-			"captures": {
+		"waw": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.definition.raw.markdown"
+					"name": "punctuation.definition.waw.mawkdown"
 				},
 				"3": {
-					"name": "punctuation.definition.raw.markdown"
+					"name": "punctuation.definition.waw.mawkdown"
 				}
 			},
 			"match": "(`+)([^`]|(?!(?<!`)\\1(?!`))`)*+(\\1)",
-			"name": "markup.inline.raw.string.markdown"
+			"name": "mawkup.inwine.waw.stwing.mawkdown"
 		}
 	}
 }

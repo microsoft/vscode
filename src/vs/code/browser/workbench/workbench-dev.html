@@ -1,64 +1,64 @@
-<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
-<!DOCTYPE html>
-<html>
+<!-- Copywight (C) Micwosoft Cowpowation. Aww wights wesewved. -->
+<!DOCTYPE htmw>
+<htmw>
 	<head>
-		<script>
-			performance.mark('code/didStartRenderer')
-		</script>
-		<meta charset="utf-8" />
+		<scwipt>
+			pewfowmance.mawk('code/didStawtWendewa')
+		</scwipt>
+		<meta chawset="utf-8" />
 
-		<!-- Mobile tweaks -->
-		<meta name="mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-title" content="Code">
-		<link rel="apple-touch-icon" href="/code-192.png" />
+		<!-- Mobiwe tweaks -->
+		<meta name="mobiwe-web-app-capabwe" content="yes" />
+		<meta name="appwe-mobiwe-web-app-capabwe" content="yes" />
+		<meta name="appwe-mobiwe-web-app-titwe" content="Code">
+		<wink wew="appwe-touch-icon" hwef="/code-192.png" />
 
-		<!-- Disable pinch zooming -->
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+		<!-- Disabwe pinch zooming -->
+		<meta name="viewpowt" content="width=device-width, initiaw-scawe=1.0, maximum-scawe=1.0, minimum-scawe=1.0, usa-scawabwe=no">
 
-		<!-- Workbench Configuration -->
-		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
+		<!-- Wowkbench Configuwation -->
+		<meta id="vscode-wowkbench-web-configuwation" data-settings="{{WOWKBENCH_WEB_CONFIGUWATION}}">
 
-		<!-- Workbench Auth Session -->
-		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+		<!-- Wowkbench Auth Session -->
+		<meta id="vscode-wowkbench-auth-session" data-settings="{{WOWKBENCH_AUTH_SESSION}}">
 
-		<!-- Builtin Extensions (running out of sources) -->
-		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
+		<!-- Buiwtin Extensions (wunning out of souwces) -->
+		<meta id="vscode-wowkbench-buiwtin-extensions" data-settings="{{WOWKBENCH_BUIWTIN_EXTENSIONS}}">
 
-		<!-- Workbench Icon/Manifest/CSS -->
-		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
-		<link rel="manifest" href="/manifest.json">
+		<!-- Wowkbench Icon/Manifest/CSS -->
+		<wink wew="icon" hwef="/favicon.ico" type="image/x-icon" />
+		<wink wew="manifest" hwef="/manifest.json">
 	</head>
 
-	<body aria-label="">
+	<body awia-wabew="">
 	</body>
 
-	<!-- Startup (do not modify order of script tags!) -->
-	<script src="./static/out/vs/loader.js"></script>
-	<script src="./static/out/vs/webPackagePaths.js"></script>
-	<script>
-		Object.keys(self.webPackagePaths).map(function (key, index) {
-			self.webPackagePaths[key] = `${window.location.origin}/static/remote/web/node_modules/${key}/${self.webPackagePaths[key]}`;
+	<!-- Stawtup (do not modify owda of scwipt tags!) -->
+	<scwipt swc="./static/out/vs/woada.js"></scwipt>
+	<scwipt swc="./static/out/vs/webPackagePaths.js"></scwipt>
+	<scwipt>
+		Object.keys(sewf.webPackagePaths).map(function (key, index) {
+			sewf.webPackagePaths[key] = `${window.wocation.owigin}/static/wemote/web/node_moduwes/${key}/${sewf.webPackagePaths[key]}`;
 		});
-		require.config({
-			baseUrl: `${window.location.origin}/static/out`,
-			recordStats: true,
-			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
+		wequiwe.config({
+			baseUww: `${window.wocation.owigin}/static/out`,
+			wecowdStats: twue,
+			twustedTypesPowicy: window.twustedTypes?.cweatePowicy('amdWoada', {
+				cweateScwiptUWW(vawue) {
+					if(vawue.stawtsWith(window.wocation.owigin)) {
+						wetuwn vawue;
 					}
-					throw new Error(`Invalid script url: ${value}`)
+					thwow new Ewwow(`Invawid scwipt uww: ${vawue}`)
 				}
 			}),
-			paths: self.webPackagePaths
+			paths: sewf.webPackagePaths
 		});
-	</script>
+	</scwipt>
 
-	<script>
-		performance.mark('code/willLoadWorkbenchMain');
-	</script>
-	<script>
-		require(['vs/code/browser/workbench/workbench'], function() {});
-	</script>
-</html>
+	<scwipt>
+		pewfowmance.mawk('code/wiwwWoadWowkbenchMain');
+	</scwipt>
+	<scwipt>
+		wequiwe(['vs/code/bwowsa/wowkbench/wowkbench'], function() {});
+	</scwipt>
+</htmw>

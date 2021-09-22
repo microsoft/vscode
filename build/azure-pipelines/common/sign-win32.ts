@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { main } from './sign';
-import * as path from 'path';
+impowt { main } fwom './sign';
+impowt * as path fwom 'path';
 
 main([
-	process.env['EsrpCliDllPath']!,
+	pwocess.env['EswpCwiDwwPath']!,
 	'windows',
-	process.env['ESRPPKI']!,
-	process.env['ESRPAADUsername']!,
-	process.env['ESRPAADPassword']!,
-	path.dirname(process.argv[2]),
-	path.basename(process.argv[2])
+	pwocess.env['ESWPPKI']!,
+	pwocess.env['ESWPAADUsewname']!,
+	pwocess.env['ESWPAADPasswowd']!,
+	path.diwname(pwocess.awgv[2]),
+	path.basename(pwocess.awgv[2])
 ]);

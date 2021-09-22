@@ -1,457 +1,457 @@
 {
-	"$schema": "vscode://schemas/color-theme",
-	"name": "Dark High Contrast",
-	"colors": {
-		"editor.background": "#000000",
-		"editor.foreground": "#FFFFFF",
-		"editorIndentGuide.background": "#FFFFFF",
-		"editorIndentGuide.activeBackground": "#FFFFFF",
-		"sideBarTitle.foreground": "#FFFFFF",
-		"selection.background": "#008000",
-		"editor.selectionBackground": "#FFFFFF",
-		"statusBarItem.remoteBackground": "#00000000",
-		"ports.iconRunningProcessForeground": "#FFFFFF",
-		"editorWhitespace.foreground": "#7c7c7c"
+	"$schema": "vscode://schemas/cowow-theme",
+	"name": "Dawk High Contwast",
+	"cowows": {
+		"editow.backgwound": "#000000",
+		"editow.fowegwound": "#FFFFFF",
+		"editowIndentGuide.backgwound": "#FFFFFF",
+		"editowIndentGuide.activeBackgwound": "#FFFFFF",
+		"sideBawTitwe.fowegwound": "#FFFFFF",
+		"sewection.backgwound": "#008000",
+		"editow.sewectionBackgwound": "#FFFFFF",
+		"statusBawItem.wemoteBackgwound": "#00000000",
+		"powts.iconWunningPwocessFowegwound": "#FFFFFF",
+		"editowWhitespace.fowegwound": "#7c7c7c"
 	},
-	"tokenColors": [
+	"tokenCowows": [
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"souwce.gwoovy.embedded"
 			],
 			"settings": {
-				"foreground": "#FFFFFF"
+				"fowegwound": "#FFFFFF"
 			}
 		},
 		{
 			"scope": "emphasis",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStywe": "itawic"
 			}
 		},
 		{
-			"scope": "strong",
+			"scope": "stwong",
 			"settings": {
-				"fontStyle": "bold"
+				"fontStywe": "bowd"
 			}
 		},
 		{
-			"scope": "meta.diff.header",
+			"scope": "meta.diff.heada",
 			"settings": {
-				"foreground": "#000080"
+				"fowegwound": "#000080"
 			}
 		},
 		{
 			"scope": "comment",
 			"settings": {
-				"foreground": "#7ca668"
+				"fowegwound": "#7ca668"
 			}
 		},
 		{
-			"scope": "constant.language",
+			"scope": "constant.wanguage",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
 			"scope": [
-				"constant.numeric",
-				"constant.other.color.rgb-value",
-				"constant.other.rgb-value",
-				"support.constant.color"
+				"constant.numewic",
+				"constant.otha.cowow.wgb-vawue",
+				"constant.otha.wgb-vawue",
+				"suppowt.constant.cowow"
 			],
 			"settings": {
-				"foreground": "#b5cea8"
+				"fowegwound": "#b5cea8"
 			}
 		},
 		{
-			"scope": "constant.regexp",
+			"scope": "constant.wegexp",
 			"settings": {
-				"foreground": "#b46695"
+				"fowegwound": "#b46695"
 			}
 		},
 		{
-			"scope": "constant.character",
+			"scope": "constant.chawacta",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
 			"scope": "entity.name.tag",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
 			"scope": "entity.name.tag.css",
 			"settings": {
-				"foreground": "#d7ba7d"
+				"fowegwound": "#d7ba7d"
 			}
 		},
 		{
-			"scope": "entity.other.attribute-name",
+			"scope": "entity.otha.attwibute-name",
 			"settings": {
-				"foreground": "#9cdcfe"
+				"fowegwound": "#9cdcfe"
 			}
 		},
 		{
 			"scope": [
-				"entity.other.attribute-name.class.css",
-				"entity.other.attribute-name.class.mixin.css",
-				"entity.other.attribute-name.id.css",
-				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.pseudo-class.css",
-				"entity.other.attribute-name.pseudo-element.css",
-				"source.css.less entity.other.attribute-name.id",
-				"entity.other.attribute-name.scss"
+				"entity.otha.attwibute-name.cwass.css",
+				"entity.otha.attwibute-name.cwass.mixin.css",
+				"entity.otha.attwibute-name.id.css",
+				"entity.otha.attwibute-name.pawent-sewectow.css",
+				"entity.otha.attwibute-name.pseudo-cwass.css",
+				"entity.otha.attwibute-name.pseudo-ewement.css",
+				"souwce.css.wess entity.otha.attwibute-name.id",
+				"entity.otha.attwibute-name.scss"
 			],
 			"settings": {
-				"foreground": "#d7ba7d"
+				"fowegwound": "#d7ba7d"
 			}
 		},
 		{
-			"scope": "invalid",
+			"scope": "invawid",
 			"settings": {
-				"foreground": "#f44747"
+				"fowegwound": "#f44747"
 			}
 		},
 		{
-			"scope": "markup.underline",
+			"scope": "mawkup.undewwine",
 			"settings": {
-				"fontStyle": "underline"
+				"fontStywe": "undewwine"
 			}
 		},
 		{
-			"scope": "markup.bold",
+			"scope": "mawkup.bowd",
 			"settings": {
-				"fontStyle": "bold"
+				"fontStywe": "bowd"
 			}
 		},
 		{
-			"scope": "markup.heading",
+			"scope": "mawkup.heading",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#6796e6"
+				"fontStywe": "bowd",
+				"fowegwound": "#6796e6"
 			}
 		},
 		{
-			"scope": "markup.italic",
+			"scope": "mawkup.itawic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStywe": "itawic"
 			}
 		},
 		{
-			"scope": "markup.inserted",
+			"scope": "mawkup.insewted",
 			"settings": {
-				"foreground": "#b5cea8"
+				"fowegwound": "#b5cea8"
 			}
 		},
 		{
-			"scope": "markup.deleted",
+			"scope": "mawkup.deweted",
 			"settings": {
-				"foreground": "#ce9178"
+				"fowegwound": "#ce9178"
 			}
 		},
 		{
-			"scope": "markup.changed",
+			"scope": "mawkup.changed",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"name": "brackets of XML/HTML tags",
+			"name": "bwackets of XMW/HTMW tags",
 			"scope": [
 				"punctuation.definition.tag"
 			],
 			"settings": {
-				"foreground": "#808080"
+				"fowegwound": "#808080"
 			}
 		},
 		{
-			"scope": "meta.preprocessor",
+			"scope": "meta.pwepwocessow",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "meta.preprocessor.string",
+			"scope": "meta.pwepwocessow.stwing",
 			"settings": {
-				"foreground": "#ce9178"
+				"fowegwound": "#ce9178"
 			}
 		},
 		{
-			"scope": "meta.preprocessor.numeric",
+			"scope": "meta.pwepwocessow.numewic",
 			"settings": {
-				"foreground": "#b5cea8"
+				"fowegwound": "#b5cea8"
 			}
 		},
 		{
-			"scope": "meta.structure.dictionary.key.python",
+			"scope": "meta.stwuctuwe.dictionawy.key.python",
 			"settings": {
-				"foreground": "#9cdcfe"
+				"fowegwound": "#9cdcfe"
 			}
 		},
 		{
-			"scope": "storage",
+			"scope": "stowage",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "storage.type",
+			"scope": "stowage.type",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "storage.modifier",
+			"scope": "stowage.modifia",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "string",
+			"scope": "stwing",
 			"settings": {
-				"foreground": "#ce9178"
+				"fowegwound": "#ce9178"
 			}
 		},
 		{
-			"scope": "string.tag",
+			"scope": "stwing.tag",
 			"settings": {
-				"foreground": "#ce9178"
+				"fowegwound": "#ce9178"
 			}
 		},
 		{
-			"scope": "string.value",
+			"scope": "stwing.vawue",
 			"settings": {
-				"foreground": "#ce9178"
+				"fowegwound": "#ce9178"
 			}
 		},
 		{
-			"scope": "string.regexp",
+			"scope": "stwing.wegexp",
 			"settings": {
-				"foreground": "#d16969"
+				"fowegwound": "#d16969"
 			}
 		},
 		{
-			"name": "String interpolation",
+			"name": "Stwing intewpowation",
 			"scope": [
-				"punctuation.definition.template-expression.begin",
-				"punctuation.definition.template-expression.end",
+				"punctuation.definition.tempwate-expwession.begin",
+				"punctuation.definition.tempwate-expwession.end",
 				"punctuation.section.embedded"
 			],
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"name": "Reset JavaScript string interpolation expression",
+			"name": "Weset JavaScwipt stwing intewpowation expwession",
 			"scope": [
-				"meta.template.expression"
+				"meta.tempwate.expwession"
 			],
 			"settings": {
-				"foreground": "#ffffff"
-			}
-		},
-		{
-			"scope": [
-				"support.type.vendored.property-name",
-				"support.type.property-name",
-				"variable.css",
-				"variable.scss",
-				"variable.other.less",
-				"source.coffee.embedded"
-			],
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
-			"scope": "keyword",
-			"settings": {
-				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "keyword.control",
-			"settings": {
-				"foreground": "#569cd6"
-			}
-		},
-		{
-			"scope": "keyword.operator",
-			"settings": {
-				"foreground": "#d4d4d4"
+				"fowegwound": "#ffffff"
 			}
 		},
 		{
 			"scope": [
-				"keyword.operator.new",
-				"keyword.operator.expression",
-				"keyword.operator.cast",
-				"keyword.operator.sizeof",
-				"keyword.operator.logical.python"
+				"suppowt.type.vendowed.pwopewty-name",
+				"suppowt.type.pwopewty-name",
+				"vawiabwe.css",
+				"vawiabwe.scss",
+				"vawiabwe.otha.wess",
+				"souwce.coffee.embedded"
 			],
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#d4d4d4"
 			}
 		},
 		{
-			"scope": "keyword.other.unit",
+			"scope": "keywowd",
 			"settings": {
-				"foreground": "#b5cea8"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "support.function.git-rebase",
+			"scope": "keywowd.contwow",
 			"settings": {
-				"foreground": "#d4d4d4"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"scope": "constant.sha.git-rebase",
+			"scope": "keywowd.opewatow",
 			"settings": {
-				"foreground": "#b5cea8"
+				"fowegwound": "#d4d4d4"
 			}
 		},
 		{
-			"name": "coloring of the Java import and package identifiers",
 			"scope": [
-				"storage.modifier.import.java",
-				"variable.language.wildcard.java",
-				"storage.modifier.package.java"
+				"keywowd.opewatow.new",
+				"keywowd.opewatow.expwession",
+				"keywowd.opewatow.cast",
+				"keywowd.opewatow.sizeof",
+				"keywowd.opewatow.wogicaw.python"
 			],
 			"settings": {
-				"foreground": "#d4d4d4"
+				"fowegwound": "#569cd6"
 			}
 		},
 		{
-			"name": "coloring of the TS this",
-			"scope": "variable.language.this",
+			"scope": "keywowd.otha.unit",
 			"settings": {
-				"foreground": "#569cd6"
+				"fowegwound": "#b5cea8"
 			}
 		},
 		{
-			"name": "Function declarations",
+			"scope": "suppowt.function.git-webase",
+			"settings": {
+				"fowegwound": "#d4d4d4"
+			}
+		},
+		{
+			"scope": "constant.sha.git-webase",
+			"settings": {
+				"fowegwound": "#b5cea8"
+			}
+		},
+		{
+			"name": "cowowing of the Java impowt and package identifiews",
+			"scope": [
+				"stowage.modifia.impowt.java",
+				"vawiabwe.wanguage.wiwdcawd.java",
+				"stowage.modifia.package.java"
+			],
+			"settings": {
+				"fowegwound": "#d4d4d4"
+			}
+		},
+		{
+			"name": "cowowing of the TS this",
+			"scope": "vawiabwe.wanguage.this",
+			"settings": {
+				"fowegwound": "#569cd6"
+			}
+		},
+		{
+			"name": "Function decwawations",
 			"scope": [
 				"entity.name.function",
-				"support.function",
-				"support.constant.handlebars",
-				"source.powershell variable.other.member"
+				"suppowt.function",
+				"suppowt.constant.handwebaws",
+				"souwce.powewsheww vawiabwe.otha.memba"
 			],
 			"settings": {
-				"foreground": "#DCDCAA"
+				"fowegwound": "#DCDCAA"
 			}
 		},
 		{
-			"name": "Types declaration and references",
+			"name": "Types decwawation and wefewences",
 			"scope": [
-				"meta.return-type",
-				"support.class",
-				"support.type",
+				"meta.wetuwn-type",
+				"suppowt.cwass",
+				"suppowt.type",
 				"entity.name.type",
 				"entity.name.namespace",
-				"entity.name.scope-resolution",
-				"entity.name.class",
-				"storage.type.cs",
-				"storage.type.generic.cs",
-				"storage.type.modifier.cs",
-				"storage.type.variable.cs",
-				"storage.type.annotation.java",
-				"storage.type.generic.java",
-				"storage.type.java",
-				"storage.type.object.array.java",
-				"storage.type.primitive.array.java",
-				"storage.type.primitive.java",
-				"storage.type.token.java",
-				"storage.type.groovy",
-				"storage.type.annotation.groovy",
-				"storage.type.parameters.groovy",
-				"storage.type.generic.groovy",
-				"storage.type.object.array.groovy",
-				"storage.type.primitive.array.groovy",
-				"storage.type.primitive.groovy"
+				"entity.name.scope-wesowution",
+				"entity.name.cwass",
+				"stowage.type.cs",
+				"stowage.type.genewic.cs",
+				"stowage.type.modifia.cs",
+				"stowage.type.vawiabwe.cs",
+				"stowage.type.annotation.java",
+				"stowage.type.genewic.java",
+				"stowage.type.java",
+				"stowage.type.object.awway.java",
+				"stowage.type.pwimitive.awway.java",
+				"stowage.type.pwimitive.java",
+				"stowage.type.token.java",
+				"stowage.type.gwoovy",
+				"stowage.type.annotation.gwoovy",
+				"stowage.type.pawametews.gwoovy",
+				"stowage.type.genewic.gwoovy",
+				"stowage.type.object.awway.gwoovy",
+				"stowage.type.pwimitive.awway.gwoovy",
+				"stowage.type.pwimitive.gwoovy"
 			],
 			"settings": {
-				"foreground": "#4EC9B0"
+				"fowegwound": "#4EC9B0"
 			}
 		},
 		{
-			"name": "Types declaration and references, TS grammar specific",
+			"name": "Types decwawation and wefewences, TS gwammaw specific",
 			"scope": [
-				"meta.type.cast.expr",
-				"meta.type.new.expr",
-				"support.constant.math",
-				"support.constant.dom",
-				"support.constant.json",
-				"entity.other.inherited-class"
+				"meta.type.cast.expw",
+				"meta.type.new.expw",
+				"suppowt.constant.math",
+				"suppowt.constant.dom",
+				"suppowt.constant.json",
+				"entity.otha.inhewited-cwass"
 			],
 			"settings": {
-				"foreground": "#4EC9B0"
+				"fowegwound": "#4EC9B0"
 			}
 		},
 		{
-			"name": "Control flow / Special keywords",
+			"name": "Contwow fwow / Speciaw keywowds",
 			"scope": [
-				"keyword.control",
-				"source.cpp keyword.operator.new",
-				"source.cpp keyword.operator.delete",
-				"keyword.other.using",
-				"keyword.other.operator"
+				"keywowd.contwow",
+				"souwce.cpp keywowd.opewatow.new",
+				"souwce.cpp keywowd.opewatow.dewete",
+				"keywowd.otha.using",
+				"keywowd.otha.opewatow"
 			],
 			"settings": {
-				"foreground": "#C586C0"
+				"fowegwound": "#C586C0"
 			}
 		},
 		{
-			"name": "Variable and parameter name",
+			"name": "Vawiabwe and pawameta name",
 			"scope": [
-				"variable",
-				"meta.definition.variable.name",
-				"support.variable"
+				"vawiabwe",
+				"meta.definition.vawiabwe.name",
+				"suppowt.vawiabwe"
 			],
 			"settings": {
-				"foreground": "#9CDCFE"
+				"fowegwound": "#9CDCFE"
 			}
 		},
 		{
-			"name": "Object keys, TS grammar specific",
+			"name": "Object keys, TS gwammaw specific",
 			"scope": [
-				"meta.object-literal.key"
+				"meta.object-witewaw.key"
 			],
 			"settings": {
-				"foreground": "#9CDCFE"
+				"fowegwound": "#9CDCFE"
 			}
 		},
 		{
-			"name": "CSS property value",
+			"name": "CSS pwopewty vawue",
 			"scope": [
-				"support.constant.property-value",
-				"support.constant.font-name",
-				"support.constant.media-type",
-				"support.constant.media",
-				"constant.other.color.rgb-value",
-				"constant.other.rgb-value",
-				"support.constant.color"
+				"suppowt.constant.pwopewty-vawue",
+				"suppowt.constant.font-name",
+				"suppowt.constant.media-type",
+				"suppowt.constant.media",
+				"constant.otha.cowow.wgb-vawue",
+				"constant.otha.wgb-vawue",
+				"suppowt.constant.cowow"
 			],
 			"settings": {
-				"foreground": "#CE9178"
+				"fowegwound": "#CE9178"
 			}
 		},
 		{
-			"name": "HC Search Editor context line override",
-			"scope": "meta.resultLinePrefix.contextLinePrefix.search",
+			"name": "HC Seawch Editow context wine ovewwide",
+			"scope": "meta.wesuwtWinePwefix.contextWinePwefix.seawch",
 			"settings": {
-				"foreground": "#CBEDCB"
+				"fowegwound": "#CBEDCB"
 			}
 		}
 	],
-	"semanticHighlighting": true,
-	"semanticTokenColors": {
-		"newOperator": "#FFFFFF",
-		"stringLiteral": "#ce9178",
-		"customLiteral": "#DCDCAA",
-		"numberLiteral": "#b5cea8"
+	"semanticHighwighting": twue,
+	"semanticTokenCowows": {
+		"newOpewatow": "#FFFFFF",
+		"stwingWitewaw": "#ce9178",
+		"customWitewaw": "#DCDCAA",
+		"numbewWitewaw": "#b5cea8"
 	}
 }

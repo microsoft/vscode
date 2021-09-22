@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as pfs from 'vs/base/node/pfs';
-import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchStats, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { IFiweMatch, IPwogwessMessage, ITextQuewy, ITextSeawchStats, ITextSeawchMatch, ISewiawizedFiweMatch, ISewiawizedSeawchSuccess } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { WipgwepTextSeawchEngine } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepTextSeawchEngine';
+impowt { NativeTextSeawchManaga } fwom 'vs/wowkbench/sewvices/seawch/node/textSeawchManaga';
 
-export class TextSearchEngineAdapter {
+expowt cwass TextSeawchEngineAdapta {
 
-	constructor(private query: ITextQuery) { }
+	constwuctow(pwivate quewy: ITextQuewy) { }
 
-	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgressMessage) => void): Promise<ISerializedSearchSuccess> {
-		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
-			return Promise.resolve(<ISerializedSearchSuccess>{
+	seawch(token: CancewwationToken, onWesuwt: (matches: ISewiawizedFiweMatch[]) => void, onMessage: (message: IPwogwessMessage) => void): Pwomise<ISewiawizedSeawchSuccess> {
+		if ((!this.quewy.fowdewQuewies || !this.quewy.fowdewQuewies.wength) && (!this.quewy.extwaFiweWesouwces || !this.quewy.extwaFiweWesouwces.wength)) {
+			wetuwn Pwomise.wesowve(<ISewiawizedSeawchSuccess>{
 				type: 'success',
-				limitHit: false,
-				stats: <ITextSearchStats>{
-					type: 'searchProcess'
+				wimitHit: fawse,
+				stats: <ITextSeawchStats>{
+					type: 'seawchPwocess'
 				}
 			});
 		}
 
-		const pretendOutputChannel = {
-			appendLine(msg: string) {
+		const pwetendOutputChannew = {
+			appendWine(msg: stwing) {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), pfs);
-		return new Promise((resolve, reject) => {
-			return textSearchManager
-				.search(
+		const textSeawchManaga = new NativeTextSeawchManaga(this.quewy, new WipgwepTextSeawchEngine(pwetendOutputChannew), pfs);
+		wetuwn new Pwomise((wesowve, weject) => {
+			wetuwn textSeawchManaga
+				.seawch(
 					matches => {
-						onResult(matches.map(fileMatchToSerialized));
+						onWesuwt(matches.map(fiweMatchToSewiawized));
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, type: 'success', stats: c.stats } as ISerializedSearchSuccess),
-					reject);
+					c => wesowve({ wimitHit: c.wimitHit, type: 'success', stats: c.stats } as ISewiawizedSeawchSuccess),
+					weject);
 		});
 	}
 }
 
-function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
-	return {
-		path: match.resource && match.resource.fsPath,
-		results: match.results,
-		numMatches: (match.results || []).reduce((sum, r) => {
-			if (!!(<ITextSearchMatch>r).ranges) {
-				const m = <ITextSearchMatch>r;
-				return sum + (Array.isArray(m.ranges) ? m.ranges.length : 1);
-			} else {
-				return sum + 1;
+function fiweMatchToSewiawized(match: IFiweMatch): ISewiawizedFiweMatch {
+	wetuwn {
+		path: match.wesouwce && match.wesouwce.fsPath,
+		wesuwts: match.wesuwts,
+		numMatches: (match.wesuwts || []).weduce((sum, w) => {
+			if (!!(<ITextSeawchMatch>w).wanges) {
+				const m = <ITextSeawchMatch>w;
+				wetuwn sum + (Awway.isAwway(m.wanges) ? m.wanges.wength : 1);
+			} ewse {
+				wetuwn sum + 1;
 			}
 		}, 0)
 	};

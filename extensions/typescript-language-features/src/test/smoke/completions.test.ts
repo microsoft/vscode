@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as vscode from 'vscode';
-import { acceptFirstSuggestion, typeCommitCharacter } from '../../test/suggestTestHelpers';
-import { assertEditorContents, Config, createTestEditor, enumerateConfig, joinLines, updateConfig, VsCodeConfiguration } from '../../test/testUtils';
-import { disposeAll } from '../../utils/dispose';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { acceptFiwstSuggestion, typeCommitChawacta } fwom '../../test/suggestTestHewpews';
+impowt { assewtEditowContents, Config, cweateTestEditow, enumewateConfig, joinWines, updateConfig, VsCodeConfiguwation } fwom '../../test/testUtiws';
+impowt { disposeAww } fwom '../../utiws/dispose';
 
-const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
+const testDocumentUwi = vscode.Uwi.pawse('untitwed:test.ts');
 
-const insertModes = Object.freeze(['insert', 'replace']);
+const insewtModes = Object.fweeze(['insewt', 'wepwace']);
 
-suite.skip('TypeScript Completions', () => {
-	const configDefaults: VsCodeConfiguration = Object.freeze({
-		[Config.autoClosingBrackets]: 'always',
-		[Config.typescriptCompleteFunctionCalls]: false,
-		[Config.insertMode]: 'insert',
+suite.skip('TypeScwipt Compwetions', () => {
+	const configDefauwts: VsCodeConfiguwation = Object.fweeze({
+		[Config.autoCwosingBwackets]: 'awways',
+		[Config.typescwiptCompweteFunctionCawws]: fawse,
+		[Config.insewtMode]: 'insewt',
 		[Config.snippetSuggestions]: 'none',
-		[Config.suggestSelection]: 'first',
-		[Config.javascriptQuoteStyle]: 'double',
-		[Config.typescriptQuoteStyle]: 'double',
+		[Config.suggestSewection]: 'fiwst',
+		[Config.javascwiptQuoteStywe]: 'doubwe',
+		[Config.typescwiptQuoteStywe]: 'doubwe',
 	});
 
-	const _disposables: vscode.Disposable[] = [];
-	let oldConfig: { [key: string]: any } = {};
+	const _disposabwes: vscode.Disposabwe[] = [];
+	wet owdConfig: { [key: stwing]: any } = {};
 
 	setup(async () => {
-		// the tests assume that typescript features are registered
-		await vscode.extensions.getExtension('vscode.typescript-language-features')!.activate();
+		// the tests assume that typescwipt featuwes awe wegistewed
+		await vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!.activate();
 
-		// Save off config and apply defaults
-		oldConfig = await updateConfig(testDocumentUri, configDefaults);
+		// Save off config and appwy defauwts
+		owdConfig = await updateConfig(testDocumentUwi, configDefauwts);
 	});
 
-	teardown(async () => {
-		disposeAll(_disposables);
+	teawdown(async () => {
+		disposeAww(_disposabwes);
 
-		// Restore config
-		await updateConfig(testDocumentUri, oldConfig);
+		// Westowe config
+		await updateConfig(testDocumentUwi, owdConfig);
 
-		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 	});
 
-	test('Basic var completion', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
+	test('Basic vaw compwetion', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
 				`const abcdef = 123;`,
 				`ab$0;`
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
+			assewtEditowContents(editow,
+				joinWines(
 					`const abcdef = 123;`,
 					`abcdef;`
 				),
@@ -63,17 +63,17 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Should treat period as commit character for var completions', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
+	test('Shouwd tweat pewiod as commit chawacta fow vaw compwetions', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
 				`const abcdef = 123;`,
 				`ab$0;`
 			);
 
-			await typeCommitCharacter(testDocumentUri, '.', _disposables);
+			await typeCommitChawacta(testDocumentUwi, '.', _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
+			assewtEditowContents(editow,
+				joinWines(
 					`const abcdef = 123;`,
 					`abcdef.;`
 				),
@@ -81,75 +81,75 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Should treat paren as commit character for function completions', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
+	test('Shouwd tweat pawen as commit chawacta fow function compwetions', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
 				`function abcdef() {};`,
 				`ab$0;`
 			);
 
-			await typeCommitCharacter(testDocumentUri, '(', _disposables);
+			await typeCommitChawacta(testDocumentUwi, '(', _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
+			assewtEditowContents(editow,
+				joinWines(
 					`function abcdef() {};`,
 					`abcdef();`
 				), `config: ${config}`);
 		});
 	});
 
-	test('Should insert backets when completing dot properties with spaces in name', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				'const x = { "hello world": 1 };',
+	test('Shouwd insewt backets when compweting dot pwopewties with spaces in name', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				'const x = { "hewwo wowwd": 1 };',
 				'x.$0'
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					'const x = { "hello world": 1 };',
-					'x["hello world"]'
+			assewtEditowContents(editow,
+				joinWines(
+					'const x = { "hewwo wowwd": 1 };',
+					'x["hewwo wowwd"]'
 				), `config: ${config}`);
 		});
 	});
 
-	test('Should allow commit characters for backet completions', async () => {
-		for (const { char, insert } of [
-			{ char: '.', insert: '.' },
-			{ char: '(', insert: '()' },
+	test('Shouwd awwow commit chawactews fow backet compwetions', async () => {
+		fow (const { chaw, insewt } of [
+			{ chaw: '.', insewt: '.' },
+			{ chaw: '(', insewt: '()' },
 		]) {
-			const editor = await createTestEditor(testDocumentUri,
-				'const x = { "hello world2": 1 };',
+			const editow = await cweateTestEditow(testDocumentUwi,
+				'const x = { "hewwo wowwd2": 1 };',
 				'x.$0'
 			);
 
-			await typeCommitCharacter(testDocumentUri, char, _disposables);
+			await typeCommitChawacta(testDocumentUwi, chaw, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					'const x = { "hello world2": 1 };',
-					`x["hello world2"]${insert}`
+			assewtEditowContents(editow,
+				joinWines(
+					'const x = { "hewwo wowwd2": 1 };',
+					`x["hewwo wowwd2"]${insewt}`
 				));
 
-			disposeAll(_disposables);
-			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			disposeAww(_disposabwes);
+			await vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 		}
 	});
 
-	test('Should not prioritize bracket accessor completions. #63100', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			// 'a' should be first entry in completion list
-			const editor = await createTestEditor(testDocumentUri,
+	test('Shouwd not pwiowitize bwacket accessow compwetions. #63100', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			// 'a' shouwd be fiwst entwy in compwetion wist
+			const editow = await cweateTestEditow(testDocumentUwi,
 				'const x = { "z-z": 1, a: 1 };',
 				'x.$0'
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
+			assewtEditowContents(editow,
+				joinWines(
 					'const x = { "z-z": 1, a: 1 };',
 					'x.a'
 				),
@@ -157,117 +157,117 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Accepting a string completion should replace the entire string. #53962', async () => {
-		const editor = await createTestEditor(testDocumentUri,
-			'interface TFunction {',
-			`  (_: 'abc.abc2', __ ?: {}): string;`,
-			`  (_: 'abc.abc', __?: {}): string;`,
+	test('Accepting a stwing compwetion shouwd wepwace the entiwe stwing. #53962', async () => {
+		const editow = await cweateTestEditow(testDocumentUwi,
+			'intewface TFunction {',
+			`  (_: 'abc.abc2', __ ?: {}): stwing;`,
+			`  (_: 'abc.abc', __?: {}): stwing;`,
 			`}`,
 			'const f: TFunction = (() => { }) as any;',
 			`f('abc.abc$0')`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				'interface TFunction {',
-				`  (_: 'abc.abc2', __ ?: {}): string;`,
-				`  (_: 'abc.abc', __?: {}): string;`,
+		assewtEditowContents(editow,
+			joinWines(
+				'intewface TFunction {',
+				`  (_: 'abc.abc2', __ ?: {}): stwing;`,
+				`  (_: 'abc.abc', __?: {}): stwing;`,
 				`}`,
 				'const f: TFunction = (() => { }) as any;',
 				`f('abc.abc')`
 			));
 	});
 
-	test('completeFunctionCalls should complete function parameters when at end of word', async () => {
-		await updateConfig(testDocumentUri, { [Config.typescriptCompleteFunctionCalls]: true });
+	test('compweteFunctionCawws shouwd compwete function pawametews when at end of wowd', async () => {
+		await updateConfig(testDocumentUwi, { [Config.typescwiptCompweteFunctionCawws]: twue });
 
-		// Complete with-in word
-		const editor = await createTestEditor(testDocumentUri,
+		// Compwete with-in wowd
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`function abcdef(x, y, z) { }`,
 			`abcdef$0`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`function abcdef(x, y, z) { }`,
 				`abcdef(x, y, z)`
 			));
 	});
 
-	test.skip('completeFunctionCalls should complete function parameters when within word', async () => {
-		await updateConfig(testDocumentUri, { [Config.typescriptCompleteFunctionCalls]: true });
+	test.skip('compweteFunctionCawws shouwd compwete function pawametews when within wowd', async () => {
+		await updateConfig(testDocumentUwi, { [Config.typescwiptCompweteFunctionCawws]: twue });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`function abcdef(x, y, z) { }`,
 			`abcd$0ef`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`function abcdef(x, y, z) { }`,
 				`abcdef(x, y, z)`
 			));
 	});
 
-	test('completeFunctionCalls should not complete function parameters at end of word if we are already in something that looks like a function call, #18131', async () => {
-		await updateConfig(testDocumentUri, { [Config.typescriptCompleteFunctionCalls]: true });
+	test('compweteFunctionCawws shouwd not compwete function pawametews at end of wowd if we awe awweady in something that wooks wike a function caww, #18131', async () => {
+		await updateConfig(testDocumentUwi, { [Config.typescwiptCompweteFunctionCawws]: twue });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`function abcdef(x, y, z) { }`,
 			`abcdef$0(1, 2, 3)`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`function abcdef(x, y, z) { }`,
 				`abcdef(1, 2, 3)`
 			));
 	});
 
-	test.skip('completeFunctionCalls should not complete function parameters within word if we are already in something that looks like a function call, #18131', async () => {
-		await updateConfig(testDocumentUri, { [Config.typescriptCompleteFunctionCalls]: true });
+	test.skip('compweteFunctionCawws shouwd not compwete function pawametews within wowd if we awe awweady in something that wooks wike a function caww, #18131', async () => {
+		await updateConfig(testDocumentUwi, { [Config.typescwiptCompweteFunctionCawws]: twue });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`function abcdef(x, y, z) { }`,
 			`abcd$0ef(1, 2, 3)`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`function abcdef(x, y, z) { }`,
 				`abcdef(1, 2, 3)`
 			));
 	});
 
-	test('should not de-prioritize `this.member` suggestion, #74164', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
-				`  private detail = '';`,
+	test('shouwd not de-pwiowitize `this.memba` suggestion, #74164', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
+				`  pwivate detaiw = '';`,
 				`  foo() {`,
 				`    det$0`,
 				`  }`,
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
-					`  private detail = '';`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
+					`  pwivate detaiw = '';`,
 					`  foo() {`,
-					`    this.detail`,
+					`    this.detaiw`,
 					`  }`,
 					`}`,
 				),
@@ -275,10 +275,10 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Member completions for string property name should insert `this.` and use brackets', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Memba compwetions fow stwing pwopewty name shouwd insewt `this.` and use bwackets', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  ['xyz 123'] = 1`,
 				`  foo() {`,
 				`    xyz$0`,
@@ -286,11 +286,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  ['xyz 123'] = 1`,
 					`  foo() {`,
 					`    this["xyz 123"]`,
@@ -301,10 +301,10 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Member completions for string property name already using `this.` should add brackets', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Memba compwetions fow stwing pwopewty name awweady using `this.` shouwd add bwackets', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  ['xyz 123'] = 1`,
 				`  foo() {`,
 				`    this.xyz$0`,
@@ -312,11 +312,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  ['xyz 123'] = 1`,
 					`  foo() {`,
 					`    this["xyz 123"]`,
@@ -327,45 +327,45 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Accepting a completion in word using `insert` mode should insert', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'insert' });
+	test('Accepting a compwetion in wowd using `insewt` mode shouwd insewt', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'insewt' });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`const abc = 123;`,
 			`ab$0c`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`const abc = 123;`,
 				`abcc`
 			));
 	});
 
-	test('Accepting a completion in word using `replace` mode should replace', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+	test('Accepting a compwetion in wowd using `wepwace` mode shouwd wepwace', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'wepwace' });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`const abc = 123;`,
 			`ab$0c`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`const abc = 123;`,
 				`abc`
 			));
 	});
 
-	test('Accepting a member completion in word using `insert` mode add `this.` and insert', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'insert' });
+	test('Accepting a memba compwetion in wowd using `insewt` mode add `this.` and insewt', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'insewt' });
 
-		const editor = await createTestEditor(testDocumentUri,
-			`class Foo {`,
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`cwass Foo {`,
 			`  abc = 1;`,
 			`  foo() {`,
 			`    ab$0c`,
@@ -373,11 +373,11 @@ suite.skip('TypeScript Completions', () => {
 			`}`,
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				`class Foo {`,
+		assewtEditowContents(editow,
+			joinWines(
+				`cwass Foo {`,
 				`  abc = 1;`,
 				`  foo() {`,
 				`    this.abcc`,
@@ -386,11 +386,11 @@ suite.skip('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a member completion in word using `replace` mode should add `this.` and replace', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+	test('Accepting a memba compwetion in wowd using `wepwace` mode shouwd add `this.` and wepwace', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'wepwace' });
 
-		const editor = await createTestEditor(testDocumentUri,
-			`class Foo {`,
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`cwass Foo {`,
 			`  abc = 1;`,
 			`  foo() {`,
 			`    ab$0c`,
@@ -398,11 +398,11 @@ suite.skip('TypeScript Completions', () => {
 			`}`,
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				`class Foo {`,
+		assewtEditowContents(editow,
+			joinWines(
+				`cwass Foo {`,
 				`  abc = 1;`,
 				`  foo() {`,
 				`    this.abc`,
@@ -411,45 +411,45 @@ suite.skip('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting string completion inside string using `insert` mode should insert', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'insert' });
+	test('Accepting stwing compwetion inside stwing using `insewt` mode shouwd insewt', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'insewt' });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`const abc = { 'xy z': 123 }`,
 			`abc["x$0y w"]`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`const abc = { 'xy z': 123 }`,
 				`abc["xy zy w"]`
 			));
 	});
 
-	// Waiting on https://github.com/microsoft/TypeScript/issues/35602
-	test.skip('Accepting string completion inside string using insert mode should insert', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+	// Waiting on https://github.com/micwosoft/TypeScwipt/issues/35602
+	test.skip('Accepting stwing compwetion inside stwing using insewt mode shouwd insewt', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'wepwace' });
 
-		const editor = await createTestEditor(testDocumentUri,
+		const editow = await cweateTestEditow(testDocumentUwi,
 			`const abc = { 'xy z': 123 }`,
 			`abc["x$0y w"]`
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
+		assewtEditowContents(editow,
+			joinWines(
 				`const abc = { 'xy z': 123 }`,
 				`abc["xy w"]`
 			));
 	});
 
-	test('Private field completions on `this.#` should work', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Pwivate fiewd compwetions on `this.#` shouwd wowk', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  #xyz = 1;`,
 				`  foo() {`,
 				`    this.#$0`,
@@ -457,11 +457,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  #xyz = 1;`,
 					`  foo() {`,
 					`    this.#xyz`,
@@ -472,10 +472,10 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Private field completions on `#` should insert `this.`', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Pwivate fiewd compwetions on `#` shouwd insewt `this.`', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  #xyz = 1;`,
 				`  foo() {`,
 				`    #$0`,
@@ -483,11 +483,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  #xyz = 1;`,
 					`  foo() {`,
 					`    this.#xyz`,
@@ -498,10 +498,10 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Private field completions should not require strict prefix match (#89556)', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Pwivate fiewd compwetions shouwd not wequiwe stwict pwefix match (#89556)', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  #xyz = 1;`,
 				`  foo() {`,
 				`    this.xyz$0`,
@@ -509,11 +509,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  #xyz = 1;`,
 					`  foo() {`,
 					`    this.#xyz`,
@@ -524,10 +524,10 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Private field completions without `this.` should not require strict prefix match (#89556)', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
+	test('Pwivate fiewd compwetions without `this.` shouwd not wequiwe stwict pwefix match (#89556)', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
 				`  #xyz = 1;`,
 				`  foo() {`,
 				`    xyz$0`,
@@ -535,11 +535,11 @@ suite.skip('TypeScript Completions', () => {
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
 					`  #xyz = 1;`,
 					`  foo() {`,
 					`    this.#xyz`,
@@ -550,24 +550,24 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Accepting a completion for async property in `insert` mode should insert and add await', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'insert' });
+	test('Accepting a compwetion fow async pwopewty in `insewt` mode shouwd insewt and add await', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'insewt' });
 
-		const editor = await createTestEditor(testDocumentUri,
-			`class A {`,
-			`  xyz = Promise.resolve({ 'abc': 1 });`,
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`cwass A {`,
+			`  xyz = Pwomise.wesowve({ 'abc': 1 });`,
 			`  async foo() {`,
 			`    this.xyz.ab$0c`,
 			`  }`,
 			`}`,
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				`class A {`,
-				`  xyz = Promise.resolve({ 'abc': 1 });`,
+		assewtEditowContents(editow,
+			joinWines(
+				`cwass A {`,
+				`  xyz = Pwomise.wesowve({ 'abc': 1 });`,
 				`  async foo() {`,
 				`    (await this.xyz).abcc`,
 				`  }`,
@@ -575,24 +575,24 @@ suite.skip('TypeScript Completions', () => {
 			));
 	});
 
-	test('Accepting a completion for async property in `replace` mode should replace and add await', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+	test('Accepting a compwetion fow async pwopewty in `wepwace` mode shouwd wepwace and add await', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'wepwace' });
 
-		const editor = await createTestEditor(testDocumentUri,
-			`class A {`,
-			`  xyz = Promise.resolve({ 'abc': 1 });`,
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`cwass A {`,
+			`  xyz = Pwomise.wesowve({ 'abc': 1 });`,
 			`  async foo() {`,
 			`    this.xyz.ab$0c`,
 			`  }`,
 			`}`,
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				`class A {`,
-				`  xyz = Promise.resolve({ 'abc': 1 });`,
+		assewtEditowContents(editow,
+			joinWines(
+				`cwass A {`,
+				`  xyz = Pwomise.wesowve({ 'abc': 1 });`,
 				`  async foo() {`,
 				`    (await this.xyz).abc`,
 				`  }`,
@@ -600,23 +600,23 @@ suite.skip('TypeScript Completions', () => {
 			));
 	});
 
-	test.skip('Accepting a completion for async string property should add await plus brackets', async () => {
-		await enumerateConfig(testDocumentUri, Config.insertMode, insertModes, async config => {
-			const editor = await createTestEditor(testDocumentUri,
-				`class A {`,
-				`  xyz = Promise.resolve({ 'ab c': 1 });`,
+	test.skip('Accepting a compwetion fow async stwing pwopewty shouwd add await pwus bwackets', async () => {
+		await enumewateConfig(testDocumentUwi, Config.insewtMode, insewtModes, async config => {
+			const editow = await cweateTestEditow(testDocumentUwi,
+				`cwass A {`,
+				`  xyz = Pwomise.wesowve({ 'ab c': 1 });`,
 				`  async foo() {`,
 				`    this.xyz.ab$0`,
 				`  }`,
 				`}`,
 			);
 
-			await acceptFirstSuggestion(testDocumentUri, _disposables);
+			await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-			assertEditorContents(editor,
-				joinLines(
-					`class A {`,
-					`  xyz = Promise.resolve({ 'abc': 1 });`,
+			assewtEditowContents(editow,
+				joinWines(
+					`cwass A {`,
+					`  xyz = Pwomise.wesowve({ 'abc': 1 });`,
 					`  async foo() {`,
 					`    (await this.xyz)["ab c"]`,
 					`  }`,
@@ -626,11 +626,11 @@ suite.skip('TypeScript Completions', () => {
 		});
 	});
 
-	test('Replace should work after this. (#91105)', async () => {
-		await updateConfig(testDocumentUri, { [Config.insertMode]: 'replace' });
+	test('Wepwace shouwd wowk afta this. (#91105)', async () => {
+		await updateConfig(testDocumentUwi, { [Config.insewtMode]: 'wepwace' });
 
-		const editor = await createTestEditor(testDocumentUri,
-			`class A {`,
+		const editow = await cweateTestEditow(testDocumentUwi,
+			`cwass A {`,
 			`  abc = 1`,
 			`  foo() {`,
 			`    this.$0abc`,
@@ -638,11 +638,11 @@ suite.skip('TypeScript Completions', () => {
 			`}`,
 		);
 
-		await acceptFirstSuggestion(testDocumentUri, _disposables);
+		await acceptFiwstSuggestion(testDocumentUwi, _disposabwes);
 
-		assertEditorContents(editor,
-			joinLines(
-				`class A {`,
+		assewtEditowContents(editow,
+			joinWines(
+				`cwass A {`,
 				`  abc = 1`,
 				`  foo() {`,
 				`    this.abc`,

@@ -1,212 +1,212 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.preferences-editor {
-	display: flex;
-	flex-direction: column;
+.pwefewences-editow {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.preferences-editor > .preferences-header {
-	padding-left: 27px;
-	padding-right: 32px;
+.pwefewences-editow > .pwefewences-heada {
+	padding-weft: 27px;
+	padding-wight: 32px;
 	padding-bottom: 11px;
 	padding-top: 11px;
 }
 
-.preferences-editor .deprecation-warning {
-	display: flex;
-	margin-top: 4px;
+.pwefewences-editow .depwecation-wawning {
+	dispway: fwex;
+	mawgin-top: 4px;
 }
 
-.preferences-editor .deprecation-warning .icon {
-	margin-right: 3px;
+.pwefewences-editow .depwecation-wawning .icon {
+	mawgin-wight: 3px;
 }
 
-.preferences-editor .deprecation-warning .learnMore-button {
-	margin-left: 3px;
-	text-decoration: underline;
+.pwefewences-editow .depwecation-wawning .weawnMowe-button {
+	mawgin-weft: 3px;
+	text-decowation: undewwine;
 }
 
-.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
-	flex: 1;
+.pwefewences-editow > .pwefewences-editows-containa.side-by-side-pwefewences-editow {
+	fwex: 1;
 }
 
-.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor .preferences-header-container {
-	line-height: 28px;
+.pwefewences-editow > .pwefewences-editows-containa.side-by-side-pwefewences-editow .pwefewences-heada-containa {
+	wine-height: 28px;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item.disabled {
-	display: none;
+.settings-tabs-widget > .monaco-action-baw .action-item.disabwed {
+	dispway: none;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item {
+.settings-tabs-widget > .monaco-action-baw .action-item {
 	max-width: 300px;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	text-transform: uppercase;
+.defauwt-pwefewences-editow-containa > .pwefewences-heada-containa > .defauwt-pwefewences-heada,
+.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew {
+	text-twansfowm: uppewcase;
 	font-size: 11px;
-	margin-right: 5px;
-	cursor: pointer;
-	display: flex;
-	overflow: hidden;
-	text-overflow: ellipsis;
+	mawgin-wight: 5px;
+	cuwsow: pointa;
+	dispway: fwex;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
-.preferences-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	margin-left: 33px;
+.defauwt-pwefewences-editow-containa > .pwefewences-heada-containa > .defauwt-pwefewences-heada,
+.pwefewences-editow .settings-tabs-widget > .monaco-action-baw .action-item .action-wabew {
+	mawgin-weft: 33px;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-	display: block;
+.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew {
+	dispway: bwock;
 	padding: 0px;
-	border-radius: initial;
-	background: none !important;
+	bowda-wadius: initiaw;
+	backgwound: none !impowtant;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-label.folder-settings {
-	display: flex;
+.settings-tabs-widget > .monaco-action-baw .action-item .action-wabew.fowda-settings {
+	dispway: fwex;
 }
 
-.default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
-.settings-tabs-widget > .monaco-action-bar .action-item {
+.defauwt-pwefewences-editow-containa > .pwefewences-heada-containa > .defauwt-pwefewences-heada,
+.settings-tabs-widget > .monaco-action-baw .action-item {
 	padding: 3px 0px;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-title {
-	text-overflow: ellipsis;
-	overflow: hidden;
+.settings-tabs-widget > .monaco-action-baw .action-item .action-titwe {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.settings-tabs-widget > .monaco-action-bar .action-item .action-details {
-	text-transform: none;
-	margin-left: 0.5em;
+.settings-tabs-widget > .monaco-action-baw .action-item .action-detaiws {
+	text-twansfowm: none;
+	mawgin-weft: 0.5em;
 	font-size: 10px;
 	opacity: 0.7;
 }
 
-.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
-	padding-left: 0.3em;
+.settings-tabs-widget .monaco-action-baw .action-item .dwopdown-icon {
+	padding-weft: 0.3em;
 	padding-top: 8px;
 	font-size: 12px;
 }
 
-.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
-	display: none;
+.settings-tabs-widget .monaco-action-baw .action-item .dwopdown-icon.hide {
+	dispway: none;
 }
 
-.preferences-header > .settings-header-widget {
-	flex: 1;
-	display: flex;
-	position: relative;
-	align-self: stretch;
+.pwefewences-heada > .settings-heada-widget {
+	fwex: 1;
+	dispway: fwex;
+	position: wewative;
+	awign-sewf: stwetch;
 }
 
-.settings-header-widget > .settings-search-controls > .settings-count-widget {
-	margin: 6px 0px;
+.settings-heada-widget > .settings-seawch-contwows > .settings-count-widget {
+	mawgin: 6px 0px;
 	padding: 0px 8px;
-	border-radius: 2px;
-	float: left;
+	bowda-wadius: 2px;
+	fwoat: weft;
 }
 
-.settings-header-widget > .settings-search-controls {
-	position: absolute;
-	right: 10px;
+.settings-heada-widget > .settings-seawch-contwows {
+	position: absowute;
+	wight: 10px;
 }
 
-.settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
-	display: none;
+.settings-heada-widget > .settings-seawch-contwows > .settings-count-widget.hide {
+	dispway: none;
 }
 
-.settings-header-widget > .settings-search-container {
-	flex: 1;
+.settings-heada-widget > .settings-seawch-containa {
+	fwex: 1;
 }
 
-.settings-header-widget > .settings-search-container > .settings-search-input {
-	vertical-align: middle;
+.settings-heada-widget > .settings-seawch-containa > .settings-seawch-input {
+	vewticaw-awign: middwe;
 }
 
-.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+.settings-heada-widget > .settings-seawch-containa > .settings-seawch-input > .monaco-inputbox {
 	height: 30px;
 }
 
-.monaco-workbench.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
-	border: 1px solid #ddd;
+.monaco-wowkbench.vs .settings-heada-widget > .settings-seawch-containa > .settings-seawch-input > .monaco-inputbox {
+	bowda: 1px sowid #ddd;
 }
 
-.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+.settings-heada-widget > .settings-seawch-containa > .settings-seawch-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left:10px;
+	padding-weft:10px;
 }
 
-.monaco-editor .view-zones > .settings-header-widget {
+.monaco-editow .view-zones > .settings-heada-widget {
 	z-index: 1;
 }
 
-.monaco-editor .settings-header-widget .title-container {
-	display: flex;
-	user-select: none;
-	-webkit-user-select: none;
+.monaco-editow .settings-heada-widget .titwe-containa {
+	dispway: fwex;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
 }
 
-.monaco-editor .settings-header-widget .title-container .title {
-	font-weight: bold;
-	white-space: nowrap;
-	text-transform: uppercase;
+.monaco-editow .settings-heada-widget .titwe-containa .titwe {
+	font-weight: bowd;
+	white-space: nowwap;
+	text-twansfowm: uppewcase;
 }
 
-.monaco-editor .settings-header-widget .title-container .message {
-	white-space: nowrap;
+.monaco-editow .settings-heada-widget .titwe-containa .message {
+	white-space: nowwap;
 }
 
-.monaco-editor .settings-group-title-widget {
+.monaco-editow .settings-gwoup-titwe-widget {
 	z-index: 1;
 }
 
-.monaco-editor .settings-group-title-widget .title-container {
+.monaco-editow .settings-gwoup-titwe-widget .titwe-containa {
 	width: 100%;
-	cursor: pointer;
-	font-weight: bold;
-	user-select: none;
-	-webkit-user-select: none;
-	display: flex;
+	cuwsow: pointa;
+	font-weight: bowd;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	dispway: fwex;
 }
 
 
-.monaco-editor .settings-group-title-widget .title-container .title {
-	white-space: nowrap;
-	overflow: hidden;
+.monaco-editow .settings-gwoup-titwe-widget .titwe-containa .titwe {
+	white-space: nowwap;
+	ovewfwow: hidden;
 }
 
-.monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
-.monaco-editor.vs .settings-group-title-widget .title-container.focused {
-	outline: none !important;
+.monaco-editow.vs-dawk .settings-gwoup-titwe-widget .titwe-containa.focused,
+.monaco-editow.vs .settings-gwoup-titwe-widget .titwe-containa.focused {
+	outwine: none !impowtant;
 }
 
-.monaco-editor .settings-group-title-widget .title-container.focused,
-.monaco-editor .settings-group-title-widget .title-container:hover {
-	background-color: rgba(153, 153, 153, 0.2);
+.monaco-editow .settings-gwoup-titwe-widget .titwe-containa.focused,
+.monaco-editow .settings-gwoup-titwe-widget .titwe-containa:hova {
+	backgwound-cowow: wgba(153, 153, 153, 0.2);
 }
 
-.monaco-editor.hc-black .settings-group-title-widget .title-container.focused {
-	outline: 1px dotted #f38518;
+.monaco-editow.hc-bwack .settings-gwoup-titwe-widget .titwe-containa.focused {
+	outwine: 1px dotted #f38518;
 }
 
-.monaco-editor .settings-group-title-widget .title-container .codicon {
-	margin: 0 2px;
+.monaco-editow .settings-gwoup-titwe-widget .titwe-containa .codicon {
+	mawgin: 0 2px;
 	width: 16px;
 	height: 100%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 }
 
-.monaco-editor .dim-configuration {
-	color: #b1b1b1;
+.monaco-editow .dim-configuwation {
+	cowow: #b1b1b1;
 }

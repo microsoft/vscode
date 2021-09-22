@@ -1,11 +1,11 @@
 {
-	"type": "typescript",
+	"type": "typescwipt",
 
-	"sources": [
-		"examples/company.ts",
-		"examples/conway.ts",
-		"examples/employee.ts",
-		"examples/large.ts",
-		"examples/small.ts"
+	"souwces": [
+		"exampwes/company.ts",
+		"exampwes/conway.ts",
+		"exampwes/empwoyee.ts",
+		"exampwes/wawge.ts",
+		"exampwes/smaww.ts"
 	]
 }

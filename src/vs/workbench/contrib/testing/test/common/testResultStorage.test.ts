@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { range } from 'vs/base/common/arrays';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { wange } fwom 'vs/base/common/awways';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { ITestWesuwt, WiveTestWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { InMemowyWesuwtStowage, WETAIN_MAX_WESUWTS } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtStowage';
+impowt { Convewt, TestItemImpw, testStubs } fwom 'vs/wowkbench/contwib/testing/common/testStubs';
+impowt { emptyOutputContwowwa } fwom 'vs/wowkbench/contwib/testing/test/common/testWesuwtSewvice.test';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-suite('Workbench - Test Result Storage', () => {
-	let storage: InMemoryResultStorage;
+suite('Wowkbench - Test Wesuwt Stowage', () => {
+	wet stowage: InMemowyWesuwtStowage;
 
-	const makeResult = (addMessage?: string) => {
-		const t = new LiveTestResult(
+	const makeWesuwt = (addMessage?: stwing) => {
+		const t = new WiveTestWesuwt(
 			'',
-			emptyOutputController(),
-			true,
-			{ targets: [] }
+			emptyOutputContwowwa(),
+			twue,
+			{ tawgets: [] }
 		);
 
-		t.addTask({ id: 't', name: undefined, running: true });
+		t.addTask({ id: 't', name: undefined, wunning: twue });
 		const tests = testStubs.nested();
-		tests.expand(tests.root.id, Infinity);
-		t.addTestChainToRun('ctrlId', [
-			Convert.TestItem.from(tests.root),
-			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
-			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa') as TestItemImpl),
+		tests.expand(tests.woot.id, Infinity);
+		t.addTestChainToWun('ctwwId', [
+			Convewt.TestItem.fwom(tests.woot),
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a') as TestItemImpw),
+			Convewt.TestItem.fwom(tests.woot.chiwdwen.get('id-a')!.chiwdwen.get('id-aa') as TestItemImpw),
 		]);
 
 		if (addMessage) {
-			t.appendMessage(new TestId(['ctrlId', 'id-a']).toString(), 't', {
+			t.appendMessage(new TestId(['ctwwId', 'id-a']).toStwing(), 't', {
 				message: addMessage,
-				actual: undefined,
+				actuaw: undefined,
 				expected: undefined,
-				location: undefined,
+				wocation: undefined,
 				type: 0,
 			});
 		}
-		t.markComplete();
-		return t;
+		t.mawkCompwete();
+		wetuwn t;
 	};
 
-	const assertStored = async (stored: ITestResult[]) =>
-		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
+	const assewtStowed = async (stowed: ITestWesuwt[]) =>
+		assewt.deepStwictEquaw((await stowage.wead()).map(w => w.id), stowed.map(s => s.id));
 
 	setup(async () => {
-		storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+		stowage = new InMemowyWesuwtStowage(new TestStowageSewvice(), new NuwwWogSewvice());
 	});
 
-	test('stores a single result', async () => {
-		const r = range(5).map(() => makeResult());
-		await storage.persist(r);
-		await assertStored(r);
+	test('stowes a singwe wesuwt', async () => {
+		const w = wange(5).map(() => makeWesuwt());
+		await stowage.pewsist(w);
+		await assewtStowed(w);
 	});
 
-	test('deletes old results', async () => {
-		const r = range(5).map(() => makeResult());
-		await storage.persist(r);
-		const r2 = [makeResult(), ...r.slice(0, 3)];
-		await storage.persist(r2);
-		await assertStored(r2);
+	test('dewetes owd wesuwts', async () => {
+		const w = wange(5).map(() => makeWesuwt());
+		await stowage.pewsist(w);
+		const w2 = [makeWesuwt(), ...w.swice(0, 3)];
+		await stowage.pewsist(w2);
+		await assewtStowed(w2);
 	});
 
-	test('limits stored results', async () => {
-		const r = range(100).map(() => makeResult());
-		await storage.persist(r);
-		await assertStored(r.slice(0, RETAIN_MAX_RESULTS));
+	test('wimits stowed wesuwts', async () => {
+		const w = wange(100).map(() => makeWesuwt());
+		await stowage.pewsist(w);
+		await assewtStowed(w.swice(0, WETAIN_MAX_WESUWTS));
 	});
 
-	test('limits stored result by budget', async () => {
-		const r = range(100).map(() => makeResult('a'.repeat(2048)));
-		await storage.persist(r);
-		const length = (await storage.read()).length;
-		assert.strictEqual(true, length < 50);
+	test('wimits stowed wesuwt by budget', async () => {
+		const w = wange(100).map(() => makeWesuwt('a'.wepeat(2048)));
+		await stowage.pewsist(w);
+		const wength = (await stowage.wead()).wength;
+		assewt.stwictEquaw(twue, wength < 50);
 	});
 
-	test('always stores the min number of results', async () => {
-		const r = range(20).map(() => makeResult('a'.repeat(1024 * 10)));
-		await storage.persist(r);
-		await assertStored(r.slice(0, 16));
+	test('awways stowes the min numba of wesuwts', async () => {
+		const w = wange(20).map(() => makeWesuwt('a'.wepeat(1024 * 10)));
+		await stowage.pewsist(w);
+		await assewtStowed(w.swice(0, 16));
 	});
 
-	test('takes into account existing stored bytes', async () => {
-		const r = range(10).map(() => makeResult('a'.repeat(1024 * 10)));
-		await storage.persist(r);
-		await assertStored(r);
+	test('takes into account existing stowed bytes', async () => {
+		const w = wange(10).map(() => makeWesuwt('a'.wepeat(1024 * 10)));
+		await stowage.pewsist(w);
+		await assewtStowed(w);
 
-		const r2 = [...r, ...range(10).map(() => makeResult('a'.repeat(1024 * 10)))];
-		await storage.persist(r2);
-		await assertStored(r2.slice(0, 16));
+		const w2 = [...w, ...wange(10).map(() => makeWesuwt('a'.wepeat(1024 * 10)))];
+		await stowage.pewsist(w2);
+		await assewtStowed(w2.swice(0, 16));
 	});
 });

@@ -1,249 +1,249 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-java/blob/master/grammars/java.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/atom/wanguage-java/bwob/masta/gwammaws/java.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/atom/language-java/commit/29f977dc42a7e2568b39bb6fb34c4ef108eb59b3",
+	"vewsion": "https://github.com/atom/wanguage-java/commit/29f977dc42a7e2568b39bb6fb34c4ef108eb59b3",
 	"name": "Java",
-	"scopeName": "source.java",
-	"patterns": [
+	"scopeName": "souwce.java",
+	"pattewns": [
 		{
 			"begin": "\\b(package)\\b\\s*",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.package.java"
+					"name": "keywowd.otha.package.java"
 				}
 			},
 			"end": "\\s*(;)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.terminator.java"
+					"name": "punctuation.tewminatow.java"
 				}
 			},
 			"name": "meta.package.java",
-			"contentName": "storage.modifier.package.java",
-			"patterns": [
+			"contentName": "stowage.modifia.package.java",
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
 					"match": "(?<=\\.)\\s*\\.|\\.(?=\\s*;)",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "(?<!_)_(?=\\s*(\\.|;))|\\b\\d+|-+",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "[A-Z]+",
-					"name": "invalid.deprecated.package_name_not_lowercase.java"
+					"name": "invawid.depwecated.package_name_not_wowewcase.java"
 				},
 				{
-					"match": "(?x)\\b(?<!\\$)\n(abstract|assert|boolean|break|byte|case|catch|char|class|\nconst|continue|default|do|double|else|enum|extends|final|\nfinally|float|for|goto|if|implements|import|instanceof|int|\ninterface|long|native|new|non-sealed|package|permits|private|protected|public|\nreturn|sealed|short|static|strictfp|super|switch|syncronized|this|\nthrow|throws|transient|try|void|volatile|while|yield|\ntrue|false|null)\\b",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"match": "(?x)\\b(?<!\\$)\n(abstwact|assewt|boowean|bweak|byte|case|catch|chaw|cwass|\nconst|continue|defauwt|do|doubwe|ewse|enum|extends|finaw|\nfinawwy|fwoat|fow|goto|if|impwements|impowt|instanceof|int|\nintewface|wong|native|new|non-seawed|package|pewmits|pwivate|pwotected|pubwic|\nwetuwn|seawed|showt|static|stwictfp|supa|switch|syncwonized|this|\nthwow|thwows|twansient|twy|void|vowatiwe|whiwe|yiewd|\ntwue|fawse|nuww)\\b",
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.java"
+					"name": "punctuation.sepawatow.java"
 				}
 			]
 		},
 		{
-			"begin": "\\b(import)\\b\\s*\\b(static)?\\b\\s",
-			"beginCaptures": {
+			"begin": "\\b(impowt)\\b\\s*\\b(static)?\\b\\s",
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.other.import.java"
+					"name": "keywowd.otha.impowt.java"
 				},
 				"2": {
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				}
 			},
 			"end": "\\s*(;)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.terminator.java"
+					"name": "punctuation.tewminatow.java"
 				}
 			},
-			"name": "meta.import.java",
-			"contentName": "storage.modifier.import.java",
-			"patterns": [
+			"name": "meta.impowt.java",
+			"contentName": "stowage.modifia.impowt.java",
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
 					"match": "(?<=\\.)\\s*\\.|\\.(?=\\s*;)",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "(?<!\\.)\\s*\\*",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "(?<!_)_(?=\\s*(\\.|;))|\\b\\d+|-+",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
-					"match": "(?x)\\b(?<!\\$)\n(abstract|assert|boolean|break|byte|case|catch|char|class|\nconst|continue|default|do|double|else|enum|extends|final|\nfinally|float|for|goto|if|implements|import|instanceof|int|\ninterface|long|native|new|non-sealed|package|permits|private|protected|public|\nreturn|sealed|short|static|strictfp|super|switch|syncronized|this|\nthrow|throws|transient|try|void|volatile|while|yield|\ntrue|false|null)\\b",
-					"name": "invalid.illegal.character_not_allowed_here.java"
+					"match": "(?x)\\b(?<!\\$)\n(abstwact|assewt|boowean|bweak|byte|case|catch|chaw|cwass|\nconst|continue|defauwt|do|doubwe|ewse|enum|extends|finaw|\nfinawwy|fwoat|fow|goto|if|impwements|impowt|instanceof|int|\nintewface|wong|native|new|non-seawed|package|pewmits|pwivate|pwotected|pubwic|\nwetuwn|seawed|showt|static|stwictfp|supa|switch|syncwonized|this|\nthwow|thwows|twansient|twy|void|vowatiwe|whiwe|yiewd|\ntwue|fawse|nuww)\\b",
+					"name": "invawid.iwwegaw.chawactew_not_awwowed_hewe.java"
 				},
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.java"
+					"name": "punctuation.sepawatow.java"
 				},
 				{
 					"match": "\\*",
-					"name": "variable.language.wildcard.java"
+					"name": "vawiabwe.wanguage.wiwdcawd.java"
 				}
 			]
 		},
 		{
-			"include": "#comments-javadoc"
+			"incwude": "#comments-javadoc"
 		},
 		{
-			"include": "#code"
+			"incwude": "#code"
 		},
 		{
-			"include": "#module"
+			"incwude": "#moduwe"
 		}
 	],
-	"repository": {
-		"all-types": {
-			"patterns": [
+	"wepositowy": {
+		"aww-types": {
+			"pattewns": [
 				{
-					"include": "#primitive-arrays"
+					"incwude": "#pwimitive-awways"
 				},
 				{
-					"include": "#primitive-types"
+					"incwude": "#pwimitive-types"
 				},
 				{
-					"include": "#object-types"
+					"incwude": "#object-types"
 				}
 			]
 		},
 		"annotations": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "((@)\\s*([^\\s(]+))(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"2": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"3": {
-							"name": "storage.type.annotation.java"
+							"name": "stowage.type.annotation.java"
 						},
 						"4": {
-							"name": "punctuation.definition.annotation-arguments.begin.bracket.round.java"
+							"name": "punctuation.definition.annotation-awguments.begin.bwacket.wound.java"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.annotation-arguments.end.bracket.round.java"
+							"name": "punctuation.definition.annotation-awguments.end.bwacket.wound.java"
 						}
 					},
-					"name": "meta.declaration.annotation.java",
-					"patterns": [
+					"name": "meta.decwawation.annotation.java",
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "constant.other.key.java"
+									"name": "constant.otha.key.java"
 								},
 								"2": {
-									"name": "keyword.operator.assignment.java"
+									"name": "keywowd.opewatow.assignment.java"
 								}
 							},
 							"match": "(\\w*)\\s*(=)"
 						},
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
-					"match": "(@)(interface)\\s+(\\w*)|((@)\\s*(\\w+))",
-					"name": "meta.declaration.annotation.java",
-					"captures": {
+					"match": "(@)(intewface)\\s+(\\w*)|((@)\\s*(\\w+))",
+					"name": "meta.decwawation.annotation.java",
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"2": {
-							"name": "storage.modifier.java"
+							"name": "stowage.modifia.java"
 						},
 						"3": {
-							"name": "storage.type.annotation.java"
+							"name": "stowage.type.annotation.java"
 						},
 						"5": {
 							"name": "punctuation.definition.annotation.java"
 						},
 						"6": {
-							"name": "storage.type.annotation.java"
+							"name": "stowage.type.annotation.java"
 						}
 					}
 				}
 			]
 		},
-		"anonymous-block-and-instance-initializer": {
+		"anonymous-bwock-and-instance-initiawiza": {
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.block.begin.bracket.curly.java"
+					"name": "punctuation.section.bwock.begin.bwacket.cuwwy.java"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.block.end.bracket.curly.java"
+					"name": "punctuation.section.bwock.end.bwacket.cuwwy.java"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		},
-		"anonymous-classes-and-new": {
+		"anonymous-cwasses-and-new": {
 			"begin": "\\bnew\\b",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "keyword.control.new.java"
+					"name": "keywowd.contwow.new.java"
 				}
 			},
 			"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#function-call"
+					"incwude": "#function-caww"
 				},
 				{
-					"include": "#all-types"
+					"incwude": "#aww-types"
 				},
 				{
 					"begin": "(?<=\\))",
 					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.inner-class.begin.bracket.curly.java"
+									"name": "punctuation.section.inna-cwass.begin.bwacket.cuwwy.java"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.inner-class.end.bracket.curly.java"
+									"name": "punctuation.section.inna-cwass.end.bwacket.cuwwy.java"
 								}
 							},
-							"name": "meta.inner-class.java",
-							"patterns": [
+							"name": "meta.inna-cwass.java",
+							"pattewns": [
 								{
-									"include": "#class-body"
+									"incwude": "#cwass-body"
 								}
 							]
 						}
@@ -252,405 +252,405 @@
 				{
 					"begin": "(?<=\\])",
 					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.array-initializer.begin.bracket.curly.java"
+									"name": "punctuation.section.awway-initiawiza.begin.bwacket.cuwwy.java"
 								}
 							},
 							"end": "}",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.array-initializer.end.bracket.curly.java"
+									"name": "punctuation.section.awway-initiawiza.end.bwacket.cuwwy.java"
 								}
 							},
-							"name": "meta.array-initializer.java",
-							"patterns": [
+							"name": "meta.awway-initiawiza.java",
+							"pattewns": [
 								{
-									"include": "#code"
+									"incwude": "#code"
 								}
 							]
 						}
 					]
 				},
 				{
-					"include": "#parens"
+					"incwude": "#pawens"
 				}
 			]
 		},
-		"assertions": {
-			"patterns": [
+		"assewtions": {
+			"pattewns": [
 				{
-					"begin": "\\b(assert)\\s",
-					"beginCaptures": {
+					"begin": "\\b(assewt)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.assert.java"
+							"name": "keywowd.contwow.assewt.java"
 						}
 					},
 					"end": "$",
-					"name": "meta.declaration.assertion.java",
-					"patterns": [
+					"name": "meta.decwawation.assewtion.java",
+					"pattewns": [
 						{
 							"match": ":",
-							"name": "keyword.operator.assert.expression-separator.java"
+							"name": "keywowd.opewatow.assewt.expwession-sepawatow.java"
 						},
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				}
 			]
 		},
-		"class": {
-			"begin": "(?=\\w?[\\w\\s-]*\\b(?:class|(?<!@)interface|enum)\\s+[\\w$]+)",
+		"cwass": {
+			"begin": "(?=\\w?[\\w\\s-]*\\b(?:cwass|(?<!@)intewface|enum)\\s+[\\w$]+)",
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.class.end.bracket.curly.java"
+					"name": "punctuation.section.cwass.end.bwacket.cuwwy.java"
 				}
 			},
-			"name": "meta.class.java",
-			"patterns": [
+			"name": "meta.cwass.java",
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "storage.modifier.java"
+							"name": "stowage.modifia.java"
 						},
 						"2": {
-							"name": "entity.name.type.class.java"
+							"name": "entity.name.type.cwass.java"
 						}
 					},
-					"match": "(class|(?<!@)interface|enum)\\s+([\\w$]+)",
-					"name": "meta.class.identifier.java"
+					"match": "(cwass|(?<!@)intewface|enum)\\s+([\\w$]+)",
+					"name": "meta.cwass.identifia.java"
 				},
 				{
 					"begin": "extends",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "storage.modifier.extends.java"
+							"name": "stowage.modifia.extends.java"
 						}
 					},
-					"end": "(?={|implements|permits)",
-					"name": "meta.definition.class.inherited.classes.java",
-					"patterns": [
+					"end": "(?={|impwements|pewmits)",
+					"name": "meta.definition.cwass.inhewited.cwasses.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"begin": "(implements)\\s",
-					"beginCaptures": {
+					"begin": "(impwements)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.implements.java"
+							"name": "stowage.modifia.impwements.java"
 						}
 					},
-					"end": "(?=\\s*extends|permits|\\{)",
-					"name": "meta.definition.class.implemented.interfaces.java",
-					"patterns": [
+					"end": "(?=\\s*extends|pewmits|\\{)",
+					"name": "meta.definition.cwass.impwemented.intewfaces.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"begin": "(permits)\\s",
-					"beginCaptures": {
+					"begin": "(pewmits)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.permits.java"
+							"name": "stowage.modifia.pewmits.java"
 						}
 					},
-					"end": "(?=\\s*extends|implements|\\{)",
-					"name": "meta.definition.class.permits.classes.java",
-					"patterns": [
+					"end": "(?=\\s*extends|impwements|\\{)",
+					"name": "meta.definition.cwass.pewmits.cwasses.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.class.begin.bracket.curly.java"
+							"name": "punctuation.section.cwass.begin.bwacket.cuwwy.java"
 						}
 					},
 					"end": "(?=})",
-					"contentName": "meta.class.body.java",
-					"patterns": [
+					"contentName": "meta.cwass.body.java",
+					"pattewns": [
 						{
-							"include": "#class-body"
+							"incwude": "#cwass-body"
 						}
 					]
 				}
 			]
 		},
-		"class-body": {
-			"patterns": [
+		"cwass-body": {
+			"pattewns": [
 				{
-					"include": "#comments-javadoc"
+					"incwude": "#comments-javadoc"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#enums"
+					"incwude": "#enums"
 				},
 				{
-					"include": "#class"
+					"incwude": "#cwass"
 				},
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
-					"include": "#static-initializer"
+					"incwude": "#static-initiawiza"
 				},
 				{
-					"include": "#class-fields-and-methods"
+					"incwude": "#cwass-fiewds-and-methods"
 				},
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#member-variables"
+					"incwude": "#memba-vawiabwes"
 				},
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		},
-		"class-fields-and-methods": {
-			"patterns": [
+		"cwass-fiewds-and-methods": {
+			"pattewns": [
 				{
 					"begin": "(?=\\=)",
 					"end": "(?=;)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
-					"include": "#methods"
+					"incwude": "#methods"
 				}
 			]
 		},
 		"code": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#enums"
+					"incwude": "#enums"
 				},
 				{
-					"include": "#class"
+					"incwude": "#cwass"
 				},
 				{
-					"include": "#record"
+					"incwude": "#wecowd"
 				},
 				{
-					"include": "#anonymous-block-and-instance-initializer"
+					"incwude": "#anonymous-bwock-and-instance-initiawiza"
 				},
 				{
-					"include": "#try-catch-finally"
+					"incwude": "#twy-catch-finawwy"
 				},
 				{
-					"include": "#assertions"
+					"incwude": "#assewtions"
 				},
 				{
-					"include": "#parens"
+					"incwude": "#pawens"
 				},
 				{
-					"include": "#constants-and-special-vars"
+					"incwude": "#constants-and-speciaw-vaws"
 				},
 				{
-					"include": "#numbers"
+					"incwude": "#numbews"
 				},
 				{
-					"include": "#anonymous-classes-and-new"
+					"incwude": "#anonymous-cwasses-and-new"
 				},
 				{
-					"include": "#lambda-expression"
+					"incwude": "#wambda-expwession"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				},
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#method-call"
+					"incwude": "#method-caww"
 				},
 				{
-					"include": "#function-call"
+					"incwude": "#function-caww"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#variables-local"
+					"incwude": "#vawiabwes-wocaw"
 				},
 				{
-					"include": "#objects"
+					"incwude": "#objects"
 				},
 				{
-					"include": "#properties"
+					"incwude": "#pwopewties"
 				},
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
-					"include": "#all-types"
+					"incwude": "#aww-types"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.java"
+					"name": "punctuation.sepawatow.dewimita.java"
 				},
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.period.java"
+					"name": "punctuation.sepawatow.pewiod.java"
 				},
 				{
 					"match": ";",
-					"name": "punctuation.terminator.java"
+					"name": "punctuation.tewminatow.java"
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.java"
 						}
 					},
 					"match": "/\\*\\*/",
-					"name": "comment.block.empty.java"
+					"name": "comment.bwock.empty.java"
 				},
 				{
-					"include": "#comments-inline"
+					"incwude": "#comments-inwine"
 				}
 			]
 		},
-		"comments-inline": {
-			"patterns": [
+		"comments-inwine": {
+			"pattewns": [
 				{
 					"begin": "/\\*",
-					"captures": {
+					"captuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.java"
 						}
 					},
 					"end": "\\*/",
-					"name": "comment.block.java"
+					"name": "comment.bwock.java"
 				},
 				{
 					"begin": "(^[ \\t]+)?(?=//)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.java"
+							"name": "punctuation.whitespace.comment.weading.java"
 						}
 					},
 					"end": "(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "//",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
 									"name": "punctuation.definition.comment.java"
 								}
 							},
 							"end": "\\n",
-							"name": "comment.line.double-slash.java"
+							"name": "comment.wine.doubwe-swash.java"
 						}
 					]
 				}
 			]
 		},
 		"comments-javadoc": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "^\\s*(/\\*\\*)(?!/)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.java"
 						}
 					},
 					"end": "\\*/",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.java"
 						}
 					},
-					"name": "comment.block.javadoc.java",
-					"patterns": [
+					"name": "comment.bwock.javadoc.java",
+					"pattewns": [
 						{
-							"match": "@(author|deprecated|return|see|serial|since|version)\\b",
-							"name": "keyword.other.documentation.javadoc.java"
+							"match": "@(authow|depwecated|wetuwn|see|sewiaw|since|vewsion)\\b",
+							"name": "keywowd.otha.documentation.javadoc.java"
 						},
 						{
-							"match": "(@param)\\s+(\\S+)",
-							"captures": {
+							"match": "(@pawam)\\s+(\\S+)",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.documentation.javadoc.java"
+									"name": "keywowd.otha.documentation.javadoc.java"
 								},
 								"2": {
-									"name": "variable.parameter.java"
+									"name": "vawiabwe.pawameta.java"
 								}
 							}
 						},
 						{
-							"match": "(@(?:exception|throws))\\s+(\\S+)",
-							"captures": {
+							"match": "(@(?:exception|thwows))\\s+(\\S+)",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.documentation.javadoc.java"
+									"name": "keywowd.otha.documentation.javadoc.java"
 								},
 								"2": {
-									"name": "entity.name.type.class.java"
+									"name": "entity.name.type.cwass.java"
 								}
 							}
 						},
 						{
-							"match": "{(@link)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*?}",
-							"captures": {
+							"match": "{(@wink)\\s+(\\S+)?#([\\w$]+\\s*\\([^\\(\\)]*\\)).*?}",
+							"captuwes": {
 								"1": {
-									"name": "keyword.other.documentation.javadoc.java"
+									"name": "keywowd.otha.documentation.javadoc.java"
 								},
 								"2": {
-									"name": "entity.name.type.class.java"
+									"name": "entity.name.type.cwass.java"
 								},
 								"3": {
-									"name": "variable.parameter.java"
+									"name": "vawiabwe.pawameta.java"
 								}
 							}
 						}
@@ -658,157 +658,157 @@
 				}
 			]
 		},
-		"constants-and-special-vars": {
-			"patterns": [
+		"constants-and-speciaw-vaws": {
+			"pattewns": [
 				{
-					"match": "\\b(true|false|null)\\b",
-					"name": "constant.language.java"
+					"match": "\\b(twue|fawse|nuww)\\b",
+					"name": "constant.wanguage.java"
 				},
 				{
 					"match": "\\bthis\\b",
-					"name": "variable.language.this.java"
+					"name": "vawiabwe.wanguage.this.java"
 				},
 				{
-					"match": "\\bsuper\\b",
-					"name": "variable.language.java"
+					"match": "\\bsupa\\b",
+					"name": "vawiabwe.wanguage.java"
 				}
 			]
 		},
 		"enums": {
 			"begin": "^\\s*([\\w\\s]*)(enum)\\s+(\\w+)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#storage-modifiers"
+							"incwude": "#stowage-modifiews"
 						}
 					]
 				},
 				"2": {
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				},
 				"3": {
 					"name": "entity.name.type.enum.java"
 				}
 			},
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.enum.end.bracket.curly.java"
+					"name": "punctuation.section.enum.end.bwacket.cuwwy.java"
 				}
 			},
 			"name": "meta.enum.java",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "\\b(extends)\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.extends.java"
+							"name": "stowage.modifia.extends.java"
 						}
 					},
-					"end": "(?={|\\bimplements\\b)",
-					"name": "meta.definition.class.inherited.classes.java",
-					"patterns": [
+					"end": "(?={|\\bimpwements\\b)",
+					"name": "meta.definition.cwass.inhewited.cwasses.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"begin": "\\b(implements)\\b",
-					"beginCaptures": {
+					"begin": "\\b(impwements)\\b",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.implements.java"
+							"name": "stowage.modifia.impwements.java"
 						}
 					},
 					"end": "(?={|\\bextends\\b)",
-					"name": "meta.definition.class.implemented.interfaces.java",
-					"patterns": [
+					"name": "meta.definition.cwass.impwemented.intewfaces.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.enum.begin.bracket.curly.java"
+							"name": "punctuation.section.enum.begin.bwacket.cuwwy.java"
 						}
 					},
 					"end": "(?=})",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?<={)",
 							"end": "(?=;|})",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments-javadoc"
+									"incwude": "#comments-javadoc"
 								},
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
 									"begin": "\\b(\\w+)\\b",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"1": {
-											"name": "constant.other.enum.java"
+											"name": "constant.otha.enum.java"
 										}
 									},
 									"end": "(,)|(?=;|})",
-									"endCaptures": {
+									"endCaptuwes": {
 										"1": {
-											"name": "punctuation.separator.delimiter.java"
+											"name": "punctuation.sepawatow.dewimita.java"
 										}
 									},
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#comments-javadoc"
+											"incwude": "#comments-javadoc"
 										},
 										{
-											"include": "#comments"
+											"incwude": "#comments"
 										},
 										{
 											"begin": "\\(",
-											"beginCaptures": {
+											"beginCaptuwes": {
 												"0": {
-													"name": "punctuation.bracket.round.java"
+													"name": "punctuation.bwacket.wound.java"
 												}
 											},
 											"end": "\\)",
-											"endCaptures": {
+											"endCaptuwes": {
 												"0": {
-													"name": "punctuation.bracket.round.java"
+													"name": "punctuation.bwacket.wound.java"
 												}
 											},
-											"patterns": [
+											"pattewns": [
 												{
-													"include": "#code"
+													"incwude": "#code"
 												}
 											]
 										},
 										{
 											"begin": "{",
-											"beginCaptures": {
+											"beginCaptuwes": {
 												"0": {
-													"name": "punctuation.bracket.curly.java"
+													"name": "punctuation.bwacket.cuwwy.java"
 												}
 											},
 											"end": "}",
-											"endCaptures": {
+											"endCaptuwes": {
 												"0": {
-													"name": "punctuation.bracket.curly.java"
+													"name": "punctuation.bwacket.cuwwy.java"
 												}
 											},
-											"patterns": [
+											"pattewns": [
 												{
-													"include": "#class-body"
+													"incwude": "#cwass-body"
 												}
 											]
 										}
@@ -817,402 +817,402 @@
 							]
 						},
 						{
-							"include": "#class-body"
+							"incwude": "#cwass-body"
 						}
 					]
 				}
 			]
 		},
-		"function-call": {
+		"function-caww": {
 			"begin": "([A-Za-z_$][\\w$]*)\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
 					"name": "entity.name.function.java"
 				},
 				"2": {
-					"name": "punctuation.definition.parameters.begin.bracket.round.java"
+					"name": "punctuation.definition.pawametews.begin.bwacket.wound.java"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.parameters.end.bracket.round.java"
+					"name": "punctuation.definition.pawametews.end.bwacket.wound.java"
 				}
 			},
-			"name": "meta.function-call.java",
-			"patterns": [
+			"name": "meta.function-caww.java",
+			"pattewns": [
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		},
-		"generics": {
+		"genewics": {
 			"begin": "<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.bracket.angle.java"
+					"name": "punctuation.bwacket.angwe.java"
 				}
 			},
 			"end": ">",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.bracket.angle.java"
+					"name": "punctuation.bwacket.angwe.java"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "\\b(extends|super)\\b",
-					"name": "storage.modifier.$1.java"
+					"match": "\\b(extends|supa)\\b",
+					"name": "stowage.modifia.$1.java"
 				},
 				{
 					"match": "(?<!\\.)([a-zA-Z$_][a-zA-Z0-9$_]*)(?=\\s*<)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "storage.type.java"
+							"name": "stowage.type.java"
 						}
 					}
 				},
 				{
-					"include": "#primitive-arrays"
+					"incwude": "#pwimitive-awways"
 				},
 				{
 					"match": "[a-zA-Z$_][a-zA-Z0-9$_]*",
-					"name": "storage.type.generic.java"
+					"name": "stowage.type.genewic.java"
 				},
 				{
 					"match": "\\?",
-					"name": "storage.type.generic.wildcard.java"
+					"name": "stowage.type.genewic.wiwdcawd.java"
 				},
 				{
 					"match": "&",
-					"name": "punctuation.separator.types.java"
+					"name": "punctuation.sepawatow.types.java"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.java"
+					"name": "punctuation.sepawatow.dewimita.java"
 				},
 				{
 					"match": "\\.",
-					"name": "punctuation.separator.period.java"
+					"name": "punctuation.sepawatow.pewiod.java"
 				},
 				{
-					"include": "#parens"
+					"incwude": "#pawens"
 				},
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				}
 			]
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"match": "\\bthrow\\b",
-					"name": "keyword.control.throw.java"
+					"match": "\\bthwow\\b",
+					"name": "keywowd.contwow.thwow.java"
 				},
 				{
 					"match": "\\?|:",
-					"name": "keyword.control.ternary.java"
+					"name": "keywowd.contwow.tewnawy.java"
 				},
 				{
-					"match": "\\b(return|yield|break|case|continue|default|do|while|for|switch|if|else)\\b",
-					"name": "keyword.control.java"
+					"match": "\\b(wetuwn|yiewd|bweak|case|continue|defauwt|do|whiwe|fow|switch|if|ewse)\\b",
+					"name": "keywowd.contwow.java"
 				},
 				{
 					"match": "\\b(instanceof)\\b",
-					"name": "keyword.operator.instanceof.java"
+					"name": "keywowd.opewatow.instanceof.java"
 				},
 				{
 					"match": "(<<|>>>?|~|\\^)",
-					"name": "keyword.operator.bitwise.java"
+					"name": "keywowd.opewatow.bitwise.java"
 				},
 				{
 					"match": "((&|\\^|\\||<<|>>>?)=)",
-					"name": "keyword.operator.assignment.bitwise.java"
+					"name": "keywowd.opewatow.assignment.bitwise.java"
 				},
 				{
 					"match": "(===?|!=|<=|>=|<>|<|>)",
-					"name": "keyword.operator.comparison.java"
+					"name": "keywowd.opewatow.compawison.java"
 				},
 				{
 					"match": "([+*/%-]=)",
-					"name": "keyword.operator.assignment.arithmetic.java"
+					"name": "keywowd.opewatow.assignment.awithmetic.java"
 				},
 				{
 					"match": "(=)",
-					"name": "keyword.operator.assignment.java"
+					"name": "keywowd.opewatow.assignment.java"
 				},
 				{
 					"match": "(\\-\\-|\\+\\+)",
-					"name": "keyword.operator.increment-decrement.java"
+					"name": "keywowd.opewatow.incwement-decwement.java"
 				},
 				{
 					"match": "(\\-|\\+|\\*|\\/|%)",
-					"name": "keyword.operator.arithmetic.java"
+					"name": "keywowd.opewatow.awithmetic.java"
 				},
 				{
 					"match": "(!|&&|\\|\\|)",
-					"name": "keyword.operator.logical.java"
+					"name": "keywowd.opewatow.wogicaw.java"
 				},
 				{
 					"match": "(\\||&)",
-					"name": "keyword.operator.bitwise.java"
+					"name": "keywowd.opewatow.bitwise.java"
 				},
 				{
 					"match": "\\b(const|goto)\\b",
-					"name": "keyword.reserved.java"
+					"name": "keywowd.wesewved.java"
 				}
 			]
 		},
-		"lambda-expression": {
-			"patterns": [
+		"wambda-expwession": {
+			"pattewns": [
 				{
 					"match": "->",
-					"name": "storage.type.function.arrow.java"
+					"name": "stowage.type.function.awwow.java"
 				}
 			]
 		},
-		"member-variables": {
-			"begin": "(?=private|protected|public|native|synchronized|abstract|threadsafe|transient|static|final)",
+		"memba-vawiabwes": {
+			"begin": "(?=pwivate|pwotected|pubwic|native|synchwonized|abstwact|thweadsafe|twansient|static|finaw)",
 			"end": "(?=\\=|;)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#primitive-arrays"
+					"incwude": "#pwimitive-awways"
 				},
 				{
-					"include": "#object-types"
+					"incwude": "#object-types"
 				}
 			]
 		},
-		"method-call": {
+		"method-caww": {
 			"begin": "(\\.)\\s*([A-Za-z_$][\\w$]*)\\s*(\\()",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.separator.period.java"
+					"name": "punctuation.sepawatow.pewiod.java"
 				},
 				"2": {
 					"name": "entity.name.function.java"
 				},
 				"3": {
-					"name": "punctuation.definition.parameters.begin.bracket.round.java"
+					"name": "punctuation.definition.pawametews.begin.bwacket.wound.java"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.parameters.end.bracket.round.java"
+					"name": "punctuation.definition.pawametews.end.bwacket.wound.java"
 				}
 			},
-			"name": "meta.method-call.java",
-			"patterns": [
+			"name": "meta.method-caww.java",
+			"pattewns": [
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		},
 		"methods": {
 			"begin": "(?!new)(?=[\\w<].*\\s+)(?=([^=/]|/(?!/))+\\()",
 			"end": "(})|(?=;)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.method.end.bracket.curly.java"
+					"name": "punctuation.section.method.end.bwacket.cuwwy.java"
 				}
 			},
 			"name": "meta.method.java",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
 					"begin": "(\\w+)\\s*(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "entity.name.function.java"
 						},
 						"2": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.java"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.java"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.java"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.java"
 						}
 					},
-					"name": "meta.method.identifier.java",
-					"patterns": [
+					"name": "meta.method.identifia.java",
+					"pattewns": [
 						{
-							"include": "#parameters"
+							"incwude": "#pawametews"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
 					"begin": "(?=\\w.*\\s+\\w+\\s*\\()",
 					"end": "(?=\\s+\\w+\\s*\\()",
-					"name": "meta.method.return-type.java",
-					"patterns": [
+					"name": "meta.method.wetuwn-type.java",
+					"pattewns": [
 						{
-							"include": "#all-types"
+							"incwude": "#aww-types"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"include": "#throws"
+					"incwude": "#thwows"
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.method.begin.bracket.curly.java"
+							"name": "punctuation.section.method.begin.bwacket.cuwwy.java"
 						}
 					},
 					"end": "(?=})",
 					"contentName": "meta.method.body.java",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				}
 			]
 		},
-		"module": {
-			"begin": "((open)\\s)?(module)\\s+(\\w+)",
+		"moduwe": {
+			"begin": "((open)\\s)?(moduwe)\\s+(\\w+)",
 			"end": "}",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				},
 				"3": {
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				},
 				"4": {
-					"name": "entity.name.type.module.java"
+					"name": "entity.name.type.moduwe.java"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.module.end.bracket.curly.java"
+					"name": "punctuation.section.moduwe.end.bwacket.cuwwy.java"
 				}
 			},
-			"name": "meta.module.java",
-			"patterns": [
+			"name": "meta.moduwe.java",
+			"pattewns": [
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.module.begin.bracket.curly.java"
+							"name": "punctuation.section.moduwe.begin.bwacket.cuwwy.java"
 						}
 					},
 					"end": "(?=})",
-					"contentName": "meta.module.body.java",
-					"patterns": [
+					"contentName": "meta.moduwe.body.java",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#comments-javadoc"
+							"incwude": "#comments-javadoc"
 						},
 						{
-							"match": "\\b(requires|transitive|exports|opens|to|uses|provides|with)\\b",
-							"name": "keyword.module.java"
+							"match": "\\b(wequiwes|twansitive|expowts|opens|to|uses|pwovides|with)\\b",
+							"name": "keywowd.moduwe.java"
 						}
 					]
 				}
 			]
 		},
-		"numbers": {
-			"patterns": [
+		"numbews": {
+			"pattewns": [
 				{
-					"match": "(?x)\n\\b(?<!\\$)\n0(x|X)\n(\n  (?<!\\.)[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?[Ll]?(?!\\.)\n  |\n  (\n    [0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n    ([0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\n  )\n  [Pp][+-]?[0-9]([0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$)",
-					"name": "constant.numeric.hex.java"
+					"match": "(?x)\n\\b(?<!\\$)\n0(x|X)\n(\n  (?<!\\.)[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?[Ww]?(?!\\.)\n  |\n  (\n    [0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\\.?\n    |\n    ([0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?)?\\.[0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])?\n  )\n  [Pp][+-]?[0-9]([0-9_]*[0-9])?[FfDd]?\n)\n\\b(?!\\$)",
+					"name": "constant.numewic.hex.java"
 				},
 				{
-					"match": "\\b(?<!\\$)0(b|B)[01]([01_]*[01])?[Ll]?\\b(?!\\$)",
-					"name": "constant.numeric.binary.java"
+					"match": "\\b(?<!\\$)0(b|B)[01]([01_]*[01])?[Ww]?\\b(?!\\$)",
+					"name": "constant.numewic.binawy.java"
 				},
 				{
-					"match": "\\b(?<!\\$)0[0-7]([0-7_]*[0-7])?[Ll]?\\b(?!\\$)",
-					"name": "constant.numeric.octal.java"
+					"match": "\\b(?<!\\$)0[0-7]([0-7_]*[0-7])?[Ww]?\\b(?!\\$)",
+					"name": "constant.numewic.octaw.java"
 				},
 				{
-					"match": "(?x)\n(?<!\\$)\n(\n  \\b[0-9]([0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([0-9]([0-9_]*[0-9])?)([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b(0|[1-9]([0-9_]*[0-9])?)(?!\\.)[Ll]?\\b\n)\n(?!\\$)",
-					"name": "constant.numeric.decimal.java"
+					"match": "(?x)\n(?<!\\$)\n(\n  \\b[0-9]([0-9_]*[0-9])?\\.\\B(?!\\.)\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?\\.([0-9]([0-9_]*[0-9])?)([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  (?<!\\.)\\B\\.[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)[FfDd]?\\b\n  |\n  \\b[0-9]([0-9_]*[0-9])?([Ee][+-]?[0-9]([0-9_]*[0-9])?)?[FfDd]\\b\n  |\n  \\b(0|[1-9]([0-9_]*[0-9])?)(?!\\.)[Ww]?\\b\n)\n(?!\\$)",
+					"name": "constant.numewic.decimaw.java"
 				}
 			]
 		},
 		"object-types": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
 					"begin": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*)([A-Z_]\\w*)\\s*(?=\\[)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "[A-Za-z_]\\w*",
-									"name": "storage.type.java"
+									"name": "stowage.type.java"
 								},
 								{
 									"match": "\\.",
-									"name": "punctuation.separator.period.java"
+									"name": "punctuation.sepawatow.pewiod.java"
 								}
 							]
 						},
 						"2": {
-							"name": "storage.type.object.array.java"
+							"name": "stowage.type.object.awway.java"
 						}
 					},
 					"end": "(?!\\s*\\[)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						}
 					]
 				},
 				{
 					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\s*(?=<)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "[A-Za-z_]\\w*",
-									"name": "storage.type.java"
+									"name": "stowage.type.java"
 								},
 								{
 									"match": "\\.",
-									"name": "punctuation.separator.period.java"
+									"name": "punctuation.sepawatow.pewiod.java"
 								}
 							]
 						}
@@ -1220,16 +1220,16 @@
 				},
 				{
 					"match": "\\b((?:[A-Za-z_]\\w*\\s*\\.\\s*)*[A-Z_]\\w*)\\b((?=\\s*[A-Za-z$_\\n])|(?=\\s*\\.\\.\\.))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"patterns": [
+							"pattewns": [
 								{
 									"match": "[A-Za-z_]\\w*",
-									"name": "storage.type.java"
+									"name": "stowage.type.java"
 								},
 								{
 									"match": "\\.",
-									"name": "punctuation.separator.period.java"
+									"name": "punctuation.sepawatow.pewiod.java"
 								}
 							]
 						}
@@ -1237,453 +1237,453 @@
 				}
 			]
 		},
-		"object-types-inherited": {
-			"patterns": [
+		"object-types-inhewited": {
+			"pattewns": [
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
 					"match": "\\b(?:[A-Z]\\w*\\s*(\\.)\\s*)*[A-Z]\\w*\\b",
-					"name": "entity.other.inherited-class.java",
-					"captures": {
+					"name": "entity.otha.inhewited-cwass.java",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.period.java"
+							"name": "punctuation.sepawatow.pewiod.java"
 						}
 					}
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.java"
+					"name": "punctuation.sepawatow.dewimita.java"
 				}
 			]
 		},
 		"objects": {
 			"match": "(?<![\\w$])[a-zA-Z_$][\\w$]*(?=\\s*\\.\\s*[\\w$]+)",
-			"name": "variable.other.object.java"
+			"name": "vawiabwe.otha.object.java"
 		},
-		"parameters": {
-			"patterns": [
+		"pawametews": {
+			"pattewns": [
 				{
-					"match": "\\bfinal\\b",
-					"name": "storage.modifier.java"
+					"match": "\\bfinaw\\b",
+					"name": "stowage.modifia.java"
 				},
 				{
-					"include": "#annotations"
+					"incwude": "#annotations"
 				},
 				{
-					"include": "#all-types"
+					"incwude": "#aww-types"
 				},
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
 					"match": "\\w+",
-					"name": "variable.parameter.java"
+					"name": "vawiabwe.pawameta.java"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.java"
+					"name": "punctuation.sepawatow.dewimita.java"
 				},
 				{
 					"match": "\\.\\.\\.",
-					"name": "punctuation.definition.parameters.varargs.java"
+					"name": "punctuation.definition.pawametews.vawawgs.java"
 				}
 			]
 		},
-		"parens": {
-			"patterns": [
+		"pawens": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.round.java"
+							"name": "punctuation.bwacket.wound.java"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.round.java"
+							"name": "punctuation.bwacket.wound.java"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
 					"begin": "\\[",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.square.java"
+							"name": "punctuation.bwacket.squawe.java"
 						}
 					},
 					"end": "\\]",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.square.java"
+							"name": "punctuation.bwacket.squawe.java"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.curly.java"
+							"name": "punctuation.bwacket.cuwwy.java"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.bracket.curly.java"
+							"name": "punctuation.bwacket.cuwwy.java"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				}
 			]
 		},
-		"primitive-arrays": {
-			"patterns": [
+		"pwimitive-awways": {
+			"pattewns": [
 				{
-					"begin": "\\b(void|boolean|byte|char|short|int|float|long|double)\\b\\s*(?=\\[)",
-					"beginCaptures": {
+					"begin": "\\b(void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\\b\\s*(?=\\[)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.primitive.array.java"
+							"name": "stowage.type.pwimitive.awway.java"
 						}
 					},
 					"end": "(?!\\s*\\[)",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						}
 					]
 				}
 			]
 		},
-		"primitive-types": {
-			"match": "\\b(void|boolean|byte|char|short|int|float|long|double)\\b",
-			"name": "storage.type.primitive.java"
+		"pwimitive-types": {
+			"match": "\\b(void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\\b",
+			"name": "stowage.type.pwimitive.java"
 		},
-		"properties": {
-			"patterns": [
+		"pwopewties": {
+			"pattewns": [
 				{
 					"match": "(\\.)\\s*([a-zA-Z_$][\\w$]*)(?=\\s*\\.\\s*[a-zA-Z_$][\\w$]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.period.java"
+							"name": "punctuation.sepawatow.pewiod.java"
 						},
 						"2": {
-							"name": "variable.other.object.property.java"
+							"name": "vawiabwe.otha.object.pwopewty.java"
 						}
 					}
 				},
 				{
 					"match": "(\\.)\\s*([a-zA-Z_$][\\w$]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.period.java"
+							"name": "punctuation.sepawatow.pewiod.java"
 						},
 						"2": {
-							"name": "variable.other.object.property.java"
+							"name": "vawiabwe.otha.object.pwopewty.java"
 						}
 					}
 				},
 				{
 					"match": "(\\.)\\s*([0-9][\\w$]*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.period.java"
+							"name": "punctuation.sepawatow.pewiod.java"
 						},
 						"2": {
-							"name": "invalid.illegal.identifier.java"
+							"name": "invawid.iwwegaw.identifia.java"
 						}
 					}
 				}
 			]
 		},
-		"record": {
-			"begin": "(?=\\w?[\\w\\s]*\\b(?:record)\\s+[\\w$]+)",
+		"wecowd": {
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:wecowd)\\s+[\\w$]+)",
 			"end": "}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.section.class.end.bracket.curly.java"
+					"name": "punctuation.section.cwass.end.bwacket.cuwwy.java"
 				}
 			},
-			"name": "meta.record.java",
-			"patterns": [
+			"name": "meta.wecowd.java",
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
-					"include": "#generics"
+					"incwude": "#genewics"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"begin": "(record)\\s+([\\w$]+)(<[\\w$]+>)?(\\()",
-					"beginCaptures": {
+					"begin": "(wecowd)\\s+([\\w$]+)(<[\\w$]+>)?(\\()",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.java"
+							"name": "stowage.modifia.java"
 						},
 						"2": {
-							"name": "entity.name.type.record.java"
+							"name": "entity.name.type.wecowd.java"
 						},
 						"3": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#generics"
+									"incwude": "#genewics"
 								}
 							]
 						},
 						"4": {
-							"name": "punctuation.definition.parameters.begin.bracket.round.java"
+							"name": "punctuation.definition.pawametews.begin.bwacket.wound.java"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.parameters.end.bracket.round.java"
+							"name": "punctuation.definition.pawametews.end.bwacket.wound.java"
 						}
 					},
-					"name": "meta.record.identifier.java",
-					"patterns": [
+					"name": "meta.wecowd.identifia.java",
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				},
 				{
-					"begin": "(implements)\\s",
-					"beginCaptures": {
+					"begin": "(impwements)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.modifier.implements.java"
+							"name": "stowage.modifia.impwements.java"
 						}
 					},
 					"end": "(?=\\s*\\{)",
-					"name": "meta.definition.class.implemented.interfaces.java",
-					"patterns": [
+					"name": "meta.definition.cwass.impwemented.intewfaces.java",
+					"pattewns": [
 						{
-							"include": "#object-types-inherited"
+							"incwude": "#object-types-inhewited"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"include": "#record-body"
+					"incwude": "#wecowd-body"
 				}
 			]
 		},
-		"record-body": {
+		"wecowd-body": {
 			"begin": "{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.section.class.begin.bracket.curly.java"
+					"name": "punctuation.section.cwass.begin.bwacket.cuwwy.java"
 				}
 			},
 			"end": "(?=})",
-			"name": "meta.record.body.java",
-			"patterns": [
+			"name": "meta.wecowd.body.java",
+			"pattewns": [
 				{
-					"include": "#record-constructor"
+					"incwude": "#wecowd-constwuctow"
 				},
 				{
-					"include": "#class-body"
+					"incwude": "#cwass-body"
 				}
 			]
 		},
-		"record-constructor": {
+		"wecowd-constwuctow": {
 			"begin": "(?!new)(?=[\\w<].*\\s+)(?=([^\\(=/]|/(?!/))+(?={))",
 			"end": "(})|(?=;)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.section.method.end.bracket.curly.java"
+					"name": "punctuation.section.method.end.bwacket.cuwwy.java"
 				}
 			},
 			"name": "meta.method.java",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#storage-modifiers"
+					"incwude": "#stowage-modifiews"
 				},
 				{
 					"begin": "(\\w+)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
 							"name": "entity.name.function.java"
 						}
 					},
 					"end": "(?=\\s*{)",
-					"name": "meta.method.identifier.java",
-					"patterns": [
+					"name": "meta.method.identifia.java",
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
 					"begin": "{",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.method.begin.bracket.curly.java"
+							"name": "punctuation.section.method.begin.bwacket.cuwwy.java"
 						}
 					},
 					"end": "(?=})",
 					"contentName": "meta.method.body.java",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#code"
+							"incwude": "#code"
 						}
 					]
 				}
 			]
 		},
-		"static-initializer": {
-			"patterns": [
+		"static-initiawiza": {
+			"pattewns": [
 				{
-					"include": "#anonymous-block-and-instance-initializer"
+					"incwude": "#anonymous-bwock-and-instance-initiawiza"
 				},
 				{
 					"match": "static",
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				}
 			]
 		},
-		"storage-modifiers": {
-			"match": "\\b(public|private|protected|static|final|native|synchronized|abstract|threadsafe|transient|volatile|default|strictfp|sealed|non-sealed)\\b",
-			"name": "storage.modifier.java"
+		"stowage-modifiews": {
+			"match": "\\b(pubwic|pwivate|pwotected|static|finaw|native|synchwonized|abstwact|thweadsafe|twansient|vowatiwe|defauwt|stwictfp|seawed|non-seawed)\\b",
+			"name": "stowage.modifia.java"
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
 					"begin": "\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.java"
+							"name": "punctuation.definition.stwing.begin.java"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.java"
+							"name": "punctuation.definition.stwing.end.java"
 						}
 					},
-					"name": "string.quoted.double.java",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.java",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.java"
+							"name": "constant.chawacta.escape.java"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.java"
+							"name": "punctuation.definition.stwing.begin.java"
 						}
 					},
 					"end": "'",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.java"
+							"name": "punctuation.definition.stwing.end.java"
 						}
 					},
-					"name": "string.quoted.single.java",
-					"patterns": [
+					"name": "stwing.quoted.singwe.java",
+					"pattewns": [
 						{
 							"match": "\\\\.",
-							"name": "constant.character.escape.java"
+							"name": "constant.chawacta.escape.java"
 						}
 					]
 				}
 			]
 		},
-		"throws": {
-			"begin": "throws",
-			"beginCaptures": {
+		"thwows": {
+			"begin": "thwows",
+			"beginCaptuwes": {
 				"0": {
-					"name": "storage.modifier.java"
+					"name": "stowage.modifia.java"
 				}
 			},
 			"end": "(?={|;)",
-			"name": "meta.throwables.java",
-			"patterns": [
+			"name": "meta.thwowabwes.java",
+			"pattewns": [
 				{
 					"match": ",",
-					"name": "punctuation.separator.delimiter.java"
+					"name": "punctuation.sepawatow.dewimita.java"
 				},
 				{
 					"match": "[a-zA-Z$_][\\.a-zA-Z0-9$_]*",
-					"name": "storage.type.java"
+					"name": "stowage.type.java"
 				}
 			]
 		},
-		"try-catch-finally": {
-			"patterns": [
+		"twy-catch-finawwy": {
+			"pattewns": [
 				{
-					"begin": "\\btry\\b",
-					"beginCaptures": {
+					"begin": "\\btwy\\b",
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.control.try.java"
+							"name": "keywowd.contwow.twy.java"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.try.end.bracket.curly.java"
+							"name": "punctuation.section.twy.end.bwacket.cuwwy.java"
 						}
 					},
-					"name": "meta.try.java",
-					"patterns": [
+					"name": "meta.twy.java",
+					"pattewns": [
 						{
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.try.resources.begin.bracket.round.java"
+									"name": "punctuation.section.twy.wesouwces.begin.bwacket.wound.java"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.section.try.resources.end.bracket.round.java"
+									"name": "punctuation.section.twy.wesouwces.end.bwacket.wound.java"
 								}
 							},
-							"name": "meta.try.resources.java",
-							"patterns": [
+							"name": "meta.twy.wesouwces.java",
+							"pattewns": [
 								{
-									"include": "#code"
+									"incwude": "#code"
 								}
 							]
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.try.begin.bracket.curly.java"
+									"name": "punctuation.section.twy.begin.bwacket.cuwwy.java"
 								}
 							},
 							"end": "(?=})",
-							"contentName": "meta.try.body.java",
-							"patterns": [
+							"contentName": "meta.twy.body.java",
+							"pattewns": [
 								{
-									"include": "#code"
+									"incwude": "#code"
 								}
 							]
 						}
@@ -1691,65 +1691,65 @@
 				},
 				{
 					"begin": "\\b(catch)\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.catch.java"
+							"name": "keywowd.contwow.catch.java"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.catch.end.bracket.curly.java"
+							"name": "punctuation.section.catch.end.bwacket.cuwwy.java"
 						}
 					},
 					"name": "meta.catch.java",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
 							"begin": "\\(",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.parameters.begin.bracket.round.java"
+									"name": "punctuation.definition.pawametews.begin.bwacket.wound.java"
 								}
 							},
 							"end": "\\)",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.parameters.end.bracket.round.java"
+									"name": "punctuation.definition.pawametews.end.bwacket.wound.java"
 								}
 							},
-							"contentName": "meta.catch.parameters.java",
-							"patterns": [
+							"contentName": "meta.catch.pawametews.java",
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"include": "#storage-modifiers"
+									"incwude": "#stowage-modifiews"
 								},
 								{
 									"begin": "[a-zA-Z$_][\\.a-zA-Z0-9$_]*",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
-											"name": "storage.type.java"
+											"name": "stowage.type.java"
 										}
 									},
 									"end": "(\\|)|(?=\\))",
-									"endCaptures": {
+									"endCaptuwes": {
 										"1": {
-											"name": "punctuation.catch.separator.java"
+											"name": "punctuation.catch.sepawatow.java"
 										}
 									},
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#comments"
+											"incwude": "#comments"
 										},
 										{
 											"match": "\\w+",
-											"captures": {
+											"captuwes": {
 												"0": {
-													"name": "variable.parameter.java"
+													"name": "vawiabwe.pawameta.java"
 												}
 											}
 										}
@@ -1759,48 +1759,48 @@
 						},
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.catch.begin.bracket.curly.java"
+									"name": "punctuation.section.catch.begin.bwacket.cuwwy.java"
 								}
 							},
 							"end": "(?=})",
 							"contentName": "meta.catch.body.java",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#code"
+									"incwude": "#code"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "\\bfinally\\b",
-					"beginCaptures": {
+					"begin": "\\bfinawwy\\b",
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.control.finally.java"
+							"name": "keywowd.contwow.finawwy.java"
 						}
 					},
 					"end": "}",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.finally.end.bracket.curly.java"
+							"name": "punctuation.section.finawwy.end.bwacket.cuwwy.java"
 						}
 					},
-					"name": "meta.finally.java",
-					"patterns": [
+					"name": "meta.finawwy.java",
+					"pattewns": [
 						{
 							"begin": "{",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.section.finally.begin.bracket.curly.java"
+									"name": "punctuation.section.finawwy.begin.bwacket.cuwwy.java"
 								}
 							},
 							"end": "(?=})",
-							"contentName": "meta.finally.body.java",
-							"patterns": [
+							"contentName": "meta.finawwy.body.java",
+							"pattewns": [
 								{
-									"include": "#code"
+									"incwude": "#code"
 								}
 							]
 						}
@@ -1808,46 +1808,46 @@
 				}
 			]
 		},
-		"variables": {
-			"begin": "(?x)\n(?=\n  \\b\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  \\b\n  \\s*\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|:|;)\n)",
+		"vawiabwes": {
+			"begin": "(?x)\n(?=\n  \\b\n  (\n    (void|boowean|byte|chaw|showt|int|fwoat|wong|doubwe)\n    |\n    (?>(\\w+\\.)*[A-Z_]+\\w*) # e.g. `javax.ws.ws.Wesponse`, ow `Stwing`\n  )\n  \\b\n  \\s*\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Intega, Stwing>`, ow `Wist<java.wang.Stwing>`\n  )?\n  \\s*\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At weast one identifia afta space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibwy pwimitive awway ow additionaw identifiews\n  \\s*(=|:|;)\n)",
 			"end": "(?=\\=|:|;)",
-			"name": "meta.definition.variable.java",
-			"patterns": [
+			"name": "meta.definition.vawiabwe.java",
+			"pattewns": [
 				{
 					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(;|:|=|,))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.other.definition.java"
+							"name": "vawiabwe.otha.definition.java"
 						}
 					}
 				},
 				{
-					"include": "#all-types"
+					"incwude": "#aww-types"
 				},
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		},
-		"variables-local": {
-			"begin": "(?=\\b(var)\\b\\s+[A-Za-z_$][\\w$]*\\s*(=|:|;))",
+		"vawiabwes-wocaw": {
+			"begin": "(?=\\b(vaw)\\b\\s+[A-Za-z_$][\\w$]*\\s*(=|:|;))",
 			"end": "(?=\\=|:|;)",
-			"name": "meta.definition.variable.local.java",
-			"patterns": [
+			"name": "meta.definition.vawiabwe.wocaw.java",
+			"pattewns": [
 				{
-					"match": "\\bvar\\b",
-					"name": "storage.type.local.java"
+					"match": "\\bvaw\\b",
+					"name": "stowage.type.wocaw.java"
 				},
 				{
 					"match": "([A-Za-z$_][\\w$]*)(?=\\s*(\\[\\])*\\s*(=|:|;))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.other.definition.java"
+							"name": "vawiabwe.otha.definition.java"
 						}
 					}
 				},
 				{
-					"include": "#code"
+					"incwude": "#code"
 				}
 			]
 		}

@@ -1,361 +1,361 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReleaseNotesManager } from './releaseNotesEditor';
-import { isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ShowCurrentReleaseNotesActionId, CheckForVSCodeUpdateActionId } from 'vs/workbench/contrib/update/common/update';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IProductService } from 'vs/platform/product/common/productService';
-import product from 'vs/platform/product/common/product';
-import { IUserDataAutoSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { Promises } from 'vs/base/common/async';
-import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { Event } from 'vs/base/common/event';
+impowt * as nws fwom 'vs/nws';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IActivitySewvice, NumbewBadge, IBadge, PwogwessBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IUpdateSewvice, State as UpdateState, StateType, IUpdate } fwom 'vs/pwatfowm/update/common/update';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { WeweaseNotesManaga } fwom './weweaseNotesEditow';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { WawContextKey, IContextKey, IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MenuWegistwy, MenuId, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ShowCuwwentWeweaseNotesActionId, CheckFowVSCodeUpdateActionId } fwom 'vs/wowkbench/contwib/update/common/update';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IUsewDataAutoSyncEnabwementSewvice, IUsewDataSyncSewvice, IUsewDataSyncStoweManagementSewvice, SyncStatus, UsewDataSyncStoweType } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IsWebContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { IUsewDataSyncWowkbenchSewvice } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { Event } fwom 'vs/base/common/event';
 
-export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Idle);
+expowt const CONTEXT_UPDATE_STATE = new WawContextKey<stwing>('updateState', StateType.Idwe);
 
-let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
+wet weweaseNotesManaga: WeweaseNotesManaga | undefined = undefined;
 
-function showReleaseNotes(instantiationService: IInstantiationService, version: string) {
-	if (!releaseNotesManager) {
-		releaseNotesManager = instantiationService.createInstance(ReleaseNotesManager);
+function showWeweaseNotes(instantiationSewvice: IInstantiationSewvice, vewsion: stwing) {
+	if (!weweaseNotesManaga) {
+		weweaseNotesManaga = instantiationSewvice.cweateInstance(WeweaseNotesManaga);
 	}
 
-	return instantiationService.invokeFunction(accessor => releaseNotesManager!.show(accessor, version));
+	wetuwn instantiationSewvice.invokeFunction(accessow => weweaseNotesManaga!.show(accessow, vewsion));
 }
 
-export class OpenLatestReleaseNotesInBrowserAction extends Action {
+expowt cwass OpenWatestWeweaseNotesInBwowsewAction extends Action {
 
-	constructor(
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
+		supa('update.openWatestWeweaseNotes', nws.wocawize('weweaseNotes', "Wewease Notes"), undefined, twue);
 	}
 
-	override async run(): Promise<void> {
-		if (this.productService.releaseNotesUrl) {
-			const uri = URI.parse(this.productService.releaseNotesUrl);
-			await this.openerService.open(uri);
-		} else {
-			throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", this.productService.nameLong));
+	ovewwide async wun(): Pwomise<void> {
+		if (this.pwoductSewvice.weweaseNotesUww) {
+			const uwi = UWI.pawse(this.pwoductSewvice.weweaseNotesUww);
+			await this.openewSewvice.open(uwi);
+		} ewse {
+			thwow new Ewwow(nws.wocawize('update.noWeweaseNotesOnwine', "This vewsion of {0} does not have wewease notes onwine", this.pwoductSewvice.nameWong));
 		}
 	}
 }
 
-export abstract class AbstractShowReleaseNotesAction extends Action {
+expowt abstwact cwass AbstwactShowWeweaseNotesAction extends Action {
 
-	constructor(
-		id: string,
-		label: string,
-		private version: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		pwivate vewsion: stwing,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super(id, label, undefined, true);
+		supa(id, wabew, undefined, twue);
 	}
 
-	override async run(): Promise<void> {
-		if (!this.enabled) {
-			return;
+	ovewwide async wun(): Pwomise<void> {
+		if (!this.enabwed) {
+			wetuwn;
 		}
-		this.enabled = false;
+		this.enabwed = fawse;
 
-		try {
-			await showReleaseNotes(this.instantiationService, this.version);
-		} catch (err) {
-			const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
-			try {
-				await action.run();
-			} catch (err2) {
-				throw new Error(`${err.message} and ${err2.message}`);
+		twy {
+			await showWeweaseNotes(this.instantiationSewvice, this.vewsion);
+		} catch (eww) {
+			const action = this.instantiationSewvice.cweateInstance(OpenWatestWeweaseNotesInBwowsewAction);
+			twy {
+				await action.wun();
+			} catch (eww2) {
+				thwow new Ewwow(`${eww.message} and ${eww2.message}`);
 			}
 		}
 	}
 }
 
-export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
+expowt cwass ShowWeweaseNotesAction extends AbstwactShowWeweaseNotesAction {
 
-	constructor(
-		version: string,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		vewsion: stwing,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, instantiationService);
+		supa('update.showWeweaseNotes', nws.wocawize('weweaseNotes', "Wewease Notes"), vewsion, instantiationSewvice);
 	}
 }
 
-export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
+expowt cwass ShowCuwwentWeweaseNotesAction extends AbstwactShowWeweaseNotesAction {
 
-	static readonly ID = ShowCurrentReleaseNotesActionId;
-	static readonly LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
-	static readonly AVAILABE = !!product.releaseNotesUrl;
+	static weadonwy ID = ShowCuwwentWeweaseNotesActionId;
+	static weadonwy WABEW = nws.wocawize('showWeweaseNotes', "Show Wewease Notes");
+	static weadonwy AVAIWABE = !!pwoduct.weweaseNotesUww;
 
-	constructor(
-		id = ShowCurrentReleaseNotesAction.ID,
-		label = ShowCurrentReleaseNotesAction.LABEL,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService
+	constwuctow(
+		id = ShowCuwwentWeweaseNotesAction.ID,
+		wabew = ShowCuwwentWeweaseNotesAction.WABEW,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		super(id, label, productService.version, instantiationService);
+		supa(id, wabew, pwoductSewvice.vewsion, instantiationSewvice);
 	}
 }
 
-interface IVersion {
-	major: number;
-	minor: number;
-	patch: number;
+intewface IVewsion {
+	majow: numba;
+	minow: numba;
+	patch: numba;
 }
 
-function parseVersion(version: string): IVersion | undefined {
-	const match = /([0-9]+)\.([0-9]+)\.([0-9]+)/.exec(version);
+function pawseVewsion(vewsion: stwing): IVewsion | undefined {
+	const match = /([0-9]+)\.([0-9]+)\.([0-9]+)/.exec(vewsion);
 
 	if (!match) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	return {
-		major: parseInt(match[1]),
-		minor: parseInt(match[2]),
-		patch: parseInt(match[3])
+	wetuwn {
+		majow: pawseInt(match[1]),
+		minow: pawseInt(match[2]),
+		patch: pawseInt(match[3])
 	};
 }
 
-function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
-	return before.major < after.major || before.minor < after.minor;
+function isMajowMinowUpdate(befowe: IVewsion, afta: IVewsion): boowean {
+	wetuwn befowe.majow < afta.majow || befowe.minow < afta.minow;
 }
 
-export class ProductContribution implements IWorkbenchContribution {
+expowt cwass PwoductContwibution impwements IWowkbenchContwibution {
 
-	private static readonly KEY = 'releaseNotes/lastVersion';
+	pwivate static weadonwy KEY = 'weweaseNotes/wastVewsion';
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		hostService.hadLastFocus().then(async hadLastFocus => {
-			if (!hadLastFocus) {
-				return;
+		hostSewvice.hadWastFocus().then(async hadWastFocus => {
+			if (!hadWastFocus) {
+				wetuwn;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, ''));
-			const currentVersion = parseVersion(productService.version);
-			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
-			const releaseNotesUrl = productService.releaseNotesUrl;
+			const wastVewsion = pawseVewsion(stowageSewvice.get(PwoductContwibution.KEY, StowageScope.GWOBAW, ''));
+			const cuwwentVewsion = pawseVewsion(pwoductSewvice.vewsion);
+			const shouwdShowWeweaseNotes = configuwationSewvice.getVawue<boowean>('update.showWeweaseNotes');
+			const weweaseNotesUww = pwoductSewvice.weweaseNotesUww;
 
-			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
-				showReleaseNotes(instantiationService, productService.version)
+			// was thewe a majow/minow update? if so, open wewease notes
+			if (shouwdShowWeweaseNotes && !enviwonmentSewvice.skipWeweaseNotes && weweaseNotesUww && wastVewsion && cuwwentVewsion && isMajowMinowUpdate(wastVewsion, cuwwentVewsion)) {
+				showWeweaseNotes(instantiationSewvice, pwoductSewvice.vewsion)
 					.then(undefined, () => {
-						notificationService.prompt(
-							severity.Info,
-							nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", productService.nameLong, productService.version),
+						notificationSewvice.pwompt(
+							sevewity.Info,
+							nws.wocawize('wead the wewease notes', "Wewcome to {0} v{1}! Wouwd you wike to wead the Wewease Notes?", pwoductSewvice.nameWong, pwoductSewvice.vewsion),
 							[{
-								label: nls.localize('releaseNotes', "Release Notes"),
-								run: () => {
-									const uri = URI.parse(releaseNotesUrl);
-									openerService.open(uri);
+								wabew: nws.wocawize('weweaseNotes', "Wewease Notes"),
+								wun: () => {
+									const uwi = UWI.pawse(weweaseNotesUww);
+									openewSewvice.open(uwi);
 								}
 							}]
 						);
 					});
 			}
 
-			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			stowageSewvice.stowe(PwoductContwibution.KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		});
 	}
 }
 
-export class UpdateContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass UpdateContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private state: UpdateState;
-	private readonly badgeDisposable = this._register(new MutableDisposable());
-	private updateStateContextKey: IContextKey<string>;
+	pwivate state: UpdateState;
+	pwivate weadonwy badgeDisposabwe = this._wegista(new MutabweDisposabwe());
+	pwivate updateStateContextKey: IContextKey<stwing>;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IUpdateService private readonly updateService: IUpdateService,
-		@IActivityService private readonly activityService: IActivityService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IUpdateSewvice pwivate weadonwy updateSewvice: IUpdateSewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice
 	) {
-		super();
-		this.state = updateService.state;
-		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
+		supa();
+		this.state = updateSewvice.state;
+		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeySewvice);
 
-		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
-		this.onUpdateStateChange(this.updateService.state);
+		this._wegista(updateSewvice.onStateChange(this.onUpdateStateChange, this));
+		this.onUpdateStateChange(this.updateSewvice.state);
 
 		/*
-		The `update/lastKnownVersion` and `update/updateNotificationTime` storage keys are used in
-		combination to figure out when to show a message to the user that he should update.
+		The `update/wastKnownVewsion` and `update/updateNotificationTime` stowage keys awe used in
+		combination to figuwe out when to show a message to the usa that he shouwd update.
 
-		This message should appear if the user has received an update notification but hasn't
+		This message shouwd appeaw if the usa has weceived an update notification but hasn't
 		updated since 5 days.
 		*/
 
-		const currentVersion = this.productService.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+		const cuwwentVewsion = this.pwoductSewvice.commit;
+		const wastKnownVewsion = this.stowageSewvice.get('update/wastKnownVewsion', StowageScope.GWOBAW);
 
-		// if current version != stored version, clear both fields
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.GLOBAL);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.GLOBAL);
+		// if cuwwent vewsion != stowed vewsion, cweaw both fiewds
+		if (cuwwentVewsion !== wastKnownVewsion) {
+			this.stowageSewvice.wemove('update/wastKnownVewsion', StowageScope.GWOBAW);
+			this.stowageSewvice.wemove('update/updateNotificationTime', StowageScope.GWOBAW);
 		}
 
-		this.registerGlobalActivityActions();
+		this.wegistewGwobawActivityActions();
 	}
 
-	private async onUpdateStateChange(state: UpdateState): Promise<void> {
+	pwivate async onUpdateStateChange(state: UpdateState): Pwomise<void> {
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
-			case StateType.Idle:
-				if (state.error) {
-					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && await this.hostService.hadLastFocus()) {
-					this.onUpdateNotAvailable();
+			case StateType.Idwe:
+				if (state.ewwow) {
+					this.onEwwow(state.ewwow);
+				} ewse if (this.state.type === StateType.CheckingFowUpdates && this.state.expwicit && await this.hostSewvice.hadWastFocus()) {
+					this.onUpdateNotAvaiwabwe();
 				}
-				break;
+				bweak;
 
-			case StateType.AvailableForDownload:
-				this.onUpdateAvailable(state.update);
-				break;
+			case StateType.AvaiwabweFowDownwoad:
+				this.onUpdateAvaiwabwe(state.update);
+				bweak;
 
-			case StateType.Downloaded:
-				this.onUpdateDownloaded(state.update);
-				break;
+			case StateType.Downwoaded:
+				this.onUpdateDownwoaded(state.update);
+				bweak;
 
-			case StateType.Ready:
-				this.onUpdateReady(state.update);
-				break;
+			case StateType.Weady:
+				this.onUpdateWeady(state.update);
+				bweak;
 		}
 
-		let badge: IBadge | undefined = undefined;
-		let clazz: string | undefined;
-		let priority: number | undefined = undefined;
+		wet badge: IBadge | undefined = undefined;
+		wet cwazz: stwing | undefined;
+		wet pwiowity: numba | undefined = undefined;
 
-		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready) {
-			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
-		} else if (state.type === StateType.CheckingForUpdates) {
-			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for Updates..."));
-			clazz = 'progress-badge';
-			priority = 1;
-		} else if (state.type === StateType.Downloading) {
-			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading..."));
-			clazz = 'progress-badge';
-			priority = 1;
-		} else if (state.type === StateType.Updating) {
-			badge = new ProgressBadge(() => nls.localize('updating', "Updating..."));
-			clazz = 'progress-badge';
-			priority = 1;
+		if (state.type === StateType.AvaiwabweFowDownwoad || state.type === StateType.Downwoaded || state.type === StateType.Weady) {
+			badge = new NumbewBadge(1, () => nws.wocawize('updateIsWeady', "New {0} update avaiwabwe.", this.pwoductSewvice.nameShowt));
+		} ewse if (state.type === StateType.CheckingFowUpdates) {
+			badge = new PwogwessBadge(() => nws.wocawize('checkingFowUpdates', "Checking fow Updates..."));
+			cwazz = 'pwogwess-badge';
+			pwiowity = 1;
+		} ewse if (state.type === StateType.Downwoading) {
+			badge = new PwogwessBadge(() => nws.wocawize('downwoading', "Downwoading..."));
+			cwazz = 'pwogwess-badge';
+			pwiowity = 1;
+		} ewse if (state.type === StateType.Updating) {
+			badge = new PwogwessBadge(() => nws.wocawize('updating', "Updating..."));
+			cwazz = 'pwogwess-badge';
+			pwiowity = 1;
 		}
 
-		this.badgeDisposable.clear();
+		this.badgeDisposabwe.cweaw();
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
+			this.badgeDisposabwe.vawue = this.activitySewvice.showGwobawActivity({ badge, cwazz, pwiowity });
 		}
 
 		this.state = state;
 	}
 
-	private onError(error: string): void {
-		if (/The request timed out|The network connection was lost/i.test(error)) {
-			return;
+	pwivate onEwwow(ewwow: stwing): void {
+		if (/The wequest timed out|The netwowk connection was wost/i.test(ewwow)) {
+			wetuwn;
 		}
 
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
+		ewwow = ewwow.wepwace(/See https:\/\/github\.com\/Squiwwew\/Squiwwew\.Mac\/issues\/182 fow mowe infowmation/, 'This might mean the appwication was put on quawantine by macOS. See [this wink](https://github.com/micwosoft/vscode/issues/7426#issuecomment-425093469) fow mowe infowmation');
 
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: error,
-			source: nls.localize('update service', "Update Service"),
+		this.notificationSewvice.notify({
+			sevewity: Sevewity.Ewwow,
+			message: ewwow,
+			souwce: nws.wocawize('update sewvice', "Update Sewvice"),
 		});
 	}
 
-	private onUpdateNotAvailable(): void {
-		this.dialogService.show(
-			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available.")
+	pwivate onUpdateNotAvaiwabwe(): void {
+		this.diawogSewvice.show(
+			sevewity.Info,
+			nws.wocawize('noUpdatesAvaiwabwe', "Thewe awe cuwwentwy no updates avaiwabwe.")
 		);
 	}
 
-	// linux
-	private onUpdateAvailable(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
-			return;
+	// winux
+	pwivate onUpdateAvaiwabwe(update: IUpdate): void {
+		if (!this.shouwdShowNotification()) {
+			wetuwn;
 		}
 
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('thereIsUpdateAvailable', "There is an available update."),
+		this.notificationSewvice.pwompt(
+			sevewity.Info,
+			nws.wocawize('theweIsUpdateAvaiwabwe', "Thewe is an avaiwabwe update."),
 			[{
-				label: nls.localize('download update', "Download Update"),
-				run: () => this.updateService.downloadUpdate()
+				wabew: nws.wocawize('downwoad update', "Downwoad Update"),
+				wun: () => this.updateSewvice.downwoadUpdate()
 			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
+				wabew: nws.wocawize('wata', "Wata"),
+				wun: () => { }
 			}, {
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
+				wabew: nws.wocawize('weweaseNotes', "Wewease Notes"),
+				wun: () => {
+					const action = this.instantiationSewvice.cweateInstance(ShowWeweaseNotesAction, update.pwoductVewsion);
+					action.wun();
 					action.dispose();
 				}
 			}]
 		);
 	}
 
-	// windows fast updates (target === system)
-	private onUpdateDownloaded(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
-			return;
+	// windows fast updates (tawget === system)
+	pwivate onUpdateDownwoaded(update: IUpdate): void {
+		if (!this.shouwdShowNotification()) {
+			wetuwn;
 		}
 
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, update.productVersion),
+		this.notificationSewvice.pwompt(
+			sevewity.Info,
+			nws.wocawize('updateAvaiwabwe', "Thewe's an update avaiwabwe: {0} {1}", this.pwoductSewvice.nameWong, update.pwoductVewsion),
 			[{
-				label: nls.localize('installUpdate', "Install Update"),
-				run: () => this.updateService.applyUpdate()
+				wabew: nws.wocawize('instawwUpdate', "Instaww Update"),
+				wun: () => this.updateSewvice.appwyUpdate()
 			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
+				wabew: nws.wocawize('wata', "Wata"),
+				wun: () => { }
 			}, {
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
+				wabew: nws.wocawize('weweaseNotes', "Wewease Notes"),
+				wun: () => {
+					const action = this.instantiationSewvice.cweateInstance(ShowWeweaseNotesAction, update.pwoductVewsion);
+					action.wun();
 					action.dispose();
 				}
 			}]
@@ -363,262 +363,262 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	// windows and mac
-	private onUpdateReady(update: IUpdate): void {
-		if (!(isWindows && this.productService.target !== 'user') && !this.shouldShowNotification()) {
-			return;
+	pwivate onUpdateWeady(update: IUpdate): void {
+		if (!(isWindows && this.pwoductSewvice.tawget !== 'usa') && !this.shouwdShowNotification()) {
+			wetuwn;
 		}
 
 		const actions = [{
-			label: nls.localize('updateNow', "Update Now"),
-			run: () => this.updateService.quitAndInstall()
+			wabew: nws.wocawize('updateNow', "Update Now"),
+			wun: () => this.updateSewvice.quitAndInstaww()
 		}, {
-			label: nls.localize('later', "Later"),
-			run: () => { }
+			wabew: nws.wocawize('wata', "Wata"),
+			wun: () => { }
 		}];
 
-		// TODO@joao check why snap updates send `update` as falsy
-		if (update.productVersion) {
+		// TODO@joao check why snap updates send `update` as fawsy
+		if (update.pwoductVewsion) {
 			actions.push({
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-					action.run();
+				wabew: nws.wocawize('weweaseNotes', "Wewease Notes"),
+				wun: () => {
+					const action = this.instantiationSewvice.cweateInstance(ShowWeweaseNotesAction, update.pwoductVewsion);
+					action.wun();
 					action.dispose();
 				}
 			});
 		}
 
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
+		// windows usa fast updates and mac
+		this.notificationSewvice.pwompt(
+			sevewity.Info,
+			nws.wocawize('updateAvaiwabweAftewWestawt', "Westawt {0} to appwy the watest update.", this.pwoductSewvice.nameWong),
 			actions,
-			{ sticky: true }
+			{ sticky: twue }
 		);
 	}
 
-	private shouldShowNotification(): boolean {
-		const currentVersion = this.productService.commit;
-		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
+	pwivate shouwdShowNotification(): boowean {
+		const cuwwentVewsion = this.pwoductSewvice.commit;
+		const cuwwentMiwwis = new Date().getTime();
+		const wastKnownVewsion = this.stowageSewvice.get('update/wastKnownVewsion', StowageScope.GWOBAW);
 
-		// if version != stored version, save version and date
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion!, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// if vewsion != stowed vewsion, save vewsion and date
+		if (cuwwentVewsion !== wastKnownVewsion) {
+			this.stowageSewvice.stowe('update/wastKnownVewsion', cuwwentVewsion!, StowageScope.GWOBAW, StowageTawget.MACHINE);
+			this.stowageSewvice.stowe('update/updateNotificationTime', cuwwentMiwwis, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.GLOBAL, currentMillis);
-		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
+		const updateNotificationMiwwis = this.stowageSewvice.getNumba('update/updateNotificationTime', StowageScope.GWOBAW, cuwwentMiwwis);
+		const diffDays = (cuwwentMiwwis - updateNotificationMiwwis) / (1000 * 60 * 60 * 24);
 
-		return diffDays > 5;
+		wetuwn diffDays > 5;
 	}
 
-	private registerGlobalActivityActions(): void {
-		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+	pwivate wegistewGwobawActivityActions(): void {
+		CommandsWegistwy.wegistewCommand('update.check', () => this.updateSewvice.checkFowUpdates(twue));
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
 				id: 'update.check',
-				title: nls.localize('checkForUpdates', "Check for Updates...")
+				titwe: nws.wocawize('checkFowUpdates', "Check fow Updates...")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.Idwe)
 		});
 
-		CommandsRegistry.registerCommand('update.checking', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.checking', () => { });
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
 				id: 'update.checking',
-				title: nls.localize('checkingForUpdates', "Checking for Updates..."),
-				precondition: ContextKeyExpr.false()
+				titwe: nws.wocawize('checkingFowUpdates', "Checking fow Updates..."),
+				pwecondition: ContextKeyExpw.fawse()
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.CheckingFowUpdates)
 		});
 
-		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.downwoadNow', () => this.updateSewvice.downwoadUpdate());
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
-				id: 'update.downloadNow',
-				title: nls.localize('download update_1', "Download Update (1)")
+				id: 'update.downwoadNow',
+				titwe: nws.wocawize('downwoad update_1', "Downwoad Update (1)")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.AvaiwabweFowDownwoad)
 		});
 
-		CommandsRegistry.registerCommand('update.downloading', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.downwoading', () => { });
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
-				id: 'update.downloading',
-				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: ContextKeyExpr.false()
+				id: 'update.downwoading',
+				titwe: nws.wocawize('DownwoadingUpdate', "Downwoading Update..."),
+				pwecondition: ContextKeyExpw.fawse()
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.Downwoading)
 		});
 
-		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.instaww', () => this.updateSewvice.appwyUpdate());
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
-				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update... (1)")
+				id: 'update.instaww',
+				titwe: nws.wocawize('instawwUpdate...', "Instaww Update... (1)")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.Downwoaded)
 		});
 
-		CommandsRegistry.registerCommand('update.updating', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.updating', () => { });
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
 				id: 'update.updating',
-				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: ContextKeyExpr.false()
+				titwe: nws.wocawize('instawwingUpdate', "Instawwing Update..."),
+				pwecondition: ContextKeyExpw.fawse()
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.Updating)
 		});
 
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
+		CommandsWegistwy.wegistewCommand('update.westawt', () => this.updateSewvice.quitAndInstaww());
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '7_update',
 			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
+				id: 'update.westawt',
+				titwe: nws.wocawize('westawtToUpdate', "Westawt to Update (1)")
 			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+			when: CONTEXT_UPDATE_STATE.isEquawTo(StateType.Weady)
 		});
 	}
 }
 
-export class SwitchProductQualityContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass SwitchPwoductQuawityContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IProductService private readonly productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		super();
+		supa();
 
-		this.registerGlobalActivityActions();
+		this.wegistewGwobawActivityActions();
 	}
 
-	private registerGlobalActivityActions(): void {
-		const quality = this.productService.quality;
-		const productQualityChangeHandler = this.environmentService.options?.productQualityChangeHandler;
-		if (productQualityChangeHandler && (quality === 'stable' || quality === 'insider')) {
-			const newQuality = quality === 'stable' ? 'insider' : 'stable';
-			const commandId = `update.switchQuality.${newQuality}`;
-			const isSwitchingToInsiders = newQuality === 'insider';
-			registerAction2(class SwitchQuality extends Action2 {
-				constructor() {
-					super({
+	pwivate wegistewGwobawActivityActions(): void {
+		const quawity = this.pwoductSewvice.quawity;
+		const pwoductQuawityChangeHandwa = this.enviwonmentSewvice.options?.pwoductQuawityChangeHandwa;
+		if (pwoductQuawityChangeHandwa && (quawity === 'stabwe' || quawity === 'insida')) {
+			const newQuawity = quawity === 'stabwe' ? 'insida' : 'stabwe';
+			const commandId = `update.switchQuawity.${newQuawity}`;
+			const isSwitchingToInsidews = newQuawity === 'insida';
+			wegistewAction2(cwass SwitchQuawity extends Action2 {
+				constwuctow() {
+					supa({
 						id: commandId,
-						title: isSwitchingToInsiders ? nls.localize('switchToInsiders', "Switch to Insiders Version...") : nls.localize('switchToStable', "Switch to Stable Version..."),
-						precondition: IsWebContext,
+						titwe: isSwitchingToInsidews ? nws.wocawize('switchToInsidews', "Switch to Insidews Vewsion...") : nws.wocawize('switchToStabwe', "Switch to Stabwe Vewsion..."),
+						pwecondition: IsWebContext,
 						menu: {
-							id: MenuId.GlobalActivity,
+							id: MenuId.GwobawActivity,
 							when: IsWebContext,
-							group: '7_update',
+							gwoup: '7_update',
 						}
 					});
 				}
 
-				async run(accessor: ServicesAccessor): Promise<void> {
-					const dialogService = accessor.get(IDialogService);
-					const userDataAutoSyncEnablementService = accessor.get(IUserDataAutoSyncEnablementService);
-					const userDataSyncStoreManagementService = accessor.get(IUserDataSyncStoreManagementService);
-					const storageService = accessor.get(IStorageService);
-					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
-					const userDataSyncService = accessor.get(IUserDataSyncService);
-					const notificationService = accessor.get(INotificationService);
+				async wun(accessow: SewvicesAccessow): Pwomise<void> {
+					const diawogSewvice = accessow.get(IDiawogSewvice);
+					const usewDataAutoSyncEnabwementSewvice = accessow.get(IUsewDataAutoSyncEnabwementSewvice);
+					const usewDataSyncStoweManagementSewvice = accessow.get(IUsewDataSyncStoweManagementSewvice);
+					const stowageSewvice = accessow.get(IStowageSewvice);
+					const usewDataSyncWowkbenchSewvice = accessow.get(IUsewDataSyncWowkbenchSewvice);
+					const usewDataSyncSewvice = accessow.get(IUsewDataSyncSewvice);
+					const notificationSewvice = accessow.get(INotificationSewvice);
 
-					try {
-						const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
-						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
-						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
-						if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
-							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
-							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
-							if (!userDataSyncStoreType) {
-								return;
+					twy {
+						const sewectSettingsSyncSewviceDiawogShownKey = 'switchQuawity.sewectSettingsSyncSewviceDiawogShown';
+						const usewDataSyncStowe = usewDataSyncStoweManagementSewvice.usewDataSyncStowe;
+						wet usewDataSyncStoweType: UsewDataSyncStoweType | undefined;
+						if (usewDataSyncStowe && isSwitchingToInsidews && usewDataAutoSyncEnabwementSewvice.isEnabwed()
+							&& !stowageSewvice.getBoowean(sewectSettingsSyncSewviceDiawogShownKey, StowageScope.GWOBAW, fawse)) {
+							usewDataSyncStoweType = await this.sewectSettingsSyncSewvice(diawogSewvice);
+							if (!usewDataSyncStoweType) {
+								wetuwn;
 							}
-							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-							if (userDataSyncStoreType === 'stable') {
-								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
-								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
+							stowageSewvice.stowe(sewectSettingsSyncSewviceDiawogShownKey, twue, StowageScope.GWOBAW, StowageTawget.USa);
+							if (usewDataSyncStoweType === 'stabwe') {
+								// Update the stabwe sewvice type in the cuwwent window, so that it uses stabwe sewvice afta switched to insidews vewsion (afta wewoad).
+								await usewDataSyncStoweManagementSewvice.switch(usewDataSyncStoweType);
 							}
 						}
 
-						const res = await dialogService.confirm({
+						const wes = await diawogSewvice.confiwm({
 							type: 'info',
-							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
-							detail: newQuality === 'insider' ?
-								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
-								nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
-							primaryButton: nls.localize('reload', "&&Reload")
+							message: nws.wocawize('wewaunchMessage', "Changing the vewsion wequiwes a wewoad to take effect"),
+							detaiw: newQuawity === 'insida' ?
+								nws.wocawize('wewaunchDetaiwInsidews', "Pwess the wewoad button to switch to the nightwy pwe-pwoduction vewsion of VSCode.") :
+								nws.wocawize('wewaunchDetaiwStabwe', "Pwess the wewoad button to switch to the monthwy weweased stabwe vewsion of VSCode."),
+							pwimawyButton: nws.wocawize('wewoad', "&&Wewoad")
 						});
 
-						if (res.confirmed) {
-							const promises: Promise<any>[] = [];
+						if (wes.confiwmed) {
+							const pwomises: Pwomise<any>[] = [];
 
-							// If sync is happening wait until it is finished before reload
-							if (userDataSyncService.status === SyncStatus.Syncing) {
-								promises.push(Event.toPromise(Event.filter(userDataSyncService.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
+							// If sync is happening wait untiw it is finished befowe wewoad
+							if (usewDataSyncSewvice.status === SyncStatus.Syncing) {
+								pwomises.push(Event.toPwomise(Event.fiwta(usewDataSyncSewvice.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
 							}
 
-							// If user chose the sync service then synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
-							if (isSwitchingToInsiders && userDataSyncStoreType) {
-								promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
+							// If usa chose the sync sewvice then synchwonise the stowe type option in insidews sewvice, so that otha cwients using insidews sewvice awe awso updated.
+							if (isSwitchingToInsidews && usewDataSyncStoweType) {
+								pwomises.push(usewDataSyncWowkbenchSewvice.synchwoniseUsewDataSyncStoweType());
 							}
 
-							await Promises.settled(promises);
+							await Pwomises.settwed(pwomises);
 
-							productQualityChangeHandler(newQuality);
-						} else {
-							// Reset
-							if (userDataSyncStoreType) {
-								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+							pwoductQuawityChangeHandwa(newQuawity);
+						} ewse {
+							// Weset
+							if (usewDataSyncStoweType) {
+								stowageSewvice.wemove(sewectSettingsSyncSewviceDiawogShownKey, StowageScope.GWOBAW);
 							}
 						}
-					} catch (error) {
-						notificationService.error(error);
+					} catch (ewwow) {
+						notificationSewvice.ewwow(ewwow);
 					}
 				}
 
-				private async selectSettingsSyncService(dialogService: IDialogService): Promise<UserDataSyncStoreType | undefined> {
-					const res = await dialogService.show(
-						Severity.Info,
-						nls.localize('selectSyncService.message', "Choose the settings sync service to use after changing the version"),
+				pwivate async sewectSettingsSyncSewvice(diawogSewvice: IDiawogSewvice): Pwomise<UsewDataSyncStoweType | undefined> {
+					const wes = await diawogSewvice.show(
+						Sevewity.Info,
+						nws.wocawize('sewectSyncSewvice.message', "Choose the settings sync sewvice to use afta changing the vewsion"),
 						[
-							nls.localize('use insiders', "Insiders"),
-							nls.localize('use stable', "Stable (current)"),
-							nls.localize('cancel', "Cancel"),
+							nws.wocawize('use insidews', "Insidews"),
+							nws.wocawize('use stabwe', "Stabwe (cuwwent)"),
+							nws.wocawize('cancew', "Cancew"),
 						],
 						{
-							detail: nls.localize('selectSyncService.detail', "The Insiders version of VS Code will synchronize your settings, keybindings, extensions, snippets and UI State using separate insiders settings sync service by default."),
-							cancelId: 2
+							detaiw: nws.wocawize('sewectSyncSewvice.detaiw', "The Insidews vewsion of VS Code wiww synchwonize youw settings, keybindings, extensions, snippets and UI State using sepawate insidews settings sync sewvice by defauwt."),
+							cancewId: 2
 						}
 					);
-					return res.choice === 0 ? 'insiders' : res.choice === 1 ? 'stable' : undefined;
+					wetuwn wes.choice === 0 ? 'insidews' : wes.choice === 1 ? 'stabwe' : undefined;
 				}
 			});
 		}
 	}
 }
 
-export class CheckForVSCodeUpdateAction extends Action {
+expowt cwass CheckFowVSCodeUpdateAction extends Action {
 
-	static readonly ID = CheckForVSCodeUpdateActionId;
-	static LABEL = nls.localize('checkForUpdates', "Check for Updates...");
+	static weadonwy ID = CheckFowVSCodeUpdateActionId;
+	static WABEW = nws.wocawize('checkFowUpdates', "Check fow Updates...");
 
-	constructor(
-		id: string,
-		label: string,
-		@IUpdateService private readonly updateService: IUpdateService,
+	constwuctow(
+		id: stwing,
+		wabew: stwing,
+		@IUpdateSewvice pwivate weadonwy updateSewvice: IUpdateSewvice,
 	) {
-		super(id, label, undefined, true);
+		supa(id, wabew, undefined, twue);
 	}
 
-	override run(): Promise<void> {
-		return this.updateService.checkForUpdates(true);
+	ovewwide wun(): Pwomise<void> {
+		wetuwn this.updateSewvice.checkFowUpdates(twue);
 	}
 }

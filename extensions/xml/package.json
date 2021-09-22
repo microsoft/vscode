@@ -1,118 +1,118 @@
 {
-  "name": "xml",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "xmw",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "xml",
+        "id": "xmw",
         "extensions": [
-          ".xml",
+          ".xmw",
           ".xsd",
           ".ascx",
           ".atom",
-          ".axml",
-          ".axaml",
+          ".axmw",
+          ".axamw",
           ".bpmn",
           ".cpt",
-          ".csl",
-          ".csproj",
-          ".csproj.user",
+          ".csw",
+          ".cspwoj",
+          ".cspwoj.usa",
           ".dita",
           ".ditamap",
           ".dtd",
           ".ent",
           ".mod",
-          ".dtml",
-          ".fsproj",
-          ".fxml",
-          ".iml",
-          ".isml",
+          ".dtmw",
+          ".fspwoj",
+          ".fxmw",
+          ".imw",
+          ".ismw",
           ".jmx",
-          ".launch",
+          ".waunch",
           ".menu",
-          ".mxml",
+          ".mxmw",
           ".nuspec",
-          ".opml",
-          ".owl",
-          ".proj",
-          ".props",
+          ".opmw",
+          ".oww",
+          ".pwoj",
+          ".pwops",
           ".pt",
-          ".publishsettings",
-          ".pubxml",
-          ".pubxml.user",
-          ".rbxlx",
-          ".rbxmx",
-          ".rdf",
-          ".rng",
-          ".rss",
-          ".shproj",
-          ".storyboard",
+          ".pubwishsettings",
+          ".pubxmw",
+          ".pubxmw.usa",
+          ".wbxwx",
+          ".wbxmx",
+          ".wdf",
+          ".wng",
+          ".wss",
+          ".shpwoj",
+          ".stowyboawd",
           ".svg",
-          ".targets",
-          ".tld",
+          ".tawgets",
+          ".twd",
           ".tmx",
-          ".vbproj",
-          ".vbproj.user",
-          ".vcxproj",
-          ".vcxproj.filters",
-          ".wsdl",
+          ".vbpwoj",
+          ".vbpwoj.usa",
+          ".vcxpwoj",
+          ".vcxpwoj.fiwtews",
+          ".wsdw",
           ".wxi",
-          ".wxl",
+          ".wxw",
           ".wxs",
-          ".xaml",
-          ".xbl",
+          ".xamw",
+          ".xbw",
           ".xib",
-          ".xlf",
-          ".xliff",
-          ".xpdl",
-          ".xul",
-          ".xoml"
+          ".xwf",
+          ".xwiff",
+          ".xpdw",
+          ".xuw",
+          ".xomw"
         ],
-        "firstLine": "(\\<\\?xml.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
-        "aliases": [
-          "XML",
-          "xml"
+        "fiwstWine": "(\\<\\?xmw.*)|(\\<svg)|(\\<\\!doctype\\s+svg)",
+        "awiases": [
+          "XMW",
+          "xmw"
         ],
-        "configuration": "./xml.language-configuration.json"
+        "configuwation": "./xmw.wanguage-configuwation.json"
       },
       {
-        "id": "xsl",
+        "id": "xsw",
         "extensions": [
-          ".xsl",
-          ".xslt"
+          ".xsw",
+          ".xswt"
         ],
-        "aliases": [
-          "XSL",
-          "xsl"
+        "awiases": [
+          "XSW",
+          "xsw"
         ],
-        "configuration": "./xsl.language-configuration.json"
+        "configuwation": "./xsw.wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "xml",
-        "scopeName": "text.xml",
-        "path": "./syntaxes/xml.tmLanguage.json"
+        "wanguage": "xmw",
+        "scopeName": "text.xmw",
+        "path": "./syntaxes/xmw.tmWanguage.json"
       },
       {
-        "language": "xsl",
-        "scopeName": "text.xml.xsl",
-        "path": "./syntaxes/xsl.tmLanguage.json"
+        "wanguage": "xsw",
+        "scopeName": "text.xmw.xsw",
+        "path": "./syntaxes/xsw.tmWanguage.json"
       }
     ]
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-xmw gwammaws/xmw.cson ./syntaxes/xmw.tmWanguage.json gwammaws/xsw.cson ./syntaxes/xsw.tmWanguage.json"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

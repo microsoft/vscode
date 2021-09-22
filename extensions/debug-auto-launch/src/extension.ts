@@ -1,400 +1,400 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs } from 'fs';
-import { createServer, Server } from 'net';
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
+impowt { pwomises as fs } fwom 'fs';
+impowt { cweateSewva, Sewva } fwom 'net';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
 
-const localize = nls.loadMessageBundle();
-const TEXT_STATUSBAR_LABEL = {
-	[State.Disabled]: localize('status.text.auto.attach.disabled', 'Auto Attach: Disabled'),
-	[State.Always]: localize('status.text.auto.attach.always', 'Auto Attach: Always'),
-	[State.Smart]: localize('status.text.auto.attach.smart', 'Auto Attach: Smart'),
-	[State.OnlyWithFlag]: localize('status.text.auto.attach.withFlag', 'Auto Attach: With Flag'),
+const wocawize = nws.woadMessageBundwe();
+const TEXT_STATUSBAW_WABEW = {
+	[State.Disabwed]: wocawize('status.text.auto.attach.disabwed', 'Auto Attach: Disabwed'),
+	[State.Awways]: wocawize('status.text.auto.attach.awways', 'Auto Attach: Awways'),
+	[State.Smawt]: wocawize('status.text.auto.attach.smawt', 'Auto Attach: Smawt'),
+	[State.OnwyWithFwag]: wocawize('status.text.auto.attach.withFwag', 'Auto Attach: With Fwag'),
 };
 
-const TEXT_STATE_LABEL = {
-	[State.Disabled]: localize('debug.javascript.autoAttach.disabled.label', 'Disabled'),
-	[State.Always]: localize('debug.javascript.autoAttach.always.label', 'Always'),
-	[State.Smart]: localize('debug.javascript.autoAttach.smart.label', 'Smart'),
-	[State.OnlyWithFlag]: localize(
-		'debug.javascript.autoAttach.onlyWithFlag.label',
-		'Only With Flag',
+const TEXT_STATE_WABEW = {
+	[State.Disabwed]: wocawize('debug.javascwipt.autoAttach.disabwed.wabew', 'Disabwed'),
+	[State.Awways]: wocawize('debug.javascwipt.autoAttach.awways.wabew', 'Awways'),
+	[State.Smawt]: wocawize('debug.javascwipt.autoAttach.smawt.wabew', 'Smawt'),
+	[State.OnwyWithFwag]: wocawize(
+		'debug.javascwipt.autoAttach.onwyWithFwag.wabew',
+		'Onwy With Fwag',
 	),
 };
-const TEXT_STATE_DESCRIPTION = {
-	[State.Disabled]: localize(
-		'debug.javascript.autoAttach.disabled.description',
-		'Auto attach is disabled and not shown in status bar',
+const TEXT_STATE_DESCWIPTION = {
+	[State.Disabwed]: wocawize(
+		'debug.javascwipt.autoAttach.disabwed.descwiption',
+		'Auto attach is disabwed and not shown in status baw',
 	),
-	[State.Always]: localize(
-		'debug.javascript.autoAttach.always.description',
-		'Auto attach to every Node.js process launched in the terminal',
+	[State.Awways]: wocawize(
+		'debug.javascwipt.autoAttach.awways.descwiption',
+		'Auto attach to evewy Node.js pwocess waunched in the tewminaw',
 	),
-	[State.Smart]: localize(
-		'debug.javascript.autoAttach.smart.description',
-		"Auto attach when running scripts that aren't in a node_modules folder",
+	[State.Smawt]: wocawize(
+		'debug.javascwipt.autoAttach.smawt.descwiption',
+		"Auto attach when wunning scwipts that awen't in a node_moduwes fowda",
 	),
-	[State.OnlyWithFlag]: localize(
-		'debug.javascript.autoAttach.onlyWithFlag.description',
-		'Only auto attach when the `--inspect` flag is given',
+	[State.OnwyWithFwag]: wocawize(
+		'debug.javascwipt.autoAttach.onwyWithFwag.descwiption',
+		'Onwy auto attach when the `--inspect` fwag is given',
 	),
 };
-const TEXT_TOGGLE_WORKSPACE = localize('scope.workspace', 'Toggle auto attach in this workspace');
-const TEXT_TOGGLE_GLOBAL = localize('scope.global', 'Toggle auto attach on this machine');
-const TEXT_TEMP_DISABLE = localize('tempDisable.disable', 'Temporarily disable auto attach in this session');
-const TEXT_TEMP_ENABLE = localize('tempDisable.enable', 'Re-enable auto attach');
-const TEXT_TEMP_DISABLE_LABEL = localize('tempDisable.suffix', 'Auto Attach: Disabled');
+const TEXT_TOGGWE_WOWKSPACE = wocawize('scope.wowkspace', 'Toggwe auto attach in this wowkspace');
+const TEXT_TOGGWE_GWOBAW = wocawize('scope.gwobaw', 'Toggwe auto attach on this machine');
+const TEXT_TEMP_DISABWE = wocawize('tempDisabwe.disabwe', 'Tempowawiwy disabwe auto attach in this session');
+const TEXT_TEMP_ENABWE = wocawize('tempDisabwe.enabwe', 'We-enabwe auto attach');
+const TEXT_TEMP_DISABWE_WABEW = wocawize('tempDisabwe.suffix', 'Auto Attach: Disabwed');
 
-const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
-const STORAGE_IPC = 'jsDebugIpcState';
+const TOGGWE_COMMAND = 'extension.node-debug.toggweAutoAttach';
+const STOWAGE_IPC = 'jsDebugIpcState';
 
-const SETTING_SECTION = 'debug.javascript';
-const SETTING_STATE = 'autoAttachFilter';
+const SETTING_SECTION = 'debug.javascwipt';
+const SETTING_STATE = 'autoAttachFiwta';
 
 /**
- * settings that, when changed, should cause us to refresh the state vars
+ * settings that, when changed, shouwd cause us to wefwesh the state vaws
  */
-const SETTINGS_CAUSE_REFRESH = new Set(
-	['autoAttachSmartPattern', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
+const SETTINGS_CAUSE_WEFWESH = new Set(
+	['autoAttachSmawtPattewn', SETTING_STATE].map(s => `${SETTING_SECTION}.${s}`),
 );
 
 const enum State {
-	Disabled = 'disabled',
-	OnlyWithFlag = 'onlyWithFlag',
-	Smart = 'smart',
-	Always = 'always',
+	Disabwed = 'disabwed',
+	OnwyWithFwag = 'onwyWithFwag',
+	Smawt = 'smawt',
+	Awways = 'awways',
 }
 
-let currentState: Promise<{ context: vscode.ExtensionContext; state: State | null }>;
-let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
-let server: Promise<Server | undefined> | undefined; // auto attach server
-let isTemporarilyDisabled = false; // whether the auto attach server is disabled temporarily, reset whenever the state changes
+wet cuwwentState: Pwomise<{ context: vscode.ExtensionContext; state: State | nuww }>;
+wet statusItem: vscode.StatusBawItem | undefined; // and thewe is no status baw item
+wet sewva: Pwomise<Sewva | undefined> | undefined; // auto attach sewva
+wet isTempowawiwyDisabwed = fawse; // whetha the auto attach sewva is disabwed tempowawiwy, weset wheneva the state changes
 
-export function activate(context: vscode.ExtensionContext): void {
-	currentState = Promise.resolve({ context, state: null });
+expowt function activate(context: vscode.ExtensionContext): void {
+	cuwwentState = Pwomise.wesowve({ context, state: nuww });
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand(TOGGLE_COMMAND, toggleAutoAttachSetting.bind(null, context)),
+	context.subscwiptions.push(
+		vscode.commands.wegistewCommand(TOGGWE_COMMAND, toggweAutoAttachSetting.bind(nuww, context)),
 	);
 
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeConfiguration(e => {
-			// Whenever a setting is changed, disable auto attach, and re-enable
-			// it (if necessary) to refresh variables.
+	context.subscwiptions.push(
+		vscode.wowkspace.onDidChangeConfiguwation(e => {
+			// Wheneva a setting is changed, disabwe auto attach, and we-enabwe
+			// it (if necessawy) to wefwesh vawiabwes.
 			if (
-				e.affectsConfiguration(`${SETTING_SECTION}.${SETTING_STATE}`) ||
-				[...SETTINGS_CAUSE_REFRESH].some(setting => e.affectsConfiguration(setting))
+				e.affectsConfiguwation(`${SETTING_SECTION}.${SETTING_STATE}`) ||
+				[...SETTINGS_CAUSE_WEFWESH].some(setting => e.affectsConfiguwation(setting))
 			) {
-				updateAutoAttach(State.Disabled);
-				updateAutoAttach(readCurrentState());
+				updateAutoAttach(State.Disabwed);
+				updateAutoAttach(weadCuwwentState());
 			}
 		}),
 	);
 
-	updateAutoAttach(readCurrentState());
+	updateAutoAttach(weadCuwwentState());
 }
 
-export async function deactivate(): Promise<void> {
-	await destroyAttachServer();
+expowt async function deactivate(): Pwomise<void> {
+	await destwoyAttachSewva();
 }
 
-function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect']>) {
+function getDefauwtScope(info: WetuwnType<vscode.WowkspaceConfiguwation['inspect']>) {
 	if (!info) {
-		return vscode.ConfigurationTarget.Global;
-	} else if (info.workspaceFolderValue) {
-		return vscode.ConfigurationTarget.WorkspaceFolder;
-	} else if (info.workspaceValue) {
-		return vscode.ConfigurationTarget.Workspace;
-	} else if (info.globalValue) {
-		return vscode.ConfigurationTarget.Global;
+		wetuwn vscode.ConfiguwationTawget.Gwobaw;
+	} ewse if (info.wowkspaceFowdewVawue) {
+		wetuwn vscode.ConfiguwationTawget.WowkspaceFowda;
+	} ewse if (info.wowkspaceVawue) {
+		wetuwn vscode.ConfiguwationTawget.Wowkspace;
+	} ewse if (info.gwobawVawue) {
+		wetuwn vscode.ConfiguwationTawget.Gwobaw;
 	}
 
-	return vscode.ConfigurationTarget.Global;
+	wetuwn vscode.ConfiguwationTawget.Gwobaw;
 }
 
-type PickResult = { state: State } | { setTempDisabled: boolean } | { scope: vscode.ConfigurationTarget } | undefined;
-type PickItem = vscode.QuickPickItem & ({ state: State } | { setTempDisabled: boolean });
+type PickWesuwt = { state: State } | { setTempDisabwed: boowean } | { scope: vscode.ConfiguwationTawget } | undefined;
+type PickItem = vscode.QuickPickItem & ({ state: State } | { setTempDisabwed: boowean });
 
-async function toggleAutoAttachSetting(context: vscode.ExtensionContext, scope?: vscode.ConfigurationTarget): Promise<void> {
-	const section = vscode.workspace.getConfiguration(SETTING_SECTION);
-	scope = scope || getDefaultScope(section.inspect(SETTING_STATE));
+async function toggweAutoAttachSetting(context: vscode.ExtensionContext, scope?: vscode.ConfiguwationTawget): Pwomise<void> {
+	const section = vscode.wowkspace.getConfiguwation(SETTING_SECTION);
+	scope = scope || getDefauwtScope(section.inspect(SETTING_STATE));
 
-	const isGlobalScope = scope === vscode.ConfigurationTarget.Global;
-	const quickPick = vscode.window.createQuickPick<PickItem>();
-	const current = readCurrentState();
+	const isGwobawScope = scope === vscode.ConfiguwationTawget.Gwobaw;
+	const quickPick = vscode.window.cweateQuickPick<PickItem>();
+	const cuwwent = weadCuwwentState();
 
-	const items: PickItem[] = [State.Always, State.Smart, State.OnlyWithFlag, State.Disabled].map(state => ({
+	const items: PickItem[] = [State.Awways, State.Smawt, State.OnwyWithFwag, State.Disabwed].map(state => ({
 		state,
-		label: TEXT_STATE_LABEL[state],
-		description: TEXT_STATE_DESCRIPTION[state],
-		alwaysShow: true,
+		wabew: TEXT_STATE_WABEW[state],
+		descwiption: TEXT_STATE_DESCWIPTION[state],
+		awwaysShow: twue,
 	}));
 
-	if (current !== State.Disabled) {
+	if (cuwwent !== State.Disabwed) {
 		items.unshift({
-			setTempDisabled: !isTemporarilyDisabled,
-			label: isTemporarilyDisabled ? TEXT_TEMP_ENABLE : TEXT_TEMP_DISABLE,
-			alwaysShow: true,
+			setTempDisabwed: !isTempowawiwyDisabwed,
+			wabew: isTempowawiwyDisabwed ? TEXT_TEMP_ENABWE : TEXT_TEMP_DISABWE,
+			awwaysShow: twue,
 		});
 	}
 
 	quickPick.items = items;
-	quickPick.activeItems = isTemporarilyDisabled
+	quickPick.activeItems = isTempowawiwyDisabwed
 		? [items[0]]
-		: quickPick.items.filter(i => 'state' in i && i.state === current);
-	quickPick.title = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
+		: quickPick.items.fiwta(i => 'state' in i && i.state === cuwwent);
+	quickPick.titwe = isGwobawScope ? TEXT_TOGGWE_GWOBAW : TEXT_TOGGWE_WOWKSPACE;
 	quickPick.buttons = [
 		{
-			iconPath: new vscode.ThemeIcon(isGlobalScope ? 'folder' : 'globe'),
-			tooltip: isGlobalScope ? TEXT_TOGGLE_WORKSPACE : TEXT_TOGGLE_GLOBAL,
+			iconPath: new vscode.ThemeIcon(isGwobawScope ? 'fowda' : 'gwobe'),
+			toowtip: isGwobawScope ? TEXT_TOGGWE_WOWKSPACE : TEXT_TOGGWE_GWOBAW,
 		},
 	];
 
 	quickPick.show();
 
-	let result = await new Promise<PickResult>(resolve => {
-		quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
-		quickPick.onDidHide(() => resolve(undefined));
-		quickPick.onDidTriggerButton(() => {
-			resolve({
-				scope: isGlobalScope
-					? vscode.ConfigurationTarget.Workspace
-					: vscode.ConfigurationTarget.Global,
+	wet wesuwt = await new Pwomise<PickWesuwt>(wesowve => {
+		quickPick.onDidAccept(() => wesowve(quickPick.sewectedItems[0]));
+		quickPick.onDidHide(() => wesowve(undefined));
+		quickPick.onDidTwiggewButton(() => {
+			wesowve({
+				scope: isGwobawScope
+					? vscode.ConfiguwationTawget.Wowkspace
+					: vscode.ConfiguwationTawget.Gwobaw,
 			});
 		});
 	});
 
 	quickPick.dispose();
 
-	if (!result) {
-		return;
+	if (!wesuwt) {
+		wetuwn;
 	}
 
-	if ('scope' in result) {
-		return await toggleAutoAttachSetting(context, result.scope);
+	if ('scope' in wesuwt) {
+		wetuwn await toggweAutoAttachSetting(context, wesuwt.scope);
 	}
 
-	if ('state' in result) {
-		if (result.state !== current) {
-			section.update(SETTING_STATE, result.state, scope);
-		} else if (isTemporarilyDisabled) {
-			result = { setTempDisabled: false };
+	if ('state' in wesuwt) {
+		if (wesuwt.state !== cuwwent) {
+			section.update(SETTING_STATE, wesuwt.state, scope);
+		} ewse if (isTempowawiwyDisabwed) {
+			wesuwt = { setTempDisabwed: fawse };
 		}
 	}
 
-	if ('setTempDisabled' in result) {
-		updateStatusBar(context, current, true);
-		isTemporarilyDisabled = result.setTempDisabled;
-		if (result.setTempDisabled) {
-			await destroyAttachServer();
-		} else {
-			await createAttachServer(context); // unsets temp disabled var internally
+	if ('setTempDisabwed' in wesuwt) {
+		updateStatusBaw(context, cuwwent, twue);
+		isTempowawiwyDisabwed = wesuwt.setTempDisabwed;
+		if (wesuwt.setTempDisabwed) {
+			await destwoyAttachSewva();
+		} ewse {
+			await cweateAttachSewva(context); // unsets temp disabwed vaw intewnawwy
 		}
-		updateStatusBar(context, current, false);
+		updateStatusBaw(context, cuwwent, fawse);
 	}
 }
 
-function readCurrentState(): State {
-	const section = vscode.workspace.getConfiguration(SETTING_SECTION);
-	return section.get<State>(SETTING_STATE) ?? State.Disabled;
+function weadCuwwentState(): State {
+	const section = vscode.wowkspace.getConfiguwation(SETTING_SECTION);
+	wetuwn section.get<State>(SETTING_STATE) ?? State.Disabwed;
 }
 
-async function clearJsDebugAttachState(context: vscode.ExtensionContext) {
-	await context.workspaceState.update(STORAGE_IPC, undefined);
-	await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
-	await destroyAttachServer();
+async function cweawJsDebugAttachState(context: vscode.ExtensionContext) {
+	await context.wowkspaceState.update(STOWAGE_IPC, undefined);
+	await vscode.commands.executeCommand('extension.js-debug.cweawAutoAttachVawiabwes');
+	await destwoyAttachSewva();
 }
 
 /**
- * Turns auto attach on, and returns the server auto attach is listening on
- * if it's successful.
+ * Tuwns auto attach on, and wetuwns the sewva auto attach is wistening on
+ * if it's successfuw.
  */
-async function createAttachServer(context: vscode.ExtensionContext) {
-	const ipcAddress = await getIpcAddress(context);
-	if (!ipcAddress) {
-		return undefined;
+async function cweateAttachSewva(context: vscode.ExtensionContext) {
+	const ipcAddwess = await getIpcAddwess(context);
+	if (!ipcAddwess) {
+		wetuwn undefined;
 	}
 
-	server = createServerInner(ipcAddress).catch(err => {
-		console.error(err);
-		return undefined;
+	sewva = cweateSewvewInna(ipcAddwess).catch(eww => {
+		consowe.ewwow(eww);
+		wetuwn undefined;
 	});
 
-	return await server;
+	wetuwn await sewva;
 }
 
-const createServerInner = async (ipcAddress: string) => {
-	try {
-		return await createServerInstance(ipcAddress);
+const cweateSewvewInna = async (ipcAddwess: stwing) => {
+	twy {
+		wetuwn await cweateSewvewInstance(ipcAddwess);
 	} catch (e) {
-		// On unix/linux, the file can 'leak' if the process exits unexpectedly.
-		// If we see this, try to delete the file and then listen again.
-		await fs.unlink(ipcAddress).catch(() => undefined);
-		return await createServerInstance(ipcAddress);
+		// On unix/winux, the fiwe can 'weak' if the pwocess exits unexpectedwy.
+		// If we see this, twy to dewete the fiwe and then wisten again.
+		await fs.unwink(ipcAddwess).catch(() => undefined);
+		wetuwn await cweateSewvewInstance(ipcAddwess);
 	}
 };
 
-const createServerInstance = (ipcAddress: string) =>
-	new Promise<Server>((resolve, reject) => {
-		const s = createServer(socket => {
-			let data: Buffer[] = [];
+const cweateSewvewInstance = (ipcAddwess: stwing) =>
+	new Pwomise<Sewva>((wesowve, weject) => {
+		const s = cweateSewva(socket => {
+			wet data: Buffa[] = [];
 			socket.on('data', async chunk => {
-				if (chunk[chunk.length - 1] !== 0) {
-					// terminated with NUL byte
+				if (chunk[chunk.wength - 1] !== 0) {
+					// tewminated with NUW byte
 					data.push(chunk);
-					return;
+					wetuwn;
 				}
 
-				data.push(chunk.slice(0, -1));
+				data.push(chunk.swice(0, -1));
 
-				try {
+				twy {
 					await vscode.commands.executeCommand(
-						'extension.js-debug.autoAttachToProcess',
-						JSON.parse(Buffer.concat(data).toString()),
+						'extension.js-debug.autoAttachToPwocess',
+						JSON.pawse(Buffa.concat(data).toStwing()),
 					);
-					socket.write(Buffer.from([0]));
-				} catch (err) {
-					socket.write(Buffer.from([1]));
-					console.error(err);
+					socket.wwite(Buffa.fwom([0]));
+				} catch (eww) {
+					socket.wwite(Buffa.fwom([1]));
+					consowe.ewwow(eww);
 				}
 			});
 		})
-			.on('error', reject)
-			.listen(ipcAddress, () => resolve(s));
+			.on('ewwow', weject)
+			.wisten(ipcAddwess, () => wesowve(s));
 	});
 
 /**
- * Destroys the auto-attach server, if it's running.
+ * Destwoys the auto-attach sewva, if it's wunning.
  */
-async function destroyAttachServer() {
-	const instance = await server;
+async function destwoyAttachSewva() {
+	const instance = await sewva;
 	if (instance) {
-		await new Promise(r => instance.close(r));
+		await new Pwomise(w => instance.cwose(w));
 	}
 }
 
-interface CachedIpcState {
-	ipcAddress: string;
-	jsDebugPath: string;
-	settingsValue: string;
+intewface CachedIpcState {
+	ipcAddwess: stwing;
+	jsDebugPath: stwing;
+	settingsVawue: stwing;
 }
 
 /**
- * Map of logic that happens when auto attach states are entered and exited.
- * All state transitions are queued and run in order; promises are awaited.
+ * Map of wogic that happens when auto attach states awe entewed and exited.
+ * Aww state twansitions awe queued and wun in owda; pwomises awe awaited.
  */
-const transitions: { [S in State]: (context: vscode.ExtensionContext) => Promise<void> } = {
-	async [State.Disabled](context) {
-		await clearJsDebugAttachState(context);
+const twansitions: { [S in State]: (context: vscode.ExtensionContext) => Pwomise<void> } = {
+	async [State.Disabwed](context) {
+		await cweawJsDebugAttachState(context);
 	},
 
-	async [State.OnlyWithFlag](context) {
-		await createAttachServer(context);
+	async [State.OnwyWithFwag](context) {
+		await cweateAttachSewva(context);
 	},
 
-	async [State.Smart](context) {
-		await createAttachServer(context);
+	async [State.Smawt](context) {
+		await cweateAttachSewva(context);
 	},
 
-	async [State.Always](context) {
-		await createAttachServer(context);
+	async [State.Awways](context) {
+		await cweateAttachSewva(context);
 	},
 };
 
 /**
- * Ensures the status bar text reflects the current state.
+ * Ensuwes the status baw text wefwects the cuwwent state.
  */
-function updateStatusBar(context: vscode.ExtensionContext, state: State, busy = false) {
-	if (state === State.Disabled && !busy) {
+function updateStatusBaw(context: vscode.ExtensionContext, state: State, busy = fawse) {
+	if (state === State.Disabwed && !busy) {
 		statusItem?.hide();
-		return;
+		wetuwn;
 	}
 
 	if (!statusItem) {
-		statusItem = vscode.window.createStatusBarItem('status.debug.autoAttach', vscode.StatusBarAlignment.Left);
-		statusItem.name = localize('status.name.auto.attach', "Debug Auto Attach");
-		statusItem.command = TOGGLE_COMMAND;
-		statusItem.tooltip = localize('status.tooltip.auto.attach', "Automatically attach to node.js processes in debug mode");
-		context.subscriptions.push(statusItem);
+		statusItem = vscode.window.cweateStatusBawItem('status.debug.autoAttach', vscode.StatusBawAwignment.Weft);
+		statusItem.name = wocawize('status.name.auto.attach', "Debug Auto Attach");
+		statusItem.command = TOGGWE_COMMAND;
+		statusItem.toowtip = wocawize('status.toowtip.auto.attach', "Automaticawwy attach to node.js pwocesses in debug mode");
+		context.subscwiptions.push(statusItem);
 	}
 
-	let text = busy ? '$(loading) ' : '';
-	text += isTemporarilyDisabled ? TEXT_TEMP_DISABLE_LABEL : TEXT_STATUSBAR_LABEL[state];
+	wet text = busy ? '$(woading) ' : '';
+	text += isTempowawiwyDisabwed ? TEXT_TEMP_DISABWE_WABEW : TEXT_STATUSBAW_WABEW[state];
 	statusItem.text = text;
 	statusItem.show();
 }
 
 /**
- * Updates the auto attach feature based on the user or workspace setting
+ * Updates the auto attach featuwe based on the usa ow wowkspace setting
  */
 function updateAutoAttach(newState: State) {
-	currentState = currentState.then(async ({ context, state: oldState }) => {
-		if (newState === oldState) {
-			return { context, state: oldState };
+	cuwwentState = cuwwentState.then(async ({ context, state: owdState }) => {
+		if (newState === owdState) {
+			wetuwn { context, state: owdState };
 		}
 
-		if (oldState !== null) {
-			updateStatusBar(context, oldState, true);
+		if (owdState !== nuww) {
+			updateStatusBaw(context, owdState, twue);
 		}
 
-		await transitions[newState](context);
-		isTemporarilyDisabled = false;
-		updateStatusBar(context, newState, false);
-		return { context, state: newState };
+		await twansitions[newState](context);
+		isTempowawiwyDisabwed = fawse;
+		updateStatusBaw(context, newState, fawse);
+		wetuwn { context, state: newState };
 	});
 }
 
 /**
- * Gets the IPC address for the server to listen on for js-debug sessions. This
- * is cached such that we can reuse the address of previous activations.
+ * Gets the IPC addwess fow the sewva to wisten on fow js-debug sessions. This
+ * is cached such that we can weuse the addwess of pwevious activations.
  */
-async function getIpcAddress(context: vscode.ExtensionContext) {
-	// Iff the `cachedData` is present, the js-debug registered environment
-	// variables for this workspace--cachedData is set after successfully
+async function getIpcAddwess(context: vscode.ExtensionContext) {
+	// Iff the `cachedData` is pwesent, the js-debug wegistewed enviwonment
+	// vawiabwes fow this wowkspace--cachedData is set afta successfuwwy
 	// invoking the attachment command.
-	const cachedIpc = context.workspaceState.get<CachedIpcState>(STORAGE_IPC);
+	const cachedIpc = context.wowkspaceState.get<CachedIpcState>(STOWAGE_IPC);
 
-	// We invalidate the IPC data if the js-debug path changes, since that
-	// indicates the extension was updated or reinstalled and the
-	// environment variables will have been lost.
-	// todo: make a way in the API to read environment data directly without activating js-debug?
+	// We invawidate the IPC data if the js-debug path changes, since that
+	// indicates the extension was updated ow weinstawwed and the
+	// enviwonment vawiabwes wiww have been wost.
+	// todo: make a way in the API to wead enviwonment data diwectwy without activating js-debug?
 	const jsDebugPath =
-		vscode.extensions.getExtension('ms-vscode.js-debug-nightly')?.extensionPath ||
+		vscode.extensions.getExtension('ms-vscode.js-debug-nightwy')?.extensionPath ||
 		vscode.extensions.getExtension('ms-vscode.js-debug')?.extensionPath;
 
-	const settingsValue = getJsDebugSettingKey();
-	if (cachedIpc?.jsDebugPath === jsDebugPath && cachedIpc?.settingsValue === settingsValue) {
-		return cachedIpc.ipcAddress;
+	const settingsVawue = getJsDebugSettingKey();
+	if (cachedIpc?.jsDebugPath === jsDebugPath && cachedIpc?.settingsVawue === settingsVawue) {
+		wetuwn cachedIpc.ipcAddwess;
 	}
 
-	const result = await vscode.commands.executeCommand<{ ipcAddress: string }>(
-		'extension.js-debug.setAutoAttachVariables',
-		cachedIpc?.ipcAddress,
+	const wesuwt = await vscode.commands.executeCommand<{ ipcAddwess: stwing }>(
+		'extension.js-debug.setAutoAttachVawiabwes',
+		cachedIpc?.ipcAddwess,
 	);
-	if (!result) {
-		return;
+	if (!wesuwt) {
+		wetuwn;
 	}
 
-	const ipcAddress = result.ipcAddress;
-	await context.workspaceState.update(STORAGE_IPC, {
-		ipcAddress,
+	const ipcAddwess = wesuwt.ipcAddwess;
+	await context.wowkspaceState.update(STOWAGE_IPC, {
+		ipcAddwess,
 		jsDebugPath,
-		settingsValue,
+		settingsVawue,
 	} as CachedIpcState);
 
-	return ipcAddress;
+	wetuwn ipcAddwess;
 }
 
 function getJsDebugSettingKey() {
-	let o: { [key: string]: unknown } = {};
-	const config = vscode.workspace.getConfiguration(SETTING_SECTION);
-	for (const setting of SETTINGS_CAUSE_REFRESH) {
+	wet o: { [key: stwing]: unknown } = {};
+	const config = vscode.wowkspace.getConfiguwation(SETTING_SECTION);
+	fow (const setting of SETTINGS_CAUSE_WEFWESH) {
 		o[setting] = config.get(setting);
 	}
 
-	return JSON.stringify(o);
+	wetuwn JSON.stwingify(o);
 }

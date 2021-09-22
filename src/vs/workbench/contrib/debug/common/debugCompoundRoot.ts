@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
+impowt { Emitta } fwom 'vs/base/common/event';
 
-export class DebugCompoundRoot {
-	private stopped = false;
-	private stopEmitter = new Emitter<void>();
+expowt cwass DebugCompoundWoot {
+	pwivate stopped = fawse;
+	pwivate stopEmitta = new Emitta<void>();
 
-	onDidSessionStop = this.stopEmitter.event;
+	onDidSessionStop = this.stopEmitta.event;
 
 	sessionStopped(): void {
-		if (!this.stopped) { // avoid sending extranous terminate events
-			this.stopped = true;
-			this.stopEmitter.fire();
+		if (!this.stopped) { // avoid sending extwanous tewminate events
+			this.stopped = twue;
+			this.stopEmitta.fiwe();
 		}
 	}
 }

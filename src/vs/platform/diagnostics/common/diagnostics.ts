@@ -1,93 +1,93 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ProcessItem } from 'vs/base/common/processes';
-import { UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { PwocessItem } fwom 'vs/base/common/pwocesses';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMainPwocessInfo } fwom 'vs/pwatfowm/waunch/common/waunch';
+impowt { IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
-export const ID = 'diagnosticsService';
-export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
+expowt const ID = 'diagnosticsSewvice';
+expowt const IDiagnosticsSewvice = cweateDecowatow<IDiagnosticsSewvice>(ID);
 
-export interface IDiagnosticsService {
-	readonly _serviceBrand: undefined;
+expowt intewface IDiagnosticsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
-	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
-	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
-	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
+	getPewfowmanceInfo(mainPwocessInfo: IMainPwocessInfo, wemoteInfo: (IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[]): Pwomise<PewfowmanceInfo>;
+	getSystemInfo(mainPwocessInfo: IMainPwocessInfo, wemoteInfo: (IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[]): Pwomise<SystemInfo>;
+	getDiagnostics(mainPwocessInfo: IMainPwocessInfo, wemoteInfo: (IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[]): Pwomise<stwing>;
+	wepowtWowkspaceStats(wowkspace: IWowkspaceInfowmation): Pwomise<void>;
 }
 
-export interface IMachineInfo {
-	os: string;
-	cpus?: string;
-	memory: string;
-	vmHint: string;
-	linuxEnv?: ILinuxEnv;
+expowt intewface IMachineInfo {
+	os: stwing;
+	cpus?: stwing;
+	memowy: stwing;
+	vmHint: stwing;
+	winuxEnv?: IWinuxEnv;
 }
 
-export interface ILinuxEnv {
-	desktopSession?: string;
-	xdgSessionDesktop?: string;
-	xdgCurrentDesktop?: string;
-	xdgSessionType?: string;
+expowt intewface IWinuxEnv {
+	desktopSession?: stwing;
+	xdgSessionDesktop?: stwing;
+	xdgCuwwentDesktop?: stwing;
+	xdgSessionType?: stwing;
 }
 
-export interface IDiagnosticInfo {
+expowt intewface IDiagnosticInfo {
 	machineInfo: IMachineInfo;
-	workspaceMetadata?: IStringDictionary<WorkspaceStats>;
-	processes?: ProcessItem;
+	wowkspaceMetadata?: IStwingDictionawy<WowkspaceStats>;
+	pwocesses?: PwocessItem;
 }
-export interface SystemInfo extends IMachineInfo {
-	processArgs: string;
+expowt intewface SystemInfo extends IMachineInfo {
+	pwocessAwgs: stwing;
 	gpuStatus: any;
-	screenReader: string;
-	remoteData: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[];
-	load?: string;
+	scweenWeada: stwing;
+	wemoteData: (IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[];
+	woad?: stwing;
 }
 
-export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
-	hostName: string;
+expowt intewface IWemoteDiagnosticInfo extends IDiagnosticInfo {
+	hostName: stwing;
 }
 
-export interface IRemoteDiagnosticError {
-	hostName: string;
-	errorMessage: string;
+expowt intewface IWemoteDiagnosticEwwow {
+	hostName: stwing;
+	ewwowMessage: stwing;
 }
 
-export interface IDiagnosticInfoOptions {
-	includeProcesses?: boolean;
-	folders?: UriComponents[];
-	includeExtensions?: boolean;
+expowt intewface IDiagnosticInfoOptions {
+	incwudePwocesses?: boowean;
+	fowdews?: UwiComponents[];
+	incwudeExtensions?: boowean;
 }
 
-export interface WorkspaceStatItem {
-	name: string;
-	count: number;
+expowt intewface WowkspaceStatItem {
+	name: stwing;
+	count: numba;
 }
 
-export interface WorkspaceStats {
-	fileTypes: WorkspaceStatItem[];
-	configFiles: WorkspaceStatItem[];
-	fileCount: number;
-	maxFilesReached: boolean;
-	launchConfigFiles: WorkspaceStatItem[];
+expowt intewface WowkspaceStats {
+	fiweTypes: WowkspaceStatItem[];
+	configFiwes: WowkspaceStatItem[];
+	fiweCount: numba;
+	maxFiwesWeached: boowean;
+	waunchConfigFiwes: WowkspaceStatItem[];
 }
 
-export interface PerformanceInfo {
-	processInfo?: string;
-	workspaceInfo?: string;
+expowt intewface PewfowmanceInfo {
+	pwocessInfo?: stwing;
+	wowkspaceInfo?: stwing;
 }
 
-export interface IWorkspaceInformation extends IWorkspace {
-	telemetryId: string | undefined;
-	rendererSessionId: string;
+expowt intewface IWowkspaceInfowmation extends IWowkspace {
+	tewemetwyId: stwing | undefined;
+	wendewewSessionId: stwing;
 }
 
-export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
-	return !!x.hostName && !!x.errorMessage;
+expowt function isWemoteDiagnosticEwwow(x: any): x is IWemoteDiagnosticEwwow {
+	wetuwn !!x.hostName && !!x.ewwowMessage;
 }

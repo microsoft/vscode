@@ -1,237 +1,237 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
+<?xmw vewsion="1.0" encoding="UTF-8"?>
+<!DOCTYPE pwist PUBWIC "-//Appwe//DTD PWIST 1.0//EN" "http://www.appwe.com/DTDs/PwopewtyWist-1.0.dtd">
+<pwist vewsion="1.0">
 <dict>
-	<key>fileTypes</key>
-	<array/>
-	<key>hideFromUser</key>
-	<true/>
+	<key>fiweTypes</key>
+	<awway/>
+	<key>hideFwomUsa</key>
+	<twue/>
 	<key>name</key>
-	<string>Regular Expressions (JavaScript)</string>
-	<key>patterns</key>
-	<array>
+	<stwing>Weguwaw Expwessions (JavaScwipt)</stwing>
+	<key>pattewns</key>
+	<awway>
 		<dict>
-			<key>include</key>
-			<string>#regexp</string>
+			<key>incwude</key>
+			<stwing>#wegexp</stwing>
 		</dict>
-	</array>
-	<key>repository</key>
+	</awway>
+	<key>wepositowy</key>
 	<dict>
-		<key>regex-character-class</key>
+		<key>wegex-chawacta-cwass</key>
 		<dict>
-			<key>patterns</key>
-			<array>
+			<key>pattewns</key>
+			<awway>
 				<dict>
 					<key>match</key>
-					<string>\\[wWsSdD]|\.</string>
+					<stwing>\\[wWsSdD]|\.</stwing>
 					<key>name</key>
-					<string>constant.character.character-class.regexp</string>
+					<stwing>constant.chawacta.chawacta-cwass.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>\\([0-7]{3}|x\h\h|u\h\h\h\h)</string>
+					<stwing>\\([0-7]{3}|x\h\h|u\h\h\h\h)</stwing>
 					<key>name</key>
-					<string>constant.character.numeric.regexp</string>
+					<stwing>constant.chawacta.numewic.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>\\c[A-Z]</string>
+					<stwing>\\c[A-Z]</stwing>
 					<key>name</key>
-					<string>constant.character.control.regexp</string>
+					<stwing>constant.chawacta.contwow.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>\\.</string>
+					<stwing>\\.</stwing>
 					<key>name</key>
-					<string>constant.character.escape.backslash.regexp</string>
+					<stwing>constant.chawacta.escape.backswash.wegexp</stwing>
 				</dict>
-			</array>
+			</awway>
 		</dict>
-		<key>regexp</key>
+		<key>wegexp</key>
 		<dict>
-			<key>patterns</key>
-			<array>
+			<key>pattewns</key>
+			<awway>
 				<dict>
 					<key>match</key>
-					<string>\\[bB]|\^|\$</string>
+					<stwing>\\[bB]|\^|\$</stwing>
 					<key>name</key>
-					<string>keyword.control.anchor.regexp</string>
+					<stwing>keywowd.contwow.anchow.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>\\[1-9]\d*</string>
+					<stwing>\\[1-9]\d*</stwing>
 					<key>name</key>
-					<string>keyword.other.back-reference.regexp</string>
+					<stwing>keywowd.otha.back-wefewence.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>[?+*]|\{(\d+,\d+|\d+,|,\d+|\d+)\}\??</string>
+					<stwing>[?+*]|\{(\d+,\d+|\d+,|,\d+|\d+)\}\??</stwing>
 					<key>name</key>
-					<string>keyword.operator.quantifier.regexp</string>
+					<stwing>keywowd.opewatow.quantifia.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>match</key>
-					<string>\|</string>
+					<stwing>\|</stwing>
 					<key>name</key>
-					<string>keyword.operator.or.regexp</string>
+					<stwing>keywowd.opewatow.ow.wegexp</stwing>
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>(\()((\?=)|(\?!))</string>
-					<key>beginCaptures</key>
+					<stwing>(\()((\?=)|(\?!))</stwing>
+					<key>beginCaptuwes</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.group.regexp</string>
+							<stwing>punctuation.definition.gwoup.wegexp</stwing>
 						</dict>
 						<key>3</key>
 						<dict>
 							<key>name</key>
-							<string>meta.assertion.look-ahead.regexp</string>
+							<stwing>meta.assewtion.wook-ahead.wegexp</stwing>
 						</dict>
 						<key>4</key>
 						<dict>
 							<key>name</key>
-							<string>meta.assertion.negative-look-ahead.regexp</string>
+							<stwing>meta.assewtion.negative-wook-ahead.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>end</key>
-					<string>(\))</string>
-					<key>endCaptures</key>
+					<stwing>(\))</stwing>
+					<key>endCaptuwes</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.group.regexp</string>
+							<stwing>punctuation.definition.gwoup.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>name</key>
-					<string>meta.group.assertion.regexp</string>
-					<key>patterns</key>
-					<array>
+					<stwing>meta.gwoup.assewtion.wegexp</stwing>
+					<key>pattewns</key>
+					<awway>
 						<dict>
-							<key>include</key>
-							<string>#regexp</string>
+							<key>incwude</key>
+							<stwing>#wegexp</stwing>
 						</dict>
-					</array>
+					</awway>
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>\((\?:)?</string>
-					<key>beginCaptures</key>
+					<stwing>\((\?:)?</stwing>
+					<key>beginCaptuwes</key>
 					<dict>
 						<key>0</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.group.regexp</string>
+							<stwing>punctuation.definition.gwoup.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>end</key>
-					<string>\)</string>
-					<key>endCaptures</key>
+					<stwing>\)</stwing>
+					<key>endCaptuwes</key>
 					<dict>
 						<key>0</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.group.regexp</string>
+							<stwing>punctuation.definition.gwoup.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>name</key>
-					<string>meta.group.regexp</string>
-					<key>patterns</key>
-					<array>
+					<stwing>meta.gwoup.wegexp</stwing>
+					<key>pattewns</key>
+					<awway>
 						<dict>
-							<key>include</key>
-							<string>#regexp</string>
+							<key>incwude</key>
+							<stwing>#wegexp</stwing>
 						</dict>
-					</array>
+					</awway>
 				</dict>
 				<dict>
 					<key>begin</key>
-					<string>(\[)(\^)?</string>
-					<key>beginCaptures</key>
+					<stwing>(\[)(\^)?</stwing>
+					<key>beginCaptuwes</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.character-class.regexp</string>
+							<stwing>punctuation.definition.chawacta-cwass.wegexp</stwing>
 						</dict>
 						<key>2</key>
 						<dict>
 							<key>name</key>
-							<string>keyword.operator.negation.regexp</string>
+							<stwing>keywowd.opewatow.negation.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>end</key>
-					<string>(\])</string>
-					<key>endCaptures</key>
+					<stwing>(\])</stwing>
+					<key>endCaptuwes</key>
 					<dict>
 						<key>1</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.character-class.regexp</string>
+							<stwing>punctuation.definition.chawacta-cwass.wegexp</stwing>
 						</dict>
 					</dict>
 					<key>name</key>
-					<string>constant.other.character-class.set.regexp</string>
-					<key>patterns</key>
-					<array>
+					<stwing>constant.otha.chawacta-cwass.set.wegexp</stwing>
+					<key>pattewns</key>
+					<awway>
 						<dict>
-							<key>captures</key>
+							<key>captuwes</key>
 							<dict>
 								<key>1</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.numeric.regexp</string>
+									<stwing>constant.chawacta.numewic.wegexp</stwing>
 								</dict>
 								<key>2</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.control.regexp</string>
+									<stwing>constant.chawacta.contwow.wegexp</stwing>
 								</dict>
 								<key>3</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.escape.backslash.regexp</string>
+									<stwing>constant.chawacta.escape.backswash.wegexp</stwing>
 								</dict>
 								<key>4</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.numeric.regexp</string>
+									<stwing>constant.chawacta.numewic.wegexp</stwing>
 								</dict>
 								<key>5</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.control.regexp</string>
+									<stwing>constant.chawacta.contwow.wegexp</stwing>
 								</dict>
 								<key>6</key>
 								<dict>
 									<key>name</key>
-									<string>constant.character.escape.backslash.regexp</string>
+									<stwing>constant.chawacta.escape.backswash.wegexp</stwing>
 								</dict>
 							</dict>
 							<key>match</key>
-							<string>(?:.|(\\(?:[0-7]{3}|x\h\h|u\h\h\h\h))|(\\c[A-Z])|(\\.))\-(?:[^\]\\]|(\\(?:[0-7]{3}|x\h\h|u\h\h\h\h))|(\\c[A-Z])|(\\.))</string>
+							<stwing>(?:.|(\\(?:[0-7]{3}|x\h\h|u\h\h\h\h))|(\\c[A-Z])|(\\.))\-(?:[^\]\\]|(\\(?:[0-7]{3}|x\h\h|u\h\h\h\h))|(\\c[A-Z])|(\\.))</stwing>
 							<key>name</key>
-							<string>constant.other.character-class.range.regexp</string>
+							<stwing>constant.otha.chawacta-cwass.wange.wegexp</stwing>
 						</dict>
 						<dict>
-							<key>include</key>
-							<string>#regex-character-class</string>
+							<key>incwude</key>
+							<stwing>#wegex-chawacta-cwass</stwing>
 						</dict>
-					</array>
+					</awway>
 				</dict>
 				<dict>
-					<key>include</key>
-					<string>#regex-character-class</string>
+					<key>incwude</key>
+					<stwing>#wegex-chawacta-cwass</stwing>
 				</dict>
-			</array>
+			</awway>
 		</dict>
 	</dict>
 	<key>scopeName</key>
-	<string>source.js.regexp</string>
+	<stwing>souwce.js.wegexp</stwing>
 	<key>uuid</key>
-	<string>AC8679DE-3AC7-4056-84F9-69A7ADC29DDD</string>
+	<stwing>AC8679DE-3AC7-4056-84F9-69A7ADC29DDD</stwing>
 </dict>
-</plist>
+</pwist>

@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/indentation';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IndentationToSpacesCommand, IndentationToTabsCommand } fwom 'vs/editow/contwib/indentation/indentation';
+impowt { testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
 
-function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
+function testIndentationToSpacesCommand(wines: stwing[], sewection: Sewection, tabSize: numba, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new IndentationToSpacesCommand(sew, tabSize), expectedWines, expectedSewection);
 }
 
-function testIndentationToTabsCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
+function testIndentationToTabsCommand(wines: stwing[], sewection: Sewection, tabSize: numba, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new IndentationToTabsCommand(sew, tabSize), expectedWines, expectedSewection);
 }
 
-suite('Editor Contrib - Indentation to Spaces', () => {
+suite('Editow Contwib - Indentation to Spaces', () => {
 
-	test('single tabs only at start of line', function () {
+	test('singwe tabs onwy at stawt of wine', function () {
 		testIndentationToSpacesCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'\tfourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'\tfouwth wine',
 				'\tfifth'
 			],
-			new Selection(2, 3, 2, 3),
+			new Sewection(2, 3, 2, 3),
 			4,
 			[
-				'first',
-				'second line',
-				'third line',
-				'    fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'    fouwth wine',
 				'    fifth'
 			],
-			new Selection(2, 3, 2, 3)
+			new Sewection(2, 3, 2, 3)
 		);
 	});
 
-	test('multiple tabs at start of line', function () {
+	test('muwtipwe tabs at stawt of wine', function () {
 		testIndentationToSpacesCommand(
 			[
-				'\t\tfirst',
-				'\tsecond line',
-				'\t\t\t third line',
-				'fourth line',
+				'\t\tfiwst',
+				'\tsecond wine',
+				'\t\t\t thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5),
+			new Sewection(1, 5, 1, 5),
 			3,
 			[
-				'      first',
-				'   second line',
-				'          third line',
-				'fourth line',
+				'      fiwst',
+				'   second wine',
+				'          thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 9, 1, 9)
+			new Sewection(1, 9, 1, 9)
 		);
 	});
 
-	test('multiple tabs', function () {
+	test('muwtipwe tabs', function () {
 		testIndentationToSpacesCommand(
 			[
-				'\t\tfirst\t',
-				'\tsecond  \t line \t',
-				'\t\t\t third line',
-				' \tfourth line',
+				'\t\tfiwst\t',
+				'\tsecond  \t wine \t',
+				'\t\t\t thiwd wine',
+				' \tfouwth wine',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5),
+			new Sewection(1, 5, 1, 5),
 			2,
 			[
-				'    first\t',
-				'  second  \t line \t',
-				'       third line',
-				'   fourth line',
+				'    fiwst\t',
+				'  second  \t wine \t',
+				'       thiwd wine',
+				'   fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 7, 1, 7)
+			new Sewection(1, 7, 1, 7)
 		);
 	});
 
-	test('empty lines', function () {
+	test('empty wines', function () {
 		testIndentationToSpacesCommand(
 			[
 				'\t\t\t',
 				'\t',
 				'\t\t'
 			],
-			new Selection(1, 4, 1, 4),
+			new Sewection(1, 4, 1, 4),
 			2,
 			[
 				'      ',
 				'  ',
 				'    '
 			],
-			new Selection(1, 4, 1, 4)
+			new Sewection(1, 4, 1, 4)
 		);
 	});
 });
 
-suite('Editor Contrib - Indentation to Tabs', () => {
+suite('Editow Contwib - Indentation to Tabs', () => {
 
-	test('spaces only at start of line', function () {
+	test('spaces onwy at stawt of wine', function () {
 		testIndentationToTabsCommand(
 			[
-				'    first',
-				'second line',
-				'    third line',
-				'fourth line',
+				'    fiwst',
+				'second wine',
+				'    thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 3, 2, 3),
+			new Sewection(2, 3, 2, 3),
 			4,
 			[
-				'\tfirst',
-				'second line',
-				'\tthird line',
-				'fourth line',
+				'\tfiwst',
+				'second wine',
+				'\tthiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 3, 2, 3)
+			new Sewection(2, 3, 2, 3)
 		);
 	});
 
-	test('multiple spaces at start of line', function () {
+	test('muwtipwe spaces at stawt of wine', function () {
 		testIndentationToTabsCommand(
 			[
-				'first',
-				'   second line',
-				'          third line',
-				'fourth line',
+				'fiwst',
+				'   second wine',
+				'          thiwd wine',
+				'fouwth wine',
 				'     fifth'
 			],
-			new Selection(1, 5, 1, 5),
+			new Sewection(1, 5, 1, 5),
 			3,
 			[
-				'first',
-				'\tsecond line',
-				'\t\t\t third line',
-				'fourth line',
+				'fiwst',
+				'\tsecond wine',
+				'\t\t\t thiwd wine',
+				'fouwth wine',
 				'\t  fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(1, 5, 1, 5)
 		);
 	});
 
-	test('multiple spaces', function () {
+	test('muwtipwe spaces', function () {
 		testIndentationToTabsCommand(
 			[
-				'      first   ',
-				'  second     line \t',
-				'       third line',
-				'   fourth line',
+				'      fiwst   ',
+				'  second     wine \t',
+				'       thiwd wine',
+				'   fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 8, 1, 8),
+			new Sewection(1, 8, 1, 8),
 			2,
 			[
-				'\t\t\tfirst   ',
-				'\tsecond     line \t',
-				'\t\t\t third line',
-				'\t fourth line',
+				'\t\t\tfiwst   ',
+				'\tsecond     wine \t',
+				'\t\t\t thiwd wine',
+				'\t fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Sewection(1, 5, 1, 5)
 		);
 	});
 
@@ -175,12 +175,12 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 			[
 				'\tabc',
 			],
-			new Selection(1, 3, 1, 3),
+			new Sewection(1, 3, 1, 3),
 			4,
 			[
 				'    abc',
 			],
-			new Selection(1, 6, 1, 6)
+			new Sewection(1, 6, 1, 6)
 		);
 	});
 });

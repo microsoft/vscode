@@ -1,442 +1,442 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
-import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
-import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ActivityUpdater, IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+impowt 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsFiweDecowations';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Extensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Mawka, WewatedInfowmation } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsModew';
+impowt { MawkewsView } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsView';
+impowt { MenuId, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt Constants fwom 'vs/wowkbench/contwib/mawkews/bwowsa/constants';
+impowt Messages fwom 'vs/wowkbench/contwib/mawkews/bwowsa/messages';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ActivityUpdata, IMawkewsView } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkews';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IStatusbawEntwyAccessow, IStatusbawSewvice, StatusbawAwignment, IStatusbawEntwy } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IMawkewSewvice, MawkewStatistics } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { ViewContaina, IViewContainewsWegistwy, Extensions as ViewContainewExtensions, ViewContainewWocation, IViewsWegistwy, IViewsSewvice, getVisbiweViewContextKey, FocusedViewContext } fwom 'vs/wowkbench/common/views';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ViewAction } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: Constants.MARKER_OPEN_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),
-	primary: KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: Constants.MAWKEW_OPEN_ACTION_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(Constants.MawkewFocusContextKey),
+	pwimawy: KeyCode.Enta,
 	mac: {
-		primary: KeyCode.Enter,
-		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+		pwimawy: KeyCode.Enta,
+		secondawy: [KeyMod.CtwwCmd | KeyCode.DownAwwow]
 	},
-	handler: (accessor, args: any) => {
-		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
-		markersView.openFileAtElement(markersView.getFocusElement(), false, false, true);
+	handwa: (accessow, awgs: any) => {
+		const mawkewsView = accessow.get(IViewsSewvice).getActiveViewWithId<MawkewsView>(Constants.MAWKEWS_VIEW_ID)!;
+		mawkewsView.openFiweAtEwement(mawkewsView.getFocusEwement(), fawse, fawse, twue);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: Constants.MAWKEW_OPEN_SIDE_ACTION_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(Constants.MawkewFocusContextKey),
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
 	mac: {
-		primary: KeyMod.WinCtrl | KeyCode.Enter
+		pwimawy: KeyMod.WinCtww | KeyCode.Enta
 	},
-	handler: (accessor, args: any) => {
-		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
-		markersView.openFileAtElement(markersView.getFocusElement(), false, true, true);
+	handwa: (accessow, awgs: any) => {
+		const mawkewsView = accessow.get(IViewsSewvice).getActiveViewWithId<MawkewsView>(Constants.MAWKEWS_VIEW_ID)!;
+		mawkewsView.openFiweAtEwement(mawkewsView.getFocusEwement(), fawse, twue, twue);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: Constants.MARKER_SHOW_PANEL_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: Constants.MAWKEW_SHOW_PANEW_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: undefined,
-	handler: async (accessor, args: any) => {
-		await accessor.get(IViewsService).openView(Constants.MARKERS_VIEW_ID);
+	pwimawy: undefined,
+	handwa: async (accessow, awgs: any) => {
+		await accessow.get(IViewsSewvice).openView(Constants.MAWKEWS_VIEW_ID);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: Constants.MARKER_SHOW_QUICK_FIX,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: Constants.MarkerFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
-	handler: (accessor, args: any) => {
-		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
-		const focusedElement = markersView.getFocusElement();
-		if (focusedElement instanceof Marker) {
-			markersView.showQuickFixes(focusedElement);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: Constants.MAWKEW_SHOW_QUICK_FIX,
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: Constants.MawkewFocusContextKey,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.US_DOT,
+	handwa: (accessow, awgs: any) => {
+		const mawkewsView = accessow.get(IViewsSewvice).getActiveViewWithId<MawkewsView>(Constants.MAWKEWS_VIEW_ID)!;
+		const focusedEwement = mawkewsView.getFocusEwement();
+		if (focusedEwement instanceof Mawka) {
+			mawkewsView.showQuickFixes(focusedEwement);
 		}
 	}
 });
 
-// configuration
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
+// configuwation
+Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+	'id': 'pwobwems',
+	'owda': 101,
+	'titwe': Messages.PWOBWEMS_PANEW_CONFIGUWATION_TITWE,
 	'type': 'object',
-	'properties': {
-		'problems.autoReveal': {
-			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
-			'type': 'boolean',
-			'default': true
+	'pwopewties': {
+		'pwobwems.autoWeveaw': {
+			'descwiption': Messages.PWOBWEMS_PANEW_CONFIGUWATION_AUTO_WEVEAW,
+			'type': 'boowean',
+			'defauwt': twue
 		},
-		'problems.showCurrentInStatus': {
-			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
-			'type': 'boolean',
-			'default': false
+		'pwobwems.showCuwwentInStatus': {
+			'descwiption': Messages.PWOBWEMS_PANEW_CONFIGUWATION_SHOW_CUWWENT_STATUS,
+			'type': 'boowean',
+			'defauwt': fawse
 		}
 	}
 });
 
-const markersViewIcon = registerIcon('markers-view-icon', Codicon.warning, localize('markersViewIcon', 'View icon of the markers view.'));
+const mawkewsViewIcon = wegistewIcon('mawkews-view-icon', Codicon.wawning, wocawize('mawkewsViewIcon', 'View icon of the mawkews view.'));
 
-// markers view container
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: Constants.MARKERS_CONTAINER_ID,
-	title: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	icon: markersViewIcon,
-	hideIfEmpty: true,
-	order: 0,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	storageId: Constants.MARKERS_VIEW_STORAGE_ID,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
+// mawkews view containa
+const VIEW_CONTAINa: ViewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: Constants.MAWKEWS_CONTAINEW_ID,
+	titwe: Messages.MAWKEWS_PANEW_TITWE_PWOBWEMS,
+	icon: mawkewsViewIcon,
+	hideIfEmpty: twue,
+	owda: 0,
+	ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [Constants.MAWKEWS_CONTAINEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+	stowageId: Constants.MAWKEWS_VIEW_STOWAGE_ID,
+}, ViewContainewWocation.Panew, { donotWegistewOpenCommand: twue });
 
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: Constants.MARKERS_VIEW_ID,
-	containerIcon: markersViewIcon,
-	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
-	canToggleVisibility: false,
-	canMoveView: true,
-	ctorDescriptor: new SyncDescriptor(MarkersView),
-	openCommandActionDescriptor: {
-		id: 'workbench.actions.view.problems',
-		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
-		order: 0,
+Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy).wegistewViews([{
+	id: Constants.MAWKEWS_VIEW_ID,
+	containewIcon: mawkewsViewIcon,
+	name: Messages.MAWKEWS_PANEW_TITWE_PWOBWEMS,
+	canToggweVisibiwity: fawse,
+	canMoveView: twue,
+	ctowDescwiptow: new SyncDescwiptow(MawkewsView),
+	openCommandActionDescwiptow: {
+		id: 'wowkbench.actions.view.pwobwems',
+		mnemonicTitwe: wocawize({ key: 'miMawka', comment: ['&& denotes a mnemonic'] }, "&&Pwobwems"),
+		keybindings: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_M },
+		owda: 0,
 	}
-}], VIEW_CONTAINER);
+}], VIEW_CONTAINa);
 
-// workbench
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.Restored);
+// wowkbench
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ActivityUpdata, WifecycwePhase.Westowed);
 
 // actions
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.problems.focus',
-			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View.value,
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.pwobwems.focus',
+			titwe: { vawue: Messages.MAWKEWS_PANEW_SHOW_WABEW, owiginaw: 'Focus Pwobwems (Ewwows, Wawnings, Infos)' },
+			categowy: CATEGOWIES.View.vawue,
+			f1: twue,
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IViewsService).openView(Constants.MARKERS_VIEW_ID, true);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		accessow.get(IViewsSewvice).openView(Constants.MAWKEWS_VIEW_ID, twue);
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKER_COPY_ACTION_ID,
-			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEW_COPY_ACTION_ID,
+			titwe: { vawue: wocawize('copyMawka', "Copy"), owiginaw: 'Copy' },
 			menu: {
-				id: MenuId.ProblemsPanelContext,
-				when: Constants.MarkerFocusContextKey,
-				group: 'navigation'
+				id: MenuId.PwobwemsPanewContext,
+				when: Constants.MawkewFocusContextKey,
+				gwoup: 'navigation'
 			},
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-				when: Constants.MarkerFocusContextKey
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C,
+				when: Constants.MawkewFocusContextKey
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(`${element}`);
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		const cwipboawdSewvice = sewviceAccessow.get(ICwipboawdSewvice);
+		const ewement = mawkewsView.getFocusEwement();
+		if (ewement instanceof Mawka) {
+			await cwipboawdSewvice.wwiteText(`${ewement}`);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEW_COPY_MESSAGE_ACTION_ID,
+			titwe: { vawue: wocawize('copyMessage', "Copy Message"), owiginaw: 'Copy Message' },
 			menu: {
-				id: MenuId.ProblemsPanelContext,
-				when: Constants.MarkerFocusContextKey,
-				group: 'navigation'
+				id: MenuId.PwobwemsPanewContext,
+				when: Constants.MawkewFocusContextKey,
+				gwoup: 'navigation'
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(element.marker.message);
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		const cwipboawdSewvice = sewviceAccessow.get(ICwipboawdSewvice);
+		const ewement = mawkewsView.getFocusEwement();
+		if (ewement instanceof Mawka) {
+			await cwipboawdSewvice.wwiteText(ewement.mawka.message);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.WEWATED_INFOWMATION_COPY_MESSAGE_ACTION_ID,
+			titwe: { vawue: wocawize('copyMessage', "Copy Message"), owiginaw: 'Copy Message' },
 			menu: {
-				id: MenuId.ProblemsPanelContext,
-				when: Constants.RelatedInformationFocusContextKey,
-				group: 'navigation'
+				id: MenuId.PwobwemsPanewContext,
+				when: Constants.WewatedInfowmationFocusContextKey,
+				gwoup: 'navigation'
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof RelatedInformation) {
-			await clipboardService.writeText(element.raw.message);
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		const cwipboawdSewvice = sewviceAccessow.get(ICwipboawdSewvice);
+		const ewement = mawkewsView.getFocusEwement();
+		if (ewement instanceof WewatedInfowmation) {
+			await cwipboawdSewvice.wwiteText(ewement.waw.message);
 		}
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.FOCUS_PROBLEMS_FROM_FILTER,
-			title: localize('focusProblemsList', "Focus problems view"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.FOCUS_PWOBWEMS_FWOM_FIWTa,
+			titwe: wocawize('focusPwobwemsWist', "Focus pwobwems view"),
 			keybinding: {
-				when: Constants.MarkerViewFilterFocusContextKey,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+				when: Constants.MawkewViewFiwtewFocusContextKey,
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		markersView.focus();
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		mawkewsView.focus();
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKERS_VIEW_FOCUS_FILTER,
-			title: localize('focusProblemsFilter', "Focus problems filter"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEWS_VIEW_FOCUS_FIWTa,
+			titwe: wocawize('focusPwobwemsFiwta', "Focus pwobwems fiwta"),
 			keybinding: {
-				when: FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID),
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+				when: FocusedViewContext.isEquawTo(Constants.MAWKEWS_VIEW_ID),
+				weight: KeybindingWeight.WowkbenchContwib,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_F
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		markersView.focusFilter();
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		mawkewsView.focusFiwta();
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKERS_VIEW_SHOW_MULTILINE_MESSAGE,
-			title: { value: localize('show multiline', "Show message in multiple lines"), original: 'Problems: Show message in multiple lines' },
-			category: localize('problems', "Problems"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEWS_VIEW_SHOW_MUWTIWINE_MESSAGE,
+			titwe: { vawue: wocawize('show muwtiwine', "Show message in muwtipwe wines"), owiginaw: 'Pwobwems: Show message in muwtipwe wines' },
+			categowy: wocawize('pwobwems', "Pwobwems"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.has(getVisbileViewContextKey(Constants.MARKERS_VIEW_ID))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.has(getVisbiweViewContextKey(Constants.MAWKEWS_VIEW_ID))
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		markersView.setMultiline(true);
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		mawkewsView.setMuwtiwine(twue);
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE,
-			title: { value: localize('show singleline', "Show message in single line"), original: 'Problems: Show message in single line' },
-			category: localize('problems', "Problems"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEWS_VIEW_SHOW_SINGWEWINE_MESSAGE,
+			titwe: { vawue: wocawize('show singwewine', "Show message in singwe wine"), owiginaw: 'Pwobwems: Show message in singwe wine' },
+			categowy: wocawize('pwobwems', "Pwobwems"),
 			menu: {
-				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.has(getVisbileViewContextKey(Constants.MARKERS_VIEW_ID))
+				id: MenuId.CommandPawette,
+				when: ContextKeyExpw.has(getVisbiweViewContextKey(Constants.MAWKEWS_VIEW_ID))
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		markersView.setMultiline(false);
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		mawkewsView.setMuwtiwine(fawse);
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: Constants.MARKERS_VIEW_CLEAR_FILTER_TEXT,
-			title: localize('clearFiltersText', "Clear filters text"),
-			category: localize('problems', "Problems"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: Constants.MAWKEWS_VIEW_CWEAW_FIWTEW_TEXT,
+			titwe: wocawize('cweawFiwtewsText', "Cweaw fiwtews text"),
+			categowy: wocawize('pwobwems', "Pwobwems"),
 			keybinding: {
-				when: Constants.MarkerViewFilterFocusContextKey,
-				weight: KeybindingWeight.WorkbenchContrib,
+				when: Constants.MawkewViewFiwtewFocusContextKey,
+				weight: KeybindingWeight.WowkbenchContwib,
 			},
-			viewId: Constants.MARKERS_VIEW_ID
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
-		markersView.clearFilterText();
+	async wunInView(sewviceAccessow: SewvicesAccessow, mawkewsView: IMawkewsView): Pwomise<void> {
+		mawkewsView.cweawFiwtewText();
 	}
 });
 
-registerAction2(class extends ViewAction<IMarkersView> {
-	constructor() {
-		super({
-			id: `workbench.actions.treeView.${Constants.MARKERS_VIEW_ID}.collapseAll`,
-			title: localize('collapseAll', "Collapse All"),
+wegistewAction2(cwass extends ViewAction<IMawkewsView> {
+	constwuctow() {
+		supa({
+			id: `wowkbench.actions.tweeView.${Constants.MAWKEWS_VIEW_ID}.cowwapseAww`,
+			titwe: wocawize('cowwapseAww', "Cowwapse Aww"),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID),
-				group: 'navigation',
-				order: 2,
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.equaws('view', Constants.MAWKEWS_VIEW_ID),
+				gwoup: 'navigation',
+				owda: 2,
 			},
-			icon: Codicon.collapseAll,
-			viewId: Constants.MARKERS_VIEW_ID
+			icon: Codicon.cowwapseAww,
+			viewId: Constants.MAWKEWS_VIEW_ID
 		});
 	}
-	async runInView(serviceAccessor: ServicesAccessor, view: IMarkersView): Promise<void> {
-		return view.collapseAll();
+	async wunInView(sewviceAccessow: SewvicesAccessow, view: IMawkewsView): Pwomise<void> {
+		wetuwn view.cowwapseAww();
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.actions.treeView.${Constants.MARKERS_VIEW_ID}.filter`,
-			title: localize('filter', "Filter"),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: `wowkbench.actions.tweeView.${Constants.MAWKEWS_VIEW_ID}.fiwta`,
+			titwe: wocawize('fiwta', "Fiwta"),
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewSmallLayoutContextKey.negate()),
-				group: 'navigation',
-				order: 1,
+				id: MenuId.ViewTitwe,
+				when: ContextKeyExpw.and(ContextKeyExpw.equaws('view', Constants.MAWKEWS_VIEW_ID), Constants.MawkewsViewSmawwWayoutContextKey.negate()),
+				gwoup: 'navigation',
+				owda: 1,
 			},
 		});
 	}
-	async run(): Promise<void> { }
+	async wun(): Pwomise<void> { }
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: Constants.TOGGLE_MARKERS_VIEW_ACTION_ID,
-			title: Messages.MARKERS_PANEL_TOGGLE_LABEL,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: Constants.TOGGWE_MAWKEWS_VIEW_ACTION_ID,
+			titwe: Messages.MAWKEWS_PANEW_TOGGWE_WABEW,
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		if (viewsService.isViewVisible(Constants.MARKERS_VIEW_ID)) {
-			viewsService.closeView(Constants.MARKERS_VIEW_ID);
-		} else {
-			viewsService.openView(Constants.MARKERS_VIEW_ID, true);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		if (viewsSewvice.isViewVisibwe(Constants.MAWKEWS_VIEW_ID)) {
+			viewsSewvice.cwoseView(Constants.MAWKEWS_VIEW_ID);
+		} ewse {
+			viewsSewvice.openView(Constants.MAWKEWS_VIEW_ID, twue);
 		}
 	}
 });
 
-class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
+cwass MawkewsStatusBawContwibutions extends Disposabwe impwements IWowkbenchContwibution {
 
-	private markersStatusItem: IStatusbarEntryAccessor;
+	pwivate mawkewsStatusItem: IStatusbawEntwyAccessow;
 
-	constructor(
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+	constwuctow(
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice,
+		@IStatusbawSewvice pwivate weadonwy statusbawSewvice: IStatusbawSewvice
 	) {
-		super();
-		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+		supa();
+		this.mawkewsStatusItem = this._wegista(this.statusbawSewvice.addEntwy(this.getMawkewsItem(), 'status.pwobwems', StatusbawAwignment.WEFT, 50 /* Medium Pwiowity */));
+		this.mawkewSewvice.onMawkewChanged(() => this.mawkewsStatusItem.update(this.getMawkewsItem()));
 	}
 
-	private getMarkersItem(): IStatusbarEntry {
-		const markersStatistics = this.markerService.getStatistics();
-		const tooltip = this.getMarkersTooltip(markersStatistics);
-		return {
-			name: localize('status.problems', "Problems"),
-			text: this.getMarkersText(markersStatistics),
-			ariaLabel: tooltip,
-			tooltip,
-			command: 'workbench.actions.view.toggleProblems'
+	pwivate getMawkewsItem(): IStatusbawEntwy {
+		const mawkewsStatistics = this.mawkewSewvice.getStatistics();
+		const toowtip = this.getMawkewsToowtip(mawkewsStatistics);
+		wetuwn {
+			name: wocawize('status.pwobwems', "Pwobwems"),
+			text: this.getMawkewsText(mawkewsStatistics),
+			awiaWabew: toowtip,
+			toowtip,
+			command: 'wowkbench.actions.view.toggwePwobwems'
 		};
 	}
 
-	private getMarkersTooltip(stats: MarkerStatistics): string {
-		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
-		const warningTitle = (n: number) => localize('totalWarnings', "Warnings: {0}", n);
-		const infoTitle = (n: number) => localize('totalInfos', "Infos: {0}", n);
+	pwivate getMawkewsToowtip(stats: MawkewStatistics): stwing {
+		const ewwowTitwe = (n: numba) => wocawize('totawEwwows', "Ewwows: {0}", n);
+		const wawningTitwe = (n: numba) => wocawize('totawWawnings', "Wawnings: {0}", n);
+		const infoTitwe = (n: numba) => wocawize('totawInfos', "Infos: {0}", n);
 
-		const titles: string[] = [];
+		const titwes: stwing[] = [];
 
-		if (stats.errors > 0) {
-			titles.push(errorTitle(stats.errors));
+		if (stats.ewwows > 0) {
+			titwes.push(ewwowTitwe(stats.ewwows));
 		}
 
-		if (stats.warnings > 0) {
-			titles.push(warningTitle(stats.warnings));
+		if (stats.wawnings > 0) {
+			titwes.push(wawningTitwe(stats.wawnings));
 		}
 
 		if (stats.infos > 0) {
-			titles.push(infoTitle(stats.infos));
+			titwes.push(infoTitwe(stats.infos));
 		}
 
-		if (titles.length === 0) {
-			return localize('noProblems', "No Problems");
+		if (titwes.wength === 0) {
+			wetuwn wocawize('noPwobwems', "No Pwobwems");
 		}
 
-		return titles.join(', ');
+		wetuwn titwes.join(', ');
 	}
 
-	private getMarkersText(stats: MarkerStatistics): string {
-		const problemsText: string[] = [];
+	pwivate getMawkewsText(stats: MawkewStatistics): stwing {
+		const pwobwemsText: stwing[] = [];
 
-		// Errors
-		problemsText.push('$(error) ' + this.packNumber(stats.errors));
+		// Ewwows
+		pwobwemsText.push('$(ewwow) ' + this.packNumba(stats.ewwows));
 
-		// Warnings
-		problemsText.push('$(warning) ' + this.packNumber(stats.warnings));
+		// Wawnings
+		pwobwemsText.push('$(wawning) ' + this.packNumba(stats.wawnings));
 
-		// Info (only if any)
+		// Info (onwy if any)
 		if (stats.infos > 0) {
-			problemsText.push('$(info) ' + this.packNumber(stats.infos));
+			pwobwemsText.push('$(info) ' + this.packNumba(stats.infos));
 		}
 
-		return problemsText.join(' ');
+		wetuwn pwobwemsText.join(' ');
 	}
 
-	private packNumber(n: number): string {
-		const manyProblems = localize('manyProblems', "10K+");
-		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
+	pwivate packNumba(n: numba): stwing {
+		const manyPwobwems = wocawize('manyPwobwems', "10K+");
+		wetuwn n > 9999 ? manyPwobwems : n > 999 ? n.toStwing().chawAt(0) + 'K' : n.toStwing();
 	}
 }
 
-workbenchRegistry.registerWorkbenchContribution(MarkersStatusBarContributions, LifecyclePhase.Restored);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(MawkewsStatusBawContwibutions, WifecycwePhase.Westowed);

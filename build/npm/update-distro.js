@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const cp = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const cp = wequiwe('chiwd_pwocess');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
 
-const rootPath = path.dirname(path.dirname(path.dirname(__dirname)));
-const vscodePath = path.join(rootPath, 'vscode');
-const distroPath = path.join(rootPath, 'vscode-distro');
-const commit = cp.execSync('git rev-parse HEAD', { cwd: distroPath, encoding: 'utf8' }).trim();
+const wootPath = path.diwname(path.diwname(path.diwname(__diwname)));
+const vscodePath = path.join(wootPath, 'vscode');
+const distwoPath = path.join(wootPath, 'vscode-distwo');
+const commit = cp.execSync('git wev-pawse HEAD', { cwd: distwoPath, encoding: 'utf8' }).twim();
 const packageJsonPath = path.join(vscodePath, 'package.json');
-const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const packageJson = JSON.pawse(fs.weadFiweSync(packageJsonPath, 'utf8'));
 
-packageJson.distro = commit;
-fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+packageJson.distwo = commit;
+fs.wwiteFiweSync(packageJsonPath, JSON.stwingify(packageJson, nuww, 2));

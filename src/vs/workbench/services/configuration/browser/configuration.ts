@@ -1,921 +1,921 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
-import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { equals } from 'vs/base/common/objects';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { hash } from 'vs/base/common/hash';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { ResourceMap } from 'vs/base/common/map';
-import { joinPath } from 'vs/base/common/resources';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, IDisposabwe, dispose, toDisposabwe, MutabweDisposabwe, combinedDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WunOnceScheduwa, timeout } fwom 'vs/base/common/async';
+impowt { FiweChangeType, FiweChangesEvent, IFiweSewvice, whenPwovidewWegistewed, FiweOpewationEwwow, FiweOpewationWesuwt } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ConfiguwationModew, ConfiguwationModewPawsa, ConfiguwationPawseOptions, UsewSettings } fwom 'vs/pwatfowm/configuwation/common/configuwationModews';
+impowt { WowkspaceConfiguwationModewPawsa, StandawoneConfiguwationModewPawsa } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwationModews';
+impowt { TASKS_CONFIGUWATION_KEY, FOWDEW_SETTINGS_NAME, WAUNCH_CONFIGUWATION_KEY, IConfiguwationCache, ConfiguwationKey, WEMOTE_MACHINE_SCOPES, FOWDEW_SCOPES, WOWKSPACE_SCOPES } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IStowedWowkspaceFowda, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { JSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditingSewvice';
+impowt { WowkbenchState, IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
 
-export class UserConfiguration extends Disposable {
+expowt cwass UsewConfiguwation extends Disposabwe {
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation: Emitta<ConfiguwationModew> = this._wegista(new Emitta<ConfiguwationModew>());
+	weadonwy onDidChangeConfiguwation: Event<ConfiguwationModew> = this._onDidChangeConfiguwation.event;
 
-	private readonly userConfiguration: MutableDisposable<UserSettings | FileServiceBasedConfiguration> = this._register(new MutableDisposable<UserSettings | FileServiceBasedConfiguration>());
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	pwivate weadonwy usewConfiguwation: MutabweDisposabwe<UsewSettings | FiweSewviceBasedConfiguwation> = this._wegista(new MutabweDisposabwe<UsewSettings | FiweSewviceBasedConfiguwation>());
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
 
-	private readonly configurationParseOptions: ConfigurationParseOptions;
+	pwivate weadonwy configuwationPawseOptions: ConfiguwationPawseOptions;
 
-	get hasTasksLoaded(): boolean { return this.userConfiguration.value instanceof FileServiceBasedConfiguration; }
+	get hasTasksWoaded(): boowean { wetuwn this.usewConfiguwation.vawue instanceof FiweSewviceBasedConfiguwation; }
 
-	constructor(
-		private readonly userSettingsResource: URI,
-		scopes: ConfigurationScope[] | undefined,
-		private readonly fileService: IFileService,
-		private readonly uriIdentityService: IUriIdentityService,
-		private readonly logService: ILogService,
+	constwuctow(
+		pwivate weadonwy usewSettingsWesouwce: UWI,
+		scopes: ConfiguwationScope[] | undefined,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
-		this.configurationParseOptions = { scopes, skipRestricted: false };
-		this.userConfiguration.value = new UserSettings(this.userSettingsResource, scopes, uriIdentityService.extUri, this.fileService);
-		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
+		supa();
+		this.configuwationPawseOptions = { scopes, skipWestwicted: fawse };
+		this.usewConfiguwation.vawue = new UsewSettings(this.usewSettingsWesouwce, scopes, uwiIdentitySewvice.extUwi, this.fiweSewvice);
+		this._wegista(this.usewConfiguwation.vawue.onDidChange(() => this.wewoadConfiguwationScheduwa.scheduwe()));
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this.wewoad().then(configuwationModew => this._onDidChangeConfiguwation.fiwe(configuwationModew)), 50));
 	}
 
-	async initialize(): Promise<ConfigurationModel> {
-		return this.userConfiguration.value!.loadConfiguration();
+	async initiawize(): Pwomise<ConfiguwationModew> {
+		wetuwn this.usewConfiguwation.vawue!.woadConfiguwation();
 	}
 
-	async reload(): Promise<ConfigurationModel> {
-		if (this.hasTasksLoaded) {
-			return this.userConfiguration.value!.loadConfiguration();
+	async wewoad(): Pwomise<ConfiguwationModew> {
+		if (this.hasTasksWoaded) {
+			wetuwn this.usewConfiguwation.vawue!.woadConfiguwation();
 		}
 
-		const folder = this.uriIdentityService.extUri.dirname(this.userSettingsResource);
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY].map(name => ([name, this.uriIdentityService.extUri.joinPath(folder, `${name}.json`)]));
-		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.userSettingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
-		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
-		this.userConfiguration.value = fileServiceBasedConfiguration;
+		const fowda = this.uwiIdentitySewvice.extUwi.diwname(this.usewSettingsWesouwce);
+		const standAwoneConfiguwationWesouwces: [stwing, UWI][] = [TASKS_CONFIGUWATION_KEY].map(name => ([name, this.uwiIdentitySewvice.extUwi.joinPath(fowda, `${name}.json`)]));
+		const fiweSewviceBasedConfiguwation = new FiweSewviceBasedConfiguwation(fowda.toStwing(), this.usewSettingsWesouwce, standAwoneConfiguwationWesouwces, this.configuwationPawseOptions, this.fiweSewvice, this.uwiIdentitySewvice, this.wogSewvice);
+		const configuwationModew = await fiweSewviceBasedConfiguwation.woadConfiguwation();
+		this.usewConfiguwation.vawue = fiweSewviceBasedConfiguwation;
 
-		// Check for value because userConfiguration might have been disposed.
-		if (this.userConfiguration.value) {
-			this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
+		// Check fow vawue because usewConfiguwation might have been disposed.
+		if (this.usewConfiguwation.vawue) {
+			this._wegista(this.usewConfiguwation.vawue.onDidChange(() => this.wewoadConfiguwationScheduwa.scheduwe()));
 		}
 
-		return configurationModel;
+		wetuwn configuwationModew;
 	}
 
-	reparse(): ConfigurationModel {
-		return this.userConfiguration.value!.reparse(this.configurationParseOptions);
+	wepawse(): ConfiguwationModew {
+		wetuwn this.usewConfiguwation.vawue!.wepawse(this.configuwationPawseOptions);
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.userConfiguration.value!.getRestrictedSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.usewConfiguwation.vawue!.getWestwictedSettings();
 	}
 }
 
-class FileServiceBasedConfiguration extends Disposable {
+cwass FiweSewviceBasedConfiguwation extends Disposabwe {
 
-	private readonly allResources: URI[];
-	private _folderSettingsModelParser: ConfigurationModelParser;
-	private _folderSettingsParseOptions: ConfigurationParseOptions;
-	private _standAloneConfigurations: ConfigurationModel[];
-	private _cache: ConfigurationModel;
+	pwivate weadonwy awwWesouwces: UWI[];
+	pwivate _fowdewSettingsModewPawsa: ConfiguwationModewPawsa;
+	pwivate _fowdewSettingsPawseOptions: ConfiguwationPawseOptions;
+	pwivate _standAwoneConfiguwations: ConfiguwationModew[];
+	pwivate _cache: ConfiguwationModew;
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly resourcesContentMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	pwivate weadonwy wesouwcesContentMap = new WesouwceMap<boowean>(uwi => this.uwiIdentitySewvice.extUwi.getCompawisonKey(uwi));
 
-	private disposed: boolean = false;
+	pwivate disposed: boowean = fawse;
 
-	constructor(
-		name: string,
-		private readonly settingsResource: URI,
-		private readonly standAloneConfigurationResources: [string, URI][],
-		configurationParseOptions: ConfigurationParseOptions,
-		private readonly fileService: IFileService,
-		private readonly uriIdentityService: IUriIdentityService,
-		private readonly logService: ILogService,
+	constwuctow(
+		name: stwing,
+		pwivate weadonwy settingsWesouwce: UWI,
+		pwivate weadonwy standAwoneConfiguwationWesouwces: [stwing, UWI][],
+		configuwationPawseOptions: ConfiguwationPawseOptions,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		pwivate weadonwy wogSewvice: IWogSewvice,
 	) {
-		super();
-		this.allResources = [this.settingsResource, ...this.standAloneConfigurationResources.map(([, resource]) => resource)];
-		this._register(combinedDisposable(...this.allResources.map(resource => combinedDisposable(
-			this.fileService.watch(uriIdentityService.extUri.dirname(resource)),
-			// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
-			this.fileService.watch(resource)
+		supa();
+		this.awwWesouwces = [this.settingsWesouwce, ...this.standAwoneConfiguwationWesouwces.map(([, wesouwce]) => wesouwce)];
+		this._wegista(combinedDisposabwe(...this.awwWesouwces.map(wesouwce => combinedDisposabwe(
+			this.fiweSewvice.watch(uwiIdentitySewvice.extUwi.diwname(wesouwce)),
+			// Awso wisten to the wesouwce incase the wesouwce is a symwink - https://github.com/micwosoft/vscode/issues/118134
+			this.fiweSewvice.watch(wesouwce)
 		))));
 
-		this._folderSettingsModelParser = new ConfigurationModelParser(name);
-		this._folderSettingsParseOptions = configurationParseOptions;
-		this._standAloneConfigurations = [];
-		this._cache = new ConfigurationModel();
+		this._fowdewSettingsModewPawsa = new ConfiguwationModewPawsa(name);
+		this._fowdewSettingsPawseOptions = configuwationPawseOptions;
+		this._standAwoneConfiguwations = [];
+		this._cache = new ConfiguwationModew();
 
-		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
-		this._register(toDisposable(() => this.disposed = true));
+		this._wegista(Event.debounce(Event.fiwta(this.fiweSewvice.onDidFiwesChange, e => this.handweFiweEvents(e)), () => undefined, 100)(() => this._onDidChange.fiwe()));
+		this._wegista(toDisposabwe(() => this.disposed = twue));
 	}
 
-	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
+	async wesowveContents(): Pwomise<[stwing | undefined, [stwing, stwing | undefined][]]> {
 
-		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
-			return Promise.all(resources.map(async resource => {
-				try {
-					let content = (await this.fileService.readFile(resource, { atomic: true })).value.toString();
+		const wesowveContents = async (wesouwces: UWI[]): Pwomise<(stwing | undefined)[]> => {
+			wetuwn Pwomise.aww(wesouwces.map(async wesouwce => {
+				twy {
+					wet content = (await this.fiweSewvice.weadFiwe(wesouwce, { atomic: twue })).vawue.toStwing();
 
-					// If file is empty and had content before then file would have been truncated by node because of parallel writes from other windows
-					// To prevent such case, retry reading the file in 20ms intervals until file has content or max 5 trials or disposed.
-					// https://github.com/microsoft/vscode/issues/115740 https://github.com/microsoft/vscode/issues/125970
-					for (let trial = 1; !content && this.resourcesContentMap.get(resource) && !this.disposed && trial <= 5; trial++) {
+					// If fiwe is empty and had content befowe then fiwe wouwd have been twuncated by node because of pawawwew wwites fwom otha windows
+					// To pwevent such case, wetwy weading the fiwe in 20ms intewvaws untiw fiwe has content ow max 5 twiaws ow disposed.
+					// https://github.com/micwosoft/vscode/issues/115740 https://github.com/micwosoft/vscode/issues/125970
+					fow (wet twiaw = 1; !content && this.wesouwcesContentMap.get(wesouwce) && !this.disposed && twiaw <= 5; twiaw++) {
 						await timeout(20);
-						this.logService.debug(`Retry (${trial}): Reading the configuration file`, resource.toString());
-						content = (await this.fileService.readFile(resource)).value.toString();
+						this.wogSewvice.debug(`Wetwy (${twiaw}): Weading the configuwation fiwe`, wesouwce.toStwing());
+						content = (await this.fiweSewvice.weadFiwe(wesouwce)).vawue.toStwing();
 					}
 
-					this.resourcesContentMap.set(resource, !!content);
+					this.wesouwcesContentMap.set(wesouwce, !!content);
 					if (!content) {
-						this.logService.debug(`Configuration file '${resource.toString()}' is empty`);
+						this.wogSewvice.debug(`Configuwation fiwe '${wesouwce.toStwing()}' is empty`);
 					}
-					return content;
-				} catch (error) {
-					this.resourcesContentMap.delete(resource);
-					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
-					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
-						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
-						errors.onUnexpectedError(error);
+					wetuwn content;
+				} catch (ewwow) {
+					this.wesouwcesContentMap.dewete(wesouwce);
+					this.wogSewvice.twace(`Ewwow whiwe wesowving configuwation fiwe '${wesouwce.toStwing()}': ${ewwows.getEwwowMessage(ewwow)}`);
+					if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND
+						&& (<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_DIWECTOWY) {
+						ewwows.onUnexpectedEwwow(ewwow);
 					}
 				}
-				return '{}';
+				wetuwn '{}';
 			}));
 		};
 
-		const [[settingsContent], standAloneConfigurationContents] = await Promise.all([
-			resolveContents([this.settingsResource]),
-			resolveContents(this.standAloneConfigurationResources.map(([, resource]) => resource)),
+		const [[settingsContent], standAwoneConfiguwationContents] = await Pwomise.aww([
+			wesowveContents([this.settingsWesouwce]),
+			wesowveContents(this.standAwoneConfiguwationWesouwces.map(([, wesouwce]) => wesouwce)),
 		]);
 
-		return [settingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
+		wetuwn [settingsContent, standAwoneConfiguwationContents.map((content, index) => ([this.standAwoneConfiguwationWesouwces[index][0], content]))];
 	}
 
-	async loadConfiguration(): Promise<ConfigurationModel> {
+	async woadConfiguwation(): Pwomise<ConfiguwationModew> {
 
-		const [settingsContent, standAloneConfigurationContents] = await this.resolveContents();
+		const [settingsContent, standAwoneConfiguwationContents] = await this.wesowveContents();
 
-		// reset
-		this._standAloneConfigurations = [];
-		this._folderSettingsModelParser.parse('', this._folderSettingsParseOptions);
+		// weset
+		this._standAwoneConfiguwations = [];
+		this._fowdewSettingsModewPawsa.pawse('', this._fowdewSettingsPawseOptions);
 
-		// parse
+		// pawse
 		if (settingsContent !== undefined) {
-			this._folderSettingsModelParser.parse(settingsContent, this._folderSettingsParseOptions);
+			this._fowdewSettingsModewPawsa.pawse(settingsContent, this._fowdewSettingsPawseOptions);
 		}
-		for (let index = 0; index < standAloneConfigurationContents.length; index++) {
-			const contents = standAloneConfigurationContents[index][1];
+		fow (wet index = 0; index < standAwoneConfiguwationContents.wength; index++) {
+			const contents = standAwoneConfiguwationContents[index][1];
 			if (contents !== undefined) {
-				const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(this.standAloneConfigurationResources[index][1].toString(), this.standAloneConfigurationResources[index][0]);
-				standAloneConfigurationModelParser.parse(contents);
-				this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
+				const standAwoneConfiguwationModewPawsa = new StandawoneConfiguwationModewPawsa(this.standAwoneConfiguwationWesouwces[index][1].toStwing(), this.standAwoneConfiguwationWesouwces[index][0]);
+				standAwoneConfiguwationModewPawsa.pawse(contents);
+				this._standAwoneConfiguwations.push(standAwoneConfiguwationModewPawsa.configuwationModew);
 			}
 		}
 
-		// Consolidate (support *.json files in the workspace settings folder)
-		this.consolidate();
+		// Consowidate (suppowt *.json fiwes in the wowkspace settings fowda)
+		this.consowidate();
 
-		return this._cache;
+		wetuwn this._cache;
 	}
 
-	getRestrictedSettings(): string[] {
-		return this._folderSettingsModelParser.restrictedConfigurations;
+	getWestwictedSettings(): stwing[] {
+		wetuwn this._fowdewSettingsModewPawsa.westwictedConfiguwations;
 	}
 
-	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		const oldContents = this._folderSettingsModelParser.configurationModel.contents;
-		this._folderSettingsParseOptions = configurationParseOptions;
-		this._folderSettingsModelParser.reparse(this._folderSettingsParseOptions);
-		if (!equals(oldContents, this._folderSettingsModelParser.configurationModel.contents)) {
-			this.consolidate();
+	wepawse(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		const owdContents = this._fowdewSettingsModewPawsa.configuwationModew.contents;
+		this._fowdewSettingsPawseOptions = configuwationPawseOptions;
+		this._fowdewSettingsModewPawsa.wepawse(this._fowdewSettingsPawseOptions);
+		if (!equaws(owdContents, this._fowdewSettingsModewPawsa.configuwationModew.contents)) {
+			this.consowidate();
 		}
-		return this._cache;
+		wetuwn this._cache;
 	}
 
-	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
+	pwivate consowidate(): void {
+		this._cache = this._fowdewSettingsModewPawsa.configuwationModew.mewge(...this._standAwoneConfiguwations);
 	}
 
-	private handleFileEvents(event: FileChangesEvent): boolean {
-		// One of the resources has changed
-		if (this.allResources.some(resource => event.contains(resource))) {
-			return true;
+	pwivate handweFiweEvents(event: FiweChangesEvent): boowean {
+		// One of the wesouwces has changed
+		if (this.awwWesouwces.some(wesouwce => event.contains(wesouwce))) {
+			wetuwn twue;
 		}
-		// One of the resource's parent got deleted
-		if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
-			return true;
+		// One of the wesouwce's pawent got deweted
+		if (this.awwWesouwces.some(wesouwce => event.contains(this.uwiIdentitySewvice.extUwi.diwname(wesouwce), FiweChangeType.DEWETED))) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
 }
 
-export class RemoteUserConfiguration extends Disposable {
+expowt cwass WemoteUsewConfiguwation extends Disposabwe {
 
-	private readonly _cachedConfiguration: CachedRemoteUserConfiguration;
-	private readonly _fileService: IFileService;
-	private _userConfiguration: FileServiceBasedRemoteUserConfiguration | CachedRemoteUserConfiguration;
-	private _userConfigurationInitializationPromise: Promise<ConfigurationModel> | null = null;
+	pwivate weadonwy _cachedConfiguwation: CachedWemoteUsewConfiguwation;
+	pwivate weadonwy _fiweSewvice: IFiweSewvice;
+	pwivate _usewConfiguwation: FiweSewviceBasedWemoteUsewConfiguwation | CachedWemoteUsewConfiguwation;
+	pwivate _usewConfiguwationInitiawizationPwomise: Pwomise<ConfiguwationModew> | nuww = nuww;
 
-	private readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	public readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy _onDidChangeConfiguwation: Emitta<ConfiguwationModew> = this._wegista(new Emitta<ConfiguwationModew>());
+	pubwic weadonwy onDidChangeConfiguwation: Event<ConfiguwationModew> = this._onDidChangeConfiguwation.event;
 
-	private readonly _onDidInitialize = this._register(new Emitter<ConfigurationModel>());
-	public readonly onDidInitialize = this._onDidInitialize.event;
+	pwivate weadonwy _onDidInitiawize = this._wegista(new Emitta<ConfiguwationModew>());
+	pubwic weadonwy onDidInitiawize = this._onDidInitiawize.event;
 
-	constructor(
-		remoteAuthority: string,
-		configurationCache: IConfigurationCache,
-		fileService: IFileService,
-		uriIdentityService: IUriIdentityService,
-		remoteAgentService: IRemoteAgentService
+	constwuctow(
+		wemoteAuthowity: stwing,
+		configuwationCache: IConfiguwationCache,
+		fiweSewvice: IFiweSewvice,
+		uwiIdentitySewvice: IUwiIdentitySewvice,
+		wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		super();
-		this._fileService = fileService;
-		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache, { scopes: REMOTE_MACHINE_SCOPES });
-		remoteAgentService.getEnvironment().then(async environment => {
-			if (environment) {
-				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, { scopes: REMOTE_MACHINE_SCOPES }, this._fileService, uriIdentityService));
-				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
-				this._userConfigurationInitializationPromise = userConfiguration.initialize();
-				const configurationModel = await this._userConfigurationInitializationPromise;
-				this._userConfiguration.dispose();
-				this._userConfiguration = userConfiguration;
-				this.onDidUserConfigurationChange(configurationModel);
-				this._onDidInitialize.fire(configurationModel);
+		supa();
+		this._fiweSewvice = fiweSewvice;
+		this._usewConfiguwation = this._cachedConfiguwation = new CachedWemoteUsewConfiguwation(wemoteAuthowity, configuwationCache, { scopes: WEMOTE_MACHINE_SCOPES });
+		wemoteAgentSewvice.getEnviwonment().then(async enviwonment => {
+			if (enviwonment) {
+				const usewConfiguwation = this._wegista(new FiweSewviceBasedWemoteUsewConfiguwation(enviwonment.settingsPath, { scopes: WEMOTE_MACHINE_SCOPES }, this._fiweSewvice, uwiIdentitySewvice));
+				this._wegista(usewConfiguwation.onDidChangeConfiguwation(configuwationModew => this.onDidUsewConfiguwationChange(configuwationModew)));
+				this._usewConfiguwationInitiawizationPwomise = usewConfiguwation.initiawize();
+				const configuwationModew = await this._usewConfiguwationInitiawizationPwomise;
+				this._usewConfiguwation.dispose();
+				this._usewConfiguwation = usewConfiguwation;
+				this.onDidUsewConfiguwationChange(configuwationModew);
+				this._onDidInitiawize.fiwe(configuwationModew);
 			}
 		});
 	}
 
-	async initialize(): Promise<ConfigurationModel> {
-		if (this._userConfiguration instanceof FileServiceBasedRemoteUserConfiguration) {
-			return this._userConfiguration.initialize();
+	async initiawize(): Pwomise<ConfiguwationModew> {
+		if (this._usewConfiguwation instanceof FiweSewviceBasedWemoteUsewConfiguwation) {
+			wetuwn this._usewConfiguwation.initiawize();
 		}
 
-		// Initialize cached configuration
-		let configurationModel = await this._userConfiguration.initialize();
-		if (this._userConfigurationInitializationPromise) {
-			// Use user configuration
-			configurationModel = await this._userConfigurationInitializationPromise;
-			this._userConfigurationInitializationPromise = null;
+		// Initiawize cached configuwation
+		wet configuwationModew = await this._usewConfiguwation.initiawize();
+		if (this._usewConfiguwationInitiawizationPwomise) {
+			// Use usa configuwation
+			configuwationModew = await this._usewConfiguwationInitiawizationPwomise;
+			this._usewConfiguwationInitiawizationPwomise = nuww;
 		}
 
-		return configurationModel;
+		wetuwn configuwationModew;
 	}
 
-	reload(): Promise<ConfigurationModel> {
-		return this._userConfiguration.reload();
+	wewoad(): Pwomise<ConfiguwationModew> {
+		wetuwn this._usewConfiguwation.wewoad();
 	}
 
-	reparse(): ConfigurationModel {
-		return this._userConfiguration.reparse({ scopes: REMOTE_MACHINE_SCOPES });
+	wepawse(): ConfiguwationModew {
+		wetuwn this._usewConfiguwation.wepawse({ scopes: WEMOTE_MACHINE_SCOPES });
 	}
 
-	getRestrictedSettings(): string[] {
-		return this._userConfiguration.getRestrictedSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this._usewConfiguwation.getWestwictedSettings();
 	}
 
-	private onDidUserConfigurationChange(configurationModel: ConfigurationModel): void {
+	pwivate onDidUsewConfiguwationChange(configuwationModew: ConfiguwationModew): void {
 		this.updateCache();
-		this._onDidChangeConfiguration.fire(configurationModel);
+		this._onDidChangeConfiguwation.fiwe(configuwationModew);
 	}
 
-	private async updateCache(): Promise<void> {
-		if (this._userConfiguration instanceof FileServiceBasedRemoteUserConfiguration) {
-			let content: string | undefined;
-			try {
-				content = await this._userConfiguration.resolveContent();
-			} catch (error) {
-				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-					return;
+	pwivate async updateCache(): Pwomise<void> {
+		if (this._usewConfiguwation instanceof FiweSewviceBasedWemoteUsewConfiguwation) {
+			wet content: stwing | undefined;
+			twy {
+				content = await this._usewConfiguwation.wesowveContent();
+			} catch (ewwow) {
+				if ((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt !== FiweOpewationWesuwt.FIWE_NOT_FOUND) {
+					wetuwn;
 				}
 			}
-			await this._cachedConfiguration.updateConfiguration(content);
+			await this._cachedConfiguwation.updateConfiguwation(content);
 		}
 	}
 
 }
 
-class FileServiceBasedRemoteUserConfiguration extends Disposable {
+cwass FiweSewviceBasedWemoteUsewConfiguwation extends Disposabwe {
 
-	private readonly parser: ConfigurationModelParser;
-	private parseOptions: ConfigurationParseOptions;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
+	pwivate weadonwy pawsa: ConfiguwationModewPawsa;
+	pwivate pawseOptions: ConfiguwationPawseOptions;
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
+	pwotected weadonwy _onDidChangeConfiguwation: Emitta<ConfiguwationModew> = this._wegista(new Emitta<ConfiguwationModew>());
+	weadonwy onDidChangeConfiguwation: Event<ConfiguwationModew> = this._onDidChangeConfiguwation.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	pwivate fiweWatchewDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate diwectowyWatchewDisposabwe: IDisposabwe = Disposabwe.None;
 
-	constructor(
-		private readonly configurationResource: URI,
-		configurationParseOptions: ConfigurationParseOptions,
-		private readonly fileService: IFileService,
-		private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		pwivate weadonwy configuwationWesouwce: UWI,
+		configuwationPawseOptions: ConfiguwationPawseOptions,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
+		supa();
 
-		this.parser = new ConfigurationModelParser(this.configurationResource.toString());
-		this.parseOptions = configurationParseOptions;
-		this._register(fileService.onDidFilesChange(e => this.handleFileEvents(e)));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
-		this._register(toDisposable(() => {
-			this.stopWatchingResource();
-			this.stopWatchingDirectory();
+		this.pawsa = new ConfiguwationModewPawsa(this.configuwationWesouwce.toStwing());
+		this.pawseOptions = configuwationPawseOptions;
+		this._wegista(fiweSewvice.onDidFiwesChange(e => this.handweFiweEvents(e)));
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this.wewoad().then(configuwationModew => this._onDidChangeConfiguwation.fiwe(configuwationModew)), 50));
+		this._wegista(toDisposabwe(() => {
+			this.stopWatchingWesouwce();
+			this.stopWatchingDiwectowy();
 		}));
 	}
 
-	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.configurationResource);
+	pwivate watchWesouwce(): void {
+		this.fiweWatchewDisposabwe = this.fiweSewvice.watch(this.configuwationWesouwce);
 	}
 
-	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
+	pwivate stopWatchingWesouwce(): void {
+		this.fiweWatchewDisposabwe.dispose();
+		this.fiweWatchewDisposabwe = Disposabwe.None;
 	}
 
-	private watchDirectory(): void {
-		const directory = this.uriIdentityService.extUri.dirname(this.configurationResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
+	pwivate watchDiwectowy(): void {
+		const diwectowy = this.uwiIdentitySewvice.extUwi.diwname(this.configuwationWesouwce);
+		this.diwectowyWatchewDisposabwe = this.fiweSewvice.watch(diwectowy);
 	}
 
-	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+	pwivate stopWatchingDiwectowy(): void {
+		this.diwectowyWatchewDisposabwe.dispose();
+		this.diwectowyWatchewDisposabwe = Disposabwe.None;
 	}
 
-	async initialize(): Promise<ConfigurationModel> {
-		const exists = await this.fileService.exists(this.configurationResource);
-		this.onResourceExists(exists);
-		return this.reload();
+	async initiawize(): Pwomise<ConfiguwationModew> {
+		const exists = await this.fiweSewvice.exists(this.configuwationWesouwce);
+		this.onWesouwceExists(exists);
+		wetuwn this.wewoad();
 	}
 
-	async resolveContent(): Promise<string> {
-		const content = await this.fileService.readFile(this.configurationResource);
-		return content.value.toString();
+	async wesowveContent(): Pwomise<stwing> {
+		const content = await this.fiweSewvice.weadFiwe(this.configuwationWesouwce);
+		wetuwn content.vawue.toStwing();
 	}
 
-	async reload(): Promise<ConfigurationModel> {
-		try {
-			const content = await this.resolveContent();
-			this.parser.parse(content, this.parseOptions);
-			return this.parser.configurationModel;
+	async wewoad(): Pwomise<ConfiguwationModew> {
+		twy {
+			const content = await this.wesowveContent();
+			this.pawsa.pawse(content, this.pawseOptions);
+			wetuwn this.pawsa.configuwationModew;
 		} catch (e) {
-			return new ConfigurationModel();
+			wetuwn new ConfiguwationModew();
 		}
 	}
 
-	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		this.parseOptions = configurationParseOptions;
-		this.parser.reparse(this.parseOptions);
-		return this.parser.configurationModel;
+	wepawse(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		this.pawseOptions = configuwationPawseOptions;
+		this.pawsa.wepawse(this.pawseOptions);
+		wetuwn this.pawsa.configuwationModew;
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.parser.restrictedConfigurations;
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.pawsa.westwictedConfiguwations;
 	}
 
-	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
+	pwivate async handweFiweEvents(event: FiweChangesEvent): Pwomise<void> {
 
-		// Find changes that affect the resource
-		let affectedByChanges = event.contains(this.configurationResource, FileChangeType.UPDATED);
-		if (event.contains(this.configurationResource, FileChangeType.ADDED)) {
-			affectedByChanges = true;
-			this.onResourceExists(true);
-		} else if (event.contains(this.configurationResource, FileChangeType.DELETED)) {
-			affectedByChanges = true;
-			this.onResourceExists(false);
+		// Find changes that affect the wesouwce
+		wet affectedByChanges = event.contains(this.configuwationWesouwce, FiweChangeType.UPDATED);
+		if (event.contains(this.configuwationWesouwce, FiweChangeType.ADDED)) {
+			affectedByChanges = twue;
+			this.onWesouwceExists(twue);
+		} ewse if (event.contains(this.configuwationWesouwce, FiweChangeType.DEWETED)) {
+			affectedByChanges = twue;
+			this.onWesouwceExists(fawse);
 		}
 
 		if (affectedByChanges) {
-			this.reloadConfigurationScheduler.schedule();
+			this.wewoadConfiguwationScheduwa.scheduwe();
 		}
 	}
 
-	private onResourceExists(exists: boolean): void {
+	pwivate onWesouwceExists(exists: boowean): void {
 		if (exists) {
-			this.stopWatchingDirectory();
-			this.watchResource();
-		} else {
-			this.stopWatchingResource();
-			this.watchDirectory();
+			this.stopWatchingDiwectowy();
+			this.watchWesouwce();
+		} ewse {
+			this.stopWatchingWesouwce();
+			this.watchDiwectowy();
 		}
 	}
 }
 
-class CachedRemoteUserConfiguration extends Disposable {
+cwass CachedWemoteUsewConfiguwation extends Disposabwe {
 
-	private readonly _onDidChange: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
-	readonly onDidChange: Event<ConfigurationModel> = this._onDidChange.event;
+	pwivate weadonwy _onDidChange: Emitta<ConfiguwationModew> = this._wegista(new Emitta<ConfiguwationModew>());
+	weadonwy onDidChange: Event<ConfiguwationModew> = this._onDidChange.event;
 
-	private readonly key: ConfigurationKey;
-	private readonly parser: ConfigurationModelParser;
-	private parseOptions: ConfigurationParseOptions;
-	private configurationModel: ConfigurationModel;
+	pwivate weadonwy key: ConfiguwationKey;
+	pwivate weadonwy pawsa: ConfiguwationModewPawsa;
+	pwivate pawseOptions: ConfiguwationPawseOptions;
+	pwivate configuwationModew: ConfiguwationModew;
 
-	constructor(
-		remoteAuthority: string,
-		private readonly configurationCache: IConfigurationCache,
-		configurationParseOptions: ConfigurationParseOptions,
+	constwuctow(
+		wemoteAuthowity: stwing,
+		pwivate weadonwy configuwationCache: IConfiguwationCache,
+		configuwationPawseOptions: ConfiguwationPawseOptions,
 	) {
-		super();
-		this.key = { type: 'user', key: remoteAuthority };
-		this.parser = new ConfigurationModelParser('CachedRemoteUserConfiguration');
-		this.parseOptions = configurationParseOptions;
-		this.configurationModel = new ConfigurationModel();
+		supa();
+		this.key = { type: 'usa', key: wemoteAuthowity };
+		this.pawsa = new ConfiguwationModewPawsa('CachedWemoteUsewConfiguwation');
+		this.pawseOptions = configuwationPawseOptions;
+		this.configuwationModew = new ConfiguwationModew();
 	}
 
-	getConfigurationModel(): ConfigurationModel {
-		return this.configurationModel;
+	getConfiguwationModew(): ConfiguwationModew {
+		wetuwn this.configuwationModew;
 	}
 
-	initialize(): Promise<ConfigurationModel> {
-		return this.reload();
+	initiawize(): Pwomise<ConfiguwationModew> {
+		wetuwn this.wewoad();
 	}
 
-	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		this.parseOptions = configurationParseOptions;
-		this.parser.reparse(this.parseOptions);
-		this.configurationModel = this.parser.configurationModel;
-		return this.configurationModel;
+	wepawse(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		this.pawseOptions = configuwationPawseOptions;
+		this.pawsa.wepawse(this.pawseOptions);
+		this.configuwationModew = this.pawsa.configuwationModew;
+		wetuwn this.configuwationModew;
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.parser.restrictedConfigurations;
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.pawsa.westwictedConfiguwations;
 	}
 
-	async reload(): Promise<ConfigurationModel> {
-		try {
-			const content = await this.configurationCache.read(this.key);
-			const parsed: { content: string } = JSON.parse(content);
-			if (parsed.content) {
-				this.parser.parse(parsed.content, this.parseOptions);
-				this.configurationModel = this.parser.configurationModel;
+	async wewoad(): Pwomise<ConfiguwationModew> {
+		twy {
+			const content = await this.configuwationCache.wead(this.key);
+			const pawsed: { content: stwing } = JSON.pawse(content);
+			if (pawsed.content) {
+				this.pawsa.pawse(pawsed.content, this.pawseOptions);
+				this.configuwationModew = this.pawsa.configuwationModew;
 			}
-		} catch (e) { /* Ignore error */ }
-		return this.configurationModel;
+		} catch (e) { /* Ignowe ewwow */ }
+		wetuwn this.configuwationModew;
 	}
 
-	async updateConfiguration(content: string | undefined): Promise<void> {
+	async updateConfiguwation(content: stwing | undefined): Pwomise<void> {
 		if (content) {
-			return this.configurationCache.write(this.key, JSON.stringify({ content }));
-		} else {
-			return this.configurationCache.remove(this.key);
+			wetuwn this.configuwationCache.wwite(this.key, JSON.stwingify({ content }));
+		} ewse {
+			wetuwn this.configuwationCache.wemove(this.key);
 		}
 	}
 }
 
-export class WorkspaceConfiguration extends Disposable {
+expowt cwass WowkspaceConfiguwation extends Disposabwe {
 
-	private readonly _fileService: IFileService;
-	private readonly _cachedConfiguration: CachedWorkspaceConfiguration;
-	private _workspaceConfiguration: CachedWorkspaceConfiguration | FileServiceBasedWorkspaceConfiguration;
-	private _workspaceConfigurationDisposables = this._register(new DisposableStore());
-	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
-	private _isWorkspaceTrusted: boolean = false;
+	pwivate weadonwy _fiweSewvice: IFiweSewvice;
+	pwivate weadonwy _cachedConfiguwation: CachedWowkspaceConfiguwation;
+	pwivate _wowkspaceConfiguwation: CachedWowkspaceConfiguwation | FiweSewviceBasedWowkspaceConfiguwation;
+	pwivate _wowkspaceConfiguwationDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _wowkspaceIdentifia: IWowkspaceIdentifia | nuww = nuww;
+	pwivate _isWowkspaceTwusted: boowean = fawse;
 
-	private readonly _onDidUpdateConfiguration = this._register(new Emitter<boolean>());
-	public readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
+	pwivate weadonwy _onDidUpdateConfiguwation = this._wegista(new Emitta<boowean>());
+	pubwic weadonwy onDidUpdateConfiguwation = this._onDidUpdateConfiguwation.event;
 
-	private _initialized: boolean = false;
-	get initialized(): boolean { return this._initialized; }
-	constructor(
-		private readonly configurationCache: IConfigurationCache,
-		fileService: IFileService
+	pwivate _initiawized: boowean = fawse;
+	get initiawized(): boowean { wetuwn this._initiawized; }
+	constwuctow(
+		pwivate weadonwy configuwationCache: IConfiguwationCache,
+		fiweSewvice: IFiweSewvice
 	) {
-		super();
-		this._fileService = fileService;
-		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
+		supa();
+		this._fiweSewvice = fiweSewvice;
+		this._wowkspaceConfiguwation = this._cachedConfiguwation = new CachedWowkspaceConfiguwation(configuwationCache);
 	}
 
-	async initialize(workspaceIdentifier: IWorkspaceIdentifier, workspaceTrusted: boolean): Promise<void> {
-		this._workspaceIdentifier = workspaceIdentifier;
-		this._isWorkspaceTrusted = workspaceTrusted;
-		if (!this._initialized) {
-			if (this.configurationCache.needsCaching(this._workspaceIdentifier.configPath)) {
-				this._workspaceConfiguration = this._cachedConfiguration;
-				this.waitAndInitialize(this._workspaceIdentifier);
-			} else {
-				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this._fileService));
+	async initiawize(wowkspaceIdentifia: IWowkspaceIdentifia, wowkspaceTwusted: boowean): Pwomise<void> {
+		this._wowkspaceIdentifia = wowkspaceIdentifia;
+		this._isWowkspaceTwusted = wowkspaceTwusted;
+		if (!this._initiawized) {
+			if (this.configuwationCache.needsCaching(this._wowkspaceIdentifia.configPath)) {
+				this._wowkspaceConfiguwation = this._cachedConfiguwation;
+				this.waitAndInitiawize(this._wowkspaceIdentifia);
+			} ewse {
+				this.doInitiawize(new FiweSewviceBasedWowkspaceConfiguwation(this._fiweSewvice));
 			}
 		}
-		await this.reload();
+		await this.wewoad();
 	}
 
-	async reload(): Promise<void> {
-		if (this._workspaceIdentifier) {
-			await this._workspaceConfiguration.load(this._workspaceIdentifier, { scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
+	async wewoad(): Pwomise<void> {
+		if (this._wowkspaceIdentifia) {
+			await this._wowkspaceConfiguwation.woad(this._wowkspaceIdentifia, { scopes: WOWKSPACE_SCOPES, skipWestwicted: this.isUntwusted() });
 		}
 	}
 
-	getFolders(): IStoredWorkspaceFolder[] {
-		return this._workspaceConfiguration.getFolders();
+	getFowdews(): IStowedWowkspaceFowda[] {
+		wetuwn this._wowkspaceConfiguwation.getFowdews();
 	}
 
-	setFolders(folders: IStoredWorkspaceFolder[], jsonEditingService: JSONEditingService): Promise<void> {
-		if (this._workspaceIdentifier) {
-			return jsonEditingService.write(this._workspaceIdentifier.configPath, [{ path: ['folders'], value: folders }], true)
-				.then(() => this.reload());
+	setFowdews(fowdews: IStowedWowkspaceFowda[], jsonEditingSewvice: JSONEditingSewvice): Pwomise<void> {
+		if (this._wowkspaceIdentifia) {
+			wetuwn jsonEditingSewvice.wwite(this._wowkspaceIdentifia.configPath, [{ path: ['fowdews'], vawue: fowdews }], twue)
+				.then(() => this.wewoad());
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	getConfiguration(): ConfigurationModel {
-		return this._workspaceConfiguration.getWorkspaceSettings();
+	getConfiguwation(): ConfiguwationModew {
+		wetuwn this._wowkspaceConfiguwation.getWowkspaceSettings();
 	}
 
-	updateWorkspaceTrust(trusted: boolean): ConfigurationModel {
-		this._isWorkspaceTrusted = trusted;
-		return this.reparseWorkspaceSettings();
+	updateWowkspaceTwust(twusted: boowean): ConfiguwationModew {
+		this._isWowkspaceTwusted = twusted;
+		wetuwn this.wepawseWowkspaceSettings();
 	}
 
-	reparseWorkspaceSettings(): ConfigurationModel {
-		this._workspaceConfiguration.reparseWorkspaceSettings({ scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
-		return this.getConfiguration();
+	wepawseWowkspaceSettings(): ConfiguwationModew {
+		this._wowkspaceConfiguwation.wepawseWowkspaceSettings({ scopes: WOWKSPACE_SCOPES, skipWestwicted: this.isUntwusted() });
+		wetuwn this.getConfiguwation();
 	}
 
-	getRestrictedSettings(): string[] {
-		return this._workspaceConfiguration.getRestrictedSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this._wowkspaceConfiguwation.getWestwictedSettings();
 	}
 
-	private async waitAndInitialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
-		await whenProviderRegistered(workspaceIdentifier.configPath, this._fileService);
-		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
-			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
-			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
-			this.onDidWorkspaceConfigurationChange(false, true);
+	pwivate async waitAndInitiawize(wowkspaceIdentifia: IWowkspaceIdentifia): Pwomise<void> {
+		await whenPwovidewWegistewed(wowkspaceIdentifia.configPath, this._fiweSewvice);
+		if (!(this._wowkspaceConfiguwation instanceof FiweSewviceBasedWowkspaceConfiguwation)) {
+			const fiweSewviceBasedWowkspaceConfiguwation = this._wegista(new FiweSewviceBasedWowkspaceConfiguwation(this._fiweSewvice));
+			await fiweSewviceBasedWowkspaceConfiguwation.woad(wowkspaceIdentifia, { scopes: WOWKSPACE_SCOPES, skipWestwicted: this.isUntwusted() });
+			this.doInitiawize(fiweSewviceBasedWowkspaceConfiguwation);
+			this.onDidWowkspaceConfiguwationChange(fawse, twue);
 		}
 	}
 
-	private doInitialize(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
-		this._workspaceConfigurationDisposables.clear();
-		this._workspaceConfiguration = this._workspaceConfigurationDisposables.add(fileServiceBasedWorkspaceConfiguration);
-		this._workspaceConfigurationDisposables.add(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true, false)));
-		this._initialized = true;
+	pwivate doInitiawize(fiweSewviceBasedWowkspaceConfiguwation: FiweSewviceBasedWowkspaceConfiguwation): void {
+		this._wowkspaceConfiguwationDisposabwes.cweaw();
+		this._wowkspaceConfiguwation = this._wowkspaceConfiguwationDisposabwes.add(fiweSewviceBasedWowkspaceConfiguwation);
+		this._wowkspaceConfiguwationDisposabwes.add(this._wowkspaceConfiguwation.onDidChange(e => this.onDidWowkspaceConfiguwationChange(twue, fawse)));
+		this._initiawized = twue;
 	}
 
-	private isUntrusted(): boolean {
-		return !this._isWorkspaceTrusted;
+	pwivate isUntwusted(): boowean {
+		wetuwn !this._isWowkspaceTwusted;
 	}
 
-	private async onDidWorkspaceConfigurationChange(reload: boolean, fromCache: boolean): Promise<void> {
-		if (reload) {
-			await this.reload();
+	pwivate async onDidWowkspaceConfiguwationChange(wewoad: boowean, fwomCache: boowean): Pwomise<void> {
+		if (wewoad) {
+			await this.wewoad();
 		}
 		this.updateCache();
-		this._onDidUpdateConfiguration.fire(fromCache);
+		this._onDidUpdateConfiguwation.fiwe(fwomCache);
 	}
 
-	private async updateCache(): Promise<void> {
-		if (this._workspaceIdentifier && this.configurationCache.needsCaching(this._workspaceIdentifier.configPath) && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
-			const content = await this._workspaceConfiguration.resolveContent(this._workspaceIdentifier);
-			await this._cachedConfiguration.updateWorkspace(this._workspaceIdentifier, content);
+	pwivate async updateCache(): Pwomise<void> {
+		if (this._wowkspaceIdentifia && this.configuwationCache.needsCaching(this._wowkspaceIdentifia.configPath) && this._wowkspaceConfiguwation instanceof FiweSewviceBasedWowkspaceConfiguwation) {
+			const content = await this._wowkspaceConfiguwation.wesowveContent(this._wowkspaceIdentifia);
+			await this._cachedConfiguwation.updateWowkspace(this._wowkspaceIdentifia, content);
 		}
 	}
 }
 
-class FileServiceBasedWorkspaceConfiguration extends Disposable {
+cwass FiweSewviceBasedWowkspaceConfiguwation extends Disposabwe {
 
-	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
-	workspaceSettings: ConfigurationModel;
-	private _workspaceIdentifier: IWorkspaceIdentifier | null = null;
-	private workspaceConfigWatcher: IDisposable;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	wowkspaceConfiguwationModewPawsa: WowkspaceConfiguwationModewPawsa;
+	wowkspaceSettings: ConfiguwationModew;
+	pwivate _wowkspaceIdentifia: IWowkspaceIdentifia | nuww = nuww;
+	pwivate wowkspaceConfigWatcha: IDisposabwe;
+	pwivate weadonwy wewoadConfiguwationScheduwa: WunOnceScheduwa;
 
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwotected weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	constructor(private fileService: IFileService) {
-		super();
+	constwuctow(pwivate fiweSewvice: IFiweSewvice) {
+		supa();
 
-		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
-		this.workspaceSettings = new ConfigurationModel();
+		this.wowkspaceConfiguwationModewPawsa = new WowkspaceConfiguwationModewPawsa('');
+		this.wowkspaceSettings = new ConfiguwationModew();
 
-		this._register(fileService.onDidFilesChange(e => this.handleWorkspaceFileEvents(e)));
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
-		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
+		this._wegista(fiweSewvice.onDidFiwesChange(e => this.handweWowkspaceFiweEvents(e)));
+		this.wewoadConfiguwationScheduwa = this._wegista(new WunOnceScheduwa(() => this._onDidChange.fiwe(), 50));
+		this.wowkspaceConfigWatcha = this._wegista(this.watchWowkspaceConfiguwationFiwe());
 	}
 
-	get workspaceIdentifier(): IWorkspaceIdentifier | null {
-		return this._workspaceIdentifier;
+	get wowkspaceIdentifia(): IWowkspaceIdentifia | nuww {
+		wetuwn this._wowkspaceIdentifia;
 	}
 
-	async resolveContent(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		const content = await this.fileService.readFile(workspaceIdentifier.configPath);
-		return content.value.toString();
+	async wesowveContent(wowkspaceIdentifia: IWowkspaceIdentifia): Pwomise<stwing> {
+		const content = await this.fiweSewvice.weadFiwe(wowkspaceIdentifia.configPath);
+		wetuwn content.vawue.toStwing();
 	}
 
-	async load(workspaceIdentifier: IWorkspaceIdentifier, configurationParseOptions: ConfigurationParseOptions): Promise<void> {
-		if (!this._workspaceIdentifier || this._workspaceIdentifier.id !== workspaceIdentifier.id) {
-			this._workspaceIdentifier = workspaceIdentifier;
-			this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(this._workspaceIdentifier.id);
-			dispose(this.workspaceConfigWatcher);
-			this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
+	async woad(wowkspaceIdentifia: IWowkspaceIdentifia, configuwationPawseOptions: ConfiguwationPawseOptions): Pwomise<void> {
+		if (!this._wowkspaceIdentifia || this._wowkspaceIdentifia.id !== wowkspaceIdentifia.id) {
+			this._wowkspaceIdentifia = wowkspaceIdentifia;
+			this.wowkspaceConfiguwationModewPawsa = new WowkspaceConfiguwationModewPawsa(this._wowkspaceIdentifia.id);
+			dispose(this.wowkspaceConfigWatcha);
+			this.wowkspaceConfigWatcha = this._wegista(this.watchWowkspaceConfiguwationFiwe());
 		}
-		let contents = '';
-		try {
-			contents = await this.resolveContent(this._workspaceIdentifier);
-		} catch (error) {
-			const exists = await this.fileService.exists(this._workspaceIdentifier.configPath);
+		wet contents = '';
+		twy {
+			contents = await this.wesowveContent(this._wowkspaceIdentifia);
+		} catch (ewwow) {
+			const exists = await this.fiweSewvice.exists(this._wowkspaceIdentifia.configPath);
 			if (exists) {
-				errors.onUnexpectedError(error);
+				ewwows.onUnexpectedEwwow(ewwow);
 			}
 		}
-		this.workspaceConfigurationModelParser.parse(contents, configurationParseOptions);
-		this.consolidate();
+		this.wowkspaceConfiguwationModewPawsa.pawse(contents, configuwationPawseOptions);
+		this.consowidate();
 	}
 
-	getConfigurationModel(): ConfigurationModel {
-		return this.workspaceConfigurationModelParser.configurationModel;
+	getConfiguwationModew(): ConfiguwationModew {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.configuwationModew;
 	}
 
-	getFolders(): IStoredWorkspaceFolder[] {
-		return this.workspaceConfigurationModelParser.folders;
+	getFowdews(): IStowedWowkspaceFowda[] {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.fowdews;
 	}
 
-	getWorkspaceSettings(): ConfigurationModel {
-		return this.workspaceSettings;
+	getWowkspaceSettings(): ConfiguwationModew {
+		wetuwn this.wowkspaceSettings;
 	}
 
-	reparseWorkspaceSettings(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		this.workspaceConfigurationModelParser.reparseWorkspaceSettings(configurationParseOptions);
-		this.consolidate();
-		return this.getWorkspaceSettings();
+	wepawseWowkspaceSettings(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		this.wowkspaceConfiguwationModewPawsa.wepawseWowkspaceSettings(configuwationPawseOptions);
+		this.consowidate();
+		wetuwn this.getWowkspaceSettings();
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.workspaceConfigurationModelParser.getRestrictedWorkspaceSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.getWestwictedWowkspaceSettings();
 	}
 
-	private consolidate(): void {
-		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
+	pwivate consowidate(): void {
+		this.wowkspaceSettings = this.wowkspaceConfiguwationModewPawsa.settingsModew.mewge(this.wowkspaceConfiguwationModewPawsa.waunchModew, this.wowkspaceConfiguwationModewPawsa.tasksModew);
 	}
 
-	private watchWorkspaceConfigurationFile(): IDisposable {
-		return this._workspaceIdentifier ? this.fileService.watch(this._workspaceIdentifier.configPath) : Disposable.None;
+	pwivate watchWowkspaceConfiguwationFiwe(): IDisposabwe {
+		wetuwn this._wowkspaceIdentifia ? this.fiweSewvice.watch(this._wowkspaceIdentifia.configPath) : Disposabwe.None;
 	}
 
-	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
-		if (this._workspaceIdentifier) {
+	pwivate handweWowkspaceFiweEvents(event: FiweChangesEvent): void {
+		if (this._wowkspaceIdentifia) {
 
-			// Find changes that affect workspace file
-			if (event.contains(this._workspaceIdentifier.configPath)) {
-				this.reloadConfigurationScheduler.schedule();
+			// Find changes that affect wowkspace fiwe
+			if (event.contains(this._wowkspaceIdentifia.configPath)) {
+				this.wewoadConfiguwationScheduwa.scheduwe();
 			}
 		}
 	}
 }
 
-class CachedWorkspaceConfiguration {
+cwass CachedWowkspaceConfiguwation {
 
-	readonly onDidChange: Event<void> = Event.None;
+	weadonwy onDidChange: Event<void> = Event.None;
 
-	workspaceConfigurationModelParser: WorkspaceConfigurationModelParser;
-	workspaceSettings: ConfigurationModel;
+	wowkspaceConfiguwationModewPawsa: WowkspaceConfiguwationModewPawsa;
+	wowkspaceSettings: ConfiguwationModew;
 
-	constructor(private readonly configurationCache: IConfigurationCache) {
-		this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser('');
-		this.workspaceSettings = new ConfigurationModel();
+	constwuctow(pwivate weadonwy configuwationCache: IConfiguwationCache) {
+		this.wowkspaceConfiguwationModewPawsa = new WowkspaceConfiguwationModewPawsa('');
+		this.wowkspaceSettings = new ConfiguwationModew();
 	}
 
-	async load(workspaceIdentifier: IWorkspaceIdentifier, configurationParseOptions: ConfigurationParseOptions): Promise<void> {
-		try {
-			const key = this.getKey(workspaceIdentifier);
-			const contents = await this.configurationCache.read(key);
-			const parsed: { content: string } = JSON.parse(contents);
-			if (parsed.content) {
-				this.workspaceConfigurationModelParser = new WorkspaceConfigurationModelParser(key.key);
-				this.workspaceConfigurationModelParser.parse(parsed.content, configurationParseOptions);
-				this.consolidate();
+	async woad(wowkspaceIdentifia: IWowkspaceIdentifia, configuwationPawseOptions: ConfiguwationPawseOptions): Pwomise<void> {
+		twy {
+			const key = this.getKey(wowkspaceIdentifia);
+			const contents = await this.configuwationCache.wead(key);
+			const pawsed: { content: stwing } = JSON.pawse(contents);
+			if (pawsed.content) {
+				this.wowkspaceConfiguwationModewPawsa = new WowkspaceConfiguwationModewPawsa(key.key);
+				this.wowkspaceConfiguwationModewPawsa.pawse(pawsed.content, configuwationPawseOptions);
+				this.consowidate();
 			}
 		} catch (e) {
 		}
 	}
 
-	get workspaceIdentifier(): IWorkspaceIdentifier | null {
-		return null;
+	get wowkspaceIdentifia(): IWowkspaceIdentifia | nuww {
+		wetuwn nuww;
 	}
 
-	getConfigurationModel(): ConfigurationModel {
-		return this.workspaceConfigurationModelParser.configurationModel;
+	getConfiguwationModew(): ConfiguwationModew {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.configuwationModew;
 	}
 
-	getFolders(): IStoredWorkspaceFolder[] {
-		return this.workspaceConfigurationModelParser.folders;
+	getFowdews(): IStowedWowkspaceFowda[] {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.fowdews;
 	}
 
-	getWorkspaceSettings(): ConfigurationModel {
-		return this.workspaceSettings;
+	getWowkspaceSettings(): ConfiguwationModew {
+		wetuwn this.wowkspaceSettings;
 	}
 
-	reparseWorkspaceSettings(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		this.workspaceConfigurationModelParser.reparseWorkspaceSettings(configurationParseOptions);
-		this.consolidate();
-		return this.getWorkspaceSettings();
+	wepawseWowkspaceSettings(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		this.wowkspaceConfiguwationModewPawsa.wepawseWowkspaceSettings(configuwationPawseOptions);
+		this.consowidate();
+		wetuwn this.getWowkspaceSettings();
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.workspaceConfigurationModelParser.getRestrictedWorkspaceSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.wowkspaceConfiguwationModewPawsa.getWestwictedWowkspaceSettings();
 	}
 
-	private consolidate(): void {
-		this.workspaceSettings = this.workspaceConfigurationModelParser.settingsModel.merge(this.workspaceConfigurationModelParser.launchModel, this.workspaceConfigurationModelParser.tasksModel);
+	pwivate consowidate(): void {
+		this.wowkspaceSettings = this.wowkspaceConfiguwationModewPawsa.settingsModew.mewge(this.wowkspaceConfiguwationModewPawsa.waunchModew, this.wowkspaceConfiguwationModewPawsa.tasksModew);
 	}
 
-	async updateWorkspace(workspaceIdentifier: IWorkspaceIdentifier, content: string | undefined): Promise<void> {
-		try {
-			const key = this.getKey(workspaceIdentifier);
+	async updateWowkspace(wowkspaceIdentifia: IWowkspaceIdentifia, content: stwing | undefined): Pwomise<void> {
+		twy {
+			const key = this.getKey(wowkspaceIdentifia);
 			if (content) {
-				await this.configurationCache.write(key, JSON.stringify({ content }));
-			} else {
-				await this.configurationCache.remove(key);
+				await this.configuwationCache.wwite(key, JSON.stwingify({ content }));
+			} ewse {
+				await this.configuwationCache.wemove(key);
 			}
-		} catch (error) {
+		} catch (ewwow) {
 		}
 	}
 
-	private getKey(workspaceIdentifier: IWorkspaceIdentifier): ConfigurationKey {
-		return {
-			type: 'workspaces',
-			key: workspaceIdentifier.id
+	pwivate getKey(wowkspaceIdentifia: IWowkspaceIdentifia): ConfiguwationKey {
+		wetuwn {
+			type: 'wowkspaces',
+			key: wowkspaceIdentifia.id
 		};
 	}
 }
 
-class CachedFolderConfiguration {
+cwass CachedFowdewConfiguwation {
 
-	readonly onDidChange = Event.None;
+	weadonwy onDidChange = Event.None;
 
-	private _folderSettingsModelParser: ConfigurationModelParser;
-	private _folderSettingsParseOptions: ConfigurationParseOptions;
-	private _standAloneConfigurations: ConfigurationModel[];
-	private configurationModel: ConfigurationModel;
-	private readonly key: ConfigurationKey;
+	pwivate _fowdewSettingsModewPawsa: ConfiguwationModewPawsa;
+	pwivate _fowdewSettingsPawseOptions: ConfiguwationPawseOptions;
+	pwivate _standAwoneConfiguwations: ConfiguwationModew[];
+	pwivate configuwationModew: ConfiguwationModew;
+	pwivate weadonwy key: ConfiguwationKey;
 
-	constructor(
-		folder: URI,
-		configFolderRelativePath: string,
-		configurationParseOptions: ConfigurationParseOptions,
-		private readonly configurationCache: IConfigurationCache,
+	constwuctow(
+		fowda: UWI,
+		configFowdewWewativePath: stwing,
+		configuwationPawseOptions: ConfiguwationPawseOptions,
+		pwivate weadonwy configuwationCache: IConfiguwationCache,
 	) {
-		this.key = { type: 'folder', key: hash(joinPath(folder, configFolderRelativePath).toString()).toString(16) };
-		this._folderSettingsModelParser = new ConfigurationModelParser('CachedFolderConfiguration');
-		this._folderSettingsParseOptions = configurationParseOptions;
-		this._standAloneConfigurations = [];
-		this.configurationModel = new ConfigurationModel();
+		this.key = { type: 'fowda', key: hash(joinPath(fowda, configFowdewWewativePath).toStwing()).toStwing(16) };
+		this._fowdewSettingsModewPawsa = new ConfiguwationModewPawsa('CachedFowdewConfiguwation');
+		this._fowdewSettingsPawseOptions = configuwationPawseOptions;
+		this._standAwoneConfiguwations = [];
+		this.configuwationModew = new ConfiguwationModew();
 	}
 
-	async loadConfiguration(): Promise<ConfigurationModel> {
-		try {
-			const contents = await this.configurationCache.read(this.key);
-			const { content: configurationContents }: { content: IStringDictionary<string> } = JSON.parse(contents.toString());
-			if (configurationContents) {
-				for (const key of Object.keys(configurationContents)) {
-					if (key === FOLDER_SETTINGS_NAME) {
-						this._folderSettingsModelParser.parse(configurationContents[key], this._folderSettingsParseOptions);
-					} else {
-						const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(key, key);
-						standAloneConfigurationModelParser.parse(configurationContents[key]);
-						this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
+	async woadConfiguwation(): Pwomise<ConfiguwationModew> {
+		twy {
+			const contents = await this.configuwationCache.wead(this.key);
+			const { content: configuwationContents }: { content: IStwingDictionawy<stwing> } = JSON.pawse(contents.toStwing());
+			if (configuwationContents) {
+				fow (const key of Object.keys(configuwationContents)) {
+					if (key === FOWDEW_SETTINGS_NAME) {
+						this._fowdewSettingsModewPawsa.pawse(configuwationContents[key], this._fowdewSettingsPawseOptions);
+					} ewse {
+						const standAwoneConfiguwationModewPawsa = new StandawoneConfiguwationModewPawsa(key, key);
+						standAwoneConfiguwationModewPawsa.pawse(configuwationContents[key]);
+						this._standAwoneConfiguwations.push(standAwoneConfiguwationModewPawsa.configuwationModew);
 					}
 				}
 			}
-			this.consolidate();
+			this.consowidate();
 		} catch (e) {
 		}
-		return this.configurationModel;
+		wetuwn this.configuwationModew;
 	}
 
-	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
+	async updateConfiguwation(settingsContent: stwing | undefined, standAwoneConfiguwationContents: [stwing, stwing | undefined][]): Pwomise<void> {
 		const content: any = {};
 		if (settingsContent) {
-			content[FOLDER_SETTINGS_NAME] = settingsContent;
+			content[FOWDEW_SETTINGS_NAME] = settingsContent;
 		}
-		standAloneConfigurationContents.forEach(([key, contents]) => {
+		standAwoneConfiguwationContents.fowEach(([key, contents]) => {
 			if (contents) {
 				content[key] = contents;
 			}
 		});
-		if (Object.keys(content).length) {
-			await this.configurationCache.write(this.key, JSON.stringify({ content }));
-		} else {
-			await this.configurationCache.remove(this.key);
+		if (Object.keys(content).wength) {
+			await this.configuwationCache.wwite(this.key, JSON.stwingify({ content }));
+		} ewse {
+			await this.configuwationCache.wemove(this.key);
 		}
 	}
 
-	getRestrictedSettings(): string[] {
-		return this._folderSettingsModelParser.restrictedConfigurations;
+	getWestwictedSettings(): stwing[] {
+		wetuwn this._fowdewSettingsModewPawsa.westwictedConfiguwations;
 	}
 
-	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
-		this._folderSettingsParseOptions = configurationParseOptions;
-		this._folderSettingsModelParser.reparse(this._folderSettingsParseOptions);
-		this.consolidate();
-		return this.configurationModel;
+	wepawse(configuwationPawseOptions: ConfiguwationPawseOptions): ConfiguwationModew {
+		this._fowdewSettingsPawseOptions = configuwationPawseOptions;
+		this._fowdewSettingsModewPawsa.wepawse(this._fowdewSettingsPawseOptions);
+		this.consowidate();
+		wetuwn this.configuwationModew;
 	}
 
-	private consolidate(): void {
-		this.configurationModel = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
+	pwivate consowidate(): void {
+		this.configuwationModew = this._fowdewSettingsModewPawsa.configuwationModew.mewge(...this._standAwoneConfiguwations);
 	}
 
-	getUnsupportedKeys(): string[] {
-		return [];
+	getUnsuppowtedKeys(): stwing[] {
+		wetuwn [];
 	}
 }
 
-export class FolderConfiguration extends Disposable {
+expowt cwass FowdewConfiguwation extends Disposabwe {
 
-	protected readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	pwotected weadonwy _onDidChange: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidChange: Event<void> = this._onDidChange.event;
 
-	private folderConfiguration: CachedFolderConfiguration | FileServiceBasedConfiguration;
-	private readonly scopes: ConfigurationScope[];
-	private readonly configurationFolder: URI;
-	private cachedFolderConfiguration: CachedFolderConfiguration;
+	pwivate fowdewConfiguwation: CachedFowdewConfiguwation | FiweSewviceBasedConfiguwation;
+	pwivate weadonwy scopes: ConfiguwationScope[];
+	pwivate weadonwy configuwationFowda: UWI;
+	pwivate cachedFowdewConfiguwation: CachedFowdewConfiguwation;
 
-	constructor(
-		useCache: boolean,
-		readonly workspaceFolder: IWorkspaceFolder,
-		configFolderRelativePath: string,
-		private readonly workbenchState: WorkbenchState,
-		private workspaceTrusted: boolean,
-		fileService: IFileService,
-		uriIdentityService: IUriIdentityService,
-		logService: ILogService,
-		private readonly configurationCache: IConfigurationCache
+	constwuctow(
+		useCache: boowean,
+		weadonwy wowkspaceFowda: IWowkspaceFowda,
+		configFowdewWewativePath: stwing,
+		pwivate weadonwy wowkbenchState: WowkbenchState,
+		pwivate wowkspaceTwusted: boowean,
+		fiweSewvice: IFiweSewvice,
+		uwiIdentitySewvice: IUwiIdentitySewvice,
+		wogSewvice: IWogSewvice,
+		pwivate weadonwy configuwationCache: IConfiguwationCache
 	) {
-		super();
+		supa();
 
-		this.scopes = WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES;
-		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, skipRestricted: this.isUntrusted() }, configurationCache);
-		if (useCache && this.configurationCache.needsCaching(workspaceFolder.uri)) {
-			this.folderConfiguration = this.cachedFolderConfiguration;
-			whenProviderRegistered(workspaceFolder.uri, fileService)
+		this.scopes = WowkbenchState.WOWKSPACE === this.wowkbenchState ? FOWDEW_SCOPES : WOWKSPACE_SCOPES;
+		this.configuwationFowda = uwiIdentitySewvice.extUwi.joinPath(wowkspaceFowda.uwi, configFowdewWewativePath);
+		this.cachedFowdewConfiguwation = new CachedFowdewConfiguwation(wowkspaceFowda.uwi, configFowdewWewativePath, { scopes: this.scopes, skipWestwicted: this.isUntwusted() }, configuwationCache);
+		if (useCache && this.configuwationCache.needsCaching(wowkspaceFowda.uwi)) {
+			this.fowdewConfiguwation = this.cachedFowdewConfiguwation;
+			whenPwovidewWegistewed(wowkspaceFowda.uwi, fiweSewvice)
 				.then(() => {
-					this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService, logService));
-					this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
-					this.onDidFolderConfigurationChange();
+					this.fowdewConfiguwation = this._wegista(this.cweateFiweSewviceBasedConfiguwation(fiweSewvice, uwiIdentitySewvice, wogSewvice));
+					this._wegista(this.fowdewConfiguwation.onDidChange(e => this.onDidFowdewConfiguwationChange()));
+					this.onDidFowdewConfiguwationChange();
 				});
-		} else {
-			this.folderConfiguration = this._register(this.createFileServiceBasedConfiguration(fileService, uriIdentityService, logService));
-			this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
+		} ewse {
+			this.fowdewConfiguwation = this._wegista(this.cweateFiweSewviceBasedConfiguwation(fiweSewvice, uwiIdentitySewvice, wogSewvice));
+			this._wegista(this.fowdewConfiguwation.onDidChange(e => this.onDidFowdewConfiguwationChange()));
 		}
 	}
 
-	loadConfiguration(): Promise<ConfigurationModel> {
-		return this.folderConfiguration.loadConfiguration();
+	woadConfiguwation(): Pwomise<ConfiguwationModew> {
+		wetuwn this.fowdewConfiguwation.woadConfiguwation();
 	}
 
-	updateWorkspaceTrust(trusted: boolean): ConfigurationModel {
-		this.workspaceTrusted = trusted;
-		return this.reparse();
+	updateWowkspaceTwust(twusted: boowean): ConfiguwationModew {
+		this.wowkspaceTwusted = twusted;
+		wetuwn this.wepawse();
 	}
 
-	reparse(): ConfigurationModel {
-		const configurationModel = this.folderConfiguration.reparse({ scopes: this.scopes, skipRestricted: this.isUntrusted() });
+	wepawse(): ConfiguwationModew {
+		const configuwationModew = this.fowdewConfiguwation.wepawse({ scopes: this.scopes, skipWestwicted: this.isUntwusted() });
 		this.updateCache();
-		return configurationModel;
+		wetuwn configuwationModew;
 	}
 
-	getRestrictedSettings(): string[] {
-		return this.folderConfiguration.getRestrictedSettings();
+	getWestwictedSettings(): stwing[] {
+		wetuwn this.fowdewConfiguwation.getWestwictedSettings();
 	}
 
-	private isUntrusted(): boolean {
-		return !this.workspaceTrusted;
+	pwivate isUntwusted(): boowean {
+		wetuwn !this.wowkspaceTwusted;
 	}
 
-	private onDidFolderConfigurationChange(): void {
+	pwivate onDidFowdewConfiguwationChange(): void {
 		this.updateCache();
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService, logService: ILogService) {
-		const settingsResource = uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`);
-		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
-		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, { scopes: this.scopes, skipRestricted: this.isUntrusted() }, fileService, uriIdentityService, logService);
+	pwivate cweateFiweSewviceBasedConfiguwation(fiweSewvice: IFiweSewvice, uwiIdentitySewvice: IUwiIdentitySewvice, wogSewvice: IWogSewvice) {
+		const settingsWesouwce = uwiIdentitySewvice.extUwi.joinPath(this.configuwationFowda, `${FOWDEW_SETTINGS_NAME}.json`);
+		const standAwoneConfiguwationWesouwces: [stwing, UWI][] = [TASKS_CONFIGUWATION_KEY, WAUNCH_CONFIGUWATION_KEY].map(name => ([name, uwiIdentitySewvice.extUwi.joinPath(this.configuwationFowda, `${name}.json`)]));
+		wetuwn new FiweSewviceBasedConfiguwation(this.configuwationFowda.toStwing(), settingsWesouwce, standAwoneConfiguwationWesouwces, { scopes: this.scopes, skipWestwicted: this.isUntwusted() }, fiweSewvice, uwiIdentitySewvice, wogSewvice);
 	}
 
-	private async updateCache(): Promise<void> {
-		if (this.configurationCache.needsCaching(this.configurationFolder) && this.folderConfiguration instanceof FileServiceBasedConfiguration) {
-			const [settingsContent, standAloneConfigurationContents] = await this.folderConfiguration.resolveContents();
-			this.cachedFolderConfiguration.updateConfiguration(settingsContent, standAloneConfigurationContents);
+	pwivate async updateCache(): Pwomise<void> {
+		if (this.configuwationCache.needsCaching(this.configuwationFowda) && this.fowdewConfiguwation instanceof FiweSewviceBasedConfiguwation) {
+			const [settingsContent, standAwoneConfiguwationContents] = await this.fowdewConfiguwation.wesowveContents();
+			this.cachedFowdewConfiguwation.updateConfiguwation(settingsContent, standAwoneConfiguwationContents);
 		}
 	}
 }

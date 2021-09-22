@@ -1,258 +1,258 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
-import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/linesOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+impowt * as assewt fwom 'assewt';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { CopyWinesCommand } fwom 'vs/editow/contwib/winesOpewations/copyWinesCommand';
+impowt { DupwicateSewectionAction } fwom 'vs/editow/contwib/winesOpewations/winesOpewations';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
 
-function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
+function testCopyWinesDownCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new CopyWinesCommand(sew, twue), expectedWines, expectedSewection);
 }
 
-function testCopyLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, false), expectedLines, expectedSelection);
+function testCopyWinesUpCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new CopyWinesCommand(sew, fawse), expectedWines, expectedSewection);
 }
 
-suite('Editor Contrib - Copy Lines Command', () => {
+suite('Editow Contwib - Copy Wines Command', () => {
 
-	test('copy first line down', function () {
-		testCopyLinesDownCommand(
+	test('copy fiwst wine down', function () {
+		testCopyWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 1),
+			new Sewection(1, 3, 1, 1),
 			[
-				'first',
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 3, 2, 1)
+			new Sewection(2, 3, 2, 1)
 		);
 	});
 
-	test('copy first line up', function () {
-		testCopyLinesUpCommand(
+	test('copy fiwst wine up', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 1),
+			new Sewection(1, 3, 1, 1),
 			[
-				'first',
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 3, 1, 1)
+			new Sewection(1, 3, 1, 1)
 		);
 	});
 
-	test('copy last line down', function () {
-		testCopyLinesDownCommand(
+	test('copy wast wine down', function () {
+		testCopyWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 3, 5, 1),
+			new Sewection(5, 3, 5, 1),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth',
 				'fifth'
 			],
-			new Selection(6, 3, 6, 1)
+			new Sewection(6, 3, 6, 1)
 		);
 	});
 
-	test('copy last line up', function () {
-		testCopyLinesUpCommand(
+	test('copy wast wine up', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 3, 5, 1),
+			new Sewection(5, 3, 5, 1),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth',
 				'fifth'
 			],
-			new Selection(5, 3, 5, 1)
+			new Sewection(5, 3, 5, 1)
 		);
 	});
 
-	test('issue #1322: copy line up', function () {
-		testCopyLinesUpCommand(
+	test('issue #1322: copy wine up', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 11, 3, 11),
+			new Sewection(3, 11, 3, 11),
 			[
-				'first',
-				'second line',
-				'third line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 11, 3, 11)
+			new Sewection(3, 11, 3, 11)
 		);
 	});
 
-	test('issue #1322: copy last line up', function () {
-		testCopyLinesUpCommand(
+	test('issue #1322: copy wast wine up', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 6, 5, 6),
+			new Sewection(5, 6, 5, 6),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth',
 				'fifth'
 			],
-			new Selection(5, 6, 5, 6)
+			new Sewection(5, 6, 5, 6)
 		);
 	});
 
-	test('copy many lines up', function () {
-		testCopyLinesUpCommand(
+	test('copy many wines up', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 3, 2, 1),
+			new Sewection(4, 3, 2, 1),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 3, 2, 1)
+			new Sewection(4, 3, 2, 1)
 		);
 	});
 
-	test('ignore empty selection', function () {
-		testCopyLinesUpCommand(
+	test('ignowe empty sewection', function () {
+		testCopyWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 1, 1),
+			new Sewection(2, 1, 1, 1),
 			[
-				'first',
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 1, 1)
+			new Sewection(2, 1, 1, 1)
 		);
 	});
 });
 
-suite('Editor Contrib - Duplicate Selection', () => {
+suite('Editow Contwib - Dupwicate Sewection', () => {
 
-	const duplicateSelectionAction = new DuplicateSelectionAction();
+	const dupwicateSewectionAction = new DupwicateSewectionAction();
 
-	function testDuplicateSelectionAction(lines: string[], selections: Selection[], expectedLines: string[], expectedSelections: Selection[]): void {
-		withTestCodeEditor(lines.join('\n'), {}, (editor) => {
-			editor.setSelections(selections);
-			duplicateSelectionAction.run(null!, editor, {});
-			assert.deepStrictEqual(editor.getValue(), expectedLines.join('\n'));
-			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+	function testDupwicateSewectionAction(wines: stwing[], sewections: Sewection[], expectedWines: stwing[], expectedSewections: Sewection[]): void {
+		withTestCodeEditow(wines.join('\n'), {}, (editow) => {
+			editow.setSewections(sewections);
+			dupwicateSewectionAction.wun(nuww!, editow, {});
+			assewt.deepStwictEquaw(editow.getVawue(), expectedWines.join('\n'));
+			assewt.deepStwictEquaw(editow.getSewections()!.map(s => s.toStwing()), expectedSewections.map(s => s.toStwing()));
 		});
 	}
 
-	test('empty selection', function () {
-		testDuplicateSelectionAction(
+	test('empty sewection', function () {
+		testDupwicateSewectionAction(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			[new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
+			[new Sewection(2, 2, 2, 2), new Sewection(3, 2, 3, 2)],
 			[
-				'first',
-				'second line',
-				'second line',
-				'third line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'second wine',
+				'thiwd wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			[new Selection(3, 2, 3, 2), new Selection(5, 2, 5, 2)]
+			[new Sewection(3, 2, 3, 2), new Sewection(5, 2, 5, 2)]
 		);
 	});
 
-	test('with selection', function () {
-		testDuplicateSelectionAction(
+	test('with sewection', function () {
+		testDupwicateSewectionAction(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			[new Selection(2, 1, 2, 4), new Selection(3, 1, 3, 4)],
+			[new Sewection(2, 1, 2, 4), new Sewection(3, 1, 3, 4)],
 			[
-				'first',
-				'secsecond line',
-				'thithird line',
-				'fourth line',
+				'fiwst',
+				'secsecond wine',
+				'thithiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			[new Selection(2, 4, 2, 7), new Selection(3, 4, 3, 7)]
+			[new Sewection(2, 4, 2, 7), new Sewection(3, 4, 3, 7)]
 		);
 	});
 });

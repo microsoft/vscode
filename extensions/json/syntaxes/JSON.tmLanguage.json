@@ -1,211 +1,211 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/microsoft/vscode-JSON.tmLanguage/blob/master/JSON.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/micwosoft/vscode-JSON.tmWanguage/bwob/masta/JSON.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/microsoft/vscode-JSON.tmLanguage/commit/9bd83f1c252b375e957203f21793316203f61f70",
-	"name": "JSON (Javascript Next)",
-	"scopeName": "source.json",
-	"patterns": [
+	"vewsion": "https://github.com/micwosoft/vscode-JSON.tmWanguage/commit/9bd83f1c252b375e957203f21793316203f61f70",
+	"name": "JSON (Javascwipt Next)",
+	"scopeName": "souwce.json",
+	"pattewns": [
 		{
-			"include": "#value"
+			"incwude": "#vawue"
 		}
 	],
-	"repository": {
-		"array": {
+	"wepositowy": {
+		"awway": {
 			"begin": "\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.array.begin.json"
+					"name": "punctuation.definition.awway.begin.json"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.array.end.json"
+					"name": "punctuation.definition.awway.end.json"
 				}
 			},
-			"name": "meta.structure.array.json",
-			"patterns": [
+			"name": "meta.stwuctuwe.awway.json",
+			"pattewns": [
 				{
-					"include": "#value"
+					"incwude": "#vawue"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.array.json"
+					"name": "punctuation.sepawatow.awway.json"
 				},
 				{
 					"match": "[^\\s\\]]",
-					"name": "invalid.illegal.expected-array-separator.json"
+					"name": "invawid.iwwegaw.expected-awway-sepawatow.json"
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "/\\*\\*(?!/)",
-					"captures": {
+					"captuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.json"
 						}
 					},
 					"end": "\\*/",
-					"name": "comment.block.documentation.json"
+					"name": "comment.bwock.documentation.json"
 				},
 				{
 					"begin": "/\\*",
-					"captures": {
+					"captuwes": {
 						"0": {
 							"name": "punctuation.definition.comment.json"
 						}
 					},
 					"end": "\\*/",
-					"name": "comment.block.json"
+					"name": "comment.bwock.json"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "punctuation.definition.comment.json"
 						}
 					},
 					"match": "(//).*$\\n?",
-					"name": "comment.line.double-slash.js"
+					"name": "comment.wine.doubwe-swash.js"
 				}
 			]
 		},
 		"constant": {
-			"match": "\\b(?:true|false|null)\\b",
-			"name": "constant.language.json"
+			"match": "\\b(?:twue|fawse|nuww)\\b",
+			"name": "constant.wanguage.json"
 		},
-		"number": {
-			"match": "(?x)        # turn on extended mode\n  -?        # an optional minus\n  (?:\n    0       # a zero\n    |       # ...or...\n    [1-9]   # a 1-9 character\n    \\d*     # followed by zero or more digits\n  )\n  (?:\n    (?:\n      \\.    # a period\n      \\d+   # followed by one or more digits\n    )?\n    (?:\n      [eE]  # an e character\n      [+-]? # followed by an option +/-\n      \\d+   # followed by one or more digits\n    )?      # make exponent optional\n  )?        # make decimal portion optional",
-			"name": "constant.numeric.json"
+		"numba": {
+			"match": "(?x)        # tuwn on extended mode\n  -?        # an optionaw minus\n  (?:\n    0       # a zewo\n    |       # ...ow...\n    [1-9]   # a 1-9 chawacta\n    \\d*     # fowwowed by zewo ow mowe digits\n  )\n  (?:\n    (?:\n      \\.    # a pewiod\n      \\d+   # fowwowed by one ow mowe digits\n    )?\n    (?:\n      [eE]  # an e chawacta\n      [+-]? # fowwowed by an option +/-\n      \\d+   # fowwowed by one ow mowe digits\n    )?      # make exponent optionaw\n  )?        # make decimaw powtion optionaw",
+			"name": "constant.numewic.json"
 		},
 		"object": {
 			"begin": "\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.dictionary.begin.json"
+					"name": "punctuation.definition.dictionawy.begin.json"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.dictionary.end.json"
+					"name": "punctuation.definition.dictionawy.end.json"
 				}
 			},
-			"name": "meta.structure.dictionary.json",
-			"patterns": [
+			"name": "meta.stwuctuwe.dictionawy.json",
+			"pattewns": [
 				{
 					"comment": "the JSON object key",
-					"include": "#objectkey"
+					"incwude": "#objectkey"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
 					"begin": ":",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.separator.dictionary.key-value.json"
+							"name": "punctuation.sepawatow.dictionawy.key-vawue.json"
 						}
 					},
 					"end": "(,)|(?=\\})",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.separator.dictionary.pair.json"
+							"name": "punctuation.sepawatow.dictionawy.paiw.json"
 						}
 					},
-					"name": "meta.structure.dictionary.value.json",
-					"patterns": [
+					"name": "meta.stwuctuwe.dictionawy.vawue.json",
+					"pattewns": [
 						{
-							"comment": "the JSON object value",
-							"include": "#value"
+							"comment": "the JSON object vawue",
+							"incwude": "#vawue"
 						},
 						{
 							"match": "[^\\s,]",
-							"name": "invalid.illegal.expected-dictionary-separator.json"
+							"name": "invawid.iwwegaw.expected-dictionawy-sepawatow.json"
 						}
 					]
 				},
 				{
 					"match": "[^\\s\\}]",
-					"name": "invalid.illegal.expected-dictionary-separator.json"
+					"name": "invawid.iwwegaw.expected-dictionawy-sepawatow.json"
 				}
 			]
 		},
-		"string": {
+		"stwing": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.json"
+					"name": "punctuation.definition.stwing.begin.json"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.json"
+					"name": "punctuation.definition.stwing.end.json"
 				}
 			},
-			"name": "string.quoted.double.json",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.json",
+			"pattewns": [
 				{
-					"include": "#stringcontent"
+					"incwude": "#stwingcontent"
 				}
 			]
 		},
 		"objectkey": {
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.support.type.property-name.begin.json"
+					"name": "punctuation.suppowt.type.pwopewty-name.begin.json"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.support.type.property-name.end.json"
+					"name": "punctuation.suppowt.type.pwopewty-name.end.json"
 				}
 			},
-			"name": "string.json support.type.property-name.json",
-			"patterns": [
+			"name": "stwing.json suppowt.type.pwopewty-name.json",
+			"pattewns": [
 				{
-					"include": "#stringcontent"
+					"incwude": "#stwingcontent"
 				}
 			]
 		},
-		"stringcontent": {
-			"patterns": [
+		"stwingcontent": {
+			"pattewns": [
 				{
-					"match": "(?x)                # turn on extended mode\n  \\\\                # a literal backslash\n  (?:               # ...followed by...\n    [\"\\\\/bfnrt]     # one of these characters\n    |               # ...or...\n    u               # a u\n    [0-9a-fA-F]{4}) # and four hex digits",
-					"name": "constant.character.escape.json"
+					"match": "(?x)                # tuwn on extended mode\n  \\\\                # a witewaw backswash\n  (?:               # ...fowwowed by...\n    [\"\\\\/bfnwt]     # one of these chawactews\n    |               # ...ow...\n    u               # a u\n    [0-9a-fA-F]{4}) # and fouw hex digits",
+					"name": "constant.chawacta.escape.json"
 				},
 				{
 					"match": "\\\\.",
-					"name": "invalid.illegal.unrecognized-string-escape.json"
+					"name": "invawid.iwwegaw.unwecognized-stwing-escape.json"
 				}
 			]
 		},
-		"value": {
-			"patterns": [
+		"vawue": {
+			"pattewns": [
 				{
-					"include": "#constant"
+					"incwude": "#constant"
 				},
 				{
-					"include": "#number"
+					"incwude": "#numba"
 				},
 				{
-					"include": "#string"
+					"incwude": "#stwing"
 				},
 				{
-					"include": "#array"
+					"incwude": "#awway"
 				},
 				{
-					"include": "#object"
+					"incwude": "#object"
 				},
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				}
 			]
 		}

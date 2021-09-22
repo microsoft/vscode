@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, ITextBuffer } from 'vs/editor/common/model';
-import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { wendewMawkdown } fwom 'vs/base/bwowsa/mawkdownWendewa';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { DefauwtEndOfWine, EndOfWinePwefewence, ITextBuffa } fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffewBuiwda } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffewBuiwda';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { handweANSIOutput } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugANSIHandwing';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { IGenewicCewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwUwi } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-const SIZE_LIMIT = 65535;
+const SIZE_WIMIT = 65535;
 
-function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
-	const md: IMarkdownString = {
-		value: '[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)',
-		isTrusted: true,
-		supportThemeIcons: true
+function genewateViewMoweEwement(notebookUwi: UWI, cewwViewModew: IGenewicCewwViewModew, disposabwes: DisposabweStowe, openewSewvice: IOpenewSewvice): HTMWEwement {
+	const md: IMawkdownStwing = {
+		vawue: '[show mowe (open the waw output data in a text editow) ...](command:wowkbench.action.openWawgeOutput)',
+		isTwusted: twue,
+		suppowtThemeIcons: twue
 	};
 
-	const rendered = disposables.add(renderMarkdown(md, {
-		actionHandler: {
-			callback: (content) => {
-				if (content === 'command:workbench.action.openLargeOutput') {
-					openerService.open(CellUri.generateCellUri(notebookUri, cellViewModel.handle, Schemas.vscodeNotebookCellOutput));
+	const wendewed = disposabwes.add(wendewMawkdown(md, {
+		actionHandwa: {
+			cawwback: (content) => {
+				if (content === 'command:wowkbench.action.openWawgeOutput') {
+					openewSewvice.open(CewwUwi.genewateCewwUwi(notebookUwi, cewwViewModew.handwe, Schemas.vscodeNotebookCewwOutput));
 				}
 
-				return;
+				wetuwn;
 			},
-			disposables: disposables
+			disposabwes: disposabwes
 		}
 	}));
 
-	rendered.element.classList.add('output-show-more');
-	return rendered.element;
+	wendewed.ewement.cwassWist.add('output-show-mowe');
+	wetuwn wendewed.ewement;
 }
 
-export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, linesLimit: number, container: HTMLElement, outputs: string[], disposables: DisposableStore, linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {
-	const fullLen = outputs.reduce((p, c) => {
-		return p + c.length;
+expowt function twuncatedAwwayOfStwing(notebookUwi: UWI, cewwViewModew: IGenewicCewwViewModew, winesWimit: numba, containa: HTMWEwement, outputs: stwing[], disposabwes: DisposabweStowe, winkDetectow: WinkDetectow, openewSewvice: IOpenewSewvice, themeSewvice: IThemeSewvice) {
+	const fuwwWen = outputs.weduce((p, c) => {
+		wetuwn p + c.wength;
 	}, 0);
 
-	let buffer: ITextBuffer | undefined = undefined;
+	wet buffa: ITextBuffa | undefined = undefined;
 
-	if (fullLen > SIZE_LIMIT) {
-		// it's too large and we should find min(maxSizeLimit, maxLineLimit)
-		const bufferBuilder = new PieceTreeTextBufferBuilder();
-		outputs.forEach(output => bufferBuilder.acceptChunk(output));
-		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
-		const sizeBufferLimitPosition = buffer.getPositionAt(SIZE_LIMIT);
-		if (sizeBufferLimitPosition.lineNumber < linesLimit) {
-			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
-			container.appendChild(handleANSIOutput(truncatedText, linkDetector, themeService, undefined));
-			// view more ...
-			container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, disposables, openerService));
-			return;
+	if (fuwwWen > SIZE_WIMIT) {
+		// it's too wawge and we shouwd find min(maxSizeWimit, maxWineWimit)
+		const buffewBuiwda = new PieceTweeTextBuffewBuiwda();
+		outputs.fowEach(output => buffewBuiwda.acceptChunk(output));
+		const factowy = buffewBuiwda.finish();
+		buffa = factowy.cweate(DefauwtEndOfWine.WF).textBuffa;
+		const sizeBuffewWimitPosition = buffa.getPositionAt(SIZE_WIMIT);
+		if (sizeBuffewWimitPosition.wineNumba < winesWimit) {
+			const twuncatedText = buffa.getVawueInWange(new Wange(1, 1, sizeBuffewWimitPosition.wineNumba, sizeBuffewWimitPosition.cowumn), EndOfWinePwefewence.TextDefined);
+			containa.appendChiwd(handweANSIOutput(twuncatedText, winkDetectow, themeSewvice, undefined));
+			// view mowe ...
+			containa.appendChiwd(genewateViewMoweEwement(notebookUwi, cewwViewModew, disposabwes, openewSewvice));
+			wetuwn;
 		}
 	}
 
-	if (!buffer) {
-		const bufferBuilder = new PieceTreeTextBufferBuilder();
-		outputs.forEach(output => bufferBuilder.acceptChunk(output));
-		const factory = bufferBuilder.finish();
-		buffer = factory.create(DefaultEndOfLine.LF).textBuffer;
+	if (!buffa) {
+		const buffewBuiwda = new PieceTweeTextBuffewBuiwda();
+		outputs.fowEach(output => buffewBuiwda.acceptChunk(output));
+		const factowy = buffewBuiwda.finish();
+		buffa = factowy.cweate(DefauwtEndOfWine.WF).textBuffa;
 	}
 
-	if (buffer.getLineCount() < linesLimit) {
-		const lineCount = buffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, Math.max(1, buffer.getLineLastNonWhitespaceColumn(lineCount)));
-		container.appendChild(handleANSIOutput(buffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
-		return;
+	if (buffa.getWineCount() < winesWimit) {
+		const wineCount = buffa.getWineCount();
+		const fuwwWange = new Wange(1, 1, wineCount, Math.max(1, buffa.getWineWastNonWhitespaceCowumn(wineCount)));
+		containa.appendChiwd(handweANSIOutput(buffa.getVawueInWange(fuwwWange, EndOfWinePwefewence.TextDefined), winkDetectow, themeSewvice, undefined));
+		wetuwn;
 	}
 
-	const pre = DOM.$('pre');
-	container.appendChild(pre);
-	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
+	const pwe = DOM.$('pwe');
+	containa.appendChiwd(pwe);
+	pwe.appendChiwd(handweANSIOutput(buffa.getVawueInWange(new Wange(1, 1, winesWimit - 5, buffa.getWineWastNonWhitespaceCowumn(winesWimit - 5)), EndOfWinePwefewence.TextDefined), winkDetectow, themeSewvice, undefined));
 
-	// view more ...
-	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, disposables, openerService));
+	// view mowe ...
+	containa.appendChiwd(genewateViewMoweEwement(notebookUwi, cewwViewModew, disposabwes, openewSewvice));
 
-	const lineCount = buffer.getLineCount();
-	const pre2 = DOM.$('div');
-	container.appendChild(pre2);
-	pre2.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(lineCount - 5, 1, lineCount, buffer.getLineLastNonWhitespaceColumn(lineCount)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
+	const wineCount = buffa.getWineCount();
+	const pwe2 = DOM.$('div');
+	containa.appendChiwd(pwe2);
+	pwe2.appendChiwd(handweANSIOutput(buffa.getVawueInWange(new Wange(wineCount - 5, 1, wineCount, buffa.getWineWastNonWhitespaceCowumn(wineCount)), EndOfWinePwefewence.TextDefined), winkDetectow, themeSewvice, undefined));
 }

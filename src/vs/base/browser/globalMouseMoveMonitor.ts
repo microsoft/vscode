@@ -1,138 +1,138 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IframeUtils } from 'vs/base/browser/iframe';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IfwameUtiws } fwom 'vs/base/bwowsa/ifwame';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isIOS } fwom 'vs/base/common/pwatfowm';
 
-export interface IStandardMouseMoveEventData {
-	leftButton: boolean;
-	buttons: number;
-	posx: number;
-	posy: number;
+expowt intewface IStandawdMouseMoveEventData {
+	weftButton: boowean;
+	buttons: numba;
+	posx: numba;
+	posy: numba;
 }
 
-export interface IEventMerger<R> {
-	(lastEvent: R | null, currentEvent: MouseEvent): R;
+expowt intewface IEventMewga<W> {
+	(wastEvent: W | nuww, cuwwentEvent: MouseEvent): W;
 }
 
-export interface IMouseMoveCallback<R> {
-	(mouseMoveData: R): void;
+expowt intewface IMouseMoveCawwback<W> {
+	(mouseMoveData: W): void;
 }
 
-export interface IOnStopCallback {
-	(browserEvent?: MouseEvent | KeyboardEvent): void;
+expowt intewface IOnStopCawwback {
+	(bwowsewEvent?: MouseEvent | KeyboawdEvent): void;
 }
 
-export function standardMouseMoveMerger(lastEvent: IStandardMouseMoveEventData | null, currentEvent: MouseEvent): IStandardMouseMoveEventData {
-	let ev = new StandardMouseEvent(currentEvent);
-	ev.preventDefault();
-	return {
-		leftButton: ev.leftButton,
+expowt function standawdMouseMoveMewga(wastEvent: IStandawdMouseMoveEventData | nuww, cuwwentEvent: MouseEvent): IStandawdMouseMoveEventData {
+	wet ev = new StandawdMouseEvent(cuwwentEvent);
+	ev.pweventDefauwt();
+	wetuwn {
+		weftButton: ev.weftButton,
 		buttons: ev.buttons,
 		posx: ev.posx,
 		posy: ev.posy
 	};
 }
 
-export class GlobalMouseMoveMonitor<R extends { buttons: number; }> implements IDisposable {
+expowt cwass GwobawMouseMoveMonitow<W extends { buttons: numba; }> impwements IDisposabwe {
 
-	private readonly _hooks = new DisposableStore();
-	private _mouseMoveEventMerger: IEventMerger<R> | null = null;
-	private _mouseMoveCallback: IMouseMoveCallback<R> | null = null;
-	private _onStopCallback: IOnStopCallback | null = null;
+	pwivate weadonwy _hooks = new DisposabweStowe();
+	pwivate _mouseMoveEventMewga: IEventMewga<W> | nuww = nuww;
+	pwivate _mouseMoveCawwback: IMouseMoveCawwback<W> | nuww = nuww;
+	pwivate _onStopCawwback: IOnStopCawwback | nuww = nuww;
 
-	public dispose(): void {
-		this.stopMonitoring(false);
+	pubwic dispose(): void {
+		this.stopMonitowing(fawse);
 		this._hooks.dispose();
 	}
 
-	public stopMonitoring(invokeStopCallback: boolean, browserEvent?: MouseEvent | KeyboardEvent): void {
-		if (!this.isMonitoring()) {
-			// Not monitoring
-			return;
+	pubwic stopMonitowing(invokeStopCawwback: boowean, bwowsewEvent?: MouseEvent | KeyboawdEvent): void {
+		if (!this.isMonitowing()) {
+			// Not monitowing
+			wetuwn;
 		}
 
 		// Unhook
-		this._hooks.clear();
-		this._mouseMoveEventMerger = null;
-		this._mouseMoveCallback = null;
-		const onStopCallback = this._onStopCallback;
-		this._onStopCallback = null;
+		this._hooks.cweaw();
+		this._mouseMoveEventMewga = nuww;
+		this._mouseMoveCawwback = nuww;
+		const onStopCawwback = this._onStopCawwback;
+		this._onStopCawwback = nuww;
 
-		if (invokeStopCallback && onStopCallback) {
-			onStopCallback(browserEvent);
+		if (invokeStopCawwback && onStopCawwback) {
+			onStopCawwback(bwowsewEvent);
 		}
 	}
 
-	public isMonitoring(): boolean {
-		return !!this._mouseMoveEventMerger;
+	pubwic isMonitowing(): boowean {
+		wetuwn !!this._mouseMoveEventMewga;
 	}
 
-	public startMonitoring(
-		initialElement: HTMLElement,
-		initialButtons: number,
-		mouseMoveEventMerger: IEventMerger<R>,
-		mouseMoveCallback: IMouseMoveCallback<R>,
-		onStopCallback: IOnStopCallback
+	pubwic stawtMonitowing(
+		initiawEwement: HTMWEwement,
+		initiawButtons: numba,
+		mouseMoveEventMewga: IEventMewga<W>,
+		mouseMoveCawwback: IMouseMoveCawwback<W>,
+		onStopCawwback: IOnStopCawwback
 	): void {
-		if (this.isMonitoring()) {
-			// I am already hooked
-			return;
+		if (this.isMonitowing()) {
+			// I am awweady hooked
+			wetuwn;
 		}
-		this._mouseMoveEventMerger = mouseMoveEventMerger;
-		this._mouseMoveCallback = mouseMoveCallback;
-		this._onStopCallback = onStopCallback;
+		this._mouseMoveEventMewga = mouseMoveEventMewga;
+		this._mouseMoveCawwback = mouseMoveCawwback;
+		this._onStopCawwback = onStopCawwback;
 
-		const windowChain = IframeUtils.getSameOriginWindowChain();
-		const mouseMove = isIOS ? 'pointermove' : 'mousemove'; // Safari sends wrong event, workaround for #122653
+		const windowChain = IfwameUtiws.getSameOwiginWindowChain();
+		const mouseMove = isIOS ? 'pointewmove' : 'mousemove'; // Safawi sends wwong event, wowkawound fow #122653
 		const mouseUp = 'mouseup';
 
-		const listenTo: (Document | ShadowRoot)[] = windowChain.map(element => element.window.document);
-		const shadowRoot = dom.getShadowRoot(initialElement);
-		if (shadowRoot) {
-			listenTo.unshift(shadowRoot);
+		const wistenTo: (Document | ShadowWoot)[] = windowChain.map(ewement => ewement.window.document);
+		const shadowWoot = dom.getShadowWoot(initiawEwement);
+		if (shadowWoot) {
+			wistenTo.unshift(shadowWoot);
 		}
 
-		for (const element of listenTo) {
-			this._hooks.add(dom.addDisposableThrottledListener(element, mouseMove,
-				(data: R) => {
-					if (data.buttons !== initialButtons) {
+		fow (const ewement of wistenTo) {
+			this._hooks.add(dom.addDisposabweThwottwedWistena(ewement, mouseMove,
+				(data: W) => {
+					if (data.buttons !== initiawButtons) {
 						// Buttons state has changed in the meantime
-						this.stopMonitoring(true);
-						return;
+						this.stopMonitowing(twue);
+						wetuwn;
 					}
-					this._mouseMoveCallback!(data);
+					this._mouseMoveCawwback!(data);
 				},
-				(lastEvent: R | null, currentEvent) => this._mouseMoveEventMerger!(lastEvent, currentEvent as MouseEvent)
+				(wastEvent: W | nuww, cuwwentEvent) => this._mouseMoveEventMewga!(wastEvent, cuwwentEvent as MouseEvent)
 			));
-			this._hooks.add(dom.addDisposableListener(element, mouseUp, (e: MouseEvent) => this.stopMonitoring(true)));
+			this._hooks.add(dom.addDisposabweWistena(ewement, mouseUp, (e: MouseEvent) => this.stopMonitowing(twue)));
 		}
 
-		if (IframeUtils.hasDifferentOriginAncestor()) {
-			let lastSameOriginAncestor = windowChain[windowChain.length - 1];
-			// We might miss a mouse up if it happens outside the iframe
-			// This one is for Chrome
-			this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseout', (browserEvent: MouseEvent) => {
-				let e = new StandardMouseEvent(browserEvent);
-				if (e.target.tagName.toLowerCase() === 'html') {
-					this.stopMonitoring(true);
+		if (IfwameUtiws.hasDiffewentOwiginAncestow()) {
+			wet wastSameOwiginAncestow = windowChain[windowChain.wength - 1];
+			// We might miss a mouse up if it happens outside the ifwame
+			// This one is fow Chwome
+			this._hooks.add(dom.addDisposabweWistena(wastSameOwiginAncestow.window.document, 'mouseout', (bwowsewEvent: MouseEvent) => {
+				wet e = new StandawdMouseEvent(bwowsewEvent);
+				if (e.tawget.tagName.toWowewCase() === 'htmw') {
+					this.stopMonitowing(twue);
 				}
 			}));
-			// This one is for FF
-			this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document, 'mouseover', (browserEvent: MouseEvent) => {
-				let e = new StandardMouseEvent(browserEvent);
-				if (e.target.tagName.toLowerCase() === 'html') {
-					this.stopMonitoring(true);
+			// This one is fow FF
+			this._hooks.add(dom.addDisposabweWistena(wastSameOwiginAncestow.window.document, 'mouseova', (bwowsewEvent: MouseEvent) => {
+				wet e = new StandawdMouseEvent(bwowsewEvent);
+				if (e.tawget.tagName.toWowewCase() === 'htmw') {
+					this.stopMonitowing(twue);
 				}
 			}));
-			// This one is for IE
-			this._hooks.add(dom.addDisposableListener(lastSameOriginAncestor.window.document.body, 'mouseleave', (browserEvent: MouseEvent) => {
-				this.stopMonitoring(true);
+			// This one is fow IE
+			this._hooks.add(dom.addDisposabweWistena(wastSameOwiginAncestow.window.document.body, 'mouseweave', (bwowsewEvent: MouseEvent) => {
+				this.stopMonitowing(twue);
 			}));
 		}
 	}

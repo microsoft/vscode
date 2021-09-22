@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { Contracts, TelemetryClient } from 'applicationinsights';
-import * as assert from 'assert';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
+impowt { Contwacts, TewemetwyCwient } fwom 'appwicationinsights';
+impowt * as assewt fwom 'assewt';
+impowt { AppInsightsAppenda } fwom 'vs/pwatfowm/tewemetwy/node/appInsightsAppenda';
 
-class AppInsightsMock extends TelemetryClient {
-	public override config: any;
-	public override channel: any;
-	public events: Contracts.EventTelemetry[] = [];
-	public IsTrackingPageView: boolean = false;
-	public exceptions: any[] = [];
+cwass AppInsightsMock extends TewemetwyCwient {
+	pubwic ovewwide config: any;
+	pubwic ovewwide channew: any;
+	pubwic events: Contwacts.EventTewemetwy[] = [];
+	pubwic IsTwackingPageView: boowean = fawse;
+	pubwic exceptions: any[] = [];
 
-	constructor() {
-		super('testKey');
+	constwuctow() {
+		supa('testKey');
 	}
 
-	public override trackEvent(event: any) {
+	pubwic ovewwide twackEvent(event: any) {
 		this.events.push(event);
 	}
 
-	public override flush(options: any): void {
-		// called on dispose
+	pubwic ovewwide fwush(options: any): void {
+		// cawwed on dispose
 	}
 }
 
-suite('AIAdapter', () => {
-	let appInsightsMock: AppInsightsMock;
-	let adapter: AppInsightsAppender;
-	let prefix = 'prefix';
+suite('AIAdapta', () => {
+	wet appInsightsMock: AppInsightsMock;
+	wet adapta: AppInsightsAppenda;
+	wet pwefix = 'pwefix';
 
 
 	setup(() => {
 		appInsightsMock = new AppInsightsMock();
-		adapter = new AppInsightsAppender(prefix, undefined!, () => appInsightsMock);
+		adapta = new AppInsightsAppenda(pwefix, undefined!, () => appInsightsMock);
 	});
 
-	teardown(() => {
-		adapter.flush();
+	teawdown(() => {
+		adapta.fwush();
 	});
 
-	test('Simple event', () => {
-		adapter.log('testEvent');
+	test('Simpwe event', () => {
+		adapta.wog('testEvent');
 
-		assert.strictEqual(appInsightsMock.events.length, 1);
-		assert.strictEqual(appInsightsMock.events[0].name, `${prefix}/testEvent`);
+		assewt.stwictEquaw(appInsightsMock.events.wength, 1);
+		assewt.stwictEquaw(appInsightsMock.events[0].name, `${pwefix}/testEvent`);
 	});
 
-	test('addional data', () => {
-		adapter = new AppInsightsAppender(prefix, { first: '1st', second: 2, third: true }, () => appInsightsMock);
-		adapter.log('testEvent');
+	test('addionaw data', () => {
+		adapta = new AppInsightsAppenda(pwefix, { fiwst: '1st', second: 2, thiwd: twue }, () => appInsightsMock);
+		adapta.wog('testEvent');
 
-		assert.strictEqual(appInsightsMock.events.length, 1);
-		let [first] = appInsightsMock.events;
-		assert.strictEqual(first.name, `${prefix}/testEvent`);
-		assert.strictEqual(first.properties!['first'], '1st');
-		assert.strictEqual(first.measurements!['second'], 2);
-		assert.strictEqual(first.measurements!['third'], 1);
+		assewt.stwictEquaw(appInsightsMock.events.wength, 1);
+		wet [fiwst] = appInsightsMock.events;
+		assewt.stwictEquaw(fiwst.name, `${pwefix}/testEvent`);
+		assewt.stwictEquaw(fiwst.pwopewties!['fiwst'], '1st');
+		assewt.stwictEquaw(fiwst.measuwements!['second'], 2);
+		assewt.stwictEquaw(fiwst.measuwements!['thiwd'], 1);
 	});
 
-	test('property limits', () => {
-		let reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
-		for (let i = 0; i < 6; i++) {
-			reallyLongPropertyName += 'abcdefghijklmnopqrstuvwxyz';
+	test('pwopewty wimits', () => {
+		wet weawwyWongPwopewtyName = 'abcdefghijkwmnopqwstuvwxyz';
+		fow (wet i = 0; i < 6; i++) {
+			weawwyWongPwopewtyName += 'abcdefghijkwmnopqwstuvwxyz';
 		}
-		assert(reallyLongPropertyName.length > 150);
+		assewt(weawwyWongPwopewtyName.wength > 150);
 
-		let reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
-		for (let i = 0; i < 21; i++) {
-			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
+		wet weawwyWongPwopewtyVawue = 'abcdefghijkwmnopqwstuvwxyz012345678901234567890123';
+		fow (wet i = 0; i < 21; i++) {
+			weawwyWongPwopewtyVawue += 'abcdefghijkwmnopqwstuvwxyz012345678901234567890123';
 		}
-		assert(reallyLongPropertyValue.length > 1024);
+		assewt(weawwyWongPwopewtyVawue.wength > 1024);
 
-		let data = Object.create(null);
-		data[reallyLongPropertyName] = '1234';
-		data['reallyLongPropertyValue'] = reallyLongPropertyValue;
-		adapter.log('testEvent', data);
+		wet data = Object.cweate(nuww);
+		data[weawwyWongPwopewtyName] = '1234';
+		data['weawwyWongPwopewtyVawue'] = weawwyWongPwopewtyVawue;
+		adapta.wog('testEvent', data);
 
-		assert.strictEqual(appInsightsMock.events.length, 1);
+		assewt.stwictEquaw(appInsightsMock.events.wength, 1);
 
-		for (let prop in appInsightsMock.events[0].properties!) {
-			assert(prop.length < 150);
-			assert(appInsightsMock.events[0].properties![prop].length < 1024);
+		fow (wet pwop in appInsightsMock.events[0].pwopewties!) {
+			assewt(pwop.wength < 150);
+			assewt(appInsightsMock.events[0].pwopewties![pwop].wength < 1024);
 		}
 	});
 
-	test('Different data types', () => {
-		let date = new Date();
-		adapter.log('testEvent', { favoriteDate: date, likeRed: false, likeBlue: true, favoriteNumber: 1, favoriteColor: 'blue', favoriteCars: ['bmw', 'audi', 'ford'] });
+	test('Diffewent data types', () => {
+		wet date = new Date();
+		adapta.wog('testEvent', { favowiteDate: date, wikeWed: fawse, wikeBwue: twue, favowiteNumba: 1, favowiteCowow: 'bwue', favowiteCaws: ['bmw', 'audi', 'fowd'] });
 
-		assert.strictEqual(appInsightsMock.events.length, 1);
-		assert.strictEqual(appInsightsMock.events[0].name, `${prefix}/testEvent`);
-		assert.strictEqual(appInsightsMock.events[0].properties!['favoriteColor'], 'blue');
-		assert.strictEqual(appInsightsMock.events[0].measurements!['likeRed'], 0);
-		assert.strictEqual(appInsightsMock.events[0].measurements!['likeBlue'], 1);
-		assert.strictEqual(appInsightsMock.events[0].properties!['favoriteDate'], date.toISOString());
-		assert.strictEqual(appInsightsMock.events[0].properties!['favoriteCars'], JSON.stringify(['bmw', 'audi', 'ford']));
-		assert.strictEqual(appInsightsMock.events[0].measurements!['favoriteNumber'], 1);
+		assewt.stwictEquaw(appInsightsMock.events.wength, 1);
+		assewt.stwictEquaw(appInsightsMock.events[0].name, `${pwefix}/testEvent`);
+		assewt.stwictEquaw(appInsightsMock.events[0].pwopewties!['favowiteCowow'], 'bwue');
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['wikeWed'], 0);
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['wikeBwue'], 1);
+		assewt.stwictEquaw(appInsightsMock.events[0].pwopewties!['favowiteDate'], date.toISOStwing());
+		assewt.stwictEquaw(appInsightsMock.events[0].pwopewties!['favowiteCaws'], JSON.stwingify(['bmw', 'audi', 'fowd']));
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['favowiteNumba'], 1);
 	});
 
 	test('Nested data', () => {
-		adapter.log('testEvent', {
+		adapta.wog('testEvent', {
 			window: {
-				title: 'some title',
-				measurements: {
+				titwe: 'some titwe',
+				measuwements: {
 					width: 100,
 					height: 200
 				}
@@ -112,22 +112,22 @@ suite('AIAdapter', () => {
 			nestedObj: {
 				nestedObj2: {
 					nestedObj3: {
-						testProperty: 'test',
+						testPwopewty: 'test',
 					}
 				},
-				testMeasurement: 1
+				testMeasuwement: 1
 			}
 		});
 
-		assert.strictEqual(appInsightsMock.events.length, 1);
-		assert.strictEqual(appInsightsMock.events[0].name, `${prefix}/testEvent`);
+		assewt.stwictEquaw(appInsightsMock.events.wength, 1);
+		assewt.stwictEquaw(appInsightsMock.events[0].name, `${pwefix}/testEvent`);
 
-		assert.strictEqual(appInsightsMock.events[0].properties!['window.title'], 'some title');
-		assert.strictEqual(appInsightsMock.events[0].measurements!['window.measurements.width'], 100);
-		assert.strictEqual(appInsightsMock.events[0].measurements!['window.measurements.height'], 200);
+		assewt.stwictEquaw(appInsightsMock.events[0].pwopewties!['window.titwe'], 'some titwe');
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['window.measuwements.width'], 100);
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['window.measuwements.height'], 200);
 
-		assert.strictEqual(appInsightsMock.events[0].properties!['nestedObj.nestedObj2.nestedObj3'], JSON.stringify({ 'testProperty': 'test' }));
-		assert.strictEqual(appInsightsMock.events[0].measurements!['nestedObj.testMeasurement'], 1);
+		assewt.stwictEquaw(appInsightsMock.events[0].pwopewties!['nestedObj.nestedObj2.nestedObj3'], JSON.stwingify({ 'testPwopewty': 'test' }));
+		assewt.stwictEquaw(appInsightsMock.events[0].measuwements!['nestedObj.testMeasuwement'], 1);
 	});
 
 });

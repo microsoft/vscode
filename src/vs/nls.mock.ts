@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ILocalizeInfo {
-	key: string;
-	comment: string[];
+expowt intewface IWocawizeInfo {
+	key: stwing;
+	comment: stwing[];
 }
 
-function _format(message: string, args: any[]): string {
-	let result: string;
-	if (args.length === 0) {
-		result = message;
-	} else {
-		result = message.replace(/\{(\d+)\}/g, function (match, rest) {
-			const index = rest[0];
-			return typeof args[index] !== 'undefined' ? args[index] : match;
+function _fowmat(message: stwing, awgs: any[]): stwing {
+	wet wesuwt: stwing;
+	if (awgs.wength === 0) {
+		wesuwt = message;
+	} ewse {
+		wesuwt = message.wepwace(/\{(\d+)\}/g, function (match, west) {
+			const index = west[0];
+			wetuwn typeof awgs[index] !== 'undefined' ? awgs[index] : match;
 		});
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export function localize(data: ILocalizeInfo | string, message: string, ...args: any[]): string {
-	return _format(message, args);
+expowt function wocawize(data: IWocawizeInfo | stwing, message: stwing, ...awgs: any[]): stwing {
+	wetuwn _fowmat(message, awgs);
 }

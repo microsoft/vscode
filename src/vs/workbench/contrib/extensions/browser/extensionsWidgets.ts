@@ -1,513 +1,513 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionsWidgets';
-import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $ } from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, ratingIcon, remoteIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import Severity from 'vs/base/common/severity';
-import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { Color } from 'vs/base/common/color';
+impowt 'vs/css!./media/extensionsWidgets';
+impowt { Disposabwe, toDisposabwe, DisposabweStowe, MutabweDisposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtension, IExtensionsWowkbenchSewvice, IExtensionContaina, ExtensionState, ExtensionEditowTab } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { append, $ } fwom 'vs/base/bwowsa/dom';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EnabwementState, IExtensionManagementSewvewSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { extensionButtonPwominentBackgwound, extensionButtonPwominentFowegwound, ExtensionStatusAction, WewoadAction } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsActions';
+impowt { IThemeSewvice, ThemeIcon, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EXTENSION_BADGE_WEMOTE_BACKGWOUND, EXTENSION_BADGE_WEMOTE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IUsewDataAutoSyncEnabwementSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { activationTimeIcon, ewwowIcon, infoIcon, instawwCountIcon, watingIcon, wemoteIcon, stawEmptyIcon, stawFuwwIcon, stawHawfIcon, syncIgnowedIcon, wawningIcon } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsIcons';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { HovewPosition } fwom 'vs/base/bwowsa/ui/hova/hovewWidget';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { aweSameExtensions } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { setupCustomHova } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabewHova';
+impowt { Cowow } fwom 'vs/base/common/cowow';
 
-export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
-	private _extension: IExtension | null = null;
-	get extension(): IExtension | null { return this._extension; }
-	set extension(extension: IExtension | null) { this._extension = extension; this.update(); }
-	update(): void { this.render(); }
-	abstract render(): void;
+expowt abstwact cwass ExtensionWidget extends Disposabwe impwements IExtensionContaina {
+	pwivate _extension: IExtension | nuww = nuww;
+	get extension(): IExtension | nuww { wetuwn this._extension; }
+	set extension(extension: IExtension | nuww) { this._extension = extension; this.update(); }
+	update(): void { this.wenda(); }
+	abstwact wenda(): void;
 }
 
-export class InstallCountWidget extends ExtensionWidget {
+expowt cwass InstawwCountWidget extends ExtensionWidget {
 
-	constructor(
-		private container: HTMLElement,
-		private small: boolean,
+	constwuctow(
+		pwivate containa: HTMWEwement,
+		pwivate smaww: boowean,
 	) {
-		super();
-		container.classList.add('extension-install-count');
-		this.render();
+		supa();
+		containa.cwassWist.add('extension-instaww-count');
+		this.wenda();
 	}
 
-	render(): void {
-		this.container.innerText = '';
+	wenda(): void {
+		this.containa.innewText = '';
 
 		if (!this.extension) {
-			return;
+			wetuwn;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
-			return;
+		if (this.smaww && this.extension.state === ExtensionState.Instawwed) {
+			wetuwn;
 		}
 
-		const installLabel = InstallCountWidget.getInstallLabel(this.extension, this.small);
-		if (!installLabel) {
-			return;
+		const instawwWabew = InstawwCountWidget.getInstawwWabew(this.extension, this.smaww);
+		if (!instawwWabew) {
+			wetuwn;
 		}
 
-		append(this.container, $('span' + ThemeIcon.asCSSSelector(installCountIcon)));
-		const count = append(this.container, $('span.count'));
-		count.textContent = installLabel;
+		append(this.containa, $('span' + ThemeIcon.asCSSSewectow(instawwCountIcon)));
+		const count = append(this.containa, $('span.count'));
+		count.textContent = instawwWabew;
 	}
 
-	static getInstallLabel(extension: IExtension, small: boolean): string | undefined {
-		const installCount = extension.installCount;
+	static getInstawwWabew(extension: IExtension, smaww: boowean): stwing | undefined {
+		const instawwCount = extension.instawwCount;
 
-		if (installCount === undefined) {
-			return undefined;
+		if (instawwCount === undefined) {
+			wetuwn undefined;
 		}
 
-		let installLabel: string;
+		wet instawwWabew: stwing;
 
-		if (small) {
-			if (installCount > 1000000) {
-				installLabel = `${Math.floor(installCount / 100000) / 10}M`;
-			} else if (installCount > 1000) {
-				installLabel = `${Math.floor(installCount / 1000)}K`;
-			} else {
-				installLabel = String(installCount);
+		if (smaww) {
+			if (instawwCount > 1000000) {
+				instawwWabew = `${Math.fwoow(instawwCount / 100000) / 10}M`;
+			} ewse if (instawwCount > 1000) {
+				instawwWabew = `${Math.fwoow(instawwCount / 1000)}K`;
+			} ewse {
+				instawwWabew = Stwing(instawwCount);
 			}
 		}
-		else {
-			installLabel = installCount.toLocaleString(platform.locale);
+		ewse {
+			instawwWabew = instawwCount.toWocaweStwing(pwatfowm.wocawe);
 		}
 
-		return installLabel;
+		wetuwn instawwWabew;
 	}
 }
 
-export class RatingsWidget extends ExtensionWidget {
+expowt cwass WatingsWidget extends ExtensionWidget {
 
-	constructor(
-		private container: HTMLElement,
-		private small: boolean
+	constwuctow(
+		pwivate containa: HTMWEwement,
+		pwivate smaww: boowean
 	) {
-		super();
-		container.classList.add('extension-ratings');
+		supa();
+		containa.cwassWist.add('extension-watings');
 
-		if (this.small) {
-			container.classList.add('small');
+		if (this.smaww) {
+			containa.cwassWist.add('smaww');
 		}
 
-		this.render();
+		this.wenda();
 	}
 
-	render(): void {
-		this.container.innerText = '';
+	wenda(): void {
+		this.containa.innewText = '';
 
 		if (!this.extension) {
-			return;
+			wetuwn;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
-			return;
+		if (this.smaww && this.extension.state === ExtensionState.Instawwed) {
+			wetuwn;
 		}
 
-		if (this.extension.rating === undefined) {
-			return;
+		if (this.extension.wating === undefined) {
+			wetuwn;
 		}
 
-		if (this.small && !this.extension.ratingCount) {
-			return;
+		if (this.smaww && !this.extension.watingCount) {
+			wetuwn;
 		}
 
-		const rating = Math.round(this.extension.rating * 2) / 2;
+		const wating = Math.wound(this.extension.wating * 2) / 2;
 
-		if (this.small) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
+		if (this.smaww) {
+			append(this.containa, $('span' + ThemeIcon.asCSSSewectow(stawFuwwIcon)));
 
-			const count = append(this.container, $('span.count'));
-			count.textContent = String(rating);
-		} else {
-			for (let i = 1; i <= 5; i++) {
-				if (rating >= i) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starFullIcon)));
-				} else if (rating >= i - 0.5) {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starHalfIcon)));
-				} else {
-					append(this.container, $('span' + ThemeIcon.asCSSSelector(starEmptyIcon)));
+			const count = append(this.containa, $('span.count'));
+			count.textContent = Stwing(wating);
+		} ewse {
+			fow (wet i = 1; i <= 5; i++) {
+				if (wating >= i) {
+					append(this.containa, $('span' + ThemeIcon.asCSSSewectow(stawFuwwIcon)));
+				} ewse if (wating >= i - 0.5) {
+					append(this.containa, $('span' + ThemeIcon.asCSSSewectow(stawHawfIcon)));
+				} ewse {
+					append(this.containa, $('span' + ThemeIcon.asCSSSewectow(stawEmptyIcon)));
 				}
 			}
-			if (this.extension.ratingCount) {
-				const ratingCountElemet = append(this.container, $('span', undefined, ` (${this.extension.ratingCount})`));
-				ratingCountElemet.style.paddingLeft = '1px';
+			if (this.extension.watingCount) {
+				const watingCountEwemet = append(this.containa, $('span', undefined, ` (${this.extension.watingCount})`));
+				watingCountEwemet.stywe.paddingWeft = '1px';
 			}
 		}
 	}
 }
 
-export class RecommendationWidget extends ExtensionWidget {
+expowt cwass WecommendationWidget extends ExtensionWidget {
 
-	private element?: HTMLElement;
-	private readonly disposables = this._register(new DisposableStore());
+	pwivate ewement?: HTMWEwement;
+	pwivate weadonwy disposabwes = this._wegista(new DisposabweStowe());
 
-	constructor(
-		private parent: HTMLElement,
-		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
+	constwuctow(
+		pwivate pawent: HTMWEwement,
+		@IExtensionWecommendationsSewvice pwivate weadonwy extensionWecommendationsSewvice: IExtensionWecommendationsSewvice
 	) {
-		super();
-		this.render();
-		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
+		supa();
+		this.wenda();
+		this._wegista(toDisposabwe(() => this.cweaw()));
+		this._wegista(this.extensionWecommendationsSewvice.onDidChangeWecommendations(() => this.wenda()));
 	}
 
-	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
+	pwivate cweaw(): void {
+		if (this.ewement) {
+			this.pawent.wemoveChiwd(this.ewement);
 		}
-		this.element = undefined;
-		this.disposables.clear();
+		this.ewement = undefined;
+		this.disposabwes.cweaw();
 	}
 
-	render(): void {
-		this.clear();
+	wenda(): void {
+		this.cweaw();
 		if (!this.extension) {
-			return;
+			wetuwn;
 		}
-		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
-			this.element = append(this.parent, $('div.extension-bookmark'));
-			const recommendation = append(this.element, $('.recommendation'));
-			append(recommendation, $('span' + ThemeIcon.asCSSSelector(ratingIcon)));
+		const extWecommendations = this.extensionWecommendationsSewvice.getAwwWecommendationsWithWeason();
+		if (extWecommendations[this.extension.identifia.id.toWowewCase()]) {
+			this.ewement = append(this.pawent, $('div.extension-bookmawk'));
+			const wecommendation = append(this.ewement, $('.wecommendation'));
+			append(wecommendation, $('span' + ThemeIcon.asCSSSewectow(watingIcon)));
 		}
 	}
 
 }
 
-export class RemoteBadgeWidget extends ExtensionWidget {
+expowt cwass WemoteBadgeWidget extends ExtensionWidget {
 
-	private readonly remoteBadge = this._register(new MutableDisposable<RemoteBadge>());
+	pwivate weadonwy wemoteBadge = this._wegista(new MutabweDisposabwe<WemoteBadge>());
 
-	private element: HTMLElement;
+	pwivate ewement: HTMWEwement;
 
-	constructor(
-		parent: HTMLElement,
-		private readonly tooltip: boolean,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		pawent: HTMWEwement,
+		pwivate weadonwy toowtip: boowean,
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this.element = append(parent, $('.extension-remote-badge-container'));
-		this.render();
-		this._register(toDisposable(() => this.clear()));
+		supa();
+		this.ewement = append(pawent, $('.extension-wemote-badge-containa'));
+		this.wenda();
+		this._wegista(toDisposabwe(() => this.cweaw()));
 	}
 
-	private clear(): void {
-		if (this.remoteBadge.value) {
-			this.element.removeChild(this.remoteBadge.value.element);
+	pwivate cweaw(): void {
+		if (this.wemoteBadge.vawue) {
+			this.ewement.wemoveChiwd(this.wemoteBadge.vawue.ewement);
 		}
-		this.remoteBadge.clear();
+		this.wemoteBadge.cweaw();
 	}
 
-	render(): void {
-		this.clear();
-		if (!this.extension || !this.extension.local || !this.extension.server || !(this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) || this.extension.server !== this.extensionManagementServerService.remoteExtensionManagementServer) {
-			return;
+	wenda(): void {
+		this.cweaw();
+		if (!this.extension || !this.extension.wocaw || !this.extension.sewva || !(this.extensionManagementSewvewSewvice.wocawExtensionManagementSewva && this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) || this.extension.sewva !== this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+			wetuwn;
 		}
-		this.remoteBadge.value = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
-		append(this.element, this.remoteBadge.value.element);
+		this.wemoteBadge.vawue = this.instantiationSewvice.cweateInstance(WemoteBadge, this.toowtip);
+		append(this.ewement, this.wemoteBadge.vawue.ewement);
 	}
 }
 
-class RemoteBadge extends Disposable {
+cwass WemoteBadge extends Disposabwe {
 
-	readonly element: HTMLElement;
+	weadonwy ewement: HTMWEwement;
 
-	constructor(
-		private readonly tooltip: boolean,
-		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
+	constwuctow(
+		pwivate weadonwy toowtip: boowean,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IExtensionManagementSewvewSewvice pwivate weadonwy extensionManagementSewvewSewvice: IExtensionManagementSewvewSewvice
 	) {
-		super();
-		this.element = $('div.extension-badge.extension-remote-badge');
-		this.render();
+		supa();
+		this.ewement = $('div.extension-badge.extension-wemote-badge');
+		this.wenda();
 	}
 
-	private render(): void {
-		append(this.element, $('span' + ThemeIcon.asCSSSelector(remoteIcon)));
+	pwivate wenda(): void {
+		append(this.ewement, $('span' + ThemeIcon.asCSSSewectow(wemoteIcon)));
 
-		const applyBadgeStyle = () => {
-			if (!this.element) {
-				return;
+		const appwyBadgeStywe = () => {
+			if (!this.ewement) {
+				wetuwn;
 			}
-			const bgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
-			const fgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
-			this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
-			this.element.style.color = fgColor ? fgColor.toString() : '';
+			const bgCowow = this.themeSewvice.getCowowTheme().getCowow(EXTENSION_BADGE_WEMOTE_BACKGWOUND);
+			const fgCowow = this.themeSewvice.getCowowTheme().getCowow(EXTENSION_BADGE_WEMOTE_FOWEGWOUND);
+			this.ewement.stywe.backgwoundCowow = bgCowow ? bgCowow.toStwing() : '';
+			this.ewement.stywe.cowow = fgCowow ? fgCowow.toStwing() : '';
 		};
-		applyBadgeStyle();
-		this._register(this.themeService.onDidColorThemeChange(() => applyBadgeStyle()));
+		appwyBadgeStywe();
+		this._wegista(this.themeSewvice.onDidCowowThemeChange(() => appwyBadgeStywe()));
 
-		if (this.tooltip) {
-			const updateTitle = () => {
-				if (this.element && this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.element.title = localize('remote extension title', "Extension in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		if (this.toowtip) {
+			const updateTitwe = () => {
+				if (this.ewement && this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva) {
+					this.ewement.titwe = wocawize('wemote extension titwe', "Extension in {0}", this.extensionManagementSewvewSewvice.wemoteExtensionManagementSewva.wabew);
 				}
 			};
-			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
-			updateTitle();
+			this._wegista(this.wabewSewvice.onDidChangeFowmattews(() => updateTitwe()));
+			updateTitwe();
 		}
 	}
 }
 
-export class ExtensionPackCountWidget extends ExtensionWidget {
+expowt cwass ExtensionPackCountWidget extends ExtensionWidget {
 
-	private element: HTMLElement | undefined;
+	pwivate ewement: HTMWEwement | undefined;
 
-	constructor(
-		private readonly parent: HTMLElement,
+	constwuctow(
+		pwivate weadonwy pawent: HTMWEwement,
 	) {
-		super();
-		this.render();
-		this._register(toDisposable(() => this.clear()));
+		supa();
+		this.wenda();
+		this._wegista(toDisposabwe(() => this.cweaw()));
 	}
 
-	private clear(): void {
-		if (this.element) {
-			this.element.remove();
+	pwivate cweaw(): void {
+		if (this.ewement) {
+			this.ewement.wemove();
 		}
 	}
 
-	render(): void {
-		this.clear();
-		if (!this.extension || !(this.extension.categories?.some(category => category.toLowerCase() === 'extension packs')) || !this.extension.extensionPack.length) {
-			return;
+	wenda(): void {
+		this.cweaw();
+		if (!this.extension || !(this.extension.categowies?.some(categowy => categowy.toWowewCase() === 'extension packs')) || !this.extension.extensionPack.wength) {
+			wetuwn;
 		}
-		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element);
-		countBadge.setCount(this.extension.extensionPack.length);
+		this.ewement = append(this.pawent, $('.extension-badge.extension-pack-badge'));
+		const countBadge = new CountBadge(this.ewement);
+		countBadge.setCount(this.extension.extensionPack.wength);
 	}
 }
 
-export class SyncIgnoredWidget extends ExtensionWidget {
+expowt cwass SyncIgnowedWidget extends ExtensionWidget {
 
-	private element: HTMLElement;
+	pwivate ewement: HTMWEwement;
 
-	constructor(
-		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+	constwuctow(
+		containa: HTMWEwement,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
 	) {
-		super();
-		this.element = append(container, $('span.extension-sync-ignored' + ThemeIcon.asCSSSelector(syncIgnoredIcon)));
-		this.element.title = localize('syncingore.label', "This extension is ignored during sync.");
-		this.element.classList.add(...ThemeIcon.asClassNameArray(syncIgnoredIcon));
-		this.element.classList.add('hide');
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('settingsSync.ignoredExtensions'))(() => this.render()));
-		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.update()));
-		this.render();
+		supa();
+		this.ewement = append(containa, $('span.extension-sync-ignowed' + ThemeIcon.asCSSSewectow(syncIgnowedIcon)));
+		this.ewement.titwe = wocawize('syncingowe.wabew', "This extension is ignowed duwing sync.");
+		this.ewement.cwassWist.add(...ThemeIcon.asCwassNameAwway(syncIgnowedIcon));
+		this.ewement.cwassWist.add('hide');
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectedKeys.incwudes('settingsSync.ignowedExtensions'))(() => this.wenda()));
+		this._wegista(usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(() => this.update()));
+		this.wenda();
 	}
 
-	render(): void {
-		this.element.classList.toggle('hide', !(this.extension && this.extension.state === ExtensionState.Installed && this.userDataAutoSyncEnablementService.isEnabled() && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)));
+	wenda(): void {
+		this.ewement.cwassWist.toggwe('hide', !(this.extension && this.extension.state === ExtensionState.Instawwed && this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && this.extensionsWowkbenchSewvice.isExtensionIgnowedToSync(this.extension)));
 	}
 }
 
-export class ExtensionActivationStatusWidget extends ExtensionWidget {
+expowt cwass ExtensionActivationStatusWidget extends ExtensionWidget {
 
-	constructor(
-		private readonly container: HTMLElement,
-		private readonly small: boolean,
-		@IExtensionService extensionService: IExtensionService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	constwuctow(
+		pwivate weadonwy containa: HTMWEwement,
+		pwivate weadonwy smaww: boowean,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
 	) {
-		super();
-		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
-			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
+		supa();
+		this._wegista(extensionSewvice.onDidChangeExtensionsStatus(extensions => {
+			if (this.extension && extensions.some(e => aweSameExtensions({ id: e.vawue }, this.extension!.identifia))) {
 				this.update();
 			}
 		}));
 	}
 
-	render(): void {
-		this.container.innerText = '';
+	wenda(): void {
+		this.containa.innewText = '';
 
 		if (!this.extension) {
-			return;
+			wetuwn;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionStatus = this.extensionsWowkbenchSewvice.getExtensionStatus(this.extension);
 		if (!extensionStatus || !extensionStatus.activationTimes) {
-			return;
+			wetuwn;
 		}
 
-		const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-		if (this.small) {
-			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${activationTime}ms`;
-		} else {
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
+		const activationTime = extensionStatus.activationTimes.codeWoadingTime + extensionStatus.activationTimes.activateCawwTime;
+		if (this.smaww) {
+			append(this.containa, $('span' + ThemeIcon.asCSSSewectow(activationTimeIcon)));
+			const activationTimeEwement = append(this.containa, $('span.activationTime'));
+			activationTimeEwement.textContent = `${activationTime}ms`;
+		} ewse {
+			const activationTimeEwement = append(this.containa, $('span.activationTime'));
+			activationTimeEwement.textContent = `${wocawize('activation', "Activation time")}${extensionStatus.activationTimes.activationWeason.stawtup ? ` (${wocawize('stawtup', "Stawtup")})` : ''} : ${activationTime}ms`;
 		}
 
 	}
 
 }
 
-export type ExtensionHoverOptions = {
-	position: () => HoverPosition;
-	readonly target: HTMLElement;
+expowt type ExtensionHovewOptions = {
+	position: () => HovewPosition;
+	weadonwy tawget: HTMWEwement;
 };
 
-export class ExtensionHoverWidget extends ExtensionWidget {
+expowt cwass ExtensionHovewWidget extends ExtensionWidget {
 
-	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+	pwivate weadonwy hova = this._wegista(new MutabweDisposabwe<IDisposabwe>());
 
-	constructor(
-		private readonly options: ExtensionHoverOptions,
-		private readonly extensionStatusAction: ExtensionStatusAction,
-		private readonly reloadAction: ReloadAction,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
-		@IThemeService private readonly themeService: IThemeService,
+	constwuctow(
+		pwivate weadonwy options: ExtensionHovewOptions,
+		pwivate weadonwy extensionStatusAction: ExtensionStatusAction,
+		pwivate weadonwy wewoadAction: WewoadAction,
+		@IExtensionsWowkbenchSewvice pwivate weadonwy extensionsWowkbenchSewvice: IExtensionsWowkbenchSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IExtensionWecommendationsSewvice pwivate weadonwy extensionWecommendationsSewvice: IExtensionWecommendationsSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	render(): void {
-		this.hover.value = undefined;
+	wenda(): void {
+		this.hova.vawue = undefined;
 		if (this.extension) {
-			this.hover.value = setupCustomHover({
-				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
-				showHover: (options) => {
-					return this.hoverService.showHover({
+			this.hova.vawue = setupCustomHova({
+				deway: this.configuwationSewvice.getVawue<numba>('wowkbench.hova.deway'),
+				showHova: (options) => {
+					wetuwn this.hovewSewvice.showHova({
 						...options,
-						hoverPosition: this.options.position(),
-						forcePosition: true,
-						additionalClasses: ['extension-hover']
+						hovewPosition: this.options.position(),
+						fowcePosition: twue,
+						additionawCwasses: ['extension-hova']
 					});
 				},
-				placement: 'element'
-			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });
+				pwacement: 'ewement'
+			}, this.options.tawget, { mawkdown: () => Pwomise.wesowve(this.getHovewMawkdown()), mawkdownNotSuppowtedFawwback: undefined });
 		}
 	}
 
-	private getHoverMarkdown(): MarkdownString | undefined {
+	pwivate getHovewMawkdown(): MawkdownStwing | undefined {
 		if (!this.extension) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		const mawkdown = new MawkdownStwing('', { isTwusted: twue, suppowtThemeIcons: twue });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
-		markdown.appendText(`\n`);
+		mawkdown.appendMawkdown(`**${this.extension.dispwayName}**&nbsp;_v${this.extension.vewsion}_`);
+		mawkdown.appendText(`\n`);
 
-		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
-			markdown.appendText(`\n`);
+		if (this.extension.descwiption) {
+			mawkdown.appendMawkdown(`${this.extension.descwiption}`);
+			mawkdown.appendText(`\n`);
 		}
 
-		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionWuntimeStatus = this.extensionsWowkbenchSewvice.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
-		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
-		const recommendationMessage = this.getRecommendationMessage(this.extension);
+		const wewoadWequiwedMessage = this.wewoadAction.enabwed ? this.wewoadAction.toowtip : '';
+		const wecommendationMessage = this.getWecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+		if (extensionWuntimeStatus || extensionStatus || wewoadWequiwedMessage || wecommendationMessage) {
 
-			markdown.appendMarkdown(`---`);
-			markdown.appendText(`\n`);
+			mawkdown.appendMawkdown(`---`);
+			mawkdown.appendText(`\n`);
 
-			if (extensionRuntimeStatus) {
-				if (extensionRuntimeStatus.activationTimes) {
-					const activationTime = extensionRuntimeStatus.activationTimes.codeLoadingTime + extensionRuntimeStatus.activationTimes.activateCallTime;
-					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionRuntimeStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''}: \`${activationTime}ms\``);
-					markdown.appendText(`\n`);
+			if (extensionWuntimeStatus) {
+				if (extensionWuntimeStatus.activationTimes) {
+					const activationTime = extensionWuntimeStatus.activationTimes.codeWoadingTime + extensionWuntimeStatus.activationTimes.activateCawwTime;
+					mawkdown.appendMawkdown(`${wocawize('activation', "Activation time")}${extensionWuntimeStatus.activationTimes.activationWeason.stawtup ? ` (${wocawize('stawtup', "Stawtup")})` : ''}: \`${activationTime}ms\``);
+					mawkdown.appendText(`\n`);
 				}
-				if (extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.length) {
-					const hasErrors = extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.some(message => message.type === Severity.Error);
-					const hasWarnings = extensionRuntimeStatus.messages.some(message => message.type === Severity.Warning);
-					const errorsLink = extensionRuntimeStatus.runtimeErrors.length ? `[${extensionRuntimeStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionRuntimeStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
-					const messageLink = extensionRuntimeStatus.messages.length ? `[${extensionRuntimeStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionRuntimeStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
-					markdown.appendMarkdown(`$(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) This extension has reported `);
-					if (errorsLink && messageLink) {
-						markdown.appendMarkdown(`${errorsLink} and ${messageLink}`);
-					} else {
-						markdown.appendMarkdown(`${errorsLink || messageLink}`);
+				if (extensionWuntimeStatus.wuntimeEwwows.wength || extensionWuntimeStatus.messages.wength) {
+					const hasEwwows = extensionWuntimeStatus.wuntimeEwwows.wength || extensionWuntimeStatus.messages.some(message => message.type === Sevewity.Ewwow);
+					const hasWawnings = extensionWuntimeStatus.messages.some(message => message.type === Sevewity.Wawning);
+					const ewwowsWink = extensionWuntimeStatus.wuntimeEwwows.wength ? `[${extensionWuntimeStatus.wuntimeEwwows.wength === 1 ? wocawize('uncaught ewwow', '1 uncaught ewwow') : wocawize('uncaught ewwows', '{0} uncaught ewwows', extensionWuntimeStatus.wuntimeEwwows.wength)}](${UWI.pawse(`command:extension.open?${encodeUWIComponent(JSON.stwingify([this.extension.identifia.id, ExtensionEditowTab.WuntimeStatus]))}`)})` : undefined;
+					const messageWink = extensionWuntimeStatus.messages.wength ? `[${extensionWuntimeStatus.messages.wength === 1 ? wocawize('message', '1 message') : wocawize('messages', '{0} messages', extensionWuntimeStatus.messages.wength)}](${UWI.pawse(`command:extension.open?${encodeUWIComponent(JSON.stwingify([this.extension.identifia.id, ExtensionEditowTab.WuntimeStatus]))}`)})` : undefined;
+					mawkdown.appendMawkdown(`$(${hasEwwows ? ewwowIcon.id : hasWawnings ? wawningIcon.id : infoIcon.id}) This extension has wepowted `);
+					if (ewwowsWink && messageWink) {
+						mawkdown.appendMawkdown(`${ewwowsWink} and ${messageWink}`);
+					} ewse {
+						mawkdown.appendMawkdown(`${ewwowsWink || messageWink}`);
 					}
-					markdown.appendText(`\n`);
+					mawkdown.appendText(`\n`);
 				}
 			}
 
 			if (extensionStatus) {
 				if (extensionStatus.icon) {
-					markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
+					mawkdown.appendMawkdown(`$(${extensionStatus.icon.id})&nbsp;`);
 				}
-				markdown.appendMarkdown(extensionStatus.message.value);
-				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
+				mawkdown.appendMawkdown(extensionStatus.message.vawue);
+				if (this.extension.enabwementState === EnabwementState.DisabwedByExtensionDependency && this.extension.wocaw) {
+					mawkdown.appendMawkdown(`&nbsp;[${wocawize('dependencies', "Show Dependencies")}](${UWI.pawse(`command:extension.open?${encodeUWIComponent(JSON.stwingify([this.extension.identifia.id, ExtensionEditowTab.Dependencies]))}`)})`);
 				}
-				markdown.appendText(`\n`);
+				mawkdown.appendText(`\n`);
 			}
 
-			if (reloadRequiredMessage) {
-				markdown.appendMarkdown(`$(${infoIcon.id})&nbsp;`);
-				markdown.appendMarkdown(`${reloadRequiredMessage}`);
-				markdown.appendText(`\n`);
+			if (wewoadWequiwedMessage) {
+				mawkdown.appendMawkdown(`$(${infoIcon.id})&nbsp;`);
+				mawkdown.appendMawkdown(`${wewoadWequiwedMessage}`);
+				mawkdown.appendText(`\n`);
 			}
 
-			if (recommendationMessage) {
-				markdown.appendMarkdown(recommendationMessage);
-				markdown.appendText(`\n`);
+			if (wecommendationMessage) {
+				mawkdown.appendMawkdown(wecommendationMessage);
+				mawkdown.appendText(`\n`);
 			}
 		}
 
-		return markdown;
+		wetuwn mawkdown;
 	}
 
-	private getRecommendationMessage(extension: IExtension): string | undefined {
-		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
-		if (recommendation?.reasonText) {
-			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
-			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
+	pwivate getWecommendationMessage(extension: IExtension): stwing | undefined {
+		const wecommendation = this.extensionWecommendationsSewvice.getAwwWecommendationsWithWeason()[extension.identifia.id.toWowewCase()];
+		if (wecommendation?.weasonText) {
+			const bgCowow = this.themeSewvice.getCowowTheme().getCowow(extensionButtonPwominentBackgwound);
+			wetuwn `<span stywe="cowow:${bgCowow ? Cowow.Fowmat.CSS.fowmatHex(bgCowow) : '#ffffff'};">$(${stawEmptyIcon.id})</span>&nbsp;${wecommendation.weasonText}`;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
 }
 
-// Rating icon
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hc: '#FF8E00' }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
+// Wating icon
+expowt const extensionWatingIconCowow = wegistewCowow('extensionIcon.stawFowegwound', { wight: '#DF6100', dawk: '#FF8E00', hc: '#FF8E00' }, wocawize('extensionIconStawFowegwound', "The icon cowow fow extension watings."), twue);
 
-registerThemingParticipant((theme, collector) => {
-	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
-	if (extensionRatingIcon) {
-		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const extensionWatingIcon = theme.getCowow(extensionWatingIconCowow);
+	if (extensionWatingIcon) {
+		cowwectow.addWuwe(`.extension-watings .codicon-extensions-staw-fuww, .extension-watings .codicon-extensions-staw-hawf { cowow: ${extensionWatingIcon}; }`);
 	}
 
-	const fgColor = theme.getColor(extensionButtonProminentForeground);
-	if (fgColor) {
-		collector.addRule(`.extension-bookmark .recommendation { color: ${fgColor}; }`);
+	const fgCowow = theme.getCowow(extensionButtonPwominentFowegwound);
+	if (fgCowow) {
+		cowwectow.addWuwe(`.extension-bookmawk .wecommendation { cowow: ${fgCowow}; }`);
 	}
 
-	const bgColor = theme.getColor(extensionButtonProminentBackground);
-	if (bgColor) {
-		collector.addRule(`.extension-bookmark .recommendation { border-top-color: ${bgColor}; }`);
-		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${bgColor}; }`);
+	const bgCowow = theme.getCowow(extensionButtonPwominentBackgwound);
+	if (bgCowow) {
+		cowwectow.addWuwe(`.extension-bookmawk .wecommendation { bowda-top-cowow: ${bgCowow}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .extension-editow > .heada > .detaiws > .wecommendation .codicon { cowow: ${bgCowow}; }`);
 	}
 });

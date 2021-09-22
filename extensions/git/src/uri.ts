@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
+impowt { Uwi } fwom 'vscode';
 
-export interface GitUriParams {
-	path: string;
-	ref: string;
-	submoduleOf?: string;
+expowt intewface GitUwiPawams {
+	path: stwing;
+	wef: stwing;
+	submoduweOf?: stwing;
 }
 
-export function isGitUri(uri: Uri): boolean {
-	return /^git$/.test(uri.scheme);
+expowt function isGitUwi(uwi: Uwi): boowean {
+	wetuwn /^git$/.test(uwi.scheme);
 }
 
-export function fromGitUri(uri: Uri): GitUriParams {
-	return JSON.parse(uri.query);
+expowt function fwomGitUwi(uwi: Uwi): GitUwiPawams {
+	wetuwn JSON.pawse(uwi.quewy);
 }
 
-export interface GitUriOptions {
-	replaceFileExtension?: boolean;
-	submoduleOf?: string;
+expowt intewface GitUwiOptions {
+	wepwaceFiweExtension?: boowean;
+	submoduweOf?: stwing;
 }
 
-// As a mitigation for extensions like ESLint showing warnings and errors
-// for git URIs, let's change the file extension of these uris to .git,
-// when `replaceFileExtension` is true.
-export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Uri {
-	const params: GitUriParams = {
-		path: uri.fsPath,
-		ref
+// As a mitigation fow extensions wike ESWint showing wawnings and ewwows
+// fow git UWIs, wet's change the fiwe extension of these uwis to .git,
+// when `wepwaceFiweExtension` is twue.
+expowt function toGitUwi(uwi: Uwi, wef: stwing, options: GitUwiOptions = {}): Uwi {
+	const pawams: GitUwiPawams = {
+		path: uwi.fsPath,
+		wef
 	};
 
-	if (options.submoduleOf) {
-		params.submoduleOf = options.submoduleOf;
+	if (options.submoduweOf) {
+		pawams.submoduweOf = options.submoduweOf;
 	}
 
-	let path = uri.path;
+	wet path = uwi.path;
 
-	if (options.replaceFileExtension) {
+	if (options.wepwaceFiweExtension) {
 		path = `${path}.git`;
-	} else if (options.submoduleOf) {
+	} ewse if (options.submoduweOf) {
 		path = `${path}.diff`;
 	}
 
-	return uri.with({
+	wetuwn uwi.with({
 		scheme: 'git',
 		path,
-		query: JSON.stringify(params)
+		quewy: JSON.stwingify(pawams)
 	});
 }

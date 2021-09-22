@@ -1,569 +1,569 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists, realpath } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as cp from 'child_process';
-import * as which from 'which';
-import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
-import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
-import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
-import * as byline from 'byline';
-import { StringDecoder } from 'string_decoder';
+impowt { pwomises as fs, exists, weawpath } fwom 'fs';
+impowt * as path fwom 'path';
+impowt * as os fwom 'os';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as which fwom 'which';
+impowt { EventEmitta } fwom 'events';
+impowt * as iconv fwom 'iconv-wite-umd';
+impowt * as fiwetype fwom 'fiwe-type';
+impowt { assign, gwoupBy, IDisposabwe, toDisposabwe, dispose, mkdiwp, weadBytes, detectUnicodeEncoding, Encoding, onceEvent, spwitInChunks, Wimita, Vewsions } fwom './utiw';
+impowt { CancewwationToken, Pwogwess, Uwi } fwom 'vscode';
+impowt { detectEncoding } fwom './encoding';
+impowt { Wef, WefType, Bwanch, Wemote, FowcePushMode, GitEwwowCodes, WogOptions, Change, Status, CommitOptions, BwanchQuewy } fwom './api/git';
+impowt * as bywine fwom 'bywine';
+impowt { StwingDecoda } fwom 'stwing_decoda';
 
-// https://github.com/microsoft/vscode/issues/65693
-const MAX_CLI_LENGTH = 30000;
-const isWindows = process.platform === 'win32';
+// https://github.com/micwosoft/vscode/issues/65693
+const MAX_CWI_WENGTH = 30000;
+const isWindows = pwocess.pwatfowm === 'win32';
 
-export interface IGit {
-	path: string;
-	version: string;
+expowt intewface IGit {
+	path: stwing;
+	vewsion: stwing;
 }
 
-export interface IFileStatus {
-	x: string;
-	y: string;
-	path: string;
-	rename?: string;
+expowt intewface IFiweStatus {
+	x: stwing;
+	y: stwing;
+	path: stwing;
+	wename?: stwing;
 }
 
-export interface Stash {
-	index: number;
-	description: string;
+expowt intewface Stash {
+	index: numba;
+	descwiption: stwing;
 }
 
-interface MutableRemote extends Remote {
-	fetchUrl?: string;
-	pushUrl?: string;
-	isReadOnly: boolean;
+intewface MutabweWemote extends Wemote {
+	fetchUww?: stwing;
+	pushUww?: stwing;
+	isWeadOnwy: boowean;
 }
 
-// TODO@eamodio: Move to git.d.ts once we are good with the api
+// TODO@eamodio: Move to git.d.ts once we awe good with the api
 /**
- * Log file options.
+ * Wog fiwe options.
  */
-export interface LogFileOptions {
-	/** Optional. The maximum number of log entries to retrieve. */
-	readonly maxEntries?: number | string;
-	/** Optional. The Git sha (hash) to start retrieving log entries from. */
-	readonly hash?: string;
-	/** Optional. Specifies whether to start retrieving log entries in reverse order. */
-	readonly reverse?: boolean;
-	readonly sortByAuthorDate?: boolean;
+expowt intewface WogFiweOptions {
+	/** Optionaw. The maximum numba of wog entwies to wetwieve. */
+	weadonwy maxEntwies?: numba | stwing;
+	/** Optionaw. The Git sha (hash) to stawt wetwieving wog entwies fwom. */
+	weadonwy hash?: stwing;
+	/** Optionaw. Specifies whetha to stawt wetwieving wog entwies in wevewse owda. */
+	weadonwy wevewse?: boowean;
+	weadonwy sowtByAuthowDate?: boowean;
 }
 
-function parseVersion(raw: string): string {
-	return raw.replace(/^git version /, '');
+function pawseVewsion(waw: stwing): stwing {
+	wetuwn waw.wepwace(/^git vewsion /, '');
 }
 
-function findSpecificGit(path: string, onValidate: (path: string) => boolean): Promise<IGit> {
-	return new Promise<IGit>((c, e) => {
-		if (!onValidate(path)) {
-			return e('git not found');
+function findSpecificGit(path: stwing, onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
+	wetuwn new Pwomise<IGit>((c, e) => {
+		if (!onVawidate(path)) {
+			wetuwn e('git not found');
 		}
 
-		const buffers: Buffer[] = [];
-		const child = cp.spawn(path, ['--version']);
-		child.stdout.on('data', (b: Buffer) => buffers.push(b));
-		child.on('error', cpErrorHandler(e));
-		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
+		const buffews: Buffa[] = [];
+		const chiwd = cp.spawn(path, ['--vewsion']);
+		chiwd.stdout.on('data', (b: Buffa) => buffews.push(b));
+		chiwd.on('ewwow', cpEwwowHandwa(e));
+		chiwd.on('exit', code => code ? e(new Ewwow('Not found')) : c({ path, vewsion: pawseVewsion(Buffa.concat(buffews).toStwing('utf8').twim()) }));
 	});
 }
 
-function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
-	return new Promise<IGit>((c, e) => {
-		cp.exec('which git', (err, gitPathBuffer) => {
-			if (err) {
-				return e('git not found');
+function findGitDawwin(onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
+	wetuwn new Pwomise<IGit>((c, e) => {
+		cp.exec('which git', (eww, gitPathBuffa) => {
+			if (eww) {
+				wetuwn e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffa.toStwing().wepwace(/^\s+|\s+$/g, '');
 
-			function getVersion(path: string) {
-				if (!onValidate(path)) {
-					return e('git not found');
+			function getVewsion(path: stwing) {
+				if (!onVawidate(path)) {
+					wetuwn e('git not found');
 				}
 
-				// make sure git executes
-				cp.exec('git --version', (err, stdout) => {
+				// make suwe git executes
+				cp.exec('git --vewsion', (eww, stdout) => {
 
-					if (err) {
-						return e('git not found');
+					if (eww) {
+						wetuwn e('git not found');
 					}
 
-					return c({ path, version: parseVersion(stdout.trim()) });
+					wetuwn c({ path, vewsion: pawseVewsion(stdout.twim()) });
 				});
 			}
 
-			if (path !== '/usr/bin/git') {
-				return getVersion(path);
+			if (path !== '/usw/bin/git') {
+				wetuwn getVewsion(path);
 			}
 
-			// must check if XCode is installed
-			cp.exec('xcode-select -p', (err: any) => {
-				if (err && err.code === 2) {
-					// git is not installed, and launching /usr/bin/git
-					// will prompt the user to install it
+			// must check if XCode is instawwed
+			cp.exec('xcode-sewect -p', (eww: any) => {
+				if (eww && eww.code === 2) {
+					// git is not instawwed, and waunching /usw/bin/git
+					// wiww pwompt the usa to instaww it
 
-					return e('git not found');
+					wetuwn e('git not found');
 				}
 
-				getVersion(path);
+				getVewsion(path);
 			});
 		});
 	});
 }
 
-function findSystemGitWin32(base: string, onValidate: (path: string) => boolean): Promise<IGit> {
+function findSystemGitWin32(base: stwing, onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
 	if (!base) {
-		return Promise.reject<IGit>('Not found');
+		wetuwn Pwomise.weject<IGit>('Not found');
 	}
 
-	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onValidate);
+	wetuwn findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onVawidate);
 }
 
-function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
-	const whichPromise = new Promise<string>((c, e) => which('git.exe', (err, path) => err ? e(err) : c(path)));
-	return whichPromise.then(path => findSpecificGit(path, onValidate));
+function findGitWin32InPath(onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
+	const whichPwomise = new Pwomise<stwing>((c, e) => which('git.exe', (eww, path) => eww ? e(eww) : c(path)));
+	wetuwn whichPwomise.then(path => findSpecificGit(path, onVawidate));
 }
 
-function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'] as string, onValidate)
-		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onValidate))
-		.then(undefined, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onValidate))
-		.then(undefined, () => findSystemGitWin32(path.join(process.env['LocalAppData'] as string, 'Programs'), onValidate))
-		.then(undefined, () => findGitWin32InPath(onValidate));
+function findGitWin32(onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
+	wetuwn findSystemGitWin32(pwocess.env['PwogwamW6432'] as stwing, onVawidate)
+		.then(undefined, () => findSystemGitWin32(pwocess.env['PwogwamFiwes(x86)'] as stwing, onVawidate))
+		.then(undefined, () => findSystemGitWin32(pwocess.env['PwogwamFiwes'] as stwing, onVawidate))
+		.then(undefined, () => findSystemGitWin32(path.join(pwocess.env['WocawAppData'] as stwing, 'Pwogwams'), onVawidate))
+		.then(undefined, () => findGitWin32InPath(onVawidate));
 }
 
-export async function findGit(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
-	for (const hint of hints) {
-		try {
-			return await findSpecificGit(hint, onValidate);
+expowt async function findGit(hints: stwing[], onVawidate: (path: stwing) => boowean): Pwomise<IGit> {
+	fow (const hint of hints) {
+		twy {
+			wetuwn await findSpecificGit(hint, onVawidate);
 		} catch {
 			// noop
 		}
 	}
 
-	try {
-		switch (process.platform) {
-			case 'darwin': return await findGitDarwin(onValidate);
-			case 'win32': return await findGitWin32(onValidate);
-			default: return await findSpecificGit('git', onValidate);
+	twy {
+		switch (pwocess.pwatfowm) {
+			case 'dawwin': wetuwn await findGitDawwin(onVawidate);
+			case 'win32': wetuwn await findGitWin32(onVawidate);
+			defauwt: wetuwn await findSpecificGit('git', onVawidate);
 		}
 	} catch {
 		// noop
 	}
 
-	throw new Error('Git installation not found.');
+	thwow new Ewwow('Git instawwation not found.');
 }
 
-export interface IExecutionResult<T extends string | Buffer> {
-	exitCode: number;
+expowt intewface IExecutionWesuwt<T extends stwing | Buffa> {
+	exitCode: numba;
 	stdout: T;
-	stderr: string;
+	stdeww: stwing;
 }
 
-function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
-	return err => {
-		if (/ENOENT/.test(err.message)) {
-			err = new GitError({
-				error: err,
-				message: 'Failed to execute git (ENOENT)',
-				gitErrorCode: GitErrorCodes.NotAGitRepository
+function cpEwwowHandwa(cb: (weason?: any) => void): (weason?: any) => void {
+	wetuwn eww => {
+		if (/ENOENT/.test(eww.message)) {
+			eww = new GitEwwow({
+				ewwow: eww,
+				message: 'Faiwed to execute git (ENOENT)',
+				gitEwwowCode: GitEwwowCodes.NotAGitWepositowy
 			});
 		}
 
-		cb(err);
+		cb(eww);
 	};
 }
 
-export interface SpawnOptions extends cp.SpawnOptions {
-	input?: string;
-	encoding?: string;
-	log?: boolean;
-	cancellationToken?: CancellationToken;
-	onSpawn?: (childProcess: cp.ChildProcess) => void;
+expowt intewface SpawnOptions extends cp.SpawnOptions {
+	input?: stwing;
+	encoding?: stwing;
+	wog?: boowean;
+	cancewwationToken?: CancewwationToken;
+	onSpawn?: (chiwdPwocess: cp.ChiwdPwocess) => void;
 }
 
-async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
-	if (!child.stdout || !child.stderr) {
-		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
+async function exec(chiwd: cp.ChiwdPwocess, cancewwationToken?: CancewwationToken): Pwomise<IExecutionWesuwt<Buffa>> {
+	if (!chiwd.stdout || !chiwd.stdeww) {
+		thwow new GitEwwow({ message: 'Faiwed to get stdout ow stdeww fwom git pwocess.' });
 	}
 
-	if (cancellationToken && cancellationToken.isCancellationRequested) {
-		throw new GitError({ message: 'Cancelled' });
+	if (cancewwationToken && cancewwationToken.isCancewwationWequested) {
+		thwow new GitEwwow({ message: 'Cancewwed' });
 	}
 
-	const disposables: IDisposable[] = [];
+	const disposabwes: IDisposabwe[] = [];
 
-	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
+	const once = (ee: NodeJS.EventEmitta, name: stwing, fn: (...awgs: any[]) => void) => {
 		ee.once(name, fn);
-		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
+		disposabwes.push(toDisposabwe(() => ee.wemoveWistena(name, fn)));
 	};
 
-	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
+	const on = (ee: NodeJS.EventEmitta, name: stwing, fn: (...awgs: any[]) => void) => {
 		ee.on(name, fn);
-		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
+		disposabwes.push(toDisposabwe(() => ee.wemoveWistena(name, fn)));
 	};
 
-	let result = Promise.all<any>([
-		new Promise<number>((c, e) => {
-			once(child, 'error', cpErrorHandler(e));
-			once(child, 'exit', c);
+	wet wesuwt = Pwomise.aww<any>([
+		new Pwomise<numba>((c, e) => {
+			once(chiwd, 'ewwow', cpEwwowHandwa(e));
+			once(chiwd, 'exit', c);
 		}),
-		new Promise<Buffer>(c => {
-			const buffers: Buffer[] = [];
-			on(child.stdout!, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stdout!, 'close', () => c(Buffer.concat(buffers)));
+		new Pwomise<Buffa>(c => {
+			const buffews: Buffa[] = [];
+			on(chiwd.stdout!, 'data', (b: Buffa) => buffews.push(b));
+			once(chiwd.stdout!, 'cwose', () => c(Buffa.concat(buffews)));
 		}),
-		new Promise<string>(c => {
-			const buffers: Buffer[] = [];
-			on(child.stderr!, 'data', (b: Buffer) => buffers.push(b));
-			once(child.stderr!, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
+		new Pwomise<stwing>(c => {
+			const buffews: Buffa[] = [];
+			on(chiwd.stdeww!, 'data', (b: Buffa) => buffews.push(b));
+			once(chiwd.stdeww!, 'cwose', () => c(Buffa.concat(buffews).toStwing('utf8')));
 		})
-	]) as Promise<[number, Buffer, string]>;
+	]) as Pwomise<[numba, Buffa, stwing]>;
 
-	if (cancellationToken) {
-		const cancellationPromise = new Promise<[number, Buffer, string]>((_, e) => {
-			onceEvent(cancellationToken.onCancellationRequested)(() => {
-				try {
-					child.kill();
-				} catch (err) {
+	if (cancewwationToken) {
+		const cancewwationPwomise = new Pwomise<[numba, Buffa, stwing]>((_, e) => {
+			onceEvent(cancewwationToken.onCancewwationWequested)(() => {
+				twy {
+					chiwd.kiww();
+				} catch (eww) {
 					// noop
 				}
 
-				e(new GitError({ message: 'Cancelled' }));
+				e(new GitEwwow({ message: 'Cancewwed' }));
 			});
 		});
 
-		result = Promise.race([result, cancellationPromise]);
+		wesuwt = Pwomise.wace([wesuwt, cancewwationPwomise]);
 	}
 
-	try {
-		const [exitCode, stdout, stderr] = await result;
-		return { exitCode, stdout, stderr };
-	} finally {
-		dispose(disposables);
+	twy {
+		const [exitCode, stdout, stdeww] = await wesuwt;
+		wetuwn { exitCode, stdout, stdeww };
+	} finawwy {
+		dispose(disposabwes);
 	}
 }
 
-export interface IGitErrorData {
-	error?: Error;
-	message?: string;
-	stdout?: string;
-	stderr?: string;
-	exitCode?: number;
-	gitErrorCode?: string;
-	gitCommand?: string;
-	gitArgs?: string[];
+expowt intewface IGitEwwowData {
+	ewwow?: Ewwow;
+	message?: stwing;
+	stdout?: stwing;
+	stdeww?: stwing;
+	exitCode?: numba;
+	gitEwwowCode?: stwing;
+	gitCommand?: stwing;
+	gitAwgs?: stwing[];
 }
 
-export class GitError {
+expowt cwass GitEwwow {
 
-	error?: Error;
-	message: string;
-	stdout?: string;
-	stderr?: string;
-	exitCode?: number;
-	gitErrorCode?: string;
-	gitCommand?: string;
-	gitArgs?: string[];
+	ewwow?: Ewwow;
+	message: stwing;
+	stdout?: stwing;
+	stdeww?: stwing;
+	exitCode?: numba;
+	gitEwwowCode?: stwing;
+	gitCommand?: stwing;
+	gitAwgs?: stwing[];
 
-	constructor(data: IGitErrorData) {
-		if (data.error) {
-			this.error = data.error;
-			this.message = data.error.message;
-		} else {
-			this.error = undefined;
+	constwuctow(data: IGitEwwowData) {
+		if (data.ewwow) {
+			this.ewwow = data.ewwow;
+			this.message = data.ewwow.message;
+		} ewse {
+			this.ewwow = undefined;
 			this.message = '';
 		}
 
-		this.message = this.message || data.message || 'Git error';
+		this.message = this.message || data.message || 'Git ewwow';
 		this.stdout = data.stdout;
-		this.stderr = data.stderr;
+		this.stdeww = data.stdeww;
 		this.exitCode = data.exitCode;
-		this.gitErrorCode = data.gitErrorCode;
+		this.gitEwwowCode = data.gitEwwowCode;
 		this.gitCommand = data.gitCommand;
-		this.gitArgs = data.gitArgs;
+		this.gitAwgs = data.gitAwgs;
 	}
 
-	toString(): string {
-		let result = this.message + ' ' + JSON.stringify({
+	toStwing(): stwing {
+		wet wesuwt = this.message + ' ' + JSON.stwingify({
 			exitCode: this.exitCode,
-			gitErrorCode: this.gitErrorCode,
+			gitEwwowCode: this.gitEwwowCode,
 			gitCommand: this.gitCommand,
 			stdout: this.stdout,
-			stderr: this.stderr
-		}, null, 2);
+			stdeww: this.stdeww
+		}, nuww, 2);
 
-		if (this.error) {
-			result += (<any>this.error).stack;
+		if (this.ewwow) {
+			wesuwt += (<any>this.ewwow).stack;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export interface IGitOptions {
-	gitPath: string;
-	userAgent: string;
-	version: string;
+expowt intewface IGitOptions {
+	gitPath: stwing;
+	usewAgent: stwing;
+	vewsion: stwing;
 	env?: any;
 }
 
-function getGitErrorCode(stderr: string): string | undefined {
-	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
-		return GitErrorCodes.RepositoryIsLocked;
-	} else if (/Authentication failed/i.test(stderr)) {
-		return GitErrorCodes.AuthenticationFailed;
-	} else if (/Not a git repository/i.test(stderr)) {
-		return GitErrorCodes.NotAGitRepository;
-	} else if (/bad config file/.test(stderr)) {
-		return GitErrorCodes.BadConfigFile;
-	} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(stderr)) {
-		return GitErrorCodes.CantCreatePipe;
-	} else if (/Repository not found/.test(stderr)) {
-		return GitErrorCodes.RepositoryNotFound;
-	} else if (/unable to access/.test(stderr)) {
-		return GitErrorCodes.CantAccessRemote;
-	} else if (/branch '.+' is not fully merged/.test(stderr)) {
-		return GitErrorCodes.BranchNotFullyMerged;
-	} else if (/Couldn\'t find remote ref/.test(stderr)) {
-		return GitErrorCodes.NoRemoteReference;
-	} else if (/A branch named '.+' already exists/.test(stderr)) {
-		return GitErrorCodes.BranchAlreadyExists;
-	} else if (/'.+' is not a valid branch name/.test(stderr)) {
-		return GitErrorCodes.InvalidBranchName;
-	} else if (/Please,? commit your changes or stash them/.test(stderr)) {
-		return GitErrorCodes.DirtyWorkTree;
+function getGitEwwowCode(stdeww: stwing): stwing | undefined {
+	if (/Anotha git pwocess seems to be wunning in this wepositowy|If no otha git pwocess is cuwwentwy wunning/.test(stdeww)) {
+		wetuwn GitEwwowCodes.WepositowyIsWocked;
+	} ewse if (/Authentication faiwed/i.test(stdeww)) {
+		wetuwn GitEwwowCodes.AuthenticationFaiwed;
+	} ewse if (/Not a git wepositowy/i.test(stdeww)) {
+		wetuwn GitEwwowCodes.NotAGitWepositowy;
+	} ewse if (/bad config fiwe/.test(stdeww)) {
+		wetuwn GitEwwowCodes.BadConfigFiwe;
+	} ewse if (/cannot make pipe fow command substitution|cannot cweate standawd input pipe/.test(stdeww)) {
+		wetuwn GitEwwowCodes.CantCweatePipe;
+	} ewse if (/Wepositowy not found/.test(stdeww)) {
+		wetuwn GitEwwowCodes.WepositowyNotFound;
+	} ewse if (/unabwe to access/.test(stdeww)) {
+		wetuwn GitEwwowCodes.CantAccessWemote;
+	} ewse if (/bwanch '.+' is not fuwwy mewged/.test(stdeww)) {
+		wetuwn GitEwwowCodes.BwanchNotFuwwyMewged;
+	} ewse if (/Couwdn\'t find wemote wef/.test(stdeww)) {
+		wetuwn GitEwwowCodes.NoWemoteWefewence;
+	} ewse if (/A bwanch named '.+' awweady exists/.test(stdeww)) {
+		wetuwn GitEwwowCodes.BwanchAwweadyExists;
+	} ewse if (/'.+' is not a vawid bwanch name/.test(stdeww)) {
+		wetuwn GitEwwowCodes.InvawidBwanchName;
+	} ewse if (/Pwease,? commit youw changes ow stash them/.test(stdeww)) {
+		wetuwn GitEwwowCodes.DiwtyWowkTwee;
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-// https://github.com/microsoft/vscode/issues/89373
-// https://github.com/git-for-windows/git/issues/2478
-function sanitizePath(path: string): string {
-	return path.replace(/^([a-z]):\\/i, (_, letter) => `${letter.toUpperCase()}:\\`);
+// https://github.com/micwosoft/vscode/issues/89373
+// https://github.com/git-fow-windows/git/issues/2478
+function sanitizePath(path: stwing): stwing {
+	wetuwn path.wepwace(/^([a-z]):\\/i, (_, wetta) => `${wetta.toUppewCase()}:\\`);
 }
 
-const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
+const COMMIT_FOWMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%B';
 
-export interface ICloneOptions {
-	readonly parentPath: string;
-	readonly progress: Progress<{ increment: number }>;
-	readonly recursive?: boolean;
+expowt intewface ICwoneOptions {
+	weadonwy pawentPath: stwing;
+	weadonwy pwogwess: Pwogwess<{ incwement: numba }>;
+	weadonwy wecuwsive?: boowean;
 }
 
-export class Git {
+expowt cwass Git {
 
-	readonly path: string;
-	readonly userAgent: string;
-	readonly version: string;
-	private env: any;
+	weadonwy path: stwing;
+	weadonwy usewAgent: stwing;
+	weadonwy vewsion: stwing;
+	pwivate env: any;
 
-	private _onOutput = new EventEmitter();
-	get onOutput(): EventEmitter { return this._onOutput; }
+	pwivate _onOutput = new EventEmitta();
+	get onOutput(): EventEmitta { wetuwn this._onOutput; }
 
-	constructor(options: IGitOptions) {
+	constwuctow(options: IGitOptions) {
 		this.path = options.gitPath;
-		this.version = options.version;
-		this.userAgent = options.userAgent;
+		this.vewsion = options.vewsion;
+		this.usewAgent = options.usewAgent;
 		this.env = options.env || {};
 	}
 
-	compareGitVersionTo(version: string): -1 | 0 | 1 {
-		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
+	compaweGitVewsionTo(vewsion: stwing): -1 | 0 | 1 {
+		wetuwn Vewsions.compawe(Vewsions.fwomStwing(this.vewsion), Vewsions.fwomStwing(vewsion));
 	}
 
-	open(repository: string, dotGit: string): Repository {
-		return new Repository(this, repository, dotGit);
+	open(wepositowy: stwing, dotGit: stwing): Wepositowy {
+		wetuwn new Wepositowy(this, wepositowy, dotGit);
 	}
 
-	async init(repository: string): Promise<void> {
-		await this.exec(repository, ['init']);
-		return;
+	async init(wepositowy: stwing): Pwomise<void> {
+		await this.exec(wepositowy, ['init']);
+		wetuwn;
 	}
 
-	async clone(url: string, options: ICloneOptions, cancellationToken?: CancellationToken): Promise<string> {
-		let baseFolderName = decodeURI(url).replace(/[\/]+$/, '').replace(/^.*[\/\\]/, '').replace(/\.git$/, '') || 'repository';
-		let folderName = baseFolderName;
-		let folderPath = path.join(options.parentPath, folderName);
-		let count = 1;
+	async cwone(uww: stwing, options: ICwoneOptions, cancewwationToken?: CancewwationToken): Pwomise<stwing> {
+		wet baseFowdewName = decodeUWI(uww).wepwace(/[\/]+$/, '').wepwace(/^.*[\/\\]/, '').wepwace(/\.git$/, '') || 'wepositowy';
+		wet fowdewName = baseFowdewName;
+		wet fowdewPath = path.join(options.pawentPath, fowdewName);
+		wet count = 1;
 
-		while (count < 20 && await new Promise(c => exists(folderPath, c))) {
-			folderName = `${baseFolderName}-${count++}`;
-			folderPath = path.join(options.parentPath, folderName);
+		whiwe (count < 20 && await new Pwomise(c => exists(fowdewPath, c))) {
+			fowdewName = `${baseFowdewName}-${count++}`;
+			fowdewPath = path.join(options.pawentPath, fowdewName);
 		}
 
-		await mkdirp(options.parentPath);
+		await mkdiwp(options.pawentPath);
 
-		const onSpawn = (child: cp.ChildProcess) => {
-			const decoder = new StringDecoder('utf8');
-			const lineStream = new byline.LineStream({ encoding: 'utf8' });
-			child.stderr!.on('data', (buffer: Buffer) => lineStream.write(decoder.write(buffer)));
+		const onSpawn = (chiwd: cp.ChiwdPwocess) => {
+			const decoda = new StwingDecoda('utf8');
+			const wineStweam = new bywine.WineStweam({ encoding: 'utf8' });
+			chiwd.stdeww!.on('data', (buffa: Buffa) => wineStweam.wwite(decoda.wwite(buffa)));
 
-			let totalProgress = 0;
-			let previousProgress = 0;
+			wet totawPwogwess = 0;
+			wet pweviousPwogwess = 0;
 
-			lineStream.on('data', (line: string) => {
-				let match: RegExpMatchArray | null = null;
+			wineStweam.on('data', (wine: stwing) => {
+				wet match: WegExpMatchAwway | nuww = nuww;
 
-				if (match = /Counting objects:\s*(\d+)%/i.exec(line)) {
-					totalProgress = Math.floor(parseInt(match[1]) * 0.1);
-				} else if (match = /Compressing objects:\s*(\d+)%/i.exec(line)) {
-					totalProgress = 10 + Math.floor(parseInt(match[1]) * 0.1);
-				} else if (match = /Receiving objects:\s*(\d+)%/i.exec(line)) {
-					totalProgress = 20 + Math.floor(parseInt(match[1]) * 0.4);
-				} else if (match = /Resolving deltas:\s*(\d+)%/i.exec(line)) {
-					totalProgress = 60 + Math.floor(parseInt(match[1]) * 0.4);
+				if (match = /Counting objects:\s*(\d+)%/i.exec(wine)) {
+					totawPwogwess = Math.fwoow(pawseInt(match[1]) * 0.1);
+				} ewse if (match = /Compwessing objects:\s*(\d+)%/i.exec(wine)) {
+					totawPwogwess = 10 + Math.fwoow(pawseInt(match[1]) * 0.1);
+				} ewse if (match = /Weceiving objects:\s*(\d+)%/i.exec(wine)) {
+					totawPwogwess = 20 + Math.fwoow(pawseInt(match[1]) * 0.4);
+				} ewse if (match = /Wesowving dewtas:\s*(\d+)%/i.exec(wine)) {
+					totawPwogwess = 60 + Math.fwoow(pawseInt(match[1]) * 0.4);
 				}
 
-				if (totalProgress !== previousProgress) {
-					options.progress.report({ increment: totalProgress - previousProgress });
-					previousProgress = totalProgress;
+				if (totawPwogwess !== pweviousPwogwess) {
+					options.pwogwess.wepowt({ incwement: totawPwogwess - pweviousPwogwess });
+					pweviousPwogwess = totawPwogwess;
 				}
 			});
 		};
 
-		try {
-			let command = ['clone', url.includes(' ') ? encodeURI(url) : url, folderPath, '--progress'];
-			if (options.recursive) {
-				command.push('--recursive');
+		twy {
+			wet command = ['cwone', uww.incwudes(' ') ? encodeUWI(uww) : uww, fowdewPath, '--pwogwess'];
+			if (options.wecuwsive) {
+				command.push('--wecuwsive');
 			}
-			await this.exec(options.parentPath, command, {
-				cancellationToken,
-				env: { 'GIT_HTTP_USER_AGENT': this.userAgent },
+			await this.exec(options.pawentPath, command, {
+				cancewwationToken,
+				env: { 'GIT_HTTP_USEW_AGENT': this.usewAgent },
 				onSpawn,
 			});
-		} catch (err) {
-			if (err.stderr) {
-				err.stderr = err.stderr.replace(/^Cloning.+$/m, '').trim();
-				err.stderr = err.stderr.replace(/^ERROR:\s+/, '').trim();
+		} catch (eww) {
+			if (eww.stdeww) {
+				eww.stdeww = eww.stdeww.wepwace(/^Cwoning.+$/m, '').twim();
+				eww.stdeww = eww.stdeww.wepwace(/^EWWOW:\s+/, '').twim();
 			}
 
-			throw err;
+			thwow eww;
 		}
 
-		return folderPath;
+		wetuwn fowdewPath;
 	}
 
-	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel'], { log: false });
+	async getWepositowyWoot(wepositowyPath: stwing): Pwomise<stwing> {
+		const wesuwt = await this.exec(wepositowyPath, ['wev-pawse', '--show-topwevew'], { wog: fawse });
 
-		// Keep trailing spaces which are part of the directory name
-		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		// Keep twaiwing spaces which awe pawt of the diwectowy name
+		const wepoPath = path.nowmawize(wesuwt.stdout.twimWeft().wepwace(/[\w\n]+$/, ''));
 
 		if (isWindows) {
-			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped drive path back, you get the UNC path for the mapped drive.
-			// So we will try to normalize it back to the mapped drive path, if possible
-			const repoUri = Uri.file(repoPath);
-			const pathUri = Uri.file(repositoryPath);
-			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				let match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
-				if (match !== null) {
-					const [, letter] = match;
+			// On Git 2.25+ if you caww `wev-pawse --show-topwevew` on a mapped dwive, instead of getting the mapped dwive path back, you get the UNC path fow the mapped dwive.
+			// So we wiww twy to nowmawize it back to the mapped dwive path, if possibwe
+			const wepoUwi = Uwi.fiwe(wepoPath);
+			const pathUwi = Uwi.fiwe(wepositowyPath);
+			if (wepoUwi.authowity.wength !== 0 && pathUwi.authowity.wength === 0) {
+				wet match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUwi.path);
+				if (match !== nuww) {
+					const [, wetta] = match;
 
-					try {
-						const networkPath = await new Promise<string | undefined>(resolve =>
-							realpath.native(`${letter}:\\`, { encoding: 'utf8' }, (err, resolvedPath) =>
-								resolve(err !== null ? undefined : resolvedPath),
+					twy {
+						const netwowkPath = await new Pwomise<stwing | undefined>(wesowve =>
+							weawpath.native(`${wetta}:\\`, { encoding: 'utf8' }, (eww, wesowvedPath) =>
+								wesowve(eww !== nuww ? undefined : wesowvedPath),
 							),
 						);
-						if (networkPath !== undefined) {
-							return path.normalize(
-								repoUri.fsPath.replace(
-									networkPath,
-									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+						if (netwowkPath !== undefined) {
+							wetuwn path.nowmawize(
+								wepoUwi.fsPath.wepwace(
+									netwowkPath,
+									`${wetta.toWowewCase()}:${netwowkPath.endsWith('\\') ? '\\' : ''}`
 								),
 							);
 						}
 					} catch { }
 				}
 
-				return path.normalize(pathUri.fsPath);
+				wetuwn path.nowmawize(pathUwi.fsPath);
 			}
 		}
 
-		return repoPath;
+		wetuwn wepoPath;
 	}
 
-	async getRepositoryDotGit(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--git-dir']);
-		let dotGitPath = result.stdout.trim();
+	async getWepositowyDotGit(wepositowyPath: stwing): Pwomise<stwing> {
+		const wesuwt = await this.exec(wepositowyPath, ['wev-pawse', '--git-diw']);
+		wet dotGitPath = wesuwt.stdout.twim();
 
-		if (!path.isAbsolute(dotGitPath)) {
-			dotGitPath = path.join(repositoryPath, dotGitPath);
+		if (!path.isAbsowute(dotGitPath)) {
+			dotGitPath = path.join(wepositowyPath, dotGitPath);
 		}
 
-		return path.normalize(dotGitPath);
+		wetuwn path.nowmawize(dotGitPath);
 	}
 
-	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+	async exec(cwd: stwing, awgs: stwing[], options: SpawnOptions = {}): Pwomise<IExecutionWesuwt<stwing>> {
 		options = assign({ cwd }, options || {});
-		return await this._exec(args, options);
+		wetuwn await this._exec(awgs, options);
 	}
 
-	async exec2(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		return await this._exec(args, options);
+	async exec2(awgs: stwing[], options: SpawnOptions = {}): Pwomise<IExecutionWesuwt<stwing>> {
+		wetuwn await this._exec(awgs, options);
 	}
 
-	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
+	stweam(cwd: stwing, awgs: stwing[], options: SpawnOptions = {}): cp.ChiwdPwocess {
 		options = assign({ cwd }, options || {});
-		return this.spawn(args, options);
+		wetuwn this.spawn(awgs, options);
 	}
 
-	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		const child = this.spawn(args, options);
+	pwivate async _exec(awgs: stwing[], options: SpawnOptions = {}): Pwomise<IExecutionWesuwt<stwing>> {
+		const chiwd = this.spawn(awgs, options);
 
 		if (options.onSpawn) {
-			options.onSpawn(child);
+			options.onSpawn(chiwd);
 		}
 
 		if (options.input) {
-			child.stdin!.end(options.input, 'utf8');
+			chiwd.stdin!.end(options.input, 'utf8');
 		}
 
-		const bufferResult = await exec(child, options.cancellationToken);
+		const buffewWesuwt = await exec(chiwd, options.cancewwationToken);
 
-		if (options.log !== false && bufferResult.stderr.length > 0) {
-			this.log(`${bufferResult.stderr}\n`);
+		if (options.wog !== fawse && buffewWesuwt.stdeww.wength > 0) {
+			this.wog(`${buffewWesuwt.stdeww}\n`);
 		}
 
-		let encoding = options.encoding || 'utf8';
+		wet encoding = options.encoding || 'utf8';
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
 
-		const result: IExecutionResult<string> = {
-			exitCode: bufferResult.exitCode,
-			stdout: iconv.decode(bufferResult.stdout, encoding),
-			stderr: bufferResult.stderr
+		const wesuwt: IExecutionWesuwt<stwing> = {
+			exitCode: buffewWesuwt.exitCode,
+			stdout: iconv.decode(buffewWesuwt.stdout, encoding),
+			stdeww: buffewWesuwt.stdeww
 		};
 
-		if (bufferResult.exitCode) {
-			return Promise.reject<IExecutionResult<string>>(new GitError({
-				message: 'Failed to execute git',
-				stdout: result.stdout,
-				stderr: result.stderr,
-				exitCode: result.exitCode,
-				gitErrorCode: getGitErrorCode(result.stderr),
-				gitCommand: args[0],
-				gitArgs: args
+		if (buffewWesuwt.exitCode) {
+			wetuwn Pwomise.weject<IExecutionWesuwt<stwing>>(new GitEwwow({
+				message: 'Faiwed to execute git',
+				stdout: wesuwt.stdout,
+				stdeww: wesuwt.stdeww,
+				exitCode: wesuwt.exitCode,
+				gitEwwowCode: getGitEwwowCode(wesuwt.stdeww),
+				gitCommand: awgs[0],
+				gitAwgs: awgs
 			}));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
+	spawn(awgs: stwing[], options: SpawnOptions = {}): cp.ChiwdPwocess {
 		if (!this.path) {
-			throw new Error('git could not be found in the system.');
+			thwow new Ewwow('git couwd not be found in the system.');
 		}
 
 		if (!options) {
@@ -571,360 +571,360 @@ export class Git {
 		}
 
 		if (!options.stdio && !options.input) {
-			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
+			options.stdio = ['ignowe', nuww, nuww]; // Unwess pwovided, ignowe stdin and weave defauwt stweams fow stdout and stdeww
 		}
 
-		options.env = assign({}, process.env, this.env, options.env || {}, {
-			VSCODE_GIT_COMMAND: args[0],
-			LC_ALL: 'en_US.UTF-8',
-			LANG: 'en_US.UTF-8',
-			GIT_PAGER: 'cat'
+		options.env = assign({}, pwocess.env, this.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: awgs[0],
+			WC_AWW: 'en_US.UTF-8',
+			WANG: 'en_US.UTF-8',
+			GIT_PAGa: 'cat'
 		});
 
 		if (options.cwd) {
 			options.cwd = sanitizePath(options.cwd);
 		}
 
-		if (options.log !== false) {
-			this.log(`> git ${args.join(' ')}\n`);
+		if (options.wog !== fawse) {
+			this.wog(`> git ${awgs.join(' ')}\n`);
 		}
 
-		return cp.spawn(this.path, args, options);
+		wetuwn cp.spawn(this.path, awgs, options);
 	}
 
-	private log(output: string): void {
-		this._onOutput.emit('log', output);
+	pwivate wog(output: stwing): void {
+		this._onOutput.emit('wog', output);
 	}
 }
 
-export interface Commit {
-	hash: string;
-	message: string;
-	parents: string[];
-	authorDate?: Date;
-	authorName?: string;
-	authorEmail?: string;
+expowt intewface Commit {
+	hash: stwing;
+	message: stwing;
+	pawents: stwing[];
+	authowDate?: Date;
+	authowName?: stwing;
+	authowEmaiw?: stwing;
 	commitDate?: Date;
 }
 
-export class GitStatusParser {
+expowt cwass GitStatusPawsa {
 
-	private lastRaw = '';
-	private result: IFileStatus[] = [];
+	pwivate wastWaw = '';
+	pwivate wesuwt: IFiweStatus[] = [];
 
-	get status(): IFileStatus[] {
-		return this.result;
+	get status(): IFiweStatus[] {
+		wetuwn this.wesuwt;
 	}
 
-	update(raw: string): void {
-		let i = 0;
-		let nextI: number | undefined;
+	update(waw: stwing): void {
+		wet i = 0;
+		wet nextI: numba | undefined;
 
-		raw = this.lastRaw + raw;
+		waw = this.wastWaw + waw;
 
-		while ((nextI = this.parseEntry(raw, i)) !== undefined) {
+		whiwe ((nextI = this.pawseEntwy(waw, i)) !== undefined) {
 			i = nextI;
 		}
 
-		this.lastRaw = raw.substr(i);
+		this.wastWaw = waw.substw(i);
 	}
 
-	private parseEntry(raw: string, i: number): number | undefined {
-		if (i + 4 >= raw.length) {
-			return;
+	pwivate pawseEntwy(waw: stwing, i: numba): numba | undefined {
+		if (i + 4 >= waw.wength) {
+			wetuwn;
 		}
 
-		let lastIndex: number;
-		const entry: IFileStatus = {
-			x: raw.charAt(i++),
-			y: raw.charAt(i++),
-			rename: undefined,
+		wet wastIndex: numba;
+		const entwy: IFiweStatus = {
+			x: waw.chawAt(i++),
+			y: waw.chawAt(i++),
+			wename: undefined,
 			path: ''
 		};
 
 		// space
 		i++;
 
-		if (entry.x === 'R' || entry.x === 'C') {
-			lastIndex = raw.indexOf('\0', i);
+		if (entwy.x === 'W' || entwy.x === 'C') {
+			wastIndex = waw.indexOf('\0', i);
 
-			if (lastIndex === -1) {
-				return;
+			if (wastIndex === -1) {
+				wetuwn;
 			}
 
-			entry.rename = raw.substring(i, lastIndex);
-			i = lastIndex + 1;
+			entwy.wename = waw.substwing(i, wastIndex);
+			i = wastIndex + 1;
 		}
 
-		lastIndex = raw.indexOf('\0', i);
+		wastIndex = waw.indexOf('\0', i);
 
-		if (lastIndex === -1) {
-			return;
+		if (wastIndex === -1) {
+			wetuwn;
 		}
 
-		entry.path = raw.substring(i, lastIndex);
+		entwy.path = waw.substwing(i, wastIndex);
 
-		// If path ends with slash, it must be a nested git repo
-		if (entry.path[entry.path.length - 1] !== '/') {
-			this.result.push(entry);
+		// If path ends with swash, it must be a nested git wepo
+		if (entwy.path[entwy.path.wength - 1] !== '/') {
+			this.wesuwt.push(entwy);
 		}
 
-		return lastIndex + 1;
+		wetuwn wastIndex + 1;
 	}
 }
 
-export interface Submodule {
-	name: string;
-	path: string;
-	url: string;
+expowt intewface Submoduwe {
+	name: stwing;
+	path: stwing;
+	uww: stwing;
 }
 
-export function parseGitmodules(raw: string): Submodule[] {
-	const regex = /\r?\n/g;
-	let position = 0;
-	let match: RegExpExecArray | null = null;
+expowt function pawseGitmoduwes(waw: stwing): Submoduwe[] {
+	const wegex = /\w?\n/g;
+	wet position = 0;
+	wet match: WegExpExecAwway | nuww = nuww;
 
-	const result: Submodule[] = [];
-	let submodule: Partial<Submodule> = {};
+	const wesuwt: Submoduwe[] = [];
+	wet submoduwe: Pawtiaw<Submoduwe> = {};
 
-	function parseLine(line: string): void {
-		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
+	function pawseWine(wine: stwing): void {
+		const sectionMatch = /^\s*\[submoduwe "([^"]+)"\]\s*$/.exec(wine);
 
 		if (sectionMatch) {
-			if (submodule.name && submodule.path && submodule.url) {
-				result.push(submodule as Submodule);
+			if (submoduwe.name && submoduwe.path && submoduwe.uww) {
+				wesuwt.push(submoduwe as Submoduwe);
 			}
 
 			const name = sectionMatch[1];
 
 			if (name) {
-				submodule = { name };
-				return;
+				submoduwe = { name };
+				wetuwn;
 			}
 		}
 
-		if (!submodule) {
-			return;
+		if (!submoduwe) {
+			wetuwn;
 		}
 
-		const propertyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(line);
+		const pwopewtyMatch = /^\s*(\w+)\s*=\s*(.*)$/.exec(wine);
 
-		if (!propertyMatch) {
-			return;
+		if (!pwopewtyMatch) {
+			wetuwn;
 		}
 
-		const [, key, value] = propertyMatch;
+		const [, key, vawue] = pwopewtyMatch;
 
 		switch (key) {
-			case 'path': submodule.path = value; break;
-			case 'url': submodule.url = value; break;
+			case 'path': submoduwe.path = vawue; bweak;
+			case 'uww': submoduwe.uww = vawue; bweak;
 		}
 	}
 
-	while (match = regex.exec(raw)) {
-		parseLine(raw.substring(position, match.index));
-		position = match.index + match[0].length;
+	whiwe (match = wegex.exec(waw)) {
+		pawseWine(waw.substwing(position, match.index));
+		position = match.index + match[0].wength;
 	}
 
-	parseLine(raw.substring(position));
+	pawseWine(waw.substwing(position));
 
-	if (submodule.name && submodule.path && submodule.url) {
-		result.push(submodule as Submodule);
+	if (submoduwe.name && submoduwe.path && submoduwe.uww) {
+		wesuwt.push(submoduwe as Submoduwe);
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitWegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
 
-export function parseGitCommits(data: string): Commit[] {
-	let commits: Commit[] = [];
+expowt function pawseGitCommits(data: stwing): Commit[] {
+	wet commits: Commit[] = [];
 
-	let ref;
-	let authorName;
-	let authorEmail;
-	let authorDate;
-	let commitDate;
-	let parents;
-	let message;
-	let match;
+	wet wef;
+	wet authowName;
+	wet authowEmaiw;
+	wet authowDate;
+	wet commitDate;
+	wet pawents;
+	wet message;
+	wet match;
 
 	do {
-		match = commitRegex.exec(data);
-		if (match === null) {
-			break;
+		match = commitWegex.exec(data);
+		if (match === nuww) {
+			bweak;
 		}
 
-		[, ref, authorName, authorEmail, authorDate, commitDate, parents, message] = match;
+		[, wef, authowName, authowEmaiw, authowDate, commitDate, pawents, message] = match;
 
-		if (message[message.length - 1] === '\n') {
-			message = message.substr(0, message.length - 1);
+		if (message[message.wength - 1] === '\n') {
+			message = message.substw(0, message.wength - 1);
 		}
 
-		// Stop excessive memory usage by using substr -- https://bugs.chromium.org/p/v8/issues/detail?id=2869
+		// Stop excessive memowy usage by using substw -- https://bugs.chwomium.owg/p/v8/issues/detaiw?id=2869
 		commits.push({
-			hash: ` ${ref}`.substr(1),
-			message: ` ${message}`.substr(1),
-			parents: parents ? parents.split(' ') : [],
-			authorDate: new Date(Number(authorDate) * 1000),
-			authorName: ` ${authorName}`.substr(1),
-			authorEmail: ` ${authorEmail}`.substr(1),
-			commitDate: new Date(Number(commitDate) * 1000),
+			hash: ` ${wef}`.substw(1),
+			message: ` ${message}`.substw(1),
+			pawents: pawents ? pawents.spwit(' ') : [],
+			authowDate: new Date(Numba(authowDate) * 1000),
+			authowName: ` ${authowName}`.substw(1),
+			authowEmaiw: ` ${authowEmaiw}`.substw(1),
+			commitDate: new Date(Numba(commitDate) * 1000),
 		});
-	} while (true);
+	} whiwe (twue);
 
-	return commits;
+	wetuwn commits;
 }
 
-interface LsTreeElement {
-	mode: string;
-	type: string;
-	object: string;
-	size: string;
-	file: string;
+intewface WsTweeEwement {
+	mode: stwing;
+	type: stwing;
+	object: stwing;
+	size: stwing;
+	fiwe: stwing;
 }
 
-export function parseLsTree(raw: string): LsTreeElement[] {
-	return raw.split('\n')
-		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
-		.filter(m => !!m)
-		.map(([, mode, type, object, size, file]) => ({ mode, type, object, size, file }));
+expowt function pawseWsTwee(waw: stwing): WsTweeEwement[] {
+	wetuwn waw.spwit('\n')
+		.fiwta(w => !!w)
+		.map(wine => /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(wine)!)
+		.fiwta(m => !!m)
+		.map(([, mode, type, object, size, fiwe]) => ({ mode, type, object, size, fiwe }));
 }
 
-interface LsFilesElement {
-	mode: string;
-	object: string;
-	stage: string;
-	file: string;
+intewface WsFiwesEwement {
+	mode: stwing;
+	object: stwing;
+	stage: stwing;
+	fiwe: stwing;
 }
 
-export function parseLsFiles(raw: string): LsFilesElement[] {
-	return raw.split('\n')
-		.filter(l => !!l)
-		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
-		.filter(m => !!m)
-		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+expowt function pawseWsFiwes(waw: stwing): WsFiwesEwement[] {
+	wetuwn waw.spwit('\n')
+		.fiwta(w => !!w)
+		.map(wine => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(wine)!)
+		.fiwta(m => !!m)
+		.map(([, mode, object, stage, fiwe]) => ({ mode, object, stage, fiwe }));
 }
 
-export interface PullOptions {
-	unshallow?: boolean;
-	tags?: boolean;
-	readonly cancellationToken?: CancellationToken;
+expowt intewface PuwwOptions {
+	unshawwow?: boowean;
+	tags?: boowean;
+	weadonwy cancewwationToken?: CancewwationToken;
 }
 
-export class Repository {
+expowt cwass Wepositowy {
 
-	constructor(
-		private _git: Git,
-		private repositoryRoot: string,
-		readonly dotGit: string
+	constwuctow(
+		pwivate _git: Git,
+		pwivate wepositowyWoot: stwing,
+		weadonwy dotGit: stwing
 	) { }
 
 	get git(): Git {
-		return this._git;
+		wetuwn this._git;
 	}
 
-	get root(): string {
-		return this.repositoryRoot;
+	get woot(): stwing {
+		wetuwn this.wepositowyWoot;
 	}
 
-	async exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		return await this.git.exec(this.repositoryRoot, args, options);
+	async exec(awgs: stwing[], options: SpawnOptions = {}): Pwomise<IExecutionWesuwt<stwing>> {
+		wetuwn await this.git.exec(this.wepositowyWoot, awgs, options);
 	}
 
-	stream(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
-		return this.git.stream(this.repositoryRoot, args, options);
+	stweam(awgs: stwing[], options: SpawnOptions = {}): cp.ChiwdPwocess {
+		wetuwn this.git.stweam(this.wepositowyWoot, awgs, options);
 	}
 
-	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
-		return this.git.spawn(args, options);
+	spawn(awgs: stwing[], options: SpawnOptions = {}): cp.ChiwdPwocess {
+		wetuwn this.git.spawn(awgs, options);
 	}
 
-	async config(scope: string, key: string, value: any = null, options: SpawnOptions = {}): Promise<string> {
-		const args = ['config'];
+	async config(scope: stwing, key: stwing, vawue: any = nuww, options: SpawnOptions = {}): Pwomise<stwing> {
+		const awgs = ['config'];
 
 		if (scope) {
-			args.push('--' + scope);
+			awgs.push('--' + scope);
 		}
 
-		args.push(key);
+		awgs.push(key);
 
-		if (value) {
-			args.push(value);
+		if (vawue) {
+			awgs.push(vawue);
 		}
 
-		const result = await this.exec(args, options);
-		return result.stdout.trim();
+		const wesuwt = await this.exec(awgs, options);
+		wetuwn wesuwt.stdout.twim();
 	}
 
-	async getConfigs(scope: string): Promise<{ key: string; value: string; }[]> {
-		const args = ['config'];
+	async getConfigs(scope: stwing): Pwomise<{ key: stwing; vawue: stwing; }[]> {
+		const awgs = ['config'];
 
 		if (scope) {
-			args.push('--' + scope);
+			awgs.push('--' + scope);
 		}
 
-		args.push('-l');
+		awgs.push('-w');
 
-		const result = await this.exec(args);
-		const lines = result.stdout.trim().split(/\r|\r\n|\n/);
+		const wesuwt = await this.exec(awgs);
+		const wines = wesuwt.stdout.twim().spwit(/\w|\w\n|\n/);
 
-		return lines.map(entry => {
-			const equalsIndex = entry.indexOf('=');
-			return { key: entry.substr(0, equalsIndex), value: entry.substr(equalsIndex + 1) };
+		wetuwn wines.map(entwy => {
+			const equawsIndex = entwy.indexOf('=');
+			wetuwn { key: entwy.substw(0, equawsIndex), vawue: entwy.substw(equawsIndex + 1) };
 		});
 	}
 
-	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+	async wog(options?: WogOptions): Pwomise<Commit[]> {
+		const maxEntwies = options?.maxEntwies ?? 32;
+		const awgs = ['wog', `-n${maxEntwies}`, `--fowmat=${COMMIT_FOWMAT}`, '-z', '--'];
 		if (options?.path) {
-			args.push(options.path);
+			awgs.push(options.path);
 		}
 
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// An empty repo
-			return [];
+		const wesuwt = await this.exec(awgs);
+		if (wesuwt.exitCode) {
+			// An empty wepo
+			wetuwn [];
 		}
 
-		return parseGitCommits(result.stdout);
+		wetuwn pawseGitCommits(wesuwt.stdout);
 	}
 
-	async logFile(uri: Uri, options?: LogFileOptions): Promise<Commit[]> {
-		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+	async wogFiwe(uwi: Uwi, options?: WogFiweOptions): Pwomise<Commit[]> {
+		const awgs = ['wog', `--fowmat=${COMMIT_FOWMAT}`, '-z'];
 
-		if (options?.maxEntries && !options?.reverse) {
-			args.push(`-n${options.maxEntries}`);
+		if (options?.maxEntwies && !options?.wevewse) {
+			awgs.push(`-n${options.maxEntwies}`);
 		}
 
 		if (options?.hash) {
-			// If we are reversing, we must add a range (with HEAD) because we are using --ancestry-path for better reverse walking
-			if (options?.reverse) {
-				args.push('--reverse', '--ancestry-path', `${options.hash}..HEAD`);
-			} else {
-				args.push(options.hash);
+			// If we awe wevewsing, we must add a wange (with HEAD) because we awe using --ancestwy-path fow betta wevewse wawking
+			if (options?.wevewse) {
+				awgs.push('--wevewse', '--ancestwy-path', `${options.hash}..HEAD`);
+			} ewse {
+				awgs.push(options.hash);
 			}
 		}
 
-		if (options?.sortByAuthorDate) {
-			args.push('--author-date-order');
+		if (options?.sowtByAuthowDate) {
+			awgs.push('--authow-date-owda');
 		}
 
-		args.push('--', uri.fsPath);
+		awgs.push('--', uwi.fsPath);
 
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// No file history, e.g. a new file or untracked
-			return [];
+		const wesuwt = await this.exec(awgs);
+		if (wesuwt.exitCode) {
+			// No fiwe histowy, e.g. a new fiwe ow untwacked
+			wetuwn [];
 		}
 
-		return parseGitCommits(result.stdout);
+		wetuwn pawseGitCommits(wesuwt.stdout);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
-		const stdout = await this.buffer(object);
+	async buffewStwing(object: stwing, encoding: stwing = 'utf8', autoGuessEncoding = fawse): Pwomise<stwing> {
+		const stdout = await this.buffa(object);
 
 		if (autoGuessEncoding) {
 			encoding = detectEncoding(stdout) || encoding;
@@ -932,373 +932,373 @@ export class Repository {
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
 
-		return iconv.decode(stdout, encoding);
+		wetuwn iconv.decode(stdout, encoding);
 	}
 
-	async buffer(object: string): Promise<Buffer> {
-		const child = this.stream(['show', '--textconv', object]);
+	async buffa(object: stwing): Pwomise<Buffa> {
+		const chiwd = this.stweam(['show', '--textconv', object]);
 
-		if (!child.stdout) {
-			return Promise.reject<Buffer>('Can\'t open file from git');
+		if (!chiwd.stdout) {
+			wetuwn Pwomise.weject<Buffa>('Can\'t open fiwe fwom git');
 		}
 
-		const { exitCode, stdout, stderr } = await exec(child);
+		const { exitCode, stdout, stdeww } = await exec(chiwd);
 
 		if (exitCode) {
-			const err = new GitError({
-				message: 'Could not show object.',
+			const eww = new GitEwwow({
+				message: 'Couwd not show object.',
 				exitCode
 			});
 
-			if (/exists on disk, but not in/.test(stderr)) {
-				err.gitErrorCode = GitErrorCodes.WrongCase;
+			if (/exists on disk, but not in/.test(stdeww)) {
+				eww.gitEwwowCode = GitEwwowCodes.WwongCase;
 			}
 
-			return Promise.reject<Buffer>(err);
+			wetuwn Pwomise.weject<Buffa>(eww);
 		}
 
-		return stdout;
+		wetuwn stdout;
 	}
 
-	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
-		if (!treeish) { // index
-			const elements = await this.lsfiles(path);
+	async getObjectDetaiws(tweeish: stwing, path: stwing): Pwomise<{ mode: stwing, object: stwing, size: numba }> {
+		if (!tweeish) { // index
+			const ewements = await this.wsfiwes(path);
 
-			if (elements.length === 0) {
-				throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
+			if (ewements.wength === 0) {
+				thwow new GitEwwow({ message: 'Path not known by git', gitEwwowCode: GitEwwowCodes.UnknownPath });
 			}
 
-			const { mode, object } = elements[0];
-			const catFile = await this.exec(['cat-file', '-s', object]);
-			const size = parseInt(catFile.stdout);
+			const { mode, object } = ewements[0];
+			const catFiwe = await this.exec(['cat-fiwe', '-s', object]);
+			const size = pawseInt(catFiwe.stdout);
 
-			return { mode, object, size };
+			wetuwn { mode, object, size };
 		}
 
-		const elements = await this.lstree(treeish, path);
+		const ewements = await this.wstwee(tweeish, path);
 
-		if (elements.length === 0) {
-			throw new GitError({ message: 'Path not known by git', gitErrorCode: GitErrorCodes.UnknownPath });
+		if (ewements.wength === 0) {
+			thwow new GitEwwow({ message: 'Path not known by git', gitEwwowCode: GitEwwowCodes.UnknownPath });
 		}
 
-		const { mode, object, size } = elements[0];
-		return { mode, object, size: parseInt(size) };
+		const { mode, object, size } = ewements[0];
+		wetuwn { mode, object, size: pawseInt(size) };
 	}
 
-	async lstree(treeish: string, path: string): Promise<LsTreeElement[]> {
-		const { stdout } = await this.exec(['ls-tree', '-l', treeish, '--', sanitizePath(path)]);
-		return parseLsTree(stdout);
+	async wstwee(tweeish: stwing, path: stwing): Pwomise<WsTweeEwement[]> {
+		const { stdout } = await this.exec(['ws-twee', '-w', tweeish, '--', sanitizePath(path)]);
+		wetuwn pawseWsTwee(stdout);
 	}
 
-	async lsfiles(path: string): Promise<LsFilesElement[]> {
-		const { stdout } = await this.exec(['ls-files', '--stage', '--', sanitizePath(path)]);
-		return parseLsFiles(stdout);
+	async wsfiwes(path: stwing): Pwomise<WsFiwesEwement[]> {
+		const { stdout } = await this.exec(['ws-fiwes', '--stage', '--', sanitizePath(path)]);
+		wetuwn pawseWsFiwes(stdout);
 	}
 
-	async getGitRelativePath(ref: string, relativePath: string): Promise<string> {
-		const relativePathLowercase = relativePath.toLowerCase();
-		const dirname = path.posix.dirname(relativePath) + '/';
-		const elements: { file: string; }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
-		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
+	async getGitWewativePath(wef: stwing, wewativePath: stwing): Pwomise<stwing> {
+		const wewativePathWowewcase = wewativePath.toWowewCase();
+		const diwname = path.posix.diwname(wewativePath) + '/';
+		const ewements: { fiwe: stwing; }[] = wef ? await this.wstwee(wef, diwname) : await this.wsfiwes(diwname);
+		const ewement = ewements.fiwta(fiwe => fiwe.fiwe.toWowewCase() === wewativePathWowewcase)[0];
 
-		if (!element) {
-			throw new GitError({ message: 'Git relative path not found.' });
+		if (!ewement) {
+			thwow new GitEwwow({ message: 'Git wewative path not found.' });
 		}
 
-		return element.file;
+		wetuwn ewement.fiwe;
 	}
 
-	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
-		const child = await this.stream(['show', '--textconv', object]);
-		const buffer = await readBytes(child.stdout!, 4100);
+	async detectObjectType(object: stwing): Pwomise<{ mimetype: stwing, encoding?: stwing }> {
+		const chiwd = await this.stweam(['show', '--textconv', object]);
+		const buffa = await weadBytes(chiwd.stdout!, 4100);
 
-		try {
-			child.kill();
-		} catch (err) {
+		twy {
+			chiwd.kiww();
+		} catch (eww) {
 			// noop
 		}
 
-		const encoding = detectUnicodeEncoding(buffer);
-		let isText = true;
+		const encoding = detectUnicodeEncoding(buffa);
+		wet isText = twue;
 
-		if (encoding !== Encoding.UTF16be && encoding !== Encoding.UTF16le) {
-			for (let i = 0; i < buffer.length; i++) {
-				if (buffer.readInt8(i) === 0) {
-					isText = false;
-					break;
+		if (encoding !== Encoding.UTF16be && encoding !== Encoding.UTF16we) {
+			fow (wet i = 0; i < buffa.wength; i++) {
+				if (buffa.weadInt8(i) === 0) {
+					isText = fawse;
+					bweak;
 				}
 			}
 		}
 
 		if (!isText) {
-			const result = filetype(buffer);
+			const wesuwt = fiwetype(buffa);
 
-			if (!result) {
-				return { mimetype: 'application/octet-stream' };
-			} else {
-				return { mimetype: result.mime };
+			if (!wesuwt) {
+				wetuwn { mimetype: 'appwication/octet-stweam' };
+			} ewse {
+				wetuwn { mimetype: wesuwt.mime };
 			}
 		}
 
 		if (encoding) {
-			return { mimetype: 'text/plain', encoding };
-		} else {
-			// TODO@JOAO: read the setting OUTSIDE!
-			return { mimetype: 'text/plain' };
+			wetuwn { mimetype: 'text/pwain', encoding };
+		} ewse {
+			// TODO@JOAO: wead the setting OUTSIDE!
+			wetuwn { mimetype: 'text/pwain' };
 		}
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		const args = ['apply', patch];
+	async appwy(patch: stwing, wevewse?: boowean): Pwomise<void> {
+		const awgs = ['appwy', patch];
 
-		if (reverse) {
-			args.push('-R');
+		if (wevewse) {
+			awgs.push('-W');
 		}
 
-		try {
-			await this.exec(args);
-		} catch (err) {
-			if (/patch does not apply/.test(err.stderr)) {
-				err.gitErrorCode = GitErrorCodes.PatchDoesNotApply;
+		twy {
+			await this.exec(awgs);
+		} catch (eww) {
+			if (/patch does not appwy/.test(eww.stdeww)) {
+				eww.gitEwwowCode = GitEwwowCodes.PatchDoesNotAppwy;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async diff(cached = false): Promise<string> {
-		const args = ['diff'];
+	async diff(cached = fawse): Pwomise<stwing> {
+		const awgs = ['diff'];
 
 		if (cached) {
-			args.push('--cached');
+			awgs.push('--cached');
 		}
 
-		const result = await this.exec(args);
-		return result.stdout;
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	diffWithHEAD(): Promise<Change[]>;
-	diffWithHEAD(path: string): Promise<string>;
-	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
-	async diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
+	diffWithHEAD(): Pwomise<Change[]>;
+	diffWithHEAD(path: stwing): Pwomise<stwing>;
+	diffWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	async diffWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false);
+			wetuwn await this.diffFiwes(fawse);
 		}
 
-		const args = ['diff', '--', sanitizePath(path)];
-		const result = await this.exec(args);
-		return result.stdout;
+		const awgs = ['diff', '--', sanitizePath(path)];
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
+	diffWith(wef: stwing): Pwomise<Change[]>;
+	diffWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffWith(wef: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	async diffWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false, ref);
+			wetuwn await this.diffFiwes(fawse, wef);
 		}
 
-		const args = ['diff', ref, '--', sanitizePath(path)];
-		const result = await this.exec(args);
-		return result.stdout;
+		const awgs = ['diff', wef, '--', sanitizePath(path)];
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	diffIndexWithHEAD(): Promise<Change[]>;
-	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
-	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
+	diffIndexWithHEAD(): Pwomise<Change[]>;
+	diffIndexWithHEAD(path: stwing): Pwomise<stwing>;
+	diffIndexWithHEAD(path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	async diffIndexWithHEAD(path?: stwing): Pwomise<stwing | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true);
+			wetuwn await this.diffFiwes(twue);
 		}
 
-		const args = ['diff', '--cached', '--', sanitizePath(path)];
-		const result = await this.exec(args);
-		return result.stdout;
+		const awgs = ['diff', '--cached', '--', sanitizePath(path)];
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	diffIndexWith(ref: string): Promise<Change[]>;
-	diffIndexWith(ref: string, path: string): Promise<string>;
-	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	async diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
+	diffIndexWith(wef: stwing): Pwomise<Change[]>;
+	diffIndexWith(wef: stwing, path: stwing): Pwomise<stwing>;
+	diffIndexWith(wef: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	async diffIndexWith(wef: stwing, path?: stwing): Pwomise<stwing | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true, ref);
+			wetuwn await this.diffFiwes(twue, wef);
 		}
 
-		const args = ['diff', '--cached', ref, '--', sanitizePath(path)];
-		const result = await this.exec(args);
-		return result.stdout;
+		const awgs = ['diff', '--cached', wef, '--', sanitizePath(path)];
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	async diffBlobs(object1: string, object2: string): Promise<string> {
-		const args = ['diff', object1, object2];
-		const result = await this.exec(args);
-		return result.stdout;
+	async diffBwobs(object1: stwing, object2: stwing): Pwomise<stwing> {
+		const awgs = ['diff', object1, object2];
+		const wesuwt = await this.exec(awgs);
+		wetuwn wesuwt.stdout;
 	}
 
-	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
-	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
-	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
-	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		const range = `${ref1}...${ref2}`;
+	diffBetween(wef1: stwing, wef2: stwing): Pwomise<Change[]>;
+	diffBetween(wef1: stwing, wef2: stwing, path: stwing): Pwomise<stwing>;
+	diffBetween(wef1: stwing, wef2: stwing, path?: stwing | undefined): Pwomise<stwing | Change[]>;
+	async diffBetween(wef1: stwing, wef2: stwing, path?: stwing): Pwomise<stwing | Change[]> {
+		const wange = `${wef1}...${wef2}`;
 		if (!path) {
-			return await this.diffFiles(false, range);
+			wetuwn await this.diffFiwes(fawse, wange);
 		}
 
-		const args = ['diff', range, '--', sanitizePath(path)];
-		const result = await this.exec(args);
+		const awgs = ['diff', wange, '--', sanitizePath(path)];
+		const wesuwt = await this.exec(awgs);
 
-		return result.stdout.trim();
+		wetuwn wesuwt.stdout.twim();
 	}
 
-	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
-		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
+	pwivate async diffFiwes(cached: boowean, wef?: stwing): Pwomise<Change[]> {
+		const awgs = ['diff', '--name-status', '-z', '--diff-fiwta=ADMW'];
 		if (cached) {
-			args.push('--cached');
+			awgs.push('--cached');
 		}
 
-		if (ref) {
-			args.push(ref);
+		if (wef) {
+			awgs.push(wef);
 		}
 
-		const gitResult = await this.exec(args);
-		if (gitResult.exitCode) {
-			return [];
+		const gitWesuwt = await this.exec(awgs);
+		if (gitWesuwt.exitCode) {
+			wetuwn [];
 		}
 
-		const entries = gitResult.stdout.split('\x00');
-		let index = 0;
-		const result: Change[] = [];
+		const entwies = gitWesuwt.stdout.spwit('\x00');
+		wet index = 0;
+		const wesuwt: Change[] = [];
 
-		entriesLoop:
-		while (index < entries.length - 1) {
-			const change = entries[index++];
-			const resourcePath = entries[index++];
-			if (!change || !resourcePath) {
-				break;
+		entwiesWoop:
+		whiwe (index < entwies.wength - 1) {
+			const change = entwies[index++];
+			const wesouwcePath = entwies[index++];
+			if (!change || !wesouwcePath) {
+				bweak;
 			}
 
-			const originalUri = Uri.file(path.isAbsolute(resourcePath) ? resourcePath : path.join(this.repositoryRoot, resourcePath));
-			let status: Status = Status.UNTRACKED;
+			const owiginawUwi = Uwi.fiwe(path.isAbsowute(wesouwcePath) ? wesouwcePath : path.join(this.wepositowyWoot, wesouwcePath));
+			wet status: Status = Status.UNTWACKED;
 
-			// Copy or Rename status comes with a number, e.g. 'R100'. We don't need the number, so we use only first character of the status.
+			// Copy ow Wename status comes with a numba, e.g. 'W100'. We don't need the numba, so we use onwy fiwst chawacta of the status.
 			switch (change[0]) {
 				case 'M':
 					status = Status.MODIFIED;
-					break;
+					bweak;
 
 				case 'A':
 					status = Status.INDEX_ADDED;
-					break;
+					bweak;
 
 				case 'D':
-					status = Status.DELETED;
-					break;
+					status = Status.DEWETED;
+					bweak;
 
-				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R':
-					if (index >= entries.length) {
-						break;
+				// Wename contains two paths, the second one is what the fiwe is wenamed/copied to.
+				case 'W':
+					if (index >= entwies.wength) {
+						bweak;
 					}
 
-					const newPath = entries[index++];
+					const newPath = entwies[index++];
 					if (!newPath) {
-						break;
+						bweak;
 					}
 
-					const uri = Uri.file(path.isAbsolute(newPath) ? newPath : path.join(this.repositoryRoot, newPath));
-					result.push({
-						uri,
-						renameUri: uri,
-						originalUri,
-						status: Status.INDEX_RENAMED
+					const uwi = Uwi.fiwe(path.isAbsowute(newPath) ? newPath : path.join(this.wepositowyWoot, newPath));
+					wesuwt.push({
+						uwi,
+						wenameUwi: uwi,
+						owiginawUwi,
+						status: Status.INDEX_WENAMED
 					});
 
 					continue;
 
-				default:
+				defauwt:
 					// Unknown status
-					break entriesLoop;
+					bweak entwiesWoop;
 			}
 
-			result.push({
+			wesuwt.push({
 				status,
-				originalUri,
-				uri: originalUri,
-				renameUri: originalUri,
+				owiginawUwi,
+				uwi: owiginawUwi,
+				wenameUwi: owiginawUwi,
 			});
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string> {
-		const args = ['merge-base', ref1, ref2];
-		const result = await this.exec(args);
+	async getMewgeBase(wef1: stwing, wef2: stwing): Pwomise<stwing> {
+		const awgs = ['mewge-base', wef1, wef2];
+		const wesuwt = await this.exec(awgs);
 
-		return result.stdout.trim();
+		wetuwn wesuwt.stdout.twim();
 	}
 
-	async hashObject(data: string): Promise<string> {
-		const args = ['hash-object', '-w', '--stdin'];
-		const result = await this.exec(args, { input: data });
+	async hashObject(data: stwing): Pwomise<stwing> {
+		const awgs = ['hash-object', '-w', '--stdin'];
+		const wesuwt = await this.exec(awgs, { input: data });
 
-		return result.stdout.trim();
+		wetuwn wesuwt.stdout.twim();
 	}
 
-	async add(paths: string[], opts?: { update?: boolean }): Promise<void> {
-		const args = ['add'];
+	async add(paths: stwing[], opts?: { update?: boowean }): Pwomise<void> {
+		const awgs = ['add'];
 
 		if (opts && opts.update) {
-			args.push('-u');
-		} else {
-			args.push('-A');
+			awgs.push('-u');
+		} ewse {
+			awgs.push('-A');
 		}
 
-		if (paths && paths.length) {
-			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-				await this.exec([...args, '--', ...chunk]);
+		if (paths && paths.wength) {
+			fow (const chunk of spwitInChunks(paths.map(sanitizePath), MAX_CWI_WENGTH)) {
+				await this.exec([...awgs, '--', ...chunk]);
 			}
-		} else {
-			await this.exec([...args, '--', '.']);
+		} ewse {
+			await this.exec([...awgs, '--', '.']);
 		}
 	}
 
-	async rm(paths: string[]): Promise<void> {
-		const args = ['rm', '--'];
+	async wm(paths: stwing[]): Pwomise<void> {
+		const awgs = ['wm', '--'];
 
-		if (!paths || !paths.length) {
-			return;
+		if (!paths || !paths.wength) {
+			wetuwn;
 		}
 
-		args.push(...paths.map(sanitizePath));
+		awgs.push(...paths.map(sanitizePath));
 
-		await this.exec(args);
+		await this.exec(awgs);
 	}
 
-	async stage(path: string, data: string): Promise<void> {
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
-		child.stdin!.end(data, 'utf8');
+	async stage(path: stwing, data: stwing): Pwomise<void> {
+		const chiwd = this.stweam(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [nuww, nuww, nuww] });
+		chiwd.stdin!.end(data, 'utf8');
 
-		const { exitCode, stdout } = await exec(child);
-		const hash = stdout.toString('utf8');
+		const { exitCode, stdout } = await exec(chiwd);
+		const hash = stdout.toStwing('utf8');
 
 		if (exitCode) {
-			throw new GitError({
-				message: 'Could not hash object.',
+			thwow new GitEwwow({
+				message: 'Couwd not hash object.',
 				exitCode: exitCode
 			});
 		}
 
-		const treeish = await this.getCommit('HEAD').then(() => 'HEAD', () => '');
-		let mode: string;
-		let add: string = '';
+		const tweeish = await this.getCommit('HEAD').then(() => 'HEAD', () => '');
+		wet mode: stwing;
+		wet add: stwing = '';
 
-		try {
-			const details = await this.getObjectDetails(treeish, path);
-			mode = details.mode;
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.UnknownPath) {
-				throw err;
+		twy {
+			const detaiws = await this.getObjectDetaiws(tweeish, path);
+			mode = detaiws.mode;
+		} catch (eww) {
+			if (eww.gitEwwowCode !== GitEwwowCodes.UnknownPath) {
+				thwow eww;
 			}
 
 			mode = '100644';
@@ -1308,842 +1308,842 @@ export class Repository {
 		await this.exec(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
-	async checkout(treeish: string, paths: string[], opts: { track?: boolean, detached?: boolean } = Object.create(null)): Promise<void> {
-		const args = ['checkout', '-q'];
+	async checkout(tweeish: stwing, paths: stwing[], opts: { twack?: boowean, detached?: boowean } = Object.cweate(nuww)): Pwomise<void> {
+		const awgs = ['checkout', '-q'];
 
-		if (opts.track) {
-			args.push('--track');
+		if (opts.twack) {
+			awgs.push('--twack');
 		}
 
 		if (opts.detached) {
-			args.push('--detach');
+			awgs.push('--detach');
 		}
 
-		if (treeish) {
-			args.push(treeish);
+		if (tweeish) {
+			awgs.push(tweeish);
 		}
 
-		try {
-			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-					await this.exec([...args, '--', ...chunk]);
+		twy {
+			if (paths && paths.wength > 0) {
+				fow (const chunk of spwitInChunks(paths.map(sanitizePath), MAX_CWI_WENGTH)) {
+					await this.exec([...awgs, '--', ...chunk]);
 				}
-			} else {
-				await this.exec(args);
+			} ewse {
+				await this.exec(awgs);
 			}
-		} catch (err) {
-			if (/Please,? commit your changes or stash them/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
-				err.gitTreeish = treeish;
+		} catch (eww) {
+			if (/Pwease,? commit youw changes ow stash them/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.DiwtyWowkTwee;
+				eww.gitTweeish = tweeish;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message'];
+	async commit(message: stwing | undefined, opts: CommitOptions = Object.cweate(nuww)): Pwomise<void> {
+		const awgs = ['commit', '--quiet', '--awwow-empty-message'];
 
-		if (opts.all) {
-			args.push('--all');
+		if (opts.aww) {
+			awgs.push('--aww');
 		}
 
 		if (opts.amend && message) {
-			args.push('--amend');
+			awgs.push('--amend');
 		}
 
 		if (opts.amend && !message) {
-			args.push('--amend', '--no-edit');
-		} else {
-			args.push('--file', '-');
+			awgs.push('--amend', '--no-edit');
+		} ewse {
+			awgs.push('--fiwe', '-');
 		}
 
 		if (opts.signoff) {
-			args.push('--signoff');
+			awgs.push('--signoff');
 		}
 
 		if (opts.signCommit) {
-			args.push('-S');
+			awgs.push('-S');
 		}
 
 		if (opts.empty) {
-			args.push('--allow-empty');
+			awgs.push('--awwow-empty');
 		}
 
-		if (opts.noVerify) {
-			args.push('--no-verify');
+		if (opts.noVewify) {
+			awgs.push('--no-vewify');
 		}
 
-		if (opts.requireUserConfig ?? true) {
-			// Stops git from guessing at user/email
-			args.splice(0, 0, '-c', 'user.useConfigOnly=true');
+		if (opts.wequiweUsewConfig ?? twue) {
+			// Stops git fwom guessing at usa/emaiw
+			awgs.spwice(0, 0, '-c', 'usa.useConfigOnwy=twue');
 		}
 
-		try {
-			await this.exec(args, !opts.amend || message ? { input: message || '' } : {});
-		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
-		}
-	}
-
-	async rebaseAbort(): Promise<void> {
-		await this.exec(['rebase', '--abort']);
-	}
-
-	async rebaseContinue(): Promise<void> {
-		const args = ['rebase', '--continue'];
-
-		try {
-			await this.exec(args);
-		} catch (commitErr) {
-			await this.handleCommitError(commitErr);
+		twy {
+			await this.exec(awgs, !opts.amend || message ? { input: message || '' } : {});
+		} catch (commitEww) {
+			await this.handweCommitEwwow(commitEww);
 		}
 	}
 
-	private async handleCommitError(commitErr: any): Promise<void> {
-		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
-			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
-			throw commitErr;
+	async webaseAbowt(): Pwomise<void> {
+		await this.exec(['webase', '--abowt']);
+	}
+
+	async webaseContinue(): Pwomise<void> {
+		const awgs = ['webase', '--continue'];
+
+		twy {
+			await this.exec(awgs);
+		} catch (commitEww) {
+			await this.handweCommitEwwow(commitEww);
+		}
+	}
+
+	pwivate async handweCommitEwwow(commitEww: any): Pwomise<void> {
+		if (/not possibwe because you have unmewged fiwes/.test(commitEww.stdeww || '')) {
+			commitEww.gitEwwowCode = GitEwwowCodes.UnmewgedChanges;
+			thwow commitEww;
 		}
 
-		try {
-			await this.exec(['config', '--get-all', 'user.name']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-			throw err;
+		twy {
+			await this.exec(['config', '--get-aww', 'usa.name']);
+		} catch (eww) {
+			eww.gitEwwowCode = GitEwwowCodes.NoUsewNameConfiguwed;
+			thwow eww;
 		}
 
-		try {
-			await this.exec(['config', '--get-all', 'user.email']);
-		} catch (err) {
-			err.gitErrorCode = GitErrorCodes.NoUserEmailConfigured;
-			throw err;
+		twy {
+			await this.exec(['config', '--get-aww', 'usa.emaiw']);
+		} catch (eww) {
+			eww.gitEwwowCode = GitEwwowCodes.NoUsewEmaiwConfiguwed;
+			thwow eww;
 		}
 
-		throw commitErr;
+		thwow commitEww;
 	}
 
-	async branch(name: string, checkout: boolean, ref?: string): Promise<void> {
-		const args = checkout ? ['checkout', '-q', '-b', name, '--no-track'] : ['branch', '-q', name];
+	async bwanch(name: stwing, checkout: boowean, wef?: stwing): Pwomise<void> {
+		const awgs = checkout ? ['checkout', '-q', '-b', name, '--no-twack'] : ['bwanch', '-q', name];
 
-		if (ref) {
-			args.push(ref);
+		if (wef) {
+			awgs.push(wef);
 		}
 
-		await this.exec(args);
+		await this.exec(awgs);
 	}
 
-	async deleteBranch(name: string, force?: boolean): Promise<void> {
-		const args = ['branch', force ? '-D' : '-d', name];
-		await this.exec(args);
+	async deweteBwanch(name: stwing, fowce?: boowean): Pwomise<void> {
+		const awgs = ['bwanch', fowce ? '-D' : '-d', name];
+		await this.exec(awgs);
 	}
 
-	async renameBranch(name: string): Promise<void> {
-		const args = ['branch', '-m', name];
-		await this.exec(args);
+	async wenameBwanch(name: stwing): Pwomise<void> {
+		const awgs = ['bwanch', '-m', name];
+		await this.exec(awgs);
 	}
 
-	async move(from: string, to: string): Promise<void> {
-		const args = ['mv', from, to];
-		await this.exec(args);
+	async move(fwom: stwing, to: stwing): Pwomise<void> {
+		const awgs = ['mv', fwom, to];
+		await this.exec(awgs);
 	}
 
-	async setBranchUpstream(name: string, upstream: string): Promise<void> {
-		const args = ['branch', '--set-upstream-to', upstream, name];
-		await this.exec(args);
+	async setBwanchUpstweam(name: stwing, upstweam: stwing): Pwomise<void> {
+		const awgs = ['bwanch', '--set-upstweam-to', upstweam, name];
+		await this.exec(awgs);
 	}
 
-	async deleteRef(ref: string): Promise<void> {
-		const args = ['update-ref', '-d', ref];
-		await this.exec(args);
+	async deweteWef(wef: stwing): Pwomise<void> {
+		const awgs = ['update-wef', '-d', wef];
+		await this.exec(awgs);
 	}
 
-	async merge(ref: string): Promise<void> {
-		const args = ['merge', ref];
+	async mewge(wef: stwing): Pwomise<void> {
+		const awgs = ['mewge', wef];
 
-		try {
-			await this.exec(args);
-		} catch (err) {
-			if (/^CONFLICT /m.test(err.stdout || '')) {
-				err.gitErrorCode = GitErrorCodes.Conflict;
+		twy {
+			await this.exec(awgs);
+		} catch (eww) {
+			if (/^CONFWICT /m.test(eww.stdout || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.Confwict;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
-		let args = ['tag'];
+	async tag(name: stwing, message?: stwing): Pwomise<void> {
+		wet awgs = ['tag'];
 
 		if (message) {
-			args = [...args, '-a', name, '-m', message];
-		} else {
-			args = [...args, name];
+			awgs = [...awgs, '-a', name, '-m', message];
+		} ewse {
+			awgs = [...awgs, name];
 		}
 
-		await this.exec(args);
+		await this.exec(awgs);
 	}
 
-	async deleteTag(name: string): Promise<void> {
-		let args = ['tag', '-d', name];
-		await this.exec(args);
+	async deweteTag(name: stwing): Pwomise<void> {
+		wet awgs = ['tag', '-d', name];
+		await this.exec(awgs);
 	}
 
-	async clean(paths: string[]): Promise<void> {
-		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
-		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
+	async cwean(paths: stwing[]): Pwomise<void> {
+		const pathsByGwoup = gwoupBy(paths.map(sanitizePath), p => path.diwname(p));
+		const gwoups = Object.keys(pathsByGwoup).map(k => pathsByGwoup[k]);
 
-		const limiter = new Limiter(5);
-		const promises: Promise<any>[] = [];
-		const args = ['clean', '-f', '-q'];
+		const wimita = new Wimita(5);
+		const pwomises: Pwomise<any>[] = [];
+		const awgs = ['cwean', '-f', '-q'];
 
-		for (const paths of groups) {
-			for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-				promises.push(limiter.queue(() => this.exec([...args, '--', ...chunk])));
+		fow (const paths of gwoups) {
+			fow (const chunk of spwitInChunks(paths.map(sanitizePath), MAX_CWI_WENGTH)) {
+				pwomises.push(wimita.queue(() => this.exec([...awgs, '--', ...chunk])));
 			}
 		}
 
-		await Promise.all(promises);
+		await Pwomise.aww(pwomises);
 	}
 
-	async undo(): Promise<void> {
-		await this.exec(['clean', '-fd']);
+	async undo(): Pwomise<void> {
+		await this.exec(['cwean', '-fd']);
 
-		try {
+		twy {
 			await this.exec(['checkout', '--', '.']);
-		} catch (err) {
-			if (/did not match any file\(s\) known to git\./.test(err.stderr || '')) {
-				return;
+		} catch (eww) {
+			if (/did not match any fiwe\(s\) known to git\./.test(eww.stdeww || '')) {
+				wetuwn;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async reset(treeish: string, hard: boolean = false): Promise<void> {
-		const args = ['reset', hard ? '--hard' : '--soft', treeish];
-		await this.exec(args);
+	async weset(tweeish: stwing, hawd: boowean = fawse): Pwomise<void> {
+		const awgs = ['weset', hawd ? '--hawd' : '--soft', tweeish];
+		await this.exec(awgs);
 	}
 
-	async revert(treeish: string, paths: string[]): Promise<void> {
-		const result = await this.exec(['branch']);
-		let args: string[];
+	async wevewt(tweeish: stwing, paths: stwing[]): Pwomise<void> {
+		const wesuwt = await this.exec(['bwanch']);
+		wet awgs: stwing[];
 
-		// In case there are no branches, we must use rm --cached
-		if (!result.stdout) {
-			args = ['rm', '--cached', '-r'];
-		} else {
-			args = ['reset', '-q', treeish];
+		// In case thewe awe no bwanches, we must use wm --cached
+		if (!wesuwt.stdout) {
+			awgs = ['wm', '--cached', '-w'];
+		} ewse {
+			awgs = ['weset', '-q', tweeish];
 		}
 
-		try {
-			if (paths && paths.length > 0) {
-				for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-					await this.exec([...args, '--', ...chunk]);
+		twy {
+			if (paths && paths.wength > 0) {
+				fow (const chunk of spwitInChunks(paths.map(sanitizePath), MAX_CWI_WENGTH)) {
+					await this.exec([...awgs, '--', ...chunk]);
 				}
-			} else {
-				await this.exec([...args, '--', '.']);
+			} ewse {
+				await this.exec([...awgs, '--', '.']);
 			}
-		} catch (err) {
-			// In case there are merge conflicts to be resolved, git reset will output
-			// some "needs merge" data. We try to get around that.
-			if (/([^:]+: needs merge\n)+/m.test(err.stdout || '')) {
-				return;
+		} catch (eww) {
+			// In case thewe awe mewge confwicts to be wesowved, git weset wiww output
+			// some "needs mewge" data. We twy to get awound that.
+			if (/([^:]+: needs mewge\n)+/m.test(eww.stdout || '')) {
+				wetuwn;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async addRemote(name: string, url: string): Promise<void> {
-		const args = ['remote', 'add', name, url];
-		await this.exec(args);
+	async addWemote(name: stwing, uww: stwing): Pwomise<void> {
+		const awgs = ['wemote', 'add', name, uww];
+		await this.exec(awgs);
 	}
 
-	async removeRemote(name: string): Promise<void> {
-		const args = ['remote', 'remove', name];
-		await this.exec(args);
+	async wemoveWemote(name: stwing): Pwomise<void> {
+		const awgs = ['wemote', 'wemove', name];
+		await this.exec(awgs);
 	}
 
-	async renameRemote(name: string, newName: string): Promise<void> {
-		const args = ['remote', 'rename', name, newName];
-		await this.exec(args);
+	async wenameWemote(name: stwing, newName: stwing): Pwomise<void> {
+		const awgs = ['wemote', 'wename', name, newName];
+		await this.exec(awgs);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean, readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
-		const args = ['fetch'];
+	async fetch(options: { wemote?: stwing, wef?: stwing, aww?: boowean, pwune?: boowean, depth?: numba, siwent?: boowean, weadonwy cancewwationToken?: CancewwationToken } = {}): Pwomise<void> {
+		const awgs = ['fetch'];
 		const spawnOptions: SpawnOptions = {
-			cancellationToken: options.cancellationToken,
-			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+			cancewwationToken: options.cancewwationToken,
+			env: { 'GIT_HTTP_USEW_AGENT': this.git.usewAgent }
 		};
 
-		if (options.remote) {
-			args.push(options.remote);
+		if (options.wemote) {
+			awgs.push(options.wemote);
 
-			if (options.ref) {
-				args.push(options.ref);
+			if (options.wef) {
+				awgs.push(options.wef);
 			}
-		} else if (options.all) {
-			args.push('--all');
+		} ewse if (options.aww) {
+			awgs.push('--aww');
 		}
 
-		if (options.prune) {
-			args.push('--prune');
+		if (options.pwune) {
+			awgs.push('--pwune');
 		}
 
-		if (typeof options.depth === 'number') {
-			args.push(`--depth=${options.depth}`);
+		if (typeof options.depth === 'numba') {
+			awgs.push(`--depth=${options.depth}`);
 		}
 
-		if (options.silent) {
-			spawnOptions.env!['VSCODE_GIT_FETCH_SILENT'] = 'true';
+		if (options.siwent) {
+			spawnOptions.env!['VSCODE_GIT_FETCH_SIWENT'] = 'twue';
 		}
 
-		try {
-			await this.exec(args, spawnOptions);
-		} catch (err) {
-			if (/No remote repository specified\./.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoRemoteRepositorySpecified;
-			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+		twy {
+			await this.exec(awgs, spawnOptions);
+		} catch (eww) {
+			if (/No wemote wepositowy specified\./.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoWemoteWepositowySpecified;
+			} ewse if (/Couwd not wead fwom wemote wepositowy/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.WemoteConnectionEwwow;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<void> {
-		const args = ['pull'];
+	async puww(webase?: boowean, wemote?: stwing, bwanch?: stwing, options: PuwwOptions = {}): Pwomise<void> {
+		const awgs = ['puww'];
 
 		if (options.tags) {
-			args.push('--tags');
+			awgs.push('--tags');
 		}
 
-		if (options.unshallow) {
-			args.push('--unshallow');
+		if (options.unshawwow) {
+			awgs.push('--unshawwow');
 		}
 
-		if (rebase) {
-			args.push('-r');
+		if (webase) {
+			awgs.push('-w');
 		}
 
-		if (remote && branch) {
-			args.push(remote);
-			args.push(branch);
+		if (wemote && bwanch) {
+			awgs.push(wemote);
+			awgs.push(bwanch);
 		}
 
-		try {
-			await this.exec(args, {
-				cancellationToken: options.cancellationToken,
-				env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
+		twy {
+			await this.exec(awgs, {
+				cancewwationToken: options.cancewwationToken,
+				env: { 'GIT_HTTP_USEW_AGENT': this.git.usewAgent }
 			});
-		} catch (err) {
-			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
-				err.gitErrorCode = GitErrorCodes.Conflict;
-			} else if (/Please tell me who you are\./.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoUserNameConfigured;
-			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
-			} else if (/Pull(?:ing)? is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge/i.test(err.stderr)) {
-				err.stderr = err.stderr.replace(/Cannot pull with rebase: You have unstaged changes/i, 'Cannot pull with rebase, you have unstaged changes');
-				err.gitErrorCode = GitErrorCodes.DirtyWorkTree;
-			} else if (/cannot lock ref|unable to update local ref/i.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.CantLockRef;
-			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+		} catch (eww) {
+			if (/^CONFWICT \([^)]+\): \b/m.test(eww.stdout || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.Confwict;
+			} ewse if (/Pwease teww me who you awe\./.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoUsewNameConfiguwed;
+			} ewse if (/Couwd not wead fwom wemote wepositowy/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.WemoteConnectionEwwow;
+			} ewse if (/Puww(?:ing)? is not possibwe because you have unmewged fiwes|Cannot puww with webase: You have unstaged changes|Youw wocaw changes to the fowwowing fiwes wouwd be ovewwwitten|Pwease, commit youw changes befowe you can mewge/i.test(eww.stdeww)) {
+				eww.stdeww = eww.stdeww.wepwace(/Cannot puww with webase: You have unstaged changes/i, 'Cannot puww with webase, you have unstaged changes');
+				eww.gitEwwowCode = GitEwwowCodes.DiwtyWowkTwee;
+			} ewse if (/cannot wock wef|unabwe to update wocaw wef/i.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.CantWockWef;
+			} ewse if (/cannot webase onto muwtipwe bwanches/i.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.CantWebaseMuwtipweBwanches;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
-		const args = ['rebase'];
+	async webase(bwanch: stwing, options: PuwwOptions = {}): Pwomise<void> {
+		const awgs = ['webase'];
 
-		args.push(branch);
+		awgs.push(bwanch);
 
-		try {
-			await this.exec(args, options);
-		} catch (err) {
-			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
-				err.gitErrorCode = GitErrorCodes.Conflict;
-			} else if (/cannot rebase onto multiple branches/i.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.CantRebaseMultipleBranches;
+		twy {
+			await this.exec(awgs, options);
+		} catch (eww) {
+			if (/^CONFWICT \([^)]+\): \b/m.test(eww.stdout || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.Confwict;
+			} ewse if (/cannot webase onto muwtipwe bwanches/i.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.CantWebaseMuwtipweBwanches;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
-		const args = ['push'];
+	async push(wemote?: stwing, name?: stwing, setUpstweam: boowean = fawse, fowwowTags = fawse, fowcePushMode?: FowcePushMode, tags = fawse): Pwomise<void> {
+		const awgs = ['push'];
 
-		if (forcePushMode === ForcePushMode.ForceWithLease) {
-			args.push('--force-with-lease');
-		} else if (forcePushMode === ForcePushMode.Force) {
-			args.push('--force');
+		if (fowcePushMode === FowcePushMode.FowceWithWease) {
+			awgs.push('--fowce-with-wease');
+		} ewse if (fowcePushMode === FowcePushMode.Fowce) {
+			awgs.push('--fowce');
 		}
 
-		if (setUpstream) {
-			args.push('-u');
+		if (setUpstweam) {
+			awgs.push('-u');
 		}
 
-		if (followTags) {
-			args.push('--follow-tags');
+		if (fowwowTags) {
+			awgs.push('--fowwow-tags');
 		}
 
 		if (tags) {
-			args.push('--tags');
+			awgs.push('--tags');
 		}
 
-		if (remote) {
-			args.push(remote);
+		if (wemote) {
+			awgs.push(wemote);
 		}
 
 		if (name) {
-			args.push(name);
+			awgs.push(name);
 		}
 
-		try {
-			await this.exec(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
-		} catch (err) {
-			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.PushRejected;
-			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
-			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
-			} else if (/Permission.*denied/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.PermissionDenied;
+		twy {
+			await this.exec(awgs, { env: { 'GIT_HTTP_USEW_AGENT': this.git.usewAgent } });
+		} catch (eww) {
+			if (/^ewwow: faiwed to push some wefs to\b/m.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.PushWejected;
+			} ewse if (/Couwd not wead fwom wemote wepositowy/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.WemoteConnectionEwwow;
+			} ewse if (/^fataw: The cuwwent bwanch .* has no upstweam bwanch/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoUpstweamBwanch;
+			} ewse if (/Pewmission.*denied/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.PewmissionDenied;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async cherryPick(commitHash: string): Promise<void> {
-		const args = ['cherry-pick', commitHash];
-		await this.exec(args);
+	async chewwyPick(commitHash: stwing): Pwomise<void> {
+		const awgs = ['chewwy-pick', commitHash];
+		await this.exec(awgs);
 	}
 
-	async blame(path: string): Promise<string> {
-		try {
-			const args = ['blame', sanitizePath(path)];
-			const result = await this.exec(args);
-			return result.stdout.trim();
-		} catch (err) {
-			if (/^fatal: no such path/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoPathFound;
+	async bwame(path: stwing): Pwomise<stwing> {
+		twy {
+			const awgs = ['bwame', sanitizePath(path)];
+			const wesuwt = await this.exec(awgs);
+			wetuwn wesuwt.stdout.twim();
+		} catch (eww) {
+			if (/^fataw: no such path/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoPathFound;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
-		try {
-			const args = ['stash', 'push'];
+	async cweateStash(message?: stwing, incwudeUntwacked?: boowean): Pwomise<void> {
+		twy {
+			const awgs = ['stash', 'push'];
 
-			if (includeUntracked) {
-				args.push('-u');
+			if (incwudeUntwacked) {
+				awgs.push('-u');
 			}
 
 			if (message) {
-				args.push('-m', message);
+				awgs.push('-m', message);
 			}
 
-			await this.exec(args);
-		} catch (err) {
-			if (/No local changes to save/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoLocalChanges;
+			await this.exec(awgs);
+		} catch (eww) {
+			if (/No wocaw changes to save/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoWocawChanges;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async popStash(index?: number): Promise<void> {
-		const args = ['stash', 'pop'];
-		await this.popOrApplyStash(args, index);
+	async popStash(index?: numba): Pwomise<void> {
+		const awgs = ['stash', 'pop'];
+		await this.popOwAppwyStash(awgs, index);
 	}
 
-	async applyStash(index?: number): Promise<void> {
-		const args = ['stash', 'apply'];
-		await this.popOrApplyStash(args, index);
+	async appwyStash(index?: numba): Pwomise<void> {
+		const awgs = ['stash', 'appwy'];
+		await this.popOwAppwyStash(awgs, index);
 	}
 
-	private async popOrApplyStash(args: string[], index?: number): Promise<void> {
-		try {
-			if (typeof index === 'number') {
-				args.push(`stash@{${index}}`);
+	pwivate async popOwAppwyStash(awgs: stwing[], index?: numba): Pwomise<void> {
+		twy {
+			if (typeof index === 'numba') {
+				awgs.push(`stash@{${index}}`);
 			}
 
-			await this.exec(args);
-		} catch (err) {
-			if (/No stash found/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoStashFound;
-			} else if (/error: Your local changes to the following files would be overwritten/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.LocalChangesOverwritten;
-			} else if (/^CONFLICT/m.test(err.stdout || '')) {
-				err.gitErrorCode = GitErrorCodes.StashConflict;
+			await this.exec(awgs);
+		} catch (eww) {
+			if (/No stash found/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoStashFound;
+			} ewse if (/ewwow: Youw wocaw changes to the fowwowing fiwes wouwd be ovewwwitten/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.WocawChangesOvewwwitten;
+			} ewse if (/^CONFWICT/m.test(eww.stdout || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.StashConfwict;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	async dropStash(index?: number): Promise<void> {
-		const args = ['stash', 'drop'];
+	async dwopStash(index?: numba): Pwomise<void> {
+		const awgs = ['stash', 'dwop'];
 
-		if (typeof index === 'number') {
-			args.push(`stash@{${index}}`);
+		if (typeof index === 'numba') {
+			awgs.push(`stash@{${index}}`);
 		}
 
-		try {
-			await this.exec(args);
-		} catch (err) {
-			if (/No stash found/.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.NoStashFound;
+		twy {
+			await this.exec(awgs);
+		} catch (eww) {
+			if (/No stash found/.test(eww.stdeww || '')) {
+				eww.gitEwwowCode = GitEwwowCodes.NoStashFound;
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
-		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
-			const parser = new GitStatusParser();
-			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const args = ['status', '-z', '-u'];
+	getStatus(opts?: { wimit?: numba, ignoweSubmoduwes?: boowean }): Pwomise<{ status: IFiweStatus[]; didHitWimit: boowean; }> {
+		wetuwn new Pwomise<{ status: IFiweStatus[]; didHitWimit: boowean; }>((c, e) => {
+			const pawsa = new GitStatusPawsa();
+			const env = { GIT_OPTIONAW_WOCKS: '0' };
+			const awgs = ['status', '-z', '-u'];
 
-			if (opts?.ignoreSubmodules) {
-				args.push('--ignore-submodules');
+			if (opts?.ignoweSubmoduwes) {
+				awgs.push('--ignowe-submoduwes');
 			}
 
-			const child = this.stream(args, { env });
+			const chiwd = this.stweam(awgs, { env });
 
-			const onExit = (exitCode: number) => {
+			const onExit = (exitCode: numba) => {
 				if (exitCode !== 0) {
-					const stderr = stderrData.join('');
-					return e(new GitError({
-						message: 'Failed to execute git',
-						stderr,
+					const stdeww = stdewwData.join('');
+					wetuwn e(new GitEwwow({
+						message: 'Faiwed to execute git',
+						stdeww,
 						exitCode,
-						gitErrorCode: getGitErrorCode(stderr),
+						gitEwwowCode: getGitEwwowCode(stdeww),
 						gitCommand: 'status',
-						gitArgs: args
+						gitAwgs: awgs
 					}));
 				}
 
-				c({ status: parser.status, didHitLimit: false });
+				c({ status: pawsa.status, didHitWimit: fawse });
 			};
 
-			const limit = opts?.limit ?? 5000;
-			const onStdoutData = (raw: string) => {
-				parser.update(raw);
+			const wimit = opts?.wimit ?? 5000;
+			const onStdoutData = (waw: stwing) => {
+				pawsa.update(waw);
 
-				if (parser.status.length > limit) {
-					child.removeListener('exit', onExit);
-					child.stdout!.removeListener('data', onStdoutData);
-					child.kill();
+				if (pawsa.status.wength > wimit) {
+					chiwd.wemoveWistena('exit', onExit);
+					chiwd.stdout!.wemoveWistena('data', onStdoutData);
+					chiwd.kiww();
 
-					c({ status: parser.status.slice(0, limit), didHitLimit: true });
+					c({ status: pawsa.status.swice(0, wimit), didHitWimit: twue });
 				}
 			};
 
-			child.stdout!.setEncoding('utf8');
-			child.stdout!.on('data', onStdoutData);
+			chiwd.stdout!.setEncoding('utf8');
+			chiwd.stdout!.on('data', onStdoutData);
 
-			const stderrData: string[] = [];
-			child.stderr!.setEncoding('utf8');
-			child.stderr!.on('data', raw => stderrData.push(raw as string));
+			const stdewwData: stwing[] = [];
+			chiwd.stdeww!.setEncoding('utf8');
+			chiwd.stdeww!.on('data', waw => stdewwData.push(waw as stwing));
 
-			child.on('error', cpErrorHandler(e));
-			child.on('exit', onExit);
+			chiwd.on('ewwow', cpEwwowHandwa(e));
+			chiwd.on('exit', onExit);
 		});
 	}
 
-	async getHEAD(): Promise<Ref> {
-		try {
-			const result = await this.exec(['symbolic-ref', '--short', 'HEAD']);
+	async getHEAD(): Pwomise<Wef> {
+		twy {
+			const wesuwt = await this.exec(['symbowic-wef', '--showt', 'HEAD']);
 
-			if (!result.stdout) {
-				throw new Error('Not in a branch');
+			if (!wesuwt.stdout) {
+				thwow new Ewwow('Not in a bwanch');
 			}
 
-			return { name: result.stdout.trim(), commit: undefined, type: RefType.Head };
-		} catch (err) {
-			const result = await this.exec(['rev-parse', 'HEAD']);
+			wetuwn { name: wesuwt.stdout.twim(), commit: undefined, type: WefType.Head };
+		} catch (eww) {
+			const wesuwt = await this.exec(['wev-pawse', 'HEAD']);
 
-			if (!result.stdout) {
-				throw new Error('Error parsing HEAD');
+			if (!wesuwt.stdout) {
+				thwow new Ewwow('Ewwow pawsing HEAD');
 			}
 
-			return { name: undefined, commit: result.stdout.trim(), type: RefType.Head };
+			wetuwn { name: undefined, commit: wesuwt.stdout.twim(), type: WefType.Head };
 		}
 	}
 
-	async findTrackingBranches(upstreamBranch: string): Promise<Branch[]> {
-		const result = await this.exec(['for-each-ref', '--format', '%(refname:short)%00%(upstream:short)', 'refs/heads']);
-		return result.stdout.trim().split('\n')
-			.map(line => line.trim().split('\0'))
-			.filter(([_, upstream]) => upstream === upstreamBranch)
-			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
+	async findTwackingBwanches(upstweamBwanch: stwing): Pwomise<Bwanch[]> {
+		const wesuwt = await this.exec(['fow-each-wef', '--fowmat', '%(wefname:showt)%00%(upstweam:showt)', 'wefs/heads']);
+		wetuwn wesuwt.stdout.twim().spwit('\n')
+			.map(wine => wine.twim().spwit('\0'))
+			.fiwta(([_, upstweam]) => upstweam === upstweamBwanch)
+			.map(([wef]) => ({ name: wef, type: WefType.Head } as Bwanch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string, pattern?: string, count?: number }): Promise<Ref[]> {
-		const args = ['for-each-ref'];
+	async getWefs(opts?: { sowt?: 'awphabeticawwy' | 'committewdate', contains?: stwing, pattewn?: stwing, count?: numba }): Pwomise<Wef[]> {
+		const awgs = ['fow-each-wef'];
 
 		if (opts?.count) {
-			args.push(`--count=${opts.count}`);
+			awgs.push(`--count=${opts.count}`);
 		}
 
-		if (opts && opts.sort && opts.sort !== 'alphabetically') {
-			args.push('--sort', `-${opts.sort}`);
+		if (opts && opts.sowt && opts.sowt !== 'awphabeticawwy') {
+			awgs.push('--sowt', `-${opts.sowt}`);
 		}
 
-		args.push('--format', '%(refname) %(objectname) %(*objectname)');
+		awgs.push('--fowmat', '%(wefname) %(objectname) %(*objectname)');
 
-		if (opts?.pattern) {
-			args.push(opts.pattern);
+		if (opts?.pattewn) {
+			awgs.push(opts.pattewn);
 		}
 
 		if (opts?.contains) {
-			args.push('--contains', opts.contains);
+			awgs.push('--contains', opts.contains);
 		}
 
-		const result = await this.exec(args);
+		const wesuwt = await this.exec(awgs);
 
-		const fn = (line: string): Ref | null => {
-			let match: RegExpExecArray | null;
+		const fn = (wine: stwing): Wef | nuww => {
+			wet match: WegExpExecAwway | nuww;
 
-			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^refs\/remotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: `${match[1]}/${match[2]}`, commit: match[3], type: RefType.RemoteHead, remote: match[1] };
-			} else if (match = /^refs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(line)) {
-				return { name: match[1], commit: match[3] ?? match[2], type: RefType.Tag };
+			if (match = /^wefs\/heads\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(wine)) {
+				wetuwn { name: match[1], commit: match[2], type: WefType.Head };
+			} ewse if (match = /^wefs\/wemotes\/([^/]+)\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(wine)) {
+				wetuwn { name: `${match[1]}/${match[2]}`, commit: match[3], type: WefType.WemoteHead, wemote: match[1] };
+			} ewse if (match = /^wefs\/tags\/([^ ]+) ([0-9a-f]{40}) ([0-9a-f]{40})?$/.exec(wine)) {
+				wetuwn { name: match[1], commit: match[3] ?? match[2], type: WefType.Tag };
 			}
 
-			return null;
+			wetuwn nuww;
 		};
 
-		return result.stdout.split('\n')
-			.filter(line => !!line)
+		wetuwn wesuwt.stdout.spwit('\n')
+			.fiwta(wine => !!wine)
 			.map(fn)
-			.filter(ref => !!ref) as Ref[];
+			.fiwta(wef => !!wef) as Wef[];
 	}
 
-	async getStashes(): Promise<Stash[]> {
-		const result = await this.exec(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)$/;
-		const rawStashes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
+	async getStashes(): Pwomise<Stash[]> {
+		const wesuwt = await this.exec(['stash', 'wist']);
+		const wegex = /^stash@{(\d+)}:(.+)$/;
+		const wawStashes = wesuwt.stdout.twim().spwit('\n')
+			.fiwta(b => !!b)
+			.map(wine => wegex.exec(wine) as WegExpExecAwway)
+			.fiwta(g => !!g)
+			.map(([, index, descwiption]: WegExpExecAwway) => ({ index: pawseInt(index), descwiption }));
 
-		return rawStashes;
+		wetuwn wawStashes;
 	}
 
-	async getRemotes(): Promise<Remote[]> {
-		const result = await this.exec(['remote', '--verbose']);
-		const lines = result.stdout.trim().split('\n').filter(l => !!l);
-		const remotes: MutableRemote[] = [];
+	async getWemotes(): Pwomise<Wemote[]> {
+		const wesuwt = await this.exec(['wemote', '--vewbose']);
+		const wines = wesuwt.stdout.twim().spwit('\n').fiwta(w => !!w);
+		const wemotes: MutabweWemote[] = [];
 
-		for (const line of lines) {
-			const parts = line.split(/\s/);
-			const [name, url, type] = parts;
+		fow (const wine of wines) {
+			const pawts = wine.spwit(/\s/);
+			const [name, uww, type] = pawts;
 
-			let remote = remotes.find(r => r.name === name);
+			wet wemote = wemotes.find(w => w.name === name);
 
-			if (!remote) {
-				remote = { name, isReadOnly: false };
-				remotes.push(remote);
+			if (!wemote) {
+				wemote = { name, isWeadOnwy: fawse };
+				wemotes.push(wemote);
 			}
 
 			if (/fetch/i.test(type)) {
-				remote.fetchUrl = url;
-			} else if (/push/i.test(type)) {
-				remote.pushUrl = url;
-			} else {
-				remote.fetchUrl = url;
-				remote.pushUrl = url;
+				wemote.fetchUww = uww;
+			} ewse if (/push/i.test(type)) {
+				wemote.pushUww = uww;
+			} ewse {
+				wemote.fetchUww = uww;
+				wemote.pushUww = uww;
 			}
 
-			// https://github.com/microsoft/vscode/issues/45271
-			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
+			// https://github.com/micwosoft/vscode/issues/45271
+			wemote.isWeadOnwy = wemote.pushUww === undefined || wemote.pushUww === 'no_push';
 		}
 
-		return remotes;
+		wetuwn wemotes;
 	}
 
-	async getBranch(name: string): Promise<Branch> {
+	async getBwanch(name: stwing): Pwomise<Bwanch> {
 		if (name === 'HEAD') {
-			return this.getHEAD();
+			wetuwn this.getHEAD();
 		}
 
-		const args = ['for-each-ref'];
+		const awgs = ['fow-each-wef'];
 
-		let supportsAheadBehind = true;
-		if (this._git.compareGitVersionTo('1.9.0') === -1) {
-			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)');
-			supportsAheadBehind = false;
-		} else {
-			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
+		wet suppowtsAheadBehind = twue;
+		if (this._git.compaweGitVewsionTo('1.9.0') === -1) {
+			awgs.push('--fowmat=%(wefname)%00%(upstweam:showt)%00%(objectname)');
+			suppowtsAheadBehind = fawse;
+		} ewse {
+			awgs.push('--fowmat=%(wefname)%00%(upstweam:showt)%00%(objectname)%00%(upstweam:twack)');
 		}
 
-		if (/^refs\/(head|remotes)\//i.test(name)) {
-			args.push(name);
-		} else {
-			args.push(`refs/heads/${name}`, `refs/remotes/${name}`);
+		if (/^wefs\/(head|wemotes)\//i.test(name)) {
+			awgs.push(name);
+		} ewse {
+			awgs.push(`wefs/heads/${name}`, `wefs/wemotes/${name}`);
 		}
 
-		const result = await this.exec(args);
-		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
-			let [branchName, upstream, ref, status] = line.trim().split('\0');
+		const wesuwt = await this.exec(awgs);
+		const bwanches: Bwanch[] = wesuwt.stdout.twim().spwit('\n').map<Bwanch | undefined>(wine => {
+			wet [bwanchName, upstweam, wef, status] = wine.twim().spwit('\0');
 
-			if (branchName.startsWith('refs/heads/')) {
-				branchName = branchName.substring(11);
-				const index = upstream.indexOf('/');
+			if (bwanchName.stawtsWith('wefs/heads/')) {
+				bwanchName = bwanchName.substwing(11);
+				const index = upstweam.indexOf('/');
 
-				let ahead;
-				let behind;
+				wet ahead;
+				wet behind;
 				const match = /\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]/.exec(status);
 				if (match) {
 					[, ahead, behind] = match;
 				}
 
-				return {
-					type: RefType.Head,
-					name: branchName,
-					upstream: upstream ? {
-						name: upstream.substring(index + 1),
-						remote: upstream.substring(0, index)
+				wetuwn {
+					type: WefType.Head,
+					name: bwanchName,
+					upstweam: upstweam ? {
+						name: upstweam.substwing(index + 1),
+						wemote: upstweam.substwing(0, index)
 					} : undefined,
-					commit: ref || undefined,
-					ahead: Number(ahead) || 0,
-					behind: Number(behind) || 0,
+					commit: wef || undefined,
+					ahead: Numba(ahead) || 0,
+					behind: Numba(behind) || 0,
 				};
-			} else if (branchName.startsWith('refs/remotes/')) {
-				branchName = branchName.substring(13);
-				const index = branchName.indexOf('/');
+			} ewse if (bwanchName.stawtsWith('wefs/wemotes/')) {
+				bwanchName = bwanchName.substwing(13);
+				const index = bwanchName.indexOf('/');
 
-				return {
-					type: RefType.RemoteHead,
-					name: branchName.substring(index + 1),
-					remote: branchName.substring(0, index),
-					commit: ref,
+				wetuwn {
+					type: WefType.WemoteHead,
+					name: bwanchName.substwing(index + 1),
+					wemote: bwanchName.substwing(0, index),
+					commit: wef,
 				};
-			} else {
-				return undefined;
+			} ewse {
+				wetuwn undefined;
 			}
-		}).filter((b?: Branch): b is Branch => !!b);
+		}).fiwta((b?: Bwanch): b is Bwanch => !!b);
 
-		if (branches.length) {
-			const [branch] = branches;
+		if (bwanches.wength) {
+			const [bwanch] = bwanches;
 
-			if (!supportsAheadBehind && branch.upstream) {
-				try {
-					const result = await this.exec(['rev-list', '--left-right', '--count', `${branch.name}...${branch.upstream.remote}/${branch.upstream.name}`]);
-					const [ahead, behind] = result.stdout.trim().split('\t');
+			if (!suppowtsAheadBehind && bwanch.upstweam) {
+				twy {
+					const wesuwt = await this.exec(['wev-wist', '--weft-wight', '--count', `${bwanch.name}...${bwanch.upstweam.wemote}/${bwanch.upstweam.name}`]);
+					const [ahead, behind] = wesuwt.stdout.twim().spwit('\t');
 
-					(branch as any).ahead = Number(ahead) || 0;
-					(branch as any).behind = Number(behind) || 0;
+					(bwanch as any).ahead = Numba(ahead) || 0;
+					(bwanch as any).behind = Numba(behind) || 0;
 				} catch { }
 			}
 
-			return branch;
+			wetuwn bwanch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		wetuwn Pwomise.weject<Bwanch>(new Ewwow('No such bwanch'));
 	}
 
-	async getBranches(query: BranchQuery): Promise<Ref[]> {
-		const refs = await this.getRefs({ contains: query.contains, pattern: query.pattern ? `refs/${query.pattern}` : undefined, count: query.count });
-		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
+	async getBwanches(quewy: BwanchQuewy): Pwomise<Wef[]> {
+		const wefs = await this.getWefs({ contains: quewy.contains, pattewn: quewy.pattewn ? `wefs/${quewy.pattewn}` : undefined, count: quewy.count });
+		wetuwn wefs.fiwta(vawue => (vawue.type !== WefType.Tag) && (quewy.wemote || !vawue.wemote));
 	}
 
-	// TODO: Support core.commentChar
-	stripCommitMessageComments(message: string): string {
-		return message.replace(/^\s*#.*$\n?/gm, '').trim();
+	// TODO: Suppowt cowe.commentChaw
+	stwipCommitMessageComments(message: stwing): stwing {
+		wetuwn message.wepwace(/^\s*#.*$\n?/gm, '').twim();
 	}
 
-	async getSquashMessage(): Promise<string | undefined> {
-		const squashMsgPath = path.join(this.repositoryRoot, '.git', 'SQUASH_MSG');
+	async getSquashMessage(): Pwomise<stwing | undefined> {
+		const squashMsgPath = path.join(this.wepositowyWoot, '.git', 'SQUASH_MSG');
 
-		try {
-			const raw = await fs.readFile(squashMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+		twy {
+			const waw = await fs.weadFiwe(squashMsgPath, 'utf8');
+			wetuwn this.stwipCommitMessageComments(waw);
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	async getMergeMessage(): Promise<string | undefined> {
-		const mergeMsgPath = path.join(this.repositoryRoot, '.git', 'MERGE_MSG');
+	async getMewgeMessage(): Pwomise<stwing | undefined> {
+		const mewgeMsgPath = path.join(this.wepositowyWoot, '.git', 'MEWGE_MSG');
 
-		try {
-			const raw = await fs.readFile(mergeMsgPath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+		twy {
+			const waw = await fs.weadFiwe(mewgeMsgPath, 'utf8');
+			wetuwn this.stwipCommitMessageComments(waw);
 		} catch {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	async getCommitTemplate(): Promise<string> {
-		try {
-			const result = await this.exec(['config', '--get', 'commit.template']);
+	async getCommitTempwate(): Pwomise<stwing> {
+		twy {
+			const wesuwt = await this.exec(['config', '--get', 'commit.tempwate']);
 
-			if (!result.stdout) {
-				return '';
+			if (!wesuwt.stdout) {
+				wetuwn '';
 			}
 
-			// https://github.com/git/git/blob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#L612
-			const homedir = os.homedir();
-			let templatePath = result.stdout.trim()
-				.replace(/^~([^\/]*)\//, (_, user) => `${user ? path.join(path.dirname(homedir), user) : homedir}/`);
+			// https://github.com/git/git/bwob/3a0f269e7c82aa3a87323cb7ae04ac5f129f036b/path.c#W612
+			const homediw = os.homediw();
+			wet tempwatePath = wesuwt.stdout.twim()
+				.wepwace(/^~([^\/]*)\//, (_, usa) => `${usa ? path.join(path.diwname(homediw), usa) : homediw}/`);
 
-			if (!path.isAbsolute(templatePath)) {
-				templatePath = path.join(this.repositoryRoot, templatePath);
+			if (!path.isAbsowute(tempwatePath)) {
+				tempwatePath = path.join(this.wepositowyWoot, tempwatePath);
 			}
 
-			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
-		} catch (err) {
-			return '';
+			const waw = await fs.weadFiwe(tempwatePath, 'utf8');
+			wetuwn this.stwipCommitMessageComments(waw);
+		} catch (eww) {
+			wetuwn '';
 		}
 	}
 
-	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.exec(['show', '-s', `--format=${COMMIT_FORMAT}`, '-z', ref]);
-		const commits = parseGitCommits(result.stdout);
-		if (commits.length === 0) {
-			return Promise.reject<Commit>('bad commit format');
+	async getCommit(wef: stwing): Pwomise<Commit> {
+		const wesuwt = await this.exec(['show', '-s', `--fowmat=${COMMIT_FOWMAT}`, '-z', wef]);
+		const commits = pawseGitCommits(wesuwt.stdout);
+		if (commits.wength === 0) {
+			wetuwn Pwomise.weject<Commit>('bad commit fowmat');
 		}
-		return commits[0];
+		wetuwn commits[0];
 	}
 
-	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update'];
+	async updateSubmoduwes(paths: stwing[]): Pwomise<void> {
+		const awgs = ['submoduwe', 'update'];
 
-		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-			await this.exec([...args, '--', ...chunk]);
+		fow (const chunk of spwitInChunks(paths.map(sanitizePath), MAX_CWI_WENGTH)) {
+			await this.exec([...awgs, '--', ...chunk]);
 		}
 	}
 
-	async getSubmodules(): Promise<Submodule[]> {
-		const gitmodulesPath = path.join(this.root, '.gitmodules');
+	async getSubmoduwes(): Pwomise<Submoduwe[]> {
+		const gitmoduwesPath = path.join(this.woot, '.gitmoduwes');
 
-		try {
-			const gitmodulesRaw = await fs.readFile(gitmodulesPath, 'utf8');
-			return parseGitmodules(gitmodulesRaw);
-		} catch (err) {
-			if (/ENOENT/.test(err.message)) {
-				return [];
+		twy {
+			const gitmoduwesWaw = await fs.weadFiwe(gitmoduwesPath, 'utf8');
+			wetuwn pawseGitmoduwes(gitmoduwesWaw);
+		} catch (eww) {
+			if (/ENOENT/.test(eww.message)) {
+				wetuwn [];
 			}
 
-			throw err;
+			thwow eww;
 		}
 	}
 }

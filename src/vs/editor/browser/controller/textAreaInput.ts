@@ -1,799 +1,799 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ITextAweaWwappa, ITypeData, TextAweaState, _debugComposition } fwom 'vs/editow/bwowsa/contwowwa/textAweaState';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
 
-export namespace TextAreaSyntethicEvents {
-	export const Tap = '-monaco-textarea-synthetic-tap';
+expowt namespace TextAweaSyntethicEvents {
+	expowt const Tap = '-monaco-textawea-synthetic-tap';
 }
 
-export interface ICompositionData {
-	data: string;
+expowt intewface ICompositionData {
+	data: stwing;
 }
 
-export const CopyOptions = {
-	forceCopyWithSyntaxHighlighting: false
+expowt const CopyOptions = {
+	fowceCopyWithSyntaxHighwighting: fawse
 };
 
-const enum ReadFromTextArea {
+const enum WeadFwomTextAwea {
 	Type,
 	Paste
 }
 
-export interface IPasteData {
-	text: string;
-	metadata: ClipboardStoredMetadata | null;
+expowt intewface IPasteData {
+	text: stwing;
+	metadata: CwipboawdStowedMetadata | nuww;
 }
 
-export interface ClipboardDataToCopy {
-	isFromEmptySelection: boolean;
-	multicursorText: string[] | null | undefined;
-	text: string;
-	html: string | null | undefined;
-	mode: string | null;
+expowt intewface CwipboawdDataToCopy {
+	isFwomEmptySewection: boowean;
+	muwticuwsowText: stwing[] | nuww | undefined;
+	text: stwing;
+	htmw: stwing | nuww | undefined;
+	mode: stwing | nuww;
 }
 
-export interface ClipboardStoredMetadata {
-	version: 1;
-	isFromEmptySelection: boolean | undefined;
-	multicursorText: string[] | null | undefined;
-	mode: string | null;
+expowt intewface CwipboawdStowedMetadata {
+	vewsion: 1;
+	isFwomEmptySewection: boowean | undefined;
+	muwticuwsowText: stwing[] | nuww | undefined;
+	mode: stwing | nuww;
 }
 
-export interface ITextAreaInputHost {
-	getDataToCopy(html: boolean): ClipboardDataToCopy;
-	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
-	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
+expowt intewface ITextAweaInputHost {
+	getDataToCopy(htmw: boowean): CwipboawdDataToCopy;
+	getScweenWeadewContent(cuwwentState: TextAweaState): TextAweaState;
+	deduceModewPosition(viewAnchowPosition: Position, dewtaOffset: numba, wineFeedCnt: numba): Position;
 }
 
-interface CompositionEvent extends UIEvent {
-	readonly data: string;
-	readonly locale: string;
+intewface CompositionEvent extends UIEvent {
+	weadonwy data: stwing;
+	weadonwy wocawe: stwing;
 }
 
-interface InMemoryClipboardMetadata {
-	lastCopiedValue: string;
-	data: ClipboardStoredMetadata;
+intewface InMemowyCwipboawdMetadata {
+	wastCopiedVawue: stwing;
+	data: CwipboawdStowedMetadata;
 }
 
 /**
- * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
- * we can fetch the previous metadata.
+ * Evewy time we wwite to the cwipboawd, we wecowd a bit of extwa metadata hewe.
+ * Evewy time we wead fwom the cipboawd, if the text matches ouw wast wwitten text,
+ * we can fetch the pwevious metadata.
  */
-export class InMemoryClipboardMetadataManager {
-	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
+expowt cwass InMemowyCwipboawdMetadataManaga {
+	pubwic static weadonwy INSTANCE = new InMemowyCwipboawdMetadataManaga();
 
-	private _lastState: InMemoryClipboardMetadata | null;
+	pwivate _wastState: InMemowyCwipboawdMetadata | nuww;
 
-	constructor() {
-		this._lastState = null;
+	constwuctow() {
+		this._wastState = nuww;
 	}
 
-	public set(lastCopiedValue: string, data: ClipboardStoredMetadata): void {
-		this._lastState = { lastCopiedValue, data };
+	pubwic set(wastCopiedVawue: stwing, data: CwipboawdStowedMetadata): void {
+		this._wastState = { wastCopiedVawue, data };
 	}
 
-	public get(pastedText: string): ClipboardStoredMetadata | null {
-		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
+	pubwic get(pastedText: stwing): CwipboawdStowedMetadata | nuww {
+		if (this._wastState && this._wastState.wastCopiedVawue === pastedText) {
 			// match!
-			return this._lastState.data;
+			wetuwn this._wastState.data;
 		}
-		this._lastState = null;
-		return null;
+		this._wastState = nuww;
+		wetuwn nuww;
 	}
 }
 
-export interface ICompositionStartEvent {
-	revealDeltaColumns: number;
+expowt intewface ICompositionStawtEvent {
+	weveawDewtaCowumns: numba;
 }
 
 /**
- * Writes screen reader content to the textarea and is able to analyze its input events to generate:
+ * Wwites scween weada content to the textawea and is abwe to anawyze its input events to genewate:
  *  - onCut
  *  - onPaste
  *  - onType
  *
- * Composition events are generated for presentation purposes (composition input is reflected in onType).
+ * Composition events awe genewated fow pwesentation puwposes (composition input is wefwected in onType).
  */
-export class TextAreaInput extends Disposable {
+expowt cwass TextAweaInput extends Disposabwe {
 
-	private _onFocus = this._register(new Emitter<void>());
-	public readonly onFocus: Event<void> = this._onFocus.event;
+	pwivate _onFocus = this._wegista(new Emitta<void>());
+	pubwic weadonwy onFocus: Event<void> = this._onFocus.event;
 
-	private _onBlur = this._register(new Emitter<void>());
-	public readonly onBlur: Event<void> = this._onBlur.event;
+	pwivate _onBwuw = this._wegista(new Emitta<void>());
+	pubwic weadonwy onBwuw: Event<void> = this._onBwuw.event;
 
-	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	pwivate _onKeyDown = this._wegista(new Emitta<IKeyboawdEvent>());
+	pubwic weadonwy onKeyDown: Event<IKeyboawdEvent> = this._onKeyDown.event;
 
-	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	pwivate _onKeyUp = this._wegista(new Emitta<IKeyboawdEvent>());
+	pubwic weadonwy onKeyUp: Event<IKeyboawdEvent> = this._onKeyUp.event;
 
-	private _onCut = this._register(new Emitter<void>());
-	public readonly onCut: Event<void> = this._onCut.event;
+	pwivate _onCut = this._wegista(new Emitta<void>());
+	pubwic weadonwy onCut: Event<void> = this._onCut.event;
 
-	private _onPaste = this._register(new Emitter<IPasteData>());
-	public readonly onPaste: Event<IPasteData> = this._onPaste.event;
+	pwivate _onPaste = this._wegista(new Emitta<IPasteData>());
+	pubwic weadonwy onPaste: Event<IPasteData> = this._onPaste.event;
 
-	private _onType = this._register(new Emitter<ITypeData>());
-	public readonly onType: Event<ITypeData> = this._onType.event;
+	pwivate _onType = this._wegista(new Emitta<ITypeData>());
+	pubwic weadonwy onType: Event<ITypeData> = this._onType.event;
 
-	private _onCompositionStart = this._register(new Emitter<ICompositionStartEvent>());
-	public readonly onCompositionStart: Event<ICompositionStartEvent> = this._onCompositionStart.event;
+	pwivate _onCompositionStawt = this._wegista(new Emitta<ICompositionStawtEvent>());
+	pubwic weadonwy onCompositionStawt: Event<ICompositionStawtEvent> = this._onCompositionStawt.event;
 
-	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
-	public readonly onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
+	pwivate _onCompositionUpdate = this._wegista(new Emitta<ICompositionData>());
+	pubwic weadonwy onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
 
-	private _onCompositionEnd = this._register(new Emitter<void>());
-	public readonly onCompositionEnd: Event<void> = this._onCompositionEnd.event;
+	pwivate _onCompositionEnd = this._wegista(new Emitta<void>());
+	pubwic weadonwy onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
-	private _onSelectionChangeRequest = this._register(new Emitter<Selection>());
-	public readonly onSelectionChangeRequest: Event<Selection> = this._onSelectionChangeRequest.event;
+	pwivate _onSewectionChangeWequest = this._wegista(new Emitta<Sewection>());
+	pubwic weadonwy onSewectionChangeWequest: Event<Sewection> = this._onSewectionChangeWequest.event;
 
 	// ---
 
-	private readonly _host: ITextAreaInputHost;
-	private readonly _textArea: TextAreaWrapper;
-	private readonly _asyncTriggerCut: RunOnceScheduler;
-	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
+	pwivate weadonwy _host: ITextAweaInputHost;
+	pwivate weadonwy _textAwea: TextAweaWwappa;
+	pwivate weadonwy _asyncTwiggewCut: WunOnceScheduwa;
+	pwivate weadonwy _asyncFocusGainWwiteScweenWeadewContent: WunOnceScheduwa;
 
-	private _textAreaState: TextAreaState;
-	private _selectionChangeListener: IDisposable | null;
+	pwivate _textAweaState: TextAweaState;
+	pwivate _sewectionChangeWistena: IDisposabwe | nuww;
 
-	private _hasFocus: boolean;
-	private _isDoingComposition: boolean;
-	private _nextCommand: ReadFromTextArea;
+	pwivate _hasFocus: boowean;
+	pwivate _isDoingComposition: boowean;
+	pwivate _nextCommand: WeadFwomTextAwea;
 
-	constructor(host: ITextAreaInputHost, private textArea: FastDomNode<HTMLTextAreaElement>) {
-		super();
+	constwuctow(host: ITextAweaInputHost, pwivate textAwea: FastDomNode<HTMWTextAweaEwement>) {
+		supa();
 		this._host = host;
-		this._textArea = this._register(new TextAreaWrapper(textArea));
-		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
-		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
+		this._textAwea = this._wegista(new TextAweaWwappa(textAwea));
+		this._asyncTwiggewCut = this._wegista(new WunOnceScheduwa(() => this._onCut.fiwe(), 0));
+		this._asyncFocusGainWwiteScweenWeadewContent = this._wegista(new WunOnceScheduwa(() => this.wwiteScweenWeadewContent('asyncFocusGain'), 0));
 
-		this._textAreaState = TextAreaState.EMPTY;
-		this._selectionChangeListener = null;
-		this.writeScreenReaderContent('ctor');
+		this._textAweaState = TextAweaState.EMPTY;
+		this._sewectionChangeWistena = nuww;
+		this.wwiteScweenWeadewContent('ctow');
 
-		this._hasFocus = false;
-		this._isDoingComposition = false;
-		this._nextCommand = ReadFromTextArea.Type;
+		this._hasFocus = fawse;
+		this._isDoingComposition = fawse;
+		this._nextCommand = WeadFwomTextAwea.Type;
 
-		let lastKeyDown: IKeyboardEvent | null = null;
+		wet wastKeyDown: IKeyboawdEvent | nuww = nuww;
 
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
+		this._wegista(dom.addStandawdDisposabweWistena(textAwea.domNode, 'keydown', (e: IKeyboawdEvent) => {
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._isDoingComposition && e.keyCode === KeyCode.Backspace)) {
-				// Stop propagation for keyDown events if the IME is processing key input
-				e.stopPropagation();
+				// Stop pwopagation fow keyDown events if the IME is pwocessing key input
+				e.stopPwopagation();
 			}
 
-			if (e.equals(KeyCode.Escape)) {
-				// Prevent default always for `Esc`, otherwise it will generate a keypress
-				// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
-				e.preventDefault();
+			if (e.equaws(KeyCode.Escape)) {
+				// Pwevent defauwt awways fow `Esc`, othewwise it wiww genewate a keypwess
+				// See https://msdn.micwosoft.com/en-us/wibwawy/ie/ms536939(v=vs.85).aspx
+				e.pweventDefauwt();
 			}
 
-			lastKeyDown = e;
-			this._onKeyDown.fire(e);
+			wastKeyDown = e;
+			this._onKeyDown.fiwe(e);
 		}));
 
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => {
-			this._onKeyUp.fire(e);
+		this._wegista(dom.addStandawdDisposabweWistena(textAwea.domNode, 'keyup', (e: IKeyboawdEvent) => {
+			this._onKeyUp.fiwe(e);
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'compositionstawt', (e: CompositionEvent) => {
 			if (_debugComposition) {
-				console.log(`[compositionstart]`, e);
+				consowe.wog(`[compositionstawt]`, e);
 			}
 
 			if (this._isDoingComposition) {
-				return;
+				wetuwn;
 			}
-			this._isDoingComposition = true;
+			this._isDoingComposition = twue;
 
 			if (
-				platform.isMacintosh
-				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
-				&& this._textAreaState.selectionStart > 0
-				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				pwatfowm.isMacintosh
+				&& this._textAweaState.sewectionStawt === this._textAweaState.sewectionEnd
+				&& this._textAweaState.sewectionStawt > 0
+				&& this._textAweaState.vawue.substw(this._textAweaState.sewectionStawt - 1, 1) === e.data
 			) {
-				const isArrowKey = (
-					lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
-					&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
+				const isAwwowKey = (
+					wastKeyDown && wastKeyDown.equaws(KeyCode.KEY_IN_COMPOSITION)
+					&& (wastKeyDown.code === 'AwwowWight' || wastKeyDown.code === 'AwwowWeft')
 				);
-				if (isArrowKey || browser.isFirefox) {
-					// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
-					// or long press case on Firefox on macOS
+				if (isAwwowKey || bwowsa.isFiwefox) {
+					// Handwing wong pwess case on Chwomium/Safawi macOS + awwow key => pwetend the chawacta was sewected
+					// ow wong pwess case on Fiwefox on macOS
 					if (_debugComposition) {
-						console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
+						consowe.wog(`[compositionstawt] Handwing wong pwess case on macOS + awwow key ow Fiwefox`, e);
 					}
-					this._textAreaState = new TextAreaState(
-						this._textAreaState.value,
-						this._textAreaState.selectionStart - 1,
-						this._textAreaState.selectionEnd,
-						this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
-						this._textAreaState.selectionEndPosition
+					this._textAweaState = new TextAweaState(
+						this._textAweaState.vawue,
+						this._textAweaState.sewectionStawt - 1,
+						this._textAweaState.sewectionEnd,
+						this._textAweaState.sewectionStawtPosition ? new Position(this._textAweaState.sewectionStawtPosition.wineNumba, this._textAweaState.sewectionStawtPosition.cowumn - 1) : nuww,
+						this._textAweaState.sewectionEndPosition
 					);
-					this._onCompositionStart.fire({ revealDeltaColumns: -1 });
-					return;
+					this._onCompositionStawt.fiwe({ weveawDewtaCowumns: -1 });
+					wetuwn;
 				}
 			}
 
-			if (browser.isAndroid) {
-				// when tapping on the editor, Android enters composition mode to edit the current word
-				// so we cannot clear the textarea on Android and we must pretend the current word was selected
-				this._onCompositionStart.fire({ revealDeltaColumns: -this._textAreaState.selectionStart });
-				return;
+			if (bwowsa.isAndwoid) {
+				// when tapping on the editow, Andwoid entews composition mode to edit the cuwwent wowd
+				// so we cannot cweaw the textawea on Andwoid and we must pwetend the cuwwent wowd was sewected
+				this._onCompositionStawt.fiwe({ weveawDewtaCowumns: -this._textAweaState.sewectionStawt });
+				wetuwn;
 			}
 
-			this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
-			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
+			this._setAndWwiteTextAweaState('compositionstawt', TextAweaState.EMPTY);
+			this._onCompositionStawt.fiwe({ weveawDewtaCowumns: 0 });
 		}));
 
 		/**
-		 * Deduce the typed input from a text area's value and the last observed state.
+		 * Deduce the typed input fwom a text awea's vawue and the wast obsewved state.
 		 */
-		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
+		const deduceInputFwomTextAweaVawue = (couwdBeEmojiInput: boowean): [TextAweaState, ITypeData] => {
+			const owdState = this._textAweaState;
+			const newState = TextAweaState.weadFwomTextAwea(this._textAwea);
+			wetuwn [newState, TextAweaState.deduceInput(owdState, newState, couwdBeEmojiInput)];
 		};
 
-		const deduceAndroidCompositionInput = (): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceAndroidCompositionInput(oldState, newState)];
+		const deduceAndwoidCompositionInput = (): [TextAweaState, ITypeData] => {
+			const owdState = this._textAweaState;
+			const newState = TextAweaState.weadFwomTextAwea(this._textAwea);
+			wetuwn [newState, TextAweaState.deduceAndwoidCompositionInput(owdState, newState)];
 		};
 
 		/**
-		 * Deduce the composition input from a string.
+		 * Deduce the composition input fwom a stwing.
 		 */
-		const deduceComposition = (text: string): [TextAreaState, ITypeData] => {
-			const oldState = this._textAreaState;
-			const newState = TextAreaState.selectedText(text);
+		const deduceComposition = (text: stwing): [TextAweaState, ITypeData] => {
+			const owdState = this._textAweaState;
+			const newState = TextAweaState.sewectedText(text);
 			const typeInput: ITypeData = {
-				text: newState.value,
-				replacePrevCharCnt: oldState.selectionEnd - oldState.selectionStart,
-				replaceNextCharCnt: 0,
-				positionDelta: 0
+				text: newState.vawue,
+				wepwacePwevChawCnt: owdState.sewectionEnd - owdState.sewectionStawt,
+				wepwaceNextChawCnt: 0,
+				positionDewta: 0
 			};
-			return [newState, typeInput];
+			wetuwn [newState, typeInput];
 		};
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			if (_debugComposition) {
-				console.log(`[compositionupdate]`, e);
+				consowe.wog(`[compositionupdate]`, e);
 			}
-			if (browser.isAndroid) {
-				// On Android, the data sent with the composition update event is unusable.
-				// For example, if the cursor is in the middle of a word like Mic|osoft
-				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
-				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const [newState, typeInput] = deduceAndroidCompositionInput();
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-				this._onCompositionUpdate.fire(e);
-				return;
+			if (bwowsa.isAndwoid) {
+				// On Andwoid, the data sent with the composition update event is unusabwe.
+				// Fow exampwe, if the cuwsow is in the middwe of a wowd wike Mic|osoft
+				// and Micwosoft is chosen fwom the keyboawd's suggestions, the e.data wiww contain "Micwosoft".
+				// This is not weawwy usabwe because it doesn't teww us whewe the edit began and whewe it ended.
+				const [newState, typeInput] = deduceAndwoidCompositionInput();
+				this._textAweaState = newState;
+				this._onType.fiwe(typeInput);
+				this._onCompositionUpdate.fiwe(e);
+				wetuwn;
 			}
 			const [newState, typeInput] = deduceComposition(e.data || '');
-			this._textAreaState = newState;
-			this._onType.fire(typeInput);
-			this._onCompositionUpdate.fire(e);
+			this._textAweaState = newState;
+			this._onType.fiwe(typeInput);
+			this._onCompositionUpdate.fiwe(e);
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'compositionend', (e: CompositionEvent) => {
 			if (_debugComposition) {
-				console.log(`[compositionend]`, e);
+				consowe.wog(`[compositionend]`, e);
 			}
-			// https://github.com/microsoft/monaco-editor/issues/1663
-			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
+			// https://github.com/micwosoft/monaco-editow/issues/1663
+			// On iOS 13.2, Chinese system IME wandomwy twigga an additionaw compositionend event with empty data
 			if (!this._isDoingComposition) {
-				return;
+				wetuwn;
 			}
-			this._isDoingComposition = false;
+			this._isDoingComposition = fawse;
 
-			if (browser.isAndroid) {
-				// On Android, the data sent with the composition update event is unusable.
-				// For example, if the cursor is in the middle of a word like Mic|osoft
-				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
-				// This is not really usable because it doesn't tell us where the edit began and where it ended.
-				const [newState, typeInput] = deduceAndroidCompositionInput();
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-				this._onCompositionEnd.fire();
-				return;
+			if (bwowsa.isAndwoid) {
+				// On Andwoid, the data sent with the composition update event is unusabwe.
+				// Fow exampwe, if the cuwsow is in the middwe of a wowd wike Mic|osoft
+				// and Micwosoft is chosen fwom the keyboawd's suggestions, the e.data wiww contain "Micwosoft".
+				// This is not weawwy usabwe because it doesn't teww us whewe the edit began and whewe it ended.
+				const [newState, typeInput] = deduceAndwoidCompositionInput();
+				this._textAweaState = newState;
+				this._onType.fiwe(typeInput);
+				this._onCompositionEnd.fiwe();
+				wetuwn;
 			}
 
 			const [newState, typeInput] = deduceComposition(e.data || '');
-			this._textAreaState = newState;
-			this._onType.fire(typeInput);
+			this._textAweaState = newState;
+			this._onType.fiwe(typeInput);
 
-			// isChrome: the textarea is not updated correctly when composition ends
-			// isFirefox: the textarea is not updated correctly after inserting emojis
-			// => we cannot assume the text at the end consists only of the composited text
-			if (browser.isChrome || browser.isFirefox) {
-				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			// isChwome: the textawea is not updated cowwectwy when composition ends
+			// isFiwefox: the textawea is not updated cowwectwy afta insewting emojis
+			// => we cannot assume the text at the end consists onwy of the composited text
+			if (bwowsa.isChwome || bwowsa.isFiwefox) {
+				this._textAweaState = TextAweaState.weadFwomTextAwea(this._textAwea);
 			}
 
-			this._onCompositionEnd.fire();
+			this._onCompositionEnd.fiwe();
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
-			// Pretend here we touched the text area, as the `input` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._textArea.setIgnoreSelectionChangeTime('received input event');
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'input', () => {
+			// Pwetend hewe we touched the text awea, as the `input` event wiww most wikewy
+			// wesuwt in a `sewectionchange` event which we want to ignowe
+			this._textAwea.setIgnoweSewectionChangeTime('weceived input event');
 
 			if (this._isDoingComposition) {
-				return;
+				wetuwn;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
-			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
-				// Ignore invalid input but keep it around for next time
-				return;
+			const [newState, typeInput] = deduceInputFwomTextAweaVawue(/*couwdBeEmojiInput*/pwatfowm.isMacintosh);
+			if (typeInput.wepwacePwevChawCnt === 0 && typeInput.text.wength === 1 && stwings.isHighSuwwogate(typeInput.text.chawCodeAt(0))) {
+				// Ignowe invawid input but keep it awound fow next time
+				wetuwn;
 			}
 
-			this._textAreaState = newState;
-			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
-					this._onType.fire(typeInput);
+			this._textAweaState = newState;
+			if (this._nextCommand === WeadFwomTextAwea.Type) {
+				if (typeInput.text !== '' || typeInput.wepwacePwevChawCnt !== 0) {
+					this._onType.fiwe(typeInput);
 				}
-			} else {
-				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
-					this._firePaste(typeInput.text, null);
+			} ewse {
+				if (typeInput.text !== '' || typeInput.wepwacePwevChawCnt !== 0) {
+					this._fiwePaste(typeInput.text, nuww);
 				}
-				this._nextCommand = ReadFromTextArea.Type;
-			}
-		}));
-
-		// --- Clipboard operations
-
-		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
-			// Pretend here we touched the text area, as the `cut` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._textArea.setIgnoreSelectionChangeTime('received cut event');
-
-			this._ensureClipboardGetsEditorSelection(e);
-			this._asyncTriggerCut.schedule();
-		}));
-
-		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
-			this._ensureClipboardGetsEditorSelection(e);
-		}));
-
-		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
-			// Pretend here we touched the text area, as the `paste` event will most likely
-			// result in a `selectionchange` event which we want to ignore
-			this._textArea.setIgnoreSelectionChangeTime('received paste event');
-
-			if (ClipboardEventUtils.canUseTextData(e)) {
-				const [pastePlainText, metadata] = ClipboardEventUtils.getTextData(e);
-				if (pastePlainText !== '') {
-					this._firePaste(pastePlainText, metadata);
-				}
-			} else {
-				if (this._textArea.getSelectionStart() !== this._textArea.getSelectionEnd()) {
-					// Clean up the textarea, to get a clean paste
-					this._setAndWriteTextAreaState('paste', TextAreaState.EMPTY);
-				}
-				this._nextCommand = ReadFromTextArea.Paste;
+				this._nextCommand = WeadFwomTextAwea.Type;
 			}
 		}));
 
-		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
+		// --- Cwipboawd opewations
+
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'cut', (e: CwipboawdEvent) => {
+			// Pwetend hewe we touched the text awea, as the `cut` event wiww most wikewy
+			// wesuwt in a `sewectionchange` event which we want to ignowe
+			this._textAwea.setIgnoweSewectionChangeTime('weceived cut event');
+
+			this._ensuweCwipboawdGetsEditowSewection(e);
+			this._asyncTwiggewCut.scheduwe();
+		}));
+
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'copy', (e: CwipboawdEvent) => {
+			this._ensuweCwipboawdGetsEditowSewection(e);
+		}));
+
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'paste', (e: CwipboawdEvent) => {
+			// Pwetend hewe we touched the text awea, as the `paste` event wiww most wikewy
+			// wesuwt in a `sewectionchange` event which we want to ignowe
+			this._textAwea.setIgnoweSewectionChangeTime('weceived paste event');
+
+			if (CwipboawdEventUtiws.canUseTextData(e)) {
+				const [pastePwainText, metadata] = CwipboawdEventUtiws.getTextData(e);
+				if (pastePwainText !== '') {
+					this._fiwePaste(pastePwainText, metadata);
+				}
+			} ewse {
+				if (this._textAwea.getSewectionStawt() !== this._textAwea.getSewectionEnd()) {
+					// Cwean up the textawea, to get a cwean paste
+					this._setAndWwiteTextAweaState('paste', TextAweaState.EMPTY);
+				}
+				this._nextCommand = WeadFwomTextAwea.Paste;
+			}
+		}));
+
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'focus', () => {
 			const hadFocus = this._hasFocus;
 
-			this._setHasFocus(true);
+			this._setHasFocus(twue);
 
-			if (browser.isSafari && !hadFocus && this._hasFocus) {
-				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
-				// Safari will always move the selection at offset 0 in the textarea
-				this._asyncFocusGainWriteScreenReaderContent.schedule();
+			if (bwowsa.isSafawi && !hadFocus && this._hasFocus) {
+				// When "tabbing into" the textawea, immediatewy afta dispatching the 'focus' event,
+				// Safawi wiww awways move the sewection at offset 0 in the textawea
+				this._asyncFocusGainWwiteScweenWeadewContent.scheduwe();
 			}
 		}));
-		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, 'bwuw', () => {
 			if (this._isDoingComposition) {
-				// See https://github.com/microsoft/vscode/issues/112621
-				// where compositionend is not triggered when the editor
-				// is taken off-dom during a composition
+				// See https://github.com/micwosoft/vscode/issues/112621
+				// whewe compositionend is not twiggewed when the editow
+				// is taken off-dom duwing a composition
 
-				// Clear the flag to be able to write to the textarea
-				this._isDoingComposition = false;
+				// Cweaw the fwag to be abwe to wwite to the textawea
+				this._isDoingComposition = fawse;
 
-				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('blurWithoutCompositionEnd');
+				// Cweaw the textawea to avoid an unwanted cuwsow type
+				this.wwiteScweenWeadewContent('bwuwWithoutCompositionEnd');
 
-				// Fire artificial composition end
-				this._onCompositionEnd.fire();
+				// Fiwe awtificiaw composition end
+				this._onCompositionEnd.fiwe();
 			}
-			this._setHasFocus(false);
+			this._setHasFocus(fawse);
 		}));
-		this._register(dom.addDisposableListener(textArea.domNode, TextAreaSyntethicEvents.Tap, () => {
-			if (browser.isAndroid && this._isDoingComposition) {
-				// on Android, tapping does not cancel the current composition, so the
-				// textarea is stuck showing the old composition
+		this._wegista(dom.addDisposabweWistena(textAwea.domNode, TextAweaSyntethicEvents.Tap, () => {
+			if (bwowsa.isAndwoid && this._isDoingComposition) {
+				// on Andwoid, tapping does not cancew the cuwwent composition, so the
+				// textawea is stuck showing the owd composition
 
-				// Clear the flag to be able to write to the textarea
-				this._isDoingComposition = false;
+				// Cweaw the fwag to be abwe to wwite to the textawea
+				this._isDoingComposition = fawse;
 
-				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('tapWithoutCompositionEnd');
+				// Cweaw the textawea to avoid an unwanted cuwsow type
+				this.wwiteScweenWeadewContent('tapWithoutCompositionEnd');
 
-				// Fire artificial composition end
-				this._onCompositionEnd.fire();
+				// Fiwe awtificiaw composition end
+				this._onCompositionEnd.fiwe();
 			}
 		}));
 	}
 
-	private _installSelectionChangeListener(): IDisposable {
-		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
-		// When using a Braille display, it is possible for users to reposition the
-		// system caret. This is reflected in Chrome as a `selectionchange` event.
+	pwivate _instawwSewectionChangeWistena(): IDisposabwe {
+		// See https://github.com/micwosoft/vscode/issues/27216 and https://github.com/micwosoft/vscode/issues/98256
+		// When using a Bwaiwwe dispway, it is possibwe fow usews to weposition the
+		// system cawet. This is wefwected in Chwome as a `sewectionchange` event.
 		//
-		// The `selectionchange` event appears to be emitted under numerous other circumstances,
-		// so it is quite a challenge to distinguish a `selectionchange` coming in from a user
-		// using a Braille display from all the other cases.
+		// The `sewectionchange` event appeaws to be emitted unda numewous otha ciwcumstances,
+		// so it is quite a chawwenge to distinguish a `sewectionchange` coming in fwom a usa
+		// using a Bwaiwwe dispway fwom aww the otha cases.
 		//
-		// The problems with the `selectionchange` event are:
-		//  * the event is emitted when the textarea is focused programmatically -- textarea.focus()
-		//  * the event is emitted when the selection is changed in the textarea programmatically -- textarea.setSelectionRange(...)
-		//  * the event is emitted when the value of the textarea is changed programmatically -- textarea.value = '...'
-		//  * the event is emitted when tabbing into the textarea
-		//  * the event is emitted asynchronously (sometimes with a delay as high as a few tens of ms)
-		//  * the event sometimes comes in bursts for a single logical textarea operation
+		// The pwobwems with the `sewectionchange` event awe:
+		//  * the event is emitted when the textawea is focused pwogwammaticawwy -- textawea.focus()
+		//  * the event is emitted when the sewection is changed in the textawea pwogwammaticawwy -- textawea.setSewectionWange(...)
+		//  * the event is emitted when the vawue of the textawea is changed pwogwammaticawwy -- textawea.vawue = '...'
+		//  * the event is emitted when tabbing into the textawea
+		//  * the event is emitted asynchwonouswy (sometimes with a deway as high as a few tens of ms)
+		//  * the event sometimes comes in buwsts fow a singwe wogicaw textawea opewation
 
-		// `selectionchange` events often come multiple times for a single logical change
-		// so throttle multiple `selectionchange` events that burst in a short period of time.
-		let previousSelectionChangeEventTime = 0;
-		return dom.addDisposableListener(document, 'selectionchange', (e) => {
+		// `sewectionchange` events often come muwtipwe times fow a singwe wogicaw change
+		// so thwottwe muwtipwe `sewectionchange` events that buwst in a showt pewiod of time.
+		wet pweviousSewectionChangeEventTime = 0;
+		wetuwn dom.addDisposabweWistena(document, 'sewectionchange', (e) => {
 			if (!this._hasFocus) {
-				return;
+				wetuwn;
 			}
 			if (this._isDoingComposition) {
-				return;
+				wetuwn;
 			}
-			if (!browser.isChrome) {
-				// Support only for Chrome until testing happens on other browsers
-				return;
+			if (!bwowsa.isChwome) {
+				// Suppowt onwy fow Chwome untiw testing happens on otha bwowsews
+				wetuwn;
 			}
 
 			const now = Date.now();
 
-			const delta1 = now - previousSelectionChangeEventTime;
-			previousSelectionChangeEventTime = now;
-			if (delta1 < 5) {
-				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
-				// => ignore it
-				return;
+			const dewta1 = now - pweviousSewectionChangeEventTime;
+			pweviousSewectionChangeEventTime = now;
+			if (dewta1 < 5) {
+				// weceived anotha `sewectionchange` event within 5ms of the pwevious `sewectionchange` event
+				// => ignowe it
+				wetuwn;
 			}
 
-			const delta2 = now - this._textArea.getIgnoreSelectionChangeTime();
-			this._textArea.resetSelectionChangeTime();
-			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the textarea
-				// => ignore it, since we caused it
-				return;
+			const dewta2 = now - this._textAwea.getIgnoweSewectionChangeTime();
+			this._textAwea.wesetSewectionChangeTime();
+			if (dewta2 < 100) {
+				// weceived a `sewectionchange` event within 100ms since we touched the textawea
+				// => ignowe it, since we caused it
+				wetuwn;
 			}
 
-			if (!this._textAreaState.selectionStartPosition || !this._textAreaState.selectionEndPosition) {
-				// Cannot correlate a position in the textarea with a position in the editor...
-				return;
+			if (!this._textAweaState.sewectionStawtPosition || !this._textAweaState.sewectionEndPosition) {
+				// Cannot cowwewate a position in the textawea with a position in the editow...
+				wetuwn;
 			}
 
-			const newValue = this._textArea.getValue();
-			if (this._textAreaState.value !== newValue) {
-				// Cannot correlate a position in the textarea with a position in the editor...
-				return;
+			const newVawue = this._textAwea.getVawue();
+			if (this._textAweaState.vawue !== newVawue) {
+				// Cannot cowwewate a position in the textawea with a position in the editow...
+				wetuwn;
 			}
 
-			const newSelectionStart = this._textArea.getSelectionStart();
-			const newSelectionEnd = this._textArea.getSelectionEnd();
-			if (this._textAreaState.selectionStart === newSelectionStart && this._textAreaState.selectionEnd === newSelectionEnd) {
+			const newSewectionStawt = this._textAwea.getSewectionStawt();
+			const newSewectionEnd = this._textAwea.getSewectionEnd();
+			if (this._textAweaState.sewectionStawt === newSewectionStawt && this._textAweaState.sewectionEnd === newSewectionEnd) {
 				// Nothing to do...
-				return;
+				wetuwn;
 			}
 
-			const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
-			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
+			const _newSewectionStawtPosition = this._textAweaState.deduceEditowPosition(newSewectionStawt);
+			const newSewectionStawtPosition = this._host.deduceModewPosition(_newSewectionStawtPosition[0]!, _newSewectionStawtPosition[1], _newSewectionStawtPosition[2]);
 
-			const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
-			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
+			const _newSewectionEndPosition = this._textAweaState.deduceEditowPosition(newSewectionEnd);
+			const newSewectionEndPosition = this._host.deduceModewPosition(_newSewectionEndPosition[0]!, _newSewectionEndPosition[1], _newSewectionEndPosition[2]);
 
-			const newSelection = new Selection(
-				newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
-				newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
+			const newSewection = new Sewection(
+				newSewectionStawtPosition.wineNumba, newSewectionStawtPosition.cowumn,
+				newSewectionEndPosition.wineNumba, newSewectionEndPosition.cowumn
 			);
 
-			this._onSelectionChangeRequest.fire(newSelection);
+			this._onSewectionChangeWequest.fiwe(newSewection);
 		});
 	}
 
-	public override dispose(): void {
-		super.dispose();
-		if (this._selectionChangeListener) {
-			this._selectionChangeListener.dispose();
-			this._selectionChangeListener = null;
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
+		if (this._sewectionChangeWistena) {
+			this._sewectionChangeWistena.dispose();
+			this._sewectionChangeWistena = nuww;
 		}
 	}
 
-	public focusTextArea(): void {
-		// Setting this._hasFocus and writing the screen reader content
-		// will result in a focus() and setSelectionRange() in the textarea
-		this._setHasFocus(true);
+	pubwic focusTextAwea(): void {
+		// Setting this._hasFocus and wwiting the scween weada content
+		// wiww wesuwt in a focus() and setSewectionWange() in the textawea
+		this._setHasFocus(twue);
 
-		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
-		this.refreshFocusState();
+		// If the editow is off DOM, focus cannot be weawwy set, so wet's doubwe check that we have managed to set the focus
+		this.wefweshFocusState();
 	}
 
-	public isFocused(): boolean {
-		return this._hasFocus;
+	pubwic isFocused(): boowean {
+		wetuwn this._hasFocus;
 	}
 
-	public refreshFocusState(): void {
-		const shadowRoot = dom.getShadowRoot(this.textArea.domNode);
-		if (shadowRoot) {
-			this._setHasFocus(shadowRoot.activeElement === this.textArea.domNode);
-		} else if (dom.isInDOM(this.textArea.domNode)) {
-			this._setHasFocus(document.activeElement === this.textArea.domNode);
-		} else {
-			this._setHasFocus(false);
+	pubwic wefweshFocusState(): void {
+		const shadowWoot = dom.getShadowWoot(this.textAwea.domNode);
+		if (shadowWoot) {
+			this._setHasFocus(shadowWoot.activeEwement === this.textAwea.domNode);
+		} ewse if (dom.isInDOM(this.textAwea.domNode)) {
+			this._setHasFocus(document.activeEwement === this.textAwea.domNode);
+		} ewse {
+			this._setHasFocus(fawse);
 		}
 	}
 
-	private _setHasFocus(newHasFocus: boolean): void {
+	pwivate _setHasFocus(newHasFocus: boowean): void {
 		if (this._hasFocus === newHasFocus) {
 			// no change
-			return;
+			wetuwn;
 		}
 		this._hasFocus = newHasFocus;
 
-		if (this._selectionChangeListener) {
-			this._selectionChangeListener.dispose();
-			this._selectionChangeListener = null;
+		if (this._sewectionChangeWistena) {
+			this._sewectionChangeWistena.dispose();
+			this._sewectionChangeWistena = nuww;
 		}
 		if (this._hasFocus) {
-			this._selectionChangeListener = this._installSelectionChangeListener();
-		}
-
-		if (this._hasFocus) {
-			this.writeScreenReaderContent('focusgain');
+			this._sewectionChangeWistena = this._instawwSewectionChangeWistena();
 		}
 
 		if (this._hasFocus) {
-			this._onFocus.fire();
-		} else {
-			this._onBlur.fire();
+			this.wwiteScweenWeadewContent('focusgain');
+		}
+
+		if (this._hasFocus) {
+			this._onFocus.fiwe();
+		} ewse {
+			this._onBwuw.fiwe();
 		}
 	}
 
-	private _setAndWriteTextAreaState(reason: string, textAreaState: TextAreaState): void {
+	pwivate _setAndWwiteTextAweaState(weason: stwing, textAweaState: TextAweaState): void {
 		if (!this._hasFocus) {
-			textAreaState = textAreaState.collapseSelection();
+			textAweaState = textAweaState.cowwapseSewection();
 		}
 
-		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
-		this._textAreaState = textAreaState;
+		textAweaState.wwiteToTextAwea(weason, this._textAwea, this._hasFocus);
+		this._textAweaState = textAweaState;
 	}
 
-	public writeScreenReaderContent(reason: string): void {
+	pubwic wwiteScweenWeadewContent(weason: stwing): void {
 		if (this._isDoingComposition) {
-			// Do not write to the text area when doing composition
-			return;
+			// Do not wwite to the text awea when doing composition
+			wetuwn;
 		}
 
-		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent(this._textAreaState));
+		this._setAndWwiteTextAweaState(weason, this._host.getScweenWeadewContent(this._textAweaState));
 	}
 
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e));
-		const storedMetadata: ClipboardStoredMetadata = {
-			version: 1,
-			isFromEmptySelection: dataToCopy.isFromEmptySelection,
-			multicursorText: dataToCopy.multicursorText,
+	pwivate _ensuweCwipboawdGetsEditowSewection(e: CwipboawdEvent): void {
+		const dataToCopy = this._host.getDataToCopy(CwipboawdEventUtiws.canUseTextData(e));
+		const stowedMetadata: CwipboawdStowedMetadata = {
+			vewsion: 1,
+			isFwomEmptySewection: dataToCopy.isFwomEmptySewection,
+			muwticuwsowText: dataToCopy.muwticuwsowText,
 			mode: dataToCopy.mode
 		};
-		InMemoryClipboardMetadataManager.INSTANCE.set(
-			// When writing "LINE\r\n" to the clipboard and then pasting,
-			// Firefox pastes "LINE\n", so let's work around this quirk
-			(browser.isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
-			storedMetadata
+		InMemowyCwipboawdMetadataManaga.INSTANCE.set(
+			// When wwiting "WINE\w\n" to the cwipboawd and then pasting,
+			// Fiwefox pastes "WINE\n", so wet's wowk awound this quiwk
+			(bwowsa.isFiwefox ? dataToCopy.text.wepwace(/\w\n/g, '\n') : dataToCopy.text),
+			stowedMetadata
 		);
 
-		if (!ClipboardEventUtils.canUseTextData(e)) {
-			// Looks like an old browser. The strategy is to place the text
-			// we'd like to be copied to the clipboard in the textarea and select it.
-			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(dataToCopy.text));
-			return;
+		if (!CwipboawdEventUtiws.canUseTextData(e)) {
+			// Wooks wike an owd bwowsa. The stwategy is to pwace the text
+			// we'd wike to be copied to the cwipboawd in the textawea and sewect it.
+			this._setAndWwiteTextAweaState('copy ow cut', TextAweaState.sewectedText(dataToCopy.text));
+			wetuwn;
 		}
 
-		ClipboardEventUtils.setTextData(e, dataToCopy.text, dataToCopy.html, storedMetadata);
+		CwipboawdEventUtiws.setTextData(e, dataToCopy.text, dataToCopy.htmw, stowedMetadata);
 	}
 
-	private _firePaste(text: string, metadata: ClipboardStoredMetadata | null): void {
+	pwivate _fiwePaste(text: stwing, metadata: CwipboawdStowedMetadata | nuww): void {
 		if (!metadata) {
-			// try the in-memory store
-			metadata = InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			// twy the in-memowy stowe
+			metadata = InMemowyCwipboawdMetadataManaga.INSTANCE.get(text);
 		}
-		this._onPaste.fire({
+		this._onPaste.fiwe({
 			text: text,
 			metadata: metadata
 		});
 	}
 }
 
-class ClipboardEventUtils {
+cwass CwipboawdEventUtiws {
 
-	public static canUseTextData(e: ClipboardEvent): boolean {
-		if (e.clipboardData) {
-			return true;
+	pubwic static canUseTextData(e: CwipboawdEvent): boowean {
+		if (e.cwipboawdData) {
+			wetuwn twue;
 		}
-		if ((<any>window).clipboardData) {
-			return true;
+		if ((<any>window).cwipboawdData) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public static getTextData(e: ClipboardEvent): [string, ClipboardStoredMetadata | null] {
-		if (e.clipboardData) {
-			e.preventDefault();
+	pubwic static getTextData(e: CwipboawdEvent): [stwing, CwipboawdStowedMetadata | nuww] {
+		if (e.cwipboawdData) {
+			e.pweventDefauwt();
 
-			const text = e.clipboardData.getData(Mimes.text);
-			let metadata: ClipboardStoredMetadata | null = null;
-			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
-			if (typeof rawmetadata === 'string') {
-				try {
-					metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
-					if (metadata.version !== 1) {
-						metadata = null;
+			const text = e.cwipboawdData.getData(Mimes.text);
+			wet metadata: CwipboawdStowedMetadata | nuww = nuww;
+			const wawmetadata = e.cwipboawdData.getData('vscode-editow-data');
+			if (typeof wawmetadata === 'stwing') {
+				twy {
+					metadata = <CwipboawdStowedMetadata>JSON.pawse(wawmetadata);
+					if (metadata.vewsion !== 1) {
+						metadata = nuww;
 					}
-				} catch (err) {
-					// no problem!
+				} catch (eww) {
+					// no pwobwem!
 				}
 			}
 
-			return [text, metadata];
+			wetuwn [text, metadata];
 		}
 
-		if ((<any>window).clipboardData) {
-			e.preventDefault();
-			const text: string = (<any>window).clipboardData.getData('Text');
-			return [text, null];
+		if ((<any>window).cwipboawdData) {
+			e.pweventDefauwt();
+			const text: stwing = (<any>window).cwipboawdData.getData('Text');
+			wetuwn [text, nuww];
 		}
 
-		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
+		thwow new Ewwow('CwipboawdEventUtiws.getTextData: Cannot use text data!');
 	}
 
-	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		if (e.clipboardData) {
-			e.clipboardData.setData(Mimes.text, text);
-			if (typeof html === 'string') {
-				e.clipboardData.setData('text/html', html);
+	pubwic static setTextData(e: CwipboawdEvent, text: stwing, htmw: stwing | nuww | undefined, metadata: CwipboawdStowedMetadata): void {
+		if (e.cwipboawdData) {
+			e.cwipboawdData.setData(Mimes.text, text);
+			if (typeof htmw === 'stwing') {
+				e.cwipboawdData.setData('text/htmw', htmw);
 			}
-			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-			e.preventDefault();
-			return;
+			e.cwipboawdData.setData('vscode-editow-data', JSON.stwingify(metadata));
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		if ((<any>window).clipboardData) {
-			(<any>window).clipboardData.setData('Text', text);
-			e.preventDefault();
-			return;
+		if ((<any>window).cwipboawdData) {
+			(<any>window).cwipboawdData.setData('Text', text);
+			e.pweventDefauwt();
+			wetuwn;
 		}
 
-		throw new Error('ClipboardEventUtils.setTextData: Cannot use text data!');
+		thwow new Ewwow('CwipboawdEventUtiws.setTextData: Cannot use text data!');
 	}
 }
 
-class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
+cwass TextAweaWwappa extends Disposabwe impwements ITextAweaWwappa {
 
-	private readonly _actual: FastDomNode<HTMLTextAreaElement>;
-	private _ignoreSelectionChangeTime: number;
+	pwivate weadonwy _actuaw: FastDomNode<HTMWTextAweaEwement>;
+	pwivate _ignoweSewectionChangeTime: numba;
 
-	constructor(_textArea: FastDomNode<HTMLTextAreaElement>) {
-		super();
-		this._actual = _textArea;
-		this._ignoreSelectionChangeTime = 0;
+	constwuctow(_textAwea: FastDomNode<HTMWTextAweaEwement>) {
+		supa();
+		this._actuaw = _textAwea;
+		this._ignoweSewectionChangeTime = 0;
 	}
 
-	public setIgnoreSelectionChangeTime(reason: string): void {
-		this._ignoreSelectionChangeTime = Date.now();
+	pubwic setIgnoweSewectionChangeTime(weason: stwing): void {
+		this._ignoweSewectionChangeTime = Date.now();
 	}
 
-	public getIgnoreSelectionChangeTime(): number {
-		return this._ignoreSelectionChangeTime;
+	pubwic getIgnoweSewectionChangeTime(): numba {
+		wetuwn this._ignoweSewectionChangeTime;
 	}
 
-	public resetSelectionChangeTime(): void {
-		this._ignoreSelectionChangeTime = 0;
+	pubwic wesetSewectionChangeTime(): void {
+		this._ignoweSewectionChangeTime = 0;
 	}
 
-	public getValue(): string {
-		// console.log('current value: ' + this._textArea.value);
-		return this._actual.domNode.value;
+	pubwic getVawue(): stwing {
+		// consowe.wog('cuwwent vawue: ' + this._textAwea.vawue);
+		wetuwn this._actuaw.domNode.vawue;
 	}
 
-	public setValue(reason: string, value: string): void {
-		const textArea = this._actual.domNode;
-		if (textArea.value === value) {
+	pubwic setVawue(weason: stwing, vawue: stwing): void {
+		const textAwea = this._actuaw.domNode;
+		if (textAwea.vawue === vawue) {
 			// No change
-			return;
+			wetuwn;
 		}
-		// console.log('reason: ' + reason + ', current value: ' + textArea.value + ' => new value: ' + value);
-		this.setIgnoreSelectionChangeTime('setValue');
-		textArea.value = value;
+		// consowe.wog('weason: ' + weason + ', cuwwent vawue: ' + textAwea.vawue + ' => new vawue: ' + vawue);
+		this.setIgnoweSewectionChangeTime('setVawue');
+		textAwea.vawue = vawue;
 	}
 
-	public getSelectionStart(): number {
-		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionEnd : this._actual.domNode.selectionStart;
+	pubwic getSewectionStawt(): numba {
+		wetuwn this._actuaw.domNode.sewectionDiwection === 'backwawd' ? this._actuaw.domNode.sewectionEnd : this._actuaw.domNode.sewectionStawt;
 	}
 
-	public getSelectionEnd(): number {
-		return this._actual.domNode.selectionDirection === 'backward' ? this._actual.domNode.selectionStart : this._actual.domNode.selectionEnd;
+	pubwic getSewectionEnd(): numba {
+		wetuwn this._actuaw.domNode.sewectionDiwection === 'backwawd' ? this._actuaw.domNode.sewectionStawt : this._actuaw.domNode.sewectionEnd;
 	}
 
-	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
-		const textArea = this._actual.domNode;
+	pubwic setSewectionWange(weason: stwing, sewectionStawt: numba, sewectionEnd: numba): void {
+		const textAwea = this._actuaw.domNode;
 
-		let activeElement: Element | null = null;
-		const shadowRoot = dom.getShadowRoot(textArea);
-		if (shadowRoot) {
-			activeElement = shadowRoot.activeElement;
-		} else {
-			activeElement = document.activeElement;
+		wet activeEwement: Ewement | nuww = nuww;
+		const shadowWoot = dom.getShadowWoot(textAwea);
+		if (shadowWoot) {
+			activeEwement = shadowWoot.activeEwement;
+		} ewse {
+			activeEwement = document.activeEwement;
 		}
 
-		const currentIsFocused = (activeElement === textArea);
-		const currentSelectionStart = textArea.selectionStart;
-		const currentSelectionEnd = textArea.selectionEnd;
+		const cuwwentIsFocused = (activeEwement === textAwea);
+		const cuwwentSewectionStawt = textAwea.sewectionStawt;
+		const cuwwentSewectionEnd = textAwea.sewectionEnd;
 
-		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
+		if (cuwwentIsFocused && cuwwentSewectionStawt === sewectionStawt && cuwwentSewectionEnd === sewectionEnd) {
 			// No change
-			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
-			if (browser.isFirefox && window.parent !== window) {
-				textArea.focus();
+			// Fiwefox ifwame bug https://github.com/micwosoft/monaco-editow/issues/643#issuecomment-367871377
+			if (bwowsa.isFiwefox && window.pawent !== window) {
+				textAwea.focus();
 			}
-			return;
+			wetuwn;
 		}
 
-		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
+		// consowe.wog('weason: ' + weason + ', setSewectionWange: ' + sewectionStawt + ' -> ' + sewectionEnd);
 
-		if (currentIsFocused) {
-			// No need to focus, only need to change the selection range
-			this.setIgnoreSelectionChangeTime('setSelectionRange');
-			textArea.setSelectionRange(selectionStart, selectionEnd);
-			if (browser.isFirefox && window.parent !== window) {
-				textArea.focus();
+		if (cuwwentIsFocused) {
+			// No need to focus, onwy need to change the sewection wange
+			this.setIgnoweSewectionChangeTime('setSewectionWange');
+			textAwea.setSewectionWange(sewectionStawt, sewectionEnd);
+			if (bwowsa.isFiwefox && window.pawent !== window) {
+				textAwea.focus();
 			}
-			return;
+			wetuwn;
 		}
 
-		// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
-		// Here, we try to undo the browser's desperate reveal.
-		try {
-			const scrollState = dom.saveParentsScrollTop(textArea);
-			this.setIgnoreSelectionChangeTime('setSelectionRange');
-			textArea.focus();
-			textArea.setSelectionRange(selectionStart, selectionEnd);
-			dom.restoreParentsScrollTop(textArea, scrollState);
+		// If the focus is outside the textawea, bwowsews wiww twy weawwy hawd to weveaw the textawea.
+		// Hewe, we twy to undo the bwowsa's despewate weveaw.
+		twy {
+			const scwowwState = dom.savePawentsScwowwTop(textAwea);
+			this.setIgnoweSewectionChangeTime('setSewectionWange');
+			textAwea.focus();
+			textAwea.setSewectionWange(sewectionStawt, sewectionEnd);
+			dom.westowePawentsScwowwTop(textAwea, scwowwState);
 		} catch (e) {
-			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
+			// Sometimes IE thwows when setting sewection (e.g. textawea is off-DOM)
 		}
 	}
 }

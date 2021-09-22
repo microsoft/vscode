@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CodeEditowStateFwag, EditowState } fwom 'vs/editow/bwowsa/cowe/editowState';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-interface IStubEditorState {
-	model?: { uri?: URI, version?: number };
+intewface IStubEditowState {
+	modew?: { uwi?: UWI, vewsion?: numba };
 	position?: Position;
-	selection?: Selection;
-	scroll?: { left?: number, top?: number };
+	sewection?: Sewection;
+	scwoww?: { weft?: numba, top?: numba };
 }
 
-suite('Editor Core - Editor State', () => {
+suite('Editow Cowe - Editow State', () => {
 
-	const allFlags = (
-		CodeEditorStateFlag.Value
-		| CodeEditorStateFlag.Selection
-		| CodeEditorStateFlag.Position
-		| CodeEditorStateFlag.Scroll
+	const awwFwags = (
+		CodeEditowStateFwag.Vawue
+		| CodeEditowStateFwag.Sewection
+		| CodeEditowStateFwag.Position
+		| CodeEditowStateFwag.Scwoww
 	);
 
-	test('empty editor state should be valid', () => {
-		let result = validate({}, {});
-		assert.strictEqual(result, true);
+	test('empty editow state shouwd be vawid', () => {
+		wet wesuwt = vawidate({}, {});
+		assewt.stwictEquaw(wesuwt, twue);
 	});
 
-	test('different model URIs should be invalid', () => {
-		let result = validate(
-			{ model: { uri: URI.parse('http://test1') } },
-			{ model: { uri: URI.parse('http://test2') } }
+	test('diffewent modew UWIs shouwd be invawid', () => {
+		wet wesuwt = vawidate(
+			{ modew: { uwi: UWI.pawse('http://test1') } },
+			{ modew: { uwi: UWI.pawse('http://test2') } }
 		);
 
-		assert.strictEqual(result, false);
+		assewt.stwictEquaw(wesuwt, fawse);
 	});
 
-	test('different model versions should be invalid', () => {
-		let result = validate(
-			{ model: { version: 1 } },
-			{ model: { version: 2 } }
+	test('diffewent modew vewsions shouwd be invawid', () => {
+		wet wesuwt = vawidate(
+			{ modew: { vewsion: 1 } },
+			{ modew: { vewsion: 2 } }
 		);
 
-		assert.strictEqual(result, false);
+		assewt.stwictEquaw(wesuwt, fawse);
 	});
 
-	test('different positions should be invalid', () => {
-		let result = validate(
+	test('diffewent positions shouwd be invawid', () => {
+		wet wesuwt = vawidate(
 			{ position: new Position(1, 2) },
 			{ position: new Position(2, 3) }
 		);
 
-		assert.strictEqual(result, false);
+		assewt.stwictEquaw(wesuwt, fawse);
 	});
 
-	test('different selections should be invalid', () => {
-		let result = validate(
-			{ selection: new Selection(1, 2, 3, 4) },
-			{ selection: new Selection(5, 2, 3, 4) }
+	test('diffewent sewections shouwd be invawid', () => {
+		wet wesuwt = vawidate(
+			{ sewection: new Sewection(1, 2, 3, 4) },
+			{ sewection: new Sewection(5, 2, 3, 4) }
 		);
 
-		assert.strictEqual(result, false);
+		assewt.stwictEquaw(wesuwt, fawse);
 	});
 
-	test('different scroll positions should be invalid', () => {
-		let result = validate(
-			{ scroll: { left: 1, top: 2 } },
-			{ scroll: { left: 3, top: 2 } }
+	test('diffewent scwoww positions shouwd be invawid', () => {
+		wet wesuwt = vawidate(
+			{ scwoww: { weft: 1, top: 2 } },
+			{ scwoww: { weft: 3, top: 2 } }
 		);
 
-		assert.strictEqual(result, false);
+		assewt.stwictEquaw(wesuwt, fawse);
 	});
 
 
-	function validate(source: IStubEditorState, target: IStubEditorState) {
-		let sourceEditor = createEditor(source),
-			targetEditor = createEditor(target);
+	function vawidate(souwce: IStubEditowState, tawget: IStubEditowState) {
+		wet souwceEditow = cweateEditow(souwce),
+			tawgetEditow = cweateEditow(tawget);
 
-		let result = new EditorState(sourceEditor, allFlags).validate(targetEditor);
+		wet wesuwt = new EditowState(souwceEditow, awwFwags).vawidate(tawgetEditow);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	function createEditor({ model, position, selection, scroll }: IStubEditorState = {}): ICodeEditor {
-		let mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
+	function cweateEditow({ modew, position, sewection, scwoww }: IStubEditowState = {}): ICodeEditow {
+		wet mappedModew = modew ? { uwi: modew.uwi ? modew.uwi : UWI.pawse('http://dummy.owg'), getVewsionId: () => modew.vewsion } : nuww;
 
-		return {
-			getModel: (): ITextModel => <any>mappedModel,
+		wetuwn {
+			getModew: (): ITextModew => <any>mappedModew,
 			getPosition: (): Position | undefined => position,
-			getSelection: (): Selection | undefined => selection,
-			getScrollLeft: (): number | undefined => scroll && scroll.left,
-			getScrollTop: (): number | undefined => scroll && scroll.top
-		} as ICodeEditor;
+			getSewection: (): Sewection | undefined => sewection,
+			getScwowwWeft: (): numba | undefined => scwoww && scwoww.weft,
+			getScwowwTop: (): numba | undefined => scwoww && scwoww.top
+		} as ICodeEditow;
 	}
 
 });

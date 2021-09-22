@@ -1,422 +1,422 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IOffProcessTerminalService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { Codicon } from 'vs/base/common/codicons';
-import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
-import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { disposableTimeout } from 'vs/base/common/async';
-import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { URI } from 'vs/base/common/uri';
-import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IEditableData } from 'vs/workbench/common/views';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+impowt { IWistSewvice, WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITewminawGwoupSewvice, ITewminawInstance, ITewminawInstanceSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { wocawize } fwom 'vs/nws';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IOffPwocessTewminawSewvice, TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { TewminawWocation, TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { TewminawDecowationsPwovida } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawDecowationsPwovida';
+impowt { DEFAUWT_WABEWS_CONTAINa, IWesouwceWabew, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { IHovewAction, IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWistDwagAndDwop, IWistDwagOvewWeaction, IWistWendewa, WistDwagOvewEffect } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DataTwansfews, IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { EwementsDwagAndDwopData, NativeDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getCowowCwass, getIconId, getUwiCwasses } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawIcon';
+impowt { IEditabweData } fwom 'vs/wowkbench/common/views';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { InputBox, MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { CodeDataTwansfews, containsDwagType } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { tewminawStwings } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStwings';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IPwocessDetaiws } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { TewminawContextKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawContextKey';
+impowt { getTewminawWesouwcesFwomDwagEvent, pawseTewminawUwi } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawUwi';
 
 const $ = DOM.$;
 
-export const enum TerminalTabsListSizes {
+expowt const enum TewminawTabsWistSizes {
 	TabHeight = 22,
-	NarrowViewWidth = 46,
+	NawwowViewWidth = 46,
 	WideViewMinimumWidth = 80,
-	DefaultWidth = 120,
-	MidpointViewWidth = (TerminalTabsListSizes.NarrowViewWidth + TerminalTabsListSizes.WideViewMinimumWidth) / 2,
-	ActionbarMinimumWidth = 105,
+	DefauwtWidth = 120,
+	MidpointViewWidth = (TewminawTabsWistSizes.NawwowViewWidth + TewminawTabsWistSizes.WideViewMinimumWidth) / 2,
+	ActionbawMinimumWidth = 105,
 	MaximumWidth = 500
 }
 
-export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
-	private _decorationsProvider: TerminalDecorationsProvider | undefined;
-	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
-	private _isSplitContextKey: IContextKey<boolean>;
+expowt cwass TewminawTabWist extends WowkbenchWist<ITewminawInstance> {
+	pwivate _decowationsPwovida: TewminawDecowationsPwovida | undefined;
+	pwivate _tewminawTabsSingweSewectedContextKey: IContextKey<boowean>;
+	pwivate _isSpwitContextKey: IContextKey<boowean>;
 
-	constructor(
-		container: HTMLElement,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService decorationsService: IDecorationsService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+	constwuctow(
+		containa: HTMWEwement,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IDecowationsSewvice decowationsSewvice: IDecowationsSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
 	) {
-		super('TerminalTabsList', container,
+		supa('TewminawTabsWist', containa,
 			{
-				getHeight: () => TerminalTabsListSizes.TabHeight,
-				getTemplateId: () => 'terminal.tabs'
+				getHeight: () => TewminawTabsWistSizes.TabHeight,
+				getTempwateId: () => 'tewminaw.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
+			[instantiationSewvice.cweateInstance(TewminawTabsWendewa, containa, instantiationSewvice.cweateInstance(WesouwceWabews, DEFAUWT_WABEWS_CONTAINa), () => this.getSewectedEwements())],
 			{
-				horizontalScrolling: false,
-				supportDynamicHeights: false,
-				selectionNavigation: true,
-				identityProvider: {
+				howizontawScwowwing: fawse,
+				suppowtDynamicHeights: fawse,
+				sewectionNavigation: twue,
+				identityPwovida: {
 					getId: e => e?.instanceId
 				},
-				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
-				multipleSelectionSupport: true,
-				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
+				accessibiwityPwovida: instantiationSewvice.cweateInstance(TewminawTabsAccessibiwityPwovida),
+				smoothScwowwing: _configuwationSewvice.getVawue<boowean>('wowkbench.wist.smoothScwowwing'),
+				muwtipweSewectionSuppowt: twue,
+				additionawScwowwHeight: TewminawTabsWistSizes.TabHeight,
+				dnd: instantiationSewvice.cweateInstance(TewminawTabsDwagAndDwop)
 			},
-			contextKeyService,
-			listService,
-			themeService,
-			_configurationService,
-			keybindingService,
+			contextKeySewvice,
+			wistSewvice,
+			themeSewvice,
+			_configuwationSewvice,
+			keybindingSewvice,
 		);
 
-		const instanceDisposables: IDisposable[] = [
-			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
-			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
-			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
-			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
-			this._themeService.onDidColorThemeChange(() => this.refresh()),
-			this._terminalGroupService.onDidChangeActiveInstance(e => {
+		const instanceDisposabwes: IDisposabwe[] = [
+			this._tewminawGwoupSewvice.onDidChangeInstances(() => this.wefwesh()),
+			this._tewminawGwoupSewvice.onDidChangeGwoups(() => this.wefwesh()),
+			this._tewminawSewvice.onDidChangeInstanceTitwe(() => this.wefwesh()),
+			this._tewminawSewvice.onDidChangeInstanceIcon(() => this.wefwesh()),
+			this._tewminawSewvice.onDidChangeInstancePwimawyStatus(() => this.wefwesh()),
+			this._tewminawSewvice.onDidChangeConnectionState(() => this.wefwesh()),
+			this._themeSewvice.onDidCowowThemeChange(() => this.wefwesh()),
+			this._tewminawGwoupSewvice.onDidChangeActiveInstance(e => {
 				if (e) {
-					const i = this._terminalGroupService.instances.indexOf(e);
-					this.setSelection([i]);
-					this.reveal(i);
+					const i = this._tewminawGwoupSewvice.instances.indexOf(e);
+					this.setSewection([i]);
+					this.weveaw(i);
 				}
-				this.refresh();
+				this.wefwesh();
 			})
 		];
 
-		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
-		// briefly
-		lifecycleService.onWillShutdown(e => {
-			dispose(instanceDisposables);
+		// Dispose of instance wistenews on shutdown to avoid extwa wowk and so tabs don't disappeaw
+		// bwiefwy
+		wifecycweSewvice.onWiwwShutdown(e => {
+			dispose(instanceDisposabwes);
 		});
 
-		this.onMouseDblClick(async e => {
+		this.onMouseDbwCwick(async e => {
 			const focus = this.getFocus();
-			if (focus.length === 0) {
-				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-				this._terminalGroupService.setActiveInstance(instance);
-				await instance.focusWhenReady();
+			if (focus.wength === 0) {
+				const instance = await this._tewminawSewvice.cweateTewminaw({ wocation: TewminawWocation.Panew });
+				this._tewminawGwoupSewvice.setActiveInstance(instance);
+				await instance.focusWhenWeady();
 			}
-			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
-				e.element?.focus(true);
+			if (this._getFocusMode() === 'doubweCwick' && this.getFocus().wength === 1) {
+				e.ewement?.focus(twue);
 			}
 		});
 
-		// on left click, if focus mode = single click, focus the element
-		// unless multi-selection is in progress
-		this.onMouseClick(async e => {
-			if (e.browserEvent.altKey && e.element) {
-				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
-			} else if (this._getFocusMode() === 'singleClick') {
-				if (this.getSelection().length <= 1) {
-					e.element?.focus(true);
+		// on weft cwick, if focus mode = singwe cwick, focus the ewement
+		// unwess muwti-sewection is in pwogwess
+		this.onMouseCwick(async e => {
+			if (e.bwowsewEvent.awtKey && e.ewement) {
+				await this._tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: e.ewement } });
+			} ewse if (this._getFocusMode() === 'singweCwick') {
+				if (this.getSewection().wength <= 1) {
+					e.ewement?.focus(twue);
 				}
 			}
 		});
 
-		// on right click, set the focus to that element
-		// unless multi-selection is in progress
+		// on wight cwick, set the focus to that ewement
+		// unwess muwti-sewection is in pwogwess
 		this.onContextMenu(e => {
-			if (!e.element) {
-				this.setSelection([]);
-				return;
+			if (!e.ewement) {
+				this.setSewection([]);
+				wetuwn;
 			}
-			const selection = this.getSelectedElements();
-			if (!selection || !selection.find(s => e.element === s)) {
+			const sewection = this.getSewectedEwements();
+			if (!sewection || !sewection.find(s => e.ewement === s)) {
 				this.setFocus(e.index !== undefined ? [e.index] : []);
 			}
 		});
 
-		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
-		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
+		this._tewminawTabsSingweSewectedContextKey = TewminawContextKeys.tabsSinguwawSewection.bindTo(contextKeySewvice);
+		this._isSpwitContextKey = TewminawContextKeys.spwitTewminaw.bindTo(contextKeySewvice);
 
-		this.onDidChangeSelection(e => this._updateContextKey());
+		this.onDidChangeSewection(e => this._updateContextKey());
 		this.onDidChangeFocus(() => this._updateContextKey());
 
 		this.onDidOpen(async e => {
-			const instance = e.element;
+			const instance = e.ewement;
 			if (!instance) {
-				return;
+				wetuwn;
 			}
-			this._terminalGroupService.setActiveInstance(instance);
-			if (!e.editorOptions.preserveFocus) {
-				await instance.focusWhenReady();
+			this._tewminawGwoupSewvice.setActiveInstance(instance);
+			if (!e.editowOptions.pwesewveFocus) {
+				await instance.focusWhenWeady();
 			}
 		});
-		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
-			decorationsService.registerDecorationsProvider(this._decorationsProvider);
+		if (!this._decowationsPwovida) {
+			this._decowationsPwovida = instantiationSewvice.cweateInstance(TewminawDecowationsPwovida);
+			decowationsSewvice.wegistewDecowationsPwovida(this._decowationsPwovida);
 		}
-		this.refresh();
+		this.wefwesh();
 	}
 
-	private _getFocusMode(): 'singleClick' | 'doubleClick' {
-		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
+	pwivate _getFocusMode(): 'singweCwick' | 'doubweCwick' {
+		wetuwn this._configuwationSewvice.getVawue<'singweCwick' | 'doubweCwick'>(TewminawSettingId.TabsFocusMode);
 	}
 
-	refresh(): void {
-		this.splice(0, this.length, this._terminalGroupService.instances.slice());
+	wefwesh(): void {
+		this.spwice(0, this.wength, this._tewminawGwoupSewvice.instances.swice());
 	}
 
-	private _updateContextKey() {
-		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
-		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
+	pwivate _updateContextKey() {
+		this._tewminawTabsSingweSewectedContextKey.set(this.getSewectedEwements().wength === 1);
+		const instance = this.getFocusedEwements();
+		this._isSpwitContextKey.set(instance.wength > 0 && this._tewminawGwoupSewvice.instanceIsSpwit(instance[0]));
 	}
 }
 
-class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminalTabEntryTemplate> {
-	templateId = 'terminal.tabs';
+cwass TewminawTabsWendewa impwements IWistWendewa<ITewminawInstance, ITewminawTabEntwyTempwate> {
+	tempwateId = 'tewminaw.tabs';
 
-	constructor(
-		private readonly _container: HTMLElement,
-		private readonly _labels: ResourceLabels,
-		private readonly _getSelection: () => ITerminalInstance[],
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IListService private readonly _listService: IListService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+	constwuctow(
+		pwivate weadonwy _containa: HTMWEwement,
+		pwivate weadonwy _wabews: WesouwceWabews,
+		pwivate weadonwy _getSewection: () => ITewminawInstance[],
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@IHovewSewvice pwivate weadonwy _hovewSewvice: IHovewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IWistSewvice pwivate weadonwy _wistSewvice: IWistSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice
 	) {
 	}
 
-	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
-		const element = DOM.append(container, $('.terminal-tabs-entry'));
-		const context: { hoverActions?: IHoverAction[] } = {};
-		const label = this._labels.create(element, {
-			supportHighlights: true,
-			supportDescriptionHighlights: true,
-			supportIcons: true,
-			hoverDelegate: {
-				delay: this._configurationService.getValue<number>('workbench.hover.delay'),
-				showHover: options => {
-					return this._hoverService.showHover({
+	wendewTempwate(containa: HTMWEwement): ITewminawTabEntwyTempwate {
+		const ewement = DOM.append(containa, $('.tewminaw-tabs-entwy'));
+		const context: { hovewActions?: IHovewAction[] } = {};
+		const wabew = this._wabews.cweate(ewement, {
+			suppowtHighwights: twue,
+			suppowtDescwiptionHighwights: twue,
+			suppowtIcons: twue,
+			hovewDewegate: {
+				deway: this._configuwationSewvice.getVawue<numba>('wowkbench.hova.deway'),
+				showHova: options => {
+					wetuwn this._hovewSewvice.showHova({
 						...options,
-						actions: context.hoverActions,
-						hideOnHover: true
+						actions: context.hovewActions,
+						hideOnHova: twue
 					});
 				}
 			}
 		});
 
-		const actionsContainer = DOM.append(label.element, $('.actions'));
+		const actionsContaina = DOM.append(wabew.ewement, $('.actions'));
 
-		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: action =>
+		const actionBaw = new ActionBaw(actionsContaina, {
+			actionViewItemPwovida: action =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this._instantiationSewvice.cweateInstance(MenuEntwyActionViewItem, action, undefined)
 					: undefined
 		});
 
-		return {
-			element,
-			label,
-			actionBar,
+		wetuwn {
+			ewement,
+			wabew,
+			actionBaw,
 			context
 		};
 	}
 
-	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < TerminalTabsListSizes.MidpointViewWidth : false;
+	shouwdHideText(): boowean {
+		wetuwn this._containa ? this._containa.cwientWidth < TewminawTabsWistSizes.MidpointViewWidth : fawse;
 	}
 
-	shouldHideActionBar(): boolean {
-		return this._container ? this._container.clientWidth <= TerminalTabsListSizes.ActionbarMinimumWidth : false;
+	shouwdHideActionBaw(): boowean {
+		wetuwn this._containa ? this._containa.cwientWidth <= TewminawTabsWistSizes.ActionbawMinimumWidth : fawse;
 	}
 
-	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const hasText = !this.shouldHideText();
+	wendewEwement(instance: ITewminawInstance, index: numba, tempwate: ITewminawTabEntwyTempwate): void {
+		const hasText = !this.shouwdHideText();
 
-		const group = this._terminalGroupService.getGroupForInstance(instance);
-		if (!group) {
-			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
+		const gwoup = this._tewminawGwoupSewvice.getGwoupFowInstance(instance);
+		if (!gwoup) {
+			thwow new Ewwow(`Couwd not find gwoup fow instance "${instance.instanceId}"`);
 		}
 
-		template.element.classList.toggle('has-text', hasText);
-		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
+		tempwate.ewement.cwassWist.toggwe('has-text', hasText);
+		tempwate.ewement.cwassWist.toggwe('is-active', this._tewminawGwoupSewvice.activeInstance === instance);
 
-		let prefix: string = '';
-		if (group.terminalInstances.length > 1) {
-			const terminalIndex = group.terminalInstances.indexOf(instance);
-			if (terminalIndex === 0) {
-				prefix = `┌ `;
-			} else if (terminalIndex === group!.terminalInstances.length - 1) {
-				prefix = `└ `;
-			} else {
-				prefix = `├ `;
+		wet pwefix: stwing = '';
+		if (gwoup.tewminawInstances.wength > 1) {
+			const tewminawIndex = gwoup.tewminawInstances.indexOf(instance);
+			if (tewminawIndex === 0) {
+				pwefix = `┌ `;
+			} ewse if (tewminawIndex === gwoup!.tewminawInstances.wength - 1) {
+				pwefix = `└ `;
+			} ewse {
+				pwefix = `├ `;
 			}
 		}
 
 
-		let statusString = '';
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
+		wet statusStwing = '';
+		const statuses = instance.statusWist.statuses;
+		tempwate.context.hovewActions = [];
+		fow (const status of statuses) {
+			statusStwing += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.toowtip || status.id}`;
+			if (status.hovewActions) {
+				tempwate.context.hovewActions.push(...status.hovewActions);
 			}
 		}
 		const iconId = getIconId(instance);
-		const hasActionbar = !this.shouldHideActionBar();
-		let label: string = '';
+		const hasActionbaw = !this.shouwdHideActionBaw();
+		wet wabew: stwing = '';
 		if (!hasText) {
-			const primaryStatus = instance.statusList.primary;
-			// Don't show ignore severity
-			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
-				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
-			} else {
-				label = `${prefix}$(${iconId})`;
+			const pwimawyStatus = instance.statusWist.pwimawy;
+			// Don't show ignowe sevewity
+			if (pwimawyStatus && pwimawyStatus.sevewity > Sevewity.Ignowe) {
+				wabew = `${pwefix}$(${pwimawyStatus.icon?.id || iconId})`;
+			} ewse {
+				wabew = `${pwefix}$(${iconId})`;
 			}
-		} else {
-			this.fillActionBar(instance, template);
-			label = prefix;
-			// Only add the title if the icon is set, this prevents the title jumping around for
-			// example when launching with a ShellLaunchConfig.name and no icon
+		} ewse {
+			this.fiwwActionBaw(instance, tempwate);
+			wabew = pwefix;
+			// Onwy add the titwe if the icon is set, this pwevents the titwe jumping awound fow
+			// exampwe when waunching with a ShewwWaunchConfig.name and no icon
 			if (instance.icon) {
-				label += `$(${iconId}) ${instance.title}`;
+				wabew += `$(${iconId}) ${instance.titwe}`;
 			}
 		}
 
-		if (!hasActionbar) {
-			template.actionBar.clear();
+		if (!hasActionbaw) {
+			tempwate.actionBaw.cweaw();
 		}
 
-		if (!template.elementDispoables) {
-			template.elementDispoables = new DisposableStore();
+		if (!tempwate.ewementDispoabwes) {
+			tempwate.ewementDispoabwes = new DisposabweStowe();
 		}
 
-		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
-			e.stopImmediatePropagation();
-			if (e.button === 1/*middle*/) {
-				this._terminalService.safeDisposeTerminal(instance);
+		// Kiww tewminaw on middwe cwick
+		tempwate.ewementDispoabwes.add(DOM.addDisposabweWistena(tempwate.ewement, DOM.EventType.AUXCWICK, e => {
+			e.stopImmediatePwopagation();
+			if (e.button === 1/*middwe*/) {
+				this._tewminawSewvice.safeDisposeTewminaw(instance);
 			}
 		}));
 
-		const extraClasses: string[] = [];
-		const colorClass = getColorClass(instance);
-		if (colorClass) {
-			extraClasses.push(colorClass);
+		const extwaCwasses: stwing[] = [];
+		const cowowCwass = getCowowCwass(instance);
+		if (cowowCwass) {
+			extwaCwasses.push(cowowCwass);
 		}
-		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
-		if (uriClasses) {
-			extraClasses.push(...uriClasses);
+		const uwiCwasses = getUwiCwasses(instance, this._themeSewvice.getCowowTheme().type);
+		if (uwiCwasses) {
+			extwaCwasses.push(...uwiCwasses);
 		}
 
-		template.label.setResource({
-			resource: instance.resource,
-			name: label,
-			description: hasText ? instance.description : undefined
+		tempwate.wabew.setWesouwce({
+			wesouwce: instance.wesouwce,
+			name: wabew,
+			descwiption: hasText ? instance.descwiption : undefined
 		}, {
-			fileDecorations: {
-				colors: true,
+			fiweDecowations: {
+				cowows: twue,
 				badges: hasText
 			},
-			title: {
-				markdown: new MarkdownString(instance.title + statusString, { supportThemeIcons: true }),
-				markdownNotSupportedFallback: undefined
+			titwe: {
+				mawkdown: new MawkdownStwing(instance.titwe + statusStwing, { suppowtThemeIcons: twue }),
+				mawkdownNotSuppowtedFawwback: undefined
 			},
-			extraClasses
+			extwaCwasses
 		});
-		const editableData = this._terminalService.getEditableData(instance);
-		template.label.element.classList.toggle('editable-tab', !!editableData);
-		if (editableData) {
-			this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData);
-			template.actionBar.clear();
+		const editabweData = this._tewminawSewvice.getEditabweData(instance);
+		tempwate.wabew.ewement.cwassWist.toggwe('editabwe-tab', !!editabweData);
+		if (editabweData) {
+			this._wendewInputBox(tempwate.wabew.ewement.quewySewectow('.monaco-icon-wabew-containa')!, instance, editabweData);
+			tempwate.actionBaw.cweaw();
 		}
 	}
 
-	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
+	pwivate _wendewInputBox(containa: HTMWEwement, instance: ITewminawInstance, editabweData: IEditabweData): IDisposabwe {
 
-		const label = this._labels.create(container);
-		const value = instance.title || '';
+		const wabew = this._wabews.cweate(containa);
+		const vawue = instance.titwe || '';
 
-		const inputBox = new InputBox(container, this._contextViewService, {
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
-						return null;
+		const inputBox = new InputBox(containa, this._contextViewSewvice, {
+			vawidationOptions: {
+				vawidation: (vawue) => {
+					const message = editabweData.vawidationMessage(vawue);
+					if (!message || message.sevewity !== Sevewity.Ewwow) {
+						wetuwn nuww;
 					}
 
-					return {
+					wetuwn {
 						content: message.content,
-						formatContent: true,
-						type: MessageType.ERROR
+						fowmatContent: twue,
+						type: MessageType.EWWOW
 					};
 				}
 			},
-			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
+			awiaWabew: wocawize('tewminawInputAwiaWabew', "Type tewminaw name. Pwess Enta to confiwm ow Escape to cancew.")
 		});
-		const styler = attachInputBoxStyler(inputBox, this._themeService);
-		inputBox.element.style.height = '22px';
-		inputBox.value = value;
+		const stywa = attachInputBoxStywa(inputBox, this._themeSewvice);
+		inputBox.ewement.stywe.height = '22px';
+		inputBox.vawue = vawue;
 		inputBox.focus();
-		inputBox.select({ start: 0, end: value.length });
+		inputBox.sewect({ stawt: 0, end: vawue.wength });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
-			inputBox.element.style.display = 'none';
-			const value = inputBox.value;
+		const done = once((success: boowean, finishEditing: boowean) => {
+			inputBox.ewement.stywe.dispway = 'none';
+			const vawue = inputBox.vawue;
 			dispose(toDispose);
-			inputBox.element.remove();
+			inputBox.ewement.wemove();
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editabweData.onFinish(vawue, success);
 			}
 		});
 
 		const showInputBoxNotification = () => {
-			if (inputBox.isInputValid()) {
-				const message = editableData.validationMessage(inputBox.value);
+			if (inputBox.isInputVawid()) {
+				const message = editabweData.vawidationMessage(inputBox.vawue);
 				if (message) {
 					inputBox.showMessage({
 						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+						fowmatContent: twue,
+						type: message.sevewity === Sevewity.Info ? MessageType.INFO : message.sevewity === Sevewity.Wawning ? MessageType.WAWNING : MessageType.EWWOW
 					});
-				} else {
+				} ewse {
 					inputBox.hideMessage();
 				}
 			}
@@ -425,288 +425,288 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const toDispose = [
 			inputBox,
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				e.stopPropagation();
-				if (e.equals(KeyCode.Enter)) {
-					done(inputBox.isInputValid(), true);
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+			DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_DOWN, (e: IKeyboawdEvent) => {
+				e.stopPwopagation();
+				if (e.equaws(KeyCode.Enta)) {
+					done(inputBox.isInputVawid(), twue);
+				} ewse if (e.equaws(KeyCode.Escape)) {
+					done(fawse, twue);
 				}
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+			DOM.addStandawdDisposabweWistena(inputBox.inputEwement, DOM.EventType.KEY_UP, (e: IKeyboawdEvent) => {
 				showInputBoxNotification();
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+			DOM.addDisposabweWistena(inputBox.inputEwement, DOM.EventType.BWUW, () => {
+				done(inputBox.isInputVawid(), twue);
 			}),
-			label,
-			styler
+			wabew,
+			stywa
 		];
 
-		return toDisposable(() => {
-			done(false, false);
+		wetuwn toDisposabwe(() => {
+			done(fawse, fawse);
 		});
 	}
 
-	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDispoables?.dispose();
-		templateData.elementDispoables = undefined;
+	disposeEwement(instance: ITewminawInstance, index: numba, tempwateData: ITewminawTabEntwyTempwate): void {
+		tempwateData.ewementDispoabwes?.dispose();
+		tempwateData.ewementDispoabwes = undefined;
 	}
 
-	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+	disposeTempwate(tempwateData: ITewminawTabEntwyTempwate): void {
 	}
 
-	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
-		// If the instance is within the selection, split all selected
+	fiwwActionBaw(instance: ITewminawInstance, tempwate: ITewminawTabEntwyTempwate): void {
+		// If the instance is within the sewection, spwit aww sewected
 		const actions = [
-			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ location: { parentTerminal: e } }));
+			new Action(TewminawCommandId.SpwitInstance, tewminawStwings.spwit.showt, ThemeIcon.asCwassName(Codicon.spwitHowizontaw), twue, async () => {
+				this._wunFowSewectionOwInstance(instance, e => this._tewminawSewvice.cweateTewminaw({ wocation: { pawentTewminaw: e } }));
 			}),
-			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => e.dispose());
+			new Action(TewminawCommandId.KiwwInstance, tewminawStwings.kiww.showt, ThemeIcon.asCwassName(Codicon.twashcan), twue, async () => {
+				this._wunFowSewectionOwInstance(instance, e => e.dispose());
 			})
 		];
-		// TODO: Cache these in a way that will use the correct instance
-		template.actionBar.clear();
-		for (const action of actions) {
-			template.actionBar.push(action, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(action.id)?.getLabel() });
+		// TODO: Cache these in a way that wiww use the cowwect instance
+		tempwate.actionBaw.cweaw();
+		fow (const action of actions) {
+			tempwate.actionBaw.push(action, { icon: twue, wabew: fawse, keybinding: this._keybindingSewvice.wookupKeybinding(action.id)?.getWabew() });
 		}
 	}
 
-	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
-		const selection = this._getSelection();
-		if (selection.includes(instance)) {
-			for (const s of selection) {
+	pwivate _wunFowSewectionOwInstance(instance: ITewminawInstance, cawwback: (instance: ITewminawInstance) => void) {
+		const sewection = this._getSewection();
+		if (sewection.incwudes(instance)) {
+			fow (const s of sewection) {
 				if (s) {
-					callback(s);
+					cawwback(s);
 				}
 			}
-		} else {
-			callback(instance);
+		} ewse {
+			cawwback(instance);
 		}
-		this._terminalGroupService.focusTabs();
-		this._listService.lastFocusedList?.focusNext();
+		this._tewminawGwoupSewvice.focusTabs();
+		this._wistSewvice.wastFocusedWist?.focusNext();
 	}
 }
 
-interface ITerminalTabEntryTemplate {
-	element: HTMLElement;
-	label: IResourceLabel;
-	actionBar: ActionBar;
+intewface ITewminawTabEntwyTempwate {
+	ewement: HTMWEwement;
+	wabew: IWesouwceWabew;
+	actionBaw: ActionBaw;
 	context: {
-		hoverActions?: IHoverAction[];
+		hovewActions?: IHovewAction[];
 	};
-	elementDispoables?: DisposableStore;
+	ewementDispoabwes?: DisposabweStowe;
 }
 
 
-class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
-	constructor(
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+cwass TewminawTabsAccessibiwityPwovida impwements IWistAccessibiwityPwovida<ITewminawInstance> {
+	constwuctow(
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
 	) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('terminal.tabs', "Terminal tabs");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('tewminaw.tabs', "Tewminaw tabs");
 	}
 
-	getAriaLabel(instance: ITerminalInstance): string {
-		let ariaLabel: string = '';
-		const tab = this._terminalGroupService.getGroupForInstance(instance);
-		if (tab && tab.terminalInstances?.length > 1) {
-			const terminalIndex = tab.terminalInstances.indexOf(instance);
-			ariaLabel = localize({
-				key: 'splitTerminalAriaLabel',
+	getAwiaWabew(instance: ITewminawInstance): stwing {
+		wet awiaWabew: stwing = '';
+		const tab = this._tewminawGwoupSewvice.getGwoupFowInstance(instance);
+		if (tab && tab.tewminawInstances?.wength > 1) {
+			const tewminawIndex = tab.tewminawInstances.indexOf(instance);
+			awiaWabew = wocawize({
+				key: 'spwitTewminawAwiaWabew',
 				comment: [
-					`The terminal's ID`,
-					`The terminal's title`,
-					`The terminal's split number`,
-					`The terminal group's total split number`
+					`The tewminaw's ID`,
+					`The tewminaw's titwe`,
+					`The tewminaw's spwit numba`,
+					`The tewminaw gwoup's totaw spwit numba`
 				]
-			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
-		} else {
-			ariaLabel = localize({
-				key: 'terminalAriaLabel',
+			}, "Tewminaw {0} {1}, spwit {2} of {3}", instance.instanceId, instance.titwe, tewminawIndex + 1, tab.tewminawInstances.wength);
+		} ewse {
+			awiaWabew = wocawize({
+				key: 'tewminawAwiaWabew',
 				comment: [
-					`The terminal's ID`,
-					`The terminal's title`
+					`The tewminaw's ID`,
+					`The tewminaw's titwe`
 				]
-			}, "Terminal {0} {1}", instance.instanceId, instance.title);
+			}, "Tewminaw {0} {1}", instance.instanceId, instance.titwe);
 		}
-		return ariaLabel;
+		wetuwn awiaWabew;
 	}
 }
 
-class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
-	private _autoFocusInstance: ITerminalInstance | undefined;
-	private _autoFocusDisposable: IDisposable = Disposable.None;
-	private _offProcessTerminalService: IOffProcessTerminalService | undefined;
-	constructor(
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+cwass TewminawTabsDwagAndDwop impwements IWistDwagAndDwop<ITewminawInstance> {
+	pwivate _autoFocusInstance: ITewminawInstance | undefined;
+	pwivate _autoFocusDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate _offPwocessTewminawSewvice: IOffPwocessTewminawSewvice | undefined;
+	constwuctow(
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@ITewminawInstanceSewvice pwivate weadonwy _tewminawInstanceSewvice: ITewminawInstanceSewvice,
 	) {
-		this._offProcessTerminalService = _terminalService.getOffProcessTerminalService();
+		this._offPwocessTewminawSewvice = _tewminawSewvice.getOffPwocessTewminawSewvice();
 	}
 
-	getDragURI(instance: ITerminalInstance): string | null {
-		return instance.resource.toString();
+	getDwagUWI(instance: ITewminawInstance): stwing | nuww {
+		wetuwn instance.wesouwce.toStwing();
 	}
 
-	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
-		return elements.length === 1 ? elements[0].title : undefined;
+	getDwagWabew?(ewements: ITewminawInstance[], owiginawEvent: DwagEvent): stwing | undefined {
+		wetuwn ewements.wength === 1 ? ewements[0].titwe : undefined;
 	}
 
-	onDragLeave() {
+	onDwagWeave() {
 		this._autoFocusInstance = undefined;
-		this._autoFocusDisposable.dispose();
-		this._autoFocusDisposable = Disposable.None;
+		this._autoFocusDisposabwe.dispose();
+		this._autoFocusDisposabwe = Disposabwe.None;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (!originalEvent.dataTransfer) {
-			return;
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		if (!owiginawEvent.dataTwansfa) {
+			wetuwn;
 		}
 		const dndData: unknown = data.getData();
-		if (!Array.isArray(dndData)) {
-			return;
+		if (!Awway.isAwway(dndData)) {
+			wetuwn;
 		}
-		// Attach terminals type to event
-		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
-		if (terminals.length > 0) {
-			originalEvent.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminals.map(e => e.resource.toString())));
+		// Attach tewminaws type to event
+		const tewminaws: ITewminawInstance[] = dndData.fiwta(e => 'instanceId' in (e as any));
+		if (tewminaws.wength > 0) {
+			owiginawEvent.dataTwansfa.setData(DataTwansfews.TEWMINAWS, JSON.stwingify(tewminaws.map(e => e.wesouwce.toStwing())));
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
-				return false;
+	onDwagOva(data: IDwagAndDwopData, tawgetInstance: ITewminawInstance | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): boowean | IWistDwagOvewWeaction {
+		if (data instanceof NativeDwagAndDwopData) {
+			if (!containsDwagType(owiginawEvent, DataTwansfews.FIWES, DataTwansfews.WESOUWCES, DataTwansfews.TEWMINAWS, CodeDataTwansfews.FIWES)) {
+				wetuwn fawse;
 			}
 		}
 
-		const didChangeAutoFocusInstance = this._autoFocusInstance !== targetInstance;
+		const didChangeAutoFocusInstance = this._autoFocusInstance !== tawgetInstance;
 		if (didChangeAutoFocusInstance) {
-			this._autoFocusDisposable.dispose();
-			this._autoFocusInstance = targetInstance;
+			this._autoFocusDisposabwe.dispose();
+			this._autoFocusInstance = tawgetInstance;
 		}
 
-		if (!targetInstance && !containsDragType(originalEvent, DataTransfers.TERMINALS)) {
-			return data instanceof ElementsDragAndDropData;
+		if (!tawgetInstance && !containsDwagType(owiginawEvent, DataTwansfews.TEWMINAWS)) {
+			wetuwn data instanceof EwementsDwagAndDwopData;
 		}
 
-		if (didChangeAutoFocusInstance && targetInstance) {
-			this._autoFocusDisposable = disposableTimeout(() => {
-				this._terminalService.setActiveInstance(targetInstance);
+		if (didChangeAutoFocusInstance && tawgetInstance) {
+			this._autoFocusDisposabwe = disposabweTimeout(() => {
+				this._tewminawSewvice.setActiveInstance(tawgetInstance);
 				this._autoFocusInstance = undefined;
 			}, 500);
 		}
 
-		return {
-			feedback: targetIndex ? [targetIndex] : undefined,
-			accept: true,
-			effect: ListDragOverEffect.Move
+		wetuwn {
+			feedback: tawgetIndex ? [tawgetIndex] : undefined,
+			accept: twue,
+			effect: WistDwagOvewEffect.Move
 		};
 	}
 
-	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
-		this._autoFocusDisposable.dispose();
+	async dwop(data: IDwagAndDwopData, tawgetInstance: ITewminawInstance | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): Pwomise<void> {
+		this._autoFocusDisposabwe.dispose();
 		this._autoFocusInstance = undefined;
 
-		let sourceInstances: ITerminalInstance[] | undefined;
-		let promises: Promise<IProcessDetails | undefined>[] = [];
-		const resources = getTerminalResourcesFromDragEvent(originalEvent);
-		if (resources) {
-			for (const uri of resources) {
-				const instance = this._terminalService.getInstanceFromResource(uri);
+		wet souwceInstances: ITewminawInstance[] | undefined;
+		wet pwomises: Pwomise<IPwocessDetaiws | undefined>[] = [];
+		const wesouwces = getTewminawWesouwcesFwomDwagEvent(owiginawEvent);
+		if (wesouwces) {
+			fow (const uwi of wesouwces) {
+				const instance = this._tewminawSewvice.getInstanceFwomWesouwce(uwi);
 				if (instance) {
-					sourceInstances = [instance];
-					this._terminalService.moveToTerminalView(instance);
-				} else if (this._offProcessTerminalService) {
-					const terminalIdentifier = parseTerminalUri(uri);
-					if (terminalIdentifier.instanceId) {
-						promises.push(this._offProcessTerminalService.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+					souwceInstances = [instance];
+					this._tewminawSewvice.moveToTewminawView(instance);
+				} ewse if (this._offPwocessTewminawSewvice) {
+					const tewminawIdentifia = pawseTewminawUwi(uwi);
+					if (tewminawIdentifia.instanceId) {
+						pwomises.push(this._offPwocessTewminawSewvice.wequestDetachInstance(tewminawIdentifia.wowkspaceId, tewminawIdentifia.instanceId));
 					}
 				}
 			}
 		}
 
-		if (promises.length) {
-			let processes = await Promise.all(promises);
-			processes = processes.filter(p => p !== undefined);
-			let lastInstance: ITerminalInstance | undefined;
-			for (const attachPersistentProcess of processes) {
-				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+		if (pwomises.wength) {
+			wet pwocesses = await Pwomise.aww(pwomises);
+			pwocesses = pwocesses.fiwta(p => p !== undefined);
+			wet wastInstance: ITewminawInstance | undefined;
+			fow (const attachPewsistentPwocess of pwocesses) {
+				wastInstance = await this._tewminawSewvice.cweateTewminaw({ config: { attachPewsistentPwocess } });
 			}
-			if (lastInstance) {
-				this._terminalService.setActiveInstance(lastInstance);
+			if (wastInstance) {
+				this._tewminawSewvice.setActiveInstance(wastInstance);
 			}
-			return;
+			wetuwn;
 		}
 
-		if (sourceInstances === undefined) {
-			if (!(data instanceof ElementsDragAndDropData)) {
-				this._handleExternalDrop(targetInstance, originalEvent);
-				return;
+		if (souwceInstances === undefined) {
+			if (!(data instanceof EwementsDwagAndDwopData)) {
+				this._handweExtewnawDwop(tawgetInstance, owiginawEvent);
+				wetuwn;
 			}
 
-			const draggedElement = data.getData();
-			if (!draggedElement || !Array.isArray(draggedElement)) {
-				return;
+			const dwaggedEwement = data.getData();
+			if (!dwaggedEwement || !Awway.isAwway(dwaggedEwement)) {
+				wetuwn;
 			}
 
-			sourceInstances = [];
-			for (const e of draggedElement) {
+			souwceInstances = [];
+			fow (const e of dwaggedEwement) {
 				if ('instanceId' in e) {
-					sourceInstances.push(e as ITerminalInstance);
+					souwceInstances.push(e as ITewminawInstance);
 				}
 			}
 		}
 
-		if (!targetInstance) {
-			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
-			return;
+		if (!tawgetInstance) {
+			this._tewminawGwoupSewvice.moveGwoupToEnd(souwceInstances[0]);
+			wetuwn;
 		}
 
-		let focused = false;
-		for (const instance of sourceInstances) {
-			this._terminalGroupService.moveGroup(instance, targetInstance);
+		wet focused = fawse;
+		fow (const instance of souwceInstances) {
+			this._tewminawGwoupSewvice.moveGwoup(instance, tawgetInstance);
 			if (!focused) {
-				this._terminalService.setActiveInstance(instance);
-				focused = true;
+				this._tewminawSewvice.setActiveInstance(instance);
+				focused = twue;
 			}
 		}
 	}
 
-	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {
-		if (!instance || !e.dataTransfer) {
-			return;
+	pwivate async _handweExtewnawDwop(instance: ITewminawInstance | undefined, e: DwagEvent) {
+		if (!instance || !e.dataTwansfa) {
+			wetuwn;
 		}
 
-		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
-		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+		// Check if fiwes wewe dwagged fwom the twee expwowa
+		wet path: stwing | undefined;
+		const wawWesouwces = e.dataTwansfa.getData(DataTwansfews.WESOUWCES);
+		if (wawWesouwces) {
+			path = UWI.pawse(JSON.pawse(wawWesouwces)[0]).fsPath;
 		}
 
-		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		const wawCodeFiwes = e.dataTwansfa.getData(CodeDataTwansfews.FIWES);
+		if (!path && wawCodeFiwes) {
+			path = UWI.fiwe(JSON.pawse(wawCodeFiwes)[0]).fsPath;
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		if (!path && e.dataTwansfa.fiwes.wength > 0 && e.dataTwansfa.fiwes[0].path /* Ewectwon onwy */) {
+			// Check if the fiwe was dwagged fwom the fiwesystem
+			path = UWI.fiwe(e.dataTwansfa.fiwes[0].path).fsPath;
 		}
 
 		if (!path) {
-			return;
+			wetuwn;
 		}
 
-		this._terminalService.setActiveInstance(instance);
+		this._tewminawSewvice.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
-		instance.sendText(preparedPath, false);
+		const pwepawedPath = await this._tewminawInstanceSewvice.pwepawePathFowTewminawAsync(path, instance.shewwWaunchConfig.executabwe, instance.titwe, instance.shewwType, instance.isWemote);
+		instance.sendText(pwepawedPath, fawse);
 		instance.focus();
 	}
 }

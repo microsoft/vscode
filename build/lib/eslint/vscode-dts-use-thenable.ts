@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+impowt * as eswint fwom 'eswint';
 
-export = new class ApiEventNaming implements eslint.Rule.RuleModule {
+expowt = new cwass ApiEventNaming impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			usage: 'Use the Thenable-type instead of the Promise type',
+			usage: 'Use the Thenabwe-type instead of the Pwomise type',
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
 
 
-		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: any) => {
+		wetuwn {
+			['TSTypeAnnotation TSTypeWefewence Identifia[name="Pwomise"]']: (node: any) => {
 
-				context.report({
+				context.wepowt({
 					node,
 					messageId: 'usage',
 				});

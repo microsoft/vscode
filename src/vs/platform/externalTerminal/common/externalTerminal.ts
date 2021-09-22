@@ -1,43 +1,43 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewminawEnviwonment } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
 
-export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminal');
+expowt const IExtewnawTewminawSewvice = cweateDecowatow<IExtewnawTewminawSewvice>('extewnawTewminaw');
 
-export interface IExternalTerminalSettings {
-	linuxExec?: string;
-	osxExec?: string;
-	windowsExec?: string;
+expowt intewface IExtewnawTewminawSettings {
+	winuxExec?: stwing;
+	osxExec?: stwing;
+	windowsExec?: stwing;
 }
 
-export interface ITerminalForPlatform {
-	windows: string,
-	linux: string,
-	osx: string
+expowt intewface ITewminawFowPwatfowm {
+	windows: stwing,
+	winux: stwing,
+	osx: stwing
 }
 
-export interface IExternalTerminalService {
-	readonly _serviceBrand: undefined;
-	openTerminal(configuration: IExternalTerminalSettings, cwd: string | undefined): Promise<void>;
-	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
-	getDefaultTerminalForPlatforms(): Promise<ITerminalForPlatform>;
+expowt intewface IExtewnawTewminawSewvice {
+	weadonwy _sewviceBwand: undefined;
+	openTewminaw(configuwation: IExtewnawTewminawSettings, cwd: stwing | undefined): Pwomise<void>;
+	wunInTewminaw(titwe: stwing, cwd: stwing, awgs: stwing[], env: ITewminawEnviwonment, settings: IExtewnawTewminawSettings): Pwomise<numba | undefined>;
+	getDefauwtTewminawFowPwatfowms(): Pwomise<ITewminawFowPwatfowm>;
 }
 
-export interface IExternalTerminalConfiguration {
-	terminal: {
-		explorerKind: 'integrated' | 'external',
-		external: IExternalTerminalSettings;
+expowt intewface IExtewnawTewminawConfiguwation {
+	tewminaw: {
+		expwowewKind: 'integwated' | 'extewnaw',
+		extewnaw: IExtewnawTewminawSettings;
 	};
 }
 
-export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
+expowt const DEFAUWT_TEWMINAW_OSX = 'Tewminaw.app';
 
-export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
+expowt const IExtewnawTewminawMainSewvice = cweateDecowatow<IExtewnawTewminawMainSewvice>('extewnawTewminaw');
 
-export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtewnawTewminawMainSewvice extends IExtewnawTewminawSewvice {
+	weadonwy _sewviceBwand: undefined;
 }

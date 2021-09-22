@@ -1,264 +1,264 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UntitledTextEditorModel, IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { UntitwedTextEditowModew, IUntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { IFiwesConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
 
-export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
+expowt const IUntitwedTextEditowSewvice = cweateDecowatow<IUntitwedTextEditowSewvice>('untitwedTextEditowSewvice');
 
-export interface INewUntitledTextEditorOptions {
-
-	/**
-	 * Initial value of the untitled editor. An untitled editor with initial
-	 * value is dirty right from the beginning.
-	 */
-	initialValue?: string;
+expowt intewface INewUntitwedTextEditowOptions {
 
 	/**
-	 * Preferred language mode to use when saving the untitled editor.
+	 * Initiaw vawue of the untitwed editow. An untitwed editow with initiaw
+	 * vawue is diwty wight fwom the beginning.
 	 */
-	mode?: string;
+	initiawVawue?: stwing;
 
 	/**
-	 * Preferred encoding to use when saving the untitled editor.
+	 * Pwefewwed wanguage mode to use when saving the untitwed editow.
 	 */
-	encoding?: string;
+	mode?: stwing;
+
+	/**
+	 * Pwefewwed encoding to use when saving the untitwed editow.
+	 */
+	encoding?: stwing;
 }
 
-export interface IExistingUntitledTextEditorOptions extends INewUntitledTextEditorOptions {
+expowt intewface IExistingUntitwedTextEditowOptions extends INewUntitwedTextEditowOptions {
 
 	/**
-	 * A resource to identify the untitled editor to create or return
-	 * if already existing.
+	 * A wesouwce to identify the untitwed editow to cweate ow wetuwn
+	 * if awweady existing.
 	 *
-	 * Note: the resource will not be used unless the scheme is `untitled`.
+	 * Note: the wesouwce wiww not be used unwess the scheme is `untitwed`.
 	 */
-	untitledResource?: URI;
+	untitwedWesouwce?: UWI;
 }
 
-export interface INewUntitledTextEditorWithAssociatedResourceOptions extends INewUntitledTextEditorOptions {
+expowt intewface INewUntitwedTextEditowWithAssociatedWesouwceOptions extends INewUntitwedTextEditowOptions {
 
 	/**
-	 * Resource components to associate with the untitled editor. When saving
-	 * the untitled editor, the associated components will be used and the user
-	 * is not being asked to provide a file path.
+	 * Wesouwce components to associate with the untitwed editow. When saving
+	 * the untitwed editow, the associated components wiww be used and the usa
+	 * is not being asked to pwovide a fiwe path.
 	 *
-	 * Note: currently it is not possible to specify the `scheme` to use. The
-	 * untitled editor will saved to the default local or remote resource.
+	 * Note: cuwwentwy it is not possibwe to specify the `scheme` to use. The
+	 * untitwed editow wiww saved to the defauwt wocaw ow wemote wesouwce.
 	 */
-	associatedResource?: { authority: string; path: string; query: string; fragment: string; }
+	associatedWesouwce?: { authowity: stwing; path: stwing; quewy: stwing; fwagment: stwing; }
 }
 
-type IInternalUntitledTextEditorOptions = IExistingUntitledTextEditorOptions & INewUntitledTextEditorWithAssociatedResourceOptions;
+type IIntewnawUntitwedTextEditowOptions = IExistingUntitwedTextEditowOptions & INewUntitwedTextEditowWithAssociatedWesouwceOptions;
 
-export interface IUntitledTextEditorModelManager {
-
-	/**
-	 * Events for when untitled text editors change (e.g. getting dirty, saved or reverted).
-	 */
-	readonly onDidChangeDirty: Event<IUntitledTextEditorModel>;
+expowt intewface IUntitwedTextEditowModewManaga {
 
 	/**
-	 * Events for when untitled text editor encodings change.
+	 * Events fow when untitwed text editows change (e.g. getting diwty, saved ow wevewted).
 	 */
-	readonly onDidChangeEncoding: Event<IUntitledTextEditorModel>;
+	weadonwy onDidChangeDiwty: Event<IUntitwedTextEditowModew>;
 
 	/**
-	 * Events for when untitled text editor labels change.
+	 * Events fow when untitwed text editow encodings change.
 	 */
-	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
+	weadonwy onDidChangeEncoding: Event<IUntitwedTextEditowModew>;
 
 	/**
-	 * Events for when untitled text editors are about to be disposed.
+	 * Events fow when untitwed text editow wabews change.
 	 */
-	readonly onWillDispose: Event<IUntitledTextEditorModel>;
+	weadonwy onDidChangeWabew: Event<IUntitwedTextEditowModew>;
 
 	/**
-	 * Creates a new untitled editor model with the provided options. If the `untitledResource`
-	 * property is provided and the untitled editor exists, it will return that existing
-	 * instance instead of creating a new one.
+	 * Events fow when untitwed text editows awe about to be disposed.
 	 */
-	create(options?: INewUntitledTextEditorOptions): IUntitledTextEditorModel;
-	create(options?: INewUntitledTextEditorWithAssociatedResourceOptions): IUntitledTextEditorModel;
-	create(options?: IExistingUntitledTextEditorOptions): IUntitledTextEditorModel;
+	weadonwy onWiwwDispose: Event<IUntitwedTextEditowModew>;
 
 	/**
-	 * Returns an existing untitled editor model if already created before.
+	 * Cweates a new untitwed editow modew with the pwovided options. If the `untitwedWesouwce`
+	 * pwopewty is pwovided and the untitwed editow exists, it wiww wetuwn that existing
+	 * instance instead of cweating a new one.
 	 */
-	get(resource: URI): IUntitledTextEditorModel | undefined;
+	cweate(options?: INewUntitwedTextEditowOptions): IUntitwedTextEditowModew;
+	cweate(options?: INewUntitwedTextEditowWithAssociatedWesouwceOptions): IUntitwedTextEditowModew;
+	cweate(options?: IExistingUntitwedTextEditowOptions): IUntitwedTextEditowModew;
 
 	/**
-	 * Returns the value of the untitled editor, undefined if none exists
-	 * @param resource The URI of the untitled file
-	 * @returns The content, or undefined
+	 * Wetuwns an existing untitwed editow modew if awweady cweated befowe.
 	 */
-	getValue(resource: URI): string | undefined;
+	get(wesouwce: UWI): IUntitwedTextEditowModew | undefined;
 
 	/**
-	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
-	 * property is provided and the untitled editor exists, it will return that existing
-	 * instance instead of creating a new one.
+	 * Wetuwns the vawue of the untitwed editow, undefined if none exists
+	 * @pawam wesouwce The UWI of the untitwed fiwe
+	 * @wetuwns The content, ow undefined
 	 */
-	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
-	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel>;
-	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
+	getVawue(wesouwce: UWI): stwing | undefined;
+
+	/**
+	 * Wesowves an untitwed editow modew fwom the pwovided options. If the `untitwedWesouwce`
+	 * pwopewty is pwovided and the untitwed editow exists, it wiww wetuwn that existing
+	 * instance instead of cweating a new one.
+	 */
+	wesowve(options?: INewUntitwedTextEditowOptions): Pwomise<IUntitwedTextEditowModew>;
+	wesowve(options?: INewUntitwedTextEditowWithAssociatedWesouwceOptions): Pwomise<IUntitwedTextEditowModew>;
+	wesowve(options?: IExistingUntitwedTextEditowOptions): Pwomise<IUntitwedTextEditowModew>;
 }
 
-export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
+expowt intewface IUntitwedTextEditowSewvice extends IUntitwedTextEditowModewManaga {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 }
 
-export class UntitledTextEditorService extends Disposable implements IUntitledTextEditorService {
+expowt cwass UntitwedTextEditowSewvice extends Disposabwe impwements IUntitwedTextEditowSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	pwivate weadonwy _onDidChangeDiwty = this._wegista(new Emitta<IUntitwedTextEditowModew>());
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+	pwivate weadonwy _onDidChangeEncoding = this._wegista(new Emitta<IUntitwedTextEditowModew>());
+	weadonwy onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onWillDispose = this._onWillDispose.event;
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<IUntitwedTextEditowModew>());
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	private readonly _onDidChangeLabel = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+	pwivate weadonwy _onDidChangeWabew = this._wegista(new Emitta<IUntitwedTextEditowModew>());
+	weadonwy onDidChangeWabew = this._onDidChangeWabew.event;
 
-	private readonly mapResourceToModel = new ResourceMap<UntitledTextEditorModel>();
+	pwivate weadonwy mapWesouwceToModew = new WesouwceMap<UntitwedTextEditowModew>();
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	get(resource: URI): UntitledTextEditorModel | undefined {
-		return this.mapResourceToModel.get(resource);
+	get(wesouwce: UWI): UntitwedTextEditowModew | undefined {
+		wetuwn this.mapWesouwceToModew.get(wesouwce);
 	}
 
-	getValue(resource: URI): string | undefined {
-		return this.get(resource)?.textEditorModel?.getValue();
+	getVawue(wesouwce: UWI): stwing | undefined {
+		wetuwn this.get(wesouwce)?.textEditowModew?.getVawue();
 	}
 
-	async resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel> {
-		const model = this.doCreateOrGet(options);
-		await model.resolve();
+	async wesowve(options?: IIntewnawUntitwedTextEditowOptions): Pwomise<UntitwedTextEditowModew> {
+		const modew = this.doCweateOwGet(options);
+		await modew.wesowve();
 
-		return model;
+		wetuwn modew;
 	}
 
-	create(options?: IInternalUntitledTextEditorOptions): UntitledTextEditorModel {
-		return this.doCreateOrGet(options);
+	cweate(options?: IIntewnawUntitwedTextEditowOptions): UntitwedTextEditowModew {
+		wetuwn this.doCweateOwGet(options);
 	}
 
-	private doCreateOrGet(options: IInternalUntitledTextEditorOptions = Object.create(null)): UntitledTextEditorModel {
+	pwivate doCweateOwGet(options: IIntewnawUntitwedTextEditowOptions = Object.cweate(nuww)): UntitwedTextEditowModew {
 		const massagedOptions = this.massageOptions(options);
 
-		// Return existing instance if asked for it
-		if (massagedOptions.untitledResource && this.mapResourceToModel.has(massagedOptions.untitledResource)) {
-			return this.mapResourceToModel.get(massagedOptions.untitledResource)!;
+		// Wetuwn existing instance if asked fow it
+		if (massagedOptions.untitwedWesouwce && this.mapWesouwceToModew.has(massagedOptions.untitwedWesouwce)) {
+			wetuwn this.mapWesouwceToModew.get(massagedOptions.untitwedWesouwce)!;
 		}
 
-		// Create new instance otherwise
-		return this.doCreate(massagedOptions);
+		// Cweate new instance othewwise
+		wetuwn this.doCweate(massagedOptions);
 	}
 
-	private massageOptions(options: IInternalUntitledTextEditorOptions): IInternalUntitledTextEditorOptions {
-		const massagedOptions: IInternalUntitledTextEditorOptions = Object.create(null);
+	pwivate massageOptions(options: IIntewnawUntitwedTextEditowOptions): IIntewnawUntitwedTextEditowOptions {
+		const massagedOptions: IIntewnawUntitwedTextEditowOptions = Object.cweate(nuww);
 
-		// Figure out associated and untitled resource
-		if (options.associatedResource) {
-			massagedOptions.untitledResource = URI.from({
-				scheme: Schemas.untitled,
-				authority: options.associatedResource.authority,
-				fragment: options.associatedResource.fragment,
-				path: options.associatedResource.path,
-				query: options.associatedResource.query
+		// Figuwe out associated and untitwed wesouwce
+		if (options.associatedWesouwce) {
+			massagedOptions.untitwedWesouwce = UWI.fwom({
+				scheme: Schemas.untitwed,
+				authowity: options.associatedWesouwce.authowity,
+				fwagment: options.associatedWesouwce.fwagment,
+				path: options.associatedWesouwce.path,
+				quewy: options.associatedWesouwce.quewy
 			});
-			massagedOptions.associatedResource = options.associatedResource;
-		} else {
-			if (options.untitledResource?.scheme === Schemas.untitled) {
-				massagedOptions.untitledResource = options.untitledResource;
+			massagedOptions.associatedWesouwce = options.associatedWesouwce;
+		} ewse {
+			if (options.untitwedWesouwce?.scheme === Schemas.untitwed) {
+				massagedOptions.untitwedWesouwce = options.untitwedWesouwce;
 			}
 		}
 
-		// Language mode
+		// Wanguage mode
 		if (options.mode) {
 			massagedOptions.mode = options.mode;
-		} else if (!massagedOptions.associatedResource) {
-			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			if (configuration.files?.defaultLanguage) {
-				massagedOptions.mode = configuration.files.defaultLanguage;
+		} ewse if (!massagedOptions.associatedWesouwce) {
+			const configuwation = this.configuwationSewvice.getVawue<IFiwesConfiguwation>();
+			if (configuwation.fiwes?.defauwtWanguage) {
+				massagedOptions.mode = configuwation.fiwes.defauwtWanguage;
 			}
 		}
 
-		// Take over encoding and initial value
+		// Take ova encoding and initiaw vawue
 		massagedOptions.encoding = options.encoding;
-		massagedOptions.initialValue = options.initialValue;
+		massagedOptions.initiawVawue = options.initiawVawue;
 
-		return massagedOptions;
+		wetuwn massagedOptions;
 	}
 
-	private doCreate(options: IInternalUntitledTextEditorOptions): UntitledTextEditorModel {
+	pwivate doCweate(options: IIntewnawUntitwedTextEditowOptions): UntitwedTextEditowModew {
 
-		// Create a new untitled resource if none is provided
-		let untitledResource = options.untitledResource;
-		if (!untitledResource) {
-			let counter = 1;
+		// Cweate a new untitwed wesouwce if none is pwovided
+		wet untitwedWesouwce = options.untitwedWesouwce;
+		if (!untitwedWesouwce) {
+			wet counta = 1;
 			do {
-				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
-				counter++;
-			} while (this.mapResourceToModel.has(untitledResource));
+				untitwedWesouwce = UWI.fwom({ scheme: Schemas.untitwed, path: `Untitwed-${counta}` });
+				counta++;
+			} whiwe (this.mapWesouwceToModew.has(untitwedWesouwce));
 		}
 
-		// Create new model with provided options
-		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.mode, options.encoding));
+		// Cweate new modew with pwovided options
+		const modew = this._wegista(this.instantiationSewvice.cweateInstance(UntitwedTextEditowModew, untitwedWesouwce, !!options.associatedWesouwce, options.initiawVawue, options.mode, options.encoding));
 
-		this.registerModel(model);
+		this.wegistewModew(modew);
 
-		return model;
+		wetuwn modew;
 	}
 
-	private registerModel(model: UntitledTextEditorModel): void {
+	pwivate wegistewModew(modew: UntitwedTextEditowModew): void {
 
-		// Install model listeners
-		const modelListeners = new DisposableStore();
-		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
-		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
-		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
-		modelListeners.add(model.onWillDispose(() => this._onWillDispose.fire(model)));
+		// Instaww modew wistenews
+		const modewWistenews = new DisposabweStowe();
+		modewWistenews.add(modew.onDidChangeDiwty(() => this._onDidChangeDiwty.fiwe(modew)));
+		modewWistenews.add(modew.onDidChangeName(() => this._onDidChangeWabew.fiwe(modew)));
+		modewWistenews.add(modew.onDidChangeEncoding(() => this._onDidChangeEncoding.fiwe(modew)));
+		modewWistenews.add(modew.onWiwwDispose(() => this._onWiwwDispose.fiwe(modew)));
 
-		// Remove from cache on dispose
-		Event.once(model.onWillDispose)(() => {
+		// Wemove fwom cache on dispose
+		Event.once(modew.onWiwwDispose)(() => {
 
-			// Registry
-			this.mapResourceToModel.delete(model.resource);
+			// Wegistwy
+			this.mapWesouwceToModew.dewete(modew.wesouwce);
 
-			// Listeners
-			modelListeners.dispose();
+			// Wistenews
+			modewWistenews.dispose();
 		});
 
 		// Add to cache
-		this.mapResourceToModel.set(model.resource, model);
+		this.mapWesouwceToModew.set(modew.wesouwce, modew);
 
-		// If the model is dirty right from the beginning,
-		// make sure to emit this as an event
-		if (model.isDirty()) {
-			this._onDidChangeDirty.fire(model);
+		// If the modew is diwty wight fwom the beginning,
+		// make suwe to emit this as an event
+		if (modew.isDiwty()) {
+			this._onDidChangeDiwty.fiwe(modew);
 		}
 	}
 }
 
-registerSingleton(IUntitledTextEditorService, UntitledTextEditorService, true);
+wegistewSingweton(IUntitwedTextEditowSewvice, UntitwedTextEditowSewvice, twue);

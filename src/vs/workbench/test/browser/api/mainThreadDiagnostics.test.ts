@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { MainThreadDiagnostics } from 'vs/workbench/api/browser/mainThreadDiagnostics';
-import { URI } from 'vs/base/common/uri';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+impowt * as assewt fwom 'assewt';
+impowt { MawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkewSewvice';
+impowt { MainThweadDiagnostics } fwom 'vs/wowkbench/api/bwowsa/mainThweadDiagnostics';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { mock } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ExtensionHostKind } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
 
-suite('MainThreadDiagnostics', function () {
+suite('MainThweadDiagnostics', function () {
 
-	let markerService: MarkerService;
+	wet mawkewSewvice: MawkewSewvice;
 
 	setup(function () {
-		markerService = new MarkerService();
+		mawkewSewvice = new MawkewSewvice();
 	});
 
-	test('clear markers on dispose', function () {
+	test('cweaw mawkews on dispose', function () {
 
-		let diag = new MainThreadDiagnostics(
-			new class implements IExtHostContext {
-				remoteAuthority = '';
-				extensionHostKind = ExtensionHostKind.LocalProcess;
-				assertRegistered() { }
-				set(v: any): any { return null; }
-				getProxy(): any {
-					return {
-						$acceptMarkersChange() { }
+		wet diag = new MainThweadDiagnostics(
+			new cwass impwements IExtHostContext {
+				wemoteAuthowity = '';
+				extensionHostKind = ExtensionHostKind.WocawPwocess;
+				assewtWegistewed() { }
+				set(v: any): any { wetuwn nuww; }
+				getPwoxy(): any {
+					wetuwn {
+						$acceptMawkewsChange() { }
 					};
 				}
-				drain(): any { return null; }
+				dwain(): any { wetuwn nuww; }
 			},
-			markerService,
-			new class extends mock<IUriIdentityService>() {
-				override asCanonicalUri(uri: URI) { return uri; }
+			mawkewSewvice,
+			new cwass extends mock<IUwiIdentitySewvice>() {
+				ovewwide asCanonicawUwi(uwi: UWI) { wetuwn uwi; }
 			}
 		);
 
-		diag.$changeMany('foo', [[URI.file('a'), [{
+		diag.$changeMany('foo', [[UWI.fiwe('a'), [{
 			code: '666',
-			startLineNumber: 1,
-			startColumn: 1,
-			endLineNumber: 1,
-			endColumn: 1,
+			stawtWineNumba: 1,
+			stawtCowumn: 1,
+			endWineNumba: 1,
+			endCowumn: 1,
 			message: 'fffff',
-			severity: 1,
-			source: 'me'
+			sevewity: 1,
+			souwce: 'me'
 		}]]]);
 
-		assert.strictEqual(markerService.read().length, 1);
+		assewt.stwictEquaw(mawkewSewvice.wead().wength, 1);
 		diag.dispose();
-		assert.strictEqual(markerService.read().length, 0);
+		assewt.stwictEquaw(mawkewSewvice.wead().wength, 0);
 	});
 });

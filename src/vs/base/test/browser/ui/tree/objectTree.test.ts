@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+impowt * as assewt fwom 'assewt';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { ICompwessedTweeNode } fwom 'vs/base/bwowsa/ui/twee/compwessedObjectTweeModew';
+impowt { CompwessibweObjectTwee, ICompwessibweTweeWendewa, ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
 
-suite('ObjectTree', function () {
-	suite('TreeNavigator', function () {
-		let tree: ObjectTree<number>;
-		let filter = (_: number) => true;
+suite('ObjectTwee', function () {
+	suite('TweeNavigatow', function () {
+		wet twee: ObjectTwee<numba>;
+		wet fiwta = (_: numba) => twue;
 
 		setup(() => {
-			const container = document.createElement('div');
-			container.style.width = '200px';
-			container.style.height = '200px';
+			const containa = document.cweateEwement('div');
+			containa.stywe.width = '200px';
+			containa.stywe.height = '200px';
 
-			const delegate = new class implements IListVirtualDelegate<number> {
-				getHeight() { return 20; }
-				getTemplateId(): string { return 'default'; }
+			const dewegate = new cwass impwements IWistViwtuawDewegate<numba> {
+				getHeight() { wetuwn 20; }
+				getTempwateId(): stwing { wetuwn 'defauwt'; }
 			};
 
-			const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
-				readonly templateId = 'default';
-				renderTemplate(container: HTMLElement): HTMLElement {
-					return container;
+			const wendewa = new cwass impwements ITweeWendewa<numba, void, HTMWEwement> {
+				weadonwy tempwateId = 'defauwt';
+				wendewTempwate(containa: HTMWEwement): HTMWEwement {
+					wetuwn containa;
 				}
-				renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
-					templateData.textContent = `${element.element}`;
+				wendewEwement(ewement: ITweeNode<numba, void>, index: numba, tempwateData: HTMWEwement): void {
+					tempwateData.textContent = `${ewement.ewement}`;
 				}
-				disposeTemplate(): void { }
+				disposeTempwate(): void { }
 			};
 
-			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
-			tree.layout(200);
+			twee = new ObjectTwee<numba>('test', containa, dewegate, [wendewa], { fiwta: { fiwta: (ew) => fiwta(ew) } });
+			twee.wayout(200);
 		});
 
-		teardown(() => {
-			tree.dispose();
-			filter = (_: number) => true;
+		teawdown(() => {
+			twee.dispose();
+			fiwta = (_: numba) => twue;
 		});
 
-		test('should be able to navigate', () => {
-			tree.setChildren(null, [
+		test('shouwd be abwe to navigate', () => {
+			twee.setChiwdwen(nuww, [
 				{
-					element: 0, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			]);
 
-			const navigator = tree.navigate();
+			const navigatow = twee.navigate();
 
-			assert.strictEqual(navigator.current(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.current(), 0);
-			assert.strictEqual(navigator.next(), 10);
-			assert.strictEqual(navigator.current(), 10);
-			assert.strictEqual(navigator.next(), 11);
-			assert.strictEqual(navigator.current(), 11);
-			assert.strictEqual(navigator.next(), 12);
-			assert.strictEqual(navigator.current(), 12);
-			assert.strictEqual(navigator.next(), 1);
-			assert.strictEqual(navigator.current(), 1);
-			assert.strictEqual(navigator.next(), 2);
-			assert.strictEqual(navigator.current(), 2);
-			assert.strictEqual(navigator.previous(), 1);
-			assert.strictEqual(navigator.current(), 1);
-			assert.strictEqual(navigator.previous(), 12);
-			assert.strictEqual(navigator.previous(), 11);
-			assert.strictEqual(navigator.previous(), 10);
-			assert.strictEqual(navigator.previous(), 0);
-			assert.strictEqual(navigator.previous(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.next(), 10);
-			assert.strictEqual(navigator.first(), 0);
-			assert.strictEqual(navigator.last(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.cuwwent(), 0);
+			assewt.stwictEquaw(navigatow.next(), 10);
+			assewt.stwictEquaw(navigatow.cuwwent(), 10);
+			assewt.stwictEquaw(navigatow.next(), 11);
+			assewt.stwictEquaw(navigatow.cuwwent(), 11);
+			assewt.stwictEquaw(navigatow.next(), 12);
+			assewt.stwictEquaw(navigatow.cuwwent(), 12);
+			assewt.stwictEquaw(navigatow.next(), 1);
+			assewt.stwictEquaw(navigatow.cuwwent(), 1);
+			assewt.stwictEquaw(navigatow.next(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), 2);
+			assewt.stwictEquaw(navigatow.pwevious(), 1);
+			assewt.stwictEquaw(navigatow.cuwwent(), 1);
+			assewt.stwictEquaw(navigatow.pwevious(), 12);
+			assewt.stwictEquaw(navigatow.pwevious(), 11);
+			assewt.stwictEquaw(navigatow.pwevious(), 10);
+			assewt.stwictEquaw(navigatow.pwevious(), 0);
+			assewt.stwictEquaw(navigatow.pwevious(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.next(), 10);
+			assewt.stwictEquaw(navigatow.fiwst(), 0);
+			assewt.stwictEquaw(navigatow.wast(), 2);
 		});
 
-		test('should skip collapsed nodes', () => {
-			tree.setChildren(null, [
+		test('shouwd skip cowwapsed nodes', () => {
+			twee.setChiwdwen(nuww, [
 				{
-					element: 0, collapsed: true, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, cowwapsed: twue, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			]);
 
-			const navigator = tree.navigate();
+			const navigatow = twee.navigate();
 
-			assert.strictEqual(navigator.current(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.next(), 1);
-			assert.strictEqual(navigator.next(), 2);
-			assert.strictEqual(navigator.next(), null);
-			assert.strictEqual(navigator.previous(), 2);
-			assert.strictEqual(navigator.previous(), 1);
-			assert.strictEqual(navigator.previous(), 0);
-			assert.strictEqual(navigator.previous(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.first(), 0);
-			assert.strictEqual(navigator.last(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.next(), 1);
+			assewt.stwictEquaw(navigatow.next(), 2);
+			assewt.stwictEquaw(navigatow.next(), nuww);
+			assewt.stwictEquaw(navigatow.pwevious(), 2);
+			assewt.stwictEquaw(navigatow.pwevious(), 1);
+			assewt.stwictEquaw(navigatow.pwevious(), 0);
+			assewt.stwictEquaw(navigatow.pwevious(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.fiwst(), 0);
+			assewt.stwictEquaw(navigatow.wast(), 2);
 		});
 
-		test('should skip filtered elements', () => {
-			filter = el => el % 2 === 0;
+		test('shouwd skip fiwtewed ewements', () => {
+			fiwta = ew => ew % 2 === 0;
 
-			tree.setChildren(null, [
+			twee.setChiwdwen(nuww, [
 				{
-					element: 0, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			]);
 
-			const navigator = tree.navigate();
+			const navigatow = twee.navigate();
 
-			assert.strictEqual(navigator.current(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.next(), 10);
-			assert.strictEqual(navigator.next(), 12);
-			assert.strictEqual(navigator.next(), 2);
-			assert.strictEqual(navigator.next(), null);
-			assert.strictEqual(navigator.previous(), 2);
-			assert.strictEqual(navigator.previous(), 12);
-			assert.strictEqual(navigator.previous(), 10);
-			assert.strictEqual(navigator.previous(), 0);
-			assert.strictEqual(navigator.previous(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.next(), 10);
-			assert.strictEqual(navigator.first(), 0);
-			assert.strictEqual(navigator.last(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.next(), 10);
+			assewt.stwictEquaw(navigatow.next(), 12);
+			assewt.stwictEquaw(navigatow.next(), 2);
+			assewt.stwictEquaw(navigatow.next(), nuww);
+			assewt.stwictEquaw(navigatow.pwevious(), 2);
+			assewt.stwictEquaw(navigatow.pwevious(), 12);
+			assewt.stwictEquaw(navigatow.pwevious(), 10);
+			assewt.stwictEquaw(navigatow.pwevious(), 0);
+			assewt.stwictEquaw(navigatow.pwevious(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.next(), 10);
+			assewt.stwictEquaw(navigatow.fiwst(), 0);
+			assewt.stwictEquaw(navigatow.wast(), 2);
 		});
 
-		test('should be able to start from node', () => {
-			tree.setChildren(null, [
+		test('shouwd be abwe to stawt fwom node', () => {
+			twee.setChiwdwen(nuww, [
 				{
-					element: 0, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			]);
 
-			const navigator = tree.navigate(1);
+			const navigatow = twee.navigate(1);
 
-			assert.strictEqual(navigator.current(), 1);
-			assert.strictEqual(navigator.next(), 2);
-			assert.strictEqual(navigator.current(), 2);
-			assert.strictEqual(navigator.previous(), 1);
-			assert.strictEqual(navigator.current(), 1);
-			assert.strictEqual(navigator.previous(), 12);
-			assert.strictEqual(navigator.previous(), 11);
-			assert.strictEqual(navigator.previous(), 10);
-			assert.strictEqual(navigator.previous(), 0);
-			assert.strictEqual(navigator.previous(), null);
-			assert.strictEqual(navigator.next(), 0);
-			assert.strictEqual(navigator.next(), 10);
-			assert.strictEqual(navigator.first(), 0);
-			assert.strictEqual(navigator.last(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), 1);
+			assewt.stwictEquaw(navigatow.next(), 2);
+			assewt.stwictEquaw(navigatow.cuwwent(), 2);
+			assewt.stwictEquaw(navigatow.pwevious(), 1);
+			assewt.stwictEquaw(navigatow.cuwwent(), 1);
+			assewt.stwictEquaw(navigatow.pwevious(), 12);
+			assewt.stwictEquaw(navigatow.pwevious(), 11);
+			assewt.stwictEquaw(navigatow.pwevious(), 10);
+			assewt.stwictEquaw(navigatow.pwevious(), 0);
+			assewt.stwictEquaw(navigatow.pwevious(), nuww);
+			assewt.stwictEquaw(navigatow.next(), 0);
+			assewt.stwictEquaw(navigatow.next(), 10);
+			assewt.stwictEquaw(navigatow.fiwst(), 0);
+			assewt.stwictEquaw(navigatow.wast(), 2);
 		});
 	});
 
-	test('traits are preserved according to string identity', function () {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+	test('twaits awe pwesewved accowding to stwing identity', function () {
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<number> {
-			getHeight() { return 20; }
-			getTemplateId(): string { return 'default'; }
+		const dewegate = new cwass impwements IWistViwtuawDewegate<numba> {
+			getHeight() { wetuwn 20; }
+			getTempwateId(): stwing { wetuwn 'defauwt'; }
 		};
 
-		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
-			readonly templateId = 'default';
-			renderTemplate(container: HTMLElement): HTMLElement {
-				return container;
+		const wendewa = new cwass impwements ITweeWendewa<numba, void, HTMWEwement> {
+			weadonwy tempwateId = 'defauwt';
+			wendewTempwate(containa: HTMWEwement): HTMWEwement {
+				wetuwn containa;
 			}
-			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
-				templateData.textContent = `${element.element}`;
+			wendewEwement(ewement: ITweeNode<numba, void>, index: numba, tempwateData: HTMWEwement): void {
+				tempwateData.textContent = `${ewement.ewement}`;
 			}
-			disposeTemplate(): void { }
+			disposeTempwate(): void { }
 		};
 
-		const identityProvider = new class implements IIdentityProvider<number> {
-			getId(element: number): { toString(): string; } {
-				return `${element % 100}`;
+		const identityPwovida = new cwass impwements IIdentityPwovida<numba> {
+			getId(ewement: numba): { toStwing(): stwing; } {
+				wetuwn `${ewement % 100}`;
 			}
 		};
 
-		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
-		tree.layout(200);
+		const twee = new ObjectTwee<numba>('test', containa, dewegate, [wendewa], { identityPwovida });
+		twee.wayout(200);
 
-		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
-		tree.setFocus([1]);
-		assert.deepStrictEqual(tree.getFocus(), [1]);
+		twee.setChiwdwen(nuww, [{ ewement: 0 }, { ewement: 1 }, { ewement: 2 }, { ewement: 3 }]);
+		twee.setFocus([1]);
+		assewt.deepStwictEquaw(twee.getFocus(), [1]);
 
-		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
-		assert.deepStrictEqual(tree.getFocus(), [101]);
+		twee.setChiwdwen(nuww, [{ ewement: 100 }, { ewement: 101 }, { ewement: 102 }, { ewement: 103 }]);
+		assewt.deepStwictEquaw(twee.getFocus(), [101]);
 	});
 });
 
-function getRowsTextContent(container: HTMLElement): string[] {
-	const rows = [...container.querySelectorAll('.monaco-list-row')];
-	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
-	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
+function getWowsTextContent(containa: HTMWEwement): stwing[] {
+	const wows = [...containa.quewySewectowAww('.monaco-wist-wow')];
+	wows.sowt((a, b) => pawseInt(a.getAttwibute('data-index')!) - pawseInt(b.getAttwibute('data-index')!));
+	wetuwn wows.map(wow => wow.quewySewectow('.monaco-tw-contents')!.textContent!);
 }
 
-suite('CompressibleObjectTree', function () {
+suite('CompwessibweObjectTwee', function () {
 
-	class Delegate implements IListVirtualDelegate<number> {
-		getHeight() { return 20; }
-		getTemplateId(): string { return 'default'; }
+	cwass Dewegate impwements IWistViwtuawDewegate<numba> {
+		getHeight() { wetuwn 20; }
+		getTempwateId(): stwing { wetuwn 'defauwt'; }
 	}
 
-	class Renderer implements ICompressibleTreeRenderer<number, void, HTMLElement> {
-		readonly templateId = 'default';
-		renderTemplate(container: HTMLElement): HTMLElement {
-			return container;
+	cwass Wendewa impwements ICompwessibweTweeWendewa<numba, void, HTMWEwement> {
+		weadonwy tempwateId = 'defauwt';
+		wendewTempwate(containa: HTMWEwement): HTMWEwement {
+			wetuwn containa;
 		}
-		renderElement(node: ITreeNode<number, void>, _: number, templateData: HTMLElement): void {
-			templateData.textContent = `${node.element}`;
+		wendewEwement(node: ITweeNode<numba, void>, _: numba, tempwateData: HTMWEwement): void {
+			tempwateData.textContent = `${node.ewement}`;
 		}
-		renderCompressedElements(node: ITreeNode<ICompressedTreeNode<number>, void>, _: number, templateData: HTMLElement): void {
-			templateData.textContent = `${node.element.elements.join('/')}`;
+		wendewCompwessedEwements(node: ITweeNode<ICompwessedTweeNode<numba>, void>, _: numba, tempwateData: HTMWEwement): void {
+			tempwateData.textContent = `${node.ewement.ewements.join('/')}`;
 		}
-		disposeTemplate(): void { }
+		disposeTempwate(): void { }
 	}
 
 	test('empty', function () {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
-		tree.layout(200);
+		const twee = new CompwessibweObjectTwee<numba>('test', containa, new Dewegate(), [new Wendewa()]);
+		twee.wayout(200);
 
-		assert.strictEqual(getRowsTextContent(container).length, 0);
+		assewt.stwictEquaw(getWowsTextContent(containa).wength, 0);
 	});
 
-	test('simple', function () {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+	test('simpwe', function () {
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
-		tree.layout(200);
+		const twee = new CompwessibweObjectTwee<numba>('test', containa, new Dewegate(), [new Wendewa()]);
+		twee.wayout(200);
 
-		tree.setChildren(null, [
+		twee.setChiwdwen(nuww, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['0', '10', '11', '12', '1', '2']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['0', '10', '11', '12', '1', '2']);
 	});
 
-	test('compressed', () => {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+	test('compwessed', () => {
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
-		tree.layout(200);
+		const twee = new CompwessibweObjectTwee<numba>('test', containa, new Dewegate(), [new Wendewa()]);
+		twee.wayout(200);
 
-		tree.setChildren(null, [
+		twee.setChiwdwen(nuww, [
 			{
-				element: 1, children: [{
-					element: 11, children: [{
-						element: 111, children: [
-							{ element: 1111 },
-							{ element: 1112 },
-							{ element: 1113 },
+				ewement: 1, chiwdwen: [{
+					ewement: 11, chiwdwen: [{
+						ewement: 111, chiwdwen: [
+							{ ewement: 1111 },
+							{ ewement: 1112 },
+							{ ewement: 1113 },
 						]
 					}]
 				}]
 			}
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11/111', '1111', '1112', '1113']);
 
-		tree.setChildren(11, [
-			{ element: 111 },
-			{ element: 112 },
-			{ element: 113 },
+		twee.setChiwdwen(11, [
+			{ ewement: 111 },
+			{ ewement: 112 },
+			{ ewement: 113 },
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '111', '112', '113']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11', '111', '112', '113']);
 
-		tree.setChildren(113, [
-			{ element: 1131 }
+		twee.setChiwdwen(113, [
+			{ ewement: 1131 }
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '111', '112', '113/1131']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11', '111', '112', '113/1131']);
 
-		tree.setChildren(1131, [
-			{ element: 1132 }
+		twee.setChiwdwen(1131, [
+			{ ewement: 1132 }
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '111', '112', '113/1131/1132']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11', '111', '112', '113/1131/1132']);
 
-		tree.setChildren(1131, [
-			{ element: 1132 },
-			{ element: 1133 },
+		twee.setChiwdwen(1131, [
+			{ ewement: 1132 },
+			{ ewement: 1133 },
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '111', '112', '113/1131', '1132', '1133']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11', '111', '112', '113/1131', '1132', '1133']);
 	});
 
-	test('enableCompression', () => {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
+	test('enabweCompwession', () => {
+		const containa = document.cweateEwement('div');
+		containa.stywe.width = '200px';
+		containa.stywe.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
-		tree.layout(200);
+		const twee = new CompwessibweObjectTwee<numba>('test', containa, new Dewegate(), [new Wendewa()]);
+		twee.wayout(200);
 
-		tree.setChildren(null, [
+		twee.setChiwdwen(nuww, [
 			{
-				element: 1, children: [{
-					element: 11, children: [{
-						element: 111, children: [
-							{ element: 1111 },
-							{ element: 1112 },
-							{ element: 1113 },
+				ewement: 1, chiwdwen: [{
+					ewement: 11, chiwdwen: [{
+						ewement: 111, chiwdwen: [
+							{ ewement: 1111 },
+							{ ewement: 1112 },
+							{ ewement: 1113 },
 						]
 					}]
 				}]
 			}
 		]);
 
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11/111', '1111', '1112', '1113']);
 
-		tree.updateOptions({ compressionEnabled: false });
-		assert.deepStrictEqual(getRowsTextContent(container), ['1', '11', '111', '1111', '1112', '1113']);
+		twee.updateOptions({ compwessionEnabwed: fawse });
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1', '11', '111', '1111', '1112', '1113']);
 
-		tree.updateOptions({ compressionEnabled: true });
-		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
+		twee.updateOptions({ compwessionEnabwed: twue });
+		assewt.deepStwictEquaw(getWowsTextContent(containa), ['1/11/111', '1111', '1112', '1113']);
 	});
 });

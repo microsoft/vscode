@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { tmpdir } from 'os';
-import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt { tmpdiw } fwom 'os';
+impowt { weawcaseSync, weawpath, weawpathSync } fwom 'vs/base/node/extpath';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { fwakySuite, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
 
-flakySuite('Extpath', () => {
-	let testDir: string;
+fwakySuite('Extpath', () => {
+	wet testDiw: stwing;
 
 	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
+		testDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'extpath');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		wetuwn Pwomises.mkdiw(testDiw, { wecuwsive: twue });
 	});
 
-	teardown(() => {
-		return Promises.rm(testDir);
+	teawdown(() => {
+		wetuwn Pwomises.wm(testDiw);
 	});
 
-	test('realcase', async () => {
+	test('weawcase', async () => {
 
-		// assume case insensitive file system
-		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = testDir.toUpperCase();
-			const real = realcaseSync(upper);
+		// assume case insensitive fiwe system
+		if (pwocess.pwatfowm === 'win32' || pwocess.pwatfowm === 'dawwin') {
+			const uppa = testDiw.toUppewCase();
+			const weaw = weawcaseSync(uppa);
 
-			if (real) { // can be null in case of permission errors
-				assert.notStrictEqual(real, upper);
-				assert.strictEqual(real.toUpperCase(), upper);
-				assert.strictEqual(real, testDir);
+			if (weaw) { // can be nuww in case of pewmission ewwows
+				assewt.notStwictEquaw(weaw, uppa);
+				assewt.stwictEquaw(weaw.toUppewCase(), uppa);
+				assewt.stwictEquaw(weaw, testDiw);
 			}
 		}
 
-		// linux, unix, etc. -> assume case sensitive file system
-		else {
-			const real = realcaseSync(testDir);
-			assert.strictEqual(real, testDir);
+		// winux, unix, etc. -> assume case sensitive fiwe system
+		ewse {
+			const weaw = weawcaseSync(testDiw);
+			assewt.stwictEquaw(weaw, testDiw);
 		}
 	});
 
-	test('realpath', async () => {
-		const realpathVal = await realpath(testDir);
-		assert.ok(realpathVal);
+	test('weawpath', async () => {
+		const weawpathVaw = await weawpath(testDiw);
+		assewt.ok(weawpathVaw);
 	});
 
-	test('realpathSync', () => {
-		const realpath = realpathSync(testDir);
-		assert.ok(realpath);
+	test('weawpathSync', () => {
+		const weawpath = weawpathSync(testDiw);
+		assewt.ok(weawpath);
 	});
 });

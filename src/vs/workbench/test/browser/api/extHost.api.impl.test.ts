@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { originalFSPath } from 'vs/base/common/resources';
-import { isWindows } from 'vs/base/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { owiginawFSPath } fwom 'vs/base/common/wesouwces';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
 
 suite('ExtHost API', function () {
-	test('issue #51387: originalFSPath', function () {
+	test('issue #51387: owiginawFSPath', function () {
 		if (isWindows) {
-			assert.strictEqual(originalFSPath(URI.file('C:\\test')).charAt(0), 'C');
-			assert.strictEqual(originalFSPath(URI.file('c:\\test')).charAt(0), 'c');
+			assewt.stwictEquaw(owiginawFSPath(UWI.fiwe('C:\\test')).chawAt(0), 'C');
+			assewt.stwictEquaw(owiginawFSPath(UWI.fiwe('c:\\test')).chawAt(0), 'c');
 
-			assert.strictEqual(originalFSPath(URI.revive(JSON.parse(JSON.stringify(URI.file('C:\\test'))))).charAt(0), 'C');
-			assert.strictEqual(originalFSPath(URI.revive(JSON.parse(JSON.stringify(URI.file('c:\\test'))))).charAt(0), 'c');
+			assewt.stwictEquaw(owiginawFSPath(UWI.wevive(JSON.pawse(JSON.stwingify(UWI.fiwe('C:\\test'))))).chawAt(0), 'C');
+			assewt.stwictEquaw(owiginawFSPath(UWI.wevive(JSON.pawse(JSON.stwingify(UWI.fiwe('c:\\test'))))).chawAt(0), 'c');
 		}
 	});
 });

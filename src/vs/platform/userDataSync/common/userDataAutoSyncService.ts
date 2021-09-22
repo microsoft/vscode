@@ -1,600 +1,600 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toLocalISOString } from 'vs/base/common/date';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISyncTask, IUserDataAutoSyncEnablementService, IUserDataAutoSyncService, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, UserDataAutoSyncError, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya, disposabweTimeout, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { toWocawISOStwing } fwom 'vs/base/common/date';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ISyncTask, IUsewDataAutoSyncEnabwementSewvice, IUsewDataAutoSyncSewvice, IUsewDataManifest, IUsewDataSyncWogSewvice, IUsewDataSyncWesouwceEnabwementSewvice, IUsewDataSyncSewvice, IUsewDataSyncStoweManagementSewvice, IUsewDataSyncStoweSewvice, UsewDataAutoSyncEwwow, UsewDataSyncEwwow, UsewDataSyncEwwowCode } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { IUsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { IUsewDataSyncMachinesSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncMachines';
 
-type AutoSyncClassification = {
-	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type AutoSyncCwassification = {
+	souwces: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-type AutoSyncEnablementClassification = {
-	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type AutoSyncEnabwementCwassification = {
+	enabwed?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-type AutoSyncErrorClassification = {
-	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type AutoSyncEwwowCwassification = {
+	code: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	sewvice: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-const enablementKey = 'sync.enable';
-const disableMachineEventuallyKey = 'sync.disableMachineEventually';
+const enabwementKey = 'sync.enabwe';
+const disabweMachineEventuawwyKey = 'sync.disabweMachineEventuawwy';
 const sessionIdKey = 'sync.sessionId';
-const storeUrlKey = 'sync.storeUrl';
-const productQualityKey = 'sync.productQuality';
+const stoweUwwKey = 'sync.stoweUww';
+const pwoductQuawityKey = 'sync.pwoductQuawity';
 
-interface _IUserDataAutoSyncEnablementService extends IUserDataAutoSyncEnablementService {
-	canToggleEnablement(): boolean;
-	setEnablement(enabled: boolean): void;
+intewface _IUsewDataAutoSyncEnabwementSewvice extends IUsewDataAutoSyncEnabwementSewvice {
+	canToggweEnabwement(): boowean;
+	setEnabwement(enabwed: boowean): void;
 }
 
-export class UserDataAutoSyncEnablementService extends Disposable implements _IUserDataAutoSyncEnablementService {
+expowt cwass UsewDataAutoSyncEnabwementSewvice extends Disposabwe impwements _IUsewDataAutoSyncEnabwementSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private _onDidChangeEnablement = new Emitter<boolean>();
-	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
+	pwivate _onDidChangeEnabwement = new Emitta<boowean>();
+	weadonwy onDidChangeEnabwement: Event<boowean> = this._onDidChangeEnabwement.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
 	) {
-		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		supa();
+		this._wegista(stowageSewvice.onDidChangeVawue(e => this.onDidStowageChange(e)));
 	}
 
-	isEnabled(): boolean {
-		switch (this.environmentService.sync) {
+	isEnabwed(): boowean {
+		switch (this.enviwonmentSewvice.sync) {
 			case 'on':
-				return true;
+				wetuwn twue;
 			case 'off':
-				return false;
+				wetuwn fawse;
 		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
+		wetuwn this.stowageSewvice.getBoowean(enabwementKey, StowageScope.GWOBAW, fawse);
 	}
 
-	canToggleEnablement(): boolean {
-		return this.userDataSyncStoreManagementService.userDataSyncStore !== undefined && this.environmentService.sync === undefined;
+	canToggweEnabwement(): boowean {
+		wetuwn this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe !== undefined && this.enviwonmentSewvice.sync === undefined;
 	}
 
-	setEnablement(enabled: boolean): void {
-		if (enabled && !this.canToggleEnablement()) {
-			return;
+	setEnabwement(enabwed: boowean): void {
+		if (enabwed && !this.canToggweEnabwement()) {
+			wetuwn;
 		}
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.stowageSewvice.stowe(enabwementKey, enabwed, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
-			return;
+	pwivate onDidStowageChange(stowageChangeEvent: IStowageVawueChangeEvent): void {
+		if (stowageChangeEvent.scope !== StowageScope.GWOBAW) {
+			wetuwn;
 		}
 
-		if (enablementKey === storageChangeEvent.key) {
-			this._onDidChangeEnablement.fire(this.isEnabled());
-			return;
+		if (enabwementKey === stowageChangeEvent.key) {
+			this._onDidChangeEnabwement.fiwe(this.isEnabwed());
+			wetuwn;
 		}
 	}
 
 }
 
-export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
+expowt cwass UsewDataAutoSyncSewvice extends Disposabwe impwements IUsewDataAutoSyncSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private readonly userDataAutoSyncEnablementService: _IUserDataAutoSyncEnablementService;
+	pwivate weadonwy usewDataAutoSyncEnabwementSewvice: _IUsewDataAutoSyncEnabwementSewvice;
 
-	private readonly autoSync = this._register(new MutableDisposable<AutoSync>());
-	private successiveFailures: number = 0;
-	private lastSyncTriggerTime: number | undefined = undefined;
-	private readonly syncTriggerDelayer: Delayer<void>;
+	pwivate weadonwy autoSync = this._wegista(new MutabweDisposabwe<AutoSync>());
+	pwivate successiveFaiwuwes: numba = 0;
+	pwivate wastSyncTwiggewTime: numba | undefined = undefined;
+	pwivate weadonwy syncTwiggewDewaya: Dewaya<void>;
 
-	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
-	readonly onError: Event<UserDataSyncError> = this._onError.event;
+	pwivate weadonwy _onEwwow: Emitta<UsewDataSyncEwwow> = this._wegista(new Emitta<UsewDataSyncEwwow>());
+	weadonwy onEwwow: Event<UsewDataSyncEwwow> = this._onEwwow.event;
 
-	private lastSyncUrl: URI | undefined;
-	private get syncUrl(): URI | undefined {
-		const value = this.storageService.get(storeUrlKey, StorageScope.GLOBAL);
-		return value ? URI.parse(value) : undefined;
+	pwivate wastSyncUww: UWI | undefined;
+	pwivate get syncUww(): UWI | undefined {
+		const vawue = this.stowageSewvice.get(stoweUwwKey, StowageScope.GWOBAW);
+		wetuwn vawue ? UWI.pawse(vawue) : undefined;
 	}
-	private set syncUrl(syncUrl: URI | undefined) {
-		if (syncUrl) {
-			this.storageService.store(storeUrlKey, syncUrl.toString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(storeUrlKey, StorageScope.GLOBAL);
+	pwivate set syncUww(syncUww: UWI | undefined) {
+		if (syncUww) {
+			this.stowageSewvice.stowe(stoweUwwKey, syncUww.toStwing(), StowageScope.GWOBAW, StowageTawget.MACHINE);
+		} ewse {
+			this.stowageSewvice.wemove(stoweUwwKey, StowageScope.GWOBAW);
 		}
 	}
 
-	private previousProductQuality: string | undefined;
-	private get productQuality(): string | undefined {
-		return this.storageService.get(productQualityKey, StorageScope.GLOBAL);
+	pwivate pweviousPwoductQuawity: stwing | undefined;
+	pwivate get pwoductQuawity(): stwing | undefined {
+		wetuwn this.stowageSewvice.get(pwoductQuawityKey, StowageScope.GWOBAW);
 	}
-	private set productQuality(productQuality: string | undefined) {
-		if (productQuality) {
-			this.storageService.store(productQualityKey, productQuality, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(productQualityKey, StorageScope.GLOBAL);
+	pwivate set pwoductQuawity(pwoductQuawity: stwing | undefined) {
+		if (pwoductQuawity) {
+			this.stowageSewvice.stowe(pwoductQuawityKey, pwoductQuawity, StowageScope.GWOBAW, StowageTawget.MACHINE);
+		} ewse {
+			this.stowageSewvice.wemove(pwoductQuawityKey, StowageScope.GWOBAW);
 		}
 	}
 
-	constructor(
-		@IProductService productService: IProductService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService
+	constwuctow(
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IUsewDataSyncStoweSewvice pwivate weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		@IUsewDataSyncWesouwceEnabwementSewvice pwivate weadonwy usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IUsewDataSyncWogSewvice pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		@IUsewDataSyncAccountSewvice pwivate weadonwy usewDataSyncAccountSewvice: IUsewDataSyncAccountSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataSyncMachinesSewvice pwivate weadonwy usewDataSyncMachinesSewvice: IUsewDataSyncMachinesSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice
 	) {
-		super();
-		this.userDataAutoSyncEnablementService = userDataAutoSyncEnablementService as _IUserDataAutoSyncEnablementService;
-		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
+		supa();
+		this.usewDataAutoSyncEnabwementSewvice = usewDataAutoSyncEnabwementSewvice as _IUsewDataAutoSyncEnabwementSewvice;
+		this.syncTwiggewDewaya = this._wegista(new Dewaya<void>(0));
 
-		this.lastSyncUrl = this.syncUrl;
-		this.syncUrl = userDataSyncStoreManagementService.userDataSyncStore?.url;
+		this.wastSyncUww = this.syncUww;
+		this.syncUww = usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww;
 
-		this.previousProductQuality = this.productQuality;
-		this.productQuality = productService.quality;
+		this.pweviousPwoductQuawity = this.pwoductQuawity;
+		this.pwoductQuawity = pwoductSewvice.quawity;
 
-		if (this.syncUrl) {
+		if (this.syncUww) {
 
-			this.logService.info('Using settings sync service', this.syncUrl.toString());
-			this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => {
-				if (!isEqual(this.syncUrl, userDataSyncStoreManagementService.userDataSyncStore?.url)) {
-					this.lastSyncUrl = this.syncUrl;
-					this.syncUrl = userDataSyncStoreManagementService.userDataSyncStore?.url;
-					if (this.syncUrl) {
-						this.logService.info('Using settings sync service', this.syncUrl.toString());
+			this.wogSewvice.info('Using settings sync sewvice', this.syncUww.toStwing());
+			this._wegista(usewDataSyncStoweManagementSewvice.onDidChangeUsewDataSyncStowe(() => {
+				if (!isEquaw(this.syncUww, usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww)) {
+					this.wastSyncUww = this.syncUww;
+					this.syncUww = usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww;
+					if (this.syncUww) {
+						this.wogSewvice.info('Using settings sync sewvice', this.syncUww.toStwing());
 					}
 				}
 			}));
 
-			if (this.userDataAutoSyncEnablementService.isEnabled()) {
-				this.logService.info('Auto Sync is enabled.');
-			} else {
-				this.logService.info('Auto Sync is disabled.');
+			if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+				this.wogSewvice.info('Auto Sync is enabwed.');
+			} ewse {
+				this.wogSewvice.info('Auto Sync is disabwed.');
 			}
 			this.updateAutoSync();
 
-			if (this.hasToDisableMachineEventually()) {
-				this.disableMachineEventually();
+			if (this.hasToDisabweMachineEventuawwy()) {
+				this.disabweMachineEventuawwy();
 			}
 
-			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
-			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
-			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false, false)));
-			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
-			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'], false, false)));
+			this._wegista(usewDataSyncAccountSewvice.onDidChangeAccount(() => this.updateAutoSync()));
+			this._wegista(usewDataSyncStoweSewvice.onDidChangeDonotMakeWequestsUntiw(() => this.updateAutoSync()));
+			this._wegista(Event.debounce<stwing, stwing[]>(usewDataSyncSewvice.onDidChangeWocaw, (wast, souwce) => wast ? [...wast, souwce] : [souwce], 1000)(souwces => this.twiggewSync(souwces, fawse, fawse)));
+			this._wegista(Event.fiwta(this.usewDataSyncWesouwceEnabwementSewvice.onDidChangeWesouwceEnabwement, ([, enabwed]) => enabwed)(() => this.twiggewSync(['wesouwceEnabwement'], fawse, fawse)));
+			this._wegista(this.usewDataSyncStoweManagementSewvice.onDidChangeUsewDataSyncStowe(() => this.twiggewSync(['usewDataSyncStoweChanged'], fawse, fawse)));
 		}
 	}
 
-	private updateAutoSync(): void {
-		const { enabled, message } = this.isAutoSyncEnabled();
-		if (enabled) {
-			if (this.autoSync.value === undefined) {
-				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.storageService);
-				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
-				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
-				if (this.startAutoSync()) {
-					this.autoSync.value.start();
+	pwivate updateAutoSync(): void {
+		const { enabwed, message } = this.isAutoSyncEnabwed();
+		if (enabwed) {
+			if (this.autoSync.vawue === undefined) {
+				this.autoSync.vawue = new AutoSync(this.wastSyncUww, 1000 * 60 * 5 /* 5 miutes */, this.usewDataSyncStoweManagementSewvice, this.usewDataSyncStoweSewvice, this.usewDataSyncSewvice, this.usewDataSyncMachinesSewvice, this.wogSewvice, this.stowageSewvice);
+				this.autoSync.vawue.wegista(this.autoSync.vawue.onDidStawtSync(() => this.wastSyncTwiggewTime = new Date().getTime()));
+				this.autoSync.vawue.wegista(this.autoSync.vawue.onDidFinishSync(e => this.onDidFinishSync(e)));
+				if (this.stawtAutoSync()) {
+					this.autoSync.vawue.stawt();
 				}
 			}
-		} else {
-			this.syncTriggerDelayer.cancel();
-			if (this.autoSync.value !== undefined) {
+		} ewse {
+			this.syncTwiggewDewaya.cancew();
+			if (this.autoSync.vawue !== undefined) {
 				if (message) {
-					this.logService.info(message);
+					this.wogSewvice.info(message);
 				}
-				this.autoSync.clear();
+				this.autoSync.cweaw();
 			}
 
-			/* log message when auto sync is not disabled by user */
-			else if (message && this.userDataAutoSyncEnablementService.isEnabled()) {
-				this.logService.info(message);
-			}
-		}
-	}
-
-	// For tests purpose only
-	protected startAutoSync(): boolean { return true; }
-
-	private isAutoSyncEnabled(): { enabled: boolean, message?: string } {
-		if (!this.userDataAutoSyncEnablementService.isEnabled()) {
-			return { enabled: false, message: 'Auto Sync: Disabled.' };
-		}
-		if (!this.userDataSyncAccountService.account) {
-			return { enabled: false, message: 'Auto Sync: Suspended until auth token is available.' };
-		}
-		if (this.userDataSyncStoreService.donotMakeRequestsUntil) {
-			return { enabled: false, message: `Auto Sync: Suspended until ${toLocalISOString(this.userDataSyncStoreService.donotMakeRequestsUntil)} because server is not accepting requests until then.` };
-		}
-		return { enabled: true };
-	}
-
-	async turnOn(): Promise<void> {
-		this.stopDisableMachineEventually();
-		this.lastSyncUrl = this.syncUrl;
-		this.updateEnablement(true);
-	}
-
-	async turnOff(everywhere: boolean, softTurnOffOnError?: boolean, donotRemoveMachine?: boolean): Promise<void> {
-		try {
-
-			// Remove machine
-			if (this.userDataSyncAccountService.account && !donotRemoveMachine) {
-				await this.userDataSyncMachinesService.removeCurrentMachine();
-			}
-
-			// Disable Auto Sync
-			this.updateEnablement(false);
-
-			// Reset Session
-			this.storageService.remove(sessionIdKey, StorageScope.GLOBAL);
-
-			// Reset
-			if (everywhere) {
-				this.telemetryService.publicLog2('sync/turnOffEveryWhere');
-				await this.userDataSyncService.reset();
-			} else {
-				await this.userDataSyncService.resetLocal();
-			}
-		} catch (error) {
-			if (softTurnOffOnError) {
-				this.logService.error(error);
-				this.updateEnablement(false);
-			} else {
-				throw error;
+			/* wog message when auto sync is not disabwed by usa */
+			ewse if (message && this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+				this.wogSewvice.info(message);
 			}
 		}
 	}
 
-	private updateEnablement(enabled: boolean): void {
-		if (this.userDataAutoSyncEnablementService.isEnabled() !== enabled) {
-			this.telemetryService.publicLog2<{ enabled: boolean }, AutoSyncEnablementClassification>(enablementKey, { enabled });
-			this.userDataAutoSyncEnablementService.setEnablement(enabled);
+	// Fow tests puwpose onwy
+	pwotected stawtAutoSync(): boowean { wetuwn twue; }
+
+	pwivate isAutoSyncEnabwed(): { enabwed: boowean, message?: stwing } {
+		if (!this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			wetuwn { enabwed: fawse, message: 'Auto Sync: Disabwed.' };
+		}
+		if (!this.usewDataSyncAccountSewvice.account) {
+			wetuwn { enabwed: fawse, message: 'Auto Sync: Suspended untiw auth token is avaiwabwe.' };
+		}
+		if (this.usewDataSyncStoweSewvice.donotMakeWequestsUntiw) {
+			wetuwn { enabwed: fawse, message: `Auto Sync: Suspended untiw ${toWocawISOStwing(this.usewDataSyncStoweSewvice.donotMakeWequestsUntiw)} because sewva is not accepting wequests untiw then.` };
+		}
+		wetuwn { enabwed: twue };
+	}
+
+	async tuwnOn(): Pwomise<void> {
+		this.stopDisabweMachineEventuawwy();
+		this.wastSyncUww = this.syncUww;
+		this.updateEnabwement(twue);
+	}
+
+	async tuwnOff(evewywhewe: boowean, softTuwnOffOnEwwow?: boowean, donotWemoveMachine?: boowean): Pwomise<void> {
+		twy {
+
+			// Wemove machine
+			if (this.usewDataSyncAccountSewvice.account && !donotWemoveMachine) {
+				await this.usewDataSyncMachinesSewvice.wemoveCuwwentMachine();
+			}
+
+			// Disabwe Auto Sync
+			this.updateEnabwement(fawse);
+
+			// Weset Session
+			this.stowageSewvice.wemove(sessionIdKey, StowageScope.GWOBAW);
+
+			// Weset
+			if (evewywhewe) {
+				this.tewemetwySewvice.pubwicWog2('sync/tuwnOffEvewyWhewe');
+				await this.usewDataSyncSewvice.weset();
+			} ewse {
+				await this.usewDataSyncSewvice.wesetWocaw();
+			}
+		} catch (ewwow) {
+			if (softTuwnOffOnEwwow) {
+				this.wogSewvice.ewwow(ewwow);
+				this.updateEnabwement(fawse);
+			} ewse {
+				thwow ewwow;
+			}
+		}
+	}
+
+	pwivate updateEnabwement(enabwed: boowean): void {
+		if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed() !== enabwed) {
+			this.tewemetwySewvice.pubwicWog2<{ enabwed: boowean }, AutoSyncEnabwementCwassification>(enabwementKey, { enabwed });
+			this.usewDataAutoSyncEnabwementSewvice.setEnabwement(enabwed);
 			this.updateAutoSync();
 		}
 	}
 
-	private hasProductQualityChanged(): boolean {
-		return !!this.previousProductQuality && !!this.productQuality && this.previousProductQuality !== this.productQuality;
+	pwivate hasPwoductQuawityChanged(): boowean {
+		wetuwn !!this.pweviousPwoductQuawity && !!this.pwoductQuawity && this.pweviousPwoductQuawity !== this.pwoductQuawity;
 	}
 
-	private async onDidFinishSync(error: Error | undefined): Promise<void> {
-		if (!error) {
-			// Sync finished without errors
-			this.successiveFailures = 0;
-			return;
+	pwivate async onDidFinishSync(ewwow: Ewwow | undefined): Pwomise<void> {
+		if (!ewwow) {
+			// Sync finished without ewwows
+			this.successiveFaiwuwes = 0;
+			wetuwn;
 		}
 
-		// Error while syncing
-		const userDataSyncError = UserDataSyncError.toUserDataSyncError(error);
+		// Ewwow whiwe syncing
+		const usewDataSyncEwwow = UsewDataSyncEwwow.toUsewDataSyncEwwow(ewwow);
 
-		// Log to telemetry
-		if (userDataSyncError instanceof UserDataAutoSyncError) {
-			this.telemetryService.publicLog2<{ code: string, service: string }, AutoSyncErrorClassification>(`autosync/error`, { code: userDataSyncError.code, service: this.userDataSyncStoreManagementService.userDataSyncStore!.url.toString() });
+		// Wog to tewemetwy
+		if (usewDataSyncEwwow instanceof UsewDataAutoSyncEwwow) {
+			this.tewemetwySewvice.pubwicWog2<{ code: stwing, sewvice: stwing }, AutoSyncEwwowCwassification>(`autosync/ewwow`, { code: usewDataSyncEwwow.code, sewvice: this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe!.uww.toStwing() });
 		}
 
-		// Session got expired
-		if (userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
-			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info('Auto Sync: Turned off sync because current session is expired');
+		// Session got expiwed
+		if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.SessionExpiwed) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */);
+			this.wogSewvice.info('Auto Sync: Tuwned off sync because cuwwent session is expiwed');
 		}
 
-		// Turned off from another device
-		else if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff) {
-			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
+		// Tuwned off fwom anotha device
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.TuwnedOff) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */);
+			this.wogSewvice.info('Auto Sync: Tuwned off sync because sync is tuwned off in the cwoud');
 		}
 
-		// Exceeded Rate Limit
-		else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests || userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
-			await this.turnOff(false, true /* force soft turnoff on error */,
-				true /* do not disable machine because disabling a machine makes request to server and can fail with TooManyRequests */);
-			this.disableMachineEventually();
-			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
+		// Exceeded Wate Wimit
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.WocawTooManyWequests || usewDataSyncEwwow.code === UsewDataSyncEwwowCode.TooManyWequests) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */,
+				twue /* do not disabwe machine because disabwing a machine makes wequest to sewva and can faiw with TooManyWequests */);
+			this.disabweMachineEventuawwy();
+			this.wogSewvice.info('Auto Sync: Tuwned off sync because of making too many wequests to sewva');
 		}
 
-		// Upgrade Required or Gone
-		else if (userDataSyncError.code === UserDataSyncErrorCode.UpgradeRequired || userDataSyncError.code === UserDataSyncErrorCode.Gone) {
-			await this.turnOff(false, true /* force soft turnoff on error */,
-				true /* do not disable machine because disabling a machine makes request to server and can fail with upgrade required or gone */);
-			this.disableMachineEventually();
-			this.logService.info('Auto Sync: Turned off sync because current client is not compatible with server. Requires client upgrade.');
+		// Upgwade Wequiwed ow Gone
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.UpgwadeWequiwed || usewDataSyncEwwow.code === UsewDataSyncEwwowCode.Gone) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */,
+				twue /* do not disabwe machine because disabwing a machine makes wequest to sewva and can faiw with upgwade wequiwed ow gone */);
+			this.disabweMachineEventuawwy();
+			this.wogSewvice.info('Auto Sync: Tuwned off sync because cuwwent cwient is not compatibwe with sewva. Wequiwes cwient upgwade.');
 		}
 
-		// Incompatible Local Content
-		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleLocalContent) {
-			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info(`Auto Sync: Turned off sync because server has ${userDataSyncError.resource} content with newer version than of client. Requires client upgrade.`);
+		// Incompatibwe Wocaw Content
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.IncompatibweWocawContent) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */);
+			this.wogSewvice.info(`Auto Sync: Tuwned off sync because sewva has ${usewDataSyncEwwow.wesouwce} content with newa vewsion than of cwient. Wequiwes cwient upgwade.`);
 		}
 
-		// Incompatible Remote Content
-		else if (userDataSyncError.code === UserDataSyncErrorCode.IncompatibleRemoteContent) {
-			await this.turnOff(false, true /* force soft turnoff on error */);
-			this.logService.info(`Auto Sync: Turned off sync because server has ${userDataSyncError.resource} content with older version than of client. Requires server reset.`);
+		// Incompatibwe Wemote Content
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.IncompatibweWemoteContent) {
+			await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */);
+			this.wogSewvice.info(`Auto Sync: Tuwned off sync because sewva has ${usewDataSyncEwwow.wesouwce} content with owda vewsion than of cwient. Wequiwes sewva weset.`);
 		}
 
-		// Service changed
-		else if (userDataSyncError.code === UserDataSyncErrorCode.ServiceChanged || userDataSyncError.code === UserDataSyncErrorCode.DefaultServiceChanged) {
+		// Sewvice changed
+		ewse if (usewDataSyncEwwow.code === UsewDataSyncEwwowCode.SewviceChanged || usewDataSyncEwwow.code === UsewDataSyncEwwowCode.DefauwtSewviceChanged) {
 
-			// Check if default settings sync service has changed in web without changing the product quality
-			// Then turn off settings sync and ask user to turn on again
-			if (isWeb && userDataSyncError.code === UserDataSyncErrorCode.DefaultServiceChanged && !this.hasProductQualityChanged()) {
-				await this.turnOff(false, true /* force soft turnoff on error */);
-				this.logService.info('Auto Sync: Turned off sync because default sync service is changed.');
+			// Check if defauwt settings sync sewvice has changed in web without changing the pwoduct quawity
+			// Then tuwn off settings sync and ask usa to tuwn on again
+			if (isWeb && usewDataSyncEwwow.code === UsewDataSyncEwwowCode.DefauwtSewviceChanged && !this.hasPwoductQuawityChanged()) {
+				await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */);
+				this.wogSewvice.info('Auto Sync: Tuwned off sync because defauwt sync sewvice is changed.');
 			}
 
-			// Service has changed by the user. So turn off and turn on sync.
-			// Show a prompt to the user about service change.
-			else {
-				await this.turnOff(false, true /* force soft turnoff on error */, true /* do not disable machine */);
-				await this.turnOn();
-				this.logService.info('Auto Sync: Sync Service changed. Turned off auto sync, reset local state and turned on auto sync.');
+			// Sewvice has changed by the usa. So tuwn off and tuwn on sync.
+			// Show a pwompt to the usa about sewvice change.
+			ewse {
+				await this.tuwnOff(fawse, twue /* fowce soft tuwnoff on ewwow */, twue /* do not disabwe machine */);
+				await this.tuwnOn();
+				this.wogSewvice.info('Auto Sync: Sync Sewvice changed. Tuwned off auto sync, weset wocaw state and tuwned on auto sync.');
 			}
 
 		}
 
-		else {
-			this.logService.error(userDataSyncError);
-			this.successiveFailures++;
+		ewse {
+			this.wogSewvice.ewwow(usewDataSyncEwwow);
+			this.successiveFaiwuwes++;
 		}
 
-		this._onError.fire(userDataSyncError);
+		this._onEwwow.fiwe(usewDataSyncEwwow);
 	}
 
-	private async disableMachineEventually(): Promise<void> {
-		this.storageService.store(disableMachineEventuallyKey, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate async disabweMachineEventuawwy(): Pwomise<void> {
+		this.stowageSewvice.stowe(disabweMachineEventuawwyKey, twue, StowageScope.GWOBAW, StowageTawget.MACHINE);
 		await timeout(1000 * 60 * 10);
 
-		// Return if got stopped meanwhile.
-		if (!this.hasToDisableMachineEventually()) {
-			return;
+		// Wetuwn if got stopped meanwhiwe.
+		if (!this.hasToDisabweMachineEventuawwy()) {
+			wetuwn;
 		}
 
-		this.stopDisableMachineEventually();
+		this.stopDisabweMachineEventuawwy();
 
-		// disable only if sync is disabled
-		if (!this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account) {
-			await this.userDataSyncMachinesService.removeCurrentMachine();
+		// disabwe onwy if sync is disabwed
+		if (!this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && this.usewDataSyncAccountSewvice.account) {
+			await this.usewDataSyncMachinesSewvice.wemoveCuwwentMachine();
 		}
 	}
 
-	private hasToDisableMachineEventually(): boolean {
-		return this.storageService.getBoolean(disableMachineEventuallyKey, StorageScope.GLOBAL, false);
+	pwivate hasToDisabweMachineEventuawwy(): boowean {
+		wetuwn this.stowageSewvice.getBoowean(disabweMachineEventuawwyKey, StowageScope.GWOBAW, fawse);
 	}
 
-	private stopDisableMachineEventually(): void {
-		this.storageService.remove(disableMachineEventuallyKey, StorageScope.GLOBAL);
+	pwivate stopDisabweMachineEventuawwy(): void {
+		this.stowageSewvice.wemove(disabweMachineEventuawwyKey, StowageScope.GWOBAW);
 	}
 
-	private sources: string[] = [];
-	async triggerSync(sources: string[], skipIfSyncedRecently: boolean, disableCache: boolean): Promise<void> {
-		if (this.autoSync.value === undefined) {
-			return this.syncTriggerDelayer.cancel();
+	pwivate souwces: stwing[] = [];
+	async twiggewSync(souwces: stwing[], skipIfSyncedWecentwy: boowean, disabweCache: boowean): Pwomise<void> {
+		if (this.autoSync.vawue === undefined) {
+			wetuwn this.syncTwiggewDewaya.cancew();
 		}
 
-		if (skipIfSyncedRecently && this.lastSyncTriggerTime
-			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 10) {
-			this.logService.debug('Auto Sync: Skipped. Limited to once per 10 seconds.');
-			return;
+		if (skipIfSyncedWecentwy && this.wastSyncTwiggewTime
+			&& Math.wound((new Date().getTime() - this.wastSyncTwiggewTime) / 1000) < 10) {
+			this.wogSewvice.debug('Auto Sync: Skipped. Wimited to once pew 10 seconds.');
+			wetuwn;
 		}
 
-		this.sources.push(...sources);
-		return this.syncTriggerDelayer.trigger(async () => {
-			this.logService.trace('activity sources', ...this.sources);
-			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
-			this.sources = [];
-			if (this.autoSync.value) {
-				await this.autoSync.value.sync('Activity', disableCache);
+		this.souwces.push(...souwces);
+		wetuwn this.syncTwiggewDewaya.twigga(async () => {
+			this.wogSewvice.twace('activity souwces', ...this.souwces);
+			this.tewemetwySewvice.pubwicWog2<{ souwces: stwing[] }, AutoSyncCwassification>('sync/twiggewed', { souwces: this.souwces });
+			this.souwces = [];
+			if (this.autoSync.vawue) {
+				await this.autoSync.vawue.sync('Activity', disabweCache);
 			}
-		}, this.successiveFailures
-			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
-			: this.getSyncTriggerDelayTime());
+		}, this.successiveFaiwuwes
+			? this.getSyncTwiggewDewayTime() * 1 * Math.min(Math.pow(2, this.successiveFaiwuwes), 60) /* Deway exponentiawwy untiw max 1 minute */
+			: this.getSyncTwiggewDewayTime());
 
 	}
 
-	protected getSyncTriggerDelayTime(): number {
-		return 1000; /* Debounce for a second if there are no failures */
+	pwotected getSyncTwiggewDewayTime(): numba {
+		wetuwn 1000; /* Debounce fow a second if thewe awe no faiwuwes */
 	}
 
 }
 
-class AutoSync extends Disposable {
+cwass AutoSync extends Disposabwe {
 
-	private static readonly INTERVAL_SYNCING = 'Interval';
+	pwivate static weadonwy INTEWVAW_SYNCING = 'Intewvaw';
 
-	private readonly intervalHandler = this._register(new MutableDisposable<IDisposable>());
+	pwivate weadonwy intewvawHandwa = this._wegista(new MutabweDisposabwe<IDisposabwe>());
 
-	private readonly _onDidStartSync = this._register(new Emitter<void>());
-	readonly onDidStartSync = this._onDidStartSync.event;
+	pwivate weadonwy _onDidStawtSync = this._wegista(new Emitta<void>());
+	weadonwy onDidStawtSync = this._onDidStawtSync.event;
 
-	private readonly _onDidFinishSync = this._register(new Emitter<Error | undefined>());
-	readonly onDidFinishSync = this._onDidFinishSync.event;
+	pwivate weadonwy _onDidFinishSync = this._wegista(new Emitta<Ewwow | undefined>());
+	weadonwy onDidFinishSync = this._onDidFinishSync.event;
 
-	private manifest: IUserDataManifest | null = null;
-	private syncTask: ISyncTask | undefined;
-	private syncPromise: CancelablePromise<void> | undefined;
+	pwivate manifest: IUsewDataManifest | nuww = nuww;
+	pwivate syncTask: ISyncTask | undefined;
+	pwivate syncPwomise: CancewabwePwomise<void> | undefined;
 
-	constructor(
-		private readonly lastSyncUrl: URI | undefined,
-		private readonly interval: number /* in milliseconds */,
-		private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		private readonly userDataSyncService: IUserDataSyncService,
-		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
-		private readonly logService: IUserDataSyncLogService,
-		private readonly storageService: IStorageService,
+	constwuctow(
+		pwivate weadonwy wastSyncUww: UWI | undefined,
+		pwivate weadonwy intewvaw: numba /* in miwwiseconds */,
+		pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		pwivate weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice,
+		pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		pwivate weadonwy usewDataSyncMachinesSewvice: IUsewDataSyncMachinesSewvice,
+		pwivate weadonwy wogSewvice: IUsewDataSyncWogSewvice,
+		pwivate weadonwy stowageSewvice: IStowageSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	start(): void {
-		this._register(this.onDidFinishSync(() => this.waitUntilNextIntervalAndSync()));
-		this._register(toDisposable(() => {
-			if (this.syncPromise) {
-				this.syncPromise.cancel();
-				this.logService.info('Auto sync: Cancelled sync that is in progress');
-				this.syncPromise = undefined;
+	stawt(): void {
+		this._wegista(this.onDidFinishSync(() => this.waitUntiwNextIntewvawAndSync()));
+		this._wegista(toDisposabwe(() => {
+			if (this.syncPwomise) {
+				this.syncPwomise.cancew();
+				this.wogSewvice.info('Auto sync: Cancewwed sync that is in pwogwess');
+				this.syncPwomise = undefined;
 			}
 			if (this.syncTask) {
 				this.syncTask.stop();
 			}
-			this.logService.info('Auto Sync: Stopped');
+			this.wogSewvice.info('Auto Sync: Stopped');
 		}));
-		this.logService.info('Auto Sync: Started');
-		this.sync(AutoSync.INTERVAL_SYNCING, false);
+		this.wogSewvice.info('Auto Sync: Stawted');
+		this.sync(AutoSync.INTEWVAW_SYNCING, fawse);
 	}
 
-	private waitUntilNextIntervalAndSync(): void {
-		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING, false), this.interval);
+	pwivate waitUntiwNextIntewvawAndSync(): void {
+		this.intewvawHandwa.vawue = disposabweTimeout(() => this.sync(AutoSync.INTEWVAW_SYNCING, fawse), this.intewvaw);
 	}
 
-	sync(reason: string, disableCache: boolean): Promise<void> {
-		const syncPromise = createCancelablePromise(async token => {
-			if (this.syncPromise) {
-				try {
-					// Wait until existing sync is finished
-					this.logService.debug('Auto Sync: Waiting until sync is finished.');
-					await this.syncPromise;
-				} catch (error) {
-					if (isPromiseCanceledError(error)) {
-						// Cancelled => Disposed. Donot continue sync.
-						return;
+	sync(weason: stwing, disabweCache: boowean): Pwomise<void> {
+		const syncPwomise = cweateCancewabwePwomise(async token => {
+			if (this.syncPwomise) {
+				twy {
+					// Wait untiw existing sync is finished
+					this.wogSewvice.debug('Auto Sync: Waiting untiw sync is finished.');
+					await this.syncPwomise;
+				} catch (ewwow) {
+					if (isPwomiseCancewedEwwow(ewwow)) {
+						// Cancewwed => Disposed. Donot continue sync.
+						wetuwn;
 					}
 				}
 			}
-			return this.doSync(reason, disableCache, token);
+			wetuwn this.doSync(weason, disabweCache, token);
 		});
-		this.syncPromise = syncPromise;
-		this.syncPromise.finally(() => this.syncPromise = undefined);
-		return this.syncPromise;
+		this.syncPwomise = syncPwomise;
+		this.syncPwomise.finawwy(() => this.syncPwomise = undefined);
+		wetuwn this.syncPwomise;
 	}
 
-	private hasSyncServiceChanged(): boolean {
-		return this.lastSyncUrl !== undefined && !isEqual(this.lastSyncUrl, this.userDataSyncStoreManagementService.userDataSyncStore?.url);
+	pwivate hasSyncSewviceChanged(): boowean {
+		wetuwn this.wastSyncUww !== undefined && !isEquaw(this.wastSyncUww, this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.uww);
 	}
 
-	private async hasDefaultServiceChanged(): Promise<boolean> {
-		const previous = await this.userDataSyncStoreManagementService.getPreviousUserDataSyncStore();
-		const current = this.userDataSyncStoreManagementService.userDataSyncStore;
-		// check if defaults changed
-		return !!current && !!previous &&
-			(!isEqual(current.defaultUrl, previous.defaultUrl) ||
-				!isEqual(current.insidersUrl, previous.insidersUrl) ||
-				!isEqual(current.stableUrl, previous.stableUrl));
+	pwivate async hasDefauwtSewviceChanged(): Pwomise<boowean> {
+		const pwevious = await this.usewDataSyncStoweManagementSewvice.getPweviousUsewDataSyncStowe();
+		const cuwwent = this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe;
+		// check if defauwts changed
+		wetuwn !!cuwwent && !!pwevious &&
+			(!isEquaw(cuwwent.defauwtUww, pwevious.defauwtUww) ||
+				!isEquaw(cuwwent.insidewsUww, pwevious.insidewsUww) ||
+				!isEquaw(cuwwent.stabweUww, pwevious.stabweUww));
 	}
 
-	private async doSync(reason: string, disableCache: boolean, token: CancellationToken): Promise<void> {
-		this.logService.info(`Auto Sync: Triggered by ${reason}`);
-		this._onDidStartSync.fire();
-		let error: Error | undefined;
-		try {
-			this.syncTask = await this.userDataSyncService.createSyncTask(this.manifest, disableCache);
-			if (token.isCancellationRequested) {
-				return;
+	pwivate async doSync(weason: stwing, disabweCache: boowean, token: CancewwationToken): Pwomise<void> {
+		this.wogSewvice.info(`Auto Sync: Twiggewed by ${weason}`);
+		this._onDidStawtSync.fiwe();
+		wet ewwow: Ewwow | undefined;
+		twy {
+			this.syncTask = await this.usewDataSyncSewvice.cweateSyncTask(this.manifest, disabweCache);
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 			this.manifest = this.syncTask.manifest;
 
-			// Server has no data but this machine was synced before
-			if (this.manifest === null && await this.userDataSyncService.hasPreviouslySynced()) {
-				if (this.hasSyncServiceChanged()) {
-					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
-					} else {
-						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+			// Sewva has no data but this machine was synced befowe
+			if (this.manifest === nuww && await this.usewDataSyncSewvice.hasPweviouswySynced()) {
+				if (this.hasSyncSewviceChanged()) {
+					if (await this.hasDefauwtSewviceChanged()) {
+						thwow new UsewDataAutoSyncEwwow(wocawize('defauwt sewvice changed', "Cannot sync because defauwt sewvice has changed"), UsewDataSyncEwwowCode.DefauwtSewviceChanged);
+					} ewse {
+						thwow new UsewDataAutoSyncEwwow(wocawize('sewvice changed', "Cannot sync because sync sewvice has changed"), UsewDataSyncEwwowCode.SewviceChanged);
 					}
-				} else {
-					// Sync was turned off in the cloud
-					throw new UserDataAutoSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
+				} ewse {
+					// Sync was tuwned off in the cwoud
+					thwow new UsewDataAutoSyncEwwow(wocawize('tuwned off', "Cannot sync because syncing is tuwned off in the cwoud"), UsewDataSyncEwwowCode.TuwnedOff);
 				}
 			}
 
-			const sessionId = this.storageService.get(sessionIdKey, StorageScope.GLOBAL);
-			// Server session is different from client session
+			const sessionId = this.stowageSewvice.get(sessionIdKey, StowageScope.GWOBAW);
+			// Sewva session is diffewent fwom cwient session
 			if (sessionId && this.manifest && sessionId !== this.manifest.session) {
-				if (this.hasSyncServiceChanged()) {
-					if (await this.hasDefaultServiceChanged()) {
-						throw new UserDataAutoSyncError(localize('default service changed', "Cannot sync because default service has changed"), UserDataSyncErrorCode.DefaultServiceChanged);
-					} else {
-						throw new UserDataAutoSyncError(localize('service changed', "Cannot sync because sync service has changed"), UserDataSyncErrorCode.ServiceChanged);
+				if (this.hasSyncSewviceChanged()) {
+					if (await this.hasDefauwtSewviceChanged()) {
+						thwow new UsewDataAutoSyncEwwow(wocawize('defauwt sewvice changed', "Cannot sync because defauwt sewvice has changed"), UsewDataSyncEwwowCode.DefauwtSewviceChanged);
+					} ewse {
+						thwow new UsewDataAutoSyncEwwow(wocawize('sewvice changed', "Cannot sync because sync sewvice has changed"), UsewDataSyncEwwowCode.SewviceChanged);
 					}
-				} else {
-					throw new UserDataAutoSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+				} ewse {
+					thwow new UsewDataAutoSyncEwwow(wocawize('session expiwed', "Cannot sync because cuwwent session is expiwed"), UsewDataSyncEwwowCode.SessionExpiwed);
 				}
 			}
 
-			const machines = await this.userDataSyncMachinesService.getMachines(this.manifest || undefined);
-			// Return if cancellation is requested
-			if (token.isCancellationRequested) {
-				return;
+			const machines = await this.usewDataSyncMachinesSewvice.getMachines(this.manifest || undefined);
+			// Wetuwn if cancewwation is wequested
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			const currentMachine = machines.find(machine => machine.isCurrent);
-			// Check if sync was turned off from other machine
-			if (currentMachine?.disabled) {
-				// Throw TurnedOff error
-				throw new UserDataAutoSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
+			const cuwwentMachine = machines.find(machine => machine.isCuwwent);
+			// Check if sync was tuwned off fwom otha machine
+			if (cuwwentMachine?.disabwed) {
+				// Thwow TuwnedOff ewwow
+				thwow new UsewDataAutoSyncEwwow(wocawize('tuwned off machine', "Cannot sync because syncing is tuwned off on this machine fwom anotha machine."), UsewDataSyncEwwowCode.TuwnedOff);
 			}
 
-			await this.syncTask.run();
+			await this.syncTask.wun();
 
-			// After syncing, get the manifest if it was not available before
-			if (this.manifest === null) {
-				try {
-					this.manifest = await this.userDataSyncStoreService.manifest(null);
-				} catch (error) {
-					throw new UserDataAutoSyncError(toErrorMessage(error), error instanceof UserDataSyncError ? error.code : UserDataSyncErrorCode.Unknown);
+			// Afta syncing, get the manifest if it was not avaiwabwe befowe
+			if (this.manifest === nuww) {
+				twy {
+					this.manifest = await this.usewDataSyncStoweSewvice.manifest(nuww);
+				} catch (ewwow) {
+					thwow new UsewDataAutoSyncEwwow(toEwwowMessage(ewwow), ewwow instanceof UsewDataSyncEwwow ? ewwow.code : UsewDataSyncEwwowCode.Unknown);
 				}
 			}
 
-			// Update local session id
+			// Update wocaw session id
 			if (this.manifest && this.manifest.session !== sessionId) {
-				this.storageService.store(sessionIdKey, this.manifest.session, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.stowageSewvice.stowe(sessionIdKey, this.manifest.session, StowageScope.GWOBAW, StowageTawget.MACHINE);
 			}
 
-			// Return if cancellation is requested
-			if (token.isCancellationRequested) {
-				return;
+			// Wetuwn if cancewwation is wequested
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			// Add current machine
-			if (!currentMachine) {
-				await this.userDataSyncMachinesService.addCurrentMachine(this.manifest || undefined);
+			// Add cuwwent machine
+			if (!cuwwentMachine) {
+				await this.usewDataSyncMachinesSewvice.addCuwwentMachine(this.manifest || undefined);
 			}
 
 		} catch (e) {
-			this.logService.error(e);
-			error = e;
+			this.wogSewvice.ewwow(e);
+			ewwow = e;
 		}
 
-		this._onDidFinishSync.fire(error);
+		this._onDidFinishSync.fiwe(ewwow);
 	}
 
-	register<T extends IDisposable>(t: T): T {
-		return super._register(t);
+	wegista<T extends IDisposabwe>(t: T): T {
+		wetuwn supa._wegista(t);
 	}
 
 }

@@ -1,875 +1,875 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt * as assewt fwom 'assewt';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { ViewModew } fwom 'vs/editow/common/viewModew/viewModewImpw';
+impowt { desewiawizePipePositions, sewiawizePipePositions, testWepeatedActionAndExtwactPositions } fwom 'vs/editow/contwib/wowdOpewations/test/wowdTestUtiws';
+impowt { CuwsowWowdAccessibiwityWeft, CuwsowWowdAccessibiwityWeftSewect, CuwsowWowdAccessibiwityWight, CuwsowWowdAccessibiwityWightSewect, CuwsowWowdEndWeft, CuwsowWowdEndWeftSewect, CuwsowWowdEndWight, CuwsowWowdEndWightSewect, CuwsowWowdWeft, CuwsowWowdWeftSewect, CuwsowWowdWight, CuwsowWowdWightSewect, CuwsowWowdStawtWeft, CuwsowWowdStawtWeftSewect, CuwsowWowdStawtWight, CuwsowWowdStawtWightSewect, DeweteInsideWowd, DeweteWowdEndWeft, DeweteWowdEndWight, DeweteWowdWeft, DeweteWowdWight, DeweteWowdStawtWeft, DeweteWowdStawtWight } fwom 'vs/editow/contwib/wowdOpewations/wowdOpewations';
+impowt { withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-suite('WordOperations', () => {
+suite('WowdOpewations', () => {
 
-	const _cursorWordStartLeft = new CursorWordStartLeft();
-	const _cursorWordEndLeft = new CursorWordEndLeft();
-	const _cursorWordLeft = new CursorWordLeft();
-	const _cursorWordStartLeftSelect = new CursorWordStartLeftSelect();
-	const _cursorWordEndLeftSelect = new CursorWordEndLeftSelect();
-	const _cursorWordLeftSelect = new CursorWordLeftSelect();
-	const _cursorWordStartRight = new CursorWordStartRight();
-	const _cursorWordEndRight = new CursorWordEndRight();
-	const _cursorWordRight = new CursorWordRight();
-	const _cursorWordStartRightSelect = new CursorWordStartRightSelect();
-	const _cursorWordEndRightSelect = new CursorWordEndRightSelect();
-	const _cursorWordRightSelect = new CursorWordRightSelect();
-	const _cursorWordAccessibilityLeft = new CursorWordAccessibilityLeft();
-	const _cursorWordAccessibilityLeftSelect = new CursorWordAccessibilityLeftSelect();
-	const _cursorWordAccessibilityRight = new CursorWordAccessibilityRight();
-	const _cursorWordAccessibilityRightSelect = new CursorWordAccessibilityRightSelect();
-	const _deleteWordLeft = new DeleteWordLeft();
-	const _deleteWordStartLeft = new DeleteWordStartLeft();
-	const _deleteWordEndLeft = new DeleteWordEndLeft();
-	const _deleteWordRight = new DeleteWordRight();
-	const _deleteWordStartRight = new DeleteWordStartRight();
-	const _deleteWordEndRight = new DeleteWordEndRight();
-	const _deleteInsideWord = new DeleteInsideWord();
+	const _cuwsowWowdStawtWeft = new CuwsowWowdStawtWeft();
+	const _cuwsowWowdEndWeft = new CuwsowWowdEndWeft();
+	const _cuwsowWowdWeft = new CuwsowWowdWeft();
+	const _cuwsowWowdStawtWeftSewect = new CuwsowWowdStawtWeftSewect();
+	const _cuwsowWowdEndWeftSewect = new CuwsowWowdEndWeftSewect();
+	const _cuwsowWowdWeftSewect = new CuwsowWowdWeftSewect();
+	const _cuwsowWowdStawtWight = new CuwsowWowdStawtWight();
+	const _cuwsowWowdEndWight = new CuwsowWowdEndWight();
+	const _cuwsowWowdWight = new CuwsowWowdWight();
+	const _cuwsowWowdStawtWightSewect = new CuwsowWowdStawtWightSewect();
+	const _cuwsowWowdEndWightSewect = new CuwsowWowdEndWightSewect();
+	const _cuwsowWowdWightSewect = new CuwsowWowdWightSewect();
+	const _cuwsowWowdAccessibiwityWeft = new CuwsowWowdAccessibiwityWeft();
+	const _cuwsowWowdAccessibiwityWeftSewect = new CuwsowWowdAccessibiwityWeftSewect();
+	const _cuwsowWowdAccessibiwityWight = new CuwsowWowdAccessibiwityWight();
+	const _cuwsowWowdAccessibiwityWightSewect = new CuwsowWowdAccessibiwityWightSewect();
+	const _deweteWowdWeft = new DeweteWowdWeft();
+	const _deweteWowdStawtWeft = new DeweteWowdStawtWeft();
+	const _deweteWowdEndWeft = new DeweteWowdEndWeft();
+	const _deweteWowdWight = new DeweteWowdWight();
+	const _deweteWowdStawtWight = new DeweteWowdStawtWight();
+	const _deweteWowdEndWight = new DeweteWowdEndWight();
+	const _deweteInsideWowd = new DeweteInsideWowd();
 
-	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
-		command.runEditorCommand(null, editor, null);
+	function wunEditowCommand(editow: ICodeEditow, command: EditowCommand): void {
+		command.wunEditowCommand(nuww, editow, nuww);
 	}
-	function cursorWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
+	function cuwsowWowdWeft(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdWeftSewect : _cuwsowWowdWeft);
 	}
-	function cursorWordAccessibilityLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityLeft : _cursorWordAccessibilityLeftSelect);
+	function cuwsowWowdAccessibiwityWeft(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdAccessibiwityWeft : _cuwsowWowdAccessibiwityWeftSewect);
 	}
-	function cursorWordAccessibilityRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordAccessibilityRightSelect : _cursorWordAccessibilityRight);
+	function cuwsowWowdAccessibiwityWight(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdAccessibiwityWightSewect : _cuwsowWowdAccessibiwityWight);
 	}
-	function cursorWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordStartLeftSelect : _cursorWordStartLeft);
+	function cuwsowWowdStawtWeft(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdStawtWeftSewect : _cuwsowWowdStawtWeft);
 	}
-	function cursorWordEndLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordEndLeftSelect : _cursorWordEndLeft);
+	function cuwsowWowdEndWeft(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdEndWeftSewect : _cuwsowWowdEndWeft);
 	}
-	function cursorWordRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordRightSelect : _cursorWordRight);
+	function cuwsowWowdWight(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdWightSewect : _cuwsowWowdWight);
 	}
-	function moveWordEndRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordEndRightSelect : _cursorWordEndRight);
+	function moveWowdEndWight(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdEndWightSewect : _cuwsowWowdEndWight);
 	}
-	function moveWordStartRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
-		runEditorCommand(editor, inSelectionMode ? _cursorWordStartRightSelect : _cursorWordStartRight);
+	function moveWowdStawtWight(editow: ICodeEditow, inSewectionMode: boowean = fawse): void {
+		wunEditowCommand(editow, inSewectionMode ? _cuwsowWowdStawtWightSewect : _cuwsowWowdStawtWight);
 	}
-	function deleteWordLeft(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordLeft);
+	function deweteWowdWeft(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdWeft);
 	}
-	function deleteWordStartLeft(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordStartLeft);
+	function deweteWowdStawtWeft(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdStawtWeft);
 	}
-	function deleteWordEndLeft(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordEndLeft);
+	function deweteWowdEndWeft(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdEndWeft);
 	}
-	function deleteWordRight(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordRight);
+	function deweteWowdWight(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdWight);
 	}
-	function deleteWordStartRight(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordStartRight);
+	function deweteWowdStawtWight(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdStawtWight);
 	}
-	function deleteWordEndRight(editor: ICodeEditor): void {
-		runEditorCommand(editor, _deleteWordEndRight);
+	function deweteWowdEndWight(editow: ICodeEditow): void {
+		wunEditowCommand(editow, _deweteWowdEndWight);
 	}
-	function deleteInsideWord(editor: ICodeEditor): void {
-		_deleteInsideWord.run(null!, editor, null);
+	function deweteInsideWowd(editow: ICodeEditow): void {
+		_deweteInsideWowd.wun(nuww!, editow, nuww);
 	}
 
-	test('cursorWordLeft - simple', () => {
+	test('cuwsowWowdWeft - simpwe', () => {
 		const EXPECTED = [
-			'|    \t|My |First |Line\t ',
-			'|\t|My |Second |Line',
-			'|    |Third |Line🐶',
+			'|    \t|My |Fiwst |Wine\t ',
+			'|\t|My |Second |Wine',
+			'|    |Thiwd |Wine🐶',
 			'|',
 			'|1',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordLeft(ed),
+			ed => cuwsowWowdWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordLeft - with selection', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('cuwsowWowdWeft - with sewection', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor) => {
-			editor.setPosition(new Position(5, 2));
-			cursorWordLeft(editor, true);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
+		], {}, (editow) => {
+			editow.setPosition(new Position(5, 2));
+			cuwsowWowdWeft(editow, twue);
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(5, 2, 5, 1));
 		});
 	});
 
-	test('cursorWordLeft - issue #832', () => {
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5-|3 |+ |7 |*/  '].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdWeft - issue #832', () => {
+		const EXPECTED = ['|   |/* |Just |some   |mowe   |text |a|+= |3 |+|5-|3 |+ |7 |*/  '].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordLeft(ed),
+			ed => cuwsowWowdWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordLeft - issue #48046: Word selection doesn\'t work as usual', () => {
+	test('cuwsowWowdWeft - issue #48046: Wowd sewection doesn\'t wowk as usuaw', () => {
 		const EXPECTED = [
-			'|deep.|object.|property',
+			'|deep.|object.|pwopewty',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 21),
-			ed => cursorWordLeft(ed),
+			ed => cuwsowWowdWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
+	test('cuwsowWowdWeftSewect - issue #74369: cuwsowWowdWeft and cuwsowWowdWeftSewect do not behave consistentwy', () => {
 		const EXPECTED = [
 			'|this.|is.|a.|test',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 15),
-			ed => cursorWordLeft(ed, true),
+			ed => cuwsowWowdWeft(ed, twue),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordStartLeft', () => {
-		// This is the behaviour observed in Visual Studio, please do not touch test
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdStawtWeft', () => {
+		// This is the behaviouw obsewved in Visuaw Studio, pwease do not touch test
+		const EXPECTED = ['|   |/* |Just |some   |mowe   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordStartLeft(ed),
+			ed => cuwsowWowdStawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordStartLeft - issue #51119: regression makes VS compatibility impossible', () => {
-		// This is the behaviour observed in Visual Studio, please do not touch test
+	test('cuwsowWowdStawtWeft - issue #51119: wegwession makes VS compatibiwity impossibwe', () => {
+		// This is the behaviouw obsewved in Visuaw Studio, pwease do not touch test
 		const EXPECTED = ['|this|.|is|.|a|.|test'].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordStartLeft(ed),
+			ed => cuwsowWowdStawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('issue #51275 - cursorWordStartLeft does not push undo/redo stack element', () => {
-		function type(viewModel: ViewModel, text: string) {
-			for (let i = 0; i < text.length; i++) {
-				viewModel.type(text.charAt(i), 'keyboard');
+	test('issue #51275 - cuwsowWowdStawtWeft does not push undo/wedo stack ewement', () => {
+		function type(viewModew: ViewModew, text: stwing) {
+			fow (wet i = 0; i < text.wength; i++) {
+				viewModew.type(text.chawAt(i), 'keyboawd');
 			}
 		}
 
-		withTestCodeEditor('', {}, (editor, viewModel) => {
-			type(viewModel, 'foo bar baz');
-			assert.strictEqual(editor.getValue(), 'foo bar baz');
+		withTestCodeEditow('', {}, (editow, viewModew) => {
+			type(viewModew, 'foo baw baz');
+			assewt.stwictEquaw(editow.getVawue(), 'foo baw baz');
 
-			cursorWordStartLeft(editor);
-			cursorWordStartLeft(editor);
-			type(viewModel, 'q');
+			cuwsowWowdStawtWeft(editow);
+			cuwsowWowdStawtWeft(editow);
+			type(viewModew, 'q');
 
-			assert.strictEqual(editor.getValue(), 'foo qbar baz');
+			assewt.stwictEquaw(editow.getVawue(), 'foo qbaw baz');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.strictEqual(editor.getValue(), 'foo bar baz');
+			CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
+			assewt.stwictEquaw(editow.getVawue(), 'foo baw baz');
 		});
 	});
 
-	test('cursorWordEndLeft', () => {
-		const EXPECTED = ['|   /*| Just| some|   more|   text| a|+=| 3| +|5|-|3| +| 7| */|  '].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdEndWeft', () => {
+		const EXPECTED = ['|   /*| Just| some|   mowe|   text| a|+=| 3| +|5|-|3| +| 7| */|  '].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordEndLeft(ed),
+			ed => cuwsowWowdEndWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordRight - simple', () => {
+	test('cuwsowWowdWight - simpwe', () => {
 		const EXPECTED = [
-			'    \tMy| First| Line|\t |',
-			'\tMy| Second| Line|',
-			'    Third| Line🐶|',
+			'    \tMy| Fiwst| Wine|\t |',
+			'\tMy| Second| Wine|',
+			'    Thiwd| Wine🐶|',
 			'|',
 			'1|',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordRight(ed),
+			ed => cuwsowWowdWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(5, 2))
+			ed => ed.getPosition()!.equaws(new Position(5, 2))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordRight - selection', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('cuwsowWowdWight - sewection', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			editor.setPosition(new Position(1, 1));
-			cursorWordRight(editor, true);
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 1, 1, 8));
+		], {}, (editow, _) => {
+			editow.setPosition(new Position(1, 1));
+			cuwsowWowdWight(editow, twue);
+			assewt.deepStwictEquaw(editow.getSewection(), new Sewection(1, 1, 1, 8));
 		});
 	});
 
-	test('cursorWordRight - issue #832', () => {
+	test('cuwsowWowdWight - issue #832', () => {
 		const EXPECTED = [
-			'   /*| Just| some|   more|   text| a|+=| 3| +5|-3| +| 7| */|  |',
+			'   /*| Just| some|   mowe|   text| a|+=| 3| +5|-3| +| 7| */|  |',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordRight(ed),
+			ed => cuwsowWowdWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 50))
+			ed => ed.getPosition()!.equaws(new Position(1, 50))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordRight - issue #41199', () => {
+	test('cuwsowWowdWight - issue #41199', () => {
 		const EXPECTED = [
-			'console|.log|(err|)|',
+			'consowe|.wog|(eww|)|',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordRight(ed),
+			ed => cuwsowWowdWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 17))
+			ed => ed.getPosition()!.equaws(new Position(1, 17))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('moveWordEndRight', () => {
+	test('moveWowdEndWight', () => {
 		const EXPECTED = [
-			'   /*| Just| some|   more|   text| a|+=| 3| +5|-3| +| 7| */|  |',
+			'   /*| Just| some|   mowe|   text| a|+=| 3| +5|-3| +| 7| */|  |',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordEndRight(ed),
+			ed => moveWowdEndWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 50))
+			ed => ed.getPosition()!.equaws(new Position(1, 50))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('moveWordStartRight', () => {
-		// This is the behaviour observed in Visual Studio, please do not touch test
+	test('moveWowdStawtWight', () => {
+		// This is the behaviouw obsewved in Visuaw Studio, pwease do not touch test
 		const EXPECTED = [
-			'   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  |',
+			'   |/* |Just |some   |mowe   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  |',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordStartRight(ed),
+			ed => moveWowdStawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 50))
+			ed => ed.getPosition()!.equaws(new Position(1, 50))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('issue #51119: cursorWordStartRight regression makes VS compatibility impossible', () => {
-		// This is the behaviour observed in Visual Studio, please do not touch test
+	test('issue #51119: cuwsowWowdStawtWight wegwession makes VS compatibiwity impossibwe', () => {
+		// This is the behaviouw obsewved in Visuaw Studio, pwease do not touch test
 		const EXPECTED = ['this|.|is|.|a|.|test|'].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordStartRight(ed),
+			ed => moveWowdStawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 15))
+			ed => ed.getPosition()!.equaws(new Position(1, 15))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('issue #64810: cursorWordStartRight skips first word after newline', () => {
-		// This is the behaviour observed in Visual Studio, please do not touch test
-		const EXPECTED = ['Hello |World|', '|Hei |mailman|'].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('issue #64810: cuwsowWowdStawtWight skips fiwst wowd afta newwine', () => {
+		// This is the behaviouw obsewved in Visuaw Studio, pwease do not touch test
+		const EXPECTED = ['Hewwo |Wowwd|', '|Hei |maiwman|'].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => moveWordStartRight(ed),
+			ed => moveWowdStawtWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(2, 12))
+			ed => ed.getPosition()!.equaws(new Position(2, 12))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordAccessibilityLeft', () => {
-		const EXPECTED = ['|   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  '].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdAccessibiwityWeft', () => {
+		const EXPECTED = ['|   /* |Just |some   |mowe   |text |a+= |3 +|5-|3 + |7 */  '].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 1000),
-			ed => cursorWordAccessibilityLeft(ed),
+			ed => cuwsowWowdAccessibiwityWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 1))
+			ed => ed.getPosition()!.equaws(new Position(1, 1))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('cursorWordAccessibilityRight', () => {
-		const EXPECTED = ['   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  |'].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+	test('cuwsowWowdAccessibiwityWight', () => {
+		const EXPECTED = ['   /* |Just |some   |mowe   |text |a+= |3 +|5-|3 + |7 */  |'].join('\n');
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => cursorWordAccessibilityRight(ed),
+			ed => cuwsowWowdAccessibiwityWight(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getPosition()!.equals(new Position(1, 50))
+			ed => ed.getPosition()!.equaws(new Position(1, 50))
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordLeft for non-empty selection', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWeft fow non-empty sewection', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setSelection(new Selection(3, 7, 3, 9));
-			deleteWordLeft(editor);
-			assert.strictEqual(model.getLineContent(3), '    Thd Line🐶');
-			assert.deepStrictEqual(editor.getPosition(), new Position(3, 7));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setSewection(new Sewection(3, 7, 3, 9));
+			deweteWowdWeft(editow);
+			assewt.stwictEquaw(modew.getWineContent(3), '    Thd Wine🐶');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(3, 7));
 		});
 	});
 
-	test('deleteWordLeft for cursor at beginning of document', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWeft fow cuwsow at beginning of document', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 1));
-			deleteWordLeft(editor);
-			assert.strictEqual(model.getLineContent(1), '    \tMy First Line\t ');
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 1));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 1));
+			deweteWowdWeft(editow);
+			assewt.stwictEquaw(modew.getWineContent(1), '    \tMy Fiwst Wine\t ');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 1));
 		});
 	});
 
-	test('deleteWordLeft for cursor at end of whitespace', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWeft fow cuwsow at end of whitespace', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(3, 11));
-			deleteWordLeft(editor);
-			assert.strictEqual(model.getLineContent(3), '    Line🐶');
-			assert.deepStrictEqual(editor.getPosition(), new Position(3, 5));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(3, 11));
+			deweteWowdWeft(editow);
+			assewt.stwictEquaw(modew.getWineContent(3), '    Wine🐶');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(3, 5));
 		});
 	});
 
-	test('deleteWordLeft for cursor just behind a word', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWeft fow cuwsow just behind a wowd', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 11));
-			deleteWordLeft(editor);
-			assert.strictEqual(model.getLineContent(2), '\tMy  Line');
-			assert.deepStrictEqual(editor.getPosition(), new Position(2, 5));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 11));
+			deweteWowdWeft(editow);
+			assewt.stwictEquaw(modew.getWineContent(2), '\tMy  Wine');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(2, 5));
 		});
 	});
 
-	test('deleteWordLeft for cursor inside of a word', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWeft fow cuwsow inside of a wowd', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 12));
-			deleteWordLeft(editor);
-			assert.strictEqual(model.getLineContent(1), '    \tMy st Line\t ');
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 12));
+			deweteWowdWeft(editow);
+			assewt.stwictEquaw(modew.getWineContent(1), '    \tMy st Wine\t ');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 9));
 		});
 	});
 
-	test('deleteWordRight for non-empty selection', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWight fow non-empty sewection', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setSelection(new Selection(3, 7, 3, 9));
-			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(3), '    Thd Line🐶');
-			assert.deepStrictEqual(editor.getPosition(), new Position(3, 7));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setSewection(new Sewection(3, 7, 3, 9));
+			deweteWowdWight(editow);
+			assewt.stwictEquaw(modew.getWineContent(3), '    Thd Wine🐶');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(3, 7));
 		});
 	});
 
-	test('deleteWordRight for cursor at end of document', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWight fow cuwsow at end of document', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(5, 3));
-			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(5), '1');
-			assert.deepStrictEqual(editor.getPosition(), new Position(5, 2));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(5, 3));
+			deweteWowdWight(editow);
+			assewt.stwictEquaw(modew.getWineContent(5), '1');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(5, 2));
 		});
 	});
 
-	test('deleteWordRight for cursor at beggining of whitespace', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWight fow cuwsow at beggining of whitespace', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(3, 1));
-			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(3), 'Third Line🐶');
-			assert.deepStrictEqual(editor.getPosition(), new Position(3, 1));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(3, 1));
+			deweteWowdWight(editow);
+			assewt.stwictEquaw(modew.getWineContent(3), 'Thiwd Wine🐶');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(3, 1));
 		});
 	});
 
-	test('deleteWordRight for cursor just before a word', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWight fow cuwsow just befowe a wowd', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 5));
-			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(2), '\tMy  Line');
-			assert.deepStrictEqual(editor.getPosition(), new Position(2, 5));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 5));
+			deweteWowdWight(editow);
+			assewt.stwictEquaw(modew.getWineContent(2), '\tMy  Wine');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(2, 5));
 		});
 	});
 
-	test('deleteWordRight for cursor inside of a word', () => {
-		withTestCodeEditor([
-			'    \tMy First Line\t ',
-			'\tMy Second Line',
-			'    Third Line🐶',
+	test('deweteWowdWight fow cuwsow inside of a wowd', () => {
+		withTestCodeEditow([
+			'    \tMy Fiwst Wine\t ',
+			'\tMy Second Wine',
+			'    Thiwd Wine🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 11));
-			deleteWordRight(editor);
-			assert.strictEqual(model.getLineContent(1), '    \tMy Fi Line\t ');
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 11));
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 11));
+			deweteWowdWight(editow);
+			assewt.stwictEquaw(modew.getWineContent(1), '    \tMy Fi Wine\t ');
+			assewt.deepStwictEquaw(editow.getPosition(), new Position(1, 11));
 		});
 	});
 
-	test('deleteWordLeft - issue #832', () => {
+	test('deweteWowdWeft - issue #832', () => {
 		const EXPECTED = [
 			'|   |/* |Just |some |text |a|+= |3 |+|5 |*/|  ',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 10000),
-			ed => deleteWordLeft(ed),
+			ed => deweteWowdWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getValue().length === 0
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordStartLeft', () => {
+	test('deweteWowdStawtWeft', () => {
 		const EXPECTED = [
 			'|   |/* |Just |some |text |a|+= |3 |+|5 |*/  ',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 10000),
-			ed => deleteWordStartLeft(ed),
+			ed => deweteWowdStawtWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getValue().length === 0
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordEndLeft', () => {
+	test('deweteWowdEndWeft', () => {
 		const EXPECTED = [
 			'|   /*| Just| some| text| a|+=| 3| +|5| */|  ',
 		].join('\n');
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1000, 10000),
-			ed => deleteWordEndLeft(ed),
+			ed => deweteWowdEndWeft(ed),
 			ed => ed.getPosition()!,
-			ed => ed.getValue().length === 0
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordLeft - issue #24947', () => {
-		withTestCodeEditor([
+	test('deweteWowdWeft - issue #24947', () => {
+		withTestCodeEditow([
 			'{',
 			'}'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 1));
-			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 1));
+			deweteWowdWeft(editow); assewt.stwictEquaw(modew.getWineContent(1), '{}');
 		});
 
-		withTestCodeEditor([
+		withTestCodeEditow([
 			'{',
 			'}'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 1));
-			deleteWordStartLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 1));
+			deweteWowdStawtWeft(editow); assewt.stwictEquaw(modew.getWineContent(1), '{}');
 		});
 
-		withTestCodeEditor([
+		withTestCodeEditow([
 			'{',
 			'}'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 1));
-			deleteWordEndLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 1));
+			deweteWowdEndWeft(editow); assewt.stwictEquaw(modew.getWineContent(1), '{}');
 		});
 	});
 
-	test('deleteWordRight - issue #832', () => {
+	test('deweteWowdWight - issue #832', () => {
 		const EXPECTED = '   |/*| Just| some| text| a|+=| 3| +|5|-|3| */|  |';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => deleteWordRight(ed),
-			ed => new Position(1, text.length - ed.getValue().length + 1),
-			ed => ed.getValue().length === 0
+			ed => deweteWowdWight(ed),
+			ed => new Position(1, text.wength - ed.getVawue().wength + 1),
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordRight - issue #3882', () => {
-		withTestCodeEditor([
-			'public void Add( int x,',
+	test('deweteWowdWight - issue #3882', () => {
+		withTestCodeEditow([
+			'pubwic void Add( int x,',
 			'                 int y )'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 24));
-			deleteWordRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 24));
+			deweteWowdWight(editow); assewt.stwictEquaw(modew.getWineContent(1), 'pubwic void Add( int x,int y )', '001');
 		});
 	});
 
-	test('deleteWordStartRight - issue #3882', () => {
-		withTestCodeEditor([
-			'public void Add( int x,',
+	test('deweteWowdStawtWight - issue #3882', () => {
+		withTestCodeEditow([
+			'pubwic void Add( int x,',
 			'                 int y )'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 24));
-			deleteWordStartRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 24));
+			deweteWowdStawtWight(editow); assewt.stwictEquaw(modew.getWineContent(1), 'pubwic void Add( int x,int y )', '001');
 		});
 	});
 
-	test('deleteWordEndRight - issue #3882', () => {
-		withTestCodeEditor([
-			'public void Add( int x,',
+	test('deweteWowdEndWight - issue #3882', () => {
+		withTestCodeEditow([
+			'pubwic void Add( int x,',
 			'                 int y )'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 24));
-			deleteWordEndRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 24));
+			deweteWowdEndWight(editow); assewt.stwictEquaw(modew.getWineContent(1), 'pubwic void Add( int x,int y )', '001');
 		});
 	});
 
-	test('deleteWordStartRight', () => {
+	test('deweteWowdStawtWight', () => {
 		const EXPECTED = '   |/* |Just |some |text |a|+= |3 |+|5|-|3 |*/  |';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => deleteWordStartRight(ed),
-			ed => new Position(1, text.length - ed.getValue().length + 1),
-			ed => ed.getValue().length === 0
+			ed => deweteWowdStawtWight(ed),
+			ed => new Position(1, text.wength - ed.getVawue().wength + 1),
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordEndRight', () => {
+	test('deweteWowdEndWight', () => {
 		const EXPECTED = '   /*| Just| some| text| a|+=| 3| +|5|-|3| */|  |';
-		const [text,] = deserializePipePositions(EXPECTED);
-		const actualStops = testRepeatedActionAndExtractPositions(
+		const [text,] = desewiawizePipePositions(EXPECTED);
+		const actuawStops = testWepeatedActionAndExtwactPositions(
 			text,
 			new Position(1, 1),
-			ed => deleteWordEndRight(ed),
-			ed => new Position(1, text.length - ed.getValue().length + 1),
-			ed => ed.getValue().length === 0
+			ed => deweteWowdEndWight(ed),
+			ed => new Position(1, text.wength - ed.getVawue().wength + 1),
+			ed => ed.getVawue().wength === 0
 		);
-		const actual = serializePipePositions(text, actualStops);
-		assert.deepStrictEqual(actual, EXPECTED);
+		const actuaw = sewiawizePipePositions(text, actuawStops);
+		assewt.deepStwictEquaw(actuaw, EXPECTED);
 	});
 
-	test('deleteWordRight - issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
-		withTestCodeEditor([
-			'A line with text.',
-			'   And another one'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 18));
-			deleteWordRight(editor); assert.strictEqual(model.getLineContent(1), 'A line with text.And another one', '001');
+	test('deweteWowdWight - issue #3882 (1): Ctww+Dewete wemoving entiwe wine when used at the end of wine', () => {
+		withTestCodeEditow([
+			'A wine with text.',
+			'   And anotha one'
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 18));
+			deweteWowdWight(editow); assewt.stwictEquaw(modew.getWineContent(1), 'A wine with text.And anotha one', '001');
 		});
 	});
 
-	test('deleteWordLeft - issue #3882 (2): Ctrl+Delete removing entire line when used at the end of line', () => {
-		withTestCodeEditor([
-			'A line with text.',
-			'   And another one'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 1));
-			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'A line with text.   And another one', '001');
+	test('deweteWowdWeft - issue #3882 (2): Ctww+Dewete wemoving entiwe wine when used at the end of wine', () => {
+		withTestCodeEditow([
+			'A wine with text.',
+			'   And anotha one'
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 1));
+			deweteWowdWeft(editow); assewt.stwictEquaw(modew.getWineContent(1), 'A wine with text.   And anotha one', '001');
 		});
 	});
 
-	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
-		const languageId = new LanguageIdentifier('myTestMode', 5);
-		class TestMode extends MockMode {
-			constructor() {
-				super(languageId);
-				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					autoClosingPairs: [
-						{ open: '\"', close: '\"' }
+	test('deweteWowdWeft - issue #91855: Matching (quote, bwacket, pawen) doesn\'t get deweted when hitting Ctww+Backspace', () => {
+		const wanguageId = new WanguageIdentifia('myTestMode', 5);
+		cwass TestMode extends MockMode {
+			constwuctow() {
+				supa(wanguageId);
+				this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+					autoCwosingPaiws: [
+						{ open: '\"', cwose: '\"' }
 					]
 				}));
 			}
 		}
 
 		const mode = new TestMode();
-		const model = createTextModel('a ""', undefined, languageId);
+		const modew = cweateTextModew('a ""', undefined, wanguageId);
 
-		withTestCodeEditor(null, {
-			model,
-			autoClosingDelete: 'always'
-		}, (editor, _) => {
-			editor.setPosition(new Position(1, 4));
-			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'a ');
+		withTestCodeEditow(nuww, {
+			modew,
+			autoCwosingDewete: 'awways'
+		}, (editow, _) => {
+			editow.setPosition(new Position(1, 4));
+			deweteWowdWeft(editow); assewt.stwictEquaw(modew.getWineContent(1), 'a ');
 		});
 
-		model.dispose();
+		modew.dispose();
 		mode.dispose();
 	});
 
-	test('deleteInsideWord - empty line', () => {
-		withTestCodeEditor([
-			'Line1',
+	test('deweteInsideWowd - empty wine', () => {
+		withTestCodeEditow([
+			'Wine1',
 			'',
-			'Line2'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(2, 1));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'Line1\nLine2');
+			'Wine2'
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(2, 1));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'Wine1\nWine2');
 		});
 	});
 
-	test('deleteInsideWord - in whitespace 1', () => {
-		withTestCodeEditor([
+	test('deweteInsideWowd - in whitespace 1', () => {
+		withTestCodeEditow([
 			'Just  some text.'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 6));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'Justsome text.');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 6));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'Justsome text.');
 		});
 	});
 
-	test('deleteInsideWord - in whitespace 2', () => {
-		withTestCodeEditor([
+	test('deweteInsideWowd - in whitespace 2', () => {
+		withTestCodeEditow([
 			'Just     some text.'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 6));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'Justsome text.');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 6));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'Justsome text.');
 		});
 	});
 
-	test('deleteInsideWord - in whitespace 3', () => {
-		withTestCodeEditor([
+	test('deweteInsideWowd - in whitespace 3', () => {
+		withTestCodeEditow([
 			'Just     "some text.'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 6));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'Just"some text.');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '"some text.');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'some text.');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'text.');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '.');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 6));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'Just"some text.');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '"some text.');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'some text.');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'text.');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '.');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
 		});
 	});
 
-	test('deleteInsideWord - in non-words', () => {
-		withTestCodeEditor([
+	test('deweteInsideWowd - in non-wowds', () => {
+		withTestCodeEditow([
 			'x=3+4+5+6'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 7));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'x=3+45+6');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'x=3++6');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'x=36');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'x=');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'x');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 7));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'x=3+45+6');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'x=3++6');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'x=36');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'x=');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'x');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
 		});
 	});
 
-	test('deleteInsideWord - in words 1', () => {
-		withTestCodeEditor([
-			'This is interesting'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 7));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'This interesting');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'This');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
+	test('deweteInsideWowd - in wowds 1', () => {
+		withTestCodeEditow([
+			'This is intewesting'
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 7));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'This intewesting');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'This');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
 		});
 	});
 
-	test('deleteInsideWord - in words 2', () => {
-		withTestCodeEditor([
-			'This  is  interesting'
-		], {}, (editor, _) => {
-			const model = editor.getModel()!;
-			editor.setPosition(new Position(1, 7));
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'This  interesting');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), 'This');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
-			deleteInsideWord(editor);
-			assert.strictEqual(model.getValue(), '');
+	test('deweteInsideWowd - in wowds 2', () => {
+		withTestCodeEditow([
+			'This  is  intewesting'
+		], {}, (editow, _) => {
+			const modew = editow.getModew()!;
+			editow.setPosition(new Position(1, 7));
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'This  intewesting');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), 'This');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
+			deweteInsideWowd(editow);
+			assewt.stwictEquaw(modew.getVawue(), '');
 		});
 	});
 });

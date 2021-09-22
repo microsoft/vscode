@@ -1,568 +1,568 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as model from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { Mimes } fwom 'vs/base/common/mime';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt { SeawchPawams } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt { IWesowvedTextEditowModew, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { CewwEditState, CewwFocusMode, CewwViewModewStateChangeEvent, CuwsowAtBoundawy, IEditabweCewwViewModew, INotebookCewwDecowationOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { ViewContext } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/viewContext';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { CewwKind, INotebookCewwStatusBawItem, INotebookSeawchOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { NotebookOptionsChangeEvent } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
 
-export abstract class BaseCellViewModel extends Disposable {
+expowt abstwact cwass BaseCewwViewModew extends Disposabwe {
 
-	protected readonly _onDidChangeEditorAttachState = this._register(new Emitter<void>());
-	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
-	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
-	protected readonly _onDidChangeState = this._register(new Emitter<CellViewModelStateChangeEvent>());
-	public readonly onDidChangeState: Event<CellViewModelStateChangeEvent> = this._onDidChangeState.event;
+	pwotected weadonwy _onDidChangeEditowAttachState = this._wegista(new Emitta<void>());
+	// Do not mewge this event with `onDidChangeState` as we awe using `Event.once(onDidChangeEditowAttachState)` ewsewhewe.
+	weadonwy onDidChangeEditowAttachState = this._onDidChangeEditowAttachState.event;
+	pwotected weadonwy _onDidChangeState = this._wegista(new Emitta<CewwViewModewStateChangeEvent>());
+	pubwic weadonwy onDidChangeState: Event<CewwViewModewStateChangeEvent> = this._onDidChangeState.event;
 
-	get handle() {
-		return this.model.handle;
+	get handwe() {
+		wetuwn this.modew.handwe;
 	}
-	get uri() {
-		return this.model.uri;
+	get uwi() {
+		wetuwn this.modew.uwi;
 	}
-	get lineCount() {
-		return this.model.textBuffer.getLineCount();
+	get wineCount() {
+		wetuwn this.modew.textBuffa.getWineCount();
 	}
 	get metadata() {
-		return this.model.metadata;
+		wetuwn this.modew.metadata;
 	}
-	get internalMetadata() {
-		return this.model.internalMetadata;
+	get intewnawMetadata() {
+		wetuwn this.modew.intewnawMetadata;
 	}
-	get language() {
-		return this.model.language;
+	get wanguage() {
+		wetuwn this.modew.wanguage;
 	}
 
-	get mime(): string {
-		if (typeof this.model.mime === 'string') {
-			return this.model.mime;
+	get mime(): stwing {
+		if (typeof this.modew.mime === 'stwing') {
+			wetuwn this.modew.mime;
 		}
 
-		switch (this.language) {
-			case 'markdown':
-				return Mimes.markdown;
+		switch (this.wanguage) {
+			case 'mawkdown':
+				wetuwn Mimes.mawkdown;
 
-			default:
-				return Mimes.text;
+			defauwt:
+				wetuwn Mimes.text;
 		}
 	}
 
-	abstract cellKind: CellKind;
+	abstwact cewwKind: CewwKind;
 
-	private _editState: CellEditState = CellEditState.Preview;
+	pwivate _editState: CewwEditState = CewwEditState.Pweview;
 
-	// get editState(): CellEditState {
-	// 	return this._editState;
+	// get editState(): CewwEditState {
+	// 	wetuwn this._editState;
 	// }
 
-	// set editState(newState: CellEditState) {
+	// set editState(newState: CewwEditState) {
 	// 	if (newState === this._editState) {
-	// 		return;
+	// 		wetuwn;
 	// 	}
 
 	// 	this._editState = newState;
-	// 	this._onDidChangeState.fire({ editStateChanged: true });
-	// 	if (this._editState === CellEditState.Preview) {
-	// 		this.focusMode = CellFocusMode.Container;
+	// 	this._onDidChangeState.fiwe({ editStateChanged: twue });
+	// 	if (this._editState === CewwEditState.Pweview) {
+	// 		this.focusMode = CewwFocusMode.Containa;
 	// 	}
 	// }
 
-	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	get lineNumbers(): 'on' | 'off' | 'inherit' {
-		return this._lineNumbers;
+	pwivate _wineNumbews: 'on' | 'off' | 'inhewit' = 'inhewit';
+	get wineNumbews(): 'on' | 'off' | 'inhewit' {
+		wetuwn this._wineNumbews;
 	}
 
-	set lineNumbers(lineNumbers: 'on' | 'off' | 'inherit') {
-		if (lineNumbers === this._lineNumbers) {
-			return;
+	set wineNumbews(wineNumbews: 'on' | 'off' | 'inhewit') {
+		if (wineNumbews === this._wineNumbews) {
+			wetuwn;
 		}
 
-		this._lineNumbers = lineNumbers;
-		this._onDidChangeState.fire({ cellLineNumberChanged: true });
+		this._wineNumbews = wineNumbews;
+		this._onDidChangeState.fiwe({ cewwWineNumbewChanged: twue });
 	}
 
-	private _focusMode: CellFocusMode = CellFocusMode.Container;
+	pwivate _focusMode: CewwFocusMode = CewwFocusMode.Containa;
 	get focusMode() {
-		return this._focusMode;
+		wetuwn this._focusMode;
 	}
-	set focusMode(newMode: CellFocusMode) {
+	set focusMode(newMode: CewwFocusMode) {
 		this._focusMode = newMode;
-		this._onDidChangeState.fire({ focusModeChanged: true });
+		this._onDidChangeState.fiwe({ focusModeChanged: twue });
 	}
 
-	protected _textEditor?: ICodeEditor;
-	get editorAttached(): boolean {
-		return !!this._textEditor;
+	pwotected _textEditow?: ICodeEditow;
+	get editowAttached(): boowean {
+		wetuwn !!this._textEditow;
 	}
-	private _editorListeners: IDisposable[] = [];
-	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
-	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	pwivate _editowWistenews: IDisposabwe[] = [];
+	pwivate _editowViewStates: editowCommon.ICodeEditowViewState | nuww = nuww;
+	pwivate _wesowvedCewwDecowations = new Map<stwing, INotebookCewwDecowationOptions>();
 
-	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>());
-	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
+	pwivate weadonwy _cewwDecowationsChanged = this._wegista(new Emitta<{ added: INotebookCewwDecowationOptions[], wemoved: INotebookCewwDecowationOptions[] }>());
+	onCewwDecowationsChanged: Event<{ added: INotebookCewwDecowationOptions[], wemoved: INotebookCewwDecowationOptions[] }> = this._cewwDecowationsChanged.event;
 
-	private _resolvedDecorations = new Map<string, {
-		id?: string;
-		options: model.IModelDeltaDecoration;
+	pwivate _wesowvedDecowations = new Map<stwing, {
+		id?: stwing;
+		options: modew.IModewDewtaDecowation;
 	}>();
-	private _lastDecorationId: number = 0;
+	pwivate _wastDecowationId: numba = 0;
 
-	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
-	private readonly _onDidChangeCellStatusBarItems = this._register(new Emitter<void>());
-	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
-	private _lastStatusBarId: number = 0;
+	pwivate _cewwStatusBawItems = new Map<stwing, INotebookCewwStatusBawItem>();
+	pwivate weadonwy _onDidChangeCewwStatusBawItems = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeCewwStatusBawItems: Event<void> = this._onDidChangeCewwStatusBawItems.event;
+	pwivate _wastStatusBawId: numba = 0;
 
-	get textModel(): model.ITextModel | undefined {
-		return this.model.textModel;
+	get textModew(): modew.ITextModew | undefined {
+		wetuwn this.modew.textModew;
 	}
 
-	hasModel(): this is IEditableCellViewModel {
-		return !!this.textModel;
+	hasModew(): this is IEditabweCewwViewModew {
+		wetuwn !!this.textModew;
 	}
 
-	private _dragging: boolean = false;
-	get dragging(): boolean {
-		return this._dragging;
+	pwivate _dwagging: boowean = fawse;
+	get dwagging(): boowean {
+		wetuwn this._dwagging;
 	}
 
-	set dragging(v: boolean) {
-		this._dragging = v;
+	set dwagging(v: boowean) {
+		this._dwagging = v;
 	}
 
-	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
+	pwotected _textModewWef: IWefewence<IWesowvedTextEditowModew> | undefined;
 
-	constructor(
-		readonly viewType: string,
-		readonly model: NotebookCellTextModel,
-		public id: string,
-		private readonly _viewContext: ViewContext,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _modelService: ITextModelService,
-		private readonly _undoRedoService: IUndoRedoService,
-		// private readonly _keymapService: INotebookKeymapService
+	constwuctow(
+		weadonwy viewType: stwing,
+		weadonwy modew: NotebookCewwTextModew,
+		pubwic id: stwing,
+		pwivate weadonwy _viewContext: ViewContext,
+		pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		pwivate weadonwy _modewSewvice: ITextModewSewvice,
+		pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice,
+		// pwivate weadonwy _keymapSewvice: INotebookKeymapSewvice
 	) {
-		super();
+		supa();
 
-		this._register(model.onDidChangeMetadata(() => {
-			this._onDidChangeState.fire({ metadataChanged: true });
+		this._wegista(modew.onDidChangeMetadata(() => {
+			this._onDidChangeState.fiwe({ metadataChanged: twue });
 		}));
 
-		this._register(model.onDidChangeInternalMetadata(e => {
-			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
-			if (e.runStateChanged || e.lastRunSuccessChanged) {
-				// Statusbar visibility may change
-				this.layoutChange({});
+		this._wegista(modew.onDidChangeIntewnawMetadata(e => {
+			this._onDidChangeState.fiwe({ intewnawMetadataChanged: twue, wunStateChanged: e.wunStateChanged });
+			if (e.wunStateChanged || e.wastWunSuccessChanged) {
+				// Statusbaw visibiwity may change
+				this.wayoutChange({});
 			}
 		}));
 
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.lineNumbers')) {
-				this.lineNumbers = 'inherit';
+		this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('notebook.wineNumbews')) {
+				this.wineNumbews = 'inhewit';
 			}
 		}));
 	}
 
 
-	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
-	abstract getHeight(lineHeight: number): number;
-	abstract onDeselect(): void;
-	abstract layoutChange(change: any): void;
+	abstwact updateOptions(e: NotebookOptionsChangeEvent): void;
+	abstwact hasDynamicHeight(): boowean;
+	abstwact getHeight(wineHeight: numba): numba;
+	abstwact onDesewect(): void;
+	abstwact wayoutChange(change: any): void;
 
-	assertTextModelAttached(): boolean {
-		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
-			return true;
+	assewtTextModewAttached(): boowean {
+		if (this.textModew && this._textEditow && this._textEditow.getModew() === this.textModew) {
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	// private handleKeyDown(e: IKeyboardEvent) {
-	// 	if (this.viewType === IPYNB_VIEW_TYPE && isWindows && e.ctrlKey && e.keyCode === KeyCode.Enter) {
-	// 		this._keymapService.promptKeymapRecommendation();
+	// pwivate handweKeyDown(e: IKeyboawdEvent) {
+	// 	if (this.viewType === IPYNB_VIEW_TYPE && isWindows && e.ctwwKey && e.keyCode === KeyCode.Enta) {
+	// 		this._keymapSewvice.pwomptKeymapWecommendation();
 	// 	}
 	// }
 
-	attachTextEditor(editor: ICodeEditor) {
-		if (!editor.hasModel()) {
-			throw new Error('Invalid editor: model is missing');
+	attachTextEditow(editow: ICodeEditow) {
+		if (!editow.hasModew()) {
+			thwow new Ewwow('Invawid editow: modew is missing');
 		}
 
-		if (this._textEditor === editor) {
-			if (this._editorListeners.length === 0) {
-				this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
-				// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
-				this._onDidChangeState.fire({ selectionChanged: true });
+		if (this._textEditow === editow) {
+			if (this._editowWistenews.wength === 0) {
+				this._editowWistenews.push(this._textEditow.onDidChangeCuwsowSewection(() => { this._onDidChangeState.fiwe({ sewectionChanged: twue }); }));
+				// this._editowWistenews.push(this._textEditow.onKeyDown(e => this.handweKeyDown(e)));
+				this._onDidChangeState.fiwe({ sewectionChanged: twue });
 			}
-			return;
+			wetuwn;
 		}
 
-		this._textEditor = editor;
+		this._textEditow = editow;
 
-		if (this._editorViewStates) {
-			this._restoreViewState(this._editorViewStates);
+		if (this._editowViewStates) {
+			this._westoweViewState(this._editowViewStates);
 		}
 
-		this._resolvedDecorations.forEach((value, key) => {
-			if (key.startsWith('_lazy_')) {
-				// lazy ones
-				const ret = this._textEditor!.deltaDecorations([], [value.options]);
-				this._resolvedDecorations.get(key)!.id = ret[0];
+		this._wesowvedDecowations.fowEach((vawue, key) => {
+			if (key.stawtsWith('_wazy_')) {
+				// wazy ones
+				const wet = this._textEditow!.dewtaDecowations([], [vawue.options]);
+				this._wesowvedDecowations.get(key)!.id = wet[0];
 			}
-			else {
-				const ret = this._textEditor!.deltaDecorations([], [value.options]);
-				this._resolvedDecorations.get(key)!.id = ret[0];
+			ewse {
+				const wet = this._textEditow!.dewtaDecowations([], [vawue.options]);
+				this._wesowvedDecowations.get(key)!.id = wet[0];
 			}
 		});
 
-		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
-		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
-		this._onDidChangeState.fire({ selectionChanged: true });
-		this._onDidChangeEditorAttachState.fire();
+		this._editowWistenews.push(this._textEditow.onDidChangeCuwsowSewection(() => { this._onDidChangeState.fiwe({ sewectionChanged: twue }); }));
+		// this._editowWistenews.push(this._textEditow.onKeyDown(e => this.handweKeyDown(e)));
+		this._onDidChangeState.fiwe({ sewectionChanged: twue });
+		this._onDidChangeEditowAttachState.fiwe();
 	}
 
-	detachTextEditor() {
+	detachTextEditow() {
 		this.saveViewState();
-		// decorations need to be cleared first as editors can be resued.
-		this._resolvedDecorations.forEach(value => {
-			const resolvedid = value.id;
+		// decowations need to be cweawed fiwst as editows can be wesued.
+		this._wesowvedDecowations.fowEach(vawue => {
+			const wesowvedid = vawue.id;
 
-			if (resolvedid) {
-				this._textEditor?.deltaDecorations([resolvedid], []);
+			if (wesowvedid) {
+				this._textEditow?.dewtaDecowations([wesowvedid], []);
 			}
 		});
 
-		this._textEditor = undefined;
-		this._editorListeners.forEach(e => e.dispose());
-		this._editorListeners = [];
-		this._onDidChangeEditorAttachState.fire();
+		this._textEditow = undefined;
+		this._editowWistenews.fowEach(e => e.dispose());
+		this._editowWistenews = [];
+		this._onDidChangeEditowAttachState.fiwe();
 
-		if (this._textModelRef) {
-			this._textModelRef.dispose();
-			this._textModelRef = undefined;
+		if (this._textModewWef) {
+			this._textModewWef.dispose();
+			this._textModewWef = undefined;
 		}
 	}
 
-	getText(): string {
-		return this.model.getValue();
+	getText(): stwing {
+		wetuwn this.modew.getVawue();
 	}
 
-	getTextLength(): number {
-		return this.model.getTextLength();
+	getTextWength(): numba {
+		wetuwn this.modew.getTextWength();
 	}
 
-	private saveViewState(): void {
-		if (!this._textEditor) {
-			return;
+	pwivate saveViewState(): void {
+		if (!this._textEditow) {
+			wetuwn;
 		}
 
-		this._editorViewStates = this._textEditor.saveViewState();
+		this._editowViewStates = this._textEditow.saveViewState();
 	}
 
-	saveEditorViewState() {
-		if (this._textEditor) {
-			this._editorViewStates = this._textEditor.saveViewState();
+	saveEditowViewState() {
+		if (this._textEditow) {
+			this._editowViewStates = this._textEditow.saveViewState();
 		}
 
-		return this._editorViewStates;
+		wetuwn this._editowViewStates;
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
-		this._editorViewStates = editorViewStates;
+	westoweEditowViewState(editowViewStates: editowCommon.ICodeEditowViewState | nuww, totawHeight?: numba) {
+		this._editowViewStates = editowViewStates;
 	}
 
-	private _restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
+	pwivate _westoweViewState(state: editowCommon.ICodeEditowViewState | nuww): void {
 		if (state) {
-			this._textEditor?.restoreViewState(state);
+			this._textEditow?.westoweViewState(state);
 		}
 	}
 
-	addModelDecoration(decoration: model.IModelDeltaDecoration): string {
-		if (!this._textEditor) {
-			const id = ++this._lastDecorationId;
-			const decorationId = `_lazy_${this.id};${id}`;
-			this._resolvedDecorations.set(decorationId, { options: decoration });
-			return decorationId;
+	addModewDecowation(decowation: modew.IModewDewtaDecowation): stwing {
+		if (!this._textEditow) {
+			const id = ++this._wastDecowationId;
+			const decowationId = `_wazy_${this.id};${id}`;
+			this._wesowvedDecowations.set(decowationId, { options: decowation });
+			wetuwn decowationId;
 		}
 
-		const result = this._textEditor.deltaDecorations([], [decoration]);
-		this._resolvedDecorations.set(result[0], { id: result[0], options: decoration });
-		return result[0];
+		const wesuwt = this._textEditow.dewtaDecowations([], [decowation]);
+		this._wesowvedDecowations.set(wesuwt[0], { id: wesuwt[0], options: decowation });
+		wetuwn wesuwt[0];
 	}
 
-	removeModelDecoration(decorationId: string) {
-		const realDecorationId = this._resolvedDecorations.get(decorationId);
+	wemoveModewDecowation(decowationId: stwing) {
+		const weawDecowationId = this._wesowvedDecowations.get(decowationId);
 
-		if (this._textEditor && realDecorationId && realDecorationId.id !== undefined) {
-			this._textEditor.deltaDecorations([realDecorationId.id!], []);
+		if (this._textEditow && weawDecowationId && weawDecowationId.id !== undefined) {
+			this._textEditow.dewtaDecowations([weawDecowationId.id!], []);
 		}
 
-		// lastly, remove all the cache
-		this._resolvedDecorations.delete(decorationId);
+		// wastwy, wemove aww the cache
+		this._wesowvedDecowations.dewete(decowationId);
 	}
 
-	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
-		oldDecorations.forEach(id => {
-			this.removeModelDecoration(id);
+	dewtaModewDecowations(owdDecowations: stwing[], newDecowations: modew.IModewDewtaDecowation[]): stwing[] {
+		owdDecowations.fowEach(id => {
+			this.wemoveModewDecowation(id);
 		});
 
-		const ret = newDecorations.map(option => {
-			return this.addModelDecoration(option);
+		const wet = newDecowations.map(option => {
+			wetuwn this.addModewDecowation(option);
 		});
 
-		return ret;
+		wetuwn wet;
 	}
 
-	private _removeCellDecoration(decorationId: string) {
-		const options = this._resolvedCellDecorations.get(decorationId);
+	pwivate _wemoveCewwDecowation(decowationId: stwing) {
+		const options = this._wesowvedCewwDecowations.get(decowationId);
 
 		if (options) {
-			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
+			this._cewwDecowationsChanged.fiwe({ added: [], wemoved: [options] });
+			this._wesowvedCewwDecowations.dewete(decowationId);
 		}
 	}
 
-	private _addCellDecoration(options: INotebookCellDecorationOptions): string {
-		const id = ++this._lastDecorationId;
-		const decorationId = `_cell_${this.id};${id}`;
-		this._resolvedCellDecorations.set(decorationId, options);
-		this._cellDecorationsChanged.fire({ added: [options], removed: [] });
-		return decorationId;
+	pwivate _addCewwDecowation(options: INotebookCewwDecowationOptions): stwing {
+		const id = ++this._wastDecowationId;
+		const decowationId = `_ceww_${this.id};${id}`;
+		this._wesowvedCewwDecowations.set(decowationId, options);
+		this._cewwDecowationsChanged.fiwe({ added: [options], wemoved: [] });
+		wetuwn decowationId;
 	}
 
-	getCellDecorations() {
-		return [...this._resolvedCellDecorations.values()];
+	getCewwDecowations() {
+		wetuwn [...this._wesowvedCewwDecowations.vawues()];
 	}
 
-	getCellDecorationRange(decorationId: string): Range | null {
-		if (this._textEditor) {
-			// (this._textEditor as CodeEditorWidget).decora
-			return this._textEditor.getModel()?.getDecorationRange(decorationId) ?? null;
+	getCewwDecowationWange(decowationId: stwing): Wange | nuww {
+		if (this._textEditow) {
+			// (this._textEditow as CodeEditowWidget).decowa
+			wetuwn this._textEditow.getModew()?.getDecowationWange(decowationId) ?? nuww;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookCellDecorationOptions[]): string[] {
-		oldDecorations.forEach(id => {
-			this._removeCellDecoration(id);
+	dewtaCewwDecowations(owdDecowations: stwing[], newDecowations: INotebookCewwDecowationOptions[]): stwing[] {
+		owdDecowations.fowEach(id => {
+			this._wemoveCewwDecowation(id);
 		});
 
-		const ret = newDecorations.map(option => {
-			return this._addCellDecoration(option);
+		const wet = newDecowations.map(option => {
+			wetuwn this._addCewwDecowation(option);
 		});
 
-		return ret;
+		wetuwn wet;
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
-		oldItems.forEach(id => {
-			const item = this._cellStatusBarItems.get(id);
+	dewtaCewwStatusBawItems(owdItems: stwing[], newItems: INotebookCewwStatusBawItem[]): stwing[] {
+		owdItems.fowEach(id => {
+			const item = this._cewwStatusBawItems.get(id);
 			if (item) {
-				this._cellStatusBarItems.delete(id);
+				this._cewwStatusBawItems.dewete(id);
 			}
 		});
 
 		const newIds = newItems.map(item => {
-			const id = ++this._lastStatusBarId;
-			const itemId = `_cell_${this.id};${id}`;
-			this._cellStatusBarItems.set(itemId, item);
-			return itemId;
+			const id = ++this._wastStatusBawId;
+			const itemId = `_ceww_${this.id};${id}`;
+			this._cewwStatusBawItems.set(itemId, item);
+			wetuwn itemId;
 		});
 
-		this._onDidChangeCellStatusBarItems.fire();
+		this._onDidChangeCewwStatusBawItems.fiwe();
 
-		return newIds;
+		wetuwn newIds;
 	}
 
-	getCellStatusBarItems(): INotebookCellStatusBarItem[] {
-		return Array.from(this._cellStatusBarItems.values());
+	getCewwStatusBawItems(): INotebookCewwStatusBawItem[] {
+		wetuwn Awway.fwom(this._cewwStatusBawItems.vawues());
 	}
 
-	revealRangeInCenter(range: Range) {
-		this._textEditor?.revealRangeInCenter(range, editorCommon.ScrollType.Immediate);
+	weveawWangeInCenta(wange: Wange) {
+		this._textEditow?.weveawWangeInCenta(wange, editowCommon.ScwowwType.Immediate);
 	}
 
-	setSelection(range: Range) {
-		this._textEditor?.setSelection(range);
+	setSewection(wange: Wange) {
+		this._textEditow?.setSewection(wange);
 	}
 
-	setSelections(selections: Selection[]) {
-		if (selections.length) {
-			this._textEditor?.setSelections(selections);
+	setSewections(sewections: Sewection[]) {
+		if (sewections.wength) {
+			this._textEditow?.setSewections(sewections);
 		}
 	}
 
-	getSelections() {
-		return this._textEditor?.getSelections() || [];
+	getSewections() {
+		wetuwn this._textEditow?.getSewections() || [];
 	}
 
-	getSelectionsStartPosition(): IPosition[] | undefined {
-		if (this._textEditor) {
-			const selections = this._textEditor.getSelections();
-			return selections?.map(s => s.getStartPosition());
-		} else {
-			const selections = this._editorViewStates?.cursorState;
-			return selections?.map(s => s.selectionStart);
+	getSewectionsStawtPosition(): IPosition[] | undefined {
+		if (this._textEditow) {
+			const sewections = this._textEditow.getSewections();
+			wetuwn sewections?.map(s => s.getStawtPosition());
+		} ewse {
+			const sewections = this._editowViewStates?.cuwsowState;
+			wetuwn sewections?.map(s => s.sewectionStawt);
 		}
 	}
 
-	getLineScrollTopOffset(line: number): number {
-		if (!this._textEditor) {
-			return 0;
+	getWineScwowwTopOffset(wine: numba): numba {
+		if (!this._textEditow) {
+			wetuwn 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
-		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
+		const editowPadding = this._viewContext.notebookOptions.computeEditowPadding(this.intewnawMetadata);
+		wetuwn this._textEditow.getTopFowWineNumba(wine) + editowPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
-		if (!this._textEditor) {
-			return 0;
+	getPositionScwowwTopOffset(wine: numba, cowumn: numba): numba {
+		if (!this._textEditow) {
+			wetuwn 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		const editowPadding = this._viewContext.notebookOptions.computeEditowPadding(this.intewnawMetadata);
+		wetuwn this._textEditow.getTopFowPosition(wine, cowumn) + editowPadding.top;
 	}
 
-	cursorAtBoundary(): CursorAtBoundary {
-		if (!this._textEditor) {
-			return CursorAtBoundary.None;
+	cuwsowAtBoundawy(): CuwsowAtBoundawy {
+		if (!this._textEditow) {
+			wetuwn CuwsowAtBoundawy.None;
 		}
 
-		if (!this.textModel) {
-			return CursorAtBoundary.None;
+		if (!this.textModew) {
+			wetuwn CuwsowAtBoundawy.None;
 		}
 
-		// only validate primary cursor
-		const selection = this._textEditor.getSelection();
+		// onwy vawidate pwimawy cuwsow
+		const sewection = this._textEditow.getSewection();
 
-		// only validate empty cursor
-		if (!selection || !selection.isEmpty()) {
-			return CursorAtBoundary.None;
+		// onwy vawidate empty cuwsow
+		if (!sewection || !sewection.isEmpty()) {
+			wetuwn CuwsowAtBoundawy.None;
 		}
 
-		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
-		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
+		const fiwstViewWineTop = this._textEditow.getTopFowPosition(1, 1);
+		const wastViewWineTop = this._textEditow.getTopFowPosition(this.textModew!.getWineCount(), this.textModew!.getWineWength(this.textModew!.getWineCount()));
+		const sewectionTop = this._textEditow.getTopFowPosition(sewection.stawtWineNumba, sewection.stawtCowumn);
 
-		if (selectionTop === lastViewLineTop) {
-			if (selectionTop === firstViewLineTop) {
-				return CursorAtBoundary.Both;
-			} else {
-				return CursorAtBoundary.Bottom;
+		if (sewectionTop === wastViewWineTop) {
+			if (sewectionTop === fiwstViewWineTop) {
+				wetuwn CuwsowAtBoundawy.Both;
+			} ewse {
+				wetuwn CuwsowAtBoundawy.Bottom;
 			}
-		} else {
-			if (selectionTop === firstViewLineTop) {
-				return CursorAtBoundary.Top;
-			} else {
-				return CursorAtBoundary.None;
+		} ewse {
+			if (sewectionTop === fiwstViewWineTop) {
+				wetuwn CuwsowAtBoundawy.Top;
+			} ewse {
+				wetuwn CuwsowAtBoundawy.None;
 			}
 		}
 	}
 
-	private _editStateSource: string = '';
+	pwivate _editStateSouwce: stwing = '';
 
-	get editStateSource(): string {
-		return this._editStateSource;
+	get editStateSouwce(): stwing {
+		wetuwn this._editStateSouwce;
 	}
 
-	updateEditState(newState: CellEditState, source: string) {
-		this._editStateSource = source;
+	updateEditState(newState: CewwEditState, souwce: stwing) {
+		this._editStateSouwce = souwce;
 		if (newState === this._editState) {
-			return;
+			wetuwn;
 		}
 
 		this._editState = newState;
-		this._onDidChangeState.fire({ editStateChanged: true });
-		if (this._editState === CellEditState.Preview) {
-			this.focusMode = CellFocusMode.Container;
+		this._onDidChangeState.fiwe({ editStateChanged: twue });
+		if (this._editState === CewwEditState.Pweview) {
+			this.focusMode = CewwFocusMode.Containa;
 		}
 	}
 
 	getEditState() {
-		return this._editState;
+		wetuwn this._editState;
 	}
 
-	get textBuffer() {
-		return this.model.textBuffer;
+	get textBuffa() {
+		wetuwn this.modew.textBuffa;
 	}
 
 	/**
-	 * Text model is used for editing.
+	 * Text modew is used fow editing.
 	 */
-	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._textModelRef || !this.textModel) {
-			this._textModelRef = await this._modelService.createModelReference(this.uri);
-			if (!this._textModelRef) {
-				throw new Error(`Cannot resolve text model for ${this.uri}`);
+	async wesowveTextModew(): Pwomise<modew.ITextModew> {
+		if (!this._textModewWef || !this.textModew) {
+			this._textModewWef = await this._modewSewvice.cweateModewWefewence(this.uwi);
+			if (!this._textModewWef) {
+				thwow new Ewwow(`Cannot wesowve text modew fow ${this.uwi}`);
 			}
 
-			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+			this._wegista(this.textModew!.onDidChangeContent(() => this.onDidChangeTextModewContent()));
 		}
 
-		return this.textModel!;
+		wetuwn this.textModew!;
 	}
 
-	protected abstract onDidChangeTextModelContent(): void;
+	pwotected abstwact onDidChangeTextModewContent(): void;
 
-	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
-		let cellMatches: model.FindMatch[] = [];
+	pwotected cewwStawtFind(vawue: stwing, options: INotebookSeawchOptions): modew.FindMatch[] | nuww {
+		wet cewwMatches: modew.FindMatch[] = [];
 
-		if (this.assertTextModelAttached()) {
-			cellMatches = this.textModel!.findMatches(
-				value,
-				false,
-				options.regex || false,
-				options.caseSensitive || false,
-				options.wholeWord ? options.wordSeparators || null : null,
-				false);
-		} else {
-			const lineCount = this.textBuffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
-			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
-			const searchData = searchParams.parseSearchRequest();
+		if (this.assewtTextModewAttached()) {
+			cewwMatches = this.textModew!.findMatches(
+				vawue,
+				fawse,
+				options.wegex || fawse,
+				options.caseSensitive || fawse,
+				options.whoweWowd ? options.wowdSepawatows || nuww : nuww,
+				fawse);
+		} ewse {
+			const wineCount = this.textBuffa.getWineCount();
+			const fuwwWange = new Wange(1, 1, wineCount, this.textBuffa.getWineWength(wineCount) + 1);
+			const seawchPawams = new SeawchPawams(vawue, options.wegex || fawse, options.caseSensitive || fawse, options.whoweWowd ? options.wowdSepawatows || nuww : nuww,);
+			const seawchData = seawchPawams.pawseSeawchWequest();
 
-			if (!searchData) {
-				return null;
+			if (!seawchData) {
+				wetuwn nuww;
 			}
 
-			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
+			cewwMatches = this.textBuffa.findMatchesWineByWine(fuwwWange, seawchData, fawse, 1000);
 		}
 
-		return cellMatches;
+		wetuwn cewwMatches;
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		this._editorListeners.forEach(e => e.dispose());
-		this._undoRedoService.removeElements(this.uri);
+		this._editowWistenews.fowEach(e => e.dispose());
+		this._undoWedoSewvice.wemoveEwements(this.uwi);
 
-		if (this._textModelRef) {
-			this._textModelRef.dispose();
+		if (this._textModewWef) {
+			this._textModewWef.dispose();
 		}
 	}
 
 	toJSON(): object {
-		return {
-			handle: this.handle
+		wetuwn {
+			handwe: this.handwe
 		};
 	}
 }

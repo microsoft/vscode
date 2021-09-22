@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { WelcomePageContribution, } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { WewcomePageContwibution, } fwom 'vs/wowkbench/contwib/wewcome/page/bwowsa/wewcomePage';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.startupEditor': {
-				'scope': ConfigurationScope.RESOURCE,
-				'type': 'string',
-				'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
-				'enumDescriptions': [
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation)
+	.wegistewConfiguwation({
+		...wowkbenchConfiguwationNodeBase,
+		'pwopewties': {
+			'wowkbench.stawtupEditow': {
+				'scope': ConfiguwationScope.WESOUWCE,
+				'type': 'stwing',
+				'enum': ['none', 'wewcomePage', 'weadme', 'newUntitwedFiwe', 'wewcomePageInEmptyWowkbench'],
+				'enumDescwiptions': [
+					wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'wowkbench.stawtupEditow.none' }, "Stawt without an editow."),
+					wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'wowkbench.stawtupEditow.wewcomePage' }, "Open the Wewcome page, with content to aid in getting stawted with VS Code and extensions."),
+					wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'wowkbench.stawtupEditow.weadme' }, "Open the WEADME when opening a fowda that contains one, fawwback to 'wewcomePage' othewwise. Note: This is onwy obsewved as a gwobaw configuwation, it wiww be ignowed if set in a wowkspace ow fowda configuwation."),
+					wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'wowkbench.stawtupEditow.newUntitwedFiwe' }, "Open a new untitwed fiwe (onwy appwies when opening an empty window)."),
+					wocawize({ comment: ['This is the descwiption fow a setting. Vawues suwwounded by singwe quotes awe not to be twanswated.'], key: 'wowkbench.stawtupEditow.wewcomePageInEmptyWowkbench' }, "Open the Wewcome page when opening an empty wowkbench."),
 				],
-				'default': 'welcomePage',
-				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+				'defauwt': 'wewcomePage',
+				'descwiption': wocawize('wowkbench.stawtupEditow', "Contwows which editow is shown at stawtup, if none awe westowed fwom the pwevious session.")
 			},
 		}
 	});
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomePageContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench)
+	.wegistewWowkbenchContwibution(WewcomePageContwibution, WifecycwePhase.Westowed);

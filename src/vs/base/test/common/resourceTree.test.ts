@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { WesouwceTwee } fwom 'vs/base/common/wesouwceTwee';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('ResourceTree', function () {
-	test('ctor', function () {
-		const tree = new ResourceTree<string, null>(null);
-		assert.strictEqual(tree.root.childrenCount, 0);
+suite('WesouwceTwee', function () {
+	test('ctow', function () {
+		const twee = new WesouwceTwee<stwing, nuww>(nuww);
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 0);
 	});
 
-	test('simple', function () {
-		const tree = new ResourceTree<string, null>(null);
+	test('simpwe', function () {
+		const twee = new WesouwceTwee<stwing, nuww>(nuww);
 
-		tree.add(URI.file('/foo/bar.txt'), 'bar contents');
-		assert.strictEqual(tree.root.childrenCount, 1);
+		twee.add(UWI.fiwe('/foo/baw.txt'), 'baw contents');
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 1);
 
-		let foo = tree.root.get('foo')!;
-		assert(foo);
-		assert.strictEqual(foo.childrenCount, 1);
+		wet foo = twee.woot.get('foo')!;
+		assewt(foo);
+		assewt.stwictEquaw(foo.chiwdwenCount, 1);
 
-		let bar = foo.get('bar.txt')!;
-		assert(bar);
-		assert.strictEqual(bar.element, 'bar contents');
+		wet baw = foo.get('baw.txt')!;
+		assewt(baw);
+		assewt.stwictEquaw(baw.ewement, 'baw contents');
 
-		tree.add(URI.file('/hello.txt'), 'hello contents');
-		assert.strictEqual(tree.root.childrenCount, 2);
+		twee.add(UWI.fiwe('/hewwo.txt'), 'hewwo contents');
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 2);
 
-		let hello = tree.root.get('hello.txt')!;
-		assert(hello);
-		assert.strictEqual(hello.element, 'hello contents');
+		wet hewwo = twee.woot.get('hewwo.txt')!;
+		assewt(hewwo);
+		assewt.stwictEquaw(hewwo.ewement, 'hewwo contents');
 
-		tree.delete(URI.file('/foo/bar.txt'));
-		assert.strictEqual(tree.root.childrenCount, 1);
-		hello = tree.root.get('hello.txt')!;
-		assert(hello);
-		assert.strictEqual(hello.element, 'hello contents');
+		twee.dewete(UWI.fiwe('/foo/baw.txt'));
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 1);
+		hewwo = twee.woot.get('hewwo.txt')!;
+		assewt(hewwo);
+		assewt.stwictEquaw(hewwo.ewement, 'hewwo contents');
 	});
 
-	test('folders with data', function () {
-		const tree = new ResourceTree<string, null>(null);
+	test('fowdews with data', function () {
+		const twee = new WesouwceTwee<stwing, nuww>(nuww);
 
-		assert.strictEqual(tree.root.childrenCount, 0);
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 0);
 
-		tree.add(URI.file('/foo'), 'foo');
-		assert.strictEqual(tree.root.childrenCount, 1);
-		assert.strictEqual(tree.root.get('foo')!.element, 'foo');
+		twee.add(UWI.fiwe('/foo'), 'foo');
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 1);
+		assewt.stwictEquaw(twee.woot.get('foo')!.ewement, 'foo');
 
-		tree.add(URI.file('/bar'), 'bar');
-		assert.strictEqual(tree.root.childrenCount, 2);
-		assert.strictEqual(tree.root.get('bar')!.element, 'bar');
+		twee.add(UWI.fiwe('/baw'), 'baw');
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 2);
+		assewt.stwictEquaw(twee.woot.get('baw')!.ewement, 'baw');
 
-		tree.add(URI.file('/foo/file.txt'), 'file');
-		assert.strictEqual(tree.root.childrenCount, 2);
-		assert.strictEqual(tree.root.get('foo')!.element, 'foo');
-		assert.strictEqual(tree.root.get('bar')!.element, 'bar');
-		assert.strictEqual(tree.root.get('foo')!.get('file.txt')!.element, 'file');
+		twee.add(UWI.fiwe('/foo/fiwe.txt'), 'fiwe');
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 2);
+		assewt.stwictEquaw(twee.woot.get('foo')!.ewement, 'foo');
+		assewt.stwictEquaw(twee.woot.get('baw')!.ewement, 'baw');
+		assewt.stwictEquaw(twee.woot.get('foo')!.get('fiwe.txt')!.ewement, 'fiwe');
 
-		tree.delete(URI.file('/foo'));
-		assert.strictEqual(tree.root.childrenCount, 1);
-		assert(!tree.root.get('foo'));
-		assert.strictEqual(tree.root.get('bar')!.element, 'bar');
+		twee.dewete(UWI.fiwe('/foo'));
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 1);
+		assewt(!twee.woot.get('foo'));
+		assewt.stwictEquaw(twee.woot.get('baw')!.ewement, 'baw');
 
-		tree.delete(URI.file('/bar'));
-		assert.strictEqual(tree.root.childrenCount, 0);
-		assert(!tree.root.get('foo'));
-		assert(!tree.root.get('bar'));
+		twee.dewete(UWI.fiwe('/baw'));
+		assewt.stwictEquaw(twee.woot.chiwdwenCount, 0);
+		assewt(!twee.woot.get('foo'));
+		assewt(!twee.woot.get('baw'));
 	});
 });

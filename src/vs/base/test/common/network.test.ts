@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('network', () => {
+suite('netwowk', () => {
 
-	(isWeb ? test.skip : test)('FileAccess: URI (native)', () => {
+	(isWeb ? test.skip : test)('FiweAccess: UWI (native)', () => {
 
-		// asCodeUri() & asFileUri(): simple, without authority
-		let originalFileUri = URI.file('network.test.ts');
-		let browserUri = FileAccess.asBrowserUri(originalFileUri);
-		assert.ok(browserUri.authority.length > 0);
-		let fileUri = FileAccess.asFileUri(browserUri);
-		assert.strictEqual(fileUri.authority.length, 0);
-		assert(isEqual(originalFileUri, fileUri));
+		// asCodeUwi() & asFiweUwi(): simpwe, without authowity
+		wet owiginawFiweUwi = UWI.fiwe('netwowk.test.ts');
+		wet bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawFiweUwi);
+		assewt.ok(bwowsewUwi.authowity.wength > 0);
+		wet fiweUwi = FiweAccess.asFiweUwi(bwowsewUwi);
+		assewt.stwictEquaw(fiweUwi.authowity.wength, 0);
+		assewt(isEquaw(owiginawFiweUwi, fiweUwi));
 
-		// asCodeUri() & asFileUri(): with authority
-		originalFileUri = URI.file('network.test.ts').with({ authority: 'test-authority' });
-		browserUri = FileAccess.asBrowserUri(originalFileUri);
-		assert.strictEqual(browserUri.authority, originalFileUri.authority);
-		fileUri = FileAccess.asFileUri(browserUri);
-		assert(isEqual(originalFileUri, fileUri));
+		// asCodeUwi() & asFiweUwi(): with authowity
+		owiginawFiweUwi = UWI.fiwe('netwowk.test.ts').with({ authowity: 'test-authowity' });
+		bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawFiweUwi);
+		assewt.stwictEquaw(bwowsewUwi.authowity, owiginawFiweUwi.authowity);
+		fiweUwi = FiweAccess.asFiweUwi(bwowsewUwi);
+		assewt(isEquaw(owiginawFiweUwi, fiweUwi));
 	});
 
-	(isWeb ? test.skip : test)('FileAccess: moduleId (native)', () => {
-		const browserUri = FileAccess.asBrowserUri('vs/base/test/node/network.test', require);
-		assert.strictEqual(browserUri.scheme, Schemas.vscodeFileResource);
+	(isWeb ? test.skip : test)('FiweAccess: moduweId (native)', () => {
+		const bwowsewUwi = FiweAccess.asBwowsewUwi('vs/base/test/node/netwowk.test', wequiwe);
+		assewt.stwictEquaw(bwowsewUwi.scheme, Schemas.vscodeFiweWesouwce);
 
-		const fileUri = FileAccess.asFileUri('vs/base/test/node/network.test', require);
-		assert.strictEqual(fileUri.scheme, Schemas.file);
+		const fiweUwi = FiweAccess.asFiweUwi('vs/base/test/node/netwowk.test', wequiwe);
+		assewt.stwictEquaw(fiweUwi.scheme, Schemas.fiwe);
 	});
 
-	(isWeb ? test.skip : test)('FileAccess: query and fragment is dropped (native)', () => {
-		let originalFileUri = URI.file('network.test.ts').with({ query: 'foo=bar', fragment: 'something' });
-		let browserUri = FileAccess.asBrowserUri(originalFileUri);
-		assert.strictEqual(browserUri.query, '');
-		assert.strictEqual(browserUri.fragment, '');
+	(isWeb ? test.skip : test)('FiweAccess: quewy and fwagment is dwopped (native)', () => {
+		wet owiginawFiweUwi = UWI.fiwe('netwowk.test.ts').with({ quewy: 'foo=baw', fwagment: 'something' });
+		wet bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawFiweUwi);
+		assewt.stwictEquaw(bwowsewUwi.quewy, '');
+		assewt.stwictEquaw(bwowsewUwi.fwagment, '');
 	});
 
-	(isWeb ? test.skip : test)('FileAccess: query and fragment is kept if URI is already of same scheme (native)', () => {
-		let originalFileUri = URI.file('network.test.ts').with({ query: 'foo=bar', fragment: 'something' });
-		let browserUri = FileAccess.asBrowserUri(originalFileUri.with({ scheme: Schemas.vscodeFileResource }));
-		assert.strictEqual(browserUri.query, 'foo=bar');
-		assert.strictEqual(browserUri.fragment, 'something');
+	(isWeb ? test.skip : test)('FiweAccess: quewy and fwagment is kept if UWI is awweady of same scheme (native)', () => {
+		wet owiginawFiweUwi = UWI.fiwe('netwowk.test.ts').with({ quewy: 'foo=baw', fwagment: 'something' });
+		wet bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawFiweUwi.with({ scheme: Schemas.vscodeFiweWesouwce }));
+		assewt.stwictEquaw(bwowsewUwi.quewy, 'foo=baw');
+		assewt.stwictEquaw(bwowsewUwi.fwagment, 'something');
 
-		let fileUri = FileAccess.asFileUri(originalFileUri);
-		assert.strictEqual(fileUri.query, 'foo=bar');
-		assert.strictEqual(fileUri.fragment, 'something');
+		wet fiweUwi = FiweAccess.asFiweUwi(owiginawFiweUwi);
+		assewt.stwictEquaw(fiweUwi.quewy, 'foo=baw');
+		assewt.stwictEquaw(fiweUwi.fwagment, 'something');
 	});
 
-	(isWeb ? test.skip : test)('FileAccess: web', () => {
-		const originalHttpsUri = URI.file('network.test.ts').with({ scheme: 'https' });
-		const browserUri = FileAccess.asBrowserUri(originalHttpsUri);
-		assert.strictEqual(originalHttpsUri.toString(), browserUri.toString());
+	(isWeb ? test.skip : test)('FiweAccess: web', () => {
+		const owiginawHttpsUwi = UWI.fiwe('netwowk.test.ts').with({ scheme: 'https' });
+		const bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawHttpsUwi);
+		assewt.stwictEquaw(owiginawHttpsUwi.toStwing(), bwowsewUwi.toStwing());
 	});
 
-	test('FileAccess: remote URIs', () => {
-		const originalRemoteUri = URI.file('network.test.ts').with({ scheme: Schemas.vscodeRemote });
-		const browserUri = FileAccess.asBrowserUri(originalRemoteUri);
-		assert.notStrictEqual(originalRemoteUri.scheme, browserUri.scheme);
+	test('FiweAccess: wemote UWIs', () => {
+		const owiginawWemoteUwi = UWI.fiwe('netwowk.test.ts').with({ scheme: Schemas.vscodeWemote });
+		const bwowsewUwi = FiweAccess.asBwowsewUwi(owiginawWemoteUwi);
+		assewt.notStwictEquaw(owiginawWemoteUwi.scheme, bwowsewUwi.scheme);
 	});
 });

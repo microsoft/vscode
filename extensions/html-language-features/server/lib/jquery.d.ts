@@ -1,1120 +1,1120 @@
-// Type definitions for jQuery 1.10.x / 2.0.x
-// Project: http://jquery.com/
-// Definitions by: Boris Yankov <https://github.com/borisyankov/>, Christian Hoffmeister <https://github.com/choffmeister>, Steve Fenton <https://github.com/Steve-Fenton>, Diullei Gomes <https://github.com/Diullei>, Tass Iliopoulos <https://github.com/tasoili>, Jason Swearingen <https://github.com/jasons-novaleaf>, Sean Hill <https://github.com/seanski>, Guus Goossens <https://github.com/Guuz>, Kelly Summerlin <https://github.com/ksummerlin>, Basarat Ali Syed <https://github.com/basarat>, Nicholas Wolverson <https://github.com/nwolverson>, Derek Cicerone <https://github.com/derekcicerone>, Andrew Gaspar <https://github.com/AndrewGaspar>, James Harrison Fisher <https://github.com/jameshfisher>, Seikichi Kondo <https://github.com/seikichi>, Benjamin Jackman <https://github.com/benjaminjackman>, Poul Sorensen <https://github.com/s093294>, Josh Strobl <https://github.com/JoshStrobl>, John Reilly <https://github.com/johnnyreilly/>, Dick van den Brink <https://github.com/DickvdBrink>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+// Type definitions fow jQuewy 1.10.x / 2.0.x
+// Pwoject: http://jquewy.com/
+// Definitions by: Bowis Yankov <https://github.com/bowisyankov/>, Chwistian Hoffmeista <https://github.com/choffmeista>, Steve Fenton <https://github.com/Steve-Fenton>, Diuwwei Gomes <https://github.com/Diuwwei>, Tass Iwiopouwos <https://github.com/tasoiwi>, Jason Sweawingen <https://github.com/jasons-novaweaf>, Sean Hiww <https://github.com/seanski>, Guus Goossens <https://github.com/Guuz>, Kewwy Summewwin <https://github.com/ksummewwin>, Basawat Awi Syed <https://github.com/basawat>, Nichowas Wowvewson <https://github.com/nwowvewson>, Dewek Cicewone <https://github.com/dewekcicewone>, Andwew Gaspaw <https://github.com/AndwewGaspaw>, James Hawwison Fisha <https://github.com/jameshfisha>, Seikichi Kondo <https://github.com/seikichi>, Benjamin Jackman <https://github.com/benjaminjackman>, Pouw Sowensen <https://github.com/s093294>, Josh Stwobw <https://github.com/JoshStwobw>, John Weiwwy <https://github.com/johnnyweiwwy/>, Dick van den Bwink <https://github.com/DickvdBwink>
+// Definitions: https://github.com/DefinitewyTyped/DefinitewyTyped
 
 /* *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
+Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+Wicensed unda the Apache Wicense, Vewsion 2.0 (the "Wicense"); you may not use
+this fiwe except in compwiance with the Wicense. You may obtain a copy of the
+Wicense at http://www.apache.owg/wicenses/WICENSE-2.0
 
-THIS CODE IS PROVIDED *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
+THIS CODE IS PWOVIDED *AS IS* BASIS, WITHOUT WAWWANTIES OW CONDITIONS OF ANY
+KIND, EITHa EXPWESS OW IMPWIED, INCWUDING WITHOUT WIMITATION ANY IMPWIED
+WAWWANTIES OW CONDITIONS OF TITWE, FITNESS FOW A PAWTICUWAW PUWPOSE,
+MEWCHANTABWITY OW NON-INFWINGEMENT.
 
-See the Apache Version 2.0 License for specific language governing permissions
-and limitations under the License.
+See the Apache Vewsion 2.0 Wicense fow specific wanguage govewning pewmissions
+and wimitations unda the Wicense.
 ***************************************************************************** */
 
 
 /**
- * Interface for the AJAX setting that will configure the AJAX request
+ * Intewface fow the AJAX setting that wiww configuwe the AJAX wequest
  */
-interface JQueryAjaxSettings {
+intewface JQuewyAjaxSettings {
     /**
-     * The content type sent in the request header that tells the server what kind of response it will accept in return. If the accepts setting needs modification, it is recommended to do so once in the $.ajaxSetup() method.
+     * The content type sent in the wequest heada that tewws the sewva what kind of wesponse it wiww accept in wetuwn. If the accepts setting needs modification, it is wecommended to do so once in the $.ajaxSetup() method.
      */
     accepts?: any;
     /**
-     * By default, all requests are sent asynchronously (i.e. this is set to true by default). If you need synchronous requests, set this option to false. Cross-domain requests and dataType: "jsonp" requests do not support synchronous operation. Note that synchronous requests may temporarily lock the browser, disabling any actions while the request is active. As of jQuery 1.8, the use of async: false with jqXHR ($.Deferred) is deprecated; you must use the success/error/complete callback options instead of the corresponding methods of the jqXHR object such as jqXHR.done() or the deprecated jqXHR.success().
+     * By defauwt, aww wequests awe sent asynchwonouswy (i.e. this is set to twue by defauwt). If you need synchwonous wequests, set this option to fawse. Cwoss-domain wequests and dataType: "jsonp" wequests do not suppowt synchwonous opewation. Note that synchwonous wequests may tempowawiwy wock the bwowsa, disabwing any actions whiwe the wequest is active. As of jQuewy 1.8, the use of async: fawse with jqXHW ($.Defewwed) is depwecated; you must use the success/ewwow/compwete cawwback options instead of the cowwesponding methods of the jqXHW object such as jqXHW.done() ow the depwecated jqXHW.success().
      */
-    async?: boolean;
+    async?: boowean;
     /**
-     * A pre-request callback function that can be used to modify the jqXHR (in jQuery 1.4.x, XMLHTTPRequest) object before it is sent. Use this to set custom headers, etc. The jqXHR and settings objects are passed as arguments. This is an Ajax Event. Returning false in the beforeSend function will cancel the request. As of jQuery 1.5, the beforeSend option will be called regardless of the type of request.
+     * A pwe-wequest cawwback function that can be used to modify the jqXHW (in jQuewy 1.4.x, XMWHTTPWequest) object befowe it is sent. Use this to set custom headews, etc. The jqXHW and settings objects awe passed as awguments. This is an Ajax Event. Wetuwning fawse in the befoweSend function wiww cancew the wequest. As of jQuewy 1.5, the befoweSend option wiww be cawwed wegawdwess of the type of wequest.
      */
-    beforeSend?(jqXHR: JQueryXHR, settings: JQueryAjaxSettings): any;
+    befoweSend?(jqXHW: JQuewyXHW, settings: JQuewyAjaxSettings): any;
     /**
-     * If set to false, it will force requested pages not to be cached by the browser. Note: Setting cache to false will only work correctly with HEAD and GET requests. It works by appending "_={timestamp}" to the GET parameters. The parameter is not needed for other types of requests, except in IE8 when a POST is made to a URL that has already been requested by a GET.
+     * If set to fawse, it wiww fowce wequested pages not to be cached by the bwowsa. Note: Setting cache to fawse wiww onwy wowk cowwectwy with HEAD and GET wequests. It wowks by appending "_={timestamp}" to the GET pawametews. The pawameta is not needed fow otha types of wequests, except in IE8 when a POST is made to a UWW that has awweady been wequested by a GET.
      */
-    cache?: boolean;
+    cache?: boowean;
     /**
-     * A function to be called when the request finishes (after success and error callbacks are executed). The function gets passed two arguments: The jqXHR (in jQuery 1.4.x, XMLHTTPRequest) object and a string categorizing the status of the request ("success", "notmodified", "error", "timeout", "abort", or "parsererror"). As of jQuery 1.5, the complete setting can accept an array of functions. Each function will be called in turn. This is an Ajax Event.
+     * A function to be cawwed when the wequest finishes (afta success and ewwow cawwbacks awe executed). The function gets passed two awguments: The jqXHW (in jQuewy 1.4.x, XMWHTTPWequest) object and a stwing categowizing the status of the wequest ("success", "notmodified", "ewwow", "timeout", "abowt", ow "pawsewewwow"). As of jQuewy 1.5, the compwete setting can accept an awway of functions. Each function wiww be cawwed in tuwn. This is an Ajax Event.
      */
-    complete?(jqXHR: JQueryXHR, textStatus: string): any;
+    compwete?(jqXHW: JQuewyXHW, textStatus: stwing): any;
     /**
-     * An object of string/regular-expression pairs that determine how jQuery will parse the response, given its content type. (version added: 1.5)
+     * An object of stwing/weguwaw-expwession paiws that detewmine how jQuewy wiww pawse the wesponse, given its content type. (vewsion added: 1.5)
      */
-    contents?: { [key: string]: any; };
-    //According to jQuery.ajax source code, ajax's option actually allows contentType to set to "false"
-    // https://github.com/DefinitelyTyped/DefinitelyTyped/issues/742
+    contents?: { [key: stwing]: any; };
+    //Accowding to jQuewy.ajax souwce code, ajax's option actuawwy awwows contentType to set to "fawse"
+    // https://github.com/DefinitewyTyped/DefinitewyTyped/issues/742
     /**
-     * When sending data to the server, use this content type. Default is "application/x-www-form-urlencoded; charset=UTF-8", which is fine for most cases. If you explicitly pass in a content-type to $.ajax(), then it is always sent to the server (even if no data is sent). The W3C XMLHttpRequest specification dictates that the charset is always UTF-8; specifying another charset will not force the browser to change the encoding.
+     * When sending data to the sewva, use this content type. Defauwt is "appwication/x-www-fowm-uwwencoded; chawset=UTF-8", which is fine fow most cases. If you expwicitwy pass in a content-type to $.ajax(), then it is awways sent to the sewva (even if no data is sent). The W3C XMWHttpWequest specification dictates that the chawset is awways UTF-8; specifying anotha chawset wiww not fowce the bwowsa to change the encoding.
      */
     contentType?: any;
     /**
-     * This object will be made the context of all Ajax-related callbacks. By default, the context is an object that represents the ajax settings used in the call ($.ajaxSettings merged with the settings passed to $.ajax).
+     * This object wiww be made the context of aww Ajax-wewated cawwbacks. By defauwt, the context is an object that wepwesents the ajax settings used in the caww ($.ajaxSettings mewged with the settings passed to $.ajax).
      */
     context?: any;
     /**
-     * An object containing dataType-to-dataType converters. Each converter's value is a function that returns the transformed value of the response. (version added: 1.5)
+     * An object containing dataType-to-dataType convewtews. Each convewta's vawue is a function that wetuwns the twansfowmed vawue of the wesponse. (vewsion added: 1.5)
      */
-    converters?: { [key: string]: any; };
+    convewtews?: { [key: stwing]: any; };
     /**
-     * If you wish to force a crossDomain request (such as JSONP) on the same domain, set the value of crossDomain to true. This allows, for example, server-side redirection to another domain. (version added: 1.5)
+     * If you wish to fowce a cwossDomain wequest (such as JSONP) on the same domain, set the vawue of cwossDomain to twue. This awwows, fow exampwe, sewva-side wediwection to anotha domain. (vewsion added: 1.5)
      */
-    crossDomain?: boolean;
+    cwossDomain?: boowean;
     /**
-     * Data to be sent to the server. It is converted to a query string, if not already a string. It's appended to the url for GET-requests. See processData option to prevent this automatic processing. Object must be Key/Value pairs. If value is an Array, jQuery serializes multiple values with same key based on the value of the traditional setting (described below).
+     * Data to be sent to the sewva. It is convewted to a quewy stwing, if not awweady a stwing. It's appended to the uww fow GET-wequests. See pwocessData option to pwevent this automatic pwocessing. Object must be Key/Vawue paiws. If vawue is an Awway, jQuewy sewiawizes muwtipwe vawues with same key based on the vawue of the twaditionaw setting (descwibed bewow).
      */
     data?: any;
     /**
-     * A function to be used to handle the raw response data of XMLHttpRequest.This is a pre-filtering function to sanitize the response. You should return the sanitized data. The function accepts two arguments: The raw data returned from the server and the 'dataType' parameter.
+     * A function to be used to handwe the waw wesponse data of XMWHttpWequest.This is a pwe-fiwtewing function to sanitize the wesponse. You shouwd wetuwn the sanitized data. The function accepts two awguments: The waw data wetuwned fwom the sewva and the 'dataType' pawameta.
      */
-    dataFilter?(data: any, ty: any): any;
+    dataFiwta?(data: any, ty: any): any;
     /**
-     * The type of data that you're expecting back from the server. If none is specified, jQuery will try to infer it based on the MIME type of the response (an XML MIME type will yield XML, in 1.4 JSON will yield a JavaScript object, in 1.4 script will execute the script, and anything else will be returned as a string).
+     * The type of data that you'we expecting back fwom the sewva. If none is specified, jQuewy wiww twy to infa it based on the MIME type of the wesponse (an XMW MIME type wiww yiewd XMW, in 1.4 JSON wiww yiewd a JavaScwipt object, in 1.4 scwipt wiww execute the scwipt, and anything ewse wiww be wetuwned as a stwing).
      */
-    dataType?: string;
+    dataType?: stwing;
     /**
-     * A function to be called if the request fails. The function receives three arguments: The jqXHR (in jQuery 1.4.x, XMLHttpRequest) object, a string describing the type of error that occurred and an optional exception object, if one occurred. Possible values for the second argument (besides null) are "timeout", "error", "abort", and "parsererror". When an HTTP error occurs, errorThrown receives the textual portion of the HTTP status, such as "Not Found" or "Internal Server Error." As of jQuery 1.5, the error setting can accept an array of functions. Each function will be called in turn. Note: This handler is not called for cross-domain script and cross-domain JSONP requests. This is an Ajax Event.
+     * A function to be cawwed if the wequest faiws. The function weceives thwee awguments: The jqXHW (in jQuewy 1.4.x, XMWHttpWequest) object, a stwing descwibing the type of ewwow that occuwwed and an optionaw exception object, if one occuwwed. Possibwe vawues fow the second awgument (besides nuww) awe "timeout", "ewwow", "abowt", and "pawsewewwow". When an HTTP ewwow occuws, ewwowThwown weceives the textuaw powtion of the HTTP status, such as "Not Found" ow "Intewnaw Sewva Ewwow." As of jQuewy 1.5, the ewwow setting can accept an awway of functions. Each function wiww be cawwed in tuwn. Note: This handwa is not cawwed fow cwoss-domain scwipt and cwoss-domain JSONP wequests. This is an Ajax Event.
      */
-    error?(jqXHR: JQueryXHR, textStatus: string, errorThrown: string): any;
+    ewwow?(jqXHW: JQuewyXHW, textStatus: stwing, ewwowThwown: stwing): any;
     /**
-     * Whether to trigger global Ajax event handlers for this request. The default is true. Set to false to prevent the global handlers like ajaxStart or ajaxStop from being triggered. This can be used to control various Ajax Events.
+     * Whetha to twigga gwobaw Ajax event handwews fow this wequest. The defauwt is twue. Set to fawse to pwevent the gwobaw handwews wike ajaxStawt ow ajaxStop fwom being twiggewed. This can be used to contwow vawious Ajax Events.
      */
-    global?: boolean;
+    gwobaw?: boowean;
     /**
-     * An object of additional header key/value pairs to send along with requests using the XMLHttpRequest transport. The header X-Requested-With: XMLHttpRequest is always added, but its default XMLHttpRequest value can be changed here. Values in the headers setting can also be overwritten from within the beforeSend function. (version added: 1.5)
+     * An object of additionaw heada key/vawue paiws to send awong with wequests using the XMWHttpWequest twanspowt. The heada X-Wequested-With: XMWHttpWequest is awways added, but its defauwt XMWHttpWequest vawue can be changed hewe. Vawues in the headews setting can awso be ovewwwitten fwom within the befoweSend function. (vewsion added: 1.5)
      */
-    headers?: { [key: string]: any; };
+    headews?: { [key: stwing]: any; };
     /**
-     * Allow the request to be successful only if the response has changed since the last request. This is done by checking the Last-Modified header. Default value is false, ignoring the header. In jQuery 1.4 this technique also checks the 'etag' specified by the server to catch unmodified data.
+     * Awwow the wequest to be successfuw onwy if the wesponse has changed since the wast wequest. This is done by checking the Wast-Modified heada. Defauwt vawue is fawse, ignowing the heada. In jQuewy 1.4 this technique awso checks the 'etag' specified by the sewva to catch unmodified data.
      */
-    ifModified?: boolean;
+    ifModified?: boowean;
     /**
-     * Allow the current environment to be recognized as "local," (e.g. the filesystem), even if jQuery does not recognize it as such by default. The following protocols are currently recognized as local: file, *-extension, and widget. If the isLocal setting needs modification, it is recommended to do so once in the $.ajaxSetup() method. (version added: 1.5.1)
+     * Awwow the cuwwent enviwonment to be wecognized as "wocaw," (e.g. the fiwesystem), even if jQuewy does not wecognize it as such by defauwt. The fowwowing pwotocows awe cuwwentwy wecognized as wocaw: fiwe, *-extension, and widget. If the isWocaw setting needs modification, it is wecommended to do so once in the $.ajaxSetup() method. (vewsion added: 1.5.1)
      */
-    isLocal?: boolean;
+    isWocaw?: boowean;
     /**
-     * Override the callback function name in a jsonp request. This value will be used instead of 'callback' in the 'callback=?' part of the query string in the url. So {jsonp:'onJSONPLoad'} would result in 'onJSONPLoad=?' passed to the server. As of jQuery 1.5, setting the jsonp option to false prevents jQuery from adding the "?callback" string to the URL or attempting to use "=?" for transformation. In this case, you should also explicitly set the jsonpCallback setting. For example, { jsonp: false, jsonpCallback: "callbackName" }
+     * Ovewwide the cawwback function name in a jsonp wequest. This vawue wiww be used instead of 'cawwback' in the 'cawwback=?' pawt of the quewy stwing in the uww. So {jsonp:'onJSONPWoad'} wouwd wesuwt in 'onJSONPWoad=?' passed to the sewva. As of jQuewy 1.5, setting the jsonp option to fawse pwevents jQuewy fwom adding the "?cawwback" stwing to the UWW ow attempting to use "=?" fow twansfowmation. In this case, you shouwd awso expwicitwy set the jsonpCawwback setting. Fow exampwe, { jsonp: fawse, jsonpCawwback: "cawwbackName" }
      */
     jsonp?: any;
     /**
-     * Specify the callback function name for a JSONP request. This value will be used instead of the random name automatically generated by jQuery. It is preferable to let jQuery generate a unique name as it'll make it easier to manage the requests and provide callbacks and error handling. You may want to specify the callback when you want to enable better browser caching of GET requests. As of jQuery 1.5, you can also use a function for this setting, in which case the value of jsonpCallback is set to the return value of that function.
+     * Specify the cawwback function name fow a JSONP wequest. This vawue wiww be used instead of the wandom name automaticawwy genewated by jQuewy. It is pwefewabwe to wet jQuewy genewate a unique name as it'ww make it easia to manage the wequests and pwovide cawwbacks and ewwow handwing. You may want to specify the cawwback when you want to enabwe betta bwowsa caching of GET wequests. As of jQuewy 1.5, you can awso use a function fow this setting, in which case the vawue of jsonpCawwback is set to the wetuwn vawue of that function.
      */
-    jsonpCallback?: any;
+    jsonpCawwback?: any;
     /**
-     * The HTTP method to use for the request (e.g. "POST", "GET", "PUT"). (version added: 1.9.0)
+     * The HTTP method to use fow the wequest (e.g. "POST", "GET", "PUT"). (vewsion added: 1.9.0)
      */
-    method?: string;
+    method?: stwing;
     /**
-     * A mime type to override the XHR mime type. (version added: 1.5.1)
+     * A mime type to ovewwide the XHW mime type. (vewsion added: 1.5.1)
      */
-    mimeType?: string;
+    mimeType?: stwing;
     /**
-     * A password to be used with XMLHttpRequest in response to an HTTP access authentication request.
+     * A passwowd to be used with XMWHttpWequest in wesponse to an HTTP access authentication wequest.
      */
-    password?: string;
+    passwowd?: stwing;
     /**
-     * By default, data passed in to the data option as an object (technically, anything other than a string) will be processed and transformed into a query string, fitting to the default content-type "application/x-www-form-urlencoded". If you want to send a DOMDocument, or other non-processed data, set this option to false.
+     * By defauwt, data passed in to the data option as an object (technicawwy, anything otha than a stwing) wiww be pwocessed and twansfowmed into a quewy stwing, fitting to the defauwt content-type "appwication/x-www-fowm-uwwencoded". If you want to send a DOMDocument, ow otha non-pwocessed data, set this option to fawse.
      */
-    processData?: boolean;
+    pwocessData?: boowean;
     /**
-     * Only applies when the "script" transport is used (e.g., cross-domain requests with "jsonp" or "script" dataType and "GET" type). Sets the charset attribute on the script tag used in the request. Used when the character set on the local page is not the same as the one on the remote script.
+     * Onwy appwies when the "scwipt" twanspowt is used (e.g., cwoss-domain wequests with "jsonp" ow "scwipt" dataType and "GET" type). Sets the chawset attwibute on the scwipt tag used in the wequest. Used when the chawacta set on the wocaw page is not the same as the one on the wemote scwipt.
      */
-    scriptCharset?: string;
+    scwiptChawset?: stwing;
     /**
-     * An object of numeric HTTP codes and functions to be called when the response has the corresponding code. f the request is successful, the status code functions take the same parameters as the success callback; if it results in an error (including 3xx redirect), they take the same parameters as the error callback. (version added: 1.5)
+     * An object of numewic HTTP codes and functions to be cawwed when the wesponse has the cowwesponding code. f the wequest is successfuw, the status code functions take the same pawametews as the success cawwback; if it wesuwts in an ewwow (incwuding 3xx wediwect), they take the same pawametews as the ewwow cawwback. (vewsion added: 1.5)
      */
-    statusCode?: { [key: string]: any; };
+    statusCode?: { [key: stwing]: any; };
     /**
-     * A function to be called if the request succeeds. The function gets passed three arguments: The data returned from the server, formatted according to the dataType parameter; a string describing the status; and the jqXHR (in jQuery 1.4.x, XMLHttpRequest) object. As of jQuery 1.5, the success setting can accept an array of functions. Each function will be called in turn. This is an Ajax Event.
+     * A function to be cawwed if the wequest succeeds. The function gets passed thwee awguments: The data wetuwned fwom the sewva, fowmatted accowding to the dataType pawameta; a stwing descwibing the status; and the jqXHW (in jQuewy 1.4.x, XMWHttpWequest) object. As of jQuewy 1.5, the success setting can accept an awway of functions. Each function wiww be cawwed in tuwn. This is an Ajax Event.
      */
-    success?(data: any, textStatus: string, jqXHR: JQueryXHR): any;
+    success?(data: any, textStatus: stwing, jqXHW: JQuewyXHW): any;
     /**
-     * Set a timeout (in milliseconds) for the request. This will override any global timeout set with $.ajaxSetup(). The timeout period starts at the point the $.ajax call is made; if several other requests are in progress and the browser has no connections available, it is possible for a request to time out before it can be sent. In jQuery 1.4.x and below, the XMLHttpRequest object will be in an invalid state if the request times out; accessing any object members may throw an exception. In Firefox 3.0+ only, script and JSONP requests cannot be cancelled by a timeout; the script will run even if it arrives after the timeout period.
+     * Set a timeout (in miwwiseconds) fow the wequest. This wiww ovewwide any gwobaw timeout set with $.ajaxSetup(). The timeout pewiod stawts at the point the $.ajax caww is made; if sevewaw otha wequests awe in pwogwess and the bwowsa has no connections avaiwabwe, it is possibwe fow a wequest to time out befowe it can be sent. In jQuewy 1.4.x and bewow, the XMWHttpWequest object wiww be in an invawid state if the wequest times out; accessing any object membews may thwow an exception. In Fiwefox 3.0+ onwy, scwipt and JSONP wequests cannot be cancewwed by a timeout; the scwipt wiww wun even if it awwives afta the timeout pewiod.
      */
-    timeout?: number;
+    timeout?: numba;
     /**
-     * Set this to true if you wish to use the traditional style of param serialization.
+     * Set this to twue if you wish to use the twaditionaw stywe of pawam sewiawization.
      */
-    traditional?: boolean;
+    twaditionaw?: boowean;
     /**
-     * The type of request to make ("POST" or "GET"), default is "GET". Note: Other HTTP request methods, such as PUT and DELETE, can also be used here, but they are not supported by all browsers.
+     * The type of wequest to make ("POST" ow "GET"), defauwt is "GET". Note: Otha HTTP wequest methods, such as PUT and DEWETE, can awso be used hewe, but they awe not suppowted by aww bwowsews.
      */
-    type?: string;
+    type?: stwing;
     /**
-     * A string containing the URL to which the request is sent.
+     * A stwing containing the UWW to which the wequest is sent.
      */
-    url?: string;
+    uww?: stwing;
     /**
-     * A username to be used with XMLHttpRequest in response to an HTTP access authentication request.
+     * A usewname to be used with XMWHttpWequest in wesponse to an HTTP access authentication wequest.
      */
-    username?: string;
+    usewname?: stwing;
     /**
-     * Callback for creating the XMLHttpRequest object. Defaults to the ActiveXObject when available (IE), the XMLHttpRequest otherwise. Override to provide your own implementation for XMLHttpRequest or enhancements to the factory.
+     * Cawwback fow cweating the XMWHttpWequest object. Defauwts to the ActiveXObject when avaiwabwe (IE), the XMWHttpWequest othewwise. Ovewwide to pwovide youw own impwementation fow XMWHttpWequest ow enhancements to the factowy.
      */
-    xhr?: any;
+    xhw?: any;
     /**
-     * An object of fieldName-fieldValue pairs to set on the native XHR object. For example, you can use it to set withCredentials to true for cross-domain requests if needed. In jQuery 1.5, the withCredentials property was not propagated to the native XHR and thus CORS requests requiring it would ignore this flag. For this reason, we recommend using jQuery 1.5.1+ should you require the use of it. (version added: 1.5.1)
+     * An object of fiewdName-fiewdVawue paiws to set on the native XHW object. Fow exampwe, you can use it to set withCwedentiaws to twue fow cwoss-domain wequests if needed. In jQuewy 1.5, the withCwedentiaws pwopewty was not pwopagated to the native XHW and thus COWS wequests wequiwing it wouwd ignowe this fwag. Fow this weason, we wecommend using jQuewy 1.5.1+ shouwd you wequiwe the use of it. (vewsion added: 1.5.1)
      */
-    xhrFields?: { [key: string]: any; };
+    xhwFiewds?: { [key: stwing]: any; };
 }
 
 /**
- * Interface for the jqXHR object
+ * Intewface fow the jqXHW object
  */
-interface JQueryXHR extends XMLHttpRequest, JQueryPromise<any> {
+intewface JQuewyXHW extends XMWHttpWequest, JQuewyPwomise<any> {
     /**
-     * The .overrideMimeType() method may be used in the beforeSend() callback function, for example, to modify the response content-type header. As of jQuery 1.5.1, the jqXHR object also contains the overrideMimeType() method (it was available in jQuery 1.4.x, as well, but was temporarily removed in jQuery 1.5).
+     * The .ovewwideMimeType() method may be used in the befoweSend() cawwback function, fow exampwe, to modify the wesponse content-type heada. As of jQuewy 1.5.1, the jqXHW object awso contains the ovewwideMimeType() method (it was avaiwabwe in jQuewy 1.4.x, as weww, but was tempowawiwy wemoved in jQuewy 1.5).
      */
-    overrideMimeType(mimeType: string): any;
+    ovewwideMimeType(mimeType: stwing): any;
     /**
-     * Cancel the request.
+     * Cancew the wequest.
      *
-     * @param statusText A string passed as the textStatus parameter for the done callback. Default value: "canceled"
+     * @pawam statusText A stwing passed as the textStatus pawameta fow the done cawwback. Defauwt vawue: "cancewed"
      */
-    abort(statusText?: string): void;
+    abowt(statusText?: stwing): void;
     /**
-     * Incorporates the functionality of the .done() and .fail() methods, allowing (as of jQuery 1.8) the underlying Promise to be manipulated. Refer to deferred.then() for implementation details.
+     * Incowpowates the functionawity of the .done() and .faiw() methods, awwowing (as of jQuewy 1.8) the undewwying Pwomise to be manipuwated. Wefa to defewwed.then() fow impwementation detaiws.
      */
-    then<R>(doneCallback: (data: any, textStatus: string, jqXHR: JQueryXHR) => R, failCallback?: (jqXHR: JQueryXHR, textStatus: string, errorThrown: any) => void): JQueryPromise<R>;
+    then<W>(doneCawwback: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => W, faiwCawwback?: (jqXHW: JQuewyXHW, textStatus: stwing, ewwowThwown: any) => void): JQuewyPwomise<W>;
     /**
-     * Property containing the parsed response if the response Content-Type is json
+     * Pwopewty containing the pawsed wesponse if the wesponse Content-Type is json
      */
-    responseJSON?: any;
+    wesponseJSON?: any;
     /**
-     * A function to be called if the request fails.
+     * A function to be cawwed if the wequest faiws.
      */
-    error(xhr: JQueryXHR, textStatus: string, errorThrown: string): void;
+    ewwow(xhw: JQuewyXHW, textStatus: stwing, ewwowThwown: stwing): void;
 }
 
 /**
- * Interface for the JQuery callback
+ * Intewface fow the JQuewy cawwback
  */
-interface JQueryCallback {
+intewface JQuewyCawwback {
     /**
-     * Add a callback or a collection of callbacks to a callback list.
+     * Add a cawwback ow a cowwection of cawwbacks to a cawwback wist.
      *
-     * @param callbacks A function, or array of functions, that are to be added to the callback list.
+     * @pawam cawwbacks A function, ow awway of functions, that awe to be added to the cawwback wist.
      */
-    add(callbacks: Function): JQueryCallback;
+    add(cawwbacks: Function): JQuewyCawwback;
     /**
-     * Add a callback or a collection of callbacks to a callback list.
+     * Add a cawwback ow a cowwection of cawwbacks to a cawwback wist.
      *
-     * @param callbacks A function, or array of functions, that are to be added to the callback list.
+     * @pawam cawwbacks A function, ow awway of functions, that awe to be added to the cawwback wist.
      */
-    add(callbacks: Function[]): JQueryCallback;
+    add(cawwbacks: Function[]): JQuewyCawwback;
 
     /**
-     * Disable a callback list from doing anything more.
+     * Disabwe a cawwback wist fwom doing anything mowe.
      */
-    disable(): JQueryCallback;
+    disabwe(): JQuewyCawwback;
 
     /**
-     * Determine if the callbacks list has been disabled.
+     * Detewmine if the cawwbacks wist has been disabwed.
      */
-    disabled(): boolean;
+    disabwed(): boowean;
 
     /**
-     * Remove all of the callbacks from a list.
+     * Wemove aww of the cawwbacks fwom a wist.
      */
-    empty(): JQueryCallback;
+    empty(): JQuewyCawwback;
 
     /**
-     * Call all of the callbacks with the given arguments
+     * Caww aww of the cawwbacks with the given awguments
      *
-     * @param arguments The argument or list of arguments to pass back to the callback list.
+     * @pawam awguments The awgument ow wist of awguments to pass back to the cawwback wist.
      */
-    fire(...arguments: any[]): JQueryCallback;
+    fiwe(...awguments: any[]): JQuewyCawwback;
 
     /**
-     * Determine if the callbacks have already been called at least once.
+     * Detewmine if the cawwbacks have awweady been cawwed at weast once.
      */
-    fired(): boolean;
+    fiwed(): boowean;
 
     /**
-     * Call all callbacks in a list with the given context and arguments.
+     * Caww aww cawwbacks in a wist with the given context and awguments.
      *
-     * @param context A reference to the context in which the callbacks in the list should be fired.
-     * @param arguments An argument, or array of arguments, to pass to the callbacks in the list.
+     * @pawam context A wefewence to the context in which the cawwbacks in the wist shouwd be fiwed.
+     * @pawam awguments An awgument, ow awway of awguments, to pass to the cawwbacks in the wist.
      */
-    fireWith(context?: any, args?: any[]): JQueryCallback;
+    fiweWith(context?: any, awgs?: any[]): JQuewyCawwback;
 
     /**
-     * Determine whether a supplied callback is in a list
+     * Detewmine whetha a suppwied cawwback is in a wist
      *
-     * @param callback The callback to search for.
+     * @pawam cawwback The cawwback to seawch fow.
      */
-    has(callback: Function): boolean;
+    has(cawwback: Function): boowean;
 
     /**
-     * Lock a callback list in its current state.
+     * Wock a cawwback wist in its cuwwent state.
      */
-    lock(): JQueryCallback;
+    wock(): JQuewyCawwback;
 
     /**
-     * Determine if the callbacks list has been locked.
+     * Detewmine if the cawwbacks wist has been wocked.
      */
-    locked(): boolean;
+    wocked(): boowean;
 
     /**
-     * Remove a callback or a collection of callbacks from a callback list.
+     * Wemove a cawwback ow a cowwection of cawwbacks fwom a cawwback wist.
      *
-     * @param callbacks A function, or array of functions, that are to be removed from the callback list.
+     * @pawam cawwbacks A function, ow awway of functions, that awe to be wemoved fwom the cawwback wist.
      */
-    remove(callbacks: Function): JQueryCallback;
+    wemove(cawwbacks: Function): JQuewyCawwback;
     /**
-     * Remove a callback or a collection of callbacks from a callback list.
+     * Wemove a cawwback ow a cowwection of cawwbacks fwom a cawwback wist.
      *
-     * @param callbacks A function, or array of functions, that are to be removed from the callback list.
+     * @pawam cawwbacks A function, ow awway of functions, that awe to be wemoved fwom the cawwback wist.
      */
-    remove(callbacks: Function[]): JQueryCallback;
+    wemove(cawwbacks: Function[]): JQuewyCawwback;
 }
 
 /**
- * Allows jQuery Promises to interop with non-jQuery promises
+ * Awwows jQuewy Pwomises to intewop with non-jQuewy pwomises
  */
-interface JQueryGenericPromise<T> {
+intewface JQuewyGenewicPwomise<T> {
     /**
-     * Add handlers to be called when the Deferred object is resolved, rejected, or still in progress.
+     * Add handwews to be cawwed when the Defewwed object is wesowved, wejected, ow stiww in pwogwess.
      *
-     * @param doneFilter A function that is called when the Deferred is resolved.
-     * @param failFilter An optional function that is called when the Deferred is rejected.
+     * @pawam doneFiwta A function that is cawwed when the Defewwed is wesowved.
+     * @pawam faiwFiwta An optionaw function that is cawwed when the Defewwed is wejected.
      */
-    then<U>(doneFilter: (value?: T, ...values: any[]) => U | JQueryPromise<U>, failFilter?: (...reasons: any[]) => any, progressFilter?: (...progression: any[]) => any): JQueryPromise<U>;
+    then<U>(doneFiwta: (vawue?: T, ...vawues: any[]) => U | JQuewyPwomise<U>, faiwFiwta?: (...weasons: any[]) => any, pwogwessFiwta?: (...pwogwession: any[]) => any): JQuewyPwomise<U>;
 
     /**
-     * Add handlers to be called when the Deferred object is resolved, rejected, or still in progress.
+     * Add handwews to be cawwed when the Defewwed object is wesowved, wejected, ow stiww in pwogwess.
      *
-     * @param doneFilter A function that is called when the Deferred is resolved.
-     * @param failFilter An optional function that is called when the Deferred is rejected.
+     * @pawam doneFiwta A function that is cawwed when the Defewwed is wesowved.
+     * @pawam faiwFiwta An optionaw function that is cawwed when the Defewwed is wejected.
      */
-    then(doneFilter: (value?: T, ...values: any[]) => void, failFilter?: (...reasons: any[]) => any, progressFilter?: (...progression: any[]) => any): JQueryPromise<void>;
+    then(doneFiwta: (vawue?: T, ...vawues: any[]) => void, faiwFiwta?: (...weasons: any[]) => any, pwogwessFiwta?: (...pwogwession: any[]) => any): JQuewyPwomise<void>;
 }
 
 /**
- * Interface for the JQuery promise/deferred callbacks
+ * Intewface fow the JQuewy pwomise/defewwed cawwbacks
  */
-interface JQueryPromiseCallback<T> {
-    (value?: T, ...args: any[]): void;
+intewface JQuewyPwomiseCawwback<T> {
+    (vawue?: T, ...awgs: any[]): void;
 }
 
-interface JQueryPromiseOperator<T, U> {
-    (callback1: JQueryPromiseCallback<T> | JQueryPromiseCallback<T>[], ...callbacksN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryPromise<U>;
-}
-
-/**
- * Interface for the JQuery promise, part of callbacks
- */
-interface JQueryPromise<T> extends JQueryGenericPromise<T> {
-    /**
-     * Determine the current state of a Deferred object.
-     */
-    state(): string;
-    /**
-     * Add handlers to be called when the Deferred object is either resolved or rejected.
-     *
-     * @param alwaysCallbacks1 A function, or array of functions, that is called when the Deferred is resolved or rejected.
-     * @param alwaysCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved or rejected.
-     */
-    always(alwaysCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...alwaysCallbacksN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
-    /**
-     * Add handlers to be called when the Deferred object is resolved.
-     *
-     * @param doneCallbacks1 A function, or array of functions, that are called when the Deferred is resolved.
-     * @param doneCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved.
-     */
-    done(doneCallback1?: JQueryPromiseCallback<T> | JQueryPromiseCallback<T>[], ...doneCallbackN: Array<JQueryPromiseCallback<T> | JQueryPromiseCallback<T>[]>): JQueryPromise<T>;
-    /**
-     * Add handlers to be called when the Deferred object is rejected.
-     *
-     * @param failCallbacks1 A function, or array of functions, that are called when the Deferred is rejected.
-     * @param failCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is rejected.
-     */
-    fail(failCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...failCallbacksN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
-    /**
-     * Add handlers to be called when the Deferred object generates progress notifications.
-     *
-     * @param progressCallbacks A function, or array of functions, to be called when the Deferred generates progress notifications.
-     */
-    progress(progressCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...progressCallbackN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryPromise<T>;
-
-    // Deprecated - given no typings
-    pipe(doneFilter?: (x: any) => any, failFilter?: (x: any) => any, progressFilter?: (x: any) => any): JQueryPromise<any>;
-
-    /**
-     * Return a Deferred's Promise object.
-     *
-     * @param target Object onto which the promise methods have to be attached
-     */
-    promise(target?: any): JQueryPromise<T>;
+intewface JQuewyPwomiseOpewatow<T, U> {
+    (cawwback1: JQuewyPwomiseCawwback<T> | JQuewyPwomiseCawwback<T>[], ...cawwbacksN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyPwomise<U>;
 }
 
 /**
- * Interface for the JQuery deferred, part of callbacks
+ * Intewface fow the JQuewy pwomise, pawt of cawwbacks
  */
-interface JQueryDeferred<T> extends JQueryGenericPromise<T> {
+intewface JQuewyPwomise<T> extends JQuewyGenewicPwomise<T> {
     /**
-     * Determine the current state of a Deferred object.
+     * Detewmine the cuwwent state of a Defewwed object.
      */
-    state(): string;
+    state(): stwing;
     /**
-     * Add handlers to be called when the Deferred object is either resolved or rejected.
+     * Add handwews to be cawwed when the Defewwed object is eitha wesowved ow wejected.
      *
-     * @param alwaysCallbacks1 A function, or array of functions, that is called when the Deferred is resolved or rejected.
-     * @param alwaysCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved or rejected.
+     * @pawam awwaysCawwbacks1 A function, ow awway of functions, that is cawwed when the Defewwed is wesowved ow wejected.
+     * @pawam awwaysCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wesowved ow wejected.
      */
-    always(alwaysCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...alwaysCallbacksN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
+    awways(awwaysCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...awwaysCawwbacksN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyPwomise<T>;
     /**
-     * Add handlers to be called when the Deferred object is resolved.
+     * Add handwews to be cawwed when the Defewwed object is wesowved.
      *
-     * @param doneCallbacks1 A function, or array of functions, that are called when the Deferred is resolved.
-     * @param doneCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is resolved.
+     * @pawam doneCawwbacks1 A function, ow awway of functions, that awe cawwed when the Defewwed is wesowved.
+     * @pawam doneCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wesowved.
      */
-    done(doneCallback1?: JQueryPromiseCallback<T> | JQueryPromiseCallback<T>[], ...doneCallbackN: Array<JQueryPromiseCallback<T> | JQueryPromiseCallback<T>[]>): JQueryDeferred<T>;
+    done(doneCawwback1?: JQuewyPwomiseCawwback<T> | JQuewyPwomiseCawwback<T>[], ...doneCawwbackN: Awway<JQuewyPwomiseCawwback<T> | JQuewyPwomiseCawwback<T>[]>): JQuewyPwomise<T>;
     /**
-     * Add handlers to be called when the Deferred object is rejected.
+     * Add handwews to be cawwed when the Defewwed object is wejected.
      *
-     * @param failCallbacks1 A function, or array of functions, that are called when the Deferred is rejected.
-     * @param failCallbacks2 Optional additional functions, or arrays of functions, that are called when the Deferred is rejected.
+     * @pawam faiwCawwbacks1 A function, ow awway of functions, that awe cawwed when the Defewwed is wejected.
+     * @pawam faiwCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wejected.
      */
-    fail(failCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...failCallbacksN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
+    faiw(faiwCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...faiwCawwbacksN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyPwomise<T>;
     /**
-     * Add handlers to be called when the Deferred object generates progress notifications.
+     * Add handwews to be cawwed when the Defewwed object genewates pwogwess notifications.
      *
-     * @param progressCallbacks A function, or array of functions, to be called when the Deferred generates progress notifications.
+     * @pawam pwogwessCawwbacks A function, ow awway of functions, to be cawwed when the Defewwed genewates pwogwess notifications.
      */
-    progress(progressCallback1?: JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[], ...progressCallbackN: Array<JQueryPromiseCallback<any> | JQueryPromiseCallback<any>[]>): JQueryDeferred<T>;
+    pwogwess(pwogwessCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...pwogwessCawwbackN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyPwomise<T>;
+
+    // Depwecated - given no typings
+    pipe(doneFiwta?: (x: any) => any, faiwFiwta?: (x: any) => any, pwogwessFiwta?: (x: any) => any): JQuewyPwomise<any>;
 
     /**
-     * Call the progressCallbacks on a Deferred object with the given args.
+     * Wetuwn a Defewwed's Pwomise object.
      *
-     * @param args Optional arguments that are passed to the progressCallbacks.
+     * @pawam tawget Object onto which the pwomise methods have to be attached
      */
-    notify(value?: any, ...args: any[]): JQueryDeferred<T>;
-
-    /**
-     * Call the progressCallbacks on a Deferred object with the given context and args.
-     *
-     * @param context Context passed to the progressCallbacks as the this object.
-     * @param args Optional arguments that are passed to the progressCallbacks.
-     */
-    notifyWith(context: any, value?: any[]): JQueryDeferred<T>;
-
-    /**
-     * Reject a Deferred object and call any failCallbacks with the given args.
-     *
-     * @param args Optional arguments that are passed to the failCallbacks.
-     */
-    reject(value?: any, ...args: any[]): JQueryDeferred<T>;
-    /**
-     * Reject a Deferred object and call any failCallbacks with the given context and args.
-     *
-     * @param context Context passed to the failCallbacks as the this object.
-     * @param args An optional array of arguments that are passed to the failCallbacks.
-     */
-    rejectWith(context: any, value?: any[]): JQueryDeferred<T>;
-
-    /**
-     * Resolve a Deferred object and call any doneCallbacks with the given args.
-     *
-     * @param value First argument passed to doneCallbacks.
-     * @param args Optional subsequent arguments that are passed to the doneCallbacks.
-     */
-    resolve(value?: T, ...args: any[]): JQueryDeferred<T>;
-
-    /**
-     * Resolve a Deferred object and call any doneCallbacks with the given context and args.
-     *
-     * @param context Context passed to the doneCallbacks as the this object.
-     * @param args An optional array of arguments that are passed to the doneCallbacks.
-     */
-    resolveWith(context: any, value?: T[]): JQueryDeferred<T>;
-
-    /**
-     * Return a Deferred's Promise object.
-     *
-     * @param target Object onto which the promise methods have to be attached
-     */
-    promise(target?: any): JQueryPromise<T>;
-
-    // Deprecated - given no typings
-    pipe(doneFilter?: (x: any) => any, failFilter?: (x: any) => any, progressFilter?: (x: any) => any): JQueryPromise<any>;
+    pwomise(tawget?: any): JQuewyPwomise<T>;
 }
 
 /**
- * Interface of the JQuery extension of the W3C event object
+ * Intewface fow the JQuewy defewwed, pawt of cawwbacks
  */
-interface BaseJQueryEventObject extends Event {
-    currentTarget: Element;
+intewface JQuewyDefewwed<T> extends JQuewyGenewicPwomise<T> {
+    /**
+     * Detewmine the cuwwent state of a Defewwed object.
+     */
+    state(): stwing;
+    /**
+     * Add handwews to be cawwed when the Defewwed object is eitha wesowved ow wejected.
+     *
+     * @pawam awwaysCawwbacks1 A function, ow awway of functions, that is cawwed when the Defewwed is wesowved ow wejected.
+     * @pawam awwaysCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wesowved ow wejected.
+     */
+    awways(awwaysCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...awwaysCawwbacksN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyDefewwed<T>;
+    /**
+     * Add handwews to be cawwed when the Defewwed object is wesowved.
+     *
+     * @pawam doneCawwbacks1 A function, ow awway of functions, that awe cawwed when the Defewwed is wesowved.
+     * @pawam doneCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wesowved.
+     */
+    done(doneCawwback1?: JQuewyPwomiseCawwback<T> | JQuewyPwomiseCawwback<T>[], ...doneCawwbackN: Awway<JQuewyPwomiseCawwback<T> | JQuewyPwomiseCawwback<T>[]>): JQuewyDefewwed<T>;
+    /**
+     * Add handwews to be cawwed when the Defewwed object is wejected.
+     *
+     * @pawam faiwCawwbacks1 A function, ow awway of functions, that awe cawwed when the Defewwed is wejected.
+     * @pawam faiwCawwbacks2 Optionaw additionaw functions, ow awways of functions, that awe cawwed when the Defewwed is wejected.
+     */
+    faiw(faiwCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...faiwCawwbacksN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyDefewwed<T>;
+    /**
+     * Add handwews to be cawwed when the Defewwed object genewates pwogwess notifications.
+     *
+     * @pawam pwogwessCawwbacks A function, ow awway of functions, to be cawwed when the Defewwed genewates pwogwess notifications.
+     */
+    pwogwess(pwogwessCawwback1?: JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[], ...pwogwessCawwbackN: Awway<JQuewyPwomiseCawwback<any> | JQuewyPwomiseCawwback<any>[]>): JQuewyDefewwed<T>;
+
+    /**
+     * Caww the pwogwessCawwbacks on a Defewwed object with the given awgs.
+     *
+     * @pawam awgs Optionaw awguments that awe passed to the pwogwessCawwbacks.
+     */
+    notify(vawue?: any, ...awgs: any[]): JQuewyDefewwed<T>;
+
+    /**
+     * Caww the pwogwessCawwbacks on a Defewwed object with the given context and awgs.
+     *
+     * @pawam context Context passed to the pwogwessCawwbacks as the this object.
+     * @pawam awgs Optionaw awguments that awe passed to the pwogwessCawwbacks.
+     */
+    notifyWith(context: any, vawue?: any[]): JQuewyDefewwed<T>;
+
+    /**
+     * Weject a Defewwed object and caww any faiwCawwbacks with the given awgs.
+     *
+     * @pawam awgs Optionaw awguments that awe passed to the faiwCawwbacks.
+     */
+    weject(vawue?: any, ...awgs: any[]): JQuewyDefewwed<T>;
+    /**
+     * Weject a Defewwed object and caww any faiwCawwbacks with the given context and awgs.
+     *
+     * @pawam context Context passed to the faiwCawwbacks as the this object.
+     * @pawam awgs An optionaw awway of awguments that awe passed to the faiwCawwbacks.
+     */
+    wejectWith(context: any, vawue?: any[]): JQuewyDefewwed<T>;
+
+    /**
+     * Wesowve a Defewwed object and caww any doneCawwbacks with the given awgs.
+     *
+     * @pawam vawue Fiwst awgument passed to doneCawwbacks.
+     * @pawam awgs Optionaw subsequent awguments that awe passed to the doneCawwbacks.
+     */
+    wesowve(vawue?: T, ...awgs: any[]): JQuewyDefewwed<T>;
+
+    /**
+     * Wesowve a Defewwed object and caww any doneCawwbacks with the given context and awgs.
+     *
+     * @pawam context Context passed to the doneCawwbacks as the this object.
+     * @pawam awgs An optionaw awway of awguments that awe passed to the doneCawwbacks.
+     */
+    wesowveWith(context: any, vawue?: T[]): JQuewyDefewwed<T>;
+
+    /**
+     * Wetuwn a Defewwed's Pwomise object.
+     *
+     * @pawam tawget Object onto which the pwomise methods have to be attached
+     */
+    pwomise(tawget?: any): JQuewyPwomise<T>;
+
+    // Depwecated - given no typings
+    pipe(doneFiwta?: (x: any) => any, faiwFiwta?: (x: any) => any, pwogwessFiwta?: (x: any) => any): JQuewyPwomise<any>;
+}
+
+/**
+ * Intewface of the JQuewy extension of the W3C event object
+ */
+intewface BaseJQuewyEventObject extends Event {
+    cuwwentTawget: Ewement;
     data: any;
-    delegateTarget: Element;
-    isDefaultPrevented(): boolean;
-    isImmediatePropagationStopped(): boolean;
-    isPropagationStopped(): boolean;
-    namespace: string;
-    originalEvent: Event;
-    preventDefault(): any;
-    relatedTarget: Element;
-    result: any;
-    stopImmediatePropagation(): void;
-    stopPropagation(): void;
-    target: Element;
-    pageX: number;
-    pageY: number;
-    which: number;
-    metaKey: boolean;
+    dewegateTawget: Ewement;
+    isDefauwtPwevented(): boowean;
+    isImmediatePwopagationStopped(): boowean;
+    isPwopagationStopped(): boowean;
+    namespace: stwing;
+    owiginawEvent: Event;
+    pweventDefauwt(): any;
+    wewatedTawget: Ewement;
+    wesuwt: any;
+    stopImmediatePwopagation(): void;
+    stopPwopagation(): void;
+    tawget: Ewement;
+    pageX: numba;
+    pageY: numba;
+    which: numba;
+    metaKey: boowean;
 }
 
-interface JQueryInputEventObject extends BaseJQueryEventObject {
-    altKey: boolean;
-    ctrlKey: boolean;
-    metaKey: boolean;
-    shiftKey: boolean;
+intewface JQuewyInputEventObject extends BaseJQuewyEventObject {
+    awtKey: boowean;
+    ctwwKey: boowean;
+    metaKey: boowean;
+    shiftKey: boowean;
 }
 
-interface JQueryMouseEventObject extends JQueryInputEventObject {
-    button: number;
-    clientX: number;
-    clientY: number;
-    offsetX: number;
-    offsetY: number;
-    pageX: number;
-    pageY: number;
-    screenX: number;
-    screenY: number;
+intewface JQuewyMouseEventObject extends JQuewyInputEventObject {
+    button: numba;
+    cwientX: numba;
+    cwientY: numba;
+    offsetX: numba;
+    offsetY: numba;
+    pageX: numba;
+    pageY: numba;
+    scweenX: numba;
+    scweenY: numba;
 }
 
-interface JQueryKeyEventObject extends JQueryInputEventObject {
-    char: any;
-    charCode: number;
+intewface JQuewyKeyEventObject extends JQuewyInputEventObject {
+    chaw: any;
+    chawCode: numba;
     key: any;
-    keyCode: number;
+    keyCode: numba;
 }
 
-interface JQueryEventObject extends BaseJQueryEventObject, JQueryInputEventObject, JQueryMouseEventObject, JQueryKeyEventObject {
+intewface JQuewyEventObject extends BaseJQuewyEventObject, JQuewyInputEventObject, JQuewyMouseEventObject, JQuewyKeyEventObject {
 }
 
 /*
-    Collection of properties of the current browser
+    Cowwection of pwopewties of the cuwwent bwowsa
 */
 
-interface JQuerySupport {
-    ajax?: boolean;
-    boxModel?: boolean;
-    changeBubbles?: boolean;
-    checkClone?: boolean;
-    checkOn?: boolean;
-    cors?: boolean;
-    cssFloat?: boolean;
-    hrefNormalized?: boolean;
-    htmlSerialize?: boolean;
-    leadingWhitespace?: boolean;
-    noCloneChecked?: boolean;
-    noCloneEvent?: boolean;
-    opacity?: boolean;
-    optDisabled?: boolean;
-    optSelected?: boolean;
-    scriptEval?(): boolean;
-    style?: boolean;
-    submitBubbles?: boolean;
-    tbody?: boolean;
+intewface JQuewySuppowt {
+    ajax?: boowean;
+    boxModew?: boowean;
+    changeBubbwes?: boowean;
+    checkCwone?: boowean;
+    checkOn?: boowean;
+    cows?: boowean;
+    cssFwoat?: boowean;
+    hwefNowmawized?: boowean;
+    htmwSewiawize?: boowean;
+    weadingWhitespace?: boowean;
+    noCwoneChecked?: boowean;
+    noCwoneEvent?: boowean;
+    opacity?: boowean;
+    optDisabwed?: boowean;
+    optSewected?: boowean;
+    scwiptEvaw?(): boowean;
+    stywe?: boowean;
+    submitBubbwes?: boowean;
+    tbody?: boowean;
 }
 
-interface JQueryParam {
+intewface JQuewyPawam {
     /**
-     * Create a serialized representation of an array or object, suitable for use in a URL query string or Ajax request.
+     * Cweate a sewiawized wepwesentation of an awway ow object, suitabwe fow use in a UWW quewy stwing ow Ajax wequest.
      *
-     * @param obj An array or object to serialize.
+     * @pawam obj An awway ow object to sewiawize.
      */
-    (obj: any): string;
+    (obj: any): stwing;
 
     /**
-     * Create a serialized representation of an array or object, suitable for use in a URL query string or Ajax request.
+     * Cweate a sewiawized wepwesentation of an awway ow object, suitabwe fow use in a UWW quewy stwing ow Ajax wequest.
      *
-     * @param obj An array or object to serialize.
-     * @param traditional A Boolean indicating whether to perform a traditional "shallow" serialization.
+     * @pawam obj An awway ow object to sewiawize.
+     * @pawam twaditionaw A Boowean indicating whetha to pewfowm a twaditionaw "shawwow" sewiawization.
      */
-    (obj: any, traditional: boolean): string;
+    (obj: any, twaditionaw: boowean): stwing;
 }
 
 /**
- * The interface used to construct jQuery events (with $.Event). It is
- * defined separately instead of inline in JQueryStatic to allow
- * overriding the construction function with specific strings
- * returning specific event objects.
+ * The intewface used to constwuct jQuewy events (with $.Event). It is
+ * defined sepawatewy instead of inwine in JQuewyStatic to awwow
+ * ovewwiding the constwuction function with specific stwings
+ * wetuwning specific event objects.
  */
-interface JQueryEventConstructor {
-    (name: string, eventProperties?: any): JQueryEventObject;
-    new(name: string, eventProperties?: any): JQueryEventObject;
+intewface JQuewyEventConstwuctow {
+    (name: stwing, eventPwopewties?: any): JQuewyEventObject;
+    new(name: stwing, eventPwopewties?: any): JQuewyEventObject;
 }
 
 /**
- * The interface used to specify coordinates.
+ * The intewface used to specify coowdinates.
  */
-interface JQueryCoordinates {
-    left: number;
-    top: number;
+intewface JQuewyCoowdinates {
+    weft: numba;
+    top: numba;
 }
 
 /**
- * Elements in the array returned by serializeArray()
+ * Ewements in the awway wetuwned by sewiawizeAwway()
  */
-interface JQuerySerializeArrayElement {
-    name: string;
-    value: string;
+intewface JQuewySewiawizeAwwayEwement {
+    name: stwing;
+    vawue: stwing;
 }
 
-interface JQueryAnimationOptions {
+intewface JQuewyAnimationOptions {
     /**
-     * A string or number determining how long the animation will run.
+     * A stwing ow numba detewmining how wong the animation wiww wun.
      */
-    duration?: any;
+    duwation?: any;
     /**
-     * A string indicating which easing function to use for the transition.
+     * A stwing indicating which easing function to use fow the twansition.
      */
-    easing?: string;
+    easing?: stwing;
     /**
-     * A function to call once the animation is complete.
+     * A function to caww once the animation is compwete.
      */
-    complete?: Function;
+    compwete?: Function;
     /**
-     * A function to be called for each animated property of each animated element. This function provides an opportunity to modify the Tween object to change the value of the property before it is set.
+     * A function to be cawwed fow each animated pwopewty of each animated ewement. This function pwovides an oppowtunity to modify the Tween object to change the vawue of the pwopewty befowe it is set.
      */
-    step?: (now: number, tween: any) => any;
+    step?: (now: numba, tween: any) => any;
     /**
-     * A function to be called after each step of the animation, only once per animated element regardless of the number of animated properties. (version added: 1.8)
+     * A function to be cawwed afta each step of the animation, onwy once pew animated ewement wegawdwess of the numba of animated pwopewties. (vewsion added: 1.8)
      */
-    progress?: (animation: JQueryPromise<any>, progress: number, remainingMs: number) => any;
+    pwogwess?: (animation: JQuewyPwomise<any>, pwogwess: numba, wemainingMs: numba) => any;
     /**
-     * A function to call when the animation begins. (version added: 1.8)
+     * A function to caww when the animation begins. (vewsion added: 1.8)
      */
-    start?: (animation: JQueryPromise<any>) => any;
+    stawt?: (animation: JQuewyPwomise<any>) => any;
     /**
-     * A function to be called when the animation completes (its Promise object is resolved). (version added: 1.8)
+     * A function to be cawwed when the animation compwetes (its Pwomise object is wesowved). (vewsion added: 1.8)
      */
-    done?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
+    done?: (animation: JQuewyPwomise<any>, jumpedToEnd: boowean) => any;
     /**
-     * A function to be called when the animation fails to complete (its Promise object is rejected). (version added: 1.8)
+     * A function to be cawwed when the animation faiws to compwete (its Pwomise object is wejected). (vewsion added: 1.8)
      */
-    fail?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
+    faiw?: (animation: JQuewyPwomise<any>, jumpedToEnd: boowean) => any;
     /**
-     * A function to be called when the animation completes or stops without completing (its Promise object is either resolved or rejected). (version added: 1.8)
+     * A function to be cawwed when the animation compwetes ow stops without compweting (its Pwomise object is eitha wesowved ow wejected). (vewsion added: 1.8)
      */
-    always?: (animation: JQueryPromise<any>, jumpedToEnd: boolean) => any;
+    awways?: (animation: JQuewyPwomise<any>, jumpedToEnd: boowean) => any;
     /**
-     * A Boolean indicating whether to place the animation in the effects queue. If false, the animation will begin immediately. As of jQuery 1.7, the queue option can also accept a string, in which case the animation is added to the queue represented by that string. When a custom queue name is used the animation does not automatically start; you must call .dequeue("queuename") to start it.
+     * A Boowean indicating whetha to pwace the animation in the effects queue. If fawse, the animation wiww begin immediatewy. As of jQuewy 1.7, the queue option can awso accept a stwing, in which case the animation is added to the queue wepwesented by that stwing. When a custom queue name is used the animation does not automaticawwy stawt; you must caww .dequeue("queuename") to stawt it.
      */
     queue?: any;
     /**
-     * A map of one or more of the CSS properties defined by the properties argument and their corresponding easing functions. (version added: 1.4)
+     * A map of one ow mowe of the CSS pwopewties defined by the pwopewties awgument and theiw cowwesponding easing functions. (vewsion added: 1.4)
      */
-    specialEasing?: Object;
+    speciawEasing?: Object;
 }
 
-interface JQueryEasingFunction {
-    (percent: number): number;
+intewface JQuewyEasingFunction {
+    (pewcent: numba): numba;
 }
 
-interface JQueryEasingFunctions {
-    [name: string]: JQueryEasingFunction;
-    linear: JQueryEasingFunction;
-    swing: JQueryEasingFunction;
+intewface JQuewyEasingFunctions {
+    [name: stwing]: JQuewyEasingFunction;
+    wineaw: JQuewyEasingFunction;
+    swing: JQuewyEasingFunction;
 }
 
 /**
- * Static members of jQuery (those on $ and jQuery themselves)
+ * Static membews of jQuewy (those on $ and jQuewy themsewves)
  */
-interface JQueryStatic {
+intewface JQuewyStatic {
 
     /**
-     * Perform an asynchronous HTTP (Ajax) request.
+     * Pewfowm an asynchwonous HTTP (Ajax) wequest.
      *
-     * @param settings A set of key/value pairs that configure the Ajax request. All settings are optional. A default can be set for any option with $.ajaxSetup().
+     * @pawam settings A set of key/vawue paiws that configuwe the Ajax wequest. Aww settings awe optionaw. A defauwt can be set fow any option with $.ajaxSetup().
      */
-    ajax(settings: JQueryAjaxSettings): JQueryXHR;
+    ajax(settings: JQuewyAjaxSettings): JQuewyXHW;
     /**
-     * Perform an asynchronous HTTP (Ajax) request.
+     * Pewfowm an asynchwonous HTTP (Ajax) wequest.
      *
-     * @param url A string containing the URL to which the request is sent.
-     * @param settings A set of key/value pairs that configure the Ajax request. All settings are optional. A default can be set for any option with $.ajaxSetup().
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam settings A set of key/vawue paiws that configuwe the Ajax wequest. Aww settings awe optionaw. A defauwt can be set fow any option with $.ajaxSetup().
      */
-    ajax(url: string, settings?: JQueryAjaxSettings): JQueryXHR;
+    ajax(uww: stwing, settings?: JQuewyAjaxSettings): JQuewyXHW;
 
     /**
-     * Handle custom Ajax options or modify existing options before each request is sent and before they are processed by $.ajax().
+     * Handwe custom Ajax options ow modify existing options befowe each wequest is sent and befowe they awe pwocessed by $.ajax().
      *
-     * @param dataTypes An optional string containing one or more space-separated dataTypes
-     * @param handler A handler to set default values for future Ajax requests.
+     * @pawam dataTypes An optionaw stwing containing one ow mowe space-sepawated dataTypes
+     * @pawam handwa A handwa to set defauwt vawues fow futuwe Ajax wequests.
      */
-    ajaxPrefilter(dataTypes: string, handler: (opts: any, originalOpts: JQueryAjaxSettings, jqXHR: JQueryXHR) => any): void;
+    ajaxPwefiwta(dataTypes: stwing, handwa: (opts: any, owiginawOpts: JQuewyAjaxSettings, jqXHW: JQuewyXHW) => any): void;
     /**
-     * Handle custom Ajax options or modify existing options before each request is sent and before they are processed by $.ajax().
+     * Handwe custom Ajax options ow modify existing options befowe each wequest is sent and befowe they awe pwocessed by $.ajax().
      *
-     * @param handler A handler to set default values for future Ajax requests.
+     * @pawam handwa A handwa to set defauwt vawues fow futuwe Ajax wequests.
      */
-    ajaxPrefilter(handler: (opts: any, originalOpts: JQueryAjaxSettings, jqXHR: JQueryXHR) => any): void;
+    ajaxPwefiwta(handwa: (opts: any, owiginawOpts: JQuewyAjaxSettings, jqXHW: JQuewyXHW) => any): void;
 
-    ajaxSettings: JQueryAjaxSettings;
-
-    /**
-     * Set default values for future Ajax requests. Its use is not recommended.
-     *
-     * @param options A set of key/value pairs that configure the default Ajax request. All options are optional.
-     */
-    ajaxSetup(options: JQueryAjaxSettings): void;
+    ajaxSettings: JQuewyAjaxSettings;
 
     /**
-     * Load data from the server using a HTTP GET request.
+     * Set defauwt vawues fow futuwe Ajax wequests. Its use is not wecommended.
      *
-     * @param url A string containing the URL to which the request is sent.
-     * @param success A callback function that is executed if the request succeeds.
-     * @param dataType The type of data expected from the server. Default: Intelligent Guess (xml, json, script, or html).
+     * @pawam options A set of key/vawue paiws that configuwe the defauwt Ajax wequest. Aww options awe optionaw.
      */
-    get(url: string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any, dataType?: string): JQueryXHR;
-    /**
-     * Load data from the server using a HTTP GET request.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param data A plain object or string that is sent to the server with the request.
-     * @param success A callback function that is executed if the request succeeds.
-     * @param dataType The type of data expected from the server. Default: Intelligent Guess (xml, json, script, or html).
-     */
-    get(url: string, data?: Object | string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any, dataType?: string): JQueryXHR;
-    /**
-     * Load data from the server using a HTTP GET request.
-     *
-     * @param settings The JQueryAjaxSettings to be used for the request
-     */
-    get(settings: JQueryAjaxSettings): JQueryXHR;
-    /**
-     * Load JSON-encoded data from the server using a GET HTTP request.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param success A callback function that is executed if the request succeeds.
-     */
-    getJSON(url: string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any): JQueryXHR;
-    /**
-     * Load JSON-encoded data from the server using a GET HTTP request.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param data A plain object or string that is sent to the server with the request.
-     * @param success A callback function that is executed if the request succeeds.
-     */
-    getJSON(url: string, data?: Object | string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any): JQueryXHR;
-    /**
-     * Load a JavaScript file from the server using a GET HTTP request, then execute it.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param success A callback function that is executed if the request succeeds.
-     */
-    getScript(url: string, success?: (script: string, textStatus: string, jqXHR: JQueryXHR) => any): JQueryXHR;
+    ajaxSetup(options: JQuewyAjaxSettings): void;
 
     /**
-     * Create a serialized representation of an array or object, suitable for use in a URL query string or Ajax request.
+     * Woad data fwom the sewva using a HTTP GET wequest.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam success A cawwback function that is executed if the wequest succeeds.
+     * @pawam dataType The type of data expected fwom the sewva. Defauwt: Intewwigent Guess (xmw, json, scwipt, ow htmw).
      */
-    param: JQueryParam;
+    get(uww: stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any, dataType?: stwing): JQuewyXHW;
+    /**
+     * Woad data fwom the sewva using a HTTP GET wequest.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam data A pwain object ow stwing that is sent to the sewva with the wequest.
+     * @pawam success A cawwback function that is executed if the wequest succeeds.
+     * @pawam dataType The type of data expected fwom the sewva. Defauwt: Intewwigent Guess (xmw, json, scwipt, ow htmw).
+     */
+    get(uww: stwing, data?: Object | stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any, dataType?: stwing): JQuewyXHW;
+    /**
+     * Woad data fwom the sewva using a HTTP GET wequest.
+     *
+     * @pawam settings The JQuewyAjaxSettings to be used fow the wequest
+     */
+    get(settings: JQuewyAjaxSettings): JQuewyXHW;
+    /**
+     * Woad JSON-encoded data fwom the sewva using a GET HTTP wequest.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam success A cawwback function that is executed if the wequest succeeds.
+     */
+    getJSON(uww: stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any): JQuewyXHW;
+    /**
+     * Woad JSON-encoded data fwom the sewva using a GET HTTP wequest.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam data A pwain object ow stwing that is sent to the sewva with the wequest.
+     * @pawam success A cawwback function that is executed if the wequest succeeds.
+     */
+    getJSON(uww: stwing, data?: Object | stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any): JQuewyXHW;
+    /**
+     * Woad a JavaScwipt fiwe fwom the sewva using a GET HTTP wequest, then execute it.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam success A cawwback function that is executed if the wequest succeeds.
+     */
+    getScwipt(uww: stwing, success?: (scwipt: stwing, textStatus: stwing, jqXHW: JQuewyXHW) => any): JQuewyXHW;
 
     /**
-     * Load data from the server using a HTTP POST request.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param success A callback function that is executed if the request succeeds. Required if dataType is provided, but can be null in that case.
-     * @param dataType The type of data expected from the server. Default: Intelligent Guess (xml, json, script, text, html).
+     * Cweate a sewiawized wepwesentation of an awway ow object, suitabwe fow use in a UWW quewy stwing ow Ajax wequest.
      */
-    post(url: string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any, dataType?: string): JQueryXHR;
-    /**
-     * Load data from the server using a HTTP POST request.
-     *
-     * @param url A string containing the URL to which the request is sent.
-     * @param data A plain object or string that is sent to the server with the request.
-     * @param success A callback function that is executed if the request succeeds. Required if dataType is provided, but can be null in that case.
-     * @param dataType The type of data expected from the server. Default: Intelligent Guess (xml, json, script, text, html).
-     */
-    post(url: string, data?: Object | string, success?: (data: any, textStatus: string, jqXHR: JQueryXHR) => any, dataType?: string): JQueryXHR;
-    /**
-     * Load data from the server using a HTTP POST request.
-     *
-     * @param settings The JQueryAjaxSettings to be used for the request
-     */
-    post(settings: JQueryAjaxSettings): JQueryXHR;
-    /**
-     * A multi-purpose callbacks list object that provides a powerful way to manage callback lists.
-     *
-     * @param flags An optional list of space-separated flags that change how the callback list behaves.
-     */
-    Callbacks(flags?: string): JQueryCallback;
+    pawam: JQuewyPawam;
 
     /**
-     * Holds or releases the execution of jQuery's ready event.
+     * Woad data fwom the sewva using a HTTP POST wequest.
      *
-     * @param hold Indicates whether the ready hold is being requested or released
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam success A cawwback function that is executed if the wequest succeeds. Wequiwed if dataType is pwovided, but can be nuww in that case.
+     * @pawam dataType The type of data expected fwom the sewva. Defauwt: Intewwigent Guess (xmw, json, scwipt, text, htmw).
      */
-    holdReady(hold: boolean): void;
+    post(uww: stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any, dataType?: stwing): JQuewyXHW;
+    /**
+     * Woad data fwom the sewva using a HTTP POST wequest.
+     *
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam data A pwain object ow stwing that is sent to the sewva with the wequest.
+     * @pawam success A cawwback function that is executed if the wequest succeeds. Wequiwed if dataType is pwovided, but can be nuww in that case.
+     * @pawam dataType The type of data expected fwom the sewva. Defauwt: Intewwigent Guess (xmw, json, scwipt, text, htmw).
+     */
+    post(uww: stwing, data?: Object | stwing, success?: (data: any, textStatus: stwing, jqXHW: JQuewyXHW) => any, dataType?: stwing): JQuewyXHW;
+    /**
+     * Woad data fwom the sewva using a HTTP POST wequest.
+     *
+     * @pawam settings The JQuewyAjaxSettings to be used fow the wequest
+     */
+    post(settings: JQuewyAjaxSettings): JQuewyXHW;
+    /**
+     * A muwti-puwpose cawwbacks wist object that pwovides a powewfuw way to manage cawwback wists.
+     *
+     * @pawam fwags An optionaw wist of space-sepawated fwags that change how the cawwback wist behaves.
+     */
+    Cawwbacks(fwags?: stwing): JQuewyCawwback;
 
     /**
-     * Accepts a string containing a CSS selector which is then used to match a set of elements.
+     * Howds ow weweases the execution of jQuewy's weady event.
      *
-     * @param selector A string containing a selector expression
-     * @param context A DOM Element, Document, or jQuery to use as context
+     * @pawam howd Indicates whetha the weady howd is being wequested ow weweased
      */
-    (selector: string, context?: Element | JQuery): JQuery;
+    howdWeady(howd: boowean): void;
 
     /**
-     * Accepts a string containing a CSS selector which is then used to match a set of elements.
+     * Accepts a stwing containing a CSS sewectow which is then used to match a set of ewements.
      *
-     * @param element A DOM element to wrap in a jQuery object.
+     * @pawam sewectow A stwing containing a sewectow expwession
+     * @pawam context A DOM Ewement, Document, ow jQuewy to use as context
      */
-    (element: Element): JQuery;
+    (sewectow: stwing, context?: Ewement | JQuewy): JQuewy;
 
     /**
-     * Accepts a string containing a CSS selector which is then used to match a set of elements.
+     * Accepts a stwing containing a CSS sewectow which is then used to match a set of ewements.
      *
-     * @param elementArray An array containing a set of DOM elements to wrap in a jQuery object.
+     * @pawam ewement A DOM ewement to wwap in a jQuewy object.
      */
-    (elementArray: Element[]): JQuery;
+    (ewement: Ewement): JQuewy;
 
     /**
-     * Binds a function to be executed when the DOM has finished loading.
+     * Accepts a stwing containing a CSS sewectow which is then used to match a set of ewements.
      *
-     * @param callback A function to execute after the DOM is ready.
+     * @pawam ewementAwway An awway containing a set of DOM ewements to wwap in a jQuewy object.
      */
-    (callback: (jQueryAlias?: JQueryStatic) => any): JQuery;
+    (ewementAwway: Ewement[]): JQuewy;
 
     /**
-     * Accepts a string containing a CSS selector which is then used to match a set of elements.
+     * Binds a function to be executed when the DOM has finished woading.
      *
-     * @param object A plain object to wrap in a jQuery object.
+     * @pawam cawwback A function to execute afta the DOM is weady.
      */
-    (object: {}): JQuery;
+    (cawwback: (jQuewyAwias?: JQuewyStatic) => any): JQuewy;
 
     /**
-     * Accepts a string containing a CSS selector which is then used to match a set of elements.
+     * Accepts a stwing containing a CSS sewectow which is then used to match a set of ewements.
      *
-     * @param object An existing jQuery object to clone.
+     * @pawam object A pwain object to wwap in a jQuewy object.
      */
-    (object: JQuery): JQuery;
+    (object: {}): JQuewy;
 
     /**
-     * Specify a function to execute when the DOM is fully loaded.
+     * Accepts a stwing containing a CSS sewectow which is then used to match a set of ewements.
+     *
+     * @pawam object An existing jQuewy object to cwone.
      */
-    (): JQuery;
+    (object: JQuewy): JQuewy;
 
     /**
-     * Creates DOM elements on the fly from the provided string of raw HTML.
-     *
-     * @param html A string of HTML to create on the fly. Note that this parses HTML, not XML.
-     * @param ownerDocument A document in which the new elements will be created.
+     * Specify a function to execute when the DOM is fuwwy woaded.
      */
-    (html: string, ownerDocument?: Document): JQuery;
+    (): JQuewy;
 
     /**
-     * Creates DOM elements on the fly from the provided string of raw HTML.
+     * Cweates DOM ewements on the fwy fwom the pwovided stwing of waw HTMW.
      *
-     * @param html A string defining a single, standalone, HTML element (e.g. <div/> or <div></div>).
-     * @param attributes An object of attributes, events, and methods to call on the newly-created element.
+     * @pawam htmw A stwing of HTMW to cweate on the fwy. Note that this pawses HTMW, not XMW.
+     * @pawam ownewDocument A document in which the new ewements wiww be cweated.
      */
-    (html: string, attributes: Object): JQuery;
+    (htmw: stwing, ownewDocument?: Document): JQuewy;
 
     /**
-     * Relinquish jQuery's control of the $ variable.
+     * Cweates DOM ewements on the fwy fwom the pwovided stwing of waw HTMW.
      *
-     * @param removeAll A Boolean indicating whether to remove all jQuery variables from the global scope (including jQuery itself).
+     * @pawam htmw A stwing defining a singwe, standawone, HTMW ewement (e.g. <div/> ow <div></div>).
+     * @pawam attwibutes An object of attwibutes, events, and methods to caww on the newwy-cweated ewement.
      */
-    noConflict(removeAll?: boolean): JQueryStatic;
+    (htmw: stwing, attwibutes: Object): JQuewy;
 
     /**
-     * Provides a way to execute callback functions based on one or more objects, usually Deferred objects that represent asynchronous events.
+     * Wewinquish jQuewy's contwow of the $ vawiabwe.
      *
-     * @param deferreds One or more Deferred objects, or plain JavaScript objects.
+     * @pawam wemoveAww A Boowean indicating whetha to wemove aww jQuewy vawiabwes fwom the gwobaw scope (incwuding jQuewy itsewf).
      */
-    when<T>(...deferreds: Array<T | JQueryPromise<T>/* as JQueryDeferred<T> */>): JQueryPromise<T>;
+    noConfwict(wemoveAww?: boowean): JQuewyStatic;
 
     /**
-     * Hook directly into jQuery to override how particular CSS properties are retrieved or set, normalize CSS property naming, or create custom properties.
+     * Pwovides a way to execute cawwback functions based on one ow mowe objects, usuawwy Defewwed objects that wepwesent asynchwonous events.
+     *
+     * @pawam defewweds One ow mowe Defewwed objects, ow pwain JavaScwipt objects.
      */
-    cssHooks: { [key: string]: any; };
-    cssNumber: any;
+    when<T>(...defewweds: Awway<T | JQuewyPwomise<T>/* as JQuewyDefewwed<T> */>): JQuewyPwomise<T>;
 
     /**
-     * Store arbitrary data associated with the specified element. Returns the value that was set.
-     *
-     * @param element The DOM element to associate with the data.
-     * @param key A string naming the piece of data to set.
-     * @param value The new data value.
+     * Hook diwectwy into jQuewy to ovewwide how pawticuwaw CSS pwopewties awe wetwieved ow set, nowmawize CSS pwopewty naming, ow cweate custom pwopewties.
      */
-    data<T>(element: Element, key: string, value: T): T;
-    /**
-     * Returns value at named data store for the element, as set by jQuery.data(element, name, value), or the full data store for the element.
-     *
-     * @param element The DOM element to associate with the data.
-     * @param key A string naming the piece of data to set.
-     */
-    data(element: Element, key: string): any;
-    /**
-     * Returns value at named data store for the element, as set by jQuery.data(element, name, value), or the full data store for the element.
-     *
-     * @param element The DOM element to associate with the data.
-     */
-    data(element: Element): any;
+    cssHooks: { [key: stwing]: any; };
+    cssNumba: any;
 
     /**
-     * Execute the next function on the queue for the matched element.
+     * Stowe awbitwawy data associated with the specified ewement. Wetuwns the vawue that was set.
      *
-     * @param element A DOM element from which to remove and execute a queued function.
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam ewement The DOM ewement to associate with the data.
+     * @pawam key A stwing naming the piece of data to set.
+     * @pawam vawue The new data vawue.
      */
-    dequeue(element: Element, queueName?: string): void;
+    data<T>(ewement: Ewement, key: stwing, vawue: T): T;
+    /**
+     * Wetuwns vawue at named data stowe fow the ewement, as set by jQuewy.data(ewement, name, vawue), ow the fuww data stowe fow the ewement.
+     *
+     * @pawam ewement The DOM ewement to associate with the data.
+     * @pawam key A stwing naming the piece of data to set.
+     */
+    data(ewement: Ewement, key: stwing): any;
+    /**
+     * Wetuwns vawue at named data stowe fow the ewement, as set by jQuewy.data(ewement, name, vawue), ow the fuww data stowe fow the ewement.
+     *
+     * @pawam ewement The DOM ewement to associate with the data.
+     */
+    data(ewement: Ewement): any;
 
     /**
-     * Determine whether an element has any jQuery data associated with it.
+     * Execute the next function on the queue fow the matched ewement.
      *
-     * @param element A DOM element to be checked for data.
+     * @pawam ewement A DOM ewement fwom which to wemove and execute a queued function.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    hasData(element: Element): boolean;
+    dequeue(ewement: Ewement, queueName?: stwing): void;
 
     /**
-     * Show the queue of functions to be executed on the matched element.
+     * Detewmine whetha an ewement has any jQuewy data associated with it.
      *
-     * @param element A DOM element to inspect for an attached queue.
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam ewement A DOM ewement to be checked fow data.
      */
-    queue(element: Element, queueName?: string): any[];
-    /**
-     * Manipulate the queue of functions to be executed on the matched element.
-     *
-     * @param element A DOM element where the array of queued functions is attached.
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
-     * @param newQueue An array of functions to replace the current queue contents.
-     */
-    queue(element: Element, queueName: string, newQueue: Function[]): JQuery;
-    /**
-     * Manipulate the queue of functions to be executed on the matched element.
-     *
-     * @param element A DOM element on which to add a queued function.
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
-     * @param callback The new function to add to the queue.
-     */
-    queue(element: Element, queueName: string, callback: Function): JQuery;
+    hasData(ewement: Ewement): boowean;
 
     /**
-     * Remove a previously-stored piece of data.
+     * Show the queue of functions to be executed on the matched ewement.
      *
-     * @param element A DOM element from which to remove data.
-     * @param name A string naming the piece of data to remove.
+     * @pawam ewement A DOM ewement to inspect fow an attached queue.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    removeData(element: Element, name?: string): JQuery;
+    queue(ewement: Ewement, queueName?: stwing): any[];
+    /**
+     * Manipuwate the queue of functions to be executed on the matched ewement.
+     *
+     * @pawam ewement A DOM ewement whewe the awway of queued functions is attached.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
+     * @pawam newQueue An awway of functions to wepwace the cuwwent queue contents.
+     */
+    queue(ewement: Ewement, queueName: stwing, newQueue: Function[]): JQuewy;
+    /**
+     * Manipuwate the queue of functions to be executed on the matched ewement.
+     *
+     * @pawam ewement A DOM ewement on which to add a queued function.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
+     * @pawam cawwback The new function to add to the queue.
+     */
+    queue(ewement: Ewement, queueName: stwing, cawwback: Function): JQuewy;
 
     /**
-     * A constructor function that returns a chainable utility object with methods to register multiple callbacks into callback queues, invoke callback queues, and relay the success or failure state of any synchronous or asynchronous function.
+     * Wemove a pweviouswy-stowed piece of data.
      *
-     * @param beforeStart A function that is called just before the constructor returns.
+     * @pawam ewement A DOM ewement fwom which to wemove data.
+     * @pawam name A stwing naming the piece of data to wemove.
      */
-    Deferred<T>(beforeStart?: (deferred: JQueryDeferred<T>) => any): JQueryDeferred<T>;
+    wemoveData(ewement: Ewement, name?: stwing): JQuewy;
+
+    /**
+     * A constwuctow function that wetuwns a chainabwe utiwity object with methods to wegista muwtipwe cawwbacks into cawwback queues, invoke cawwback queues, and weway the success ow faiwuwe state of any synchwonous ow asynchwonous function.
+     *
+     * @pawam befoweStawt A function that is cawwed just befowe the constwuctow wetuwns.
+     */
+    Defewwed<T>(befoweStawt?: (defewwed: JQuewyDefewwed<T>) => any): JQuewyDefewwed<T>;
 
     /**
      * Effects
      */
 
-    easing: JQueryEasingFunctions;
+    easing: JQuewyEasingFunctions;
 
     fx: {
         tick: () => void;
         /**
-         * The rate (in milliseconds) at which animations fire.
+         * The wate (in miwwiseconds) at which animations fiwe.
          */
-        interval: number;
+        intewvaw: numba;
         stop: () => void;
-        speeds: { slow: number; fast: number; };
+        speeds: { swow: numba; fast: numba; };
         /**
-         * Globally disable all animations.
+         * Gwobawwy disabwe aww animations.
          */
-        off: boolean;
+        off: boowean;
         step: any;
     };
 
     /**
-     * Takes a function and returns a new one that will always have a particular context.
+     * Takes a function and wetuwns a new one that wiww awways have a pawticuwaw context.
      *
-     * @param fnction The function whose context will be changed.
-     * @param context The object to which the context (this) of the function should be set.
-     * @param additionalArguments Any number of arguments to be passed to the function referenced in the function argument.
+     * @pawam fnction The function whose context wiww be changed.
+     * @pawam context The object to which the context (this) of the function shouwd be set.
+     * @pawam additionawAwguments Any numba of awguments to be passed to the function wefewenced in the function awgument.
      */
-    proxy(fnction: (...args: any[]) => any, context: Object, ...additionalArguments: any[]): any;
+    pwoxy(fnction: (...awgs: any[]) => any, context: Object, ...additionawAwguments: any[]): any;
     /**
-     * Takes a function and returns a new one that will always have a particular context.
+     * Takes a function and wetuwns a new one that wiww awways have a pawticuwaw context.
      *
-     * @param context The object to which the context (this) of the function should be set.
-     * @param name The name of the function whose context will be changed (should be a property of the context object).
-     * @param additionalArguments Any number of arguments to be passed to the function named in the name argument.
+     * @pawam context The object to which the context (this) of the function shouwd be set.
+     * @pawam name The name of the function whose context wiww be changed (shouwd be a pwopewty of the context object).
+     * @pawam additionawAwguments Any numba of awguments to be passed to the function named in the name awgument.
      */
-    proxy(context: Object, name: string, ...additionalArguments: any[]): any;
+    pwoxy(context: Object, name: stwing, ...additionawAwguments: any[]): any;
 
-    Event: JQueryEventConstructor;
+    Event: JQuewyEventConstwuctow;
 
     /**
-     * Takes a string and throws an exception containing it.
+     * Takes a stwing and thwows an exception containing it.
      *
-     * @param message The message to send out.
+     * @pawam message The message to send out.
      */
-    error(message: any): JQuery;
+    ewwow(message: any): JQuewy;
 
-    expr: any;
+    expw: any;
     fn: any;  //TODO: Decide how we want to type this
 
-    isReady: boolean;
+    isWeady: boowean;
 
-    // Properties
-    support: JQuerySupport;
+    // Pwopewties
+    suppowt: JQuewySuppowt;
 
     /**
-     * Check to see if a DOM element is a descendant of another DOM element.
+     * Check to see if a DOM ewement is a descendant of anotha DOM ewement.
      *
-     * @param container The DOM element that may contain the other element.
-     * @param contained The DOM element that may be contained by (a descendant of) the other element.
+     * @pawam containa The DOM ewement that may contain the otha ewement.
+     * @pawam contained The DOM ewement that may be contained by (a descendant of) the otha ewement.
      */
-    contains(container: Element, contained: Element): boolean;
+    contains(containa: Ewement, contained: Ewement): boowean;
 
     /**
-     * A generic iterator function, which can be used to seamlessly iterate over both objects and arrays. Arrays and array-like objects with a length property (such as a function's arguments object) are iterated by numeric index, from 0 to length-1. Other objects are iterated via their named properties.
+     * A genewic itewatow function, which can be used to seamwesswy itewate ova both objects and awways. Awways and awway-wike objects with a wength pwopewty (such as a function's awguments object) awe itewated by numewic index, fwom 0 to wength-1. Otha objects awe itewated via theiw named pwopewties.
      *
-     * @param collection The object or array to iterate over.
-     * @param callback The function that will be executed on every object.
+     * @pawam cowwection The object ow awway to itewate ova.
+     * @pawam cawwback The function that wiww be executed on evewy object.
      */
     each<T>(
-        collection: T[],
-        callback: (indexInArray: number, valueOfElement: T) => any
+        cowwection: T[],
+        cawwback: (indexInAwway: numba, vawueOfEwement: T) => any
     ): any;
 
     /**
-     * A generic iterator function, which can be used to seamlessly iterate over both objects and arrays. Arrays and array-like objects with a length property (such as a function's arguments object) are iterated by numeric index, from 0 to length-1. Other objects are iterated via their named properties.
+     * A genewic itewatow function, which can be used to seamwesswy itewate ova both objects and awways. Awways and awway-wike objects with a wength pwopewty (such as a function's awguments object) awe itewated by numewic index, fwom 0 to wength-1. Otha objects awe itewated via theiw named pwopewties.
      *
-     * @param collection The object or array to iterate over.
-     * @param callback The function that will be executed on every object.
+     * @pawam cowwection The object ow awway to itewate ova.
+     * @pawam cawwback The function that wiww be executed on evewy object.
      */
     each(
-        collection: any,
-        callback: (indexInArray: any, valueOfElement: any) => any
+        cowwection: any,
+        cawwback: (indexInAwway: any, vawueOfEwement: any) => any
     ): any;
 
     /**
-     * Merge the contents of two or more objects together into the first object.
+     * Mewge the contents of two ow mowe objects togetha into the fiwst object.
      *
-     * @param target An object that will receive the new properties if additional objects are passed in or that will extend the jQuery namespace if it is the sole argument.
-     * @param object1 An object containing additional properties to merge in.
-     * @param objectN Additional objects containing properties to merge in.
+     * @pawam tawget An object that wiww weceive the new pwopewties if additionaw objects awe passed in ow that wiww extend the jQuewy namespace if it is the sowe awgument.
+     * @pawam object1 An object containing additionaw pwopewties to mewge in.
+     * @pawam objectN Additionaw objects containing pwopewties to mewge in.
      */
-    extend(target: any, object1?: any, ...objectN: any[]): any;
+    extend(tawget: any, object1?: any, ...objectN: any[]): any;
     /**
-     * Merge the contents of two or more objects together into the first object.
+     * Mewge the contents of two ow mowe objects togetha into the fiwst object.
      *
-     * @param deep If true, the merge becomes recursive (aka. deep copy).
-     * @param target The object to extend. It will receive the new properties.
-     * @param object1 An object containing additional properties to merge in.
-     * @param objectN Additional objects containing properties to merge in.
+     * @pawam deep If twue, the mewge becomes wecuwsive (aka. deep copy).
+     * @pawam tawget The object to extend. It wiww weceive the new pwopewties.
+     * @pawam object1 An object containing additionaw pwopewties to mewge in.
+     * @pawam objectN Additionaw objects containing pwopewties to mewge in.
      */
-    extend(deep: boolean, target: any, object1?: any, ...objectN: any[]): any;
+    extend(deep: boowean, tawget: any, object1?: any, ...objectN: any[]): any;
 
     /**
-     * Execute some JavaScript code globally.
+     * Execute some JavaScwipt code gwobawwy.
      *
-     * @param code The JavaScript code to execute.
+     * @pawam code The JavaScwipt code to execute.
      */
-    globalEval(code: string): any;
+    gwobawEvaw(code: stwing): any;
 
     /**
-     * Finds the elements of an array which satisfy a filter function. The original array is not affected.
+     * Finds the ewements of an awway which satisfy a fiwta function. The owiginaw awway is not affected.
      *
-     * @param array The array to search through.
-     * @param func The function to process each item against. The first argument to the function is the item, and the second argument is the index. The function should return a Boolean value.  this will be the global window object.
-     * @param invert If "invert" is false, or not provided, then the function returns an array consisting of all elements for which "callback" returns true. If "invert" is true, then the function returns an array consisting of all elements for which "callback" returns false.
+     * @pawam awway The awway to seawch thwough.
+     * @pawam func The function to pwocess each item against. The fiwst awgument to the function is the item, and the second awgument is the index. The function shouwd wetuwn a Boowean vawue.  this wiww be the gwobaw window object.
+     * @pawam invewt If "invewt" is fawse, ow not pwovided, then the function wetuwns an awway consisting of aww ewements fow which "cawwback" wetuwns twue. If "invewt" is twue, then the function wetuwns an awway consisting of aww ewements fow which "cawwback" wetuwns fawse.
      */
-    grep<T>(array: T[], func: (elementOfArray?: T, indexInArray?: number) => boolean, invert?: boolean): T[];
+    gwep<T>(awway: T[], func: (ewementOfAwway?: T, indexInAwway?: numba) => boowean, invewt?: boowean): T[];
 
     /**
-     * Search for a specified value within an array and return its index (or -1 if not found).
+     * Seawch fow a specified vawue within an awway and wetuwn its index (ow -1 if not found).
      *
-     * @param value The value to search for.
-     * @param array An array through which to search.
-     * @param fromIndex he index of the array at which to begin the search. The default is 0, which will search the whole array.
+     * @pawam vawue The vawue to seawch fow.
+     * @pawam awway An awway thwough which to seawch.
+     * @pawam fwomIndex he index of the awway at which to begin the seawch. The defauwt is 0, which wiww seawch the whowe awway.
      */
-    inArray<T>(value: T, array: T[], fromIndex?: number): number;
+    inAwway<T>(vawue: T, awway: T[], fwomIndex?: numba): numba;
 
     /**
-     * Determine whether the argument is an array.
+     * Detewmine whetha the awgument is an awway.
      *
-     * @param obj Object to test whether or not it is an array.
+     * @pawam obj Object to test whetha ow not it is an awway.
      */
-    isArray(obj: any): boolean;
+    isAwway(obj: any): boowean;
     /**
-     * Check to see if an object is empty (contains no enumerable properties).
+     * Check to see if an object is empty (contains no enumewabwe pwopewties).
      *
-     * @param obj The object that will be checked to see if it's empty.
+     * @pawam obj The object that wiww be checked to see if it's empty.
      */
-    isEmptyObject(obj: any): boolean;
+    isEmptyObject(obj: any): boowean;
     /**
-     * Determine if the argument passed is a Javascript function object.
+     * Detewmine if the awgument passed is a Javascwipt function object.
      *
-     * @param obj Object to test whether or not it is a function.
+     * @pawam obj Object to test whetha ow not it is a function.
      */
-    isFunction(obj: any): boolean;
+    isFunction(obj: any): boowean;
     /**
-     * Determines whether its argument is a number.
+     * Detewmines whetha its awgument is a numba.
      *
-     * @param obj The value to be tested.
+     * @pawam obj The vawue to be tested.
      */
-    isNumeric(value: any): boolean;
+    isNumewic(vawue: any): boowean;
     /**
-     * Check to see if an object is a plain object (created using "{}" or "new Object").
+     * Check to see if an object is a pwain object (cweated using "{}" ow "new Object").
      *
-     * @param obj The object that will be checked to see if it's a plain object.
+     * @pawam obj The object that wiww be checked to see if it's a pwain object.
      */
-    isPlainObject(obj: any): boolean;
+    isPwainObject(obj: any): boowean;
     /**
-     * Determine whether the argument is a window.
+     * Detewmine whetha the awgument is a window.
      *
-     * @param obj Object to test whether or not it is a window.
+     * @pawam obj Object to test whetha ow not it is a window.
      */
-    isWindow(obj: any): boolean;
+    isWindow(obj: any): boowean;
     /**
-     * Check to see if a DOM node is within an XML document (or is an XML document).
+     * Check to see if a DOM node is within an XMW document (ow is an XMW document).
      *
-     * @param node he DOM node that will be checked to see if it's in an XML document.
+     * @pawam node he DOM node that wiww be checked to see if it's in an XMW document.
      */
-    isXMLDoc(node: Node): boolean;
+    isXMWDoc(node: Node): boowean;
 
     /**
-     * Convert an array-like object into a true JavaScript array.
+     * Convewt an awway-wike object into a twue JavaScwipt awway.
      *
-     * @param obj Any object to turn into a native Array.
+     * @pawam obj Any object to tuwn into a native Awway.
      */
-    makeArray(obj: any): any[];
+    makeAwway(obj: any): any[];
 
     /**
-     * Translate all items in an array or object to new array of items.
+     * Twanswate aww items in an awway ow object to new awway of items.
      *
-     * @param array The Array to translate.
-     * @param callback The function to process each item against. The first argument to the function is the array item, the second argument is the index in array The function can return any value. Within the function, this refers to the global (window) object.
+     * @pawam awway The Awway to twanswate.
+     * @pawam cawwback The function to pwocess each item against. The fiwst awgument to the function is the awway item, the second awgument is the index in awway The function can wetuwn any vawue. Within the function, this wefews to the gwobaw (window) object.
      */
-    map<T, U>(array: T[], callback: (elementOfArray?: T, indexInArray?: number) => U): U[];
+    map<T, U>(awway: T[], cawwback: (ewementOfAwway?: T, indexInAwway?: numba) => U): U[];
     /**
-     * Translate all items in an array or object to new array of items.
+     * Twanswate aww items in an awway ow object to new awway of items.
      *
-     * @param arrayOrObject The Array or Object to translate.
-     * @param callback The function to process each item against. The first argument to the function is the value; the second argument is the index or key of the array or object property. The function can return any value to add to the array. A returned array will be flattened into the resulting array. Within the function, this refers to the global (window) object.
+     * @pawam awwayOwObject The Awway ow Object to twanswate.
+     * @pawam cawwback The function to pwocess each item against. The fiwst awgument to the function is the vawue; the second awgument is the index ow key of the awway ow object pwopewty. The function can wetuwn any vawue to add to the awway. A wetuwned awway wiww be fwattened into the wesuwting awway. Within the function, this wefews to the gwobaw (window) object.
      */
-    map(arrayOrObject: any, callback: (value?: any, indexOrKey?: any) => any): any;
+    map(awwayOwObject: any, cawwback: (vawue?: any, indexOwKey?: any) => any): any;
 
     /**
-     * Merge the contents of two arrays together into the first array.
+     * Mewge the contents of two awways togetha into the fiwst awway.
      *
-     * @param first The first array to merge, the elements of second added.
-     * @param second The second array to merge into the first, unaltered.
+     * @pawam fiwst The fiwst awway to mewge, the ewements of second added.
+     * @pawam second The second awway to mewge into the fiwst, unawtewed.
      */
-    merge<T>(first: T[], second: T[]): T[];
+    mewge<T>(fiwst: T[], second: T[]): T[];
 
     /**
      * An empty function.
@@ -1122,2128 +1122,2128 @@ interface JQueryStatic {
     noop(): any;
 
     /**
-     * Return a number representing the current time.
+     * Wetuwn a numba wepwesenting the cuwwent time.
      */
-    now(): number;
+    now(): numba;
 
     /**
-     * Takes a well-formed JSON string and returns the resulting JavaScript object.
+     * Takes a weww-fowmed JSON stwing and wetuwns the wesuwting JavaScwipt object.
      *
-     * @param json The JSON string to parse.
+     * @pawam json The JSON stwing to pawse.
      */
-    parseJSON(json: string): any;
+    pawseJSON(json: stwing): any;
 
     /**
-     * Parses a string into an XML document.
+     * Pawses a stwing into an XMW document.
      *
-     * @param data a well-formed XML string to be parsed
+     * @pawam data a weww-fowmed XMW stwing to be pawsed
      */
-    parseXML(data: string): XMLDocument;
+    pawseXMW(data: stwing): XMWDocument;
 
     /**
-     * Remove the whitespace from the beginning and end of a string.
+     * Wemove the whitespace fwom the beginning and end of a stwing.
      *
-     * @param str Remove the whitespace from the beginning and end of a string.
+     * @pawam stw Wemove the whitespace fwom the beginning and end of a stwing.
      */
-    trim(str: string): string;
+    twim(stw: stwing): stwing;
 
     /**
-     * Determine the internal JavaScript [[Class]] of an object.
+     * Detewmine the intewnaw JavaScwipt [[Cwass]] of an object.
      *
-     * @param obj Object to get the internal JavaScript [[Class]] of.
+     * @pawam obj Object to get the intewnaw JavaScwipt [[Cwass]] of.
      */
-    type(obj: any): string;
+    type(obj: any): stwing;
 
     /**
-     * Sorts an array of DOM elements, in place, with the duplicates removed. Note that this only works on arrays of DOM elements, not strings or numbers.
+     * Sowts an awway of DOM ewements, in pwace, with the dupwicates wemoved. Note that this onwy wowks on awways of DOM ewements, not stwings ow numbews.
      *
-     * @param array The Array of DOM elements.
+     * @pawam awway The Awway of DOM ewements.
      */
-    unique(array: Element[]): Element[];
+    unique(awway: Ewement[]): Ewement[];
 
     /**
-     * Parses a string into an array of DOM nodes.
+     * Pawses a stwing into an awway of DOM nodes.
      *
-     * @param data HTML string to be parsed
-     * @param context DOM element to serve as the context in which the HTML fragment will be created
-     * @param keepScripts A Boolean indicating whether to include scripts passed in the HTML string
+     * @pawam data HTMW stwing to be pawsed
+     * @pawam context DOM ewement to sewve as the context in which the HTMW fwagment wiww be cweated
+     * @pawam keepScwipts A Boowean indicating whetha to incwude scwipts passed in the HTMW stwing
      */
-    parseHTML(data: string, context?: HTMLElement, keepScripts?: boolean): any[];
+    pawseHTMW(data: stwing, context?: HTMWEwement, keepScwipts?: boowean): any[];
 
     /**
-     * Parses a string into an array of DOM nodes.
+     * Pawses a stwing into an awway of DOM nodes.
      *
-     * @param data HTML string to be parsed
-     * @param context DOM element to serve as the context in which the HTML fragment will be created
-     * @param keepScripts A Boolean indicating whether to include scripts passed in the HTML string
+     * @pawam data HTMW stwing to be pawsed
+     * @pawam context DOM ewement to sewve as the context in which the HTMW fwagment wiww be cweated
+     * @pawam keepScwipts A Boowean indicating whetha to incwude scwipts passed in the HTMW stwing
      */
-    parseHTML(data: string, context?: Document, keepScripts?: boolean): any[];
+    pawseHTMW(data: stwing, context?: Document, keepScwipts?: boowean): any[];
 }
 
 /**
- * The jQuery instance members
+ * The jQuewy instance membews
  */
-interface JQuery {
+intewface JQuewy {
     /**
-     * Register a handler to be called when Ajax requests complete. This is an AjaxEvent.
+     * Wegista a handwa to be cawwed when Ajax wequests compwete. This is an AjaxEvent.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxComplete(handler: (event: JQueryEventObject, XMLHttpRequest: XMLHttpRequest, ajaxOptions: any) => any): JQuery;
+    ajaxCompwete(handwa: (event: JQuewyEventObject, XMWHttpWequest: XMWHttpWequest, ajaxOptions: any) => any): JQuewy;
     /**
-     * Register a handler to be called when Ajax requests complete with an error. This is an Ajax Event.
+     * Wegista a handwa to be cawwed when Ajax wequests compwete with an ewwow. This is an Ajax Event.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxError(handler: (event: JQueryEventObject, jqXHR: JQueryXHR, ajaxSettings: JQueryAjaxSettings, thrownError: any) => any): JQuery;
+    ajaxEwwow(handwa: (event: JQuewyEventObject, jqXHW: JQuewyXHW, ajaxSettings: JQuewyAjaxSettings, thwownEwwow: any) => any): JQuewy;
     /**
-     * Attach a function to be executed before an Ajax request is sent. This is an Ajax Event.
+     * Attach a function to be executed befowe an Ajax wequest is sent. This is an Ajax Event.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxSend(handler: (event: JQueryEventObject, jqXHR: JQueryXHR, ajaxOptions: JQueryAjaxSettings) => any): JQuery;
+    ajaxSend(handwa: (event: JQuewyEventObject, jqXHW: JQuewyXHW, ajaxOptions: JQuewyAjaxSettings) => any): JQuewy;
     /**
-     * Register a handler to be called when the first Ajax request begins. This is an Ajax Event.
+     * Wegista a handwa to be cawwed when the fiwst Ajax wequest begins. This is an Ajax Event.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxStart(handler: () => any): JQuery;
+    ajaxStawt(handwa: () => any): JQuewy;
     /**
-     * Register a handler to be called when all Ajax requests have completed. This is an Ajax Event.
+     * Wegista a handwa to be cawwed when aww Ajax wequests have compweted. This is an Ajax Event.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxStop(handler: () => any): JQuery;
+    ajaxStop(handwa: () => any): JQuewy;
     /**
-     * Attach a function to be executed whenever an Ajax request completes successfully. This is an Ajax Event.
+     * Attach a function to be executed wheneva an Ajax wequest compwetes successfuwwy. This is an Ajax Event.
      *
-     * @param handler The function to be invoked.
+     * @pawam handwa The function to be invoked.
      */
-    ajaxSuccess(handler: (event: JQueryEventObject, XMLHttpRequest: XMLHttpRequest, ajaxOptions: JQueryAjaxSettings) => any): JQuery;
+    ajaxSuccess(handwa: (event: JQuewyEventObject, XMWHttpWequest: XMWHttpWequest, ajaxOptions: JQuewyAjaxSettings) => any): JQuewy;
 
     /**
-     * Load data from the server and place the returned HTML into the matched element.
+     * Woad data fwom the sewva and pwace the wetuwned HTMW into the matched ewement.
      *
-     * @param url A string containing the URL to which the request is sent.
-     * @param data A plain object or string that is sent to the server with the request.
-     * @param complete A callback function that is executed when the request completes.
+     * @pawam uww A stwing containing the UWW to which the wequest is sent.
+     * @pawam data A pwain object ow stwing that is sent to the sewva with the wequest.
+     * @pawam compwete A cawwback function that is executed when the wequest compwetes.
      */
-    load(url: string, data?: string | Object, complete?: (responseText: string, textStatus: string, XMLHttpRequest: XMLHttpRequest) => any): JQuery;
+    woad(uww: stwing, data?: stwing | Object, compwete?: (wesponseText: stwing, textStatus: stwing, XMWHttpWequest: XMWHttpWequest) => any): JQuewy;
 
     /**
-     * Encode a set of form elements as a string for submission.
+     * Encode a set of fowm ewements as a stwing fow submission.
      */
-    serialize(): string;
+    sewiawize(): stwing;
     /**
-     * Encode a set of form elements as an array of names and values.
+     * Encode a set of fowm ewements as an awway of names and vawues.
      */
-    serializeArray(): JQuerySerializeArrayElement[];
+    sewiawizeAwway(): JQuewySewiawizeAwwayEwement[];
 
     /**
-     * Adds the specified class(es) to each of the set of matched elements.
+     * Adds the specified cwass(es) to each of the set of matched ewements.
      *
-     * @param className One or more space-separated classes to be added to the class attribute of each matched element.
+     * @pawam cwassName One ow mowe space-sepawated cwasses to be added to the cwass attwibute of each matched ewement.
      */
-    addClass(className: string): JQuery;
+    addCwass(cwassName: stwing): JQuewy;
     /**
-     * Adds the specified class(es) to each of the set of matched elements.
+     * Adds the specified cwass(es) to each of the set of matched ewements.
      *
-     * @param function A function returning one or more space-separated class names to be added to the existing class name(s). Receives the index position of the element in the set and the existing class name(s) as arguments. Within the function, this refers to the current element in the set.
+     * @pawam function A function wetuwning one ow mowe space-sepawated cwass names to be added to the existing cwass name(s). Weceives the index position of the ewement in the set and the existing cwass name(s) as awguments. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    addClass(func: (index: number, className: string) => string): JQuery;
+    addCwass(func: (index: numba, cwassName: stwing) => stwing): JQuewy;
 
     /**
-     * Add the previous set of elements on the stack to the current set, optionally filtered by a selector.
+     * Add the pwevious set of ewements on the stack to the cuwwent set, optionawwy fiwtewed by a sewectow.
      */
-    addBack(selector?: string): JQuery;
+    addBack(sewectow?: stwing): JQuewy;
 
     /**
-     * Get the value of an attribute for the first element in the set of matched elements.
+     * Get the vawue of an attwibute fow the fiwst ewement in the set of matched ewements.
      *
-     * @param attributeName The name of the attribute to get.
+     * @pawam attwibuteName The name of the attwibute to get.
      */
-    attr(attributeName: string): string;
+    attw(attwibuteName: stwing): stwing;
     /**
-     * Set one or more attributes for the set of matched elements.
+     * Set one ow mowe attwibutes fow the set of matched ewements.
      *
-     * @param attributeName The name of the attribute to set.
-     * @param value A value to set for the attribute.
+     * @pawam attwibuteName The name of the attwibute to set.
+     * @pawam vawue A vawue to set fow the attwibute.
      */
-    attr(attributeName: string, value: string | number): JQuery;
+    attw(attwibuteName: stwing, vawue: stwing | numba): JQuewy;
     /**
-     * Set one or more attributes for the set of matched elements.
+     * Set one ow mowe attwibutes fow the set of matched ewements.
      *
-     * @param attributeName The name of the attribute to set.
-     * @param func A function returning the value to set. this is the current element. Receives the index position of the element in the set and the old attribute value as arguments.
+     * @pawam attwibuteName The name of the attwibute to set.
+     * @pawam func A function wetuwning the vawue to set. this is the cuwwent ewement. Weceives the index position of the ewement in the set and the owd attwibute vawue as awguments.
      */
-    attr(attributeName: string, func: (index: number, attr: string) => string | number): JQuery;
+    attw(attwibuteName: stwing, func: (index: numba, attw: stwing) => stwing | numba): JQuewy;
     /**
-     * Set one or more attributes for the set of matched elements.
+     * Set one ow mowe attwibutes fow the set of matched ewements.
      *
-     * @param attributes An object of attribute-value pairs to set.
+     * @pawam attwibutes An object of attwibute-vawue paiws to set.
      */
-    attr(attributes: Object): JQuery;
+    attw(attwibutes: Object): JQuewy;
 
     /**
-     * Determine whether any of the matched elements are assigned the given class.
+     * Detewmine whetha any of the matched ewements awe assigned the given cwass.
      *
-     * @param className The class name to search for.
+     * @pawam cwassName The cwass name to seawch fow.
      */
-    hasClass(className: string): boolean;
+    hasCwass(cwassName: stwing): boowean;
 
     /**
-     * Get the HTML contents of the first element in the set of matched elements.
+     * Get the HTMW contents of the fiwst ewement in the set of matched ewements.
      */
-    html(): string;
+    htmw(): stwing;
     /**
-     * Set the HTML contents of each element in the set of matched elements.
+     * Set the HTMW contents of each ewement in the set of matched ewements.
      *
-     * @param htmlString A string of HTML to set as the content of each matched element.
+     * @pawam htmwStwing A stwing of HTMW to set as the content of each matched ewement.
      */
-    html(htmlString: string): JQuery;
+    htmw(htmwStwing: stwing): JQuewy;
     /**
-     * Set the HTML contents of each element in the set of matched elements.
+     * Set the HTMW contents of each ewement in the set of matched ewements.
      *
-     * @param func A function returning the HTML content to set. Receives the index position of the element in the set and the old HTML value as arguments. jQuery empties the element before calling the function; use the oldhtml argument to reference the previous content. Within the function, this refers to the current element in the set.
+     * @pawam func A function wetuwning the HTMW content to set. Weceives the index position of the ewement in the set and the owd HTMW vawue as awguments. jQuewy empties the ewement befowe cawwing the function; use the owdhtmw awgument to wefewence the pwevious content. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    html(func: (index: number, oldhtml: string) => string): JQuery;
+    htmw(func: (index: numba, owdhtmw: stwing) => stwing): JQuewy;
     /**
-     * Set the HTML contents of each element in the set of matched elements.
+     * Set the HTMW contents of each ewement in the set of matched ewements.
      *
-     * @param func A function returning the HTML content to set. Receives the index position of the element in the set and the old HTML value as arguments. jQuery empties the element before calling the function; use the oldhtml argument to reference the previous content. Within the function, this refers to the current element in the set.
+     * @pawam func A function wetuwning the HTMW content to set. Weceives the index position of the ewement in the set and the owd HTMW vawue as awguments. jQuewy empties the ewement befowe cawwing the function; use the owdhtmw awgument to wefewence the pwevious content. Within the function, this wefews to the cuwwent ewement in the set.
      */
 
     /**
-     * Get the value of a property for the first element in the set of matched elements.
+     * Get the vawue of a pwopewty fow the fiwst ewement in the set of matched ewements.
      *
-     * @param propertyName The name of the property to get.
+     * @pawam pwopewtyName The name of the pwopewty to get.
      */
-    prop(propertyName: string): any;
+    pwop(pwopewtyName: stwing): any;
     /**
-     * Set one or more properties for the set of matched elements.
+     * Set one ow mowe pwopewties fow the set of matched ewements.
      *
-     * @param propertyName The name of the property to set.
-     * @param value A value to set for the property.
+     * @pawam pwopewtyName The name of the pwopewty to set.
+     * @pawam vawue A vawue to set fow the pwopewty.
      */
-    prop(propertyName: string, value: string | number | boolean): JQuery;
+    pwop(pwopewtyName: stwing, vawue: stwing | numba | boowean): JQuewy;
     /**
-     * Set one or more properties for the set of matched elements.
+     * Set one ow mowe pwopewties fow the set of matched ewements.
      *
-     * @param properties An object of property-value pairs to set.
+     * @pawam pwopewties An object of pwopewty-vawue paiws to set.
      */
-    prop(properties: Object): JQuery;
+    pwop(pwopewties: Object): JQuewy;
     /**
-     * Set one or more properties for the set of matched elements.
+     * Set one ow mowe pwopewties fow the set of matched ewements.
      *
-     * @param propertyName The name of the property to set.
-     * @param func A function returning the value to set. Receives the index position of the element in the set and the old property value as arguments. Within the function, the keyword this refers to the current element.
+     * @pawam pwopewtyName The name of the pwopewty to set.
+     * @pawam func A function wetuwning the vawue to set. Weceives the index position of the ewement in the set and the owd pwopewty vawue as awguments. Within the function, the keywowd this wefews to the cuwwent ewement.
      */
-    prop(propertyName: string, func: (index: number, oldPropertyValue: any) => any): JQuery;
+    pwop(pwopewtyName: stwing, func: (index: numba, owdPwopewtyVawue: any) => any): JQuewy;
 
     /**
-     * Remove an attribute from each element in the set of matched elements.
+     * Wemove an attwibute fwom each ewement in the set of matched ewements.
      *
-     * @param attributeName An attribute to remove; as of version 1.7, it can be a space-separated list of attributes.
+     * @pawam attwibuteName An attwibute to wemove; as of vewsion 1.7, it can be a space-sepawated wist of attwibutes.
      */
-    removeAttr(attributeName: string): JQuery;
+    wemoveAttw(attwibuteName: stwing): JQuewy;
 
     /**
-     * Remove a single class, multiple classes, or all classes from each element in the set of matched elements.
+     * Wemove a singwe cwass, muwtipwe cwasses, ow aww cwasses fwom each ewement in the set of matched ewements.
      *
-     * @param className One or more space-separated classes to be removed from the class attribute of each matched element.
+     * @pawam cwassName One ow mowe space-sepawated cwasses to be wemoved fwom the cwass attwibute of each matched ewement.
      */
-    removeClass(className?: string): JQuery;
+    wemoveCwass(cwassName?: stwing): JQuewy;
     /**
-     * Remove a single class, multiple classes, or all classes from each element in the set of matched elements.
+     * Wemove a singwe cwass, muwtipwe cwasses, ow aww cwasses fwom each ewement in the set of matched ewements.
      *
-     * @param function A function returning one or more space-separated class names to be removed. Receives the index position of the element in the set and the old class value as arguments.
+     * @pawam function A function wetuwning one ow mowe space-sepawated cwass names to be wemoved. Weceives the index position of the ewement in the set and the owd cwass vawue as awguments.
      */
-    removeClass(func: (index: number, className: string) => string): JQuery;
+    wemoveCwass(func: (index: numba, cwassName: stwing) => stwing): JQuewy;
 
     /**
-     * Remove a property for the set of matched elements.
+     * Wemove a pwopewty fow the set of matched ewements.
      *
-     * @param propertyName The name of the property to remove.
+     * @pawam pwopewtyName The name of the pwopewty to wemove.
      */
-    removeProp(propertyName: string): JQuery;
+    wemovePwop(pwopewtyName: stwing): JQuewy;
 
     /**
-     * Add or remove one or more classes from each element in the set of matched elements, depending on either the class's presence or the value of the switch argument.
+     * Add ow wemove one ow mowe cwasses fwom each ewement in the set of matched ewements, depending on eitha the cwass's pwesence ow the vawue of the switch awgument.
      *
-     * @param className One or more class names (separated by spaces) to be toggled for each element in the matched set.
-     * @param swtch A Boolean (not just truthy/falsy) value to determine whether the class should be added or removed.
+     * @pawam cwassName One ow mowe cwass names (sepawated by spaces) to be toggwed fow each ewement in the matched set.
+     * @pawam swtch A Boowean (not just twuthy/fawsy) vawue to detewmine whetha the cwass shouwd be added ow wemoved.
      */
-    toggleClass(className: string, swtch?: boolean): JQuery;
+    toggweCwass(cwassName: stwing, swtch?: boowean): JQuewy;
     /**
-     * Add or remove one or more classes from each element in the set of matched elements, depending on either the class's presence or the value of the switch argument.
+     * Add ow wemove one ow mowe cwasses fwom each ewement in the set of matched ewements, depending on eitha the cwass's pwesence ow the vawue of the switch awgument.
      *
-     * @param swtch A boolean value to determine whether the class should be added or removed.
+     * @pawam swtch A boowean vawue to detewmine whetha the cwass shouwd be added ow wemoved.
      */
-    toggleClass(swtch?: boolean): JQuery;
+    toggweCwass(swtch?: boowean): JQuewy;
     /**
-     * Add or remove one or more classes from each element in the set of matched elements, depending on either the class's presence or the value of the switch argument.
+     * Add ow wemove one ow mowe cwasses fwom each ewement in the set of matched ewements, depending on eitha the cwass's pwesence ow the vawue of the switch awgument.
      *
-     * @param func A function that returns class names to be toggled in the class attribute of each element in the matched set. Receives the index position of the element in the set, the old class value, and the switch as arguments.
-     * @param swtch A boolean value to determine whether the class should be added or removed.
+     * @pawam func A function that wetuwns cwass names to be toggwed in the cwass attwibute of each ewement in the matched set. Weceives the index position of the ewement in the set, the owd cwass vawue, and the switch as awguments.
+     * @pawam swtch A boowean vawue to detewmine whetha the cwass shouwd be added ow wemoved.
      */
-    toggleClass(func: (index: number, className: string, swtch: boolean) => string, swtch?: boolean): JQuery;
+    toggweCwass(func: (index: numba, cwassName: stwing, swtch: boowean) => stwing, swtch?: boowean): JQuewy;
 
     /**
-     * Get the current value of the first element in the set of matched elements.
+     * Get the cuwwent vawue of the fiwst ewement in the set of matched ewements.
      */
-    val(): any;
+    vaw(): any;
     /**
-     * Set the value of each element in the set of matched elements.
+     * Set the vawue of each ewement in the set of matched ewements.
      *
-     * @param value A string of text, an array of strings or number corresponding to the value of each matched element to set as selected/checked.
+     * @pawam vawue A stwing of text, an awway of stwings ow numba cowwesponding to the vawue of each matched ewement to set as sewected/checked.
      */
-    val(value: string | string[] | number): JQuery;
+    vaw(vawue: stwing | stwing[] | numba): JQuewy;
     /**
-     * Set the value of each element in the set of matched elements.
+     * Set the vawue of each ewement in the set of matched ewements.
      *
-     * @param func A function returning the value to set. this is the current element. Receives the index position of the element in the set and the old value as arguments.
+     * @pawam func A function wetuwning the vawue to set. this is the cuwwent ewement. Weceives the index position of the ewement in the set and the owd vawue as awguments.
      */
-    val(func: (index: number, value: string) => string): JQuery;
+    vaw(func: (index: numba, vawue: stwing) => stwing): JQuewy;
 
 
     /**
-     * Get the value of style properties for the first element in the set of matched elements.
+     * Get the vawue of stywe pwopewties fow the fiwst ewement in the set of matched ewements.
      *
-     * @param propertyName A CSS property.
+     * @pawam pwopewtyName A CSS pwopewty.
      */
-    css(propertyName: string): string;
+    css(pwopewtyName: stwing): stwing;
     /**
-     * Set one or more CSS properties for the set of matched elements.
+     * Set one ow mowe CSS pwopewties fow the set of matched ewements.
      *
-     * @param propertyName A CSS property name.
-     * @param value A value to set for the property.
+     * @pawam pwopewtyName A CSS pwopewty name.
+     * @pawam vawue A vawue to set fow the pwopewty.
      */
-    css(propertyName: string, value: string | number): JQuery;
+    css(pwopewtyName: stwing, vawue: stwing | numba): JQuewy;
     /**
-     * Set one or more CSS properties for the set of matched elements.
+     * Set one ow mowe CSS pwopewties fow the set of matched ewements.
      *
-     * @param propertyName A CSS property name.
-     * @param value A function returning the value to set. this is the current element. Receives the index position of the element in the set and the old value as arguments.
+     * @pawam pwopewtyName A CSS pwopewty name.
+     * @pawam vawue A function wetuwning the vawue to set. this is the cuwwent ewement. Weceives the index position of the ewement in the set and the owd vawue as awguments.
      */
-    css(propertyName: string, value: (index: number, value: string) => string | number): JQuery;
+    css(pwopewtyName: stwing, vawue: (index: numba, vawue: stwing) => stwing | numba): JQuewy;
     /**
-     * Set one or more CSS properties for the set of matched elements.
+     * Set one ow mowe CSS pwopewties fow the set of matched ewements.
      *
-     * @param properties An object of property-value pairs to set.
+     * @pawam pwopewties An object of pwopewty-vawue paiws to set.
      */
-    css(properties: Object): JQuery;
+    css(pwopewties: Object): JQuewy;
 
     /**
-     * Get the current computed height for the first element in the set of matched elements.
+     * Get the cuwwent computed height fow the fiwst ewement in the set of matched ewements.
      */
-    height(): number;
+    height(): numba;
     /**
-     * Set the CSS height of every matched element.
+     * Set the CSS height of evewy matched ewement.
      *
-     * @param value An integer representing the number of pixels, or an integer with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega with an optionaw unit of measuwe appended (as a stwing).
      */
-    height(value: number | string): JQuery;
+    height(vawue: numba | stwing): JQuewy;
     /**
-     * Set the CSS height of every matched element.
+     * Set the CSS height of evewy matched ewement.
      *
-     * @param func A function returning the height to set. Receives the index position of the element in the set and the old height as arguments. Within the function, this refers to the current element in the set.
+     * @pawam func A function wetuwning the height to set. Weceives the index position of the ewement in the set and the owd height as awguments. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    height(func: (index: number, height: number) => number | string): JQuery;
+    height(func: (index: numba, height: numba) => numba | stwing): JQuewy;
 
     /**
-     * Get the current computed height for the first element in the set of matched elements, including padding but not border.
+     * Get the cuwwent computed height fow the fiwst ewement in the set of matched ewements, incwuding padding but not bowda.
      */
-    innerHeight(): number;
+    innewHeight(): numba;
 
     /**
-     * Sets the inner height on elements in the set of matched elements, including padding but not border.
+     * Sets the inna height on ewements in the set of matched ewements, incwuding padding but not bowda.
      *
-     * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega awong with an optionaw unit of measuwe appended (as a stwing).
      */
-    innerHeight(height: number | string): JQuery;
+    innewHeight(height: numba | stwing): JQuewy;
 
     /**
-     * Get the current computed width for the first element in the set of matched elements, including padding but not border.
+     * Get the cuwwent computed width fow the fiwst ewement in the set of matched ewements, incwuding padding but not bowda.
      */
-    innerWidth(): number;
+    innewWidth(): numba;
 
     /**
-     * Sets the inner width on elements in the set of matched elements, including padding but not border.
+     * Sets the inna width on ewements in the set of matched ewements, incwuding padding but not bowda.
      *
-     * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega awong with an optionaw unit of measuwe appended (as a stwing).
      */
-    innerWidth(width: number | string): JQuery;
+    innewWidth(width: numba | stwing): JQuewy;
 
     /**
-     * Get the current coordinates of the first element in the set of matched elements, relative to the document.
+     * Get the cuwwent coowdinates of the fiwst ewement in the set of matched ewements, wewative to the document.
      */
-    offset(): JQueryCoordinates;
+    offset(): JQuewyCoowdinates;
     /**
-     * An object containing the properties top and left, which are integers indicating the new top and left coordinates for the elements.
+     * An object containing the pwopewties top and weft, which awe integews indicating the new top and weft coowdinates fow the ewements.
      *
-     * @param coordinates An object containing the properties top and left, which are integers indicating the new top and left coordinates for the elements.
+     * @pawam coowdinates An object containing the pwopewties top and weft, which awe integews indicating the new top and weft coowdinates fow the ewements.
      */
-    offset(coordinates: JQueryCoordinates): JQuery;
+    offset(coowdinates: JQuewyCoowdinates): JQuewy;
     /**
-     * An object containing the properties top and left, which are integers indicating the new top and left coordinates for the elements.
+     * An object containing the pwopewties top and weft, which awe integews indicating the new top and weft coowdinates fow the ewements.
      *
-     * @param func A function to return the coordinates to set. Receives the index of the element in the collection as the first argument and the current coordinates as the second argument. The function should return an object with the new top and left properties.
+     * @pawam func A function to wetuwn the coowdinates to set. Weceives the index of the ewement in the cowwection as the fiwst awgument and the cuwwent coowdinates as the second awgument. The function shouwd wetuwn an object with the new top and weft pwopewties.
      */
-    offset(func: (index: number, coords: JQueryCoordinates) => JQueryCoordinates): JQuery;
+    offset(func: (index: numba, coowds: JQuewyCoowdinates) => JQuewyCoowdinates): JQuewy;
 
     /**
-     * Get the current computed height for the first element in the set of matched elements, including padding, border, and optionally margin. Returns an integer (without "px") representation of the value or null if called on an empty set of elements.
+     * Get the cuwwent computed height fow the fiwst ewement in the set of matched ewements, incwuding padding, bowda, and optionawwy mawgin. Wetuwns an intega (without "px") wepwesentation of the vawue ow nuww if cawwed on an empty set of ewements.
      *
-     * @param includeMargin A Boolean indicating whether to include the element's margin in the calculation.
+     * @pawam incwudeMawgin A Boowean indicating whetha to incwude the ewement's mawgin in the cawcuwation.
      */
-    outerHeight(includeMargin?: boolean): number;
+    outewHeight(incwudeMawgin?: boowean): numba;
 
     /**
-     * Sets the outer height on elements in the set of matched elements, including padding and border.
+     * Sets the outa height on ewements in the set of matched ewements, incwuding padding and bowda.
      *
-     * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega awong with an optionaw unit of measuwe appended (as a stwing).
      */
-    outerHeight(height: number | string): JQuery;
+    outewHeight(height: numba | stwing): JQuewy;
 
     /**
-     * Get the current computed width for the first element in the set of matched elements, including padding and border.
+     * Get the cuwwent computed width fow the fiwst ewement in the set of matched ewements, incwuding padding and bowda.
      *
-     * @param includeMargin A Boolean indicating whether to include the element's margin in the calculation.
+     * @pawam incwudeMawgin A Boowean indicating whetha to incwude the ewement's mawgin in the cawcuwation.
      */
-    outerWidth(includeMargin?: boolean): number;
+    outewWidth(incwudeMawgin?: boowean): numba;
 
     /**
-     * Sets the outer width on elements in the set of matched elements, including padding and border.
+     * Sets the outa width on ewements in the set of matched ewements, incwuding padding and bowda.
      *
-     * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega awong with an optionaw unit of measuwe appended (as a stwing).
      */
-    outerWidth(width: number | string): JQuery;
+    outewWidth(width: numba | stwing): JQuewy;
 
     /**
-     * Get the current coordinates of the first element in the set of matched elements, relative to the offset parent.
+     * Get the cuwwent coowdinates of the fiwst ewement in the set of matched ewements, wewative to the offset pawent.
      */
-    position(): JQueryCoordinates;
+    position(): JQuewyCoowdinates;
 
     /**
-     * Get the current horizontal position of the scroll bar for the first element in the set of matched elements or set the horizontal position of the scroll bar for every matched element.
+     * Get the cuwwent howizontaw position of the scwoww baw fow the fiwst ewement in the set of matched ewements ow set the howizontaw position of the scwoww baw fow evewy matched ewement.
      */
-    scrollLeft(): number;
+    scwowwWeft(): numba;
     /**
-     * Set the current horizontal position of the scroll bar for each of the set of matched elements.
+     * Set the cuwwent howizontaw position of the scwoww baw fow each of the set of matched ewements.
      *
-     * @param value An integer indicating the new position to set the scroll bar to.
+     * @pawam vawue An intega indicating the new position to set the scwoww baw to.
      */
-    scrollLeft(value: number): JQuery;
+    scwowwWeft(vawue: numba): JQuewy;
 
     /**
-     * Get the current vertical position of the scroll bar for the first element in the set of matched elements or set the vertical position of the scroll bar for every matched element.
+     * Get the cuwwent vewticaw position of the scwoww baw fow the fiwst ewement in the set of matched ewements ow set the vewticaw position of the scwoww baw fow evewy matched ewement.
      */
-    scrollTop(): number;
+    scwowwTop(): numba;
     /**
-     * Set the current vertical position of the scroll bar for each of the set of matched elements.
+     * Set the cuwwent vewticaw position of the scwoww baw fow each of the set of matched ewements.
      *
-     * @param value An integer indicating the new position to set the scroll bar to.
+     * @pawam vawue An intega indicating the new position to set the scwoww baw to.
      */
-    scrollTop(value: number): JQuery;
+    scwowwTop(vawue: numba): JQuewy;
 
     /**
-     * Get the current computed width for the first element in the set of matched elements.
+     * Get the cuwwent computed width fow the fiwst ewement in the set of matched ewements.
      */
-    width(): number;
+    width(): numba;
     /**
-     * Set the CSS width of each element in the set of matched elements.
+     * Set the CSS width of each ewement in the set of matched ewements.
      *
-     * @param value An integer representing the number of pixels, or an integer along with an optional unit of measure appended (as a string).
+     * @pawam vawue An intega wepwesenting the numba of pixews, ow an intega awong with an optionaw unit of measuwe appended (as a stwing).
      */
-    width(value: number | string): JQuery;
+    width(vawue: numba | stwing): JQuewy;
     /**
-     * Set the CSS width of each element in the set of matched elements.
+     * Set the CSS width of each ewement in the set of matched ewements.
      *
-     * @param func A function returning the width to set. Receives the index position of the element in the set and the old width as arguments. Within the function, this refers to the current element in the set.
+     * @pawam func A function wetuwning the width to set. Weceives the index position of the ewement in the set and the owd width as awguments. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    width(func: (index: number, width: number) => number | string): JQuery;
+    width(func: (index: numba, width: numba) => numba | stwing): JQuewy;
 
     /**
-     * Remove from the queue all items that have not yet been run.
+     * Wemove fwom the queue aww items that have not yet been wun.
      *
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    clearQueue(queueName?: string): JQuery;
+    cweawQueue(queueName?: stwing): JQuewy;
 
     /**
-     * Store arbitrary data associated with the matched elements.
+     * Stowe awbitwawy data associated with the matched ewements.
      *
-     * @param key A string naming the piece of data to set.
-     * @param value The new data value; it can be any Javascript type including Array or Object.
+     * @pawam key A stwing naming the piece of data to set.
+     * @pawam vawue The new data vawue; it can be any Javascwipt type incwuding Awway ow Object.
      */
-    data(key: string, value: any): JQuery;
+    data(key: stwing, vawue: any): JQuewy;
     /**
-     * Return the value at the named data store for the first element in the jQuery collection, as set by data(name, value) or by an HTML5 data-* attribute.
+     * Wetuwn the vawue at the named data stowe fow the fiwst ewement in the jQuewy cowwection, as set by data(name, vawue) ow by an HTMW5 data-* attwibute.
      *
-     * @param key Name of the data stored.
+     * @pawam key Name of the data stowed.
      */
-    data(key: string): any;
+    data(key: stwing): any;
     /**
-     * Store arbitrary data associated with the matched elements.
+     * Stowe awbitwawy data associated with the matched ewements.
      *
-     * @param obj An object of key-value pairs of data to update.
+     * @pawam obj An object of key-vawue paiws of data to update.
      */
-    data(obj: { [key: string]: any; }): JQuery;
+    data(obj: { [key: stwing]: any; }): JQuewy;
     /**
-     * Return the value at the named data store for the first element in the jQuery collection, as set by data(name, value) or by an HTML5 data-* attribute.
+     * Wetuwn the vawue at the named data stowe fow the fiwst ewement in the jQuewy cowwection, as set by data(name, vawue) ow by an HTMW5 data-* attwibute.
      */
     data(): any;
 
     /**
-     * Execute the next function on the queue for the matched elements.
+     * Execute the next function on the queue fow the matched ewements.
      *
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    dequeue(queueName?: string): JQuery;
+    dequeue(queueName?: stwing): JQuewy;
 
     /**
-     * Remove a previously-stored piece of data.
+     * Wemove a pweviouswy-stowed piece of data.
      *
-     * @param name A string naming the piece of data to delete or space-separated string naming the pieces of data to delete.
+     * @pawam name A stwing naming the piece of data to dewete ow space-sepawated stwing naming the pieces of data to dewete.
      */
-    removeData(name: string): JQuery;
+    wemoveData(name: stwing): JQuewy;
     /**
-     * Remove a previously-stored piece of data.
+     * Wemove a pweviouswy-stowed piece of data.
      *
-     * @param list An array of strings naming the pieces of data to delete.
+     * @pawam wist An awway of stwings naming the pieces of data to dewete.
      */
-    removeData(list: string[]): JQuery;
+    wemoveData(wist: stwing[]): JQuewy;
     /**
-     * Remove all previously-stored piece of data.
+     * Wemove aww pweviouswy-stowed piece of data.
      */
-    removeData(): JQuery;
+    wemoveData(): JQuewy;
 
     /**
-     * Return a Promise object to observe when all actions of a certain type bound to the collection, queued or not, have finished.
+     * Wetuwn a Pwomise object to obsewve when aww actions of a cewtain type bound to the cowwection, queued ow not, have finished.
      *
-     * @param type The type of queue that needs to be observed. (default: fx)
-     * @param target Object onto which the promise methods have to be attached
+     * @pawam type The type of queue that needs to be obsewved. (defauwt: fx)
+     * @pawam tawget Object onto which the pwomise methods have to be attached
      */
-    promise(type?: string, target?: Object): JQueryPromise<any>;
+    pwomise(type?: stwing, tawget?: Object): JQuewyPwomise<any>;
 
     /**
-     * Perform a custom animation of a set of CSS properties.
+     * Pewfowm a custom animation of a set of CSS pwopewties.
      *
-     * @param properties An object of CSS properties and values that the animation will move toward.
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam pwopewties An object of CSS pwopewties and vawues that the animation wiww move towawd.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    animate(properties: Object, duration?: string | number, complete?: Function): JQuery;
+    animate(pwopewties: Object, duwation?: stwing | numba, compwete?: Function): JQuewy;
     /**
-     * Perform a custom animation of a set of CSS properties.
+     * Pewfowm a custom animation of a set of CSS pwopewties.
      *
-     * @param properties An object of CSS properties and values that the animation will move toward.
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition. (default: swing)
-     * @param complete A function to call once the animation is complete.
+     * @pawam pwopewties An object of CSS pwopewties and vawues that the animation wiww move towawd.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition. (defauwt: swing)
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    animate(properties: Object, duration?: string | number, easing?: string, complete?: Function): JQuery;
+    animate(pwopewties: Object, duwation?: stwing | numba, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Perform a custom animation of a set of CSS properties.
+     * Pewfowm a custom animation of a set of CSS pwopewties.
      *
-     * @param properties An object of CSS properties and values that the animation will move toward.
-     * @param options A map of additional options to pass to the method.
+     * @pawam pwopewties An object of CSS pwopewties and vawues that the animation wiww move towawd.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    animate(properties: Object, options: JQueryAnimationOptions): JQuery;
+    animate(pwopewties: Object, options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Set a timer to delay execution of subsequent items in the queue.
+     * Set a tima to deway execution of subsequent items in the queue.
      *
-     * @param duration An integer indicating the number of milliseconds to delay execution of the next item in the queue.
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam duwation An intega indicating the numba of miwwiseconds to deway execution of the next item in the queue.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    delay(duration: number, queueName?: string): JQuery;
+    deway(duwation: numba, queueName?: stwing): JQuewy;
 
     /**
-     * Display the matched elements by fading them to opaque.
+     * Dispway the matched ewements by fading them to opaque.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeIn(duration?: number | string, complete?: Function): JQuery;
+    fadeIn(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements by fading them to opaque.
+     * Dispway the matched ewements by fading them to opaque.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeIn(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    fadeIn(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements by fading them to opaque.
+     * Dispway the matched ewements by fading them to opaque.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    fadeIn(options: JQueryAnimationOptions): JQuery;
+    fadeIn(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Hide the matched elements by fading them to transparent.
+     * Hide the matched ewements by fading them to twanspawent.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeOut(duration?: number | string, complete?: Function): JQuery;
+    fadeOut(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements by fading them to transparent.
+     * Hide the matched ewements by fading them to twanspawent.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeOut(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    fadeOut(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements by fading them to transparent.
+     * Hide the matched ewements by fading them to twanspawent.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    fadeOut(options: JQueryAnimationOptions): JQuery;
+    fadeOut(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Adjust the opacity of the matched elements.
+     * Adjust the opacity of the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param opacity A number between 0 and 1 denoting the target opacity.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam opacity A numba between 0 and 1 denoting the tawget opacity.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeTo(duration: string | number, opacity: number, complete?: Function): JQuery;
+    fadeTo(duwation: stwing | numba, opacity: numba, compwete?: Function): JQuewy;
     /**
-     * Adjust the opacity of the matched elements.
+     * Adjust the opacity of the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param opacity A number between 0 and 1 denoting the target opacity.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam opacity A numba between 0 and 1 denoting the tawget opacity.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeTo(duration: string | number, opacity: number, easing?: string, complete?: Function): JQuery;
+    fadeTo(duwation: stwing | numba, opacity: numba, easing?: stwing, compwete?: Function): JQuewy;
 
     /**
-     * Display or hide the matched elements by animating their opacity.
+     * Dispway ow hide the matched ewements by animating theiw opacity.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeToggle(duration?: number | string, complete?: Function): JQuery;
+    fadeToggwe(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements by animating their opacity.
+     * Dispway ow hide the matched ewements by animating theiw opacity.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    fadeToggle(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    fadeToggwe(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements by animating their opacity.
+     * Dispway ow hide the matched ewements by animating theiw opacity.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    fadeToggle(options: JQueryAnimationOptions): JQuery;
+    fadeToggwe(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Stop the currently-running animation, remove all queued animations, and complete all animations for the matched elements.
+     * Stop the cuwwentwy-wunning animation, wemove aww queued animations, and compwete aww animations fow the matched ewements.
      *
-     * @param queue The name of the queue in which to stop animations.
+     * @pawam queue The name of the queue in which to stop animations.
      */
-    finish(queue?: string): JQuery;
+    finish(queue?: stwing): JQuewy;
 
     /**
-     * Hide the matched elements.
+     * Hide the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    hide(duration?: number | string, complete?: Function): JQuery;
+    hide(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements.
+     * Hide the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    hide(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    hide(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements.
+     * Hide the matched ewements.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    hide(options: JQueryAnimationOptions): JQuery;
+    hide(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Display the matched elements.
+     * Dispway the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    show(duration?: number | string, complete?: Function): JQuery;
+    show(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements.
+     * Dispway the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    show(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    show(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements.
+     * Dispway the matched ewements.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    show(options: JQueryAnimationOptions): JQuery;
+    show(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Display the matched elements with a sliding motion.
+     * Dispway the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideDown(duration?: number | string, complete?: Function): JQuery;
+    swideDown(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements with a sliding motion.
+     * Dispway the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideDown(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    swideDown(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display the matched elements with a sliding motion.
+     * Dispway the matched ewements with a swiding motion.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    slideDown(options: JQueryAnimationOptions): JQuery;
+    swideDown(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Display or hide the matched elements with a sliding motion.
+     * Dispway ow hide the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideToggle(duration?: number | string, complete?: Function): JQuery;
+    swideToggwe(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements with a sliding motion.
+     * Dispway ow hide the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideToggle(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    swideToggwe(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements with a sliding motion.
+     * Dispway ow hide the matched ewements with a swiding motion.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    slideToggle(options: JQueryAnimationOptions): JQuery;
+    swideToggwe(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Hide the matched elements with a sliding motion.
+     * Hide the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideUp(duration?: number | string, complete?: Function): JQuery;
+    swideUp(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements with a sliding motion.
+     * Hide the matched ewements with a swiding motion.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    slideUp(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    swideUp(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Hide the matched elements with a sliding motion.
+     * Hide the matched ewements with a swiding motion.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    slideUp(options: JQueryAnimationOptions): JQuery;
+    swideUp(options: JQuewyAnimationOptions): JQuewy;
 
     /**
-     * Stop the currently-running animation on the matched elements.
+     * Stop the cuwwentwy-wunning animation on the matched ewements.
      *
-     * @param clearQueue A Boolean indicating whether to remove queued animation as well. Defaults to false.
-     * @param jumpToEnd A Boolean indicating whether to complete the current animation immediately. Defaults to false.
+     * @pawam cweawQueue A Boowean indicating whetha to wemove queued animation as weww. Defauwts to fawse.
+     * @pawam jumpToEnd A Boowean indicating whetha to compwete the cuwwent animation immediatewy. Defauwts to fawse.
      */
-    stop(clearQueue?: boolean, jumpToEnd?: boolean): JQuery;
+    stop(cweawQueue?: boowean, jumpToEnd?: boowean): JQuewy;
     /**
-     * Stop the currently-running animation on the matched elements.
+     * Stop the cuwwentwy-wunning animation on the matched ewements.
      *
-     * @param queue The name of the queue in which to stop animations.
-     * @param clearQueue A Boolean indicating whether to remove queued animation as well. Defaults to false.
-     * @param jumpToEnd A Boolean indicating whether to complete the current animation immediately. Defaults to false.
+     * @pawam queue The name of the queue in which to stop animations.
+     * @pawam cweawQueue A Boowean indicating whetha to wemove queued animation as weww. Defauwts to fawse.
+     * @pawam jumpToEnd A Boowean indicating whetha to compwete the cuwwent animation immediatewy. Defauwts to fawse.
      */
-    stop(queue?: string, clearQueue?: boolean, jumpToEnd?: boolean): JQuery;
+    stop(queue?: stwing, cweawQueue?: boowean, jumpToEnd?: boowean): JQuewy;
 
     /**
-     * Display or hide the matched elements.
+     * Dispway ow hide the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    toggle(duration?: number | string, complete?: Function): JQuery;
+    toggwe(duwation?: numba | stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements.
+     * Dispway ow hide the matched ewements.
      *
-     * @param duration A string or number determining how long the animation will run.
-     * @param easing A string indicating which easing function to use for the transition.
-     * @param complete A function to call once the animation is complete.
+     * @pawam duwation A stwing ow numba detewmining how wong the animation wiww wun.
+     * @pawam easing A stwing indicating which easing function to use fow the twansition.
+     * @pawam compwete A function to caww once the animation is compwete.
      */
-    toggle(duration?: number | string, easing?: string, complete?: Function): JQuery;
+    toggwe(duwation?: numba | stwing, easing?: stwing, compwete?: Function): JQuewy;
     /**
-     * Display or hide the matched elements.
+     * Dispway ow hide the matched ewements.
      *
-     * @param options A map of additional options to pass to the method.
+     * @pawam options A map of additionaw options to pass to the method.
      */
-    toggle(options: JQueryAnimationOptions): JQuery;
+    toggwe(options: JQuewyAnimationOptions): JQuewy;
     /**
-     * Display or hide the matched elements.
+     * Dispway ow hide the matched ewements.
      *
-     * @param showOrHide A Boolean indicating whether to show or hide the elements.
+     * @pawam showOwHide A Boowean indicating whetha to show ow hide the ewements.
      */
-    toggle(showOrHide: boolean): JQuery;
+    toggwe(showOwHide: boowean): JQuewy;
 
     /**
-     * Attach a handler to an event for the elements.
+     * Attach a handwa to an event fow the ewements.
      *
-     * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventType A stwing containing one ow mowe DOM event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    bind(eventType: string, eventData: any, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    bind(eventType: stwing, eventData: any, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Attach a handler to an event for the elements.
+     * Attach a handwa to an event fow the ewements.
      *
-     * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventType A stwing containing one ow mowe DOM event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    bind(eventType: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    bind(eventType: stwing, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Attach a handler to an event for the elements.
+     * Attach a handwa to an event fow the ewements.
      *
-     * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param preventBubble Setting the third argument to false will attach a function that prevents the default action from occurring and stops the event from bubbling. The default is true.
+     * @pawam eventType A stwing containing one ow mowe DOM event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam pweventBubbwe Setting the thiwd awgument to fawse wiww attach a function that pwevents the defauwt action fwom occuwwing and stops the event fwom bubbwing. The defauwt is twue.
      */
-    bind(eventType: string, eventData: any, preventBubble: boolean): JQuery;
+    bind(eventType: stwing, eventData: any, pweventBubbwe: boowean): JQuewy;
     /**
-     * Attach a handler to an event for the elements.
+     * Attach a handwa to an event fow the ewements.
      *
-     * @param eventType A string containing one or more DOM event types, such as "click" or "submit," or custom event names.
-     * @param preventBubble Setting the third argument to false will attach a function that prevents the default action from occurring and stops the event from bubbling. The default is true.
+     * @pawam eventType A stwing containing one ow mowe DOM event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam pweventBubbwe Setting the thiwd awgument to fawse wiww attach a function that pwevents the defauwt action fwom occuwwing and stops the event fwom bubbwing. The defauwt is twue.
      */
-    bind(eventType: string, preventBubble: boolean): JQuery;
+    bind(eventType: stwing, pweventBubbwe: boowean): JQuewy;
     /**
-     * Attach a handler to an event for the elements.
+     * Attach a handwa to an event fow the ewements.
      *
-     * @param events An object containing one or more DOM event types and functions to execute for them.
+     * @pawam events An object containing one ow mowe DOM event types and functions to execute fow them.
      */
-    bind(events: any): JQuery;
+    bind(events: any): JQuewy;
 
     /**
-     * Trigger the "blur" event on an element
+     * Twigga the "bwuw" event on an ewement
      */
-    blur(): JQuery;
+    bwuw(): JQuewy;
     /**
-     * Bind an event handler to the "blur" JavaScript event
+     * Bind an event handwa to the "bwuw" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    blur(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    bwuw(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "blur" JavaScript event
+     * Bind an event handwa to the "bwuw" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    blur(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    bwuw(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "change" event on an element.
+     * Twigga the "change" event on an ewement.
      */
-    change(): JQuery;
+    change(): JQuewy;
     /**
-     * Bind an event handler to the "change" JavaScript event
+     * Bind an event handwa to the "change" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    change(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    change(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "change" JavaScript event
+     * Bind an event handwa to the "change" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    change(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    change(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "click" event on an element.
+     * Twigga the "cwick" event on an ewement.
      */
-    click(): JQuery;
+    cwick(): JQuewy;
     /**
-     * Bind an event handler to the "click" JavaScript event
+     * Bind an event handwa to the "cwick" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
      */
-    click(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    cwick(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "click" JavaScript event
+     * Bind an event handwa to the "cwick" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    click(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    cwick(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "contextmenu" event on an element.
+     * Twigga the "contextmenu" event on an ewement.
      */
-    contextmenu(): JQuery;
+    contextmenu(): JQuewy;
     /**
-     * Bind an event handler to the "contextmenu" JavaScript event.
+     * Bind an event handwa to the "contextmenu" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    contextmenu(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    contextmenu(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "contextmenu" JavaScript event.
+     * Bind an event handwa to the "contextmenu" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    contextmenu(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    contextmenu(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "dblclick" event on an element.
+     * Twigga the "dbwcwick" event on an ewement.
      */
-    dblclick(): JQuery;
+    dbwcwick(): JQuewy;
     /**
-     * Bind an event handler to the "dblclick" JavaScript event
+     * Bind an event handwa to the "dbwcwick" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    dblclick(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    dbwcwick(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "dblclick" JavaScript event
+     * Bind an event handwa to the "dbwcwick" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    dblclick(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    dbwcwick(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
-    delegate(selector: any, eventType: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
-    delegate(selector: any, eventType: string, eventData: any, handler: (eventObject: JQueryEventObject) => any): JQuery;
-
-    /**
-     * Trigger the "focus" event on an element.
-     */
-    focus(): JQuery;
-    /**
-     * Bind an event handler to the "focus" JavaScript event
-     *
-     * @param handler A function to execute each time the event is triggered.
-     */
-    focus(handler: (eventObject: JQueryEventObject) => any): JQuery;
-    /**
-     * Bind an event handler to the "focus" JavaScript event
-     *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
-     */
-    focus(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    dewegate(sewectow: any, eventType: stwing, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
+    dewegate(sewectow: any, eventType: stwing, eventData: any, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "focusin" event on an element.
+     * Twigga the "focus" event on an ewement.
      */
-    focusin(): JQuery;
+    focus(): JQuewy;
     /**
-     * Bind an event handler to the "focusin" JavaScript event
+     * Bind an event handwa to the "focus" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    focusin(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    focus(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "focusin" JavaScript event
+     * Bind an event handwa to the "focus" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    focusin(eventData: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    focus(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "focusout" event on an element.
+     * Twigga the "focusin" event on an ewement.
      */
-    focusout(): JQuery;
+    focusin(): JQuewy;
     /**
-     * Bind an event handler to the "focusout" JavaScript event
+     * Bind an event handwa to the "focusin" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    focusout(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    focusin(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "focusout" JavaScript event
+     * Bind an event handwa to the "focusin" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    focusout(eventData: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    focusin(eventData: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Bind two handlers to the matched elements, to be executed when the mouse pointer enters and leaves the elements.
-     *
-     * @param handlerIn A function to execute when the mouse pointer enters the element.
-     * @param handlerOut A function to execute when the mouse pointer leaves the element.
+     * Twigga the "focusout" event on an ewement.
      */
-    hover(handlerIn: (eventObject: JQueryEventObject) => any, handlerOut: (eventObject: JQueryEventObject) => any): JQuery;
+    focusout(): JQuewy;
     /**
-     * Bind a single handler to the matched elements, to be executed when the mouse pointer enters or leaves the elements.
+     * Bind an event handwa to the "focusout" JavaScwipt event
      *
-     * @param handlerInOut A function to execute when the mouse pointer enters or leaves the element.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    hover(handlerInOut: (eventObject: JQueryEventObject) => any): JQuery;
+    focusout(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
+    /**
+     * Bind an event handwa to the "focusout" JavaScwipt event
+     *
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
+     */
+    focusout(eventData: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "keydown" event on an element.
-     */
-    keydown(): JQuery;
-    /**
-     * Bind an event handler to the "keydown" JavaScript event
+     * Bind two handwews to the matched ewements, to be executed when the mouse pointa entews and weaves the ewements.
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwewIn A function to execute when the mouse pointa entews the ewement.
+     * @pawam handwewOut A function to execute when the mouse pointa weaves the ewement.
      */
-    keydown(handler: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    hova(handwewIn: (eventObject: JQuewyEventObject) => any, handwewOut: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "keydown" JavaScript event
+     * Bind a singwe handwa to the matched ewements, to be executed when the mouse pointa entews ow weaves the ewements.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwewInOut A function to execute when the mouse pointa entews ow weaves the ewement.
      */
-    keydown(eventData?: any, handler?: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    hova(handwewInOut: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "keypress" event on an element.
+     * Twigga the "keydown" event on an ewement.
      */
-    keypress(): JQuery;
+    keydown(): JQuewy;
     /**
-     * Bind an event handler to the "keypress" JavaScript event
+     * Bind an event handwa to the "keydown" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    keypress(handler: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    keydown(handwa: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "keypress" JavaScript event
+     * Bind an event handwa to the "keydown" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    keypress(eventData?: any, handler?: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    keydown(eventData?: any, handwa?: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "keyup" event on an element.
+     * Twigga the "keypwess" event on an ewement.
      */
-    keyup(): JQuery;
+    keypwess(): JQuewy;
     /**
-     * Bind an event handler to the "keyup" JavaScript event
+     * Bind an event handwa to the "keypwess" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    keyup(handler: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    keypwess(handwa: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "keyup" JavaScript event
+     * Bind an event handwa to the "keypwess" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    keyup(eventData?: any, handler?: (eventObject: JQueryKeyEventObject) => any): JQuery;
+    keypwess(eventData?: any, handwa?: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
 
     /**
-     * Bind an event handler to the "load" JavaScript event.
-     *
-     * @param handler A function to execute when the event is triggered.
+     * Twigga the "keyup" event on an ewement.
      */
-    load(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    keyup(): JQuewy;
     /**
-     * Bind an event handler to the "load" JavaScript event.
+     * Bind an event handwa to the "keyup" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    load(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    keyup(handwa: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
+    /**
+     * Bind an event handwa to the "keyup" JavaScwipt event
+     *
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
+     */
+    keyup(eventData?: any, handwa?: (eventObject: JQuewyKeyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mousedown" event on an element.
-     */
-    mousedown(): JQuery;
-    /**
-     * Bind an event handler to the "mousedown" JavaScript event.
+     * Bind an event handwa to the "woad" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mousedown(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    woad(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "mousedown" JavaScript event.
+     * Bind an event handwa to the "woad" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mousedown(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    woad(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mouseenter" event on an element.
+     * Twigga the "mousedown" event on an ewement.
      */
-    mouseenter(): JQuery;
+    mousedown(): JQuewy;
     /**
-     * Bind an event handler to be fired when the mouse enters an element.
+     * Bind an event handwa to the "mousedown" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseenter(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mousedown(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to be fired when the mouse enters an element.
+     * Bind an event handwa to the "mousedown" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseenter(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mousedown(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mouseleave" event on an element.
+     * Twigga the "mouseenta" event on an ewement.
      */
-    mouseleave(): JQuery;
+    mouseenta(): JQuewy;
     /**
-     * Bind an event handler to be fired when the mouse leaves an element.
+     * Bind an event handwa to be fiwed when the mouse entews an ewement.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseleave(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseenta(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to be fired when the mouse leaves an element.
+     * Bind an event handwa to be fiwed when the mouse entews an ewement.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseleave(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseenta(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mousemove" event on an element.
+     * Twigga the "mouseweave" event on an ewement.
      */
-    mousemove(): JQuery;
+    mouseweave(): JQuewy;
     /**
-     * Bind an event handler to the "mousemove" JavaScript event.
+     * Bind an event handwa to be fiwed when the mouse weaves an ewement.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mousemove(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseweave(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "mousemove" JavaScript event.
+     * Bind an event handwa to be fiwed when the mouse weaves an ewement.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mousemove(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseweave(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mouseout" event on an element.
+     * Twigga the "mousemove" event on an ewement.
      */
-    mouseout(): JQuery;
+    mousemove(): JQuewy;
     /**
-     * Bind an event handler to the "mouseout" JavaScript event.
+     * Bind an event handwa to the "mousemove" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseout(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mousemove(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "mouseout" JavaScript event.
+     * Bind an event handwa to the "mousemove" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseout(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mousemove(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mouseover" event on an element.
+     * Twigga the "mouseout" event on an ewement.
      */
-    mouseover(): JQuery;
+    mouseout(): JQuewy;
     /**
-     * Bind an event handler to the "mouseover" JavaScript event.
+     * Bind an event handwa to the "mouseout" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseover(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseout(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "mouseover" JavaScript event.
+     * Bind an event handwa to the "mouseout" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseover(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseout(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "mouseup" event on an element.
+     * Twigga the "mouseova" event on an ewement.
      */
-    mouseup(): JQuery;
+    mouseova(): JQuewy;
     /**
-     * Bind an event handler to the "mouseup" JavaScript event.
+     * Bind an event handwa to the "mouseova" JavaScwipt event.
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseup(handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseova(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "mouseup" JavaScript event.
+     * Bind an event handwa to the "mouseova" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    mouseup(eventData: Object, handler: (eventObject: JQueryMouseEventObject) => any): JQuery;
+    mouseova(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Remove an event handler.
+     * Twigga the "mouseup" event on an ewement.
      */
-    off(): JQuery;
+    mouseup(): JQuewy;
     /**
-     * Remove an event handler.
+     * Bind an event handwa to the "mouseup" JavaScwipt event.
      *
-     * @param events One or more space-separated event types and optional namespaces, or just namespaces, such as "click", "keydown.myPlugin", or ".myPlugin".
-     * @param selector A selector which should match the one originally passed to .on() when attaching event handlers.
-     * @param handler A handler function previously attached for the event(s), or the special value false.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    off(events: string, selector?: string, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    mouseup(handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
     /**
-     * Remove an event handler.
+     * Bind an event handwa to the "mouseup" JavaScwipt event.
      *
-     * @param events One or more space-separated event types and optional namespaces, or just namespaces, such as "click", "keydown.myPlugin", or ".myPlugin".
-     * @param handler A handler function previously attached for the event(s), or the special value false. Takes handler with extra args that can be attached with on().
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    off(events: string, handler: (eventObject: JQueryEventObject, ...args: any[]) => any): JQuery;
-    /**
-     * Remove an event handler.
-     *
-     * @param events One or more space-separated event types and optional namespaces, or just namespaces, such as "click", "keydown.myPlugin", or ".myPlugin".
-     * @param handler A handler function previously attached for the event(s), or the special value false.
-     */
-    off(events: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
-    /**
-     * Remove an event handler.
-     *
-     * @param events An object where the string keys represent one or more space-separated event types and optional namespaces, and the values represent handler functions previously attached for the event(s).
-     * @param selector A selector which should match the one originally passed to .on() when attaching event handlers.
-     */
-    off(events: { [key: string]: any; }, selector?: string): JQuery;
+    mouseup(eventData: Object, handwa: (eventObject: JQuewyMouseEventObject) => any): JQuewy;
 
     /**
-     * Attach an event handler function for one or more events to the selected elements.
-     *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false. Rest parameter args is for optional parameters passed to jQuery.trigger(). Note that the actual parameters on the event handler function must be marked as optional (? syntax).
+     * Wemove an event handwa.
      */
-    on(events: string, handler: (eventObject: JQueryEventObject, ...args: any[]) => any): JQuery;
+    off(): JQuewy;
     /**
-     * Attach an event handler function for one or more events to the selected elements.
+     * Wemove an event handwa.
      *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param data Data to be passed to the handler in event.data when an event is triggered.
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false.
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, ow just namespaces, such as "cwick", "keydown.myPwugin", ow ".myPwugin".
+     * @pawam sewectow A sewectow which shouwd match the one owiginawwy passed to .on() when attaching event handwews.
+     * @pawam handwa A handwa function pweviouswy attached fow the event(s), ow the speciaw vawue fawse.
+     */
+    off(events: stwing, sewectow?: stwing, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
+    /**
+     * Wemove an event handwa.
+     *
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, ow just namespaces, such as "cwick", "keydown.myPwugin", ow ".myPwugin".
+     * @pawam handwa A handwa function pweviouswy attached fow the event(s), ow the speciaw vawue fawse. Takes handwa with extwa awgs that can be attached with on().
+     */
+    off(events: stwing, handwa: (eventObject: JQuewyEventObject, ...awgs: any[]) => any): JQuewy;
+    /**
+     * Wemove an event handwa.
+     *
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, ow just namespaces, such as "cwick", "keydown.myPwugin", ow ".myPwugin".
+     * @pawam handwa A handwa function pweviouswy attached fow the event(s), ow the speciaw vawue fawse.
+     */
+    off(events: stwing, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
+    /**
+     * Wemove an event handwa.
+     *
+     * @pawam events An object whewe the stwing keys wepwesent one ow mowe space-sepawated event types and optionaw namespaces, and the vawues wepwesent handwa functions pweviouswy attached fow the event(s).
+     * @pawam sewectow A sewectow which shouwd match the one owiginawwy passed to .on() when attaching event handwews.
+     */
+    off(events: { [key: stwing]: any; }, sewectow?: stwing): JQuewy;
+
+    /**
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
+     *
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse. West pawameta awgs is fow optionaw pawametews passed to jQuewy.twigga(). Note that the actuaw pawametews on the event handwa function must be mawked as optionaw (? syntax).
+     */
+    on(events: stwing, handwa: (eventObject: JQuewyEventObject, ...awgs: any[]) => any): JQuewy;
+    /**
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
+     *
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam data Data to be passed to the handwa in event.data when an event is twiggewed.
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse.
     */
-    on(events: string, data: any, handler: (eventObject: JQueryEventObject, ...args: any[]) => any): JQuery;
+    on(events: stwing, data: any, handwa: (eventObject: JQuewyEventObject, ...awgs: any[]) => any): JQuewy;
     /**
-     * Attach an event handler function for one or more events to the selected elements.
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
      *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param selector A selector string to filter the descendants of the selected elements that trigger the event. If the selector is null or omitted, the event is always triggered when it reaches the selected element.
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false.
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that twigga the event. If the sewectow is nuww ow omitted, the event is awways twiggewed when it weaches the sewected ewement.
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse.
      */
-    on(events: string, selector: string, handler: (eventObject: JQueryEventObject, ...eventData: any[]) => any): JQuery;
+    on(events: stwing, sewectow: stwing, handwa: (eventObject: JQuewyEventObject, ...eventData: any[]) => any): JQuewy;
     /**
-     * Attach an event handler function for one or more events to the selected elements.
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
      *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param selector A selector string to filter the descendants of the selected elements that trigger the event. If the selector is null or omitted, the event is always triggered when it reaches the selected element.
-     * @param data Data to be passed to the handler in event.data when an event is triggered.
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false.
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that twigga the event. If the sewectow is nuww ow omitted, the event is awways twiggewed when it weaches the sewected ewement.
+     * @pawam data Data to be passed to the handwa in event.data when an event is twiggewed.
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse.
      */
-    on(events: string, selector: string, data: any, handler: (eventObject: JQueryEventObject, ...eventData: any[]) => any): JQuery;
+    on(events: stwing, sewectow: stwing, data: any, handwa: (eventObject: JQuewyEventObject, ...eventData: any[]) => any): JQuewy;
     /**
-     * Attach an event handler function for one or more events to the selected elements.
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
      *
-     * @param events An object in which the string keys represent one or more space-separated event types and optional namespaces, and the values represent a handler function to be called for the event(s).
-     * @param selector A selector string to filter the descendants of the selected elements that will call the handler. If the selector is null or omitted, the handler is always called when it reaches the selected element.
-     * @param data Data to be passed to the handler in event.data when an event occurs.
+     * @pawam events An object in which the stwing keys wepwesent one ow mowe space-sepawated event types and optionaw namespaces, and the vawues wepwesent a handwa function to be cawwed fow the event(s).
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that wiww caww the handwa. If the sewectow is nuww ow omitted, the handwa is awways cawwed when it weaches the sewected ewement.
+     * @pawam data Data to be passed to the handwa in event.data when an event occuws.
      */
-    on(events: { [key: string]: any; }, selector?: string, data?: any): JQuery;
+    on(events: { [key: stwing]: any; }, sewectow?: stwing, data?: any): JQuewy;
     /**
-     * Attach an event handler function for one or more events to the selected elements.
+     * Attach an event handwa function fow one ow mowe events to the sewected ewements.
      *
-     * @param events An object in which the string keys represent one or more space-separated event types and optional namespaces, and the values represent a handler function to be called for the event(s).
-     * @param data Data to be passed to the handler in event.data when an event occurs.
+     * @pawam events An object in which the stwing keys wepwesent one ow mowe space-sepawated event types and optionaw namespaces, and the vawues wepwesent a handwa function to be cawwed fow the event(s).
+     * @pawam data Data to be passed to the handwa in event.data when an event occuws.
      */
-    on(events: { [key: string]: any; }, data?: any): JQuery;
+    on(events: { [key: stwing]: any; }, data?: any): JQuewy;
 
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events A string containing one or more JavaScript event types, such as "click" or "submit," or custom event names.
-     * @param handler A function to execute at the time the event is triggered.
+     * @pawam events A stwing containing one ow mowe JavaScwipt event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam handwa A function to execute at the time the event is twiggewed.
      */
-    one(events: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    one(events: stwing, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events A string containing one or more JavaScript event types, such as "click" or "submit," or custom event names.
-     * @param data An object containing data that will be passed to the event handler.
-     * @param handler A function to execute at the time the event is triggered.
+     * @pawam events A stwing containing one ow mowe JavaScwipt event types, such as "cwick" ow "submit," ow custom event names.
+     * @pawam data An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute at the time the event is twiggewed.
      */
-    one(events: string, data: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    one(events: stwing, data: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param selector A selector string to filter the descendants of the selected elements that trigger the event. If the selector is null or omitted, the event is always triggered when it reaches the selected element.
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false.
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that twigga the event. If the sewectow is nuww ow omitted, the event is awways twiggewed when it weaches the sewected ewement.
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse.
      */
-    one(events: string, selector: string, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    one(events: stwing, sewectow: stwing, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events One or more space-separated event types and optional namespaces, such as "click" or "keydown.myPlugin".
-     * @param selector A selector string to filter the descendants of the selected elements that trigger the event. If the selector is null or omitted, the event is always triggered when it reaches the selected element.
-     * @param data Data to be passed to the handler in event.data when an event is triggered.
-     * @param handler A function to execute when the event is triggered. The value false is also allowed as a shorthand for a function that simply does return false.
+     * @pawam events One ow mowe space-sepawated event types and optionaw namespaces, such as "cwick" ow "keydown.myPwugin".
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that twigga the event. If the sewectow is nuww ow omitted, the event is awways twiggewed when it weaches the sewected ewement.
+     * @pawam data Data to be passed to the handwa in event.data when an event is twiggewed.
+     * @pawam handwa A function to execute when the event is twiggewed. The vawue fawse is awso awwowed as a showthand fow a function that simpwy does wetuwn fawse.
      */
-    one(events: string, selector: string, data: any, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    one(events: stwing, sewectow: stwing, data: any, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events An object in which the string keys represent one or more space-separated event types and optional namespaces, and the values represent a handler function to be called for the event(s).
-     * @param selector A selector string to filter the descendants of the selected elements that will call the handler. If the selector is null or omitted, the handler is always called when it reaches the selected element.
-     * @param data Data to be passed to the handler in event.data when an event occurs.
+     * @pawam events An object in which the stwing keys wepwesent one ow mowe space-sepawated event types and optionaw namespaces, and the vawues wepwesent a handwa function to be cawwed fow the event(s).
+     * @pawam sewectow A sewectow stwing to fiwta the descendants of the sewected ewements that wiww caww the handwa. If the sewectow is nuww ow omitted, the handwa is awways cawwed when it weaches the sewected ewement.
+     * @pawam data Data to be passed to the handwa in event.data when an event occuws.
      */
-    one(events: { [key: string]: any; }, selector?: string, data?: any): JQuery;
+    one(events: { [key: stwing]: any; }, sewectow?: stwing, data?: any): JQuewy;
 
     /**
-     * Attach a handler to an event for the elements. The handler is executed at most once per element per event type.
+     * Attach a handwa to an event fow the ewements. The handwa is executed at most once pew ewement pew event type.
      *
-     * @param events An object in which the string keys represent one or more space-separated event types and optional namespaces, and the values represent a handler function to be called for the event(s).
-     * @param data Data to be passed to the handler in event.data when an event occurs.
+     * @pawam events An object in which the stwing keys wepwesent one ow mowe space-sepawated event types and optionaw namespaces, and the vawues wepwesent a handwa function to be cawwed fow the event(s).
+     * @pawam data Data to be passed to the handwa in event.data when an event occuws.
      */
-    one(events: { [key: string]: any; }, data?: any): JQuery;
+    one(events: { [key: stwing]: any; }, data?: any): JQuewy;
 
 
     /**
-     * Specify a function to execute when the DOM is fully loaded.
+     * Specify a function to execute when the DOM is fuwwy woaded.
      *
-     * @param handler A function to execute after the DOM is ready.
+     * @pawam handwa A function to execute afta the DOM is weady.
      */
-    ready(handler: (jQueryAlias?: JQueryStatic) => any): JQuery;
+    weady(handwa: (jQuewyAwias?: JQuewyStatic) => any): JQuewy;
 
     /**
-     * Trigger the "resize" event on an element.
+     * Twigga the "wesize" event on an ewement.
      */
-    resize(): JQuery;
+    wesize(): JQuewy;
     /**
-     * Bind an event handler to the "resize" JavaScript event.
+     * Bind an event handwa to the "wesize" JavaScwipt event.
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    resize(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    wesize(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "resize" JavaScript event.
+     * Bind an event handwa to the "wesize" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    resize(eventData: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    wesize(eventData: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "scroll" event on an element.
+     * Twigga the "scwoww" event on an ewement.
      */
-    scroll(): JQuery;
+    scwoww(): JQuewy;
     /**
-     * Bind an event handler to the "scroll" JavaScript event.
+     * Bind an event handwa to the "scwoww" JavaScwipt event.
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    scroll(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    scwoww(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "scroll" JavaScript event.
+     * Bind an event handwa to the "scwoww" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    scroll(eventData: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    scwoww(eventData: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "select" event on an element.
+     * Twigga the "sewect" event on an ewement.
      */
-    select(): JQuery;
+    sewect(): JQuewy;
     /**
-     * Bind an event handler to the "select" JavaScript event.
+     * Bind an event handwa to the "sewect" JavaScwipt event.
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    select(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    sewect(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "select" JavaScript event.
+     * Bind an event handwa to the "sewect" JavaScwipt event.
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    select(eventData: Object, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    sewect(eventData: Object, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Trigger the "submit" event on an element.
+     * Twigga the "submit" event on an ewement.
      */
-    submit(): JQuery;
+    submit(): JQuewy;
     /**
-     * Bind an event handler to the "submit" JavaScript event
+     * Bind an event handwa to the "submit" JavaScwipt event
      *
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    submit(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    submit(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "submit" JavaScript event
+     * Bind an event handwa to the "submit" JavaScwipt event
      *
-     * @param eventData An object containing data that will be passed to the event handler.
-     * @param handler A function to execute each time the event is triggered.
+     * @pawam eventData An object containing data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute each time the event is twiggewed.
      */
-    submit(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    submit(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Execute all handlers and behaviors attached to the matched elements for the given event type.
+     * Execute aww handwews and behaviows attached to the matched ewements fow the given event type.
      *
-     * @param eventType A string containing a JavaScript event type, such as click or submit.
-     * @param extraParameters Additional parameters to pass along to the event handler.
+     * @pawam eventType A stwing containing a JavaScwipt event type, such as cwick ow submit.
+     * @pawam extwaPawametews Additionaw pawametews to pass awong to the event handwa.
      */
-    trigger(eventType: string, extraParameters?: any[] | Object): JQuery;
+    twigga(eventType: stwing, extwaPawametews?: any[] | Object): JQuewy;
     /**
-     * Execute all handlers and behaviors attached to the matched elements for the given event type.
+     * Execute aww handwews and behaviows attached to the matched ewements fow the given event type.
      *
-     * @param event A jQuery.Event object.
-     * @param extraParameters Additional parameters to pass along to the event handler.
+     * @pawam event A jQuewy.Event object.
+     * @pawam extwaPawametews Additionaw pawametews to pass awong to the event handwa.
      */
-    trigger(event: JQueryEventObject, extraParameters?: any[] | Object): JQuery;
+    twigga(event: JQuewyEventObject, extwaPawametews?: any[] | Object): JQuewy;
 
     /**
-     * Execute all handlers attached to an element for an event.
+     * Execute aww handwews attached to an ewement fow an event.
      *
-     * @param eventType A string containing a JavaScript event type, such as click or submit.
-     * @param extraParameters An array of additional parameters to pass along to the event handler.
+     * @pawam eventType A stwing containing a JavaScwipt event type, such as cwick ow submit.
+     * @pawam extwaPawametews An awway of additionaw pawametews to pass awong to the event handwa.
      */
-    triggerHandler(eventType: string, ...extraParameters: any[]): Object;
+    twiggewHandwa(eventType: stwing, ...extwaPawametews: any[]): Object;
 
     /**
-     * Execute all handlers attached to an element for an event.
+     * Execute aww handwews attached to an ewement fow an event.
      *
-     * @param event A jQuery.Event object.
-     * @param extraParameters An array of additional parameters to pass along to the event handler.
+     * @pawam event A jQuewy.Event object.
+     * @pawam extwaPawametews An awway of additionaw pawametews to pass awong to the event handwa.
      */
-    triggerHandler(event: JQueryEventObject, ...extraParameters: any[]): Object;
+    twiggewHandwa(event: JQuewyEventObject, ...extwaPawametews: any[]): Object;
 
     /**
-     * Remove a previously-attached event handler from the elements.
+     * Wemove a pweviouswy-attached event handwa fwom the ewements.
      *
-     * @param eventType A string containing a JavaScript event type, such as click or submit.
-     * @param handler The function that is to be no longer executed.
+     * @pawam eventType A stwing containing a JavaScwipt event type, such as cwick ow submit.
+     * @pawam handwa The function that is to be no wonga executed.
      */
-    unbind(eventType?: string, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    unbind(eventType?: stwing, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Remove a previously-attached event handler from the elements.
+     * Wemove a pweviouswy-attached event handwa fwom the ewements.
      *
-     * @param eventType A string containing a JavaScript event type, such as click or submit.
-     * @param fls Unbinds the corresponding 'return false' function that was bound using .bind( eventType, false ).
+     * @pawam eventType A stwing containing a JavaScwipt event type, such as cwick ow submit.
+     * @pawam fws Unbinds the cowwesponding 'wetuwn fawse' function that was bound using .bind( eventType, fawse ).
      */
-    unbind(eventType: string, fls: boolean): JQuery;
+    unbind(eventType: stwing, fws: boowean): JQuewy;
     /**
-     * Remove a previously-attached event handler from the elements.
+     * Wemove a pweviouswy-attached event handwa fwom the ewements.
      *
-     * @param evt A JavaScript event object as passed to an event handler.
+     * @pawam evt A JavaScwipt event object as passed to an event handwa.
      */
-    unbind(evt: any): JQuery;
+    unbind(evt: any): JQuewy;
 
     /**
-     * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
+     * Wemove a handwa fwom the event fow aww ewements which match the cuwwent sewectow, based upon a specific set of woot ewements.
      */
-    undelegate(): JQuery;
+    undewegate(): JQuewy;
     /**
-     * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
+     * Wemove a handwa fwom the event fow aww ewements which match the cuwwent sewectow, based upon a specific set of woot ewements.
      *
-     * @param selector A selector which will be used to filter the event results.
-     * @param eventType A string containing a JavaScript event type, such as "click" or "keydown"
-     * @param handler A function to execute at the time the event is triggered.
+     * @pawam sewectow A sewectow which wiww be used to fiwta the event wesuwts.
+     * @pawam eventType A stwing containing a JavaScwipt event type, such as "cwick" ow "keydown"
+     * @pawam handwa A function to execute at the time the event is twiggewed.
      */
-    undelegate(selector: string, eventType: string, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    undewegate(sewectow: stwing, eventType: stwing, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
+     * Wemove a handwa fwom the event fow aww ewements which match the cuwwent sewectow, based upon a specific set of woot ewements.
      *
-     * @param selector A selector which will be used to filter the event results.
-     * @param events An object of one or more event types and previously bound functions to unbind from them.
+     * @pawam sewectow A sewectow which wiww be used to fiwta the event wesuwts.
+     * @pawam events An object of one ow mowe event types and pweviouswy bound functions to unbind fwom them.
      */
-    undelegate(selector: string, events: Object): JQuery;
+    undewegate(sewectow: stwing, events: Object): JQuewy;
     /**
-     * Remove a handler from the event for all elements which match the current selector, based upon a specific set of root elements.
+     * Wemove a handwa fwom the event fow aww ewements which match the cuwwent sewectow, based upon a specific set of woot ewements.
      *
-     * @param namespace A string containing a namespace to unbind all events from.
+     * @pawam namespace A stwing containing a namespace to unbind aww events fwom.
      */
-    undelegate(namespace: string): JQuery;
+    undewegate(namespace: stwing): JQuewy;
 
     /**
-     * Bind an event handler to the "unload" JavaScript event. (DEPRECATED from v1.8)
+     * Bind an event handwa to the "unwoad" JavaScwipt event. (DEPWECATED fwom v1.8)
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    unload(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    unwoad(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "unload" JavaScript event. (DEPRECATED from v1.8)
+     * Bind an event handwa to the "unwoad" JavaScwipt event. (DEPWECATED fwom v1.8)
      *
-     * @param eventData A plain object of data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData A pwain object of data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    unload(eventData?: any, handler?: (eventObject: JQueryEventObject) => any): JQuery;
+    unwoad(eventData?: any, handwa?: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * The DOM node context originally passed to jQuery(); if none was passed then context will likely be the document. (DEPRECATED from v1.10)
+     * The DOM node context owiginawwy passed to jQuewy(); if none was passed then context wiww wikewy be the document. (DEPWECATED fwom v1.10)
      */
-    context: Element;
+    context: Ewement;
 
-    jquery: string;
+    jquewy: stwing;
 
     /**
-     * Bind an event handler to the "error" JavaScript event. (DEPRECATED from v1.8)
+     * Bind an event handwa to the "ewwow" JavaScwipt event. (DEPWECATED fwom v1.8)
      *
-     * @param handler A function to execute when the event is triggered.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    error(handler: (eventObject: JQueryEventObject) => any): JQuery;
+    ewwow(handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
     /**
-     * Bind an event handler to the "error" JavaScript event. (DEPRECATED from v1.8)
+     * Bind an event handwa to the "ewwow" JavaScwipt event. (DEPWECATED fwom v1.8)
      *
-     * @param eventData A plain object of data that will be passed to the event handler.
-     * @param handler A function to execute when the event is triggered.
+     * @pawam eventData A pwain object of data that wiww be passed to the event handwa.
+     * @pawam handwa A function to execute when the event is twiggewed.
      */
-    error(eventData: any, handler: (eventObject: JQueryEventObject) => any): JQuery;
+    ewwow(eventData: any, handwa: (eventObject: JQuewyEventObject) => any): JQuewy;
 
     /**
-     * Add a collection of DOM elements onto the jQuery stack.
+     * Add a cowwection of DOM ewements onto the jQuewy stack.
      *
-     * @param elements An array of elements to push onto the stack and make into a new jQuery object.
+     * @pawam ewements An awway of ewements to push onto the stack and make into a new jQuewy object.
      */
-    pushStack(elements: any[]): JQuery;
+    pushStack(ewements: any[]): JQuewy;
     /**
-     * Add a collection of DOM elements onto the jQuery stack.
+     * Add a cowwection of DOM ewements onto the jQuewy stack.
      *
-     * @param elements An array of elements to push onto the stack and make into a new jQuery object.
-     * @param name The name of a jQuery method that generated the array of elements.
-     * @param arguments The arguments that were passed in to the jQuery method (for serialization).
+     * @pawam ewements An awway of ewements to push onto the stack and make into a new jQuewy object.
+     * @pawam name The name of a jQuewy method that genewated the awway of ewements.
+     * @pawam awguments The awguments that wewe passed in to the jQuewy method (fow sewiawization).
      */
-    pushStack(elements: any[], name: string, arguments: any[]): JQuery;
+    pushStack(ewements: any[], name: stwing, awguments: any[]): JQuewy;
 
     /**
-     * Insert content, specified by the parameter, after each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, afta each ewement in the set of matched ewements.
      *
-     * param content1 HTML string, DOM element, DocumentFragment, array of elements, or jQuery object to insert after each element in the set of matched elements.
-     * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert after each element in the set of matched elements.
+     * pawam content1 HTMW stwing, DOM ewement, DocumentFwagment, awway of ewements, ow jQuewy object to insewt afta each ewement in the set of matched ewements.
+     * pawam content2 One ow mowe additionaw DOM ewements, awways of ewements, HTMW stwings, ow jQuewy objects to insewt afta each ewement in the set of matched ewements.
      */
-    after(content1: JQuery | any[] | Element | DocumentFragment | Text | string, ...content2: any[]): JQuery;
+    afta(content1: JQuewy | any[] | Ewement | DocumentFwagment | Text | stwing, ...content2: any[]): JQuewy;
     /**
-     * Insert content, specified by the parameter, after each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, afta each ewement in the set of matched ewements.
      *
-     * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert after each element in the set of matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
+     * pawam func A function that wetuwns an HTMW stwing, DOM ewement(s), ow jQuewy object to insewt afta each ewement in the set of matched ewements. Weceives the index position of the ewement in the set as an awgument. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    after(func: (index: number, html: string) => string | Element | JQuery): JQuery;
+    afta(func: (index: numba, htmw: stwing) => stwing | Ewement | JQuewy): JQuewy;
 
     /**
-     * Insert content, specified by the parameter, to the end of each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, to the end of each ewement in the set of matched ewements.
      *
-     * param content1 DOM element, DocumentFragment, array of elements, HTML string, or jQuery object to insert at the end of each element in the set of matched elements.
-     * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert at the end of each element in the set of matched elements.
+     * pawam content1 DOM ewement, DocumentFwagment, awway of ewements, HTMW stwing, ow jQuewy object to insewt at the end of each ewement in the set of matched ewements.
+     * pawam content2 One ow mowe additionaw DOM ewements, awways of ewements, HTMW stwings, ow jQuewy objects to insewt at the end of each ewement in the set of matched ewements.
      */
-    append(content1: JQuery | any[] | Element | DocumentFragment | Text | string, ...content2: any[]): JQuery;
+    append(content1: JQuewy | any[] | Ewement | DocumentFwagment | Text | stwing, ...content2: any[]): JQuewy;
     /**
-     * Insert content, specified by the parameter, to the end of each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, to the end of each ewement in the set of matched ewements.
      *
-     * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert at the end of each element in the set of matched elements. Receives the index position of the element in the set and the old HTML value of the element as arguments. Within the function, this refers to the current element in the set.
+     * pawam func A function that wetuwns an HTMW stwing, DOM ewement(s), ow jQuewy object to insewt at the end of each ewement in the set of matched ewements. Weceives the index position of the ewement in the set and the owd HTMW vawue of the ewement as awguments. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    append(func: (index: number, html: string) => string | Element | JQuery): JQuery;
+    append(func: (index: numba, htmw: stwing) => stwing | Ewement | JQuewy): JQuewy;
 
     /**
-     * Insert every element in the set of matched elements to the end of the target.
+     * Insewt evewy ewement in the set of matched ewements to the end of the tawget.
      *
-     * @param target A selector, element, HTML string, array of elements, or jQuery object; the matched set of elements will be inserted at the end of the element(s) specified by this parameter.
+     * @pawam tawget A sewectow, ewement, HTMW stwing, awway of ewements, ow jQuewy object; the matched set of ewements wiww be insewted at the end of the ewement(s) specified by this pawameta.
      */
-    appendTo(target: JQuery | any[] | Element | string): JQuery;
+    appendTo(tawget: JQuewy | any[] | Ewement | stwing): JQuewy;
 
     /**
-     * Insert content, specified by the parameter, before each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, befowe each ewement in the set of matched ewements.
      *
-     * param content1 HTML string, DOM element, DocumentFragment, array of elements, or jQuery object to insert before each element in the set of matched elements.
-     * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert before each element in the set of matched elements.
+     * pawam content1 HTMW stwing, DOM ewement, DocumentFwagment, awway of ewements, ow jQuewy object to insewt befowe each ewement in the set of matched ewements.
+     * pawam content2 One ow mowe additionaw DOM ewements, awways of ewements, HTMW stwings, ow jQuewy objects to insewt befowe each ewement in the set of matched ewements.
      */
-    before(content1: JQuery | any[] | Element | DocumentFragment | Text | string, ...content2: any[]): JQuery;
+    befowe(content1: JQuewy | any[] | Ewement | DocumentFwagment | Text | stwing, ...content2: any[]): JQuewy;
     /**
-     * Insert content, specified by the parameter, before each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, befowe each ewement in the set of matched ewements.
      *
-     * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert before each element in the set of matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
+     * pawam func A function that wetuwns an HTMW stwing, DOM ewement(s), ow jQuewy object to insewt befowe each ewement in the set of matched ewements. Weceives the index position of the ewement in the set as an awgument. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    before(func: (index: number, html: string) => string | Element | JQuery): JQuery;
+    befowe(func: (index: numba, htmw: stwing) => stwing | Ewement | JQuewy): JQuewy;
 
     /**
-     * Create a deep copy of the set of matched elements.
+     * Cweate a deep copy of the set of matched ewements.
      *
-     * param withDataAndEvents A Boolean indicating whether event handlers and data should be copied along with the elements. The default value is false.
-     * param deepWithDataAndEvents A Boolean indicating whether event handlers and data for all children of the cloned element should be copied. By default its value matches the first argument's value (which defaults to false).
+     * pawam withDataAndEvents A Boowean indicating whetha event handwews and data shouwd be copied awong with the ewements. The defauwt vawue is fawse.
+     * pawam deepWithDataAndEvents A Boowean indicating whetha event handwews and data fow aww chiwdwen of the cwoned ewement shouwd be copied. By defauwt its vawue matches the fiwst awgument's vawue (which defauwts to fawse).
      */
-    clone(withDataAndEvents?: boolean, deepWithDataAndEvents?: boolean): JQuery;
+    cwone(withDataAndEvents?: boowean, deepWithDataAndEvents?: boowean): JQuewy;
 
     /**
-     * Remove the set of matched elements from the DOM.
+     * Wemove the set of matched ewements fwom the DOM.
      *
-     * param selector A selector expression that filters the set of matched elements to be removed.
+     * pawam sewectow A sewectow expwession that fiwtews the set of matched ewements to be wemoved.
      */
-    detach(selector?: string): JQuery;
+    detach(sewectow?: stwing): JQuewy;
 
     /**
-     * Remove all child nodes of the set of matched elements from the DOM.
+     * Wemove aww chiwd nodes of the set of matched ewements fwom the DOM.
      */
-    empty(): JQuery;
+    empty(): JQuewy;
 
     /**
-     * Insert every element in the set of matched elements after the target.
+     * Insewt evewy ewement in the set of matched ewements afta the tawget.
      *
-     * param target A selector, element, array of elements, HTML string, or jQuery object; the matched set of elements will be inserted after the element(s) specified by this parameter.
+     * pawam tawget A sewectow, ewement, awway of ewements, HTMW stwing, ow jQuewy object; the matched set of ewements wiww be insewted afta the ewement(s) specified by this pawameta.
      */
-    insertAfter(target: JQuery | any[] | Element | Text | string): JQuery;
+    insewtAfta(tawget: JQuewy | any[] | Ewement | Text | stwing): JQuewy;
 
     /**
-     * Insert every element in the set of matched elements before the target.
+     * Insewt evewy ewement in the set of matched ewements befowe the tawget.
      *
-     * param target A selector, element, array of elements, HTML string, or jQuery object; the matched set of elements will be inserted before the element(s) specified by this parameter.
+     * pawam tawget A sewectow, ewement, awway of ewements, HTMW stwing, ow jQuewy object; the matched set of ewements wiww be insewted befowe the ewement(s) specified by this pawameta.
      */
-    insertBefore(target: JQuery | any[] | Element | Text | string): JQuery;
+    insewtBefowe(tawget: JQuewy | any[] | Ewement | Text | stwing): JQuewy;
 
     /**
-     * Insert content, specified by the parameter, to the beginning of each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, to the beginning of each ewement in the set of matched ewements.
      *
-     * param content1 DOM element, DocumentFragment, array of elements, HTML string, or jQuery object to insert at the beginning of each element in the set of matched elements.
-     * param content2 One or more additional DOM elements, arrays of elements, HTML strings, or jQuery objects to insert at the beginning of each element in the set of matched elements.
+     * pawam content1 DOM ewement, DocumentFwagment, awway of ewements, HTMW stwing, ow jQuewy object to insewt at the beginning of each ewement in the set of matched ewements.
+     * pawam content2 One ow mowe additionaw DOM ewements, awways of ewements, HTMW stwings, ow jQuewy objects to insewt at the beginning of each ewement in the set of matched ewements.
      */
-    prepend(content1: JQuery | any[] | Element | DocumentFragment | Text | string, ...content2: any[]): JQuery;
+    pwepend(content1: JQuewy | any[] | Ewement | DocumentFwagment | Text | stwing, ...content2: any[]): JQuewy;
     /**
-     * Insert content, specified by the parameter, to the beginning of each element in the set of matched elements.
+     * Insewt content, specified by the pawameta, to the beginning of each ewement in the set of matched ewements.
      *
-     * param func A function that returns an HTML string, DOM element(s), or jQuery object to insert at the beginning of each element in the set of matched elements. Receives the index position of the element in the set and the old HTML value of the element as arguments. Within the function, this refers to the current element in the set.
+     * pawam func A function that wetuwns an HTMW stwing, DOM ewement(s), ow jQuewy object to insewt at the beginning of each ewement in the set of matched ewements. Weceives the index position of the ewement in the set and the owd HTMW vawue of the ewement as awguments. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    prepend(func: (index: number, html: string) => string | Element | JQuery): JQuery;
+    pwepend(func: (index: numba, htmw: stwing) => stwing | Ewement | JQuewy): JQuewy;
 
     /**
-     * Insert every element in the set of matched elements to the beginning of the target.
+     * Insewt evewy ewement in the set of matched ewements to the beginning of the tawget.
      *
-     * @param target A selector, element, HTML string, array of elements, or jQuery object; the matched set of elements will be inserted at the beginning of the element(s) specified by this parameter.
+     * @pawam tawget A sewectow, ewement, HTMW stwing, awway of ewements, ow jQuewy object; the matched set of ewements wiww be insewted at the beginning of the ewement(s) specified by this pawameta.
      */
-    prependTo(target: JQuery | any[] | Element | string): JQuery;
+    pwependTo(tawget: JQuewy | any[] | Ewement | stwing): JQuewy;
 
     /**
-     * Remove the set of matched elements from the DOM.
+     * Wemove the set of matched ewements fwom the DOM.
      *
-     * @param selector A selector expression that filters the set of matched elements to be removed.
+     * @pawam sewectow A sewectow expwession that fiwtews the set of matched ewements to be wemoved.
      */
-    remove(selector?: string): JQuery;
+    wemove(sewectow?: stwing): JQuewy;
 
     /**
-     * Replace each target element with the set of matched elements.
+     * Wepwace each tawget ewement with the set of matched ewements.
      *
-     * @param target A selector string, jQuery object, DOM element, or array of elements indicating which element(s) to replace.
+     * @pawam tawget A sewectow stwing, jQuewy object, DOM ewement, ow awway of ewements indicating which ewement(s) to wepwace.
      */
-    replaceAll(target: JQuery | any[] | Element | string): JQuery;
+    wepwaceAww(tawget: JQuewy | any[] | Ewement | stwing): JQuewy;
 
     /**
-     * Replace each element in the set of matched elements with the provided new content and return the set of elements that was removed.
+     * Wepwace each ewement in the set of matched ewements with the pwovided new content and wetuwn the set of ewements that was wemoved.
      *
-     * param newContent The content to insert. May be an HTML string, DOM element, array of DOM elements, or jQuery object.
+     * pawam newContent The content to insewt. May be an HTMW stwing, DOM ewement, awway of DOM ewements, ow jQuewy object.
      */
-    replaceWith(newContent: JQuery | any[] | Element | Text | string): JQuery;
+    wepwaceWith(newContent: JQuewy | any[] | Ewement | Text | stwing): JQuewy;
     /**
-     * Replace each element in the set of matched elements with the provided new content and return the set of elements that was removed.
+     * Wepwace each ewement in the set of matched ewements with the pwovided new content and wetuwn the set of ewements that was wemoved.
      *
-     * param func A function that returns content with which to replace the set of matched elements.
+     * pawam func A function that wetuwns content with which to wepwace the set of matched ewements.
      */
-    replaceWith(func: () => Element | JQuery): JQuery;
+    wepwaceWith(func: () => Ewement | JQuewy): JQuewy;
 
     /**
-     * Get the combined text contents of each element in the set of matched elements, including their descendants.
+     * Get the combined text contents of each ewement in the set of matched ewements, incwuding theiw descendants.
      */
-    text(): string;
+    text(): stwing;
     /**
-     * Set the content of each element in the set of matched elements to the specified text.
+     * Set the content of each ewement in the set of matched ewements to the specified text.
      *
-     * @param text The text to set as the content of each matched element. When Number or Boolean is supplied, it will be converted to a String representation.
+     * @pawam text The text to set as the content of each matched ewement. When Numba ow Boowean is suppwied, it wiww be convewted to a Stwing wepwesentation.
      */
-    text(text: string | number | boolean): JQuery;
+    text(text: stwing | numba | boowean): JQuewy;
     /**
-     * Set the content of each element in the set of matched elements to the specified text.
+     * Set the content of each ewement in the set of matched ewements to the specified text.
      *
-     * @param func A function returning the text content to set. Receives the index position of the element in the set and the old text value as arguments.
+     * @pawam func A function wetuwning the text content to set. Weceives the index position of the ewement in the set and the owd text vawue as awguments.
      */
-    text(func: (index: number, text: string) => string): JQuery;
+    text(func: (index: numba, text: stwing) => stwing): JQuewy;
 
     /**
-     * Retrieve all the elements contained in the jQuery set, as an array.
-     * @name toArray
+     * Wetwieve aww the ewements contained in the jQuewy set, as an awway.
+     * @name toAwway
      */
-    toArray(): HTMLElement[];
+    toAwway(): HTMWEwement[];
 
     /**
-     * Remove the parents of the set of matched elements from the DOM, leaving the matched elements in their place.
+     * Wemove the pawents of the set of matched ewements fwom the DOM, weaving the matched ewements in theiw pwace.
      */
-    unwrap(): JQuery;
+    unwwap(): JQuewy;
 
     /**
-     * Wrap an HTML structure around each element in the set of matched elements.
+     * Wwap an HTMW stwuctuwe awound each ewement in the set of matched ewements.
      *
-     * @param wrappingElement A selector, element, HTML string, or jQuery object specifying the structure to wrap around the matched elements.
+     * @pawam wwappingEwement A sewectow, ewement, HTMW stwing, ow jQuewy object specifying the stwuctuwe to wwap awound the matched ewements.
      */
-    wrap(wrappingElement: JQuery | Element | string): JQuery;
+    wwap(wwappingEwement: JQuewy | Ewement | stwing): JQuewy;
     /**
-     * Wrap an HTML structure around each element in the set of matched elements.
+     * Wwap an HTMW stwuctuwe awound each ewement in the set of matched ewements.
      *
-     * @param func A callback function returning the HTML content or jQuery object to wrap around the matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
+     * @pawam func A cawwback function wetuwning the HTMW content ow jQuewy object to wwap awound the matched ewements. Weceives the index position of the ewement in the set as an awgument. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    wrap(func: (index: number) => string | JQuery): JQuery;
+    wwap(func: (index: numba) => stwing | JQuewy): JQuewy;
 
     /**
-     * Wrap an HTML structure around all elements in the set of matched elements.
+     * Wwap an HTMW stwuctuwe awound aww ewements in the set of matched ewements.
      *
-     * @param wrappingElement A selector, element, HTML string, or jQuery object specifying the structure to wrap around the matched elements.
+     * @pawam wwappingEwement A sewectow, ewement, HTMW stwing, ow jQuewy object specifying the stwuctuwe to wwap awound the matched ewements.
      */
-    wrapAll(wrappingElement: JQuery | Element | string): JQuery;
-    wrapAll(func: (index: number) => string): JQuery;
+    wwapAww(wwappingEwement: JQuewy | Ewement | stwing): JQuewy;
+    wwapAww(func: (index: numba) => stwing): JQuewy;
 
     /**
-     * Wrap an HTML structure around the content of each element in the set of matched elements.
+     * Wwap an HTMW stwuctuwe awound the content of each ewement in the set of matched ewements.
      *
-     * @param wrappingElement An HTML snippet, selector expression, jQuery object, or DOM element specifying the structure to wrap around the content of the matched elements.
+     * @pawam wwappingEwement An HTMW snippet, sewectow expwession, jQuewy object, ow DOM ewement specifying the stwuctuwe to wwap awound the content of the matched ewements.
      */
-    wrapInner(wrappingElement: JQuery | Element | string): JQuery;
+    wwapInna(wwappingEwement: JQuewy | Ewement | stwing): JQuewy;
     /**
-     * Wrap an HTML structure around the content of each element in the set of matched elements.
+     * Wwap an HTMW stwuctuwe awound the content of each ewement in the set of matched ewements.
      *
-     * @param func A callback function which generates a structure to wrap around the content of the matched elements. Receives the index position of the element in the set as an argument. Within the function, this refers to the current element in the set.
+     * @pawam func A cawwback function which genewates a stwuctuwe to wwap awound the content of the matched ewements. Weceives the index position of the ewement in the set as an awgument. Within the function, this wefews to the cuwwent ewement in the set.
      */
-    wrapInner(func: (index: number) => string): JQuery;
+    wwapInna(func: (index: numba) => stwing): JQuewy;
 
     /**
-     * Iterate over a jQuery object, executing a function for each matched element.
+     * Itewate ova a jQuewy object, executing a function fow each matched ewement.
      *
-     * @param func A function to execute for each matched element.
+     * @pawam func A function to execute fow each matched ewement.
      */
-    each(func: (index: number, elem: Element) => any): JQuery;
+    each(func: (index: numba, ewem: Ewement) => any): JQuewy;
 
     /**
-     * Retrieve one of the elements matched by the jQuery object.
+     * Wetwieve one of the ewements matched by the jQuewy object.
      *
-     * @param index A zero-based integer indicating which element to retrieve.
+     * @pawam index A zewo-based intega indicating which ewement to wetwieve.
      */
-    get(index: number): HTMLElement;
+    get(index: numba): HTMWEwement;
     /**
-     * Retrieve the elements matched by the jQuery object.
-     * @alias toArray
+     * Wetwieve the ewements matched by the jQuewy object.
+     * @awias toAwway
      */
-    get(): HTMLElement[];
+    get(): HTMWEwement[];
 
     /**
-     * Search for a given element from among the matched elements.
+     * Seawch fow a given ewement fwom among the matched ewements.
      */
-    index(): number;
+    index(): numba;
     /**
-     * Search for a given element from among the matched elements.
+     * Seawch fow a given ewement fwom among the matched ewements.
      *
-     * @param selector A selector representing a jQuery collection in which to look for an element.
+     * @pawam sewectow A sewectow wepwesenting a jQuewy cowwection in which to wook fow an ewement.
      */
-    index(selector: string | JQuery | Element): number;
+    index(sewectow: stwing | JQuewy | Ewement): numba;
 
     /**
-     * The number of elements in the jQuery object.
+     * The numba of ewements in the jQuewy object.
      */
-    length: number;
+    wength: numba;
     /**
-     * A selector representing selector passed to jQuery(), if any, when creating the original set.
-     * version deprecated: 1.7, removed: 1.9
+     * A sewectow wepwesenting sewectow passed to jQuewy(), if any, when cweating the owiginaw set.
+     * vewsion depwecated: 1.7, wemoved: 1.9
      */
-    selector: string;
-    [index: string]: any;
-    [index: number]: HTMLElement;
+    sewectow: stwing;
+    [index: stwing]: any;
+    [index: numba]: HTMWEwement;
 
     /**
-     * Add elements to the set of matched elements.
+     * Add ewements to the set of matched ewements.
      *
-     * @param selector A string representing a selector expression to find additional elements to add to the set of matched elements.
-     * @param context The point in the document at which the selector should begin matching; similar to the context argument of the $(selector, context) method.
+     * @pawam sewectow A stwing wepwesenting a sewectow expwession to find additionaw ewements to add to the set of matched ewements.
+     * @pawam context The point in the document at which the sewectow shouwd begin matching; simiwaw to the context awgument of the $(sewectow, context) method.
      */
-    add(selector: string, context?: Element): JQuery;
+    add(sewectow: stwing, context?: Ewement): JQuewy;
     /**
-     * Add elements to the set of matched elements.
+     * Add ewements to the set of matched ewements.
      *
-     * @param elements One or more elements to add to the set of matched elements.
+     * @pawam ewements One ow mowe ewements to add to the set of matched ewements.
      */
-    add(...elements: Element[]): JQuery;
+    add(...ewements: Ewement[]): JQuewy;
     /**
-     * Add elements to the set of matched elements.
+     * Add ewements to the set of matched ewements.
      *
-     * @param html An HTML fragment to add to the set of matched elements.
+     * @pawam htmw An HTMW fwagment to add to the set of matched ewements.
      */
-    add(html: string): JQuery;
+    add(htmw: stwing): JQuewy;
     /**
-     * Add elements to the set of matched elements.
+     * Add ewements to the set of matched ewements.
      *
-     * @param obj An existing jQuery object to add to the set of matched elements.
+     * @pawam obj An existing jQuewy object to add to the set of matched ewements.
      */
-    add(obj: JQuery): JQuery;
+    add(obj: JQuewy): JQuewy;
 
     /**
-     * Get the children of each element in the set of matched elements, optionally filtered by a selector.
+     * Get the chiwdwen of each ewement in the set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    children(selector?: string): JQuery;
+    chiwdwen(sewectow?: stwing): JQuewy;
 
     /**
-     * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
+     * Fow each ewement in the set, get the fiwst ewement that matches the sewectow by testing the ewement itsewf and twavewsing up thwough its ancestows in the DOM twee.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    closest(selector: string): JQuery;
+    cwosest(sewectow: stwing): JQuewy;
     /**
-     * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
+     * Fow each ewement in the set, get the fiwst ewement that matches the sewectow by testing the ewement itsewf and twavewsing up thwough its ancestows in the DOM twee.
      *
-     * @param selector A string containing a selector expression to match elements against.
-     * @param context A DOM element within which a matching element may be found. If no context is passed in then the context of the jQuery set will be used instead.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
+     * @pawam context A DOM ewement within which a matching ewement may be found. If no context is passed in then the context of the jQuewy set wiww be used instead.
      */
-    closest(selector: string, context?: Element): JQuery;
+    cwosest(sewectow: stwing, context?: Ewement): JQuewy;
     /**
-     * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
+     * Fow each ewement in the set, get the fiwst ewement that matches the sewectow by testing the ewement itsewf and twavewsing up thwough its ancestows in the DOM twee.
      *
-     * @param obj A jQuery object to match elements against.
+     * @pawam obj A jQuewy object to match ewements against.
      */
-    closest(obj: JQuery): JQuery;
+    cwosest(obj: JQuewy): JQuewy;
     /**
-     * For each element in the set, get the first element that matches the selector by testing the element itself and traversing up through its ancestors in the DOM tree.
+     * Fow each ewement in the set, get the fiwst ewement that matches the sewectow by testing the ewement itsewf and twavewsing up thwough its ancestows in the DOM twee.
      *
-     * @param element An element to match elements against.
+     * @pawam ewement An ewement to match ewements against.
      */
-    closest(element: Element): JQuery;
+    cwosest(ewement: Ewement): JQuewy;
 
     /**
-     * Get an array of all the elements and selectors matched against the current element up through the DOM tree.
+     * Get an awway of aww the ewements and sewectows matched against the cuwwent ewement up thwough the DOM twee.
      *
-     * @param selectors An array or string containing a selector expression to match elements against (can also be a jQuery object).
-     * @param context A DOM element within which a matching element may be found. If no context is passed in then the context of the jQuery set will be used instead.
+     * @pawam sewectows An awway ow stwing containing a sewectow expwession to match ewements against (can awso be a jQuewy object).
+     * @pawam context A DOM ewement within which a matching ewement may be found. If no context is passed in then the context of the jQuewy set wiww be used instead.
      */
-    closest(selectors: any, context?: Element): any[];
+    cwosest(sewectows: any, context?: Ewement): any[];
 
     /**
-     * Get the children of each element in the set of matched elements, including text and comment nodes.
+     * Get the chiwdwen of each ewement in the set of matched ewements, incwuding text and comment nodes.
      */
-    contents(): JQuery;
+    contents(): JQuewy;
 
     /**
-     * End the most recent filtering operation in the current chain and return the set of matched elements to its previous state.
+     * End the most wecent fiwtewing opewation in the cuwwent chain and wetuwn the set of matched ewements to its pwevious state.
      */
-    end(): JQuery;
+    end(): JQuewy;
 
     /**
-     * Reduce the set of matched elements to the one at the specified index.
+     * Weduce the set of matched ewements to the one at the specified index.
      *
-     * @param index An integer indicating the 0-based position of the element. OR An integer indicating the position of the element, counting backwards from the last element in the set.
+     * @pawam index An intega indicating the 0-based position of the ewement. OW An intega indicating the position of the ewement, counting backwawds fwom the wast ewement in the set.
      *
      */
-    eq(index: number): JQuery;
+    eq(index: numba): JQuewy;
 
     /**
-     * Reduce the set of matched elements to those that match the selector or pass the function's test.
+     * Weduce the set of matched ewements to those that match the sewectow ow pass the function's test.
      *
-     * @param selector A string containing a selector expression to match the current set of elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match the cuwwent set of ewements against.
      */
-    filter(selector: string): JQuery;
+    fiwta(sewectow: stwing): JQuewy;
     /**
-     * Reduce the set of matched elements to those that match the selector or pass the function's test.
+     * Weduce the set of matched ewements to those that match the sewectow ow pass the function's test.
      *
-     * @param func A function used as a test for each element in the set. this is the current DOM element.
+     * @pawam func A function used as a test fow each ewement in the set. this is the cuwwent DOM ewement.
      */
-    filter(func: (index: number, element: Element) => any): JQuery;
+    fiwta(func: (index: numba, ewement: Ewement) => any): JQuewy;
     /**
-     * Reduce the set of matched elements to those that match the selector or pass the function's test.
+     * Weduce the set of matched ewements to those that match the sewectow ow pass the function's test.
      *
-     * @param element An element to match the current set of elements against.
+     * @pawam ewement An ewement to match the cuwwent set of ewements against.
      */
-    filter(element: Element): JQuery;
+    fiwta(ewement: Ewement): JQuewy;
     /**
-     * Reduce the set of matched elements to those that match the selector or pass the function's test.
+     * Weduce the set of matched ewements to those that match the sewectow ow pass the function's test.
      *
-     * @param obj An existing jQuery object to match the current set of elements against.
+     * @pawam obj An existing jQuewy object to match the cuwwent set of ewements against.
      */
-    filter(obj: JQuery): JQuery;
+    fiwta(obj: JQuewy): JQuewy;
 
     /**
-     * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
+     * Get the descendants of each ewement in the cuwwent set of matched ewements, fiwtewed by a sewectow, jQuewy object, ow ewement.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    find(selector: string): JQuery;
+    find(sewectow: stwing): JQuewy;
     /**
-     * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
+     * Get the descendants of each ewement in the cuwwent set of matched ewements, fiwtewed by a sewectow, jQuewy object, ow ewement.
      *
-     * @param element An element to match elements against.
+     * @pawam ewement An ewement to match ewements against.
      */
-    find(element: Element): JQuery;
+    find(ewement: Ewement): JQuewy;
     /**
-     * Get the descendants of each element in the current set of matched elements, filtered by a selector, jQuery object, or element.
+     * Get the descendants of each ewement in the cuwwent set of matched ewements, fiwtewed by a sewectow, jQuewy object, ow ewement.
      *
-     * @param obj A jQuery object to match elements against.
+     * @pawam obj A jQuewy object to match ewements against.
      */
-    find(obj: JQuery): JQuery;
+    find(obj: JQuewy): JQuewy;
 
     /**
-     * Reduce the set of matched elements to the first in the set.
+     * Weduce the set of matched ewements to the fiwst in the set.
      */
-    first(): JQuery;
+    fiwst(): JQuewy;
 
     /**
-     * Reduce the set of matched elements to those that have a descendant that matches the selector or DOM element.
+     * Weduce the set of matched ewements to those that have a descendant that matches the sewectow ow DOM ewement.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    has(selector: string): JQuery;
+    has(sewectow: stwing): JQuewy;
     /**
-     * Reduce the set of matched elements to those that have a descendant that matches the selector or DOM element.
+     * Weduce the set of matched ewements to those that have a descendant that matches the sewectow ow DOM ewement.
      *
-     * @param contained A DOM element to match elements against.
+     * @pawam contained A DOM ewement to match ewements against.
      */
-    has(contained: Element): JQuery;
+    has(contained: Ewement): JQuewy;
 
     /**
-     * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
+     * Check the cuwwent matched set of ewements against a sewectow, ewement, ow jQuewy object and wetuwn twue if at weast one of these ewements matches the given awguments.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    is(selector: string): boolean;
+    is(sewectow: stwing): boowean;
     /**
-     * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
+     * Check the cuwwent matched set of ewements against a sewectow, ewement, ow jQuewy object and wetuwn twue if at weast one of these ewements matches the given awguments.
      *
-     * @param func A function used as a test for the set of elements. It accepts one argument, index, which is the element's index in the jQuery collection.Within the function, this refers to the current DOM element.
+     * @pawam func A function used as a test fow the set of ewements. It accepts one awgument, index, which is the ewement's index in the jQuewy cowwection.Within the function, this wefews to the cuwwent DOM ewement.
      */
-    is(func: (index: number, element: Element) => boolean): boolean;
+    is(func: (index: numba, ewement: Ewement) => boowean): boowean;
     /**
-     * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
+     * Check the cuwwent matched set of ewements against a sewectow, ewement, ow jQuewy object and wetuwn twue if at weast one of these ewements matches the given awguments.
      *
-     * @param obj An existing jQuery object to match the current set of elements against.
+     * @pawam obj An existing jQuewy object to match the cuwwent set of ewements against.
      */
-    is(obj: JQuery): boolean;
+    is(obj: JQuewy): boowean;
     /**
-     * Check the current matched set of elements against a selector, element, or jQuery object and return true if at least one of these elements matches the given arguments.
+     * Check the cuwwent matched set of ewements against a sewectow, ewement, ow jQuewy object and wetuwn twue if at weast one of these ewements matches the given awguments.
      *
-     * @param elements One or more elements to match the current set of elements against.
+     * @pawam ewements One ow mowe ewements to match the cuwwent set of ewements against.
      */
-    is(elements: any): boolean;
+    is(ewements: any): boowean;
 
     /**
-     * Reduce the set of matched elements to the final one in the set.
+     * Weduce the set of matched ewements to the finaw one in the set.
      */
-    last(): JQuery;
+    wast(): JQuewy;
 
     /**
-     * Pass each element in the current matched set through a function, producing a new jQuery object containing the return values.
+     * Pass each ewement in the cuwwent matched set thwough a function, pwoducing a new jQuewy object containing the wetuwn vawues.
      *
-     * @param callback A function object that will be invoked for each element in the current set.
+     * @pawam cawwback A function object that wiww be invoked fow each ewement in the cuwwent set.
      */
-    map(callback: (index: number, domElement: Element) => any): JQuery;
+    map(cawwback: (index: numba, domEwement: Ewement) => any): JQuewy;
 
     /**
-     * Get the immediately following sibling of each element in the set of matched elements. If a selector is provided, it retrieves the next sibling only if it matches that selector.
+     * Get the immediatewy fowwowing sibwing of each ewement in the set of matched ewements. If a sewectow is pwovided, it wetwieves the next sibwing onwy if it matches that sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    next(selector?: string): JQuery;
+    next(sewectow?: stwing): JQuewy;
 
     /**
-     * Get all following siblings of each element in the set of matched elements, optionally filtered by a selector.
+     * Get aww fowwowing sibwings of each ewement in the set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    nextAll(selector?: string): JQuery;
+    nextAww(sewectow?: stwing): JQuewy;
 
     /**
-     * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
+     * Get aww fowwowing sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object passed.
      *
-     * @param selector A string containing a selector expression to indicate where to stop matching following sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to indicate whewe to stop matching fowwowing sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    nextUntil(selector?: string, filter?: string): JQuery;
+    nextUntiw(sewectow?: stwing, fiwta?: stwing): JQuewy;
     /**
-     * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
+     * Get aww fowwowing sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object passed.
      *
-     * @param element A DOM node or jQuery object indicating where to stop matching following sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam ewement A DOM node ow jQuewy object indicating whewe to stop matching fowwowing sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    nextUntil(element?: Element, filter?: string): JQuery;
+    nextUntiw(ewement?: Ewement, fiwta?: stwing): JQuewy;
     /**
-     * Get all following siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object passed.
+     * Get aww fowwowing sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object passed.
      *
-     * @param obj A DOM node or jQuery object indicating where to stop matching following sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam obj A DOM node ow jQuewy object indicating whewe to stop matching fowwowing sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    nextUntil(obj?: JQuery, filter?: string): JQuery;
+    nextUntiw(obj?: JQuewy, fiwta?: stwing): JQuewy;
 
     /**
-     * Remove elements from the set of matched elements.
+     * Wemove ewements fwom the set of matched ewements.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    not(selector: string): JQuery;
+    not(sewectow: stwing): JQuewy;
     /**
-     * Remove elements from the set of matched elements.
+     * Wemove ewements fwom the set of matched ewements.
      *
-     * @param func A function used as a test for each element in the set. this is the current DOM element.
+     * @pawam func A function used as a test fow each ewement in the set. this is the cuwwent DOM ewement.
      */
-    not(func: (index: number, element: Element) => boolean): JQuery;
+    not(func: (index: numba, ewement: Ewement) => boowean): JQuewy;
     /**
-     * Remove elements from the set of matched elements.
+     * Wemove ewements fwom the set of matched ewements.
      *
-     * @param elements One or more DOM elements to remove from the matched set.
+     * @pawam ewements One ow mowe DOM ewements to wemove fwom the matched set.
      */
-    not(elements: Element | Element[]): JQuery;
+    not(ewements: Ewement | Ewement[]): JQuewy;
     /**
-     * Remove elements from the set of matched elements.
+     * Wemove ewements fwom the set of matched ewements.
      *
-     * @param obj An existing jQuery object to match the current set of elements against.
+     * @pawam obj An existing jQuewy object to match the cuwwent set of ewements against.
      */
-    not(obj: JQuery): JQuery;
+    not(obj: JQuewy): JQuewy;
 
     /**
-     * Get the closest ancestor element that is positioned.
+     * Get the cwosest ancestow ewement that is positioned.
      */
-    offsetParent(): JQuery;
+    offsetPawent(): JQuewy;
 
     /**
-     * Get the parent of each element in the current set of matched elements, optionally filtered by a selector.
+     * Get the pawent of each ewement in the cuwwent set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    parent(selector?: string): JQuery;
+    pawent(sewectow?: stwing): JQuewy;
 
     /**
-     * Get the ancestors of each element in the current set of matched elements, optionally filtered by a selector.
+     * Get the ancestows of each ewement in the cuwwent set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    parents(selector?: string): JQuery;
+    pawents(sewectow?: stwing): JQuewy;
 
     /**
-     * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get the ancestows of each ewement in the cuwwent set of matched ewements, up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param selector A string containing a selector expression to indicate where to stop matching ancestor elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to indicate whewe to stop matching ancestow ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    parentsUntil(selector?: string, filter?: string): JQuery;
+    pawentsUntiw(sewectow?: stwing, fiwta?: stwing): JQuewy;
     /**
-     * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get the ancestows of each ewement in the cuwwent set of matched ewements, up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param element A DOM node or jQuery object indicating where to stop matching ancestor elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam ewement A DOM node ow jQuewy object indicating whewe to stop matching ancestow ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    parentsUntil(element?: Element, filter?: string): JQuery;
+    pawentsUntiw(ewement?: Ewement, fiwta?: stwing): JQuewy;
     /**
-     * Get the ancestors of each element in the current set of matched elements, up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get the ancestows of each ewement in the cuwwent set of matched ewements, up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param obj A DOM node or jQuery object indicating where to stop matching ancestor elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam obj A DOM node ow jQuewy object indicating whewe to stop matching ancestow ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    parentsUntil(obj?: JQuery, filter?: string): JQuery;
+    pawentsUntiw(obj?: JQuewy, fiwta?: stwing): JQuewy;
 
     /**
-     * Get the immediately preceding sibling of each element in the set of matched elements, optionally filtered by a selector.
+     * Get the immediatewy pweceding sibwing of each ewement in the set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    prev(selector?: string): JQuery;
+    pwev(sewectow?: stwing): JQuewy;
 
     /**
-     * Get all preceding siblings of each element in the set of matched elements, optionally filtered by a selector.
+     * Get aww pweceding sibwings of each ewement in the set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    prevAll(selector?: string): JQuery;
+    pwevAww(sewectow?: stwing): JQuewy;
 
     /**
-     * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get aww pweceding sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param selector A string containing a selector expression to indicate where to stop matching preceding sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to indicate whewe to stop matching pweceding sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    prevUntil(selector?: string, filter?: string): JQuery;
+    pwevUntiw(sewectow?: stwing, fiwta?: stwing): JQuewy;
     /**
-     * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get aww pweceding sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param element A DOM node or jQuery object indicating where to stop matching preceding sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam ewement A DOM node ow jQuewy object indicating whewe to stop matching pweceding sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    prevUntil(element?: Element, filter?: string): JQuery;
+    pwevUntiw(ewement?: Ewement, fiwta?: stwing): JQuewy;
     /**
-     * Get all preceding siblings of each element up to but not including the element matched by the selector, DOM node, or jQuery object.
+     * Get aww pweceding sibwings of each ewement up to but not incwuding the ewement matched by the sewectow, DOM node, ow jQuewy object.
      *
-     * @param obj A DOM node or jQuery object indicating where to stop matching preceding sibling elements.
-     * @param filter A string containing a selector expression to match elements against.
+     * @pawam obj A DOM node ow jQuewy object indicating whewe to stop matching pweceding sibwing ewements.
+     * @pawam fiwta A stwing containing a sewectow expwession to match ewements against.
      */
-    prevUntil(obj?: JQuery, filter?: string): JQuery;
+    pwevUntiw(obj?: JQuewy, fiwta?: stwing): JQuewy;
 
     /**
-     * Get the siblings of each element in the set of matched elements, optionally filtered by a selector.
+     * Get the sibwings of each ewement in the set of matched ewements, optionawwy fiwtewed by a sewectow.
      *
-     * @param selector A string containing a selector expression to match elements against.
+     * @pawam sewectow A stwing containing a sewectow expwession to match ewements against.
      */
-    siblings(selector?: string): JQuery;
+    sibwings(sewectow?: stwing): JQuewy;
 
     /**
-     * Reduce the set of matched elements to a subset specified by a range of indices.
+     * Weduce the set of matched ewements to a subset specified by a wange of indices.
      *
-     * @param start An integer indicating the 0-based position at which the elements begin to be selected. If negative, it indicates an offset from the end of the set.
-     * @param end An integer indicating the 0-based position at which the elements stop being selected. If negative, it indicates an offset from the end of the set. If omitted, the range continues until the end of the set.
+     * @pawam stawt An intega indicating the 0-based position at which the ewements begin to be sewected. If negative, it indicates an offset fwom the end of the set.
+     * @pawam end An intega indicating the 0-based position at which the ewements stop being sewected. If negative, it indicates an offset fwom the end of the set. If omitted, the wange continues untiw the end of the set.
      */
-    slice(start: number, end?: number): JQuery;
+    swice(stawt: numba, end?: numba): JQuewy;
 
     /**
-     * Show the queue of functions to be executed on the matched elements.
+     * Show the queue of functions to be executed on the matched ewements.
      *
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
      */
-    queue(queueName?: string): any[];
+    queue(queueName?: stwing): any[];
     /**
-     * Manipulate the queue of functions to be executed, once for each matched element.
+     * Manipuwate the queue of functions to be executed, once fow each matched ewement.
      *
-     * @param newQueue An array of functions to replace the current queue contents.
+     * @pawam newQueue An awway of functions to wepwace the cuwwent queue contents.
      */
-    queue(newQueue: Function[]): JQuery;
+    queue(newQueue: Function[]): JQuewy;
     /**
-     * Manipulate the queue of functions to be executed, once for each matched element.
+     * Manipuwate the queue of functions to be executed, once fow each matched ewement.
      *
-     * @param callback The new function to add to the queue, with a function to call that will dequeue the next item.
+     * @pawam cawwback The new function to add to the queue, with a function to caww that wiww dequeue the next item.
      */
-    queue(callback: Function): JQuery;
+    queue(cawwback: Function): JQuewy;
     /**
-     * Manipulate the queue of functions to be executed, once for each matched element.
+     * Manipuwate the queue of functions to be executed, once fow each matched ewement.
      *
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
-     * @param newQueue An array of functions to replace the current queue contents.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
+     * @pawam newQueue An awway of functions to wepwace the cuwwent queue contents.
      */
-    queue(queueName: string, newQueue: Function[]): JQuery;
+    queue(queueName: stwing, newQueue: Function[]): JQuewy;
     /**
-     * Manipulate the queue of functions to be executed, once for each matched element.
+     * Manipuwate the queue of functions to be executed, once fow each matched ewement.
      *
-     * @param queueName A string containing the name of the queue. Defaults to fx, the standard effects queue.
-     * @param callback The new function to add to the queue, with a function to call that will dequeue the next item.
+     * @pawam queueName A stwing containing the name of the queue. Defauwts to fx, the standawd effects queue.
+     * @pawam cawwback The new function to add to the queue, with a function to caww that wiww dequeue the next item.
      */
-    queue(queueName: string, callback: Function): JQuery;
+    queue(queueName: stwing, cawwback: Function): JQuewy;
 }
-declare module 'jquery' {
-    export = $;
+decwawe moduwe 'jquewy' {
+    expowt = $;
 }
-declare const jQuery: JQueryStatic;
-declare const $: JQueryStatic;
+decwawe const jQuewy: JQuewyStatic;
+decwawe const $: JQuewyStatic;

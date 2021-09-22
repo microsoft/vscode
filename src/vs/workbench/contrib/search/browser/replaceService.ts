@@ -1,206 +1,206 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as network from 'vs/base/common/network';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
-import { Promises } from 'vs/base/common/async';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as netwowk fwom 'vs/base/common/netwowk';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWepwaceSewvice } fwom 'vs/wowkbench/contwib/seawch/common/wepwace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { Match, FiweMatch, FiweMatchOwMatch, ISeawchWowkbenchSewvice } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { IPwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew, IIdentifiedSingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { cweateTextBuffewFactowyFwomSnapshot } fwom 'vs/editow/common/modew/textModew';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IBuwkEditSewvice, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { diwname } fwom 'vs/base/common/wesouwces';
+impowt { Pwomises } fwom 'vs/base/common/async';
 
-const REPLACE_PREVIEW = 'replacePreview';
+const WEPWACE_PWEVIEW = 'wepwacePweview';
 
-const toReplaceResource = (fileResource: URI): URI => {
-	return fileResource.with({ scheme: network.Schemas.internal, fragment: REPLACE_PREVIEW, query: JSON.stringify({ scheme: fileResource.scheme }) });
+const toWepwaceWesouwce = (fiweWesouwce: UWI): UWI => {
+	wetuwn fiweWesouwce.with({ scheme: netwowk.Schemas.intewnaw, fwagment: WEPWACE_PWEVIEW, quewy: JSON.stwingify({ scheme: fiweWesouwce.scheme }) });
 };
 
-const toFileResource = (replaceResource: URI): URI => {
-	return replaceResource.with({ scheme: JSON.parse(replaceResource.query)['scheme'], fragment: '', query: '' });
+const toFiweWesouwce = (wepwaceWesouwce: UWI): UWI => {
+	wetuwn wepwaceWesouwce.with({ scheme: JSON.pawse(wepwaceWesouwce.quewy)['scheme'], fwagment: '', quewy: '' });
 };
 
-export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
+expowt cwass WepwacePweviewContentPwovida impwements ITextModewContentPwovida, IWowkbenchContwibution {
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
+		this.textModewWesowvewSewvice.wegistewTextModewContentPwovida(netwowk.Schemas.intewnaw, this);
 	}
 
-	provideTextContent(uri: URI): Promise<ITextModel> | null {
-		if (uri.fragment === REPLACE_PREVIEW) {
-			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);
+	pwovideTextContent(uwi: UWI): Pwomise<ITextModew> | nuww {
+		if (uwi.fwagment === WEPWACE_PWEVIEW) {
+			wetuwn this.instantiationSewvice.cweateInstance(WepwacePweviewModew).wesowve(uwi);
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-class ReplacePreviewModel extends Disposable {
-	constructor(
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IReplaceService private readonly replaceService: IReplaceService,
-		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService
+cwass WepwacePweviewModew extends Disposabwe {
+	constwuctow(
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IWepwaceSewvice pwivate weadonwy wepwaceSewvice: IWepwaceSewvice,
+		@ISeawchWowkbenchSewvice pwivate weadonwy seawchWowkbenchSewvice: ISeawchWowkbenchSewvice
 	) {
-		super();
+		supa();
 	}
 
-	async resolve(replacePreviewUri: URI): Promise<ITextModel> {
-		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
-		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
-		const sourceModel = ref.object.textEditorModel;
-		const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
-		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
-		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
-		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
-		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/microsoft/vscode/issues/17073)
-		this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
-		this._register(sourceModel.onWillDispose(() => this.dispose()));
-		return replacePreviewModel;
+	async wesowve(wepwacePweviewUwi: UWI): Pwomise<ITextModew> {
+		const fiweWesouwce = toFiweWesouwce(wepwacePweviewUwi);
+		const fiweMatch = <FiweMatch>this.seawchWowkbenchSewvice.seawchModew.seawchWesuwt.matches().fiwta(match => match.wesouwce.toStwing() === fiweWesouwce.toStwing())[0];
+		const wef = this._wegista(await this.textModewWesowvewSewvice.cweateModewWefewence(fiweWesouwce));
+		const souwceModew = wef.object.textEditowModew;
+		const souwceModewModeId = souwceModew.getWanguageIdentifia().wanguage;
+		const wepwacePweviewModew = this.modewSewvice.cweateModew(cweateTextBuffewFactowyFwomSnapshot(souwceModew.cweateSnapshot()), this.modeSewvice.cweate(souwceModewModeId), wepwacePweviewUwi);
+		this._wegista(fiweMatch.onChange(({ fowceUpdateModew }) => this.update(souwceModew, wepwacePweviewModew, fiweMatch, fowceUpdateModew)));
+		this._wegista(this.seawchWowkbenchSewvice.seawchModew.onWepwaceTewmChanged(() => this.update(souwceModew, wepwacePweviewModew, fiweMatch)));
+		this._wegista(fiweMatch.onDispose(() => wepwacePweviewModew.dispose())); // TODO@Sandeep we shouwd not dispose a modew diwectwy but watha the wefewence (depends on https://github.com/micwosoft/vscode/issues/17073)
+		this._wegista(wepwacePweviewModew.onWiwwDispose(() => this.dispose()));
+		this._wegista(souwceModew.onWiwwDispose(() => this.dispose()));
+		wetuwn wepwacePweviewModew;
 	}
 
-	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: FileMatch, override: boolean = false): void {
-		if (!sourceModel.isDisposed() && !replacePreviewModel.isDisposed()) {
-			this.replaceService.updateReplacePreview(fileMatch, override);
+	pwivate update(souwceModew: ITextModew, wepwacePweviewModew: ITextModew, fiweMatch: FiweMatch, ovewwide: boowean = fawse): void {
+		if (!souwceModew.isDisposed() && !wepwacePweviewModew.isDisposed()) {
+			this.wepwaceSewvice.updateWepwacePweview(fiweMatch, ovewwide);
 		}
 	}
 }
 
-export class ReplaceService implements IReplaceService {
+expowt cwass WepwaceSewvice impwements IWepwaceSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IBulkEditService private readonly bulkEditorService: IBulkEditService,
-		@ILabelService private readonly labelService: ILabelService
+	constwuctow(
+		@ITextFiweSewvice pwivate weadonwy textFiweSewvice: ITextFiweSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IBuwkEditSewvice pwivate weadonwy buwkEditowSewvice: IBuwkEditSewvice,
+		@IWabewSewvice pwivate weadonwy wabewSewvice: IWabewSewvice
 	) { }
 
-	replace(match: Match): Promise<any>;
-	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
-	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
-	async replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
-		const edits = this.createEdits(arg, resource);
-		await this.bulkEditorService.apply(edits, { progress });
+	wepwace(match: Match): Pwomise<any>;
+	wepwace(fiwes: FiweMatch[], pwogwess?: IPwogwess<IPwogwessStep>): Pwomise<any>;
+	wepwace(match: FiweMatchOwMatch, pwogwess?: IPwogwess<IPwogwessStep>, wesouwce?: UWI): Pwomise<any>;
+	async wepwace(awg: any, pwogwess: IPwogwess<IPwogwessStep> | undefined = undefined, wesouwce: UWI | nuww = nuww): Pwomise<any> {
+		const edits = this.cweateEdits(awg, wesouwce);
+		await this.buwkEditowSewvice.appwy(edits, { pwogwess });
 
-		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
+		wetuwn Pwomises.settwed(edits.map(async e => this.textFiweSewvice.fiwes.get(e.wesouwce)?.save()));
 	}
 
-	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const fileMatch = element instanceof Match ? element.parent() : element;
+	async openWepwacePweview(ewement: FiweMatchOwMatch, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<any> {
+		const fiweMatch = ewement instanceof Match ? ewement.pawent() : ewement;
 
-		const editor = await this.editorService.openEditor({
-			original: { resource: fileMatch.resource },
-			modified: { resource: toReplaceResource(fileMatch.resource) },
-			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
-			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
+		const editow = await this.editowSewvice.openEditow({
+			owiginaw: { wesouwce: fiweMatch.wesouwce },
+			modified: { wesouwce: toWepwaceWesouwce(fiweMatch.wesouwce) },
+			wabew: nws.wocawize('fiweWepwaceChanges', "{0} ↔ {1} (Wepwace Pweview)", fiweMatch.name(), fiweMatch.name()),
+			descwiption: this.wabewSewvice.getUwiWabew(diwname(fiweMatch.wesouwce), { wewative: twue }),
 			options: {
-				preserveFocus,
+				pwesewveFocus,
 				pinned,
-				revealIfVisible: true
+				weveawIfVisibwe: twue
 			}
 		});
-		const input = editor?.input;
-		const disposable = fileMatch.onDispose(() => {
+		const input = editow?.input;
+		const disposabwe = fiweMatch.onDispose(() => {
 			if (input) {
 				input.dispose();
 			}
-			disposable.dispose();
+			disposabwe.dispose();
 		});
-		await this.updateReplacePreview(fileMatch);
-		if (editor) {
-			const editorControl = editor.getControl();
-			if (element instanceof Match && editorControl) {
-				editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
+		await this.updateWepwacePweview(fiweMatch);
+		if (editow) {
+			const editowContwow = editow.getContwow();
+			if (ewement instanceof Match && editowContwow) {
+				editowContwow.weveawWineInCenta(ewement.wange().stawtWineNumba, ScwowwType.Immediate);
 			}
 		}
 	}
 
-	async updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
-		const replacePreviewUri = toReplaceResource(fileMatch.resource);
-		const [sourceModelRef, replaceModelRef] = await Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource), this.textModelResolverService.createModelReference(replacePreviewUri)]);
-		const sourceModel = sourceModelRef.object.textEditorModel;
-		const replaceModel = replaceModelRef.object.textEditorModel;
-		// If model is disposed do not update
-		try {
-			if (sourceModel && replaceModel) {
-				if (override) {
-					replaceModel.setValue(sourceModel.getValue());
-				} else {
-					replaceModel.undo();
+	async updateWepwacePweview(fiweMatch: FiweMatch, ovewwide: boowean = fawse): Pwomise<void> {
+		const wepwacePweviewUwi = toWepwaceWesouwce(fiweMatch.wesouwce);
+		const [souwceModewWef, wepwaceModewWef] = await Pwomise.aww([this.textModewWesowvewSewvice.cweateModewWefewence(fiweMatch.wesouwce), this.textModewWesowvewSewvice.cweateModewWefewence(wepwacePweviewUwi)]);
+		const souwceModew = souwceModewWef.object.textEditowModew;
+		const wepwaceModew = wepwaceModewWef.object.textEditowModew;
+		// If modew is disposed do not update
+		twy {
+			if (souwceModew && wepwaceModew) {
+				if (ovewwide) {
+					wepwaceModew.setVawue(souwceModew.getVawue());
+				} ewse {
+					wepwaceModew.undo();
 				}
-				this.applyEditsToPreview(fileMatch, replaceModel);
+				this.appwyEditsToPweview(fiweMatch, wepwaceModew);
 			}
-		} finally {
-			sourceModelRef.dispose();
-			replaceModelRef.dispose();
+		} finawwy {
+			souwceModewWef.dispose();
+			wepwaceModewWef.dispose();
 		}
 	}
 
-	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {
-		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
-		const modelEdits: IIdentifiedSingleEditOperation[] = [];
-		for (const resourceEdit of resourceEdits) {
-			modelEdits.push(EditOperation.replaceMove(
-				Range.lift(resourceEdit.textEdit.range),
-				resourceEdit.textEdit.text)
+	pwivate appwyEditsToPweview(fiweMatch: FiweMatch, wepwaceModew: ITextModew): void {
+		const wesouwceEdits = this.cweateEdits(fiweMatch, wepwaceModew.uwi);
+		const modewEdits: IIdentifiedSingweEditOpewation[] = [];
+		fow (const wesouwceEdit of wesouwceEdits) {
+			modewEdits.push(EditOpewation.wepwaceMove(
+				Wange.wift(wesouwceEdit.textEdit.wange),
+				wesouwceEdit.textEdit.text)
 			);
 		}
-		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+		wepwaceModew.pushEditOpewations([], modewEdits.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange)), () => []);
 	}
 
-	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {
-		const edits: ResourceTextEdit[] = [];
+	pwivate cweateEdits(awg: FiweMatchOwMatch | FiweMatch[], wesouwce: UWI | nuww = nuww): WesouwceTextEdit[] {
+		const edits: WesouwceTextEdit[] = [];
 
-		if (arg instanceof Match) {
-			const match = <Match>arg;
-			edits.push(this.createEdit(match, match.replaceString, resource));
+		if (awg instanceof Match) {
+			const match = <Match>awg;
+			edits.push(this.cweateEdit(match, match.wepwaceStwing, wesouwce));
 		}
 
-		if (arg instanceof FileMatch) {
-			arg = [arg];
+		if (awg instanceof FiweMatch) {
+			awg = [awg];
 		}
 
-		if (arg instanceof Array) {
-			arg.forEach(element => {
-				const fileMatch = <FileMatch>element;
-				if (fileMatch.count() > 0) {
-					edits.push(...fileMatch.matches().map(match => this.createEdit(match, match.replaceString, resource)));
+		if (awg instanceof Awway) {
+			awg.fowEach(ewement => {
+				const fiweMatch = <FiweMatch>ewement;
+				if (fiweMatch.count() > 0) {
+					edits.push(...fiweMatch.matches().map(match => this.cweateEdit(match, match.wepwaceStwing, wesouwce)));
 				}
 			});
 		}
 
-		return edits;
+		wetuwn edits;
 	}
 
-	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
-		const fileMatch: FileMatch = match.parent();
-		return new ResourceTextEdit(
-			resource ?? fileMatch.resource,
-			{ range: match.range(), text }, undefined, undefined
+	pwivate cweateEdit(match: Match, text: stwing, wesouwce: UWI | nuww = nuww): WesouwceTextEdit {
+		const fiweMatch: FiweMatch = match.pawent();
+		wetuwn new WesouwceTextEdit(
+			wesouwce ?? fiweMatch.wesouwce,
+			{ wange: match.wange(), text }, undefined, undefined
 		);
 	}
 }

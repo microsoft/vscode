@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { AWW_SYNC_WESOUWCES, getEnabwementKey, IUsewDataSyncWesouwceEnabwementSewvice, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-type SyncEnablementClassification = {
-	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type SyncEnabwementCwassification = {
+	enabwed?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-export class UserDataSyncResourceEnablementService extends Disposable implements IUserDataSyncResourceEnablementService {
+expowt cwass UsewDataSyncWesouwceEnabwementSewvice extends Disposabwe impwements IUsewDataSyncWesouwceEnabwementSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private _onDidChangeResourceEnablement = new Emitter<[SyncResource, boolean]>();
-	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]> = this._onDidChangeResourceEnablement.event;
+	pwivate _onDidChangeWesouwceEnabwement = new Emitta<[SyncWesouwce, boowean]>();
+	weadonwy onDidChangeWesouwceEnabwement: Event<[SyncWesouwce, boowean]> = this._onDidChangeWesouwceEnabwement.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		supa();
+		this._wegista(stowageSewvice.onDidChangeVawue(e => this.onDidStowageChange(e)));
 	}
 
-	isResourceEnabled(resource: SyncResource): boolean {
-		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, true);
+	isWesouwceEnabwed(wesouwce: SyncWesouwce): boowean {
+		wetuwn this.stowageSewvice.getBoowean(getEnabwementKey(wesouwce), StowageScope.GWOBAW, twue);
 	}
 
-	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
-		if (this.isResourceEnabled(resource) !== enabled) {
-			const resourceEnablementKey = getEnablementKey(resource);
-			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
-			this.storeResourceEnablement(resourceEnablementKey, enabled);
+	setWesouwceEnabwement(wesouwce: SyncWesouwce, enabwed: boowean): void {
+		if (this.isWesouwceEnabwed(wesouwce) !== enabwed) {
+			const wesouwceEnabwementKey = getEnabwementKey(wesouwce);
+			this.tewemetwySewvice.pubwicWog2<{ enabwed: boowean }, SyncEnabwementCwassification>(wesouwceEnabwementKey, { enabwed });
+			this.stoweWesouwceEnabwement(wesouwceEnabwementKey, enabwed);
 		}
 	}
 
-	getResourceSyncStateVersion(resource: SyncResource): string | undefined {
-		return undefined;
+	getWesouwceSyncStateVewsion(wesouwce: SyncWesouwce): stwing | undefined {
+		wetuwn undefined;
 	}
 
-	private storeResourceEnablement(resourceEnablementKey: string, enabled: boolean): void {
-		this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+	pwivate stoweWesouwceEnabwement(wesouwceEnabwementKey: stwing, enabwed: boowean): void {
+		this.stowageSewvice.stowe(wesouwceEnabwementKey, enabwed, StowageScope.GWOBAW, isWeb ? StowageTawget.USa /* sync in web */ : StowageTawget.MACHINE);
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope === StorageScope.GLOBAL) {
-			const resourceKey = ALL_SYNC_RESOURCES.filter(resourceKey => getEnablementKey(resourceKey) === storageChangeEvent.key)[0];
-			if (resourceKey) {
-				this._onDidChangeResourceEnablement.fire([resourceKey, this.isResourceEnabled(resourceKey)]);
-				return;
+	pwivate onDidStowageChange(stowageChangeEvent: IStowageVawueChangeEvent): void {
+		if (stowageChangeEvent.scope === StowageScope.GWOBAW) {
+			const wesouwceKey = AWW_SYNC_WESOUWCES.fiwta(wesouwceKey => getEnabwementKey(wesouwceKey) === stowageChangeEvent.key)[0];
+			if (wesouwceKey) {
+				this._onDidChangeWesouwceEnabwement.fiwe([wesouwceKey, this.isWesouwceEnabwed(wesouwceKey)]);
+				wetuwn;
 			}
 		}
 	}

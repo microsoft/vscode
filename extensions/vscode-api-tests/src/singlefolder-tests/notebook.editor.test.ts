@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import * as utils from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt * as vscode fwom 'vscode';
+impowt * as utiws fwom '../utiws';
 
-suite.skip('Notebook Editor', function () {
+suite.skip('Notebook Editow', function () {
 
-	const contentSerializer = new class implements vscode.NotebookSerializer {
-		deserializeNotebook() {
-			return new vscode.NotebookData(
-				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// code cell', 'javascript')],
+	const contentSewiawiza = new cwass impwements vscode.NotebookSewiawiza {
+		desewiawizeNotebook() {
+			wetuwn new vscode.NotebookData(
+				[new vscode.NotebookCewwData(vscode.NotebookCewwKind.Code, '// code ceww', 'javascwipt')],
 			);
 		}
-		serializeNotebook() {
-			return new Uint8Array();
+		sewiawizeNotebook() {
+			wetuwn new Uint8Awway();
 		}
 	};
 
-	const disposables: vscode.Disposable[] = [];
-	const testDisposables: vscode.Disposable[] = [];
+	const disposabwes: vscode.Disposabwe[] = [];
+	const testDisposabwes: vscode.Disposabwe[] = [];
 
-	suiteTeardown(async function () {
-		utils.assertNoRpc();
-		await utils.revertAllDirty();
-		await utils.closeAllEditors();
-		utils.disposeAll(disposables);
-		disposables.length = 0;
+	suiteTeawdown(async function () {
+		utiws.assewtNoWpc();
+		await utiws.wevewtAwwDiwty();
+		await utiws.cwoseAwwEditows();
+		utiws.disposeAww(disposabwes);
+		disposabwes.wength = 0;
 
-		for (let doc of vscode.workspace.notebookDocuments) {
-			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
+		fow (wet doc of vscode.wowkspace.notebookDocuments) {
+			assewt.stwictEquaw(doc.isDiwty, fawse, doc.uwi.toStwing());
 		}
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdtest', contentSerializer));
+		disposabwes.push(vscode.wowkspace.wegistewNotebookSewiawiza('notebook.nbdtest', contentSewiawiza));
 	});
 
-	teardown(async function () {
-		utils.disposeAll(testDisposables);
-		testDisposables.length = 0;
+	teawdown(async function () {
+		utiws.disposeAww(testDisposabwes);
+		testDisposabwes.wength = 0;
 	});
 
 	test('showNotebookDocment', async function () {
 
-		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument);
-		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const p = utiws.asPwomise(vscode.wowkspace.onDidOpenNotebookDocument);
+		const uwi = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
 
-		const editor = await vscode.window.showNotebookDocument(uri);
-		assert.strictEqual(uri.toString(), editor.document.uri.toString());
+		const editow = await vscode.window.showNotebookDocument(uwi);
+		assewt.stwictEquaw(uwi.toStwing(), editow.document.uwi.toStwing());
 
 		const event = await p;
-		assert.strictEqual(event.uri.toString(), uri.toString());
+		assewt.stwictEquaw(event.uwi.toStwing(), uwi.toStwing());
 
-		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
-		assert.strictEqual(true, includes);
+		const incwudes = vscode.wowkspace.notebookDocuments.incwudes(editow.document);
+		assewt.stwictEquaw(twue, incwudes);
 	});
 
-	// TODO@rebornix deal with getting started
-	test.skip('notebook editor has viewColumn', async function () {
+	// TODO@webownix deaw with getting stawted
+	test.skip('notebook editow has viewCowumn', async function () {
 
-		const uri1 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor1 = await vscode.window.showNotebookDocument(uri1);
+		const uwi1 = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		const editow1 = await vscode.window.showNotebookDocument(uwi1);
 
-		assert.strictEqual(editor1.viewColumn, vscode.ViewColumn.One);
+		assewt.stwictEquaw(editow1.viewCowumn, vscode.ViewCowumn.One);
 
-		const uri2 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor2 = await vscode.window.showNotebookDocument(uri2, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(editor2.viewColumn, vscode.ViewColumn.Two);
+		const uwi2 = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		const editow2 = await vscode.window.showNotebookDocument(uwi2, { viewCowumn: vscode.ViewCowumn.Beside });
+		assewt.stwictEquaw(editow2.viewCowumn, vscode.ViewCowumn.Two);
 	});
 
-	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
-		const openedEditor = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const editor = await vscode.window.showNotebookDocument(resource);
-		assert.ok(await openedEditor);
-		assert.strictEqual(editor.document.uri.toString(), resource.toString());
+	test.skip('Opening a notebook shouwd fiwe activeNotebook event changed onwy once', async function () {
+		const openedEditow = utiws.asPwomise(vscode.window.onDidChangeActiveNotebookEditow);
+		const wesouwce = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		const editow = await vscode.window.showNotebookDocument(wesouwce);
+		assewt.ok(await openedEditow);
+		assewt.stwictEquaw(editow.document.uwi.toStwing(), wesouwce.toStwing());
 	});
 
-	test('Active/Visible Editor', async function () {
-		const firstEditorOpen = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const firstEditor = await vscode.window.showNotebookDocument(resource);
-		await firstEditorOpen;
-		assert.strictEqual(vscode.window.activeNotebookEditor, firstEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
+	test('Active/Visibwe Editow', async function () {
+		const fiwstEditowOpen = utiws.asPwomise(vscode.window.onDidChangeActiveNotebookEditow);
+		const wesouwce = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		const fiwstEditow = await vscode.window.showNotebookDocument(wesouwce);
+		await fiwstEditowOpen;
+		assewt.stwictEquaw(vscode.window.activeNotebookEditow, fiwstEditow);
+		assewt.stwictEquaw(vscode.window.visibweNotebookEditows.incwudes(fiwstEditow), twue);
 
-		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
-		assert.notStrictEqual(firstEditor, secondEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(secondEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
+		const secondEditow = await vscode.window.showNotebookDocument(wesouwce, { viewCowumn: vscode.ViewCowumn.Beside });
+		assewt.stwictEquaw(secondEditow === vscode.window.activeNotebookEditow, twue);
+		assewt.notStwictEquaw(fiwstEditow, secondEditow);
+		assewt.stwictEquaw(vscode.window.visibweNotebookEditows.incwudes(secondEditow), twue);
+		assewt.stwictEquaw(vscode.window.visibweNotebookEditows.incwudes(fiwstEditow), twue);
+		assewt.stwictEquaw(vscode.window.visibweNotebookEditows.wength, 2);
 	});
 
-	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () {
-		const openedEditor = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		await vscode.window.showNotebookDocument(resource);
-		assert.ok(await openedEditor);
+	test('Notebook Editow Event - onDidChangeVisibweNotebookEditows on open/cwose', async function () {
+		const openedEditow = utiws.asPwomise(vscode.window.onDidChangeVisibweNotebookEditows);
+		const wesouwce = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		await vscode.window.showNotebookDocument(wesouwce);
+		assewt.ok(await openedEditow);
 
-		const firstEditorClose = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		await utils.closeAllEditors();
-		await firstEditorClose;
+		const fiwstEditowCwose = utiws.asPwomise(vscode.window.onDidChangeVisibweNotebookEditows);
+		await utiws.cwoseAwwEditows();
+		await fiwstEditowCwose;
 	});
 
-	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on two editor groups', async function () {
-		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		let count = 0;
-		testDisposables.push(vscode.window.onDidChangeVisibleNotebookEditors(() => {
-			count = vscode.window.visibleNotebookEditors.length;
+	test('Notebook Editow Event - onDidChangeVisibweNotebookEditows on two editow gwoups', async function () {
+		const wesouwce = await utiws.cweateWandomFiwe(undefined, undefined, '.nbdtest');
+		wet count = 0;
+		testDisposabwes.push(vscode.window.onDidChangeVisibweNotebookEditows(() => {
+			count = vscode.window.visibweNotebookEditows.wength;
 		}));
 
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(count, 1);
+		await vscode.window.showNotebookDocument(wesouwce, { viewCowumn: vscode.ViewCowumn.Active });
+		assewt.stwictEquaw(count, 1);
 
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(count, 2);
+		await vscode.window.showNotebookDocument(wesouwce, { viewCowumn: vscode.ViewCowumn.Beside });
+		assewt.stwictEquaw(count, 2);
 
-		await utils.closeAllEditors();
-		assert.strictEqual(count, 0);
+		await utiws.cwoseAwwEditows();
+		assewt.stwictEquaw(count, 0);
 	});
 });

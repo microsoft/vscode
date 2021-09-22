@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-const { createModuleDescription } = require('../base/buildfile');
+const { cweateModuweDescwiption } = wequiwe('../base/buiwdfiwe');
 
-exports.collectModules = function () {
-	return [
-		createModuleDescription('vs/code/electron-main/main'),
-		createModuleDescription('vs/code/node/cli'),
-		createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-		createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
-		createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-		createModuleDescription('vs/platform/driver/node/driver'),
-		createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
+expowts.cowwectModuwes = function () {
+	wetuwn [
+		cweateModuweDescwiption('vs/code/ewectwon-main/main'),
+		cweateModuweDescwiption('vs/code/node/cwi'),
+		cweateModuweDescwiption('vs/code/node/cwiPwocessMain', ['vs/code/node/cwi']),
+		cweateModuweDescwiption('vs/code/ewectwon-sandbox/issue/issueWepowtewMain'),
+		cweateModuweDescwiption('vs/code/ewectwon-bwowsa/shawedPwocess/shawedPwocessMain'),
+		cweateModuweDescwiption('vs/pwatfowm/dwiva/node/dwiva'),
+		cweateModuweDescwiption('vs/code/ewectwon-sandbox/pwocessExpwowa/pwocessExpwowewMain')
 	];
 };

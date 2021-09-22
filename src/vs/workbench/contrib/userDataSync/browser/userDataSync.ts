@@ -1,1078 +1,1078 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual, basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import type { IEditorContribution } from 'vs/editor/common/editorCommon';
-import type { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import {
-	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
-	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
-	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore, IUserDataAutoSyncEnablementService
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { fromNow } from 'vs/base/common/date';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
-import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
-import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_VIEW_ICON } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { Codicon } from 'vs/base/common/codicons';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { getEwwowMessage, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe, dispose, MutabweDisposabwe, toDisposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw, basename } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt type { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt type { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt type { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewContentPwovida, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, MenuWegistwy, wegistewAction2, Action2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IQuickInputSewvice, IQuickPickItem, IQuickPickSepawatow } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt {
+	IUsewDataAutoSyncSewvice, IUsewDataSyncSewvice, wegistewConfiguwation,
+	SyncWesouwce, SyncStatus, UsewDataSyncEwwow, UsewDataSyncEwwowCode, USEW_DATA_SYNC_SCHEME, IUsewDataSyncWesouwceEnabwementSewvice,
+	getSyncWesouwceFwomWocawPweview, IWesouwcePweview, IUsewDataSyncStoweManagementSewvice, UsewDataSyncStoweType, IUsewDataSyncStowe, IUsewDataAutoSyncEnabwementSewvice
+} fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { FwoatingCwickWidget } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt * as Constants fwom 'vs/wowkbench/contwib/wogs/common/wogConstants';
+impowt { IOutputSewvice } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { IActivitySewvice, IBadge, NumbewBadge, PwogwessBadge } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { IUsewDataSyncAccountSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncAccount';
+impowt { fwomNow } fwom 'vs/base/common/date';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewContainewWocation, IViewContainewsWegistwy, Extensions, ViewContaina } fwom 'vs/wowkbench/common/views';
+impowt { UsewDataSyncDataViews } fwom 'vs/wowkbench/contwib/usewDataSync/bwowsa/usewDataSyncViews';
+impowt { IUsewDataSyncWowkbenchSewvice, getSyncAweaWabew, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABWEMENT, CONTEXT_ACCOUNT_STATE, CONFIGUWE_SYNC_COMMAND_ID, SHOW_SYNC_WOG_COMMAND_ID, SYNC_VIEW_CONTAINEW_ID, SYNC_TITWE, SYNC_VIEW_ICON } fwom 'vs/wowkbench/sewvices/usewDataSync/common/usewDataSync';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IUsewDataInitiawizationSewvice } fwom 'vs/wowkbench/sewvices/usewData/bwowsa/usewDataInit';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
 
-const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
+const CONTEXT_CONFWICTS_SOUWCES = new WawContextKey<stwing>('confwictsSouwces', '');
 
-type ConfigureSyncQuickPickItem = { id: SyncResource, label: string, description?: string };
+type ConfiguweSyncQuickPickItem = { id: SyncWesouwce, wabew: stwing, descwiption?: stwing };
 
-type SyncConflictsClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	action?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type SyncConfwictsCwassification = {
+	souwce: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	action?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 };
 
-const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "{0}: Turn On...", SYNC_TITLE) };
-const turnOffSyncCommand = { id: 'workbench.userDataSync.actions.turnOff', title: localize('stop sync', "{0}: Turn Off", SYNC_TITLE) };
-const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('configure sync', "{0}: Configure...", SYNC_TITLE) };
-const resolveSettingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSettingsConflicts', title: localize('showConflicts', "{0}: Show Settings Conflicts", SYNC_TITLE) };
-const resolveKeybindingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "{0}: Show Keybindings Conflicts", SYNC_TITLE) };
-const resolveSnippetsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "{0}: Show User Snippets Conflicts", SYNC_TITLE) };
+const tuwnOnSyncCommand = { id: 'wowkbench.usewDataSync.actions.tuwnOn', titwe: wocawize('tuwn on sync with categowy', "{0}: Tuwn On...", SYNC_TITWE) };
+const tuwnOffSyncCommand = { id: 'wowkbench.usewDataSync.actions.tuwnOff', titwe: wocawize('stop sync', "{0}: Tuwn Off", SYNC_TITWE) };
+const configuweSyncCommand = { id: CONFIGUWE_SYNC_COMMAND_ID, titwe: wocawize('configuwe sync', "{0}: Configuwe...", SYNC_TITWE) };
+const wesowveSettingsConfwictsCommand = { id: 'wowkbench.usewDataSync.actions.wesowveSettingsConfwicts', titwe: wocawize('showConfwicts', "{0}: Show Settings Confwicts", SYNC_TITWE) };
+const wesowveKeybindingsConfwictsCommand = { id: 'wowkbench.usewDataSync.actions.wesowveKeybindingsConfwicts', titwe: wocawize('showKeybindingsConfwicts', "{0}: Show Keybindings Confwicts", SYNC_TITWE) };
+const wesowveSnippetsConfwictsCommand = { id: 'wowkbench.usewDataSync.actions.wesowveSnippetsConfwicts', titwe: wocawize('showSnippetsConfwicts', "{0}: Show Usa Snippets Confwicts", SYNC_TITWE) };
 const syncNowCommand = {
-	id: 'workbench.userDataSync.actions.syncNow',
-	title: localize('sync now', "{0}: Sync Now", SYNC_TITLE),
-	description(userDataSyncService: IUserDataSyncService): string | undefined {
-		if (userDataSyncService.status === SyncStatus.Syncing) {
-			return localize('syncing', "syncing");
+	id: 'wowkbench.usewDataSync.actions.syncNow',
+	titwe: wocawize('sync now', "{0}: Sync Now", SYNC_TITWE),
+	descwiption(usewDataSyncSewvice: IUsewDataSyncSewvice): stwing | undefined {
+		if (usewDataSyncSewvice.status === SyncStatus.Syncing) {
+			wetuwn wocawize('syncing', "syncing");
 		}
-		if (userDataSyncService.lastSyncTime) {
-			return localize('synced with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+		if (usewDataSyncSewvice.wastSyncTime) {
+			wetuwn wocawize('synced with time', "synced {0}", fwomNow(usewDataSyncSewvice.wastSyncTime, twue));
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 };
-const showSyncSettingsCommand = { id: 'workbench.userDataSync.actions.settings', title: localize('sync settings', "{0}: Show Settings", SYNC_TITLE), };
-const showSyncedDataCommand = { id: 'workbench.userDataSync.actions.showSyncedData', title: localize('show synced data', "{0}: Show Synced Data", SYNC_TITLE), };
+const showSyncSettingsCommand = { id: 'wowkbench.usewDataSync.actions.settings', titwe: wocawize('sync settings', "{0}: Show Settings", SYNC_TITWE), };
+const showSyncedDataCommand = { id: 'wowkbench.usewDataSync.actions.showSyncedData', titwe: wocawize('show synced data', "{0}: Show Synced Data", SYNC_TITWE), };
 
-const CONTEXT_SYNC_AFTER_INITIALIZATION = new RawContextKey<false>('syncAfterInitialization', false);
-const CONTEXT_TURNING_ON_STATE = new RawContextKey<false>('userDataSyncTurningOn', false);
+const CONTEXT_SYNC_AFTEW_INITIAWIZATION = new WawContextKey<fawse>('syncAftewInitiawization', fawse);
+const CONTEXT_TUWNING_ON_STATE = new WawContextKey<fawse>('usewDataSyncTuwningOn', fawse);
 
-export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass UsewDataSyncWowkbenchContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly syncAfterInitializationContext: IContextKey<boolean>;
-	private readonly turningOnSyncContext: IContextKey<boolean>;
-	private readonly conflictsSources: IContextKey<string>;
+	pwivate weadonwy syncAftewInitiawizationContext: IContextKey<boowean>;
+	pwivate weadonwy tuwningOnSyncContext: IContextKey<boowean>;
+	pwivate weadonwy confwictsSouwces: IContextKey<stwing>;
 
-	private readonly globalActivityBadgeDisposable = this._register(new MutableDisposable());
-	private readonly accountBadgeDisposable = this._register(new MutableDisposable());
+	pwivate weadonwy gwobawActivityBadgeDisposabwe = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy accountBadgeDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IActivityService private readonly activityService: IActivityService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOutputService private readonly outputService: IOutputService,
-		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+	constwuctow(
+		@IUsewDataSyncWesouwceEnabwementSewvice pwivate weadonwy usewDataSyncWesouwceEnabwementSewvice: IUsewDataSyncWesouwceEnabwementSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IUsewDataSyncWowkbenchSewvice pwivate weadonwy usewDataSyncWowkbenchSewvice: IUsewDataSyncWowkbenchSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IActivitySewvice pwivate weadonwy activitySewvice: IActivitySewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@IUsewDataSyncAccountSewvice weadonwy authTokenSewvice: IUsewDataSyncAccountSewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
+		@IUsewDataAutoSyncSewvice usewDataAutoSyncSewvice: IUsewDataAutoSyncSewvice,
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IAuthenticationSewvice pwivate weadonwy authenticationSewvice: IAuthenticationSewvice,
+		@IUsewDataSyncStoweManagementSewvice pwivate weadonwy usewDataSyncStoweManagementSewvice: IUsewDataSyncStoweManagementSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IUsewDataInitiawizationSewvice pwivate weadonwy usewDataInitiawizationSewvice: IUsewDataInitiawizationSewvice,
 	) {
-		super();
+		supa();
 
-		this.syncAfterInitializationContext = CONTEXT_SYNC_AFTER_INITIALIZATION.bindTo(contextKeyService);
-		this.turningOnSyncContext = CONTEXT_TURNING_ON_STATE.bindTo(contextKeyService);
-		this.conflictsSources = CONTEXT_CONFLICTS_SOURCES.bindTo(contextKeyService);
+		this.syncAftewInitiawizationContext = CONTEXT_SYNC_AFTEW_INITIAWIZATION.bindTo(contextKeySewvice);
+		this.tuwningOnSyncContext = CONTEXT_TUWNING_ON_STATE.bindTo(contextKeySewvice);
+		this.confwictsSouwces = CONTEXT_CONFWICTS_SOUWCES.bindTo(contextKeySewvice);
 
-		if (userDataSyncWorkbenchService.enabled) {
-			registerConfiguration();
+		if (usewDataSyncWowkbenchSewvice.enabwed) {
+			wegistewConfiguwation();
 
-			this.initializeSyncAfterInitializationContext();
+			this.initiawizeSyncAftewInitiawizationContext();
 			this.updateAccountBadge();
-			this.updateGlobalActivityBadge();
-			this.onDidChangeConflicts(this.userDataSyncService.conflicts);
+			this.updateGwobawActivityBadge();
+			this.onDidChangeConfwicts(this.usewDataSyncSewvice.confwicts);
 
-			this._register(Event.any(
-				Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500),
-				this.userDataAutoSyncEnablementService.onDidChangeEnablement,
-				this.userDataSyncWorkbenchService.onDidChangeAccountStatus
+			this._wegista(Event.any(
+				Event.debounce(usewDataSyncSewvice.onDidChangeStatus, () => undefined, 500),
+				this.usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement,
+				this.usewDataSyncWowkbenchSewvice.onDidChangeAccountStatus
 			)(() => {
 				this.updateAccountBadge();
-				this.updateGlobalActivityBadge();
+				this.updateGwobawActivityBadge();
 			}));
-			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
-			this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
-			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
-			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+			this._wegista(usewDataSyncSewvice.onDidChangeConfwicts(() => this.onDidChangeConfwicts(this.usewDataSyncSewvice.confwicts)));
+			this._wegista(usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(() => this.onDidChangeConfwicts(this.usewDataSyncSewvice.confwicts)));
+			this._wegista(usewDataSyncSewvice.onSyncEwwows(ewwows => this.onSynchwonizewEwwows(ewwows)));
+			this._wegista(usewDataAutoSyncSewvice.onEwwow(ewwow => this.onAutoSyncEwwow(ewwow)));
 
-			this.registerActions();
-			this.registerViews();
+			this.wegistewActions();
+			this.wegistewViews();
 
-			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
-			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
+			textModewWesowvewSewvice.wegistewTextModewContentPwovida(USEW_DATA_SYNC_SCHEME, instantiationSewvice.cweateInstance(UsewDataWemoteContentPwovida));
+			wegistewEditowContwibution(AcceptChangesContwibution.ID, AcceptChangesContwibution);
 
-			this._register(Event.any(userDataSyncService.onDidChangeStatus, userDataAutoSyncEnablementService.onDidChangeEnablement)
-				(() => this.turningOnSync = !userDataAutoSyncEnablementService.isEnabled() && userDataSyncService.status !== SyncStatus.Idle));
+			this._wegista(Event.any(usewDataSyncSewvice.onDidChangeStatus, usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement)
+				(() => this.tuwningOnSync = !usewDataAutoSyncEnabwementSewvice.isEnabwed() && usewDataSyncSewvice.status !== SyncStatus.Idwe));
 		}
 	}
 
-	private get turningOnSync(): boolean {
-		return !!this.turningOnSyncContext.get();
+	pwivate get tuwningOnSync(): boowean {
+		wetuwn !!this.tuwningOnSyncContext.get();
 	}
 
-	private set turningOnSync(turningOn: boolean) {
-		this.turningOnSyncContext.set(turningOn);
-		this.updateGlobalActivityBadge();
+	pwivate set tuwningOnSync(tuwningOn: boowean) {
+		this.tuwningOnSyncContext.set(tuwningOn);
+		this.updateGwobawActivityBadge();
 	}
 
-	private async initializeSyncAfterInitializationContext(): Promise<void> {
-		const requiresInitialization = await this.userDataInitializationService.requiresInitialization();
-		if (requiresInitialization && !this.userDataAutoSyncEnablementService.isEnabled()) {
-			this.updateSyncAfterInitializationContext(true);
-		} else {
-			this.updateSyncAfterInitializationContext(this.storageService.getBoolean(CONTEXT_SYNC_AFTER_INITIALIZATION.key, StorageScope.GLOBAL, false));
+	pwivate async initiawizeSyncAftewInitiawizationContext(): Pwomise<void> {
+		const wequiwesInitiawization = await this.usewDataInitiawizationSewvice.wequiwesInitiawization();
+		if (wequiwesInitiawization && !this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			this.updateSyncAftewInitiawizationContext(twue);
+		} ewse {
+			this.updateSyncAftewInitiawizationContext(this.stowageSewvice.getBoowean(CONTEXT_SYNC_AFTEW_INITIAWIZATION.key, StowageScope.GWOBAW, fawse));
 		}
-		const disposable = this._register(this.userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
-			if (this.userDataAutoSyncEnablementService.isEnabled()) {
-				this.updateSyncAfterInitializationContext(false);
-				disposable.dispose();
+		const disposabwe = this._wegista(this.usewDataAutoSyncEnabwementSewvice.onDidChangeEnabwement(() => {
+			if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+				this.updateSyncAftewInitiawizationContext(fawse);
+				disposabwe.dispose();
 			}
 		}));
 	}
 
-	private async updateSyncAfterInitializationContext(value: boolean): Promise<void> {
-		this.storageService.store(CONTEXT_SYNC_AFTER_INITIALIZATION.key, value, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		this.syncAfterInitializationContext.set(value);
-		this.updateGlobalActivityBadge();
+	pwivate async updateSyncAftewInitiawizationContext(vawue: boowean): Pwomise<void> {
+		this.stowageSewvice.stowe(CONTEXT_SYNC_AFTEW_INITIAWIZATION.key, vawue, StowageScope.GWOBAW, StowageTawget.MACHINE);
+		this.syncAftewInitiawizationContext.set(vawue);
+		this.updateGwobawActivityBadge();
 	}
 
-	private readonly conflictsDisposables = new Map<SyncResource, IDisposable>();
-	private onDidChangeConflicts(conflicts: [SyncResource, IResourcePreview[]][]) {
-		if (!this.userDataAutoSyncEnablementService.isEnabled()) {
-			return;
+	pwivate weadonwy confwictsDisposabwes = new Map<SyncWesouwce, IDisposabwe>();
+	pwivate onDidChangeConfwicts(confwicts: [SyncWesouwce, IWesouwcePweview[]][]) {
+		if (!this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			wetuwn;
 		}
-		this.updateGlobalActivityBadge();
-		if (conflicts.length) {
-			const conflictsSources: SyncResource[] = conflicts.map(([syncResource]) => syncResource);
-			this.conflictsSources.set(conflictsSources.join(','));
-			if (conflictsSources.indexOf(SyncResource.Snippets) !== -1) {
-				this.registerShowSnippetsConflictsAction();
+		this.updateGwobawActivityBadge();
+		if (confwicts.wength) {
+			const confwictsSouwces: SyncWesouwce[] = confwicts.map(([syncWesouwce]) => syncWesouwce);
+			this.confwictsSouwces.set(confwictsSouwces.join(','));
+			if (confwictsSouwces.indexOf(SyncWesouwce.Snippets) !== -1) {
+				this.wegistewShowSnippetsConfwictsAction();
 			}
 
-			// Clear and dispose conflicts those were cleared
-			this.conflictsDisposables.forEach((disposable, conflictsSource) => {
-				if (conflictsSources.indexOf(conflictsSource) === -1) {
-					disposable.dispose();
-					this.conflictsDisposables.delete(conflictsSource);
+			// Cweaw and dispose confwicts those wewe cweawed
+			this.confwictsDisposabwes.fowEach((disposabwe, confwictsSouwce) => {
+				if (confwictsSouwces.indexOf(confwictsSouwce) === -1) {
+					disposabwe.dispose();
+					this.confwictsDisposabwes.dewete(confwictsSouwce);
 				}
 			});
 
-			for (const [syncResource, conflicts] of this.userDataSyncService.conflicts) {
-				const conflictsEditorInputs = this.getConflictsEditorInputs(syncResource);
+			fow (const [syncWesouwce, confwicts] of this.usewDataSyncSewvice.confwicts) {
+				const confwictsEditowInputs = this.getConfwictsEditowInputs(syncWesouwce);
 
-				// close stale conflicts editor previews
-				if (conflictsEditorInputs.length) {
-					conflictsEditorInputs.forEach(input => {
-						if (!conflicts.some(({ previewResource }) => isEqual(previewResource, input.primary.resource))) {
+				// cwose stawe confwicts editow pweviews
+				if (confwictsEditowInputs.wength) {
+					confwictsEditowInputs.fowEach(input => {
+						if (!confwicts.some(({ pweviewWesouwce }) => isEquaw(pweviewWesouwce, input.pwimawy.wesouwce))) {
 							input.dispose();
 						}
 					});
 				}
 
-				// Show conflicts notification if not shown before
-				else if (!this.conflictsDisposables.has(syncResource)) {
-					const conflictsArea = getSyncAreaLabel(syncResource);
-					const handle = this.notificationService.prompt(Severity.Warning, localize('conflicts detected', "Unable to sync due to conflicts in {0}. Please resolve them to continue.", conflictsArea.toLowerCase()),
+				// Show confwicts notification if not shown befowe
+				ewse if (!this.confwictsDisposabwes.has(syncWesouwce)) {
+					const confwictsAwea = getSyncAweaWabew(syncWesouwce);
+					const handwe = this.notificationSewvice.pwompt(Sevewity.Wawning, wocawize('confwicts detected', "Unabwe to sync due to confwicts in {0}. Pwease wesowve them to continue.", confwictsAwea.toWowewCase()),
 						[
 							{
-								label: localize('replace remote', "Replace Remote"),
-								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
-									this.acceptLocal(syncResource, conflicts);
+								wabew: wocawize('wepwace wemote', "Wepwace Wemote"),
+								wun: () => {
+									this.tewemetwySewvice.pubwicWog2<{ souwce: stwing, action: stwing }, SyncConfwictsCwassification>('sync/handweConfwicts', { souwce: syncWesouwce, action: 'acceptWocaw' });
+									this.acceptWocaw(syncWesouwce, confwicts);
 								}
 							},
 							{
-								label: localize('replace local', "Replace Local"),
-								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptRemote' });
-									this.acceptRemote(syncResource, conflicts);
+								wabew: wocawize('wepwace wocaw', "Wepwace Wocaw"),
+								wun: () => {
+									this.tewemetwySewvice.pubwicWog2<{ souwce: stwing, action: stwing }, SyncConfwictsCwassification>('sync/handweConfwicts', { souwce: syncWesouwce, action: 'acceptWemote' });
+									this.acceptWemote(syncWesouwce, confwicts);
 								}
 							},
 							{
-								label: localize('show conflicts', "Show Conflicts"),
-								run: () => {
-									this.telemetryService.publicLog2<{ source: string, action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
-									this.handleConflicts([syncResource, conflicts]);
+								wabew: wocawize('show confwicts', "Show Confwicts"),
+								wun: () => {
+									this.tewemetwySewvice.pubwicWog2<{ souwce: stwing, action?: stwing }, SyncConfwictsCwassification>('sync/showConfwicts', { souwce: syncWesouwce });
+									this.handweConfwicts([syncWesouwce, confwicts]);
 								}
 							}
 						],
 						{
-							sticky: true
+							sticky: twue
 						}
 					);
-					this.conflictsDisposables.set(syncResource, toDisposable(() => {
+					this.confwictsDisposabwes.set(syncWesouwce, toDisposabwe(() => {
 
-						// close the conflicts warning notification
-						handle.close();
+						// cwose the confwicts wawning notification
+						handwe.cwose();
 
-						// close opened conflicts editor previews
-						const conflictsEditorInputs = this.getConflictsEditorInputs(syncResource);
-						if (conflictsEditorInputs.length) {
-							conflictsEditorInputs.forEach(input => input.dispose());
+						// cwose opened confwicts editow pweviews
+						const confwictsEditowInputs = this.getConfwictsEditowInputs(syncWesouwce);
+						if (confwictsEditowInputs.wength) {
+							confwictsEditowInputs.fowEach(input => input.dispose());
 						}
 
-						this.conflictsDisposables.delete(syncResource);
+						this.confwictsDisposabwes.dewete(syncWesouwce);
 					}));
 				}
 			}
-		} else {
-			this.conflictsSources.reset();
-			this.getAllConflictsEditorInputs().forEach(input => input.dispose());
-			this.conflictsDisposables.forEach(disposable => disposable.dispose());
-			this.conflictsDisposables.clear();
+		} ewse {
+			this.confwictsSouwces.weset();
+			this.getAwwConfwictsEditowInputs().fowEach(input => input.dispose());
+			this.confwictsDisposabwes.fowEach(disposabwe => disposabwe.dispose());
+			this.confwictsDisposabwes.cweaw();
 		}
 	}
 
-	private async acceptRemote(syncResource: SyncResource, conflicts: IResourcePreview[]) {
-		try {
-			for (const conflict of conflicts) {
-				await this.userDataSyncService.accept(syncResource, conflict.remoteResource, undefined, this.userDataAutoSyncEnablementService.isEnabled());
+	pwivate async acceptWemote(syncWesouwce: SyncWesouwce, confwicts: IWesouwcePweview[]) {
+		twy {
+			fow (const confwict of confwicts) {
+				await this.usewDataSyncSewvice.accept(syncWesouwce, confwict.wemoteWesouwce, undefined, this.usewDataAutoSyncEnabwementSewvice.isEnabwed());
 			}
 		} catch (e) {
-			this.notificationService.error(localize('accept failed', "Error while accepting changes. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
+			this.notificationSewvice.ewwow(wocawize('accept faiwed', "Ewwow whiwe accepting changes. Pwease check [wogs]({0}) fow mowe detaiws.", `command:${SHOW_SYNC_WOG_COMMAND_ID}`));
 		}
 	}
 
-	private async acceptLocal(syncResource: SyncResource, conflicts: IResourcePreview[]): Promise<void> {
-		try {
-			for (const conflict of conflicts) {
-				await this.userDataSyncService.accept(syncResource, conflict.localResource, undefined, this.userDataAutoSyncEnablementService.isEnabled());
+	pwivate async acceptWocaw(syncWesouwce: SyncWesouwce, confwicts: IWesouwcePweview[]): Pwomise<void> {
+		twy {
+			fow (const confwict of confwicts) {
+				await this.usewDataSyncSewvice.accept(syncWesouwce, confwict.wocawWesouwce, undefined, this.usewDataAutoSyncEnabwementSewvice.isEnabwed());
 			}
 		} catch (e) {
-			this.notificationService.error(localize('accept failed', "Error while accepting changes. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
+			this.notificationSewvice.ewwow(wocawize('accept faiwed', "Ewwow whiwe accepting changes. Pwease check [wogs]({0}) fow mowe detaiws.", `command:${SHOW_SYNC_WOG_COMMAND_ID}`));
 		}
 	}
 
-	private onAutoSyncError(error: UserDataSyncError): void {
-		switch (error.code) {
-			case UserDataSyncErrorCode.SessionExpired:
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: localize('session expired', "Settings sync was turned off because current session is expired, please sign in again to turn on sync."),
+	pwivate onAutoSyncEwwow(ewwow: UsewDataSyncEwwow): void {
+		switch (ewwow.code) {
+			case UsewDataSyncEwwowCode.SessionExpiwed:
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Info,
+					message: wocawize('session expiwed', "Settings sync was tuwned off because cuwwent session is expiwed, pwease sign in again to tuwn on sync."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+						pwimawy: [new Action('tuwn on sync', wocawize('tuwn on sync', "Tuwn on Settings Sync..."), undefined, twue, () => this.tuwnOn())]
 					}
 				});
-				break;
-			case UserDataSyncErrorCode.TurnedOff:
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: localize('turned off', "Settings sync was turned off from another device, please turn on sync again."),
+				bweak;
+			case UsewDataSyncEwwowCode.TuwnedOff:
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Info,
+					message: wocawize('tuwned off', "Settings sync was tuwned off fwom anotha device, pwease tuwn on sync again."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+						pwimawy: [new Action('tuwn on sync', wocawize('tuwn on sync', "Tuwn on Settings Sync..."), undefined, twue, () => this.tuwnOn())]
 					}
 				});
-				break;
-			case UserDataSyncErrorCode.TooLarge:
-				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
-					this.disableSync(error.resource);
-					const sourceArea = getSyncAreaLabel(error.resource);
-					this.handleTooLargeError(error.resource, localize('too large', "Disabled syncing {0} because size of the {1} file to sync is larger than {2}. Please open the file and reduce the size and enable sync", sourceArea.toLowerCase(), sourceArea.toLowerCase(), '100kb'), error);
+				bweak;
+			case UsewDataSyncEwwowCode.TooWawge:
+				if (ewwow.wesouwce === SyncWesouwce.Keybindings || ewwow.wesouwce === SyncWesouwce.Settings) {
+					this.disabweSync(ewwow.wesouwce);
+					const souwceAwea = getSyncAweaWabew(ewwow.wesouwce);
+					this.handweTooWawgeEwwow(ewwow.wesouwce, wocawize('too wawge', "Disabwed syncing {0} because size of the {1} fiwe to sync is wawga than {2}. Pwease open the fiwe and weduce the size and enabwe sync", souwceAwea.toWowewCase(), souwceAwea.toWowewCase(), '100kb'), ewwow);
 				}
-				break;
-			case UserDataSyncErrorCode.IncompatibleLocalContent:
-			case UserDataSyncErrorCode.Gone:
-			case UserDataSyncErrorCode.UpgradeRequired:
-				const message = localize('error upgrade required', "Settings sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
-				const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: operationId ? `${message} ${operationId}` : message,
+				bweak;
+			case UsewDataSyncEwwowCode.IncompatibweWocawContent:
+			case UsewDataSyncEwwowCode.Gone:
+			case UsewDataSyncEwwowCode.UpgwadeWequiwed:
+				const message = wocawize('ewwow upgwade wequiwed', "Settings sync is disabwed because the cuwwent vewsion ({0}, {1}) is not compatibwe with the sync sewvice. Pwease update befowe tuwning on sync.", this.pwoductSewvice.vewsion, this.pwoductSewvice.commit);
+				const opewationId = ewwow.opewationId ? wocawize('opewationId', "Opewation Id: {0}", ewwow.opewationId) : undefined;
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Ewwow,
+					message: opewationId ? `${message} ${opewationId}` : message,
 				});
-				break;
-			case UserDataSyncErrorCode.IncompatibleRemoteContent:
-				this.notificationService.notify({
-					severity: Severity.Error,
-					message: localize('error reset required', "Settings sync is disabled because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
+				bweak;
+			case UsewDataSyncEwwowCode.IncompatibweWemoteContent:
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Ewwow,
+					message: wocawize('ewwow weset wequiwed', "Settings sync is disabwed because youw data in the cwoud is owda than that of the cwient. Pwease cweaw youw data in the cwoud befowe tuwning on sync."),
 					actions: {
-						primary: [
-							new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
-							new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
+						pwimawy: [
+							new Action('weset', wocawize('weset', "Cweaw Data in Cwoud..."), undefined, twue, () => this.usewDataSyncWowkbenchSewvice.wesetSyncedData()),
+							new Action('show synced data', wocawize('show synced data action', "Show Synced Data"), undefined, twue, () => this.usewDataSyncWowkbenchSewvice.showSyncActivity())
 						]
 					}
 				});
-				return;
+				wetuwn;
 
-			case UserDataSyncErrorCode.ServiceChanged:
-				this.notificationService.notify({
-					severity: Severity.Info,
-					message: this.userDataSyncStoreManagementService.userDataSyncStore?.type === 'insiders' ?
-						localize('service switched to insiders', "Settings Sync has been switched to insiders service") :
-						localize('service switched to stable', "Settings Sync has been switched to stable service"),
+			case UsewDataSyncEwwowCode.SewviceChanged:
+				this.notificationSewvice.notify({
+					sevewity: Sevewity.Info,
+					message: this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.type === 'insidews' ?
+						wocawize('sewvice switched to insidews', "Settings Sync has been switched to insidews sewvice") :
+						wocawize('sewvice switched to stabwe', "Settings Sync has been switched to stabwe sewvice"),
 				});
 
-				return;
+				wetuwn;
 
-			case UserDataSyncErrorCode.DefaultServiceChanged:
-				// Settings sync is using separate service
-				if (this.userDataAutoSyncEnablementService.isEnabled()) {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: localize('using separate service', "Settings sync now uses a separate service, more information is available in the [Settings Sync Documentation](https://aka.ms/vscode-settings-sync-help#_syncing-stable-versus-insiders)."),
+			case UsewDataSyncEwwowCode.DefauwtSewviceChanged:
+				// Settings sync is using sepawate sewvice
+				if (this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+					this.notificationSewvice.notify({
+						sevewity: Sevewity.Info,
+						message: wocawize('using sepawate sewvice', "Settings sync now uses a sepawate sewvice, mowe infowmation is avaiwabwe in the [Settings Sync Documentation](https://aka.ms/vscode-settings-sync-hewp#_syncing-stabwe-vewsus-insidews)."),
 					});
 				}
 
-				// If settings sync got turned off then ask user to turn on sync again.
-				else {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: localize('service changed and turned off', "Settings sync was turned off because {0} now uses a separate service. Please turn on sync again.", this.productService.nameLong),
+				// If settings sync got tuwned off then ask usa to tuwn on sync again.
+				ewse {
+					this.notificationSewvice.notify({
+						sevewity: Sevewity.Info,
+						message: wocawize('sewvice changed and tuwned off', "Settings sync was tuwned off because {0} now uses a sepawate sewvice. Pwease tuwn on sync again.", this.pwoductSewvice.nameWong),
 						actions: {
-							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+							pwimawy: [new Action('tuwn on sync', wocawize('tuwn on sync', "Tuwn on Settings Sync..."), undefined, twue, () => this.tuwnOn())]
 						}
 					});
 				}
-				return;
+				wetuwn;
 		}
 	}
 
-	private handleTooLargeError(resource: SyncResource, message: string, error: UserDataSyncError): void {
-		const operationId = error.operationId ? localize('operationId', "Operation Id: {0}", error.operationId) : undefined;
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: operationId ? `${message} ${operationId}` : message,
+	pwivate handweTooWawgeEwwow(wesouwce: SyncWesouwce, message: stwing, ewwow: UsewDataSyncEwwow): void {
+		const opewationId = ewwow.opewationId ? wocawize('opewationId', "Opewation Id: {0}", ewwow.opewationId) : undefined;
+		this.notificationSewvice.notify({
+			sevewity: Sevewity.Ewwow,
+			message: opewationId ? `${message} ${opewationId}` : message,
 			actions: {
-				primary: [new Action('open sync file', localize('open file', "Open {0} File", getSyncAreaLabel(resource)), undefined, true,
-					() => resource === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true))]
+				pwimawy: [new Action('open sync fiwe', wocawize('open fiwe', "Open {0} Fiwe", getSyncAweaWabew(wesouwce)), undefined, twue,
+					() => wesouwce === SyncWesouwce.Settings ? this.pwefewencesSewvice.openUsewSettings({ jsonEditow: twue }) : this.pwefewencesSewvice.openGwobawKeybindingSettings(twue))]
 			}
 		});
 	}
 
-	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
-	private onSynchronizerErrors(errors: [SyncResource, UserDataSyncError][]): void {
-		if (errors.length) {
-			for (const [source, error] of errors) {
-				switch (error.code) {
-					case UserDataSyncErrorCode.LocalInvalidContent:
-						this.handleInvalidContentError(source);
-						break;
-					default:
-						const disposable = this.invalidContentErrorDisposables.get(source);
-						if (disposable) {
-							disposable.dispose();
-							this.invalidContentErrorDisposables.delete(source);
+	pwivate weadonwy invawidContentEwwowDisposabwes = new Map<SyncWesouwce, IDisposabwe>();
+	pwivate onSynchwonizewEwwows(ewwows: [SyncWesouwce, UsewDataSyncEwwow][]): void {
+		if (ewwows.wength) {
+			fow (const [souwce, ewwow] of ewwows) {
+				switch (ewwow.code) {
+					case UsewDataSyncEwwowCode.WocawInvawidContent:
+						this.handweInvawidContentEwwow(souwce);
+						bweak;
+					defauwt:
+						const disposabwe = this.invawidContentEwwowDisposabwes.get(souwce);
+						if (disposabwe) {
+							disposabwe.dispose();
+							this.invawidContentEwwowDisposabwes.dewete(souwce);
 						}
 				}
 			}
-		} else {
-			this.invalidContentErrorDisposables.forEach(disposable => disposable.dispose());
-			this.invalidContentErrorDisposables.clear();
+		} ewse {
+			this.invawidContentEwwowDisposabwes.fowEach(disposabwe => disposabwe.dispose());
+			this.invawidContentEwwowDisposabwes.cweaw();
 		}
 	}
 
-	private handleInvalidContentError(source: SyncResource): void {
-		if (this.invalidContentErrorDisposables.has(source)) {
-			return;
+	pwivate handweInvawidContentEwwow(souwce: SyncWesouwce): void {
+		if (this.invawidContentEwwowDisposabwes.has(souwce)) {
+			wetuwn;
 		}
-		if (source !== SyncResource.Settings && source !== SyncResource.Keybindings) {
-			return;
+		if (souwce !== SyncWesouwce.Settings && souwce !== SyncWesouwce.Keybindings) {
+			wetuwn;
 		}
-		const resource = source === SyncResource.Settings ? this.environmentService.settingsResource : this.environmentService.keybindingsResource;
-		if (isEqual(resource, EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }))) {
-			// Do not show notification if the file in error is active
-			return;
+		const wesouwce = souwce === SyncWesouwce.Settings ? this.enviwonmentSewvice.settingsWesouwce : this.enviwonmentSewvice.keybindingsWesouwce;
+		if (isEquaw(wesouwce, EditowWesouwceAccessow.getCanonicawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY }))) {
+			// Do not show notification if the fiwe in ewwow is active
+			wetuwn;
 		}
-		const errorArea = getSyncAreaLabel(source);
-		const handle = this.notificationService.notify({
-			severity: Severity.Error,
-			message: localize('errorInvalidConfiguration', "Unable to sync {0} because the content in the file is not valid. Please open the file and correct it.", errorArea.toLowerCase()),
+		const ewwowAwea = getSyncAweaWabew(souwce);
+		const handwe = this.notificationSewvice.notify({
+			sevewity: Sevewity.Ewwow,
+			message: wocawize('ewwowInvawidConfiguwation', "Unabwe to sync {0} because the content in the fiwe is not vawid. Pwease open the fiwe and cowwect it.", ewwowAwea.toWowewCase()),
 			actions: {
-				primary: [new Action('open sync file', localize('open file', "Open {0} File", errorArea), undefined, true,
-					() => source === SyncResource.Settings ? this.preferencesService.openUserSettings({ jsonEditor: true }) : this.preferencesService.openGlobalKeybindingSettings(true))]
+				pwimawy: [new Action('open sync fiwe', wocawize('open fiwe', "Open {0} Fiwe", ewwowAwea), undefined, twue,
+					() => souwce === SyncWesouwce.Settings ? this.pwefewencesSewvice.openUsewSettings({ jsonEditow: twue }) : this.pwefewencesSewvice.openGwobawKeybindingSettings(twue))]
 			}
 		});
-		this.invalidContentErrorDisposables.set(source, toDisposable(() => {
-			// close the error warning notification
-			handle.close();
-			this.invalidContentErrorDisposables.delete(source);
+		this.invawidContentEwwowDisposabwes.set(souwce, toDisposabwe(() => {
+			// cwose the ewwow wawning notification
+			handwe.cwose();
+			this.invawidContentEwwowDisposabwes.dewete(souwce);
 		}));
 	}
 
-	private async updateGlobalActivityBadge(): Promise<void> {
-		this.globalActivityBadgeDisposable.clear();
+	pwivate async updateGwobawActivityBadge(): Pwomise<void> {
+		this.gwobawActivityBadgeDisposabwe.cweaw();
 
-		let badge: IBadge | undefined = undefined;
-		let clazz: string | undefined;
-		let priority: number | undefined = undefined;
+		wet badge: IBadge | undefined = undefined;
+		wet cwazz: stwing | undefined;
+		wet pwiowity: numba | undefined = undefined;
 
-		if (this.userDataSyncService.conflicts.length && this.userDataAutoSyncEnablementService.isEnabled()) {
-			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, [, conflicts]) => { return result + conflicts.length; }, 0), () => localize('has conflicts', "{0}: Conflicts Detected", SYNC_TITLE));
-		} else if (this.turningOnSync) {
-			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Settings Sync..."));
-			clazz = 'progress-badge';
-			priority = 1;
-		} else if (this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available && this.syncAfterInitializationContext.get() && !this.userDataAutoSyncEnablementService.isEnabled()) {
-			badge = new NumberBadge(1, () => localize('settings sync is off', "Settings Sync is Off", SYNC_TITLE));
+		if (this.usewDataSyncSewvice.confwicts.wength && this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			badge = new NumbewBadge(this.usewDataSyncSewvice.confwicts.weduce((wesuwt, [, confwicts]) => { wetuwn wesuwt + confwicts.wength; }, 0), () => wocawize('has confwicts', "{0}: Confwicts Detected", SYNC_TITWE));
+		} ewse if (this.tuwningOnSync) {
+			badge = new PwogwessBadge(() => wocawize('tuwning on syncing', "Tuwning on Settings Sync..."));
+			cwazz = 'pwogwess-badge';
+			pwiowity = 1;
+		} ewse if (this.usewDataSyncWowkbenchSewvice.accountStatus === AccountStatus.Avaiwabwe && this.syncAftewInitiawizationContext.get() && !this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			badge = new NumbewBadge(1, () => wocawize('settings sync is off', "Settings Sync is Off", SYNC_TITWE));
 		}
 
 		if (badge) {
-			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
+			this.gwobawActivityBadgeDisposabwe.vawue = this.activitySewvice.showGwobawActivity({ badge, cwazz, pwiowity });
 		}
 	}
 
-	private async updateAccountBadge(): Promise<void> {
-		this.accountBadgeDisposable.clear();
+	pwivate async updateAccountBadge(): Pwomise<void> {
+		this.accountBadgeDisposabwe.cweaw();
 
-		let badge: IBadge | undefined = undefined;
+		wet badge: IBadge | undefined = undefined;
 
-		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataAutoSyncEnablementService.isEnabled() && this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Unavailable) {
-			badge = new NumberBadge(1, () => localize('sign in to sync', "Sign in to Sync Settings"));
+		if (this.usewDataSyncSewvice.status !== SyncStatus.Uninitiawized && this.usewDataAutoSyncEnabwementSewvice.isEnabwed() && this.usewDataSyncWowkbenchSewvice.accountStatus === AccountStatus.Unavaiwabwe) {
+			badge = new NumbewBadge(1, () => wocawize('sign in to sync', "Sign in to Sync Settings"));
 		}
 
 		if (badge) {
-			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, clazz: undefined, priority: undefined });
+			this.accountBadgeDisposabwe.vawue = this.activitySewvice.showAccountsActivity({ badge, cwazz: undefined, pwiowity: undefined });
 		}
 	}
 
-	private async turnOnSyncAfterInitialization(): Promise<void> {
-		this.updateSyncAfterInitializationContext(false);
-		const result = await this.dialogService.show(
-			Severity.Info,
-			localize('settings sync is off', "Settings Sync is Off"),
+	pwivate async tuwnOnSyncAftewInitiawization(): Pwomise<void> {
+		this.updateSyncAftewInitiawizationContext(fawse);
+		const wesuwt = await this.diawogSewvice.show(
+			Sevewity.Info,
+			wocawize('settings sync is off', "Settings Sync is Off"),
 			[
-				localize('turn on settings sync', "Turn On Settings Sync"),
-				localize('cancel', "Cancel"),
+				wocawize('tuwn on settings sync', "Tuwn On Settings Sync"),
+				wocawize('cancew', "Cancew"),
 			],
 			{
-				cancelId: 1,
+				cancewId: 1,
 				custom: {
-					markdownDetails: [{
-						markdown: new MarkdownString(`${localize('turnon sync after initialization message', "Your settings, keybindings, extensions, snippets and UI State were initialized but are not getting synced. Do you want to turn on Settings Sync?")}`, { isTrusted: true })
+					mawkdownDetaiws: [{
+						mawkdown: new MawkdownStwing(`${wocawize('tuwnon sync afta initiawization message', "Youw settings, keybindings, extensions, snippets and UI State wewe initiawized but awe not getting synced. Do you want to tuwn on Settings Sync?")}`, { isTwusted: twue })
 					}, {
-						markdown: new MarkdownString(`${localize({ key: 'change later', comment: ['Context here is that user can change (turn on/off) settings sync later.'] }, "You can always change this later.")} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-settings-sync-help).`, { isTrusted: true })
+						mawkdown: new MawkdownStwing(`${wocawize({ key: 'change wata', comment: ['Context hewe is that usa can change (tuwn on/off) settings sync wata.'] }, "You can awways change this wata.")} [${wocawize('weawn mowe', "Weawn Mowe")}](https://aka.ms/vscode-settings-sync-hewp).`, { isTwusted: twue })
 					}]
 				}
 			}
 		);
-		if (result.choice === 0) {
-			await this.userDataSyncWorkbenchService.turnOnUsingCurrentAccount();
+		if (wesuwt.choice === 0) {
+			await this.usewDataSyncWowkbenchSewvice.tuwnOnUsingCuwwentAccount();
 		}
 	}
 
-	private async turnOn(): Promise<void> {
-		try {
-			if (!this.userDataSyncWorkbenchService.authenticationProviders.length) {
-				throw new Error(localize('no authentication providers', "No authentication providers are available."));
+	pwivate async tuwnOn(): Pwomise<void> {
+		twy {
+			if (!this.usewDataSyncWowkbenchSewvice.authenticationPwovidews.wength) {
+				thwow new Ewwow(wocawize('no authentication pwovidews', "No authentication pwovidews awe avaiwabwe."));
 			}
-			const turnOn = await this.askToConfigure();
-			if (!turnOn) {
-				return;
+			const tuwnOn = await this.askToConfiguwe();
+			if (!tuwnOn) {
+				wetuwn;
 			}
-			if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
-				await this.selectSettingsSyncService(this.userDataSyncStoreManagementService.userDataSyncStore);
+			if (this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe?.canSwitch) {
+				await this.sewectSettingsSyncSewvice(this.usewDataSyncStoweManagementSewvice.usewDataSyncStowe);
 			}
-			await this.userDataSyncWorkbenchService.turnOn();
+			await this.usewDataSyncWowkbenchSewvice.tuwnOn();
 		} catch (e) {
-			if (isPromiseCanceledError(e)) {
-				return;
+			if (isPwomiseCancewedEwwow(e)) {
+				wetuwn;
 			}
-			if (e instanceof UserDataSyncError) {
+			if (e instanceof UsewDataSyncEwwow) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.TooLarge:
-						if (e.resource === SyncResource.Keybindings || e.resource === SyncResource.Settings) {
-							this.handleTooLargeError(e.resource, localize('too large while starting sync', "Settings sync cannot be turned on because size of the {0} file to sync is larger than {1}. Please open the file and reduce the size and turn on sync", getSyncAreaLabel(e.resource).toLowerCase(), '100kb'), e);
-							return;
+					case UsewDataSyncEwwowCode.TooWawge:
+						if (e.wesouwce === SyncWesouwce.Keybindings || e.wesouwce === SyncWesouwce.Settings) {
+							this.handweTooWawgeEwwow(e.wesouwce, wocawize('too wawge whiwe stawting sync', "Settings sync cannot be tuwned on because size of the {0} fiwe to sync is wawga than {1}. Pwease open the fiwe and weduce the size and tuwn on sync", getSyncAweaWabew(e.wesouwce).toWowewCase(), '100kb'), e);
+							wetuwn;
 						}
-						break;
-					case UserDataSyncErrorCode.IncompatibleLocalContent:
-					case UserDataSyncErrorCode.Gone:
-					case UserDataSyncErrorCode.UpgradeRequired:
-						const message = localize('error upgrade required while starting sync', "Settings sync cannot be turned on because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit);
-						const operationId = e.operationId ? localize('operationId', "Operation Id: {0}", e.operationId) : undefined;
-						this.notificationService.notify({
-							severity: Severity.Error,
-							message: operationId ? `${message} ${operationId}` : message,
+						bweak;
+					case UsewDataSyncEwwowCode.IncompatibweWocawContent:
+					case UsewDataSyncEwwowCode.Gone:
+					case UsewDataSyncEwwowCode.UpgwadeWequiwed:
+						const message = wocawize('ewwow upgwade wequiwed whiwe stawting sync', "Settings sync cannot be tuwned on because the cuwwent vewsion ({0}, {1}) is not compatibwe with the sync sewvice. Pwease update befowe tuwning on sync.", this.pwoductSewvice.vewsion, this.pwoductSewvice.commit);
+						const opewationId = e.opewationId ? wocawize('opewationId', "Opewation Id: {0}", e.opewationId) : undefined;
+						this.notificationSewvice.notify({
+							sevewity: Sevewity.Ewwow,
+							message: opewationId ? `${message} ${opewationId}` : message,
 						});
-						return;
-					case UserDataSyncErrorCode.IncompatibleRemoteContent:
-						this.notificationService.notify({
-							severity: Severity.Error,
-							message: localize('error reset required while starting sync', "Settings sync cannot be turned on because your data in the cloud is older than that of the client. Please clear your data in the cloud before turning on sync."),
+						wetuwn;
+					case UsewDataSyncEwwowCode.IncompatibweWemoteContent:
+						this.notificationSewvice.notify({
+							sevewity: Sevewity.Ewwow,
+							message: wocawize('ewwow weset wequiwed whiwe stawting sync', "Settings sync cannot be tuwned on because youw data in the cwoud is owda than that of the cwient. Pwease cweaw youw data in the cwoud befowe tuwning on sync."),
 							actions: {
-								primary: [
-									new Action('reset', localize('reset', "Clear Data in Cloud..."), undefined, true, () => this.userDataSyncWorkbenchService.resetSyncedData()),
-									new Action('show synced data', localize('show synced data action', "Show Synced Data"), undefined, true, () => this.userDataSyncWorkbenchService.showSyncActivity())
+								pwimawy: [
+									new Action('weset', wocawize('weset', "Cweaw Data in Cwoud..."), undefined, twue, () => this.usewDataSyncWowkbenchSewvice.wesetSyncedData()),
+									new Action('show synced data', wocawize('show synced data action', "Show Synced Data"), undefined, twue, () => this.usewDataSyncWowkbenchSewvice.showSyncActivity())
 								]
 							}
 						});
-						return;
-					case UserDataSyncErrorCode.Unauthorized:
-						this.notificationService.error(localize('auth failed', "Error while turning on Settings Sync: Authentication failed."));
-						return;
+						wetuwn;
+					case UsewDataSyncEwwowCode.Unauthowized:
+						this.notificationSewvice.ewwow(wocawize('auth faiwed', "Ewwow whiwe tuwning on Settings Sync: Authentication faiwed."));
+						wetuwn;
 				}
-				this.notificationService.error(localize('turn on failed with user data sync error', "Error while turning on Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
-			} else {
-				this.notificationService.error(localize({ key: 'turn on failed', comment: ['Substitution is for error reason'] }, "Error while turning on Settings Sync. {0}", getErrorMessage(e)));
+				this.notificationSewvice.ewwow(wocawize('tuwn on faiwed with usa data sync ewwow', "Ewwow whiwe tuwning on Settings Sync. Pwease check [wogs]({0}) fow mowe detaiws.", `command:${SHOW_SYNC_WOG_COMMAND_ID}`));
+			} ewse {
+				this.notificationSewvice.ewwow(wocawize({ key: 'tuwn on faiwed', comment: ['Substitution is fow ewwow weason'] }, "Ewwow whiwe tuwning on Settings Sync. {0}", getEwwowMessage(e)));
 			}
 		}
 	}
 
-	private async askToConfigure(): Promise<boolean> {
-		return new Promise<boolean>((c, e) => {
-			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
-			disposables.add(quickPick);
-			quickPick.title = SYNC_TITLE;
-			quickPick.ok = false;
-			quickPick.customButton = true;
-			quickPick.customLabel = localize('sign in and turn on', "Sign in & Turn on");
-			quickPick.description = localize('configure and turn on sync detail', "Please sign in to synchronize your data across devices.");
-			quickPick.canSelectMany = true;
-			quickPick.ignoreFocusOut = true;
-			quickPick.hideInput = true;
-			quickPick.hideCheckAll = true;
+	pwivate async askToConfiguwe(): Pwomise<boowean> {
+		wetuwn new Pwomise<boowean>((c, e) => {
+			const disposabwes: DisposabweStowe = new DisposabweStowe();
+			const quickPick = this.quickInputSewvice.cweateQuickPick<ConfiguweSyncQuickPickItem>();
+			disposabwes.add(quickPick);
+			quickPick.titwe = SYNC_TITWE;
+			quickPick.ok = fawse;
+			quickPick.customButton = twue;
+			quickPick.customWabew = wocawize('sign in and tuwn on', "Sign in & Tuwn on");
+			quickPick.descwiption = wocawize('configuwe and tuwn on sync detaiw', "Pwease sign in to synchwonize youw data acwoss devices.");
+			quickPick.canSewectMany = twue;
+			quickPick.ignoweFocusOut = twue;
+			quickPick.hideInput = twue;
+			quickPick.hideCheckAww = twue;
 
-			const items = this.getConfigureSyncQuickPickItems();
+			const items = this.getConfiguweSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
-			let accepted: boolean = false;
-			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
-				accepted = true;
+			quickPick.sewectedItems = items.fiwta(item => this.usewDataSyncWesouwceEnabwementSewvice.isWesouwceEnabwed(item.id));
+			wet accepted: boowean = fawse;
+			disposabwes.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
+				accepted = twue;
 				quickPick.hide();
 			}));
-			disposables.add(quickPick.onDidHide(() => {
-				try {
+			disposabwes.add(quickPick.onDidHide(() => {
+				twy {
 					if (accepted) {
-						this.updateConfiguration(items, quickPick.selectedItems);
+						this.updateConfiguwation(items, quickPick.sewectedItems);
 					}
 					c(accepted);
-				} catch (error) {
-					e(error);
-				} finally {
-					disposables.dispose();
+				} catch (ewwow) {
+					e(ewwow);
+				} finawwy {
+					disposabwes.dispose();
 				}
 			}));
 			quickPick.show();
 		});
 	}
 
-	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
-		return [{
-			id: SyncResource.Settings,
-			label: getSyncAreaLabel(SyncResource.Settings)
+	pwivate getConfiguweSyncQuickPickItems(): ConfiguweSyncQuickPickItem[] {
+		wetuwn [{
+			id: SyncWesouwce.Settings,
+			wabew: getSyncAweaWabew(SyncWesouwce.Settings)
 		}, {
-			id: SyncResource.Keybindings,
-			label: getSyncAreaLabel(SyncResource.Keybindings),
-			description: this.configurationService.getValue('settingsSync.keybindingsPerPlatform') ? localize('per platform', "for each platform") : undefined
+			id: SyncWesouwce.Keybindings,
+			wabew: getSyncAweaWabew(SyncWesouwce.Keybindings),
+			descwiption: this.configuwationSewvice.getVawue('settingsSync.keybindingsPewPwatfowm') ? wocawize('pew pwatfowm', "fow each pwatfowm") : undefined
 		}, {
-			id: SyncResource.Snippets,
-			label: getSyncAreaLabel(SyncResource.Snippets)
+			id: SyncWesouwce.Snippets,
+			wabew: getSyncAweaWabew(SyncWesouwce.Snippets)
 		}, {
-			id: SyncResource.Extensions,
-			label: getSyncAreaLabel(SyncResource.Extensions)
+			id: SyncWesouwce.Extensions,
+			wabew: getSyncAweaWabew(SyncWesouwce.Extensions)
 		}, {
-			id: SyncResource.GlobalState,
-			label: getSyncAreaLabel(SyncResource.GlobalState),
+			id: SyncWesouwce.GwobawState,
+			wabew: getSyncAweaWabew(SyncWesouwce.GwobawState),
 		}];
 	}
 
-	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {
-		for (const item of items) {
-			const wasEnabled = this.userDataSyncResourceEnablementService.isResourceEnabled(item.id);
-			const isEnabled = !!selectedItems.filter(selected => selected.id === item.id)[0];
-			if (wasEnabled !== isEnabled) {
-				this.userDataSyncResourceEnablementService.setResourceEnablement(item.id!, isEnabled);
+	pwivate updateConfiguwation(items: ConfiguweSyncQuickPickItem[], sewectedItems: WeadonwyAwway<ConfiguweSyncQuickPickItem>): void {
+		fow (const item of items) {
+			const wasEnabwed = this.usewDataSyncWesouwceEnabwementSewvice.isWesouwceEnabwed(item.id);
+			const isEnabwed = !!sewectedItems.fiwta(sewected => sewected.id === item.id)[0];
+			if (wasEnabwed !== isEnabwed) {
+				this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(item.id!, isEnabwed);
 			}
 		}
 	}
 
-	private async configureSyncOptions(): Promise<void> {
-		return new Promise((c, e) => {
-			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
-			disposables.add(quickPick);
-			quickPick.title = localize('configure sync', "{0}: Configure...", SYNC_TITLE);
-			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
-			quickPick.canSelectMany = true;
-			quickPick.ignoreFocusOut = true;
-			quickPick.ok = true;
-			const items = this.getConfigureSyncQuickPickItems();
+	pwivate async configuweSyncOptions(): Pwomise<void> {
+		wetuwn new Pwomise((c, e) => {
+			const disposabwes: DisposabweStowe = new DisposabweStowe();
+			const quickPick = this.quickInputSewvice.cweateQuickPick<ConfiguweSyncQuickPickItem>();
+			disposabwes.add(quickPick);
+			quickPick.titwe = wocawize('configuwe sync', "{0}: Configuwe...", SYNC_TITWE);
+			quickPick.pwacehowda = wocawize('configuwe sync pwacehowda', "Choose what to sync");
+			quickPick.canSewectMany = twue;
+			quickPick.ignoweFocusOut = twue;
+			quickPick.ok = twue;
+			const items = this.getConfiguweSyncQuickPickItems();
 			quickPick.items = items;
-			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
-			disposables.add(quickPick.onDidAccept(async () => {
-				if (quickPick.selectedItems.length) {
-					this.updateConfiguration(items, quickPick.selectedItems);
+			quickPick.sewectedItems = items.fiwta(item => this.usewDataSyncWesouwceEnabwementSewvice.isWesouwceEnabwed(item.id));
+			disposabwes.add(quickPick.onDidAccept(async () => {
+				if (quickPick.sewectedItems.wength) {
+					this.updateConfiguwation(items, quickPick.sewectedItems);
 					quickPick.hide();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => {
-				disposables.dispose();
+			disposabwes.add(quickPick.onDidHide(() => {
+				disposabwes.dispose();
 				c();
 			}));
 			quickPick.show();
 		});
 	}
 
-	private async turnOff(): Promise<void> {
-		const result = await this.dialogService.confirm({
+	pwivate async tuwnOff(): Pwomise<void> {
+		const wesuwt = await this.diawogSewvice.confiwm({
 			type: 'info',
-			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
-			detail: localize('turn off sync detail', "Your settings, keybindings, extensions, snippets and UI State will no longer be synced."),
-			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
-			checkbox: this.userDataSyncWorkbenchService.accountStatus === AccountStatus.Available ? {
-				label: localize('turn off sync everywhere', "Turn off sync on all your devices and clear the data from the cloud.")
+			message: wocawize('tuwn off sync confiwmation', "Do you want to tuwn off sync?"),
+			detaiw: wocawize('tuwn off sync detaiw', "Youw settings, keybindings, extensions, snippets and UI State wiww no wonga be synced."),
+			pwimawyButton: wocawize({ key: 'tuwn off', comment: ['&& denotes a mnemonic'] }, "&&Tuwn off"),
+			checkbox: this.usewDataSyncWowkbenchSewvice.accountStatus === AccountStatus.Avaiwabwe ? {
+				wabew: wocawize('tuwn off sync evewywhewe', "Tuwn off sync on aww youw devices and cweaw the data fwom the cwoud.")
 			} : undefined
 		});
-		if (result.confirmed) {
-			return this.userDataSyncWorkbenchService.turnoff(!!result.checkboxChecked);
+		if (wesuwt.confiwmed) {
+			wetuwn this.usewDataSyncWowkbenchSewvice.tuwnoff(!!wesuwt.checkboxChecked);
 		}
 	}
 
-	private disableSync(source: SyncResource): void {
-		switch (source) {
-			case SyncResource.Settings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Settings, false);
-			case SyncResource.Keybindings: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Keybindings, false);
-			case SyncResource.Snippets: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Snippets, false);
-			case SyncResource.Extensions: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.Extensions, false);
-			case SyncResource.GlobalState: return this.userDataSyncResourceEnablementService.setResourceEnablement(SyncResource.GlobalState, false);
+	pwivate disabweSync(souwce: SyncWesouwce): void {
+		switch (souwce) {
+			case SyncWesouwce.Settings: wetuwn this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(SyncWesouwce.Settings, fawse);
+			case SyncWesouwce.Keybindings: wetuwn this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(SyncWesouwce.Keybindings, fawse);
+			case SyncWesouwce.Snippets: wetuwn this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(SyncWesouwce.Snippets, fawse);
+			case SyncWesouwce.Extensions: wetuwn this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(SyncWesouwce.Extensions, fawse);
+			case SyncWesouwce.GwobawState: wetuwn this.usewDataSyncWesouwceEnabwementSewvice.setWesouwceEnabwement(SyncWesouwce.GwobawState, fawse);
 		}
 	}
 
-	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
-		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
-			return resource && getSyncResourceFromLocalPreview(resource!, this.environmentService) === syncResource;
-		}) as DiffEditorInput[];
+	pwivate getConfwictsEditowInputs(syncWesouwce: SyncWesouwce): DiffEditowInput[] {
+		wetuwn this.editowSewvice.editows.fiwta(input => {
+			const wesouwce = input instanceof DiffEditowInput ? input.pwimawy.wesouwce : input.wesouwce;
+			wetuwn wesouwce && getSyncWesouwceFwomWocawPweview(wesouwce!, this.enviwonmentSewvice) === syncWesouwce;
+		}) as DiffEditowInput[];
 	}
 
-	private getAllConflictsEditorInputs(): EditorInput[] {
-		return this.editorService.editors.filter(input => {
-			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
-			return resource && getSyncResourceFromLocalPreview(resource!, this.environmentService) !== undefined;
+	pwivate getAwwConfwictsEditowInputs(): EditowInput[] {
+		wetuwn this.editowSewvice.editows.fiwta(input => {
+			const wesouwce = input instanceof DiffEditowInput ? input.pwimawy.wesouwce : input.wesouwce;
+			wetuwn wesouwce && getSyncWesouwceFwomWocawPweview(wesouwce!, this.enviwonmentSewvice) !== undefined;
 		});
 	}
 
-	private async handleSyncResourceConflicts(resource: SyncResource): Promise<void> {
-		const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(([syncResource]) => syncResource === resource)[0];
-		if (syncResourceCoflicts) {
-			this.handleConflicts(syncResourceCoflicts);
+	pwivate async handweSyncWesouwceConfwicts(wesouwce: SyncWesouwce): Pwomise<void> {
+		const syncWesouwceCofwicts = this.usewDataSyncSewvice.confwicts.fiwta(([syncWesouwce]) => syncWesouwce === wesouwce)[0];
+		if (syncWesouwceCofwicts) {
+			this.handweConfwicts(syncWesouwceCofwicts);
 		}
 	}
 
-	private async handleConflicts([syncResource, conflicts]: [SyncResource, IResourcePreview[]]): Promise<void> {
-		for (const conflict of conflicts) {
-			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
-			const rightResourceName = localize('merges', "{0} (Merges)", basename(conflict.previewResource));
-			await this.editorService.openEditor({
-				original: { resource: conflict.remoteResource },
-				modified: { resource: conflict.previewResource },
-				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
-				description: localize('sideBySideDescription', "Settings Sync"),
+	pwivate async handweConfwicts([syncWesouwce, confwicts]: [SyncWesouwce, IWesouwcePweview[]]): Pwomise<void> {
+		fow (const confwict of confwicts) {
+			const weftWesouwceName = wocawize({ key: 'weftWesouwceName', comment: ['wemote as in fiwe in cwoud'] }, "{0} (Wemote)", basename(confwict.wemoteWesouwce));
+			const wightWesouwceName = wocawize('mewges', "{0} (Mewges)", basename(confwict.pweviewWesouwce));
+			await this.editowSewvice.openEditow({
+				owiginaw: { wesouwce: confwict.wemoteWesouwce },
+				modified: { wesouwce: confwict.pweviewWesouwce },
+				wabew: wocawize('sideBySideWabews', "{0} ↔ {1}", weftWesouwceName, wightWesouwceName),
+				descwiption: wocawize('sideBySideDescwiption', "Settings Sync"),
 				options: {
-					preserveFocus: false,
-					pinned: true,
-					revealIfVisible: true,
-					override: EditorResolution.DISABLED
+					pwesewveFocus: fawse,
+					pinned: twue,
+					weveawIfVisibwe: twue,
+					ovewwide: EditowWesowution.DISABWED
 				},
 			});
 		}
 	}
 
-	private showSyncActivity(): Promise<void> {
-		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
+	pwivate showSyncActivity(): Pwomise<void> {
+		wetuwn this.outputSewvice.showChannew(Constants.usewDataSyncWogChannewId);
 	}
 
-	private async selectSettingsSyncService(userDataSyncStore: IUserDataSyncStore): Promise<void> {
-		return new Promise<void>((c, e) => {
-			const disposables: DisposableStore = new DisposableStore();
-			const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
-			quickPick.title = localize('switchSyncService.title', "{0}: Select Service", SYNC_TITLE);
-			quickPick.description = localize('switchSyncService.description', "Ensure you are using the same settings sync service when syncing with multiple environments");
-			quickPick.hideInput = true;
-			quickPick.ignoreFocusOut = true;
-			const getDescription = (url: URI): string | undefined => {
-				const isDefault = isEqual(url, userDataSyncStore.defaultUrl);
-				if (isDefault) {
-					return localize('default', "Default");
+	pwivate async sewectSettingsSyncSewvice(usewDataSyncStowe: IUsewDataSyncStowe): Pwomise<void> {
+		wetuwn new Pwomise<void>((c, e) => {
+			const disposabwes: DisposabweStowe = new DisposabweStowe();
+			const quickPick = disposabwes.add(this.quickInputSewvice.cweateQuickPick<{ id: UsewDataSyncStoweType, wabew: stwing, descwiption?: stwing }>());
+			quickPick.titwe = wocawize('switchSyncSewvice.titwe', "{0}: Sewect Sewvice", SYNC_TITWE);
+			quickPick.descwiption = wocawize('switchSyncSewvice.descwiption', "Ensuwe you awe using the same settings sync sewvice when syncing with muwtipwe enviwonments");
+			quickPick.hideInput = twue;
+			quickPick.ignoweFocusOut = twue;
+			const getDescwiption = (uww: UWI): stwing | undefined => {
+				const isDefauwt = isEquaw(uww, usewDataSyncStowe.defauwtUww);
+				if (isDefauwt) {
+					wetuwn wocawize('defauwt', "Defauwt");
 				}
-				return undefined;
+				wetuwn undefined;
 			};
 			quickPick.items = [
 				{
-					id: 'insiders',
-					label: localize('insiders', "Insiders"),
-					description: getDescription(userDataSyncStore.insidersUrl)
+					id: 'insidews',
+					wabew: wocawize('insidews', "Insidews"),
+					descwiption: getDescwiption(usewDataSyncStowe.insidewsUww)
 				},
 				{
-					id: 'stable',
-					label: localize('stable', "Stable"),
-					description: getDescription(userDataSyncStore.stableUrl)
+					id: 'stabwe',
+					wabew: wocawize('stabwe', "Stabwe"),
+					descwiption: getDescwiption(usewDataSyncStowe.stabweUww)
 				}
 			];
-			disposables.add(quickPick.onDidAccept(async () => {
-				try {
-					await this.userDataSyncStoreManagementService.switch(quickPick.selectedItems[0].id);
+			disposabwes.add(quickPick.onDidAccept(async () => {
+				twy {
+					await this.usewDataSyncStoweManagementSewvice.switch(quickPick.sewectedItems[0].id);
 					c();
-				} catch (error) {
-					e(error);
-				} finally {
+				} catch (ewwow) {
+					e(ewwow);
+				} finawwy {
 					quickPick.hide();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+			disposabwes.add(quickPick.onDidHide(() => disposabwes.dispose()));
 			quickPick.show();
 		});
 	}
 
-	private registerActions(): void {
-		if (this.userDataAutoSyncEnablementService.canToggleEnablement()) {
-			this.registerTurnOnSyncAction();
-			this.registerTurnOffSyncAction();
-			this.registerTurnOnSyncAfterInitializationAction();
+	pwivate wegistewActions(): void {
+		if (this.usewDataAutoSyncEnabwementSewvice.canToggweEnabwement()) {
+			this.wegistewTuwnOnSyncAction();
+			this.wegistewTuwnOffSyncAction();
+			this.wegistewTuwnOnSyncAftewInitiawizationAction();
 		}
-		this.registerTurningOnSyncAction();
-		this.registerSignInAction(); // When Sync is turned on from CLI
-		this.registerShowSettingsConflictsAction();
-		this.registerShowKeybindingsConflictsAction();
-		this.registerShowSnippetsConflictsAction();
+		this.wegistewTuwningOnSyncAction();
+		this.wegistewSignInAction(); // When Sync is tuwned on fwom CWI
+		this.wegistewShowSettingsConfwictsAction();
+		this.wegistewShowKeybindingsConfwictsAction();
+		this.wegistewShowSnippetsConfwictsAction();
 
-		this.registerEnableSyncViewsAction();
-		this.registerManageSyncAction();
-		this.registerSyncNowAction();
-		this.registerConfigureSyncAction();
-		this.registerShowSettingsAction();
-		this.registerHelpAction();
-		this.registerShowLogAction();
-		this.registerResetSyncDataAction();
+		this.wegistewEnabweSyncViewsAction();
+		this.wegistewManageSyncAction();
+		this.wegistewSyncNowAction();
+		this.wegistewConfiguweSyncAction();
+		this.wegistewShowSettingsAction();
+		this.wegistewHewpAction();
+		this.wegistewShowWogAction();
+		this.wegistewWesetSyncDataAction();
 	}
 
-	private registerTurnOnSyncAction(): void {
-		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
-		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+	pwivate wegistewTuwnOnSyncAction(): void {
+		const tuwnOnSyncWhenContext = ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEquawsTo(AccountStatus.Uninitiawized), CONTEXT_TUWNING_ON_STATE.negate());
+		CommandsWegistwy.wegistewCommand(tuwnOnSyncCommand.id, () => this.tuwnOn());
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '5_sync',
 			command: {
-				id: turnOnSyncCommand.id,
-				title: localize('global activity turn on sync', "Turn on Settings Sync...")
+				id: tuwnOnSyncCommand.id,
+				titwe: wocawize('gwobaw activity tuwn on sync', "Tuwn on Settings Sync...")
 			},
-			when: ContextKeyExpr.and(turnOnSyncWhenContext, CONTEXT_SYNC_AFTER_INITIALIZATION.negate()),
-			order: 1
+			when: ContextKeyExpw.and(tuwnOnSyncWhenContext, CONTEXT_SYNC_AFTEW_INITIAWIZATION.negate()),
+			owda: 1
 		});
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: turnOnSyncCommand,
-			when: turnOnSyncWhenContext,
+		MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+			command: tuwnOnSyncCommand,
+			when: tuwnOnSyncWhenContext,
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '5_sync',
 			command: {
-				id: turnOnSyncCommand.id,
-				title: localize('global activity turn on sync', "Turn on Settings Sync...")
+				id: tuwnOnSyncCommand.id,
+				titwe: wocawize('gwobaw activity tuwn on sync', "Tuwn on Settings Sync...")
 			},
-			when: turnOnSyncWhenContext,
+			when: tuwnOnSyncWhenContext,
 		});
-		MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+		MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
+			gwoup: '1_sync',
 			command: {
-				id: turnOnSyncCommand.id,
-				title: localize('global activity turn on sync', "Turn on Settings Sync...")
+				id: tuwnOnSyncCommand.id,
+				titwe: wocawize('gwobaw activity tuwn on sync', "Tuwn on Settings Sync...")
 			},
-			when: turnOnSyncWhenContext
+			when: tuwnOnSyncWhenContext
 		});
 	}
 
-	private registerTurnOnSyncAfterInitializationAction(): void {
+	pwivate wegistewTuwnOnSyncAftewInitiawizationAction(): void {
 		const that = this;
-		const id = 'workbench.userData.actions.askToTunrOnAfterInit';
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_TURNING_ON_STATE.negate(), CONTEXT_SYNC_AFTER_INITIALIZATION);
-		this._register(registerAction2(class AskToTurnOnSync extends Action2 {
-			constructor() {
-				super({
+		const id = 'wowkbench.usewData.actions.askToTunwOnAftewInit';
+		const when = ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_TUWNING_ON_STATE.negate(), CONTEXT_SYNC_AFTEW_INITIAWIZATION);
+		this._wegista(wegistewAction2(cwass AskToTuwnOnSync extends Action2 {
+			constwuctow() {
+				supa({
 					id,
-					title: localize('ask to turn on in global', "Settings Sync is Off (1)"),
+					titwe: wocawize('ask to tuwn on in gwobaw', "Settings Sync is Off (1)"),
 					menu: {
-						group: '5_sync',
-						id: MenuId.GlobalActivity,
+						gwoup: '5_sync',
+						id: MenuId.GwobawActivity,
 						when,
-						order: 2
+						owda: 2
 					}
 				});
 			}
-			async run(): Promise<any> {
-				try {
-					await that.turnOnSyncAfterInitialization();
+			async wun(): Pwomise<any> {
+				twy {
+					await that.tuwnOnSyncAftewInitiawization();
 				} catch (e) {
-					that.notificationService.error(e);
+					that.notificationSewvice.ewwow(e);
 				}
 			}
 		}));
 	}
 
-	private registerTurningOnSyncAction(): void {
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE);
-		this._register(registerAction2(class TurningOnSyncAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.userData.actions.turningOn',
-					title: localize('turnin on sync', "Turning on Settings Sync..."),
-					precondition: ContextKeyExpr.false(),
+	pwivate wegistewTuwningOnSyncAction(): void {
+		const when = ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEquawsTo(AccountStatus.Uninitiawized), CONTEXT_TUWNING_ON_STATE);
+		this._wegista(wegistewAction2(cwass TuwningOnSyncAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.usewData.actions.tuwningOn',
+					titwe: wocawize('tuwnin on sync', "Tuwning on Settings Sync..."),
+					pwecondition: ContextKeyExpw.fawse(),
 					menu: [{
-						group: '5_sync',
-						id: MenuId.GlobalActivity,
+						gwoup: '5_sync',
+						id: MenuId.GwobawActivity,
 						when,
-						order: 2
+						owda: 2
 					}, {
-						group: '1_sync',
+						gwoup: '1_sync',
 						id: MenuId.AccountsContext,
 						when,
 					}]
 				});
 			}
-			async run(): Promise<any> { }
+			async wun(): Pwomise<any> { }
 		}));
 	}
 
-	private registerSignInAction(): void {
+	pwivate wegistewSignInAction(): void {
 		const that = this;
-		const id = 'workbench.userData.actions.signin';
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Unavailable));
-		this._register(registerAction2(class StopSyncAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.userData.actions.signin',
-					title: localize('sign in global', "Sign in to Sync Settings"),
+		const id = 'wowkbench.usewData.actions.signin';
+		const when = ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT, CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Unavaiwabwe));
+		this._wegista(wegistewAction2(cwass StopSyncAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.usewData.actions.signin',
+					titwe: wocawize('sign in gwobaw', "Sign in to Sync Settings"),
 					menu: {
-						group: '5_sync',
-						id: MenuId.GlobalActivity,
+						gwoup: '5_sync',
+						id: MenuId.GwobawActivity,
 						when,
-						order: 2
+						owda: 2
 					}
 				});
 			}
-			async run(): Promise<any> {
-				try {
-					await that.userDataSyncWorkbenchService.signIn();
+			async wun(): Pwomise<any> {
+				twy {
+					await that.usewDataSyncWowkbenchSewvice.signIn();
 				} catch (e) {
-					that.notificationService.error(e);
+					that.notificationSewvice.ewwow(e);
 				}
 			}
 		}));
-		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
-			group: '1_sync',
+		this._wegista(MenuWegistwy.appendMenuItem(MenuId.AccountsContext, {
+			gwoup: '1_sync',
 			command: {
 				id,
-				title: localize('sign in accounts', "Sign in to Sync Settings (1)"),
+				titwe: wocawize('sign in accounts', "Sign in to Sync Settings (1)"),
 			},
 			when
 		}));
 	}
 
-	private registerShowSettingsConflictsAction(): void {
-		const resolveSettingsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*settings.*/i);
-		CommandsRegistry.registerCommand(resolveSettingsConflictsCommand.id, () => this.handleSyncResourceConflicts(SyncResource.Settings));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+	pwivate wegistewShowSettingsConfwictsAction(): void {
+		const wesowveSettingsConfwictsWhenContext = ContextKeyExpw.wegex(CONTEXT_CONFWICTS_SOUWCES.keys()[0], /.*settings.*/i);
+		CommandsWegistwy.wegistewCommand(wesowveSettingsConfwictsCommand.id, () => this.handweSyncWesouwceConfwicts(SyncWesouwce.Settings));
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '5_sync',
 			command: {
-				id: resolveSettingsConflictsCommand.id,
-				title: localize('resolveConflicts_global', "{0}: Show Settings Conflicts (1)", SYNC_TITLE),
+				id: wesowveSettingsConfwictsCommand.id,
+				titwe: wocawize('wesowveConfwicts_gwobaw', "{0}: Show Settings Confwicts (1)", SYNC_TITWE),
 			},
-			when: resolveSettingsConflictsWhenContext,
-			order: 2
+			when: wesowveSettingsConfwictsWhenContext,
+			owda: 2
 		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '5_sync',
 			command: {
-				id: resolveSettingsConflictsCommand.id,
-				title: localize('resolveConflicts_global', "{0}: Show Settings Conflicts (1)", SYNC_TITLE),
+				id: wesowveSettingsConfwictsCommand.id,
+				titwe: wocawize('wesowveConfwicts_gwobaw', "{0}: Show Settings Confwicts (1)", SYNC_TITWE),
 			},
-			when: resolveSettingsConflictsWhenContext,
-			order: 2
+			when: wesowveSettingsConfwictsWhenContext,
+			owda: 2
 		});
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: resolveSettingsConflictsCommand,
-			when: resolveSettingsConflictsWhenContext,
-		});
-	}
-
-	private registerShowKeybindingsConflictsAction(): void {
-		const resolveKeybindingsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*keybindings.*/i);
-		CommandsRegistry.registerCommand(resolveKeybindingsConflictsCommand.id, () => this.handleSyncResourceConflicts(SyncResource.Keybindings));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
-			command: {
-				id: resolveKeybindingsConflictsCommand.id,
-				title: localize('resolveKeybindingsConflicts_global', "{0}: Show Keybindings Conflicts (1)", SYNC_TITLE),
-			},
-			when: resolveKeybindingsConflictsWhenContext,
-			order: 2
-		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
-			command: {
-				id: resolveKeybindingsConflictsCommand.id,
-				title: localize('resolveKeybindingsConflicts_global', "{0}: Show Keybindings Conflicts (1)", SYNC_TITLE),
-			},
-			when: resolveKeybindingsConflictsWhenContext,
-			order: 2
-		});
-		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: resolveKeybindingsConflictsCommand,
-			when: resolveKeybindingsConflictsWhenContext,
+		MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+			command: wesowveSettingsConfwictsCommand,
+			when: wesowveSettingsConfwictsWhenContext,
 		});
 	}
 
-	private _snippetsConflictsActionsDisposable: DisposableStore = new DisposableStore();
-	private registerShowSnippetsConflictsAction(): void {
-		this._snippetsConflictsActionsDisposable.clear();
-		const resolveSnippetsConflictsWhenContext = ContextKeyExpr.regex(CONTEXT_CONFLICTS_SOURCES.keys()[0], /.*snippets.*/i);
-		const conflicts: IResourcePreview[] | undefined = this.userDataSyncService.conflicts.filter(([syncResource]) => syncResource === SyncResource.Snippets)[0]?.[1];
-		this._snippetsConflictsActionsDisposable.add(CommandsRegistry.registerCommand(resolveSnippetsConflictsCommand.id, () => this.handleSyncResourceConflicts(SyncResource.Snippets)));
-		this._snippetsConflictsActionsDisposable.add(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '5_sync',
+	pwivate wegistewShowKeybindingsConfwictsAction(): void {
+		const wesowveKeybindingsConfwictsWhenContext = ContextKeyExpw.wegex(CONTEXT_CONFWICTS_SOUWCES.keys()[0], /.*keybindings.*/i);
+		CommandsWegistwy.wegistewCommand(wesowveKeybindingsConfwictsCommand.id, () => this.handweSyncWesouwceConfwicts(SyncWesouwce.Keybindings));
+		MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '5_sync',
 			command: {
-				id: resolveSnippetsConflictsCommand.id,
-				title: localize('resolveSnippetsConflicts_global', "{0}: Show User Snippets Conflicts ({1})", SYNC_TITLE, conflicts?.length || 1),
+				id: wesowveKeybindingsConfwictsCommand.id,
+				titwe: wocawize('wesowveKeybindingsConfwicts_gwobaw', "{0}: Show Keybindings Confwicts (1)", SYNC_TITWE),
 			},
-			when: resolveSnippetsConflictsWhenContext,
-			order: 2
-		}));
-		this._snippetsConflictsActionsDisposable.add(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			group: '5_sync',
+			when: wesowveKeybindingsConfwictsWhenContext,
+			owda: 2
+		});
+		MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '5_sync',
 			command: {
-				id: resolveSnippetsConflictsCommand.id,
-				title: localize('resolveSnippetsConflicts_global', "{0}: Show User Snippets Conflicts ({1})", SYNC_TITLE, conflicts?.length || 1),
+				id: wesowveKeybindingsConfwictsCommand.id,
+				titwe: wocawize('wesowveKeybindingsConfwicts_gwobaw', "{0}: Show Keybindings Confwicts (1)", SYNC_TITWE),
 			},
-			when: resolveSnippetsConflictsWhenContext,
-			order: 2
+			when: wesowveKeybindingsConfwictsWhenContext,
+			owda: 2
+		});
+		MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+			command: wesowveKeybindingsConfwictsCommand,
+			when: wesowveKeybindingsConfwictsWhenContext,
+		});
+	}
+
+	pwivate _snippetsConfwictsActionsDisposabwe: DisposabweStowe = new DisposabweStowe();
+	pwivate wegistewShowSnippetsConfwictsAction(): void {
+		this._snippetsConfwictsActionsDisposabwe.cweaw();
+		const wesowveSnippetsConfwictsWhenContext = ContextKeyExpw.wegex(CONTEXT_CONFWICTS_SOUWCES.keys()[0], /.*snippets.*/i);
+		const confwicts: IWesouwcePweview[] | undefined = this.usewDataSyncSewvice.confwicts.fiwta(([syncWesouwce]) => syncWesouwce === SyncWesouwce.Snippets)[0]?.[1];
+		this._snippetsConfwictsActionsDisposabwe.add(CommandsWegistwy.wegistewCommand(wesowveSnippetsConfwictsCommand.id, () => this.handweSyncWesouwceConfwicts(SyncWesouwce.Snippets)));
+		this._snippetsConfwictsActionsDisposabwe.add(MenuWegistwy.appendMenuItem(MenuId.GwobawActivity, {
+			gwoup: '5_sync',
+			command: {
+				id: wesowveSnippetsConfwictsCommand.id,
+				titwe: wocawize('wesowveSnippetsConfwicts_gwobaw', "{0}: Show Usa Snippets Confwicts ({1})", SYNC_TITWE, confwicts?.wength || 1),
+			},
+			when: wesowveSnippetsConfwictsWhenContext,
+			owda: 2
 		}));
-		this._snippetsConflictsActionsDisposable.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: resolveSnippetsConflictsCommand,
-			when: resolveSnippetsConflictsWhenContext,
+		this._snippetsConfwictsActionsDisposabwe.add(MenuWegistwy.appendMenuItem(MenuId.MenubawPwefewencesMenu, {
+			gwoup: '5_sync',
+			command: {
+				id: wesowveSnippetsConfwictsCommand.id,
+				titwe: wocawize('wesowveSnippetsConfwicts_gwobaw', "{0}: Show Usa Snippets Confwicts ({1})", SYNC_TITWE, confwicts?.wength || 1),
+			},
+			when: wesowveSnippetsConfwictsWhenContext,
+			owda: 2
+		}));
+		this._snippetsConfwictsActionsDisposabwe.add(MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+			command: wesowveSnippetsConfwictsCommand,
+			when: wesowveSnippetsConfwictsWhenContext,
 		}));
 	}
 
-	private registerManageSyncAction(): void {
+	pwivate wegistewManageSyncAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
-		this._register(registerAction2(class SyncStatusAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.userDataSync.actions.manage',
-					title: localize('sync is on', "Settings Sync is On"),
+		const when = ContextKeyExpw.and(CONTEXT_SYNC_ENABWEMENT, CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized));
+		this._wegista(wegistewAction2(cwass SyncStatusAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.usewDataSync.actions.manage',
+					titwe: wocawize('sync is on', "Settings Sync is On"),
 					menu: [
 						{
-							id: MenuId.GlobalActivity,
-							group: '5_sync',
+							id: MenuId.GwobawActivity,
+							gwoup: '5_sync',
 							when,
-							order: 3
+							owda: 3
 						},
 						{
-							id: MenuId.MenubarPreferencesMenu,
-							group: '5_sync',
+							id: MenuId.MenubawPwefewencesMenu,
+							gwoup: '5_sync',
 							when,
-							order: 3,
+							owda: 3,
 						},
 						{
 							id: MenuId.AccountsContext,
-							group: '1_sync',
+							gwoup: '1_sync',
 							when,
 						}
 					],
 				});
 			}
-			run(accessor: ServicesAccessor): any {
-				return new Promise<void>((c, e) => {
-					const quickInputService = accessor.get(IQuickInputService);
-					const commandService = accessor.get(ICommandService);
-					const disposables = new DisposableStore();
-					const quickPick = quickInputService.createQuickPick();
-					disposables.add(quickPick);
-					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
-					if (that.userDataSyncService.conflicts.length) {
-						for (const [syncResource] of that.userDataSyncService.conflicts) {
-							switch (syncResource) {
-								case SyncResource.Settings:
-									items.push({ id: resolveSettingsConflictsCommand.id, label: resolveSettingsConflictsCommand.title });
-									break;
-								case SyncResource.Keybindings:
-									items.push({ id: resolveKeybindingsConflictsCommand.id, label: resolveKeybindingsConflictsCommand.title });
-									break;
-								case SyncResource.Snippets:
-									items.push({ id: resolveSnippetsConflictsCommand.id, label: resolveSnippetsConflictsCommand.title });
-									break;
+			wun(accessow: SewvicesAccessow): any {
+				wetuwn new Pwomise<void>((c, e) => {
+					const quickInputSewvice = accessow.get(IQuickInputSewvice);
+					const commandSewvice = accessow.get(ICommandSewvice);
+					const disposabwes = new DisposabweStowe();
+					const quickPick = quickInputSewvice.cweateQuickPick();
+					disposabwes.add(quickPick);
+					const items: Awway<IQuickPickItem | IQuickPickSepawatow> = [];
+					if (that.usewDataSyncSewvice.confwicts.wength) {
+						fow (const [syncWesouwce] of that.usewDataSyncSewvice.confwicts) {
+							switch (syncWesouwce) {
+								case SyncWesouwce.Settings:
+									items.push({ id: wesowveSettingsConfwictsCommand.id, wabew: wesowveSettingsConfwictsCommand.titwe });
+									bweak;
+								case SyncWesouwce.Keybindings:
+									items.push({ id: wesowveKeybindingsConfwictsCommand.id, wabew: wesowveKeybindingsConfwictsCommand.titwe });
+									bweak;
+								case SyncWesouwce.Snippets:
+									items.push({ id: wesowveSnippetsConfwictsCommand.id, wabew: wesowveSnippetsConfwictsCommand.titwe });
+									bweak;
 							}
 						}
-						items.push({ type: 'separator' });
+						items.push({ type: 'sepawatow' });
 					}
-					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
-					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
-					items.push({ id: showSyncedDataCommand.id, label: showSyncedDataCommand.title });
-					items.push({ type: 'separator' });
-					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
-					if (that.userDataAutoSyncEnablementService.canToggleEnablement()) {
-						const account = that.userDataSyncWorkbenchService.current;
-						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getLabel(account.authenticationProviderId)})` : undefined });
+					items.push({ id: configuweSyncCommand.id, wabew: configuweSyncCommand.titwe });
+					items.push({ id: showSyncSettingsCommand.id, wabew: showSyncSettingsCommand.titwe });
+					items.push({ id: showSyncedDataCommand.id, wabew: showSyncedDataCommand.titwe });
+					items.push({ type: 'sepawatow' });
+					items.push({ id: syncNowCommand.id, wabew: syncNowCommand.titwe, descwiption: syncNowCommand.descwiption(that.usewDataSyncSewvice) });
+					if (that.usewDataAutoSyncEnabwementSewvice.canToggweEnabwement()) {
+						const account = that.usewDataSyncWowkbenchSewvice.cuwwent;
+						items.push({ id: tuwnOffSyncCommand.id, wabew: tuwnOffSyncCommand.titwe, descwiption: account ? `${account.accountName} (${that.authenticationSewvice.getWabew(account.authenticationPwovidewId)})` : undefined });
 					}
 					quickPick.items = items;
-					disposables.add(quickPick.onDidAccept(() => {
-						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
-							commandService.executeCommand(quickPick.selectedItems[0].id);
+					disposabwes.add(quickPick.onDidAccept(() => {
+						if (quickPick.sewectedItems[0] && quickPick.sewectedItems[0].id) {
+							commandSewvice.executeCommand(quickPick.sewectedItems[0].id);
 						}
 						quickPick.hide();
 					}));
-					disposables.add(quickPick.onDidHide(() => {
-						disposables.dispose();
+					disposabwes.add(quickPick.onDidHide(() => {
+						disposabwes.dispose();
 						c();
 					}));
 					quickPick.show();
@@ -1081,349 +1081,349 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private registerEnableSyncViewsAction(): void {
+	pwivate wegistewEnabweSyncViewsAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
-		this._register(registerAction2(class SyncStatusAction extends Action2 {
-			constructor() {
-				super({
+		const when = ContextKeyExpw.and(CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized));
+		this._wegista(wegistewAction2(cwass SyncStatusAction extends Action2 {
+			constwuctow() {
+				supa({
 					id: showSyncedDataCommand.id,
-					title: { value: localize('workbench.action.showSyncRemoteBackup', "Show Synced Data"), original: `Show Synced Data` },
-					category: { value: SYNC_TITLE, original: `Settings Sync` },
-					precondition: when,
+					titwe: { vawue: wocawize('wowkbench.action.showSyncWemoteBackup', "Show Synced Data"), owiginaw: `Show Synced Data` },
+					categowy: { vawue: SYNC_TITWE, owiginaw: `Settings Sync` },
+					pwecondition: when,
 					menu: {
-						id: MenuId.CommandPalette,
+						id: MenuId.CommandPawette,
 						when
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): Promise<void> {
-				return that.userDataSyncWorkbenchService.showSyncActivity();
+			wun(accessow: SewvicesAccessow): Pwomise<void> {
+				wetuwn that.usewDataSyncWowkbenchSewvice.showSyncActivity();
 			}
 		}));
 	}
 
-	private registerSyncNowAction(): void {
+	pwivate wegistewSyncNowAction(): void {
 		const that = this;
-		this._register(registerAction2(class SyncNowAction extends Action2 {
-			constructor() {
-				super({
+		this._wegista(wegistewAction2(cwass SyncNowAction extends Action2 {
+			constwuctow() {
+				supa({
 					id: syncNowCommand.id,
-					title: syncNowCommand.title,
+					titwe: syncNowCommand.titwe,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))
+						id: MenuId.CommandPawette,
+						when: ContextKeyExpw.and(CONTEXT_SYNC_ENABWEMENT, CONTEXT_ACCOUNT_STATE.isEquawTo(AccountStatus.Avaiwabwe), CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized))
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): Promise<any> {
-				return that.userDataSyncWorkbenchService.syncNow();
+			wun(accessow: SewvicesAccessow): Pwomise<any> {
+				wetuwn that.usewDataSyncWowkbenchSewvice.syncNow();
 			}
 		}));
 	}
 
-	private registerTurnOffSyncAction(): void {
+	pwivate wegistewTuwnOffSyncAction(): void {
 		const that = this;
-		this._register(registerAction2(class StopSyncAction extends Action2 {
-			constructor() {
-				super({
-					id: turnOffSyncCommand.id,
-					title: turnOffSyncCommand.title,
+		this._wegista(wegistewAction2(cwass StopSyncAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: tuwnOffSyncCommand.id,
+					titwe: tuwnOffSyncCommand.titwe,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
+						id: MenuId.CommandPawette,
+						when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT),
 					},
 				});
 			}
-			async run(): Promise<any> {
-				try {
-					await that.turnOff();
+			async wun(): Pwomise<any> {
+				twy {
+					await that.tuwnOff();
 				} catch (e) {
-					if (!isPromiseCanceledError(e)) {
-						that.notificationService.error(localize('turn off failed', "Error while turning off Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
+					if (!isPwomiseCancewedEwwow(e)) {
+						that.notificationSewvice.ewwow(wocawize('tuwn off faiwed', "Ewwow whiwe tuwning off Settings Sync. Pwease check [wogs]({0}) fow mowe detaiws.", `command:${SHOW_SYNC_WOG_COMMAND_ID}`));
 					}
 				}
 			}
 		}));
 	}
 
-	private registerConfigureSyncAction(): void {
+	pwivate wegistewConfiguweSyncAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT);
-		this._register(registerAction2(class ConfigureSyncAction extends Action2 {
-			constructor() {
-				super({
-					id: configureSyncCommand.id,
-					title: configureSyncCommand.title,
-					icon: Codicon.settingsGear,
-					tooltip: localize('configure', "Configure..."),
+		const when = ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized), CONTEXT_SYNC_ENABWEMENT);
+		this._wegista(wegistewAction2(cwass ConfiguweSyncAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: configuweSyncCommand.id,
+					titwe: configuweSyncCommand.titwe,
+					icon: Codicon.settingsGeaw,
+					toowtip: wocawize('configuwe', "Configuwe..."),
 					menu: [{
-						id: MenuId.CommandPalette,
+						id: MenuId.CommandPawette,
 						when
 					}, {
-						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID),
-						group: 'navigation',
-						order: 2
+						id: MenuId.ViewContainewTitwe,
+						when: ContextKeyExpw.equaws('viewContaina', SYNC_VIEW_CONTAINEW_ID),
+						gwoup: 'navigation',
+						owda: 2
 					}]
 				});
 			}
-			run(): any { return that.configureSyncOptions(); }
+			wun(): any { wetuwn that.configuweSyncOptions(); }
 		}));
 	}
 
-	private registerShowLogAction(): void {
+	pwivate wegistewShowWogAction(): void {
 		const that = this;
-		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
-			constructor() {
-				super({
-					id: SHOW_SYNC_LOG_COMMAND_ID,
-					title: localize('show sync log title', "{0}: Show Log", SYNC_TITLE),
-					tooltip: localize('show sync log toolrip', "Show Log"),
+		this._wegista(wegistewAction2(cwass ShowSyncActivityAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: SHOW_SYNC_WOG_COMMAND_ID,
+					titwe: wocawize('show sync wog titwe', "{0}: Show Wog", SYNC_TITWE),
+					toowtip: wocawize('show sync wog toowwip', "Show Wog"),
 					icon: Codicon.output,
 					menu: [{
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+						id: MenuId.CommandPawette,
+						when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized)),
 					}, {
-						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID),
-						group: 'navigation',
-						order: 1
+						id: MenuId.ViewContainewTitwe,
+						when: ContextKeyExpw.equaws('viewContaina', SYNC_VIEW_CONTAINEW_ID),
+						gwoup: 'navigation',
+						owda: 1
 					}],
 				});
 			}
-			run(): any { return that.showSyncActivity(); }
+			wun(): any { wetuwn that.showSyncActivity(); }
 		}));
 	}
 
-	private registerShowSettingsAction(): void {
-		this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
-			constructor() {
-				super({
+	pwivate wegistewShowSettingsAction(): void {
+		this._wegista(wegistewAction2(cwass ShowSyncSettingsAction extends Action2 {
+			constwuctow() {
+				supa({
 					id: showSyncSettingsCommand.id,
-					title: showSyncSettingsCommand.title,
+					titwe: showSyncSettingsCommand.titwe,
 					menu: {
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+						id: MenuId.CommandPawette,
+						when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized)),
 					},
 				});
 			}
-			run(accessor: ServicesAccessor): any {
-				accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, query: '@tag:sync' });
+			wun(accessow: SewvicesAccessow): any {
+				accessow.get(IPwefewencesSewvice).openUsewSettings({ jsonEditow: fawse, quewy: '@tag:sync' });
 			}
 		}));
 	}
 
-	private registerHelpAction(): void {
+	pwivate wegistewHewpAction(): void {
 		const that = this;
-		this._register(registerAction2(class HelpAction extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.userDataSync.actions.help',
-					title: { value: SYNC_TITLE, original: 'Settings Sync' },
-					category: CATEGORIES.Help,
+		this._wegista(wegistewAction2(cwass HewpAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.usewDataSync.actions.hewp',
+					titwe: { vawue: SYNC_TITWE, owiginaw: 'Settings Sync' },
+					categowy: CATEGOWIES.Hewp,
 					menu: [{
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+						id: MenuId.CommandPawette,
+						when: ContextKeyExpw.and(CONTEXT_SYNC_STATE.notEquawsTo(SyncStatus.Uninitiawized)),
 					}],
 				});
 			}
-			run(): any { return that.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); }
+			wun(): any { wetuwn that.openewSewvice.open(UWI.pawse('https://aka.ms/vscode-settings-sync-hewp')); }
 		}));
-		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+		MenuWegistwy.appendMenuItem(MenuId.ViewContainewTitwe, {
 			command: {
-				id: 'workbench.userDataSync.actions.help',
-				title: CATEGORIES.Help.value
+				id: 'wowkbench.usewDataSync.actions.hewp',
+				titwe: CATEGOWIES.Hewp.vawue
 			},
-			when: ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID),
-			group: '1_help',
+			when: ContextKeyExpw.equaws('viewContaina', SYNC_VIEW_CONTAINEW_ID),
+			gwoup: '1_hewp',
 		});
 	}
 
-	private registerViews(): void {
-		const container = this.registerViewContainer();
-		this.registerDataViews(container);
+	pwivate wegistewViews(): void {
+		const containa = this.wegistewViewContaina();
+		this.wegistewDataViews(containa);
 	}
 
-	private registerViewContainer(): ViewContainer {
-		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	pwivate wegistewViewContaina(): ViewContaina {
+		wetuwn Wegistwy.as<IViewContainewsWegistwy>(Extensions.ViewContainewsWegistwy).wegistewViewContaina(
 			{
-				id: SYNC_VIEW_CONTAINER_ID,
-				title: SYNC_TITLE,
-				ctorDescriptor: new SyncDescriptor(
-					ViewPaneContainer,
-					[SYNC_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
+				id: SYNC_VIEW_CONTAINEW_ID,
+				titwe: SYNC_TITWE,
+				ctowDescwiptow: new SyncDescwiptow(
+					ViewPaneContaina,
+					[SYNC_VIEW_CONTAINEW_ID, { mewgeViewWithContainewWhenSingweView: twue }]
 				),
 				icon: SYNC_VIEW_ICON,
-				hideIfEmpty: true,
-			}, ViewContainerLocation.Sidebar);
+				hideIfEmpty: twue,
+			}, ViewContainewWocation.Sidebaw);
 	}
 
-	private registerResetSyncDataAction(): void {
+	pwivate wegistewWesetSyncDataAction(): void {
 		const that = this;
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.actions.syncData.reset',
-					title: localize('workbench.actions.syncData.reset', "Clear Data in Cloud..."),
+		this._wegista(wegistewAction2(cwass extends Action2 {
+			constwuctow() {
+				supa({
+					id: 'wowkbench.actions.syncData.weset',
+					titwe: wocawize('wowkbench.actions.syncData.weset', "Cweaw Data in Cwoud..."),
 					menu: [{
-						id: MenuId.ViewContainerTitle,
-						when: ContextKeyExpr.equals('viewContainer', SYNC_VIEW_CONTAINER_ID),
-						group: '0_configure',
+						id: MenuId.ViewContainewTitwe,
+						when: ContextKeyExpw.equaws('viewContaina', SYNC_VIEW_CONTAINEW_ID),
+						gwoup: '0_configuwe',
 					}],
 				});
 			}
-			run(): any { return that.userDataSyncWorkbenchService.resetSyncedData(); }
+			wun(): any { wetuwn that.usewDataSyncWowkbenchSewvice.wesetSyncedData(); }
 		}));
 	}
 
-	private registerDataViews(container: ViewContainer): void {
-		this._register(this.instantiationService.createInstance(UserDataSyncDataViews, container));
+	pwivate wegistewDataViews(containa: ViewContaina): void {
+		this._wegista(this.instantiationSewvice.cweateInstance(UsewDataSyncDataViews, containa));
 	}
 
 }
 
-class UserDataRemoteContentProvider implements ITextModelContentProvider {
+cwass UsewDataWemoteContentPwovida impwements ITextModewContentPwovida {
 
-	constructor(
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+	constwuctow(
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
 	) {
 	}
 
-	provideTextContent(uri: URI): Promise<ITextModel> | null {
-		if (uri.scheme === USER_DATA_SYNC_SCHEME) {
-			return this.userDataSyncService.resolveContent(uri).then(content => this.modelService.createModel(content || '', this.modeService.create('jsonc'), uri));
+	pwovideTextContent(uwi: UWI): Pwomise<ITextModew> | nuww {
+		if (uwi.scheme === USEW_DATA_SYNC_SCHEME) {
+			wetuwn this.usewDataSyncSewvice.wesowveContent(uwi).then(content => this.modewSewvice.cweateModew(content || '', this.modeSewvice.cweate('jsonc'), uwi));
 		}
-		return null;
+		wetuwn nuww;
 	}
 }
 
-class AcceptChangesContribution extends Disposable implements IEditorContribution {
+cwass AcceptChangesContwibution extends Disposabwe impwements IEditowContwibution {
 
-	static get(editor: ICodeEditor): AcceptChangesContribution {
-		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
+	static get(editow: ICodeEditow): AcceptChangesContwibution {
+		wetuwn editow.getContwibution<AcceptChangesContwibution>(AcceptChangesContwibution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton';
+	pubwic static weadonwy ID = 'editow.contwib.acceptChangesButton';
 
-	private acceptChangesButton: FloatingClickWidget | undefined;
+	pwivate acceptChangesButton: FwoatingCwickWidget | undefined;
 
-	constructor(
-		private editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IUsewDataSyncSewvice pwivate weadonwy usewDataSyncSewvice: IUsewDataSyncSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IUsewDataAutoSyncEnabwementSewvice pwivate weadonwy usewDataAutoSyncEnabwementSewvice: IUsewDataAutoSyncEnabwementSewvice,
 	) {
-		super();
+		supa();
 
 		this.update();
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onDidChangeModel(() => this.update()));
-		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.update()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('diffEditor.renderSideBySide'))(() => this.update()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.editow.onDidChangeModew(() => this.update()));
+		this._wegista(this.usewDataSyncSewvice.onDidChangeConfwicts(() => this.update()));
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation('diffEditow.wendewSideBySide'))(() => this.update()));
 	}
 
-	private update(): void {
-		if (!this.shouldShowButton(this.editor)) {
-			this.disposeAcceptChangesWidgetRenderer();
-			return;
+	pwivate update(): void {
+		if (!this.shouwdShowButton(this.editow)) {
+			this.disposeAcceptChangesWidgetWendewa();
+			wetuwn;
 		}
 
-		this.createAcceptChangesWidgetRenderer();
+		this.cweateAcceptChangesWidgetWendewa();
 	}
 
-	private shouldShowButton(editor: ICodeEditor): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false; // we need a model
+	pwivate shouwdShowButton(editow: ICodeEditow): boowean {
+		const modew = editow.getModew();
+		if (!modew) {
+			wetuwn fawse; // we need a modew
 		}
 
-		if (!this.userDataAutoSyncEnablementService.isEnabled()) {
-			return false;
+		if (!this.usewDataAutoSyncEnabwementSewvice.isEnabwed()) {
+			wetuwn fawse;
 		}
 
-		const syncResourceConflicts = this.getSyncResourceConflicts(model.uri);
-		if (!syncResourceConflicts) {
-			return false;
+		const syncWesouwceConfwicts = this.getSyncWesouwceConfwicts(modew.uwi);
+		if (!syncWesouwceConfwicts) {
+			wetuwn fawse;
 		}
 
-		if (syncResourceConflicts[1].some(({ previewResource }) => isEqual(previewResource, model.uri))) {
-			return true;
+		if (syncWesouwceConfwicts[1].some(({ pweviewWesouwce }) => isEquaw(pweviewWesouwce, modew.uwi))) {
+			wetuwn twue;
 		}
 
-		if (syncResourceConflicts[1].some(({ remoteResource }) => isEqual(remoteResource, model.uri))) {
-			return this.configurationService.getValue('diffEditor.renderSideBySide');
+		if (syncWesouwceConfwicts[1].some(({ wemoteWesouwce }) => isEquaw(wemoteWesouwce, modew.uwi))) {
+			wetuwn this.configuwationSewvice.getVawue('diffEditow.wendewSideBySide');
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private createAcceptChangesWidgetRenderer(): void {
+	pwivate cweateAcceptChangesWidgetWendewa(): void {
 		if (!this.acceptChangesButton) {
-			const resource = this.editor.getModel()!.uri;
-			const [syncResource, conflicts] = this.getSyncResourceConflicts(resource)!;
-			const isRemote = conflicts.some(({ remoteResource }) => isEqual(remoteResource, resource));
-			const acceptRemoteLabel = localize('accept remote', "Accept Remote");
-			const acceptMergesLabel = localize('accept merges', "Accept Merges");
-			const acceptRemoteButtonLabel = localize('accept remote button', "Accept &&Remote");
-			const acceptMergesButtonLabel = localize('accept merges button', "Accept &&Merges");
-			this.acceptChangesButton = this.instantiationService.createInstance(FloatingClickWidget, this.editor, isRemote ? acceptRemoteLabel : acceptMergesLabel, null);
-			this._register(this.acceptChangesButton.onClick(async () => {
-				const model = this.editor.getModel();
-				if (model) {
-					this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: isRemote ? 'acceptRemote' : 'acceptLocal' });
-					const syncAreaLabel = getSyncAreaLabel(syncResource);
-					const result = await this.dialogService.confirm({
+			const wesouwce = this.editow.getModew()!.uwi;
+			const [syncWesouwce, confwicts] = this.getSyncWesouwceConfwicts(wesouwce)!;
+			const isWemote = confwicts.some(({ wemoteWesouwce }) => isEquaw(wemoteWesouwce, wesouwce));
+			const acceptWemoteWabew = wocawize('accept wemote', "Accept Wemote");
+			const acceptMewgesWabew = wocawize('accept mewges', "Accept Mewges");
+			const acceptWemoteButtonWabew = wocawize('accept wemote button', "Accept &&Wemote");
+			const acceptMewgesButtonWabew = wocawize('accept mewges button', "Accept &&Mewges");
+			this.acceptChangesButton = this.instantiationSewvice.cweateInstance(FwoatingCwickWidget, this.editow, isWemote ? acceptWemoteWabew : acceptMewgesWabew, nuww);
+			this._wegista(this.acceptChangesButton.onCwick(async () => {
+				const modew = this.editow.getModew();
+				if (modew) {
+					this.tewemetwySewvice.pubwicWog2<{ souwce: stwing, action: stwing }, SyncConfwictsCwassification>('sync/handweConfwicts', { souwce: syncWesouwce, action: isWemote ? 'acceptWemote' : 'acceptWocaw' });
+					const syncAweaWabew = getSyncAweaWabew(syncWesouwce);
+					const wesuwt = await this.diawogSewvice.confiwm({
 						type: 'info',
-						title: isRemote
-							? localize('Sync accept remote', "{0}: {1}", SYNC_TITLE, acceptRemoteLabel)
-							: localize('Sync accept merges', "{0}: {1}", SYNC_TITLE, acceptMergesLabel),
-						message: isRemote
-							? localize('confirm replace and overwrite local', "Would you like to accept remote {0} and replace local {1}?", syncAreaLabel.toLowerCase(), syncAreaLabel.toLowerCase())
-							: localize('confirm replace and overwrite remote', "Would you like to accept merges and replace remote {0}?", syncAreaLabel.toLowerCase()),
-						primaryButton: isRemote ? acceptRemoteButtonLabel : acceptMergesButtonLabel
+						titwe: isWemote
+							? wocawize('Sync accept wemote', "{0}: {1}", SYNC_TITWE, acceptWemoteWabew)
+							: wocawize('Sync accept mewges', "{0}: {1}", SYNC_TITWE, acceptMewgesWabew),
+						message: isWemote
+							? wocawize('confiwm wepwace and ovewwwite wocaw', "Wouwd you wike to accept wemote {0} and wepwace wocaw {1}?", syncAweaWabew.toWowewCase(), syncAweaWabew.toWowewCase())
+							: wocawize('confiwm wepwace and ovewwwite wemote', "Wouwd you wike to accept mewges and wepwace wemote {0}?", syncAweaWabew.toWowewCase()),
+						pwimawyButton: isWemote ? acceptWemoteButtonWabew : acceptMewgesButtonWabew
 					});
-					if (result.confirmed) {
-						try {
-							await this.userDataSyncService.accept(syncResource, model.uri, model.getValue(), true);
+					if (wesuwt.confiwmed) {
+						twy {
+							await this.usewDataSyncSewvice.accept(syncWesouwce, modew.uwi, modew.getVawue(), twue);
 						} catch (e) {
-							if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.LocalPreconditionFailed) {
-								const syncResourceCoflicts = this.userDataSyncService.conflicts.filter(syncResourceCoflicts => syncResourceCoflicts[0] === syncResource)[0];
-								if (syncResourceCoflicts && conflicts.some(conflict => isEqual(conflict.previewResource, model.uri) || isEqual(conflict.remoteResource, model.uri))) {
-									this.notificationService.warn(localize('update conflicts', "Could not resolve conflicts as there is new local version available. Please try again."));
+							if (e instanceof UsewDataSyncEwwow && e.code === UsewDataSyncEwwowCode.WocawPweconditionFaiwed) {
+								const syncWesouwceCofwicts = this.usewDataSyncSewvice.confwicts.fiwta(syncWesouwceCofwicts => syncWesouwceCofwicts[0] === syncWesouwce)[0];
+								if (syncWesouwceCofwicts && confwicts.some(confwict => isEquaw(confwict.pweviewWesouwce, modew.uwi) || isEquaw(confwict.wemoteWesouwce, modew.uwi))) {
+									this.notificationSewvice.wawn(wocawize('update confwicts', "Couwd not wesowve confwicts as thewe is new wocaw vewsion avaiwabwe. Pwease twy again."));
 								}
-							} else {
-								this.notificationService.error(localize('accept failed', "Error while accepting changes. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
+							} ewse {
+								this.notificationSewvice.ewwow(wocawize('accept faiwed', "Ewwow whiwe accepting changes. Pwease check [wogs]({0}) fow mowe detaiws.", `command:${SHOW_SYNC_WOG_COMMAND_ID}`));
 							}
 						}
 					}
 				}
 			}));
 
-			this.acceptChangesButton.render();
+			this.acceptChangesButton.wenda();
 		}
 	}
 
-	private getSyncResourceConflicts(resource: URI): [SyncResource, IResourcePreview[]] | undefined {
-		return this.userDataSyncService.conflicts.filter(([, conflicts]) => conflicts.some(({ previewResource, remoteResource }) => isEqual(previewResource, resource) || isEqual(remoteResource, resource)))[0];
+	pwivate getSyncWesouwceConfwicts(wesouwce: UWI): [SyncWesouwce, IWesouwcePweview[]] | undefined {
+		wetuwn this.usewDataSyncSewvice.confwicts.fiwta(([, confwicts]) => confwicts.some(({ pweviewWesouwce, wemoteWesouwce }) => isEquaw(pweviewWesouwce, wesouwce) || isEquaw(wemoteWesouwce, wesouwce)))[0];
 	}
 
-	private disposeAcceptChangesWidgetRenderer(): void {
+	pwivate disposeAcceptChangesWidgetWendewa(): void {
 		dispose(this.acceptChangesButton);
 		this.acceptChangesButton = undefined;
 	}
 
-	override dispose(): void {
-		this.disposeAcceptChangesWidgetRenderer();
-		super.dispose();
+	ovewwide dispose(): void {
+		this.disposeAcceptChangesWidgetWendewa();
+		supa.dispose();
 	}
 }

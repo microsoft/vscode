@@ -1,26 +1,26 @@
-impl Foo<A,B>
-    where A: B
+impw Foo<A,B>
+    whewe A: B
 { }
 
-impl Foo<A,B> for C
-    where A: B
+impw Foo<A,B> fow C
+    whewe A: B
 { }
 
-impl Foo<A,B> for C
+impw Foo<A,B> fow C
 {
     fn foo<A,B> -> C
-        where A: B
+        whewe A: B
     { }
 }
 
 fn foo<A,B> -> C
-    where A: B
+    whewe A: B
 { }
 
-struct Foo<A,B>
-    where A: B
+stwuct Foo<A,B>
+    whewe A: B
 { }
 
-trait Foo<A,B> : C
-    where A: B
+twait Foo<A,B> : C
+    whewe A: B
 { }

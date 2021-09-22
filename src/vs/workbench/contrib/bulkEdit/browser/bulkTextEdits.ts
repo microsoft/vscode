@@ -1,275 +1,275 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IUndoRedoService, UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
-import { ResourceMap } from 'vs/base/common/map';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { CancellationToken } from 'vs/base/common/cancellation';
+impowt { dispose, IDisposabwe, IWefewence } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { EndOfWineSequence, IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextModewSewvice, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { IUndoWedoSewvice, UndoWedoGwoup, UndoWedoSouwce } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { SingweModewEditStackEwement, MuwtiModewEditStackEwement } fwom 'vs/editow/common/modew/editStack';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
 
-type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+type VawidationWesuwt = { canAppwy: twue } | { canAppwy: fawse, weason: UWI };
 
-class ModelEditTask implements IDisposable {
+cwass ModewEditTask impwements IDisposabwe {
 
-	readonly model: ITextModel;
+	weadonwy modew: ITextModew;
 
-	private _expectedModelVersionId: number | undefined;
-	protected _edits: IIdentifiedSingleEditOperation[];
-	protected _newEol: EndOfLineSequence | undefined;
+	pwivate _expectedModewVewsionId: numba | undefined;
+	pwotected _edits: IIdentifiedSingweEditOpewation[];
+	pwotected _newEow: EndOfWineSequence | undefined;
 
-	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
-		this.model = this._modelReference.object.textEditorModel;
+	constwuctow(pwivate weadonwy _modewWefewence: IWefewence<IWesowvedTextEditowModew>) {
+		this.modew = this._modewWefewence.object.textEditowModew;
 		this._edits = [];
 	}
 
 	dispose() {
-		this._modelReference.dispose();
+		this._modewWefewence.dispose();
 	}
 
 	isNoOp() {
-		if (this._edits.length > 0) {
-			// contains textual edits
-			return false;
+		if (this._edits.wength > 0) {
+			// contains textuaw edits
+			wetuwn fawse;
 		}
-		if (this._newEol !== undefined && this._newEol !== this.model.getEndOfLineSequence()) {
-			// contains an eol change that is a real change
-			return false;
+		if (this._newEow !== undefined && this._newEow !== this.modew.getEndOfWineSequence()) {
+			// contains an eow change that is a weaw change
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	addEdit(resourceEdit: ResourceTextEdit): void {
-		this._expectedModelVersionId = resourceEdit.versionId;
-		const { textEdit } = resourceEdit;
+	addEdit(wesouwceEdit: WesouwceTextEdit): void {
+		this._expectedModewVewsionId = wesouwceEdit.vewsionId;
+		const { textEdit } = wesouwceEdit;
 
-		if (typeof textEdit.eol === 'number') {
-			// honor eol-change
-			this._newEol = textEdit.eol;
+		if (typeof textEdit.eow === 'numba') {
+			// honow eow-change
+			this._newEow = textEdit.eow;
 		}
-		if (!textEdit.range && !textEdit.text) {
-			// lacks both a range and the text
-			return;
+		if (!textEdit.wange && !textEdit.text) {
+			// wacks both a wange and the text
+			wetuwn;
 		}
-		if (Range.isEmpty(textEdit.range) && !textEdit.text) {
-			// no-op edit (replace empty range with empty text)
-			return;
+		if (Wange.isEmpty(textEdit.wange) && !textEdit.text) {
+			// no-op edit (wepwace empty wange with empty text)
+			wetuwn;
 		}
 
-		// create edit operation
-		let range: Range;
-		if (!textEdit.range) {
-			range = this.model.getFullModelRange();
-		} else {
-			range = Range.lift(textEdit.range);
+		// cweate edit opewation
+		wet wange: Wange;
+		if (!textEdit.wange) {
+			wange = this.modew.getFuwwModewWange();
+		} ewse {
+			wange = Wange.wift(textEdit.wange);
 		}
-		this._edits.push(EditOperation.replaceMove(range, textEdit.text));
+		this._edits.push(EditOpewation.wepwaceMove(wange, textEdit.text));
 	}
 
-	validate(): ValidationResult {
-		if (typeof this._expectedModelVersionId === 'undefined' || this.model.getVersionId() === this._expectedModelVersionId) {
-			return { canApply: true };
+	vawidate(): VawidationWesuwt {
+		if (typeof this._expectedModewVewsionId === 'undefined' || this.modew.getVewsionId() === this._expectedModewVewsionId) {
+			wetuwn { canAppwy: twue };
 		}
-		return { canApply: false, reason: this.model.uri };
+		wetuwn { canAppwy: fawse, weason: this.modew.uwi };
 	}
 
-	getBeforeCursorState(): Selection[] | null {
-		return null;
+	getBefoweCuwsowState(): Sewection[] | nuww {
+		wetuwn nuww;
 	}
 
-	apply(): void {
-		if (this._edits.length > 0) {
-			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this.model.pushEditOperations(null, this._edits, () => null);
+	appwy(): void {
+		if (this._edits.wength > 0) {
+			this._edits = this._edits.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange));
+			this.modew.pushEditOpewations(nuww, this._edits, () => nuww);
 		}
-		if (this._newEol !== undefined) {
-			this.model.pushEOL(this._newEol);
+		if (this._newEow !== undefined) {
+			this.modew.pushEOW(this._newEow);
 		}
 	}
 }
 
-class EditorEditTask extends ModelEditTask {
+cwass EditowEditTask extends ModewEditTask {
 
-	private readonly _editor: ICodeEditor;
+	pwivate weadonwy _editow: ICodeEditow;
 
-	constructor(modelReference: IReference<IResolvedTextEditorModel>, editor: ICodeEditor) {
-		super(modelReference);
-		this._editor = editor;
+	constwuctow(modewWefewence: IWefewence<IWesowvedTextEditowModew>, editow: ICodeEditow) {
+		supa(modewWefewence);
+		this._editow = editow;
 	}
 
-	override getBeforeCursorState(): Selection[] | null {
-		return this._canUseEditor() ? this._editor.getSelections() : null;
+	ovewwide getBefoweCuwsowState(): Sewection[] | nuww {
+		wetuwn this._canUseEditow() ? this._editow.getSewections() : nuww;
 	}
 
-	override apply(): void {
+	ovewwide appwy(): void {
 
-		// Check that the editor is still for the wanted model. It might have changed in the
-		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
-		if (!this._canUseEditor()) {
-			super.apply();
-			return;
+		// Check that the editow is stiww fow the wanted modew. It might have changed in the
+		// meantime and that means we cannot use the editow anymowe (instead we pewfowm the edit thwough the modew)
+		if (!this._canUseEditow()) {
+			supa.appwy();
+			wetuwn;
 		}
 
-		if (this._edits.length > 0) {
-			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this._editor.executeEdits('', this._edits);
+		if (this._edits.wength > 0) {
+			this._edits = this._edits.sowt((a, b) => Wange.compaweWangesUsingStawts(a.wange, b.wange));
+			this._editow.executeEdits('', this._edits);
 		}
-		if (this._newEol !== undefined) {
-			if (this._editor.hasModel()) {
-				this._editor.getModel().pushEOL(this._newEol);
+		if (this._newEow !== undefined) {
+			if (this._editow.hasModew()) {
+				this._editow.getModew().pushEOW(this._newEow);
 			}
 		}
 	}
 
-	private _canUseEditor(): boolean {
-		return this._editor?.getModel()?.uri.toString() === this.model.uri.toString();
+	pwivate _canUseEditow(): boowean {
+		wetuwn this._editow?.getModew()?.uwi.toStwing() === this.modew.uwi.toStwing();
 	}
 }
 
-export class BulkTextEdits {
+expowt cwass BuwkTextEdits {
 
-	private readonly _edits = new ResourceMap<ResourceTextEdit[]>();
+	pwivate weadonwy _edits = new WesouwceMap<WesouwceTextEdit[]>();
 
-	constructor(
-		private readonly _label: string,
-		private readonly _editor: ICodeEditor | undefined,
-		private readonly _undoRedoGroup: UndoRedoGroup,
-		private readonly _undoRedoSource: UndoRedoSource | undefined,
-		private readonly _progress: IProgress<void>,
-		private readonly _token: CancellationToken,
-		edits: ResourceTextEdit[],
-		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly _textModelResolverService: ITextModelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
+	constwuctow(
+		pwivate weadonwy _wabew: stwing,
+		pwivate weadonwy _editow: ICodeEditow | undefined,
+		pwivate weadonwy _undoWedoGwoup: UndoWedoGwoup,
+		pwivate weadonwy _undoWedoSouwce: UndoWedoSouwce | undefined,
+		pwivate weadonwy _pwogwess: IPwogwess<void>,
+		pwivate weadonwy _token: CancewwationToken,
+		edits: WesouwceTextEdit[],
+		@IEditowWowkewSewvice pwivate weadonwy _editowWowka: IEditowWowkewSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewWesowvewSewvice: ITextModewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice
 	) {
 
-		for (const edit of edits) {
-			let array = this._edits.get(edit.resource);
-			if (!array) {
-				array = [];
-				this._edits.set(edit.resource, array);
+		fow (const edit of edits) {
+			wet awway = this._edits.get(edit.wesouwce);
+			if (!awway) {
+				awway = [];
+				this._edits.set(edit.wesouwce, awway);
 			}
-			array.push(edit);
+			awway.push(edit);
 		}
 	}
 
-	private _validateBeforePrepare(): void {
-		// First check if loaded models were not changed in the meantime
-		for (const array of this._edits.values()) {
-			for (let edit of array) {
-				if (typeof edit.versionId === 'number') {
-					let model = this._modelService.getModel(edit.resource);
-					if (model && model.getVersionId() !== edit.versionId) {
-						// model changed in the meantime
-						throw new Error(`${model.uri.toString()} has changed in the meantime`);
+	pwivate _vawidateBefowePwepawe(): void {
+		// Fiwst check if woaded modews wewe not changed in the meantime
+		fow (const awway of this._edits.vawues()) {
+			fow (wet edit of awway) {
+				if (typeof edit.vewsionId === 'numba') {
+					wet modew = this._modewSewvice.getModew(edit.wesouwce);
+					if (modew && modew.getVewsionId() !== edit.vewsionId) {
+						// modew changed in the meantime
+						thwow new Ewwow(`${modew.uwi.toStwing()} has changed in the meantime`);
 					}
 				}
 			}
 		}
 	}
 
-	private async _createEditsTasks(): Promise<ModelEditTask[]> {
+	pwivate async _cweateEditsTasks(): Pwomise<ModewEditTask[]> {
 
-		const tasks: ModelEditTask[] = [];
-		const promises: Promise<any>[] = [];
+		const tasks: ModewEditTask[] = [];
+		const pwomises: Pwomise<any>[] = [];
 
-		for (let [key, value] of this._edits) {
-			const promise = this._textModelResolverService.createModelReference(key).then(async ref => {
-				let task: ModelEditTask;
-				let makeMinimal = false;
-				if (this._editor?.getModel()?.uri.toString() === ref.object.textEditorModel.uri.toString()) {
-					task = new EditorEditTask(ref, this._editor);
-					makeMinimal = true;
-				} else {
-					task = new ModelEditTask(ref);
+		fow (wet [key, vawue] of this._edits) {
+			const pwomise = this._textModewWesowvewSewvice.cweateModewWefewence(key).then(async wef => {
+				wet task: ModewEditTask;
+				wet makeMinimaw = fawse;
+				if (this._editow?.getModew()?.uwi.toStwing() === wef.object.textEditowModew.uwi.toStwing()) {
+					task = new EditowEditTask(wef, this._editow);
+					makeMinimaw = twue;
+				} ewse {
+					task = new ModewEditTask(wef);
 				}
 
-				for (const edit of value) {
-					if (makeMinimal) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.textEdit]);
+				fow (const edit of vawue) {
+					if (makeMinimaw) {
+						const newEdits = await this._editowWowka.computeMoweMinimawEdits(edit.wesouwce, [edit.textEdit]);
 						if (!newEdits) {
 							task.addEdit(edit);
-						} else {
-							for (let moreMinialEdit of newEdits) {
-								task.addEdit(new ResourceTextEdit(edit.resource, moreMinialEdit, edit.versionId, edit.metadata));
+						} ewse {
+							fow (wet moweMiniawEdit of newEdits) {
+								task.addEdit(new WesouwceTextEdit(edit.wesouwce, moweMiniawEdit, edit.vewsionId, edit.metadata));
 							}
 						}
-					} else {
+					} ewse {
 						task.addEdit(edit);
 					}
 				}
 
 				tasks.push(task);
 			});
-			promises.push(promise);
+			pwomises.push(pwomise);
 		}
 
-		await Promise.all(promises);
-		return tasks;
+		await Pwomise.aww(pwomises);
+		wetuwn tasks;
 	}
 
-	private _validateTasks(tasks: ModelEditTask[]): ValidationResult {
-		for (const task of tasks) {
-			const result = task.validate();
-			if (!result.canApply) {
-				return result;
+	pwivate _vawidateTasks(tasks: ModewEditTask[]): VawidationWesuwt {
+		fow (const task of tasks) {
+			const wesuwt = task.vawidate();
+			if (!wesuwt.canAppwy) {
+				wetuwn wesuwt;
 			}
 		}
-		return { canApply: true };
+		wetuwn { canAppwy: twue };
 	}
 
-	async apply(): Promise<void> {
+	async appwy(): Pwomise<void> {
 
-		this._validateBeforePrepare();
-		const tasks = await this._createEditsTasks();
+		this._vawidateBefowePwepawe();
+		const tasks = await this._cweateEditsTasks();
 
-		if (this._token.isCancellationRequested) {
-			return;
+		if (this._token.isCancewwationWequested) {
+			wetuwn;
 		}
-		try {
+		twy {
 
-			const validation = this._validateTasks(tasks);
-			if (!validation.canApply) {
-				throw new Error(`${validation.reason.toString()} has changed in the meantime`);
+			const vawidation = this._vawidateTasks(tasks);
+			if (!vawidation.canAppwy) {
+				thwow new Ewwow(`${vawidation.weason.toStwing()} has changed in the meantime`);
 			}
-			if (tasks.length === 1) {
-				// This edit touches a single model => keep things simple
+			if (tasks.wength === 1) {
+				// This edit touches a singwe modew => keep things simpwe
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
-					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
-					task.apply();
-					singleModelEditStackElement.close();
+					const singweModewEditStackEwement = new SingweModewEditStackEwement(task.modew, task.getBefoweCuwsowState());
+					this._undoWedoSewvice.pushEwement(singweModewEditStackEwement, this._undoWedoGwoup, this._undoWedoSouwce);
+					task.appwy();
+					singweModewEditStackEwement.cwose();
 				}
-				this._progress.report(undefined);
-			} else {
-				// prepare multi model undo element
-				const multiModelEditStackElement = new MultiModelEditStackElement(
-					this._label,
-					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
+				this._pwogwess.wepowt(undefined);
+			} ewse {
+				// pwepawe muwti modew undo ewement
+				const muwtiModewEditStackEwement = new MuwtiModewEditStackEwement(
+					this._wabew,
+					tasks.map(t => new SingweModewEditStackEwement(t.modew, t.getBefoweCuwsowState()))
 				);
-				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
-				for (const task of tasks) {
-					task.apply();
-					this._progress.report(undefined);
+				this._undoWedoSewvice.pushEwement(muwtiModewEditStackEwement, this._undoWedoGwoup, this._undoWedoSouwce);
+				fow (const task of tasks) {
+					task.appwy();
+					this._pwogwess.wepowt(undefined);
 				}
-				multiModelEditStackElement.close();
+				muwtiModewEditStackEwement.cwose();
 			}
 
-		} finally {
+		} finawwy {
 			dispose(tasks);
 		}
 	}

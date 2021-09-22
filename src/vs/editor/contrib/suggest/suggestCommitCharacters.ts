@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ChawactewSet } fwom 'vs/editow/common/cowe/chawactewCwassifia';
+impowt { ISewectedSuggestion, SuggestWidget } fwom './suggestWidget';
 
-export class CommitCharacterController {
+expowt cwass CommitChawactewContwowwa {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private _active?: {
-		readonly acceptCharacters: CharacterSet;
-		readonly item: ISelectedSuggestion;
+	pwivate _active?: {
+		weadonwy acceptChawactews: ChawactewSet;
+		weadonwy item: ISewectedSuggestion;
 	};
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget, accept: (selected: ISelectedSuggestion) => any) {
+	constwuctow(editow: ICodeEditow, widget: SuggestWidget, accept: (sewected: ISewectedSuggestion) => any) {
 
-		this._disposables.add(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
-		this._disposables.add(widget.onDidFocus(this._onItem, this));
-		this._disposables.add(widget.onDidHide(this.reset, this));
+		this._disposabwes.add(widget.onDidShow(() => this._onItem(widget.getFocusedItem())));
+		this._disposabwes.add(widget.onDidFocus(this._onItem, this));
+		this._disposabwes.add(widget.onDidHide(this.weset, this));
 
-		this._disposables.add(editor.onWillType(text => {
-			if (this._active && !widget.isFrozen()) {
-				const ch = text.charCodeAt(text.length - 1);
-				if (this._active.acceptCharacters.has(ch) && editor.getOption(EditorOption.acceptSuggestionOnCommitCharacter)) {
+		this._disposabwes.add(editow.onWiwwType(text => {
+			if (this._active && !widget.isFwozen()) {
+				const ch = text.chawCodeAt(text.wength - 1);
+				if (this._active.acceptChawactews.has(ch) && editow.getOption(EditowOption.acceptSuggestionOnCommitChawacta)) {
 					accept(this._active.item);
 				}
 			}
 		}));
 	}
 
-	private _onItem(selected: ISelectedSuggestion | undefined): void {
-		if (!selected || !isNonEmptyArray(selected.item.completion.commitCharacters)) {
-			// no item or no commit characters
-			this.reset();
-			return;
+	pwivate _onItem(sewected: ISewectedSuggestion | undefined): void {
+		if (!sewected || !isNonEmptyAwway(sewected.item.compwetion.commitChawactews)) {
+			// no item ow no commit chawactews
+			this.weset();
+			wetuwn;
 		}
 
-		if (this._active && this._active.item.item === selected.item) {
-			// still the same item
-			return;
+		if (this._active && this._active.item.item === sewected.item) {
+			// stiww the same item
+			wetuwn;
 		}
 
-		// keep item and its commit characters
-		const acceptCharacters = new CharacterSet();
-		for (const ch of selected.item.completion.commitCharacters) {
-			if (ch.length > 0) {
-				acceptCharacters.add(ch.charCodeAt(0));
+		// keep item and its commit chawactews
+		const acceptChawactews = new ChawactewSet();
+		fow (const ch of sewected.item.compwetion.commitChawactews) {
+			if (ch.wength > 0) {
+				acceptChawactews.add(ch.chawCodeAt(0));
 			}
 		}
-		this._active = { acceptCharacters, item: selected };
+		this._active = { acceptChawactews, item: sewected };
 	}
 
-	reset(): void {
+	weset(): void {
 		this._active = undefined;
 	}
 
 	dispose() {
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 	}
 }

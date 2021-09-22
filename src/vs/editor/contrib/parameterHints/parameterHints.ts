@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/modes';
-import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ParameterHintsWidget } from './parameterHintsWidget';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, EditowCommand, wegistewEditowAction, wegistewEditowCommand, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { TwiggewContext } fwom 'vs/editow/contwib/pawametewHints/pawametewHintsModew';
+impowt { Context } fwom 'vs/editow/contwib/pawametewHints/pwovideSignatuweHewp';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { PawametewHintsWidget } fwom './pawametewHintsWidget';
 
-class ParameterHintsController extends Disposable implements IEditorContribution {
+cwass PawametewHintsContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.controller.parameterHints';
+	pubwic static weadonwy ID = 'editow.contwowwa.pawametewHints';
 
-	public static get(editor: ICodeEditor): ParameterHintsController {
-		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
+	pubwic static get(editow: ICodeEditow): PawametewHintsContwowwa {
+		wetuwn editow.getContwibution<PawametewHintsContwowwa>(PawametewHintsContwowwa.ID);
 	}
 
-	private readonly editor: ICodeEditor;
-	private readonly widget: ParameterHintsWidget;
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate weadonwy widget: PawametewHintsWidget;
 
-	constructor(editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super();
-		this.editor = editor;
-		this.widget = this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor));
+	constwuctow(editow: ICodeEditow, @IInstantiationSewvice instantiationSewvice: IInstantiationSewvice) {
+		supa();
+		this.editow = editow;
+		this.widget = this._wegista(instantiationSewvice.cweateInstance(PawametewHintsWidget, this.editow));
 	}
 
-	cancel(): void {
-		this.widget.cancel();
+	cancew(): void {
+		this.widget.cancew();
 	}
 
-	previous(): void {
-		this.widget.previous();
+	pwevious(): void {
+		this.widget.pwevious();
 	}
 
 	next(): void {
 		this.widget.next();
 	}
 
-	trigger(context: TriggerContext): void {
-		this.widget.trigger(context);
+	twigga(context: TwiggewContext): void {
+		this.widget.twigga(context);
 	}
 }
 
-export class TriggerParameterHintsAction extends EditorAction {
+expowt cwass TwiggewPawametewHintsAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.triggerParameterHints',
-			label: nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
-			alias: 'Trigger Parameter Hints',
-			precondition: EditorContextKeys.hasSignatureHelpProvider,
+	constwuctow() {
+		supa({
+			id: 'editow.action.twiggewPawametewHints',
+			wabew: nws.wocawize('pawametewHints.twigga.wabew', "Twigga Pawameta Hints"),
+			awias: 'Twigga Pawameta Hints',
+			pwecondition: EditowContextKeys.hasSignatuweHewpPwovida,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.Space,
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = ParameterHintsController.get(editor);
-		if (controller) {
-			controller.trigger({
-				triggerKind: modes.SignatureHelpTriggerKind.Invoke
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const contwowwa = PawametewHintsContwowwa.get(editow);
+		if (contwowwa) {
+			contwowwa.twigga({
+				twiggewKind: modes.SignatuweHewpTwiggewKind.Invoke
 			});
 		}
 	}
 }
 
-registerEditorContribution(ParameterHintsController.ID, ParameterHintsController);
-registerEditorAction(TriggerParameterHintsAction);
+wegistewEditowContwibution(PawametewHintsContwowwa.ID, PawametewHintsContwowwa);
+wegistewEditowAction(TwiggewPawametewHintsAction);
 
-const weight = KeybindingWeight.EditorContrib + 75;
+const weight = KeybindingWeight.EditowContwib + 75;
 
-const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
+const PawametewHintsCommand = EditowCommand.bindToContwibution<PawametewHintsContwowwa>(PawametewHintsContwowwa.get);
 
-registerEditorCommand(new ParameterHintsCommand({
-	id: 'closeParameterHints',
-	precondition: Context.Visible,
-	handler: x => x.cancel(),
+wegistewEditowCommand(new PawametewHintsCommand({
+	id: 'cwosePawametewHints',
+	pwecondition: Context.Visibwe,
+	handwa: x => x.cancew(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape,
-		secondary: [KeyMod.Shift | KeyCode.Escape]
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.Escape,
+		secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-registerEditorCommand(new ParameterHintsCommand({
-	id: 'showPrevParameterHint',
-	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
-	handler: x => x.previous(),
+wegistewEditowCommand(new PawametewHintsCommand({
+	id: 'showPwevPawametewHint',
+	pwecondition: ContextKeyExpw.and(Context.Visibwe, Context.MuwtipweSignatuwes),
+	handwa: x => x.pwevious(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.Alt | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.UpAwwow,
+		secondawy: [KeyMod.Awt | KeyCode.UpAwwow],
+		mac: { pwimawy: KeyCode.UpAwwow, secondawy: [KeyMod.Awt | KeyCode.UpAwwow, KeyMod.WinCtww | KeyCode.KEY_P] }
 	}
 }));
-registerEditorCommand(new ParameterHintsCommand({
-	id: 'showNextParameterHint',
-	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
-	handler: x => x.next(),
+wegistewEditowCommand(new PawametewHintsCommand({
+	id: 'showNextPawametewHint',
+	pwecondition: ContextKeyExpw.and(Context.Visibwe, Context.MuwtipweSignatuwes),
+	handwa: x => x.next(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.Alt | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.DownAwwow,
+		secondawy: [KeyMod.Awt | KeyCode.DownAwwow],
+		mac: { pwimawy: KeyCode.DownAwwow, secondawy: [KeyMod.Awt | KeyCode.DownAwwow, KeyMod.WinCtww | KeyCode.KEY_N] }
 	}
 }));

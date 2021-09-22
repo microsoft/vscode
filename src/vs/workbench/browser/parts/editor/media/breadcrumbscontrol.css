@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control.hidden {
-	display: none;
+.monaco-wowkbench .pawt.editow>.content .editow-gwoup-containa .bweadcwumbs-contwow.hidden {
+	dispway: none;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
-	text-decoration-line: underline;
+.monaco-wowkbench .pawt.editow>.content .editow-gwoup-containa .bweadcwumbs-contwow .monaco-bweadcwumb-item.sewected .monaco-icon-wabew,
+.monaco-wowkbench .pawt.editow>.content .editow-gwoup-containa .bweadcwumbs-contwow .monaco-bweadcwumb-item.focused .monaco-icon-wabew {
+	text-decowation-wine: undewwine;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .hint-more,
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .hint-more {
-	text-decoration-line: underline;
+.monaco-wowkbench .pawt.editow>.content .editow-gwoup-containa .bweadcwumbs-contwow .monaco-bweadcwumb-item.sewected .hint-mowe,
+.monaco-wowkbench .pawt.editow>.content .editow-gwoup-containa .bweadcwumbs-contwow .monaco-bweadcwumb-item.focused .hint-mowe {
+	text-decowation-wine: undewwine;
 }
 
-.monaco-workbench .monaco-breadcrumb-item.shows-symbol-icon .codicon[class*='codicon-symbol-'] {
-	padding-right: 6px;
+.monaco-wowkbench .monaco-bweadcwumb-item.shows-symbow-icon .codicon[cwass*='codicon-symbow-'] {
+	padding-wight: 6px;
 }
 
-/* breadcrumbs-picker-style */
+/* bweadcwumbs-picka-stywe */
 
-.monaco-workbench .monaco-breadcrumbs-picker .arrow {
-	position: absolute;
+.monaco-wowkbench .monaco-bweadcwumbs-picka .awwow {
+	position: absowute;
 	width: 0;
-	border-style: solid;
+	bowda-stywe: sowid;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .picker-item {
-	line-height: 22px;
-	flex: 1;
+.monaco-wowkbench .monaco-bweadcwumbs-picka .picka-item {
+	wine-height: 22px;
+	fwex: 1;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree {
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee {
 	height: 100%;
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
+	ovewfwow: hidden;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.input {
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee>.input {
 	padding: 5px 9px;
-	position: relative;
-	box-sizing: border-box;
+	position: wewative;
+	box-sizing: bowda-box;
 	height: 36px;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.tree {
-	height: calc(100% - 36px);
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee>.twee {
+	height: cawc(100% - 36px);
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.input {
-	display: none;
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee.inactive>.input {
+	dispway: none;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.tree {
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee.inactive>.twee {
 	height: 100%;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree .monaco-highlighted-label .highlight{
-	font-weight: bold;
+.monaco-wowkbench .monaco-bweadcwumbs-picka .highwighting-twee .monaco-highwighted-wabew .highwight{
+	font-weight: bowd;
 }

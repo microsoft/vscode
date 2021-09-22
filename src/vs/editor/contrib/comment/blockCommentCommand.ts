@@ -1,202 +1,202 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
 
-export class BlockCommentCommand implements ICommand {
+expowt cwass BwockCommentCommand impwements ICommand {
 
-	private readonly _selection: Selection;
-	private readonly _insertSpace: boolean;
-	private _usedEndToken: string | null;
+	pwivate weadonwy _sewection: Sewection;
+	pwivate weadonwy _insewtSpace: boowean;
+	pwivate _usedEndToken: stwing | nuww;
 
-	constructor(selection: Selection, insertSpace: boolean) {
-		this._selection = selection;
-		this._insertSpace = insertSpace;
-		this._usedEndToken = null;
+	constwuctow(sewection: Sewection, insewtSpace: boowean) {
+		this._sewection = sewection;
+		this._insewtSpace = insewtSpace;
+		this._usedEndToken = nuww;
 	}
 
-	public static _haystackHasNeedleAtOffset(haystack: string, needle: string, offset: number): boolean {
+	pubwic static _haystackHasNeedweAtOffset(haystack: stwing, needwe: stwing, offset: numba): boowean {
 		if (offset < 0) {
-			return false;
+			wetuwn fawse;
 		}
-		const needleLength = needle.length;
-		const haystackLength = haystack.length;
-		if (offset + needleLength > haystackLength) {
-			return false;
+		const needweWength = needwe.wength;
+		const haystackWength = haystack.wength;
+		if (offset + needweWength > haystackWength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < needleLength; i++) {
-			const codeA = haystack.charCodeAt(offset + i);
-			const codeB = needle.charCodeAt(i);
+		fow (wet i = 0; i < needweWength; i++) {
+			const codeA = haystack.chawCodeAt(offset + i);
+			const codeB = needwe.chawCodeAt(i);
 
 			if (codeA === codeB) {
 				continue;
 			}
-			if (codeA >= CharCode.A && codeA <= CharCode.Z && codeA + 32 === codeB) {
-				// codeA is upper-case variant of codeB
+			if (codeA >= ChawCode.A && codeA <= ChawCode.Z && codeA + 32 === codeB) {
+				// codeA is uppa-case vawiant of codeB
 				continue;
 			}
-			if (codeB >= CharCode.A && codeB <= CharCode.Z && codeB + 32 === codeA) {
-				// codeB is upper-case variant of codeA
+			if (codeB >= ChawCode.A && codeB <= ChawCode.Z && codeB + 32 === codeA) {
+				// codeB is uppa-case vawiant of codeA
 				continue;
 			}
 
-			return false;
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, insertSpace: boolean, model: ITextModel, builder: IEditOperationBuilder): void {
-		const startLineNumber = selection.startLineNumber;
-		const startColumn = selection.startColumn;
-		const endLineNumber = selection.endLineNumber;
-		const endColumn = selection.endColumn;
+	pwivate _cweateOpewationsFowBwockComment(sewection: Wange, stawtToken: stwing, endToken: stwing, insewtSpace: boowean, modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		const stawtWineNumba = sewection.stawtWineNumba;
+		const stawtCowumn = sewection.stawtCowumn;
+		const endWineNumba = sewection.endWineNumba;
+		const endCowumn = sewection.endCowumn;
 
-		const startLineText = model.getLineContent(startLineNumber);
-		const endLineText = model.getLineContent(endLineNumber);
+		const stawtWineText = modew.getWineContent(stawtWineNumba);
+		const endWineText = modew.getWineContent(endWineNumba);
 
-		let startTokenIndex = startLineText.lastIndexOf(startToken, startColumn - 1 + startToken.length);
-		let endTokenIndex = endLineText.indexOf(endToken, endColumn - 1 - endToken.length);
+		wet stawtTokenIndex = stawtWineText.wastIndexOf(stawtToken, stawtCowumn - 1 + stawtToken.wength);
+		wet endTokenIndex = endWineText.indexOf(endToken, endCowumn - 1 - endToken.wength);
 
-		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
+		if (stawtTokenIndex !== -1 && endTokenIndex !== -1) {
 
-			if (startLineNumber === endLineNumber) {
-				const lineBetweenTokens = startLineText.substring(startTokenIndex + startToken.length, endTokenIndex);
+			if (stawtWineNumba === endWineNumba) {
+				const wineBetweenTokens = stawtWineText.substwing(stawtTokenIndex + stawtToken.wength, endTokenIndex);
 
-				if (lineBetweenTokens.indexOf(endToken) >= 0) {
-					// force to add a block comment
-					startTokenIndex = -1;
+				if (wineBetweenTokens.indexOf(endToken) >= 0) {
+					// fowce to add a bwock comment
+					stawtTokenIndex = -1;
 					endTokenIndex = -1;
 				}
-			} else {
-				const startLineAfterStartToken = startLineText.substring(startTokenIndex + startToken.length);
-				const endLineBeforeEndToken = endLineText.substring(0, endTokenIndex);
+			} ewse {
+				const stawtWineAftewStawtToken = stawtWineText.substwing(stawtTokenIndex + stawtToken.wength);
+				const endWineBefoweEndToken = endWineText.substwing(0, endTokenIndex);
 
-				if (startLineAfterStartToken.indexOf(endToken) >= 0 || endLineBeforeEndToken.indexOf(endToken) >= 0) {
-					// force to add a block comment
-					startTokenIndex = -1;
+				if (stawtWineAftewStawtToken.indexOf(endToken) >= 0 || endWineBefoweEndToken.indexOf(endToken) >= 0) {
+					// fowce to add a bwock comment
+					stawtTokenIndex = -1;
 					endTokenIndex = -1;
 				}
 			}
 		}
 
-		let ops: IIdentifiedSingleEditOperation[];
+		wet ops: IIdentifiedSingweEditOpewation[];
 
-		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			// Consider spaces as part of the comment tokens
-			if (insertSpace && startTokenIndex + startToken.length < startLineText.length && startLineText.charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
-				// Pretend the start token contains a trailing space
-				startToken = startToken + ' ';
+		if (stawtTokenIndex !== -1 && endTokenIndex !== -1) {
+			// Consida spaces as pawt of the comment tokens
+			if (insewtSpace && stawtTokenIndex + stawtToken.wength < stawtWineText.wength && stawtWineText.chawCodeAt(stawtTokenIndex + stawtToken.wength) === ChawCode.Space) {
+				// Pwetend the stawt token contains a twaiwing space
+				stawtToken = stawtToken + ' ';
 			}
 
-			if (insertSpace && endTokenIndex > 0 && endLineText.charCodeAt(endTokenIndex - 1) === CharCode.Space) {
-				// Pretend the end token contains a leading space
+			if (insewtSpace && endTokenIndex > 0 && endWineText.chawCodeAt(endTokenIndex - 1) === ChawCode.Space) {
+				// Pwetend the end token contains a weading space
 				endToken = ' ' + endToken;
 				endTokenIndex -= 1;
 			}
-			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
-				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
+			ops = BwockCommentCommand._cweateWemoveBwockCommentOpewations(
+				new Wange(stawtWineNumba, stawtTokenIndex + stawtToken.wength + 1, endWineNumba, endTokenIndex + 1), stawtToken, endToken
 			);
-		} else {
-			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken, this._insertSpace);
-			this._usedEndToken = ops.length === 1 ? endToken : null;
+		} ewse {
+			ops = BwockCommentCommand._cweateAddBwockCommentOpewations(sewection, stawtToken, endToken, this._insewtSpace);
+			this._usedEndToken = ops.wength === 1 ? endToken : nuww;
 		}
 
-		for (const op of ops) {
-			builder.addTrackedEditOperation(op.range, op.text);
+		fow (const op of ops) {
+			buiwda.addTwackedEditOpewation(op.wange, op.text);
 		}
 	}
 
-	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
+	pubwic static _cweateWemoveBwockCommentOpewations(w: Wange, stawtToken: stwing, endToken: stwing): IIdentifiedSingweEditOpewation[] {
+		wet wes: IIdentifiedSingweEditOpewation[] = [];
 
-		if (!Range.isEmpty(r)) {
-			// Remove block comment start
-			res.push(EditOperation.delete(new Range(
-				r.startLineNumber, r.startColumn - startToken.length,
-				r.startLineNumber, r.startColumn
+		if (!Wange.isEmpty(w)) {
+			// Wemove bwock comment stawt
+			wes.push(EditOpewation.dewete(new Wange(
+				w.stawtWineNumba, w.stawtCowumn - stawtToken.wength,
+				w.stawtWineNumba, w.stawtCowumn
 			)));
 
-			// Remove block comment end
-			res.push(EditOperation.delete(new Range(
-				r.endLineNumber, r.endColumn,
-				r.endLineNumber, r.endColumn + endToken.length
+			// Wemove bwock comment end
+			wes.push(EditOpewation.dewete(new Wange(
+				w.endWineNumba, w.endCowumn,
+				w.endWineNumba, w.endCowumn + endToken.wength
 			)));
-		} else {
-			// Remove both continuously
-			res.push(EditOperation.delete(new Range(
-				r.startLineNumber, r.startColumn - startToken.length,
-				r.endLineNumber, r.endColumn + endToken.length
+		} ewse {
+			// Wemove both continuouswy
+			wes.push(EditOpewation.dewete(new Wange(
+				w.stawtWineNumba, w.stawtCowumn - stawtToken.wength,
+				w.endWineNumba, w.endCowumn + endToken.wength
 			)));
 		}
 
-		return res;
+		wetuwn wes;
 	}
 
-	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
+	pubwic static _cweateAddBwockCommentOpewations(w: Wange, stawtToken: stwing, endToken: stwing, insewtSpace: boowean): IIdentifiedSingweEditOpewation[] {
+		wet wes: IIdentifiedSingweEditOpewation[] = [];
 
-		if (!Range.isEmpty(r)) {
-			// Insert block comment start
-			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + (insertSpace ? ' ' : '')));
+		if (!Wange.isEmpty(w)) {
+			// Insewt bwock comment stawt
+			wes.push(EditOpewation.insewt(new Position(w.stawtWineNumba, w.stawtCowumn), stawtToken + (insewtSpace ? ' ' : '')));
 
-			// Insert block comment end
-			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), (insertSpace ? ' ' : '') + endToken));
-		} else {
-			// Insert both continuously
-			res.push(EditOperation.replace(new Range(
-				r.startLineNumber, r.startColumn,
-				r.endLineNumber, r.endColumn
-			), startToken + '  ' + endToken));
+			// Insewt bwock comment end
+			wes.push(EditOpewation.insewt(new Position(w.endWineNumba, w.endCowumn), (insewtSpace ? ' ' : '') + endToken));
+		} ewse {
+			// Insewt both continuouswy
+			wes.push(EditOpewation.wepwace(new Wange(
+				w.stawtWineNumba, w.stawtCowumn,
+				w.endWineNumba, w.endCowumn
+			), stawtToken + '  ' + endToken));
 		}
 
-		return res;
+		wetuwn wes;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const startLineNumber = this._selection.startLineNumber;
-		const startColumn = this._selection.startColumn;
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		const stawtWineNumba = this._sewection.stawtWineNumba;
+		const stawtCowumn = this._sewection.stawtCowumn;
 
-		model.tokenizeIfCheap(startLineNumber);
-		const languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
-		const config = LanguageConfigurationRegistry.getComments(languageId);
-		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
-			// Mode does not support block comments
-			return;
+		modew.tokenizeIfCheap(stawtWineNumba);
+		const wanguageId = modew.getWanguageIdAtPosition(stawtWineNumba, stawtCowumn);
+		const config = WanguageConfiguwationWegistwy.getComments(wanguageId);
+		if (!config || !config.bwockCommentStawtToken || !config.bwockCommentEndToken) {
+			// Mode does not suppowt bwock comments
+			wetuwn;
 		}
 
-		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, this._insertSpace, model, builder);
+		this._cweateOpewationsFowBwockComment(this._sewection, config.bwockCommentStawtToken, config.bwockCommentEndToken, this._insewtSpace, modew, buiwda);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		if (inverseEditOperations.length === 2) {
-			const startTokenEditOperation = inverseEditOperations[0];
-			const endTokenEditOperation = inverseEditOperations[1];
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		const invewseEditOpewations = hewpa.getInvewseEditOpewations();
+		if (invewseEditOpewations.wength === 2) {
+			const stawtTokenEditOpewation = invewseEditOpewations[0];
+			const endTokenEditOpewation = invewseEditOpewations[1];
 
-			return new Selection(
-				startTokenEditOperation.range.endLineNumber,
-				startTokenEditOperation.range.endColumn,
-				endTokenEditOperation.range.startLineNumber,
-				endTokenEditOperation.range.startColumn
+			wetuwn new Sewection(
+				stawtTokenEditOpewation.wange.endWineNumba,
+				stawtTokenEditOpewation.wange.endCowumn,
+				endTokenEditOpewation.wange.stawtWineNumba,
+				endTokenEditOpewation.wange.stawtCowumn
 			);
-		} else {
-			const srcRange = inverseEditOperations[0].range;
-			const deltaColumn = this._usedEndToken ? -this._usedEndToken.length - 1 : 0; // minus 1 space before endToken
-			return new Selection(
-				srcRange.endLineNumber,
-				srcRange.endColumn + deltaColumn,
-				srcRange.endLineNumber,
-				srcRange.endColumn + deltaColumn
+		} ewse {
+			const swcWange = invewseEditOpewations[0].wange;
+			const dewtaCowumn = this._usedEndToken ? -this._usedEndToken.wength - 1 : 0; // minus 1 space befowe endToken
+			wetuwn new Sewection(
+				swcWange.endWineNumba,
+				swcWange.endCowumn + dewtaCowumn,
+				swcWange.endWineNumba,
+				swcWange.endCowumn + dewtaCowumn
 			);
 		}
 	}

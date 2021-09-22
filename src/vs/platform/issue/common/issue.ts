@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+impowt { ISandboxConfiguwation } fwom 'vs/base/pawts/sandbox/common/sandboxTypes';
 
-// Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
-// should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
-export interface WindowStyles {
-	backgroundColor?: string;
-	color?: string;
+// Since data sent thwough the sewvice is sewiawized to JSON, functions wiww be wost, so Cowow objects
+// shouwd not be sent as theiw 'toStwing' method wiww be stwipped. Instead convewt to stwings befowe sending.
+expowt intewface WindowStywes {
+	backgwoundCowow?: stwing;
+	cowow?: stwing;
 }
-export interface WindowData {
-	styles: WindowStyles;
-	zoomLevel: number;
+expowt intewface WindowData {
+	stywes: WindowStywes;
+	zoomWevew: numba;
 }
 
-export const enum IssueType {
+expowt const enum IssueType {
 	Bug,
-	PerformanceIssue,
-	FeatureRequest
+	PewfowmanceIssue,
+	FeatuweWequest
 }
 
-export interface IssueReporterStyles extends WindowStyles {
-	textLinkColor?: string;
-	textLinkActiveForeground?: string;
-	inputBackground?: string;
-	inputForeground?: string;
-	inputBorder?: string;
-	inputErrorBorder?: string;
-	inputErrorBackground?: string;
-	inputErrorForeground?: string;
-	inputActiveBorder?: string;
-	buttonBackground?: string;
-	buttonForeground?: string;
-	buttonHoverBackground?: string;
-	sliderBackgroundColor?: string;
-	sliderHoverColor?: string;
-	sliderActiveColor?: string;
+expowt intewface IssueWepowtewStywes extends WindowStywes {
+	textWinkCowow?: stwing;
+	textWinkActiveFowegwound?: stwing;
+	inputBackgwound?: stwing;
+	inputFowegwound?: stwing;
+	inputBowda?: stwing;
+	inputEwwowBowda?: stwing;
+	inputEwwowBackgwound?: stwing;
+	inputEwwowFowegwound?: stwing;
+	inputActiveBowda?: stwing;
+	buttonBackgwound?: stwing;
+	buttonFowegwound?: stwing;
+	buttonHovewBackgwound?: stwing;
+	swidewBackgwoundCowow?: stwing;
+	swidewHovewCowow?: stwing;
+	swidewActiveCowow?: stwing;
 }
 
-export interface IssueReporterExtensionData {
-	name: string;
-	publisher: string | undefined;
-	version: string;
-	id: string;
-	isTheme: boolean;
-	isBuiltin: boolean;
-	displayName: string | undefined;
-	repositoryUrl: string | undefined;
-	bugsUrl: string | undefined;
+expowt intewface IssueWepowtewExtensionData {
+	name: stwing;
+	pubwisha: stwing | undefined;
+	vewsion: stwing;
+	id: stwing;
+	isTheme: boowean;
+	isBuiwtin: boowean;
+	dispwayName: stwing | undefined;
+	wepositowyUww: stwing | undefined;
+	bugsUww: stwing | undefined;
 }
 
-export interface IssueReporterData extends WindowData {
-	styles: IssueReporterStyles;
-	enabledExtensions: IssueReporterExtensionData[];
+expowt intewface IssueWepowtewData extends WindowData {
+	stywes: IssueWepowtewStywes;
+	enabwedExtensions: IssueWepowtewExtensionData[];
 	issueType?: IssueType;
-	extensionId?: string;
-	experiments?: string;
-	restrictedMode: boolean;
-	githubAccessToken: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
+	extensionId?: stwing;
+	expewiments?: stwing;
+	westwictedMode: boowean;
+	githubAccessToken: stwing;
+	weadonwy issueTitwe?: stwing;
+	weadonwy issueBody?: stwing;
 }
 
-export interface ISettingSearchResult {
-	extensionId: string;
-	key: string;
-	score: number;
+expowt intewface ISettingSeawchWesuwt {
+	extensionId: stwing;
+	key: stwing;
+	scowe: numba;
 }
 
-export interface ProcessExplorerStyles extends WindowStyles {
-	listHoverBackground?: string;
-	listHoverForeground?: string;
-	listFocusBackground?: string;
-	listFocusForeground?: string;
-	listFocusOutline?: string;
-	listActiveSelectionBackground?: string;
-	listActiveSelectionForeground?: string;
-	listHoverOutline?: string;
+expowt intewface PwocessExpwowewStywes extends WindowStywes {
+	wistHovewBackgwound?: stwing;
+	wistHovewFowegwound?: stwing;
+	wistFocusBackgwound?: stwing;
+	wistFocusFowegwound?: stwing;
+	wistFocusOutwine?: stwing;
+	wistActiveSewectionBackgwound?: stwing;
+	wistActiveSewectionFowegwound?: stwing;
+	wistHovewOutwine?: stwing;
 }
 
-export interface ProcessExplorerData extends WindowData {
-	pid: number;
-	styles: ProcessExplorerStyles;
-	platform: string;
-	applicationName: string;
+expowt intewface PwocessExpwowewData extends WindowData {
+	pid: numba;
+	stywes: PwocessExpwowewStywes;
+	pwatfowm: stwing;
+	appwicationName: stwing;
 }
 
-export interface ICommonIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(data: IssueReporterData): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
-	getSystemStatus(): Promise<string>;
+expowt intewface ICommonIssueSewvice {
+	weadonwy _sewviceBwand: undefined;
+	openWepowta(data: IssueWepowtewData): Pwomise<void>;
+	openPwocessExpwowa(data: PwocessExpwowewData): Pwomise<void>;
+	getSystemStatus(): Pwomise<stwing>;
 }
 
-export interface IssueReporterWindowConfiguration extends ISandboxConfiguration {
-	disableExtensions: boolean;
-	data: IssueReporterData;
+expowt intewface IssueWepowtewWindowConfiguwation extends ISandboxConfiguwation {
+	disabweExtensions: boowean;
+	data: IssueWepowtewData;
 	os: {
-		type: string;
-		arch: string;
-		release: string;
+		type: stwing;
+		awch: stwing;
+		wewease: stwing;
 	}
 }
 
-export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
-	data: ProcessExplorerData;
+expowt intewface PwocessExpwowewWindowConfiguwation extends ISandboxConfiguwation {
+	data: PwocessExpwowewData;
 }

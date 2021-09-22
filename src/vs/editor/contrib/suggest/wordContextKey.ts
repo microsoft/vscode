@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export class WordContextKey {
+expowt cwass WowdContextKey {
 
-	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false);
+	static weadonwy AtEnd = new WawContextKey<boowean>('atEndOfWowd', fawse);
 
-	private readonly _ckAtEnd: IContextKey<boolean>;
-	private readonly _configListener: IDisposable;
+	pwivate weadonwy _ckAtEnd: IContextKey<boowean>;
+	pwivate weadonwy _configWistena: IDisposabwe;
 
-	private _enabled: boolean = false;
-	private _selectionListener?: IDisposable;
+	pwivate _enabwed: boowean = fawse;
+	pwivate _sewectionWistena?: IDisposabwe;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
 	) {
 
-		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._configListener = this._editor.onDidChangeConfiguration(e => e.hasChanged(EditorOption.tabCompletion) && this._update());
+		this._ckAtEnd = WowdContextKey.AtEnd.bindTo(contextKeySewvice);
+		this._configWistena = this._editow.onDidChangeConfiguwation(e => e.hasChanged(EditowOption.tabCompwetion) && this._update());
 		this._update();
 	}
 
 	dispose(): void {
-		this._configListener.dispose();
-		this._selectionListener?.dispose();
-		this._ckAtEnd.reset();
+		this._configWistena.dispose();
+		this._sewectionWistena?.dispose();
+		this._ckAtEnd.weset();
 	}
 
-	private _update(): void {
-		// only update this when tab completions are enabled
-		const enabled = this._editor.getOption(EditorOption.tabCompletion) === 'on';
-		if (this._enabled === enabled) {
-			return;
+	pwivate _update(): void {
+		// onwy update this when tab compwetions awe enabwed
+		const enabwed = this._editow.getOption(EditowOption.tabCompwetion) === 'on';
+		if (this._enabwed === enabwed) {
+			wetuwn;
 		}
-		this._enabled = enabled;
+		this._enabwed = enabwed;
 
-		if (this._enabled) {
-			const checkForWordEnd = () => {
-				if (!this._editor.hasModel()) {
-					this._ckAtEnd.set(false);
-					return;
+		if (this._enabwed) {
+			const checkFowWowdEnd = () => {
+				if (!this._editow.hasModew()) {
+					this._ckAtEnd.set(fawse);
+					wetuwn;
 				}
-				const model = this._editor.getModel();
-				const selection = this._editor.getSelection();
-				const word = model.getWordAtPosition(selection.getStartPosition());
-				if (!word) {
-					this._ckAtEnd.set(false);
-					return;
+				const modew = this._editow.getModew();
+				const sewection = this._editow.getSewection();
+				const wowd = modew.getWowdAtPosition(sewection.getStawtPosition());
+				if (!wowd) {
+					this._ckAtEnd.set(fawse);
+					wetuwn;
 				}
-				this._ckAtEnd.set(word.endColumn === selection.getStartPosition().column);
+				this._ckAtEnd.set(wowd.endCowumn === sewection.getStawtPosition().cowumn);
 			};
-			this._selectionListener = this._editor.onDidChangeCursorSelection(checkForWordEnd);
-			checkForWordEnd();
+			this._sewectionWistena = this._editow.onDidChangeCuwsowSewection(checkFowWowdEnd);
+			checkFowWowdEnd();
 
-		} else if (this._selectionListener) {
-			this._ckAtEnd.reset();
-			this._selectionListener.dispose();
-			this._selectionListener = undefined;
+		} ewse if (this._sewectionWistena) {
+			this._ckAtEnd.weset();
+			this._sewectionWistena.dispose();
+			this._sewectionWistena = undefined;
 		}
 	}
 }

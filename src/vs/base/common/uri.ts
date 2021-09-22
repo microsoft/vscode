@@ -1,703 +1,703 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import * as paths from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt * as paths fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
 
-const _schemePattern = /^\w[\w\d+.-]*$/;
-const _singleSlashStart = /^\//;
-const _doubleSlashStart = /^\/\//;
+const _schemePattewn = /^\w[\w\d+.-]*$/;
+const _singweSwashStawt = /^\//;
+const _doubweSwashStawt = /^\/\//;
 
-function _validateUri(ret: URI, _strict?: boolean): void {
+function _vawidateUwi(wet: UWI, _stwict?: boowean): void {
 
 	// scheme, must be set
-	if (!ret.scheme && _strict) {
-		throw new Error(`[UriError]: Scheme is missing: {scheme: "", authority: "${ret.authority}", path: "${ret.path}", query: "${ret.query}", fragment: "${ret.fragment}"}`);
+	if (!wet.scheme && _stwict) {
+		thwow new Ewwow(`[UwiEwwow]: Scheme is missing: {scheme: "", authowity: "${wet.authowity}", path: "${wet.path}", quewy: "${wet.quewy}", fwagment: "${wet.fwagment}"}`);
 	}
 
-	// scheme, https://tools.ietf.org/html/rfc3986#section-3.1
-	// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
-	if (ret.scheme && !_schemePattern.test(ret.scheme)) {
-		throw new Error('[UriError]: Scheme contains illegal characters.');
+	// scheme, https://toows.ietf.owg/htmw/wfc3986#section-3.1
+	// AWPHA *( AWPHA / DIGIT / "+" / "-" / "." )
+	if (wet.scheme && !_schemePattewn.test(wet.scheme)) {
+		thwow new Ewwow('[UwiEwwow]: Scheme contains iwwegaw chawactews.');
 	}
 
-	// path, http://tools.ietf.org/html/rfc3986#section-3.3
-	// If a URI contains an authority component, then the path component
-	// must either be empty or begin with a slash ("/") character.  If a URI
-	// does not contain an authority component, then the path cannot begin
-	// with two slash characters ("//").
-	if (ret.path) {
-		if (ret.authority) {
-			if (!_singleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI contains an authority component, then the path component must either be empty or begin with a slash ("/") character');
+	// path, http://toows.ietf.owg/htmw/wfc3986#section-3.3
+	// If a UWI contains an authowity component, then the path component
+	// must eitha be empty ow begin with a swash ("/") chawacta.  If a UWI
+	// does not contain an authowity component, then the path cannot begin
+	// with two swash chawactews ("//").
+	if (wet.path) {
+		if (wet.authowity) {
+			if (!_singweSwashStawt.test(wet.path)) {
+				thwow new Ewwow('[UwiEwwow]: If a UWI contains an authowity component, then the path component must eitha be empty ow begin with a swash ("/") chawacta');
 			}
-		} else {
-			if (_doubleSlashStart.test(ret.path)) {
-				throw new Error('[UriError]: If a URI does not contain an authority component, then the path cannot begin with two slash characters ("//")');
+		} ewse {
+			if (_doubweSwashStawt.test(wet.path)) {
+				thwow new Ewwow('[UwiEwwow]: If a UWI does not contain an authowity component, then the path cannot begin with two swash chawactews ("//")');
 			}
 		}
 	}
 }
 
-// for a while we allowed uris *without* schemes and this is the migration
-// for them, e.g. an uri without scheme and without strict-mode warns and falls
-// back to the file-scheme. that should cause the least carnage and still be a
-// clear warning
-function _schemeFix(scheme: string, _strict: boolean): string {
-	if (!scheme && !_strict) {
-		return 'file';
+// fow a whiwe we awwowed uwis *without* schemes and this is the migwation
+// fow them, e.g. an uwi without scheme and without stwict-mode wawns and fawws
+// back to the fiwe-scheme. that shouwd cause the weast cawnage and stiww be a
+// cweaw wawning
+function _schemeFix(scheme: stwing, _stwict: boowean): stwing {
+	if (!scheme && !_stwict) {
+		wetuwn 'fiwe';
 	}
-	return scheme;
+	wetuwn scheme;
 }
 
-// implements a bit of https://tools.ietf.org/html/rfc3986#section-5
-function _referenceResolution(scheme: string, path: string): string {
+// impwements a bit of https://toows.ietf.owg/htmw/wfc3986#section-5
+function _wefewenceWesowution(scheme: stwing, path: stwing): stwing {
 
-	// the slash-character is our 'default base' as we don't
-	// support constructing URIs relative to other URIs. This
-	// also means that we alter and potentially break paths.
-	// see https://tools.ietf.org/html/rfc3986#section-5.1.4
+	// the swash-chawacta is ouw 'defauwt base' as we don't
+	// suppowt constwucting UWIs wewative to otha UWIs. This
+	// awso means that we awta and potentiawwy bweak paths.
+	// see https://toows.ietf.owg/htmw/wfc3986#section-5.1.4
 	switch (scheme) {
 		case 'https':
 		case 'http':
-		case 'file':
+		case 'fiwe':
 			if (!path) {
-				path = _slash;
-			} else if (path[0] !== _slash) {
-				path = _slash + path;
+				path = _swash;
+			} ewse if (path[0] !== _swash) {
+				path = _swash + path;
 			}
-			break;
+			bweak;
 	}
-	return path;
+	wetuwn path;
 }
 
 const _empty = '';
-const _slash = '/';
-const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
+const _swash = '/';
+const _wegexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 
 /**
- * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
- * This class is a simple parser which creates the basic component parts
- * (http://tools.ietf.org/html/rfc3986#section-3) with minimal validation
+ * Unifowm Wesouwce Identifia (UWI) http://toows.ietf.owg/htmw/wfc3986.
+ * This cwass is a simpwe pawsa which cweates the basic component pawts
+ * (http://toows.ietf.owg/htmw/wfc3986#section-3) with minimaw vawidation
  * and encoding.
  *
  * ```txt
- *       foo://example.com:8042/over/there?name=ferret#nose
+ *       foo://exampwe.com:8042/ova/thewe?name=fewwet#nose
  *       \_/   \______________/\_________/ \_________/ \__/
  *        |           |            |            |        |
- *     scheme     authority       path        query   fragment
+ *     scheme     authowity       path        quewy   fwagment
  *        |   _____________________|__
  *       / \ /                        \
- *       urn:example:animal:ferret:nose
+ *       uwn:exampwe:animaw:fewwet:nose
  * ```
  */
-export class URI implements UriComponents {
+expowt cwass UWI impwements UwiComponents {
 
-	static isUri(thing: any): thing is URI {
-		if (thing instanceof URI) {
-			return true;
+	static isUwi(thing: any): thing is UWI {
+		if (thing instanceof UWI) {
+			wetuwn twue;
 		}
 		if (!thing) {
-			return false;
+			wetuwn fawse;
 		}
-		return typeof (<URI>thing).authority === 'string'
-			&& typeof (<URI>thing).fragment === 'string'
-			&& typeof (<URI>thing).path === 'string'
-			&& typeof (<URI>thing).query === 'string'
-			&& typeof (<URI>thing).scheme === 'string'
-			&& typeof (<URI>thing).fsPath === 'string'
-			&& typeof (<URI>thing).with === 'function'
-			&& typeof (<URI>thing).toString === 'function';
+		wetuwn typeof (<UWI>thing).authowity === 'stwing'
+			&& typeof (<UWI>thing).fwagment === 'stwing'
+			&& typeof (<UWI>thing).path === 'stwing'
+			&& typeof (<UWI>thing).quewy === 'stwing'
+			&& typeof (<UWI>thing).scheme === 'stwing'
+			&& typeof (<UWI>thing).fsPath === 'stwing'
+			&& typeof (<UWI>thing).with === 'function'
+			&& typeof (<UWI>thing).toStwing === 'function';
 	}
 
 	/**
-	 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
-	 * The part before the first colon.
+	 * scheme is the 'http' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
+	 * The pawt befowe the fiwst cowon.
 	 */
-	readonly scheme: string;
+	weadonwy scheme: stwing;
 
 	/**
-	 * authority is the 'www.msft.com' part of 'http://www.msft.com/some/path?query#fragment'.
-	 * The part between the first double slashes and the next slash.
+	 * authowity is the 'www.msft.com' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
+	 * The pawt between the fiwst doubwe swashes and the next swash.
 	 */
-	readonly authority: string;
+	weadonwy authowity: stwing;
 
 	/**
-	 * path is the '/some/path' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * path is the '/some/path' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 	 */
-	readonly path: string;
+	weadonwy path: stwing;
 
 	/**
-	 * query is the 'query' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * quewy is the 'quewy' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 	 */
-	readonly query: string;
+	weadonwy quewy: stwing;
 
 	/**
-	 * fragment is the 'fragment' part of 'http://www.msft.com/some/path?query#fragment'.
+	 * fwagment is the 'fwagment' pawt of 'http://www.msft.com/some/path?quewy#fwagment'.
 	 */
-	readonly fragment: string;
+	weadonwy fwagment: stwing;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	protected constructor(scheme: string, authority?: string, path?: string, query?: string, fragment?: string, _strict?: boolean);
+	pwotected constwuctow(scheme: stwing, authowity?: stwing, path?: stwing, quewy?: stwing, fwagment?: stwing, _stwict?: boowean);
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	protected constructor(components: UriComponents);
+	pwotected constwuctow(components: UwiComponents);
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	protected constructor(schemeOrData: string | UriComponents, authority?: string, path?: string, query?: string, fragment?: string, _strict: boolean = false) {
+	pwotected constwuctow(schemeOwData: stwing | UwiComponents, authowity?: stwing, path?: stwing, quewy?: stwing, fwagment?: stwing, _stwict: boowean = fawse) {
 
-		if (typeof schemeOrData === 'object') {
-			this.scheme = schemeOrData.scheme || _empty;
-			this.authority = schemeOrData.authority || _empty;
-			this.path = schemeOrData.path || _empty;
-			this.query = schemeOrData.query || _empty;
-			this.fragment = schemeOrData.fragment || _empty;
-			// no validation because it's this URI
-			// that creates uri components.
-			// _validateUri(this);
-		} else {
-			this.scheme = _schemeFix(schemeOrData, _strict);
-			this.authority = authority || _empty;
-			this.path = _referenceResolution(this.scheme, path || _empty);
-			this.query = query || _empty;
-			this.fragment = fragment || _empty;
+		if (typeof schemeOwData === 'object') {
+			this.scheme = schemeOwData.scheme || _empty;
+			this.authowity = schemeOwData.authowity || _empty;
+			this.path = schemeOwData.path || _empty;
+			this.quewy = schemeOwData.quewy || _empty;
+			this.fwagment = schemeOwData.fwagment || _empty;
+			// no vawidation because it's this UWI
+			// that cweates uwi components.
+			// _vawidateUwi(this);
+		} ewse {
+			this.scheme = _schemeFix(schemeOwData, _stwict);
+			this.authowity = authowity || _empty;
+			this.path = _wefewenceWesowution(this.scheme, path || _empty);
+			this.quewy = quewy || _empty;
+			this.fwagment = fwagment || _empty;
 
-			_validateUri(this, _strict);
+			_vawidateUwi(this, _stwict);
 		}
 	}
 
-	// ---- filesystem path -----------------------
+	// ---- fiwesystem path -----------------------
 
 	/**
-	 * Returns a string representing the corresponding file system path of this URI.
-	 * Will handle UNC paths, normalizes windows drive letters to lower-case, and uses the
-	 * platform specific path separator.
+	 * Wetuwns a stwing wepwesenting the cowwesponding fiwe system path of this UWI.
+	 * Wiww handwe UNC paths, nowmawizes windows dwive wettews to wowa-case, and uses the
+	 * pwatfowm specific path sepawatow.
 	 *
-	 * * Will *not* validate the path for invalid characters and semantics.
-	 * * Will *not* look at the scheme of this URI.
-	 * * The result shall *not* be used for display purposes but for accessing a file on disk.
+	 * * Wiww *not* vawidate the path fow invawid chawactews and semantics.
+	 * * Wiww *not* wook at the scheme of this UWI.
+	 * * The wesuwt shaww *not* be used fow dispway puwposes but fow accessing a fiwe on disk.
 	 *
 	 *
-	 * The *difference* to `URI#path` is the use of the platform specific separator and the handling
-	 * of UNC paths. See the below sample of a file-uri with an authority (UNC path).
+	 * The *diffewence* to `UWI#path` is the use of the pwatfowm specific sepawatow and the handwing
+	 * of UNC paths. See the bewow sampwe of a fiwe-uwi with an authowity (UNC path).
 	 *
 	 * ```ts
-		const u = URI.parse('file://server/c$/folder/file.txt')
-		u.authority === 'server'
-		u.path === '/shares/c$/file.txt'
-		u.fsPath === '\\server\c$\folder\file.txt'
+		const u = UWI.pawse('fiwe://sewva/c$/fowda/fiwe.txt')
+		u.authowity === 'sewva'
+		u.path === '/shawes/c$/fiwe.txt'
+		u.fsPath === '\\sewva\c$\fowda\fiwe.txt'
 	```
 	 *
-	 * Using `URI#path` to read a file (using fs-apis) would not be enough because parts of the path,
-	 * namely the server name, would be missing. Therefore `URI#fsPath` exists - it's sugar to ease working
-	 * with URIs that represent files on disk (`file` scheme).
+	 * Using `UWI#path` to wead a fiwe (using fs-apis) wouwd not be enough because pawts of the path,
+	 * namewy the sewva name, wouwd be missing. Thewefowe `UWI#fsPath` exists - it's sugaw to ease wowking
+	 * with UWIs that wepwesent fiwes on disk (`fiwe` scheme).
 	 */
-	get fsPath(): string {
-		// if (this.scheme !== 'file') {
-		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
+	get fsPath(): stwing {
+		// if (this.scheme !== 'fiwe') {
+		// 	consowe.wawn(`[UwiEwwow] cawwing fsPath with scheme ${this.scheme}`);
 		// }
-		return uriToFsPath(this, false);
+		wetuwn uwiToFsPath(this, fawse);
 	}
 
 	// ---- modify to new -------------------------
 
-	with(change: { scheme?: string; authority?: string | null; path?: string | null; query?: string | null; fragment?: string | null }): URI {
+	with(change: { scheme?: stwing; authowity?: stwing | nuww; path?: stwing | nuww; quewy?: stwing | nuww; fwagment?: stwing | nuww }): UWI {
 
 		if (!change) {
-			return this;
+			wetuwn this;
 		}
 
-		let { scheme, authority, path, query, fragment } = change;
+		wet { scheme, authowity, path, quewy, fwagment } = change;
 		if (scheme === undefined) {
 			scheme = this.scheme;
-		} else if (scheme === null) {
+		} ewse if (scheme === nuww) {
 			scheme = _empty;
 		}
-		if (authority === undefined) {
-			authority = this.authority;
-		} else if (authority === null) {
-			authority = _empty;
+		if (authowity === undefined) {
+			authowity = this.authowity;
+		} ewse if (authowity === nuww) {
+			authowity = _empty;
 		}
 		if (path === undefined) {
 			path = this.path;
-		} else if (path === null) {
+		} ewse if (path === nuww) {
 			path = _empty;
 		}
-		if (query === undefined) {
-			query = this.query;
-		} else if (query === null) {
-			query = _empty;
+		if (quewy === undefined) {
+			quewy = this.quewy;
+		} ewse if (quewy === nuww) {
+			quewy = _empty;
 		}
-		if (fragment === undefined) {
-			fragment = this.fragment;
-		} else if (fragment === null) {
-			fragment = _empty;
+		if (fwagment === undefined) {
+			fwagment = this.fwagment;
+		} ewse if (fwagment === nuww) {
+			fwagment = _empty;
 		}
 
 		if (scheme === this.scheme
-			&& authority === this.authority
+			&& authowity === this.authowity
 			&& path === this.path
-			&& query === this.query
-			&& fragment === this.fragment) {
+			&& quewy === this.quewy
+			&& fwagment === this.fwagment) {
 
-			return this;
+			wetuwn this;
 		}
 
-		return new Uri(scheme, authority, path, query, fragment);
+		wetuwn new Uwi(scheme, authowity, path, quewy, fwagment);
 	}
 
-	// ---- parse & validate ------------------------
+	// ---- pawse & vawidate ------------------------
 
 	/**
-	 * Creates a new URI from a string, e.g. `http://www.msft.com/some/path`,
-	 * `file:///usr/home`, or `scheme:with/path`.
+	 * Cweates a new UWI fwom a stwing, e.g. `http://www.msft.com/some/path`,
+	 * `fiwe:///usw/home`, ow `scheme:with/path`.
 	 *
-	 * @param value A string which represents an URI (see `URI#toString`).
+	 * @pawam vawue A stwing which wepwesents an UWI (see `UWI#toStwing`).
 	 */
-	static parse(value: string, _strict: boolean = false): URI {
-		const match = _regexp.exec(value);
+	static pawse(vawue: stwing, _stwict: boowean = fawse): UWI {
+		const match = _wegexp.exec(vawue);
 		if (!match) {
-			return new Uri(_empty, _empty, _empty, _empty, _empty);
+			wetuwn new Uwi(_empty, _empty, _empty, _empty, _empty);
 		}
-		return new Uri(
+		wetuwn new Uwi(
 			match[2] || _empty,
-			percentDecode(match[4] || _empty),
-			percentDecode(match[5] || _empty),
-			percentDecode(match[7] || _empty),
-			percentDecode(match[9] || _empty),
-			_strict
+			pewcentDecode(match[4] || _empty),
+			pewcentDecode(match[5] || _empty),
+			pewcentDecode(match[7] || _empty),
+			pewcentDecode(match[9] || _empty),
+			_stwict
 		);
 	}
 
 	/**
-	 * Creates a new URI from a file system path, e.g. `c:\my\files`,
-	 * `/usr/home`, or `\\server\share\some\path`.
+	 * Cweates a new UWI fwom a fiwe system path, e.g. `c:\my\fiwes`,
+	 * `/usw/home`, ow `\\sewva\shawe\some\path`.
 	 *
-	 * The *difference* between `URI#parse` and `URI#file` is that the latter treats the argument
-	 * as path, not as stringified-uri. E.g. `URI.file(path)` is **not the same as**
-	 * `URI.parse('file://' + path)` because the path might contain characters that are
-	 * interpreted (# and ?). See the following sample:
+	 * The *diffewence* between `UWI#pawse` and `UWI#fiwe` is that the watta tweats the awgument
+	 * as path, not as stwingified-uwi. E.g. `UWI.fiwe(path)` is **not the same as**
+	 * `UWI.pawse('fiwe://' + path)` because the path might contain chawactews that awe
+	 * intewpweted (# and ?). See the fowwowing sampwe:
 	 * ```ts
-	const good = URI.file('/coding/c#/project1');
-	good.scheme === 'file';
-	good.path === '/coding/c#/project1';
-	good.fragment === '';
-	const bad = URI.parse('file://' + '/coding/c#/project1');
-	bad.scheme === 'file';
-	bad.path === '/coding/c'; // path is now broken
-	bad.fragment === '/project1';
+	const good = UWI.fiwe('/coding/c#/pwoject1');
+	good.scheme === 'fiwe';
+	good.path === '/coding/c#/pwoject1';
+	good.fwagment === '';
+	const bad = UWI.pawse('fiwe://' + '/coding/c#/pwoject1');
+	bad.scheme === 'fiwe';
+	bad.path === '/coding/c'; // path is now bwoken
+	bad.fwagment === '/pwoject1';
 	```
 	 *
-	 * @param path A file system path (see `URI#fsPath`)
+	 * @pawam path A fiwe system path (see `UWI#fsPath`)
 	 */
-	static file(path: string): URI {
+	static fiwe(path: stwing): UWI {
 
-		let authority = _empty;
+		wet authowity = _empty;
 
-		// normalize to fwd-slashes on windows,
-		// on other systems bwd-slashes are valid
-		// filename character, eg /f\oo/ba\r.txt
+		// nowmawize to fwd-swashes on windows,
+		// on otha systems bwd-swashes awe vawid
+		// fiwename chawacta, eg /f\oo/ba\w.txt
 		if (isWindows) {
-			path = path.replace(/\\/g, _slash);
+			path = path.wepwace(/\\/g, _swash);
 		}
 
-		// check for authority as used in UNC shares
-		// or use the path as given
-		if (path[0] === _slash && path[1] === _slash) {
-			const idx = path.indexOf(_slash, 2);
+		// check fow authowity as used in UNC shawes
+		// ow use the path as given
+		if (path[0] === _swash && path[1] === _swash) {
+			const idx = path.indexOf(_swash, 2);
 			if (idx === -1) {
-				authority = path.substring(2);
-				path = _slash;
-			} else {
-				authority = path.substring(2, idx);
-				path = path.substring(idx) || _slash;
+				authowity = path.substwing(2);
+				path = _swash;
+			} ewse {
+				authowity = path.substwing(2, idx);
+				path = path.substwing(idx) || _swash;
 			}
 		}
 
-		return new Uri('file', authority, path, _empty, _empty);
+		wetuwn new Uwi('fiwe', authowity, path, _empty, _empty);
 	}
 
-	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		const result = new Uri(
+	static fwom(components: { scheme: stwing; authowity?: stwing; path?: stwing; quewy?: stwing; fwagment?: stwing }): UWI {
+		const wesuwt = new Uwi(
 			components.scheme,
-			components.authority,
+			components.authowity,
 			components.path,
-			components.query,
-			components.fragment,
+			components.quewy,
+			components.fwagment,
 		);
-		_validateUri(result, true);
-		return result;
+		_vawidateUwi(wesuwt, twue);
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Join a URI path with path fragments and normalizes the resulting path.
+	 * Join a UWI path with path fwagments and nowmawizes the wesuwting path.
 	 *
-	 * @param uri The input URI.
-	 * @param pathFragment The path fragment to add to the URI path.
-	 * @returns The resulting URI.
+	 * @pawam uwi The input UWI.
+	 * @pawam pathFwagment The path fwagment to add to the UWI path.
+	 * @wetuwns The wesuwting UWI.
 	 */
-	static joinPath(uri: URI, ...pathFragment: string[]): URI {
-		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
+	static joinPath(uwi: UWI, ...pathFwagment: stwing[]): UWI {
+		if (!uwi.path) {
+			thwow new Ewwow(`[UwiEwwow]: cannot caww joinPath on UWI without path`);
 		}
-		let newPath: string;
-		if (isWindows && uri.scheme === 'file') {
-			newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
-		} else {
-			newPath = paths.posix.join(uri.path, ...pathFragment);
+		wet newPath: stwing;
+		if (isWindows && uwi.scheme === 'fiwe') {
+			newPath = UWI.fiwe(paths.win32.join(uwiToFsPath(uwi, twue), ...pathFwagment)).path;
+		} ewse {
+			newPath = paths.posix.join(uwi.path, ...pathFwagment);
 		}
-		return uri.with({ path: newPath });
+		wetuwn uwi.with({ path: newPath });
 	}
 
-	// ---- printing/externalize ---------------------------
+	// ---- pwinting/extewnawize ---------------------------
 
 	/**
-	 * Creates a string representation for this URI. It's guaranteed that calling
-	 * `URI.parse` with the result of this function creates an URI which is equal
-	 * to this URI.
+	 * Cweates a stwing wepwesentation fow this UWI. It's guawanteed that cawwing
+	 * `UWI.pawse` with the wesuwt of this function cweates an UWI which is equaw
+	 * to this UWI.
 	 *
-	 * * The result shall *not* be used for display purposes but for externalization or transport.
-	 * * The result will be encoded using the percentage encoding and encoding happens mostly
-	 * ignore the scheme-specific encoding rules.
+	 * * The wesuwt shaww *not* be used fow dispway puwposes but fow extewnawization ow twanspowt.
+	 * * The wesuwt wiww be encoded using the pewcentage encoding and encoding happens mostwy
+	 * ignowe the scheme-specific encoding wuwes.
 	 *
-	 * @param skipEncoding Do not encode the result, default is `false`
+	 * @pawam skipEncoding Do not encode the wesuwt, defauwt is `fawse`
 	 */
-	toString(skipEncoding: boolean = false): string {
-		return _asFormatted(this, skipEncoding);
+	toStwing(skipEncoding: boowean = fawse): stwing {
+		wetuwn _asFowmatted(this, skipEncoding);
 	}
 
-	toJSON(): UriComponents {
-		return this;
+	toJSON(): UwiComponents {
+		wetuwn this;
 	}
 
-	static revive(data: UriComponents | URI): URI;
-	static revive(data: UriComponents | URI | undefined): URI | undefined;
-	static revive(data: UriComponents | URI | null): URI | null;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null;
-	static revive(data: UriComponents | URI | undefined | null): URI | undefined | null {
+	static wevive(data: UwiComponents | UWI): UWI;
+	static wevive(data: UwiComponents | UWI | undefined): UWI | undefined;
+	static wevive(data: UwiComponents | UWI | nuww): UWI | nuww;
+	static wevive(data: UwiComponents | UWI | undefined | nuww): UWI | undefined | nuww;
+	static wevive(data: UwiComponents | UWI | undefined | nuww): UWI | undefined | nuww {
 		if (!data) {
-			return data;
-		} else if (data instanceof URI) {
-			return data;
-		} else {
-			const result = new Uri(data);
-			result._formatted = (<UriState>data).external;
-			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
-			return result;
+			wetuwn data;
+		} ewse if (data instanceof UWI) {
+			wetuwn data;
+		} ewse {
+			const wesuwt = new Uwi(data);
+			wesuwt._fowmatted = (<UwiState>data).extewnaw;
+			wesuwt._fsPath = (<UwiState>data)._sep === _pathSepMawka ? (<UwiState>data).fsPath : nuww;
+			wetuwn wesuwt;
 		}
 	}
 }
 
-export interface UriComponents {
-	scheme: string;
-	authority: string;
-	path: string;
-	query: string;
-	fragment: string;
+expowt intewface UwiComponents {
+	scheme: stwing;
+	authowity: stwing;
+	path: stwing;
+	quewy: stwing;
+	fwagment: stwing;
 }
 
-interface UriState extends UriComponents {
-	$mid: MarshalledId.Uri;
-	external: string;
-	fsPath: string;
+intewface UwiState extends UwiComponents {
+	$mid: MawshawwedId.Uwi;
+	extewnaw: stwing;
+	fsPath: stwing;
 	_sep: 1 | undefined;
 }
 
-const _pathSepMarker = isWindows ? 1 : undefined;
+const _pathSepMawka = isWindows ? 1 : undefined;
 
-// This class exists so that URI is compatible with vscode.Uri (API).
-class Uri extends URI {
+// This cwass exists so that UWI is compatibwe with vscode.Uwi (API).
+cwass Uwi extends UWI {
 
-	_formatted: string | null = null;
-	_fsPath: string | null = null;
+	_fowmatted: stwing | nuww = nuww;
+	_fsPath: stwing | nuww = nuww;
 
-	override get fsPath(): string {
+	ovewwide get fsPath(): stwing {
 		if (!this._fsPath) {
-			this._fsPath = uriToFsPath(this, false);
+			this._fsPath = uwiToFsPath(this, fawse);
 		}
-		return this._fsPath;
+		wetuwn this._fsPath;
 	}
 
-	override toString(skipEncoding: boolean = false): string {
+	ovewwide toStwing(skipEncoding: boowean = fawse): stwing {
 		if (!skipEncoding) {
-			if (!this._formatted) {
-				this._formatted = _asFormatted(this, false);
+			if (!this._fowmatted) {
+				this._fowmatted = _asFowmatted(this, fawse);
 			}
-			return this._formatted;
-		} else {
+			wetuwn this._fowmatted;
+		} ewse {
 			// we don't cache that
-			return _asFormatted(this, true);
+			wetuwn _asFowmatted(this, twue);
 		}
 	}
 
-	override toJSON(): UriComponents {
-		const res = <UriState>{
-			$mid: MarshalledId.Uri
+	ovewwide toJSON(): UwiComponents {
+		const wes = <UwiState>{
+			$mid: MawshawwedId.Uwi
 		};
 		// cached state
 		if (this._fsPath) {
-			res.fsPath = this._fsPath;
-			res._sep = _pathSepMarker;
+			wes.fsPath = this._fsPath;
+			wes._sep = _pathSepMawka;
 		}
-		if (this._formatted) {
-			res.external = this._formatted;
+		if (this._fowmatted) {
+			wes.extewnaw = this._fowmatted;
 		}
-		// uri components
+		// uwi components
 		if (this.path) {
-			res.path = this.path;
+			wes.path = this.path;
 		}
 		if (this.scheme) {
-			res.scheme = this.scheme;
+			wes.scheme = this.scheme;
 		}
-		if (this.authority) {
-			res.authority = this.authority;
+		if (this.authowity) {
+			wes.authowity = this.authowity;
 		}
-		if (this.query) {
-			res.query = this.query;
+		if (this.quewy) {
+			wes.quewy = this.quewy;
 		}
-		if (this.fragment) {
-			res.fragment = this.fragment;
+		if (this.fwagment) {
+			wes.fwagment = this.fwagment;
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-// reserved characters: https://tools.ietf.org/html/rfc3986#section-2.2
-const encodeTable: { [ch: number]: string } = {
-	[CharCode.Colon]: '%3A', // gen-delims
-	[CharCode.Slash]: '%2F',
-	[CharCode.QuestionMark]: '%3F',
-	[CharCode.Hash]: '%23',
-	[CharCode.OpenSquareBracket]: '%5B',
-	[CharCode.CloseSquareBracket]: '%5D',
-	[CharCode.AtSign]: '%40',
+// wesewved chawactews: https://toows.ietf.owg/htmw/wfc3986#section-2.2
+const encodeTabwe: { [ch: numba]: stwing } = {
+	[ChawCode.Cowon]: '%3A', // gen-dewims
+	[ChawCode.Swash]: '%2F',
+	[ChawCode.QuestionMawk]: '%3F',
+	[ChawCode.Hash]: '%23',
+	[ChawCode.OpenSquaweBwacket]: '%5B',
+	[ChawCode.CwoseSquaweBwacket]: '%5D',
+	[ChawCode.AtSign]: '%40',
 
-	[CharCode.ExclamationMark]: '%21', // sub-delims
-	[CharCode.DollarSign]: '%24',
-	[CharCode.Ampersand]: '%26',
-	[CharCode.SingleQuote]: '%27',
-	[CharCode.OpenParen]: '%28',
-	[CharCode.CloseParen]: '%29',
-	[CharCode.Asterisk]: '%2A',
-	[CharCode.Plus]: '%2B',
-	[CharCode.Comma]: '%2C',
-	[CharCode.Semicolon]: '%3B',
-	[CharCode.Equals]: '%3D',
+	[ChawCode.ExcwamationMawk]: '%21', // sub-dewims
+	[ChawCode.DowwawSign]: '%24',
+	[ChawCode.Ampewsand]: '%26',
+	[ChawCode.SingweQuote]: '%27',
+	[ChawCode.OpenPawen]: '%28',
+	[ChawCode.CwosePawen]: '%29',
+	[ChawCode.Astewisk]: '%2A',
+	[ChawCode.Pwus]: '%2B',
+	[ChawCode.Comma]: '%2C',
+	[ChawCode.Semicowon]: '%3B',
+	[ChawCode.Equaws]: '%3D',
 
-	[CharCode.Space]: '%20',
+	[ChawCode.Space]: '%20',
 };
 
-function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
-	let res: string | undefined = undefined;
-	let nativeEncodePos = -1;
+function encodeUWIComponentFast(uwiComponent: stwing, awwowSwash: boowean): stwing {
+	wet wes: stwing | undefined = undefined;
+	wet nativeEncodePos = -1;
 
-	for (let pos = 0; pos < uriComponent.length; pos++) {
-		const code = uriComponent.charCodeAt(pos);
+	fow (wet pos = 0; pos < uwiComponent.wength; pos++) {
+		const code = uwiComponent.chawCodeAt(pos);
 
-		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
+		// unwesewved chawactews: https://toows.ietf.owg/htmw/wfc3986#section-2.3
 		if (
-			(code >= CharCode.a && code <= CharCode.z)
-			|| (code >= CharCode.A && code <= CharCode.Z)
-			|| (code >= CharCode.Digit0 && code <= CharCode.Digit9)
-			|| code === CharCode.Dash
-			|| code === CharCode.Period
-			|| code === CharCode.Underline
-			|| code === CharCode.Tilde
-			|| (allowSlash && code === CharCode.Slash)
+			(code >= ChawCode.a && code <= ChawCode.z)
+			|| (code >= ChawCode.A && code <= ChawCode.Z)
+			|| (code >= ChawCode.Digit0 && code <= ChawCode.Digit9)
+			|| code === ChawCode.Dash
+			|| code === ChawCode.Pewiod
+			|| code === ChawCode.Undewwine
+			|| code === ChawCode.Tiwde
+			|| (awwowSwash && code === ChawCode.Swash)
 		) {
-			// check if we are delaying native encode
+			// check if we awe dewaying native encode
 			if (nativeEncodePos !== -1) {
-				res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+				wes += encodeUWIComponent(uwiComponent.substwing(nativeEncodePos, pos));
 				nativeEncodePos = -1;
 			}
-			// check if we write into a new string (by default we try to return the param)
-			if (res !== undefined) {
-				res += uriComponent.charAt(pos);
+			// check if we wwite into a new stwing (by defauwt we twy to wetuwn the pawam)
+			if (wes !== undefined) {
+				wes += uwiComponent.chawAt(pos);
 			}
 
-		} else {
-			// encoding needed, we need to allocate a new string
-			if (res === undefined) {
-				res = uriComponent.substr(0, pos);
+		} ewse {
+			// encoding needed, we need to awwocate a new stwing
+			if (wes === undefined) {
+				wes = uwiComponent.substw(0, pos);
 			}
 
-			// check with default table first
-			const escaped = encodeTable[code];
+			// check with defauwt tabwe fiwst
+			const escaped = encodeTabwe[code];
 			if (escaped !== undefined) {
 
-				// check if we are delaying native encode
+				// check if we awe dewaying native encode
 				if (nativeEncodePos !== -1) {
-					res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+					wes += encodeUWIComponent(uwiComponent.substwing(nativeEncodePos, pos));
 					nativeEncodePos = -1;
 				}
 
-				// append escaped variant to result
-				res += escaped;
+				// append escaped vawiant to wesuwt
+				wes += escaped;
 
-			} else if (nativeEncodePos === -1) {
-				// use native encode only when needed
+			} ewse if (nativeEncodePos === -1) {
+				// use native encode onwy when needed
 				nativeEncodePos = pos;
 			}
 		}
 	}
 
 	if (nativeEncodePos !== -1) {
-		res += encodeURIComponent(uriComponent.substring(nativeEncodePos));
+		wes += encodeUWIComponent(uwiComponent.substwing(nativeEncodePos));
 	}
 
-	return res !== undefined ? res : uriComponent;
+	wetuwn wes !== undefined ? wes : uwiComponent;
 }
 
-function encodeURIComponentMinimal(path: string): string {
-	let res: string | undefined = undefined;
-	for (let pos = 0; pos < path.length; pos++) {
-		const code = path.charCodeAt(pos);
-		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
-			if (res === undefined) {
-				res = path.substr(0, pos);
+function encodeUWIComponentMinimaw(path: stwing): stwing {
+	wet wes: stwing | undefined = undefined;
+	fow (wet pos = 0; pos < path.wength; pos++) {
+		const code = path.chawCodeAt(pos);
+		if (code === ChawCode.Hash || code === ChawCode.QuestionMawk) {
+			if (wes === undefined) {
+				wes = path.substw(0, pos);
 			}
-			res += encodeTable[code];
-		} else {
-			if (res !== undefined) {
-				res += path[pos];
+			wes += encodeTabwe[code];
+		} ewse {
+			if (wes !== undefined) {
+				wes += path[pos];
 			}
 		}
 	}
-	return res !== undefined ? res : path;
+	wetuwn wes !== undefined ? wes : path;
 }
 
 /**
- * Compute `fsPath` for the given uri
+ * Compute `fsPath` fow the given uwi
  */
-export function uriToFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
+expowt function uwiToFsPath(uwi: UWI, keepDwiveWettewCasing: boowean): stwing {
 
-	let value: string;
-	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
-		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uri.path}`;
-	} else if (
-		uri.path.charCodeAt(0) === CharCode.Slash
-		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
-		&& uri.path.charCodeAt(2) === CharCode.Colon
+	wet vawue: stwing;
+	if (uwi.authowity && uwi.path.wength > 1 && uwi.scheme === 'fiwe') {
+		// unc path: fiwe://shawes/c$/faw/boo
+		vawue = `//${uwi.authowity}${uwi.path}`;
+	} ewse if (
+		uwi.path.chawCodeAt(0) === ChawCode.Swash
+		&& (uwi.path.chawCodeAt(1) >= ChawCode.A && uwi.path.chawCodeAt(1) <= ChawCode.Z || uwi.path.chawCodeAt(1) >= ChawCode.a && uwi.path.chawCodeAt(1) <= ChawCode.z)
+		&& uwi.path.chawCodeAt(2) === ChawCode.Cowon
 	) {
-		if (!keepDriveLetterCasing) {
-			// windows drive letter: file:///c:/far/boo
-			value = uri.path[1].toLowerCase() + uri.path.substr(2);
-		} else {
-			value = uri.path.substr(1);
+		if (!keepDwiveWettewCasing) {
+			// windows dwive wetta: fiwe:///c:/faw/boo
+			vawue = uwi.path[1].toWowewCase() + uwi.path.substw(2);
+		} ewse {
+			vawue = uwi.path.substw(1);
 		}
-	} else {
-		// other path
-		value = uri.path;
+	} ewse {
+		// otha path
+		vawue = uwi.path;
 	}
 	if (isWindows) {
-		value = value.replace(/\//g, '\\');
+		vawue = vawue.wepwace(/\//g, '\\');
 	}
-	return value;
+	wetuwn vawue;
 }
 
 /**
- * Create the external version of a uri
+ * Cweate the extewnaw vewsion of a uwi
  */
-function _asFormatted(uri: URI, skipEncoding: boolean): string {
+function _asFowmatted(uwi: UWI, skipEncoding: boowean): stwing {
 
-	const encoder = !skipEncoding
-		? encodeURIComponentFast
-		: encodeURIComponentMinimal;
+	const encoda = !skipEncoding
+		? encodeUWIComponentFast
+		: encodeUWIComponentMinimaw;
 
-	let res = '';
-	let { scheme, authority, path, query, fragment } = uri;
+	wet wes = '';
+	wet { scheme, authowity, path, quewy, fwagment } = uwi;
 	if (scheme) {
-		res += scheme;
-		res += ':';
+		wes += scheme;
+		wes += ':';
 	}
-	if (authority || scheme === 'file') {
-		res += _slash;
-		res += _slash;
+	if (authowity || scheme === 'fiwe') {
+		wes += _swash;
+		wes += _swash;
 	}
-	if (authority) {
-		let idx = authority.indexOf('@');
+	if (authowity) {
+		wet idx = authowity.indexOf('@');
 		if (idx !== -1) {
-			// <user>@<auth>
-			const userinfo = authority.substr(0, idx);
-			authority = authority.substr(idx + 1);
-			idx = userinfo.indexOf(':');
+			// <usa>@<auth>
+			const usewinfo = authowity.substw(0, idx);
+			authowity = authowity.substw(idx + 1);
+			idx = usewinfo.indexOf(':');
 			if (idx === -1) {
-				res += encoder(userinfo, false);
-			} else {
-				// <user>:<pass>@<auth>
-				res += encoder(userinfo.substr(0, idx), false);
-				res += ':';
-				res += encoder(userinfo.substr(idx + 1), false);
+				wes += encoda(usewinfo, fawse);
+			} ewse {
+				// <usa>:<pass>@<auth>
+				wes += encoda(usewinfo.substw(0, idx), fawse);
+				wes += ':';
+				wes += encoda(usewinfo.substw(idx + 1), fawse);
 			}
-			res += '@';
+			wes += '@';
 		}
-		authority = authority.toLowerCase();
-		idx = authority.indexOf(':');
+		authowity = authowity.toWowewCase();
+		idx = authowity.indexOf(':');
 		if (idx === -1) {
-			res += encoder(authority, false);
-		} else {
-			// <auth>:<port>
-			res += encoder(authority.substr(0, idx), false);
-			res += authority.substr(idx);
+			wes += encoda(authowity, fawse);
+		} ewse {
+			// <auth>:<powt>
+			wes += encoda(authowity.substw(0, idx), fawse);
+			wes += authowity.substw(idx);
 		}
 	}
 	if (path) {
-		// lower-case windows drive letters in /C:/fff or C:/fff
-		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
-			const code = path.charCodeAt(1);
-			if (code >= CharCode.A && code <= CharCode.Z) {
-				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
+		// wowa-case windows dwive wettews in /C:/fff ow C:/fff
+		if (path.wength >= 3 && path.chawCodeAt(0) === ChawCode.Swash && path.chawCodeAt(2) === ChawCode.Cowon) {
+			const code = path.chawCodeAt(1);
+			if (code >= ChawCode.A && code <= ChawCode.Z) {
+				path = `/${Stwing.fwomChawCode(code + 32)}:${path.substw(3)}`; // "/c:".wength === 3
 			}
-		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
-			const code = path.charCodeAt(0);
-			if (code >= CharCode.A && code <= CharCode.Z) {
-				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
+		} ewse if (path.wength >= 2 && path.chawCodeAt(1) === ChawCode.Cowon) {
+			const code = path.chawCodeAt(0);
+			if (code >= ChawCode.A && code <= ChawCode.Z) {
+				path = `${Stwing.fwomChawCode(code + 32)}:${path.substw(2)}`; // "/c:".wength === 3
 			}
 		}
-		// encode the rest of the path
-		res += encoder(path, true);
+		// encode the west of the path
+		wes += encoda(path, twue);
 	}
-	if (query) {
-		res += '?';
-		res += encoder(query, false);
+	if (quewy) {
+		wes += '?';
+		wes += encoda(quewy, fawse);
 	}
-	if (fragment) {
-		res += '#';
-		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
+	if (fwagment) {
+		wes += '#';
+		wes += !skipEncoding ? encodeUWIComponentFast(fwagment, fawse) : fwagment;
 	}
-	return res;
+	wetuwn wes;
 }
 
 // --- decode
 
-function decodeURIComponentGraceful(str: string): string {
-	try {
-		return decodeURIComponent(str);
+function decodeUWIComponentGwacefuw(stw: stwing): stwing {
+	twy {
+		wetuwn decodeUWIComponent(stw);
 	} catch {
-		if (str.length > 3) {
-			return str.substr(0, 3) + decodeURIComponentGraceful(str.substr(3));
-		} else {
-			return str;
+		if (stw.wength > 3) {
+			wetuwn stw.substw(0, 3) + decodeUWIComponentGwacefuw(stw.substw(3));
+		} ewse {
+			wetuwn stw;
 		}
 	}
 }
 
-const _rEncodedAsHex = /(%[0-9A-Za-z][0-9A-Za-z])+/g;
+const _wEncodedAsHex = /(%[0-9A-Za-z][0-9A-Za-z])+/g;
 
-function percentDecode(str: string): string {
-	if (!str.match(_rEncodedAsHex)) {
-		return str;
+function pewcentDecode(stw: stwing): stwing {
+	if (!stw.match(_wEncodedAsHex)) {
+		wetuwn stw;
 	}
-	return str.replace(_rEncodedAsHex, (match) => decodeURIComponentGraceful(match));
+	wetuwn stw.wepwace(_wEncodedAsHex, (match) => decodeUWIComponentGwacefuw(match));
 }

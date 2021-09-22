@@ -1,392 +1,392 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { topStackFrameColor, focusedStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { Color } from 'vs/base/common/color';
-import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+impowt { getPixewWatio, getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { Dimension, append, $, addStandawdDisposabweWistena } fwom 'vs/base/bwowsa/dom';
+impowt { ITabweWendewa, ITabweViwtuawDewegate } fwom 'vs/base/bwowsa/ui/tabwe/tabwe';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WowkbenchTabwe } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { editowBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { CONTEXT_WANGUAGE_SUPPOWTS_DISASSEMBWE_WEQUEST, DISASSEMBWY_VIEW_ID, IDebugSewvice, IInstwuctionBweakpoint, State } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt * as icons fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { cweateStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { dispose, Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { topStackFwameCowow, focusedStackFwameCowow } fwom 'vs/wowkbench/contwib/debug/bwowsa/cawwStackEditowContwibution';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { InstwuctionBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
 
-interface IDisassembledInstructionEntry {
-	allowBreakpoint: boolean;
-	isBreakpointSet: boolean;
-	instruction: DebugProtocol.DisassembledInstruction;
-	instructionAddress?: bigint;
+intewface IDisassembwedInstwuctionEntwy {
+	awwowBweakpoint: boowean;
+	isBweakpointSet: boowean;
+	instwuction: DebugPwotocow.DisassembwedInstwuction;
+	instwuctionAddwess?: bigint;
 }
 
-// Special entry as a placeholer when disassembly is not available
-const disassemblyNotAvailable: IDisassembledInstructionEntry = {
-	allowBreakpoint: false,
-	isBreakpointSet: false,
-	instruction: {
-		address: '-1',
-		instruction: localize('instructionNotAvailable', "Disassembly not available.")
+// Speciaw entwy as a pwacehowa when disassembwy is not avaiwabwe
+const disassembwyNotAvaiwabwe: IDisassembwedInstwuctionEntwy = {
+	awwowBweakpoint: fawse,
+	isBweakpointSet: fawse,
+	instwuction: {
+		addwess: '-1',
+		instwuction: wocawize('instwuctionNotAvaiwabwe', "Disassembwy not avaiwabwe.")
 	},
-	instructionAddress: BigInt(-1)
+	instwuctionAddwess: BigInt(-1)
 };
 
-export class DisassemblyView extends EditorPane {
+expowt cwass DisassembwyView extends EditowPane {
 
-	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
+	pwivate static weadonwy NUM_INSTWUCTIONS_TO_WOAD = 50;
 
-	// Used in instruction renderer
-	private _fontInfo: BareFontInfo;
-	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
-	private _onDidChangeStackFrame: Emitter<void>;
-	private _previousDebuggingState: State;
-	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
+	// Used in instwuction wendewa
+	pwivate _fontInfo: BaweFontInfo;
+	pwivate _disassembwedInstwuctions: WowkbenchTabwe<IDisassembwedInstwuctionEntwy> | undefined;
+	pwivate _onDidChangeStackFwame: Emitta<void>;
+	pwivate _pweviousDebuggingState: State;
+	pwivate _instwuctionBpWist: weadonwy IInstwuctionBweakpoint[] = [];
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IDebugService private readonly _debugService: IDebugService,
-		@IEditorService editorService: IEditorService,
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IDebugSewvice pwivate weadonwy _debugSewvice: IDebugSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
 	) {
-		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
+		supa(DISASSEMBWY_VIEW_ID, tewemetwySewvice, themeSewvice, stowageSewvice);
 
-		this._disassembledInstructions = undefined;
-		this._onDidChangeStackFrame = new Emitter<void>();
-		this._previousDebuggingState = _debugService.state;
+		this._disassembwedInstwuctions = undefined;
+		this._onDidChangeStackFwame = new Emitta<void>();
+		this._pweviousDebuggingState = _debugSewvice.state;
 
-		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-				this._disassembledInstructions?.rerender();
+		this._fontInfo = BaweFontInfo.cweateFwomWawSettings(configuwationSewvice.getVawue('editow'), getZoomWevew(), getPixewWatio());
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('editow')) {
+				this._fontInfo = BaweFontInfo.cweateFwomWawSettings(configuwationSewvice.getVawue('editow'), getZoomWevew(), getPixewWatio());
+				this._disassembwedInstwuctions?.wewenda();
 			}
 		}));
 	}
 
-	get fontInfo() { return this._fontInfo; }
+	get fontInfo() { wetuwn this._fontInfo; }
 
-	get currentInstructionAddresses() {
-		return this._debugService.getModel().getSessions(false).
-			map(session => session.getAllThreads()).
-			reduce((prev, curr) => prev.concat(curr), []).
-			map(thread => thread.getTopStackFrame()).
-			map(frame => frame?.instructionPointerReference);
+	get cuwwentInstwuctionAddwesses() {
+		wetuwn this._debugSewvice.getModew().getSessions(fawse).
+			map(session => session.getAwwThweads()).
+			weduce((pwev, cuww) => pwev.concat(cuww), []).
+			map(thwead => thwead.getTopStackFwame()).
+			map(fwame => fwame?.instwuctionPointewWefewence);
 	}
 
-	// Instruction address of the top stack frame of the focused stack
-	get focusedCurrentInstructionAddress() {
-		return this._debugService.getViewModel().focusedStackFrame?.thread.getTopStackFrame()?.instructionPointerReference;
+	// Instwuction addwess of the top stack fwame of the focused stack
+	get focusedCuwwentInstwuctionAddwess() {
+		wetuwn this._debugSewvice.getViewModew().focusedStackFwame?.thwead.getTopStackFwame()?.instwuctionPointewWefewence;
 	}
 
-	get focusedInstructionAddress() {
-		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
+	get focusedInstwuctionAddwess() {
+		wetuwn this._debugSewvice.getViewModew().focusedStackFwame?.instwuctionPointewWefewence;
 	}
 
-	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
+	get onDidChangeStackFwame() { wetuwn this._onDidChangeStackFwame.event; }
 
-	protected createEditor(parent: HTMLElement): void {
-		const lineHeight = this.fontInfo.lineHeight;
-		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
-			headerRowHeight: number = 0; // No header
-			getHeight(row: IDisassembledInstructionEntry): number {
-				return lineHeight;
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		const wineHeight = this.fontInfo.wineHeight;
+		const dewegate = new cwass impwements ITabweViwtuawDewegate<IDisassembwedInstwuctionEntwy>{
+			headewWowHeight: numba = 0; // No heada
+			getHeight(wow: IDisassembwedInstwuctionEntwy): numba {
+				wetuwn wineHeight;
 			}
 		};
 
-		const instructionRenderer = this._register(this._instantiationService.createInstance(InstructionRenderer, this));
+		const instwuctionWendewa = this._wegista(this._instantiationSewvice.cweateInstance(InstwuctionWendewa, this));
 
-		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchTable,
-			'DisassemblyView', parent, delegate,
+		this._disassembwedInstwuctions = this._wegista(this._instantiationSewvice.cweateInstance(WowkbenchTabwe,
+			'DisassembwyView', pawent, dewegate,
 			[
 				{
-					label: '',
-					tooltip: '',
+					wabew: '',
+					toowtip: '',
 					weight: 0,
-					minimumWidth: this.fontInfo.lineHeight,
-					maximumWidth: this.fontInfo.lineHeight,
-					templateId: BreakpointRenderer.TEMPLATE_ID,
-					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
+					minimumWidth: this.fontInfo.wineHeight,
+					maximumWidth: this.fontInfo.wineHeight,
+					tempwateId: BweakpointWendewa.TEMPWATE_ID,
+					pwoject(wow: IDisassembwedInstwuctionEntwy): IDisassembwedInstwuctionEntwy { wetuwn wow; }
 				},
 				{
-					label: 'instructions',
-					tooltip: '',
+					wabew: 'instwuctions',
+					toowtip: '',
 					weight: 0.3,
-					templateId: InstructionRenderer.TEMPLATE_ID,
-					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
+					tempwateId: InstwuctionWendewa.TEMPWATE_ID,
+					pwoject(wow: IDisassembwedInstwuctionEntwy): IDisassembwedInstwuctionEntwy { wetuwn wow; }
 				},
 			],
 			[
-				this._instantiationService.createInstance(BreakpointRenderer, this),
-				instructionRenderer,
+				this._instantiationSewvice.cweateInstance(BweakpointWendewa, this),
+				instwuctionWendewa,
 			],
 			{
-				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
-				horizontalScrolling: false,
-				overrideStyles: {
-					listBackground: editorBackground
+				identityPwovida: { getId: (e: IDisassembwedInstwuctionEntwy) => e.instwuction.addwess },
+				howizontawScwowwing: fawse,
+				ovewwideStywes: {
+					wistBackgwound: editowBackgwound
 				},
-				multipleSelectionSupport: false,
-				setRowLineHeight: false,
-				openOnSingleClick: false,
-				accessibilityProvider: new AccessibilityProvider(),
-				mouseSupport: false
+				muwtipweSewectionSuppowt: fawse,
+				setWowWineHeight: fawse,
+				openOnSingweCwick: fawse,
+				accessibiwityPwovida: new AccessibiwityPwovida(),
+				mouseSuppowt: fawse
 			}
-		)) as WorkbenchTable<IDisassembledInstructionEntry>;
+		)) as WowkbenchTabwe<IDisassembwedInstwuctionEntwy>;
 
-		this.reloadDisassembly();
+		this.wewoadDisassembwy();
 
-		this._register(this._disassembledInstructions.onDidScroll(e => {
-			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
-				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
+		this._wegista(this._disassembwedInstwuctions.onDidScwoww(e => {
+			if (e.owdScwowwTop > e.scwowwTop && e.scwowwTop < e.height) {
+				const topEwement = Math.fwoow(e.scwowwTop / this.fontInfo.wineHeight) + DisassembwyView.NUM_INSTWUCTIONS_TO_WOAD;
+				this.scwowwUp_WoadDisassembwedInstwuctions(DisassembwyView.NUM_INSTWUCTIONS_TO_WOAD).then((success) => {
 					if (success) {
-						this._disassembledInstructions!.reveal(topElement, 0);
+						this._disassembwedInstwuctions!.weveaw(topEwement, 0);
 					}
 				});
-			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+			} ewse if (e.owdScwowwTop < e.scwowwTop && e.scwowwTop + e.height > e.scwowwHeight - e.height) {
+				this.scwowwDown_WoadDisassembwedInstwuctions(DisassembwyView.NUM_INSTWUCTIONS_TO_WOAD);
 			}
 		}));
 
-		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
-			if (this._disassembledInstructions) {
-				this.goToAddress();
-				this._onDidChangeStackFrame.fire();
+		this._wegista(this._debugSewvice.getViewModew().onDidFocusStackFwame((stackFwame) => {
+			if (this._disassembwedInstwuctions) {
+				this.goToAddwess();
+				this._onDidChangeStackFwame.fiwe();
 			}
 		}));
 
-		// refresh breakpoints view
-		this._register(this._debugService.getModel().onDidChangeBreakpoints(bpEvent => {
-			if (bpEvent && this._disassembledInstructions) {
-				// draw viewable BP
-				let changed = false;
-				bpEvent.added?.forEach((bp) => {
-					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromAddress(bp.instructionReference);
+		// wefwesh bweakpoints view
+		this._wegista(this._debugSewvice.getModew().onDidChangeBweakpoints(bpEvent => {
+			if (bpEvent && this._disassembwedInstwuctions) {
+				// dwaw viewabwe BP
+				wet changed = fawse;
+				bpEvent.added?.fowEach((bp) => {
+					if (bp instanceof InstwuctionBweakpoint) {
+						const index = this.getIndexFwomAddwess(bp.instwuctionWefewence);
 						if (index >= 0) {
-							this._disassembledInstructions!.row(index).isBreakpointSet = true;
-							changed = true;
+							this._disassembwedInstwuctions!.wow(index).isBweakpointSet = twue;
+							changed = twue;
 						}
 					}
 				});
 
-				bpEvent.removed?.forEach((bp) => {
-					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromAddress(bp.instructionReference);
+				bpEvent.wemoved?.fowEach((bp) => {
+					if (bp instanceof InstwuctionBweakpoint) {
+						const index = this.getIndexFwomAddwess(bp.instwuctionWefewence);
 						if (index >= 0) {
-							this._disassembledInstructions!.row(index).isBreakpointSet = false;
-							changed = true;
+							this._disassembwedInstwuctions!.wow(index).isBweakpointSet = fawse;
+							changed = twue;
 						}
 					}
 				});
 
-				// get an updated list so that items beyond the current range would render when reached.
-				this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
+				// get an updated wist so that items beyond the cuwwent wange wouwd wenda when weached.
+				this._instwuctionBpWist = this._debugSewvice.getModew().getInstwuctionBweakpoints();
 
 				if (changed) {
-					this._onDidChangeStackFrame.fire();
+					this._onDidChangeStackFwame.fiwe();
 				}
 			}
 		}));
 
-		this._register(this._debugService.onDidChangeState(e => {
-			if ((e === State.Running || e === State.Stopped) &&
-				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
-				// Just started debugging, clear the view
-				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
+		this._wegista(this._debugSewvice.onDidChangeState(e => {
+			if ((e === State.Wunning || e === State.Stopped) &&
+				(this._pweviousDebuggingState !== State.Wunning && this._pweviousDebuggingState !== State.Stopped)) {
+				// Just stawted debugging, cweaw the view
+				this._disassembwedInstwuctions?.spwice(0, this._disassembwedInstwuctions.wength, [disassembwyNotAvaiwabwe]);
 			}
-			this._previousDebuggingState = e;
+			this._pweviousDebuggingState = e;
 		}));
 	}
 
-	layout(dimension: Dimension): void {
-		if (this._disassembledInstructions) {
-			this._disassembledInstructions.layout(dimension.height);
+	wayout(dimension: Dimension): void {
+		if (this._disassembwedInstwuctions) {
+			this._disassembwedInstwuctions.wayout(dimension.height);
 		}
 	}
 
 	/**
-	 * Go to the address provided. If no address is provided, reveal the address of the currently focused stack frame.
+	 * Go to the addwess pwovided. If no addwess is pwovided, weveaw the addwess of the cuwwentwy focused stack fwame.
 	 */
-	goToAddress(address?: string, focus?: boolean): void {
-		if (!this._disassembledInstructions) {
-			return;
+	goToAddwess(addwess?: stwing, focus?: boowean): void {
+		if (!this._disassembwedInstwuctions) {
+			wetuwn;
 		}
 
-		if (!address) {
-			address = this.focusedInstructionAddress;
+		if (!addwess) {
+			addwess = this.focusedInstwuctionAddwess;
 		}
-		if (!address) {
-			return;
+		if (!addwess) {
+			wetuwn;
 		}
 
-		const index = this.getIndexFromAddress(address);
+		const index = this.getIndexFwomAddwess(addwess);
 		if (index >= 0) {
-			// If the row is out of the viewport, reveal it
-			const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
-			const bottomElement = Math.floor((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
-			if (index > topElement && index < bottomElement) {
-				// Inside the viewport, don't do anything here
-			} else if (index <= topElement && index > topElement - 5) {
-				// Not too far from top, review it at the top
-				this._disassembledInstructions.reveal(index, 0);
-			} else if (index >= bottomElement && index < bottomElement + 5) {
-				// Not too far from bottom, review it at the bottom
-				this._disassembledInstructions.reveal(index, 1);
-			} else {
-				// Far from the current viewport, reveal it
-				this._disassembledInstructions.reveal(index, 0.5);
+			// If the wow is out of the viewpowt, weveaw it
+			const topEwement = Math.fwoow(this._disassembwedInstwuctions.scwowwTop / this.fontInfo.wineHeight);
+			const bottomEwement = Math.fwoow((this._disassembwedInstwuctions.scwowwTop + this._disassembwedInstwuctions.wendewHeight) / this.fontInfo.wineHeight);
+			if (index > topEwement && index < bottomEwement) {
+				// Inside the viewpowt, don't do anything hewe
+			} ewse if (index <= topEwement && index > topEwement - 5) {
+				// Not too faw fwom top, weview it at the top
+				this._disassembwedInstwuctions.weveaw(index, 0);
+			} ewse if (index >= bottomEwement && index < bottomEwement + 5) {
+				// Not too faw fwom bottom, weview it at the bottom
+				this._disassembwedInstwuctions.weveaw(index, 1);
+			} ewse {
+				// Faw fwom the cuwwent viewpowt, weveaw it
+				this._disassembwedInstwuctions.weveaw(index, 0.5);
 			}
 
 			if (focus) {
-				this._disassembledInstructions.domFocus();
-				this._disassembledInstructions.setFocus([index]);
+				this._disassembwedInstwuctions.domFocus();
+				this._disassembwedInstwuctions.setFocus([index]);
 			}
-		} else if (this._debugService.state === State.Stopped) {
-			// Address is not provided or not in the table currently, clear the table
-			// and reload if we are in the state where we can load disassembly.
-			this.reloadDisassembly(address);
+		} ewse if (this._debugSewvice.state === State.Stopped) {
+			// Addwess is not pwovided ow not in the tabwe cuwwentwy, cweaw the tabwe
+			// and wewoad if we awe in the state whewe we can woad disassembwy.
+			this.wewoadDisassembwy(addwess);
 		}
 	}
 
-	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+	pwivate async scwowwUp_WoadDisassembwedInstwuctions(instwuctionCount: numba): Pwomise<boowean> {
+		if (this._disassembwedInstwuctions && this._disassembwedInstwuctions.wength > 0) {
+			const addwess: stwing | undefined = this._disassembwedInstwuctions?.wow(0).instwuction.addwess;
+			wetuwn this.woadDisassembwedInstwuctions(addwess, -instwuctionCount, instwuctionCount - 1);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
-			return this.loadDisassembledInstructions(address, 1, instructionCount);
+	pwivate async scwowwDown_WoadDisassembwedInstwuctions(instwuctionCount: numba): Pwomise<boowean> {
+		if (this._disassembwedInstwuctions && this._disassembwedInstwuctions.wength > 0) {
+			const addwess: stwing | undefined = this._disassembwedInstwuctions?.wow(this._disassembwedInstwuctions?.wength - 1).instwuction.addwess;
+			wetuwn this.woadDisassembwedInstwuctions(addwess, 1, instwuctionCount);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
-		// if address is null, then use current stack frame.
-		if (!address || address === '-1') {
-			address = this.focusedInstructionAddress;
+	pwivate async woadDisassembwedInstwuctions(addwess: stwing | undefined, instwuctionOffset: numba, instwuctionCount: numba): Pwomise<boowean> {
+		// if addwess is nuww, then use cuwwent stack fwame.
+		if (!addwess || addwess === '-1') {
+			addwess = this.focusedInstwuctionAddwess;
 		}
-		if (!address) {
-			return false;
+		if (!addwess) {
+			wetuwn fawse;
 		}
 
-		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
-		const session = this._debugService.getViewModel().focusedSession;
-		const resultEntries = await session?.disassemble(address, 0, instructionOffset, instructionCount);
-		if (session && resultEntries && this._disassembledInstructions) {
-			const newEntries: IDisassembledInstructionEntry[] = [];
+		// consowe.wog(`DisassembwyView: woadDisassembwedInstwuctions ${addwess}, ${instwuctionOffset}, ${instwuctionCount}`);
+		const session = this._debugSewvice.getViewModew().focusedSession;
+		const wesuwtEntwies = await session?.disassembwe(addwess, 0, instwuctionOffset, instwuctionCount);
+		if (session && wesuwtEntwies && this._disassembwedInstwuctions) {
+			const newEntwies: IDisassembwedInstwuctionEntwy[] = [];
 
-			for (let i = 0; i < resultEntries.length; i++) {
-				const found = this._instructionBpList.find(p => p.instructionReference === resultEntries[i].address);
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, instruction: resultEntries[i] });
-			}
-
-			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
-
-			// request is either at the start or end
-			if (instructionOffset >= 0) {
-				this._disassembledInstructions.splice(this._disassembledInstructions.length, specialEntriesToRemove, newEntries);
-			} else {
-				this._disassembledInstructions.splice(0, specialEntriesToRemove, newEntries);
+			fow (wet i = 0; i < wesuwtEntwies.wength; i++) {
+				const found = this._instwuctionBpWist.find(p => p.instwuctionWefewence === wesuwtEntwies[i].addwess);
+				newEntwies.push({ awwowBweakpoint: twue, isBweakpointSet: found !== undefined, instwuction: wesuwtEntwies[i] });
 			}
 
-			return true;
+			const speciawEntwiesToWemove = this._disassembwedInstwuctions.wength === 1 ? 1 : 0;
+
+			// wequest is eitha at the stawt ow end
+			if (instwuctionOffset >= 0) {
+				this._disassembwedInstwuctions.spwice(this._disassembwedInstwuctions.wength, speciawEntwiesToWemove, newEntwies);
+			} ewse {
+				this._disassembwedInstwuctions.spwice(0, speciawEntwiesToWemove, newEntwies);
+			}
+
+			wetuwn twue;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	private getIndexFromAddress(instructionAddress: string): number {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address = BigInt(instructionAddress);
-			if (address) {
-				let startIndex = 0;
-				let endIndex = this._disassembledInstructions.length - 1;
-				const start = this._disassembledInstructions.row(startIndex);
-				const end = this._disassembledInstructions.row(endIndex);
+	pwivate getIndexFwomAddwess(instwuctionAddwess: stwing): numba {
+		if (this._disassembwedInstwuctions && this._disassembwedInstwuctions.wength > 0) {
+			const addwess = BigInt(instwuctionAddwess);
+			if (addwess) {
+				wet stawtIndex = 0;
+				wet endIndex = this._disassembwedInstwuctions.wength - 1;
+				const stawt = this._disassembwedInstwuctions.wow(stawtIndex);
+				const end = this._disassembwedInstwuctions.wow(endIndex);
 
-				this.ensureAddressParsed(start);
-				this.ensureAddressParsed(end);
-				if (start.instructionAddress! > address ||
-					end.instructionAddress! < address) {
-					return -1;
-				} else if (start.instructionAddress! === address) {
-					return startIndex;
-				} else if (end.instructionAddress! === address) {
-					return endIndex;
+				this.ensuweAddwessPawsed(stawt);
+				this.ensuweAddwessPawsed(end);
+				if (stawt.instwuctionAddwess! > addwess ||
+					end.instwuctionAddwess! < addwess) {
+					wetuwn -1;
+				} ewse if (stawt.instwuctionAddwess! === addwess) {
+					wetuwn stawtIndex;
+				} ewse if (end.instwuctionAddwess! === addwess) {
+					wetuwn endIndex;
 				}
 
-				while (endIndex > startIndex) {
-					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
-					const mid = this._disassembledInstructions.row(midIndex);
+				whiwe (endIndex > stawtIndex) {
+					const midIndex = Math.fwoow((endIndex - stawtIndex) / 2) + stawtIndex;
+					const mid = this._disassembwedInstwuctions.wow(midIndex);
 
-					this.ensureAddressParsed(mid);
-					if (mid.instructionAddress! > address) {
+					this.ensuweAddwessPawsed(mid);
+					if (mid.instwuctionAddwess! > addwess) {
 						endIndex = midIndex;
-					} else if (mid.instructionAddress! < address) {
-						startIndex = midIndex;
-					} else {
-						return midIndex;
+					} ewse if (mid.instwuctionAddwess! < addwess) {
+						stawtIndex = midIndex;
+					} ewse {
+						wetuwn midIndex;
 					}
 				}
 
-				return startIndex;
+				wetuwn stawtIndex;
 			}
 		}
 
-		return -1;
+		wetuwn -1;
 	}
 
-	private ensureAddressParsed(entry: IDisassembledInstructionEntry) {
-		if (entry.instructionAddress !== undefined) {
-			return;
-		} else {
-			entry.instructionAddress = BigInt(entry.instruction.address);
+	pwivate ensuweAddwessPawsed(entwy: IDisassembwedInstwuctionEntwy) {
+		if (entwy.instwuctionAddwess !== undefined) {
+			wetuwn;
+		} ewse {
+			entwy.instwuctionAddwess = BigInt(entwy.instwuction.addwess);
 		}
 	}
 
 	/**
-	 * Clears the table and reload instructions near the target address
+	 * Cweaws the tabwe and wewoad instwuctions neaw the tawget addwess
 	 */
-	private reloadDisassembly(targetAddress?: string) {
-		if (this._disassembledInstructions) {
-			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
-			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
-				// on load, set the target instruction in the middle of the page.
-				if (this._disassembledInstructions!.length > 0) {
-					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
-					this._disassembledInstructions!.reveal(targetIndex, 0.5);
+	pwivate wewoadDisassembwy(tawgetAddwess?: stwing) {
+		if (this._disassembwedInstwuctions) {
+			this._disassembwedInstwuctions.spwice(0, this._disassembwedInstwuctions.wength, [disassembwyNotAvaiwabwe]);
+			this._instwuctionBpWist = this._debugSewvice.getModew().getInstwuctionBweakpoints();
+			this.woadDisassembwedInstwuctions(tawgetAddwess, -DisassembwyView.NUM_INSTWUCTIONS_TO_WOAD * 4, DisassembwyView.NUM_INSTWUCTIONS_TO_WOAD * 8).then(() => {
+				// on woad, set the tawget instwuction in the middwe of the page.
+				if (this._disassembwedInstwuctions!.wength > 0) {
+					const tawgetIndex = Math.fwoow(this._disassembwedInstwuctions!.wength / 2);
+					this._disassembwedInstwuctions!.weveaw(tawgetIndex, 0.5);
 
-					// Always focus the target address on reload, or arrow key navigation would look terrible
-					this._disassembledInstructions!.domFocus();
-					this._disassembledInstructions!.setFocus([targetIndex]);
+					// Awways focus the tawget addwess on wewoad, ow awwow key navigation wouwd wook tewwibwe
+					this._disassembwedInstwuctions!.domFocus();
+					this._disassembwedInstwuctions!.setFocus([tawgetIndex]);
 				}
 			});
 		}
@@ -394,274 +394,274 @@ export class DisassemblyView extends EditorPane {
 
 }
 
-interface IBreakpointColumnTemplateData {
-	currentElement: { element?: IDisassembledInstructionEntry };
-	icon: HTMLElement;
-	disposables: IDisposable[];
+intewface IBweakpointCowumnTempwateData {
+	cuwwentEwement: { ewement?: IDisassembwedInstwuctionEntwy };
+	icon: HTMWEwement;
+	disposabwes: IDisposabwe[];
 }
 
-class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
+cwass BweakpointWendewa impwements ITabweWendewa<IDisassembwedInstwuctionEntwy, IBweakpointCowumnTempwateData> {
 
-	static readonly TEMPLATE_ID = 'breakpoint';
+	static weadonwy TEMPWATE_ID = 'bweakpoint';
 
-	templateId: string = BreakpointRenderer.TEMPLATE_ID;
+	tempwateId: stwing = BweakpointWendewa.TEMPWATE_ID;
 
-	private readonly _breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
-	private readonly _breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
-	private readonly _debugStackframe = 'codicon-' + icons.debugStackframe.id;
-	private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
+	pwivate weadonwy _bweakpointIcon = 'codicon-' + icons.bweakpoint.weguwaw.id;
+	pwivate weadonwy _bweakpointHintIcon = 'codicon-' + icons.debugBweakpointHint.id;
+	pwivate weadonwy _debugStackfwame = 'codicon-' + icons.debugStackfwame.id;
+	pwivate weadonwy _debugStackfwameFocused = 'codicon-' + icons.debugStackfwameFocused.id;
 
-	constructor(
-		private readonly _disassemblyView: DisassemblyView,
-		@IDebugService private readonly _debugService: IDebugService
+	constwuctow(
+		pwivate weadonwy _disassembwyView: DisassembwyView,
+		@IDebugSewvice pwivate weadonwy _debugSewvice: IDebugSewvice
 	) {
 	}
 
-	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
-		const icon = append(container, $('.disassembly-view'));
-		icon.classList.add('codicon');
+	wendewTempwate(containa: HTMWEwement): IBweakpointCowumnTempwateData {
+		const icon = append(containa, $('.disassembwy-view'));
+		icon.cwassWist.add('codicon');
 
-		icon.style.display = 'flex';
-		icon.style.alignItems = 'center';
-		icon.style.justifyContent = 'center';
+		icon.stywe.dispway = 'fwex';
+		icon.stywe.awignItems = 'centa';
+		icon.stywe.justifyContent = 'centa';
 
-		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
+		const cuwwentEwement: { ewement?: IDisassembwedInstwuctionEntwy } = { ewement: undefined };
 
-		const disposables = [
-			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderDebugStackframe(icon, currentElement.element)),
-			addStandardDisposableListener(container, 'mouseover', () => {
-				if (currentElement.element?.allowBreakpoint) {
-					icon.classList.add(this._breakpointHintIcon);
+		const disposabwes = [
+			this._disassembwyView.onDidChangeStackFwame(() => this.wewendewDebugStackfwame(icon, cuwwentEwement.ewement)),
+			addStandawdDisposabweWistena(containa, 'mouseova', () => {
+				if (cuwwentEwement.ewement?.awwowBweakpoint) {
+					icon.cwassWist.add(this._bweakpointHintIcon);
 				}
 			}),
-			addStandardDisposableListener(container, 'mouseout', () => {
-				if (currentElement.element?.allowBreakpoint) {
-					icon.classList.remove(this._breakpointHintIcon);
+			addStandawdDisposabweWistena(containa, 'mouseout', () => {
+				if (cuwwentEwement.ewement?.awwowBweakpoint) {
+					icon.cwassWist.wemove(this._bweakpointHintIcon);
 				}
 			}),
-			addStandardDisposableListener(container, 'click', () => {
-				if (currentElement.element?.allowBreakpoint) {
-					// click show hint while waiting for BP to resolve.
-					icon.classList.add(this._breakpointHintIcon);
-					if (currentElement.element.isBreakpointSet) {
-						this._debugService.removeInstructionBreakpoints(currentElement.element.instruction.address);
+			addStandawdDisposabweWistena(containa, 'cwick', () => {
+				if (cuwwentEwement.ewement?.awwowBweakpoint) {
+					// cwick show hint whiwe waiting fow BP to wesowve.
+					icon.cwassWist.add(this._bweakpointHintIcon);
+					if (cuwwentEwement.ewement.isBweakpointSet) {
+						this._debugSewvice.wemoveInstwuctionBweakpoints(cuwwentEwement.ewement.instwuction.addwess);
 
-					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint(currentElement.element.instruction.address, 0);
+					} ewse if (cuwwentEwement.ewement.awwowBweakpoint && !cuwwentEwement.ewement.isBweakpointSet) {
+						this._debugSewvice.addInstwuctionBweakpoint(cuwwentEwement.ewement.instwuction.addwess, 0);
 					}
 				}
 			})
 		];
 
-		return { currentElement, icon, disposables };
+		wetuwn { cuwwentEwement, icon, disposabwes };
 	}
 
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		templateData.currentElement.element = element;
-		this.rerenderDebugStackframe(templateData.icon, element);
+	wendewEwement(ewement: IDisassembwedInstwuctionEntwy, index: numba, tempwateData: IBweakpointCowumnTempwateData, height: numba | undefined): void {
+		tempwateData.cuwwentEwement.ewement = ewement;
+		this.wewendewDebugStackfwame(tempwateData.icon, ewement);
 	}
 
-	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
-		dispose(templateData.disposables);
-		templateData.disposables = [];
+	disposeTempwate(tempwateData: IBweakpointCowumnTempwateData): void {
+		dispose(tempwateData.disposabwes);
+		tempwateData.disposabwes = [];
 	}
 
-	private rerenderDebugStackframe(icon: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element?.instruction.address === this._disassemblyView.focusedCurrentInstructionAddress) {
-			icon.classList.add(this._debugStackframe);
-		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
-			icon.classList.add(this._debugStackframeFocused);
-		} else {
-			icon.classList.remove(this._debugStackframe);
-			icon.classList.remove(this._debugStackframeFocused);
+	pwivate wewendewDebugStackfwame(icon: HTMWEwement, ewement?: IDisassembwedInstwuctionEntwy) {
+		if (ewement?.instwuction.addwess === this._disassembwyView.focusedCuwwentInstwuctionAddwess) {
+			icon.cwassWist.add(this._debugStackfwame);
+		} ewse if (ewement?.instwuction.addwess === this._disassembwyView.focusedInstwuctionAddwess) {
+			icon.cwassWist.add(this._debugStackfwameFocused);
+		} ewse {
+			icon.cwassWist.wemove(this._debugStackfwame);
+			icon.cwassWist.wemove(this._debugStackfwameFocused);
 		}
 
-		icon.classList.remove(this._breakpointHintIcon);
+		icon.cwassWist.wemove(this._bweakpointHintIcon);
 
-		if (element?.isBreakpointSet) {
-			icon.classList.add(this._breakpointIcon);
-		} else {
-			icon.classList.remove(this._breakpointIcon);
+		if (ewement?.isBweakpointSet) {
+			icon.cwassWist.add(this._bweakpointIcon);
+		} ewse {
+			icon.cwassWist.wemove(this._bweakpointIcon);
 		}
 	}
 
 }
 
-interface IInstructionColumnTemplateData {
-	currentElement: { element?: IDisassembledInstructionEntry };
-	// TODO: hover widget?
-	instruction: HTMLElement;
-	disposables: IDisposable[];
+intewface IInstwuctionCowumnTempwateData {
+	cuwwentEwement: { ewement?: IDisassembwedInstwuctionEntwy };
+	// TODO: hova widget?
+	instwuction: HTMWEwement;
+	disposabwes: IDisposabwe[];
 }
 
-class InstructionRenderer extends Disposable implements ITableRenderer<IDisassembledInstructionEntry, IInstructionColumnTemplateData> {
+cwass InstwuctionWendewa extends Disposabwe impwements ITabweWendewa<IDisassembwedInstwuctionEntwy, IInstwuctionCowumnTempwateData> {
 
-	static readonly TEMPLATE_ID = 'instruction';
+	static weadonwy TEMPWATE_ID = 'instwuction';
 
-	private static readonly INSTRUCTION_ADDR_MIN_LENGTH = 25;
-	private static readonly INSTRUCTION_BYTES_MIN_LENGTH = 30;
+	pwivate static weadonwy INSTWUCTION_ADDW_MIN_WENGTH = 25;
+	pwivate static weadonwy INSTWUCTION_BYTES_MIN_WENGTH = 30;
 
-	templateId: string = InstructionRenderer.TEMPLATE_ID;
+	tempwateId: stwing = InstwuctionWendewa.TEMPWATE_ID;
 
-	private _topStackFrameColor: Color | undefined;
-	private _focusedStackFrameColor: Color | undefined;
+	pwivate _topStackFwameCowow: Cowow | undefined;
+	pwivate _focusedStackFwameCowow: Cowow | undefined;
 
-	constructor(
-		private readonly _disassemblyView: DisassemblyView,
-		@IThemeService themeService: IThemeService
+	constwuctow(
+		pwivate weadonwy _disassembwyView: DisassembwyView,
+		@IThemeSewvice themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this._topStackFrameColor = themeService.getColorTheme().getColor(topStackFrameColor);
-		this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
+		this._topStackFwameCowow = themeSewvice.getCowowTheme().getCowow(topStackFwameCowow);
+		this._focusedStackFwameCowow = themeSewvice.getCowowTheme().getCowow(focusedStackFwameCowow);
 
-		this._register(themeService.onDidColorThemeChange(e => {
-			this._topStackFrameColor = e.getColor(topStackFrameColor);
-			this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
+		this._wegista(themeSewvice.onDidCowowThemeChange(e => {
+			this._topStackFwameCowow = e.getCowow(topStackFwameCowow);
+			this._focusedStackFwameCowow = e.getCowow(focusedStackFwameCowow);
 		}));
 	}
 
-	renderTemplate(container: HTMLElement): IInstructionColumnTemplateData {
-		const instruction = append(container, $('.instruction'));
-		this.applyFontInfo(instruction);
+	wendewTempwate(containa: HTMWEwement): IInstwuctionCowumnTempwateData {
+		const instwuction = append(containa, $('.instwuction'));
+		this.appwyFontInfo(instwuction);
 
-		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
+		const cuwwentEwement: { ewement?: IDisassembwedInstwuctionEntwy } = { ewement: undefined };
 
-		const disposables = [
-			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, currentElement.element))
+		const disposabwes = [
+			this._disassembwyView.onDidChangeStackFwame(() => this.wewendewBackgwound(instwuction, cuwwentEwement.ewement))
 		];
 
-		return { currentElement, instruction, disposables };
+		wetuwn { cuwwentEwement, instwuction, disposabwes };
 	}
 
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
-		templateData.currentElement.element = element;
+	wendewEwement(ewement: IDisassembwedInstwuctionEntwy, index: numba, tempwateData: IInstwuctionCowumnTempwateData, height: numba | undefined): void {
+		tempwateData.cuwwentEwement.ewement = ewement;
 
-		const instruction = element.instruction;
-		const sb = createStringBuilder(10000);
-		let spacesToAppend = 10;
+		const instwuction = ewement.instwuction;
+		const sb = cweateStwingBuiwda(10000);
+		wet spacesToAppend = 10;
 
-		if (instruction.address !== '-1') {
-			sb.appendASCIIString(instruction.address);
-			if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
-				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
+		if (instwuction.addwess !== '-1') {
+			sb.appendASCIIStwing(instwuction.addwess);
+			if (instwuction.addwess.wength < InstwuctionWendewa.INSTWUCTION_ADDW_MIN_WENGTH) {
+				spacesToAppend = InstwuctionWendewa.INSTWUCTION_ADDW_MIN_WENGTH - instwuction.addwess.wength;
 			}
-			for (let i = 0; i < spacesToAppend; i++) {
+			fow (wet i = 0; i < spacesToAppend; i++) {
 				sb.appendASCII(0x00A0);
 			}
 		}
 
-		if (instruction.instructionBytes) {
-			sb.appendASCIIString(instruction.instructionBytes);
+		if (instwuction.instwuctionBytes) {
+			sb.appendASCIIStwing(instwuction.instwuctionBytes);
 			spacesToAppend = 10;
-			if (instruction.instructionBytes.length < InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH) {
-				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
+			if (instwuction.instwuctionBytes.wength < InstwuctionWendewa.INSTWUCTION_BYTES_MIN_WENGTH) {
+				spacesToAppend = InstwuctionWendewa.INSTWUCTION_BYTES_MIN_WENGTH - instwuction.instwuctionBytes.wength;
 			}
-			for (let i = 0; i < spacesToAppend; i++) {
+			fow (wet i = 0; i < spacesToAppend; i++) {
 				sb.appendASCII(0x00A0);
 			}
 		}
 
-		sb.appendASCIIString(instruction.instruction);
+		sb.appendASCIIStwing(instwuction.instwuction);
 
-		const innerText = sb.build();
-		templateData.instruction.innerText = innerText;
+		const innewText = sb.buiwd();
+		tempwateData.instwuction.innewText = innewText;
 
-		this.rerenderBackground(templateData.instruction, element);
+		this.wewendewBackgwound(tempwateData.instwuction, ewement);
 	}
 
-	disposeTemplate(templateData: IInstructionColumnTemplateData): void {
-		dispose(templateData.disposables);
-		templateData.disposables = [];
+	disposeTempwate(tempwateData: IInstwuctionCowumnTempwateData): void {
+		dispose(tempwateData.disposabwes);
+		tempwateData.disposabwes = [];
 	}
 
-	private rerenderBackground(instruction: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element && this._disassemblyView.currentInstructionAddresses.includes(element.instruction.address)) {
-			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
-		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
-			instruction.style.background = this._focusedStackFrameColor?.toString() || 'transparent';
-		} else {
-			instruction.style.background = 'transparent';
+	pwivate wewendewBackgwound(instwuction: HTMWEwement, ewement?: IDisassembwedInstwuctionEntwy) {
+		if (ewement && this._disassembwyView.cuwwentInstwuctionAddwesses.incwudes(ewement.instwuction.addwess)) {
+			instwuction.stywe.backgwound = this._topStackFwameCowow?.toStwing() || 'twanspawent';
+		} ewse if (ewement?.instwuction.addwess === this._disassembwyView.focusedInstwuctionAddwess) {
+			instwuction.stywe.backgwound = this._focusedStackFwameCowow?.toStwing() || 'twanspawent';
+		} ewse {
+			instwuction.stywe.backgwound = 'twanspawent';
 		}
 	}
 
-	private applyFontInfo(element: HTMLElement) {
-		const fontInfo = this._disassemblyView.fontInfo;
-		element.style.fontFamily = fontInfo.getMassagedFontFamily();
-		element.style.fontWeight = fontInfo.fontWeight;
-		element.style.fontSize = fontInfo.fontSize + 'px';
-		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
-		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
+	pwivate appwyFontInfo(ewement: HTMWEwement) {
+		const fontInfo = this._disassembwyView.fontInfo;
+		ewement.stywe.fontFamiwy = fontInfo.getMassagedFontFamiwy();
+		ewement.stywe.fontWeight = fontInfo.fontWeight;
+		ewement.stywe.fontSize = fontInfo.fontSize + 'px';
+		ewement.stywe.fontFeatuweSettings = fontInfo.fontFeatuweSettings;
+		ewement.stywe.wettewSpacing = fontInfo.wettewSpacing + 'px';
 	}
 
 }
 
-class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledInstructionEntry> {
+cwass AccessibiwityPwovida impwements IWistAccessibiwityPwovida<IDisassembwedInstwuctionEntwy> {
 
-	getWidgetAriaLabel(): string {
-		return localize('disassemblyView', "Disassembly View");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('disassembwyView', "Disassembwy View");
 	}
 
-	getAriaLabel(element: IDisassembledInstructionEntry): string | null {
-		let label = '';
+	getAwiaWabew(ewement: IDisassembwedInstwuctionEntwy): stwing | nuww {
+		wet wabew = '';
 
-		const instruction = element.instruction;
-		if (instruction.address !== '-1') {
-			label += `${localize('instructionAddress', "Address")}: ${instruction.address}`;
+		const instwuction = ewement.instwuction;
+		if (instwuction.addwess !== '-1') {
+			wabew += `${wocawize('instwuctionAddwess', "Addwess")}: ${instwuction.addwess}`;
 		}
-		if (instruction.instructionBytes) {
-			label += `, ${localize('instructionBytes', "Bytes")}: ${instruction.instructionBytes}`;
+		if (instwuction.instwuctionBytes) {
+			wabew += `, ${wocawize('instwuctionBytes', "Bytes")}: ${instwuction.instwuctionBytes}`;
 		}
-		label += `, ${localize(`instructionText`, "Instruction")}: ${instruction.instruction}`;
+		wabew += `, ${wocawize(`instwuctionText`, "Instwuction")}: ${instwuction.instwuction}`;
 
-		return label;
+		wetuwn wabew;
 	}
 
 }
 
-export class DisassemblyViewContribution implements IWorkbenchContribution {
+expowt cwass DisassembwyViewContwibution impwements IWowkbenchContwibution {
 
-	private readonly _onDidActiveEditorChangeListener: IDisposable;
-	private _onDidChangeModelLanguage: IDisposable | undefined;
-	private _languageSupportsDisassemleRequest: IContextKey<boolean> | undefined;
+	pwivate weadonwy _onDidActiveEditowChangeWistena: IDisposabwe;
+	pwivate _onDidChangeModewWanguage: IDisposabwe | undefined;
+	pwivate _wanguageSuppowtsDisassemweWequest: IContextKey<boowean> | undefined;
 
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IDebugService debugService: IDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IDebugSewvice debugSewvice: IDebugSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		contextKeyService.bufferChangeEvents(() => {
-			this._languageSupportsDisassemleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
+		contextKeySewvice.buffewChangeEvents(() => {
+			this._wanguageSuppowtsDisassemweWequest = CONTEXT_WANGUAGE_SUPPOWTS_DISASSEMBWE_WEQUEST.bindTo(contextKeySewvice);
 		});
 
-		const onDidActiveEditorChangeListener = () => {
-			if (this._onDidChangeModelLanguage) {
-				this._onDidChangeModelLanguage.dispose();
-				this._onDidChangeModelLanguage = undefined;
+		const onDidActiveEditowChangeWistena = () => {
+			if (this._onDidChangeModewWanguage) {
+				this._onDidChangeModewWanguage.dispose();
+				this._onDidChangeModewWanguage = undefined;
 			}
 
-			const activeTextEditorControl = editorService.activeTextEditorControl;
-			if (isCodeEditor(activeTextEditorControl)) {
-				const language = activeTextEditorControl.getModel()?.getLanguageIdentifier().language;
-				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
-				// support disassembly
-				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().isDebuggerInterestedInLanguage(language));
+			const activeTextEditowContwow = editowSewvice.activeTextEditowContwow;
+			if (isCodeEditow(activeTextEditowContwow)) {
+				const wanguage = activeTextEditowContwow.getModew()?.getWanguageIdentifia().wanguage;
+				// TODO: instead of using idDebuggewIntewestedInWanguage, have a specific ext point fow wanguages
+				// suppowt disassembwy
+				this._wanguageSuppowtsDisassemweWequest?.set(!!wanguage && debugSewvice.getAdaptewManaga().isDebuggewIntewestedInWanguage(wanguage));
 
-				this._onDidChangeModelLanguage = activeTextEditorControl.onDidChangeModelLanguage(e => {
-					this._languageSupportsDisassemleRequest?.set(debugService.getAdapterManager().isDebuggerInterestedInLanguage(e.newLanguage));
+				this._onDidChangeModewWanguage = activeTextEditowContwow.onDidChangeModewWanguage(e => {
+					this._wanguageSuppowtsDisassemweWequest?.set(debugSewvice.getAdaptewManaga().isDebuggewIntewestedInWanguage(e.newWanguage));
 				});
-			} else {
-				this._languageSupportsDisassemleRequest?.set(false);
+			} ewse {
+				this._wanguageSuppowtsDisassemweWequest?.set(fawse);
 			}
 		};
 
-		onDidActiveEditorChangeListener();
-		this._onDidActiveEditorChangeListener = editorService.onDidActiveEditorChange(onDidActiveEditorChangeListener);
+		onDidActiveEditowChangeWistena();
+		this._onDidActiveEditowChangeWistena = editowSewvice.onDidActiveEditowChange(onDidActiveEditowChangeWistena);
 	}
 
 	dispose(): void {
-		this._onDidActiveEditorChangeListener.dispose();
-		this._onDidChangeModelLanguage?.dispose();
+		this._onDidActiveEditowChangeWistena.dispose();
+		this._onDidChangeModewWanguage?.dispose();
 	}
 
 }

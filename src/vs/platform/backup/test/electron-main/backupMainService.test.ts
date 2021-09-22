@@ -1,703 +1,703 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { createHash } from 'crypto';
-import * as fs from 'fs';
-import * as os from 'os';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IBackupWorkspacesFormat, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt * as assewt fwom 'assewt';
+impowt { cweateHash } fwom 'cwypto';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as pfs fwom 'vs/base/node/pfs';
+impowt { fwakySuite, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
+impowt { IWowkspaceBackupInfo } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { BackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backupMainSewvice';
+impowt { IBackupWowkspacesFowmat, ISewiawizedWowkspace } fwom 'vs/pwatfowm/backup/node/backup';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { EnviwonmentMainSewvice } fwom 'vs/pwatfowm/enviwonment/ewectwon-main/enviwonmentMainSewvice';
+impowt { OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { HotExitConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ConsoweMainWogga, WogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-flakySuite('BackupMainService', () => {
+fwakySuite('BackupMainSewvice', () => {
 
-	function assertEqualUris(actual: URI[], expected: URI[]) {
-		assert.deepStrictEqual(actual.map(a => a.toString()), expected.map(a => a.toString()));
+	function assewtEquawUwis(actuaw: UWI[], expected: UWI[]) {
+		assewt.deepStwictEquaw(actuaw.map(a => a.toStwing()), expected.map(a => a.toStwing()));
 	}
 
-	function toWorkspace(path: string): IWorkspaceIdentifier {
-		return {
-			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-			configPath: URI.file(path)
+	function toWowkspace(path: stwing): IWowkspaceIdentifia {
+		wetuwn {
+			id: cweateHash('md5').update(sanitizePath(path)).digest('hex'),
+			configPath: UWI.fiwe(path)
 		};
 	}
 
-	function toWorkspaceBackupInfo(path: string, remoteAuthority?: string): IWorkspaceBackupInfo {
-		return {
-			workspace: {
-				id: createHash('md5').update(sanitizePath(path)).digest('hex'),
-				configPath: URI.file(path)
+	function toWowkspaceBackupInfo(path: stwing, wemoteAuthowity?: stwing): IWowkspaceBackupInfo {
+		wetuwn {
+			wowkspace: {
+				id: cweateHash('md5').update(sanitizePath(path)).digest('hex'),
+				configPath: UWI.fiwe(path)
 			},
-			remoteAuthority
+			wemoteAuthowity
 		};
 	}
 
-	function toSerializedWorkspace(ws: IWorkspaceIdentifier): ISerializedWorkspace {
-		return {
+	function toSewiawizedWowkspace(ws: IWowkspaceIdentifia): ISewiawizedWowkspace {
+		wetuwn {
 			id: ws.id,
-			configURIPath: ws.configPath.toString()
+			configUWIPath: ws.configPath.toStwing()
 		};
 	}
 
-	function ensureFolderExists(uri: URI): Promise<void> {
-		if (!fs.existsSync(uri.fsPath)) {
-			fs.mkdirSync(uri.fsPath);
+	function ensuweFowdewExists(uwi: UWI): Pwomise<void> {
+		if (!fs.existsSync(uwi.fsPath)) {
+			fs.mkdiwSync(uwi.fsPath);
 		}
 
-		const backupFolder = service.toBackupPath(uri);
-		return createBackupFolder(backupFolder);
+		const backupFowda = sewvice.toBackupPath(uwi);
+		wetuwn cweateBackupFowda(backupFowda);
 	}
 
-	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
-		if (!fs.existsSync(workspace.configPath.fsPath)) {
-			await pfs.Promises.writeFile(workspace.configPath.fsPath, 'Hello');
+	async function ensuweWowkspaceExists(wowkspace: IWowkspaceIdentifia): Pwomise<IWowkspaceIdentifia> {
+		if (!fs.existsSync(wowkspace.configPath.fsPath)) {
+			await pfs.Pwomises.wwiteFiwe(wowkspace.configPath.fsPath, 'Hewwo');
 		}
 
-		const backupFolder = service.toBackupPath(workspace.id);
-		await createBackupFolder(backupFolder);
+		const backupFowda = sewvice.toBackupPath(wowkspace.id);
+		await cweateBackupFowda(backupFowda);
 
-		return workspace;
+		wetuwn wowkspace;
 	}
 
-	async function createBackupFolder(backupFolder: string): Promise<void> {
-		if (!fs.existsSync(backupFolder)) {
-			fs.mkdirSync(backupFolder);
-			fs.mkdirSync(path.join(backupFolder, Schemas.file));
-			await pfs.Promises.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
+	async function cweateBackupFowda(backupFowda: stwing): Pwomise<void> {
+		if (!fs.existsSync(backupFowda)) {
+			fs.mkdiwSync(backupFowda);
+			fs.mkdiwSync(path.join(backupFowda, Schemas.fiwe));
+			await pfs.Pwomises.wwiteFiwe(path.join(backupFowda, Schemas.fiwe, 'foo.txt'), 'Hewwo');
 		}
 	}
 
-	function sanitizePath(p: string): string {
-		return platform.isLinux ? p : p.toLowerCase();
+	function sanitizePath(p: stwing): stwing {
+		wetuwn pwatfowm.isWinux ? p : p.toWowewCase();
 	}
 
-	const fooFile = URI.file(platform.isWindows ? 'C:\\foo' : '/foo');
-	const barFile = URI.file(platform.isWindows ? 'C:\\bar' : '/bar');
+	const fooFiwe = UWI.fiwe(pwatfowm.isWindows ? 'C:\\foo' : '/foo');
+	const bawFiwe = UWI.fiwe(pwatfowm.isWindows ? 'C:\\baw' : '/baw');
 
-	let service: BackupMainService & { toBackupPath(arg: URI | string): string, getFolderHash(folderUri: URI): string };
-	let configService: TestConfigurationService;
+	wet sewvice: BackupMainSewvice & { toBackupPath(awg: UWI | stwing): stwing, getFowdewHash(fowdewUwi: UWI): stwing };
+	wet configSewvice: TestConfiguwationSewvice;
 
-	let environmentService: EnvironmentMainService;
-	let testDir: string;
-	let backupHome: string;
-	let backupWorkspacesPath: string;
-	let existingTestFolder1: URI;
+	wet enviwonmentSewvice: EnviwonmentMainSewvice;
+	wet testDiw: stwing;
+	wet backupHome: stwing;
+	wet backupWowkspacesPath: stwing;
+	wet existingTestFowdew1: UWI;
 
 	setup(async () => {
-		testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupmainservice');
-		backupHome = path.join(testDir, 'Backups');
-		backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
-		existingTestFolder1 = URI.file(path.join(testDir, 'folder1'));
+		testDiw = getWandomTestPath(os.tmpdiw(), 'vsctests', 'backupmainsewvice');
+		backupHome = path.join(testDiw, 'Backups');
+		backupWowkspacesPath = path.join(backupHome, 'wowkspaces.json');
+		existingTestFowdew1 = UWI.fiwe(path.join(testDiw, 'fowdew1'));
 
-		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+		enviwonmentSewvice = new EnviwonmentMainSewvice(pawseAwgs(pwocess.awgv, OPTIONS), { _sewviceBwand: undefined, ...pwoduct });
 
-		await pfs.Promises.mkdir(backupHome, { recursive: true });
+		await pfs.Pwomises.mkdiw(backupHome, { wecuwsive: twue });
 
-		configService = new TestConfigurationService();
-		service = new class TestBackupMainService extends BackupMainService {
-			constructor() {
-				super(environmentService, configService, new LogService(new ConsoleMainLogger()));
+		configSewvice = new TestConfiguwationSewvice();
+		sewvice = new cwass TestBackupMainSewvice extends BackupMainSewvice {
+			constwuctow() {
+				supa(enviwonmentSewvice, configSewvice, new WogSewvice(new ConsoweMainWogga()));
 
 				this.backupHome = backupHome;
-				this.workspacesJsonPath = backupWorkspacesPath;
+				this.wowkspacesJsonPath = backupWowkspacesPath;
 			}
 
-			toBackupPath(arg: URI | string): string {
-				const id = arg instanceof URI ? super.getFolderHash(arg) : arg;
-				return path.join(this.backupHome, id);
+			toBackupPath(awg: UWI | stwing): stwing {
+				const id = awg instanceof UWI ? supa.getFowdewHash(awg) : awg;
+				wetuwn path.join(this.backupHome, id);
 			}
 
-			override getFolderHash(folderUri: URI): string {
-				return super.getFolderHash(folderUri);
+			ovewwide getFowdewHash(fowdewUwi: UWI): stwing {
+				wetuwn supa.getFowdewHash(fowdewUwi);
 			}
 		};
 
-		return service.initialize();
+		wetuwn sewvice.initiawize();
 	});
 
-	teardown(() => {
-		return pfs.Promises.rm(testDir);
+	teawdown(() => {
+		wetuwn pfs.Pwomises.wm(testDiw);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
+	test('sewvice vawidates backup wowkspaces on stawtup and cweans up (fowda wowkspaces)', async function () {
 
-		// 1) backup workspace path does not exist
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
+		// 1) backup wowkspace path does not exist
+		sewvice.wegistewFowdewBackupSync(fooFiwe);
+		sewvice.wegistewFowdewBackupSync(bawFiwe);
+		await sewvice.initiawize();
+		assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 
-		// 2) backup workspace path exists with empty contents within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+		// 2) backup wowkspace path exists with empty contents within
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		sewvice.wegistewFowdewBackupSync(fooFiwe);
+		sewvice.wegistewFowdewBackupSync(bawFiwe);
+		await sewvice.initiawize();
+		assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(fooFiwe)));
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(bawFiwe)));
 
-		// 3) backup workspace path exists with empty folders within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
-		fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+		// 3) backup wowkspace path exists with empty fowdews within
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		fs.mkdiwSync(path.join(sewvice.toBackupPath(fooFiwe), Schemas.fiwe));
+		fs.mkdiwSync(path.join(sewvice.toBackupPath(bawFiwe), Schemas.untitwed));
+		sewvice.wegistewFowdewBackupSync(fooFiwe);
+		sewvice.wegistewFowdewBackupSync(bawFiwe);
+		await sewvice.initiawize();
+		assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(fooFiwe)));
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(bawFiwe)));
 
-		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
-		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(fileBackups);
-		service.registerFolderBackupSync(fooFile);
-		assert.strictEqual(service.getFolderBackupPaths().length, 1);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
-		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
-		await service.initialize();
-		assert.strictEqual(service.getFolderBackupPaths().length, 0);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+		// 4) backup wowkspace path points to a wowkspace that no wonga exists
+		// so it shouwd convewt the backup wowspace to an empty wowkspace backup
+		const fiweBackups = path.join(sewvice.toBackupPath(fooFiwe), Schemas.fiwe);
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		fs.mkdiwSync(fiweBackups);
+		sewvice.wegistewFowdewBackupSync(fooFiwe);
+		assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 1);
+		assewt.stwictEquaw(sewvice.getEmptyWindowBackupPaths().wength, 0);
+		fs.wwiteFiweSync(path.join(fiweBackups, 'backup.txt'), '');
+		await sewvice.initiawize();
+		assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 0);
+		assewt.stwictEquaw(sewvice.getEmptyWindowBackupPaths().wength, 1);
 	});
 
-	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
+	test('sewvice vawidates backup wowkspaces on stawtup and cweans up (woot wowkspaces)', async function () {
 
-		// 1) backup workspace path does not exist
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		// 1) backup wowkspace path does not exist
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath));
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(bawFiwe.fsPath));
+		await sewvice.initiawize();
+		assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 
-		// 2) backup workspace path exists with empty contents within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+		// 2) backup wowkspace path exists with empty contents within
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath));
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(bawFiwe.fsPath));
+		await sewvice.initiawize();
+		assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(fooFiwe)));
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(bawFiwe)));
 
-		// 3) backup workspace path exists with empty folders within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
-		fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+		// 3) backup wowkspace path exists with empty fowdews within
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		fs.mkdiwSync(path.join(sewvice.toBackupPath(fooFiwe), Schemas.fiwe));
+		fs.mkdiwSync(path.join(sewvice.toBackupPath(bawFiwe), Schemas.untitwed));
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath));
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(bawFiwe.fsPath));
+		await sewvice.initiawize();
+		assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(fooFiwe)));
+		assewt.ok(!fs.existsSync(sewvice.toBackupPath(bawFiwe)));
 
-		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
-		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(fileBackups);
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		assert.strictEqual(service.getWorkspaceBackups().length, 1);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
-		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
-		await service.initialize();
-		assert.strictEqual(service.getWorkspaceBackups().length, 0);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+		// 4) backup wowkspace path points to a wowkspace that no wonga exists
+		// so it shouwd convewt the backup wowspace to an empty wowkspace backup
+		const fiweBackups = path.join(sewvice.toBackupPath(fooFiwe), Schemas.fiwe);
+		fs.mkdiwSync(sewvice.toBackupPath(fooFiwe));
+		fs.mkdiwSync(sewvice.toBackupPath(bawFiwe));
+		fs.mkdiwSync(fiweBackups);
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath));
+		assewt.stwictEquaw(sewvice.getWowkspaceBackups().wength, 1);
+		assewt.stwictEquaw(sewvice.getEmptyWindowBackupPaths().wength, 0);
+		fs.wwiteFiweSync(path.join(fiweBackups, 'backup.txt'), '');
+		await sewvice.initiawize();
+		assewt.stwictEquaw(sewvice.getWowkspaceBackups().wength, 0);
+		assewt.stwictEquaw(sewvice.getEmptyWindowBackupPaths().wength, 1);
 	});
 
-	test('service supports to migrate backup data from another location', () => {
-		const backupPathToMigrate = service.toBackupPath(fooFile);
-		fs.mkdirSync(backupPathToMigrate);
-		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
-		service.registerFolderBackupSync(URI.file(backupPathToMigrate));
+	test('sewvice suppowts to migwate backup data fwom anotha wocation', () => {
+		const backupPathToMigwate = sewvice.toBackupPath(fooFiwe);
+		fs.mkdiwSync(backupPathToMigwate);
+		fs.wwiteFiweSync(path.join(backupPathToMigwate, 'backup.txt'), 'Some Data');
+		sewvice.wegistewFowdewBackupSync(UWI.fiwe(backupPathToMigwate));
 
-		const workspaceBackupPath = service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath), backupPathToMigrate);
+		const wowkspaceBackupPath = sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(bawFiwe.fsPath), backupPathToMigwate);
 
-		assert.ok(fs.existsSync(workspaceBackupPath));
-		assert.ok(fs.existsSync(path.join(workspaceBackupPath, 'backup.txt')));
-		assert.ok(!fs.existsSync(backupPathToMigrate));
+		assewt.ok(fs.existsSync(wowkspaceBackupPath));
+		assewt.ok(fs.existsSync(path.join(wowkspaceBackupPath, 'backup.txt')));
+		assewt.ok(!fs.existsSync(backupPathToMigwate));
 
-		const emptyBackups = service.getEmptyWindowBackupPaths();
-		assert.strictEqual(0, emptyBackups.length);
+		const emptyBackups = sewvice.getEmptyWindowBackupPaths();
+		assewt.stwictEquaw(0, emptyBackups.wength);
 	});
 
-	test('service backup migration makes sure to preserve existing backups', () => {
-		const backupPathToMigrate = service.toBackupPath(fooFile);
-		fs.mkdirSync(backupPathToMigrate);
-		fs.writeFileSync(path.join(backupPathToMigrate, 'backup.txt'), 'Some Data');
-		service.registerFolderBackupSync(URI.file(backupPathToMigrate));
+	test('sewvice backup migwation makes suwe to pwesewve existing backups', () => {
+		const backupPathToMigwate = sewvice.toBackupPath(fooFiwe);
+		fs.mkdiwSync(backupPathToMigwate);
+		fs.wwiteFiweSync(path.join(backupPathToMigwate, 'backup.txt'), 'Some Data');
+		sewvice.wegistewFowdewBackupSync(UWI.fiwe(backupPathToMigwate));
 
-		const backupPathToPreserve = service.toBackupPath(barFile);
-		fs.mkdirSync(backupPathToPreserve);
-		fs.writeFileSync(path.join(backupPathToPreserve, 'backup.txt'), 'Some Data');
-		service.registerFolderBackupSync(URI.file(backupPathToPreserve));
+		const backupPathToPwesewve = sewvice.toBackupPath(bawFiwe);
+		fs.mkdiwSync(backupPathToPwesewve);
+		fs.wwiteFiweSync(path.join(backupPathToPwesewve, 'backup.txt'), 'Some Data');
+		sewvice.wegistewFowdewBackupSync(UWI.fiwe(backupPathToPwesewve));
 
-		const workspaceBackupPath = service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath), backupPathToMigrate);
+		const wowkspaceBackupPath = sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(bawFiwe.fsPath), backupPathToMigwate);
 
-		assert.ok(fs.existsSync(workspaceBackupPath));
-		assert.ok(fs.existsSync(path.join(workspaceBackupPath, 'backup.txt')));
-		assert.ok(!fs.existsSync(backupPathToMigrate));
+		assewt.ok(fs.existsSync(wowkspaceBackupPath));
+		assewt.ok(fs.existsSync(path.join(wowkspaceBackupPath, 'backup.txt')));
+		assewt.ok(!fs.existsSync(backupPathToMigwate));
 
-		const emptyBackups = service.getEmptyWindowBackupPaths();
-		assert.strictEqual(1, emptyBackups.length);
-		assert.strictEqual(1, fs.readdirSync(path.join(backupHome, emptyBackups[0].backupFolder!)).length);
+		const emptyBackups = sewvice.getEmptyWindowBackupPaths();
+		assewt.stwictEquaw(1, emptyBackups.wength);
+		assewt.stwictEquaw(1, fs.weaddiwSync(path.join(backupHome, emptyBackups[0].backupFowda!)).wength);
 	});
 
-	suite('loadSync', () => {
-		test('getFolderBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
-			assertEqualUris(service.getFolderBackupPaths(), []);
+	suite('woadSync', () => {
+		test('getFowdewBackupPaths() shouwd wetuwn [] when wowkspaces.json doesn\'t exist', () => {
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when workspaces.json is not properly formed JSON', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{]');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, 'foo');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
+		test('getFowdewBackupPaths() shouwd wetuwn [] when wowkspaces.json is not pwopewwy fowmed JSON', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{]');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, 'foo');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when folderWorkspaces in workspaces.json is absent', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
+		test('getFowdewBackupPaths() shouwd wetuwn [] when fowdewWowkspaces in wowkspaces.json is absent', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{}}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": ["bar"]}}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": []}}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":{"foo": "bar"}}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":"foo"}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"folderWorkspaces":1}');
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
+		test('getFowdewBackupPaths() shouwd wetuwn [] when fowdewWowkspaces in wowkspaces.json is not a stwing awway', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":{}}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":{"foo": ["baw"]}}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":{"foo": []}}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":{"foo": "baw"}}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":"foo"}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"fowdewWowkspaces":1}');
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 		});
 
-		test('getFolderBackupPaths() should return [] when files.hotExit = "onExitAndWindowClose"', async () => {
-			service.registerFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
-			assertEqualUris(service.getFolderBackupPaths(), [URI.file(fooFile.fsPath.toUpperCase())]);
-			configService.setUserConfiguration('files.hotExit', HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE);
-			await service.initialize();
-			assertEqualUris(service.getFolderBackupPaths(), []);
+		test('getFowdewBackupPaths() shouwd wetuwn [] when fiwes.hotExit = "onExitAndWindowCwose"', async () => {
+			sewvice.wegistewFowdewBackupSync(UWI.fiwe(fooFiwe.fsPath.toUppewCase()));
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), [UWI.fiwe(fooFiwe.fsPath.toUppewCase())]);
+			configSewvice.setUsewConfiguwation('fiwes.hotExit', HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE);
+			await sewvice.initiawize();
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when workspaces.json doesn\'t exist', () => {
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when wowkspaces.json doesn\'t exist', () => {
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when workspaces.json is not properly formed JSON', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{]');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, 'foo');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when wowkspaces.json is not pwopewwy fowmed JSON', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{]');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, 'foo');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when folderWorkspaces in workspaces.json is absent', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when fowdewWowkspaces in wowkspaces.json is absent', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when rootWorkspaces in workspaces.json is not a object array', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": ["bar"]}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": []}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":{"foo": "bar"}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":"foo"}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootWorkspaces":1}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when wootWowkspaces in wowkspaces.json is not a object awway', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":{}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":{"foo": ["baw"]}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":{"foo": []}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":{"foo": "baw"}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":"foo"}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootWowkspaces":1}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when rootURIWorkspaces in workspaces.json is not a object array', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": ["bar"]}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": []}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":{"foo": "bar"}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":"foo"}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"rootURIWorkspaces":1}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when wootUWIWowkspaces in wowkspaces.json is not a object awway', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":{}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":{"foo": ["baw"]}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":{"foo": []}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":{"foo": "baw"}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":"foo"}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"wootUWIWowkspaces":1}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getWorkspaceBackups() should return [] when files.hotExit = "onExitAndWindowClose"', async () => {
-			const upperFooPath = fooFile.fsPath.toUpperCase();
-			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(upperFooPath));
-			assert.strictEqual(service.getWorkspaceBackups().length, 1);
-			assertEqualUris(service.getWorkspaceBackups().map(r => r.workspace.configPath), [URI.file(upperFooPath)]);
-			configService.setUserConfiguration('files.hotExit', HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE);
-			await service.initialize();
-			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+		test('getWowkspaceBackups() shouwd wetuwn [] when fiwes.hotExit = "onExitAndWindowCwose"', async () => {
+			const uppewFooPath = fooFiwe.fsPath.toUppewCase();
+			sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(uppewFooPath));
+			assewt.stwictEquaw(sewvice.getWowkspaceBackups().wength, 1);
+			assewtEquawUwis(sewvice.getWowkspaceBackups().map(w => w.wowkspace.configPath), [UWI.fiwe(uppewFooPath)]);
+			configSewvice.setUsewConfiguwation('fiwes.hotExit', HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE);
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getWowkspaceBackups(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json doesn\'t exist', () => {
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		test('getEmptyWowkspaceBackupPaths() shouwd wetuwn [] when wowkspaces.json doesn\'t exist', () => {
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when workspaces.json is not properly formed JSON', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{]');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, 'foo');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		test('getEmptyWowkspaceBackupPaths() shouwd wetuwn [] when wowkspaces.json is not pwopewwy fowmed JSON', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{]');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, 'foo');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is absent', async () => {
-			fs.writeFileSync(backupWorkspacesPath, '{}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		test('getEmptyWowkspaceBackupPaths() shouwd wetuwn [] when fowdewWowkspaces in wowkspaces.json is absent', async () => {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
 		});
 
-		test('getEmptyWorkspaceBackupPaths() should return [] when folderWorkspaces in workspaces.json is not a string array', async function () {
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": ["bar"]}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": []}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":{"foo": "bar"}}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":"foo"}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
-			fs.writeFileSync(backupWorkspacesPath, '{"emptyWorkspaces":1}');
-			await service.initialize();
-			assert.deepStrictEqual(service.getEmptyWindowBackupPaths(), []);
+		test('getEmptyWowkspaceBackupPaths() shouwd wetuwn [] when fowdewWowkspaces in wowkspaces.json is not a stwing awway', async function () {
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":{}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":{"foo": ["baw"]}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":{"foo": []}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":{"foo": "baw"}}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":"foo"}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
+			fs.wwiteFiweSync(backupWowkspacesPath, '{"emptyWowkspaces":1}');
+			await sewvice.initiawize();
+			assewt.deepStwictEquaw(sewvice.getEmptyWindowBackupPaths(), []);
 		});
 	});
 
-	suite('dedupeFolderWorkspaces', () => {
-		test('should ignore duplicates (folder workspace)', async () => {
+	suite('dedupeFowdewWowkspaces', () => {
+		test('shouwd ignowe dupwicates (fowda wowkspace)', async () => {
 
-			await ensureFolderExists(existingTestFolder1);
+			await ensuweFowdewExists(existingTestFowdew1);
 
-			const workspacesJson: IBackupWorkspacesFormat = {
-				rootURIWorkspaces: [],
-				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString()],
-				emptyWorkspaceInfos: []
+			const wowkspacesJson: IBackupWowkspacesFowmat = {
+				wootUWIWowkspaces: [],
+				fowdewUWIWowkspaces: [existingTestFowdew1.toStwing(), existingTestFowdew1.toStwing()],
+				emptyWowkspaceInfos: []
 			};
-			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
+			await pfs.Pwomises.wwiteFiwe(backupWowkspacesPath, JSON.stwingify(wowkspacesJson));
+			await sewvice.initiawize();
 
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.deepStrictEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
+			assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [existingTestFowdew1.toStwing()]);
 		});
 
-		test('should ignore duplicates on Windows and Mac (folder workspace)', async () => {
+		test('shouwd ignowe dupwicates on Windows and Mac (fowda wowkspace)', async () => {
 
-			await ensureFolderExists(existingTestFolder1);
+			await ensuweFowdewExists(existingTestFowdew1);
 
-			const workspacesJson: IBackupWorkspacesFormat = {
-				rootURIWorkspaces: [],
-				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString().toLowerCase()],
-				emptyWorkspaceInfos: []
+			const wowkspacesJson: IBackupWowkspacesFowmat = {
+				wootUWIWowkspaces: [],
+				fowdewUWIWowkspaces: [existingTestFowdew1.toStwing(), existingTestFowdew1.toStwing().toWowewCase()],
+				emptyWowkspaceInfos: []
 			};
-			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.deepStrictEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
+			await pfs.Pwomises.wwiteFiwe(backupWowkspacesPath, JSON.stwingify(wowkspacesJson));
+			await sewvice.initiawize();
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
+			assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [existingTestFowdew1.toStwing()]);
 		});
 
-		test('should ignore duplicates on Windows and Mac (root workspace)', async () => {
-			const workspacePath = path.join(testDir, 'Foo.code-workspace');
-			const workspacePath1 = path.join(testDir, 'FOO.code-workspace');
-			const workspacePath2 = path.join(testDir, 'foo.code-workspace');
+		test('shouwd ignowe dupwicates on Windows and Mac (woot wowkspace)', async () => {
+			const wowkspacePath = path.join(testDiw, 'Foo.code-wowkspace');
+			const wowkspacePath1 = path.join(testDiw, 'FOO.code-wowkspace');
+			const wowkspacePath2 = path.join(testDiw, 'foo.code-wowkspace');
 
-			const workspace1 = await ensureWorkspaceExists(toWorkspace(workspacePath));
-			const workspace2 = await ensureWorkspaceExists(toWorkspace(workspacePath1));
-			const workspace3 = await ensureWorkspaceExists(toWorkspace(workspacePath2));
+			const wowkspace1 = await ensuweWowkspaceExists(toWowkspace(wowkspacePath));
+			const wowkspace2 = await ensuweWowkspaceExists(toWowkspace(wowkspacePath1));
+			const wowkspace3 = await ensuweWowkspaceExists(toWowkspace(wowkspacePath2));
 
-			const workspacesJson: IBackupWorkspacesFormat = {
-				rootURIWorkspaces: [workspace1, workspace2, workspace3].map(toSerializedWorkspace),
-				folderURIWorkspaces: [],
-				emptyWorkspaceInfos: []
+			const wowkspacesJson: IBackupWowkspacesFowmat = {
+				wootUWIWowkspaces: [wowkspace1, wowkspace2, wowkspace3].map(toSewiawizedWowkspace),
+				fowdewUWIWowkspaces: [],
+				emptyWowkspaceInfos: []
 			};
-			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
+			await pfs.Pwomises.wwiteFiwe(backupWowkspacesPath, JSON.stwingify(wowkspacesJson));
+			await sewvice.initiawize();
 
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.strictEqual(json.rootURIWorkspaces.length, platform.isLinux ? 3 : 1);
-			if (platform.isLinux) {
-				assert.deepStrictEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath).toString(), URI.file(workspacePath1).toString(), URI.file(workspacePath2).toString()]);
-			} else {
-				assert.deepStrictEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [URI.file(workspacePath).toString()], 'should return the first duplicated entry');
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
+			assewt.stwictEquaw(json.wootUWIWowkspaces.wength, pwatfowm.isWinux ? 3 : 1);
+			if (pwatfowm.isWinux) {
+				assewt.deepStwictEquaw(json.wootUWIWowkspaces.map(w => w.configUWIPath), [UWI.fiwe(wowkspacePath).toStwing(), UWI.fiwe(wowkspacePath1).toStwing(), UWI.fiwe(wowkspacePath2).toStwing()]);
+			} ewse {
+				assewt.deepStwictEquaw(json.wootUWIWowkspaces.map(w => w.configUWIPath), [UWI.fiwe(wowkspacePath).toStwing()], 'shouwd wetuwn the fiwst dupwicated entwy');
 			}
 		});
 	});
 
-	suite('registerWindowForBackups', () => {
-		test('should persist paths to workspaces.json (folder workspace)', async () => {
-			service.registerFolderBackupSync(fooFile);
-			service.registerFolderBackupSync(barFile);
-			assertEqualUris(service.getFolderBackupPaths(), [fooFile, barFile]);
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-			assert.deepStrictEqual(json.folderURIWorkspaces, [fooFile.toString(), barFile.toString()]);
+	suite('wegistewWindowFowBackups', () => {
+		test('shouwd pewsist paths to wowkspaces.json (fowda wowkspace)', async () => {
+			sewvice.wegistewFowdewBackupSync(fooFiwe);
+			sewvice.wegistewFowdewBackupSync(bawFiwe);
+			assewtEquawUwis(sewvice.getFowdewBackupPaths(), [fooFiwe, bawFiwe]);
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
+			assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [fooFiwe.toStwing(), bawFiwe.toStwing()]);
 		});
 
-		test('should persist paths to workspaces.json (root workspace)', async () => {
-			const ws1 = toWorkspaceBackupInfo(fooFile.fsPath);
-			service.registerWorkspaceBackupSync(ws1);
-			const ws2 = toWorkspaceBackupInfo(barFile.fsPath);
-			service.registerWorkspaceBackupSync(ws2);
+		test('shouwd pewsist paths to wowkspaces.json (woot wowkspace)', async () => {
+			const ws1 = toWowkspaceBackupInfo(fooFiwe.fsPath);
+			sewvice.wegistewWowkspaceBackupSync(ws1);
+			const ws2 = toWowkspaceBackupInfo(bawFiwe.fsPath);
+			sewvice.wegistewWowkspaceBackupSync(ws2);
 
-			assertEqualUris(service.getWorkspaceBackups().map(b => b.workspace.configPath), [fooFile, barFile]);
-			assert.strictEqual(ws1.workspace.id, service.getWorkspaceBackups()[0].workspace.id);
-			assert.strictEqual(ws2.workspace.id, service.getWorkspaceBackups()[1].workspace.id);
+			assewtEquawUwis(sewvice.getWowkspaceBackups().map(b => b.wowkspace.configPath), [fooFiwe, bawFiwe]);
+			assewt.stwictEquaw(ws1.wowkspace.id, sewvice.getWowkspaceBackups()[0].wowkspace.id);
+			assewt.stwictEquaw(ws2.wowkspace.id, sewvice.getWowkspaceBackups()[1].wowkspace.id);
 
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
 
-			assert.deepStrictEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [fooFile.toString(), barFile.toString()]);
-			assert.strictEqual(ws1.workspace.id, json.rootURIWorkspaces[0].id);
-			assert.strictEqual(ws2.workspace.id, json.rootURIWorkspaces[1].id);
-		});
-	});
-
-	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (folder workspace)', async () => {
-		service.registerFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
-		assertEqualUris(service.getFolderBackupPaths(), [URI.file(fooFile.fsPath.toUpperCase())]);
-
-		const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-		const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
-		assert.deepStrictEqual(json.folderURIWorkspaces, [URI.file(fooFile.fsPath.toUpperCase()).toString()]);
-	});
-
-	test('should always store the workspace path in workspaces.json using the case given, regardless of whether the file system is case-sensitive (root workspace)', async () => {
-		const upperFooPath = fooFile.fsPath.toUpperCase();
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(upperFooPath));
-		assertEqualUris(service.getWorkspaceBackups().map(b => b.workspace.configPath), [URI.file(upperFooPath)]);
-
-		const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-		const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
-		assert.deepStrictEqual(json.rootURIWorkspaces.map(b => b.configURIPath), [URI.file(upperFooPath).toString()]);
-	});
-
-	suite('removeBackupPathSync', () => {
-		test('should remove folder workspaces from workspaces.json (folder workspace)', async () => {
-			service.registerFolderBackupSync(fooFile);
-			service.registerFolderBackupSync(barFile);
-			service.unregisterFolderBackupSync(fooFile);
-
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
-			assert.deepStrictEqual(json.folderURIWorkspaces, [barFile.toString()]);
-			service.unregisterFolderBackupSync(barFile);
-
-			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepStrictEqual(json2.folderURIWorkspaces, []);
-		});
-
-		test('should remove folder workspaces from workspaces.json (root workspace)', async () => {
-			const ws1 = toWorkspaceBackupInfo(fooFile.fsPath);
-			service.registerWorkspaceBackupSync(ws1);
-			const ws2 = toWorkspaceBackupInfo(barFile.fsPath);
-			service.registerWorkspaceBackupSync(ws2);
-			service.unregisterWorkspaceBackupSync(ws1.workspace);
-
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
-			assert.deepStrictEqual(json.rootURIWorkspaces.map(r => r.configURIPath), [barFile.toString()]);
-			service.unregisterWorkspaceBackupSync(ws2.workspace);
-
-			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepStrictEqual(json2.rootURIWorkspaces, []);
-		});
-
-		test('should remove empty workspaces from workspaces.json', async () => {
-			service.registerEmptyWindowBackupSync('foo');
-			service.registerEmptyWindowBackupSync('bar');
-			service.unregisterEmptyWindowBackupSync('foo');
-
-			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(buffer));
-			assert.deepStrictEqual(json.emptyWorkspaceInfos, [{ backupFolder: 'bar' }]);
-			service.unregisterEmptyWindowBackupSync('bar');
-
-			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json2 = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepStrictEqual(json2.emptyWorkspaceInfos, []);
-		});
-
-		test('should fail gracefully when removing a path that doesn\'t exist', async () => {
-
-			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
-
-			const workspacesJson: IBackupWorkspacesFormat = { rootURIWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaceInfos: [] };
-			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
-			await service.initialize();
-			service.unregisterFolderBackupSync(barFile);
-			service.unregisterEmptyWindowBackupSync('test');
-			const content = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
-			const json = (<IBackupWorkspacesFormat>JSON.parse(content));
-			assert.deepStrictEqual(json.folderURIWorkspaces, [existingTestFolder1.toString()]);
+			assewt.deepStwictEquaw(json.wootUWIWowkspaces.map(b => b.configUWIPath), [fooFiwe.toStwing(), bawFiwe.toStwing()]);
+			assewt.stwictEquaw(ws1.wowkspace.id, json.wootUWIWowkspaces[0].id);
+			assewt.stwictEquaw(ws2.wowkspace.id, json.wootUWIWowkspaces[1].id);
 		});
 	});
 
-	suite('getWorkspaceHash', () => {
-		(platform.isLinux ? test.skip : test)('should ignore case on Windows and Mac', () => {
-			if (platform.isMacintosh) {
-				assert.strictEqual(service.getFolderHash(URI.file('/foo')), service.getFolderHash(URI.file('/FOO')));
+	test('shouwd awways stowe the wowkspace path in wowkspaces.json using the case given, wegawdwess of whetha the fiwe system is case-sensitive (fowda wowkspace)', async () => {
+		sewvice.wegistewFowdewBackupSync(UWI.fiwe(fooFiwe.fsPath.toUppewCase()));
+		assewtEquawUwis(sewvice.getFowdewBackupPaths(), [UWI.fiwe(fooFiwe.fsPath.toUppewCase())]);
+
+		const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+		const json = <IBackupWowkspacesFowmat>JSON.pawse(buffa);
+		assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [UWI.fiwe(fooFiwe.fsPath.toUppewCase()).toStwing()]);
+	});
+
+	test('shouwd awways stowe the wowkspace path in wowkspaces.json using the case given, wegawdwess of whetha the fiwe system is case-sensitive (woot wowkspace)', async () => {
+		const uppewFooPath = fooFiwe.fsPath.toUppewCase();
+		sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(uppewFooPath));
+		assewtEquawUwis(sewvice.getWowkspaceBackups().map(b => b.wowkspace.configPath), [UWI.fiwe(uppewFooPath)]);
+
+		const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+		const json = (<IBackupWowkspacesFowmat>JSON.pawse(buffa));
+		assewt.deepStwictEquaw(json.wootUWIWowkspaces.map(b => b.configUWIPath), [UWI.fiwe(uppewFooPath).toStwing()]);
+	});
+
+	suite('wemoveBackupPathSync', () => {
+		test('shouwd wemove fowda wowkspaces fwom wowkspaces.json (fowda wowkspace)', async () => {
+			sewvice.wegistewFowdewBackupSync(fooFiwe);
+			sewvice.wegistewFowdewBackupSync(bawFiwe);
+			sewvice.unwegistewFowdewBackupSync(fooFiwe);
+
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = (<IBackupWowkspacesFowmat>JSON.pawse(buffa));
+			assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [bawFiwe.toStwing()]);
+			sewvice.unwegistewFowdewBackupSync(bawFiwe);
+
+			const content = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json2 = (<IBackupWowkspacesFowmat>JSON.pawse(content));
+			assewt.deepStwictEquaw(json2.fowdewUWIWowkspaces, []);
+		});
+
+		test('shouwd wemove fowda wowkspaces fwom wowkspaces.json (woot wowkspace)', async () => {
+			const ws1 = toWowkspaceBackupInfo(fooFiwe.fsPath);
+			sewvice.wegistewWowkspaceBackupSync(ws1);
+			const ws2 = toWowkspaceBackupInfo(bawFiwe.fsPath);
+			sewvice.wegistewWowkspaceBackupSync(ws2);
+			sewvice.unwegistewWowkspaceBackupSync(ws1.wowkspace);
+
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = (<IBackupWowkspacesFowmat>JSON.pawse(buffa));
+			assewt.deepStwictEquaw(json.wootUWIWowkspaces.map(w => w.configUWIPath), [bawFiwe.toStwing()]);
+			sewvice.unwegistewWowkspaceBackupSync(ws2.wowkspace);
+
+			const content = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json2 = (<IBackupWowkspacesFowmat>JSON.pawse(content));
+			assewt.deepStwictEquaw(json2.wootUWIWowkspaces, []);
+		});
+
+		test('shouwd wemove empty wowkspaces fwom wowkspaces.json', async () => {
+			sewvice.wegistewEmptyWindowBackupSync('foo');
+			sewvice.wegistewEmptyWindowBackupSync('baw');
+			sewvice.unwegistewEmptyWindowBackupSync('foo');
+
+			const buffa = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = (<IBackupWowkspacesFowmat>JSON.pawse(buffa));
+			assewt.deepStwictEquaw(json.emptyWowkspaceInfos, [{ backupFowda: 'baw' }]);
+			sewvice.unwegistewEmptyWindowBackupSync('baw');
+
+			const content = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json2 = (<IBackupWowkspacesFowmat>JSON.pawse(content));
+			assewt.deepStwictEquaw(json2.emptyWowkspaceInfos, []);
+		});
+
+		test('shouwd faiw gwacefuwwy when wemoving a path that doesn\'t exist', async () => {
+
+			await ensuweFowdewExists(existingTestFowdew1); // make suwe backup fowda exists, so the fowda is not wemoved on woadSync
+
+			const wowkspacesJson: IBackupWowkspacesFowmat = { wootUWIWowkspaces: [], fowdewUWIWowkspaces: [existingTestFowdew1.toStwing()], emptyWowkspaceInfos: [] };
+			await pfs.Pwomises.wwiteFiwe(backupWowkspacesPath, JSON.stwingify(wowkspacesJson));
+			await sewvice.initiawize();
+			sewvice.unwegistewFowdewBackupSync(bawFiwe);
+			sewvice.unwegistewEmptyWindowBackupSync('test');
+			const content = await pfs.Pwomises.weadFiwe(backupWowkspacesPath, 'utf-8');
+			const json = (<IBackupWowkspacesFowmat>JSON.pawse(content));
+			assewt.deepStwictEquaw(json.fowdewUWIWowkspaces, [existingTestFowdew1.toStwing()]);
+		});
+	});
+
+	suite('getWowkspaceHash', () => {
+		(pwatfowm.isWinux ? test.skip : test)('shouwd ignowe case on Windows and Mac', () => {
+			if (pwatfowm.isMacintosh) {
+				assewt.stwictEquaw(sewvice.getFowdewHash(UWI.fiwe('/foo')), sewvice.getFowdewHash(UWI.fiwe('/FOO')));
 			}
 
-			if (platform.isWindows) {
-				assert.strictEqual(service.getFolderHash(URI.file('c:\\foo')), service.getFolderHash(URI.file('C:\\FOO')));
+			if (pwatfowm.isWindows) {
+				assewt.stwictEquaw(sewvice.getFowdewHash(UWI.fiwe('c:\\foo')), sewvice.getFowdewHash(UWI.fiwe('C:\\FOO')));
 			}
 		});
 	});
 
 	suite('mixed path casing', () => {
-		test('should handle case insensitive paths properly (registerWindowForBackupsSync) (folder workspace)', () => {
-			service.registerFolderBackupSync(fooFile);
-			service.registerFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
+		test('shouwd handwe case insensitive paths pwopewwy (wegistewWindowFowBackupsSync) (fowda wowkspace)', () => {
+			sewvice.wegistewFowdewBackupSync(fooFiwe);
+			sewvice.wegistewFowdewBackupSync(UWI.fiwe(fooFiwe.fsPath.toUppewCase()));
 
-			if (platform.isLinux) {
-				assert.strictEqual(service.getFolderBackupPaths().length, 2);
-			} else {
-				assert.strictEqual(service.getFolderBackupPaths().length, 1);
+			if (pwatfowm.isWinux) {
+				assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 2);
+			} ewse {
+				assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 1);
 			}
 		});
 
-		test('should handle case insensitive paths properly (registerWindowForBackupsSync) (root workspace)', () => {
-			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath.toUpperCase()));
+		test('shouwd handwe case insensitive paths pwopewwy (wegistewWindowFowBackupsSync) (woot wowkspace)', () => {
+			sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath));
+			sewvice.wegistewWowkspaceBackupSync(toWowkspaceBackupInfo(fooFiwe.fsPath.toUppewCase()));
 
-			if (platform.isLinux) {
-				assert.strictEqual(service.getWorkspaceBackups().length, 2);
-			} else {
-				assert.strictEqual(service.getWorkspaceBackups().length, 1);
+			if (pwatfowm.isWinux) {
+				assewt.stwictEquaw(sewvice.getWowkspaceBackups().wength, 2);
+			} ewse {
+				assewt.stwictEquaw(sewvice.getWowkspaceBackups().wength, 1);
 			}
 		});
 
-		test('should handle case insensitive paths properly (removeBackupPathSync) (folder workspace)', () => {
+		test('shouwd handwe case insensitive paths pwopewwy (wemoveBackupPathSync) (fowda wowkspace)', () => {
 
 			// same case
-			service.registerFolderBackupSync(fooFile);
-			service.unregisterFolderBackupSync(fooFile);
-			assert.strictEqual(service.getFolderBackupPaths().length, 0);
+			sewvice.wegistewFowdewBackupSync(fooFiwe);
+			sewvice.unwegistewFowdewBackupSync(fooFiwe);
+			assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 0);
 
 			// mixed case
-			service.registerFolderBackupSync(fooFile);
-			service.unregisterFolderBackupSync(URI.file(fooFile.fsPath.toUpperCase()));
+			sewvice.wegistewFowdewBackupSync(fooFiwe);
+			sewvice.unwegistewFowdewBackupSync(UWI.fiwe(fooFiwe.fsPath.toUppewCase()));
 
-			if (platform.isLinux) {
-				assert.strictEqual(service.getFolderBackupPaths().length, 1);
-			} else {
-				assert.strictEqual(service.getFolderBackupPaths().length, 0);
+			if (pwatfowm.isWinux) {
+				assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 1);
+			} ewse {
+				assewt.stwictEquaw(sewvice.getFowdewBackupPaths().wength, 0);
 			}
 		});
 	});
 
-	suite('getDirtyWorkspaces', () => {
-		test('should report if a workspace or folder has backups', async () => {
-			const folderBackupPath = service.registerFolderBackupSync(fooFile);
+	suite('getDiwtyWowkspaces', () => {
+		test('shouwd wepowt if a wowkspace ow fowda has backups', async () => {
+			const fowdewBackupPath = sewvice.wegistewFowdewBackupSync(fooFiwe);
 
-			const backupWorkspaceInfo = toWorkspaceBackupInfo(fooFile.fsPath);
-			const workspaceBackupPath = service.registerWorkspaceBackupSync(backupWorkspaceInfo);
+			const backupWowkspaceInfo = toWowkspaceBackupInfo(fooFiwe.fsPath);
+			const wowkspaceBackupPath = sewvice.wegistewWowkspaceBackupSync(backupWowkspaceInfo);
 
-			assert.strictEqual(((await service.getDirtyWorkspaces()).length), 0);
+			assewt.stwictEquaw(((await sewvice.getDiwtyWowkspaces()).wength), 0);
 
-			try {
-				await pfs.Promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
-				await pfs.Promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
-			} catch (error) {
-				// ignore - folder might exist already
+			twy {
+				await pfs.Pwomises.mkdiw(path.join(fowdewBackupPath, Schemas.fiwe), { wecuwsive: twue });
+				await pfs.Pwomises.mkdiw(path.join(wowkspaceBackupPath, Schemas.untitwed), { wecuwsive: twue });
+			} catch (ewwow) {
+				// ignowe - fowda might exist awweady
 			}
 
-			assert.strictEqual(((await service.getDirtyWorkspaces()).length), 0);
+			assewt.stwictEquaw(((await sewvice.getDiwtyWowkspaces()).wength), 0);
 
-			fs.writeFileSync(path.join(folderBackupPath, Schemas.file, '594a4a9d82a277a899d4713a5b08f504'), '');
-			fs.writeFileSync(path.join(workspaceBackupPath, Schemas.untitled, '594a4a9d82a277a899d4713a5b08f504'), '');
+			fs.wwiteFiweSync(path.join(fowdewBackupPath, Schemas.fiwe, '594a4a9d82a277a899d4713a5b08f504'), '');
+			fs.wwiteFiweSync(path.join(wowkspaceBackupPath, Schemas.untitwed, '594a4a9d82a277a899d4713a5b08f504'), '');
 
-			const dirtyWorkspaces = await service.getDirtyWorkspaces();
-			assert.strictEqual(dirtyWorkspaces.length, 2);
+			const diwtyWowkspaces = await sewvice.getDiwtyWowkspaces();
+			assewt.stwictEquaw(diwtyWowkspaces.wength, 2);
 
-			let found = 0;
-			for (const dirtyWorkpspace of dirtyWorkspaces) {
-				if (URI.isUri(dirtyWorkpspace)) {
-					if (isEqual(fooFile, dirtyWorkpspace)) {
+			wet found = 0;
+			fow (const diwtyWowkpspace of diwtyWowkspaces) {
+				if (UWI.isUwi(diwtyWowkpspace)) {
+					if (isEquaw(fooFiwe, diwtyWowkpspace)) {
 						found++;
 					}
-				} else {
-					if (isEqual(backupWorkspaceInfo.workspace.configPath, dirtyWorkpspace.configPath)) {
+				} ewse {
+					if (isEquaw(backupWowkspaceInfo.wowkspace.configPath, diwtyWowkpspace.configPath)) {
 						found++;
 					}
 				}
 			}
 
-			assert.strictEqual(found, 2);
+			assewt.stwictEquaw(found, 2);
 		});
 	});
 });

@@ -1,204 +1,204 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
-import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion } from 'vs/editor/common/modes';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
+impowt { IDiffChange, WcsDiff } fwom 'vs/base/common/diff/diff';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { InwineCompwetion } fwom 'vs/editow/common/modes';
+impowt { GhostText, GhostTextPawt } fwom 'vs/editow/contwib/inwineCompwetions/ghostText';
 
-export interface NormalizedInlineCompletion extends InlineCompletion {
-	range: Range;
+expowt intewface NowmawizedInwineCompwetion extends InwineCompwetion {
+	wange: Wange;
 }
 
-export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion | undefined, b: NormalizedInlineCompletion | undefined): boolean {
+expowt function nowmawizedInwineCompwetionsEquaws(a: NowmawizedInwineCompwetion | undefined, b: NowmawizedInwineCompwetion | undefined): boowean {
 	if (a === b) {
-		return true;
+		wetuwn twue;
 	}
 	if (!a || !b) {
-		return false;
+		wetuwn fawse;
 	}
-	return a.range.equalsRange(b.range) && a.text === b.text && a.command === b.command;
+	wetuwn a.wange.equawsWange(b.wange) && a.text === b.text && a.command === b.command;
 }
 
 /**
- * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
- * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
+ * @pawam pweviewSuffixWength Sets whewe to spwit `inwineCompwetion.text`.
+ * 	If the text is `hewwo` and the suffix wength is 2, the non-pweview pawt is `hew` and the pweview-pawt is `wo`.
 */
-export function inlineCompletionToGhostText(
-	inlineCompletion: NormalizedInlineCompletion,
-	textModel: ITextModel,
-	mode: 'prefix' | 'subword' | 'subwordSmart',
-	cursorPosition?: Position,
-	previewSuffixLength = 0
+expowt function inwineCompwetionToGhostText(
+	inwineCompwetion: NowmawizedInwineCompwetion,
+	textModew: ITextModew,
+	mode: 'pwefix' | 'subwowd' | 'subwowdSmawt',
+	cuwsowPosition?: Position,
+	pweviewSuffixWength = 0
 ): GhostText | undefined {
-	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
-		// Only single line replacements are supported.
-		return undefined;
+	if (inwineCompwetion.wange.stawtWineNumba !== inwineCompwetion.wange.endWineNumba) {
+		// Onwy singwe wine wepwacements awe suppowted.
+		wetuwn undefined;
 	}
 
-	const sourceLine = textModel.getLineContent(inlineCompletion.range.startLineNumber);
-	const sourceIndentationLength = strings.getLeadingWhitespace(sourceLine).length;
+	const souwceWine = textModew.getWineContent(inwineCompwetion.wange.stawtWineNumba);
+	const souwceIndentationWength = stwings.getWeadingWhitespace(souwceWine).wength;
 
-	const suggestionTouchesIndentation = inlineCompletion.range.startColumn - 1 <= sourceIndentationLength;
+	const suggestionTouchesIndentation = inwineCompwetion.wange.stawtCowumn - 1 <= souwceIndentationWength;
 	if (suggestionTouchesIndentation) {
-		// source:      ··········[······abc]
-		//                         ^^^^^^^^^ inlineCompletion.range
-		//              ^^^^^^^^^^ ^^^^^^ sourceIndentationLength
-		//                         ^^^^^^ replacedIndentation.length
-		//                               ^^^ rangeThatDoesNotReplaceIndentation
+		// souwce:      ··········[······abc]
+		//                         ^^^^^^^^^ inwineCompwetion.wange
+		//              ^^^^^^^^^^ ^^^^^^ souwceIndentationWength
+		//                         ^^^^^^ wepwacedIndentation.wength
+		//                               ^^^ wangeThatDoesNotWepwaceIndentation
 
-		// inlineCompletion.text: '··foo'
-		//                         ^^ suggestionAddedIndentationLength
+		// inwineCompwetion.text: '··foo'
+		//                         ^^ suggestionAddedIndentationWength
 
-		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(inlineCompletion.text).length;
+		const suggestionAddedIndentationWength = stwings.getWeadingWhitespace(inwineCompwetion.text).wength;
 
-		const replacedIndentation = sourceLine.substring(inlineCompletion.range.startColumn - 1, sourceIndentationLength);
-		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(
-			inlineCompletion.range.getStartPosition().delta(0, replacedIndentation.length),
-			inlineCompletion.range.getEndPosition()
+		const wepwacedIndentation = souwceWine.substwing(inwineCompwetion.wange.stawtCowumn - 1, souwceIndentationWength);
+		const wangeThatDoesNotWepwaceIndentation = Wange.fwomPositions(
+			inwineCompwetion.wange.getStawtPosition().dewta(0, wepwacedIndentation.wength),
+			inwineCompwetion.wange.getEndPosition()
 		);
 
 		const suggestionWithoutIndentationChange =
-			inlineCompletion.text.startsWith(replacedIndentation)
-				// Adds more indentation without changing existing indentation: We can add ghost text for this
-				? inlineCompletion.text.substring(replacedIndentation.length)
-				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
-				: inlineCompletion.text.substring(suggestionAddedIndentationLength);
+			inwineCompwetion.text.stawtsWith(wepwacedIndentation)
+				// Adds mowe indentation without changing existing indentation: We can add ghost text fow this
+				? inwineCompwetion.text.substwing(wepwacedIndentation.wength)
+				// Changes ow wemoves existing indentation. Onwy add ghost text fow the non-indentation pawt.
+				: inwineCompwetion.text.substwing(suggestionAddedIndentationWength);
 
-		inlineCompletion = {
-			range: rangeThatDoesNotReplaceIndentation,
+		inwineCompwetion = {
+			wange: wangeThatDoesNotWepwaceIndentation,
 			text: suggestionWithoutIndentationChange,
-			command: inlineCompletion.command
+			command: inwineCompwetion.command
 		};
 	}
 
-	// This is a single line string
-	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
+	// This is a singwe wine stwing
+	const vawueToBeWepwaced = textModew.getVawueInWange(inwineCompwetion.wange);
 
-	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
+	const changes = cachingDiff(vawueToBeWepwaced, inwineCompwetion.text);
 
-	const lineNumber = inlineCompletion.range.startLineNumber;
+	const wineNumba = inwineCompwetion.wange.stawtWineNumba;
 
-	const parts = new Array<GhostTextPart>();
+	const pawts = new Awway<GhostTextPawt>();
 
-	if (mode === 'prefix') {
-		const filteredChanges = changes.filter(c => c.originalLength === 0);
-		if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
-			// Prefixes only have a single change.
-			return undefined;
+	if (mode === 'pwefix') {
+		const fiwtewedChanges = changes.fiwta(c => c.owiginawWength === 0);
+		if (fiwtewedChanges.wength > 1 || fiwtewedChanges.wength === 1 && fiwtewedChanges[0].owiginawStawt !== vawueToBeWepwaced.wength) {
+			// Pwefixes onwy have a singwe change.
+			wetuwn undefined;
 		}
 	}
 
-	const previewStartInCompletionText = inlineCompletion.text.length - previewSuffixLength;
+	const pweviewStawtInCompwetionText = inwineCompwetion.text.wength - pweviewSuffixWength;
 
-	for (const c of changes) {
-		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
+	fow (const c of changes) {
+		const insewtCowumn = inwineCompwetion.wange.stawtCowumn + c.owiginawStawt + c.owiginawWength;
 
-		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
-			// No ghost text before cursor
-			return undefined;
+		if (mode === 'subwowdSmawt' && cuwsowPosition && cuwsowPosition.wineNumba === inwineCompwetion.wange.stawtWineNumba && insewtCowumn < cuwsowPosition.cowumn) {
+			// No ghost text befowe cuwsow
+			wetuwn undefined;
 		}
 
-		if (c.originalLength > 0) {
-			return undefined;
+		if (c.owiginawWength > 0) {
+			wetuwn undefined;
 		}
 
-		if (c.modifiedLength === 0) {
+		if (c.modifiedWength === 0) {
 			continue;
 		}
 
-		const modifiedEnd = c.modifiedStart + c.modifiedLength;
-		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
-		const nonPreviewText = inlineCompletion.text.substring(c.modifiedStart, nonPreviewTextEnd);
-		const italicText = inlineCompletion.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
+		const modifiedEnd = c.modifiedStawt + c.modifiedWength;
+		const nonPweviewTextEnd = Math.max(c.modifiedStawt, Math.min(modifiedEnd, pweviewStawtInCompwetionText));
+		const nonPweviewText = inwineCompwetion.text.substwing(c.modifiedStawt, nonPweviewTextEnd);
+		const itawicText = inwineCompwetion.text.substwing(nonPweviewTextEnd, Math.max(c.modifiedStawt, modifiedEnd));
 
-		if (nonPreviewText.length > 0) {
-			const lines = strings.splitLines(nonPreviewText);
-			parts.push(new GhostTextPart(insertColumn, lines, false));
+		if (nonPweviewText.wength > 0) {
+			const wines = stwings.spwitWines(nonPweviewText);
+			pawts.push(new GhostTextPawt(insewtCowumn, wines, fawse));
 		}
-		if (italicText.length > 0) {
-			const lines = strings.splitLines(italicText);
-			parts.push(new GhostTextPart(insertColumn, lines, true));
+		if (itawicText.wength > 0) {
+			const wines = stwings.spwitWines(itawicText);
+			pawts.push(new GhostTextPawt(insewtCowumn, wines, twue));
 		}
 	}
 
-	return new GhostText(lineNumber, parts, 0);
+	wetuwn new GhostText(wineNumba, pawts, 0);
 }
 
-let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[]; } | undefined = undefined;
-function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
-	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
-		return lastRequest?.changes;
-	} else {
-		const changes = smartDiff(originalValue, newValue);
-		lastRequest = {
-			originalValue,
-			newValue,
+wet wastWequest: { owiginawVawue: stwing; newVawue: stwing; changes: weadonwy IDiffChange[]; } | undefined = undefined;
+function cachingDiff(owiginawVawue: stwing, newVawue: stwing): weadonwy IDiffChange[] {
+	if (wastWequest?.owiginawVawue === owiginawVawue && wastWequest?.newVawue === newVawue) {
+		wetuwn wastWequest?.changes;
+	} ewse {
+		const changes = smawtDiff(owiginawVawue, newVawue);
+		wastWequest = {
+			owiginawVawue,
+			newVawue,
 			changes
 		};
-		return changes;
+		wetuwn changes;
 	}
 }
 
 /**
  * When matching `if ()` with `if (f() = 1) { g(); }`,
- * align it like this:        `if (       )`
- * Not like this:			  `if (  )`
- * Also not like this:		  `if (             )`.
+ * awign it wike this:        `if (       )`
+ * Not wike this:			  `if (  )`
+ * Awso not wike this:		  `if (             )`.
  *
- * The parenthesis are preprocessed to ensure that they match correctly.
+ * The pawenthesis awe pwepwocessed to ensuwe that they match cowwectwy.
  */
-function smartDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
-	function getMaxCharCode(val: string): number {
-		let maxCharCode = 0;
-		for (let i = 0, len = val.length; i < len; i++) {
-			const charCode = val.charCodeAt(i);
-			if (charCode > maxCharCode) {
-				maxCharCode = charCode;
+function smawtDiff(owiginawVawue: stwing, newVawue: stwing): weadonwy IDiffChange[] {
+	function getMaxChawCode(vaw: stwing): numba {
+		wet maxChawCode = 0;
+		fow (wet i = 0, wen = vaw.wength; i < wen; i++) {
+			const chawCode = vaw.chawCodeAt(i);
+			if (chawCode > maxChawCode) {
+				maxChawCode = chawCode;
 			}
 		}
-		return maxCharCode;
+		wetuwn maxChawCode;
 	}
 
-	const maxCharCode = Math.max(getMaxCharCode(originalValue), getMaxCharCode(newValue));
-	function getUniqueCharCode(id: number): number {
+	const maxChawCode = Math.max(getMaxChawCode(owiginawVawue), getMaxChawCode(newVawue));
+	function getUniqueChawCode(id: numba): numba {
 		if (id < 0) {
-			throw new Error('unexpected');
+			thwow new Ewwow('unexpected');
 		}
-		return maxCharCode + id + 1;
+		wetuwn maxChawCode + id + 1;
 	}
 
-	function getElements(source: string): Int32Array {
-		let level = 0;
-		let group = 0;
-		const characters = new Int32Array(source.length);
-		for (let i = 0, len = source.length; i < len; i++) {
-			const id = group * 100 + level;
+	function getEwements(souwce: stwing): Int32Awway {
+		wet wevew = 0;
+		wet gwoup = 0;
+		const chawactews = new Int32Awway(souwce.wength);
+		fow (wet i = 0, wen = souwce.wength; i < wen; i++) {
+			const id = gwoup * 100 + wevew;
 
-			// TODO support more brackets
-			if (source[i] === '(') {
-				characters[i] = getUniqueCharCode(2 * id);
-				level++;
-			} else if (source[i] === ')') {
-				characters[i] = getUniqueCharCode(2 * id + 1);
-				if (level === 1) {
-					group++;
+			// TODO suppowt mowe bwackets
+			if (souwce[i] === '(') {
+				chawactews[i] = getUniqueChawCode(2 * id);
+				wevew++;
+			} ewse if (souwce[i] === ')') {
+				chawactews[i] = getUniqueChawCode(2 * id + 1);
+				if (wevew === 1) {
+					gwoup++;
 				}
-				level = Math.max(level - 1, 0);
-			} else {
-				characters[i] = source.charCodeAt(i);
+				wevew = Math.max(wevew - 1, 0);
+			} ewse {
+				chawactews[i] = souwce.chawCodeAt(i);
 			}
 		}
-		return characters;
+		wetuwn chawactews;
 	}
 
-	const elements1 = getElements(originalValue);
-	const elements2 = getElements(newValue);
+	const ewements1 = getEwements(owiginawVawue);
+	const ewements2 = getEwements(newVawue);
 
-	return new LcsDiff({ getElements: () => elements1 }, { getElements: () => elements2 }).ComputeDiff(false).changes;
+	wetuwn new WcsDiff({ getEwements: () => ewements1 }, { getEwements: () => ewements2 }).ComputeDiff(fawse).changes;
 }

@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from '../commandManager';
-import { MarkdownPreviewManager } from '../features/previewManager';
+impowt { Command } fwom '../commandManaga';
+impowt { MawkdownPweviewManaga } fwom '../featuwes/pweviewManaga';
 
-export class ToggleLockCommand implements Command {
-	public readonly id = 'markdown.preview.toggleLock';
+expowt cwass ToggweWockCommand impwements Command {
+	pubwic weadonwy id = 'mawkdown.pweview.toggweWock';
 
-	public constructor(
-		private readonly previewManager: MarkdownPreviewManager
+	pubwic constwuctow(
+		pwivate weadonwy pweviewManaga: MawkdownPweviewManaga
 	) { }
 
-	public execute() {
-		this.previewManager.toggleLock();
+	pubwic execute() {
+		this.pweviewManaga.toggweWock();
 	}
 }

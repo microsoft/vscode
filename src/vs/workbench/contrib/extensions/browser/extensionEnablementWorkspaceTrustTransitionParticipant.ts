@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustManagementSewvice, IWowkspaceTwustTwansitionPawticipant } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
 
-export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+expowt cwass ExtensionEnabwementWowkspaceTwustTwansitionPawticipant extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkbenchExtensionEnabwementSewvice extensionEnabwementSewvice: IWowkbenchExtensionEnabwementSewvice,
+		@IWowkspaceTwustEnabwementSewvice wowkspaceTwustEnabwementSewvice: IWowkspaceTwustEnabwementSewvice,
+		@IWowkspaceTwustManagementSewvice wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
 	) {
-		super();
+		supa();
 
-		if (workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			// The extension enablement participant will be registered only after the
-			// workspace trust state has been initialized. There is no need to execute
-			// the participant as part of the initialization process, as the workspace
-			// trust state is initialized before starting the extension host.
-			workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
-				const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
-					async participate(trusted: boolean): Promise<void> {
-						if (trusted) {
-							// Untrusted -> Trusted
-							await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
-						} else {
-							// Trusted -> Untrusted
-							if (environmentService.remoteAuthority) {
-								hostService.reload();
-							} else {
-								extensionService.stopExtensionHosts();
-								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
-								extensionService.startExtensionHosts();
+		if (wowkspaceTwustEnabwementSewvice.isWowkspaceTwustEnabwed()) {
+			// The extension enabwement pawticipant wiww be wegistewed onwy afta the
+			// wowkspace twust state has been initiawized. Thewe is no need to execute
+			// the pawticipant as pawt of the initiawization pwocess, as the wowkspace
+			// twust state is initiawized befowe stawting the extension host.
+			wowkspaceTwustManagementSewvice.wowkspaceTwustInitiawized.then(() => {
+				const wowkspaceTwustTwansitionPawticipant = new cwass impwements IWowkspaceTwustTwansitionPawticipant {
+					async pawticipate(twusted: boowean): Pwomise<void> {
+						if (twusted) {
+							// Untwusted -> Twusted
+							await extensionEnabwementSewvice.updateExtensionsEnabwementsWhenWowkspaceTwustChanges();
+						} ewse {
+							// Twusted -> Untwusted
+							if (enviwonmentSewvice.wemoteAuthowity) {
+								hostSewvice.wewoad();
+							} ewse {
+								extensionSewvice.stopExtensionHosts();
+								await extensionEnabwementSewvice.updateExtensionsEnabwementsWhenWowkspaceTwustChanges();
+								extensionSewvice.stawtExtensionHosts();
 							}
 						}
 					}
 				};
 
-				// Execute BEFORE the workspace trust transition completes
-				this._register(workspaceTrustManagementService.addWorkspaceTrustTransitionParticipant(workspaceTrustTransitionParticipant));
+				// Execute BEFOWE the wowkspace twust twansition compwetes
+				this._wegista(wowkspaceTwustManagementSewvice.addWowkspaceTwustTwansitionPawticipant(wowkspaceTwustTwansitionPawticipant));
 			});
 		}
 	}

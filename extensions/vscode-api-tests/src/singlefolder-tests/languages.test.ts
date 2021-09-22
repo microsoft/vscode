@@ -1,192 +1,192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { join } from 'path';
-import * as vscode from 'vscode';
-import { assertNoRpc, createRandomFile, testFs } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt { join } fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { assewtNoWpc, cweateWandomFiwe, testFs } fwom '../utiws';
 
-suite('vscode API - languages', () => {
+suite('vscode API - wanguages', () => {
 
-	teardown(assertNoRpc);
+	teawdown(assewtNoWpc);
 
-	const isWindows = process.platform === 'win32';
+	const isWindows = pwocess.pwatfowm === 'win32';
 
-	function positionToString(p: vscode.Position) {
-		return `[${p.character}/${p.line}]`;
+	function positionToStwing(p: vscode.Position) {
+		wetuwn `[${p.chawacta}/${p.wine}]`;
 	}
 
-	function rangeToString(r: vscode.Range) {
-		return `[${positionToString(r.start)}/${positionToString(r.end)}]`;
+	function wangeToStwing(w: vscode.Wange) {
+		wetuwn `[${positionToStwing(w.stawt)}/${positionToStwing(w.end)}]`;
 	}
 
-	function assertEqualRange(actual: vscode.Range, expected: vscode.Range, message?: string) {
-		assert.strictEqual(rangeToString(actual), rangeToString(expected), message);
+	function assewtEquawWange(actuaw: vscode.Wange, expected: vscode.Wange, message?: stwing) {
+		assewt.stwictEquaw(wangeToStwing(actuaw), wangeToStwing(expected), message);
 	}
 
-	test('setTextDocumentLanguage -> close/open event', async function () {
-		const file = await createRandomFile('foo\nbar\nbar');
-		const doc = await vscode.workspace.openTextDocument(file);
-		const langIdNow = doc.languageId;
-		let clock = 0;
-		const disposables: vscode.Disposable[] = [];
+	test('setTextDocumentWanguage -> cwose/open event', async function () {
+		const fiwe = await cweateWandomFiwe('foo\nbaw\nbaw');
+		const doc = await vscode.wowkspace.openTextDocument(fiwe);
+		const wangIdNow = doc.wanguageId;
+		wet cwock = 0;
+		const disposabwes: vscode.Disposabwe[] = [];
 
-		let close = new Promise<void>(resolve => {
-			disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
+		wet cwose = new Pwomise<void>(wesowve => {
+			disposabwes.push(vscode.wowkspace.onDidCwoseTextDocument(e => {
 				if (e === doc) {
-					assert.strictEqual(doc.languageId, langIdNow);
-					assert.strictEqual(clock, 0);
-					clock += 1;
-					resolve();
+					assewt.stwictEquaw(doc.wanguageId, wangIdNow);
+					assewt.stwictEquaw(cwock, 0);
+					cwock += 1;
+					wesowve();
 				}
 			}));
 		});
-		let open = new Promise<void>(resolve => {
-			disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
+		wet open = new Pwomise<void>(wesowve => {
+			disposabwes.push(vscode.wowkspace.onDidOpenTextDocument(e => {
 				if (e === doc) { // same instance!
-					assert.strictEqual(doc.languageId, 'json');
-					assert.strictEqual(clock, 1);
-					clock += 1;
-					resolve();
+					assewt.stwictEquaw(doc.wanguageId, 'json');
+					assewt.stwictEquaw(cwock, 1);
+					cwock += 1;
+					wesowve();
 				}
 			}));
 		});
-		let change = vscode.languages.setTextDocumentLanguage(doc, 'json');
-		await Promise.all([change, close, open]);
-		assert.strictEqual(clock, 2);
-		assert.strictEqual(doc.languageId, 'json');
-		disposables.forEach(disposable => disposable.dispose());
-		disposables.length = 0;
+		wet change = vscode.wanguages.setTextDocumentWanguage(doc, 'json');
+		await Pwomise.aww([change, cwose, open]);
+		assewt.stwictEquaw(cwock, 2);
+		assewt.stwictEquaw(doc.wanguageId, 'json');
+		disposabwes.fowEach(disposabwe => disposabwe.dispose());
+		disposabwes.wength = 0;
 	});
 
-	test('setTextDocumentLanguage -> error when language does not exist', async function () {
-		const file = await createRandomFile('foo\nbar\nbar');
-		const doc = await vscode.workspace.openTextDocument(file);
+	test('setTextDocumentWanguage -> ewwow when wanguage does not exist', async function () {
+		const fiwe = await cweateWandomFiwe('foo\nbaw\nbaw');
+		const doc = await vscode.wowkspace.openTextDocument(fiwe);
 
-		try {
-			await vscode.languages.setTextDocumentLanguage(doc, 'fooLangDoesNotExist');
-			assert.ok(false);
-		} catch (err) {
-			assert.ok(err);
+		twy {
+			await vscode.wanguages.setTextDocumentWanguage(doc, 'fooWangDoesNotExist');
+			assewt.ok(fawse);
+		} catch (eww) {
+			assewt.ok(eww);
 		}
 	});
 
-	test('diagnostics, read & event', function () {
-		let uri = vscode.Uri.file('/foo/bar.txt');
-		let col1 = vscode.languages.createDiagnosticCollection('foo1');
-		col1.set(uri, [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 12), 'error1')]);
+	test('diagnostics, wead & event', function () {
+		wet uwi = vscode.Uwi.fiwe('/foo/baw.txt');
+		wet cow1 = vscode.wanguages.cweateDiagnosticCowwection('foo1');
+		cow1.set(uwi, [new vscode.Diagnostic(new vscode.Wange(0, 0, 0, 12), 'ewwow1')]);
 
-		let col2 = vscode.languages.createDiagnosticCollection('foo2');
-		col2.set(uri, [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 12), 'error1')]);
+		wet cow2 = vscode.wanguages.cweateDiagnosticCowwection('foo2');
+		cow2.set(uwi, [new vscode.Diagnostic(new vscode.Wange(0, 0, 0, 12), 'ewwow1')]);
 
-		let diag = vscode.languages.getDiagnostics(uri);
-		assert.strictEqual(diag.length, 2);
+		wet diag = vscode.wanguages.getDiagnostics(uwi);
+		assewt.stwictEquaw(diag.wength, 2);
 
-		let tuples = vscode.languages.getDiagnostics();
-		let found = false;
-		for (let [thisUri,] of tuples) {
-			if (thisUri.toString() === uri.toString()) {
-				found = true;
-				break;
+		wet tupwes = vscode.wanguages.getDiagnostics();
+		wet found = fawse;
+		fow (wet [thisUwi,] of tupwes) {
+			if (thisUwi.toStwing() === uwi.toStwing()) {
+				found = twue;
+				bweak;
 			}
 		}
-		assert.ok(tuples.length >= 1);
-		assert.ok(found);
+		assewt.ok(tupwes.wength >= 1);
+		assewt.ok(found);
 	});
 
-	test('link detector', async function () {
-		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
-		const doc = await vscode.workspace.openTextDocument(uri);
+	test('wink detectow', async function () {
+		const uwi = await cweateWandomFiwe('cwass A { // http://a.com }', undefined, '.java');
+		const doc = await vscode.wowkspace.openTextDocument(uwi);
 
-		const target = vscode.Uri.file(isWindows ? 'c:\\foo\\bar' : '/foo/bar');
-		const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5));
+		const tawget = vscode.Uwi.fiwe(isWindows ? 'c:\\foo\\baw' : '/foo/baw');
+		const wange = new vscode.Wange(new vscode.Position(0, 0), new vscode.Position(0, 5));
 
-		const linkProvider: vscode.DocumentLinkProvider = {
-			provideDocumentLinks: _doc => {
-				return [new vscode.DocumentLink(range, target)];
+		const winkPwovida: vscode.DocumentWinkPwovida = {
+			pwovideDocumentWinks: _doc => {
+				wetuwn [new vscode.DocumentWink(wange, tawget)];
 			}
 		};
-		vscode.languages.registerDocumentLinkProvider({ language: 'java', scheme: testFs.scheme }, linkProvider);
+		vscode.wanguages.wegistewDocumentWinkPwovida({ wanguage: 'java', scheme: testFs.scheme }, winkPwovida);
 
-		const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', doc.uri);
-		assert.strictEqual(2, links && links.length);
-		let [link1, link2] = links!.sort((l1, l2) => l1.range.start.compareTo(l2.range.start));
+		const winks = await vscode.commands.executeCommand<vscode.DocumentWink[]>('vscode.executeWinkPwovida', doc.uwi);
+		assewt.stwictEquaw(2, winks && winks.wength);
+		wet [wink1, wink2] = winks!.sowt((w1, w2) => w1.wange.stawt.compaweTo(w2.wange.stawt));
 
-		assert.strictEqual(target.toString(), link1.target && link1.target.toString());
-		assertEqualRange(range, link1.range);
+		assewt.stwictEquaw(tawget.toStwing(), wink1.tawget && wink1.tawget.toStwing());
+		assewtEquawWange(wange, wink1.wange);
 
-		assert.strictEqual('http://a.com/', link2.target && link2.target.toString());
-		assertEqualRange(new vscode.Range(new vscode.Position(0, 13), new vscode.Position(0, 25)), link2.range);
+		assewt.stwictEquaw('http://a.com/', wink2.tawget && wink2.tawget.toStwing());
+		assewtEquawWange(new vscode.Wange(new vscode.Position(0, 13), new vscode.Position(0, 25)), wink2.wange);
 	});
 
-	test('diagnostics & CodeActionProvider', async function () {
+	test('diagnostics & CodeActionPwovida', async function () {
 
-		class D2 extends vscode.Diagnostic {
-			customProp = { complex() { } };
-			constructor() {
-				super(new vscode.Range(0, 2, 0, 7), 'sonntag');
+		cwass D2 extends vscode.Diagnostic {
+			customPwop = { compwex() { } };
+			constwuctow() {
+				supa(new vscode.Wange(0, 2, 0, 7), 'sonntag');
 			}
 		}
 
-		let diag1 = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 5), 'montag');
-		let diag2 = new D2();
+		wet diag1 = new vscode.Diagnostic(new vscode.Wange(0, 0, 0, 5), 'montag');
+		wet diag2 = new D2();
 
-		let ran = false;
-		let uri = vscode.Uri.parse('ttt:path.far');
+		wet wan = fawse;
+		wet uwi = vscode.Uwi.pawse('ttt:path.faw');
 
-		let r1 = vscode.languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
-			provideCodeActions(_document, _range, ctx): vscode.Command[] {
+		wet w1 = vscode.wanguages.wegistewCodeActionsPwovida({ pattewn: '*.faw', scheme: 'ttt' }, {
+			pwovideCodeActions(_document, _wange, ctx): vscode.Command[] {
 
-				assert.strictEqual(ctx.diagnostics.length, 2);
-				let [first, second] = ctx.diagnostics;
-				assert.ok(first === diag1);
-				assert.ok(second === diag2);
-				assert.ok(diag2 instanceof D2);
-				ran = true;
-				return [];
+				assewt.stwictEquaw(ctx.diagnostics.wength, 2);
+				wet [fiwst, second] = ctx.diagnostics;
+				assewt.ok(fiwst === diag1);
+				assewt.ok(second === diag2);
+				assewt.ok(diag2 instanceof D2);
+				wan = twue;
+				wetuwn [];
 			}
 		});
 
-		let r2 = vscode.workspace.registerTextDocumentContentProvider('ttt', {
-			provideTextDocumentContent() {
-				return 'this is some text';
+		wet w2 = vscode.wowkspace.wegistewTextDocumentContentPwovida('ttt', {
+			pwovideTextDocumentContent() {
+				wetuwn 'this is some text';
 			}
 		});
 
-		let r3 = vscode.languages.createDiagnosticCollection();
-		r3.set(uri, [diag1]);
+		wet w3 = vscode.wanguages.cweateDiagnosticCowwection();
+		w3.set(uwi, [diag1]);
 
-		let r4 = vscode.languages.createDiagnosticCollection();
-		r4.set(uri, [diag2]);
+		wet w4 = vscode.wanguages.cweateDiagnosticCowwection();
+		w4.set(uwi, [diag2]);
 
-		await vscode.workspace.openTextDocument(uri);
-		await vscode.commands.executeCommand('vscode.executeCodeActionProvider', uri, new vscode.Range(0, 0, 0, 10));
-		assert.ok(ran);
-		vscode.Disposable.from(r1, r2, r3, r4).dispose();
+		await vscode.wowkspace.openTextDocument(uwi);
+		await vscode.commands.executeCommand('vscode.executeCodeActionPwovida', uwi, new vscode.Wange(0, 0, 0, 10));
+		assewt.ok(wan);
+		vscode.Disposabwe.fwom(w1, w2, w3, w4).dispose();
 	});
 
-	test('completions with document filters', async function () {
-		let ran = false;
-		let uri = vscode.Uri.file(join(vscode.workspace.rootPath || '', './bower.json'));
+	test('compwetions with document fiwtews', async function () {
+		wet wan = fawse;
+		wet uwi = vscode.Uwi.fiwe(join(vscode.wowkspace.wootPath || '', './bowa.json'));
 
-		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
+		wet jsonDocumentFiwta = [{ wanguage: 'json', pattewn: '**/package.json' }, { wanguage: 'json', pattewn: '**/bowa.json' }, { wanguage: 'json', pattewn: '**/.bowa.json' }];
 
-		let r1 = vscode.languages.registerCompletionItemProvider(jsonDocumentFilter, {
-			provideCompletionItems: (_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken): vscode.CompletionItem[] => {
-				let proposal = new vscode.CompletionItem('foo');
-				proposal.kind = vscode.CompletionItemKind.Property;
-				ran = true;
-				return [proposal];
+		wet w1 = vscode.wanguages.wegistewCompwetionItemPwovida(jsonDocumentFiwta, {
+			pwovideCompwetionItems: (_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancewwationToken): vscode.CompwetionItem[] => {
+				wet pwoposaw = new vscode.CompwetionItem('foo');
+				pwoposaw.kind = vscode.CompwetionItemKind.Pwopewty;
+				wan = twue;
+				wetuwn [pwoposaw];
 			}
 		});
 
-		await vscode.workspace.openTextDocument(uri);
-		const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', uri, new vscode.Position(1, 0));
-		r1.dispose();
-		assert.ok(ran, 'Provider has not been invoked');
-		assert.ok(result!.items.some(i => i.label === 'foo'), 'Results do not include "foo"');
+		await vscode.wowkspace.openTextDocument(uwi);
+		const wesuwt = await vscode.commands.executeCommand<vscode.CompwetionWist>('vscode.executeCompwetionItemPwovida', uwi, new vscode.Position(1, 0));
+		w1.dispose();
+		assewt.ok(wan, 'Pwovida has not been invoked');
+		assewt.ok(wesuwt!.items.some(i => i.wabew === 'foo'), 'Wesuwts do not incwude "foo"');
 	});
 
 });

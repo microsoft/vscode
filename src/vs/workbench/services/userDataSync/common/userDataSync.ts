@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
-import { Event } from 'vs/base/common/event';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IAuthenticationPwovida, SyncStatus, SyncWesouwce, Change, MewgeState } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
 
-export interface IUserDataSyncAccount {
-	readonly authenticationProviderId: string;
-	readonly accountName: string;
-	readonly accountId: string;
+expowt intewface IUsewDataSyncAccount {
+	weadonwy authenticationPwovidewId: stwing;
+	weadonwy accountName: stwing;
+	weadonwy accountId: stwing;
 }
 
-export interface IUserDataSyncPreview {
-	readonly onDidChangeResources: Event<ReadonlyArray<IUserDataSyncResource>>;
-	readonly resources: ReadonlyArray<IUserDataSyncResource>;
+expowt intewface IUsewDataSyncPweview {
+	weadonwy onDidChangeWesouwces: Event<WeadonwyAwway<IUsewDataSyncWesouwce>>;
+	weadonwy wesouwces: WeadonwyAwway<IUsewDataSyncWesouwce>;
 
-	accept(syncResource: SyncResource, resource: URI, content?: string | null): Promise<void>;
-	merge(resource?: URI): Promise<void>;
-	discard(resource?: URI): Promise<void>;
-	pull(): Promise<void>;
-	push(): Promise<void>;
-	apply(): Promise<void>;
-	cancel(): Promise<void>;
+	accept(syncWesouwce: SyncWesouwce, wesouwce: UWI, content?: stwing | nuww): Pwomise<void>;
+	mewge(wesouwce?: UWI): Pwomise<void>;
+	discawd(wesouwce?: UWI): Pwomise<void>;
+	puww(): Pwomise<void>;
+	push(): Pwomise<void>;
+	appwy(): Pwomise<void>;
+	cancew(): Pwomise<void>;
 }
 
-export interface IUserDataSyncResource {
-	readonly syncResource: SyncResource;
-	readonly local: URI;
-	readonly remote: URI;
-	readonly merged: URI;
-	readonly accepted: URI;
-	readonly localChange: Change;
-	readonly remoteChange: Change;
-	readonly mergeState: MergeState;
+expowt intewface IUsewDataSyncWesouwce {
+	weadonwy syncWesouwce: SyncWesouwce;
+	weadonwy wocaw: UWI;
+	weadonwy wemote: UWI;
+	weadonwy mewged: UWI;
+	weadonwy accepted: UWI;
+	weadonwy wocawChange: Change;
+	weadonwy wemoteChange: Change;
+	weadonwy mewgeState: MewgeState;
 }
 
-export const IUserDataSyncWorkbenchService = createDecorator<IUserDataSyncWorkbenchService>('IUserDataSyncWorkbenchService');
-export interface IUserDataSyncWorkbenchService {
-	_serviceBrand: any;
+expowt const IUsewDataSyncWowkbenchSewvice = cweateDecowatow<IUsewDataSyncWowkbenchSewvice>('IUsewDataSyncWowkbenchSewvice');
+expowt intewface IUsewDataSyncWowkbenchSewvice {
+	_sewviceBwand: any;
 
-	readonly enabled: boolean;
-	readonly authenticationProviders: IAuthenticationProvider[];
+	weadonwy enabwed: boowean;
+	weadonwy authenticationPwovidews: IAuthenticationPwovida[];
 
-	readonly all: IUserDataSyncAccount[];
-	readonly current: IUserDataSyncAccount | undefined;
+	weadonwy aww: IUsewDataSyncAccount[];
+	weadonwy cuwwent: IUsewDataSyncAccount | undefined;
 
-	readonly accountStatus: AccountStatus;
-	readonly onDidChangeAccountStatus: Event<AccountStatus>;
+	weadonwy accountStatus: AccountStatus;
+	weadonwy onDidChangeAccountStatus: Event<AccountStatus>;
 
-	readonly userDataSyncPreview: IUserDataSyncPreview;
+	weadonwy usewDataSyncPweview: IUsewDataSyncPweview;
 
-	turnOn(): Promise<void>;
-	turnOnUsingCurrentAccount(): Promise<void>;
-	turnoff(everyWhere: boolean): Promise<void>;
-	signIn(): Promise<void>;
+	tuwnOn(): Pwomise<void>;
+	tuwnOnUsingCuwwentAccount(): Pwomise<void>;
+	tuwnoff(evewyWhewe: boowean): Pwomise<void>;
+	signIn(): Pwomise<void>;
 
-	resetSyncedData(): Promise<void>;
-	showSyncActivity(): Promise<void>;
-	syncNow(): Promise<void>;
+	wesetSyncedData(): Pwomise<void>;
+	showSyncActivity(): Pwomise<void>;
+	syncNow(): Pwomise<void>;
 
-	synchroniseUserDataSyncStoreType(): Promise<void>;
+	synchwoniseUsewDataSyncStoweType(): Pwomise<void>;
 }
 
-export function getSyncAreaLabel(source: SyncResource): string {
-	switch (source) {
-		case SyncResource.Settings: return localize('settings', "Settings");
-		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
-		case SyncResource.Snippets: return localize('snippets', "User Snippets");
-		case SyncResource.Extensions: return localize('extensions', "Extensions");
-		case SyncResource.GlobalState: return localize('ui state label', "UI State");
+expowt function getSyncAweaWabew(souwce: SyncWesouwce): stwing {
+	switch (souwce) {
+		case SyncWesouwce.Settings: wetuwn wocawize('settings', "Settings");
+		case SyncWesouwce.Keybindings: wetuwn wocawize('keybindings', "Keyboawd Showtcuts");
+		case SyncWesouwce.Snippets: wetuwn wocawize('snippets', "Usa Snippets");
+		case SyncWesouwce.Extensions: wetuwn wocawize('extensions', "Extensions");
+		case SyncWesouwce.GwobawState: wetuwn wocawize('ui state wabew', "UI State");
 	}
 }
 
-export const enum AccountStatus {
-	Uninitialized = 'uninitialized',
-	Unavailable = 'unavailable',
-	Available = 'available',
+expowt const enum AccountStatus {
+	Uninitiawized = 'uninitiawized',
+	Unavaiwabwe = 'unavaiwabwe',
+	Avaiwabwe = 'avaiwabwe',
 }
 
-export const SYNC_TITLE = localize('sync category', "Settings Sync");
+expowt const SYNC_TITWE = wocawize('sync categowy', "Settings Sync");
 
-export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
+expowt const SYNC_VIEW_ICON = wegistewIcon('settings-sync-view-icon', Codicon.sync, wocawize('syncViewIcon', 'View icon of the Settings Sync view.'));
 
 // Contexts
-export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
-export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
-export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
-export const CONTEXT_ENABLE_SYNC_MERGES_VIEW = new RawContextKey<boolean>(`enableSyncMergesView`, false);
+expowt const CONTEXT_SYNC_STATE = new WawContextKey<stwing>('syncStatus', SyncStatus.Uninitiawized);
+expowt const CONTEXT_SYNC_ENABWEMENT = new WawContextKey<boowean>('syncEnabwed', fawse);
+expowt const CONTEXT_ACCOUNT_STATE = new WawContextKey<stwing>('usewDataSyncAccountStatus', AccountStatus.Uninitiawized);
+expowt const CONTEXT_ENABWE_ACTIVITY_VIEWS = new WawContextKey<boowean>(`enabweSyncActivityViews`, fawse);
+expowt const CONTEXT_ENABWE_SYNC_MEWGES_VIEW = new WawContextKey<boowean>(`enabweSyncMewgesView`, fawse);
 
 // Commands
-export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
-export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
+expowt const CONFIGUWE_SYNC_COMMAND_ID = 'wowkbench.usewDataSync.actions.configuwe';
+expowt const SHOW_SYNC_WOG_COMMAND_ID = 'wowkbench.usewDataSync.actions.showWog';
 
 // VIEWS
-export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
-export const SYNC_MERGES_VIEW_ID = 'workbench.views.sync.merges';
+expowt const SYNC_VIEW_CONTAINEW_ID = 'wowkbench.view.sync';
+expowt const SYNC_MEWGES_VIEW_ID = 'wowkbench.views.sync.mewges';

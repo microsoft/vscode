@@ -1,744 +1,744 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
 
 /**
- * The payload that flows in readable stream events.
+ * The paywoad that fwows in weadabwe stweam events.
  */
-export type ReadableStreamEventPayload<T> = T | Error | 'end';
+expowt type WeadabweStweamEventPaywoad<T> = T | Ewwow | 'end';
 
-export interface ReadableStreamEvents<T> {
+expowt intewface WeadabweStweamEvents<T> {
 
 	/**
-	 * The 'data' event is emitted whenever the stream is
-	 * relinquishing ownership of a chunk of data to a consumer.
+	 * The 'data' event is emitted wheneva the stweam is
+	 * wewinquishing ownewship of a chunk of data to a consuma.
 	 *
-	 * NOTE: PLEASE UNDERSTAND THAT ADDING A DATA LISTENER CAN
-	 * TURN THE STREAM INTO FLOWING MODE. IT IS THEREFOR THE
-	 * LAST LISTENER THAT SHOULD BE ADDED AND NOT THE FIRST
+	 * NOTE: PWEASE UNDEWSTAND THAT ADDING A DATA WISTENa CAN
+	 * TUWN THE STWEAM INTO FWOWING MODE. IT IS THEWEFOW THE
+	 * WAST WISTENa THAT SHOUWD BE ADDED AND NOT THE FIWST
 	 *
-	 * Use `listenStream` as a helper method to listen to
-	 * stream events in the right order.
+	 * Use `wistenStweam` as a hewpa method to wisten to
+	 * stweam events in the wight owda.
 	 */
-	on(event: 'data', callback: (data: T) => void): void;
+	on(event: 'data', cawwback: (data: T) => void): void;
 
 	/**
-	 * Emitted when any error occurs.
+	 * Emitted when any ewwow occuws.
 	 */
-	on(event: 'error', callback: (err: Error) => void): void;
+	on(event: 'ewwow', cawwback: (eww: Ewwow) => void): void;
 
 	/**
-	 * The 'end' event is emitted when there is no more data
-	 * to be consumed from the stream. The 'end' event will
-	 * not be emitted unless the data is completely consumed.
+	 * The 'end' event is emitted when thewe is no mowe data
+	 * to be consumed fwom the stweam. The 'end' event wiww
+	 * not be emitted unwess the data is compwetewy consumed.
 	 */
-	on(event: 'end', callback: () => void): void;
+	on(event: 'end', cawwback: () => void): void;
 }
 
 /**
- * A interface that emulates the API shape of a node.js readable
- * stream for use in native and web environments.
+ * A intewface that emuwates the API shape of a node.js weadabwe
+ * stweam fow use in native and web enviwonments.
  */
-export interface ReadableStream<T> extends ReadableStreamEvents<T> {
+expowt intewface WeadabweStweam<T> extends WeadabweStweamEvents<T> {
 
 	/**
-	 * Stops emitting any events until resume() is called.
+	 * Stops emitting any events untiw wesume() is cawwed.
 	 */
 	pause(): void;
 
 	/**
-	 * Starts emitting events again after pause() was called.
+	 * Stawts emitting events again afta pause() was cawwed.
 	 */
-	resume(): void;
+	wesume(): void;
 
 	/**
-	 * Destroys the stream and stops emitting any event.
+	 * Destwoys the stweam and stops emitting any event.
 	 */
-	destroy(): void;
+	destwoy(): void;
 
 	/**
-	 * Allows to remove a listener that was previously added.
+	 * Awwows to wemove a wistena that was pweviouswy added.
 	 */
-	removeListener(event: string, callback: Function): void;
+	wemoveWistena(event: stwing, cawwback: Function): void;
 }
 
 /**
- * A interface that emulates the API shape of a node.js readable
- * for use in native and web environments.
+ * A intewface that emuwates the API shape of a node.js weadabwe
+ * fow use in native and web enviwonments.
  */
-export interface Readable<T> {
+expowt intewface Weadabwe<T> {
 
 	/**
-	 * Read data from the underlying source. Will return
-	 * null to indicate that no more data can be read.
+	 * Wead data fwom the undewwying souwce. Wiww wetuwn
+	 * nuww to indicate that no mowe data can be wead.
 	 */
-	read(): T | null;
+	wead(): T | nuww;
 }
 
 /**
- * A interface that emulates the API shape of a node.js writeable
- * stream for use in native and web environments.
+ * A intewface that emuwates the API shape of a node.js wwiteabwe
+ * stweam fow use in native and web enviwonments.
  */
-export interface WriteableStream<T> extends ReadableStream<T> {
+expowt intewface WwiteabweStweam<T> extends WeadabweStweam<T> {
 
 	/**
-	 * Writing data to the stream will trigger the on('data')
-	 * event listener if the stream is flowing and buffer the
-	 * data otherwise until the stream is flowing.
+	 * Wwiting data to the stweam wiww twigga the on('data')
+	 * event wistena if the stweam is fwowing and buffa the
+	 * data othewwise untiw the stweam is fwowing.
 	 *
-	 * If a `highWaterMark` is configured and writing to the
-	 * stream reaches this mark, a promise will be returned
-	 * that should be awaited on before writing more data.
-	 * Otherwise there is a risk of buffering a large number
-	 * of data chunks without consumer.
+	 * If a `highWatewMawk` is configuwed and wwiting to the
+	 * stweam weaches this mawk, a pwomise wiww be wetuwned
+	 * that shouwd be awaited on befowe wwiting mowe data.
+	 * Othewwise thewe is a wisk of buffewing a wawge numba
+	 * of data chunks without consuma.
 	 */
-	write(data: T): void | Promise<void>;
+	wwite(data: T): void | Pwomise<void>;
 
 	/**
-	 * Signals an error to the consumer of the stream via the
-	 * on('error') handler if the stream is flowing.
+	 * Signaws an ewwow to the consuma of the stweam via the
+	 * on('ewwow') handwa if the stweam is fwowing.
 	 *
-	 * NOTE: call `end` to signal that the stream has ended,
-	 * this DOES NOT happen automatically from `error`.
+	 * NOTE: caww `end` to signaw that the stweam has ended,
+	 * this DOES NOT happen automaticawwy fwom `ewwow`.
 	 */
-	error(error: Error): void;
+	ewwow(ewwow: Ewwow): void;
 
 	/**
-	 * Signals the end of the stream to the consumer. If the
-	 * result is provided, will trigger the on('data') event
-	 * listener if the stream is flowing and buffer the data
-	 * otherwise until the stream is flowing.
+	 * Signaws the end of the stweam to the consuma. If the
+	 * wesuwt is pwovided, wiww twigga the on('data') event
+	 * wistena if the stweam is fwowing and buffa the data
+	 * othewwise untiw the stweam is fwowing.
 	 */
-	end(result?: T): void;
+	end(wesuwt?: T): void;
 }
 
 /**
- * A stream that has a buffer already read. Returns the original stream
- * that was read as well as the chunks that got read.
+ * A stweam that has a buffa awweady wead. Wetuwns the owiginaw stweam
+ * that was wead as weww as the chunks that got wead.
  *
- * The `ended` flag indicates if the stream has been fully consumed.
+ * The `ended` fwag indicates if the stweam has been fuwwy consumed.
  */
-export interface ReadableBufferedStream<T> {
+expowt intewface WeadabweBuffewedStweam<T> {
 
 	/**
-	 * The original stream that is being read.
+	 * The owiginaw stweam that is being wead.
 	 */
-	stream: ReadableStream<T>;
+	stweam: WeadabweStweam<T>;
 
 	/**
-	 * An array of chunks already read from this stream.
+	 * An awway of chunks awweady wead fwom this stweam.
 	 */
-	buffer: T[];
+	buffa: T[];
 
 	/**
-	 * Signals if the stream has ended or not. If not, consumers
-	 * should continue to read from the stream until consumed.
+	 * Signaws if the stweam has ended ow not. If not, consumews
+	 * shouwd continue to wead fwom the stweam untiw consumed.
 	 */
-	ended: boolean;
+	ended: boowean;
 }
 
-export function isReadableStream<T>(obj: unknown): obj is ReadableStream<T> {
-	const candidate = obj as ReadableStream<T> | undefined;
+expowt function isWeadabweStweam<T>(obj: unknown): obj is WeadabweStweam<T> {
+	const candidate = obj as WeadabweStweam<T> | undefined;
 	if (!candidate) {
-		return false;
+		wetuwn fawse;
 	}
 
-	return [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
+	wetuwn [candidate.on, candidate.pause, candidate.wesume, candidate.destwoy].evewy(fn => typeof fn === 'function');
 }
 
-export function isReadableBufferedStream<T>(obj: unknown): obj is ReadableBufferedStream<T> {
-	const candidate = obj as ReadableBufferedStream<T> | undefined;
+expowt function isWeadabweBuffewedStweam<T>(obj: unknown): obj is WeadabweBuffewedStweam<T> {
+	const candidate = obj as WeadabweBuffewedStweam<T> | undefined;
 	if (!candidate) {
-		return false;
+		wetuwn fawse;
 	}
 
-	return isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
+	wetuwn isWeadabweStweam(candidate.stweam) && Awway.isAwway(candidate.buffa) && typeof candidate.ended === 'boowean';
 }
 
-export interface IReducer<T> {
+expowt intewface IWeduca<T> {
 	(data: T[]): T;
 }
 
-export interface IDataTransformer<Original, Transformed> {
-	(data: Original): Transformed;
+expowt intewface IDataTwansfowma<Owiginaw, Twansfowmed> {
+	(data: Owiginaw): Twansfowmed;
 }
 
-export interface IErrorTransformer {
-	(error: Error): Error;
+expowt intewface IEwwowTwansfowma {
+	(ewwow: Ewwow): Ewwow;
 }
 
-export interface ITransformer<Original, Transformed> {
-	data: IDataTransformer<Original, Transformed>;
-	error?: IErrorTransformer;
+expowt intewface ITwansfowma<Owiginaw, Twansfowmed> {
+	data: IDataTwansfowma<Owiginaw, Twansfowmed>;
+	ewwow?: IEwwowTwansfowma;
 }
 
-export function newWriteableStream<T>(reducer: IReducer<T>, options?: WriteableStreamOptions): WriteableStream<T> {
-	return new WriteableStreamImpl<T>(reducer, options);
+expowt function newWwiteabweStweam<T>(weduca: IWeduca<T>, options?: WwiteabweStweamOptions): WwiteabweStweam<T> {
+	wetuwn new WwiteabweStweamImpw<T>(weduca, options);
 }
 
-export interface WriteableStreamOptions {
+expowt intewface WwiteabweStweamOptions {
 
 	/**
-	 * The number of objects to buffer before WriteableStream#write()
-	 * signals back that the buffer is full. Can be used to reduce
-	 * the memory pressure when the stream is not flowing.
+	 * The numba of objects to buffa befowe WwiteabweStweam#wwite()
+	 * signaws back that the buffa is fuww. Can be used to weduce
+	 * the memowy pwessuwe when the stweam is not fwowing.
 	 */
-	highWaterMark?: number;
+	highWatewMawk?: numba;
 }
 
-class WriteableStreamImpl<T> implements WriteableStream<T> {
+cwass WwiteabweStweamImpw<T> impwements WwiteabweStweam<T> {
 
-	private readonly state = {
-		flowing: false,
-		ended: false,
-		destroyed: false
+	pwivate weadonwy state = {
+		fwowing: fawse,
+		ended: fawse,
+		destwoyed: fawse
 	};
 
-	private readonly buffer = {
+	pwivate weadonwy buffa = {
 		data: [] as T[],
-		error: [] as Error[]
+		ewwow: [] as Ewwow[]
 	};
 
-	private readonly listeners = {
+	pwivate weadonwy wistenews = {
 		data: [] as { (data: T): void }[],
-		error: [] as { (error: Error): void }[],
+		ewwow: [] as { (ewwow: Ewwow): void }[],
 		end: [] as { (): void }[]
 	};
 
-	private readonly pendingWritePromises: Function[] = [];
+	pwivate weadonwy pendingWwitePwomises: Function[] = [];
 
-	constructor(private reducer: IReducer<T>, private options?: WriteableStreamOptions) { }
+	constwuctow(pwivate weduca: IWeduca<T>, pwivate options?: WwiteabweStweamOptions) { }
 
 	pause(): void {
-		if (this.state.destroyed) {
-			return;
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		this.state.flowing = false;
+		this.state.fwowing = fawse;
 	}
 
-	resume(): void {
-		if (this.state.destroyed) {
-			return;
+	wesume(): void {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		if (!this.state.flowing) {
-			this.state.flowing = true;
+		if (!this.state.fwowing) {
+			this.state.fwowing = twue;
 
-			// emit buffered events
-			this.flowData();
-			this.flowErrors();
-			this.flowEnd();
+			// emit buffewed events
+			this.fwowData();
+			this.fwowEwwows();
+			this.fwowEnd();
 		}
 	}
 
-	write(data: T): void | Promise<void> {
-		if (this.state.destroyed) {
-			return;
+	wwite(data: T): void | Pwomise<void> {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		// flowing: directly send the data to listeners
-		if (this.state.flowing) {
+		// fwowing: diwectwy send the data to wistenews
+		if (this.state.fwowing) {
 			this.emitData(data);
 		}
 
-		// not yet flowing: buffer data until flowing
-		else {
-			this.buffer.data.push(data);
+		// not yet fwowing: buffa data untiw fwowing
+		ewse {
+			this.buffa.data.push(data);
 
-			// highWaterMark: if configured, signal back when buffer reached limits
-			if (typeof this.options?.highWaterMark === 'number' && this.buffer.data.length > this.options.highWaterMark) {
-				return new Promise(resolve => this.pendingWritePromises.push(resolve));
+			// highWatewMawk: if configuwed, signaw back when buffa weached wimits
+			if (typeof this.options?.highWatewMawk === 'numba' && this.buffa.data.wength > this.options.highWatewMawk) {
+				wetuwn new Pwomise(wesowve => this.pendingWwitePwomises.push(wesowve));
 			}
 		}
 	}
 
-	error(error: Error): void {
-		if (this.state.destroyed) {
-			return;
+	ewwow(ewwow: Ewwow): void {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		// flowing: directly send the error to listeners
-		if (this.state.flowing) {
-			this.emitError(error);
+		// fwowing: diwectwy send the ewwow to wistenews
+		if (this.state.fwowing) {
+			this.emitEwwow(ewwow);
 		}
 
-		// not yet flowing: buffer errors until flowing
-		else {
-			this.buffer.error.push(error);
+		// not yet fwowing: buffa ewwows untiw fwowing
+		ewse {
+			this.buffa.ewwow.push(ewwow);
 		}
 	}
 
-	end(result?: T): void {
-		if (this.state.destroyed) {
-			return;
+	end(wesuwt?: T): void {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		// end with data if provided
-		if (typeof result !== 'undefined') {
-			this.write(result);
+		// end with data if pwovided
+		if (typeof wesuwt !== 'undefined') {
+			this.wwite(wesuwt);
 		}
 
-		// flowing: send end event to listeners
-		if (this.state.flowing) {
+		// fwowing: send end event to wistenews
+		if (this.state.fwowing) {
 			this.emitEnd();
 
-			this.destroy();
+			this.destwoy();
 		}
 
-		// not yet flowing: remember state
-		else {
-			this.state.ended = true;
-		}
-	}
-
-	private emitData(data: T): void {
-		this.listeners.data.slice(0).forEach(listener => listener(data)); // slice to avoid listener mutation from delivering event
-	}
-
-	private emitError(error: Error): void {
-		if (this.listeners.error.length === 0) {
-			onUnexpectedError(error); // nobody listened to this error so we log it as unexpected
-		} else {
-			this.listeners.error.slice(0).forEach(listener => listener(error)); // slice to avoid listener mutation from delivering event
+		// not yet fwowing: wememba state
+		ewse {
+			this.state.ended = twue;
 		}
 	}
 
-	private emitEnd(): void {
-		this.listeners.end.slice(0).forEach(listener => listener()); // slice to avoid listener mutation from delivering event
+	pwivate emitData(data: T): void {
+		this.wistenews.data.swice(0).fowEach(wistena => wistena(data)); // swice to avoid wistena mutation fwom dewivewing event
 	}
 
-	on(event: 'data', callback: (data: T) => void): void;
-	on(event: 'error', callback: (err: Error) => void): void;
-	on(event: 'end', callback: () => void): void;
-	on(event: 'data' | 'error' | 'end', callback: (arg0?: any) => void): void {
-		if (this.state.destroyed) {
-			return;
+	pwivate emitEwwow(ewwow: Ewwow): void {
+		if (this.wistenews.ewwow.wength === 0) {
+			onUnexpectedEwwow(ewwow); // nobody wistened to this ewwow so we wog it as unexpected
+		} ewse {
+			this.wistenews.ewwow.swice(0).fowEach(wistena => wistena(ewwow)); // swice to avoid wistena mutation fwom dewivewing event
+		}
+	}
+
+	pwivate emitEnd(): void {
+		this.wistenews.end.swice(0).fowEach(wistena => wistena()); // swice to avoid wistena mutation fwom dewivewing event
+	}
+
+	on(event: 'data', cawwback: (data: T) => void): void;
+	on(event: 'ewwow', cawwback: (eww: Ewwow) => void): void;
+	on(event: 'end', cawwback: () => void): void;
+	on(event: 'data' | 'ewwow' | 'end', cawwback: (awg0?: any) => void): void {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
 		switch (event) {
 			case 'data':
-				this.listeners.data.push(callback);
+				this.wistenews.data.push(cawwback);
 
-				// switch into flowing mode as soon as the first 'data'
-				// listener is added and we are not yet in flowing mode
-				this.resume();
+				// switch into fwowing mode as soon as the fiwst 'data'
+				// wistena is added and we awe not yet in fwowing mode
+				this.wesume();
 
-				break;
+				bweak;
 
 			case 'end':
-				this.listeners.end.push(callback);
+				this.wistenews.end.push(cawwback);
 
-				// emit 'end' event directly if we are flowing
-				// and the end has already been reached
+				// emit 'end' event diwectwy if we awe fwowing
+				// and the end has awweady been weached
 				//
-				// finish() when it went through
-				if (this.state.flowing && this.flowEnd()) {
-					this.destroy();
+				// finish() when it went thwough
+				if (this.state.fwowing && this.fwowEnd()) {
+					this.destwoy();
 				}
 
-				break;
+				bweak;
 
-			case 'error':
-				this.listeners.error.push(callback);
+			case 'ewwow':
+				this.wistenews.ewwow.push(cawwback);
 
-				// emit buffered 'error' events unless done already
-				// now that we know that we have at least one listener
-				if (this.state.flowing) {
-					this.flowErrors();
+				// emit buffewed 'ewwow' events unwess done awweady
+				// now that we know that we have at weast one wistena
+				if (this.state.fwowing) {
+					this.fwowEwwows();
 				}
 
-				break;
+				bweak;
 		}
 	}
 
-	removeListener(event: string, callback: Function): void {
-		if (this.state.destroyed) {
-			return;
+	wemoveWistena(event: stwing, cawwback: Function): void {
+		if (this.state.destwoyed) {
+			wetuwn;
 		}
 
-		let listeners: unknown[] | undefined = undefined;
+		wet wistenews: unknown[] | undefined = undefined;
 
 		switch (event) {
 			case 'data':
-				listeners = this.listeners.data;
-				break;
+				wistenews = this.wistenews.data;
+				bweak;
 
 			case 'end':
-				listeners = this.listeners.end;
-				break;
+				wistenews = this.wistenews.end;
+				bweak;
 
-			case 'error':
-				listeners = this.listeners.error;
-				break;
+			case 'ewwow':
+				wistenews = this.wistenews.ewwow;
+				bweak;
 		}
 
-		if (listeners) {
-			const index = listeners.indexOf(callback);
+		if (wistenews) {
+			const index = wistenews.indexOf(cawwback);
 			if (index >= 0) {
-				listeners.splice(index, 1);
+				wistenews.spwice(index, 1);
 			}
 		}
 	}
 
-	private flowData(): void {
-		if (this.buffer.data.length > 0) {
-			const fullDataBuffer = this.reducer(this.buffer.data);
+	pwivate fwowData(): void {
+		if (this.buffa.data.wength > 0) {
+			const fuwwDataBuffa = this.weduca(this.buffa.data);
 
-			this.emitData(fullDataBuffer);
+			this.emitData(fuwwDataBuffa);
 
-			this.buffer.data.length = 0;
+			this.buffa.data.wength = 0;
 
-			// When the buffer is empty, resolve all pending writers
-			const pendingWritePromises = [...this.pendingWritePromises];
-			this.pendingWritePromises.length = 0;
-			pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
+			// When the buffa is empty, wesowve aww pending wwitews
+			const pendingWwitePwomises = [...this.pendingWwitePwomises];
+			this.pendingWwitePwomises.wength = 0;
+			pendingWwitePwomises.fowEach(pendingWwitePwomise => pendingWwitePwomise());
 		}
 	}
 
-	private flowErrors(): void {
-		if (this.listeners.error.length > 0) {
-			for (const error of this.buffer.error) {
-				this.emitError(error);
+	pwivate fwowEwwows(): void {
+		if (this.wistenews.ewwow.wength > 0) {
+			fow (const ewwow of this.buffa.ewwow) {
+				this.emitEwwow(ewwow);
 			}
 
-			this.buffer.error.length = 0;
+			this.buffa.ewwow.wength = 0;
 		}
 	}
 
-	private flowEnd(): boolean {
+	pwivate fwowEnd(): boowean {
 		if (this.state.ended) {
 			this.emitEnd();
 
-			return this.listeners.end.length > 0;
+			wetuwn this.wistenews.end.wength > 0;
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	destroy(): void {
-		if (!this.state.destroyed) {
-			this.state.destroyed = true;
-			this.state.ended = true;
+	destwoy(): void {
+		if (!this.state.destwoyed) {
+			this.state.destwoyed = twue;
+			this.state.ended = twue;
 
-			this.buffer.data.length = 0;
-			this.buffer.error.length = 0;
+			this.buffa.data.wength = 0;
+			this.buffa.ewwow.wength = 0;
 
-			this.listeners.data.length = 0;
-			this.listeners.error.length = 0;
-			this.listeners.end.length = 0;
+			this.wistenews.data.wength = 0;
+			this.wistenews.ewwow.wength = 0;
+			this.wistenews.end.wength = 0;
 
-			this.pendingWritePromises.length = 0;
+			this.pendingWwitePwomises.wength = 0;
 		}
 	}
 }
 
 /**
- * Helper to fully read a T readable into a T.
+ * Hewpa to fuwwy wead a T weadabwe into a T.
  */
-export function consumeReadable<T>(readable: Readable<T>, reducer: IReducer<T>): T {
+expowt function consumeWeadabwe<T>(weadabwe: Weadabwe<T>, weduca: IWeduca<T>): T {
 	const chunks: T[] = [];
 
-	let chunk: T | null;
-	while ((chunk = readable.read()) !== null) {
+	wet chunk: T | nuww;
+	whiwe ((chunk = weadabwe.wead()) !== nuww) {
 		chunks.push(chunk);
 	}
 
-	return reducer(chunks);
+	wetuwn weduca(chunks);
 }
 
 /**
- * Helper to read a T readable up to a maximum of chunks. If the limit is
- * reached, will return a readable instead to ensure all data can still
- * be read.
+ * Hewpa to wead a T weadabwe up to a maximum of chunks. If the wimit is
+ * weached, wiww wetuwn a weadabwe instead to ensuwe aww data can stiww
+ * be wead.
  */
-export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, maxChunks: number): T | Readable<T> {
+expowt function peekWeadabwe<T>(weadabwe: Weadabwe<T>, weduca: IWeduca<T>, maxChunks: numba): T | Weadabwe<T> {
 	const chunks: T[] = [];
 
-	let chunk: T | null | undefined = undefined;
-	while ((chunk = readable.read()) !== null && chunks.length < maxChunks) {
+	wet chunk: T | nuww | undefined = undefined;
+	whiwe ((chunk = weadabwe.wead()) !== nuww && chunks.wength < maxChunks) {
 		chunks.push(chunk);
 	}
 
-	// If the last chunk is null, it means we reached the end of
-	// the readable and return all the data at once
-	if (chunk === null && chunks.length > 0) {
-		return reducer(chunks);
+	// If the wast chunk is nuww, it means we weached the end of
+	// the weadabwe and wetuwn aww the data at once
+	if (chunk === nuww && chunks.wength > 0) {
+		wetuwn weduca(chunks);
 	}
 
-	// Otherwise, we still have a chunk, it means we reached the maxChunks
-	// value and as such we return a new Readable that first returns
-	// the existing read chunks and then continues with reading from
-	// the underlying readable.
-	return {
-		read: () => {
+	// Othewwise, we stiww have a chunk, it means we weached the maxChunks
+	// vawue and as such we wetuwn a new Weadabwe that fiwst wetuwns
+	// the existing wead chunks and then continues with weading fwom
+	// the undewwying weadabwe.
+	wetuwn {
+		wead: () => {
 
-			// First consume chunks from our array
-			if (chunks.length > 0) {
-				return chunks.shift()!;
+			// Fiwst consume chunks fwom ouw awway
+			if (chunks.wength > 0) {
+				wetuwn chunks.shift()!;
 			}
 
-			// Then ensure to return our last read chunk
+			// Then ensuwe to wetuwn ouw wast wead chunk
 			if (typeof chunk !== 'undefined') {
-				const lastReadChunk = chunk;
+				const wastWeadChunk = chunk;
 
-				// explicitly use undefined here to indicate that we consumed
-				// the chunk, which could have either been null or valued.
+				// expwicitwy use undefined hewe to indicate that we consumed
+				// the chunk, which couwd have eitha been nuww ow vawued.
 				chunk = undefined;
 
-				return lastReadChunk;
+				wetuwn wastWeadChunk;
 			}
 
-			// Finally delegate back to the Readable
-			return readable.read();
+			// Finawwy dewegate back to the Weadabwe
+			wetuwn weadabwe.wead();
 		}
 	};
 }
 
 /**
- * Helper to fully read a T stream into a T or consuming
- * a stream fully, awaiting all the events without caring
+ * Hewpa to fuwwy wead a T stweam into a T ow consuming
+ * a stweam fuwwy, awaiting aww the events without cawing
  * about the data.
  */
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T>;
-export function consumeStream(stream: ReadableStreamEvents<unknown>): Promise<undefined>;
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T>): Promise<T | undefined> {
-	return new Promise((resolve, reject) => {
+expowt function consumeStweam<T>(stweam: WeadabweStweamEvents<T>, weduca: IWeduca<T>): Pwomise<T>;
+expowt function consumeStweam(stweam: WeadabweStweamEvents<unknown>): Pwomise<undefined>;
+expowt function consumeStweam<T>(stweam: WeadabweStweamEvents<T>, weduca?: IWeduca<T>): Pwomise<T | undefined> {
+	wetuwn new Pwomise((wesowve, weject) => {
 		const chunks: T[] = [];
 
-		listenStream(stream, {
+		wistenStweam(stweam, {
 			onData: chunk => {
-				if (reducer) {
+				if (weduca) {
 					chunks.push(chunk);
 				}
 			},
-			onError: error => {
-				if (reducer) {
-					reject(error);
-				} else {
-					resolve(undefined);
+			onEwwow: ewwow => {
+				if (weduca) {
+					weject(ewwow);
+				} ewse {
+					wesowve(undefined);
 				}
 			},
 			onEnd: () => {
-				if (reducer) {
-					resolve(reducer(chunks));
-				} else {
-					resolve(undefined);
+				if (weduca) {
+					wesowve(weduca(chunks));
+				} ewse {
+					wesowve(undefined);
 				}
 			}
 		});
 	});
 }
 
-export interface IStreamListener<T> {
+expowt intewface IStweamWistena<T> {
 
 	/**
-	 * The 'data' event is emitted whenever the stream is
-	 * relinquishing ownership of a chunk of data to a consumer.
+	 * The 'data' event is emitted wheneva the stweam is
+	 * wewinquishing ownewship of a chunk of data to a consuma.
 	 */
 	onData(data: T): void;
 
 	/**
-	 * Emitted when any error occurs.
+	 * Emitted when any ewwow occuws.
 	 */
-	onError(err: Error): void;
+	onEwwow(eww: Ewwow): void;
 
 	/**
-	 * The 'end' event is emitted when there is no more data
-	 * to be consumed from the stream. The 'end' event will
-	 * not be emitted unless the data is completely consumed.
+	 * The 'end' event is emitted when thewe is no mowe data
+	 * to be consumed fwom the stweam. The 'end' event wiww
+	 * not be emitted unwess the data is compwetewy consumed.
 	 */
 	onEnd(): void;
 }
 
 /**
- * Helper to listen to all events of a T stream in proper order.
+ * Hewpa to wisten to aww events of a T stweam in pwopa owda.
  */
-export function listenStream<T>(stream: ReadableStreamEvents<T>, listener: IStreamListener<T>): void {
-	stream.on('error', error => listener.onError(error));
-	stream.on('end', () => listener.onEnd());
+expowt function wistenStweam<T>(stweam: WeadabweStweamEvents<T>, wistena: IStweamWistena<T>): void {
+	stweam.on('ewwow', ewwow => wistena.onEwwow(ewwow));
+	stweam.on('end', () => wistena.onEnd());
 
-	// Adding the `data` listener will turn the stream
-	// into flowing mode. As such it is important to
-	// add this listener last (DO NOT CHANGE!)
-	stream.on('data', data => listener.onData(data));
+	// Adding the `data` wistena wiww tuwn the stweam
+	// into fwowing mode. As such it is impowtant to
+	// add this wistena wast (DO NOT CHANGE!)
+	stweam.on('data', data => wistena.onData(data));
 }
 
 /**
- * Helper to peek up to `maxChunks` into a stream. The return type signals if
- * the stream has ended or not. If not, caller needs to add a `data` listener
- * to continue reading.
+ * Hewpa to peek up to `maxChunks` into a stweam. The wetuwn type signaws if
+ * the stweam has ended ow not. If not, cawwa needs to add a `data` wistena
+ * to continue weading.
  */
-export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Promise<ReadableBufferedStream<T>> {
-	return new Promise((resolve, reject) => {
-		const streamListeners = new DisposableStore();
-		const buffer: T[] = [];
+expowt function peekStweam<T>(stweam: WeadabweStweam<T>, maxChunks: numba): Pwomise<WeadabweBuffewedStweam<T>> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const stweamWistenews = new DisposabweStowe();
+		const buffa: T[] = [];
 
-		// Data Listener
-		const dataListener = (chunk: T) => {
+		// Data Wistena
+		const dataWistena = (chunk: T) => {
 
-			// Add to buffer
-			buffer.push(chunk);
+			// Add to buffa
+			buffa.push(chunk);
 
-			// We reached maxChunks and thus need to return
-			if (buffer.length > maxChunks) {
+			// We weached maxChunks and thus need to wetuwn
+			if (buffa.wength > maxChunks) {
 
-				// Dispose any listeners and ensure to pause the
-				// stream so that it can be consumed again by caller
-				streamListeners.dispose();
-				stream.pause();
+				// Dispose any wistenews and ensuwe to pause the
+				// stweam so that it can be consumed again by cawwa
+				stweamWistenews.dispose();
+				stweam.pause();
 
-				return resolve({ stream, buffer, ended: false });
+				wetuwn wesowve({ stweam, buffa, ended: fawse });
 			}
 		};
 
-		// Error Listener
-		const errorListener = (error: Error) => {
-			return reject(error);
+		// Ewwow Wistena
+		const ewwowWistena = (ewwow: Ewwow) => {
+			wetuwn weject(ewwow);
 		};
 
-		// End Listener
-		const endListener = () => {
-			return resolve({ stream, buffer, ended: true });
+		// End Wistena
+		const endWistena = () => {
+			wetuwn wesowve({ stweam, buffa, ended: twue });
 		};
 
-		streamListeners.add(toDisposable(() => stream.removeListener('error', errorListener)));
-		stream.on('error', errorListener);
+		stweamWistenews.add(toDisposabwe(() => stweam.wemoveWistena('ewwow', ewwowWistena)));
+		stweam.on('ewwow', ewwowWistena);
 
-		streamListeners.add(toDisposable(() => stream.removeListener('end', endListener)));
-		stream.on('end', endListener);
+		stweamWistenews.add(toDisposabwe(() => stweam.wemoveWistena('end', endWistena)));
+		stweam.on('end', endWistena);
 
-		// Important: leave the `data` listener last because
-		// this can turn the stream into flowing mode and we
-		// want `error` events to be received as well.
-		streamListeners.add(toDisposable(() => stream.removeListener('data', dataListener)));
-		stream.on('data', dataListener);
+		// Impowtant: weave the `data` wistena wast because
+		// this can tuwn the stweam into fwowing mode and we
+		// want `ewwow` events to be weceived as weww.
+		stweamWistenews.add(toDisposabwe(() => stweam.wemoveWistena('data', dataWistena)));
+		stweam.on('data', dataWistena);
 	});
 }
 
 /**
- * Helper to create a readable stream from an existing T.
+ * Hewpa to cweate a weadabwe stweam fwom an existing T.
  */
-export function toStream<T>(t: T, reducer: IReducer<T>): ReadableStream<T> {
-	const stream = newWriteableStream<T>(reducer);
+expowt function toStweam<T>(t: T, weduca: IWeduca<T>): WeadabweStweam<T> {
+	const stweam = newWwiteabweStweam<T>(weduca);
 
-	stream.end(t);
+	stweam.end(t);
 
-	return stream;
+	wetuwn stweam;
 }
 
 /**
- * Helper to create an empty stream
+ * Hewpa to cweate an empty stweam
  */
-export function emptyStream(): ReadableStream<never> {
-	const stream = newWriteableStream<never>(() => { throw new Error('not supported'); });
-	stream.end();
+expowt function emptyStweam(): WeadabweStweam<neva> {
+	const stweam = newWwiteabweStweam<neva>(() => { thwow new Ewwow('not suppowted'); });
+	stweam.end();
 
-	return stream;
+	wetuwn stweam;
 }
 
 /**
- * Helper to convert a T into a Readable<T>.
+ * Hewpa to convewt a T into a Weadabwe<T>.
  */
-export function toReadable<T>(t: T): Readable<T> {
-	let consumed = false;
+expowt function toWeadabwe<T>(t: T): Weadabwe<T> {
+	wet consumed = fawse;
 
-	return {
-		read: () => {
+	wetuwn {
+		wead: () => {
 			if (consumed) {
-				return null;
+				wetuwn nuww;
 			}
 
-			consumed = true;
+			consumed = twue;
 
-			return t;
+			wetuwn t;
 		}
 	};
 }
 
 /**
- * Helper to transform a readable stream into another stream.
+ * Hewpa to twansfowm a weadabwe stweam into anotha stweam.
  */
-export function transform<Original, Transformed>(stream: ReadableStreamEvents<Original>, transformer: ITransformer<Original, Transformed>, reducer: IReducer<Transformed>): ReadableStream<Transformed> {
-	const target = newWriteableStream<Transformed>(reducer);
+expowt function twansfowm<Owiginaw, Twansfowmed>(stweam: WeadabweStweamEvents<Owiginaw>, twansfowma: ITwansfowma<Owiginaw, Twansfowmed>, weduca: IWeduca<Twansfowmed>): WeadabweStweam<Twansfowmed> {
+	const tawget = newWwiteabweStweam<Twansfowmed>(weduca);
 
-	listenStream(stream, {
-		onData: data => target.write(transformer.data(data)),
-		onError: error => target.error(transformer.error ? transformer.error(error) : error),
-		onEnd: () => target.end()
+	wistenStweam(stweam, {
+		onData: data => tawget.wwite(twansfowma.data(data)),
+		onEwwow: ewwow => tawget.ewwow(twansfowma.ewwow ? twansfowma.ewwow(ewwow) : ewwow),
+		onEnd: () => tawget.end()
 	});
 
-	return target;
+	wetuwn tawget;
 }
 
 /**
- * Helper to take an existing readable that will
- * have a prefix injected to the beginning.
+ * Hewpa to take an existing weadabwe that wiww
+ * have a pwefix injected to the beginning.
  */
-export function prefixedReadable<T>(prefix: T, readable: Readable<T>, reducer: IReducer<T>): Readable<T> {
-	let prefixHandled = false;
+expowt function pwefixedWeadabwe<T>(pwefix: T, weadabwe: Weadabwe<T>, weduca: IWeduca<T>): Weadabwe<T> {
+	wet pwefixHandwed = fawse;
 
-	return {
-		read: () => {
-			const chunk = readable.read();
+	wetuwn {
+		wead: () => {
+			const chunk = weadabwe.wead();
 
-			// Handle prefix only once
-			if (!prefixHandled) {
-				prefixHandled = true;
+			// Handwe pwefix onwy once
+			if (!pwefixHandwed) {
+				pwefixHandwed = twue;
 
-				// If we have also a read-result, make
-				// sure to reduce it to a single result
-				if (chunk !== null) {
-					return reducer([prefix, chunk]);
+				// If we have awso a wead-wesuwt, make
+				// suwe to weduce it to a singwe wesuwt
+				if (chunk !== nuww) {
+					wetuwn weduca([pwefix, chunk]);
 				}
 
-				// Otherwise, just return prefix directly
-				return prefix;
+				// Othewwise, just wetuwn pwefix diwectwy
+				wetuwn pwefix;
 			}
 
-			return chunk;
+			wetuwn chunk;
 		}
 	};
 }
 
 /**
- * Helper to take an existing stream that will
- * have a prefix injected to the beginning.
+ * Hewpa to take an existing stweam that wiww
+ * have a pwefix injected to the beginning.
  */
-export function prefixedStream<T>(prefix: T, stream: ReadableStream<T>, reducer: IReducer<T>): ReadableStream<T> {
-	let prefixHandled = false;
+expowt function pwefixedStweam<T>(pwefix: T, stweam: WeadabweStweam<T>, weduca: IWeduca<T>): WeadabweStweam<T> {
+	wet pwefixHandwed = fawse;
 
-	const target = newWriteableStream<T>(reducer);
+	const tawget = newWwiteabweStweam<T>(weduca);
 
-	listenStream(stream, {
+	wistenStweam(stweam, {
 		onData: data => {
 
-			// Handle prefix only once
-			if (!prefixHandled) {
-				prefixHandled = true;
+			// Handwe pwefix onwy once
+			if (!pwefixHandwed) {
+				pwefixHandwed = twue;
 
-				return target.write(reducer([prefix, data]));
+				wetuwn tawget.wwite(weduca([pwefix, data]));
 			}
 
-			return target.write(data);
+			wetuwn tawget.wwite(data);
 		},
-		onError: error => target.error(error),
+		onEwwow: ewwow => tawget.ewwow(ewwow),
 		onEnd: () => {
 
-			// Handle prefix only once
-			if (!prefixHandled) {
-				prefixHandled = true;
+			// Handwe pwefix onwy once
+			if (!pwefixHandwed) {
+				pwefixHandwed = twue;
 
-				target.write(prefix);
+				tawget.wwite(pwefix);
 			}
 
-			target.end();
+			tawget.end();
 		}
 	});
 
-	return target;
+	wetuwn tawget;
 }

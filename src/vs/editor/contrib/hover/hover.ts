@@ -1,346 +1,346 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IScrollEvent } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
-import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHover';
-import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
-import * as nls from 'vs/nls';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground, editorHoverHighlight, editorHoverStatusBarBackground, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { KeyChowd, KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ConfiguwationChangedEvent, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution, IScwowwEvent } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { GotoDefinitionAtPositionEditowContwibution } fwom 'vs/editow/contwib/gotoSymbow/wink/goToDefinitionAtPosition';
+impowt { HovewStawtMode } fwom 'vs/editow/contwib/hova/hovewOpewation';
+impowt { ModesContentHovewWidget } fwom 'vs/editow/contwib/hova/modesContentHova';
+impowt { ModesGwyphHovewWidget } fwom 'vs/editow/contwib/hova/modesGwyphHova';
+impowt * as nws fwom 'vs/nws';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { editowHovewBackgwound, editowHovewBowda, editowHovewFowegwound, editowHovewHighwight, editowHovewStatusBawBackgwound, textCodeBwockBackgwound, textWinkActiveFowegwound, textWinkFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class ModesHoverController implements IEditorContribution {
+expowt cwass ModesHovewContwowwa impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.hover';
+	pubwic static weadonwy ID = 'editow.contwib.hova';
 
-	private readonly _toUnhook = new DisposableStore();
-	private readonly _didChangeConfigurationHandler: IDisposable;
+	pwivate weadonwy _toUnhook = new DisposabweStowe();
+	pwivate weadonwy _didChangeConfiguwationHandwa: IDisposabwe;
 
-	private _contentWidget: ModesContentHoverWidget | null;
-	private _glyphWidget: ModesGlyphHoverWidget | null;
+	pwivate _contentWidget: ModesContentHovewWidget | nuww;
+	pwivate _gwyphWidget: ModesGwyphHovewWidget | nuww;
 
-	private _isMouseDown: boolean;
-	private _hoverClicked: boolean;
-	private _isHoverEnabled!: boolean;
-	private _isHoverSticky!: boolean;
+	pwivate _isMouseDown: boowean;
+	pwivate _hovewCwicked: boowean;
+	pwivate _isHovewEnabwed!: boowean;
+	pwivate _isHovewSticky!: boowean;
 
-	private _hoverVisibleKey: IContextKey<boolean>;
+	pwivate _hovewVisibweKey: IContextKey<boowean>;
 
-	static get(editor: ICodeEditor): ModesHoverController {
-		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+	static get(editow: ICodeEditow): ModesHovewContwowwa {
+		wetuwn editow.getContwibution<ModesHovewContwowwa>(ModesHovewContwowwa.ID);
 	}
 
-	constructor(private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IModeService private readonly _modeService: IModeService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+	constwuctow(pwivate weadonwy _editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IContextKeySewvice _contextKeySewvice: IContextKeySewvice
 	) {
-		this._isMouseDown = false;
-		this._hoverClicked = false;
-		this._contentWidget = null;
-		this._glyphWidget = null;
+		this._isMouseDown = fawse;
+		this._hovewCwicked = fawse;
+		this._contentWidget = nuww;
+		this._gwyphWidget = nuww;
 
 		this._hookEvents();
 
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.hover)) {
+		this._didChangeConfiguwationHandwa = this._editow.onDidChangeConfiguwation((e: ConfiguwationChangedEvent) => {
+			if (e.hasChanged(EditowOption.hova)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
 		});
 
-		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(_contextKeyService);
+		this._hovewVisibweKey = EditowContextKeys.hovewVisibwe.bindTo(_contextKeySewvice);
 	}
 
-	private _hookEvents(): void {
-		const hideWidgetsEventHandler = () => this._hideWidgets();
+	pwivate _hookEvents(): void {
+		const hideWidgetsEventHandwa = () => this._hideWidgets();
 
-		const hoverOpts = this._editor.getOption(EditorOption.hover);
-		this._isHoverEnabled = hoverOpts.enabled;
-		this._isHoverSticky = hoverOpts.sticky;
-		if (this._isHoverEnabled) {
-			this._toUnhook.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
-			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
-			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
-		} else {
-			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
-			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+		const hovewOpts = this._editow.getOption(EditowOption.hova);
+		this._isHovewEnabwed = hovewOpts.enabwed;
+		this._isHovewSticky = hovewOpts.sticky;
+		if (this._isHovewEnabwed) {
+			this._toUnhook.add(this._editow.onMouseDown((e: IEditowMouseEvent) => this._onEditowMouseDown(e)));
+			this._toUnhook.add(this._editow.onMouseUp((e: IEditowMouseEvent) => this._onEditowMouseUp(e)));
+			this._toUnhook.add(this._editow.onMouseMove((e: IEditowMouseEvent) => this._onEditowMouseMove(e)));
+			this._toUnhook.add(this._editow.onKeyDown((e: IKeyboawdEvent) => this._onKeyDown(e)));
+			this._toUnhook.add(this._editow.onDidChangeModewDecowations(() => this._onModewDecowationsChanged()));
+		} ewse {
+			this._toUnhook.add(this._editow.onMouseMove((e: IEditowMouseEvent) => this._onEditowMouseMove(e)));
+			this._toUnhook.add(this._editow.onKeyDown((e: IKeyboawdEvent) => this._onKeyDown(e)));
 		}
 
-		this._toUnhook.add(this._editor.onMouseLeave(hideWidgetsEventHandler));
-		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
-		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+		this._toUnhook.add(this._editow.onMouseWeave(hideWidgetsEventHandwa));
+		this._toUnhook.add(this._editow.onDidChangeModew(hideWidgetsEventHandwa));
+		this._toUnhook.add(this._editow.onDidScwowwChange((e: IScwowwEvent) => this._onEditowScwowwChanged(e)));
 	}
 
-	private _unhookEvents(): void {
-		this._toUnhook.clear();
+	pwivate _unhookEvents(): void {
+		this._toUnhook.cweaw();
 	}
 
-	private _onModelDecorationsChanged(): void {
-		this._contentWidget?.onModelDecorationsChanged();
-		this._glyphWidget?.onModelDecorationsChanged();
+	pwivate _onModewDecowationsChanged(): void {
+		this._contentWidget?.onModewDecowationsChanged();
+		this._gwyphWidget?.onModewDecowationsChanged();
 	}
 
-	private _onEditorScrollChanged(e: IScrollEvent): void {
-		if (e.scrollTopChanged || e.scrollLeftChanged) {
+	pwivate _onEditowScwowwChanged(e: IScwowwEvent): void {
+		if (e.scwowwTopChanged || e.scwowwWeftChanged) {
 			this._hideWidgets();
 		}
 	}
 
-	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		this._isMouseDown = true;
+	pwivate _onEditowMouseDown(mouseEvent: IEditowMouseEvent): void {
+		this._isMouseDown = twue;
 
-		const targetType = mouseEvent.target.type;
+		const tawgetType = mouseEvent.tawget.type;
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
-			this._hoverClicked = true;
-			// mouse down on top of content hover widget
-			return;
+		if (tawgetType === MouseTawgetType.CONTENT_WIDGET && mouseEvent.tawget.detaiw === ModesContentHovewWidget.ID) {
+			this._hovewCwicked = twue;
+			// mouse down on top of content hova widget
+			wetuwn;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
-			// mouse down on top of overlay hover widget
-			return;
+		if (tawgetType === MouseTawgetType.OVEWWAY_WIDGET && mouseEvent.tawget.detaiw === ModesGwyphHovewWidget.ID) {
+			// mouse down on top of ovewway hova widget
+			wetuwn;
 		}
 
-		if (targetType !== MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail !== ModesGlyphHoverWidget.ID) {
-			this._hoverClicked = false;
+		if (tawgetType !== MouseTawgetType.OVEWWAY_WIDGET && mouseEvent.tawget.detaiw !== ModesGwyphHovewWidget.ID) {
+			this._hovewCwicked = fawse;
 		}
 
 		this._hideWidgets();
 	}
 
-	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
-		this._isMouseDown = false;
+	pwivate _onEditowMouseUp(mouseEvent: IEditowMouseEvent): void {
+		this._isMouseDown = fawse;
 	}
 
-	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		let targetType = mouseEvent.target.type;
+	pwivate _onEditowMouseMove(mouseEvent: IEditowMouseEvent): void {
+		wet tawgetType = mouseEvent.tawget.type;
 
-		if (this._isMouseDown && this._hoverClicked) {
-			return;
+		if (this._isMouseDown && this._hovewCwicked) {
+			wetuwn;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
-			// mouse moved on top of content hover widget
-			return;
+		if (this._isHovewSticky && tawgetType === MouseTawgetType.CONTENT_WIDGET && mouseEvent.tawget.detaiw === ModesContentHovewWidget.ID) {
+			// mouse moved on top of content hova widget
+			wetuwn;
 		}
 
-		if (this._isHoverSticky && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
-			// selected text within content hover widget
-			return;
+		if (this._isHovewSticky && !mouseEvent.event.bwowsewEvent.view?.getSewection()?.isCowwapsed) {
+			// sewected text within content hova widget
+			wetuwn;
 		}
 
 		if (
-			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID
-			&& this._contentWidget?.isColorPickerVisible()
+			!this._isHovewSticky && tawgetType === MouseTawgetType.CONTENT_WIDGET && mouseEvent.tawget.detaiw === ModesContentHovewWidget.ID
+			&& this._contentWidget?.isCowowPickewVisibwe()
 		) {
-			// though the hover is not sticky, the color picker needs to.
-			return;
+			// though the hova is not sticky, the cowow picka needs to.
+			wetuwn;
 		}
 
-		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
-			// mouse moved on top of overlay hover widget
-			return;
+		if (this._isHovewSticky && tawgetType === MouseTawgetType.OVEWWAY_WIDGET && mouseEvent.tawget.detaiw === ModesGwyphHovewWidget.ID) {
+			// mouse moved on top of ovewway hova widget
+			wetuwn;
 		}
 
-		if (!this._isHoverEnabled) {
+		if (!this._isHovewEnabwed) {
 			this._hideWidgets();
-			return;
+			wetuwn;
 		}
 
-		const contentWidget = this._getOrCreateContentWidget();
+		const contentWidget = this._getOwCweateContentWidget();
 		if (contentWidget.maybeShowAt(mouseEvent)) {
-			this._glyphWidget?.hide();
-			return;
+			this._gwyphWidget?.hide();
+			wetuwn;
 		}
 
-		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
+		if (tawgetType === MouseTawgetType.GUTTEW_GWYPH_MAWGIN && mouseEvent.tawget.position) {
 			this._contentWidget?.hide();
-			if (!this._glyphWidget) {
-				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+			if (!this._gwyphWidget) {
+				this._gwyphWidget = new ModesGwyphHovewWidget(this._editow, this._modeSewvice, this._openewSewvice);
 			}
-			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
-			return;
+			this._gwyphWidget.stawtShowingAt(mouseEvent.tawget.position.wineNumba);
+			wetuwn;
 		}
 
 		this._hideWidgets();
 	}
 
-	private _onKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift) {
-			// Do not hide hover when a modifier key is pressed
+	pwivate _onKeyDown(e: IKeyboawdEvent): void {
+		if (e.keyCode !== KeyCode.Ctww && e.keyCode !== KeyCode.Awt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift) {
+			// Do not hide hova when a modifia key is pwessed
 			this._hideWidgets();
 		}
 	}
 
-	private _hideWidgets(): void {
-		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible())) {
-			return;
+	pwivate _hideWidgets(): void {
+		if ((this._isMouseDown && this._hovewCwicked && this._contentWidget?.isCowowPickewVisibwe())) {
+			wetuwn;
 		}
 
-		this._hoverClicked = false;
-		this._glyphWidget?.hide();
+		this._hovewCwicked = fawse;
+		this._gwyphWidget?.hide();
 		this._contentWidget?.hide();
 	}
 
-	private _getOrCreateContentWidget(): ModesContentHoverWidget {
+	pwivate _getOwCweateContentWidget(): ModesContentHovewWidget {
 		if (!this._contentWidget) {
-			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
+			this._contentWidget = this._instantiationSewvice.cweateInstance(ModesContentHovewWidget, this._editow, this._hovewVisibweKey);
 		}
-		return this._contentWidget;
+		wetuwn this._contentWidget;
 	}
 
-	public isColorPickerVisible(): boolean {
-		return this._contentWidget?.isColorPickerVisible() || false;
+	pubwic isCowowPickewVisibwe(): boowean {
+		wetuwn this._contentWidget?.isCowowPickewVisibwe() || fawse;
 	}
 
-	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this._getOrCreateContentWidget().startShowingAtRange(range, mode, focus);
+	pubwic showContentHova(wange: Wange, mode: HovewStawtMode, focus: boowean): void {
+		this._getOwCweateContentWidget().stawtShowingAtWange(wange, mode, focus);
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._didChangeConfigurationHandler.dispose();
-		this._glyphWidget?.dispose();
+		this._didChangeConfiguwationHandwa.dispose();
+		this._gwyphWidget?.dispose();
 		this._contentWidget?.dispose();
 	}
 }
 
-class ShowHoverAction extends EditorAction {
+cwass ShowHovewAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.showHover',
-			label: nls.localize({
-				key: 'showHover',
+	constwuctow() {
+		supa({
+			id: 'editow.action.showHova',
+			wabew: nws.wocawize({
+				key: 'showHova',
 				comment: [
-					'Label for action that will trigger the showing of a hover in the editor.',
-					'This allows for users to show the hover without using the mouse.'
+					'Wabew fow action that wiww twigga the showing of a hova in the editow.',
+					'This awwows fow usews to show the hova without using the mouse.'
 				]
-			}, "Show Hover"),
-			alias: 'Show Hover',
-			precondition: undefined,
+			}, "Show Hova"),
+			awias: 'Show Hova',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I),
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.editowTextFocus,
+				pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.KEY_I),
+				weight: KeybindingWeight.EditowContwib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!editor.hasModel()) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
-		let controller = ModesHoverController.get(editor);
-		if (!controller) {
-			return;
+		wet contwowwa = ModesHovewContwowwa.get(editow);
+		if (!contwowwa) {
+			wetuwn;
 		}
-		const position = editor.getPosition();
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-		controller.showContentHover(range, HoverStartMode.Immediate, focus);
+		const position = editow.getPosition();
+		const wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn);
+		const focus = editow.getOption(EditowOption.accessibiwitySuppowt) === AccessibiwitySuppowt.Enabwed;
+		contwowwa.showContentHova(wange, HovewStawtMode.Immediate, focus);
 	}
 }
 
-class ShowDefinitionPreviewHoverAction extends EditorAction {
+cwass ShowDefinitionPweviewHovewAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.showDefinitionPreviewHover',
-			label: nls.localize({
-				key: 'showDefinitionPreviewHover',
+	constwuctow() {
+		supa({
+			id: 'editow.action.showDefinitionPweviewHova',
+			wabew: nws.wocawize({
+				key: 'showDefinitionPweviewHova',
 				comment: [
-					'Label for action that will trigger the showing of definition preview hover in the editor.',
-					'This allows for users to show the definition preview hover without using the mouse.'
+					'Wabew fow action that wiww twigga the showing of definition pweview hova in the editow.',
+					'This awwows fow usews to show the definition pweview hova without using the mouse.'
 				]
-			}, "Show Definition Preview Hover"),
-			alias: 'Show Definition Preview Hover',
-			precondition: undefined
+			}, "Show Definition Pweview Hova"),
+			awias: 'Show Definition Pweview Hova',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ModesHoverController.get(editor);
-		if (!controller) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet contwowwa = ModesHovewContwowwa.get(editow);
+		if (!contwowwa) {
+			wetuwn;
 		}
-		const position = editor.getPosition();
+		const position = editow.getPosition();
 
 		if (!position) {
-			return;
+			wetuwn;
 		}
 
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
-		const promise = goto.startFindDefinitionFromCursor(position);
-		promise.then(() => {
-			controller.showContentHover(range, HoverStartMode.Immediate, true);
+		const wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn);
+		const goto = GotoDefinitionAtPositionEditowContwibution.get(editow);
+		const pwomise = goto.stawtFindDefinitionFwomCuwsow(position);
+		pwomise.then(() => {
+			contwowwa.showContentHova(wange, HovewStawtMode.Immediate, twue);
 		});
 	}
 }
 
-registerEditorContribution(ModesHoverController.ID, ModesHoverController);
-registerEditorAction(ShowHoverAction);
-registerEditorAction(ShowDefinitionPreviewHoverAction);
+wegistewEditowContwibution(ModesHovewContwowwa.ID, ModesHovewContwowwa);
+wegistewEditowAction(ShowHovewAction);
+wegistewEditowAction(ShowDefinitionPweviewHovewAction);
 
 // theming
-registerThemingParticipant((theme, collector) => {
-	const editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
-	if (editorHoverHighlightColor) {
-		collector.addRule(`.monaco-editor .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const editowHovewHighwightCowow = theme.getCowow(editowHovewHighwight);
+	if (editowHovewHighwightCowow) {
+		cowwectow.addWuwe(`.monaco-editow .hovewHighwight { backgwound-cowow: ${editowHovewHighwightCowow}; }`);
 	}
-	const hoverBackground = theme.getColor(editorHoverBackground);
-	if (hoverBackground) {
-		collector.addRule(`.monaco-editor .monaco-hover { background-color: ${hoverBackground}; }`);
+	const hovewBackgwound = theme.getCowow(editowHovewBackgwound);
+	if (hovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova { backgwound-cowow: ${hovewBackgwound}; }`);
 	}
-	const hoverBorder = theme.getColor(editorHoverBorder);
-	if (hoverBorder) {
-		collector.addRule(`.monaco-editor .monaco-hover { border: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.monaco-editor .monaco-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-editor .monaco-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-editor .monaco-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
+	const hovewBowda = theme.getCowow(editowHovewBowda);
+	if (hovewBowda) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova { bowda: 1px sowid ${hovewBowda}; }`);
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova .hova-wow:not(:fiwst-chiwd):not(:empty) { bowda-top: 1px sowid ${hovewBowda.twanspawent(0.5)}; }`);
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova hw { bowda-top: 1px sowid ${hovewBowda.twanspawent(0.5)}; }`);
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova hw { bowda-bottom: 0px sowid ${hovewBowda.twanspawent(0.5)}; }`);
 	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-editor .monaco-hover a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova a { cowow: ${wink}; }`);
 	}
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-editor .monaco-hover a:hover { color: ${linkHover}; }`);
+	const winkHova = theme.getCowow(textWinkActiveFowegwound);
+	if (winkHova) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova a:hova { cowow: ${winkHova}; }`);
 	}
-	const hoverForeground = theme.getColor(editorHoverForeground);
-	if (hoverForeground) {
-		collector.addRule(`.monaco-editor .monaco-hover { color: ${hoverForeground}; }`);
+	const hovewFowegwound = theme.getCowow(editowHovewFowegwound);
+	if (hovewFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova { cowow: ${hovewFowegwound}; }`);
 	}
-	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
-	if (actionsBackground) {
-		collector.addRule(`.monaco-editor .monaco-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
+	const actionsBackgwound = theme.getCowow(editowHovewStatusBawBackgwound);
+	if (actionsBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova .hova-wow .actions { backgwound-cowow: ${actionsBackgwound}; }`);
 	}
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-editor .monaco-hover code { background-color: ${codeBackground}; }`);
+	const codeBackgwound = theme.getCowow(textCodeBwockBackgwound);
+	if (codeBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .monaco-hova code { backgwound-cowow: ${codeBackgwound}; }`);
 	}
 });

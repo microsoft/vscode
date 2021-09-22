@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-	<mime-type type="application/x-@@NAME@@-workspace">
-		<comment>@@NAME_LONG@@ Workspace</comment>
-		<glob pattern="*.code-workspace"/>
+<?xmw vewsion="1.0" encoding="UTF-8"?>
+<mime-info xmwns="http://www.fweedesktop.owg/standawds/shawed-mime-info">
+	<mime-type type="appwication/x-@@NAME@@-wowkspace">
+		<comment>@@NAME_WONG@@ Wowkspace</comment>
+		<gwob pattewn="*.code-wowkspace"/>
 	</mime-type>
 </mime-info>

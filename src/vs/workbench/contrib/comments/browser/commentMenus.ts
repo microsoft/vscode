@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { Comment, CommentThread } from 'vs/editor/common/modes';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IMenuSewvice, MenuId, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Comment, CommentThwead } fwom 'vs/editow/common/modes';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
 
-export class CommentMenus implements IDisposable {
-	constructor(
-		@IMenuService private readonly menuService: IMenuService
+expowt cwass CommentMenus impwements IDisposabwe {
+	constwuctow(
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice
 	) { }
 
-	getCommentThreadTitleActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentThreadTitle, contextKeyService);
+	getCommentThweadTitweActions(commentThwead: CommentThwead, contextKeySewvice: IContextKeySewvice): IMenu {
+		wetuwn this.getMenu(MenuId.CommentThweadTitwe, contextKeySewvice);
 	}
 
-	getCommentThreadActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentThreadActions, contextKeyService);
+	getCommentThweadActions(commentThwead: CommentThwead, contextKeySewvice: IContextKeySewvice): IMenu {
+		wetuwn this.getMenu(MenuId.CommentThweadActions, contextKeySewvice);
 	}
 
-	getCommentTitleActions(comment: Comment, contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentTitle, contextKeyService);
+	getCommentTitweActions(comment: Comment, contextKeySewvice: IContextKeySewvice): IMenu {
+		wetuwn this.getMenu(MenuId.CommentTitwe, contextKeySewvice);
 	}
 
-	getCommentActions(comment: Comment, contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.CommentActions, contextKeyService);
+	getCommentActions(comment: Comment, contextKeySewvice: IContextKeySewvice): IMenu {
+		wetuwn this.getMenu(MenuId.CommentActions, contextKeySewvice);
 	}
 
-	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+	pwivate getMenu(menuId: MenuId, contextKeySewvice: IContextKeySewvice): IMenu {
+		const menu = this.menuSewvice.cweateMenu(menuId, contextKeySewvice);
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const wesuwt = { pwimawy, secondawy };
 
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+		cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue }, wesuwt, 'inwine');
 
-		return menu;
+		wetuwn menu;
 	}
 
 	dispose(): void {

@@ -1,1525 +1,1525 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from 'vs/base/common/platform';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { isWinux, isMacintosh, isWeb, isWindows, usewAgent } fwom 'vs/base/common/pwatfowm';
+impowt { isFawsyOwWhitespace } fwom 'vs/base/common/stwings';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-let _userAgent = userAgent || '';
-const STATIC_VALUES = new Map<string, boolean>();
-STATIC_VALUES.set('false', false);
-STATIC_VALUES.set('true', true);
-STATIC_VALUES.set('isMac', isMacintosh);
-STATIC_VALUES.set('isLinux', isLinux);
-STATIC_VALUES.set('isWindows', isWindows);
-STATIC_VALUES.set('isWeb', isWeb);
-STATIC_VALUES.set('isMacNative', isMacintosh && !isWeb);
-STATIC_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
-STATIC_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
-STATIC_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
-STATIC_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
+wet _usewAgent = usewAgent || '';
+const STATIC_VAWUES = new Map<stwing, boowean>();
+STATIC_VAWUES.set('fawse', fawse);
+STATIC_VAWUES.set('twue', twue);
+STATIC_VAWUES.set('isMac', isMacintosh);
+STATIC_VAWUES.set('isWinux', isWinux);
+STATIC_VAWUES.set('isWindows', isWindows);
+STATIC_VAWUES.set('isWeb', isWeb);
+STATIC_VAWUES.set('isMacNative', isMacintosh && !isWeb);
+STATIC_VAWUES.set('isEdge', _usewAgent.indexOf('Edg/') >= 0);
+STATIC_VAWUES.set('isFiwefox', _usewAgent.indexOf('Fiwefox') >= 0);
+STATIC_VAWUES.set('isChwome', _usewAgent.indexOf('Chwome') >= 0);
+STATIC_VAWUES.set('isSafawi', _usewAgent.indexOf('Safawi') >= 0);
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnPwopewty = Object.pwototype.hasOwnPwopewty;
 
-export const enum ContextKeyExprType {
-	False = 0,
-	True = 1,
+expowt const enum ContextKeyExpwType {
+	Fawse = 0,
+	Twue = 1,
 	Defined = 2,
 	Not = 3,
-	Equals = 4,
-	NotEquals = 5,
+	Equaws = 4,
+	NotEquaws = 5,
 	And = 6,
-	Regex = 7,
-	NotRegex = 8,
-	Or = 9,
+	Wegex = 7,
+	NotWegex = 8,
+	Ow = 9,
 	In = 10,
 	NotIn = 11,
-	Greater = 12,
-	GreaterEquals = 13,
-	Smaller = 14,
-	SmallerEquals = 15,
+	Gweata = 12,
+	GweatewEquaws = 13,
+	Smawwa = 14,
+	SmawwewEquaws = 15,
 }
 
-export interface IContextKeyExprMapper {
-	mapDefined(key: string): ContextKeyExpression;
-	mapNot(key: string): ContextKeyExpression;
-	mapEquals(key: string, value: any): ContextKeyExpression;
-	mapNotEquals(key: string, value: any): ContextKeyExpression;
-	mapGreater(key: string, value: any): ContextKeyExpression;
-	mapGreaterEquals(key: string, value: any): ContextKeyExpression;
-	mapSmaller(key: string, value: any): ContextKeyExpression;
-	mapSmallerEquals(key: string, value: any): ContextKeyExpression;
-	mapRegex(key: string, regexp: RegExp | null): ContextKeyRegexExpr;
-	mapIn(key: string, valueKey: string): ContextKeyInExpr;
+expowt intewface IContextKeyExpwMappa {
+	mapDefined(key: stwing): ContextKeyExpwession;
+	mapNot(key: stwing): ContextKeyExpwession;
+	mapEquaws(key: stwing, vawue: any): ContextKeyExpwession;
+	mapNotEquaws(key: stwing, vawue: any): ContextKeyExpwession;
+	mapGweata(key: stwing, vawue: any): ContextKeyExpwession;
+	mapGweatewEquaws(key: stwing, vawue: any): ContextKeyExpwession;
+	mapSmawwa(key: stwing, vawue: any): ContextKeyExpwession;
+	mapSmawwewEquaws(key: stwing, vawue: any): ContextKeyExpwession;
+	mapWegex(key: stwing, wegexp: WegExp | nuww): ContextKeyWegexExpw;
+	mapIn(key: stwing, vawueKey: stwing): ContextKeyInExpw;
 }
 
-export interface IContextKeyExpression {
-	cmp(other: ContextKeyExpression): number;
-	equals(other: ContextKeyExpression): boolean;
-	evaluate(context: IContext): boolean;
-	serialize(): string;
-	keys(): string[];
-	map(mapFnc: IContextKeyExprMapper): ContextKeyExpression;
-	negate(): ContextKeyExpression;
+expowt intewface IContextKeyExpwession {
+	cmp(otha: ContextKeyExpwession): numba;
+	equaws(otha: ContextKeyExpwession): boowean;
+	evawuate(context: IContext): boowean;
+	sewiawize(): stwing;
+	keys(): stwing[];
+	map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession;
+	negate(): ContextKeyExpwession;
 
 }
 
-export type ContextKeyExpression = (
-	ContextKeyFalseExpr | ContextKeyTrueExpr | ContextKeyDefinedExpr | ContextKeyNotExpr
-	| ContextKeyEqualsExpr | ContextKeyNotEqualsExpr | ContextKeyRegexExpr
-	| ContextKeyNotRegexExpr | ContextKeyAndExpr | ContextKeyOrExpr | ContextKeyInExpr
-	| ContextKeyNotInExpr | ContextKeyGreaterExpr | ContextKeyGreaterEqualsExpr
-	| ContextKeySmallerExpr | ContextKeySmallerEqualsExpr
+expowt type ContextKeyExpwession = (
+	ContextKeyFawseExpw | ContextKeyTwueExpw | ContextKeyDefinedExpw | ContextKeyNotExpw
+	| ContextKeyEquawsExpw | ContextKeyNotEquawsExpw | ContextKeyWegexExpw
+	| ContextKeyNotWegexExpw | ContextKeyAndExpw | ContextKeyOwExpw | ContextKeyInExpw
+	| ContextKeyNotInExpw | ContextKeyGweatewExpw | ContextKeyGweatewEquawsExpw
+	| ContextKeySmawwewExpw | ContextKeySmawwewEquawsExpw
 );
 
-export abstract class ContextKeyExpr {
+expowt abstwact cwass ContextKeyExpw {
 
-	public static false(): ContextKeyExpression {
-		return ContextKeyFalseExpr.INSTANCE;
+	pubwic static fawse(): ContextKeyExpwession {
+		wetuwn ContextKeyFawseExpw.INSTANCE;
 	}
 
-	public static true(): ContextKeyExpression {
-		return ContextKeyTrueExpr.INSTANCE;
+	pubwic static twue(): ContextKeyExpwession {
+		wetuwn ContextKeyTwueExpw.INSTANCE;
 	}
 
-	public static has(key: string): ContextKeyExpression {
-		return ContextKeyDefinedExpr.create(key);
+	pubwic static has(key: stwing): ContextKeyExpwession {
+		wetuwn ContextKeyDefinedExpw.cweate(key);
 	}
 
-	public static equals(key: string, value: any): ContextKeyExpression {
-		return ContextKeyEqualsExpr.create(key, value);
+	pubwic static equaws(key: stwing, vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeyEquawsExpw.cweate(key, vawue);
 	}
 
-	public static notEquals(key: string, value: any): ContextKeyExpression {
-		return ContextKeyNotEqualsExpr.create(key, value);
+	pubwic static notEquaws(key: stwing, vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeyNotEquawsExpw.cweate(key, vawue);
 	}
 
-	public static regex(key: string, value: RegExp): ContextKeyExpression {
-		return ContextKeyRegexExpr.create(key, value);
+	pubwic static wegex(key: stwing, vawue: WegExp): ContextKeyExpwession {
+		wetuwn ContextKeyWegexExpw.cweate(key, vawue);
 	}
 
-	public static in(key: string, value: string): ContextKeyExpression {
-		return ContextKeyInExpr.create(key, value);
+	pubwic static in(key: stwing, vawue: stwing): ContextKeyExpwession {
+		wetuwn ContextKeyInExpw.cweate(key, vawue);
 	}
 
-	public static not(key: string): ContextKeyExpression {
-		return ContextKeyNotExpr.create(key);
+	pubwic static not(key: stwing): ContextKeyExpwession {
+		wetuwn ContextKeyNotExpw.cweate(key);
 	}
 
-	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr.create(expr, null);
+	pubwic static and(...expw: Awway<ContextKeyExpwession | undefined | nuww>): ContextKeyExpwession | undefined {
+		wetuwn ContextKeyAndExpw.cweate(expw, nuww);
 	}
 
-	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyOrExpr.create(expr, null, true);
+	pubwic static ow(...expw: Awway<ContextKeyExpwession | undefined | nuww>): ContextKeyExpwession | undefined {
+		wetuwn ContextKeyOwExpw.cweate(expw, nuww, twue);
 	}
 
-	public static greater(key: string, value: any): ContextKeyExpression {
-		return ContextKeyGreaterExpr.create(key, value);
+	pubwic static gweata(key: stwing, vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeyGweatewExpw.cweate(key, vawue);
 	}
 
-	public static less(key: string, value: any): ContextKeyExpression {
-		return ContextKeySmallerExpr.create(key, value);
+	pubwic static wess(key: stwing, vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeySmawwewExpw.cweate(key, vawue);
 	}
 
-	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpression | undefined {
-		if (!serialized) {
-			return undefined;
+	pubwic static desewiawize(sewiawized: stwing | nuww | undefined, stwict: boowean = fawse): ContextKeyExpwession | undefined {
+		if (!sewiawized) {
+			wetuwn undefined;
 		}
 
-		return this._deserializeOrExpression(serialized, strict);
+		wetuwn this._desewiawizeOwExpwession(sewiawized, stwict);
 	}
 
-	private static _deserializeOrExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('||');
-		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p, strict)), null, true);
+	pwivate static _desewiawizeOwExpwession(sewiawized: stwing, stwict: boowean): ContextKeyExpwession | undefined {
+		wet pieces = sewiawized.spwit('||');
+		wetuwn ContextKeyOwExpw.cweate(pieces.map(p => this._desewiawizeAndExpwession(p, stwict)), nuww, twue);
 	}
 
-	private static _deserializeAndExpression(serialized: string, strict: boolean): ContextKeyExpression | undefined {
-		let pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p, strict)), null);
+	pwivate static _desewiawizeAndExpwession(sewiawized: stwing, stwict: boowean): ContextKeyExpwession | undefined {
+		wet pieces = sewiawized.spwit('&&');
+		wetuwn ContextKeyAndExpw.cweate(pieces.map(p => this._desewiawizeOne(p, stwict)), nuww);
 	}
 
-	private static _deserializeOne(serializedOne: string, strict: boolean): ContextKeyExpression {
-		serializedOne = serializedOne.trim();
+	pwivate static _desewiawizeOne(sewiawizedOne: stwing, stwict: boowean): ContextKeyExpwession {
+		sewiawizedOne = sewiawizedOne.twim();
 
-		if (serializedOne.indexOf('!=') >= 0) {
-			let pieces = serializedOne.split('!=');
-			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+		if (sewiawizedOne.indexOf('!=') >= 0) {
+			wet pieces = sewiawizedOne.spwit('!=');
+			wetuwn ContextKeyNotEquawsExpw.cweate(pieces[0].twim(), this._desewiawizeVawue(pieces[1], stwict));
 		}
 
-		if (serializedOne.indexOf('==') >= 0) {
-			let pieces = serializedOne.split('==');
-			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+		if (sewiawizedOne.indexOf('==') >= 0) {
+			wet pieces = sewiawizedOne.spwit('==');
+			wetuwn ContextKeyEquawsExpw.cweate(pieces[0].twim(), this._desewiawizeVawue(pieces[1], stwict));
 		}
 
-		if (serializedOne.indexOf('=~') >= 0) {
-			let pieces = serializedOne.split('=~');
-			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1], strict));
+		if (sewiawizedOne.indexOf('=~') >= 0) {
+			wet pieces = sewiawizedOne.spwit('=~');
+			wetuwn ContextKeyWegexExpw.cweate(pieces[0].twim(), this._desewiawizeWegexVawue(pieces[1], stwict));
 		}
 
-		if (serializedOne.indexOf(' in ') >= 0) {
-			let pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
+		if (sewiawizedOne.indexOf(' in ') >= 0) {
+			wet pieces = sewiawizedOne.spwit(' in ');
+			wetuwn ContextKeyInExpw.cweate(pieces[0].twim(), pieces[1].twim());
 		}
 
-		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>=');
-			return ContextKeyGreaterEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
+		if (/^[^<=>]+>=[^<=>]+$/.test(sewiawizedOne)) {
+			const pieces = sewiawizedOne.spwit('>=');
+			wetuwn ContextKeyGweatewEquawsExpw.cweate(pieces[0].twim(), pieces[1].twim());
 		}
 
-		if (/^[^<=>]+>[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>');
-			return ContextKeyGreaterExpr.create(pieces[0].trim(), pieces[1].trim());
+		if (/^[^<=>]+>[^<=>]+$/.test(sewiawizedOne)) {
+			const pieces = sewiawizedOne.spwit('>');
+			wetuwn ContextKeyGweatewExpw.cweate(pieces[0].twim(), pieces[1].twim());
 		}
 
-		if (/^[^<=>]+<=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<=');
-			return ContextKeySmallerEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
+		if (/^[^<=>]+<=[^<=>]+$/.test(sewiawizedOne)) {
+			const pieces = sewiawizedOne.spwit('<=');
+			wetuwn ContextKeySmawwewEquawsExpw.cweate(pieces[0].twim(), pieces[1].twim());
 		}
 
-		if (/^[^<=>]+<[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<');
-			return ContextKeySmallerExpr.create(pieces[0].trim(), pieces[1].trim());
+		if (/^[^<=>]+<[^<=>]+$/.test(sewiawizedOne)) {
+			const pieces = sewiawizedOne.spwit('<');
+			wetuwn ContextKeySmawwewExpw.cweate(pieces[0].twim(), pieces[1].twim());
 		}
 
-		if (/^\!\s*/.test(serializedOne)) {
-			return ContextKeyNotExpr.create(serializedOne.substr(1).trim());
+		if (/^\!\s*/.test(sewiawizedOne)) {
+			wetuwn ContextKeyNotExpw.cweate(sewiawizedOne.substw(1).twim());
 		}
 
-		return ContextKeyDefinedExpr.create(serializedOne);
+		wetuwn ContextKeyDefinedExpw.cweate(sewiawizedOne);
 	}
 
-	private static _deserializeValue(serializedValue: string, strict: boolean): any {
-		serializedValue = serializedValue.trim();
+	pwivate static _desewiawizeVawue(sewiawizedVawue: stwing, stwict: boowean): any {
+		sewiawizedVawue = sewiawizedVawue.twim();
 
-		if (serializedValue === 'true') {
-			return true;
+		if (sewiawizedVawue === 'twue') {
+			wetuwn twue;
 		}
 
-		if (serializedValue === 'false') {
-			return false;
+		if (sewiawizedVawue === 'fawse') {
+			wetuwn fawse;
 		}
 
-		let m = /^'([^']*)'$/.exec(serializedValue);
+		wet m = /^'([^']*)'$/.exec(sewiawizedVawue);
 		if (m) {
-			return m[1].trim();
+			wetuwn m[1].twim();
 		}
 
-		return serializedValue;
+		wetuwn sewiawizedVawue;
 	}
 
-	private static _deserializeRegexValue(serializedValue: string, strict: boolean): RegExp | null {
+	pwivate static _desewiawizeWegexVawue(sewiawizedVawue: stwing, stwict: boowean): WegExp | nuww {
 
-		if (isFalsyOrWhitespace(serializedValue)) {
-			if (strict) {
-				throw new Error('missing regexp-value for =~-expression');
-			} else {
-				console.warn('missing regexp-value for =~-expression');
+		if (isFawsyOwWhitespace(sewiawizedVawue)) {
+			if (stwict) {
+				thwow new Ewwow('missing wegexp-vawue fow =~-expwession');
+			} ewse {
+				consowe.wawn('missing wegexp-vawue fow =~-expwession');
 			}
-			return null;
+			wetuwn nuww;
 		}
 
-		let start = serializedValue.indexOf('/');
-		let end = serializedValue.lastIndexOf('/');
-		if (start === end || start < 0 /* || to < 0 */) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', missing /-enclosure`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', missing /-enclosure`);
+		wet stawt = sewiawizedVawue.indexOf('/');
+		wet end = sewiawizedVawue.wastIndexOf('/');
+		if (stawt === end || stawt < 0 /* || to < 0 */) {
+			if (stwict) {
+				thwow new Ewwow(`bad wegexp-vawue '${sewiawizedVawue}', missing /-encwosuwe`);
+			} ewse {
+				consowe.wawn(`bad wegexp-vawue '${sewiawizedVawue}', missing /-encwosuwe`);
 			}
-			return null;
+			wetuwn nuww;
 		}
 
-		let value = serializedValue.slice(start + 1, end);
-		let caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
-		try {
-			return new RegExp(value, caseIgnoreFlag);
+		wet vawue = sewiawizedVawue.swice(stawt + 1, end);
+		wet caseIgnoweFwag = sewiawizedVawue[end + 1] === 'i' ? 'i' : '';
+		twy {
+			wetuwn new WegExp(vawue, caseIgnoweFwag);
 		} catch (e) {
-			if (strict) {
-				throw new Error(`bad regexp-value '${serializedValue}', parse error: ${e}`);
-			} else {
-				console.warn(`bad regexp-value '${serializedValue}', parse error: ${e}`);
+			if (stwict) {
+				thwow new Ewwow(`bad wegexp-vawue '${sewiawizedVawue}', pawse ewwow: ${e}`);
+			} ewse {
+				consowe.wawn(`bad wegexp-vawue '${sewiawizedVawue}', pawse ewwow: ${e}`);
 			}
-			return null;
+			wetuwn nuww;
 		}
 	}
 }
 
-function cmp(a: ContextKeyExpression, b: ContextKeyExpression): number {
-	return a.cmp(b);
+function cmp(a: ContextKeyExpwession, b: ContextKeyExpwession): numba {
+	wetuwn a.cmp(b);
 }
 
-export class ContextKeyFalseExpr implements IContextKeyExpression {
-	public static INSTANCE = new ContextKeyFalseExpr();
+expowt cwass ContextKeyFawseExpw impwements IContextKeyExpwession {
+	pubwic static INSTANCE = new ContextKeyFawseExpw();
 
-	public readonly type = ContextKeyExprType.False;
+	pubwic weadonwy type = ContextKeyExpwType.Fawse;
 
-	protected constructor() {
+	pwotected constwuctow() {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		wetuwn this.type - otha.type;
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		return (other.type === this.type);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		wetuwn (otha.type === this.type);
 	}
 
-	public evaluate(context: IContext): boolean {
-		return false;
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn fawse;
 	}
 
-	public serialize(): string {
-		return 'false';
+	pubwic sewiawize(): stwing {
+		wetuwn 'fawse';
 	}
 
-	public keys(): string[] {
-		return [];
+	pubwic keys(): stwing[] {
+		wetuwn [];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return this;
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn this;
 	}
 
-	public negate(): ContextKeyExpression {
-		return ContextKeyTrueExpr.INSTANCE;
-	}
-}
-
-export class ContextKeyTrueExpr implements IContextKeyExpression {
-	public static INSTANCE = new ContextKeyTrueExpr();
-
-	public readonly type = ContextKeyExprType.True;
-
-	protected constructor() {
-	}
-
-	public cmp(other: ContextKeyExpression): number {
-		return this.type - other.type;
-	}
-
-	public equals(other: ContextKeyExpression): boolean {
-		return (other.type === this.type);
-	}
-
-	public evaluate(context: IContext): boolean {
-		return true;
-	}
-
-	public serialize(): string {
-		return 'true';
-	}
-
-	public keys(): string[] {
-		return [];
-	}
-
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return this;
-	}
-
-	public negate(): ContextKeyExpression {
-		return ContextKeyFalseExpr.INSTANCE;
+	pubwic negate(): ContextKeyExpwession {
+		wetuwn ContextKeyTwueExpw.INSTANCE;
 	}
 }
 
-export class ContextKeyDefinedExpr implements IContextKeyExpression {
-	public static create(key: string, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			return staticValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE;
+expowt cwass ContextKeyTwueExpw impwements IContextKeyExpwession {
+	pubwic static INSTANCE = new ContextKeyTwueExpw();
+
+	pubwic weadonwy type = ContextKeyExpwType.Twue;
+
+	pwotected constwuctow() {
+	}
+
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		wetuwn this.type - otha.type;
+	}
+
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		wetuwn (otha.type === this.type);
+	}
+
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn twue;
+	}
+
+	pubwic sewiawize(): stwing {
+		wetuwn 'twue';
+	}
+
+	pubwic keys(): stwing[] {
+		wetuwn [];
+	}
+
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn this;
+	}
+
+	pubwic negate(): ContextKeyExpwession {
+		wetuwn ContextKeyFawseExpw.INSTANCE;
+	}
+}
+
+expowt cwass ContextKeyDefinedExpw impwements IContextKeyExpwession {
+	pubwic static cweate(key: stwing, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		const staticVawue = STATIC_VAWUES.get(key);
+		if (typeof staticVawue === 'boowean') {
+			wetuwn staticVawue ? ContextKeyTwueExpw.INSTANCE : ContextKeyFawseExpw.INSTANCE;
 		}
-		return new ContextKeyDefinedExpr(key, negated);
+		wetuwn new ContextKeyDefinedExpw(key, negated);
 	}
 
-	public readonly type = ContextKeyExprType.Defined;
+	pubwic weadonwy type = ContextKeyExpwType.Defined;
 
-	protected constructor(
-		readonly key: string,
-		private negated: ContextKeyExpression | null
+	pwotected constwuctow(
+		weadonwy key: stwing,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp1(this.key, other.key);
+		wetuwn cmp1(this.key, otha.key);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (!!context.getValue(this.key));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (!!context.getVawue(this.key));
 	}
 
-	public serialize(): string {
-		return this.key;
+	pubwic sewiawize(): stwing {
+		wetuwn this.key;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapDefined(this.key);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapDefined(this.key);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyNotExpr.create(this.key, this);
+			this.negated = ContextKeyNotExpw.cweate(this.key, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyEqualsExpr implements IContextKeyExpression {
+expowt cwass ContextKeyEquawsExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		if (typeof value === 'boolean') {
-			return (value ? ContextKeyDefinedExpr.create(key, negated) : ContextKeyNotExpr.create(key, negated));
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		if (typeof vawue === 'boowean') {
+			wetuwn (vawue ? ContextKeyDefinedExpw.cweate(key, negated) : ContextKeyNotExpw.cweate(key, negated));
 		}
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			const trueValue = staticValue ? 'true' : 'false';
-			return (value === trueValue ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE);
+		const staticVawue = STATIC_VAWUES.get(key);
+		if (typeof staticVawue === 'boowean') {
+			const twueVawue = staticVawue ? 'twue' : 'fawse';
+			wetuwn (vawue === twueVawue ? ContextKeyTwueExpw.INSTANCE : ContextKeyFawseExpw.INSTANCE);
 		}
-		return new ContextKeyEqualsExpr(key, value, negated);
+		wetuwn new ContextKeyEquawsExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.Equals;
+	pubwic weadonwy type = ContextKeyExpwType.Equaws;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		// Intentional ==
-		// eslint-disable-next-line eqeqeq
-		return (context.getValue(this.key) == this.value);
+	pubwic evawuate(context: IContext): boowean {
+		// Intentionaw ==
+		// eswint-disabwe-next-wine eqeqeq
+		wetuwn (context.getVawue(this.key) == this.vawue);
 	}
 
-	public serialize(): string {
-		return `${this.key} == '${this.value}'`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} == '${this.vawue}'`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapEquals(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapEquaws(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyNotEqualsExpr.create(this.key, this.value, this);
+			this.negated = ContextKeyNotEquawsExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyInExpr implements IContextKeyExpression {
+expowt cwass ContextKeyInExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, valueKey: string): ContextKeyInExpr {
-		return new ContextKeyInExpr(key, valueKey);
+	pubwic static cweate(key: stwing, vawueKey: stwing): ContextKeyInExpw {
+		wetuwn new ContextKeyInExpw(key, vawueKey);
 	}
 
-	public readonly type = ContextKeyExprType.In;
-	private negated: ContextKeyExpression | null = null;
+	pubwic weadonwy type = ContextKeyExpwType.In;
+	pwivate negated: ContextKeyExpwession | nuww = nuww;
 
-	private constructor(
-		private readonly key: string,
-		private readonly valueKey: string,
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawueKey: stwing,
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.valueKey, other.key, other.valueKey);
+		wetuwn cmp2(this.key, this.vawueKey, otha.key, otha.vawueKey);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.valueKey === other.valueKey);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawueKey === otha.vawueKey);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		const source = context.getValue(this.valueKey);
+	pubwic evawuate(context: IContext): boowean {
+		const souwce = context.getVawue(this.vawueKey);
 
-		const item = context.getValue(this.key);
+		const item = context.getVawue(this.key);
 
-		if (Array.isArray(source)) {
-			return (source.indexOf(item) >= 0);
+		if (Awway.isAwway(souwce)) {
+			wetuwn (souwce.indexOf(item) >= 0);
 		}
 
-		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
-			return hasOwnProperty.call(source, item);
+		if (typeof item === 'stwing' && typeof souwce === 'object' && souwce !== nuww) {
+			wetuwn hasOwnPwopewty.caww(souwce, item);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public serialize(): string {
-		return `${this.key} in '${this.valueKey}'`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} in '${this.vawueKey}'`;
 	}
 
-	public keys(): string[] {
-		return [this.key, this.valueKey];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key, this.vawueKey];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyInExpr {
-		return mapFnc.mapIn(this.key, this.valueKey);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyInExpw {
+		wetuwn mapFnc.mapIn(this.key, this.vawueKey);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyNotInExpr.create(this);
+			this.negated = ContextKeyNotInExpw.cweate(this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyNotInExpr implements IContextKeyExpression {
+expowt cwass ContextKeyNotInExpw impwements IContextKeyExpwession {
 
-	public static create(actual: ContextKeyInExpr): ContextKeyNotInExpr {
-		return new ContextKeyNotInExpr(actual);
+	pubwic static cweate(actuaw: ContextKeyInExpw): ContextKeyNotInExpw {
+		wetuwn new ContextKeyNotInExpw(actuaw);
 	}
 
-	public readonly type = ContextKeyExprType.NotIn;
+	pubwic weadonwy type = ContextKeyExpwType.NotIn;
 
-	private constructor(private readonly _actual: ContextKeyInExpr) {
+	pwivate constwuctow(pwivate weadonwy _actuaw: ContextKeyInExpw) {
 		//
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return this._actual.cmp(other._actual);
+		wetuwn this._actuaw.cmp(otha._actuaw);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return this._actual.equals(other._actual);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn this._actuaw.equaws(otha._actuaw);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return !this._actual.evaluate(context);
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn !this._actuaw.evawuate(context);
 	}
 
-	public serialize(): string {
-		throw new Error('Method not implemented.');
+	pubwic sewiawize(): stwing {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	public keys(): string[] {
-		return this._actual.keys();
+	pubwic keys(): stwing[] {
+		wetuwn this._actuaw.keys();
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return new ContextKeyNotInExpr(this._actual.map(mapFnc));
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn new ContextKeyNotInExpw(this._actuaw.map(mapFnc));
 	}
 
-	public negate(): ContextKeyExpression {
-		return this._actual;
+	pubwic negate(): ContextKeyExpwession {
+		wetuwn this._actuaw;
 	}
 }
 
-export class ContextKeyNotEqualsExpr implements IContextKeyExpression {
+expowt cwass ContextKeyNotEquawsExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		if (typeof value === 'boolean') {
-			if (value) {
-				return ContextKeyNotExpr.create(key, negated);
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		if (typeof vawue === 'boowean') {
+			if (vawue) {
+				wetuwn ContextKeyNotExpw.cweate(key, negated);
 			}
-			return ContextKeyDefinedExpr.create(key, negated);
+			wetuwn ContextKeyDefinedExpw.cweate(key, negated);
 		}
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			const falseValue = staticValue ? 'true' : 'false';
-			return (value === falseValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+		const staticVawue = STATIC_VAWUES.get(key);
+		if (typeof staticVawue === 'boowean') {
+			const fawseVawue = staticVawue ? 'twue' : 'fawse';
+			wetuwn (vawue === fawseVawue ? ContextKeyFawseExpw.INSTANCE : ContextKeyTwueExpw.INSTANCE);
 		}
-		return new ContextKeyNotEqualsExpr(key, value, negated);
+		wetuwn new ContextKeyNotEquawsExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.NotEquals;
+	pubwic weadonwy type = ContextKeyExpwType.NotEquaws;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		// Intentional !=
-		// eslint-disable-next-line eqeqeq
-		return (context.getValue(this.key) != this.value);
+	pubwic evawuate(context: IContext): boowean {
+		// Intentionaw !=
+		// eswint-disabwe-next-wine eqeqeq
+		wetuwn (context.getVawue(this.key) != this.vawue);
 	}
 
-	public serialize(): string {
-		return `${this.key} != '${this.value}'`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} != '${this.vawue}'`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapNotEquals(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapNotEquaws(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyEqualsExpr.create(this.key, this.value, this);
+			this.negated = ContextKeyEquawsExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyNotExpr implements IContextKeyExpression {
+expowt cwass ContextKeyNotExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		const staticValue = STATIC_VALUES.get(key);
-		if (typeof staticValue === 'boolean') {
-			return (staticValue ? ContextKeyFalseExpr.INSTANCE : ContextKeyTrueExpr.INSTANCE);
+	pubwic static cweate(key: stwing, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		const staticVawue = STATIC_VAWUES.get(key);
+		if (typeof staticVawue === 'boowean') {
+			wetuwn (staticVawue ? ContextKeyFawseExpw.INSTANCE : ContextKeyTwueExpw.INSTANCE);
 		}
-		return new ContextKeyNotExpr(key, negated);
+		wetuwn new ContextKeyNotExpw(key, negated);
 	}
 
-	public readonly type = ContextKeyExprType.Not;
+	pubwic weadonwy type = ContextKeyExpwType.Not;
 
-	private constructor(
-		private readonly key: string,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp1(this.key, other.key);
+		wetuwn cmp1(this.key, otha.key);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (!context.getValue(this.key));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (!context.getVawue(this.key));
 	}
 
-	public serialize(): string {
-		return `!${this.key}`;
+	pubwic sewiawize(): stwing {
+		wetuwn `!${this.key}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapNot(this.key);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapNot(this.key);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyDefinedExpr.create(this.key, this);
+			this.negated = ContextKeyDefinedExpw.cweate(this.key, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyGreaterExpr implements IContextKeyExpression {
+expowt cwass ContextKeyGweatewExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeyGreaterExpr(key, value, negated);
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		wetuwn new ContextKeyGweatewExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.Greater;
+	pubwic weadonwy type = ContextKeyExpwType.Gweata;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) { }
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) > parseFloat(this.value));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (pawseFwoat(<any>context.getVawue(this.key)) > pawseFwoat(this.vawue));
 	}
 
-	public serialize(): string {
-		return `${this.key} > ${this.value}`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} > ${this.vawue}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapGreater(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapGweata(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeySmallerEqualsExpr.create(this.key, this.value, this);
+			this.negated = ContextKeySmawwewEquawsExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyGreaterEqualsExpr implements IContextKeyExpression {
+expowt cwass ContextKeyGweatewEquawsExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeyGreaterEqualsExpr(key, value, negated);
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		wetuwn new ContextKeyGweatewEquawsExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.GreaterEquals;
+	pubwic weadonwy type = ContextKeyExpwType.GweatewEquaws;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) { }
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) >= parseFloat(this.value));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (pawseFwoat(<any>context.getVawue(this.key)) >= pawseFwoat(this.vawue));
 	}
 
-	public serialize(): string {
-		return `${this.key} >= ${this.value}`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} >= ${this.vawue}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapGreaterEquals(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapGweatewEquaws(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeySmallerExpr.create(this.key, this.value, this);
+			this.negated = ContextKeySmawwewExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeySmallerExpr implements IContextKeyExpression {
+expowt cwass ContextKeySmawwewExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeySmallerExpr(key, value, negated);
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		wetuwn new ContextKeySmawwewExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.Smaller;
+	pubwic weadonwy type = ContextKeyExpwType.Smawwa;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) < parseFloat(this.value));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (pawseFwoat(<any>context.getVawue(this.key)) < pawseFwoat(this.vawue));
 	}
 
-	public serialize(): string {
-		return `${this.key} < ${this.value}`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} < ${this.vawue}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapSmaller(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapSmawwa(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyGreaterEqualsExpr.create(this.key, this.value, this);
+			this.negated = ContextKeyGweatewEquawsExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeySmallerEqualsExpr implements IContextKeyExpression {
+expowt cwass ContextKeySmawwewEquawsExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, value: any, negated: ContextKeyExpression | null = null): ContextKeyExpression {
-		return new ContextKeySmallerEqualsExpr(key, value, negated);
+	pubwic static cweate(key: stwing, vawue: any, negated: ContextKeyExpwession | nuww = nuww): ContextKeyExpwession {
+		wetuwn new ContextKeySmawwewEquawsExpw(key, vawue, negated);
 	}
 
-	public readonly type = ContextKeyExprType.SmallerEquals;
+	pubwic weadonwy type = ContextKeyExpwType.SmawwewEquaws;
 
-	private constructor(
-		private readonly key: string,
-		private readonly value: any,
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy vawue: any,
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return cmp2(this.key, this.value, other.key, other.value);
+		wetuwn cmp2(this.key, this.vawue, otha.key, otha.vawue);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return (this.key === other.key && this.value === other.value);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn (this.key === otha.key && this.vawue === otha.vawue);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return (parseFloat(<any>context.getValue(this.key)) <= parseFloat(this.value));
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn (pawseFwoat(<any>context.getVawue(this.key)) <= pawseFwoat(this.vawue));
 	}
 
-	public serialize(): string {
-		return `${this.key} <= ${this.value}`;
+	pubwic sewiawize(): stwing {
+		wetuwn `${this.key} <= ${this.vawue}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return mapFnc.mapSmallerEquals(this.key, this.value);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn mapFnc.mapSmawwewEquaws(this.key, this.vawue);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyGreaterExpr.create(this.key, this.value, this);
+			this.negated = ContextKeyGweatewExpw.cweate(this.key, this.vawue, this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyRegexExpr implements IContextKeyExpression {
+expowt cwass ContextKeyWegexExpw impwements IContextKeyExpwession {
 
-	public static create(key: string, regexp: RegExp | null): ContextKeyRegexExpr {
-		return new ContextKeyRegexExpr(key, regexp);
+	pubwic static cweate(key: stwing, wegexp: WegExp | nuww): ContextKeyWegexExpw {
+		wetuwn new ContextKeyWegexExpw(key, wegexp);
 	}
 
-	public readonly type = ContextKeyExprType.Regex;
-	private negated: ContextKeyExpression | null = null;
+	pubwic weadonwy type = ContextKeyExpwType.Wegex;
+	pwivate negated: ContextKeyExpwession | nuww = nuww;
 
-	private constructor(
-		private readonly key: string,
-		private readonly regexp: RegExp | null
+	pwivate constwuctow(
+		pwivate weadonwy key: stwing,
+		pwivate weadonwy wegexp: WegExp | nuww
 	) {
 		//
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		if (this.key < other.key) {
-			return -1;
+		if (this.key < otha.key) {
+			wetuwn -1;
 		}
-		if (this.key > other.key) {
-			return 1;
+		if (this.key > otha.key) {
+			wetuwn 1;
 		}
-		const thisSource = this.regexp ? this.regexp.source : '';
-		const otherSource = other.regexp ? other.regexp.source : '';
-		if (thisSource < otherSource) {
-			return -1;
+		const thisSouwce = this.wegexp ? this.wegexp.souwce : '';
+		const othewSouwce = otha.wegexp ? otha.wegexp.souwce : '';
+		if (thisSouwce < othewSouwce) {
+			wetuwn -1;
 		}
-		if (thisSource > otherSource) {
-			return 1;
+		if (thisSouwce > othewSouwce) {
+			wetuwn 1;
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			const thisSource = this.regexp ? this.regexp.source : '';
-			const otherSource = other.regexp ? other.regexp.source : '';
-			return (this.key === other.key && thisSource === otherSource);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			const thisSouwce = this.wegexp ? this.wegexp.souwce : '';
+			const othewSouwce = otha.wegexp ? otha.wegexp.souwce : '';
+			wetuwn (this.key === otha.key && thisSouwce === othewSouwce);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		let value = context.getValue<any>(this.key);
-		return this.regexp ? this.regexp.test(value) : false;
+	pubwic evawuate(context: IContext): boowean {
+		wet vawue = context.getVawue<any>(this.key);
+		wetuwn this.wegexp ? this.wegexp.test(vawue) : fawse;
 	}
 
-	public serialize(): string {
-		const value = this.regexp
-			? `/${this.regexp.source}/${this.regexp.ignoreCase ? 'i' : ''}`
-			: '/invalid/';
-		return `${this.key} =~ ${value}`;
+	pubwic sewiawize(): stwing {
+		const vawue = this.wegexp
+			? `/${this.wegexp.souwce}/${this.wegexp.ignoweCase ? 'i' : ''}`
+			: '/invawid/';
+		wetuwn `${this.key} =~ ${vawue}`;
 	}
 
-	public keys(): string[] {
-		return [this.key];
+	pubwic keys(): stwing[] {
+		wetuwn [this.key];
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyRegexExpr {
-		return mapFnc.mapRegex(this.key, this.regexp);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyWegexExpw {
+		wetuwn mapFnc.mapWegex(this.key, this.wegexp);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			this.negated = ContextKeyNotRegexExpr.create(this);
+			this.negated = ContextKeyNotWegexExpw.cweate(this);
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export class ContextKeyNotRegexExpr implements IContextKeyExpression {
+expowt cwass ContextKeyNotWegexExpw impwements IContextKeyExpwession {
 
-	public static create(actual: ContextKeyRegexExpr): ContextKeyExpression {
-		return new ContextKeyNotRegexExpr(actual);
+	pubwic static cweate(actuaw: ContextKeyWegexExpw): ContextKeyExpwession {
+		wetuwn new ContextKeyNotWegexExpw(actuaw);
 	}
 
-	public readonly type = ContextKeyExprType.NotRegex;
+	pubwic weadonwy type = ContextKeyExpwType.NotWegex;
 
-	private constructor(private readonly _actual: ContextKeyRegexExpr) {
+	pwivate constwuctow(pwivate weadonwy _actuaw: ContextKeyWegexExpw) {
 		//
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		return this._actual.cmp(other._actual);
+		wetuwn this._actuaw.cmp(otha._actuaw);
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			return this._actual.equals(other._actual);
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			wetuwn this._actuaw.equaws(otha._actuaw);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		return !this._actual.evaluate(context);
+	pubwic evawuate(context: IContext): boowean {
+		wetuwn !this._actuaw.evawuate(context);
 	}
 
-	public serialize(): string {
-		throw new Error('Method not implemented.');
+	pubwic sewiawize(): stwing {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	public keys(): string[] {
-		return this._actual.keys();
+	pubwic keys(): stwing[] {
+		wetuwn this._actuaw.keys();
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return new ContextKeyNotRegexExpr(this._actual.map(mapFnc));
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn new ContextKeyNotWegexExpw(this._actuaw.map(mapFnc));
 	}
 
-	public negate(): ContextKeyExpression {
-		return this._actual;
+	pubwic negate(): ContextKeyExpwession {
+		wetuwn this._actuaw;
 	}
 }
 
-class ContextKeyAndExpr implements IContextKeyExpression {
+cwass ContextKeyAndExpw impwements IContextKeyExpwession {
 
-	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr._normalizeArr(_expr, negated);
+	pubwic static cweate(_expw: WeadonwyAwway<ContextKeyExpwession | nuww | undefined>, negated: ContextKeyExpwession | nuww): ContextKeyExpwession | undefined {
+		wetuwn ContextKeyAndExpw._nowmawizeAww(_expw, negated);
 	}
 
-	public readonly type = ContextKeyExprType.And;
+	pubwic weadonwy type = ContextKeyExpwType.And;
 
-	private constructor(
-		public readonly expr: ContextKeyExpression[],
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pubwic weadonwy expw: ContextKeyExpwession[],
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		if (this.expr.length < other.expr.length) {
-			return -1;
+		if (this.expw.wength < otha.expw.wength) {
+			wetuwn -1;
 		}
-		if (this.expr.length > other.expr.length) {
-			return 1;
+		if (this.expw.wength > otha.expw.wength) {
+			wetuwn 1;
 		}
-		for (let i = 0, len = this.expr.length; i < len; i++) {
-			const r = cmp(this.expr[i], other.expr[i]);
-			if (r !== 0) {
-				return r;
+		fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+			const w = cmp(this.expw[i], otha.expw[i]);
+			if (w !== 0) {
+				wetuwn w;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			if (this.expr.length !== other.expr.length) {
-				return false;
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			if (this.expw.wength !== otha.expw.wength) {
+				wetuwn fawse;
 			}
-			for (let i = 0, len = this.expr.length; i < len; i++) {
-				if (!this.expr[i].equals(other.expr[i])) {
-					return false;
+			fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+				if (!this.expw[i].equaws(otha.expw[i])) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		for (let i = 0, len = this.expr.length; i < len; i++) {
-			if (!this.expr[i].evaluate(context)) {
-				return false;
+	pubwic evawuate(context: IContext): boowean {
+		fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+			if (!this.expw[i].evawuate(context)) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null): ContextKeyExpression | undefined {
-		const expr: ContextKeyExpression[] = [];
-		let hasTrue = false;
+	pwivate static _nowmawizeAww(aww: WeadonwyAwway<ContextKeyExpwession | nuww | undefined>, negated: ContextKeyExpwession | nuww): ContextKeyExpwession | undefined {
+		const expw: ContextKeyExpwession[] = [];
+		wet hasTwue = fawse;
 
-		for (const e of arr) {
+		fow (const e of aww) {
 			if (!e) {
 				continue;
 			}
 
-			if (e.type === ContextKeyExprType.True) {
-				// anything && true ==> anything
-				hasTrue = true;
+			if (e.type === ContextKeyExpwType.Twue) {
+				// anything && twue ==> anything
+				hasTwue = twue;
 				continue;
 			}
 
-			if (e.type === ContextKeyExprType.False) {
-				// anything && false ==> false
-				return ContextKeyFalseExpr.INSTANCE;
+			if (e.type === ContextKeyExpwType.Fawse) {
+				// anything && fawse ==> fawse
+				wetuwn ContextKeyFawseExpw.INSTANCE;
 			}
 
-			if (e.type === ContextKeyExprType.And) {
-				expr.push(...e.expr);
+			if (e.type === ContextKeyExpwType.And) {
+				expw.push(...e.expw);
 				continue;
 			}
 
-			expr.push(e);
+			expw.push(e);
 		}
 
-		if (expr.length === 0 && hasTrue) {
-			return ContextKeyTrueExpr.INSTANCE;
+		if (expw.wength === 0 && hasTwue) {
+			wetuwn ContextKeyTwueExpw.INSTANCE;
 		}
 
-		if (expr.length === 0) {
-			return undefined;
+		if (expw.wength === 0) {
+			wetuwn undefined;
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (expw.wength === 1) {
+			wetuwn expw[0];
 		}
 
-		expr.sort(cmp);
+		expw.sowt(cmp);
 
-		// eliminate duplicate terms
-		for (let i = 1; i < expr.length; i++) {
-			if (expr[i - 1].equals(expr[i])) {
-				expr.splice(i, 1);
+		// ewiminate dupwicate tewms
+		fow (wet i = 1; i < expw.wength; i++) {
+			if (expw[i - 1].equaws(expw[i])) {
+				expw.spwice(i, 1);
 				i--;
 			}
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (expw.wength === 1) {
+			wetuwn expw[0];
 		}
 
-		// We must distribute any OR expression because we don't support parens
-		// OR extensions will be at the end (due to sorting rules)
-		while (expr.length > 1) {
-			const lastElement = expr[expr.length - 1];
-			if (lastElement.type !== ContextKeyExprType.Or) {
-				break;
+		// We must distwibute any OW expwession because we don't suppowt pawens
+		// OW extensions wiww be at the end (due to sowting wuwes)
+		whiwe (expw.wength > 1) {
+			const wastEwement = expw[expw.wength - 1];
+			if (wastEwement.type !== ContextKeyExpwType.Ow) {
+				bweak;
 			}
-			// pop the last element
-			expr.pop();
+			// pop the wast ewement
+			expw.pop();
 
-			// pop the second to last element
-			const secondToLastElement = expr.pop()!;
+			// pop the second to wast ewement
+			const secondToWastEwement = expw.pop()!;
 
-			const isFinished = (expr.length === 0);
+			const isFinished = (expw.wength === 0);
 
-			// distribute `lastElement` over `secondToLastElement`
-			const resultElement = ContextKeyOrExpr.create(
-				lastElement.expr.map(el => ContextKeyAndExpr.create([el, secondToLastElement], null)),
-				null,
+			// distwibute `wastEwement` ova `secondToWastEwement`
+			const wesuwtEwement = ContextKeyOwExpw.cweate(
+				wastEwement.expw.map(ew => ContextKeyAndExpw.cweate([ew, secondToWastEwement], nuww)),
+				nuww,
 				isFinished
 			);
 
-			if (resultElement) {
-				expr.push(resultElement);
-				expr.sort(cmp);
+			if (wesuwtEwement) {
+				expw.push(wesuwtEwement);
+				expw.sowt(cmp);
 			}
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (expw.wength === 1) {
+			wetuwn expw[0];
 		}
 
-		return new ContextKeyAndExpr(expr, negated);
+		wetuwn new ContextKeyAndExpw(expw, negated);
 	}
 
-	public serialize(): string {
-		return this.expr.map(e => e.serialize()).join(' && ');
+	pubwic sewiawize(): stwing {
+		wetuwn this.expw.map(e => e.sewiawize()).join(' && ');
 	}
 
-	public keys(): string[] {
-		const result: string[] = [];
-		for (let expr of this.expr) {
-			result.push(...expr.keys());
+	pubwic keys(): stwing[] {
+		const wesuwt: stwing[] = [];
+		fow (wet expw of this.expw) {
+			wesuwt.push(...expw.keys());
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return new ContextKeyAndExpr(this.expr.map(expr => expr.map(mapFnc)), null);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn new ContextKeyAndExpw(this.expw.map(expw => expw.map(mapFnc)), nuww);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			const result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
-				result.push(expr.negate());
+			const wesuwt: ContextKeyExpwession[] = [];
+			fow (wet expw of this.expw) {
+				wesuwt.push(expw.negate());
 			}
-			this.negated = ContextKeyOrExpr.create(result, this, true)!;
+			this.negated = ContextKeyOwExpw.cweate(wesuwt, this, twue)!;
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-class ContextKeyOrExpr implements IContextKeyExpression {
+cwass ContextKeyOwExpw impwements IContextKeyExpwession {
 
-	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
-		return ContextKeyOrExpr._normalizeArr(_expr, negated, extraRedundantCheck);
+	pubwic static cweate(_expw: WeadonwyAwway<ContextKeyExpwession | nuww | undefined>, negated: ContextKeyExpwession | nuww, extwaWedundantCheck: boowean): ContextKeyExpwession | undefined {
+		wetuwn ContextKeyOwExpw._nowmawizeAww(_expw, negated, extwaWedundantCheck);
 	}
 
-	public readonly type = ContextKeyExprType.Or;
+	pubwic weadonwy type = ContextKeyExpwType.Ow;
 
-	private constructor(
-		public readonly expr: ContextKeyExpression[],
-		private negated: ContextKeyExpression | null
+	pwivate constwuctow(
+		pubwic weadonwy expw: ContextKeyExpwession[],
+		pwivate negated: ContextKeyExpwession | nuww
 	) {
 	}
 
-	public cmp(other: ContextKeyExpression): number {
-		if (other.type !== this.type) {
-			return this.type - other.type;
+	pubwic cmp(otha: ContextKeyExpwession): numba {
+		if (otha.type !== this.type) {
+			wetuwn this.type - otha.type;
 		}
-		if (this.expr.length < other.expr.length) {
-			return -1;
+		if (this.expw.wength < otha.expw.wength) {
+			wetuwn -1;
 		}
-		if (this.expr.length > other.expr.length) {
-			return 1;
+		if (this.expw.wength > otha.expw.wength) {
+			wetuwn 1;
 		}
-		for (let i = 0, len = this.expr.length; i < len; i++) {
-			const r = cmp(this.expr[i], other.expr[i]);
-			if (r !== 0) {
-				return r;
+		fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+			const w = cmp(this.expw[i], otha.expw[i]);
+			if (w !== 0) {
+				wetuwn w;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public equals(other: ContextKeyExpression): boolean {
-		if (other.type === this.type) {
-			if (this.expr.length !== other.expr.length) {
-				return false;
+	pubwic equaws(otha: ContextKeyExpwession): boowean {
+		if (otha.type === this.type) {
+			if (this.expw.wength !== otha.expw.wength) {
+				wetuwn fawse;
 			}
-			for (let i = 0, len = this.expr.length; i < len; i++) {
-				if (!this.expr[i].equals(other.expr[i])) {
-					return false;
+			fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+				if (!this.expw[i].equaws(otha.expw[i])) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public evaluate(context: IContext): boolean {
-		for (let i = 0, len = this.expr.length; i < len; i++) {
-			if (this.expr[i].evaluate(context)) {
-				return true;
+	pubwic evawuate(context: IContext): boowean {
+		fow (wet i = 0, wen = this.expw.wength; i < wen; i++) {
+			if (this.expw[i].evawuate(context)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
-		let expr: ContextKeyExpression[] = [];
-		let hasFalse = false;
+	pwivate static _nowmawizeAww(aww: WeadonwyAwway<ContextKeyExpwession | nuww | undefined>, negated: ContextKeyExpwession | nuww, extwaWedundantCheck: boowean): ContextKeyExpwession | undefined {
+		wet expw: ContextKeyExpwession[] = [];
+		wet hasFawse = fawse;
 
-		if (arr) {
-			for (let i = 0, len = arr.length; i < len; i++) {
-				const e = arr[i];
+		if (aww) {
+			fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+				const e = aww[i];
 				if (!e) {
 					continue;
 				}
 
-				if (e.type === ContextKeyExprType.False) {
-					// anything || false ==> anything
-					hasFalse = true;
+				if (e.type === ContextKeyExpwType.Fawse) {
+					// anything || fawse ==> anything
+					hasFawse = twue;
 					continue;
 				}
 
-				if (e.type === ContextKeyExprType.True) {
-					// anything || true ==> true
-					return ContextKeyTrueExpr.INSTANCE;
+				if (e.type === ContextKeyExpwType.Twue) {
+					// anything || twue ==> twue
+					wetuwn ContextKeyTwueExpw.INSTANCE;
 				}
 
-				if (e.type === ContextKeyExprType.Or) {
-					expr = expr.concat(e.expr);
+				if (e.type === ContextKeyExpwType.Ow) {
+					expw = expw.concat(e.expw);
 					continue;
 				}
 
-				expr.push(e);
+				expw.push(e);
 			}
 
-			if (expr.length === 0 && hasFalse) {
-				return ContextKeyFalseExpr.INSTANCE;
+			if (expw.wength === 0 && hasFawse) {
+				wetuwn ContextKeyFawseExpw.INSTANCE;
 			}
 
-			expr.sort(cmp);
+			expw.sowt(cmp);
 		}
 
-		if (expr.length === 0) {
-			return undefined;
+		if (expw.wength === 0) {
+			wetuwn undefined;
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (expw.wength === 1) {
+			wetuwn expw[0];
 		}
 
-		// eliminate duplicate terms
-		for (let i = 1; i < expr.length; i++) {
-			if (expr[i - 1].equals(expr[i])) {
-				expr.splice(i, 1);
+		// ewiminate dupwicate tewms
+		fow (wet i = 1; i < expw.wength; i++) {
+			if (expw[i - 1].equaws(expw[i])) {
+				expw.spwice(i, 1);
 				i--;
 			}
 		}
 
-		if (expr.length === 1) {
-			return expr[0];
+		if (expw.wength === 1) {
+			wetuwn expw[0];
 		}
 
-		// eliminate redundant terms
-		if (extraRedundantCheck) {
-			for (let i = 0; i < expr.length; i++) {
-				for (let j = i + 1; j < expr.length; j++) {
-					if (implies(expr[i], expr[j])) {
-						expr.splice(j, 1);
+		// ewiminate wedundant tewms
+		if (extwaWedundantCheck) {
+			fow (wet i = 0; i < expw.wength; i++) {
+				fow (wet j = i + 1; j < expw.wength; j++) {
+					if (impwies(expw[i], expw[j])) {
+						expw.spwice(j, 1);
 						j--;
 					}
 				}
 			}
 
-			if (expr.length === 1) {
-				return expr[0];
+			if (expw.wength === 1) {
+				wetuwn expw[0];
 			}
 		}
 
-		return new ContextKeyOrExpr(expr, negated);
+		wetuwn new ContextKeyOwExpw(expw, negated);
 	}
 
-	public serialize(): string {
-		return this.expr.map(e => e.serialize()).join(' || ');
+	pubwic sewiawize(): stwing {
+		wetuwn this.expw.map(e => e.sewiawize()).join(' || ');
 	}
 
-	public keys(): string[] {
-		const result: string[] = [];
-		for (let expr of this.expr) {
-			result.push(...expr.keys());
+	pubwic keys(): stwing[] {
+		const wesuwt: stwing[] = [];
+		fow (wet expw of this.expw) {
+			wesuwt.push(...expw.keys());
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public map(mapFnc: IContextKeyExprMapper): ContextKeyExpression {
-		return new ContextKeyOrExpr(this.expr.map(expr => expr.map(mapFnc)), null);
+	pubwic map(mapFnc: IContextKeyExpwMappa): ContextKeyExpwession {
+		wetuwn new ContextKeyOwExpw(this.expw.map(expw => expw.map(mapFnc)), nuww);
 	}
 
-	public negate(): ContextKeyExpression {
+	pubwic negate(): ContextKeyExpwession {
 		if (!this.negated) {
-			let result: ContextKeyExpression[] = [];
-			for (let expr of this.expr) {
-				result.push(expr.negate());
+			wet wesuwt: ContextKeyExpwession[] = [];
+			fow (wet expw of this.expw) {
+				wesuwt.push(expw.negate());
 			}
 
-			// We don't support parens, so here we distribute the AND over the OR terminals
-			// We always take the first 2 AND pairs and distribute them
-			while (result.length > 1) {
-				const LEFT = result.shift()!;
-				const RIGHT = result.shift()!;
+			// We don't suppowt pawens, so hewe we distwibute the AND ova the OW tewminaws
+			// We awways take the fiwst 2 AND paiws and distwibute them
+			whiwe (wesuwt.wength > 1) {
+				const WEFT = wesuwt.shift()!;
+				const WIGHT = wesuwt.shift()!;
 
-				const all: ContextKeyExpression[] = [];
-				for (const left of getTerminals(LEFT)) {
-					for (const right of getTerminals(RIGHT)) {
-						all.push(ContextKeyAndExpr.create([left, right], null)!);
+				const aww: ContextKeyExpwession[] = [];
+				fow (const weft of getTewminaws(WEFT)) {
+					fow (const wight of getTewminaws(WIGHT)) {
+						aww.push(ContextKeyAndExpw.cweate([weft, wight], nuww)!);
 					}
 				}
 
-				const isFinished = (result.length === 0);
-				result.unshift(ContextKeyOrExpr.create(all, null, isFinished)!);
+				const isFinished = (wesuwt.wength === 0);
+				wesuwt.unshift(ContextKeyOwExpw.cweate(aww, nuww, isFinished)!);
 			}
 
-			this.negated = result[0];
+			this.negated = wesuwt[0];
 		}
-		return this.negated;
+		wetuwn this.negated;
 	}
 }
 
-export interface ContextKeyInfo {
-	readonly key: string;
-	readonly type?: string;
-	readonly description?: string;
+expowt intewface ContextKeyInfo {
+	weadonwy key: stwing;
+	weadonwy type?: stwing;
+	weadonwy descwiption?: stwing;
 }
 
-export class RawContextKey<T> extends ContextKeyDefinedExpr {
+expowt cwass WawContextKey<T> extends ContextKeyDefinedExpw {
 
-	private static _info: ContextKeyInfo[] = [];
+	pwivate static _info: ContextKeyInfo[] = [];
 
-	static all(): IterableIterator<ContextKeyInfo> {
-		return RawContextKey._info.values();
+	static aww(): ItewabweItewatow<ContextKeyInfo> {
+		wetuwn WawContextKey._info.vawues();
 	}
 
-	private readonly _defaultValue: T | undefined;
+	pwivate weadonwy _defauwtVawue: T | undefined;
 
-	constructor(key: string, defaultValue: T | undefined, metaOrHide?: string | true | { type: string, description: string }) {
-		super(key, null);
-		this._defaultValue = defaultValue;
+	constwuctow(key: stwing, defauwtVawue: T | undefined, metaOwHide?: stwing | twue | { type: stwing, descwiption: stwing }) {
+		supa(key, nuww);
+		this._defauwtVawue = defauwtVawue;
 
-		// collect all context keys into a central place
-		if (typeof metaOrHide === 'object') {
-			RawContextKey._info.push({ ...metaOrHide, key });
-		} else if (metaOrHide !== true) {
-			RawContextKey._info.push({ key, description: metaOrHide, type: defaultValue !== null && defaultValue !== undefined ? typeof defaultValue : undefined });
+		// cowwect aww context keys into a centwaw pwace
+		if (typeof metaOwHide === 'object') {
+			WawContextKey._info.push({ ...metaOwHide, key });
+		} ewse if (metaOwHide !== twue) {
+			WawContextKey._info.push({ key, descwiption: metaOwHide, type: defauwtVawue !== nuww && defauwtVawue !== undefined ? typeof defauwtVawue : undefined });
 		}
 	}
 
-	public bindTo(target: IContextKeyService): IContextKey<T> {
-		return target.createKey(this.key, this._defaultValue);
+	pubwic bindTo(tawget: IContextKeySewvice): IContextKey<T> {
+		wetuwn tawget.cweateKey(this.key, this._defauwtVawue);
 	}
 
-	public getValue(target: IContextKeyService): T | undefined {
-		return target.getContextKeyValue<T>(this.key);
+	pubwic getVawue(tawget: IContextKeySewvice): T | undefined {
+		wetuwn tawget.getContextKeyVawue<T>(this.key);
 	}
 
-	public toNegated(): ContextKeyExpression {
-		return this.negate();
+	pubwic toNegated(): ContextKeyExpwession {
+		wetuwn this.negate();
 	}
 
-	public isEqualTo(value: any): ContextKeyExpression {
-		return ContextKeyEqualsExpr.create(this.key, value);
+	pubwic isEquawTo(vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeyEquawsExpw.cweate(this.key, vawue);
 	}
 
-	public notEqualsTo(value: any): ContextKeyExpression {
-		return ContextKeyNotEqualsExpr.create(this.key, value);
+	pubwic notEquawsTo(vawue: any): ContextKeyExpwession {
+		wetuwn ContextKeyNotEquawsExpw.cweate(this.key, vawue);
 	}
 }
 
-export interface IContext {
-	getValue<T>(key: string): T | undefined;
+expowt intewface IContext {
+	getVawue<T>(key: stwing): T | undefined;
 }
 
-export interface IContextKey<T> {
-	set(value: T): void;
-	reset(): void;
+expowt intewface IContextKey<T> {
+	set(vawue: T): void;
+	weset(): void;
 	get(): T | undefined;
 }
 
-export interface IContextKeyServiceTarget {
-	parentElement: IContextKeyServiceTarget | null;
-	setAttribute(attr: string, value: string): void;
-	removeAttribute(attr: string): void;
-	hasAttribute(attr: string): boolean;
-	getAttribute(attr: string): string | null;
+expowt intewface IContextKeySewviceTawget {
+	pawentEwement: IContextKeySewviceTawget | nuww;
+	setAttwibute(attw: stwing, vawue: stwing): void;
+	wemoveAttwibute(attw: stwing): void;
+	hasAttwibute(attw: stwing): boowean;
+	getAttwibute(attw: stwing): stwing | nuww;
 }
 
-export const IContextKeyService = createDecorator<IContextKeyService>('contextKeyService');
+expowt const IContextKeySewvice = cweateDecowatow<IContextKeySewvice>('contextKeySewvice');
 
-export interface IReadableSet<T> {
-	has(value: T): boolean;
+expowt intewface IWeadabweSet<T> {
+	has(vawue: T): boowean;
 }
 
-export interface IContextKeyChangeEvent {
-	affectsSome(keys: IReadableSet<string>): boolean;
+expowt intewface IContextKeyChangeEvent {
+	affectsSome(keys: IWeadabweSet<stwing>): boowean;
 }
 
-export interface IContextKeyService {
-	readonly _serviceBrand: undefined;
+expowt intewface IContextKeySewvice {
+	weadonwy _sewviceBwand: undefined;
 	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
-	bufferChangeEvents(callback: Function): void;
+	buffewChangeEvents(cawwback: Function): void;
 
-	createKey<T>(key: string, defaultValue: T | undefined): IContextKey<T>;
-	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
-	getContextKeyValue<T>(key: string): T | undefined;
+	cweateKey<T>(key: stwing, defauwtVawue: T | undefined): IContextKey<T>;
+	contextMatchesWuwes(wuwes: ContextKeyExpwession | undefined): boowean;
+	getContextKeyVawue<T>(key: stwing): T | undefined;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
-	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
-	getContext(target: IContextKeyServiceTarget | null): IContext;
+	cweateScoped(tawget: IContextKeySewviceTawget): IContextKeySewvice;
+	cweateOvewway(ovewway: Itewabwe<[stwing, any]>): IContextKeySewvice;
+	getContext(tawget: IContextKeySewviceTawget | nuww): IContext;
 
-	updateParent(parentContextKeyService: IContextKeyService): void;
+	updatePawent(pawentContextKeySewvice: IContextKeySewvice): void;
 }
 
-export const SET_CONTEXT_COMMAND_ID = 'setContext';
+expowt const SET_CONTEXT_COMMAND_ID = 'setContext';
 
-function cmp1(key1: string, key2: string): number {
+function cmp1(key1: stwing, key2: stwing): numba {
 	if (key1 < key2) {
-		return -1;
+		wetuwn -1;
 	}
 	if (key1 > key2) {
-		return 1;
+		wetuwn 1;
 	}
-	return 0;
+	wetuwn 0;
 }
 
-function cmp2(key1: string, value1: any, key2: string, value2: any): number {
+function cmp2(key1: stwing, vawue1: any, key2: stwing, vawue2: any): numba {
 	if (key1 < key2) {
-		return -1;
+		wetuwn -1;
 	}
 	if (key1 > key2) {
-		return 1;
+		wetuwn 1;
 	}
-	if (value1 < value2) {
-		return -1;
+	if (vawue1 < vawue2) {
+		wetuwn -1;
 	}
-	if (value1 > value2) {
-		return 1;
+	if (vawue1 > vawue2) {
+		wetuwn 1;
 	}
-	return 0;
+	wetuwn 0;
 }
 
 /**
- * Returns true if it is provable `p` implies `q`.
+ * Wetuwns twue if it is pwovabwe `p` impwies `q`.
  */
-export function implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
+expowt function impwies(p: ContextKeyExpwession, q: ContextKeyExpwession): boowean {
 
-	if (q.type === ContextKeyExprType.And && (p.type !== ContextKeyExprType.Or && p.type !== ContextKeyExprType.And)) {
-		// covers the case: A implies A && B
-		for (const qTerm of q.expr) {
-			if (p.equals(qTerm)) {
-				return true;
+	if (q.type === ContextKeyExpwType.And && (p.type !== ContextKeyExpwType.Ow && p.type !== ContextKeyExpwType.And)) {
+		// covews the case: A impwies A && B
+		fow (const qTewm of q.expw) {
+			if (p.equaws(qTewm)) {
+				wetuwn twue;
 			}
 		}
 	}
 
 	const notP = p.negate();
-	const expr = getTerminals(notP).concat(getTerminals(q));
-	expr.sort(cmp);
+	const expw = getTewminaws(notP).concat(getTewminaws(q));
+	expw.sowt(cmp);
 
-	for (let i = 0; i < expr.length; i++) {
-		const a = expr[i];
+	fow (wet i = 0; i < expw.wength; i++) {
+		const a = expw[i];
 		const notA = a.negate();
-		for (let j = i + 1; j < expr.length; j++) {
-			const b = expr[j];
-			if (notA.equals(b)) {
-				return true;
+		fow (wet j = i + 1; j < expw.wength; j++) {
+			const b = expw[j];
+			if (notA.equaws(b)) {
+				wetuwn twue;
 			}
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-function getTerminals(node: ContextKeyExpression) {
-	if (node.type === ContextKeyExprType.Or) {
-		return node.expr;
+function getTewminaws(node: ContextKeyExpwession) {
+	if (node.type === ContextKeyExpwType.Ow) {
+		wetuwn node.expw;
 	}
-	return [node];
+	wetuwn [node];
 }

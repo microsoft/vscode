@@ -1,1705 +1,1705 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tunnelView';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { ICommandService, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions, createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy, TunnelEditId, mapHasAddressLocalhostOrAllInterfaces, Attributes, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { once } from 'vs/base/common/functional';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { URI } from 'vs/base/common/uri';
-import { isAllInterfaces, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
-import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
+impowt 'vs/css!./media/tunnewView';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IViewDescwiptow, IEditabweData, IViewsSewvice, IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IContextKeySewvice, IContextKey, WawContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IQuickInputSewvice, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { ICommandSewvice, ICommandHandwa, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { Disposabwe, IDisposabwe, toDisposabwe, MutabweDisposabwe, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { ActionWunna, IAction } fwom 'vs/base/common/actions';
+impowt { IMenuSewvice, MenuId, MenuWegistwy, IWocawizedStwing } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndFiwwInContextMenuActions, cweateAndFiwwInActionBawActions, cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IWemoteExpwowewSewvice, TunnewModew, makeAddwess, TunnewType, ITunnewItem, Tunnew, TUNNEW_VIEW_ID, pawseAddwess, CandidatePowt, TunnewPwivacy, TunnewEditId, mapHasAddwessWocawhostOwAwwIntewfaces, Attwibutes, TunnewSouwce } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteExpwowewSewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { InputBox, MessageType } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { attachButtonStywa, attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isAwwIntewfaces, isWocawhost, isPowtPwiviweged, ITunnewSewvice, WemoteTunnew, TunnewPwotocow } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { copyAddwessIcon, fowwawdedPowtWithoutPwocessIcon, fowwawdedPowtWithPwocessIcon, fowwawdPowtIcon, wabewPowtIcon, openBwowsewIcon, openPweviewIcon, powtsViewIcon, pwivatePowtIcon, pubwicPowtIcon, stopFowwawdIcon } fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteIcons';
+impowt { IExtewnawUwiOpenewSewvice } fwom 'vs/wowkbench/contwib/extewnawUwiOpena/common/extewnawUwiOpenewSewvice';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { ITabweCowumn, ITabweContextMenuEvent, ITabweEvent, ITabweMouseEvent, ITabweWendewa, ITabweViwtuawDewegate } fwom 'vs/base/bwowsa/ui/tabwe/tabwe';
+impowt { WowkbenchTabwe } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { wegistewCowow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IMawkdownStwing, MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IHovewDewegateOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconHovewDewegate';
+impowt { IHovewSewvice } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { STATUS_BAW_HOST_NAME_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
 
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+expowt const fowwawdedPowtsViewEnabwed = new WawContextKey<boowean>('fowwawdedPowtsViewEnabwed', fawse, nws.wocawize('tunnew.fowwawdedPowtsViewEnabwed', "Whetha the Powts view is enabwed."));
 
-class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
+cwass TunnewTweeViwtuawDewegate impwements ITabweViwtuawDewegate<ITunnewItem> {
 
-	readonly headerRowHeight: number = 22;
+	weadonwy headewWowHeight: numba = 22;
 
-	constructor(private readonly remoteExplorerService: IRemoteExplorerService) { }
+	constwuctow(pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice) { }
 
-	getHeight(row: ITunnelItem): number {
-		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? 30 : 22;
+	getHeight(wow: ITunnewItem): numba {
+		wetuwn (wow.tunnewType === TunnewType.Add && !this.wemoteExpwowewSewvice.getEditabweData(undefined)) ? 30 : 22;
 	}
 }
 
-export interface ITunnelViewModel {
-	readonly onForwardedPortsChanged: Event<void>;
-	readonly all: TunnelItem[];
-	readonly input: TunnelItem;
-	isEmpty(): boolean;
+expowt intewface ITunnewViewModew {
+	weadonwy onFowwawdedPowtsChanged: Event<void>;
+	weadonwy aww: TunnewItem[];
+	weadonwy input: TunnewItem;
+	isEmpty(): boowean;
 }
 
-export class TunnelViewModel implements ITunnelViewModel {
+expowt cwass TunnewViewModew impwements ITunnewViewModew {
 
-	readonly onForwardedPortsChanged: Event<void>;
-	private model: TunnelModel;
-	private _candidates: Map<string, CandidatePort> = new Map();
+	weadonwy onFowwawdedPowtsChanged: Event<void>;
+	pwivate modew: TunnewModew;
+	pwivate _candidates: Map<stwing, CandidatePowt> = new Map();
 
-	readonly input = {
-		label: nls.localize('remote.tunnelsView.addPort', "Add Port"),
+	weadonwy input = {
+		wabew: nws.wocawize('wemote.tunnewsView.addPowt', "Add Powt"),
 		icon: undefined,
-		tunnelType: TunnelType.Add,
-		hasRunningProcess: false,
-		remoteHost: '',
-		remotePort: 0,
-		processDescription: '',
-		tooltipPostfix: '',
-		iconTooltip: '',
-		portTooltip: '',
-		processTooltip: '',
-		originTooltip: '',
-		privacyTooltip: '',
-		source: { source: TunnelSource.User, description: '' },
-		protocol: TunnelProtocol.Http
+		tunnewType: TunnewType.Add,
+		hasWunningPwocess: fawse,
+		wemoteHost: '',
+		wemotePowt: 0,
+		pwocessDescwiption: '',
+		toowtipPostfix: '',
+		iconToowtip: '',
+		powtToowtip: '',
+		pwocessToowtip: '',
+		owiginToowtip: '',
+		pwivacyToowtip: '',
+		souwce: { souwce: TunnewSouwce.Usa, descwiption: '' },
+		pwotocow: TunnewPwotocow.Http
 	};
 
-	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+	constwuctow(
+		@IWemoteExpwowewSewvice pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice
 	) {
-		this.model = remoteExplorerService.tunnelModel;
-		this.onForwardedPortsChanged = Event.any(this.model.onForwardPort, this.model.onClosePort, this.model.onPortName, this.model.onCandidatesChanged);
+		this.modew = wemoteExpwowewSewvice.tunnewModew;
+		this.onFowwawdedPowtsChanged = Event.any(this.modew.onFowwawdPowt, this.modew.onCwosePowt, this.modew.onPowtName, this.modew.onCandidatesChanged);
 	}
 
-	get all(): TunnelItem[] {
-		const result: TunnelItem[] = [];
+	get aww(): TunnewItem[] {
+		const wesuwt: TunnewItem[] = [];
 		this._candidates = new Map();
-		this.model.candidates.forEach(candidate => {
-			this._candidates.set(makeAddress(candidate.host, candidate.port), candidate);
+		this.modew.candidates.fowEach(candidate => {
+			this._candidates.set(makeAddwess(candidate.host, candidate.powt), candidate);
 		});
-		if ((this.model.forwarded.size > 0) || this.remoteExplorerService.getEditableData(undefined)) {
-			result.push(...this.forwarded);
+		if ((this.modew.fowwawded.size > 0) || this.wemoteExpwowewSewvice.getEditabweData(undefined)) {
+			wesuwt.push(...this.fowwawded);
 		}
-		if (this.model.detected.size > 0) {
-			result.push(...this.detected);
+		if (this.modew.detected.size > 0) {
+			wesuwt.push(...this.detected);
 		}
 
-		result.push(this.input);
-		return result;
+		wesuwt.push(this.input);
+		wetuwn wesuwt;
 	}
 
-	private addProcessInfoFromCandidate(tunnelItem: ITunnelItem) {
-		const key = makeAddress(tunnelItem.remoteHost, tunnelItem.remotePort);
+	pwivate addPwocessInfoFwomCandidate(tunnewItem: ITunnewItem) {
+		const key = makeAddwess(tunnewItem.wemoteHost, tunnewItem.wemotePowt);
 		if (this._candidates.has(key)) {
-			tunnelItem.processDescription = this._candidates.get(key)!.detail;
+			tunnewItem.pwocessDescwiption = this._candidates.get(key)!.detaiw;
 		}
 	}
 
-	private get forwarded(): TunnelItem[] {
-		const forwarded = Array.from(this.model.forwarded.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel);
-			this.addProcessInfoFromCandidate(tunnelItem);
-			return tunnelItem;
-		}).sort((a: TunnelItem, b: TunnelItem) => {
-			if (a.remotePort === b.remotePort) {
-				return a.remoteHost < b.remoteHost ? -1 : 1;
-			} else {
-				return a.remotePort < b.remotePort ? -1 : 1;
+	pwivate get fowwawded(): TunnewItem[] {
+		const fowwawded = Awway.fwom(this.modew.fowwawded.vawues()).map(tunnew => {
+			const tunnewItem = TunnewItem.cweateFwomTunnew(this.wemoteExpwowewSewvice, tunnew);
+			this.addPwocessInfoFwomCandidate(tunnewItem);
+			wetuwn tunnewItem;
+		}).sowt((a: TunnewItem, b: TunnewItem) => {
+			if (a.wemotePowt === b.wemotePowt) {
+				wetuwn a.wemoteHost < b.wemoteHost ? -1 : 1;
+			} ewse {
+				wetuwn a.wemotePowt < b.wemotePowt ? -1 : 1;
 			}
 		});
-		return forwarded;
+		wetuwn fowwawded;
 	}
 
-	private get detected(): TunnelItem[] {
-		return Array.from(this.model.detected.values()).map(tunnel => {
-			const tunnelItem = TunnelItem.createFromTunnel(this.remoteExplorerService, tunnel, TunnelType.Detected, false);
-			this.addProcessInfoFromCandidate(tunnelItem);
-			return tunnelItem;
+	pwivate get detected(): TunnewItem[] {
+		wetuwn Awway.fwom(this.modew.detected.vawues()).map(tunnew => {
+			const tunnewItem = TunnewItem.cweateFwomTunnew(this.wemoteExpwowewSewvice, tunnew, TunnewType.Detected, fawse);
+			this.addPwocessInfoFwomCandidate(tunnewItem);
+			wetuwn tunnewItem;
 		});
 	}
 
-	isEmpty(): boolean {
-		return (this.detected.length === 0) &&
-			((this.forwarded.length === 0) || (this.forwarded.length === 1 &&
-				(this.forwarded[0].tunnelType === TunnelType.Add) && !this.remoteExplorerService.getEditableData(undefined)));
+	isEmpty(): boowean {
+		wetuwn (this.detected.wength === 0) &&
+			((this.fowwawded.wength === 0) || (this.fowwawded.wength === 1 &&
+				(this.fowwawded[0].tunnewType === TunnewType.Add) && !this.wemoteExpwowewSewvice.getEditabweData(undefined)));
 	}
 }
 
-function emptyCell(item: ITunnelItem): ActionBarCell {
-	return { label: '', tunnel: item, editId: TunnelEditId.None, tooltip: '' };
+function emptyCeww(item: ITunnewItem): ActionBawCeww {
+	wetuwn { wabew: '', tunnew: item, editId: TunnewEditId.None, toowtip: '' };
 }
 
-class IconColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = '';
-	readonly tooltip: string = '';
-	readonly weight: number = 1;
-	readonly minimumWidth = 40;
-	readonly maximumWidth = 40;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		if (row.tunnelType === TunnelType.Add) {
-			return emptyCell(row);
+cwass IconCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = '';
+	weadonwy toowtip: stwing = '';
+	weadonwy weight: numba = 1;
+	weadonwy minimumWidth = 40;
+	weadonwy maximumWidth = 40;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		if (wow.tunnewType === TunnewType.Add) {
+			wetuwn emptyCeww(wow);
 		}
 
-		const icon = row.processDescription ? forwardedPortWithProcessIcon : forwardedPortWithoutProcessIcon;
-		let tooltip: string = '';
-		if (row instanceof TunnelItem) {
-			tooltip = `${row.iconTooltip} ${row.tooltipPostfix}`;
+		const icon = wow.pwocessDescwiption ? fowwawdedPowtWithPwocessIcon : fowwawdedPowtWithoutPwocessIcon;
+		wet toowtip: stwing = '';
+		if (wow instanceof TunnewItem) {
+			toowtip = `${wow.iconToowtip} ${wow.toowtipPostfix}`;
 		}
-		return {
-			label: '', icon, tunnel: row, editId: TunnelEditId.None, tooltip
+		wetuwn {
+			wabew: '', icon, tunnew: wow, editId: TunnewEditId.None, toowtip
 		};
 	}
 }
 
-class PortColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.portColumn.label', "Port");
-	readonly tooltip: string = nls.localize('tunnel.portColumn.tooltip', "The label and remote port number of the forwarded port.");
-	readonly weight: number = 1;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		const isAdd = row.tunnelType === TunnelType.Add;
-		const label = row.label;
-		let tooltip: string = '';
-		if (row instanceof TunnelItem && !isAdd) {
-			tooltip = `${row.portTooltip} ${row.tooltipPostfix}`;
-		} else {
-			tooltip = label;
+cwass PowtCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = nws.wocawize('tunnew.powtCowumn.wabew', "Powt");
+	weadonwy toowtip: stwing = nws.wocawize('tunnew.powtCowumn.toowtip', "The wabew and wemote powt numba of the fowwawded powt.");
+	weadonwy weight: numba = 1;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		const isAdd = wow.tunnewType === TunnewType.Add;
+		const wabew = wow.wabew;
+		wet toowtip: stwing = '';
+		if (wow instanceof TunnewItem && !isAdd) {
+			toowtip = `${wow.powtToowtip} ${wow.toowtipPostfix}`;
+		} ewse {
+			toowtip = wabew;
 		}
-		return {
-			label, tunnel: row, menuId: MenuId.TunnelPortInline,
-			editId: row.tunnelType === TunnelType.Add ? TunnelEditId.New : TunnelEditId.Label, tooltip
+		wetuwn {
+			wabew, tunnew: wow, menuId: MenuId.TunnewPowtInwine,
+			editId: wow.tunnewType === TunnewType.Add ? TunnewEditId.New : TunnewEditId.Wabew, toowtip
 		};
 	}
 }
 
-class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.addressColumn.label', "Local Address");
-	readonly tooltip: string = nls.localize('tunnel.addressColumn.tooltip', "The address that the forwarded port is available at locally.");
-	readonly weight: number = 1;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		if (row.tunnelType === TunnelType.Add) {
-			return emptyCell(row);
+cwass WocawAddwessCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = nws.wocawize('tunnew.addwessCowumn.wabew', "Wocaw Addwess");
+	weadonwy toowtip: stwing = nws.wocawize('tunnew.addwessCowumn.toowtip', "The addwess that the fowwawded powt is avaiwabwe at wocawwy.");
+	weadonwy weight: numba = 1;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		if (wow.tunnewType === TunnewType.Add) {
+			wetuwn emptyCeww(wow);
 		}
 
-		const label = row.localAddress ?? '';
-		let tooltip: string = label;
-		if (row instanceof TunnelItem) {
-			tooltip = row.tooltipPostfix;
+		const wabew = wow.wocawAddwess ?? '';
+		wet toowtip: stwing = wabew;
+		if (wow instanceof TunnewItem) {
+			toowtip = wow.toowtipPostfix;
 		}
-		return {
-			label,
-			menuId: MenuId.TunnelLocalAddressInline,
-			tunnel: row,
-			editId: TunnelEditId.LocalPort,
-			tooltip,
-			markdownTooltip: label ? LocalAddressColumn.getHoverText(label) : undefined
+		wetuwn {
+			wabew,
+			menuId: MenuId.TunnewWocawAddwessInwine,
+			tunnew: wow,
+			editId: TunnewEditId.WocawPowt,
+			toowtip,
+			mawkdownToowtip: wabew ? WocawAddwessCowumn.getHovewText(wabew) : undefined
 		};
 	}
 
-	private static getHoverText(localAddress: string) {
-		return function (configurationService: IConfigurationService) {
-			const editorConf = configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+	pwivate static getHovewText(wocawAddwess: stwing) {
+		wetuwn function (configuwationSewvice: IConfiguwationSewvice) {
+			const editowConf = configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
 
-			let clickLabel = '';
-			if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			wet cwickWabew = '';
+			if (editowConf.muwtiCuwsowModifia === 'ctwwCmd') {
 				if (isMacintosh) {
-					clickLabel = nls.localize('portsLink.followLinkAlt.mac', "option + click");
-				} else {
-					clickLabel = nls.localize('portsLink.followLinkAlt', "alt + click");
+					cwickWabew = nws.wocawize('powtsWink.fowwowWinkAwt.mac', "option + cwick");
+				} ewse {
+					cwickWabew = nws.wocawize('powtsWink.fowwowWinkAwt', "awt + cwick");
 				}
-			} else {
+			} ewse {
 				if (isMacintosh) {
-					clickLabel = nls.localize('portsLink.followLinkCmd', "cmd + click");
-				} else {
-					clickLabel = nls.localize('portsLink.followLinkCtrl', "ctrl + click");
+					cwickWabew = nws.wocawize('powtsWink.fowwowWinkCmd', "cmd + cwick");
+				} ewse {
+					cwickWabew = nws.wocawize('powtsWink.fowwowWinkCtww', "ctww + cwick");
 				}
 			}
 
-			const markdown = new MarkdownString('', true);
-			const uri = localAddress.startsWith('http') ? localAddress : `http://${localAddress}`;
-			return markdown.appendMarkdown(`[Follow link](${uri}) (${clickLabel})`);
+			const mawkdown = new MawkdownStwing('', twue);
+			const uwi = wocawAddwess.stawtsWith('http') ? wocawAddwess : `http://${wocawAddwess}`;
+			wetuwn mawkdown.appendMawkdown(`[Fowwow wink](${uwi}) (${cwickWabew})`);
 		};
 	}
 }
 
-class RunningProcessColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.processColumn.label', "Running Process");
-	readonly tooltip: string = nls.localize('tunnel.processColumn.tooltip', "The command line of the process that is using the port.");
-	readonly weight: number = 2;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		if (row.tunnelType === TunnelType.Add) {
-			return emptyCell(row);
+cwass WunningPwocessCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = nws.wocawize('tunnew.pwocessCowumn.wabew', "Wunning Pwocess");
+	weadonwy toowtip: stwing = nws.wocawize('tunnew.pwocessCowumn.toowtip', "The command wine of the pwocess that is using the powt.");
+	weadonwy weight: numba = 2;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		if (wow.tunnewType === TunnewType.Add) {
+			wetuwn emptyCeww(wow);
 		}
 
-		const label = row.processDescription ?? '';
-		return { label, tunnel: row, editId: TunnelEditId.None, tooltip: row instanceof TunnelItem ? row.processTooltip : '' };
+		const wabew = wow.pwocessDescwiption ?? '';
+		wetuwn { wabew, tunnew: wow, editId: TunnewEditId.None, toowtip: wow instanceof TunnewItem ? wow.pwocessToowtip : '' };
 	}
 }
 
-class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.originColumn.label', "Origin");
-	readonly tooltip: string = nls.localize('tunnel.originColumn.tooltip', "The source that a forwarded port originates from. Can be an extension, user forwarded, statically forwarded, or automatically forwarded.");
-	readonly weight: number = 1;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		if (row.tunnelType === TunnelType.Add) {
-			return emptyCell(row);
+cwass OwiginCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = nws.wocawize('tunnew.owiginCowumn.wabew', "Owigin");
+	weadonwy toowtip: stwing = nws.wocawize('tunnew.owiginCowumn.toowtip', "The souwce that a fowwawded powt owiginates fwom. Can be an extension, usa fowwawded, staticawwy fowwawded, ow automaticawwy fowwawded.");
+	weadonwy weight: numba = 1;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		if (wow.tunnewType === TunnewType.Add) {
+			wetuwn emptyCeww(wow);
 		}
 
-		const label = row.source.description;
-		const tooltip = `${row instanceof TunnelItem ? row.originTooltip : ''}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
-		return { label, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None, tooltip };
+		const wabew = wow.souwce.descwiption;
+		const toowtip = `${wow instanceof TunnewItem ? wow.owiginToowtip : ''}. ${wow instanceof TunnewItem ? wow.toowtipPostfix : ''}`;
+		wetuwn { wabew, menuId: MenuId.TunnewOwiginInwine, tunnew: wow, editId: TunnewEditId.None, toowtip };
 	}
 }
 
-class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Privacy");
-	readonly tooltip: string = nls.localize('tunnel.privacyColumn.tooltip', "The availability of the forwarded port.");
-	readonly weight: number = 1;
-	readonly templateId: string = 'actionbar';
-	project(row: ITunnelItem): ActionBarCell {
-		if (row.tunnelType === TunnelType.Add) {
-			return emptyCell(row);
+cwass PwivacyCowumn impwements ITabweCowumn<ITunnewItem, ActionBawCeww> {
+	weadonwy wabew: stwing = nws.wocawize('tunnew.pwivacyCowumn.wabew', "Pwivacy");
+	weadonwy toowtip: stwing = nws.wocawize('tunnew.pwivacyCowumn.toowtip', "The avaiwabiwity of the fowwawded powt.");
+	weadonwy weight: numba = 1;
+	weadonwy tempwateId: stwing = 'actionbaw';
+	pwoject(wow: ITunnewItem): ActionBawCeww {
+		if (wow.tunnewType === TunnewType.Add) {
+			wetuwn emptyCeww(wow);
 		}
 
-		const label = row.privacy === TunnelPrivacy.Public ? nls.localize('tunnel.privacyPublic', "Public") : nls.localize('tunnel.privacyPrivate', "Private");
-		let tooltip: string = '';
-		if (row instanceof TunnelItem) {
-			tooltip = `${row.privacyTooltip} ${row.tooltipPostfix}`;
+		const wabew = wow.pwivacy === TunnewPwivacy.Pubwic ? nws.wocawize('tunnew.pwivacyPubwic', "Pubwic") : nws.wocawize('tunnew.pwivacyPwivate', "Pwivate");
+		wet toowtip: stwing = '';
+		if (wow instanceof TunnewItem) {
+			toowtip = `${wow.pwivacyToowtip} ${wow.toowtipPostfix}`;
 		}
-		return { label, tunnel: row, icon: row.icon, editId: TunnelEditId.None, tooltip };
+		wetuwn { wabew, tunnew: wow, icon: wow.icon, editId: TunnewEditId.None, toowtip };
 	}
 }
 
-interface IActionBarTemplateData {
-	elementDisposable: IDisposable;
-	container: HTMLElement;
-	label: IconLabel;
+intewface IActionBawTempwateData {
+	ewementDisposabwe: IDisposabwe;
+	containa: HTMWEwement;
+	wabew: IconWabew;
 	button?: Button;
-	icon: HTMLElement;
-	actionBar: ActionBar;
+	icon: HTMWEwement;
+	actionBaw: ActionBaw;
 }
 
-interface ActionBarCell {
-	label: string;
+intewface ActionBawCeww {
+	wabew: stwing;
 	icon?: ThemeIcon;
-	tooltip: string;
-	markdownTooltip?: (configurationService: IConfigurationService) => IMarkdownString;
+	toowtip: stwing;
+	mawkdownToowtip?: (configuwationSewvice: IConfiguwationSewvice) => IMawkdownStwing;
 	menuId?: MenuId;
-	tunnel: ITunnelItem;
-	editId: TunnelEditId;
+	tunnew: ITunnewItem;
+	editId: TunnewEditId;
 }
 
-class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
-	readonly templateId = 'actionbar';
-	private inputDone?: (success: boolean, finishEditing: boolean) => void;
-	private _actionRunner: ActionRunner | undefined;
+cwass ActionBawWendewa extends Disposabwe impwements ITabweWendewa<ActionBawCeww, IActionBawTempwateData> {
+	weadonwy tempwateId = 'actionbaw';
+	pwivate inputDone?: (success: boowean, finishEditing: boowean) => void;
+	pwivate _actionWunna: ActionWunna | undefined;
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHoverService private readonly hoverService: IHoverService
-	) { super(); }
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IWemoteExpwowewSewvice pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice
+	) { supa(); }
 
-	set actionRunner(actionRunner: ActionRunner) {
-		this._actionRunner = actionRunner;
+	set actionWunna(actionWunna: ActionWunna) {
+		this._actionWunna = actionWunna;
 	}
 
-	renderTemplate(container: HTMLElement): IActionBarTemplateData {
-		const cell = dom.append(container, dom.$('.ports-view-actionbar-cell'));
-		const icon = dom.append(cell, dom.$('.ports-view-actionbar-cell-icon'));
-		const label = new IconLabel(cell,
+	wendewTempwate(containa: HTMWEwement): IActionBawTempwateData {
+		const ceww = dom.append(containa, dom.$('.powts-view-actionbaw-ceww'));
+		const icon = dom.append(ceww, dom.$('.powts-view-actionbaw-ceww-icon'));
+		const wabew = new IconWabew(ceww,
 			{
-				supportHighlights: true,
-				hoverDelegate: {
-					showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-					delay: <number>this.configurationService.getValue('workbench.hover.delay')
+				suppowtHighwights: twue,
+				hovewDewegate: {
+					showHova: (options: IHovewDewegateOptions) => this.hovewSewvice.showHova(options),
+					deway: <numba>this.configuwationSewvice.getVawue('wowkbench.hova.deway')
 				}
 			});
-		const actionsContainer = dom.append(cell, dom.$('.actions'));
-		const actionBar = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
+		const actionsContaina = dom.append(ceww, dom.$('.actions'));
+		const actionBaw = new ActionBaw(actionsContaina, {
+			actionViewItemPwovida: cweateActionViewItem.bind(undefined, this.instantiationSewvice)
 		});
-		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
+		wetuwn { wabew, icon, actionBaw, containa: ceww, ewementDisposabwe: Disposabwe.None };
 	}
 
-	renderElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData): void {
-		// reset
-		templateData.actionBar.clear();
-		templateData.icon.className = 'ports-view-actionbar-cell-icon';
-		templateData.icon.style.display = 'none';
-		templateData.label.setLabel('');
-		templateData.label.element.style.display = 'none';
-		if (templateData.button) {
-			templateData.button.element.style.display = 'none';
-			templateData.button.dispose();
+	wendewEwement(ewement: ActionBawCeww, index: numba, tempwateData: IActionBawTempwateData): void {
+		// weset
+		tempwateData.actionBaw.cweaw();
+		tempwateData.icon.cwassName = 'powts-view-actionbaw-ceww-icon';
+		tempwateData.icon.stywe.dispway = 'none';
+		tempwateData.wabew.setWabew('');
+		tempwateData.wabew.ewement.stywe.dispway = 'none';
+		if (tempwateData.button) {
+			tempwateData.button.ewement.stywe.dispway = 'none';
+			tempwateData.button.dispose();
 		}
-		templateData.container.style.paddingLeft = '0px';
-		templateData.elementDisposable.dispose();
+		tempwateData.containa.stywe.paddingWeft = '0px';
+		tempwateData.ewementDisposabwe.dispose();
 
-		let editableData: IEditableData | undefined;
-		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			this.renderInputBox(templateData.container, editableData);
-		} else {
-			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
-			if (editableData) {
-				this.renderInputBox(templateData.container, editableData);
-			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
-				this.renderButton(element, templateData);
-			} else {
-				this.renderActionBarItem(element, templateData);
+		wet editabweData: IEditabweData | undefined;
+		if (ewement.editId === TunnewEditId.New && (editabweData = this.wemoteExpwowewSewvice.getEditabweData(undefined))) {
+			this.wendewInputBox(tempwateData.containa, editabweData);
+		} ewse {
+			editabweData = this.wemoteExpwowewSewvice.getEditabweData(ewement.tunnew, ewement.editId);
+			if (editabweData) {
+				this.wendewInputBox(tempwateData.containa, editabweData);
+			} ewse if ((ewement.tunnew.tunnewType === TunnewType.Add) && (ewement.menuId === MenuId.TunnewPowtInwine)) {
+				this.wendewButton(ewement, tempwateData);
+			} ewse {
+				this.wendewActionBawItem(ewement, tempwateData);
 			}
 		}
 	}
 
-	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
-		templateData.container.style.paddingLeft = '7px';
-		templateData.container.style.height = '28px';
-		templateData.button = this._register(new Button(templateData.container));
-		templateData.button.label = element.label;
-		templateData.button.element.title = element.tooltip;
-		this._register(attachButtonStyler(templateData.button, this.themeService));
-		this._register(templateData.button.onDidClick(() => {
-			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+	wendewButton(ewement: ActionBawCeww, tempwateData: IActionBawTempwateData): void {
+		tempwateData.containa.stywe.paddingWeft = '7px';
+		tempwateData.containa.stywe.height = '28px';
+		tempwateData.button = this._wegista(new Button(tempwateData.containa));
+		tempwateData.button.wabew = ewement.wabew;
+		tempwateData.button.ewement.titwe = ewement.toowtip;
+		this._wegista(attachButtonStywa(tempwateData.button, this.themeSewvice));
+		this._wegista(tempwateData.button.onDidCwick(() => {
+			this.commandSewvice.executeCommand(FowwawdPowtAction.INWINE_ID);
 		}));
 	}
 
-	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
-		templateData.label.element.style.display = 'flex';
-		templateData.label.setLabel(element.label, undefined,
+	wendewActionBawItem(ewement: ActionBawCeww, tempwateData: IActionBawTempwateData): void {
+		tempwateData.wabew.ewement.stywe.dispway = 'fwex';
+		tempwateData.wabew.setWabew(ewement.wabew, undefined,
 			{
-				title: element.markdownTooltip ?
-					{ markdown: element.markdownTooltip(this.configurationService), markdownNotSupportedFallback: element.tooltip }
-					: element.tooltip,
-				extraClasses: element.menuId === MenuId.TunnelLocalAddressInline ? ['ports-view-actionbar-cell-localaddress'] : undefined
+				titwe: ewement.mawkdownToowtip ?
+					{ mawkdown: ewement.mawkdownToowtip(this.configuwationSewvice), mawkdownNotSuppowtedFawwback: ewement.toowtip }
+					: ewement.toowtip,
+				extwaCwasses: ewement.menuId === MenuId.TunnewWocawAddwessInwine ? ['powts-view-actionbaw-ceww-wocawaddwess'] : undefined
 			});
-		templateData.actionBar.context = element.tunnel;
-		templateData.container.style.paddingLeft = '10px';
-		const context: [string, any][] =
+		tempwateData.actionBaw.context = ewement.tunnew;
+		tempwateData.containa.stywe.paddingWeft = '10px';
+		const context: [stwing, any][] =
 			[
-				['view', TUNNEL_VIEW_ID],
-				[TunnelTypeContextKey.key, element.tunnel.tunnelType],
-				[TunnelCloseableContextKey.key, element.tunnel.closeable],
-				[TunnelPrivacyContextKey.key, element.tunnel.privacy],
-				[TunnelProtocolContextKey.key, element.tunnel.protocol]
+				['view', TUNNEW_VIEW_ID],
+				[TunnewTypeContextKey.key, ewement.tunnew.tunnewType],
+				[TunnewCwoseabweContextKey.key, ewement.tunnew.cwoseabwe],
+				[TunnewPwivacyContextKey.key, ewement.tunnew.pwivacy],
+				[TunnewPwotocowContextKey.key, ewement.tunnew.pwotocow]
 			];
-		const contextKeyService = this.contextKeyService.createOverlay(context);
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
-		if (element.menuId) {
-			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
-			let actions: IAction[] = [];
-			disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
+		const contextKeySewvice = this.contextKeySewvice.cweateOvewway(context);
+		const disposabweStowe = new DisposabweStowe();
+		tempwateData.ewementDisposabwe = disposabweStowe;
+		if (ewement.menuId) {
+			const menu = disposabweStowe.add(this.menuSewvice.cweateMenu(ewement.menuId, contextKeySewvice));
+			wet actions: IAction[] = [];
+			disposabweStowe.add(cweateAndFiwwInActionBawActions(menu, { shouwdFowwawdAwgs: twue }, actions));
 			if (actions) {
-				let labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
-				if (labelActions.length > 1) {
-					labelActions.sort((a, b) => a.label.length - b.label.length);
-					labelActions.pop();
-					actions = actions.filter(action => labelActions.indexOf(action) < 0);
+				wet wabewActions = actions.fiwta(action => action.id.toWowewCase().indexOf('wabew') >= 0);
+				if (wabewActions.wength > 1) {
+					wabewActions.sowt((a, b) => a.wabew.wength - b.wabew.wength);
+					wabewActions.pop();
+					actions = actions.fiwta(action => wabewActions.indexOf(action) < 0);
 				}
-				templateData.actionBar.push(actions, { icon: true, label: false });
-				if (this._actionRunner) {
-					templateData.actionBar.actionRunner = this._actionRunner;
+				tempwateData.actionBaw.push(actions, { icon: twue, wabew: fawse });
+				if (this._actionWunna) {
+					tempwateData.actionBaw.actionWunna = this._actionWunna;
 				}
 			}
 		}
-		if (element.icon) {
-			templateData.icon.className = `ports-view-actionbar-cell-icon ${ThemeIcon.asClassName(element.icon)}`;
-			templateData.icon.title = element.tooltip;
-			templateData.icon.style.display = 'inline';
+		if (ewement.icon) {
+			tempwateData.icon.cwassName = `powts-view-actionbaw-ceww-icon ${ThemeIcon.asCwassName(ewement.icon)}`;
+			tempwateData.icon.titwe = ewement.toowtip;
+			tempwateData.icon.stywe.dispway = 'inwine';
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
-		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
+	pwivate wendewInputBox(containa: HTMWEwement, editabweData: IEditabweData): IDisposabwe {
+		// Wequiwed fow FiweFox. The bwuw event doesn't fiwe on FiweFox when you just mash the "+" button to fowwawd a powt.
 		if (this.inputDone) {
-			this.inputDone(false, false);
+			this.inputDone(fawse, fawse);
 			this.inputDone = undefined;
 		}
-		container.style.paddingLeft = '5px';
-		const value = editableData.startingValue || '';
-		const inputBox = new InputBox(container, this.contextViewService, {
-			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
-			validationOptions: {
-				validation: (value) => {
-					const message = editableData.validationMessage(value);
+		containa.stywe.paddingWeft = '5px';
+		const vawue = editabweData.stawtingVawue || '';
+		const inputBox = new InputBox(containa, this.contextViewSewvice, {
+			awiaWabew: nws.wocawize('wemote.tunnewsView.input', "Pwess Enta to confiwm ow Escape to cancew."),
+			vawidationOptions: {
+				vawidation: (vawue) => {
+					const message = editabweData.vawidationMessage(vawue);
 					if (!message) {
-						return null;
+						wetuwn nuww;
 					}
 
-					return {
+					wetuwn {
 						content: message.content,
-						formatContent: true,
-						type: message.severity === Severity.Error ? MessageType.ERROR : MessageType.INFO
+						fowmatContent: twue,
+						type: message.sevewity === Sevewity.Ewwow ? MessageType.EWWOW : MessageType.INFO
 					};
 				}
 			},
-			placeholder: editableData.placeholder || ''
+			pwacehowda: editabweData.pwacehowda || ''
 		});
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const stywa = attachInputBoxStywa(inputBox, this.themeSewvice);
 
-		inputBox.value = value;
+		inputBox.vawue = vawue;
 		inputBox.focus();
-		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
+		inputBox.sewect({ stawt: 0, end: editabweData.stawtingVawue ? editabweData.stawtingVawue.wength : 0 });
 
-		const done = once(async (success: boolean, finishEditing: boolean) => {
+		const done = once(async (success: boowean, finishEditing: boowean) => {
 			dispose(toDispose);
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
-			inputBox.element.style.display = 'none';
-			const inputValue = inputBox.value;
+			inputBox.ewement.stywe.dispway = 'none';
+			const inputVawue = inputBox.vawue;
 			if (finishEditing) {
-				return editableData.onFinish(inputValue, success);
+				wetuwn editabweData.onFinish(inputVawue, success);
 			}
 		});
 		this.inputDone = done;
 
 		const toDispose = [
 			inputBox,
-			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
-				if (e.equals(KeyCode.Enter)) {
-					e.stopPropagation();
-					if (inputBox.validate() !== MessageType.ERROR) {
-						return done(true, true);
-					} else {
-						return done(false, true);
+			dom.addStandawdDisposabweWistena(inputBox.inputEwement, dom.EventType.KEY_DOWN, async (e: IKeyboawdEvent) => {
+				if (e.equaws(KeyCode.Enta)) {
+					e.stopPwopagation();
+					if (inputBox.vawidate() !== MessageType.EWWOW) {
+						wetuwn done(twue, twue);
+					} ewse {
+						wetuwn done(fawse, twue);
 					}
-				} else if (e.equals(KeyCode.Escape)) {
-					e.preventDefault();
-					e.stopPropagation();
-					return done(false, true);
+				} ewse if (e.equaws(KeyCode.Escape)) {
+					e.pweventDefauwt();
+					e.stopPwopagation();
+					wetuwn done(fawse, twue);
 				}
 			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				return done(inputBox.validate() !== MessageType.ERROR, true);
+			dom.addDisposabweWistena(inputBox.inputEwement, dom.EventType.BWUW, () => {
+				wetuwn done(inputBox.vawidate() !== MessageType.EWWOW, twue);
 			}),
-			styler
+			stywa
 		];
 
-		return toDisposable(() => {
-			done(false, false);
+		wetuwn toDisposabwe(() => {
+			done(fawse, fawse);
 		});
 	}
 
-	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData, height: number | undefined) {
-		templateData.elementDisposable.dispose();
+	disposeEwement(ewement: ActionBawCeww, index: numba, tempwateData: IActionBawTempwateData, height: numba | undefined) {
+		tempwateData.ewementDisposabwe.dispose();
 	}
 
-	disposeTemplate(templateData: IActionBarTemplateData): void {
-		templateData.label.dispose();
-		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
-		templateData.button?.dispose();
+	disposeTempwate(tempwateData: IActionBawTempwateData): void {
+		tempwateData.wabew.dispose();
+		tempwateData.actionBaw.dispose();
+		tempwateData.ewementDisposabwe.dispose();
+		tempwateData.button?.dispose();
 	}
 }
 
-class TunnelItem implements ITunnelItem {
-	static createFromTunnel(remoteExplorerService: IRemoteExplorerService, tunnel: Tunnel, type: TunnelType = TunnelType.Forwarded, closeable?: boolean) {
-		return new TunnelItem(type,
-			tunnel.remoteHost,
-			tunnel.remotePort,
-			tunnel.source,
-			!!tunnel.hasRunningProcess,
-			tunnel.protocol,
-			tunnel.localUri,
-			tunnel.localAddress,
-			tunnel.localPort,
-			closeable === undefined ? tunnel.closeable : closeable,
-			tunnel.name,
-			tunnel.runningProcess,
-			tunnel.pid,
-			tunnel.privacy,
-			remoteExplorerService);
+cwass TunnewItem impwements ITunnewItem {
+	static cweateFwomTunnew(wemoteExpwowewSewvice: IWemoteExpwowewSewvice, tunnew: Tunnew, type: TunnewType = TunnewType.Fowwawded, cwoseabwe?: boowean) {
+		wetuwn new TunnewItem(type,
+			tunnew.wemoteHost,
+			tunnew.wemotePowt,
+			tunnew.souwce,
+			!!tunnew.hasWunningPwocess,
+			tunnew.pwotocow,
+			tunnew.wocawUwi,
+			tunnew.wocawAddwess,
+			tunnew.wocawPowt,
+			cwoseabwe === undefined ? tunnew.cwoseabwe : cwoseabwe,
+			tunnew.name,
+			tunnew.wunningPwocess,
+			tunnew.pid,
+			tunnew.pwivacy,
+			wemoteExpwowewSewvice);
 	}
 
-	constructor(
-		public tunnelType: TunnelType,
-		public remoteHost: string,
-		public remotePort: number,
-		public source: { source: TunnelSource, description: string },
-		public hasRunningProcess: boolean,
-		public protocol: TunnelProtocol,
-		public localUri?: URI,
-		public localAddress?: string,
-		public localPort?: number,
-		public closeable?: boolean,
-		public name?: string,
-		private runningProcess?: string,
-		private pid?: number,
-		public privacy?: TunnelPrivacy,
-		private remoteExplorerService?: IRemoteExplorerService
+	constwuctow(
+		pubwic tunnewType: TunnewType,
+		pubwic wemoteHost: stwing,
+		pubwic wemotePowt: numba,
+		pubwic souwce: { souwce: TunnewSouwce, descwiption: stwing },
+		pubwic hasWunningPwocess: boowean,
+		pubwic pwotocow: TunnewPwotocow,
+		pubwic wocawUwi?: UWI,
+		pubwic wocawAddwess?: stwing,
+		pubwic wocawPowt?: numba,
+		pubwic cwoseabwe?: boowean,
+		pubwic name?: stwing,
+		pwivate wunningPwocess?: stwing,
+		pwivate pid?: numba,
+		pubwic pwivacy?: TunnewPwivacy,
+		pwivate wemoteExpwowewSewvice?: IWemoteExpwowewSewvice
 	) { }
 
-	get label(): string {
-		if (this.tunnelType === TunnelType.Add && this.name) {
-			return this.name;
+	get wabew(): stwing {
+		if (this.tunnewType === TunnewType.Add && this.name) {
+			wetuwn this.name;
 		}
-		const portNumberLabel = (isLocalhost(this.remoteHost) || isAllInterfaces(this.remoteHost))
-			? `${this.remotePort}`
-			: `${this.remoteHost}:${this.remotePort}`;
+		const powtNumbewWabew = (isWocawhost(this.wemoteHost) || isAwwIntewfaces(this.wemoteHost))
+			? `${this.wemotePowt}`
+			: `${this.wemoteHost}:${this.wemotePowt}`;
 		if (this.name) {
-			return `${this.name} (${portNumberLabel})`;
-		} else {
-			return portNumberLabel;
+			wetuwn `${this.name} (${powtNumbewWabew})`;
+		} ewse {
+			wetuwn powtNumbewWabew;
 		}
 	}
 
-	set processDescription(description: string | undefined) {
-		this.runningProcess = description;
+	set pwocessDescwiption(descwiption: stwing | undefined) {
+		this.wunningPwocess = descwiption;
 	}
 
-	get processDescription(): string | undefined {
-		let description: string = '';
-		if (this.runningProcess) {
-			if (this.pid && this.remoteExplorerService?.namedProcesses.has(this.pid)) {
-				// This is a known process. Give it a friendly name.
-				description = this.remoteExplorerService.namedProcesses.get(this.pid)!;
-			} else {
-				description = this.runningProcess.replace(/\0/g, ' ').trim();
+	get pwocessDescwiption(): stwing | undefined {
+		wet descwiption: stwing = '';
+		if (this.wunningPwocess) {
+			if (this.pid && this.wemoteExpwowewSewvice?.namedPwocesses.has(this.pid)) {
+				// This is a known pwocess. Give it a fwiendwy name.
+				descwiption = this.wemoteExpwowewSewvice.namedPwocesses.get(this.pid)!;
+			} ewse {
+				descwiption = this.wunningPwocess.wepwace(/\0/g, ' ').twim();
 			}
 			if (this.pid) {
-				description += ` (${this.pid})`;
+				descwiption += ` (${this.pid})`;
 			}
-		} else if (this.hasRunningProcess) {
-			description = nls.localize('tunnelView.runningProcess.inacessable', "Process information unavailable");
+		} ewse if (this.hasWunningPwocess) {
+			descwiption = nws.wocawize('tunnewView.wunningPwocess.inacessabwe', "Pwocess infowmation unavaiwabwe");
 		}
 
-		return description;
+		wetuwn descwiption;
 	}
 
 	get icon(): ThemeIcon | undefined {
-		switch (this.privacy) {
-			case TunnelPrivacy.Public: return publicPortIcon;
-			default: {
-				if (this.tunnelType !== TunnelType.Add) {
-					return privatePortIcon;
-				} else {
-					return undefined;
+		switch (this.pwivacy) {
+			case TunnewPwivacy.Pubwic: wetuwn pubwicPowtIcon;
+			defauwt: {
+				if (this.tunnewType !== TunnewType.Add) {
+					wetuwn pwivatePowtIcon;
+				} ewse {
+					wetuwn undefined;
 				}
 			}
 		}
 	}
 
-	get tooltipPostfix(): string {
-		let information: string;
-		if (this.localAddress) {
-			information = nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
-		} else {
-			information = nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
+	get toowtipPostfix(): stwing {
+		wet infowmation: stwing;
+		if (this.wocawAddwess) {
+			infowmation = nws.wocawize('wemote.tunnew.toowtipFowwawded', "Wemote powt {0}:{1} fowwawded to wocaw addwess {2}. ", this.wemoteHost, this.wemotePowt, this.wocawAddwess);
+		} ewse {
+			infowmation = nws.wocawize('wemote.tunnew.toowtipCandidate', "Wemote powt {0}:{1} not fowwawded. ", this.wemoteHost, this.wemotePowt);
 		}
 
-		return information;
+		wetuwn infowmation;
 	}
 
-	get iconTooltip(): string {
-		const isAdd = this.tunnelType === TunnelType.Add;
+	get iconToowtip(): stwing {
+		const isAdd = this.tunnewType === TunnewType.Add;
 		if (!isAdd) {
-			return `${this.processDescription ? nls.localize('tunnel.iconColumn.running', "Port has running process.") :
-				nls.localize('tunnel.iconColumn.notRunning', "No running process.")}`;
-		} else {
-			return this.label;
+			wetuwn `${this.pwocessDescwiption ? nws.wocawize('tunnew.iconCowumn.wunning', "Powt has wunning pwocess.") :
+				nws.wocawize('tunnew.iconCowumn.notWunning', "No wunning pwocess.")}`;
+		} ewse {
+			wetuwn this.wabew;
 		}
 	}
 
-	get portTooltip(): string {
-		const isAdd = this.tunnelType === TunnelType.Add;
+	get powtToowtip(): stwing {
+		const isAdd = this.tunnewType === TunnewType.Add;
 		if (!isAdd) {
-			return `${this.name ? nls.localize('remote.tunnel.tooltipName', "Port labeled {0}. ", this.name) : ''}`;
-		} else {
-			return '';
+			wetuwn `${this.name ? nws.wocawize('wemote.tunnew.toowtipName', "Powt wabewed {0}. ", this.name) : ''}`;
+		} ewse {
+			wetuwn '';
 		}
 	}
 
-	get processTooltip(): string {
-		return this.processDescription ?? '';
+	get pwocessToowtip(): stwing {
+		wetuwn this.pwocessDescwiption ?? '';
 	}
 
-	get originTooltip(): string {
-		return this.source.description;
+	get owiginToowtip(): stwing {
+		wetuwn this.souwce.descwiption;
 	}
 
-	get privacyTooltip(): string {
-		return `${this.privacy === TunnelPrivacy.Public ? nls.localize('remote.tunnel.tooltipPublic', "Accessible publicly. ") :
-			nls.localize('remote.tunnel.tooltipPrivate', "Only accessible from this machine. ")}`;
+	get pwivacyToowtip(): stwing {
+		wetuwn `${this.pwivacy === TunnewPwivacy.Pubwic ? nws.wocawize('wemote.tunnew.toowtipPubwic', "Accessibwe pubwicwy. ") :
+			nws.wocawize('wemote.tunnew.toowtipPwivate', "Onwy accessibwe fwom this machine. ")}`;
 	}
 }
 
-export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
-export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
-const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacy | undefined>('tunnelPrivacy', undefined, true);
-const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
-const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false, nls.localize('tunnel.focusContext', "Whether the Ports view has focus."));
-const TunnelViewSelectionKeyName = 'tunnelViewSelection';
-const TunnelViewSelectionContextKey = new RawContextKey<ITunnelItem | undefined>(TunnelViewSelectionKeyName, undefined, true);
-const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
-const TunnelViewMultiSelectionContextKey = new RawContextKey<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
-const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
-const WebContextKey = new RawContextKey<boolean>('isWeb', isWeb, true);
+expowt const TunnewTypeContextKey = new WawContextKey<TunnewType>('tunnewType', TunnewType.Add, twue);
+expowt const TunnewCwoseabweContextKey = new WawContextKey<boowean>('tunnewCwoseabwe', fawse, twue);
+const TunnewPwivacyContextKey = new WawContextKey<TunnewPwivacy | undefined>('tunnewPwivacy', undefined, twue);
+const TunnewPwotocowContextKey = new WawContextKey<TunnewPwotocow | undefined>('tunnewPwotocow', TunnewPwotocow.Http, twue);
+const TunnewViewFocusContextKey = new WawContextKey<boowean>('tunnewViewFocus', fawse, nws.wocawize('tunnew.focusContext', "Whetha the Powts view has focus."));
+const TunnewViewSewectionKeyName = 'tunnewViewSewection';
+const TunnewViewSewectionContextKey = new WawContextKey<ITunnewItem | undefined>(TunnewViewSewectionKeyName, undefined, twue);
+const TunnewViewMuwtiSewectionKeyName = 'tunnewViewMuwtiSewection';
+const TunnewViewMuwtiSewectionContextKey = new WawContextKey<ITunnewItem[] | undefined>(TunnewViewMuwtiSewectionKeyName, undefined, twue);
+const PowtChangabweContextKey = new WawContextKey<boowean>('powtChangabwe', fawse, twue);
+const WebContextKey = new WawContextKey<boowean>('isWeb', isWeb, twue);
 
-export class TunnelPanel extends ViewPane {
+expowt cwass TunnewPanew extends ViewPane {
 
-	static readonly ID = TUNNEL_VIEW_ID;
-	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
+	static weadonwy ID = TUNNEW_VIEW_ID;
+	static weadonwy TITWE = nws.wocawize('wemote.tunnew', "Powts");
 
-	private table!: WorkbenchTable<ITunnelItem>;
-	private tunnelTypeContext: IContextKey<TunnelType>;
-	private tunnelCloseableContext: IContextKey<boolean>;
-	private tunnelPrivacyContext: IContextKey<TunnelPrivacy | undefined>;
-	private tunnelProtocolContext: IContextKey<TunnelProtocol | undefined>;
-	private tunnelViewFocusContext: IContextKey<boolean>;
-	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
-	private tunnelViewMultiSelectionContext: IContextKey<ITunnelItem[] | undefined>;
-	private portChangableContextKey: IContextKey<boolean>;
-	private isEditing: boolean = false;
-	private titleActions: IAction[] = [];
-	private lastFocus: number[] = [];
-	private readonly titleActionsDisposable = this._register(new MutableDisposable());
+	pwivate tabwe!: WowkbenchTabwe<ITunnewItem>;
+	pwivate tunnewTypeContext: IContextKey<TunnewType>;
+	pwivate tunnewCwoseabweContext: IContextKey<boowean>;
+	pwivate tunnewPwivacyContext: IContextKey<TunnewPwivacy | undefined>;
+	pwivate tunnewPwotocowContext: IContextKey<TunnewPwotocow | undefined>;
+	pwivate tunnewViewFocusContext: IContextKey<boowean>;
+	pwivate tunnewViewSewectionContext: IContextKey<ITunnewItem | undefined>;
+	pwivate tunnewViewMuwtiSewectionContext: IContextKey<ITunnewItem[] | undefined>;
+	pwivate powtChangabweContextKey: IContextKey<boowean>;
+	pwivate isEditing: boowean = fawse;
+	pwivate titweActions: IAction[] = [];
+	pwivate wastFocus: numba[] = [];
+	pwivate weadonwy titweActionsDisposabwe = this._wegista(new MutabweDisposabwe());
 
-	constructor(
-		protected viewModel: ITunnelViewModel,
+	constwuctow(
+		pwotected viewModew: ITunnewViewModew,
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService openerService: IOpenerService,
-		@IQuickInputService protected quickInputService: IQuickInputService,
-		@ICommandService protected commandService: ICommandService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IThemeService themeService: IThemeService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IQuickInputSewvice pwotected quickInputSewvice: IQuickInputSewvice,
+		@ICommandSewvice pwotected commandSewvice: ICommandSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IWemoteExpwowewSewvice pwivate weadonwy wemoteExpwowewSewvice: IWemoteExpwowewSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@ITunnewSewvice pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IHovewSewvice pwivate weadonwy hovewSewvice: IHovewSewvice
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
-		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
-		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
-		this.tunnelProtocolContext = TunnelProtocolContextKey.bindTo(contextKeyService);
-		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
-		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
-		this.tunnelViewMultiSelectionContext = TunnelViewMultiSelectionContextKey.bindTo(contextKeyService);
-		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.tunnewTypeContext = TunnewTypeContextKey.bindTo(contextKeySewvice);
+		this.tunnewCwoseabweContext = TunnewCwoseabweContextKey.bindTo(contextKeySewvice);
+		this.tunnewPwivacyContext = TunnewPwivacyContextKey.bindTo(contextKeySewvice);
+		this.tunnewPwotocowContext = TunnewPwotocowContextKey.bindTo(contextKeySewvice);
+		this.tunnewViewFocusContext = TunnewViewFocusContextKey.bindTo(contextKeySewvice);
+		this.tunnewViewSewectionContext = TunnewViewSewectionContextKey.bindTo(contextKeySewvice);
+		this.tunnewViewMuwtiSewectionContext = TunnewViewMuwtiSewectionContextKey.bindTo(contextKeySewvice);
+		this.powtChangabweContextKey = PowtChangabweContextKey.bindTo(contextKeySewvice);
 
-		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
-		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
+		const ovewwayContextKeySewvice = this._wegista(this.contextKeySewvice.cweateOvewway([['view', TunnewPanew.ID]]));
+		const titweMenu = this._wegista(this.menuSewvice.cweateMenu(MenuId.TunnewTitwe, ovewwayContextKeySewvice));
 		const updateActions = () => {
-			this.titleActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(titleMenu, undefined, this.titleActions);
+			this.titweActions = [];
+			this.titweActionsDisposabwe.vawue = cweateAndFiwwInActionBawActions(titweMenu, undefined, this.titweActions);
 			this.updateActions();
 		};
 
-		this._register(titleMenu.onDidChange(updateActions));
+		this._wegista(titweMenu.onDidChange(updateActions));
 		updateActions();
 
-		this._register(toDisposable(() => {
-			this.titleActions = [];
+		this._wegista(toDisposabwe(() => {
+			this.titweActions = [];
 		}));
 	}
 
-	get portCount(): number {
-		return this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+	get powtCount(): numba {
+		wetuwn this.wemoteExpwowewSewvice.tunnewModew.fowwawded.size + this.wemoteExpwowewSewvice.tunnewModew.detected.size;
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		const panelContainer = dom.append(container, dom.$('.tree-explorer-viewlet-tree-view'));
-		const widgetContainer = dom.append(panelContainer, dom.$('.customview-tree'));
-		widgetContainer.classList.add('ports-view');
-		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
+		const panewContaina = dom.append(containa, dom.$('.twee-expwowa-viewwet-twee-view'));
+		const widgetContaina = dom.append(panewContaina, dom.$('.customview-twee'));
+		widgetContaina.cwassWist.add('powts-view');
+		widgetContaina.cwassWist.add('fiwe-icon-themabwe-twee', 'show-fiwe-icons');
 
-		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
-			this.configurationService, this.hoverService);
-		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
-		if (this.tunnelService.canMakePublic) {
-			columns.push(new PrivacyColumn());
+		const actionBawWendewa = new ActionBawWendewa(this.instantiationSewvice, this.contextKeySewvice,
+			this.menuSewvice, this.contextViewSewvice, this.themeSewvice, this.wemoteExpwowewSewvice, this.commandSewvice,
+			this.configuwationSewvice, this.hovewSewvice);
+		const cowumns = [new IconCowumn(), new PowtCowumn(), new WocawAddwessCowumn(), new WunningPwocessCowumn()];
+		if (this.tunnewSewvice.canMakePubwic) {
+			cowumns.push(new PwivacyCowumn());
 		}
-		columns.push(new OriginColumn());
+		cowumns.push(new OwiginCowumn());
 
-		this.table = this.instantiationService.createInstance(WorkbenchTable,
-			'RemoteTunnels',
-			widgetContainer,
-			new TunnelTreeVirtualDelegate(this.remoteExplorerService),
-			columns,
-			[actionBarRenderer],
+		this.tabwe = this.instantiationSewvice.cweateInstance(WowkbenchTabwe,
+			'WemoteTunnews',
+			widgetContaina,
+			new TunnewTweeViwtuawDewegate(this.wemoteExpwowewSewvice),
+			cowumns,
+			[actionBawWendewa],
 			{
-				keyboardNavigationLabelProvider: {
-					getKeyboardNavigationLabel: (item: ITunnelItem) => {
-						return item.label;
+				keyboawdNavigationWabewPwovida: {
+					getKeyboawdNavigationWabew: (item: ITunnewItem) => {
+						wetuwn item.wabew;
 					}
 				},
-				multipleSelectionSupport: true,
-				accessibilityProvider: {
-					getAriaLabel: (item: ITunnelItem) => {
-						if (item instanceof TunnelItem) {
-							return `${item.tooltipPostfix} ${item.portTooltip} ${item.iconTooltip} ${item.processTooltip} ${item.originTooltip} ${this.tunnelService.canMakePublic ? item.privacyTooltip : ''}`;
-						} else {
-							return item.label;
+				muwtipweSewectionSuppowt: twue,
+				accessibiwityPwovida: {
+					getAwiaWabew: (item: ITunnewItem) => {
+						if (item instanceof TunnewItem) {
+							wetuwn `${item.toowtipPostfix} ${item.powtToowtip} ${item.iconToowtip} ${item.pwocessToowtip} ${item.owiginToowtip} ${this.tunnewSewvice.canMakePubwic ? item.pwivacyToowtip : ''}`;
+						} ewse {
+							wetuwn item.wabew;
 						}
 					},
-					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
+					getWidgetAwiaWabew: () => nws.wocawize('tunnewView', "Tunnew View")
 				},
-				openOnSingleClick: true
+				openOnSingweCwick: twue
 			}
-		) as WorkbenchTable<ITunnelItem>;
+		) as WowkbenchTabwe<ITunnewItem>;
 
-		const actionRunner: ActionRunner = new ActionRunner();
-		actionBarRenderer.actionRunner = actionRunner;
+		const actionWunna: ActionWunna = new ActionWunna();
+		actionBawWendewa.actionWunna = actionWunna;
 
-		this._register(this.table.onContextMenu(e => this.onContextMenu(e, actionRunner)));
-		this._register(this.table.onMouseDblClick(e => this.onMouseDblClick(e)));
-		this._register(this.table.onDidChangeFocus(e => this.onFocusChanged(e)));
-		this._register(this.table.onDidChangeSelection(e => this.onSelectionChanged(e)));
-		this._register(this.table.onDidFocus(() => this.tunnelViewFocusContext.set(true)));
-		this._register(this.table.onDidBlur(() => this.tunnelViewFocusContext.set(false)));
+		this._wegista(this.tabwe.onContextMenu(e => this.onContextMenu(e, actionWunna)));
+		this._wegista(this.tabwe.onMouseDbwCwick(e => this.onMouseDbwCwick(e)));
+		this._wegista(this.tabwe.onDidChangeFocus(e => this.onFocusChanged(e)));
+		this._wegista(this.tabwe.onDidChangeSewection(e => this.onSewectionChanged(e)));
+		this._wegista(this.tabwe.onDidFocus(() => this.tunnewViewFocusContext.set(twue)));
+		this._wegista(this.tabwe.onDidBwuw(() => this.tunnewViewFocusContext.set(fawse)));
 
-		const rerender = () => this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
+		const wewenda = () => this.tabwe.spwice(0, Numba.POSITIVE_INFINITY, this.viewModew.aww);
 
-		rerender();
-		let lastPortCount = this.portCount;
-		this._register(Event.debounce(this.viewModel.onForwardedPortsChanged, (_last, e) => e, 50)(() => {
-			const newPortCount = this.portCount;
-			if (((lastPortCount === 0) || (newPortCount === 0)) && (lastPortCount !== newPortCount)) {
-				this._onDidChangeViewWelcomeState.fire();
+		wewenda();
+		wet wastPowtCount = this.powtCount;
+		this._wegista(Event.debounce(this.viewModew.onFowwawdedPowtsChanged, (_wast, e) => e, 50)(() => {
+			const newPowtCount = this.powtCount;
+			if (((wastPowtCount === 0) || (newPowtCount === 0)) && (wastPowtCount !== newPowtCount)) {
+				this._onDidChangeViewWewcomeState.fiwe();
 			}
-			lastPortCount = newPortCount;
-			rerender();
+			wastPowtCount = newPowtCount;
+			wewenda();
 		}));
 
-		this._register(this.table.onMouseClick(e => {
-			if (this.hasOpenLinkModifier(e.browserEvent)) {
-				const selection = this.table.getSelectedElements();
-				if ((selection.length === 0) ||
-					((selection.length === 1) && (selection[0] === e.element))) {
-					this.commandService.executeCommand(OpenPortInBrowserAction.ID, e.element);
+		this._wegista(this.tabwe.onMouseCwick(e => {
+			if (this.hasOpenWinkModifia(e.bwowsewEvent)) {
+				const sewection = this.tabwe.getSewectedEwements();
+				if ((sewection.wength === 0) ||
+					((sewection.wength === 1) && (sewection[0] === e.ewement))) {
+					this.commandSewvice.executeCommand(OpenPowtInBwowsewAction.ID, e.ewement);
 				}
 			}
 		}));
 
-		this._register(this.table.onDidOpen(e => {
-			if (!e.element || (e.element.tunnelType !== TunnelType.Forwarded)) {
-				return;
+		this._wegista(this.tabwe.onDidOpen(e => {
+			if (!e.ewement || (e.ewement.tunnewType !== TunnewType.Fowwawded)) {
+				wetuwn;
 			}
-			if (e.browserEvent?.type === 'dblclick') {
-				this.commandService.executeCommand(LabelTunnelAction.ID);
+			if (e.bwowsewEvent?.type === 'dbwcwick') {
+				this.commandSewvice.executeCommand(WabewTunnewAction.ID);
 			}
 		}));
 
-		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
-			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnel, e?.editId);
-			this._onDidChangeViewWelcomeState.fire();
+		this._wegista(this.wemoteExpwowewSewvice.onDidChangeEditabwe(e => {
+			this.isEditing = !!this.wemoteExpwowewSewvice.getEditabweData(e?.tunnew, e?.editId);
+			this._onDidChangeViewWewcomeState.fiwe();
 
 			if (!this.isEditing) {
-				widgetContainer.classList.remove('highlight');
+				widgetContaina.cwassWist.wemove('highwight');
 			}
 
-			rerender();
+			wewenda();
 
 			if (this.isEditing) {
-				widgetContainer.classList.add('highlight');
+				widgetContaina.cwassWist.add('highwight');
 				if (!e) {
-					// When we are in editing mode for a new forward, rather than updating an existing one we need to reveal the input box since it might be out of view.
-					this.table.reveal(this.table.indexOf(this.viewModel.input));
+					// When we awe in editing mode fow a new fowwawd, watha than updating an existing one we need to weveaw the input box since it might be out of view.
+					this.tabwe.weveaw(this.tabwe.indexOf(this.viewModew.input));
 				}
-			} else {
-				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
-					this.table.setFocus(this.lastFocus);
+			} ewse {
+				if (e && (e.tunnew.tunnewType !== TunnewType.Add)) {
+					this.tabwe.setFocus(this.wastFocus);
 				}
 				this.focus();
 			}
 		}));
 	}
 
-	override shouldShowWelcome(): boolean {
-		return this.viewModel.isEmpty() && !this.isEditing;
+	ovewwide shouwdShowWewcome(): boowean {
+		wetuwn this.viewModew.isEmpty() && !this.isEditing;
 	}
 
-	override focus(): void {
-		super.focus();
-		this.table.domFocus();
+	ovewwide focus(): void {
+		supa.focus();
+		this.tabwe.domFocus();
 	}
 
-	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
-		if (event.indexes.length > 0 && event.elements.length > 0) {
-			this.lastFocus = event.indexes;
+	pwivate onFocusChanged(event: ITabweEvent<ITunnewItem>) {
+		if (event.indexes.wength > 0 && event.ewements.wength > 0) {
+			this.wastFocus = event.indexes;
 		}
-		const elements = event.elements;
-		const item = elements && elements.length ? elements[0] : undefined;
+		const ewements = event.ewements;
+		const item = ewements && ewements.wength ? ewements[0] : undefined;
 		if (item) {
-			this.tunnelViewSelectionContext.set(item);
-			this.tunnelTypeContext.set(item.tunnelType);
-			this.tunnelCloseableContext.set(!!item.closeable);
-			this.tunnelPrivacyContext.set(item.privacy);
-			this.tunnelProtocolContext.set(item.protocol === TunnelProtocol.Https ? TunnelProtocol.Https : TunnelProtocol.Https);
-			this.portChangableContextKey.set(!!item.localPort);
-		} else {
-			this.tunnelTypeContext.reset();
-			this.tunnelViewSelectionContext.reset();
-			this.tunnelCloseableContext.reset();
-			this.tunnelPrivacyContext.reset();
-			this.tunnelProtocolContext.reset();
-			this.portChangableContextKey.reset();
+			this.tunnewViewSewectionContext.set(item);
+			this.tunnewTypeContext.set(item.tunnewType);
+			this.tunnewCwoseabweContext.set(!!item.cwoseabwe);
+			this.tunnewPwivacyContext.set(item.pwivacy);
+			this.tunnewPwotocowContext.set(item.pwotocow === TunnewPwotocow.Https ? TunnewPwotocow.Https : TunnewPwotocow.Https);
+			this.powtChangabweContextKey.set(!!item.wocawPowt);
+		} ewse {
+			this.tunnewTypeContext.weset();
+			this.tunnewViewSewectionContext.weset();
+			this.tunnewCwoseabweContext.weset();
+			this.tunnewPwivacyContext.weset();
+			this.tunnewPwotocowContext.weset();
+			this.powtChangabweContextKey.weset();
 		}
 	}
 
-	private hasOpenLinkModifier(e: MouseEvent): boolean {
-		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+	pwivate hasOpenWinkModifia(e: MouseEvent): boowean {
+		const editowConf = this.configuwationSewvice.getVawue<{ muwtiCuwsowModifia: 'ctwwCmd' | 'awt' }>('editow');
 
-		let modifierKey = false;
-		if (editorConf.multiCursorModifier === 'ctrlCmd') {
-			modifierKey = e.altKey;
-		} else {
+		wet modifiewKey = fawse;
+		if (editowConf.muwtiCuwsowModifia === 'ctwwCmd') {
+			modifiewKey = e.awtKey;
+		} ewse {
 			if (isMacintosh) {
-				modifierKey = e.metaKey;
-			} else {
-				modifierKey = e.ctrlKey;
+				modifiewKey = e.metaKey;
+			} ewse {
+				modifiewKey = e.ctwwKey;
 			}
 		}
-		return modifierKey;
+		wetuwn modifiewKey;
 	}
 
-	private onSelectionChanged(event: ITableEvent<ITunnelItem>) {
-		const elements = event.elements;
-		if (elements.length > 1) {
-			this.tunnelViewMultiSelectionContext.set(elements);
-		} else {
-			this.tunnelViewMultiSelectionContext.set(undefined);
+	pwivate onSewectionChanged(event: ITabweEvent<ITunnewItem>) {
+		const ewements = event.ewements;
+		if (ewements.wength > 1) {
+			this.tunnewViewMuwtiSewectionContext.set(ewements);
+		} ewse {
+			this.tunnewViewMuwtiSewectionContext.set(undefined);
 		}
 	}
 
-	private onContextMenu(event: ITableContextMenuEvent<ITunnelItem>, actionRunner: ActionRunner): void {
-		if ((event.element !== undefined) && !(event.element instanceof TunnelItem)) {
-			return;
+	pwivate onContextMenu(event: ITabweContextMenuEvent<ITunnewItem>, actionWunna: ActionWunna): void {
+		if ((event.ewement !== undefined) && !(event.ewement instanceof TunnewItem)) {
+			wetuwn;
 		}
 
-		event.browserEvent.preventDefault();
-		event.browserEvent.stopPropagation();
+		event.bwowsewEvent.pweventDefauwt();
+		event.bwowsewEvent.stopPwopagation();
 
-		const node: ITunnelItem | undefined = event.element;
+		const node: ITunnewItem | undefined = event.ewement;
 
 		if (node) {
-			this.table.setFocus([this.table.indexOf(node)]);
-			this.tunnelTypeContext.set(node.tunnelType);
-			this.tunnelCloseableContext.set(!!node.closeable);
-			this.tunnelPrivacyContext.set(node.privacy);
-			this.tunnelProtocolContext.set(node.protocol);
-			this.portChangableContextKey.set(!!node.localPort);
-		} else {
-			this.tunnelTypeContext.set(TunnelType.Add);
-			this.tunnelCloseableContext.set(false);
-			this.tunnelPrivacyContext.set(undefined);
-			this.tunnelProtocolContext.set(undefined);
-			this.portChangableContextKey.set(false);
+			this.tabwe.setFocus([this.tabwe.indexOf(node)]);
+			this.tunnewTypeContext.set(node.tunnewType);
+			this.tunnewCwoseabweContext.set(!!node.cwoseabwe);
+			this.tunnewPwivacyContext.set(node.pwivacy);
+			this.tunnewPwotocowContext.set(node.pwotocow);
+			this.powtChangabweContextKey.set(!!node.wocawPowt);
+		} ewse {
+			this.tunnewTypeContext.set(TunnewType.Add);
+			this.tunnewCwoseabweContext.set(fawse);
+			this.tunnewPwivacyContext.set(undefined);
+			this.tunnewPwotocowContext.set(undefined);
+			this.powtChangabweContextKey.set(fawse);
 		}
 
-		const menu = this.menuService.createMenu(MenuId.TunnelContext, this.table.contextKeyService);
+		const menu = this.menuSewvice.cweateMenu(MenuId.TunnewContext, this.tabwe.contextKeySewvice);
 		const actions: IAction[] = [];
-		this._register(createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions));
+		this._wegista(cweateAndFiwwInContextMenuActions(menu, { shouwdFowwawdAwgs: twue }, actions));
 		menu.dispose();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => event.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => event.anchow,
 			getActions: () => actions,
 			getActionViewItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					wetuwn new ActionViewItem(action, action, { wabew: twue, keybinding: keybinding.getWabew() });
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.table.domFocus();
+			onHide: (wasCancewwed?: boowean) => {
+				if (wasCancewwed) {
+					this.tabwe.domFocus();
 				}
 			},
 			getActionsContext: () => node,
-			actionRunner
+			actionWunna
 		});
 	}
 
-	private onMouseDblClick(e: ITableMouseEvent<ITunnelItem>): void {
-		if (!e.element) {
-			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+	pwivate onMouseDbwCwick(e: ITabweMouseEvent<ITunnewItem>): void {
+		if (!e.ewement) {
+			this.commandSewvice.executeCommand(FowwawdPowtAction.INWINE_ID);
 		}
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this.table.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this.tabwe.wayout(height, width);
 	}
 }
 
-export class TunnelPanelDescriptor implements IViewDescriptor {
-	readonly id = TunnelPanel.ID;
-	readonly name = TunnelPanel.TITLE;
-	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
-	readonly canToggleVisibility = true;
-	readonly hideByDefault = false;
-	readonly workspace = true;
-	// group is not actually used for views that are not extension contributed. Use order instead.
-	readonly group = 'details@0';
-	// -500 comes from the remote explorer viewOrderDelegate
-	readonly order = -500;
-	readonly remoteAuthority?: string | string[];
-	readonly canMoveView = true;
-	readonly containerIcon = portsViewIcon;
+expowt cwass TunnewPanewDescwiptow impwements IViewDescwiptow {
+	weadonwy id = TunnewPanew.ID;
+	weadonwy name = TunnewPanew.TITWE;
+	weadonwy ctowDescwiptow: SyncDescwiptow<TunnewPanew>;
+	weadonwy canToggweVisibiwity = twue;
+	weadonwy hideByDefauwt = fawse;
+	weadonwy wowkspace = twue;
+	// gwoup is not actuawwy used fow views that awe not extension contwibuted. Use owda instead.
+	weadonwy gwoup = 'detaiws@0';
+	// -500 comes fwom the wemote expwowa viewOwdewDewegate
+	weadonwy owda = -500;
+	weadonwy wemoteAuthowity?: stwing | stwing[];
+	weadonwy canMoveView = twue;
+	weadonwy containewIcon = powtsViewIcon;
 
-	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
-		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
-		this.remoteAuthority = environmentService.remoteAuthority ? environmentService.remoteAuthority.split('+')[0] : undefined;
+	constwuctow(viewModew: ITunnewViewModew, enviwonmentSewvice: IWowkbenchEnviwonmentSewvice) {
+		this.ctowDescwiptow = new SyncDescwiptow(TunnewPanew, [viewModew]);
+		this.wemoteAuthowity = enviwonmentSewvice.wemoteAuthowity ? enviwonmentSewvice.wemoteAuthowity.spwit('+')[0] : undefined;
 	}
 }
 
-namespace LabelTunnelAction {
-	export const ID = 'remote.tunnel.label';
-	export const LABEL = nls.localize('remote.tunnel.label', "Set Port Label");
-	export const COMMAND_ID_KEYWORD = 'label';
+namespace WabewTunnewAction {
+	expowt const ID = 'wemote.tunnew.wabew';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.wabew', "Set Powt Wabew");
+	expowt const COMMAND_ID_KEYWOWD = 'wabew';
 
-	function isITunnelItem(item: any): item is ITunnelItem {
-		return item && item.tunnelType && item.remoteHost && item.source;
+	function isITunnewItem(item: any): item is ITunnewItem {
+		wetuwn item && item.tunnewType && item.wemoteHost && item.souwce;
 	}
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
-			const context = isITunnelItem(arg) ? arg : accessor.get(IContextKeyService).getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg): Pwomise<{ powt: numba, wabew: stwing } | undefined> => {
+			const context = isITunnewItem(awg) ? awg : accessow.get(IContextKeySewvice).getContextKeyVawue<ITunnewItem | undefined>(TunnewViewSewectionKeyName);
 			if (context) {
-				return new Promise(resolve => {
-					const remoteExplorerService = accessor.get(IRemoteExplorerService);
-					const startingValue = context.name ? context.name : `${context.remotePort}`;
-					remoteExplorerService.setEditable(context, TunnelEditId.Label, {
-						onFinish: async (value, success) => {
-							value = value.trim();
-							remoteExplorerService.setEditable(context, TunnelEditId.Label, null);
-							const changed = success && (value !== startingValue);
+				wetuwn new Pwomise(wesowve => {
+					const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+					const stawtingVawue = context.name ? context.name : `${context.wemotePowt}`;
+					wemoteExpwowewSewvice.setEditabwe(context, TunnewEditId.Wabew, {
+						onFinish: async (vawue, success) => {
+							vawue = vawue.twim();
+							wemoteExpwowewSewvice.setEditabwe(context, TunnewEditId.Wabew, nuww);
+							const changed = success && (vawue !== stawtingVawue);
 							if (changed) {
-								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
+								await wemoteExpwowewSewvice.tunnewModew.name(context.wemoteHost, context.wemotePowt, vawue);
 							}
-							resolve(changed ? { port: context.remotePort, label: value } : undefined);
+							wesowve(changed ? { powt: context.wemotePowt, wabew: vawue } : undefined);
 						},
-						validationMessage: () => null,
-						placeholder: nls.localize('remote.tunnelsView.labelPlaceholder', "Port label"),
-						startingValue
+						vawidationMessage: () => nuww,
+						pwacehowda: nws.wocawize('wemote.tunnewsView.wabewPwacehowda', "Powt wabew"),
+						stawtingVawue
 					});
 				});
 			}
-			return undefined;
+			wetuwn undefined;
 		};
 	}
 }
 
-const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port should be a number or a host:port.");
-const maxPortNumber: number = 65536;
-const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
-const requiresSudoString: string = nls.localize('remote.tunnelView.inlineElevationMessage', "May Require Sudo");
-const alreadyForwarded: string = nls.localize('remote.tunnelView.alreadyForwarded', "Port is already forwarded");
+const invawidPowtStwing: stwing = nws.wocawize('wemote.tunnewsView.powtNumbewVawid', "Fowwawded powt shouwd be a numba ow a host:powt.");
+const maxPowtNumba: numba = 65536;
+const invawidPowtNumbewStwing: stwing = nws.wocawize('wemote.tunnewsView.powtNumbewToHigh', "Powt numba must be \u2265 0 and < {0}.", maxPowtNumba);
+const wequiwesSudoStwing: stwing = nws.wocawize('wemote.tunnewView.inwineEwevationMessage', "May Wequiwe Sudo");
+const awweadyFowwawded: stwing = nws.wocawize('wemote.tunnewView.awweadyFowwawded', "Powt is awweady fowwawded");
 
-export namespace ForwardPortAction {
-	export const INLINE_ID = 'remote.tunnel.forwardInline';
-	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.forward', "Forward a Port"), original: 'Forward a Port' };
-	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
-	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
+expowt namespace FowwawdPowtAction {
+	expowt const INWINE_ID = 'wemote.tunnew.fowwawdInwine';
+	expowt const COMMANDPAWETTE_ID = 'wemote.tunnew.fowwawdCommandPawette';
+	expowt const WABEW: IWocawizedStwing = { vawue: nws.wocawize('wemote.tunnew.fowwawd', "Fowwawd a Powt"), owiginaw: 'Fowwawd a Powt' };
+	expowt const TWEEITEM_WABEW = nws.wocawize('wemote.tunnew.fowwawdItem', "Fowwawd Powt");
+	const fowwawdPwompt = nws.wocawize('wemote.tunnew.fowwawdPwompt', "Powt numba ow addwess (eg. 3000 ow 10.10.10.10:2000).");
 
-	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string, severity: Severity } | null {
-		const parsed = parseAddress(value);
-		if (!parsed) {
-			return { content: invalidPortString, severity: Severity.Error };
-		} else if (parsed.port >= maxPortNumber) {
-			return { content: invalidPortNumberString, severity: Severity.Error };
-		} else if (canElevate && isPortPrivileged(parsed.port)) {
-			return { content: requiresSudoString, severity: Severity.Info };
-		} else if (mapHasAddressLocalhostOrAllInterfaces(remoteExplorerService.tunnelModel.forwarded, parsed.host, parsed.port)) {
-			return { content: alreadyForwarded, severity: Severity.Error };
+	function vawidateInput(wemoteExpwowewSewvice: IWemoteExpwowewSewvice, vawue: stwing, canEwevate: boowean): { content: stwing, sevewity: Sevewity } | nuww {
+		const pawsed = pawseAddwess(vawue);
+		if (!pawsed) {
+			wetuwn { content: invawidPowtStwing, sevewity: Sevewity.Ewwow };
+		} ewse if (pawsed.powt >= maxPowtNumba) {
+			wetuwn { content: invawidPowtNumbewStwing, sevewity: Sevewity.Ewwow };
+		} ewse if (canEwevate && isPowtPwiviweged(pawsed.powt)) {
+			wetuwn { content: wequiwesSudoStwing, sevewity: Sevewity.Info };
+		} ewse if (mapHasAddwessWocawhostOwAwwIntewfaces(wemoteExpwowewSewvice.tunnewModew.fowwawded, pawsed.host, pawsed.powt)) {
+			wetuwn { content: awweadyFowwawded, sevewity: Sevewity.Ewwow };
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	function error(notificationService: INotificationService, tunnel: RemoteTunnel | void, host: string, port: number) {
-		if (!tunnel) {
-			notificationService.warn(nls.localize('remote.tunnel.forwardError', "Unable to forward {0}:{1}. The host may not be available or that remote port may already be forwarded", host, port));
+	function ewwow(notificationSewvice: INotificationSewvice, tunnew: WemoteTunnew | void, host: stwing, powt: numba) {
+		if (!tunnew) {
+			notificationSewvice.wawn(nws.wocawize('wemote.tunnew.fowwawdEwwow', "Unabwe to fowwawd {0}:{1}. The host may not be avaiwabwe ow that wemote powt may awweady be fowwawded", host, powt));
 		}
 	}
 
-	export function inlineHandler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const notificationService = accessor.get(INotificationService);
-			const tunnelService = accessor.get(ITunnelService);
-			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
-				onFinish: async (value, success) => {
-					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
-					let parsed: { host: string, port: number } | undefined;
-					if (success && (parsed = parseAddress(value))) {
-						remoteExplorerService.forward({
-							remote: { host: parsed.host, port: parsed.port },
-							elevateIfNeeded: true
-						}).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+	expowt function inwineHandwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const tunnewSewvice = accessow.get(ITunnewSewvice);
+			wemoteExpwowewSewvice.setEditabwe(undefined, TunnewEditId.New, {
+				onFinish: async (vawue, success) => {
+					wemoteExpwowewSewvice.setEditabwe(undefined, TunnewEditId.New, nuww);
+					wet pawsed: { host: stwing, powt: numba } | undefined;
+					if (success && (pawsed = pawseAddwess(vawue))) {
+						wemoteExpwowewSewvice.fowwawd({
+							wemote: { host: pawsed.host, powt: pawsed.powt },
+							ewevateIfNeeded: twue
+						}).then(tunnew => ewwow(notificationSewvice, tunnew, pawsed!.host, pawsed!.powt));
 					}
 				},
-				validationMessage: (value) => validateInput(remoteExplorerService, value, tunnelService.canElevate),
-				placeholder: forwardPrompt
+				vawidationMessage: (vawue) => vawidateInput(wemoteExpwowewSewvice, vawue, tunnewSewvice.canEwevate),
+				pwacehowda: fowwawdPwompt
 			});
 		};
 	}
 
-	export function commandPaletteHandler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const notificationService = accessor.get(INotificationService);
-			const viewsService = accessor.get(IViewsService);
-			const quickInputService = accessor.get(IQuickInputService);
-			const tunnelService = accessor.get(ITunnelService);
-			await viewsService.openView(TunnelPanel.ID, true);
-			const value = await quickInputService.input({
-				prompt: forwardPrompt,
-				validateInput: (value) => Promise.resolve(validateInput(remoteExplorerService, value, tunnelService.canElevate))
+	expowt function commandPawetteHandwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const viewsSewvice = accessow.get(IViewsSewvice);
+			const quickInputSewvice = accessow.get(IQuickInputSewvice);
+			const tunnewSewvice = accessow.get(ITunnewSewvice);
+			await viewsSewvice.openView(TunnewPanew.ID, twue);
+			const vawue = await quickInputSewvice.input({
+				pwompt: fowwawdPwompt,
+				vawidateInput: (vawue) => Pwomise.wesowve(vawidateInput(wemoteExpwowewSewvice, vawue, tunnewSewvice.canEwevate))
 			});
-			let parsed: { host: string, port: number } | undefined;
-			if (value && (parsed = parseAddress(value))) {
-				remoteExplorerService.forward({
-					remote: { host: parsed.host, port: parsed.port },
-					elevateIfNeeded: true
-				}).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+			wet pawsed: { host: stwing, powt: numba } | undefined;
+			if (vawue && (pawsed = pawseAddwess(vawue))) {
+				wemoteExpwowewSewvice.fowwawd({
+					wemote: { host: pawsed.host, powt: pawsed.powt },
+					ewevateIfNeeded: twue
+				}).then(tunnew => ewwow(notificationSewvice, tunnew, pawsed!.host, pawsed!.powt));
 			}
 		};
 	}
 }
 
-interface QuickPickTunnel extends IQuickPickItem {
-	tunnel?: ITunnelItem
+intewface QuickPickTunnew extends IQuickPickItem {
+	tunnew?: ITunnewItem
 }
 
-function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplorerService): QuickPickInput<QuickPickTunnel>[] {
-	const picks: QuickPickInput<QuickPickTunnel>[] = tunnels.map(forwarded => {
-		const item = TunnelItem.createFromTunnel(remoteExplorerService, forwarded);
-		return {
-			label: item.label,
-			description: item.processDescription,
-			tunnel: item
+function makeTunnewPicks(tunnews: Tunnew[], wemoteExpwowewSewvice: IWemoteExpwowewSewvice): QuickPickInput<QuickPickTunnew>[] {
+	const picks: QuickPickInput<QuickPickTunnew>[] = tunnews.map(fowwawded => {
+		const item = TunnewItem.cweateFwomTunnew(wemoteExpwowewSewvice, fowwawded);
+		wetuwn {
+			wabew: item.wabew,
+			descwiption: item.pwocessDescwiption,
+			tunnew: item
 		};
 	});
-	if (picks.length === 0) {
+	if (picks.wength === 0) {
 		picks.push({
-			label: nls.localize('remote.tunnel.closeNoPorts', "No ports currently forwarded. Try running the {0} command", ForwardPortAction.LABEL.value)
+			wabew: nws.wocawize('wemote.tunnew.cwoseNoPowts', "No powts cuwwentwy fowwawded. Twy wunning the {0} command", FowwawdPowtAction.WABEW.vawue)
 		});
 	}
-	return picks;
+	wetuwn picks;
 }
 
-namespace ClosePortAction {
-	export const INLINE_ID = 'remote.tunnel.closeInline';
-	export const COMMANDPALETTE_ID = 'remote.tunnel.closeCommandPalette';
-	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.close', "Stop Forwarding Port"), original: 'Stop Forwarding Port' };
+namespace CwosePowtAction {
+	expowt const INWINE_ID = 'wemote.tunnew.cwoseInwine';
+	expowt const COMMANDPAWETTE_ID = 'wemote.tunnew.cwoseCommandPawette';
+	expowt const WABEW: IWocawizedStwing = { vawue: nws.wocawize('wemote.tunnew.cwose', "Stop Fowwawding Powt"), owiginaw: 'Stop Fowwawding Powt' };
 
-	export function inlineHandler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const contextKeyService = accessor.get(IContextKeyService);
-			let ports = contextKeyService.getContextKeyValue<ITunnelItem[] | undefined>(TunnelViewMultiSelectionKeyName);
-			if (!ports) {
-				const context = (arg !== undefined || arg instanceof TunnelItem) ?
-					arg : contextKeyService.getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
+	expowt function inwineHandwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const contextKeySewvice = accessow.get(IContextKeySewvice);
+			wet powts = contextKeySewvice.getContextKeyVawue<ITunnewItem[] | undefined>(TunnewViewMuwtiSewectionKeyName);
+			if (!powts) {
+				const context = (awg !== undefined || awg instanceof TunnewItem) ?
+					awg : contextKeySewvice.getContextKeyVawue<ITunnewItem | undefined>(TunnewViewSewectionKeyName);
 				if (context) {
-					ports = [context];
+					powts = [context];
 				}
 			}
-			if (!ports) {
-				return;
+			if (!powts) {
+				wetuwn;
 			}
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			return Promise.all(ports.map(port => remoteExplorerService.close({ host: port.remoteHost, port: port.remotePort })));
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			wetuwn Pwomise.aww(powts.map(powt => wemoteExpwowewSewvice.cwose({ host: powt.wemoteHost, powt: powt.wemotePowt })));
 		};
 	}
 
-	export function commandPaletteHandler(): ICommandHandler {
-		return async (accessor) => {
-			const quickInputService = accessor.get(IQuickInputService);
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const commandService = accessor.get(ICommandService);
+	expowt function commandPawetteHandwa(): ICommandHandwa {
+		wetuwn async (accessow) => {
+			const quickInputSewvice = accessow.get(IQuickInputSewvice);
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const commandSewvice = accessow.get(ICommandSewvice);
 
-			const picks: QuickPickInput<QuickPickTunnel>[] = makeTunnelPicks(Array.from(remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.closeable), remoteExplorerService);
-			const result = await quickInputService.pick(picks, { placeHolder: nls.localize('remote.tunnel.closePlaceholder', "Choose a port to stop forwarding") });
-			if (result && result.tunnel) {
-				await remoteExplorerService.close({ host: result.tunnel.remoteHost, port: result.tunnel.remotePort });
-			} else if (result) {
-				await commandService.executeCommand(ForwardPortAction.COMMANDPALETTE_ID);
+			const picks: QuickPickInput<QuickPickTunnew>[] = makeTunnewPicks(Awway.fwom(wemoteExpwowewSewvice.tunnewModew.fowwawded.vawues()).fiwta(tunnew => tunnew.cwoseabwe), wemoteExpwowewSewvice);
+			const wesuwt = await quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('wemote.tunnew.cwosePwacehowda', "Choose a powt to stop fowwawding") });
+			if (wesuwt && wesuwt.tunnew) {
+				await wemoteExpwowewSewvice.cwose({ host: wesuwt.tunnew.wemoteHost, powt: wesuwt.tunnew.wemotePowt });
+			} ewse if (wesuwt) {
+				await commandSewvice.executeCommand(FowwawdPowtAction.COMMANDPAWETTE_ID);
 			}
 		};
 	}
 }
 
-export namespace OpenPortInBrowserAction {
-	export const ID = 'remote.tunnel.open';
-	export const LABEL = nls.localize('remote.tunnel.open', "Open in Browser");
+expowt namespace OpenPowtInBwowsewAction {
+	expowt const ID = 'wemote.tunnew.open';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.open', "Open in Bwowsa");
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
-				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
-				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			wet key: stwing | undefined;
+			if (awg instanceof TunnewItem) {
+				key = makeAddwess(awg.wemoteHost, awg.wemotePowt);
+			} ewse if (awg.tunnewWemoteHost && awg.tunnewWemotePowt) {
+				key = makeAddwess(awg.tunnewWemoteHost, awg.tunnewWemotePowt);
 			}
 			if (key) {
-				const model = accessor.get(IRemoteExplorerService).tunnelModel;
-				const openerService = accessor.get(IOpenerService);
-				return run(model, openerService, key);
+				const modew = accessow.get(IWemoteExpwowewSewvice).tunnewModew;
+				const openewSewvice = accessow.get(IOpenewSewvice);
+				wetuwn wun(modew, openewSewvice, key);
 			}
 		};
 	}
 
-	export function run(model: TunnelModel, openerService: IOpenerService, key: string) {
-		const tunnel = model.forwarded.get(key) || model.detected.get(key);
-		if (tunnel) {
-			return openerService.open(tunnel.localUri, { allowContributedOpeners: false });
+	expowt function wun(modew: TunnewModew, openewSewvice: IOpenewSewvice, key: stwing) {
+		const tunnew = modew.fowwawded.get(key) || modew.detected.get(key);
+		if (tunnew) {
+			wetuwn openewSewvice.open(tunnew.wocawUwi, { awwowContwibutedOpenews: fawse });
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-export namespace OpenPortInPreviewAction {
-	export const ID = 'remote.tunnel.openPreview';
-	export const LABEL = nls.localize('remote.tunnel.openPreview', "Preview in Editor");
+expowt namespace OpenPowtInPweviewAction {
+	expowt const ID = 'wemote.tunnew.openPweview';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.openPweview', "Pweview in Editow");
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			let key: string | undefined;
-			if (arg instanceof TunnelItem) {
-				key = makeAddress(arg.remoteHost, arg.remotePort);
-			} else if (arg.tunnelRemoteHost && arg.tunnelRemotePort) {
-				key = makeAddress(arg.tunnelRemoteHost, arg.tunnelRemotePort);
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			wet key: stwing | undefined;
+			if (awg instanceof TunnewItem) {
+				key = makeAddwess(awg.wemoteHost, awg.wemotePowt);
+			} ewse if (awg.tunnewWemoteHost && awg.tunnewWemotePowt) {
+				key = makeAddwess(awg.tunnewWemoteHost, awg.tunnewWemotePowt);
 			}
 			if (key) {
-				const model = accessor.get(IRemoteExplorerService).tunnelModel;
-				const openerService = accessor.get(IOpenerService);
-				const externalOpenerService = accessor.get(IExternalUriOpenerService);
-				return run(model, openerService, externalOpenerService, key);
+				const modew = accessow.get(IWemoteExpwowewSewvice).tunnewModew;
+				const openewSewvice = accessow.get(IOpenewSewvice);
+				const extewnawOpenewSewvice = accessow.get(IExtewnawUwiOpenewSewvice);
+				wetuwn wun(modew, openewSewvice, extewnawOpenewSewvice, key);
 			}
 		};
 	}
 
-	export async function run(model: TunnelModel, openerService: IOpenerService, externalOpenerService: IExternalUriOpenerService, key: string) {
-		const tunnel = model.forwarded.get(key) || model.detected.get(key);
-		if (tunnel) {
-			const sourceUri = URI.parse(`http://${tunnel.remoteHost}:${tunnel.remotePort}`);
-			const opener = await externalOpenerService.getOpener(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
-			if (opener) {
-				return opener.openExternalUri(tunnel.localUri, { sourceUri }, new CancellationTokenSource().token);
+	expowt async function wun(modew: TunnewModew, openewSewvice: IOpenewSewvice, extewnawOpenewSewvice: IExtewnawUwiOpenewSewvice, key: stwing) {
+		const tunnew = modew.fowwawded.get(key) || modew.detected.get(key);
+		if (tunnew) {
+			const souwceUwi = UWI.pawse(`http://${tunnew.wemoteHost}:${tunnew.wemotePowt}`);
+			const opena = await extewnawOpenewSewvice.getOpena(tunnew.wocawUwi, { souwceUwi }, new CancewwationTokenSouwce().token);
+			if (opena) {
+				wetuwn opena.openExtewnawUwi(tunnew.wocawUwi, { souwceUwi }, new CancewwationTokenSouwce().token);
 			}
-			return openerService.open(tunnel.localUri);
+			wetuwn openewSewvice.open(tunnew.wocawUwi);
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 }
 
-namespace OpenPortInBrowserCommandPaletteAction {
-	export const ID = 'remote.tunnel.openCommandPalette';
-	export const LABEL = nls.localize('remote.tunnel.openCommandPalette', "Open Port in Browser");
+namespace OpenPowtInBwowsewCommandPawetteAction {
+	expowt const ID = 'wemote.tunnew.openCommandPawette';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.openCommandPawette', "Open Powt in Bwowsa");
 
-	interface QuickPickTunnel extends IQuickPickItem {
-		tunnel?: TunnelItem;
+	intewface QuickPickTunnew extends IQuickPickItem {
+		tunnew?: TunnewItem;
 	}
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const model = remoteExplorerService.tunnelModel;
-			const quickPickService = accessor.get(IQuickInputService);
-			const openerService = accessor.get(IOpenerService);
-			const commandService = accessor.get(ICommandService);
-			const options: QuickPickTunnel[] = [...model.forwarded, ...model.detected].map(value => {
-				const tunnelItem = TunnelItem.createFromTunnel(remoteExplorerService, value[1]);
-				return {
-					label: tunnelItem.label,
-					description: tunnelItem.processDescription,
-					tunnel: tunnelItem
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const modew = wemoteExpwowewSewvice.tunnewModew;
+			const quickPickSewvice = accessow.get(IQuickInputSewvice);
+			const openewSewvice = accessow.get(IOpenewSewvice);
+			const commandSewvice = accessow.get(ICommandSewvice);
+			const options: QuickPickTunnew[] = [...modew.fowwawded, ...modew.detected].map(vawue => {
+				const tunnewItem = TunnewItem.cweateFwomTunnew(wemoteExpwowewSewvice, vawue[1]);
+				wetuwn {
+					wabew: tunnewItem.wabew,
+					descwiption: tunnewItem.pwocessDescwiption,
+					tunnew: tunnewItem
 				};
 			});
-			if (options.length === 0) {
+			if (options.wength === 0) {
 				options.push({
-					label: nls.localize('remote.tunnel.openCommandPaletteNone', "No ports currently forwarded. Open the Ports view to get started.")
+					wabew: nws.wocawize('wemote.tunnew.openCommandPawetteNone', "No powts cuwwentwy fowwawded. Open the Powts view to get stawted.")
 				});
-			} else {
+			} ewse {
 				options.push({
-					label: nls.localize('remote.tunnel.openCommandPaletteView', "Open the Ports view...")
+					wabew: nws.wocawize('wemote.tunnew.openCommandPawetteView', "Open the Powts view...")
 				});
 			}
-			const picked = await quickPickService.pick<QuickPickTunnel>(options, { placeHolder: nls.localize('remote.tunnel.openCommandPalettePick', "Choose the port to open") });
-			if (picked && picked.tunnel) {
-				return OpenPortInBrowserAction.run(model, openerService, makeAddress(picked.tunnel.remoteHost, picked.tunnel.remotePort));
-			} else if (picked) {
-				return commandService.executeCommand(`${TUNNEL_VIEW_ID}.focus`);
+			const picked = await quickPickSewvice.pick<QuickPickTunnew>(options, { pwaceHowda: nws.wocawize('wemote.tunnew.openCommandPawettePick', "Choose the powt to open") });
+			if (picked && picked.tunnew) {
+				wetuwn OpenPowtInBwowsewAction.wun(modew, openewSewvice, makeAddwess(picked.tunnew.wemoteHost, picked.tunnew.wemotePowt));
+			} ewse if (picked) {
+				wetuwn commandSewvice.executeCommand(`${TUNNEW_VIEW_ID}.focus`);
 			}
 		};
 	}
 }
 
-namespace CopyAddressAction {
-	export const INLINE_ID = 'remote.tunnel.copyAddressInline';
-	export const COMMANDPALETTE_ID = 'remote.tunnel.copyAddressCommandPalette';
-	export const INLINE_LABEL = nls.localize('remote.tunnel.copyAddressInline', "Copy Local Address");
-	export const COMMANDPALETTE_LABEL = nls.localize('remote.tunnel.copyAddressCommandPalette', "Copy Forwarded Port Address");
+namespace CopyAddwessAction {
+	expowt const INWINE_ID = 'wemote.tunnew.copyAddwessInwine';
+	expowt const COMMANDPAWETTE_ID = 'wemote.tunnew.copyAddwessCommandPawette';
+	expowt const INWINE_WABEW = nws.wocawize('wemote.tunnew.copyAddwessInwine', "Copy Wocaw Addwess");
+	expowt const COMMANDPAWETTE_WABEW = nws.wocawize('wemote.tunnew.copyAddwessCommandPawette', "Copy Fowwawded Powt Addwess");
 
-	async function copyAddress(remoteExplorerService: IRemoteExplorerService, clipboardService: IClipboardService, tunnelItem: ITunnelItem) {
-		const address = remoteExplorerService.tunnelModel.address(tunnelItem.remoteHost, tunnelItem.remotePort);
-		if (address) {
-			await clipboardService.writeText(address.toString());
+	async function copyAddwess(wemoteExpwowewSewvice: IWemoteExpwowewSewvice, cwipboawdSewvice: ICwipboawdSewvice, tunnewItem: ITunnewItem) {
+		const addwess = wemoteExpwowewSewvice.tunnewModew.addwess(tunnewItem.wemoteHost, tunnewItem.wemotePowt);
+		if (addwess) {
+			await cwipboawdSewvice.wwiteText(addwess.toStwing());
 		}
 	}
 
-	export function inlineHandler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
-			if (context instanceof TunnelItem) {
-				return copyAddress(accessor.get(IRemoteExplorerService), accessor.get(IClipboardService), context);
+	expowt function inwineHandwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const context = (awg !== undefined || awg instanceof TunnewItem) ? awg : accessow.get(IContextKeySewvice).getContextKeyVawue(TunnewViewSewectionKeyName);
+			if (context instanceof TunnewItem) {
+				wetuwn copyAddwess(accessow.get(IWemoteExpwowewSewvice), accessow.get(ICwipboawdSewvice), context);
 			}
 		};
 	}
 
-	export function commandPaletteHandler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const quickInputService = accessor.get(IQuickInputService);
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const commandService = accessor.get(ICommandService);
-			const clipboardService = accessor.get(IClipboardService);
+	expowt function commandPawetteHandwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const quickInputSewvice = accessow.get(IQuickInputSewvice);
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const commandSewvice = accessow.get(ICommandSewvice);
+			const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
 
-			const tunnels = Array.from(remoteExplorerService.tunnelModel.forwarded.values()).concat(Array.from(remoteExplorerService.tunnelModel.detected.values()));
-			const result = await quickInputService.pick(makeTunnelPicks(tunnels, remoteExplorerService), { placeHolder: nls.localize('remote.tunnel.copyAddressPlaceholdter', "Choose a forwarded port") });
-			if (result && result.tunnel) {
-				await copyAddress(remoteExplorerService, clipboardService, result.tunnel);
-			} else if (result) {
-				await commandService.executeCommand(ForwardPortAction.COMMANDPALETTE_ID);
+			const tunnews = Awway.fwom(wemoteExpwowewSewvice.tunnewModew.fowwawded.vawues()).concat(Awway.fwom(wemoteExpwowewSewvice.tunnewModew.detected.vawues()));
+			const wesuwt = await quickInputSewvice.pick(makeTunnewPicks(tunnews, wemoteExpwowewSewvice), { pwaceHowda: nws.wocawize('wemote.tunnew.copyAddwessPwacehowdta', "Choose a fowwawded powt") });
+			if (wesuwt && wesuwt.tunnew) {
+				await copyAddwess(wemoteExpwowewSewvice, cwipboawdSewvice, wesuwt.tunnew);
+			} ewse if (wesuwt) {
+				await commandSewvice.executeCommand(FowwawdPowtAction.COMMANDPAWETTE_ID);
 			}
 		};
 	}
 }
 
-namespace ChangeLocalPortAction {
-	export const ID = 'remote.tunnel.changeLocalPort';
-	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Address Port");
+namespace ChangeWocawPowtAction {
+	expowt const ID = 'wemote.tunnew.changeWocawPowt';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.changeWocawPowt', "Change Wocaw Addwess Powt");
 
-	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
-		if (!value.match(/^[0-9]+$/)) {
-			return { content: invalidPortString, severity: Severity.Error };
-		} else if (Number(value) >= maxPortNumber) {
-			return { content: invalidPortNumberString, severity: Severity.Error };
-		} else if (canElevate && isPortPrivileged(Number(value))) {
-			return { content: requiresSudoString, severity: Severity.Info };
+	function vawidateInput(vawue: stwing, canEwevate: boowean): { content: stwing, sevewity: Sevewity } | nuww {
+		if (!vawue.match(/^[0-9]+$/)) {
+			wetuwn { content: invawidPowtStwing, sevewity: Sevewity.Ewwow };
+		} ewse if (Numba(vawue) >= maxPowtNumba) {
+			wetuwn { content: invawidPowtNumbewStwing, sevewity: Sevewity.Ewwow };
+		} ewse if (canEwevate && isPowtPwiviweged(Numba(vawue))) {
+			wetuwn { content: wequiwesSudoStwing, sevewity: Sevewity.Info };
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			const remoteExplorerService = accessor.get(IRemoteExplorerService);
-			const notificationService = accessor.get(INotificationService);
-			const tunnelService = accessor.get(ITunnelService);
-			const context = (arg !== undefined || arg instanceof TunnelItem) ? arg : accessor.get(IContextKeyService).getContextKeyValue(TunnelViewSelectionKeyName);
-			if (context instanceof TunnelItem) {
-				remoteExplorerService.setEditable(context, TunnelEditId.LocalPort, {
-					onFinish: async (value, success) => {
-						remoteExplorerService.setEditable(context, TunnelEditId.LocalPort, null);
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const tunnewSewvice = accessow.get(ITunnewSewvice);
+			const context = (awg !== undefined || awg instanceof TunnewItem) ? awg : accessow.get(IContextKeySewvice).getContextKeyVawue(TunnewViewSewectionKeyName);
+			if (context instanceof TunnewItem) {
+				wemoteExpwowewSewvice.setEditabwe(context, TunnewEditId.WocawPowt, {
+					onFinish: async (vawue, success) => {
+						wemoteExpwowewSewvice.setEditabwe(context, TunnewEditId.WocawPowt, nuww);
 						if (success) {
-							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
-							const numberValue = Number(value);
-							const newForward = await remoteExplorerService.forward({
-								remote: { host: context.remoteHost, port: context.remotePort },
-								local: numberValue,
+							await wemoteExpwowewSewvice.cwose({ host: context.wemoteHost, powt: context.wemotePowt });
+							const numbewVawue = Numba(vawue);
+							const newFowwawd = await wemoteExpwowewSewvice.fowwawd({
+								wemote: { host: context.wemoteHost, powt: context.wemotePowt },
+								wocaw: numbewVawue,
 								name: context.name,
-								elevateIfNeeded: true,
-								source: context.source
+								ewevateIfNeeded: twue,
+								souwce: context.souwce
 							});
-							if (newForward && newForward.tunnelLocalPort !== numberValue) {
-								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
+							if (newFowwawd && newFowwawd.tunnewWocawPowt !== numbewVawue) {
+								notificationSewvice.wawn(nws.wocawize('wemote.tunnew.changeWocawPowtNumba', "The wocaw powt {0} is not avaiwabwe. Powt numba {1} has been used instead", vawue, newFowwawd.tunnewWocawPowt ?? newFowwawd.wocawAddwess));
 							}
 						}
 					},
-					validationMessage: (value) => validateInput(value, tunnelService.canElevate),
-					placeholder: nls.localize('remote.tunnelsView.changePort', "New local port")
+					vawidationMessage: (vawue) => vawidateInput(vawue, tunnewSewvice.canEwevate),
+					pwacehowda: nws.wocawize('wemote.tunnewsView.changePowt', "New wocaw powt")
 				});
 			}
 		};
 	}
 }
 
-namespace MakePortPublicAction {
-	export const ID = 'remote.tunnel.makePublic';
-	export const LABEL = nls.localize('remote.tunnel.makePublic', "Make Public");
+namespace MakePowtPubwicAction {
+	expowt const ID = 'wemote.tunnew.makePubwic';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.makePubwic', "Make Pubwic");
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
-				return remoteExplorerService.forward({
-					remote: { host: arg.remoteHost, port: arg.remotePort },
-					local: arg.localPort,
-					name: arg.name,
-					elevateIfNeeded: true,
-					isPublic: true,
-					source: arg.source
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			if (awg instanceof TunnewItem) {
+				const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+				await wemoteExpwowewSewvice.cwose({ host: awg.wemoteHost, powt: awg.wemotePowt });
+				wetuwn wemoteExpwowewSewvice.fowwawd({
+					wemote: { host: awg.wemoteHost, powt: awg.wemotePowt },
+					wocaw: awg.wocawPowt,
+					name: awg.name,
+					ewevateIfNeeded: twue,
+					isPubwic: twue,
+					souwce: awg.souwce
 				});
 			}
 		};
 	}
 }
 
-namespace MakePortPrivateAction {
-	export const ID = 'remote.tunnel.makePrivate';
-	export const LABEL = nls.localize('remote.tunnel.makePrivate', "Make Private");
+namespace MakePowtPwivateAction {
+	expowt const ID = 'wemote.tunnew.makePwivate';
+	expowt const WABEW = nws.wocawize('wemote.tunnew.makePwivate', "Make Pwivate");
 
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
-				return remoteExplorerService.forward({
-					remote: { host: arg.remoteHost, port: arg.remotePort },
-					local: arg.localPort,
-					name: arg.name,
-					elevateIfNeeded: true,
-					isPublic: false,
-					source: arg.source
+	expowt function handwa(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			if (awg instanceof TunnewItem) {
+				const wemoteExpwowewSewvice = accessow.get(IWemoteExpwowewSewvice);
+				await wemoteExpwowewSewvice.cwose({ host: awg.wemoteHost, powt: awg.wemotePowt });
+				wetuwn wemoteExpwowewSewvice.fowwawd({
+					wemote: { host: awg.wemoteHost, powt: awg.wemotePowt },
+					wocaw: awg.wocawPowt,
+					name: awg.name,
+					ewevateIfNeeded: twue,
+					isPubwic: fawse,
+					souwce: awg.souwce
 				});
 			}
 		};
 	}
 }
 
-namespace SetTunnelProtocolAction {
-	export const ID_HTTP = 'remote.tunnel.setProtocolHttp';
-	export const ID_HTTPS = 'remote.tunnel.setProtocolHttps';
-	export const LABEL_HTTP = nls.localize('remote.tunnel.protocolHttp', "HTTP");
-	export const LABEL_HTTPS = nls.localize('remote.tunnel.protocolHttps', "HTTPS");
+namespace SetTunnewPwotocowAction {
+	expowt const ID_HTTP = 'wemote.tunnew.setPwotocowHttp';
+	expowt const ID_HTTPS = 'wemote.tunnew.setPwotocowHttps';
+	expowt const WABEW_HTTP = nws.wocawize('wemote.tunnew.pwotocowHttp', "HTTP");
+	expowt const WABEW_HTTPS = nws.wocawize('wemote.tunnew.pwotocowHttps', "HTTPS");
 
-	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService) {
-		if (arg instanceof TunnelItem) {
-			const attributes: Partial<Attributes> = {
-				protocol
+	async function handwa(awg: any, pwotocow: TunnewPwotocow, wemoteExpwowewSewvice: IWemoteExpwowewSewvice) {
+		if (awg instanceof TunnewItem) {
+			const attwibutes: Pawtiaw<Attwibutes> = {
+				pwotocow
 			};
-			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes, ConfigurationTarget.USER_REMOTE);
+			wetuwn wemoteExpwowewSewvice.tunnewModew.configPowtsAttwibutes.addAttwibutes(awg.wemotePowt, attwibutes, ConfiguwationTawget.USEW_WEMOTE);
 		}
 	}
 
-	export function handlerHttp(): ICommandHandler {
-		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Http, accessor.get(IRemoteExplorerService));
+	expowt function handwewHttp(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			wetuwn handwa(awg, TunnewPwotocow.Http, accessow.get(IWemoteExpwowewSewvice));
 		};
 	}
 
-	export function handlerHttps(): ICommandHandler {
-		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Https, accessor.get(IRemoteExplorerService));
+	expowt function handwewHttps(): ICommandHandwa {
+		wetuwn async (accessow, awg) => {
+			wetuwn handwa(awg, TunnewPwotocow.Https, accessow.get(IWemoteExpwowewSewvice));
 		};
 	}
 }
 
-const tunnelViewCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
+const tunnewViewCommandsWeightBonus = 10; // give ouw commands a wittwe bit mowe weight ova otha defauwt wist/twee commands
 
-const isForwardedExpr = TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded);
-const isForwardedOrDetectedExpr = ContextKeyExpr.or(isForwardedExpr, TunnelTypeContextKey.isEqualTo(TunnelType.Detected));
-const isNotMultiSelectionExpr = TunnelViewMultiSelectionContextKey.isEqualTo(undefined);
+const isFowwawdedExpw = TunnewTypeContextKey.isEquawTo(TunnewType.Fowwawded);
+const isFowwawdedOwDetectedExpw = ContextKeyExpw.ow(isFowwawdedExpw, TunnewTypeContextKey.isEquawTo(TunnewType.Detected));
+const isNotMuwtiSewectionExpw = TunnewViewMuwtiSewectionContextKey.isEquawTo(undefined);
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: LabelTunnelAction.ID,
-	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
-	when: ContextKeyExpr.and(TunnelViewFocusContextKey, isForwardedExpr, isNotMultiSelectionExpr),
-	primary: KeyCode.F2,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: WabewTunnewAction.ID,
+	weight: KeybindingWeight.WowkbenchContwib + tunnewViewCommandsWeightBonus,
+	when: ContextKeyExpw.and(TunnewViewFocusContextKey, isFowwawdedExpw, isNotMuwtiSewectionExpw),
+	pwimawy: KeyCode.F2,
 	mac: {
-		primary: KeyCode.Enter
+		pwimawy: KeyCode.Enta
 	},
-	handler: LabelTunnelAction.handler()
+	handwa: WabewTunnewAction.handwa()
 });
-CommandsRegistry.registerCommand(ForwardPortAction.INLINE_ID, ForwardPortAction.inlineHandler());
-CommandsRegistry.registerCommand(ForwardPortAction.COMMANDPALETTE_ID, ForwardPortAction.commandPaletteHandler());
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ClosePortAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
-	when: ContextKeyExpr.and(TunnelCloseableContextKey, TunnelViewFocusContextKey),
-	primary: KeyCode.Delete,
+CommandsWegistwy.wegistewCommand(FowwawdPowtAction.INWINE_ID, FowwawdPowtAction.inwineHandwa());
+CommandsWegistwy.wegistewCommand(FowwawdPowtAction.COMMANDPAWETTE_ID, FowwawdPowtAction.commandPawetteHandwa());
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: CwosePowtAction.INWINE_ID,
+	weight: KeybindingWeight.WowkbenchContwib + tunnewViewCommandsWeightBonus,
+	when: ContextKeyExpw.and(TunnewCwoseabweContextKey, TunnewViewFocusContextKey),
+	pwimawy: KeyCode.Dewete,
 	mac: {
-		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
-		secondary: [KeyCode.Delete]
+		pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace,
+		secondawy: [KeyCode.Dewete]
 	},
-	handler: ClosePortAction.inlineHandler()
+	handwa: CwosePowtAction.inwineHandwa()
 });
 
-CommandsRegistry.registerCommand(ClosePortAction.COMMANDPALETTE_ID, ClosePortAction.commandPaletteHandler());
-CommandsRegistry.registerCommand(OpenPortInBrowserAction.ID, OpenPortInBrowserAction.handler());
-CommandsRegistry.registerCommand(OpenPortInPreviewAction.ID, OpenPortInPreviewAction.handler());
-CommandsRegistry.registerCommand(OpenPortInBrowserCommandPaletteAction.ID, OpenPortInBrowserCommandPaletteAction.handler());
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CopyAddressAction.INLINE_ID,
-	weight: KeybindingWeight.WorkbenchContrib + tunnelViewCommandsWeightBonus,
-	when: ContextKeyExpr.and(TunnelViewFocusContextKey, isForwardedOrDetectedExpr, isNotMultiSelectionExpr),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	handler: CopyAddressAction.inlineHandler()
+CommandsWegistwy.wegistewCommand(CwosePowtAction.COMMANDPAWETTE_ID, CwosePowtAction.commandPawetteHandwa());
+CommandsWegistwy.wegistewCommand(OpenPowtInBwowsewAction.ID, OpenPowtInBwowsewAction.handwa());
+CommandsWegistwy.wegistewCommand(OpenPowtInPweviewAction.ID, OpenPowtInPweviewAction.handwa());
+CommandsWegistwy.wegistewCommand(OpenPowtInBwowsewCommandPawetteAction.ID, OpenPowtInBwowsewCommandPawetteAction.handwa());
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: CopyAddwessAction.INWINE_ID,
+	weight: KeybindingWeight.WowkbenchContwib + tunnewViewCommandsWeightBonus,
+	when: ContextKeyExpw.and(TunnewViewFocusContextKey, isFowwawdedOwDetectedExpw, isNotMuwtiSewectionExpw),
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_C,
+	handwa: CopyAddwessAction.inwineHandwa()
 });
-CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
-CommandsRegistry.registerCommand(ChangeLocalPortAction.ID, ChangeLocalPortAction.handler());
-CommandsRegistry.registerCommand(MakePortPublicAction.ID, MakePortPublicAction.handler());
-CommandsRegistry.registerCommand(MakePortPrivateAction.ID, MakePortPrivateAction.handler());
-CommandsRegistry.registerCommand(SetTunnelProtocolAction.ID_HTTP, SetTunnelProtocolAction.handlerHttp());
-CommandsRegistry.registerCommand(SetTunnelProtocolAction.ID_HTTPS, SetTunnelProtocolAction.handlerHttps());
+CommandsWegistwy.wegistewCommand(CopyAddwessAction.COMMANDPAWETTE_ID, CopyAddwessAction.commandPawetteHandwa());
+CommandsWegistwy.wegistewCommand(ChangeWocawPowtAction.ID, ChangeWocawPowtAction.handwa());
+CommandsWegistwy.wegistewCommand(MakePowtPubwicAction.ID, MakePowtPubwicAction.handwa());
+CommandsWegistwy.wegistewCommand(MakePowtPwivateAction.ID, MakePowtPwivateAction.handwa());
+CommandsWegistwy.wegistewCommand(SetTunnewPwotocowAction.ID_HTTP, SetTunnewPwotocowAction.handwewHttp());
+CommandsWegistwy.wegistewCommand(SetTunnewPwotocowAction.ID_HTTPS, SetTunnewPwotocowAction.handwewHttps());
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, ({
 	command: {
-		id: ClosePortAction.COMMANDPALETTE_ID,
-		title: ClosePortAction.LABEL
+		id: CwosePowtAction.COMMANDPAWETTE_ID,
+		titwe: CwosePowtAction.WABEW
 	},
-	when: forwardedPortsViewEnabled
+	when: fowwawdedPowtsViewEnabwed
 }));
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, ({
 	command: {
-		id: ForwardPortAction.COMMANDPALETTE_ID,
-		title: ForwardPortAction.LABEL
+		id: FowwawdPowtAction.COMMANDPAWETTE_ID,
+		titwe: FowwawdPowtAction.WABEW
 	},
-	when: forwardedPortsViewEnabled
+	when: fowwawdedPowtsViewEnabwed
 }));
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, ({
 	command: {
-		id: CopyAddressAction.COMMANDPALETTE_ID,
-		title: CopyAddressAction.COMMANDPALETTE_LABEL
+		id: CopyAddwessAction.COMMANDPAWETTE_ID,
+		titwe: CopyAddwessAction.COMMANDPAWETTE_WABEW
 	},
-	when: forwardedPortsViewEnabled
+	when: fowwawdedPowtsViewEnabwed
 }));
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, ({
 	command: {
-		id: OpenPortInBrowserCommandPaletteAction.ID,
-		title: OpenPortInBrowserCommandPaletteAction.LABEL
+		id: OpenPowtInBwowsewCommandPawetteAction.ID,
+		titwe: OpenPowtInBwowsewCommandPawetteAction.WABEW
 	},
-	when: forwardedPortsViewEnabled
-}));
-
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '._open',
-	order: 0,
-	command: {
-		id: OpenPortInBrowserAction.ID,
-		title: OpenPortInBrowserAction.LABEL,
-	},
-	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '._open',
-	order: 1,
-	command: {
-		id: OpenPortInPreviewAction.ID,
-		title: OpenPortInPreviewAction.LABEL,
-	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public)),
-		isForwardedOrDetectedExpr,
-		isNotMultiSelectionExpr)
-}));
-// The group 0_manage is used by extensions, so try not to change it
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '0_manage',
-	order: 1,
-	command: {
-		id: LabelTunnelAction.ID,
-		title: LabelTunnelAction.LABEL,
-		icon: labelPortIcon
-	},
-	when: ContextKeyExpr.and(isForwardedExpr, isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 0,
-	command: {
-		id: CopyAddressAction.INLINE_ID,
-		title: CopyAddressAction.INLINE_LABEL,
-	},
-	when: ContextKeyExpr.and(isForwardedOrDetectedExpr, isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 1,
-	command: {
-		id: ChangeLocalPortAction.ID,
-		title: ChangeLocalPortAction.LABEL,
-	},
-	when: ContextKeyExpr.and(isForwardedExpr, PortChangableContextKey, isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 2,
-	command: {
-		id: MakePortPublicAction.ID,
-		title: MakePortPublicAction.LABEL,
-	},
-	when: ContextKeyExpr.and(TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Private), isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 2,
-	command: {
-		id: MakePortPrivateAction.ID,
-		title: MakePortPrivateAction.LABEL,
-	},
-	when: ContextKeyExpr.and(TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public), isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 3,
-	submenu: MenuId.TunnelProtocol,
-	title: nls.localize('tunnelContext.protocolMenu', "Change Port Protocol"),
-	when: ContextKeyExpr.and(isForwardedExpr, isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '3_forward',
-	order: 0,
-	command: {
-		id: ClosePortAction.INLINE_ID,
-		title: ClosePortAction.LABEL,
-	},
-	when: TunnelCloseableContextKey
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '3_forward',
-	order: 1,
-	command: {
-		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.LABEL,
-	},
+	when: fowwawdedPowtsViewEnabwed
 }));
 
-MenuRegistry.appendMenuItem(MenuId.TunnelProtocol, ({
-	order: 0,
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '._open',
+	owda: 0,
 	command: {
-		id: SetTunnelProtocolAction.ID_HTTP,
-		title: SetTunnelProtocolAction.LABEL_HTTP,
-		toggled: TunnelProtocolContextKey.isEqualTo(TunnelProtocol.Http)
+		id: OpenPowtInBwowsewAction.ID,
+		titwe: OpenPowtInBwowsewAction.WABEW,
+	},
+	when: ContextKeyExpw.and(isFowwawdedOwDetectedExpw, isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '._open',
+	owda: 1,
+	command: {
+		id: OpenPowtInPweviewAction.ID,
+		titwe: OpenPowtInPweviewAction.WABEW,
+	},
+	when: ContextKeyExpw.and(
+		ContextKeyExpw.ow(WebContextKey.negate(), TunnewPwivacyContextKey.isEquawTo(TunnewPwivacy.Pubwic)),
+		isFowwawdedOwDetectedExpw,
+		isNotMuwtiSewectionExpw)
+}));
+// The gwoup 0_manage is used by extensions, so twy not to change it
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '0_manage',
+	owda: 1,
+	command: {
+		id: WabewTunnewAction.ID,
+		titwe: WabewTunnewAction.WABEW,
+		icon: wabewPowtIcon
+	},
+	when: ContextKeyExpw.and(isFowwawdedExpw, isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '2_wocawaddwess',
+	owda: 0,
+	command: {
+		id: CopyAddwessAction.INWINE_ID,
+		titwe: CopyAddwessAction.INWINE_WABEW,
+	},
+	when: ContextKeyExpw.and(isFowwawdedOwDetectedExpw, isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '2_wocawaddwess',
+	owda: 1,
+	command: {
+		id: ChangeWocawPowtAction.ID,
+		titwe: ChangeWocawPowtAction.WABEW,
+	},
+	when: ContextKeyExpw.and(isFowwawdedExpw, PowtChangabweContextKey, isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '2_wocawaddwess',
+	owda: 2,
+	command: {
+		id: MakePowtPubwicAction.ID,
+		titwe: MakePowtPubwicAction.WABEW,
+	},
+	when: ContextKeyExpw.and(TunnewPwivacyContextKey.isEquawTo(TunnewPwivacy.Pwivate), isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '2_wocawaddwess',
+	owda: 2,
+	command: {
+		id: MakePowtPwivateAction.ID,
+		titwe: MakePowtPwivateAction.WABEW,
+	},
+	when: ContextKeyExpw.and(TunnewPwivacyContextKey.isEquawTo(TunnewPwivacy.Pubwic), isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '2_wocawaddwess',
+	owda: 3,
+	submenu: MenuId.TunnewPwotocow,
+	titwe: nws.wocawize('tunnewContext.pwotocowMenu', "Change Powt Pwotocow"),
+	when: ContextKeyExpw.and(isFowwawdedExpw, isNotMuwtiSewectionExpw)
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '3_fowwawd',
+	owda: 0,
+	command: {
+		id: CwosePowtAction.INWINE_ID,
+		titwe: CwosePowtAction.WABEW,
+	},
+	when: TunnewCwoseabweContextKey
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewContext, ({
+	gwoup: '3_fowwawd',
+	owda: 1,
+	command: {
+		id: FowwawdPowtAction.INWINE_ID,
+		titwe: FowwawdPowtAction.WABEW,
+	},
+}));
+
+MenuWegistwy.appendMenuItem(MenuId.TunnewPwotocow, ({
+	owda: 0,
+	command: {
+		id: SetTunnewPwotocowAction.ID_HTTP,
+		titwe: SetTunnewPwotocowAction.WABEW_HTTP,
+		toggwed: TunnewPwotocowContextKey.isEquawTo(TunnewPwotocow.Http)
 	}
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelProtocol, ({
-	order: 1,
+MenuWegistwy.appendMenuItem(MenuId.TunnewPwotocow, ({
+	owda: 1,
 	command: {
-		id: SetTunnelProtocolAction.ID_HTTPS,
-		title: SetTunnelProtocolAction.LABEL_HTTPS,
-		toggled: TunnelProtocolContextKey.isEqualTo(TunnelProtocol.Https)
+		id: SetTunnewPwotocowAction.ID_HTTPS,
+		titwe: SetTunnewPwotocowAction.WABEW_HTTPS,
+		toggwed: TunnewPwotocowContextKey.isEquawTo(TunnewPwotocow.Https)
 	}
 }));
 
 
-MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
-	group: '0_manage',
-	order: 0,
+MenuWegistwy.appendMenuItem(MenuId.TunnewPowtInwine, ({
+	gwoup: '0_manage',
+	owda: 0,
 	command: {
-		id: ForwardPortAction.INLINE_ID,
-		title: ForwardPortAction.TREEITEM_LABEL,
-		icon: forwardPortIcon
+		id: FowwawdPowtAction.INWINE_ID,
+		titwe: FowwawdPowtAction.TWEEITEM_WABEW,
+		icon: fowwawdPowtIcon
 	},
-	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
+	when: TunnewTypeContextKey.isEquawTo(TunnewType.Candidate)
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
-	group: '0_manage',
-	order: 4,
+MenuWegistwy.appendMenuItem(MenuId.TunnewPowtInwine, ({
+	gwoup: '0_manage',
+	owda: 4,
 	command: {
-		id: LabelTunnelAction.ID,
-		title: LabelTunnelAction.LABEL,
-		icon: labelPortIcon
+		id: WabewTunnewAction.ID,
+		titwe: WabewTunnewAction.WABEW,
+		icon: wabewPowtIcon
 	},
-	when: isForwardedExpr
+	when: isFowwawdedExpw
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
-	group: '0_manage',
-	order: 5,
+MenuWegistwy.appendMenuItem(MenuId.TunnewPowtInwine, ({
+	gwoup: '0_manage',
+	owda: 5,
 	command: {
-		id: ClosePortAction.INLINE_ID,
-		title: ClosePortAction.LABEL,
-		icon: stopForwardIcon
+		id: CwosePowtAction.INWINE_ID,
+		titwe: CwosePowtAction.WABEW,
+		icon: stopFowwawdIcon
 	},
-	when: TunnelCloseableContextKey
-}));
-
-MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
-	order: -1,
-	command: {
-		id: CopyAddressAction.INLINE_ID,
-		title: CopyAddressAction.INLINE_LABEL,
-		icon: copyAddressIcon
-	},
-	when: isForwardedOrDetectedExpr
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
-	order: 0,
-	command: {
-		id: OpenPortInBrowserAction.ID,
-		title: OpenPortInBrowserAction.LABEL,
-		icon: openBrowserIcon
-	},
-	when: isForwardedOrDetectedExpr
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
-	order: 1,
-	command: {
-		id: OpenPortInPreviewAction.ID,
-		title: OpenPortInPreviewAction.LABEL,
-		icon: openPreviewIcon
-	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(WebContextKey.negate(), TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public)),
-		isForwardedOrDetectedExpr)
+	when: TunnewCwoseabweContextKey
 }));
 
-export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
-	light: STATUS_BAR_HOST_NAME_BACKGROUND,
-	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
-	hc: STATUS_BAR_HOST_NAME_BACKGROUND
-}, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
+MenuWegistwy.appendMenuItem(MenuId.TunnewWocawAddwessInwine, ({
+	owda: -1,
+	command: {
+		id: CopyAddwessAction.INWINE_ID,
+		titwe: CopyAddwessAction.INWINE_WABEW,
+		icon: copyAddwessIcon
+	},
+	when: isFowwawdedOwDetectedExpw
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewWocawAddwessInwine, ({
+	owda: 0,
+	command: {
+		id: OpenPowtInBwowsewAction.ID,
+		titwe: OpenPowtInBwowsewAction.WABEW,
+		icon: openBwowsewIcon
+	},
+	when: isFowwawdedOwDetectedExpw
+}));
+MenuWegistwy.appendMenuItem(MenuId.TunnewWocawAddwessInwine, ({
+	owda: 1,
+	command: {
+		id: OpenPowtInPweviewAction.ID,
+		titwe: OpenPowtInPweviewAction.WABEW,
+		icon: openPweviewIcon
+	},
+	when: ContextKeyExpw.and(
+		ContextKeyExpw.ow(WebContextKey.negate(), TunnewPwivacyContextKey.isEquawTo(TunnewPwivacy.Pubwic)),
+		isFowwawdedOwDetectedExpw)
+}));
 
-registerThemingParticipant((theme, collector) => {
-	const portWithRunningProcessColor = theme.getColor(portWithRunningProcessForeground);
-	if (portWithRunningProcessColor) {
-		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(forwardedPortWithProcessIcon)} { color: ${portWithRunningProcessColor} ; }`);
+expowt const powtWithWunningPwocessFowegwound = wegistewCowow('powts.iconWunningPwocessFowegwound', {
+	wight: STATUS_BAW_HOST_NAME_BACKGWOUND,
+	dawk: STATUS_BAW_HOST_NAME_BACKGWOUND,
+	hc: STATUS_BAW_HOST_NAME_BACKGWOUND
+}, nws.wocawize('powtWithWunningPwocess.fowegwound', "The cowow of the icon fow a powt that has an associated wunning pwocess."));
+
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const powtWithWunningPwocessCowow = theme.getCowow(powtWithWunningPwocessFowegwound);
+	if (powtWithWunningPwocessCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench ${ThemeIcon.asCSSSewectow(fowwawdedPowtWithPwocessIcon)} { cowow: ${powtWithWunningPwocessCowow} ; }`);
 	}
 
 });

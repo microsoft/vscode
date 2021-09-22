@@ -1,745 +1,745 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDimension } from 'vs/editor/common/editorCommon';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowPane, GwoupIdentifia, IEditowInputWithOptions, CwoseDiwection, IEditowPawtOptions, IEditowPawtOptionsChangeEvent, EditowsOwda, IVisibweEditowPane, IEditowCwoseEvent, IUntypedEditowInput, isEditowInput, IEditowWiwwMoveEvent, IEditowWiwwOpenEvent } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDimension } fwom 'vs/editow/common/editowCommon';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
+expowt const IEditowGwoupsSewvice = cweateDecowatow<IEditowGwoupsSewvice>('editowGwoupsSewvice');
 
-export const enum GroupDirection {
+expowt const enum GwoupDiwection {
 	UP,
 	DOWN,
-	LEFT,
-	RIGHT
+	WEFT,
+	WIGHT
 }
 
-export const enum GroupOrientation {
-	HORIZONTAL,
-	VERTICAL
+expowt const enum GwoupOwientation {
+	HOWIZONTAW,
+	VEWTICAW
 }
 
-export const enum GroupLocation {
-	FIRST,
-	LAST,
+expowt const enum GwoupWocation {
+	FIWST,
+	WAST,
 	NEXT,
-	PREVIOUS
+	PWEVIOUS
 }
 
-export interface IFindGroupScope {
-	direction?: GroupDirection;
-	location?: GroupLocation;
+expowt intewface IFindGwoupScope {
+	diwection?: GwoupDiwection;
+	wocation?: GwoupWocation;
 }
 
-export const enum GroupsArrangement {
+expowt const enum GwoupsAwwangement {
 
 	/**
-	 * Make the current active group consume the maximum
-	 * amount of space possible.
+	 * Make the cuwwent active gwoup consume the maximum
+	 * amount of space possibwe.
 	 */
-	MINIMIZE_OTHERS,
+	MINIMIZE_OTHEWS,
 
 	/**
-	 * Size all groups evenly.
+	 * Size aww gwoups evenwy.
 	 */
 	EVEN,
 
 	/**
-	 * Will behave like MINIMIZE_OTHERS if the active
-	 * group is not already maximized and EVEN otherwise
+	 * Wiww behave wike MINIMIZE_OTHEWS if the active
+	 * gwoup is not awweady maximized and EVEN othewwise
 	 */
-	TOGGLE
+	TOGGWE
 }
 
-export interface GroupLayoutArgument {
-	size?: number;
-	groups?: GroupLayoutArgument[];
+expowt intewface GwoupWayoutAwgument {
+	size?: numba;
+	gwoups?: GwoupWayoutAwgument[];
 }
 
-export interface EditorGroupLayout {
-	orientation: GroupOrientation;
-	groups: GroupLayoutArgument[];
+expowt intewface EditowGwoupWayout {
+	owientation: GwoupOwientation;
+	gwoups: GwoupWayoutAwgument[];
 }
 
-export interface IAddGroupOptions {
-	activate?: boolean;
+expowt intewface IAddGwoupOptions {
+	activate?: boowean;
 }
 
-export const enum MergeGroupMode {
-	COPY_EDITORS,
-	MOVE_EDITORS
+expowt const enum MewgeGwoupMode {
+	COPY_EDITOWS,
+	MOVE_EDITOWS
 }
 
-export interface IMergeGroupOptions {
-	mode?: MergeGroupMode;
-	index?: number;
+expowt intewface IMewgeGwoupOptions {
+	mode?: MewgeGwoupMode;
+	index?: numba;
 }
 
-export interface ICloseEditorOptions {
-	preserveFocus?: boolean;
+expowt intewface ICwoseEditowOptions {
+	pwesewveFocus?: boowean;
 }
 
-export type ICloseEditorsFilter = {
-	except?: EditorInput,
-	direction?: CloseDirection,
-	savedOnly?: boolean,
-	excludeSticky?: boolean
+expowt type ICwoseEditowsFiwta = {
+	except?: EditowInput,
+	diwection?: CwoseDiwection,
+	savedOnwy?: boowean,
+	excwudeSticky?: boowean
 };
 
-export interface ICloseAllEditorsOptions {
-	excludeSticky?: boolean;
+expowt intewface ICwoseAwwEditowsOptions {
+	excwudeSticky?: boowean;
 }
 
-export interface IEditorReplacement {
-	editor: EditorInput;
-	replacement: EditorInput;
-	options?: IEditorOptions;
+expowt intewface IEditowWepwacement {
+	editow: EditowInput;
+	wepwacement: EditowInput;
+	options?: IEditowOptions;
 
 	/**
-	 * Skips asking the user for confirmation and doesn't
-	 * save the document. Only use this if you really need to!
+	 * Skips asking the usa fow confiwmation and doesn't
+	 * save the document. Onwy use this if you weawwy need to!
 	 */
-	forceReplaceDirty?: boolean;
+	fowceWepwaceDiwty?: boowean;
 }
 
-export function isEditorReplacement(replacement: unknown): replacement is IEditorReplacement {
-	const candidate = replacement as IEditorReplacement | undefined;
+expowt function isEditowWepwacement(wepwacement: unknown): wepwacement is IEditowWepwacement {
+	const candidate = wepwacement as IEditowWepwacement | undefined;
 
-	return isEditorInput(candidate?.editor) && isEditorInput(candidate?.replacement);
+	wetuwn isEditowInput(candidate?.editow) && isEditowInput(candidate?.wepwacement);
 }
 
-export const enum GroupsOrder {
+expowt const enum GwoupsOwda {
 
 	/**
-	 * Groups sorted by creation order (oldest one first)
+	 * Gwoups sowted by cweation owda (owdest one fiwst)
 	 */
-	CREATION_TIME,
+	CWEATION_TIME,
 
 	/**
-	 * Groups sorted by most recent activity (most recent active first)
+	 * Gwoups sowted by most wecent activity (most wecent active fiwst)
 	 */
-	MOST_RECENTLY_ACTIVE,
+	MOST_WECENTWY_ACTIVE,
 
 	/**
-	 * Groups sorted by grid widget order
+	 * Gwoups sowted by gwid widget owda
 	 */
-	GRID_APPEARANCE
+	GWID_APPEAWANCE
 }
 
-export interface IEditorSideGroup {
+expowt intewface IEditowSideGwoup {
 
 	/**
-	 * Open an editor in this group.
+	 * Open an editow in this gwoup.
 	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor.
+	 * @wetuwns a pwomise that wesowves awound an IEditow instance unwess
+	 * the caww faiwed, ow the editow was not opened as active editow.
 	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
+	openEditow(editow: EditowInput, options?: IEditowOptions): Pwomise<IEditowPane | undefined>;
 }
 
-export interface IEditorGroupsService {
+expowt intewface IEditowGwoupsSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * An event for when the active editor group changes. The active editor
-	 * group is the default location for new editors to open.
+	 * An event fow when the active editow gwoup changes. The active editow
+	 * gwoup is the defauwt wocation fow new editows to open.
 	 */
-	readonly onDidChangeActiveGroup: Event<IEditorGroup>;
+	weadonwy onDidChangeActiveGwoup: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when a new group was added.
+	 * An event fow when a new gwoup was added.
 	 */
-	readonly onDidAddGroup: Event<IEditorGroup>;
+	weadonwy onDidAddGwoup: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when a group was removed.
+	 * An event fow when a gwoup was wemoved.
 	 */
-	readonly onDidRemoveGroup: Event<IEditorGroup>;
+	weadonwy onDidWemoveGwoup: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when a group was moved.
+	 * An event fow when a gwoup was moved.
 	 */
-	readonly onDidMoveGroup: Event<IEditorGroup>;
+	weadonwy onDidMoveGwoup: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when a group gets activated.
+	 * An event fow when a gwoup gets activated.
 	 */
-	readonly onDidActivateGroup: Event<IEditorGroup>;
+	weadonwy onDidActivateGwoup: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when the group container is layed out.
+	 * An event fow when the gwoup containa is wayed out.
 	 */
-	readonly onDidLayout: Event<IDimension>;
+	weadonwy onDidWayout: Event<IDimension>;
 
 	/**
-	 * An event for when the index of a group changes.
+	 * An event fow when the index of a gwoup changes.
 	 */
-	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
+	weadonwy onDidChangeGwoupIndex: Event<IEditowGwoup>;
 
 	/**
-	 * An event for when the locked state of a group changes.
+	 * An event fow when the wocked state of a gwoup changes.
 	 */
-	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
+	weadonwy onDidChangeGwoupWocked: Event<IEditowGwoup>;
 
 	/**
-	 * The size of the editor groups area.
+	 * The size of the editow gwoups awea.
 	 */
-	readonly contentDimension: IDimension;
+	weadonwy contentDimension: IDimension;
 
 	/**
-	 * An active group is the default location for new editors to open.
+	 * An active gwoup is the defauwt wocation fow new editows to open.
 	 */
-	readonly activeGroup: IEditorGroup;
+	weadonwy activeGwoup: IEditowGwoup;
 
 	/**
-	 * A side group allows a subset of methods on a group that is either
-	 * created to the side or picked if already there.
+	 * A side gwoup awwows a subset of methods on a gwoup that is eitha
+	 * cweated to the side ow picked if awweady thewe.
 	 */
-	readonly sideGroup: IEditorSideGroup;
+	weadonwy sideGwoup: IEditowSideGwoup;
 
 	/**
-	 * All groups that are currently visible in the editor area in the
-	 * order of their creation (oldest first).
+	 * Aww gwoups that awe cuwwentwy visibwe in the editow awea in the
+	 * owda of theiw cweation (owdest fiwst).
 	 */
-	readonly groups: readonly IEditorGroup[];
+	weadonwy gwoups: weadonwy IEditowGwoup[];
 
 	/**
-	 * The number of editor groups that are currently opened.
+	 * The numba of editow gwoups that awe cuwwentwy opened.
 	 */
-	readonly count: number;
+	weadonwy count: numba;
 
 	/**
-	 * The current layout orientation of the root group.
+	 * The cuwwent wayout owientation of the woot gwoup.
 	 */
-	readonly orientation: GroupOrientation;
+	weadonwy owientation: GwoupOwientation;
 
 	/**
-	 * A property that indicates when groups have been created
-	 * and are ready to be used.
+	 * A pwopewty that indicates when gwoups have been cweated
+	 * and awe weady to be used.
 	 */
-	readonly isReady: boolean;
+	weadonwy isWeady: boowean;
 
 	/**
-	 * A promise that resolves when groups have been created
-	 * and are ready to be used.
+	 * A pwomise that wesowves when gwoups have been cweated
+	 * and awe weady to be used.
 	 *
-	 * Await this promise to safely work on the editor groups model
-	 * (for example, install editor group listeners).
+	 * Await this pwomise to safewy wowk on the editow gwoups modew
+	 * (fow exampwe, instaww editow gwoup wistenews).
 	 *
-	 * Use the `whenRestored` property to await visible editors
-	 * having fully resolved.
+	 * Use the `whenWestowed` pwopewty to await visibwe editows
+	 * having fuwwy wesowved.
 	 */
-	readonly whenReady: Promise<void>;
+	weadonwy whenWeady: Pwomise<void>;
 
 	/**
-	 * A promise that resolves when groups have been restored.
+	 * A pwomise that wesowves when gwoups have been westowed.
 	 *
-	 * For groups with active editor, the promise will resolve
-	 * when the visible editor has finished to resolve.
+	 * Fow gwoups with active editow, the pwomise wiww wesowve
+	 * when the visibwe editow has finished to wesowve.
 	 *
-	 * Use the `whenReady` property to not await editors to
-	 * resolve.
+	 * Use the `whenWeady` pwopewty to not await editows to
+	 * wesowve.
 	 */
-	readonly whenRestored: Promise<void>;
+	weadonwy whenWestowed: Pwomise<void>;
 
 	/**
-	 * Find out if the editor group service has UI state to restore
-	 * from a previous session.
+	 * Find out if the editow gwoup sewvice has UI state to westowe
+	 * fwom a pwevious session.
 	 */
-	readonly hasRestorableState: boolean;
+	weadonwy hasWestowabweState: boowean;
 
 	/**
-	 * Get all groups that are currently visible in the editor area.
+	 * Get aww gwoups that awe cuwwentwy visibwe in the editow awea.
 	 *
-	 * @param order the order of the editors to use
+	 * @pawam owda the owda of the editows to use
 	 */
-	getGroups(order: GroupsOrder): readonly IEditorGroup[];
+	getGwoups(owda: GwoupsOwda): weadonwy IEditowGwoup[];
 
 	/**
-	 * Allows to convert a group identifier to a group.
+	 * Awwows to convewt a gwoup identifia to a gwoup.
 	 */
-	getGroup(identifier: GroupIdentifier): IEditorGroup | undefined;
+	getGwoup(identifia: GwoupIdentifia): IEditowGwoup | undefined;
 
 	/**
-	 * Set a group as active. An active group is the default location for new editors to open.
+	 * Set a gwoup as active. An active gwoup is the defauwt wocation fow new editows to open.
 	 */
-	activateGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
+	activateGwoup(gwoup: IEditowGwoup | GwoupIdentifia): IEditowGwoup;
 
 	/**
-	 * Returns the size of a group.
+	 * Wetuwns the size of a gwoup.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
+	getSize(gwoup: IEditowGwoup | GwoupIdentifia): { width: numba, height: numba };
 
 	/**
-	 * Sets the size of a group.
+	 * Sets the size of a gwoup.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
+	setSize(gwoup: IEditowGwoup | GwoupIdentifia, size: { width: numba, height: numba }): void;
 
 	/**
-	 * Arrange all groups according to the provided arrangement.
+	 * Awwange aww gwoups accowding to the pwovided awwangement.
 	 */
-	arrangeGroups(arrangement: GroupsArrangement): void;
+	awwangeGwoups(awwangement: GwoupsAwwangement): void;
 
 	/**
-	 * Applies the provided layout by either moving existing groups or creating new groups.
+	 * Appwies the pwovided wayout by eitha moving existing gwoups ow cweating new gwoups.
 	 */
-	applyLayout(layout: EditorGroupLayout): void;
+	appwyWayout(wayout: EditowGwoupWayout): void;
 
 	/**
-	 * Enable or disable centered editor layout.
+	 * Enabwe ow disabwe centewed editow wayout.
 	 */
-	centerLayout(active: boolean): void;
+	centewWayout(active: boowean): void;
 
 	/**
-	 * Find out if the editor layout is currently centered.
+	 * Find out if the editow wayout is cuwwentwy centewed.
 	 */
-	isLayoutCentered(): boolean;
+	isWayoutCentewed(): boowean;
 
 	/**
-	 * Sets the orientation of the root group to be either vertical or horizontal.
+	 * Sets the owientation of the woot gwoup to be eitha vewticaw ow howizontaw.
 	 */
-	setGroupOrientation(orientation: GroupOrientation): void;
+	setGwoupOwientation(owientation: GwoupOwientation): void;
 
 	/**
-	 * Find a groupd in a specific scope:
-	 * * `GroupLocation.FIRST`: the first group
-	 * * `GroupLocation.LAST`: the last group
-	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`
-	 * * `GroupLocation.PREVIOUS`: the previous group from either the active one or `source`
-	 * * `GroupDirection.UP`: the next group above the active one or `source`
-	 * * `GroupDirection.DOWN`: the next group below the active one or `source`
-	 * * `GroupDirection.LEFT`: the next group to the left of the active one or `source`
-	 * * `GroupDirection.RIGHT`: the next group to the right of the active one or `source`
+	 * Find a gwoupd in a specific scope:
+	 * * `GwoupWocation.FIWST`: the fiwst gwoup
+	 * * `GwoupWocation.WAST`: the wast gwoup
+	 * * `GwoupWocation.NEXT`: the next gwoup fwom eitha the active one ow `souwce`
+	 * * `GwoupWocation.PWEVIOUS`: the pwevious gwoup fwom eitha the active one ow `souwce`
+	 * * `GwoupDiwection.UP`: the next gwoup above the active one ow `souwce`
+	 * * `GwoupDiwection.DOWN`: the next gwoup bewow the active one ow `souwce`
+	 * * `GwoupDiwection.WEFT`: the next gwoup to the weft of the active one ow `souwce`
+	 * * `GwoupDiwection.WIGHT`: the next gwoup to the wight of the active one ow `souwce`
 	 *
-	 * @param scope the scope of the group to search in
-	 * @param source optional source to search from
-	 * @param wrap optionally wrap around if reaching the edge of groups
+	 * @pawam scope the scope of the gwoup to seawch in
+	 * @pawam souwce optionaw souwce to seawch fwom
+	 * @pawam wwap optionawwy wwap awound if weaching the edge of gwoups
 	 */
-	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier, wrap?: boolean): IEditorGroup | undefined;
+	findGwoup(scope: IFindGwoupScope, souwce?: IEditowGwoup | GwoupIdentifia, wwap?: boowean): IEditowGwoup | undefined;
 
 	/**
-	 * Add a new group to the editor area. A new group is added by splitting a provided one in
-	 * one of the four directions.
+	 * Add a new gwoup to the editow awea. A new gwoup is added by spwitting a pwovided one in
+	 * one of the fouw diwections.
 	 *
-	 * @param location the group from which to split to add a new group
-	 * @param direction the direction of where to split to
-	 * @param options configure the newly group with options
+	 * @pawam wocation the gwoup fwom which to spwit to add a new gwoup
+	 * @pawam diwection the diwection of whewe to spwit to
+	 * @pawam options configuwe the newwy gwoup with options
 	 */
-	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup;
+	addGwoup(wocation: IEditowGwoup | GwoupIdentifia, diwection: GwoupDiwection, options?: IAddGwoupOptions): IEditowGwoup;
 
 	/**
-	 * Remove a group from the editor area.
+	 * Wemove a gwoup fwom the editow awea.
 	 */
-	removeGroup(group: IEditorGroup | GroupIdentifier): void;
+	wemoveGwoup(gwoup: IEditowGwoup | GwoupIdentifia): void;
 
 	/**
-	 * Move a group to a new group in the editor area.
+	 * Move a gwoup to a new gwoup in the editow awea.
 	 *
-	 * @param group the group to move
-	 * @param location the group from which to split to add the moved group
-	 * @param direction the direction of where to split to
+	 * @pawam gwoup the gwoup to move
+	 * @pawam wocation the gwoup fwom which to spwit to add the moved gwoup
+	 * @pawam diwection the diwection of whewe to spwit to
 	 */
-	moveGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
+	moveGwoup(gwoup: IEditowGwoup | GwoupIdentifia, wocation: IEditowGwoup | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoup;
 
 	/**
-	 * Merge the editors of a group into a target group. By default, all editors will
-	 * move and the source group will close. This behaviour can be configured via the
-	 * `IMergeGroupOptions` options.
+	 * Mewge the editows of a gwoup into a tawget gwoup. By defauwt, aww editows wiww
+	 * move and the souwce gwoup wiww cwose. This behaviouw can be configuwed via the
+	 * `IMewgeGwoupOptions` options.
 	 *
-	 * @param group the group to merge
-	 * @param target the target group to merge into
-	 * @param options controls how the merge should be performed. by default all editors
-	 * will be moved over to the target and the source group will close. Configure to
-	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
-	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
+	 * @pawam gwoup the gwoup to mewge
+	 * @pawam tawget the tawget gwoup to mewge into
+	 * @pawam options contwows how the mewge shouwd be pewfowmed. by defauwt aww editows
+	 * wiww be moved ova to the tawget and the souwce gwoup wiww cwose. Configuwe to
+	 * `MOVE_EDITOWS_KEEP_GWOUP` to pwevent the souwce gwoup fwom cwosing. Set to
+	 * `COPY_EDITOWS` to copy the editows into the tawget instead of moding them.
 	 */
-	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
+	mewgeGwoup(gwoup: IEditowGwoup | GwoupIdentifia, tawget: IEditowGwoup | GwoupIdentifia, options?: IMewgeGwoupOptions): IEditowGwoup;
 
 	/**
-	 * Merge all editor groups into the active one.
+	 * Mewge aww editow gwoups into the active one.
 	 */
-	mergeAllGroups(): IEditorGroup;
+	mewgeAwwGwoups(): IEditowGwoup;
 
 	/**
-	 * Copy a group to a new group in the editor area.
+	 * Copy a gwoup to a new gwoup in the editow awea.
 	 *
-	 * @param group the group to copy
-	 * @param location the group from which to split to add the copied group
-	 * @param direction the direction of where to split to
+	 * @pawam gwoup the gwoup to copy
+	 * @pawam wocation the gwoup fwom which to spwit to add the copied gwoup
+	 * @pawam diwection the diwection of whewe to spwit to
 	 */
-	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
+	copyGwoup(gwoup: IEditowGwoup | GwoupIdentifia, wocation: IEditowGwoup | GwoupIdentifia, diwection: GwoupDiwection): IEditowGwoup;
 
 	/**
-	 * Access the options of the editor part.
+	 * Access the options of the editow pawt.
 	 */
-	readonly partOptions: IEditorPartOptions;
+	weadonwy pawtOptions: IEditowPawtOptions;
 
 	/**
-	 * An event that notifies when editor part options change.
+	 * An event that notifies when editow pawt options change.
 	 */
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
+	weadonwy onDidChangeEditowPawtOptions: Event<IEditowPawtOptionsChangeEvent>;
 
 	/**
-	 * Enforce editor part options temporarily.
+	 * Enfowce editow pawt options tempowawiwy.
 	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+	enfowcePawtOptions(options: IEditowPawtOptions): IDisposabwe;
 }
 
-export const enum GroupChangeKind {
+expowt const enum GwoupChangeKind {
 
-	/* Group Changes */
-	GROUP_ACTIVE,
-	GROUP_INDEX,
-	GROUP_LOCKED,
+	/* Gwoup Changes */
+	GWOUP_ACTIVE,
+	GWOUP_INDEX,
+	GWOUP_WOCKED,
 
-	/* Editor Changes */
-	EDITOR_OPEN,
-	EDITOR_CLOSE,
-	EDITOR_MOVE,
-	EDITOR_ACTIVE,
-	EDITOR_LABEL,
-	EDITOR_CAPABILITIES,
-	EDITOR_PIN,
-	EDITOR_STICKY,
-	EDITOR_DIRTY
+	/* Editow Changes */
+	EDITOW_OPEN,
+	EDITOW_CWOSE,
+	EDITOW_MOVE,
+	EDITOW_ACTIVE,
+	EDITOW_WABEW,
+	EDITOW_CAPABIWITIES,
+	EDITOW_PIN,
+	EDITOW_STICKY,
+	EDITOW_DIWTY
 }
 
-export interface IGroupChangeEvent {
+expowt intewface IGwoupChangeEvent {
 
 	/**
-	 * The kind of change that occured in the group.
+	 * The kind of change that occuwed in the gwoup.
 	 */
-	kind: GroupChangeKind;
+	kind: GwoupChangeKind;
 
 	/**
-	 * Only applies when editors change providing
-	 * access to the editor the event is about.
+	 * Onwy appwies when editows change pwoviding
+	 * access to the editow the event is about.
 	 */
-	editor?: EditorInput;
+	editow?: EditowInput;
 
 	/**
-	 * Only applies when an editor opens, closes
-	 * or is moved. Identifies the index of the
-	 * editor in the group.
+	 * Onwy appwies when an editow opens, cwoses
+	 * ow is moved. Identifies the index of the
+	 * editow in the gwoup.
 	 */
-	editorIndex?: number;
+	editowIndex?: numba;
 
 	/**
-	 * For `EDITOR_MOVE` only: Signifies the index the
-	 * editor is moving from. `editorIndex` will contain
-	 * the index the editor is moving to.
+	 * Fow `EDITOW_MOVE` onwy: Signifies the index the
+	 * editow is moving fwom. `editowIndex` wiww contain
+	 * the index the editow is moving to.
 	 */
-	oldEditorIndex?: number;
+	owdEditowIndex?: numba;
 }
 
-export const enum OpenEditorContext {
-	NEW_EDITOR = 1,
-	MOVE_EDITOR = 2,
-	COPY_EDITOR = 3
+expowt const enum OpenEditowContext {
+	NEW_EDITOW = 1,
+	MOVE_EDITOW = 2,
+	COPY_EDITOW = 3
 }
 
-export interface IEditorGroup {
+expowt intewface IEditowGwoup {
 
 	/**
-	 * An aggregated event for when the group changes in any way.
+	 * An aggwegated event fow when the gwoup changes in any way.
 	 */
-	readonly onDidGroupChange: Event<IGroupChangeEvent>;
+	weadonwy onDidGwoupChange: Event<IGwoupChangeEvent>;
 
 	/**
-	 * An event that is fired when the group gets disposed.
+	 * An event that is fiwed when the gwoup gets disposed.
 	 */
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
 	/**
-	 * An event that is fired when an editor is about to close.
+	 * An event that is fiwed when an editow is about to cwose.
 	 */
-	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+	weadonwy onWiwwCwoseEditow: Event<IEditowCwoseEvent>;
 
 	/**
-	 * An event that is fired when an editor is about to move to
-	 * a different group.
+	 * An event that is fiwed when an editow is about to move to
+	 * a diffewent gwoup.
 	 */
-	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
+	weadonwy onWiwwMoveEditow: Event<IEditowWiwwMoveEvent>;
 
 	/**
-	 * An event that is fired when an editor is about to be opened
-	 * in the group.
+	 * An event that is fiwed when an editow is about to be opened
+	 * in the gwoup.
 	 */
-	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
+	weadonwy onWiwwOpenEditow: Event<IEditowWiwwOpenEvent>;
 
 	/**
-	 * A unique identifier of this group that remains identical even if the
-	 * group is moved to different locations.
+	 * A unique identifia of this gwoup that wemains identicaw even if the
+	 * gwoup is moved to diffewent wocations.
 	 */
-	readonly id: GroupIdentifier;
+	weadonwy id: GwoupIdentifia;
 
 	/**
-	 * A number that indicates the position of this group in the visual
-	 * order of groups from left to right and top to bottom. The lowest
-	 * index will likely be top-left while the largest index in most
-	 * cases should be bottom-right, but that depends on the grid.
+	 * A numba that indicates the position of this gwoup in the visuaw
+	 * owda of gwoups fwom weft to wight and top to bottom. The wowest
+	 * index wiww wikewy be top-weft whiwe the wawgest index in most
+	 * cases shouwd be bottom-wight, but that depends on the gwid.
 	 */
-	readonly index: number;
+	weadonwy index: numba;
 
 	/**
-	 * A human readable label for the group. This label can change depending
-	 * on the layout of all editor groups. Clients should listen on the
-	 * `onDidGroupChange` event to react to that.
+	 * A human weadabwe wabew fow the gwoup. This wabew can change depending
+	 * on the wayout of aww editow gwoups. Cwients shouwd wisten on the
+	 * `onDidGwoupChange` event to weact to that.
 	 */
-	readonly label: string;
+	weadonwy wabew: stwing;
 
 	/**
-	 * A human readable label for the group to be used by screen readers.
+	 * A human weadabwe wabew fow the gwoup to be used by scween weadews.
 	 */
-	readonly ariaLabel: string;
+	weadonwy awiaWabew: stwing;
 
 	/**
-	 * The active editor pane is the currently visible editor pane of the group.
+	 * The active editow pane is the cuwwentwy visibwe editow pane of the gwoup.
 	 */
-	readonly activeEditorPane: IVisibleEditorPane | undefined;
+	weadonwy activeEditowPane: IVisibweEditowPane | undefined;
 
 	/**
-	 * The active editor is the currently visible editor of the group
-	 * within the current active editor pane.
+	 * The active editow is the cuwwentwy visibwe editow of the gwoup
+	 * within the cuwwent active editow pane.
 	 */
-	readonly activeEditor: EditorInput | null;
+	weadonwy activeEditow: EditowInput | nuww;
 
 	/**
-	 * The editor in the group that is in preview mode if any. There can
-	 * only ever be one editor in preview mode.
+	 * The editow in the gwoup that is in pweview mode if any. Thewe can
+	 * onwy eva be one editow in pweview mode.
 	 */
-	readonly previewEditor: EditorInput | null;
+	weadonwy pweviewEditow: EditowInput | nuww;
 
 	/**
-	 * The number of opened editors in this group.
+	 * The numba of opened editows in this gwoup.
 	 */
-	readonly count: number;
+	weadonwy count: numba;
 
 	/**
-	 * Whether the group has editors or not.
+	 * Whetha the gwoup has editows ow not.
 	 */
-	readonly isEmpty: boolean;
+	weadonwy isEmpty: boowean;
 
 	/**
-	 * Whether this editor group is locked or not. Locked editor groups
-	 * will only be considered for editors to open in when the group is
-	 * explicitly provided for the editor.
+	 * Whetha this editow gwoup is wocked ow not. Wocked editow gwoups
+	 * wiww onwy be considewed fow editows to open in when the gwoup is
+	 * expwicitwy pwovided fow the editow.
 	 *
-	 * Note: editor group locking only applies when more than one group
+	 * Note: editow gwoup wocking onwy appwies when mowe than one gwoup
 	 * is opened.
 	 */
-	readonly isLocked: boolean;
+	weadonwy isWocked: boowean;
 
 	/**
-	 * The number of sticky editors in this group.
+	 * The numba of sticky editows in this gwoup.
 	 */
-	readonly stickyCount: number;
+	weadonwy stickyCount: numba;
 
 	/**
-	 * All opened editors in the group in sequential order of their appearance.
+	 * Aww opened editows in the gwoup in sequentiaw owda of theiw appeawance.
 	 */
-	readonly editors: readonly EditorInput[];
+	weadonwy editows: weadonwy EditowInput[];
 
 	/**
-	 * The scoped context key service for this group.
+	 * The scoped context key sewvice fow this gwoup.
 	 */
-	readonly scopedContextKeyService: IContextKeyService;
+	weadonwy scopedContextKeySewvice: IContextKeySewvice;
 
 	/**
-	 * Get all editors that are currently opened in the group.
+	 * Get aww editows that awe cuwwentwy opened in the gwoup.
 	 *
-	 * @param order the order of the editors to use
-	 * @param options options to select only specific editors as instructed
+	 * @pawam owda the owda of the editows to use
+	 * @pawam options options to sewect onwy specific editows as instwucted
 	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
+	getEditows(owda: EditowsOwda, options?: { excwudeSticky?: boowean }): weadonwy EditowInput[];
 
 	/**
-	 * Finds all editors for the given resource that are currently
-	 * opened in the group. This method will return an entry for
-	 * each editor that reports a `resource` that matches the
-	 * provided one.
+	 * Finds aww editows fow the given wesouwce that awe cuwwentwy
+	 * opened in the gwoup. This method wiww wetuwn an entwy fow
+	 * each editow that wepowts a `wesouwce` that matches the
+	 * pwovided one.
 	 *
-	 * @param resource The resource of the editor to find
+	 * @pawam wesouwce The wesouwce of the editow to find
 	 */
-	findEditors(resource: URI): readonly EditorInput[];
+	findEditows(wesouwce: UWI): weadonwy EditowInput[];
 
 	/**
-	 * Returns the editor at a specific index of the group.
+	 * Wetuwns the editow at a specific index of the gwoup.
 	 */
-	getEditorByIndex(index: number): EditorInput | undefined;
+	getEditowByIndex(index: numba): EditowInput | undefined;
 
 	/**
-	 * Returns the index of the editor in the group or -1 if not opened.
+	 * Wetuwns the index of the editow in the gwoup ow -1 if not opened.
 	 */
-	getIndexOfEditor(editor: EditorInput): number;
+	getIndexOfEditow(editow: EditowInput): numba;
 
 	/**
-	 * Open an editor in this group.
+	 * Open an editow in this gwoup.
 	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor.
+	 * @wetuwns a pwomise that wesowves awound an IEditow instance unwess
+	 * the caww faiwed, ow the editow was not opened as active editow.
 	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
+	openEditow(editow: EditowInput, options?: IEditowOptions): Pwomise<IEditowPane | undefined>;
 
 	/**
-	 * Opens editors in this group.
+	 * Opens editows in this gwoup.
 	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor. Since
-	 * a group can only ever have one active editor, even if many editors are
-	 * opened, the result will only be one editor.
+	 * @wetuwns a pwomise that wesowves awound an IEditow instance unwess
+	 * the caww faiwed, ow the editow was not opened as active editow. Since
+	 * a gwoup can onwy eva have one active editow, even if many editows awe
+	 * opened, the wesuwt wiww onwy be one editow.
 	 */
-	openEditors(editors: IEditorInputWithOptions[]): Promise<IEditorPane | null>;
+	openEditows(editows: IEditowInputWithOptions[]): Pwomise<IEditowPane | nuww>;
 
 	/**
-	 * Find out if the provided editor is pinned in the group.
+	 * Find out if the pwovided editow is pinned in the gwoup.
 	 */
-	isPinned(editor: EditorInput): boolean;
+	isPinned(editow: EditowInput): boowean;
 
 	/**
-	 * Find out if the provided editor or index of editor is sticky in the group.
+	 * Find out if the pwovided editow ow index of editow is sticky in the gwoup.
 	 */
-	isSticky(editorOrIndex: EditorInput | number): boolean;
+	isSticky(editowOwIndex: EditowInput | numba): boowean;
 
 	/**
-	 * Find out if the provided editor is active in the group.
+	 * Find out if the pwovided editow is active in the gwoup.
 	 */
-	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
+	isActive(editow: EditowInput | IUntypedEditowInput): boowean;
 
 	/**
-	 * Find out if a certain editor is included in the group.
+	 * Find out if a cewtain editow is incwuded in the gwoup.
 	 *
-	 * @param candidate the editor to find
+	 * @pawam candidate the editow to find
 	 */
-	contains(candidate: EditorInput | IUntypedEditorInput): boolean;
+	contains(candidate: EditowInput | IUntypedEditowInput): boowean;
 
 	/**
-	 * Move an editor from this group either within this group or to another group.
+	 * Move an editow fwom this gwoup eitha within this gwoup ow to anotha gwoup.
 	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	moveEditow(editow: EditowInput, tawget: IEditowGwoup, options?: IEditowOptions): void;
 
 	/**
-	 * Move editors from this group either within this group or to another group.
+	 * Move editows fwom this gwoup eitha within this gwoup ow to anotha gwoup.
 	 */
-	moveEditors(editors: IEditorInputWithOptions[], target: IEditorGroup): void;
+	moveEditows(editows: IEditowInputWithOptions[], tawget: IEditowGwoup): void;
 
 	/**
-	 * Copy an editor from this group to another group.
+	 * Copy an editow fwom this gwoup to anotha gwoup.
 	 *
-	 * Note: It is currently not supported to show the same editor more than once in the same group.
+	 * Note: It is cuwwentwy not suppowted to show the same editow mowe than once in the same gwoup.
 	 */
-	copyEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+	copyEditow(editow: EditowInput, tawget: IEditowGwoup, options?: IEditowOptions): void;
 
 	/**
-	 * Copy editors from this group to another group.
+	 * Copy editows fwom this gwoup to anotha gwoup.
 	 *
-	 * Note: It is currently not supported to show the same editor more than once in the same group.
+	 * Note: It is cuwwentwy not suppowted to show the same editow mowe than once in the same gwoup.
 	 */
-	copyEditors(editors: IEditorInputWithOptions[], target: IEditorGroup): void;
+	copyEditows(editows: IEditowInputWithOptions[], tawget: IEditowGwoup): void;
 
 	/**
-	 * Close an editor from the group. This may trigger a confirmation dialog if
-	 * the editor is dirty and thus returns a promise as value.
+	 * Cwose an editow fwom the gwoup. This may twigga a confiwmation diawog if
+	 * the editow is diwty and thus wetuwns a pwomise as vawue.
 	 *
-	 * @param editor the editor to close, or the currently active editor
+	 * @pawam editow the editow to cwose, ow the cuwwentwy active editow
 	 * if unspecified.
 	 *
-	 * @returns a promise when the editor is closed.
+	 * @wetuwns a pwomise when the editow is cwosed.
 	 */
-	closeEditor(editor?: EditorInput, options?: ICloseEditorOptions): Promise<void>;
+	cwoseEditow(editow?: EditowInput, options?: ICwoseEditowOptions): Pwomise<void>;
 
 	/**
-	 * Closes specific editors in this group. This may trigger a confirmation dialog if
-	 * there are dirty editors and thus returns a promise as value.
+	 * Cwoses specific editows in this gwoup. This may twigga a confiwmation diawog if
+	 * thewe awe diwty editows and thus wetuwns a pwomise as vawue.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @wetuwns a pwomise when aww editows awe cwosed.
 	 */
-	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void>;
+	cwoseEditows(editows: EditowInput[] | ICwoseEditowsFiwta, options?: ICwoseEditowOptions): Pwomise<void>;
 
 	/**
-	 * Closes all editors from the group. This may trigger a confirmation dialog if
-	 * there are dirty editors and thus returns a promise as value.
+	 * Cwoses aww editows fwom the gwoup. This may twigga a confiwmation diawog if
+	 * thewe awe diwty editows and thus wetuwns a pwomise as vawue.
 	 *
-	 * @returns a promise when all editors are closed.
+	 * @wetuwns a pwomise when aww editows awe cwosed.
 	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void>;
+	cwoseAwwEditows(options?: ICwoseAwwEditowsOptions): Pwomise<void>;
 
 	/**
-	 * Replaces editors in this group with the provided replacement.
+	 * Wepwaces editows in this gwoup with the pwovided wepwacement.
 	 *
-	 * @param editors the editors to replace
+	 * @pawam editows the editows to wepwace
 	 *
-	 * @returns a promise that is resolved when the replaced active
-	 * editor (if any) has finished loading.
+	 * @wetuwns a pwomise that is wesowved when the wepwaced active
+	 * editow (if any) has finished woading.
 	 */
-	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
+	wepwaceEditows(editows: IEditowWepwacement[]): Pwomise<void>;
 
 	/**
-	 * Set an editor to be pinned. A pinned editor is not replaced
-	 * when another editor opens at the same location.
+	 * Set an editow to be pinned. A pinned editow is not wepwaced
+	 * when anotha editow opens at the same wocation.
 	 *
-	 * @param editor the editor to pin, or the currently active editor
+	 * @pawam editow the editow to pin, ow the cuwwentwy active editow
 	 * if unspecified.
 	 */
-	pinEditor(editor?: EditorInput): void;
+	pinEditow(editow?: EditowInput): void;
 
 	/**
-	 * Set an editor to be sticky. A sticky editor is showing in the beginning
-	 * of the tab stripe and will not be impacted by close operations.
+	 * Set an editow to be sticky. A sticky editow is showing in the beginning
+	 * of the tab stwipe and wiww not be impacted by cwose opewations.
 	 *
-	 * @param editor the editor to make sticky, or the currently active editor
+	 * @pawam editow the editow to make sticky, ow the cuwwentwy active editow
 	 * if unspecified.
 	 */
-	stickEditor(editor?: EditorInput): void;
+	stickEditow(editow?: EditowInput): void;
 
 	/**
-	 * Set an editor to be non-sticky and thus moves back to a location after
-	 * sticky editors and can be closed normally.
+	 * Set an editow to be non-sticky and thus moves back to a wocation afta
+	 * sticky editows and can be cwosed nowmawwy.
 	 *
-	 * @param editor the editor to make unsticky, or the currently active editor
+	 * @pawam editow the editow to make unsticky, ow the cuwwentwy active editow
 	 * if unspecified.
 	 */
-	unstickEditor(editor?: EditorInput): void;
+	unstickEditow(editow?: EditowInput): void;
 
 	/**
-	 * Whether this editor group should be locked or not.
+	 * Whetha this editow gwoup shouwd be wocked ow not.
 	 *
-	 * See {@linkcode IEditorGroup.isLocked `isLocked`}
+	 * See {@winkcode IEditowGwoup.isWocked `isWocked`}
 	 */
-	lock(locked: boolean): void;
+	wock(wocked: boowean): void;
 
 	/**
-	 * Move keyboard focus into the group.
+	 * Move keyboawd focus into the gwoup.
 	 */
 	focus(): void;
 }
 
-export function isEditorGroup(obj: unknown): obj is IEditorGroup {
-	const group = obj as IEditorGroup | undefined;
+expowt function isEditowGwoup(obj: unknown): obj is IEditowGwoup {
+	const gwoup = obj as IEditowGwoup | undefined;
 
-	return !!group && typeof group.id === 'number' && Array.isArray(group.editors);
+	wetuwn !!gwoup && typeof gwoup.id === 'numba' && Awway.isAwway(gwoup.editows);
 }
 
-//#region Editor Group Helpers
+//#wegion Editow Gwoup Hewpews
 
-export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
-	const openSideBySideDirection = configurationService.getValue('workbench.editor.openSideBySideDirection');
+expowt function pwefewwedSideBySideGwoupDiwection(configuwationSewvice: IConfiguwationSewvice): GwoupDiwection.DOWN | GwoupDiwection.WIGHT {
+	const openSideBySideDiwection = configuwationSewvice.getVawue('wowkbench.editow.openSideBySideDiwection');
 
-	if (openSideBySideDirection === 'down') {
-		return GroupDirection.DOWN;
+	if (openSideBySideDiwection === 'down') {
+		wetuwn GwoupDiwection.DOWN;
 	}
 
-	return GroupDirection.RIGHT;
+	wetuwn GwoupDiwection.WIGHT;
 }
 
-//#endregion
+//#endwegion

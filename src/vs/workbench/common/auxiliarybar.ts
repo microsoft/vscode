@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
-export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
-export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
+expowt const ActiveAuxiwiawyContext = new WawContextKey<stwing>('activeAuxiwiawy', '', wocawize('activeAuxiwiawy', "The identifia of the active auxiwiawy panew"));
+expowt const AuxiwiawyBawFocusContext = new WawContextKey<boowean>('auxiwiawyBawFocus', fawse, wocawize('auxiwiawyBawFocus', "Whetha the auxiwiawy baw has keyboawd focus"));
+expowt const AuxiwiawyBawVisibweContext = new WawContextKey<boowean>('auxiwiawyBawVisibwe', fawse, wocawize('auxiwiawyBawVisibwe', "Whetha the auxiwiawy baw is visibwe"));

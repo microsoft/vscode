@@ -1,119 +1,119 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from 'path';
-import {
-	CancellationToken, commands, ExtensionContext,
-	Hover, HoverProvider, MarkdownString, Position, ProviderResult,
+impowt { diwname } fwom 'path';
+impowt {
+	CancewwationToken, commands, ExtensionContext,
+	Hova, HovewPwovida, MawkdownStwing, Position, PwovidewWesuwt,
 	tasks, TextDocument,
-	Uri, workspace
-} from 'vscode';
-import * as nls from 'vscode-nls';
-import { INpmScriptInfo, readScripts } from './readScripts';
-import {
-	createTask,
-	getPackageManager, startDebugging
-} from './tasks';
+	Uwi, wowkspace
+} fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { INpmScwiptInfo, weadScwipts } fwom './weadScwipts';
+impowt {
+	cweateTask,
+	getPackageManaga, stawtDebugging
+} fwom './tasks';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-let cachedDocument: Uri | undefined = undefined;
-let cachedScripts: INpmScriptInfo | undefined = undefined;
+wet cachedDocument: Uwi | undefined = undefined;
+wet cachedScwipts: INpmScwiptInfo | undefined = undefined;
 
-export function invalidateHoverScriptsCache(document?: TextDocument) {
+expowt function invawidateHovewScwiptsCache(document?: TextDocument) {
 	if (!document) {
 		cachedDocument = undefined;
-		return;
+		wetuwn;
 	}
-	if (document.uri === cachedDocument) {
+	if (document.uwi === cachedDocument) {
 		cachedDocument = undefined;
 	}
 }
 
-export class NpmScriptHoverProvider implements HoverProvider {
+expowt cwass NpmScwiptHovewPwovida impwements HovewPwovida {
 
-	constructor(private context: ExtensionContext) {
-		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
-		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
-		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
-			invalidateHoverScriptsCache(e.document);
+	constwuctow(pwivate context: ExtensionContext) {
+		context.subscwiptions.push(commands.wegistewCommand('npm.wunScwiptFwomHova', this.wunScwiptFwomHova, this));
+		context.subscwiptions.push(commands.wegistewCommand('npm.debugScwiptFwomHova', this.debugScwiptFwomHova, this));
+		context.subscwiptions.push(wowkspace.onDidChangeTextDocument((e) => {
+			invawidateHovewScwiptsCache(e.document);
 		}));
 	}
 
-	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
-		let hover: Hover | undefined = undefined;
+	pubwic pwovideHova(document: TextDocument, position: Position, _token: CancewwationToken): PwovidewWesuwt<Hova> {
+		wet hova: Hova | undefined = undefined;
 
-		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
-			cachedScripts = readScripts(document);
-			cachedDocument = document.uri;
+		if (!cachedDocument || cachedDocument.fsPath !== document.uwi.fsPath) {
+			cachedScwipts = weadScwipts(document);
+			cachedDocument = document.uwi;
 		}
 
-		cachedScripts?.scripts.forEach(({ name, nameRange }) => {
-			if (nameRange.contains(position)) {
-				let contents: MarkdownString = new MarkdownString();
-				contents.isTrusted = true;
-				contents.appendMarkdown(this.createRunScriptMarkdown(name, document.uri));
-				contents.appendMarkdown(this.createDebugScriptMarkdown(name, document.uri));
-				hover = new Hover(contents);
+		cachedScwipts?.scwipts.fowEach(({ name, nameWange }) => {
+			if (nameWange.contains(position)) {
+				wet contents: MawkdownStwing = new MawkdownStwing();
+				contents.isTwusted = twue;
+				contents.appendMawkdown(this.cweateWunScwiptMawkdown(name, document.uwi));
+				contents.appendMawkdown(this.cweateDebugScwiptMawkdown(name, document.uwi));
+				hova = new Hova(contents);
 			}
 		});
-		return hover;
+		wetuwn hova;
 	}
 
-	private createRunScriptMarkdown(script: string, documentUri: Uri): string {
-		let args = {
-			documentUri: documentUri,
-			script: script,
+	pwivate cweateWunScwiptMawkdown(scwipt: stwing, documentUwi: Uwi): stwing {
+		wet awgs = {
+			documentUwi: documentUwi,
+			scwipt: scwipt,
 		};
-		return this.createMarkdownLink(
-			localize('runScript', 'Run Script'),
-			'npm.runScriptFromHover',
-			args,
-			localize('runScript.tooltip', 'Run the script as a task')
+		wetuwn this.cweateMawkdownWink(
+			wocawize('wunScwipt', 'Wun Scwipt'),
+			'npm.wunScwiptFwomHova',
+			awgs,
+			wocawize('wunScwipt.toowtip', 'Wun the scwipt as a task')
 		);
 	}
 
-	private createDebugScriptMarkdown(script: string, documentUri: Uri): string {
-		const args = {
-			documentUri: documentUri,
-			script: script,
+	pwivate cweateDebugScwiptMawkdown(scwipt: stwing, documentUwi: Uwi): stwing {
+		const awgs = {
+			documentUwi: documentUwi,
+			scwipt: scwipt,
 		};
-		return this.createMarkdownLink(
-			localize('debugScript', 'Debug Script'),
-			'npm.debugScriptFromHover',
-			args,
-			localize('debugScript.tooltip', 'Runs the script under the debugger'),
+		wetuwn this.cweateMawkdownWink(
+			wocawize('debugScwipt', 'Debug Scwipt'),
+			'npm.debugScwiptFwomHova',
+			awgs,
+			wocawize('debugScwipt.toowtip', 'Wuns the scwipt unda the debugga'),
 			'|'
 		);
 	}
 
-	private createMarkdownLink(label: string, cmd: string, args: any, tooltip: string, separator?: string): string {
-		let encodedArgs = encodeURIComponent(JSON.stringify(args));
-		let prefix = '';
-		if (separator) {
-			prefix = ` ${separator} `;
+	pwivate cweateMawkdownWink(wabew: stwing, cmd: stwing, awgs: any, toowtip: stwing, sepawatow?: stwing): stwing {
+		wet encodedAwgs = encodeUWIComponent(JSON.stwingify(awgs));
+		wet pwefix = '';
+		if (sepawatow) {
+			pwefix = ` ${sepawatow} `;
 		}
-		return `${prefix}[${label}](command:${cmd}?${encodedArgs} "${tooltip}")`;
+		wetuwn `${pwefix}[${wabew}](command:${cmd}?${encodedAwgs} "${toowtip}")`;
 	}
 
-	public async runScriptFromHover(args: any) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
-		if (folder) {
-			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
+	pubwic async wunScwiptFwomHova(awgs: any) {
+		wet scwipt = awgs.scwipt;
+		wet documentUwi = awgs.documentUwi;
+		wet fowda = wowkspace.getWowkspaceFowda(documentUwi);
+		if (fowda) {
+			wet task = await cweateTask(await getPackageManaga(this.context, fowda.uwi), scwipt, ['wun', scwipt], fowda, documentUwi);
 			await tasks.executeTask(task);
 		}
 	}
 
-	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
-		let script = args.script;
-		let documentUri = args.documentUri;
-		let folder = workspace.getWorkspaceFolder(documentUri);
-		if (folder) {
-			startDebugging(this.context, script, dirname(documentUri.fsPath), folder);
+	pubwic debugScwiptFwomHova(awgs: { scwipt: stwing; documentUwi: Uwi }) {
+		wet scwipt = awgs.scwipt;
+		wet documentUwi = awgs.documentUwi;
+		wet fowda = wowkspace.getWowkspaceFowda(documentUwi);
+		if (fowda) {
+			stawtDebugging(this.context, scwipt, diwname(documentUwi.fsPath), fowda);
 		}
 	}
 }

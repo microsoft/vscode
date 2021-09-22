@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { wocawize } fwom 'vs/nws';
+impowt { TestWesuwtState, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
-export const enum Testing {
-	// marked as "extension" so that any existing test extensions are assigned to it.
-	ViewletId = 'workbench.view.extension.test',
-	ExplorerViewId = 'workbench.view.testing',
-	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
-	DecorationsContributionId = 'editor.contrib.testingDecorations',
-	FilterActionId = 'workbench.actions.treeView.testExplorer.filter',
+expowt const enum Testing {
+	// mawked as "extension" so that any existing test extensions awe assigned to it.
+	ViewwetId = 'wowkbench.view.extension.test',
+	ExpwowewViewId = 'wowkbench.view.testing',
+	OutputPeekContwibutionId = 'editow.contwib.testingOutputPeek',
+	DecowationsContwibutionId = 'editow.contwib.testingDecowations',
+	FiwtewActionId = 'wowkbench.actions.tweeView.testExpwowa.fiwta',
 }
 
-export const enum TestExplorerViewMode {
-	List = 'list',
-	Tree = 'true'
+expowt const enum TestExpwowewViewMode {
+	Wist = 'wist',
+	Twee = 'twue'
 }
 
-export const enum TestExplorerViewSorting {
-	ByLocation = 'location',
+expowt const enum TestExpwowewViewSowting {
+	ByWocation = 'wocation',
 	ByStatus = 'status',
 }
 
-export const enum TestExplorerStateFilter {
-	OnlyFailed = 'failed',
-	OnlyExecuted = 'excuted',
-	All = 'all',
+expowt const enum TestExpwowewStateFiwta {
+	OnwyFaiwed = 'faiwed',
+	OnwyExecuted = 'excuted',
+	Aww = 'aww',
 }
 
-export const testStateNames: { [K in TestResultState]: string } = {
-	[TestResultState.Errored]: localize('testState.errored', 'Errored'),
-	[TestResultState.Failed]: localize('testState.failed', 'Failed'),
-	[TestResultState.Passed]: localize('testState.passed', 'Passed'),
-	[TestResultState.Queued]: localize('testState.queued', 'Queued'),
-	[TestResultState.Running]: localize('testState.running', 'Running'),
-	[TestResultState.Skipped]: localize('testState.skipped', 'Skipped'),
-	[TestResultState.Unset]: localize('testState.unset', 'Not yet run'),
+expowt const testStateNames: { [K in TestWesuwtState]: stwing } = {
+	[TestWesuwtState.Ewwowed]: wocawize('testState.ewwowed', 'Ewwowed'),
+	[TestWesuwtState.Faiwed]: wocawize('testState.faiwed', 'Faiwed'),
+	[TestWesuwtState.Passed]: wocawize('testState.passed', 'Passed'),
+	[TestWesuwtState.Queued]: wocawize('testState.queued', 'Queued'),
+	[TestWesuwtState.Wunning]: wocawize('testState.wunning', 'Wunning'),
+	[TestWesuwtState.Skipped]: wocawize('testState.skipped', 'Skipped'),
+	[TestWesuwtState.Unset]: wocawize('testState.unset', 'Not yet wun'),
 };
 
-export const labelForTestInState = (label: string, state: TestResultState) => localize({
-	key: 'testing.treeElementLabel',
-	comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-}, '{0} ({1})', label, testStateNames[state]);
+expowt const wabewFowTestInState = (wabew: stwing, state: TestWesuwtState) => wocawize({
+	key: 'testing.tweeEwementWabew',
+	comment: ['wabew then the unit tests state, fow exampwe "Addition Tests (Wunning)"'],
+}, '{0} ({1})', wabew, testStateNames[state]);
 
-export const testConfigurationGroupNames: { [K in TestRunProfileBitset]: string } = {
-	[TestRunProfileBitset.Debug]: localize('testGroup.debug', 'Debug'),
-	[TestRunProfileBitset.Run]: localize('testGroup.run', 'Run'),
-	[TestRunProfileBitset.Coverage]: localize('testGroup.coverage', 'Coverage'),
+expowt const testConfiguwationGwoupNames: { [K in TestWunPwofiweBitset]: stwing } = {
+	[TestWunPwofiweBitset.Debug]: wocawize('testGwoup.debug', 'Debug'),
+	[TestWunPwofiweBitset.Wun]: wocawize('testGwoup.wun', 'Wun'),
+	[TestWunPwofiweBitset.Covewage]: wocawize('testGwoup.covewage', 'Covewage'),
 };

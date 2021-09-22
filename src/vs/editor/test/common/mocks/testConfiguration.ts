@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+impowt { CommonEditowConfiguwation, IEnvConfiguwation } fwom 'vs/editow/common/config/commonEditowConfig';
+impowt { IEditowOptions, EditowFontWigatuwes } fwom 'vs/editow/common/config/editowOptions';
+impowt { BaweFontInfo, FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
 
-export class TestConfiguration extends CommonEditorConfiguration {
+expowt cwass TestConfiguwation extends CommonEditowConfiguwation {
 
-	constructor(opts: IEditorOptions) {
-		super(false, opts);
-		this._recomputeOptions();
+	constwuctow(opts: IEditowOptions) {
+		supa(fawse, opts);
+		this._wecomputeOptions();
 	}
 
-	protected _getEnvConfiguration(): IEnvConfiguration {
-		return {
-			extraEditorClassName: '',
-			outerWidth: 100,
-			outerHeight: 100,
-			emptySelectionClipboard: true,
-			pixelRatio: 1,
-			zoomLevel: 0,
-			accessibilitySupport: AccessibilitySupport.Unknown
+	pwotected _getEnvConfiguwation(): IEnvConfiguwation {
+		wetuwn {
+			extwaEditowCwassName: '',
+			outewWidth: 100,
+			outewHeight: 100,
+			emptySewectionCwipboawd: twue,
+			pixewWatio: 1,
+			zoomWevew: 0,
+			accessibiwitySuppowt: AccessibiwitySuppowt.Unknown
 		};
 	}
 
-	protected readConfiguration(styling: BareFontInfo): FontInfo {
-		return new FontInfo({
-			zoomLevel: 0,
-			pixelRatio: 1,
-			fontFamily: 'mockFont',
-			fontWeight: 'normal',
+	pwotected weadConfiguwation(stywing: BaweFontInfo): FontInfo {
+		wetuwn new FontInfo({
+			zoomWevew: 0,
+			pixewWatio: 1,
+			fontFamiwy: 'mockFont',
+			fontWeight: 'nowmaw',
 			fontSize: 14,
-			fontFeatureSettings: EditorFontLigatures.OFF,
-			lineHeight: 19,
-			letterSpacing: 1.5,
-			isMonospace: true,
-			typicalHalfwidthCharacterWidth: 10,
-			typicalFullwidthCharacterWidth: 20,
-			canUseHalfwidthRightwardsArrow: true,
+			fontFeatuweSettings: EditowFontWigatuwes.OFF,
+			wineHeight: 19,
+			wettewSpacing: 1.5,
+			isMonospace: twue,
+			typicawHawfwidthChawactewWidth: 10,
+			typicawFuwwwidthChawactewWidth: 20,
+			canUseHawfwidthWightwawdsAwwow: twue,
 			spaceWidth: 10,
 			middotWidth: 10,
 			wsmiddotWidth: 10,
 			maxDigitWidth: 10,
-		}, true);
+		}, twue);
 	}
 }

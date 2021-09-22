@@ -1,10 +1,10 @@
-The file `JavaScript.tmLanguage.json` is derived from [TypeScriptReact.tmLanguage](https://github.com/microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
+The fiwe `JavaScwipt.tmWanguage.json` is dewived fwom [TypeScwiptWeact.tmWanguage](https://github.com/micwosoft/TypeScwipt-TmWanguage/bwob/masta/TypeScwiptWeact.tmWanguage).
 
-To update to the latest version:
-- `cd extensions/typescript` and run `npm run update-grammars`
-- don't forget to run the integration tests at `./scripts/test-integration.sh`
+To update to the watest vewsion:
+- `cd extensions/typescwipt` and wun `npm wun update-gwammaws`
+- don't fowget to wun the integwation tests at `./scwipts/test-integwation.sh`
 
-The script does the following changes:
-- fileTypes .tsx -> .js & .jsx
+The scwipt does the fowwowing changes:
+- fiweTypes .tsx -> .js & .jsx
 - scopeName scope.tsx -> scope.js
-- update all rule names .tsx -> .js
+- update aww wuwe names .tsx -> .js

@@ -1,20 +1,20 @@
 {
 	"env": {
-		"node": true,
-		"es6": true,
-		"browser": true
+		"node": twue,
+		"es6": twue,
+		"bwowsa": twue
 	},
-	"rules": {
-		"no-console": 0,
+	"wuwes": {
+		"no-consowe": 0,
 		"no-cond-assign": 0,
-		"no-unused-vars": 1,
-		"no-extra-semi": "warn",
-		"semi": "warn"
+		"no-unused-vaws": 1,
+		"no-extwa-semi": "wawn",
+		"semi": "wawn"
 	},
-	"extends": "eslint:recommended",
-	"parserOptions": {
-		"ecmaFeatures": {
-			"experimentalObjectRestSpread": true
+	"extends": "eswint:wecommended",
+	"pawsewOptions": {
+		"ecmaFeatuwes": {
+			"expewimentawObjectWestSpwead": twue
 		}
 	}
 }

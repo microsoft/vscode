@@ -1,260 +1,260 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { setImmediate } from 'vs/base/common/platform';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, MutabweDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { setImmediate } fwom 'vs/base/common/pwatfowm';
+impowt { MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { Memento, MementoObject } fwom 'vs/wowkbench/common/memento';
+impowt { IViewDescwiptowSewvice, IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IWebviewSewvice, WebviewOvewway } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewWindowDwagMonitow } fwom 'vs/wowkbench/contwib/webview/bwowsa/webviewWindowDwagMonitow';
+impowt { IWebviewViewSewvice, WebviewView } fwom 'vs/wowkbench/contwib/webviewView/bwowsa/webviewViewSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
-declare const ResizeObserver: any;
+decwawe const WesizeObsewva: any;
 
-const storageKeys = {
+const stowageKeys = {
 	webviewState: 'webviewState',
 } as const;
 
-export class WebviewViewPane extends ViewPane {
+expowt cwass WebviewViewPane extends ViewPane {
 
-	private readonly _webview = this._register(new MutableDisposable<WebviewOverlay>());
-	private readonly _webviewDisposables = this._register(new DisposableStore());
-	private _activated = false;
+	pwivate weadonwy _webview = this._wegista(new MutabweDisposabwe<WebviewOvewway>());
+	pwivate weadonwy _webviewDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate _activated = fawse;
 
-	private _container?: HTMLElement;
-	private _rootContainer?: HTMLElement;
-	private _resizeObserver?: any;
+	pwivate _containa?: HTMWEwement;
+	pwivate _wootContaina?: HTMWEwement;
+	pwivate _wesizeObsewva?: any;
 
-	private readonly defaultTitle: string;
-	private setTitle: string | undefined;
+	pwivate weadonwy defauwtTitwe: stwing;
+	pwivate setTitwe: stwing | undefined;
 
-	private readonly memento: Memento;
-	private readonly viewState: MementoObject;
+	pwivate weadonwy memento: Memento;
+	pwivate weadonwy viewState: MementoObject;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IWebviewService private readonly webviewService: IWebviewService,
-		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
-		@IViewsService private readonly viewService: IViewsService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtensionSewvice pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		@IPwogwessSewvice pwivate weadonwy pwogwessSewvice: IPwogwessSewvice,
+		@IWebviewSewvice pwivate weadonwy webviewSewvice: IWebviewSewvice,
+		@IWebviewViewSewvice pwivate weadonwy webviewViewSewvice: IWebviewViewSewvice,
+		@IViewsSewvice pwivate weadonwy viewSewvice: IViewsSewvice,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.defaultTitle = this.title;
+		supa({ ...options, titweMenuId: MenuId.ViewTitwe }, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.defauwtTitwe = this.titwe;
 
-		this.memento = new Memento(`webviewView.${this.id}`, storageService);
-		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.memento = new Memento(`webviewView.${this.id}`, stowageSewvice);
+		this.viewState = this.memento.getMemento(StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 
-		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+		this._wegista(this.onDidChangeBodyVisibiwity(() => this.updateTweeVisibiwity()));
 
-		this._register(this.webviewViewService.onNewResolverRegistered(e => {
+		this._wegista(this.webviewViewSewvice.onNewWesowvewWegistewed(e => {
 			if (e.viewType === this.id) {
-				// Potentially re-activate if we have a new resolver
-				this.updateTreeVisibility();
+				// Potentiawwy we-activate if we have a new wesowva
+				this.updateTweeVisibiwity();
 			}
 		}));
 
-		this.updateTreeVisibility();
+		this.updateTweeVisibiwity();
 	}
 
-	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate weadonwy _onDidChangeVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	pwivate weadonwy _onDispose = this._wegista(new Emitta<void>());
+	weadonwy onDispose = this._onDispose.event;
 
-	override dispose() {
-		this._onDispose.fire();
+	ovewwide dispose() {
+		this._onDispose.fiwe();
 
-		super.dispose();
+		supa.dispose();
 	}
 
-	override focus(): void {
-		super.focus();
-		this._webview.value?.focus();
+	ovewwide focus(): void {
+		supa.focus();
+		this._webview.vawue?.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this._container = container;
-		this._rootContainer = undefined;
+		this._containa = containa;
+		this._wootContaina = undefined;
 
-		if (!this._resizeObserver) {
-			this._resizeObserver = new ResizeObserver(() => {
+		if (!this._wesizeObsewva) {
+			this._wesizeObsewva = new WesizeObsewva(() => {
 				setImmediate(() => {
-					this.layoutWebview();
+					this.wayoutWebview();
 				});
 			});
 
-			this._register(toDisposable(() => {
-				this._resizeObserver.disconnect();
+			this._wegista(toDisposabwe(() => {
+				this._wesizeObsewva.disconnect();
 			}));
-			this._resizeObserver.observe(container);
+			this._wesizeObsewva.obsewve(containa);
 		}
 	}
 
-	public override saveState() {
-		if (this._webview.value) {
-			this.viewState[storageKeys.webviewState] = this._webview.value.state;
+	pubwic ovewwide saveState() {
+		if (this._webview.vawue) {
+			this.viewState[stowageKeys.webviewState] = this._webview.vawue.state;
 		}
 
 		this.memento.saveMemento();
-		super.saveState();
+		supa.saveState();
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
 
-		if (!this._webview.value) {
-			return;
+		if (!this._webview.vawue) {
+			wetuwn;
 		}
 
 
-		this.layoutWebview();
+		this.wayoutWebview();
 	}
 
-	private updateTreeVisibility() {
-		if (this.isBodyVisible()) {
+	pwivate updateTweeVisibiwity() {
+		if (this.isBodyVisibwe()) {
 			this.activate();
-			this._webview.value?.claim(this, undefined);
-		} else {
-			this._webview.value?.release(this);
+			this._webview.vawue?.cwaim(this, undefined);
+		} ewse {
+			this._webview.vawue?.wewease(this);
 		}
 	}
 
-	private activate() {
+	pwivate activate() {
 		if (this._activated) {
-			return;
+			wetuwn;
 		}
 
-		this._activated = true;
+		this._activated = twue;
 
-		const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
-		const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
-		webview.state = this.viewState[storageKeys.webviewState];
-		this._webview.value = webview;
+		const webviewId = `webviewView-${this.id.wepwace(/[^a-z0-9]/gi, '-')}`.toWowewCase();
+		const webview = this.webviewSewvice.cweateWebviewOvewway(webviewId, {}, {}, undefined);
+		webview.state = this.viewState[stowageKeys.webviewState];
+		this._webview.vawue = webview;
 
-		if (this._container) {
-			this._webview.value?.layoutWebviewOverElement(this._container);
+		if (this._containa) {
+			this._webview.vawue?.wayoutWebviewOvewEwement(this._containa);
 		}
 
-		this._webviewDisposables.add(toDisposable(() => {
-			this._webview.value?.release(this);
+		this._webviewDisposabwes.add(toDisposabwe(() => {
+			this._webview.vawue?.wewease(this);
 		}));
 
-		this._webviewDisposables.add(webview.onDidUpdateState(() => {
-			this.viewState[storageKeys.webviewState] = webview.state;
+		this._webviewDisposabwes.add(webview.onDidUpdateState(() => {
+			this.viewState[stowageKeys.webviewState] = webview.state;
 		}));
 
-		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+		this._webviewDisposabwes.add(new WebviewWindowDwagMonitow(() => this._webview.vawue));
 
-		const source = this._webviewDisposables.add(new CancellationTokenSource());
+		const souwce = this._webviewDisposabwes.add(new CancewwationTokenSouwce());
 
-		this.withProgress(async () => {
-			await this.extensionService.activateByEvent(`onView:${this.id}`);
+		this.withPwogwess(async () => {
+			await this.extensionSewvice.activateByEvent(`onView:${this.id}`);
 
-			let self = this;
+			wet sewf = this;
 			const webviewView: WebviewView = {
 				webview,
-				onDidChangeVisibility: this.onDidChangeBodyVisibility,
+				onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity,
 				onDispose: this.onDispose,
 
-				get title(): string | undefined { return self.setTitle; },
-				set title(value: string | undefined) { self.updateTitle(value); },
+				get titwe(): stwing | undefined { wetuwn sewf.setTitwe; },
+				set titwe(vawue: stwing | undefined) { sewf.updateTitwe(vawue); },
 
-				get description(): string | undefined { return self.titleDescription; },
-				set description(value: string | undefined) { self.updateTitleDescription(value); },
+				get descwiption(): stwing | undefined { wetuwn sewf.titweDescwiption; },
+				set descwiption(vawue: stwing | undefined) { sewf.updateTitweDescwiption(vawue); },
 
 				dispose: () => {
-					// Only reset and clear the webview itself. Don't dispose of the view container
-					this._activated = false;
-					this._webview.clear();
-					this._webviewDisposables.clear();
+					// Onwy weset and cweaw the webview itsewf. Don't dispose of the view containa
+					this._activated = fawse;
+					this._webview.cweaw();
+					this._webviewDisposabwes.cweaw();
 				},
 
-				show: (preserveFocus) => {
-					this.viewService.openView(this.id, !preserveFocus);
+				show: (pwesewveFocus) => {
+					this.viewSewvice.openView(this.id, !pwesewveFocus);
 				}
 			};
 
-			await this.webviewViewService.resolve(this.id, webviewView, source.token);
+			await this.webviewViewSewvice.wesowve(this.id, webviewView, souwce.token);
 		});
 	}
 
-	protected override updateTitle(value: string | undefined) {
-		this.setTitle = value;
-		super.updateTitle(typeof value === 'string' ? value : this.defaultTitle);
+	pwotected ovewwide updateTitwe(vawue: stwing | undefined) {
+		this.setTitwe = vawue;
+		supa.updateTitwe(typeof vawue === 'stwing' ? vawue : this.defauwtTitwe);
 	}
 
-	private async withProgress(task: () => Promise<void>): Promise<void> {
-		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
+	pwivate async withPwogwess(task: () => Pwomise<void>): Pwomise<void> {
+		wetuwn this.pwogwessSewvice.withPwogwess({ wocation: this.id, deway: 500 }, task);
 	}
 
-	override onDidScrollRoot() {
-		this.layoutWebview();
+	ovewwide onDidScwowwWoot() {
+		this.wayoutWebview();
 	}
 
-	private layoutWebview() {
-		const webviewEntry = this._webview.value;
-		if (!this._container || !webviewEntry) {
-			return;
+	pwivate wayoutWebview() {
+		const webviewEntwy = this._webview.vawue;
+		if (!this._containa || !webviewEntwy) {
+			wetuwn;
 		}
 
-		webviewEntry.layoutWebviewOverElement(this._container);
+		webviewEntwy.wayoutWebviewOvewEwement(this._containa);
 
-		if (!this._rootContainer) {
-			this._rootContainer = this.findRootContainer(this._container);
+		if (!this._wootContaina) {
+			this._wootContaina = this.findWootContaina(this._containa);
 		}
 
-		if (this._rootContainer) {
-			const containerRect = this._container.getBoundingClientRect();
-			const rootRect = this._rootContainer.getBoundingClientRect();
+		if (this._wootContaina) {
+			const containewWect = this._containa.getBoundingCwientWect();
+			const wootWect = this._wootContaina.getBoundingCwientWect();
 
-			const clipTop = Math.max(rootRect.top - containerRect.top, 0);
-			const clipRight = Math.max(containerRect.width - (containerRect.right - rootRect.right), 0);
-			const clipBottom = Math.max(containerRect.height - (containerRect.bottom - rootRect.bottom), 0);
-			const clipLeft = Math.max(rootRect.left - containerRect.left, 0);
-			webviewEntry.container.style.clip = `rect(${clipTop}px, ${clipRight}px, ${clipBottom}px, ${clipLeft}px)`;
+			const cwipTop = Math.max(wootWect.top - containewWect.top, 0);
+			const cwipWight = Math.max(containewWect.width - (containewWect.wight - wootWect.wight), 0);
+			const cwipBottom = Math.max(containewWect.height - (containewWect.bottom - wootWect.bottom), 0);
+			const cwipWeft = Math.max(wootWect.weft - containewWect.weft, 0);
+			webviewEntwy.containa.stywe.cwip = `wect(${cwipTop}px, ${cwipWight}px, ${cwipBottom}px, ${cwipWeft}px)`;
 		}
 	}
 
-	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
-		for (let el: Node | null = container; el; el = el.parentNode) {
-			if (el instanceof HTMLElement) {
-				if (el.classList.contains('monaco-scrollable-element')) {
-					return el;
+	pwivate findWootContaina(containa: HTMWEwement): HTMWEwement | undefined {
+		fow (wet ew: Node | nuww = containa; ew; ew = ew.pawentNode) {
+			if (ew instanceof HTMWEwement) {
+				if (ew.cwassWist.contains('monaco-scwowwabwe-ewement')) {
+					wetuwn ew;
 				}
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }

@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { TypeHierarchyDirection, TypeHierarchyItem, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { SymbolKinds, SymbolTag } from 'vs/editor/common/modes';
-import { compare } from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
+impowt { IAsyncDataSouwce, ITweeWendewa, ITweeNode, ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { TypeHiewawchyDiwection, TypeHiewawchyItem, TypeHiewawchyModew } fwom 'vs/wowkbench/contwib/typeHiewawchy/common/typeHiewawchy';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IIdentityPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { SymbowKinds, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { compawe } fwom 'vs/base/common/stwings';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { wocawize } fwom 'vs/nws';
 
-export class Type {
-	constructor(
-		readonly item: TypeHierarchyItem,
-		readonly model: TypeHierarchyModel,
-		readonly parent: Type | undefined
+expowt cwass Type {
+	constwuctow(
+		weadonwy item: TypeHiewawchyItem,
+		weadonwy modew: TypeHiewawchyModew,
+		weadonwy pawent: Type | undefined
 	) { }
 
-	static compare(a: Type, b: Type): number {
-		let res = compare(a.item.uri.toString(), b.item.uri.toString());
-		if (res === 0) {
-			res = Range.compareRangesUsingStarts(a.item.range, b.item.range);
+	static compawe(a: Type, b: Type): numba {
+		wet wes = compawe(a.item.uwi.toStwing(), b.item.uwi.toStwing());
+		if (wes === 0) {
+			wes = Wange.compaweWangesUsingStawts(a.item.wange, b.item.wange);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-export class DataSource implements IAsyncDataSource<TypeHierarchyModel, Type> {
+expowt cwass DataSouwce impwements IAsyncDataSouwce<TypeHiewawchyModew, Type> {
 
-	constructor(
-		public getDirection: () => TypeHierarchyDirection,
+	constwuctow(
+		pubwic getDiwection: () => TypeHiewawchyDiwection,
 	) { }
 
-	hasChildren(): boolean {
-		return true;
+	hasChiwdwen(): boowean {
+		wetuwn twue;
 	}
 
-	async getChildren(element: TypeHierarchyModel | Type): Promise<Type[]> {
-		if (element instanceof TypeHierarchyModel) {
-			return element.roots.map(root => new Type(root, element, undefined));
+	async getChiwdwen(ewement: TypeHiewawchyModew | Type): Pwomise<Type[]> {
+		if (ewement instanceof TypeHiewawchyModew) {
+			wetuwn ewement.woots.map(woot => new Type(woot, ewement, undefined));
 		}
 
-		const { model, item } = element;
+		const { modew, item } = ewement;
 
-		if (this.getDirection() === TypeHierarchyDirection.Supertypes) {
-			return (await model.provideSupertypes(item, CancellationToken.None)).map(item => {
-				return new Type(
+		if (this.getDiwection() === TypeHiewawchyDiwection.Supewtypes) {
+			wetuwn (await modew.pwovideSupewtypes(item, CancewwationToken.None)).map(item => {
+				wetuwn new Type(
 					item,
-					model,
-					element
+					modew,
+					ewement
 				);
 			});
-		} else {
-			return (await model.provideSubtypes(item, CancellationToken.None)).map(item => {
-				return new Type(
+		} ewse {
+			wetuwn (await modew.pwovideSubtypes(item, CancewwationToken.None)).map(item => {
+				wetuwn new Type(
 					item,
-					model,
-					element
+					modew,
+					ewement
 				);
 			});
 		}
 	}
 }
 
-export class Sorter implements ITreeSorter<Type> {
+expowt cwass Sowta impwements ITweeSowta<Type> {
 
-	compare(element: Type, otherElement: Type): number {
-		return Type.compare(element, otherElement);
+	compawe(ewement: Type, othewEwement: Type): numba {
+		wetuwn Type.compawe(ewement, othewEwement);
 	}
 }
 
-export class IdentityProvider implements IIdentityProvider<Type> {
+expowt cwass IdentityPwovida impwements IIdentityPwovida<Type> {
 
-	constructor(
-		public getDirection: () => TypeHierarchyDirection
+	constwuctow(
+		pubwic getDiwection: () => TypeHiewawchyDiwection
 	) { }
 
-	getId(element: Type): { toString(): string; } {
-		let res = this.getDirection() + JSON.stringify(element.item.uri) + JSON.stringify(element.item.range);
-		if (element.parent) {
-			res += this.getId(element.parent);
+	getId(ewement: Type): { toStwing(): stwing; } {
+		wet wes = this.getDiwection() + JSON.stwingify(ewement.item.uwi) + JSON.stwingify(ewement.item.wange);
+		if (ewement.pawent) {
+			wes += this.getId(ewement.pawent);
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-class TypeRenderingTemplate {
-	constructor(
-		readonly icon: HTMLDivElement,
-		readonly label: IconLabel
+cwass TypeWendewingTempwate {
+	constwuctow(
+		weadonwy icon: HTMWDivEwement,
+		weadonwy wabew: IconWabew
 	) { }
 }
 
-export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderingTemplate> {
+expowt cwass TypeWendewa impwements ITweeWendewa<Type, FuzzyScowe, TypeWendewingTempwate> {
 
-	static readonly id = 'TypeRenderer';
+	static weadonwy id = 'TypeWendewa';
 
-	templateId: string = TypeRenderer.id;
+	tempwateId: stwing = TypeWendewa.id;
 
-	renderTemplate(container: HTMLElement): TypeRenderingTemplate {
-		container.classList.add('typehierarchy-element');
-		let icon = document.createElement('div');
-		container.appendChild(icon);
-		const label = new IconLabel(container, { supportHighlights: true });
-		return new TypeRenderingTemplate(icon, label);
+	wendewTempwate(containa: HTMWEwement): TypeWendewingTempwate {
+		containa.cwassWist.add('typehiewawchy-ewement');
+		wet icon = document.cweateEwement('div');
+		containa.appendChiwd(icon);
+		const wabew = new IconWabew(containa, { suppowtHighwights: twue });
+		wetuwn new TypeWendewingTempwate(icon, wabew);
 	}
 
-	renderElement(node: ITreeNode<Type, FuzzyScore>, _index: number, template: TypeRenderingTemplate): void {
-		const { element, filterData } = node;
-		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.className = SymbolKinds.toCssClassName(element.item.kind, true);
-		template.label.setLabel(
-			element.item.name,
-			element.item.detail,
-			{ labelEscapeNewLines: true, matches: createMatches(filterData), strikethrough: deprecated }
+	wendewEwement(node: ITweeNode<Type, FuzzyScowe>, _index: numba, tempwate: TypeWendewingTempwate): void {
+		const { ewement, fiwtewData } = node;
+		const depwecated = ewement.item.tags?.incwudes(SymbowTag.Depwecated);
+		tempwate.icon.cwassName = SymbowKinds.toCssCwassName(ewement.item.kind, twue);
+		tempwate.wabew.setWabew(
+			ewement.item.name,
+			ewement.item.detaiw,
+			{ wabewEscapeNewWines: twue, matches: cweateMatches(fiwtewData), stwikethwough: depwecated }
 		);
 	}
-	disposeTemplate(template: TypeRenderingTemplate): void {
-		template.label.dispose();
+	disposeTempwate(tempwate: TypeWendewingTempwate): void {
+		tempwate.wabew.dispose();
 	}
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<Type> {
+expowt cwass ViwtuawDewegate impwements IWistViwtuawDewegate<Type> {
 
-	getHeight(_element: Type): number {
-		return 22;
+	getHeight(_ewement: Type): numba {
+		wetuwn 22;
 	}
 
-	getTemplateId(_element: Type): string {
-		return TypeRenderer.id;
+	getTempwateId(_ewement: Type): stwing {
+		wetuwn TypeWendewa.id;
 	}
 }
 
-export class AccessibilityProvider implements IListAccessibilityProvider<Type> {
+expowt cwass AccessibiwityPwovida impwements IWistAccessibiwityPwovida<Type> {
 
-	constructor(
-		public getDirection: () => TypeHierarchyDirection
+	constwuctow(
+		pubwic getDiwection: () => TypeHiewawchyDiwection
 	) { }
 
-	getWidgetAriaLabel(): string {
-		return localize('tree.aria', "Type Hierarchy");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('twee.awia', "Type Hiewawchy");
 	}
 
-	getAriaLabel(element: Type): string | null {
-		if (this.getDirection() === TypeHierarchyDirection.Supertypes) {
-			return localize('supertypes', "supertypes of {0}", element.item.name);
-		} else {
-			return localize('subtypes', "subtypes of {0}", element.item.name);
+	getAwiaWabew(ewement: Type): stwing | nuww {
+		if (this.getDiwection() === TypeHiewawchyDiwection.Supewtypes) {
+			wetuwn wocawize('supewtypes', "supewtypes of {0}", ewement.item.name);
+		} ewse {
+			wetuwn wocawize('subtypes', "subtypes of {0}", ewement.item.name);
 		}
 	}
 }

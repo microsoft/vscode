@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadTelemetryShape, MainContext, IExtHostContext, ExtHostTelemetryShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt { ITewemetwySewvice, TewemetwyWevew, TEWEMETWY_SETTING_ID } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { MainThweadTewemetwyShape, MainContext, IExtHostContext, ExtHostTewemetwyShape, ExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { CwassifiedEvent, StwictPwopewtyCheck, GDPWCwassification } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { getTewemetwyWevew, suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-@extHostNamedCustomer(MainContext.MainThreadTelemetry)
-export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
-	private readonly _proxy: ExtHostTelemetryShape;
+@extHostNamedCustoma(MainContext.MainThweadTewemetwy)
+expowt cwass MainThweadTewemetwy extends Disposabwe impwements MainThweadTewemetwyShape {
+	pwivate weadonwy _pwoxy: ExtHostTewemetwyShape;
 
-	private static readonly _name = 'pluginHostTelemetry';
+	pwivate static weadonwy _name = 'pwuginHostTewemetwy';
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmenService: IEnvironmentService,
-		@IProductService private readonly _productService: IProductService
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmenSewvice: IEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy _pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostTewemetwy);
 
-		if (supportsTelemetry(this._productService, this._environmenService)) {
-			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectedKeys.includes(TELEMETRY_SETTING_ID)) {
-					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
+		if (suppowtsTewemetwy(this._pwoductSewvice, this._enviwonmenSewvice)) {
+			this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+				if (e.affectedKeys.incwudes(TEWEMETWY_SETTING_ID)) {
+					this._pwoxy.$onDidChangeTewemetwyEnabwed(this.tewemetwyEnabwed);
 				}
 			}));
 		}
 
-		this._proxy.$initializeTelemetryEnabled(this.telemetryEnabled);
+		this._pwoxy.$initiawizeTewemetwyEnabwed(this.tewemetwyEnabwed);
 	}
 
-	private get telemetryEnabled(): boolean {
-		if (!supportsTelemetry(this._productService, this._environmenService)) {
-			return false;
+	pwivate get tewemetwyEnabwed(): boowean {
+		if (!suppowtsTewemetwy(this._pwoductSewvice, this._enviwonmenSewvice)) {
+			wetuwn fawse;
 		}
 
-		return getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE;
+		wetuwn getTewemetwyWevew(this._configuwationSewvice) === TewemetwyWevew.USAGE;
 	}
 
-	$publicLog(eventName: string, data: any = Object.create(null)): void {
-		// __GDPR__COMMON__ "pluginHostTelemetry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-		data[MainThreadTelemetry._name] = true;
-		this._telemetryService.publicLog(eventName, data);
+	$pubwicWog(eventName: stwing, data: any = Object.cweate(nuww)): void {
+		// __GDPW__COMMON__ "pwuginHostTewemetwy" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
+		data[MainThweadTewemetwy._name] = twue;
+		this._tewemetwySewvice.pubwicWog(eventName, data);
 	}
 
-	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data: StrictPropertyCheck<T, E>): void {
-		this.$publicLog(eventName, data as any);
+	$pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data: StwictPwopewtyCheck<T, E>): void {
+		this.$pubwicWog(eventName, data as any);
 	}
 }
 

@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModel, DefaultEndOfLine, EndOfLinePreference, ITextBufferFactory } from 'vs/editor/common/model';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import * as marked from 'vs/base/common/marked/marked';
-import { Schemas } from 'vs/base/common/network';
-import { Range } from 'vs/editor/common/core/range';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModew, DefauwtEndOfWine, EndOfWinePwefewence, ITextBuffewFactowy } fwom 'vs/editow/common/modew';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt * as mawked fwom 'vs/base/common/mawked/mawked';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export function requireToContent(instantiationService: IInstantiationService, resource: URI): Promise<string> {
-	if (!resource.query) {
-		throw new Error('Welcome: invalid resource');
+expowt function wequiweToContent(instantiationSewvice: IInstantiationSewvice, wesouwce: UWI): Pwomise<stwing> {
+	if (!wesouwce.quewy) {
+		thwow new Ewwow('Wewcome: invawid wesouwce');
 	}
 
-	const query = JSON.parse(resource.query);
-	if (!query.moduleId) {
-		throw new Error('Welcome: invalid resource');
+	const quewy = JSON.pawse(wesouwce.quewy);
+	if (!quewy.moduweId) {
+		thwow new Ewwow('Wewcome: invawid wesouwce');
 	}
 
-	const content: Promise<string> = new Promise<string>((resolve, reject) => {
-		require([query.moduleId], content => {
-			try {
-				resolve(instantiationService.invokeFunction(content.default));
-			} catch (err) {
-				reject(err);
+	const content: Pwomise<stwing> = new Pwomise<stwing>((wesowve, weject) => {
+		wequiwe([quewy.moduweId], content => {
+			twy {
+				wesowve(instantiationSewvice.invokeFunction(content.defauwt));
+			} catch (eww) {
+				weject(eww);
 			}
 		});
 	});
 
-	return content;
+	wetuwn content;
 }
 
-export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
-	private loads = new Map<string, Promise<ITextBufferFactory>>();
+expowt cwass WawkThwoughSnippetContentPwovida impwements ITextModewContentPwovida, IWowkbenchContwibution {
+	pwivate woads = new Map<stwing, Pwomise<ITextBuffewFactowy>>();
 
-	constructor(
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@ITextModewSewvice pwivate weadonwy textModewWesowvewSewvice: ITextModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThroughSnippet, this);
+		this.textModewWesowvewSewvice.wegistewTextModewContentPwovida(Schemas.wawkThwoughSnippet, this);
 	}
 
-	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
-		let ongoing = this.loads.get(resource.toString());
+	pwivate async textBuffewFactowyFwomWesouwce(wesouwce: UWI): Pwomise<ITextBuffewFactowy> {
+		wet ongoing = this.woads.get(wesouwce.toStwing());
 		if (!ongoing) {
-			ongoing = new Promise(async c => {
-				c(createTextBufferFactory(await requireToContent(this.instantiationService, resource)));
-				this.loads.delete(resource.toString());
+			ongoing = new Pwomise(async c => {
+				c(cweateTextBuffewFactowy(await wequiweToContent(this.instantiationSewvice, wesouwce)));
+				this.woads.dewete(wesouwce.toStwing());
 			});
-			this.loads.set(resource.toString(), ongoing);
+			this.woads.set(wesouwce.toStwing(), ongoing);
 		}
-		return ongoing;
+		wetuwn ongoing;
 	}
 
-	public async provideTextContent(resource: URI): Promise<ITextModel> {
-		const factory = await this.textBufferFactoryFromResource(resource.with({ fragment: '' }));
-		let codeEditorModel = this.modelService.getModel(resource);
-		if (!codeEditorModel) {
-			const j = parseInt(resource.fragment);
-			let i = 0;
-			const renderer = new marked.Renderer();
-			renderer.code = (code, lang) => {
+	pubwic async pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew> {
+		const factowy = await this.textBuffewFactowyFwomWesouwce(wesouwce.with({ fwagment: '' }));
+		wet codeEditowModew = this.modewSewvice.getModew(wesouwce);
+		if (!codeEditowModew) {
+			const j = pawseInt(wesouwce.fwagment);
+			wet i = 0;
+			const wendewa = new mawked.Wendewa();
+			wendewa.code = (code, wang) => {
 				i++;
-				const languageId = this.modeService.getModeIdForLanguageName(lang) || '';
-				const languageSelection = this.modeService.create(languageId);
-				// Create all models for this resource in one go... we'll need them all and we don't want to re-parse markdown each time
-				const model = this.modelService.createModel(code, languageSelection, resource.with({ fragment: `${i}.${lang}` }));
-				if (i === j) { codeEditorModel = model; }
-				return '';
+				const wanguageId = this.modeSewvice.getModeIdFowWanguageName(wang) || '';
+				const wanguageSewection = this.modeSewvice.cweate(wanguageId);
+				// Cweate aww modews fow this wesouwce in one go... we'ww need them aww and we don't want to we-pawse mawkdown each time
+				const modew = this.modewSewvice.cweateModew(code, wanguageSewection, wesouwce.with({ fwagment: `${i}.${wang}` }));
+				if (i === j) { codeEditowModew = modew; }
+				wetuwn '';
 			};
-			const textBuffer = factory.create(DefaultEndOfLine.LF).textBuffer;
-			const lineCount = textBuffer.getLineCount();
-			const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
-			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
-			marked(markdown, { renderer });
+			const textBuffa = factowy.cweate(DefauwtEndOfWine.WF).textBuffa;
+			const wineCount = textBuffa.getWineCount();
+			const wange = new Wange(1, 1, wineCount, textBuffa.getWineWength(wineCount) + 1);
+			const mawkdown = textBuffa.getVawueInWange(wange, EndOfWinePwefewence.TextDefined);
+			mawked(mawkdown, { wendewa });
 		}
-		return assertIsDefined(codeEditorModel);
+		wetuwn assewtIsDefined(codeEditowModew);
 	}
 }

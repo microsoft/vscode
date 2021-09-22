@@ -1,377 +1,377 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import 'vs/css!./ghostText';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt 'vs/css!./ghostText';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { ContentWidgetPositionPwefewence, ICodeEditow, IContentWidget, IContentWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowFontWigatuwes, EditowOption, IComputedEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowCowumns } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { cweateStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { IDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation } fwom 'vs/editow/common/modew';
+impowt { ghostTextBowda, ghostTextFowegwound } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { WineDecowation } fwom 'vs/editow/common/viewWayout/wineDecowations';
+impowt { WendewWineInput, wendewViewWine } fwom 'vs/editow/common/viewWayout/viewWineWendewa';
+impowt { InwineDecowationType } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { GhostTextWidgetModew } fwom 'vs/editow/contwib/inwineCompwetions/ghostText';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
+const ttPowicy = window.twustedTypes?.cweatePowicy('editowGhostText', { cweateHTMW: vawue => vawue });
 
-export class GhostTextWidget extends Disposable {
-	private disposed = false;
-	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
-	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
-	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
+expowt cwass GhostTextWidget extends Disposabwe {
+	pwivate disposed = fawse;
+	pwivate weadonwy pawtsWidget = this._wegista(this.instantiationSewvice.cweateInstance(DecowationsWidget, this.editow));
+	pwivate weadonwy additionawWinesWidget = this._wegista(new AdditionawWinesWidget(this.editow));
+	pwivate viewMoweContentWidget: ViewMoweWinesContentWidget | undefined = undefined;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly model: GhostTextWidgetModel,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		pwivate weadonwy modew: GhostTextWidgetModew,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(this.editor.onDidChangeConfiguration((e) => {
+		this._wegista(this.editow.onDidChangeConfiguwation((e) => {
 			if (
-				e.hasChanged(EditorOption.disableMonospaceOptimizations)
-				|| e.hasChanged(EditorOption.stopRenderingLineAfter)
-				|| e.hasChanged(EditorOption.renderWhitespace)
-				|| e.hasChanged(EditorOption.renderControlCharacters)
-				|| e.hasChanged(EditorOption.fontLigatures)
-				|| e.hasChanged(EditorOption.fontInfo)
-				|| e.hasChanged(EditorOption.lineHeight)
+				e.hasChanged(EditowOption.disabweMonospaceOptimizations)
+				|| e.hasChanged(EditowOption.stopWendewingWineAfta)
+				|| e.hasChanged(EditowOption.wendewWhitespace)
+				|| e.hasChanged(EditowOption.wendewContwowChawactews)
+				|| e.hasChanged(EditowOption.fontWigatuwes)
+				|| e.hasChanged(EditowOption.fontInfo)
+				|| e.hasChanged(EditowOption.wineHeight)
 			) {
 				this.update();
 			}
 		}));
 
-		this._register(toDisposable(() => {
-			this.disposed = true;
+		this._wegista(toDisposabwe(() => {
+			this.disposed = twue;
 			this.update();
 
-			this.viewMoreContentWidget?.dispose();
-			this.viewMoreContentWidget = undefined;
+			this.viewMoweContentWidget?.dispose();
+			this.viewMoweContentWidget = undefined;
 		}));
 
-		this._register(model.onDidChange(() => {
+		this._wegista(modew.onDidChange(() => {
 			this.update();
 		}));
 		this.update();
 	}
 
-	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return (this.additionalLinesWidget.viewZoneId === viewZoneId);
+	pubwic shouwdShowHovewAtViewZone(viewZoneId: stwing): boowean {
+		wetuwn (this.additionawWinesWidget.viewZoneId === viewZoneId);
 	}
 
-	private update(): void {
-		const ghostText = this.model.ghostText;
+	pwivate update(): void {
+		const ghostText = this.modew.ghostText;
 
-		if (!this.editor.hasModel() || !ghostText || this.disposed) {
-			this.partsWidget.clear();
-			this.additionalLinesWidget.clear();
-			return;
+		if (!this.editow.hasModew() || !ghostText || this.disposed) {
+			this.pawtsWidget.cweaw();
+			this.additionawWinesWidget.cweaw();
+			wetuwn;
 		}
 
-		const inlineTexts = new Array<InsertedInlineText>();
-		const additionalLines = new Array<LineData>();
+		const inwineTexts = new Awway<InsewtedInwineText>();
+		const additionawWines = new Awway<WineData>();
 
-		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
-			if (additionalLines.length > 0) {
-				const lastLine = additionalLines[additionalLines.length - 1];
-				if (className) {
-					lastLine.decorations.push(new LineDecoration(lastLine.content.length + 1, lastLine.content.length + 1 + lines[0].length, className, InlineDecorationType.Regular));
+		function addToAdditionawWines(wines: weadonwy stwing[], cwassName: stwing | undefined) {
+			if (additionawWines.wength > 0) {
+				const wastWine = additionawWines[additionawWines.wength - 1];
+				if (cwassName) {
+					wastWine.decowations.push(new WineDecowation(wastWine.content.wength + 1, wastWine.content.wength + 1 + wines[0].wength, cwassName, InwineDecowationType.Weguwaw));
 				}
-				lastLine.content += lines[0];
+				wastWine.content += wines[0];
 
-				lines = lines.slice(1);
+				wines = wines.swice(1);
 			}
-			for (const line of lines) {
-				additionalLines.push({
-					content: line,
-					decorations: className ? [new LineDecoration(1, line.length + 1, className, InlineDecorationType.Regular)] : []
+			fow (const wine of wines) {
+				additionawWines.push({
+					content: wine,
+					decowations: cwassName ? [new WineDecowation(1, wine.wength + 1, cwassName, InwineDecowationType.Weguwaw)] : []
 				});
 			}
 		}
 
-		const textBufferLine = this.editor.getModel().getLineContent(ghostText.lineNumber);
-		this.editor.getModel().getLineTokens(ghostText.lineNumber);
+		const textBuffewWine = this.editow.getModew().getWineContent(ghostText.wineNumba);
+		this.editow.getModew().getWineTokens(ghostText.wineNumba);
 
-		let hiddenTextStartColumn: number | undefined = undefined;
-		let lastIdx = 0;
-		for (const part of ghostText.parts) {
-			let lines = part.lines;
-			if (hiddenTextStartColumn === undefined) {
-				inlineTexts.push({
-					column: part.column,
-					text: lines[0],
-					preview: part.preview,
+		wet hiddenTextStawtCowumn: numba | undefined = undefined;
+		wet wastIdx = 0;
+		fow (const pawt of ghostText.pawts) {
+			wet wines = pawt.wines;
+			if (hiddenTextStawtCowumn === undefined) {
+				inwineTexts.push({
+					cowumn: pawt.cowumn,
+					text: wines[0],
+					pweview: pawt.pweview,
 				});
-				lines = lines.slice(1);
-			} else {
-				addToAdditionalLines([textBufferLine.substring(lastIdx, part.column - 1)], undefined);
+				wines = wines.swice(1);
+			} ewse {
+				addToAdditionawWines([textBuffewWine.substwing(wastIdx, pawt.cowumn - 1)], undefined);
 			}
 
-			if (lines.length > 0) {
-				addToAdditionalLines(lines, 'ghost-text');
-				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
-					hiddenTextStartColumn = part.column;
+			if (wines.wength > 0) {
+				addToAdditionawWines(wines, 'ghost-text');
+				if (hiddenTextStawtCowumn === undefined && pawt.cowumn <= textBuffewWine.wength) {
+					hiddenTextStawtCowumn = pawt.cowumn;
 				}
 			}
 
-			lastIdx = part.column - 1;
+			wastIdx = pawt.cowumn - 1;
 		}
-		if (hiddenTextStartColumn !== undefined) {
-			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
+		if (hiddenTextStawtCowumn !== undefined) {
+			addToAdditionawWines([textBuffewWine.substwing(wastIdx)], undefined);
 		}
 
-		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
-			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
-		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
+		this.pawtsWidget.setPawts(ghostText.wineNumba, inwineTexts,
+			hiddenTextStawtCowumn !== undefined ? { cowumn: hiddenTextStawtCowumn, wength: textBuffewWine.wength + 1 - hiddenTextStawtCowumn } : undefined);
+		this.additionawWinesWidget.updateWines(ghostText.wineNumba, additionawWines, ghostText.additionawWesewvedWineCount);
 
-		if (ghostText.parts.some(p => p.lines.length < 0)) {
-			// Not supported at the moment, condition is always false.
-			this.viewMoreContentWidget = this.renderViewMoreLines(
-				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
+		if (ghostText.pawts.some(p => p.wines.wength < 0)) {
+			// Not suppowted at the moment, condition is awways fawse.
+			this.viewMoweContentWidget = this.wendewViewMoweWines(
+				new Position(ghostText.wineNumba, this.editow.getModew()!.getWineMaxCowumn(ghostText.wineNumba)),
 				'', 0
 			);
-		} else {
-			this.viewMoreContentWidget?.dispose();
-			this.viewMoreContentWidget = undefined;
+		} ewse {
+			this.viewMoweContentWidget?.dispose();
+			this.viewMoweContentWidget = undefined;
 		}
 	}
 
-	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number): ViewMoreLinesContentWidget {
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const domNode = document.createElement('div');
-		domNode.className = 'suggest-preview-additional-widget';
-		Configuration.applyFontInfoSlow(domNode, fontInfo);
+	pwivate wendewViewMoweWines(position: Position, fiwstWineText: stwing, wemainingWinesWength: numba): ViewMoweWinesContentWidget {
+		const fontInfo = this.editow.getOption(EditowOption.fontInfo);
+		const domNode = document.cweateEwement('div');
+		domNode.cwassName = 'suggest-pweview-additionaw-widget';
+		Configuwation.appwyFontInfoSwow(domNode, fontInfo);
 
-		const spacer = document.createElement('span');
-		spacer.className = 'content-spacer';
-		spacer.append(firstLineText);
-		domNode.append(spacer);
+		const spaca = document.cweateEwement('span');
+		spaca.cwassName = 'content-spaca';
+		spaca.append(fiwstWineText);
+		domNode.append(spaca);
 
-		const newline = document.createElement('span');
-		newline.className = 'content-newline suggest-preview-text';
-		newline.append('⏎  ');
-		domNode.append(newline);
+		const newwine = document.cweateEwement('span');
+		newwine.cwassName = 'content-newwine suggest-pweview-text';
+		newwine.append('⏎  ');
+		domNode.append(newwine);
 
-		const disposableStore = new DisposableStore();
+		const disposabweStowe = new DisposabweStowe();
 
-		const button = document.createElement('div');
-		button.className = 'button suggest-preview-text';
-		button.append(`+${remainingLinesLength} lines…`);
+		const button = document.cweateEwement('div');
+		button.cwassName = 'button suggest-pweview-text';
+		button.append(`+${wemainingWinesWength} wines…`);
 
-		disposableStore.add(dom.addStandardDisposableListener(button, 'mousedown', (e) => {
-			this.model?.setExpanded(true);
-			e.preventDefault();
-			this.editor.focus();
+		disposabweStowe.add(dom.addStandawdDisposabweWistena(button, 'mousedown', (e) => {
+			this.modew?.setExpanded(twue);
+			e.pweventDefauwt();
+			this.editow.focus();
 		}));
 
 		domNode.append(button);
-		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
+		wetuwn new ViewMoweWinesContentWidget(this.editow, position, domNode, disposabweStowe);
 	}
 }
 
-interface HiddenText {
-	column: number;
-	length: number;
+intewface HiddenText {
+	cowumn: numba;
+	wength: numba;
 }
 
-interface InsertedInlineText {
-	column: number;
-	text: string;
-	preview: boolean;
+intewface InsewtedInwineText {
+	cowumn: numba;
+	text: stwing;
+	pweview: boowean;
 }
 
-class DecorationsWidget implements IDisposable {
-	private decorationIds: string[] = [];
-	private disposableStore: DisposableStore = new DisposableStore();
+cwass DecowationsWidget impwements IDisposabwe {
+	pwivate decowationIds: stwing[] = [];
+	pwivate disposabweStowe: DisposabweStowe = new DisposabweStowe();
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice
 	) {
 	}
 
-	public dispose(): void {
-		this.clear();
-		this.disposableStore.dispose();
+	pubwic dispose(): void {
+		this.cweaw();
+		this.disposabweStowe.dispose();
 	}
 
-	public clear(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.disposableStore.clear();
+	pubwic cweaw(): void {
+		this.editow.dewtaDecowations(this.decowationIds, []);
+		this.disposabweStowe.cweaw();
 	}
 
-	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		this.disposableStore.clear();
+	pubwic setPawts(wineNumba: numba, pawts: InsewtedInwineText[], hiddenText?: HiddenText): void {
+		this.disposabweStowe.cweaw();
 
-		const colorTheme = this.themeService.getColorTheme();
-		const foreground = colorTheme.getColor(ghostTextForeground);
-		let opacity: string | undefined = undefined;
-		let color: string | undefined = undefined;
-		if (foreground) {
-			opacity = String(foreground.rgba.a);
-			color = Color.Format.CSS.format(opaque(foreground))!;
+		const cowowTheme = this.themeSewvice.getCowowTheme();
+		const fowegwound = cowowTheme.getCowow(ghostTextFowegwound);
+		wet opacity: stwing | undefined = undefined;
+		wet cowow: stwing | undefined = undefined;
+		if (fowegwound) {
+			opacity = Stwing(fowegwound.wgba.a);
+			cowow = Cowow.Fowmat.CSS.fowmat(opaque(fowegwound))!;
 		}
 
-		const borderColor = colorTheme.getColor(ghostTextBorder);
-		let border: string | undefined = undefined;
-		if (borderColor) {
-			border = `2px dashed ${borderColor}`;
+		const bowdewCowow = cowowTheme.getCowow(ghostTextBowda);
+		wet bowda: stwing | undefined = undefined;
+		if (bowdewCowow) {
+			bowda = `2px dashed ${bowdewCowow}`;
 		}
 
-		const textModel = this.editor.getModel();
-		if (!textModel) {
-			return;
+		const textModew = this.editow.getModew();
+		if (!textModew) {
+			wetuwn;
 		}
 
-		const { tabSize } = textModel.getOptions();
+		const { tabSize } = textModew.getOptions();
 
-		const line = textModel.getLineContent(lineNumber) || '';
-		let lastIndex = 0;
-		let currentLinePrefix = '';
+		const wine = textModew.getWineContent(wineNumba) || '';
+		wet wastIndex = 0;
+		wet cuwwentWinePwefix = '';
 
-		const hiddenTextDecorations = new Array<IModelDeltaDecoration>();
+		const hiddenTextDecowations = new Awway<IModewDewtaDecowation>();
 		if (hiddenText) {
-			hiddenTextDecorations.push({
-				range: Range.fromPositions(new Position(lineNumber, hiddenText.column), new Position(lineNumber, hiddenText.column + hiddenText.length)),
+			hiddenTextDecowations.push({
+				wange: Wange.fwomPositions(new Position(wineNumba, hiddenText.cowumn), new Position(wineNumba, hiddenText.cowumn + hiddenText.wength)),
 				options: {
-					inlineClassName: 'ghost-text-hidden',
-					description: 'ghost-text-hidden'
+					inwineCwassName: 'ghost-text-hidden',
+					descwiption: 'ghost-text-hidden'
 				}
 			});
 		}
 
-		const key = this.contextKeyService.getContextKeyValue('config.editor.useInjectedText');
-		const shouldUseInjectedText = key === undefined ? true : !!key;
+		const key = this.contextKeySewvice.getContextKeyVawue('config.editow.useInjectedText');
+		const shouwdUseInjectedText = key === undefined ? twue : !!key;
 
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-			currentLinePrefix += line.substring(lastIndex, p.column - 1);
-			lastIndex = p.column - 1;
+		this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, pawts.map<IModewDewtaDecowation>(p => {
+			cuwwentWinePwefix += wine.substwing(wastIndex, p.cowumn - 1);
+			wastIndex = p.cowumn - 1;
 
-			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = shouldUseInjectedText ? p.text : this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
+			// To avoid visuaw confusion, we don't want to wenda visibwe whitespace
+			const contentText = shouwdUseInjectedText ? p.text : this.wendewSingweWineText(p.text, cuwwentWinePwefix, tabSize, fawse);
 
-			const decorationType = this.disposableStore.add(registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
-				after: {
+			const decowationType = this.disposabweStowe.add(wegistewDecowationType(this.codeEditowSewvice, 'ghost-text', '0-ghost-text-', {
+				afta: {
 					// TODO: escape?
 					contentText,
 					opacity,
-					color,
-					border,
-					fontWeight: p.preview ? 'bold' : 'normal',
+					cowow,
+					bowda,
+					fontWeight: p.pweview ? 'bowd' : 'nowmaw',
 				},
 			}));
 
-			return ({
-				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: shouldUseInjectedText ? {
-					description: 'ghost-text',
-					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' }
+			wetuwn ({
+				wange: Wange.fwomPositions(new Position(wineNumba, p.cowumn)),
+				options: shouwdUseInjectedText ? {
+					descwiption: 'ghost-text',
+					afta: { content: contentText, inwineCwassName: p.pweview ? 'ghost-text-decowation-pweview' : 'ghost-text-decowation' }
 				} : {
-					...decorationType.resolve()
+					...decowationType.wesowve()
 				}
 			});
-		}).concat(hiddenTextDecorations));
+		}).concat(hiddenTextDecowations));
 	}
 
-	private renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
-		const newLine = lineStart + text;
-		const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+	pwivate wendewSingweWineText(text: stwing, wineStawt: stwing, tabSize: numba, wendewWhitespace: boowean): stwing {
+		const newWine = wineStawt + text;
+		const visibweCowumnsByCowumns = CuwsowCowumns.visibweCowumnsByCowumns(newWine, tabSize);
 
-		let contentText = '';
-		let curCol = lineStart.length + 1;
-		for (const c of text) {
+		wet contentText = '';
+		wet cuwCow = wineStawt.wength + 1;
+		fow (const c of text) {
 			if (c === '\t') {
-				const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
-				if (renderWhitespace) {
+				const width = visibweCowumnsByCowumns[cuwCow + 1] - visibweCowumnsByCowumns[cuwCow];
+				if (wendewWhitespace) {
 					contentText += '→';
-					for (let i = 1; i < width; i++) {
+					fow (wet i = 1; i < width; i++) {
 						contentText += '\xa0';
 					}
-				} else {
-					for (let i = 0; i < width; i++) {
+				} ewse {
+					fow (wet i = 0; i < width; i++) {
 						contentText += '\xa0';
 					}
 				}
-			} else if (c === ' ') {
-				if (renderWhitespace) {
+			} ewse if (c === ' ') {
+				if (wendewWhitespace) {
 					contentText += '·';
-				} else {
+				} ewse {
 					contentText += '\xa0';
 				}
-			} else {
+			} ewse {
 				contentText += c;
 			}
-			curCol += 1;
+			cuwCow += 1;
 		}
 
-		return contentText;
+		wetuwn contentText;
 	}
 }
 
-function opaque(color: Color): Color {
-	const { r, b, g } = color.rgba;
-	return new Color(new RGBA(r, g, b, 255));
+function opaque(cowow: Cowow): Cowow {
+	const { w, b, g } = cowow.wgba;
+	wetuwn new Cowow(new WGBA(w, g, b, 255));
 }
 
-class AdditionalLinesWidget implements IDisposable {
-	private _viewZoneId: string | undefined = undefined;
-	public get viewZoneId(): string | undefined { return this._viewZoneId; }
+cwass AdditionawWinesWidget impwements IDisposabwe {
+	pwivate _viewZoneId: stwing | undefined = undefined;
+	pubwic get viewZoneId(): stwing | undefined { wetuwn this._viewZoneId; }
 
-	constructor(private readonly editor: ICodeEditor) { }
+	constwuctow(pwivate weadonwy editow: ICodeEditow) { }
 
-	public dispose(): void {
-		this.clear();
+	pubwic dispose(): void {
+		this.cweaw();
 	}
 
-	public clear(): void {
-		this.editor.changeViewZones((changeAccessor) => {
+	pubwic cweaw(): void {
+		this.editow.changeViewZones((changeAccessow) => {
 			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
+				changeAccessow.wemoveZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 			}
 		});
 	}
 
-	public updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
-		const textModel = this.editor.getModel();
-		if (!textModel) {
-			return;
+	pubwic updateWines(wineNumba: numba, additionawWines: WineData[], minWesewvedWineCount: numba): void {
+		const textModew = this.editow.getModew();
+		if (!textModew) {
+			wetuwn;
 		}
 
-		const { tabSize } = textModel.getOptions();
+		const { tabSize } = textModew.getOptions();
 
-		this.editor.changeViewZones((changeAccessor) => {
+		this.editow.changeViewZones((changeAccessow) => {
 			if (this._viewZoneId) {
-				changeAccessor.removeZone(this._viewZoneId);
+				changeAccessow.wemoveZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 			}
 
-			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
-			if (heightInLines > 0) {
-				const domNode = document.createElement('div');
-				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
+			const heightInWines = Math.max(additionawWines.wength, minWesewvedWineCount);
+			if (heightInWines > 0) {
+				const domNode = document.cweateEwement('div');
+				wendewWines(domNode, tabSize, additionawWines, this.editow.getOptions());
 
-				this._viewZoneId = changeAccessor.addZone({
-					afterLineNumber: lineNumber,
-					heightInLines: heightInLines,
+				this._viewZoneId = changeAccessow.addZone({
+					aftewWineNumba: wineNumba,
+					heightInWines: heightInWines,
 					domNode,
 				});
 			}
@@ -379,132 +379,132 @@ class AdditionalLinesWidget implements IDisposable {
 	}
 }
 
-interface LineData {
-	content: string;
-	decorations: LineDecoration[];
+intewface WineData {
+	content: stwing;
+	decowations: WineDecowation[];
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], opts: IComputedEditorOptions): void {
-	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
-	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-	// To avoid visual confusion, we don't want to render visible whitespace
-	const renderWhitespace = 'none';
-	const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
-	const fontLigatures = opts.get(EditorOption.fontLigatures);
-	const fontInfo = opts.get(EditorOption.fontInfo);
-	const lineHeight = opts.get(EditorOption.lineHeight);
+function wendewWines(domNode: HTMWEwement, tabSize: numba, wines: WineData[], opts: IComputedEditowOptions): void {
+	const disabweMonospaceOptimizations = opts.get(EditowOption.disabweMonospaceOptimizations);
+	const stopWendewingWineAfta = opts.get(EditowOption.stopWendewingWineAfta);
+	// To avoid visuaw confusion, we don't want to wenda visibwe whitespace
+	const wendewWhitespace = 'none';
+	const wendewContwowChawactews = opts.get(EditowOption.wendewContwowChawactews);
+	const fontWigatuwes = opts.get(EditowOption.fontWigatuwes);
+	const fontInfo = opts.get(EditowOption.fontInfo);
+	const wineHeight = opts.get(EditowOption.wineHeight);
 
-	const sb = createStringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
+	const sb = cweateStwingBuiwda(10000);
+	sb.appendASCIIStwing('<div cwass="suggest-pweview-text">');
 
-	for (let i = 0, len = lines.length; i < len; i++) {
-		const lineData = lines[i];
-		const line = lineData.content;
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+	fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+		const wineData = wines[i];
+		const wine = wineData.content;
+		sb.appendASCIIStwing('<div cwass="view-wine');
+		sb.appendASCIIStwing('" stywe="top:');
+		sb.appendASCIIStwing(Stwing(i * wineHeight));
+		sb.appendASCIIStwing('px;width:1000000px;">');
 
-		const isBasicASCII = strings.isBasicASCII(line);
-		const containsRTL = strings.containsRTL(line);
-		const lineTokens = LineTokens.createEmpty(line);
+		const isBasicASCII = stwings.isBasicASCII(wine);
+		const containsWTW = stwings.containsWTW(wine);
+		const wineTokens = WineTokens.cweateEmpty(wine);
 
-		renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !disableMonospaceOptimizations),
-			fontInfo.canUseHalfwidthRightwardsArrow,
-			line,
-			false,
+		wendewViewWine(new WendewWineInput(
+			(fontInfo.isMonospace && !disabweMonospaceOptimizations),
+			fontInfo.canUseHawfwidthWightwawdsAwwow,
+			wine,
+			fawse,
 			isBasicASCII,
-			containsRTL,
+			containsWTW,
 			0,
-			lineTokens,
-			lineData.decorations,
+			wineTokens,
+			wineData.decowations,
 			tabSize,
 			0,
 			fontInfo.spaceWidth,
 			fontInfo.middotWidth,
 			fontInfo.wsmiddotWidth,
-			stopRenderingLineAfter,
-			renderWhitespace,
-			renderControlCharacters,
-			fontLigatures !== EditorFontLigatures.OFF,
-			null
+			stopWendewingWineAfta,
+			wendewWhitespace,
+			wendewContwowChawactews,
+			fontWigatuwes !== EditowFontWigatuwes.OFF,
+			nuww
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendASCIIStwing('</div>');
 	}
-	sb.appendASCIIString('</div>');
+	sb.appendASCIIStwing('</div>');
 
-	Configuration.applyFontInfoSlow(domNode, fontInfo);
-	const html = sb.build();
-	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-	domNode.innerHTML = trustedhtml as string;
+	Configuwation.appwyFontInfoSwow(domNode, fontInfo);
+	const htmw = sb.buiwd();
+	const twustedhtmw = ttPowicy ? ttPowicy.cweateHTMW(htmw) : htmw;
+	domNode.innewHTMW = twustedhtmw as stwing;
 }
 
-let keyCounter = 0;
+wet keyCounta = 0;
 
-function registerDecorationType(service: ICodeEditorService, description: string, keyPrefix: string, options: IDecorationRenderOptions) {
-	const key = keyPrefix + (keyCounter++);
-	service.registerDecorationType(description, key, options);
-	return {
+function wegistewDecowationType(sewvice: ICodeEditowSewvice, descwiption: stwing, keyPwefix: stwing, options: IDecowationWendewOptions) {
+	const key = keyPwefix + (keyCounta++);
+	sewvice.wegistewDecowationType(descwiption, key, options);
+	wetuwn {
 		dispose() {
-			service.removeDecorationType(key);
+			sewvice.wemoveDecowationType(key);
 		},
-		resolve() {
-			return service.resolveDecorationOptions(key, true);
+		wesowve() {
+			wetuwn sewvice.wesowveDecowationOptions(key, twue);
 		}
 	};
 }
 
-class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
-	readonly allowEditorOverflow = false;
-	readonly suppressMouseDown = false;
+cwass ViewMoweWinesContentWidget extends Disposabwe impwements IContentWidget {
+	weadonwy awwowEditowOvewfwow = fawse;
+	weadonwy suppwessMouseDown = fawse;
 
-	constructor(
-		private editor: ICodeEditor,
-		private position: Position,
-		private domNode: HTMLElement,
-		disposableStore: DisposableStore
+	constwuctow(
+		pwivate editow: ICodeEditow,
+		pwivate position: Position,
+		pwivate domNode: HTMWEwement,
+		disposabweStowe: DisposabweStowe
 	) {
-		super();
-		this._register(disposableStore);
-		this._register(toDisposable(() => {
-			this.editor.removeContentWidget(this);
+		supa();
+		this._wegista(disposabweStowe);
+		this._wegista(toDisposabwe(() => {
+			this.editow.wemoveContentWidget(this);
 		}));
-		this.editor.addContentWidget(this);
+		this.editow.addContentWidget(this);
 	}
 
-	getId(): string {
-		return 'editor.widget.viewMoreLinesWidget';
+	getId(): stwing {
+		wetuwn 'editow.widget.viewMoweWinesWidget';
 	}
 
-	getDomNode(): HTMLElement {
-		return this.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	getPosition(): IContentWidgetPosition | null {
-		return {
+	getPosition(): IContentWidgetPosition | nuww {
+		wetuwn {
 			position: this.position,
-			preference: [ContentWidgetPositionPreference.EXACT]
+			pwefewence: [ContentWidgetPositionPwefewence.EXACT]
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const foreground = theme.getColor(ghostTextForeground);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const fowegwound = theme.getCowow(ghostTextFowegwound);
 
-	if (foreground) {
-		const opacity = String(foreground.rgba.a);
-		const color = Color.Format.CSS.format(opaque(foreground))!;
+	if (fowegwound) {
+		const opacity = Stwing(fowegwound.wgba.a);
+		const cowow = Cowow.Fowmat.CSS.fowmat(opaque(fowegwound))!;
 
-		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity} !important; color: ${color} !important; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity} !important; color: ${color} !important; }`);
+		// `!impowtant` ensuwes that otha decowations don't cause a stywe confwict (#132017).
+		cowwectow.addWuwe(`.monaco-editow .ghost-text-decowation { opacity: ${opacity} !impowtant; cowow: ${cowow} !impowtant; }`);
+		cowwectow.addWuwe(`.monaco-editow .ghost-text-decowation-pweview { cowow: ${fowegwound.toStwing()} !impowtant; }`);
+		cowwectow.addWuwe(`.monaco-editow .suggest-pweview-text .ghost-text { opacity: ${opacity} !impowtant; cowow: ${cowow} !impowtant; }`);
 	}
 
-	const border = theme.getColor(ghostTextBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 2px dashed ${border}; }`);
+	const bowda = theme.getCowow(ghostTextBowda);
+	if (bowda) {
+		cowwectow.addWuwe(`.monaco-editow .suggest-pweview-text .ghost-text { bowda: 2px dashed ${bowda}; }`);
 	}
 });

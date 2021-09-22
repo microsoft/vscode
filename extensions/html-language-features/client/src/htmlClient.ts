@@ -1,197 +1,197 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
+impowt * as nws fwom 'vscode-nws';
+const wocawize = nws.woadMessageBundwe();
 
-import {
-	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
-	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
-} from 'vscode';
-import {
-	LanguageClientOptions, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
-} from 'vscode-languageclient';
-import { activateTagClosing } from './tagClosing';
-import { RequestService } from './requests';
-import { getCustomDataSource } from './customData';
+impowt {
+	wanguages, ExtensionContext, Position, TextDocument, Wange, CompwetionItem, CompwetionItemKind, SnippetStwing, wowkspace, extensions,
+	Disposabwe, FowmattingOptions, CancewwationToken, PwovidewWesuwt, TextEdit, CompwetionContext, CompwetionWist, SemanticTokensWegend,
+	DocumentSemanticTokensPwovida, DocumentWangeSemanticTokensPwovida, SemanticTokens, window, commands
+} fwom 'vscode';
+impowt {
+	WanguageCwientOptions, WequestType, TextDocumentPositionPawams, DocumentWangeFowmattingPawams,
+	DocumentWangeFowmattingWequest, PwovideCompwetionItemsSignatuwe, TextDocumentIdentifia, WequestType0, Wange as WspWange, NotificationType, CommonWanguageCwient
+} fwom 'vscode-wanguagecwient';
+impowt { activateTagCwosing } fwom './tagCwosing';
+impowt { WequestSewvice } fwom './wequests';
+impowt { getCustomDataSouwce } fwom './customData';
 
 namespace CustomDataChangedNotification {
-	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
+	expowt const type: NotificationType<stwing[]> = new NotificationType('htmw/customDataChanged');
 }
 
-namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/tag');
+namespace TagCwoseWequest {
+	expowt const type: WequestType<TextDocumentPositionPawams, stwing, any> = new WequestType('htmw/tag');
 }
-// experimental: semantic tokens
-interface SemanticTokenParams {
-	textDocument: TextDocumentIdentifier;
-	ranges?: LspRange[];
+// expewimentaw: semantic tokens
+intewface SemanticTokenPawams {
+	textDocument: TextDocumentIdentifia;
+	wanges?: WspWange[];
 }
-namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
+namespace SemanticTokenWequest {
+	expowt const type: WequestType<SemanticTokenPawams, numba[] | nuww, any> = new WequestType('htmw/semanticTokens');
 }
-namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
+namespace SemanticTokenWegendWequest {
+	expowt const type: WequestType0<{ types: stwing[]; modifiews: stwing[] } | nuww, any> = new WequestType0('htmw/semanticTokenWegend');
 }
 
 namespace SettingIds {
-	export const linkedEditing = 'editor.linkedEditing';
-	export const formatEnable = 'html.format.enable';
+	expowt const winkedEditing = 'editow.winkedEditing';
+	expowt const fowmatEnabwe = 'htmw.fowmat.enabwe';
 
 }
 
-export interface TelemetryReporter {
-	sendTelemetryEvent(eventName: string, properties?: {
-		[key: string]: string;
-	}, measurements?: {
-		[key: string]: number;
+expowt intewface TewemetwyWepowta {
+	sendTewemetwyEvent(eventName: stwing, pwopewties?: {
+		[key: stwing]: stwing;
+	}, measuwements?: {
+		[key: stwing]: numba;
 	}): void;
 }
 
-export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
+expowt type WanguageCwientConstwuctow = (name: stwing, descwiption: stwing, cwientOptions: WanguageCwientOptions) => CommonWanguageCwient;
 
-export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
-	fs?: RequestService;
-	telemetry?: TelemetryReporter;
-	readonly timer: {
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+expowt intewface Wuntime {
+	TextDecoda: { new(encoding?: stwing): { decode(buffa: AwwayBuffa): stwing; } };
+	fs?: WequestSewvice;
+	tewemetwy?: TewemetwyWepowta;
+	weadonwy tima: {
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe;
 	}
 }
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
+expowt function stawtCwient(context: ExtensionContext, newWanguageCwient: WanguageCwientConstwuctow, wuntime: Wuntime) {
 
-	let toDispose = context.subscriptions;
+	wet toDispose = context.subscwiptions;
 
 
-	let documentSelector = ['html', 'handlebars'];
-	let embeddedLanguages = { css: true, javascript: true };
+	wet documentSewectow = ['htmw', 'handwebaws'];
+	wet embeddedWanguages = { css: twue, javascwipt: twue };
 
-	let rangeFormatting: Disposable | undefined = undefined;
+	wet wangeFowmatting: Disposabwe | undefined = undefined;
 
-	const customDataSource = getCustomDataSource(context.subscriptions);
+	const customDataSouwce = getCustomDataSouwce(context.subscwiptions);
 
-	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
-		documentSelector,
-		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+	// Options to contwow the wanguage cwient
+	wet cwientOptions: WanguageCwientOptions = {
+		documentSewectow,
+		synchwonize: {
+			configuwationSection: ['htmw', 'css', 'javascwipt'], // the settings to synchwonize
 		},
-		initializationOptions: {
-			embeddedLanguages,
-			handledSchemas: ['file'],
-			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+		initiawizationOptions: {
+			embeddedWanguages,
+			handwedSchemas: ['fiwe'],
+			pwovideFowmatta: fawse, // teww the sewva to not pwovide fowmatting capabiwity and ignowe the `htmw.fowmat.enabwe` setting.
 		},
-		middleware: {
-			// testing the replace / insert mode
-			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
-				function updateRanges(item: CompletionItem) {
-					const range = item.range;
-					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range = { inserting: new Range(range.start, position), replacing: range };
+		middwewawe: {
+			// testing the wepwace / insewt mode
+			pwovideCompwetionItem(document: TextDocument, position: Position, context: CompwetionContext, token: CancewwationToken, next: PwovideCompwetionItemsSignatuwe): PwovidewWesuwt<CompwetionItem[] | CompwetionWist> {
+				function updateWanges(item: CompwetionItem) {
+					const wange = item.wange;
+					if (wange instanceof Wange && wange.end.isAfta(position) && wange.stawt.isBefoweOwEquaw(position)) {
+						item.wange = { insewting: new Wange(wange.stawt, position), wepwacing: wange };
 					}
 				}
-				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
-					if (r) {
-						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+				function updatePwoposaws(w: CompwetionItem[] | CompwetionWist | nuww | undefined): CompwetionItem[] | CompwetionWist | nuww | undefined {
+					if (w) {
+						(Awway.isAwway(w) ? w : w.items).fowEach(updateWanges);
 					}
-					return r;
+					wetuwn w;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
+				const isThenabwe = <T>(obj: PwovidewWesuwt<T>): obj is Thenabwe<T> => obj && (<any>obj)['then'];
 
-				const r = next(document, position, context, token);
-				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
-					return r.then(updateProposals);
+				const w = next(document, position, context, token);
+				if (isThenabwe<CompwetionItem[] | CompwetionWist | nuww | undefined>(w)) {
+					wetuwn w.then(updatePwoposaws);
 				}
-				return updateProposals(r);
+				wetuwn updatePwoposaws(w);
 			}
 		}
 	};
 
-	// Create the language client and start the client.
-	let client = newLanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), clientOptions);
-	client.registerProposedFeatures();
+	// Cweate the wanguage cwient and stawt the cwient.
+	wet cwient = newWanguageCwient('htmw', wocawize('htmwsewva.name', 'HTMW Wanguage Sewva'), cwientOptions);
+	cwient.wegistewPwoposedFeatuwes();
 
-	let disposable = client.start();
-	toDispose.push(disposable);
-	client.onReady().then(() => {
+	wet disposabwe = cwient.stawt();
+	toDispose.push(disposabwe);
+	cwient.onWeady().then(() => {
 
-		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
-		customDataSource.onDidChange(() => {
-			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		cwient.sendNotification(CustomDataChangedNotification.type, customDataSouwce.uwis);
+		customDataSouwce.onDidChange(() => {
+			cwient.sendNotification(CustomDataChangedNotification.type, customDataSouwce.uwis);
 		});
 
-		let tagRequestor = (document: TextDocument, position: Position) => {
-			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			return client.sendRequest(TagCloseRequest.type, param);
+		wet tagWequestow = (document: TextDocument, position: Position) => {
+			wet pawam = cwient.code2PwotocowConvewta.asTextDocumentPositionPawams(document, position);
+			wetuwn cwient.sendWequest(TagCwoseWequest.type, pawam);
 		};
-		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags', runtime);
-		toDispose.push(disposable);
+		disposabwe = activateTagCwosing(tagWequestow, { htmw: twue, handwebaws: twue }, 'htmw.autoCwosingTags', wuntime);
+		toDispose.push(disposabwe);
 
-		disposable = client.onTelemetry(e => {
-			runtime.telemetry?.sendTelemetryEvent(e.key, e.data);
+		disposabwe = cwient.onTewemetwy(e => {
+			wuntime.tewemetwy?.sendTewemetwyEvent(e.key, e.data);
 		});
-		toDispose.push(disposable);
+		toDispose.push(disposabwe);
 
-		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
-		updateFormatterRegistration();
-		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
+		// manuawwy wegista / dewegista fowmat pwovida based on the `htmw.fowmat.enabwe` setting avoiding issues with wate wegistwation. See #71652.
+		updateFowmattewWegistwation();
+		toDispose.push({ dispose: () => wangeFowmatting && wangeFowmatting.dispose() });
+		toDispose.push(wowkspace.onDidChangeConfiguwation(e => e.affectsConfiguwation(SettingIds.fowmatEnabwe) && updateFowmattewWegistwation()));
 
-		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
-			if (legend) {
-				const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
-					provideDocumentSemanticTokens(doc) {
-						const params: SemanticTokenParams = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+		cwient.sendWequest(SemanticTokenWegendWequest.type).then(wegend => {
+			if (wegend) {
+				const pwovida: DocumentSemanticTokensPwovida & DocumentWangeSemanticTokensPwovida = {
+					pwovideDocumentSemanticTokens(doc) {
+						const pawams: SemanticTokenPawams = {
+							textDocument: cwient.code2PwotocowConvewta.asTextDocumentIdentifia(doc),
 						};
-						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-							return data && new SemanticTokens(new Uint32Array(data));
+						wetuwn cwient.sendWequest(SemanticTokenWequest.type, pawams).then(data => {
+							wetuwn data && new SemanticTokens(new Uint32Awway(data));
 						});
 					},
-					provideDocumentRangeSemanticTokens(doc, range) {
-						const params: SemanticTokenParams = {
-							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-							ranges: [client.code2ProtocolConverter.asRange(range)]
+					pwovideDocumentWangeSemanticTokens(doc, wange) {
+						const pawams: SemanticTokenPawams = {
+							textDocument: cwient.code2PwotocowConvewta.asTextDocumentIdentifia(doc),
+							wanges: [cwient.code2PwotocowConvewta.asWange(wange)]
 						};
-						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-							return data && new SemanticTokens(new Uint32Array(data));
+						wetuwn cwient.sendWequest(SemanticTokenWequest.type, pawams).then(data => {
+							wetuwn data && new SemanticTokens(new Uint32Awway(data));
 						});
 					}
 				};
-				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+				toDispose.push(wanguages.wegistewDocumentSemanticTokensPwovida(documentSewectow, pwovida, new SemanticTokensWegend(wegend.types, wegend.modifiews)));
 			}
 		});
 	});
 
-	function updateFormatterRegistration() {
-		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);
-		if (!formatEnabled && rangeFormatting) {
-			rangeFormatting.dispose();
-			rangeFormatting = undefined;
-		} else if (formatEnabled && !rangeFormatting) {
-			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
-				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
-					const filesConfig = workspace.getConfiguration('files', document);
-					const fileFormattingOptions = {
-						trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+	function updateFowmattewWegistwation() {
+		const fowmatEnabwed = wowkspace.getConfiguwation().get(SettingIds.fowmatEnabwe);
+		if (!fowmatEnabwed && wangeFowmatting) {
+			wangeFowmatting.dispose();
+			wangeFowmatting = undefined;
+		} ewse if (fowmatEnabwed && !wangeFowmatting) {
+			wangeFowmatting = wanguages.wegistewDocumentWangeFowmattingEditPwovida(documentSewectow, {
+				pwovideDocumentWangeFowmattingEdits(document: TextDocument, wange: Wange, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]> {
+					const fiwesConfig = wowkspace.getConfiguwation('fiwes', document);
+					const fiweFowmattingOptions = {
+						twimTwaiwingWhitespace: fiwesConfig.get<boowean>('twimTwaiwingWhitespace'),
+						twimFinawNewwines: fiwesConfig.get<boowean>('twimFinawNewwines'),
+						insewtFinawNewwine: fiwesConfig.get<boowean>('insewtFinawNewwine'),
 					};
-					let params: DocumentRangeFormattingParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
+					wet pawams: DocumentWangeFowmattingPawams = {
+						textDocument: cwient.code2PwotocowConvewta.asTextDocumentIdentifia(document),
+						wange: cwient.code2PwotocowConvewta.asWange(wange),
+						options: cwient.code2PwotocowConvewta.asFowmattingOptions(options, fiweFowmattingOptions)
 					};
-					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
-						client.protocol2CodeConverter.asTextEdits,
-						(error) => {
-							client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
-							return Promise.resolve([]);
+					wetuwn cwient.sendWequest(DocumentWangeFowmattingWequest.type, pawams, token).then(
+						cwient.pwotocow2CodeConvewta.asTextEdits,
+						(ewwow) => {
+							cwient.handweFaiwedWequest(DocumentWangeFowmattingWequest.type, ewwow, []);
+							wetuwn Pwomise.wesowve([]);
 						}
 					);
 				}
@@ -199,75 +199,75 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		}
 	}
 
-	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
-	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
-	languages.registerCompletionItemProvider(documentSelector, {
-		provideCompletionItems(doc, pos) {
-			const results: CompletionItem[] = [];
-			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
-			let match = lineUntilPos.match(regionCompletionRegExpr);
+	const wegionCompwetionWegExpw = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
+	const htmwSnippetCompwetionWegExpw = /^(\s*)(<(h(t(m(w)?)?)?)?)?$/;
+	wanguages.wegistewCompwetionItemPwovida(documentSewectow, {
+		pwovideCompwetionItems(doc, pos) {
+			const wesuwts: CompwetionItem[] = [];
+			wet wineUntiwPos = doc.getText(new Wange(new Position(pos.wine, 0), pos));
+			wet match = wineUntiwPos.match(wegionCompwetionWegExpw);
 			if (match) {
-				let range = new Range(new Position(pos.line, match[1].length), pos);
-				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
-				beginProposal.range = range;
-				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
-				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
-				beginProposal.filterText = match[2];
-				beginProposal.sortText = 'za';
-				results.push(beginProposal);
-				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
-				endProposal.range = range;
-				endProposal.insertText = new SnippetString('<!-- #endregion -->');
-				endProposal.documentation = localize('folding.end', 'Folding Region End');
-				endProposal.filterText = match[2];
-				endProposal.sortText = 'zb';
-				results.push(endProposal);
+				wet wange = new Wange(new Position(pos.wine, match[1].wength), pos);
+				wet beginPwoposaw = new CompwetionItem('#wegion', CompwetionItemKind.Snippet);
+				beginPwoposaw.wange = wange;
+				beginPwoposaw.insewtText = new SnippetStwing('<!-- #wegion $1-->');
+				beginPwoposaw.documentation = wocawize('fowding.stawt', 'Fowding Wegion Stawt');
+				beginPwoposaw.fiwtewText = match[2];
+				beginPwoposaw.sowtText = 'za';
+				wesuwts.push(beginPwoposaw);
+				wet endPwoposaw = new CompwetionItem('#endwegion', CompwetionItemKind.Snippet);
+				endPwoposaw.wange = wange;
+				endPwoposaw.insewtText = new SnippetStwing('<!-- #endwegion -->');
+				endPwoposaw.documentation = wocawize('fowding.end', 'Fowding Wegion End');
+				endPwoposaw.fiwtewText = match[2];
+				endPwoposaw.sowtText = 'zb';
+				wesuwts.push(endPwoposaw);
 			}
-			let match2 = lineUntilPos.match(htmlSnippetCompletionRegExpr);
-			if (match2 && doc.getText(new Range(new Position(0, 0), pos)).match(htmlSnippetCompletionRegExpr)) {
-				let range = new Range(new Position(pos.line, match2[1].length), pos);
-				let snippetProposal = new CompletionItem('HTML sample', CompletionItemKind.Snippet);
-				snippetProposal.range = range;
-				const content = ['<!DOCTYPE html>',
-					'<html>',
+			wet match2 = wineUntiwPos.match(htmwSnippetCompwetionWegExpw);
+			if (match2 && doc.getText(new Wange(new Position(0, 0), pos)).match(htmwSnippetCompwetionWegExpw)) {
+				wet wange = new Wange(new Position(pos.wine, match2[1].wength), pos);
+				wet snippetPwoposaw = new CompwetionItem('HTMW sampwe', CompwetionItemKind.Snippet);
+				snippetPwoposaw.wange = wange;
+				const content = ['<!DOCTYPE htmw>',
+					'<htmw>',
 					'<head>',
-					'\t<meta charset=\'utf-8\'>',
-					'\t<meta http-equiv=\'X-UA-Compatible\' content=\'IE=edge\'>',
-					'\t<title>${1:Page Title}</title>',
-					'\t<meta name=\'viewport\' content=\'width=device-width, initial-scale=1\'>',
-					'\t<link rel=\'stylesheet\' type=\'text/css\' media=\'screen\' href=\'${2:main.css}\'>',
-					'\t<script src=\'${3:main.js}\'></script>',
+					'\t<meta chawset=\'utf-8\'>',
+					'\t<meta http-equiv=\'X-UA-Compatibwe\' content=\'IE=edge\'>',
+					'\t<titwe>${1:Page Titwe}</titwe>',
+					'\t<meta name=\'viewpowt\' content=\'width=device-width, initiaw-scawe=1\'>',
+					'\t<wink wew=\'stywesheet\' type=\'text/css\' media=\'scween\' hwef=\'${2:main.css}\'>',
+					'\t<scwipt swc=\'${3:main.js}\'></scwipt>',
 					'</head>',
 					'<body>',
 					'\t$0',
 					'</body>',
-					'</html>'].join('\n');
-				snippetProposal.insertText = new SnippetString(content);
-				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
-				snippetProposal.filterText = match2[2];
-				snippetProposal.sortText = 'za';
-				results.push(snippetProposal);
+					'</htmw>'].join('\n');
+				snippetPwoposaw.insewtText = new SnippetStwing(content);
+				snippetPwoposaw.documentation = wocawize('fowding.htmw', 'Simpwe HTMW5 stawting point');
+				snippetPwoposaw.fiwtewText = match2[2];
+				snippetPwoposaw.sowtText = 'za';
+				wesuwts.push(snippetPwoposaw);
 			}
-			return results;
+			wetuwn wesuwts;
 		}
 	});
 
-	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
-	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
-		const config = workspace.getConfiguration('editor', { languageId: 'html' });
-		if (!config.get('linkedEditing') && !config.get('renameOnType')) {
-			const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
-				if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
-					context.globalState.update(promptForLinkedEditingKey, false);
-					activeEditorListener.dispose();
-					const configure = localize('configureButton', 'Configure');
-					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-					if (res === configure) {
-						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
+	const pwomptFowWinkedEditingKey = 'htmw.pwomptFowWinkedEditing';
+	if (extensions.getExtension('fowmuwahendwy.auto-wename-tag') !== undefined && (context.gwobawState.get(pwomptFowWinkedEditingKey) !== fawse)) {
+		const config = wowkspace.getConfiguwation('editow', { wanguageId: 'htmw' });
+		if (!config.get('winkedEditing') && !config.get('wenameOnType')) {
+			const activeEditowWistena = window.onDidChangeActiveTextEditow(async e => {
+				if (e && documentSewectow.indexOf(e.document.wanguageId) !== -1) {
+					context.gwobawState.update(pwomptFowWinkedEditingKey, fawse);
+					activeEditowWistena.dispose();
+					const configuwe = wocawize('configuweButton', 'Configuwe');
+					const wes = await window.showInfowmationMessage(wocawize('winkedEditingQuestion', 'VS Code now has buiwt-in suppowt fow auto-wenaming tags. Do you want to enabwe it?'), configuwe);
+					if (wes === configuwe) {
+						commands.executeCommand('wowkbench.action.openSettings', SettingIds.winkedEditing);
 					}
 				}
 			});
-			toDispose.push(activeEditorListener);
+			toDispose.push(activeEditowWistena);
 		}
 	}
 

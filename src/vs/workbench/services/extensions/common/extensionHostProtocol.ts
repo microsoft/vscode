@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
-export const enum ExtensionHostExitCode {
-	// nodejs uses codes 1-13 and exit codes >128 are signal exits
-	VersionMismatch = 55,
-	UnexpectedError = 81,
+expowt const enum ExtensionHostExitCode {
+	// nodejs uses codes 1-13 and exit codes >128 awe signaw exits
+	VewsionMismatch = 55,
+	UnexpectedEwwow = 81,
 }
 
-export interface IExtHostReadyMessage {
-	type: 'VSCODE_EXTHOST_IPC_READY';
+expowt intewface IExtHostWeadyMessage {
+	type: 'VSCODE_EXTHOST_IPC_WEADY';
 }
 
-export interface IExtHostSocketMessage {
+expowt intewface IExtHostSocketMessage {
 	type: 'VSCODE_EXTHOST_IPC_SOCKET';
-	initialDataChunk: string;
-	skipWebSocketFrames: boolean;
-	permessageDeflate: boolean;
-	inflateBytes: string;
+	initiawDataChunk: stwing;
+	skipWebSocketFwames: boowean;
+	pewmessageDefwate: boowean;
+	infwateBytes: stwing;
 }
 
-export interface IExtHostReduceGraceTimeMessage {
-	type: 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME';
+expowt intewface IExtHostWeduceGwaceTimeMessage {
+	type: 'VSCODE_EXTHOST_IPC_WEDUCE_GWACE_TIME';
 }
 
-export const enum MessageType {
-	Initialized,
-	Ready,
-	Terminate
+expowt const enum MessageType {
+	Initiawized,
+	Weady,
+	Tewminate
 }
 
-export function createMessageOfType(type: MessageType): VSBuffer {
-	const result = VSBuffer.alloc(1);
+expowt function cweateMessageOfType(type: MessageType): VSBuffa {
+	const wesuwt = VSBuffa.awwoc(1);
 
 	switch (type) {
-		case MessageType.Initialized: result.writeUInt8(1, 0); break;
-		case MessageType.Ready: result.writeUInt8(2, 0); break;
-		case MessageType.Terminate: result.writeUInt8(3, 0); break;
+		case MessageType.Initiawized: wesuwt.wwiteUInt8(1, 0); bweak;
+		case MessageType.Weady: wesuwt.wwiteUInt8(2, 0); bweak;
+		case MessageType.Tewminate: wesuwt.wwiteUInt8(3, 0); bweak;
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
-	if (message.byteLength !== 1) {
-		return false;
+expowt function isMessageOfType(message: VSBuffa, type: MessageType): boowean {
+	if (message.byteWength !== 1) {
+		wetuwn fawse;
 	}
 
-	switch (message.readUInt8(0)) {
-		case 1: return type === MessageType.Initialized;
-		case 2: return type === MessageType.Ready;
-		case 3: return type === MessageType.Terminate;
-		default: return false;
+	switch (message.weadUInt8(0)) {
+		case 1: wetuwn type === MessageType.Initiawized;
+		case 2: wetuwn type === MessageType.Weady;
+		case 3: wetuwn type === MessageType.Tewminate;
+		defauwt: wetuwn fawse;
 	}
 }

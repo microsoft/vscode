@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorActiveIndentGuides, editorIndentGuides } from 'vs/editor/common/view/editorColorRegistry';
-import { IStandaloneThemeData } from 'vs/editor/standalone/common/standaloneThemeService';
-import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from 'vs/platform/theme/common/colorRegistry';
+impowt { editowActiveIndentGuides, editowIndentGuides } fwom 'vs/editow/common/view/editowCowowWegistwy';
+impowt { IStandawoneThemeData } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { editowBackgwound, editowFowegwound, editowInactiveSewection, editowSewectionHighwight } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
-export const vs: IStandaloneThemeData = {
+expowt const vs: IStandawoneThemeData = {
 	base: 'vs',
-	inherit: false,
-	rules: [
-		{ token: '', foreground: '000000', background: 'fffffe' },
-		{ token: 'invalid', foreground: 'cd3131' },
-		{ token: 'emphasis', fontStyle: 'italic' },
-		{ token: 'strong', fontStyle: 'bold' },
+	inhewit: fawse,
+	wuwes: [
+		{ token: '', fowegwound: '000000', backgwound: 'fffffe' },
+		{ token: 'invawid', fowegwound: 'cd3131' },
+		{ token: 'emphasis', fontStywe: 'itawic' },
+		{ token: 'stwong', fontStywe: 'bowd' },
 
-		{ token: 'variable', foreground: '001188' },
-		{ token: 'variable.predefined', foreground: '4864AA' },
-		{ token: 'constant', foreground: 'dd0000' },
-		{ token: 'comment', foreground: '008000' },
-		{ token: 'number', foreground: '098658' },
-		{ token: 'number.hex', foreground: '3030c0' },
-		{ token: 'regexp', foreground: '800000' },
-		{ token: 'annotation', foreground: '808080' },
-		{ token: 'type', foreground: '008080' },
+		{ token: 'vawiabwe', fowegwound: '001188' },
+		{ token: 'vawiabwe.pwedefined', fowegwound: '4864AA' },
+		{ token: 'constant', fowegwound: 'dd0000' },
+		{ token: 'comment', fowegwound: '008000' },
+		{ token: 'numba', fowegwound: '098658' },
+		{ token: 'numba.hex', fowegwound: '3030c0' },
+		{ token: 'wegexp', fowegwound: '800000' },
+		{ token: 'annotation', fowegwound: '808080' },
+		{ token: 'type', fowegwound: '008080' },
 
-		{ token: 'delimiter', foreground: '000000' },
-		{ token: 'delimiter.html', foreground: '383838' },
-		{ token: 'delimiter.xml', foreground: '0000FF' },
+		{ token: 'dewimita', fowegwound: '000000' },
+		{ token: 'dewimita.htmw', fowegwound: '383838' },
+		{ token: 'dewimita.xmw', fowegwound: '0000FF' },
 
-		{ token: 'tag', foreground: '800000' },
-		{ token: 'tag.id.pug', foreground: '4F76AC' },
-		{ token: 'tag.class.pug', foreground: '4F76AC' },
-		{ token: 'meta.scss', foreground: '800000' },
-		{ token: 'metatag', foreground: 'e00000' },
-		{ token: 'metatag.content.html', foreground: 'FF0000' },
-		{ token: 'metatag.html', foreground: '808080' },
-		{ token: 'metatag.xml', foreground: '808080' },
-		{ token: 'metatag.php', fontStyle: 'bold' },
+		{ token: 'tag', fowegwound: '800000' },
+		{ token: 'tag.id.pug', fowegwound: '4F76AC' },
+		{ token: 'tag.cwass.pug', fowegwound: '4F76AC' },
+		{ token: 'meta.scss', fowegwound: '800000' },
+		{ token: 'metatag', fowegwound: 'e00000' },
+		{ token: 'metatag.content.htmw', fowegwound: 'FF0000' },
+		{ token: 'metatag.htmw', fowegwound: '808080' },
+		{ token: 'metatag.xmw', fowegwound: '808080' },
+		{ token: 'metatag.php', fontStywe: 'bowd' },
 
-		{ token: 'key', foreground: '863B00' },
-		{ token: 'string.key.json', foreground: 'A31515' },
-		{ token: 'string.value.json', foreground: '0451A5' },
+		{ token: 'key', fowegwound: '863B00' },
+		{ token: 'stwing.key.json', fowegwound: 'A31515' },
+		{ token: 'stwing.vawue.json', fowegwound: '0451A5' },
 
-		{ token: 'attribute.name', foreground: 'FF0000' },
-		{ token: 'attribute.value', foreground: '0451A5' },
-		{ token: 'attribute.value.number', foreground: '098658' },
-		{ token: 'attribute.value.unit', foreground: '098658' },
-		{ token: 'attribute.value.html', foreground: '0000FF' },
-		{ token: 'attribute.value.xml', foreground: '0000FF' },
+		{ token: 'attwibute.name', fowegwound: 'FF0000' },
+		{ token: 'attwibute.vawue', fowegwound: '0451A5' },
+		{ token: 'attwibute.vawue.numba', fowegwound: '098658' },
+		{ token: 'attwibute.vawue.unit', fowegwound: '098658' },
+		{ token: 'attwibute.vawue.htmw', fowegwound: '0000FF' },
+		{ token: 'attwibute.vawue.xmw', fowegwound: '0000FF' },
 
-		{ token: 'string', foreground: 'A31515' },
-		{ token: 'string.html', foreground: '0000FF' },
-		{ token: 'string.sql', foreground: 'FF0000' },
-		{ token: 'string.yaml', foreground: '0451A5' },
+		{ token: 'stwing', fowegwound: 'A31515' },
+		{ token: 'stwing.htmw', fowegwound: '0000FF' },
+		{ token: 'stwing.sqw', fowegwound: 'FF0000' },
+		{ token: 'stwing.yamw', fowegwound: '0451A5' },
 
-		{ token: 'keyword', foreground: '0000FF' },
-		{ token: 'keyword.json', foreground: '0451A5' },
-		{ token: 'keyword.flow', foreground: 'AF00DB' },
-		{ token: 'keyword.flow.scss', foreground: '0000FF' },
+		{ token: 'keywowd', fowegwound: '0000FF' },
+		{ token: 'keywowd.json', fowegwound: '0451A5' },
+		{ token: 'keywowd.fwow', fowegwound: 'AF00DB' },
+		{ token: 'keywowd.fwow.scss', fowegwound: '0000FF' },
 
-		{ token: 'operator.scss', foreground: '666666' },
-		{ token: 'operator.sql', foreground: '778899' },
-		{ token: 'operator.swift', foreground: '666666' },
-		{ token: 'predefined.sql', foreground: 'C700C7' },
+		{ token: 'opewatow.scss', fowegwound: '666666' },
+		{ token: 'opewatow.sqw', fowegwound: '778899' },
+		{ token: 'opewatow.swift', fowegwound: '666666' },
+		{ token: 'pwedefined.sqw', fowegwound: 'C700C7' },
 	],
-	colors: {
-		[editorBackground]: '#FFFFFE',
-		[editorForeground]: '#000000',
-		[editorInactiveSelection]: '#E5EBF1',
-		[editorIndentGuides]: '#D3D3D3',
-		[editorActiveIndentGuides]: '#939393',
-		[editorSelectionHighlight]: '#ADD6FF4D'
+	cowows: {
+		[editowBackgwound]: '#FFFFFE',
+		[editowFowegwound]: '#000000',
+		[editowInactiveSewection]: '#E5EBF1',
+		[editowIndentGuides]: '#D3D3D3',
+		[editowActiveIndentGuides]: '#939393',
+		[editowSewectionHighwight]: '#ADD6FF4D'
 	}
 };
 /* -------------------------------- End vs theme -------------------------------- */
 
 
-/* -------------------------------- Begin vs-dark theme -------------------------------- */
-export const vs_dark: IStandaloneThemeData = {
-	base: 'vs-dark',
-	inherit: false,
-	rules: [
-		{ token: '', foreground: 'D4D4D4', background: '1E1E1E' },
-		{ token: 'invalid', foreground: 'f44747' },
-		{ token: 'emphasis', fontStyle: 'italic' },
-		{ token: 'strong', fontStyle: 'bold' },
+/* -------------------------------- Begin vs-dawk theme -------------------------------- */
+expowt const vs_dawk: IStandawoneThemeData = {
+	base: 'vs-dawk',
+	inhewit: fawse,
+	wuwes: [
+		{ token: '', fowegwound: 'D4D4D4', backgwound: '1E1E1E' },
+		{ token: 'invawid', fowegwound: 'f44747' },
+		{ token: 'emphasis', fontStywe: 'itawic' },
+		{ token: 'stwong', fontStywe: 'bowd' },
 
-		{ token: 'variable', foreground: '74B0DF' },
-		{ token: 'variable.predefined', foreground: '4864AA' },
-		{ token: 'variable.parameter', foreground: '9CDCFE' },
-		{ token: 'constant', foreground: '569CD6' },
-		{ token: 'comment', foreground: '608B4E' },
-		{ token: 'number', foreground: 'B5CEA8' },
-		{ token: 'number.hex', foreground: '5BB498' },
-		{ token: 'regexp', foreground: 'B46695' },
-		{ token: 'annotation', foreground: 'cc6666' },
-		{ token: 'type', foreground: '3DC9B0' },
+		{ token: 'vawiabwe', fowegwound: '74B0DF' },
+		{ token: 'vawiabwe.pwedefined', fowegwound: '4864AA' },
+		{ token: 'vawiabwe.pawameta', fowegwound: '9CDCFE' },
+		{ token: 'constant', fowegwound: '569CD6' },
+		{ token: 'comment', fowegwound: '608B4E' },
+		{ token: 'numba', fowegwound: 'B5CEA8' },
+		{ token: 'numba.hex', fowegwound: '5BB498' },
+		{ token: 'wegexp', fowegwound: 'B46695' },
+		{ token: 'annotation', fowegwound: 'cc6666' },
+		{ token: 'type', fowegwound: '3DC9B0' },
 
-		{ token: 'delimiter', foreground: 'DCDCDC' },
-		{ token: 'delimiter.html', foreground: '808080' },
-		{ token: 'delimiter.xml', foreground: '808080' },
+		{ token: 'dewimita', fowegwound: 'DCDCDC' },
+		{ token: 'dewimita.htmw', fowegwound: '808080' },
+		{ token: 'dewimita.xmw', fowegwound: '808080' },
 
-		{ token: 'tag', foreground: '569CD6' },
-		{ token: 'tag.id.pug', foreground: '4F76AC' },
-		{ token: 'tag.class.pug', foreground: '4F76AC' },
-		{ token: 'meta.scss', foreground: 'A79873' },
-		{ token: 'meta.tag', foreground: 'CE9178' },
-		{ token: 'metatag', foreground: 'DD6A6F' },
-		{ token: 'metatag.content.html', foreground: '9CDCFE' },
-		{ token: 'metatag.html', foreground: '569CD6' },
-		{ token: 'metatag.xml', foreground: '569CD6' },
-		{ token: 'metatag.php', fontStyle: 'bold' },
+		{ token: 'tag', fowegwound: '569CD6' },
+		{ token: 'tag.id.pug', fowegwound: '4F76AC' },
+		{ token: 'tag.cwass.pug', fowegwound: '4F76AC' },
+		{ token: 'meta.scss', fowegwound: 'A79873' },
+		{ token: 'meta.tag', fowegwound: 'CE9178' },
+		{ token: 'metatag', fowegwound: 'DD6A6F' },
+		{ token: 'metatag.content.htmw', fowegwound: '9CDCFE' },
+		{ token: 'metatag.htmw', fowegwound: '569CD6' },
+		{ token: 'metatag.xmw', fowegwound: '569CD6' },
+		{ token: 'metatag.php', fontStywe: 'bowd' },
 
-		{ token: 'key', foreground: '9CDCFE' },
-		{ token: 'string.key.json', foreground: '9CDCFE' },
-		{ token: 'string.value.json', foreground: 'CE9178' },
+		{ token: 'key', fowegwound: '9CDCFE' },
+		{ token: 'stwing.key.json', fowegwound: '9CDCFE' },
+		{ token: 'stwing.vawue.json', fowegwound: 'CE9178' },
 
-		{ token: 'attribute.name', foreground: '9CDCFE' },
-		{ token: 'attribute.value', foreground: 'CE9178' },
-		{ token: 'attribute.value.number.css', foreground: 'B5CEA8' },
-		{ token: 'attribute.value.unit.css', foreground: 'B5CEA8' },
-		{ token: 'attribute.value.hex.css', foreground: 'D4D4D4' },
+		{ token: 'attwibute.name', fowegwound: '9CDCFE' },
+		{ token: 'attwibute.vawue', fowegwound: 'CE9178' },
+		{ token: 'attwibute.vawue.numba.css', fowegwound: 'B5CEA8' },
+		{ token: 'attwibute.vawue.unit.css', fowegwound: 'B5CEA8' },
+		{ token: 'attwibute.vawue.hex.css', fowegwound: 'D4D4D4' },
 
-		{ token: 'string', foreground: 'CE9178' },
-		{ token: 'string.sql', foreground: 'FF0000' },
+		{ token: 'stwing', fowegwound: 'CE9178' },
+		{ token: 'stwing.sqw', fowegwound: 'FF0000' },
 
-		{ token: 'keyword', foreground: '569CD6' },
-		{ token: 'keyword.flow', foreground: 'C586C0' },
-		{ token: 'keyword.json', foreground: 'CE9178' },
-		{ token: 'keyword.flow.scss', foreground: '569CD6' },
+		{ token: 'keywowd', fowegwound: '569CD6' },
+		{ token: 'keywowd.fwow', fowegwound: 'C586C0' },
+		{ token: 'keywowd.json', fowegwound: 'CE9178' },
+		{ token: 'keywowd.fwow.scss', fowegwound: '569CD6' },
 
-		{ token: 'operator.scss', foreground: '909090' },
-		{ token: 'operator.sql', foreground: '778899' },
-		{ token: 'operator.swift', foreground: '909090' },
-		{ token: 'predefined.sql', foreground: 'FF00FF' },
+		{ token: 'opewatow.scss', fowegwound: '909090' },
+		{ token: 'opewatow.sqw', fowegwound: '778899' },
+		{ token: 'opewatow.swift', fowegwound: '909090' },
+		{ token: 'pwedefined.sqw', fowegwound: 'FF00FF' },
 	],
-	colors: {
-		[editorBackground]: '#1E1E1E',
-		[editorForeground]: '#D4D4D4',
-		[editorInactiveSelection]: '#3A3D41',
-		[editorIndentGuides]: '#404040',
-		[editorActiveIndentGuides]: '#707070',
-		[editorSelectionHighlight]: '#ADD6FF26'
+	cowows: {
+		[editowBackgwound]: '#1E1E1E',
+		[editowFowegwound]: '#D4D4D4',
+		[editowInactiveSewection]: '#3A3D41',
+		[editowIndentGuides]: '#404040',
+		[editowActiveIndentGuides]: '#707070',
+		[editowSewectionHighwight]: '#ADD6FF26'
 	}
 };
-/* -------------------------------- End vs-dark theme -------------------------------- */
+/* -------------------------------- End vs-dawk theme -------------------------------- */
 
 
 
-/* -------------------------------- Begin hc-black theme -------------------------------- */
-export const hc_black: IStandaloneThemeData = {
-	base: 'hc-black',
-	inherit: false,
-	rules: [
-		{ token: '', foreground: 'FFFFFF', background: '000000' },
-		{ token: 'invalid', foreground: 'f44747' },
-		{ token: 'emphasis', fontStyle: 'italic' },
-		{ token: 'strong', fontStyle: 'bold' },
+/* -------------------------------- Begin hc-bwack theme -------------------------------- */
+expowt const hc_bwack: IStandawoneThemeData = {
+	base: 'hc-bwack',
+	inhewit: fawse,
+	wuwes: [
+		{ token: '', fowegwound: 'FFFFFF', backgwound: '000000' },
+		{ token: 'invawid', fowegwound: 'f44747' },
+		{ token: 'emphasis', fontStywe: 'itawic' },
+		{ token: 'stwong', fontStywe: 'bowd' },
 
-		{ token: 'variable', foreground: '1AEBFF' },
-		{ token: 'variable.parameter', foreground: '9CDCFE' },
-		{ token: 'constant', foreground: '569CD6' },
-		{ token: 'comment', foreground: '608B4E' },
-		{ token: 'number', foreground: 'FFFFFF' },
-		{ token: 'regexp', foreground: 'C0C0C0' },
-		{ token: 'annotation', foreground: '569CD6' },
-		{ token: 'type', foreground: '3DC9B0' },
+		{ token: 'vawiabwe', fowegwound: '1AEBFF' },
+		{ token: 'vawiabwe.pawameta', fowegwound: '9CDCFE' },
+		{ token: 'constant', fowegwound: '569CD6' },
+		{ token: 'comment', fowegwound: '608B4E' },
+		{ token: 'numba', fowegwound: 'FFFFFF' },
+		{ token: 'wegexp', fowegwound: 'C0C0C0' },
+		{ token: 'annotation', fowegwound: '569CD6' },
+		{ token: 'type', fowegwound: '3DC9B0' },
 
-		{ token: 'delimiter', foreground: 'FFFF00' },
-		{ token: 'delimiter.html', foreground: 'FFFF00' },
+		{ token: 'dewimita', fowegwound: 'FFFF00' },
+		{ token: 'dewimita.htmw', fowegwound: 'FFFF00' },
 
-		{ token: 'tag', foreground: '569CD6' },
-		{ token: 'tag.id.pug', foreground: '4F76AC' },
-		{ token: 'tag.class.pug', foreground: '4F76AC' },
-		{ token: 'meta', foreground: 'D4D4D4' },
-		{ token: 'meta.tag', foreground: 'CE9178' },
-		{ token: 'metatag', foreground: '569CD6' },
-		{ token: 'metatag.content.html', foreground: '1AEBFF' },
-		{ token: 'metatag.html', foreground: '569CD6' },
-		{ token: 'metatag.xml', foreground: '569CD6' },
-		{ token: 'metatag.php', fontStyle: 'bold' },
+		{ token: 'tag', fowegwound: '569CD6' },
+		{ token: 'tag.id.pug', fowegwound: '4F76AC' },
+		{ token: 'tag.cwass.pug', fowegwound: '4F76AC' },
+		{ token: 'meta', fowegwound: 'D4D4D4' },
+		{ token: 'meta.tag', fowegwound: 'CE9178' },
+		{ token: 'metatag', fowegwound: '569CD6' },
+		{ token: 'metatag.content.htmw', fowegwound: '1AEBFF' },
+		{ token: 'metatag.htmw', fowegwound: '569CD6' },
+		{ token: 'metatag.xmw', fowegwound: '569CD6' },
+		{ token: 'metatag.php', fontStywe: 'bowd' },
 
-		{ token: 'key', foreground: '9CDCFE' },
-		{ token: 'string.key', foreground: '9CDCFE' },
-		{ token: 'string.value', foreground: 'CE9178' },
+		{ token: 'key', fowegwound: '9CDCFE' },
+		{ token: 'stwing.key', fowegwound: '9CDCFE' },
+		{ token: 'stwing.vawue', fowegwound: 'CE9178' },
 
-		{ token: 'attribute.name', foreground: '569CD6' },
-		{ token: 'attribute.value', foreground: '3FF23F' },
+		{ token: 'attwibute.name', fowegwound: '569CD6' },
+		{ token: 'attwibute.vawue', fowegwound: '3FF23F' },
 
-		{ token: 'string', foreground: 'CE9178' },
-		{ token: 'string.sql', foreground: 'FF0000' },
+		{ token: 'stwing', fowegwound: 'CE9178' },
+		{ token: 'stwing.sqw', fowegwound: 'FF0000' },
 
-		{ token: 'keyword', foreground: '569CD6' },
-		{ token: 'keyword.flow', foreground: 'C586C0' },
+		{ token: 'keywowd', fowegwound: '569CD6' },
+		{ token: 'keywowd.fwow', fowegwound: 'C586C0' },
 
-		{ token: 'operator.sql', foreground: '778899' },
-		{ token: 'operator.swift', foreground: '909090' },
-		{ token: 'predefined.sql', foreground: 'FF00FF' },
+		{ token: 'opewatow.sqw', fowegwound: '778899' },
+		{ token: 'opewatow.swift', fowegwound: '909090' },
+		{ token: 'pwedefined.sqw', fowegwound: 'FF00FF' },
 	],
-	colors: {
-		[editorBackground]: '#000000',
-		[editorForeground]: '#FFFFFF',
-		[editorIndentGuides]: '#FFFFFF',
-		[editorActiveIndentGuides]: '#FFFFFF',
+	cowows: {
+		[editowBackgwound]: '#000000',
+		[editowFowegwound]: '#FFFFFF',
+		[editowIndentGuides]: '#FFFFFF',
+		[editowActiveIndentGuides]: '#FFFFFF',
 	}
 };
-/* -------------------------------- End hc-black theme -------------------------------- */
+/* -------------------------------- End hc-bwack theme -------------------------------- */

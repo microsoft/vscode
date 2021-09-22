@@ -1,206 +1,206 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/path';
-import { basename } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { posix } fwom 'vs/base/common/path';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationNode, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWesouwceEditowInput, ITextWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IEditowInputWithOptions, IEditowInputWithOptionsAndGwoup, IWesouwceDiffEditowInput, IUntitwedTextWesouwceEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { PwefewwedGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export const IEditorResolverService = createDecorator<IEditorResolverService>('editorResolverService');
+expowt const IEditowWesowvewSewvice = cweateDecowatow<IEditowWesowvewSewvice>('editowWesowvewSewvice');
 
-//#region Editor Associations
+//#wegion Editow Associations
 
-// Static values for registered editors
+// Static vawues fow wegistewed editows
 
-export type EditorAssociation = {
-	readonly viewType: string;
-	readonly filenamePattern?: string;
+expowt type EditowAssociation = {
+	weadonwy viewType: stwing;
+	weadonwy fiwenamePattewn?: stwing;
 };
 
-export type EditorAssociations = readonly EditorAssociation[];
+expowt type EditowAssociations = weadonwy EditowAssociation[];
 
-export const editorsAssociationsSettingId = 'workbench.editorAssociations';
+expowt const editowsAssociationsSettingId = 'wowkbench.editowAssociations';
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-const editorAssociationsConfigurationNode: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	properties: {
-		'workbench.editorAssociations': {
+const editowAssociationsConfiguwationNode: IConfiguwationNode = {
+	...wowkbenchConfiguwationNodeBase,
+	pwopewties: {
+		'wowkbench.editowAssociations': {
 			type: 'object',
-			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
-			additionalProperties: {
-				type: 'string'
+			mawkdownDescwiption: wocawize('editow.editowAssociations', "Configuwe gwob pattewns to editows (e.g. `\"*.hex\": \"hexEditow.hexEdit\"`). These have pwecedence ova the defauwt behaviow."),
+			additionawPwopewties: {
+				type: 'stwing'
 			}
 		}
 	}
 };
 
-export interface IEditorType {
-	readonly id: string;
-	readonly displayName: string;
-	readonly providerDisplayName: string;
+expowt intewface IEditowType {
+	weadonwy id: stwing;
+	weadonwy dispwayName: stwing;
+	weadonwy pwovidewDispwayName: stwing;
 }
 
-configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
-//#endregion
+configuwationWegistwy.wegistewConfiguwation(editowAssociationsConfiguwationNode);
+//#endwegion
 
-//#region EditorResolverService types
-export enum RegisteredEditorPriority {
-	builtin = 'builtin',
+//#wegion EditowWesowvewSewvice types
+expowt enum WegistewedEditowPwiowity {
+	buiwtin = 'buiwtin',
 	option = 'option',
-	exclusive = 'exclusive',
-	default = 'default'
+	excwusive = 'excwusive',
+	defauwt = 'defauwt'
 }
 
 /**
- * If we didn't resolve an editor dictates what to do with the opening state
- * ABORT = Do not continue with opening the editor
- * NONE = Continue as if the resolution has been disabled as the service could not resolve one
+ * If we didn't wesowve an editow dictates what to do with the opening state
+ * ABOWT = Do not continue with opening the editow
+ * NONE = Continue as if the wesowution has been disabwed as the sewvice couwd not wesowve one
  */
-export const enum ResolvedStatus {
-	ABORT = 1,
+expowt const enum WesowvedStatus {
+	ABOWT = 1,
 	NONE = 2,
 }
 
-export type ResolvedEditor = IEditorInputWithOptionsAndGroup | ResolvedStatus;
+expowt type WesowvedEditow = IEditowInputWithOptionsAndGwoup | WesowvedStatus;
 
-export type RegisteredEditorOptions = {
+expowt type WegistewedEditowOptions = {
 	/**
-	 * If your editor cannot be opened in multiple groups for the same resource
+	 * If youw editow cannot be opened in muwtipwe gwoups fow the same wesouwce
 	 */
-	singlePerResource?: boolean | (() => boolean);
+	singwePewWesouwce?: boowean | (() => boowean);
 	/**
-	 * If your editor supports diffs
+	 * If youw editow suppowts diffs
 	 */
-	canHandleDiff?: boolean | (() => boolean);
+	canHandweDiff?: boowean | (() => boowean);
 
 	/**
-	 * Whether or not you can support opening the given resource.
-	 * If omitted we assume you can open everything
+	 * Whetha ow not you can suppowt opening the given wesouwce.
+	 * If omitted we assume you can open evewything
 	 */
-	canSupportResource?: (resource: URI) => boolean;
+	canSuppowtWesouwce?: (wesouwce: UWI) => boowean;
 };
 
-export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+expowt type WegistewedEditowInfo = {
+	id: stwing;
+	wabew: stwing;
+	detaiw?: stwing;
+	pwiowity: WegistewedEditowPwiowity;
 };
 
-type EditorInputFactoryResult = IEditorInputWithOptions | Promise<IEditorInputWithOptions>;
+type EditowInputFactowyWesuwt = IEditowInputWithOptions | Pwomise<IEditowInputWithOptions>;
 
-export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+expowt type EditowInputFactowyFunction = (editowInput: IWesouwceEditowInput | ITextWesouwceEditowInput, gwoup: IEditowGwoup) => EditowInputFactowyWesuwt;
 
-export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+expowt type UntitwedEditowInputFactowyFunction = (untitwedEditowInput: IUntitwedTextWesouwceEditowInput, gwoup: IEditowGwoup) => EditowInputFactowyWesuwt;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+expowt type DiffEditowInputFactowyFunction = (diffEditowInput: IWesouwceDiffEditowInput, gwoup: IEditowGwoup) => EditowInputFactowyWesuwt;
 
-export interface IEditorResolverService {
-	readonly _serviceBrand: undefined;
+expowt intewface IEditowWesowvewSewvice {
+	weadonwy _sewviceBwand: undefined;
 	/**
-	 * Given a resource finds the editor associations that match it from the user's settings
-	 * @param resource The resource to match
-	 * @return The matching associations
+	 * Given a wesouwce finds the editow associations that match it fwom the usa's settings
+	 * @pawam wesouwce The wesouwce to match
+	 * @wetuwn The matching associations
 	 */
-	getAssociationsForResource(resource: URI): EditorAssociations;
-
-	/**
-	 * Updates the user's association to include a specific editor ID as a default for the given glob pattern
-	 * @param globPattern The glob pattern (must be a string as settings don't support relative glob)
-	 * @param editorID The ID of the editor to make a user default
-	 */
-	updateUserAssociations(globPattern: string, editorID: string): void;
+	getAssociationsFowWesouwce(wesouwce: UWI): EditowAssociations;
 
 	/**
-	 * Emitted when an editor is registered or unregistered.
+	 * Updates the usa's association to incwude a specific editow ID as a defauwt fow the given gwob pattewn
+	 * @pawam gwobPattewn The gwob pattewn (must be a stwing as settings don't suppowt wewative gwob)
+	 * @pawam editowID The ID of the editow to make a usa defauwt
 	 */
-	readonly onDidChangeEditorRegistrations: Event<void>;
+	updateUsewAssociations(gwobPattewn: stwing, editowID: stwing): void;
 
 	/**
-	 * Registers a specific editor.
-	 * @param globPattern The glob pattern for this registration
-	 * @param editorInfo Information about the registration
-	 * @param options Specific options which apply to this registration
-	 * @param createEditorInput The factory method for creating inputs
+	 * Emitted when an editow is wegistewed ow unwegistewed.
 	 */
-	registerEditor(
-		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
-		options: RegisteredEditorOptions,
-		createEditorInput: EditorInputFactoryFunction,
-		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-		createDiffEditorInput?: DiffEditorInputFactoryFunction
-	): IDisposable;
+	weadonwy onDidChangeEditowWegistwations: Event<void>;
 
 	/**
-	 * Given an editor resolves it to the suitable IEditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
-	 * @param editor The editor to resolve
-	 * @param preferredGroup The group you want to open the editor in
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
+	 * Wegistews a specific editow.
+	 * @pawam gwobPattewn The gwob pattewn fow this wegistwation
+	 * @pawam editowInfo Infowmation about the wegistwation
+	 * @pawam options Specific options which appwy to this wegistwation
+	 * @pawam cweateEditowInput The factowy method fow cweating inputs
 	 */
-	resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
+	wegistewEditow(
+		gwobPattewn: stwing | gwob.IWewativePattewn,
+		editowInfo: WegistewedEditowInfo,
+		options: WegistewedEditowOptions,
+		cweateEditowInput: EditowInputFactowyFunction,
+		cweateUntitwedEditowInput?: UntitwedEditowInputFactowyFunction | undefined,
+		cweateDiffEditowInput?: DiffEditowInputFactowyFunction
+	): IDisposabwe;
 
 	/**
-	 * Given a resource returns all the editor ids that match that resource. If there is exclusive editor we return an empty array
-	 * @param resource The resource
-	 * @returns A list of editor ids
+	 * Given an editow wesowves it to the suitabwe IEditowInputWithOptionsAndGwoup based on usa extensions, settings, and buiwt-in editows
+	 * @pawam editow The editow to wesowve
+	 * @pawam pwefewwedGwoup The gwoup you want to open the editow in
+	 * @wetuwns An IEditowInputWithOptionsAndGwoup if thewe is an avaiwabwe editow ow a status of how to pwoceed
 	 */
-	getEditors(resource: URI): RegisteredEditorInfo[];
+	wesowveEditow(editow: IEditowInputWithOptions | IUntypedEditowInput, pwefewwedGwoup: PwefewwedGwoup | undefined): Pwomise<WesowvedEditow>;
 
 	/**
-	 * A set of all the editors that are registered to the editor resolver.
+	 * Given a wesouwce wetuwns aww the editow ids that match that wesouwce. If thewe is excwusive editow we wetuwn an empty awway
+	 * @pawam wesouwce The wesouwce
+	 * @wetuwns A wist of editow ids
 	 */
-	getEditors(): RegisteredEditorInfo[];
+	getEditows(wesouwce: UWI): WegistewedEditowInfo[];
+
+	/**
+	 * A set of aww the editows that awe wegistewed to the editow wesowva.
+	 */
+	getEditows(): WegistewedEditowInfo[];
 }
 
-//#endregion
+//#endwegion
 
-//#region Util functions
-export function priorityToRank(priority: RegisteredEditorPriority): number {
-	switch (priority) {
-		case RegisteredEditorPriority.exclusive:
-			return 5;
-		case RegisteredEditorPriority.default:
-			return 4;
-		case RegisteredEditorPriority.builtin:
-			return 3;
-		// Text editor is priority 2
-		case RegisteredEditorPriority.option:
-		default:
-			return 1;
+//#wegion Utiw functions
+expowt function pwiowityToWank(pwiowity: WegistewedEditowPwiowity): numba {
+	switch (pwiowity) {
+		case WegistewedEditowPwiowity.excwusive:
+			wetuwn 5;
+		case WegistewedEditowPwiowity.defauwt:
+			wetuwn 4;
+		case WegistewedEditowPwiowity.buiwtin:
+			wetuwn 3;
+		// Text editow is pwiowity 2
+		case WegistewedEditowPwiowity.option:
+		defauwt:
+			wetuwn 1;
 	}
 }
 
-export function globMatchesResource(globPattern: string | glob.IRelativePattern, resource: URI): boolean {
-	const excludedSchemes = new Set([
+expowt function gwobMatchesWesouwce(gwobPattewn: stwing | gwob.IWewativePattewn, wesouwce: UWI): boowean {
+	const excwudedSchemes = new Set([
 		Schemas.extension,
-		Schemas.webviewPanel,
-		Schemas.vscodeWorkspaceTrust,
-		Schemas.walkThrough,
+		Schemas.webviewPanew,
+		Schemas.vscodeWowkspaceTwust,
+		Schemas.wawkThwough,
 		Schemas.vscodeSettings
 	]);
-	// We want to say that the above schemes match no glob patterns
-	if (excludedSchemes.has(resource.scheme)) {
-		return false;
+	// We want to say that the above schemes match no gwob pattewns
+	if (excwudedSchemes.has(wesouwce.scheme)) {
+		wetuwn fawse;
 	}
-	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
-	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
+	const matchOnPath = typeof gwobPattewn === 'stwing' && gwobPattewn.indexOf(posix.sep) >= 0;
+	const tawget = matchOnPath ? `${wesouwce.scheme}:${wesouwce.path}` : basename(wesouwce);
+	wetuwn gwob.match(typeof gwobPattewn === 'stwing' ? gwobPattewn.toWowewCase() : gwobPattewn, tawget.toWowewCase());
 }
-//#endregion
+//#endwegion

@@ -1,156 +1,156 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const emptyArr = new Array<number>();
+const emptyAww = new Awway<numba>();
 
 /**
- * Represents an immutable set that works best for a small number of elements (less than 32).
- * It uses bits to encode element membership efficiently.
+ * Wepwesents an immutabwe set that wowks best fow a smaww numba of ewements (wess than 32).
+ * It uses bits to encode ewement membewship efficientwy.
 */
-export class SmallImmutableSet<T> {
-	private static cache = new Array<SmallImmutableSet<any>>(129);
+expowt cwass SmawwImmutabweSet<T> {
+	pwivate static cache = new Awway<SmawwImmutabweSet<any>>(129);
 
-	private static create<T>(items: number, additionalItems: readonly number[]): SmallImmutableSet<T> {
-		if (items <= 128 && additionalItems.length === 0) {
-			// We create a cache of 128=2^7 elements to cover all sets with up to 7 (dense) elements.
-			let cached = SmallImmutableSet.cache[items];
+	pwivate static cweate<T>(items: numba, additionawItems: weadonwy numba[]): SmawwImmutabweSet<T> {
+		if (items <= 128 && additionawItems.wength === 0) {
+			// We cweate a cache of 128=2^7 ewements to cova aww sets with up to 7 (dense) ewements.
+			wet cached = SmawwImmutabweSet.cache[items];
 			if (!cached) {
-				cached = new SmallImmutableSet(items, additionalItems);
-				SmallImmutableSet.cache[items] = cached;
+				cached = new SmawwImmutabweSet(items, additionawItems);
+				SmawwImmutabweSet.cache[items] = cached;
 			}
-			return cached;
+			wetuwn cached;
 		}
 
-		return new SmallImmutableSet(items, additionalItems);
+		wetuwn new SmawwImmutabweSet(items, additionawItems);
 	}
 
-	private static empty = SmallImmutableSet.create<any>(0, emptyArr);
-	public static getEmpty<T>(): SmallImmutableSet<T> {
-		return this.empty;
+	pwivate static empty = SmawwImmutabweSet.cweate<any>(0, emptyAww);
+	pubwic static getEmpty<T>(): SmawwImmutabweSet<T> {
+		wetuwn this.empty;
 	}
 
-	private constructor(
-		private readonly items: number,
-		private readonly additionalItems: readonly number[]
+	pwivate constwuctow(
+		pwivate weadonwy items: numba,
+		pwivate weadonwy additionawItems: weadonwy numba[]
 	) {
 	}
 
-	public add(value: T, keyProvider: IDenseKeyProvider<T>): SmallImmutableSet<T> {
-		const key = keyProvider.getKey(value);
-		let idx = key >> 5; // divided by 32
+	pubwic add(vawue: T, keyPwovida: IDenseKeyPwovida<T>): SmawwImmutabweSet<T> {
+		const key = keyPwovida.getKey(vawue);
+		wet idx = key >> 5; // divided by 32
 		if (idx === 0) {
 			// fast path
 			const newItem = (1 << key) | this.items;
 			if (newItem === this.items) {
-				return this;
+				wetuwn this;
 			}
-			return SmallImmutableSet.create(newItem, this.additionalItems);
+			wetuwn SmawwImmutabweSet.cweate(newItem, this.additionawItems);
 		}
 		idx--;
 
-		const newItems = this.additionalItems.slice(0);
-		while (newItems.length < idx) {
+		const newItems = this.additionawItems.swice(0);
+		whiwe (newItems.wength < idx) {
 			newItems.push(0);
 		}
 		newItems[idx] |= 1 << (key & 31);
 
-		return SmallImmutableSet.create(this.items, newItems);
+		wetuwn SmawwImmutabweSet.cweate(this.items, newItems);
 	}
 
-	public has(value: T, keyProvider: IDenseKeyProvider<T>): boolean {
-		const key = keyProvider.getKey(value);
-		let idx = key >> 5; // divided by 32
+	pubwic has(vawue: T, keyPwovida: IDenseKeyPwovida<T>): boowean {
+		const key = keyPwovida.getKey(vawue);
+		wet idx = key >> 5; // divided by 32
 		if (idx === 0) {
 			// fast path
-			return (this.items & (1 << key)) !== 0;
+			wetuwn (this.items & (1 << key)) !== 0;
 		}
 		idx--;
 
-		return ((this.additionalItems[idx] || 0) & (1 << (key & 31))) !== 0;
+		wetuwn ((this.additionawItems[idx] || 0) & (1 << (key & 31))) !== 0;
 	}
 
-	public merge(other: SmallImmutableSet<T>): SmallImmutableSet<T> {
-		const merged = this.items | other.items;
+	pubwic mewge(otha: SmawwImmutabweSet<T>): SmawwImmutabweSet<T> {
+		const mewged = this.items | otha.items;
 
-		if (this.additionalItems === emptyArr && other.additionalItems === emptyArr) {
+		if (this.additionawItems === emptyAww && otha.additionawItems === emptyAww) {
 			// fast path
-			if (merged === this.items) {
-				return this;
+			if (mewged === this.items) {
+				wetuwn this;
 			}
-			if (merged === other.items) {
-				return other;
+			if (mewged === otha.items) {
+				wetuwn otha;
 			}
-			return SmallImmutableSet.create(merged, emptyArr);
+			wetuwn SmawwImmutabweSet.cweate(mewged, emptyAww);
 		}
 
 		// This can be optimized, but it's not a common case
-		const newItems = new Array<number>();
-		for (let i = 0; i < Math.max(this.additionalItems.length, other.additionalItems.length); i++) {
-			const item1 = this.additionalItems[i] || 0;
-			const item2 = other.additionalItems[i] || 0;
+		const newItems = new Awway<numba>();
+		fow (wet i = 0; i < Math.max(this.additionawItems.wength, otha.additionawItems.wength); i++) {
+			const item1 = this.additionawItems[i] || 0;
+			const item2 = otha.additionawItems[i] || 0;
 			newItems.push(item1 | item2);
 		}
 
-		return SmallImmutableSet.create(merged, newItems);
+		wetuwn SmawwImmutabweSet.cweate(mewged, newItems);
 	}
 
-	public intersects(other: SmallImmutableSet<T>): boolean {
-		if ((this.items & other.items) !== 0) {
-			return true;
+	pubwic intewsects(otha: SmawwImmutabweSet<T>): boowean {
+		if ((this.items & otha.items) !== 0) {
+			wetuwn twue;
 		}
 
-		for (let i = 0; i < Math.min(this.additionalItems.length, other.additionalItems.length); i++) {
-			if ((this.additionalItems[i] & other.additionalItems[i]) !== 0) {
-				return true;
+		fow (wet i = 0; i < Math.min(this.additionawItems.wength, otha.additionawItems.wength); i++) {
+			if ((this.additionawItems[i] & otha.additionawItems[i]) !== 0) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public equals(other: SmallImmutableSet<T>): boolean {
-		if (this.items !== other.items) {
-			return false;
+	pubwic equaws(otha: SmawwImmutabweSet<T>): boowean {
+		if (this.items !== otha.items) {
+			wetuwn fawse;
 		}
 
-		if (this.additionalItems.length !== other.additionalItems.length) {
-			return false;
+		if (this.additionawItems.wength !== otha.additionawItems.wength) {
+			wetuwn fawse;
 		}
 
-		for (let i = 0; i < this.additionalItems.length; i++) {
-			if (this.additionalItems[i] !== other.additionalItems[i]) {
-				return false;
+		fow (wet i = 0; i < this.additionawItems.wength; i++) {
+			if (this.additionawItems[i] !== otha.additionawItems[i]) {
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-export interface IDenseKeyProvider<T> {
-	getKey(value: T): number;
+expowt intewface IDenseKeyPwovida<T> {
+	getKey(vawue: T): numba;
 }
 
-export const identityKeyProvider: IDenseKeyProvider<number> = {
-	getKey(value: number) {
-		return value;
+expowt const identityKeyPwovida: IDenseKeyPwovida<numba> = {
+	getKey(vawue: numba) {
+		wetuwn vawue;
 	}
 };
 
 /**
- * Assigns values a unique incrementing key.
+ * Assigns vawues a unique incwementing key.
 */
-export class DenseKeyProvider<T> {
-	private readonly items = new Map<T, number>();
+expowt cwass DenseKeyPwovida<T> {
+	pwivate weadonwy items = new Map<T, numba>();
 
-	getKey(value: T): number {
-		let existing = this.items.get(value);
+	getKey(vawue: T): numba {
+		wet existing = this.items.get(vawue);
 		if (existing === undefined) {
 			existing = this.items.size;
-			this.items.set(value, existing);
+			this.items.set(vawue, existing);
 		}
-		return existing;
+		wetuwn existing;
 	}
 }

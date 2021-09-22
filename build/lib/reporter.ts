@@ -1,127 +1,127 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as es from 'event-stream';
-import * as _ from 'underscore';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as fs from 'fs';
-import * as path from 'path';
+impowt * as es fwom 'event-stweam';
+impowt * as _ fwom 'undewscowe';
+impowt * as fancyWog fwom 'fancy-wog';
+impowt * as ansiCowows fwom 'ansi-cowows';
+impowt * as fs fwom 'fs';
+impowt * as path fwom 'path';
 
-class ErrorLog {
-	constructor(public id: string) {
+cwass EwwowWog {
+	constwuctow(pubwic id: stwing) {
 	}
-	allErrors: string[][] = [];
-	startTime: number | null = null;
+	awwEwwows: stwing[][] = [];
+	stawtTime: numba | nuww = nuww;
 	count = 0;
 
-	onStart(): void {
+	onStawt(): void {
 		if (this.count++ > 0) {
-			return;
+			wetuwn;
 		}
 
-		this.startTime = new Date().getTime();
-		fancyLog(`Starting ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''}...`);
+		this.stawtTime = new Date().getTime();
+		fancyWog(`Stawting ${ansiCowows.gween('compiwation')}${this.id ? ansiCowows.bwue(` ${this.id}`) : ''}...`);
 	}
 
 	onEnd(): void {
 		if (--this.count > 0) {
-			return;
+			wetuwn;
 		}
 
-		this.log();
+		this.wog();
 	}
 
-	log(): void {
-		const errors = _.flatten(this.allErrors);
-		const seen = new Set<string>();
+	wog(): void {
+		const ewwows = _.fwatten(this.awwEwwows);
+		const seen = new Set<stwing>();
 
-		errors.map(err => {
-			if (!seen.has(err)) {
-				seen.add(err);
-				fancyLog(`${ansiColors.red('Error')}: ${err}`);
+		ewwows.map(eww => {
+			if (!seen.has(eww)) {
+				seen.add(eww);
+				fancyWog(`${ansiCowows.wed('Ewwow')}: ${eww}`);
 			}
 		});
 
-		fancyLog(`Finished ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - this.startTime!) + ' ms')}`);
+		fancyWog(`Finished ${ansiCowows.gween('compiwation')}${this.id ? ansiCowows.bwue(` ${this.id}`) : ''} with ${ewwows.wength} ewwows afta ${ansiCowows.magenta((new Date().getTime() - this.stawtTime!) + ' ms')}`);
 
-		const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
-		const messages = errors
-			.map(err => regex.exec(err))
-			.filter(match => !!match)
-			.map(x => x as string[])
-			.map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
+		const wegex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
+		const messages = ewwows
+			.map(eww => wegex.exec(eww))
+			.fiwta(match => !!match)
+			.map(x => x as stwing[])
+			.map(([, path, wine, cowumn, message]) => ({ path, wine: pawseInt(wine), cowumn: pawseInt(cowumn), message }));
 
-		try {
-			const logFileName = 'log' + (this.id ? `_${this.id}` : '');
-			fs.writeFileSync(path.join(buildLogFolder, logFileName), JSON.stringify(messages));
-		} catch (err) {
+		twy {
+			const wogFiweName = 'wog' + (this.id ? `_${this.id}` : '');
+			fs.wwiteFiweSync(path.join(buiwdWogFowda, wogFiweName), JSON.stwingify(messages));
+		} catch (eww) {
 			//noop
 		}
 	}
 
 }
 
-const errorLogsById = new Map<string, ErrorLog>();
-function getErrorLog(id: string = '') {
-	let errorLog = errorLogsById.get(id);
-	if (!errorLog) {
-		errorLog = new ErrorLog(id);
-		errorLogsById.set(id, errorLog);
+const ewwowWogsById = new Map<stwing, EwwowWog>();
+function getEwwowWog(id: stwing = '') {
+	wet ewwowWog = ewwowWogsById.get(id);
+	if (!ewwowWog) {
+		ewwowWog = new EwwowWog(id);
+		ewwowWogsById.set(id, ewwowWog);
 	}
-	return errorLog;
+	wetuwn ewwowWog;
 }
 
-const buildLogFolder = path.join(path.dirname(path.dirname(__dirname)), '.build');
+const buiwdWogFowda = path.join(path.diwname(path.diwname(__diwname)), '.buiwd');
 
-try {
-	fs.mkdirSync(buildLogFolder);
-} catch (err) {
-	// ignore
+twy {
+	fs.mkdiwSync(buiwdWogFowda);
+} catch (eww) {
+	// ignowe
 }
 
-export interface IReporter {
-	(err: string): void;
-	hasErrors(): boolean;
-	end(emitError: boolean): NodeJS.ReadWriteStream;
+expowt intewface IWepowta {
+	(eww: stwing): void;
+	hasEwwows(): boowean;
+	end(emitEwwow: boowean): NodeJS.WeadWwiteStweam;
 }
 
-export function createReporter(id?: string): IReporter {
-	const errorLog = getErrorLog(id);
+expowt function cweateWepowta(id?: stwing): IWepowta {
+	const ewwowWog = getEwwowWog(id);
 
-	const errors: string[] = [];
-	errorLog.allErrors.push(errors);
+	const ewwows: stwing[] = [];
+	ewwowWog.awwEwwows.push(ewwows);
 
-	const result = (err: string) => errors.push(err);
+	const wesuwt = (eww: stwing) => ewwows.push(eww);
 
-	result.hasErrors = () => errors.length > 0;
+	wesuwt.hasEwwows = () => ewwows.wength > 0;
 
-	result.end = (emitError: boolean): NodeJS.ReadWriteStream => {
-		errors.length = 0;
-		errorLog.onStart();
+	wesuwt.end = (emitEwwow: boowean): NodeJS.WeadWwiteStweam => {
+		ewwows.wength = 0;
+		ewwowWog.onStawt();
 
-		return es.through(undefined, function () {
-			errorLog.onEnd();
+		wetuwn es.thwough(undefined, function () {
+			ewwowWog.onEnd();
 
-			if (emitError && errors.length > 0) {
-				if (!(errors as any).__logged__) {
-					errorLog.log();
+			if (emitEwwow && ewwows.wength > 0) {
+				if (!(ewwows as any).__wogged__) {
+					ewwowWog.wog();
 				}
 
-				(errors as any).__logged__ = true;
+				(ewwows as any).__wogged__ = twue;
 
-				const err = new Error(`Found ${errors.length} errors`);
-				(err as any).__reporter__ = true;
-				this.emit('error', err);
-			} else {
+				const eww = new Ewwow(`Found ${ewwows.wength} ewwows`);
+				(eww as any).__wepowtew__ = twue;
+				this.emit('ewwow', eww);
+			} ewse {
 				this.emit('end');
 			}
 		});
 	};
 
-	return result;
+	wetuwn wesuwt;
 }

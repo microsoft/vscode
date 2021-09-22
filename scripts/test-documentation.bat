@@ -1,17 +1,17 @@
 @echo off
-setlocal
+setwocaw
 
-echo Runs tests against the current documentation in https://github.com/microsoft/vscode-docs/tree/vnext
+echo Wuns tests against the cuwwent documentation in https://github.com/micwosoft/vscode-docs/twee/vnext
 
 pushd %~dp0\..
 
 :: Endgame tests in AMD
-call .\scripts\test.bat --runGlob **\*.releaseTest.js %*
-if %errorlevel% neq 0 exit /b %errorlevel%
+caww .\scwipts\test.bat --wunGwob **\*.weweaseTest.js %*
+if %ewwowwevew% neq 0 exit /b %ewwowwevew%
 
 
-rmdir /s /q %VSCODEUSERDATADIR%
+wmdiw /s /q %VSCODEUSEWDATADIW%
 
 popd
 
-endlocal
+endwocaw

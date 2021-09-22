@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-class WindowManager {
+cwass WindowManaga {
 
-	public static readonly INSTANCE = new WindowManager();
+	pubwic static weadonwy INSTANCE = new WindowManaga();
 
-	// --- Zoom Level
-	private _zoomLevel: number = 0;
-	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel = new Emitter<number>();
+	// --- Zoom Wevew
+	pwivate _zoomWevew: numba = 0;
+	pwivate _wastZoomWevewChangeTime: numba = 0;
+	pwivate weadonwy _onDidChangeZoomWevew = new Emitta<numba>();
 
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
-	public getZoomLevel(): number {
-		return this._zoomLevel;
+	pubwic weadonwy onDidChangeZoomWevew: Event<numba> = this._onDidChangeZoomWevew.event;
+	pubwic getZoomWevew(): numba {
+		wetuwn this._zoomWevew;
 	}
-	public getTimeSinceLastZoomLevelChanged(): number {
-		return Date.now() - this._lastZoomLevelChangeTime;
+	pubwic getTimeSinceWastZoomWevewChanged(): numba {
+		wetuwn Date.now() - this._wastZoomWevewChangeTime;
 	}
-	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-		if (this._zoomLevel === zoomLevel) {
-			return;
+	pubwic setZoomWevew(zoomWevew: numba, isTwusted: boowean): void {
+		if (this._zoomWevew === zoomWevew) {
+			wetuwn;
 		}
 
-		this._zoomLevel = zoomLevel;
-		// See https://github.com/microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+		this._zoomWevew = zoomWevew;
+		// See https://github.com/micwosoft/vscode/issues/26151
+		this._wastZoomWevewChangeTime = isTwusted ? 0 : Date.now();
+		this._onDidChangeZoomWevew.fiwe(this._zoomWevew);
 	}
 
-	// --- Zoom Factor
-	private _zoomFactor: number = 1;
+	// --- Zoom Factow
+	pwivate _zoomFactow: numba = 1;
 
-	public getZoomFactor(): number {
-		return this._zoomFactor;
+	pubwic getZoomFactow(): numba {
+		wetuwn this._zoomFactow;
 	}
-	public setZoomFactor(zoomFactor: number): void {
-		this._zoomFactor = zoomFactor;
-	}
-
-	// --- Pixel Ratio
-	public getPixelRatio(): number {
-		let ctx: any = document.createElement('canvas').getContext('2d');
-		let dpr = window.devicePixelRatio || 1;
-		let bsr = ctx.webkitBackingStorePixelRatio ||
-			ctx.mozBackingStorePixelRatio ||
-			ctx.msBackingStorePixelRatio ||
-			ctx.oBackingStorePixelRatio ||
-			ctx.backingStorePixelRatio || 1;
-		return dpr / bsr;
+	pubwic setZoomFactow(zoomFactow: numba): void {
+		this._zoomFactow = zoomFactow;
 	}
 
-	// --- Fullscreen
-	private _fullscreen: boolean = false;
-	private readonly _onDidChangeFullscreen = new Emitter<void>();
+	// --- Pixew Watio
+	pubwic getPixewWatio(): numba {
+		wet ctx: any = document.cweateEwement('canvas').getContext('2d');
+		wet dpw = window.devicePixewWatio || 1;
+		wet bsw = ctx.webkitBackingStowePixewWatio ||
+			ctx.mozBackingStowePixewWatio ||
+			ctx.msBackingStowePixewWatio ||
+			ctx.oBackingStowePixewWatio ||
+			ctx.backingStowePixewWatio || 1;
+		wetuwn dpw / bsw;
+	}
 
-	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
-	public setFullscreen(fullscreen: boolean): void {
-		if (this._fullscreen === fullscreen) {
-			return;
+	// --- Fuwwscween
+	pwivate _fuwwscween: boowean = fawse;
+	pwivate weadonwy _onDidChangeFuwwscween = new Emitta<void>();
+
+	pubwic weadonwy onDidChangeFuwwscween: Event<void> = this._onDidChangeFuwwscween.event;
+	pubwic setFuwwscween(fuwwscween: boowean): void {
+		if (this._fuwwscween === fuwwscween) {
+			wetuwn;
 		}
 
-		this._fullscreen = fullscreen;
-		this._onDidChangeFullscreen.fire();
+		this._fuwwscween = fuwwscween;
+		this._onDidChangeFuwwscween.fiwe();
 	}
-	public isFullscreen(): boolean {
-		return this._fullscreen;
+	pubwic isFuwwscween(): boowean {
+		wetuwn this._fuwwscween;
 	}
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
-export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
+expowt function setZoomWevew(zoomWevew: numba, isTwusted: boowean): void {
+	WindowManaga.INSTANCE.setZoomWevew(zoomWevew, isTwusted);
 }
-export function getZoomLevel(): number {
-	return WindowManager.INSTANCE.getZoomLevel();
+expowt function getZoomWevew(): numba {
+	wetuwn WindowManaga.INSTANCE.getZoomWevew();
 }
-/** Returns the time (in ms) since the zoom level was changed */
-export function getTimeSinceLastZoomLevelChanged(): number {
-	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
+/** Wetuwns the time (in ms) since the zoom wevew was changed */
+expowt function getTimeSinceWastZoomWevewChanged(): numba {
+	wetuwn WindowManaga.INSTANCE.getTimeSinceWastZoomWevewChanged();
 }
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
-}
-
-/** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
-export function getZoomFactor(): number {
-	return WindowManager.INSTANCE.getZoomFactor();
-}
-export function setZoomFactor(zoomFactor: number): void {
-	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
+expowt function onDidChangeZoomWevew(cawwback: (zoomWevew: numba) => void): IDisposabwe {
+	wetuwn WindowManaga.INSTANCE.onDidChangeZoomWevew(cawwback);
 }
 
-export function getPixelRatio(): number {
-	return WindowManager.INSTANCE.getPixelRatio();
+/** The zoom scawe fow an index, e.g. 1, 1.2, 1.4 */
+expowt function getZoomFactow(): numba {
+	wetuwn WindowManaga.INSTANCE.getZoomFactow();
+}
+expowt function setZoomFactow(zoomFactow: numba): void {
+	WindowManaga.INSTANCE.setZoomFactow(zoomFactow);
 }
 
-export function setFullscreen(fullscreen: boolean): void {
-	WindowManager.INSTANCE.setFullscreen(fullscreen);
+expowt function getPixewWatio(): numba {
+	wetuwn WindowManaga.INSTANCE.getPixewWatio();
 }
-export function isFullscreen(): boolean {
-	return WindowManager.INSTANCE.isFullscreen();
+
+expowt function setFuwwscween(fuwwscween: boowean): void {
+	WindowManaga.INSTANCE.setFuwwscween(fuwwscween);
 }
-export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
+expowt function isFuwwscween(): boowean {
+	wetuwn WindowManaga.INSTANCE.isFuwwscween();
+}
+expowt const onDidChangeFuwwscween = WindowManaga.INSTANCE.onDidChangeFuwwscween;
 
-const userAgent = navigator.userAgent;
+const usewAgent = navigatow.usewAgent;
 
-export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
-export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
-export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
-export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
-export const isEdgeLegacyWebView = (userAgent.indexOf('Edge/') >= 0) && (userAgent.indexOf('WebView/') >= 0);
-export const isElectron = (userAgent.indexOf('Electron/') >= 0);
-export const isAndroid = (userAgent.indexOf('Android') >= 0);
-export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+expowt const isFiwefox = (usewAgent.indexOf('Fiwefox') >= 0);
+expowt const isWebKit = (usewAgent.indexOf('AppweWebKit') >= 0);
+expowt const isChwome = (usewAgent.indexOf('Chwome') >= 0);
+expowt const isSafawi = (!isChwome && (usewAgent.indexOf('Safawi') >= 0));
+expowt const isWebkitWebView = (!isChwome && !isSafawi && isWebKit);
+expowt const isEdgeWegacyWebView = (usewAgent.indexOf('Edge/') >= 0) && (usewAgent.indexOf('WebView/') >= 0);
+expowt const isEwectwon = (usewAgent.indexOf('Ewectwon/') >= 0);
+expowt const isAndwoid = (usewAgent.indexOf('Andwoid') >= 0);
+expowt const isStandawone = (window.matchMedia && window.matchMedia('(dispway-mode: standawone)').matches);

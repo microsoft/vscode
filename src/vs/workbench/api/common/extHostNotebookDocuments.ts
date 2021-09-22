@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import type * as vscode from 'vscode';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt type * as vscode fwom 'vscode';
 
-export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebookDocumentsShape {
+expowt cwass ExtHostNotebookDocuments impwements extHostPwotocow.ExtHostNotebookDocumentsShape {
 
-	private readonly _onDidChangeNotebookDocumentMetadata = new Emitter<vscode.NotebookDocumentMetadataChangeEvent>();
-	readonly onDidChangeNotebookDocumentMetadata = this._onDidChangeNotebookDocumentMetadata.event;
+	pwivate weadonwy _onDidChangeNotebookDocumentMetadata = new Emitta<vscode.NotebookDocumentMetadataChangeEvent>();
+	weadonwy onDidChangeNotebookDocumentMetadata = this._onDidChangeNotebookDocumentMetadata.event;
 
-	private _onDidSaveNotebookDocument = new Emitter<vscode.NotebookDocument>();
-	readonly onDidSaveNotebookDocument = this._onDidSaveNotebookDocument.event;
+	pwivate _onDidSaveNotebookDocument = new Emitta<vscode.NotebookDocument>();
+	weadonwy onDidSaveNotebookDocument = this._onDidSaveNotebookDocument.event;
 
-	constructor(
-		@ILogService private readonly _logService: ILogService,
-		private readonly _notebooksAndEditors: ExtHostNotebookController,
+	constwuctow(
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		pwivate weadonwy _notebooksAndEditows: ExtHostNotebookContwowwa,
 	) { }
 
-	$acceptModelChanged(uri: UriComponents, event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>, isDirty: boolean): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptModelChanged(event.value, isDirty);
+	$acceptModewChanged(uwi: UwiComponents, event: SewiawizabweObjectWithBuffews<extHostPwotocow.NotebookCewwsChangedEventDto>, isDiwty: boowean): void {
+		const document = this._notebooksAndEditows.getNotebookDocument(UWI.wevive(uwi));
+		document.acceptModewChanged(event.vawue, isDiwty);
 	}
 
-	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptDirty(isDirty);
+	$acceptDiwtyStateChanged(uwi: UwiComponents, isDiwty: boowean): void {
+		const document = this._notebooksAndEditows.getNotebookDocument(UWI.wevive(uwi));
+		document.acceptDiwty(isDiwty);
 	}
 
-	$acceptModelSaved(uri: UriComponents): void {
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		this._onDidSaveNotebookDocument.fire(document.apiNotebook);
+	$acceptModewSaved(uwi: UwiComponents): void {
+		const document = this._notebooksAndEditows.getNotebookDocument(UWI.wevive(uwi));
+		this._onDidSaveNotebookDocument.fiwe(document.apiNotebook);
 	}
 
-	$acceptDocumentPropertiesChanged(uri: UriComponents, data: extHostProtocol.INotebookDocumentPropertiesChangeData): void {
-		this._logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uri.path, data);
-		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptDocumentPropertiesChanged(data);
+	$acceptDocumentPwopewtiesChanged(uwi: UwiComponents, data: extHostPwotocow.INotebookDocumentPwopewtiesChangeData): void {
+		this._wogSewvice.debug('ExtHostNotebook#$acceptDocumentPwopewtiesChanged', uwi.path, data);
+		const document = this._notebooksAndEditows.getNotebookDocument(UWI.wevive(uwi));
+		document.acceptDocumentPwopewtiesChanged(data);
 		if (data.metadata) {
-			this._onDidChangeNotebookDocumentMetadata.fire({ document: document.apiNotebook });
+			this._onDidChangeNotebookDocumentMetadata.fiwe({ document: document.apiNotebook });
 		}
 	}
 }

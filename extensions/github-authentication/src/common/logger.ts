@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { AuthProviderType } from '../github';
+impowt * as vscode fwom 'vscode';
+impowt { AuthPwovidewType } fwom '../github';
 
-type LogLevel = 'Trace' | 'Info' | 'Error';
+type WogWevew = 'Twace' | 'Info' | 'Ewwow';
 
-export class Log {
-	private output: vscode.OutputChannel;
+expowt cwass Wog {
+	pwivate output: vscode.OutputChannew;
 
-	constructor(private readonly type: AuthProviderType) {
-		const friendlyName = this.type === AuthProviderType.github ? 'GitHub' : 'GitHub Enterprise';
-		this.output = vscode.window.createOutputChannel(`${friendlyName} Authentication`);
+	constwuctow(pwivate weadonwy type: AuthPwovidewType) {
+		const fwiendwyName = this.type === AuthPwovidewType.github ? 'GitHub' : 'GitHub Entewpwise';
+		this.output = vscode.window.cweateOutputChannew(`${fwiendwyName} Authentication`);
 	}
 
-	private data2String(data: any): string {
-		if (data instanceof Error) {
-			return data.stack || data.message;
+	pwivate data2Stwing(data: any): stwing {
+		if (data instanceof Ewwow) {
+			wetuwn data.stack || data.message;
 		}
-		if (data.success === false && data.message) {
-			return data.message;
+		if (data.success === fawse && data.message) {
+			wetuwn data.message;
 		}
-		return data.toString();
+		wetuwn data.toStwing();
 	}
 
-	public trace(message: string, data?: any): void {
-		this.logLevel('Trace', message, data);
+	pubwic twace(message: stwing, data?: any): void {
+		this.wogWevew('Twace', message, data);
 	}
 
-	public info(message: string, data?: any): void {
-		this.logLevel('Info', message, data);
+	pubwic info(message: stwing, data?: any): void {
+		this.wogWevew('Info', message, data);
 	}
 
-	public error(message: string, data?: any): void {
-		this.logLevel('Error', message, data);
+	pubwic ewwow(message: stwing, data?: any): void {
+		this.wogWevew('Ewwow', message, data);
 	}
 
-	public logLevel(level: LogLevel, message: string, data?: any): void {
-		this.output.appendLine(`[${level}  - ${this.now()}] ${message}`);
+	pubwic wogWevew(wevew: WogWevew, message: stwing, data?: any): void {
+		this.output.appendWine(`[${wevew}  - ${this.now()}] ${message}`);
 		if (data) {
-			this.output.appendLine(this.data2String(data));
+			this.output.appendWine(this.data2Stwing(data));
 		}
 	}
 
-	private now(): string {
+	pwivate now(): stwing {
 		const now = new Date();
-		return padLeft(now.getUTCHours() + '', 2, '0')
-			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
-			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
+		wetuwn padWeft(now.getUTCHouws() + '', 2, '0')
+			+ ':' + padWeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padWeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMiwwiseconds();
 	}
 }
 
-function padLeft(s: string, n: number, pad = ' ') {
-	return pad.repeat(Math.max(0, n - s.length)) + s;
+function padWeft(s: stwing, n: numba, pad = ' ') {
+	wetuwn pad.wepeat(Math.max(0, n - s.wength)) + s;
 }

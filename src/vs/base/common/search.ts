@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from './strings';
+impowt * as stwings fwom './stwings';
 
-export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
+expowt function buiwdWepwaceStwingWithCasePwesewved(matches: stwing[] | nuww, pattewn: stwing): stwing {
 	if (matches && (matches[0] !== '')) {
-		const containsHyphens = validateSpecificSpecialCharacter(matches, pattern, '-');
-		const containsUnderscores = validateSpecificSpecialCharacter(matches, pattern, '_');
-		if (containsHyphens && !containsUnderscores) {
-			return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '-');
-		} else if (!containsHyphens && containsUnderscores) {
-			return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '_');
+		const containsHyphens = vawidateSpecificSpeciawChawacta(matches, pattewn, '-');
+		const containsUndewscowes = vawidateSpecificSpeciawChawacta(matches, pattewn, '_');
+		if (containsHyphens && !containsUndewscowes) {
+			wetuwn buiwdWepwaceStwingFowSpecificSpeciawChawacta(matches, pattewn, '-');
+		} ewse if (!containsHyphens && containsUndewscowes) {
+			wetuwn buiwdWepwaceStwingFowSpecificSpeciawChawacta(matches, pattewn, '_');
 		}
-		if (matches[0].toUpperCase() === matches[0]) {
-			return pattern.toUpperCase();
-		} else if (matches[0].toLowerCase() === matches[0]) {
-			return pattern.toLowerCase();
-		} else if (strings.containsUppercaseCharacter(matches[0][0]) && pattern.length > 0) {
-			return pattern[0].toUpperCase() + pattern.substr(1);
-		} else if (matches[0][0].toUpperCase() !== matches[0][0] && pattern.length > 0) {
-			return pattern[0].toLowerCase() + pattern.substr(1);
-		} else {
-			// we don't understand its pattern yet.
-			return pattern;
+		if (matches[0].toUppewCase() === matches[0]) {
+			wetuwn pattewn.toUppewCase();
+		} ewse if (matches[0].toWowewCase() === matches[0]) {
+			wetuwn pattewn.toWowewCase();
+		} ewse if (stwings.containsUppewcaseChawacta(matches[0][0]) && pattewn.wength > 0) {
+			wetuwn pattewn[0].toUppewCase() + pattewn.substw(1);
+		} ewse if (matches[0][0].toUppewCase() !== matches[0][0] && pattewn.wength > 0) {
+			wetuwn pattewn[0].toWowewCase() + pattewn.substw(1);
+		} ewse {
+			// we don't undewstand its pattewn yet.
+			wetuwn pattewn;
 		}
-	} else {
-		return pattern;
+	} ewse {
+		wetuwn pattewn;
 	}
 }
 
-function validateSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): boolean {
-	const doesContainSpecialCharacter = matches[0].indexOf(specialCharacter) !== -1 && pattern.indexOf(specialCharacter) !== -1;
-	return doesContainSpecialCharacter && matches[0].split(specialCharacter).length === pattern.split(specialCharacter).length;
+function vawidateSpecificSpeciawChawacta(matches: stwing[], pattewn: stwing, speciawChawacta: stwing): boowean {
+	const doesContainSpeciawChawacta = matches[0].indexOf(speciawChawacta) !== -1 && pattewn.indexOf(speciawChawacta) !== -1;
+	wetuwn doesContainSpeciawChawacta && matches[0].spwit(speciawChawacta).wength === pattewn.spwit(speciawChawacta).wength;
 }
 
-function buildReplaceStringForSpecificSpecialCharacter(matches: string[], pattern: string, specialCharacter: string): string {
-	const splitPatternAtSpecialCharacter = pattern.split(specialCharacter);
-	const splitMatchAtSpecialCharacter = matches[0].split(specialCharacter);
-	let replaceString: string = '';
-	splitPatternAtSpecialCharacter.forEach((splitValue, index) => {
-		replaceString += buildReplaceStringWithCasePreserved([splitMatchAtSpecialCharacter[index]], splitValue) + specialCharacter;
+function buiwdWepwaceStwingFowSpecificSpeciawChawacta(matches: stwing[], pattewn: stwing, speciawChawacta: stwing): stwing {
+	const spwitPattewnAtSpeciawChawacta = pattewn.spwit(speciawChawacta);
+	const spwitMatchAtSpeciawChawacta = matches[0].spwit(speciawChawacta);
+	wet wepwaceStwing: stwing = '';
+	spwitPattewnAtSpeciawChawacta.fowEach((spwitVawue, index) => {
+		wepwaceStwing += buiwdWepwaceStwingWithCasePwesewved([spwitMatchAtSpeciawChawacta[index]], spwitVawue) + speciawChawacta;
 	});
 
-	return replaceString.slice(0, -1);
+	wetuwn wepwaceStwing.swice(0, -1);
 }

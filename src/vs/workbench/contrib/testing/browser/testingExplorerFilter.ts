@@ -1,243 +1,243 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { Iterable } from 'vs/base/common/iterator';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
-import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
-import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { BaseActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { DwopdownMenuActionViewItem } fwom 'vs/base/bwowsa/ui/dwopdown/dwopdownActionViewItem';
+impowt { Action, IAction, IActionWunna, Sepawatow } fwom 'vs/base/common/actions';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestTag } fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { attachSuggestEnabwedInputBoxStywa, ContextScopedSuggestEnabwedInputWithHistowy, SuggestEnabwedInputWithHistowy, SuggestWesuwtsPwovida } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/suggestEnabwedInput/suggestEnabwedInput';
+impowt { testingFiwtewIcon } fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { Testing } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { StowedVawue } fwom 'vs/wowkbench/contwib/testing/common/stowedVawue';
+impowt { ITestExpwowewFiwtewState, TestFiwtewTewm } fwom 'vs/wowkbench/contwib/testing/common/testExpwowewFiwtewState';
+impowt { ITestSewvice } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
-	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
-	[TestFilterTerm.Executed]: localize('testing.filters.showOnlyExecuted', "Show Only Executed Tests"),
-	[TestFilterTerm.CurrentDoc]: localize('testing.filters.currentFile', "Show in Active File Only"),
-	[TestFilterTerm.Hidden]: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
+const testFiwtewDescwiptions: { [K in TestFiwtewTewm]: stwing } = {
+	[TestFiwtewTewm.Faiwed]: wocawize('testing.fiwtews.showOnwyFaiwed', "Show Onwy Faiwed Tests"),
+	[TestFiwtewTewm.Executed]: wocawize('testing.fiwtews.showOnwyExecuted', "Show Onwy Executed Tests"),
+	[TestFiwtewTewm.CuwwentDoc]: wocawize('testing.fiwtews.cuwwentFiwe', "Show in Active Fiwe Onwy"),
+	[TestFiwtewTewm.Hidden]: wocawize('testing.fiwtews.showExcwudedTests', "Show Hidden Tests"),
 };
 
-export class TestingExplorerFilter extends BaseActionViewItem {
-	private input!: SuggestEnabledInputWithHistory;
-	private wrapper!: HTMLDivElement;
-	private readonly history: StoredValue<string[]> = this.instantiationService.createInstance(StoredValue, {
-		key: 'testing.filterHistory2',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
+expowt cwass TestingExpwowewFiwta extends BaseActionViewItem {
+	pwivate input!: SuggestEnabwedInputWithHistowy;
+	pwivate wwappa!: HTMWDivEwement;
+	pwivate weadonwy histowy: StowedVawue<stwing[]> = this.instantiationSewvice.cweateInstance(StowedVawue, {
+		key: 'testing.fiwtewHistowy2',
+		scope: StowageScope.WOWKSPACE,
+		tawget: StowageTawget.USa
 	});
 
-	private readonly filtersAction = new Action('markersFiltersAction', localize('testing.filters.menu', "More Filters..."), 'testing-filter-button ' + ThemeIcon.asClassName(testingFilterIcon));
+	pwivate weadonwy fiwtewsAction = new Action('mawkewsFiwtewsAction', wocawize('testing.fiwtews.menu', "Mowe Fiwtews..."), 'testing-fiwta-button ' + ThemeIcon.asCwassName(testingFiwtewIcon));
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITestService private readonly testService: ITestService,
+		@ITestExpwowewFiwtewState pwivate weadonwy state: ITestExpwowewFiwtewState,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
 	) {
-		super(null, action);
-		this.updateFilterActiveState();
-		this._register(testService.excluded.onTestExclusionsChanged(this.updateFilterActiveState, this));
+		supa(nuww, action);
+		this.updateFiwtewActiveState();
+		this._wegista(testSewvice.excwuded.onTestExcwusionsChanged(this.updateFiwtewActiveState, this));
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override render(container: HTMLElement) {
-		container.classList.add('testing-filter-action-item');
+	pubwic ovewwide wenda(containa: HTMWEwement) {
+		containa.cwassWist.add('testing-fiwta-action-item');
 
-		const updateDelayer = this._register(new Delayer<void>(400));
-		const wrapper = this.wrapper = dom.$('.testing-filter-wrapper');
-		container.appendChild(wrapper);
+		const updateDewaya = this._wegista(new Dewaya<void>(400));
+		const wwappa = this.wwappa = dom.$('.testing-fiwta-wwappa');
+		containa.appendChiwd(wwappa);
 
-		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
-			id: 'testing.explorer.filter',
-			ariaLabel: localize('testExplorerFilterLabel', "Filter text for tests in the explorer"),
-			parent: wrapper,
-			suggestionProvider: {
-				triggerCharacters: ['@'],
-				provideResults: () => [
-					...Object.entries(testFilterDescriptions).map(([label, detail]) => ({ label, detail })),
-					...Iterable.map(this.testService.collection.tags.values(), tag => {
-						const { ctrlId, tagId } = TestTag.denamespace(tag.id);
-						const insertText = `@${ctrlId}:${tagId}`;
-						return ({
-							label: `@${ctrlId}:${tagId}`,
-							detail: tag.ctrlLabel,
-							insertText: tagId.includes(' ') ? `@${ctrlId}:"${tagId.replace(/(["\\])/g, '\\$1')}"` : insertText,
+		const input = this.input = this._wegista(this.instantiationSewvice.cweateInstance(ContextScopedSuggestEnabwedInputWithHistowy, {
+			id: 'testing.expwowa.fiwta',
+			awiaWabew: wocawize('testExpwowewFiwtewWabew', "Fiwta text fow tests in the expwowa"),
+			pawent: wwappa,
+			suggestionPwovida: {
+				twiggewChawactews: ['@'],
+				pwovideWesuwts: () => [
+					...Object.entwies(testFiwtewDescwiptions).map(([wabew, detaiw]) => ({ wabew, detaiw })),
+					...Itewabwe.map(this.testSewvice.cowwection.tags.vawues(), tag => {
+						const { ctwwId, tagId } = TestTag.denamespace(tag.id);
+						const insewtText = `@${ctwwId}:${tagId}`;
+						wetuwn ({
+							wabew: `@${ctwwId}:${tagId}`,
+							detaiw: tag.ctwwWabew,
+							insewtText: tagId.incwudes(' ') ? `@${ctwwId}:"${tagId.wepwace(/(["\\])/g, '\\$1')}"` : insewtText,
 						});
 					}),
-				].filter(r => !this.state.text.value.includes(r.label)),
-			} as SuggestResultsProvider,
-			resourceHandle: 'testing:filter',
+				].fiwta(w => !this.state.text.vawue.incwudes(w.wabew)),
+			} as SuggestWesuwtsPwovida,
+			wesouwceHandwe: 'testing:fiwta',
 			suggestOptions: {
-				value: this.state.text.value,
-				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
+				vawue: this.state.text.vawue,
+				pwacehowdewText: wocawize('testExpwowewFiwta', "Fiwta (e.g. text, !excwude, @tag)"),
 			},
-			history: this.history.get([])
+			histowy: this.histowy.get([])
 		}));
-		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
+		this._wegista(attachSuggestEnabwedInputBoxStywa(input, this.themeSewvice));
 
-		this._register(this.state.text.onDidChange(newValue => {
-			if (input.getValue() !== newValue) {
-				input.setValue(newValue);
+		this._wegista(this.state.text.onDidChange(newVawue => {
+			if (input.getVawue() !== newVawue) {
+				input.setVawue(newVawue);
 			}
 		}));
 
-		this._register(this.state.onDidRequestInputFocus(() => {
+		this._wegista(this.state.onDidWequestInputFocus(() => {
 			input.focus();
 		}));
 
-		this._register(input.onInputDidChange(() => updateDelayer.trigger(() => {
-			input.addToHistory();
-			this.state.setText(input.getValue());
+		this._wegista(input.onInputDidChange(() => updateDewaya.twigga(() => {
+			input.addToHistowy();
+			this.state.setText(input.getVawue());
 		})));
 
-		const actionbar = this._register(new ActionBar(container, {
-			actionViewItemProvider: action => {
-				if (action.id === this.filtersAction.id) {
-					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.state, this.actionRunner);
+		const actionbaw = this._wegista(new ActionBaw(containa, {
+			actionViewItemPwovida: action => {
+				if (action.id === this.fiwtewsAction.id) {
+					wetuwn this.instantiationSewvice.cweateInstance(FiwtewsDwopdownMenuActionViewItem, action, this.state, this.actionWunna);
 				}
-				return undefined;
+				wetuwn undefined;
 			},
 		}));
-		actionbar.push(this.filtersAction, { icon: true, label: false });
+		actionbaw.push(this.fiwtewsAction, { icon: twue, wabew: fawse });
 
-		this.layout(this.wrapper.clientWidth);
+		this.wayout(this.wwappa.cwientWidth);
 	}
 
-	public layout(width: number) {
-		this.input.layout(new dom.Dimension(
-			width - /* horizontal padding */ 24 - /* editor padding */ 8 - /* filter button padding */ 22,
-			/* line height */ 27 - /* editor padding */ 4,
+	pubwic wayout(width: numba) {
+		this.input.wayout(new dom.Dimension(
+			width - /* howizontaw padding */ 24 - /* editow padding */ 8 - /* fiwta button padding */ 22,
+			/* wine height */ 27 - /* editow padding */ 4,
 		));
 	}
 
 
 	/**
-	 * Focuses the filter input.
+	 * Focuses the fiwta input.
 	 */
-	public override focus(): void {
+	pubwic ovewwide focus(): void {
 		this.input.focus();
 	}
 
 	/**
-	 * Persists changes to the input history.
+	 * Pewsists changes to the input histowy.
 	 */
-	public saveState() {
-		const history = this.input.getHistory();
-		if (history.length) {
-			this.history.store(history);
-		} else {
-			this.history.delete();
+	pubwic saveState() {
+		const histowy = this.input.getHistowy();
+		if (histowy.wength) {
+			this.histowy.stowe(histowy);
+		} ewse {
+			this.histowy.dewete();
 		}
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override dispose() {
+	pubwic ovewwide dispose() {
 		this.saveState();
-		super.dispose();
+		supa.dispose();
 	}
 
 	/**
-	 * Updates the 'checked' state of the filter submenu.
+	 * Updates the 'checked' state of the fiwta submenu.
 	 */
-	private updateFilterActiveState() {
-		this.filtersAction.checked = this.testService.excluded.hasAny;
+	pwivate updateFiwtewActiveState() {
+		this.fiwtewsAction.checked = this.testSewvice.excwuded.hasAny;
 	}
 }
 
 
-class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
+cwass FiwtewsDwopdownMenuActionViewItem extends DwopdownMenuActionViewItem {
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		private readonly filters: ITestExplorerFilterState,
-		actionRunner: IActionRunner,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITestService private readonly testService: ITestService,
+		pwivate weadonwy fiwtews: ITestExpwowewFiwtewState,
+		actionWunna: IActionWunna,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
 	) {
-		super(action,
+		supa(action,
 			{ getActions: () => this.getActions() },
-			contextMenuService,
+			contextMenuSewvice,
 			{
-				actionRunner,
-				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-				menuAsChild: true
+				actionWunna,
+				cwassNames: action.cwass,
+				anchowAwignmentPwovida: () => AnchowAwignment.WIGHT,
+				menuAsChiwd: twue
 			}
 		);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
 		this.updateChecked();
 	}
 
-	private getActions(): IAction[] {
-		return [
-			...[TestFilterTerm.Failed, TestFilterTerm.Executed, TestFilterTerm.CurrentDoc].map(term => ({
-				checked: this.filters.isFilteringFor(term),
-				class: undefined,
-				enabled: true,
-				id: term,
-				label: testFilterDescriptions[term],
-				run: () => this.filters.toggleFilteringFor(term),
-				tooltip: '',
-				dispose: () => null
+	pwivate getActions(): IAction[] {
+		wetuwn [
+			...[TestFiwtewTewm.Faiwed, TestFiwtewTewm.Executed, TestFiwtewTewm.CuwwentDoc].map(tewm => ({
+				checked: this.fiwtews.isFiwtewingFow(tewm),
+				cwass: undefined,
+				enabwed: twue,
+				id: tewm,
+				wabew: testFiwtewDescwiptions[tewm],
+				wun: () => this.fiwtews.toggweFiwtewingFow(tewm),
+				toowtip: '',
+				dispose: () => nuww
 			})),
-			new Separator(),
+			new Sepawatow(),
 			{
-				checked: this.filters.isFilteringFor(TestFilterTerm.Hidden),
-				class: undefined,
-				enabled: this.testService.excluded.hasAny,
-				id: 'showExcluded',
-				label: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
-				run: () => this.filters.toggleFilteringFor(TestFilterTerm.Hidden),
-				tooltip: '',
-				dispose: () => null
+				checked: this.fiwtews.isFiwtewingFow(TestFiwtewTewm.Hidden),
+				cwass: undefined,
+				enabwed: this.testSewvice.excwuded.hasAny,
+				id: 'showExcwuded',
+				wabew: wocawize('testing.fiwtews.showExcwudedTests', "Show Hidden Tests"),
+				wun: () => this.fiwtews.toggweFiwtewingFow(TestFiwtewTewm.Hidden),
+				toowtip: '',
+				dispose: () => nuww
 			},
 			{
-				checked: false,
-				class: undefined,
-				enabled: this.testService.excluded.hasAny,
-				id: 'removeExcluded',
-				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
-				run: async () => this.testService.excluded.clear(),
-				tooltip: '',
-				dispose: () => null
+				checked: fawse,
+				cwass: undefined,
+				enabwed: this.testSewvice.excwuded.hasAny,
+				id: 'wemoveExcwuded',
+				wabew: wocawize('testing.fiwtews.wemoveTestExcwusions', "Unhide Aww Tests"),
+				wun: async () => this.testSewvice.excwuded.cweaw(),
+				toowtip: '',
+				dispose: () => nuww
 			}
 		];
 	}
 
-	override updateChecked(): void {
-		this.element!.classList.toggle('checked', this._action.checked);
+	ovewwide updateChecked(): void {
+		this.ewement!.cwassWist.toggwe('checked', this._action.checked);
 	}
 }
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: Testing.FilterActionId,
-			title: localize('filter', "Filter"),
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: Testing.FiwtewActionId,
+			titwe: wocawize('fiwta', "Fiwta"),
 		});
 	}
-	async run(): Promise<void> { }
+	async wun(): Pwomise<void> { }
 });

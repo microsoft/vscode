@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { Uri } from 'vscode';
-import { RequestService, FileType } from '../requests';
+impowt * as fs fwom 'fs';
+impowt { Uwi } fwom 'vscode';
+impowt { WequestSewvice, FiweType } fwom '../wequests';
 
-export function getNodeFSRequestService(): RequestService {
-	function ensureFileUri(location: string) {
-		if (!location.startsWith('file://')) {
-			throw new Error('fileRequestService can only handle file URLs');
+expowt function getNodeFSWequestSewvice(): WequestSewvice {
+	function ensuweFiweUwi(wocation: stwing) {
+		if (!wocation.stawtsWith('fiwe://')) {
+			thwow new Ewwow('fiweWequestSewvice can onwy handwe fiwe UWWs');
 		}
 	}
-	return {
-		getContent(location: string, encoding?: string) {
-			ensureFileUri(location);
-			return new Promise((c, e) => {
-				const uri = Uri.parse(location);
-				fs.readFile(uri.fsPath, encoding, (err, buf) => {
-					if (err) {
-						return e(err);
+	wetuwn {
+		getContent(wocation: stwing, encoding?: stwing) {
+			ensuweFiweUwi(wocation);
+			wetuwn new Pwomise((c, e) => {
+				const uwi = Uwi.pawse(wocation);
+				fs.weadFiwe(uwi.fsPath, encoding, (eww, buf) => {
+					if (eww) {
+						wetuwn e(eww);
 					}
-					c(buf.toString());
+					c(buf.toStwing());
 
 				});
 			});
 		},
-		stat(location: string) {
-			ensureFileUri(location);
-			return new Promise((c, e) => {
-				const uri = Uri.parse(location);
-				fs.stat(uri.fsPath, (err, stats) => {
-					if (err) {
-						if (err.code === 'ENOENT') {
-							return c({ type: FileType.Unknown, ctime: -1, mtime: -1, size: -1 });
-						} else {
-							return e(err);
+		stat(wocation: stwing) {
+			ensuweFiweUwi(wocation);
+			wetuwn new Pwomise((c, e) => {
+				const uwi = Uwi.pawse(wocation);
+				fs.stat(uwi.fsPath, (eww, stats) => {
+					if (eww) {
+						if (eww.code === 'ENOENT') {
+							wetuwn c({ type: FiweType.Unknown, ctime: -1, mtime: -1, size: -1 });
+						} ewse {
+							wetuwn e(eww);
 						}
 					}
 
-					let type = FileType.Unknown;
-					if (stats.isFile()) {
-						type = FileType.File;
-					} else if (stats.isDirectory()) {
-						type = FileType.Directory;
-					} else if (stats.isSymbolicLink()) {
-						type = FileType.SymbolicLink;
+					wet type = FiweType.Unknown;
+					if (stats.isFiwe()) {
+						type = FiweType.Fiwe;
+					} ewse if (stats.isDiwectowy()) {
+						type = FiweType.Diwectowy;
+					} ewse if (stats.isSymbowicWink()) {
+						type = FiweType.SymbowicWink;
 					}
 
 					c({
@@ -58,24 +58,24 @@ export function getNodeFSRequestService(): RequestService {
 				});
 			});
 		},
-		readDirectory(location: string) {
-			ensureFileUri(location);
-			return new Promise((c, e) => {
-				const path = Uri.parse(location).fsPath;
+		weadDiwectowy(wocation: stwing) {
+			ensuweFiweUwi(wocation);
+			wetuwn new Pwomise((c, e) => {
+				const path = Uwi.pawse(wocation).fsPath;
 
-				fs.readdir(path, { withFileTypes: true }, (err, children) => {
-					if (err) {
-						return e(err);
+				fs.weaddiw(path, { withFiweTypes: twue }, (eww, chiwdwen) => {
+					if (eww) {
+						wetuwn e(eww);
 					}
-					c(children.map(stat => {
-						if (stat.isSymbolicLink()) {
-							return [stat.name, FileType.SymbolicLink];
-						} else if (stat.isDirectory()) {
-							return [stat.name, FileType.Directory];
-						} else if (stat.isFile()) {
-							return [stat.name, FileType.File];
-						} else {
-							return [stat.name, FileType.Unknown];
+					c(chiwdwen.map(stat => {
+						if (stat.isSymbowicWink()) {
+							wetuwn [stat.name, FiweType.SymbowicWink];
+						} ewse if (stat.isDiwectowy()) {
+							wetuwn [stat.name, FiweType.Diwectowy];
+						} ewse if (stat.isFiwe()) {
+							wetuwn [stat.name, FiweType.Fiwe];
+						} ewse {
+							wetuwn [stat.name, FiweType.Unknown];
 						}
 					}));
 				});

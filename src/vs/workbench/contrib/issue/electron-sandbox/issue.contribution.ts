@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
-import { ICommandAction, MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
-import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
-import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
+impowt { wocawize } fwom 'vs/nws';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { ICommandAction, MenuWegistwy, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { WepowtPewfowmanceIssueUsingWepowtewAction, OpenPwocessExpwowa } fwom 'vs/wowkbench/contwib/issue/ewectwon-sandbox/issueActions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchIssueSewvice } fwom 'vs/wowkbench/sewvices/issue/common/issue';
+impowt { WowkbenchIssueSewvice } fwom 'vs/wowkbench/sewvices/issue/ewectwon-sandbox/issueSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IssueWepowtewData } fwom 'vs/pwatfowm/issue/common/issue';
+impowt { IIssueSewvice } fwom 'vs/pwatfowm/issue/ewectwon-sandbox/issue';
+impowt { OpenIssueWepowtewAwgs, OpenIssueWepowtewActionId, OpenIssueWepowtewApiCommandId } fwom 'vs/wowkbench/contwib/issue/common/commands';
 
-if (!!product.reportIssueUrl) {
-	registerAction2(ReportPerformanceIssueUsingReporterAction);
+if (!!pwoduct.wepowtIssueUww) {
+	wegistewAction2(WepowtPewfowmanceIssueUsingWepowtewAction);
 
-	CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
-		const data: Partial<IssueReporterData> = Array.isArray(args)
-			? { extensionId: args[0] }
-			: args || {};
+	CommandsWegistwy.wegistewCommand(OpenIssueWepowtewActionId, function (accessow, awgs?: [stwing] | OpenIssueWepowtewAwgs) {
+		const data: Pawtiaw<IssueWepowtewData> = Awway.isAwway(awgs)
+			? { extensionId: awgs[0] }
+			: awgs || {};
 
-		return accessor.get(IWorkbenchIssueService).openReporter(data);
+		wetuwn accessow.get(IWowkbenchIssueSewvice).openWepowta(data);
 	});
 
-	CommandsRegistry.registerCommand({
-		id: OpenIssueReporterApiCommandId,
-		handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
-			const data: Partial<IssueReporterData> = Array.isArray(args)
-				? { extensionId: args[0] }
-				: args || {};
+	CommandsWegistwy.wegistewCommand({
+		id: OpenIssueWepowtewApiCommandId,
+		handwa: function (accessow, awgs?: [stwing] | OpenIssueWepowtewAwgs) {
+			const data: Pawtiaw<IssueWepowtewData> = Awway.isAwway(awgs)
+				? { extensionId: awgs[0] }
+				: awgs || {};
 
-			return accessor.get(IWorkbenchIssueService).openReporter(data);
+			wetuwn accessow.get(IWowkbenchIssueSewvice).openWepowta(data);
 		},
-		description: {
-			description: 'Open the issue reporter and optionally prefill part of the form.',
-			args: [
+		descwiption: {
+			descwiption: 'Open the issue wepowta and optionawwy pwefiww pawt of the fowm.',
+			awgs: [
 				{
 					name: 'options',
-					description: 'Data to use to prefill the issue reporter with.',
-					isOptional: true,
+					descwiption: 'Data to use to pwefiww the issue wepowta with.',
+					isOptionaw: twue,
 					schema: {
 						oneOf: [
 							{
-								type: 'string',
-								description: 'The extension id to preselect.'
+								type: 'stwing',
+								descwiption: 'The extension id to pwesewect.'
 							},
 							{
 								type: 'object',
-								properties: {
+								pwopewties: {
 									extensionId: {
-										type: 'string'
+										type: 'stwing'
 									},
-									issueTitle: {
-										type: 'string'
+									issueTitwe: {
+										type: 'stwing'
 									},
 									issueBody: {
-										type: 'string'
+										type: 'stwing'
 									}
 								}
 
@@ -71,40 +71,40 @@ if (!!product.reportIssueUrl) {
 		}
 	});
 
-	const reportIssue: ICommandAction = {
-		id: OpenIssueReporterActionId,
-		title: {
-			value: localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
-			original: 'Report Issue...'
+	const wepowtIssue: ICommandAction = {
+		id: OpenIssueWepowtewActionId,
+		titwe: {
+			vawue: wocawize({ key: 'wepowtIssueInEngwish', comment: ['Twanswate this to "Wepowt Issue in Engwish" in aww wanguages pwease!'] }, "Wepowt Issue..."),
+			owiginaw: 'Wepowt Issue...'
 		},
-		category: CATEGORIES.Help
+		categowy: CATEGOWIES.Hewp
 	};
 
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue });
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command: wepowtIssue });
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
+	MenuWegistwy.appendMenuItem(MenuId.MenubawHewpMenu, {
+		gwoup: '3_feedback',
 		command: {
-			id: OpenIssueReporterActionId,
-			title: localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+			id: OpenIssueWepowtewActionId,
+			titwe: wocawize({ key: 'miWepowtIssue', comment: ['&& denotes a mnemonic', 'Twanswate this to "Wepowt Issue in Engwish" in aww wanguages pwease!'] }, "Wepowt &&Issue")
 		},
-		order: 3
+		owda: 3
 	});
 }
 
-MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-	group: '5_tools',
+MenuWegistwy.appendMenuItem(MenuId.MenubawHewpMenu, {
+	gwoup: '5_toows',
 	command: {
-		id: 'workbench.action.openProcessExplorer',
-		title: localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+		id: 'wowkbench.action.openPwocessExpwowa',
+		titwe: wocawize({ key: 'miOpenPwocessExpwowewa', comment: ['&& denotes a mnemonic'] }, "Open &&Pwocess Expwowa")
 	},
-	order: 2
+	owda: 2
 });
 
-registerAction2(OpenProcessExplorer);
+wegistewAction2(OpenPwocessExpwowa);
 
-registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, true);
+wegistewSingweton(IWowkbenchIssueSewvice, WowkbenchIssueSewvice, twue);
 
-CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
-	return accessor.get(IIssueService).getSystemStatus();
+CommandsWegistwy.wegistewCommand('_issues.getSystemStatus', (accessow) => {
+	wetuwn accessow.get(IIssueSewvice).getSystemStatus();
 });

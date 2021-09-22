@@ -1,4 +1,4 @@
-struct Foo {
+stwuct Foo {
   Foo();
   int a;
   int b;

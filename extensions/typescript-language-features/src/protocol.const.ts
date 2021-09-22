@@ -1,91 +1,91 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export class Kind {
-	public static readonly alias = 'alias';
-	public static readonly callSignature = 'call';
-	public static readonly class = 'class';
-	public static readonly const = 'const';
-	public static readonly constructorImplementation = 'constructor';
-	public static readonly constructSignature = 'construct';
-	public static readonly directory = 'directory';
-	public static readonly enum = 'enum';
-	public static readonly enumMember = 'enum member';
-	public static readonly externalModuleName = 'external module name';
-	public static readonly function = 'function';
-	public static readonly indexSignature = 'index';
-	public static readonly interface = 'interface';
-	public static readonly keyword = 'keyword';
-	public static readonly let = 'let';
-	public static readonly localFunction = 'local function';
-	public static readonly localVariable = 'local var';
-	public static readonly method = 'method';
-	public static readonly memberGetAccessor = 'getter';
-	public static readonly memberSetAccessor = 'setter';
-	public static readonly memberVariable = 'property';
-	public static readonly module = 'module';
-	public static readonly primitiveType = 'primitive type';
-	public static readonly script = 'script';
-	public static readonly type = 'type';
-	public static readonly variable = 'var';
-	public static readonly warning = 'warning';
-	public static readonly string = 'string';
-	public static readonly parameter = 'parameter';
-	public static readonly typeParameter = 'type parameter';
+expowt cwass Kind {
+	pubwic static weadonwy awias = 'awias';
+	pubwic static weadonwy cawwSignatuwe = 'caww';
+	pubwic static weadonwy cwass = 'cwass';
+	pubwic static weadonwy const = 'const';
+	pubwic static weadonwy constwuctowImpwementation = 'constwuctow';
+	pubwic static weadonwy constwuctSignatuwe = 'constwuct';
+	pubwic static weadonwy diwectowy = 'diwectowy';
+	pubwic static weadonwy enum = 'enum';
+	pubwic static weadonwy enumMemba = 'enum memba';
+	pubwic static weadonwy extewnawModuweName = 'extewnaw moduwe name';
+	pubwic static weadonwy function = 'function';
+	pubwic static weadonwy indexSignatuwe = 'index';
+	pubwic static weadonwy intewface = 'intewface';
+	pubwic static weadonwy keywowd = 'keywowd';
+	pubwic static weadonwy wet = 'wet';
+	pubwic static weadonwy wocawFunction = 'wocaw function';
+	pubwic static weadonwy wocawVawiabwe = 'wocaw vaw';
+	pubwic static weadonwy method = 'method';
+	pubwic static weadonwy membewGetAccessow = 'getta';
+	pubwic static weadonwy membewSetAccessow = 'setta';
+	pubwic static weadonwy membewVawiabwe = 'pwopewty';
+	pubwic static weadonwy moduwe = 'moduwe';
+	pubwic static weadonwy pwimitiveType = 'pwimitive type';
+	pubwic static weadonwy scwipt = 'scwipt';
+	pubwic static weadonwy type = 'type';
+	pubwic static weadonwy vawiabwe = 'vaw';
+	pubwic static weadonwy wawning = 'wawning';
+	pubwic static weadonwy stwing = 'stwing';
+	pubwic static weadonwy pawameta = 'pawameta';
+	pubwic static weadonwy typePawameta = 'type pawameta';
 }
 
 
-export class DiagnosticCategory {
-	public static readonly error = 'error';
-	public static readonly warning = 'warning';
-	public static readonly suggestion = 'suggestion';
+expowt cwass DiagnosticCategowy {
+	pubwic static weadonwy ewwow = 'ewwow';
+	pubwic static weadonwy wawning = 'wawning';
+	pubwic static weadonwy suggestion = 'suggestion';
 }
 
-export class KindModifiers {
-	public static readonly optional = 'optional';
-	public static readonly deprecated = 'deprecated';
-	public static readonly color = 'color';
+expowt cwass KindModifiews {
+	pubwic static weadonwy optionaw = 'optionaw';
+	pubwic static weadonwy depwecated = 'depwecated';
+	pubwic static weadonwy cowow = 'cowow';
 
-	public static readonly dtsFile = '.d.ts';
-	public static readonly tsFile = '.ts';
-	public static readonly tsxFile = '.tsx';
-	public static readonly jsFile = '.js';
-	public static readonly jsxFile = '.jsx';
-	public static readonly jsonFile = '.json';
+	pubwic static weadonwy dtsFiwe = '.d.ts';
+	pubwic static weadonwy tsFiwe = '.ts';
+	pubwic static weadonwy tsxFiwe = '.tsx';
+	pubwic static weadonwy jsFiwe = '.js';
+	pubwic static weadonwy jsxFiwe = '.jsx';
+	pubwic static weadonwy jsonFiwe = '.json';
 
-	public static readonly fileExtensionKindModifiers = [
-		KindModifiers.dtsFile,
-		KindModifiers.tsFile,
-		KindModifiers.tsxFile,
-		KindModifiers.jsFile,
-		KindModifiers.jsxFile,
-		KindModifiers.jsonFile,
+	pubwic static weadonwy fiweExtensionKindModifiews = [
+		KindModifiews.dtsFiwe,
+		KindModifiews.tsFiwe,
+		KindModifiews.tsxFiwe,
+		KindModifiews.jsFiwe,
+		KindModifiews.jsxFiwe,
+		KindModifiews.jsonFiwe,
 	];
 }
 
-export class DisplayPartKind {
-	public static readonly functionName = 'functionName';
-	public static readonly methodName = 'methodName';
-	public static readonly parameterName = 'parameterName';
-	public static readonly propertyName = 'propertyName';
-	public static readonly punctuation = 'punctuation';
-	public static readonly text = 'text';
+expowt cwass DispwayPawtKind {
+	pubwic static weadonwy functionName = 'functionName';
+	pubwic static weadonwy methodName = 'methodName';
+	pubwic static weadonwy pawametewName = 'pawametewName';
+	pubwic static weadonwy pwopewtyName = 'pwopewtyName';
+	pubwic static weadonwy punctuation = 'punctuation';
+	pubwic static weadonwy text = 'text';
 }
 
-export enum EventName {
+expowt enum EventName {
 	syntaxDiag = 'syntaxDiag',
 	semanticDiag = 'semanticDiag',
 	suggestionDiag = 'suggestionDiag',
-	configFileDiag = 'configFileDiag',
-	telemetry = 'telemetry',
-	projectLanguageServiceState = 'projectLanguageServiceState',
-	projectsUpdatedInBackground = 'projectsUpdatedInBackground',
-	beginInstallTypes = 'beginInstallTypes',
-	endInstallTypes = 'endInstallTypes',
-	typesInstallerInitializationFailed = 'typesInstallerInitializationFailed',
-	surveyReady = 'surveyReady',
-	projectLoadingStart = 'projectLoadingStart',
-	projectLoadingFinish = 'projectLoadingFinish',
+	configFiweDiag = 'configFiweDiag',
+	tewemetwy = 'tewemetwy',
+	pwojectWanguageSewviceState = 'pwojectWanguageSewviceState',
+	pwojectsUpdatedInBackgwound = 'pwojectsUpdatedInBackgwound',
+	beginInstawwTypes = 'beginInstawwTypes',
+	endInstawwTypes = 'endInstawwTypes',
+	typesInstawwewInitiawizationFaiwed = 'typesInstawwewInitiawizationFaiwed',
+	suwveyWeady = 'suwveyWeady',
+	pwojectWoadingStawt = 'pwojectWoadingStawt',
+	pwojectWoadingFinish = 'pwojectWoadingFinish',
 }

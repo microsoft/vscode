@@ -1,192 +1,192 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { NotebookEditowPwiowity, NotebookWendewewEntwypoint, WendewewMessagingSpec } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-namespace NotebookEditorContribution {
-	export const type = 'type';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
+namespace NotebookEditowContwibution {
+	expowt const type = 'type';
+	expowt const dispwayName = 'dispwayName';
+	expowt const sewectow = 'sewectow';
+	expowt const pwiowity = 'pwiowity';
 }
 
-export interface INotebookEditorContribution {
-	readonly [NotebookEditorContribution.type]: string;
-	readonly [NotebookEditorContribution.displayName]: string;
-	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
-	readonly [NotebookEditorContribution.priority]?: string;
+expowt intewface INotebookEditowContwibution {
+	weadonwy [NotebookEditowContwibution.type]: stwing;
+	weadonwy [NotebookEditowContwibution.dispwayName]: stwing;
+	weadonwy [NotebookEditowContwibution.sewectow]?: weadonwy { fiwenamePattewn?: stwing; excwudeFiweNamePattewn?: stwing; }[];
+	weadonwy [NotebookEditowContwibution.pwiowity]?: stwing;
 }
 
-namespace NotebookRendererContribution {
+namespace NotebookWendewewContwibution {
 
-	export const id = 'id';
-	export const displayName = 'displayName';
-	export const mimeTypes = 'mimeTypes';
-	export const entrypoint = 'entrypoint';
-	export const hardDependencies = 'dependencies';
-	export const optionalDependencies = 'optionalDependencies';
-	export const requiresMessaging = 'requiresMessaging';
+	expowt const id = 'id';
+	expowt const dispwayName = 'dispwayName';
+	expowt const mimeTypes = 'mimeTypes';
+	expowt const entwypoint = 'entwypoint';
+	expowt const hawdDependencies = 'dependencies';
+	expowt const optionawDependencies = 'optionawDependencies';
+	expowt const wequiwesMessaging = 'wequiwesMessaging';
 }
 
-export interface INotebookRendererContribution {
-	readonly [NotebookRendererContribution.id]?: string;
-	readonly [NotebookRendererContribution.displayName]: string;
-	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
-	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
-	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
-	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
-	readonly [NotebookRendererContribution.requiresMessaging]: RendererMessagingSpec;
+expowt intewface INotebookWendewewContwibution {
+	weadonwy [NotebookWendewewContwibution.id]?: stwing;
+	weadonwy [NotebookWendewewContwibution.dispwayName]: stwing;
+	weadonwy [NotebookWendewewContwibution.mimeTypes]?: weadonwy stwing[];
+	weadonwy [NotebookWendewewContwibution.entwypoint]: NotebookWendewewEntwypoint;
+	weadonwy [NotebookWendewewContwibution.hawdDependencies]: weadonwy stwing[];
+	weadonwy [NotebookWendewewContwibution.optionawDependencies]: weadonwy stwing[];
+	weadonwy [NotebookWendewewContwibution.wequiwesMessaging]: WendewewMessagingSpec;
 }
 
-const notebookProviderContribution: IJSONSchema = {
-	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
-	type: 'array',
-	defaultSnippets: [{ body: [{ type: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
+const notebookPwovidewContwibution: IJSONSchema = {
+	descwiption: nws.wocawize('contwibutes.notebook.pwovida', 'Contwibutes notebook document pwovida.'),
+	type: 'awway',
+	defauwtSnippets: [{ body: [{ type: '', dispwayName: '', 'sewectow': [{ 'fiwenamePattewn': '' }] }] }],
 	items: {
 		type: 'object',
-		required: [
-			NotebookEditorContribution.type,
-			NotebookEditorContribution.displayName,
-			NotebookEditorContribution.selector,
+		wequiwed: [
+			NotebookEditowContwibution.type,
+			NotebookEditowContwibution.dispwayName,
+			NotebookEditowContwibution.sewectow,
 		],
-		properties: {
-			[NotebookEditorContribution.type]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.provider.viewType', 'Type of the notebook.'),
+		pwopewties: {
+			[NotebookEditowContwibution.type]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.notebook.pwovida.viewType', 'Type of the notebook.'),
 			},
-			[NotebookEditorContribution.displayName]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.provider.displayName', 'Human readable name of the notebook.'),
+			[NotebookEditowContwibution.dispwayName]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.notebook.pwovida.dispwayName', 'Human weadabwe name of the notebook.'),
 			},
-			[NotebookEditorContribution.selector]: {
-				type: 'array',
-				description: nls.localize('contributes.notebook.provider.selector', 'Set of globs that the notebook is for.'),
+			[NotebookEditowContwibution.sewectow]: {
+				type: 'awway',
+				descwiption: nws.wocawize('contwibutes.notebook.pwovida.sewectow', 'Set of gwobs that the notebook is fow.'),
 				items: {
 					type: 'object',
-					properties: {
-						filenamePattern: {
-							type: 'string',
-							description: nls.localize('contributes.notebook.provider.selector.filenamePattern', 'Glob that the notebook is enabled for.'),
+					pwopewties: {
+						fiwenamePattewn: {
+							type: 'stwing',
+							descwiption: nws.wocawize('contwibutes.notebook.pwovida.sewectow.fiwenamePattewn', 'Gwob that the notebook is enabwed fow.'),
 						},
-						excludeFileNamePattern: {
-							type: 'string',
-							description: nls.localize('contributes.notebook.selector.provider.excludeFileNamePattern', 'Glob that the notebook is disabled for.')
+						excwudeFiweNamePattewn: {
+							type: 'stwing',
+							descwiption: nws.wocawize('contwibutes.notebook.sewectow.pwovida.excwudeFiweNamePattewn', 'Gwob that the notebook is disabwed fow.')
 						}
 					}
 				}
 			},
-			[NotebookEditorContribution.priority]: {
-				type: 'string',
-				markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
+			[NotebookEditowContwibution.pwiowity]: {
+				type: 'stwing',
+				mawkdownDepwecationMessage: nws.wocawize('contwibutes.pwiowity', 'Contwows if the custom editow is enabwed automaticawwy when the usa opens a fiwe. This may be ovewwidden by usews using the `wowkbench.editowAssociations` setting.'),
 				enum: [
-					NotebookEditorPriority.default,
-					NotebookEditorPriority.option,
+					NotebookEditowPwiowity.defauwt,
+					NotebookEditowPwiowity.option,
 				],
-				markdownEnumDescriptions: [
-					nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-					nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+				mawkdownEnumDescwiptions: [
+					nws.wocawize('contwibutes.pwiowity.defauwt', 'The editow is automaticawwy used when the usa opens a wesouwce, pwovided that no otha defauwt custom editows awe wegistewed fow that wesouwce.'),
+					nws.wocawize('contwibutes.pwiowity.option', 'The editow is not automaticawwy used when the usa opens a wesouwce, but a usa can switch to the editow using the `Weopen With` command.'),
 				],
-				default: 'default'
+				defauwt: 'defauwt'
 			}
 		}
 	}
 };
 
-const notebookRendererContribution: IJSONSchema = {
-	description: nls.localize('contributes.notebook.renderer', 'Contributes notebook output renderer provider.'),
-	type: 'array',
-	defaultSnippets: [{ body: [{ id: '', displayName: '', mimeTypes: [''], entrypoint: '' }] }],
+const notebookWendewewContwibution: IJSONSchema = {
+	descwiption: nws.wocawize('contwibutes.notebook.wendewa', 'Contwibutes notebook output wendewa pwovida.'),
+	type: 'awway',
+	defauwtSnippets: [{ body: [{ id: '', dispwayName: '', mimeTypes: [''], entwypoint: '' }] }],
 	items: {
 		type: 'object',
-		required: [
-			NotebookRendererContribution.id,
-			NotebookRendererContribution.displayName,
-			NotebookRendererContribution.mimeTypes,
-			NotebookRendererContribution.entrypoint,
+		wequiwed: [
+			NotebookWendewewContwibution.id,
+			NotebookWendewewContwibution.dispwayName,
+			NotebookWendewewContwibution.mimeTypes,
+			NotebookWendewewContwibution.entwypoint,
 		],
-		properties: {
-			[NotebookRendererContribution.id]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
+		pwopewties: {
+			[NotebookWendewewContwibution.id]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.notebook.wendewa.viewType', 'Unique identifia of the notebook output wendewa.'),
 			},
-			[NotebookRendererContribution.displayName]: {
-				type: 'string',
-				description: nls.localize('contributes.notebook.renderer.displayName', 'Human readable name of the notebook output renderer.'),
+			[NotebookWendewewContwibution.dispwayName]: {
+				type: 'stwing',
+				descwiption: nws.wocawize('contwibutes.notebook.wendewa.dispwayName', 'Human weadabwe name of the notebook output wendewa.'),
 			},
-			[NotebookRendererContribution.mimeTypes]: {
-				type: 'array',
-				description: nls.localize('contributes.notebook.selector', 'Set of globs that the notebook is for.'),
+			[NotebookWendewewContwibution.mimeTypes]: {
+				type: 'awway',
+				descwiption: nws.wocawize('contwibutes.notebook.sewectow', 'Set of gwobs that the notebook is fow.'),
 				items: {
-					type: 'string'
+					type: 'stwing'
 				}
 			},
-			[NotebookRendererContribution.entrypoint]: {
-				description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+			[NotebookWendewewContwibution.entwypoint]: {
+				descwiption: nws.wocawize('contwibutes.notebook.wendewa.entwypoint', 'Fiwe to woad in the webview to wenda the extension.'),
 				oneOf: [
 					{
-						type: 'string',
+						type: 'stwing',
 					},
-					// todo@connor4312 + @mjbvz: uncomment this once it's ready for external adoption
+					// todo@connow4312 + @mjbvz: uncomment this once it's weady fow extewnaw adoption
 					// {
 					// 	type: 'object',
-					// 	required: ['extends', 'path'],
-					// 	properties: {
+					// 	wequiwed: ['extends', 'path'],
+					// 	pwopewties: {
 					// 		extends: {
-					// 			type: 'string',
-					// 			description: nls.localize('contributes.notebook.renderer.entrypoint.extends', 'Existing renderer that this one extends.'),
+					// 			type: 'stwing',
+					// 			descwiption: nws.wocawize('contwibutes.notebook.wendewa.entwypoint.extends', 'Existing wendewa that this one extends.'),
 					// 		},
 					// 		path: {
-					// 			type: 'string',
-					// 			description: nls.localize('contributes.notebook.renderer.entrypoint', 'File to load in the webview to render the extension.'),
+					// 			type: 'stwing',
+					// 			descwiption: nws.wocawize('contwibutes.notebook.wendewa.entwypoint', 'Fiwe to woad in the webview to wenda the extension.'),
 					// 		},
 					// 	}
 					// }
 				]
 			},
-			[NotebookRendererContribution.hardDependencies]: {
-				type: 'array',
-				uniqueItems: true,
-				items: { type: 'string' },
-				markdownDescription: nls.localize('contributes.notebook.renderer.hardDependencies', 'List of kernel dependencies the renderer requires. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer can be used.'),
+			[NotebookWendewewContwibution.hawdDependencies]: {
+				type: 'awway',
+				uniqueItems: twue,
+				items: { type: 'stwing' },
+				mawkdownDescwiption: nws.wocawize('contwibutes.notebook.wendewa.hawdDependencies', 'Wist of kewnew dependencies the wendewa wequiwes. If any of the dependencies awe pwesent in the `NotebookKewnew.pwewoads`, the wendewa can be used.'),
 			},
-			[NotebookRendererContribution.optionalDependencies]: {
-				type: 'array',
-				uniqueItems: true,
-				items: { type: 'string' },
-				markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
+			[NotebookWendewewContwibution.optionawDependencies]: {
+				type: 'awway',
+				uniqueItems: twue,
+				items: { type: 'stwing' },
+				mawkdownDescwiption: nws.wocawize('contwibutes.notebook.wendewa.optionawDependencies', 'Wist of soft kewnew dependencies the wendewa can make use of. If any of the dependencies awe pwesent in the `NotebookKewnew.pwewoads`, the wendewa wiww be pwefewwed ova wendewews that don\'t intewact with the kewnew.'),
 			},
-			[NotebookRendererContribution.requiresMessaging]: {
-				default: 'never',
+			[NotebookWendewewContwibution.wequiwesMessaging]: {
+				defauwt: 'neva',
 				enum: [
-					'always',
-					'optional',
-					'never',
+					'awways',
+					'optionaw',
+					'neva',
 				],
 
-				enumDescriptions: [
-					nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
+				enumDescwiptions: [
+					nws.wocawize('contwibutes.notebook.wendewa.wequiwesMessaging.awways', 'Messaging is wequiwed. The wendewa wiww onwy be used when it\'s pawt of an extension that can be wun in an extension host.'),
+					nws.wocawize('contwibutes.notebook.wendewa.wequiwesMessaging.optionaw', 'The wendewa is betta with messaging avaiwabwe, but it\'s not wequwied.'),
+					nws.wocawize('contwibutes.notebook.wendewa.wequiwesMessaging.neva', 'The wendewa does not wequiwe messaging.'),
 				],
-				description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
+				descwiption: nws.wocawize('contwibutes.notebook.wendewa.wequiwesMessaging', 'Defines how and if the wendewa needs to communicate with an extension host, via `cweateWendewewMessaging`. Wendewews with stwonga messaging wequiwements may not wowk in aww enviwonments.'),
 			},
 		}
 	}
 };
 
-export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookEditorContribution[]>(
+expowt const notebooksExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<INotebookEditowContwibution[]>(
 	{
 		extensionPoint: 'notebooks',
-		jsonSchema: notebookProviderContribution
+		jsonSchema: notebookPwovidewContwibution
 	});
 
-export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>(
+expowt const notebookWendewewExtensionPoint = ExtensionsWegistwy.wegistewExtensionPoint<INotebookWendewewContwibution[]>(
 	{
-		extensionPoint: 'notebookRenderer',
-		jsonSchema: notebookRendererContribution
+		extensionPoint: 'notebookWendewa',
+		jsonSchema: notebookWendewewContwibution
 	});

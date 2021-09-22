@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IAction } from 'vs/base/common/actions';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { attachButtonStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class CommentFormActions implements IDisposable {
-	private _buttonElements: HTMLElement[] = [];
-	private readonly _toDispose = new DisposableStore();
-	private _actions: IAction[] = [];
+expowt cwass CommentFowmActions impwements IDisposabwe {
+	pwivate _buttonEwements: HTMWEwement[] = [];
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _actions: IAction[] = [];
 
-	constructor(
-		private container: HTMLElement,
-		private actionHandler: (action: IAction) => void,
-		private themeService: IThemeService
+	constwuctow(
+		pwivate containa: HTMWEwement,
+		pwivate actionHandwa: (action: IAction) => void,
+		pwivate themeSewvice: IThemeSewvice
 	) { }
 
 	setActions(menu: IMenu) {
-		this._toDispose.clear();
+		this._toDispose.cweaw();
 
-		this._buttonElements.forEach(b => b.remove());
+		this._buttonEwements.fowEach(b => b.wemove());
 
-		const groups = menu.getActions({ shouldForwardArgs: true });
-		for (const group of groups) {
-			const [, actions] = group;
+		const gwoups = menu.getActions({ shouwdFowwawdAwgs: twue });
+		fow (const gwoup of gwoups) {
+			const [, actions] = gwoup;
 
 			this._actions = actions;
-			actions.forEach(action => {
-				const button = new Button(this.container);
-				this._buttonElements.push(button.element);
+			actions.fowEach(action => {
+				const button = new Button(this.containa);
+				this._buttonEwements.push(button.ewement);
 
 				this._toDispose.add(button);
-				this._toDispose.add(attachButtonStyler(button, this.themeService));
-				this._toDispose.add(button.onDidClick(() => this.actionHandler(action)));
+				this._toDispose.add(attachButtonStywa(button, this.themeSewvice));
+				this._toDispose.add(button.onDidCwick(() => this.actionHandwa(action)));
 
-				button.enabled = action.enabled;
-				button.label = action.label;
+				button.enabwed = action.enabwed;
+				button.wabew = action.wabew;
 			});
 		}
 	}
 
-	triggerDefaultAction() {
-		if (this._actions.length) {
-			let lastAction = this._actions[0];
+	twiggewDefauwtAction() {
+		if (this._actions.wength) {
+			wet wastAction = this._actions[0];
 
-			if (lastAction.enabled) {
-				this.actionHandler(lastAction);
+			if (wastAction.enabwed) {
+				this.actionHandwa(wastAction);
 			}
 		}
 	}

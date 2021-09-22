@@ -1,265 +1,265 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { distinct, shuffle } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { DynamicWorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/dynamicWorkspaceRecommendations';
-import { ExeBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/exeBasedRecommendations';
-import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/browser/experimentalRecommendations';
-import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
-import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/fileBasedRecommendations';
-import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
-import { LanguageRecommendations } from 'vs/workbench/contrib/extensions/browser/languageRecommendations';
-import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionManagementSewvice, IExtensionGawwewySewvice, InstawwOpewation, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IExtensionWecommendationsSewvice, ExtensionWecommendationWeason, IExtensionIgnowedWecommendationsSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { distinct, shuffwe } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { WifecycwePhase, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { DynamicWowkspaceWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/dynamicWowkspaceWecommendations';
+impowt { ExeBasedWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/exeBasedWecommendations';
+impowt { ExpewimentawWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/expewimentawWecommendations';
+impowt { WowkspaceWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/wowkspaceWecommendations';
+impowt { FiweBasedWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/fiweBasedWecommendations';
+impowt { KeymapWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/keymapWecommendations';
+impowt { WanguageWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/wanguageWecommendations';
+impowt { ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { ConfigBasedWecommendations } fwom 'vs/wowkbench/contwib/extensions/bwowsa/configBasedWecommendations';
+impowt { IExtensionWecommendationNotificationSewvice } fwom 'vs/pwatfowm/extensionWecommendations/common/extensionWecommendations';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-type IgnoreRecommendationClassification = {
-	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+type IgnoweWecommendationCwassification = {
+	wecommendationWeason: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	extensionId: { cwassification: 'PubwicNonPewsonawData', puwpose: 'FeatuweInsight' };
 };
 
-export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
+expowt cwass ExtensionWecommendationsSewvice extends Disposabwe impwements IExtensionWecommendationsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	// Recommendations
-	private readonly fileBasedRecommendations: FileBasedRecommendations;
-	private readonly workspaceRecommendations: WorkspaceRecommendations;
-	private readonly experimentalRecommendations: ExperimentalRecommendations;
-	private readonly configBasedRecommendations: ConfigBasedRecommendations;
-	private readonly exeBasedRecommendations: ExeBasedRecommendations;
-	private readonly dynamicWorkspaceRecommendations: DynamicWorkspaceRecommendations;
-	private readonly keymapRecommendations: KeymapRecommendations;
-	private readonly languageRecommendations: LanguageRecommendations;
+	// Wecommendations
+	pwivate weadonwy fiweBasedWecommendations: FiweBasedWecommendations;
+	pwivate weadonwy wowkspaceWecommendations: WowkspaceWecommendations;
+	pwivate weadonwy expewimentawWecommendations: ExpewimentawWecommendations;
+	pwivate weadonwy configBasedWecommendations: ConfigBasedWecommendations;
+	pwivate weadonwy exeBasedWecommendations: ExeBasedWecommendations;
+	pwivate weadonwy dynamicWowkspaceWecommendations: DynamicWowkspaceWecommendations;
+	pwivate weadonwy keymapWecommendations: KeymapWecommendations;
+	pwivate weadonwy wanguageWecommendations: WanguageWecommendations;
 
-	public readonly activationPromise: Promise<void>;
-	private sessionSeed: number;
+	pubwic weadonwy activationPwomise: Pwomise<void>;
+	pwivate sessionSeed: numba;
 
-	private _onDidChangeRecommendations = this._register(new Emitter<void>());
-	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
+	pwivate _onDidChangeWecommendations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWecommendations = this._onDidChangeWecommendations.event;
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
-		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IExtensionIgnowedWecommendationsSewvice pwivate weadonwy extensionWecommendationsManagementSewvice: IExtensionIgnowedWecommendationsSewvice,
+		@IExtensionWecommendationNotificationSewvice pwivate weadonwy extensionWecommendationNotificationSewvice: IExtensionWecommendationNotificationSewvice,
 	) {
-		super();
+		supa();
 
-		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations);
-		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations);
-		this.experimentalRecommendations = instantiationService.createInstance(ExperimentalRecommendations);
-		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations);
-		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
-		this.dynamicWorkspaceRecommendations = instantiationService.createInstance(DynamicWorkspaceRecommendations);
-		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
-		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
+		this.wowkspaceWecommendations = instantiationSewvice.cweateInstance(WowkspaceWecommendations);
+		this.fiweBasedWecommendations = instantiationSewvice.cweateInstance(FiweBasedWecommendations);
+		this.expewimentawWecommendations = instantiationSewvice.cweateInstance(ExpewimentawWecommendations);
+		this.configBasedWecommendations = instantiationSewvice.cweateInstance(ConfigBasedWecommendations);
+		this.exeBasedWecommendations = instantiationSewvice.cweateInstance(ExeBasedWecommendations);
+		this.dynamicWowkspaceWecommendations = instantiationSewvice.cweateInstance(DynamicWowkspaceWecommendations);
+		this.keymapWecommendations = instantiationSewvice.cweateInstance(KeymapWecommendations);
+		this.wanguageWecommendations = instantiationSewvice.cweateInstance(WanguageWecommendations);
 
-		if (!this.isEnabled()) {
+		if (!this.isEnabwed()) {
 			this.sessionSeed = 0;
-			this.activationPromise = Promise.resolve();
-			return;
+			this.activationPwomise = Pwomise.wesowve();
+			wetuwn;
 		}
 
 		this.sessionSeed = +new Date();
 
 		// Activation
-		this.activationPromise = this.activate();
+		this.activationPwomise = this.activate();
 
-		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
+		this._wegista(this.extensionManagementSewvice.onDidInstawwExtensions(e => this.onDidInstawwExtensions(e)));
 	}
 
-	private async activate(): Promise<void> {
-		await this.lifecycleService.when(LifecyclePhase.Restored);
+	pwivate async activate(): Pwomise<void> {
+		await this.wifecycweSewvice.when(WifecycwePhase.Westowed);
 
-		// activate all recommendations
-		await Promise.all([
-			this.workspaceRecommendations.activate(),
-			this.configBasedRecommendations.activate(),
-			this.fileBasedRecommendations.activate(),
-			this.experimentalRecommendations.activate(),
-			this.keymapRecommendations.activate(),
-			this.languageRecommendations.activate(),
+		// activate aww wecommendations
+		await Pwomise.aww([
+			this.wowkspaceWecommendations.activate(),
+			this.configBasedWecommendations.activate(),
+			this.fiweBasedWecommendations.activate(),
+			this.expewimentawWecommendations.activate(),
+			this.keymapWecommendations.activate(),
+			this.wanguageWecommendations.activate(),
 		]);
 
-		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
-		this._register(this.extensionRecommendationsManagementService.onDidChangeGlobalIgnoredRecommendation(({ extensionId, isRecommended }) => {
-			if (!isRecommended) {
-				const reason = this.getAllRecommendationsWithReason()[extensionId];
-				if (reason && reason.reasonId) {
-					this.telemetryService.publicLog2<{ extensionId: string, recommendationReason: ExtensionRecommendationReason }, IgnoreRecommendationClassification>('extensionsRecommendations:ignoreRecommendation', { extensionId, recommendationReason: reason.reasonId });
+		this._wegista(Event.any(this.wowkspaceWecommendations.onDidChangeWecommendations, this.configBasedWecommendations.onDidChangeWecommendations, this.extensionWecommendationsManagementSewvice.onDidChangeIgnowedWecommendations)(() => this._onDidChangeWecommendations.fiwe()));
+		this._wegista(this.extensionWecommendationsManagementSewvice.onDidChangeGwobawIgnowedWecommendation(({ extensionId, isWecommended }) => {
+			if (!isWecommended) {
+				const weason = this.getAwwWecommendationsWithWeason()[extensionId];
+				if (weason && weason.weasonId) {
+					this.tewemetwySewvice.pubwicWog2<{ extensionId: stwing, wecommendationWeason: ExtensionWecommendationWeason }, IgnoweWecommendationCwassification>('extensionsWecommendations:ignoweWecommendation', { extensionId, wecommendationWeason: weason.weasonId });
 				}
 			}
 		}));
 
-		await this.promptWorkspaceRecommendations();
+		await this.pwomptWowkspaceWecommendations();
 	}
 
-	private isEnabled(): boolean {
-		return this.galleryService.isEnabled() && !this.environmentService.isExtensionDevelopment;
+	pwivate isEnabwed(): boowean {
+		wetuwn this.gawwewySewvice.isEnabwed() && !this.enviwonmentSewvice.isExtensionDevewopment;
 	}
 
-	private async activateProactiveRecommendations(): Promise<void> {
-		await Promise.all([this.dynamicWorkspaceRecommendations.activate(), this.exeBasedRecommendations.activate(), this.configBasedRecommendations.activate()]);
+	pwivate async activatePwoactiveWecommendations(): Pwomise<void> {
+		await Pwomise.aww([this.dynamicWowkspaceWecommendations.activate(), this.exeBasedWecommendations.activate(), this.configBasedWecommendations.activate()]);
 	}
 
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
-		/* Activate proactive recommendations */
-		this.activateProactiveRecommendations();
+	getAwwWecommendationsWithWeason(): { [id: stwing]: { weasonId: ExtensionWecommendationWeason, weasonText: stwing }; } {
+		/* Activate pwoactive wecommendations */
+		this.activatePwoactiveWecommendations();
 
-		const output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
+		const output: { [id: stwing]: { weasonId: ExtensionWecommendationWeason, weasonText: stwing }; } = Object.cweate(nuww);
 
-		const allRecommendations = [
-			...this.dynamicWorkspaceRecommendations.recommendations,
-			...this.configBasedRecommendations.recommendations,
-			...this.exeBasedRecommendations.recommendations,
-			...this.experimentalRecommendations.recommendations,
-			...this.fileBasedRecommendations.recommendations,
-			...this.workspaceRecommendations.recommendations,
-			...this.keymapRecommendations.recommendations,
-			...this.languageRecommendations.recommendations,
+		const awwWecommendations = [
+			...this.dynamicWowkspaceWecommendations.wecommendations,
+			...this.configBasedWecommendations.wecommendations,
+			...this.exeBasedWecommendations.wecommendations,
+			...this.expewimentawWecommendations.wecommendations,
+			...this.fiweBasedWecommendations.wecommendations,
+			...this.wowkspaceWecommendations.wecommendations,
+			...this.keymapWecommendations.wecommendations,
+			...this.wanguageWecommendations.wecommendations,
 		];
 
-		for (const { extensionId, reason } of allRecommendations) {
-			if (this.isExtensionAllowedToBeRecommended(extensionId)) {
-				output[extensionId.toLowerCase()] = reason;
+		fow (const { extensionId, weason } of awwWecommendations) {
+			if (this.isExtensionAwwowedToBeWecommended(extensionId)) {
+				output[extensionId.toWowewCase()] = weason;
 			}
 		}
 
-		return output;
+		wetuwn output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }> {
-		await this.configBasedRecommendations.activate();
-		return {
-			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
-			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
+	async getConfigBasedWecommendations(): Pwomise<{ impowtant: stwing[], othews: stwing[] }> {
+		await this.configBasedWecommendations.activate();
+		wetuwn {
+			impowtant: this.toExtensionWecommendations(this.configBasedWecommendations.impowtantWecommendations),
+			othews: this.toExtensionWecommendations(this.configBasedWecommendations.othewWecommendations)
 		};
 	}
 
-	async getOtherRecommendations(): Promise<string[]> {
-		await this.activateProactiveRecommendations();
+	async getOthewWecommendations(): Pwomise<stwing[]> {
+		await this.activatePwoactiveWecommendations();
 
-		const recommendations = [
-			...this.configBasedRecommendations.otherRecommendations,
-			...this.exeBasedRecommendations.otherRecommendations,
-			...this.dynamicWorkspaceRecommendations.recommendations,
-			...this.experimentalRecommendations.recommendations
+		const wecommendations = [
+			...this.configBasedWecommendations.othewWecommendations,
+			...this.exeBasedWecommendations.othewWecommendations,
+			...this.dynamicWowkspaceWecommendations.wecommendations,
+			...this.expewimentawWecommendations.wecommendations
 		];
 
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+		const extensionIds = distinct(wecommendations.map(e => e.extensionId))
+			.fiwta(extensionId => this.isExtensionAwwowedToBeWecommended(extensionId));
 
-		shuffle(extensionIds, this.sessionSeed);
+		shuffwe(extensionIds, this.sessionSeed);
 
-		return extensionIds;
+		wetuwn extensionIds;
 	}
 
-	async getImportantRecommendations(): Promise<string[]> {
-		await this.activateProactiveRecommendations();
+	async getImpowtantWecommendations(): Pwomise<stwing[]> {
+		await this.activatePwoactiveWecommendations();
 
-		const recommendations = [
-			...this.fileBasedRecommendations.importantRecommendations,
-			...this.configBasedRecommendations.importantRecommendations,
-			...this.exeBasedRecommendations.importantRecommendations,
+		const wecommendations = [
+			...this.fiweBasedWecommendations.impowtantWecommendations,
+			...this.configBasedWecommendations.impowtantWecommendations,
+			...this.exeBasedWecommendations.impowtantWecommendations,
 		];
 
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+		const extensionIds = distinct(wecommendations.map(e => e.extensionId))
+			.fiwta(extensionId => this.isExtensionAwwowedToBeWecommended(extensionId));
 
-		shuffle(extensionIds, this.sessionSeed);
+		shuffwe(extensionIds, this.sessionSeed);
 
-		return extensionIds;
+		wetuwn extensionIds;
 	}
 
-	getKeymapRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.keymapRecommendations.recommendations);
+	getKeymapWecommendations(): stwing[] {
+		wetuwn this.toExtensionWecommendations(this.keymapWecommendations.wecommendations);
 	}
 
-	getLanguageRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.languageRecommendations.recommendations);
+	getWanguageWecommendations(): stwing[] {
+		wetuwn this.toExtensionWecommendations(this.wanguageWecommendations.wecommendations);
 	}
 
-	async getWorkspaceRecommendations(): Promise<string[]> {
-		if (!this.isEnabled()) {
-			return [];
+	async getWowkspaceWecommendations(): Pwomise<stwing[]> {
+		if (!this.isEnabwed()) {
+			wetuwn [];
 		}
-		await this.workspaceRecommendations.activate();
-		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
+		await this.wowkspaceWecommendations.activate();
+		wetuwn this.toExtensionWecommendations(this.wowkspaceWecommendations.wecommendations);
 	}
 
-	async getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }> {
-		await this.exeBasedRecommendations.activate();
-		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
-			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
-		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
+	async getExeBasedWecommendations(exe?: stwing): Pwomise<{ impowtant: stwing[], othews: stwing[] }> {
+		await this.exeBasedWecommendations.activate();
+		const { impowtant, othews } = exe ? this.exeBasedWecommendations.getWecommendations(exe)
+			: { impowtant: this.exeBasedWecommendations.impowtantWecommendations, othews: this.exeBasedWecommendations.othewWecommendations };
+		wetuwn { impowtant: this.toExtensionWecommendations(impowtant), othews: this.toExtensionWecommendations(othews) };
 	}
 
-	getFileBasedRecommendations(): string[] {
-		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
+	getFiweBasedWecommendations(): stwing[] {
+		wetuwn this.toExtensionWecommendations(this.fiweBasedWecommendations.wecommendations);
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
-		for (const e of results) {
-			if (e.source && !URI.isUri(e.source) && e.operation === InstallOperation.Install) {
-				const extRecommendations = this.getAllRecommendationsWithReason() || {};
-				const recommendationReason = extRecommendations[e.source.identifier.id.toLowerCase()];
-				if (recommendationReason) {
-					/* __GDPR__
-						"extensionGallery:install:recommendations" : {
-							"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"${include}": [
-								"${GalleryExtensionTelemetryData}"
+	pwivate onDidInstawwExtensions(wesuwts: weadonwy InstawwExtensionWesuwt[]): void {
+		fow (const e of wesuwts) {
+			if (e.souwce && !UWI.isUwi(e.souwce) && e.opewation === InstawwOpewation.Instaww) {
+				const extWecommendations = this.getAwwWecommendationsWithWeason() || {};
+				const wecommendationWeason = extWecommendations[e.souwce.identifia.id.toWowewCase()];
+				if (wecommendationWeason) {
+					/* __GDPW__
+						"extensionGawwewy:instaww:wecommendations" : {
+							"wecommendationWeason": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+							"${incwude}": [
+								"${GawwewyExtensionTewemetwyData}"
 							]
 						}
 					*/
-					this.telemetryService.publicLog('extensionGallery:install:recommendations', { ...e.source.telemetryData, recommendationReason: recommendationReason.reasonId });
+					this.tewemetwySewvice.pubwicWog('extensionGawwewy:instaww:wecommendations', { ...e.souwce.tewemetwyData, wecommendationWeason: wecommendationWeason.weasonId });
 				}
 			}
 		}
 	}
 
-	private toExtensionRecommendations(recommendations: ReadonlyArray<ExtensionRecommendation>): string[] {
-		const extensionIds = distinct(recommendations.map(e => e.extensionId))
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+	pwivate toExtensionWecommendations(wecommendations: WeadonwyAwway<ExtensionWecommendation>): stwing[] {
+		const extensionIds = distinct(wecommendations.map(e => e.extensionId))
+			.fiwta(extensionId => this.isExtensionAwwowedToBeWecommended(extensionId));
 
-		return extensionIds;
+		wetuwn extensionIds;
 	}
 
-	private isExtensionAllowedToBeRecommended(extensionId: string): boolean {
-		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
+	pwivate isExtensionAwwowedToBeWecommended(extensionId: stwing): boowean {
+		wetuwn !this.extensionWecommendationsManagementSewvice.ignowedWecommendations.incwudes(extensionId.toWowewCase());
 	}
 
-	// for testing
-	protected get workbenchRecommendationDelay() {
-		// remote extensions might still being installed #124119
-		return 5000;
+	// fow testing
+	pwotected get wowkbenchWecommendationDeway() {
+		// wemote extensions might stiww being instawwed #124119
+		wetuwn 5000;
 	}
 
-	private async promptWorkspaceRecommendations(): Promise<void> {
-		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
+	pwivate async pwomptWowkspaceWecommendations(): Pwomise<void> {
+		const awwowedWecommendations = [...this.wowkspaceWecommendations.wecommendations, ...this.configBasedWecommendations.impowtantWecommendations]
 			.map(({ extensionId }) => extensionId)
-			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+			.fiwta(extensionId => this.isExtensionAwwowedToBeWecommended(extensionId));
 
-		if (allowedRecommendations.length) {
-			await timeout(this.workbenchRecommendationDelay);
-			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
+		if (awwowedWecommendations.wength) {
+			await timeout(this.wowkbenchWecommendationDeway);
+			await this.extensionWecommendationNotificationSewvice.pwomptWowkspaceWecommendations(awwowedWecommendations);
 		}
 	}
 }

@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverProvider, Hover, MarkedString, TextDocument, CancellationToken, Position, workspace } from 'vscode';
-import { textToMarkedString } from './utils/markedTextUtil';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+impowt { HovewPwovida, Hova, MawkedStwing, TextDocument, CancewwationToken, Position, wowkspace } fwom 'vscode';
+impowt { textToMawkedStwing } fwom './utiws/mawkedTextUtiw';
+impowt phpGwobaws = wequiwe('./phpGwobaws');
+impowt phpGwobawFunctions = wequiwe('./phpGwobawFunctions');
 
-export default class PHPHoverProvider implements HoverProvider {
+expowt defauwt cwass PHPHovewPwovida impwements HovewPwovida {
 
-	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Hover | undefined {
-		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
-		if (!enable) {
-			return undefined;
+	pubwic pwovideHova(document: TextDocument, position: Position, _token: CancewwationToken): Hova | undefined {
+		wet enabwe = wowkspace.getConfiguwation('php').get<boowean>('suggest.basic', twue);
+		if (!enabwe) {
+			wetuwn undefined;
 		}
 
-		let wordRange = document.getWordRangeAtPosition(position);
-		if (!wordRange) {
-			return undefined;
+		wet wowdWange = document.getWowdWangeAtPosition(position);
+		if (!wowdWange) {
+			wetuwn undefined;
 		}
 
-		let name = document.getText(wordRange);
+		wet name = document.getText(wowdWange);
 
-		let entry = phpGlobalFunctions.globalfunctions[name] || phpGlobals.compiletimeconstants[name] || phpGlobals.globalvariables[name] || phpGlobals.keywords[name];
-		if (entry && entry.description) {
-			let signature = name + (entry.signature || '');
-			let contents: MarkedString[] = [textToMarkedString(entry.description), { language: 'php', value: signature }];
-			return new Hover(contents, wordRange);
+		wet entwy = phpGwobawFunctions.gwobawfunctions[name] || phpGwobaws.compiwetimeconstants[name] || phpGwobaws.gwobawvawiabwes[name] || phpGwobaws.keywowds[name];
+		if (entwy && entwy.descwiption) {
+			wet signatuwe = name + (entwy.signatuwe || '');
+			wet contents: MawkedStwing[] = [textToMawkedStwing(entwy.descwiption), { wanguage: 'php', vawue: signatuwe }];
+			wetuwn new Hova(contents, wowdWange);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

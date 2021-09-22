@@ -1,273 +1,273 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* Font Families (with CJK support) */
+/* Font Famiwies (with CJK suppowt) */
 
-.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
-.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
-.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
-.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+.mac { font-famiwy: -appwe-system, BwinkMacSystemFont, sans-sewif; }
+.mac:wang(zh-Hans) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang SC", "Hiwagino Sans GB", sans-sewif; }
+.mac:wang(zh-Hant) { font-famiwy: -appwe-system, BwinkMacSystemFont, "PingFang TC", sans-sewif; }
+.mac:wang(ja) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Hiwagino Kaku Gothic Pwo", sans-sewif; }
+.mac:wang(ko) { font-famiwy: -appwe-system, BwinkMacSystemFont, "Nanum Gothic", "Appwe SD Gothic Neo", "AppweGothic", sans-sewif; }
 
-.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
-.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
-.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
-.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
-.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+.windows { font-famiwy: "Segoe WPC", "Segoe UI", sans-sewif; }
+.windows:wang(zh-Hans) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft YaHei", sans-sewif; }
+.windows:wang(zh-Hant) { font-famiwy: "Segoe WPC", "Segoe UI", "Micwosoft Jhenghei", sans-sewif; }
+.windows:wang(ja) { font-famiwy: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiwyo UI", sans-sewif; }
+.windows:wang(ko) { font-famiwy: "Segoe WPC", "Segoe UI", "Mawgun Gothic", "Dotom", sans-sewif; }
 
-/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
-.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
-.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
-.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
-.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
-.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+/* Winux: add `system-ui` as fiwst font and not `Ubuntu` to awwow otha distwibution pick theiw standawd OS font */
+.winux { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", sans-sewif; }
+.winux:wang(zh-Hans) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans SC", "Souwce Han Sans CN", "Souwce Han Sans", sans-sewif; }
+.winux:wang(zh-Hant) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans TC", "Souwce Han Sans TW", "Souwce Han Sans", sans-sewif; }
+.winux:wang(ja) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans J", "Souwce Han Sans JP", "Souwce Han Sans", sans-sewif; }
+.winux:wang(ko) { font-famiwy: system-ui, "Ubuntu", "Dwoid Sans", "Souwce Han Sans K", "Souwce Han Sans JW", "Souwce Han Sans", "UnDotum", "FBaekmuk Guwim", sans-sewif; }
 
-.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
-.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
-.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
+.mac { --monaco-monospace-font: "SF Mono", Monaco, Menwo, Couwia, monospace; }
+.windows { --monaco-monospace-font: Consowas, "Couwia New", monospace; }
+.winux { --monaco-monospace-font: "Ubuntu Mono", "Wibewation Mono", "DejaVu Sans Mono", "Couwia New", monospace; }
 
-/* Global Styles */
+/* Gwobaw Stywes */
 
 body {
 	height: 100%;
 	width: 100%;
-	margin: 0;
+	mawgin: 0;
 	padding: 0;
-	overflow: hidden;
+	ovewfwow: hidden;
 	font-size: 11px;
-	user-select: none;
-	-webkit-user-select: none;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
 }
 
 body.web {
-	position: fixed; /* prevent bounce effect */
+	position: fixed; /* pwevent bounce effect */
 }
 
-.monaco-workbench.web {
-	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
+.monaco-wowkbench.web {
+	touch-action: none; /* Disabwe bwowsa handwing of aww panning and zooming gestuwes. Wemoves 300ms touch deway. */
 }
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyfwames fadeIn { fwom { opacity: 0; } to { opacity: 1; } }
 
-.monaco-workbench {
+.monaco-wowkbench {
 	font-size: 13px;
-	line-height: 1.4em;
-	position: relative;
+	wine-height: 1.4em;
+	position: wewative;
 	z-index: 1;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench.border:not(.fullscreen) {
-	box-sizing: border-box;
-	border: 1px solid var(--window-border-color);
+.monaco-wowkbench.bowda:not(.fuwwscween) {
+	box-sizing: bowda-box;
+	bowda: 1px sowid vaw(--window-bowda-cowow);
 }
 
-.monaco-workbench.border.mac {
-	border-radius: 5px;
+.monaco-wowkbench.bowda.mac {
+	bowda-wadius: 5px;
 }
 
-.monaco-workbench img {
-	border: 0;
+.monaco-wowkbench img {
+	bowda: 0;
 }
 
-.monaco-workbench label {
-	cursor: pointer;
+.monaco-wowkbench wabew {
+	cuwsow: pointa;
 }
 
-.monaco-workbench a {
-	text-decoration: none;
+.monaco-wowkbench a {
+	text-decowation: none;
 }
 
-.monaco-workbench a:active {
-	color: inherit;
-	background-color: inherit;
+.monaco-wowkbench a:active {
+	cowow: inhewit;
+	backgwound-cowow: inhewit;
 }
 
-.monaco-workbench a.plain {
-	color: inherit;
-	text-decoration: none;
+.monaco-wowkbench a.pwain {
+	cowow: inhewit;
+	text-decowation: none;
 }
 
-.monaco-workbench a.plain:hover,
-.monaco-workbench a.plain.hover {
-	color: inherit;
-	text-decoration: none;
+.monaco-wowkbench a.pwain:hova,
+.monaco-wowkbench a.pwain.hova {
+	cowow: inhewit;
+	text-decowation: none;
 }
 
-.monaco-workbench input {
-	color: inherit;
-	font-family: inherit;
+.monaco-wowkbench input {
+	cowow: inhewit;
+	font-famiwy: inhewit;
 	font-size: 100%;
 }
 
-.monaco-workbench select {
-	font-family: inherit;
+.monaco-wowkbench sewect {
+	font-famiwy: inhewit;
 }
 
-.monaco-workbench .pointer {
-	cursor: pointer;
+.monaco-wowkbench .pointa {
+	cuwsow: pointa;
 }
 
-.monaco-workbench.mac.monaco-font-aliasing-antialiased {
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+.monaco-wowkbench.mac.monaco-font-awiasing-antiawiased {
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
 }
 
-.monaco-workbench.mac.monaco-font-aliasing-none {
+.monaco-wowkbench.mac.monaco-font-awiasing-none {
 	-webkit-font-smoothing: none;
 	-moz-osx-font-smoothing: unset;
 }
 
-@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-	.monaco-workbench.mac.monaco-font-aliasing-auto {
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
+@media (-webkit-min-device-pixew-watio: 2), (min-wesowution: 192dpi) {
+	.monaco-wowkbench.mac.monaco-font-awiasing-auto {
+		-webkit-font-smoothing: antiawiased;
+		-moz-osx-font-smoothing: gwayscawe;
 	}
 }
 
-.monaco-workbench .context-view {
-	-webkit-app-region: no-drag;
+.monaco-wowkbench .context-view {
+	-webkit-app-wegion: no-dwag;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw {
 	padding: .5em 0;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .action-menu-item {
 	height: 1.8em;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
-	font-size: inherit;
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .action-wabew:not(.sepawatow),
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .keybinding {
+	font-size: inhewit;
 	padding: 0 2em;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	font-size: inherit;
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .menu-item-check {
+	font-size: inhewit;
 	width: 2em;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	font-size: inherit;
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	font-size: inhewit;
 	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
+	mawgin-bottom: 0.2em;
 }
 
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	margin-left: 0;
-	margin-right: 0;
+.monaco-wowkbench.winux .monaco-menu .monaco-action-baw.vewticaw .action-wabew.sepawatow {
+	mawgin-weft: 0;
+	mawgin-wight: 0;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-wowkbench .monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
 	font-size: 60%;
 	padding: 0 1.8em;
 }
 
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+.monaco-wowkbench.winux .monaco-menu .monaco-action-baw.vewticaw .submenu-indicatow {
 	height: 100%;
 	mask-size: 10px 10px;
 	-webkit-mask-size: 10px 10px;
 }
 
-.monaco-workbench .monaco-menu .action-item {
-	cursor: default;
+.monaco-wowkbench .monaco-menu .action-item {
+	cuwsow: defauwt;
 }
 
-/* Custom Dropdown (select) Arrows */
+/* Custom Dwopdown (sewect) Awwows */
 
-.monaco-workbench select {
-	-webkit-appearance: none;
-	-moz-appearance: none;
-	/* Hides inner border from FF */
-	border: 1px solid;
+.monaco-wowkbench sewect {
+	-webkit-appeawance: none;
+	-moz-appeawance: none;
+	/* Hides inna bowda fwom FF */
+	bowda: 1px sowid;
 }
 
-.monaco-workbench .select-container {
-	position: relative;
+.monaco-wowkbench .sewect-containa {
+	position: wewative;
 }
 
-.monaco-workbench .select-container:after {
+.monaco-wowkbench .sewect-containa:afta {
 	content: "\eab4";
-	font-family: codicon;
+	font-famiwy: codicon;
 	font-size: 16px;
 	width: 16px;
 	height: 16px;
-	line-height: 16px;
-	position: absolute;
+	wine-height: 16px;
+	position: absowute;
 	top: 0;
 	bottom: 0;
-	right: 6px;
-	margin: auto;
-	pointer-events: none;
+	wight: 6px;
+	mawgin: auto;
+	pointa-events: none;
 }
 
-/* START Keyboard Focus Indication Styles */
+/* STAWT Keyboawd Focus Indication Stywes */
 
-.monaco-workbench [tabindex="0"]:focus,
-.monaco-workbench [tabindex="-1"]:focus,
-.monaco-workbench .synthetic-focus,
-.monaco-workbench select:focus,
-.monaco-workbench input[type="button"]:focus,
-.monaco-workbench input[type="text"]:focus,
-.monaco-workbench textarea:focus,
-.monaco-workbench input[type="checkbox"]:focus {
-	outline-width: 1px;
-	outline-style: solid;
-	outline-offset: -1px;
-	opacity: 1 !important;
+.monaco-wowkbench [tabindex="0"]:focus,
+.monaco-wowkbench [tabindex="-1"]:focus,
+.monaco-wowkbench .synthetic-focus,
+.monaco-wowkbench sewect:focus,
+.monaco-wowkbench input[type="button"]:focus,
+.monaco-wowkbench input[type="text"]:focus,
+.monaco-wowkbench textawea:focus,
+.monaco-wowkbench input[type="checkbox"]:focus {
+	outwine-width: 1px;
+	outwine-stywe: sowid;
+	outwine-offset: -1px;
+	opacity: 1 !impowtant;
 }
 
-.monaco-workbench input[type="checkbox"]:focus {
-	outline-offset: 2px;
+.monaco-wowkbench input[type="checkbox"]:focus {
+	outwine-offset: 2px;
 }
 
-.monaco-workbench [tabindex="0"]:active,
-.monaco-workbench [tabindex="-1"]:active,
-.monaco-workbench select:active,
-.monaco-workbench input[type="button"]:active,
-.monaco-workbench input[type="checkbox"]:active {
-	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
+.monaco-wowkbench [tabindex="0"]:active,
+.monaco-wowkbench [tabindex="-1"]:active,
+.monaco-wowkbench sewect:active,
+.monaco-wowkbench input[type="button"]:active,
+.monaco-wowkbench input[type="checkbox"]:active {
+	outwine: 0 !impowtant; /* fixes some fwashing outwines fwom showing up when cwicking */
 }
 
-.monaco-workbench.mac select:focus {
-	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
+.monaco-wowkbench.mac sewect:focus {
+	bowda-cowow: twanspawent; /* outwine is a squawe, but bowda has a wadius, so we avoid this gwitch when focused (https://github.com/micwosoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-list:not(.element-focused):focus:before {
-	position: absolute;
+.monaco-wowkbench .monaco-wist:not(.ewement-focused):focus:befowe {
+	position: absowute;
 	top: 0;
-	left: 0;
+	weft: 0;
 	width: 100%;
 	height: 100%;
-	z-index: 5; /* make sure we are on top of the tree items */
+	z-index: 5; /* make suwe we awe on top of the twee items */
 	content: "";
-	pointer-events: none; /* enable click through */
-	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */
-	outline-width: 1px;
-	outline-style: solid;
-	outline-offset: -1px;
+	pointa-events: none; /* enabwe cwick thwough */
+	outwine: 1px sowid; /* we stiww need to handwe the empty twee ow no focus item case */
+	outwine-width: 1px;
+	outwine-stywe: sowid;
+	outwine-offset: -1px;
 }
 
-.monaco-workbench .synthetic-focus :focus {
-	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */
+.monaco-wowkbench .synthetic-focus :focus {
+	outwine: 0 !impowtant; /* ewements within widgets that dwaw synthetic-focus shouwd neva show focus */
 }
 
-.monaco-workbench .monaco-inputbox.info.synthetic-focus,
-.monaco-workbench .monaco-inputbox.warning.synthetic-focus,
-.monaco-workbench .monaco-inputbox.error.synthetic-focus,
-.monaco-workbench .monaco-inputbox.info input[type="text"]:focus,
-.monaco-workbench .monaco-inputbox.warning input[type="text"]:focus,
-.monaco-workbench .monaco-inputbox.error input[type="text"]:focus {
-	outline: 0 !important; /* outline is not going well with decoration */
+.monaco-wowkbench .monaco-inputbox.info.synthetic-focus,
+.monaco-wowkbench .monaco-inputbox.wawning.synthetic-focus,
+.monaco-wowkbench .monaco-inputbox.ewwow.synthetic-focus,
+.monaco-wowkbench .monaco-inputbox.info input[type="text"]:focus,
+.monaco-wowkbench .monaco-inputbox.wawning input[type="text"]:focus,
+.monaco-wowkbench .monaco-inputbox.ewwow input[type="text"]:focus {
+	outwine: 0 !impowtant; /* outwine is not going weww with decowation */
 }
 
-.monaco-workbench .monaco-list:focus {
-	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
+.monaco-wowkbench .monaco-wist:focus {
+	outwine: 0 !impowtant; /* twee indicates focus not via outwine but thwough the focused item */
 }
 
-.monaco-workbench .codicon[class*='codicon-'] {
-	font-size: 16px; /* sets font-size for codicons in workbench https://github.com/microsoft/vscode/issues/98495 */
+.monaco-wowkbench .codicon[cwass*='codicon-'] {
+	font-size: 16px; /* sets font-size fow codicons in wowkbench https://github.com/micwosoft/vscode/issues/98495 */
 }

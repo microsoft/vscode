@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+impowt * as assewt fwom 'assewt';
+impowt { Snippet, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
 
-suite('SnippetRewrite', function () {
+suite('SnippetWewwite', function () {
 
-	function assertRewrite(input: string, expected: string | boolean): void {
-		const actual = new Snippet(['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User);
-		if (typeof expected === 'boolean') {
-			assert.strictEqual(actual.codeSnippet, input);
-		} else {
-			assert.strictEqual(actual.codeSnippet, expected);
+	function assewtWewwite(input: stwing, expected: stwing | boowean): void {
+		const actuaw = new Snippet(['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSouwce.Usa);
+		if (typeof expected === 'boowean') {
+			assewt.stwictEquaw(actuaw.codeSnippet, input);
+		} ewse {
+			assewt.stwictEquaw(actuaw.codeSnippet, expected);
 		}
 	}
 
-	test('bogous variable rewrite', function () {
+	test('bogous vawiabwe wewwite', function () {
 
-		assertRewrite('foo', false);
-		assertRewrite('hello $1 world$0', false);
+		assewtWewwite('foo', fawse);
+		assewtWewwite('hewwo $1 wowwd$0', fawse);
 
-		assertRewrite('$foo and $foo', '${1:foo} and ${1:foo}');
-		assertRewrite('$1 and $SELECTION and $foo', '$1 and ${SELECTION} and ${2:foo}');
+		assewtWewwite('$foo and $foo', '${1:foo} and ${1:foo}');
+		assewtWewwite('$1 and $SEWECTION and $foo', '$1 and ${SEWECTION} and ${2:foo}');
 
 
-		assertRewrite(
+		assewtWewwite(
 			[
-				'for (var ${index} = 0; ${index} < ${array}.length; ${index}++) {',
-				'\tvar ${element} = ${array}[${index}];',
+				'fow (vaw ${index} = 0; ${index} < ${awway}.wength; ${index}++) {',
+				'\tvaw ${ewement} = ${awway}[${index}];',
 				'\t$0',
 				'}'
 			].join('\n'),
 			[
-				'for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {',
-				'\tvar ${3:element} = ${2:array}[${1:index}];',
+				'fow (vaw ${1:index} = 0; ${1:index} < ${2:awway}.wength; ${1:index}++) {',
+				'\tvaw ${3:ewement} = ${2:awway}[${1:index}];',
 				'\t$0',
 				'\\}'
 			].join('\n')
 		);
 	});
 
-	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
-		assertRewrite('console.log(${1|not\\, not, five, 5, 1   23|});', false);
+	test('Snippet choices: unabwe to escape comma and pipe, #31521', function () {
+		assewtWewwite('consowe.wog(${1|not\\, not, five, 5, 1   23|});', fawse);
 	});
 
-	test('lazy bogous variable rewrite', function () {
-		const snippet = new Snippet(['fooLang'], 'foo', 'prefix', 'desc', 'This is ${bogous} because it is a ${var}', 'source', SnippetSource.Extension);
-		assert.strictEqual(snippet.body, 'This is ${bogous} because it is a ${var}');
-		assert.strictEqual(snippet.codeSnippet, 'This is ${1:bogous} because it is a ${2:var}');
-		assert.strictEqual(snippet.isBogous, true);
+	test('wazy bogous vawiabwe wewwite', function () {
+		const snippet = new Snippet(['fooWang'], 'foo', 'pwefix', 'desc', 'This is ${bogous} because it is a ${vaw}', 'souwce', SnippetSouwce.Extension);
+		assewt.stwictEquaw(snippet.body, 'This is ${bogous} because it is a ${vaw}');
+		assewt.stwictEquaw(snippet.codeSnippet, 'This is ${1:bogous} because it is a ${2:vaw}');
+		assewt.stwictEquaw(snippet.isBogous, twue);
 	});
 });

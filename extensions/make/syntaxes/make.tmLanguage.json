@@ -1,614 +1,614 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/fadeevab/make.tmbundle/blob/master/Syntaxes/Makefile.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/fadeevab/make.tmbundwe/bwob/masta/Syntaxes/Makefiwe.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/91b724d1ad86fa65e4b240a960311a280b92f971",
-	"name": "Makefile",
-	"scopeName": "source.makefile",
-	"patterns": [
+	"vewsion": "https://github.com/fadeevab/make.tmbundwe/commit/91b724d1ad86fa65e4b240a960311a280b92f971",
+	"name": "Makefiwe",
+	"scopeName": "souwce.makefiwe",
+	"pattewns": [
 		{
-			"include": "#comment"
+			"incwude": "#comment"
 		},
 		{
-			"include": "#variables"
+			"incwude": "#vawiabwes"
 		},
 		{
-			"include": "#variable-assignment"
+			"incwude": "#vawiabwe-assignment"
 		},
 		{
-			"include": "#directives"
+			"incwude": "#diwectives"
 		},
 		{
-			"include": "#recipe"
+			"incwude": "#wecipe"
 		},
 		{
-			"include": "#target"
+			"incwude": "#tawget"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"comment": {
 			"begin": "(^[ ]+)?(?=#)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.whitespace.comment.leading.makefile"
+					"name": "punctuation.whitespace.comment.weading.makefiwe"
 				}
 			},
 			"end": "(?!\\G)",
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "#",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.comment.makefile"
+							"name": "punctuation.definition.comment.makefiwe"
 						}
 					},
 					"end": "(?=[^\\\\])$",
-					"name": "comment.line.number-sign.makefile",
-					"patterns": [
+					"name": "comment.wine.numba-sign.makefiwe",
+					"pattewns": [
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						}
 					]
 				}
 			]
 		},
-		"directives": {
-			"patterns": [
+		"diwectives": {
+			"pattewns": [
 				{
-					"begin": "^[ ]*([s\\-]?include)\\b",
-					"beginCaptures": {
+					"begin": "^[ ]*([s\\-]?incwude)\\b",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.include.makefile"
+							"name": "keywowd.contwow.incwude.makefiwe"
 						}
 					},
 					"end": "^",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
 							"match": "%",
-							"name": "constant.other.placeholder.makefile"
+							"name": "constant.otha.pwacehowda.makefiwe"
 						}
 					]
 				},
 				{
 					"begin": "^[ ]*(vpath)\\b",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.vpath.makefile"
+							"name": "keywowd.contwow.vpath.makefiwe"
 						}
 					},
 					"end": "^",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
 							"match": "%",
-							"name": "constant.other.placeholder.makefile"
+							"name": "constant.otha.pwacehowda.makefiwe"
 						}
 					]
 				},
 				{
-					"begin": "^\\s*(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
-					"captures": {
+					"begin": "^\\s*(?:(ovewwide)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.override.makefile"
+							"name": "keywowd.contwow.ovewwide.makefiwe"
 						},
 						"2": {
-							"name": "keyword.control.define.makefile"
+							"name": "keywowd.contwow.define.makefiwe"
 						},
 						"3": {
-							"name": "variable.other.makefile"
+							"name": "vawiabwe.otha.makefiwe"
 						},
 						"4": {
-							"name": "punctuation.separator.key-value.makefile"
+							"name": "punctuation.sepawatow.key-vawue.makefiwe"
 						}
 					},
 					"end": "^\\s*(endef)\\b",
-					"name": "meta.scope.conditional.makefile",
-					"patterns": [
+					"name": "meta.scope.conditionaw.makefiwe",
+					"pattewns": [
 						{
 							"begin": "\\G(?!\\n)",
 							"end": "^",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comment"
+									"incwude": "#comment"
 								}
 							]
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#directives"
+							"incwude": "#diwectives"
 						}
 					]
 				},
 				{
-					"begin": "^[ ]*(export)\\b",
-					"beginCaptures": {
+					"begin": "^[ ]*(expowt)\\b",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.$1.makefile"
+							"name": "keywowd.contwow.$1.makefiwe"
 						}
 					},
 					"end": "^",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#variable-assignment"
+							"incwude": "#vawiabwe-assignment"
 						},
 						{
 							"match": "[^\\s]+",
-							"name": "variable.other.makefile"
+							"name": "vawiabwe.otha.makefiwe"
 						}
 					]
 				},
 				{
-					"begin": "^[ ]*(override|private)\\b",
-					"beginCaptures": {
+					"begin": "^[ ]*(ovewwide|pwivate)\\b",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.$1.makefile"
+							"name": "keywowd.contwow.$1.makefiwe"
 						}
 					},
 					"end": "^",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#variable-assignment"
+							"incwude": "#vawiabwe-assignment"
 						}
 					]
 				},
 				{
-					"begin": "^[ ]*(unexport|undefine)\\b",
-					"beginCaptures": {
+					"begin": "^[ ]*(unexpowt|undefine)\\b",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.control.$1.makefile"
+							"name": "keywowd.contwow.$1.makefiwe"
 						}
 					},
 					"end": "^",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
 							"match": "[^\\s]+",
-							"name": "variable.other.makefile"
+							"name": "vawiabwe.otha.makefiwe"
 						}
 					]
 				},
 				{
 					"begin": "^\\s*(ifeq|ifneq|ifdef|ifndef)(?=\\s)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.$1.makefile"
+							"name": "keywowd.contwow.$1.makefiwe"
 						}
 					},
 					"end": "^\\s*(endif)\\b",
-					"name": "meta.scope.conditional.makefile",
-					"patterns": [
+					"name": "meta.scope.conditionaw.makefiwe",
+					"pattewns": [
 						{
 							"begin": "\\G",
 							"end": "^",
-							"name": "meta.scope.condition.makefile",
-							"patterns": [
+							"name": "meta.scope.condition.makefiwe",
+							"pattewns": [
 								{
-									"include": "#variables"
+									"incwude": "#vawiabwes"
 								},
 								{
-									"include": "#comment"
+									"incwude": "#comment"
 								}
 							]
 						},
 						{
-							"begin": "^\\s*else(?=\\s)",
-							"beginCaptures": {
+							"begin": "^\\s*ewse(?=\\s)",
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.else.makefile"
+									"name": "keywowd.contwow.ewse.makefiwe"
 								}
 							},
 							"end": "^",
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#variables"
+									"incwude": "#vawiabwes"
 								},
 								{
-									"include": "#comment"
+									"incwude": "#comment"
 								}
 							]
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
-		"target": {
+		"tawget": {
 			"begin": "^(?!\\t)([^:]*)(:)(?!\\=)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"captures": {
+							"captuwes": {
 								"1": {
-									"name": "support.function.target.$1.makefile"
+									"name": "suppowt.function.tawget.$1.makefiwe"
 								}
 							},
-							"match": "^\\s*(\\.(PHONY|SUFFIXES|DEFAULT|PRECIOUS|INTERMEDIATE|SECONDARY|SECONDEXPANSION|DELETE_ON_ERROR|IGNORE|LOW_RESOLUTION_TIME|SILENT|EXPORT_ALL_VARIABLES|NOTPARALLEL|ONESHELL|POSIX))\\s*$"
+							"match": "^\\s*(\\.(PHONY|SUFFIXES|DEFAUWT|PWECIOUS|INTEWMEDIATE|SECONDAWY|SECONDEXPANSION|DEWETE_ON_EWWOW|IGNOWE|WOW_WESOWUTION_TIME|SIWENT|EXPOWT_AWW_VAWIABWES|NOTPAWAWWEW|ONESHEWW|POSIX))\\s*$"
 						},
 						{
 							"begin": "(?=\\S)",
 							"end": "(?=\\s|$)",
-							"name": "entity.name.function.target.makefile",
-							"patterns": [
+							"name": "entity.name.function.tawget.makefiwe",
+							"pattewns": [
 								{
-									"include": "#variables"
+									"incwude": "#vawiabwes"
 								},
 								{
 									"match": "%",
-									"name": "constant.other.placeholder.makefile"
+									"name": "constant.otha.pwacehowda.makefiwe"
 								}
 							]
 						}
 					]
 				},
 				"2": {
-					"name": "punctuation.separator.key-value.makefile"
+					"name": "punctuation.sepawatow.key-vawue.makefiwe"
 				}
 			},
 			"end": "[^\\\\]$",
-			"name": "meta.scope.target.makefile",
-			"patterns": [
+			"name": "meta.scope.tawget.makefiwe",
+			"pattewns": [
 				{
 					"begin": "\\G",
 					"end": "(?=[^\\\\])$",
-					"name": "meta.scope.prerequisites.makefile",
-					"patterns": [
+					"name": "meta.scope.pwewequisites.makefiwe",
+					"pattewns": [
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						},
 						{
 							"match": "%|\\*",
-							"name": "constant.other.placeholder.makefile"
+							"name": "constant.otha.pwacehowda.makefiwe"
 						},
 						{
-							"include": "#comment"
+							"incwude": "#comment"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"recipe": {
+		"wecipe": {
 			"begin": "^\\t([+\\-@]*)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.control.$1.makefile"
+					"name": "keywowd.contwow.$1.makefiwe"
 				}
 			},
 			"end": "[^\\\\]$",
-			"name": "meta.scope.recipe.makefile",
-			"patterns": [
+			"name": "meta.scope.wecipe.makefiwe",
+			"pattewns": [
 				{
 					"match": "\\\\\\n",
-					"name": "constant.character.escape.continuation.makefile"
+					"name": "constant.chawacta.escape.continuation.makefiwe"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				}
 			]
 		},
-		"variable-assignment": {
+		"vawiabwe-assignment": {
 			"begin": "(^[ ]*|\\G\\s*)([^\\s:#=]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"2": {
-					"name": "variable.other.makefile",
-					"patterns": [
+					"name": "vawiabwe.otha.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				},
 				"3": {
-					"name": "punctuation.separator.key-value.makefile"
+					"name": "punctuation.sepawatow.key-vawue.makefiwe"
 				}
 			},
 			"end": "\\n",
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "\\\\\\n",
-					"name": "constant.character.escape.continuation.makefile"
+					"name": "constant.chawacta.escape.continuation.makefiwe"
 				},
 				{
-					"include": "#comment"
+					"incwude": "#comment"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				}
 			]
 		},
-		"interpolation": {
-			"patterns": [
+		"intewpowation": {
+			"pattewns": [
 				{
-					"include": "#parentheses-interpolation"
+					"incwude": "#pawentheses-intewpowation"
 				},
 				{
-					"include": "#braces-interpolation"
+					"incwude": "#bwaces-intewpowation"
 				}
 			]
 		},
-		"parentheses-interpolation": {
+		"pawentheses-intewpowation": {
 			"begin": "\\(",
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"braces-interpolation": {
+		"bwaces-intewpowation": {
 			"begin": "{",
 			"end": "}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#interpolation"
+					"incwude": "#intewpowation"
 				}
 			]
 		},
-		"variables": {
-			"patterns": [
+		"vawiabwes": {
+			"pattewns": [
 				{
-					"include": "#simple-variable"
+					"incwude": "#simpwe-vawiabwe"
 				},
 				{
-					"include": "#variable-parentheses"
+					"incwude": "#vawiabwe-pawentheses"
 				},
 				{
-					"include": "#variable-braces"
+					"incwude": "#vawiabwe-bwaces"
 				}
 			]
 		},
-		"simple-variable": {
-			"patterns": [
+		"simpwe-vawiabwe": {
+			"pattewns": [
 				{
 					"match": "\\$[^(){}]",
-					"name": "variable.language.makefile"
+					"name": "vawiabwe.wanguage.makefiwe"
 				}
 			]
 		},
-		"variable-parentheses": {
-			"patterns": [
+		"vawiabwe-pawentheses": {
+			"pattewns": [
 				{
 					"begin": "\\$\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.variable.makefile"
+							"name": "punctuation.definition.vawiabwe.makefiwe"
 						}
 					},
 					"end": "\\)|((?<!\\\\)\\n)",
-					"name": "string.interpolated.makefile",
-					"patterns": [
+					"name": "stwing.intewpowated.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#builtin-variable-parentheses"
+							"incwude": "#buiwtin-vawiabwe-pawentheses"
 						},
 						{
-							"include": "#function-variable-parentheses"
+							"incwude": "#function-vawiabwe-pawentheses"
 						},
 						{
-							"include": "#flavor-variable-parentheses"
+							"incwude": "#fwavow-vawiabwe-pawentheses"
 						},
 						{
-							"include": "#another-variable-parentheses"
+							"incwude": "#anotha-vawiabwe-pawentheses"
 						}
 					]
 				}
 			]
 		},
-		"variable-braces": {
-			"patterns": [
+		"vawiabwe-bwaces": {
+			"pattewns": [
 				{
 					"begin": "\\${",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.variable.makefile"
+							"name": "punctuation.definition.vawiabwe.makefiwe"
 						}
 					},
 					"end": "}|((?<!\\\\)\\n)",
-					"name": "string.interpolated.makefile",
-					"patterns": [
+					"name": "stwing.intewpowated.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#builtin-variable-braces"
+							"incwude": "#buiwtin-vawiabwe-bwaces"
 						},
 						{
-							"include": "#function-variable-braces"
+							"incwude": "#function-vawiabwe-bwaces"
 						},
 						{
-							"include": "#flavor-variable-braces"
+							"incwude": "#fwavow-vawiabwe-bwaces"
 						},
 						{
-							"include": "#another-variable-braces"
+							"incwude": "#anotha-vawiabwe-bwaces"
 						}
 					]
 				}
 			]
 		},
-		"builtin-variable-parentheses": {
-			"patterns": [
+		"buiwtin-vawiabwe-pawentheses": {
+			"pattewns": [
 				{
-					"match": "(?<=\\()(MAKEFILES|VPATH|SHELL|MAKESHELL|MAKE|MAKELEVEL|MAKEFLAGS|MAKECMDGOALS|CURDIR|SUFFIXES|\\.LIBPATTERNS)(?=\\s*\\))",
-					"name": "variable.language.makefile"
+					"match": "(?<=\\()(MAKEFIWES|VPATH|SHEWW|MAKESHEWW|MAKE|MAKEWEVEW|MAKEFWAGS|MAKECMDGOAWS|CUWDIW|SUFFIXES|\\.WIBPATTEWNS)(?=\\s*\\))",
+					"name": "vawiabwe.wanguage.makefiwe"
 				}
 			]
 		},
-		"builtin-variable-braces": {
-			"patterns": [
+		"buiwtin-vawiabwe-bwaces": {
+			"pattewns": [
 				{
-					"match": "(?<={)(MAKEFILES|VPATH|SHELL|MAKESHELL|MAKE|MAKELEVEL|MAKEFLAGS|MAKECMDGOALS|CURDIR|SUFFIXES|\\.LIBPATTERNS)(?=\\s*})",
-					"name": "variable.language.makefile"
+					"match": "(?<={)(MAKEFIWES|VPATH|SHEWW|MAKESHEWW|MAKE|MAKEWEVEW|MAKEFWAGS|MAKECMDGOAWS|CUWDIW|SUFFIXES|\\.WIBPATTEWNS)(?=\\s*})",
+					"name": "vawiabwe.wanguage.makefiwe"
 				}
 			]
 		},
-		"function-variable-parentheses": {
-			"patterns": [
+		"function-vawiabwe-pawentheses": {
+			"pattewns": [
 				{
-					"begin": "(?<=\\()(subst|patsubst|strip|findstring|filter(-out)?|sort|word(list)?|firstword|lastword|dir|notdir|suffix|basename|addsuffix|addprefix|join|wildcard|realpath|abspath|info|error|warning|shell|foreach|if|or|and|call|eval|value|file|guile)\\s",
-					"beginCaptures": {
+					"begin": "(?<=\\()(subst|patsubst|stwip|findstwing|fiwta(-out)?|sowt|wowd(wist)?|fiwstwowd|wastwowd|diw|notdiw|suffix|basename|addsuffix|addpwefix|join|wiwdcawd|weawpath|abspath|info|ewwow|wawning|sheww|foweach|if|ow|and|caww|evaw|vawue|fiwe|guiwe)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.$1.makefile"
+							"name": "suppowt.function.$1.makefiwe"
 						}
 					},
 					"end": "(?=\\)|((?<!\\\\)\\n))",
-					"name": "meta.scope.function-call.makefile",
-					"patterns": [
+					"name": "meta.scope.function-caww.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "%|\\*",
-							"name": "constant.other.placeholder.makefile"
+							"name": "constant.otha.pwacehowda.makefiwe"
 						},
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						}
 					]
 				}
 			]
 		},
-		"function-variable-braces": {
-			"patterns": [
+		"function-vawiabwe-bwaces": {
+			"pattewns": [
 				{
-					"begin": "(?<={)(subst|patsubst|strip|findstring|filter(-out)?|sort|word(list)?|firstword|lastword|dir|notdir|suffix|basename|addsuffix|addprefix|join|wildcard|realpath|abspath|info|error|warning|shell|foreach|if|or|and|call|eval|value|file|guile)\\s",
-					"beginCaptures": {
+					"begin": "(?<={)(subst|patsubst|stwip|findstwing|fiwta(-out)?|sowt|wowd(wist)?|fiwstwowd|wastwowd|diw|notdiw|suffix|basename|addsuffix|addpwefix|join|wiwdcawd|weawpath|abspath|info|ewwow|wawning|sheww|foweach|if|ow|and|caww|evaw|vawue|fiwe|guiwe)\\s",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.$1.makefile"
+							"name": "suppowt.function.$1.makefiwe"
 						}
 					},
 					"end": "(?=}|((?<!\\\\)\\n))",
-					"name": "meta.scope.function-call.makefile",
-					"patterns": [
+					"name": "meta.scope.function-caww.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#interpolation"
+							"incwude": "#intewpowation"
 						},
 						{
 							"match": "%|\\*",
-							"name": "constant.other.placeholder.makefile"
+							"name": "constant.otha.pwacehowda.makefiwe"
 						},
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						}
 					]
 				}
 			]
 		},
-		"flavor-variable-parentheses": {
-			"patterns": [
+		"fwavow-vawiabwe-pawentheses": {
+			"pattewns": [
 				{
-					"begin": "(?<=\\()(origin|flavor)\\s(?=[^\\s)]+\\s*\\))",
-					"contentName": "variable.other.makefile",
-					"beginCaptures": {
+					"begin": "(?<=\\()(owigin|fwavow)\\s(?=[^\\s)]+\\s*\\))",
+					"contentName": "vawiabwe.otha.makefiwe",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.$1.makefile"
+							"name": "suppowt.function.$1.makefiwe"
 						}
 					},
 					"end": "(?=\\))",
-					"name": "meta.scope.function-call.makefile",
-					"patterns": [
+					"name": "meta.scope.function-caww.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"flavor-variable-braces": {
-			"patterns": [
+		"fwavow-vawiabwe-bwaces": {
+			"pattewns": [
 				{
-					"begin": "(?<={)(origin|flavor)\\s(?=[^\\s}]+\\s*})",
-					"contentName": "variable.other.makefile",
-					"beginCaptures": {
+					"begin": "(?<={)(owigin|fwavow)\\s(?=[^\\s}]+\\s*})",
+					"contentName": "vawiabwe.otha.makefiwe",
+					"beginCaptuwes": {
 						"1": {
-							"name": "support.function.$1.makefile"
+							"name": "suppowt.function.$1.makefiwe"
 						}
 					},
 					"end": "(?=})",
-					"name": "meta.scope.function-call.makefile",
-					"patterns": [
+					"name": "meta.scope.function-caww.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"another-variable-parentheses": {
-			"patterns": [
+		"anotha-vawiabwe-pawentheses": {
+			"pattewns": [
 				{
 					"begin": "(?<=\\()(?!\\))",
 					"end": "(?=\\)|((?<!\\\\)\\n))",
-					"name": "variable.other.makefile",
-					"patterns": [
+					"name": "vawiabwe.otha.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						}
 					]
 				}
 			]
 		},
-		"another-variable-braces": {
-			"patterns": [
+		"anotha-vawiabwe-bwaces": {
+			"pattewns": [
 				{
 					"begin": "(?<={)(?!})",
 					"end": "(?=}|((?<!\\\\)\\n))",
-					"name": "variable.other.makefile",
-					"patterns": [
+					"name": "vawiabwe.otha.makefiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
 							"match": "\\\\\\n",
-							"name": "constant.character.escape.continuation.makefile"
+							"name": "constant.chawacta.escape.continuation.makefiwe"
 						}
 					]
 				}

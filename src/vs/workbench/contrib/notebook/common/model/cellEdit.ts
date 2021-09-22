@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ISelectionState, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { IWesouwceUndoWedoEwement, UndoWedoEwementType } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { ISewectionState, NotebookCewwMetadata } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
 /**
- * It should not modify Undo/Redo stack
+ * It shouwd not modify Undo/Wedo stack
  */
-export interface ITextCellEditingDelegate {
-	insertCell?(index: number, cell: NotebookCellTextModel, endSelections?: ISelectionState): void;
-	deleteCell?(index: number, endSelections?: ISelectionState): void;
-	replaceCell?(index: number, count: number, cells: NotebookCellTextModel[], endSelections?: ISelectionState): void;
-	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: ISelectionState | undefined, endSelections?: ISelectionState): void;
-	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
+expowt intewface ITextCewwEditingDewegate {
+	insewtCeww?(index: numba, ceww: NotebookCewwTextModew, endSewections?: ISewectionState): void;
+	deweteCeww?(index: numba, endSewections?: ISewectionState): void;
+	wepwaceCeww?(index: numba, count: numba, cewws: NotebookCewwTextModew[], endSewections?: ISewectionState): void;
+	moveCeww?(fwomIndex: numba, wength: numba, toIndex: numba, befoweSewections: ISewectionState | undefined, endSewections?: ISewectionState): void;
+	updateCewwMetadata?(index: numba, newMetadata: NotebookCewwMetadata): void;
 }
 
-export class MoveCellEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Move Cell';
+expowt cwass MoveCewwEdit impwements IWesouwceUndoWedoEwement {
+	type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+	wabew: stwing = 'Move Ceww';
 
-	constructor(
-		public resource: URI,
-		private fromIndex: number,
-		private length: number,
-		private toIndex: number,
-		private editingDelegate: ITextCellEditingDelegate,
-		private beforedSelections: ISelectionState | undefined,
-		private endSelections: ISelectionState | undefined
+	constwuctow(
+		pubwic wesouwce: UWI,
+		pwivate fwomIndex: numba,
+		pwivate wength: numba,
+		pwivate toIndex: numba,
+		pwivate editingDewegate: ITextCewwEditingDewegate,
+		pwivate befowedSewections: ISewectionState | undefined,
+		pwivate endSewections: ISewectionState | undefined
 	) {
 	}
 
 	undo(): void {
-		if (!this.editingDelegate.moveCell) {
-			throw new Error('Notebook Move Cell not implemented for Undo/Redo');
+		if (!this.editingDewegate.moveCeww) {
+			thwow new Ewwow('Notebook Move Ceww not impwemented fow Undo/Wedo');
 		}
 
-		this.editingDelegate.moveCell(this.toIndex, this.length, this.fromIndex, this.endSelections, this.beforedSelections);
+		this.editingDewegate.moveCeww(this.toIndex, this.wength, this.fwomIndex, this.endSewections, this.befowedSewections);
 	}
 
-	redo(): void {
-		if (!this.editingDelegate.moveCell) {
-			throw new Error('Notebook Move Cell not implemented for Undo/Redo');
+	wedo(): void {
+		if (!this.editingDewegate.moveCeww) {
+			thwow new Ewwow('Notebook Move Ceww not impwemented fow Undo/Wedo');
 		}
 
-		this.editingDelegate.moveCell(this.fromIndex, this.length, this.toIndex, this.beforedSelections, this.endSelections);
+		this.editingDewegate.moveCeww(this.fwomIndex, this.wength, this.toIndex, this.befowedSewections, this.endSewections);
 	}
 }
 
-export class SpliceCellsEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Insert Cell';
-	constructor(
-		public resource: URI,
-		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],
-		private editingDelegate: ITextCellEditingDelegate,
-		private beforeHandles: ISelectionState | undefined,
-		private endHandles: ISelectionState | undefined
+expowt cwass SpwiceCewwsEdit impwements IWesouwceUndoWedoEwement {
+	type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+	wabew: stwing = 'Insewt Ceww';
+	constwuctow(
+		pubwic wesouwce: UWI,
+		pwivate diffs: [numba, NotebookCewwTextModew[], NotebookCewwTextModew[]][],
+		pwivate editingDewegate: ITextCewwEditingDewegate,
+		pwivate befoweHandwes: ISewectionState | undefined,
+		pwivate endHandwes: ISewectionState | undefined
 	) {
 	}
 
 	undo(): void {
-		if (!this.editingDelegate.replaceCell) {
-			throw new Error('Notebook Replace Cell not implemented for Undo/Redo');
+		if (!this.editingDewegate.wepwaceCeww) {
+			thwow new Ewwow('Notebook Wepwace Ceww not impwemented fow Undo/Wedo');
 		}
 
-		this.diffs.forEach(diff => {
-			this.editingDelegate.replaceCell!(diff[0], diff[2].length, diff[1], this.beforeHandles);
+		this.diffs.fowEach(diff => {
+			this.editingDewegate.wepwaceCeww!(diff[0], diff[2].wength, diff[1], this.befoweHandwes);
 		});
 	}
 
-	redo(): void {
-		if (!this.editingDelegate.replaceCell) {
-			throw new Error('Notebook Replace Cell not implemented for Undo/Redo');
+	wedo(): void {
+		if (!this.editingDewegate.wepwaceCeww) {
+			thwow new Ewwow('Notebook Wepwace Ceww not impwemented fow Undo/Wedo');
 		}
 
-		this.diffs.reverse().forEach(diff => {
-			this.editingDelegate.replaceCell!(diff[0], diff[1].length, diff[2], this.endHandles);
+		this.diffs.wevewse().fowEach(diff => {
+			this.editingDewegate.wepwaceCeww!(diff[0], diff[1].wength, diff[2], this.endHandwes);
 		});
 	}
 }
 
-export class CellMetadataEdit implements IResourceUndoRedoElement {
-	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-	label: string = 'Update Cell Metadata';
-	constructor(
-		public resource: URI,
-		readonly index: number,
-		readonly oldMetadata: NotebookCellMetadata,
-		readonly newMetadata: NotebookCellMetadata,
-		private editingDelegate: ITextCellEditingDelegate,
+expowt cwass CewwMetadataEdit impwements IWesouwceUndoWedoEwement {
+	type: UndoWedoEwementType.Wesouwce = UndoWedoEwementType.Wesouwce;
+	wabew: stwing = 'Update Ceww Metadata';
+	constwuctow(
+		pubwic wesouwce: UWI,
+		weadonwy index: numba,
+		weadonwy owdMetadata: NotebookCewwMetadata,
+		weadonwy newMetadata: NotebookCewwMetadata,
+		pwivate editingDewegate: ITextCewwEditingDewegate,
 	) {
 
 	}
 
 	undo(): void {
-		if (!this.editingDelegate.updateCellMetadata) {
-			return;
+		if (!this.editingDewegate.updateCewwMetadata) {
+			wetuwn;
 		}
 
-		this.editingDelegate.updateCellMetadata(this.index, this.oldMetadata);
+		this.editingDewegate.updateCewwMetadata(this.index, this.owdMetadata);
 	}
 
-	redo(): void | Promise<void> {
-		if (!this.editingDelegate.updateCellMetadata) {
-			return;
+	wedo(): void | Pwomise<void> {
+		if (!this.editingDewegate.updateCewwMetadata) {
+			wetuwn;
 		}
 
-		this.editingDelegate.updateCellMetadata(this.index, this.newMetadata);
+		this.editingDewegate.updateCewwMetadata(this.index, this.newMetadata);
 	}
 }

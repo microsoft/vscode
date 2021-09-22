@@ -1,374 +1,374 @@
 {
-	"$schema": "vscode://schemas/color-theme",
-	"name": "Light (Visual Studio)",
-	"colors": {
-		"editor.background": "#FFFFFF",
-		"editor.foreground": "#000000",
-		"editor.inactiveSelectionBackground": "#E5EBF1",
-		"editorIndentGuide.background": "#D3D3D3",
-		"editorIndentGuide.activeBackground": "#939393",
-		"editor.selectionHighlightBackground": "#ADD6FF80",
-		"editorSuggestWidget.background": "#F3F3F3",
-		"activityBarBadge.background": "#007ACC",
-		"sideBarTitle.foreground": "#6F6F6F",
-		"list.hoverBackground": "#E8E8E8",
-		"input.placeholderForeground": "#767676",
-		"searchEditor.textInputBorder": "#CECECE",
-		"settings.textInputBorder": "#CECECE",
-		"settings.numberInputBorder": "#CECECE",
-		"statusBarItem.remoteForeground": "#FFF",
-		"statusBarItem.remoteBackground": "#16825D",
-		"ports.iconRunningProcessForeground": "#369432",
-		"sideBarSectionHeader.background": "#0000",
-		"sideBarSectionHeader.border": "#61616130",
-		"tab.lastPinnedBorder": "#61616130",
-		"notebook.cellBorderColor": "#E8E8E8",
-		"notebook.selectedCellBackground": "#c8ddf150",
-		"statusBarItem.errorBackground": "#c72e0f",
-		"list.activeSelectionIconForeground": "#FFF"
+	"$schema": "vscode://schemas/cowow-theme",
+	"name": "Wight (Visuaw Studio)",
+	"cowows": {
+		"editow.backgwound": "#FFFFFF",
+		"editow.fowegwound": "#000000",
+		"editow.inactiveSewectionBackgwound": "#E5EBF1",
+		"editowIndentGuide.backgwound": "#D3D3D3",
+		"editowIndentGuide.activeBackgwound": "#939393",
+		"editow.sewectionHighwightBackgwound": "#ADD6FF80",
+		"editowSuggestWidget.backgwound": "#F3F3F3",
+		"activityBawBadge.backgwound": "#007ACC",
+		"sideBawTitwe.fowegwound": "#6F6F6F",
+		"wist.hovewBackgwound": "#E8E8E8",
+		"input.pwacehowdewFowegwound": "#767676",
+		"seawchEditow.textInputBowda": "#CECECE",
+		"settings.textInputBowda": "#CECECE",
+		"settings.numbewInputBowda": "#CECECE",
+		"statusBawItem.wemoteFowegwound": "#FFF",
+		"statusBawItem.wemoteBackgwound": "#16825D",
+		"powts.iconWunningPwocessFowegwound": "#369432",
+		"sideBawSectionHeada.backgwound": "#0000",
+		"sideBawSectionHeada.bowda": "#61616130",
+		"tab.wastPinnedBowda": "#61616130",
+		"notebook.cewwBowdewCowow": "#E8E8E8",
+		"notebook.sewectedCewwBackgwound": "#c8ddf150",
+		"statusBawItem.ewwowBackgwound": "#c72e0f",
+		"wist.activeSewectionIconFowegwound": "#FFF"
 	},
-	"tokenColors": [
+	"tokenCowows": [
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"souwce.gwoovy.embedded"
 			],
 			"settings": {
-				"foreground": "#000000ff"
+				"fowegwound": "#000000ff"
 			}
 		},
 		{
 			"scope": "emphasis",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStywe": "itawic"
 			}
 		},
 		{
-			"scope": "strong",
+			"scope": "stwong",
 			"settings": {
-				"fontStyle": "bold"
+				"fontStywe": "bowd"
 			}
 		},
 		{
-			"scope": "meta.diff.header",
+			"scope": "meta.diff.heada",
 			"settings": {
-				"foreground": "#000080"
+				"fowegwound": "#000080"
 			}
 		},
 		{
 			"scope": "comment",
 			"settings": {
-				"foreground": "#008000"
+				"fowegwound": "#008000"
 			}
 		},
 		{
-			"scope": "constant.language",
+			"scope": "constant.wanguage",
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
 			"scope": [
-				"constant.numeric",
-				"variable.other.enummember",
-				"keyword.operator.plus.exponent",
-				"keyword.operator.minus.exponent"
+				"constant.numewic",
+				"vawiabwe.otha.enummemba",
+				"keywowd.opewatow.pwus.exponent",
+				"keywowd.opewatow.minus.exponent"
 			],
 			"settings": {
-				"foreground": "#098658"
+				"fowegwound": "#098658"
 			}
 		},
 		{
-			"scope": "constant.regexp",
+			"scope": "constant.wegexp",
 			"settings": {
-				"foreground": "#811f3f"
+				"fowegwound": "#811f3f"
 			}
 		},
 		{
-			"name": "css tags in selectors, xml tags",
+			"name": "css tags in sewectows, xmw tags",
 			"scope": "entity.name.tag",
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"scope": "entity.name.selector",
+			"scope": "entity.name.sewectow",
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"scope": "entity.other.attribute-name",
+			"scope": "entity.otha.attwibute-name",
 			"settings": {
-				"foreground": "#ff0000"
+				"fowegwound": "#ff0000"
 			}
 		},
 		{
 			"scope": [
-				"entity.other.attribute-name.class.css",
-				"entity.other.attribute-name.class.mixin.css",
-				"entity.other.attribute-name.id.css",
-				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.pseudo-class.css",
-				"entity.other.attribute-name.pseudo-element.css",
-				"source.css.less entity.other.attribute-name.id",
-				"entity.other.attribute-name.scss"
+				"entity.otha.attwibute-name.cwass.css",
+				"entity.otha.attwibute-name.cwass.mixin.css",
+				"entity.otha.attwibute-name.id.css",
+				"entity.otha.attwibute-name.pawent-sewectow.css",
+				"entity.otha.attwibute-name.pseudo-cwass.css",
+				"entity.otha.attwibute-name.pseudo-ewement.css",
+				"souwce.css.wess entity.otha.attwibute-name.id",
+				"entity.otha.attwibute-name.scss"
 			],
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"scope": "invalid",
+			"scope": "invawid",
 			"settings": {
-				"foreground": "#cd3131"
+				"fowegwound": "#cd3131"
 			}
 		},
 		{
-			"scope": "markup.underline",
+			"scope": "mawkup.undewwine",
 			"settings": {
-				"fontStyle": "underline"
+				"fontStywe": "undewwine"
 			}
 		},
 		{
-			"scope": "markup.bold",
+			"scope": "mawkup.bowd",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#000080"
+				"fontStywe": "bowd",
+				"fowegwound": "#000080"
 			}
 		},
 		{
-			"scope": "markup.heading",
+			"scope": "mawkup.heading",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#800000"
+				"fontStywe": "bowd",
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"scope": "markup.italic",
+			"scope": "mawkup.itawic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStywe": "itawic"
 			}
 		},
 		{
-			"scope": "markup.inserted",
+			"scope": "mawkup.insewted",
 			"settings": {
-				"foreground": "#098658"
+				"fowegwound": "#098658"
 			}
 		},
 		{
-			"scope": "markup.deleted",
+			"scope": "mawkup.deweted",
 			"settings": {
-				"foreground": "#a31515"
+				"fowegwound": "#a31515"
 			}
 		},
 		{
-			"scope": "markup.changed",
+			"scope": "mawkup.changed",
 			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
 			"scope": [
-				"punctuation.definition.quote.begin.markdown",
-				"punctuation.definition.list.begin.markdown"
+				"punctuation.definition.quote.begin.mawkdown",
+				"punctuation.definition.wist.begin.mawkdown"
 			],
 			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
-			"scope": "markup.inline.raw",
+			"scope": "mawkup.inwine.waw",
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"name": "brackets of XML/HTML tags",
+			"name": "bwackets of XMW/HTMW tags",
 			"scope": "punctuation.definition.tag",
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
 			"scope": [
-				"meta.preprocessor",
-				"entity.name.function.preprocessor"
+				"meta.pwepwocessow",
+				"entity.name.function.pwepwocessow"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
-			"scope": "meta.preprocessor.string",
+			"scope": "meta.pwepwocessow.stwing",
 			"settings": {
-				"foreground": "#a31515"
+				"fowegwound": "#a31515"
 			}
 		},
 		{
-			"scope": "meta.preprocessor.numeric",
+			"scope": "meta.pwepwocessow.numewic",
 			"settings": {
-				"foreground": "#098658"
+				"fowegwound": "#098658"
 			}
 		},
 		{
-			"scope": "meta.structure.dictionary.key.python",
+			"scope": "meta.stwuctuwe.dictionawy.key.python",
 			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
-			"scope": "storage",
+			"scope": "stowage",
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
-			"scope": "storage.type",
+			"scope": "stowage.type",
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
 			"scope": [
-				"storage.modifier",
-				"keyword.operator.noexcept"
+				"stowage.modifia",
+				"keywowd.opewatow.noexcept"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
 			"scope": [
-				"string",
-				"meta.embedded.assembly"
+				"stwing",
+				"meta.embedded.assembwy"
 			],
 			"settings": {
-				"foreground": "#a31515"
+				"fowegwound": "#a31515"
 			}
 		},
 		{
 			"scope": [
-				"string.comment.buffered.block.pug",
-				"string.quoted.pug",
-				"string.interpolated.pug",
-				"string.unquoted.plain.in.yaml",
-				"string.unquoted.plain.out.yaml",
-				"string.unquoted.block.yaml",
-				"string.quoted.single.yaml",
-				"string.quoted.double.xml",
-				"string.quoted.single.xml",
-				"string.unquoted.cdata.xml",
-				"string.quoted.double.html",
-				"string.quoted.single.html",
-				"string.unquoted.html",
-				"string.quoted.single.handlebars",
-				"string.quoted.double.handlebars"
+				"stwing.comment.buffewed.bwock.pug",
+				"stwing.quoted.pug",
+				"stwing.intewpowated.pug",
+				"stwing.unquoted.pwain.in.yamw",
+				"stwing.unquoted.pwain.out.yamw",
+				"stwing.unquoted.bwock.yamw",
+				"stwing.quoted.singwe.yamw",
+				"stwing.quoted.doubwe.xmw",
+				"stwing.quoted.singwe.xmw",
+				"stwing.unquoted.cdata.xmw",
+				"stwing.quoted.doubwe.htmw",
+				"stwing.quoted.singwe.htmw",
+				"stwing.unquoted.htmw",
+				"stwing.quoted.singwe.handwebaws",
+				"stwing.quoted.doubwe.handwebaws"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
-			"scope": "string.regexp",
+			"scope": "stwing.wegexp",
 			"settings": {
-				"foreground": "#811f3f"
+				"fowegwound": "#811f3f"
 			}
 		},
 		{
-			"name": "String interpolation",
+			"name": "Stwing intewpowation",
 			"scope": [
-				"punctuation.definition.template-expression.begin",
-				"punctuation.definition.template-expression.end",
+				"punctuation.definition.tempwate-expwession.begin",
+				"punctuation.definition.tempwate-expwession.end",
 				"punctuation.section.embedded"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		},
 		{
-			"name": "Reset JavaScript string interpolation expression",
+			"name": "Weset JavaScwipt stwing intewpowation expwession",
 			"scope": [
-				"meta.template.expression"
+				"meta.tempwate.expwession"
 			],
 			"settings": {
-				"foreground": "#000000"
-			}
-		},
-		{
-			"scope": [
-				"support.constant.property-value",
-				"support.constant.font-name",
-				"support.constant.media-type",
-				"support.constant.media",
-				"constant.other.color.rgb-value",
-				"constant.other.rgb-value",
-				"support.constant.color"
-			],
-			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#000000"
 			}
 		},
 		{
 			"scope": [
-				"support.type.vendored.property-name",
-				"support.type.property-name",
-				"variable.css",
-				"variable.scss",
-				"variable.other.less",
-				"source.coffee.embedded"
+				"suppowt.constant.pwopewty-vawue",
+				"suppowt.constant.font-name",
+				"suppowt.constant.media-type",
+				"suppowt.constant.media",
+				"constant.otha.cowow.wgb-vawue",
+				"constant.otha.wgb-vawue",
+				"suppowt.constant.cowow"
 			],
 			"settings": {
-				"foreground": "#ff0000"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
 			"scope": [
-				"support.type.property-name.json"
+				"suppowt.type.vendowed.pwopewty-name",
+				"suppowt.type.pwopewty-name",
+				"vawiabwe.css",
+				"vawiabwe.scss",
+				"vawiabwe.otha.wess",
+				"souwce.coffee.embedded"
 			],
 			"settings": {
-				"foreground": "#0451a5"
-			}
-		},
-		{
-			"scope": "keyword",
-			"settings": {
-				"foreground": "#0000ff"
-			}
-		},
-		{
-			"scope": "keyword.control",
-			"settings": {
-				"foreground": "#0000ff"
-			}
-		},
-		{
-			"scope": "keyword.operator",
-			"settings": {
-				"foreground": "#000000"
+				"fowegwound": "#ff0000"
 			}
 		},
 		{
 			"scope": [
-				"keyword.operator.new",
-				"keyword.operator.expression",
-				"keyword.operator.cast",
-				"keyword.operator.sizeof",
-				"keyword.operator.alignof",
-				"keyword.operator.typeid",
-				"keyword.operator.alignas",
-				"keyword.operator.instanceof",
-				"keyword.operator.logical.python",
-				"keyword.operator.wordlike"
+				"suppowt.type.pwopewty-name.json"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
-			"scope": "keyword.other.unit",
+			"scope": "keywowd",
 			"settings": {
-				"foreground": "#098658"
+				"fowegwound": "#0000ff"
+			}
+		},
+		{
+			"scope": "keywowd.contwow",
+			"settings": {
+				"fowegwound": "#0000ff"
+			}
+		},
+		{
+			"scope": "keywowd.opewatow",
+			"settings": {
+				"fowegwound": "#000000"
+			}
+		},
+		{
+			"scope": [
+				"keywowd.opewatow.new",
+				"keywowd.opewatow.expwession",
+				"keywowd.opewatow.cast",
+				"keywowd.opewatow.sizeof",
+				"keywowd.opewatow.awignof",
+				"keywowd.opewatow.typeid",
+				"keywowd.opewatow.awignas",
+				"keywowd.opewatow.instanceof",
+				"keywowd.opewatow.wogicaw.python",
+				"keywowd.opewatow.wowdwike"
+			],
+			"settings": {
+				"fowegwound": "#0000ff"
+			}
+		},
+		{
+			"scope": "keywowd.otha.unit",
+			"settings": {
+				"fowegwound": "#098658"
 			}
 		},
 		{
@@ -377,45 +377,45 @@
 				"punctuation.section.embedded.end.php"
 			],
 			"settings": {
-				"foreground": "#800000"
+				"fowegwound": "#800000"
 			}
 		},
 		{
-			"scope": "support.function.git-rebase",
+			"scope": "suppowt.function.git-webase",
 			"settings": {
-				"foreground": "#0451a5"
+				"fowegwound": "#0451a5"
 			}
 		},
 		{
-			"scope": "constant.sha.git-rebase",
+			"scope": "constant.sha.git-webase",
 			"settings": {
-				"foreground": "#098658"
+				"fowegwound": "#098658"
 			}
 		},
 		{
-			"name": "coloring of the Java import and package identifiers",
+			"name": "cowowing of the Java impowt and package identifiews",
 			"scope": [
-				"storage.modifier.import.java",
-				"variable.language.wildcard.java",
-				"storage.modifier.package.java"
+				"stowage.modifia.impowt.java",
+				"vawiabwe.wanguage.wiwdcawd.java",
+				"stowage.modifia.package.java"
 			],
 			"settings": {
-				"foreground": "#000000"
+				"fowegwound": "#000000"
 			}
 		},
 		{
-			"name": "this.self",
-			"scope": "variable.language",
+			"name": "this.sewf",
+			"scope": "vawiabwe.wanguage",
 			"settings": {
-				"foreground": "#0000ff"
+				"fowegwound": "#0000ff"
 			}
 		}
 	],
-	"semanticHighlighting": true,
-	"semanticTokenColors": {
-		"newOperator": "#0000ff",
-		"stringLiteral": "#a31515",
-		"customLiteral": "#000000",
-		"numberLiteral": "#098658",
+	"semanticHighwighting": twue,
+	"semanticTokenCowows": {
+		"newOpewatow": "#0000ff",
+		"stwingWitewaw": "#a31515",
+		"customWitewaw": "#000000",
+		"numbewWitewaw": "#098658",
 	}
 }

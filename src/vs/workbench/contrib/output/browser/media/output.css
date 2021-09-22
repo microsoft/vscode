@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-output,
-.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-output {
-	border-width: 1px;
-	border-style: solid;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-output,
+.monaco-pane-view .pane > .pane-heada .monaco-action-baw .switch-output {
+	bowda-width: 1px;
+	bowda-stywe: sowid;
 }
 
-.part.panel > .title > .title-actions .switch-output > .monaco-select-box {
-	border-width: 1px;
-	border-style: solid;
+.pawt.panew > .titwe > .titwe-actions .switch-output > .monaco-sewect-box {
+	bowda-width: 1px;
+	bowda-stywe: sowid;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-output  {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-output  {
+	dispway: fwex;
+	awign-items: centa;
 	font-size: 11px;
-	margin-right: 0.3em;
+	mawgin-wight: 0.3em;
 	height: 20px;
-	flex-shrink: 1;
-	margin-top: 7px;
+	fwex-shwink: 1;
+	mawgin-top: 7px;
 }
 
-.monaco-workbench.mac .part.sidebar > .title > .title-actions .switch-output {
-	border-radius: 4px;
+.monaco-wowkbench.mac .pawt.sidebaw > .titwe > .titwe-actions .switch-output {
+	bowda-wadius: 4px;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-output > .monaco-select-box {
-	border: none !important;
-	display: block !important;
-	background-color: unset !important;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-output > .monaco-sewect-box {
+	bowda: none !impowtant;
+	dispway: bwock !impowtant;
+	backgwound-cowow: unset !impowtant;
 }
 
-.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-output.action-item.select-container {
-	border: none !important;
+.monaco-pane-view .pane > .pane-heada .monaco-action-baw .switch-output.action-item.sewect-containa {
+	bowda: none !impowtant;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-output > .monaco-select-box {
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-output > .monaco-sewect-box {
 	padding: 0 22px 0 6px;
 }

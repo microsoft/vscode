@@ -1,37 +1,37 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createImportRuleListener = void 0;
-function createImportRuleListener(validateImport) {
-    function _checkImport(node) {
-        if (node && node.type === 'Literal' && typeof node.value === 'string') {
-            validateImport(node, node.value);
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.cweateImpowtWuweWistena = void 0;
+function cweateImpowtWuweWistena(vawidateImpowt) {
+    function _checkImpowt(node) {
+        if (node && node.type === 'Witewaw' && typeof node.vawue === 'stwing') {
+            vawidateImpowt(node, node.vawue);
         }
     }
-    return {
-        // import ??? from 'module'
-        ImportDeclaration: (node) => {
-            _checkImport(node.source);
+    wetuwn {
+        // impowt ??? fwom 'moduwe'
+        ImpowtDecwawation: (node) => {
+            _checkImpowt(node.souwce);
         },
-        // import('module').then(...) OR await import('module')
-        ['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node) => {
-            _checkImport(node);
+        // impowt('moduwe').then(...) OW await impowt('moduwe')
+        ['CawwExpwession[cawwee.type="Impowt"][awguments.wength=1] > Witewaw']: (node) => {
+            _checkImpowt(node);
         },
-        // import foo = ...
-        ['TSImportEqualsDeclaration > TSExternalModuleReference > Literal']: (node) => {
-            _checkImport(node);
+        // impowt foo = ...
+        ['TSImpowtEquawsDecwawation > TSExtewnawModuweWefewence > Witewaw']: (node) => {
+            _checkImpowt(node);
         },
-        // export ?? from 'module'
-        ExportAllDeclaration: (node) => {
-            _checkImport(node.source);
+        // expowt ?? fwom 'moduwe'
+        ExpowtAwwDecwawation: (node) => {
+            _checkImpowt(node.souwce);
         },
-        // export {foo} from 'module'
-        ExportNamedDeclaration: (node) => {
-            _checkImport(node.source);
+        // expowt {foo} fwom 'moduwe'
+        ExpowtNamedDecwawation: (node) => {
+            _checkImpowt(node.souwce);
         },
     };
 }
-exports.createImportRuleListener = createImportRuleListener;
+expowts.cweateImpowtWuweWistena = cweateImpowtWuweWistena;

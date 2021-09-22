@@ -1,92 +1,92 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWindowOpenabwe, IOpenWindowOptions, IOpenEmptyWindowOptions } fwom 'vs/pwatfowm/windows/common/windows';
 
-export const IHostService = createDecorator<IHostService>('hostService');
+expowt const IHostSewvice = cweateDecowatow<IHostSewvice>('hostSewvice');
 
 /**
- * A set of methods supported in both web and native environments.
+ * A set of methods suppowted in both web and native enviwonments.
  *
- * @see {@link INativeHostService} for methods that are specific to native
- * environments.
+ * @see {@wink INativeHostSewvice} fow methods that awe specific to native
+ * enviwonments.
  */
-export interface IHostService {
+expowt intewface IHostSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 
-	//#region Focus
+	//#wegion Focus
 
 	/**
 	 * Emitted when the window focus changes.
 	 */
-	readonly onDidChangeFocus: Event<boolean>;
+	weadonwy onDidChangeFocus: Event<boowean>;
 
 	/**
-	 * Find out if the window has focus or not.
+	 * Find out if the window has focus ow not.
 	 */
-	readonly hasFocus: boolean;
+	weadonwy hasFocus: boowean;
 
 	/**
-	 * Find out if the window had the last focus.
+	 * Find out if the window had the wast focus.
 	 */
-	hadLastFocus(): Promise<boolean>;
+	hadWastFocus(): Pwomise<boowean>;
 
 	/**
-	 * Attempt to bring the window to the foreground and focus it.
+	 * Attempt to bwing the window to the fowegwound and focus it.
 	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode. It may not be supported
-	 * in all environments.
+	 * @pawam options Pass `fowce: twue` if you want to make the window take
+	 * focus even if the appwication does not have focus cuwwentwy. This option
+	 * shouwd onwy be used if it is necessawy to steaw focus fwom the cuwwent
+	 * focused appwication which may not be VSCode. It may not be suppowted
+	 * in aww enviwonments.
 	 */
-	focus(options?: { force: boolean }): Promise<void>;
+	focus(options?: { fowce: boowean }): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Window
+	//#wegion Window
 
 	/**
-	 * Opens an empty window. The optional parameter allows to define if
-	 * a new window should open or the existing one change to an empty.
+	 * Opens an empty window. The optionaw pawameta awwows to define if
+	 * a new window shouwd open ow the existing one change to an empty.
 	 */
-	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(options?: IOpenEmptyWindowOptions): Pwomise<void>;
 
 	/**
-	 * Opens the provided array of openables in a window with the provided options.
+	 * Opens the pwovided awway of openabwes in a window with the pwovided options.
 	 */
-	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions): Pwomise<void>;
 
 	/**
-	 * Switch between fullscreen and normal window.
+	 * Switch between fuwwscween and nowmaw window.
 	 */
-	toggleFullScreen(): Promise<void>;
+	toggweFuwwScween(): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 
-	//#region Lifecycle
+	//#wegion Wifecycwe
 
 	/**
-	 * Restart the entire application.
+	 * Westawt the entiwe appwication.
 	 */
-	restart(): Promise<void>;
+	westawt(): Pwomise<void>;
 
 	/**
-	 * Reload the currently active window.
+	 * Wewoad the cuwwentwy active window.
 	 */
-	reload(options?: { disableExtensions?: boolean }): Promise<void>;
+	wewoad(options?: { disabweExtensions?: boowean }): Pwomise<void>;
 
 	/**
-	 * Attempt to close the active window.
+	 * Attempt to cwose the active window.
 	 */
-	close(): Promise<void>;
+	cwose(): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 }

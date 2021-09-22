@@ -1,420 +1,420 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, TerminalLaunchConfig, ITerminalDimensionsDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
-import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { TerminalEditorLocationOptions } from 'vscode';
+impowt { DisposabweStowe, Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostContext, ExtHostTewminawSewviceShape, MainThweadTewminawSewviceShape, MainContext, IExtHostContext, TewminawWaunchConfig, ITewminawDimensionsDto, ExtHostTewminawIdentifia } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IShewwWaunchConfig, IShewwWaunchConfigDto, ITewminawDimensions, TewminawWocation, TitweEventSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { TewminawDataBuffewa } fwom 'vs/pwatfowm/tewminaw/common/tewminawDataBuffewing';
+impowt { ITewminawEditowSewvice, ITewminawExtewnawWinkPwovida, ITewminawGwoupSewvice, ITewminawInstance, ITewminawInstanceSewvice, ITewminawWink, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { TewminawPwocessExtHostPwoxy } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawPwocessExtHostPwoxy';
+impowt { IEnviwonmentVawiabweSewvice, ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
+impowt { desewiawizeEnviwonmentVawiabweCowwection, sewiawizeEnviwonmentVawiabweCowwection } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweShawed';
+impowt { IStawtExtensionTewminawWequest, ITewminawPwocessExtHostPwoxy, ITewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { OpewatingSystem, OS } fwom 'vs/base/common/pwatfowm';
+impowt { TewminawEditowWocationOptions } fwom 'vscode';
 
-@extHostNamedCustomer(MainContext.MainThreadTerminalService)
-export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
+@extHostNamedCustoma(MainContext.MainThweadTewminawSewvice)
+expowt cwass MainThweadTewminawSewvice impwements MainThweadTewminawSewviceShape {
 
-	private _proxy: ExtHostTerminalServiceShape;
+	pwivate _pwoxy: ExtHostTewminawSewviceShape;
 	/**
-	 * Stores a map from a temporary terminal id (a UUID generated on the extension host side)
-	 * to a numeric terminal id (an id generated on the renderer side)
-	 * This comes in play only when dealing with terminals created on the extension host side
+	 * Stowes a map fwom a tempowawy tewminaw id (a UUID genewated on the extension host side)
+	 * to a numewic tewminaw id (an id genewated on the wendewa side)
+	 * This comes in pway onwy when deawing with tewminaws cweated on the extension host side
 	 */
-	private _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
-	private readonly _toDispose = new DisposableStore();
-	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
-	private readonly _profileProviders = new Map<string, IDisposable>();
-	private _dataEventTracker: TerminalDataEventTracker | undefined;
+	pwivate _extHostTewminaws = new Map<stwing, Pwomise<ITewminawInstance>>();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate weadonwy _tewminawPwocessPwoxies = new Map<numba, ITewminawPwocessExtHostPwoxy>();
+	pwivate weadonwy _pwofiwePwovidews = new Map<stwing, IDisposabwe>();
+	pwivate _dataEventTwacka: TewminawDataEventTwacka | undefined;
 	/**
-	 * A single shared terminal link provider for the exthost. When an ext registers a link
-	 * provider, this is registered with the terminal on the renderer side and all links are
-	 * provided through this, even from multiple ext link providers. Xterm should remove lower
-	 * priority intersecting links itself.
+	 * A singwe shawed tewminaw wink pwovida fow the exthost. When an ext wegistews a wink
+	 * pwovida, this is wegistewed with the tewminaw on the wendewa side and aww winks awe
+	 * pwovided thwough this, even fwom muwtipwe ext wink pwovidews. Xtewm shouwd wemove wowa
+	 * pwiowity intewsecting winks itsewf.
 	 */
-	private _linkProvider: IDisposable | undefined;
+	pwivate _winkPwovida: IDisposabwe | undefined;
 
-	private _os: OperatingSystem = OS;
+	pwivate _os: OpewatingSystem = OS;
 
-	constructor(
-		private readonly _extHostContext: IExtHostContext,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalInstanceService readonly terminalInstanceService: ITerminalInstanceService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
-		@ILogService private readonly _logService: ILogService,
-		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
+	constwuctow(
+		pwivate weadonwy _extHostContext: IExtHostContext,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice,
+		@ITewminawInstanceSewvice weadonwy tewminawInstanceSewvice: ITewminawInstanceSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IEnviwonmentVawiabweSewvice pwivate weadonwy _enviwonmentVawiabweSewvice: IEnviwonmentVawiabweSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@ITewminawPwofiweWesowvewSewvice pwivate weadonwy _tewminawPwofiweWesowvewSewvice: ITewminawPwofiweWesowvewSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice,
+		@ITewminawGwoupSewvice pwivate weadonwy _tewminawGwoupSewvice: ITewminawGwoupSewvice,
+		@ITewminawEditowSewvice pwivate weadonwy _tewminawEditowSewvice: ITewminawEditowSewvice
 	) {
-		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
+		this._pwoxy = _extHostContext.getPwoxy(ExtHostContext.ExtHostTewminawSewvice);
 
-		// ITerminalService listeners
-		this._toDispose.add(_terminalService.onDidCreateInstance((instance) => {
-			this._onTerminalOpened(instance);
+		// ITewminawSewvice wistenews
+		this._toDispose.add(_tewminawSewvice.onDidCweateInstance((instance) => {
+			this._onTewminawOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
 
-		this._toDispose.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
-		this._toDispose.add(_terminalService.onDidReceiveProcessId(instance => this._onTerminalProcessIdReady(instance)));
-		this._toDispose.add(_terminalService.onDidChangeInstanceDimensions(instance => this._onInstanceDimensionsChanged(instance)));
-		this._toDispose.add(_terminalService.onDidMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
-		this._toDispose.add(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
-		this._toDispose.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
-		this._toDispose.add(_terminalService.onDidChangeInstanceTitle(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
-		this._toDispose.add(_terminalService.onDidInputInstanceData(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
+		this._toDispose.add(_tewminawSewvice.onDidDisposeInstance(instance => this._onTewminawDisposed(instance)));
+		this._toDispose.add(_tewminawSewvice.onDidWeceivePwocessId(instance => this._onTewminawPwocessIdWeady(instance)));
+		this._toDispose.add(_tewminawSewvice.onDidChangeInstanceDimensions(instance => this._onInstanceDimensionsChanged(instance)));
+		this._toDispose.add(_tewminawSewvice.onDidMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
+		this._toDispose.add(_tewminawSewvice.onDidWequestStawtExtensionTewminaw(e => this._onWequestStawtExtensionTewminaw(e)));
+		this._toDispose.add(_tewminawSewvice.onDidChangeActiveInstance(instance => this._onActiveTewminawChanged(instance ? instance.instanceId : nuww)));
+		this._toDispose.add(_tewminawSewvice.onDidChangeInstanceTitwe(instance => instance && this._onTitweChanged(instance.instanceId, instance.titwe)));
+		this._toDispose.add(_tewminawSewvice.onDidInputInstanceData(instance => this._pwoxy.$acceptTewminawIntewaction(instance.instanceId)));
 
-		// Set initial ext host state
-		this._terminalService.instances.forEach(t => {
-			this._onTerminalOpened(t);
-			t.processReady.then(() => this._onTerminalProcessIdReady(t));
+		// Set initiaw ext host state
+		this._tewminawSewvice.instances.fowEach(t => {
+			this._onTewminawOpened(t);
+			t.pwocessWeady.then(() => this._onTewminawPwocessIdWeady(t));
 		});
-		const activeInstance = this._terminalService.activeInstance;
+		const activeInstance = this._tewminawSewvice.activeInstance;
 		if (activeInstance) {
-			this._proxy.$acceptActiveTerminalChanged(activeInstance.instanceId);
+			this._pwoxy.$acceptActiveTewminawChanged(activeInstance.instanceId);
 		}
-		if (this._environmentVariableService.collections.size > 0) {
-			const collectionAsArray = [...this._environmentVariableService.collections.entries()];
-			const serializedCollections: [string, ISerializableEnvironmentVariableCollection][] = collectionAsArray.map(e => {
-				return [e[0], serializeEnvironmentVariableCollection(e[1].map)];
+		if (this._enviwonmentVawiabweSewvice.cowwections.size > 0) {
+			const cowwectionAsAwway = [...this._enviwonmentVawiabweSewvice.cowwections.entwies()];
+			const sewiawizedCowwections: [stwing, ISewiawizabweEnviwonmentVawiabweCowwection][] = cowwectionAsAwway.map(e => {
+				wetuwn [e[0], sewiawizeEnviwonmentVawiabweCowwection(e[1].map)];
 			});
-			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
+			this._pwoxy.$initEnviwonmentVawiabweCowwections(sewiawizedCowwections);
 		}
 
-		remoteAgentService.getEnvironment().then(async env => {
+		wemoteAgentSewvice.getEnviwonment().then(async env => {
 			this._os = env?.os || OS;
-			this._updateDefaultProfile();
+			this._updateDefauwtPwofiwe();
 		});
-		this._terminalService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile());
+		this._tewminawSewvice.onDidChangeAvaiwabwePwofiwes(() => this._updateDefauwtPwofiwe());
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 		this._toDispose.dispose();
-		this._linkProvider?.dispose();
+		this._winkPwovida?.dispose();
 	}
 
-	private async _updateDefaultProfile() {
-		const remoteAuthority = withNullAsUndefined(this._extHostContext.remoteAuthority);
-		const defaultProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os });
-		const defaultAutomationProfile = this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority, os: this._os, allowAutomationShell: true });
-		this._proxy.$acceptDefaultProfile(...await Promise.all([defaultProfile, defaultAutomationProfile]));
+	pwivate async _updateDefauwtPwofiwe() {
+		const wemoteAuthowity = withNuwwAsUndefined(this._extHostContext.wemoteAuthowity);
+		const defauwtPwofiwe = this._tewminawPwofiweWesowvewSewvice.getDefauwtPwofiwe({ wemoteAuthowity, os: this._os });
+		const defauwtAutomationPwofiwe = this._tewminawPwofiweWesowvewSewvice.getDefauwtPwofiwe({ wemoteAuthowity, os: this._os, awwowAutomationSheww: twue });
+		this._pwoxy.$acceptDefauwtPwofiwe(...await Pwomise.aww([defauwtPwofiwe, defauwtAutomationPwofiwe]));
 	}
 
-	private async _getTerminalInstance(id: ExtHostTerminalIdentifier): Promise<ITerminalInstance | undefined> {
-		if (typeof id === 'string') {
-			return this._extHostTerminals.get(id);
+	pwivate async _getTewminawInstance(id: ExtHostTewminawIdentifia): Pwomise<ITewminawInstance | undefined> {
+		if (typeof id === 'stwing') {
+			wetuwn this._extHostTewminaws.get(id);
 		}
-		return this._terminalService.getInstanceFromId(id);
+		wetuwn this._tewminawSewvice.getInstanceFwomId(id);
 	}
 
-	public async $createTerminal(extHostTerminalId: string, launchConfig: TerminalLaunchConfig): Promise<void> {
-		const shellLaunchConfig: IShellLaunchConfig = {
-			name: launchConfig.name,
-			executable: launchConfig.shellPath,
-			args: launchConfig.shellArgs,
-			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
-			icon: launchConfig.icon,
-			color: launchConfig.color,
-			initialText: launchConfig.initialText,
-			waitOnExit: launchConfig.waitOnExit,
-			ignoreConfigurationCwd: true,
-			env: launchConfig.env,
-			strictEnv: launchConfig.strictEnv,
-			hideFromUser: launchConfig.hideFromUser,
-			customPtyImplementation: launchConfig.isExtensionCustomPtyTerminal
-				? (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
+	pubwic async $cweateTewminaw(extHostTewminawId: stwing, waunchConfig: TewminawWaunchConfig): Pwomise<void> {
+		const shewwWaunchConfig: IShewwWaunchConfig = {
+			name: waunchConfig.name,
+			executabwe: waunchConfig.shewwPath,
+			awgs: waunchConfig.shewwAwgs,
+			cwd: typeof waunchConfig.cwd === 'stwing' ? waunchConfig.cwd : UWI.wevive(waunchConfig.cwd),
+			icon: waunchConfig.icon,
+			cowow: waunchConfig.cowow,
+			initiawText: waunchConfig.initiawText,
+			waitOnExit: waunchConfig.waitOnExit,
+			ignoweConfiguwationCwd: twue,
+			env: waunchConfig.env,
+			stwictEnv: waunchConfig.stwictEnv,
+			hideFwomUsa: waunchConfig.hideFwomUsa,
+			customPtyImpwementation: waunchConfig.isExtensionCustomPtyTewminaw
+				? (id, cows, wows) => new TewminawPwocessExtHostPwoxy(id, cows, wows, this._tewminawSewvice)
 				: undefined,
-			extHostTerminalId,
-			isFeatureTerminal: launchConfig.isFeatureTerminal,
-			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
-			useShellEnvironment: launchConfig.useShellEnvironment,
+			extHostTewminawId,
+			isFeatuweTewminaw: waunchConfig.isFeatuweTewminaw,
+			isExtensionOwnedTewminaw: waunchConfig.isExtensionOwnedTewminaw,
+			useShewwEnviwonment: waunchConfig.useShewwEnviwonment,
 		};
-		const terminal = new Promise<ITerminalInstance>(async r => {
-			const terminal = await this._terminalService.createTerminal({
-				config: shellLaunchConfig,
-				location: await this._deserializeParentTerminal(launchConfig.location)
+		const tewminaw = new Pwomise<ITewminawInstance>(async w => {
+			const tewminaw = await this._tewminawSewvice.cweateTewminaw({
+				config: shewwWaunchConfig,
+				wocation: await this._desewiawizePawentTewminaw(waunchConfig.wocation)
 			});
-			r(terminal);
+			w(tewminaw);
 		});
-		this._extHostTerminals.set(extHostTerminalId, terminal);
-		await terminal;
+		this._extHostTewminaws.set(extHostTewminawId, tewminaw);
+		await tewminaw;
 	}
 
-	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean, location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
-		if (typeof location === 'object' && 'parentTerminal' in location) {
-			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
-			return parentTerminal ? { parentTerminal } : undefined;
+	pwivate async _desewiawizePawentTewminaw(wocation?: TewminawWocation | TewminawEditowWocationOptions | { pawentTewminaw: ExtHostTewminawIdentifia } | { spwitActiveTewminaw: boowean, wocation?: TewminawWocation }): Pwomise<TewminawWocation | TewminawEditowWocationOptions | { pawentTewminaw: ITewminawInstance } | { spwitActiveTewminaw: boowean } | undefined> {
+		if (typeof wocation === 'object' && 'pawentTewminaw' in wocation) {
+			const pawentTewminaw = await this._extHostTewminaws.get(wocation.pawentTewminaw.toStwing());
+			wetuwn pawentTewminaw ? { pawentTewminaw } : undefined;
 		}
-		return location;
+		wetuwn wocation;
 	}
 
-	public async $show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): Promise<void> {
-		const terminalInstance = await this._getTerminalInstance(id);
-		if (terminalInstance) {
-			this._terminalService.setActiveInstance(terminalInstance);
-			if (terminalInstance.target === TerminalLocation.Editor) {
-				this._terminalEditorService.revealActiveEditor(preserveFocus);
-			} else {
-				this._terminalGroupService.showPanel(!preserveFocus);
+	pubwic async $show(id: ExtHostTewminawIdentifia, pwesewveFocus: boowean): Pwomise<void> {
+		const tewminawInstance = await this._getTewminawInstance(id);
+		if (tewminawInstance) {
+			this._tewminawSewvice.setActiveInstance(tewminawInstance);
+			if (tewminawInstance.tawget === TewminawWocation.Editow) {
+				this._tewminawEditowSewvice.weveawActiveEditow(pwesewveFocus);
+			} ewse {
+				this._tewminawGwoupSewvice.showPanew(!pwesewveFocus);
 			}
 		}
 	}
 
-	public async $hide(id: ExtHostTerminalIdentifier): Promise<void> {
-		const instanceToHide = await this._getTerminalInstance(id);
-		const activeInstance = this._terminalService.activeInstance;
-		if (activeInstance && activeInstance.instanceId === instanceToHide?.instanceId && activeInstance.target !== TerminalLocation.Editor) {
-			this._terminalGroupService.hidePanel();
+	pubwic async $hide(id: ExtHostTewminawIdentifia): Pwomise<void> {
+		const instanceToHide = await this._getTewminawInstance(id);
+		const activeInstance = this._tewminawSewvice.activeInstance;
+		if (activeInstance && activeInstance.instanceId === instanceToHide?.instanceId && activeInstance.tawget !== TewminawWocation.Editow) {
+			this._tewminawGwoupSewvice.hidePanew();
 		}
 	}
 
-	public async $dispose(id: ExtHostTerminalIdentifier): Promise<void> {
-		(await this._getTerminalInstance(id))?.dispose();
+	pubwic async $dispose(id: ExtHostTewminawIdentifia): Pwomise<void> {
+		(await this._getTewminawInstance(id))?.dispose();
 	}
 
-	public async $sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
-		const instance = await this._getTerminalInstance(id);
-		await instance?.sendText(text, addNewLine);
+	pubwic async $sendText(id: ExtHostTewminawIdentifia, text: stwing, addNewWine: boowean): Pwomise<void> {
+		const instance = await this._getTewminawInstance(id);
+		await instance?.sendText(text, addNewWine);
 	}
 
-	public $startSendingDataEvents(): void {
-		if (!this._dataEventTracker) {
-			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
-				this._onTerminalData(id, data);
+	pubwic $stawtSendingDataEvents(): void {
+		if (!this._dataEventTwacka) {
+			this._dataEventTwacka = this._instantiationSewvice.cweateInstance(TewminawDataEventTwacka, (id, data) => {
+				this._onTewminawData(id, data);
 			});
-			// Send initial events if they exist
-			this._terminalService.instances.forEach(t => {
-				t.initialDataEvents?.forEach(d => this._onTerminalData(t.instanceId, d));
+			// Send initiaw events if they exist
+			this._tewminawSewvice.instances.fowEach(t => {
+				t.initiawDataEvents?.fowEach(d => this._onTewminawData(t.instanceId, d));
 			});
 		}
 	}
 
-	public $stopSendingDataEvents(): void {
-		this._dataEventTracker?.dispose();
-		this._dataEventTracker = undefined;
+	pubwic $stopSendingDataEvents(): void {
+		this._dataEventTwacka?.dispose();
+		this._dataEventTwacka = undefined;
 	}
 
-	public $startLinkProvider(): void {
-		this._linkProvider?.dispose();
-		this._linkProvider = this._terminalService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
+	pubwic $stawtWinkPwovida(): void {
+		this._winkPwovida?.dispose();
+		this._winkPwovida = this._tewminawSewvice.wegistewWinkPwovida(new ExtensionTewminawWinkPwovida(this._pwoxy));
 	}
 
-	public $stopLinkProvider(): void {
-		this._linkProvider?.dispose();
-		this._linkProvider = undefined;
+	pubwic $stopWinkPwovida(): void {
+		this._winkPwovida?.dispose();
+		this._winkPwovida = undefined;
 	}
 
-	public $registerProcessSupport(isSupported: boolean): void {
-		this._terminalService.registerProcessSupport(isSupported);
+	pubwic $wegistewPwocessSuppowt(isSuppowted: boowean): void {
+		this._tewminawSewvice.wegistewPwocessSuppowt(isSuppowted);
 	}
 
-	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
-		// Proxy profile provider requests through the extension host
-		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
-			createContributedTerminalProfile: async (options) => {
-				return this._proxy.$createContributedProfileTerminal(id, options);
+	pubwic $wegistewPwofiwePwovida(id: stwing, extensionIdentifia: stwing): void {
+		// Pwoxy pwofiwe pwovida wequests thwough the extension host
+		this._pwofiwePwovidews.set(id, this._tewminawSewvice.wegistewTewminawPwofiwePwovida(extensionIdentifia, id, {
+			cweateContwibutedTewminawPwofiwe: async (options) => {
+				wetuwn this._pwoxy.$cweateContwibutedPwofiweTewminaw(id, options);
 			}
 		}));
 	}
 
-	public $unregisterProfileProvider(id: string): void {
-		this._profileProviders.get(id)?.dispose();
-		this._profileProviders.delete(id);
+	pubwic $unwegistewPwofiwePwovida(id: stwing): void {
+		this._pwofiwePwovidews.get(id)?.dispose();
+		this._pwofiwePwovidews.dewete(id);
 	}
 
-	private _onActiveTerminalChanged(terminalId: number | null): void {
-		this._proxy.$acceptActiveTerminalChanged(terminalId);
+	pwivate _onActiveTewminawChanged(tewminawId: numba | nuww): void {
+		this._pwoxy.$acceptActiveTewminawChanged(tewminawId);
 	}
 
-	private _onTerminalData(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	pwivate _onTewminawData(tewminawId: numba, data: stwing): void {
+		this._pwoxy.$acceptTewminawPwocessData(tewminawId, data);
 	}
 
-	private _onTitleChanged(terminalId: number, name: string): void {
-		this._proxy.$acceptTerminalTitleChange(terminalId, name);
+	pwivate _onTitweChanged(tewminawId: numba, name: stwing): void {
+		this._pwoxy.$acceptTewminawTitweChange(tewminawId, name);
 	}
 
-	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode);
+	pwivate _onTewminawDisposed(tewminawInstance: ITewminawInstance): void {
+		this._pwoxy.$acceptTewminawCwosed(tewminawInstance.instanceId, tewminawInstance.exitCode);
 	}
 
-	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
-		const extHostTerminalId = terminalInstance.shellLaunchConfig.extHostTerminalId;
-		const shellLaunchConfigDto: IShellLaunchConfigDto = {
-			name: terminalInstance.shellLaunchConfig.name,
-			executable: terminalInstance.shellLaunchConfig.executable,
-			args: terminalInstance.shellLaunchConfig.args,
-			cwd: terminalInstance.shellLaunchConfig.cwd,
-			env: terminalInstance.shellLaunchConfig.env,
-			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser
+	pwivate _onTewminawOpened(tewminawInstance: ITewminawInstance): void {
+		const extHostTewminawId = tewminawInstance.shewwWaunchConfig.extHostTewminawId;
+		const shewwWaunchConfigDto: IShewwWaunchConfigDto = {
+			name: tewminawInstance.shewwWaunchConfig.name,
+			executabwe: tewminawInstance.shewwWaunchConfig.executabwe,
+			awgs: tewminawInstance.shewwWaunchConfig.awgs,
+			cwd: tewminawInstance.shewwWaunchConfig.cwd,
+			env: tewminawInstance.shewwWaunchConfig.env,
+			hideFwomUsa: tewminawInstance.shewwWaunchConfig.hideFwomUsa
 		};
-		this._proxy.$acceptTerminalOpened(terminalInstance.instanceId, extHostTerminalId, terminalInstance.title, shellLaunchConfigDto);
+		this._pwoxy.$acceptTewminawOpened(tewminawInstance.instanceId, extHostTewminawId, tewminawInstance.titwe, shewwWaunchConfigDto);
 	}
 
-	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
-		if (terminalInstance.processId === undefined) {
-			return;
+	pwivate _onTewminawPwocessIdWeady(tewminawInstance: ITewminawInstance): void {
+		if (tewminawInstance.pwocessId === undefined) {
+			wetuwn;
 		}
-		this._proxy.$acceptTerminalProcessId(terminalInstance.instanceId, terminalInstance.processId);
+		this._pwoxy.$acceptTewminawPwocessId(tewminawInstance.instanceId, tewminawInstance.pwocessId);
 	}
 
-	private _onInstanceDimensionsChanged(instance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalDimensions(instance.instanceId, instance.cols, instance.rows);
+	pwivate _onInstanceDimensionsChanged(instance: ITewminawInstance): void {
+		this._pwoxy.$acceptTewminawDimensions(instance.instanceId, instance.cows, instance.wows);
 	}
 
-	private _onInstanceMaximumDimensionsChanged(instance: ITerminalInstance): void {
-		this._proxy.$acceptTerminalMaximumDimensions(instance.instanceId, instance.maxCols, instance.maxRows);
+	pwivate _onInstanceMaximumDimensionsChanged(instance: ITewminawInstance): void {
+		this._pwoxy.$acceptTewminawMaximumDimensions(instance.instanceId, instance.maxCows, instance.maxWows);
 	}
 
-	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
-		const proxy = request.proxy;
-		this._terminalProcessProxies.set(proxy.instanceId, proxy);
+	pwivate _onWequestStawtExtensionTewminaw(wequest: IStawtExtensionTewminawWequest): void {
+		const pwoxy = wequest.pwoxy;
+		this._tewminawPwocessPwoxies.set(pwoxy.instanceId, pwoxy);
 
-		// Note that onReisze is not being listened to here as it needs to fire when max dimensions
-		// change, excluding the dimension override
-		const initialDimensions: ITerminalDimensionsDto | undefined = request.cols && request.rows ? {
-			columns: request.cols,
-			rows: request.rows
+		// Note that onWeisze is not being wistened to hewe as it needs to fiwe when max dimensions
+		// change, excwuding the dimension ovewwide
+		const initiawDimensions: ITewminawDimensionsDto | undefined = wequest.cows && wequest.wows ? {
+			cowumns: wequest.cows,
+			wows: wequest.wows
 		} : undefined;
 
-		this._proxy.$startExtensionTerminal(
-			proxy.instanceId,
-			initialDimensions
-		).then(request.callback);
+		this._pwoxy.$stawtExtensionTewminaw(
+			pwoxy.instanceId,
+			initiawDimensions
+		).then(wequest.cawwback);
 
-		proxy.onInput(data => this._proxy.$acceptProcessInput(proxy.instanceId, data));
-		proxy.onShutdown(immediate => this._proxy.$acceptProcessShutdown(proxy.instanceId, immediate));
-		proxy.onRequestCwd(() => this._proxy.$acceptProcessRequestCwd(proxy.instanceId));
-		proxy.onRequestInitialCwd(() => this._proxy.$acceptProcessRequestInitialCwd(proxy.instanceId));
-		proxy.onRequestLatency(() => this._onRequestLatency(proxy.instanceId));
+		pwoxy.onInput(data => this._pwoxy.$acceptPwocessInput(pwoxy.instanceId, data));
+		pwoxy.onShutdown(immediate => this._pwoxy.$acceptPwocessShutdown(pwoxy.instanceId, immediate));
+		pwoxy.onWequestCwd(() => this._pwoxy.$acceptPwocessWequestCwd(pwoxy.instanceId));
+		pwoxy.onWequestInitiawCwd(() => this._pwoxy.$acceptPwocessWequestInitiawCwd(pwoxy.instanceId));
+		pwoxy.onWequestWatency(() => this._onWequestWatency(pwoxy.instanceId));
 	}
 
-	public $sendProcessTitle(terminalId: number, title: string): void {
-		// Since title events can only come from vscode.Pseudoterminals right now, these are routed
-		// directly to the instance as API source events such that they will replace the initial
-		// `name` property provided for the Pseudoterminal. If we support showing both Api and
-		// Process titles at the same time we may want to pass this through as a Process source
+	pubwic $sendPwocessTitwe(tewminawId: numba, titwe: stwing): void {
+		// Since titwe events can onwy come fwom vscode.Pseudotewminaws wight now, these awe wouted
+		// diwectwy to the instance as API souwce events such that they wiww wepwace the initiaw
+		// `name` pwopewty pwovided fow the Pseudotewminaw. If we suppowt showing both Api and
+		// Pwocess titwes at the same time we may want to pass this thwough as a Pwocess souwce
 		// event.
-		const instance = this._terminalService.getInstanceFromId(terminalId);
+		const instance = this._tewminawSewvice.getInstanceFwomId(tewminawId);
 		if (instance) {
-			instance.refreshTabLabels(title, TitleEventSource.Api);
+			instance.wefweshTabWabews(titwe, TitweEventSouwce.Api);
 		}
 	}
 
-	public $sendProcessData(terminalId: number, data: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitData(data);
+	pubwic $sendPwocessData(tewminawId: numba, data: stwing): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitData(data);
 	}
 
-	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
+	pubwic $sendPwocessWeady(tewminawId: numba, pid: numba, cwd: stwing): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitWeady(pid, cwd);
 	}
 
-	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
+	pubwic $sendPwocessExit(tewminawId: numba, exitCode: numba | undefined): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitExit(exitCode);
 	}
 
-	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
-		this._terminalProcessProxies.get(terminalId)?.emitOverrideDimensions(dimensions);
+	pubwic $sendOvewwideDimensions(tewminawId: numba, dimensions: ITewminawDimensions | undefined): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitOvewwideDimensions(dimensions);
 	}
 
-	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitInitialCwd(initialCwd);
+	pubwic $sendPwocessInitiawCwd(tewminawId: numba, initiawCwd: stwing): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitInitiawCwd(initiawCwd);
 	}
 
-	public $sendProcessCwd(terminalId: number, cwd: string): void {
-		this._terminalProcessProxies.get(terminalId)?.emitCwd(cwd);
+	pubwic $sendPwocessCwd(tewminawId: numba, cwd: stwing): void {
+		this._tewminawPwocessPwoxies.get(tewminawId)?.emitCwd(cwd);
 	}
 
-	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
-		this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
+	pubwic $sendWesowvedWaunchConfig(tewminawId: numba, shewwWaunchConfig: IShewwWaunchConfig): void {
+		this._getTewminawPwocess(tewminawId)?.emitWesowvedShewwWaunchConfig(shewwWaunchConfig);
 	}
 
-	private async _onRequestLatency(terminalId: number): Promise<void> {
+	pwivate async _onWequestWatency(tewminawId: numba): Pwomise<void> {
 		const COUNT = 2;
-		let sum = 0;
-		for (let i = 0; i < COUNT; i++) {
-			const sw = StopWatch.create(true);
-			await this._proxy.$acceptProcessRequestLatency(terminalId);
+		wet sum = 0;
+		fow (wet i = 0; i < COUNT; i++) {
+			const sw = StopWatch.cweate(twue);
+			await this._pwoxy.$acceptPwocessWequestWatency(tewminawId);
 			sw.stop();
-			sum += sw.elapsed();
+			sum += sw.ewapsed();
 		}
-		this._getTerminalProcess(terminalId)?.emitLatency(sum / COUNT);
+		this._getTewminawPwocess(tewminawId)?.emitWatency(sum / COUNT);
 	}
 
-	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy | undefined {
-		const terminal = this._terminalProcessProxies.get(terminalId);
-		if (!terminal) {
-			this._logService.error(`Unknown terminal: ${terminalId}`);
-			return undefined;
+	pwivate _getTewminawPwocess(tewminawId: numba): ITewminawPwocessExtHostPwoxy | undefined {
+		const tewminaw = this._tewminawPwocessPwoxies.get(tewminawId);
+		if (!tewminaw) {
+			this._wogSewvice.ewwow(`Unknown tewminaw: ${tewminawId}`);
+			wetuwn undefined;
 		}
-		return terminal;
+		wetuwn tewminaw;
 	}
 
-	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void {
-		if (collection) {
-			const translatedCollection = {
-				persistent,
-				map: deserializeEnvironmentVariableCollection(collection)
+	$setEnviwonmentVawiabweCowwection(extensionIdentifia: stwing, pewsistent: boowean, cowwection: ISewiawizabweEnviwonmentVawiabweCowwection | undefined): void {
+		if (cowwection) {
+			const twanswatedCowwection = {
+				pewsistent,
+				map: desewiawizeEnviwonmentVawiabweCowwection(cowwection)
 			};
-			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
-		} else {
-			this._environmentVariableService.delete(extensionIdentifier);
+			this._enviwonmentVawiabweSewvice.set(extensionIdentifia, twanswatedCowwection);
+		} ewse {
+			this._enviwonmentVawiabweSewvice.dewete(extensionIdentifia);
 		}
 	}
 }
 
 /**
- * Encapsulates temporary tracking of data events from terminal instances, once disposed all
- * listeners are removed.
+ * Encapsuwates tempowawy twacking of data events fwom tewminaw instances, once disposed aww
+ * wistenews awe wemoved.
  */
-class TerminalDataEventTracker extends Disposable {
-	private readonly _bufferer: TerminalDataBufferer;
+cwass TewminawDataEventTwacka extends Disposabwe {
+	pwivate weadonwy _buffewa: TewminawDataBuffewa;
 
-	constructor(
-		private readonly _callback: (id: number, data: string) => void,
-		@ITerminalService private readonly _terminalService: ITerminalService
+	constwuctow(
+		pwivate weadonwy _cawwback: (id: numba, data: stwing) => void,
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice
 	) {
-		super();
+		supa();
 
-		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
+		this._wegista(this._buffewa = new TewminawDataBuffewa(this._cawwback));
 
-		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
-		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
-		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
+		this._tewminawSewvice.instances.fowEach(instance => this._wegistewInstance(instance));
+		this._wegista(this._tewminawSewvice.onDidCweateInstance(instance => this._wegistewInstance(instance)));
+		this._wegista(this._tewminawSewvice.onDidDisposeInstance(instance => this._buffewa.stopBuffewing(instance.instanceId)));
 	}
 
-	private _registerInstance(instance: ITerminalInstance): void {
-		// Buffer data events to reduce the amount of messages going to the extension host
-		this._register(this._bufferer.startBuffering(instance.instanceId, instance.onData));
+	pwivate _wegistewInstance(instance: ITewminawInstance): void {
+		// Buffa data events to weduce the amount of messages going to the extension host
+		this._wegista(this._buffewa.stawtBuffewing(instance.instanceId, instance.onData));
 	}
 }
 
-class ExtensionTerminalLinkProvider implements ITerminalExternalLinkProvider {
-	constructor(
-		private readonly _proxy: ExtHostTerminalServiceShape
+cwass ExtensionTewminawWinkPwovida impwements ITewminawExtewnawWinkPwovida {
+	constwuctow(
+		pwivate weadonwy _pwoxy: ExtHostTewminawSewviceShape
 	) {
 	}
 
-	async provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined> {
-		const proxy = this._proxy;
-		const extHostLinks = await proxy.$provideLinks(instance.instanceId, line);
-		return extHostLinks.map(dto => ({
+	async pwovideWinks(instance: ITewminawInstance, wine: stwing): Pwomise<ITewminawWink[] | undefined> {
+		const pwoxy = this._pwoxy;
+		const extHostWinks = await pwoxy.$pwovideWinks(instance.instanceId, wine);
+		wetuwn extHostWinks.map(dto => ({
 			id: dto.id,
-			startIndex: dto.startIndex,
-			length: dto.length,
-			label: dto.label,
-			activate: () => proxy.$activateLink(instance.instanceId, dto.id)
+			stawtIndex: dto.stawtIndex,
+			wength: dto.wength,
+			wabew: dto.wabew,
+			activate: () => pwoxy.$activateWink(instance.instanceId, dto.id)
 		}));
 	}
 }

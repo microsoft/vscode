@@ -1,350 +1,350 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./outlinePane';
-import * as dom from 'vs/base/browser/dom';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
-import { basename } from 'vs/base/common/resources';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Codicon } from 'vs/base/common/codicons';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { OutlineSortOrder, OutlineViewState } from './outlineViewState';
-import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { URI } from 'vs/base/common/uri';
+impowt 'vs/css!./outwinePane';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { IDisposabwe, toDisposabwe, DisposabweStowe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WowkbenchDataTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ViewAction, ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IDataTweeViewState } fwom 'vs/base/bwowsa/ui/twee/dataTwee';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { OutwineSowtOwda, OutwineViewState } fwom './outwineViewState';
+impowt { IOutwine, IOutwineCompawatow, IOutwineSewvice, OutwineTawget } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
+impowt { EditowWesouwceAccessow, IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { ITweeSowta } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
-const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
-const _ctxSortMode = new RawContextKey<OutlineSortOrder>('outlineSortMode', OutlineSortOrder.ByPosition);
+const _ctxFowwowsCuwsow = new WawContextKey('outwineFowwowsCuwsow', fawse);
+const _ctxFiwtewOnType = new WawContextKey('outwineFiwtewsOnType', fawse);
+const _ctxSowtMode = new WawContextKey<OutwineSowtOwda>('outwineSowtMode', OutwineSowtOwda.ByPosition);
 
-class OutlineTreeSorter<E> implements ITreeSorter<E> {
+cwass OutwineTweeSowta<E> impwements ITweeSowta<E> {
 
-	constructor(
-		private _comparator: IOutlineComparator<E>,
-		public order: OutlineSortOrder
+	constwuctow(
+		pwivate _compawatow: IOutwineCompawatow<E>,
+		pubwic owda: OutwineSowtOwda
 	) { }
 
-	compare(a: E, b: E): number {
-		if (this.order === OutlineSortOrder.ByKind) {
-			return this._comparator.compareByType(a, b);
-		} else if (this.order === OutlineSortOrder.ByName) {
-			return this._comparator.compareByName(a, b);
-		} else {
-			return this._comparator.compareByPosition(a, b);
+	compawe(a: E, b: E): numba {
+		if (this.owda === OutwineSowtOwda.ByKind) {
+			wetuwn this._compawatow.compaweByType(a, b);
+		} ewse if (this.owda === OutwineSowtOwda.ByName) {
+			wetuwn this._compawatow.compaweByName(a, b);
+		} ewse {
+			wetuwn this._compawatow.compaweByPosition(a, b);
 		}
 	}
 }
 
-export class OutlinePane extends ViewPane {
+expowt cwass OutwinePane extends ViewPane {
 
-	static readonly Id = 'outline';
+	static weadonwy Id = 'outwine';
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _editorDisposables = new DisposableStore();
-	private readonly _outlineViewState = new OutlineViewState();
+	pwivate weadonwy _editowDisposabwes = new DisposabweStowe();
+	pwivate weadonwy _outwineViewState = new OutwineViewState();
 
-	private readonly _editorListener = new MutableDisposable();
+	pwivate weadonwy _editowWistena = new MutabweDisposabwe();
 
-	private _domNode!: HTMLElement;
-	private _message!: HTMLDivElement;
-	private _progressBar!: ProgressBar;
-	private _treeContainer!: HTMLElement;
-	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
-	private _treeDimensions?: dom.Dimension;
-	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
+	pwivate _domNode!: HTMWEwement;
+	pwivate _message!: HTMWDivEwement;
+	pwivate _pwogwessBaw!: PwogwessBaw;
+	pwivate _tweeContaina!: HTMWEwement;
+	pwivate _twee?: WowkbenchDataTwee<IOutwine<any> | undefined, any, FuzzyScowe>;
+	pwivate _tweeDimensions?: dom.Dimension;
+	pwivate _tweeStates = new WWUCache<stwing, IDataTweeViewState>(10);
 
-	private _ctxFollowsCursor!: IContextKey<boolean>;
-	private _ctxFilterOnType!: IContextKey<boolean>;
-	private _ctxSortMode!: IContextKey<OutlineSortOrder>;
+	pwivate _ctxFowwowsCuwsow!: IContextKey<boowean>;
+	pwivate _ctxFiwtewOnType!: IContextKey<boowean>;
+	pwivate _ctxSowtMode!: IContextKey<OutwineSowtOwda>;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IOutlineService private readonly _outlineService: IOutlineService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IOutwineSewvice pwivate weadonwy _outwineSewvice: IOutwineSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._outlineViewState.restore(this._storageService);
-		this._disposables.add(this._outlineViewState);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, _instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this._outwineViewState.westowe(this._stowageSewvice);
+		this._disposabwes.add(this._outwineViewState);
 
-		contextKeyService.bufferChangeEvents(() => {
-			this._ctxFollowsCursor = _ctxFollowsCursor.bindTo(contextKeyService);
-			this._ctxFilterOnType = _ctxFilterOnType.bindTo(contextKeyService);
-			this._ctxSortMode = _ctxSortMode.bindTo(contextKeyService);
+		contextKeySewvice.buffewChangeEvents(() => {
+			this._ctxFowwowsCuwsow = _ctxFowwowsCuwsow.bindTo(contextKeySewvice);
+			this._ctxFiwtewOnType = _ctxFiwtewOnType.bindTo(contextKeySewvice);
+			this._ctxSowtMode = _ctxSowtMode.bindTo(contextKeySewvice);
 		});
 
 		const updateContext = () => {
-			this._ctxFollowsCursor.set(this._outlineViewState.followCursor);
-			this._ctxFilterOnType.set(this._outlineViewState.filterOnType);
-			this._ctxSortMode.set(this._outlineViewState.sortBy);
+			this._ctxFowwowsCuwsow.set(this._outwineViewState.fowwowCuwsow);
+			this._ctxFiwtewOnType.set(this._outwineViewState.fiwtewOnType);
+			this._ctxSowtMode.set(this._outwineViewState.sowtBy);
 		};
 		updateContext();
-		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
+		this._disposabwes.add(this._outwineViewState.onDidChange(updateContext));
 	}
 
-	override dispose(): void {
-		this._disposables.dispose();
-		this._editorDisposables.dispose();
-		this._editorListener.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._disposabwes.dispose();
+		this._editowDisposabwes.dispose();
+		this._editowWistena.dispose();
+		supa.dispose();
 	}
 
-	override focus(): void {
-		this._tree?.domFocus();
+	ovewwide focus(): void {
+		this._twee?.domFocus();
 	}
 
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this._domNode = container;
-		container.classList.add('outline-pane');
+		this._domNode = containa;
+		containa.cwassWist.add('outwine-pane');
 
-		let progressContainer = dom.$('.outline-progress');
-		this._message = dom.$('.outline-message');
+		wet pwogwessContaina = dom.$('.outwine-pwogwess');
+		this._message = dom.$('.outwine-message');
 
-		this._progressBar = new ProgressBar(progressContainer);
-		this._disposables.add(attachProgressBarStyler(this._progressBar, this._themeService));
+		this._pwogwessBaw = new PwogwessBaw(pwogwessContaina);
+		this._disposabwes.add(attachPwogwessBawStywa(this._pwogwessBaw, this._themeSewvice));
 
-		this._treeContainer = dom.$('.outline-tree');
-		dom.append(container, progressContainer, this._message, this._treeContainer);
+		this._tweeContaina = dom.$('.outwine-twee');
+		dom.append(containa, pwogwessContaina, this._message, this._tweeContaina);
 
-		this._disposables.add(this.onDidChangeBodyVisibility(visible => {
-			if (!visible) {
-				// stop everything when not visible
-				this._editorListener.clear();
-				this._editorDisposables.clear();
+		this._disposabwes.add(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (!visibwe) {
+				// stop evewything when not visibwe
+				this._editowWistena.cweaw();
+				this._editowDisposabwes.cweaw();
 
-			} else if (!this._editorListener.value) {
-				const event = Event.any(this._editorService.onDidActiveEditorChange, this._outlineService.onDidChange);
-				this._editorListener.value = event(() => this._handleEditorChanged(this._editorService.activeEditorPane));
-				this._handleEditorChanged(this._editorService.activeEditorPane);
+			} ewse if (!this._editowWistena.vawue) {
+				const event = Event.any(this._editowSewvice.onDidActiveEditowChange, this._outwineSewvice.onDidChange);
+				this._editowWistena.vawue = event(() => this._handweEditowChanged(this._editowSewvice.activeEditowPane));
+				this._handweEditowChanged(this._editowSewvice.activeEditowPane);
 			}
 		}));
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		this._tree?.layout(height, width);
-		this._treeDimensions = new dom.Dimension(width, height);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		this._twee?.wayout(height, width);
+		this._tweeDimensions = new dom.Dimension(width, height);
 	}
 
-	collapseAll(): void {
-		this._tree?.collapseAll();
+	cowwapseAww(): void {
+		this._twee?.cowwapseAww();
 	}
 
-	get outlineViewState() {
-		return this._outlineViewState;
+	get outwineViewState() {
+		wetuwn this._outwineViewState;
 	}
 
-	private _showMessage(message: string) {
-		this._domNode.classList.add('message');
-		this._progressBar.stop().hide();
-		this._message.innerText = message;
+	pwivate _showMessage(message: stwing) {
+		this._domNode.cwassWist.add('message');
+		this._pwogwessBaw.stop().hide();
+		this._message.innewText = message;
 	}
 
-	private _captureViewState(resource: URI | undefined): boolean {
-		if (resource && this._tree) {
-			const oldOutline = this._tree?.getInput();
-			if (oldOutline) {
-				this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
-				return true;
+	pwivate _captuweViewState(wesouwce: UWI | undefined): boowean {
+		if (wesouwce && this._twee) {
+			const owdOutwine = this._twee?.getInput();
+			if (owdOutwine) {
+				this._tweeStates.set(`${owdOutwine.outwineKind}/${wesouwce}`, this._twee!.getViewState());
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async _handleEditorChanged(pane: IEditorPane | undefined): Promise<void> {
+	pwivate async _handweEditowChanged(pane: IEditowPane | undefined): Pwomise<void> {
 
-		// persist state
-		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
-		const didCapture = this._captureViewState(resource);
+		// pewsist state
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(pane?.input);
+		const didCaptuwe = this._captuweViewState(wesouwce);
 
-		this._editorDisposables.clear();
+		this._editowDisposabwes.cweaw();
 
-		if (!pane || !this._outlineService.canCreateOutline(pane) || !resource) {
-			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
+		if (!pane || !this._outwineSewvice.canCweateOutwine(pane) || !wesouwce) {
+			wetuwn this._showMessage(wocawize('no-editow', "The active editow cannot pwovide outwine infowmation."));
 		}
 
-		let loadingMessage: IDisposable | undefined;
-		if (!didCapture) {
-			loadingMessage = new TimeoutTimer(() => {
-				this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(resource)));
+		wet woadingMessage: IDisposabwe | undefined;
+		if (!didCaptuwe) {
+			woadingMessage = new TimeoutTima(() => {
+				this._showMessage(wocawize('woading', "Woading document symbows fow '{0}'...", basename(wesouwce)));
 			}, 100);
 		}
 
-		this._progressBar.infinite().show(500);
+		this._pwogwessBaw.infinite().show(500);
 
-		const cts = new CancellationTokenSource();
-		this._editorDisposables.add(toDisposable(() => cts.dispose(true)));
+		const cts = new CancewwationTokenSouwce();
+		this._editowDisposabwes.add(toDisposabwe(() => cts.dispose(twue)));
 
-		const newOutline = await this._outlineService.createOutline(pane, OutlineTarget.OutlinePane, cts.token);
-		loadingMessage?.dispose();
+		const newOutwine = await this._outwineSewvice.cweateOutwine(pane, OutwineTawget.OutwinePane, cts.token);
+		woadingMessage?.dispose();
 
-		if (!newOutline) {
-			return;
+		if (!newOutwine) {
+			wetuwn;
 		}
 
-		if (cts.token.isCancellationRequested) {
-			newOutline?.dispose();
-			return;
+		if (cts.token.isCancewwationWequested) {
+			newOutwine?.dispose();
+			wetuwn;
 		}
 
-		this._editorDisposables.add(newOutline);
-		this._progressBar.stop().hide();
+		this._editowDisposabwes.add(newOutwine);
+		this._pwogwessBaw.stop().hide();
 
-		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
+		const sowta = new OutwineTweeSowta(newOutwine.config.compawatow, this._outwineViewState.sowtBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
-			'OutlinePane',
-			this._treeContainer,
-			newOutline.config.delegate,
-			newOutline.config.renderers,
-			newOutline.config.treeDataSource,
+		const twee = <WowkbenchDataTwee<IOutwine<any> | undefined, any, FuzzyScowe>>this._instantiationSewvice.cweateInstance(
+			WowkbenchDataTwee,
+			'OutwinePane',
+			this._tweeContaina,
+			newOutwine.config.dewegate,
+			newOutwine.config.wendewews,
+			newOutwine.config.tweeDataSouwce,
 			{
-				...newOutline.config.options,
-				sorter,
-				expandOnDoubleClick: false,
-				expandOnlyOnTwistieClick: true,
-				multipleSelectionSupport: false,
-				hideTwistiesOfChildlessElements: true,
-				filterOnType: this._outlineViewState.filterOnType,
-				overrideStyles: { listBackground: this.getBackgroundColor() }
+				...newOutwine.config.options,
+				sowta,
+				expandOnDoubweCwick: fawse,
+				expandOnwyOnTwistieCwick: twue,
+				muwtipweSewectionSuppowt: fawse,
+				hideTwistiesOfChiwdwessEwements: twue,
+				fiwtewOnType: this._outwineViewState.fiwtewOnType,
+				ovewwideStywes: { wistBackgwound: this.getBackgwoundCowow() }
 			}
 		);
 
-		// update tree, listen to changes
-		const updateTree = () => {
-			if (newOutline.isEmpty) {
-				// no more elements
-				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
-				this._captureViewState(resource);
-				tree.setInput(undefined);
+		// update twee, wisten to changes
+		const updateTwee = () => {
+			if (newOutwine.isEmpty) {
+				// no mowe ewements
+				this._showMessage(wocawize('no-symbows', "No symbows found in document '{0}'", basename(wesouwce)));
+				this._captuweViewState(wesouwce);
+				twee.setInput(undefined);
 
-			} else if (!tree.getInput()) {
-				// first: init tree
-				this._domNode.classList.remove('message');
-				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
-				tree.setInput(newOutline, state);
+			} ewse if (!twee.getInput()) {
+				// fiwst: init twee
+				this._domNode.cwassWist.wemove('message');
+				const state = this._tweeStates.get(`${newOutwine.outwineKind}/${wesouwce}`);
+				twee.setInput(newOutwine, state);
 
-			} else {
-				// update: refresh tree
-				this._domNode.classList.remove('message');
-				tree.updateChildren();
+			} ewse {
+				// update: wefwesh twee
+				this._domNode.cwassWist.wemove('message');
+				twee.updateChiwdwen();
 			}
 		};
-		updateTree();
-		this._editorDisposables.add(newOutline.onDidChange(updateTree));
+		updateTwee();
+		this._editowDisposabwes.add(newOutwine.onDidChange(updateTwee));
 
-		// feature: apply panel background to tree
-		this._editorDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
+		// featuwe: appwy panew backgwound to twee
+		this._editowDisposabwes.add(this.viewDescwiptowSewvice.onDidChangeWocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
-				tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
+				twee.updateOptions({ ovewwideStywes: { wistBackgwound: this.getBackgwoundCowow() } });
 			}
 		}));
 
-		// feature: filter on type - keep tree and menu in sync
-		this._editorDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
+		// featuwe: fiwta on type - keep twee and menu in sync
+		this._editowDisposabwes.add(twee.onDidUpdateOptions(e => this._outwineViewState.fiwtewOnType = Boowean(e.fiwtewOnType)));
 
-		// feature: reveal outline selection in editor
-		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
-		// feature: reveal editor selection in outline
-		const revealActiveElement = () => {
-			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
-				return;
+		// featuwe: weveaw outwine sewection in editow
+		// on change -> weveaw/sewect defining wange
+		this._editowDisposabwes.add(twee.onDidOpen(e => newOutwine.weveaw(e.ewement, e.editowOptions, e.sideBySide)));
+		// featuwe: weveaw editow sewection in outwine
+		const weveawActiveEwement = () => {
+			if (!this._outwineViewState.fowwowCuwsow || !newOutwine.activeEwement) {
+				wetuwn;
 			}
-			let item = newOutline.activeElement;
-			while (item) {
-				const top = tree.getRelativeTop(item);
-				if (top === null) {
-					// not visible -> reveal
-					tree.reveal(item, 0.5);
+			wet item = newOutwine.activeEwement;
+			whiwe (item) {
+				const top = twee.getWewativeTop(item);
+				if (top === nuww) {
+					// not visibwe -> weveaw
+					twee.weveaw(item, 0.5);
 				}
-				if (tree.getRelativeTop(item) !== null) {
-					tree.setFocus([item]);
-					tree.setSelection([item]);
-					break;
+				if (twee.getWewativeTop(item) !== nuww) {
+					twee.setFocus([item]);
+					twee.setSewection([item]);
+					bweak;
 				}
-				// STILL not visible -> try parent
-				item = tree.getParentElement(item);
+				// STIWW not visibwe -> twy pawent
+				item = twee.getPawentEwement(item);
 			}
 		};
-		revealActiveElement();
-		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));
+		weveawActiveEwement();
+		this._editowDisposabwes.add(newOutwine.onDidChange(weveawActiveEwement));
 
-		// feature: update view when user state changes
-		this._editorDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
-			this._outlineViewState.persist(this._storageService);
-			if (e.filterOnType) {
-				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });
+		// featuwe: update view when usa state changes
+		this._editowDisposabwes.add(this._outwineViewState.onDidChange((e: { fowwowCuwsow?: boowean, sowtBy?: boowean, fiwtewOnType?: boowean }) => {
+			this._outwineViewState.pewsist(this._stowageSewvice);
+			if (e.fiwtewOnType) {
+				twee.updateOptions({ fiwtewOnType: this._outwineViewState.fiwtewOnType });
 			}
-			if (e.followCursor) {
-				revealActiveElement();
+			if (e.fowwowCuwsow) {
+				weveawActiveEwement();
 			}
-			if (e.sortBy) {
-				sorter.order = this._outlineViewState.sortBy;
-				tree.resort();
+			if (e.sowtBy) {
+				sowta.owda = this._outwineViewState.sowtBy;
+				twee.wesowt();
 			}
 		}));
 
-		// feature: expand all nodes when filtering (not when finding)
-		let viewState: IDataTreeViewState | undefined;
-		this._editorDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
-			if (!tree.options.filterOnType) {
-				return;
+		// featuwe: expand aww nodes when fiwtewing (not when finding)
+		wet viewState: IDataTweeViewState | undefined;
+		this._editowDisposabwes.add(twee.onDidChangeTypeFiwtewPattewn(pattewn => {
+			if (!twee.options.fiwtewOnType) {
+				wetuwn;
 			}
-			if (!viewState && pattern) {
-				viewState = tree.getViewState();
-				tree.expandAll();
-			} else if (!pattern && viewState) {
-				tree.setInput(tree.getInput()!, viewState);
+			if (!viewState && pattewn) {
+				viewState = twee.getViewState();
+				twee.expandAww();
+			} ewse if (!pattewn && viewState) {
+				twee.setInput(twee.getInput()!, viewState);
 				viewState = undefined;
 			}
 		}));
 
-		// last: set tree property
-		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
-		this._tree = tree;
-		this._editorDisposables.add(toDisposable(() => {
-			tree.dispose();
-			this._tree = undefined;
+		// wast: set twee pwopewty
+		twee.wayout(this._tweeDimensions?.height, this._tweeDimensions?.width);
+		this._twee = twee;
+		this._editowDisposabwes.add(toDisposabwe(() => {
+			twee.dispose();
+			this._twee = undefined;
 		}));
 	}
 }
@@ -352,128 +352,128 @@ export class OutlinePane extends ViewPane {
 
 // --- commands
 
-registerAction2(class Collapse extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.collapse',
-			title: localize('collapse', "Collapse All"),
-			f1: false,
-			icon: Codicon.collapseAll,
+wegistewAction2(cwass Cowwapse extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.cowwapse',
+			titwe: wocawize('cowwapse', "Cowwapse Aww"),
+			f1: fawse,
+			icon: Codicon.cowwapseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.collapseAll();
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.cowwapseAww();
 	}
 });
 
-registerAction2(class FollowCursor extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.followCursor',
-			title: localize('followCur', "Follow Cursor"),
-			f1: false,
-			toggled: _ctxFollowsCursor,
+wegistewAction2(cwass FowwowCuwsow extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.fowwowCuwsow',
+			titwe: wocawize('fowwowCuw', "Fowwow Cuwsow"),
+			f1: fawse,
+			toggwed: _ctxFowwowsCuwsow,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'config',
-				order: 1,
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'config',
+				owda: 1,
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.followCursor = !view.outlineViewState.followCursor;
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.outwineViewState.fowwowCuwsow = !view.outwineViewState.fowwowCuwsow;
 	}
 });
 
-registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.filterOnType',
-			title: localize('filterOnType', "Filter on Type"),
-			f1: false,
-			toggled: _ctxFilterOnType,
+wegistewAction2(cwass FiwtewOnType extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.fiwtewOnType',
+			titwe: wocawize('fiwtewOnType', "Fiwta on Type"),
+			f1: fawse,
+			toggwed: _ctxFiwtewOnType,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'config',
-				order: 2,
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'config',
+				owda: 2,
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.filterOnType = !view.outlineViewState.filterOnType;
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.outwineViewState.fiwtewOnType = !view.outwineViewState.fiwtewOnType;
 	}
 });
 
 
-registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.sortByPosition',
-			title: localize('sortByPosition', "Sort By: Position"),
-			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByPosition),
+wegistewAction2(cwass SowtByPosition extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.sowtByPosition',
+			titwe: wocawize('sowtByPosition', "Sowt By: Position"),
+			f1: fawse,
+			toggwed: _ctxSowtMode.isEquawTo(OutwineSowtOwda.ByPosition),
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'sort',
-				order: 1,
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'sowt',
+				owda: 1,
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByPosition;
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.outwineViewState.sowtBy = OutwineSowtOwda.ByPosition;
 	}
 });
 
-registerAction2(class SortByName extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.sortByName',
-			title: localize('sortByName', "Sort By: Name"),
-			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByName),
+wegistewAction2(cwass SowtByName extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.sowtByName',
+			titwe: wocawize('sowtByName', "Sowt By: Name"),
+			f1: fawse,
+			toggwed: _ctxSowtMode.isEquawTo(OutwineSowtOwda.ByName),
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'sort',
-				order: 2,
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'sowt',
+				owda: 2,
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByName;
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.outwineViewState.sowtBy = OutwineSowtOwda.ByName;
 	}
 });
 
-registerAction2(class SortByKind extends ViewAction<OutlinePane> {
-	constructor() {
-		super({
-			viewId: OutlinePane.Id,
-			id: 'outline.sortByKind',
-			title: localize('sortByKind', "Sort By: Category"),
-			f1: false,
-			toggled: _ctxSortMode.isEqualTo(OutlineSortOrder.ByKind),
+wegistewAction2(cwass SowtByKind extends ViewAction<OutwinePane> {
+	constwuctow() {
+		supa({
+			viewId: OutwinePane.Id,
+			id: 'outwine.sowtByKind',
+			titwe: wocawize('sowtByKind', "Sowt By: Categowy"),
+			f1: fawse,
+			toggwed: _ctxSowtMode.isEquawTo(OutwineSowtOwda.ByKind),
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'sort',
-				order: 3,
-				when: ContextKeyExpr.equals('view', OutlinePane.Id)
+				id: MenuId.ViewTitwe,
+				gwoup: 'sowt',
+				owda: 3,
+				when: ContextKeyExpw.equaws('view', OutwinePane.Id)
 			}
 		});
 	}
-	runInView(_accessor: ServicesAccessor, view: OutlinePane) {
-		view.outlineViewState.sortBy = OutlineSortOrder.ByKind;
+	wunInView(_accessow: SewvicesAccessow, view: OutwinePane) {
+		view.outwineViewState.sowtBy = OutwineSowtOwda.ByKind;
 	}
 });

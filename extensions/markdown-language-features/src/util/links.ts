@@ -1,46 +1,46 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+impowt * as vscode fwom 'vscode';
 
-export const Schemes = {
+expowt const Schemes = {
 	http: 'http:',
 	https: 'https:',
-	file: 'file:',
-	untitled: 'untitled',
-	mailto: 'mailto:',
+	fiwe: 'fiwe:',
+	untitwed: 'untitwed',
+	maiwto: 'maiwto:',
 	data: 'data:',
 	vscode: 'vscode:',
-	'vscode-insiders': 'vscode-insiders:',
+	'vscode-insidews': 'vscode-insidews:',
 };
 
 const knownSchemes = [
-	...Object.values(Schemes),
-	`${vscode.env.uriScheme}:`
+	...Object.vawues(Schemes),
+	`${vscode.env.uwiScheme}:`
 ];
 
-export function getUriForLinkWithKnownExternalScheme(link: string): vscode.Uri | undefined {
-	if (knownSchemes.some(knownScheme => isOfScheme(knownScheme, link))) {
-		return vscode.Uri.parse(link);
+expowt function getUwiFowWinkWithKnownExtewnawScheme(wink: stwing): vscode.Uwi | undefined {
+	if (knownSchemes.some(knownScheme => isOfScheme(knownScheme, wink))) {
+		wetuwn vscode.Uwi.pawse(wink);
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export function isOfScheme(scheme: string, link: string): boolean {
-	return link.toLowerCase().startsWith(scheme);
+expowt function isOfScheme(scheme: stwing, wink: stwing): boowean {
+	wetuwn wink.toWowewCase().stawtsWith(scheme);
 }
 
-export const MarkdownFileExtensions: readonly string[] = [
+expowt const MawkdownFiweExtensions: weadonwy stwing[] = [
 	'.md',
 	'.mkd',
 	'.mdwn',
 	'.mdown',
-	'.markdown',
-	'.markdn',
+	'.mawkdown',
+	'.mawkdn',
 	'.mdtxt',
 	'.mdtext',
-	'.workbook',
+	'.wowkbook',
 ];

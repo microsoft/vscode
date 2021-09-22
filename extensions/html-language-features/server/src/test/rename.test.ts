@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes';
-import { getNodeFSRequestService } from '../node/nodeFs';
+impowt * as assewt fwom 'assewt';
+impowt { WowkspaceEdit, TextDocument, getWanguageModes, CwientCapabiwities } fwom '../modes/wanguageModes';
+impowt { getNodeFSWequestSewvice } fwom '../node/nodeFs';
 
 
-async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
-	const offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+async function testWename(vawue: stwing, newName: stwing, expectedDocContent: stwing): Pwomise<void> {
+	const offset = vawue.indexOf('|');
+	vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
-	const workspace = {
+	const document = TextDocument.cweate('test://test/test.htmw', 'htmw', 0, vawue);
+	const wowkspace = {
 		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
+		fowdews: [{ name: 'foo', uwi: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
-	const javascriptMode = languageModes.getMode('javascript')
+	const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
+	const javascwiptMode = wanguageModes.getMode('javascwipt')
 	const position = document.positionAt(offset);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
+	if (javascwiptMode) {
+		const wowkspaceEdit: WowkspaceEdit | nuww = await javascwiptMode.doWename!(document, position, newName);
 
-		if (!workspaceEdit || !workspaceEdit.changes) {
-			assert.fail('No workspace edits');
+		if (!wowkspaceEdit || !wowkspaceEdit.changes) {
+			assewt.faiw('No wowkspace edits');
 		}
 
-		const edits = workspaceEdit.changes[document.uri.toString()];
+		const edits = wowkspaceEdit.changes[document.uwi.toStwing()];
 		if (!edits) {
-			assert.fail(`No edits for file at ${document.uri.toString()}`);
+			assewt.faiw(`No edits fow fiwe at ${document.uwi.toStwing()}`);
 		}
 
-		const newDocContent = TextDocument.applyEdits(document, edits);
-		assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
-	} else {
-		assert.fail('should have javascriptMode but no')
+		const newDocContent = TextDocument.appwyEdits(document, edits);
+		assewt.stwictEquaw(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActuaw: ${newDocContent}`);
+	} ewse {
+		assewt.faiw('shouwd have javascwiptMode but no')
 	}
 }
 
-async function testNoRename(value: string, newName: string): Promise<void> {
-	const offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+async function testNoWename(vawue: stwing, newName: stwing): Pwomise<void> {
+	const offset = vawue.indexOf('|');
+	vawue = vawue.substw(0, offset) + vawue.substw(offset + 1);
 
-	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
-	const workspace = {
+	const document = TextDocument.cweate('test://test/test.htmw', 'htmw', 0, vawue);
+	const wowkspace = {
 		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
+		fowdews: [{ name: 'foo', uwi: 'test://foo' }]
 	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
-	const javascriptMode = languageModes.getMode('javascript')
+	const wanguageModes = getWanguageModes({ css: twue, javascwipt: twue }, wowkspace, CwientCapabiwities.WATEST, getNodeFSWequestSewvice());
+	const javascwiptMode = wanguageModes.getMode('javascwipt')
 	const position = document.positionAt(offset);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
+	if (javascwiptMode) {
+		const wowkspaceEdit: WowkspaceEdit | nuww = await javascwiptMode.doWename!(document, position, newName);
 
-		assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened')
-	} else {
-		assert.fail('should have javascriptMode but no')
+		assewt.ok(wowkspaceEdit?.changes === undefined, 'Shouwd not wename but wename happened')
+	} ewse {
+		assewt.faiw('shouwd have javascwiptMode but no')
 	}
 }
 
-suite('HTML Javascript Rename', () => {
-	test('Rename Variable', async () => {
+suite('HTMW Javascwipt Wename', () => {
+	test('Wename Vawiabwe', async () => {
 		const input = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			'const |a = 2;',
 			'const b = a + 2',
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
 		const output = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			'const h = 2;',
 			'const b = h + 2',
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
-		await testRename(input.join('\n'), 'h', output.join('\n'))
+		await testWename(input.join('\n'), 'h', output.join('\n'))
 	})
 
-	test('Rename Function', async () => {
+	test('Wename Function', async () => {
 		const input = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const name = 'cjg';`,
-			'function |sayHello(name) {',
-			`console.log('hello', name)`,
+			'function |sayHewwo(name) {',
+			`consowe.wog('hewwo', name)`,
 			'}',
-			'sayHello(name)',
-			'</script>',
+			'sayHewwo(name)',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
 		const output = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const name = 'cjg';`,
 			'function sayName(name) {',
-			`console.log('hello', name)`,
+			`consowe.wog('hewwo', name)`,
 			'}',
 			'sayName(name)',
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
-		await testRename(input.join('\n'), 'sayName', output.join('\n'))
+		await testWename(input.join('\n'), 'sayName', output.join('\n'))
 	})
 
-	test('Rename Function Params', async () => {
+	test('Wename Function Pawams', async () => {
 		const input = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const name = 'cjg';`,
-			'function sayHello(|name) {',
-			`console.log('hello', name)`,
+			'function sayHewwo(|name) {',
+			`consowe.wog('hewwo', name)`,
 			'}',
-			'sayHello(name)',
-			'</script>',
+			'sayHewwo(name)',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
 		const output = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const name = 'cjg';`,
-			'function sayHello(newName) {',
-			`console.log('hello', newName)`,
+			'function sayHewwo(newName) {',
+			`consowe.wog('hewwo', newName)`,
 			'}',
-			'sayHello(name)',
-			'</script>',
+			'sayHewwo(name)',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
-		await testRename(input.join('\n'), 'newName', output.join('\n'))
+		await testWename(input.join('\n'), 'newName', output.join('\n'))
 	})
 
-	test('Rename Class', async () => {
+	test('Wename Cwass', async () => {
 		const input = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
-			`class |Foo {}`,
+			'<scwipt>',
+			`cwass |Foo {}`,
 			`const foo = new Foo()`,
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
 		const output = [
-			'<html>',
+			'<htmw>',
 			'<head>',
-			'<script>',
-			`class Bar {}`,
-			`const foo = new Bar()`,
-			'</script>',
+			'<scwipt>',
+			`cwass Baw {}`,
+			`const foo = new Baw()`,
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
-		await testRename(input.join('\n'), 'Bar', output.join('\n'))
+		await testWename(input.join('\n'), 'Baw', output.join('\n'))
 	})
 
-	test('Cannot Rename literal', async () => {
-		const stringLiteralInput = [
-			'<html>',
+	test('Cannot Wename witewaw', async () => {
+		const stwingWitewawInput = [
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const name = |'cjg';`,
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
-		const numberLiteralInput = [
-			'<html>',
+		const numbewWitewawInput = [
+			'<htmw>',
 			'<head>',
-			'<script>',
+			'<scwipt>',
 			`const num = |2;`,
-			'</script>',
+			'</scwipt>',
 			'</head>',
-			'</html>'
+			'</htmw>'
 		]
 
-		await testNoRename(stringLiteralInput.join('\n'), 'something')
-		await testNoRename(numberLiteralInput.join('\n'), 'hhhh')
+		await testNoWename(stwingWitewawInput.join('\n'), 'something')
+		await testNoWename(numbewWitewawInput.join('\n'), 'hhhh')
 	})
 });

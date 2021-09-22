@@ -1,371 +1,371 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
-import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { FontStywe, TokenizationWegistwy, TokenMetadata } fwom 'vs/editow/common/modes';
+impowt { ITokenThemeWuwe, TokenTheme, genewateTokensCSSFowCowowMap } fwom 'vs/editow/common/modes/suppowts/tokenization';
+impowt { BuiwtinTheme, IStandawoneTheme, IStandawoneThemeData, IStandawoneThemeSewvice } fwom 'vs/editow/standawone/common/standawoneThemeSewvice';
+impowt { hc_bwack, vs, vs_dawk } fwom 'vs/editow/standawone/common/themes';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { CowowIdentifia, Extensions, ICowowWegistwy } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { Extensions as ThemingExtensions, ICssStyweCowwectow, IFiweIconTheme, IThemingWegistwy, ITokenStywe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { getIconsStyweSheet } fwom 'vs/pwatfowm/theme/bwowsa/iconsStyweSheet';
 
 const VS_THEME_NAME = 'vs';
-const VS_DARK_THEME_NAME = 'vs-dark';
-const HC_BLACK_THEME_NAME = 'hc-black';
+const VS_DAWK_THEME_NAME = 'vs-dawk';
+const HC_BWACK_THEME_NAME = 'hc-bwack';
 
-const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
+const cowowWegistwy = Wegistwy.as<ICowowWegistwy>(Extensions.CowowContwibution);
+const themingWegistwy = Wegistwy.as<IThemingWegistwy>(ThemingExtensions.ThemingContwibution);
 
-class StandaloneTheme implements IStandaloneTheme {
+cwass StandawoneTheme impwements IStandawoneTheme {
 
-	public readonly id: string;
-	public readonly themeName: string;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy themeName: stwing;
 
-	private readonly themeData: IStandaloneThemeData;
-	private colors: Map<string, Color> | null;
-	private readonly defaultColors: { [colorId: string]: Color | undefined; };
-	private _tokenTheme: TokenTheme | null;
+	pwivate weadonwy themeData: IStandawoneThemeData;
+	pwivate cowows: Map<stwing, Cowow> | nuww;
+	pwivate weadonwy defauwtCowows: { [cowowId: stwing]: Cowow | undefined; };
+	pwivate _tokenTheme: TokenTheme | nuww;
 
-	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
-		this.themeData = standaloneThemeData;
-		let base = standaloneThemeData.base;
-		if (name.length > 0) {
-			if (isBuiltinTheme(name)) {
+	constwuctow(name: stwing, standawoneThemeData: IStandawoneThemeData) {
+		this.themeData = standawoneThemeData;
+		wet base = standawoneThemeData.base;
+		if (name.wength > 0) {
+			if (isBuiwtinTheme(name)) {
 				this.id = name;
-			} else {
+			} ewse {
 				this.id = base + ' ' + name;
 			}
 			this.themeName = name;
-		} else {
+		} ewse {
 			this.id = base;
 			this.themeName = base;
 		}
-		this.colors = null;
-		this.defaultColors = Object.create(null);
-		this._tokenTheme = null;
+		this.cowows = nuww;
+		this.defauwtCowows = Object.cweate(nuww);
+		this._tokenTheme = nuww;
 	}
 
-	public get label(): string {
-		return this.themeName;
+	pubwic get wabew(): stwing {
+		wetuwn this.themeName;
 	}
 
-	public get base(): string {
-		return this.themeData.base;
+	pubwic get base(): stwing {
+		wetuwn this.themeData.base;
 	}
 
-	public notifyBaseUpdated() {
-		if (this.themeData.inherit) {
-			this.colors = null;
-			this._tokenTheme = null;
+	pubwic notifyBaseUpdated() {
+		if (this.themeData.inhewit) {
+			this.cowows = nuww;
+			this._tokenTheme = nuww;
 		}
 	}
 
-	private getColors(): Map<string, Color> {
-		if (!this.colors) {
-			const colors = new Map<string, Color>();
-			for (let id in this.themeData.colors) {
-				colors.set(id, Color.fromHex(this.themeData.colors[id]));
+	pwivate getCowows(): Map<stwing, Cowow> {
+		if (!this.cowows) {
+			const cowows = new Map<stwing, Cowow>();
+			fow (wet id in this.themeData.cowows) {
+				cowows.set(id, Cowow.fwomHex(this.themeData.cowows[id]));
 			}
-			if (this.themeData.inherit) {
-				let baseData = getBuiltinRules(this.themeData.base);
-				for (let id in baseData.colors) {
-					if (!colors.has(id)) {
-						colors.set(id, Color.fromHex(baseData.colors[id]));
+			if (this.themeData.inhewit) {
+				wet baseData = getBuiwtinWuwes(this.themeData.base);
+				fow (wet id in baseData.cowows) {
+					if (!cowows.has(id)) {
+						cowows.set(id, Cowow.fwomHex(baseData.cowows[id]));
 					}
 				}
 			}
-			this.colors = colors;
+			this.cowows = cowows;
 		}
-		return this.colors;
+		wetuwn this.cowows;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		const color = this.getColors().get(colorId);
-		if (color) {
-			return color;
+	pubwic getCowow(cowowId: CowowIdentifia, useDefauwt?: boowean): Cowow | undefined {
+		const cowow = this.getCowows().get(cowowId);
+		if (cowow) {
+			wetuwn cowow;
 		}
-		if (useDefault !== false) {
-			return this.getDefault(colorId);
+		if (useDefauwt !== fawse) {
+			wetuwn this.getDefauwt(cowowId);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getDefault(colorId: ColorIdentifier): Color | undefined {
-		let color = this.defaultColors[colorId];
-		if (color) {
-			return color;
+	pwivate getDefauwt(cowowId: CowowIdentifia): Cowow | undefined {
+		wet cowow = this.defauwtCowows[cowowId];
+		if (cowow) {
+			wetuwn cowow;
 		}
-		color = colorRegistry.resolveDefaultColor(colorId, this);
-		this.defaultColors[colorId] = color;
-		return color;
+		cowow = cowowWegistwy.wesowveDefauwtCowow(cowowId, this);
+		this.defauwtCowows[cowowId] = cowow;
+		wetuwn cowow;
 	}
 
-	public defines(colorId: ColorIdentifier): boolean {
-		return Object.prototype.hasOwnProperty.call(this.getColors(), colorId);
+	pubwic defines(cowowId: CowowIdentifia): boowean {
+		wetuwn Object.pwototype.hasOwnPwopewty.caww(this.getCowows(), cowowId);
 	}
 
-	public get type(): ColorScheme {
+	pubwic get type(): CowowScheme {
 		switch (this.base) {
-			case VS_THEME_NAME: return ColorScheme.LIGHT;
-			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST;
-			default: return ColorScheme.DARK;
+			case VS_THEME_NAME: wetuwn CowowScheme.WIGHT;
+			case HC_BWACK_THEME_NAME: wetuwn CowowScheme.HIGH_CONTWAST;
+			defauwt: wetuwn CowowScheme.DAWK;
 		}
 	}
 
-	public get tokenTheme(): TokenTheme {
+	pubwic get tokenTheme(): TokenTheme {
 		if (!this._tokenTheme) {
-			let rules: ITokenThemeRule[] = [];
-			let encodedTokensColors: string[] = [];
-			if (this.themeData.inherit) {
-				let baseData = getBuiltinRules(this.themeData.base);
-				rules = baseData.rules;
-				if (baseData.encodedTokensColors) {
-					encodedTokensColors = baseData.encodedTokensColors;
+			wet wuwes: ITokenThemeWuwe[] = [];
+			wet encodedTokensCowows: stwing[] = [];
+			if (this.themeData.inhewit) {
+				wet baseData = getBuiwtinWuwes(this.themeData.base);
+				wuwes = baseData.wuwes;
+				if (baseData.encodedTokensCowows) {
+					encodedTokensCowows = baseData.encodedTokensCowows;
 				}
 			}
-			rules = rules.concat(this.themeData.rules);
-			if (this.themeData.encodedTokensColors) {
-				encodedTokensColors = this.themeData.encodedTokensColors;
+			wuwes = wuwes.concat(this.themeData.wuwes);
+			if (this.themeData.encodedTokensCowows) {
+				encodedTokensCowows = this.themeData.encodedTokensCowows;
 			}
-			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, encodedTokensColors);
+			this._tokenTheme = TokenTheme.cweateFwomWawTokenTheme(wuwes, encodedTokensCowows);
 		}
-		return this._tokenTheme;
+		wetuwn this._tokenTheme;
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
-		// use theme rules match
-		const style = this.tokenTheme._match([type].concat(modifiers).join('.'));
-		const metadata = style.metadata;
-		const foreground = TokenMetadata.getForeground(metadata);
-		const fontStyle = TokenMetadata.getFontStyle(metadata);
-		return {
-			foreground: foreground,
-			italic: Boolean(fontStyle & FontStyle.Italic),
-			bold: Boolean(fontStyle & FontStyle.Bold),
-			underline: Boolean(fontStyle & FontStyle.Underline)
+	pubwic getTokenStyweMetadata(type: stwing, modifiews: stwing[], modewWanguage: stwing): ITokenStywe | undefined {
+		// use theme wuwes match
+		const stywe = this.tokenTheme._match([type].concat(modifiews).join('.'));
+		const metadata = stywe.metadata;
+		const fowegwound = TokenMetadata.getFowegwound(metadata);
+		const fontStywe = TokenMetadata.getFontStywe(metadata);
+		wetuwn {
+			fowegwound: fowegwound,
+			itawic: Boowean(fontStywe & FontStywe.Itawic),
+			bowd: Boowean(fontStywe & FontStywe.Bowd),
+			undewwine: Boowean(fontStywe & FontStywe.Undewwine)
 		};
 	}
 
-	public get tokenColorMap(): string[] {
-		return [];
+	pubwic get tokenCowowMap(): stwing[] {
+		wetuwn [];
 	}
 
-	public readonly semanticHighlighting = false;
+	pubwic weadonwy semanticHighwighting = fawse;
 }
 
-function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
-	return (
+function isBuiwtinTheme(themeName: stwing): themeName is BuiwtinTheme {
+	wetuwn (
 		themeName === VS_THEME_NAME
-		|| themeName === VS_DARK_THEME_NAME
-		|| themeName === HC_BLACK_THEME_NAME
+		|| themeName === VS_DAWK_THEME_NAME
+		|| themeName === HC_BWACK_THEME_NAME
 	);
 }
 
-function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
-	switch (builtinTheme) {
+function getBuiwtinWuwes(buiwtinTheme: BuiwtinTheme): IStandawoneThemeData {
+	switch (buiwtinTheme) {
 		case VS_THEME_NAME:
-			return vs;
-		case VS_DARK_THEME_NAME:
-			return vs_dark;
-		case HC_BLACK_THEME_NAME:
-			return hc_black;
+			wetuwn vs;
+		case VS_DAWK_THEME_NAME:
+			wetuwn vs_dawk;
+		case HC_BWACK_THEME_NAME:
+			wetuwn hc_bwack;
 	}
 }
 
-function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
-	let themeData = getBuiltinRules(builtinTheme);
-	return new StandaloneTheme(builtinTheme, themeData);
+function newBuiwtInTheme(buiwtinTheme: BuiwtinTheme): StandawoneTheme {
+	wet themeData = getBuiwtinWuwes(buiwtinTheme);
+	wetuwn new StandawoneTheme(buiwtinTheme, themeData);
 }
 
-export class StandaloneThemeServiceImpl extends Disposable implements IStandaloneThemeService {
+expowt cwass StandawoneThemeSewviceImpw extends Disposabwe impwements IStandawoneThemeSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
-	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
+	pwivate weadonwy _onCowowThemeChange = this._wegista(new Emitta<IStandawoneTheme>());
+	pubwic weadonwy onDidCowowThemeChange = this._onCowowThemeChange.event;
 
-	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
-	public readonly onDidFileIconThemeChange = this._onFileIconThemeChange.event;
+	pwivate weadonwy _onFiweIconThemeChange = this._wegista(new Emitta<IFiweIconTheme>());
+	pubwic weadonwy onDidFiweIconThemeChange = this._onFiweIconThemeChange.event;
 
-	private readonly _environment: IEnvironmentService = Object.create(null);
-	private readonly _knownThemes: Map<string, StandaloneTheme>;
-	private _autoDetectHighContrast: boolean;
-	private _codiconCSS: string;
-	private _themeCSS: string;
-	private _allCSS: string;
-	private _globalStyleElement: HTMLStyleElement | null;
-	private _styleElements: HTMLStyleElement[];
-	private _colorMapOverride: Color[] | null;
-	private _desiredTheme!: IStandaloneTheme;
-	private _theme!: IStandaloneTheme;
+	pwivate weadonwy _enviwonment: IEnviwonmentSewvice = Object.cweate(nuww);
+	pwivate weadonwy _knownThemes: Map<stwing, StandawoneTheme>;
+	pwivate _autoDetectHighContwast: boowean;
+	pwivate _codiconCSS: stwing;
+	pwivate _themeCSS: stwing;
+	pwivate _awwCSS: stwing;
+	pwivate _gwobawStyweEwement: HTMWStyweEwement | nuww;
+	pwivate _styweEwements: HTMWStyweEwement[];
+	pwivate _cowowMapOvewwide: Cowow[] | nuww;
+	pwivate _desiwedTheme!: IStandawoneTheme;
+	pwivate _theme!: IStandawoneTheme;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this._autoDetectHighContrast = true;
+		this._autoDetectHighContwast = twue;
 
-		this._knownThemes = new Map<string, StandaloneTheme>();
-		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
-		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
-		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
+		this._knownThemes = new Map<stwing, StandawoneTheme>();
+		this._knownThemes.set(VS_THEME_NAME, newBuiwtInTheme(VS_THEME_NAME));
+		this._knownThemes.set(VS_DAWK_THEME_NAME, newBuiwtInTheme(VS_DAWK_THEME_NAME));
+		this._knownThemes.set(HC_BWACK_THEME_NAME, newBuiwtInTheme(HC_BWACK_THEME_NAME));
 
-		const iconsStyleSheet = getIconsStyleSheet();
+		const iconsStyweSheet = getIconsStyweSheet();
 
-		this._codiconCSS = iconsStyleSheet.getCSS();
+		this._codiconCSS = iconsStyweSheet.getCSS();
 		this._themeCSS = '';
-		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
-		this._globalStyleElement = null;
-		this._styleElements = [];
-		this._colorMapOverride = null;
+		this._awwCSS = `${this._codiconCSS}\n${this._themeCSS}`;
+		this._gwobawStyweEwement = nuww;
+		this._styweEwements = [];
+		this._cowowMapOvewwide = nuww;
 		this.setTheme(VS_THEME_NAME);
 
-		iconsStyleSheet.onDidChange(() => {
-			this._codiconCSS = iconsStyleSheet.getCSS();
+		iconsStyweSheet.onDidChange(() => {
+			this._codiconCSS = iconsStyweSheet.getCSS();
 			this._updateCSS();
 		});
 
-		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
-			this._updateActualTheme();
+		dom.addMatchMediaChangeWistena('(fowced-cowows: active)', () => {
+			this._updateActuawTheme();
 		});
 	}
 
-	public registerEditorContainer(domNode: HTMLElement): IDisposable {
+	pubwic wegistewEditowContaina(domNode: HTMWEwement): IDisposabwe {
 		if (dom.isInShadowDOM(domNode)) {
-			return this._registerShadowDomContainer(domNode);
+			wetuwn this._wegistewShadowDomContaina(domNode);
 		}
-		return this._registerRegularEditorContainer();
+		wetuwn this._wegistewWeguwawEditowContaina();
 	}
 
-	private _registerRegularEditorContainer(): IDisposable {
-		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet();
-			this._globalStyleElement.className = 'monaco-colors';
-			this._globalStyleElement.textContent = this._allCSS;
-			this._styleElements.push(this._globalStyleElement);
+	pwivate _wegistewWeguwawEditowContaina(): IDisposabwe {
+		if (!this._gwobawStyweEwement) {
+			this._gwobawStyweEwement = dom.cweateStyweSheet();
+			this._gwobawStyweEwement.cwassName = 'monaco-cowows';
+			this._gwobawStyweEwement.textContent = this._awwCSS;
+			this._styweEwements.push(this._gwobawStyweEwement);
 		}
-		return Disposable.None;
+		wetuwn Disposabwe.None;
 	}
 
-	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode);
-		styleElement.className = 'monaco-colors';
-		styleElement.textContent = this._allCSS;
-		this._styleElements.push(styleElement);
-		return {
+	pwivate _wegistewShadowDomContaina(domNode: HTMWEwement): IDisposabwe {
+		const styweEwement = dom.cweateStyweSheet(domNode);
+		styweEwement.cwassName = 'monaco-cowows';
+		styweEwement.textContent = this._awwCSS;
+		this._styweEwements.push(styweEwement);
+		wetuwn {
 			dispose: () => {
-				for (let i = 0; i < this._styleElements.length; i++) {
-					if (this._styleElements[i] === styleElement) {
-						this._styleElements.splice(i, 1);
-						return;
+				fow (wet i = 0; i < this._styweEwements.wength; i++) {
+					if (this._styweEwements[i] === styweEwement) {
+						this._styweEwements.spwice(i, 1);
+						wetuwn;
 					}
 				}
 			}
 		};
 	}
 
-	public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
+	pubwic defineTheme(themeName: stwing, themeData: IStandawoneThemeData): void {
 		if (!/^[a-z0-9\-]+$/i.test(themeName)) {
-			throw new Error('Illegal theme name!');
+			thwow new Ewwow('Iwwegaw theme name!');
 		}
-		if (!isBuiltinTheme(themeData.base) && !isBuiltinTheme(themeName)) {
-			throw new Error('Illegal theme base!');
+		if (!isBuiwtinTheme(themeData.base) && !isBuiwtinTheme(themeName)) {
+			thwow new Ewwow('Iwwegaw theme base!');
 		}
-		// set or replace theme
-		this._knownThemes.set(themeName, new StandaloneTheme(themeName, themeData));
+		// set ow wepwace theme
+		this._knownThemes.set(themeName, new StandawoneTheme(themeName, themeData));
 
-		if (isBuiltinTheme(themeName)) {
-			this._knownThemes.forEach(theme => {
+		if (isBuiwtinTheme(themeName)) {
+			this._knownThemes.fowEach(theme => {
 				if (theme.base === themeName) {
 					theme.notifyBaseUpdated();
 				}
 			});
 		}
 		if (this._theme.themeName === themeName) {
-			this.setTheme(themeName); // refresh theme
+			this.setTheme(themeName); // wefwesh theme
 		}
 	}
 
-	public getColorTheme(): IStandaloneTheme {
-		return this._theme;
+	pubwic getCowowTheme(): IStandawoneTheme {
+		wetuwn this._theme;
 	}
 
-	public setColorMapOverride(colorMapOverride: Color[] | null): void {
-		this._colorMapOverride = colorMapOverride;
-		this._updateThemeOrColorMap();
+	pubwic setCowowMapOvewwide(cowowMapOvewwide: Cowow[] | nuww): void {
+		this._cowowMapOvewwide = cowowMapOvewwide;
+		this._updateThemeOwCowowMap();
 	}
 
-	public setTheme(themeName: string): void {
-		let theme: StandaloneTheme;
+	pubwic setTheme(themeName: stwing): void {
+		wet theme: StandawoneTheme;
 		if (this._knownThemes.has(themeName)) {
 			theme = this._knownThemes.get(themeName)!;
-		} else {
+		} ewse {
 			theme = this._knownThemes.get(VS_THEME_NAME)!;
 		}
-		this._desiredTheme = theme;
-		this._updateActualTheme();
+		this._desiwedTheme = theme;
+		this._updateActuawTheme();
 	}
 
-	private _updateActualTheme(): void {
+	pwivate _updateActuawTheme(): void {
 		const theme = (
-			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
-				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
-				: this._desiredTheme
+			this._autoDetectHighContwast && window.matchMedia(`(fowced-cowows: active)`).matches
+				? this._knownThemes.get(HC_BWACK_THEME_NAME)!
+				: this._desiwedTheme
 		);
 		if (this._theme === theme) {
 			// Nothing to do
-			return;
+			wetuwn;
 		}
 		this._theme = theme;
-		this._updateThemeOrColorMap();
+		this._updateThemeOwCowowMap();
 	}
 
-	public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
-		this._autoDetectHighContrast = autoDetectHighContrast;
-		this._updateActualTheme();
+	pubwic setAutoDetectHighContwast(autoDetectHighContwast: boowean): void {
+		this._autoDetectHighContwast = autoDetectHighContwast;
+		this._updateActuawTheme();
 	}
 
-	private _updateThemeOrColorMap(): void {
-		let cssRules: string[] = [];
-		let hasRule: { [rule: string]: boolean; } = {};
-		let ruleCollector: ICssStyleCollector = {
-			addRule: (rule: string) => {
-				if (!hasRule[rule]) {
-					cssRules.push(rule);
-					hasRule[rule] = true;
+	pwivate _updateThemeOwCowowMap(): void {
+		wet cssWuwes: stwing[] = [];
+		wet hasWuwe: { [wuwe: stwing]: boowean; } = {};
+		wet wuweCowwectow: ICssStyweCowwectow = {
+			addWuwe: (wuwe: stwing) => {
+				if (!hasWuwe[wuwe]) {
+					cssWuwes.push(wuwe);
+					hasWuwe[wuwe] = twue;
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
+		themingWegistwy.getThemingPawticipants().fowEach(p => p(this._theme, wuweCowwectow, this._enviwonment));
 
-		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
-		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+		const cowowMap = this._cowowMapOvewwide || this._theme.tokenTheme.getCowowMap();
+		wuweCowwectow.addWuwe(genewateTokensCSSFowCowowMap(cowowMap));
 
-		this._themeCSS = cssRules.join('\n');
+		this._themeCSS = cssWuwes.join('\n');
 		this._updateCSS();
 
-		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire(this._theme);
+		TokenizationWegistwy.setCowowMap(cowowMap);
+		this._onCowowThemeChange.fiwe(this._theme);
 	}
 
-	private _updateCSS(): void {
-		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
-		this._styleElements.forEach(styleElement => styleElement.textContent = this._allCSS);
+	pwivate _updateCSS(): void {
+		this._awwCSS = `${this._codiconCSS}\n${this._themeCSS}`;
+		this._styweEwements.fowEach(styweEwement => styweEwement.textContent = this._awwCSS);
 	}
 
-	public getFileIconTheme(): IFileIconTheme {
-		return {
-			hasFileIcons: false,
-			hasFolderIcons: false,
-			hidesExplorerArrows: false
+	pubwic getFiweIconTheme(): IFiweIconTheme {
+		wetuwn {
+			hasFiweIcons: fawse,
+			hasFowdewIcons: fawse,
+			hidesExpwowewAwwows: fawse
 		};
 	}
 }

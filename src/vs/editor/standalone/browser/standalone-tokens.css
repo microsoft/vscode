@@ -1,249 +1,249 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-/* Default standalone editor fonts */
-.monaco-editor {
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
-	--monaco-monospace-font: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+/* Defauwt standawone editow fonts */
+.monaco-editow {
+	font-famiwy: -appwe-system, BwinkMacSystemFont, "Segoe WPC", "Segoe UI", "HewveticaNeue-Wight", system-ui, "Ubuntu", "Dwoid Sans", sans-sewif;
+	--monaco-monospace-font: "SF Mono", Monaco, Menwo, Consowas, "Ubuntu Mono", "Wibewation Mono", "DejaVu Sans Mono", "Couwia New", monospace;
 }
 
-.monaco-menu .monaco-action-bar.vertical .action-item .action-menu-item:focus .action-label {
-	stroke-width: 1.2px;
+.monaco-menu .monaco-action-baw.vewticaw .action-item .action-menu-item:focus .action-wabew {
+	stwoke-width: 1.2px;
 }
 
-.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
-.monaco-editor.hc-black .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
-	stroke-width: 1.2px;
+.monaco-editow.vs-dawk .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:focus .action-wabew,
+.monaco-editow.hc-bwack .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:focus .action-wabew {
+	stwoke-width: 1.2px;
 }
 
-.monaco-hover p {
-	margin: 0;
+.monaco-hova p {
+	mawgin: 0;
 }
 
-/* See https://github.com/microsoft/monaco-editor/issues/2168#issuecomment-780078600 */
-.monaco-aria-container {
-	position: absolute !important;
-	top: 0; /* avoid being placed underneath a sibling element */
+/* See https://github.com/micwosoft/monaco-editow/issues/2168#issuecomment-780078600 */
+.monaco-awia-containa {
+	position: absowute !impowtant;
+	top: 0; /* avoid being pwaced undewneath a sibwing ewement */
 	height: 1px;
 	width: 1px;
-	margin: -1px;
-	overflow: hidden;
+	mawgin: -1px;
+	ovewfwow: hidden;
 	padding: 0;
-	clip: rect(1px, 1px, 1px, 1px);
-	clip-path: inset(50%);
+	cwip: wect(1px, 1px, 1px, 1px);
+	cwip-path: inset(50%);
 }
 
-/* The hc-black theme is already high contrast optimized */
-.monaco-editor.hc-black {
-	-ms-high-contrast-adjust: none;
+/* The hc-bwack theme is awweady high contwast optimized */
+.monaco-editow.hc-bwack {
+	-ms-high-contwast-adjust: none;
 }
-/* In case the browser goes into high contrast mode and the editor is not configured with the hc-black theme */
-@media screen and (-ms-high-contrast:active) {
+/* In case the bwowsa goes into high contwast mode and the editow is not configuwed with the hc-bwack theme */
+@media scween and (-ms-high-contwast:active) {
 
-	/* current line highlight */
-	.monaco-editor.vs .view-overlays .current-line,
-	.monaco-editor.vs-dark .view-overlays .current-line {
-		border-color: windowtext !important;
-		border-left: 0;
-		border-right: 0;
-	}
-
-	/* view cursors */
-	.monaco-editor.vs .cursor,
-	.monaco-editor.vs-dark .cursor {
-		background-color: windowtext !important;
-	}
-	/* dnd target */
-	.monaco-editor.vs .dnd-target,
-	.monaco-editor.vs-dark .dnd-target {
-		border-color: windowtext !important;
+	/* cuwwent wine highwight */
+	.monaco-editow.vs .view-ovewways .cuwwent-wine,
+	.monaco-editow.vs-dawk .view-ovewways .cuwwent-wine {
+		bowda-cowow: windowtext !impowtant;
+		bowda-weft: 0;
+		bowda-wight: 0;
 	}
 
-	/* selected text background */
-	.monaco-editor.vs .selected-text,
-	.monaco-editor.vs-dark .selected-text {
-		background-color: highlight !important;
+	/* view cuwsows */
+	.monaco-editow.vs .cuwsow,
+	.monaco-editow.vs-dawk .cuwsow {
+		backgwound-cowow: windowtext !impowtant;
+	}
+	/* dnd tawget */
+	.monaco-editow.vs .dnd-tawget,
+	.monaco-editow.vs-dawk .dnd-tawget {
+		bowda-cowow: windowtext !impowtant;
 	}
 
-	/* allow the text to have a transparent background. */
-	.monaco-editor.vs .view-line,
-	.monaco-editor.vs-dark .view-line {
-		-ms-high-contrast-adjust: none;
+	/* sewected text backgwound */
+	.monaco-editow.vs .sewected-text,
+	.monaco-editow.vs-dawk .sewected-text {
+		backgwound-cowow: highwight !impowtant;
 	}
 
-	/* text color */
-	.monaco-editor.vs .view-line span,
-	.monaco-editor.vs-dark .view-line span {
-		color: windowtext !important;
-	}
-	/* selected text color */
-	.monaco-editor.vs .view-line span.inline-selected-text,
-	.monaco-editor.vs-dark .view-line span.inline-selected-text {
-		color: highlighttext !important;
+	/* awwow the text to have a twanspawent backgwound. */
+	.monaco-editow.vs .view-wine,
+	.monaco-editow.vs-dawk .view-wine {
+		-ms-high-contwast-adjust: none;
 	}
 
-	/* allow decorations */
-	.monaco-editor.vs .view-overlays,
-	.monaco-editor.vs-dark .view-overlays {
-		-ms-high-contrast-adjust: none;
+	/* text cowow */
+	.monaco-editow.vs .view-wine span,
+	.monaco-editow.vs-dawk .view-wine span {
+		cowow: windowtext !impowtant;
+	}
+	/* sewected text cowow */
+	.monaco-editow.vs .view-wine span.inwine-sewected-text,
+	.monaco-editow.vs-dawk .view-wine span.inwine-sewected-text {
+		cowow: highwighttext !impowtant;
 	}
 
-	/* various decorations */
-	.monaco-editor.vs .selectionHighlight,
-	.monaco-editor.vs-dark .selectionHighlight,
-	.monaco-editor.vs .wordHighlight,
-	.monaco-editor.vs-dark .wordHighlight,
-	.monaco-editor.vs .wordHighlightStrong,
-	.monaco-editor.vs-dark .wordHighlightStrong,
-	.monaco-editor.vs .reference-decoration,
-	.monaco-editor.vs-dark .reference-decoration {
-		border: 2px dotted highlight !important;
-		background: transparent !important;
-		box-sizing: border-box;
+	/* awwow decowations */
+	.monaco-editow.vs .view-ovewways,
+	.monaco-editow.vs-dawk .view-ovewways {
+		-ms-high-contwast-adjust: none;
 	}
-	.monaco-editor.vs .rangeHighlight,
-	.monaco-editor.vs-dark .rangeHighlight {
-		background: transparent !important;
-		border: 1px dotted activeborder !important;
-		box-sizing: border-box;
+
+	/* vawious decowations */
+	.monaco-editow.vs .sewectionHighwight,
+	.monaco-editow.vs-dawk .sewectionHighwight,
+	.monaco-editow.vs .wowdHighwight,
+	.monaco-editow.vs-dawk .wowdHighwight,
+	.monaco-editow.vs .wowdHighwightStwong,
+	.monaco-editow.vs-dawk .wowdHighwightStwong,
+	.monaco-editow.vs .wefewence-decowation,
+	.monaco-editow.vs-dawk .wefewence-decowation {
+		bowda: 2px dotted highwight !impowtant;
+		backgwound: twanspawent !impowtant;
+		box-sizing: bowda-box;
 	}
-	.monaco-editor.vs .bracket-match,
-	.monaco-editor.vs-dark .bracket-match {
-		border-color: windowtext !important;
-		background: transparent !important;
+	.monaco-editow.vs .wangeHighwight,
+	.monaco-editow.vs-dawk .wangeHighwight {
+		backgwound: twanspawent !impowtant;
+		bowda: 1px dotted activebowda !impowtant;
+		box-sizing: bowda-box;
+	}
+	.monaco-editow.vs .bwacket-match,
+	.monaco-editow.vs-dawk .bwacket-match {
+		bowda-cowow: windowtext !impowtant;
+		backgwound: twanspawent !impowtant;
 	}
 
 	/* find widget */
-	.monaco-editor.vs .findMatch,
-	.monaco-editor.vs-dark .findMatch,
-	.monaco-editor.vs .currentFindMatch,
-	.monaco-editor.vs-dark .currentFindMatch {
-		border: 2px dotted activeborder !important;
-		background: transparent !important;
-		box-sizing: border-box;
+	.monaco-editow.vs .findMatch,
+	.monaco-editow.vs-dawk .findMatch,
+	.monaco-editow.vs .cuwwentFindMatch,
+	.monaco-editow.vs-dawk .cuwwentFindMatch {
+		bowda: 2px dotted activebowda !impowtant;
+		backgwound: twanspawent !impowtant;
+		box-sizing: bowda-box;
 	}
-	.monaco-editor.vs .find-widget,
-	.monaco-editor.vs-dark .find-widget {
-		border: 1px solid windowtext;
-	}
-
-	/* list - used by suggest widget */
-	.monaco-editor.vs .monaco-list .monaco-list-row,
-	.monaco-editor.vs-dark .monaco-list .monaco-list-row {
-		-ms-high-contrast-adjust: none;
-		color: windowtext !important;
-	}
-	.monaco-editor.vs .monaco-list .monaco-list-row.focused,
-	.monaco-editor.vs-dark .monaco-list .monaco-list-row.focused {
-		color: highlighttext !important;
-		background-color: highlight !important;
-	}
-	.monaco-editor.vs .monaco-list .monaco-list-row:hover,
-	.monaco-editor.vs-dark .monaco-list .monaco-list-row:hover {
-		background: transparent !important;
-		border: 1px solid highlight;
-		box-sizing: border-box;
+	.monaco-editow.vs .find-widget,
+	.monaco-editow.vs-dawk .find-widget {
+		bowda: 1px sowid windowtext;
 	}
 
-	/* scrollbars */
-	.monaco-editor.vs .monaco-scrollable-element > .scrollbar,
-	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar {
-		-ms-high-contrast-adjust: none;
-		background: background !important;
-		border: 1px solid windowtext;
-		box-sizing: border-box;
+	/* wist - used by suggest widget */
+	.monaco-editow.vs .monaco-wist .monaco-wist-wow,
+	.monaco-editow.vs-dawk .monaco-wist .monaco-wist-wow {
+		-ms-high-contwast-adjust: none;
+		cowow: windowtext !impowtant;
 	}
-	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider,
-	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider {
-		background: windowtext !important;
+	.monaco-editow.vs .monaco-wist .monaco-wist-wow.focused,
+	.monaco-editow.vs-dawk .monaco-wist .monaco-wist-wow.focused {
+		cowow: highwighttext !impowtant;
+		backgwound-cowow: highwight !impowtant;
 	}
-	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider:hover,
-	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider:hover {
-		background: highlight !important;
-	}
-	.monaco-editor.vs .monaco-scrollable-element > .scrollbar > .slider.active,
-	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar > .slider.active {
-		background: highlight !important;
+	.monaco-editow.vs .monaco-wist .monaco-wist-wow:hova,
+	.monaco-editow.vs-dawk .monaco-wist .monaco-wist-wow:hova {
+		backgwound: twanspawent !impowtant;
+		bowda: 1px sowid highwight;
+		box-sizing: bowda-box;
 	}
 
-	/* overview ruler */
-	.monaco-editor.vs .decorationsOverviewRuler,
-	.monaco-editor.vs-dark .decorationsOverviewRuler {
+	/* scwowwbaws */
+	.monaco-editow.vs .monaco-scwowwabwe-ewement > .scwowwbaw,
+	.monaco-editow.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw {
+		-ms-high-contwast-adjust: none;
+		backgwound: backgwound !impowtant;
+		bowda: 1px sowid windowtext;
+		box-sizing: bowda-box;
+	}
+	.monaco-editow.vs .monaco-scwowwabwe-ewement > .scwowwbaw > .swida,
+	.monaco-editow.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw > .swida {
+		backgwound: windowtext !impowtant;
+	}
+	.monaco-editow.vs .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova,
+	.monaco-editow.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw > .swida:hova {
+		backgwound: highwight !impowtant;
+	}
+	.monaco-editow.vs .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active,
+	.monaco-editow.vs-dawk .monaco-scwowwabwe-ewement > .scwowwbaw > .swida.active {
+		backgwound: highwight !impowtant;
+	}
+
+	/* ovewview wuwa */
+	.monaco-editow.vs .decowationsOvewviewWuwa,
+	.monaco-editow.vs-dawk .decowationsOvewviewWuwa {
 		opacity: 0;
 	}
 
 	/* minimap */
-	.monaco-editor.vs .minimap,
-	.monaco-editor.vs-dark .minimap {
-		display: none;
+	.monaco-editow.vs .minimap,
+	.monaco-editow.vs-dawk .minimap {
+		dispway: none;
 	}
 
-	/* squiggles */
-	.monaco-editor.vs .squiggly-d-error,
-	.monaco-editor.vs-dark .squiggly-d-error {
-		background: transparent !important;
-		border-bottom: 4px double #E47777;
+	/* squiggwes */
+	.monaco-editow.vs .squiggwy-d-ewwow,
+	.monaco-editow.vs-dawk .squiggwy-d-ewwow {
+		backgwound: twanspawent !impowtant;
+		bowda-bottom: 4px doubwe #E47777;
 	}
-	.monaco-editor.vs .squiggly-c-warning,
-	.monaco-editor.vs-dark .squiggly-c-warning {
-		border-bottom: 4px double #71B771;
+	.monaco-editow.vs .squiggwy-c-wawning,
+	.monaco-editow.vs-dawk .squiggwy-c-wawning {
+		bowda-bottom: 4px doubwe #71B771;
 	}
-	.monaco-editor.vs .squiggly-b-info,
-	.monaco-editor.vs-dark .squiggly-b-info {
-		border-bottom: 4px double #71B771;
+	.monaco-editow.vs .squiggwy-b-info,
+	.monaco-editow.vs-dawk .squiggwy-b-info {
+		bowda-bottom: 4px doubwe #71B771;
 	}
-	.monaco-editor.vs .squiggly-a-hint,
-	.monaco-editor.vs-dark .squiggly-a-hint {
-		border-bottom: 4px double #6c6c6c;
+	.monaco-editow.vs .squiggwy-a-hint,
+	.monaco-editow.vs-dawk .squiggwy-a-hint {
+		bowda-bottom: 4px doubwe #6c6c6c;
 	}
 
 	/* contextmenu */
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .action-label {
-		-ms-high-contrast-adjust: none;
-		color: highlighttext !important;
-		background-color: highlight !important;
+	.monaco-editow.vs .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:focus .action-wabew,
+	.monaco-editow.vs-dawk .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:focus .action-wabew {
+		-ms-high-contwast-adjust: none;
+		cowow: highwighttext !impowtant;
+		backgwound-cowow: highwight !impowtant;
 	}
-	.monaco-editor.vs .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label,
-	.monaco-editor.vs-dark .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .action-label {
-		-ms-high-contrast-adjust: none;
-		background: transparent !important;
-		border: 1px solid highlight;
-		box-sizing: border-box;
+	.monaco-editow.vs .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:hova .action-wabew,
+	.monaco-editow.vs-dawk .monaco-menu .monaco-action-baw.vewticaw .action-menu-item:hova .action-wabew {
+		-ms-high-contwast-adjust: none;
+		backgwound: twanspawent !impowtant;
+		bowda: 1px sowid highwight;
+		box-sizing: bowda-box;
 	}
 
-	/* diff editor */
-	.monaco-diff-editor.vs .diffOverviewRuler,
-	.monaco-diff-editor.vs-dark .diffOverviewRuler {
-		display: none;
+	/* diff editow */
+	.monaco-diff-editow.vs .diffOvewviewWuwa,
+	.monaco-diff-editow.vs-dawk .diffOvewviewWuwa {
+		dispway: none;
 	}
-	.monaco-editor.vs .line-insert,
-	.monaco-editor.vs-dark .line-insert,
-	.monaco-editor.vs .line-delete,
-	.monaco-editor.vs-dark .line-delete {
-		background: transparent !important;
-		border: 1px solid highlight !important;
-		box-sizing: border-box;
+	.monaco-editow.vs .wine-insewt,
+	.monaco-editow.vs-dawk .wine-insewt,
+	.monaco-editow.vs .wine-dewete,
+	.monaco-editow.vs-dawk .wine-dewete {
+		backgwound: twanspawent !impowtant;
+		bowda: 1px sowid highwight !impowtant;
+		box-sizing: bowda-box;
 	}
-	.monaco-editor.vs .char-insert,
-	.monaco-editor.vs-dark .char-insert,
-	.monaco-editor.vs .char-delete,
-	.monaco-editor.vs-dark .char-delete {
-		background: transparent !important;
+	.monaco-editow.vs .chaw-insewt,
+	.monaco-editow.vs-dawk .chaw-insewt,
+	.monaco-editow.vs .chaw-dewete,
+	.monaco-editow.vs-dawk .chaw-dewete {
+		backgwound: twanspawent !impowtant;
 	}
 }
 
-/*.monaco-editor.vs [tabindex="0"]:focus {
-	outline: 1px solid rgba(0, 122, 204, 0.4);
-	outline-offset: -1px;
-	opacity: 1 !important;
+/*.monaco-editow.vs [tabindex="0"]:focus {
+	outwine: 1px sowid wgba(0, 122, 204, 0.4);
+	outwine-offset: -1px;
+	opacity: 1 !impowtant;
 }
 
-.monaco-editor.vs-dark [tabindex="0"]:focus {
-	outline: 1px solid rgba(14, 99, 156, 0.6);
-	outline-offset: -1px;
-	opacity: 1 !important;
+.monaco-editow.vs-dawk [tabindex="0"]:focus {
+	outwine: 1px sowid wgba(14, 99, 156, 0.6);
+	outwine-offset: -1px;
+	opacity: 1 !impowtant;
 }*/

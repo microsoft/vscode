@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-const { createModuleDescription, createEditorWorkerModuleDescription } = require('../base/buildfile');
+const { cweateModuweDescwiption, cweateEditowWowkewModuweDescwiption } = wequiwe('../base/buiwdfiwe');
 
-exports.collectModules = function () {
-	return [
-		createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.api']),
+expowts.cowwectModuwes = function () {
+	wetuwn [
+		cweateEditowWowkewModuweDescwiption('vs/wowkbench/contwib/output/common/outputWinkComputa'),
+		cweateModuweDescwiption('vs/code/bwowsa/wowkbench/wowkbench', ['vs/wowkbench/wowkbench.web.api']),
 	];
 };

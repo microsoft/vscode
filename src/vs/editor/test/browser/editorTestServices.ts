@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
-import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { AbstwactCodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/abstwactCodeEditowSewvice';
+impowt { IDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDecowationOptions } fwom 'vs/editow/common/modew';
+impowt { CommandsWegistwy, ICommandEvent, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export class TestCodeEditorService extends AbstractCodeEditorService {
-	public lastInput?: IResourceEditorInput;
-	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
-		this.lastInput = input;
-		return Promise.resolve(null);
+expowt cwass TestCodeEditowSewvice extends AbstwactCodeEditowSewvice {
+	pubwic wastInput?: IWesouwceEditowInput;
+	pubwic getActiveCodeEditow(): ICodeEditow | nuww { wetuwn nuww; }
+	pubwic openCodeEditow(input: IWesouwceEditowInput, souwce: ICodeEditow | nuww, sideBySide?: boowean): Pwomise<ICodeEditow | nuww> {
+		this.wastInput = input;
+		wetuwn Pwomise.wesowve(nuww);
 	}
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
-	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return { description: 'test' }; }
-	public resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null { return null; }
+	pubwic wegistewDecowationType(descwiption: stwing, key: stwing, options: IDecowationWendewOptions, pawentTypeKey?: stwing): void { }
+	pubwic wemoveDecowationType(key: stwing): void { }
+	pubwic wesowveDecowationOptions(decowationTypeKey: stwing, wwitabwe: boowean): IModewDecowationOptions { wetuwn { descwiption: 'test' }; }
+	pubwic wesowveDecowationCSSWuwes(decowationTypeKey: stwing): CSSWuweWist | nuww { wetuwn nuww; }
 }
 
-export class TestCommandService implements ICommandService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass TestCommandSewvice impwements ICommandSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _instantiationService: IInstantiationService;
+	pwivate weadonwy _instantiationSewvice: IInstantiationSewvice;
 
-	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
-	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+	pwivate weadonwy _onWiwwExecuteCommand = new Emitta<ICommandEvent>();
+	pubwic weadonwy onWiwwExecuteCommand: Event<ICommandEvent> = this._onWiwwExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
-	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	pwivate weadonwy _onDidExecuteCommand = new Emitta<ICommandEvent>();
+	pubwic weadonwy onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
-	constructor(instantiationService: IInstantiationService) {
-		this._instantiationService = instantiationService;
+	constwuctow(instantiationSewvice: IInstantiationSewvice) {
+		this._instantiationSewvice = instantiationSewvice;
 	}
 
-	public executeCommand<T>(id: string, ...args: any[]): Promise<T> {
-		const command = CommandsRegistry.getCommand(id);
+	pubwic executeCommand<T>(id: stwing, ...awgs: any[]): Pwomise<T> {
+		const command = CommandsWegistwy.getCommand(id);
 		if (!command) {
-			return Promise.reject(new Error(`command '${id}' not found`));
+			wetuwn Pwomise.weject(new Ewwow(`command '${id}' not found`));
 		}
 
-		try {
-			this._onWillExecuteCommand.fire({ commandId: id, args });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
-			this._onDidExecuteCommand.fire({ commandId: id, args });
-			return Promise.resolve(result);
-		} catch (err) {
-			return Promise.reject(err);
+		twy {
+			this._onWiwwExecuteCommand.fiwe({ commandId: id, awgs });
+			const wesuwt = this._instantiationSewvice.invokeFunction.appwy(this._instantiationSewvice, [command.handwa, ...awgs]) as T;
+			this._onDidExecuteCommand.fiwe({ commandId: id, awgs });
+			wetuwn Pwomise.wesowve(wesuwt);
+		} catch (eww) {
+			wetuwn Pwomise.weject(eww);
 		}
 	}
 }

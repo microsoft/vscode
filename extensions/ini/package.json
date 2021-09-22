@@ -1,70 +1,70 @@
 {
   "name": "ini",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/ini.tmbundle Syntaxes/Ini.plist ./syntaxes/ini.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin textmate/ini.tmbundwe Syntaxes/Ini.pwist ./syntaxes/ini.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "ini",
         "extensions": [
           ".ini"
         ],
-        "aliases": [
+        "awiases": [
           "Ini",
           "ini"
         ],
-        "configuration": "./ini.language-configuration.json"
+        "configuwation": "./ini.wanguage-configuwation.json"
       },
       {
-        "id": "properties",
+        "id": "pwopewties",
         "extensions": [
-          ".properties",
+          ".pwopewties",
           ".cfg",
           ".conf",
-          ".directory",
-          ".gitattributes",
+          ".diwectowy",
+          ".gitattwibutes",
           ".gitconfig",
-          ".gitmodules",
-          ".editorconfig"
+          ".gitmoduwes",
+          ".editowconfig"
         ],
-        "filenames": [
+        "fiwenames": [
           "gitconfig"
         ],
-        "filenamePatterns": [
+        "fiwenamePattewns": [
           "**/.config/git/config",
           "**/.git/config"
         ],
-        "aliases": [
-          "Properties",
-          "properties"
+        "awiases": [
+          "Pwopewties",
+          "pwopewties"
         ],
-        "configuration": "./properties.language-configuration.json"
+        "configuwation": "./pwopewties.wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "ini",
-        "scopeName": "source.ini",
-        "path": "./syntaxes/ini.tmLanguage.json"
+        "wanguage": "ini",
+        "scopeName": "souwce.ini",
+        "path": "./syntaxes/ini.tmWanguage.json"
       },
       {
-        "language": "properties",
-        "scopeName": "source.ini",
-        "path": "./syntaxes/ini.tmLanguage.json"
+        "wanguage": "pwopewties",
+        "scopeName": "souwce.ini",
+        "path": "./syntaxes/ini.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

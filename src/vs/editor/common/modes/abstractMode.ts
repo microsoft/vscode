@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
+impowt { IMode, WanguageIdentifia } fwom 'vs/editow/common/modes';
 
-export class FrankensteinMode implements IMode {
+expowt cwass FwankensteinMode impwements IMode {
 
-	private readonly _languageIdentifier: LanguageIdentifier;
+	pwivate weadonwy _wanguageIdentifia: WanguageIdentifia;
 
-	constructor(languageIdentifier: LanguageIdentifier) {
-		this._languageIdentifier = languageIdentifier;
+	constwuctow(wanguageIdentifia: WanguageIdentifia) {
+		this._wanguageIdentifia = wanguageIdentifia;
 	}
 
-	public getId(): string {
-		return this._languageIdentifier.language;
+	pubwic getId(): stwing {
+		wetuwn this._wanguageIdentifia.wanguage;
 	}
 
-	public getLanguageIdentifier(): LanguageIdentifier {
-		return this._languageIdentifier;
+	pubwic getWanguageIdentifia(): WanguageIdentifia {
+		wetuwn this._wanguageIdentifia;
 	}
 }

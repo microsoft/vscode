@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IStateMainService = createDecorator<IStateMainService>('stateMainService');
+expowt const IStateMainSewvice = cweateDecowatow<IStateMainSewvice>('stateMainSewvice');
 
-export interface IStateMainService {
+expowt intewface IStateMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	getItem<T>(key: string, defaultValue: T): T;
-	getItem<T>(key: string, defaultValue?: T): T | undefined;
+	getItem<T>(key: stwing, defauwtVawue: T): T;
+	getItem<T>(key: stwing, defauwtVawue?: T): T | undefined;
 
-	setItem(key: string, data?: object | string | number | boolean | undefined | null): void;
-	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void;
+	setItem(key: stwing, data?: object | stwing | numba | boowean | undefined | nuww): void;
+	setItems(items: weadonwy { key: stwing, data?: object | stwing | numba | boowean | undefined | nuww }[]): void;
 
-	removeItem(key: string): void;
+	wemoveItem(key: stwing): void;
 
-	close(): Promise<void>;
+	cwose(): Pwomise<void>;
 }

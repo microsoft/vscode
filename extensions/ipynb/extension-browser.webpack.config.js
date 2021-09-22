@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+const withBwowsewDefauwts = wequiwe('../shawed.webpack.config').bwowsa;
 
-const config = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/ipynbMain.ts'
+const config = withBwowsewDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/ipynbMain.ts'
 	},
 	output: {
-		filename: 'ipynbMain.js'
+		fiwename: 'ipynbMain.js'
 	}
 });
 
-module.exports = config;
+moduwe.expowts = config;

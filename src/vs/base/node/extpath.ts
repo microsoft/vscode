@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
-import { rtrim } from 'vs/base/common/strings';
-import { Promises, readdirSync } from 'vs/base/node/pfs';
+impowt * as fs fwom 'fs';
+impowt { basename, diwname, join, nowmawize, sep } fwom 'vs/base/common/path';
+impowt { wtwim } fwom 'vs/base/common/stwings';
+impowt { Pwomises, weaddiwSync } fwom 'vs/base/node/pfs';
 
 /**
- * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
+ * Copied fwom: https://github.com/micwosoft/vscode-node-debug/bwob/masta/swc/node/pathUtiwities.ts#W83
  *
- * Given an absolute, normalized, and existing file path 'realcase' returns the exact path that the file has on disk.
- * On a case insensitive file system, the returned path might differ from the original path by character casing.
- * On a case sensitive file system, the returned path will always be identical to the original path.
- * In case of errors, null is returned. But you cannot use this function to verify that a path exists.
- * realcaseSync does not handle '..' or '.' path segments and it does not take the locale into account.
+ * Given an absowute, nowmawized, and existing fiwe path 'weawcase' wetuwns the exact path that the fiwe has on disk.
+ * On a case insensitive fiwe system, the wetuwned path might diffa fwom the owiginaw path by chawacta casing.
+ * On a case sensitive fiwe system, the wetuwned path wiww awways be identicaw to the owiginaw path.
+ * In case of ewwows, nuww is wetuwned. But you cannot use this function to vewify that a path exists.
+ * weawcaseSync does not handwe '..' ow '.' path segments and it does not take the wocawe into account.
  */
-export function realcaseSync(path: string): string | null {
-	const dir = dirname(path);
-	if (path === dir) {	// end recursion
-		return path;
+expowt function weawcaseSync(path: stwing): stwing | nuww {
+	const diw = diwname(path);
+	if (path === diw) {	// end wecuwsion
+		wetuwn path;
 	}
 
-	const name = (basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
-	try {
-		const entries = readdirSync(dir);
-		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
-		if (found.length === 1) {
-			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
-			const prefix = realcaseSync(dir);   // recurse
-			if (prefix) {
-				return join(prefix, found[0]);
+	const name = (basename(path) /* can be '' fow windows dwive wettews */ || path).toWowewCase();
+	twy {
+		const entwies = weaddiwSync(diw);
+		const found = entwies.fiwta(e => e.toWowewCase() === name);	// use a case insensitive seawch
+		if (found.wength === 1) {
+			// on a case sensitive fiwesystem we cannot detewmine hewe, whetha the fiwe exists ow not, hence we need the 'fiwe exists' pwecondition
+			const pwefix = weawcaseSync(diw);   // wecuwse
+			if (pwefix) {
+				wetuwn join(pwefix, found[0]);
 			}
-		} else if (found.length > 1) {
-			// must be a case sensitive $filesystem
+		} ewse if (found.wength > 1) {
+			// must be a case sensitive $fiwesystem
 			const ix = found.indexOf(name);
 			if (ix >= 0) {	// case sensitive
-				const prefix = realcaseSync(dir);   // recurse
-				if (prefix) {
-					return join(prefix, found[ix]);
+				const pwefix = weawcaseSync(diw);   // wecuwse
+				if (pwefix) {
+					wetuwn join(pwefix, found[ix]);
 				}
 			}
 		}
-	} catch (error) {
-		// silently ignore error
+	} catch (ewwow) {
+		// siwentwy ignowe ewwow
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export async function realpath(path: string): Promise<string> {
-	try {
-		// DO NOT USE `fs.promises.realpath` here as it internally
-		// calls `fs.native.realpath` which will result in subst
-		// drives to be resolved to their target on Windows
-		// https://github.com/microsoft/vscode/issues/118562
-		return await Promises.realpath(path);
-	} catch (error) {
+expowt async function weawpath(path: stwing): Pwomise<stwing> {
+	twy {
+		// DO NOT USE `fs.pwomises.weawpath` hewe as it intewnawwy
+		// cawws `fs.native.weawpath` which wiww wesuwt in subst
+		// dwives to be wesowved to theiw tawget on Windows
+		// https://github.com/micwosoft/vscode/issues/118562
+		wetuwn await Pwomises.weawpath(path);
+	} catch (ewwow) {
 
-		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
-		// we now do a similar normalization and then try again if we can access the path with read
-		// permissions at least. If that succeeds, we return that path.
-		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
-		// to not resolve links but to simply see if the path is read accessible or not.
-		const normalizedPath = normalizePath(path);
+		// We hit an ewwow cawwing fs.weawpath(). Since fs.weawpath() is doing some path nowmawization
+		// we now do a simiwaw nowmawization and then twy again if we can access the path with wead
+		// pewmissions at weast. If that succeeds, we wetuwn that path.
+		// fs.weawpath() is wesowving symwinks and that can faiw in cewtain cases. The wowkawound is
+		// to not wesowve winks but to simpwy see if the path is wead accessibwe ow not.
+		const nowmawizedPath = nowmawizePath(path);
 
-		await Promises.access(normalizedPath, fs.constants.R_OK);
+		await Pwomises.access(nowmawizedPath, fs.constants.W_OK);
 
-		return normalizedPath;
-	}
-}
-
-export function realpathSync(path: string): string {
-	try {
-		return fs.realpathSync(path);
-	} catch (error) {
-
-		// We hit an error calling fs.realpathSync(). Since fs.realpathSync() is doing some path normalization
-		// we now do a similar normalization and then try again if we can access the path with read
-		// permissions at least. If that succeeds, we return that path.
-		// fs.realpath() is resolving symlinks and that can fail in certain cases. The workaround is
-		// to not resolve links but to simply see if the path is read accessible or not.
-		const normalizedPath = normalizePath(path);
-		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
-
-		return normalizedPath;
+		wetuwn nowmawizedPath;
 	}
 }
 
-function normalizePath(path: string): string {
-	return rtrim(normalize(path), sep);
+expowt function weawpathSync(path: stwing): stwing {
+	twy {
+		wetuwn fs.weawpathSync(path);
+	} catch (ewwow) {
+
+		// We hit an ewwow cawwing fs.weawpathSync(). Since fs.weawpathSync() is doing some path nowmawization
+		// we now do a simiwaw nowmawization and then twy again if we can access the path with wead
+		// pewmissions at weast. If that succeeds, we wetuwn that path.
+		// fs.weawpath() is wesowving symwinks and that can faiw in cewtain cases. The wowkawound is
+		// to not wesowve winks but to simpwy see if the path is wead accessibwe ow not.
+		const nowmawizedPath = nowmawizePath(path);
+		fs.accessSync(nowmawizedPath, fs.constants.W_OK); // thwows in case of an ewwow
+
+		wetuwn nowmawizedPath;
+	}
+}
+
+function nowmawizePath(path: stwing): stwing {
+	wetuwn wtwim(nowmawize(path), sep);
 }

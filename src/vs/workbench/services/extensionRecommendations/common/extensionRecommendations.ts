@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { Event } fwom 'vs/base/common/event';
 
-export type DynamicRecommendation = 'dynamic';
-export type ConfigRecommendation = 'config';
-export type ExecutableRecommendation = 'executable';
-export type CachedRecommendation = 'cached';
-export type ApplicationRecommendation = 'application';
-export type ExperimentalRecommendation = 'experimental';
+expowt type DynamicWecommendation = 'dynamic';
+expowt type ConfigWecommendation = 'config';
+expowt type ExecutabweWecommendation = 'executabwe';
+expowt type CachedWecommendation = 'cached';
+expowt type AppwicationWecommendation = 'appwication';
+expowt type ExpewimentawWecommendation = 'expewimentaw';
 
-export const enum ExtensionRecommendationReason {
-	Workspace,
-	File,
-	Executable,
-	WorkspaceConfig,
-	DynamicWorkspace,
-	Experimental,
-	Application,
+expowt const enum ExtensionWecommendationWeason {
+	Wowkspace,
+	Fiwe,
+	Executabwe,
+	WowkspaceConfig,
+	DynamicWowkspace,
+	Expewimentaw,
+	Appwication,
 }
 
-export interface IExtensionRecommendationReson {
-	reasonId: ExtensionRecommendationReason;
-	reasonText: string;
+expowt intewface IExtensionWecommendationWeson {
+	weasonId: ExtensionWecommendationWeason;
+	weasonText: stwing;
 }
 
-export const IExtensionRecommendationsService = createDecorator<IExtensionRecommendationsService>('extensionRecommendationsService');
+expowt const IExtensionWecommendationsSewvice = cweateDecowatow<IExtensionWecommendationsSewvice>('extensionWecommendationsSewvice');
 
-export interface IExtensionRecommendationsService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionWecommendationsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeRecommendations: Event<void>;
-	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
+	weadonwy onDidChangeWecommendations: Event<void>;
+	getAwwWecommendationsWithWeason(): IStwingDictionawy<IExtensionWecommendationWeson>;
 
-	getImportantRecommendations(): Promise<string[]>;
-	getOtherRecommendations(): Promise<string[]>;
-	getFileBasedRecommendations(): string[];
-	getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }>;
-	getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }>;
-	getWorkspaceRecommendations(): Promise<string[]>;
-	getKeymapRecommendations(): string[];
-	getLanguageRecommendations(): string[];
+	getImpowtantWecommendations(): Pwomise<stwing[]>;
+	getOthewWecommendations(): Pwomise<stwing[]>;
+	getFiweBasedWecommendations(): stwing[];
+	getExeBasedWecommendations(exe?: stwing): Pwomise<{ impowtant: stwing[], othews: stwing[] }>;
+	getConfigBasedWecommendations(): Pwomise<{ impowtant: stwing[], othews: stwing[] }>;
+	getWowkspaceWecommendations(): Pwomise<stwing[]>;
+	getKeymapWecommendations(): stwing[];
+	getWanguageWecommendations(): stwing[];
 }
 
-export type IgnoredRecommendationChangeNotification = {
-	extensionId: string,
-	isRecommended: boolean
+expowt type IgnowedWecommendationChangeNotification = {
+	extensionId: stwing,
+	isWecommended: boowean
 };
 
-export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensionIgnoredRecommendationsService>('IExtensionIgnoredRecommendationsService');
+expowt const IExtensionIgnowedWecommendationsSewvice = cweateDecowatow<IExtensionIgnowedWecommendationsSewvice>('IExtensionIgnowedWecommendationsSewvice');
 
-export interface IExtensionIgnoredRecommendationsService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionIgnowedWecommendationsSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	onDidChangeIgnoredRecommendations: Event<void>;
-	readonly ignoredRecommendations: string[];
+	onDidChangeIgnowedWecommendations: Event<void>;
+	weadonwy ignowedWecommendations: stwing[];
 
-	onDidChangeGlobalIgnoredRecommendation: Event<IgnoredRecommendationChangeNotification>;
-	readonly globalIgnoredRecommendations: string[];
-	toggleGlobalIgnoredRecommendation(extensionId: string, ignore: boolean): void;
+	onDidChangeGwobawIgnowedWecommendation: Event<IgnowedWecommendationChangeNotification>;
+	weadonwy gwobawIgnowedWecommendations: stwing[];
+	toggweGwobawIgnowedWecommendation(extensionId: stwing, ignowe: boowean): void;
 }
 
 

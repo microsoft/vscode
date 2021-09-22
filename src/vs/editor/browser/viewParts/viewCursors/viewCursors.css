@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-.monaco-editor .cursors-layer {
-	position: absolute;
+.monaco-editow .cuwsows-waya {
+	position: absowute;
 	top: 0;
 }
 
-.monaco-editor .cursors-layer > .cursor {
-	position: absolute;
-	overflow: hidden;
+.monaco-editow .cuwsows-waya > .cuwsow {
+	position: absowute;
+	ovewfwow: hidden;
 }
 
-/* -- smooth-caret-animation -- */
-.monaco-editor .cursors-layer.cursor-smooth-caret-animation > .cursor {
-	transition: all 80ms;
+/* -- smooth-cawet-animation -- */
+.monaco-editow .cuwsows-waya.cuwsow-smooth-cawet-animation > .cuwsow {
+	twansition: aww 80ms;
 }
 
-/* -- block-outline-style -- */
-.monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
-	box-sizing: border-box;
-	background: transparent !important;
-	border-style: solid;
-	border-width: 1px;
+/* -- bwock-outwine-stywe -- */
+.monaco-editow .cuwsows-waya.cuwsow-bwock-outwine-stywe > .cuwsow {
+	box-sizing: bowda-box;
+	backgwound: twanspawent !impowtant;
+	bowda-stywe: sowid;
+	bowda-width: 1px;
 }
 
-/* -- underline-style -- */
-.monaco-editor .cursors-layer.cursor-underline-style > .cursor {
-	border-bottom-width: 2px;
-	border-bottom-style: solid;
-	background: transparent !important;
-	box-sizing: border-box;
+/* -- undewwine-stywe -- */
+.monaco-editow .cuwsows-waya.cuwsow-undewwine-stywe > .cuwsow {
+	bowda-bottom-width: 2px;
+	bowda-bottom-stywe: sowid;
+	backgwound: twanspawent !impowtant;
+	box-sizing: bowda-box;
 }
 
-/* -- underline-thin-style -- */
-.monaco-editor .cursors-layer.cursor-underline-thin-style > .cursor {
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
-	background: transparent !important;
-	box-sizing: border-box;
+/* -- undewwine-thin-stywe -- */
+.monaco-editow .cuwsows-waya.cuwsow-undewwine-thin-stywe > .cuwsow {
+	bowda-bottom-width: 1px;
+	bowda-bottom-stywe: sowid;
+	backgwound: twanspawent !impowtant;
+	box-sizing: bowda-box;
 }
 
-@keyframes monaco-cursor-smooth {
+@keyfwames monaco-cuwsow-smooth {
 	0%,
 	20% {
 		opacity: 1;
@@ -52,7 +52,7 @@
 	}
 }
 
-@keyframes monaco-cursor-phase {
+@keyfwames monaco-cuwsow-phase {
 	0%,
 	20% {
 		opacity: 1;
@@ -63,25 +63,25 @@
 	}
 }
 
-@keyframes monaco-cursor-expand {
+@keyfwames monaco-cuwsow-expand {
 	0%,
 	20% {
-		transform: scaleY(1);
+		twansfowm: scaweY(1);
 	}
 	80%,
 	100% {
-		transform: scaleY(0);
+		twansfowm: scaweY(0);
 	}
 }
 
-.cursor-smooth {
-	animation: monaco-cursor-smooth 0.5s ease-in-out 0s 20 alternate;
+.cuwsow-smooth {
+	animation: monaco-cuwsow-smooth 0.5s ease-in-out 0s 20 awtewnate;
 }
 
-.cursor-phase {
-	animation: monaco-cursor-phase 0.5s ease-in-out 0s 20 alternate;
+.cuwsow-phase {
+	animation: monaco-cuwsow-phase 0.5s ease-in-out 0s 20 awtewnate;
 }
 
-.cursor-expand > .cursor {
-	animation: monaco-cursor-expand 0.5s ease-in-out 0s 20 alternate;
+.cuwsow-expand > .cuwsow {
+	animation: monaco-cuwsow-expand 0.5s ease-in-out 0s 20 awtewnate;
 }

@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+impowt * as assewt fwom 'assewt';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
 
-suite('ProgressBar', () => {
-	let fixture: HTMLElement;
+suite('PwogwessBaw', () => {
+	wet fixtuwe: HTMWEwement;
 
 	setup(() => {
-		fixture = document.createElement('div');
-		document.body.appendChild(fixture);
+		fixtuwe = document.cweateEwement('div');
+		document.body.appendChiwd(fixtuwe);
 	});
 
-	teardown(() => {
-		document.body.removeChild(fixture);
+	teawdown(() => {
+		document.body.wemoveChiwd(fixtuwe);
 	});
 
-	test('Progress Bar', function () {
-		const bar = new ProgressBar(fixture);
-		assert(bar.infinite());
-		assert(bar.total(100));
-		assert(bar.worked(50));
-		assert(bar.setWorked(70));
-		assert(bar.worked(30));
-		assert(bar.done());
+	test('Pwogwess Baw', function () {
+		const baw = new PwogwessBaw(fixtuwe);
+		assewt(baw.infinite());
+		assewt(baw.totaw(100));
+		assewt(baw.wowked(50));
+		assewt(baw.setWowked(70));
+		assewt(baw.wowked(30));
+		assewt(baw.done());
 
-		bar.dispose();
+		baw.dispose();
 	});
 });

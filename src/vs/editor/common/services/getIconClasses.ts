@@ -1,103 +1,103 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
-import { URI as uri } from 'vs/base/common/uri';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { FileKind } from 'vs/platform/files/common/files';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { DataUwi, basenameOwAuthowity } fwom 'vs/base/common/wesouwces';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri | undefined, fileKind?: FileKind): string[] {
+expowt function getIconCwasses(modewSewvice: IModewSewvice, modeSewvice: IModeSewvice, wesouwce: uwi | undefined, fiweKind?: FiweKind): stwing[] {
 
-	// we always set these base classes even if we do not have a path
-	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
-	if (resource) {
+	// we awways set these base cwasses even if we do not have a path
+	const cwasses = fiweKind === FiweKind.WOOT_FOWDa ? ['wootfowda-icon'] : fiweKind === FiweKind.FOWDa ? ['fowda-icon'] : ['fiwe-icon'];
+	if (wesouwce) {
 
-		// Get the path and name of the resource. For data-URIs, we need to parse specially
-		let name: string | undefined;
-		if (resource.scheme === Schemas.data) {
-			const metadata = DataUri.parseMetaData(resource);
-			name = metadata.get(DataUri.META_DATA_LABEL);
-		} else {
-			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
+		// Get the path and name of the wesouwce. Fow data-UWIs, we need to pawse speciawwy
+		wet name: stwing | undefined;
+		if (wesouwce.scheme === Schemas.data) {
+			const metadata = DataUwi.pawseMetaData(wesouwce);
+			name = metadata.get(DataUwi.META_DATA_WABEW);
+		} ewse {
+			name = cssEscape(basenameOwAuthowity(wesouwce).toWowewCase());
 		}
 
-		// Folders
-		if (fileKind === FileKind.FOLDER) {
-			classes.push(`${name}-name-folder-icon`);
+		// Fowdews
+		if (fiweKind === FiweKind.FOWDa) {
+			cwasses.push(`${name}-name-fowda-icon`);
 		}
 
-		// Files
-		else {
+		// Fiwes
+		ewse {
 
 			// Name & Extension(s)
 			if (name) {
-				classes.push(`${name}-name-file-icon`);
-				// Avoid doing an explosive combination of extensions for very long filenames
-				// (most file systems do not allow files > 255 length) with lots of `.` characters
-				// https://github.com/microsoft/vscode/issues/116199
-				if (name.length <= 255) {
-					const dotSegments = name.split('.');
-					for (let i = 1; i < dotSegments.length; i++) {
-						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				cwasses.push(`${name}-name-fiwe-icon`);
+				// Avoid doing an expwosive combination of extensions fow vewy wong fiwenames
+				// (most fiwe systems do not awwow fiwes > 255 wength) with wots of `.` chawactews
+				// https://github.com/micwosoft/vscode/issues/116199
+				if (name.wength <= 255) {
+					const dotSegments = name.spwit('.');
+					fow (wet i = 1; i < dotSegments.wength; i++) {
+						cwasses.push(`${dotSegments.swice(i).join('.')}-ext-fiwe-icon`); // add each combination of aww found extensions if mowe than one
 					}
 				}
-				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
+				cwasses.push(`ext-fiwe-icon`); // extwa segment to incwease fiwe-ext scowe
 			}
 
 			// Detected Mode
-			const detectedModeId = detectModeId(modelService, modeService, resource);
+			const detectedModeId = detectModeId(modewSewvice, modeSewvice, wesouwce);
 			if (detectedModeId) {
-				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
+				cwasses.push(`${cssEscape(detectedModeId)}-wang-fiwe-icon`);
 			}
 		}
 	}
-	return classes;
+	wetuwn cwasses;
 }
 
 
-export function getIconClassesForModeId(modeId: string): string[] {
-	return ['file-icon', `${cssEscape(modeId)}-lang-file-icon`];
+expowt function getIconCwassesFowModeId(modeId: stwing): stwing[] {
+	wetuwn ['fiwe-icon', `${cssEscape(modeId)}-wang-fiwe-icon`];
 }
 
-function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
-	if (!resource) {
-		return null; // we need a resource at least
+function detectModeId(modewSewvice: IModewSewvice, modeSewvice: IModeSewvice, wesouwce: uwi): stwing | nuww {
+	if (!wesouwce) {
+		wetuwn nuww; // we need a wesouwce at weast
 	}
 
-	let modeId: string | null = null;
+	wet modeId: stwing | nuww = nuww;
 
-	// Data URI: check for encoded metadata
-	if (resource.scheme === Schemas.data) {
-		const metadata = DataUri.parseMetaData(resource);
-		const mime = metadata.get(DataUri.META_DATA_MIME);
+	// Data UWI: check fow encoded metadata
+	if (wesouwce.scheme === Schemas.data) {
+		const metadata = DataUwi.pawseMetaData(wesouwce);
+		const mime = metadata.get(DataUwi.META_DATA_MIME);
 
 		if (mime) {
-			modeId = modeService.getModeId(mime);
+			modeId = modeSewvice.getModeId(mime);
 		}
 	}
 
-	// Any other URI: check for model if existing
-	else {
-		const model = modelService.getModel(resource);
-		if (model) {
-			modeId = model.getModeId();
+	// Any otha UWI: check fow modew if existing
+	ewse {
+		const modew = modewSewvice.getModew(wesouwce);
+		if (modew) {
+			modeId = modew.getModeId();
 		}
 	}
 
-	// only take if the mode is specific (aka no just plain text)
-	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-		return modeId;
+	// onwy take if the mode is specific (aka no just pwain text)
+	if (modeId && modeId !== PWAINTEXT_MODE_ID) {
+		wetuwn modeId;
 	}
 
-	// otherwise fallback to path based detection
-	return modeService.getModeIdByFilepathOrFirstLine(resource);
+	// othewwise fawwback to path based detection
+	wetuwn modeSewvice.getModeIdByFiwepathOwFiwstWine(wesouwce);
 }
 
-export function cssEscape(str: string): string {
-	return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+expowt function cssEscape(stw: stwing): stwing {
+	wetuwn stw.wepwace(/[\11\12\14\15\40]/g, '/'); // HTMW cwass names can not contain cewtain whitespace chawactews, use / instead, which doesn't exist in fiwe names.
 }

@@ -1,482 +1,482 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { PanelFocusContext } from 'vs/workbench/common/panel';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { deepClone } from 'vs/base/common/objects';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+impowt * as nws fwom 'vs/nws';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IDebugSewvice, IEnabwement, CONTEXT_BWEAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPWESSIONS_FOCUSED, CONTEXT_VAWIABWES_FOCUSED, EDITOW_CONTWIBUTION_ID, IDebugEditowContwibution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPWESSION_SEWECTED, IConfig, IStackFwame, IThwead, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguwation, CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED, WEPW_VIEW_ID, CONTEXT_DEBUGGEWS_AVAIWABWE, State, getStateWabew, CONTEXT_BWEAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWWET_ID, CONTEXT_DISASSEMBWY_VIEW_FOCUS } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Expwession, Vawiabwe, Bweakpoint, FunctionBweakpoint, DataBweakpoint } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IExtensionsViewPaneContaina, VIEWWET_ID as EXTENSIONS_VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { ICodeEditow, isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { openBweakpointSouwce } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointsView';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { InputFocusedContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { PanewFocusContext } fwom 'vs/wowkbench/common/panew';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IViewsSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { isWeb, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { saveAwwBefoweDebugStawt } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
 
-export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
-export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
-export const COPY_STACK_TRACE_ID = 'debug.copyStackTrace';
-export const REVERSE_CONTINUE_ID = 'workbench.action.debug.reverseContinue';
-export const STEP_BACK_ID = 'workbench.action.debug.stepBack';
-export const RESTART_SESSION_ID = 'workbench.action.debug.restart';
-export const TERMINATE_THREAD_ID = 'workbench.action.debug.terminateThread';
-export const STEP_OVER_ID = 'workbench.action.debug.stepOver';
-export const STEP_INTO_ID = 'workbench.action.debug.stepInto';
-export const STEP_OUT_ID = 'workbench.action.debug.stepOut';
-export const PAUSE_ID = 'workbench.action.debug.pause';
-export const DISCONNECT_ID = 'workbench.action.debug.disconnect';
-export const STOP_ID = 'workbench.action.debug.stop';
-export const RESTART_FRAME_ID = 'workbench.action.debug.restartFrame';
-export const CONTINUE_ID = 'workbench.action.debug.continue';
-export const FOCUS_REPL_ID = 'workbench.debug.action.focusRepl';
-export const JUMP_TO_CURSOR_ID = 'debug.jumpToCursor';
-export const FOCUS_SESSION_ID = 'workbench.action.debug.focusProcess';
-export const SELECT_AND_START_ID = 'workbench.action.debug.selectandstart';
-export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
-export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
-export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
-export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
-export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
-export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
+expowt const ADD_CONFIGUWATION_ID = 'debug.addConfiguwation';
+expowt const TOGGWE_INWINE_BWEAKPOINT_ID = 'editow.debug.action.toggweInwineBweakpoint';
+expowt const COPY_STACK_TWACE_ID = 'debug.copyStackTwace';
+expowt const WEVEWSE_CONTINUE_ID = 'wowkbench.action.debug.wevewseContinue';
+expowt const STEP_BACK_ID = 'wowkbench.action.debug.stepBack';
+expowt const WESTAWT_SESSION_ID = 'wowkbench.action.debug.westawt';
+expowt const TEWMINATE_THWEAD_ID = 'wowkbench.action.debug.tewminateThwead';
+expowt const STEP_OVEW_ID = 'wowkbench.action.debug.stepOva';
+expowt const STEP_INTO_ID = 'wowkbench.action.debug.stepInto';
+expowt const STEP_OUT_ID = 'wowkbench.action.debug.stepOut';
+expowt const PAUSE_ID = 'wowkbench.action.debug.pause';
+expowt const DISCONNECT_ID = 'wowkbench.action.debug.disconnect';
+expowt const STOP_ID = 'wowkbench.action.debug.stop';
+expowt const WESTAWT_FWAME_ID = 'wowkbench.action.debug.westawtFwame';
+expowt const CONTINUE_ID = 'wowkbench.action.debug.continue';
+expowt const FOCUS_WEPW_ID = 'wowkbench.debug.action.focusWepw';
+expowt const JUMP_TO_CUWSOW_ID = 'debug.jumpToCuwsow';
+expowt const FOCUS_SESSION_ID = 'wowkbench.action.debug.focusPwocess';
+expowt const SEWECT_AND_STAWT_ID = 'wowkbench.action.debug.sewectandstawt';
+expowt const DEBUG_CONFIGUWE_COMMAND_ID = 'wowkbench.action.debug.configuwe';
+expowt const DEBUG_STAWT_COMMAND_ID = 'wowkbench.action.debug.stawt';
+expowt const DEBUG_WUN_COMMAND_ID = 'wowkbench.action.debug.wun';
+expowt const EDIT_EXPWESSION_COMMAND_ID = 'debug.wenameWatchExpwession';
+expowt const SET_EXPWESSION_COMMAND_ID = 'debug.setWatchExpwession';
+expowt const WEMOVE_EXPWESSION_COMMAND_ID = 'debug.wemoveWatchExpwession';
 
-export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
-export const STEP_OVER_LABEL = nls.localize('stepOverDebug', "Step Over");
-export const STEP_INTO_LABEL = nls.localize('stepIntoDebug', "Step Into");
-export const STEP_OUT_LABEL = nls.localize('stepOutDebug', "Step Out");
-export const PAUSE_LABEL = nls.localize('pauseDebug', "Pause");
-export const DISCONNECT_LABEL = nls.localize('disconnect', "Disconnect");
-export const STOP_LABEL = nls.localize('stop', "Stop");
-export const CONTINUE_LABEL = nls.localize('continueDebug', "Continue");
-export const FOCUS_SESSION_LABEL = nls.localize('focusSession', "Focus Session");
-export const SELECT_AND_START_LABEL = nls.localize('selectAndStartDebugging', "Select and Start Debugging");
-export const DEBUG_CONFIGURE_LABEL = nls.localize('openLaunchJson', "Open '{0}'", 'launch.json');
-export const DEBUG_START_LABEL = nls.localize('startDebug', "Start Debugging");
-export const DEBUG_RUN_LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
+expowt const WESTAWT_WABEW = nws.wocawize('westawtDebug', "Westawt");
+expowt const STEP_OVEW_WABEW = nws.wocawize('stepOvewDebug', "Step Ova");
+expowt const STEP_INTO_WABEW = nws.wocawize('stepIntoDebug', "Step Into");
+expowt const STEP_OUT_WABEW = nws.wocawize('stepOutDebug', "Step Out");
+expowt const PAUSE_WABEW = nws.wocawize('pauseDebug', "Pause");
+expowt const DISCONNECT_WABEW = nws.wocawize('disconnect', "Disconnect");
+expowt const STOP_WABEW = nws.wocawize('stop', "Stop");
+expowt const CONTINUE_WABEW = nws.wocawize('continueDebug', "Continue");
+expowt const FOCUS_SESSION_WABEW = nws.wocawize('focusSession', "Focus Session");
+expowt const SEWECT_AND_STAWT_WABEW = nws.wocawize('sewectAndStawtDebugging', "Sewect and Stawt Debugging");
+expowt const DEBUG_CONFIGUWE_WABEW = nws.wocawize('openWaunchJson', "Open '{0}'", 'waunch.json');
+expowt const DEBUG_STAWT_WABEW = nws.wocawize('stawtDebug', "Stawt Debugging");
+expowt const DEBUG_WUN_WABEW = nws.wocawize('stawtWithoutDebugging', "Stawt Without Debugging");
 
-interface CallStackContext {
-	sessionId: string;
-	threadId: string;
-	frameId: string;
+intewface CawwStackContext {
+	sessionId: stwing;
+	thweadId: stwing;
+	fwameId: stwing;
 }
 
-function isThreadContext(obj: any): obj is CallStackContext {
-	return obj && typeof obj.sessionId === 'string' && typeof obj.threadId === 'string';
+function isThweadContext(obj: any): obj is CawwStackContext {
+	wetuwn obj && typeof obj.sessionId === 'stwing' && typeof obj.thweadId === 'stwing';
 }
 
-async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: CallStackContext | unknown, run: (thread: IThread) => Promise<void>): Promise<void> {
-	const debugService = accessor.get(IDebugService);
-	let thread: IThread | undefined;
-	if (isThreadContext(sessionAndThreadId)) {
-		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+async function getThweadAndWun(accessow: SewvicesAccessow, sessionAndThweadId: CawwStackContext | unknown, wun: (thwead: IThwead) => Pwomise<void>): Pwomise<void> {
+	const debugSewvice = accessow.get(IDebugSewvice);
+	wet thwead: IThwead | undefined;
+	if (isThweadContext(sessionAndThweadId)) {
+		const session = debugSewvice.getModew().getSession(sessionAndThweadId.sessionId);
 		if (session) {
-			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
+			thwead = session.getAwwThweads().find(t => t.getId() === sessionAndThweadId.thweadId);
 		}
-	} else if (isSessionContext(sessionAndThreadId)) {
-		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+	} ewse if (isSessionContext(sessionAndThweadId)) {
+		const session = debugSewvice.getModew().getSession(sessionAndThweadId.sessionId);
 		if (session) {
-			const threads = session.getAllThreads();
-			thread = threads.length > 0 ? threads[0] : undefined;
-		}
-	}
-
-	if (!thread) {
-		thread = debugService.getViewModel().focusedThread;
-		if (!thread) {
-			const focusedSession = debugService.getViewModel().focusedSession;
-			const threads = focusedSession ? focusedSession.getAllThreads() : undefined;
-			thread = threads && threads.length ? threads[0] : undefined;
+			const thweads = session.getAwwThweads();
+			thwead = thweads.wength > 0 ? thweads[0] : undefined;
 		}
 	}
 
-	if (thread) {
-		await run(thread);
+	if (!thwead) {
+		thwead = debugSewvice.getViewModew().focusedThwead;
+		if (!thwead) {
+			const focusedSession = debugSewvice.getViewModew().focusedSession;
+			const thweads = focusedSession ? focusedSession.getAwwThweads() : undefined;
+			thwead = thweads && thweads.wength ? thweads[0] : undefined;
+		}
+	}
+
+	if (thwead) {
+		await wun(thwead);
 	}
 }
 
-function isStackFrameContext(obj: any): obj is CallStackContext {
-	return obj && typeof obj.sessionId === 'string' && typeof obj.threadId === 'string' && typeof obj.frameId === 'string';
+function isStackFwameContext(obj: any): obj is CawwStackContext {
+	wetuwn obj && typeof obj.sessionId === 'stwing' && typeof obj.thweadId === 'stwing' && typeof obj.fwameId === 'stwing';
 }
 
-function getFrame(debugService: IDebugService, context: CallStackContext | unknown): IStackFrame | undefined {
-	if (isStackFrameContext(context)) {
-		const session = debugService.getModel().getSession(context.sessionId);
+function getFwame(debugSewvice: IDebugSewvice, context: CawwStackContext | unknown): IStackFwame | undefined {
+	if (isStackFwameContext(context)) {
+		const session = debugSewvice.getModew().getSession(context.sessionId);
 		if (session) {
-			const thread = session.getAllThreads().find(t => t.getId() === context.threadId);
-			if (thread) {
-				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
+			const thwead = session.getAwwThweads().find(t => t.getId() === context.thweadId);
+			if (thwead) {
+				wetuwn thwead.getCawwStack().find(sf => sf.getId() === context.fwameId);
 			}
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-function isSessionContext(obj: any): obj is CallStackContext {
-	return obj && typeof obj.sessionId === 'string';
+function isSessionContext(obj: any): obj is CawwStackContext {
+	wetuwn obj && typeof obj.sessionId === 'stwing';
 }
 
 
-// These commands are used in call stack context menu, call stack inline actions, command palette, debug toolbar, mac native touch bar
-// When the command is exectued in the context of a thread(context menu on a thread, inline call stack action) we pass the thread id
-// Otherwise when it is executed "globaly"(using the touch bar, debug toolbar, command palette) we do not pass any id and just take whatever is the focussed thread
-// Same for stackFrame commands and session commands.
-CommandsRegistry.registerCommand({
-	id: COPY_STACK_TRACE_ID,
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const textResourcePropertiesService = accessor.get(ITextResourcePropertiesService);
-		const clipboardService = accessor.get(IClipboardService);
-		let frame = getFrame(accessor.get(IDebugService), context);
-		if (frame) {
-			const eol = textResourcePropertiesService.getEOL(frame.source.uri);
-			await clipboardService.writeText(frame.thread.getCallStack().map(sf => sf.toString()).join(eol));
+// These commands awe used in caww stack context menu, caww stack inwine actions, command pawette, debug toowbaw, mac native touch baw
+// When the command is exectued in the context of a thwead(context menu on a thwead, inwine caww stack action) we pass the thwead id
+// Othewwise when it is executed "gwobawy"(using the touch baw, debug toowbaw, command pawette) we do not pass any id and just take whateva is the focussed thwead
+// Same fow stackFwame commands and session commands.
+CommandsWegistwy.wegistewCommand({
+	id: COPY_STACK_TWACE_ID,
+	handwa: async (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const textWesouwcePwopewtiesSewvice = accessow.get(ITextWesouwcePwopewtiesSewvice);
+		const cwipboawdSewvice = accessow.get(ICwipboawdSewvice);
+		wet fwame = getFwame(accessow.get(IDebugSewvice), context);
+		if (fwame) {
+			const eow = textWesouwcePwopewtiesSewvice.getEOW(fwame.souwce.uwi);
+			await cwipboawdSewvice.wwiteText(fwame.thwead.getCawwStack().map(sf => sf.toStwing()).join(eow));
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: REVERSE_CONTINUE_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.reverseContinue());
+CommandsWegistwy.wegistewCommand({
+	id: WEVEWSE_CONTINUE_ID,
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		getThweadAndWun(accessow, context, thwead => thwead.wevewseContinue());
 	}
 });
 
-CommandsRegistry.registerCommand({
+CommandsWegistwy.wegistewCommand({
 	id: STEP_BACK_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack('instruction'));
-		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack());
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		if (CONTEXT_DISASSEMBWY_VIEW_FOCUS.getVawue(contextKeySewvice)) {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepBack('instwuction'));
+		} ewse {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepBack());
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: TERMINATE_THREAD_ID,
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.terminate());
+CommandsWegistwy.wegistewCommand({
+	id: TEWMINATE_THWEAD_ID,
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		getThweadAndWun(accessow, context, thwead => thwead.tewminate());
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: JUMP_TO_CURSOR_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const debugService = accessor.get(IDebugService);
-		const stackFrame = debugService.getViewModel().focusedStackFrame;
-		const editorService = accessor.get(IEditorService);
-		const activeEditorControl = editorService.activeTextEditorControl;
-		const notificationService = accessor.get(INotificationService);
-		const quickInputService = accessor.get(IQuickInputService);
+CommandsWegistwy.wegistewCommand({
+	id: JUMP_TO_CUWSOW_ID,
+	handwa: async (accessow: SewvicesAccessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const stackFwame = debugSewvice.getViewModew().focusedStackFwame;
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeEditowContwow = editowSewvice.activeTextEditowContwow;
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
 
-		if (stackFrame && isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
-			const position = activeEditorControl.getPosition();
-			const resource = activeEditorControl.getModel().uri;
-			const source = stackFrame.thread.session.getSourceForUri(resource);
-			if (source) {
-				const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-				const targets = response?.body.targets;
-				if (targets && targets.length) {
-					let id = targets[0].id;
-					if (targets.length > 1) {
-						const picks = targets.map(t => ({ label: t.label, _id: t.id }));
-						const pick = await quickInputService.pick(picks, { placeHolder: nls.localize('chooseLocation', "Choose the specific location") });
+		if (stackFwame && isCodeEditow(activeEditowContwow) && activeEditowContwow.hasModew()) {
+			const position = activeEditowContwow.getPosition();
+			const wesouwce = activeEditowContwow.getModew().uwi;
+			const souwce = stackFwame.thwead.session.getSouwceFowUwi(wesouwce);
+			if (souwce) {
+				const wesponse = await stackFwame.thwead.session.gotoTawgets(souwce.waw, position.wineNumba, position.cowumn);
+				const tawgets = wesponse?.body.tawgets;
+				if (tawgets && tawgets.wength) {
+					wet id = tawgets[0].id;
+					if (tawgets.wength > 1) {
+						const picks = tawgets.map(t => ({ wabew: t.wabew, _id: t.id }));
+						const pick = await quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize('chooseWocation', "Choose the specific wocation") });
 						if (!pick) {
-							return;
+							wetuwn;
 						}
 
 						id = pick._id;
 					}
 
-					return await stackFrame.thread.session.goto(stackFrame.thread.threadId, id).catch(e => notificationService.warn(e));
+					wetuwn await stackFwame.thwead.session.goto(stackFwame.thwead.thweadId, id).catch(e => notificationSewvice.wawn(e));
 				}
 			}
 		}
 
-		return notificationService.warn(nls.localize('noExecutableCode', "No executable code is associated at the current cursor position."));
+		wetuwn notificationSewvice.wawn(nws.wocawize('noExecutabweCode', "No executabwe code is associated at the cuwwent cuwsow position."));
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+MenuWegistwy.appendMenuItem(MenuId.EditowContext, {
 	command: {
-		id: JUMP_TO_CURSOR_ID,
-		title: nls.localize('jumpToCursor', "Jump to Cursor"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		id: JUMP_TO_CUWSOW_ID,
+		titwe: nws.wocawize('jumpToCuwsow', "Jump to Cuwsow"),
+		categowy: { vawue: nws.wocawize('debug', "Debug"), owiginaw: 'Debug' }
 	},
-	when: ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED, EditorContextKeys.editorTextFocus),
-	group: 'debug',
-	order: 3
+	when: ContextKeyExpw.and(CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED, EditowContextKeys.editowTextFocus),
+	gwoup: 'debug',
+	owda: 3
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: RESTART_SESSION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: WESTAWT_SESSION_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.Shift | KeyMod.CtwwCmd | KeyCode.F5,
 	when: CONTEXT_IN_DEBUG_MODE,
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		const configurationService = accessor.get(IConfigurationService);
-		let session: IDebugSession | undefined;
+	handwa: async (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+		wet session: IDebugSession | undefined;
 		if (isSessionContext(context)) {
-			session = debugService.getModel().getSession(context.sessionId);
-		} else {
-			session = debugService.getViewModel().focusedSession;
+			session = debugSewvice.getModew().getSession(context.sessionId);
+		} ewse {
+			session = debugSewvice.getViewModew().focusedSession;
 		}
 
 		if (!session) {
-			const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-			await debugService.startDebugging(launch, name, { noDebug: false, startedByUser: true });
-		} else {
-			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-			// Stop should be sent to the root parent session
-			while (!showSubSessions && session && session.parentSession) {
-				session = session.parentSession;
+			const { waunch, name } = debugSewvice.getConfiguwationManaga().sewectedConfiguwation;
+			await debugSewvice.stawtDebugging(waunch, name, { noDebug: fawse, stawtedByUsa: twue });
+		} ewse {
+			const showSubSessions = configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showSubSessionsInToowBaw;
+			// Stop shouwd be sent to the woot pawent session
+			whiwe (!showSubSessions && session && session.pawentSession) {
+				session = session.pawentSession;
 			}
-			session.removeReplExpressions();
-			await debugService.restartSession(session);
+			session.wemoveWepwExpwessions();
+			await debugSewvice.westawtSession(session);
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: STEP_OVER_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
-	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.next('instruction'));
-		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: STEP_OVEW_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: isWeb ? (KeyMod.Awt | KeyCode.F10) : KeyCode.F10, // Bwowsews do not awwow F10 to be binded so we have to bind an awtewnative
+	when: CONTEXT_DEBUG_STATE.isEquawTo('stopped'),
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		if (CONTEXT_DISASSEMBWY_VIEW_FOCUS.getVawue(contextKeySewvice)) {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.next('instwuction'));
+		} ewse {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.next());
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: STEP_INTO_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
-	primary: (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11, // Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
-	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
-	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn('instruction'));
-		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
+	weight: KeybindingWeight.WowkbenchContwib + 10, // Have a stwonga weight to have pwiowity ova fuww scween when debugging
+	pwimawy: (isWeb && isWindows) ? (KeyMod.Awt | KeyCode.F11) : KeyCode.F11, // Windows bwowsews use F11 fow fuww scween, thus use awt+F11 as the defauwt showtcut
+	// Use a mowe fwexibwe when cwause to not awwow fuww scween command to take ova when F11 pwessed a wot of times
+	when: CONTEXT_DEBUG_STATE.notEquawsTo('inactive'),
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		if (CONTEXT_DISASSEMBWY_VIEW_FOCUS.getVawue(contextKeySewvice)) {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepIn('instwuction'));
+		} ewse {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepIn());
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: STEP_OUT_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyCode.F11,
-	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const contextKeyService = accessor.get(IContextKeyService);
-		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut('instruction'));
-		} else {
-			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.Shift | KeyCode.F11,
+	when: CONTEXT_DEBUG_STATE.isEquawTo('stopped'),
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const contextKeySewvice = accessow.get(IContextKeySewvice);
+		if (CONTEXT_DISASSEMBWY_VIEW_FOCUS.getVawue(contextKeySewvice)) {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepOut('instwuction'));
+		} ewse {
+			getThweadAndWun(accessow, context, (thwead: IThwead) => thwead.stepOut());
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: PAUSE_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 2, // take priority over focus next part while we are debugging
-	primary: KeyCode.F6,
-	when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.pause());
+	weight: KeybindingWeight.WowkbenchContwib + 2, // take pwiowity ova focus next pawt whiwe we awe debugging
+	pwimawy: KeyCode.F6,
+	when: CONTEXT_DEBUG_STATE.isEquawTo('wunning'),
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		getThweadAndWun(accessow, context, thwead => thwead.pause());
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean): Promise<void> {
-	const debugService = accessor.get(IDebugService);
-	let session: IDebugSession | undefined;
+async function stopHandwa(accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown, disconnect: boowean): Pwomise<void> {
+	const debugSewvice = accessow.get(IDebugSewvice);
+	wet session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
-		session = debugService.getModel().getSession(context.sessionId);
-	} else {
-		session = debugService.getViewModel().focusedSession;
+		session = debugSewvice.getModew().getSession(context.sessionId);
+	} ewse {
+		session = debugSewvice.getViewModew().focusedSession;
 	}
 
-	const configurationService = accessor.get(IConfigurationService);
-	const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
-	// Stop should be sent to the root parent session
-	while (!showSubSessions && session && session.parentSession) {
-		session = session.parentSession;
+	const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+	const showSubSessions = configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showSubSessionsInToowBaw;
+	// Stop shouwd be sent to the woot pawent session
+	whiwe (!showSubSessions && session && session.pawentSession) {
+		session = session.pawentSession;
 	}
 
-	await debugService.stopSession(session, disconnect);
+	await debugSewvice.stopSession(session, disconnect);
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: DISCONNECT_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
-	handler: (accessor, _, context) => stopHandler(accessor, _, context, true)
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.Shift | KeyCode.F5,
+	when: ContextKeyExpw.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
+	handwa: (accessow, _, context) => stopHandwa(accessow, _, context, twue)
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: STOP_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_IN_DEBUG_MODE),
-	handler: (accessor, _, context) => stopHandler(accessor, _, context, false)
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.Shift | KeyCode.F5,
+	when: ContextKeyExpw.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_IN_DEBUG_MODE),
+	handwa: (accessow, _, context) => stopHandwa(accessow, _, context, fawse)
 });
 
-CommandsRegistry.registerCommand({
-	id: RESTART_FRAME_ID,
-	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		const notificationService = accessor.get(INotificationService);
-		let frame = getFrame(debugService, context);
-		if (frame) {
-			try {
-				await frame.restart();
+CommandsWegistwy.wegistewCommand({
+	id: WESTAWT_FWAME_ID,
+	handwa: async (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		wet fwame = getFwame(debugSewvice, context);
+		if (fwame) {
+			twy {
+				await fwame.westawt();
 			} catch (e) {
-				notificationService.error(e);
+				notificationSewvice.ewwow(e);
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: CONTINUE_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
-	primary: KeyCode.F5,
-	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
-	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.continue());
+	weight: KeybindingWeight.WowkbenchContwib + 10, // Use a stwonga weight to get pwiowity ova stawt debugging F5 showtcut
+	pwimawy: KeyCode.F5,
+	when: CONTEXT_DEBUG_STATE.isEquawTo('stopped'),
+	handwa: (accessow: SewvicesAccessow, _: stwing, context: CawwStackContext | unknown) => {
+		getThweadAndWun(accessow, context, thwead => thwead.continue());
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: FOCUS_REPL_ID,
-	handler: async (accessor) => {
-		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView(REPL_VIEW_ID, true);
+CommandsWegistwy.wegistewCommand({
+	id: FOCUS_WEPW_ID,
+	handwa: async (accessow) => {
+		const viewsSewvice = accessow.get(IViewsSewvice);
+		await viewsSewvice.openView(WEPW_VIEW_ID, twue);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: 'debug.startFromConfig',
-	handler: async (accessor, config: IConfig) => {
-		const debugService = accessor.get(IDebugService);
-		await debugService.startDebugging(undefined, config);
+CommandsWegistwy.wegistewCommand({
+	id: 'debug.stawtFwomConfig',
+	handwa: async (accessow, config: IConfig) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		await debugSewvice.stawtDebugging(undefined, config);
 	}
 });
 
-CommandsRegistry.registerCommand({
+CommandsWegistwy.wegistewCommand({
 	id: FOCUS_SESSION_ID,
-	handler: async (accessor: ServicesAccessor, session: IDebugSession) => {
-		const debugService = accessor.get(IDebugService);
-		const editorService = accessor.get(IEditorService);
-		const stoppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
-		if (stoppedChildSession && session.state !== State.Stopped) {
-			session = stoppedChildSession;
+	handwa: async (accessow: SewvicesAccessow, session: IDebugSession) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const stoppedChiwdSession = debugSewvice.getModew().getSessions().find(s => s.pawentSession === session && s.state === State.Stopped);
+		if (stoppedChiwdSession && session.state !== State.Stopped) {
+			session = stoppedChiwdSession;
 		}
-		await debugService.focusStackFrame(undefined, undefined, session, true);
-		const stackFrame = debugService.getViewModel().focusedStackFrame;
-		if (stackFrame) {
-			await stackFrame.openInEditor(editorService, true);
+		await debugSewvice.focusStackFwame(undefined, undefined, session, twue);
+		const stackFwame = debugSewvice.getViewModew().focusedStackFwame;
+		if (stackFwame) {
+			await stackFwame.openInEditow(editowSewvice, twue);
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show('debug ');
+CommandsWegistwy.wegistewCommand({
+	id: SEWECT_AND_STAWT_ID,
+	handwa: async (accessow: SewvicesAccessow) => {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		quickInputSewvice.quickAccess.show('debug ');
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: DEBUG_START_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
-	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
-		const debugService = accessor.get(IDebugService);
-		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), accessor.get(IEditorService));
-		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: DEBUG_STAWT_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyCode.F5,
+	when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUG_STATE.isEquawTo('inactive')),
+	handwa: async (accessow: SewvicesAccessow, debugStawtOptions?: { config?: Pawtiaw<IConfig>; noDebug?: boowean }) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		await saveAwwBefoweDebugStawt(accessow.get(IConfiguwationSewvice), accessow.get(IEditowSewvice));
+		wet { waunch, name, getConfig } = debugSewvice.getConfiguwationManaga().sewectedConfiguwation;
 		const config = await getConfig();
-		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
+		const configOwName = config ? Object.assign(deepCwone(config), debugStawtOptions?.config) : name;
+		await debugSewvice.stawtDebugging(waunch, configOwName, { noDebug: debugStawtOptions?.noDebug, stawtedByUsa: twue }, fawse);
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: DEBUG_RUN_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.F5,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.F5 },
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
-	handler: async (accessor: ServicesAccessor) => {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand(DEBUG_START_COMMAND_ID, { noDebug: true });
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: DEBUG_WUN_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.F5,
+	mac: { pwimawy: KeyMod.WinCtww | KeyCode.F5 },
+	when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Initiawizing))),
+	handwa: async (accessow: SewvicesAccessow) => {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		await commandSewvice.executeCommand(DEBUG_STAWT_COMMAND_ID, { noDebug: twue });
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.toggleBreakpoint',
-	weight: KeybindingWeight.WorkbenchContrib + 5,
-	when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_FOCUSED, InputFocusedContext.toNegated()),
-	primary: KeyCode.Space,
-	handler: (accessor) => {
-		const listService = accessor.get(IListService);
-		const debugService = accessor.get(IDebugService);
-		const list = listService.lastFocusedList;
-		if (list instanceof List) {
-			const focused = <IEnablement[]>list.getFocusedElements();
-			if (focused && focused.length) {
-				debugService.enableOrDisableBreakpoints(!focused[0].enabled, focused[0]);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.toggweBweakpoint',
+	weight: KeybindingWeight.WowkbenchContwib + 5,
+	when: ContextKeyExpw.and(CONTEXT_BWEAKPOINTS_FOCUSED, InputFocusedContext.toNegated()),
+	pwimawy: KeyCode.Space,
+	handwa: (accessow) => {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const wist = wistSewvice.wastFocusedWist;
+		if (wist instanceof Wist) {
+			const focused = <IEnabwement[]>wist.getFocusedEwements();
+			if (focused && focused.wength) {
+				debugSewvice.enabweOwDisabweBweakpoints(!focused[0].enabwed, focused[0]);
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.enableOrDisableBreakpoint',
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: undefined,
-	when: EditorContextKeys.editorTextFocus,
-	handler: (accessor) => {
-		const debugService = accessor.get(IDebugService);
-		const editorService = accessor.get(IEditorService);
-		const control = editorService.activeTextEditorControl;
-		if (isCodeEditor(control)) {
-			const model = control.getModel();
-			if (model) {
-				const position = control.getPosition();
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.enabweOwDisabweBweakpoint',
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: undefined,
+	when: EditowContextKeys.editowTextFocus,
+	handwa: (accessow) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const contwow = editowSewvice.activeTextEditowContwow;
+		if (isCodeEditow(contwow)) {
+			const modew = contwow.getModew();
+			if (modew) {
+				const position = contwow.getPosition();
 				if (position) {
-					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
-					if (bps.length) {
-						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]);
+					const bps = debugSewvice.getModew().getBweakpoints({ uwi: modew.uwi, wineNumba: position.wineNumba });
+					if (bps.wength) {
+						debugSewvice.enabweOwDisabweBweakpoints(!bps[0].enabwed, bps[0]);
 					}
 				}
 			}
@@ -484,219 +484,219 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: EDIT_EXPRESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 5,
-	when: CONTEXT_WATCH_EXPRESSIONS_FOCUSED,
-	primary: KeyCode.F2,
-	mac: { primary: KeyCode.Enter },
-	handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		if (!(expression instanceof Expression)) {
-			const listService = accessor.get(IListService);
-			const focused = listService.lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: EDIT_EXPWESSION_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib + 5,
+	when: CONTEXT_WATCH_EXPWESSIONS_FOCUSED,
+	pwimawy: KeyCode.F2,
+	mac: { pwimawy: KeyCode.Enta },
+	handwa: (accessow: SewvicesAccessow, expwession: Expwession | unknown) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		if (!(expwession instanceof Expwession)) {
+			const wistSewvice = accessow.get(IWistSewvice);
+			const focused = wistSewvice.wastFocusedWist;
 			if (focused) {
-				const elements = focused.getFocus();
-				if (Array.isArray(elements) && elements[0] instanceof Expression) {
-					expression = elements[0];
+				const ewements = focused.getFocus();
+				if (Awway.isAwway(ewements) && ewements[0] instanceof Expwession) {
+					expwession = ewements[0];
 				}
 			}
 		}
 
-		if (expression instanceof Expression) {
-			debugService.getViewModel().setSelectedExpression(expression, false);
+		if (expwession instanceof Expwession) {
+			debugSewvice.getViewModew().setSewectedExpwession(expwession, fawse);
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: SET_EXPRESSION_COMMAND_ID,
-	handler: async (accessor: ServicesAccessor, expression: Expression | unknown) => {
-		const debugService = accessor.get(IDebugService);
-		if (expression instanceof Expression || expression instanceof Variable) {
-			debugService.getViewModel().setSelectedExpression(expression, true);
+CommandsWegistwy.wegistewCommand({
+	id: SET_EXPWESSION_COMMAND_ID,
+	handwa: async (accessow: SewvicesAccessow, expwession: Expwession | unknown) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
+		if (expwession instanceof Expwession || expwession instanceof Vawiabwe) {
+			debugSewvice.getViewModew().setSewectedExpwession(expwession, twue);
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.setVariable',
-	weight: KeybindingWeight.WorkbenchContrib + 5,
-	when: CONTEXT_VARIABLES_FOCUSED,
-	primary: KeyCode.F2,
-	mac: { primary: KeyCode.Enter },
-	handler: (accessor) => {
-		const listService = accessor.get(IListService);
-		const debugService = accessor.get(IDebugService);
-		const focused = listService.lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.setVawiabwe',
+	weight: KeybindingWeight.WowkbenchContwib + 5,
+	when: CONTEXT_VAWIABWES_FOCUSED,
+	pwimawy: KeyCode.F2,
+	mac: { pwimawy: KeyCode.Enta },
+	handwa: (accessow) => {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const focused = wistSewvice.wastFocusedWist;
 
 		if (focused) {
-			const elements = focused.getFocus();
-			if (Array.isArray(elements) && elements[0] instanceof Variable) {
-				debugService.getViewModel().setSelectedExpression(elements[0], false);
+			const ewements = focused.getFocus();
+			if (Awway.isAwway(ewements) && ewements[0] instanceof Vawiabwe) {
+				debugSewvice.getViewModew().setSewectedExpwession(ewements[0], fawse);
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REMOVE_EXPRESSION_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_EXPRESSION_SELECTED.toNegated()),
-	primary: KeyCode.Delete,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-	handler: (accessor: ServicesAccessor, expression: Expression | unknown) => {
-		const debugService = accessor.get(IDebugService);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: WEMOVE_EXPWESSION_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(CONTEXT_WATCH_EXPWESSIONS_FOCUSED, CONTEXT_EXPWESSION_SEWECTED.toNegated()),
+	pwimawy: KeyCode.Dewete,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace },
+	handwa: (accessow: SewvicesAccessow, expwession: Expwession | unknown) => {
+		const debugSewvice = accessow.get(IDebugSewvice);
 
-		if (expression instanceof Expression) {
-			debugService.removeWatchExpressions(expression.getId());
-			return;
+		if (expwession instanceof Expwession) {
+			debugSewvice.wemoveWatchExpwessions(expwession.getId());
+			wetuwn;
 		}
 
-		const listService = accessor.get(IListService);
-		const focused = listService.lastFocusedList;
+		const wistSewvice = accessow.get(IWistSewvice);
+		const focused = wistSewvice.wastFocusedWist;
 		if (focused) {
-			let elements = focused.getFocus();
-			if (Array.isArray(elements) && elements[0] instanceof Expression) {
-				const selection = focused.getSelection();
-				if (selection && selection.indexOf(elements[0]) >= 0) {
-					elements = selection;
+			wet ewements = focused.getFocus();
+			if (Awway.isAwway(ewements) && ewements[0] instanceof Expwession) {
+				const sewection = focused.getSewection();
+				if (sewection && sewection.indexOf(ewements[0]) >= 0) {
+					ewements = sewection;
 				}
-				elements.forEach((e: Expression) => debugService.removeWatchExpressions(e.getId()));
+				ewements.fowEach((e: Expwession) => debugSewvice.wemoveWatchExpwessions(e.getId()));
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.removeBreakpoint',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_BREAKPOINT_INPUT_FOCUSED.toNegated()),
-	primary: KeyCode.Delete,
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
-	handler: (accessor) => {
-		const listService = accessor.get(IListService);
-		const debugService = accessor.get(IDebugService);
-		const list = listService.lastFocusedList;
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.wemoveBweakpoint',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ContextKeyExpw.and(CONTEXT_BWEAKPOINTS_FOCUSED, CONTEXT_BWEAKPOINT_INPUT_FOCUSED.toNegated()),
+	pwimawy: KeyCode.Dewete,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyCode.Backspace },
+	handwa: (accessow) => {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const debugSewvice = accessow.get(IDebugSewvice);
+		const wist = wistSewvice.wastFocusedWist;
 
-		if (list instanceof List) {
-			const focused = list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
-			if (element instanceof Breakpoint) {
-				debugService.removeBreakpoints(element.getId());
-			} else if (element instanceof FunctionBreakpoint) {
-				debugService.removeFunctionBreakpoints(element.getId());
-			} else if (element instanceof DataBreakpoint) {
-				debugService.removeDataBreakpoints(element.getId());
+		if (wist instanceof Wist) {
+			const focused = wist.getFocusedEwements();
+			const ewement = focused.wength ? focused[0] : undefined;
+			if (ewement instanceof Bweakpoint) {
+				debugSewvice.wemoveBweakpoints(ewement.getId());
+			} ewse if (ewement instanceof FunctionBweakpoint) {
+				debugSewvice.wemoveFunctionBweakpoints(ewement.getId());
+			} ewse if (ewement instanceof DataBweakpoint) {
+				debugSewvice.wemoveDataBweakpoints(ewement.getId());
 			}
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.installAdditionalDebuggers',
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.instawwAdditionawDebuggews',
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: undefined,
-	handler: async (accessor, query: string) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		let searchFor = `@category:debuggers`;
-		if (typeof query === 'string') {
-			searchFor += ` ${query}`;
+	pwimawy: undefined,
+	handwa: async (accessow, quewy: stwing) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = (await paneCompositeSewvice.openPaneComposite(EXTENSIONS_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue))?.getViewPaneContaina() as IExtensionsViewPaneContaina;
+		wet seawchFow = `@categowy:debuggews`;
+		if (typeof quewy === 'stwing') {
+			seawchFow += ` ${quewy}`;
 		}
-		viewlet.search(searchFor);
-		viewlet.focus();
+		viewwet.seawch(seawchFow);
+		viewwet.focus();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ADD_CONFIGURATION_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: ADD_CONFIGUWATION_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: undefined,
-	handler: async (accessor, launchUri: string) => {
-		const manager = accessor.get(IDebugService).getConfigurationManager();
+	pwimawy: undefined,
+	handwa: async (accessow, waunchUwi: stwing) => {
+		const managa = accessow.get(IDebugSewvice).getConfiguwationManaga();
 
-		const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
-		if (launch) {
-			const { editor, created } = await launch.openConfigFile(false);
-			if (editor && !created) {
-				const codeEditor = <ICodeEditor>editor.getControl();
-				if (codeEditor) {
-					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
+		const waunch = managa.getWaunches().find(w => w.uwi.toStwing() === waunchUwi) || managa.sewectedConfiguwation.waunch;
+		if (waunch) {
+			const { editow, cweated } = await waunch.openConfigFiwe(fawse);
+			if (editow && !cweated) {
+				const codeEditow = <ICodeEditow>editow.getContwow();
+				if (codeEditow) {
+					await codeEditow.getContwibution<IDebugEditowContwibution>(EDITOW_CONTWIBUTION_ID).addWaunchConfiguwation();
 				}
 			}
 		}
 	}
 });
 
-const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
-	const debugService = accessor.get(IDebugService);
-	const editorService = accessor.get(IEditorService);
-	const control = editorService.activeTextEditorControl;
-	if (isCodeEditor(control)) {
-		const position = control.getPosition();
-		if (position && control.hasModel() && debugService.canSetBreakpointsIn(control.getModel())) {
-			const modelUri = control.getModel().uri;
-			const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
-				.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
+const inwineBweakpointHandwa = (accessow: SewvicesAccessow) => {
+	const debugSewvice = accessow.get(IDebugSewvice);
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const contwow = editowSewvice.activeTextEditowContwow;
+	if (isCodeEditow(contwow)) {
+		const position = contwow.getPosition();
+		if (position && contwow.hasModew() && debugSewvice.canSetBweakpointsIn(contwow.getModew())) {
+			const modewUwi = contwow.getModew().uwi;
+			const bweakpointAwweadySet = debugSewvice.getModew().getBweakpoints({ wineNumba: position.wineNumba, uwi: modewUwi })
+				.some(bp => (bp.sessionAgnosticData.cowumn === position.cowumn || (!bp.cowumn && position.cowumn <= 1)));
 
-			if (!breakpointAlreadySet) {
-				debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
+			if (!bweakpointAwweadySet) {
+				debugSewvice.addBweakpoints(modewUwi, [{ wineNumba: position.wineNumba, cowumn: position.cowumn > 1 ? position.cowumn : undefined }]);
 			}
 		}
 	}
 };
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.Shift | KeyCode.F9,
-	when: EditorContextKeys.editorTextFocus,
-	id: TOGGLE_INLINE_BREAKPOINT_ID,
-	handler: inlineBreakpointHandler
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.Shift | KeyCode.F9,
+	when: EditowContextKeys.editowTextFocus,
+	id: TOGGWE_INWINE_BWEAKPOINT_ID,
+	handwa: inwineBweakpointHandwa
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+MenuWegistwy.appendMenuItem(MenuId.EditowContext, {
 	command: {
-		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize('addInlineBreakpoint', "Add Inline Breakpoint"),
-		category: { value: nls.localize('debug', "Debug"), original: 'Debug' }
+		id: TOGGWE_INWINE_BWEAKPOINT_ID,
+		titwe: nws.wocawize('addInwineBweakpoint', "Add Inwine Bweakpoint"),
+		categowy: { vawue: nws.wocawize('debug', "Debug"), owiginaw: 'Debug' }
 	},
-	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
-	group: 'debug',
-	order: 1
+	when: ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, PanewFocusContext.toNegated(), EditowContextKeys.editowTextFocus),
+	gwoup: 'debug',
+	owda: 1
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'debug.openBreakpointToSide',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: CONTEXT_BREAKPOINTS_FOCUSED,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	secondary: [KeyMod.Alt | KeyCode.Enter],
-	handler: (accessor) => {
-		const listService = accessor.get(IListService);
-		const list = listService.lastFocusedList;
-		if (list instanceof List) {
-			const focus = list.getFocusedElements();
-			if (focus.length && focus[0] instanceof Breakpoint) {
-				return openBreakpointSource(focus[0], true, false, true, accessor.get(IDebugService), accessor.get(IEditorService));
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: 'debug.openBweakpointToSide',
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: CONTEXT_BWEAKPOINTS_FOCUSED,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
+	secondawy: [KeyMod.Awt | KeyCode.Enta],
+	handwa: (accessow) => {
+		const wistSewvice = accessow.get(IWistSewvice);
+		const wist = wistSewvice.wastFocusedWist;
+		if (wist instanceof Wist) {
+			const focus = wist.getFocusedEwements();
+			if (focus.wength && focus[0] instanceof Bweakpoint) {
+				wetuwn openBweakpointSouwce(focus[0], twue, fawse, twue, accessow.get(IDebugSewvice), accessow.get(IEditowSewvice));
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 });
 
-// When there are no debug extensions, open the debug viewlet when F5 is pressed so the user can read the limitations
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+// When thewe awe no debug extensions, open the debug viewwet when F5 is pwessed so the usa can wead the wimitations
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	id: 'debug.openView',
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: CONTEXT_DEBUGGERS_AVAILABLE.toNegated(),
-	primary: KeyCode.F5,
-	secondary: [KeyMod.CtrlCmd | KeyCode.F5],
-	handler: async (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE.toNegated(),
+	pwimawy: KeyCode.F5,
+	secondawy: [KeyMod.CtwwCmd | KeyCode.F5],
+	handwa: async (accessow) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
 	}
 });

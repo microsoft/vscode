@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as glob from 'vs/base/common/glob';
-import { sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { sep } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-suite('Glob', () => {
+suite('Gwob', () => {
 
-	// test('perf', () => {
+	// test('pewf', () => {
 
-	// 	let patterns = [
-	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
-	// 		'{**/*.cs,**/*.csproj,**/*.sln}',
+	// 	wet pattewns = [
+	// 		'{**/*.cs,**/*.json,**/*.cspwoj,**/*.swn}',
+	// 		'{**/*.cs,**/*.cspwoj,**/*.swn}',
 	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'**/*.go',
 	// 		'{**/*.ps,**/*.ps1}',
 	// 		'{**/*.c,**/*.cpp,**/*.h}',
-	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
+	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.mw,**/*.mwi}',
 	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'{**/*.ts,**/*.tsx}',
 	// 		'{**/*.php}',
@@ -30,999 +30,999 @@ suite('Glob', () => {
 	// 		'{**/*.py}',
 	// 		'{**/*.py}',
 	// 		'{**/*.py}',
-	// 		'{**/*.rs,**/*.rslib}',
+	// 		'{**/*.ws,**/*.wswib}',
 	// 		'{**/*.cpp,**/*.cc,**/*.h}',
 	// 		'{**/*.md}',
 	// 		'{**/*.md}',
 	// 		'{**/*.md}'
 	// 	];
 
-	// 	let paths = [
-	// 		'/DNXConsoleApp/Program.cs',
-	// 		'C:\\DNXConsoleApp\\foo\\Program.cs',
+	// 	wet paths = [
+	// 		'/DNXConsoweApp/Pwogwam.cs',
+	// 		'C:\\DNXConsoweApp\\foo\\Pwogwam.cs',
 	// 		'test/qunit',
 	// 		'test/test.txt',
-	// 		'test/node_modules',
+	// 		'test/node_moduwes',
 	// 		'.hidden.txt',
-	// 		'/node_module/test/foo.js'
+	// 		'/node_moduwe/test/foo.js'
 	// 	];
 
-	// 	let results = 0;
-	// 	let c = 1000;
-	// 	console.profile('glob.match');
-	// 	while (c-- > 0) {
-	// 		for (let path of paths) {
-	// 			for (let pattern of patterns) {
-	// 				let r = glob.match(pattern, path);
-	// 				if (r) {
-	// 					results += 42;
+	// 	wet wesuwts = 0;
+	// 	wet c = 1000;
+	// 	consowe.pwofiwe('gwob.match');
+	// 	whiwe (c-- > 0) {
+	// 		fow (wet path of paths) {
+	// 			fow (wet pattewn of pattewns) {
+	// 				wet w = gwob.match(pattewn, path);
+	// 				if (w) {
+	// 					wesuwts += 42;
 	// 				}
 	// 			}
 	// 		}
 	// 	}
-	// 	console.profileEnd();
+	// 	consowe.pwofiweEnd();
 	// });
 
-	function assertGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(glob.match(pattern, input), `${pattern} should match ${input}`);
-		assert(glob.match(pattern, nativeSep(input)), `${pattern} should match ${nativeSep(input)}`);
+	function assewtGwobMatch(pattewn: stwing | gwob.IWewativePattewn, input: stwing) {
+		assewt(gwob.match(pattewn, input), `${pattewn} shouwd match ${input}`);
+		assewt(gwob.match(pattewn, nativeSep(input)), `${pattewn} shouwd match ${nativeSep(input)}`);
 	}
 
-	function assertNoGlobMatch(pattern: string | glob.IRelativePattern, input: string) {
-		assert(!glob.match(pattern, input), `${pattern} should not match ${input}`);
-		assert(!glob.match(pattern, nativeSep(input)), `${pattern} should not match ${nativeSep(input)}`);
+	function assewtNoGwobMatch(pattewn: stwing | gwob.IWewativePattewn, input: stwing) {
+		assewt(!gwob.match(pattewn, input), `${pattewn} shouwd not match ${input}`);
+		assewt(!gwob.match(pattewn, nativeSep(input)), `${pattewn} shouwd not match ${nativeSep(input)}`);
 	}
 
-	test('simple', () => {
-		let p = 'node_modules';
+	test('simpwe', () => {
+		wet p = 'node_moduwes';
 
-		assertGlobMatch(p, 'node_modules');
-		assertNoGlobMatch(p, 'node_module');
-		assertNoGlobMatch(p, '/node_modules');
-		assertNoGlobMatch(p, 'test/node_modules');
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtNoGwobMatch(p, 'node_moduwe');
+		assewtNoGwobMatch(p, '/node_moduwes');
+		assewtNoGwobMatch(p, 'test/node_moduwes');
 
 		p = 'test.txt';
-		assertGlobMatch(p, 'test.txt');
-		assertNoGlobMatch(p, 'test?txt');
-		assertNoGlobMatch(p, '/text.txt');
-		assertNoGlobMatch(p, 'test/test.txt');
+		assewtGwobMatch(p, 'test.txt');
+		assewtNoGwobMatch(p, 'test?txt');
+		assewtNoGwobMatch(p, '/text.txt');
+		assewtNoGwobMatch(p, 'test/test.txt');
 
 		p = 'test(.txt';
-		assertGlobMatch(p, 'test(.txt');
-		assertNoGlobMatch(p, 'test?txt');
+		assewtGwobMatch(p, 'test(.txt');
+		assewtNoGwobMatch(p, 'test?txt');
 
 		p = 'qunit';
 
-		assertGlobMatch(p, 'qunit');
-		assertNoGlobMatch(p, 'qunit.css');
-		assertNoGlobMatch(p, 'test/qunit');
+		assewtGwobMatch(p, 'qunit');
+		assewtNoGwobMatch(p, 'qunit.css');
+		assewtNoGwobMatch(p, 'test/qunit');
 
-		// Absolute
+		// Absowute
 
-		p = '/DNXConsoleApp/**/*.cs';
-		assertGlobMatch(p, '/DNXConsoleApp/Program.cs');
-		assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+		p = '/DNXConsoweApp/**/*.cs';
+		assewtGwobMatch(p, '/DNXConsoweApp/Pwogwam.cs');
+		assewtGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.cs');
 
-		p = 'C:/DNXConsoleApp/**/*.cs';
-		assertGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
-		assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+		p = 'C:/DNXConsoweApp/**/*.cs';
+		assewtGwobMatch(p, 'C:\\DNXConsoweApp\\Pwogwam.cs');
+		assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.cs');
 
 		p = '*';
-		assertGlobMatch(p, '');
+		assewtGwobMatch(p, '');
 	});
 
 	test('dot hidden', function () {
-		let p = '.*';
+		wet p = '.*';
 
-		assertGlobMatch(p, '.git');
-		assertGlobMatch(p, '.hidden.txt');
-		assertNoGlobMatch(p, 'git');
-		assertNoGlobMatch(p, 'hidden.txt');
-		assertNoGlobMatch(p, 'path/.git');
-		assertNoGlobMatch(p, 'path/.hidden.txt');
+		assewtGwobMatch(p, '.git');
+		assewtGwobMatch(p, '.hidden.txt');
+		assewtNoGwobMatch(p, 'git');
+		assewtNoGwobMatch(p, 'hidden.txt');
+		assewtNoGwobMatch(p, 'path/.git');
+		assewtNoGwobMatch(p, 'path/.hidden.txt');
 
 		p = '**/.*';
-		assertGlobMatch(p, '.git');
-		assertGlobMatch(p, '.hidden.txt');
-		assertNoGlobMatch(p, 'git');
-		assertNoGlobMatch(p, 'hidden.txt');
-		assertGlobMatch(p, 'path/.git');
-		assertGlobMatch(p, 'path/.hidden.txt');
-		assertNoGlobMatch(p, 'path/git');
-		assertNoGlobMatch(p, 'pat.h/hidden.txt');
+		assewtGwobMatch(p, '.git');
+		assewtGwobMatch(p, '.hidden.txt');
+		assewtNoGwobMatch(p, 'git');
+		assewtNoGwobMatch(p, 'hidden.txt');
+		assewtGwobMatch(p, 'path/.git');
+		assewtGwobMatch(p, 'path/.hidden.txt');
+		assewtNoGwobMatch(p, 'path/git');
+		assewtNoGwobMatch(p, 'pat.h/hidden.txt');
 
 		p = '._*';
 
-		assertGlobMatch(p, '._git');
-		assertGlobMatch(p, '._hidden.txt');
-		assertNoGlobMatch(p, 'git');
-		assertNoGlobMatch(p, 'hidden.txt');
-		assertNoGlobMatch(p, 'path/._git');
-		assertNoGlobMatch(p, 'path/._hidden.txt');
+		assewtGwobMatch(p, '._git');
+		assewtGwobMatch(p, '._hidden.txt');
+		assewtNoGwobMatch(p, 'git');
+		assewtNoGwobMatch(p, 'hidden.txt');
+		assewtNoGwobMatch(p, 'path/._git');
+		assewtNoGwobMatch(p, 'path/._hidden.txt');
 
 		p = '**/._*';
-		assertGlobMatch(p, '._git');
-		assertGlobMatch(p, '._hidden.txt');
-		assertNoGlobMatch(p, 'git');
-		assertNoGlobMatch(p, 'hidden._txt');
-		assertGlobMatch(p, 'path/._git');
-		assertGlobMatch(p, 'path/._hidden.txt');
-		assertNoGlobMatch(p, 'path/git');
-		assertNoGlobMatch(p, 'pat.h/hidden._txt');
+		assewtGwobMatch(p, '._git');
+		assewtGwobMatch(p, '._hidden.txt');
+		assewtNoGwobMatch(p, 'git');
+		assewtNoGwobMatch(p, 'hidden._txt');
+		assewtGwobMatch(p, 'path/._git');
+		assewtGwobMatch(p, 'path/._hidden.txt');
+		assewtNoGwobMatch(p, 'path/git');
+		assewtNoGwobMatch(p, 'pat.h/hidden._txt');
 	});
 
-	test('file pattern', function () {
-		let p = '*.js';
+	test('fiwe pattewn', function () {
+		wet p = '*.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		assewtGwobMatch(p, 'foo.js');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 
-		p = 'html.*';
-		assertGlobMatch(p, 'html.js');
-		assertGlobMatch(p, 'html.txt');
-		assertNoGlobMatch(p, 'htm.txt');
+		p = 'htmw.*';
+		assewtGwobMatch(p, 'htmw.js');
+		assewtGwobMatch(p, 'htmw.txt');
+		assewtNoGwobMatch(p, 'htm.txt');
 
 		p = '*.*';
-		assertGlobMatch(p, 'html.js');
-		assertGlobMatch(p, 'html.txt');
-		assertGlobMatch(p, 'htm.txt');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
+		assewtGwobMatch(p, 'htmw.js');
+		assewtGwobMatch(p, 'htmw.txt');
+		assewtGwobMatch(p, 'htm.txt');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
 
-		p = 'node_modules/test/*.js';
-		assertGlobMatch(p, 'node_modules/test/foo.js');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_module/test/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		p = 'node_moduwes/test/*.js';
+		assewtGwobMatch(p, 'node_moduwes/test/foo.js');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwe/test/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 	});
 
-	test('star', () => {
-		let p = 'node*modules';
+	test('staw', () => {
+		wet p = 'node*moduwes';
 
-		assertGlobMatch(p, 'node_modules');
-		assertGlobMatch(p, 'node_super_modules');
-		assertNoGlobMatch(p, 'node_module');
-		assertNoGlobMatch(p, '/node_modules');
-		assertNoGlobMatch(p, 'test/node_modules');
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtGwobMatch(p, 'node_supew_moduwes');
+		assewtNoGwobMatch(p, 'node_moduwe');
+		assewtNoGwobMatch(p, '/node_moduwes');
+		assewtNoGwobMatch(p, 'test/node_moduwes');
 
 		p = '*';
-		assertGlobMatch(p, 'html.js');
-		assertGlobMatch(p, 'html.txt');
-		assertGlobMatch(p, 'htm.txt');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
+		assewtGwobMatch(p, 'htmw.js');
+		assewtGwobMatch(p, 'htmw.txt');
+		assewtGwobMatch(p, 'htm.txt');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
 	});
 
-	test('file / folder match', function () {
-		let p = '**/node_modules/**';
+	test('fiwe / fowda match', function () {
+		wet p = '**/node_moduwes/**';
 
-		assertGlobMatch(p, 'node_modules');
-		assertGlobMatch(p, 'node_modules/');
-		assertGlobMatch(p, 'a/node_modules');
-		assertGlobMatch(p, 'a/node_modules/');
-		assertGlobMatch(p, 'node_modules/foo');
-		assertGlobMatch(p, 'foo/node_modules/foo/bar');
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtGwobMatch(p, 'node_moduwes/');
+		assewtGwobMatch(p, 'a/node_moduwes');
+		assewtGwobMatch(p, 'a/node_moduwes/');
+		assewtGwobMatch(p, 'node_moduwes/foo');
+		assewtGwobMatch(p, 'foo/node_moduwes/foo/baw');
 	});
 
-	test('questionmark', () => {
-		let p = 'node?modules';
+	test('questionmawk', () => {
+		wet p = 'node?moduwes';
 
-		assertGlobMatch(p, 'node_modules');
-		assertNoGlobMatch(p, 'node_super_modules');
-		assertNoGlobMatch(p, 'node_module');
-		assertNoGlobMatch(p, '/node_modules');
-		assertNoGlobMatch(p, 'test/node_modules');
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtNoGwobMatch(p, 'node_supew_moduwes');
+		assewtNoGwobMatch(p, 'node_moduwe');
+		assewtNoGwobMatch(p, '/node_moduwes');
+		assewtNoGwobMatch(p, 'test/node_moduwes');
 
 		p = '?';
-		assertGlobMatch(p, 'h');
-		assertNoGlobMatch(p, 'html.txt');
-		assertNoGlobMatch(p, 'htm.txt');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
+		assewtGwobMatch(p, 'h');
+		assewtNoGwobMatch(p, 'htmw.txt');
+		assewtNoGwobMatch(p, 'htm.txt');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
 	});
 
-	test('globstar', () => {
-		let p = '**/*.js';
+	test('gwobstaw', () => {
+		wet p = '**/*.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'folder/foo.js');
-		assertGlobMatch(p, '/node_modules/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
-		assertNoGlobMatch(p, '/some.js/test');
-		assertNoGlobMatch(p, '\\some.js\\test');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'fowda/foo.js');
+		assewtGwobMatch(p, '/node_moduwes/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
+		assewtNoGwobMatch(p, '/some.js/test');
+		assewtNoGwobMatch(p, '\\some.js\\test');
 
-		p = '**/project.json';
+		p = '**/pwoject.json';
 
-		assertGlobMatch(p, 'project.json');
-		assertGlobMatch(p, '/project.json');
-		assertGlobMatch(p, 'some/folder/project.json');
-		assertNoGlobMatch(p, 'some/folder/file_project.json');
-		assertNoGlobMatch(p, 'some/folder/fileproject.json');
-		assertNoGlobMatch(p, 'some/rrproject.json');
-		assertNoGlobMatch(p, 'some\\rrproject.json');
+		assewtGwobMatch(p, 'pwoject.json');
+		assewtGwobMatch(p, '/pwoject.json');
+		assewtGwobMatch(p, 'some/fowda/pwoject.json');
+		assewtNoGwobMatch(p, 'some/fowda/fiwe_pwoject.json');
+		assewtNoGwobMatch(p, 'some/fowda/fiwepwoject.json');
+		assewtNoGwobMatch(p, 'some/wwpwoject.json');
+		assewtNoGwobMatch(p, 'some\\wwpwoject.json');
 
 		p = 'test/**';
-		assertGlobMatch(p, 'test');
-		assertGlobMatch(p, 'test/foo.js');
-		assertGlobMatch(p, 'test/other/foo.js');
-		assertNoGlobMatch(p, 'est/other/foo.js');
+		assewtGwobMatch(p, 'test');
+		assewtGwobMatch(p, 'test/foo.js');
+		assewtGwobMatch(p, 'test/otha/foo.js');
+		assewtNoGwobMatch(p, 'est/otha/foo.js');
 
 		p = '**';
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'folder/foo.js');
-		assertGlobMatch(p, '/node_modules/foo.js');
-		assertGlobMatch(p, 'foo.jss');
-		assertGlobMatch(p, 'some.js/test');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'fowda/foo.js');
+		assewtGwobMatch(p, '/node_moduwes/foo.js');
+		assewtGwobMatch(p, 'foo.jss');
+		assewtGwobMatch(p, 'some.js/test');
 
 		p = 'test/**/*.js';
-		assertGlobMatch(p, 'test/foo.js');
-		assertGlobMatch(p, 'test/other/foo.js');
-		assertGlobMatch(p, 'test/other/more/foo.js');
-		assertNoGlobMatch(p, 'test/foo.ts');
-		assertNoGlobMatch(p, 'test/other/foo.ts');
-		assertNoGlobMatch(p, 'test/other/more/foo.ts');
+		assewtGwobMatch(p, 'test/foo.js');
+		assewtGwobMatch(p, 'test/otha/foo.js');
+		assewtGwobMatch(p, 'test/otha/mowe/foo.js');
+		assewtNoGwobMatch(p, 'test/foo.ts');
+		assewtNoGwobMatch(p, 'test/otha/foo.ts');
+		assewtNoGwobMatch(p, 'test/otha/mowe/foo.ts');
 
 		p = '**/**/*.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'folder/foo.js');
-		assertGlobMatch(p, '/node_modules/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'fowda/foo.js');
+		assewtGwobMatch(p, '/node_moduwes/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 
-		p = '**/node_modules/**/*.js';
+		p = '**/node_moduwes/**/*.js';
 
-		assertNoGlobMatch(p, 'foo.js');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertGlobMatch(p, 'node_modules/foo.js');
-		assertGlobMatch(p, 'node_modules/some/folder/foo.js');
-		assertNoGlobMatch(p, 'node_modules/some/folder/foo.ts');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		assewtNoGwobMatch(p, 'foo.js');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtGwobMatch(p, 'node_moduwes/foo.js');
+		assewtGwobMatch(p, 'node_moduwes/some/fowda/foo.js');
+		assewtNoGwobMatch(p, 'node_moduwes/some/fowda/foo.ts');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 
-		p = '{**/node_modules/**,**/.git/**,**/bower_components/**}';
+		p = '{**/node_moduwes/**,**/.git/**,**/bowew_components/**}';
 
-		assertGlobMatch(p, 'node_modules');
-		assertGlobMatch(p, '/node_modules');
-		assertGlobMatch(p, '/node_modules/more');
-		assertGlobMatch(p, 'some/test/node_modules');
-		assertGlobMatch(p, 'some\\test\\node_modules');
-		assertGlobMatch(p, 'C:\\\\some\\test\\node_modules');
-		assertGlobMatch(p, 'C:\\\\some\\test\\node_modules\\more');
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtGwobMatch(p, '/node_moduwes');
+		assewtGwobMatch(p, '/node_moduwes/mowe');
+		assewtGwobMatch(p, 'some/test/node_moduwes');
+		assewtGwobMatch(p, 'some\\test\\node_moduwes');
+		assewtGwobMatch(p, 'C:\\\\some\\test\\node_moduwes');
+		assewtGwobMatch(p, 'C:\\\\some\\test\\node_moduwes\\mowe');
 
-		assertGlobMatch(p, 'bower_components');
-		assertGlobMatch(p, 'bower_components/more');
-		assertGlobMatch(p, '/bower_components');
-		assertGlobMatch(p, 'some/test/bower_components');
-		assertGlobMatch(p, 'some\\test\\bower_components');
-		assertGlobMatch(p, 'C:\\\\some\\test\\bower_components');
-		assertGlobMatch(p, 'C:\\\\some\\test\\bower_components\\more');
+		assewtGwobMatch(p, 'bowew_components');
+		assewtGwobMatch(p, 'bowew_components/mowe');
+		assewtGwobMatch(p, '/bowew_components');
+		assewtGwobMatch(p, 'some/test/bowew_components');
+		assewtGwobMatch(p, 'some\\test\\bowew_components');
+		assewtGwobMatch(p, 'C:\\\\some\\test\\bowew_components');
+		assewtGwobMatch(p, 'C:\\\\some\\test\\bowew_components\\mowe');
 
-		assertGlobMatch(p, '.git');
-		assertGlobMatch(p, '/.git');
-		assertGlobMatch(p, 'some/test/.git');
-		assertGlobMatch(p, 'some\\test\\.git');
-		assertGlobMatch(p, 'C:\\\\some\\test\\.git');
+		assewtGwobMatch(p, '.git');
+		assewtGwobMatch(p, '/.git');
+		assewtGwobMatch(p, 'some/test/.git');
+		assewtGwobMatch(p, 'some\\test\\.git');
+		assewtGwobMatch(p, 'C:\\\\some\\test\\.git');
 
-		assertNoGlobMatch(p, 'tempting');
-		assertNoGlobMatch(p, '/tempting');
-		assertNoGlobMatch(p, 'some/test/tempting');
-		assertNoGlobMatch(p, 'some\\test\\tempting');
-		assertNoGlobMatch(p, 'C:\\\\some\\test\\tempting');
+		assewtNoGwobMatch(p, 'tempting');
+		assewtNoGwobMatch(p, '/tempting');
+		assewtNoGwobMatch(p, 'some/test/tempting');
+		assewtNoGwobMatch(p, 'some\\test\\tempting');
+		assewtNoGwobMatch(p, 'C:\\\\some\\test\\tempting');
 
-		p = '{**/package.json,**/project.json}';
-		assertGlobMatch(p, 'package.json');
-		assertGlobMatch(p, '/package.json');
-		assertNoGlobMatch(p, 'xpackage.json');
-		assertNoGlobMatch(p, '/xpackage.json');
+		p = '{**/package.json,**/pwoject.json}';
+		assewtGwobMatch(p, 'package.json');
+		assewtGwobMatch(p, '/package.json');
+		assewtNoGwobMatch(p, 'xpackage.json');
+		assewtNoGwobMatch(p, '/xpackage.json');
 	});
 
 	test('issue 41724', function () {
-		let p = 'some/**/*.js';
+		wet p = 'some/**/*.js';
 
-		assertGlobMatch(p, 'some/foo.js');
-		assertGlobMatch(p, 'some/folder/foo.js');
-		assertNoGlobMatch(p, 'something/foo.js');
-		assertNoGlobMatch(p, 'something/folder/foo.js');
+		assewtGwobMatch(p, 'some/foo.js');
+		assewtGwobMatch(p, 'some/fowda/foo.js');
+		assewtNoGwobMatch(p, 'something/foo.js');
+		assewtNoGwobMatch(p, 'something/fowda/foo.js');
 
 		p = 'some/**/*';
 
-		assertGlobMatch(p, 'some/foo.js');
-		assertGlobMatch(p, 'some/folder/foo.js');
-		assertNoGlobMatch(p, 'something/foo.js');
-		assertNoGlobMatch(p, 'something/folder/foo.js');
+		assewtGwobMatch(p, 'some/foo.js');
+		assewtGwobMatch(p, 'some/fowda/foo.js');
+		assewtNoGwobMatch(p, 'something/foo.js');
+		assewtNoGwobMatch(p, 'something/fowda/foo.js');
 	});
 
-	test('brace expansion', function () {
-		let p = '*.{html,js}';
+	test('bwace expansion', function () {
+		wet p = '*.{htmw,js}';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'foo.html');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'foo.htmw');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 
-		p = '*.{html}';
+		p = '*.{htmw}';
 
-		assertGlobMatch(p, 'foo.html');
-		assertNoGlobMatch(p, 'foo.js');
-		assertNoGlobMatch(p, 'folder/foo.js');
-		assertNoGlobMatch(p, '/node_modules/foo.js');
-		assertNoGlobMatch(p, 'foo.jss');
-		assertNoGlobMatch(p, 'some.js/test');
+		assewtGwobMatch(p, 'foo.htmw');
+		assewtNoGwobMatch(p, 'foo.js');
+		assewtNoGwobMatch(p, 'fowda/foo.js');
+		assewtNoGwobMatch(p, '/node_moduwes/foo.js');
+		assewtNoGwobMatch(p, 'foo.jss');
+		assewtNoGwobMatch(p, 'some.js/test');
 
-		p = '{node_modules,testing}';
-		assertGlobMatch(p, 'node_modules');
-		assertGlobMatch(p, 'testing');
-		assertNoGlobMatch(p, 'node_module');
-		assertNoGlobMatch(p, 'dtesting');
+		p = '{node_moduwes,testing}';
+		assewtGwobMatch(p, 'node_moduwes');
+		assewtGwobMatch(p, 'testing');
+		assewtNoGwobMatch(p, 'node_moduwe');
+		assewtNoGwobMatch(p, 'dtesting');
 
-		p = '**/{foo,bar}';
-		assertGlobMatch(p, 'foo');
-		assertGlobMatch(p, 'bar');
-		assertGlobMatch(p, 'test/foo');
-		assertGlobMatch(p, 'test/bar');
-		assertGlobMatch(p, 'other/more/foo');
-		assertGlobMatch(p, 'other/more/bar');
+		p = '**/{foo,baw}';
+		assewtGwobMatch(p, 'foo');
+		assewtGwobMatch(p, 'baw');
+		assewtGwobMatch(p, 'test/foo');
+		assewtGwobMatch(p, 'test/baw');
+		assewtGwobMatch(p, 'otha/mowe/foo');
+		assewtGwobMatch(p, 'otha/mowe/baw');
 
-		p = '{foo,bar}/**';
-		assertGlobMatch(p, 'foo');
-		assertGlobMatch(p, 'bar');
-		assertGlobMatch(p, 'foo/test');
-		assertGlobMatch(p, 'bar/test');
-		assertGlobMatch(p, 'foo/other/more');
-		assertGlobMatch(p, 'bar/other/more');
+		p = '{foo,baw}/**';
+		assewtGwobMatch(p, 'foo');
+		assewtGwobMatch(p, 'baw');
+		assewtGwobMatch(p, 'foo/test');
+		assewtGwobMatch(p, 'baw/test');
+		assewtGwobMatch(p, 'foo/otha/mowe');
+		assewtGwobMatch(p, 'baw/otha/mowe');
 
 		p = '{**/*.d.ts,**/*.js}';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 
-		assertGlobMatch(p, 'foo.d.ts');
-		assertGlobMatch(p, 'testing/foo.d.ts');
-		assertGlobMatch(p, 'testing\\foo.d.ts');
-		assertGlobMatch(p, '/testing/foo.d.ts');
-		assertGlobMatch(p, '\\testing\\foo.d.ts');
-		assertGlobMatch(p, 'C:\\testing\\foo.d.ts');
+		assewtGwobMatch(p, 'foo.d.ts');
+		assewtGwobMatch(p, 'testing/foo.d.ts');
+		assewtGwobMatch(p, 'testing\\foo.d.ts');
+		assewtGwobMatch(p, '/testing/foo.d.ts');
+		assewtGwobMatch(p, '\\testing\\foo.d.ts');
+		assewtGwobMatch(p, 'C:\\testing\\foo.d.ts');
 
-		assertNoGlobMatch(p, 'foo.d');
-		assertNoGlobMatch(p, 'testing/foo.d');
-		assertNoGlobMatch(p, 'testing\\foo.d');
-		assertNoGlobMatch(p, '/testing/foo.d');
-		assertNoGlobMatch(p, '\\testing\\foo.d');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.d');
+		assewtNoGwobMatch(p, 'foo.d');
+		assewtNoGwobMatch(p, 'testing/foo.d');
+		assewtNoGwobMatch(p, 'testing\\foo.d');
+		assewtNoGwobMatch(p, '/testing/foo.d');
+		assewtNoGwobMatch(p, '\\testing\\foo.d');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.d');
 
-		p = '{**/*.d.ts,**/*.js,path/simple.jgs}';
+		p = '{**/*.d.ts,**/*.js,path/simpwe.jgs}';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, 'path/simple.jgs');
-		assertNoGlobMatch(p, '/path/simple.jgs');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, 'path/simpwe.jgs');
+		assewtNoGwobMatch(p, '/path/simpwe.jgs');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 
 		p = '{**/*.d.ts,**/*.js,foo.[0-9]}';
 
-		assertGlobMatch(p, 'foo.5');
-		assertGlobMatch(p, 'foo.8');
-		assertNoGlobMatch(p, 'bar.5');
-		assertNoGlobMatch(p, 'foo.f');
-		assertGlobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'foo.5');
+		assewtGwobMatch(p, 'foo.8');
+		assewtNoGwobMatch(p, 'baw.5');
+		assewtNoGwobMatch(p, 'foo.f');
+		assewtGwobMatch(p, 'foo.js');
 
-		p = 'prefix/{**/*.d.ts,**/*.js,foo.[0-9]}';
+		p = 'pwefix/{**/*.d.ts,**/*.js,foo.[0-9]}';
 
-		assertGlobMatch(p, 'prefix/foo.5');
-		assertGlobMatch(p, 'prefix/foo.8');
-		assertNoGlobMatch(p, 'prefix/bar.5');
-		assertNoGlobMatch(p, 'prefix/foo.f');
-		assertGlobMatch(p, 'prefix/foo.js');
+		assewtGwobMatch(p, 'pwefix/foo.5');
+		assewtGwobMatch(p, 'pwefix/foo.8');
+		assewtNoGwobMatch(p, 'pwefix/baw.5');
+		assewtNoGwobMatch(p, 'pwefix/foo.f');
+		assewtGwobMatch(p, 'pwefix/foo.js');
 	});
 
-	test('expression support (single)', function () {
-		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
-		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
+	test('expwession suppowt (singwe)', function () {
+		wet sibwings = ['test.htmw', 'test.txt', 'test.ts', 'test.js'];
+		wet hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		let expression: glob.IExpression = {
+		wet expwession: gwob.IExpwession = {
 			'**/*.js': {
 				when: '$(basename).ts'
 			}
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual(glob.match(expression, 'test.js', () => false), null);
-		assert.strictEqual(glob.match(expression, 'test.js', name => name === 'te.ts'), null);
-		assert.strictEqual(glob.match(expression, 'test.js'), null);
+		assewt.stwictEquaw('**/*.js', gwob.match(expwession, 'test.js', hasSibwing));
+		assewt.stwictEquaw(gwob.match(expwession, 'test.js', () => fawse), nuww);
+		assewt.stwictEquaw(gwob.match(expwession, 'test.js', name => name === 'te.ts'), nuww);
+		assewt.stwictEquaw(gwob.match(expwession, 'test.js'), nuww);
 
-		expression = {
+		expwession = {
 			'**/*.js': {
 				when: ''
 			}
 		};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assewt.stwictEquaw(gwob.match(expwession, 'test.js', hasSibwing), nuww);
 
-		expression = {
+		expwession = {
 			'**/*.js': {
 			} as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
+		assewt.stwictEquaw('**/*.js', gwob.match(expwession, 'test.js', hasSibwing));
 
-		expression = {};
+		expwession = {};
 
-		assert.strictEqual(glob.match(expression, 'test.js', hasSibling), null);
+		assewt.stwictEquaw(gwob.match(expwession, 'test.js', hasSibwing), nuww);
 	});
 
-	test('expression support (multiple)', function () {
-		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
-		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
+	test('expwession suppowt (muwtipwe)', function () {
+		wet sibwings = ['test.htmw', 'test.txt', 'test.ts', 'test.js'];
+		wet hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		let expression: glob.IExpression = {
+		wet expwession: gwob.IExpwession = {
 			'**/*.js': { when: '$(basename).ts' },
-			'**/*.as': true,
-			'**/*.foo': false,
-			'**/*.bananas': { bananas: true } as any
+			'**/*.as': twue,
+			'**/*.foo': fawse,
+			'**/*.bananas': { bananas: twue } as any
 		};
 
-		assert.strictEqual('**/*.js', glob.match(expression, 'test.js', hasSibling));
-		assert.strictEqual('**/*.as', glob.match(expression, 'test.as', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas', hasSibling));
-		assert.strictEqual('**/*.bananas', glob.match(expression, 'test.bananas'));
-		assert.strictEqual(glob.match(expression, 'test.foo', hasSibling), null);
+		assewt.stwictEquaw('**/*.js', gwob.match(expwession, 'test.js', hasSibwing));
+		assewt.stwictEquaw('**/*.as', gwob.match(expwession, 'test.as', hasSibwing));
+		assewt.stwictEquaw('**/*.bananas', gwob.match(expwession, 'test.bananas', hasSibwing));
+		assewt.stwictEquaw('**/*.bananas', gwob.match(expwession, 'test.bananas'));
+		assewt.stwictEquaw(gwob.match(expwession, 'test.foo', hasSibwing), nuww);
 	});
 
-	test('brackets', () => {
-		let p = 'foo.[0-9]';
+	test('bwackets', () => {
+		wet p = 'foo.[0-9]';
 
-		assertGlobMatch(p, 'foo.5');
-		assertGlobMatch(p, 'foo.8');
-		assertNoGlobMatch(p, 'bar.5');
-		assertNoGlobMatch(p, 'foo.f');
+		assewtGwobMatch(p, 'foo.5');
+		assewtGwobMatch(p, 'foo.8');
+		assewtNoGwobMatch(p, 'baw.5');
+		assewtNoGwobMatch(p, 'foo.f');
 
 		p = 'foo.[^0-9]';
 
-		assertNoGlobMatch(p, 'foo.5');
-		assertNoGlobMatch(p, 'foo.8');
-		assertNoGlobMatch(p, 'bar.5');
-		assertGlobMatch(p, 'foo.f');
+		assewtNoGwobMatch(p, 'foo.5');
+		assewtNoGwobMatch(p, 'foo.8');
+		assewtNoGwobMatch(p, 'baw.5');
+		assewtGwobMatch(p, 'foo.f');
 
 		p = 'foo.[!0-9]';
 
-		assertNoGlobMatch(p, 'foo.5');
-		assertNoGlobMatch(p, 'foo.8');
-		assertNoGlobMatch(p, 'bar.5');
-		assertGlobMatch(p, 'foo.f');
+		assewtNoGwobMatch(p, 'foo.5');
+		assewtNoGwobMatch(p, 'foo.8');
+		assewtNoGwobMatch(p, 'baw.5');
+		assewtGwobMatch(p, 'foo.f');
 
 		p = 'foo.[0!^*?]';
 
-		assertNoGlobMatch(p, 'foo.5');
-		assertNoGlobMatch(p, 'foo.8');
-		assertGlobMatch(p, 'foo.0');
-		assertGlobMatch(p, 'foo.!');
-		assertGlobMatch(p, 'foo.^');
-		assertGlobMatch(p, 'foo.*');
-		assertGlobMatch(p, 'foo.?');
+		assewtNoGwobMatch(p, 'foo.5');
+		assewtNoGwobMatch(p, 'foo.8');
+		assewtGwobMatch(p, 'foo.0');
+		assewtGwobMatch(p, 'foo.!');
+		assewtGwobMatch(p, 'foo.^');
+		assewtGwobMatch(p, 'foo.*');
+		assewtGwobMatch(p, 'foo.?');
 
-		p = 'foo[/]bar';
+		p = 'foo[/]baw';
 
-		assertNoGlobMatch(p, 'foo/bar');
+		assewtNoGwobMatch(p, 'foo/baw');
 
 		p = 'foo.[[]';
 
-		assertGlobMatch(p, 'foo.[');
+		assewtGwobMatch(p, 'foo.[');
 
 		p = 'foo.[]]';
 
-		assertGlobMatch(p, 'foo.]');
+		assewtGwobMatch(p, 'foo.]');
 
 		p = 'foo.[][!]';
 
-		assertGlobMatch(p, 'foo.]');
-		assertGlobMatch(p, 'foo.[');
-		assertGlobMatch(p, 'foo.!');
+		assewtGwobMatch(p, 'foo.]');
+		assewtGwobMatch(p, 'foo.[');
+		assewtGwobMatch(p, 'foo.!');
 
 		p = 'foo.[]-]';
 
-		assertGlobMatch(p, 'foo.]');
-		assertGlobMatch(p, 'foo.-');
+		assewtGwobMatch(p, 'foo.]');
+		assewtGwobMatch(p, 'foo.-');
 	});
 
-	test('full path', function () {
-		assertGlobMatch('testing/this/foo.txt', 'testing/this/foo.txt');
-		// assertGlobMatch('testing/this/foo.txt', 'testing\\this\\foo.txt');
+	test('fuww path', function () {
+		assewtGwobMatch('testing/this/foo.txt', 'testing/this/foo.txt');
+		// assewtGwobMatch('testing/this/foo.txt', 'testing\\this\\foo.txt');
 	});
 
 	test('ending path', function () {
-		assertGlobMatch('**/testing/this/foo.txt', 'some/path/testing/this/foo.txt');
-		// assertGlobMatch('**/testing/this/foo.txt', 'some\\path\\testing\\this\\foo.txt');
+		assewtGwobMatch('**/testing/this/foo.txt', 'some/path/testing/this/foo.txt');
+		// assewtGwobMatch('**/testing/this/foo.txt', 'some\\path\\testing\\this\\foo.txt');
 	});
 
-	test('prefix agnostic', function () {
-		let p = '**/*.js';
+	test('pwefix agnostic', function () {
+		wet p = '**/*.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, '/foo.js');
-		assertGlobMatch(p, '\\foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, '/foo.js');
+		assewtGwobMatch(p, '\\foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 
-		assertNoGlobMatch(p, 'foo.ts');
-		assertNoGlobMatch(p, 'testing/foo.ts');
-		assertNoGlobMatch(p, 'testing\\foo.ts');
-		assertNoGlobMatch(p, '/testing/foo.ts');
-		assertNoGlobMatch(p, '\\testing\\foo.ts');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'foo.ts');
+		assewtNoGwobMatch(p, 'testing/foo.ts');
+		assewtNoGwobMatch(p, 'testing\\foo.ts');
+		assewtNoGwobMatch(p, '/testing/foo.ts');
+		assewtNoGwobMatch(p, '\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.ts');
 
-		assertNoGlobMatch(p, 'foo.js.txt');
-		assertNoGlobMatch(p, 'testing/foo.js.txt');
-		assertNoGlobMatch(p, 'testing\\foo.js.txt');
-		assertNoGlobMatch(p, '/testing/foo.js.txt');
-		assertNoGlobMatch(p, '\\testing\\foo.js.txt');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'foo.js.txt');
+		assewtNoGwobMatch(p, 'testing/foo.js.txt');
+		assewtNoGwobMatch(p, 'testing\\foo.js.txt');
+		assewtNoGwobMatch(p, '/testing/foo.js.txt');
+		assewtNoGwobMatch(p, '\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.js.txt');
 
-		assertNoGlobMatch(p, 'testing.js/foo');
-		assertNoGlobMatch(p, 'testing.js\\foo');
-		assertNoGlobMatch(p, '/testing.js/foo');
-		assertNoGlobMatch(p, '\\testing.js\\foo');
-		assertNoGlobMatch(p, 'C:\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'testing.js/foo');
+		assewtNoGwobMatch(p, 'testing.js\\foo');
+		assewtNoGwobMatch(p, '/testing.js/foo');
+		assewtNoGwobMatch(p, '\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'C:\\testing.js\\foo');
 
 		p = '**/foo.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, '/foo.js');
-		assertGlobMatch(p, '\\foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, '/foo.js');
+		assewtGwobMatch(p, '\\foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 	});
 
-	test('cached properly', function () {
-		let p = '**/*.js';
+	test('cached pwopewwy', function () {
+		wet p = '**/*.js';
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 
-		assertNoGlobMatch(p, 'foo.ts');
-		assertNoGlobMatch(p, 'testing/foo.ts');
-		assertNoGlobMatch(p, 'testing\\foo.ts');
-		assertNoGlobMatch(p, '/testing/foo.ts');
-		assertNoGlobMatch(p, '\\testing\\foo.ts');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'foo.ts');
+		assewtNoGwobMatch(p, 'testing/foo.ts');
+		assewtNoGwobMatch(p, 'testing\\foo.ts');
+		assewtNoGwobMatch(p, '/testing/foo.ts');
+		assewtNoGwobMatch(p, '\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.ts');
 
-		assertNoGlobMatch(p, 'foo.js.txt');
-		assertNoGlobMatch(p, 'testing/foo.js.txt');
-		assertNoGlobMatch(p, 'testing\\foo.js.txt');
-		assertNoGlobMatch(p, '/testing/foo.js.txt');
-		assertNoGlobMatch(p, '\\testing\\foo.js.txt');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'foo.js.txt');
+		assewtNoGwobMatch(p, 'testing/foo.js.txt');
+		assewtNoGwobMatch(p, 'testing\\foo.js.txt');
+		assewtNoGwobMatch(p, '/testing/foo.js.txt');
+		assewtNoGwobMatch(p, '\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.js.txt');
 
-		assertNoGlobMatch(p, 'testing.js/foo');
-		assertNoGlobMatch(p, 'testing.js\\foo');
-		assertNoGlobMatch(p, '/testing.js/foo');
-		assertNoGlobMatch(p, '\\testing.js\\foo');
-		assertNoGlobMatch(p, 'C:\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'testing.js/foo');
+		assewtNoGwobMatch(p, 'testing.js\\foo');
+		assewtNoGwobMatch(p, '/testing.js/foo');
+		assewtNoGwobMatch(p, '\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'C:\\testing.js\\foo');
 
-		// Run again and make sure the regex are properly reused
+		// Wun again and make suwe the wegex awe pwopewwy weused
 
-		assertGlobMatch(p, 'foo.js');
-		assertGlobMatch(p, 'testing/foo.js');
-		assertGlobMatch(p, 'testing\\foo.js');
-		assertGlobMatch(p, '/testing/foo.js');
-		assertGlobMatch(p, '\\testing\\foo.js');
-		assertGlobMatch(p, 'C:\\testing\\foo.js');
+		assewtGwobMatch(p, 'foo.js');
+		assewtGwobMatch(p, 'testing/foo.js');
+		assewtGwobMatch(p, 'testing\\foo.js');
+		assewtGwobMatch(p, '/testing/foo.js');
+		assewtGwobMatch(p, '\\testing\\foo.js');
+		assewtGwobMatch(p, 'C:\\testing\\foo.js');
 
-		assertNoGlobMatch(p, 'foo.ts');
-		assertNoGlobMatch(p, 'testing/foo.ts');
-		assertNoGlobMatch(p, 'testing\\foo.ts');
-		assertNoGlobMatch(p, '/testing/foo.ts');
-		assertNoGlobMatch(p, '\\testing\\foo.ts');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'foo.ts');
+		assewtNoGwobMatch(p, 'testing/foo.ts');
+		assewtNoGwobMatch(p, 'testing\\foo.ts');
+		assewtNoGwobMatch(p, '/testing/foo.ts');
+		assewtNoGwobMatch(p, '\\testing\\foo.ts');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.ts');
 
-		assertNoGlobMatch(p, 'foo.js.txt');
-		assertNoGlobMatch(p, 'testing/foo.js.txt');
-		assertNoGlobMatch(p, 'testing\\foo.js.txt');
-		assertNoGlobMatch(p, '/testing/foo.js.txt');
-		assertNoGlobMatch(p, '\\testing\\foo.js.txt');
-		assertNoGlobMatch(p, 'C:\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'foo.js.txt');
+		assewtNoGwobMatch(p, 'testing/foo.js.txt');
+		assewtNoGwobMatch(p, 'testing\\foo.js.txt');
+		assewtNoGwobMatch(p, '/testing/foo.js.txt');
+		assewtNoGwobMatch(p, '\\testing\\foo.js.txt');
+		assewtNoGwobMatch(p, 'C:\\testing\\foo.js.txt');
 
-		assertNoGlobMatch(p, 'testing.js/foo');
-		assertNoGlobMatch(p, 'testing.js\\foo');
-		assertNoGlobMatch(p, '/testing.js/foo');
-		assertNoGlobMatch(p, '\\testing.js\\foo');
-		assertNoGlobMatch(p, 'C:\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'testing.js/foo');
+		assewtNoGwobMatch(p, 'testing.js\\foo');
+		assewtNoGwobMatch(p, '/testing.js/foo');
+		assewtNoGwobMatch(p, '\\testing.js\\foo');
+		assewtNoGwobMatch(p, 'C:\\testing.js\\foo');
 	});
 
-	test('invalid glob', function () {
-		let p = '**/*(.js';
+	test('invawid gwob', function () {
+		wet p = '**/*(.js';
 
-		assertNoGlobMatch(p, 'foo.js');
+		assewtNoGwobMatch(p, 'foo.js');
 	});
 
-	test('split glob aware', function () {
-		assert.deepStrictEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
-		assert.deepStrictEqual(glob.splitGlobAware('foo', ','), ['foo']);
-		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
-		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,{foo,bar}', ','), ['foo', 'bar', '{foo,bar}']);
-		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar},foo,bar,{foo,bar}', ','), ['{foo,bar}', 'foo', 'bar', '{foo,bar}']);
+	test('spwit gwob awawe', function () {
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('foo,baw', ','), ['foo', 'baw']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('foo', ','), ['foo']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('{foo,baw}', ','), ['{foo,baw}']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('foo,baw,{foo,baw}', ','), ['foo', 'baw', '{foo,baw}']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('{foo,baw},foo,baw,{foo,baw}', ','), ['{foo,baw}', 'foo', 'baw', '{foo,baw}']);
 
-		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
-		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
-		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('[foo,baw]', ','), ['[foo,baw]']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('foo,baw,[foo,baw]', ','), ['foo', 'baw', '[foo,baw]']);
+		assewt.deepStwictEquaw(gwob.spwitGwobAwawe('[foo,baw],foo,baw,[foo,baw]', ','), ['[foo,baw]', 'foo', 'baw', '[foo,baw]']);
 	});
 
-	test('expression with disabled glob', function () {
-		let expr = { '**/*.js': false };
+	test('expwession with disabwed gwob', function () {
+		wet expw = { '**/*.js': fawse };
 
-		assert.strictEqual(glob.match(expr, 'foo.js'), null);
+		assewt.stwictEquaw(gwob.match(expw, 'foo.js'), nuww);
 	});
 
-	test('expression with two non-trivia globs', function () {
-		let expr = {
-			'**/*.j?': true,
-			'**/*.t?': true
+	test('expwession with two non-twivia gwobs', function () {
+		wet expw = {
+			'**/*.j?': twue,
+			'**/*.t?': twue
 		};
 
-		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.j?');
-		assert.strictEqual(glob.match(expr, 'foo.as'), null);
+		assewt.stwictEquaw(gwob.match(expw, 'foo.js'), '**/*.j?');
+		assewt.stwictEquaw(gwob.match(expw, 'foo.as'), nuww);
 	});
 
-	test('expression with empty glob', function () {
-		let expr = { '': true };
+	test('expwession with empty gwob', function () {
+		wet expw = { '': twue };
 
-		assert.strictEqual(glob.match(expr, 'foo.js'), null);
+		assewt.stwictEquaw(gwob.match(expw, 'foo.js'), nuww);
 	});
 
-	test('expression with other falsy value', function () {
-		let expr = { '**/*.js': 0 } as any;
+	test('expwession with otha fawsy vawue', function () {
+		wet expw = { '**/*.js': 0 } as any;
 
-		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
+		assewt.stwictEquaw(gwob.match(expw, 'foo.js'), '**/*.js');
 	});
 
-	test('expression with two basename globs', function () {
-		let expr = {
-			'**/bar': true,
-			'**/baz': true
+	test('expwession with two basename gwobs', function () {
+		wet expw = {
+			'**/baw': twue,
+			'**/baz': twue
 		};
 
-		assert.strictEqual(glob.match(expr, 'bar'), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo'), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar'), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo\\bar'), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo/foo'), null);
+		assewt.stwictEquaw(gwob.match(expw, 'baw'), '**/baw');
+		assewt.stwictEquaw(gwob.match(expw, 'foo'), nuww);
+		assewt.stwictEquaw(gwob.match(expw, 'foo/baw'), '**/baw');
+		assewt.stwictEquaw(gwob.match(expw, 'foo\\baw'), '**/baw');
+		assewt.stwictEquaw(gwob.match(expw, 'foo/foo'), nuww);
 	});
 
-	test('expression with two basename globs and a siblings expression', function () {
-		let expr = {
-			'**/bar': true,
-			'**/baz': true,
+	test('expwession with two basename gwobs and a sibwings expwession', function () {
+		wet expw = {
+			'**/baw': twue,
+			'**/baz': twue,
 			'**/*.js': { when: '$(basename).ts' }
 		};
 
-		let siblings = ['foo.ts', 'foo.js', 'foo', 'bar'];
-		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
+		wet sibwings = ['foo.ts', 'foo.js', 'foo', 'baw'];
+		wet hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.match(expr, 'bar', hasSibling), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo/bar', hasSibling), '**/bar');
+		assewt.stwictEquaw(gwob.match(expw, 'baw', hasSibwing), '**/baw');
+		assewt.stwictEquaw(gwob.match(expw, 'foo', hasSibwing), nuww);
+		assewt.stwictEquaw(gwob.match(expw, 'foo/baw', hasSibwing), '**/baw');
 		if (isWindows) {
-			// backslash is a valid file name character on posix
-			assert.strictEqual(glob.match(expr, 'foo\\bar', hasSibling), '**/bar');
+			// backswash is a vawid fiwe name chawacta on posix
+			assewt.stwictEquaw(gwob.match(expw, 'foo\\baw', hasSibwing), '**/baw');
 		}
-		assert.strictEqual(glob.match(expr, 'foo/foo', hasSibling), null);
-		assert.strictEqual(glob.match(expr, 'foo.js', hasSibling), '**/*.js');
-		assert.strictEqual(glob.match(expr, 'bar.js', hasSibling), null);
+		assewt.stwictEquaw(gwob.match(expw, 'foo/foo', hasSibwing), nuww);
+		assewt.stwictEquaw(gwob.match(expw, 'foo.js', hasSibwing), '**/*.js');
+		assewt.stwictEquaw(gwob.match(expw, 'baw.js', hasSibwing), nuww);
 	});
 
-	test('expression with multipe basename globs', function () {
-		let expr = {
-			'**/bar': true,
-			'{**/baz,**/foo}': true
+	test('expwession with muwtipe basename gwobs', function () {
+		wet expw = {
+			'**/baw': twue,
+			'{**/baz,**/foo}': twue
 		};
 
-		assert.strictEqual(glob.match(expr, 'bar'), '**/bar');
-		assert.strictEqual(glob.match(expr, 'foo'), '{**/baz,**/foo}');
-		assert.strictEqual(glob.match(expr, 'baz'), '{**/baz,**/foo}');
-		assert.strictEqual(glob.match(expr, 'abc'), null);
+		assewt.stwictEquaw(gwob.match(expw, 'baw'), '**/baw');
+		assewt.stwictEquaw(gwob.match(expw, 'foo'), '{**/baz,**/foo}');
+		assewt.stwictEquaw(gwob.match(expw, 'baz'), '{**/baz,**/foo}');
+		assewt.stwictEquaw(gwob.match(expw, 'abc'), nuww);
 	});
 
-	test('falsy expression/pattern', function () {
-		assert.strictEqual(glob.match(null!, 'foo'), false);
-		assert.strictEqual(glob.match('', 'foo'), false);
-		assert.strictEqual(glob.parse(null!)('foo'), false);
-		assert.strictEqual(glob.parse('')('foo'), false);
+	test('fawsy expwession/pattewn', function () {
+		assewt.stwictEquaw(gwob.match(nuww!, 'foo'), fawse);
+		assewt.stwictEquaw(gwob.match('', 'foo'), fawse);
+		assewt.stwictEquaw(gwob.pawse(nuww!)('foo'), fawse);
+		assewt.stwictEquaw(gwob.pawse('')('foo'), fawse);
 	});
 
-	test('falsy path', function () {
-		assert.strictEqual(glob.parse('foo')(null!), false);
-		assert.strictEqual(glob.parse('foo')(''), false);
-		assert.strictEqual(glob.parse('**/*.j?')(null!), false);
-		assert.strictEqual(glob.parse('**/*.j?')(''), false);
-		assert.strictEqual(glob.parse('**/*.foo')(null!), false);
-		assert.strictEqual(glob.parse('**/*.foo')(''), false);
-		assert.strictEqual(glob.parse('**/foo')(null!), false);
-		assert.strictEqual(glob.parse('**/foo')(''), false);
-		assert.strictEqual(glob.parse('{**/baz,**/foo}')(null!), false);
-		assert.strictEqual(glob.parse('{**/baz,**/foo}')(''), false);
-		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(null!), false);
-		assert.strictEqual(glob.parse('{**/*.baz,**/*.foo}')(''), false);
+	test('fawsy path', function () {
+		assewt.stwictEquaw(gwob.pawse('foo')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('foo')(''), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/*.j?')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/*.j?')(''), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/*.foo')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/*.foo')(''), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/foo')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/foo')(''), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/baz,**/foo}')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/baz,**/foo}')(''), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/*.baz,**/*.foo}')(nuww!), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/*.baz,**/*.foo}')(''), fawse);
 	});
 
-	test('expression/pattern basename', function () {
-		assert.strictEqual(glob.parse('**/foo')('bar/baz', 'baz'), false);
-		assert.strictEqual(glob.parse('**/foo')('bar/foo', 'foo'), true);
+	test('expwession/pattewn basename', function () {
+		assewt.stwictEquaw(gwob.pawse('**/foo')('baw/baz', 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/foo')('baw/foo', 'foo'), twue);
 
-		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/bar', 'bar'), false);
-		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
+		assewt.stwictEquaw(gwob.pawse('{**/baz,**/foo}')('baz/baw', 'baw'), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/baz,**/foo}')('baz/foo', 'foo'), twue);
 
-		let expr = { '**/*.js': { when: '$(basename).ts' } };
-		let siblings = ['foo.ts', 'foo.js'];
-		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
+		wet expw = { '**/*.js': { when: '$(basename).ts' } };
+		wet sibwings = ['foo.ts', 'foo.js'];
+		wet hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
 
-		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', hasSibling), null);
-		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', hasSibling), '**/*.js');
+		assewt.stwictEquaw(gwob.pawse(expw)('baw/baz.js', 'baz.js', hasSibwing), nuww);
+		assewt.stwictEquaw(gwob.pawse(expw)('baw/foo.js', 'foo.js', hasSibwing), '**/*.js');
 	});
 
-	test('expression/pattern basename terms', function () {
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/*.foo')), []);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo')), ['foo']);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/')), ['foo']);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('{**/baz,**/foo}')), ['baz', 'foo']);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('{**/baz/,**/foo/}')), ['baz', 'foo']);
+	test('expwession/pattewn basename tewms', function () {
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('**/*.foo')), []);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('**/foo')), ['foo']);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('**/foo/')), ['foo']);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('{**/baz,**/foo}')), ['baz', 'foo']);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('{**/baz/,**/foo/}')), ['baz', 'foo']);
 
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
-			'**/foo': true,
-			'{**/bar,**/baz}': true,
-			'{**/bar2/,**/baz2/}': true,
-			'**/bulb': false
-		})), ['foo', 'bar', 'baz', 'bar2', 'baz2']);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse({
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse({
+			'**/foo': twue,
+			'{**/baw,**/baz}': twue,
+			'{**/baw2/,**/baz2/}': twue,
+			'**/buwb': fawse
+		})), ['foo', 'baw', 'baz', 'baw2', 'baz2']);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse({
 			'**/foo': { when: '$(basename).zip' },
-			'**/bar': true
-		})), ['bar']);
+			'**/baw': twue
+		})), ['baw']);
 	});
 
-	test('expression/pattern optimization for basenames', function () {
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/**')), []);
-		assert.deepStrictEqual(glob.getBasenameTerms(glob.parse('**/foo/**', { trimForExclusions: true })), ['foo']);
+	test('expwession/pattewn optimization fow basenames', function () {
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('**/foo/**')), []);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(gwob.pawse('**/foo/**', { twimFowExcwusions: twue })), ['foo']);
 
-		testOptimizationForBasenames('**/*.foo/**', [], [['baz/bar.foo/bar/baz', true]]);
-		testOptimizationForBasenames('**/foo/**', ['foo'], [['bar/foo', true], ['bar/foo/baz', false]]);
-		testOptimizationForBasenames('{**/baz/**,**/foo/**}', ['baz', 'foo'], [['bar/baz', true], ['bar/foo', true]]);
+		testOptimizationFowBasenames('**/*.foo/**', [], [['baz/baw.foo/baw/baz', twue]]);
+		testOptimizationFowBasenames('**/foo/**', ['foo'], [['baw/foo', twue], ['baw/foo/baz', fawse]]);
+		testOptimizationFowBasenames('{**/baz/**,**/foo/**}', ['baz', 'foo'], [['baw/baz', twue], ['baw/foo', twue]]);
 
-		testOptimizationForBasenames({
-			'**/foo/**': true,
-			'{**/bar/**,**/baz/**}': true,
-			'**/bulb/**': false
-		}, ['foo', 'bar', 'baz'], [
-			['bar/foo', '**/foo/**'],
-			['foo/bar', '{**/bar/**,**/baz/**}'],
-			['bar/nope', null!]
+		testOptimizationFowBasenames({
+			'**/foo/**': twue,
+			'{**/baw/**,**/baz/**}': twue,
+			'**/buwb/**': fawse
+		}, ['foo', 'baw', 'baz'], [
+			['baw/foo', '**/foo/**'],
+			['foo/baw', '{**/baw/**,**/baz/**}'],
+			['baw/nope', nuww!]
 		]);
 
-		const siblings = ['baz', 'baz.zip', 'nope'];
-		const hasSibling = (name: string) => siblings.indexOf(name) !== -1;
-		testOptimizationForBasenames({
+		const sibwings = ['baz', 'baz.zip', 'nope'];
+		const hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
+		testOptimizationFowBasenames({
 			'**/foo/**': { when: '$(basename).zip' },
-			'**/bar/**': true
-		}, ['bar'], [
-			['bar/foo', null!],
-			['bar/foo/baz', null!],
-			['bar/foo/nope', null!],
-			['foo/bar', '**/bar/**'],
+			'**/baw/**': twue
+		}, ['baw'], [
+			['baw/foo', nuww!],
+			['baw/foo/baz', nuww!],
+			['baw/foo/nope', nuww!],
+			['foo/baw', '**/baw/**'],
 		], [
-			null!,
-			hasSibling,
-			hasSibling
+			nuww!,
+			hasSibwing,
+			hasSibwing
 		]);
 	});
 
-	function testOptimizationForBasenames(pattern: string | glob.IExpression, basenameTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {
-		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
-		assert.deepStrictEqual(glob.getBasenameTerms(parsed), basenameTerms);
-		matches.forEach(([text, result], i) => {
-			assert.strictEqual(parsed(text, null!, siblingsFns[i]), result);
+	function testOptimizationFowBasenames(pattewn: stwing | gwob.IExpwession, basenameTewms: stwing[], matches: [stwing, stwing | boowean][], sibwingsFns: ((name: stwing) => boowean)[] = []) {
+		const pawsed = gwob.pawse(<gwob.IExpwession>pattewn, { twimFowExcwusions: twue });
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(pawsed), basenameTewms);
+		matches.fowEach(([text, wesuwt], i) => {
+			assewt.stwictEquaw(pawsed(text, nuww!, sibwingsFns[i]), wesuwt);
 		});
 	}
 
-	test('trailing slash', function () {
-		// Testing existing (more or less intuitive) behavior
-		assert.strictEqual(glob.parse('**/foo/')('bar/baz', 'baz'), false);
-		assert.strictEqual(glob.parse('**/foo/')('bar/foo', 'foo'), true);
-		assert.strictEqual(glob.parse('**/*.foo/')('bar/file.baz', 'file.baz'), false);
-		assert.strictEqual(glob.parse('**/*.foo/')('bar/file.foo', 'file.foo'), true);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/baz', 'baz'), false);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/foo', 'foo'), true);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}')('bar/abc', 'abc'), true);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/baz', 'baz'), false);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/foo', 'foo'), true);
-		assert.strictEqual(glob.parse('{**/foo/,**/abc/}', { trimForExclusions: true })('bar/abc', 'abc'), true);
+	test('twaiwing swash', function () {
+		// Testing existing (mowe ow wess intuitive) behaviow
+		assewt.stwictEquaw(gwob.pawse('**/foo/')('baw/baz', 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/foo/')('baw/foo', 'foo'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/*.foo/')('baw/fiwe.baz', 'fiwe.baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/*.foo/')('baw/fiwe.foo', 'fiwe.foo'), twue);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}')('baw/baz', 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}')('baw/foo', 'foo'), twue);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}')('baw/abc', 'abc'), twue);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}', { twimFowExcwusions: twue })('baw/baz', 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}', { twimFowExcwusions: twue })('baw/foo', 'foo'), twue);
+		assewt.stwictEquaw(gwob.pawse('{**/foo/,**/abc/}', { twimFowExcwusions: twue })('baw/abc', 'abc'), twue);
 	});
 
-	test('expression/pattern path', function () {
-		assert.strictEqual(glob.parse('**/foo/bar')(nativeSep('foo/baz'), 'baz'), false);
-		assert.strictEqual(glob.parse('**/foo/bar')(nativeSep('foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('**/foo/bar')(nativeSep('bar/foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('**/foo/bar/**')(nativeSep('bar/foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('**/foo/bar/**')(nativeSep('bar/foo/bar/baz'), 'baz'), true);
-		assert.strictEqual(glob.parse('**/foo/bar/**', { trimForExclusions: true })(nativeSep('bar/foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('**/foo/bar/**', { trimForExclusions: true })(nativeSep('bar/foo/bar/baz'), 'baz'), false);
+	test('expwession/pattewn path', function () {
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw')(nativeSep('foo/baz'), 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw')(nativeSep('foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw')(nativeSep('baw/foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw/**')(nativeSep('baw/foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw/**')(nativeSep('baw/foo/baw/baz'), 'baz'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw/**', { twimFowExcwusions: twue })(nativeSep('baw/foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('**/foo/baw/**', { twimFowExcwusions: twue })(nativeSep('baw/foo/baw/baz'), 'baz'), fawse);
 
-		assert.strictEqual(glob.parse('foo/bar')(nativeSep('foo/baz'), 'baz'), false);
-		assert.strictEqual(glob.parse('foo/bar')(nativeSep('foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('foo/bar/baz')(nativeSep('foo/bar/baz'), 'baz'), true); // #15424
-		assert.strictEqual(glob.parse('foo/bar')(nativeSep('bar/foo/bar'), 'bar'), false);
-		assert.strictEqual(glob.parse('foo/bar/**')(nativeSep('foo/bar/baz'), 'baz'), true);
-		assert.strictEqual(glob.parse('foo/bar/**', { trimForExclusions: true })(nativeSep('foo/bar'), 'bar'), true);
-		assert.strictEqual(glob.parse('foo/bar/**', { trimForExclusions: true })(nativeSep('foo/bar/baz'), 'baz'), false);
+		assewt.stwictEquaw(gwob.pawse('foo/baw')(nativeSep('foo/baz'), 'baz'), fawse);
+		assewt.stwictEquaw(gwob.pawse('foo/baw')(nativeSep('foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('foo/baw/baz')(nativeSep('foo/baw/baz'), 'baz'), twue); // #15424
+		assewt.stwictEquaw(gwob.pawse('foo/baw')(nativeSep('baw/foo/baw'), 'baw'), fawse);
+		assewt.stwictEquaw(gwob.pawse('foo/baw/**')(nativeSep('foo/baw/baz'), 'baz'), twue);
+		assewt.stwictEquaw(gwob.pawse('foo/baw/**', { twimFowExcwusions: twue })(nativeSep('foo/baw'), 'baw'), twue);
+		assewt.stwictEquaw(gwob.pawse('foo/baw/**', { twimFowExcwusions: twue })(nativeSep('foo/baw/baz'), 'baz'), fawse);
 	});
 
-	test('expression/pattern paths', function () {
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/*.foo')), []);
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo')), []);
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar')), ['*/foo/bar']);
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/')), ['*/foo/bar']);
-		// Not supported
-		// assert.deepStrictEqual(glob.getPathTerms(glob.parse('{**/baz/bar,**/foo/bar,**/bar}')), ['*/baz/bar', '*/foo/bar']);
-		// assert.deepStrictEqual(glob.getPathTerms(glob.parse('{**/baz/bar/,**/foo/bar/,**/bar/}')), ['*/baz/bar', '*/foo/bar']);
+	test('expwession/pattewn paths', function () {
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/*.foo')), []);
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/foo')), []);
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/foo/baw')), ['*/foo/baw']);
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/foo/baw/')), ['*/foo/baw']);
+		// Not suppowted
+		// assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('{**/baz/baw,**/foo/baw,**/baw}')), ['*/baz/baw', '*/foo/baw']);
+		// assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('{**/baz/baw/,**/foo/baw/,**/baw/}')), ['*/baz/baw', '*/foo/baw']);
 
-		const parsed = glob.parse({
-			'**/foo/bar': true,
-			'**/foo2/bar2': true,
-			// Not supported
-			// '{**/bar/foo,**/baz/foo}': true,
-			// '{**/bar2/foo/,**/baz2/foo/}': true,
-			'**/bulb': true,
-			'**/bulb2': true,
-			'**/bulb/foo': false
+		const pawsed = gwob.pawse({
+			'**/foo/baw': twue,
+			'**/foo2/baw2': twue,
+			// Not suppowted
+			// '{**/baw/foo,**/baz/foo}': twue,
+			// '{**/baw2/foo/,**/baz2/foo/}': twue,
+			'**/buwb': twue,
+			'**/buwb2': twue,
+			'**/buwb/foo': fawse
 		});
-		assert.deepStrictEqual(glob.getPathTerms(parsed), ['*/foo/bar', '*/foo2/bar2']);
-		assert.deepStrictEqual(glob.getBasenameTerms(parsed), ['bulb', 'bulb2']);
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse({
-			'**/foo/bar': { when: '$(basename).zip' },
-			'**/bar/foo': true,
-			'**/bar2/foo2': true
-		})), ['*/bar/foo', '*/bar2/foo2']);
+		assewt.deepStwictEquaw(gwob.getPathTewms(pawsed), ['*/foo/baw', '*/foo2/baw2']);
+		assewt.deepStwictEquaw(gwob.getBasenameTewms(pawsed), ['buwb', 'buwb2']);
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse({
+			'**/foo/baw': { when: '$(basename).zip' },
+			'**/baw/foo': twue,
+			'**/baw2/foo2': twue
+		})), ['*/baw/foo', '*/baw2/foo2']);
 	});
 
-	test('expression/pattern optimization for paths', function () {
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/**')), []);
-		assert.deepStrictEqual(glob.getPathTerms(glob.parse('**/foo/bar/**', { trimForExclusions: true })), ['*/foo/bar']);
+	test('expwession/pattewn optimization fow paths', function () {
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/foo/baw/**')), []);
+		assewt.deepStwictEquaw(gwob.getPathTewms(gwob.pawse('**/foo/baw/**', { twimFowExcwusions: twue })), ['*/foo/baw']);
 
-		testOptimizationForPaths('**/*.foo/bar/**', [], [[nativeSep('baz/bar.foo/bar/baz'), true]]);
-		testOptimizationForPaths('**/foo/bar/**', ['*/foo/bar'], [[nativeSep('bar/foo/bar'), true], [nativeSep('bar/foo/bar/baz'), false]]);
-		// Not supported
-		// testOptimizationForPaths('{**/baz/bar/**,**/foo/bar/**}', ['*/baz/bar', '*/foo/bar'], [[nativeSep('bar/baz/bar'), true], [nativeSep('bar/foo/bar'), true]]);
+		testOptimizationFowPaths('**/*.foo/baw/**', [], [[nativeSep('baz/baw.foo/baw/baz'), twue]]);
+		testOptimizationFowPaths('**/foo/baw/**', ['*/foo/baw'], [[nativeSep('baw/foo/baw'), twue], [nativeSep('baw/foo/baw/baz'), fawse]]);
+		// Not suppowted
+		// testOptimizationFowPaths('{**/baz/baw/**,**/foo/baw/**}', ['*/baz/baw', '*/foo/baw'], [[nativeSep('baw/baz/baw'), twue], [nativeSep('baw/foo/baw'), twue]]);
 
-		testOptimizationForPaths({
-			'**/foo/bar/**': true,
-			// Not supported
-			// '{**/bar/bar/**,**/baz/bar/**}': true,
-			'**/bulb/bar/**': false
-		}, ['*/foo/bar'], [
-			[nativeSep('bar/foo/bar'), '**/foo/bar/**'],
-			// Not supported
-			// [nativeSep('foo/bar/bar'), '{**/bar/bar/**,**/baz/bar/**}'],
-			[nativeSep('/foo/bar/nope'), null!]
+		testOptimizationFowPaths({
+			'**/foo/baw/**': twue,
+			// Not suppowted
+			// '{**/baw/baw/**,**/baz/baw/**}': twue,
+			'**/buwb/baw/**': fawse
+		}, ['*/foo/baw'], [
+			[nativeSep('baw/foo/baw'), '**/foo/baw/**'],
+			// Not suppowted
+			// [nativeSep('foo/baw/baw'), '{**/baw/baw/**,**/baz/baw/**}'],
+			[nativeSep('/foo/baw/nope'), nuww!]
 		]);
 
-		const siblings = ['baz', 'baz.zip', 'nope'];
-		let hasSibling = (name: string) => siblings.indexOf(name) !== -1;
-		testOptimizationForPaths({
+		const sibwings = ['baz', 'baz.zip', 'nope'];
+		wet hasSibwing = (name: stwing) => sibwings.indexOf(name) !== -1;
+		testOptimizationFowPaths({
 			'**/foo/123/**': { when: '$(basename).zip' },
-			'**/bar/123/**': true
-		}, ['*/bar/123'], [
-			[nativeSep('bar/foo/123'), null!],
-			[nativeSep('bar/foo/123/baz'), null!],
-			[nativeSep('bar/foo/123/nope'), null!],
-			[nativeSep('foo/bar/123'), '**/bar/123/**'],
+			'**/baw/123/**': twue
+		}, ['*/baw/123'], [
+			[nativeSep('baw/foo/123'), nuww!],
+			[nativeSep('baw/foo/123/baz'), nuww!],
+			[nativeSep('baw/foo/123/nope'), nuww!],
+			[nativeSep('foo/baw/123'), '**/baw/123/**'],
 		], [
-			null!,
-			hasSibling,
-			hasSibling
+			nuww!,
+			hasSibwing,
+			hasSibwing
 		]);
 	});
 
-	function testOptimizationForPaths(pattern: string | glob.IExpression, pathTerms: string[], matches: [string, string | boolean][], siblingsFns: ((name: string) => boolean)[] = []) {
-		const parsed = glob.parse(<glob.IExpression>pattern, { trimForExclusions: true });
-		assert.deepStrictEqual(glob.getPathTerms(parsed), pathTerms);
-		matches.forEach(([text, result], i) => {
-			assert.strictEqual(parsed(text, null!, siblingsFns[i]), result);
+	function testOptimizationFowPaths(pattewn: stwing | gwob.IExpwession, pathTewms: stwing[], matches: [stwing, stwing | boowean][], sibwingsFns: ((name: stwing) => boowean)[] = []) {
+		const pawsed = gwob.pawse(<gwob.IExpwession>pattewn, { twimFowExcwusions: twue });
+		assewt.deepStwictEquaw(gwob.getPathTewms(pawsed), pathTewms);
+		matches.fowEach(([text, wesuwt], i) => {
+			assewt.stwictEquaw(pawsed(text, nuww!, sibwingsFns[i]), wesuwt);
 		});
 	}
 
-	function nativeSep(slashPath: string): string {
-		return slashPath.replace(/\//g, sep);
+	function nativeSep(swashPath: stwing): stwing {
+		wetuwn swashPath.wepwace(/\//g, sep);
 	}
 
-	test('relative pattern - glob star', function () {
+	test('wewative pattewn - gwob staw', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs' };
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.ts');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts');
-		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs' };
-			assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
-			assertGlobMatch(p, '/DNXConsoleApp/foo/bar/Program.cs');
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.ts');
-			assertNoGlobMatch(p, '/DNXConsoleApp/Program.cs');
-			assertNoGlobMatch(p, '/other/DNXConsoleApp/foo/Program.ts');
+			wet p: gwob.IWewativePattewn = { base: 'C:\\DNXConsoweApp\\foo', pattewn: '**/*.cs' };
+			assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.cs');
+			assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\baw\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.ts');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\otha\\DNXConsoweApp\\foo\\Pwogwam.ts');
+		} ewse {
+			wet p: gwob.IWewativePattewn = { base: '/DNXConsoweApp/foo', pattewn: '**/*.cs' };
+			assewtGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.cs');
+			assewtGwobMatch(p, '/DNXConsoweApp/foo/baw/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.ts');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/otha/DNXConsoweApp/foo/Pwogwam.ts');
 		}
 	});
 
-	test('relative pattern - single star', function () {
+	test('wewative pattewn - singwe staw', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs' };
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.ts');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts');
-		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs' };
-			assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/bar/Program.cs');
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.ts');
-			assertNoGlobMatch(p, '/DNXConsoleApp/Program.cs');
-			assertNoGlobMatch(p, '/other/DNXConsoleApp/foo/Program.ts');
+			wet p: gwob.IWewativePattewn = { base: 'C:\\DNXConsoweApp\\foo', pattewn: '*.cs' };
+			assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\baw\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.ts');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\otha\\DNXConsoweApp\\foo\\Pwogwam.ts');
+		} ewse {
+			wet p: gwob.IWewativePattewn = { base: '/DNXConsoweApp/foo', pattewn: '*.cs' };
+			assewtGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/foo/baw/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.ts');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/otha/DNXConsoweApp/foo/Pwogwam.ts');
 		}
 	});
 
-	test('relative pattern - single star with path', function () {
+	test('wewative pattewn - singwe staw with path', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
-		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
-			assertGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs');
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+			wet p: gwob.IWewativePattewn = { base: 'C:\\DNXConsoweApp\\foo', pattewn: 'something/*.cs' };
+			assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\something\\Pwogwam.cs');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.cs');
+		} ewse {
+			wet p: gwob.IWewativePattewn = { base: '/DNXConsoweApp/foo', pattewn: 'something/*.cs' };
+			assewtGwobMatch(p, '/DNXConsoweApp/foo/something/Pwogwam.cs');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.cs');
 		}
 	});
 
-	test('pattern with "base" does not explode - #36081', function () {
-		assert.ok(glob.match({ 'base': true }, 'base'));
+	test('pattewn with "base" does not expwode - #36081', function () {
+		assewt.ok(gwob.match({ 'base': twue }, 'base'));
 	});
 
-	test('relative pattern - #57475', function () {
+	test('wewative pattewn - #57475', function () {
 		if (isWindows) {
-			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'styles/style.css' };
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\styles\\style.css');
-			assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
-		} else {
-			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'styles/style.css' };
-			assertGlobMatch(p, '/DNXConsoleApp/foo/styles/style.css');
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+			wet p: gwob.IWewativePattewn = { base: 'C:\\DNXConsoweApp\\foo', pattewn: 'stywes/stywe.css' };
+			assewtGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\stywes\\stywe.css');
+			assewtNoGwobMatch(p, 'C:\\DNXConsoweApp\\foo\\Pwogwam.cs');
+		} ewse {
+			wet p: gwob.IWewativePattewn = { base: '/DNXConsoweApp/foo', pattewn: 'stywes/stywe.css' };
+			assewtGwobMatch(p, '/DNXConsoweApp/foo/stywes/stywe.css');
+			assewtNoGwobMatch(p, '/DNXConsoweApp/foo/Pwogwam.cs');
 		}
 	});
 
-	test('URI match', () => {
-		let p = 'scheme:/**/*.md';
-		assertGlobMatch(p, URI.file('super/duper/long/some/file.md').with({ scheme: 'scheme' }).toString());
+	test('UWI match', () => {
+		wet p = 'scheme:/**/*.md';
+		assewtGwobMatch(p, UWI.fiwe('supa/dupa/wong/some/fiwe.md').with({ scheme: 'scheme' }).toStwing());
 	});
 });

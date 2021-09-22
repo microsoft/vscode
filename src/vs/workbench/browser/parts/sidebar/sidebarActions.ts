@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebarpart';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt 'vs/css!./media/sidebawpawt';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-export class FocusSideBarAction extends Action2 {
+expowt cwass FocusSideBawAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.focusSideBar',
-			title: { value: localize('focusSideBar', "Focus into Side Bar"), original: 'Focus into Side Bar' },
-			category: CATEGORIES.View,
-			f1: true,
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.focusSideBaw',
+			titwe: { vawue: wocawize('focusSideBaw', "Focus into Side Baw"), owiginaw: 'Focus into Side Baw' },
+			categowy: CATEGOWIES.View,
+			f1: twue,
 			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_0
+				weight: KeybindingWeight.WowkbenchContwib,
+				when: nuww,
+				pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_0
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const wayoutSewvice = accessow.get(IWowkbenchWayoutSewvice);
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
 
-		// Show side bar
-		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-			return;
+		// Show side baw
+		if (!wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT)) {
+			wayoutSewvice.setPawtHidden(fawse, Pawts.SIDEBAW_PAWT);
+			wetuwn;
 		}
 
-		// Focus into active viewlet
-		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		if (viewlet) {
-			viewlet.focus();
+		// Focus into active viewwet
+		const viewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
+		if (viewwet) {
+			viewwet.focus();
 		}
 	}
 }
 
-registerAction2(FocusSideBarAction);
+wegistewAction2(FocusSideBawAction);

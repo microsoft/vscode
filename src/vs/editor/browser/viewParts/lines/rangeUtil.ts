@@ -1,140 +1,140 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Constants } from 'vs/base/common/uint';
-import { FloatHorizontalRange } from 'vs/editor/common/view/renderingContext';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { FwoatHowizontawWange } fwom 'vs/editow/common/view/wendewingContext';
 
-export class RangeUtil {
+expowt cwass WangeUtiw {
 
 	/**
-	 * Reusing the same range here
-	 * because IE is buggy and constantly freezes when using a large number
-	 * of ranges and calling .detach on them
+	 * Weusing the same wange hewe
+	 * because IE is buggy and constantwy fweezes when using a wawge numba
+	 * of wanges and cawwing .detach on them
 	 */
-	private static _handyReadyRange: Range;
+	pwivate static _handyWeadyWange: Wange;
 
-	private static _createRange(): Range {
-		if (!this._handyReadyRange) {
-			this._handyReadyRange = document.createRange();
+	pwivate static _cweateWange(): Wange {
+		if (!this._handyWeadyWange) {
+			this._handyWeadyWange = document.cweateWange();
 		}
-		return this._handyReadyRange;
+		wetuwn this._handyWeadyWange;
 	}
 
-	private static _detachRange(range: Range, endNode: HTMLElement): void {
-		// Move range out of the span node, IE doesn't like having many ranges in
-		// the same spot and will act badly for lines containing dashes ('-')
-		range.selectNodeContents(endNode);
+	pwivate static _detachWange(wange: Wange, endNode: HTMWEwement): void {
+		// Move wange out of the span node, IE doesn't wike having many wanges in
+		// the same spot and wiww act badwy fow wines containing dashes ('-')
+		wange.sewectNodeContents(endNode);
 	}
 
-	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): DOMRectList | null {
-		const range = this._createRange();
-		try {
-			range.setStart(startElement, startOffset);
-			range.setEnd(endElement, endOffset);
+	pwivate static _weadCwientWects(stawtEwement: Node, stawtOffset: numba, endEwement: Node, endOffset: numba, endNode: HTMWEwement): DOMWectWist | nuww {
+		const wange = this._cweateWange();
+		twy {
+			wange.setStawt(stawtEwement, stawtOffset);
+			wange.setEnd(endEwement, endOffset);
 
-			return range.getClientRects();
+			wetuwn wange.getCwientWects();
 		} catch (e) {
-			// This is life ...
-			return null;
-		} finally {
-			this._detachRange(range, endNode);
+			// This is wife ...
+			wetuwn nuww;
+		} finawwy {
+			this._detachWange(wange, endNode);
 		}
 	}
 
-	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): FloatHorizontalRange[] {
-		if (ranges.length === 1) {
-			// There is nothing to merge
-			return ranges;
+	pwivate static _mewgeAdjacentWanges(wanges: FwoatHowizontawWange[]): FwoatHowizontawWange[] {
+		if (wanges.wength === 1) {
+			// Thewe is nothing to mewge
+			wetuwn wanges;
 		}
 
-		ranges.sort(FloatHorizontalRange.compare);
+		wanges.sowt(FwoatHowizontawWange.compawe);
 
-		let result: FloatHorizontalRange[] = [], resultLen = 0;
-		let prev = ranges[0];
+		wet wesuwt: FwoatHowizontawWange[] = [], wesuwtWen = 0;
+		wet pwev = wanges[0];
 
-		for (let i = 1, len = ranges.length; i < len; i++) {
-			const range = ranges[i];
-			if (prev.left + prev.width + 0.9 /* account for browser's rounding errors*/ >= range.left) {
-				prev.width = Math.max(prev.width, range.left + range.width - prev.left);
-			} else {
-				result[resultLen++] = prev;
-				prev = range;
+		fow (wet i = 1, wen = wanges.wength; i < wen; i++) {
+			const wange = wanges[i];
+			if (pwev.weft + pwev.width + 0.9 /* account fow bwowsa's wounding ewwows*/ >= wange.weft) {
+				pwev.width = Math.max(pwev.width, wange.weft + wange.width - pwev.weft);
+			} ewse {
+				wesuwt[wesuwtWen++] = pwev;
+				pwev = wange;
 			}
 		}
 
-		result[resultLen++] = prev;
+		wesuwt[wesuwtWen++] = pwev;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number): FloatHorizontalRange[] | null {
-		if (!clientRects || clientRects.length === 0) {
-			return null;
+	pwivate static _cweateHowizontawWangesFwomCwientWects(cwientWects: DOMWectWist | nuww, cwientWectDewtaWeft: numba): FwoatHowizontawWange[] | nuww {
+		if (!cwientWects || cwientWects.wength === 0) {
+			wetuwn nuww;
 		}
 
-		// We go through FloatHorizontalRange because it has been observed in bi-di text
-		// that the clientRects are not coming in sorted from the browser
+		// We go thwough FwoatHowizontawWange because it has been obsewved in bi-di text
+		// that the cwientWects awe not coming in sowted fwom the bwowsa
 
-		const result: FloatHorizontalRange[] = [];
-		for (let i = 0, len = clientRects.length; i < len; i++) {
-			const clientRect = clientRects[i];
-			result[i] = new FloatHorizontalRange(Math.max(0, clientRect.left - clientRectDeltaLeft), clientRect.width);
+		const wesuwt: FwoatHowizontawWange[] = [];
+		fow (wet i = 0, wen = cwientWects.wength; i < wen; i++) {
+			const cwientWect = cwientWects[i];
+			wesuwt[i] = new FwoatHowizontawWange(Math.max(0, cwientWect.weft - cwientWectDewtaWeft), cwientWect.width);
 		}
 
-		return this._mergeAdjacentRanges(result);
+		wetuwn this._mewgeAdjacentWanges(wesuwt);
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): FloatHorizontalRange[] | null {
+	pubwic static weadHowizontawWanges(domNode: HTMWEwement, stawtChiwdIndex: numba, stawtOffset: numba, endChiwdIndex: numba, endOffset: numba, cwientWectDewtaWeft: numba, endNode: HTMWEwement): FwoatHowizontawWange[] | nuww {
 		// Panic check
 		const min = 0;
-		const max = domNode.children.length - 1;
+		const max = domNode.chiwdwen.wength - 1;
 		if (min > max) {
-			return null;
+			wetuwn nuww;
 		}
-		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
-		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
+		stawtChiwdIndex = Math.min(max, Math.max(min, stawtChiwdIndex));
+		endChiwdIndex = Math.min(max, Math.max(min, endChiwdIndex));
 
-		if (startChildIndex === endChildIndex && startOffset === endOffset && startOffset === 0 && !domNode.children[startChildIndex].firstChild) {
+		if (stawtChiwdIndex === endChiwdIndex && stawtOffset === endOffset && stawtOffset === 0 && !domNode.chiwdwen[stawtChiwdIndex].fiwstChiwd) {
 			// We must find the position at the beginning of a <span>
-			// To cover cases of empty <span>s, avoid using a range and use the <span>'s bounding box
-			const clientRects = domNode.children[startChildIndex].getClientRects();
-			return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+			// To cova cases of empty <span>s, avoid using a wange and use the <span>'s bounding box
+			const cwientWects = domNode.chiwdwen[stawtChiwdIndex].getCwientWects();
+			wetuwn this._cweateHowizontawWangesFwomCwientWects(cwientWects, cwientWectDewtaWeft);
 		}
 
-		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
-		// Chrome is buggy and doesn't handle 0 offsets well sometimes.
-		if (startChildIndex !== endChildIndex) {
-			if (endChildIndex > 0 && endOffset === 0) {
-				endChildIndex--;
-				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+		// If cwossing ova to a span onwy to sewect offset 0, then use the pwevious span's maximum offset
+		// Chwome is buggy and doesn't handwe 0 offsets weww sometimes.
+		if (stawtChiwdIndex !== endChiwdIndex) {
+			if (endChiwdIndex > 0 && endOffset === 0) {
+				endChiwdIndex--;
+				endOffset = Constants.MAX_SAFE_SMAWW_INTEGa;
 			}
 		}
 
-		let startElement = domNode.children[startChildIndex].firstChild;
-		let endElement = domNode.children[endChildIndex].firstChild;
+		wet stawtEwement = domNode.chiwdwen[stawtChiwdIndex].fiwstChiwd;
+		wet endEwement = domNode.chiwdwen[endChiwdIndex].fiwstChiwd;
 
-		if (!startElement || !endElement) {
-			// When having an empty <span> (without any text content), try to move to the previous <span>
-			if (!startElement && startOffset === 0 && startChildIndex > 0) {
-				startElement = domNode.children[startChildIndex - 1].firstChild;
-				startOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+		if (!stawtEwement || !endEwement) {
+			// When having an empty <span> (without any text content), twy to move to the pwevious <span>
+			if (!stawtEwement && stawtOffset === 0 && stawtChiwdIndex > 0) {
+				stawtEwement = domNode.chiwdwen[stawtChiwdIndex - 1].fiwstChiwd;
+				stawtOffset = Constants.MAX_SAFE_SMAWW_INTEGa;
 			}
-			if (!endElement && endOffset === 0 && endChildIndex > 0) {
-				endElement = domNode.children[endChildIndex - 1].firstChild;
-				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+			if (!endEwement && endOffset === 0 && endChiwdIndex > 0) {
+				endEwement = domNode.chiwdwen[endChiwdIndex - 1].fiwstChiwd;
+				endOffset = Constants.MAX_SAFE_SMAWW_INTEGa;
 			}
 		}
 
-		if (!startElement || !endElement) {
-			return null;
+		if (!stawtEwement || !endEwement) {
+			wetuwn nuww;
 		}
 
-		startOffset = Math.min(startElement.textContent!.length, Math.max(0, startOffset));
-		endOffset = Math.min(endElement.textContent!.length, Math.max(0, endOffset));
+		stawtOffset = Math.min(stawtEwement.textContent!.wength, Math.max(0, stawtOffset));
+		endOffset = Math.min(endEwement.textContent!.wength, Math.max(0, endOffset));
 
-		const clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
-		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+		const cwientWects = this._weadCwientWects(stawtEwement, stawtOffset, endEwement, endOffset, endNode);
+		wetuwn this._cweateHowizontawWangesFwomCwientWects(cwientWects, cwientWectDewtaWeft);
 	}
 }

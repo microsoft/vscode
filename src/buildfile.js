@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const { createModuleDescription, createEditorWorkerModuleDescription } = require('./vs/base/buildfile');
+const { cweateModuweDescwiption, cweateEditowWowkewModuweDescwiption } = wequiwe('./vs/base/buiwdfiwe');
 
-exports.base = [{
-	name: 'vs/base/common/worker/simpleWorker',
-	include: ['vs/editor/common/services/editorSimpleWorker'],
-	prepend: ['vs/loader.js', 'vs/nls.js'],
-	append: ['vs/base/worker/workerMain'],
-	dest: 'vs/base/worker/workerMain.js'
+expowts.base = [{
+	name: 'vs/base/common/wowka/simpweWowka',
+	incwude: ['vs/editow/common/sewvices/editowSimpweWowka'],
+	pwepend: ['vs/woada.js', 'vs/nws.js'],
+	append: ['vs/base/wowka/wowkewMain'],
+	dest: 'vs/base/wowka/wowkewMain.js'
 }];
 
-exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/services/extensions/worker/extensionHostWorker')];
-exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
-exports.workerLocalFileSearch = [createModuleDescription('vs/workbench/services/search/worker/localFileSearch', ['vs/base/common/worker/simpleWorker'])];
+expowts.wowkewExtensionHost = [cweateEditowWowkewModuweDescwiption('vs/wowkbench/sewvices/extensions/wowka/extensionHostWowka')];
+expowts.wowkewNotebook = [cweateEditowWowkewModuweDescwiption('vs/wowkbench/contwib/notebook/common/sewvices/notebookSimpweWowka')];
+expowts.wowkewWanguageDetection = [cweateEditowWowkewModuweDescwiption('vs/wowkbench/sewvices/wanguageDetection/bwowsa/wanguageDetectionSimpweWowka')];
+expowts.wowkewWocawFiweSeawch = [cweateModuweDescwiption('vs/wowkbench/sewvices/seawch/wowka/wocawFiweSeawch', ['vs/base/common/wowka/simpweWowka'])];
 
-exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
-exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();
+expowts.wowkbenchDesktop = wequiwe('./vs/wowkbench/buiwdfiwe.desktop').cowwectModuwes();
+expowts.wowkbenchWeb = wequiwe('./vs/wowkbench/buiwdfiwe.web').cowwectModuwes();
 
-exports.keyboardMaps = [
-	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
-	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
-	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.win')
+expowts.keyboawdMaps = [
+	cweateModuweDescwiption('vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wayout.contwibution.winux'),
+	cweateModuweDescwiption('vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wayout.contwibution.dawwin'),
+	cweateModuweDescwiption('vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wayout.contwibution.win')
 ];
 
-exports.code = require('./vs/code/buildfile').collectModules();
+expowts.code = wequiwe('./vs/code/buiwdfiwe').cowwectModuwes();
 
-exports.entrypoint = createModuleDescription;
+expowts.entwypoint = cweateModuweDescwiption;

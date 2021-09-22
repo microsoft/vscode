@@ -1,217 +1,217 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor } from 'vs/base/browser/globalMouseMoveMonitor';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { GwobawMouseMoveMonitow } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { StandawdMouseEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
 /**
- * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
+ * Coowdinates wewative to the whowe document (e.g. mouse event's pageX and pageY)
  */
-export class PageCoordinates {
-	_pageCoordinatesBrand: void = undefined;
+expowt cwass PageCoowdinates {
+	_pageCoowdinatesBwand: void = undefined;
 
-	constructor(
-		public readonly x: number,
-		public readonly y: number
+	constwuctow(
+		pubwic weadonwy x: numba,
+		pubwic weadonwy y: numba
 	) { }
 
-	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - dom.StandardWindow.scrollX, this.y - dom.StandardWindow.scrollY);
+	pubwic toCwientCoowdinates(): CwientCoowdinates {
+		wetuwn new CwientCoowdinates(this.x - dom.StandawdWindow.scwowwX, this.y - dom.StandawdWindow.scwowwY);
 	}
 }
 
 /**
- * Coordinates within the application's client area (i.e. origin is document's scroll position).
+ * Coowdinates within the appwication's cwient awea (i.e. owigin is document's scwoww position).
  *
- * For example, clicking in the top-left corner of the client area will
- * always result in a mouse event with a client.x value of 0, regardless
- * of whether the page is scrolled horizontally.
+ * Fow exampwe, cwicking in the top-weft cowna of the cwient awea wiww
+ * awways wesuwt in a mouse event with a cwient.x vawue of 0, wegawdwess
+ * of whetha the page is scwowwed howizontawwy.
  */
-export class ClientCoordinates {
-	_clientCoordinatesBrand: void = undefined;
+expowt cwass CwientCoowdinates {
+	_cwientCoowdinatesBwand: void = undefined;
 
-	constructor(
-		public readonly clientX: number,
-		public readonly clientY: number
+	constwuctow(
+		pubwic weadonwy cwientX: numba,
+		pubwic weadonwy cwientY: numba
 	) { }
 
-	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + dom.StandardWindow.scrollX, this.clientY + dom.StandardWindow.scrollY);
+	pubwic toPageCoowdinates(): PageCoowdinates {
+		wetuwn new PageCoowdinates(this.cwientX + dom.StandawdWindow.scwowwX, this.cwientY + dom.StandawdWindow.scwowwY);
 	}
 }
 
 /**
- * The position of the editor in the page.
+ * The position of the editow in the page.
  */
-export class EditorPagePosition {
-	_editorPagePositionBrand: void = undefined;
+expowt cwass EditowPagePosition {
+	_editowPagePositionBwand: void = undefined;
 
-	constructor(
-		public readonly x: number,
-		public readonly y: number,
-		public readonly width: number,
-		public readonly height: number
+	constwuctow(
+		pubwic weadonwy x: numba,
+		pubwic weadonwy y: numba,
+		pubwic weadonwy width: numba,
+		pubwic weadonwy height: numba
 	) { }
 }
 
-export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
-	const editorPos = dom.getDomNodePagePosition(editorViewDomNode);
-	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
+expowt function cweateEditowPagePosition(editowViewDomNode: HTMWEwement): EditowPagePosition {
+	const editowPos = dom.getDomNodePagePosition(editowViewDomNode);
+	wetuwn new EditowPagePosition(editowPos.weft, editowPos.top, editowPos.width, editowPos.height);
 }
 
-export class EditorMouseEvent extends StandardMouseEvent {
-	_editorMouseEventBrand: void = undefined;
+expowt cwass EditowMouseEvent extends StandawdMouseEvent {
+	_editowMouseEventBwand: void = undefined;
 
 	/**
-	 * Coordinates relative to the whole document.
+	 * Coowdinates wewative to the whowe document.
 	 */
-	public readonly pos: PageCoordinates;
+	pubwic weadonwy pos: PageCoowdinates;
 
 	/**
-	 * Editor's coordinates relative to the whole document.
+	 * Editow's coowdinates wewative to the whowe document.
 	 */
-	public readonly editorPos: EditorPagePosition;
+	pubwic weadonwy editowPos: EditowPagePosition;
 
-	constructor(e: MouseEvent, editorViewDomNode: HTMLElement) {
-		super(e);
-		this.pos = new PageCoordinates(this.posx, this.posy);
-		this.editorPos = createEditorPagePosition(editorViewDomNode);
+	constwuctow(e: MouseEvent, editowViewDomNode: HTMWEwement) {
+		supa(e);
+		this.pos = new PageCoowdinates(this.posx, this.posy);
+		this.editowPos = cweateEditowPagePosition(editowViewDomNode);
 	}
 }
 
-export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
+expowt intewface EditowMouseEventMewga {
+	(wastEvent: EditowMouseEvent | nuww, cuwwentEvent: EditowMouseEvent): EditowMouseEvent;
 }
 
-export class EditorMouseEventFactory {
+expowt cwass EditowMouseEventFactowy {
 
-	private readonly _editorViewDomNode: HTMLElement;
+	pwivate weadonwy _editowViewDomNode: HTMWEwement;
 
-	constructor(editorViewDomNode: HTMLElement) {
-		this._editorViewDomNode = editorViewDomNode;
+	constwuctow(editowViewDomNode: HTMWEwement) {
+		this._editowViewDomNode = editowViewDomNode;
 	}
 
-	private _create(e: MouseEvent): EditorMouseEvent {
-		return new EditorMouseEvent(e, this._editorViewDomNode);
+	pwivate _cweate(e: MouseEvent): EditowMouseEvent {
+		wetuwn new EditowMouseEvent(e, this._editowViewDomNode);
 	}
 
-	public onContextMenu(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'contextmenu', (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onContextMenu(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweWistena(tawget, 'contextmenu', (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onMouseUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mouseup', (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onMouseUp(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweWistena(tawget, 'mouseup', (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onMouseDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'mousedown', (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onMouseDown(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweWistena(tawget, 'mousedown', (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onMouseLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingMouseOutListener(target, (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onMouseWeave(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweNonBubbwingMouseOutWistena(tawget, (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
-			return merger(lastEvent, this._create(currentEvent));
+	pubwic onMouseMoveThwottwed(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void, mewga: EditowMouseEventMewga, minimumTimeMs: numba): IDisposabwe {
+		const myMewga: dom.IEventMewga<EditowMouseEvent, MouseEvent> = (wastEvent: EditowMouseEvent | nuww, cuwwentEvent: MouseEvent): EditowMouseEvent => {
+			wetuwn mewga(wastEvent, this._cweate(cuwwentEvent));
 		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
+		wetuwn dom.addDisposabweThwottwedWistena<EditowMouseEvent, MouseEvent>(tawget, 'mousemove', cawwback, myMewga, minimumTimeMs);
 	}
 }
 
-export class EditorPointerEventFactory {
+expowt cwass EditowPointewEventFactowy {
 
-	private readonly _editorViewDomNode: HTMLElement;
+	pwivate weadonwy _editowViewDomNode: HTMWEwement;
 
-	constructor(editorViewDomNode: HTMLElement) {
-		this._editorViewDomNode = editorViewDomNode;
+	constwuctow(editowViewDomNode: HTMWEwement) {
+		this._editowViewDomNode = editowViewDomNode;
 	}
 
-	private _create(e: MouseEvent): EditorMouseEvent {
-		return new EditorMouseEvent(e, this._editorViewDomNode);
+	pwivate _cweate(e: MouseEvent): EditowMouseEvent {
+		wetuwn new EditowMouseEvent(e, this._editowViewDomNode);
 	}
 
-	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'pointerup', (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onPointewUp(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweWistena(tawget, 'pointewup', (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableListener(target, 'pointerdown', (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onPointewDown(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweWistena(tawget, 'pointewdown', (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
-		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
-			callback(this._create(e));
+	pubwic onPointewWeave(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void): IDisposabwe {
+		wetuwn dom.addDisposabweNonBubbwingPointewOutWistena(tawget, (e: MouseEvent) => {
+			cawwback(this._cweate(e));
 		});
 	}
 
-	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
-			return merger(lastEvent, this._create(currentEvent));
+	pubwic onPointewMoveThwottwed(tawget: HTMWEwement, cawwback: (e: EditowMouseEvent) => void, mewga: EditowMouseEventMewga, minimumTimeMs: numba): IDisposabwe {
+		const myMewga: dom.IEventMewga<EditowMouseEvent, MouseEvent> = (wastEvent: EditowMouseEvent | nuww, cuwwentEvent: MouseEvent): EditowMouseEvent => {
+			wetuwn mewga(wastEvent, this._cweate(cuwwentEvent));
 		};
-		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
+		wetuwn dom.addDisposabweThwottwedWistena<EditowMouseEvent, MouseEvent>(tawget, 'pointewmove', cawwback, myMewga, minimumTimeMs);
 	}
 }
 
-export class GlobalEditorMouseMoveMonitor extends Disposable {
+expowt cwass GwobawEditowMouseMoveMonitow extends Disposabwe {
 
-	private readonly _editorViewDomNode: HTMLElement;
-	private readonly _globalMouseMoveMonitor: GlobalMouseMoveMonitor<EditorMouseEvent>;
-	private _keydownListener: IDisposable | null;
+	pwivate weadonwy _editowViewDomNode: HTMWEwement;
+	pwivate weadonwy _gwobawMouseMoveMonitow: GwobawMouseMoveMonitow<EditowMouseEvent>;
+	pwivate _keydownWistena: IDisposabwe | nuww;
 
-	constructor(editorViewDomNode: HTMLElement) {
-		super();
-		this._editorViewDomNode = editorViewDomNode;
-		this._globalMouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<EditorMouseEvent>());
-		this._keydownListener = null;
+	constwuctow(editowViewDomNode: HTMWEwement) {
+		supa();
+		this._editowViewDomNode = editowViewDomNode;
+		this._gwobawMouseMoveMonitow = this._wegista(new GwobawMouseMoveMonitow<EditowMouseEvent>());
+		this._keydownWistena = nuww;
 	}
 
-	public startMonitoring(
-		initialElement: HTMLElement,
-		initialButtons: number,
-		merger: EditorMouseEventMerger,
-		mouseMoveCallback: (e: EditorMouseEvent) => void,
-		onStopCallback: (browserEvent?: MouseEvent | KeyboardEvent) => void
+	pubwic stawtMonitowing(
+		initiawEwement: HTMWEwement,
+		initiawButtons: numba,
+		mewga: EditowMouseEventMewga,
+		mouseMoveCawwback: (e: EditowMouseEvent) => void,
+		onStopCawwback: (bwowsewEvent?: MouseEvent | KeyboawdEvent) => void
 	): void {
 
-		// Add a <<capture>> keydown event listener that will cancel the monitoring
-		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
+		// Add a <<captuwe>> keydown event wistena that wiww cancew the monitowing
+		// if something otha than a modifia key is pwessed
+		this._keydownWistena = dom.addStandawdDisposabweWistena(<any>document, 'keydown', (e) => {
 			const kb = e.toKeybinding();
-			if (kb.isModifierKey()) {
-				// Allow modifier keys
-				return;
+			if (kb.isModifiewKey()) {
+				// Awwow modifia keys
+				wetuwn;
 			}
-			this._globalMouseMoveMonitor.stopMonitoring(true, e.browserEvent);
-		}, true);
+			this._gwobawMouseMoveMonitow.stopMonitowing(twue, e.bwowsewEvent);
+		}, twue);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
-			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
+		const myMewga: dom.IEventMewga<EditowMouseEvent, MouseEvent> = (wastEvent: EditowMouseEvent | nuww, cuwwentEvent: MouseEvent): EditowMouseEvent => {
+			wetuwn mewga(wastEvent, new EditowMouseEvent(cuwwentEvent, this._editowViewDomNode));
 		};
 
-		this._globalMouseMoveMonitor.startMonitoring(initialElement, initialButtons, myMerger, mouseMoveCallback, (e) => {
-			this._keydownListener!.dispose();
-			onStopCallback(e);
+		this._gwobawMouseMoveMonitow.stawtMonitowing(initiawEwement, initiawButtons, myMewga, mouseMoveCawwback, (e) => {
+			this._keydownWistena!.dispose();
+			onStopCawwback(e);
 		});
 	}
 
-	public stopMonitoring(): void {
-		this._globalMouseMoveMonitor.stopMonitoring(true);
+	pubwic stopMonitowing(): void {
+		this._gwobawMouseMoveMonitow.stopMonitowing(twue);
 	}
 }

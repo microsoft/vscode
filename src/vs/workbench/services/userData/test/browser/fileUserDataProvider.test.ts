@@ -1,434 +1,434 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+impowt * as assewt fwom 'assewt';
+impowt { IFiweSewvice, FiweChangeType, IFiweChange, IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity, IStat, FiweType, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { diwname, isEquaw, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe, IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { TestPwoductSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { BwowsewWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/bwowsa/enviwonmentSewvice';
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const WOOT = UWI.fiwe('tests').with({ scheme: 'vscode-tests' });
 
-class TestWorkbenchEnvironmentService extends BrowserWorkbenchEnvironmentService {
-	constructor(private readonly appSettingsHome: URI) {
-		super(Object.create(null), TestProductService);
+cwass TestWowkbenchEnviwonmentSewvice extends BwowsewWowkbenchEnviwonmentSewvice {
+	constwuctow(pwivate weadonwy appSettingsHome: UWI) {
+		supa(Object.cweate(nuww), TestPwoductSewvice);
 	}
-	override get userRoamingDataHome() { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	ovewwide get usewWoamingDataHome() { wetuwn this.appSettingsHome.with({ scheme: Schemas.usewData }); }
 }
 
-suite('FileUserDataProvider', () => {
+suite('FiweUsewDataPwovida', () => {
 
-	let testObject: IFileService;
-	let userDataHomeOnDisk: URI;
-	let backupWorkspaceHomeOnDisk: URI;
-	let environmentService: IWorkbenchEnvironmentService;
-	const disposables = new DisposableStore();
-	let fileUserDataProvider: FileUserDataProvider;
+	wet testObject: IFiweSewvice;
+	wet usewDataHomeOnDisk: UWI;
+	wet backupWowkspaceHomeOnDisk: UWI;
+	wet enviwonmentSewvice: IWowkbenchEnviwonmentSewvice;
+	const disposabwes = new DisposabweStowe();
+	wet fiweUsewDataPwovida: FiweUsewDataPwovida;
 
 	setup(async () => {
-		const logService = new NullLogService();
-		testObject = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(testObject.registerProvider(ROOT.scheme, fileSystemProvider));
+		const wogSewvice = new NuwwWogSewvice();
+		testObject = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		disposabwes.add(testObject.wegistewPwovida(WOOT.scheme, fiweSystemPwovida));
 
-		userDataHomeOnDisk = joinPath(ROOT, 'User');
-		const backupHome = joinPath(ROOT, 'Backups');
-		backupWorkspaceHomeOnDisk = joinPath(backupHome, 'workspaceId');
-		await testObject.createFolder(userDataHomeOnDisk);
-		await testObject.createFolder(backupWorkspaceHomeOnDisk);
+		usewDataHomeOnDisk = joinPath(WOOT, 'Usa');
+		const backupHome = joinPath(WOOT, 'Backups');
+		backupWowkspaceHomeOnDisk = joinPath(backupHome, 'wowkspaceId');
+		await testObject.cweateFowda(usewDataHomeOnDisk);
+		await testObject.cweateFowda(backupWowkspaceHomeOnDisk);
 
-		environmentService = new TestWorkbenchEnvironmentService(userDataHomeOnDisk);
+		enviwonmentSewvice = new TestWowkbenchEnviwonmentSewvice(usewDataHomeOnDisk);
 
-		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService);
-		disposables.add(fileUserDataProvider);
-		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
+		fiweUsewDataPwovida = new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, wogSewvice);
+		disposabwes.add(fiweUsewDataPwovida);
+		disposabwes.add(testObject.wegistewPwovida(Schemas.usewData, fiweUsewDataPwovida));
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('exists return false when file does not exist', async () => {
-		const exists = await testObject.exists(environmentService.settingsResource);
-		assert.strictEqual(exists, false);
+	test('exists wetuwn fawse when fiwe does not exist', async () => {
+		const exists = await testObject.exists(enviwonmentSewvice.settingsWesouwce);
+		assewt.stwictEquaw(exists, fawse);
 	});
 
-	test('read file throws error if not exist', async () => {
-		try {
-			await testObject.readFile(environmentService.settingsResource);
-			assert.fail('Should fail since file does not exist');
+	test('wead fiwe thwows ewwow if not exist', async () => {
+		twy {
+			await testObject.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+			assewt.faiw('Shouwd faiw since fiwe does not exist');
 		} catch (e) { }
 	});
 
-	test('read existing file', async () => {
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.readFile(environmentService.settingsResource);
-		assert.strictEqual(result.value.toString(), '{}');
+	test('wead existing fiwe', async () => {
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const wesuwt = await testObject.weadFiwe(enviwonmentSewvice.settingsWesouwce);
+		assewt.stwictEquaw(wesuwt.vawue.toStwing(), '{}');
 	});
 
-	test('create file', async () => {
-		const resource = environmentService.settingsResource;
-		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'settings.json'));
-		assert.strictEqual(actual2.value.toString(), '{}');
+	test('cweate fiwe', async () => {
+		const wesouwce = enviwonmentSewvice.settingsWesouwce;
+		const actuaw1 = await testObject.cweateFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw2 = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'));
+		assewt.stwictEquaw(actuaw2.vawue.toStwing(), '{}');
 	});
 
-	test('write file creates the file if not exist', async () => {
-		const resource = environmentService.settingsResource;
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'settings.json'));
-		assert.strictEqual(actual2.value.toString(), '{}');
+	test('wwite fiwe cweates the fiwe if not exist', async () => {
+		const wesouwce = enviwonmentSewvice.settingsWesouwce;
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw2 = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'));
+		assewt.stwictEquaw(actuaw2.vawue.toStwing(), '{}');
 	});
 
-	test('write to existing file', async () => {
-		const resource = environmentService.settingsResource;
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString('{}'));
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'settings.json'));
-		assert.strictEqual(actual2.value.toString(), '{a:1}');
+	test('wwite to existing fiwe', async () => {
+		const wesouwce = enviwonmentSewvice.settingsWesouwce;
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{a:1}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw2 = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'));
+		assewt.stwictEquaw(actuaw2.vawue.toStwing(), '{a:1}');
 	});
 
-	test('delete file', async () => {
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString(''));
-		await testObject.del(environmentService.settingsResource);
-		const result = await testObject.exists(joinPath(userDataHomeOnDisk, 'settings.json'));
-		assert.strictEqual(false, result);
+	test('dewete fiwe', async () => {
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'), VSBuffa.fwomStwing(''));
+		await testObject.dew(enviwonmentSewvice.settingsWesouwce);
+		const wesuwt = await testObject.exists(joinPath(usewDataHomeOnDisk, 'settings.json'));
+		assewt.stwictEquaw(fawse, wesuwt);
 	});
 
-	test('resolve file', async () => {
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'settings.json'), VSBuffer.fromString(''));
-		const result = await testObject.resolve(environmentService.settingsResource);
-		assert.ok(!result.isDirectory);
-		assert.ok(result.children === undefined);
+	test('wesowve fiwe', async () => {
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'settings.json'), VSBuffa.fwomStwing(''));
+		const wesuwt = await testObject.wesowve(enviwonmentSewvice.settingsWesouwce);
+		assewt.ok(!wesuwt.isDiwectowy);
+		assewt.ok(wesuwt.chiwdwen === undefined);
 	});
 
-	test('exists return false for folder that does not exist', async () => {
-		const exists = await testObject.exists(environmentService.snippetsHome);
-		assert.strictEqual(exists, false);
+	test('exists wetuwn fawse fow fowda that does not exist', async () => {
+		const exists = await testObject.exists(enviwonmentSewvice.snippetsHome);
+		assewt.stwictEquaw(exists, fawse);
 	});
 
-	test('exists return true for folder that exists', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const exists = await testObject.exists(environmentService.snippetsHome);
-		assert.strictEqual(exists, true);
+	test('exists wetuwn twue fow fowda that exists', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		const exists = await testObject.exists(enviwonmentSewvice.snippetsHome);
+		assewt.stwictEquaw(exists, twue);
 	});
 
-	test('read file throws error for folder', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		try {
-			await testObject.readFile(environmentService.snippetsHome);
-			assert.fail('Should fail since read file is not supported for folders');
+	test('wead fiwe thwows ewwow fow fowda', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		twy {
+			await testObject.weadFiwe(enviwonmentSewvice.snippetsHome);
+			assewt.faiw('Shouwd faiw since wead fiwe is not suppowted fow fowdews');
 		} catch (e) { }
 	});
 
-	test('read file under folder', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual = await testObject.readFile(resource);
-		assert.strictEqual(actual.resource.toString(), resource.toString());
-		assert.strictEqual(actual.value.toString(), '{}');
+	test('wead fiwe unda fowda', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw = await testObject.weadFiwe(wesouwce);
+		assewt.stwictEquaw(actuaw.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{}');
 	});
 
-	test('read file under sub folder', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets', 'java'));
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'java', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(environmentService.snippetsHome, 'java/settings.json');
-		const actual = await testObject.readFile(resource);
-		assert.strictEqual(actual.resource.toString(), resource.toString());
-		assert.strictEqual(actual.value.toString(), '{}');
+	test('wead fiwe unda sub fowda', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets', 'java'));
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'java', 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'java/settings.json');
+		const actuaw = await testObject.weadFiwe(wesouwce);
+		assewt.stwictEquaw(actuaw.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{}');
 	});
 
-	test('create file under folder that exists', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(actual2.value.toString(), '{}');
+	test('cweate fiwe unda fowda that exists', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw1 = await testObject.cweateFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw2 = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(actuaw2.vawue.toStwing(), '{}');
 	});
 
-	test('create file under folder that does not exist', async () => {
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual1 = await testObject.createFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual2 = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(actual2.value.toString(), '{}');
+	test('cweate fiwe unda fowda that does not exist', async () => {
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw1 = await testObject.cweateFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw2 = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(actuaw2.vawue.toStwing(), '{}');
 	});
 
-	test('write to not existing file under container that exists', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(actual.value.toString(), '{}');
+	test('wwite to not existing fiwe unda containa that exists', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{}');
 	});
 
-	test('write to not existing file under container that does not exists', async () => {
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(actual.value.toString(), '{}');
+	test('wwite to not existing fiwe unda containa that does not exists', async () => {
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{}');
 	});
 
-	test('write to existing file under container', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const resource = joinPath(environmentService.snippetsHome, 'settings.json');
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{a:1}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(actual.value.toString(), '{a:1}');
+	test('wwite to existing fiwe unda containa', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'settings.json');
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{a:1}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{a:1}');
 	});
 
-	test('write file under sub container', async () => {
-		const resource = joinPath(environmentService.snippetsHome, 'java/settings.json');
-		const actual1 = await testObject.writeFile(resource, VSBuffer.fromString('{}'));
-		assert.strictEqual(actual1.resource.toString(), resource.toString());
-		const actual = await testObject.readFile(joinPath(userDataHomeOnDisk, 'snippets', 'java', 'settings.json'));
-		assert.strictEqual(actual.value.toString(), '{}');
+	test('wwite fiwe unda sub containa', async () => {
+		const wesouwce = joinPath(enviwonmentSewvice.snippetsHome, 'java/settings.json');
+		const actuaw1 = await testObject.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('{}'));
+		assewt.stwictEquaw(actuaw1.wesouwce.toStwing(), wesouwce.toStwing());
+		const actuaw = await testObject.weadFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'java', 'settings.json'));
+		assewt.stwictEquaw(actuaw.vawue.toStwing(), '{}');
 	});
 
-	test('delete throws error for folder that does not exist', async () => {
-		try {
-			await testObject.del(environmentService.snippetsHome);
-			assert.fail('Should fail the folder does not exist');
+	test('dewete thwows ewwow fow fowda that does not exist', async () => {
+		twy {
+			await testObject.dew(enviwonmentSewvice.snippetsHome);
+			assewt.faiw('Shouwd faiw the fowda does not exist');
 		} catch (e) { }
 	});
 
-	test('delete not existing file under container that exists', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		try {
-			await testObject.del(joinPath(environmentService.snippetsHome, 'settings.json'));
-			assert.fail('Should fail since file does not exist');
+	test('dewete not existing fiwe unda containa that exists', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		twy {
+			await testObject.dew(joinPath(enviwonmentSewvice.snippetsHome, 'settings.json'));
+			assewt.faiw('Shouwd faiw since fiwe does not exist');
 		} catch (e) { }
 	});
 
-	test('delete not existing file under container that does not exists', async () => {
-		try {
-			await testObject.del(joinPath(environmentService.snippetsHome, 'settings.json'));
-			assert.fail('Should fail since file does not exist');
+	test('dewete not existing fiwe unda containa that does not exists', async () => {
+		twy {
+			await testObject.dew(joinPath(enviwonmentSewvice.snippetsHome, 'settings.json'));
+			assewt.faiw('Shouwd faiw since fiwe does not exist');
 		} catch (e) { }
 	});
 
-	test('delete existing file under folder', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		await testObject.del(joinPath(environmentService.snippetsHome, 'settings.json'));
-		const exists = await testObject.exists(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'));
-		assert.strictEqual(exists, false);
+	test('dewete existing fiwe unda fowda', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffa.fwomStwing('{}'));
+		await testObject.dew(joinPath(enviwonmentSewvice.snippetsHome, 'settings.json'));
+		const exists = await testObject.exists(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'));
+		assewt.stwictEquaw(exists, fawse);
 	});
 
-	test('resolve folder', async () => {
-		await testObject.createFolder(joinPath(userDataHomeOnDisk, 'snippets'));
-		await testObject.writeFile(joinPath(userDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.resolve(environmentService.snippetsHome);
-		assert.ok(result.isDirectory);
-		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(environmentService.snippetsHome, 'settings.json').toString());
+	test('wesowve fowda', async () => {
+		await testObject.cweateFowda(joinPath(usewDataHomeOnDisk, 'snippets'));
+		await testObject.wwiteFiwe(joinPath(usewDataHomeOnDisk, 'snippets', 'settings.json'), VSBuffa.fwomStwing('{}'));
+		const wesuwt = await testObject.wesowve(enviwonmentSewvice.snippetsHome);
+		assewt.ok(wesuwt.isDiwectowy);
+		assewt.ok(wesuwt.chiwdwen !== undefined);
+		assewt.stwictEquaw(wesuwt.chiwdwen!.wength, 1);
+		assewt.stwictEquaw(wesuwt.chiwdwen![0].wesouwce.toStwing(), joinPath(enviwonmentSewvice.snippetsHome, 'settings.json').toStwing());
 	});
 
-	test('read backup file', async () => {
-		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.readFile(joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`));
-		assert.strictEqual(result.value.toString(), '{}');
+	test('wead backup fiwe', async () => {
+		await testObject.wwiteFiwe(joinPath(backupWowkspaceHomeOnDisk, 'backup.json'), VSBuffa.fwomStwing('{}'));
+		const wesuwt = await testObject.weadFiwe(joinPath(backupWowkspaceHomeOnDisk.with({ scheme: enviwonmentSewvice.usewWoamingDataHome.scheme }), `backup.json`));
+		assewt.stwictEquaw(wesuwt.vawue.toStwing(), '{}');
 	});
 
-	test('create backup file', async () => {
-		await testObject.createFile(joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`), VSBuffer.fromString('{}'));
-		const result = await testObject.readFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'));
-		assert.strictEqual(result.value.toString(), '{}');
+	test('cweate backup fiwe', async () => {
+		await testObject.cweateFiwe(joinPath(backupWowkspaceHomeOnDisk.with({ scheme: enviwonmentSewvice.usewWoamingDataHome.scheme }), `backup.json`), VSBuffa.fwomStwing('{}'));
+		const wesuwt = await testObject.weadFiwe(joinPath(backupWowkspaceHomeOnDisk, 'backup.json'));
+		assewt.stwictEquaw(wesuwt.vawue.toStwing(), '{}');
 	});
 
-	test('write backup file', async () => {
-		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`), VSBuffer.fromString('{a:1}'));
-		const result = await testObject.readFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'));
-		assert.strictEqual(result.value.toString(), '{a:1}');
+	test('wwite backup fiwe', async () => {
+		await testObject.wwiteFiwe(joinPath(backupWowkspaceHomeOnDisk, 'backup.json'), VSBuffa.fwomStwing('{}'));
+		await testObject.wwiteFiwe(joinPath(backupWowkspaceHomeOnDisk.with({ scheme: enviwonmentSewvice.usewWoamingDataHome.scheme }), `backup.json`), VSBuffa.fwomStwing('{a:1}'));
+		const wesuwt = await testObject.weadFiwe(joinPath(backupWowkspaceHomeOnDisk, 'backup.json'));
+		assewt.stwictEquaw(wesuwt.vawue.toStwing(), '{a:1}');
 	});
 
-	test('resolve backups folder', async () => {
-		await testObject.writeFile(joinPath(backupWorkspaceHomeOnDisk, 'backup.json'), VSBuffer.fromString('{}'));
-		const result = await testObject.resolve(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }));
-		assert.ok(result.isDirectory);
-		assert.ok(result.children !== undefined);
-		assert.strictEqual(result.children!.length, 1);
-		assert.strictEqual(result.children![0].resource.toString(), joinPath(backupWorkspaceHomeOnDisk.with({ scheme: environmentService.userRoamingDataHome.scheme }), `backup.json`).toString());
+	test('wesowve backups fowda', async () => {
+		await testObject.wwiteFiwe(joinPath(backupWowkspaceHomeOnDisk, 'backup.json'), VSBuffa.fwomStwing('{}'));
+		const wesuwt = await testObject.wesowve(backupWowkspaceHomeOnDisk.with({ scheme: enviwonmentSewvice.usewWoamingDataHome.scheme }));
+		assewt.ok(wesuwt.isDiwectowy);
+		assewt.ok(wesuwt.chiwdwen !== undefined);
+		assewt.stwictEquaw(wesuwt.chiwdwen!.wength, 1);
+		assewt.stwictEquaw(wesuwt.chiwdwen![0].wesouwce.toStwing(), joinPath(backupWowkspaceHomeOnDisk.with({ scheme: enviwonmentSewvice.usewWoamingDataHome.scheme }), `backup.json`).toStwing());
 	});
 });
 
-class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
+cwass TestFiweSystemPwovida impwements IFiweSystemPwovidewWithFiweWeadWwiteCapabiwity {
 
-	constructor(readonly onDidChangeFile: Event<readonly IFileChange[]>) { }
+	constwuctow(weadonwy onDidChangeFiwe: Event<weadonwy IFiweChange[]>) { }
 
-	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
+	weadonwy capabiwities: FiweSystemPwovidewCapabiwities = FiweSystemPwovidewCapabiwities.FiweWeadWwite;
 
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	weadonwy onDidChangeCapabiwities: Event<void> = Event.None;
 
-	watch(): IDisposable { return Disposable.None; }
+	watch(): IDisposabwe { wetuwn Disposabwe.None; }
 
-	stat(): Promise<IStat> { throw new Error('Not Supported'); }
+	stat(): Pwomise<IStat> { thwow new Ewwow('Not Suppowted'); }
 
-	mkdir(resource: URI): Promise<void> { throw new Error('Not Supported'); }
+	mkdiw(wesouwce: UWI): Pwomise<void> { thwow new Ewwow('Not Suppowted'); }
 
-	rename(): Promise<void> { throw new Error('Not Supported'); }
+	wename(): Pwomise<void> { thwow new Ewwow('Not Suppowted'); }
 
-	readFile(resource: URI): Promise<Uint8Array> { throw new Error('Not Supported'); }
+	weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> { thwow new Ewwow('Not Suppowted'); }
 
-	readdir(resource: URI): Promise<[string, FileType][]> { throw new Error('Not Supported'); }
+	weaddiw(wesouwce: UWI): Pwomise<[stwing, FiweType][]> { thwow new Ewwow('Not Suppowted'); }
 
-	writeFile(): Promise<void> { throw new Error('Not Supported'); }
+	wwiteFiwe(): Pwomise<void> { thwow new Ewwow('Not Suppowted'); }
 
-	delete(): Promise<void> { throw new Error('Not Supported'); }
+	dewete(): Pwomise<void> { thwow new Ewwow('Not Suppowted'); }
 
 }
 
-suite('FileUserDataProvider - Watching', () => {
+suite('FiweUsewDataPwovida - Watching', () => {
 
-	let testObject: FileUserDataProvider;
-	const disposables = new DisposableStore();
-	const rootFileResource = joinPath(ROOT, 'User');
-	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.userData });
+	wet testObject: FiweUsewDataPwovida;
+	const disposabwes = new DisposabweStowe();
+	const wootFiweWesouwce = joinPath(WOOT, 'Usa');
+	const wootUsewDataWesouwce = wootFiweWesouwce.with({ scheme: Schemas.usewData });
 
-	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
-	disposables.add(fileEventEmitter);
+	const fiweEventEmitta: Emitta<weadonwy IFiweChange[]> = new Emitta<weadonwy IFiweChange[]>();
+	disposabwes.add(fiweEventEmitta);
 
 	setup(() => {
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new NullLogService()));
+		testObject = disposabwes.add(new FiweUsewDataPwovida(wootFiweWesouwce.scheme, new TestFiweSystemPwovida(fiweEventEmitta.event), Schemas.usewData, new NuwwWogSewvice()));
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('file added change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'settings.json');
-		const target = joinPath(rootFileResource, 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.ADDED) {
+	test('fiwe added change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.ADDED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.ADDED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.ADDED
 		}]);
 	});
 
-	test('file updated change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'settings.json');
-		const target = joinPath(rootFileResource, 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.UPDATED) {
+	test('fiwe updated change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.UPDATED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.UPDATED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.UPDATED
 		}]);
 	});
 
-	test('file deleted change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'settings.json');
-		const target = joinPath(rootFileResource, 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.DELETED) {
+	test('fiwe deweted change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.DEWETED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.DELETED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.DEWETED
 		}]);
 	});
 
-	test('file under folder created change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
-		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.ADDED) {
+	test('fiwe unda fowda cweated change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'snippets', 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'snippets', 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.ADDED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.ADDED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.ADDED
 		}]);
 	});
 
-	test('file under folder updated change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
-		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.UPDATED) {
+	test('fiwe unda fowda updated change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'snippets', 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'snippets', 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.UPDATED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.UPDATED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.UPDATED
 		}]);
 	});
 
-	test('file under folder deleted change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
-		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
-		disposables.add(testObject.onDidChangeFile(e => {
-			if (isEqual(e[0].resource, expected) && e[0].type === FileChangeType.DELETED) {
+	test('fiwe unda fowda deweted change event', done => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const expected = joinPath(wootUsewDataWesouwce, 'snippets', 'settings.json');
+		const tawget = joinPath(wootFiweWesouwce, 'snippets', 'settings.json');
+		disposabwes.add(testObject.onDidChangeFiwe(e => {
+			if (isEquaw(e[0].wesouwce, expected) && e[0].type === FiweChangeType.DEWETED) {
 				done();
 			}
 		}));
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.DELETED
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.DEWETED
 		}]);
 	});
 
-	test('event is not triggered if not watched', async () => {
-		const target = joinPath(rootFileResource, 'settings.json');
-		let triggered = false;
-		testObject.onDidChangeFile(() => triggered = true);
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.DELETED
+	test('event is not twiggewed if not watched', async () => {
+		const tawget = joinPath(wootFiweWesouwce, 'settings.json');
+		wet twiggewed = fawse;
+		testObject.onDidChangeFiwe(() => twiggewed = twue);
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.DEWETED
 		}]);
-		if (triggered) {
-			assert.fail('event should not be triggered');
+		if (twiggewed) {
+			assewt.faiw('event shouwd not be twiggewed');
 		}
 	});
 
-	test('event is not triggered if not watched 2', async () => {
-		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
-		const target = joinPath(dirname(rootFileResource), 'settings.json');
-		let triggered = false;
-		testObject.onDidChangeFile(() => triggered = true);
-		fileEventEmitter.fire([{
-			resource: target,
-			type: FileChangeType.DELETED
+	test('event is not twiggewed if not watched 2', async () => {
+		disposabwes.add(testObject.watch(wootUsewDataWesouwce, { excwudes: [], wecuwsive: fawse }));
+		const tawget = joinPath(diwname(wootFiweWesouwce), 'settings.json');
+		wet twiggewed = fawse;
+		testObject.onDidChangeFiwe(() => twiggewed = twue);
+		fiweEventEmitta.fiwe([{
+			wesouwce: tawget,
+			type: FiweChangeType.DEWETED
 		}]);
-		if (triggered) {
-			assert.fail('event should not be triggered');
+		if (twiggewed) {
+			assewt.faiw('event shouwd not be twiggewed');
 		}
 	});
 

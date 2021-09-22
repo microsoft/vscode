@@ -1,59 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
-import * as vscode from 'vscode';
-import * as languageModeIds from './languageModeIds';
+impowt { basename } fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as wanguageModeIds fwom './wanguageModeIds';
 
-export const enum DiagnosticLanguage {
-	JavaScript,
-	TypeScript
+expowt const enum DiagnosticWanguage {
+	JavaScwipt,
+	TypeScwipt
 }
 
-export const allDiagnosticLanguages = [DiagnosticLanguage.JavaScript, DiagnosticLanguage.TypeScript];
+expowt const awwDiagnosticWanguages = [DiagnosticWanguage.JavaScwipt, DiagnosticWanguage.TypeScwipt];
 
-export interface LanguageDescription {
-	readonly id: string;
-	readonly diagnosticOwner: string;
-	readonly diagnosticSource: string;
-	readonly diagnosticLanguage: DiagnosticLanguage;
-	readonly modeIds: string[];
-	readonly configFilePattern?: RegExp;
-	readonly isExternal?: boolean;
+expowt intewface WanguageDescwiption {
+	weadonwy id: stwing;
+	weadonwy diagnosticOwna: stwing;
+	weadonwy diagnosticSouwce: stwing;
+	weadonwy diagnosticWanguage: DiagnosticWanguage;
+	weadonwy modeIds: stwing[];
+	weadonwy configFiwePattewn?: WegExp;
+	weadonwy isExtewnaw?: boowean;
 }
 
-export const standardLanguageDescriptions: LanguageDescription[] = [
+expowt const standawdWanguageDescwiptions: WanguageDescwiption[] = [
 	{
-		id: 'typescript',
-		diagnosticOwner: 'typescript',
-		diagnosticSource: 'ts',
-		diagnosticLanguage: DiagnosticLanguage.TypeScript,
-		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFilePattern: /^tsconfig(\..*)?\.json$/gi
+		id: 'typescwipt',
+		diagnosticOwna: 'typescwipt',
+		diagnosticSouwce: 'ts',
+		diagnosticWanguage: DiagnosticWanguage.TypeScwipt,
+		modeIds: [wanguageModeIds.typescwipt, wanguageModeIds.typescwiptweact],
+		configFiwePattewn: /^tsconfig(\..*)?\.json$/gi
 	}, {
-		id: 'javascript',
-		diagnosticOwner: 'typescript',
-		diagnosticSource: 'ts',
-		diagnosticLanguage: DiagnosticLanguage.JavaScript,
-		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFilePattern: /^jsconfig(\..*)?\.json$/gi
+		id: 'javascwipt',
+		diagnosticOwna: 'typescwipt',
+		diagnosticSouwce: 'ts',
+		diagnosticWanguage: DiagnosticWanguage.JavaScwipt,
+		modeIds: [wanguageModeIds.javascwipt, wanguageModeIds.javascwiptweact],
+		configFiwePattewn: /^jsconfig(\..*)?\.json$/gi
 	}
 ];
 
-export function isTsConfigFileName(fileName: string): boolean {
-	return /^tsconfig\.(.+\.)?json$/i.test(basename(fileName));
+expowt function isTsConfigFiweName(fiweName: stwing): boowean {
+	wetuwn /^tsconfig\.(.+\.)?json$/i.test(basename(fiweName));
 }
 
-export function isJsConfigOrTsConfigFileName(fileName: string): boolean {
-	return /^[jt]sconfig\.(.+\.)?json$/i.test(basename(fileName));
+expowt function isJsConfigOwTsConfigFiweName(fiweName: stwing): boowean {
+	wetuwn /^[jt]sconfig\.(.+\.)?json$/i.test(basename(fiweName));
 }
 
-export function doesResourceLookLikeATypeScriptFile(resource: vscode.Uri): boolean {
-	return /\.tsx?$/i.test(resource.fsPath);
+expowt function doesWesouwceWookWikeATypeScwiptFiwe(wesouwce: vscode.Uwi): boowean {
+	wetuwn /\.tsx?$/i.test(wesouwce.fsPath);
 }
 
-export function doesResourceLookLikeAJavaScriptFile(resource: vscode.Uri): boolean {
-	return /\.jsx?$/i.test(resource.fsPath);
+expowt function doesWesouwceWookWikeAJavaScwiptFiwe(wesouwce: vscode.Uwi): boowean {
+	wetuwn /\.jsx?$/i.test(wesouwce.fsPath);
 }

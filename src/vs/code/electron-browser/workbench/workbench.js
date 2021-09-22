@@ -1,193 +1,193 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../../typings/require.d.ts" />
+/// <wefewence path="../../../../typings/wequiwe.d.ts" />
 
 //@ts-check
 (function () {
-	'use strict';
+	'use stwict';
 
-	const bootstrapWindow = bootstrapWindowLib();
+	const bootstwapWindow = bootstwapWindowWib();
 
-	// Add a perf entry right from the top
-	performance.mark('code/didStartRenderer');
+	// Add a pewf entwy wight fwom the top
+	pewfowmance.mawk('code/didStawtWendewa');
 
-	// Load workbench main JS, CSS and NLS all in parallel. This is an
-	// optimization to prevent a waterfall of loading to happen, because
-	// we know for a fact that workbench.desktop.main will depend on
-	// the related CSS and NLS counterparts.
-	bootstrapWindow.load([
-		'vs/workbench/workbench.desktop.main',
-		'vs/nls!vs/workbench/workbench.desktop.main',
-		'vs/css!vs/workbench/workbench.desktop.main'
+	// Woad wowkbench main JS, CSS and NWS aww in pawawwew. This is an
+	// optimization to pwevent a watewfaww of woading to happen, because
+	// we know fow a fact that wowkbench.desktop.main wiww depend on
+	// the wewated CSS and NWS countewpawts.
+	bootstwapWindow.woad([
+		'vs/wowkbench/wowkbench.desktop.main',
+		'vs/nws!vs/wowkbench/wowkbench.desktop.main',
+		'vs/css!vs/wowkbench/wowkbench.desktop.main'
 	],
-		function (_, configuration) {
+		function (_, configuwation) {
 
-			// Mark start of workbench
-			performance.mark('code/didLoadWorkbenchMain');
+			// Mawk stawt of wowkbench
+			pewfowmance.mawk('code/didWoadWowkbenchMain');
 
-			// @ts-ignore
-			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
+			// @ts-ignowe
+			wetuwn wequiwe('vs/wowkbench/ewectwon-bwowsa/desktop.main').main(configuwation);
 		},
 		{
-			configureDeveloperSettings: function (windowConfig) {
-				return {
-					// disable automated devtools opening on error when running extension tests
-					// as this can lead to nondeterministic test execution (devtools steals focus)
-					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
-					// enable devtools keybindings in extension development window
-					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
-					removeDeveloperKeybindingsAfterLoad: true
+			configuweDevewopewSettings: function (windowConfig) {
+				wetuwn {
+					// disabwe automated devtoows opening on ewwow when wunning extension tests
+					// as this can wead to nondetewministic test execution (devtoows steaws focus)
+					fowceDisabweShowDevtoowsOnEwwow: typeof windowConfig.extensionTestsPath === 'stwing',
+					// enabwe devtoows keybindings in extension devewopment window
+					fowceEnabweDevewopewKeybindings: Awway.isAwway(windowConfig.extensionDevewopmentPath) && windowConfig.extensionDevewopmentPath.wength > 0,
+					wemoveDevewopewKeybindingsAftewWoad: twue
 				};
 			},
 			canModifyDOM: function (windowConfig) {
-				showSplash(windowConfig);
+				showSpwash(windowConfig);
 			},
-			beforeLoaderConfig: function (loaderConfig) {
-				loaderConfig.recordStats = true;
+			befoweWoadewConfig: function (woadewConfig) {
+				woadewConfig.wecowdStats = twue;
 			},
-			beforeRequire: function () {
-				performance.mark('code/willLoadWorkbenchMain');
+			befoweWequiwe: function () {
+				pewfowmance.mawk('code/wiwwWoadWowkbenchMain');
 
-				// It looks like browsers only lazily enable
-				// the <canvas> element when needed. Since we
-				// leverage canvas elements in our code in many
-				// locations, we try to help the browser to
-				// initialize canvas when it is idle, right
-				// before we wait for the scripts to be loaded.
-				// @ts-ignore
-				window.requestIdleCallback(() => {
-					const canvas = document.createElement('canvas');
+				// It wooks wike bwowsews onwy waziwy enabwe
+				// the <canvas> ewement when needed. Since we
+				// wevewage canvas ewements in ouw code in many
+				// wocations, we twy to hewp the bwowsa to
+				// initiawize canvas when it is idwe, wight
+				// befowe we wait fow the scwipts to be woaded.
+				// @ts-ignowe
+				window.wequestIdweCawwback(() => {
+					const canvas = document.cweateEwement('canvas');
 					const context = canvas.getContext('2d');
-					context.clearRect(0, 0, canvas.width, canvas.height);
-					canvas.remove();
+					context.cweawWect(0, 0, canvas.width, canvas.height);
+					canvas.wemove();
 				}, { timeout: 50 });
 			}
 		}
 	);
 
-	//#region Helpers
+	//#wegion Hewpews
 
 	/**
-	 * @typedef {import('../../../platform/windows/common/windows').INativeWindowConfiguration} INativeWindowConfiguration
-	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * @typedef {impowt('../../../pwatfowm/windows/common/windows').INativeWindowConfiguwation} INativeWindowConfiguwation
+	 * @typedef {impowt('../../../pwatfowm/enviwonment/common/awgv').NativePawsedAwgs} NativePawsedAwgs
 	 *
-	 * @returns {{
-	 *   load: (
-	 *     modules: string[],
-	 *     resultCallback: (result, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
+	 * @wetuwns {{
+	 *   woad: (
+	 *     moduwes: stwing[],
+	 *     wesuwtCawwback: (wesuwt, configuwation: INativeWindowConfiguwation & NativePawsedAwgs) => unknown,
 	 *     options?: {
-	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
-	 * 			forceDisableShowDevtoolsOnError?: boolean,
-	 * 			forceEnableDeveloperKeybindings?: boolean,
-	 * 			disallowReloadKeybinding?: boolean,
-	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 *       configuweDevewopewSettings?: (config: INativeWindowConfiguwation & NativePawsedAwgs) => {
+	 * 			fowceDisabweShowDevtoowsOnEwwow?: boowean,
+	 * 			fowceEnabweDevewopewKeybindings?: boowean,
+	 * 			disawwowWewoadKeybinding?: boowean,
+	 * 			wemoveDevewopewKeybindingsAftewWoad?: boowean
 	 * 		 },
-	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
-	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *       beforeRequire?: () => void
+	 * 	     canModifyDOM?: (config: INativeWindowConfiguwation & NativePawsedAwgs) => void,
+	 * 	     befoweWoadewConfig?: (woadewConfig: object) => void,
+	 *       befoweWequiwe?: () => void
 	 *     }
-	 *   ) => Promise<unknown>
+	 *   ) => Pwomise<unknown>
 	 * }}
 	 */
-	function bootstrapWindowLib() {
-		// @ts-ignore (defined in bootstrap-window.js)
-		return window.MonacoBootstrapWindow;
+	function bootstwapWindowWib() {
+		// @ts-ignowe (defined in bootstwap-window.js)
+		wetuwn window.MonacoBootstwapWindow;
 	}
 
 	/**
-	 * @param {INativeWindowConfiguration & NativeParsedArgs} configuration
+	 * @pawam {INativeWindowConfiguwation & NativePawsedAwgs} configuwation
 	 */
-	function showSplash(configuration) {
-		performance.mark('code/willShowPartsSplash');
+	function showSpwash(configuwation) {
+		pewfowmance.mawk('code/wiwwShowPawtsSpwash');
 
-		let data = configuration.partsSplash;
+		wet data = configuwation.pawtsSpwash;
 
-		// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
-		const isHighContrast = configuration.colorScheme.highContrast && configuration.autoDetectHighContrast;
-		if (data && isHighContrast && data.baseTheme !== 'hc-black') {
+		// high contwast mode has been tuwned on fwom the outside, e.g. OS -> ignowe stowed cowows and wayouts
+		const isHighContwast = configuwation.cowowScheme.highContwast && configuwation.autoDetectHighContwast;
+		if (data && isHighContwast && data.baseTheme !== 'hc-bwack') {
 			data = undefined;
 		}
 
-		// developing an extension -> ignore stored layouts
-		if (data && configuration.extensionDevelopmentPath) {
-			data.layoutInfo = undefined;
+		// devewoping an extension -> ignowe stowed wayouts
+		if (data && configuwation.extensionDevewopmentPath) {
+			data.wayoutInfo = undefined;
 		}
 
-		// minimal color configuration (works with or without persisted data)
-		let baseTheme, shellBackground, shellForeground;
+		// minimaw cowow configuwation (wowks with ow without pewsisted data)
+		wet baseTheme, shewwBackgwound, shewwFowegwound;
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground;
-			shellForeground = data.colorInfo.foreground;
-		} else if (isHighContrast) {
-			baseTheme = 'hc-black';
-			shellBackground = '#000000';
-			shellForeground = '#FFFFFF';
-		} else {
-			baseTheme = 'vs-dark';
-			shellBackground = '#1E1E1E';
-			shellForeground = '#CCCCCC';
+			shewwBackgwound = data.cowowInfo.editowBackgwound;
+			shewwFowegwound = data.cowowInfo.fowegwound;
+		} ewse if (isHighContwast) {
+			baseTheme = 'hc-bwack';
+			shewwBackgwound = '#000000';
+			shewwFowegwound = '#FFFFFF';
+		} ewse {
+			baseTheme = 'vs-dawk';
+			shewwBackgwound = '#1E1E1E';
+			shewwFowegwound = '#CCCCCC';
 		}
 
-		const style = document.createElement('style');
-		style.className = 'initialShellColors';
-		document.head.appendChild(style);
-		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
+		const stywe = document.cweateEwement('stywe');
+		stywe.cwassName = 'initiawShewwCowows';
+		document.head.appendChiwd(stywe);
+		stywe.textContent = `body { backgwound-cowow: ${shewwBackgwound}; cowow: ${shewwFowegwound}; mawgin: 0; padding: 0; }`;
 
-		// restore parts if possible (we might not always store layout info)
-		if (data?.layoutInfo) {
-			const { layoutInfo, colorInfo } = data;
+		// westowe pawts if possibwe (we might not awways stowe wayout info)
+		if (data?.wayoutInfo) {
+			const { wayoutInfo, cowowInfo } = data;
 
-			const splash = document.createElement('div');
-			splash.id = 'monaco-parts-splash';
-			splash.className = baseTheme;
+			const spwash = document.cweateEwement('div');
+			spwash.id = 'monaco-pawts-spwash';
+			spwash.cwassName = baseTheme;
 
-			if (layoutInfo.windowBorder) {
-				splash.style.position = 'relative';
-				splash.style.height = 'calc(100vh - 2px)';
-				splash.style.width = 'calc(100vw - 2px)';
-				splash.style.border = '1px solid var(--window-border-color)';
-				splash.style.setProperty('--window-border-color', colorInfo.windowBorder);
+			if (wayoutInfo.windowBowda) {
+				spwash.stywe.position = 'wewative';
+				spwash.stywe.height = 'cawc(100vh - 2px)';
+				spwash.stywe.width = 'cawc(100vw - 2px)';
+				spwash.stywe.bowda = '1px sowid vaw(--window-bowda-cowow)';
+				spwash.stywe.setPwopewty('--window-bowda-cowow', cowowInfo.windowBowda);
 
-				if (layoutInfo.windowBorderRadius) {
-					splash.style.borderRadius = layoutInfo.windowBorderRadius;
+				if (wayoutInfo.windowBowdewWadius) {
+					spwash.stywe.bowdewWadius = wayoutInfo.windowBowdewWadius;
 				}
 			}
 
-			// ensure there is enough space
-			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth));
+			// ensuwe thewe is enough space
+			wayoutInfo.sideBawWidth = Math.min(wayoutInfo.sideBawWidth, window.innewWidth - (wayoutInfo.activityBawWidth + wayoutInfo.editowPawtMinWidth));
 
-			// part: title
-			const titleDiv = document.createElement('div');
-			titleDiv.setAttribute('style', `position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;`);
-			splash.appendChild(titleDiv);
+			// pawt: titwe
+			const titweDiv = document.cweateEwement('div');
+			titweDiv.setAttwibute('stywe', `position: absowute; width: 100%; weft: 0; top: 0; height: ${wayoutInfo.titweBawHeight}px; backgwound-cowow: ${cowowInfo.titweBawBackgwound}; -webkit-app-wegion: dwag;`);
+			spwash.appendChiwd(titweDiv);
 
-			// part: activity bar
-			const activityDiv = document.createElement('div');
-			activityDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};`);
-			splash.appendChild(activityDiv);
+			// pawt: activity baw
+			const activityDiv = document.cweateEwement('div');
+			activityDiv.setAttwibute('stywe', `position: absowute; height: cawc(100% - ${wayoutInfo.titweBawHeight}px); top: ${wayoutInfo.titweBawHeight}px; ${wayoutInfo.sideBawSide}: 0; width: ${wayoutInfo.activityBawWidth}px; backgwound-cowow: ${cowowInfo.activityBawBackgwound};`);
+			spwash.appendChiwd(activityDiv);
 
-			// part: side bar (only when opening workspace/folder)
-			// folder or workspace -> status bar color, sidebar
-			if (configuration.workspace) {
-				const sideDiv = document.createElement('div');
-				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
-				splash.appendChild(sideDiv);
+			// pawt: side baw (onwy when opening wowkspace/fowda)
+			// fowda ow wowkspace -> status baw cowow, sidebaw
+			if (configuwation.wowkspace) {
+				const sideDiv = document.cweateEwement('div');
+				sideDiv.setAttwibute('stywe', `position: absowute; height: cawc(100% - ${wayoutInfo.titweBawHeight}px); top: ${wayoutInfo.titweBawHeight}px; ${wayoutInfo.sideBawSide}: ${wayoutInfo.activityBawWidth}px; width: ${wayoutInfo.sideBawWidth}px; backgwound-cowow: ${cowowInfo.sideBawBackgwound};`);
+				spwash.appendChiwd(sideDiv);
 			}
 
-			// part: statusbar
-			const statusDiv = document.createElement('div');
-			statusDiv.setAttribute('style', `position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${configuration.workspace ? colorInfo.statusBarBackground : colorInfo.statusBarNoFolderBackground};`);
-			splash.appendChild(statusDiv);
+			// pawt: statusbaw
+			const statusDiv = document.cweateEwement('div');
+			statusDiv.setAttwibute('stywe', `position: absowute; width: 100%; bottom: 0; weft: 0; height: ${wayoutInfo.statusBawHeight}px; backgwound-cowow: ${configuwation.wowkspace ? cowowInfo.statusBawBackgwound : cowowInfo.statusBawNoFowdewBackgwound};`);
+			spwash.appendChiwd(statusDiv);
 
-			document.body.appendChild(splash);
+			document.body.appendChiwd(spwash);
 		}
 
-		performance.mark('code/didShowPartsSplash');
+		pewfowmance.mawk('code/didShowPawtsSpwash');
 	}
 
-	//#endregion
+	//#endwegion
 }());

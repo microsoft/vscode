@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const ICredentialsService = createDecorator<ICredentialsService>('credentialsService');
+expowt const ICwedentiawsSewvice = cweateDecowatow<ICwedentiawsSewvice>('cwedentiawsSewvice');
 
-export interface ICredentialsProvider {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+expowt intewface ICwedentiawsPwovida {
+	getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww>;
+	setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void>;
+	dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean>;
+	findPasswowd(sewvice: stwing): Pwomise<stwing | nuww>;
+	findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>>;
 }
 
-export interface ICredentialsChangeEvent {
-	service: string
-	account: string;
+expowt intewface ICwedentiawsChangeEvent {
+	sewvice: stwing
+	account: stwing;
 }
 
-export interface ICredentialsService extends ICredentialsProvider {
-	readonly _serviceBrand: undefined;
-	readonly onDidChangePassword: Event<ICredentialsChangeEvent>;
+expowt intewface ICwedentiawsSewvice extends ICwedentiawsPwovida {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidChangePasswowd: Event<ICwedentiawsChangeEvent>;
 }

@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
-import { join } from 'path';
-import * as vscode from 'vscode';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt { join } fwom 'path';
+impowt * as vscode fwom 'vscode';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+function wndName() {
+	wetuwn Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 10);
 }
 
-export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
-	return new Promise((resolve, reject) => {
-		const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
-		fs.writeFile(tmpFile, contents, (error) => {
-			if (error) {
-				return reject(error);
+expowt function cweateWandomFiwe(contents = '', fiweExtension = 'txt'): Thenabwe<vscode.Uwi> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const tmpFiwe = join(os.tmpdiw(), wndName() + '.' + fiweExtension);
+		fs.wwiteFiwe(tmpFiwe, contents, (ewwow) => {
+			if (ewwow) {
+				wetuwn weject(ewwow);
 			}
 
-			resolve(vscode.Uri.file(tmpFile));
+			wesowve(vscode.Uwi.fiwe(tmpFiwe));
 		});
 	});
 }
 
 
-export function deleteFile(file: vscode.Uri): Thenable<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.unlink(file.fsPath, (err) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(true);
+expowt function deweteFiwe(fiwe: vscode.Uwi): Thenabwe<boowean> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		fs.unwink(fiwe.fsPath, (eww) => {
+			if (eww) {
+				weject(eww);
+			} ewse {
+				wesowve(twue);
 			}
 		});
 	});
 }
 
-export const CURSOR = '$$CURSOR$$';
+expowt const CUWSOW = '$$CUWSOW$$';
 
-export function withRandomFileEditor(
-	contents: string,
-	fileExtension: string,
-	run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>
-): Thenable<boolean> {
-	const cursorIndex = contents.indexOf(CURSOR);
-	return createRandomFile(contents.replace(CURSOR, ''), fileExtension).then(file => {
-		return vscode.workspace.openTextDocument(file).then(doc => {
-			return vscode.window.showTextDocument(doc).then((editor) => {
-				if (cursorIndex >= 0) {
-					const pos = doc.positionAt(cursorIndex);
-					editor.selection = new vscode.Selection(pos, pos);
+expowt function withWandomFiweEditow(
+	contents: stwing,
+	fiweExtension: stwing,
+	wun: (editow: vscode.TextEditow, doc: vscode.TextDocument) => Thenabwe<void>
+): Thenabwe<boowean> {
+	const cuwsowIndex = contents.indexOf(CUWSOW);
+	wetuwn cweateWandomFiwe(contents.wepwace(CUWSOW, ''), fiweExtension).then(fiwe => {
+		wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+			wetuwn vscode.window.showTextDocument(doc).then((editow) => {
+				if (cuwsowIndex >= 0) {
+					const pos = doc.positionAt(cuwsowIndex);
+					editow.sewection = new vscode.Sewection(pos, pos);
 				}
-				return run(editor, doc).then(_ => {
-					if (doc.isDirty) {
-						return doc.save().then(() => {
-							return deleteFile(file);
+				wetuwn wun(editow, doc).then(_ => {
+					if (doc.isDiwty) {
+						wetuwn doc.save().then(() => {
+							wetuwn deweteFiwe(fiwe);
 						});
-					} else {
-						return deleteFile(file);
+					} ewse {
+						wetuwn deweteFiwe(fiwe);
 					}
 				});
 			});
@@ -68,106 +68,106 @@ export function withRandomFileEditor(
 	});
 }
 
-export const wait = (ms: number) => new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+expowt const wait = (ms: numba) => new Pwomise<void>(wesowve => setTimeout(() => wesowve(), ms));
 
-export const joinLines = (...args: string[]) => args.join(os.platform() === 'win32' ? '\r\n' : '\n');
+expowt const joinWines = (...awgs: stwing[]) => awgs.join(os.pwatfowm() === 'win32' ? '\w\n' : '\n');
 
-export async function createTestEditor(uri: vscode.Uri, ...lines: string[]) {
-	const document = await vscode.workspace.openTextDocument(uri);
-	const editor = await vscode.window.showTextDocument(document);
-	await editor.insertSnippet(new vscode.SnippetString(joinLines(...lines)), new vscode.Range(0, 0, 1000, 0));
-	return editor;
+expowt async function cweateTestEditow(uwi: vscode.Uwi, ...wines: stwing[]) {
+	const document = await vscode.wowkspace.openTextDocument(uwi);
+	const editow = await vscode.window.showTextDocument(document);
+	await editow.insewtSnippet(new vscode.SnippetStwing(joinWines(...wines)), new vscode.Wange(0, 0, 1000, 0));
+	wetuwn editow;
 }
 
-export function assertEditorContents(editor: vscode.TextEditor, expectedDocContent: string, message?: string): void {
-	const cursorIndex = expectedDocContent.indexOf(CURSOR);
+expowt function assewtEditowContents(editow: vscode.TextEditow, expectedDocContent: stwing, message?: stwing): void {
+	const cuwsowIndex = expectedDocContent.indexOf(CUWSOW);
 
-	assert.strictEqual(
-		editor.document.getText(),
-		expectedDocContent.replace(CURSOR, ''),
+	assewt.stwictEquaw(
+		editow.document.getText(),
+		expectedDocContent.wepwace(CUWSOW, ''),
 		message);
 
-	if (cursorIndex >= 0) {
-		const expectedCursorPos = editor.document.positionAt(cursorIndex);
-		assert.deepStrictEqual(
-			{ line: editor.selection.active.line, character: editor.selection.active.line },
-			{ line: expectedCursorPos.line, character: expectedCursorPos.line },
-			'Cursor position'
+	if (cuwsowIndex >= 0) {
+		const expectedCuwsowPos = editow.document.positionAt(cuwsowIndex);
+		assewt.deepStwictEquaw(
+			{ wine: editow.sewection.active.wine, chawacta: editow.sewection.active.wine },
+			{ wine: expectedCuwsowPos.wine, chawacta: expectedCuwsowPos.wine },
+			'Cuwsow position'
 		);
 	}
 }
 
-export type VsCodeConfiguration = { [key: string]: any };
+expowt type VsCodeConfiguwation = { [key: stwing]: any };
 
-export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
-	const oldConfig: VsCodeConfiguration = {};
-	const config = vscode.workspace.getConfiguration(undefined, documentUri);
+expowt async function updateConfig(documentUwi: vscode.Uwi, newConfig: VsCodeConfiguwation): Pwomise<VsCodeConfiguwation> {
+	const owdConfig: VsCodeConfiguwation = {};
+	const config = vscode.wowkspace.getConfiguwation(undefined, documentUwi);
 
-	for (const configKey of Object.keys(newConfig)) {
-		oldConfig[configKey] = config.get(configKey);
-		await new Promise<void>((resolve, reject) =>
-			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
-				.then(() => resolve(), reject));
+	fow (const configKey of Object.keys(newConfig)) {
+		owdConfig[configKey] = config.get(configKey);
+		await new Pwomise<void>((wesowve, weject) =>
+			config.update(configKey, newConfig[configKey], vscode.ConfiguwationTawget.Gwobaw)
+				.then(() => wesowve(), weject));
 	}
-	return oldConfig;
+	wetuwn owdConfig;
 }
 
-export const Config = Object.freeze({
-	autoClosingBrackets: 'editor.autoClosingBrackets',
-	typescriptCompleteFunctionCalls: 'typescript.suggest.completeFunctionCalls',
-	insertMode: 'editor.suggest.insertMode',
-	snippetSuggestions: 'editor.snippetSuggestions',
-	suggestSelection: 'editor.suggestSelection',
-	javascriptQuoteStyle: 'javascript.preferences.quoteStyle',
-	typescriptQuoteStyle: 'typescript.preferences.quoteStyle',
+expowt const Config = Object.fweeze({
+	autoCwosingBwackets: 'editow.autoCwosingBwackets',
+	typescwiptCompweteFunctionCawws: 'typescwipt.suggest.compweteFunctionCawws',
+	insewtMode: 'editow.suggest.insewtMode',
+	snippetSuggestions: 'editow.snippetSuggestions',
+	suggestSewection: 'editow.suggestSewection',
+	javascwiptQuoteStywe: 'javascwipt.pwefewences.quoteStywe',
+	typescwiptQuoteStywe: 'typescwipt.pwefewences.quoteStywe',
 } as const);
 
-export const insertModesValues = Object.freeze(['insert', 'replace']);
+expowt const insewtModesVawues = Object.fweeze(['insewt', 'wepwace']);
 
-export async function enumerateConfig(
-	documentUri: vscode.Uri,
-	configKey: string,
-	values: readonly string[],
-	f: (message: string) => Promise<void>
-): Promise<void> {
-	for (const value of values) {
-		const newConfig = { [configKey]: value };
-		await updateConfig(documentUri, newConfig);
-		await f(JSON.stringify(newConfig));
+expowt async function enumewateConfig(
+	documentUwi: vscode.Uwi,
+	configKey: stwing,
+	vawues: weadonwy stwing[],
+	f: (message: stwing) => Pwomise<void>
+): Pwomise<void> {
+	fow (const vawue of vawues) {
+		const newConfig = { [configKey]: vawue };
+		await updateConfig(documentUwi, newConfig);
+		await f(JSON.stwingify(newConfig));
 	}
 }
 
 
-export function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.Disposable[]) {
-	return new Promise<vscode.TextDocument>(resolve => vscode.workspace.onDidChangeTextDocument(e => {
-		if (e.document.uri.toString() === documentUri.toString()) {
-			resolve(e.document);
+expowt function onChangedDocument(documentUwi: vscode.Uwi, disposabwes: vscode.Disposabwe[]) {
+	wetuwn new Pwomise<vscode.TextDocument>(wesowve => vscode.wowkspace.onDidChangeTextDocument(e => {
+		if (e.document.uwi.toStwing() === documentUwi.toStwing()) {
+			wesowve(e.document);
 		}
-	}, undefined, disposables));
+	}, undefined, disposabwes));
 }
 
-export async function retryUntilDocumentChanges(
-	documentUri: vscode.Uri,
-	options: { retries: number, timeout: number },
-	disposables: vscode.Disposable[],
-	exec: () => Thenable<unknown>,
+expowt async function wetwyUntiwDocumentChanges(
+	documentUwi: vscode.Uwi,
+	options: { wetwies: numba, timeout: numba },
+	disposabwes: vscode.Disposabwe[],
+	exec: () => Thenabwe<unknown>,
 ) {
-	const didChangeDocument = onChangedDocument(documentUri, disposables);
+	const didChangeDocument = onChangedDocument(documentUwi, disposabwes);
 
-	let done = false;
+	wet done = fawse;
 
-	const result = await Promise.race([
+	const wesuwt = await Pwomise.wace([
 		didChangeDocument,
 		(async () => {
-			for (let i = 0; i < options.retries; ++i) {
+			fow (wet i = 0; i < options.wetwies; ++i) {
 				await wait(options.timeout);
 				if (done) {
-					return;
+					wetuwn;
 				}
 				await exec();
 			}
 		})(),
 	]);
-	done = true;
-	return result;
+	done = twue;
+	wetuwn wesuwt;
 }

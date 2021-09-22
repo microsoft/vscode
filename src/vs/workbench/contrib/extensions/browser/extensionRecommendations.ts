@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionRecommendationReson } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionWecommendationWeson } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
 
-export type ExtensionRecommendation = {
-	readonly extensionId: string,
-	readonly reason: IExtensionRecommendationReson;
+expowt type ExtensionWecommendation = {
+	weadonwy extensionId: stwing,
+	weadonwy weason: IExtensionWecommendationWeson;
 };
 
-export abstract class ExtensionRecommendations extends Disposable {
+expowt abstwact cwass ExtensionWecommendations extends Disposabwe {
 
-	readonly abstract recommendations: ReadonlyArray<ExtensionRecommendation>;
-	protected abstract doActivate(): Promise<void>;
+	weadonwy abstwact wecommendations: WeadonwyAwway<ExtensionWecommendation>;
+	pwotected abstwact doActivate(): Pwomise<void>;
 
-	private _activationPromise: Promise<void> | null = null;
-	get activated(): boolean { return this._activationPromise !== null; }
-	activate(): Promise<void> {
-		if (!this._activationPromise) {
-			this._activationPromise = this.doActivate();
+	pwivate _activationPwomise: Pwomise<void> | nuww = nuww;
+	get activated(): boowean { wetuwn this._activationPwomise !== nuww; }
+	activate(): Pwomise<void> {
+		if (!this._activationPwomise) {
+			this._activationPwomise = this.doActivate();
 		}
-		return this._activationPromise;
+		wetuwn this._activationPwomise;
 	}
 
 }

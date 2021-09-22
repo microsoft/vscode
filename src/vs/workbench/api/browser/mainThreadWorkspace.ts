@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isNative } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isNative } fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWequestSewvice } fwom 'vs/pwatfowm/wequest/common/wequest';
+impowt { WowkspaceTwustWequestOptions, IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { IWowkspace, IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { isUntitwedWowkspace } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { checkGwobFiweExists } fwom 'vs/wowkbench/api/common/shawed/wowkspaceContains';
+impowt { ITextQuewyBuiwdewOptions, QuewyBuiwda } fwom 'vs/wowkbench/contwib/seawch/common/quewyBuiwda';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IFiweMatch, IPattewnInfo, ISeawchPwogwessItem, ISeawchSewvice } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { ExtHostContext, ExtHostWowkspaceShape, IExtHostContext, ITextSeawchCompwete, IWowkspaceData, MainContext, MainThweadWowkspaceShape } fwom '../common/extHost.pwotocow';
 
-@extHostNamedCustomer(MainContext.MainThreadWorkspace)
-export class MainThreadWorkspace implements MainThreadWorkspaceShape {
+@extHostNamedCustoma(MainContext.MainThweadWowkspace)
+expowt cwass MainThweadWowkspace impwements MainThweadWowkspaceShape {
 
-	private readonly _toDispose = new DisposableStore();
-	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
-	private readonly _proxy: ExtHostWorkspaceShape;
-	private readonly _queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate weadonwy _activeCancewTokens: { [id: numba]: CancewwationTokenSouwce } = Object.cweate(nuww);
+	pwivate weadonwy _pwoxy: ExtHostWowkspaceShape;
+	pwivate weadonwy _quewyBuiwda = this._instantiationSewvice.cweateInstance(QuewyBuiwda);
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IRequestService private readonly _requestService: IRequestService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@ISeawchSewvice pwivate weadonwy _seawchSewvice: ISeawchSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWowkspaceEditingSewvice pwivate weadonwy _wowkspaceEditingSewvice: IWowkspaceEditingSewvice,
+		@INotificationSewvice pwivate weadonwy _notificationSewvice: INotificationSewvice,
+		@IWequestSewvice pwivate weadonwy _wequestSewvice: IWequestSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IEnviwonmentSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy _wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IWowkspaceTwustWequestSewvice pwivate weadonwy _wowkspaceTwustWequestSewvice: IWowkspaceTwustWequestSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
-		const workspace = this._contextService.getWorkspace();
-		// The workspace file is provided be a unknown file system provider. It might come
-		// from the extension host. So initialize now knowing that `rootPath` is undefined.
-		if (workspace.configuration && !isNative && !fileService.canHandleResource(workspace.configuration)) {
-			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
-		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostWowkspace);
+		const wowkspace = this._contextSewvice.getWowkspace();
+		// The wowkspace fiwe is pwovided be a unknown fiwe system pwovida. It might come
+		// fwom the extension host. So initiawize now knowing that `wootPath` is undefined.
+		if (wowkspace.configuwation && !isNative && !fiweSewvice.canHandweWesouwce(wowkspace.configuwation)) {
+			this._pwoxy.$initiawizeWowkspace(this.getWowkspaceData(wowkspace), this.isWowkspaceTwusted());
+		} ewse {
+			this._contextSewvice.getCompweteWowkspace().then(wowkspace => this._pwoxy.$initiawizeWowkspace(this.getWowkspaceData(wowkspace), this.isWowkspaceTwusted()));
 		}
-		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
-		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
+		this._contextSewvice.onDidChangeWowkspaceFowdews(this._onDidChangeWowkspace, this, this._toDispose);
+		this._contextSewvice.onDidChangeWowkbenchState(this._onDidChangeWowkspace, this, this._toDispose);
+		this._wowkspaceTwustManagementSewvice.onDidChangeTwust(this._onDidGwantWowkspaceTwust, this, this._toDispose);
 	}
 
 	dispose(): void {
 		this._toDispose.dispose();
 
-		for (let requestId in this._activeCancelTokens) {
-			const tokenSource = this._activeCancelTokens[requestId];
-			tokenSource.cancel();
+		fow (wet wequestId in this._activeCancewTokens) {
+			const tokenSouwce = this._activeCancewTokens[wequestId];
+			tokenSouwce.cancew();
 		}
 	}
 
-	// --- workspace ---
+	// --- wowkspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents, name?: string }[]): Promise<void> {
-		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
+	$updateWowkspaceFowdews(extensionName: stwing, index: numba, deweteCount: numba, fowdewsToAdd: { uwi: UwiComponents, name?: stwing }[]): Pwomise<void> {
+		const wowkspaceFowdewsToAdd = fowdewsToAdd.map(f => ({ uwi: UWI.wevive(f.uwi), name: f.name }));
 
 		// Indicate in status message
-		this._notificationService.status(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), { hideAfter: 10 * 1000 /* 10s */ });
+		this._notificationSewvice.status(this.getStatusMessage(extensionName, wowkspaceFowdewsToAdd.wength, deweteCount), { hideAfta: 10 * 1000 /* 10s */ });
 
-		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
+		wetuwn this._wowkspaceEditingSewvice.updateFowdews(index, deweteCount, wowkspaceFowdewsToAdd, twue);
 	}
 
-	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {
-		let message: string;
+	pwivate getStatusMessage(extensionName: stwing, addCount: numba, wemoveCount: numba): stwing {
+		wet message: stwing;
 
 		const wantsToAdd = addCount > 0;
-		const wantsToDelete = removeCount > 0;
+		const wantsToDewete = wemoveCount > 0;
 
-		// Add Folders
-		if (wantsToAdd && !wantsToDelete) {
+		// Add Fowdews
+		if (wantsToAdd && !wantsToDewete) {
 			if (addCount === 1) {
-				message = localize('folderStatusMessageAddSingleFolder', "Extension '{0}' added 1 folder to the workspace", extensionName);
-			} else {
-				message = localize('folderStatusMessageAddMultipleFolders', "Extension '{0}' added {1} folders to the workspace", extensionName, addCount);
+				message = wocawize('fowdewStatusMessageAddSingweFowda', "Extension '{0}' added 1 fowda to the wowkspace", extensionName);
+			} ewse {
+				message = wocawize('fowdewStatusMessageAddMuwtipweFowdews', "Extension '{0}' added {1} fowdews to the wowkspace", extensionName, addCount);
 			}
 		}
 
-		// Delete Folders
-		else if (wantsToDelete && !wantsToAdd) {
-			if (removeCount === 1) {
-				message = localize('folderStatusMessageRemoveSingleFolder', "Extension '{0}' removed 1 folder from the workspace", extensionName);
-			} else {
-				message = localize('folderStatusMessageRemoveMultipleFolders', "Extension '{0}' removed {1} folders from the workspace", extensionName, removeCount);
+		// Dewete Fowdews
+		ewse if (wantsToDewete && !wantsToAdd) {
+			if (wemoveCount === 1) {
+				message = wocawize('fowdewStatusMessageWemoveSingweFowda', "Extension '{0}' wemoved 1 fowda fwom the wowkspace", extensionName);
+			} ewse {
+				message = wocawize('fowdewStatusMessageWemoveMuwtipweFowdews', "Extension '{0}' wemoved {1} fowdews fwom the wowkspace", extensionName, wemoveCount);
 			}
 		}
 
-		// Change Folders
-		else {
-			message = localize('folderStatusChangeFolder', "Extension '{0}' changed folders of the workspace", extensionName);
+		// Change Fowdews
+		ewse {
+			message = wocawize('fowdewStatusChangeFowda', "Extension '{0}' changed fowdews of the wowkspace", extensionName);
 		}
 
-		return message;
+		wetuwn message;
 	}
 
-	private _onDidChangeWorkspace(): void {
-		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+	pwivate _onDidChangeWowkspace(): void {
+		this._pwoxy.$acceptWowkspaceData(this.getWowkspaceData(this._contextSewvice.getWowkspace()));
 	}
 
-	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
-		if (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return null;
+	pwivate getWowkspaceData(wowkspace: IWowkspace): IWowkspaceData | nuww {
+		if (this._contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY) {
+			wetuwn nuww;
 		}
-		return {
-			configuration: workspace.configuration || undefined,
-			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-			folders: workspace.folders,
-			id: workspace.id,
-			name: this._labelService.getWorkspaceLabel(workspace)
+		wetuwn {
+			configuwation: wowkspace.configuwation || undefined,
+			isUntitwed: wowkspace.configuwation ? isUntitwedWowkspace(wowkspace.configuwation, this._enviwonmentSewvice) : fawse,
+			fowdews: wowkspace.fowdews,
+			id: wowkspace.id,
+			name: this._wabewSewvice.getWowkspaceWabew(wowkspace)
 		};
 	}
 
-	// --- search ---
+	// --- seawch ---
 
-	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
-		const includeFolder = URI.revive(_includeFolder);
-		const workspace = this._contextService.getWorkspace();
-		if (!workspace.folders.length) {
-			return Promise.resolve(null);
+	$stawtFiweSeawch(incwudePattewn: stwing | nuww, _incwudeFowda: UwiComponents | nuww, excwudePattewnOwDiswegawdExcwudes: stwing | fawse | nuww, maxWesuwts: numba | nuww, token: CancewwationToken): Pwomise<UwiComponents[] | nuww> {
+		const incwudeFowda = UWI.wevive(_incwudeFowda);
+		const wowkspace = this._contextSewvice.getWowkspace();
+		if (!wowkspace.fowdews.wength) {
+			wetuwn Pwomise.wesowve(nuww);
 		}
 
-		const query = this._queryBuilder.file(
-			includeFolder ? [includeFolder] : workspace.folders,
+		const quewy = this._quewyBuiwda.fiwe(
+			incwudeFowda ? [incwudeFowda] : wowkspace.fowdews,
 			{
-				maxResults: withNullAsUndefined(maxResults),
-				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
-				disregardSearchExcludeSettings: true,
-				disregardIgnoreFiles: true,
-				includePattern: withNullAsUndefined(includePattern),
-				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
-				_reason: 'startFileSearch'
+				maxWesuwts: withNuwwAsUndefined(maxWesuwts),
+				diswegawdExcwudeSettings: (excwudePattewnOwDiswegawdExcwudes === fawse) || undefined,
+				diswegawdSeawchExcwudeSettings: twue,
+				diswegawdIgnoweFiwes: twue,
+				incwudePattewn: withNuwwAsUndefined(incwudePattewn),
+				excwudePattewn: typeof excwudePattewnOwDiswegawdExcwudes === 'stwing' ? excwudePattewnOwDiswegawdExcwudes : undefined,
+				_weason: 'stawtFiweSeawch'
 			});
 
-		return this._searchService.fileSearch(query, token).then(result => {
-			return result.results.map(m => m.resource);
-		}, err => {
-			if (!isPromiseCanceledError(err)) {
-				return Promise.reject(err);
+		wetuwn this._seawchSewvice.fiweSeawch(quewy, token).then(wesuwt => {
+			wetuwn wesuwt.wesuwts.map(m => m.wesouwce);
+		}, eww => {
+			if (!isPwomiseCancewedEwwow(eww)) {
+				wetuwn Pwomise.weject(eww);
 			}
-			return null;
+			wetuwn nuww;
 		});
 	}
 
-	$startTextSearch(pattern: IPatternInfo, _folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null> {
-		const folder = URI.revive(_folder);
-		const workspace = this._contextService.getWorkspace();
-		const folders = folder ? [folder] : workspace.folders.map(folder => folder.uri);
+	$stawtTextSeawch(pattewn: IPattewnInfo, _fowda: UwiComponents | nuww, options: ITextQuewyBuiwdewOptions, wequestId: numba, token: CancewwationToken): Pwomise<ITextSeawchCompwete | nuww> {
+		const fowda = UWI.wevive(_fowda);
+		const wowkspace = this._contextSewvice.getWowkspace();
+		const fowdews = fowda ? [fowda] : wowkspace.fowdews.map(fowda => fowda.uwi);
 
-		const query = this._queryBuilder.text(pattern, folders, options);
-		query._reason = 'startTextSearch';
+		const quewy = this._quewyBuiwda.text(pattewn, fowdews, options);
+		quewy._weason = 'stawtTextSeawch';
 
-		const onProgress = (p: ISearchProgressItem) => {
-			if ((<IFileMatch>p).results) {
-				this._proxy.$handleTextSearchResult(<IFileMatch>p, requestId);
+		const onPwogwess = (p: ISeawchPwogwessItem) => {
+			if ((<IFiweMatch>p).wesuwts) {
+				this._pwoxy.$handweTextSeawchWesuwt(<IFiweMatch>p, wequestId);
 			}
 		};
 
-		const search = this._searchService.textSearch(query, token, onProgress).then(
-			result => {
-				return { limitHit: result.limitHit };
+		const seawch = this._seawchSewvice.textSeawch(quewy, token, onPwogwess).then(
+			wesuwt => {
+				wetuwn { wimitHit: wesuwt.wimitHit };
 			},
-			err => {
-				if (!isPromiseCanceledError(err)) {
-					return Promise.reject(err);
+			eww => {
+				if (!isPwomiseCancewedEwwow(eww)) {
+					wetuwn Pwomise.weject(eww);
 				}
 
-				return null;
+				wetuwn nuww;
 			});
 
-		return search;
+		wetuwn seawch;
 	}
 
-	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
-		return this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token));
+	$checkExists(fowdews: weadonwy UwiComponents[], incwudes: stwing[], token: CancewwationToken): Pwomise<boowean> {
+		wetuwn this._instantiationSewvice.invokeFunction((accessow) => checkGwobFiweExists(accessow, fowdews, incwudes, token));
 	}
 
-	// --- save & edit resources ---
+	// --- save & edit wesouwces ---
 
-	$saveAll(includeUntitled?: boolean): Promise<boolean> {
-		return this._editorService.saveAll({ includeUntitled });
+	$saveAww(incwudeUntitwed?: boowean): Pwomise<boowean> {
+		wetuwn this._editowSewvice.saveAww({ incwudeUntitwed });
 	}
 
-	$resolveProxy(url: string): Promise<string | undefined> {
-		return this._requestService.resolveProxy(url);
+	$wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined> {
+		wetuwn this._wequestSewvice.wesowvePwoxy(uww);
 	}
 
-	// --- trust ---
+	// --- twust ---
 
-	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
-		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
+	$wequestWowkspaceTwust(options?: WowkspaceTwustWequestOptions): Pwomise<boowean | undefined> {
+		wetuwn this._wowkspaceTwustWequestSewvice.wequestWowkspaceTwust(options);
 	}
 
-	private isWorkspaceTrusted(): boolean {
-		return this._workspaceTrustManagementService.isWorkspaceTrusted();
+	pwivate isWowkspaceTwusted(): boowean {
+		wetuwn this._wowkspaceTwustManagementSewvice.isWowkspaceTwusted();
 	}
 
-	private _onDidGrantWorkspaceTrust(): void {
-		this._proxy.$onDidGrantWorkspaceTrust();
+	pwivate _onDidGwantWowkspaceTwust(): void {
+		this._pwoxy.$onDidGwantWowkspaceTwust();
 	}
 }

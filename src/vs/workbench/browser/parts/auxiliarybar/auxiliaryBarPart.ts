@@ -1,151 +1,151 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/auxiliaryBarPart';
-import 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
-import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+impowt 'vs/css!./media/auxiwiawyBawPawt';
+impowt 'vs/wowkbench/bwowsa/pawts/auxiwiawybaw/auxiwiawyBawActions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { activeContwastBowda, editowBackgwound, focusBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Extensions as PaneCompositeExtensions } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { BasePanewPawt } fwom 'vs/wowkbench/bwowsa/pawts/panew/panewPawt';
+impowt { ActiveAuxiwiawyContext, AuxiwiawyBawFocusContext } fwom 'vs/wowkbench/common/auxiwiawybaw';
+impowt { SIDE_BAW_BACKGWOUND, SIDE_BAW_TITWE_FOWEGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
 
-export class AuxiliaryBarPart extends BasePanelPart {
-	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
-	static readonly pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
+expowt cwass AuxiwiawyBawPawt extends BasePanewPawt {
+	static weadonwy activePanewSettingsKey = 'wowkbench.auxiwiawybaw.activepanewid';
+	static weadonwy pinnedPanewsKey = 'wowkbench.auxiwiawybaw.pinnedPanews';
+	static weadonwy pwacehowdeViewContainewsKey = 'wowkbench.auxiwiawybaw.pwacehowdewPanews';
 
-	// Use the side bar dimensions
-	override readonly minimumWidth: number = 170;
-	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	override readonly minimumHeight: number = 0;
-	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	// Use the side baw dimensions
+	ovewwide weadonwy minimumWidth: numba = 170;
+	ovewwide weadonwy maximumWidth: numba = Numba.POSITIVE_INFINITY;
+	ovewwide weadonwy minimumHeight: numba = 0;
+	ovewwide weadonwy maximumHeight: numba = Numba.POSITIVE_INFINITY;
 
-	constructor(
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IExtensionService extensionService: IExtensionService,
+	constwuctow(
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
 	) {
-		super(
-			Parts.AUXILIARYBAR_PART,
-			AuxiliaryBarPart.activePanelSettingsKey,
-			AuxiliaryBarPart.pinnedPanelsKey,
-			AuxiliaryBarPart.placeholdeViewContainersKey,
-			PaneCompositeExtensions.Auxiliary,
-			SIDE_BAR_BACKGROUND,
-			ViewContainerLocation.AuxiliaryBar,
-			ActiveAuxiliaryContext.bindTo(contextKeyService),
-			AuxiliaryBarFocusContext.bindTo(contextKeyService),
-			notificationService,
-			storageService,
-			telemetryService,
-			contextMenuService,
-			layoutService,
-			keybindingService,
-			instantiationService,
-			themeService,
-			viewDescriptorService,
-			contextKeyService,
-			extensionService,
+		supa(
+			Pawts.AUXIWIAWYBAW_PAWT,
+			AuxiwiawyBawPawt.activePanewSettingsKey,
+			AuxiwiawyBawPawt.pinnedPanewsKey,
+			AuxiwiawyBawPawt.pwacehowdeViewContainewsKey,
+			PaneCompositeExtensions.Auxiwiawy,
+			SIDE_BAW_BACKGWOUND,
+			ViewContainewWocation.AuxiwiawyBaw,
+			ActiveAuxiwiawyContext.bindTo(contextKeySewvice),
+			AuxiwiawyBawFocusContext.bindTo(contextKeySewvice),
+			notificationSewvice,
+			stowageSewvice,
+			tewemetwySewvice,
+			contextMenuSewvice,
+			wayoutSewvice,
+			keybindingSewvice,
+			instantiationSewvice,
+			themeSewvice,
+			viewDescwiptowSewvice,
+			contextKeySewvice,
+			extensionSewvice,
 		);
 	}
 
-	override toJSON(): object {
-		return {
-			type: Parts.AUXILIARYBAR_PART
+	ovewwide toJSON(): object {
+		wetuwn {
+			type: Pawts.AUXIWIAWYBAW_PAWT
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	// Auxiliary Bar Background: since panels can host editors, we apply a background rule if the panel background
-	// color is different from the editor background color. This is a bit of a hack though. The better way
-	// would be to have a way to push the background color onto each editor widget itself somehow.
-	const auxiliaryBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (auxiliaryBarBackground && auxiliaryBarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .content .monaco-editor,
-			.monaco-workbench .part.auxiliarybar > .content .monaco-editor .margin,
-			.monaco-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
-				background-color: ${auxiliaryBarBackground};
+	// Auxiwiawy Baw Backgwound: since panews can host editows, we appwy a backgwound wuwe if the panew backgwound
+	// cowow is diffewent fwom the editow backgwound cowow. This is a bit of a hack though. The betta way
+	// wouwd be to have a way to push the backgwound cowow onto each editow widget itsewf somehow.
+	const auxiwiawyBawBackgwound = theme.getCowow(SIDE_BAW_BACKGWOUND);
+	if (auxiwiawyBawBackgwound && auxiwiawyBawBackgwound !== theme.getCowow(editowBackgwound)) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.auxiwiawybaw > .content .monaco-editow,
+			.monaco-wowkbench .pawt.auxiwiawybaw > .content .monaco-editow .mawgin,
+			.monaco-wowkbench .pawt.auxiwiawybaw > .content .monaco-editow .monaco-editow-backgwound {
+				backgwound-cowow: ${auxiwiawyBawBackgwound};
 			}
 		`);
 	}
 
-	// Title Active
-	const titleActive = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(SIDE_BAR_TITLE_FOREGROUND);
-	if (titleActive || titleActiveBorder) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${titleActiveBorder} !important;
+	// Titwe Active
+	const titweActive = theme.getCowow(SIDE_BAW_TITWE_FOWEGWOUND);
+	const titweActiveBowda = theme.getCowow(SIDE_BAW_TITWE_FOWEGWOUND);
+	if (titweActive || titweActiveBowda) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:hova .action-wabew {
+				cowow: ${titweActive} !impowtant;
+				bowda-bottom-cowow: ${titweActiveBowda} !impowtant;
 			}
 		`);
 	}
 
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
-				color: ${titleActive} !important;
-				border-bottom-color: ${focusBorderColor} !important;
-				border-bottom: 1px solid;
+	// Titwe focus
+	const focusBowdewCowow = theme.getCowow(focusBowda);
+	if (focusBowdewCowow) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:focus .action-wabew {
+				cowow: ${titweActive} !impowtant;
+				bowda-bottom-cowow: ${focusBowdewCowow} !impowtant;
+				bowda-bottom: 1px sowid;
 			}
 			`);
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
-				outline: none;
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:focus {
+				outwine: none;
 			}
 			`);
 	}
 
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		collector.addRule(`
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
-				outline-offset: -2px;
+	// Stywing with Outwine cowow (e.g. high contwast theme)
+	const outwine = theme.getCowow(activeContwastBowda);
+	if (outwine) {
+		cowwectow.addWuwe(`
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item.checked .action-wabew,
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:hova .action-wabew {
+				outwine-cowow: ${outwine};
+				outwine-width: 1px;
+				outwine-stywe: sowid;
+				bowda-bottom: none;
+				outwine-offset: -2px;
 			}
 
-			.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-				outline-style: dashed;
+			.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item:not(.checked):hova .action-wabew {
+				outwine-stywe: dashed;
 			}
 		`);
 	}
 
-	// const inputBorder = theme.getColor(PANEL_INPUT_BORDER);
-	// if (inputBorder) {
-	// 	collector.addRule(`
-	// 		.monaco-workbench .part.auxiliarybar .monaco-inputbox {
-	// 			border-color: ${inputBorder}
+	// const inputBowda = theme.getCowow(PANEW_INPUT_BOWDa);
+	// if (inputBowda) {
+	// 	cowwectow.addWuwe(`
+	// 		.monaco-wowkbench .pawt.auxiwiawybaw .monaco-inputbox {
+	// 			bowda-cowow: ${inputBowda}
 	// 		}
 	// 	`);
 	// }

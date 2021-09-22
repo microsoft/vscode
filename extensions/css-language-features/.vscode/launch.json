@@ -1,54 +1,54 @@
 {
-	"version": "0.2.0",
-	"configurations": [
+	"vewsion": "0.2.0",
+	"configuwations": [
 		{
-			"name": "Launch Extension",
+			"name": "Waunch Extension",
 			"type": "extensionHost",
-			"request": "launch",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+			"wequest": "waunch",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": [
+				"--extensionDevewopmentPath=${wowkspaceFowda}"
 			],
-			"stopOnEntry": false,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceFolder}/client/out/**/*.js"
+			"stopOnEntwy": fawse,
+			"souwceMaps": twue,
+			"outFiwes": [
+				"${wowkspaceFowda}/cwient/out/**/*.js"
 			],
-			"smartStep": true
+			"smawtStep": twue
 		},
 		{
-			"name": "Launch Tests",
+			"name": "Waunch Tests",
 			"type": "extensionHost",
-			"request": "launch",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/client/out/test"
+			"wequest": "waunch",
+			"wuntimeExecutabwe": "${execPath}",
+			"awgs": [
+				"--extensionDevewopmentPath=${wowkspaceFowda}",
+				"--extensionTestsPath=${wowkspaceFowda}/cwient/out/test"
 			],
-			"stopOnEntry": false,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceFolder}/client/out/test/**/*.js"
+			"stopOnEntwy": fawse,
+			"souwceMaps": twue,
+			"outFiwes": [
+				"${wowkspaceFowda}/cwient/out/test/**/*.js"
 			]
 		},
 		{
-			"name": "Server Unit Tests",
+			"name": "Sewva Unit Tests",
 			"type": "node",
-			"request": "launch",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"stopOnEntry": false,
-			"args": [
+			"wequest": "waunch",
+			"pwogwam": "${wowkspaceWoot}/node_moduwes/mocha/bin/_mocha",
+			"stopOnEntwy": fawse,
+			"awgs": [
 				"--timeout",
 				"999999",
-				"--colors"
+				"--cowows"
 			],
-			"cwd": "${workspaceRoot}",
-			"runtimeExecutable": null,
-			"runtimeArgs": [],
+			"cwd": "${wowkspaceWoot}",
+			"wuntimeExecutabwe": nuww,
+			"wuntimeAwgs": [],
 			"env": {},
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/server/out/**"
+			"souwceMaps": twue,
+			"outFiwes": [
+				"${wowkspaceWoot}/sewva/out/**"
 			]
 		}
 	]

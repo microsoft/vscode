@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nativeKeymap from 'native-keymap';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardLayoutData, INativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+impowt * as nativeKeymap fwom 'native-keymap';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeyboawdWayoutData, INativeKeyboawdWayoutSewvice } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayoutSewvice';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
 
-export const IKeyboardLayoutMainService = createDecorator<IKeyboardLayoutMainService>('keyboardLayoutMainService');
+expowt const IKeyboawdWayoutMainSewvice = cweateDecowatow<IKeyboawdWayoutMainSewvice>('keyboawdWayoutMainSewvice');
 
-export interface IKeyboardLayoutMainService extends INativeKeyboardLayoutService { }
+expowt intewface IKeyboawdWayoutMainSewvice extends INativeKeyboawdWayoutSewvice { }
 
-export class KeyboardLayoutMainService extends Disposable implements INativeKeyboardLayoutService {
+expowt cwass KeyboawdWayoutMainSewvice extends Disposabwe impwements INativeKeyboawdWayoutSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _onDidChangeKeyboardLayout = this._register(new Emitter<IKeyboardLayoutData>());
-	readonly onDidChangeKeyboardLayout = this._onDidChangeKeyboardLayout.event;
+	pwivate weadonwy _onDidChangeKeyboawdWayout = this._wegista(new Emitta<IKeyboawdWayoutData>());
+	weadonwy onDidChangeKeyboawdWayout = this._onDidChangeKeyboawdWayout.event;
 
-	private _initPromise: Promise<void> | null;
-	private _keyboardLayoutData: IKeyboardLayoutData | null;
+	pwivate _initPwomise: Pwomise<void> | nuww;
+	pwivate _keyboawdWayoutData: IKeyboawdWayoutData | nuww;
 
-	constructor(
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService
+	constwuctow(
+		@IWifecycweMainSewvice wifecycweMainSewvice: IWifecycweMainSewvice
 	) {
-		super();
-		this._initPromise = null;
-		this._keyboardLayoutData = null;
+		supa();
+		this._initPwomise = nuww;
+		this._keyboawdWayoutData = nuww;
 
-		// perf: automatically trigger initialize after windows
-		// have opened so that we can do this work in parallel
-		// to the window load.
-		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this._initialize());
+		// pewf: automaticawwy twigga initiawize afta windows
+		// have opened so that we can do this wowk in pawawwew
+		// to the window woad.
+		wifecycweMainSewvice.when(WifecycweMainPhase.AftewWindowOpen).then(() => this._initiawize());
 	}
 
-	private _initialize(): Promise<void> {
-		if (!this._initPromise) {
-			this._initPromise = this._doInitialize();
+	pwivate _initiawize(): Pwomise<void> {
+		if (!this._initPwomise) {
+			this._initPwomise = this._doInitiawize();
 		}
-		return this._initPromise;
+		wetuwn this._initPwomise;
 	}
 
-	private async _doInitialize(): Promise<void> {
-		const nativeKeymapMod = await import('native-keymap');
+	pwivate async _doInitiawize(): Pwomise<void> {
+		const nativeKeymapMod = await impowt('native-keymap');
 
-		this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
-		nativeKeymapMod.onDidChangeKeyboardLayout(() => {
-			this._keyboardLayoutData = readKeyboardLayoutData(nativeKeymapMod);
-			this._onDidChangeKeyboardLayout.fire(this._keyboardLayoutData);
+		this._keyboawdWayoutData = weadKeyboawdWayoutData(nativeKeymapMod);
+		nativeKeymapMod.onDidChangeKeyboawdWayout(() => {
+			this._keyboawdWayoutData = weadKeyboawdWayoutData(nativeKeymapMod);
+			this._onDidChangeKeyboawdWayout.fiwe(this._keyboawdWayoutData);
 		});
 	}
 
-	public async getKeyboardLayoutData(): Promise<IKeyboardLayoutData> {
-		await this._initialize();
-		return this._keyboardLayoutData!;
+	pubwic async getKeyboawdWayoutData(): Pwomise<IKeyboawdWayoutData> {
+		await this._initiawize();
+		wetuwn this._keyboawdWayoutData!;
 	}
 }
 
-function readKeyboardLayoutData(nativeKeymapMod: typeof nativeKeymap): IKeyboardLayoutData {
-	const keyboardMapping = nativeKeymapMod.getKeyMap();
-	const keyboardLayoutInfo = nativeKeymapMod.getCurrentKeyboardLayout();
-	return { keyboardMapping, keyboardLayoutInfo };
+function weadKeyboawdWayoutData(nativeKeymapMod: typeof nativeKeymap): IKeyboawdWayoutData {
+	const keyboawdMapping = nativeKeymapMod.getKeyMap();
+	const keyboawdWayoutInfo = nativeKeymapMod.getCuwwentKeyboawdWayout();
+	wetuwn { keyboawdMapping, keyboawdWayoutInfo };
 }

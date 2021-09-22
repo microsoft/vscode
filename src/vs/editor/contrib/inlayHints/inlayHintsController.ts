@@ -1,96 +1,96 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { hash } from 'vs/base/common/hash';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
-import { IRange } from 'vs/base/common/range';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { InlayHint, InlayHintKind, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
-import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt { IWange } fwom 'vs/base/common/wange';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IContentDecowationWendewOptions, IDecowationWendewOptions, IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { InwayHint, InwayHintKind, InwayHintsPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageFeatuweWequestDeways } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { editowInwayHintBackgwound, editowInwayHintFowegwound, editowInwayHintPawametewBackgwound, editowInwayHintPawametewFowegwound, editowInwayHintTypeBackgwound, editowInwayHintTypeFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { themeCowowFwomId } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const MAX_DECORATORS = 1500;
+const MAX_DECOWATOWS = 1500;
 
-export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHint[]> {
-	const all: InlayHint[][] = [];
-	const providers = InlayHintsProviderRegistry.ordered(model).reverse();
+expowt async function getInwayHints(modew: ITextModew, wanges: Wange[], token: CancewwationToken): Pwomise<InwayHint[]> {
+	const aww: InwayHint[][] = [];
+	const pwovidews = InwayHintsPwovidewWegistwy.owdewed(modew).wevewse();
 
-	const promises = providers.map(provider => ranges.map(async range => {
-		try {
-			const result = await provider.provideInlayHints(model, range, token);
-			if (result?.length) {
-				all.push(result.filter(hint => range.containsPosition(hint.position)));
+	const pwomises = pwovidews.map(pwovida => wanges.map(async wange => {
+		twy {
+			const wesuwt = await pwovida.pwovideInwayHints(modew, wange, token);
+			if (wesuwt?.wength) {
+				aww.push(wesuwt.fiwta(hint => wange.containsPosition(hint.position)));
 			}
-		} catch (err) {
-			onUnexpectedExternalError(err);
+		} catch (eww) {
+			onUnexpectedExtewnawEwwow(eww);
 		}
 	}));
 
-	await Promise.all(promises.flat());
+	await Pwomise.aww(pwomises.fwat());
 
-	return all.flat().sort((a, b) => Position.compare(a.position, b.position));
+	wetuwn aww.fwat().sowt((a, b) => Position.compawe(a.position, b.position));
 }
 
-class InlayHintsCache {
+cwass InwayHintsCache {
 
-	private readonly _entries = new LRUCache<string, InlayHint[]>(50);
+	pwivate weadonwy _entwies = new WWUCache<stwing, InwayHint[]>(50);
 
-	get(model: ITextModel): InlayHint[] | undefined {
-		const key = InlayHintsCache._key(model);
-		return this._entries.get(key);
+	get(modew: ITextModew): InwayHint[] | undefined {
+		const key = InwayHintsCache._key(modew);
+		wetuwn this._entwies.get(key);
 	}
 
-	set(model: ITextModel, value: InlayHint[]): void {
-		const key = InlayHintsCache._key(model);
-		this._entries.set(key, value);
+	set(modew: ITextModew, vawue: InwayHint[]): void {
+		const key = InwayHintsCache._key(modew);
+		this._entwies.set(key, vawue);
 	}
 
-	private static _key(model: ITextModel): string {
-		return `${model.uri.toString()}/${model.getVersionId()}`;
+	pwivate static _key(modew: ITextModew): stwing {
+		wetuwn `${modew.uwi.toStwing()}/${modew.getVewsionId()}`;
 	}
 }
 
-export class InlayHintsController implements IEditorContribution {
+expowt cwass InwayHintsContwowwa impwements IEditowContwibution {
 
-	static readonly ID: string = 'editor.contrib.InlayHints';
+	static weadonwy ID: stwing = 'editow.contwib.InwayHints';
 
-	private static _decorationOwnerIdPool = 0;
-	private readonly _decorationOwnerId = ++InlayHintsController._decorationOwnerIdPool;
+	pwivate static _decowationOwnewIdPoow = 0;
+	pwivate weadonwy _decowationOwnewId = ++InwayHintsContwowwa._decowationOwnewIdPoow;
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
-	private readonly _cache = new InlayHintsCache();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
+	pwivate weadonwy _sessionDisposabwes = new DisposabweStowe();
+	pwivate weadonwy _getInwayHintsDeways = new WanguageFeatuweWequestDeways(InwayHintsPwovidewWegistwy, 25, 500);
+	pwivate weadonwy _cache = new InwayHintsCache();
 
-	private _decorations = new Map<string, { hint: InlayHint, decorationTypeId: string }>();
+	pwivate _decowations = new Map<stwing, { hint: InwayHint, decowationTypeId: stwing }>();
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
 	) {
-		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
-		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
-		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
-		this._disposables.add(_editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.inlayHints)) {
+		this._disposabwes.add(InwayHintsPwovidewWegistwy.onDidChange(() => this._update()));
+		this._disposabwes.add(_editow.onDidChangeModew(() => this._update()));
+		this._disposabwes.add(_editow.onDidChangeModewWanguage(() => this._update()));
+		this._disposabwes.add(_editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.inwayHints)) {
 				this._update();
 			}
 		}));
@@ -98,216 +98,216 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		this._sessionDisposables.dispose();
-		this._removeAllDecorations();
-		this._disposables.dispose();
+		this._sessionDisposabwes.dispose();
+		this._wemoveAwwDecowations();
+		this._disposabwes.dispose();
 	}
 
-	private _update(): void {
-		this._sessionDisposables.clear();
-		this._removeAllDecorations();
+	pwivate _update(): void {
+		this._sessionDisposabwes.cweaw();
+		this._wemoveAwwDecowations();
 
-		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
-			return;
+		if (!this._editow.getOption(EditowOption.inwayHints).enabwed) {
+			wetuwn;
 		}
 
-		const model = this._editor.getModel();
-		if (!model || !InlayHintsProviderRegistry.has(model)) {
-			return;
+		const modew = this._editow.getModew();
+		if (!modew || !InwayHintsPwovidewWegistwy.has(modew)) {
+			wetuwn;
 		}
 
-		// iff possible, quickly update from cache
-		const cached = this._cache.get(model);
+		// iff possibwe, quickwy update fwom cache
+		const cached = this._cache.get(modew);
 		if (cached) {
-			this._updateHintsDecorators([model.getFullModelRange()], cached);
+			this._updateHintsDecowatows([modew.getFuwwModewWange()], cached);
 		}
 
-		const scheduler = new RunOnceScheduler(async () => {
+		const scheduwa = new WunOnceScheduwa(async () => {
 			const t1 = Date.now();
 
-			const cts = new CancellationTokenSource();
-			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
+			const cts = new CancewwationTokenSouwce();
+			this._sessionDisposabwes.add(toDisposabwe(() => cts.dispose(twue)));
 
-			const ranges = this._getHintsRanges();
-			const result = await getInlayHints(model, ranges, cts.token);
-			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
-			if (cts.token.isCancellationRequested) {
-				return;
+			const wanges = this._getHintsWanges();
+			const wesuwt = await getInwayHints(modew, wanges, cts.token);
+			scheduwa.deway = this._getInwayHintsDeways.update(modew, Date.now() - t1);
+			if (cts.token.isCancewwationWequested) {
+				wetuwn;
 			}
-			this._updateHintsDecorators(ranges, result);
-			this._cache.set(model, Array.from(this._decorations.values()).map(obj => obj.hint));
+			this._updateHintsDecowatows(wanges, wesuwt);
+			this._cache.set(modew, Awway.fwom(this._decowations.vawues()).map(obj => obj.hint));
 
-		}, this._getInlayHintsDelays.get(model));
+		}, this._getInwayHintsDeways.get(modew));
 
-		this._sessionDisposables.add(scheduler);
+		this._sessionDisposabwes.add(scheduwa);
 
-		// update inline hints when content or scroll position changes
-		this._sessionDisposables.add(this._editor.onDidChangeModelContent(() => scheduler.schedule()));
-		this._disposables.add(this._editor.onDidScrollChange(() => scheduler.schedule()));
-		scheduler.schedule();
+		// update inwine hints when content ow scwoww position changes
+		this._sessionDisposabwes.add(this._editow.onDidChangeModewContent(() => scheduwa.scheduwe()));
+		this._disposabwes.add(this._editow.onDidScwowwChange(() => scheduwa.scheduwe()));
+		scheduwa.scheduwe();
 
-		// update inline hints when any any provider fires an event
-		const providerListener = new DisposableStore();
-		this._sessionDisposables.add(providerListener);
-		for (const provider of InlayHintsProviderRegistry.all(model)) {
-			if (typeof provider.onDidChangeInlayHints === 'function') {
-				providerListener.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+		// update inwine hints when any any pwovida fiwes an event
+		const pwovidewWistena = new DisposabweStowe();
+		this._sessionDisposabwes.add(pwovidewWistena);
+		fow (const pwovida of InwayHintsPwovidewWegistwy.aww(modew)) {
+			if (typeof pwovida.onDidChangeInwayHints === 'function') {
+				pwovidewWistena.add(pwovida.onDidChangeInwayHints(() => scheduwa.scheduwe()));
 			}
 		}
 	}
 
-	private _getHintsRanges(): Range[] {
-		const extra = 30;
-		const model = this._editor.getModel()!;
-		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
-		const result: Range[] = [];
-		for (const range of visibleRanges.sort(Range.compareRangesUsingStarts)) {
-			const extendedRange = model.validateRange(new Range(range.startLineNumber - extra, range.startColumn, range.endLineNumber + extra, range.endColumn));
-			if (result.length === 0 || !Range.areIntersectingOrTouching(result[result.length - 1], extendedRange)) {
-				result.push(extendedRange);
-			} else {
-				result[result.length - 1] = Range.plusRange(result[result.length - 1], extendedRange);
+	pwivate _getHintsWanges(): Wange[] {
+		const extwa = 30;
+		const modew = this._editow.getModew()!;
+		const visibweWanges = this._editow.getVisibweWangesPwusViewpowtAboveBewow();
+		const wesuwt: Wange[] = [];
+		fow (const wange of visibweWanges.sowt(Wange.compaweWangesUsingStawts)) {
+			const extendedWange = modew.vawidateWange(new Wange(wange.stawtWineNumba - extwa, wange.stawtCowumn, wange.endWineNumba + extwa, wange.endCowumn));
+			if (wesuwt.wength === 0 || !Wange.aweIntewsectingOwTouching(wesuwt[wesuwt.wength - 1], extendedWange)) {
+				wesuwt.push(extendedWange);
+			} ewse {
+				wesuwt[wesuwt.wength - 1] = Wange.pwusWange(wesuwt[wesuwt.wength - 1], extendedWange);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _updateHintsDecorators(ranges: Range[], hints: InlayHint[]): void {
+	pwivate _updateHintsDecowatows(wanges: Wange[], hints: InwayHint[]): void {
 
-		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const model = this._editor.getModel()!;
+		const { fontSize, fontFamiwy } = this._getWayoutInfo();
+		const modew = this._editow.getModew()!;
 
 
 
-		const newDecorationsTypeIds: string[] = [];
-		const newDecorationsData: IModelDeltaDecoration[] = [];
+		const newDecowationsTypeIds: stwing[] = [];
+		const newDecowationsData: IModewDewtaDecowation[] = [];
 
-		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
-		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
+		const fontFamiwyVaw = '--code-editowInwayHintsFontFamiwy';
+		this._editow.getContainewDomNode().stywe.setPwopewty(fontFamiwyVaw, fontFamiwy);
 
-		for (const hint of hints) {
+		fow (const hint of hints) {
 
-			const { text, position, whitespaceBefore, whitespaceAfter } = hint;
-			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
+			const { text, position, whitespaceBefowe, whitespaceAfta } = hint;
+			const mawginBefowe = whitespaceBefowe ? (fontSize / 3) | 0 : 0;
+			const mawginAfta = whitespaceAfta ? (fontSize / 3) | 0 : 0;
 
-			const contentOptions: IContentDecorationRenderOptions = {
+			const contentOptions: IContentDecowationWendewOptions = {
 				contentText: fixSpace(text),
 				fontSize: `${fontSize}px`,
-				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
-				fontFamily: `var(${fontFamilyVar})`,
+				mawgin: `0px ${mawginAfta}px 0px ${mawginBefowe}px`,
+				fontFamiwy: `vaw(${fontFamiwyVaw})`,
 				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
-				borderRadius: `${(fontSize / 4) | 0}px`,
-				verticalAlign: 'middle',
-				backgroundColor: themeColorFromId(editorInlayHintBackground),
-				color: themeColorFromId(editorInlayHintForeground)
+				bowdewWadius: `${(fontSize / 4) | 0}px`,
+				vewticawAwign: 'middwe',
+				backgwoundCowow: themeCowowFwomId(editowInwayHintBackgwound),
+				cowow: themeCowowFwomId(editowInwayHintFowegwound)
 			};
 
-			if (hint.kind === InlayHintKind.Parameter) {
-				contentOptions.backgroundColor = themeColorFromId(editorInlayHintParameterBackground);
-				contentOptions.color = themeColorFromId(editorInlayHintParameterForeground);
-			} else if (hint.kind === InlayHintKind.Type) {
-				contentOptions.backgroundColor = themeColorFromId(editorInlayHintTypeBackground);
-				contentOptions.color = themeColorFromId(editorInlayHintTypeForeground);
+			if (hint.kind === InwayHintKind.Pawameta) {
+				contentOptions.backgwoundCowow = themeCowowFwomId(editowInwayHintPawametewBackgwound);
+				contentOptions.cowow = themeCowowFwomId(editowInwayHintPawametewFowegwound);
+			} ewse if (hint.kind === InwayHintKind.Type) {
+				contentOptions.backgwoundCowow = themeCowowFwomId(editowInwayHintTypeBackgwound);
+				contentOptions.cowow = themeCowowFwomId(editowInwayHintTypeFowegwound);
 			}
 
-			let renderOptions: IDecorationRenderOptions = { beforeInjectedText: { ...contentOptions, affectsLetterSpacing: true } };
+			wet wendewOptions: IDecowationWendewOptions = { befoweInjectedText: { ...contentOptions, affectsWettewSpacing: twue } };
 
-			let range = Range.fromPositions(position);
-			let word = model.getWordAtPosition(position);
-			let usesWordRange = false;
-			if (word) {
-				if (word.endColumn === position.column) {
-					range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
-					// change decoration to after
-					renderOptions.afterInjectedText = renderOptions.beforeInjectedText;
-					renderOptions.beforeInjectedText = undefined;
-					usesWordRange = true;
-				} else if (word.startColumn === position.column) {
-					range = new Range(position.lineNumber, word.startColumn, position.lineNumber, position.column);
-					usesWordRange = true;
+			wet wange = Wange.fwomPositions(position);
+			wet wowd = modew.getWowdAtPosition(position);
+			wet usesWowdWange = fawse;
+			if (wowd) {
+				if (wowd.endCowumn === position.cowumn) {
+					wange = new Wange(position.wineNumba, position.cowumn, position.wineNumba, wowd.endCowumn);
+					// change decowation to afta
+					wendewOptions.aftewInjectedText = wendewOptions.befoweInjectedText;
+					wendewOptions.befoweInjectedText = undefined;
+					usesWowdWange = twue;
+				} ewse if (wowd.stawtCowumn === position.cowumn) {
+					wange = new Wange(position.wineNumba, wowd.stawtCowumn, position.wineNumba, position.cowumn);
+					usesWowdWange = twue;
 				}
 			}
 
-			const key = 'inlayHints-' + hash(renderOptions).toString(16);
-			this._codeEditorService.registerDecorationType('inlay-hints-controller', key, renderOptions, undefined, this._editor);
+			const key = 'inwayHints-' + hash(wendewOptions).toStwing(16);
+			this._codeEditowSewvice.wegistewDecowationType('inway-hints-contwowwa', key, wendewOptions, undefined, this._editow);
 
-			// decoration types are ref-counted which means we only need to
-			// call register und remove equally often
-			newDecorationsTypeIds.push(key);
+			// decowation types awe wef-counted which means we onwy need to
+			// caww wegista und wemove equawwy often
+			newDecowationsTypeIds.push(key);
 
-			const newLen = newDecorationsData.push({
-				range,
+			const newWen = newDecowationsData.push({
+				wange,
 				options: {
-					...this._codeEditorService.resolveDecorationOptions(key, true),
-					showIfCollapsed: !usesWordRange,
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					...this._codeEditowSewvice.wesowveDecowationOptions(key, twue),
+					showIfCowwapsed: !usesWowdWange,
+					stickiness: TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges
 				}
 			});
 
-			if (newLen > MAX_DECORATORS) {
-				break;
+			if (newWen > MAX_DECOWATOWS) {
+				bweak;
 			}
 		}
 
-		// collect all decoration ids that are affected by the ranges
-		// and only update those decorations
-		const decorationIdsToUpdate: string[] = [];
-		for (const range of ranges) {
-			for (const { id } of model.getDecorationsInRange(range, this._decorationOwnerId, true)) {
-				const obj = this._decorations.get(id);
+		// cowwect aww decowation ids that awe affected by the wanges
+		// and onwy update those decowations
+		const decowationIdsToUpdate: stwing[] = [];
+		fow (const wange of wanges) {
+			fow (const { id } of modew.getDecowationsInWange(wange, this._decowationOwnewId, twue)) {
+				const obj = this._decowations.get(id);
 				if (obj) {
-					decorationIdsToUpdate.push(id);
-					this._codeEditorService.removeDecorationType(obj.decorationTypeId);
-					this._decorations.delete(id);
+					decowationIdsToUpdate.push(id);
+					this._codeEditowSewvice.wemoveDecowationType(obj.decowationTypeId);
+					this._decowations.dewete(id);
 				}
 			}
 		}
-		const newDecorationIds = model.deltaDecorations(decorationIdsToUpdate, newDecorationsData, this._decorationOwnerId);
-		for (let i = 0; i < newDecorationIds.length; i++) {
-			this._decorations.set(newDecorationIds[i], { hint: hints[i], decorationTypeId: newDecorationsTypeIds[i] });
+		const newDecowationIds = modew.dewtaDecowations(decowationIdsToUpdate, newDecowationsData, this._decowationOwnewId);
+		fow (wet i = 0; i < newDecowationIds.wength; i++) {
+			this._decowations.set(newDecowationIds[i], { hint: hints[i], decowationTypeId: newDecowationsTypeIds[i] });
 		}
 	}
 
-	private _getLayoutInfo() {
-		const options = this._editor.getOption(EditorOption.inlayHints);
-		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
-		let fontSize = options.fontSize;
-		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
-			fontSize = (editorFontSize * .9) | 0;
+	pwivate _getWayoutInfo() {
+		const options = this._editow.getOption(EditowOption.inwayHints);
+		const editowFontSize = this._editow.getOption(EditowOption.fontSize);
+		wet fontSize = options.fontSize;
+		if (!fontSize || fontSize < 5 || fontSize > editowFontSize) {
+			fontSize = (editowFontSize * .9) | 0;
 		}
-		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
-		return { fontSize, fontFamily };
+		const fontFamiwy = options.fontFamiwy || this._editow.getOption(EditowOption.fontFamiwy);
+		wetuwn { fontSize, fontFamiwy };
 	}
 
-	private _removeAllDecorations(): void {
-		this._editor.deltaDecorations(Array.from(this._decorations.keys()), []);
-		for (let obj of this._decorations.values()) {
-			this._codeEditorService.removeDecorationType(obj.decorationTypeId);
+	pwivate _wemoveAwwDecowations(): void {
+		this._editow.dewtaDecowations(Awway.fwom(this._decowations.keys()), []);
+		fow (wet obj of this._decowations.vawues()) {
+			this._codeEditowSewvice.wemoveDecowationType(obj.decowationTypeId);
 		}
-		this._decorations.clear();
+		this._decowations.cweaw();
 	}
 }
 
-function fixSpace(str: string): string {
-	const noBreakWhitespace = '\xa0';
-	return str.replace(/[ \t]/g, noBreakWhitespace);
+function fixSpace(stw: stwing): stwing {
+	const noBweakWhitespace = '\xa0';
+	wetuwn stw.wepwace(/[ \t]/g, noBweakWhitespace);
 }
 
-registerEditorContribution(InlayHintsController.ID, InlayHintsController);
+wegistewEditowContwibution(InwayHintsContwowwa.ID, InwayHintsContwowwa);
 
-CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<InlayHint[]> => {
+CommandsWegistwy.wegistewCommand('_executeInwayHintPwovida', async (accessow, ...awgs: [UWI, IWange]): Pwomise<InwayHint[]> => {
 
-	const [uri, range] = args;
-	assertType(URI.isUri(uri));
-	assertType(Range.isIRange(range));
+	const [uwi, wange] = awgs;
+	assewtType(UWI.isUwi(uwi));
+	assewtType(Wange.isIWange(wange));
 
-	const ref = await accessor.get(ITextModelService).createModelReference(uri);
-	try {
-		const data = await getInlayHints(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
-		return data;
+	const wef = await accessow.get(ITextModewSewvice).cweateModewWefewence(uwi);
+	twy {
+		const data = await getInwayHints(wef.object.textEditowModew, [Wange.wift(wange)], CancewwationToken.None);
+		wetuwn data;
 
-	} finally {
-		ref.dispose();
+	} finawwy {
+		wef.dispose();
 	}
 });

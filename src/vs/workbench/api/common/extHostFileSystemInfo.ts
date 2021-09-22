@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { ExtUri, IExtUri } from 'vs/base/common/resources';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostFileSystemInfoShape } from 'vs/workbench/api/common/extHost.protocol';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ExtUwi, IExtUwi } fwom 'vs/base/common/wesouwces';
+impowt { FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ExtHostFiweSystemInfoShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
 
-export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
+expowt cwass ExtHostFiweSystemInfo impwements ExtHostFiweSystemInfoShape {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _systemSchemes = new Set(Object.keys(Schemas));
-	private readonly _providerInfo = new Map<string, number>();
+	pwivate weadonwy _systemSchemes = new Set(Object.keys(Schemas));
+	pwivate weadonwy _pwovidewInfo = new Map<stwing, numba>();
 
-	readonly extUri: IExtUri;
+	weadonwy extUwi: IExtUwi;
 
-	constructor() {
-		this.extUri = new ExtUri(uri => {
-			const capabilities = this._providerInfo.get(uri.scheme);
-			if (capabilities === undefined) {
-				// default: not ignore
-				return false;
+	constwuctow() {
+		this.extUwi = new ExtUwi(uwi => {
+			const capabiwities = this._pwovidewInfo.get(uwi.scheme);
+			if (capabiwities === undefined) {
+				// defauwt: not ignowe
+				wetuwn fawse;
 			}
-			if (capabilities & FileSystemProviderCapabilities.PathCaseSensitive) {
-				// configured as case sensitive
-				return false;
+			if (capabiwities & FiweSystemPwovidewCapabiwities.PathCaseSensitive) {
+				// configuwed as case sensitive
+				wetuwn fawse;
 			}
-			return true;
+			wetuwn twue;
 		});
 	}
 
-	$acceptProviderInfos(scheme: string, capabilities: number | null): void {
-		if (capabilities === null) {
-			this._providerInfo.delete(scheme);
-		} else {
-			this._providerInfo.set(scheme, capabilities);
+	$acceptPwovidewInfos(scheme: stwing, capabiwities: numba | nuww): void {
+		if (capabiwities === nuww) {
+			this._pwovidewInfo.dewete(scheme);
+		} ewse {
+			this._pwovidewInfo.set(scheme, capabiwities);
 		}
 	}
 
-	isFreeScheme(scheme: string): boolean {
-		return !this._providerInfo.has(scheme) && !this._systemSchemes.has(scheme);
+	isFweeScheme(scheme: stwing): boowean {
+		wetuwn !this._pwovidewInfo.has(scheme) && !this._systemSchemes.has(scheme);
 	}
 
-	getCapabilities(scheme: string): number | undefined {
-		return this._providerInfo.get(scheme);
+	getCapabiwities(scheme: stwing): numba | undefined {
+		wetuwn this._pwovidewInfo.get(scheme);
 	}
 }
 
-export interface IExtHostFileSystemInfo extends ExtHostFileSystemInfo {
-	readonly extUri: IExtUri;
+expowt intewface IExtHostFiweSystemInfo extends ExtHostFiweSystemInfo {
+	weadonwy extUwi: IExtUwi;
 }
-export const IExtHostFileSystemInfo = createDecorator<IExtHostFileSystemInfo>('IExtHostFileSystemInfo');
+expowt const IExtHostFiweSystemInfo = cweateDecowatow<IExtHostFiweSystemInfo>('IExtHostFiweSystemInfo');

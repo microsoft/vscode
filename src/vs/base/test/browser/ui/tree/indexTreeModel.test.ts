@@ -1,882 +1,882 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+impowt * as assewt fwom 'assewt';
+impowt { IIndexTweeModewSpwiceOptions, IIndexTweeNode, IWist, IndexTweeModew } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ITweeEwement, ITweeFiwta, ITweeNode, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
 
-function toList<T>(arr: T[]): IList<T> {
-	return {
-		splice(start: number, deleteCount: number, elements: T[]): void {
-			arr.splice(start, deleteCount, ...elements);
+function toWist<T>(aww: T[]): IWist<T> {
+	wetuwn {
+		spwice(stawt: numba, deweteCount: numba, ewements: T[]): void {
+			aww.spwice(stawt, deweteCount, ...ewements);
 		},
-		updateElementHeight() { }
+		updateEwementHeight() { }
 	};
 }
 
-function toArray<T>(list: ITreeNode<T>[]): T[] {
-	return list.map(i => i.element);
+function toAwway<T>(wist: ITweeNode<T>[]): T[] {
+	wetuwn wist.map(i => i.ewement);
 }
 
 
-function toElements<T>(node: ITreeNode<T>): any {
-	return node.children?.length ? { e: node.element, children: node.children.map(toElements) } : node.element;
+function toEwements<T>(node: ITweeNode<T>): any {
+	wetuwn node.chiwdwen?.wength ? { e: node.ewement, chiwdwen: node.chiwdwen.map(toEwements) } : node.ewement;
 }
 
-const diffIdentityProvider = { getId: (n: number) => String(n) };
+const diffIdentityPwovida = { getId: (n: numba) => Stwing(n) };
 
 /**
- * Calls that test function twice, once with an empty options and
- * once with `diffIdentityProvider`.
+ * Cawws that test function twice, once with an empty options and
+ * once with `diffIdentityPwovida`.
  */
-function withSmartSplice(fn: (options: IIndexTreeModelSpliceOptions<number, any>) => void) {
+function withSmawtSpwice(fn: (options: IIndexTweeModewSpwiceOptions<numba, any>) => void) {
 	fn({});
-	fn({ diffIdentityProvider });
+	fn({ diffIdentityPwovida });
 }
 
-suite('IndexTreeModel', () => {
+suite('IndexTweeModew', () => {
 
-	test('ctor', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
-		assert(model);
-		assert.strictEqual(list.length, 0);
+	test('ctow', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
+		assewt(modew);
+		assewt.stwictEquaw(wist.wength, 0);
 	});
 
-	test('insert', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('insewt', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
-			{ element: 0 },
-			{ element: 1 },
-			{ element: 2 }
+		modew.spwice([0], 0, [
+			{ ewement: 0 },
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 3);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 1);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 1);
-		assert.deepStrictEqual(list[2].element, 2);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 1);
+		assewt.deepStwictEquaw(wist.wength, 3);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 1);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 1);
+		assewt.deepStwictEquaw(wist[2].ewement, 2);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 1);
 	}));
 
-	test('deep insert', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('deep insewt', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		]);
 
-		assert.deepStrictEqual(list.length, 6);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 2);
-		assert.deepStrictEqual(list[2].element, 11);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 2);
-		assert.deepStrictEqual(list[3].element, 12);
-		assert.deepStrictEqual(list[3].collapsed, false);
-		assert.deepStrictEqual(list[3].depth, 2);
-		assert.deepStrictEqual(list[4].element, 1);
-		assert.deepStrictEqual(list[4].collapsed, false);
-		assert.deepStrictEqual(list[4].depth, 1);
-		assert.deepStrictEqual(list[5].element, 2);
-		assert.deepStrictEqual(list[5].collapsed, false);
-		assert.deepStrictEqual(list[5].depth, 1);
+		assewt.deepStwictEquaw(wist.wength, 6);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 2);
+		assewt.deepStwictEquaw(wist[2].ewement, 11);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 2);
+		assewt.deepStwictEquaw(wist[3].ewement, 12);
+		assewt.deepStwictEquaw(wist[3].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[3].depth, 2);
+		assewt.deepStwictEquaw(wist[4].ewement, 1);
+		assewt.deepStwictEquaw(wist[4].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[4].depth, 1);
+		assewt.deepStwictEquaw(wist[5].ewement, 2);
+		assewt.deepStwictEquaw(wist[5].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[5].depth, 1);
 	}));
 
-	test('deep insert collapsed', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('deep insewt cowwapsed', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, collapsed: true, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, cowwapsed: twue, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 3);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, true);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 1);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 1);
-		assert.deepStrictEqual(list[2].element, 2);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 1);
+		assewt.deepStwictEquaw(wist.wength, 3);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, twue);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 1);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 1);
+		assewt.deepStwictEquaw(wist[2].ewement, 2);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 1);
 	}));
 
-	test('delete', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('dewete', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
-			{ element: 0 },
-			{ element: 1 },
-			{ element: 2 }
+		modew.spwice([0], 0, [
+			{ ewement: 0 },
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 3);
+		assewt.deepStwictEquaw(wist.wength, 3);
 
-		model.splice([1], 1, undefined, options);
-		assert.deepStrictEqual(list.length, 2);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 2);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 1);
+		modew.spwice([1], 1, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 2);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 2);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 1);
 
-		model.splice([0], 2, undefined, options);
-		assert.deepStrictEqual(list.length, 0);
+		modew.spwice([0], 2, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 0);
 	}));
 
-	test('nested delete', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('nested dewete', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 6);
+		assewt.deepStwictEquaw(wist.wength, 6);
 
-		model.splice([1], 2, undefined, options);
-		assert.deepStrictEqual(list.length, 4);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 2);
-		assert.deepStrictEqual(list[2].element, 11);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 2);
-		assert.deepStrictEqual(list[3].element, 12);
-		assert.deepStrictEqual(list[3].collapsed, false);
-		assert.deepStrictEqual(list[3].depth, 2);
+		modew.spwice([1], 2, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 4);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 2);
+		assewt.deepStwictEquaw(wist[2].ewement, 11);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 2);
+		assewt.deepStwictEquaw(wist[3].ewement, 12);
+		assewt.deepStwictEquaw(wist[3].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[3].depth, 2);
 	}));
 
-	test('deep delete', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('deep dewete', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 6);
+		assewt.deepStwictEquaw(wist.wength, 6);
 
-		model.splice([0], 1, undefined, options);
-		assert.deepStrictEqual(list.length, 2);
-		assert.deepStrictEqual(list[0].element, 1);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 2);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 1);
+		modew.spwice([0], 1, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 2);
+		assewt.deepStwictEquaw(wist[0].ewement, 1);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 2);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 1);
 	}));
 
-	test('smart splice deep', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('smawt spwice deep', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
-			{ element: 0 },
-			{ element: 1 },
-			{ element: 2 },
-			{ element: 3 },
-		], { diffIdentityProvider });
+		modew.spwice([0], 0, [
+			{ ewement: 0 },
+			{ ewement: 1 },
+			{ ewement: 2 },
+			{ ewement: 3 },
+		], { diffIdentityPwovida });
 
-		assert.deepStrictEqual(list.filter(l => l.depth === 1).map(toElements), [
+		assewt.deepStwictEquaw(wist.fiwta(w => w.depth === 1).map(toEwements), [
 			0,
 			1,
 			2,
 			3,
 		]);
 
-		model.splice([0], 3, [
-			{ element: -0.5 },
-			{ element: 0, children: [{ element: 0.1 }] },
-			{ element: 1 },
-			{ element: 2, children: [{ element: 2.1 }, { element: 2.2, children: [{ element: 2.21 }] }] },
-		], { diffIdentityProvider, diffDepth: Infinity });
+		modew.spwice([0], 3, [
+			{ ewement: -0.5 },
+			{ ewement: 0, chiwdwen: [{ ewement: 0.1 }] },
+			{ ewement: 1 },
+			{ ewement: 2, chiwdwen: [{ ewement: 2.1 }, { ewement: 2.2, chiwdwen: [{ ewement: 2.21 }] }] },
+		], { diffIdentityPwovida, diffDepth: Infinity });
 
-		assert.deepStrictEqual(list.filter(l => l.depth === 1).map(toElements), [
+		assewt.deepStwictEquaw(wist.fiwta(w => w.depth === 1).map(toEwements), [
 			-0.5,
-			{ e: 0, children: [0.1] },
+			{ e: 0, chiwdwen: [0.1] },
 			1,
-			{ e: 2, children: [2.1, { e: 2.2, children: [2.21] }] },
+			{ e: 2, chiwdwen: [2.1, { e: 2.2, chiwdwen: [2.21] }] },
 			3,
 		]);
 	});
 
-	test('hidden delete', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('hidden dewete', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, collapsed: true, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, cowwapsed: twue, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 3);
+		assewt.deepStwictEquaw(wist.wength, 3);
 
-		model.splice([0, 1], 1, undefined, options);
-		assert.deepStrictEqual(list.length, 3);
+		modew.spwice([0, 1], 1, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 3);
 
-		model.splice([0, 0], 2, undefined, options);
-		assert.deepStrictEqual(list.length, 3);
+		modew.spwice([0, 0], 2, undefined, options);
+		assewt.deepStwictEquaw(wist.wength, 3);
 	}));
 
-	test('collapse', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('cowwapse', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 6);
+		assewt.deepStwictEquaw(wist.wength, 6);
 
-		model.setCollapsed([0], true);
-		assert.deepStrictEqual(list.length, 3);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, true);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 1);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 1);
-		assert.deepStrictEqual(list[2].element, 2);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 1);
+		modew.setCowwapsed([0], twue);
+		assewt.deepStwictEquaw(wist.wength, 3);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, twue);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 1);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 1);
+		assewt.deepStwictEquaw(wist[2].ewement, 2);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 1);
 	}));
 
-	test('updates collapsible', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('updates cowwapsibwe', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 1 },
+				ewement: 0, chiwdwen: [
+					{ ewement: 1 },
 				]
 			},
 		], options);
 
-		assert.strictEqual(list[0].collapsible, true);
-		assert.strictEqual(list[1].collapsible, false);
+		assewt.stwictEquaw(wist[0].cowwapsibwe, twue);
+		assewt.stwictEquaw(wist[1].cowwapsibwe, fawse);
 
-		model.splice([0, 0], 1, [], options);
+		modew.spwice([0, 0], 1, [], options);
 		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, false);
-			assert.strictEqual(second, undefined);
+			const [fiwst, second] = wist;
+			assewt.stwictEquaw(fiwst.cowwapsibwe, fawse);
+			assewt.stwictEquaw(second, undefined);
 		}
 
-		model.splice([0, 0], 0, [{ element: 1 }], options);
+		modew.spwice([0, 0], 0, [{ ewement: 1 }], options);
 		{
-			const [first, second] = list;
-			assert.strictEqual(first.collapsible, true);
-			assert.strictEqual(second.collapsible, false);
+			const [fiwst, second] = wist;
+			assewt.stwictEquaw(fiwst.cowwapsibwe, twue);
+			assewt.stwictEquaw(second.cowwapsibwe, fawse);
 		}
 	}));
 
-	test('expand', () => withSmartSplice(options => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('expand', () => withSmawtSpwice(options => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, collapsed: true, children: [
-					{ element: 10 },
-					{ element: 11 },
-					{ element: 12 },
+				ewement: 0, cowwapsed: twue, chiwdwen: [
+					{ ewement: 10 },
+					{ ewement: 11 },
+					{ ewement: 12 },
 				]
 			},
-			{ element: 1 },
-			{ element: 2 }
+			{ ewement: 1 },
+			{ ewement: 2 }
 		], options);
 
-		assert.deepStrictEqual(list.length, 3);
+		assewt.deepStwictEquaw(wist.wength, 3);
 
-		model.setCollapsed([0], false);
-		assert.deepStrictEqual(list.length, 6);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[0].depth, 1);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsed, false);
-		assert.deepStrictEqual(list[1].depth, 2);
-		assert.deepStrictEqual(list[2].element, 11);
-		assert.deepStrictEqual(list[2].collapsed, false);
-		assert.deepStrictEqual(list[2].depth, 2);
-		assert.deepStrictEqual(list[3].element, 12);
-		assert.deepStrictEqual(list[3].collapsed, false);
-		assert.deepStrictEqual(list[3].depth, 2);
-		assert.deepStrictEqual(list[4].element, 1);
-		assert.deepStrictEqual(list[4].collapsed, false);
-		assert.deepStrictEqual(list[4].depth, 1);
-		assert.deepStrictEqual(list[5].element, 2);
-		assert.deepStrictEqual(list[5].collapsed, false);
-		assert.deepStrictEqual(list[5].depth, 1);
+		modew.setCowwapsed([0], fawse);
+		assewt.deepStwictEquaw(wist.wength, 6);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[0].depth, 1);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].depth, 2);
+		assewt.deepStwictEquaw(wist[2].ewement, 11);
+		assewt.deepStwictEquaw(wist[2].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[2].depth, 2);
+		assewt.deepStwictEquaw(wist[3].ewement, 12);
+		assewt.deepStwictEquaw(wist[3].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[3].depth, 2);
+		assewt.deepStwictEquaw(wist[4].ewement, 1);
+		assewt.deepStwictEquaw(wist[4].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[4].depth, 1);
+		assewt.deepStwictEquaw(wist[5].ewement, 2);
+		assewt.deepStwictEquaw(wist[5].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[5].depth, 1);
 	}));
 
-	test('smart diff consistency', () => {
+	test('smawt diff consistency', () => {
 		const times = 500;
 		const minEdits = 1;
 		const maxEdits = 10;
-		const maxInserts = 5;
+		const maxInsewts = 5;
 
-		for (let i = 0; i < times; i++) {
-			const list: ITreeNode<number>[] = [];
-			const options = { diffIdentityProvider: { getId: (n: number) => String(n) } };
-			const model = new IndexTreeModel<number>('test', toList(list), -1);
+		fow (wet i = 0; i < times; i++) {
+			const wist: ITweeNode<numba>[] = [];
+			const options = { diffIdentityPwovida: { getId: (n: numba) => Stwing(n) } };
+			const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
 			const changes = [];
-			const expected: number[] = [];
-			let elementCounter = 0;
+			const expected: numba[] = [];
+			wet ewementCounta = 0;
 
-			for (let edits = Math.random() * (maxEdits - minEdits) + minEdits; edits > 0; edits--) {
-				const spliceIndex = Math.floor(Math.random() * list.length);
-				const deleteCount = Math.ceil(Math.random() * (list.length - spliceIndex));
-				const insertCount = Math.floor(Math.random() * maxInserts + 1);
+			fow (wet edits = Math.wandom() * (maxEdits - minEdits) + minEdits; edits > 0; edits--) {
+				const spwiceIndex = Math.fwoow(Math.wandom() * wist.wength);
+				const deweteCount = Math.ceiw(Math.wandom() * (wist.wength - spwiceIndex));
+				const insewtCount = Math.fwoow(Math.wandom() * maxInsewts + 1);
 
-				let inserts: ITreeElement<number>[] = [];
-				for (let i = 0; i < insertCount; i++) {
-					const element = elementCounter++;
-					inserts.push({ element, children: [] });
+				wet insewts: ITweeEwement<numba>[] = [];
+				fow (wet i = 0; i < insewtCount; i++) {
+					const ewement = ewementCounta++;
+					insewts.push({ ewement, chiwdwen: [] });
 				}
 
 				// move existing items
-				if (Math.random() < 0.5) {
-					const elements = list.slice(spliceIndex, spliceIndex + Math.floor(deleteCount / 2));
-					inserts.push(...elements.map(({ element }) => ({ element, children: [] })));
+				if (Math.wandom() < 0.5) {
+					const ewements = wist.swice(spwiceIndex, spwiceIndex + Math.fwoow(deweteCount / 2));
+					insewts.push(...ewements.map(({ ewement }) => ({ ewement, chiwdwen: [] })));
 				}
 
-				model.splice([spliceIndex], deleteCount, inserts, options);
-				expected.splice(spliceIndex, deleteCount, ...inserts.map(i => i.element));
+				modew.spwice([spwiceIndex], deweteCount, insewts, options);
+				expected.spwice(spwiceIndex, deweteCount, ...insewts.map(i => i.ewement));
 
-				const listElements = list.map(l => l.element);
-				changes.push(`splice(${spliceIndex}, ${deleteCount}, [${inserts.map(e => e.element).join(', ')}]) -> ${listElements.join(', ')}`);
+				const wistEwements = wist.map(w => w.ewement);
+				changes.push(`spwice(${spwiceIndex}, ${deweteCount}, [${insewts.map(e => e.ewement).join(', ')}]) -> ${wistEwements.join(', ')}`);
 
-				assert.deepStrictEqual(expected, listElements, `Expected ${listElements.join(', ')} to equal ${expected.join(', ')}. Steps:\n\n${changes.join('\n')}`);
+				assewt.deepStwictEquaw(expected, wistEwements, `Expected ${wistEwements.join(', ')} to equaw ${expected.join(', ')}. Steps:\n\n${changes.join('\n')}`);
 			}
 		}
 	});
 
-	test('collapse should recursively adjust visible count', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('cowwapse shouwd wecuwsivewy adjust visibwe count', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 1, children: [
+				ewement: 1, chiwdwen: [
 					{
-						element: 11, children: [
-							{ element: 111 }
+						ewement: 11, chiwdwen: [
+							{ ewement: 111 }
 						]
 					}
 				]
 			},
 			{
-				element: 2, children: [
-					{ element: 21 }
+				ewement: 2, chiwdwen: [
+					{ ewement: 21 }
 				]
 			}
 		]);
 
-		assert.deepStrictEqual(list.length, 5);
-		assert.deepStrictEqual(toArray(list), [1, 11, 111, 2, 21]);
+		assewt.deepStwictEquaw(wist.wength, 5);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 11, 111, 2, 21]);
 
-		model.setCollapsed([0, 0], true);
-		assert.deepStrictEqual(list.length, 4);
-		assert.deepStrictEqual(toArray(list), [1, 11, 2, 21]);
+		modew.setCowwapsed([0, 0], twue);
+		assewt.deepStwictEquaw(wist.wength, 4);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 11, 2, 21]);
 
-		model.setCollapsed([1], true);
-		assert.deepStrictEqual(list.length, 3);
-		assert.deepStrictEqual(toArray(list), [1, 11, 2]);
+		modew.setCowwapsed([1], twue);
+		assewt.deepStwictEquaw(wist.wength, 3);
+		assewt.deepStwictEquaw(toAwway(wist), [1, 11, 2]);
 	});
 
-	test('setCollapsible', () => {
-		const list: ITreeNode<number>[] = [];
-		const model = new IndexTreeModel<number>('test', toList(list), -1);
+	test('setCowwapsibwe', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 10 }
+				ewement: 0, chiwdwen: [
+					{ ewement: 10 }
 				]
 			}
 		]);
 
-		assert.deepStrictEqual(list.length, 2);
+		assewt.deepStwictEquaw(wist.wength, 2);
 
-		model.setCollapsible([0], false);
-		assert.deepStrictEqual(list.length, 2);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, false);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsible, false);
-		assert.deepStrictEqual(list[1].collapsed, false);
+		modew.setCowwapsibwe([0], fawse);
+		assewt.deepStwictEquaw(wist.wength, 2);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
 
-		assert.deepStrictEqual(model.setCollapsed([0], true), false);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, false);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsible, false);
-		assert.deepStrictEqual(list[1].collapsed, false);
+		assewt.deepStwictEquaw(modew.setCowwapsed([0], twue), fawse);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
 
-		assert.deepStrictEqual(model.setCollapsed([0], false), false);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, false);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsible, false);
-		assert.deepStrictEqual(list[1].collapsed, false);
+		assewt.deepStwictEquaw(modew.setCowwapsed([0], fawse), fawse);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
 
-		model.setCollapsible([0], true);
-		assert.deepStrictEqual(list.length, 2);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, true);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsible, false);
-		assert.deepStrictEqual(list[1].collapsed, false);
+		modew.setCowwapsibwe([0], twue);
+		assewt.deepStwictEquaw(wist.wength, 2);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, twue);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
 
-		assert.deepStrictEqual(model.setCollapsed([0], true), true);
-		assert.deepStrictEqual(list.length, 1);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, true);
-		assert.deepStrictEqual(list[0].collapsed, true);
+		assewt.deepStwictEquaw(modew.setCowwapsed([0], twue), twue);
+		assewt.deepStwictEquaw(wist.wength, 1);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, twue);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, twue);
 
-		assert.deepStrictEqual(model.setCollapsed([0], false), true);
-		assert.deepStrictEqual(list[0].element, 0);
-		assert.deepStrictEqual(list[0].collapsible, true);
-		assert.deepStrictEqual(list[0].collapsed, false);
-		assert.deepStrictEqual(list[1].element, 10);
-		assert.deepStrictEqual(list[1].collapsible, false);
-		assert.deepStrictEqual(list[1].collapsed, false);
+		assewt.deepStwictEquaw(modew.setCowwapsed([0], fawse), twue);
+		assewt.deepStwictEquaw(wist[0].ewement, 0);
+		assewt.deepStwictEquaw(wist[0].cowwapsibwe, twue);
+		assewt.deepStwictEquaw(wist[0].cowwapsed, fawse);
+		assewt.deepStwictEquaw(wist[1].ewement, 10);
+		assewt.deepStwictEquaw(wist[1].cowwapsibwe, fawse);
+		assewt.deepStwictEquaw(wist[1].cowwapsed, fawse);
 	});
 
-	test('simple filter', () => {
-		const list: ITreeNode<number>[] = [];
-		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): TreeVisibility {
-				return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;
+	test('simpwe fiwta', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const fiwta = new cwass impwements ITweeFiwta<numba> {
+			fiwta(ewement: numba): TweeVisibiwity {
+				wetuwn ewement % 2 === 0 ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden;
 			}
 		};
 
-		const model = new IndexTreeModel<number>('test', toList(list), -1, { filter });
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1, { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 1 },
-					{ element: 2 },
-					{ element: 3 },
-					{ element: 4 },
-					{ element: 5 },
-					{ element: 6 },
-					{ element: 7 }
+				ewement: 0, chiwdwen: [
+					{ ewement: 1 },
+					{ ewement: 2 },
+					{ ewement: 3 },
+					{ ewement: 4 },
+					{ ewement: 5 },
+					{ ewement: 6 },
+					{ ewement: 7 }
 				]
 			}
 		]);
 
-		assert.deepStrictEqual(list.length, 4);
-		assert.deepStrictEqual(toArray(list), [0, 2, 4, 6]);
+		assewt.deepStwictEquaw(wist.wength, 4);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 2, 4, 6]);
 
-		model.setCollapsed([0], true);
-		assert.deepStrictEqual(toArray(list), [0]);
+		modew.setCowwapsed([0], twue);
+		assewt.deepStwictEquaw(toAwway(wist), [0]);
 
-		model.setCollapsed([0], false);
-		assert.deepStrictEqual(toArray(list), [0, 2, 4, 6]);
+		modew.setCowwapsed([0], fawse);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 2, 4, 6]);
 	});
 
-	test('recursive filter on initial model', () => {
-		const list: ITreeNode<number>[] = [];
-		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): TreeVisibility {
-				return element === 0 ? TreeVisibility.Recurse : TreeVisibility.Hidden;
+	test('wecuwsive fiwta on initiaw modew', () => {
+		const wist: ITweeNode<numba>[] = [];
+		const fiwta = new cwass impwements ITweeFiwta<numba> {
+			fiwta(ewement: numba): TweeVisibiwity {
+				wetuwn ewement === 0 ? TweeVisibiwity.Wecuwse : TweeVisibiwity.Hidden;
 			}
 		};
 
-		const model = new IndexTreeModel<number>('test', toList(list), -1, { filter });
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1, { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 1 },
-					{ element: 2 }
+				ewement: 0, chiwdwen: [
+					{ ewement: 1 },
+					{ ewement: 2 }
 				]
 			}
 		]);
 
-		assert.deepStrictEqual(toArray(list), []);
+		assewt.deepStwictEquaw(toAwway(wist), []);
 	});
 
-	test('refilter', () => {
-		const list: ITreeNode<number>[] = [];
-		let shouldFilter = false;
-		const filter = new class implements ITreeFilter<number> {
-			filter(element: number): TreeVisibility {
-				return (!shouldFilter || element % 2 === 0) ? TreeVisibility.Visible : TreeVisibility.Hidden;
+	test('wefiwta', () => {
+		const wist: ITweeNode<numba>[] = [];
+		wet shouwdFiwta = fawse;
+		const fiwta = new cwass impwements ITweeFiwta<numba> {
+			fiwta(ewement: numba): TweeVisibiwity {
+				wetuwn (!shouwdFiwta || ewement % 2 === 0) ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden;
 			}
 		};
 
-		const model = new IndexTreeModel<number>('test', toList(list), -1, { filter });
+		const modew = new IndexTweeModew<numba>('test', toWist(wist), -1, { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 0, children: [
-					{ element: 1 },
-					{ element: 2 },
-					{ element: 3 },
-					{ element: 4 },
-					{ element: 5 },
-					{ element: 6 },
-					{ element: 7 }
+				ewement: 0, chiwdwen: [
+					{ ewement: 1 },
+					{ ewement: 2 },
+					{ ewement: 3 },
+					{ ewement: 4 },
+					{ ewement: 5 },
+					{ ewement: 6 },
+					{ ewement: 7 }
 				]
 			},
 		]);
 
-		assert.deepStrictEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2, 3, 4, 5, 6, 7]);
 
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2, 3, 4, 5, 6, 7]);
 
-		shouldFilter = true;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), [0, 2, 4, 6]);
+		shouwdFiwta = twue;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), [0, 2, 4, 6]);
 
-		shouldFilter = false;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), [0, 1, 2, 3, 4, 5, 6, 7]);
+		shouwdFiwta = fawse;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), [0, 1, 2, 3, 4, 5, 6, 7]);
 	});
 
-	test('recursive filter', () => {
-		const list: ITreeNode<string>[] = [];
-		let query = new RegExp('');
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): TreeVisibility {
-				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
+	test('wecuwsive fiwta', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		wet quewy = new WegExp('');
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing): TweeVisibiwity {
+				wetuwn quewy.test(ewement) ? TweeVisibiwity.Visibwe : TweeVisibiwity.Wecuwse;
 			}
 		};
 
-		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+		const modew = new IndexTweeModew<stwing>('test', toWist(wist), 'woot', { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 'vscode', children: [
-					{ element: '.build' },
-					{ element: 'git' },
+				ewement: 'vscode', chiwdwen: [
+					{ ewement: '.buiwd' },
+					{ ewement: 'git' },
 					{
-						element: 'github', children: [
-							{ element: 'calendar.yml' },
-							{ element: 'endgame' },
-							{ element: 'build.js' },
+						ewement: 'github', chiwdwen: [
+							{ ewement: 'cawendaw.ymw' },
+							{ ewement: 'endgame' },
+							{ ewement: 'buiwd.js' },
 						]
 					},
 					{
-						element: 'build', children: [
-							{ element: 'lib' },
-							{ element: 'gulpfile.js' }
+						ewement: 'buiwd', chiwdwen: [
+							{ ewement: 'wib' },
+							{ ewement: 'guwpfiwe.js' }
 						]
 					}
 				]
 			},
 		]);
 
-		assert.deepStrictEqual(list.length, 10);
+		assewt.deepStwictEquaw(wist.wength, 10);
 
-		query = /build/;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
+		quewy = /buiwd/;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode', '.buiwd', 'github', 'buiwd.js', 'buiwd']);
 
-		model.setCollapsed([0], true);
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		modew.setCowwapsed([0], twue);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 
-		model.setCollapsed([0], false);
-		assert.deepStrictEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
+		modew.setCowwapsed([0], fawse);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode', '.buiwd', 'github', 'buiwd.js', 'buiwd']);
 	});
 
-	test('recursive filter with collapse', () => {
-		const list: ITreeNode<string>[] = [];
-		let query = new RegExp('');
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): TreeVisibility {
-				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
+	test('wecuwsive fiwta with cowwapse', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		wet quewy = new WegExp('');
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing): TweeVisibiwity {
+				wetuwn quewy.test(ewement) ? TweeVisibiwity.Visibwe : TweeVisibiwity.Wecuwse;
 			}
 		};
 
-		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+		const modew = new IndexTweeModew<stwing>('test', toWist(wist), 'woot', { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 'vscode', children: [
-					{ element: '.build' },
-					{ element: 'git' },
+				ewement: 'vscode', chiwdwen: [
+					{ ewement: '.buiwd' },
+					{ ewement: 'git' },
 					{
-						element: 'github', children: [
-							{ element: 'calendar.yml' },
-							{ element: 'endgame' },
-							{ element: 'build.js' },
+						ewement: 'github', chiwdwen: [
+							{ ewement: 'cawendaw.ymw' },
+							{ ewement: 'endgame' },
+							{ ewement: 'buiwd.js' },
 						]
 					},
 					{
-						element: 'build', children: [
-							{ element: 'lib' },
-							{ element: 'gulpfile.js' }
+						ewement: 'buiwd', chiwdwen: [
+							{ ewement: 'wib' },
+							{ ewement: 'guwpfiwe.js' }
 						]
 					}
 				]
 			},
 		]);
 
-		assert.deepStrictEqual(list.length, 10);
+		assewt.deepStwictEquaw(wist.wength, 10);
 
-		query = /gulp/;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+		quewy = /guwp/;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode', 'buiwd', 'guwpfiwe.js']);
 
-		model.setCollapsed([0, 3], true);
-		assert.deepStrictEqual(toArray(list), ['vscode', 'build']);
+		modew.setCowwapsed([0, 3], twue);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode', 'buiwd']);
 
-		model.setCollapsed([0], true);
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		modew.setCowwapsed([0], twue);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 	});
 
-	test('recursive filter while collapsed', () => {
-		const list: ITreeNode<string>[] = [];
-		let query = new RegExp('');
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): TreeVisibility {
-				return query.test(element) ? TreeVisibility.Visible : TreeVisibility.Recurse;
+	test('wecuwsive fiwta whiwe cowwapsed', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		wet quewy = new WegExp('');
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing): TweeVisibiwity {
+				wetuwn quewy.test(ewement) ? TweeVisibiwity.Visibwe : TweeVisibiwity.Wecuwse;
 			}
 		};
 
-		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+		const modew = new IndexTweeModew<stwing>('test', toWist(wist), 'woot', { fiwta });
 
-		model.splice([0], 0, [
+		modew.spwice([0], 0, [
 			{
-				element: 'vscode', collapsed: true, children: [
-					{ element: '.build' },
-					{ element: 'git' },
+				ewement: 'vscode', cowwapsed: twue, chiwdwen: [
+					{ ewement: '.buiwd' },
+					{ ewement: 'git' },
 					{
-						element: 'github', children: [
-							{ element: 'calendar.yml' },
-							{ element: 'endgame' },
-							{ element: 'build.js' },
+						ewement: 'github', chiwdwen: [
+							{ ewement: 'cawendaw.ymw' },
+							{ ewement: 'endgame' },
+							{ ewement: 'buiwd.js' },
 						]
 					},
 					{
-						element: 'build', children: [
-							{ element: 'lib' },
-							{ element: 'gulpfile.js' }
+						ewement: 'buiwd', chiwdwen: [
+							{ ewement: 'wib' },
+							{ ewement: 'guwpfiwe.js' }
 						]
 					}
 				]
 			},
 		]);
 
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 
-		query = /gulp/;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		quewy = /guwp/;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 
-		model.setCollapsed([0], false);
-		assert.deepStrictEqual(toArray(list), ['vscode', 'build', 'gulpfile.js']);
+		modew.setCowwapsed([0], fawse);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode', 'buiwd', 'guwpfiwe.js']);
 
-		model.setCollapsed([0], true);
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		modew.setCowwapsed([0], twue);
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 
-		query = new RegExp('');
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['vscode']);
+		quewy = new WegExp('');
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['vscode']);
 
-		model.setCollapsed([0], false);
-		assert.deepStrictEqual(list.length, 10);
+		modew.setCowwapsed([0], fawse);
+		assewt.deepStwictEquaw(wist.wength, 10);
 	});
 
-	suite('getNodeLocation', () => {
+	suite('getNodeWocation', () => {
 
-		test('simple', () => {
-			const list: IIndexTreeNode<number>[] = [];
-			const model = new IndexTreeModel<number>('test', toList(list), -1);
+		test('simpwe', () => {
+			const wist: IIndexTweeNode<numba>[] = [];
+			const modew = new IndexTweeModew<numba>('test', toWist(wist), -1);
 
-			model.splice([0], 0, [
+			modew.spwice([0], 0, [
 				{
-					element: 0, children: [
-						{ element: 10 },
-						{ element: 11 },
-						{ element: 12 },
+					ewement: 0, chiwdwen: [
+						{ ewement: 10 },
+						{ ewement: 11 },
+						{ ewement: 12 },
 					]
 				},
-				{ element: 1 },
-				{ element: 2 }
+				{ ewement: 1 },
+				{ ewement: 2 }
 			]);
 
-			assert.deepStrictEqual(model.getNodeLocation(list[0]), [0]);
-			assert.deepStrictEqual(model.getNodeLocation(list[1]), [0, 0]);
-			assert.deepStrictEqual(model.getNodeLocation(list[2]), [0, 1]);
-			assert.deepStrictEqual(model.getNodeLocation(list[3]), [0, 2]);
-			assert.deepStrictEqual(model.getNodeLocation(list[4]), [1]);
-			assert.deepStrictEqual(model.getNodeLocation(list[5]), [2]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[0]), [0]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[1]), [0, 0]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[2]), [0, 1]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[3]), [0, 2]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[4]), [1]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[5]), [2]);
 		});
 
-		test('with filter', () => {
-			const list: IIndexTreeNode<number>[] = [];
-			const filter = new class implements ITreeFilter<number> {
-				filter(element: number): TreeVisibility {
-					return element % 2 === 0 ? TreeVisibility.Visible : TreeVisibility.Hidden;
+		test('with fiwta', () => {
+			const wist: IIndexTweeNode<numba>[] = [];
+			const fiwta = new cwass impwements ITweeFiwta<numba> {
+				fiwta(ewement: numba): TweeVisibiwity {
+					wetuwn ewement % 2 === 0 ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden;
 				}
 			};
 
-			const model = new IndexTreeModel<number>('test', toList(list), -1, { filter });
+			const modew = new IndexTweeModew<numba>('test', toWist(wist), -1, { fiwta });
 
-			model.splice([0], 0, [
+			modew.spwice([0], 0, [
 				{
-					element: 0, children: [
-						{ element: 1 },
-						{ element: 2 },
-						{ element: 3 },
-						{ element: 4 },
-						{ element: 5 },
-						{ element: 6 },
-						{ element: 7 }
+					ewement: 0, chiwdwen: [
+						{ ewement: 1 },
+						{ ewement: 2 },
+						{ ewement: 3 },
+						{ ewement: 4 },
+						{ ewement: 5 },
+						{ ewement: 6 },
+						{ ewement: 7 }
 					]
 				}
 			]);
 
-			assert.deepStrictEqual(model.getNodeLocation(list[0]), [0]);
-			assert.deepStrictEqual(model.getNodeLocation(list[1]), [0, 1]);
-			assert.deepStrictEqual(model.getNodeLocation(list[2]), [0, 3]);
-			assert.deepStrictEqual(model.getNodeLocation(list[3]), [0, 5]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[0]), [0]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[1]), [0, 1]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[2]), [0, 3]);
+			assewt.deepStwictEquaw(modew.getNodeWocation(wist[3]), [0, 5]);
 		});
 	});
 
-	test('refilter with filtered out nodes', () => {
-		const list: ITreeNode<string>[] = [];
-		let query = new RegExp('');
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): boolean {
-				return query.test(element);
+	test('wefiwta with fiwtewed out nodes', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		wet quewy = new WegExp('');
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing): boowean {
+				wetuwn quewy.test(ewement);
 			}
 		};
 
-		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+		const modew = new IndexTweeModew<stwing>('test', toWist(wist), 'woot', { fiwta });
 
-		model.splice([0], 0, [
-			{ element: 'silver' },
-			{ element: 'gold' },
-			{ element: 'platinum' }
+		modew.spwice([0], 0, [
+			{ ewement: 'siwva' },
+			{ ewement: 'gowd' },
+			{ ewement: 'pwatinum' }
 		]);
 
-		assert.deepStrictEqual(toArray(list), ['silver', 'gold', 'platinum']);
+		assewt.deepStwictEquaw(toAwway(wist), ['siwva', 'gowd', 'pwatinum']);
 
-		query = /platinum/;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['platinum']);
+		quewy = /pwatinum/;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['pwatinum']);
 
-		model.splice([0], Number.POSITIVE_INFINITY, [
-			{ element: 'silver' },
-			{ element: 'gold' },
-			{ element: 'platinum' }
+		modew.spwice([0], Numba.POSITIVE_INFINITY, [
+			{ ewement: 'siwva' },
+			{ ewement: 'gowd' },
+			{ ewement: 'pwatinum' }
 		]);
-		assert.deepStrictEqual(toArray(list), ['platinum']);
+		assewt.deepStwictEquaw(toAwway(wist), ['pwatinum']);
 
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['platinum']);
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['pwatinum']);
 	});
 
-	test('explicit hidden nodes should have renderNodeCount == 0, issue #83211', () => {
-		const list: ITreeNode<string>[] = [];
-		let query = new RegExp('');
-		const filter = new class implements ITreeFilter<string> {
-			filter(element: string): boolean {
-				return query.test(element);
+	test('expwicit hidden nodes shouwd have wendewNodeCount == 0, issue #83211', () => {
+		const wist: ITweeNode<stwing>[] = [];
+		wet quewy = new WegExp('');
+		const fiwta = new cwass impwements ITweeFiwta<stwing> {
+			fiwta(ewement: stwing): boowean {
+				wetuwn quewy.test(ewement);
 			}
 		};
 
-		const model = new IndexTreeModel<string>('test', toList(list), 'root', { filter });
+		const modew = new IndexTweeModew<stwing>('test', toWist(wist), 'woot', { fiwta });
 
-		model.splice([0], 0, [
-			{ element: 'a', children: [{ element: 'aa' }] },
-			{ element: 'b', children: [{ element: 'bb' }] }
+		modew.spwice([0], 0, [
+			{ ewement: 'a', chiwdwen: [{ ewement: 'aa' }] },
+			{ ewement: 'b', chiwdwen: [{ ewement: 'bb' }] }
 		]);
 
-		assert.deepStrictEqual(toArray(list), ['a', 'aa', 'b', 'bb']);
-		assert.deepStrictEqual(model.getListIndex([0]), 0);
-		assert.deepStrictEqual(model.getListIndex([0, 0]), 1);
-		assert.deepStrictEqual(model.getListIndex([1]), 2);
-		assert.deepStrictEqual(model.getListIndex([1, 0]), 3);
+		assewt.deepStwictEquaw(toAwway(wist), ['a', 'aa', 'b', 'bb']);
+		assewt.deepStwictEquaw(modew.getWistIndex([0]), 0);
+		assewt.deepStwictEquaw(modew.getWistIndex([0, 0]), 1);
+		assewt.deepStwictEquaw(modew.getWistIndex([1]), 2);
+		assewt.deepStwictEquaw(modew.getWistIndex([1, 0]), 3);
 
-		query = /b/;
-		model.refilter();
-		assert.deepStrictEqual(toArray(list), ['b', 'bb']);
-		assert.deepStrictEqual(model.getListIndex([0]), -1);
-		assert.deepStrictEqual(model.getListIndex([0, 0]), -1);
-		assert.deepStrictEqual(model.getListIndex([1]), 0);
-		assert.deepStrictEqual(model.getListIndex([1, 0]), 1);
+		quewy = /b/;
+		modew.wefiwta();
+		assewt.deepStwictEquaw(toAwway(wist), ['b', 'bb']);
+		assewt.deepStwictEquaw(modew.getWistIndex([0]), -1);
+		assewt.deepStwictEquaw(modew.getWistIndex([0, 0]), -1);
+		assewt.deepStwictEquaw(modew.getWistIndex([1]), 0);
+		assewt.deepStwictEquaw(modew.getWistIndex([1, 0]), 1);
 	});
 });

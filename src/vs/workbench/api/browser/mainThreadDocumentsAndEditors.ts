@@ -1,141 +1,141 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
-import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { diffSets, diffMaps } from 'vs/base/common/collections';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe, combinedDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow, isCodeEditow, isDiffEditow, IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IBuwkEditSewvice } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice, shouwdSynchwonizeModew } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { extHostCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { MainThweadDocuments } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocuments';
+impowt { MainThweadTextEditow } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditow';
+impowt { MainThweadTextEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditows';
+impowt { ExtHostContext, ExtHostDocumentsAndEditowsShape, IDocumentsAndEditowsDewta, IExtHostContext, IModewAddedData, ITextEditowAddData, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { BaseTextEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/textEditow';
+impowt { IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { EditowGwoupCowumn, editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { diffSets, diffMaps } fwom 'vs/base/common/cowwections';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
 
-class TextEditorSnapshot {
+cwass TextEditowSnapshot {
 
-	readonly id: string;
+	weadonwy id: stwing;
 
-	constructor(
-		readonly editor: IActiveCodeEditor,
+	constwuctow(
+		weadonwy editow: IActiveCodeEditow,
 	) {
-		this.id = `${editor.getId()},${editor.getModel().id}`;
+		this.id = `${editow.getId()},${editow.getModew().id}`;
 	}
 }
 
-class DocumentAndEditorStateDelta {
+cwass DocumentAndEditowStateDewta {
 
-	readonly isEmpty: boolean;
+	weadonwy isEmpty: boowean;
 
-	constructor(
-		readonly removedDocuments: ITextModel[],
-		readonly addedDocuments: ITextModel[],
-		readonly removedEditors: TextEditorSnapshot[],
-		readonly addedEditors: TextEditorSnapshot[],
-		readonly oldActiveEditor: string | null | undefined,
-		readonly newActiveEditor: string | null | undefined,
+	constwuctow(
+		weadonwy wemovedDocuments: ITextModew[],
+		weadonwy addedDocuments: ITextModew[],
+		weadonwy wemovedEditows: TextEditowSnapshot[],
+		weadonwy addedEditows: TextEditowSnapshot[],
+		weadonwy owdActiveEditow: stwing | nuww | undefined,
+		weadonwy newActiveEditow: stwing | nuww | undefined,
 	) {
-		this.isEmpty = this.removedDocuments.length === 0
-			&& this.addedDocuments.length === 0
-			&& this.removedEditors.length === 0
-			&& this.addedEditors.length === 0
-			&& oldActiveEditor === newActiveEditor;
+		this.isEmpty = this.wemovedDocuments.wength === 0
+			&& this.addedDocuments.wength === 0
+			&& this.wemovedEditows.wength === 0
+			&& this.addedEditows.wength === 0
+			&& owdActiveEditow === newActiveEditow;
 	}
 
-	toString(): string {
-		let ret = 'DocumentAndEditorStateDelta\n';
-		ret += `\tRemoved Documents: [${this.removedDocuments.map(d => d.uri.toString(true)).join(', ')}]\n`;
-		ret += `\tAdded Documents: [${this.addedDocuments.map(d => d.uri.toString(true)).join(', ')}]\n`;
-		ret += `\tRemoved Editors: [${this.removedEditors.map(e => e.id).join(', ')}]\n`;
-		ret += `\tAdded Editors: [${this.addedEditors.map(e => e.id).join(', ')}]\n`;
-		ret += `\tNew Active Editor: ${this.newActiveEditor}\n`;
-		return ret;
+	toStwing(): stwing {
+		wet wet = 'DocumentAndEditowStateDewta\n';
+		wet += `\tWemoved Documents: [${this.wemovedDocuments.map(d => d.uwi.toStwing(twue)).join(', ')}]\n`;
+		wet += `\tAdded Documents: [${this.addedDocuments.map(d => d.uwi.toStwing(twue)).join(', ')}]\n`;
+		wet += `\tWemoved Editows: [${this.wemovedEditows.map(e => e.id).join(', ')}]\n`;
+		wet += `\tAdded Editows: [${this.addedEditows.map(e => e.id).join(', ')}]\n`;
+		wet += `\tNew Active Editow: ${this.newActiveEditow}\n`;
+		wetuwn wet;
 	}
 }
 
-class DocumentAndEditorState {
+cwass DocumentAndEditowState {
 
-	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): DocumentAndEditorStateDelta {
-		if (!before) {
-			return new DocumentAndEditorStateDelta(
-				[], [...after.documents.values()],
-				[], [...after.textEditors.values()],
-				undefined, after.activeEditor
+	static compute(befowe: DocumentAndEditowState | undefined, afta: DocumentAndEditowState): DocumentAndEditowStateDewta {
+		if (!befowe) {
+			wetuwn new DocumentAndEditowStateDewta(
+				[], [...afta.documents.vawues()],
+				[], [...afta.textEditows.vawues()],
+				undefined, afta.activeEditow
 			);
 		}
-		const documentDelta = diffSets(before.documents, after.documents);
-		const editorDelta = diffMaps(before.textEditors, after.textEditors);
-		const oldActiveEditor = before.activeEditor !== after.activeEditor ? before.activeEditor : undefined;
-		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
+		const documentDewta = diffSets(befowe.documents, afta.documents);
+		const editowDewta = diffMaps(befowe.textEditows, afta.textEditows);
+		const owdActiveEditow = befowe.activeEditow !== afta.activeEditow ? befowe.activeEditow : undefined;
+		const newActiveEditow = befowe.activeEditow !== afta.activeEditow ? afta.activeEditow : undefined;
 
-		return new DocumentAndEditorStateDelta(
-			documentDelta.removed, documentDelta.added,
-			editorDelta.removed, editorDelta.added,
-			oldActiveEditor, newActiveEditor
+		wetuwn new DocumentAndEditowStateDewta(
+			documentDewta.wemoved, documentDewta.added,
+			editowDewta.wemoved, editowDewta.added,
+			owdActiveEditow, newActiveEditow
 		);
 	}
 
-	constructor(
-		readonly documents: Set<ITextModel>,
-		readonly textEditors: Map<string, TextEditorSnapshot>,
-		readonly activeEditor: string | null | undefined,
+	constwuctow(
+		weadonwy documents: Set<ITextModew>,
+		weadonwy textEditows: Map<stwing, TextEditowSnapshot>,
+		weadonwy activeEditow: stwing | nuww | undefined,
 	) {
 		//
 	}
 }
 
-const enum ActiveEditorOrder {
-	Editor, Panel
+const enum ActiveEditowOwda {
+	Editow, Panew
 }
 
-class MainThreadDocumentAndEditorStateComputer {
+cwass MainThweadDocumentAndEditowStateComputa {
 
-	private readonly _toDispose = new DisposableStore();
-	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
-	private _currentState?: DocumentAndEditorState;
-	private _activeEditorOrder: ActiveEditorOrder = ActiveEditorOrder.Editor;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _toDisposeOnEditowWemove = new Map<stwing, IDisposabwe>();
+	pwivate _cuwwentState?: DocumentAndEditowState;
+	pwivate _activeEditowOwda: ActiveEditowOwda = ActiveEditowOwda.Editow;
 
-	constructor(
-		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
-		@IModelService private readonly _modelService: IModelService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
+	constwuctow(
+		pwivate weadonwy _onDidChangeState: (dewta: DocumentAndEditowStateDewta) => void,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy _paneCompositeSewvice: IPaneCompositePawtSewvice,
 	) {
-		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
-		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
+		this._modewSewvice.onModewAdded(this._updateStateOnModewAdd, this, this._toDispose);
+		this._modewSewvice.onModewWemoved(_ => this._updateState(), this, this._toDispose);
+		this._editowSewvice.onDidActiveEditowChange(_ => this._updateState(), this, this._toDispose);
 
-		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
-		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
-		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
+		this._codeEditowSewvice.onCodeEditowAdd(this._onDidAddEditow, this, this._toDispose);
+		this._codeEditowSewvice.onCodeEditowWemove(this._onDidWemoveEditow, this, this._toDispose);
+		this._codeEditowSewvice.wistCodeEditows().fowEach(this._onDidAddEditow, this);
 
-		Event.filter(this._paneCompositeService.onDidPaneCompositeOpen, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		Event.filter(this._paneCompositeService.onDidPaneCompositeClose, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
-		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
+		Event.fiwta(this._paneCompositeSewvice.onDidPaneCompositeOpen, event => event.viewContainewWocation === ViewContainewWocation.Panew)(_ => this._activeEditowOwda = ActiveEditowOwda.Panew, undefined, this._toDispose);
+		Event.fiwta(this._paneCompositeSewvice.onDidPaneCompositeCwose, event => event.viewContainewWocation === ViewContainewWocation.Panew)(_ => this._activeEditowOwda = ActiveEditowOwda.Editow, undefined, this._toDispose);
+		this._editowSewvice.onDidVisibweEditowsChange(_ => this._activeEditowOwda = ActiveEditowOwda.Editow, undefined, this._toDispose);
 
 		this._updateState();
 	}
@@ -144,295 +144,295 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._toDispose.dispose();
 	}
 
-	private _onDidAddEditor(e: ICodeEditor): void {
-		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
-			e.onDidChangeModel(() => this._updateState()),
-			e.onDidFocusEditorText(() => this._updateState()),
-			e.onDidFocusEditorWidget(() => this._updateState(e))
+	pwivate _onDidAddEditow(e: ICodeEditow): void {
+		this._toDisposeOnEditowWemove.set(e.getId(), combinedDisposabwe(
+			e.onDidChangeModew(() => this._updateState()),
+			e.onDidFocusEditowText(() => this._updateState()),
+			e.onDidFocusEditowWidget(() => this._updateState(e))
 		));
 		this._updateState();
 	}
 
-	private _onDidRemoveEditor(e: ICodeEditor): void {
-		const sub = this._toDisposeOnEditorRemove.get(e.getId());
+	pwivate _onDidWemoveEditow(e: ICodeEditow): void {
+		const sub = this._toDisposeOnEditowWemove.get(e.getId());
 		if (sub) {
-			this._toDisposeOnEditorRemove.delete(e.getId());
+			this._toDisposeOnEditowWemove.dewete(e.getId());
 			sub.dispose();
 			this._updateState();
 		}
 	}
 
-	private _updateStateOnModelAdd(model: ITextModel): void {
-		if (!shouldSynchronizeModel(model)) {
-			// ignore
-			return;
+	pwivate _updateStateOnModewAdd(modew: ITextModew): void {
+		if (!shouwdSynchwonizeModew(modew)) {
+			// ignowe
+			wetuwn;
 		}
 
-		if (!this._currentState) {
-			// too early
+		if (!this._cuwwentState) {
+			// too eawwy
 			this._updateState();
-			return;
+			wetuwn;
 		}
 
-		// small (fast) delta
-		this._currentState = new DocumentAndEditorState(
-			this._currentState.documents.add(model),
-			this._currentState.textEditors,
-			this._currentState.activeEditor
+		// smaww (fast) dewta
+		this._cuwwentState = new DocumentAndEditowState(
+			this._cuwwentState.documents.add(modew),
+			this._cuwwentState.textEditows,
+			this._cuwwentState.activeEditow
 		);
 
-		this._onDidChangeState(new DocumentAndEditorStateDelta(
-			[], [model],
+		this._onDidChangeState(new DocumentAndEditowStateDewta(
+			[], [modew],
 			[], [],
 			undefined, undefined
 		));
 	}
 
-	private _updateState(widgetFocusCandidate?: ICodeEditor): void {
+	pwivate _updateState(widgetFocusCandidate?: ICodeEditow): void {
 
-		// models: ignore too large models
-		const models = new Set<ITextModel>();
-		for (const model of this._modelService.getModels()) {
-			if (shouldSynchronizeModel(model)) {
-				models.add(model);
+		// modews: ignowe too wawge modews
+		const modews = new Set<ITextModew>();
+		fow (const modew of this._modewSewvice.getModews()) {
+			if (shouwdSynchwonizeModew(modew)) {
+				modews.add(modew);
 			}
 		}
 
-		// editor: only take those that have a not too large model
-		const editors = new Map<string, TextEditorSnapshot>();
-		let activeEditor: string | null = null; // Strict null work. This doesn't like being undefined!
+		// editow: onwy take those that have a not too wawge modew
+		const editows = new Map<stwing, TextEditowSnapshot>();
+		wet activeEditow: stwing | nuww = nuww; // Stwict nuww wowk. This doesn't wike being undefined!
 
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			if (editor.isSimpleWidget) {
+		fow (const editow of this._codeEditowSewvice.wistCodeEditows()) {
+			if (editow.isSimpweWidget) {
 				continue;
 			}
-			const model = editor.getModel();
-			if (editor.hasModel() && model && shouldSynchronizeModel(model)
-				&& !model.isDisposed() // model disposed
-				&& Boolean(this._modelService.getModel(model.uri)) // model disposing, the flag didn't flip yet but the model service already removed it
+			const modew = editow.getModew();
+			if (editow.hasModew() && modew && shouwdSynchwonizeModew(modew)
+				&& !modew.isDisposed() // modew disposed
+				&& Boowean(this._modewSewvice.getModew(modew.uwi)) // modew disposing, the fwag didn't fwip yet but the modew sewvice awweady wemoved it
 			) {
-				const apiEditor = new TextEditorSnapshot(editor);
-				editors.set(apiEditor.id, apiEditor);
-				if (editor.hasTextFocus() || (widgetFocusCandidate === editor && editor.hasWidgetFocus())) {
-					// text focus has priority, widget focus is tricky because multiple
-					// editors might claim widget focus at the same time. therefore we use a
-					// candidate (which is the editor that has raised an widget focus event)
+				const apiEditow = new TextEditowSnapshot(editow);
+				editows.set(apiEditow.id, apiEditow);
+				if (editow.hasTextFocus() || (widgetFocusCandidate === editow && editow.hasWidgetFocus())) {
+					// text focus has pwiowity, widget focus is twicky because muwtipwe
+					// editows might cwaim widget focus at the same time. thewefowe we use a
+					// candidate (which is the editow that has waised an widget focus event)
 					// in addition to the widget focus check
-					activeEditor = apiEditor.id;
+					activeEditow = apiEditow.id;
 				}
 			}
 		}
 
-		// active editor: if none of the previous editors had focus we try
-		// to match output panels or the active workbench editor with
-		// one of editor we have just computed
-		if (!activeEditor) {
-			let candidate: IEditor | undefined;
-			if (this._activeEditorOrder === ActiveEditorOrder.Editor) {
-				candidate = this._getActiveEditorFromEditorPart() || this._getActiveEditorFromPanel();
-			} else {
-				candidate = this._getActiveEditorFromPanel() || this._getActiveEditorFromEditorPart();
+		// active editow: if none of the pwevious editows had focus we twy
+		// to match output panews ow the active wowkbench editow with
+		// one of editow we have just computed
+		if (!activeEditow) {
+			wet candidate: IEditow | undefined;
+			if (this._activeEditowOwda === ActiveEditowOwda.Editow) {
+				candidate = this._getActiveEditowFwomEditowPawt() || this._getActiveEditowFwomPanew();
+			} ewse {
+				candidate = this._getActiveEditowFwomPanew() || this._getActiveEditowFwomEditowPawt();
 			}
 
 			if (candidate) {
-				for (const snapshot of editors.values()) {
-					if (candidate === snapshot.editor) {
-						activeEditor = snapshot.id;
+				fow (const snapshot of editows.vawues()) {
+					if (candidate === snapshot.editow) {
+						activeEditow = snapshot.id;
 					}
 				}
 			}
 		}
 
-		// compute new state and compare against old
-		const newState = new DocumentAndEditorState(models, editors, activeEditor);
-		const delta = DocumentAndEditorState.compute(this._currentState, newState);
-		if (!delta.isEmpty) {
-			this._currentState = newState;
-			this._onDidChangeState(delta);
+		// compute new state and compawe against owd
+		const newState = new DocumentAndEditowState(modews, editows, activeEditow);
+		const dewta = DocumentAndEditowState.compute(this._cuwwentState, newState);
+		if (!dewta.isEmpty) {
+			this._cuwwentState = newState;
+			this._onDidChangeState(dewta);
 		}
 	}
 
-	private _getActiveEditorFromPanel(): IEditor | undefined {
-		const panel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (panel instanceof BaseTextEditor) {
-			const control = panel.getControl();
-			if (isCodeEditor(control)) {
-				return control;
+	pwivate _getActiveEditowFwomPanew(): IEditow | undefined {
+		const panew = this._paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+		if (panew instanceof BaseTextEditow) {
+			const contwow = panew.getContwow();
+			if (isCodeEditow(contwow)) {
+				wetuwn contwow;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private _getActiveEditorFromEditorPart(): IEditor | undefined {
-		let activeTextEditorControl = this._editorService.activeTextEditorControl;
-		if (isDiffEditor(activeTextEditorControl)) {
-			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
+	pwivate _getActiveEditowFwomEditowPawt(): IEditow | undefined {
+		wet activeTextEditowContwow = this._editowSewvice.activeTextEditowContwow;
+		if (isDiffEditow(activeTextEditowContwow)) {
+			activeTextEditowContwow = activeTextEditowContwow.getModifiedEditow();
 		}
-		return activeTextEditorControl;
+		wetuwn activeTextEditowContwow;
 	}
 }
 
-@extHostCustomer
-export class MainThreadDocumentsAndEditors {
+@extHostCustoma
+expowt cwass MainThweadDocumentsAndEditows {
 
-	private readonly _toDispose = new DisposableStore();
-	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
-	private readonly _mainThreadDocuments: MainThreadDocuments;
-	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate weadonwy _pwoxy: ExtHostDocumentsAndEditowsShape;
+	pwivate weadonwy _mainThweadDocuments: MainThweadDocuments;
+	pwivate weadonwy _textEditows = new Map<stwing, MainThweadTextEditow>();
 
-	private readonly _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
-	private readonly _onTextEditorRemove = new Emitter<string[]>();
-	private readonly _onDocumentAdd = new Emitter<ITextModel[]>();
-	private readonly _onDocumentRemove = new Emitter<URI[]>();
+	pwivate weadonwy _onTextEditowAdd = new Emitta<MainThweadTextEditow[]>();
+	pwivate weadonwy _onTextEditowWemove = new Emitta<stwing[]>();
+	pwivate weadonwy _onDocumentAdd = new Emitta<ITextModew[]>();
+	pwivate weadonwy _onDocumentWemove = new Emitta<UWI[]>();
 
-	readonly onTextEditorAdd: Event<MainThreadTextEditor[]> = this._onTextEditorAdd.event;
-	readonly onTextEditorRemove: Event<string[]> = this._onTextEditorRemove.event;
-	readonly onDocumentAdd: Event<ITextModel[]> = this._onDocumentAdd.event;
-	readonly onDocumentRemove: Event<URI[]> = this._onDocumentRemove.event;
+	weadonwy onTextEditowAdd: Event<MainThweadTextEditow[]> = this._onTextEditowAdd.event;
+	weadonwy onTextEditowWemove: Event<stwing[]> = this._onTextEditowWemove.event;
+	weadonwy onDocumentAdd: Event<ITextModew[]> = this._onDocumentAdd.event;
+	weadonwy onDocumentWemove: Event<UWI[]> = this._onDocumentWemove.event;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IFileService fileService: IFileService,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IBulkEditService bulkEditService: IBulkEditService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IPathService pathService: IPathService
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextFiweSewvice pwivate weadonwy _textFiweSewvice: ITextFiweSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IBuwkEditSewvice buwkEditSewvice: IBuwkEditSewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkingCopyFiweSewvice wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IUwiIdentitySewvice uwiIdentitySewvice: IUwiIdentitySewvice,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostDocumentsAndEditows);
 
-		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
-		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
+		this._mainThweadDocuments = this._toDispose.add(new MainThweadDocuments(this, extHostContext, this._modewSewvice, this._textFiweSewvice, fiweSewvice, textModewWesowvewSewvice, enviwonmentSewvice, uwiIdentitySewvice, wowkingCopyFiweSewvice, pathSewvice));
+		extHostContext.set(MainContext.MainThweadDocuments, this._mainThweadDocuments);
 
-		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
-		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
+		const mainThweadTextEditows = this._toDispose.add(new MainThweadTextEditows(this, extHostContext, codeEditowSewvice, buwkEditSewvice, this._editowSewvice, this._editowGwoupSewvice));
+		extHostContext.set(MainContext.MainThweadTextEditows, mainThweadTextEditows);
 
-		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
+		// It is expected that the ctow of the state computa cawws ouw `_onDewta`.
+		this._toDispose.add(new MainThweadDocumentAndEditowStateComputa(dewta => this._onDewta(dewta), _modewSewvice, codeEditowSewvice, this._editowSewvice, paneCompositeSewvice));
 
-		this._toDispose.add(this._onTextEditorAdd);
-		this._toDispose.add(this._onTextEditorRemove);
+		this._toDispose.add(this._onTextEditowAdd);
+		this._toDispose.add(this._onTextEditowWemove);
 		this._toDispose.add(this._onDocumentAdd);
-		this._toDispose.add(this._onDocumentRemove);
+		this._toDispose.add(this._onDocumentWemove);
 	}
 
 	dispose(): void {
 		this._toDispose.dispose();
 	}
 
-	private _onDelta(delta: DocumentAndEditorStateDelta): void {
+	pwivate _onDewta(dewta: DocumentAndEditowStateDewta): void {
 
-		let removedDocuments: URI[];
-		const removedEditors: string[] = [];
-		const addedEditors: MainThreadTextEditor[] = [];
+		wet wemovedDocuments: UWI[];
+		const wemovedEditows: stwing[] = [];
+		const addedEditows: MainThweadTextEditow[] = [];
 
-		// removed models
-		removedDocuments = delta.removedDocuments.map(m => m.uri);
+		// wemoved modews
+		wemovedDocuments = dewta.wemovedDocuments.map(m => m.uwi);
 
-		// added editors
-		for (const apiEditor of delta.addedEditors) {
-			const mainThreadEditor = new MainThreadTextEditor(apiEditor.id, apiEditor.editor.getModel(),
-				apiEditor.editor, { onGainedFocus() { }, onLostFocus() { } }, this._mainThreadDocuments, this._modelService, this._clipboardService);
+		// added editows
+		fow (const apiEditow of dewta.addedEditows) {
+			const mainThweadEditow = new MainThweadTextEditow(apiEditow.id, apiEditow.editow.getModew(),
+				apiEditow.editow, { onGainedFocus() { }, onWostFocus() { } }, this._mainThweadDocuments, this._modewSewvice, this._cwipboawdSewvice);
 
-			this._textEditors.set(apiEditor.id, mainThreadEditor);
-			addedEditors.push(mainThreadEditor);
+			this._textEditows.set(apiEditow.id, mainThweadEditow);
+			addedEditows.push(mainThweadEditow);
 		}
 
-		// removed editors
-		for (const { id } of delta.removedEditors) {
-			const mainThreadEditor = this._textEditors.get(id);
-			if (mainThreadEditor) {
-				mainThreadEditor.dispose();
-				this._textEditors.delete(id);
-				removedEditors.push(id);
+		// wemoved editows
+		fow (const { id } of dewta.wemovedEditows) {
+			const mainThweadEditow = this._textEditows.get(id);
+			if (mainThweadEditow) {
+				mainThweadEditow.dispose();
+				this._textEditows.dewete(id);
+				wemovedEditows.push(id);
 			}
 		}
 
-		const extHostDelta: IDocumentsAndEditorsDelta = Object.create(null);
-		let empty = true;
-		if (delta.newActiveEditor !== undefined) {
-			empty = false;
-			extHostDelta.newActiveEditor = delta.newActiveEditor;
+		const extHostDewta: IDocumentsAndEditowsDewta = Object.cweate(nuww);
+		wet empty = twue;
+		if (dewta.newActiveEditow !== undefined) {
+			empty = fawse;
+			extHostDewta.newActiveEditow = dewta.newActiveEditow;
 		}
-		if (removedDocuments.length > 0) {
-			empty = false;
-			extHostDelta.removedDocuments = removedDocuments;
+		if (wemovedDocuments.wength > 0) {
+			empty = fawse;
+			extHostDewta.wemovedDocuments = wemovedDocuments;
 		}
-		if (removedEditors.length > 0) {
-			empty = false;
-			extHostDelta.removedEditors = removedEditors;
+		if (wemovedEditows.wength > 0) {
+			empty = fawse;
+			extHostDewta.wemovedEditows = wemovedEditows;
 		}
-		if (delta.addedDocuments.length > 0) {
-			empty = false;
-			extHostDelta.addedDocuments = delta.addedDocuments.map(m => this._toModelAddData(m));
+		if (dewta.addedDocuments.wength > 0) {
+			empty = fawse;
+			extHostDewta.addedDocuments = dewta.addedDocuments.map(m => this._toModewAddData(m));
 		}
-		if (delta.addedEditors.length > 0) {
-			empty = false;
-			extHostDelta.addedEditors = addedEditors.map(e => this._toTextEditorAddData(e));
+		if (dewta.addedEditows.wength > 0) {
+			empty = fawse;
+			extHostDewta.addedEditows = addedEditows.map(e => this._toTextEditowAddData(e));
 		}
 
 		if (!empty) {
-			// first update ext host
-			this._proxy.$acceptDocumentsAndEditorsDelta(extHostDelta);
-			// second update dependent state listener
-			this._onDocumentRemove.fire(removedDocuments);
-			this._onDocumentAdd.fire(delta.addedDocuments);
-			this._onTextEditorRemove.fire(removedEditors);
-			this._onTextEditorAdd.fire(addedEditors);
+			// fiwst update ext host
+			this._pwoxy.$acceptDocumentsAndEditowsDewta(extHostDewta);
+			// second update dependent state wistena
+			this._onDocumentWemove.fiwe(wemovedDocuments);
+			this._onDocumentAdd.fiwe(dewta.addedDocuments);
+			this._onTextEditowWemove.fiwe(wemovedEditows);
+			this._onTextEditowAdd.fiwe(addedEditows);
 		}
 	}
 
-	private _toModelAddData(model: ITextModel): IModelAddedData {
-		return {
-			uri: model.uri,
-			versionId: model.getVersionId(),
-			lines: model.getLinesContent(),
-			EOL: model.getEOL(),
-			modeId: model.getLanguageIdentifier().language,
-			isDirty: this._textFileService.isDirty(model.uri)
+	pwivate _toModewAddData(modew: ITextModew): IModewAddedData {
+		wetuwn {
+			uwi: modew.uwi,
+			vewsionId: modew.getVewsionId(),
+			wines: modew.getWinesContent(),
+			EOW: modew.getEOW(),
+			modeId: modew.getWanguageIdentifia().wanguage,
+			isDiwty: this._textFiweSewvice.isDiwty(modew.uwi)
 		};
 	}
 
-	private _toTextEditorAddData(textEditor: MainThreadTextEditor): ITextEditorAddData {
-		const props = textEditor.getProperties();
-		return {
-			id: textEditor.getId(),
-			documentUri: textEditor.getModel().uri,
-			options: props.options,
-			selections: props.selections,
-			visibleRanges: props.visibleRanges,
-			editorPosition: this._findEditorPosition(textEditor)
+	pwivate _toTextEditowAddData(textEditow: MainThweadTextEditow): ITextEditowAddData {
+		const pwops = textEditow.getPwopewties();
+		wetuwn {
+			id: textEditow.getId(),
+			documentUwi: textEditow.getModew().uwi,
+			options: pwops.options,
+			sewections: pwops.sewections,
+			visibweWanges: pwops.visibweWanges,
+			editowPosition: this._findEditowPosition(textEditow)
 		};
 	}
 
-	private _findEditorPosition(editor: MainThreadTextEditor): EditorGroupColumn | undefined {
-		for (const editorPane of this._editorService.visibleEditorPanes) {
-			if (editor.matches(editorPane)) {
-				return editorGroupToColumn(this._editorGroupService, editorPane.group);
+	pwivate _findEditowPosition(editow: MainThweadTextEditow): EditowGwoupCowumn | undefined {
+		fow (const editowPane of this._editowSewvice.visibweEditowPanes) {
+			if (editow.matches(editowPane)) {
+				wetuwn editowGwoupToCowumn(this._editowGwoupSewvice, editowPane.gwoup);
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	findTextEditorIdFor(editorPane: IEditorPane): string | undefined {
-		for (const [id, editor] of this._textEditors) {
-			if (editor.matches(editorPane)) {
-				return id;
+	findTextEditowIdFow(editowPane: IEditowPane): stwing | undefined {
+		fow (const [id, editow] of this._textEditows) {
+			if (editow.matches(editowPane)) {
+				wetuwn id;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getEditor(id: string): MainThreadTextEditor | undefined {
-		return this._textEditors.get(id);
+	getEditow(id: stwing): MainThweadTextEditow | undefined {
+		wetuwn this._textEditows.get(id);
 	}
 }

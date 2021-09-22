@@ -1,524 +1,524 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
-import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput, createEditorPart, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { URI } from 'vs/base/common/uri';
-import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { extUri } from 'vs/base/common/resources';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+impowt * as assewt fwom 'assewt';
+impowt { EditowPane, EditowMemento } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { WowkspaceTwustWequiwedEditow } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPwacehowda';
+impowt { IEditowSewiawiza, IEditowFactowyWegistwy, EditowExtensions, EditowInputCapabiwities, IEditowDescwiptow, IEditowPane } fwom 'vs/wowkbench/common/editow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { wowkbenchInstantiationSewvice, TestEditowGwoupView, TestEditowGwoupsSewvice, wegistewTestWesouwceEditow, TestEditowInput, cweateEditowPawt, TestTextWesouwceConfiguwationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowPaneDescwiptow, EditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { extUwi } fwom 'vs/base/common/wesouwces';
+impowt { EditowSewvice } fwom 'vs/wowkbench/sewvices/editow/bwowsa/editowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { TestWowkspaceTwustManagementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
 
-const NullThemeService = new TestThemeService();
+const NuwwThemeSewvice = new TestThemeSewvice();
 
-const editorRegistry: EditorPaneRegistry = Registry.as(EditorExtensions.EditorPane);
-const editorInputRegistry: IEditorFactoryRegistry = Registry.as(EditorExtensions.EditorFactory);
+const editowWegistwy: EditowPaneWegistwy = Wegistwy.as(EditowExtensions.EditowPane);
+const editowInputWegistwy: IEditowFactowyWegistwy = Wegistwy.as(EditowExtensions.EditowFactowy);
 
-class TestEditor extends EditorPane {
+cwass TestEditow extends EditowPane {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+	constwuctow(@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice) {
+		supa('TestEditow', NuwwTewemetwySewvice, NuwwThemeSewvice, new TestStowageSewvice());
 	}
 
-	override getId(): string { return 'testEditor'; }
-	layout(): void { }
-	createEditor(): any { }
+	ovewwide getId(): stwing { wetuwn 'testEditow'; }
+	wayout(): void { }
+	cweateEditow(): any { }
 }
 
-export class OtherTestEditor extends EditorPane {
+expowt cwass OthewTestEditow extends EditowPane {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('testOtherEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+	constwuctow(@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice) {
+		supa('testOthewEditow', NuwwTewemetwySewvice, NuwwThemeSewvice, new TestStowageSewvice());
 	}
 
-	override getId(): string { return 'testOtherEditor'; }
+	ovewwide getId(): stwing { wetuwn 'testOthewEditow'; }
 
-	layout(): void { }
-	createEditor(): any { }
+	wayout(): void { }
+	cweateEditow(): any { }
 }
 
-class TestInputSerializer implements IEditorSerializer {
+cwass TestInputSewiawiza impwements IEditowSewiawiza {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
+	canSewiawize(editowInput: EditowInput): boowean {
+		wetuwn twue;
 	}
 
-	serialize(input: EditorInput): string {
-		return input.toString();
+	sewiawize(input: EditowInput): stwing {
+		wetuwn input.toStwing();
 	}
 
-	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput {
-		return {} as EditorInput;
-	}
-}
-
-class TestInput extends EditorInput {
-
-	readonly resource = undefined;
-
-	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
-		return editors[1];
-	}
-
-	override get typeId(): string {
-		return 'testInput';
-	}
-
-	override resolve(): any {
-		return null;
+	desewiawize(instantiationSewvice: IInstantiationSewvice, waw: stwing): EditowInput {
+		wetuwn {} as EditowInput;
 	}
 }
 
-class OtherTestInput extends EditorInput {
+cwass TestInput extends EditowInput {
 
-	readonly resource = undefined;
+	weadonwy wesouwce = undefined;
 
-	override get typeId(): string {
-		return 'otherTestInput';
+	ovewwide pwefewsEditowPane<T extends IEditowDescwiptow<IEditowPane>>(editows: T[]): T | undefined {
+		wetuwn editows[1];
 	}
 
-	override resolve(): any {
-		return null;
+	ovewwide get typeId(): stwing {
+		wetuwn 'testInput';
+	}
+
+	ovewwide wesowve(): any {
+		wetuwn nuww;
 	}
 }
-class TestResourceEditorInput extends TextResourceEditorInput { }
 
-suite('EditorPane', () => {
+cwass OthewTestInput extends EditowInput {
 
-	test('EditorPane API', async () => {
-		const editor = new TestEditor(NullTelemetryService);
-		const input = new OtherTestInput();
+	weadonwy wesouwce = undefined;
+
+	ovewwide get typeId(): stwing {
+		wetuwn 'othewTestInput';
+	}
+
+	ovewwide wesowve(): any {
+		wetuwn nuww;
+	}
+}
+cwass TestWesouwceEditowInput extends TextWesouwceEditowInput { }
+
+suite('EditowPane', () => {
+
+	test('EditowPane API', async () => {
+		const editow = new TestEditow(NuwwTewemetwySewvice);
+		const input = new OthewTestInput();
 		const options = {};
 
-		assert(!editor.isVisible());
-		assert(!editor.input);
+		assewt(!editow.isVisibwe());
+		assewt(!editow.input);
 
-		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
-		assert.strictEqual(<any>input, editor.input);
-		const group = new TestEditorGroupView(1);
-		editor.setVisible(true, group);
-		assert(editor.isVisible());
-		assert.strictEqual(editor.group, group);
-		input.onWillDispose(() => {
-			assert(false);
+		await editow.setInput(input, options, Object.cweate(nuww), CancewwationToken.None);
+		assewt.stwictEquaw(<any>input, editow.input);
+		const gwoup = new TestEditowGwoupView(1);
+		editow.setVisibwe(twue, gwoup);
+		assewt(editow.isVisibwe());
+		assewt.stwictEquaw(editow.gwoup, gwoup);
+		input.onWiwwDispose(() => {
+			assewt(fawse);
 		});
-		editor.dispose();
-		editor.clearInput();
-		editor.setVisible(false, group);
-		assert(!editor.isVisible());
-		assert(!editor.input);
-		assert(!editor.getControl());
+		editow.dispose();
+		editow.cweawInput();
+		editow.setVisibwe(fawse, gwoup);
+		assewt(!editow.isVisibwe());
+		assewt(!editow.input);
+		assewt(!editow.getContwow());
 	});
 
-	test('EditorPaneDescriptor', () => {
-		const editorDescriptor = EditorPaneDescriptor.create(TestEditor, 'id', 'name');
-		assert.strictEqual(editorDescriptor.typeId, 'id');
-		assert.strictEqual(editorDescriptor.name, 'name');
+	test('EditowPaneDescwiptow', () => {
+		const editowDescwiptow = EditowPaneDescwiptow.cweate(TestEditow, 'id', 'name');
+		assewt.stwictEquaw(editowDescwiptow.typeId, 'id');
+		assewt.stwictEquaw(editowDescwiptow.name, 'name');
 	});
 
-	test('Editor Pane Registration', function () {
-		const editorDescriptor1 = EditorPaneDescriptor.create(TestEditor, 'id1', 'name');
-		const editorDescriptor2 = EditorPaneDescriptor.create(OtherTestEditor, 'id2', 'name');
+	test('Editow Pane Wegistwation', function () {
+		const editowDescwiptow1 = EditowPaneDescwiptow.cweate(TestEditow, 'id1', 'name');
+		const editowDescwiptow2 = EditowPaneDescwiptow.cweate(OthewTestEditow, 'id2', 'name');
 
-		const oldEditorsCnt = editorRegistry.getEditorPanes().length;
-		const oldInputCnt = editorRegistry.getEditors().length;
+		const owdEditowsCnt = editowWegistwy.getEditowPanes().wength;
+		const owdInputCnt = editowWegistwy.getEditows().wength;
 
-		const dispose1 = editorRegistry.registerEditorPane(editorDescriptor1, [new SyncDescriptor(TestInput)]);
-		const dispose2 = editorRegistry.registerEditorPane(editorDescriptor2, [new SyncDescriptor(TestInput), new SyncDescriptor(OtherTestInput)]);
+		const dispose1 = editowWegistwy.wegistewEditowPane(editowDescwiptow1, [new SyncDescwiptow(TestInput)]);
+		const dispose2 = editowWegistwy.wegistewEditowPane(editowDescwiptow2, [new SyncDescwiptow(TestInput), new SyncDescwiptow(OthewTestInput)]);
 
-		assert.strictEqual(editorRegistry.getEditorPanes().length, oldEditorsCnt + 2);
-		assert.strictEqual(editorRegistry.getEditors().length, oldInputCnt + 3);
+		assewt.stwictEquaw(editowWegistwy.getEditowPanes().wength, owdEditowsCnt + 2);
+		assewt.stwictEquaw(editowWegistwy.getEditows().wength, owdInputCnt + 3);
 
-		assert.strictEqual(editorRegistry.getEditorPane(new TestInput()), editorDescriptor2);
-		assert.strictEqual(editorRegistry.getEditorPane(new OtherTestInput()), editorDescriptor2);
+		assewt.stwictEquaw(editowWegistwy.getEditowPane(new TestInput()), editowDescwiptow2);
+		assewt.stwictEquaw(editowWegistwy.getEditowPane(new OthewTestInput()), editowDescwiptow2);
 
-		assert.strictEqual(editorRegistry.getEditorPaneByType('id1'), editorDescriptor1);
-		assert.strictEqual(editorRegistry.getEditorPaneByType('id2'), editorDescriptor2);
-		assert(!editorRegistry.getEditorPaneByType('id3'));
+		assewt.stwictEquaw(editowWegistwy.getEditowPaneByType('id1'), editowDescwiptow1);
+		assewt.stwictEquaw(editowWegistwy.getEditowPaneByType('id2'), editowDescwiptow2);
+		assewt(!editowWegistwy.getEditowPaneByType('id3'));
 
 		dispose([dispose1, dispose2]);
 	});
 
-	test('Editor Pane Lookup favors specific class over superclass (match on specific class)', function () {
-		const d1 = EditorPaneDescriptor.create(TestEditor, 'id1', 'name');
+	test('Editow Pane Wookup favows specific cwass ova supewcwass (match on specific cwass)', function () {
+		const d1 = EditowPaneDescwiptow.cweate(TestEditow, 'id1', 'name');
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registerTestResourceEditor());
-		disposables.add(editorRegistry.registerEditorPane(d1, [new SyncDescriptor(TestResourceEditorInput)]));
+		disposabwes.add(wegistewTestWesouwceEditow());
+		disposabwes.add(editowWegistwy.wegistewEditowPane(d1, [new SyncDescwiptow(TestWesouwceEditowInput)]));
 
-		const inst = workbenchInstantiationService();
+		const inst = wowkbenchInstantiationSewvice();
 
-		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
-		assert.strictEqual(editor.getId(), 'testEditor');
+		const editow = editowWegistwy.getEditowPane(inst.cweateInstance(TestWesouwceEditowInput, UWI.fiwe('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		assewt.stwictEquaw(editow.getId(), 'testEditow');
 
-		const otherEditor = editorRegistry.getEditorPane(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
-		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
+		const othewEditow = editowWegistwy.getEditowPane(inst.cweateInstance(TextWesouwceEditowInput, UWI.fiwe('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		assewt.stwictEquaw(othewEditow.getId(), 'wowkbench.editows.textWesouwceEditow');
 
-		disposables.dispose();
+		disposabwes.dispose();
 	});
 
-	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
-		const inst = workbenchInstantiationService();
+	test('Editow Pane Wookup favows specific cwass ova supewcwass (match on supa cwass)', function () {
+		const inst = wowkbenchInstantiationSewvice();
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registerTestResourceEditor());
-		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		disposabwes.add(wegistewTestWesouwceEditow());
+		const editow = editowWegistwy.getEditowPane(inst.cweateInstance(TestWesouwceEditowInput, UWI.fiwe('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 
-		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
+		assewt.stwictEquaw('wowkbench.editows.textWesouwceEditow', editow.getId());
 
-		disposables.dispose();
+		disposabwes.dispose();
 	});
 
-	test('Editor Input Serializer', function () {
-		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
-		workbenchInstantiationService().invokeFunction(accessor => editorInputRegistry.start(accessor));
-		const disposable = editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer);
+	test('Editow Input Sewiawiza', function () {
+		const testInput = new TestEditowInput(UWI.fiwe('/fake'), 'testTypeId');
+		wowkbenchInstantiationSewvice().invokeFunction(accessow => editowInputWegistwy.stawt(accessow));
+		const disposabwe = editowInputWegistwy.wegistewEditowSewiawiza(testInput.typeId, TestInputSewiawiza);
 
-		let factory = editorInputRegistry.getEditorSerializer('testTypeId');
-		assert(factory);
+		wet factowy = editowInputWegistwy.getEditowSewiawiza('testTypeId');
+		assewt(factowy);
 
-		factory = editorInputRegistry.getEditorSerializer(testInput);
-		assert(factory);
+		factowy = editowInputWegistwy.getEditowSewiawiza(testInput);
+		assewt(factowy);
 
-		// throws when registering serializer for same type
-		assert.throws(() => editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
+		// thwows when wegistewing sewiawiza fow same type
+		assewt.thwows(() => editowInputWegistwy.wegistewEditowSewiawiza(testInput.typeId, TestInputSewiawiza));
 
-		disposable.dispose();
+		disposabwe.dispose();
 	});
 
-	test('EditorMemento - basics', function () {
-		const testGroup0 = new TestEditorGroupView(0);
-		const testGroup1 = new TestEditorGroupView(1);
-		const testGroup4 = new TestEditorGroupView(4);
+	test('EditowMemento - basics', function () {
+		const testGwoup0 = new TestEditowGwoupView(0);
+		const testGwoup1 = new TestEditowGwoupView(1);
+		const testGwoup4 = new TestEditowGwoupView(4);
 
-		const configurationService = new TestTextResourceConfigurationService();
+		const configuwationSewvice = new TestTextWesouwceConfiguwationSewvice();
 
-		const editorGroupService = new TestEditorGroupsService([
-			testGroup0,
-			testGroup1,
-			new TestEditorGroupView(2)
+		const editowGwoupSewvice = new TestEditowGwoupsSewvice([
+			testGwoup0,
+			testGwoup1,
+			new TestEditowGwoupView(2)
 		]);
 
-		interface TestViewState {
-			line: number;
+		intewface TestViewState {
+			wine: numba;
 		}
 
-		const rawMemento = Object.create(null);
-		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		const wawMemento = Object.cweate(nuww);
+		wet memento = new EditowMemento<TestViewState>('id', 'key', wawMemento, 3, editowGwoupSewvice, configuwationSewvice);
 
-		let res = memento.loadEditorState(testGroup0, URI.file('/A'));
-		assert.ok(!res);
+		wet wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/A'));
+		assewt.ok(!wes);
 
-		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
-		res = memento.loadEditorState(testGroup0, URI.file('/A'));
-		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/A'), { wine: 3 });
+		wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/A'));
+		assewt.ok(wes);
+		assewt.stwictEquaw(wes!.wine, 3);
 
-		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
-		res = memento.loadEditorState(testGroup1, URI.file('/A'));
-		assert.ok(res);
-		assert.strictEqual(res!.line, 5);
+		memento.saveEditowState(testGwoup1, UWI.fiwe('/A'), { wine: 5 });
+		wes = memento.woadEditowState(testGwoup1, UWI.fiwe('/A'));
+		assewt.ok(wes);
+		assewt.stwictEquaw(wes!.wine, 5);
 
-		// Ensure capped at 3 elements
-		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
-		memento.saveEditorState(testGroup0, URI.file('/C'), { line: 1 });
-		memento.saveEditorState(testGroup0, URI.file('/D'), { line: 1 });
-		memento.saveEditorState(testGroup0, URI.file('/E'), { line: 1 });
+		// Ensuwe capped at 3 ewements
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/B'), { wine: 1 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/C'), { wine: 1 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/D'), { wine: 1 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/E'), { wine: 1 });
 
-		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/A')));
-		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/B')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/C')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/E')));
+		assewt.ok(!memento.woadEditowState(testGwoup0, UWI.fiwe('/A')));
+		assewt.ok(!memento.woadEditowState(testGwoup0, UWI.fiwe('/B')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/C')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/D')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/E')));
 
-		// Save at an unknown group
-		memento.saveEditorState(testGroup4, URI.file('/E'), { line: 1 });
-		assert.ok(memento.loadEditorState(testGroup4, URI.file('/E'))); // only gets removed when memento is saved
-		memento.saveEditorState(testGroup4, URI.file('/C'), { line: 1 });
-		assert.ok(memento.loadEditorState(testGroup4, URI.file('/C'))); // only gets removed when memento is saved
+		// Save at an unknown gwoup
+		memento.saveEditowState(testGwoup4, UWI.fiwe('/E'), { wine: 1 });
+		assewt.ok(memento.woadEditowState(testGwoup4, UWI.fiwe('/E'))); // onwy gets wemoved when memento is saved
+		memento.saveEditowState(testGwoup4, UWI.fiwe('/C'), { wine: 1 });
+		assewt.ok(memento.woadEditowState(testGwoup4, UWI.fiwe('/C'))); // onwy gets wemoved when memento is saved
 
 		memento.saveState();
 
-		memento = new EditorMemento('id', 'key', rawMemento, 3, editorGroupService, configurationService);
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/C')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/E')));
+		memento = new EditowMemento('id', 'key', wawMemento, 3, editowGwoupSewvice, configuwationSewvice);
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/C')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/D')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/E')));
 
-		// Check on entries no longer there from invalid groups
-		assert.ok(!memento.loadEditorState(testGroup4, URI.file('/E')));
-		assert.ok(!memento.loadEditorState(testGroup4, URI.file('/C')));
+		// Check on entwies no wonga thewe fwom invawid gwoups
+		assewt.ok(!memento.woadEditowState(testGwoup4, UWI.fiwe('/E')));
+		assewt.ok(!memento.woadEditowState(testGwoup4, UWI.fiwe('/C')));
 
-		memento.clearEditorState(URI.file('/C'), testGroup4);
-		memento.clearEditorState(URI.file('/E'));
+		memento.cweawEditowState(UWI.fiwe('/C'), testGwoup4);
+		memento.cweawEditowState(UWI.fiwe('/E'));
 
-		assert.ok(!memento.loadEditorState(testGroup4, URI.file('/C')));
-		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
-		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/E')));
+		assewt.ok(!memento.woadEditowState(testGwoup4, UWI.fiwe('/C')));
+		assewt.ok(memento.woadEditowState(testGwoup0, UWI.fiwe('/D')));
+		assewt.ok(!memento.woadEditowState(testGwoup0, UWI.fiwe('/E')));
 	});
 
-	test('EditorMemento - move', function () {
-		const testGroup0 = new TestEditorGroupView(0);
+	test('EditowMemento - move', function () {
+		const testGwoup0 = new TestEditowGwoupView(0);
 
-		const configurationService = new TestTextResourceConfigurationService();
-		const editorGroupService = new TestEditorGroupsService([testGroup0]);
+		const configuwationSewvice = new TestTextWesouwceConfiguwationSewvice();
+		const editowGwoupSewvice = new TestEditowGwoupsSewvice([testGwoup0]);
 
-		interface TestViewState { line: number; }
+		intewface TestViewState { wine: numba; }
 
-		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		const wawMemento = Object.cweate(nuww);
+		const memento = new EditowMemento<TestViewState>('id', 'key', wawMemento, 3, editowGwoupSewvice, configuwationSewvice);
 
-		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-1.txt'), { line: 1 });
-		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-2.txt'), { line: 2 });
-		memento.saveEditorState(testGroup0, URI.file('/some/other/file.txt'), { line: 3 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/some/fowda/fiwe-1.txt'), { wine: 1 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/some/fowda/fiwe-2.txt'), { wine: 2 });
+		memento.saveEditowState(testGwoup0, UWI.fiwe('/some/otha/fiwe.txt'), { wine: 3 });
 
-		memento.moveEditorState(URI.file('/some/folder/file-1.txt'), URI.file('/some/folder/file-moved.txt'), extUri);
+		memento.moveEditowState(UWI.fiwe('/some/fowda/fiwe-1.txt'), UWI.fiwe('/some/fowda/fiwe-moved.txt'), extUwi);
 
-		let res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-1.txt'));
-		assert.ok(!res);
+		wet wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/some/fowda/fiwe-1.txt'));
+		assewt.ok(!wes);
 
-		res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-moved.txt'));
-		assert.strictEqual(res?.line, 1);
+		wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/some/fowda/fiwe-moved.txt'));
+		assewt.stwictEquaw(wes?.wine, 1);
 
-		memento.moveEditorState(URI.file('/some/folder'), URI.file('/some/folder-moved'), extUri);
+		memento.moveEditowState(UWI.fiwe('/some/fowda'), UWI.fiwe('/some/fowda-moved'), extUwi);
 
-		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-moved.txt'));
-		assert.strictEqual(res?.line, 1);
+		wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/some/fowda-moved/fiwe-moved.txt'));
+		assewt.stwictEquaw(wes?.wine, 1);
 
-		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-2.txt'));
-		assert.strictEqual(res?.line, 2);
+		wes = memento.woadEditowState(testGwoup0, UWI.fiwe('/some/fowda-moved/fiwe-2.txt'));
+		assewt.stwictEquaw(wes?.wine, 2);
 	});
 
-	test('EditoMemento - use with editor input', function () {
-		const testGroup0 = new TestEditorGroupView(0);
+	test('EditoMemento - use with editow input', function () {
+		const testGwoup0 = new TestEditowGwoupView(0);
 
-		interface TestViewState {
-			line: number;
+		intewface TestViewState {
+			wine: numba;
 		}
 
-		class TestEditorInput extends EditorInput {
-			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
-				super();
+		cwass TestEditowInput extends EditowInput {
+			constwuctow(pubwic wesouwce: UWI, pwivate id = 'testEditowInputFowMementoTest') {
+				supa();
 			}
-			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			ovewwide get typeId() { wetuwn 'testEditowInputFowMementoTest'; }
+			ovewwide async wesowve(): Pwomise<IEditowModew | nuww> { wetuwn nuww; }
 
-			override matches(other: TestEditorInput): boolean {
-				return other && this.id === other.id && other instanceof TestEditorInput;
+			ovewwide matches(otha: TestEditowInput): boowean {
+				wetuwn otha && this.id === otha.id && otha instanceof TestEditowInput;
 			}
 		}
 
-		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
+		const wawMemento = Object.cweate(nuww);
+		const memento = new EditowMemento<TestViewState>('id', 'key', wawMemento, 3, new TestEditowGwoupsSewvice(), new TestTextWesouwceConfiguwationSewvice());
 
-		const testInputA = new TestEditorInput(URI.file('/A'));
+		const testInputA = new TestEditowInput(UWI.fiwe('/A'));
 
-		let res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(!res);
+		wet wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(!wes);
 
-		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
-		res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		memento.saveEditowState(testGwoup0, testInputA, { wine: 3 });
+		wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(wes);
+		assewt.stwictEquaw(wes!.wine, 3);
 
-		// State removed when input gets disposed
+		// State wemoved when input gets disposed
 		testInputA.dispose();
-		res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(!res);
+		wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(!wes);
 	});
 
-	test('EditoMemento - clear on editor dispose', function () {
-		const testGroup0 = new TestEditorGroupView(0);
+	test('EditoMemento - cweaw on editow dispose', function () {
+		const testGwoup0 = new TestEditowGwoupView(0);
 
-		interface TestViewState {
-			line: number;
+		intewface TestViewState {
+			wine: numba;
 		}
 
-		class TestEditorInput extends EditorInput {
-			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
-				super();
+		cwass TestEditowInput extends EditowInput {
+			constwuctow(pubwic wesouwce: UWI, pwivate id = 'testEditowInputFowMementoTest') {
+				supa();
 			}
-			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			ovewwide get typeId() { wetuwn 'testEditowInputFowMementoTest'; }
+			ovewwide async wesowve(): Pwomise<IEditowModew | nuww> { wetuwn nuww; }
 
-			override matches(other: TestEditorInput): boolean {
-				return other && this.id === other.id && other instanceof TestEditorInput;
+			ovewwide matches(otha: TestEditowInput): boowean {
+				wetuwn otha && this.id === otha.id && otha instanceof TestEditowInput;
 			}
 		}
 
-		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
+		const wawMemento = Object.cweate(nuww);
+		const memento = new EditowMemento<TestViewState>('id', 'key', wawMemento, 3, new TestEditowGwoupsSewvice(), new TestTextWesouwceConfiguwationSewvice());
 
-		const testInputA = new TestEditorInput(URI.file('/A'));
+		const testInputA = new TestEditowInput(UWI.fiwe('/A'));
 
-		let res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(!res);
+		wet wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(!wes);
 
-		memento.saveEditorState(testGroup0, testInputA.resource, { line: 3 });
-		res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		memento.saveEditowState(testGwoup0, testInputA.wesouwce, { wine: 3 });
+		wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(wes);
+		assewt.stwictEquaw(wes!.wine, 3);
 
-		// State not yet removed when input gets disposed
-		// because we used resource
+		// State not yet wemoved when input gets disposed
+		// because we used wesouwce
 		testInputA.dispose();
-		res = memento.loadEditorState(testGroup0, testInputA);
-		assert.ok(res);
+		wes = memento.woadEditowState(testGwoup0, testInputA);
+		assewt.ok(wes);
 
-		const testInputB = new TestEditorInput(URI.file('/B'));
+		const testInputB = new TestEditowInput(UWI.fiwe('/B'));
 
-		res = memento.loadEditorState(testGroup0, testInputB);
-		assert.ok(!res);
+		wes = memento.woadEditowState(testGwoup0, testInputB);
+		assewt.ok(!wes);
 
-		memento.saveEditorState(testGroup0, testInputB.resource, { line: 3 });
-		res = memento.loadEditorState(testGroup0, testInputB);
-		assert.ok(res);
-		assert.strictEqual(res!.line, 3);
+		memento.saveEditowState(testGwoup0, testInputB.wesouwce, { wine: 3 });
+		wes = memento.woadEditowState(testGwoup0, testInputB);
+		assewt.ok(wes);
+		assewt.stwictEquaw(wes!.wine, 3);
 
-		memento.clearEditorStateOnDispose(testInputB.resource, testInputB);
+		memento.cweawEditowStateOnDispose(testInputB.wesouwce, testInputB);
 
-		// State removed when input gets disposed
+		// State wemoved when input gets disposed
 		testInputB.dispose();
-		res = memento.loadEditorState(testGroup0, testInputB);
-		assert.ok(!res);
+		wes = memento.woadEditowState(testGwoup0, testInputB);
+		assewt.ok(!wes);
 	});
 
-	test('EditorMemento - workbench.editor.sharedViewState', function () {
-		const testGroup0 = new TestEditorGroupView(0);
-		const testGroup1 = new TestEditorGroupView(1);
+	test('EditowMemento - wowkbench.editow.shawedViewState', function () {
+		const testGwoup0 = new TestEditowGwoupView(0);
+		const testGwoup1 = new TestEditowGwoupView(1);
 
-		const configurationService = new TestTextResourceConfigurationService(new TestConfigurationService({
-			workbench: {
-				editor: {
-					sharedViewState: true
+		const configuwationSewvice = new TestTextWesouwceConfiguwationSewvice(new TestConfiguwationSewvice({
+			wowkbench: {
+				editow: {
+					shawedViewState: twue
 				}
 			}
 		}));
-		const editorGroupService = new TestEditorGroupsService([testGroup0]);
+		const editowGwoupSewvice = new TestEditowGwoupsSewvice([testGwoup0]);
 
-		interface TestViewState { line: number; }
+		intewface TestViewState { wine: numba; }
 
-		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		const wawMemento = Object.cweate(nuww);
+		const memento = new EditowMemento<TestViewState>('id', 'key', wawMemento, 3, editowGwoupSewvice, configuwationSewvice);
 
-		const resource = URI.file('/some/folder/file-1.txt');
-		memento.saveEditorState(testGroup0, resource, { line: 1 });
+		const wesouwce = UWI.fiwe('/some/fowda/fiwe-1.txt');
+		memento.saveEditowState(testGwoup0, wesouwce, { wine: 1 });
 
-		let res = memento.loadEditorState(testGroup0, resource);
-		assert.strictEqual(res!.line, 1);
+		wet wes = memento.woadEditowState(testGwoup0, wesouwce);
+		assewt.stwictEquaw(wes!.wine, 1);
 
-		res = memento.loadEditorState(testGroup1, resource);
-		assert.strictEqual(res!.line, 1);
+		wes = memento.woadEditowState(testGwoup1, wesouwce);
+		assewt.stwictEquaw(wes!.wine, 1);
 
-		memento.saveEditorState(testGroup0, resource, { line: 3 });
+		memento.saveEditowState(testGwoup0, wesouwce, { wine: 3 });
 
-		res = memento.loadEditorState(testGroup1, resource);
-		assert.strictEqual(res!.line, 3);
+		wes = memento.woadEditowState(testGwoup1, wesouwce);
+		assewt.stwictEquaw(wes!.wine, 3);
 
-		memento.saveEditorState(testGroup1, resource, { line: 1 });
+		memento.saveEditowState(testGwoup1, wesouwce, { wine: 1 });
 
-		res = memento.loadEditorState(testGroup1, resource);
-		assert.strictEqual(res!.line, 1);
+		wes = memento.woadEditowState(testGwoup1, wesouwce);
+		assewt.stwictEquaw(wes!.wine, 1);
 
-		memento.clearEditorState(resource, testGroup0);
-		memento.clearEditorState(resource, testGroup1);
+		memento.cweawEditowState(wesouwce, testGwoup0);
+		memento.cweawEditowState(wesouwce, testGwoup1);
 
-		res = memento.loadEditorState(testGroup1, resource);
-		assert.strictEqual(res!.line, 1);
+		wes = memento.woadEditowState(testGwoup1, wesouwce);
+		assewt.stwictEquaw(wes!.wine, 1);
 
-		memento.clearEditorState(resource);
+		memento.cweawEditowState(wesouwce);
 
-		res = memento.loadEditorState(testGroup1, resource);
-		assert.ok(!res);
+		wes = memento.woadEditowState(testGwoup1, wesouwce);
+		assewt.ok(!wes);
 	});
 
-	test('WorkspaceTrustRequiredEditor', async function () {
+	test('WowkspaceTwustWequiwedEditow', async function () {
 
-		class TrustRequiredTestEditor extends EditorPane {
-			constructor(@ITelemetryService telemetryService: ITelemetryService) {
-				super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+		cwass TwustWequiwedTestEditow extends EditowPane {
+			constwuctow(@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice) {
+				supa('TestEditow', NuwwTewemetwySewvice, NuwwThemeSewvice, new TestStowageSewvice());
 			}
 
-			override getId(): string { return 'trustRequiredTestEditor'; }
-			layout(): void { }
-			createEditor(): any { }
+			ovewwide getId(): stwing { wetuwn 'twustWequiwedTestEditow'; }
+			wayout(): void { }
+			cweateEditow(): any { }
 		}
 
-		class TrustRequiredTestInput extends EditorInput {
+		cwass TwustWequiwedTestInput extends EditowInput {
 
-			readonly resource = undefined;
+			weadonwy wesouwce = undefined;
 
-			override get typeId(): string {
-				return 'trustRequiredTestInput';
+			ovewwide get typeId(): stwing {
+				wetuwn 'twustWequiwedTestInput';
 			}
 
-			override get capabilities(): EditorInputCapabilities {
-				return EditorInputCapabilities.RequiresTrust;
+			ovewwide get capabiwities(): EditowInputCapabiwities {
+				wetuwn EditowInputCapabiwities.WequiwesTwust;
 			}
 
-			override resolve(): any {
-				return null;
+			ovewwide wesowve(): any {
+				wetuwn nuww;
 			}
 		}
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		const instantiationService = workbenchInstantiationService();
-		const workspaceTrustService = instantiationService.createInstance(TestWorkspaceTrustManagementService);
-		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
-		workspaceTrustService.setWorkspaceTrust(false);
+		const instantiationSewvice = wowkbenchInstantiationSewvice();
+		const wowkspaceTwustSewvice = instantiationSewvice.cweateInstance(TestWowkspaceTwustManagementSewvice);
+		instantiationSewvice.stub(IWowkspaceTwustManagementSewvice, wowkspaceTwustSewvice);
+		wowkspaceTwustSewvice.setWowkspaceTwust(fawse);
 
-		const editorPart = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, editorPart);
+		const editowPawt = await cweateEditowPawt(instantiationSewvice, disposabwes);
+		instantiationSewvice.stub(IEditowGwoupsSewvice, editowPawt);
 
-		const editorService = instantiationService.createInstance(EditorService);
-		instantiationService.stub(IEditorService, editorService);
+		const editowSewvice = instantiationSewvice.cweateInstance(EditowSewvice);
+		instantiationSewvice.stub(IEditowSewvice, editowSewvice);
 
-		const group = editorPart.activeGroup;
+		const gwoup = editowPawt.activeGwoup;
 
-		const editorDescriptor = EditorPaneDescriptor.create(TrustRequiredTestEditor, 'id1', 'name');
-		disposables.add(editorRegistry.registerEditorPane(editorDescriptor, [new SyncDescriptor(TrustRequiredTestInput)]));
+		const editowDescwiptow = EditowPaneDescwiptow.cweate(TwustWequiwedTestEditow, 'id1', 'name');
+		disposabwes.add(editowWegistwy.wegistewEditowPane(editowDescwiptow, [new SyncDescwiptow(TwustWequiwedTestInput)]));
 
-		const testInput = new TrustRequiredTestInput();
+		const testInput = new TwustWequiwedTestInput();
 
-		await group.openEditor(testInput);
-		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredEditor.ID);
+		await gwoup.openEditow(testInput);
+		assewt.stwictEquaw(gwoup.activeEditowPane?.getId(), WowkspaceTwustWequiwedEditow.ID);
 
-		const getEditorPaneIdAsync = () => new Promise(resolve => {
-			disposables.add(editorService.onDidActiveEditorChange(event => {
-				resolve(group.activeEditorPane?.getId());
+		const getEditowPaneIdAsync = () => new Pwomise(wesowve => {
+			disposabwes.add(editowSewvice.onDidActiveEditowChange(event => {
+				wesowve(gwoup.activeEditowPane?.getId());
 			}));
 		});
 
-		workspaceTrustService.setWorkspaceTrust(true);
+		wowkspaceTwustSewvice.setWowkspaceTwust(twue);
 
-		assert.strictEqual(await getEditorPaneIdAsync(), 'trustRequiredTestEditor');
+		assewt.stwictEquaw(await getEditowPaneIdAsync(), 'twustWequiwedTestEditow');
 
-		workspaceTrustService.setWorkspaceTrust(false);
-		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredEditor.ID);
+		wowkspaceTwustSewvice.setWowkspaceTwust(fawse);
+		assewt.stwictEquaw(await getEditowPaneIdAsync(), WowkspaceTwustWequiwedEditow.ID);
 
-		dispose(disposables);
+		dispose(disposabwes);
 	});
 });

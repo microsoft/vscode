@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-declare const enum LoaderEventType {
-	LoaderAvailable = 1,
+decwawe const enum WoadewEventType {
+	WoadewAvaiwabwe = 1,
 
-	BeginLoadingScript = 10,
-	EndLoadingScriptOK = 11,
-	EndLoadingScriptError = 12,
+	BeginWoadingScwipt = 10,
+	EndWoadingScwiptOK = 11,
+	EndWoadingScwiptEwwow = 12,
 
-	BeginInvokeFactory = 21,
-	EndInvokeFactory = 22,
+	BeginInvokeFactowy = 21,
+	EndInvokeFactowy = 22,
 
-	NodeBeginEvaluatingScript = 31,
-	NodeEndEvaluatingScript = 32,
+	NodeBeginEvawuatingScwipt = 31,
+	NodeEndEvawuatingScwipt = 32,
 
-	NodeBeginNativeRequire = 33,
-	NodeEndNativeRequire = 34,
+	NodeBeginNativeWequiwe = 33,
+	NodeEndNativeWequiwe = 34,
 
 	CachedDataFound = 60,
 	CachedDataMissed = 61,
-	CachedDataRejected = 62,
-	CachedDataCreated = 63,
+	CachedDataWejected = 62,
+	CachedDataCweated = 63,
 }
 
-declare class LoaderEvent {
-	readonly type: LoaderEventType;
-	readonly timestamp: number;
-	readonly detail: string;
+decwawe cwass WoadewEvent {
+	weadonwy type: WoadewEventType;
+	weadonwy timestamp: numba;
+	weadonwy detaiw: stwing;
 }
 
-declare const define: {
-	(moduleName: string, dependencies: string[], callback: (...args: any[]) => any): any;
-	(moduleName: string, dependencies: string[], definition: any): any;
-	(moduleName: string, callback: (...args: any[]) => any): any;
-	(moduleName: string, definition: any): any;
-	(dependencies: string[], callback: (...args: any[]) => any): any;
-	(dependencies: string[], definition: any): any;
+decwawe const define: {
+	(moduweName: stwing, dependencies: stwing[], cawwback: (...awgs: any[]) => any): any;
+	(moduweName: stwing, dependencies: stwing[], definition: any): any;
+	(moduweName: stwing, cawwback: (...awgs: any[]) => any): any;
+	(moduweName: stwing, definition: any): any;
+	(dependencies: stwing[], cawwback: (...awgs: any[]) => any): any;
+	(dependencies: stwing[], definition: any): any;
 };
 
-interface NodeRequire {
+intewface NodeWequiwe {
 	/**
-	 * @deprecated use `FileAccess.asFileUri()` for node.js contexts or `FileAccess.asBrowserUri` for browser contexts.
+	 * @depwecated use `FiweAccess.asFiweUwi()` fow node.js contexts ow `FiweAccess.asBwowsewUwi` fow bwowsa contexts.
 	 */
-	toUrl(path: string): string;
-	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
+	toUww(path: stwing): stwing;
+	(dependencies: stwing[], cawwback: (...awgs: any[]) => any, ewwowback?: (eww: any) => void): any;
 	config(data: any): any;
-	onError: Function;
-	__$__nodeRequire<T>(moduleName: string): T;
-	getStats(): ReadonlyArray<LoaderEvent>;
-	hasDependencyCycle(): boolean;
-	define(amdModuleId: string, dependencies: string[], callback: (...args: any[]) => any): any;
+	onEwwow: Function;
+	__$__nodeWequiwe<T>(moduweName: stwing): T;
+	getStats(): WeadonwyAwway<WoadewEvent>;
+	hasDependencyCycwe(): boowean;
+	define(amdModuweId: stwing, dependencies: stwing[], cawwback: (...awgs: any[]) => any): any;
 }
 
-declare var require: NodeRequire;
+decwawe vaw wequiwe: NodeWequiwe;

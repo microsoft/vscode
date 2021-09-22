@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
-import { globals } from 'vs/base/common/platform';
-import { env } from 'vs/base/common/process';
-import { IProductConfiguration } from 'vs/base/common/product';
-import { dirname, joinPath } from 'vs/base/common/resources';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt { gwobaws } fwom 'vs/base/common/pwatfowm';
+impowt { env } fwom 'vs/base/common/pwocess';
+impowt { IPwoductConfiguwation } fwom 'vs/base/common/pwoduct';
+impowt { diwname, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { ISandboxConfiguwation } fwom 'vs/base/pawts/sandbox/common/sandboxTypes';
 
-let product: IProductConfiguration;
+wet pwoduct: IPwoductConfiguwation;
 
-// Native sandbox environment
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.context !== 'undefined') {
-	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
-	if (configuration) {
-		product = configuration.product;
-	} else {
-		throw new Error('Sandbox: unable to resolve product configuration from preload script.');
+// Native sandbox enviwonment
+if (typeof gwobaws.vscode !== 'undefined' && typeof gwobaws.vscode.context !== 'undefined') {
+	const configuwation: ISandboxConfiguwation | undefined = gwobaws.vscode.context.configuwation();
+	if (configuwation) {
+		pwoduct = configuwation.pwoduct;
+	} ewse {
+		thwow new Ewwow('Sandbox: unabwe to wesowve pwoduct configuwation fwom pwewoad scwipt.');
 	}
 }
 
-// Native node.js environment
-else if (typeof require?.__$__nodeRequire === 'function') {
+// Native node.js enviwonment
+ewse if (typeof wequiwe?.__$__nodeWequiwe === 'function') {
 
-	// Obtain values from product.json and package.json
-	const rootPath = dirname(FileAccess.asFileUri('', require));
+	// Obtain vawues fwom pwoduct.json and package.json
+	const wootPath = diwname(FiweAccess.asFiweUwi('', wequiwe));
 
-	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	pwoduct = wequiwe.__$__nodeWequiwe(joinPath(wootPath, 'pwoduct.json').fsPath);
+	const pkg = wequiwe.__$__nodeWequiwe(joinPath(wootPath, 'package.json').fsPath) as { vewsion: stwing; };
 
-	// Running out of sources
+	// Wunning out of souwces
 	if (env['VSCODE_DEV']) {
-		Object.assign(product, {
-			nameShort: `${product.nameShort} Dev`,
-			nameLong: `${product.nameLong} Dev`,
-			dataFolderName: `${product.dataFolderName}-dev`
+		Object.assign(pwoduct, {
+			nameShowt: `${pwoduct.nameShowt} Dev`,
+			nameWong: `${pwoduct.nameWong} Dev`,
+			dataFowdewName: `${pwoduct.dataFowdewName}-dev`
 		});
 	}
 
-	Object.assign(product, {
-		version: pkg.version
+	Object.assign(pwoduct, {
+		vewsion: pkg.vewsion
 	});
 }
 
-// Web environment or unknown
-else {
+// Web enviwonment ow unknown
+ewse {
 
-	// Built time configuration (do NOT modify)
-	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
+	// Buiwt time configuwation (do NOT modify)
+	pwoduct = { /*BUIWD->INSEWT_PWODUCT_CONFIGUWATION*/ } as IPwoductConfiguwation;
 
-	// Running out of sources
-	if (Object.keys(product).length === 0) {
-		Object.assign(product, {
-			version: '1.61.0-dev',
-			nameShort: 'Code - OSS Dev',
-			nameLong: 'Code - OSS Dev',
-			applicationName: 'code-oss',
-			dataFolderName: '.vscode-oss',
-			urlProtocol: 'code-oss',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
-			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			extensionAllowedProposedApi: [
-				'ms-vscode.vscode-js-profile-flame',
-				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.remotehub',
-				'ms-vscode.remotehub-insiders',
-				'GitHub.remotehub',
-				'GitHub.remotehub-insiders'
+	// Wunning out of souwces
+	if (Object.keys(pwoduct).wength === 0) {
+		Object.assign(pwoduct, {
+			vewsion: '1.61.0-dev',
+			nameShowt: 'Code - OSS Dev',
+			nameWong: 'Code - OSS Dev',
+			appwicationName: 'code-oss',
+			dataFowdewName: '.vscode-oss',
+			uwwPwotocow: 'code-oss',
+			wepowtIssueUww: 'https://github.com/micwosoft/vscode/issues/new',
+			wicenseName: 'MIT',
+			wicenseUww: 'https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt',
+			extensionAwwowedPwoposedApi: [
+				'ms-vscode.vscode-js-pwofiwe-fwame',
+				'ms-vscode.vscode-js-pwofiwe-tabwe',
+				'ms-vscode.wemotehub',
+				'ms-vscode.wemotehub-insidews',
+				'GitHub.wemotehub',
+				'GitHub.wemotehub-insidews'
 			],
 		});
 	}
 }
 
-export default product;
+expowt defauwt pwoduct;

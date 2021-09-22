@@ -1,210 +1,210 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ITextModel } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Event } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+impowt * as assewt fwom 'assewt';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { TextWesouwceEditowModew } fwom 'vs/wowkbench/common/editow/textWesouwceEditowModew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestTextFiweEditowModewManaga } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { snapshotToStwing } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { UntitwedTextEditowInput } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowInput';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
 
-suite('Workbench - TextModelResolverService', () => {
+suite('Wowkbench - TextModewWesowvewSewvice', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let model: TextFileEditorModel;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
+	wet modew: TextFiweEditowModew;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	teardown(() => {
-		model?.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
+	teawdown(() => {
+		modew?.dispose();
+		(<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).dispose();
 	});
 
-	test('resolve resource', async () => {
-		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
-				if (resource.scheme === 'test') {
-					let modelContent = 'Hello Test';
-					let languageSelection = accessor.modeService.create('json');
+	test('wesowve wesouwce', async () => {
+		const disposabwe = accessow.textModewWesowvewSewvice.wegistewTextModewContentPwovida('test', {
+			pwovideTextContent: async function (wesouwce: UWI): Pwomise<ITextModew | nuww> {
+				if (wesouwce.scheme === 'test') {
+					wet modewContent = 'Hewwo Test';
+					wet wanguageSewection = accessow.modeSewvice.cweate('json');
 
-					return accessor.modelService.createModel(modelContent, languageSelection, resource);
+					wetuwn accessow.modewSewvice.cweateModew(modewContent, wanguageSewection, wesouwce);
 				}
 
-				return null;
+				wetuwn nuww;
 			}
 		});
 
-		let resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
-		let input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
+		wet wesouwce = UWI.fwom({ scheme: 'test', authowity: nuww!, path: 'thePath' });
+		wet input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', undefined, undefined);
 
-		const model = await input.resolve();
-		assert.ok(model);
-		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'Hello Test');
-		let disposed = false;
-		let disposedPromise = new Promise<void>(resolve => {
-			Event.once(model.onWillDispose)(() => {
-				disposed = true;
-				resolve();
+		const modew = await input.wesowve();
+		assewt.ok(modew);
+		assewt.stwictEquaw(snapshotToStwing(((modew as TextWesouwceEditowModew).cweateSnapshot()!)), 'Hewwo Test');
+		wet disposed = fawse;
+		wet disposedPwomise = new Pwomise<void>(wesowve => {
+			Event.once(modew.onWiwwDispose)(() => {
+				disposed = twue;
+				wesowve();
 			});
 		});
 		input.dispose();
 
-		await disposedPromise;
-		assert.strictEqual(disposed, true);
-		disposable.dispose();
+		await disposedPwomise;
+		assewt.stwictEquaw(disposed, twue);
+		disposabwe.dispose();
 	});
 
-	test('resolve file', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
+	test('wesowve fiwe', async function () {
+		const textModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe_wesowva.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(textModew.wesouwce, textModew);
 
-		await textModel.resolve();
+		await textModew.wesowve();
 
-		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
+		const wef = await accessow.textModewWesowvewSewvice.cweateModewWefewence(textModew.wesouwce);
 
-		const model = ref.object;
-		const editorModel = model.textEditorModel;
+		const modew = wef.object;
+		const editowModew = modew.textEditowModew;
 
-		assert.ok(editorModel);
-		assert.strictEqual(editorModel.getValue(), 'Hello Html');
+		assewt.ok(editowModew);
+		assewt.stwictEquaw(editowModew.getVawue(), 'Hewwo Htmw');
 
-		let disposed = false;
-		Event.once(model.onWillDispose)(() => {
-			disposed = true;
+		wet disposed = fawse;
+		Event.once(modew.onWiwwDispose)(() => {
+			disposed = twue;
 		});
 
-		ref.dispose();
-		await timeout(0);  // due to the reference resolving the model first which is async
-		assert.strictEqual(disposed, true);
+		wef.dispose();
+		await timeout(0);  // due to the wefewence wesowving the modew fiwst which is async
+		assewt.stwictEquaw(disposed, twue);
 	});
 
-	test('resolved dirty file eventually disposes', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
+	test('wesowved diwty fiwe eventuawwy disposes', async function () {
+		const textModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe_wesowva.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(textModew.wesouwce, textModew);
 
-		await textModel.resolve();
+		await textModew.wesowve();
 
-		textModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		textModew.updateTextEditowModew(cweateTextBuffewFactowy('make diwty'));
 
-		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
+		const wef = await accessow.textModewWesowvewSewvice.cweateModewWefewence(textModew.wesouwce);
 
-		let disposed = false;
-		Event.once(textModel.onWillDispose)(() => {
-			disposed = true;
+		wet disposed = fawse;
+		Event.once(textModew.onWiwwDispose)(() => {
+			disposed = twue;
 		});
 
-		ref.dispose();
+		wef.dispose();
 		await timeout(0);
-		assert.strictEqual(disposed, false); // not disposed because model still dirty
+		assewt.stwictEquaw(disposed, fawse); // not disposed because modew stiww diwty
 
-		textModel.revert();
+		textModew.wevewt();
 
 		await timeout(0);
-		assert.strictEqual(disposed, true); // now disposed because model got reverted
+		assewt.stwictEquaw(disposed, twue); // now disposed because modew got wevewted
 	});
 
-	test('resolved dirty file does not dispose when new reference created', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
+	test('wesowved diwty fiwe does not dispose when new wefewence cweated', async function () {
+		const textModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/fiwe_wesowva.txt'), 'utf8', undefined);
+		(<TestTextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).add(textModew.wesouwce, textModew);
 
-		await textModel.resolve();
+		await textModew.wesowve();
 
-		textModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		textModew.updateTextEditowModew(cweateTextBuffewFactowy('make diwty'));
 
-		const ref1 = await accessor.textModelResolverService.createModelReference(textModel.resource);
+		const wef1 = await accessow.textModewWesowvewSewvice.cweateModewWefewence(textModew.wesouwce);
 
-		let disposed = false;
-		Event.once(textModel.onWillDispose)(() => {
-			disposed = true;
+		wet disposed = fawse;
+		Event.once(textModew.onWiwwDispose)(() => {
+			disposed = twue;
 		});
 
-		ref1.dispose();
+		wef1.dispose();
 		await timeout(0);
-		assert.strictEqual(disposed, false); // not disposed because model still dirty
+		assewt.stwictEquaw(disposed, fawse); // not disposed because modew stiww diwty
 
-		const ref2 = await accessor.textModelResolverService.createModelReference(textModel.resource);
+		const wef2 = await accessow.textModewWesowvewSewvice.cweateModewWefewence(textModew.wesouwce);
 
-		textModel.revert();
-
-		await timeout(0);
-		assert.strictEqual(disposed, false); // not disposed because we got another ref meanwhile
-
-		ref2.dispose();
+		textModew.wevewt();
 
 		await timeout(0);
-		assert.strictEqual(disposed, true); // now disposed because last ref got disposed
+		assewt.stwictEquaw(disposed, fawse); // not disposed because we got anotha wef meanwhiwe
+
+		wef2.dispose();
+
+		await timeout(0);
+		assewt.stwictEquaw(disposed, twue); // now disposed because wast wef got disposed
 	});
 
-	test('resolve untitled', async () => {
-		const service = accessor.untitledTextEditorService;
-		const untitledModel = service.create();
-		const input = instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
+	test('wesowve untitwed', async () => {
+		const sewvice = accessow.untitwedTextEditowSewvice;
+		const untitwedModew = sewvice.cweate();
+		const input = instantiationSewvice.cweateInstance(UntitwedTextEditowInput, untitwedModew);
 
-		await input.resolve();
-		const ref = await accessor.textModelResolverService.createModelReference(input.resource);
-		const model = ref.object;
-		assert.strictEqual(untitledModel, model);
-		const editorModel = model.textEditorModel;
-		assert.ok(editorModel);
-		ref.dispose();
+		await input.wesowve();
+		const wef = await accessow.textModewWesowvewSewvice.cweateModewWefewence(input.wesouwce);
+		const modew = wef.object;
+		assewt.stwictEquaw(untitwedModew, modew);
+		const editowModew = modew.textEditowModew;
+		assewt.ok(editowModew);
+		wef.dispose();
 		input.dispose();
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('even loading documents should be refcounted', async () => {
-		let resolveModel!: Function;
-		let waitForIt = new Promise(resolve => resolveModel = resolve);
+	test('even woading documents shouwd be wefcounted', async () => {
+		wet wesowveModew!: Function;
+		wet waitFowIt = new Pwomise(wesowve => wesowveModew = wesowve);
 
-		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): Promise<ITextModel> => {
-				await waitForIt;
+		const disposabwe = accessow.textModewWesowvewSewvice.wegistewTextModewContentPwovida('test', {
+			pwovideTextContent: async (wesouwce: UWI): Pwomise<ITextModew> => {
+				await waitFowIt;
 
-				let modelContent = 'Hello Test';
-				let languageSelection = accessor.modeService.create('json');
-				return accessor.modelService.createModel(modelContent, languageSelection, resource);
+				wet modewContent = 'Hewwo Test';
+				wet wanguageSewection = accessow.modeSewvice.cweate('json');
+				wetuwn accessow.modewSewvice.cweateModew(modewContent, wanguageSewection, wesouwce);
 			}
 		});
 
-		const uri = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
+		const uwi = UWI.fwom({ scheme: 'test', authowity: nuww!, path: 'thePath' });
 
-		const modelRefPromise1 = accessor.textModelResolverService.createModelReference(uri);
-		const modelRefPromise2 = accessor.textModelResolverService.createModelReference(uri);
+		const modewWefPwomise1 = accessow.textModewWesowvewSewvice.cweateModewWefewence(uwi);
+		const modewWefPwomise2 = accessow.textModewWesowvewSewvice.cweateModewWefewence(uwi);
 
-		resolveModel();
+		wesowveModew();
 
-		const modelRef1 = await modelRefPromise1;
-		const model1 = modelRef1.object;
-		const modelRef2 = await modelRefPromise2;
-		const model2 = modelRef2.object;
-		const textModel = model1.textEditorModel;
+		const modewWef1 = await modewWefPwomise1;
+		const modew1 = modewWef1.object;
+		const modewWef2 = await modewWefPwomise2;
+		const modew2 = modewWef2.object;
+		const textModew = modew1.textEditowModew;
 
-		assert.strictEqual(model1, model2, 'they are the same model');
-		assert(!textModel.isDisposed(), 'the text model should not be disposed');
+		assewt.stwictEquaw(modew1, modew2, 'they awe the same modew');
+		assewt(!textModew.isDisposed(), 'the text modew shouwd not be disposed');
 
-		modelRef1.dispose();
-		assert(!textModel.isDisposed(), 'the text model should still not be disposed');
+		modewWef1.dispose();
+		assewt(!textModew.isDisposed(), 'the text modew shouwd stiww not be disposed');
 
-		let p1 = new Promise<void>(resolve => textModel.onWillDispose(resolve));
-		modelRef2.dispose();
+		wet p1 = new Pwomise<void>(wesowve => textModew.onWiwwDispose(wesowve));
+		modewWef2.dispose();
 
 		await p1;
-		assert(textModel.isDisposed(), 'the text model should finally be disposed');
+		assewt(textModew.isDisposed(), 'the text modew shouwd finawwy be disposed');
 
-		disposable.dispose();
+		disposabwe.dispose();
 	});
 });

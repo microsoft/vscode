@@ -1,1745 +1,1745 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, SingleLineInlineDecoration, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { WwappingIndent } fwom 'vs/editow/common/config/editowOptions';
+impowt { IViewWineTokens, WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EndOfWinePwefewence, IActiveIndentGuideInfo, IModewDecowation, IModewDewtaDecowation, ITextModew, PositionAffinity } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions, ModewDecowationOvewviewWuwewOptions } fwom 'vs/editow/common/modew/textModew';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { PwefixSumIndexOfWesuwt } fwom 'vs/editow/common/viewModew/pwefixSumComputa';
+impowt { ICoowdinatesConvewta, InjectedText, IWineBweaksComputa, IOvewviewWuwewDecowations, WineBweakData, SingweWineInwineDecowation, ViewWineData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { FontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { EditowTheme } fwom 'vs/editow/common/view/viewContext';
+impowt { WineInjectedText } fwom 'vs/editow/common/modew/textModewEvents';
 
-export interface ILineBreaksComputerFactory {
-	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
+expowt intewface IWineBweaksComputewFactowy {
+	cweateWineBweaksComputa(fontInfo: FontInfo, tabSize: numba, wwappingCowumn: numba, wwappingIndent: WwappingIndent): IWineBweaksComputa;
 }
 
-export interface ISimpleModel {
-	getLineTokens(lineNumber: number): LineTokens;
-	getLineContent(lineNumber: number): string;
-	getLineLength(lineNumber: number): number;
-	getLineMinColumn(lineNumber: number): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getValueInRange(range: IRange, eol?: EndOfLinePreference): string;
+expowt intewface ISimpweModew {
+	getWineTokens(wineNumba: numba): WineTokens;
+	getWineContent(wineNumba: numba): stwing;
+	getWineWength(wineNumba: numba): numba;
+	getWineMinCowumn(wineNumba: numba): numba;
+	getWineMaxCowumn(wineNumba: numba): numba;
+	getVawueInWange(wange: IWange, eow?: EndOfWinePwefewence): stwing;
 }
 
-export interface ISplitLine {
-	isVisible(): boolean;
-	setVisible(isVisible: boolean): ISplitLine;
+expowt intewface ISpwitWine {
+	isVisibwe(): boowean;
+	setVisibwe(isVisibwe: boowean): ISpwitWine;
 
-	getLineBreakData(): LineBreakData | null;
-	getViewLineCount(): number;
-	getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string;
-	getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
-	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
-	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
-	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void;
+	getWineBweakData(): WineBweakData | nuww;
+	getViewWineCount(): numba;
+	getViewWineContent(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): stwing;
+	getViewWineWength(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba;
+	getViewWineMinCowumn(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba;
+	getViewWineMaxCowumn(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba;
+	getViewWineData(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): ViewWineData;
+	getViewWinesData(modew: ISimpweModew, modewWineNumba: numba, fwomOuputWineIndex: numba, toOutputWineIndex: numba, gwobawStawtIndex: numba, needed: boowean[], wesuwt: Awway<ViewWineData | nuww>): void;
 
-	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
-	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity?: PositionAffinity): Position;
-	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
-	normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position;
+	getModewCowumnOfViewPosition(outputWineIndex: numba, outputCowumn: numba): numba;
+	getViewPositionOfModewPosition(dewtaWineNumba: numba, inputCowumn: numba, affinity?: PositionAffinity): Position;
+	getViewWineNumbewOfModewPosition(dewtaWineNumba: numba, inputCowumn: numba): numba;
+	nowmawizePosition(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba, outputPosition: Position, affinity: PositionAffinity): Position;
 
-	getInjectedTextAt(outputLineIndex: number, column: number): InjectedText | null;
+	getInjectedTextAt(outputWineIndex: numba, cowumn: numba): InjectedText | nuww;
 }
 
-export interface IViewModelLinesCollection extends IDisposable {
-	createCoordinatesConverter(): ICoordinatesConverter;
+expowt intewface IViewModewWinesCowwection extends IDisposabwe {
+	cweateCoowdinatesConvewta(): ICoowdinatesConvewta;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
-	setTabSize(newTabSize: number): boolean;
-	getHiddenAreas(): Range[];
-	setHiddenAreas(_ranges: Range[]): boolean;
+	setWwappingSettings(fontInfo: FontInfo, wwappingStwategy: 'simpwe' | 'advanced', wwappingCowumn: numba, wwappingIndent: WwappingIndent): boowean;
+	setTabSize(newTabSize: numba): boowean;
+	getHiddenAweas(): Wange[];
+	setHiddenAweas(_wanges: Wange[]): boowean;
 
-	createLineBreaksComputer(): ILineBreaksComputer;
-	onModelFlushed(): void;
-	onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null;
-	onModelLinesInserted(versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null;
-	onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null];
-	acceptVersionId(versionId: number): void;
+	cweateWineBweaksComputa(): IWineBweaksComputa;
+	onModewFwushed(): void;
+	onModewWinesDeweted(vewsionId: numba | nuww, fwomWineNumba: numba, toWineNumba: numba): viewEvents.ViewWinesDewetedEvent | nuww;
+	onModewWinesInsewted(vewsionId: numba | nuww, fwomWineNumba: numba, toWineNumba: numba, wineBweaks: (WineBweakData | nuww)[]): viewEvents.ViewWinesInsewtedEvent | nuww;
+	onModewWineChanged(vewsionId: numba | nuww, wineNumba: numba, wineBweakData: WineBweakData | nuww): [boowean, viewEvents.ViewWinesChangedEvent | nuww, viewEvents.ViewWinesInsewtedEvent | nuww, viewEvents.ViewWinesDewetedEvent | nuww];
+	acceptVewsionId(vewsionId: numba): void;
 
-	getViewLineCount(): number;
-	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
-	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
-	getViewLineContent(viewLineNumber: number): string;
-	getViewLineLength(viewLineNumber: number): number;
-	getViewLineMinColumn(viewLineNumber: number): number;
-	getViewLineMaxColumn(viewLineNumber: number): number;
-	getViewLineData(viewLineNumber: number): ViewLineData;
-	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
+	getViewWineCount(): numba;
+	getActiveIndentGuide(viewWineNumba: numba, minWineNumba: numba, maxWineNumba: numba): IActiveIndentGuideInfo;
+	getViewWinesIndentGuides(viewStawtWineNumba: numba, viewEndWineNumba: numba): numba[];
+	getViewWineContent(viewWineNumba: numba): stwing;
+	getViewWineWength(viewWineNumba: numba): numba;
+	getViewWineMinCowumn(viewWineNumba: numba): numba;
+	getViewWineMaxCowumn(viewWineNumba: numba): numba;
+	getViewWineData(viewWineNumba: numba): ViewWineData;
+	getViewWinesData(viewStawtWineNumba: numba, viewEndWineNumba: numba, needed: boowean[]): Awway<ViewWineData | nuww>;
 
-	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations;
-	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
+	getAwwOvewviewWuwewDecowations(ownewId: numba, fiwtewOutVawidation: boowean, theme: EditowTheme): IOvewviewWuwewDecowations;
+	getDecowationsInWange(wange: Wange, ownewId: numba, fiwtewOutVawidation: boowean): IModewDecowation[];
 
-	getInjectedTextAt(viewPosition: Position): InjectedText | null;
+	getInjectedTextAt(viewPosition: Position): InjectedText | nuww;
 
-	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position;
 	/**
-	 * Gets the column at which indentation stops at a given line.
-	 * @internal
+	 * Gets the cowumn at which indentation stops at a given wine.
+	 * @intewnaw
 	*/
-	getLineIndentColumn(lineNumber: number): number;
+	getWineIndentCowumn(wineNumba: numba): numba;
 }
 
-export class CoordinatesConverter implements ICoordinatesConverter {
+expowt cwass CoowdinatesConvewta impwements ICoowdinatesConvewta {
 
-	private readonly _lines: SplitLinesCollection;
+	pwivate weadonwy _wines: SpwitWinesCowwection;
 
-	constructor(lines: SplitLinesCollection) {
-		this._lines = lines;
+	constwuctow(wines: SpwitWinesCowwection) {
+		this._wines = wines;
 	}
 
-	// View -> Model conversion and related methods
+	// View -> Modew convewsion and wewated methods
 
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._lines.convertViewPositionToModelPosition(viewPosition.lineNumber, viewPosition.column);
+	pubwic convewtViewPositionToModewPosition(viewPosition: Position): Position {
+		wetuwn this._wines.convewtViewPositionToModewPosition(viewPosition.wineNumba, viewPosition.cowumn);
 	}
 
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._lines.convertViewRangeToModelRange(viewRange);
+	pubwic convewtViewWangeToModewWange(viewWange: Wange): Wange {
+		wetuwn this._wines.convewtViewWangeToModewWange(viewWange);
 	}
 
-	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
+	pubwic vawidateViewPosition(viewPosition: Position, expectedModewPosition: Position): Position {
+		wetuwn this._wines.vawidateViewPosition(viewPosition.wineNumba, viewPosition.cowumn, expectedModewPosition);
 	}
 
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this._lines.validateViewRange(viewRange, expectedModelRange);
+	pubwic vawidateViewWange(viewWange: Wange, expectedModewWange: Wange): Wange {
+		wetuwn this._wines.vawidateViewWange(viewWange, expectedModewWange);
 	}
 
-	// Model -> View conversion and related methods
+	// Modew -> View convewsion and wewated methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
+	pubwic convewtModewPositionToViewPosition(modewPosition: Position, affinity?: PositionAffinity): Position {
+		wetuwn this._wines.convewtModewPositionToViewPosition(modewPosition.wineNumba, modewPosition.cowumn, affinity);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
-		return this._lines.convertModelRangeToViewRange(modelRange, affinity);
+	pubwic convewtModewWangeToViewWange(modewWange: Wange, affinity?: PositionAffinity): Wange {
+		wetuwn this._wines.convewtModewWangeToViewWange(modewWange, affinity);
 	}
 
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
+	pubwic modewPositionIsVisibwe(modewPosition: Position): boowean {
+		wetuwn this._wines.modewPositionIsVisibwe(modewPosition.wineNumba, modewPosition.cowumn);
 	}
 
-	public getModelLineViewLineCount(modelLineNumber: number): number {
-		return this._lines.getModelLineViewLineCount(modelLineNumber);
+	pubwic getModewWineViewWineCount(modewWineNumba: numba): numba {
+		wetuwn this._wines.getModewWineViewWineCount(modewWineNumba);
 	}
 }
 
-const enum IndentGuideRepeatOption {
-	BlockNone = 0,
-	BlockSubsequent = 1,
-	BlockAll = 2
+const enum IndentGuideWepeatOption {
+	BwockNone = 0,
+	BwockSubsequent = 1,
+	BwockAww = 2
 }
 
-class LineNumberMapper {
+cwass WineNumbewMappa {
 
-	private _counts: number[];
-	private _isValid: boolean;
-	private _validEndIndex: number;
+	pwivate _counts: numba[];
+	pwivate _isVawid: boowean;
+	pwivate _vawidEndIndex: numba;
 
-	private _modelToView: number[];
-	private _viewToModel: number[];
+	pwivate _modewToView: numba[];
+	pwivate _viewToModew: numba[];
 
-	constructor(viewLineCounts: number[]) {
-		this._counts = viewLineCounts;
-		this._isValid = false;
-		this._validEndIndex = -1;
-		this._modelToView = [];
-		this._viewToModel = [];
+	constwuctow(viewWineCounts: numba[]) {
+		this._counts = viewWineCounts;
+		this._isVawid = fawse;
+		this._vawidEndIndex = -1;
+		this._modewToView = [];
+		this._viewToModew = [];
 	}
 
-	private _invalidate(index: number): void {
-		this._isValid = false;
-		this._validEndIndex = Math.min(this._validEndIndex, index - 1);
+	pwivate _invawidate(index: numba): void {
+		this._isVawid = fawse;
+		this._vawidEndIndex = Math.min(this._vawidEndIndex, index - 1);
 	}
 
-	private _ensureValid(): void {
-		if (this._isValid) {
-			return;
+	pwivate _ensuweVawid(): void {
+		if (this._isVawid) {
+			wetuwn;
 		}
 
-		for (let i = this._validEndIndex + 1, len = this._counts.length; i < len; i++) {
-			const viewLineCount = this._counts[i];
-			const viewLinesAbove = (i > 0 ? this._modelToView[i - 1] : 0);
+		fow (wet i = this._vawidEndIndex + 1, wen = this._counts.wength; i < wen; i++) {
+			const viewWineCount = this._counts[i];
+			const viewWinesAbove = (i > 0 ? this._modewToView[i - 1] : 0);
 
-			this._modelToView[i] = viewLinesAbove + viewLineCount;
-			for (let j = 0; j < viewLineCount; j++) {
-				this._viewToModel[viewLinesAbove + j] = i;
+			this._modewToView[i] = viewWinesAbove + viewWineCount;
+			fow (wet j = 0; j < viewWineCount; j++) {
+				this._viewToModew[viewWinesAbove + j] = i;
 			}
 		}
 
-		// trim things
-		this._modelToView.length = this._counts.length;
-		this._viewToModel.length = this._modelToView[this._modelToView.length - 1];
+		// twim things
+		this._modewToView.wength = this._counts.wength;
+		this._viewToModew.wength = this._modewToView[this._modewToView.wength - 1];
 
-		// mark as valid
-		this._isValid = true;
-		this._validEndIndex = this._counts.length - 1;
+		// mawk as vawid
+		this._isVawid = twue;
+		this._vawidEndIndex = this._counts.wength - 1;
 	}
 
-	public changeValue(index: number, value: number): void {
-		if (this._counts[index] === value) {
+	pubwic changeVawue(index: numba, vawue: numba): void {
+		if (this._counts[index] === vawue) {
 			// no change
-			return;
+			wetuwn;
 		}
-		this._counts[index] = value;
-		this._invalidate(index);
+		this._counts[index] = vawue;
+		this._invawidate(index);
 	}
 
-	public removeValues(start: number, deleteCount: number): void {
-		this._counts.splice(start, deleteCount);
-		this._invalidate(start);
+	pubwic wemoveVawues(stawt: numba, deweteCount: numba): void {
+		this._counts.spwice(stawt, deweteCount);
+		this._invawidate(stawt);
 	}
 
-	public insertValues(insertIndex: number, insertArr: number[]): void {
-		this._counts = arrays.arrayInsert(this._counts, insertIndex, insertArr);
-		this._invalidate(insertIndex);
+	pubwic insewtVawues(insewtIndex: numba, insewtAww: numba[]): void {
+		this._counts = awways.awwayInsewt(this._counts, insewtIndex, insewtAww);
+		this._invawidate(insewtIndex);
 	}
 
-	public getTotalValue(): number {
-		this._ensureValid();
-		return this._viewToModel.length;
+	pubwic getTotawVawue(): numba {
+		this._ensuweVawid();
+		wetuwn this._viewToModew.wength;
 	}
 
-	public getAccumulatedValue(index: number): number {
-		this._ensureValid();
-		return this._modelToView[index];
+	pubwic getAccumuwatedVawue(index: numba): numba {
+		this._ensuweVawid();
+		wetuwn this._modewToView[index];
 	}
 
-	public getIndexOf(accumulatedValue: number): PrefixSumIndexOfResult {
-		this._ensureValid();
-		const modelLineIndex = this._viewToModel[accumulatedValue];
-		const viewLinesAbove = (modelLineIndex > 0 ? this._modelToView[modelLineIndex - 1] : 0);
-		return new PrefixSumIndexOfResult(modelLineIndex, accumulatedValue - viewLinesAbove);
+	pubwic getIndexOf(accumuwatedVawue: numba): PwefixSumIndexOfWesuwt {
+		this._ensuweVawid();
+		const modewWineIndex = this._viewToModew[accumuwatedVawue];
+		const viewWinesAbove = (modewWineIndex > 0 ? this._modewToView[modewWineIndex - 1] : 0);
+		wetuwn new PwefixSumIndexOfWesuwt(modewWineIndex, accumuwatedVawue - viewWinesAbove);
 	}
 }
 
-export class SplitLinesCollection implements IViewModelLinesCollection {
+expowt cwass SpwitWinesCowwection impwements IViewModewWinesCowwection {
 
-	private readonly _editorId: number;
-	private readonly model: ITextModel;
-	private _validModelVersionId: number;
+	pwivate weadonwy _editowId: numba;
+	pwivate weadonwy modew: ITextModew;
+	pwivate _vawidModewVewsionId: numba;
 
-	private readonly _domLineBreaksComputerFactory: ILineBreaksComputerFactory;
-	private readonly _monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory;
+	pwivate weadonwy _domWineBweaksComputewFactowy: IWineBweaksComputewFactowy;
+	pwivate weadonwy _monospaceWineBweaksComputewFactowy: IWineBweaksComputewFactowy;
 
-	private fontInfo: FontInfo;
-	private tabSize: number;
-	private wrappingColumn: number;
-	private wrappingIndent: WrappingIndent;
-	private wrappingStrategy: 'simple' | 'advanced';
-	private lines!: ISplitLine[];
+	pwivate fontInfo: FontInfo;
+	pwivate tabSize: numba;
+	pwivate wwappingCowumn: numba;
+	pwivate wwappingIndent: WwappingIndent;
+	pwivate wwappingStwategy: 'simpwe' | 'advanced';
+	pwivate wines!: ISpwitWine[];
 
-	private prefixSumComputer!: LineNumberMapper;
+	pwivate pwefixSumComputa!: WineNumbewMappa;
 
-	private hiddenAreasIds!: string[];
+	pwivate hiddenAweasIds!: stwing[];
 
-	constructor(
-		editorId: number,
-		model: ITextModel,
-		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
-		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
+	constwuctow(
+		editowId: numba,
+		modew: ITextModew,
+		domWineBweaksComputewFactowy: IWineBweaksComputewFactowy,
+		monospaceWineBweaksComputewFactowy: IWineBweaksComputewFactowy,
 		fontInfo: FontInfo,
-		tabSize: number,
-		wrappingStrategy: 'simple' | 'advanced',
-		wrappingColumn: number,
-		wrappingIndent: WrappingIndent,
+		tabSize: numba,
+		wwappingStwategy: 'simpwe' | 'advanced',
+		wwappingCowumn: numba,
+		wwappingIndent: WwappingIndent,
 	) {
-		this._editorId = editorId;
-		this.model = model;
-		this._validModelVersionId = -1;
-		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
-		this._monospaceLineBreaksComputerFactory = monospaceLineBreaksComputerFactory;
+		this._editowId = editowId;
+		this.modew = modew;
+		this._vawidModewVewsionId = -1;
+		this._domWineBweaksComputewFactowy = domWineBweaksComputewFactowy;
+		this._monospaceWineBweaksComputewFactowy = monospaceWineBweaksComputewFactowy;
 		this.fontInfo = fontInfo;
 		this.tabSize = tabSize;
-		this.wrappingStrategy = wrappingStrategy;
-		this.wrappingColumn = wrappingColumn;
-		this.wrappingIndent = wrappingIndent;
+		this.wwappingStwategy = wwappingStwategy;
+		this.wwappingCowumn = wwappingCowumn;
+		this.wwappingIndent = wwappingIndent;
 
-		this._constructLines(/*resetHiddenAreas*/true, null);
+		this._constwuctWines(/*wesetHiddenAweas*/twue, nuww);
 	}
 
-	public dispose(): void {
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, []);
+	pubwic dispose(): void {
+		this.hiddenAweasIds = this.modew.dewtaDecowations(this.hiddenAweasIds, []);
 	}
 
-	public createCoordinatesConverter(): ICoordinatesConverter {
-		return new CoordinatesConverter(this);
+	pubwic cweateCoowdinatesConvewta(): ICoowdinatesConvewta {
+		wetuwn new CoowdinatesConvewta(this);
 	}
 
-	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((LineBreakData | null)[]) | null): void {
-		this.lines = [];
+	pwivate _constwuctWines(wesetHiddenAweas: boowean, pweviousWineBweaks: ((WineBweakData | nuww)[]) | nuww): void {
+		this.wines = [];
 
-		if (resetHiddenAreas) {
-			this.hiddenAreasIds = [];
+		if (wesetHiddenAweas) {
+			this.hiddenAweasIds = [];
 		}
 
-		const linesContent = this.model.getLinesContent();
-		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
-		const lineCount = linesContent.length;
-		const lineBreaksComputer = this.createLineBreaksComputer();
+		const winesContent = this.modew.getWinesContent();
+		const injectedTextDecowations = this.modew.getInjectedTextDecowations(this._editowId);
+		const wineCount = winesContent.wength;
+		const wineBweaksComputa = this.cweateWineBweaksComputa();
 
-		const injectedTextQueue = new arrays.ArrayQueue(LineInjectedText.fromDecorations(injectedTextDecorations));
-		for (let i = 0; i < lineCount; i++) {
-			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
-			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
+		const injectedTextQueue = new awways.AwwayQueue(WineInjectedText.fwomDecowations(injectedTextDecowations));
+		fow (wet i = 0; i < wineCount; i++) {
+			const wineInjectedText = injectedTextQueue.takeWhiwe(t => t.wineNumba === i + 1);
+			wineBweaksComputa.addWequest(winesContent[i], wineInjectedText, pweviousWineBweaks ? pweviousWineBweaks[i] : nuww);
 		}
-		const linesBreaks = lineBreaksComputer.finalize();
+		const winesBweaks = wineBweaksComputa.finawize();
 
-		let values: number[] = [];
+		wet vawues: numba[] = [];
 
-		let hiddenAreas = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
-		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
-		let hiddenAreaIdx = -1;
-		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
+		wet hiddenAweas = this.hiddenAweasIds.map((aweaId) => this.modew.getDecowationWange(aweaId)!).sowt(Wange.compaweWangesUsingStawts);
+		wet hiddenAweaStawt = 1, hiddenAweaEnd = 0;
+		wet hiddenAweaIdx = -1;
+		wet nextWineNumbewToUpdateHiddenAwea = (hiddenAweaIdx + 1 < hiddenAweas.wength) ? hiddenAweaEnd + 1 : wineCount + 2;
 
-		for (let i = 0; i < lineCount; i++) {
-			let lineNumber = i + 1;
+		fow (wet i = 0; i < wineCount; i++) {
+			wet wineNumba = i + 1;
 
-			if (lineNumber === nextLineNumberToUpdateHiddenArea) {
-				hiddenAreaIdx++;
-				hiddenAreaStart = hiddenAreas[hiddenAreaIdx]!.startLineNumber;
-				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx]!.endLineNumber;
-				nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
+			if (wineNumba === nextWineNumbewToUpdateHiddenAwea) {
+				hiddenAweaIdx++;
+				hiddenAweaStawt = hiddenAweas[hiddenAweaIdx]!.stawtWineNumba;
+				hiddenAweaEnd = hiddenAweas[hiddenAweaIdx]!.endWineNumba;
+				nextWineNumbewToUpdateHiddenAwea = (hiddenAweaIdx + 1 < hiddenAweas.wength) ? hiddenAweaEnd + 1 : wineCount + 2;
 			}
 
-			let isInHiddenArea = (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd);
-			let line = createSplitLine(linesBreaks[i], !isInHiddenArea);
-			values[i] = line.getViewLineCount();
-			this.lines[i] = line;
+			wet isInHiddenAwea = (wineNumba >= hiddenAweaStawt && wineNumba <= hiddenAweaEnd);
+			wet wine = cweateSpwitWine(winesBweaks[i], !isInHiddenAwea);
+			vawues[i] = wine.getViewWineCount();
+			this.wines[i] = wine;
 		}
 
-		this._validModelVersionId = this.model.getVersionId();
+		this._vawidModewVewsionId = this.modew.getVewsionId();
 
-		this.prefixSumComputer = new LineNumberMapper(values);
+		this.pwefixSumComputa = new WineNumbewMappa(vawues);
 	}
 
-	public getHiddenAreas(): Range[] {
-		return this.hiddenAreasIds.map((decId) => {
-			return this.model.getDecorationRange(decId)!;
+	pubwic getHiddenAweas(): Wange[] {
+		wetuwn this.hiddenAweasIds.map((decId) => {
+			wetuwn this.modew.getDecowationWange(decId)!;
 		});
 	}
 
-	private _reduceRanges(_ranges: Range[]): Range[] {
-		if (_ranges.length === 0) {
-			return [];
+	pwivate _weduceWanges(_wanges: Wange[]): Wange[] {
+		if (_wanges.wength === 0) {
+			wetuwn [];
 		}
-		let ranges = _ranges.map(r => this.model.validateRange(r)).sort(Range.compareRangesUsingStarts);
+		wet wanges = _wanges.map(w => this.modew.vawidateWange(w)).sowt(Wange.compaweWangesUsingStawts);
 
-		let result: Range[] = [];
-		let currentRangeStart = ranges[0].startLineNumber;
-		let currentRangeEnd = ranges[0].endLineNumber;
+		wet wesuwt: Wange[] = [];
+		wet cuwwentWangeStawt = wanges[0].stawtWineNumba;
+		wet cuwwentWangeEnd = wanges[0].endWineNumba;
 
-		for (let i = 1, len = ranges.length; i < len; i++) {
-			let range = ranges[i];
+		fow (wet i = 1, wen = wanges.wength; i < wen; i++) {
+			wet wange = wanges[i];
 
-			if (range.startLineNumber > currentRangeEnd + 1) {
-				result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-				currentRangeStart = range.startLineNumber;
-				currentRangeEnd = range.endLineNumber;
-			} else if (range.endLineNumber > currentRangeEnd) {
-				currentRangeEnd = range.endLineNumber;
+			if (wange.stawtWineNumba > cuwwentWangeEnd + 1) {
+				wesuwt.push(new Wange(cuwwentWangeStawt, 1, cuwwentWangeEnd, 1));
+				cuwwentWangeStawt = wange.stawtWineNumba;
+				cuwwentWangeEnd = wange.endWineNumba;
+			} ewse if (wange.endWineNumba > cuwwentWangeEnd) {
+				cuwwentWangeEnd = wange.endWineNumba;
 			}
 		}
-		result.push(new Range(currentRangeStart, 1, currentRangeEnd, 1));
-		return result;
+		wesuwt.push(new Wange(cuwwentWangeStawt, 1, cuwwentWangeEnd, 1));
+		wetuwn wesuwt;
 	}
 
-	public setHiddenAreas(_ranges: Range[]): boolean {
+	pubwic setHiddenAweas(_wanges: Wange[]): boowean {
 
-		let newRanges = this._reduceRanges(_ranges);
+		wet newWanges = this._weduceWanges(_wanges);
 
-		// BEGIN TODO@Martin: Please stop calling this method on each model change!
-		let oldRanges = this.hiddenAreasIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
+		// BEGIN TODO@Mawtin: Pwease stop cawwing this method on each modew change!
+		wet owdWanges = this.hiddenAweasIds.map((aweaId) => this.modew.getDecowationWange(aweaId)!).sowt(Wange.compaweWangesUsingStawts);
 
-		if (newRanges.length === oldRanges.length) {
-			let hasDifference = false;
-			for (let i = 0; i < newRanges.length; i++) {
-				if (!newRanges[i].equalsRange(oldRanges[i])) {
-					hasDifference = true;
-					break;
+		if (newWanges.wength === owdWanges.wength) {
+			wet hasDiffewence = fawse;
+			fow (wet i = 0; i < newWanges.wength; i++) {
+				if (!newWanges[i].equawsWange(owdWanges[i])) {
+					hasDiffewence = twue;
+					bweak;
 				}
 			}
-			if (!hasDifference) {
-				return false;
+			if (!hasDiffewence) {
+				wetuwn fawse;
 			}
 		}
-		// END TODO@Martin: Please stop calling this method on each model change!
+		// END TODO@Mawtin: Pwease stop cawwing this method on each modew change!
 
-		let newDecorations: IModelDeltaDecoration[] = [];
-		for (const newRange of newRanges) {
-			newDecorations.push({
-				range: newRange,
-				options: ModelDecorationOptions.EMPTY
+		wet newDecowations: IModewDewtaDecowation[] = [];
+		fow (const newWange of newWanges) {
+			newDecowations.push({
+				wange: newWange,
+				options: ModewDecowationOptions.EMPTY
 			});
 		}
 
-		this.hiddenAreasIds = this.model.deltaDecorations(this.hiddenAreasIds, newDecorations);
+		this.hiddenAweasIds = this.modew.dewtaDecowations(this.hiddenAweasIds, newDecowations);
 
-		let hiddenAreas = newRanges;
-		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
-		let hiddenAreaIdx = -1;
-		let nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
+		wet hiddenAweas = newWanges;
+		wet hiddenAweaStawt = 1, hiddenAweaEnd = 0;
+		wet hiddenAweaIdx = -1;
+		wet nextWineNumbewToUpdateHiddenAwea = (hiddenAweaIdx + 1 < hiddenAweas.wength) ? hiddenAweaEnd + 1 : this.wines.wength + 2;
 
-		let hasVisibleLine = false;
-		for (let i = 0; i < this.lines.length; i++) {
-			let lineNumber = i + 1;
+		wet hasVisibweWine = fawse;
+		fow (wet i = 0; i < this.wines.wength; i++) {
+			wet wineNumba = i + 1;
 
-			if (lineNumber === nextLineNumberToUpdateHiddenArea) {
-				hiddenAreaIdx++;
-				hiddenAreaStart = hiddenAreas[hiddenAreaIdx].startLineNumber;
-				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx].endLineNumber;
-				nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : this.lines.length + 2;
+			if (wineNumba === nextWineNumbewToUpdateHiddenAwea) {
+				hiddenAweaIdx++;
+				hiddenAweaStawt = hiddenAweas[hiddenAweaIdx].stawtWineNumba;
+				hiddenAweaEnd = hiddenAweas[hiddenAweaIdx].endWineNumba;
+				nextWineNumbewToUpdateHiddenAwea = (hiddenAweaIdx + 1 < hiddenAweas.wength) ? hiddenAweaEnd + 1 : this.wines.wength + 2;
 			}
 
-			let lineChanged = false;
-			if (lineNumber >= hiddenAreaStart && lineNumber <= hiddenAreaEnd) {
-				// Line should be hidden
-				if (this.lines[i].isVisible()) {
-					this.lines[i] = this.lines[i].setVisible(false);
-					lineChanged = true;
+			wet wineChanged = fawse;
+			if (wineNumba >= hiddenAweaStawt && wineNumba <= hiddenAweaEnd) {
+				// Wine shouwd be hidden
+				if (this.wines[i].isVisibwe()) {
+					this.wines[i] = this.wines[i].setVisibwe(fawse);
+					wineChanged = twue;
 				}
-			} else {
-				hasVisibleLine = true;
-				// Line should be visible
-				if (!this.lines[i].isVisible()) {
-					this.lines[i] = this.lines[i].setVisible(true);
-					lineChanged = true;
+			} ewse {
+				hasVisibweWine = twue;
+				// Wine shouwd be visibwe
+				if (!this.wines[i].isVisibwe()) {
+					this.wines[i] = this.wines[i].setVisibwe(twue);
+					wineChanged = twue;
 				}
 			}
-			if (lineChanged) {
-				let newOutputLineCount = this.lines[i].getViewLineCount();
-				this.prefixSumComputer.changeValue(i, newOutputLineCount);
+			if (wineChanged) {
+				wet newOutputWineCount = this.wines[i].getViewWineCount();
+				this.pwefixSumComputa.changeVawue(i, newOutputWineCount);
 			}
 		}
 
-		if (!hasVisibleLine) {
-			// Cannot have everything be hidden => reveal everything!
-			this.setHiddenAreas([]);
+		if (!hasVisibweWine) {
+			// Cannot have evewything be hidden => weveaw evewything!
+			this.setHiddenAweas([]);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public modelPositionIsVisible(modelLineNumber: number, _modelColumn: number): boolean {
-		if (modelLineNumber < 1 || modelLineNumber > this.lines.length) {
-			// invalid arguments
-			return false;
+	pubwic modewPositionIsVisibwe(modewWineNumba: numba, _modewCowumn: numba): boowean {
+		if (modewWineNumba < 1 || modewWineNumba > this.wines.wength) {
+			// invawid awguments
+			wetuwn fawse;
 		}
-		return this.lines[modelLineNumber - 1].isVisible();
+		wetuwn this.wines[modewWineNumba - 1].isVisibwe();
 	}
 
-	public getModelLineViewLineCount(modelLineNumber: number): number {
-		if (modelLineNumber < 1 || modelLineNumber > this.lines.length) {
-			// invalid arguments
-			return 1;
+	pubwic getModewWineViewWineCount(modewWineNumba: numba): numba {
+		if (modewWineNumba < 1 || modewWineNumba > this.wines.wength) {
+			// invawid awguments
+			wetuwn 1;
 		}
-		return this.lines[modelLineNumber - 1].getViewLineCount();
+		wetuwn this.wines[modewWineNumba - 1].getViewWineCount();
 	}
 
-	public setTabSize(newTabSize: number): boolean {
+	pubwic setTabSize(newTabSize: numba): boowean {
 		if (this.tabSize === newTabSize) {
-			return false;
+			wetuwn fawse;
 		}
 		this.tabSize = newTabSize;
 
-		this._constructLines(/*resetHiddenAreas*/false, null);
+		this._constwuctWines(/*wesetHiddenAweas*/fawse, nuww);
 
-		return true;
+		wetuwn twue;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
-		const equalFontInfo = this.fontInfo.equals(fontInfo);
-		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
-		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
-		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent) {
-			return false;
+	pubwic setWwappingSettings(fontInfo: FontInfo, wwappingStwategy: 'simpwe' | 'advanced', wwappingCowumn: numba, wwappingIndent: WwappingIndent): boowean {
+		const equawFontInfo = this.fontInfo.equaws(fontInfo);
+		const equawWwappingStwategy = (this.wwappingStwategy === wwappingStwategy);
+		const equawWwappingCowumn = (this.wwappingCowumn === wwappingCowumn);
+		const equawWwappingIndent = (this.wwappingIndent === wwappingIndent);
+		if (equawFontInfo && equawWwappingStwategy && equawWwappingCowumn && equawWwappingIndent) {
+			wetuwn fawse;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent);
+		const onwyWwappingCowumnChanged = (equawFontInfo && equawWwappingStwategy && !equawWwappingCowumn && equawWwappingIndent);
 
 		this.fontInfo = fontInfo;
-		this.wrappingStrategy = wrappingStrategy;
-		this.wrappingColumn = wrappingColumn;
-		this.wrappingIndent = wrappingIndent;
+		this.wwappingStwategy = wwappingStwategy;
+		this.wwappingCowumn = wwappingCowumn;
+		this.wwappingIndent = wwappingIndent;
 
-		let previousLineBreaks: ((LineBreakData | null)[]) | null = null;
-		if (onlyWrappingColumnChanged) {
-			previousLineBreaks = [];
-			for (let i = 0, len = this.lines.length; i < len; i++) {
-				previousLineBreaks[i] = this.lines[i].getLineBreakData();
+		wet pweviousWineBweaks: ((WineBweakData | nuww)[]) | nuww = nuww;
+		if (onwyWwappingCowumnChanged) {
+			pweviousWineBweaks = [];
+			fow (wet i = 0, wen = this.wines.wength; i < wen; i++) {
+				pweviousWineBweaks[i] = this.wines[i].getWineBweakData();
 			}
 		}
 
-		this._constructLines(/*resetHiddenAreas*/false, previousLineBreaks);
+		this._constwuctWines(/*wesetHiddenAweas*/fawse, pweviousWineBweaks);
 
-		return true;
+		wetuwn twue;
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		const lineBreaksComputerFactory = (
-			this.wrappingStrategy === 'advanced'
-				? this._domLineBreaksComputerFactory
-				: this._monospaceLineBreaksComputerFactory
+	pubwic cweateWineBweaksComputa(): IWineBweaksComputa {
+		const wineBweaksComputewFactowy = (
+			this.wwappingStwategy === 'advanced'
+				? this._domWineBweaksComputewFactowy
+				: this._monospaceWineBweaksComputewFactowy
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent);
+		wetuwn wineBweaksComputewFactowy.cweateWineBweaksComputa(this.fontInfo, this.tabSize, this.wwappingCowumn, this.wwappingIndent);
 	}
 
-	public onModelFlushed(): void {
-		this._constructLines(/*resetHiddenAreas*/true, null);
+	pubwic onModewFwushed(): void {
+		this._constwuctWines(/*wesetHiddenAweas*/twue, nuww);
 	}
 
-	public onModelLinesDeleted(versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null {
-		if (!versionId || versionId <= this._validModelVersionId) {
-			// Here we check for versionId in case the lines were reconstructed in the meantime.
-			// We don't want to apply stale change events on top of a newer read model state.
-			return null;
+	pubwic onModewWinesDeweted(vewsionId: numba | nuww, fwomWineNumba: numba, toWineNumba: numba): viewEvents.ViewWinesDewetedEvent | nuww {
+		if (!vewsionId || vewsionId <= this._vawidModewVewsionId) {
+			// Hewe we check fow vewsionId in case the wines wewe weconstwucted in the meantime.
+			// We don't want to appwy stawe change events on top of a newa wead modew state.
+			wetuwn nuww;
 		}
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
-		let outputToLineNumber = this.prefixSumComputer.getAccumulatedValue(toLineNumber - 1);
+		wet outputFwomWineNumba = (fwomWineNumba === 1 ? 1 : this.pwefixSumComputa.getAccumuwatedVawue(fwomWineNumba - 2) + 1);
+		wet outputToWineNumba = this.pwefixSumComputa.getAccumuwatedVawue(toWineNumba - 1);
 
-		this.lines.splice(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
-		this.prefixSumComputer.removeValues(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
+		this.wines.spwice(fwomWineNumba - 1, toWineNumba - fwomWineNumba + 1);
+		this.pwefixSumComputa.wemoveVawues(fwomWineNumba - 1, toWineNumba - fwomWineNumba + 1);
 
-		return new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber);
+		wetuwn new viewEvents.ViewWinesDewetedEvent(outputFwomWineNumba, outputToWineNumba);
 	}
 
-	public onModelLinesInserted(versionId: number | null, fromLineNumber: number, _toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
-		if (!versionId || versionId <= this._validModelVersionId) {
-			// Here we check for versionId in case the lines were reconstructed in the meantime.
-			// We don't want to apply stale change events on top of a newer read model state.
-			return null;
+	pubwic onModewWinesInsewted(vewsionId: numba | nuww, fwomWineNumba: numba, _toWineNumba: numba, wineBweaks: (WineBweakData | nuww)[]): viewEvents.ViewWinesInsewtedEvent | nuww {
+		if (!vewsionId || vewsionId <= this._vawidModewVewsionId) {
+			// Hewe we check fow vewsionId in case the wines wewe weconstwucted in the meantime.
+			// We don't want to appwy stawe change events on top of a newa wead modew state.
+			wetuwn nuww;
 		}
 
-		// cannot use this.getHiddenAreas() because those decorations have already seen the effect of this model change
-		const isInHiddenArea = (fromLineNumber > 2 && !this.lines[fromLineNumber - 2].isVisible());
+		// cannot use this.getHiddenAweas() because those decowations have awweady seen the effect of this modew change
+		const isInHiddenAwea = (fwomWineNumba > 2 && !this.wines[fwomWineNumba - 2].isVisibwe());
 
-		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
+		wet outputFwomWineNumba = (fwomWineNumba === 1 ? 1 : this.pwefixSumComputa.getAccumuwatedVawue(fwomWineNumba - 2) + 1);
 
-		let totalOutputLineCount = 0;
-		let insertLines: ISplitLine[] = [];
-		let insertPrefixSumValues: number[] = [];
+		wet totawOutputWineCount = 0;
+		wet insewtWines: ISpwitWine[] = [];
+		wet insewtPwefixSumVawues: numba[] = [];
 
-		for (let i = 0, len = lineBreaks.length; i < len; i++) {
-			let line = createSplitLine(lineBreaks[i], !isInHiddenArea);
-			insertLines.push(line);
+		fow (wet i = 0, wen = wineBweaks.wength; i < wen; i++) {
+			wet wine = cweateSpwitWine(wineBweaks[i], !isInHiddenAwea);
+			insewtWines.push(wine);
 
-			let outputLineCount = line.getViewLineCount();
-			totalOutputLineCount += outputLineCount;
-			insertPrefixSumValues[i] = outputLineCount;
+			wet outputWineCount = wine.getViewWineCount();
+			totawOutputWineCount += outputWineCount;
+			insewtPwefixSumVawues[i] = outputWineCount;
 		}
 
-		// TODO@Alex: use arrays.arrayInsert
-		this.lines = this.lines.slice(0, fromLineNumber - 1).concat(insertLines).concat(this.lines.slice(fromLineNumber - 1));
+		// TODO@Awex: use awways.awwayInsewt
+		this.wines = this.wines.swice(0, fwomWineNumba - 1).concat(insewtWines).concat(this.wines.swice(fwomWineNumba - 1));
 
-		this.prefixSumComputer.insertValues(fromLineNumber - 1, insertPrefixSumValues);
+		this.pwefixSumComputa.insewtVawues(fwomWineNumba - 1, insewtPwefixSumVawues);
 
-		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
+		wetuwn new viewEvents.ViewWinesInsewtedEvent(outputFwomWineNumba, outputFwomWineNumba + totawOutputWineCount - 1);
 	}
 
-	public onModelLineChanged(versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
-		if (versionId !== null && versionId <= this._validModelVersionId) {
-			// Here we check for versionId in case the lines were reconstructed in the meantime.
-			// We don't want to apply stale change events on top of a newer read model state.
-			return [false, null, null, null];
+	pubwic onModewWineChanged(vewsionId: numba | nuww, wineNumba: numba, wineBweakData: WineBweakData | nuww): [boowean, viewEvents.ViewWinesChangedEvent | nuww, viewEvents.ViewWinesInsewtedEvent | nuww, viewEvents.ViewWinesDewetedEvent | nuww] {
+		if (vewsionId !== nuww && vewsionId <= this._vawidModewVewsionId) {
+			// Hewe we check fow vewsionId in case the wines wewe weconstwucted in the meantime.
+			// We don't want to appwy stawe change events on top of a newa wead modew state.
+			wetuwn [fawse, nuww, nuww, nuww];
 		}
 
-		let lineIndex = lineNumber - 1;
+		wet wineIndex = wineNumba - 1;
 
-		let oldOutputLineCount = this.lines[lineIndex].getViewLineCount();
-		let isVisible = this.lines[lineIndex].isVisible();
-		let line = createSplitLine(lineBreakData, isVisible);
-		this.lines[lineIndex] = line;
-		let newOutputLineCount = this.lines[lineIndex].getViewLineCount();
+		wet owdOutputWineCount = this.wines[wineIndex].getViewWineCount();
+		wet isVisibwe = this.wines[wineIndex].isVisibwe();
+		wet wine = cweateSpwitWine(wineBweakData, isVisibwe);
+		this.wines[wineIndex] = wine;
+		wet newOutputWineCount = this.wines[wineIndex].getViewWineCount();
 
-		let lineMappingChanged = false;
-		let changeFrom = 0;
-		let changeTo = -1;
-		let insertFrom = 0;
-		let insertTo = -1;
-		let deleteFrom = 0;
-		let deleteTo = -1;
+		wet wineMappingChanged = fawse;
+		wet changeFwom = 0;
+		wet changeTo = -1;
+		wet insewtFwom = 0;
+		wet insewtTo = -1;
+		wet deweteFwom = 0;
+		wet deweteTo = -1;
 
-		if (oldOutputLineCount > newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
-			changeTo = changeFrom + newOutputLineCount - 1;
-			deleteFrom = changeTo + 1;
-			deleteTo = deleteFrom + (oldOutputLineCount - newOutputLineCount) - 1;
-			lineMappingChanged = true;
-		} else if (oldOutputLineCount < newOutputLineCount) {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
-			changeTo = changeFrom + oldOutputLineCount - 1;
-			insertFrom = changeTo + 1;
-			insertTo = insertFrom + (newOutputLineCount - oldOutputLineCount) - 1;
-			lineMappingChanged = true;
-		} else {
-			changeFrom = (lineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(lineNumber - 2) + 1);
-			changeTo = changeFrom + newOutputLineCount - 1;
+		if (owdOutputWineCount > newOutputWineCount) {
+			changeFwom = (wineNumba === 1 ? 1 : this.pwefixSumComputa.getAccumuwatedVawue(wineNumba - 2) + 1);
+			changeTo = changeFwom + newOutputWineCount - 1;
+			deweteFwom = changeTo + 1;
+			deweteTo = deweteFwom + (owdOutputWineCount - newOutputWineCount) - 1;
+			wineMappingChanged = twue;
+		} ewse if (owdOutputWineCount < newOutputWineCount) {
+			changeFwom = (wineNumba === 1 ? 1 : this.pwefixSumComputa.getAccumuwatedVawue(wineNumba - 2) + 1);
+			changeTo = changeFwom + owdOutputWineCount - 1;
+			insewtFwom = changeTo + 1;
+			insewtTo = insewtFwom + (newOutputWineCount - owdOutputWineCount) - 1;
+			wineMappingChanged = twue;
+		} ewse {
+			changeFwom = (wineNumba === 1 ? 1 : this.pwefixSumComputa.getAccumuwatedVawue(wineNumba - 2) + 1);
+			changeTo = changeFwom + newOutputWineCount - 1;
 		}
 
-		this.prefixSumComputer.changeValue(lineIndex, newOutputLineCount);
+		this.pwefixSumComputa.changeVawue(wineIndex, newOutputWineCount);
 
-		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo) : null);
-		const viewLinesInsertedEvent = (insertFrom <= insertTo ? new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo) : null);
-		const viewLinesDeletedEvent = (deleteFrom <= deleteTo ? new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo) : null);
+		const viewWinesChangedEvent = (changeFwom <= changeTo ? new viewEvents.ViewWinesChangedEvent(changeFwom, changeTo) : nuww);
+		const viewWinesInsewtedEvent = (insewtFwom <= insewtTo ? new viewEvents.ViewWinesInsewtedEvent(insewtFwom, insewtTo) : nuww);
+		const viewWinesDewetedEvent = (deweteFwom <= deweteTo ? new viewEvents.ViewWinesDewetedEvent(deweteFwom, deweteTo) : nuww);
 
-		return [lineMappingChanged, viewLinesChangedEvent, viewLinesInsertedEvent, viewLinesDeletedEvent];
+		wetuwn [wineMappingChanged, viewWinesChangedEvent, viewWinesInsewtedEvent, viewWinesDewetedEvent];
 	}
 
-	public acceptVersionId(versionId: number): void {
-		this._validModelVersionId = versionId;
-		if (this.lines.length === 1 && !this.lines[0].isVisible()) {
-			// At least one line must be visible => reset hidden areas
-			this.setHiddenAreas([]);
+	pubwic acceptVewsionId(vewsionId: numba): void {
+		this._vawidModewVewsionId = vewsionId;
+		if (this.wines.wength === 1 && !this.wines[0].isVisibwe()) {
+			// At weast one wine must be visibwe => weset hidden aweas
+			this.setHiddenAweas([]);
 		}
 	}
 
-	public getViewLineCount(): number {
-		return this.prefixSumComputer.getTotalValue();
+	pubwic getViewWineCount(): numba {
+		wetuwn this.pwefixSumComputa.getTotawVawue();
 	}
 
-	private _toValidViewLineNumber(viewLineNumber: number): number {
-		if (viewLineNumber < 1) {
-			return 1;
+	pwivate _toVawidViewWineNumba(viewWineNumba: numba): numba {
+		if (viewWineNumba < 1) {
+			wetuwn 1;
 		}
-		const viewLineCount = this.getViewLineCount();
-		if (viewLineNumber > viewLineCount) {
-			return viewLineCount;
+		const viewWineCount = this.getViewWineCount();
+		if (viewWineNumba > viewWineCount) {
+			wetuwn viewWineCount;
 		}
-		return viewLineNumber | 0;
+		wetuwn viewWineNumba | 0;
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		minLineNumber = this._toValidViewLineNumber(minLineNumber);
-		maxLineNumber = this._toValidViewLineNumber(maxLineNumber);
+	pubwic getActiveIndentGuide(viewWineNumba: numba, minWineNumba: numba, maxWineNumba: numba): IActiveIndentGuideInfo {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		minWineNumba = this._toVawidViewWineNumba(minWineNumba);
+		maxWineNumba = this._toVawidViewWineNumba(maxWineNumba);
 
-		const modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, this.getViewLineMinColumn(viewLineNumber));
-		const modelMinPosition = this.convertViewPositionToModelPosition(minLineNumber, this.getViewLineMinColumn(minLineNumber));
-		const modelMaxPosition = this.convertViewPositionToModelPosition(maxLineNumber, this.getViewLineMinColumn(maxLineNumber));
-		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
+		const modewPosition = this.convewtViewPositionToModewPosition(viewWineNumba, this.getViewWineMinCowumn(viewWineNumba));
+		const modewMinPosition = this.convewtViewPositionToModewPosition(minWineNumba, this.getViewWineMinCowumn(minWineNumba));
+		const modewMaxPosition = this.convewtViewPositionToModewPosition(maxWineNumba, this.getViewWineMinCowumn(maxWineNumba));
+		const wesuwt = this.modew.getActiveIndentGuide(modewPosition.wineNumba, modewMinPosition.wineNumba, modewMaxPosition.wineNumba);
 
-		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
-		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, this.model.getLineMaxColumn(result.endLineNumber));
-		return {
-			startLineNumber: viewStartPosition.lineNumber,
-			endLineNumber: viewEndPosition.lineNumber,
-			indent: result.indent
+		const viewStawtPosition = this.convewtModewPositionToViewPosition(wesuwt.stawtWineNumba, 1);
+		const viewEndPosition = this.convewtModewPositionToViewPosition(wesuwt.endWineNumba, this.modew.getWineMaxCowumn(wesuwt.endWineNumba));
+		wetuwn {
+			stawtWineNumba: viewStawtPosition.wineNumba,
+			endWineNumba: viewEndPosition.wineNumba,
+			indent: wesuwt.indent
 		};
 	}
 
-	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
-		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
-		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
+	pubwic getViewWinesIndentGuides(viewStawtWineNumba: numba, viewEndWineNumba: numba): numba[] {
+		viewStawtWineNumba = this._toVawidViewWineNumba(viewStawtWineNumba);
+		viewEndWineNumba = this._toVawidViewWineNumba(viewEndWineNumba);
 
-		const modelStart = this.convertViewPositionToModelPosition(viewStartLineNumber, this.getViewLineMinColumn(viewStartLineNumber));
-		const modelEnd = this.convertViewPositionToModelPosition(viewEndLineNumber, this.getViewLineMaxColumn(viewEndLineNumber));
+		const modewStawt = this.convewtViewPositionToModewPosition(viewStawtWineNumba, this.getViewWineMinCowumn(viewStawtWineNumba));
+		const modewEnd = this.convewtViewPositionToModewPosition(viewEndWineNumba, this.getViewWineMaxCowumn(viewEndWineNumba));
 
-		let result: number[] = [];
-		let resultRepeatCount: number[] = [];
-		let resultRepeatOption: IndentGuideRepeatOption[] = [];
-		const modelStartLineIndex = modelStart.lineNumber - 1;
-		const modelEndLineIndex = modelEnd.lineNumber - 1;
+		wet wesuwt: numba[] = [];
+		wet wesuwtWepeatCount: numba[] = [];
+		wet wesuwtWepeatOption: IndentGuideWepeatOption[] = [];
+		const modewStawtWineIndex = modewStawt.wineNumba - 1;
+		const modewEndWineIndex = modewEnd.wineNumba - 1;
 
-		let reqStart: Position | null = null;
-		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
-			const line = this.lines[modelLineIndex];
-			if (line.isVisible()) {
-				let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelLineIndex === modelStartLineIndex ? modelStart.column : 1);
-				let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
-				let count = viewLineEndIndex - viewLineStartIndex + 1;
-				let option = IndentGuideRepeatOption.BlockNone;
-				if (count > 1 && line.getViewLineMinColumn(this.model, modelLineIndex + 1, viewLineEndIndex) === 1) {
-					// wrapped lines should block indent guides
-					option = (viewLineStartIndex === 0 ? IndentGuideRepeatOption.BlockSubsequent : IndentGuideRepeatOption.BlockAll);
+		wet weqStawt: Position | nuww = nuww;
+		fow (wet modewWineIndex = modewStawtWineIndex; modewWineIndex <= modewEndWineIndex; modewWineIndex++) {
+			const wine = this.wines[modewWineIndex];
+			if (wine.isVisibwe()) {
+				wet viewWineStawtIndex = wine.getViewWineNumbewOfModewPosition(0, modewWineIndex === modewStawtWineIndex ? modewStawt.cowumn : 1);
+				wet viewWineEndIndex = wine.getViewWineNumbewOfModewPosition(0, this.modew.getWineMaxCowumn(modewWineIndex + 1));
+				wet count = viewWineEndIndex - viewWineStawtIndex + 1;
+				wet option = IndentGuideWepeatOption.BwockNone;
+				if (count > 1 && wine.getViewWineMinCowumn(this.modew, modewWineIndex + 1, viewWineEndIndex) === 1) {
+					// wwapped wines shouwd bwock indent guides
+					option = (viewWineStawtIndex === 0 ? IndentGuideWepeatOption.BwockSubsequent : IndentGuideWepeatOption.BwockAww);
 				}
-				resultRepeatCount.push(count);
-				resultRepeatOption.push(option);
-				// merge into previous request
-				if (reqStart === null) {
-					reqStart = new Position(modelLineIndex + 1, 0);
+				wesuwtWepeatCount.push(count);
+				wesuwtWepeatOption.push(option);
+				// mewge into pwevious wequest
+				if (weqStawt === nuww) {
+					weqStawt = new Position(modewWineIndex + 1, 0);
 				}
-			} else {
-				// hit invisible line => flush request
-				if (reqStart !== null) {
-					result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelLineIndex));
-					reqStart = null;
+			} ewse {
+				// hit invisibwe wine => fwush wequest
+				if (weqStawt !== nuww) {
+					wesuwt = wesuwt.concat(this.modew.getWinesIndentGuides(weqStawt.wineNumba, modewWineIndex));
+					weqStawt = nuww;
 				}
 			}
 		}
 
-		if (reqStart !== null) {
-			result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelEnd.lineNumber));
-			reqStart = null;
+		if (weqStawt !== nuww) {
+			wesuwt = wesuwt.concat(this.modew.getWinesIndentGuides(weqStawt.wineNumba, modewEnd.wineNumba));
+			weqStawt = nuww;
 		}
 
-		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
-		let viewIndents = new Array<number>(viewLineCount);
-		let currIndex = 0;
-		for (let i = 0, len = result.length; i < len; i++) {
-			let value = result[i];
-			let count = Math.min(viewLineCount - currIndex, resultRepeatCount[i]);
-			let option = resultRepeatOption[i];
-			let blockAtIndex: number;
-			if (option === IndentGuideRepeatOption.BlockAll) {
-				blockAtIndex = 0;
-			} else if (option === IndentGuideRepeatOption.BlockSubsequent) {
-				blockAtIndex = 1;
-			} else {
-				blockAtIndex = count;
+		const viewWineCount = viewEndWineNumba - viewStawtWineNumba + 1;
+		wet viewIndents = new Awway<numba>(viewWineCount);
+		wet cuwwIndex = 0;
+		fow (wet i = 0, wen = wesuwt.wength; i < wen; i++) {
+			wet vawue = wesuwt[i];
+			wet count = Math.min(viewWineCount - cuwwIndex, wesuwtWepeatCount[i]);
+			wet option = wesuwtWepeatOption[i];
+			wet bwockAtIndex: numba;
+			if (option === IndentGuideWepeatOption.BwockAww) {
+				bwockAtIndex = 0;
+			} ewse if (option === IndentGuideWepeatOption.BwockSubsequent) {
+				bwockAtIndex = 1;
+			} ewse {
+				bwockAtIndex = count;
 			}
-			for (let j = 0; j < count; j++) {
-				if (j === blockAtIndex) {
-					value = 0;
+			fow (wet j = 0; j < count; j++) {
+				if (j === bwockAtIndex) {
+					vawue = 0;
 				}
-				viewIndents[currIndex++] = value;
+				viewIndents[cuwwIndex++] = vawue;
 			}
 		}
-		return viewIndents;
+		wetuwn viewIndents;
 	}
 
-	public getViewLineContent(viewLineNumber: number): string {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+	pubwic getViewWineContent(viewWineNumba: numba): stwing {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getViewLineContent(this.model, lineIndex + 1, remainder);
+		wetuwn this.wines[wineIndex].getViewWineContent(this.modew, wineIndex + 1, wemainda);
 	}
 
-	public getViewLineLength(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+	pubwic getViewWineWength(viewWineNumba: numba): numba {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getViewLineLength(this.model, lineIndex + 1, remainder);
+		wetuwn this.wines[wineIndex].getViewWineWength(this.modew, wineIndex + 1, wemainda);
 	}
 
-	public getViewLineMinColumn(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+	pubwic getViewWineMinCowumn(viewWineNumba: numba): numba {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getViewLineMinColumn(this.model, lineIndex + 1, remainder);
+		wetuwn this.wines[wineIndex].getViewWineMinCowumn(this.modew, wineIndex + 1, wemainda);
 	}
 
-	public getViewLineMaxColumn(viewLineNumber: number): number {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+	pubwic getViewWineMaxCowumn(viewWineNumba: numba): numba {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
+		wetuwn this.wines[wineIndex].getViewWineMaxCowumn(this.modew, wineIndex + 1, wemainda);
 	}
 
-	public getViewLineData(viewLineNumber: number): ViewLineData {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+	pubwic getViewWineData(viewWineNumba: numba): ViewWineData {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getViewLineData(this.model, lineIndex + 1, remainder);
+		wetuwn this.wines[wineIndex].getViewWineData(this.modew, wineIndex + 1, wemainda);
 	}
 
-	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): ViewLineData[] {
+	pubwic getViewWinesData(viewStawtWineNumba: numba, viewEndWineNumba: numba, needed: boowean[]): ViewWineData[] {
 
-		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
-		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
+		viewStawtWineNumba = this._toVawidViewWineNumba(viewStawtWineNumba);
+		viewEndWineNumba = this._toVawidViewWineNumba(viewEndWineNumba);
 
-		let start = this.prefixSumComputer.getIndexOf(viewStartLineNumber - 1);
-		let viewLineNumber = viewStartLineNumber;
-		let startModelLineIndex = start.index;
-		let startRemainder = start.remainder;
+		wet stawt = this.pwefixSumComputa.getIndexOf(viewStawtWineNumba - 1);
+		wet viewWineNumba = viewStawtWineNumba;
+		wet stawtModewWineIndex = stawt.index;
+		wet stawtWemainda = stawt.wemainda;
 
-		let result: ViewLineData[] = [];
-		for (let modelLineIndex = startModelLineIndex, len = this.model.getLineCount(); modelLineIndex < len; modelLineIndex++) {
-			let line = this.lines[modelLineIndex];
-			if (!line.isVisible()) {
+		wet wesuwt: ViewWineData[] = [];
+		fow (wet modewWineIndex = stawtModewWineIndex, wen = this.modew.getWineCount(); modewWineIndex < wen; modewWineIndex++) {
+			wet wine = this.wines[modewWineIndex];
+			if (!wine.isVisibwe()) {
 				continue;
 			}
-			let fromViewLineIndex = (modelLineIndex === startModelLineIndex ? startRemainder : 0);
-			let remainingViewLineCount = line.getViewLineCount() - fromViewLineIndex;
+			wet fwomViewWineIndex = (modewWineIndex === stawtModewWineIndex ? stawtWemainda : 0);
+			wet wemainingViewWineCount = wine.getViewWineCount() - fwomViewWineIndex;
 
-			let lastLine = false;
-			if (viewLineNumber + remainingViewLineCount > viewEndLineNumber) {
-				lastLine = true;
-				remainingViewLineCount = viewEndLineNumber - viewLineNumber + 1;
+			wet wastWine = fawse;
+			if (viewWineNumba + wemainingViewWineCount > viewEndWineNumba) {
+				wastWine = twue;
+				wemainingViewWineCount = viewEndWineNumba - viewWineNumba + 1;
 			}
-			let toViewLineIndex = fromViewLineIndex + remainingViewLineCount;
+			wet toViewWineIndex = fwomViewWineIndex + wemainingViewWineCount;
 
-			line.getViewLinesData(this.model, modelLineIndex + 1, fromViewLineIndex, toViewLineIndex, viewLineNumber - viewStartLineNumber, needed, result);
+			wine.getViewWinesData(this.modew, modewWineIndex + 1, fwomViewWineIndex, toViewWineIndex, viewWineNumba - viewStawtWineNumba, needed, wesuwt);
 
-			viewLineNumber += remainingViewLineCount;
+			viewWineNumba += wemainingViewWineCount;
 
-			if (lastLine) {
-				break;
+			if (wastWine) {
+				bweak;
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public validateViewPosition(viewLineNumber: number, viewColumn: number, expectedModelPosition: Position): Position {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+	pubwic vawidateViewPosition(viewWineNumba: numba, viewCowumn: numba, expectedModewPosition: Position): Position {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
 
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		let line = this.lines[lineIndex];
+		wet wine = this.wines[wineIndex];
 
-		let minColumn = line.getViewLineMinColumn(this.model, lineIndex + 1, remainder);
-		let maxColumn = line.getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
-		if (viewColumn < minColumn) {
-			viewColumn = minColumn;
+		wet minCowumn = wine.getViewWineMinCowumn(this.modew, wineIndex + 1, wemainda);
+		wet maxCowumn = wine.getViewWineMaxCowumn(this.modew, wineIndex + 1, wemainda);
+		if (viewCowumn < minCowumn) {
+			viewCowumn = minCowumn;
 		}
-		if (viewColumn > maxColumn) {
-			viewColumn = maxColumn;
-		}
-
-		let computedModelColumn = line.getModelColumnOfViewPosition(remainder, viewColumn);
-		let computedModelPosition = this.model.validatePosition(new Position(lineIndex + 1, computedModelColumn));
-
-		if (computedModelPosition.equals(expectedModelPosition)) {
-			return new Position(viewLineNumber, viewColumn);
+		if (viewCowumn > maxCowumn) {
+			viewCowumn = maxCowumn;
 		}
 
-		return this.convertModelPositionToViewPosition(expectedModelPosition.lineNumber, expectedModelPosition.column);
+		wet computedModewCowumn = wine.getModewCowumnOfViewPosition(wemainda, viewCowumn);
+		wet computedModewPosition = this.modew.vawidatePosition(new Position(wineIndex + 1, computedModewCowumn));
+
+		if (computedModewPosition.equaws(expectedModewPosition)) {
+			wetuwn new Position(viewWineNumba, viewCowumn);
+		}
+
+		wetuwn this.convewtModewPositionToViewPosition(expectedModewPosition.wineNumba, expectedModewPosition.cowumn);
 	}
 
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		const validViewStart = this.validateViewPosition(viewRange.startLineNumber, viewRange.startColumn, expectedModelRange.getStartPosition());
-		const validViewEnd = this.validateViewPosition(viewRange.endLineNumber, viewRange.endColumn, expectedModelRange.getEndPosition());
-		return new Range(validViewStart.lineNumber, validViewStart.column, validViewEnd.lineNumber, validViewEnd.column);
+	pubwic vawidateViewWange(viewWange: Wange, expectedModewWange: Wange): Wange {
+		const vawidViewStawt = this.vawidateViewPosition(viewWange.stawtWineNumba, viewWange.stawtCowumn, expectedModewWange.getStawtPosition());
+		const vawidViewEnd = this.vawidateViewPosition(viewWange.endWineNumba, viewWange.endCowumn, expectedModewWange.getEndPosition());
+		wetuwn new Wange(vawidViewStawt.wineNumba, vawidViewStawt.cowumn, vawidViewEnd.wineNumba, vawidViewEnd.cowumn);
 	}
 
-	public convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+	pubwic convewtViewPositionToModewPosition(viewWineNumba: numba, viewCowumn: numba): Position {
+		viewWineNumba = this._toVawidViewWineNumba(viewWineNumba);
 
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		let lineIndex = r.index;
-		let remainder = r.remainder;
+		wet w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		wet wineIndex = w.index;
+		wet wemainda = w.wemainda;
 
-		let inputColumn = this.lines[lineIndex].getModelColumnOfViewPosition(remainder, viewColumn);
-		// console.log('out -> in ' + viewLineNumber + ',' + viewColumn + ' ===> ' + (lineIndex+1) + ',' + inputColumn);
-		return this.model.validatePosition(new Position(lineIndex + 1, inputColumn));
+		wet inputCowumn = this.wines[wineIndex].getModewCowumnOfViewPosition(wemainda, viewCowumn);
+		// consowe.wog('out -> in ' + viewWineNumba + ',' + viewCowumn + ' ===> ' + (wineIndex+1) + ',' + inputCowumn);
+		wetuwn this.modew.vawidatePosition(new Position(wineIndex + 1, inputCowumn));
 	}
 
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		const start = this.convertViewPositionToModelPosition(viewRange.startLineNumber, viewRange.startColumn);
-		const end = this.convertViewPositionToModelPosition(viewRange.endLineNumber, viewRange.endColumn);
-		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	pubwic convewtViewWangeToModewWange(viewWange: Wange): Wange {
+		const stawt = this.convewtViewPositionToModewPosition(viewWange.stawtWineNumba, viewWange.stawtCowumn);
+		const end = this.convewtViewPositionToModewPosition(viewWange.endWineNumba, viewWange.endCowumn);
+		wetuwn new Wange(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn);
 	}
 
-	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
+	pubwic convewtModewPositionToViewPosition(_modewWineNumba: numba, _modewCowumn: numba, affinity: PositionAffinity = PositionAffinity.None): Position {
 
-		const validPosition = this.model.validatePosition(new Position(_modelLineNumber, _modelColumn));
-		const inputLineNumber = validPosition.lineNumber;
-		const inputColumn = validPosition.column;
+		const vawidPosition = this.modew.vawidatePosition(new Position(_modewWineNumba, _modewCowumn));
+		const inputWineNumba = vawidPosition.wineNumba;
+		const inputCowumn = vawidPosition.cowumn;
 
-		let lineIndex = inputLineNumber - 1, lineIndexChanged = false;
-		while (lineIndex > 0 && !this.lines[lineIndex].isVisible()) {
-			lineIndex--;
-			lineIndexChanged = true;
+		wet wineIndex = inputWineNumba - 1, wineIndexChanged = fawse;
+		whiwe (wineIndex > 0 && !this.wines[wineIndex].isVisibwe()) {
+			wineIndex--;
+			wineIndexChanged = twue;
 		}
-		if (lineIndex === 0 && !this.lines[lineIndex].isVisible()) {
-			// Could not reach a real line
-			// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + 1 + ',' + 1);
-			return new Position(1, 1);
+		if (wineIndex === 0 && !this.wines[wineIndex].isVisibwe()) {
+			// Couwd not weach a weaw wine
+			// consowe.wog('in -> out ' + inputWineNumba + ',' + inputCowumn + ' ===> ' + 1 + ',' + 1);
+			wetuwn new Position(1, 1);
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
+		const dewtaWineNumba = 1 + (wineIndex === 0 ? 0 : this.pwefixSumComputa.getAccumuwatedVawue(wineIndex - 1));
 
-		let r: Position;
-		if (lineIndexChanged) {
-			r = this.lines[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1), affinity);
-		} else {
-			r = this.lines[inputLineNumber - 1].getViewPositionOfModelPosition(deltaLineNumber, inputColumn, affinity);
+		wet w: Position;
+		if (wineIndexChanged) {
+			w = this.wines[wineIndex].getViewPositionOfModewPosition(dewtaWineNumba, this.modew.getWineMaxCowumn(wineIndex + 1), affinity);
+		} ewse {
+			w = this.wines[inputWineNumba - 1].getViewPositionOfModewPosition(dewtaWineNumba, inputCowumn, affinity);
 		}
 
-		// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r);
-		return r;
+		// consowe.wog('in -> out ' + inputWineNumba + ',' + inputCowumn + ' ===> ' + w.wineNumba + ',' + w);
+		wetuwn w;
 	}
 
 	/**
-	 * @param affinity The affinity in case of an empty range. Has no effect for non-empty ranges.
+	 * @pawam affinity The affinity in case of an empty wange. Has no effect fow non-empty wanges.
 	*/
-	public convertModelRangeToViewRange(modelRange: Range, affinity: PositionAffinity = PositionAffinity.Left): Range {
-		if (modelRange.isEmpty()) {
-			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, affinity);
-			return Range.fromPositions(start);
-		} else {
-			const start = this.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn, PositionAffinity.Right);
-			const end = this.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn, PositionAffinity.Left);
-			return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	pubwic convewtModewWangeToViewWange(modewWange: Wange, affinity: PositionAffinity = PositionAffinity.Weft): Wange {
+		if (modewWange.isEmpty()) {
+			const stawt = this.convewtModewPositionToViewPosition(modewWange.stawtWineNumba, modewWange.stawtCowumn, affinity);
+			wetuwn Wange.fwomPositions(stawt);
+		} ewse {
+			const stawt = this.convewtModewPositionToViewPosition(modewWange.stawtWineNumba, modewWange.stawtCowumn, PositionAffinity.Wight);
+			const end = this.convewtModewPositionToViewPosition(modewWange.endWineNumba, modewWange.endCowumn, PositionAffinity.Weft);
+			wetuwn new Wange(stawt.wineNumba, stawt.cowumn, end.wineNumba, end.cowumn);
 		}
 	}
 
-	private _getViewLineNumberForModelPosition(inputLineNumber: number, inputColumn: number): number {
-		let lineIndex = inputLineNumber - 1;
-		if (this.lines[lineIndex].isVisible()) {
-			// this model line is visible
-			const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
-			return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, inputColumn);
+	pwivate _getViewWineNumbewFowModewPosition(inputWineNumba: numba, inputCowumn: numba): numba {
+		wet wineIndex = inputWineNumba - 1;
+		if (this.wines[wineIndex].isVisibwe()) {
+			// this modew wine is visibwe
+			const dewtaWineNumba = 1 + (wineIndex === 0 ? 0 : this.pwefixSumComputa.getAccumuwatedVawue(wineIndex - 1));
+			wetuwn this.wines[wineIndex].getViewWineNumbewOfModewPosition(dewtaWineNumba, inputCowumn);
 		}
 
-		// this model line is not visible
-		while (lineIndex > 0 && !this.lines[lineIndex].isVisible()) {
-			lineIndex--;
+		// this modew wine is not visibwe
+		whiwe (wineIndex > 0 && !this.wines[wineIndex].isVisibwe()) {
+			wineIndex--;
 		}
-		if (lineIndex === 0 && !this.lines[lineIndex].isVisible()) {
-			// Could not reach a real line
-			return 1;
+		if (wineIndex === 0 && !this.wines[wineIndex].isVisibwe()) {
+			// Couwd not weach a weaw wine
+			wetuwn 1;
 		}
-		const deltaLineNumber = 1 + (lineIndex === 0 ? 0 : this.prefixSumComputer.getAccumulatedValue(lineIndex - 1));
-		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
+		const dewtaWineNumba = 1 + (wineIndex === 0 ? 0 : this.pwefixSumComputa.getAccumuwatedVawue(wineIndex - 1));
+		wetuwn this.wines[wineIndex].getViewWineNumbewOfModewPosition(dewtaWineNumba, this.modew.getWineMaxCowumn(wineIndex + 1));
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
-		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
-		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts ? opts.position : 0;
-			if (lane === 0) {
+	pubwic getAwwOvewviewWuwewDecowations(ownewId: numba, fiwtewOutVawidation: boowean, theme: EditowTheme): IOvewviewWuwewDecowations {
+		const decowations = this.modew.getOvewviewWuwewDecowations(ownewId, fiwtewOutVawidation);
+		const wesuwt = new OvewviewWuwewDecowations();
+		fow (const decowation of decowations) {
+			const opts = <ModewDecowationOvewviewWuwewOptions>decowation.options.ovewviewWuwa;
+			const wane = opts ? opts.position : 0;
+			if (wane === 0) {
 				continue;
 			}
-			const color = opts.getColor(theme);
-			const viewStartLineNumber = this._getViewLineNumberForModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
-			const viewEndLineNumber = this._getViewLineNumberForModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
+			const cowow = opts.getCowow(theme);
+			const viewStawtWineNumba = this._getViewWineNumbewFowModewPosition(decowation.wange.stawtWineNumba, decowation.wange.stawtCowumn);
+			const viewEndWineNumba = this._getViewWineNumbewFowModewPosition(decowation.wange.endWineNumba, decowation.wange.endCowumn);
 
-			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+			wesuwt.accept(cowow, viewStawtWineNumba, viewEndWineNumba, wane);
 		}
-		return result.result;
+		wetuwn wesuwt.wesuwt;
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
-		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
-		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
+	pubwic getDecowationsInWange(wange: Wange, ownewId: numba, fiwtewOutVawidation: boowean): IModewDecowation[] {
+		const modewStawt = this.convewtViewPositionToModewPosition(wange.stawtWineNumba, wange.stawtCowumn);
+		const modewEnd = this.convewtViewPositionToModewPosition(wange.endWineNumba, wange.endCowumn);
 
-		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
-			// most likely there are no hidden lines => fast path
-			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+		if (modewEnd.wineNumba - modewStawt.wineNumba <= wange.endWineNumba - wange.stawtWineNumba) {
+			// most wikewy thewe awe no hidden wines => fast path
+			// fetch decowations fwom cowumn 1 to cova the case of wwapped wines that have whowe wine decowations at cowumn 1
+			wetuwn this.modew.getDecowationsInWange(new Wange(modewStawt.wineNumba, 1, modewEnd.wineNumba, modewEnd.cowumn), ownewId, fiwtewOutVawidation);
 		}
 
-		let result: IModelDecoration[] = [];
-		const modelStartLineIndex = modelStart.lineNumber - 1;
-		const modelEndLineIndex = modelEnd.lineNumber - 1;
+		wet wesuwt: IModewDecowation[] = [];
+		const modewStawtWineIndex = modewStawt.wineNumba - 1;
+		const modewEndWineIndex = modewEnd.wineNumba - 1;
 
-		let reqStart: Position | null = null;
-		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
-			const line = this.lines[modelLineIndex];
-			if (line.isVisible()) {
-				// merge into previous request
-				if (reqStart === null) {
-					reqStart = new Position(modelLineIndex + 1, modelLineIndex === modelStartLineIndex ? modelStart.column : 1);
+		wet weqStawt: Position | nuww = nuww;
+		fow (wet modewWineIndex = modewStawtWineIndex; modewWineIndex <= modewEndWineIndex; modewWineIndex++) {
+			const wine = this.wines[modewWineIndex];
+			if (wine.isVisibwe()) {
+				// mewge into pwevious wequest
+				if (weqStawt === nuww) {
+					weqStawt = new Position(modewWineIndex + 1, modewWineIndex === modewStawtWineIndex ? modewStawt.cowumn : 1);
 				}
-			} else {
-				// hit invisible line => flush request
-				if (reqStart !== null) {
-					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation));
-					reqStart = null;
+			} ewse {
+				// hit invisibwe wine => fwush wequest
+				if (weqStawt !== nuww) {
+					const maxWineCowumn = this.modew.getWineMaxCowumn(modewWineIndex);
+					wesuwt = wesuwt.concat(this.modew.getDecowationsInWange(new Wange(weqStawt.wineNumba, weqStawt.cowumn, modewWineIndex, maxWineCowumn), ownewId, fiwtewOutVawidation));
+					weqStawt = nuww;
 				}
 			}
 		}
 
-		if (reqStart !== null) {
-			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation));
-			reqStart = null;
+		if (weqStawt !== nuww) {
+			wesuwt = wesuwt.concat(this.modew.getDecowationsInWange(new Wange(weqStawt.wineNumba, weqStawt.cowumn, modewEnd.wineNumba, modewEnd.cowumn), ownewId, fiwtewOutVawidation));
+			weqStawt = nuww;
 		}
 
-		result.sort((a, b) => {
-			const res = Range.compareRangesUsingStarts(a.range, b.range);
-			if (res === 0) {
+		wesuwt.sowt((a, b) => {
+			const wes = Wange.compaweWangesUsingStawts(a.wange, b.wange);
+			if (wes === 0) {
 				if (a.id < b.id) {
-					return -1;
+					wetuwn -1;
 				}
 				if (a.id > b.id) {
-					return 1;
+					wetuwn 1;
 				}
-				return 0;
+				wetuwn 0;
 			}
-			return res;
+			wetuwn wes;
 		});
 
-		// Eliminate duplicate decorations that might have intersected our visible ranges multiple times
-		let finalResult: IModelDecoration[] = [], finalResultLen = 0;
-		let prevDecId: string | null = null;
-		for (const dec of result) {
+		// Ewiminate dupwicate decowations that might have intewsected ouw visibwe wanges muwtipwe times
+		wet finawWesuwt: IModewDecowation[] = [], finawWesuwtWen = 0;
+		wet pwevDecId: stwing | nuww = nuww;
+		fow (const dec of wesuwt) {
 			const decId = dec.id;
-			if (prevDecId === decId) {
+			if (pwevDecId === decId) {
 				// skip
 				continue;
 			}
-			prevDecId = decId;
-			finalResult[finalResultLen++] = dec;
+			pwevDecId = decId;
+			finawWesuwt[finawWesuwtWen++] = dec;
 		}
 
-		return finalResult;
+		wetuwn finawWesuwt;
 	}
 
-	public getInjectedTextAt(position: Position): InjectedText | null {
-		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
+	pubwic getInjectedTextAt(position: Position): InjectedText | nuww {
+		const viewWineNumba = this._toVawidViewWineNumba(position.wineNumba);
+		const w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		const wineIndex = w.index;
+		const wemainda = w.wemainda;
 
-		return this.lines[lineIndex].getInjectedTextAt(remainder, position.column);
+		wetuwn this.wines[wineIndex].getInjectedTextAt(wemainda, position.cowumn);
 	}
 
-	normalizePosition(position: Position, affinity: PositionAffinity): Position {
-		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position {
+		const viewWineNumba = this._toVawidViewWineNumba(position.wineNumba);
+		const w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		const wineIndex = w.index;
+		const wemainda = w.wemainda;
 
-		return this.lines[lineIndex].normalizePosition(this.model, lineIndex + 1, remainder, position, affinity);
+		wetuwn this.wines[wineIndex].nowmawizePosition(this.modew, wineIndex + 1, wemainda, position, affinity);
 	}
 
-	public getLineIndentColumn(lineNumber: number): number {
-		const viewLineNumber = this._toValidViewLineNumber(lineNumber);
-		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		const lineIndex = r.index;
-		const remainder = r.remainder;
+	pubwic getWineIndentCowumn(wineNumba: numba): numba {
+		const viewWineNumba = this._toVawidViewWineNumba(wineNumba);
+		const w = this.pwefixSumComputa.getIndexOf(viewWineNumba - 1);
+		const wineIndex = w.index;
+		const wemainda = w.wemainda;
 
-		if (remainder === 0) {
-			return this.model.getLineIndentColumn(lineIndex + 1);
+		if (wemainda === 0) {
+			wetuwn this.modew.getWineIndentCowumn(wineIndex + 1);
 		}
 
-		// wrapped lines have no indentation.
-		// We deliberately don't handle the case that indentation is wrapped
-		// to avoid two view lines reporting indentation for the very same model line.
-		return 0;
+		// wwapped wines have no indentation.
+		// We dewibewatewy don't handwe the case that indentation is wwapped
+		// to avoid two view wines wepowting indentation fow the vewy same modew wine.
+		wetuwn 0;
 	}
 }
 
-class VisibleIdentitySplitLine implements ISplitLine {
+cwass VisibweIdentitySpwitWine impwements ISpwitWine {
 
-	public static readonly INSTANCE = new VisibleIdentitySplitLine();
+	pubwic static weadonwy INSTANCE = new VisibweIdentitySpwitWine();
 
-	private constructor() { }
+	pwivate constwuctow() { }
 
-	public isVisible(): boolean {
-		return true;
+	pubwic isVisibwe(): boowean {
+		wetuwn twue;
 	}
 
-	public setVisible(isVisible: boolean): ISplitLine {
-		if (isVisible) {
-			return this;
+	pubwic setVisibwe(isVisibwe: boowean): ISpwitWine {
+		if (isVisibwe) {
+			wetuwn this;
 		}
-		return InvisibleIdentitySplitLine.INSTANCE;
+		wetuwn InvisibweIdentitySpwitWine.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
-		return null;
+	pubwic getWineBweakData(): WineBweakData | nuww {
+		wetuwn nuww;
 	}
 
-	public getViewLineCount(): number {
-		return 1;
+	pubwic getViewWineCount(): numba {
+		wetuwn 1;
 	}
 
-	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): string {
-		return model.getLineContent(modelLineNumber);
+	pubwic getViewWineContent(modew: ISimpweModew, modewWineNumba: numba, _outputWineIndex: numba): stwing {
+		wetuwn modew.getWineContent(modewWineNumba);
 	}
 
-	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): number {
-		return model.getLineLength(modelLineNumber);
+	pubwic getViewWineWength(modew: ISimpweModew, modewWineNumba: numba, _outputWineIndex: numba): numba {
+		wetuwn modew.getWineWength(modewWineNumba);
 	}
 
-	public getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): number {
-		return model.getLineMinColumn(modelLineNumber);
+	pubwic getViewWineMinCowumn(modew: ISimpweModew, modewWineNumba: numba, _outputWineIndex: numba): numba {
+		wetuwn modew.getWineMinCowumn(modewWineNumba);
 	}
 
-	public getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): number {
-		return model.getLineMaxColumn(modelLineNumber);
+	pubwic getViewWineMaxCowumn(modew: ISimpweModew, modewWineNumba: numba, _outputWineIndex: numba): numba {
+		wetuwn modew.getWineMaxCowumn(modewWineNumba);
 	}
 
-	public getViewLineData(model: ISimpleModel, modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber);
-		let lineContent = lineTokens.getLineContent();
-		return new ViewLineData(
-			lineContent,
-			false,
+	pubwic getViewWineData(modew: ISimpweModew, modewWineNumba: numba, _outputWineIndex: numba): ViewWineData {
+		wet wineTokens = modew.getWineTokens(modewWineNumba);
+		wet wineContent = wineTokens.getWineContent();
+		wetuwn new ViewWineData(
+			wineContent,
+			fawse,
 			1,
-			lineContent.length + 1,
+			wineContent.wength + 1,
 			0,
-			lineTokens.inflate(),
-			null
+			wineTokens.infwate(),
+			nuww
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
-		if (!needed[globalStartIndex]) {
-			result[globalStartIndex] = null;
-			return;
+	pubwic getViewWinesData(modew: ISimpweModew, modewWineNumba: numba, _fwomOuputWineIndex: numba, _toOutputWineIndex: numba, gwobawStawtIndex: numba, needed: boowean[], wesuwt: Awway<ViewWineData | nuww>): void {
+		if (!needed[gwobawStawtIndex]) {
+			wesuwt[gwobawStawtIndex] = nuww;
+			wetuwn;
 		}
-		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0);
+		wesuwt[gwobawStawtIndex] = this.getViewWineData(modew, modewWineNumba, 0);
 	}
 
-	public getModelColumnOfViewPosition(_outputLineIndex: number, outputColumn: number): number {
-		return outputColumn;
+	pubwic getModewCowumnOfViewPosition(_outputWineIndex: numba, outputCowumn: numba): numba {
+		wetuwn outputCowumn;
 	}
 
-	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
-		return new Position(deltaLineNumber, inputColumn);
+	pubwic getViewPositionOfModewPosition(dewtaWineNumba: numba, inputCowumn: numba): Position {
+		wetuwn new Position(dewtaWineNumba, inputCowumn);
 	}
 
-	public getViewLineNumberOfModelPosition(deltaLineNumber: number, _inputColumn: number): number {
-		return deltaLineNumber;
+	pubwic getViewWineNumbewOfModewPosition(dewtaWineNumba: numba, _inputCowumn: numba): numba {
+		wetuwn dewtaWineNumba;
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
-		return outputPosition;
+	pubwic nowmawizePosition(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba, outputPosition: Position, affinity: PositionAffinity): Position {
+		wetuwn outputPosition;
 	}
 
-	public getInjectedTextAt(_outputLineIndex: number, _outputColumn: number): InjectedText | null {
-		return null;
+	pubwic getInjectedTextAt(_outputWineIndex: numba, _outputCowumn: numba): InjectedText | nuww {
+		wetuwn nuww;
 	}
 }
 
-class InvisibleIdentitySplitLine implements ISplitLine {
+cwass InvisibweIdentitySpwitWine impwements ISpwitWine {
 
-	public static readonly INSTANCE = new InvisibleIdentitySplitLine();
+	pubwic static weadonwy INSTANCE = new InvisibweIdentitySpwitWine();
 
-	private constructor() { }
+	pwivate constwuctow() { }
 
-	public isVisible(): boolean {
-		return false;
+	pubwic isVisibwe(): boowean {
+		wetuwn fawse;
 	}
 
-	public setVisible(isVisible: boolean): ISplitLine {
-		if (!isVisible) {
-			return this;
+	pubwic setVisibwe(isVisibwe: boowean): ISpwitWine {
+		if (!isVisibwe) {
+			wetuwn this;
 		}
-		return VisibleIdentitySplitLine.INSTANCE;
+		wetuwn VisibweIdentitySpwitWine.INSTANCE;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
-		return null;
+	pubwic getWineBweakData(): WineBweakData | nuww {
+		wetuwn nuww;
 	}
 
-	public getViewLineCount(): number {
-		return 0;
+	pubwic getViewWineCount(): numba {
+		wetuwn 0;
 	}
 
-	public getViewLineContent(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): string {
-		throw new Error('Not supported');
+	pubwic getViewWineContent(_modew: ISimpweModew, _modewWineNumba: numba, _outputWineIndex: numba): stwing {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLineLength(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): number {
-		throw new Error('Not supported');
+	pubwic getViewWineWength(_modew: ISimpweModew, _modewWineNumba: numba, _outputWineIndex: numba): numba {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLineMinColumn(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): number {
-		throw new Error('Not supported');
+	pubwic getViewWineMinCowumn(_modew: ISimpweModew, _modewWineNumba: numba, _outputWineIndex: numba): numba {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLineMaxColumn(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): number {
-		throw new Error('Not supported');
+	pubwic getViewWineMaxCowumn(_modew: ISimpweModew, _modewWineNumba: numba, _outputWineIndex: numba): numba {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLineData(_model: ISimpleModel, _modelLineNumber: number, _outputLineIndex: number): ViewLineData {
-		throw new Error('Not supported');
+	pubwic getViewWineData(_modew: ISimpweModew, _modewWineNumba: numba, _outputWineIndex: numba): ViewWineData {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLinesData(_model: ISimpleModel, _modelLineNumber: number, _fromOuputLineIndex: number, _toOutputLineIndex: number, _globalStartIndex: number, _needed: boolean[], _result: ViewLineData[]): void {
-		throw new Error('Not supported');
+	pubwic getViewWinesData(_modew: ISimpweModew, _modewWineNumba: numba, _fwomOuputWineIndex: numba, _toOutputWineIndex: numba, _gwobawStawtIndex: numba, _needed: boowean[], _wesuwt: ViewWineData[]): void {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getModelColumnOfViewPosition(_outputLineIndex: number, _outputColumn: number): number {
-		throw new Error('Not supported');
+	pubwic getModewCowumnOfViewPosition(_outputWineIndex: numba, _outputCowumn: numba): numba {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewPositionOfModelPosition(_deltaLineNumber: number, _inputColumn: number): Position {
-		throw new Error('Not supported');
+	pubwic getViewPositionOfModewPosition(_dewtaWineNumba: numba, _inputCowumn: numba): Position {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getViewLineNumberOfModelPosition(_deltaLineNumber: number, _inputColumn: number): number {
-		throw new Error('Not supported');
+	pubwic getViewWineNumbewOfModewPosition(_dewtaWineNumba: numba, _inputCowumn: numba): numba {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
-		throw new Error('Not supported');
+	pubwic nowmawizePosition(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba, outputPosition: Position, affinity: PositionAffinity): Position {
+		thwow new Ewwow('Not suppowted');
 	}
 
-	public getInjectedTextAt(_outputLineIndex: number, _outputColumn: number): InjectedText | null {
-		throw new Error('Not supported');
+	pubwic getInjectedTextAt(_outputWineIndex: numba, _outputCowumn: numba): InjectedText | nuww {
+		thwow new Ewwow('Not suppowted');
 	}
 }
 
-export class SplitLine implements ISplitLine {
+expowt cwass SpwitWine impwements ISpwitWine {
 
-	private readonly _lineBreakData: LineBreakData;
-	private _isVisible: boolean;
+	pwivate weadonwy _wineBweakData: WineBweakData;
+	pwivate _isVisibwe: boowean;
 
-	constructor(lineBreakData: LineBreakData, isVisible: boolean) {
-		this._lineBreakData = lineBreakData;
-		this._isVisible = isVisible;
+	constwuctow(wineBweakData: WineBweakData, isVisibwe: boowean) {
+		this._wineBweakData = wineBweakData;
+		this._isVisibwe = isVisibwe;
 	}
 
-	public isVisible(): boolean {
-		return this._isVisible;
+	pubwic isVisibwe(): boowean {
+		wetuwn this._isVisibwe;
 	}
 
-	public setVisible(isVisible: boolean): ISplitLine {
-		this._isVisible = isVisible;
-		return this;
+	pubwic setVisibwe(isVisibwe: boowean): ISpwitWine {
+		this._isVisibwe = isVisibwe;
+		wetuwn this;
 	}
 
-	public getLineBreakData(): LineBreakData | null {
-		return this._lineBreakData;
+	pubwic getWineBweakData(): WineBweakData | nuww {
+		wetuwn this._wineBweakData;
 	}
 
-	public getViewLineCount(): number {
-		if (!this._isVisible) {
-			return 0;
+	pubwic getViewWineCount(): numba {
+		if (!this._isVisibwe) {
+			wetuwn 0;
 		}
-		return this._lineBreakData.breakOffsets.length;
+		wetuwn this._wineBweakData.bweakOffsets.wength;
 	}
 
-	private getInputStartOffsetOfOutputLineIndex(outputLineIndex: number): number {
-		return this._lineBreakData.getInputOffsetOfOutputPosition(outputLineIndex, 0);
+	pwivate getInputStawtOffsetOfOutputWineIndex(outputWineIndex: numba): numba {
+		wetuwn this._wineBweakData.getInputOffsetOfOutputPosition(outputWineIndex, 0);
 	}
 
-	private getInputEndOffsetOfOutputLineIndex(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (outputLineIndex + 1 === this._lineBreakData.breakOffsets.length) {
-			return model.getLineMaxColumn(modelLineNumber) - 1;
+	pwivate getInputEndOffsetOfOutputWineIndex(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba {
+		if (outputWineIndex + 1 === this._wineBweakData.bweakOffsets.wength) {
+			wetuwn modew.getWineMaxCowumn(modewWineNumba) - 1;
 		}
-		return this._lineBreakData.getInputOffsetOfOutputPosition(outputLineIndex + 1, 0);
+		wetuwn this._wineBweakData.getInputOffsetOfOutputPosition(outputWineIndex + 1, 0);
 	}
 
-	public getViewLineContent(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): string {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineContent(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): stwing {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
 
-		// These offsets refer to model text with injected text.
-		const startOffset = outputLineIndex > 0 ? this._lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length
-			? this._lineBreakData.breakOffsets[outputLineIndex]
-			// This case might not be possible anyway, but we clamp the value to be on the safe side.
-			: this._lineBreakData.breakOffsets[this._lineBreakData.breakOffsets.length - 1];
+		// These offsets wefa to modew text with injected text.
+		const stawtOffset = outputWineIndex > 0 ? this._wineBweakData.bweakOffsets[outputWineIndex - 1] : 0;
+		const endOffset = outputWineIndex < this._wineBweakData.bweakOffsets.wength
+			? this._wineBweakData.bweakOffsets[outputWineIndex]
+			// This case might not be possibwe anyway, but we cwamp the vawue to be on the safe side.
+			: this._wineBweakData.bweakOffsets[this._wineBweakData.bweakOffsets.wength - 1];
 
-		let r: string;
-		if (this._lineBreakData.injectionOffsets !== null) {
-			const injectedTexts = this._lineBreakData.injectionOffsets.map((offset, idx) => new LineInjectedText(0, 0, offset + 1, this._lineBreakData.injectionOptions![idx], 0));
-			r = LineInjectedText.applyInjectedText(model.getLineContent(modelLineNumber), injectedTexts).substring(startOffset, endOffset);
-		} else {
-			r = model.getValueInRange({
-				startLineNumber: modelLineNumber,
-				startColumn: startOffset + 1,
-				endLineNumber: modelLineNumber,
-				endColumn: endOffset + 1
+		wet w: stwing;
+		if (this._wineBweakData.injectionOffsets !== nuww) {
+			const injectedTexts = this._wineBweakData.injectionOffsets.map((offset, idx) => new WineInjectedText(0, 0, offset + 1, this._wineBweakData.injectionOptions![idx], 0));
+			w = WineInjectedText.appwyInjectedText(modew.getWineContent(modewWineNumba), injectedTexts).substwing(stawtOffset, endOffset);
+		} ewse {
+			w = modew.getVawueInWange({
+				stawtWineNumba: modewWineNumba,
+				stawtCowumn: stawtOffset + 1,
+				endWineNumba: modewWineNumba,
+				endCowumn: endOffset + 1
 			});
 		}
 
-		if (outputLineIndex > 0) {
-			r = spaces(this._lineBreakData.wrappedTextIndentLength) + r;
+		if (outputWineIndex > 0) {
+			w = spaces(this._wineBweakData.wwappedTextIndentWength) + w;
 		}
 
-		return r;
+		wetuwn w;
 	}
 
-	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		// TODO @hediet make this method a member of LineBreakData.
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineWength(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba {
+		// TODO @hediet make this method a memba of WineBweakData.
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
 
-		// These offsets refer to model text with injected text.
-		const startOffset = outputLineIndex > 0 ? this._lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length
-			? this._lineBreakData.breakOffsets[outputLineIndex]
-			// This case might not be possible anyway, but we clamp the value to be on the safe side.
-			: this._lineBreakData.breakOffsets[this._lineBreakData.breakOffsets.length - 1];
+		// These offsets wefa to modew text with injected text.
+		const stawtOffset = outputWineIndex > 0 ? this._wineBweakData.bweakOffsets[outputWineIndex - 1] : 0;
+		const endOffset = outputWineIndex < this._wineBweakData.bweakOffsets.wength
+			? this._wineBweakData.bweakOffsets[outputWineIndex]
+			// This case might not be possibwe anyway, but we cwamp the vawue to be on the safe side.
+			: this._wineBweakData.bweakOffsets[this._wineBweakData.bweakOffsets.wength - 1];
 
-		let r = endOffset - startOffset;
+		wet w = endOffset - stawtOffset;
 
-		if (outputLineIndex > 0) {
-			r = this._lineBreakData.wrappedTextIndentLength + r;
+		if (outputWineIndex > 0) {
+			w = this._wineBweakData.wwappedTextIndentWength + w;
 		}
 
-		return r;
+		wetuwn w;
 	}
 
-	public getViewLineMinColumn(_model: ITextModel, _modelLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineMinCowumn(_modew: ITextModew, _modewWineNumba: numba, outputWineIndex: numba): numba {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		return this._getViewLineMinColumn(outputLineIndex);
+		wetuwn this._getViewWineMinCowumn(outputWineIndex);
 	}
 
-	private _getViewLineMinColumn(outputLineIndex: number): number {
-		if (outputLineIndex > 0) {
-			return this._lineBreakData.wrappedTextIndentLength + 1;
+	pwivate _getViewWineMinCowumn(outputWineIndex: numba): numba {
+		if (outputWineIndex > 0) {
+			wetuwn this._wineBweakData.wwappedTextIndentWength + 1;
 		}
-		return 1;
+		wetuwn 1;
 	}
 
-	public getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineMaxCowumn(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): numba {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		return this.getViewLineLength(model, modelLineNumber, outputLineIndex) + 1;
+		wetuwn this.getViewWineWength(modew, modewWineNumba, outputWineIndex) + 1;
 	}
 
-	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineData(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba): ViewWineData {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		const lineBreakData = this._lineBreakData;
-		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
+		const wineBweakData = this._wineBweakData;
+		const dewtaStawtIndex = (outputWineIndex > 0 ? wineBweakData.wwappedTextIndentWength : 0);
 
-		const injectionOffsets = lineBreakData.injectionOffsets;
-		const injectionOptions = lineBreakData.injectionOptions;
+		const injectionOffsets = wineBweakData.injectionOffsets;
+		const injectionOptions = wineBweakData.injectionOptions;
 
-		let lineContent: string;
-		let tokens: IViewLineTokens;
-		let inlineDecorations: null | SingleLineInlineDecoration[];
+		wet wineContent: stwing;
+		wet tokens: IViewWineTokens;
+		wet inwineDecowations: nuww | SingweWineInwineDecowation[];
 		if (injectionOffsets) {
-			const lineTokens = model.getLineTokens(modelLineNumber).withInserted(injectionOffsets.map((offset, idx) => ({
+			const wineTokens = modew.getWineTokens(modewWineNumba).withInsewted(injectionOffsets.map((offset, idx) => ({
 				offset,
 				text: injectionOptions![idx].content,
-				tokenMetadata: LineTokens.defaultTokenMetadata
+				tokenMetadata: WineTokens.defauwtTokenMetadata
 			})));
 
-			const lineStartOffsetInUnwrappedLine = outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-			const lineEndOffsetInUnwrappedLine = lineBreakData.breakOffsets[outputLineIndex];
+			const wineStawtOffsetInUnwwappedWine = outputWineIndex > 0 ? wineBweakData.bweakOffsets[outputWineIndex - 1] : 0;
+			const wineEndOffsetInUnwwappedWine = wineBweakData.bweakOffsets[outputWineIndex];
 
-			lineContent = lineTokens.getLineContent().substring(lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine);
-			tokens = lineTokens.sliceAndInflate(lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine, deltaStartIndex);
-			inlineDecorations = new Array<SingleLineInlineDecoration>();
+			wineContent = wineTokens.getWineContent().substwing(wineStawtOffsetInUnwwappedWine, wineEndOffsetInUnwwappedWine);
+			tokens = wineTokens.swiceAndInfwate(wineStawtOffsetInUnwwappedWine, wineEndOffsetInUnwwappedWine, dewtaStawtIndex);
+			inwineDecowations = new Awway<SingweWineInwineDecowation>();
 
-			let totalInjectedTextLengthBefore = 0;
-			for (let i = 0; i < injectionOffsets.length; i++) {
-				const length = injectionOptions![i].content.length;
-				const injectedTextStartOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore;
-				const injectedTextEndOffsetInUnwrappedLine = injectionOffsets[i] + totalInjectedTextLengthBefore + length;
+			wet totawInjectedTextWengthBefowe = 0;
+			fow (wet i = 0; i < injectionOffsets.wength; i++) {
+				const wength = injectionOptions![i].content.wength;
+				const injectedTextStawtOffsetInUnwwappedWine = injectionOffsets[i] + totawInjectedTextWengthBefowe;
+				const injectedTextEndOffsetInUnwwappedWine = injectionOffsets[i] + totawInjectedTextWengthBefowe + wength;
 
-				if (injectedTextStartOffsetInUnwrappedLine > lineEndOffsetInUnwrappedLine) {
-					// Injected text only starts in later wrapped lines.
-					break;
+				if (injectedTextStawtOffsetInUnwwappedWine > wineEndOffsetInUnwwappedWine) {
+					// Injected text onwy stawts in wata wwapped wines.
+					bweak;
 				}
 
-				if (lineStartOffsetInUnwrappedLine < injectedTextEndOffsetInUnwrappedLine) {
-					// Injected text ends after or in this line (but also starts in or before this line).
+				if (wineStawtOffsetInUnwwappedWine < injectedTextEndOffsetInUnwwappedWine) {
+					// Injected text ends afta ow in this wine (but awso stawts in ow befowe this wine).
 					const options = injectionOptions![i];
-					if (options.inlineClassName) {
-						const offset = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
-						const start = offset + Math.max(injectedTextStartOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, 0);
-						const end = offset + Math.min(injectedTextEndOffsetInUnwrappedLine - lineStartOffsetInUnwrappedLine, lineEndOffsetInUnwrappedLine);
-						if (start !== end) {
-							inlineDecorations.push(new SingleLineInlineDecoration(start, end, options.inlineClassName, options.inlineClassNameAffectsLetterSpacing!));
+					if (options.inwineCwassName) {
+						const offset = (outputWineIndex > 0 ? wineBweakData.wwappedTextIndentWength : 0);
+						const stawt = offset + Math.max(injectedTextStawtOffsetInUnwwappedWine - wineStawtOffsetInUnwwappedWine, 0);
+						const end = offset + Math.min(injectedTextEndOffsetInUnwwappedWine - wineStawtOffsetInUnwwappedWine, wineEndOffsetInUnwwappedWine);
+						if (stawt !== end) {
+							inwineDecowations.push(new SingweWineInwineDecowation(stawt, end, options.inwineCwassName, options.inwineCwassNameAffectsWettewSpacing!));
 						}
 					}
 				}
 
-				totalInjectedTextLengthBefore += length;
+				totawInjectedTextWengthBefowe += wength;
 			}
-		} else {
-			const startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-			const endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-			const lineTokens = model.getLineTokens(modelLineNumber);
-			lineContent = model.getValueInRange({
-				startLineNumber: modelLineNumber,
-				startColumn: startOffset + 1,
-				endLineNumber: modelLineNumber,
-				endColumn: endOffset + 1
+		} ewse {
+			const stawtOffset = this.getInputStawtOffsetOfOutputWineIndex(outputWineIndex);
+			const endOffset = this.getInputEndOffsetOfOutputWineIndex(modew, modewWineNumba, outputWineIndex);
+			const wineTokens = modew.getWineTokens(modewWineNumba);
+			wineContent = modew.getVawueInWange({
+				stawtWineNumba: modewWineNumba,
+				stawtCowumn: stawtOffset + 1,
+				endWineNumba: modewWineNumba,
+				endCowumn: endOffset + 1
 			});
-			tokens = lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
-			inlineDecorations = null;
+			tokens = wineTokens.swiceAndInfwate(stawtOffset, endOffset, dewtaStawtIndex);
+			inwineDecowations = nuww;
 		}
 
-		if (outputLineIndex > 0) {
-			lineContent = spaces(lineBreakData.wrappedTextIndentLength) + lineContent;
+		if (outputWineIndex > 0) {
+			wineContent = spaces(wineBweakData.wwappedTextIndentWength) + wineContent;
 		}
 
-		const minColumn = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength + 1 : 1);
-		const maxColumn = lineContent.length + 1;
-		const continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
-		const startVisibleColumn = (outputLineIndex === 0 ? 0 : lineBreakData.breakOffsetsVisibleColumn[outputLineIndex - 1]);
+		const minCowumn = (outputWineIndex > 0 ? wineBweakData.wwappedTextIndentWength + 1 : 1);
+		const maxCowumn = wineContent.wength + 1;
+		const continuesWithWwappedWine = (outputWineIndex + 1 < this.getViewWineCount());
+		const stawtVisibweCowumn = (outputWineIndex === 0 ? 0 : wineBweakData.bweakOffsetsVisibweCowumn[outputWineIndex - 1]);
 
-		return new ViewLineData(
-			lineContent,
-			continuesWithWrappedLine,
-			minColumn,
-			maxColumn,
-			startVisibleColumn,
+		wetuwn new ViewWineData(
+			wineContent,
+			continuesWithWwappedWine,
+			minCowumn,
+			maxCowumn,
+			stawtVisibweCowumn,
 			tokens,
-			inlineDecorations
+			inwineDecowations
 		);
 	}
 
-	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: Array<ViewLineData | null>): void {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWinesData(modew: ITextModew, modewWineNumba: numba, fwomOuputWineIndex: numba, toOutputWineIndex: numba, gwobawStawtIndex: numba, needed: boowean[], wesuwt: Awway<ViewWineData | nuww>): void {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
 
-		for (let outputLineIndex = fromOuputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - fromOuputLineIndex;
-			if (!needed[globalIndex]) {
-				result[globalIndex] = null;
+		fow (wet outputWineIndex = fwomOuputWineIndex; outputWineIndex < toOutputWineIndex; outputWineIndex++) {
+			wet gwobawIndex = gwobawStawtIndex + outputWineIndex - fwomOuputWineIndex;
+			if (!needed[gwobawIndex]) {
+				wesuwt[gwobawIndex] = nuww;
 				continue;
 			}
-			result[globalIndex] = this.getViewLineData(model, modelLineNumber, outputLineIndex);
+			wesuwt[gwobawIndex] = this.getViewWineData(modew, modewWineNumba, outputWineIndex);
 		}
 	}
 
-	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getModewCowumnOfViewPosition(outputWineIndex: numba, outputCowumn: numba): numba {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		let adjustedColumn = outputColumn - 1;
-		if (outputLineIndex > 0) {
-			if (adjustedColumn < this._lineBreakData.wrappedTextIndentLength) {
-				adjustedColumn = 0;
-			} else {
-				adjustedColumn -= this._lineBreakData.wrappedTextIndentLength;
+		wet adjustedCowumn = outputCowumn - 1;
+		if (outputWineIndex > 0) {
+			if (adjustedCowumn < this._wineBweakData.wwappedTextIndentWength) {
+				adjustedCowumn = 0;
+			} ewse {
+				adjustedCowumn -= this._wineBweakData.wwappedTextIndentWength;
 			}
 		}
-		return this._lineBreakData.getInputOffsetOfOutputPosition(outputLineIndex, adjustedColumn) + 1;
+		wetuwn this._wineBweakData.getInputOffsetOfOutputPosition(outputWineIndex, adjustedCowumn) + 1;
 	}
 
-	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewPositionOfModewPosition(dewtaWineNumba: numba, inputCowumn: numba, affinity: PositionAffinity = PositionAffinity.None): Position {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		let r = this._lineBreakData.getOutputPositionOfInputOffset(inputColumn - 1, affinity);
-		let outputLineIndex = r.outputLineIndex;
-		let outputColumn = r.outputOffset + 1;
+		wet w = this._wineBweakData.getOutputPositionOfInputOffset(inputCowumn - 1, affinity);
+		wet outputWineIndex = w.outputWineIndex;
+		wet outputCowumn = w.outputOffset + 1;
 
-		if (outputLineIndex > 0) {
-			outputColumn += this._lineBreakData.wrappedTextIndentLength;
+		if (outputWineIndex > 0) {
+			outputCowumn += this._wineBweakData.wwappedTextIndentWength;
 		}
 
-		//		console.log('in -> out ' + deltaLineNumber + ',' + inputColumn + ' ===> ' + (deltaLineNumber+outputLineIndex) + ',' + outputColumn);
-		return new Position(deltaLineNumber + outputLineIndex, outputColumn);
+		//		consowe.wog('in -> out ' + dewtaWineNumba + ',' + inputCowumn + ' ===> ' + (dewtaWineNumba+outputWineIndex) + ',' + outputCowumn);
+		wetuwn new Position(dewtaWineNumba + outputWineIndex, outputCowumn);
 	}
 
-	public getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
+	pubwic getViewWineNumbewOfModewPosition(dewtaWineNumba: numba, inputCowumn: numba): numba {
+		if (!this._isVisibwe) {
+			thwow new Ewwow('Not suppowted');
 		}
-		const r = this._lineBreakData.getOutputPositionOfInputOffset(inputColumn - 1);
-		return (deltaLineNumber + r.outputLineIndex);
+		const w = this._wineBweakData.getOutputPositionOfInputOffset(inputCowumn - 1);
+		wetuwn (dewtaWineNumba + w.outputWineIndex);
 	}
 
-	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionAffinity): Position {
-		if (this._lineBreakData.injectionOffsets !== null) {
-			const baseViewLineNumber = outputPosition.lineNumber - outputLineIndex;
-			const offsetInUnwrappedLine = this._lineBreakData.outputPositionToOffsetInUnwrappedLine(outputLineIndex, outputPosition.column - 1);
-			const normalizedOffsetInUnwrappedLine = this._lineBreakData.normalizeOffsetAroundInjections(offsetInUnwrappedLine, affinity);
-			if (normalizedOffsetInUnwrappedLine !== offsetInUnwrappedLine) {
+	pubwic nowmawizePosition(modew: ISimpweModew, modewWineNumba: numba, outputWineIndex: numba, outputPosition: Position, affinity: PositionAffinity): Position {
+		if (this._wineBweakData.injectionOffsets !== nuww) {
+			const baseViewWineNumba = outputPosition.wineNumba - outputWineIndex;
+			const offsetInUnwwappedWine = this._wineBweakData.outputPositionToOffsetInUnwwappedWine(outputWineIndex, outputPosition.cowumn - 1);
+			const nowmawizedOffsetInUnwwappedWine = this._wineBweakData.nowmawizeOffsetAwoundInjections(offsetInUnwwappedWine, affinity);
+			if (nowmawizedOffsetInUnwwappedWine !== offsetInUnwwappedWine) {
 				// injected text caused a change
-				return this._lineBreakData.getOutputPositionOfOffsetInUnwrappedLine(normalizedOffsetInUnwrappedLine, affinity).toPosition(baseViewLineNumber, this._lineBreakData.wrappedTextIndentLength);
+				wetuwn this._wineBweakData.getOutputPositionOfOffsetInUnwwappedWine(nowmawizedOffsetInUnwwappedWine, affinity).toPosition(baseViewWineNumba, this._wineBweakData.wwappedTextIndentWength);
 			}
 		}
 
-		if (affinity === PositionAffinity.Left) {
-			if (outputLineIndex > 0 && outputPosition.column === this._getViewLineMinColumn(outputLineIndex)) {
-				return new Position(outputPosition.lineNumber - 1, this.getViewLineMaxColumn(model, modelLineNumber, outputLineIndex - 1));
+		if (affinity === PositionAffinity.Weft) {
+			if (outputWineIndex > 0 && outputPosition.cowumn === this._getViewWineMinCowumn(outputWineIndex)) {
+				wetuwn new Position(outputPosition.wineNumba - 1, this.getViewWineMaxCowumn(modew, modewWineNumba, outputWineIndex - 1));
 			}
 		}
-		else if (affinity === PositionAffinity.Right) {
-			const maxOutputLineIndex = this.getViewLineCount() - 1;
-			if (outputLineIndex < maxOutputLineIndex && outputPosition.column === this.getViewLineMaxColumn(model, modelLineNumber, outputLineIndex)) {
-				return new Position(outputPosition.lineNumber + 1, this._getViewLineMinColumn(outputLineIndex + 1));
+		ewse if (affinity === PositionAffinity.Wight) {
+			const maxOutputWineIndex = this.getViewWineCount() - 1;
+			if (outputWineIndex < maxOutputWineIndex && outputPosition.cowumn === this.getViewWineMaxCowumn(modew, modewWineNumba, outputWineIndex)) {
+				wetuwn new Position(outputPosition.wineNumba + 1, this._getViewWineMinCowumn(outputWineIndex + 1));
 			}
 		}
 
-		return outputPosition;
+		wetuwn outputPosition;
 	}
 
-	public getInjectedTextAt(outputLineIndex: number, outputColumn: number): InjectedText | null {
-		return this._lineBreakData.getInjectedText(outputLineIndex, outputColumn - 1);
+	pubwic getInjectedTextAt(outputWineIndex: numba, outputCowumn: numba): InjectedText | nuww {
+		wetuwn this._wineBweakData.getInjectedText(outputWineIndex, outputCowumn - 1);
 	}
 }
 
-let _spaces: string[] = [''];
-function spaces(count: number): string {
-	if (count >= _spaces.length) {
-		for (let i = 1; i <= count; i++) {
+wet _spaces: stwing[] = [''];
+function spaces(count: numba): stwing {
+	if (count >= _spaces.wength) {
+		fow (wet i = 1; i <= count; i++) {
 			_spaces[i] = _makeSpaces(i);
 		}
 	}
-	return _spaces[count];
+	wetuwn _spaces[count];
 }
-function _makeSpaces(count: number): string {
-	return new Array(count + 1).join(' ');
+function _makeSpaces(count: numba): stwing {
+	wetuwn new Awway(count + 1).join(' ');
 }
 
-function createSplitLine(lineBreakData: LineBreakData | null, isVisible: boolean): ISplitLine {
-	if (lineBreakData === null) {
+function cweateSpwitWine(wineBweakData: WineBweakData | nuww, isVisibwe: boowean): ISpwitWine {
+	if (wineBweakData === nuww) {
 		// No mapping needed
-		if (isVisible) {
-			return VisibleIdentitySplitLine.INSTANCE;
+		if (isVisibwe) {
+			wetuwn VisibweIdentitySpwitWine.INSTANCE;
 		}
-		return InvisibleIdentitySplitLine.INSTANCE;
-	} else {
-		return new SplitLine(lineBreakData, isVisible);
+		wetuwn InvisibweIdentitySpwitWine.INSTANCE;
+	} ewse {
+		wetuwn new SpwitWine(wineBweakData, isVisibwe);
 	}
 }
 
-export class IdentityCoordinatesConverter implements ICoordinatesConverter {
+expowt cwass IdentityCoowdinatesConvewta impwements ICoowdinatesConvewta {
 
-	private readonly _lines: IdentityLinesCollection;
+	pwivate weadonwy _wines: IdentityWinesCowwection;
 
-	constructor(lines: IdentityLinesCollection) {
-		this._lines = lines;
+	constwuctow(wines: IdentityWinesCowwection) {
+		this._wines = wines;
 	}
 
-	private _validPosition(pos: Position): Position {
-		return this._lines.model.validatePosition(pos);
+	pwivate _vawidPosition(pos: Position): Position {
+		wetuwn this._wines.modew.vawidatePosition(pos);
 	}
 
-	private _validRange(range: Range): Range {
-		return this._lines.model.validateRange(range);
+	pwivate _vawidWange(wange: Wange): Wange {
+		wetuwn this._wines.modew.vawidateWange(wange);
 	}
 
-	// View -> Model conversion and related methods
+	// View -> Modew convewsion and wewated methods
 
-	public convertViewPositionToModelPosition(viewPosition: Position): Position {
-		return this._validPosition(viewPosition);
+	pubwic convewtViewPositionToModewPosition(viewPosition: Position): Position {
+		wetuwn this._vawidPosition(viewPosition);
 	}
 
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._validRange(viewRange);
+	pubwic convewtViewWangeToModewWange(viewWange: Wange): Wange {
+		wetuwn this._vawidWange(viewWange);
 	}
 
-	public validateViewPosition(_viewPosition: Position, expectedModelPosition: Position): Position {
-		return this._validPosition(expectedModelPosition);
+	pubwic vawidateViewPosition(_viewPosition: Position, expectedModewPosition: Position): Position {
+		wetuwn this._vawidPosition(expectedModewPosition);
 	}
 
-	public validateViewRange(_viewRange: Range, expectedModelRange: Range): Range {
-		return this._validRange(expectedModelRange);
+	pubwic vawidateViewWange(_viewWange: Wange, expectedModewWange: Wange): Wange {
+		wetuwn this._vawidWange(expectedModewWange);
 	}
 
-	// Model -> View conversion and related methods
+	// Modew -> View convewsion and wewated methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._validPosition(modelPosition);
+	pubwic convewtModewPositionToViewPosition(modewPosition: Position): Position {
+		wetuwn this._vawidPosition(modewPosition);
 	}
 
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._validRange(modelRange);
+	pubwic convewtModewWangeToViewWange(modewWange: Wange): Wange {
+		wetuwn this._vawidWange(modewWange);
 	}
 
-	public modelPositionIsVisible(modelPosition: Position): boolean {
-		const lineCount = this._lines.model.getLineCount();
-		if (modelPosition.lineNumber < 1 || modelPosition.lineNumber > lineCount) {
-			// invalid arguments
-			return false;
+	pubwic modewPositionIsVisibwe(modewPosition: Position): boowean {
+		const wineCount = this._wines.modew.getWineCount();
+		if (modewPosition.wineNumba < 1 || modewPosition.wineNumba > wineCount) {
+			// invawid awguments
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public getModelLineViewLineCount(modelLineNumber: number): number {
-		return 1;
+	pubwic getModewWineViewWineCount(modewWineNumba: numba): numba {
+		wetuwn 1;
 	}
 }
 
-export class IdentityLinesCollection implements IViewModelLinesCollection {
+expowt cwass IdentityWinesCowwection impwements IViewModewWinesCowwection {
 
-	public readonly model: ITextModel;
+	pubwic weadonwy modew: ITextModew;
 
-	constructor(model: ITextModel) {
-		this.model = model;
+	constwuctow(modew: ITextModew) {
+		this.modew = modew;
 	}
 
-	public dispose(): void {
+	pubwic dispose(): void {
 	}
 
-	public createCoordinatesConverter(): ICoordinatesConverter {
-		return new IdentityCoordinatesConverter(this);
+	pubwic cweateCoowdinatesConvewta(): ICoowdinatesConvewta {
+		wetuwn new IdentityCoowdinatesConvewta(this);
 	}
 
-	public getHiddenAreas(): Range[] {
-		return [];
+	pubwic getHiddenAweas(): Wange[] {
+		wetuwn [];
 	}
 
-	public setHiddenAreas(_ranges: Range[]): boolean {
-		return false;
+	pubwic setHiddenAweas(_wanges: Wange[]): boowean {
+		wetuwn fawse;
 	}
 
-	public setTabSize(_newTabSize: number): boolean {
-		return false;
+	pubwic setTabSize(_newTabSize: numba): boowean {
+		wetuwn fawse;
 	}
 
-	public setWrappingSettings(_fontInfo: FontInfo, _wrappingStrategy: 'simple' | 'advanced', _wrappingColumn: number, _wrappingIndent: WrappingIndent): boolean {
-		return false;
+	pubwic setWwappingSettings(_fontInfo: FontInfo, _wwappingStwategy: 'simpwe' | 'advanced', _wwappingCowumn: numba, _wwappingIndent: WwappingIndent): boowean {
+		wetuwn fawse;
 	}
 
-	public createLineBreaksComputer(): ILineBreaksComputer {
-		let result: null[] = [];
-		return {
-			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
-				result.push(null);
+	pubwic cweateWineBweaksComputa(): IWineBweaksComputa {
+		wet wesuwt: nuww[] = [];
+		wetuwn {
+			addWequest: (wineText: stwing, injectedText: WineInjectedText[] | nuww, pweviousWineBweakData: WineBweakData | nuww) => {
+				wesuwt.push(nuww);
 			},
-			finalize: () => {
-				return result;
+			finawize: () => {
+				wetuwn wesuwt;
 			}
 		};
 	}
 
-	public onModelFlushed(): void {
+	pubwic onModewFwushed(): void {
 	}
 
-	public onModelLinesDeleted(_versionId: number | null, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent | null {
-		return new viewEvents.ViewLinesDeletedEvent(fromLineNumber, toLineNumber);
+	pubwic onModewWinesDeweted(_vewsionId: numba | nuww, fwomWineNumba: numba, toWineNumba: numba): viewEvents.ViewWinesDewetedEvent | nuww {
+		wetuwn new viewEvents.ViewWinesDewetedEvent(fwomWineNumba, toWineNumba);
 	}
 
-	public onModelLinesInserted(_versionId: number | null, fromLineNumber: number, toLineNumber: number, lineBreaks: (LineBreakData | null)[]): viewEvents.ViewLinesInsertedEvent | null {
-		return new viewEvents.ViewLinesInsertedEvent(fromLineNumber, toLineNumber);
+	pubwic onModewWinesInsewted(_vewsionId: numba | nuww, fwomWineNumba: numba, toWineNumba: numba, wineBweaks: (WineBweakData | nuww)[]): viewEvents.ViewWinesInsewtedEvent | nuww {
+		wetuwn new viewEvents.ViewWinesInsewtedEvent(fwomWineNumba, toWineNumba);
 	}
 
-	public onModelLineChanged(_versionId: number | null, lineNumber: number, lineBreakData: LineBreakData | null): [boolean, viewEvents.ViewLinesChangedEvent | null, viewEvents.ViewLinesInsertedEvent | null, viewEvents.ViewLinesDeletedEvent | null] {
-		return [false, new viewEvents.ViewLinesChangedEvent(lineNumber, lineNumber), null, null];
+	pubwic onModewWineChanged(_vewsionId: numba | nuww, wineNumba: numba, wineBweakData: WineBweakData | nuww): [boowean, viewEvents.ViewWinesChangedEvent | nuww, viewEvents.ViewWinesInsewtedEvent | nuww, viewEvents.ViewWinesDewetedEvent | nuww] {
+		wetuwn [fawse, new viewEvents.ViewWinesChangedEvent(wineNumba, wineNumba), nuww, nuww];
 	}
 
-	public acceptVersionId(_versionId: number): void {
+	pubwic acceptVewsionId(_vewsionId: numba): void {
 	}
 
-	public getViewLineCount(): number {
-		return this.model.getLineCount();
+	pubwic getViewWineCount(): numba {
+		wetuwn this.modew.getWineCount();
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number, _minLineNumber: number, _maxLineNumber: number): IActiveIndentGuideInfo {
-		return {
-			startLineNumber: viewLineNumber,
-			endLineNumber: viewLineNumber,
+	pubwic getActiveIndentGuide(viewWineNumba: numba, _minWineNumba: numba, _maxWineNumba: numba): IActiveIndentGuideInfo {
+		wetuwn {
+			stawtWineNumba: viewWineNumba,
+			endWineNumba: viewWineNumba,
 			indent: 0
 		};
 	}
 
-	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
-		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
-		let result = new Array<number>(viewLineCount);
-		for (let i = 0; i < viewLineCount; i++) {
-			result[i] = 0;
+	pubwic getViewWinesIndentGuides(viewStawtWineNumba: numba, viewEndWineNumba: numba): numba[] {
+		const viewWineCount = viewEndWineNumba - viewStawtWineNumba + 1;
+		wet wesuwt = new Awway<numba>(viewWineCount);
+		fow (wet i = 0; i < viewWineCount; i++) {
+			wesuwt[i] = 0;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getViewLineContent(viewLineNumber: number): string {
-		return this.model.getLineContent(viewLineNumber);
+	pubwic getViewWineContent(viewWineNumba: numba): stwing {
+		wetuwn this.modew.getWineContent(viewWineNumba);
 	}
 
-	public getViewLineLength(viewLineNumber: number): number {
-		return this.model.getLineLength(viewLineNumber);
+	pubwic getViewWineWength(viewWineNumba: numba): numba {
+		wetuwn this.modew.getWineWength(viewWineNumba);
 	}
 
-	public getViewLineMinColumn(viewLineNumber: number): number {
-		return this.model.getLineMinColumn(viewLineNumber);
+	pubwic getViewWineMinCowumn(viewWineNumba: numba): numba {
+		wetuwn this.modew.getWineMinCowumn(viewWineNumba);
 	}
 
-	public getViewLineMaxColumn(viewLineNumber: number): number {
-		return this.model.getLineMaxColumn(viewLineNumber);
+	pubwic getViewWineMaxCowumn(viewWineNumba: numba): numba {
+		wetuwn this.modew.getWineMaxCowumn(viewWineNumba);
 	}
 
-	public getViewLineData(viewLineNumber: number): ViewLineData {
-		let lineTokens = this.model.getLineTokens(viewLineNumber);
-		let lineContent = lineTokens.getLineContent();
-		return new ViewLineData(
-			lineContent,
-			false,
+	pubwic getViewWineData(viewWineNumba: numba): ViewWineData {
+		wet wineTokens = this.modew.getWineTokens(viewWineNumba);
+		wet wineContent = wineTokens.getWineContent();
+		wetuwn new ViewWineData(
+			wineContent,
+			fawse,
 			1,
-			lineContent.length + 1,
+			wineContent.wength + 1,
 			0,
-			lineTokens.inflate(),
-			null
+			wineTokens.infwate(),
+			nuww
 		);
 	}
 
-	public getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null> {
-		const lineCount = this.model.getLineCount();
-		viewStartLineNumber = Math.min(Math.max(1, viewStartLineNumber), lineCount);
-		viewEndLineNumber = Math.min(Math.max(1, viewEndLineNumber), lineCount);
+	pubwic getViewWinesData(viewStawtWineNumba: numba, viewEndWineNumba: numba, needed: boowean[]): Awway<ViewWineData | nuww> {
+		const wineCount = this.modew.getWineCount();
+		viewStawtWineNumba = Math.min(Math.max(1, viewStawtWineNumba), wineCount);
+		viewEndWineNumba = Math.min(Math.max(1, viewEndWineNumba), wineCount);
 
-		let result: Array<ViewLineData | null> = [];
-		for (let lineNumber = viewStartLineNumber; lineNumber <= viewEndLineNumber; lineNumber++) {
-			let idx = lineNumber - viewStartLineNumber;
+		wet wesuwt: Awway<ViewWineData | nuww> = [];
+		fow (wet wineNumba = viewStawtWineNumba; wineNumba <= viewEndWineNumba; wineNumba++) {
+			wet idx = wineNumba - viewStawtWineNumba;
 			if (!needed[idx]) {
-				result[idx] = null;
+				wesuwt[idx] = nuww;
 			}
-			result[idx] = this.getViewLineData(lineNumber);
+			wesuwt[idx] = this.getViewWineData(wineNumba);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
-		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
-		const result = new OverviewRulerDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts ? opts.position : 0;
-			if (lane === 0) {
+	pubwic getAwwOvewviewWuwewDecowations(ownewId: numba, fiwtewOutVawidation: boowean, theme: EditowTheme): IOvewviewWuwewDecowations {
+		const decowations = this.modew.getOvewviewWuwewDecowations(ownewId, fiwtewOutVawidation);
+		const wesuwt = new OvewviewWuwewDecowations();
+		fow (const decowation of decowations) {
+			const opts = <ModewDecowationOvewviewWuwewOptions>decowation.options.ovewviewWuwa;
+			const wane = opts ? opts.position : 0;
+			if (wane === 0) {
 				continue;
 			}
-			const color = opts.getColor(theme);
-			const viewStartLineNumber = decoration.range.startLineNumber;
-			const viewEndLineNumber = decoration.range.endLineNumber;
+			const cowow = opts.getCowow(theme);
+			const viewStawtWineNumba = decowation.wange.stawtWineNumba;
+			const viewEndWineNumba = decowation.wange.endWineNumba;
 
-			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+			wesuwt.accept(cowow, viewStawtWineNumba, viewEndWineNumba, wane);
 		}
-		return result.result;
+		wetuwn wesuwt.wesuwt;
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
-		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation);
+	pubwic getDecowationsInWange(wange: Wange, ownewId: numba, fiwtewOutVawidation: boowean): IModewDecowation[] {
+		wetuwn this.modew.getDecowationsInWange(wange, ownewId, fiwtewOutVawidation);
 	}
 
-	normalizePosition(position: Position, affinity: PositionAffinity): Position {
-		return this.model.normalizePosition(position, affinity);
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position {
+		wetuwn this.modew.nowmawizePosition(position, affinity);
 	}
 
-	public getLineIndentColumn(lineNumber: number): number {
-		return this.model.getLineIndentColumn(lineNumber);
+	pubwic getWineIndentCowumn(wineNumba: numba): numba {
+		wetuwn this.modew.getWineIndentCowumn(wineNumba);
 	}
 
-	public getInjectedTextAt(position: Position): InjectedText | null {
-		// Identity lines collection does not support injected text.
-		return null;
+	pubwic getInjectedTextAt(position: Position): InjectedText | nuww {
+		// Identity wines cowwection does not suppowt injected text.
+		wetuwn nuww;
 	}
 }
 
-class OverviewRulerDecorations {
+cwass OvewviewWuwewDecowations {
 
-	readonly result: IOverviewRulerDecorations = Object.create(null);
+	weadonwy wesuwt: IOvewviewWuwewDecowations = Object.cweate(nuww);
 
-	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
-		let prev = this.result[color];
+	pubwic accept(cowow: stwing, stawtWineNumba: numba, endWineNumba: numba, wane: numba): void {
+		wet pwev = this.wesuwt[cowow];
 
-		if (prev) {
-			const prevLane = prev[prev.length - 3];
-			const prevEndLineNumber = prev[prev.length - 1];
-			if (prevLane === lane && prevEndLineNumber + 1 >= startLineNumber) {
-				// merge into prev
-				if (endLineNumber > prevEndLineNumber) {
-					prev[prev.length - 1] = endLineNumber;
+		if (pwev) {
+			const pwevWane = pwev[pwev.wength - 3];
+			const pwevEndWineNumba = pwev[pwev.wength - 1];
+			if (pwevWane === wane && pwevEndWineNumba + 1 >= stawtWineNumba) {
+				// mewge into pwev
+				if (endWineNumba > pwevEndWineNumba) {
+					pwev[pwev.wength - 1] = endWineNumba;
 				}
-				return;
+				wetuwn;
 			}
 
 			// push
-			prev.push(lane, startLineNumber, endLineNumber);
-		} else {
-			this.result[color] = [lane, startLineNumber, endLineNumber];
+			pwev.push(wane, stawtWineNumba, endWineNumba);
+		} ewse {
+			this.wesuwt[cowow] = [wane, stawtWineNumba, endWineNumba];
 		}
 	}
 }

@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export function getStrings(): { [key: string]: string } {
-	const store = document.getElementById('vscode-markdown-preview-data');
-	if (store) {
-		const data = store.getAttribute('data-strings');
+expowt function getStwings(): { [key: stwing]: stwing } {
+	const stowe = document.getEwementById('vscode-mawkdown-pweview-data');
+	if (stowe) {
+		const data = stowe.getAttwibute('data-stwings');
 		if (data) {
-			return JSON.parse(data);
+			wetuwn JSON.pawse(data);
 		}
 	}
-	throw new Error('Could not load strings');
+	thwow new Ewwow('Couwd not woad stwings');
 }

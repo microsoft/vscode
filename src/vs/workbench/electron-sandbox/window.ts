@@ -1,686 +1,686 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
-import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { env } from 'vs/base/common/process';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, isArray } from 'vs/base/common/types';
-import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix, dirname } from 'vs/base/common/path';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Event } from 'vs/base/common/event';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { EventType, EventHewpa, addDisposabweWistena, scheduweAtNextAnimationFwame } fwom 'vs/base/bwowsa/dom';
+impowt { Sepawatow } fwom 'vs/base/common/actions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { EditowWesouwceAccessow, IUntitwedTextWesouwceEditowInput, SideBySideEditow, pathsToEditows, IWesouwceDiffEditowInput, IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { WindowMinimumSize, IOpenFiweWequest, IWindowsConfiguwation, getTitweBawStywe, IAddFowdewsWequest, INativeWunActionInWindowWequest, INativeWunKeybindingInWindowWequest, INativeOpenFiweWequest } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ITitweSewvice } fwom 'vs/wowkbench/sewvices/titwe/common/titweSewvice';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { appwyZoom } fwom 'vs/pwatfowm/windows/ewectwon-sandbox/window';
+impowt { setFuwwscween, getZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { ICommandSewvice, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { ipcWendewa } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { env } fwom 'vs/base/common/pwocess';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { IMenuSewvice, MenuId, IMenu, MenuItemAction, ICommandAction, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WifecycwePhase, IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWowkspaceFowdewCweationData } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IIntegwitySewvice } fwom 'vs/wowkbench/sewvices/integwity/common/integwity';
+impowt { isWindows, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IAccessibiwitySewvice, AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { WowkbenchState, IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { assewtIsDefined, isAwway } fwom 'vs/base/common/types';
+impowt { IOpenewSewvice, OpenOptions } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { posix, diwname } fwom 'vs/base/common/path';
+impowt { getBaseWabew } fwom 'vs/base/common/wabews';
+impowt { ITunnewSewvice, extwactWocawHostUwiMetaDataFowPowtMapping } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { IWowkbenchWayoutSewvice, Pawts, positionFwomStwing, Position } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { AutoSaveMode, IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IAddwessPwovida, IAddwess } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { AuthInfo } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/ewectwonTypes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { whenEditowCwosed } fwom 'vs/wowkbench/bwowsa/editow';
 
-export class NativeWindow extends Disposable {
+expowt cwass NativeWindow extends Disposabwe {
 
-	private static REMEMBER_PROXY_CREDENTIALS_KEY = 'window.rememberProxyCredentials';
+	pwivate static WEMEMBEW_PWOXY_CWEDENTIAWS_KEY = 'window.wemembewPwoxyCwedentiaws';
 
-	private touchBarMenu: IMenu | undefined;
-	private readonly touchBarDisposables = this._register(new DisposableStore());
-	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
+	pwivate touchBawMenu: IMenu | undefined;
+	pwivate weadonwy touchBawDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate wastInstawwedTouchedBaw: ICommandAction[][] | undefined;
 
-	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
+	pwivate weadonwy customTitweContextMenuDisposabwe = this._wegista(new DisposabweStowe());
 
-	private previousConfiguredZoomLevel: number | undefined;
+	pwivate pweviousConfiguwedZoomWevew: numba | undefined;
 
-	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
-	private pendingFoldersToAdd: URI[] = [];
+	pwivate weadonwy addFowdewsScheduwa = this._wegista(new WunOnceScheduwa(() => this.doAddFowdews(), 100));
+	pwivate pendingFowdewsToAdd: UWI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
+	pwivate weadonwy cwoseEmptyWindowScheduwa = this._wegista(new WunOnceScheduwa(() => this.onDidAwwEditowsCwose(), 50));
 
-	private isDocumentedEdited = false;
+	pwivate isDocumentedEdited = fawse;
 
-	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITitleService private readonly titleService: ITitleService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IFileService private readonly fileService: IFileService,
-		@IMenuService private readonly menuService: IMenuService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IProductService private readonly productService: IProductService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@ITitweSewvice pwivate weadonwy titweSewvice: ITitweSewvice,
+		@IWowkbenchThemeSewvice pwotected themeSewvice: IWowkbenchThemeSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
+		@IKeybindingSewvice pwivate weadonwy keybindingSewvice: IKeybindingSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceEditingSewvice pwivate weadonwy wowkspaceEditingSewvice: IWowkspaceEditingSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IIntegwitySewvice pwivate weadonwy integwitySewvice: IIntegwitySewvice,
+		@INativeWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@ITunnewSewvice pwivate weadonwy tunnewSewvice: ITunnewSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
-		this.create();
+		this.wegistewWistenews();
+		this.cweate();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		// Wayout
+		this._wegista(addDisposabweWistena(window, EventType.WESIZE, e => this.onWindowWesize(e, twue)));
 
-		// React to editor input changes
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
+		// Weact to editow input changes
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.updateTouchbawMenu()));
 
-		// prevent opening a real URL inside the window
-		[EventType.DRAG_OVER, EventType.DROP].forEach(event => {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
-				EventHelper.stop(e);
+		// pwevent opening a weaw UWW inside the window
+		[EventType.DWAG_OVa, EventType.DWOP].fowEach(event => {
+			window.document.body.addEventWistena(event, (e: DwagEvent) => {
+				EventHewpa.stop(e);
 			});
 		});
 
-		// Support runAction event
-		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
-			const args: unknown[] = request.args || [];
+		// Suppowt wunAction event
+		ipcWendewa.on('vscode:wunAction', async (event: unknown, wequest: INativeWunActionInWindowWequest) => {
+			const awgs: unknown[] = wequest.awgs || [];
 
-			// If we run an action from the touchbar, we fill in the currently active resource
-			// as payload because the touch bar items are context aware depending on the editor
-			if (request.from === 'touchbar') {
-				const activeEditor = this.editorService.activeEditor;
-				if (activeEditor) {
-					const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-					if (resource) {
-						args.push(resource);
+			// If we wun an action fwom the touchbaw, we fiww in the cuwwentwy active wesouwce
+			// as paywoad because the touch baw items awe context awawe depending on the editow
+			if (wequest.fwom === 'touchbaw') {
+				const activeEditow = this.editowSewvice.activeEditow;
+				if (activeEditow) {
+					const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+					if (wesouwce) {
+						awgs.push(wesouwce);
 					}
 				}
-			} else {
-				args.push({ from: request.from });
+			} ewse {
+				awgs.push({ fwom: wequest.fwom });
 			}
 
-			try {
-				await this.commandService.executeCommand(request.id, ...args);
+			twy {
+				await this.commandSewvice.executeCommand(wequest.id, ...awgs);
 
-				type CommandExecutedClassifcation = {
-					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				type CommandExecutedCwassifcation = {
+					id: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+					fwom: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 				};
-				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
-			} catch (error) {
-				this.notificationService.error(error);
+				this.tewemetwySewvice.pubwicWog2<{ id: Stwing, fwom: Stwing }, CommandExecutedCwassifcation>('commandExecuted', { id: wequest.id, fwom: wequest.fwom });
+			} catch (ewwow) {
+				this.notificationSewvice.ewwow(ewwow);
 			}
 		});
 
-		// Support runKeybinding event
-		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
-			if (document.activeElement) {
-				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+		// Suppowt wunKeybinding event
+		ipcWendewa.on('vscode:wunKeybinding', (event: unknown, wequest: INativeWunKeybindingInWindowWequest) => {
+			if (document.activeEwement) {
+				this.keybindingSewvice.dispatchByUsewSettingsWabew(wequest.usewSettingsWabew, document.activeEwement);
 			}
 		});
 
-		// Error reporting from main
-		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
-			if (error) {
-				onUnexpectedError(JSON.parse(error));
+		// Ewwow wepowting fwom main
+		ipcWendewa.on('vscode:wepowtEwwow', (event: unknown, ewwow: stwing) => {
+			if (ewwow) {
+				onUnexpectedEwwow(JSON.pawse(ewwow));
 			}
 		});
 
-		// Support openFiles event for existing and new files
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this.onOpenFiles(request));
+		// Suppowt openFiwes event fow existing and new fiwes
+		ipcWendewa.on('vscode:openFiwes', (event: unknown, wequest: IOpenFiweWequest) => this.onOpenFiwes(wequest));
 
-		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		// Suppowt addFowdews event if we have a wowkspace opened
+		ipcWendewa.on('vscode:addFowdews', (event: unknown, wequest: IAddFowdewsWequest) => this.onAddFowdewsWequest(wequest));
 
-		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
+		// Message suppowt
+		ipcWendewa.on('vscode:showInfoMessage', (event: unknown, message: stwing) => this.notificationSewvice.info(message));
 
-		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
-		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
+		// Fuwwscween Events
+		ipcWendewa.on('vscode:entewFuwwScween', async () => setFuwwscween(twue));
+		ipcWendewa.on('vscode:weaveFuwwScween', async () => setFuwwscween(fawse));
 
-		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
-			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
-			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
+		// Pwoxy Wogin Diawog
+		ipcWendewa.on('vscode:openPwoxyAuthenticationDiawog', async (event: unknown, paywoad: { authInfo: AuthInfo, usewname?: stwing, passwowd?: stwing, wepwyChannew: stwing }) => {
+			const wemembewCwedentiaws = this.stowageSewvice.getBoowean(NativeWindow.WEMEMBEW_PWOXY_CWEDENTIAWS_KEY, StowageScope.GWOBAW);
+			const wesuwt = await this.diawogSewvice.input(Sevewity.Wawning, wocawize('pwoxyAuthWequiwed', "Pwoxy Authentication Wequiwed"),
 				[
-					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+					wocawize({ key: 'woginButton', comment: ['&& denotes a mnemonic'] }, "&&Wog In"),
+					wocawize({ key: 'cancewButton', comment: ['&& denotes a mnemonic'] }, "&&Cancew")
 				],
 				[
-					{ placeholder: localize('username', "Username"), value: payload.username },
-					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+					{ pwacehowda: wocawize('usewname', "Usewname"), vawue: paywoad.usewname },
+					{ pwacehowda: wocawize('passwowd', "Passwowd"), type: 'passwowd', vawue: paywoad.passwowd }
 				],
 				{
-					cancelId: 1,
-					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+					cancewId: 1,
+					detaiw: wocawize('pwoxyDetaiw', "The pwoxy {0} wequiwes a usewname and passwowd.", `${paywoad.authInfo.host}:${paywoad.authInfo.powt}`),
 					checkbox: {
-						label: localize('rememberCredentials', "Remember my credentials"),
-						checked: rememberCredentials
+						wabew: wocawize('wemembewCwedentiaws', "Wememba my cwedentiaws"),
+						checked: wemembewCwedentiaws
 					}
 				});
 
-			// Reply back to the channel without result to indicate
-			// that the login dialog was cancelled
-			if (result.choice !== 0 || !result.values) {
-				ipcRenderer.send(payload.replyChannel);
+			// Wepwy back to the channew without wesuwt to indicate
+			// that the wogin diawog was cancewwed
+			if (wesuwt.choice !== 0 || !wesuwt.vawues) {
+				ipcWendewa.send(paywoad.wepwyChannew);
 			}
 
-			// Other reply back with the picked credentials
-			else {
+			// Otha wepwy back with the picked cwedentiaws
+			ewse {
 
 				// Update state based on checkbox
-				if (result.checkboxChecked) {
-					this.storageService.store(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);
-				} else {
-					this.storageService.remove(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
+				if (wesuwt.checkboxChecked) {
+					this.stowageSewvice.stowe(NativeWindow.WEMEMBEW_PWOXY_CWEDENTIAWS_KEY, twue, StowageScope.GWOBAW, StowageTawget.MACHINE);
+				} ewse {
+					this.stowageSewvice.wemove(NativeWindow.WEMEMBEW_PWOXY_CWEDENTIAWS_KEY, StowageScope.GWOBAW);
 				}
 
-				// Reply back to main side with credentials
-				const [username, password] = result.values;
-				ipcRenderer.send(payload.replyChannel, { username, password, remember: !!result.checkboxChecked });
+				// Wepwy back to main side with cwedentiaws
+				const [usewname, passwowd] = wesuwt.vawues;
+				ipcWendewa.send(paywoad.wepwyChannew, { usewname, passwowd, wememba: !!wesuwt.checkboxChecked });
 			}
 		});
 
-		// Accessibility support changed event
-		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
-			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		// Accessibiwity suppowt changed event
+		ipcWendewa.on('vscode:accessibiwitySuppowtChanged', (event: unknown, accessibiwitySuppowtEnabwed: boowean) => {
+			this.accessibiwitySewvice.setAccessibiwitySuppowt(accessibiwitySuppowtEnabwed ? AccessibiwitySuppowt.Enabwed : AccessibiwitySuppowt.Disabwed);
 		});
 
-		// Zoom level changes
-		this.updateWindowZoomLevel();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.zoomLevel')) {
-				this.updateWindowZoomLevel();
-			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
-				this.updateTouchbarMenu();
+		// Zoom wevew changes
+		this.updateWindowZoomWevew();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('window.zoomWevew')) {
+				this.updateWindowZoomWevew();
+			} ewse if (e.affectsConfiguwation('keyboawd.touchbaw.enabwed') || e.affectsConfiguwation('keyboawd.touchbaw.ignowed')) {
+				this.updateTouchbawMenu();
 			}
 		}));
 
-		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
+		// Wisten to visibwe editow changes
+		this._wegista(this.editowSewvice.onDidVisibweEditowsChange(() => this.onDidChangeVisibweEditows()));
 
-		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.configuration.filesToWait;
-		if (filesToWait) {
-			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
+		// Wisten to editow cwosing (if we wun with --wait)
+		const fiwesToWait = this.enviwonmentSewvice.configuwation.fiwesToWait;
+		if (fiwesToWait) {
+			this.twackCwosedWaitFiwes(fiwesToWait.waitMawkewFiweUwi, coawesce(fiwesToWait.paths.map(path => path.fiweUwi)));
 		}
 
-		// macOS OS integration
+		// macOS OS integwation
 		if (isMacintosh) {
-			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+			this._wegista(this.editowSewvice.onDidActiveEditowChange(() => {
+				const fiwe = EditowWesouwceAccessow.getOwiginawUwi(this.editowSewvice.activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY, fiwtewByScheme: Schemas.fiwe });
 
-				// Represented Filename
-				this.updateRepresentedFilename(file?.fsPath);
+				// Wepwesented Fiwename
+				this.updateWepwesentedFiwename(fiwe?.fsPath);
 
-				// Custom title menu
-				this.provideCustomTitleContextMenu(file?.fsPath);
+				// Custom titwe menu
+				this.pwovideCustomTitweContextMenu(fiwe?.fsPath);
 			}));
 		}
 
-		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
+		// Maximize/Westowe on doubwecwick (fow macOS custom titwe)
+		if (isMacintosh && getTitweBawStywe(this.configuwationSewvice) === 'custom') {
+			const titwePawt = assewtIsDefined(this.wayoutSewvice.getContaina(Pawts.TITWEBAW_PAWT));
 
-			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
+			this._wegista(addDisposabweWistena(titwePawt, EventType.DBWCWICK, e => {
+				EventHewpa.stop(e);
 
-				this.nativeHostService.handleTitleDoubleClick();
+				this.nativeHostSewvice.handweTitweDoubweCwick();
 			}));
 		}
 
-		// Document edited: indicate for dirty working copies
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
-			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-				return; // do not indicate dirty of working copies that are auto saved after short delay
+		// Document edited: indicate fow diwty wowking copies
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => {
+			const gotDiwty = wowkingCopy.isDiwty();
+			if (gotDiwty && !(wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed) && this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY) {
+				wetuwn; // do not indicate diwty of wowking copies that awe auto saved afta showt deway
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDiwty);
 		}));
 
 		this.updateDocumentEdited();
 
 		// Detect minimize / maximize
-		this._register(Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
-			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
+		this._wegista(Event.any(
+			Event.map(Event.fiwta(this.nativeHostSewvice.onDidMaximizeWindow, id => id === this.nativeHostSewvice.windowId), () => twue),
+			Event.map(Event.fiwta(this.nativeHostSewvice.onDidUnmaximizeWindow, id => id === this.nativeHostSewvice.windowId), () => fawse)
 		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeWindowMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.enviwonmentSewvice.configuwation.maximized ?? fawse);
 
-		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
-		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+		// Detect panew position to detewmine minimum width
+		this._wegista(this.wayoutSewvice.onDidChangePanewPosition(pos => this.onDidChangePanewPosition(positionFwomStwing(pos))));
+		this.onDidChangePanewPosition(this.wayoutSewvice.getPanewPosition());
 	}
 
-	private onWindowResize(e: UIEvent, retry: boolean): void {
-		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
+	pwivate onWindowWesize(e: UIEvent, wetwy: boowean): void {
+		if (e.tawget === window) {
+			if (window.document && window.document.body && window.document.body.cwientWidth === 0) {
+				// TODO@ewectwon this is an ewectwon issue on macOS when simpwe fuwwscween is enabwed
+				// whewe fow some weason the window cwientWidth is wepowted as 0 when switching
+				// between simpwe fuwwscween and nowmaw scween. In that case we scheduwe the wayout
+				// caww at the next animation fwame once, in the hope that the dimensions awe
+				// pwopa then.
+				if (wetwy) {
+					scheduweAtNextAnimationFwame(() => this.onWindowWesize(e, fawse));
 				}
-				return;
+				wetuwn;
 			}
 
-			this.layoutService.layout();
+			this.wayoutSewvice.wayout();
 		}
 	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+	pwivate updateDocumentEdited(isDiwty = this.wowkingCopySewvice.hasDiwty): void {
+		if ((!this.isDocumentedEdited && isDiwty) || (this.isDocumentedEdited && !isDiwty)) {
+			this.isDocumentedEdited = isDiwty;
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+			this.nativeHostSewvice.setDocumentEdited(isDiwty);
 		}
 	}
 
-	private onDidChangeWindowMaximized(maximized: boolean): void {
-		this.layoutService.updateWindowMaximizedState(maximized);
+	pwivate onDidChangeWindowMaximized(maximized: boowean): void {
+		this.wayoutSewvice.updateWindowMaximizedState(maximized);
 	}
 
-	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+	pwivate getWindowMinimumWidth(panewPosition: Position = this.wayoutSewvice.getPanewPosition()): numba {
 
-		// if panel is on the side, then return the larger minwidth
-		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
-		if (panelOnSide) {
-			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
+		// if panew is on the side, then wetuwn the wawga minwidth
+		const panewOnSide = panewPosition === Position.WEFT || panewPosition === Position.WIGHT;
+		if (panewOnSide) {
+			wetuwn WindowMinimumSize.WIDTH_WITH_VEWTICAW_PANEW;
 		}
 
-		return WindowMinimumSize.WIDTH;
+		wetuwn WindowMinimumSize.WIDTH;
 	}
 
-	private onDidChangePanelPosition(pos: Position): void {
+	pwivate onDidChangePanewPosition(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
 
-		this.nativeHostService.setMinimumSize(minWidth, undefined);
+		this.nativeHostSewvice.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidChangeVisibleEditors(): void {
+	pwivate onDidChangeVisibweEditows(): void {
 
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditorPanes = this.editorService.visibleEditorPanes;
-		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
+		// Cwose when empty: check if we shouwd cwose the window based on the setting
+		// Ovewwuwed by: window has a wowkspace opened ow this window is fow extension devewopment
+		// ow setting is disabwed. Awso enabwed when wunning with --wait fwom the command wine.
+		const visibweEditowPanes = this.editowSewvice.visibweEditowPanes;
+		if (visibweEditowPanes.wength === 0 && this.contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY && !this.enviwonmentSewvice.isExtensionDevewopment) {
+			const cwoseWhenEmpty = this.configuwationSewvice.getVawue('window.cwoseWhenEmpty');
+			if (cwoseWhenEmpty || this.enviwonmentSewvice.awgs.wait) {
+				this.cwoseEmptyWindowScheduwa.scheduwe();
 			}
 		}
 	}
 
-	private onDidAllEditorsClose(): void {
-		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
-		if (visibleEditorPanes === 0) {
-			this.nativeHostService.closeWindow();
+	pwivate onDidAwwEditowsCwose(): void {
+		const visibweEditowPanes = this.editowSewvice.visibweEditowPanes.wength;
+		if (visibweEditowPanes === 0) {
+			this.nativeHostSewvice.cwoseWindow();
 		}
 	}
 
-	private updateWindowZoomLevel(): void {
-		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+	pwivate updateWindowZoomWevew(): void {
+		const windowConfig = this.configuwationSewvice.getVawue<IWindowsConfiguwation>();
 
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
+		wet configuwedZoomWevew = 0;
+		if (windowConfig.window && typeof windowConfig.window.zoomWevew === 'numba') {
+			configuwedZoomWevew = windowConfig.window.zoomWevew;
 
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
+			// Weave eawwy if the configuwed zoom wevew did not change (https://github.com/micwosoft/vscode/issues/1536)
+			if (this.pweviousConfiguwedZoomWevew === configuwedZoomWevew) {
+				wetuwn;
 			}
 
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
+			this.pweviousConfiguwedZoomWevew = configuwedZoomWevew;
 		}
 
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+		if (getZoomWevew() !== configuwedZoomWevew) {
+			appwyZoom(configuwedZoomWevew);
 		}
 	}
 
-	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
+	pwivate updateWepwesentedFiwename(fiwePath: stwing | undefined): void {
+		this.nativeHostSewvice.setWepwesentedFiwename(fiwePath ? fiwePath : '');
 	}
 
-	private provideCustomTitleContextMenu(filePath: string | undefined): void {
+	pwivate pwovideCustomTitweContextMenu(fiwePath: stwing | undefined): void {
 
-		// Clear old menu
-		this.customTitleContextMenuDisposable.clear();
+		// Cweaw owd menu
+		this.customTitweContextMenuDisposabwe.cweaw();
 
-		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
-			return;
+		// Pwovide new menu if a fiwe is opened and we awe on a custom titwe
+		if (!fiwePath || getTitweBawStywe(this.configuwationSewvice) !== 'custom') {
+			wetuwn;
 		}
 
-		// Split up filepath into segments
-		const segments = filePath.split(posix.sep);
-		for (let i = segments.length; i > 0; i--) {
-			const isFile = (i === segments.length);
+		// Spwit up fiwepath into segments
+		const segments = fiwePath.spwit(posix.sep);
+		fow (wet i = segments.wength; i > 0; i--) {
+			const isFiwe = (i === segments.wength);
 
-			let pathOffset = i;
-			if (!isFile) {
-				pathOffset++; // for segments which are not the file name we want to open the folder
+			wet pathOffset = i;
+			if (!isFiwe) {
+				pathOffset++; // fow segments which awe not the fiwe name we want to open the fowda
 			}
 
-			const path = segments.slice(0, pathOffset).join(posix.sep);
+			const path = segments.swice(0, pathOffset).join(posix.sep);
 
-			let label: string;
-			if (!isFile) {
-				label = getBaseLabel(dirname(path));
-			} else {
-				label = getBaseLabel(path);
+			wet wabew: stwing;
+			if (!isFiwe) {
+				wabew = getBaseWabew(diwname(path));
+			} ewse {
+				wabew = getBaseWabew(path);
 			}
 
-			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
-			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
+			const commandId = `wowkbench.action.weveawPathInFinda${i}`;
+			this.customTitweContextMenuDisposabwe.add(CommandsWegistwy.wegistewCommand(commandId, () => this.nativeHostSewvice.showItemInFowda(path)));
+			this.customTitweContextMenuDisposabwe.add(MenuWegistwy.appendMenuItem(MenuId.TitweBawContext, { command: { id: commandId, titwe: wabew || posix.sep }, owda: -i }));
 		}
 	}
 
-	private create(): void {
+	pwivate cweate(): void {
 
-		// Handle open calls
-		this.setupOpenHandlers();
+		// Handwe open cawws
+		this.setupOpenHandwews();
 
-		// Notify main side when window ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
+		// Notify main side when window weady
+		this.wifecycweSewvice.when(WifecycwePhase.Weady).then(() => this.nativeHostSewvice.notifyWeady());
 
-		// Integrity warning
-		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
+		// Integwity wawning
+		this.integwitySewvice.isPuwe().then(({ isPuwe }) => this.titweSewvice.updatePwopewties({ isPuwe }));
 
-		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
+		// Woot wawning
+		this.wifecycweSewvice.when(WifecycwePhase.Westowed).then(async () => {
+			const isAdmin = await this.nativeHostSewvice.isAdmin();
 
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
+			// Update titwe
+			this.titweSewvice.updatePwopewties({ isAdmin });
 
-			// Show warning message (unix only)
+			// Show wawning message (unix onwy)
 			if (isAdmin && !isWindows) {
-				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+				this.notificationSewvice.wawn(wocawize('wunningAsWoot', "It is not wecommended to wun {0} as woot usa.", this.pwoductSewvice.nameShowt));
 			}
 		});
 
-		// Touchbar menu (if enabled)
-		this.updateTouchbarMenu();
+		// Touchbaw menu (if enabwed)
+		this.updateTouchbawMenu();
 
-		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
-			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
+		// Check fow cycwic dependencies
+		if (wequiwe.hasDependencyCycwe()) {
+			if (env['CI'] || env['BUIWD_AWTIFACTSTAGINGDIWECTOWY']) {
+				this.wogSewvice.ewwow('Ewwow: Thewe is a dependency cycwe in the AMD moduwes that needs to be wesowved!');
+				this.nativeHostSewvice.exit(37); // wunning on a buiwd machine, just exit without showing a diawog
+			} ewse {
+				this.diawogSewvice.show(Sevewity.Ewwow, wocawize('woadewCycwe', "Thewe is a dependency cycwe in the AMD moduwes that needs to be wesowved!"));
+				this.nativeHostSewvice.openDevToows();
 			}
 		}
 	}
 
-	private setupOpenHandlers(): void {
+	pwivate setupOpenHandwews(): void {
 
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
+		// Bwock window.open() cawws
+		window.open = function (): Window | nuww {
+			thwow new Ewwow('Pwevented caww to window.open(). Use IOpenewSewvice instead!');
 		};
 
-		// Handle external open() calls
-		this.openerService.setDefaultExternalOpener({
-			openExternal: async (href: string) => {
-				const success = await this.nativeHostService.openExternal(href);
+		// Handwe extewnaw open() cawws
+		this.openewSewvice.setDefauwtExtewnawOpena({
+			openExtewnaw: async (hwef: stwing) => {
+				const success = await this.nativeHostSewvice.openExtewnaw(hwef);
 				if (!success) {
-					const fileCandidate = URI.parse(href);
-					if (fileCandidate.scheme === Schemas.file) {
-						// if opening failed, and this is a file, we can still try to reveal it
-						await this.nativeHostService.showItemInFolder(fileCandidate.fsPath);
+					const fiweCandidate = UWI.pawse(hwef);
+					if (fiweCandidate.scheme === Schemas.fiwe) {
+						// if opening faiwed, and this is a fiwe, we can stiww twy to weveaw it
+						await this.nativeHostSewvice.showItemInFowda(fiweCandidate.fsPath);
 					}
 				}
 
-				return true;
+				wetuwn twue;
 			}
 		});
 
-		// Register external URI resolver
-		this.openerService.registerExternalUriResolver({
-			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
-				if (options?.allowTunneling) {
-					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
-					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.remoteAuthority;
-						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-							getAddress: async (): Promise<IAddress> => {
-								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+		// Wegista extewnaw UWI wesowva
+		this.openewSewvice.wegistewExtewnawUwiWesowva({
+			wesowveExtewnawUwi: async (uwi: UWI, options?: OpenOptions) => {
+				if (options?.awwowTunnewing) {
+					const powtMappingWequest = extwactWocawHostUwiMetaDataFowPowtMapping(uwi);
+					if (powtMappingWequest) {
+						const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
+						const addwessPwovida: IAddwessPwovida | undefined = wemoteAuthowity ? {
+							getAddwess: async (): Pwomise<IAddwess> => {
+								wetuwn (await this.wemoteAuthowityWesowvewSewvice.wesowveAuthowity(wemoteAuthowity)).authowity;
 							}
 						} : undefined;
-						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
-						if (tunnel) {
-							const addressAsUri = URI.parse(tunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
-							return {
-								resolved,
-								dispose: () => tunnel.dispose(),
+						const tunnew = await this.tunnewSewvice.openTunnew(addwessPwovida, powtMappingWequest.addwess, powtMappingWequest.powt);
+						if (tunnew) {
+							const addwessAsUwi = UWI.pawse(tunnew.wocawAddwess);
+							const wesowved = addwessAsUwi.scheme.stawtsWith(uwi.scheme) ? addwessAsUwi : uwi.with({ authowity: tunnew.wocawAddwess });
+							wetuwn {
+								wesowved,
+								dispose: () => tunnew.dispose(),
 							};
 						}
 					}
 				}
 
-				if (!options?.openExternal) {
+				if (!options?.openExtewnaw) {
 
-					// Assume `uri` this is a workspace uri, let's see if we can handle it
-					await this.fileService.activateProvider(uri.scheme);
+					// Assume `uwi` this is a wowkspace uwi, wet's see if we can handwe it
+					await this.fiweSewvice.activatePwovida(uwi.scheme);
 
-					if (this.fileService.canHandleResource(uri)) {
-						return {
-							resolved: URI.from({
-								scheme: this.productService.urlProtocol,
-								path: 'workspace',
-								query: uri.toString()
+					if (this.fiweSewvice.canHandweWesouwce(uwi)) {
+						wetuwn {
+							wesowved: UWI.fwom({
+								scheme: this.pwoductSewvice.uwwPwotocow,
+								path: 'wowkspace',
+								quewy: uwi.toStwing()
 							}),
 							dispose() { }
 						};
 					}
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 	}
 
-	private updateTouchbarMenu(): void {
+	pwivate updateTouchbawMenu(): void {
 		if (!isMacintosh) {
-			return; // macOS only
+			wetuwn; // macOS onwy
 		}
 
-		// Dispose old
-		this.touchBarDisposables.clear();
-		this.touchBarMenu = undefined;
+		// Dispose owd
+		this.touchBawDisposabwes.cweaw();
+		this.touchBawMenu = undefined;
 
-		// Create new (delayed)
-		const scheduler: RunOnceScheduler = this.touchBarDisposables.add(new RunOnceScheduler(() => this.doUpdateTouchbarMenu(scheduler), 300));
-		scheduler.schedule();
+		// Cweate new (dewayed)
+		const scheduwa: WunOnceScheduwa = this.touchBawDisposabwes.add(new WunOnceScheduwa(() => this.doUpdateTouchbawMenu(scheduwa), 300));
+		scheduwa.scheduwe();
 	}
 
-	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
-		if (!this.touchBarMenu) {
-			const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-			this.touchBarMenu = this.menuService.createMenu(MenuId.TouchBarContext, scopedContextKeyService);
-			this.touchBarDisposables.add(this.touchBarMenu);
-			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
+	pwivate doUpdateTouchbawMenu(scheduwa: WunOnceScheduwa): void {
+		if (!this.touchBawMenu) {
+			const scopedContextKeySewvice = this.editowSewvice.activeEditowPane?.scopedContextKeySewvice || this.editowGwoupSewvice.activeGwoup.scopedContextKeySewvice;
+			this.touchBawMenu = this.menuSewvice.cweateMenu(MenuId.TouchBawContext, scopedContextKeySewvice);
+			this.touchBawDisposabwes.add(this.touchBawMenu);
+			this.touchBawDisposabwes.add(this.touchBawMenu.onDidChange(() => scheduwa.scheduwe()));
 		}
 
-		const actions: Array<MenuItemAction | Separator> = [];
+		const actions: Awway<MenuItemAction | Sepawatow> = [];
 
-		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
-		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
-		const ignoredItems = isArray(touchbarIgnored) ? touchbarIgnored : [];
+		const disabwed = this.configuwationSewvice.getVawue('keyboawd.touchbaw.enabwed') === fawse;
+		const touchbawIgnowed = this.configuwationSewvice.getVawue('keyboawd.touchbaw.ignowed');
+		const ignowedItems = isAwway(touchbawIgnowed) ? touchbawIgnowed : [];
 
-		// Fill actions into groups respecting order
-		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
+		// Fiww actions into gwoups wespecting owda
+		this.touchBawDisposabwes.add(cweateAndFiwwInActionBawActions(this.touchBawMenu, undefined, actions));
 
-		// Convert into command action multi array
+		// Convewt into command action muwti awway
 		const items: ICommandAction[][] = [];
-		let group: ICommandAction[] = [];
-		if (!disabled) {
-			for (const action of actions) {
+		wet gwoup: ICommandAction[] = [];
+		if (!disabwed) {
+			fow (const action of actions) {
 
 				// Command
 				if (action instanceof MenuItemAction) {
-					if (ignoredItems.indexOf(action.item.id) >= 0) {
-						continue; // ignored
+					if (ignowedItems.indexOf(action.item.id) >= 0) {
+						continue; // ignowed
 					}
 
-					group.push(action.item);
+					gwoup.push(action.item);
 				}
 
-				// Separator
-				else if (action instanceof Separator) {
-					if (group.length) {
-						items.push(group);
+				// Sepawatow
+				ewse if (action instanceof Sepawatow) {
+					if (gwoup.wength) {
+						items.push(gwoup);
 					}
 
-					group = [];
+					gwoup = [];
 				}
 			}
 
-			if (group.length) {
-				items.push(group);
+			if (gwoup.wength) {
+				items.push(gwoup);
 			}
 		}
 
-		// Only update if the actions have changed
-		if (!equals(this.lastInstalledTouchedBar, items)) {
-			this.lastInstalledTouchedBar = items;
-			this.nativeHostService.updateTouchBar(items);
+		// Onwy update if the actions have changed
+		if (!equaws(this.wastInstawwedTouchedBaw, items)) {
+			this.wastInstawwedTouchedBaw = items;
+			this.nativeHostSewvice.updateTouchBaw(items);
 		}
 	}
 
-	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+	pwivate onAddFowdewsWequest(wequest: IAddFowdewsWequest): void {
 
-		// Buffer all pending requests
-		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(folder => URI.revive(folder)));
+		// Buffa aww pending wequests
+		this.pendingFowdewsToAdd.push(...wequest.fowdewsToAdd.map(fowda => UWI.wevive(fowda)));
 
-		// Delay the adding of folders a bit to buffer in case more requests are coming
-		if (!this.addFoldersScheduler.isScheduled()) {
-			this.addFoldersScheduler.schedule();
+		// Deway the adding of fowdews a bit to buffa in case mowe wequests awe coming
+		if (!this.addFowdewsScheduwa.isScheduwed()) {
+			this.addFowdewsScheduwa.scheduwe();
 		}
 	}
 
-	private doAddFolders(): void {
-		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+	pwivate doAddFowdews(): void {
+		const fowdewsToAdd: IWowkspaceFowdewCweationData[] = [];
 
-		this.pendingFoldersToAdd.forEach(folder => {
-			foldersToAdd.push(({ uri: folder }));
+		this.pendingFowdewsToAdd.fowEach(fowda => {
+			fowdewsToAdd.push(({ uwi: fowda }));
 		});
 
-		this.pendingFoldersToAdd = [];
+		this.pendingFowdewsToAdd = [];
 
-		this.workspaceEditingService.addFolders(foldersToAdd);
+		this.wowkspaceEditingSewvice.addFowdews(fowdewsToAdd);
 	}
 
-	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
-		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
+	pwivate async onOpenFiwes(wequest: INativeOpenFiweWequest): Pwomise<void> {
+		const inputs: Awway<IWesouwceEditowInput | IUntitwedTextWesouwceEditowInput> = [];
+		const diffMode = !!(wequest.fiwesToDiff && (wequest.fiwesToDiff.wength === 2));
 
-		if (!diffMode && request.filesToOpenOrCreate) {
-			inputs.push(...(await pathsToEditors(request.filesToOpenOrCreate, this.fileService)));
+		if (!diffMode && wequest.fiwesToOpenOwCweate) {
+			inputs.push(...(await pathsToEditows(wequest.fiwesToOpenOwCweate, this.fiweSewvice)));
 		}
 
-		if (diffMode && request.filesToDiff) {
-			inputs.push(...(await pathsToEditors(request.filesToDiff, this.fileService)));
+		if (diffMode && wequest.fiwesToDiff) {
+			inputs.push(...(await pathsToEditows(wequest.fiwesToDiff, this.fiweSewvice)));
 		}
 
-		if (inputs.length) {
-			this.openResources(inputs, diffMode);
+		if (inputs.wength) {
+			this.openWesouwces(inputs, diffMode);
 		}
 
-		if (request.filesToWait && inputs.length) {
-			// In wait mode, listen to changes to the editors and wait until the files
-			// are closed that the user wants to wait for. When this happens we delete
-			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
+		if (wequest.fiwesToWait && inputs.wength) {
+			// In wait mode, wisten to changes to the editows and wait untiw the fiwes
+			// awe cwosed that the usa wants to wait fow. When this happens we dewete
+			// the wait mawka fiwe to signaw to the outside that editing is done.
+			this.twackCwosedWaitFiwes(UWI.wevive(wequest.fiwesToWait.waitMawkewFiweUwi), coawesce(wequest.fiwesToWait.paths.map(path => UWI.wevive(path.fiweUwi))));
 		}
 	}
 
-	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
+	pwivate async twackCwosedWaitFiwes(waitMawkewFiwe: UWI, wesouwcesToWaitFow: UWI[]): Pwomise<void> {
 
-		// Wait for the resources to be closed in the text editor...
-		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
+		// Wait fow the wesouwces to be cwosed in the text editow...
+		await this.instantiationSewvice.invokeFunction(accessow => whenEditowCwosed(accessow, wesouwcesToWaitFow));
 
-		// ...before deleting the wait marker file
-		await this.fileService.del(waitMarkerFile);
+		// ...befowe deweting the wait mawka fiwe
+		await this.fiweSewvice.dew(waitMawkewFiwe);
 	}
 
-	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		const editors: IUntypedEditorInput[] = [];
+	pwivate async openWesouwces(wesouwces: Awway<IWesouwceEditowInput | IUntitwedTextWesouwceEditowInput>, diffMode: boowean): Pwomise<unknown> {
+		const editows: IUntypedEditowInput[] = [];
 
-		// In diffMode we open 2 resources as diff
-		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			const diffEditor: IResourceDiffEditorInput = {
-				original: { resource: resources[0].resource },
-				modified: { resource: resources[1].resource },
-				options: { pinned: true }
+		// In diffMode we open 2 wesouwces as diff
+		if (diffMode && wesouwces.wength === 2 && wesouwces[0].wesouwce && wesouwces[1].wesouwce) {
+			const diffEditow: IWesouwceDiffEditowInput = {
+				owiginaw: { wesouwce: wesouwces[0].wesouwce },
+				modified: { wesouwce: wesouwces[1].wesouwce },
+				options: { pinned: twue }
 			};
-			editors.push(diffEditor);
-		} else {
-			editors.push(...resources);
+			editows.push(diffEditow);
+		} ewse {
+			editows.push(...wesouwces);
 		}
 
-		// Open as editors
-		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
+		// Open as editows
+		wetuwn this.editowSewvice.openEditows(editows, undefined, { vawidateTwust: twue });
 	}
 }

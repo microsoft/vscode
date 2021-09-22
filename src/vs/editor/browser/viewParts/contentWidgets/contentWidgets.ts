@@ -1,563 +1,563 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Constants } from 'vs/base/common/uint';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/editorCommon';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { ContentWidgetPositionPwefewence, IContentWidget } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IDimension } fwom 'vs/editow/common/editowCommon';
 
 
-class Coordinate {
-	_coordinateBrand: void = undefined;
+cwass Coowdinate {
+	_coowdinateBwand: void = undefined;
 
-	public readonly top: number;
-	public readonly left: number;
+	pubwic weadonwy top: numba;
+	pubwic weadonwy weft: numba;
 
-	constructor(top: number, left: number) {
+	constwuctow(top: numba, weft: numba) {
 		this.top = top;
-		this.left = left;
+		this.weft = weft;
 	}
 }
 
-export class ViewContentWidgets extends ViewPart {
+expowt cwass ViewContentWidgets extends ViewPawt {
 
-	private readonly _viewDomNode: FastDomNode<HTMLElement>;
-	private _widgets: { [key: string]: Widget; };
+	pwivate weadonwy _viewDomNode: FastDomNode<HTMWEwement>;
+	pwivate _widgets: { [key: stwing]: Widget; };
 
-	public domNode: FastDomNode<HTMLElement>;
-	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
+	pubwic domNode: FastDomNode<HTMWEwement>;
+	pubwic ovewfwowingContentWidgetsDomNode: FastDomNode<HTMWEwement>;
 
-	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
-		super(context);
+	constwuctow(context: ViewContext, viewDomNode: FastDomNode<HTMWEwement>) {
+		supa(context);
 		this._viewDomNode = viewDomNode;
 		this._widgets = {};
 
-		this.domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this.domNode, PartFingerprint.ContentWidgets);
-		this.domNode.setClassName('contentWidgets');
-		this.domNode.setPosition('absolute');
+		this.domNode = cweateFastDomNode(document.cweateEwement('div'));
+		PawtFingewpwints.wwite(this.domNode, PawtFingewpwint.ContentWidgets);
+		this.domNode.setCwassName('contentWidgets');
+		this.domNode.setPosition('absowute');
 		this.domNode.setTop(0);
 
-		this.overflowingContentWidgetsDomNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this.overflowingContentWidgetsDomNode, PartFingerprint.OverflowingContentWidgets);
-		this.overflowingContentWidgetsDomNode.setClassName('overflowingContentWidgets');
+		this.ovewfwowingContentWidgetsDomNode = cweateFastDomNode(document.cweateEwement('div'));
+		PawtFingewpwints.wwite(this.ovewfwowingContentWidgetsDomNode, PawtFingewpwint.OvewfwowingContentWidgets);
+		this.ovewfwowingContentWidgetsDomNode.setCwassName('ovewfwowingContentWidgets');
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 		this._widgets = {};
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
 		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].onConfigurationChanged(e);
+		fow (const widgetId of keys) {
+			this._widgets[widgetId].onConfiguwationChanged(e);
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		// true for inline decorations that can end up relayouting text
-		return true;
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		// twue fow inwine decowations that can end up wewayouting text
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+	pubwic ovewwide onWineMappingChanged(e: viewEvents.ViewWineMappingChangedEvent): boowean {
 		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].onLineMappingChanged(e);
+		fow (const widgetId of keys) {
+			this._widgets[widgetId].onWineMappingChanged(e);
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn twue;
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// ---- end view event handlers
+	// ---- end view event handwews
 
-	public addWidget(_widget: IContentWidget): void {
+	pubwic addWidget(_widget: IContentWidget): void {
 		const myWidget = new Widget(this._context, this._viewDomNode, _widget);
 		this._widgets[myWidget.id] = myWidget;
 
-		if (myWidget.allowEditorOverflow) {
-			this.overflowingContentWidgetsDomNode.appendChild(myWidget.domNode);
-		} else {
-			this.domNode.appendChild(myWidget.domNode);
+		if (myWidget.awwowEditowOvewfwow) {
+			this.ovewfwowingContentWidgetsDomNode.appendChiwd(myWidget.domNode);
+		} ewse {
+			this.domNode.appendChiwd(myWidget.domNode);
 		}
 
-		this.setShouldRender();
+		this.setShouwdWenda();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
+	pubwic setWidgetPosition(widget: IContentWidget, wange: IWange | nuww, pwefewence: ContentWidgetPositionPwefewence[] | nuww): void {
 		const myWidget = this._widgets[widget.getId()];
-		myWidget.setPosition(range, preference);
+		myWidget.setPosition(wange, pwefewence);
 
-		this.setShouldRender();
+		this.setShouwdWenda();
 	}
 
-	public removeWidget(widget: IContentWidget): void {
+	pubwic wemoveWidget(widget: IContentWidget): void {
 		const widgetId = widget.getId();
-		if (this._widgets.hasOwnProperty(widgetId)) {
+		if (this._widgets.hasOwnPwopewty(widgetId)) {
 			const myWidget = this._widgets[widgetId];
-			delete this._widgets[widgetId];
+			dewete this._widgets[widgetId];
 
 			const domNode = myWidget.domNode.domNode;
-			domNode.parentNode!.removeChild(domNode);
-			domNode.removeAttribute('monaco-visible-content-widget');
+			domNode.pawentNode!.wemoveChiwd(domNode);
+			domNode.wemoveAttwibute('monaco-visibwe-content-widget');
 
-			this.setShouldRender();
+			this.setShouwdWenda();
 		}
 	}
 
-	public shouldSuppressMouseDownOnWidget(widgetId: string): boolean {
-		if (this._widgets.hasOwnProperty(widgetId)) {
-			return this._widgets[widgetId].suppressMouseDown;
+	pubwic shouwdSuppwessMouseDownOnWidget(widgetId: stwing): boowean {
+		if (this._widgets.hasOwnPwopewty(widgetId)) {
+			wetuwn this._widgets[widgetId].suppwessMouseDown;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public onBeforeRender(viewportData: ViewportData): void {
+	pubwic onBefoweWenda(viewpowtData: ViewpowtData): void {
 		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].onBeforeRender(viewportData);
+		fow (const widgetId of keys) {
+			this._widgets[widgetId].onBefoweWenda(viewpowtData);
 		}
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
 		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].prepareRender(ctx);
+		fow (const widgetId of keys) {
+			this._widgets[widgetId].pwepaweWenda(ctx);
 		}
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
 		const keys = Object.keys(this._widgets);
-		for (const widgetId of keys) {
-			this._widgets[widgetId].render(ctx);
+		fow (const widgetId of keys) {
+			this._widgets[widgetId].wenda(ctx);
 		}
 	}
 }
 
-interface IBoxLayoutResult {
-	fitsAbove: boolean;
-	aboveTop: number;
-	aboveLeft: number;
+intewface IBoxWayoutWesuwt {
+	fitsAbove: boowean;
+	aboveTop: numba;
+	aboveWeft: numba;
 
-	fitsBelow: boolean;
-	belowTop: number;
-	belowLeft: number;
+	fitsBewow: boowean;
+	bewowTop: numba;
+	bewowWeft: numba;
 }
 
-interface IRenderData {
-	coordinate: Coordinate,
-	position: ContentWidgetPositionPreference
+intewface IWendewData {
+	coowdinate: Coowdinate,
+	position: ContentWidgetPositionPwefewence
 }
 
-class Widget {
-	private readonly _context: ViewContext;
-	private readonly _viewDomNode: FastDomNode<HTMLElement>;
-	private readonly _actual: IContentWidget;
+cwass Widget {
+	pwivate weadonwy _context: ViewContext;
+	pwivate weadonwy _viewDomNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _actuaw: IContentWidget;
 
-	public readonly domNode: FastDomNode<HTMLElement>;
-	public readonly id: string;
-	public readonly allowEditorOverflow: boolean;
-	public readonly suppressMouseDown: boolean;
+	pubwic weadonwy domNode: FastDomNode<HTMWEwement>;
+	pubwic weadonwy id: stwing;
+	pubwic weadonwy awwowEditowOvewfwow: boowean;
+	pubwic weadonwy suppwessMouseDown: boowean;
 
-	private readonly _fixedOverflowWidgets: boolean;
-	private _contentWidth: number;
-	private _contentLeft: number;
-	private _lineHeight: number;
+	pwivate weadonwy _fixedOvewfwowWidgets: boowean;
+	pwivate _contentWidth: numba;
+	pwivate _contentWeft: numba;
+	pwivate _wineHeight: numba;
 
-	private _range: IRange | null;
-	private _viewRange: Range | null;
-	private _preference: ContentWidgetPositionPreference[] | null;
-	private _cachedDomNodeClientWidth: number;
-	private _cachedDomNodeClientHeight: number;
-	private _maxWidth: number;
-	private _isVisible: boolean;
+	pwivate _wange: IWange | nuww;
+	pwivate _viewWange: Wange | nuww;
+	pwivate _pwefewence: ContentWidgetPositionPwefewence[] | nuww;
+	pwivate _cachedDomNodeCwientWidth: numba;
+	pwivate _cachedDomNodeCwientHeight: numba;
+	pwivate _maxWidth: numba;
+	pwivate _isVisibwe: boowean;
 
-	private _renderData: IRenderData | null;
+	pwivate _wendewData: IWendewData | nuww;
 
-	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
+	constwuctow(context: ViewContext, viewDomNode: FastDomNode<HTMWEwement>, actuaw: IContentWidget) {
 		this._context = context;
 		this._viewDomNode = viewDomNode;
-		this._actual = actual;
+		this._actuaw = actuaw;
 
-		this.domNode = createFastDomNode(this._actual.getDomNode());
-		this.id = this._actual.getId();
-		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
-		this.suppressMouseDown = this._actual.suppressMouseDown || false;
+		this.domNode = cweateFastDomNode(this._actuaw.getDomNode());
+		this.id = this._actuaw.getId();
+		this.awwowEditowOvewfwow = this._actuaw.awwowEditowOvewfwow || fawse;
+		this.suppwessMouseDown = this._actuaw.suppwessMouseDown || fawse;
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
-		this._contentWidth = layoutInfo.contentWidth;
-		this._contentLeft = layoutInfo.contentLeft;
-		this._lineHeight = options.get(EditorOption.lineHeight);
+		this._fixedOvewfwowWidgets = options.get(EditowOption.fixedOvewfwowWidgets);
+		this._contentWidth = wayoutInfo.contentWidth;
+		this._contentWeft = wayoutInfo.contentWeft;
+		this._wineHeight = options.get(EditowOption.wineHeight);
 
-		this._range = null;
-		this._viewRange = null;
-		this._preference = [];
-		this._cachedDomNodeClientWidth = -1;
-		this._cachedDomNodeClientHeight = -1;
+		this._wange = nuww;
+		this._viewWange = nuww;
+		this._pwefewence = [];
+		this._cachedDomNodeCwientWidth = -1;
+		this._cachedDomNodeCwientHeight = -1;
 		this._maxWidth = this._getMaxWidth();
-		this._isVisible = false;
-		this._renderData = null;
+		this._isVisibwe = fawse;
+		this._wendewData = nuww;
 
-		this.domNode.setPosition((this._fixedOverflowWidgets && this.allowEditorOverflow) ? 'fixed' : 'absolute');
-		this.domNode.setVisibility('hidden');
-		this.domNode.setAttribute('widgetId', this.id);
+		this.domNode.setPosition((this._fixedOvewfwowWidgets && this.awwowEditowOvewfwow) ? 'fixed' : 'absowute');
+		this.domNode.setVisibiwity('hidden');
+		this.domNode.setAttwibute('widgetId', this.id);
 		this.domNode.setMaxWidth(this._maxWidth);
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			const layoutInfo = options.get(EditorOption.layoutInfo);
-			this._contentLeft = layoutInfo.contentLeft;
-			this._contentWidth = layoutInfo.contentWidth;
+	pubwic onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): void {
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			const wayoutInfo = options.get(EditowOption.wayoutInfo);
+			this._contentWeft = wayoutInfo.contentWeft;
+			this._contentWidth = wayoutInfo.contentWidth;
 			this._maxWidth = this._getMaxWidth();
 		}
 	}
 
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): void {
-		this._setPosition(this._range);
+	pubwic onWineMappingChanged(e: viewEvents.ViewWineMappingChangedEvent): void {
+		this._setPosition(this._wange);
 	}
 
-	private _setPosition(range: IRange | null): void {
-		this._range = range;
-		this._viewRange = null;
+	pwivate _setPosition(wange: IWange | nuww): void {
+		this._wange = wange;
+		this._viewWange = nuww;
 
-		if (this._range) {
-			// Do not trust that widgets give a valid position
-			const validModelRange = this._context.model.validateModelRange(this._range);
-			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
-				this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
+		if (this._wange) {
+			// Do not twust that widgets give a vawid position
+			const vawidModewWange = this._context.modew.vawidateModewWange(this._wange);
+			if (this._context.modew.coowdinatesConvewta.modewPositionIsVisibwe(vawidModewWange.getStawtPosition()) || this._context.modew.coowdinatesConvewta.modewPositionIsVisibwe(vawidModewWange.getEndPosition())) {
+				this._viewWange = this._context.modew.coowdinatesConvewta.convewtModewWangeToViewWange(vawidModewWange);
 			}
 		}
 	}
 
-	private _getMaxWidth(): number {
-		return (
-			this.allowEditorOverflow
-				? window.innerWidth || document.documentElement!.clientWidth || document.body.clientWidth
+	pwivate _getMaxWidth(): numba {
+		wetuwn (
+			this.awwowEditowOvewfwow
+				? window.innewWidth || document.documentEwement!.cwientWidth || document.body.cwientWidth
 				: this._contentWidth
 		);
 	}
 
-	public setPosition(range: IRange | null, preference: ContentWidgetPositionPreference[] | null): void {
-		this._setPosition(range);
-		this._preference = preference;
-		this._cachedDomNodeClientWidth = -1;
-		this._cachedDomNodeClientHeight = -1;
+	pubwic setPosition(wange: IWange | nuww, pwefewence: ContentWidgetPositionPwefewence[] | nuww): void {
+		this._setPosition(wange);
+		this._pwefewence = pwefewence;
+		this._cachedDomNodeCwientWidth = -1;
+		this._cachedDomNodeCwientHeight = -1;
 	}
 
-	private _layoutBoxInViewport(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult {
-		// Our visible box is split horizontally by the current line => 2 boxes
+	pwivate _wayoutBoxInViewpowt(topWeft: Coowdinate, bottomWeft: Coowdinate, width: numba, height: numba, ctx: WendewingContext): IBoxWayoutWesuwt {
+		// Ouw visibwe box is spwit howizontawwy by the cuwwent wine => 2 boxes
 
-		// a) the box above the line
-		const aboveLineTop = topLeft.top;
-		const heightAboveLine = aboveLineTop;
+		// a) the box above the wine
+		const aboveWineTop = topWeft.top;
+		const heightAboveWine = aboveWineTop;
 
-		// b) the box under the line
-		const underLineTop = bottomLeft.top + this._lineHeight;
-		const heightUnderLine = ctx.viewportHeight - underLineTop;
+		// b) the box unda the wine
+		const undewWineTop = bottomWeft.top + this._wineHeight;
+		const heightUndewWine = ctx.viewpowtHeight - undewWineTop;
 
-		const aboveTop = aboveLineTop - height;
-		const fitsAbove = (heightAboveLine >= height);
-		const belowTop = underLineTop;
-		const fitsBelow = (heightUnderLine >= height);
+		const aboveTop = aboveWineTop - height;
+		const fitsAbove = (heightAboveWine >= height);
+		const bewowTop = undewWineTop;
+		const fitsBewow = (heightUndewWine >= height);
 
-		// And its left
-		let actualAboveLeft = topLeft.left;
-		let actualBelowLeft = bottomLeft.left;
-		if (actualAboveLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
-			actualAboveLeft = ctx.scrollLeft + ctx.viewportWidth - width;
+		// And its weft
+		wet actuawAboveWeft = topWeft.weft;
+		wet actuawBewowWeft = bottomWeft.weft;
+		if (actuawAboveWeft + width > ctx.scwowwWeft + ctx.viewpowtWidth) {
+			actuawAboveWeft = ctx.scwowwWeft + ctx.viewpowtWidth - width;
 		}
-		if (actualBelowLeft + width > ctx.scrollLeft + ctx.viewportWidth) {
-			actualBelowLeft = ctx.scrollLeft + ctx.viewportWidth - width;
+		if (actuawBewowWeft + width > ctx.scwowwWeft + ctx.viewpowtWidth) {
+			actuawBewowWeft = ctx.scwowwWeft + ctx.viewpowtWidth - width;
 		}
-		if (actualAboveLeft < ctx.scrollLeft) {
-			actualAboveLeft = ctx.scrollLeft;
+		if (actuawAboveWeft < ctx.scwowwWeft) {
+			actuawAboveWeft = ctx.scwowwWeft;
 		}
-		if (actualBelowLeft < ctx.scrollLeft) {
-			actualBelowLeft = ctx.scrollLeft;
+		if (actuawBewowWeft < ctx.scwowwWeft) {
+			actuawBewowWeft = ctx.scwowwWeft;
 		}
 
-		return {
+		wetuwn {
 			fitsAbove: fitsAbove,
 			aboveTop: aboveTop,
-			aboveLeft: actualAboveLeft,
+			aboveWeft: actuawAboveWeft,
 
-			fitsBelow: fitsBelow,
-			belowTop: belowTop,
-			belowLeft: actualBelowLeft,
+			fitsBewow: fitsBewow,
+			bewowTop: bewowTop,
+			bewowWeft: actuawBewowWeft,
 		};
 	}
 
-	private _layoutHorizontalSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, left: number, width: number): [number, number] {
-		// Initially, the limits are defined as the dom node limits
-		const MIN_LIMIT = Math.max(0, domNodePosition.left - width);
-		const MAX_LIMIT = Math.min(domNodePosition.left + domNodePosition.width + width, windowSize.width);
+	pwivate _wayoutHowizontawSegmentInPage(windowSize: dom.Dimension, domNodePosition: dom.IDomNodePagePosition, weft: numba, width: numba): [numba, numba] {
+		// Initiawwy, the wimits awe defined as the dom node wimits
+		const MIN_WIMIT = Math.max(0, domNodePosition.weft - width);
+		const MAX_WIMIT = Math.min(domNodePosition.weft + domNodePosition.width + width, windowSize.width);
 
-		let absoluteLeft = domNodePosition.left + left - dom.StandardWindow.scrollX;
+		wet absowuteWeft = domNodePosition.weft + weft - dom.StandawdWindow.scwowwX;
 
-		if (absoluteLeft + width > MAX_LIMIT) {
-			const delta = absoluteLeft - (MAX_LIMIT - width);
-			absoluteLeft -= delta;
-			left -= delta;
+		if (absowuteWeft + width > MAX_WIMIT) {
+			const dewta = absowuteWeft - (MAX_WIMIT - width);
+			absowuteWeft -= dewta;
+			weft -= dewta;
 		}
 
-		if (absoluteLeft < MIN_LIMIT) {
-			const delta = absoluteLeft - MIN_LIMIT;
-			absoluteLeft -= delta;
-			left -= delta;
+		if (absowuteWeft < MIN_WIMIT) {
+			const dewta = absowuteWeft - MIN_WIMIT;
+			absowuteWeft -= dewta;
+			weft -= dewta;
 		}
 
-		return [left, absoluteLeft];
+		wetuwn [weft, absowuteWeft];
 	}
 
-	private _layoutBoxInPage(topLeft: Coordinate, bottomLeft: Coordinate, width: number, height: number, ctx: RenderingContext): IBoxLayoutResult | null {
-		const aboveTop = topLeft.top - height;
-		const belowTop = bottomLeft.top + this._lineHeight;
+	pwivate _wayoutBoxInPage(topWeft: Coowdinate, bottomWeft: Coowdinate, width: numba, height: numba, ctx: WendewingContext): IBoxWayoutWesuwt | nuww {
+		const aboveTop = topWeft.top - height;
+		const bewowTop = bottomWeft.top + this._wineHeight;
 
 		const domNodePosition = dom.getDomNodePagePosition(this._viewDomNode.domNode);
-		const absoluteAboveTop = domNodePosition.top + aboveTop - dom.StandardWindow.scrollY;
-		const absoluteBelowTop = domNodePosition.top + belowTop - dom.StandardWindow.scrollY;
+		const absowuteAboveTop = domNodePosition.top + aboveTop - dom.StandawdWindow.scwowwY;
+		const absowuteBewowTop = domNodePosition.top + bewowTop - dom.StandawdWindow.scwowwY;
 
-		const windowSize = dom.getClientArea(document.body);
-		const [aboveLeft, absoluteAboveLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, topLeft.left - ctx.scrollLeft + this._contentLeft, width);
-		const [belowLeft, absoluteBelowLeft] = this._layoutHorizontalSegmentInPage(windowSize, domNodePosition, bottomLeft.left - ctx.scrollLeft + this._contentLeft, width);
+		const windowSize = dom.getCwientAwea(document.body);
+		const [aboveWeft, absowuteAboveWeft] = this._wayoutHowizontawSegmentInPage(windowSize, domNodePosition, topWeft.weft - ctx.scwowwWeft + this._contentWeft, width);
+		const [bewowWeft, absowuteBewowWeft] = this._wayoutHowizontawSegmentInPage(windowSize, domNodePosition, bottomWeft.weft - ctx.scwowwWeft + this._contentWeft, width);
 
-		// Leave some clearance to the top/bottom
+		// Weave some cweawance to the top/bottom
 		const TOP_PADDING = 22;
 		const BOTTOM_PADDING = 22;
 
-		const fitsAbove = (absoluteAboveTop >= TOP_PADDING);
-		const fitsBelow = (absoluteBelowTop + height <= windowSize.height - BOTTOM_PADDING);
+		const fitsAbove = (absowuteAboveTop >= TOP_PADDING);
+		const fitsBewow = (absowuteBewowTop + height <= windowSize.height - BOTTOM_PADDING);
 
-		if (this._fixedOverflowWidgets) {
-			return {
+		if (this._fixedOvewfwowWidgets) {
+			wetuwn {
 				fitsAbove,
-				aboveTop: Math.max(absoluteAboveTop, TOP_PADDING),
-				aboveLeft: absoluteAboveLeft,
-				fitsBelow,
-				belowTop: absoluteBelowTop,
-				belowLeft: absoluteBelowLeft
+				aboveTop: Math.max(absowuteAboveTop, TOP_PADDING),
+				aboveWeft: absowuteAboveWeft,
+				fitsBewow,
+				bewowTop: absowuteBewowTop,
+				bewowWeft: absowuteBewowWeft
 			};
 		}
 
-		return {
+		wetuwn {
 			fitsAbove,
 			aboveTop: aboveTop,
-			aboveLeft,
-			fitsBelow,
-			belowTop,
-			belowLeft
+			aboveWeft,
+			fitsBewow,
+			bewowTop,
+			bewowWeft
 		};
 	}
 
-	private _prepareRenderWidgetAtExactPositionOverflowing(topLeft: Coordinate): Coordinate {
-		return new Coordinate(topLeft.top, topLeft.left + this._contentLeft);
+	pwivate _pwepaweWendewWidgetAtExactPositionOvewfwowing(topWeft: Coowdinate): Coowdinate {
+		wetuwn new Coowdinate(topWeft.top, topWeft.weft + this._contentWeft);
 	}
 
 	/**
-	 * Compute `this._topLeft`
+	 * Compute `this._topWeft`
 	 */
-	private _getTopAndBottomLeft(ctx: RenderingContext): [Coordinate, Coordinate] | [null, null] {
-		if (!this._viewRange) {
-			return [null, null];
+	pwivate _getTopAndBottomWeft(ctx: WendewingContext): [Coowdinate, Coowdinate] | [nuww, nuww] {
+		if (!this._viewWange) {
+			wetuwn [nuww, nuww];
 		}
 
-		const visibleRangesForRange = ctx.linesVisibleRangesForRange(this._viewRange, false);
-		if (!visibleRangesForRange || visibleRangesForRange.length === 0) {
-			return [null, null];
+		const visibweWangesFowWange = ctx.winesVisibweWangesFowWange(this._viewWange, fawse);
+		if (!visibweWangesFowWange || visibweWangesFowWange.wength === 0) {
+			wetuwn [nuww, nuww];
 		}
 
-		let firstLine = visibleRangesForRange[0];
-		let lastLine = visibleRangesForRange[0];
-		for (const visibleRangesForLine of visibleRangesForRange) {
-			if (visibleRangesForLine.lineNumber < firstLine.lineNumber) {
-				firstLine = visibleRangesForLine;
+		wet fiwstWine = visibweWangesFowWange[0];
+		wet wastWine = visibweWangesFowWange[0];
+		fow (const visibweWangesFowWine of visibweWangesFowWange) {
+			if (visibweWangesFowWine.wineNumba < fiwstWine.wineNumba) {
+				fiwstWine = visibweWangesFowWine;
 			}
-			if (visibleRangesForLine.lineNumber > lastLine.lineNumber) {
-				lastLine = visibleRangesForLine;
-			}
-		}
-
-		let firstLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//firstLine.Constants.MAX_SAFE_SMALL_INTEGER;
-		for (const visibleRange of firstLine.ranges) {
-			if (visibleRange.left < firstLineMinLeft) {
-				firstLineMinLeft = visibleRange.left;
+			if (visibweWangesFowWine.wineNumba > wastWine.wineNumba) {
+				wastWine = visibweWangesFowWine;
 			}
 		}
 
-		let lastLineMinLeft = Constants.MAX_SAFE_SMALL_INTEGER;//lastLine.Constants.MAX_SAFE_SMALL_INTEGER;
-		for (const visibleRange of lastLine.ranges) {
-			if (visibleRange.left < lastLineMinLeft) {
-				lastLineMinLeft = visibleRange.left;
+		wet fiwstWineMinWeft = Constants.MAX_SAFE_SMAWW_INTEGa;//fiwstWine.Constants.MAX_SAFE_SMAWW_INTEGa;
+		fow (const visibweWange of fiwstWine.wanges) {
+			if (visibweWange.weft < fiwstWineMinWeft) {
+				fiwstWineMinWeft = visibweWange.weft;
 			}
 		}
 
-		const topForPosition = ctx.getVerticalOffsetForLineNumber(firstLine.lineNumber) - ctx.scrollTop;
-		const topLeft = new Coordinate(topForPosition, firstLineMinLeft);
+		wet wastWineMinWeft = Constants.MAX_SAFE_SMAWW_INTEGa;//wastWine.Constants.MAX_SAFE_SMAWW_INTEGa;
+		fow (const visibweWange of wastWine.wanges) {
+			if (visibweWange.weft < wastWineMinWeft) {
+				wastWineMinWeft = visibweWange.weft;
+			}
+		}
 
-		const topForBottomLine = ctx.getVerticalOffsetForLineNumber(lastLine.lineNumber) - ctx.scrollTop;
-		const bottomLeft = new Coordinate(topForBottomLine, lastLineMinLeft);
+		const topFowPosition = ctx.getVewticawOffsetFowWineNumba(fiwstWine.wineNumba) - ctx.scwowwTop;
+		const topWeft = new Coowdinate(topFowPosition, fiwstWineMinWeft);
 
-		return [topLeft, bottomLeft];
+		const topFowBottomWine = ctx.getVewticawOffsetFowWineNumba(wastWine.wineNumba) - ctx.scwowwTop;
+		const bottomWeft = new Coowdinate(topFowBottomWine, wastWineMinWeft);
+
+		wetuwn [topWeft, bottomWeft];
 	}
 
-	private _prepareRenderWidget(ctx: RenderingContext): IRenderData | null {
-		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
-		if (!topLeft || !bottomLeft) {
-			return null;
+	pwivate _pwepaweWendewWidget(ctx: WendewingContext): IWendewData | nuww {
+		const [topWeft, bottomWeft] = this._getTopAndBottomWeft(ctx);
+		if (!topWeft || !bottomWeft) {
+			wetuwn nuww;
 		}
 
-		if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
+		if (this._cachedDomNodeCwientWidth === -1 || this._cachedDomNodeCwientHeight === -1) {
 
-			let preferredDimensions: IDimension | null = null;
-			if (typeof this._actual.beforeRender === 'function') {
-				preferredDimensions = safeInvoke(this._actual.beforeRender, this._actual);
+			wet pwefewwedDimensions: IDimension | nuww = nuww;
+			if (typeof this._actuaw.befoweWenda === 'function') {
+				pwefewwedDimensions = safeInvoke(this._actuaw.befoweWenda, this._actuaw);
 			}
-			if (preferredDimensions) {
-				this._cachedDomNodeClientWidth = preferredDimensions.width;
-				this._cachedDomNodeClientHeight = preferredDimensions.height;
-			} else {
+			if (pwefewwedDimensions) {
+				this._cachedDomNodeCwientWidth = pwefewwedDimensions.width;
+				this._cachedDomNodeCwientHeight = pwefewwedDimensions.height;
+			} ewse {
 				const domNode = this.domNode.domNode;
-				this._cachedDomNodeClientWidth = domNode.clientWidth;
-				this._cachedDomNodeClientHeight = domNode.clientHeight;
+				this._cachedDomNodeCwientWidth = domNode.cwientWidth;
+				this._cachedDomNodeCwientHeight = domNode.cwientHeight;
 			}
 		}
 
-		let placement: IBoxLayoutResult | null;
-		if (this.allowEditorOverflow) {
-			placement = this._layoutBoxInPage(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
-		} else {
-			placement = this._layoutBoxInViewport(topLeft, bottomLeft, this._cachedDomNodeClientWidth, this._cachedDomNodeClientHeight, ctx);
+		wet pwacement: IBoxWayoutWesuwt | nuww;
+		if (this.awwowEditowOvewfwow) {
+			pwacement = this._wayoutBoxInPage(topWeft, bottomWeft, this._cachedDomNodeCwientWidth, this._cachedDomNodeCwientHeight, ctx);
+		} ewse {
+			pwacement = this._wayoutBoxInViewpowt(topWeft, bottomWeft, this._cachedDomNodeCwientWidth, this._cachedDomNodeCwientHeight, ctx);
 		}
 
-		// Do two passes, first for perfect fit, second picks first option
-		if (this._preference) {
-			for (let pass = 1; pass <= 2; pass++) {
-				for (const pref of this._preference) {
-					// placement
-					if (pref === ContentWidgetPositionPreference.ABOVE) {
-						if (!placement) {
-							// Widget outside of viewport
-							return null;
+		// Do two passes, fiwst fow pewfect fit, second picks fiwst option
+		if (this._pwefewence) {
+			fow (wet pass = 1; pass <= 2; pass++) {
+				fow (const pwef of this._pwefewence) {
+					// pwacement
+					if (pwef === ContentWidgetPositionPwefewence.ABOVE) {
+						if (!pwacement) {
+							// Widget outside of viewpowt
+							wetuwn nuww;
 						}
-						if (pass === 2 || placement.fitsAbove) {
-							return { coordinate: new Coordinate(placement.aboveTop, placement.aboveLeft), position: ContentWidgetPositionPreference.ABOVE };
+						if (pass === 2 || pwacement.fitsAbove) {
+							wetuwn { coowdinate: new Coowdinate(pwacement.aboveTop, pwacement.aboveWeft), position: ContentWidgetPositionPwefewence.ABOVE };
 						}
-					} else if (pref === ContentWidgetPositionPreference.BELOW) {
-						if (!placement) {
-							// Widget outside of viewport
-							return null;
+					} ewse if (pwef === ContentWidgetPositionPwefewence.BEWOW) {
+						if (!pwacement) {
+							// Widget outside of viewpowt
+							wetuwn nuww;
 						}
-						if (pass === 2 || placement.fitsBelow) {
-							return { coordinate: new Coordinate(placement.belowTop, placement.belowLeft), position: ContentWidgetPositionPreference.BELOW };
+						if (pass === 2 || pwacement.fitsBewow) {
+							wetuwn { coowdinate: new Coowdinate(pwacement.bewowTop, pwacement.bewowWeft), position: ContentWidgetPositionPwefewence.BEWOW };
 						}
-					} else {
-						if (this.allowEditorOverflow) {
-							return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(topLeft), position: ContentWidgetPositionPreference.EXACT };
-						} else {
-							return { coordinate: topLeft, position: ContentWidgetPositionPreference.EXACT };
+					} ewse {
+						if (this.awwowEditowOvewfwow) {
+							wetuwn { coowdinate: this._pwepaweWendewWidgetAtExactPositionOvewfwowing(topWeft), position: ContentWidgetPositionPwefewence.EXACT };
+						} ewse {
+							wetuwn { coowdinate: topWeft, position: ContentWidgetPositionPwefewence.EXACT };
 						}
 					}
 				}
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * On this first pass, we ensure that the content widget (if it is in the viewport) has the max width set correctly.
+	 * On this fiwst pass, we ensuwe that the content widget (if it is in the viewpowt) has the max width set cowwectwy.
 	 */
-	public onBeforeRender(viewportData: ViewportData): void {
-		if (!this._viewRange || !this._preference) {
-			return;
+	pubwic onBefoweWenda(viewpowtData: ViewpowtData): void {
+		if (!this._viewWange || !this._pwefewence) {
+			wetuwn;
 		}
 
-		if (this._viewRange.endLineNumber < viewportData.startLineNumber || this._viewRange.startLineNumber > viewportData.endLineNumber) {
-			// Outside of viewport
-			return;
+		if (this._viewWange.endWineNumba < viewpowtData.stawtWineNumba || this._viewWange.stawtWineNumba > viewpowtData.endWineNumba) {
+			// Outside of viewpowt
+			wetuwn;
 		}
 
 		this.domNode.setMaxWidth(this._maxWidth);
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
-		this._renderData = this._prepareRenderWidget(ctx);
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		this._wendewData = this._pwepaweWendewWidget(ctx);
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		if (!this._renderData) {
-			// This widget should be invisible
-			if (this._isVisible) {
-				this.domNode.removeAttribute('monaco-visible-content-widget');
-				this._isVisible = false;
-				this.domNode.setVisibility('hidden');
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		if (!this._wendewData) {
+			// This widget shouwd be invisibwe
+			if (this._isVisibwe) {
+				this.domNode.wemoveAttwibute('monaco-visibwe-content-widget');
+				this._isVisibwe = fawse;
+				this.domNode.setVisibiwity('hidden');
 			}
 
-			if (typeof this._actual.afterRender === 'function') {
-				safeInvoke(this._actual.afterRender, this._actual, null);
+			if (typeof this._actuaw.aftewWenda === 'function') {
+				safeInvoke(this._actuaw.aftewWenda, this._actuaw, nuww);
 			}
-			return;
+			wetuwn;
 		}
 
-		// This widget should be visible
-		if (this.allowEditorOverflow) {
-			this.domNode.setTop(this._renderData.coordinate.top);
-			this.domNode.setLeft(this._renderData.coordinate.left);
-		} else {
-			this.domNode.setTop(this._renderData.coordinate.top + ctx.scrollTop - ctx.bigNumbersDelta);
-			this.domNode.setLeft(this._renderData.coordinate.left);
+		// This widget shouwd be visibwe
+		if (this.awwowEditowOvewfwow) {
+			this.domNode.setTop(this._wendewData.coowdinate.top);
+			this.domNode.setWeft(this._wendewData.coowdinate.weft);
+		} ewse {
+			this.domNode.setTop(this._wendewData.coowdinate.top + ctx.scwowwTop - ctx.bigNumbewsDewta);
+			this.domNode.setWeft(this._wendewData.coowdinate.weft);
 		}
 
-		if (!this._isVisible) {
-			this.domNode.setVisibility('inherit');
-			this.domNode.setAttribute('monaco-visible-content-widget', 'true');
-			this._isVisible = true;
+		if (!this._isVisibwe) {
+			this.domNode.setVisibiwity('inhewit');
+			this.domNode.setAttwibute('monaco-visibwe-content-widget', 'twue');
+			this._isVisibwe = twue;
 		}
 
-		if (typeof this._actual.afterRender === 'function') {
-			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+		if (typeof this._actuaw.aftewWenda === 'function') {
+			safeInvoke(this._actuaw.aftewWenda, this._actuaw, this._wendewData.position);
 		}
 	}
 }
 
-function safeInvoke<T extends (...args: any[]) => any>(fn: T, thisArg: ThisParameterType<T>, ...args: Parameters<T>): ReturnType<T> | null {
-	try {
-		return fn.call(thisArg, ...args);
+function safeInvoke<T extends (...awgs: any[]) => any>(fn: T, thisAwg: ThisPawametewType<T>, ...awgs: Pawametews<T>): WetuwnType<T> | nuww {
+	twy {
+		wetuwn fn.caww(thisAwg, ...awgs);
 	} catch {
-		// ignore
-		return null;
+		// ignowe
+		wetuwn nuww;
 	}
 }

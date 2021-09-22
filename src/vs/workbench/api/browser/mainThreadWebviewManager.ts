@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadCustomEditors } from 'vs/workbench/api/browser/mainThreadCustomEditors';
-import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
-import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { MainThreadWebviewsViews } from 'vs/workbench/api/browser/mainThreadWebviewViews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { extHostCustomer } from '../common/extHostCustomers';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MainThweadCustomEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadCustomEditows';
+impowt { MainThweadWebviewPanews } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviewPanews';
+impowt { MainThweadWebviews } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviews';
+impowt { MainThweadWebviewsViews } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviewViews';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { extHostCustoma } fwom '../common/extHostCustomews';
 
-@extHostCustomer
-export class MainThreadWebviewManager extends Disposable {
-	constructor(
-		context: extHostProtocol.IExtHostContext,
-		@IInstantiationService instantiationService: IInstantiationService,
+@extHostCustoma
+expowt cwass MainThweadWebviewManaga extends Disposabwe {
+	constwuctow(
+		context: extHostPwotocow.IExtHostContext,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		const webviews = this._register(instantiationService.createInstance(MainThreadWebviews, context));
-		context.set(extHostProtocol.MainContext.MainThreadWebviews, webviews);
+		const webviews = this._wegista(instantiationSewvice.cweateInstance(MainThweadWebviews, context));
+		context.set(extHostPwotocow.MainContext.MainThweadWebviews, webviews);
 
-		const webviewPanels = this._register(instantiationService.createInstance(MainThreadWebviewPanels, context, webviews));
-		context.set(extHostProtocol.MainContext.MainThreadWebviewPanels, webviewPanels);
+		const webviewPanews = this._wegista(instantiationSewvice.cweateInstance(MainThweadWebviewPanews, context, webviews));
+		context.set(extHostPwotocow.MainContext.MainThweadWebviewPanews, webviewPanews);
 
-		const customEditors = this._register(instantiationService.createInstance(MainThreadCustomEditors, context, webviews, webviewPanels));
-		context.set(extHostProtocol.MainContext.MainThreadCustomEditors, customEditors);
+		const customEditows = this._wegista(instantiationSewvice.cweateInstance(MainThweadCustomEditows, context, webviews, webviewPanews));
+		context.set(extHostPwotocow.MainContext.MainThweadCustomEditows, customEditows);
 
-		const webviewViews = this._register(instantiationService.createInstance(MainThreadWebviewsViews, context, webviews));
-		context.set(extHostProtocol.MainContext.MainThreadWebviewViews, webviewViews);
+		const webviewViews = this._wegista(instantiationSewvice.cweateInstance(MainThweadWebviewsViews, context, webviews));
+		context.set(extHostPwotocow.MainContext.MainThweadWebviewViews, webviewViews);
 	}
 }

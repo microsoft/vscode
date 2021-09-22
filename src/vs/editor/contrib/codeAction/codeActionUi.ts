@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IPosition } from 'vs/editor/common/core/position';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
-import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
-import { MessageController } from 'vs/editor/contrib/message/messageController';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
-import { CodeActionsState } from './codeActionModel';
-import { LightBulbWidget } from './lightBulbWidget';
-import { CodeActionAutoApply, CodeActionTrigger } from './types';
+impowt { IAnchow } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Wazy } fwom 'vs/base/common/wazy';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { CodeActionTwiggewType } fwom 'vs/editow/common/modes';
+impowt { CodeActionItem, CodeActionSet } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { MessageContwowwa } fwom 'vs/editow/contwib/message/messageContwowwa';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CodeActionMenu, CodeActionShowOptions } fwom './codeActionMenu';
+impowt { CodeActionsState } fwom './codeActionModew';
+impowt { WightBuwbWidget } fwom './wightBuwbWidget';
+impowt { CodeActionAutoAppwy, CodeActionTwigga } fwom './types';
 
-export class CodeActionUi extends Disposable {
+expowt cwass CodeActionUi extends Disposabwe {
 
-	private readonly _codeActionWidget: Lazy<CodeActionMenu>;
-	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
-	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
+	pwivate weadonwy _codeActionWidget: Wazy<CodeActionMenu>;
+	pwivate weadonwy _wightBuwbWidget: Wazy<WightBuwbWidget>;
+	pwivate weadonwy _activeCodeActions = this._wegista(new MutabweDisposabwe<CodeActionSet>());
 
-	#disposed = false;
+	#disposed = fawse;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		quickFixActionId: string,
-		preferredFixActionId: string,
-		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		quickFixActionId: stwing,
+		pwefewwedFixActionId: stwing,
+		pwivate weadonwy dewegate: {
+			appwyCodeAction: (action: CodeActionItem, wegtwiggewAftewAppwy: boowean) => Pwomise<void>
 		},
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 
-		this._codeActionWidget = new Lazy(() => {
-			return this._register(instantiationService.createInstance(CodeActionMenu, this._editor, {
-				onSelectCodeAction: async (action) => {
-					this.delegate.applyCodeAction(action, /* retrigger */ true);
+		this._codeActionWidget = new Wazy(() => {
+			wetuwn this._wegista(instantiationSewvice.cweateInstance(CodeActionMenu, this._editow, {
+				onSewectCodeAction: async (action) => {
+					this.dewegate.appwyCodeAction(action, /* wetwigga */ twue);
 				}
 			}));
 		});
 
-		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
-			this._register(widget.onClick(e => this.showCodeActionList(e.trigger, e.actions, e, { includeDisabledActions: false })));
-			return widget;
+		this._wightBuwbWidget = new Wazy(() => {
+			const widget = this._wegista(instantiationSewvice.cweateInstance(WightBuwbWidget, this._editow, quickFixActionId, pwefewwedFixActionId));
+			this._wegista(widget.onCwick(e => this.showCodeActionWist(e.twigga, e.actions, e, { incwudeDisabwedActions: fawse })));
+			wetuwn widget;
 		});
 	}
 
-	override dispose() {
-		this.#disposed = true;
-		super.dispose();
+	ovewwide dispose() {
+		this.#disposed = twue;
+		supa.dispose();
 	}
 
-	public async update(newState: CodeActionsState.State): Promise<void> {
-		if (newState.type !== CodeActionsState.Type.Triggered) {
-			this._lightBulbWidget.rawValue?.hide();
-			return;
+	pubwic async update(newState: CodeActionsState.State): Pwomise<void> {
+		if (newState.type !== CodeActionsState.Type.Twiggewed) {
+			this._wightBuwbWidget.wawVawue?.hide();
+			wetuwn;
 		}
 
-		let actions: CodeActionSet;
-		try {
+		wet actions: CodeActionSet;
+		twy {
 			actions = await newState.actions;
 		} catch (e) {
-			onUnexpectedError(e);
-			return;
+			onUnexpectedEwwow(e);
+			wetuwn;
 		}
 
 		if (this.#disposed) {
-			return;
+			wetuwn;
 		}
 
-		this._lightBulbWidget.getValue().update(actions, newState.trigger, newState.position);
+		this._wightBuwbWidget.getVawue().update(actions, newState.twigga, newState.position);
 
-		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
-			if (newState.trigger.filter?.include) { // Triggered for specific scope
-				// Check to see if we want to auto apply.
+		if (newState.twigga.type === CodeActionTwiggewType.Invoke) {
+			if (newState.twigga.fiwta?.incwude) { // Twiggewed fow specific scope
+				// Check to see if we want to auto appwy.
 
-				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
-				if (validActionToApply) {
-					try {
-						this._lightBulbWidget.getValue().hide();
-						await this.delegate.applyCodeAction(validActionToApply, false);
-					} finally {
+				const vawidActionToAppwy = this.twyGetVawidActionToAppwy(newState.twigga, actions);
+				if (vawidActionToAppwy) {
+					twy {
+						this._wightBuwbWidget.getVawue().hide();
+						await this.dewegate.appwyCodeAction(vawidActionToAppwy, fawse);
+					} finawwy {
 						actions.dispose();
 					}
-					return;
+					wetuwn;
 				}
 
-				// Check to see if there is an action that we would have applied were it not invalid
-				if (newState.trigger.context) {
-					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
-					if (invalidAction && invalidAction.action.disabled) {
-						MessageController.get(this._editor).showMessage(invalidAction.action.disabled, newState.trigger.context.position);
+				// Check to see if thewe is an action that we wouwd have appwied wewe it not invawid
+				if (newState.twigga.context) {
+					const invawidAction = this.getInvawidActionThatWouwdHaveBeenAppwied(newState.twigga, actions);
+					if (invawidAction && invawidAction.action.disabwed) {
+						MessageContwowwa.get(this._editow).showMessage(invawidAction.action.disabwed, newState.twigga.context.position);
 						actions.dispose();
-						return;
+						wetuwn;
 					}
 				}
 			}
 
-			const includeDisabledActions = !!newState.trigger.filter?.include;
-			if (newState.trigger.context) {
-				if (!actions.allActions.length || !includeDisabledActions && !actions.validActions.length) {
-					MessageController.get(this._editor).showMessage(newState.trigger.context.notAvailableMessage, newState.trigger.context.position);
-					this._activeCodeActions.value = actions;
+			const incwudeDisabwedActions = !!newState.twigga.fiwta?.incwude;
+			if (newState.twigga.context) {
+				if (!actions.awwActions.wength || !incwudeDisabwedActions && !actions.vawidActions.wength) {
+					MessageContwowwa.get(this._editow).showMessage(newState.twigga.context.notAvaiwabweMessage, newState.twigga.context.position);
+					this._activeCodeActions.vawue = actions;
 					actions.dispose();
-					return;
+					wetuwn;
 				}
 			}
 
-			this._activeCodeActions.value = actions;
-			this._codeActionWidget.getValue().show(newState.trigger, actions, newState.position, { includeDisabledActions });
-		} else {
-			// auto magically triggered
-			if (this._codeActionWidget.getValue().isVisible) {
-				// TODO: Figure out if we should update the showing menu?
+			this._activeCodeActions.vawue = actions;
+			this._codeActionWidget.getVawue().show(newState.twigga, actions, newState.position, { incwudeDisabwedActions });
+		} ewse {
+			// auto magicawwy twiggewed
+			if (this._codeActionWidget.getVawue().isVisibwe) {
+				// TODO: Figuwe out if we shouwd update the showing menu?
 				actions.dispose();
-			} else {
-				this._activeCodeActions.value = actions;
+			} ewse {
+				this._activeCodeActions.vawue = actions;
 			}
 		}
 	}
 
-	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
-		if (!actions.allActions.length) {
-			return undefined;
+	pwivate getInvawidActionThatWouwdHaveBeenAppwied(twigga: CodeActionTwigga, actions: CodeActionSet): CodeActionItem | undefined {
+		if (!actions.awwActions.wength) {
+			wetuwn undefined;
 		}
 
-		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
-			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
+		if ((twigga.autoAppwy === CodeActionAutoAppwy.Fiwst && actions.vawidActions.wength === 0)
+			|| (twigga.autoAppwy === CodeActionAutoAppwy.IfSingwe && actions.awwActions.wength === 1)
 		) {
-			return actions.allActions.find(({ action }) => action.disabled);
+			wetuwn actions.awwActions.find(({ action }) => action.disabwed);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
-		if (!actions.validActions.length) {
-			return undefined;
+	pwivate twyGetVawidActionToAppwy(twigga: CodeActionTwigga, actions: CodeActionSet): CodeActionItem | undefined {
+		if (!actions.vawidActions.wength) {
+			wetuwn undefined;
 		}
 
-		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length > 0)
-			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.validActions.length === 1)
+		if ((twigga.autoAppwy === CodeActionAutoAppwy.Fiwst && actions.vawidActions.wength > 0)
+			|| (twigga.autoAppwy === CodeActionAutoAppwy.IfSingwe && actions.vawidActions.wength === 1)
 		) {
-			return actions.validActions[0];
+			wetuwn actions.vawidActions[0];
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public async showCodeActionList(trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		this._codeActionWidget.getValue().show(trigger, actions, at, options);
+	pubwic async showCodeActionWist(twigga: CodeActionTwigga, actions: CodeActionSet, at: IAnchow | IPosition, options: CodeActionShowOptions): Pwomise<void> {
+		this._codeActionWidget.getVawue().show(twigga, actions, at, options);
 	}
 }

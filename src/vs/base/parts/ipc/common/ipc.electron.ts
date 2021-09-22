@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
 
-export interface Sender {
-	send(channel: string, msg: unknown): void;
+expowt intewface Senda {
+	send(channew: stwing, msg: unknown): void;
 }
 
 /**
- * The Electron `Protocol` leverages Electron style IPC communication (`ipcRenderer`, `ipcMain`)
- * for the implementation of the `IMessagePassingProtocol`. That style of API requires a channel
- * name for sending data.
+ * The Ewectwon `Pwotocow` wevewages Ewectwon stywe IPC communication (`ipcWendewa`, `ipcMain`)
+ * fow the impwementation of the `IMessagePassingPwotocow`. That stywe of API wequiwes a channew
+ * name fow sending data.
  */
-export class Protocol implements IMessagePassingProtocol {
+expowt cwass Pwotocow impwements IMessagePassingPwotocow {
 
-	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
+	constwuctow(pwivate senda: Senda, weadonwy onMessage: Event<VSBuffa>) { }
 
-	send(message: VSBuffer): void {
-		try {
-			this.sender.send('vscode:message', message.buffer);
+	send(message: VSBuffa): void {
+		twy {
+			this.senda.send('vscode:message', message.buffa);
 		} catch (e) {
-			// systems are going down
+			// systems awe going down
 		}
 	}
 
 	disconnect(): void {
-		this.sender.send('vscode:disconnect', null);
+		this.senda.send('vscode:disconnect', nuww);
 	}
 }

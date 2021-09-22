@@ -1,351 +1,351 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
-import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
+impowt { KeyChowd, KeyCode, KeyMod, SimpweKeybinding, cweateKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { ScanCode, ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { MacWinuxFawwbackKeyboawdMappa } fwom 'vs/wowkbench/sewvices/keybinding/common/macWinuxFawwbackKeyboawdMappa';
+impowt { IWesowvedKeybinding, assewtWesowveKeybinding, assewtWesowveKeyboawdEvent, assewtWesowveUsewBinding } fwom 'vs/wowkbench/sewvices/keybinding/test/ewectwon-bwowsa/keyboawdMappewTestUtiws';
 
-suite('keyboardMapper - MAC fallback', () => {
+suite('keyboawdMappa - MAC fawwback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
+	wet mappa = new MacWinuxFawwbackKeyboawdMappa(OpewatingSystem.Macintosh);
 
-	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh)!, expected);
+	function _assewtWesowveKeybinding(k: numba, expected: IWesowvedKeybinding[]): void {
+		assewtWesowveKeybinding(mappa, cweateKeybinding(k, OpewatingSystem.Macintosh)!, expected);
 	}
 
-	test('resolveKeybinding Cmd+Z', () => {
-		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+	test('wesowveKeybinding Cmd+Z', () => {
+		_assewtWesowveKeybinding(
+			KeyMod.CtwwCmd | KeyCode.KEY_Z,
 			[{
-				label: '⌘Z',
-				ariaLabel: 'Command+Z',
-				electronAccelerator: 'Cmd+Z',
-				userSettingsLabel: 'cmd+z',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['meta+Z'],
-				singleModifierDispatchParts: [null],
+				wabew: '⌘Z',
+				awiaWabew: 'Command+Z',
+				ewectwonAccewewatow: 'Cmd+Z',
+				usewSettingsWabew: 'cmd+z',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: ['meta+Z'],
+				singweModifiewDispatchPawts: [nuww],
 			}]
 		);
 	});
 
-	test('resolveKeybinding Cmd+K Cmd+=', () => {
-		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+	test('wesowveKeybinding Cmd+K Cmd+=', () => {
+		_assewtWesowveKeybinding(
+			KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_EQUAW),
 			[{
-				label: '⌘K ⌘=',
-				ariaLabel: 'Command+K Command+=',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd+k cmd+=',
-				isWYSIWYG: true,
-				isChord: true,
-				dispatchParts: ['meta+K', 'meta+='],
-				singleModifierDispatchParts: [null, null],
+				wabew: '⌘K ⌘=',
+				awiaWabew: 'Command+K Command+=',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'cmd+k cmd+=',
+				isWYSIWYG: twue,
+				isChowd: twue,
+				dispatchPawts: ['meta+K', 'meta+='],
+				singweModifiewDispatchPawts: [nuww, nuww],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Cmd+Z', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Cmd+Z', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: false,
-				metaKey: true,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: fawse,
+				shiftKey: fawse,
+				awtKey: fawse,
+				metaKey: twue,
 				keyCode: KeyCode.KEY_Z,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: '⌘Z',
-				ariaLabel: 'Command+Z',
-				electronAccelerator: 'Cmd+Z',
-				userSettingsLabel: 'cmd+z',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['meta+Z'],
-				singleModifierDispatchParts: [null],
+				wabew: '⌘Z',
+				awiaWabew: 'Command+Z',
+				ewectwonAccewewatow: 'Cmd+Z',
+				usewSettingsWabew: 'cmd+z',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: ['meta+Z'],
+				singweModifiewDispatchPawts: [nuww],
 			}
 		);
 	});
 
-	test('resolveUserBinding empty', () => {
-		assertResolveUserBinding(mapper, [], []);
+	test('wesowveUsewBinding empty', () => {
+		assewtWesowveUsewBinding(mappa, [], []);
 	});
 
-	test('resolveUserBinding Cmd+[Comma] Cmd+/', () => {
-		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(false, false, false, true, ScanCode.Comma),
-			new SimpleKeybinding(false, false, false, true, KeyCode.US_SLASH),
+	test('wesowveUsewBinding Cmd+[Comma] Cmd+/', () => {
+		assewtWesowveUsewBinding(
+			mappa, [
+			new ScanCodeBinding(fawse, fawse, fawse, twue, ScanCode.Comma),
+			new SimpweKeybinding(fawse, fawse, fawse, twue, KeyCode.US_SWASH),
 		],
 			[{
-				label: '⌘, ⌘/',
-				ariaLabel: 'Command+, Command+/',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd+, cmd+/',
-				isWYSIWYG: true,
-				isChord: true,
-				dispatchParts: ['meta+,', 'meta+/'],
-				singleModifierDispatchParts: [null, null],
+				wabew: '⌘, ⌘/',
+				awiaWabew: 'Command+, Command+/',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'cmd+, cmd+/',
+				isWYSIWYG: twue,
+				isChowd: twue,
+				dispatchPawts: ['meta+,', 'meta+/'],
+				singweModifiewDispatchPawts: [nuww, nuww],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Meta+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Singwe Modifia Meta+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: false,
-				metaKey: true,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: fawse,
+				shiftKey: fawse,
+				awtKey: fawse,
+				metaKey: twue,
 				keyCode: KeyCode.Meta,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: '⌘',
-				ariaLabel: 'Command',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['meta'],
+				wabew: '⌘',
+				awiaWabew: 'Command',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'cmd',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: ['meta'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Shift+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Singwe Modifia Shift+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: true,
-				altKey: false,
-				metaKey: false,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: fawse,
+				shiftKey: twue,
+				awtKey: fawse,
+				metaKey: fawse,
 				keyCode: KeyCode.Shift,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: '⇧',
-				ariaLabel: 'Shift',
-				electronAccelerator: null,
-				userSettingsLabel: 'shift',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['shift'],
+				wabew: '⇧',
+				awiaWabew: 'Shift',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'shift',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: ['shift'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Alt+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Singwe Modifia Awt+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: true,
-				metaKey: false,
-				keyCode: KeyCode.Alt,
-				code: null!
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: fawse,
+				shiftKey: fawse,
+				awtKey: twue,
+				metaKey: fawse,
+				keyCode: KeyCode.Awt,
+				code: nuww!
 			},
 			{
-				label: '⌥',
-				ariaLabel: 'Alt',
-				electronAccelerator: null,
-				userSettingsLabel: 'alt',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['alt'],
+				wabew: '⌥',
+				awiaWabew: 'Awt',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'awt',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: ['awt'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Meta+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Singwe Modifia Meta+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: false,
-				shiftKey: false,
-				altKey: false,
-				metaKey: true,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: fawse,
+				shiftKey: fawse,
+				awtKey: fawse,
+				metaKey: twue,
 				keyCode: KeyCode.Meta,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: '⌘',
-				ariaLabel: 'Command',
-				electronAccelerator: null,
-				userSettingsLabel: 'cmd',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['meta'],
+				wabew: '⌘',
+				awiaWabew: 'Command',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'cmd',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: ['meta'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Onwy Modifiews Ctww+Shift+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: true,
-				shiftKey: true,
-				altKey: false,
-				metaKey: false,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: twue,
+				shiftKey: twue,
+				awtKey: fawse,
+				metaKey: fawse,
 				keyCode: KeyCode.Shift,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: '⌃⇧',
-				ariaLabel: 'Control+Shift',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+shift',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: [null],
+				wabew: '⌃⇧',
+				awiaWabew: 'Contwow+Shift',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'ctww+shift',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: [nuww],
 			}
 		);
 	});
 });
 
-suite('keyboardMapper - LINUX fallback', () => {
+suite('keyboawdMappa - WINUX fawwback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
+	wet mappa = new MacWinuxFawwbackKeyboawdMappa(OpewatingSystem.Winux);
 
-	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
-		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux)!, expected);
+	function _assewtWesowveKeybinding(k: numba, expected: IWesowvedKeybinding[]): void {
+		assewtWesowveKeybinding(mappa, cweateKeybinding(k, OpewatingSystem.Winux)!, expected);
 	}
 
-	test('resolveKeybinding Ctrl+Z', () => {
-		_assertResolveKeybinding(
-			KeyMod.CtrlCmd | KeyCode.KEY_Z,
+	test('wesowveKeybinding Ctww+Z', () => {
+		_assewtWesowveKeybinding(
+			KeyMod.CtwwCmd | KeyCode.KEY_Z,
 			[{
-				label: 'Ctrl+Z',
-				ariaLabel: 'Control+Z',
-				electronAccelerator: 'Ctrl+Z',
-				userSettingsLabel: 'ctrl+z',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+Z'],
-				singleModifierDispatchParts: [null],
+				wabew: 'Ctww+Z',
+				awiaWabew: 'Contwow+Z',
+				ewectwonAccewewatow: 'Ctww+Z',
+				usewSettingsWabew: 'ctww+z',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: ['ctww+Z'],
+				singweModifiewDispatchPawts: [nuww],
 			}]
 		);
 	});
 
-	test('resolveKeybinding Ctrl+K Ctrl+=', () => {
-		_assertResolveKeybinding(
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_EQUAL),
+	test('wesowveKeybinding Ctww+K Ctww+=', () => {
+		_assewtWesowveKeybinding(
+			KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyCode.US_EQUAW),
 			[{
-				label: 'Ctrl+K Ctrl+=',
-				ariaLabel: 'Control+K Control+=',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+k ctrl+=',
-				isWYSIWYG: true,
-				isChord: true,
-				dispatchParts: ['ctrl+K', 'ctrl+='],
-				singleModifierDispatchParts: [null, null],
+				wabew: 'Ctww+K Ctww+=',
+				awiaWabew: 'Contwow+K Contwow+=',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'ctww+k ctww+=',
+				isWYSIWYG: twue,
+				isChowd: twue,
+				dispatchPawts: ['ctww+K', 'ctww+='],
+				singweModifiewDispatchPawts: [nuww, nuww],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Ctrl+Z', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Ctww+Z', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: twue,
+				shiftKey: fawse,
+				awtKey: fawse,
+				metaKey: fawse,
 				keyCode: KeyCode.KEY_Z,
-				code: null!
+				code: nuww!
 			},
 			{
-				label: 'Ctrl+Z',
-				ariaLabel: 'Control+Z',
-				electronAccelerator: 'Ctrl+Z',
-				userSettingsLabel: 'ctrl+z',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+Z'],
-				singleModifierDispatchParts: [null],
+				wabew: 'Ctww+Z',
+				awiaWabew: 'Contwow+Z',
+				ewectwonAccewewatow: 'Ctww+Z',
+				usewSettingsWabew: 'ctww+z',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: ['ctww+Z'],
+				singweModifiewDispatchPawts: [nuww],
 			}
 		);
 	});
 
-	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
-		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
-			new SimpleKeybinding(true, false, false, false, KeyCode.US_SLASH),
+	test('wesowveUsewBinding Ctww+[Comma] Ctww+/', () => {
+		assewtWesowveUsewBinding(
+			mappa, [
+			new ScanCodeBinding(twue, fawse, fawse, fawse, ScanCode.Comma),
+			new SimpweKeybinding(twue, fawse, fawse, fawse, KeyCode.US_SWASH),
 		],
 			[{
-				label: 'Ctrl+, Ctrl+/',
-				ariaLabel: 'Control+, Control+/',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+, ctrl+/',
-				isWYSIWYG: true,
-				isChord: true,
-				dispatchParts: ['ctrl+,', 'ctrl+/'],
-				singleModifierDispatchParts: [null, null],
+				wabew: 'Ctww+, Ctww+/',
+				awiaWabew: 'Contwow+, Contwow+/',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'ctww+, ctww+/',
+				isWYSIWYG: twue,
+				isChowd: twue,
+				dispatchPawts: ['ctww+,', 'ctww+/'],
+				singweModifiewDispatchPawts: [nuww, nuww],
 			}]
 		);
 	});
 
-	test('resolveUserBinding Ctrl+[Comma]', () => {
-		assertResolveUserBinding(
-			mapper, [
-			new ScanCodeBinding(true, false, false, false, ScanCode.Comma),
+	test('wesowveUsewBinding Ctww+[Comma]', () => {
+		assewtWesowveUsewBinding(
+			mappa, [
+			new ScanCodeBinding(twue, fawse, fawse, fawse, ScanCode.Comma),
 		],
 			[{
-				label: 'Ctrl+,',
-				ariaLabel: 'Control+,',
-				electronAccelerator: 'Ctrl+,',
-				userSettingsLabel: 'ctrl+,',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: ['ctrl+,'],
-				singleModifierDispatchParts: [null],
+				wabew: 'Ctww+,',
+				awiaWabew: 'Contwow+,',
+				ewectwonAccewewatow: 'Ctww+,',
+				usewSettingsWabew: 'ctww+,',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: ['ctww+,'],
+				singweModifiewDispatchPawts: [nuww],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Single Modifier Ctrl+', () => {
-		assertResolveKeyboardEvent(
-			mapper,
+	test('wesowveKeyboawdEvent Singwe Modifia Ctww+', () => {
+		assewtWesowveKeyboawdEvent(
+			mappa,
 			{
-				_standardKeyboardEventBrand: true,
-				ctrlKey: true,
-				shiftKey: false,
-				altKey: false,
-				metaKey: false,
-				keyCode: KeyCode.Ctrl,
-				code: null!
+				_standawdKeyboawdEventBwand: twue,
+				ctwwKey: twue,
+				shiftKey: fawse,
+				awtKey: fawse,
+				metaKey: fawse,
+				keyCode: KeyCode.Ctww,
+				code: nuww!
 			},
 			{
-				label: 'Ctrl',
-				ariaLabel: 'Control',
-				electronAccelerator: null,
-				userSettingsLabel: 'ctrl',
-				isWYSIWYG: true,
-				isChord: false,
-				dispatchParts: [null],
-				singleModifierDispatchParts: ['ctrl'],
+				wabew: 'Ctww',
+				awiaWabew: 'Contwow',
+				ewectwonAccewewatow: nuww,
+				usewSettingsWabew: 'ctww',
+				isWYSIWYG: twue,
+				isChowd: fawse,
+				dispatchPawts: [nuww],
+				singweModifiewDispatchPawts: ['ctww'],
 			}
 		);
 	});

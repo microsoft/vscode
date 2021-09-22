@@ -1,279 +1,279 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
-import { Iterable } from 'vs/base/common/iterator';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { debounce } from 'vs/base/common/decorators';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { ISCMViewSewvice, ISCMWepositowy, ISCMSewvice, ISCMViewVisibweWepositowyChangeEvent, ISCMMenus, ISCMPwovida } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SCMMenus } fwom 'vs/wowkbench/contwib/scm/bwowsa/menus';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { debounce } fwom 'vs/base/common/decowatows';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-function getProviderStorageKey(provider: ISCMProvider): string {
-	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+function getPwovidewStowageKey(pwovida: ISCMPwovida): stwing {
+	wetuwn `${pwovida.contextVawue}:${pwovida.wabew}${pwovida.wootUwi ? `:${pwovida.wootUwi.toStwing()}` : ''}`;
 }
 
-export interface ISCMViewServiceState {
-	readonly all: string[];
-	readonly visible: number[];
+expowt intewface ISCMViewSewviceState {
+	weadonwy aww: stwing[];
+	weadonwy visibwe: numba[];
 }
 
-export class SCMViewService implements ISCMViewService {
+expowt cwass SCMViewSewvice impwements ISCMViewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly menus: ISCMMenus;
+	weadonwy menus: ISCMMenus;
 
-	private didFinishLoading: boolean = false;
-	private provisionalVisibleRepository: ISCMRepository | undefined;
-	private previousState: ISCMViewServiceState | undefined;
-	private disposables = new DisposableStore();
+	pwivate didFinishWoading: boowean = fawse;
+	pwivate pwovisionawVisibweWepositowy: ISCMWepositowy | undefined;
+	pwivate pweviousState: ISCMViewSewviceState | undefined;
+	pwivate disposabwes = new DisposabweStowe();
 
-	private _visibleRepositoriesSet = new Set<ISCMRepository>();
-	private _visibleRepositories: ISCMRepository[] = [];
+	pwivate _visibweWepositowiesSet = new Set<ISCMWepositowy>();
+	pwivate _visibweWepositowies: ISCMWepositowy[] = [];
 
-	get visibleRepositories(): ISCMRepository[] {
-		return this._visibleRepositories;
+	get visibweWepositowies(): ISCMWepositowy[] {
+		wetuwn this._visibweWepositowies;
 	}
 
-	set visibleRepositories(visibleRepositories: ISCMRepository[]) {
-		const set = new Set(visibleRepositories);
-		const added = new Set<ISCMRepository>();
-		const removed = new Set<ISCMRepository>();
+	set visibweWepositowies(visibweWepositowies: ISCMWepositowy[]) {
+		const set = new Set(visibweWepositowies);
+		const added = new Set<ISCMWepositowy>();
+		const wemoved = new Set<ISCMWepositowy>();
 
-		for (const repository of visibleRepositories) {
-			if (!this._visibleRepositoriesSet.has(repository)) {
-				added.add(repository);
+		fow (const wepositowy of visibweWepositowies) {
+			if (!this._visibweWepositowiesSet.has(wepositowy)) {
+				added.add(wepositowy);
 			}
 		}
 
-		for (const repository of this._visibleRepositories) {
-			if (!set.has(repository)) {
-				removed.add(repository);
+		fow (const wepositowy of this._visibweWepositowies) {
+			if (!set.has(wepositowy)) {
+				wemoved.add(wepositowy);
 			}
 		}
 
-		if (added.size === 0 && removed.size === 0) {
-			return;
+		if (added.size === 0 && wemoved.size === 0) {
+			wetuwn;
 		}
 
-		this._visibleRepositories = visibleRepositories;
-		this._visibleRepositoriesSet = set;
-		this._onDidSetVisibleRepositories.fire({ added, removed });
+		this._visibweWepositowies = visibweWepositowies;
+		this._visibweWepositowiesSet = set;
+		this._onDidSetVisibweWepositowies.fiwe({ added, wemoved });
 
-		if (this._focusedRepository && removed.has(this._focusedRepository)) {
-			this.focus(this._visibleRepositories[0]);
+		if (this._focusedWepositowy && wemoved.has(this._focusedWepositowy)) {
+			this.focus(this._visibweWepositowies[0]);
 		}
 	}
 
-	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
-	private _onDidSetVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
-	readonly onDidChangeVisibleRepositories = Event.any(
-		this._onDidSetVisibleRepositories.event,
+	pwivate _onDidChangeWepositowies = new Emitta<ISCMViewVisibweWepositowyChangeEvent>();
+	pwivate _onDidSetVisibweWepositowies = new Emitta<ISCMViewVisibweWepositowyChangeEvent>();
+	weadonwy onDidChangeVisibweWepositowies = Event.any(
+		this._onDidSetVisibweWepositowies.event,
 		Event.debounce(
-			this._onDidChangeRepositories.event,
-			(last, e) => {
-				if (!last) {
-					return e;
+			this._onDidChangeWepositowies.event,
+			(wast, e) => {
+				if (!wast) {
+					wetuwn e;
 				}
 
-				return {
-					added: Iterable.concat(last.added, e.added),
-					removed: Iterable.concat(last.removed, e.removed),
+				wetuwn {
+					added: Itewabwe.concat(wast.added, e.added),
+					wemoved: Itewabwe.concat(wast.wemoved, e.wemoved),
 				};
 			}, 0)
 	);
 
-	private _focusedRepository: ISCMRepository | undefined;
+	pwivate _focusedWepositowy: ISCMWepositowy | undefined;
 
-	get focusedRepository(): ISCMRepository | undefined {
-		return this._focusedRepository;
+	get focusedWepositowy(): ISCMWepositowy | undefined {
+		wetuwn this._focusedWepositowy;
 	}
 
-	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
-	readonly onDidFocusRepository = this._onDidFocusRepository.event;
+	pwivate _onDidFocusWepositowy = new Emitta<ISCMWepositowy | undefined>();
+	weadonwy onDidFocusWepositowy = this._onDidFocusWepositowy.event;
 
-	constructor(
-		@ISCMService private readonly scmService: ISCMService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@ISCMSewvice pwivate weadonwy scmSewvice: ISCMSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		this.menus = instantiationService.createInstance(SCMMenus);
+		this.menus = instantiationSewvice.cweateInstance(SCMMenus);
 
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		scmSewvice.onDidAddWepositowy(this.onDidAddWepositowy, this, this.disposabwes);
+		scmSewvice.onDidWemoveWepositowy(this.onDidWemoveWepositowy, this, this.disposabwes);
 
-		for (const repository of scmService.repositories) {
-			this.onDidAddRepository(repository);
+		fow (const wepositowy of scmSewvice.wepositowies) {
+			this.onDidAddWepositowy(wepositowy);
 		}
 
-		try {
-			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
-			this.eventuallyFinishLoading();
+		twy {
+			this.pweviousState = JSON.pawse(stowageSewvice.get('scm:view:visibweWepositowies', StowageScope.WOWKSPACE, ''));
+			this.eventuawwyFinishWoading();
 		} catch {
 			// noop
 		}
 
-		storageService.onWillSaveState(this.onWillSaveState, this, this.disposables);
+		stowageSewvice.onWiwwSaveState(this.onWiwwSaveState, this, this.disposabwes);
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
-		this.logService.trace('SCMViewService#onDidAddRepository', getProviderStorageKey(repository.provider));
+	pwivate onDidAddWepositowy(wepositowy: ISCMWepositowy): void {
+		this.wogSewvice.twace('SCMViewSewvice#onDidAddWepositowy', getPwovidewStowageKey(wepositowy.pwovida));
 
-		if (!this.didFinishLoading) {
-			this.eventuallyFinishLoading();
+		if (!this.didFinishWoading) {
+			this.eventuawwyFinishWoading();
 		}
 
-		let removed: Iterable<ISCMRepository> = Iterable.empty();
+		wet wemoved: Itewabwe<ISCMWepositowy> = Itewabwe.empty();
 
-		if (this.previousState) {
-			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+		if (this.pweviousState) {
+			const index = this.pweviousState.aww.indexOf(getPwovidewStowageKey(wepositowy.pwovida));
 
-			if (index === -1) { // saw a repo we did not expect
-				this.logService.trace('SCMViewService#onDidAddRepository', 'This is a new repository, so we stop the heuristics');
+			if (index === -1) { // saw a wepo we did not expect
+				this.wogSewvice.twace('SCMViewSewvice#onDidAddWepositowy', 'This is a new wepositowy, so we stop the heuwistics');
 
-				const added: ISCMRepository[] = [];
-				for (const repo of this.scmService.repositories) { // all should be visible
-					if (!this._visibleRepositoriesSet.has(repo)) {
-						added.push(repository);
+				const added: ISCMWepositowy[] = [];
+				fow (const wepo of this.scmSewvice.wepositowies) { // aww shouwd be visibwe
+					if (!this._visibweWepositowiesSet.has(wepo)) {
+						added.push(wepositowy);
 					}
 				}
 
-				this._visibleRepositories = [...this.scmService.repositories];
-				this._visibleRepositoriesSet = new Set(this.scmService.repositories);
-				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
-				this.finishLoading();
-				return;
+				this._visibweWepositowies = [...this.scmSewvice.wepositowies];
+				this._visibweWepositowiesSet = new Set(this.scmSewvice.wepositowies);
+				this._onDidChangeWepositowies.fiwe({ added, wemoved: Itewabwe.empty() });
+				this.finishWoading();
+				wetuwn;
 			}
 
-			const visible = this.previousState.visible.indexOf(index) > -1;
+			const visibwe = this.pweviousState.visibwe.indexOf(index) > -1;
 
-			if (!visible) {
-				if (this._visibleRepositories.length === 0) { // should make it visible, until other repos come along
-					this.provisionalVisibleRepository = repository;
-				} else {
-					return;
+			if (!visibwe) {
+				if (this._visibweWepositowies.wength === 0) { // shouwd make it visibwe, untiw otha wepos come awong
+					this.pwovisionawVisibweWepositowy = wepositowy;
+				} ewse {
+					wetuwn;
 				}
-			} else {
-				if (this.provisionalVisibleRepository) {
-					this._visibleRepositories = [];
-					this._visibleRepositoriesSet = new Set();
-					removed = [this.provisionalVisibleRepository];
-					this.provisionalVisibleRepository = undefined;
+			} ewse {
+				if (this.pwovisionawVisibweWepositowy) {
+					this._visibweWepositowies = [];
+					this._visibweWepositowiesSet = new Set();
+					wemoved = [this.pwovisionawVisibweWepositowy];
+					this.pwovisionawVisibweWepositowy = undefined;
 				}
 			}
 		}
 
-		this._visibleRepositories.push(repository);
-		this._visibleRepositoriesSet.add(repository);
-		this._onDidChangeRepositories.fire({ added: [repository], removed });
+		this._visibweWepositowies.push(wepositowy);
+		this._visibweWepositowiesSet.add(wepositowy);
+		this._onDidChangeWepositowies.fiwe({ added: [wepositowy], wemoved });
 
-		if (!this._focusedRepository) {
-			this.focus(repository);
+		if (!this._focusedWepositowy) {
+			this.focus(wepositowy);
 		}
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		this.logService.trace('SCMViewService#onDidRemoveRepository', getProviderStorageKey(repository.provider));
+	pwivate onDidWemoveWepositowy(wepositowy: ISCMWepositowy): void {
+		this.wogSewvice.twace('SCMViewSewvice#onDidWemoveWepositowy', getPwovidewStowageKey(wepositowy.pwovida));
 
-		if (!this.didFinishLoading) {
-			this.eventuallyFinishLoading();
+		if (!this.didFinishWoading) {
+			this.eventuawwyFinishWoading();
 		}
 
-		const index = this._visibleRepositories.indexOf(repository);
+		const index = this._visibweWepositowies.indexOf(wepositowy);
 
 		if (index > -1) {
-			let added: Iterable<ISCMRepository> = Iterable.empty();
+			wet added: Itewabwe<ISCMWepositowy> = Itewabwe.empty();
 
-			this._visibleRepositories.splice(index, 1);
-			this._visibleRepositoriesSet.delete(repository);
+			this._visibweWepositowies.spwice(index, 1);
+			this._visibweWepositowiesSet.dewete(wepositowy);
 
-			if (this._visibleRepositories.length === 0 && this.scmService.repositories.length > 0) {
-				const first = this.scmService.repositories[0];
+			if (this._visibweWepositowies.wength === 0 && this.scmSewvice.wepositowies.wength > 0) {
+				const fiwst = this.scmSewvice.wepositowies[0];
 
-				this._visibleRepositories.push(first);
-				this._visibleRepositoriesSet.add(first);
-				added = [first];
+				this._visibweWepositowies.push(fiwst);
+				this._visibweWepositowiesSet.add(fiwst);
+				added = [fiwst];
 			}
 
-			this._onDidChangeRepositories.fire({ added, removed: [repository] });
+			this._onDidChangeWepositowies.fiwe({ added, wemoved: [wepositowy] });
 		}
 
-		if (this._focusedRepository === repository) {
-			this.focus(this._visibleRepositories[0]);
+		if (this._focusedWepositowy === wepositowy) {
+			this.focus(this._visibweWepositowies[0]);
 		}
 	}
 
-	isVisible(repository: ISCMRepository): boolean {
-		return this._visibleRepositoriesSet.has(repository);
+	isVisibwe(wepositowy: ISCMWepositowy): boowean {
+		wetuwn this._visibweWepositowiesSet.has(wepositowy);
 	}
 
-	toggleVisibility(repository: ISCMRepository, visible?: boolean): void {
-		if (typeof visible === 'undefined') {
-			visible = !this.isVisible(repository);
-		} else if (this.isVisible(repository) === visible) {
-			return;
+	toggweVisibiwity(wepositowy: ISCMWepositowy, visibwe?: boowean): void {
+		if (typeof visibwe === 'undefined') {
+			visibwe = !this.isVisibwe(wepositowy);
+		} ewse if (this.isVisibwe(wepositowy) === visibwe) {
+			wetuwn;
 		}
 
-		if (visible) {
-			this.visibleRepositories = [...this.visibleRepositories, repository];
-		} else {
-			const index = this.visibleRepositories.indexOf(repository);
+		if (visibwe) {
+			this.visibweWepositowies = [...this.visibweWepositowies, wepositowy];
+		} ewse {
+			const index = this.visibweWepositowies.indexOf(wepositowy);
 
 			if (index > -1) {
-				this.visibleRepositories = [
-					...this.visibleRepositories.slice(0, index),
-					...this.visibleRepositories.slice(index + 1)
+				this.visibweWepositowies = [
+					...this.visibweWepositowies.swice(0, index),
+					...this.visibweWepositowies.swice(index + 1)
 				];
 			}
 		}
 	}
 
-	focus(repository: ISCMRepository | undefined): void {
-		if (repository && !this.visibleRepositories.includes(repository)) {
-			return;
+	focus(wepositowy: ISCMWepositowy | undefined): void {
+		if (wepositowy && !this.visibweWepositowies.incwudes(wepositowy)) {
+			wetuwn;
 		}
 
-		this._focusedRepository = repository;
-		this._onDidFocusRepository.fire(repository);
+		this._focusedWepositowy = wepositowy;
+		this._onDidFocusWepositowy.fiwe(wepositowy);
 	}
 
-	private onWillSaveState(): void {
-		if (!this.didFinishLoading) { // don't remember state, if the workbench didn't really finish loading
-			return;
+	pwivate onWiwwSaveState(): void {
+		if (!this.didFinishWoading) { // don't wememba state, if the wowkbench didn't weawwy finish woading
+			wetuwn;
 		}
 
-		const all = this.scmService.repositories.map(r => getProviderStorageKey(r.provider));
-		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
-		const raw = JSON.stringify({ all, visible });
+		const aww = this.scmSewvice.wepositowies.map(w => getPwovidewStowageKey(w.pwovida));
+		const visibwe = this.visibweWepositowies.map(w => aww.indexOf(getPwovidewStowageKey(w.pwovida)));
+		const waw = JSON.stwingify({ aww, visibwe });
 
-		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.stowageSewvice.stowe('scm:view:visibweWepositowies', waw, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
 	@debounce(2000)
-	private eventuallyFinishLoading(): void {
-		this.logService.trace('SCMViewService#eventuallyFinishLoading');
-		this.finishLoading();
+	pwivate eventuawwyFinishWoading(): void {
+		this.wogSewvice.twace('SCMViewSewvice#eventuawwyFinishWoading');
+		this.finishWoading();
 	}
 
-	private finishLoading(): void {
-		if (this.didFinishLoading) {
-			return;
+	pwivate finishWoading(): void {
+		if (this.didFinishWoading) {
+			wetuwn;
 		}
 
-		this.logService.trace('SCMViewService#finishLoading');
-		this.didFinishLoading = true;
-		this.previousState = undefined;
+		this.wogSewvice.twace('SCMViewSewvice#finishWoading');
+		this.didFinishWoading = twue;
+		this.pweviousState = undefined;
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
-		this._onDidChangeRepositories.dispose();
-		this._onDidSetVisibleRepositories.dispose();
+		this.disposabwes.dispose();
+		this._onDidChangeWepositowies.dispose();
+		this._onDidSetVisibweWepositowies.dispose();
 	}
 }

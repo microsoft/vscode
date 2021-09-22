@@ -1,229 +1,229 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, ITextBufferFactory, ITextSnapshot, ModelConstants } from 'vs/editor/common/model';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { URI } from 'vs/base/common/uri';
-import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { localize } from 'vs/nls';
+impowt { ITextModew, ITextBuffewFactowy, ITextSnapshot, ModewConstants } fwom 'vs/editow/common/modew';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { IModeSuppowt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextEditowModew, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IModeSewvice, IWanguageSewection } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { IWanguageDetectionSewvice } fwom 'vs/wowkbench/sewvices/wanguageDetection/common/wanguageDetectionWowkewSewvice';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { wocawize } fwom 'vs/nws';
 
 /**
- * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
+ * The base text editow modew wevewages the code editow modew. This cwass is onwy intended to be subcwassed and not instantiated.
  */
-export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
+expowt cwass BaseTextEditowModew extends EditowModew impwements ITextEditowModew, IModeSuppowt {
 
-	private static readonly AUTO_DETECT_LANGUAGE_THROTTLE_DELAY = 600;
+	pwivate static weadonwy AUTO_DETECT_WANGUAGE_THWOTTWE_DEWAY = 600;
 
-	protected textEditorModelHandle: URI | undefined = undefined;
+	pwotected textEditowModewHandwe: UWI | undefined = undefined;
 
-	private createdEditorModel: boolean | undefined;
+	pwivate cweatedEditowModew: boowean | undefined;
 
-	private readonly modelDisposeListener = this._register(new MutableDisposable());
-	private readonly autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(BaseTextEditorModel.AUTO_DETECT_LANGUAGE_THROTTLE_DELAY));
+	pwivate weadonwy modewDisposeWistena = this._wegista(new MutabweDisposabwe());
+	pwivate weadonwy autoDetectWanguageThwottwa = this._wegista(new ThwottwedDewaya<void>(BaseTextEditowModew.AUTO_DETECT_WANGUAGE_THWOTTWE_DEWAY));
 
-	constructor(
-		@IModelService protected modelService: IModelService,
-		@IModeService protected modeService: IModeService,
-		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		textEditorModelHandle?: URI
+	constwuctow(
+		@IModewSewvice pwotected modewSewvice: IModewSewvice,
+		@IModeSewvice pwotected modeSewvice: IModeSewvice,
+		@IWanguageDetectionSewvice pwivate weadonwy wanguageDetectionSewvice: IWanguageDetectionSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		textEditowModewHandwe?: UWI
 	) {
-		super();
+		supa();
 
-		if (textEditorModelHandle) {
-			this.handleExistingModel(textEditorModelHandle);
+		if (textEditowModewHandwe) {
+			this.handweExistingModew(textEditowModewHandwe);
 		}
 	}
 
-	private handleExistingModel(textEditorModelHandle: URI): void {
+	pwivate handweExistingModew(textEditowModewHandwe: UWI): void {
 
-		// We need the resource to point to an existing model
-		const model = this.modelService.getModel(textEditorModelHandle);
-		if (!model) {
-			throw new Error(`Document with resource ${textEditorModelHandle.toString(true)} does not exist`);
+		// We need the wesouwce to point to an existing modew
+		const modew = this.modewSewvice.getModew(textEditowModewHandwe);
+		if (!modew) {
+			thwow new Ewwow(`Document with wesouwce ${textEditowModewHandwe.toStwing(twue)} does not exist`);
 		}
 
-		this.textEditorModelHandle = textEditorModelHandle;
+		this.textEditowModewHandwe = textEditowModewHandwe;
 
-		// Make sure we clean up when this model gets disposed
-		this.registerModelDisposeListener(model);
+		// Make suwe we cwean up when this modew gets disposed
+		this.wegistewModewDisposeWistena(modew);
 	}
 
-	private registerModelDisposeListener(model: ITextModel): void {
-		this.modelDisposeListener.value = model.onWillDispose(() => {
-			this.textEditorModelHandle = undefined; // make sure we do not dispose code editor model again
+	pwivate wegistewModewDisposeWistena(modew: ITextModew): void {
+		this.modewDisposeWistena.vawue = modew.onWiwwDispose(() => {
+			this.textEditowModewHandwe = undefined; // make suwe we do not dispose code editow modew again
 			this.dispose();
 		});
 	}
 
-	get textEditorModel(): ITextModel | null {
-		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
+	get textEditowModew(): ITextModew | nuww {
+		wetuwn this.textEditowModewHandwe ? this.modewSewvice.getModew(this.textEditowModewHandwe) : nuww;
 	}
 
-	isReadonly(): boolean {
-		return true;
+	isWeadonwy(): boowean {
+		wetuwn twue;
 	}
 
-	private _hasModeSetExplicitly: boolean = false;
-	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
+	pwivate _hasModeSetExpwicitwy: boowean = fawse;
+	get hasModeSetExpwicitwy(): boowean { wetuwn this._hasModeSetExpwicitwy; }
 
-	setMode(mode: string): void {
-		// Remember that an explicit mode was set
-		this._hasModeSetExplicitly = true;
+	setMode(mode: stwing): void {
+		// Wememba that an expwicit mode was set
+		this._hasModeSetExpwicitwy = twue;
 
-		this.setModeInternal(mode);
+		this.setModeIntewnaw(mode);
 	}
 
-	private setModeInternal(mode: string): void {
-		if (!this.isResolved()) {
-			return;
+	pwivate setModeIntewnaw(mode: stwing): void {
+		if (!this.isWesowved()) {
+			wetuwn;
 		}
 
-		if (!mode || mode === this.textEditorModel.getModeId()) {
-			return;
+		if (!mode || mode === this.textEditowModew.getModeId()) {
+			wetuwn;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.modeService.create(mode));
+		this.modewSewvice.setMode(this.textEditowModew, this.modeSewvice.cweate(mode));
 	}
 
-	getMode(): string | undefined {
-		return this.textEditorModel?.getModeId();
+	getMode(): stwing | undefined {
+		wetuwn this.textEditowModew?.getModeId();
 	}
 
-	protected autoDetectLanguage(): Promise<void> {
-		return this.autoDetectLanguageThrottler.trigger(() => this.doAutoDetectLanguage());
+	pwotected autoDetectWanguage(): Pwomise<void> {
+		wetuwn this.autoDetectWanguageThwottwa.twigga(() => this.doAutoDetectWanguage());
 	}
 
-	private async doAutoDetectLanguage(): Promise<void> {
+	pwivate async doAutoDetectWanguage(): Pwomise<void> {
 		if (
-			this.hasModeSetExplicitly || 															// skip detection when the user has made an explicit choice on the mode
-			!this.textEditorModelHandle ||															// require a URI to run the detection for
-			!this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)	// require a valid mode that is enlisted for detection
+			this.hasModeSetExpwicitwy || 															// skip detection when the usa has made an expwicit choice on the mode
+			!this.textEditowModewHandwe ||															// wequiwe a UWI to wun the detection fow
+			!this.wanguageDetectionSewvice.isEnabwedFowMode(this.getMode() ?? PWAINTEXT_MODE_ID)	// wequiwe a vawid mode that is enwisted fow detection
 		) {
-			return;
+			wetuwn;
 		}
 
-		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (lang && !this.isDisposed()) {
-			this.setModeInternal(lang);
-			const languageName = this.modeService.getLanguageName(lang);
-			if (languageName) {
-				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
+		const wang = await this.wanguageDetectionSewvice.detectWanguage(this.textEditowModewHandwe);
+		if (wang && !this.isDisposed()) {
+			this.setModeIntewnaw(wang);
+			const wanguageName = this.modeSewvice.getWanguageName(wang);
+			if (wanguageName) {
+				this.accessibiwitySewvice.awewt(wocawize('wanguageAutoDetected', "Wanguage {0} was automaticawwy detected and set as the wanguage mode.", wanguageName));
 			}
 		}
 	}
 
 	/**
-	 * Creates the text editor model with the provided value, optional preferred mode
-	 * (can be comma separated for multiple values) and optional resource URL.
+	 * Cweates the text editow modew with the pwovided vawue, optionaw pwefewwed mode
+	 * (can be comma sepawated fow muwtipwe vawues) and optionaw wesouwce UWW.
 	 */
-	protected createTextEditorModel(value: ITextBufferFactory, resource: URI | undefined, preferredMode?: string): ITextModel {
-		const firstLineText = this.getFirstLineText(value);
-		const languageSelection = this.getOrCreateMode(resource, this.modeService, preferredMode, firstLineText);
+	pwotected cweateTextEditowModew(vawue: ITextBuffewFactowy, wesouwce: UWI | undefined, pwefewwedMode?: stwing): ITextModew {
+		const fiwstWineText = this.getFiwstWineText(vawue);
+		const wanguageSewection = this.getOwCweateMode(wesouwce, this.modeSewvice, pwefewwedMode, fiwstWineText);
 
-		return this.doCreateTextEditorModel(value, languageSelection, resource);
+		wetuwn this.doCweateTextEditowModew(vawue, wanguageSewection, wesouwce);
 	}
 
-	private doCreateTextEditorModel(value: ITextBufferFactory, languageSelection: ILanguageSelection, resource: URI | undefined): ITextModel {
-		let model = resource && this.modelService.getModel(resource);
-		if (!model) {
-			model = this.modelService.createModel(value, languageSelection, resource);
-			this.createdEditorModel = true;
+	pwivate doCweateTextEditowModew(vawue: ITextBuffewFactowy, wanguageSewection: IWanguageSewection, wesouwce: UWI | undefined): ITextModew {
+		wet modew = wesouwce && this.modewSewvice.getModew(wesouwce);
+		if (!modew) {
+			modew = this.modewSewvice.cweateModew(vawue, wanguageSewection, wesouwce);
+			this.cweatedEditowModew = twue;
 
-			// Make sure we clean up when this model gets disposed
-			this.registerModelDisposeListener(model);
-		} else {
-			this.updateTextEditorModel(value, languageSelection.languageIdentifier.language);
+			// Make suwe we cwean up when this modew gets disposed
+			this.wegistewModewDisposeWistena(modew);
+		} ewse {
+			this.updateTextEditowModew(vawue, wanguageSewection.wanguageIdentifia.wanguage);
 		}
 
-		this.textEditorModelHandle = model.uri;
+		this.textEditowModewHandwe = modew.uwi;
 
-		return model;
+		wetuwn modew;
 	}
 
-	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {
+	pwotected getFiwstWineText(vawue: ITextBuffewFactowy | ITextModew): stwing {
 
-		// text buffer factory
-		const textBufferFactory = value as ITextBufferFactory;
-		if (typeof textBufferFactory.getFirstLineText === 'function') {
-			return textBufferFactory.getFirstLineText(ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
+		// text buffa factowy
+		const textBuffewFactowy = vawue as ITextBuffewFactowy;
+		if (typeof textBuffewFactowy.getFiwstWineText === 'function') {
+			wetuwn textBuffewFactowy.getFiwstWineText(ModewConstants.FIWST_WINE_DETECTION_WENGTH_WIMIT);
 		}
 
-		// text model
-		const textSnapshot = value as ITextModel;
-		return textSnapshot.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
+		// text modew
+		const textSnapshot = vawue as ITextModew;
+		wetuwn textSnapshot.getWineContent(1).substw(0, ModewConstants.FIWST_WINE_DETECTION_WENGTH_WIMIT);
 	}
 
 	/**
-	 * Gets the mode for the given identifier. Subclasses can override to provide their own implementation of this lookup.
+	 * Gets the mode fow the given identifia. Subcwasses can ovewwide to pwovide theiw own impwementation of this wookup.
 	 *
-	 * @param firstLineText optional first line of the text buffer to set the mode on. This can be used to guess a mode from content.
+	 * @pawam fiwstWineText optionaw fiwst wine of the text buffa to set the mode on. This can be used to guess a mode fwom content.
 	 */
-	protected getOrCreateMode(resource: URI | undefined, modeService: IModeService, preferredMode: string | undefined, firstLineText?: string): ILanguageSelection {
+	pwotected getOwCweateMode(wesouwce: UWI | undefined, modeSewvice: IModeSewvice, pwefewwedMode: stwing | undefined, fiwstWineText?: stwing): IWanguageSewection {
 
-		// lookup mode via resource path if the provided mode is unspecific
-		if (!preferredMode || preferredMode === PLAINTEXT_MODE_ID) {
-			return modeService.createByFilepathOrFirstLine(withUndefinedAsNull(resource), firstLineText);
+		// wookup mode via wesouwce path if the pwovided mode is unspecific
+		if (!pwefewwedMode || pwefewwedMode === PWAINTEXT_MODE_ID) {
+			wetuwn modeSewvice.cweateByFiwepathOwFiwstWine(withUndefinedAsNuww(wesouwce), fiwstWineText);
 		}
 
-		// otherwise take the preferred mode for granted
-		return modeService.create(preferredMode);
+		// othewwise take the pwefewwed mode fow gwanted
+		wetuwn modeSewvice.cweate(pwefewwedMode);
 	}
 
 	/**
-	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
+	 * Updates the text editow modew with the pwovided vawue. If the vawue is the same as the modew has, this is a no-op.
 	 */
-	updateTextEditorModel(newValue?: ITextBufferFactory, preferredMode?: string): void {
-		if (!this.isResolved()) {
-			return;
+	updateTextEditowModew(newVawue?: ITextBuffewFactowy, pwefewwedMode?: stwing): void {
+		if (!this.isWesowved()) {
+			wetuwn;
 		}
 
 		// contents
-		if (newValue) {
-			this.modelService.updateModel(this.textEditorModel, newValue);
+		if (newVawue) {
+			this.modewSewvice.updateModew(this.textEditowModew, newVawue);
 		}
 
-		// mode (only if specific and changed)
-		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getModeId() !== preferredMode) {
-			this.modelService.setMode(this.textEditorModel, this.modeService.create(preferredMode));
+		// mode (onwy if specific and changed)
+		if (pwefewwedMode && pwefewwedMode !== PWAINTEXT_MODE_ID && this.textEditowModew.getModeId() !== pwefewwedMode) {
+			this.modewSewvice.setMode(this.textEditowModew, this.modeSewvice.cweate(pwefewwedMode));
 		}
 	}
 
-	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
-	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
-	createSnapshot(): ITextSnapshot | null {
-		if (!this.textEditorModel) {
-			return null;
+	cweateSnapshot(this: IWesowvedTextEditowModew): ITextSnapshot;
+	cweateSnapshot(this: ITextEditowModew): ITextSnapshot | nuww;
+	cweateSnapshot(): ITextSnapshot | nuww {
+		if (!this.textEditowModew) {
+			wetuwn nuww;
 		}
 
-		return this.textEditorModel.createSnapshot(true /* preserve BOM */);
+		wetuwn this.textEditowModew.cweateSnapshot(twue /* pwesewve BOM */);
 	}
 
-	override isResolved(): this is IResolvedTextEditorModel {
-		return !!this.textEditorModelHandle;
+	ovewwide isWesowved(): this is IWesowvedTextEditowModew {
+		wetuwn !!this.textEditowModewHandwe;
 	}
 
-	override dispose(): void {
-		this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
+	ovewwide dispose(): void {
+		this.modewDisposeWistena.dispose(); // dispose this fiwst because it wiww twigga anotha dispose() othewwise
 
-		if (this.textEditorModelHandle && this.createdEditorModel) {
-			this.modelService.destroyModel(this.textEditorModelHandle);
+		if (this.textEditowModewHandwe && this.cweatedEditowModew) {
+			this.modewSewvice.destwoyModew(this.textEditowModewHandwe);
 		}
 
-		this.textEditorModelHandle = undefined;
-		this.createdEditorModel = false;
+		this.textEditowModewHandwe = undefined;
+		this.cweatedEditowModew = fawse;
 
-		super.dispose();
+		supa.dispose();
 	}
 }

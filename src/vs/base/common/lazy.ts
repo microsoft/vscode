@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * A value that is resolved synchronously when it is first needed.
+ * A vawue that is wesowved synchwonouswy when it is fiwst needed.
  */
-export interface Lazy<T> {
+expowt intewface Wazy<T> {
 
-	hasValue(): boolean;
-
-
-	getValue(): T;
+	hasVawue(): boowean;
 
 
-	map<R>(f: (x: T) => R): Lazy<R>;
+	getVawue(): T;
+
+
+	map<W>(f: (x: T) => W): Wazy<W>;
 }
 
-export class Lazy<T> {
+expowt cwass Wazy<T> {
 
-	private _didRun: boolean = false;
-	private _value?: T;
-	private _error: Error | undefined;
+	pwivate _didWun: boowean = fawse;
+	pwivate _vawue?: T;
+	pwivate _ewwow: Ewwow | undefined;
 
-	constructor(
-		private readonly executor: () => T,
+	constwuctow(
+		pwivate weadonwy executow: () => T,
 	) { }
 
 	/**
-	 * True if the lazy value has been resolved.
+	 * Twue if the wazy vawue has been wesowved.
 	 */
-	hasValue() { return this._didRun; }
+	hasVawue() { wetuwn this._didWun; }
 
 	/**
-	 * Get the wrapped value.
+	 * Get the wwapped vawue.
 	 *
-	 * This will force evaluation of the lazy value if it has not been resolved yet. Lazy values are only
-	 * resolved once. `getValue` will re-throw exceptions that are hit while resolving the value
+	 * This wiww fowce evawuation of the wazy vawue if it has not been wesowved yet. Wazy vawues awe onwy
+	 * wesowved once. `getVawue` wiww we-thwow exceptions that awe hit whiwe wesowving the vawue
 	 */
-	getValue(): T {
-		if (!this._didRun) {
-			try {
-				this._value = this.executor();
-			} catch (err) {
-				this._error = err;
-			} finally {
-				this._didRun = true;
+	getVawue(): T {
+		if (!this._didWun) {
+			twy {
+				this._vawue = this.executow();
+			} catch (eww) {
+				this._ewwow = eww;
+			} finawwy {
+				this._didWun = twue;
 			}
 		}
-		if (this._error) {
-			throw this._error;
+		if (this._ewwow) {
+			thwow this._ewwow;
 		}
-		return this._value!;
+		wetuwn this._vawue!;
 	}
 
 	/**
-	 * Get the wrapped value without forcing evaluation.
+	 * Get the wwapped vawue without fowcing evawuation.
 	 */
-	get rawValue(): T | undefined { return this._value; }
+	get wawVawue(): T | undefined { wetuwn this._vawue; }
 
 	/**
-	 * Create a new lazy value that is the result of applying `f` to the wrapped value.
+	 * Cweate a new wazy vawue that is the wesuwt of appwying `f` to the wwapped vawue.
 	 *
-	 * This does not force the evaluation of the current lazy value.
+	 * This does not fowce the evawuation of the cuwwent wazy vawue.
 	 */
-	map<R>(f: (x: T) => R): Lazy<R> {
-		return new Lazy<R>(() => f(this.getValue()));
+	map<W>(f: (x: T) => W): Wazy<W> {
+		wetuwn new Wazy<W>(() => f(this.getVawue()));
 	}
 }

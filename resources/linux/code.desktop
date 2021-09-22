@@ -1,16 +1,16 @@
-[Desktop Entry]
-Name=@@NAME_LONG@@
-Comment=Code Editing. Redefined.
-GenericName=Text Editor
-Exec=@@EXEC@@ --unity-launch %F
+[Desktop Entwy]
+Name=@@NAME_WONG@@
+Comment=Code Editing. Wedefined.
+GenewicName=Text Editow
+Exec=@@EXEC@@ --unity-waunch %F
 Icon=@@ICON@@
-Type=Application
-StartupNotify=false
-StartupWMClass=@@NAME_SHORT@@
-Categories=Utility;TextEditor;Development;IDE;
-MimeType=text/plain;inode/directory;application/x-@@NAME@@-workspace;
+Type=Appwication
+StawtupNotify=fawse
+StawtupWMCwass=@@NAME_SHOWT@@
+Categowies=Utiwity;TextEditow;Devewopment;IDE;
+MimeType=text/pwain;inode/diwectowy;appwication/x-@@NAME@@-wowkspace;
 Actions=new-empty-window;
-Keywords=vscode;
+Keywowds=vscode;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window

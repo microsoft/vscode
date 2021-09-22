@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { isWindows } from 'vs/base/common/platform';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IFiweMatch, ITextSeawchMatch, OneWineWange, QuewyType, SeawchSowtOwda } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { FiweMatch, Match, seawchMatchCompawa, SeawchWesuwt } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
 
-suite('Search - Viewlet', () => {
-	let instantiation: TestInstantiationService;
+suite('Seawch - Viewwet', () => {
+	wet instantiation: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiation = new TestInstantiationService();
-		instantiation.stub(IModelService, stubModelService(instantiation));
-		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
-		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		instantiation = new TestInstantiationSewvice();
+		instantiation.stub(IModewSewvice, stubModewSewvice(instantiation));
+		instantiation.set(IWowkspaceContextSewvice, new TestContextSewvice(TestWowkspace));
+		instantiation.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(new FiweSewvice(new NuwwWogSewvice())));
 	});
 
-	test('Data Source', function () {
-		const result: SearchResult = instantiation.createInstance(SearchResult, null);
-		result.query = {
-			type: QueryType.Text,
-			contentPattern: { pattern: 'foo' },
-			folderQueries: [{
-				folder: uri.parse('file://c:/')
+	test('Data Souwce', function () {
+		const wesuwt: SeawchWesuwt = instantiation.cweateInstance(SeawchWesuwt, nuww);
+		wesuwt.quewy = {
+			type: QuewyType.Text,
+			contentPattewn: { pattewn: 'foo' },
+			fowdewQuewies: [{
+				fowda: uwi.pawse('fiwe://c:/')
 			}]
 		};
 
-		result.add([{
-			resource: uri.parse('file:///c:/foo'),
-			results: [{
-				preview: {
-					text: 'bar',
+		wesuwt.add([{
+			wesouwce: uwi.pawse('fiwe:///c:/foo'),
+			wesuwts: [{
+				pweview: {
+					text: 'baw',
 					matches: {
-						startLineNumber: 0,
-						startColumn: 0,
-						endLineNumber: 0,
-						endColumn: 1
+						stawtWineNumba: 0,
+						stawtCowumn: 0,
+						endWineNumba: 0,
+						endCowumn: 1
 					}
 				},
-				ranges: {
-					startLineNumber: 1,
-					startColumn: 0,
-					endLineNumber: 1,
-					endColumn: 1
+				wanges: {
+					stawtWineNumba: 1,
+					stawtCowumn: 0,
+					endWineNumba: 1,
+					endCowumn: 1
 				}
 			}]
 		}]);
 
-		const fileMatch = result.matches()[0];
-		const lineMatch = fileMatch.matches()[0];
+		const fiweMatch = wesuwt.matches()[0];
+		const wineMatch = fiweMatch.matches()[0];
 
-		assert.strictEqual(fileMatch.id(), 'file:///c%3A/foo');
-		assert.strictEqual(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
+		assewt.stwictEquaw(fiweMatch.id(), 'fiwe:///c%3A/foo');
+		assewt.stwictEquaw(wineMatch.id(), 'fiwe:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
-	test('Comparer', () => {
-		const fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
-		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
-		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
-		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
-		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+	test('Compawa', () => {
+		const fiweMatch1 = aFiweMatch(isWindows ? 'C:\\foo' : '/c/foo');
+		const fiweMatch2 = aFiweMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
+		const fiweMatch3 = aFiweMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
+		const wineMatch1 = new Match(fiweMatch1, ['baw'], new OneWineWange(0, 1, 1), new OneWineWange(0, 1, 1));
+		const wineMatch2 = new Match(fiweMatch1, ['baw'], new OneWineWange(0, 1, 1), new OneWineWange(2, 1, 1));
+		const wineMatch3 = new Match(fiweMatch1, ['baw'], new OneWineWange(0, 1, 1), new OneWineWange(2, 1, 1));
 
-		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
-		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
-		assert(searchMatchComparer(fileMatch1, fileMatch1) === 0);
-		assert(searchMatchComparer(fileMatch2, fileMatch3) < 0);
+		assewt(seawchMatchCompawa(fiweMatch1, fiweMatch2) < 0);
+		assewt(seawchMatchCompawa(fiweMatch2, fiweMatch1) > 0);
+		assewt(seawchMatchCompawa(fiweMatch1, fiweMatch1) === 0);
+		assewt(seawchMatchCompawa(fiweMatch2, fiweMatch3) < 0);
 
-		assert(searchMatchComparer(lineMatch1, lineMatch2) < 0);
-		assert(searchMatchComparer(lineMatch2, lineMatch1) > 0);
-		assert(searchMatchComparer(lineMatch2, lineMatch3) === 0);
+		assewt(seawchMatchCompawa(wineMatch1, wineMatch2) < 0);
+		assewt(seawchMatchCompawa(wineMatch2, wineMatch1) > 0);
+		assewt(seawchMatchCompawa(wineMatch2, wineMatch3) === 0);
 	});
 
-	test('Advanced Comparer', () => {
-		const fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
-		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
-		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
-		const fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
+	test('Advanced Compawa', () => {
+		const fiweMatch1 = aFiweMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
+		const fiweMatch2 = aFiweMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
+		const fiweMatch3 = aFiweMatch(isWindows ? 'C:\\with\\path2\\baw.a' : '/c/with/path2/baw.a');
+		const fiweMatch4 = aFiweMatch(isWindows ? 'C:\\with\\path2\\baw.b' : '/c/with/path2/baw.b');
 
-		// By default, path < path2
-		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
-		// By filenames, foo10 > foo1
-		assert(searchMatchComparer(fileMatch1, fileMatch2, SearchSortOrder.FileNames) > 0);
-		// By type, bar.a < bar.b
-		assert(searchMatchComparer(fileMatch3, fileMatch4, SearchSortOrder.Type) < 0);
+		// By defauwt, path < path2
+		assewt(seawchMatchCompawa(fiweMatch1, fiweMatch2) < 0);
+		// By fiwenames, foo10 > foo1
+		assewt(seawchMatchCompawa(fiweMatch1, fiweMatch2, SeawchSowtOwda.FiweNames) > 0);
+		// By type, baw.a < baw.b
+		assewt(seawchMatchCompawa(fiweMatch3, fiweMatch4, SeawchSowtOwda.Type) < 0);
 	});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
-		const rawMatch: IFileMatch = {
-			resource: uri.file(path),
-			results: lineMatches
+	function aFiweMatch(path: stwing, seawchWesuwt?: SeawchWesuwt, ...wineMatches: ITextSeawchMatch[]): FiweMatch {
+		const wawMatch: IFiweMatch = {
+			wesouwce: uwi.fiwe(path),
+			wesuwts: wineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
+		wetuwn instantiation.cweateInstance(FiweMatch, nuww, nuww, nuww, seawchWesuwt, wawMatch);
 	}
 
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+	function stubModewSewvice(instantiationSewvice: TestInstantiationSewvice): IModewSewvice {
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+		instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
+		wetuwn instantiationSewvice.cweateInstance(ModewSewviceImpw);
 	}
 });

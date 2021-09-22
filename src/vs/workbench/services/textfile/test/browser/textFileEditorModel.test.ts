@@ -1,800 +1,800 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { EncodingMode, TextFileEditorModelState, snapshotToString, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
-import { timeout } from 'vs/base/common/async';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
+impowt * as assewt fwom 'assewt';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { EncodingMode, TextFiweEditowModewState, snapshotToStwing, isTextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { cweateFiweEditowInput, wowkbenchInstantiationSewvice, TestSewviceAccessow, TestWeadonwyTextFiweEditowModew, getWastWesowvedFiweStat } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { FiweOpewationWesuwt, FiweOpewationEwwow } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { cweateTextBuffewFactowy, cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
 
-suite('Files - TextFileEditorModel', () => {
+suite('Fiwes - TextFiweEditowModew', () => {
 
-	function getLastModifiedTime(model: TextFileEditorModel): number {
-		const stat = getLastResolvedFileStat(model);
+	function getWastModifiedTime(modew: TextFiweEditowModew): numba {
+		const stat = getWastWesowvedFiweStat(modew);
 
-		return stat ? stat.mtime : -1;
+		wetuwn stat ? stat.mtime : -1;
 	}
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
-	let content: string;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
+	wet content: stwing;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
-		content = accessor.fileService.getContent();
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
+		content = accessow.fiweSewvice.getContent();
 	});
 
-	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		accessor.fileService.setContent(content);
+	teawdown(() => {
+		(<TextFiweEditowModewManaga>accessow.textFiweSewvice.fiwes).dispose();
+		accessow.fiweSewvice.setContent(content);
 	});
 
 	test('basic events', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let onDidResolveCounter = 0;
-		model.onDidResolve(() => onDidResolveCounter++);
+		wet onDidWesowveCounta = 0;
+		modew.onDidWesowve(() => onDidWesowveCounta++);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		assert.strictEqual(onDidResolveCounter, 1);
+		assewt.stwictEquaw(onDidWesowveCounta, 1);
 
-		let onDidChangeContentCounter = 0;
-		model.onDidChangeContent(() => onDidChangeContentCounter++);
+		wet onDidChangeContentCounta = 0;
+		modew.onDidChangeContent(() => onDidChangeContentCounta++);
 
-		let onDidChangeDirtyCounter = 0;
-		model.onDidChangeDirty(() => onDidChangeDirtyCounter++);
+		wet onDidChangeDiwtyCounta = 0;
+		modew.onDidChangeDiwty(() => onDidChangeDiwtyCounta++);
 
-		model.updateTextEditorModel(createTextBufferFactory('bar'));
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('baw'));
 
-		assert.strictEqual(onDidChangeContentCounter, 1);
-		assert.strictEqual(onDidChangeDirtyCounter, 1);
+		assewt.stwictEquaw(onDidChangeContentCounta, 1);
+		assewt.stwictEquaw(onDidChangeDiwtyCounta, 1);
 
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
-		assert.strictEqual(onDidChangeContentCounter, 2);
-		assert.strictEqual(onDidChangeDirtyCounter, 1);
+		assewt.stwictEquaw(onDidChangeContentCounta, 2);
+		assewt.stwictEquaw(onDidChangeDiwtyCounta, 1);
 
-		await model.revert();
+		await modew.wevewt();
 
-		assert.strictEqual(onDidChangeDirtyCounter, 2);
+		assewt.stwictEquaw(onDidChangeDiwtyCounta, 2);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('isTextFileEditorModel', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('isTextFiweEditowModew', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		assert.strictEqual(isTextFileEditorModel(model), true);
+		assewt.stwictEquaw(isTextFiweEditowModew(modew), twue);
 
-		model.dispose();
+		modew.dispose();
 	});
 
 	test('save', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 0);
 
-		let savedEvent = false;
-		model.onDidSave(() => savedEvent = true);
+		wet savedEvent = fawse;
+		modew.onDidSave(() => savedEvent = twue);
 
-		await model.save();
-		assert.ok(!savedEvent);
+		await modew.save();
+		assewt.ok(!savedEvent);
 
-		model.updateTextEditorModel(createTextBufferFactory('bar'));
-		assert.ok(getLastModifiedTime(model) <= Date.now());
-		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('baw'));
+		assewt.ok(getWastModifiedTime(modew) <= Date.now());
+		assewt.ok(modew.hasState(TextFiweEditowModewState.DIWTY));
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		const pendingSave = model.save();
-		assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
+		const pendingSave = modew.save();
+		assewt.ok(modew.hasState(TextFiweEditowModewState.PENDING_SAVE));
 
-		await Promise.all([pendingSave, model.joinState(TextFileEditorModelState.PENDING_SAVE)]);
+		await Pwomise.aww([pendingSave, modew.joinState(TextFiweEditowModewState.PENDING_SAVE)]);
 
-		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
-		assert.ok(!model.isDirty());
-		assert.ok(savedEvent);
-		assert.ok(workingCopyEvent);
+		assewt.ok(modew.hasState(TextFiweEditowModewState.SAVED));
+		assewt.ok(!modew.isDiwty());
+		assewt.ok(savedEvent);
+		assewt.ok(wowkingCopyEvent);
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), fawse);
 
-		savedEvent = false;
+		savedEvent = fawse;
 
-		await model.save({ force: true });
-		assert.ok(savedEvent);
+		await modew.save({ fowce: twue });
+		assewt.ok(savedEvent);
 
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('save - touching also emits saved event', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('save - touching awso emits saved event', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		let savedEvent = false;
-		model.onDidSave(() => savedEvent = true);
+		wet savedEvent = fawse;
+		modew.onDidSave(() => savedEvent = twue);
 
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		await model.save({ force: true });
+		await modew.save({ fowce: twue });
 
-		assert.ok(savedEvent);
-		assert.ok(!workingCopyEvent);
+		assewt.ok(savedEvent);
+		assewt.ok(!wowkingCopyEvent);
 
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('save - touching with error turns model dirty', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('save - touching with ewwow tuwns modew diwty', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		let saveErrorEvent = false;
-		model.onDidSaveError(() => saveErrorEvent = true);
+		wet saveEwwowEvent = fawse;
+		modew.onDidSaveEwwow(() => saveEwwowEvent = twue);
 
-		let savedEvent = false;
-		model.onDidSave(() => savedEvent = true);
+		wet savedEvent = fawse;
+		modew.onDidSave(() => savedEvent = twue);
 
-		accessor.fileService.writeShouldThrowError = new Error('failed to write');
-		try {
-			await model.save({ force: true });
+		accessow.fiweSewvice.wwiteShouwdThwowEwwow = new Ewwow('faiwed to wwite');
+		twy {
+			await modew.save({ fowce: twue });
 
-			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
-			assert.ok(model.isDirty());
-			assert.ok(saveErrorEvent);
+			assewt.ok(modew.hasState(TextFiweEditowModewState.EWWOW));
+			assewt.ok(modew.isDiwty());
+			assewt.ok(saveEwwowEvent);
 
-			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 
-		await model.save({ force: true });
+		await modew.save({ fowce: twue });
 
-		assert.ok(savedEvent);
-		assert.strictEqual(model.isDirty(), false);
+		assewt.ok(savedEvent);
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
 
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('save error (generic)', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('save ewwow (genewic)', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		model.updateTextEditorModel(createTextBufferFactory('bar'));
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('baw'));
 
-		let saveErrorEvent = false;
-		model.onDidSaveError(() => saveErrorEvent = true);
+		wet saveEwwowEvent = fawse;
+		modew.onDidSaveEwwow(() => saveEwwowEvent = twue);
 
-		accessor.fileService.writeShouldThrowError = new Error('failed to write');
-		try {
-			const pendingSave = model.save();
-			assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
+		accessow.fiweSewvice.wwiteShouwdThwowEwwow = new Ewwow('faiwed to wwite');
+		twy {
+			const pendingSave = modew.save();
+			assewt.ok(modew.hasState(TextFiweEditowModewState.PENDING_SAVE));
 
 			await pendingSave;
 
-			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
-			assert.ok(model.isDirty());
-			assert.ok(saveErrorEvent);
+			assewt.ok(modew.hasState(TextFiweEditowModewState.EWWOW));
+			assewt.ok(modew.isDiwty());
+			assewt.ok(saveEwwowEvent);
 
-			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 
-			model.dispose();
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			modew.dispose();
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 	});
 
-	test('save error (conflict)', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('save ewwow (confwict)', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		model.updateTextEditorModel(createTextBufferFactory('bar'));
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('baw'));
 
-		let saveErrorEvent = false;
-		model.onDidSaveError(() => saveErrorEvent = true);
+		wet saveEwwowEvent = fawse;
+		modew.onDidSaveEwwow(() => saveEwwowEvent = twue);
 
-		accessor.fileService.writeShouldThrowError = new FileOperationError('save conflict', FileOperationResult.FILE_MODIFIED_SINCE);
-		try {
-			const pendingSave = model.save();
-			assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
+		accessow.fiweSewvice.wwiteShouwdThwowEwwow = new FiweOpewationEwwow('save confwict', FiweOpewationWesuwt.FIWE_MODIFIED_SINCE);
+		twy {
+			const pendingSave = modew.save();
+			assewt.ok(modew.hasState(TextFiweEditowModewState.PENDING_SAVE));
 
 			await pendingSave;
 
-			assert.ok(model.hasState(TextFileEditorModelState.CONFLICT));
-			assert.ok(model.isDirty());
-			assert.ok(saveErrorEvent);
+			assewt.ok(modew.hasState(TextFiweEditowModewState.CONFWICT));
+			assewt.ok(modew.isDiwty());
+			assewt.ok(saveEwwowEvent);
 
-			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+			assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 
-			model.dispose();
-		} finally {
-			accessor.fileService.writeShouldThrowError = undefined;
+			modew.dispose();
+		} finawwy {
+			accessow.fiweSewvice.wwiteShouwdThwowEwwow = undefined;
 		}
 	});
 
 	test('setEncoding - encode', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let encodingEvent = false;
-		model.onDidChangeEncoding(() => encodingEvent = true);
+		wet encodingEvent = fawse;
+		modew.onDidChangeEncoding(() => encodingEvent = twue);
 
-		await model.setEncoding('utf8', EncodingMode.Encode); // no-op
-		assert.strictEqual(getLastModifiedTime(model), -1);
+		await modew.setEncoding('utf8', EncodingMode.Encode); // no-op
+		assewt.stwictEquaw(getWastModifiedTime(modew), -1);
 
-		assert.ok(!encodingEvent);
+		assewt.ok(!encodingEvent);
 
-		await model.setEncoding('utf16', EncodingMode.Encode);
+		await modew.setEncoding('utf16', EncodingMode.Encode);
 
-		assert.ok(encodingEvent);
+		assewt.ok(encodingEvent);
 
-		assert.ok(getLastModifiedTime(model) <= Date.now()); // indicates model was saved due to encoding change
+		assewt.ok(getWastModifiedTime(modew) <= Date.now()); // indicates modew was saved due to encoding change
 
-		model.dispose();
+		modew.dispose();
 	});
 
 	test('setEncoding - decode', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
+		await modew.setEncoding('utf16', EncodingMode.Decode);
 
-		assert.ok(model.isResolved()); // model got resolved due to decoding
-		model.dispose();
+		assewt.ok(modew.isWesowved()); // modew got wesowved due to decoding
+		modew.dispose();
 	});
 
-	test('setEncoding - decode dirty file saves first', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
-		await model.resolve();
+	test('setEncoding - decode diwty fiwe saves fiwst', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
+		await modew.wesowve();
 
-		model.updateTextEditorModel(createTextBufferFactory('bar'));
-		assert.strictEqual(model.isDirty(), true);
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('baw'));
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		await model.setEncoding('utf16', EncodingMode.Decode);
+		await modew.setEncoding('utf16', EncodingMode.Decode);
 
-		assert.strictEqual(model.isDirty(), false);
-		model.dispose();
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
+		modew.dispose();
 	});
 
-	test('create with mode', async function () {
-		const mode = 'text-file-model-test';
-		ModesRegistry.registerLanguage({
+	test('cweate with mode', async function () {
+		const mode = 'text-fiwe-modew-test';
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', mode);
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', mode);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		assewt.stwictEquaw(modew.textEditowModew!.getModeId(), mode);
 
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('disposes when underlying model is destroyed', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('disposes when undewwying modew is destwoyed', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		model.textEditorModel!.dispose();
-		assert.ok(model.isDisposed());
+		modew.textEditowModew!.dispose();
+		assewt.ok(modew.isDisposed());
 	});
 
-	test('Resolve does not trigger save', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8', undefined);
-		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
+	test('Wesowve does not twigga save', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index.txt'), 'utf8', undefined);
+		assewt.ok(modew.hasState(TextFiweEditowModewState.SAVED));
 
-		model.onDidSave(() => assert.fail());
-		model.onDidChangeDirty(() => assert.fail());
+		modew.onDidSave(() => assewt.faiw());
+		modew.onDidChangeDiwty(() => assewt.faiw());
 
-		await model.resolve();
-		assert.ok(model.isResolved());
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		await modew.wesowve();
+		assewt.ok(modew.isWesowved());
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('Resolve returns dirty model as long as model is dirty', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Wesowve wetuwns diwty modew as wong as modew is diwty', async function () {
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(model.isDirty());
-		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(modew.isDiwty());
+		assewt.ok(modew.hasState(TextFiweEditowModewState.DIWTY));
 
-		await model.resolve();
-		assert.ok(model.isDirty());
-		model.dispose();
+		await modew.wesowve();
+		assewt.ok(modew.isDiwty());
+		modew.dispose();
 	});
 
-	test('Resolve with contents', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Wesowve with contents', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve({ contents: createTextBufferFactory('Hello World') });
+		await modew.wesowve({ contents: cweateTextBuffewFactowy('Hewwo Wowwd') });
 
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello World');
-		assert.strictEqual(model.isDirty(), true);
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Hewwo Wowwd');
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		await model.resolve({ contents: createTextBufferFactory('Hello Changes') });
+		await modew.wesowve({ contents: cweateTextBuffewFactowy('Hewwo Changes') });
 
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Changes');
-		assert.strictEqual(model.isDirty(), true);
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Hewwo Changes');
+		assewt.stwictEquaw(modew.isDiwty(), twue);
 
-		// verify that we do not mark the model as saved when undoing once because
-		// we never really had a saved state
-		await model.textEditorModel!.undo();
-		assert.ok(model.isDirty());
+		// vewify that we do not mawk the modew as saved when undoing once because
+		// we neva weawwy had a saved state
+		await modew.textEditowModew!.undo();
+		assewt.ok(modew.isDiwty());
 
-		model.dispose();
-		assert.ok(!accessor.modelService.getModel(model.resource));
+		modew.dispose();
+		assewt.ok(!accessow.modewSewvice.getModew(modew.wesouwce));
 	});
 
-	test('Revert', async function () {
-		let eventCounter = 0;
+	test('Wevewt', async function () {
+		wet eventCounta = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidRevert(() => eventCounter++);
+		modew.onDidWevewt(() => eventCounta++);
 
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(model.isDirty());
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(modew.isDiwty());
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 
-		await model.revert();
-		assert.strictEqual(model.isDirty(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'Hello Html');
-		assert.strictEqual(eventCounter, 1);
+		await modew.wevewt();
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
+		assewt.stwictEquaw(modew.textEditowModew!.getVawue(), 'Hewwo Htmw');
+		assewt.stwictEquaw(eventCounta, 1);
 
-		assert.ok(workingCopyEvent);
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
+		assewt.ok(wowkingCopyEvent);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), fawse);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Revert (soft)', async function () {
-		let eventCounter = 0;
+	test('Wevewt (soft)', async function () {
+		wet eventCounta = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidRevert(() => eventCounter++);
+		modew.onDidWevewt(() => eventCounta++);
 
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(model.isDirty());
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(modew.isDiwty());
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 
-		await model.revert({ soft: true });
-		assert.strictEqual(model.isDirty(), false);
-		assert.strictEqual(model.textEditorModel!.getValue(), 'foo');
-		assert.strictEqual(eventCounter, 1);
+		await modew.wevewt({ soft: twue });
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
+		assewt.stwictEquaw(modew.textEditowModew!.getVawue(), 'foo');
+		assewt.stwictEquaw(eventCounta, 1);
 
-		assert.ok(workingCopyEvent);
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
+		assewt.ok(wowkingCopyEvent);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), fawse);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Undo to saved state turns model non-dirty', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('Hello Text'));
-		assert.ok(model.isDirty());
+	test('Undo to saved state tuwns modew non-diwty', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('Hewwo Text'));
+		assewt.ok(modew.isDiwty());
 
-		await model.textEditorModel!.undo();
-		assert.ok(!model.isDirty());
+		await modew.textEditowModew!.undo();
+		assewt.ok(!modew.isDiwty());
 	});
 
-	test('Resolve and undo turns model dirty', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
-		await model.resolve();
-		accessor.fileService.setContent('Hello Change');
+	test('Wesowve and undo tuwns modew diwty', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
+		await modew.wesowve();
+		accessow.fiweSewvice.setContent('Hewwo Change');
 
-		await model.resolve();
-		await model.textEditorModel!.undo();
-		assert.ok(model.isDirty());
+		await modew.wesowve();
+		await modew.textEditowModew!.undo();
+		assewt.ok(modew.isDiwty());
 
-		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.diwtyCount, 1);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.isDiwty(modew.wesouwce, modew.typeId), twue);
 	});
 
-	test('Update Dirty', async function () {
-		let eventCounter = 0;
+	test('Update Diwty', async function () {
+		wet eventCounta = 0;
 
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.setDirty(true);
-		assert.ok(!model.isDirty()); // needs to be resolved
+		modew.setDiwty(twue);
+		assewt.ok(!modew.isDiwty()); // needs to be wesowved
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(model.isDirty());
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(modew.isDiwty());
 
-		await model.revert({ soft: true });
-		assert.strictEqual(model.isDirty(), false);
+		await modew.wevewt({ soft: twue });
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
 
-		model.onDidChangeDirty(() => eventCounter++);
+		modew.onDidChangeDiwty(() => eventCounta++);
 
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		model.setDirty(true);
-		assert.ok(model.isDirty());
-		assert.strictEqual(eventCounter, 1);
-		assert.ok(workingCopyEvent);
+		modew.setDiwty(twue);
+		assewt.ok(modew.isDiwty());
+		assewt.stwictEquaw(eventCounta, 1);
+		assewt.ok(wowkingCopyEvent);
 
-		model.setDirty(false);
-		assert.strictEqual(model.isDirty(), false);
-		assert.strictEqual(eventCounter, 2);
+		modew.setDiwty(fawse);
+		assewt.stwictEquaw(modew.isDiwty(), fawse);
+		assewt.stwictEquaw(eventCounta, 2);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('No Dirty or saving for readonly models', async function () {
-		let workingCopyEvent = false;
-		accessor.workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.toString() === model.resource.toString()) {
-				workingCopyEvent = true;
+	test('No Diwty ow saving fow weadonwy modews', async function () {
+		wet wowkingCopyEvent = fawse;
+		accessow.wowkingCopySewvice.onDidChangeDiwty(e => {
+			if (e.wesouwce.toStwing() === modew.wesouwce.toStwing()) {
+				wowkingCopyEvent = twue;
 			}
 		});
 
-		const model = instantiationService.createInstance(TestReadonlyTextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const modew = instantiationSewvice.cweateInstance(TestWeadonwyTextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let saveEvent = false;
-		model.onDidSave(() => {
-			saveEvent = true;
+		wet saveEvent = fawse;
+		modew.onDidSave(() => {
+			saveEvent = twue;
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(!model.isDirty());
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(!modew.isDiwty());
 
-		await model.save({ force: true });
-		assert.strictEqual(saveEvent, false);
+		await modew.save({ fowce: twue });
+		assewt.stwictEquaw(saveEvent, fawse);
 
-		await model.revert({ soft: true });
-		assert.ok(!model.isDirty());
+		await modew.wevewt({ soft: twue });
+		assewt.ok(!modew.isDiwty());
 
-		assert.ok(!workingCopyEvent);
+		assewt.ok(!wowkingCopyEvent);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('File not modified error is handled gracefully', async function () {
-		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Fiwe not modified ewwow is handwed gwacefuwwy', async function () {
+		wet modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
+		await modew.wesowve();
 
-		const mtime = getLastModifiedTime(model);
-		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_MODIFIED_SINCE));
+		const mtime = getWastModifiedTime(modew);
+		accessow.textFiweSewvice.setWeadStweamEwwowOnce(new FiweOpewationEwwow('ewwow', FiweOpewationWesuwt.FIWE_NOT_MODIFIED_SINCE));
 
-		await model.resolve();
+		await modew.wesowve();
 
-		assert.ok(model);
-		assert.strictEqual(getLastModifiedTime(model), mtime);
-		model.dispose();
+		assewt.ok(modew);
+		assewt.stwictEquaw(getWastModifiedTime(modew), mtime);
+		modew.dispose();
 	});
 
-	test('Resolve error is handled gracefully if model already exists', async function () {
-		let model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Wesowve ewwow is handwed gwacefuwwy if modew awweady exists', async function () {
+		wet modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.resolve();
-		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_NOT_FOUND));
+		await modew.wesowve();
+		accessow.textFiweSewvice.setWeadStweamEwwowOnce(new FiweOpewationEwwow('ewwow', FiweOpewationWesuwt.FIWE_NOT_FOUND));
 
-		await model.resolve();
-		assert.ok(model);
-		model.dispose();
+		await modew.wesowve();
+		assewt.ok(modew);
+		modew.dispose();
 	});
 
-	test('save() and isDirty() - proper with check for mtimes', async function () {
-		const input1 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
-		const input2 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
+	test('save() and isDiwty() - pwopa with check fow mtimes', async function () {
+		const input1 = cweateFiweEditowInput(instantiationSewvice, toWesouwce.caww(this, '/path/index_async2.txt'));
+		const input2 = cweateFiweEditowInput(instantiationSewvice, toWesouwce.caww(this, '/path/index_async.txt'));
 
-		const model1 = await input1.resolve() as TextFileEditorModel;
-		const model2 = await input2.resolve() as TextFileEditorModel;
+		const modew1 = await input1.wesowve() as TextFiweEditowModew;
+		const modew2 = await input2.wesowve() as TextFiweEditowModew;
 
-		model1.updateTextEditorModel(createTextBufferFactory('foo'));
+		modew1.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
-		const m1Mtime = assertIsDefined(getLastResolvedFileStat(model1)).mtime;
-		const m2Mtime = assertIsDefined(getLastResolvedFileStat(model2)).mtime;
-		assert.ok(m1Mtime > 0);
-		assert.ok(m2Mtime > 0);
+		const m1Mtime = assewtIsDefined(getWastWesowvedFiweStat(modew1)).mtime;
+		const m2Mtime = assewtIsDefined(getWastWesowvedFiweStat(modew2)).mtime;
+		assewt.ok(m1Mtime > 0);
+		assewt.ok(m2Mtime > 0);
 
-		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
+		assewt.ok(accessow.textFiweSewvice.isDiwty(toWesouwce.caww(this, '/path/index_async2.txt')));
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(toWesouwce.caww(this, '/path/index_async.txt')));
 
-		model2.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
+		modew2.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(accessow.textFiweSewvice.isDiwty(toWesouwce.caww(this, '/path/index_async.txt')));
 
 		await timeout(10);
-		await accessor.textFileService.save(toResource.call(this, '/path/index_async.txt'));
-		await accessor.textFileService.save(toResource.call(this, '/path/index_async2.txt'));
-		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
-		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-		assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
-		assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
+		await accessow.textFiweSewvice.save(toWesouwce.caww(this, '/path/index_async.txt'));
+		await accessow.textFiweSewvice.save(toWesouwce.caww(this, '/path/index_async2.txt'));
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(toWesouwce.caww(this, '/path/index_async.txt')));
+		assewt.ok(!accessow.textFiweSewvice.isDiwty(toWesouwce.caww(this, '/path/index_async2.txt')));
+		assewt.ok(assewtIsDefined(getWastWesowvedFiweStat(modew1)).mtime > m1Mtime);
+		assewt.ok(assewtIsDefined(getWastWesowvedFiweStat(modew2)).mtime > m2Mtime);
 
-		model1.dispose();
-		model2.dispose();
+		modew1.dispose();
+		modew2.dispose();
 	});
 
-	test('Save Participant', async function () {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant', async function () {
+		wet eventCounta = 0;
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidSave(() => {
-			assert.strictEqual(snapshotToString(model.createSnapshot()!), eventCounter === 1 ? 'bar' : 'foobar');
-			assert.ok(!model.isDirty());
-			eventCounter++;
+		modew.onDidSave(() => {
+			assewt.stwictEquaw(snapshotToStwing(modew.cweateSnapshot()!), eventCounta === 1 ? 'baw' : 'foobaw');
+			assewt.ok(!modew.isDiwty());
+			eventCounta++;
 		});
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async model => {
-				assert.ok(model.isDirty());
-				(model as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('bar'));
-				assert.ok(model.isDirty());
-				eventCounter++;
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: async modew => {
+				assewt.ok(modew.isDiwty());
+				(modew as TextFiweEditowModew).updateTextEditowModew(cweateTextBuffewFactowy('baw'));
+				assewt.ok(modew.isDiwty());
+				eventCounta++;
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		assert.ok(model.isDirty());
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		assewt.ok(modew.isDiwty());
 
-		await model.save();
-		assert.strictEqual(eventCounter, 2);
+		await modew.save();
+		assewt.stwictEquaw(eventCounta, 2);
 
-		participant.dispose();
-		model.updateTextEditorModel(createTextBufferFactory('foobar'));
-		assert.ok(model.isDirty());
+		pawticipant.dispose();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foobaw'));
+		assewt.ok(modew.isDiwty());
 
-		await model.save();
-		assert.strictEqual(eventCounter, 3);
+		await modew.save();
+		assewt.stwictEquaw(eventCounta, 3);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Save Participant - skip', async function () {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant - skip', async function () {
+		wet eventCounta = 0;
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async () => {
-				eventCounter++;
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: async () => {
+				eventCounta++;
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
-		await model.save({ skipSaveParticipants: true });
-		assert.strictEqual(eventCounter, 0);
+		await modew.save({ skipSavePawticipants: twue });
+		assewt.stwictEquaw(eventCounta, 0);
 
-		participant.dispose();
-		model.dispose();
+		pawticipant.dispose();
+		modew.dispose();
 	});
 
-	test('Save Participant, async participant', async function () {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant, async pawticipant', async function () {
+		wet eventCounta = 0;
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		model.onDidSave(() => {
-			assert.ok(!model.isDirty());
-			eventCounter++;
+		modew.onDidSave(() => {
+			assewt.ok(!modew.isDiwty());
+			eventCounta++;
 		});
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: model => {
-				assert.ok(model.isDirty());
-				(model as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('bar'));
-				assert.ok(model.isDirty());
-				eventCounter++;
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: modew => {
+				assewt.ok(modew.isDiwty());
+				(modew as TextFiweEditowModew).updateTextEditowModew(cweateTextBuffewFactowy('baw'));
+				assewt.ok(modew.isDiwty());
+				eventCounta++;
 
-				return timeout(10);
+				wetuwn timeout(10);
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
 		const now = Date.now();
-		await model.save();
-		assert.strictEqual(eventCounter, 2);
-		assert.ok(Date.now() - now >= 10);
+		await modew.save();
+		assewt.stwictEquaw(eventCounta, 2);
+		assewt.ok(Date.now() - now >= 10);
 
-		model.dispose();
-		participant.dispose();
+		modew.dispose();
+		pawticipant.dispose();
 	});
 
-	test('Save Participant, bad participant', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant, bad pawticipant', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async () => {
-				new Error('boom');
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: async () => {
+				new Ewwow('boom');
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
-		await model.save();
+		await modew.save();
 
-		model.dispose();
-		participant.dispose();
+		modew.dispose();
+		pawticipant.dispose();
 	});
 
-	test('Save Participant, participant cancelled when saved again', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant, pawticipant cancewwed when saved again', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		let participations: boolean[] = [];
+		wet pawticipations: boowean[] = [];
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async (model, context, progress, token) => {
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: async (modew, context, pwogwess, token) => {
 				await timeout(10);
 
-				if (!token.isCancellationRequested) {
-					participations.push(true);
+				if (!token.isCancewwationWequested) {
+					pawticipations.push(twue);
 				}
 			}
 		});
 
-		await model.resolve();
+		await modew.wesowve();
 
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
-		const p1 = model.save();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
+		const p1 = modew.save();
 
-		model.updateTextEditorModel(createTextBufferFactory('foo 1'));
-		const p2 = model.save();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo 1'));
+		const p2 = modew.save();
 
-		model.updateTextEditorModel(createTextBufferFactory('foo 2'));
-		const p3 = model.save();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo 2'));
+		const p3 = modew.save();
 
-		model.updateTextEditorModel(createTextBufferFactory('foo 3'));
-		const p4 = model.save();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo 3'));
+		const p4 = modew.save();
 
-		await Promise.all([p1, p2, p3, p4]);
-		assert.strictEqual(participations.length, 1);
+		await Pwomise.aww([p1, p2, p3, p4]);
+		assewt.stwictEquaw(pawticipations.wength, 1);
 
-		model.dispose();
-		participant.dispose();
+		modew.dispose();
+		pawticipant.dispose();
 	});
 
-	test('Save Participant, calling save from within is unsupported but does not explode (sync save)', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant, cawwing save fwom within is unsuppowted but does not expwode (sync save)', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await testSaveFromSaveParticipant(model, false);
+		await testSaveFwomSavePawticipant(modew, fawse);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	test('Save Participant, calling save from within is unsupported but does not explode (async save)', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+	test('Save Pawticipant, cawwing save fwom within is unsuppowted but does not expwode (async save)', async function () {
+		const modew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, toWesouwce.caww(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await testSaveFromSaveParticipant(model, true);
+		await testSaveFwomSavePawticipant(modew, twue);
 
-		model.dispose();
+		modew.dispose();
 	});
 
-	async function testSaveFromSaveParticipant(model: TextFileEditorModel, async: boolean): Promise<void> {
-		let savePromise: Promise<boolean>;
-		let breakLoop = false;
+	async function testSaveFwomSavePawticipant(modew: TextFiweEditowModew, async: boowean): Pwomise<void> {
+		wet savePwomise: Pwomise<boowean>;
+		wet bweakWoop = fawse;
 
-		const participant = accessor.textFileService.files.addSaveParticipant({
-			participate: async model => {
-				if (breakLoop) {
-					return;
+		const pawticipant = accessow.textFiweSewvice.fiwes.addSavePawticipant({
+			pawticipate: async modew => {
+				if (bweakWoop) {
+					wetuwn;
 				}
 
-				breakLoop = true;
+				bweakWoop = twue;
 
 				if (async) {
 					await timeout(10);
 				}
-				const newSavePromise = model.save();
+				const newSavePwomise = modew.save();
 
-				// assert that this is the same promise as the outer one
-				assert.strictEqual(savePromise, newSavePromise);
+				// assewt that this is the same pwomise as the outa one
+				assewt.stwictEquaw(savePwomise, newSavePwomise);
 			}
 		});
 
-		await model.resolve();
-		model.updateTextEditorModel(createTextBufferFactory('foo'));
+		await modew.wesowve();
+		modew.updateTextEditowModew(cweateTextBuffewFactowy('foo'));
 
-		savePromise = model.save();
-		await savePromise;
+		savePwomise = modew.save();
+		await savePwomise;
 
-		participant.dispose();
+		pawticipant.dispose();
 	}
 
-	test('backup and restore (simple)', async function () {
-		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), 'Some very small file text content.');
+	test('backup and westowe (simpwe)', async function () {
+		wetuwn testBackupAndWestowe(toWesouwce.caww(this, '/path/index_async.txt'), toWesouwce.caww(this, '/path/index_async2.txt'), 'Some vewy smaww fiwe text content.');
 	});
 
-	test('backup and restore (large, #121347)', async function () {
-		const largeContent = '국어한\n'.repeat(100000);
-		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), largeContent);
+	test('backup and westowe (wawge, #121347)', async function () {
+		const wawgeContent = '국어한\n'.wepeat(100000);
+		wetuwn testBackupAndWestowe(toWesouwce.caww(this, '/path/index_async.txt'), toWesouwce.caww(this, '/path/index_async2.txt'), wawgeContent);
 	});
 
-	async function testBackupAndRestore(resourceA: URI, resourceB: URI, contents: string): Promise<void> {
-		const originalModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined);
-		await originalModel.resolve({
-			contents: await createTextBufferFactoryFromStream(await accessor.textFileService.getDecodedStream(resourceA, bufferToStream(VSBuffer.fromString(contents))))
+	async function testBackupAndWestowe(wesouwceA: UWI, wesouwceB: UWI, contents: stwing): Pwomise<void> {
+		const owiginawModew: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, wesouwceA, 'utf8', undefined);
+		await owiginawModew.wesowve({
+			contents: await cweateTextBuffewFactowyFwomStweam(await accessow.textFiweSewvice.getDecodedStweam(wesouwceA, buffewToStweam(VSBuffa.fwomStwing(contents))))
 		});
 
-		assert.strictEqual(originalModel.textEditorModel?.getValue(), contents);
+		assewt.stwictEquaw(owiginawModew.textEditowModew?.getVawue(), contents);
 
-		const backup = await originalModel.backup(CancellationToken.None);
-		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: resourceB };
-		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+		const backup = await owiginawModew.backup(CancewwationToken.None);
+		const modewWestowedIdentifia = { typeId: owiginawModew.typeId, wesouwce: wesouwceB };
+		await accessow.wowkingCopyBackupSewvice.backup(modewWestowedIdentifia, backup.content);
 
-		const modelRestored: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined);
-		await modelRestored.resolve();
+		const modewWestowed: TextFiweEditowModew = instantiationSewvice.cweateInstance(TextFiweEditowModew, modewWestowedIdentifia.wesouwce, 'utf8', undefined);
+		await modewWestowed.wesowve();
 
-		assert.strictEqual(modelRestored.textEditorModel?.getValue(), contents);
-		assert.strictEqual(modelRestored.isDirty(), true);
+		assewt.stwictEquaw(modewWestowed.textEditowModew?.getVawue(), contents);
+		assewt.stwictEquaw(modewWestowed.isDiwty(), twue);
 
-		originalModel.dispose();
-		modelRestored.dispose();
+		owiginawModew.dispose();
+		modewWestowed.dispose();
 	}
 });

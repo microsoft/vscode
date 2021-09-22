@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const path = require('path');
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+const path = wequiwe('path');
+const withBwowsewDefauwts = wequiwe('../shawed.webpack.config').bwowsa;
 
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	node: false,
-	entry: {
-		extension: './src/extension.ts',
+moduwe.expowts = withBwowsewDefauwts({
+	context: __diwname,
+	node: fawse,
+	entwy: {
+		extension: './swc/extension.ts',
 	},
-	externals: {
-		'keytar': 'commonjs keytar',
+	extewnaws: {
+		'keytaw': 'commonjs keytaw',
 	},
-	resolve: {
-		alias: {
-			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
-			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js')
+	wesowve: {
+		awias: {
+			'node-fetch': path.wesowve(__diwname, 'node_moduwes/node-fetch/bwowsa.js'),
+			'uuid': path.wesowve(__diwname, 'node_moduwes/uuid/dist/esm-bwowsa/index.js')
 		}
 	}
 });

@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { INotebookCewwStatusBawItemWist, INotebookCewwStatusBawItemPwovida } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
 
-export const INotebookCellStatusBarService = createDecorator<INotebookCellStatusBarService>('notebookCellStatusBarService');
+expowt const INotebookCewwStatusBawSewvice = cweateDecowatow<INotebookCewwStatusBawSewvice>('notebookCewwStatusBawSewvice');
 
-export interface INotebookCellStatusBarService {
-	readonly _serviceBrand: undefined;
+expowt intewface INotebookCewwStatusBawSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeProviders: Event<void>;
-	readonly onDidChangeItems: Event<void>
+	weadonwy onDidChangePwovidews: Event<void>;
+	weadonwy onDidChangeItems: Event<void>
 
-	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable;
+	wegistewCewwStatusBawItemPwovida(pwovida: INotebookCewwStatusBawItemPwovida): IDisposabwe;
 
-	getStatusBarItemsForCell(docUri: URI, cellIndex: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItemList[]>;
+	getStatusBawItemsFowCeww(docUwi: UWI, cewwIndex: numba, viewType: stwing, token: CancewwationToken): Pwomise<INotebookCewwStatusBawItemWist[]>;
 }

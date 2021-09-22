@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 @font-face {
-	font-family: "codicon";
-	font-display: block;
-	src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+	font-famiwy: "codicon";
+	font-dispway: bwock;
+	swc: uww("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") fowmat("twuetype");
 }
 
-.codicon[class*='codicon-'] {
-	font: normal normal normal 16px/1 codicon;
-	display: inline-block;
-	text-decoration: none;
-	text-rendering: auto;
-	text-align: center;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.codicon[cwass*='codicon-'] {
+	font: nowmaw nowmaw nowmaw 16px/1 codicon;
+	dispway: inwine-bwock;
+	text-decowation: none;
+	text-wendewing: auto;
+	text-awign: centa;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-/* icon rules are dynamically created in codiconStyles */
+/* icon wuwes awe dynamicawwy cweated in codiconStywes */

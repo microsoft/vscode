@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.banner {
-	box-sizing: border-box;
-	cursor: default;
+.monaco-wowkbench .pawt.banna {
+	box-sizing: bowda-box;
+	cuwsow: defauwt;
 	width: 100%;
 	height: 100%;
 	font-size: 12px;
-	display: flex;
-	overflow: visible;
+	dispway: fwex;
+	ovewfwow: visibwe;
 }
 
-.monaco-workbench .part.banner .icon-container {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .pawt.banna .icon-containa {
+	dispway: fwex;
+	awign-items: centa;
 	padding: 0 6px 0 10px;
 }
 
-.monaco-workbench .part.banner .icon-container.custom-icon {
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 16px;
-	background-image: url('../../../../browser/media/code-icon.svg');
+.monaco-wowkbench .pawt.banna .icon-containa.custom-icon {
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: centa centa;
+	backgwound-size: 16px;
+	backgwound-image: uww('../../../../bwowsa/media/code-icon.svg');
 	width: 16px;
 	padding: 0;
-	margin: 0 6px 0 10px;
+	mawgin: 0 6px 0 10px;
 }
 
-.monaco-workbench .part.banner .message-container {
-	line-height: 26px;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	overflow: hidden;
+.monaco-wowkbench .pawt.banna .message-containa {
+	wine-height: 26px;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .part.banner .message-container p {
-	margin-block-start: 0;
-	margin-block-end: 0;
+.monaco-wowkbench .pawt.banna .message-containa p {
+	mawgin-bwock-stawt: 0;
+	mawgin-bwock-end: 0;
 }
 
-.monaco-workbench .part.banner .message-actions-container {
-	flex-grow: 1;
-	flex-shrink: 0;
-	line-height: 26px;
+.monaco-wowkbench .pawt.banna .message-actions-containa {
+	fwex-gwow: 1;
+	fwex-shwink: 0;
+	wine-height: 26px;
 }
 
-.monaco-workbench .part.banner .message-actions-container a {
+.monaco-wowkbench .pawt.banna .message-actions-containa a {
 	padding: 3px;
-	margin-left: 12px;
-	text-decoration: underline;
+	mawgin-weft: 12px;
+	text-decowation: undewwine;
 }
 
-.monaco-workbench .part.banner .action-container {
+.monaco-wowkbench .pawt.banna .action-containa {
 	padding: 0 10px 0 6px;
 }

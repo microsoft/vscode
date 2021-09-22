@@ -1,201 +1,201 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
-import { ISimpleModel, SplitLine, SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IViewWineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { EndOfWinePwefewence } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { MonospaceWineBweaksComputewFactowy } fwom 'vs/editow/common/viewModew/monospaceWineBweaksComputa';
+impowt { ISimpweModew, SpwitWine, SpwitWinesCowwection } fwom 'vs/editow/common/viewModew/spwitWinesCowwection';
+impowt { WineBweakData, ViewWineData } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { TestConfiguwation } fwom 'vs/editow/test/common/mocks/testConfiguwation';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-suite('Editor ViewModel - SplitLinesCollection', () => {
-	test('SplitLine', () => {
-		let model1 = createModel('My First LineMy Second LineAnd another one');
-		let line1 = createSplitLine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 0);
+suite('Editow ViewModew - SpwitWinesCowwection', () => {
+	test('SpwitWine', () => {
+		wet modew1 = cweateModew('My Fiwst WineMy Second WineAnd anotha one');
+		wet wine1 = cweateSpwitWine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 0);
 
-		assert.strictEqual(line1.getViewLineCount(), 3);
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 0), 'My First Line');
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 1), 'My Second Line');
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 2), 'And another one');
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 0), 14);
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 1), 15);
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 2), 16);
-		for (let col = 1; col <= 14; col++) {
-			assert.strictEqual(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
+		assewt.stwictEquaw(wine1.getViewWineCount(), 3);
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 0), 'My Fiwst Wine');
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 1), 'My Second Wine');
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 2), 'And anotha one');
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 0), 14);
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 1), 15);
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 2), 16);
+		fow (wet cow = 1; cow <= 14; cow++) {
+			assewt.stwictEquaw(wine1.getModewCowumnOfViewPosition(0, cow), cow, 'getInputCowumnOfOutputPosition(0, ' + cow + ')');
 		}
-		for (let col = 1; col <= 15; col++) {
-			assert.strictEqual(line1.getModelColumnOfViewPosition(1, col), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
+		fow (wet cow = 1; cow <= 15; cow++) {
+			assewt.stwictEquaw(wine1.getModewCowumnOfViewPosition(1, cow), 13 + cow, 'getInputCowumnOfOutputPosition(1, ' + cow + ')');
 		}
-		for (let col = 1; col <= 16; col++) {
-			assert.strictEqual(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
+		fow (wet cow = 1; cow <= 16; cow++) {
+			assewt.stwictEquaw(wine1.getModewCowumnOfViewPosition(2, cow), 13 + 14 + cow, 'getInputCowumnOfOutputPosition(2, ' + cow + ')');
 		}
-		for (let col = 1; col <= 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1; cow <= 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(0, cow), 'getOutputPositionOfInputPosition(' + cow + ')');
 		}
-		for (let col = 1 + 13; col <= 14 + 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1 + 13; cow <= 14 + 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(1, cow - 13), 'getOutputPositionOfInputPosition(' + cow + ')');
 		}
-		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1 + 13 + 14; cow <= 15 + 14 + 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(2, cow - 13 - 14), 'getOutputPositionOfInputPosition(' + cow + ')');
 		}
 
-		model1 = createModel('My First LineMy Second LineAnd another one');
-		line1 = createSplitLine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 4);
+		modew1 = cweateModew('My Fiwst WineMy Second WineAnd anotha one');
+		wine1 = cweateSpwitWine([13, 14, 15], [13, 13 + 14, 13 + 14 + 15], 4);
 
-		assert.strictEqual(line1.getViewLineCount(), 3);
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 0), 'My First Line');
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 1), '    My Second Line');
-		assert.strictEqual(line1.getViewLineContent(model1, 1, 2), '    And another one');
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 0), 14);
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 1), 19);
-		assert.strictEqual(line1.getViewLineMaxColumn(model1, 1, 2), 20);
+		assewt.stwictEquaw(wine1.getViewWineCount(), 3);
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 0), 'My Fiwst Wine');
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 1), '    My Second Wine');
+		assewt.stwictEquaw(wine1.getViewWineContent(modew1, 1, 2), '    And anotha one');
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 0), 14);
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 1), 19);
+		assewt.stwictEquaw(wine1.getViewWineMaxCowumn(modew1, 1, 2), 20);
 
-		let actualViewColumnMapping: number[][] = [];
-		for (let lineIndex = 0; lineIndex < line1.getViewLineCount(); lineIndex++) {
-			let actualLineViewColumnMapping: number[] = [];
-			for (let col = 1; col <= line1.getViewLineMaxColumn(model1, 1, lineIndex); col++) {
-				actualLineViewColumnMapping.push(line1.getModelColumnOfViewPosition(lineIndex, col));
+		wet actuawViewCowumnMapping: numba[][] = [];
+		fow (wet wineIndex = 0; wineIndex < wine1.getViewWineCount(); wineIndex++) {
+			wet actuawWineViewCowumnMapping: numba[] = [];
+			fow (wet cow = 1; cow <= wine1.getViewWineMaxCowumn(modew1, 1, wineIndex); cow++) {
+				actuawWineViewCowumnMapping.push(wine1.getModewCowumnOfViewPosition(wineIndex, cow));
 			}
-			actualViewColumnMapping.push(actualLineViewColumnMapping);
+			actuawViewCowumnMapping.push(actuawWineViewCowumnMapping);
 		}
-		assert.deepStrictEqual(actualViewColumnMapping, [
+		assewt.deepStwictEquaw(actuawViewCowumnMapping, [
 			[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
 			[14, 14, 14, 14, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28],
 			[28, 28, 28, 28, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43],
 		]);
 
-		for (let col = 1; col <= 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), '6.getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1; cow <= 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(0, cow), '6.getOutputPositionOfInputPosition(' + cow + ')');
 		}
-		for (let col = 1 + 13; col <= 14 + 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, 4 + col - 13), '7.getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1 + 13; cow <= 14 + 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(1, 4 + cow - 13), '7.getOutputPositionOfInputPosition(' + cow + ')');
 		}
-		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
-			assert.deepStrictEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, 4 + col - 13 - 14), '8.getOutputPositionOfInputPosition(' + col + ')');
+		fow (wet cow = 1 + 13 + 14; cow <= 15 + 14 + 13; cow++) {
+			assewt.deepStwictEquaw(wine1.getViewPositionOfModewPosition(0, cow), pos(2, 4 + cow - 13 - 14), '8.getOutputPositionOfInputPosition(' + cow + ')');
 		}
 	});
 
-	function withSplitLinesCollection(text: string, callback: (model: TextModel, linesCollection: SplitLinesCollection) => void): void {
-		const config = new TestConfiguration({});
-		const wrappingInfo = config.options.get(EditorOption.wrappingInfo);
-		const fontInfo = config.options.get(EditorOption.fontInfo);
-		const wordWrapBreakAfterCharacters = config.options.get(EditorOption.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
+	function withSpwitWinesCowwection(text: stwing, cawwback: (modew: TextModew, winesCowwection: SpwitWinesCowwection) => void): void {
+		const config = new TestConfiguwation({});
+		const wwappingInfo = config.options.get(EditowOption.wwappingInfo);
+		const fontInfo = config.options.get(EditowOption.fontInfo);
+		const wowdWwapBweakAftewChawactews = config.options.get(EditowOption.wowdWwapBweakAftewChawactews);
+		const wowdWwapBweakBefoweChawactews = config.options.get(EditowOption.wowdWwapBweakBefoweChawactews);
+		const wwappingIndent = config.options.get(EditowOption.wwappingIndent);
 
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const wineBweaksComputewFactowy = new MonospaceWineBweaksComputewFactowy(wowdWwapBweakBefoweChawactews, wowdWwapBweakAftewChawactews);
 
-		const model = createTextModel([
+		const modew = cweateTextModew([
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 		].join('\n'));
 
-		const linesCollection = new SplitLinesCollection(
+		const winesCowwection = new SpwitWinesCowwection(
 			1,
-			model,
-			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
+			modew,
+			wineBweaksComputewFactowy,
+			wineBweaksComputewFactowy,
 			fontInfo,
-			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			modew.getOptions().tabSize,
+			'simpwe',
+			wwappingInfo.wwappingCowumn,
+			wwappingIndent
 		);
 
-		callback(model, linesCollection);
+		cawwback(modew, winesCowwection);
 
-		linesCollection.dispose();
-		model.dispose();
+		winesCowwection.dispose();
+		modew.dispose();
 		config.dispose();
 	}
 
-	test('Invalid line numbers', () => {
+	test('Invawid wine numbews', () => {
 
 		const text = [
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 		].join('\n');
 
-		withSplitLinesCollection(text, (model, linesCollection) => {
-			assert.strictEqual(linesCollection.getViewLineCount(), 6);
+		withSpwitWinesCowwection(text, (modew, winesCowwection) => {
+			assewt.stwictEquaw(winesCowwection.getViewWineCount(), 6);
 
 			// getOutputIndentGuide
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(-1, -1), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(0, 0), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(1, 1), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(2, 2), [1]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(3, 3), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(4, 4), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(5, 5), [1]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(6, 6), [0]);
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(7, 7), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(-1, -1), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(0, 0), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(1, 1), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(2, 2), [1]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(3, 3), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(4, 4), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(5, 5), [1]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(6, 6), [0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(7, 7), [0]);
 
-			assert.deepStrictEqual(linesCollection.getViewLinesIndentGuides(0, 7), [0, 1, 0, 0, 1, 0]);
+			assewt.deepStwictEquaw(winesCowwection.getViewWinesIndentGuides(0, 7), [0, 1, 0, 0, 1, 0]);
 
-			// getOutputLineContent
-			assert.strictEqual(linesCollection.getViewLineContent(-1), 'int main() {');
-			assert.strictEqual(linesCollection.getViewLineContent(0), 'int main() {');
-			assert.strictEqual(linesCollection.getViewLineContent(1), 'int main() {');
-			assert.strictEqual(linesCollection.getViewLineContent(2), '\tprintf("Hello world!");');
-			assert.strictEqual(linesCollection.getViewLineContent(3), '}');
-			assert.strictEqual(linesCollection.getViewLineContent(4), 'int main() {');
-			assert.strictEqual(linesCollection.getViewLineContent(5), '\tprintf("Hello world!");');
-			assert.strictEqual(linesCollection.getViewLineContent(6), '}');
-			assert.strictEqual(linesCollection.getViewLineContent(7), '}');
+			// getOutputWineContent
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(-1), 'int main() {');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(0), 'int main() {');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(1), 'int main() {');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(2), '\tpwintf("Hewwo wowwd!");');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(3), '}');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(4), 'int main() {');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(5), '\tpwintf("Hewwo wowwd!");');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(6), '}');
+			assewt.stwictEquaw(winesCowwection.getViewWineContent(7), '}');
 
-			// getOutputLineMinColumn
-			assert.strictEqual(linesCollection.getViewLineMinColumn(-1), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(0), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(1), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(2), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(3), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(4), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(5), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(6), 1);
-			assert.strictEqual(linesCollection.getViewLineMinColumn(7), 1);
+			// getOutputWineMinCowumn
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(-1), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(0), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(1), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(2), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(3), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(4), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(5), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(6), 1);
+			assewt.stwictEquaw(winesCowwection.getViewWineMinCowumn(7), 1);
 
-			// getOutputLineMaxColumn
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(-1), 13);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(0), 13);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(1), 13);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(2), 25);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(3), 2);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(4), 13);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(5), 25);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(6), 2);
-			assert.strictEqual(linesCollection.getViewLineMaxColumn(7), 2);
+			// getOutputWineMaxCowumn
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(-1), 13);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(0), 13);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(1), 13);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(2), 25);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(3), 2);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(4), 13);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(5), 25);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(6), 2);
+			assewt.stwictEquaw(winesCowwection.getViewWineMaxCowumn(7), 2);
 
-			// convertOutputPositionToInputPosition
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(-1, 1), new Position(1, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(0, 1), new Position(1, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(1, 1), new Position(1, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(2, 1), new Position(2, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(3, 1), new Position(3, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(4, 1), new Position(4, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(5, 1), new Position(5, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(6, 1), new Position(6, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(7, 1), new Position(6, 1));
-			assert.deepStrictEqual(linesCollection.convertViewPositionToModelPosition(8, 1), new Position(6, 1));
+			// convewtOutputPositionToInputPosition
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(-1, 1), new Position(1, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(0, 1), new Position(1, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(1, 1), new Position(1, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(2, 1), new Position(2, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(3, 1), new Position(3, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(4, 1), new Position(4, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(5, 1), new Position(5, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(6, 1), new Position(6, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(7, 1), new Position(6, 1));
+			assewt.deepStwictEquaw(winesCowwection.convewtViewPositionToModewPosition(8, 1), new Position(6, 1));
 		});
 	});
 
@@ -203,59 +203,59 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 		const text = [
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 			'int main() {',
-			'\tprintf("Hello world!");',
+			'\tpwintf("Hewwo wowwd!");',
 			'}',
 		].join('\n');
 
-		withSplitLinesCollection(text, (model, linesCollection) => {
-			linesCollection.setHiddenAreas([
-				new Range(1, 1, 3, 1),
-				new Range(5, 1, 6, 1)
+		withSpwitWinesCowwection(text, (modew, winesCowwection) => {
+			winesCowwection.setHiddenAweas([
+				new Wange(1, 1, 3, 1),
+				new Wange(5, 1, 6, 1)
 			]);
 
-			let viewLineCount = linesCollection.getViewLineCount();
-			assert.strictEqual(viewLineCount, 1, 'getOutputLineCount()');
+			wet viewWineCount = winesCowwection.getViewWineCount();
+			assewt.stwictEquaw(viewWineCount, 1, 'getOutputWineCount()');
 
-			let modelLineCount = model.getLineCount();
-			for (let lineNumber = 0; lineNumber <= modelLineCount + 1; lineNumber++) {
-				let lineMinColumn = (lineNumber >= 1 && lineNumber <= modelLineCount) ? model.getLineMinColumn(lineNumber) : 1;
-				let lineMaxColumn = (lineNumber >= 1 && lineNumber <= modelLineCount) ? model.getLineMaxColumn(lineNumber) : 1;
-				for (let column = lineMinColumn - 1; column <= lineMaxColumn + 1; column++) {
-					let viewPosition = linesCollection.convertModelPositionToViewPosition(lineNumber, column);
+			wet modewWineCount = modew.getWineCount();
+			fow (wet wineNumba = 0; wineNumba <= modewWineCount + 1; wineNumba++) {
+				wet wineMinCowumn = (wineNumba >= 1 && wineNumba <= modewWineCount) ? modew.getWineMinCowumn(wineNumba) : 1;
+				wet wineMaxCowumn = (wineNumba >= 1 && wineNumba <= modewWineCount) ? modew.getWineMaxCowumn(wineNumba) : 1;
+				fow (wet cowumn = wineMinCowumn - 1; cowumn <= wineMaxCowumn + 1; cowumn++) {
+					wet viewPosition = winesCowwection.convewtModewPositionToViewPosition(wineNumba, cowumn);
 
-					// validate view position
-					let viewLineNumber = viewPosition.lineNumber;
-					let viewColumn = viewPosition.column;
-					if (viewLineNumber < 1) {
-						viewLineNumber = 1;
+					// vawidate view position
+					wet viewWineNumba = viewPosition.wineNumba;
+					wet viewCowumn = viewPosition.cowumn;
+					if (viewWineNumba < 1) {
+						viewWineNumba = 1;
 					}
-					let lineCount = linesCollection.getViewLineCount();
-					if (viewLineNumber > lineCount) {
-						viewLineNumber = lineCount;
+					wet wineCount = winesCowwection.getViewWineCount();
+					if (viewWineNumba > wineCount) {
+						viewWineNumba = wineCount;
 					}
-					let viewMinColumn = linesCollection.getViewLineMinColumn(viewLineNumber);
-					let viewMaxColumn = linesCollection.getViewLineMaxColumn(viewLineNumber);
-					if (viewColumn < viewMinColumn) {
-						viewColumn = viewMinColumn;
+					wet viewMinCowumn = winesCowwection.getViewWineMinCowumn(viewWineNumba);
+					wet viewMaxCowumn = winesCowwection.getViewWineMaxCowumn(viewWineNumba);
+					if (viewCowumn < viewMinCowumn) {
+						viewCowumn = viewMinCowumn;
 					}
-					if (viewColumn > viewMaxColumn) {
-						viewColumn = viewMaxColumn;
+					if (viewCowumn > viewMaxCowumn) {
+						viewCowumn = viewMaxCowumn;
 					}
-					let validViewPosition = new Position(viewLineNumber, viewColumn);
-					assert.strictEqual(viewPosition.toString(), validViewPosition.toString(), 'model->view for ' + lineNumber + ', ' + column);
+					wet vawidViewPosition = new Position(viewWineNumba, viewCowumn);
+					assewt.stwictEquaw(viewPosition.toStwing(), vawidViewPosition.toStwing(), 'modew->view fow ' + wineNumba + ', ' + cowumn);
 				}
 			}
 
-			for (let lineNumber = 0; lineNumber <= viewLineCount + 1; lineNumber++) {
-				let lineMinColumn = linesCollection.getViewLineMinColumn(lineNumber);
-				let lineMaxColumn = linesCollection.getViewLineMaxColumn(lineNumber);
-				for (let column = lineMinColumn - 1; column <= lineMaxColumn + 1; column++) {
-					let modelPosition = linesCollection.convertViewPositionToModelPosition(lineNumber, column);
-					let validModelPosition = model.validatePosition(modelPosition);
-					assert.strictEqual(modelPosition.toString(), validModelPosition.toString(), 'view->model for ' + lineNumber + ', ' + column);
+			fow (wet wineNumba = 0; wineNumba <= viewWineCount + 1; wineNumba++) {
+				wet wineMinCowumn = winesCowwection.getViewWineMinCowumn(wineNumba);
+				wet wineMaxCowumn = winesCowwection.getViewWineMaxCowumn(wineNumba);
+				fow (wet cowumn = wineMinCowumn - 1; cowumn <= wineMaxCowumn + 1; cowumn++) {
+					wet modewPosition = winesCowwection.convewtViewPositionToModewPosition(wineNumba, cowumn);
+					wet vawidModewPosition = modew.vawidatePosition(modewPosition);
+					assewt.stwictEquaw(modewPosition.toStwing(), vawidModewPosition.toStwing(), 'view->modew fow ' + wineNumba + ', ' + cowumn);
 				}
 			}
 		});
@@ -263,278 +263,278 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 
 });
 
-suite('SplitLinesCollection', () => {
+suite('SpwitWinesCowwection', () => {
 
 	const _text = [
-		'class Nice {',
+		'cwass Nice {',
 		'	function hi() {',
-		'		console.log("Hello world");',
+		'		consowe.wog("Hewwo wowwd");',
 		'	}',
-		'	function hello() {',
-		'		console.log("Hello world, this is a somewhat longer line");',
+		'	function hewwo() {',
+		'		consowe.wog("Hewwo wowwd, this is a somewhat wonga wine");',
 		'	}',
 		'}',
 	];
 
 	const _tokens = [
 		[
-			{ startIndex: 0, value: 1 },
-			{ startIndex: 5, value: 2 },
-			{ startIndex: 6, value: 3 },
-			{ startIndex: 10, value: 4 },
+			{ stawtIndex: 0, vawue: 1 },
+			{ stawtIndex: 5, vawue: 2 },
+			{ stawtIndex: 6, vawue: 3 },
+			{ stawtIndex: 10, vawue: 4 },
 		],
 		[
-			{ startIndex: 0, value: 5 },
-			{ startIndex: 1, value: 6 },
-			{ startIndex: 9, value: 7 },
-			{ startIndex: 10, value: 8 },
-			{ startIndex: 12, value: 9 },
+			{ stawtIndex: 0, vawue: 5 },
+			{ stawtIndex: 1, vawue: 6 },
+			{ stawtIndex: 9, vawue: 7 },
+			{ stawtIndex: 10, vawue: 8 },
+			{ stawtIndex: 12, vawue: 9 },
 		],
 		[
-			{ startIndex: 0, value: 10 },
-			{ startIndex: 2, value: 11 },
-			{ startIndex: 9, value: 12 },
-			{ startIndex: 10, value: 13 },
-			{ startIndex: 13, value: 14 },
-			{ startIndex: 14, value: 15 },
-			{ startIndex: 27, value: 16 },
+			{ stawtIndex: 0, vawue: 10 },
+			{ stawtIndex: 2, vawue: 11 },
+			{ stawtIndex: 9, vawue: 12 },
+			{ stawtIndex: 10, vawue: 13 },
+			{ stawtIndex: 13, vawue: 14 },
+			{ stawtIndex: 14, vawue: 15 },
+			{ stawtIndex: 27, vawue: 16 },
 		],
 		[
-			{ startIndex: 0, value: 17 },
+			{ stawtIndex: 0, vawue: 17 },
 		],
 		[
-			{ startIndex: 0, value: 18 },
-			{ startIndex: 1, value: 19 },
-			{ startIndex: 9, value: 20 },
-			{ startIndex: 10, value: 21 },
-			{ startIndex: 15, value: 22 },
+			{ stawtIndex: 0, vawue: 18 },
+			{ stawtIndex: 1, vawue: 19 },
+			{ stawtIndex: 9, vawue: 20 },
+			{ stawtIndex: 10, vawue: 21 },
+			{ stawtIndex: 15, vawue: 22 },
 		],
 		[
-			{ startIndex: 0, value: 23 },
-			{ startIndex: 2, value: 24 },
-			{ startIndex: 9, value: 25 },
-			{ startIndex: 10, value: 26 },
-			{ startIndex: 13, value: 27 },
-			{ startIndex: 14, value: 28 },
-			{ startIndex: 59, value: 29 },
+			{ stawtIndex: 0, vawue: 23 },
+			{ stawtIndex: 2, vawue: 24 },
+			{ stawtIndex: 9, vawue: 25 },
+			{ stawtIndex: 10, vawue: 26 },
+			{ stawtIndex: 13, vawue: 27 },
+			{ stawtIndex: 14, vawue: 28 },
+			{ stawtIndex: 59, vawue: 29 },
 		],
 		[
-			{ startIndex: 0, value: 30 },
+			{ stawtIndex: 0, vawue: 30 },
 		],
 		[
-			{ startIndex: 0, value: 31 },
+			{ stawtIndex: 0, vawue: 31 },
 		]
 	];
 
-	let model: TextModel | null = null;
-	let languageRegistration: IDisposable | null = null;
+	wet modew: TextModew | nuww = nuww;
+	wet wanguageWegistwation: IDisposabwe | nuww = nuww;
 
 	setup(() => {
-		let _lineIndex = 0;
-		const tokenizationSupport: modes.ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+		wet _wineIndex = 0;
+		const tokenizationSuppowt: modes.ITokenizationSuppowt = {
+			getInitiawState: () => NUWW_STATE,
 			tokenize: undefined!,
-			tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
-				let tokens = _tokens[_lineIndex++];
+			tokenize2: (wine: stwing, hasEOW: boowean, state: modes.IState): TokenizationWesuwt2 => {
+				wet tokens = _tokens[_wineIndex++];
 
-				let result = new Uint32Array(2 * tokens.length);
-				for (let i = 0; i < tokens.length; i++) {
-					result[2 * i] = tokens[i].startIndex;
-					result[2 * i + 1] = (
-						tokens[i].value << modes.MetadataConsts.FOREGROUND_OFFSET
+				wet wesuwt = new Uint32Awway(2 * tokens.wength);
+				fow (wet i = 0; i < tokens.wength; i++) {
+					wesuwt[2 * i] = tokens[i].stawtIndex;
+					wesuwt[2 * i + 1] = (
+						tokens[i].vawue << modes.MetadataConsts.FOWEGWOUND_OFFSET
 					);
 				}
-				return new TokenizationResult2(result, state);
+				wetuwn new TokenizationWesuwt2(wesuwt, state);
 			}
 		};
-		const LANGUAGE_ID = 'modelModeTest1';
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		model = createTextModel(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
-		// force tokenization
-		model.forceTokenization(model.getLineCount());
+		const WANGUAGE_ID = 'modewModeTest1';
+		wanguageWegistwation = modes.TokenizationWegistwy.wegista(WANGUAGE_ID, tokenizationSuppowt);
+		modew = cweateTextModew(_text.join('\n'), undefined, new modes.WanguageIdentifia(WANGUAGE_ID, 0));
+		// fowce tokenization
+		modew.fowceTokenization(modew.getWineCount());
 	});
 
-	teardown(() => {
-		model!.dispose();
-		model = null;
-		languageRegistration!.dispose();
-		languageRegistration = null;
+	teawdown(() => {
+		modew!.dispose();
+		modew = nuww;
+		wanguageWegistwation!.dispose();
+		wanguageWegistwation = nuww;
 	});
 
 
-	interface ITestViewLineToken {
-		endIndex: number;
-		value: number;
+	intewface ITestViewWineToken {
+		endIndex: numba;
+		vawue: numba;
 	}
 
-	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
-		let actual: ITestViewLineToken[] = [];
-		for (let i = 0, len = _actual.getCount(); i < len; i++) {
-			actual[i] = {
-				endIndex: _actual.getEndOffset(i),
-				value: _actual.getForeground(i)
+	function assewtViewWineTokens(_actuaw: IViewWineTokens, expected: ITestViewWineToken[]): void {
+		wet actuaw: ITestViewWineToken[] = [];
+		fow (wet i = 0, wen = _actuaw.getCount(); i < wen; i++) {
+			actuaw[i] = {
+				endIndex: _actuaw.getEndOffset(i),
+				vawue: _actuaw.getFowegwound(i)
 			};
 		}
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	interface ITestMinimapLineRenderingData {
-		content: string;
-		minColumn: number;
-		maxColumn: number;
-		tokens: ITestViewLineToken[];
+	intewface ITestMinimapWineWendewingData {
+		content: stwing;
+		minCowumn: numba;
+		maxCowumn: numba;
+		tokens: ITestViewWineToken[];
 	}
 
-	function assertMinimapLineRenderingData(actual: ViewLineData, expected: ITestMinimapLineRenderingData | null): void {
-		if (actual === null && expected === null) {
-			assert.ok(true);
-			return;
+	function assewtMinimapWineWendewingData(actuaw: ViewWineData, expected: ITestMinimapWineWendewingData | nuww): void {
+		if (actuaw === nuww && expected === nuww) {
+			assewt.ok(twue);
+			wetuwn;
 		}
-		if (expected === null) {
-			assert.ok(false);
+		if (expected === nuww) {
+			assewt.ok(fawse);
 		}
-		assert.strictEqual(actual.content, expected.content);
-		assert.strictEqual(actual.minColumn, expected.minColumn);
-		assert.strictEqual(actual.maxColumn, expected.maxColumn);
-		assertViewLineTokens(actual.tokens, expected.tokens);
+		assewt.stwictEquaw(actuaw.content, expected.content);
+		assewt.stwictEquaw(actuaw.minCowumn, expected.minCowumn);
+		assewt.stwictEquaw(actuaw.maxCowumn, expected.maxCowumn);
+		assewtViewWineTokens(actuaw.tokens, expected.tokens);
 	}
 
-	function assertMinimapLinesRenderingData(actual: ViewLineData[], expected: Array<ITestMinimapLineRenderingData | null>): void {
-		assert.strictEqual(actual.length, expected.length);
-		for (let i = 0; i < expected.length; i++) {
-			assertMinimapLineRenderingData(actual[i], expected[i]);
+	function assewtMinimapWinesWendewingData(actuaw: ViewWineData[], expected: Awway<ITestMinimapWineWendewingData | nuww>): void {
+		assewt.stwictEquaw(actuaw.wength, expected.wength);
+		fow (wet i = 0; i < expected.wength; i++) {
+			assewtMinimapWineWendewingData(actuaw[i], expected[i]);
 		}
 	}
 
-	function assertAllMinimapLinesRenderingData(splitLinesCollection: SplitLinesCollection, all: ITestMinimapLineRenderingData[]): void {
-		let lineCount = all.length;
-		for (let line = 1; line <= lineCount; line++) {
-			assert.strictEqual(splitLinesCollection.getViewLineData(line).content, splitLinesCollection.getViewLineContent(line));
+	function assewtAwwMinimapWinesWendewingData(spwitWinesCowwection: SpwitWinesCowwection, aww: ITestMinimapWineWendewingData[]): void {
+		wet wineCount = aww.wength;
+		fow (wet wine = 1; wine <= wineCount; wine++) {
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineData(wine).content, spwitWinesCowwection.getViewWineContent(wine));
 		}
 
-		for (let start = 1; start <= lineCount; start++) {
-			for (let end = start; end <= lineCount; end++) {
-				let count = end - start + 1;
-				for (let desired = Math.pow(2, count) - 1; desired >= 0; desired--) {
-					let needed: boolean[] = [];
-					let expected: Array<ITestMinimapLineRenderingData | null> = [];
-					for (let i = 0; i < count; i++) {
-						needed[i] = (desired & (1 << i)) ? true : false;
-						expected[i] = (needed[i] ? all[start - 1 + i] : null);
+		fow (wet stawt = 1; stawt <= wineCount; stawt++) {
+			fow (wet end = stawt; end <= wineCount; end++) {
+				wet count = end - stawt + 1;
+				fow (wet desiwed = Math.pow(2, count) - 1; desiwed >= 0; desiwed--) {
+					wet needed: boowean[] = [];
+					wet expected: Awway<ITestMinimapWineWendewingData | nuww> = [];
+					fow (wet i = 0; i < count; i++) {
+						needed[i] = (desiwed & (1 << i)) ? twue : fawse;
+						expected[i] = (needed[i] ? aww[stawt - 1 + i] : nuww);
 					}
-					let actual = splitLinesCollection.getViewLinesData(start, end, needed);
+					wet actuaw = spwitWinesCowwection.getViewWinesData(stawt, end, needed);
 
-					assertMinimapLinesRenderingData(actual, expected);
-					// Comment out next line to test all possible combinations
-					break;
+					assewtMinimapWinesWendewingData(actuaw, expected);
+					// Comment out next wine to test aww possibwe combinations
+					bweak;
 				}
 			}
 		}
 	}
 
-	test('getViewLinesData - no wrapping', () => {
-		withSplitLinesCollection(model!, 'off', 0, (splitLinesCollection) => {
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+	test('getViewWinesData - no wwapping', () => {
+		withSpwitWinesCowwection(modew!, 'off', 0, (spwitWinesCowwection) => {
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineCount(), 8);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(1, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(2, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(3, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(4, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(5, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(6, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(7, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(8, 1), twue);
 
-			let _expected: ITestMinimapLineRenderingData[] = [
+			wet _expected: ITestMinimapWineWendewingData[] = [
 				{
-					content: 'class Nice {',
-					minColumn: 1,
-					maxColumn: 13,
+					content: 'cwass Nice {',
+					minCowumn: 1,
+					maxCowumn: 13,
 					tokens: [
-						{ endIndex: 5, value: 1 },
-						{ endIndex: 6, value: 2 },
-						{ endIndex: 10, value: 3 },
-						{ endIndex: 12, value: 4 },
+						{ endIndex: 5, vawue: 1 },
+						{ endIndex: 6, vawue: 2 },
+						{ endIndex: 10, vawue: 3 },
+						{ endIndex: 12, vawue: 4 },
 					]
 				},
 				{
 					content: '	function hi() {',
-					minColumn: 1,
-					maxColumn: 17,
+					minCowumn: 1,
+					maxCowumn: 17,
 					tokens: [
-						{ endIndex: 1, value: 5 },
-						{ endIndex: 9, value: 6 },
-						{ endIndex: 10, value: 7 },
-						{ endIndex: 12, value: 8 },
-						{ endIndex: 16, value: 9 },
+						{ endIndex: 1, vawue: 5 },
+						{ endIndex: 9, vawue: 6 },
+						{ endIndex: 10, vawue: 7 },
+						{ endIndex: 12, vawue: 8 },
+						{ endIndex: 16, vawue: 9 },
 					]
 				},
 				{
-					content: '		console.log("Hello world");',
-					minColumn: 1,
-					maxColumn: 30,
+					content: '		consowe.wog("Hewwo wowwd");',
+					minCowumn: 1,
+					maxCowumn: 30,
 					tokens: [
-						{ endIndex: 2, value: 10 },
-						{ endIndex: 9, value: 11 },
-						{ endIndex: 10, value: 12 },
-						{ endIndex: 13, value: 13 },
-						{ endIndex: 14, value: 14 },
-						{ endIndex: 27, value: 15 },
-						{ endIndex: 29, value: 16 },
+						{ endIndex: 2, vawue: 10 },
+						{ endIndex: 9, vawue: 11 },
+						{ endIndex: 10, vawue: 12 },
+						{ endIndex: 13, vawue: 13 },
+						{ endIndex: 14, vawue: 14 },
+						{ endIndex: 27, vawue: 15 },
+						{ endIndex: 29, vawue: 16 },
 					]
 				},
 				{
 					content: '	}',
-					minColumn: 1,
-					maxColumn: 3,
+					minCowumn: 1,
+					maxCowumn: 3,
 					tokens: [
-						{ endIndex: 2, value: 17 },
+						{ endIndex: 2, vawue: 17 },
 					]
 				},
 				{
-					content: '	function hello() {',
-					minColumn: 1,
-					maxColumn: 20,
+					content: '	function hewwo() {',
+					minCowumn: 1,
+					maxCowumn: 20,
 					tokens: [
-						{ endIndex: 1, value: 18 },
-						{ endIndex: 9, value: 19 },
-						{ endIndex: 10, value: 20 },
-						{ endIndex: 15, value: 21 },
-						{ endIndex: 19, value: 22 },
+						{ endIndex: 1, vawue: 18 },
+						{ endIndex: 9, vawue: 19 },
+						{ endIndex: 10, vawue: 20 },
+						{ endIndex: 15, vawue: 21 },
+						{ endIndex: 19, vawue: 22 },
 					]
 				},
 				{
-					content: '		console.log("Hello world, this is a somewhat longer line");',
-					minColumn: 1,
-					maxColumn: 62,
+					content: '		consowe.wog("Hewwo wowwd, this is a somewhat wonga wine");',
+					minCowumn: 1,
+					maxCowumn: 62,
 					tokens: [
-						{ endIndex: 2, value: 23 },
-						{ endIndex: 9, value: 24 },
-						{ endIndex: 10, value: 25 },
-						{ endIndex: 13, value: 26 },
-						{ endIndex: 14, value: 27 },
-						{ endIndex: 59, value: 28 },
-						{ endIndex: 61, value: 29 },
+						{ endIndex: 2, vawue: 23 },
+						{ endIndex: 9, vawue: 24 },
+						{ endIndex: 10, vawue: 25 },
+						{ endIndex: 13, vawue: 26 },
+						{ endIndex: 14, vawue: 27 },
+						{ endIndex: 59, vawue: 28 },
+						{ endIndex: 61, vawue: 29 },
 					]
 				},
 				{
-					minColumn: 1,
-					maxColumn: 3,
+					minCowumn: 1,
+					maxCowumn: 3,
 					content: '	}',
 					tokens: [
-						{ endIndex: 2, value: 30 },
+						{ endIndex: 2, vawue: 30 },
 					]
 				},
 				{
-					minColumn: 1,
-					maxColumn: 2,
+					minCowumn: 1,
+					maxCowumn: 2,
 					content: '}',
 					tokens: [
-						{ endIndex: 1, value: 31 },
+						{ endIndex: 1, vawue: 31 },
 					]
 				}
 			];
 
-			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+			assewtAwwMinimapWinesWendewingData(spwitWinesCowwection, [
 				_expected[0],
 				_expected[1],
 				_expected[2],
@@ -545,18 +545,18 @@ suite('SplitLinesCollection', () => {
 				_expected[7],
 			]);
 
-			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 5);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+			spwitWinesCowwection.setHiddenAweas([new Wange(2, 1, 4, 1)]);
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineCount(), 5);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(1, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(2, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(3, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(4, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(5, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(6, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(7, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(8, 1), twue);
 
-			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+			assewtAwwMinimapWinesWendewingData(spwitWinesCowwection, [
 				_expected[0],
 				_expected[4],
 				_expected[5],
@@ -566,141 +566,141 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	test('getViewLinesData - with wrapping', () => {
-		withSplitLinesCollection(model!, 'wordWrapColumn', 30, (splitLinesCollection) => {
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 12);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+	test('getViewWinesData - with wwapping', () => {
+		withSpwitWinesCowwection(modew!, 'wowdWwapCowumn', 30, (spwitWinesCowwection) => {
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineCount(), 12);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(1, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(2, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(3, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(4, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(5, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(6, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(7, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(8, 1), twue);
 
-			let _expected: ITestMinimapLineRenderingData[] = [
+			wet _expected: ITestMinimapWineWendewingData[] = [
 				{
-					content: 'class Nice {',
-					minColumn: 1,
-					maxColumn: 13,
+					content: 'cwass Nice {',
+					minCowumn: 1,
+					maxCowumn: 13,
 					tokens: [
-						{ endIndex: 5, value: 1 },
-						{ endIndex: 6, value: 2 },
-						{ endIndex: 10, value: 3 },
-						{ endIndex: 12, value: 4 },
+						{ endIndex: 5, vawue: 1 },
+						{ endIndex: 6, vawue: 2 },
+						{ endIndex: 10, vawue: 3 },
+						{ endIndex: 12, vawue: 4 },
 					]
 				},
 				{
 					content: '	function hi() {',
-					minColumn: 1,
-					maxColumn: 17,
+					minCowumn: 1,
+					maxCowumn: 17,
 					tokens: [
-						{ endIndex: 1, value: 5 },
-						{ endIndex: 9, value: 6 },
-						{ endIndex: 10, value: 7 },
-						{ endIndex: 12, value: 8 },
-						{ endIndex: 16, value: 9 },
+						{ endIndex: 1, vawue: 5 },
+						{ endIndex: 9, vawue: 6 },
+						{ endIndex: 10, vawue: 7 },
+						{ endIndex: 12, vawue: 8 },
+						{ endIndex: 16, vawue: 9 },
 					]
 				},
 				{
-					content: '		console.log("Hello ',
-					minColumn: 1,
-					maxColumn: 22,
+					content: '		consowe.wog("Hewwo ',
+					minCowumn: 1,
+					maxCowumn: 22,
 					tokens: [
-						{ endIndex: 2, value: 10 },
-						{ endIndex: 9, value: 11 },
-						{ endIndex: 10, value: 12 },
-						{ endIndex: 13, value: 13 },
-						{ endIndex: 14, value: 14 },
-						{ endIndex: 21, value: 15 },
+						{ endIndex: 2, vawue: 10 },
+						{ endIndex: 9, vawue: 11 },
+						{ endIndex: 10, vawue: 12 },
+						{ endIndex: 13, vawue: 13 },
+						{ endIndex: 14, vawue: 14 },
+						{ endIndex: 21, vawue: 15 },
 					]
 				},
 				{
-					content: '            world");',
-					minColumn: 13,
-					maxColumn: 21,
+					content: '            wowwd");',
+					minCowumn: 13,
+					maxCowumn: 21,
 					tokens: [
-						{ endIndex: 18, value: 15 },
-						{ endIndex: 20, value: 16 },
-					]
-				},
-				{
-					content: '	}',
-					minColumn: 1,
-					maxColumn: 3,
-					tokens: [
-						{ endIndex: 2, value: 17 },
-					]
-				},
-				{
-					content: '	function hello() {',
-					minColumn: 1,
-					maxColumn: 20,
-					tokens: [
-						{ endIndex: 1, value: 18 },
-						{ endIndex: 9, value: 19 },
-						{ endIndex: 10, value: 20 },
-						{ endIndex: 15, value: 21 },
-						{ endIndex: 19, value: 22 },
-					]
-				},
-				{
-					content: '		console.log("Hello ',
-					minColumn: 1,
-					maxColumn: 22,
-					tokens: [
-						{ endIndex: 2, value: 23 },
-						{ endIndex: 9, value: 24 },
-						{ endIndex: 10, value: 25 },
-						{ endIndex: 13, value: 26 },
-						{ endIndex: 14, value: 27 },
-						{ endIndex: 21, value: 28 },
-					]
-				},
-				{
-					content: '            world, this is a ',
-					minColumn: 13,
-					maxColumn: 30,
-					tokens: [
-						{ endIndex: 29, value: 28 },
-					]
-				},
-				{
-					content: '            somewhat longer ',
-					minColumn: 13,
-					maxColumn: 29,
-					tokens: [
-						{ endIndex: 28, value: 28 },
-					]
-				},
-				{
-					content: '            line");',
-					minColumn: 13,
-					maxColumn: 20,
-					tokens: [
-						{ endIndex: 17, value: 28 },
-						{ endIndex: 19, value: 29 },
+						{ endIndex: 18, vawue: 15 },
+						{ endIndex: 20, vawue: 16 },
 					]
 				},
 				{
 					content: '	}',
-					minColumn: 1,
-					maxColumn: 3,
+					minCowumn: 1,
+					maxCowumn: 3,
 					tokens: [
-						{ endIndex: 2, value: 30 },
+						{ endIndex: 2, vawue: 17 },
+					]
+				},
+				{
+					content: '	function hewwo() {',
+					minCowumn: 1,
+					maxCowumn: 20,
+					tokens: [
+						{ endIndex: 1, vawue: 18 },
+						{ endIndex: 9, vawue: 19 },
+						{ endIndex: 10, vawue: 20 },
+						{ endIndex: 15, vawue: 21 },
+						{ endIndex: 19, vawue: 22 },
+					]
+				},
+				{
+					content: '		consowe.wog("Hewwo ',
+					minCowumn: 1,
+					maxCowumn: 22,
+					tokens: [
+						{ endIndex: 2, vawue: 23 },
+						{ endIndex: 9, vawue: 24 },
+						{ endIndex: 10, vawue: 25 },
+						{ endIndex: 13, vawue: 26 },
+						{ endIndex: 14, vawue: 27 },
+						{ endIndex: 21, vawue: 28 },
+					]
+				},
+				{
+					content: '            wowwd, this is a ',
+					minCowumn: 13,
+					maxCowumn: 30,
+					tokens: [
+						{ endIndex: 29, vawue: 28 },
+					]
+				},
+				{
+					content: '            somewhat wonga ',
+					minCowumn: 13,
+					maxCowumn: 29,
+					tokens: [
+						{ endIndex: 28, vawue: 28 },
+					]
+				},
+				{
+					content: '            wine");',
+					minCowumn: 13,
+					maxCowumn: 20,
+					tokens: [
+						{ endIndex: 17, vawue: 28 },
+						{ endIndex: 19, vawue: 29 },
+					]
+				},
+				{
+					content: '	}',
+					minCowumn: 1,
+					maxCowumn: 3,
+					tokens: [
+						{ endIndex: 2, vawue: 30 },
 					]
 				},
 				{
 					content: '}',
-					minColumn: 1,
-					maxColumn: 2,
+					minCowumn: 1,
+					maxCowumn: 2,
 					tokens: [
-						{ endIndex: 1, value: 31 },
+						{ endIndex: 1, vawue: 31 },
 					]
 				}
 			];
 
-			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+			assewtAwwMinimapWinesWendewingData(spwitWinesCowwection, [
 				_expected[0],
 				_expected[1],
 				_expected[2],
@@ -715,18 +715,18 @@ suite('SplitLinesCollection', () => {
 				_expected[11],
 			]);
 
-			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 8);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
+			spwitWinesCowwection.setHiddenAweas([new Wange(2, 1, 4, 1)]);
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineCount(), 8);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(1, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(2, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(3, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(4, 1), fawse);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(5, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(6, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(7, 1), twue);
+			assewt.stwictEquaw(spwitWinesCowwection.modewPositionIsVisibwe(8, 1), twue);
 
-			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+			assewtAwwMinimapWinesWendewingData(spwitWinesCowwection, [
 				_expected[0],
 				_expected[5],
 				_expected[6],
@@ -739,161 +739,161 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	test('getViewLinesData - with wrapping and injected text', () => {
-		model!.deltaDecorations([], [{
-			range: new Range(1, 9, 1, 9),
+	test('getViewWinesData - with wwapping and injected text', () => {
+		modew!.dewtaDecowations([], [{
+			wange: new Wange(1, 9, 1, 9),
 			options: {
-				description: 'example',
-				after: {
-					content: 'very very long injected text that causes a line break'
+				descwiption: 'exampwe',
+				afta: {
+					content: 'vewy vewy wong injected text that causes a wine bweak'
 				}
 			}
 		}]);
 
-		withSplitLinesCollection(model!, 'wordWrapColumn', 30, (splitLinesCollection) => {
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
+		withSpwitWinesCowwection(modew!, 'wowdWwapCowumn', 30, (spwitWinesCowwection) => {
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineCount(), 14);
 
-			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
+			assewt.stwictEquaw(spwitWinesCowwection.getViewWineMaxCowumn(1), 24);
 
-			let _expected: ITestMinimapLineRenderingData[] = [
+			wet _expected: ITestMinimapWineWendewingData[] = [
 				{
-					content: 'class Nivery very long ',
-					minColumn: 1,
-					maxColumn: 24,
+					content: 'cwass Nivewy vewy wong ',
+					minCowumn: 1,
+					maxCowumn: 24,
 					tokens: [
-						{ endIndex: 5, value: 1 },
-						{ endIndex: 6, value: 2 },
-						{ endIndex: 8, value: 3 },
-						{ endIndex: 23, value: 1 },
+						{ endIndex: 5, vawue: 1 },
+						{ endIndex: 6, vawue: 2 },
+						{ endIndex: 8, vawue: 3 },
+						{ endIndex: 23, vawue: 1 },
 					]
 				},
 				{
 					content: '    injected text that causes ',
-					minColumn: 5,
-					maxColumn: 31,
-					tokens: [{ endIndex: 30, value: 1 }]
+					minCowumn: 5,
+					maxCowumn: 31,
+					tokens: [{ endIndex: 30, vawue: 1 }]
 				},
 				{
-					content: '    a line breakce {',
-					minColumn: 5,
-					maxColumn: 21,
+					content: '    a wine bweakce {',
+					minCowumn: 5,
+					maxCowumn: 21,
 					tokens: [
-						{ endIndex: 16, value: 1 },
-						{ endIndex: 18, value: 3 },
-						{ endIndex: 20, value: 4 }
+						{ endIndex: 16, vawue: 1 },
+						{ endIndex: 18, vawue: 3 },
+						{ endIndex: 20, vawue: 4 }
 					]
 				},
 				{
 					content: '	function hi() {',
-					minColumn: 1,
-					maxColumn: 17,
+					minCowumn: 1,
+					maxCowumn: 17,
 					tokens: [
-						{ endIndex: 1, value: 5 },
-						{ endIndex: 9, value: 6 },
-						{ endIndex: 10, value: 7 },
-						{ endIndex: 12, value: 8 },
-						{ endIndex: 16, value: 9 },
+						{ endIndex: 1, vawue: 5 },
+						{ endIndex: 9, vawue: 6 },
+						{ endIndex: 10, vawue: 7 },
+						{ endIndex: 12, vawue: 8 },
+						{ endIndex: 16, vawue: 9 },
 					]
 				},
 				{
-					content: '		console.log("Hello ',
-					minColumn: 1,
-					maxColumn: 22,
+					content: '		consowe.wog("Hewwo ',
+					minCowumn: 1,
+					maxCowumn: 22,
 					tokens: [
-						{ endIndex: 2, value: 10 },
-						{ endIndex: 9, value: 11 },
-						{ endIndex: 10, value: 12 },
-						{ endIndex: 13, value: 13 },
-						{ endIndex: 14, value: 14 },
-						{ endIndex: 21, value: 15 },
+						{ endIndex: 2, vawue: 10 },
+						{ endIndex: 9, vawue: 11 },
+						{ endIndex: 10, vawue: 12 },
+						{ endIndex: 13, vawue: 13 },
+						{ endIndex: 14, vawue: 14 },
+						{ endIndex: 21, vawue: 15 },
 					]
 				},
 				{
-					content: '            world");',
-					minColumn: 13,
-					maxColumn: 21,
+					content: '            wowwd");',
+					minCowumn: 13,
+					maxCowumn: 21,
 					tokens: [
-						{ endIndex: 18, value: 15 },
-						{ endIndex: 20, value: 16 },
-					]
-				},
-				{
-					content: '	}',
-					minColumn: 1,
-					maxColumn: 3,
-					tokens: [
-						{ endIndex: 2, value: 17 },
-					]
-				},
-				{
-					content: '	function hello() {',
-					minColumn: 1,
-					maxColumn: 20,
-					tokens: [
-						{ endIndex: 1, value: 18 },
-						{ endIndex: 9, value: 19 },
-						{ endIndex: 10, value: 20 },
-						{ endIndex: 15, value: 21 },
-						{ endIndex: 19, value: 22 },
-					]
-				},
-				{
-					content: '		console.log("Hello ',
-					minColumn: 1,
-					maxColumn: 22,
-					tokens: [
-						{ endIndex: 2, value: 23 },
-						{ endIndex: 9, value: 24 },
-						{ endIndex: 10, value: 25 },
-						{ endIndex: 13, value: 26 },
-						{ endIndex: 14, value: 27 },
-						{ endIndex: 21, value: 28 },
-					]
-				},
-				{
-					content: '            world, this is a ',
-					minColumn: 13,
-					maxColumn: 30,
-					tokens: [
-						{ endIndex: 29, value: 28 },
-					]
-				},
-				{
-					content: '            somewhat longer ',
-					minColumn: 13,
-					maxColumn: 29,
-					tokens: [
-						{ endIndex: 28, value: 28 },
-					]
-				},
-				{
-					content: '            line");',
-					minColumn: 13,
-					maxColumn: 20,
-					tokens: [
-						{ endIndex: 17, value: 28 },
-						{ endIndex: 19, value: 29 },
+						{ endIndex: 18, vawue: 15 },
+						{ endIndex: 20, vawue: 16 },
 					]
 				},
 				{
 					content: '	}',
-					minColumn: 1,
-					maxColumn: 3,
+					minCowumn: 1,
+					maxCowumn: 3,
 					tokens: [
-						{ endIndex: 2, value: 30 },
+						{ endIndex: 2, vawue: 17 },
+					]
+				},
+				{
+					content: '	function hewwo() {',
+					minCowumn: 1,
+					maxCowumn: 20,
+					tokens: [
+						{ endIndex: 1, vawue: 18 },
+						{ endIndex: 9, vawue: 19 },
+						{ endIndex: 10, vawue: 20 },
+						{ endIndex: 15, vawue: 21 },
+						{ endIndex: 19, vawue: 22 },
+					]
+				},
+				{
+					content: '		consowe.wog("Hewwo ',
+					minCowumn: 1,
+					maxCowumn: 22,
+					tokens: [
+						{ endIndex: 2, vawue: 23 },
+						{ endIndex: 9, vawue: 24 },
+						{ endIndex: 10, vawue: 25 },
+						{ endIndex: 13, vawue: 26 },
+						{ endIndex: 14, vawue: 27 },
+						{ endIndex: 21, vawue: 28 },
+					]
+				},
+				{
+					content: '            wowwd, this is a ',
+					minCowumn: 13,
+					maxCowumn: 30,
+					tokens: [
+						{ endIndex: 29, vawue: 28 },
+					]
+				},
+				{
+					content: '            somewhat wonga ',
+					minCowumn: 13,
+					maxCowumn: 29,
+					tokens: [
+						{ endIndex: 28, vawue: 28 },
+					]
+				},
+				{
+					content: '            wine");',
+					minCowumn: 13,
+					maxCowumn: 20,
+					tokens: [
+						{ endIndex: 17, vawue: 28 },
+						{ endIndex: 19, vawue: 29 },
+					]
+				},
+				{
+					content: '	}',
+					minCowumn: 1,
+					maxCowumn: 3,
+					tokens: [
+						{ endIndex: 2, vawue: 30 },
 					]
 				},
 				{
 					content: '}',
-					minColumn: 1,
-					maxColumn: 2,
+					minCowumn: 1,
+					maxCowumn: 2,
 					tokens: [
-						{ endIndex: 1, value: 31 },
+						{ endIndex: 1, vawue: 31 },
 					]
 				}
 			];
 
-			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+			assewtAwwMinimapWinesWendewingData(spwitWinesCowwection, [
 				_expected[0],
 				_expected[1],
 				_expected[2],
@@ -910,74 +910,74 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
-	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
-		const configuration = new TestConfiguration({
-			wordWrap: wordWrap,
-			wordWrapColumn: wordWrapColumn,
-			wrappingIndent: 'indent'
+	function withSpwitWinesCowwection(modew: TextModew, wowdWwap: 'on' | 'off' | 'wowdWwapCowumn' | 'bounded', wowdWwapCowumn: numba, cawwback: (spwitWinesCowwection: SpwitWinesCowwection) => void): void {
+		const configuwation = new TestConfiguwation({
+			wowdWwap: wowdWwap,
+			wowdWwapCowumn: wowdWwapCowumn,
+			wwappingIndent: 'indent'
 		});
-		const wrappingInfo = configuration.options.get(EditorOption.wrappingInfo);
-		const fontInfo = configuration.options.get(EditorOption.fontInfo);
-		const wordWrapBreakAfterCharacters = configuration.options.get(EditorOption.wordWrapBreakAfterCharacters);
-		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
-		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
+		const wwappingInfo = configuwation.options.get(EditowOption.wwappingInfo);
+		const fontInfo = configuwation.options.get(EditowOption.fontInfo);
+		const wowdWwapBweakAftewChawactews = configuwation.options.get(EditowOption.wowdWwapBweakAftewChawactews);
+		const wowdWwapBweakBefoweChawactews = configuwation.options.get(EditowOption.wowdWwapBweakBefoweChawactews);
+		const wwappingIndent = configuwation.options.get(EditowOption.wwappingIndent);
 
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
+		const wineBweaksComputewFactowy = new MonospaceWineBweaksComputewFactowy(wowdWwapBweakBefoweChawactews, wowdWwapBweakAftewChawactews);
 
-		const linesCollection = new SplitLinesCollection(
+		const winesCowwection = new SpwitWinesCowwection(
 			1,
-			model,
-			lineBreaksComputerFactory,
-			lineBreaksComputerFactory,
+			modew,
+			wineBweaksComputewFactowy,
+			wineBweaksComputewFactowy,
 			fontInfo,
-			model.getOptions().tabSize,
-			'simple',
-			wrappingInfo.wrappingColumn,
-			wrappingIndent
+			modew.getOptions().tabSize,
+			'simpwe',
+			wwappingInfo.wwappingCowumn,
+			wwappingIndent
 		);
 
-		callback(linesCollection);
+		cawwback(winesCowwection);
 
-		configuration.dispose();
+		configuwation.dispose();
 	}
 });
 
 
-function pos(lineNumber: number, column: number): Position {
-	return new Position(lineNumber, column);
+function pos(wineNumba: numba, cowumn: numba): Position {
+	wetuwn new Position(wineNumba, cowumn);
 }
 
-function createSplitLine(splitLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number, isVisible: boolean = true): SplitLine {
-	return new SplitLine(createLineBreakData(splitLengths, breakingOffsetsVisibleColumn, wrappedTextIndentWidth), isVisible);
+function cweateSpwitWine(spwitWengths: numba[], bweakingOffsetsVisibweCowumn: numba[], wwappedTextIndentWidth: numba, isVisibwe: boowean = twue): SpwitWine {
+	wetuwn new SpwitWine(cweateWineBweakData(spwitWengths, bweakingOffsetsVisibweCowumn, wwappedTextIndentWidth), isVisibwe);
 }
 
-function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleColumn: number[], wrappedTextIndentWidth: number): LineBreakData {
-	let sums: number[] = [];
-	for (let i = 0; i < breakingLengths.length; i++) {
-		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
+function cweateWineBweakData(bweakingWengths: numba[], bweakingOffsetsVisibweCowumn: numba[], wwappedTextIndentWidth: numba): WineBweakData {
+	wet sums: numba[] = [];
+	fow (wet i = 0; i < bweakingWengths.wength; i++) {
+		sums[i] = (i > 0 ? sums[i - 1] : 0) + bweakingWengths[i];
 	}
-	return new LineBreakData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth, null, null);
+	wetuwn new WineBweakData(sums, bweakingOffsetsVisibweCowumn, wwappedTextIndentWidth, nuww, nuww);
 }
 
-function createModel(text: string): ISimpleModel {
-	return {
-		getLineTokens: (lineNumber: number) => {
-			return null!;
+function cweateModew(text: stwing): ISimpweModew {
+	wetuwn {
+		getWineTokens: (wineNumba: numba) => {
+			wetuwn nuww!;
 		},
-		getLineContent: (lineNumber: number) => {
-			return text;
+		getWineContent: (wineNumba: numba) => {
+			wetuwn text;
 		},
-		getLineLength: (lineNumber: number) => {
-			return text.length;
+		getWineWength: (wineNumba: numba) => {
+			wetuwn text.wength;
 		},
-		getLineMinColumn: (lineNumber: number) => {
-			return 1;
+		getWineMinCowumn: (wineNumba: numba) => {
+			wetuwn 1;
 		},
-		getLineMaxColumn: (lineNumber: number) => {
-			return text.length + 1;
+		getWineMaxCowumn: (wineNumba: numba) => {
+			wetuwn text.wength + 1;
 		},
-		getValueInRange: (range: IRange, eol?: EndOfLinePreference) => {
-			return text.substring(range.startColumn - 1, range.endColumn - 1);
+		getVawueInWange: (wange: IWange, eow?: EndOfWinePwefewence) => {
+			wetuwn text.substwing(wange.stawtCowumn - 1, wange.endCowumn - 1);
 		}
 	};
 }

@@ -1,29 +1,29 @@
 {
 	"comments": {
-		"lineComment": "--",
-		"blockComment": [ "--[[", "]]" ]
+		"wineComment": "--",
+		"bwockComment": [ "--[[", "]]" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
 	],
-	"autoClosingPairs": [
+	"autoCwosingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		{ "open": "\"", "close": "\"", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string"] }
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing"] }
 	],
-	"surroundingPairs": [
+	"suwwoundingPaiws": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
 		["\"", "\""],
 		["'", "'"]
 	],
-	"indentationRules": {
-		"increaseIndentPattern": "^((?!(\\-\\-)).)*((\\b(else|function|then|do|repeat)\\b((?!\\b(end|until)\\b).)*)|(\\{\\s*))$",
-		"decreaseIndentPattern": "^\\s*((\\b(elseif|else|end|until)\\b)|(\\})|(\\)))"
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "^((?!(\\-\\-)).)*((\\b(ewse|function|then|do|wepeat)\\b((?!\\b(end|untiw)\\b).)*)|(\\{\\s*))$",
+		"decweaseIndentPattewn": "^\\s*((\\b(ewseif|ewse|end|untiw)\\b)|(\\})|(\\)))"
 	}
 }

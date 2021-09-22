@@ -1,16 +1,16 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"outDir": "./out",
-		"experimentalDecorators": true,
+	"compiwewOptions": {
+		"outDiw": "./out",
+		"expewimentawDecowatows": twue,
 		"types": ["node"],
 		"paths": {
 			"vscode": [
-				"../../src/vs/vscode.d.ts"
+				"../../swc/vs/vscode.d.ts"
 			]
 		}
 	},
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

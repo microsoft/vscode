@@ -1,39 +1,39 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
-import 'mocha';
-import { Uri } from 'vscode';
-import { urlToUri } from '../util/url';
+impowt { deepStwictEquaw } fwom 'assewt';
+impowt 'mocha';
+impowt { Uwi } fwom 'vscode';
+impowt { uwwToUwi } fwom '../utiw/uww';
 
-suite('urlToUri', () => {
-	test('Absolute File', () => {
-		deepStrictEqual(
-			urlToUri('file:///root/test.txt', Uri.parse('file:///usr/home/')),
-			Uri.parse('file:///root/test.txt')
+suite('uwwToUwi', () => {
+	test('Absowute Fiwe', () => {
+		deepStwictEquaw(
+			uwwToUwi('fiwe:///woot/test.txt', Uwi.pawse('fiwe:///usw/home/')),
+			Uwi.pawse('fiwe:///woot/test.txt')
 		);
 	});
 
-	test('Relative File', () => {
-		deepStrictEqual(
-			urlToUri('./file.ext', Uri.parse('file:///usr/home/')),
-			Uri.parse('file:///usr/home/file.ext')
+	test('Wewative Fiwe', () => {
+		deepStwictEquaw(
+			uwwToUwi('./fiwe.ext', Uwi.pawse('fiwe:///usw/home/')),
+			Uwi.pawse('fiwe:///usw/home/fiwe.ext')
 		);
 	});
 
 	test('Http Basic', () => {
-		deepStrictEqual(
-			urlToUri('http://example.org?q=10&f', Uri.parse('file:///usr/home/')),
-			Uri.parse('http://example.org?q=10&f')
+		deepStwictEquaw(
+			uwwToUwi('http://exampwe.owg?q=10&f', Uwi.pawse('fiwe:///usw/home/')),
+			Uwi.pawse('http://exampwe.owg?q=10&f')
 		);
 	});
 
-	test('Http Encoded Chars', () => {
-		deepStrictEqual(
-			urlToUri('http://example.org/%C3%A4', Uri.parse('file:///usr/home/')),
-			Uri.parse('http://example.org/%C3%A4')
+	test('Http Encoded Chaws', () => {
+		deepStwictEquaw(
+			uwwToUwi('http://exampwe.owg/%C3%A4', Uwi.pawse('fiwe:///usw/home/')),
+			Uwi.pawse('http://exampwe.owg/%C3%A4')
 		);
 	});
 });

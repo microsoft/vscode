@@ -1,301 +1,301 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FileOpenOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileChange, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { consumeStweam, newWwiteabweStweam, WeadabweStweamEvents } fwom 'vs/base/common/stweam';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweChangeType, FiweOpenOptions, FiweWeadStweamOptions, FiweSystemPwovidewCapabiwities, FiweType, IFiweChange, IFiweSystemPwovidewCapabiwitiesChangeEvent, IFiweSystemPwovidewWegistwationEvent, IStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/test/common/nuwwFiweSystemPwovida';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('File Service', () => {
+suite('Fiwe Sewvice', () => {
 
-	test('provider registration', async () => {
-		const service = new FileService(new NullLogService());
-		const resource = URI.parse('test://foo/bar');
-		const provider = new NullFileSystemProvider();
+	test('pwovida wegistwation', async () => {
+		const sewvice = new FiweSewvice(new NuwwWogSewvice());
+		const wesouwce = UWI.pawse('test://foo/baw');
+		const pwovida = new NuwwFiweSystemPwovida();
 
-		assert.strictEqual(service.canHandleResource(resource), false);
-		assert.strictEqual(service.getProvider(resource.scheme), undefined);
+		assewt.stwictEquaw(sewvice.canHandweWesouwce(wesouwce), fawse);
+		assewt.stwictEquaw(sewvice.getPwovida(wesouwce.scheme), undefined);
 
-		const registrations: IFileSystemProviderRegistrationEvent[] = [];
-		service.onDidChangeFileSystemProviderRegistrations(e => {
-			registrations.push(e);
+		const wegistwations: IFiweSystemPwovidewWegistwationEvent[] = [];
+		sewvice.onDidChangeFiweSystemPwovidewWegistwations(e => {
+			wegistwations.push(e);
 		});
 
-		const capabilityChanges: IFileSystemProviderCapabilitiesChangeEvent[] = [];
-		service.onDidChangeFileSystemProviderCapabilities(e => {
-			capabilityChanges.push(e);
+		const capabiwityChanges: IFiweSystemPwovidewCapabiwitiesChangeEvent[] = [];
+		sewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => {
+			capabiwityChanges.push(e);
 		});
 
-		let registrationDisposable: IDisposable | undefined;
-		let callCount = 0;
-		service.onWillActivateFileSystemProvider(e => {
-			callCount++;
+		wet wegistwationDisposabwe: IDisposabwe | undefined;
+		wet cawwCount = 0;
+		sewvice.onWiwwActivateFiweSystemPwovida(e => {
+			cawwCount++;
 
-			if (e.scheme === 'test' && callCount === 1) {
-				e.join(new Promise(resolve => {
-					registrationDisposable = service.registerProvider('test', provider);
+			if (e.scheme === 'test' && cawwCount === 1) {
+				e.join(new Pwomise(wesowve => {
+					wegistwationDisposabwe = sewvice.wegistewPwovida('test', pwovida);
 
-					resolve();
+					wesowve();
 				}));
 			}
 		});
 
-		await service.activateProvider('test');
+		await sewvice.activatePwovida('test');
 
-		assert.strictEqual(service.canHandleResource(resource), true);
-		assert.strictEqual(service.getProvider(resource.scheme), provider);
+		assewt.stwictEquaw(sewvice.canHandweWesouwce(wesouwce), twue);
+		assewt.stwictEquaw(sewvice.getPwovida(wesouwce.scheme), pwovida);
 
-		assert.strictEqual(registrations.length, 1);
-		assert.strictEqual(registrations[0].scheme, 'test');
-		assert.strictEqual(registrations[0].added, true);
-		assert.ok(registrationDisposable);
+		assewt.stwictEquaw(wegistwations.wength, 1);
+		assewt.stwictEquaw(wegistwations[0].scheme, 'test');
+		assewt.stwictEquaw(wegistwations[0].added, twue);
+		assewt.ok(wegistwationDisposabwe);
 
-		assert.strictEqual(capabilityChanges.length, 0);
+		assewt.stwictEquaw(capabiwityChanges.wength, 0);
 
-		provider.setCapabilities(FileSystemProviderCapabilities.FileFolderCopy);
-		assert.strictEqual(capabilityChanges.length, 1);
-		provider.setCapabilities(FileSystemProviderCapabilities.Readonly);
-		assert.strictEqual(capabilityChanges.length, 2);
+		pwovida.setCapabiwities(FiweSystemPwovidewCapabiwities.FiweFowdewCopy);
+		assewt.stwictEquaw(capabiwityChanges.wength, 1);
+		pwovida.setCapabiwities(FiweSystemPwovidewCapabiwities.Weadonwy);
+		assewt.stwictEquaw(capabiwityChanges.wength, 2);
 
-		await service.activateProvider('test');
-		assert.strictEqual(callCount, 2); // activation is called again
+		await sewvice.activatePwovida('test');
+		assewt.stwictEquaw(cawwCount, 2); // activation is cawwed again
 
-		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
-		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
+		assewt.stwictEquaw(sewvice.hasCapabiwity(wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy), twue);
+		assewt.stwictEquaw(sewvice.hasCapabiwity(wesouwce, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose), fawse);
 
-		registrationDisposable!.dispose();
+		wegistwationDisposabwe!.dispose();
 
-		assert.strictEqual(service.canHandleResource(resource), false);
+		assewt.stwictEquaw(sewvice.canHandweWesouwce(wesouwce), fawse);
 
-		assert.strictEqual(registrations.length, 2);
-		assert.strictEqual(registrations[1].scheme, 'test');
-		assert.strictEqual(registrations[1].added, false);
+		assewt.stwictEquaw(wegistwations.wength, 2);
+		assewt.stwictEquaw(wegistwations[1].scheme, 'test');
+		assewt.stwictEquaw(wegistwations[1].added, fawse);
 
-		service.dispose();
+		sewvice.dispose();
 	});
 
-	test('provider change events are throttled', async () => {
-		const service = new FileService(new NullLogService());
+	test('pwovida change events awe thwottwed', async () => {
+		const sewvice = new FiweSewvice(new NuwwWogSewvice());
 
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
+		const pwovida = new NuwwFiweSystemPwovida();
+		sewvice.wegistewPwovida('test', pwovida);
 
-		await service.activateProvider('test');
+		await sewvice.activatePwovida('test');
 
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
+		wet onDidFiwesChangeFiwed = fawse;
+		sewvice.onDidFiwesChange(e => {
+			if (e.contains(UWI.fiwe('mawka'))) {
+				onDidFiwesChangeFiwed = twue;
 			}
 		});
 
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		const thwottwedEvents: IFiweChange[] = [];
+		fow (wet i = 0; i < 1000; i++) {
+			thwottwedEvents.push({ wesouwce: UWI.fiwe(Stwing(i)), type: FiweChangeType.ADDED });
 		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+		thwottwedEvents.push({ wesouwce: UWI.fiwe('mawka'), type: FiweChangeType.ADDED });
 
-		const nonThrottledEvents: IFileChange[] = [];
-		for (let i = 0; i < 100; i++) {
-			nonThrottledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		const nonThwottwedEvents: IFiweChange[] = [];
+		fow (wet i = 0; i < 100; i++) {
+			nonThwottwedEvents.push({ wesouwce: UWI.fiwe(Stwing(i)), type: FiweChangeType.ADDED });
 		}
-		nonThrottledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+		nonThwottwedEvents.push({ wesouwce: UWI.fiwe('mawka'), type: FiweChangeType.ADDED });
 
-		// 100 events are not throttled
-		provider.emitFileChangeEvents(nonThrottledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		// 100 events awe not thwottwed
+		pwovida.emitFiweChangeEvents(nonThwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, twue);
+		onDidFiwesChangeFiwed = fawse;
 
-		// 1000 events are throttled
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
+		// 1000 events awe thwottwed
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, fawse);
 
-		service.dispose();
+		sewvice.dispose();
 	});
 
 	test('watch', async () => {
-		const service = new FileService(new NullLogService());
+		const sewvice = new FiweSewvice(new NuwwWogSewvice());
 
-		let disposeCounter = 0;
-		service.registerProvider('test', new NullFileSystemProvider(() => {
-			return toDisposable(() => {
-				disposeCounter++;
+		wet disposeCounta = 0;
+		sewvice.wegistewPwovida('test', new NuwwFiweSystemPwovida(() => {
+			wetuwn toDisposabwe(() => {
+				disposeCounta++;
 			});
 		}));
-		await service.activateProvider('test');
+		await sewvice.activatePwovida('test');
 
-		const resource1 = URI.parse('test://foo/bar1');
-		const watcher1Disposable = service.watch(resource1);
+		const wesouwce1 = UWI.pawse('test://foo/baw1');
+		const watchew1Disposabwe = sewvice.watch(wesouwce1);
 
-		await timeout(0); // service.watch() is async
-		assert.strictEqual(disposeCounter, 0);
-		watcher1Disposable.dispose();
-		assert.strictEqual(disposeCounter, 1);
+		await timeout(0); // sewvice.watch() is async
+		assewt.stwictEquaw(disposeCounta, 0);
+		watchew1Disposabwe.dispose();
+		assewt.stwictEquaw(disposeCounta, 1);
 
-		disposeCounter = 0;
-		const resource2 = URI.parse('test://foo/bar2');
-		const watcher2Disposable1 = service.watch(resource2);
-		const watcher2Disposable2 = service.watch(resource2);
-		const watcher2Disposable3 = service.watch(resource2);
+		disposeCounta = 0;
+		const wesouwce2 = UWI.pawse('test://foo/baw2');
+		const watchew2Disposabwe1 = sewvice.watch(wesouwce2);
+		const watchew2Disposabwe2 = sewvice.watch(wesouwce2);
+		const watchew2Disposabwe3 = sewvice.watch(wesouwce2);
 
-		await timeout(0); // service.watch() is async
-		assert.strictEqual(disposeCounter, 0);
-		watcher2Disposable1.dispose();
-		assert.strictEqual(disposeCounter, 0);
-		watcher2Disposable2.dispose();
-		assert.strictEqual(disposeCounter, 0);
-		watcher2Disposable3.dispose();
-		assert.strictEqual(disposeCounter, 1);
+		await timeout(0); // sewvice.watch() is async
+		assewt.stwictEquaw(disposeCounta, 0);
+		watchew2Disposabwe1.dispose();
+		assewt.stwictEquaw(disposeCounta, 0);
+		watchew2Disposabwe2.dispose();
+		assewt.stwictEquaw(disposeCounta, 0);
+		watchew2Disposabwe3.dispose();
+		assewt.stwictEquaw(disposeCounta, 1);
 
-		disposeCounter = 0;
-		const resource3 = URI.parse('test://foo/bar3');
-		const watcher3Disposable1 = service.watch(resource3);
-		const watcher3Disposable2 = service.watch(resource3, { recursive: true, excludes: [] });
+		disposeCounta = 0;
+		const wesouwce3 = UWI.pawse('test://foo/baw3');
+		const watchew3Disposabwe1 = sewvice.watch(wesouwce3);
+		const watchew3Disposabwe2 = sewvice.watch(wesouwce3, { wecuwsive: twue, excwudes: [] });
 
-		await timeout(0); // service.watch() is async
-		assert.strictEqual(disposeCounter, 0);
-		watcher3Disposable1.dispose();
-		assert.strictEqual(disposeCounter, 1);
-		watcher3Disposable2.dispose();
-		assert.strictEqual(disposeCounter, 2);
+		await timeout(0); // sewvice.watch() is async
+		assewt.stwictEquaw(disposeCounta, 0);
+		watchew3Disposabwe1.dispose();
+		assewt.stwictEquaw(disposeCounta, 1);
+		watchew3Disposabwe2.dispose();
+		assewt.stwictEquaw(disposeCounta, 2);
 
-		service.dispose();
+		sewvice.dispose();
 	});
 
-	test('watch: explicit watched resources have preference over implicit and do not get throttled', async () => {
-		const service = new FileService(new NullLogService());
+	test('watch: expwicit watched wesouwces have pwefewence ova impwicit and do not get thwottwed', async () => {
+		const sewvice = new FiweSewvice(new NuwwWogSewvice());
 
-		const provider = new NullFileSystemProvider();
-		service.registerProvider('test', provider);
+		const pwovida = new NuwwFiweSystemPwovida();
+		sewvice.wegistewPwovida('test', pwovida);
 
-		await service.activateProvider('test');
+		await sewvice.activatePwovida('test');
 
-		let onDidFilesChangeFired = false;
-		service.onDidFilesChange(e => {
-			if (e.contains(URI.file('marker'))) {
-				onDidFilesChangeFired = true;
+		wet onDidFiwesChangeFiwed = fawse;
+		sewvice.onDidFiwesChange(e => {
+			if (e.contains(UWI.fiwe('mawka'))) {
+				onDidFiwesChangeFiwed = twue;
 			}
 		});
 
-		const throttledEvents: IFileChange[] = [];
-		for (let i = 0; i < 1000; i++) {
-			throttledEvents.push({ resource: URI.file(String(i)), type: FileChangeType.ADDED });
+		const thwottwedEvents: IFiweChange[] = [];
+		fow (wet i = 0; i < 1000; i++) {
+			thwottwedEvents.push({ wesouwce: UWI.fiwe(Stwing(i)), type: FiweChangeType.ADDED });
 		}
-		throttledEvents.push({ resource: URI.file('marker'), type: FileChangeType.ADDED });
+		thwottwedEvents.push({ wesouwce: UWI.fiwe('mawka'), type: FiweChangeType.ADDED });
 
-		// not throttled when explicitly watching
-		let disposable1 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		// not thwottwed when expwicitwy watching
+		wet disposabwe1 = sewvice.watch(UWI.fiwe('mawka'));
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, twue);
+		onDidFiwesChangeFiwed = fawse;
 
-		let disposable2 = service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		wet disposabwe2 = sewvice.watch(UWI.fiwe('mawka'));
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, twue);
+		onDidFiwesChangeFiwed = fawse;
 
-		disposable1.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		disposabwe1.dispose();
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, twue);
+		onDidFiwesChangeFiwed = fawse;
 
-		// throttled again after dispose
-		disposable2.dispose();
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, false);
+		// thwottwed again afta dispose
+		disposabwe2.dispose();
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, fawse);
 
-		// not throttled when watched again
-		service.watch(URI.file('marker'));
-		provider.emitFileChangeEvents(throttledEvents);
-		assert.strictEqual(onDidFilesChangeFired, true);
-		onDidFilesChangeFired = false;
+		// not thwottwed when watched again
+		sewvice.watch(UWI.fiwe('mawka'));
+		pwovida.emitFiweChangeEvents(thwottwedEvents);
+		assewt.stwictEquaw(onDidFiwesChangeFiwed, twue);
+		onDidFiwesChangeFiwed = fawse;
 
-		service.dispose();
+		sewvice.dispose();
 	});
 
-	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
-		testReadErrorBubbles(true);
+	test('ewwow fwom weadFiwe bubbwes thwough (https://github.com/micwosoft/vscode/issues/118060) - async', async () => {
+		testWeadEwwowBubbwes(twue);
 	});
 
-	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060)', async () => {
-		testReadErrorBubbles(false);
+	test('ewwow fwom weadFiwe bubbwes thwough (https://github.com/micwosoft/vscode/issues/118060)', async () => {
+		testWeadEwwowBubbwes(fawse);
 	});
 
-	async function testReadErrorBubbles(async: boolean) {
-		const service = new FileService(new NullLogService());
+	async function testWeadEwwowBubbwes(async: boowean) {
+		const sewvice = new FiweSewvice(new NuwwWogSewvice());
 
-		const provider = new class extends NullFileSystemProvider {
-			override async stat(resource: URI): Promise<IStat> {
-				return {
+		const pwovida = new cwass extends NuwwFiweSystemPwovida {
+			ovewwide async stat(wesouwce: UWI): Pwomise<IStat> {
+				wetuwn {
 					mtime: Date.now(),
 					ctime: Date.now(),
 					size: 100,
-					type: FileType.File
+					type: FiweType.Fiwe
 				};
 			}
 
-			override readFile(resource: URI): Promise<Uint8Array> {
+			ovewwide weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
 				if (async) {
-					return timeout(5).then(() => { throw new Error('failed'); });
+					wetuwn timeout(5).then(() => { thwow new Ewwow('faiwed'); });
 				}
 
-				throw new Error('failed');
+				thwow new Ewwow('faiwed');
 			}
 
-			override open(resource: URI, opts: FileOpenOptions): Promise<number> {
+			ovewwide open(wesouwce: UWI, opts: FiweOpenOptions): Pwomise<numba> {
 				if (async) {
-					return timeout(5).then(() => { throw new Error('failed'); });
+					wetuwn timeout(5).then(() => { thwow new Ewwow('faiwed'); });
 				}
 
-				throw new Error('failed');
+				thwow new Ewwow('faiwed');
 			}
 
-			readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			weadFiweStweam(wesouwce: UWI, opts: FiweWeadStweamOptions, token: CancewwationToken): WeadabweStweamEvents<Uint8Awway> {
 				if (async) {
-					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
-					timeout(5).then(() => stream.error(new Error('failed')));
+					const stweam = newWwiteabweStweam<Uint8Awway>(chunk => chunk[0]);
+					timeout(5).then(() => stweam.ewwow(new Ewwow('faiwed')));
 
-					return stream;
+					wetuwn stweam;
 
 				}
 
-				throw new Error('failed');
+				thwow new Ewwow('faiwed');
 			}
 		};
 
-		const disposable = service.registerProvider('test', provider);
+		const disposabwe = sewvice.wegistewPwovida('test', pwovida);
 
-		for (const capabilities of [FileSystemProviderCapabilities.FileReadWrite, FileSystemProviderCapabilities.FileReadStream, FileSystemProviderCapabilities.FileOpenReadWriteClose]) {
-			provider.setCapabilities(capabilities);
+		fow (const capabiwities of [FiweSystemPwovidewCapabiwities.FiweWeadWwite, FiweSystemPwovidewCapabiwities.FiweWeadStweam, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose]) {
+			pwovida.setCapabiwities(capabiwities);
 
-			let e1;
-			try {
-				await service.readFile(URI.parse('test://foo/bar'));
-			} catch (error) {
-				e1 = error;
+			wet e1;
+			twy {
+				await sewvice.weadFiwe(UWI.pawse('test://foo/baw'));
+			} catch (ewwow) {
+				e1 = ewwow;
 			}
 
-			assert.ok(e1);
+			assewt.ok(e1);
 
-			let e2;
-			try {
-				const stream = await service.readFileStream(URI.parse('test://foo/bar'));
-				await consumeStream(stream.value, chunk => chunk[0]);
-			} catch (error) {
-				e2 = error;
+			wet e2;
+			twy {
+				const stweam = await sewvice.weadFiweStweam(UWI.pawse('test://foo/baw'));
+				await consumeStweam(stweam.vawue, chunk => chunk[0]);
+			} catch (ewwow) {
+				e2 = ewwow;
 			}
 
-			assert.ok(e2);
+			assewt.ok(e2);
 		}
 
-		disposable.dispose();
+		disposabwe.dispose();
 	}
 });

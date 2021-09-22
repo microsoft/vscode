@@ -1,40 +1,40 @@
-. build/azure-pipelines/win32/exec.ps1
-$ErrorActionPreference = "Stop"
+. buiwd/azuwe-pipewines/win32/exec.ps1
+$EwwowActionPwefewence = "Stop"
 
-$Arch = "$env:VSCODE_ARCH"
-$Repo = "$(pwd)"
-$Root = "$Repo\.."
-$SystemExe = "$Repo\.build\win32-$Arch\system-setup\VSCodeSetup.exe"
-$UserExe = "$Repo\.build\win32-$Arch\user-setup\VSCodeSetup.exe"
-$Zip = "$Repo\.build\win32-$Arch\archive\VSCode-win32-$Arch.zip"
-$LegacyServer = "$Root\vscode-reh-win32-$Arch"
-$Server = "$Root\vscode-server-win32-$Arch"
-$ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
-$LegacyWeb = "$Root\vscode-reh-web-win32-$Arch"
-$Web = "$Root\vscode-server-win32-$Arch-web"
-$WebZip = "$Repo\.build\vscode-server-win32-$Arch-web.zip"
-$Build = "$Root\VSCode-win32-$Arch"
+$Awch = "$env:VSCODE_AWCH"
+$Wepo = "$(pwd)"
+$Woot = "$Wepo\.."
+$SystemExe = "$Wepo\.buiwd\win32-$Awch\system-setup\VSCodeSetup.exe"
+$UsewExe = "$Wepo\.buiwd\win32-$Awch\usa-setup\VSCodeSetup.exe"
+$Zip = "$Wepo\.buiwd\win32-$Awch\awchive\VSCode-win32-$Awch.zip"
+$WegacySewva = "$Woot\vscode-weh-win32-$Awch"
+$Sewva = "$Woot\vscode-sewva-win32-$Awch"
+$SewvewZip = "$Wepo\.buiwd\vscode-sewva-win32-$Awch.zip"
+$WegacyWeb = "$Woot\vscode-weh-web-win32-$Awch"
+$Web = "$Woot\vscode-sewva-win32-$Awch-web"
+$WebZip = "$Wepo\.buiwd\vscode-sewva-win32-$Awch-web.zip"
+$Buiwd = "$Woot\VSCode-win32-$Awch"
 
-# Create server archive
-if ("$Arch" -ne "arm64") {
-	exec { xcopy $LegacyServer $Server /H /E /I }
-	exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
-	exec { xcopy $LegacyWeb $Web /H /E /I }
-	exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $WebZip $Web -r }
+# Cweate sewva awchive
+if ("$Awch" -ne "awm64") {
+	exec { xcopy $WegacySewva $Sewva /H /E /I }
+	exec { .\node_moduwes\7zip\7zip-wite\7z.exe a -tzip $SewvewZip $Sewva -w }
+	exec { xcopy $WegacyWeb $Web /H /E /I }
+	exec { .\node_moduwes\7zip\7zip-wite\7z.exe a -tzip $WebZip $Web -w }
 }
 
-# get version
-$PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
-$Version = $PackageJson.version
+# get vewsion
+$PackageJson = Get-Content -Waw -Path "$Buiwd\wesouwces\app\package.json" | ConvewtFwom-Json
+$Vewsion = $PackageJson.vewsion
 
-$ARCHIVE_NAME = "VSCode-win32-$Arch-$Version.zip"
-$SYSTEM_SETUP_NAME = "VSCodeSetup-$Arch-$Version.exe"
-$USER_SETUP_NAME = "VSCodeUserSetup-$Arch-$Version.exe"
+$AWCHIVE_NAME = "VSCode-win32-$Awch-$Vewsion.zip"
+$SYSTEM_SETUP_NAME = "VSCodeSetup-$Awch-$Vewsion.exe"
+$USEW_SETUP_NAME = "VSCodeUsewSetup-$Awch-$Vewsion.exe"
 
-# Set variables for upload
-Move-Item $Zip "$Repo\.build\win32-$Arch\archive\$ARCHIVE_NAME"
-Write-Host "##vso[task.setvariable variable=ARCHIVE_NAME]$ARCHIVE_NAME"
-Move-Item $SystemExe "$Repo\.build\win32-$Arch\system-setup\$SYSTEM_SETUP_NAME"
-Write-Host "##vso[task.setvariable variable=SYSTEM_SETUP_NAME]$SYSTEM_SETUP_NAME"
-Move-Item $UserExe "$Repo\.build\win32-$Arch\user-setup\$USER_SETUP_NAME"
-Write-Host "##vso[task.setvariable variable=USER_SETUP_NAME]$USER_SETUP_NAME"
+# Set vawiabwes fow upwoad
+Move-Item $Zip "$Wepo\.buiwd\win32-$Awch\awchive\$AWCHIVE_NAME"
+Wwite-Host "##vso[task.setvawiabwe vawiabwe=AWCHIVE_NAME]$AWCHIVE_NAME"
+Move-Item $SystemExe "$Wepo\.buiwd\win32-$Awch\system-setup\$SYSTEM_SETUP_NAME"
+Wwite-Host "##vso[task.setvawiabwe vawiabwe=SYSTEM_SETUP_NAME]$SYSTEM_SETUP_NAME"
+Move-Item $UsewExe "$Wepo\.buiwd\win32-$Awch\usa-setup\$USEW_SETUP_NAME"
+Wwite-Host "##vso[task.setvawiabwe vawiabwe=USEW_SETUP_NAME]$USEW_SETUP_NAME"

@@ -1,90 +1,90 @@
 {
-  "name": "image-preview",
-  "displayName": "%displayName%",
-  "description": "%description%",
+  "name": "image-pweview",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
   "extensionKind": [
     "ui",
-    "workspace"
+    "wowkspace"
   ],
-  "version": "1.0.0",
-  "publisher": "vscode",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
   "icon": "icon.png",
-  "enableProposedApi": true,
-  "license": "MIT",
+  "enabwePwoposedApi": twue,
+  "wicense": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "^1.39.0"
   },
   "main": "./out/extension",
-  "browser": "./dist/browser/extension.js",
-  "categories": [
-    "Other"
+  "bwowsa": "./dist/bwowsa/extension.js",
+  "categowies": [
+    "Otha"
   ],
   "activationEvents": [
-    "onCustomEditor:imagePreview.previewEditor",
-    "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCustomEditow:imagePweview.pweviewEditow",
+    "onCommand:imagePweview.zoomIn",
+    "onCommand:imagePweview.zoomOut"
   ],
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
-    "customEditors": [
+  "contwibutes": {
+    "customEditows": [
       {
-        "viewType": "imagePreview.previewEditor",
-        "displayName": "%customEditors.displayName%",
-        "priority": "builtin",
-        "selector": [
+        "viewType": "imagePweview.pweviewEditow",
+        "dispwayName": "%customEditows.dispwayName%",
+        "pwiowity": "buiwtin",
+        "sewectow": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+            "fiwenamePattewn": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
           }
         ]
       }
     ],
     "commands": [
       {
-        "command": "imagePreview.zoomIn",
-        "title": "%command.zoomIn%",
-        "category": "Image Preview"
+        "command": "imagePweview.zoomIn",
+        "titwe": "%command.zoomIn%",
+        "categowy": "Image Pweview"
       },
       {
-        "command": "imagePreview.zoomOut",
-        "title": "%command.zoomOut%",
-        "category": "Image Preview"
+        "command": "imagePweview.zoomOut",
+        "titwe": "%command.zoomOut%",
+        "categowy": "Image Pweview"
       }
     ],
     "menus": {
-      "commandPalette": [
+      "commandPawette": [
         {
-          "command": "imagePreview.zoomIn",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
-          "group": "1_imagePreview"
+          "command": "imagePweview.zoomIn",
+          "when": "activeCustomEditowId == 'imagePweview.pweviewEditow'",
+          "gwoup": "1_imagePweview"
         },
         {
-          "command": "imagePreview.zoomOut",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
-          "group": "1_imagePreview"
+          "command": "imagePweview.zoomOut",
+          "when": "activeCustomEditowId == 'imagePweview.pweviewEditow'",
+          "gwoup": "1_imagePweview"
         }
       ]
     }
   },
-  "scripts": {
-    "compile": "gulp compile-extension:image-preview",
-    "watch": "npm run build-preview && gulp watch-extension:image-preview",
-    "vscode:prepublish": "npm run build-ext",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:image-preview ./tsconfig.json",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+  "scwipts": {
+    "compiwe": "guwp compiwe-extension:image-pweview",
+    "watch": "npm wun buiwd-pweview && guwp watch-extension:image-pweview",
+    "vscode:pwepubwish": "npm wun buiwd-ext",
+    "buiwd-ext": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:image-pweview ./tsconfig.json",
+    "compiwe-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none",
+    "watch-web": "npx webpack-cwi --config extension-bwowsa.webpack.config --mode none --watch --info-vewbosity vewbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.3.2",
-    "vscode-nls": "^5.0.0"
+    "vscode-extension-tewemetwy": "0.3.2",
+    "vscode-nws": "^5.0.0"
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

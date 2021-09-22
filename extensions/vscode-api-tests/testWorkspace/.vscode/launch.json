@@ -1,15 +1,15 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
+    // Use IntewwiSense to weawn about possibwe attwibutes.
+    // Hova to view descwiptions of existing attwibutes.
+    // Fow mowe infowmation, visit: https://go.micwosoft.com/fwwink/?winkid=830387
+    "vewsion": "0.2.0",
+    "configuwations": [
         {
             "type": "pwa-node",
-            "request": "launch",
-            "name": "Launch debug.js",
-            "stopOnEntry": true,
-            "program": "${workspaceFolder}/debug.js"
+            "wequest": "waunch",
+            "name": "Waunch debug.js",
+            "stopOnEntwy": twue,
+            "pwogwam": "${wowkspaceFowda}/debug.js"
         }
     ]
 }

@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
-import { ExtHostContext, ExtHostSecretStateShape, IExtHostContext, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { ICwedentiawsSewvice } fwom 'vs/wowkbench/sewvices/cwedentiaws/common/cwedentiaws';
+impowt { IEncwyptionSewvice } fwom 'vs/wowkbench/sewvices/encwyption/common/encwyptionSewvice';
+impowt { ExtHostContext, ExtHostSecwetStateShape, IExtHostContext, MainContext, MainThweadSecwetStateShape } fwom '../common/extHost.pwotocow';
 
-@extHostNamedCustomer(MainContext.MainThreadSecretState)
-export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {
-	private readonly _proxy: ExtHostSecretStateShape;
+@extHostNamedCustoma(MainContext.MainThweadSecwetState)
+expowt cwass MainThweadSecwetState extends Disposabwe impwements MainThweadSecwetStateShape {
+	pwivate weadonwy _pwoxy: ExtHostSecwetStateShape;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IEncryptionService private readonly encryptionService: IEncryptionService,
-		@IProductService private readonly productService: IProductService
+		@ICwedentiawsSewvice pwivate weadonwy cwedentiawsSewvice: ICwedentiawsSewvice,
+		@IEncwyptionSewvice pwivate weadonwy encwyptionSewvice: IEncwyptionSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
+		supa();
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostSecwetState);
 
-		this._register(this.credentialsService.onDidChangePassword(e => {
-			const extensionId = e.service.substring(this.productService.urlProtocol.length);
-			this._proxy.$onDidChangePassword({ extensionId, key: e.account });
+		this._wegista(this.cwedentiawsSewvice.onDidChangePasswowd(e => {
+			const extensionId = e.sewvice.substwing(this.pwoductSewvice.uwwPwotocow.wength);
+			this._pwoxy.$onDidChangePasswowd({ extensionId, key: e.account });
 		}));
 	}
 
-	private getFullKey(extensionId: string): string {
-		return `${this.productService.urlProtocol}${extensionId}`;
+	pwivate getFuwwKey(extensionId: stwing): stwing {
+		wetuwn `${this.pwoductSewvice.uwwPwotocow}${extensionId}`;
 	}
 
-	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
-		const fullKey = this.getFullKey(extensionId);
-		const password = await this.credentialsService.getPassword(fullKey, key);
-		const decrypted = password && await this.encryptionService.decrypt(password);
+	async $getPasswowd(extensionId: stwing, key: stwing): Pwomise<stwing | undefined> {
+		const fuwwKey = this.getFuwwKey(extensionId);
+		const passwowd = await this.cwedentiawsSewvice.getPasswowd(fuwwKey, key);
+		const decwypted = passwowd && await this.encwyptionSewvice.decwypt(passwowd);
 
-		if (decrypted) {
-			try {
-				const value = JSON.parse(decrypted);
-				if (value.extensionId === extensionId) {
-					return value.content;
+		if (decwypted) {
+			twy {
+				const vawue = JSON.pawse(decwypted);
+				if (vawue.extensionId === extensionId) {
+					wetuwn vawue.content;
 				}
 			} catch (_) {
-				throw new Error('Cannot get password');
+				thwow new Ewwow('Cannot get passwowd');
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async $setPassword(extensionId: string, key: string, value: string): Promise<void> {
-		const fullKey = this.getFullKey(extensionId);
-		const toEncrypt = JSON.stringify({
+	async $setPasswowd(extensionId: stwing, key: stwing, vawue: stwing): Pwomise<void> {
+		const fuwwKey = this.getFuwwKey(extensionId);
+		const toEncwypt = JSON.stwingify({
 			extensionId,
-			content: value
+			content: vawue
 		});
-		const encrypted = await this.encryptionService.encrypt(toEncrypt);
-		return this.credentialsService.setPassword(fullKey, key, encrypted);
+		const encwypted = await this.encwyptionSewvice.encwypt(toEncwypt);
+		wetuwn this.cwedentiawsSewvice.setPasswowd(fuwwKey, key, encwypted);
 	}
 
-	async $deletePassword(extensionId: string, key: string): Promise<void> {
-		try {
-			const fullKey = this.getFullKey(extensionId);
-			await this.credentialsService.deletePassword(fullKey, key);
+	async $dewetePasswowd(extensionId: stwing, key: stwing): Pwomise<void> {
+		twy {
+			const fuwwKey = this.getFuwwKey(extensionId);
+			await this.cwedentiawsSewvice.dewetePasswowd(fuwwKey, key);
 		} catch (_) {
-			throw new Error('Cannot delete password');
+			thwow new Ewwow('Cannot dewete passwowd');
 		}
 	}
 }

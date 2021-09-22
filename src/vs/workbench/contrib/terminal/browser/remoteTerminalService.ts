@@ -1,333 +1,333 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon } from 'vs/platform/terminal/common/terminal';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
-import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wevive } fwom 'vs/base/common/mawshawwing';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPwocessEnviwonment, OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INotificationHandwe, INotificationSewvice, IPwomptChoice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IWequestWesowveVawiabwesEvent, IShewwWaunchConfig, IShewwWaunchConfigDto, ITewminawChiwdPwocess, ITewminawPwofiwe, ITewminawsWayoutInfo, ITewminawsWayoutInfoById, TewminawIcon } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { IPwocessDetaiws } fwom 'vs/pwatfowm/tewminaw/common/tewminawPwocess';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WemotePty } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/wemotePty';
+impowt { IWemoteTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { ICompweteTewminawConfiguwation, WemoteTewminawChannewCwient, WEMOTE_TEWMINAW_CHANNEW_NAME } fwom 'vs/wowkbench/contwib/tewminaw/common/wemoteTewminawChannew';
+impowt { TewminawStowageKeys } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminawStowageKeys';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export class RemoteTerminalService extends Disposable implements IRemoteTerminalService {
-	declare _serviceBrand: undefined;
+expowt cwass WemoteTewminawSewvice extends Disposabwe impwements IWemoteTewminawSewvice {
+	decwawe _sewviceBwand: undefined;
 
-	private readonly _ptys: Map<number, RemotePty> = new Map();
-	private readonly _remoteTerminalChannel: RemoteTerminalChannelClient | null;
-	private _isPtyHostUnresponsive: boolean = false;
+	pwivate weadonwy _ptys: Map<numba, WemotePty> = new Map();
+	pwivate weadonwy _wemoteTewminawChannew: WemoteTewminawChannewCwient | nuww;
+	pwivate _isPtyHostUnwesponsive: boowean = fawse;
 
-	private readonly _onPtyHostUnresponsive = this._register(new Emitter<void>());
-	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
-	private readonly _onPtyHostResponsive = this._register(new Emitter<void>());
-	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
-	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
-	readonly onPtyHostRestart = this._onPtyHostRestart.event;
-	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
-	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
-	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
-	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+	pwivate weadonwy _onPtyHostUnwesponsive = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostUnwesponsive = this._onPtyHostUnwesponsive.event;
+	pwivate weadonwy _onPtyHostWesponsive = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostWesponsive = this._onPtyHostWesponsive.event;
+	pwivate weadonwy _onPtyHostWestawt = this._wegista(new Emitta<void>());
+	weadonwy onPtyHostWestawt = this._onPtyHostWestawt.event;
+	pwivate weadonwy _onPtyHostWequestWesowveVawiabwes = this._wegista(new Emitta<IWequestWesowveVawiabwesEvent>());
+	weadonwy onPtyHostWequestWesowveVawiabwes = this._onPtyHostWequestWesowveVawiabwes.event;
+	pwivate weadonwy _onDidWequestDetach = this._wegista(new Emitta<{ wequestId: numba, wowkspaceId: stwing, instanceId: numba }>());
+	weadonwy onDidWequestDetach = this._onDidWequestDetach.event;
 
-	constructor(
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+	constwuctow(
+		@IWemoteAgentSewvice pwivate weadonwy _wemoteAgentSewvice: IWemoteAgentSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IStowageSewvice pwivate weadonwy _stowageSewvice: IStowageSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWemoteAuthowityWesowvewSewvice pwivate weadonwy _wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationWesowvewSewvice configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice
 	) {
-		super();
+		supa();
 
-		const connection = this._remoteAgentService.getConnection();
+		const connection = this._wemoteAgentSewvice.getConnection();
 		if (connection) {
-			const channel = this._instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
-			this._remoteTerminalChannel = channel;
+			const channew = this._instantiationSewvice.cweateInstance(WemoteTewminawChannewCwient, connection.wemoteAuthowity, connection.getChannew(WEMOTE_TEWMINAW_CHANNEW_NAME));
+			this._wemoteTewminawChannew = channew;
 
-			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-			channel.onProcessExit(e => {
+			channew.onPwocessData(e => this._ptys.get(e.id)?.handweData(e.event));
+			channew.onPwocessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
-					pty.handleExit(e.event);
-					this._ptys.delete(e.id);
+					pty.handweExit(e.event);
+					this._ptys.dewete(e.id);
 				}
 			});
-			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			channel.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
-			channel.onProcessShellTypeChanged(e => this._ptys.get(e.id)?.handleShellTypeChanged(e.event));
-			channel.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
-			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
-			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
-			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-			channel.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
-			channel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
+			channew.onPwocessWeady(e => this._ptys.get(e.id)?.handweWeady(e.event));
+			channew.onPwocessTitweChanged(e => this._ptys.get(e.id)?.handweTitweChanged(e.event));
+			channew.onPwocessShewwTypeChanged(e => this._ptys.get(e.id)?.handweShewwTypeChanged(e.event));
+			channew.onPwocessOvewwideDimensions(e => this._ptys.get(e.id)?.handweOvewwideDimensions(e.event));
+			channew.onPwocessWesowvedShewwWaunchConfig(e => this._ptys.get(e.id)?.handweWesowvedShewwWaunchConfig(e.event));
+			channew.onPwocessWepway(e => this._ptys.get(e.id)?.handweWepway(e.event));
+			channew.onPwocessOwphanQuestion(e => this._ptys.get(e.id)?.handweOwphanQuestion());
+			channew.onDidWequestDetach(e => this._onDidWequestDetach.fiwe(e));
+			channew.onPwocessDidChangeHasChiwdPwocesses(e => this._ptys.get(e.id)?.handweDidChangeHasChiwdPwocesses(e.event));
+			channew.onDidChangePwopewty(e => this._ptys.get(e.id)?.handweDidChangePwopewty(e.pwopewty));
 
-			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
-			channel.onExecuteCommand(async e => {
-				const reqId = e.reqId;
+			const awwowedCommands = ['_wemoteCWI.openExtewnaw', '_wemoteCWI.windowOpen', '_wemoteCWI.getSystemStatus', '_wemoteCWI.manageExtensions'];
+			channew.onExecuteCommand(async e => {
+				const weqId = e.weqId;
 				const commandId = e.commandId;
-				if (!allowedCommands.includes(commandId)) {
-					channel!.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
-					return;
+				if (!awwowedCommands.incwudes(commandId)) {
+					channew!.sendCommandWesuwt(weqId, twue, 'Invawid wemote cwi command: ' + commandId);
+					wetuwn;
 				}
-				const commandArgs = e.commandArgs.map(arg => revive(arg));
-				try {
-					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
-					channel!.sendCommandResult(reqId, false, result);
-				} catch (err) {
-					channel!.sendCommandResult(reqId, true, err);
+				const commandAwgs = e.commandAwgs.map(awg => wevive(awg));
+				twy {
+					const wesuwt = await this._commandSewvice.executeCommand(e.commandId, ...commandAwgs);
+					channew!.sendCommandWesuwt(weqId, fawse, wesuwt);
+				} catch (eww) {
+					channew!.sendCommandWesuwt(weqId, twue, eww);
 				}
 			});
 
-			// Attach pty host listeners
-			if (channel.onPtyHostExit) {
-				this._register(channel.onPtyHostExit(() => {
-					this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+			// Attach pty host wistenews
+			if (channew.onPtyHostExit) {
+				this._wegista(channew.onPtyHostExit(() => {
+					this._wogSewvice.ewwow(`The tewminaw's pty host pwocess exited, the connection to aww tewminaw pwocesses was wost`);
 				}));
 			}
-			let unresponsiveNotification: INotificationHandle | undefined;
-			if (channel.onPtyHostStart) {
-				this._register(channel.onPtyHostStart(() => {
-					this._logService.info(`ptyHost restarted`);
-					this._onPtyHostRestart.fire();
-					unresponsiveNotification?.close();
-					unresponsiveNotification = undefined;
-					this._isPtyHostUnresponsive = false;
+			wet unwesponsiveNotification: INotificationHandwe | undefined;
+			if (channew.onPtyHostStawt) {
+				this._wegista(channew.onPtyHostStawt(() => {
+					this._wogSewvice.info(`ptyHost westawted`);
+					this._onPtyHostWestawt.fiwe();
+					unwesponsiveNotification?.cwose();
+					unwesponsiveNotification = undefined;
+					this._isPtyHostUnwesponsive = fawse;
 				}));
 			}
-			if (channel.onPtyHostUnresponsive) {
-				this._register(channel.onPtyHostUnresponsive(() => {
-					const choices: IPromptChoice[] = [{
-						label: localize('restartPtyHost', "Restart pty host"),
-						run: () => channel.restartPtyHost!()
+			if (channew.onPtyHostUnwesponsive) {
+				this._wegista(channew.onPtyHostUnwesponsive(() => {
+					const choices: IPwomptChoice[] = [{
+						wabew: wocawize('westawtPtyHost', "Westawt pty host"),
+						wun: () => channew.westawtPtyHost!()
 					}];
-					unresponsiveNotification = notificationService.prompt(Severity.Error, localize('nonResponsivePtyHost', "The connection to the terminal's pty host process is unresponsive, the terminals may stop working."), choices);
-					this._isPtyHostUnresponsive = true;
-					this._onPtyHostUnresponsive.fire();
+					unwesponsiveNotification = notificationSewvice.pwompt(Sevewity.Ewwow, wocawize('nonWesponsivePtyHost', "The connection to the tewminaw's pty host pwocess is unwesponsive, the tewminaws may stop wowking."), choices);
+					this._isPtyHostUnwesponsive = twue;
+					this._onPtyHostUnwesponsive.fiwe();
 				}));
 			}
-			if (channel.onPtyHostResponsive) {
-				this._register(channel.onPtyHostResponsive(() => {
-					if (!this._isPtyHostUnresponsive) {
-						return;
+			if (channew.onPtyHostWesponsive) {
+				this._wegista(channew.onPtyHostWesponsive(() => {
+					if (!this._isPtyHostUnwesponsive) {
+						wetuwn;
 					}
-					this._logService.info('The pty host became responsive again');
-					unresponsiveNotification?.close();
-					unresponsiveNotification = undefined;
-					this._isPtyHostUnresponsive = false;
-					this._onPtyHostResponsive.fire();
+					this._wogSewvice.info('The pty host became wesponsive again');
+					unwesponsiveNotification?.cwose();
+					unwesponsiveNotification = undefined;
+					this._isPtyHostUnwesponsive = fawse;
+					this._onPtyHostWesponsive.fiwe();
 				}));
 			}
-			this._register(channel.onPtyHostRequestResolveVariables(async e => {
-				// Only answer requests for this workspace
-				if (e.workspaceId !== workspaceContextService.getWorkspace().id) {
-					return;
+			this._wegista(channew.onPtyHostWequestWesowveVawiabwes(async e => {
+				// Onwy answa wequests fow this wowkspace
+				if (e.wowkspaceId !== wowkspaceContextSewvice.getWowkspace().id) {
+					wetuwn;
 				}
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
-					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
+				const activeWowkspaceWootUwi = histowySewvice.getWastActiveWowkspaceWoot(Schemas.vscodeWemote);
+				const wastActiveWowkspaceWoot = activeWowkspaceWootUwi ? withNuwwAsUndefined(wowkspaceContextSewvice.getWowkspaceFowda(activeWowkspaceWootUwi)) : undefined;
+				const wesowveCawws: Pwomise<stwing>[] = e.owiginawText.map(t => {
+					wetuwn configuwationWesowvewSewvice.wesowveAsync(wastActiveWowkspaceWoot, t);
 				});
-				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.requestId, result);
+				const wesuwt = await Pwomise.aww(wesowveCawws);
+				channew.acceptPtyHostWesowvedVawiabwes(e.wequestId, wesuwt);
 			}));
-		} else {
-			this._remoteTerminalChannel = null;
+		} ewse {
+			this._wemoteTewminawChannew = nuww;
 		}
 	}
 
-	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot request detach instance when there is no remote!`);
+	async wequestDetachInstance(wowkspaceId: stwing, instanceId: numba): Pwomise<IPwocessDetaiws | undefined> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot wequest detach instance when thewe is no wemote!`);
 		}
-		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
+		wetuwn this._wemoteTewminawChannew.wequestDetachInstance(wowkspaceId, instanceId);
 	}
 
-	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot accept detached instance when there is no remote!`);
-		} else if (!persistentProcessId) {
-			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
-			return;
+	async acceptDetachInstanceWepwy(wequestId: numba, pewsistentPwocessId?: numba): Pwomise<void> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot accept detached instance when thewe is no wemote!`);
+		} ewse if (!pewsistentPwocessId) {
+			this._wogSewvice.wawn('Cannot attach to featuwe tewminaws, custom pty tewminaws, ow those without a pewsistentPwocessId');
+			wetuwn;
 		}
 
-		return this._remoteTerminalChannel.acceptDetachInstanceReply(requestId, persistentProcessId);
+		wetuwn this._wemoteTewminawChannew.acceptDetachInstanceWepwy(wequestId, pewsistentPwocessId);
 	}
 
-	async persistTerminalState(): Promise<void> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot persist terminal state when there is no remote!`);
+	async pewsistTewminawState(): Pwomise<void> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot pewsist tewminaw state when thewe is no wemote!`);
 		}
-		const ids = Array.from(this._ptys.keys());
-		const serialized = await this._remoteTerminalChannel.serializeTerminalState(ids);
-		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const ids = Awway.fwom(this._ptys.keys());
+		const sewiawized = await this._wemoteTewminawChannew.sewiawizeTewminawState(ids);
+		this._stowageSewvice.stowe(TewminawStowageKeys.TewminawBuffewState, sewiawized, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, unicodeVersion: '6' | '11', shouldPersist: boolean): Promise<ITerminalChildProcess> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot create remote terminal when there is no remote!`);
+	async cweatePwocess(shewwWaunchConfig: IShewwWaunchConfig, configuwation: ICompweteTewminawConfiguwation, activeWowkspaceWootUwi: UWI | undefined, cows: numba, wows: numba, unicodeVewsion: '6' | '11', shouwdPewsist: boowean): Pwomise<ITewminawChiwdPwocess> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot cweate wemote tewminaw when thewe is no wemote!`);
 		}
 
-		// Fetch the environment to check shell permissions
-		const remoteEnv = await this._remoteAgentService.getEnvironment();
-		if (!remoteEnv) {
-			// Extension host processes are only allowed in remote extension hosts currently
-			throw new Error('Could not fetch remote environment');
+		// Fetch the enviwonment to check sheww pewmissions
+		const wemoteEnv = await this._wemoteAgentSewvice.getEnviwonment();
+		if (!wemoteEnv) {
+			// Extension host pwocesses awe onwy awwowed in wemote extension hosts cuwwentwy
+			thwow new Ewwow('Couwd not fetch wemote enviwonment');
 		}
 
-		const shellLaunchConfigDto: IShellLaunchConfigDto = {
-			name: shellLaunchConfig.name,
-			executable: shellLaunchConfig.executable,
-			args: shellLaunchConfig.args,
-			cwd: shellLaunchConfig.cwd,
-			env: shellLaunchConfig.env,
-			useShellEnvironment: shellLaunchConfig.useShellEnvironment
+		const shewwWaunchConfigDto: IShewwWaunchConfigDto = {
+			name: shewwWaunchConfig.name,
+			executabwe: shewwWaunchConfig.executabwe,
+			awgs: shewwWaunchConfig.awgs,
+			cwd: shewwWaunchConfig.cwd,
+			env: shewwWaunchConfig.env,
+			useShewwEnviwonment: shewwWaunchConfig.useShewwEnviwonment
 		};
-		const result = await this._remoteTerminalChannel.createProcess(
-			shellLaunchConfigDto,
-			configuration,
-			activeWorkspaceRootUri,
-			shouldPersist,
-			cols,
-			rows,
-			unicodeVersion
+		const wesuwt = await this._wemoteTewminawChannew.cweatePwocess(
+			shewwWaunchConfigDto,
+			configuwation,
+			activeWowkspaceWootUwi,
+			shouwdPewsist,
+			cows,
+			wows,
+			unicodeVewsion
 		);
-		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
-		this._ptys.set(result.persistentTerminalId, pty);
-		return pty;
+		const pty = new WemotePty(wesuwt.pewsistentTewminawId, shouwdPewsist, this._wemoteTewminawChannew, this._wemoteAgentSewvice, this._wogSewvice);
+		this._ptys.set(wesuwt.pewsistentTewminawId, pty);
+		wetuwn pty;
 	}
 
-	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot create remote terminal when there is no remote!`);
+	async attachToPwocess(id: numba): Pwomise<ITewminawChiwdPwocess | undefined> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot cweate wemote tewminaw when thewe is no wemote!`);
 		}
 
-		try {
-			await this._remoteTerminalChannel.attachToProcess(id);
-			const pty = new RemotePty(id, true, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
+		twy {
+			await this._wemoteTewminawChannew.attachToPwocess(id);
+			const pty = new WemotePty(id, twue, this._wemoteTewminawChannew, this._wemoteAgentSewvice, this._wogSewvice);
 			this._ptys.set(id, pty);
-			return pty;
+			wetuwn pty;
 		} catch (e) {
-			this._logService.trace(`Couldn't attach to process ${e.message}`);
+			this._wogSewvice.twace(`Couwdn't attach to pwocess ${e.message}`);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async listProcesses(): Promise<IProcessDetails[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
-		return terms.map(termDto => {
-			return <IProcessDetails>{
-				id: termDto.id,
-				pid: termDto.pid,
-				title: termDto.title,
-				titleSource: termDto.titleSource,
-				cwd: termDto.cwd,
-				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName,
-				icon: termDto.icon,
-				color: termDto.color,
-				isOrphan: termDto.isOrphan
+	async wistPwocesses(): Pwomise<IPwocessDetaiws[]> {
+		const tewms = this._wemoteTewminawChannew ? await this._wemoteTewminawChannew.wistPwocesses() : [];
+		wetuwn tewms.map(tewmDto => {
+			wetuwn <IPwocessDetaiws>{
+				id: tewmDto.id,
+				pid: tewmDto.pid,
+				titwe: tewmDto.titwe,
+				titweSouwce: tewmDto.titweSouwce,
+				cwd: tewmDto.cwd,
+				wowkspaceId: tewmDto.wowkspaceId,
+				wowkspaceName: tewmDto.wowkspaceName,
+				icon: tewmDto.icon,
+				cowow: tewmDto.cowow,
+				isOwphan: tewmDto.isOwphan
 			};
 		});
 	}
 
-	async updateTitle(id: number, title: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateTitle(id, title);
+	async updateTitwe(id: numba, titwe: stwing): Pwomise<void> {
+		await this._wemoteTewminawChannew?.updateTitwe(id, titwe);
 	}
 
-	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
+	async updateIcon(id: numba, icon: TewminawIcon, cowow?: stwing): Pwomise<void> {
+		await this._wemoteTewminawChannew?.updateIcon(id, icon, cowow);
 	}
 
-	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
-		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
+	async getDefauwtSystemSheww(osOvewwide?: OpewatingSystem): Pwomise<stwing> {
+		wetuwn this._wemoteTewminawChannew?.getDefauwtSystemSheww(osOvewwide) || '';
 	}
 
-	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._remoteTerminalChannel?.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
+	async getPwofiwes(pwofiwes: unknown, defauwtPwofiwe: unknown, incwudeDetectedPwofiwes?: boowean): Pwomise<ITewminawPwofiwe[]> {
+		wetuwn this._wemoteTewminawChannew?.getPwofiwes(pwofiwes, defauwtPwofiwe, incwudeDetectedPwofiwes) || [];
 	}
 
-	async getEnvironment(): Promise<IProcessEnvironment> {
-		return this._remoteTerminalChannel?.getEnvironment() || {};
+	async getEnviwonment(): Pwomise<IPwocessEnviwonment> {
+		wetuwn this._wemoteTewminawChannew?.getEnviwonment() || {};
 	}
 
-	async getShellEnvironment(): Promise<IProcessEnvironment | undefined> {
-		const connection = this._remoteAgentService.getConnection();
+	async getShewwEnviwonment(): Pwomise<IPwocessEnviwonment | undefined> {
+		const connection = this._wemoteAgentSewvice.getConnection();
 		if (!connection) {
-			return undefined;
+			wetuwn undefined;
 		}
-		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-		return resolverResult.options?.extensionHostEnv as any;
+		const wesowvewWesuwt = await this._wemoteAuthowityWesowvewSewvice.wesowveAuthowity(connection.wemoteAuthowity);
+		wetuwn wesowvewWesuwt.options?.extensionHostEnv as any;
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		const env = await this._remoteAgentService.getEnvironment();
-		if (env?.os !== OperatingSystem.Windows) {
-			return original;
+	async getWswPath(owiginaw: stwing): Pwomise<stwing> {
+		const env = await this._wemoteAgentSewvice.getEnviwonment();
+		if (env?.os !== OpewatingSystem.Windows) {
+			wetuwn owiginaw;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original) || original;
+		wetuwn this._wemoteTewminawChannew?.getWswPath(owiginaw) || owiginaw;
 	}
 
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);
+	setTewminawWayoutInfo(wayout: ITewminawsWayoutInfoById): Pwomise<void> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot caww setActiveInstanceId when thewe is no wemote`);
 		}
 
-		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
+		wetuwn this._wemoteTewminawChannew.setTewminawWayoutInfo(wayout);
 	}
 
-	async reduceConnectionGraceTime(): Promise<void> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error('Cannot reduce grace time when there is no remote');
+	async weduceConnectionGwaceTime(): Pwomise<void> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow('Cannot weduce gwace time when thewe is no wemote');
 		}
-		return this._remoteTerminalChannel.reduceConnectionGraceTime();
+		wetuwn this._wemoteTewminawChannew.weduceConnectionGwaceTime();
 	}
 
-	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		if (!this._remoteTerminalChannel) {
-			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
+	async getTewminawWayoutInfo(): Pwomise<ITewminawsWayoutInfo | undefined> {
+		if (!this._wemoteTewminawChannew) {
+			thwow new Ewwow(`Cannot caww getActiveInstanceId when thewe is no wemote`);
 		}
 
-		// Revive processes if needed
-		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		if (serializedState) {
-			try {
-				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState);
-				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-				// If reviving processes, send the terminal layout info back to the pty host as it
-				// will not have been persisted on application exit
-				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
-				if (layoutInfo) {
-					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
-					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+		// Wevive pwocesses if needed
+		const sewiawizedState = this._stowageSewvice.get(TewminawStowageKeys.TewminawBuffewState, StowageScope.WOWKSPACE);
+		if (sewiawizedState) {
+			twy {
+				await this._wemoteTewminawChannew.weviveTewminawPwocesses(sewiawizedState);
+				this._stowageSewvice.wemove(TewminawStowageKeys.TewminawBuffewState, StowageScope.WOWKSPACE);
+				// If weviving pwocesses, send the tewminaw wayout info back to the pty host as it
+				// wiww not have been pewsisted on appwication exit
+				const wayoutInfo = this._stowageSewvice.get(TewminawStowageKeys.TewminawWayoutInfo, StowageScope.WOWKSPACE);
+				if (wayoutInfo) {
+					await this._wemoteTewminawChannew.setTewminawWayoutInfo(JSON.pawse(wayoutInfo));
+					this._stowageSewvice.wemove(TewminawStowageKeys.TewminawWayoutInfo, StowageScope.WOWKSPACE);
 				}
 			} catch {
 				// no-op
 			}
 		}
 
-		return this._remoteTerminalChannel.getTerminalLayoutInfo();
+		wetuwn this._wemoteTewminawChannew.getTewminawWayoutInfo();
 	}
 }

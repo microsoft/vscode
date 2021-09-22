@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadClipboardShape } from '../common/extHost.protocol';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { MainContext, MainThweadCwipboawdShape } fwom '../common/extHost.pwotocow';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
 
-@extHostNamedCustomer(MainContext.MainThreadClipboard)
-export class MainThreadClipboard implements MainThreadClipboardShape {
+@extHostNamedCustoma(MainContext.MainThweadCwipboawd)
+expowt cwass MainThweadCwipboawd impwements MainThweadCwipboawdShape {
 
-	constructor(
+	constwuctow(
 		_context: any,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
 	) { }
 
 	dispose(): void {
 		// nothing
 	}
 
-	$readText(): Promise<string> {
-		return this._clipboardService.readText();
+	$weadText(): Pwomise<stwing> {
+		wetuwn this._cwipboawdSewvice.weadText();
 	}
 
-	$writeText(value: string): Promise<void> {
-		return this._clipboardService.writeText(value);
+	$wwiteText(vawue: stwing): Pwomise<void> {
+		wetuwn this._cwipboawdSewvice.wwiteText(vawue);
 	}
 }

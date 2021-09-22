@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
-	/* Use the hack presented in https://stackoverflow.com/a/38748186/1156119 to get opacity transitions working on the scrollbar */
-	-webkit-background-clip: text;
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
-	transition: background-color 800ms linear;
+.monaco-wowkbench .editow-instance .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt {
+	/* Use the hack pwesented in https://stackovewfwow.com/a/38748186/1156119 to get opacity twansitions wowking on the scwowwbaw */
+	-webkit-backgwound-cwip: text;
+	backgwound-cwip: text;
+	-webkit-text-fiww-cowow: twanspawent;
+	twansition: backgwound-cowow 800ms wineaw;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
-	scrollbar-width: thin;
+.monaco-wowkbench .editow-instance .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt {
+	scwowwbaw-width: thin;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar {
+.monaco-wowkbench .editow-instance .xtewm-viewpowt::-webkit-scwowwbaw,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt::-webkit-scwowwbaw {
 	width: 10px;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-track,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-track {
+.monaco-wowkbench .editow-instance .xtewm-viewpowt::-webkit-scwowwbaw-twack,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt::-webkit-scwowwbaw-twack {
 	opacity: 0;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport::-webkit-scrollbar-thumb,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+.monaco-wowkbench .editow-instance .xtewm-viewpowt::-webkit-scwowwbaw-thumb,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt::-webkit-scwowwbaw-thumb {
 	min-height: 20px;
-	background-color: inherit;
+	backgwound-cowow: inhewit;
 }
 
-.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
-.monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport {
-	transition: opacity 100ms linear;
-	cursor: default;
+.monaco-wowkbench .editow-instance .find-focused .xtewm .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .find-focused .xtewm .xtewm-viewpowt,
+.monaco-wowkbench .editow-instance .xtewm.focus .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm.focus .xtewm-viewpowt,
+.monaco-wowkbench .editow-instance .xtewm:focus .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm:focus .xtewm-viewpowt,
+.monaco-wowkbench .editow-instance .xtewm:hova .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm:hova .xtewm-viewpowt {
+	twansition: opacity 100ms wineaw;
+	cuwsow: defauwt;
 }
 
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-	transition: opacity 0ms linear;
+.monaco-wowkbench .editow-instance .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:hova,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:hova {
+	twansition: opacity 0ms wineaw;
 }
 
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:window-inactive {
-	background-color: inherit;
+.monaco-wowkbench .editow-instance .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:window-inactive,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-viewpowt::-webkit-scwowwbaw-thumb:window-inactive {
+	backgwound-cowow: inhewit;
 }

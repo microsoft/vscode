@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { EXTENSION_IDENTIFIEW_PATTEWN } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
 
-export const ExtensionsConfigurationSchemaId = 'vscode://schemas/extensions';
-export const ExtensionsConfigurationSchema: IJSONSchema = {
-	id: ExtensionsConfigurationSchemaId,
-	allowComments: true,
-	allowTrailingCommas: true,
+expowt const ExtensionsConfiguwationSchemaId = 'vscode://schemas/extensions';
+expowt const ExtensionsConfiguwationSchema: IJSONSchema = {
+	id: ExtensionsConfiguwationSchemaId,
+	awwowComments: twue,
+	awwowTwaiwingCommas: twue,
 	type: 'object',
-	title: localize('app.extensions.json.title', "Extensions"),
-	additionalProperties: false,
-	properties: {
-		recommendations: {
-			type: 'array',
-			description: localize('app.extensions.json.recommendations', "List of extensions which should be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+	titwe: wocawize('app.extensions.json.titwe', "Extensions"),
+	additionawPwopewties: fawse,
+	pwopewties: {
+		wecommendations: {
+			type: 'awway',
+			descwiption: wocawize('app.extensions.json.wecommendations', "Wist of extensions which shouwd be wecommended fow usews of this wowkspace. The identifia of an extension is awways '${pubwisha}.${name}'. Fow exampwe: 'vscode.cshawp'."),
 			items: {
-				type: 'string',
-				pattern: EXTENSION_IDENTIFIER_PATTERN,
-				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+				type: 'stwing',
+				pattewn: EXTENSION_IDENTIFIEW_PATTEWN,
+				ewwowMessage: wocawize('app.extension.identifia.ewwowMessage', "Expected fowmat '${pubwisha}.${name}'. Exampwe: 'vscode.cshawp'.")
 			},
 		},
-		unwantedRecommendations: {
-			type: 'array',
-			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions recommended by VS Code that should not be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+		unwantedWecommendations: {
+			type: 'awway',
+			descwiption: wocawize('app.extensions.json.unwantedWecommendations', "Wist of extensions wecommended by VS Code that shouwd not be wecommended fow usews of this wowkspace. The identifia of an extension is awways '${pubwisha}.${name}'. Fow exampwe: 'vscode.cshawp'."),
 			items: {
-				type: 'string',
-				pattern: EXTENSION_IDENTIFIER_PATTERN,
-				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+				type: 'stwing',
+				pattewn: EXTENSION_IDENTIFIEW_PATTEWN,
+				ewwowMessage: wocawize('app.extension.identifia.ewwowMessage', "Expected fowmat '${pubwisha}.${name}'. Exampwe: 'vscode.cshawp'.")
 			},
 		},
 	}
 };
 
-export const ExtensionsConfigurationInitialContent: string = [
+expowt const ExtensionsConfiguwationInitiawContent: stwing = [
 	'{',
-	'\t// See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
-	'\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
+	'\t// See https://go.micwosoft.com/fwwink/?WinkId=827846 to weawn about wowkspace wecommendations.',
+	'\t// Extension identifia fowmat: ${pubwisha}.${name}. Exampwe: vscode.cshawp',
 	'',
-	'\t// List of extensions which should be recommended for users of this workspace.',
-	'\t"recommendations": [',
+	'\t// Wist of extensions which shouwd be wecommended fow usews of this wowkspace.',
+	'\t"wecommendations": [',
 	'\t\t',
 	'\t],',
-	'\t// List of extensions recommended by VS Code that should not be recommended for users of this workspace.',
-	'\t"unwantedRecommendations": [',
+	'\t// Wist of extensions wecommended by VS Code that shouwd not be wecommended fow usews of this wowkspace.',
+	'\t"unwantedWecommendations": [',
 	'\t\t',
 	'\t]',
 	'}'

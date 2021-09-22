@@ -1,54 +1,54 @@
 {
-  "name": "coffeescript",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "coffeescwipt",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-coffee-script grammars/coffeescript.cson ./syntaxes/coffeescript.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-coffee-scwipt gwammaws/coffeescwipt.cson ./syntaxes/coffeescwipt.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "coffeescript",
+        "id": "coffeescwipt",
         "extensions": [
           ".coffee",
           ".cson",
           ".iced"
         ],
-        "aliases": [
-          "CoffeeScript",
-          "coffeescript",
+        "awiases": [
+          "CoffeeScwipt",
+          "coffeescwipt",
           "coffee"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "coffeescript",
-        "scopeName": "source.coffee",
-        "path": "./syntaxes/coffeescript.tmLanguage.json"
+        "wanguage": "coffeescwipt",
+        "scopeName": "souwce.coffee",
+        "path": "./syntaxes/coffeescwipt.tmWanguage.json"
       }
     ],
-    "breakpoints": [
+    "bweakpoints": [
       {
-        "language": "coffeescript"
+        "wanguage": "coffeescwipt"
       }
     ],
     "snippets": [
       {
-        "language": "coffeescript",
-        "path": "./snippets/coffeescript.code-snippets"
+        "wanguage": "coffeescwipt",
+        "path": "./snippets/coffeescwipt.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

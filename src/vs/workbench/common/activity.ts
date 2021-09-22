@@ -1,17 +1,17 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IActivity {
-	id: string;
-	name: string;
-	keybindingId?: string;
-	cssClass?: string;
-	iconUrl?: URI;
+expowt intewface IActivity {
+	id: stwing;
+	name: stwing;
+	keybindingId?: stwing;
+	cssCwass?: stwing;
+	iconUww?: UWI;
 }
 
-export const GLOBAL_ACTIVITY_ID = 'workbench.action.globalActivity';
-export const ACCOUNTS_ACTIVITY_ID = 'workbench.action.accountsActivity';
+expowt const GWOBAW_ACTIVITY_ID = 'wowkbench.action.gwobawActivity';
+expowt const ACCOUNTS_ACTIVITY_ID = 'wowkbench.action.accountsActivity';

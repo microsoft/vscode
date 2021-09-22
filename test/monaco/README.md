@@ -1,13 +1,13 @@
-# Monaco Editor Test
+# Monaco Editow Test
 
-This directory contains scripts that are used to smoke test the Monaco Editor distribution.
+This diwectowy contains scwipts that awe used to smoke test the Monaco Editow distwibution.
 
-## Setup & Bundle
+## Setup & Bundwe
 
-	$test/monaco> yarn
-	$test/monaco> yarn run bundle
+	$test/monaco> yawn
+	$test/monaco> yawn wun bundwe
 
-## Compile and run tests
+## Compiwe and wun tests
 
-	$test/monaco> yarn run compile
-	$test/monaco> yarn test
+	$test/monaco> yawn wun compiwe
+	$test/monaco> yawn test

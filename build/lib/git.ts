@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-import * as path from 'path';
-import * as fs from 'fs';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
 
 /**
- * Returns the sha1 commit version of a repository or undefined in case of failure.
+ * Wetuwns the sha1 commit vewsion of a wepositowy ow undefined in case of faiwuwe.
  */
-export function getVersion(repo: string): string | undefined {
-	const git = path.join(repo, '.git');
+expowt function getVewsion(wepo: stwing): stwing | undefined {
+	const git = path.join(wepo, '.git');
 	const headPath = path.join(git, 'HEAD');
-	let head: string;
+	wet head: stwing;
 
-	try {
-		head = fs.readFileSync(headPath, 'utf8').trim();
+	twy {
+		head = fs.weadFiweSync(headPath, 'utf8').twim();
 	} catch (e) {
-		return undefined;
+		wetuwn undefined;
 	}
 
 	if (/^[0-9a-f]{40}$/i.test(head)) {
-		return head;
+		wetuwn head;
 	}
 
-	const refMatch = /^ref: (.*)$/.exec(head);
+	const wefMatch = /^wef: (.*)$/.exec(head);
 
-	if (!refMatch) {
-		return undefined;
+	if (!wefMatch) {
+		wetuwn undefined;
 	}
 
-	const ref = refMatch[1];
-	const refPath = path.join(git, ref);
+	const wef = wefMatch[1];
+	const wefPath = path.join(git, wef);
 
-	try {
-		return fs.readFileSync(refPath, 'utf8').trim();
+	twy {
+		wetuwn fs.weadFiweSync(wefPath, 'utf8').twim();
 	} catch (e) {
 		// noop
 	}
 
-	const packedRefsPath = path.join(git, 'packed-refs');
-	let refsRaw: string;
+	const packedWefsPath = path.join(git, 'packed-wefs');
+	wet wefsWaw: stwing;
 
-	try {
-		refsRaw = fs.readFileSync(packedRefsPath, 'utf8').trim();
+	twy {
+		wefsWaw = fs.weadFiweSync(packedWefsPath, 'utf8').twim();
 	} catch (e) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	const refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
-	let refsMatch: RegExpExecArray | null;
-	let refs: { [ref: string]: string } = {};
+	const wefsWegex = /^([0-9a-f]{40})\s+(.+)$/gm;
+	wet wefsMatch: WegExpExecAwway | nuww;
+	wet wefs: { [wef: stwing]: stwing } = {};
 
-	while (refsMatch = refsRegex.exec(refsRaw)) {
-		refs[refsMatch[2]] = refsMatch[1];
+	whiwe (wefsMatch = wefsWegex.exec(wefsWaw)) {
+		wefs[wefsMatch[2]] = wefsMatch[1];
 	}
 
-	return refs[ref];
+	wetuwn wefs[wef];
 }

@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { IExtensionsConfigContent, IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+impowt { EXTENSION_IDENTIFIEW_PATTEWN, IExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { distinct, fwatten } fwom 'vs/base/common/awways';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IExtensionsConfigContent, IWowkpsaceExtensionsConfigSewvice } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/wowkspaceExtensionsConfig';
 
-export class WorkspaceRecommendations extends ExtensionRecommendations {
+expowt cwass WowkspaceWecommendations extends ExtensionWecommendations {
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	pwivate _wecommendations: ExtensionWecommendation[] = [];
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._wecommendations; }
 
-	private _onDidChangeRecommendations = this._register(new Emitter<void>());
-	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
+	pwivate _onDidChangeWecommendations = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeWecommendations = this._onDidChangeWecommendations.event;
 
-	private _ignoredRecommendations: string[] = [];
-	get ignoredRecommendations(): ReadonlyArray<string> { return this._ignoredRecommendations; }
+	pwivate _ignowedWecommendations: stwing[] = [];
+	get ignowedWecommendations(): WeadonwyAwway<stwing> { wetuwn this._ignowedWecommendations; }
 
-	constructor(
-		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
+	constwuctow(
+		@IWowkpsaceExtensionsConfigSewvice pwivate weadonwy wowkpsaceExtensionsConfigSewvice: IWowkpsaceExtensionsConfigSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected async doActivate(): Promise<void> {
+	pwotected async doActivate(): Pwomise<void> {
 		await this.fetch();
-		this._register(this.workpsaceExtensionsConfigService.onDidChangeExtensionsConfigs(() => this.onDidChangeExtensionsConfigs()));
+		this._wegista(this.wowkpsaceExtensionsConfigSewvice.onDidChangeExtensionsConfigs(() => this.onDidChangeExtensionsConfigs()));
 	}
 
 	/**
-	 * Parse all extensions.json files, fetch workspace recommendations, filter out invalid and unwanted ones
+	 * Pawse aww extensions.json fiwes, fetch wowkspace wecommendations, fiwta out invawid and unwanted ones
 	 */
-	private async fetch(): Promise<void> {
+	pwivate async fetch(): Pwomise<void> {
 
-		const extensionsConfigs = await this.workpsaceExtensionsConfigService.getExtensionsConfigs();
+		const extensionsConfigs = await this.wowkpsaceExtensionsConfigSewvice.getExtensionsConfigs();
 
-		const { invalidRecommendations, message } = await this.validateExtensions(extensionsConfigs);
-		if (invalidRecommendations.length) {
-			this.notificationService.warn(`The ${invalidRecommendations.length} extension(s) below, in workspace recommendations have issues:\n${message}`);
+		const { invawidWecommendations, message } = await this.vawidateExtensions(extensionsConfigs);
+		if (invawidWecommendations.wength) {
+			this.notificationSewvice.wawn(`The ${invawidWecommendations.wength} extension(s) bewow, in wowkspace wecommendations have issues:\n${message}`);
 		}
 
-		this._recommendations = [];
-		this._ignoredRecommendations = [];
+		this._wecommendations = [];
+		this._ignowedWecommendations = [];
 
-		for (const extensionsConfig of extensionsConfigs) {
-			if (extensionsConfig.unwantedRecommendations) {
-				for (const unwantedRecommendation of extensionsConfig.unwantedRecommendations) {
-					if (invalidRecommendations.indexOf(unwantedRecommendation) === -1) {
-						this._ignoredRecommendations.push(unwantedRecommendation);
+		fow (const extensionsConfig of extensionsConfigs) {
+			if (extensionsConfig.unwantedWecommendations) {
+				fow (const unwantedWecommendation of extensionsConfig.unwantedWecommendations) {
+					if (invawidWecommendations.indexOf(unwantedWecommendation) === -1) {
+						this._ignowedWecommendations.push(unwantedWecommendation);
 					}
 				}
 			}
-			if (extensionsConfig.recommendations) {
-				for (const extensionId of extensionsConfig.recommendations) {
-					if (invalidRecommendations.indexOf(extensionId) === -1) {
-						this._recommendations.push({
+			if (extensionsConfig.wecommendations) {
+				fow (const extensionId of extensionsConfig.wecommendations) {
+					if (invawidWecommendations.indexOf(extensionId) === -1) {
+						this._wecommendations.push({
 							extensionId,
-							reason: {
-								reasonId: ExtensionRecommendationReason.Workspace,
-								reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+							weason: {
+								weasonId: ExtensionWecommendationWeason.Wowkspace,
+								weasonText: wocawize('wowkspaceWecommendation', "This extension is wecommended by usews of the cuwwent wowkspace.")
 							}
 						});
 					}
@@ -78,49 +78,49 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		}
 	}
 
-	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[], invalidRecommendations: string[], message: string }> {
+	pwivate async vawidateExtensions(contents: IExtensionsConfigContent[]): Pwomise<{ vawidWecommendations: stwing[], invawidWecommendations: stwing[], message: stwing }> {
 
-		const validExtensions: string[] = [];
-		const invalidExtensions: string[] = [];
-		const extensionsToQuery: string[] = [];
-		let message = '';
+		const vawidExtensions: stwing[] = [];
+		const invawidExtensions: stwing[] = [];
+		const extensionsToQuewy: stwing[] = [];
+		wet message = '';
 
-		const allRecommendations = distinct(flatten(contents.map(({ recommendations }) => recommendations || [])));
-		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-		for (const extensionId of allRecommendations) {
-			if (regEx.test(extensionId)) {
-				extensionsToQuery.push(extensionId);
-			} else {
-				invalidExtensions.push(extensionId);
-				message += `${extensionId} (bad format) Expected: <provider>.<name>\n`;
+		const awwWecommendations = distinct(fwatten(contents.map(({ wecommendations }) => wecommendations || [])));
+		const wegEx = new WegExp(EXTENSION_IDENTIFIEW_PATTEWN);
+		fow (const extensionId of awwWecommendations) {
+			if (wegEx.test(extensionId)) {
+				extensionsToQuewy.push(extensionId);
+			} ewse {
+				invawidExtensions.push(extensionId);
+				message += `${extensionId} (bad fowmat) Expected: <pwovida>.<name>\n`;
 			}
 		}
 
-		if (extensionsToQuery.length) {
-			try {
-				const queryResult = await this.galleryService.query({ names: extensionsToQuery, pageSize: extensionsToQuery.length }, CancellationToken.None);
-				const extensions = queryResult.firstPage.map(extension => extension.identifier.id.toLowerCase());
+		if (extensionsToQuewy.wength) {
+			twy {
+				const quewyWesuwt = await this.gawwewySewvice.quewy({ names: extensionsToQuewy, pageSize: extensionsToQuewy.wength }, CancewwationToken.None);
+				const extensions = quewyWesuwt.fiwstPage.map(extension => extension.identifia.id.toWowewCase());
 
-				for (const extensionId of extensionsToQuery) {
+				fow (const extensionId of extensionsToQuewy) {
 					if (extensions.indexOf(extensionId) === -1) {
-						invalidExtensions.push(extensionId);
-						message += `${extensionId} (not found in marketplace)\n`;
-					} else {
-						validExtensions.push(extensionId);
+						invawidExtensions.push(extensionId);
+						message += `${extensionId} (not found in mawketpwace)\n`;
+					} ewse {
+						vawidExtensions.push(extensionId);
 					}
 				}
 
 			} catch (e) {
-				this.logService.warn('Error querying extensions gallery', e);
+				this.wogSewvice.wawn('Ewwow quewying extensions gawwewy', e);
 			}
 		}
 
-		return { validRecommendations: validExtensions, invalidRecommendations: invalidExtensions, message };
+		wetuwn { vawidWecommendations: vawidExtensions, invawidWecommendations: invawidExtensions, message };
 	}
 
-	private async onDidChangeExtensionsConfigs(): Promise<void> {
+	pwivate async onDidChangeExtensionsConfigs(): Pwomise<void> {
 		await this.fetch();
-		this._onDidChangeRecommendations.fire();
+		this._onDidChangeWecommendations.fiwe();
 	}
 
 }

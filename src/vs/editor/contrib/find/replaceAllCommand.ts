@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
-interface IEditOperation {
-	range: Range;
-	text: string;
+intewface IEditOpewation {
+	wange: Wange;
+	text: stwing;
 }
 
-export class ReplaceAllCommand implements ICommand {
+expowt cwass WepwaceAwwCommand impwements ICommand {
 
-	private readonly _editorSelection: Selection;
-	private _trackedEditorSelectionId: string | null;
-	private readonly _ranges: Range[];
-	private readonly _replaceStrings: string[];
+	pwivate weadonwy _editowSewection: Sewection;
+	pwivate _twackedEditowSewectionId: stwing | nuww;
+	pwivate weadonwy _wanges: Wange[];
+	pwivate weadonwy _wepwaceStwings: stwing[];
 
-	constructor(editorSelection: Selection, ranges: Range[], replaceStrings: string[]) {
-		this._editorSelection = editorSelection;
-		this._ranges = ranges;
-		this._replaceStrings = replaceStrings;
-		this._trackedEditorSelectionId = null;
+	constwuctow(editowSewection: Sewection, wanges: Wange[], wepwaceStwings: stwing[]) {
+		this._editowSewection = editowSewection;
+		this._wanges = wanges;
+		this._wepwaceStwings = wepwaceStwings;
+		this._twackedEditowSewectionId = nuww;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		if (this._ranges.length > 0) {
-			// Collect all edit operations
-			let ops: IEditOperation[] = [];
-			for (let i = 0; i < this._ranges.length; i++) {
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		if (this._wanges.wength > 0) {
+			// Cowwect aww edit opewations
+			wet ops: IEditOpewation[] = [];
+			fow (wet i = 0; i < this._wanges.wength; i++) {
 				ops.push({
-					range: this._ranges[i],
-					text: this._replaceStrings[i]
+					wange: this._wanges[i],
+					text: this._wepwaceStwings[i]
 				});
 			}
 
-			// Sort them in ascending order by range starts
-			ops.sort((o1, o2) => {
-				return Range.compareRangesUsingStarts(o1.range, o2.range);
+			// Sowt them in ascending owda by wange stawts
+			ops.sowt((o1, o2) => {
+				wetuwn Wange.compaweWangesUsingStawts(o1.wange, o2.wange);
 			});
 
-			// Merge operations that touch each other
-			let resultOps: IEditOperation[] = [];
-			let previousOp = ops[0];
-			for (let i = 1; i < ops.length; i++) {
-				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
-					// These operations are one after another and can be merged
-					previousOp.range = previousOp.range.plusRange(ops[i].range);
-					previousOp.text = previousOp.text + ops[i].text;
-				} else {
-					resultOps.push(previousOp);
-					previousOp = ops[i];
+			// Mewge opewations that touch each otha
+			wet wesuwtOps: IEditOpewation[] = [];
+			wet pweviousOp = ops[0];
+			fow (wet i = 1; i < ops.wength; i++) {
+				if (pweviousOp.wange.endWineNumba === ops[i].wange.stawtWineNumba && pweviousOp.wange.endCowumn === ops[i].wange.stawtCowumn) {
+					// These opewations awe one afta anotha and can be mewged
+					pweviousOp.wange = pweviousOp.wange.pwusWange(ops[i].wange);
+					pweviousOp.text = pweviousOp.text + ops[i].text;
+				} ewse {
+					wesuwtOps.push(pweviousOp);
+					pweviousOp = ops[i];
 				}
 			}
-			resultOps.push(previousOp);
+			wesuwtOps.push(pweviousOp);
 
-			for (const op of resultOps) {
-				builder.addEditOperation(op.range, op.text);
+			fow (const op of wesuwtOps) {
+				buiwda.addEditOpewation(op.wange, op.text);
 			}
 		}
 
-		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
+		this._twackedEditowSewectionId = buiwda.twackSewection(this._editowSewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._trackedEditorSelectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this._twackedEditowSewectionId!);
 	}
 }

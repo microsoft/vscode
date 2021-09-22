@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { Promises } from 'vs/base/node/pfs';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'vs/base/common/path';
+impowt { getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
+impowt { Keybinding, WesowvedKeybinding, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { ScanCodeBinding } fwom 'vs/base/common/scanCode';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IKeyboawdEvent } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IKeyboawdMappa } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdMappa';
 
-export interface IResolvedKeybinding {
-	label: string | null;
-	ariaLabel: string | null;
-	electronAccelerator: string | null;
-	userSettingsLabel: string | null;
-	isWYSIWYG: boolean;
-	isChord: boolean;
-	dispatchParts: (string | null)[];
-	singleModifierDispatchParts: (string | null)[];
+expowt intewface IWesowvedKeybinding {
+	wabew: stwing | nuww;
+	awiaWabew: stwing | nuww;
+	ewectwonAccewewatow: stwing | nuww;
+	usewSettingsWabew: stwing | nuww;
+	isWYSIWYG: boowean;
+	isChowd: boowean;
+	dispatchPawts: (stwing | nuww)[];
+	singweModifiewDispatchPawts: (stwing | nuww)[];
 }
 
-function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
-	return {
-		label: kb.getLabel(),
-		ariaLabel: kb.getAriaLabel(),
-		electronAccelerator: kb.getElectronAccelerator(),
-		userSettingsLabel: kb.getUserSettingsLabel(),
+function toIWesowvedKeybinding(kb: WesowvedKeybinding): IWesowvedKeybinding {
+	wetuwn {
+		wabew: kb.getWabew(),
+		awiaWabew: kb.getAwiaWabew(),
+		ewectwonAccewewatow: kb.getEwectwonAccewewatow(),
+		usewSettingsWabew: kb.getUsewSettingsWabew(),
 		isWYSIWYG: kb.isWYSIWYG(),
-		isChord: kb.isChord(),
-		dispatchParts: kb.getDispatchParts(),
-		singleModifierDispatchParts: kb.getSingleModifierDispatchParts()
+		isChowd: kb.isChowd(),
+		dispatchPawts: kb.getDispatchPawts(),
+		singweModifiewDispatchPawts: kb.getSingweModifiewDispatchPawts()
 	};
 }
 
-export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Keybinding | null, expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveKeybinding(keybinding!).map(toIResolvedKeybinding);
-	assert.deepStrictEqual(actual, expected);
+expowt function assewtWesowveKeybinding(mappa: IKeyboawdMappa, keybinding: Keybinding | nuww, expected: IWesowvedKeybinding[]): void {
+	wet actuaw: IWesowvedKeybinding[] = mappa.wesowveKeybinding(keybinding!).map(toIWesowvedKeybinding);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-export function assertResolveKeyboardEvent(mapper: IKeyboardMapper, keyboardEvent: IKeyboardEvent, expected: IResolvedKeybinding): void {
-	let actual = toIResolvedKeybinding(mapper.resolveKeyboardEvent(keyboardEvent));
-	assert.deepStrictEqual(actual, expected);
+expowt function assewtWesowveKeyboawdEvent(mappa: IKeyboawdMappa, keyboawdEvent: IKeyboawdEvent, expected: IWesowvedKeybinding): void {
+	wet actuaw = toIWesowvedKeybinding(mappa.wesowveKeyboawdEvent(keyboawdEvent));
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-export function assertResolveUserBinding(mapper: IKeyboardMapper, parts: (SimpleKeybinding | ScanCodeBinding)[], expected: IResolvedKeybinding[]): void {
-	let actual: IResolvedKeybinding[] = mapper.resolveUserBinding(parts).map(toIResolvedKeybinding);
-	assert.deepStrictEqual(actual, expected);
+expowt function assewtWesowveUsewBinding(mappa: IKeyboawdMappa, pawts: (SimpweKeybinding | ScanCodeBinding)[], expected: IWesowvedKeybinding[]): void {
+	wet actuaw: IWesowvedKeybinding[] = mappa.wesowveUsewBinding(pawts).map(toIWesowvedKeybinding);
+	assewt.deepStwictEquaw(actuaw, expected);
 }
 
-export function readRawMapping<T>(file: string): Promise<T> {
-	return Promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}.js`)).then((buff) => {
-		let contents = buff.toString();
-		let func = new Function('define', contents);
-		let rawMappings: T | null = null;
-		func(function (value: T) {
-			rawMappings = value;
+expowt function weadWawMapping<T>(fiwe: stwing): Pwomise<T> {
+	wetuwn Pwomises.weadFiwe(getPathFwomAmdModuwe(wequiwe, `vs/wowkbench/sewvices/keybinding/test/ewectwon-bwowsa/${fiwe}.js`)).then((buff) => {
+		wet contents = buff.toStwing();
+		wet func = new Function('define', contents);
+		wet wawMappings: T | nuww = nuww;
+		func(function (vawue: T) {
+			wawMappings = vawue;
 		});
-		return rawMappings!;
+		wetuwn wawMappings!;
 	});
 }
 
-export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
-	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/electron-browser/${file}`));
+expowt function assewtMapping(wwiteFiweIfDiffewent: boowean, mappa: IKeyboawdMappa, fiwe: stwing): Pwomise<void> {
+	const fiwePath = path.nowmawize(getPathFwomAmdModuwe(wequiwe, `vs/wowkbench/sewvices/keybinding/test/ewectwon-bwowsa/${fiwe}`));
 
-	return Promises.readFile(filePath).then((buff) => {
-		const expected = buff.toString().replace(/\r\n/g, '\n');
-		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
-		if (actual !== expected && writeFileIfDifferent) {
-			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
-			Promises.writeFile(destPath, actual);
+	wetuwn Pwomises.weadFiwe(fiwePath).then((buff) => {
+		const expected = buff.toStwing().wepwace(/\w\n/g, '\n');
+		const actuaw = mappa.dumpDebugInfo().wepwace(/\w\n/g, '\n');
+		if (actuaw !== expected && wwiteFiweIfDiffewent) {
+			const destPath = fiwePath.wepwace(/vscode[\/\\]out[\/\\]vs/, 'vscode/swc/vs');
+			Pwomises.wwiteFiwe(destPath, actuaw);
 		}
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	});
 }

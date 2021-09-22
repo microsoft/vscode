@@ -1,197 +1,197 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/modes';
-import { RangeProvider } from './folding';
-import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { FowdingContext, FowdingWange, FowdingWangePwovida } fwom 'vs/editow/common/modes';
+impowt { WangePwovida } fwom './fowding';
+impowt { FowdingWegions, MAX_WINE_NUMBa } fwom './fowdingWanges';
 
-const MAX_FOLDING_REGIONS = 5000;
+const MAX_FOWDING_WEGIONS = 5000;
 
-export interface IFoldingRangeData extends FoldingRange {
-	rank: number;
+expowt intewface IFowdingWangeData extends FowdingWange {
+	wank: numba;
 }
 
-const foldingContext: FoldingContext = {
+const fowdingContext: FowdingContext = {
 };
 
-export const ID_SYNTAX_PROVIDER = 'syntax';
+expowt const ID_SYNTAX_PWOVIDa = 'syntax';
 
-export class SyntaxRangeProvider implements RangeProvider {
+expowt cwass SyntaxWangePwovida impwements WangePwovida {
 
-	readonly id = ID_SYNTAX_PROVIDER;
+	weadonwy id = ID_SYNTAX_PWOVIDa;
 
-	readonly disposables: DisposableStore | undefined;
+	weadonwy disposabwes: DisposabweStowe | undefined;
 
-	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], handleFoldingRangesChange: () => void, private limit = MAX_FOLDING_REGIONS) {
-		for (const provider of providers) {
-			if (typeof provider.onDidChange === 'function') {
-				if (!this.disposables) {
-					this.disposables = new DisposableStore();
+	constwuctow(pwivate weadonwy editowModew: ITextModew, pwivate pwovidews: FowdingWangePwovida[], handweFowdingWangesChange: () => void, pwivate wimit = MAX_FOWDING_WEGIONS) {
+		fow (const pwovida of pwovidews) {
+			if (typeof pwovida.onDidChange === 'function') {
+				if (!this.disposabwes) {
+					this.disposabwes = new DisposabweStowe();
 				}
-				this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
+				this.disposabwes.add(pwovida.onDidChange(handweFowdingWangesChange));
 			}
 		}
 	}
 
-	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
-		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
-			if (ranges) {
-				let res = sanitizeRanges(ranges, this.limit);
-				return res;
+	compute(cancewwationToken: CancewwationToken): Pwomise<FowdingWegions | nuww> {
+		wetuwn cowwectSyntaxWanges(this.pwovidews, this.editowModew, cancewwationToken).then(wanges => {
+			if (wanges) {
+				wet wes = sanitizeWanges(wanges, this.wimit);
+				wetuwn wes;
 			}
-			return null;
+			wetuwn nuww;
 		});
 	}
 
 	dispose() {
-		this.disposables?.dispose();
+		this.disposabwes?.dispose();
 	}
 }
 
-function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Promise<IFoldingRangeData[] | null> {
-	let rangeData: IFoldingRangeData[] | null = null;
-	let promises = providers.map((provider, i) => {
-		return Promise.resolve(provider.provideFoldingRanges(model, foldingContext, cancellationToken)).then(ranges => {
-			if (cancellationToken.isCancellationRequested) {
-				return;
+function cowwectSyntaxWanges(pwovidews: FowdingWangePwovida[], modew: ITextModew, cancewwationToken: CancewwationToken): Pwomise<IFowdingWangeData[] | nuww> {
+	wet wangeData: IFowdingWangeData[] | nuww = nuww;
+	wet pwomises = pwovidews.map((pwovida, i) => {
+		wetuwn Pwomise.wesowve(pwovida.pwovideFowdingWanges(modew, fowdingContext, cancewwationToken)).then(wanges => {
+			if (cancewwationToken.isCancewwationWequested) {
+				wetuwn;
 			}
-			if (Array.isArray(ranges)) {
-				if (!Array.isArray(rangeData)) {
-					rangeData = [];
+			if (Awway.isAwway(wanges)) {
+				if (!Awway.isAwway(wangeData)) {
+					wangeData = [];
 				}
-				let nLines = model.getLineCount();
-				for (let r of ranges) {
-					if (r.start > 0 && r.end > r.start && r.end <= nLines) {
-						rangeData.push({ start: r.start, end: r.end, rank: i, kind: r.kind });
+				wet nWines = modew.getWineCount();
+				fow (wet w of wanges) {
+					if (w.stawt > 0 && w.end > w.stawt && w.end <= nWines) {
+						wangeData.push({ stawt: w.stawt, end: w.end, wank: i, kind: w.kind });
 					}
 				}
 			}
-		}, onUnexpectedExternalError);
+		}, onUnexpectedExtewnawEwwow);
 	});
-	return Promise.all(promises).then(_ => {
-		return rangeData;
+	wetuwn Pwomise.aww(pwomises).then(_ => {
+		wetuwn wangeData;
 	});
 }
 
-export class RangesCollector {
-	private readonly _startIndexes: number[];
-	private readonly _endIndexes: number[];
-	private readonly _nestingLevels: number[];
-	private readonly _nestingLevelCounts: number[];
-	private readonly _types: Array<string | undefined>;
-	private _length: number;
-	private readonly _foldingRangesLimit: number;
+expowt cwass WangesCowwectow {
+	pwivate weadonwy _stawtIndexes: numba[];
+	pwivate weadonwy _endIndexes: numba[];
+	pwivate weadonwy _nestingWevews: numba[];
+	pwivate weadonwy _nestingWevewCounts: numba[];
+	pwivate weadonwy _types: Awway<stwing | undefined>;
+	pwivate _wength: numba;
+	pwivate weadonwy _fowdingWangesWimit: numba;
 
-	constructor(foldingRangesLimit: number) {
-		this._startIndexes = [];
+	constwuctow(fowdingWangesWimit: numba) {
+		this._stawtIndexes = [];
 		this._endIndexes = [];
-		this._nestingLevels = [];
-		this._nestingLevelCounts = [];
+		this._nestingWevews = [];
+		this._nestingWevewCounts = [];
 		this._types = [];
-		this._length = 0;
-		this._foldingRangesLimit = foldingRangesLimit;
+		this._wength = 0;
+		this._fowdingWangesWimit = fowdingWangesWimit;
 	}
 
-	public add(startLineNumber: number, endLineNumber: number, type: string | undefined, nestingLevel: number) {
-		if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
-			return;
+	pubwic add(stawtWineNumba: numba, endWineNumba: numba, type: stwing | undefined, nestingWevew: numba) {
+		if (stawtWineNumba > MAX_WINE_NUMBa || endWineNumba > MAX_WINE_NUMBa) {
+			wetuwn;
 		}
-		let index = this._length;
-		this._startIndexes[index] = startLineNumber;
-		this._endIndexes[index] = endLineNumber;
-		this._nestingLevels[index] = nestingLevel;
+		wet index = this._wength;
+		this._stawtIndexes[index] = stawtWineNumba;
+		this._endIndexes[index] = endWineNumba;
+		this._nestingWevews[index] = nestingWevew;
 		this._types[index] = type;
-		this._length++;
-		if (nestingLevel < 30) {
-			this._nestingLevelCounts[nestingLevel] = (this._nestingLevelCounts[nestingLevel] || 0) + 1;
+		this._wength++;
+		if (nestingWevew < 30) {
+			this._nestingWevewCounts[nestingWevew] = (this._nestingWevewCounts[nestingWevew] || 0) + 1;
 		}
 	}
 
-	public toIndentRanges() {
-		if (this._length <= this._foldingRangesLimit) {
-			let startIndexes = new Uint32Array(this._length);
-			let endIndexes = new Uint32Array(this._length);
-			for (let i = 0; i < this._length; i++) {
-				startIndexes[i] = this._startIndexes[i];
+	pubwic toIndentWanges() {
+		if (this._wength <= this._fowdingWangesWimit) {
+			wet stawtIndexes = new Uint32Awway(this._wength);
+			wet endIndexes = new Uint32Awway(this._wength);
+			fow (wet i = 0; i < this._wength; i++) {
+				stawtIndexes[i] = this._stawtIndexes[i];
 				endIndexes[i] = this._endIndexes[i];
 			}
-			return new FoldingRegions(startIndexes, endIndexes, this._types);
-		} else {
-			let entries = 0;
-			let maxLevel = this._nestingLevelCounts.length;
-			for (let i = 0; i < this._nestingLevelCounts.length; i++) {
-				let n = this._nestingLevelCounts[i];
+			wetuwn new FowdingWegions(stawtIndexes, endIndexes, this._types);
+		} ewse {
+			wet entwies = 0;
+			wet maxWevew = this._nestingWevewCounts.wength;
+			fow (wet i = 0; i < this._nestingWevewCounts.wength; i++) {
+				wet n = this._nestingWevewCounts[i];
 				if (n) {
-					if (n + entries > this._foldingRangesLimit) {
-						maxLevel = i;
-						break;
+					if (n + entwies > this._fowdingWangesWimit) {
+						maxWevew = i;
+						bweak;
 					}
-					entries += n;
+					entwies += n;
 				}
 			}
 
-			let startIndexes = new Uint32Array(this._foldingRangesLimit);
-			let endIndexes = new Uint32Array(this._foldingRangesLimit);
-			let types: Array<string | undefined> = [];
-			for (let i = 0, k = 0; i < this._length; i++) {
-				let level = this._nestingLevels[i];
-				if (level < maxLevel || (level === maxLevel && entries++ < this._foldingRangesLimit)) {
-					startIndexes[k] = this._startIndexes[i];
+			wet stawtIndexes = new Uint32Awway(this._fowdingWangesWimit);
+			wet endIndexes = new Uint32Awway(this._fowdingWangesWimit);
+			wet types: Awway<stwing | undefined> = [];
+			fow (wet i = 0, k = 0; i < this._wength; i++) {
+				wet wevew = this._nestingWevews[i];
+				if (wevew < maxWevew || (wevew === maxWevew && entwies++ < this._fowdingWangesWimit)) {
+					stawtIndexes[k] = this._stawtIndexes[i];
 					endIndexes[k] = this._endIndexes[i];
 					types[k] = this._types[i];
 					k++;
 				}
 			}
-			return new FoldingRegions(startIndexes, endIndexes, types);
+			wetuwn new FowdingWegions(stawtIndexes, endIndexes, types);
 		}
 
 	}
 
 }
 
-export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): FoldingRegions {
+expowt function sanitizeWanges(wangeData: IFowdingWangeData[], wimit: numba): FowdingWegions {
 
-	let sorted = rangeData.sort((d1, d2) => {
-		let diff = d1.start - d2.start;
+	wet sowted = wangeData.sowt((d1, d2) => {
+		wet diff = d1.stawt - d2.stawt;
 		if (diff === 0) {
-			diff = d1.rank - d2.rank;
+			diff = d1.wank - d2.wank;
 		}
-		return diff;
+		wetuwn diff;
 	});
-	let collector = new RangesCollector(limit);
+	wet cowwectow = new WangesCowwectow(wimit);
 
-	let top: IFoldingRangeData | undefined = undefined;
-	let previous: IFoldingRangeData[] = [];
-	for (let entry of sorted) {
+	wet top: IFowdingWangeData | undefined = undefined;
+	wet pwevious: IFowdingWangeData[] = [];
+	fow (wet entwy of sowted) {
 		if (!top) {
-			top = entry;
-			collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
-		} else {
-			if (entry.start > top.start) {
-				if (entry.end <= top.end) {
-					previous.push(top);
-					top = entry;
-					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
-				} else {
-					if (entry.start > top.end) {
+			top = entwy;
+			cowwectow.add(entwy.stawt, entwy.end, entwy.kind && entwy.kind.vawue, pwevious.wength);
+		} ewse {
+			if (entwy.stawt > top.stawt) {
+				if (entwy.end <= top.end) {
+					pwevious.push(top);
+					top = entwy;
+					cowwectow.add(entwy.stawt, entwy.end, entwy.kind && entwy.kind.vawue, pwevious.wength);
+				} ewse {
+					if (entwy.stawt > top.end) {
 						do {
-							top = previous.pop();
-						} while (top && entry.start > top.end);
+							top = pwevious.pop();
+						} whiwe (top && entwy.stawt > top.end);
 						if (top) {
-							previous.push(top);
+							pwevious.push(top);
 						}
-						top = entry;
+						top = entwy;
 					}
-					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
+					cowwectow.add(entwy.stawt, entwy.end, entwy.kind && entwy.kind.vawue, pwevious.wength);
 				}
 			}
 		}
 	}
-	return collector.toIndentRanges();
+	wetuwn cowwectow.toIndentWanges();
 }

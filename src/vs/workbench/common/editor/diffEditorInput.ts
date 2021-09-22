@@ -1,253 +1,253 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { shorten } from 'vs/base/common/labels';
+impowt { wocawize } fwom 'vs/nws';
+impowt { AbstwactSideBySideEditowInputSewiawiza, SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowModew } fwom 'vs/wowkbench/common/editow/editowModew';
+impowt { TEXT_DIFF_EDITOW_ID, BINAWY_DIFF_EDITOW_ID, Vewbosity, IEditowDescwiptow, IEditowPane, GwoupIdentifia, IWesouwceDiffEditowInput, IUntypedEditowInput, DEFAUWT_EDITOW_ASSOCIATION, isWesouwceDiffEditowInput, IDiffEditowInput, IWesouwceSideBySideEditowInput, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { DiffEditowModew } fwom 'vs/wowkbench/common/editow/diffEditowModew';
+impowt { TextDiffEditowModew } fwom 'vs/wowkbench/common/editow/textDiffEditowModew';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { showten } fwom 'vs/base/common/wabews';
 
-interface IDiffEditorInputLabels {
-	name: string;
+intewface IDiffEditowInputWabews {
+	name: stwing;
 
-	shortDescription: string | undefined;
-	mediumDescription: string | undefined;
-	longDescription: string | undefined;
+	showtDescwiption: stwing | undefined;
+	mediumDescwiption: stwing | undefined;
+	wongDescwiption: stwing | undefined;
 
-	forceDescription: boolean;
+	fowceDescwiption: boowean;
 
-	shortTitle: string;
-	mediumTitle: string;
-	longTitle: string;
+	showtTitwe: stwing;
+	mediumTitwe: stwing;
+	wongTitwe: stwing;
 }
 
 /**
- * The base editor input for the diff editor. It is made up of two editor inputs, the original version
- * and the modified version.
+ * The base editow input fow the diff editow. It is made up of two editow inputs, the owiginaw vewsion
+ * and the modified vewsion.
  */
-export class DiffEditorInput extends SideBySideEditorInput implements IDiffEditorInput {
+expowt cwass DiffEditowInput extends SideBySideEditowInput impwements IDiffEditowInput {
 
-	static override readonly ID: string = 'workbench.editors.diffEditorInput';
+	static ovewwide weadonwy ID: stwing = 'wowkbench.editows.diffEditowInput';
 
-	override get typeId(): string {
-		return DiffEditorInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn DiffEditowInput.ID;
 	}
 
-	override get editorId(): string | undefined {
-		return DEFAULT_EDITOR_ASSOCIATION.id;
+	ovewwide get editowId(): stwing | undefined {
+		wetuwn DEFAUWT_EDITOW_ASSOCIATION.id;
 	}
 
-	override get capabilities(): EditorInputCapabilities {
-		let capabilities = super.capabilities;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wet capabiwities = supa.capabiwities;
 
-		// Force description capability depends on labels
-		if (this.labels.forceDescription) {
-			capabilities |= EditorInputCapabilities.ForceDescription;
+		// Fowce descwiption capabiwity depends on wabews
+		if (this.wabews.fowceDescwiption) {
+			capabiwities |= EditowInputCapabiwities.FowceDescwiption;
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	private cachedModel: DiffEditorModel | undefined = undefined;
+	pwivate cachedModew: DiffEditowModew | undefined = undefined;
 
-	private readonly labels = this.computeLabels();
+	pwivate weadonwy wabews = this.computeWabews();
 
-	constructor(
-		preferredName: string | undefined,
-		preferredDescription: string | undefined,
-		readonly original: EditorInput,
-		readonly modified: EditorInput,
-		private readonly forceOpenAsBinary: boolean | undefined,
-		@IEditorService editorService: IEditorService
+	constwuctow(
+		pwefewwedName: stwing | undefined,
+		pwefewwedDescwiption: stwing | undefined,
+		weadonwy owiginaw: EditowInput,
+		weadonwy modified: EditowInput,
+		pwivate weadonwy fowceOpenAsBinawy: boowean | undefined,
+		@IEditowSewvice editowSewvice: IEditowSewvice
 	) {
-		super(preferredName, preferredDescription, original, modified, editorService);
+		supa(pwefewwedName, pwefewwedDescwiption, owiginaw, modified, editowSewvice);
 	}
 
-	private computeLabels(): IDiffEditorInputLabels {
+	pwivate computeWabews(): IDiffEditowInputWabews {
 
 		// Name
-		let name: string;
-		let forceDescription = false;
-		if (this.preferredName) {
-			name = this.preferredName;
-		} else {
-			const originalName = this.original.getName();
+		wet name: stwing;
+		wet fowceDescwiption = fawse;
+		if (this.pwefewwedName) {
+			name = this.pwefewwedName;
+		} ewse {
+			const owiginawName = this.owiginaw.getName();
 			const modifiedName = this.modified.getName();
 
-			name = localize('sideBySideLabels', "{0} ↔ {1}", originalName, modifiedName);
+			name = wocawize('sideBySideWabews', "{0} ↔ {1}", owiginawName, modifiedName);
 
-			// Enforce description when the names are identical
-			forceDescription = originalName === modifiedName;
+			// Enfowce descwiption when the names awe identicaw
+			fowceDescwiption = owiginawName === modifiedName;
 		}
 
-		// Description
-		let shortDescription: string | undefined;
-		let mediumDescription: string | undefined;
-		let longDescription: string | undefined;
-		if (this.preferredDescription) {
-			shortDescription = this.preferredDescription;
-			mediumDescription = this.preferredDescription;
-			longDescription = this.preferredDescription;
-		} else {
-			shortDescription = this.computeLabel(this.original.getDescription(Verbosity.SHORT), this.modified.getDescription(Verbosity.SHORT));
-			longDescription = this.computeLabel(this.original.getDescription(Verbosity.LONG), this.modified.getDescription(Verbosity.LONG));
+		// Descwiption
+		wet showtDescwiption: stwing | undefined;
+		wet mediumDescwiption: stwing | undefined;
+		wet wongDescwiption: stwing | undefined;
+		if (this.pwefewwedDescwiption) {
+			showtDescwiption = this.pwefewwedDescwiption;
+			mediumDescwiption = this.pwefewwedDescwiption;
+			wongDescwiption = this.pwefewwedDescwiption;
+		} ewse {
+			showtDescwiption = this.computeWabew(this.owiginaw.getDescwiption(Vewbosity.SHOWT), this.modified.getDescwiption(Vewbosity.SHOWT));
+			wongDescwiption = this.computeWabew(this.owiginaw.getDescwiption(Vewbosity.WONG), this.modified.getDescwiption(Vewbosity.WONG));
 
-			// Medium Description: try to be verbose by computing
-			// a label that resembles the difference between the two
-			const originalMediumDescription = this.original.getDescription(Verbosity.MEDIUM);
-			const modifiedMediumDescription = this.modified.getDescription(Verbosity.MEDIUM);
-			if (originalMediumDescription && modifiedMediumDescription) {
-				const [shortenedOriginalMediumDescription, shortenedModifiedMediumDescription] = shorten([originalMediumDescription, modifiedMediumDescription]);
-				mediumDescription = this.computeLabel(shortenedOriginalMediumDescription, shortenedModifiedMediumDescription);
+			// Medium Descwiption: twy to be vewbose by computing
+			// a wabew that wesembwes the diffewence between the two
+			const owiginawMediumDescwiption = this.owiginaw.getDescwiption(Vewbosity.MEDIUM);
+			const modifiedMediumDescwiption = this.modified.getDescwiption(Vewbosity.MEDIUM);
+			if (owiginawMediumDescwiption && modifiedMediumDescwiption) {
+				const [showtenedOwiginawMediumDescwiption, showtenedModifiedMediumDescwiption] = showten([owiginawMediumDescwiption, modifiedMediumDescwiption]);
+				mediumDescwiption = this.computeWabew(showtenedOwiginawMediumDescwiption, showtenedModifiedMediumDescwiption);
 			}
 		}
 
-		// Title
-		const shortTitle = this.computeLabel(this.original.getTitle(Verbosity.SHORT) ?? this.original.getName(), this.modified.getTitle(Verbosity.SHORT) ?? this.modified.getName(), ' ↔ ');
-		const mediumTitle = this.computeLabel(this.original.getTitle(Verbosity.MEDIUM) ?? this.original.getName(), this.modified.getTitle(Verbosity.MEDIUM) ?? this.modified.getName(), ' ↔ ');
-		const longTitle = this.computeLabel(this.original.getTitle(Verbosity.LONG) ?? this.original.getName(), this.modified.getTitle(Verbosity.LONG) ?? this.modified.getName(), ' ↔ ');
+		// Titwe
+		const showtTitwe = this.computeWabew(this.owiginaw.getTitwe(Vewbosity.SHOWT) ?? this.owiginaw.getName(), this.modified.getTitwe(Vewbosity.SHOWT) ?? this.modified.getName(), ' ↔ ');
+		const mediumTitwe = this.computeWabew(this.owiginaw.getTitwe(Vewbosity.MEDIUM) ?? this.owiginaw.getName(), this.modified.getTitwe(Vewbosity.MEDIUM) ?? this.modified.getName(), ' ↔ ');
+		const wongTitwe = this.computeWabew(this.owiginaw.getTitwe(Vewbosity.WONG) ?? this.owiginaw.getName(), this.modified.getTitwe(Vewbosity.WONG) ?? this.modified.getName(), ' ↔ ');
 
-		return { name, shortDescription, mediumDescription, longDescription, forceDescription, shortTitle, mediumTitle, longTitle };
+		wetuwn { name, showtDescwiption, mediumDescwiption, wongDescwiption, fowceDescwiption, showtTitwe, mediumTitwe, wongTitwe };
 	}
 
-	private computeLabel(originalLabel: string, modifiedLabel: string, separator?: string): string;
-	private computeLabel(originalLabel: string | undefined, modifiedLabel: string | undefined, separator?: string): string | undefined;
-	private computeLabel(originalLabel: string | undefined, modifiedLabel: string | undefined, separator = ' - '): string | undefined {
-		if (!originalLabel || !modifiedLabel) {
-			return undefined;
+	pwivate computeWabew(owiginawWabew: stwing, modifiedWabew: stwing, sepawatow?: stwing): stwing;
+	pwivate computeWabew(owiginawWabew: stwing | undefined, modifiedWabew: stwing | undefined, sepawatow?: stwing): stwing | undefined;
+	pwivate computeWabew(owiginawWabew: stwing | undefined, modifiedWabew: stwing | undefined, sepawatow = ' - '): stwing | undefined {
+		if (!owiginawWabew || !modifiedWabew) {
+			wetuwn undefined;
 		}
 
-		if (originalLabel === modifiedLabel) {
-			return modifiedLabel;
+		if (owiginawWabew === modifiedWabew) {
+			wetuwn modifiedWabew;
 		}
 
-		return `${originalLabel}${separator}${modifiedLabel}`;
+		wetuwn `${owiginawWabew}${sepawatow}${modifiedWabew}`;
 	}
 
-	override getName(): string {
-		return this.labels.name;
+	ovewwide getName(): stwing {
+		wetuwn this.wabews.name;
 	}
 
-	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.labels.shortDescription;
-			case Verbosity.LONG:
-				return this.labels.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.labels.mediumDescription;
-		}
-	}
-
-	override getTitle(verbosity?: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.labels.shortTitle;
-			case Verbosity.LONG:
-				return this.labels.longTitle;
-			default:
-			case Verbosity.MEDIUM:
-				return this.labels.mediumTitle;
+	ovewwide getDescwiption(vewbosity = Vewbosity.MEDIUM): stwing | undefined {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.wabews.showtDescwiption;
+			case Vewbosity.WONG:
+				wetuwn this.wabews.wongDescwiption;
+			case Vewbosity.MEDIUM:
+			defauwt:
+				wetuwn this.wabews.mediumDescwiption;
 		}
 	}
 
-	override async resolve(): Promise<EditorModel> {
-
-		// Create Model - we never reuse our cached model if refresh is true because we cannot
-		// decide for the inputs within if the cached model can be reused or not. There may be
-		// inputs that need to be loaded again and thus we always recreate the model and dispose
-		// the previous one - if any.
-		const resolvedModel = await this.createModel();
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
+	ovewwide getTitwe(vewbosity?: Vewbosity): stwing {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.wabews.showtTitwe;
+			case Vewbosity.WONG:
+				wetuwn this.wabews.wongTitwe;
+			defauwt:
+			case Vewbosity.MEDIUM:
+				wetuwn this.wabews.mediumTitwe;
 		}
-
-		this.cachedModel = resolvedModel;
-
-		return this.cachedModel;
 	}
 
-	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		if (this.forceOpenAsBinary) {
-			return editorPanes.find(editorPane => editorPane.typeId === BINARY_DIFF_EDITOR_ID);
+	ovewwide async wesowve(): Pwomise<EditowModew> {
+
+		// Cweate Modew - we neva weuse ouw cached modew if wefwesh is twue because we cannot
+		// decide fow the inputs within if the cached modew can be weused ow not. Thewe may be
+		// inputs that need to be woaded again and thus we awways wecweate the modew and dispose
+		// the pwevious one - if any.
+		const wesowvedModew = await this.cweateModew();
+		if (this.cachedModew) {
+			this.cachedModew.dispose();
 		}
 
-		return editorPanes.find(editorPane => editorPane.typeId === TEXT_DIFF_EDITOR_ID);
+		this.cachedModew = wesowvedModew;
+
+		wetuwn this.cachedModew;
 	}
 
-	private async createModel(): Promise<DiffEditorModel> {
+	ovewwide pwefewsEditowPane<T extends IEditowDescwiptow<IEditowPane>>(editowPanes: T[]): T | undefined {
+		if (this.fowceOpenAsBinawy) {
+			wetuwn editowPanes.find(editowPane => editowPane.typeId === BINAWY_DIFF_EDITOW_ID);
+		}
 
-		// Join resolve call over two inputs and build diff editor model
-		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
-			this.original.resolve(),
-			this.modified.resolve()
+		wetuwn editowPanes.find(editowPane => editowPane.typeId === TEXT_DIFF_EDITOW_ID);
+	}
+
+	pwivate async cweateModew(): Pwomise<DiffEditowModew> {
+
+		// Join wesowve caww ova two inputs and buiwd diff editow modew
+		const [owiginawEditowModew, modifiedEditowModew] = await Pwomise.aww([
+			this.owiginaw.wesowve(),
+			this.modified.wesowve()
 		]);
 
-		// If both are text models, return textdiffeditor model
-		if (modifiedEditorModel instanceof BaseTextEditorModel && originalEditorModel instanceof BaseTextEditorModel) {
-			return new TextDiffEditorModel(originalEditorModel, modifiedEditorModel);
+		// If both awe text modews, wetuwn textdiffeditow modew
+		if (modifiedEditowModew instanceof BaseTextEditowModew && owiginawEditowModew instanceof BaseTextEditowModew) {
+			wetuwn new TextDiffEditowModew(owiginawEditowModew, modifiedEditowModew);
 		}
 
-		// Otherwise return normal diff model
-		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
+		// Othewwise wetuwn nowmaw diff modew
+		wetuwn new DiffEditowModew(withNuwwAsUndefined(owiginawEditowModew), withNuwwAsUndefined(modifiedEditowModew));
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {
-		const untyped = super.toUntyped(options);
+	ovewwide toUntyped(options?: { pwesewveViewState: GwoupIdentifia }): (IWesouwceDiffEditowInput & IWesouwceSideBySideEditowInput) | undefined {
+		const untyped = supa.toUntyped(options);
 		if (untyped) {
-			return {
+			wetuwn {
 				...untyped,
-				modified: untyped.primary,
-				original: untyped.secondary
+				modified: untyped.pwimawy,
+				owiginaw: untyped.secondawy
 			};
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (this === otherInput) {
-			return true;
+	ovewwide matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
+		if (this === othewInput) {
+			wetuwn twue;
 		}
 
-		if (otherInput instanceof DiffEditorInput) {
-			return this.modified.matches(otherInput.modified) && this.original.matches(otherInput.original) && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
+		if (othewInput instanceof DiffEditowInput) {
+			wetuwn this.modified.matches(othewInput.modified) && this.owiginaw.matches(othewInput.owiginaw) && othewInput.fowceOpenAsBinawy === this.fowceOpenAsBinawy;
 		}
 
-		if (isResourceDiffEditorInput(otherInput)) {
-			return this.modified.matches(otherInput.modified) && this.original.matches(otherInput.original);
+		if (isWesouwceDiffEditowInput(othewInput)) {
+			wetuwn this.modified.matches(othewInput.modified) && this.owiginaw.matches(othewInput.owiginaw);
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 
-		// Free the diff editor model but do not propagate the dispose() call to the two inputs
-		// We never created the two inputs (original and modified) so we can not dispose
+		// Fwee the diff editow modew but do not pwopagate the dispose() caww to the two inputs
+		// We neva cweated the two inputs (owiginaw and modified) so we can not dispose
 		// them without sideeffects.
-		if (this.cachedModel) {
-			this.cachedModel.dispose();
-			this.cachedModel = undefined;
+		if (this.cachedModew) {
+			this.cachedModew.dispose();
+			this.cachedModew = undefined;
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }
 
-export class DiffEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
+expowt cwass DiffEditowInputSewiawiza extends AbstwactSideBySideEditowInputSewiawiza {
 
-	protected createEditorInput(instantiationService: IInstantiationService, name: string | undefined, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
-		return instantiationService.createInstance(DiffEditorInput, name, description, secondaryInput, primaryInput, undefined);
+	pwotected cweateEditowInput(instantiationSewvice: IInstantiationSewvice, name: stwing | undefined, descwiption: stwing | undefined, secondawyInput: EditowInput, pwimawyInput: EditowInput): EditowInput {
+		wetuwn instantiationSewvice.cweateInstance(DiffEditowInput, name, descwiption, secondawyInput, pwimawyInput, undefined);
 	}
 }

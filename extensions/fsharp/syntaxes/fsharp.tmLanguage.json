@@ -1,1196 +1,1196 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/ionide/ionide-fsgrammar/blob/master/grammars/fsharp.json",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/ionide/ionide-fsgwammaw/bwob/masta/gwammaws/fshawp.json",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff",
-	"name": "fsharp",
-	"scopeName": "source.fsharp",
-	"patterns": [
+	"vewsion": "https://github.com/ionide/ionide-fsgwammaw/commit/fc4cac6d9bc1787f54ce48bbc77bcbb1de8160ff",
+	"name": "fshawp",
+	"scopeName": "souwce.fshawp",
+	"pattewns": [
 		{
-			"include": "#compiler_directives"
+			"incwude": "#compiwew_diwectives"
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"include": "#constants"
+			"incwude": "#constants"
 		},
 		{
-			"include": "#strings"
+			"incwude": "#stwings"
 		},
 		{
-			"include": "#chars"
+			"incwude": "#chaws"
 		},
 		{
-			"include": "#double_tick"
+			"incwude": "#doubwe_tick"
 		},
 		{
-			"include": "#definition"
+			"incwude": "#definition"
 		},
 		{
-			"include": "#abstract_definition"
+			"incwude": "#abstwact_definition"
 		},
 		{
-			"include": "#attributes"
+			"incwude": "#attwibutes"
 		},
 		{
-			"include": "#modules"
+			"incwude": "#moduwes"
 		},
 		{
-			"include": "#anonymous_functions"
+			"incwude": "#anonymous_functions"
 		},
 		{
-			"include": "#du_declaration"
+			"incwude": "#du_decwawation"
 		},
 		{
-			"include": "#record_declaration"
+			"incwude": "#wecowd_decwawation"
 		},
 		{
-			"include": "#records"
+			"incwude": "#wecowds"
 		},
 		{
-			"include": "#strp_inlined"
+			"incwude": "#stwp_inwined"
 		},
 		{
-			"include": "#keywords"
+			"incwude": "#keywowds"
 		},
 		{
-			"include": "#cexprs"
+			"incwude": "#cexpws"
 		},
 		{
-			"include": "#text"
+			"incwude": "#text"
 		}
 	],
-	"repository": {
-		"strp_inlined_body": {
-			"patterns": [
+	"wepositowy": {
+		"stwp_inwined_body": {
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#anonymous_functions"
+					"incwude": "#anonymous_functions"
 				},
 				{
-					"match": "(\\^[[:alpha:]0-9'._]+)",
-					"captures": {
+					"match": "(\\^[[:awpha:]0-9'._]+)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"name": "keyword.fsharp",
-					"match": "\\b(and|when|or)\\b"
+					"name": "keywowd.fshawp",
+					"match": "\\b(and|when|ow)\\b"
 				},
 				{
 					"begin": "(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#strp_inlined_body"
+							"incwude": "#stwp_inwined_body"
 						}
 					]
 				},
 				{
-					"match": "(static member|member)\\s*([[:alpha:]0-9'`<>^._]+|``[[:alpha:]0-9' <>^._]+``)\\s*(:)",
-					"captures": {
+					"match": "(static memba|memba)\\s*([[:awpha:]0-9'`<>^._]+|``[[:awpha:]0-9' <>^._]+``)\\s*(:)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "variable.fsharp"
+							"name": "vawiabwe.fshawp"
 						},
 						"3": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#compiler_directives"
+					"incwude": "#compiwew_diwectives"
 				},
 				{
-					"include": "#constants"
+					"incwude": "#constants"
 				},
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
-					"include": "#chars"
+					"incwude": "#chaws"
 				},
 				{
-					"include": "#double_tick"
+					"incwude": "#doubwe_tick"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				},
 				{
-					"include": "#text"
+					"incwude": "#text"
 				},
 				{
-					"include": "#definition"
+					"incwude": "#definition"
 				},
 				{
-					"include": "#attributes"
+					"incwude": "#attwibutes"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				},
 				{
-					"include": "#cexprs"
+					"incwude": "#cexpws"
 				},
 				{
-					"include": "#text"
+					"incwude": "#text"
 				}
 			]
 		},
-		"strp_inlined": {
-			"patterns": [
+		"stwp_inwined": {
+			"pattewns": [
 				{
 					"begin": "(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#strp_inlined_body"
+							"incwude": "#stwp_inwined_body"
 						}
 					]
 				}
 			]
 		},
-		"generic_declaration": {
-			"patterns": [
+		"genewic_decwawation": {
+			"pattewns": [
 				{
-					"comments": "SRTP syntax support",
-					"begin": "(:)\\s*(\\()\\s*(static member|member)",
-					"beginCaptures": {
+					"comments": "SWTP syntax suppowt",
+					"begin": "(:)\\s*(\\()\\s*(static memba|memba)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"3": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
 					"end": "(\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(\\()",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
 							"end": "(\\))",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#member_declaration"
+									"incwude": "#membew_decwawation"
 								}
 							]
 						},
 						{
-							"match": "(('|\\^)[[:alpha:]0-9'._]+)",
-							"captures": {
+							"match": "(('|\\^)[[:awpha:]0-9'._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				},
 				{
-					"name": "keyword.fsharp",
-					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|enum|member|try|finally|and|when|or|use|use\\!|struct|while|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
+					"name": "keywowd.fshawp",
+					"match": "\\b(pwivate|to|pubwic|intewnaw|function|yiewd!|yiewd|cwass|exception|match|dewegate|of|new|in|as|if|then|ewse|ewif|fow|begin|end|inhewit|do|wet\\!|wetuwn\\!|wetuwn|intewface|with|abstwact|enum|memba|twy|finawwy|and|when|ow|use|use\\!|stwuct|whiwe|mutabwe|assewt|base|done|downcast|downto|extewn|fixed|gwobaw|wazy|upcast|not)(?!')\\b"
 				},
 				{
-					"name": "keyword.fsharp",
+					"name": "keywowd.fshawp",
 					"match": ":"
 				},
 				{
-					"include": "#constants"
+					"incwude": "#constants"
 				},
 				{
-					"match": "(('|\\^)[[:alpha:]0-9'._]+)",
-					"captures": {
+					"match": "(('|\\^)[[:awpha:]0-9'._]+)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
 					"begin": "(<)",
 					"end": "(>)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(('|\\^)[[:alpha:]0-9'._]+)",
-							"captures": {
+							"match": "(('|\\^)[[:awpha:]0-9'._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						},
 						{
-							"include": "#generic_declaration"
+							"incwude": "#genewic_decwawation"
 						}
 					]
 				},
 				{
 					"begin": "(\\()",
 					"end": "(\\))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(([?[:alpha:]0-9'`^._ ]+))+",
-							"captures": {
+							"match": "(([?[:awpha:]0-9'`^._ ]+))+",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						}
 					]
 				},
 				{
-					"match": "(?!when|and|or\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
-					"captures": {
+					"match": "(?!when|and|ow\\b)\\b([\\w0-9'`^._]+)",
+					"comments": "Hewe we need the \\w modifia in owda to check that the wowds isn't bwackwisted",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
 					"match": "(\\|)",
-					"comments": "Prevent captures of `|>` as a keyword when defining custom operator like `<|>`",
-					"captures": {
+					"comments": "Pwevent captuwes of `|>` as a keywowd when defining custom opewatow wike `<|>`",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
-		"anonymous_record_declaration": {
+		"anonymous_wecowd_decwawation": {
 			"begin": "(\\{\\|)",
 			"end": "(\\|\\})",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.symbol.fsharp"
+					"name": "keywowd.symbow.fshawp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.symbol.fsharp"
+					"name": "keywowd.symbow.fshawp"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "[[:alpha:]0-9'`^_ ]+(:)",
-					"captures": {
+					"match": "[[:awpha:]0-9'`^_ ]+(:)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					}
 				},
 				{
-					"match": "([[:alpha:]0-9'`^_ ]+)",
-					"captures": {
+					"match": "([[:awpha:]0-9'`^_ ]+)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#anonymous_record_declaration"
+					"incwude": "#anonymous_wecowd_decwawation"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
-		"record_signature": {
-			"patterns": [
+		"wecowd_signatuwe": {
+			"pattewns": [
 				{
-					"match": "[[:alpha:]0-9'`^_ ]+(=)([[:alpha:]0-9'`^_ ]+)",
-					"captures": {
+					"match": "[[:awpha:]0-9'`^_ ]+(=)([[:awpha:]0-9'`^_ ]+)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						}
 					}
 				},
 				{
 					"begin": "({)",
 					"end": "(})",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "[[:alpha:]0-9'`^_ ]+(=)([[:alpha:]0-9'`^_ ]+)",
-							"captures": {
+							"match": "[[:awpha:]0-9'`^_ ]+(=)([[:awpha:]0-9'`^_ ]+)",
+							"captuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								},
 								"2": {
-									"name": "variable.parameter.fsharp"
+									"name": "vawiabwe.pawameta.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#record_signature"
+							"incwude": "#wecowd_signatuwe"
 						}
 					]
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
-		"tuple_signature": {
-			"patterns": [
+		"tupwe_signatuwe": {
+			"pattewns": [
 				{
-					"match": "(([?[:alpha:]0-9'`^._ ]+))+",
-					"captures": {
+					"match": "(([?[:awpha:]0-9'`^._ ]+))+",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
 					"begin": "(\\()",
 					"end": "(\\))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(([?[:alpha:]0-9'`^._ ]+))+",
-							"captures": {
+							"match": "(([?[:awpha:]0-9'`^._ ]+))+",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						}
 					]
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
 		"anonymous_functions": {
-			"patterns": [
+			"pattewns": [
 				{
 					"name": "function.anonymous",
 					"begin": "\\b(fun)\\b",
 					"end": "(->)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.arrow.fsharp"
+							"name": "keywowd.symbow.awwow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
 							"begin": "(\\()",
 							"end": "\\s*(?=(->))",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.arrow.fsharp"
+									"name": "keywowd.symbow.awwow.fshawp"
 								}
 							},
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.arrow.fsharp"
+									"name": "keywowd.symbow.awwow.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#member_declaration"
+									"incwude": "#membew_decwawation"
 								}
 							]
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"attributes": {
-			"patterns": [
+		"attwibutes": {
+			"pattewns": [
 				{
-					"name": "support.function.attribute.fsharp",
+					"name": "suppowt.function.attwibute.fshawp",
 					"begin": "\\[\\<",
 					"end": "\\>\\]|\\]",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "comment.block.markdown.fsharp",
+					"name": "comment.bwock.mawkdown.fshawp",
 					"begin": "^\\s*(\\(\\*\\*(?!\\)))(?!\\*\\))$",
-					"while": "^(?!\\s*\\*\\)$)",
-					"beginCaptures": {
+					"whiwe": "^(?!\\s*\\*\\)$)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "comment.block.fsharp"
+							"name": "comment.bwock.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "comment.block.fsharp"
+							"name": "comment.bwock.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "text.html.markdown"
+							"incwude": "text.htmw.mawkdown"
 						}
 					]
 				},
 				{
-					"name": "comment.block.fsharp",
+					"name": "comment.bwock.fshawp",
 					"begin": "(\\(\\*(?!\\)))",
 					"end": "(\\*\\))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "comment.block.fsharp"
+							"name": "comment.bwock.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "comment.block.fsharp"
+							"name": "comment.bwock.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"comments": "Capture // when inside of (* *) like that the rule which capture comments starting by // is not trigger. See https://github.com/ionide/ionide-fsgrammar/issues/155",
-							"name": "fast-capture.comment.line.double-slash.fsharp",
+							"comments": "Captuwe // when inside of (* *) wike that the wuwe which captuwe comments stawting by // is not twigga. See https://github.com/ionide/ionide-fsgwammaw/issues/155",
+							"name": "fast-captuwe.comment.wine.doubwe-swash.fshawp",
 							"match": "//"
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"name": "comment.block.markdown.fsharp.end",
+					"name": "comment.bwock.mawkdown.fshawp.end",
 					"match": "(\\*\\))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "comment.block.fsharp"
+							"name": "comment.bwock.fshawp"
 						}
 					}
 				},
 				{
-					"name": "comment.line.markdown.fsharp",
+					"name": "comment.wine.mawkdown.fshawp",
 					"begin": "///",
-					"while": "///",
-					"patterns": [
+					"whiwe": "///",
+					"pattewns": [
 						{
-							"include": "text.html.markdown"
+							"incwude": "text.htmw.mawkdown"
 						}
 					]
 				},
 				{
-					"name": "comment.line.double-slash.fsharp",
+					"name": "comment.wine.doubwe-swash.fshawp",
 					"match": "//.*$"
 				}
 			]
 		},
 		"constants": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "constant.language.unit.fsharp",
+					"name": "constant.wanguage.unit.fshawp",
 					"match": "\\(\\)"
 				},
 				{
-					"name": "constant.numeric.float.fsharp",
+					"name": "constant.numewic.fwoat.fshawp",
 					"match": "\\b-?[0-9][0-9_]*((\\.([0-9][0-9_]*([eE][+-]??[0-9][0-9_]*)?)?)|([eE][+-]??[0-9][0-9_]*))"
 				},
 				{
-					"name": "constant.numeric.integer.nativeint.fsharp",
+					"name": "constant.numewic.intega.nativeint.fshawp",
 					"match": "\\b(-?((0(x|X)[0-9a-fA-F][0-9a-fA-F_]*)|(0(o|O)[0-7][0-7_]*)|(0(b|B)[01][01_]*)|([0-9][0-9_]*)))"
 				},
 				{
-					"name": "constant.other.fsharp",
-					"match": "\\b(true|false|null|unit|void)\\b"
+					"name": "constant.otha.fshawp",
+					"match": "\\b(twue|fawse|nuww|unit|void)\\b"
 				}
 			]
 		},
-		"abstract_definition": {
-			"name": "abstract.definition.fsharp",
-			"begin": "\\b(abstract)\\s+(member)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:alpha:]0-9,\\._`\\s]+)(:)",
+		"abstwact_definition": {
+			"name": "abstwact.definition.fshawp",
+			"begin": "\\b(abstwact)\\s+(memba)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:awpha:]0-9,\\._`\\s]+)(:)",
 			"end": "\\s*(with)\\b|=|$",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "keyword.fsharp"
+					"name": "keywowd.fshawp"
 				},
 				"2": {
-					"name": "keyword.fsharp"
+					"name": "keywowd.fshawp"
 				},
 				"3": {
-					"name": "support.function.attribute.fsharp"
+					"name": "suppowt.function.attwibute.fshawp"
 				},
 				"5": {
-					"name": "keyword.fsharp"
+					"name": "keywowd.fshawp"
 				}
 			},
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "keyword.fsharp"
+					"name": "keywowd.fshawp"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#common_declaration"
+					"incwude": "#common_decwawation"
 				},
 				{
-					"match": "(\\?{0,1})([[:alpha:]0-9'`^._ ]+)\\s*(:)((?!with\\b)\\b([\\w0-9'`^._ ]+)){0,1}",
-					"captures": {
+					"match": "(\\?{0,1})([[:awpha:]0-9'`^._ ]+)\\s*(:)((?!with\\b)\\b([\\w0-9'`^._ ]+)){0,1}",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						},
 						"3": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"4": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
 					"match": "(?!with|get|set\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
-					"captures": {
+					"comments": "Hewe we need the \\w modifia in owda to check that the wowds isn't bwackwisted",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
 		"common_binding_definition": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#attributes"
+					"incwude": "#attwibutes"
 				},
 				{
-					"comments": "SRTP syntax support",
-					"begin": "(:)\\s*(\\()\\s*(static member|member)",
-					"beginCaptures": {
+					"comments": "SWTP syntax suppowt",
+					"begin": "(:)\\s*(\\()\\s*(static memba|memba)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"3": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
 					"end": "(\\))\\s*((?=,)|(?=\\=))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "(\\^[[:alpha:]0-9'._]+)",
-							"captures": {
+							"match": "(\\^[[:awpha:]0-9'._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				},
 				{
 					"begin": "(:)\\s*(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"end": "(\\)\\s*(([?[:alpha:]0-9'`^._ ]*)))",
-					"endCaptures": {
+					"end": "(\\)\\s*(([?[:awpha:]0-9'`^._ ]*)))",
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						}
 					]
 				},
 				{
-					"begin": "(:)\\s*(\\^[[:alpha:]0-9'._]+)\\s*(when)",
-					"beginCaptures": {
+					"begin": "(:)\\s*(\\^[[:awpha:]0-9'._]+)\\s*(when)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						},
 						"3": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
 					"end": "(?=:)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "keyword.fsharp",
-							"match": "\\b(and|when|or)\\b"
+							"name": "keywowd.fshawp",
+							"match": "\\b(and|when|ow)\\b"
 						},
 						{
-							"comment": "Because we first capture the keywords, we can capture what looks like a word and assume it's an entity definition",
-							"match": "([[:alpha:]0-9'^._]+)",
-							"captures": {
+							"comment": "Because we fiwst captuwe the keywowds, we can captuwe what wooks wike a wowd and assume it's an entity definition",
+							"match": "([[:awpha:]0-9'^._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"name": "keyword.symbol.fsharp",
+							"name": "keywowd.symbow.fshawp",
 							"match": "(\\(|\\))"
 						}
 					]
 				},
 				{
-					"match": "(:)\\s*([?[:alpha:]0-9'`^._ ]+)",
-					"captures": {
+					"match": "(:)\\s*([?[:awpha:]0-9'`^._ ]+)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"match": "(->)\\s*(\\()?\\s*([?[:alpha:]0-9'`^._ ]+)*",
-					"captures": {
+					"match": "(->)\\s*(\\()?\\s*([?[:awpha:]0-9'`^._ ]+)*",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"3": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
 					"begin": "(\\*)\\s*(\\()",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"end": "(\\)\\s*(([?[:alpha:]0-9'`^._ ]+))+)",
-					"endCaptures": {
+					"end": "(\\)\\s*(([?[:awpha:]0-9'`^._ ]+))+)",
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						}
 					]
 				},
 				{
-					"begin": "(\\*)(\\s*([?[:alpha:]0-9'`^._ ]+))*",
-					"beginCaptures": {
+					"begin": "(\\*)(\\s*([?[:awpha:]0-9'`^._ ]+))*",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					},
 					"end": "(?==)|(?=\\))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#tuple_signature"
+							"incwude": "#tupwe_signatuwe"
 						}
 					]
 				},
 				{
 					"begin": "(<+(?![[:space:]]*\\)))",
-					"beginComment": "The group (?![[:space:]]*\\) is for protection against overload operator. static member (<)",
+					"beginComment": "The gwoup (?![[:space:]]*\\) is fow pwotection against ovewwoad opewatow. static memba (<)",
 					"end": "((?<!:)>|\\))",
-					"endComment": "The group (?<!:) prevent us from stopping on :> when using SRTP synthax",
-					"beginCaptures": {
+					"endComment": "The gwoup (?<!:) pwevent us fwom stopping on :> when using SWTP synthax",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#generic_declaration"
+							"incwude": "#genewic_decwawation"
 						}
 					]
 				},
 				{
-					"include": "#anonymous_record_declaration"
+					"incwude": "#anonymous_wecowd_decwawation"
 				},
 				{
 					"begin": "({)",
 					"end": "(})",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#record_signature"
+							"incwude": "#wecowd_signatuwe"
 						}
 					]
 				},
 				{
-					"include": "#definition"
+					"incwude": "#definition"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
 		"definition": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "binding.fsharp",
-					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"name": "binding.fshawp",
+					"begin": "\\b(wet mutabwe|static wet mutabwe|static wet|wet inwine|wet|memba vaw|static memba inwine|static memba|defauwt|memba|ovewwide|wet!)(\\s+wec|mutabwe)?(\\s+\\[\\<.*\\>\\])?\\s*(pwivate|intewnaw|pubwic)?\\s+(\\[[^-=]*\\]|[_[:awpha:]]([_[:awpha:]0-9\\._]+)*|``[_[:awpha:]]([_[:awpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*(with\\b|=|\\n+=|(?<=\\=))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"3": {
-							"name": "support.function.attribute.fsharp"
+							"name": "suppowt.function.attwibute.fshawp"
 						},
 						"4": {
-							"name": "storage.modifier.fsharp"
+							"name": "stowage.modifia.fshawp"
 						},
 						"5": {
-							"name": "variable.fsharp"
+							"name": "vawiabwe.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#common_binding_definition"
+							"incwude": "#common_binding_definition"
 						}
 					]
 				},
 				{
-					"name": "binding.fsharp",
-					"begin": "(?<=with|and)\\s*\\b((get|set)\\s*(?=\\())(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"name": "binding.fshawp",
+					"begin": "(?<=with|and)\\s*\\b((get|set)\\s*(?=\\())(\\[[^-=]*\\]|[_[:awpha:]]([_[:awpha:]0-9\\._]+)*|``[_[:awpha:]]([_[:awpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*(=|\\n+=|(?<=\\=))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"4": {
-							"name": "variable.fsharp"
+							"name": "vawiabwe.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#common_binding_definition"
+							"incwude": "#common_binding_definition"
 						}
 					]
 				},
 				{
-					"name": "binding.fsharp",
-					"begin": "\\b(static val mutable|val mutable|val)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
+					"name": "binding.fshawp",
+					"begin": "\\b(static vaw mutabwe|vaw mutabwe|vaw)(\\s+wec|mutabwe)?(\\s+\\[\\<.*\\>\\])?\\s*(pwivate|intewnaw|pubwic)?\\s+(\\[[^-=]*\\]|[_[:awpha:]]([_[:awpha:]0-9,\\._]+)*|``[_[:awpha:]]([_[:awpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\n$",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"3": {
-							"name": "support.function.attribute.fsharp"
+							"name": "suppowt.function.attwibute.fshawp"
 						},
 						"4": {
-							"name": "storage.modifier.fsharp"
+							"name": "stowage.modifia.fshawp"
 						},
 						"5": {
-							"name": "variable.fsharp"
+							"name": "vawiabwe.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#common_binding_definition"
+							"incwude": "#common_binding_definition"
 						}
 					]
 				},
 				{
-					"name": "binding.fsharp",
+					"name": "binding.fshawp",
 					"begin": "\\b(new)\\b\\s+(\\()",
 					"end": "(\\))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#common_binding_definition"
+							"incwude": "#common_binding_definition"
 						}
 					]
 				}
 			]
 		},
-		"du_declaration": {
-			"patterns": [
+		"du_decwawation": {
+			"pattewns": [
 				{
-					"name": "du_declaration.fsharp",
+					"name": "du_decwawation.fshawp",
 					"begin": "\\b(of)\\b",
 					"end": "$|(\\|)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"match": "([[:alpha:]0-9'`<>^._]+|``[[:alpha:]0-9' <>^._]+``)\\s*(:)\\s*([[:alpha:]0-9'`<>^._]+|``[[:alpha:]0-9' <>^._]+``)",
-							"captures": {
+							"match": "([[:awpha:]0-9'`<>^._]+|``[[:awpha:]0-9' <>^._]+``)\\s*(:)\\s*([[:awpha:]0-9'`<>^._]+|``[[:awpha:]0-9' <>^._]+``)",
+							"captuwes": {
 								"1": {
-									"name": "variable.parameter.fsharp"
+									"name": "vawiabwe.pawameta.fshawp"
 								},
 								"2": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								},
 								"3": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"match": "(``([[:alpha:]0-9'^._ ]+)``|[[:alpha:]0-9'`^._]+)",
-							"captures": {
+							"match": "(``([[:awpha:]0-9'^._ ]+)``|[[:awpha:]0-9'`^._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#anonymous_record_declaration"
+							"incwude": "#anonymous_wecowd_decwawation"
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				}
 			]
 		},
-		"keywords": {
-			"patterns": [
+		"keywowds": {
+			"pattewns": [
 				{
-					"name": "storage.modifier",
-					"match": "\\b(private|public|internal)\\b"
+					"name": "stowage.modifia",
+					"match": "\\b(pwivate|pubwic|intewnaw)\\b"
 				},
 				{
-					"name": "keyword.fsharp",
-					"match": "\\b(private|to|public|internal|function|class|exception|delegate|of|as|begin|end|inherit|let!|interface|abstract|enum|member|and|when|or|use|use\\!|struct|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
+					"name": "keywowd.fshawp",
+					"match": "\\b(pwivate|to|pubwic|intewnaw|function|cwass|exception|dewegate|of|as|begin|end|inhewit|wet!|intewface|abstwact|enum|memba|and|when|ow|use|use\\!|stwuct|mutabwe|assewt|base|done|downcast|downto|extewn|fixed|gwobaw|wazy|upcast|not)(?!')\\b"
 				},
 				{
-					"name": "keyword.control",
-					"match": "\\b(match|yield|yield!|with|if|then|else|elif|for|in|return!|return|try|finally|while|do)(?!')\\b"
+					"name": "keywowd.contwow",
+					"match": "\\b(match|yiewd|yiewd!|with|if|then|ewse|ewif|fow|in|wetuwn!|wetuwn|twy|finawwy|whiwe|do)(?!')\\b"
 				},
 				{
-					"name": "keyword.symbol.new",
+					"name": "keywowd.symbow.new",
 					"match": "\\b(new)\\b"
 				},
 				{
-					"name": "keyword.symbol.fsharp",
+					"name": "keywowd.symbow.fshawp",
 					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|<<<|>>>|\\|>|\\->|\\<\\-|:>|:\\?>|:|\\[|\\]|\\;|<>|=|@|\\|\\||&&|{|}|\\||_|\\.\\.|\\,|\\+|\\-|\\*|\\/|\\^|\\!|\\>|\\>\\=|\\>\\>|\\<|\\<\\=|\\(|\\)|\\<\\<)"
 				}
 			]
 		},
-		"modules": {
-			"patterns": [
+		"moduwes": {
+			"pattewns": [
 				{
-					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace global)|\\b(namespace|module)\\s*(public|internal|private|rec)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
+					"name": "entity.name.section.fshawp",
+					"begin": "\\b(namespace gwobaw)|\\b(namespace|moduwe)\\s*(pubwic|intewnaw|pwivate|wec)?\\s+([[:awpha:]][[:awpha:]0-9'_. ]*)",
 					"end": "(\\s?=|\\s|$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"3": {
-							"name": "storage.modifier.fsharp"
+							"name": "stowage.modifia.fshawp"
 						},
 						"4": {
-							"name": "entity.name.section.fsharp"
+							"name": "entity.name.section.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([A-Z][[:alpha:]0-9'_]*)",
-							"captures": {
+							"name": "entity.name.section.fshawp",
+							"match": "(\\.)([A-Z][[:awpha:]0-9'_]*)",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.separator.namespace-reference.fsharp"
+									"name": "punctuation.sepawatow.namespace-wefewence.fshawp"
 								},
 								"2": {
-									"name": "entity.name.section.fsharp"
+									"name": "entity.name.section.fshawp"
 								}
 							}
 						}
 					]
 				},
 				{
-					"name": "namespace.open.fsharp",
-					"begin": "\\b(open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
+					"name": "namespace.open.fshawp",
+					"begin": "\\b(open)\\s+([[:awpha:]][[:awpha:]0-9'_]*)(?=(\\.[A-Z][[:awpha:]0-9_]*)*)",
 					"end": "(\\s|$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "entity.name.section.fsharp"
+							"name": "entity.name.section.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([[:alpha:]][[:alpha:]0-9'_]*)",
-							"captures": {
+							"name": "entity.name.section.fshawp",
+							"match": "(\\.)([[:awpha:]][[:awpha:]0-9'_]*)",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.separator.namespace-reference.fsharp"
+									"name": "punctuation.sepawatow.namespace-wefewence.fshawp"
 								},
 								"2": {
-									"name": "entity.name.section.fsharp"
+									"name": "entity.name.section.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						}
 					]
 				},
 				{
-					"name": "namespace.alias.fsharp",
-					"begin": "^\\s*(module)\\s+([A-Z][[:alpha:]0-9'_]*)\\s*(=)\\s*([A-Z][[:alpha:]0-9'_]*)",
+					"name": "namespace.awias.fshawp",
+					"begin": "^\\s*(moduwe)\\s+([A-Z][[:awpha:]0-9'_]*)\\s*(=)\\s*([A-Z][[:awpha:]0-9'_]*)",
 					"end": "(\\s|$)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.namespace.fsharp"
+							"name": "entity.name.type.namespace.fshawp"
 						},
 						"3": {
-							"name": "punctuation.separator.namespace-definition.fsharp"
+							"name": "punctuation.sepawatow.namespace-definition.fshawp"
 						},
 						"4": {
-							"name": "entity.name.section.fsharp"
+							"name": "entity.name.section.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "entity.name.section.fsharp",
-							"match": "(\\.)([A-Z][[:alpha:]0-9'_]*)",
-							"captures": {
+							"name": "entity.name.section.fshawp",
+							"match": "(\\.)([A-Z][[:awpha:]0-9'_]*)",
+							"captuwes": {
 								"1": {
-									"name": "punctuation.separator.namespace-reference.fsharp"
+									"name": "punctuation.sepawatow.namespace-wefewence.fshawp"
 								},
 								"2": {
-									"name": "entity.name.section.fsharp"
+									"name": "entity.name.section.fshawp"
 								}
 							}
 						}
@@ -1198,603 +1198,603 @@
 				}
 			]
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
-					"name": "string.quoted.literal.fsharp",
+					"name": "stwing.quoted.witewaw.fshawp",
 					"begin": "(?=[^\\\\])(@\")",
 					"end": "(\")(?!\")",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.fsharp"
+							"name": "punctuation.definition.stwing.begin.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
+							"name": "punctuation.definition.stwing.end.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "constant.character.string.escape.fsharp",
+							"name": "constant.chawacta.stwing.escape.fshawp",
 							"match": "\"(\")"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.triple.fsharp",
+					"name": "stwing.quoted.twipwe.fshawp",
 					"begin": "(?=[^\\\\])(\"\"\")",
 					"end": "(\"\"\")",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.fsharp"
+							"name": "punctuation.definition.stwing.begin.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
+							"name": "punctuation.definition.stwing.end.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#string_formatter"
+							"incwude": "#stwing_fowmatta"
 						}
 					]
 				},
 				{
-					"name": "string.quoted.double.fsharp",
+					"name": "stwing.quoted.doubwe.fshawp",
 					"begin": "(?=[^\\\\])(\")",
 					"end": "(\")",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.fsharp"
+							"name": "punctuation.definition.stwing.begin.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.end.fsharp"
+							"name": "punctuation.definition.stwing.end.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"name": "punctuation.separator.string.ignore-eol.fsharp",
+							"name": "punctuation.sepawatow.stwing.ignowe-eow.fshawp",
 							"match": "\\\\$[ \\t]*"
 						},
 						{
-							"name": "constant.character.string.escape.fsharp",
-							"match": "\\\\([\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
+							"name": "constant.chawacta.stwing.escape.fshawp",
+							"match": "\\\\([\\\\''ntbw]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})"
 						},
 						{
-							"name": "invalid.illeagal.character.string.fsharp",
-							"match": "\\\\(?![\\\\''ntbr]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
+							"name": "invawid.iwweagaw.chawacta.stwing.fshawp",
+							"match": "\\\\(?![\\\\''ntbw]|x[a-fA-F0-9]{2}|u[a-fA-F0-9]{4}|u[a-fA-F0-9]{8})."
 						},
 						{
-							"include": "#string_formatter"
+							"incwude": "#stwing_fowmatta"
 						}
 					]
 				}
 			]
 		},
-		"string_formatter": {
-			"patterns": [
+		"stwing_fowmatta": {
+			"pattewns": [
 				{
-					"name": "entity.name.type.format.specifier.fsharp",
+					"name": "entity.name.type.fowmat.specifia.fshawp",
 					"match": "(%0?-?(\\d+)?((a|t)|(\\.\\d+)?(f|F|e|E|g|G|M)|(b|c|s|d|i|x|X|o|u)|(s|b|O)|(\\+?A)))",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.format.specifier.fsharp"
+							"name": "keywowd.fowmat.specifia.fshawp"
 						}
 					}
 				}
 			]
 		},
-		"variables": {
-			"patterns": [
+		"vawiabwes": {
+			"pattewns": [
 				{
-					"name": "constant.language.unit.fsharp",
+					"name": "constant.wanguage.unit.fshawp",
 					"match": "\\(\\)"
 				},
 				{
-					"match": "(\\?{0,1})(``[[:alpha:]0-9'`^:,._ ]+``|(?!private\\b)\\b[\\w[:alpha:]0-9'`<>^._ ]+)",
-					"captures": {
+					"match": "(\\?{0,1})(``[[:awpha:]0-9'`^:,._ ]+``|(?!pwivate\\b)\\b[\\w[:awpha:]0-9'`<>^._ ]+)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						}
 					}
 				}
 			]
 		},
-		"common_declaration": {
-			"patterns": [
+		"common_decwawation": {
+			"pattewns": [
 				{
-					"begin": "\\s*(->)\\s*([[:alpha:]0-9'`^._ ]+)(<)",
+					"begin": "\\s*(->)\\s*([[:awpha:]0-9'`^._ ]+)(<)",
 					"end": "(>)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						},
 						"3": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "([[:alpha:]0-9'`^._ ]+)",
-							"captures": {
+							"match": "([[:awpha:]0-9'`^._ ]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				},
 				{
 					"match": "\\s*(->)\\s*(?!with|get|set\\b)\\b([\\w0-9'`^._]+)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#anonymous_record_declaration"
+					"incwude": "#anonymous_wecowd_decwawation"
 				},
 				{
-					"begin": "(\\?{0,1})([[:alpha:]0-9'`^._ ]+)\\s*(:)(\\s*([?[:alpha:]0-9'`^._ ]+)(<))",
+					"begin": "(\\?{0,1})([[:awpha:]0-9'`^._ ]+)\\s*(:)(\\s*([?[:awpha:]0-9'`^._ ]+)(<))",
 					"end": "(>)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						},
 						"3": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"4": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"5": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"match": "([[:alpha:]0-9'`^._ ]+)",
-							"captures": {
+							"match": "([[:awpha:]0-9'`^._ ]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				}
 			]
 		},
-		"member_declaration": {
-			"patterns": [
+		"membew_decwawation": {
+			"pattewns": [
 				{
-					"include": "#comments"
+					"incwude": "#comments"
 				},
 				{
-					"include": "#common_declaration"
+					"incwude": "#common_decwawation"
 				},
 				{
-					"comments": "SRTP syntax support",
-					"begin": "(:)\\s*(\\()\\s*(static member|member)",
-					"beginCaptures": {
+					"comments": "SWTP syntax suppowt",
+					"begin": "(:)\\s*(\\()\\s*(static memba|memba)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"3": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					},
 					"end": "(\\))\\s*((?=,)|(?=\\=))",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(\\()",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
 							"end": "(\\))",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#member_declaration"
+									"incwude": "#membew_decwawation"
 								}
 							]
 						},
 						{
-							"match": "(\\^[[:alpha:]0-9'._]+)",
-							"captures": {
+							"match": "(\\^[[:awpha:]0-9'._]+)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				},
 				{
-					"match": "(\\^[[:alpha:]0-9'._]+)",
-					"captures": {
+					"match": "(\\^[[:awpha:]0-9'._]+)",
+					"captuwes": {
 						"1": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"name": "keyword.fsharp",
-					"match": "\\b(and|when|or)\\b"
+					"name": "keywowd.fshawp",
+					"match": "\\b(and|when|ow)\\b"
 				},
 				{
-					"name": "keyword.symbol.fsharp",
+					"name": "keywowd.symbow.fshawp",
 					"match": "(\\(|\\))"
 				},
 				{
-					"match": "(\\?{0,1})([[:alpha:]0-9'`^._]+|``[[:alpha:]0-9'`^:,._ ]+``)\\s*(:{0,1})(\\s*([?[:alpha:]0-9'`<>._ ]+)){0,1}",
-					"captures": {
+					"match": "(\\?{0,1})([[:awpha:]0-9'`^._]+|``[[:awpha:]0-9'`^:,._ ]+``)\\s*(:{0,1})(\\s*([?[:awpha:]0-9'`<>._ ]+)){0,1}",
+					"captuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"2": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						},
 						"3": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"4": {
-							"name": "entity.name.type.fsharp"
+							"name": "entity.name.type.fshawp"
 						}
 					}
 				},
 				{
-					"include": "#keywords"
+					"incwude": "#keywowds"
 				}
 			]
 		},
-		"double_tick": {
-			"patterns": [
+		"doubwe_tick": {
+			"pattewns": [
 				{
-					"name": "variable.other.binding.fsharp",
+					"name": "vawiabwe.otha.binding.fshawp",
 					"match": "(``)([^`]*)(``)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "string.quoted.single.fsharp"
+							"name": "stwing.quoted.singwe.fshawp"
 						},
 						"2": {
-							"name": "variable.other.binding.fsharp"
+							"name": "vawiabwe.otha.binding.fshawp"
 						},
 						"3": {
-							"name": "string.quoted.single.fsharp"
+							"name": "stwing.quoted.singwe.fshawp"
 						}
 					}
 				}
 			]
 		},
-		"records": {
-			"patterns": [
+		"wecowds": {
+			"pattewns": [
 				{
-					"name": "record.fsharp",
-					"begin": "\\b(type)[\\s]+(private|internal|public)?\\s*",
-					"end": "\\s*((with)|((as)\\s+([[:alpha:]0-9']+))|(=)|[\\n=]|(\\(\\)))",
-					"beginCaptures": {
+					"name": "wecowd.fshawp",
+					"begin": "\\b(type)[\\s]+(pwivate|intewnaw|pubwic)?\\s*",
+					"end": "\\s*((with)|((as)\\s+([[:awpha:]0-9']+))|(=)|[\\n=]|(\\(\\)))",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"2": {
-							"name": "storage.modifier.fsharp"
+							"name": "stowage.modifia.fshawp"
 						}
 					},
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"3": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"4": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						},
 						"5": {
-							"name": "variable.parameter.fsharp"
+							"name": "vawiabwe.pawameta.fshawp"
 						},
 						"6": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						},
 						"7": {
-							"name": "constant.language.unit.fsharp"
+							"name": "constant.wanguage.unit.fshawp"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"include": "#attributes"
+							"incwude": "#attwibutes"
 						},
 						{
-							"match": "([[:alpha:]0-9'^._]+|``[[:alpha:]0-9'`^:,._ ]+``)",
-							"captures": {
+							"match": "([[:awpha:]0-9'^._]+|``[[:awpha:]0-9'`^:,._ ]+``)",
+							"captuwes": {
 								"1": {
-									"name": "entity.name.type.fsharp"
+									"name": "entity.name.type.fshawp"
 								}
 							}
 						},
 						{
 							"begin": "(<)",
 							"end": "((?<!:)>)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.fsharp"
+									"name": "keywowd.fshawp"
 								}
 							},
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.fsharp"
+									"name": "keywowd.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"match": "(('|\\^)``[[:alpha:]0-9`^:,._ ]+``|('|\\^)[[:alpha:]0-9`^:._]+)",
-									"captures": {
+									"match": "(('|\\^)``[[:awpha:]0-9`^:,._ ]+``|('|\\^)[[:awpha:]0-9`^:._]+)",
+									"captuwes": {
 										"1": {
-											"name": "entity.name.type.fsharp"
+											"name": "entity.name.type.fshawp"
 										}
 									}
 								},
 								{
-									"name": "keyword.fsharp",
-									"match": "\\b(interface|with|abstract|and|when|or|not|struct|equality|comparison|unmanaged|delegate|enum)\\b"
+									"name": "keywowd.fshawp",
+									"match": "\\b(intewface|with|abstwact|and|when|ow|not|stwuct|equawity|compawison|unmanaged|dewegate|enum)\\b"
 								},
 								{
 									"begin": "(\\()",
 									"end": "(\\))",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"1": {
-											"name": "keyword.symbol.fsharp"
+											"name": "keywowd.symbow.fshawp"
 										}
 									},
-									"endCaptures": {
+									"endCaptuwes": {
 										"1": {
-											"name": "keyword.symbol.fsharp"
+											"name": "keywowd.symbow.fshawp"
 										}
 									},
-									"patterns": [
+									"pattewns": [
 										{
-											"match": "(static member|member|new)",
-											"captures": {
+											"match": "(static memba|memba|new)",
+											"captuwes": {
 												"1": {
-													"name": "keyword.fsharp"
+													"name": "keywowd.fshawp"
 												}
 											}
 										},
 										{
-											"include": "#common_binding_definition"
+											"incwude": "#common_binding_definition"
 										}
 									]
 								},
 								{
 									"match": "([\\w0-9'`^._]+)",
-									"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
-									"captures": {
+									"comments": "Hewe we need the \\w modifia in owda to check that the wowds isn't bwackwisted",
+									"captuwes": {
 										"1": {
-											"name": "entity.name.type.fsharp"
+											"name": "entity.name.type.fshawp"
 										}
 									}
 								},
 								{
-									"include": "#keywords"
+									"incwude": "#keywowds"
 								}
 							]
 						},
 						{
-							"match": "\\s*(private|internal|public)",
-							"captures": {
+							"match": "\\s*(pwivate|intewnaw|pubwic)",
+							"captuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								},
 								"2": {
-									"name": "storage.modifier.fsharp"
+									"name": "stowage.modifia.fshawp"
 								}
 							}
 						},
 						{
 							"begin": "(\\()",
 							"end": "\\s*(?=(=)|[\\n=]|(\\(\\))|(as))",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#member_declaration"
+									"incwude": "#membew_decwawation"
 								}
 							]
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						}
 					]
 				}
 			]
 		},
-		"record_declaration": {
-			"patterns": [
+		"wecowd_decwawation": {
+			"pattewns": [
 				{
 					"begin": "(\\{)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keywowd.symbow.fshawp"
 						}
 					},
 					"end": "(?<=\\})",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#comments"
+							"incwude": "#comments"
 						},
 						{
-							"begin": "(((mutable)\\s[[:alpha:]]+)|[[:alpha:]0-9'`<>^._]*)\\s*((?<!:):(?!:))\\s*",
-							"beginCaptures": {
+							"begin": "(((mutabwe)\\s[[:awpha:]]+)|[[:awpha:]0-9'`<>^._]*)\\s*((?<!:):(?!:))\\s*",
+							"beginCaptuwes": {
 								"3": {
-									"name": "keyword.fsharp"
+									"name": "keywowd.fshawp"
 								},
 								"4": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
 							"end": "$|(;|\\})",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
+									"name": "keywowd.symbow.fshawp"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "#comments"
+									"incwude": "#comments"
 								},
 								{
-									"match": "([[:alpha:]0-9'`^_ ]+)",
-									"captures": {
+									"match": "([[:awpha:]0-9'`^_ ]+)",
+									"captuwes": {
 										"1": {
-											"name": "entity.name.type.fsharp"
+											"name": "entity.name.type.fshawp"
 										}
 									}
 								},
 								{
-									"include": "#keywords"
+									"incwude": "#keywowds"
 								}
 							]
 						},
 						{
-							"include": "#compiler_directives"
+							"incwude": "#compiwew_diwectives"
 						},
 						{
-							"include": "#constants"
+							"incwude": "#constants"
 						},
 						{
-							"include": "#strings"
+							"incwude": "#stwings"
 						},
 						{
-							"include": "#chars"
+							"incwude": "#chaws"
 						},
 						{
-							"include": "#double_tick"
+							"incwude": "#doubwe_tick"
 						},
 						{
-							"include": "#definition"
+							"incwude": "#definition"
 						},
 						{
-							"include": "#attributes"
+							"incwude": "#attwibutes"
 						},
 						{
-							"include": "#anonymous_functions"
+							"incwude": "#anonymous_functions"
 						},
 						{
-							"include": "#keywords"
+							"incwude": "#keywowds"
 						},
 						{
-							"include": "#cexprs"
+							"incwude": "#cexpws"
 						},
 						{
-							"include": "#text"
+							"incwude": "#text"
 						}
 					]
 				}
 			]
 		},
-		"cexprs": {
-			"patterns": [
+		"cexpws": {
+			"pattewns": [
 				{
-					"name": "cexpr.fsharp",
-					"match": "\\b(async|seq|promise|task|maybe|asyncMaybe|controller|scope|application|pipeline)\\s*\\{",
-					"captures": {
+					"name": "cexpw.fshawp",
+					"match": "\\b(async|seq|pwomise|task|maybe|asyncMaybe|contwowwa|scope|appwication|pipewine)\\s*\\{",
+					"captuwes": {
 						"0": {
-							"name": "keyword.fsharp"
+							"name": "keywowd.fshawp"
 						}
 					}
 				}
 			]
 		},
-		"chars": {
-			"patterns": [
+		"chaws": {
+			"pattewns": [
 				{
-					"name": "char.fsharp",
+					"name": "chaw.fshawp",
 					"match": "('\\\\?.')",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "string.quoted.single.fsharp"
+							"name": "stwing.quoted.singwe.fshawp"
 						}
 					}
 				}
 			]
 		},
 		"text": {
-			"patterns": [
+			"pattewns": [
 				{
-					"name": "text.fsharp",
+					"name": "text.fshawp",
 					"match": "\\\\"
 				}
 			]
 		},
-		"compiler_directives": {
-			"patterns": [
+		"compiwew_diwectives": {
+			"pattewns": [
 				{
-					"name": "keyword.control.directive.fsharp",
-					"match": "\\s?(#if|#elif|#elseif|#else|#endif|#light|#nowarn)",
-					"captures": {}
+					"name": "keywowd.contwow.diwective.fshawp",
+					"match": "\\s?(#if|#ewif|#ewseif|#ewse|#endif|#wight|#nowawn)",
+					"captuwes": {}
 				}
 			]
 		}

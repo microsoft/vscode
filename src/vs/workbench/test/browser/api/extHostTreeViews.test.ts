@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { Emitter } from 'vs/base/common/event';
-import { ExtHostTreeViews } from 'vs/workbench/api/common/extHostTreeViews';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainThreadTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { TreeDataProvider, TreeItem } from 'vscode';
-import { TestRPCProtocol } from './testRPCProtocol';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mock } from 'vs/base/test/common/mock';
-import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import type { IDisposable } from 'vs/base/common/lifecycle';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { ExtHostTweeViews } fwom 'vs/wowkbench/api/common/extHostTweeViews';
+impowt { ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { MainThweadTweeViewsShape, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { TweeDataPwovida, TweeItem } fwom 'vscode';
+impowt { TestWPCPwotocow } fwom './testWPCPwotocow';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { MainThweadCommands } fwom 'vs/wowkbench/api/bwowsa/mainThweadCommands';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { TweeItemCowwapsibweState, ITweeItem, IWeveawOptions } fwom 'vs/wowkbench/common/views';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt type { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-suite('ExtHostTreeView', function () {
+suite('ExtHostTweeView', function () {
 
-	class RecordingShape extends mock<MainThreadTreeViewsShape>() {
+	cwass WecowdingShape extends mock<MainThweadTweeViewsShape>() {
 
-		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
+		onWefwesh = new Emitta<{ [tweeItemHandwe: stwing]: ITweeItem }>();
 
-		override async $registerTreeViewDataProvider(treeViewId: string): Promise<void> {
+		ovewwide async $wegistewTweeViewDataPwovida(tweeViewId: stwing): Pwomise<void> {
 		}
 
-		override $refresh(viewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): Promise<void> {
-			return Promise.resolve(null).then(() => {
-				this.onRefresh.fire(itemsToRefresh);
+		ovewwide $wefwesh(viewId: stwing, itemsToWefwesh: { [tweeItemHandwe: stwing]: ITweeItem }): Pwomise<void> {
+			wetuwn Pwomise.wesowve(nuww).then(() => {
+				this.onWefwesh.fiwe(itemsToWefwesh);
 			});
 		}
 
-		override $reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
-			return Promise.resolve();
+		ovewwide $weveaw(tweeViewId: stwing, itemInfo: { item: ITweeItem, pawentChain: ITweeItem[] } | undefined, options: IWeveawOptions): Pwomise<void> {
+			wetuwn Pwomise.wesowve();
 		}
 
 	}
 
-	let testObject: ExtHostTreeViews;
-	let target: RecordingShape;
-	let onDidChangeTreeNode: Emitter<{ key: string } | undefined>;
-	let onDidChangeTreeNodeWithId: Emitter<{ key: string }>;
-	let tree: { [key: string]: any };
-	let labels: { [key: string]: string };
-	let nodes: { [key: string]: { key: string } };
+	wet testObject: ExtHostTweeViews;
+	wet tawget: WecowdingShape;
+	wet onDidChangeTweeNode: Emitta<{ key: stwing } | undefined>;
+	wet onDidChangeTweeNodeWithId: Emitta<{ key: stwing }>;
+	wet twee: { [key: stwing]: any };
+	wet wabews: { [key: stwing]: stwing };
+	wet nodes: { [key: stwing]: { key: stwing } };
 
 	setup(() => {
-		tree = {
+		twee = {
 			'a': {
 				'aa': {},
 				'ab': {}
@@ -61,522 +61,522 @@ suite('ExtHostTreeView', function () {
 			}
 		};
 
-		labels = {};
+		wabews = {};
 		nodes = {};
 
-		let rpcProtocol = new TestRPCProtocol();
-		// Use IInstantiationService to get typechecking when instantiating
-		let inst: IInstantiationService;
+		wet wpcPwotocow = new TestWPCPwotocow();
+		// Use IInstantiationSewvice to get typechecking when instantiating
+		wet inst: IInstantiationSewvice;
 		{
-			let instantiationService = new TestInstantiationService();
-			inst = instantiationService;
+			wet instantiationSewvice = new TestInstantiationSewvice();
+			inst = instantiationSewvice;
 		}
 
-		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
-		target = new RecordingShape();
-		testObject = new ExtHostTreeViews(target, new ExtHostCommands(
-			rpcProtocol,
-			new NullLogService()
-		), new NullLogService());
-		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
-		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
-		testObject.createTreeView('testNodeTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		testObject.createTreeView('testNodeWithIdTreeProvider', { treeDataProvider: aNodeWithIdTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		wpcPwotocow.set(MainContext.MainThweadCommands, inst.cweateInstance(MainThweadCommands, wpcPwotocow));
+		tawget = new WecowdingShape();
+		testObject = new ExtHostTweeViews(tawget, new ExtHostCommands(
+			wpcPwotocow,
+			new NuwwWogSewvice()
+		), new NuwwWogSewvice());
+		onDidChangeTweeNode = new Emitta<{ key: stwing } | undefined>();
+		onDidChangeTweeNodeWithId = new Emitta<{ key: stwing }>();
+		testObject.cweateTweeView('testNodeTweePwovida', { tweeDataPwovida: aNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
+		testObject.cweateTweeView('testNodeWithIdTweePwovida', { tweeDataPwovida: aNodeWithIdTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
+		testObject.cweateTweeView('testNodeWithHighwightsTweePwovida', { tweeDataPwovida: aNodeWithHighwightedWabewTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 
-		return loadCompleteTree('testNodeTreeProvider');
+		wetuwn woadCompweteTwee('testNodeTweePwovida');
 	});
 
-	test('construct node tree', () => {
-		return testObject.$getChildren('testNodeTreeProvider')
-			.then(elements => {
-				const actuals = elements?.map(e => e.handle);
-				assert.deepStrictEqual(actuals, ['0/0:a', '0/0:b']);
-				return Promise.all([
-					testObject.$getChildren('testNodeTreeProvider', '0/0:a')
-						.then(children => {
-							const actuals = children?.map(e => e.handle);
-							assert.deepStrictEqual(actuals, ['0/0:a/0:aa', '0/0:a/0:ab']);
-							return Promise.all([
-								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:aa').then(children => assert.strictEqual(children?.length, 0)),
-								testObject.$getChildren('testNodeTreeProvider', '0/0:a/0:ab').then(children => assert.strictEqual(children?.length, 0))
+	test('constwuct node twee', () => {
+		wetuwn testObject.$getChiwdwen('testNodeTweePwovida')
+			.then(ewements => {
+				const actuaws = ewements?.map(e => e.handwe);
+				assewt.deepStwictEquaw(actuaws, ['0/0:a', '0/0:b']);
+				wetuwn Pwomise.aww([
+					testObject.$getChiwdwen('testNodeTweePwovida', '0/0:a')
+						.then(chiwdwen => {
+							const actuaws = chiwdwen?.map(e => e.handwe);
+							assewt.deepStwictEquaw(actuaws, ['0/0:a/0:aa', '0/0:a/0:ab']);
+							wetuwn Pwomise.aww([
+								testObject.$getChiwdwen('testNodeTweePwovida', '0/0:a/0:aa').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0)),
+								testObject.$getChiwdwen('testNodeTweePwovida', '0/0:a/0:ab').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0))
 							]);
 						}),
-					testObject.$getChildren('testNodeTreeProvider', '0/0:b')
-						.then(children => {
-							const actuals = children?.map(e => e.handle);
-							assert.deepStrictEqual(actuals, ['0/0:b/0:ba', '0/0:b/0:bb']);
-							return Promise.all([
-								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:ba').then(children => assert.strictEqual(children?.length, 0)),
-								testObject.$getChildren('testNodeTreeProvider', '0/0:b/0:bb').then(children => assert.strictEqual(children?.length, 0))
+					testObject.$getChiwdwen('testNodeTweePwovida', '0/0:b')
+						.then(chiwdwen => {
+							const actuaws = chiwdwen?.map(e => e.handwe);
+							assewt.deepStwictEquaw(actuaws, ['0/0:b/0:ba', '0/0:b/0:bb']);
+							wetuwn Pwomise.aww([
+								testObject.$getChiwdwen('testNodeTweePwovida', '0/0:b/0:ba').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0)),
+								testObject.$getChiwdwen('testNodeTweePwovida', '0/0:b/0:bb').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0))
 							]);
 						})
 				]);
 			});
 	});
 
-	test('construct id tree', () => {
-		return testObject.$getChildren('testNodeWithIdTreeProvider')
-			.then(elements => {
-				const actuals = elements?.map(e => e.handle);
-				assert.deepStrictEqual(actuals, ['1/a', '1/b']);
-				return Promise.all([
-					testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
-						.then(children => {
-							const actuals = children?.map(e => e.handle);
-							assert.deepStrictEqual(actuals, ['1/aa', '1/ab']);
-							return Promise.all([
-								testObject.$getChildren('testNodeWithIdTreeProvider', '1/aa').then(children => assert.strictEqual(children?.length, 0)),
-								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ab').then(children => assert.strictEqual(children?.length, 0))
+	test('constwuct id twee', () => {
+		wetuwn testObject.$getChiwdwen('testNodeWithIdTweePwovida')
+			.then(ewements => {
+				const actuaws = ewements?.map(e => e.handwe);
+				assewt.deepStwictEquaw(actuaws, ['1/a', '1/b']);
+				wetuwn Pwomise.aww([
+					testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/a')
+						.then(chiwdwen => {
+							const actuaws = chiwdwen?.map(e => e.handwe);
+							assewt.deepStwictEquaw(actuaws, ['1/aa', '1/ab']);
+							wetuwn Pwomise.aww([
+								testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/aa').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0)),
+								testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/ab').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0))
 							]);
 						}),
-					testObject.$getChildren('testNodeWithIdTreeProvider', '1/b')
-						.then(children => {
-							const actuals = children?.map(e => e.handle);
-							assert.deepStrictEqual(actuals, ['1/ba', '1/bb']);
-							return Promise.all([
-								testObject.$getChildren('testNodeWithIdTreeProvider', '1/ba').then(children => assert.strictEqual(children?.length, 0)),
-								testObject.$getChildren('testNodeWithIdTreeProvider', '1/bb').then(children => assert.strictEqual(children?.length, 0))
+					testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/b')
+						.then(chiwdwen => {
+							const actuaws = chiwdwen?.map(e => e.handwe);
+							assewt.deepStwictEquaw(actuaws, ['1/ba', '1/bb']);
+							wetuwn Pwomise.aww([
+								testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/ba').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0)),
+								testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/bb').then(chiwdwen => assewt.stwictEquaw(chiwdwen?.wength, 0))
 							]);
 						})
 				]);
 			});
 	});
 
-	test('construct highlights tree', () => {
-		return testObject.$getChildren('testNodeWithHighlightsTreeProvider')
-			.then(elements => {
-				assert.deepStrictEqual(removeUnsetKeys(elements), [{
-					handle: '1/a',
-					label: { label: 'a', highlights: [[0, 2], [3, 5]] },
-					collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('constwuct highwights twee', () => {
+		wetuwn testObject.$getChiwdwen('testNodeWithHighwightsTweePwovida')
+			.then(ewements => {
+				assewt.deepStwictEquaw(wemoveUnsetKeys(ewements), [{
+					handwe: '1/a',
+					wabew: { wabew: 'a', highwights: [[0, 2], [3, 5]] },
+					cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 				}, {
-					handle: '1/b',
-					label: { label: 'b', highlights: [[0, 2], [3, 5]] },
-					collapsibleState: TreeItemCollapsibleState.Collapsed
+					handwe: '1/b',
+					wabew: { wabew: 'b', highwights: [[0, 2], [3, 5]] },
+					cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 				}]);
-				return Promise.all([
-					testObject.$getChildren('testNodeWithHighlightsTreeProvider', '1/a')
-						.then(children => {
-							assert.deepStrictEqual(removeUnsetKeys(children), [{
-								handle: '1/aa',
-								parentHandle: '1/a',
-								label: { label: 'aa', highlights: [[0, 2], [3, 5]] },
-								collapsibleState: TreeItemCollapsibleState.None
+				wetuwn Pwomise.aww([
+					testObject.$getChiwdwen('testNodeWithHighwightsTweePwovida', '1/a')
+						.then(chiwdwen => {
+							assewt.deepStwictEquaw(wemoveUnsetKeys(chiwdwen), [{
+								handwe: '1/aa',
+								pawentHandwe: '1/a',
+								wabew: { wabew: 'aa', highwights: [[0, 2], [3, 5]] },
+								cowwapsibweState: TweeItemCowwapsibweState.None
 							}, {
-								handle: '1/ab',
-								parentHandle: '1/a',
-								label: { label: 'ab', highlights: [[0, 2], [3, 5]] },
-								collapsibleState: TreeItemCollapsibleState.None
+								handwe: '1/ab',
+								pawentHandwe: '1/a',
+								wabew: { wabew: 'ab', highwights: [[0, 2], [3, 5]] },
+								cowwapsibweState: TweeItemCowwapsibweState.None
 							}]);
 						}),
-					testObject.$getChildren('testNodeWithHighlightsTreeProvider', '1/b')
-						.then(children => {
-							assert.deepStrictEqual(removeUnsetKeys(children), [{
-								handle: '1/ba',
-								parentHandle: '1/b',
-								label: { label: 'ba', highlights: [[0, 2], [3, 5]] },
-								collapsibleState: TreeItemCollapsibleState.None
+					testObject.$getChiwdwen('testNodeWithHighwightsTweePwovida', '1/b')
+						.then(chiwdwen => {
+							assewt.deepStwictEquaw(wemoveUnsetKeys(chiwdwen), [{
+								handwe: '1/ba',
+								pawentHandwe: '1/b',
+								wabew: { wabew: 'ba', highwights: [[0, 2], [3, 5]] },
+								cowwapsibweState: TweeItemCowwapsibweState.None
 							}, {
-								handle: '1/bb',
-								parentHandle: '1/b',
-								label: { label: 'bb', highlights: [[0, 2], [3, 5]] },
-								collapsibleState: TreeItemCollapsibleState.None
+								handwe: '1/bb',
+								pawentHandwe: '1/b',
+								wabew: { wabew: 'bb', highwights: [[0, 2], [3, 5]] },
+								cowwapsibweState: TweeItemCowwapsibweState.None
 							}]);
 						})
 				]);
 			});
 	});
 
-	test('error is thrown if id is not unique', (done) => {
-		tree['a'] = {
+	test('ewwow is thwown if id is not unique', (done) => {
+		twee['a'] = {
 			'aa': {},
 		};
-		tree['b'] = {
+		twee['b'] = {
 			'aa': {},
 			'ba': {}
 		};
-		let caughtExpectedError = false;
-		target.onRefresh.event(() => {
-			testObject.$getChildren('testNodeWithIdTreeProvider')
-				.then(elements => {
-					const actuals = elements?.map(e => e.handle);
-					assert.deepStrictEqual(actuals, ['1/a', '1/b']);
-					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
-						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
-						.then(() => assert.fail('Should fail with duplicate id'))
-						.catch(() => caughtExpectedError = true)
-						.finally(() => caughtExpectedError ? done() : assert.fail('Expected duplicate id error not thrown.'));
+		wet caughtExpectedEwwow = fawse;
+		tawget.onWefwesh.event(() => {
+			testObject.$getChiwdwen('testNodeWithIdTweePwovida')
+				.then(ewements => {
+					const actuaws = ewements?.map(e => e.handwe);
+					assewt.deepStwictEquaw(actuaws, ['1/a', '1/b']);
+					wetuwn testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/a')
+						.then(() => testObject.$getChiwdwen('testNodeWithIdTweePwovida', '1/b'))
+						.then(() => assewt.faiw('Shouwd faiw with dupwicate id'))
+						.catch(() => caughtExpectedEwwow = twue)
+						.finawwy(() => caughtExpectedEwwow ? done() : assewt.faiw('Expected dupwicate id ewwow not thwown.'));
 				});
 		});
-		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTweeNode.fiwe(undefined);
 	});
 
-	test('refresh root', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.strictEqual(undefined, actuals);
+	test('wefwesh woot', function (done) {
+		tawget.onWefwesh.event(actuaws => {
+			assewt.stwictEquaw(undefined, actuaws);
 			done();
 		});
-		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTweeNode.fiwe(undefined);
 	});
 
-	test('refresh a parent node', () => {
-		return new Promise((c, e) => {
-			target.onRefresh.event(actuals => {
-				assert.deepStrictEqual(['0/0:b'], Object.keys(actuals));
-				assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:b']), {
-					handle: '0/0:b',
-					label: { label: 'b' },
-					collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('wefwesh a pawent node', () => {
+		wetuwn new Pwomise((c, e) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.deepStwictEquaw(['0/0:b'], Object.keys(actuaws));
+				assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:b']), {
+					handwe: '0/0:b',
+					wabew: { wabew: 'b' },
+					cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 				});
 				c(undefined);
 			});
-			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
 		});
 	});
 
-	test('refresh a leaf node', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepStrictEqual(['0/0:b/0:bb'], Object.keys(actuals));
-			assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:b/0:bb']), {
-				handle: '0/0:b/0:bb',
-				parentHandle: '0/0:b',
-				label: { label: 'bb' },
-				collapsibleState: TreeItemCollapsibleState.None
+	test('wefwesh a weaf node', function (done) {
+		tawget.onWefwesh.event(actuaws => {
+			assewt.deepStwictEquaw(['0/0:b/0:bb'], Object.keys(actuaws));
+			assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:b/0:bb']), {
+				handwe: '0/0:b/0:bb',
+				pawentHandwe: '0/0:b',
+				wabew: { wabew: 'bb' },
+				cowwapsibweState: TweeItemCowwapsibweState.None
 			});
 			done();
 		});
-		onDidChangeTreeNode.fire(getNode('bb'));
+		onDidChangeTweeNode.fiwe(getNode('bb'));
 	});
 
-	async function runWithEventMerging(action: (resolve: () => void) => void) {
-		await new Promise<void>((resolve) => {
-			let subscription: IDisposable | undefined = undefined;
-			subscription = target.onRefresh.event(() => {
-				subscription!.dispose();
-				resolve();
+	async function wunWithEventMewging(action: (wesowve: () => void) => void) {
+		await new Pwomise<void>((wesowve) => {
+			wet subscwiption: IDisposabwe | undefined = undefined;
+			subscwiption = tawget.onWefwesh.event(() => {
+				subscwiption!.dispose();
+				wesowve();
 			});
-			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
 		});
-		await new Promise<void>(action);
+		await new Pwomise<void>(action);
 	}
 
-	test('refresh parent and child node trigger refresh only on parent - scenario 1', async () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.deepStrictEqual(['0/0:b', '0/0:a/0:aa'], Object.keys(actuals));
-				assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:b']), {
-					handle: '0/0:b',
-					label: { label: 'b' },
-					collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('wefwesh pawent and chiwd node twigga wefwesh onwy on pawent - scenawio 1', async () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.deepStwictEquaw(['0/0:b', '0/0:a/0:aa'], Object.keys(actuaws));
+				assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:b']), {
+					handwe: '0/0:b',
+					wabew: { wabew: 'b' },
+					cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 				});
-				assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
-					handle: '0/0:a/0:aa',
-					parentHandle: '0/0:a',
-					label: { label: 'aa' },
-					collapsibleState: TreeItemCollapsibleState.None
+				assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:a/0:aa']), {
+					handwe: '0/0:a/0:aa',
+					pawentHandwe: '0/0:a',
+					wabew: { wabew: 'aa' },
+					cowwapsibweState: TweeItemCowwapsibweState.None
 				});
-				resolve();
+				wesowve();
 			});
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(getNode('aa'));
-			onDidChangeTreeNode.fire(getNode('bb'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('aa'));
+			onDidChangeTweeNode.fiwe(getNode('bb'));
 		});
 	});
 
-	test('refresh parent and child node trigger refresh only on parent - scenario 2', async () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.deepStrictEqual(['0/0:a/0:aa', '0/0:b'], Object.keys(actuals));
-				assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:b']), {
-					handle: '0/0:b',
-					label: { label: 'b' },
-					collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('wefwesh pawent and chiwd node twigga wefwesh onwy on pawent - scenawio 2', async () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.deepStwictEquaw(['0/0:a/0:aa', '0/0:b'], Object.keys(actuaws));
+				assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:b']), {
+					handwe: '0/0:b',
+					wabew: { wabew: 'b' },
+					cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 				});
-				assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
-					handle: '0/0:a/0:aa',
-					parentHandle: '0/0:a',
-					label: { label: 'aa' },
-					collapsibleState: TreeItemCollapsibleState.None
+				assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:a/0:aa']), {
+					handwe: '0/0:a/0:aa',
+					pawentHandwe: '0/0:a',
+					wabew: { wabew: 'aa' },
+					cowwapsibweState: TweeItemCowwapsibweState.None
 				});
-				resolve();
+				wesowve();
 			});
-			onDidChangeTreeNode.fire(getNode('bb'));
-			onDidChangeTreeNode.fire(getNode('aa'));
-			onDidChangeTreeNode.fire(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('bb'));
+			onDidChangeTweeNode.fiwe(getNode('aa'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
 		});
 	});
 
-	test('refresh an element for label change', function (done) {
-		labels['a'] = 'aa';
-		target.onRefresh.event(actuals => {
-			assert.deepStrictEqual(['0/0:a'], Object.keys(actuals));
-			assert.deepStrictEqual(removeUnsetKeys(actuals['0/0:a']), {
-				handle: '0/0:aa',
-				label: { label: 'aa' },
-				collapsibleState: TreeItemCollapsibleState.Collapsed
+	test('wefwesh an ewement fow wabew change', function (done) {
+		wabews['a'] = 'aa';
+		tawget.onWefwesh.event(actuaws => {
+			assewt.deepStwictEquaw(['0/0:a'], Object.keys(actuaws));
+			assewt.deepStwictEquaw(wemoveUnsetKeys(actuaws['0/0:a']), {
+				handwe: '0/0:aa',
+				wabew: { wabew: 'aa' },
+				cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed
 			});
 			done();
 		});
-		onDidChangeTreeNode.fire(getNode('a'));
+		onDidChangeTweeNode.fiwe(getNode('a'));
 	});
 
-	test('refresh calls are throttled on roots', () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.strictEqual(undefined, actuals);
-				resolve();
+	test('wefwesh cawws awe thwottwed on woots', () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.stwictEquaw(undefined, actuaws);
+				wesowve();
 			});
-			onDidChangeTreeNode.fire(undefined);
-			onDidChangeTreeNode.fire(undefined);
-			onDidChangeTreeNode.fire(undefined);
-			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTweeNode.fiwe(undefined);
+			onDidChangeTweeNode.fiwe(undefined);
+			onDidChangeTweeNode.fiwe(undefined);
+			onDidChangeTweeNode.fiwe(undefined);
 		});
 	});
 
-	test('refresh calls are throttled on elements', () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.deepStrictEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
-				resolve();
+	test('wefwesh cawws awe thwottwed on ewements', () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.deepStwictEquaw(['0/0:a', '0/0:b'], Object.keys(actuaws));
+				wesowve();
 			});
 
-			onDidChangeTreeNode.fire(getNode('a'));
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('a'));
 		});
 	});
 
-	test('refresh calls are throttled on unknown elements', () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.deepStrictEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
-				resolve();
+	test('wefwesh cawws awe thwottwed on unknown ewements', () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.deepStwictEquaw(['0/0:a', '0/0:b'], Object.keys(actuaws));
+				wesowve();
 			});
 
-			onDidChangeTreeNode.fire(getNode('a'));
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(getNode('g'));
-			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('g'));
+			onDidChangeTweeNode.fiwe(getNode('a'));
 		});
 	});
 
-	test('refresh calls are throttled on unknown elements and root', () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.strictEqual(undefined, actuals);
-				resolve();
+	test('wefwesh cawws awe thwottwed on unknown ewements and woot', () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.stwictEquaw(undefined, actuaws);
+				wesowve();
 			});
 
-			onDidChangeTreeNode.fire(getNode('a'));
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(getNode('g'));
-			onDidChangeTreeNode.fire(undefined);
+			onDidChangeTweeNode.fiwe(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(getNode('g'));
+			onDidChangeTweeNode.fiwe(undefined);
 		});
 	});
 
-	test('refresh calls are throttled on elements and root', () => {
-		return runWithEventMerging((resolve) => {
-			target.onRefresh.event(actuals => {
-				assert.strictEqual(undefined, actuals);
-				resolve();
+	test('wefwesh cawws awe thwottwed on ewements and woot', () => {
+		wetuwn wunWithEventMewging((wesowve) => {
+			tawget.onWefwesh.event(actuaws => {
+				assewt.stwictEquaw(undefined, actuaws);
+				wesowve();
 			});
 
-			onDidChangeTreeNode.fire(getNode('a'));
-			onDidChangeTreeNode.fire(getNode('b'));
-			onDidChangeTreeNode.fire(undefined);
-			onDidChangeTreeNode.fire(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('a'));
+			onDidChangeTweeNode.fiwe(getNode('b'));
+			onDidChangeTweeNode.fiwe(undefined);
+			onDidChangeTweeNode.fiwe(getNode('a'));
 		});
 	});
 
-	test('generate unique handles from labels by escaping them', (done) => {
-		tree = {
+	test('genewate unique handwes fwom wabews by escaping them', (done) => {
+		twee = {
 			'a/0:b': {}
 		};
 
-		target.onRefresh.event(() => {
-			testObject.$getChildren('testNodeTreeProvider')
-				.then(elements => {
-					assert.deepStrictEqual(elements?.map(e => e.handle), ['0/0:a//0:b']);
+		tawget.onWefwesh.event(() => {
+			testObject.$getChiwdwen('testNodeTweePwovida')
+				.then(ewements => {
+					assewt.deepStwictEquaw(ewements?.map(e => e.handwe), ['0/0:a//0:b']);
 					done();
 				});
 		});
-		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTweeNode.fiwe(undefined);
 	});
 
-	test('tree with duplicate labels', (done) => {
+	test('twee with dupwicate wabews', (done) => {
 
 		const dupItems = {
 			'adup1': 'c',
 			'adup2': 'g',
 			'bdup1': 'e',
 			'hdup1': 'i',
-			'hdup2': 'l',
+			'hdup2': 'w',
 			'jdup1': 'k'
 		};
 
-		labels['c'] = 'a';
-		labels['e'] = 'b';
-		labels['g'] = 'a';
-		labels['i'] = 'h';
-		labels['l'] = 'h';
-		labels['k'] = 'j';
+		wabews['c'] = 'a';
+		wabews['e'] = 'b';
+		wabews['g'] = 'a';
+		wabews['i'] = 'h';
+		wabews['w'] = 'h';
+		wabews['k'] = 'j';
 
-		tree[dupItems['adup1']] = {};
-		tree['d'] = {};
+		twee[dupItems['adup1']] = {};
+		twee['d'] = {};
 
-		const bdup1Tree: { [key: string]: any } = {};
-		bdup1Tree['h'] = {};
-		bdup1Tree[dupItems['hdup1']] = {};
-		bdup1Tree['j'] = {};
-		bdup1Tree[dupItems['jdup1']] = {};
-		bdup1Tree[dupItems['hdup2']] = {};
+		const bdup1Twee: { [key: stwing]: any } = {};
+		bdup1Twee['h'] = {};
+		bdup1Twee[dupItems['hdup1']] = {};
+		bdup1Twee['j'] = {};
+		bdup1Twee[dupItems['jdup1']] = {};
+		bdup1Twee[dupItems['hdup2']] = {};
 
-		tree[dupItems['bdup1']] = bdup1Tree;
-		tree['f'] = {};
-		tree[dupItems['adup2']] = {};
+		twee[dupItems['bdup1']] = bdup1Twee;
+		twee['f'] = {};
+		twee[dupItems['adup2']] = {};
 
-		target.onRefresh.event(() => {
-			testObject.$getChildren('testNodeTreeProvider')
-				.then(elements => {
-					const actuals = elements?.map(e => e.handle);
-					assert.deepStrictEqual(actuals, ['0/0:a', '0/0:b', '0/1:a', '0/0:d', '0/1:b', '0/0:f', '0/2:a']);
-					return testObject.$getChildren('testNodeTreeProvider', '0/1:b')
-						.then(elements => {
-							const actuals = elements?.map(e => e.handle);
-							assert.deepStrictEqual(actuals, ['0/1:b/0:h', '0/1:b/1:h', '0/1:b/0:j', '0/1:b/1:j', '0/1:b/2:h']);
+		tawget.onWefwesh.event(() => {
+			testObject.$getChiwdwen('testNodeTweePwovida')
+				.then(ewements => {
+					const actuaws = ewements?.map(e => e.handwe);
+					assewt.deepStwictEquaw(actuaws, ['0/0:a', '0/0:b', '0/1:a', '0/0:d', '0/1:b', '0/0:f', '0/2:a']);
+					wetuwn testObject.$getChiwdwen('testNodeTweePwovida', '0/1:b')
+						.then(ewements => {
+							const actuaws = ewements?.map(e => e.handwe);
+							assewt.deepStwictEquaw(actuaws, ['0/1:b/0:h', '0/1:b/1:h', '0/1:b/0:j', '0/1:b/1:j', '0/1:b/2:h']);
 							done();
 						});
 				});
 		});
 
-		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTweeNode.fiwe(undefined);
 	});
 
-	test('getChildren is not returned from cache if refreshed', (done) => {
-		tree = {
+	test('getChiwdwen is not wetuwned fwom cache if wefweshed', (done) => {
+		twee = {
 			'c': {}
 		};
 
-		target.onRefresh.event(() => {
-			testObject.$getChildren('testNodeTreeProvider')
-				.then(elements => {
-					assert.deepStrictEqual(elements?.map(e => e.handle), ['0/0:c']);
+		tawget.onWefwesh.event(() => {
+			testObject.$getChiwdwen('testNodeTweePwovida')
+				.then(ewements => {
+					assewt.deepStwictEquaw(ewements?.map(e => e.handwe), ['0/0:c']);
 					done();
 				});
 		});
 
-		onDidChangeTreeNode.fire(undefined);
+		onDidChangeTweeNode.fiwe(undefined);
 	});
 
-	test('getChildren is returned from cache if not refreshed', () => {
-		tree = {
+	test('getChiwdwen is wetuwned fwom cache if not wefweshed', () => {
+		twee = {
 			'c': {}
 		};
 
-		return testObject.$getChildren('testNodeTreeProvider')
-			.then(elements => {
-				assert.deepStrictEqual(elements?.map(e => e.handle), ['0/0:a', '0/0:b']);
+		wetuwn testObject.$getChiwdwen('testNodeTweePwovida')
+			.then(ewements => {
+				assewt.deepStwictEquaw(ewements?.map(e => e.handwe), ['0/0:a', '0/0:b']);
 			});
 	});
 
-	test('reveal will throw an error if getParent is not implemented', () => {
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		return treeView.reveal({ key: 'a' })
-			.then(() => assert.fail('Reveal should throw an error as getParent is not implemented'), () => null);
+	test('weveaw wiww thwow an ewwow if getPawent is not impwemented', () => {
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
+		wetuwn tweeView.weveaw({ key: 'a' })
+			.then(() => assewt.faiw('Weveaw shouwd thwow an ewwow as getPawent is not impwemented'), () => nuww);
 	});
 
-	test('reveal will return empty array for root element', () => {
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+	test('weveaw wiww wetuwn empty awway fow woot ewement', () => {
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 		const expected = {
 			item:
-				{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
-			parentChain: []
+				{ handwe: '0/0:a', wabew: { wabew: 'a' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed },
+			pawentChain: []
 		};
-		return treeView.reveal({ key: 'a' })
+		wetuwn tweeView.weveaw({ key: 'a' })
 			.then(() => {
-				assert.ok(revealTarget.calledOnce);
-				assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepStrictEqual(expected, removeUnsetKeys(revealTarget.args[0][1]));
-				assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
+				assewt.ok(weveawTawget.cawwedOnce);
+				assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+				assewt.deepStwictEquaw(expected, wemoveUnsetKeys(weveawTawget.awgs[0][1]));
+				assewt.deepStwictEquaw({ sewect: twue, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 			});
 	});
 
-	test('reveal will return parents array for an element when hierarchy is not loaded', () => {
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+	test('weveaw wiww wetuwn pawents awway fow an ewement when hiewawchy is not woaded', () => {
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 		const expected = {
-			item: { handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
-			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
+			item: { handwe: '0/0:a/0:aa', wabew: { wabew: 'aa' }, cowwapsibweState: TweeItemCowwapsibweState.None, pawentHandwe: '0/0:a' },
+			pawentChain: [{ handwe: '0/0:a', wabew: { wabew: 'a' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed }]
 		};
-		return treeView.reveal({ key: 'aa' })
+		wetuwn tweeView.weveaw({ key: 'aa' })
 			.then(() => {
-				assert.ok(revealTarget.calledOnce);
-				assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
-				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
-				assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
+				assewt.ok(weveawTawget.cawwedOnce);
+				assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+				assewt.deepStwictEquaw(expected.item, wemoveUnsetKeys(weveawTawget.awgs[0][1]!.item));
+				assewt.deepStwictEquaw(expected.pawentChain, (<Awway<any>>(weveawTawget.awgs[0][1]!.pawentChain)).map(awg => wemoveUnsetKeys(awg)));
+				assewt.deepStwictEquaw({ sewect: twue, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 			});
 	});
 
-	test('reveal will return parents array for an element when hierarchy is loaded', () => {
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+	test('weveaw wiww wetuwn pawents awway fow an ewement when hiewawchy is woaded', () => {
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 		const expected = {
-			item: { handle: '0/0:a/0:aa', label: { label: 'aa' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
-			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
+			item: { handwe: '0/0:a/0:aa', wabew: { wabew: 'aa' }, cowwapsibweState: TweeItemCowwapsibweState.None, pawentHandwe: '0/0:a' },
+			pawentChain: [{ handwe: '0/0:a', wabew: { wabew: 'a' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed }]
 		};
-		return testObject.$getChildren('treeDataProvider')
-			.then(() => testObject.$getChildren('treeDataProvider', '0/0:a'))
-			.then(() => treeView.reveal({ key: 'aa' })
+		wetuwn testObject.$getChiwdwen('tweeDataPwovida')
+			.then(() => testObject.$getChiwdwen('tweeDataPwovida', '0/0:a'))
+			.then(() => tweeView.weveaw({ key: 'aa' })
 				.then(() => {
-					assert.ok(revealTarget.calledOnce);
-					assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-					assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
-					assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
-					assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
+					assewt.ok(weveawTawget.cawwedOnce);
+					assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+					assewt.deepStwictEquaw(expected.item, wemoveUnsetKeys(weveawTawget.awgs[0][1]!.item));
+					assewt.deepStwictEquaw(expected.pawentChain, (<Awway<any>>(weveawTawget.awgs[0][1]!.pawentChain)).map(awg => wemoveUnsetKeys(awg)));
+					assewt.deepStwictEquaw({ sewect: twue, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 				}));
 	});
 
-	test('reveal will return parents array for deeper element with no selection', () => {
-		tree = {
+	test('weveaw wiww wetuwn pawents awway fow deepa ewement with no sewection', () => {
+		twee = {
 			'b': {
 				'ba': {
 					'bac': {}
 				}
 			}
 		};
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 		const expected = {
-			item: { handle: '0/0:b/0:ba/0:bac', label: { label: 'bac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b/0:ba' },
-			parentChain: [
-				{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed },
-				{ handle: '0/0:b/0:ba', label: { label: 'ba' }, collapsibleState: TreeItemCollapsibleState.Collapsed, parentHandle: '0/0:b' }
+			item: { handwe: '0/0:b/0:ba/0:bac', wabew: { wabew: 'bac' }, cowwapsibweState: TweeItemCowwapsibweState.None, pawentHandwe: '0/0:b/0:ba' },
+			pawentChain: [
+				{ handwe: '0/0:b', wabew: { wabew: 'b' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed },
+				{ handwe: '0/0:b/0:ba', wabew: { wabew: 'ba' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed, pawentHandwe: '0/0:b' }
 			]
 		};
-		return treeView.reveal({ key: 'bac' }, { select: false, focus: false, expand: false })
+		wetuwn tweeView.weveaw({ key: 'bac' }, { sewect: fawse, focus: fawse, expand: fawse })
 			.then(() => {
-				assert.ok(revealTarget.calledOnce);
-				assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
-				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
-				assert.deepStrictEqual({ select: false, focus: false, expand: false }, revealTarget.args[0][2]);
+				assewt.ok(weveawTawget.cawwedOnce);
+				assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+				assewt.deepStwictEquaw(expected.item, wemoveUnsetKeys(weveawTawget.awgs[0][1]!.item));
+				assewt.deepStwictEquaw(expected.pawentChain, (<Awway<any>>(weveawTawget.awgs[0][1]!.pawentChain)).map(awg => wemoveUnsetKeys(awg)));
+				assewt.deepStwictEquaw({ sewect: fawse, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 			});
 	});
 
-	test('reveal after first udpate', () => {
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
+	test('weveaw afta fiwst udpate', () => {
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
 		const expected = {
-			item: { handle: '0/0:a/0:ac', label: { label: 'ac' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:a' },
-			parentChain: [{ handle: '0/0:a', label: { label: 'a' }, collapsibleState: TreeItemCollapsibleState.Collapsed }]
+			item: { handwe: '0/0:a/0:ac', wabew: { wabew: 'ac' }, cowwapsibweState: TweeItemCowwapsibweState.None, pawentHandwe: '0/0:a' },
+			pawentChain: [{ handwe: '0/0:a', wabew: { wabew: 'a' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed }]
 		};
-		return loadCompleteTree('treeDataProvider')
+		wetuwn woadCompweteTwee('tweeDataPwovida')
 			.then(() => {
-				tree = {
+				twee = {
 					'a': {
 						'aa': {},
 						'ac': {}
@@ -586,26 +586,26 @@ suite('ExtHostTreeView', function () {
 						'bb': {}
 					}
 				};
-				onDidChangeTreeNode.fire(getNode('a'));
+				onDidChangeTweeNode.fiwe(getNode('a'));
 
-				return treeView.reveal({ key: 'ac' })
+				wetuwn tweeView.weveaw({ key: 'ac' })
 					.then(() => {
-						assert.ok(revealTarget.calledOnce);
-						assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-						assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
-						assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
-						assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
+						assewt.ok(weveawTawget.cawwedOnce);
+						assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+						assewt.deepStwictEquaw(expected.item, wemoveUnsetKeys(weveawTawget.awgs[0][1]!.item));
+						assewt.deepStwictEquaw(expected.pawentChain, (<Awway<any>>(weveawTawget.awgs[0][1]!.pawentChain)).map(awg => wemoveUnsetKeys(awg)));
+						assewt.deepStwictEquaw({ sewect: twue, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 					});
 			});
 	});
 
-	test('reveal after second udpate', () => {
-		const revealTarget = sinon.spy(target, '$reveal');
-		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, { enableProposedApi: true } as IExtensionDescription);
-		return loadCompleteTree('treeDataProvider')
+	test('weveaw afta second udpate', () => {
+		const weveawTawget = sinon.spy(tawget, '$weveaw');
+		const tweeView = testObject.cweateTweeView('tweeDataPwovida', { tweeDataPwovida: aCompweteNodeTweeDataPwovida() }, { enabwePwoposedApi: twue } as IExtensionDescwiption);
+		wetuwn woadCompweteTwee('tweeDataPwovida')
 			.then(() => {
-				return runWithEventMerging((resolve) => {
-					tree = {
+				wetuwn wunWithEventMewging((wesowve) => {
+					twee = {
 						'a': {
 							'aa': {},
 							'ac': {}
@@ -615,8 +615,8 @@ suite('ExtHostTreeView', function () {
 							'bb': {}
 						}
 					};
-					onDidChangeTreeNode.fire(getNode('a'));
-					tree = {
+					onDidChangeTweeNode.fiwe(getNode('a'));
+					twee = {
 						'a': {
 							'aa': {},
 							'ac': {}
@@ -626,139 +626,139 @@ suite('ExtHostTreeView', function () {
 							'bc': {}
 						}
 					};
-					onDidChangeTreeNode.fire(getNode('b'));
-					resolve();
+					onDidChangeTweeNode.fiwe(getNode('b'));
+					wesowve();
 				}).then(() => {
-					return treeView.reveal({ key: 'bc' })
+					wetuwn tweeView.weveaw({ key: 'bc' })
 						.then(() => {
-							assert.ok(revealTarget.calledOnce);
-							assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-							assert.deepStrictEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]!.item));
-							assert.deepStrictEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][1]!.parentChain).map(arg => removeUnsetKeys(arg)));
-							assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
+							assewt.ok(weveawTawget.cawwedOnce);
+							assewt.deepStwictEquaw('tweeDataPwovida', weveawTawget.awgs[0][0]);
+							assewt.deepStwictEquaw({ handwe: '0/0:b/0:bc', wabew: { wabew: 'bc' }, cowwapsibweState: TweeItemCowwapsibweState.None, pawentHandwe: '0/0:b' }, wemoveUnsetKeys(weveawTawget.awgs[0][1]!.item));
+							assewt.deepStwictEquaw([{ handwe: '0/0:b', wabew: { wabew: 'b' }, cowwapsibweState: TweeItemCowwapsibweState.Cowwapsed }], (<Awway<any>>weveawTawget.awgs[0][1]!.pawentChain).map(awg => wemoveUnsetKeys(awg)));
+							assewt.deepStwictEquaw({ sewect: twue, focus: fawse, expand: fawse }, weveawTawget.awgs[0][2]);
 						});
 				});
 			});
 	});
 
-	function loadCompleteTree(treeId: string, element?: string): Promise<null> {
-		return testObject.$getChildren(treeId, element)
-			.then(elements => elements?.map(e => loadCompleteTree(treeId, e.handle)))
-			.then(() => null);
+	function woadCompweteTwee(tweeId: stwing, ewement?: stwing): Pwomise<nuww> {
+		wetuwn testObject.$getChiwdwen(tweeId, ewement)
+			.then(ewements => ewements?.map(e => woadCompweteTwee(tweeId, e.handwe)))
+			.then(() => nuww);
 	}
 
-	function removeUnsetKeys(obj: any): any {
-		if (Array.isArray(obj)) {
-			return obj.map(o => removeUnsetKeys(o));
+	function wemoveUnsetKeys(obj: any): any {
+		if (Awway.isAwway(obj)) {
+			wetuwn obj.map(o => wemoveUnsetKeys(o));
 		}
 
 		if (typeof obj === 'object') {
-			const result: { [key: string]: any } = {};
-			for (const key of Object.keys(obj)) {
+			const wesuwt: { [key: stwing]: any } = {};
+			fow (const key of Object.keys(obj)) {
 				if (obj[key] !== undefined) {
-					result[key] = removeUnsetKeys(obj[key]);
+					wesuwt[key] = wemoveUnsetKeys(obj[key]);
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		}
-		return obj;
+		wetuwn obj;
 	}
 
-	function aNodeTreeDataProvider(): TreeDataProvider<{ key: string }> {
-		return {
-			getChildren: (element: { key: string }): { key: string }[] => {
-				return getChildren(element ? element.key : undefined).map(key => getNode(key));
+	function aNodeTweeDataPwovida(): TweeDataPwovida<{ key: stwing }> {
+		wetuwn {
+			getChiwdwen: (ewement: { key: stwing }): { key: stwing }[] => {
+				wetuwn getChiwdwen(ewement ? ewement.key : undefined).map(key => getNode(key));
 			},
-			getTreeItem: (element: { key: string }): TreeItem => {
-				return getTreeItem(element.key);
+			getTweeItem: (ewement: { key: stwing }): TweeItem => {
+				wetuwn getTweeItem(ewement.key);
 			},
-			onDidChangeTreeData: onDidChangeTreeNode.event
+			onDidChangeTweeData: onDidChangeTweeNode.event
 		};
 	}
 
-	function aCompleteNodeTreeDataProvider(): TreeDataProvider<{ key: string }> {
-		return {
-			getChildren: (element: { key: string }): { key: string }[] => {
-				return getChildren(element ? element.key : undefined).map(key => getNode(key));
+	function aCompweteNodeTweeDataPwovida(): TweeDataPwovida<{ key: stwing }> {
+		wetuwn {
+			getChiwdwen: (ewement: { key: stwing }): { key: stwing }[] => {
+				wetuwn getChiwdwen(ewement ? ewement.key : undefined).map(key => getNode(key));
 			},
-			getTreeItem: (element: { key: string }): TreeItem => {
-				return getTreeItem(element.key);
+			getTweeItem: (ewement: { key: stwing }): TweeItem => {
+				wetuwn getTweeItem(ewement.key);
 			},
-			getParent: ({ key }: { key: string }): { key: string } | undefined => {
-				const parentKey = key.substring(0, key.length - 1);
-				return parentKey ? new Key(parentKey) : undefined;
+			getPawent: ({ key }: { key: stwing }): { key: stwing } | undefined => {
+				const pawentKey = key.substwing(0, key.wength - 1);
+				wetuwn pawentKey ? new Key(pawentKey) : undefined;
 			},
-			onDidChangeTreeData: onDidChangeTreeNode.event
+			onDidChangeTweeData: onDidChangeTweeNode.event
 		};
 	}
 
-	function aNodeWithIdTreeDataProvider(): TreeDataProvider<{ key: string }> {
-		return {
-			getChildren: (element: { key: string }): { key: string }[] => {
-				return getChildren(element ? element.key : undefined).map(key => getNode(key));
+	function aNodeWithIdTweeDataPwovida(): TweeDataPwovida<{ key: stwing }> {
+		wetuwn {
+			getChiwdwen: (ewement: { key: stwing }): { key: stwing }[] => {
+				wetuwn getChiwdwen(ewement ? ewement.key : undefined).map(key => getNode(key));
 			},
-			getTreeItem: (element: { key: string }): TreeItem => {
-				const treeItem = getTreeItem(element.key);
-				treeItem.id = element.key;
-				return treeItem;
+			getTweeItem: (ewement: { key: stwing }): TweeItem => {
+				const tweeItem = getTweeItem(ewement.key);
+				tweeItem.id = ewement.key;
+				wetuwn tweeItem;
 			},
-			onDidChangeTreeData: onDidChangeTreeNodeWithId.event
+			onDidChangeTweeData: onDidChangeTweeNodeWithId.event
 		};
 	}
 
-	function aNodeWithHighlightedLabelTreeDataProvider(): TreeDataProvider<{ key: string }> {
-		return {
-			getChildren: (element: { key: string }): { key: string }[] => {
-				return getChildren(element ? element.key : undefined).map(key => getNode(key));
+	function aNodeWithHighwightedWabewTweeDataPwovida(): TweeDataPwovida<{ key: stwing }> {
+		wetuwn {
+			getChiwdwen: (ewement: { key: stwing }): { key: stwing }[] => {
+				wetuwn getChiwdwen(ewement ? ewement.key : undefined).map(key => getNode(key));
 			},
-			getTreeItem: (element: { key: string }): TreeItem => {
-				const treeItem = getTreeItem(element.key, [[0, 2], [3, 5]]);
-				treeItem.id = element.key;
-				return treeItem;
+			getTweeItem: (ewement: { key: stwing }): TweeItem => {
+				const tweeItem = getTweeItem(ewement.key, [[0, 2], [3, 5]]);
+				tweeItem.id = ewement.key;
+				wetuwn tweeItem;
 			},
-			onDidChangeTreeData: onDidChangeTreeNodeWithId.event
+			onDidChangeTweeData: onDidChangeTweeNodeWithId.event
 		};
 	}
 
-	function getTreeElement(element: string): any {
-		let parent = tree;
-		for (let i = 0; i < element.length; i++) {
-			parent = parent[element.substring(0, i + 1)];
-			if (!parent) {
-				return null;
+	function getTweeEwement(ewement: stwing): any {
+		wet pawent = twee;
+		fow (wet i = 0; i < ewement.wength; i++) {
+			pawent = pawent[ewement.substwing(0, i + 1)];
+			if (!pawent) {
+				wetuwn nuww;
 			}
 		}
-		return parent;
+		wetuwn pawent;
 	}
 
-	function getChildren(key: string | undefined): string[] {
+	function getChiwdwen(key: stwing | undefined): stwing[] {
 		if (!key) {
-			return Object.keys(tree);
+			wetuwn Object.keys(twee);
 		}
-		let treeElement = getTreeElement(key);
-		if (treeElement) {
-			return Object.keys(treeElement);
+		wet tweeEwement = getTweeEwement(key);
+		if (tweeEwement) {
+			wetuwn Object.keys(tweeEwement);
 		}
-		return [];
+		wetuwn [];
 	}
 
-	function getTreeItem(key: string, highlights?: [number, number][]): TreeItem {
-		const treeElement = getTreeElement(key);
-		return {
-			label: <any>{ label: labels[key] || key, highlights },
-			collapsibleState: treeElement && Object.keys(treeElement).length ? TreeItemCollapsibleState.Collapsed : TreeItemCollapsibleState.None
+	function getTweeItem(key: stwing, highwights?: [numba, numba][]): TweeItem {
+		const tweeEwement = getTweeEwement(key);
+		wetuwn {
+			wabew: <any>{ wabew: wabews[key] || key, highwights },
+			cowwapsibweState: tweeEwement && Object.keys(tweeEwement).wength ? TweeItemCowwapsibweState.Cowwapsed : TweeItemCowwapsibweState.None
 		};
 	}
 
-	function getNode(key: string): { key: string } {
+	function getNode(key: stwing): { key: stwing } {
 		if (!nodes[key]) {
 			nodes[key] = new Key(key);
 		}
-		return nodes[key];
+		wetuwn nodes[key];
 	}
 
-	class Key {
-		constructor(readonly key: string) { }
+	cwass Key {
+		constwuctow(weadonwy key: stwing) { }
 	}
 
 });

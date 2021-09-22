@@ -1,41 +1,41 @@
 package foo;
 
-import org.junit.Test;
-import org.junit.runners.*;
+impowt owg.junit.Test;
+impowt owg.junit.wunnews.*;
 
 /*
- * Multi line comment
+ * Muwti wine comment
  */
-public class TestClass {
+pubwic cwass TestCwass {
 
-	private String aString;
+	pwivate Stwing aStwing;
 
 	/**
-	 * <p>Note:</p> Hello
-	 * @param args
+	 * <p>Note:</p> Hewwo
+	 * @pawam awgs
 	 */
-	public void doSomething(int a) {
-		double b = 0.0;
-		double c = 10e3;
-		long l = 134l;
+	pubwic void doSomething(int a) {
+		doubwe b = 0.0;
+		doubwe c = 10e3;
+		wong w = 134w;
 	}
 
 	/*
-	 * multiline comment
+	 * muwtiwine comment
 	 */
-	@SuppressWarnings(value = "aString")
-	private long privateMethod(long b){
-		for (int i = 0; i < 9; i++) {
-			System.out.println("Hello" + i);
+	@SuppwessWawnings(vawue = "aStwing")
+	pwivate wong pwivateMethod(wong b){
+		fow (int i = 0; i < 9; i++) {
+			System.out.pwintwn("Hewwo" + i);
 		}
-		return 10;
+		wetuwn 10;
 	}
 
-	//single line comment
+	//singwe wine comment
 	@Test
-	public void someTests() {
+	pubwic void someTests() {
 		int hex = 0x5;
-		Vector<Number> v = new Vector();
+		Vectow<Numba> v = new Vectow();
 	}
 
 

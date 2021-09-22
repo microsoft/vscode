@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, hide, show } from 'vs/base/browser/dom';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { flatten } from 'vs/base/common/arrays';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CompletionItemKind, CompletionItemTag, completionKindToCssClass } from 'vs/editor/common/modes';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
-import { FileKind } from 'vs/platform/files/common/files';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CompletionItem } from './suggest';
-import { canExpandCompletionItem } from './suggestWidgetDetails';
+impowt { $, append, hide, show } fwom 'vs/base/bwowsa/dom';
+impowt { IconWabew, IIconWabewVawueOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { IWistWendewa } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CompwetionItemKind, CompwetionItemTag, compwetionKindToCssCwass } fwom 'vs/editow/common/modes';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt * as nws fwom 'vs/nws';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CompwetionItem } fwom './suggest';
+impowt { canExpandCompwetionItem } fwom './suggestWidgetDetaiws';
 
-export function getAriaId(index: number): string {
-	return `suggest-aria-id:${index}`;
+expowt function getAwiaId(index: numba): stwing {
+	wetuwn `suggest-awia-id:${index}`;
 }
 
-export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
+expowt const suggestMoweInfoIcon = wegistewIcon('suggest-mowe-info', Codicon.chevwonWight, nws.wocawize('suggestMoweInfoIcon', 'Icon fow mowe infowmation in the suggest widget.'));
 
-const _completionItemColor = new class ColorExtractor {
+const _compwetionItemCowow = new cwass CowowExtwactow {
 
-	private static _regexRelaxed = /(#([\da-fA-F]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))/;
-	private static _regexStrict = new RegExp(`^${ColorExtractor._regexRelaxed.source}$`, 'i');
+	pwivate static _wegexWewaxed = /(#([\da-fA-F]{3}){1,2}|(wgb|hsw)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(wgb|hsw)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))/;
+	pwivate static _wegexStwict = new WegExp(`^${CowowExtwactow._wegexWewaxed.souwce}$`, 'i');
 
-	extract(item: CompletionItem, out: string[]): boolean {
-		if (item.textLabel.match(ColorExtractor._regexStrict)) {
-			out[0] = item.textLabel;
-			return true;
+	extwact(item: CompwetionItem, out: stwing[]): boowean {
+		if (item.textWabew.match(CowowExtwactow._wegexStwict)) {
+			out[0] = item.textWabew;
+			wetuwn twue;
 		}
-		if (item.completion.detail && item.completion.detail.match(ColorExtractor._regexStrict)) {
-			out[0] = item.completion.detail;
-			return true;
+		if (item.compwetion.detaiw && item.compwetion.detaiw.match(CowowExtwactow._wegexStwict)) {
+			out[0] = item.compwetion.detaiw;
+			wetuwn twue;
 		}
-		if (typeof item.completion.documentation === 'string') {
-			const match = ColorExtractor._regexRelaxed.exec(item.completion.documentation);
-			if (match && (match.index === 0 || match.index + match[0].length === item.completion.documentation.length)) {
+		if (typeof item.compwetion.documentation === 'stwing') {
+			const match = CowowExtwactow._wegexWewaxed.exec(item.compwetion.documentation);
+			if (match && (match.index === 0 || match.index + match[0].wength === item.compwetion.documentation.wength)) {
 				out[0] = match[0];
-				return true;
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 };
 
 
-export interface ISuggestionTemplateData {
-	root: HTMLElement;
+expowt intewface ISuggestionTempwateData {
+	woot: HTMWEwement;
 
 	/**
-	 * Flexbox
-	 * < ------------- left ------------ >     < --- right -- >
-	 * <icon><label><signature><qualifier>     <type><readmore>
+	 * Fwexbox
+	 * < ------------- weft ------------ >     < --- wight -- >
+	 * <icon><wabew><signatuwe><quawifia>     <type><weadmowe>
 	 */
-	left: HTMLElement;
-	right: HTMLElement;
+	weft: HTMWEwement;
+	wight: HTMWEwement;
 
-	icon: HTMLElement;
-	colorspan: HTMLElement;
-	iconLabel: IconLabel;
-	iconContainer: HTMLElement;
-	parametersLabel: HTMLElement;
-	qualifierLabel: HTMLElement;
+	icon: HTMWEwement;
+	cowowspan: HTMWEwement;
+	iconWabew: IconWabew;
+	iconContaina: HTMWEwement;
+	pawametewsWabew: HTMWEwement;
+	quawifiewWabew: HTMWEwement;
 	/**
-	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
+	 * Showing eitha `CompwetionItem#detaiws` ow `CompwetionItemWabew#type`
 	 */
-	detailsLabel: HTMLElement;
-	readMore: HTMLElement;
-	disposables: DisposableStore;
+	detaiwsWabew: HTMWEwement;
+	weadMowe: HTMWEwement;
+	disposabwes: DisposabweStowe;
 }
 
-export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
+expowt cwass ItemWendewa impwements IWistWendewa<CompwetionItem, ISuggestionTempwateData> {
 
-	private readonly _onDidToggleDetails = new Emitter<void>();
-	readonly onDidToggleDetails: Event<void> = this._onDidToggleDetails.event;
+	pwivate weadonwy _onDidToggweDetaiws = new Emitta<void>();
+	weadonwy onDidToggweDetaiws: Event<void> = this._onDidToggweDetaiws.event;
 
-	readonly templateId = 'suggestion';
+	weadonwy tempwateId = 'suggestion';
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
-		@IThemeService private readonly _themeService: IThemeService
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice
 	) { }
 
 	dispose(): void {
-		this._onDidToggleDetails.dispose();
+		this._onDidToggweDetaiws.dispose();
 	}
 
-	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
-		const data = <ISuggestionTemplateData>Object.create(null);
-		data.disposables = new DisposableStore();
+	wendewTempwate(containa: HTMWEwement): ISuggestionTempwateData {
+		const data = <ISuggestionTempwateData>Object.cweate(nuww);
+		data.disposabwes = new DisposabweStowe();
 
-		data.root = container;
-		data.root.classList.add('show-file-icons');
+		data.woot = containa;
+		data.woot.cwassWist.add('show-fiwe-icons');
 
-		data.icon = append(container, $('.icon'));
-		data.colorspan = append(data.icon, $('span.colorspan'));
+		data.icon = append(containa, $('.icon'));
+		data.cowowspan = append(data.icon, $('span.cowowspan'));
 
-		const text = append(container, $('.contents'));
+		const text = append(containa, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconContainer = append(main, $('.icon-label.codicon'));
-		data.left = append(main, $('span.left'));
-		data.right = append(main, $('span.right'));
+		data.iconContaina = append(main, $('.icon-wabew.codicon'));
+		data.weft = append(main, $('span.weft'));
+		data.wight = append(main, $('span.wight'));
 
-		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportIcons: true });
-		data.disposables.add(data.iconLabel);
+		data.iconWabew = new IconWabew(data.weft, { suppowtHighwights: twue, suppowtIcons: twue });
+		data.disposabwes.add(data.iconWabew);
 
-		data.parametersLabel = append(data.left, $('span.signature-label'));
-		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
-		data.detailsLabel = append(data.right, $('span.details-label'));
+		data.pawametewsWabew = append(data.weft, $('span.signatuwe-wabew'));
+		data.quawifiewWabew = append(data.weft, $('span.quawifia-wabew'));
+		data.detaiwsWabew = append(data.wight, $('span.detaiws-wabew'));
 
-		data.readMore = append(data.right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
-		data.readMore.title = nls.localize('readMore', "Read More");
+		data.weadMowe = append(data.wight, $('span.weadMowe' + ThemeIcon.asCSSSewectow(suggestMoweInfoIcon)));
+		data.weadMowe.titwe = nws.wocawize('weadMowe', "Wead Mowe");
 
-		const configureFont = () => {
-			const options = this._editor.getOptions();
-			const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = fontInfo.fontFamily;
-			const fontFeatureSettings = fontInfo.fontFeatureSettings;
-			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
-			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
+		const configuweFont = () => {
+			const options = this._editow.getOptions();
+			const fontInfo = options.get(EditowOption.fontInfo);
+			const fontFamiwy = fontInfo.fontFamiwy;
+			const fontFeatuweSettings = fontInfo.fontFeatuweSettings;
+			const fontSize = options.get(EditowOption.suggestFontSize) || fontInfo.fontSize;
+			const wineHeight = options.get(EditowOption.suggestWineHeight) || fontInfo.wineHeight;
 			const fontWeight = fontInfo.fontWeight;
 			const fontSizePx = `${fontSize}px`;
-			const lineHeightPx = `${lineHeight}px`;
+			const wineHeightPx = `${wineHeight}px`;
 
-			data.root.style.fontSize = fontSizePx;
-			data.root.style.fontWeight = fontWeight;
-			main.style.fontFamily = fontFamily;
-			main.style.fontFeatureSettings = fontFeatureSettings;
-			main.style.lineHeight = lineHeightPx;
-			data.icon.style.height = lineHeightPx;
-			data.icon.style.width = lineHeightPx;
-			data.readMore.style.height = lineHeightPx;
-			data.readMore.style.width = lineHeightPx;
+			data.woot.stywe.fontSize = fontSizePx;
+			data.woot.stywe.fontWeight = fontWeight;
+			main.stywe.fontFamiwy = fontFamiwy;
+			main.stywe.fontFeatuweSettings = fontFeatuweSettings;
+			main.stywe.wineHeight = wineHeightPx;
+			data.icon.stywe.height = wineHeightPx;
+			data.icon.stywe.width = wineHeightPx;
+			data.weadMowe.stywe.height = wineHeightPx;
+			data.weadMowe.stywe.width = wineHeightPx;
 		};
 
-		configureFont();
+		configuweFont();
 
-		data.disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-				configureFont();
+		data.disposabwes.add(this._editow.onDidChangeConfiguwation(e => {
+			if (e.hasChanged(EditowOption.fontInfo) || e.hasChanged(EditowOption.suggestFontSize) || e.hasChanged(EditowOption.suggestWineHeight)) {
+				configuweFont();
 			}
 		}));
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
-		const { completion } = element;
-		data.root.id = getAriaId(index);
-		data.colorspan.style.backgroundColor = '';
+	wendewEwement(ewement: CompwetionItem, index: numba, data: ISuggestionTempwateData): void {
+		const { compwetion } = ewement;
+		data.woot.id = getAwiaId(index);
+		data.cowowspan.stywe.backgwoundCowow = '';
 
-		const labelOptions: IIconLabelValueOptions = {
-			labelEscapeNewLines: true,
-			matches: createMatches(element.score)
+		const wabewOptions: IIconWabewVawueOptions = {
+			wabewEscapeNewWines: twue,
+			matches: cweateMatches(ewement.scowe)
 		};
 
-		let color: string[] = [];
-		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
-			// special logic for 'color' completion items
-			data.icon.className = 'icon customcolor';
-			data.iconContainer.className = 'icon hide';
-			data.colorspan.style.backgroundColor = color[0];
+		wet cowow: stwing[] = [];
+		if (compwetion.kind === CompwetionItemKind.Cowow && _compwetionItemCowow.extwact(ewement, cowow)) {
+			// speciaw wogic fow 'cowow' compwetion items
+			data.icon.cwassName = 'icon customcowow';
+			data.iconContaina.cwassName = 'icon hide';
+			data.cowowspan.stywe.backgwoundCowow = cowow[0];
 
-		} else if (completion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
-			// special logic for 'file' completion items
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FILE);
-			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
-			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
+		} ewse if (compwetion.kind === CompwetionItemKind.Fiwe && this._themeSewvice.getFiweIconTheme().hasFiweIcons) {
+			// speciaw wogic fow 'fiwe' compwetion items
+			data.icon.cwassName = 'icon hide';
+			data.iconContaina.cwassName = 'icon hide';
+			const wabewCwasses = getIconCwasses(this._modewSewvice, this._modeSewvice, UWI.fwom({ scheme: 'fake', path: ewement.textWabew }), FiweKind.FIWE);
+			const detaiwCwasses = getIconCwasses(this._modewSewvice, this._modeSewvice, UWI.fwom({ scheme: 'fake', path: compwetion.detaiw }), FiweKind.FIWE);
+			wabewOptions.extwaCwasses = wabewCwasses.wength > detaiwCwasses.wength ? wabewCwasses : detaiwCwasses;
 
-		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
-			// special logic for 'folder' completion items
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
+		} ewse if (compwetion.kind === CompwetionItemKind.Fowda && this._themeSewvice.getFiweIconTheme().hasFowdewIcons) {
+			// speciaw wogic fow 'fowda' compwetion items
+			data.icon.cwassName = 'icon hide';
+			data.iconContaina.cwassName = 'icon hide';
+			wabewOptions.extwaCwasses = fwatten([
+				getIconCwasses(this._modewSewvice, this._modeSewvice, UWI.fwom({ scheme: 'fake', path: ewement.textWabew }), FiweKind.FOWDa),
+				getIconCwasses(this._modewSewvice, this._modeSewvice, UWI.fwom({ scheme: 'fake', path: compwetion.detaiw }), FiweKind.FOWDa)
 			]);
-		} else {
-			// normal icon
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...completionKindToCssClass(completion.kind).split(' '));
+		} ewse {
+			// nowmaw icon
+			data.icon.cwassName = 'icon hide';
+			data.iconContaina.cwassName = '';
+			data.iconContaina.cwassWist.add('suggest-icon', ...compwetionKindToCssCwass(compwetion.kind).spwit(' '));
 		}
 
-		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
-			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);
-			labelOptions.matches = [];
+		if (compwetion.tags && compwetion.tags.indexOf(CompwetionItemTag.Depwecated) >= 0) {
+			wabewOptions.extwaCwasses = (wabewOptions.extwaCwasses || []).concat(['depwecated']);
+			wabewOptions.matches = [];
 		}
 
-		data.iconLabel.setLabel(element.textLabel, undefined, labelOptions);
-		if (typeof completion.label === 'string') {
-			data.parametersLabel.textContent = '';
-			data.detailsLabel.textContent = stripNewLines(completion.detail || '');
-			data.root.classList.add('string-label');
-		} else {
-			data.parametersLabel.textContent = stripNewLines(completion.label.detail || '');
-			data.detailsLabel.textContent = stripNewLines(completion.label.description || '');
-			data.root.classList.remove('string-label');
+		data.iconWabew.setWabew(ewement.textWabew, undefined, wabewOptions);
+		if (typeof compwetion.wabew === 'stwing') {
+			data.pawametewsWabew.textContent = '';
+			data.detaiwsWabew.textContent = stwipNewWines(compwetion.detaiw || '');
+			data.woot.cwassWist.add('stwing-wabew');
+		} ewse {
+			data.pawametewsWabew.textContent = stwipNewWines(compwetion.wabew.detaiw || '');
+			data.detaiwsWabew.textContent = stwipNewWines(compwetion.wabew.descwiption || '');
+			data.woot.cwassWist.wemove('stwing-wabew');
 		}
 
-		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {
-			show(data.detailsLabel);
-		} else {
-			hide(data.detailsLabel);
+		if (this._editow.getOption(EditowOption.suggest).showInwineDetaiws) {
+			show(data.detaiwsWabew);
+		} ewse {
+			hide(data.detaiwsWabew);
 		}
 
-		if (canExpandCompletionItem(element)) {
-			data.right.classList.add('can-expand-details');
-			show(data.readMore);
-			data.readMore.onmousedown = e => {
-				e.stopPropagation();
-				e.preventDefault();
+		if (canExpandCompwetionItem(ewement)) {
+			data.wight.cwassWist.add('can-expand-detaiws');
+			show(data.weadMowe);
+			data.weadMowe.onmousedown = e => {
+				e.stopPwopagation();
+				e.pweventDefauwt();
 			};
-			data.readMore.onclick = e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this._onDidToggleDetails.fire();
+			data.weadMowe.oncwick = e => {
+				e.stopPwopagation();
+				e.pweventDefauwt();
+				this._onDidToggweDetaiws.fiwe();
 			};
-		} else {
-			data.right.classList.remove('can-expand-details');
-			hide(data.readMore);
-			data.readMore.onmousedown = null;
-			data.readMore.onclick = null;
+		} ewse {
+			data.wight.cwassWist.wemove('can-expand-detaiws');
+			hide(data.weadMowe);
+			data.weadMowe.onmousedown = nuww;
+			data.weadMowe.oncwick = nuww;
 		}
 	}
 
-	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.disposables.dispose();
+	disposeTempwate(tempwateData: ISuggestionTempwateData): void {
+		tempwateData.disposabwes.dispose();
 	}
 }
 
-function stripNewLines(str: string): string {
-	return str.replace(/\r\n|\r|\n/g, '');
+function stwipNewWines(stw: stwing): stwing {
+	wetuwn stw.wepwace(/\w\n|\w|\n/g, '');
 }

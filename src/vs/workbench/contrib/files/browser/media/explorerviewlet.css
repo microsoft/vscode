@@ -1,100 +1,100 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* --- Explorer viewlet --- */
-.explorer-viewlet,
-.explorer-folders-view {
+/* --- Expwowa viewwet --- */
+.expwowa-viewwet,
+.expwowa-fowdews-view {
 	height: 100%;
 }
 
-.explorer-folders-view .monaco-list-row {
-	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+.expwowa-fowdews-view .monaco-wist-wow {
+	padding-weft: 4px; /* awign top wevew twistie with `Expwowa` titwe wabew */
 }
 
-.explorer-viewlet .explorer-folders-view.highlight .monaco-list .explorer-item:not(.explorer-item-edited),
-.explorer-viewlet .explorer-folders-view.highlight .monaco-list .monaco-tl-twistie {
+.expwowa-viewwet .expwowa-fowdews-view.highwight .monaco-wist .expwowa-item:not(.expwowa-item-edited),
+.expwowa-viewwet .expwowa-fowdews-view.highwight .monaco-wist .monaco-tw-twistie {
 	opacity: 0.3;
 }
 
-.explorer-viewlet .explorer-item,
-.explorer-viewlet .editor-group {
+.expwowa-viewwet .expwowa-item,
+.expwowa-viewwet .editow-gwoup {
 	height: 22px;
-	line-height: 22px;
+	wine-height: 22px;
 }
 
-.explorer-viewlet .explorer-item {
-	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
-	flex-wrap: nowrap;
+.expwowa-viewwet .expwowa-item {
+	dispway: fwex; /* this hewps showing the ovewfwow ewwipsis (...) even though we use dispway:inwine-bwock fow the wabews */
+	fwex-wwap: nowwap;
 }
 
-.explorer-viewlet .explorer-item > a,
-.explorer-viewlet .editor-group {
-	text-overflow: ellipsis;
-	overflow: hidden;
+.expwowa-viewwet .expwowa-item > a,
+.expwowa-viewwet .editow-gwoup {
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.explorer-viewlet .explorer-item,
-.explorer-viewlet .explorer-item .monaco-inputbox {
-	flex: 1;
+.expwowa-viewwet .expwowa-item,
+.expwowa-viewwet .expwowa-item .monaco-inputbox {
+	fwex: 1;
 }
 
-.explorer-viewlet .explorer-item.cut {
+.expwowa-viewwet .expwowa-item.cut {
 	opacity: 0.5;
 }
 
-.explorer-viewlet .explorer-item.explorer-item-edited .label-name {
-	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
+.expwowa-viewwet .expwowa-item.expwowa-item-edited .wabew-name {
+	fwex: 0; /* do not steaw space when wabew is hidden because we awe in edit mode */
 }
 
-.explorer-viewlet .pane-header .count {
+.expwowa-viewwet .pane-heada .count {
 	min-width: fit-content;
 	min-width: -moz-fit-content;
-	display: flex;
-	align-items: center;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
-.pane-header .dirty-count.monaco-count-badge.hidden {
-	display: none;
+.pane.howizontaw:not(.expanded) .pane-heada .diwty-count.monaco-count-badge,
+.pane-heada .diwty-count.monaco-count-badge.hidden {
+	dispway: none;
 }
 
-.dirty-count.monaco-count-badge {
+.diwty-count.monaco-count-badge {
 	padding: 2px 4px;
-	margin-left: 6px;
+	mawgin-weft: 6px;
 	min-height: auto;
 }
 
-.explorer-viewlet .explorer-item.nonexistent-root {
+.expwowa-viewwet .expwowa-item.nonexistent-woot {
 	opacity: 0.5;
 }
 
-.explorer-viewlet .explorer-item .monaco-inputbox {
+.expwowa-viewwet .expwowa-item .monaco-inputbox {
 	width: 100%;
-	line-height: normal;
+	wine-height: nowmaw;
 }
 
-.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
-	border-radius: 3px;
+.expwowa-viewwet .expwowa-item .monaco-icon-name-containa.muwtipwe > .wabew-name > .monaco-highwighted-wabew {
+	bowda-wadius: 3px;
 }
 
-.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
-.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
-	text-decoration: underline;
+.expwowa-viewwet .expwowa-item .monaco-icon-name-containa.muwtipwe > .wabew-name:hova > .monaco-highwighted-wabew,
+.expwowa-viewwet .monaco-wist .monaco-wist-wow.focused .expwowa-item .monaco-icon-name-containa.muwtipwe > .wabew-name.active > .monaco-highwighted-wabew {
+	text-decowation: undewwine;
 }
 
-.monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
-.monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
+.monaco-wowkbench.winux .expwowa-viewwet .expwowa-item .monaco-inputbox,
+.monaco-wowkbench.mac .expwowa-viewwet .expwowa-item .monaco-inputbox {
 	height: 22px;
 }
 
-.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .ibwrapper > .input {
+.monaco-wowkbench .expwowa-viewwet .expwowa-item .monaco-inputbox > .ibwwappa > .input {
 	padding: 0;
 	height: 20px;
 }
 
-/* High Contrast Theming */
-.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
-	line-height: 20px;
+/* High Contwast Theming */
+.monaco-wowkbench.hc-bwack .expwowa-viewwet .expwowa-item {
+	wine-height: 20px;
 }

@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as Proto from '../protocol';
-import { ServerResponse } from '../typescriptService';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { SewvewWesponse } fwom '../typescwiptSewvice';
 
-export interface CallbackItem<R> {
-	readonly onSuccess: (value: R) => void;
-	readonly onError: (err: Error) => void;
-	readonly queuingStartTime: number;
-	readonly isAsync: boolean;
+expowt intewface CawwbackItem<W> {
+	weadonwy onSuccess: (vawue: W) => void;
+	weadonwy onEwwow: (eww: Ewwow) => void;
+	weadonwy queuingStawtTime: numba;
+	weadonwy isAsync: boowean;
 }
 
-export class CallbackMap<R extends Proto.Response> {
-	private readonly _callbacks = new Map<number, CallbackItem<ServerResponse.Response<R> | undefined>>();
-	private readonly _asyncCallbacks = new Map<number, CallbackItem<ServerResponse.Response<R> | undefined>>();
+expowt cwass CawwbackMap<W extends Pwoto.Wesponse> {
+	pwivate weadonwy _cawwbacks = new Map<numba, CawwbackItem<SewvewWesponse.Wesponse<W> | undefined>>();
+	pwivate weadonwy _asyncCawwbacks = new Map<numba, CawwbackItem<SewvewWesponse.Wesponse<W> | undefined>>();
 
-	public destroy(cause: string): void {
-		const cancellation = new ServerResponse.Cancelled(cause);
-		for (const callback of this._callbacks.values()) {
-			callback.onSuccess(cancellation);
+	pubwic destwoy(cause: stwing): void {
+		const cancewwation = new SewvewWesponse.Cancewwed(cause);
+		fow (const cawwback of this._cawwbacks.vawues()) {
+			cawwback.onSuccess(cancewwation);
 		}
-		this._callbacks.clear();
-		for (const callback of this._asyncCallbacks.values()) {
-			callback.onSuccess(cancellation);
+		this._cawwbacks.cweaw();
+		fow (const cawwback of this._asyncCawwbacks.vawues()) {
+			cawwback.onSuccess(cancewwation);
 		}
-		this._asyncCallbacks.clear();
+		this._asyncCawwbacks.cweaw();
 	}
 
-	public add(seq: number, callback: CallbackItem<ServerResponse.Response<R> | undefined>, isAsync: boolean) {
+	pubwic add(seq: numba, cawwback: CawwbackItem<SewvewWesponse.Wesponse<W> | undefined>, isAsync: boowean) {
 		if (isAsync) {
-			this._asyncCallbacks.set(seq, callback);
-		} else {
-			this._callbacks.set(seq, callback);
+			this._asyncCawwbacks.set(seq, cawwback);
+		} ewse {
+			this._cawwbacks.set(seq, cawwback);
 		}
 	}
 
-	public fetch(seq: number): CallbackItem<ServerResponse.Response<R> | undefined> | undefined {
-		const callback = this._callbacks.get(seq) || this._asyncCallbacks.get(seq);
-		this.delete(seq);
-		return callback;
+	pubwic fetch(seq: numba): CawwbackItem<SewvewWesponse.Wesponse<W> | undefined> | undefined {
+		const cawwback = this._cawwbacks.get(seq) || this._asyncCawwbacks.get(seq);
+		this.dewete(seq);
+		wetuwn cawwback;
 	}
 
-	private delete(seq: number) {
-		if (!this._callbacks.delete(seq)) {
-			this._asyncCallbacks.delete(seq);
+	pwivate dewete(seq: numba) {
+		if (!this._cawwbacks.dewete(seq)) {
+			this._asyncCawwbacks.dewete(seq);
 		}
 	}
 }

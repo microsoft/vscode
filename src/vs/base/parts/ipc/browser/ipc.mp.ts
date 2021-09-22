@@ -1,22 +1,22 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Cwient as MessagePowtCwient } fwom 'vs/base/pawts/ipc/common/ipc.mp';
 
 /**
- * An implementation of a `IPCClient` on top of DOM `MessagePort`.
+ * An impwementation of a `IPCCwient` on top of DOM `MessagePowt`.
  */
-export class Client extends MessagePortClient implements IDisposable {
+expowt cwass Cwient extends MessagePowtCwient impwements IDisposabwe {
 
 	/**
-	 * @param clientId a way to uniquely identify this client among
-	 * other clients. this is important for routing because every
-	 * client can also be a server
+	 * @pawam cwientId a way to uniquewy identify this cwient among
+	 * otha cwients. this is impowtant fow wouting because evewy
+	 * cwient can awso be a sewva
 	 */
-	constructor(port: MessagePort, clientId: string) {
-		super(port, clientId);
+	constwuctow(powt: MessagePowt, cwientId: stwing) {
+		supa(powt, cwientId);
 	}
 }

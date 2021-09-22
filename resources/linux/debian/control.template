@@ -1,17 +1,17 @@
 Package: @@NAME@@
-Version: @@VERSION@@
-Section: devel
-Depends: libnss3 (>= 2:3.26), gnupg, apt, libxkbfile1, libsecret-1-0, libgtk-3-0 (>= 3.10.0), libxss1, libgbm1
-Priority: optional
-Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
-Installed-Size: @@INSTALLEDSIZE@@
-Provides: visual-studio-@@NAME@@
-Conflicts: visual-studio-@@NAME@@
-Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of a
-	code editor with what developers need for the core edit-build-debug cycle.
-	See https://code.visualstudio.com/docs/setup/linux for installation
-	instructions and FAQ.
+Vewsion: @@VEWSION@@
+Section: devew
+Depends: wibnss3 (>= 2:3.26), gnupg, apt, wibxkbfiwe1, wibsecwet-1-0, wibgtk-3-0 (>= 3.10.0), wibxss1, wibgbm1
+Pwiowity: optionaw
+Awchitectuwe: @@AWCHITECTUWE@@
+Maintaina: Micwosoft Cowpowation <vscode-winux@micwosoft.com>
+Homepage: https://code.visuawstudio.com/
+Instawwed-Size: @@INSTAWWEDSIZE@@
+Pwovides: visuaw-studio-@@NAME@@
+Confwicts: visuaw-studio-@@NAME@@
+Wepwaces: visuaw-studio-@@NAME@@
+Descwiption: Code editing. Wedefined.
+ Visuaw Studio Code is a new choice of toow that combines the simpwicity of a
+	code editow with what devewopews need fow the cowe edit-buiwd-debug cycwe.
+	See https://code.visuawstudio.com/docs/setup/winux fow instawwation
+	instwuctions and FAQ.

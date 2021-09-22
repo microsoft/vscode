@@ -1,458 +1,458 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as cp from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as net from 'net';
-import * as http from 'http';
-import { downloadAndUnzipVSCodeServer } from './download';
-import { terminateProcess } from './util/processes';
+impowt * as vscode fwom 'vscode';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt * as net fwom 'net';
+impowt * as http fwom 'http';
+impowt { downwoadAndUnzipVSCodeSewva } fwom './downwoad';
+impowt { tewminatePwocess } fwom './utiw/pwocesses';
 
-let extHostProcess: cp.ChildProcess | undefined;
-const enum CharCode {
+wet extHostPwocess: cp.ChiwdPwocess | undefined;
+const enum ChawCode {
 	Backspace = 8,
-	LineFeed = 10
+	WineFeed = 10
 }
 
-let outputChannel: vscode.OutputChannel;
+wet outputChannew: vscode.OutputChannew;
 
-export function activate(context: vscode.ExtensionContext) {
+expowt function activate(context: vscode.ExtensionContext) {
 
-	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
-		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
-			progress.report({ message: 'Starting Test Resolver' });
-			outputChannel = vscode.window.createOutputChannel('TestResolver');
+	function doWesowve(_authowity: stwing, pwogwess: vscode.Pwogwess<{ message?: stwing; incwement?: numba }>): Pwomise<vscode.WesowvedAuthowity> {
+		const sewvewPwomise = new Pwomise<vscode.WesowvedAuthowity>(async (wes, wej) => {
+			pwogwess.wepowt({ message: 'Stawting Test Wesowva' });
+			outputChannew = vscode.window.cweateOutputChannew('TestWesowva');
 
-			let isResolved = false;
-			async function processError(message: string) {
-				outputChannel.appendLine(message);
-				if (!isResolved) {
-					isResolved = true;
-					outputChannel.show();
+			wet isWesowved = fawse;
+			async function pwocessEwwow(message: stwing) {
+				outputChannew.appendWine(message);
+				if (!isWesowved) {
+					isWesowved = twue;
+					outputChannew.show();
 
-					const result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
-					if (result) {
-						await result.execute();
+					const wesuwt = await vscode.window.showEwwowMessage(message, { modaw: twue }, ...getActions());
+					if (wesuwt) {
+						await wesuwt.execute();
 					}
-					rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, true));
+					wej(vscode.WemoteAuthowityWesowvewEwwow.NotAvaiwabwe(message, twue));
 				}
 			}
 
-			let lastProgressLine = '';
-			function processOutput(output: string) {
-				outputChannel.append(output);
-				for (let i = 0; i < output.length; i++) {
-					const chr = output.charCodeAt(i);
-					if (chr === CharCode.LineFeed) {
-						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
+			wet wastPwogwessWine = '';
+			function pwocessOutput(output: stwing) {
+				outputChannew.append(output);
+				fow (wet i = 0; i < output.wength; i++) {
+					const chw = output.chawCodeAt(i);
+					if (chw === ChawCode.WineFeed) {
+						const match = wastPwogwessWine.match(/Extension host agent wistening on (\d+)/);
 						if (match) {
-							isResolved = true;
-							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
+							isWesowved = twue;
+							wes(new vscode.WesowvedAuthowity('127.0.0.1', pawseInt(match[1], 10))); // success!
 						}
-						lastProgressLine = '';
-					} else if (chr === CharCode.Backspace) {
-						lastProgressLine = lastProgressLine.substr(0, lastProgressLine.length - 1);
-					} else {
-						lastProgressLine += output.charAt(i);
+						wastPwogwessWine = '';
+					} ewse if (chw === ChawCode.Backspace) {
+						wastPwogwessWine = wastPwogwessWine.substw(0, wastPwogwessWine.wength - 1);
+					} ewse {
+						wastPwogwessWine += output.chawAt(i);
 					}
 				}
 			}
-			const delay = getConfiguration('startupDelay');
-			if (typeof delay === 'number') {
-				let remaining = Math.ceil(delay);
-				outputChannel.append(`Delaying startup by ${remaining} seconds (configured by "testresolver.startupDelay").`);
-				while (remaining > 0) {
-					progress.report({ message: `Delayed resolving: Remaining ${remaining}s` });
-					await (sleep(1000));
-					remaining--;
+			const deway = getConfiguwation('stawtupDeway');
+			if (typeof deway === 'numba') {
+				wet wemaining = Math.ceiw(deway);
+				outputChannew.append(`Dewaying stawtup by ${wemaining} seconds (configuwed by "testwesowva.stawtupDeway").`);
+				whiwe (wemaining > 0) {
+					pwogwess.wepowt({ message: `Dewayed wesowving: Wemaining ${wemaining}s` });
+					await (sweep(1000));
+					wemaining--;
 				}
 			}
 
-			if (getConfiguration('startupError') === true) {
-				processError('Test Resolver failed for testing purposes (configured by "testresolver.startupError").');
-				return;
+			if (getConfiguwation('stawtupEwwow') === twue) {
+				pwocessEwwow('Test Wesowva faiwed fow testing puwposes (configuwed by "testwesowva.stawtupEwwow").');
+				wetuwn;
 			}
 
-			const { updateUrl, commit, quality, serverDataFolderName, dataFolderName } = getProductConfiguration();
-			const commandArgs = ['--port=0', '--disable-telemetry'];
+			const { updateUww, commit, quawity, sewvewDataFowdewName, dataFowdewName } = getPwoductConfiguwation();
+			const commandAwgs = ['--powt=0', '--disabwe-tewemetwy'];
 			const env = getNewEnv();
-			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+			const wemoteDataDiw = pwocess.env['TESTWESOWVEW_DATA_FOWDa'] || path.join(os.homediw(), sewvewDataFowdewName || `${dataFowdewName}-testwesowva`);
 
-			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
-			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
+			env['VSCODE_AGENT_FOWDa'] = wemoteDataDiw;
+			outputChannew.appendWine(`Using data fowda at ${wemoteDataDiw}`);
 
 			if (!commit) { // dev mode
-				const serverCommand = process.platform === 'win32' ? 'server.bat' : 'server.sh';
-				const vscodePath = path.resolve(path.join(context.extensionPath, '..', '..'));
-				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
-				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
-			} else {
-				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
-				if (extensionToInstall) {
-					commandArgs.push('--install-builtin-extension', extensionToInstall);
-					commandArgs.push('--start-server');
+				const sewvewCommand = pwocess.pwatfowm === 'win32' ? 'sewva.bat' : 'sewva.sh';
+				const vscodePath = path.wesowve(path.join(context.extensionPath, '..', '..'));
+				const sewvewCommandPath = path.join(vscodePath, 'wesouwces', 'sewva', 'bin-dev', sewvewCommand);
+				extHostPwocess = cp.spawn(sewvewCommandPath, commandAwgs, { env, cwd: vscodePath });
+			} ewse {
+				const extensionToInstaww = pwocess.env['TESTWESOWVEW_INSTAWW_BUIWTIN_EXTENSION'];
+				if (extensionToInstaww) {
+					commandAwgs.push('--instaww-buiwtin-extension', extensionToInstaww);
+					commandAwgs.push('--stawt-sewva');
 				}
-				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
-				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
-				if (!serverLocation) {
-					const serverBin = path.join(remoteDataDir, 'bin');
-					progress.report({ message: 'Installing VSCode Server' });
-					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin, m => outputChannel.appendLine(m));
+				const sewvewCommand = pwocess.pwatfowm === 'win32' ? 'sewva.cmd' : 'sewva.sh';
+				wet sewvewWocation = env['VSCODE_WEMOTE_SEWVEW_PATH']; // suppowt enviwonment vawiabwe to specify wocation of sewva on disk
+				if (!sewvewWocation) {
+					const sewvewBin = path.join(wemoteDataDiw, 'bin');
+					pwogwess.wepowt({ message: 'Instawwing VSCode Sewva' });
+					sewvewWocation = await downwoadAndUnzipVSCodeSewva(updateUww, commit, quawity, sewvewBin, m => outputChannew.appendWine(m));
 				}
 
-				outputChannel.appendLine(`Using server build at ${serverLocation}`);
-				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
+				outputChannew.appendWine(`Using sewva buiwd at ${sewvewWocation}`);
+				outputChannew.appendWine(`Sewva awguments ${commandAwgs.join(' ')}`);
 
-				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
+				extHostPwocess = cp.spawn(path.join(sewvewWocation, sewvewCommand), commandAwgs, { env, cwd: sewvewWocation });
 			}
-			extHostProcess.stdout!.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.stderr!.on('data', (data: Buffer) => processOutput(data.toString()));
-			extHostProcess.on('error', (error: Error) => {
-				processError(`server failed with error:\n${error.message}`);
-				extHostProcess = undefined;
+			extHostPwocess.stdout!.on('data', (data: Buffa) => pwocessOutput(data.toStwing()));
+			extHostPwocess.stdeww!.on('data', (data: Buffa) => pwocessOutput(data.toStwing()));
+			extHostPwocess.on('ewwow', (ewwow: Ewwow) => {
+				pwocessEwwow(`sewva faiwed with ewwow:\n${ewwow.message}`);
+				extHostPwocess = undefined;
 			});
-			extHostProcess.on('close', (code: number) => {
-				processError(`server closed unexpectedly.\nError code: ${code}`);
-				extHostProcess = undefined;
+			extHostPwocess.on('cwose', (code: numba) => {
+				pwocessEwwow(`sewva cwosed unexpectedwy.\nEwwow code: ${code}`);
+				extHostPwocess = undefined;
 			});
-			context.subscriptions.push({
+			context.subscwiptions.push({
 				dispose: () => {
-					if (extHostProcess) {
-						terminateProcess(extHostProcess, context.extensionPath);
+					if (extHostPwocess) {
+						tewminatePwocess(extHostPwocess, context.extensionPath);
 					}
 				}
 			});
 		});
-		return serverPromise.then(serverAddr => {
-			return new Promise<vscode.ResolvedAuthority>(async (res, _rej) => {
-				const proxyServer = net.createServer(proxySocket => {
-					outputChannel.appendLine(`Proxy connection accepted`);
-					let remoteReady = true, localReady = true;
-					const remoteSocket = net.createConnection({ port: serverAddr.port });
+		wetuwn sewvewPwomise.then(sewvewAddw => {
+			wetuwn new Pwomise<vscode.WesowvedAuthowity>(async (wes, _wej) => {
+				const pwoxySewva = net.cweateSewva(pwoxySocket => {
+					outputChannew.appendWine(`Pwoxy connection accepted`);
+					wet wemoteWeady = twue, wocawWeady = twue;
+					const wemoteSocket = net.cweateConnection({ powt: sewvewAddw.powt });
 
-					let isDisconnected = connectionPaused;
+					wet isDisconnected = connectionPaused;
 					connectionPausedEvent.event(_ => {
-						let newIsDisconnected = connectionPaused;
+						wet newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
-							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
+							outputChannew.appendWine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
 							isDisconnected = newIsDisconnected;
 							if (!isDisconnected) {
-								outputChannel.appendLine(`Resume remote and proxy sockets.`);
-								if (remoteSocket.isPaused() && localReady) {
-									remoteSocket.resume();
+								outputChannew.appendWine(`Wesume wemote and pwoxy sockets.`);
+								if (wemoteSocket.isPaused() && wocawWeady) {
+									wemoteSocket.wesume();
 								}
-								if (proxySocket.isPaused() && remoteReady) {
-									proxySocket.resume();
+								if (pwoxySocket.isPaused() && wemoteWeady) {
+									pwoxySocket.wesume();
 								}
-							} else {
-								outputChannel.appendLine(`Pausing remote and proxy sockets.`);
-								if (!remoteSocket.isPaused()) {
-									remoteSocket.pause();
+							} ewse {
+								outputChannew.appendWine(`Pausing wemote and pwoxy sockets.`);
+								if (!wemoteSocket.isPaused()) {
+									wemoteSocket.pause();
 								}
-								if (!proxySocket.isPaused()) {
-									proxySocket.pause();
+								if (!pwoxySocket.isPaused()) {
+									pwoxySocket.pause();
 								}
 							}
 						}
 					});
 
-					proxySocket.on('data', (data) => {
-						remoteReady = remoteSocket.write(data);
-						if (!remoteReady) {
-							proxySocket.pause();
+					pwoxySocket.on('data', (data) => {
+						wemoteWeady = wemoteSocket.wwite(data);
+						if (!wemoteWeady) {
+							pwoxySocket.pause();
 						}
 					});
-					remoteSocket.on('data', (data) => {
-						localReady = proxySocket.write(data);
-						if (!localReady) {
-							remoteSocket.pause();
+					wemoteSocket.on('data', (data) => {
+						wocawWeady = pwoxySocket.wwite(data);
+						if (!wocawWeady) {
+							wemoteSocket.pause();
 						}
 					});
-					proxySocket.on('drain', () => {
-						localReady = true;
+					pwoxySocket.on('dwain', () => {
+						wocawWeady = twue;
 						if (!isDisconnected) {
-							remoteSocket.resume();
+							wemoteSocket.wesume();
 						}
 					});
-					remoteSocket.on('drain', () => {
-						remoteReady = true;
+					wemoteSocket.on('dwain', () => {
+						wemoteWeady = twue;
 						if (!isDisconnected) {
-							proxySocket.resume();
+							pwoxySocket.wesume();
 						}
 					});
-					proxySocket.on('close', () => {
-						outputChannel.appendLine(`Proxy socket closed, closing remote socket.`);
-						remoteSocket.end();
+					pwoxySocket.on('cwose', () => {
+						outputChannew.appendWine(`Pwoxy socket cwosed, cwosing wemote socket.`);
+						wemoteSocket.end();
 					});
-					remoteSocket.on('close', () => {
-						outputChannel.appendLine(`Remote socket closed, closing proxy socket.`);
-						proxySocket.end();
+					wemoteSocket.on('cwose', () => {
+						outputChannew.appendWine(`Wemote socket cwosed, cwosing pwoxy socket.`);
+						pwoxySocket.end();
 					});
-					context.subscriptions.push({
+					context.subscwiptions.push({
 						dispose: () => {
-							proxySocket.end();
-							remoteSocket.end();
+							pwoxySocket.end();
+							wemoteSocket.end();
 						}
 					});
 				});
-				proxyServer.listen(0, '127.0.0.1', () => {
-					const port = (<net.AddressInfo>proxyServer.address()).port;
-					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
-					res(r);
+				pwoxySewva.wisten(0, '127.0.0.1', () => {
+					const powt = (<net.AddwessInfo>pwoxySewva.addwess()).powt;
+					outputChannew.appendWine(`Going thwough pwoxy at powt ${powt}`);
+					const w: vscode.WesowvewWesuwt = new vscode.WesowvedAuthowity('127.0.0.1', powt);
+					wes(w);
 				});
-				context.subscriptions.push({
+				context.subscwiptions.push({
 					dispose: () => {
-						proxyServer.close();
+						pwoxySewva.cwose();
 					}
 				});
 			});
 		});
 	}
 
-	let connectionPaused = false;
-	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+	wet connectionPaused = fawse;
+	wet connectionPausedEvent = new vscode.EventEmitta<boowean>();
 
-	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
-		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
-			return vscode.Uri.file(uri.path);
+	const authowityWesowvewDisposabwe = vscode.wowkspace.wegistewWemoteAuthowityWesowva('test', {
+		async getCanonicawUWI(uwi: vscode.Uwi): Pwomise<vscode.Uwi> {
+			wetuwn vscode.Uwi.fiwe(uwi.path);
 		},
-		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
-			return vscode.window.withProgress({
-				location: vscode.ProgressLocation.Notification,
-				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
-				cancellable: false
-			}, (progress) => doResolve(_authority, progress));
+		wesowve(_authowity: stwing): Thenabwe<vscode.WesowvedAuthowity> {
+			wetuwn vscode.window.withPwogwess({
+				wocation: vscode.PwogwessWocation.Notification,
+				titwe: 'Open TestWesowva Wemote ([detaiws](command:vscode-testwesowva.showWog))',
+				cancewwabwe: fawse
+			}, (pwogwess) => doWesowve(_authowity, pwogwess));
 		},
-		tunnelFactory,
-		tunnelFeatures: { elevation: true, public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') },
-		showCandidatePort
+		tunnewFactowy,
+		tunnewFeatuwes: { ewevation: twue, pubwic: !!vscode.wowkspace.getConfiguwation('testwesowva').get('suppowtPubwicPowts') },
+		showCandidatePowt
 	});
-	context.subscriptions.push(authorityResolverDisposable);
+	context.subscwiptions.push(authowityWesowvewDisposabwe);
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
-		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.newWindow', () => {
+		wetuwn vscode.commands.executeCommand('vscode.newWindow', { wemoteAuthowity: 'test+test' });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
-		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.newWindowWithEwwow', () => {
+		wetuwn vscode.commands.executeCommand('vscode.newWindow', { wemoteAuthowity: 'test+ewwow' });
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.killServerAndTriggerHandledError', () => {
-		authorityResolverDisposable.dispose();
-		if (extHostProcess) {
-			terminateProcess(extHostProcess, context.extensionPath);
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.kiwwSewvewAndTwiggewHandwedEwwow', () => {
+		authowityWesowvewDisposabwe.dispose();
+		if (extHostPwocess) {
+			tewminatePwocess(extHostPwocess, context.extensionPath);
 		}
-		vscode.workspace.registerRemoteAuthorityResolver('test', {
-			async resolve(_authority: string): Promise<vscode.ResolvedAuthority> {
+		vscode.wowkspace.wegistewWemoteAuthowityWesowva('test', {
+			async wesowve(_authowity: stwing): Pwomise<vscode.WesowvedAuthowity> {
 				setTimeout(async () => {
-					await vscode.window.showErrorMessage('Just a custom message.', { modal: true, useCustom: true }, 'OK', 'Great');
+					await vscode.window.showEwwowMessage('Just a custom message.', { modaw: twue, useCustom: twue }, 'OK', 'Gweat');
 				}, 2000);
-				throw vscode.RemoteAuthorityResolverError.NotAvailable('Intentional Error', true);
+				thwow vscode.WemoteAuthowityWesowvewEwwow.NotAvaiwabwe('Intentionaw Ewwow', twue);
 			}
 		});
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
-		if (outputChannel) {
-			outputChannel.show();
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.showWog', () => {
+		if (outputChannew) {
+			outputChannew.show();
 		}
 	}));
 
-	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-	pauseStatusBarEntry.text = 'Remote connection paused. Click to undo';
-	pauseStatusBarEntry.command = 'vscode-testresolver.toggleConnectionPause';
-	pauseStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+	const pauseStatusBawEntwy = vscode.window.cweateStatusBawItem(vscode.StatusBawAwignment.Weft);
+	pauseStatusBawEntwy.text = 'Wemote connection paused. Cwick to undo';
+	pauseStatusBawEntwy.command = 'vscode-testwesowva.toggweConnectionPause';
+	pauseStatusBawEntwy.backgwoundCowow = new vscode.ThemeCowow('statusBawItem.ewwowBackgwound');
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionPause', () => {
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.toggweConnectionPause', () => {
 		if (!connectionPaused) {
-			connectionPaused = true;
-			pauseStatusBarEntry.show();
-		} else {
-			connectionPaused = false;
-			pauseStatusBarEntry.hide();
+			connectionPaused = twue;
+			pauseStatusBawEntwy.show();
+		} ewse {
+			connectionPaused = fawse;
+			pauseStatusBawEntwy.hide();
 		}
-		connectionPausedEvent.fire(connectionPaused);
+		connectionPausedEvent.fiwe(connectionPaused);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
-		const result = await vscode.window.showInputBox({
-			prompt: 'Enter the remote port for the tunnel',
-			value: '5000',
-			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.openTunnew', async () => {
+		const wesuwt = await vscode.window.showInputBox({
+			pwompt: 'Enta the wemote powt fow the tunnew',
+			vawue: '5000',
+			vawidateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a vawid numba'
 		});
-		if (result) {
-			const port = Number.parseInt(result);
-			vscode.workspace.openTunnel({
-				remoteAddress: {
+		if (wesuwt) {
+			const powt = Numba.pawseInt(wesuwt);
+			vscode.wowkspace.openTunnew({
+				wemoteAddwess: {
 					host: '127.0.0.1',
-					port: port
+					powt: powt
 				},
-				localAddressPort: port + 1
+				wocawAddwessPowt: powt + 1
 			});
 		}
 
 	}));
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.startRemoteServer', async () => {
-		const result = await vscode.window.showInputBox({
-			prompt: 'Enter the port for the remote server',
-			value: '5000',
-			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
+	context.subscwiptions.push(vscode.commands.wegistewCommand('vscode-testwesowva.stawtWemoteSewva', async () => {
+		const wesuwt = await vscode.window.showInputBox({
+			pwompt: 'Enta the powt fow the wemote sewva',
+			vawue: '5000',
+			vawidateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a vawid numba'
 		});
-		if (result) {
-			runHTTPTestServer(Number.parseInt(result));
+		if (wesuwt) {
+			wunHTTPTestSewva(Numba.pawseInt(wesuwt));
 		}
 
 	}));
-	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
+	vscode.commands.executeCommand('setContext', 'fowwawdedPowtsViewEnabwed', twue);
 }
 
 type ActionItem = (vscode.MessageItem & { execute: () => void; });
 
 function getActions(): ActionItem[] {
 	const actions: ActionItem[] = [];
-	const isDirty = vscode.workspace.textDocuments.some(d => d.isDirty) || vscode.workspace.workspaceFile && vscode.workspace.workspaceFile.scheme === 'untitled';
+	const isDiwty = vscode.wowkspace.textDocuments.some(d => d.isDiwty) || vscode.wowkspace.wowkspaceFiwe && vscode.wowkspace.wowkspaceFiwe.scheme === 'untitwed';
 
 	actions.push({
-		title: 'Retry',
+		titwe: 'Wetwy',
 		execute: async () => {
-			await vscode.commands.executeCommand('workbench.action.reloadWindow');
+			await vscode.commands.executeCommand('wowkbench.action.wewoadWindow');
 		}
 	});
-	if (!isDirty) {
+	if (!isDiwty) {
 		actions.push({
-			title: 'Close Remote',
+			titwe: 'Cwose Wemote',
 			execute: async () => {
-				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true, remoteAuthority: null });
+				await vscode.commands.executeCommand('vscode.newWindow', { weuseWindow: twue, wemoteAuthowity: nuww });
 			}
 		});
 	}
 	actions.push({
-		title: 'Ignore',
-		isCloseAffordance: true,
+		titwe: 'Ignowe',
+		isCwoseAffowdance: twue,
 		execute: async () => {
-			vscode.commands.executeCommand('vscode-testresolver.showLog'); // no need to wait
+			vscode.commands.executeCommand('vscode-testwesowva.showWog'); // no need to wait
 		}
 	});
-	return actions;
+	wetuwn actions;
 }
 
-export interface IProductConfiguration {
-	updateUrl: string;
-	commit: string;
-	quality: string;
-	dataFolderName: string;
-	serverDataFolderName?: string;
+expowt intewface IPwoductConfiguwation {
+	updateUww: stwing;
+	commit: stwing;
+	quawity: stwing;
+	dataFowdewName: stwing;
+	sewvewDataFowdewName?: stwing;
 }
 
-function getProductConfiguration(): IProductConfiguration {
-	const content = fs.readFileSync(path.join(vscode.env.appRoot, 'product.json')).toString();
-	return JSON.parse(content) as IProductConfiguration;
+function getPwoductConfiguwation(): IPwoductConfiguwation {
+	const content = fs.weadFiweSync(path.join(vscode.env.appWoot, 'pwoduct.json')).toStwing();
+	wetuwn JSON.pawse(content) as IPwoductConfiguwation;
 }
 
-function getNewEnv(): { [x: string]: string | undefined } {
-	const env = { ...process.env };
-	delete env['ELECTRON_RUN_AS_NODE'];
-	return env;
+function getNewEnv(): { [x: stwing]: stwing | undefined } {
+	const env = { ...pwocess.env };
+	dewete env['EWECTWON_WUN_AS_NODE'];
+	wetuwn env;
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise(resolve => {
-		setTimeout(resolve, ms);
+function sweep(ms: numba): Pwomise<void> {
+	wetuwn new Pwomise(wesowve => {
+		setTimeout(wesowve, ms);
 	});
 }
 
-function getConfiguration<T>(id: string): T | undefined {
-	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
+function getConfiguwation<T>(id: stwing): T | undefined {
+	wetuwn vscode.wowkspace.getConfiguwation('testwesowva').get<T>(id);
 }
 
-const remoteServers: number[] = [];
+const wemoteSewvews: numba[] = [];
 
-async function showCandidatePort(_host: string, port: number, _detail: string): Promise<boolean> {
-	return remoteServers.includes(port) || port === 100;
+async function showCandidatePowt(_host: stwing, powt: numba, _detaiw: stwing): Pwomise<boowean> {
+	wetuwn wemoteSewvews.incwudes(powt) || powt === 100;
 }
 
-async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
-	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
-	if (tunnelCreationOptions.elevationRequired) {
-		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
+async function tunnewFactowy(tunnewOptions: vscode.TunnewOptions, tunnewCweationOptions: vscode.TunnewCweationOptions): Pwomise<vscode.Tunnew> {
+	outputChannew.appendWine(`Tunnew factowy wequest: Wemote ${tunnewOptions.wemoteAddwess.powt} -> wocaw ${tunnewOptions.wocawAddwessPowt}`);
+	if (tunnewCweationOptions.ewevationWequiwed) {
+		await vscode.window.showInfowmationMessage('This is a fake ewevation message. A weaw wesowva wouwd show a native ewevation pwompt.', { modaw: twue }, 'Ok');
 	}
 
-	return createTunnelService();
+	wetuwn cweateTunnewSewvice();
 
-	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
-		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
-		let isDisposed = false;
-		return {
-			localAddress,
-			remoteAddress: tunnelOptions.remoteAddress,
-			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
-			protocol: tunnelOptions.protocol,
+	function newTunnew(wocawAddwess: { host: stwing, powt: numba }): vscode.Tunnew {
+		const onDidDispose: vscode.EventEmitta<void> = new vscode.EventEmitta();
+		wet isDisposed = fawse;
+		wetuwn {
+			wocawAddwess,
+			wemoteAddwess: tunnewOptions.wemoteAddwess,
+			pubwic: !!vscode.wowkspace.getConfiguwation('testwesowva').get('suppowtPubwicPowts') && tunnewOptions.pubwic,
+			pwotocow: tunnewOptions.pwotocow,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {
-					isDisposed = true;
-					onDidDispose.fire();
+					isDisposed = twue;
+					onDidDispose.fiwe();
 				}
 			}
 		};
 	}
 
-	function createTunnelService(): Promise<vscode.Tunnel> {
-		return new Promise<vscode.Tunnel>((res, _rej) => {
-			const proxyServer = net.createServer(proxySocket => {
-				const remoteSocket = net.createConnection({ host: tunnelOptions.remoteAddress.host, port: tunnelOptions.remoteAddress.port });
-				remoteSocket.pipe(proxySocket);
-				proxySocket.pipe(remoteSocket);
+	function cweateTunnewSewvice(): Pwomise<vscode.Tunnew> {
+		wetuwn new Pwomise<vscode.Tunnew>((wes, _wej) => {
+			const pwoxySewva = net.cweateSewva(pwoxySocket => {
+				const wemoteSocket = net.cweateConnection({ host: tunnewOptions.wemoteAddwess.host, powt: tunnewOptions.wemoteAddwess.powt });
+				wemoteSocket.pipe(pwoxySocket);
+				pwoxySocket.pipe(wemoteSocket);
 			});
-			let localPort = 0;
+			wet wocawPowt = 0;
 
-			if (tunnelOptions.localAddressPort) {
-				// When the tunnelOptions include a localAddressPort, we should use that.
-				// However, the test resolver all runs on one machine, so if the localAddressPort is the same as the remote port,
-				// then we must use a different port number.
-				localPort = tunnelOptions.localAddressPort;
-			} else {
-				localPort = tunnelOptions.remoteAddress.port;
+			if (tunnewOptions.wocawAddwessPowt) {
+				// When the tunnewOptions incwude a wocawAddwessPowt, we shouwd use that.
+				// Howeva, the test wesowva aww wuns on one machine, so if the wocawAddwessPowt is the same as the wemote powt,
+				// then we must use a diffewent powt numba.
+				wocawPowt = tunnewOptions.wocawAddwessPowt;
+			} ewse {
+				wocawPowt = tunnewOptions.wemoteAddwess.powt;
 			}
 
-			if (localPort === tunnelOptions.remoteAddress.port) {
-				localPort += 1;
+			if (wocawPowt === tunnewOptions.wemoteAddwess.powt) {
+				wocawPowt += 1;
 			}
 
-			// The test resolver can't actually handle privileged ports, it only pretends to.
-			if (localPort < 1024 && process.platform !== 'win32') {
-				localPort = 0;
+			// The test wesowva can't actuawwy handwe pwiviweged powts, it onwy pwetends to.
+			if (wocawPowt < 1024 && pwocess.pwatfowm !== 'win32') {
+				wocawPowt = 0;
 			}
-			proxyServer.listen(localPort, '127.0.0.1', () => {
-				const localPort = (<net.AddressInfo>proxyServer.address()).port;
-				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
-				const tunnel = newTunnel({ host: '127.0.0.1', port: localPort });
-				tunnel.onDidDispose(() => proxyServer.close());
-				res(tunnel);
+			pwoxySewva.wisten(wocawPowt, '127.0.0.1', () => {
+				const wocawPowt = (<net.AddwessInfo>pwoxySewva.addwess()).powt;
+				outputChannew.appendWine(`New test wesowva tunnew sewvice: Wemote ${tunnewOptions.wemoteAddwess.powt} -> wocaw ${wocawPowt}`);
+				const tunnew = newTunnew({ host: '127.0.0.1', powt: wocawPowt });
+				tunnew.onDidDispose(() => pwoxySewva.cwose());
+				wes(tunnew);
 			});
 		});
 	}
 }
 
-function runHTTPTestServer(port: number): vscode.Disposable {
-	const server = http.createServer((_req, res) => {
-		res.writeHead(200);
-		res.end(`Hello, World from test server running on port ${port}!`);
+function wunHTTPTestSewva(powt: numba): vscode.Disposabwe {
+	const sewva = http.cweateSewva((_weq, wes) => {
+		wes.wwiteHead(200);
+		wes.end(`Hewwo, Wowwd fwom test sewva wunning on powt ${powt}!`);
 	});
-	remoteServers.push(port);
-	server.listen(port, '127.0.0.1');
-	const message = `Opened HTTP server on http://127.0.0.1:${port}`;
-	console.log(message);
-	outputChannel.appendLine(message);
-	return {
+	wemoteSewvews.push(powt);
+	sewva.wisten(powt, '127.0.0.1');
+	const message = `Opened HTTP sewva on http://127.0.0.1:${powt}`;
+	consowe.wog(message);
+	outputChannew.appendWine(message);
+	wetuwn {
 		dispose: () => {
-			server.close();
-			const index = remoteServers.indexOf(port);
+			sewva.cwose();
+			const index = wemoteSewvews.indexOf(powt);
 			if (index !== -1) {
-				remoteServers.splice(index, 1);
+				wemoteSewvews.spwice(index, 1);
 			}
 		}
 	};

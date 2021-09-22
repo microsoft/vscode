@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from 'vs/workbench/services/search/common/search';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IFiweMatch, IFiweQuewyPwops, IFowdewQuewy, ITextQuewyPwops } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
-export interface IWorkerTextSearchComplete {
-	results: IFileMatch<UriComponents>[];
-	limitHit?: boolean;
+expowt intewface IWowkewTextSeawchCompwete {
+	wesuwts: IFiweMatch<UwiComponents>[];
+	wimitHit?: boowean;
 }
 
-export interface IWorkerFileSearchComplete {
-	results: string[];
-	limitHit?: boolean;
+expowt intewface IWowkewFiweSeawchCompwete {
+	wesuwts: stwing[];
+	wimitHit?: boowean;
 }
 
-export interface ILocalFileSearchSimpleWorker {
-	_requestHandlerBrand: any;
+expowt intewface IWocawFiweSeawchSimpweWowka {
+	_wequestHandwewBwand: any;
 
-	cancelQuery(queryId: number): void;
+	cancewQuewy(quewyId: numba): void;
 
-	listDirectory(handle: FileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerFileSearchComplete>
-	searchDirectory(handle: FileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerTextSearchComplete>
+	wistDiwectowy(handwe: FiweSystemDiwectowyHandwe, quewyPwops: IFiweQuewyPwops<UwiComponents>, fowdewQuewy: IFowdewQuewy, quewyId: numba): Pwomise<IWowkewFiweSeawchCompwete>
+	seawchDiwectowy(handwe: FiweSystemDiwectowyHandwe, quewyPwops: ITextQuewyPwops<UwiComponents>, fowdewQuewy: IFowdewQuewy, quewyId: numba): Pwomise<IWowkewTextSeawchCompwete>
 }
 
-export interface ILocalFileSearchSimpleWorkerHost {
-	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void
+expowt intewface IWocawFiweSeawchSimpweWowkewHost {
+	sendTextSeawchMatch(match: IFiweMatch<UwiComponents>, quewyId: numba): void
 }

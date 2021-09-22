@@ -1,1909 +1,1909 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as htmlContent from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as editorRange from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { getPrivateApiFor, TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { SaveReason } from 'vs/workbench/common/editor';
-import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, SerializedTestErrorMessage, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import type * as vscode from 'vscode';
-import * as types from './extHostTypes';
+impowt { asAwway, coawesce, isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt * as htmwContent fwom 'vs/base/common/htmwContent';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as mawked fwom 'vs/base/common/mawked/mawked';
+impowt { pawse } fwom 'vs/base/common/mawshawwing';
+impowt { cwoneAndChange } fwom 'vs/base/common/objects';
+impowt { isDefined, isEmptyObject, isNumba, isStwing } fwom 'vs/base/common/types';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { WendewWineNumbewsType } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt * as editowWange fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IContentDecowationWendewOptions, IDecowationOptions, IDecowationWendewOptions, IThemeDecowationWendewOptions } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWineSequence, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt * as wanguageSewectow fwom 'vs/editow/common/modes/wanguageSewectow';
+impowt { EditowWesowution, ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IMawkewData, IWewatedInfowmation, MawkewSevewity, MawkewTag } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { PwogwessWocation as MainPwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { CommandsConvewta } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { getPwivateApiFow, TestItemImpw } fwom 'vs/wowkbench/api/common/extHostTestingPwivateApi';
+impowt { SaveWeason } fwom 'vs/wowkbench/common/editow';
+impowt * as notebooks fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt * as seawch fwom 'vs/wowkbench/contwib/seawch/common/seawch';
+impowt { CovewageDetaiws, DetaiwType, ICovewedCount, IFiweCovewage, ISewiawizedTestWesuwts, ITestEwwowMessage, ITestItem, ITestItemContext, ITestTag, SewiawizedTestEwwowMessage, SewiawizedTestWesuwtItem, TestMessageType } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { ACTIVE_GWOUP, SIDE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt type * as vscode fwom 'vscode';
+impowt * as types fwom './extHostTypes';
 
-export interface PositionLike {
-	line: number;
-	character: number;
+expowt intewface PositionWike {
+	wine: numba;
+	chawacta: numba;
 }
 
-export interface RangeLike {
-	start: PositionLike;
-	end: PositionLike;
+expowt intewface WangeWike {
+	stawt: PositionWike;
+	end: PositionWike;
 }
 
-export interface SelectionLike extends RangeLike {
-	anchor: PositionLike;
-	active: PositionLike;
+expowt intewface SewectionWike extends WangeWike {
+	anchow: PositionWike;
+	active: PositionWike;
 }
-export namespace Selection {
+expowt namespace Sewection {
 
-	export function to(selection: ISelection): types.Selection {
-		const { selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn } = selection;
-		const start = new types.Position(selectionStartLineNumber - 1, selectionStartColumn - 1);
-		const end = new types.Position(positionLineNumber - 1, positionColumn - 1);
-		return new types.Selection(start, end);
+	expowt function to(sewection: ISewection): types.Sewection {
+		const { sewectionStawtWineNumba, sewectionStawtCowumn, positionWineNumba, positionCowumn } = sewection;
+		const stawt = new types.Position(sewectionStawtWineNumba - 1, sewectionStawtCowumn - 1);
+		const end = new types.Position(positionWineNumba - 1, positionCowumn - 1);
+		wetuwn new types.Sewection(stawt, end);
 	}
 
-	export function from(selection: SelectionLike): ISelection {
-		const { anchor, active } = selection;
-		return {
-			selectionStartLineNumber: anchor.line + 1,
-			selectionStartColumn: anchor.character + 1,
-			positionLineNumber: active.line + 1,
-			positionColumn: active.character + 1
+	expowt function fwom(sewection: SewectionWike): ISewection {
+		const { anchow, active } = sewection;
+		wetuwn {
+			sewectionStawtWineNumba: anchow.wine + 1,
+			sewectionStawtCowumn: anchow.chawacta + 1,
+			positionWineNumba: active.wine + 1,
+			positionCowumn: active.chawacta + 1
 		};
 	}
 }
-export namespace Range {
+expowt namespace Wange {
 
-	export function from(range: undefined): undefined;
-	export function from(range: RangeLike): editorRange.IRange;
-	export function from(range: RangeLike | undefined): editorRange.IRange | undefined;
-	export function from(range: RangeLike | undefined): editorRange.IRange | undefined {
-		if (!range) {
-			return undefined;
+	expowt function fwom(wange: undefined): undefined;
+	expowt function fwom(wange: WangeWike): editowWange.IWange;
+	expowt function fwom(wange: WangeWike | undefined): editowWange.IWange | undefined;
+	expowt function fwom(wange: WangeWike | undefined): editowWange.IWange | undefined {
+		if (!wange) {
+			wetuwn undefined;
 		}
-		const { start, end } = range;
-		return {
-			startLineNumber: start.line + 1,
-			startColumn: start.character + 1,
-			endLineNumber: end.line + 1,
-			endColumn: end.character + 1
+		const { stawt, end } = wange;
+		wetuwn {
+			stawtWineNumba: stawt.wine + 1,
+			stawtCowumn: stawt.chawacta + 1,
+			endWineNumba: end.wine + 1,
+			endCowumn: end.chawacta + 1
 		};
 	}
 
-	export function to(range: undefined): types.Range;
-	export function to(range: editorRange.IRange): types.Range;
-	export function to(range: editorRange.IRange | undefined): types.Range | undefined;
-	export function to(range: editorRange.IRange | undefined): types.Range | undefined {
-		if (!range) {
-			return undefined;
+	expowt function to(wange: undefined): types.Wange;
+	expowt function to(wange: editowWange.IWange): types.Wange;
+	expowt function to(wange: editowWange.IWange | undefined): types.Wange | undefined;
+	expowt function to(wange: editowWange.IWange | undefined): types.Wange | undefined {
+		if (!wange) {
+			wetuwn undefined;
 		}
-		const { startLineNumber, startColumn, endLineNumber, endColumn } = range;
-		return new types.Range(startLineNumber - 1, startColumn - 1, endLineNumber - 1, endColumn - 1);
+		const { stawtWineNumba, stawtCowumn, endWineNumba, endCowumn } = wange;
+		wetuwn new types.Wange(stawtWineNumba - 1, stawtCowumn - 1, endWineNumba - 1, endCowumn - 1);
 	}
 }
 
-export namespace TokenType {
-	export function to(type: modes.StandardTokenType): types.StandardTokenType {
+expowt namespace TokenType {
+	expowt function to(type: modes.StandawdTokenType): types.StandawdTokenType {
 		switch (type) {
-			case modes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
-			case modes.StandardTokenType.Other: return types.StandardTokenType.Other;
-			case modes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
-			case modes.StandardTokenType.String: return types.StandardTokenType.String;
+			case modes.StandawdTokenType.Comment: wetuwn types.StandawdTokenType.Comment;
+			case modes.StandawdTokenType.Otha: wetuwn types.StandawdTokenType.Otha;
+			case modes.StandawdTokenType.WegEx: wetuwn types.StandawdTokenType.WegEx;
+			case modes.StandawdTokenType.Stwing: wetuwn types.StandawdTokenType.Stwing;
 		}
 	}
 }
 
-export namespace Position {
-	export function to(position: IPosition): types.Position {
-		return new types.Position(position.lineNumber - 1, position.column - 1);
+expowt namespace Position {
+	expowt function to(position: IPosition): types.Position {
+		wetuwn new types.Position(position.wineNumba - 1, position.cowumn - 1);
 	}
-	export function from(position: types.Position | vscode.Position): IPosition {
-		return { lineNumber: position.line + 1, column: position.character + 1 };
+	expowt function fwom(position: types.Position | vscode.Position): IPosition {
+		wetuwn { wineNumba: position.wine + 1, cowumn: position.chawacta + 1 };
 	}
 }
 
-export namespace DocumentSelector {
+expowt namespace DocumentSewectow {
 
-	export function from(value: vscode.DocumentSelector, uriTransformer?: IURITransformer): extHostProtocol.IDocumentFilterDto[] {
-		return coalesce(asArray(value).map(sel => _doTransformDocumentSelector(sel, uriTransformer)));
+	expowt function fwom(vawue: vscode.DocumentSewectow, uwiTwansfowma?: IUWITwansfowma): extHostPwotocow.IDocumentFiwtewDto[] {
+		wetuwn coawesce(asAwway(vawue).map(sew => _doTwansfowmDocumentSewectow(sew, uwiTwansfowma)));
 	}
 
-	function _doTransformDocumentSelector(selector: string | vscode.DocumentFilter, uriTransformer: IURITransformer | undefined): extHostProtocol.IDocumentFilterDto | undefined {
-		if (typeof selector === 'string') {
-			return {
-				$serialized: true,
-				language: selector
+	function _doTwansfowmDocumentSewectow(sewectow: stwing | vscode.DocumentFiwta, uwiTwansfowma: IUWITwansfowma | undefined): extHostPwotocow.IDocumentFiwtewDto | undefined {
+		if (typeof sewectow === 'stwing') {
+			wetuwn {
+				$sewiawized: twue,
+				wanguage: sewectow
 			};
 		}
 
-		if (selector) {
-			return {
-				$serialized: true,
-				language: selector.language,
-				scheme: _transformScheme(selector.scheme, uriTransformer),
-				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
-				exclusive: selector.exclusive
+		if (sewectow) {
+			wetuwn {
+				$sewiawized: twue,
+				wanguage: sewectow.wanguage,
+				scheme: _twansfowmScheme(sewectow.scheme, uwiTwansfowma),
+				pattewn: typeof sewectow.pattewn === 'undefined' ? undefined : GwobPattewn.fwom(sewectow.pattewn),
+				excwusive: sewectow.excwusive
 			};
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	function _transformScheme(scheme: string | undefined, uriTransformer: IURITransformer | undefined): string | undefined {
-		if (uriTransformer && typeof scheme === 'string') {
-			return uriTransformer.transformOutgoingScheme(scheme);
+	function _twansfowmScheme(scheme: stwing | undefined, uwiTwansfowma: IUWITwansfowma | undefined): stwing | undefined {
+		if (uwiTwansfowma && typeof scheme === 'stwing') {
+			wetuwn uwiTwansfowma.twansfowmOutgoingScheme(scheme);
 		}
-		return scheme;
+		wetuwn scheme;
 	}
 }
 
-export namespace DiagnosticTag {
-	export function from(value: vscode.DiagnosticTag): MarkerTag | undefined {
-		switch (value) {
-			case types.DiagnosticTag.Unnecessary:
-				return MarkerTag.Unnecessary;
-			case types.DiagnosticTag.Deprecated:
-				return MarkerTag.Deprecated;
+expowt namespace DiagnosticTag {
+	expowt function fwom(vawue: vscode.DiagnosticTag): MawkewTag | undefined {
+		switch (vawue) {
+			case types.DiagnosticTag.Unnecessawy:
+				wetuwn MawkewTag.Unnecessawy;
+			case types.DiagnosticTag.Depwecated:
+				wetuwn MawkewTag.Depwecated;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
-	export function to(value: MarkerTag): vscode.DiagnosticTag | undefined {
-		switch (value) {
-			case MarkerTag.Unnecessary:
-				return types.DiagnosticTag.Unnecessary;
-			case MarkerTag.Deprecated:
-				return types.DiagnosticTag.Deprecated;
-			default:
-				return undefined;
+	expowt function to(vawue: MawkewTag): vscode.DiagnosticTag | undefined {
+		switch (vawue) {
+			case MawkewTag.Unnecessawy:
+				wetuwn types.DiagnosticTag.Unnecessawy;
+			case MawkewTag.Depwecated:
+				wetuwn types.DiagnosticTag.Depwecated;
+			defauwt:
+				wetuwn undefined;
 		}
 	}
 }
 
-export namespace Diagnostic {
-	export function from(value: vscode.Diagnostic): IMarkerData {
-		let code: string | { value: string; target: URI } | undefined;
+expowt namespace Diagnostic {
+	expowt function fwom(vawue: vscode.Diagnostic): IMawkewData {
+		wet code: stwing | { vawue: stwing; tawget: UWI } | undefined;
 
-		if (value.code) {
-			if (isString(value.code) || isNumber(value.code)) {
-				code = String(value.code);
-			} else {
+		if (vawue.code) {
+			if (isStwing(vawue.code) || isNumba(vawue.code)) {
+				code = Stwing(vawue.code);
+			} ewse {
 				code = {
-					value: String(value.code.value),
-					target: value.code.target,
+					vawue: Stwing(vawue.code.vawue),
+					tawget: vawue.code.tawget,
 				};
 			}
 		}
 
-		return {
-			...Range.from(value.range),
-			message: value.message,
-			source: value.source,
+		wetuwn {
+			...Wange.fwom(vawue.wange),
+			message: vawue.message,
+			souwce: vawue.souwce,
 			code,
-			severity: DiagnosticSeverity.from(value.severity),
-			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
-			tags: Array.isArray(value.tags) ? coalesce(value.tags.map(DiagnosticTag.from)) : undefined,
+			sevewity: DiagnosticSevewity.fwom(vawue.sevewity),
+			wewatedInfowmation: vawue.wewatedInfowmation && vawue.wewatedInfowmation.map(DiagnosticWewatedInfowmation.fwom),
+			tags: Awway.isAwway(vawue.tags) ? coawesce(vawue.tags.map(DiagnosticTag.fwom)) : undefined,
 		};
 	}
 
-	export function to(value: IMarkerData): vscode.Diagnostic {
-		const res = new types.Diagnostic(Range.to(value), value.message, DiagnosticSeverity.to(value.severity));
-		res.source = value.source;
-		res.code = isString(value.code) ? value.code : value.code?.value;
-		res.relatedInformation = value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.to);
-		res.tags = value.tags && coalesce(value.tags.map(DiagnosticTag.to));
-		return res;
+	expowt function to(vawue: IMawkewData): vscode.Diagnostic {
+		const wes = new types.Diagnostic(Wange.to(vawue), vawue.message, DiagnosticSevewity.to(vawue.sevewity));
+		wes.souwce = vawue.souwce;
+		wes.code = isStwing(vawue.code) ? vawue.code : vawue.code?.vawue;
+		wes.wewatedInfowmation = vawue.wewatedInfowmation && vawue.wewatedInfowmation.map(DiagnosticWewatedInfowmation.to);
+		wes.tags = vawue.tags && coawesce(vawue.tags.map(DiagnosticTag.to));
+		wetuwn wes;
 	}
 }
 
-export namespace DiagnosticRelatedInformation {
-	export function from(value: vscode.DiagnosticRelatedInformation): IRelatedInformation {
-		return {
-			...Range.from(value.location.range),
-			message: value.message,
-			resource: value.location.uri
+expowt namespace DiagnosticWewatedInfowmation {
+	expowt function fwom(vawue: vscode.DiagnosticWewatedInfowmation): IWewatedInfowmation {
+		wetuwn {
+			...Wange.fwom(vawue.wocation.wange),
+			message: vawue.message,
+			wesouwce: vawue.wocation.uwi
 		};
 	}
-	export function to(value: IRelatedInformation): types.DiagnosticRelatedInformation {
-		return new types.DiagnosticRelatedInformation(new types.Location(value.resource, Range.to(value)), value.message);
+	expowt function to(vawue: IWewatedInfowmation): types.DiagnosticWewatedInfowmation {
+		wetuwn new types.DiagnosticWewatedInfowmation(new types.Wocation(vawue.wesouwce, Wange.to(vawue)), vawue.message);
 	}
 }
-export namespace DiagnosticSeverity {
+expowt namespace DiagnosticSevewity {
 
-	export function from(value: number): MarkerSeverity {
-		switch (value) {
-			case types.DiagnosticSeverity.Error:
-				return MarkerSeverity.Error;
-			case types.DiagnosticSeverity.Warning:
-				return MarkerSeverity.Warning;
-			case types.DiagnosticSeverity.Information:
-				return MarkerSeverity.Info;
-			case types.DiagnosticSeverity.Hint:
-				return MarkerSeverity.Hint;
+	expowt function fwom(vawue: numba): MawkewSevewity {
+		switch (vawue) {
+			case types.DiagnosticSevewity.Ewwow:
+				wetuwn MawkewSevewity.Ewwow;
+			case types.DiagnosticSevewity.Wawning:
+				wetuwn MawkewSevewity.Wawning;
+			case types.DiagnosticSevewity.Infowmation:
+				wetuwn MawkewSevewity.Info;
+			case types.DiagnosticSevewity.Hint:
+				wetuwn MawkewSevewity.Hint;
 		}
-		return MarkerSeverity.Error;
+		wetuwn MawkewSevewity.Ewwow;
 	}
 
-	export function to(value: MarkerSeverity): types.DiagnosticSeverity {
-		switch (value) {
-			case MarkerSeverity.Info:
-				return types.DiagnosticSeverity.Information;
-			case MarkerSeverity.Warning:
-				return types.DiagnosticSeverity.Warning;
-			case MarkerSeverity.Error:
-				return types.DiagnosticSeverity.Error;
-			case MarkerSeverity.Hint:
-				return types.DiagnosticSeverity.Hint;
-			default:
-				return types.DiagnosticSeverity.Error;
+	expowt function to(vawue: MawkewSevewity): types.DiagnosticSevewity {
+		switch (vawue) {
+			case MawkewSevewity.Info:
+				wetuwn types.DiagnosticSevewity.Infowmation;
+			case MawkewSevewity.Wawning:
+				wetuwn types.DiagnosticSevewity.Wawning;
+			case MawkewSevewity.Ewwow:
+				wetuwn types.DiagnosticSevewity.Ewwow;
+			case MawkewSevewity.Hint:
+				wetuwn types.DiagnosticSevewity.Hint;
+			defauwt:
+				wetuwn types.DiagnosticSevewity.Ewwow;
 		}
-	}
-}
-
-export namespace ViewColumn {
-	export function from(column?: vscode.ViewColumn): EditorGroupColumn {
-		if (typeof column === 'number' && column >= types.ViewColumn.One) {
-			return column - 1; // adjust zero index (ViewColumn.ONE => 0)
-		}
-
-		if (column === types.ViewColumn.Beside) {
-			return SIDE_GROUP;
-		}
-
-		return ACTIVE_GROUP; // default is always the active group
-	}
-
-	export function to(position: EditorGroupColumn): vscode.ViewColumn {
-		if (typeof position === 'number' && position >= 0) {
-			return position + 1; // adjust to index (ViewColumn.ONE => 1)
-		}
-
-		throw new Error(`invalid 'EditorGroupColumn'`);
 	}
 }
 
-function isDecorationOptions(something: any): something is vscode.DecorationOptions {
-	return (typeof something.range !== 'undefined');
-}
-
-export function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
-	if (something.length === 0) {
-		return true;
-	}
-	return isDecorationOptions(something[0]) ? true : false;
-}
-
-export namespace MarkdownString {
-
-	export function fromMany(markup: (vscode.MarkdownString | vscode.MarkedString)[]): htmlContent.IMarkdownString[] {
-		return markup.map(MarkdownString.from);
-	}
-
-	interface Codeblock {
-		language: string;
-		value: string;
-	}
-
-	function isCodeblock(thing: any): thing is Codeblock {
-		return thing && typeof thing === 'object'
-			&& typeof (<Codeblock>thing).language === 'string'
-			&& typeof (<Codeblock>thing).value === 'string';
-	}
-
-	export function from(markup: vscode.MarkdownString | vscode.MarkedString): htmlContent.IMarkdownString {
-		let res: htmlContent.IMarkdownString;
-		if (isCodeblock(markup)) {
-			const { language, value } = markup;
-			res = { value: '```' + language + '\n' + value + '\n```\n' };
-		} else if (types.MarkdownString.isMarkdownString(markup)) {
-			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml };
-		} else if (typeof markup === 'string') {
-			res = { value: markup };
-		} else {
-			res = { value: '' };
+expowt namespace ViewCowumn {
+	expowt function fwom(cowumn?: vscode.ViewCowumn): EditowGwoupCowumn {
+		if (typeof cowumn === 'numba' && cowumn >= types.ViewCowumn.One) {
+			wetuwn cowumn - 1; // adjust zewo index (ViewCowumn.ONE => 0)
 		}
 
-		// extract uris into a separate object
-		const resUris: { [href: string]: UriComponents; } = Object.create(null);
-		res.uris = resUris;
+		if (cowumn === types.ViewCowumn.Beside) {
+			wetuwn SIDE_GWOUP;
+		}
 
-		const collectUri = (href: string): string => {
-			try {
-				let uri = URI.parse(href, true);
-				uri = uri.with({ query: _uriMassage(uri.query, resUris) });
-				resUris[href] = uri;
+		wetuwn ACTIVE_GWOUP; // defauwt is awways the active gwoup
+	}
+
+	expowt function to(position: EditowGwoupCowumn): vscode.ViewCowumn {
+		if (typeof position === 'numba' && position >= 0) {
+			wetuwn position + 1; // adjust to index (ViewCowumn.ONE => 1)
+		}
+
+		thwow new Ewwow(`invawid 'EditowGwoupCowumn'`);
+	}
+}
+
+function isDecowationOptions(something: any): something is vscode.DecowationOptions {
+	wetuwn (typeof something.wange !== 'undefined');
+}
+
+expowt function isDecowationOptionsAww(something: vscode.Wange[] | vscode.DecowationOptions[]): something is vscode.DecowationOptions[] {
+	if (something.wength === 0) {
+		wetuwn twue;
+	}
+	wetuwn isDecowationOptions(something[0]) ? twue : fawse;
+}
+
+expowt namespace MawkdownStwing {
+
+	expowt function fwomMany(mawkup: (vscode.MawkdownStwing | vscode.MawkedStwing)[]): htmwContent.IMawkdownStwing[] {
+		wetuwn mawkup.map(MawkdownStwing.fwom);
+	}
+
+	intewface Codebwock {
+		wanguage: stwing;
+		vawue: stwing;
+	}
+
+	function isCodebwock(thing: any): thing is Codebwock {
+		wetuwn thing && typeof thing === 'object'
+			&& typeof (<Codebwock>thing).wanguage === 'stwing'
+			&& typeof (<Codebwock>thing).vawue === 'stwing';
+	}
+
+	expowt function fwom(mawkup: vscode.MawkdownStwing | vscode.MawkedStwing): htmwContent.IMawkdownStwing {
+		wet wes: htmwContent.IMawkdownStwing;
+		if (isCodebwock(mawkup)) {
+			const { wanguage, vawue } = mawkup;
+			wes = { vawue: '```' + wanguage + '\n' + vawue + '\n```\n' };
+		} ewse if (types.MawkdownStwing.isMawkdownStwing(mawkup)) {
+			wes = { vawue: mawkup.vawue, isTwusted: mawkup.isTwusted, suppowtThemeIcons: mawkup.suppowtThemeIcons, suppowtHtmw: mawkup.suppowtHtmw };
+		} ewse if (typeof mawkup === 'stwing') {
+			wes = { vawue: mawkup };
+		} ewse {
+			wes = { vawue: '' };
+		}
+
+		// extwact uwis into a sepawate object
+		const wesUwis: { [hwef: stwing]: UwiComponents; } = Object.cweate(nuww);
+		wes.uwis = wesUwis;
+
+		const cowwectUwi = (hwef: stwing): stwing => {
+			twy {
+				wet uwi = UWI.pawse(hwef, twue);
+				uwi = uwi.with({ quewy: _uwiMassage(uwi.quewy, wesUwis) });
+				wesUwis[hwef] = uwi;
 			} catch (e) {
-				// ignore
+				// ignowe
 			}
-			return '';
+			wetuwn '';
 		};
-		const renderer = new marked.Renderer();
-		renderer.link = collectUri;
-		renderer.image = href => collectUri(htmlContent.parseHrefAndDimensions(href).href);
+		const wendewa = new mawked.Wendewa();
+		wendewa.wink = cowwectUwi;
+		wendewa.image = hwef => cowwectUwi(htmwContent.pawseHwefAndDimensions(hwef).hwef);
 
-		marked(res.value, { renderer });
+		mawked(wes.vawue, { wendewa });
 
-		return res;
+		wetuwn wes;
 	}
 
-	function _uriMassage(part: string, bucket: { [n: string]: UriComponents; }): string {
-		if (!part) {
-			return part;
+	function _uwiMassage(pawt: stwing, bucket: { [n: stwing]: UwiComponents; }): stwing {
+		if (!pawt) {
+			wetuwn pawt;
 		}
-		let data: any;
-		try {
-			data = parse(part);
+		wet data: any;
+		twy {
+			data = pawse(pawt);
 		} catch (e) {
-			// ignore
+			// ignowe
 		}
 		if (!data) {
-			return part;
+			wetuwn pawt;
 		}
-		let changed = false;
-		data = cloneAndChange(data, value => {
-			if (URI.isUri(value)) {
-				const key = `__uri_${Math.random().toString(16).slice(2, 8)}`;
-				bucket[key] = value;
-				changed = true;
-				return key;
-			} else {
-				return undefined;
+		wet changed = fawse;
+		data = cwoneAndChange(data, vawue => {
+			if (UWI.isUwi(vawue)) {
+				const key = `__uwi_${Math.wandom().toStwing(16).swice(2, 8)}`;
+				bucket[key] = vawue;
+				changed = twue;
+				wetuwn key;
+			} ewse {
+				wetuwn undefined;
 			}
 		});
 
 		if (!changed) {
-			return part;
+			wetuwn pawt;
 		}
 
-		return JSON.stringify(data);
+		wetuwn JSON.stwingify(data);
 	}
 
-	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
-		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
-		result.isTrusted = value.isTrusted;
-		result.supportHtml = value.supportHtml;
-		return result;
+	expowt function to(vawue: htmwContent.IMawkdownStwing): vscode.MawkdownStwing {
+		const wesuwt = new types.MawkdownStwing(vawue.vawue, vawue.suppowtThemeIcons);
+		wesuwt.isTwusted = vawue.isTwusted;
+		wesuwt.suppowtHtmw = vawue.suppowtHtmw;
+		wetuwn wesuwt;
 	}
 
-	export function fromStrict(value: string | vscode.MarkdownString): undefined | string | htmlContent.IMarkdownString {
-		if (!value) {
-			return undefined;
+	expowt function fwomStwict(vawue: stwing | vscode.MawkdownStwing): undefined | stwing | htmwContent.IMawkdownStwing {
+		if (!vawue) {
+			wetuwn undefined;
 		}
-		return typeof value === 'string' ? value : MarkdownString.from(value);
+		wetuwn typeof vawue === 'stwing' ? vawue : MawkdownStwing.fwom(vawue);
 	}
 }
 
-export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
-	if (isDecorationOptionsArr(ranges)) {
-		return ranges.map((r): IDecorationOptions => {
-			return {
-				range: Range.from(r.range),
-				hoverMessage: Array.isArray(r.hoverMessage)
-					? MarkdownString.fromMany(r.hoverMessage)
-					: (r.hoverMessage ? MarkdownString.from(r.hoverMessage) : undefined),
-				renderOptions: <any> /* URI vs Uri */r.renderOptions
+expowt function fwomWangeOwWangeWithMessage(wanges: vscode.Wange[] | vscode.DecowationOptions[]): IDecowationOptions[] {
+	if (isDecowationOptionsAww(wanges)) {
+		wetuwn wanges.map((w): IDecowationOptions => {
+			wetuwn {
+				wange: Wange.fwom(w.wange),
+				hovewMessage: Awway.isAwway(w.hovewMessage)
+					? MawkdownStwing.fwomMany(w.hovewMessage)
+					: (w.hovewMessage ? MawkdownStwing.fwom(w.hovewMessage) : undefined),
+				wendewOptions: <any> /* UWI vs Uwi */w.wendewOptions
 			};
 		});
-	} else {
-		return ranges.map((r): IDecorationOptions => {
-			return {
-				range: Range.from(r)
+	} ewse {
+		wetuwn wanges.map((w): IDecowationOptions => {
+			wetuwn {
+				wange: Wange.fwom(w)
 			};
 		});
 	}
 }
 
-export function pathOrURIToURI(value: string | URI): URI {
-	if (typeof value === 'undefined') {
-		return value;
+expowt function pathOwUWIToUWI(vawue: stwing | UWI): UWI {
+	if (typeof vawue === 'undefined') {
+		wetuwn vawue;
 	}
-	if (typeof value === 'string') {
-		return URI.file(value);
-	} else {
-		return value;
+	if (typeof vawue === 'stwing') {
+		wetuwn UWI.fiwe(vawue);
+	} ewse {
+		wetuwn vawue;
 	}
 }
 
-export namespace ThemableDecorationAttachmentRenderOptions {
-	export function from(options: vscode.ThemableDecorationAttachmentRenderOptions): IContentDecorationRenderOptions {
+expowt namespace ThemabweDecowationAttachmentWendewOptions {
+	expowt function fwom(options: vscode.ThemabweDecowationAttachmentWendewOptions): IContentDecowationWendewOptions {
 		if (typeof options === 'undefined') {
-			return options;
+			wetuwn options;
 		}
-		return {
+		wetuwn {
 			contentText: options.contentText,
-			contentIconPath: options.contentIconPath ? pathOrURIToURI(options.contentIconPath) : undefined,
-			border: options.border,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			fontStyle: options.fontStyle,
+			contentIconPath: options.contentIconPath ? pathOwUWIToUWI(options.contentIconPath) : undefined,
+			bowda: options.bowda,
+			bowdewCowow: <stwing | types.ThemeCowow>options.bowdewCowow,
+			fontStywe: options.fontStywe,
 			fontWeight: options.fontWeight,
-			textDecoration: options.textDecoration,
-			color: <string | types.ThemeColor>options.color,
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			margin: options.margin,
+			textDecowation: options.textDecowation,
+			cowow: <stwing | types.ThemeCowow>options.cowow,
+			backgwoundCowow: <stwing | types.ThemeCowow>options.backgwoundCowow,
+			mawgin: options.mawgin,
 			width: options.width,
 			height: options.height,
 		};
 	}
 }
 
-export namespace ThemableDecorationRenderOptions {
-	export function from(options: vscode.ThemableDecorationRenderOptions): IThemeDecorationRenderOptions {
+expowt namespace ThemabweDecowationWendewOptions {
+	expowt function fwom(options: vscode.ThemabweDecowationWendewOptions): IThemeDecowationWendewOptions {
 		if (typeof options === 'undefined') {
-			return options;
+			wetuwn options;
 		}
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			outline: options.outline,
-			outlineColor: <string | types.ThemeColor>options.outlineColor,
-			outlineStyle: options.outlineStyle,
-			outlineWidth: options.outlineWidth,
-			border: options.border,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			borderRadius: options.borderRadius,
-			borderSpacing: options.borderSpacing,
-			borderStyle: options.borderStyle,
-			borderWidth: options.borderWidth,
-			fontStyle: options.fontStyle,
+		wetuwn {
+			backgwoundCowow: <stwing | types.ThemeCowow>options.backgwoundCowow,
+			outwine: options.outwine,
+			outwineCowow: <stwing | types.ThemeCowow>options.outwineCowow,
+			outwineStywe: options.outwineStywe,
+			outwineWidth: options.outwineWidth,
+			bowda: options.bowda,
+			bowdewCowow: <stwing | types.ThemeCowow>options.bowdewCowow,
+			bowdewWadius: options.bowdewWadius,
+			bowdewSpacing: options.bowdewSpacing,
+			bowdewStywe: options.bowdewStywe,
+			bowdewWidth: options.bowdewWidth,
+			fontStywe: options.fontStywe,
 			fontWeight: options.fontWeight,
-			textDecoration: options.textDecoration,
-			cursor: options.cursor,
-			color: <string | types.ThemeColor>options.color,
+			textDecowation: options.textDecowation,
+			cuwsow: options.cuwsow,
+			cowow: <stwing | types.ThemeCowow>options.cowow,
 			opacity: options.opacity,
-			letterSpacing: options.letterSpacing,
-			gutterIconPath: options.gutterIconPath ? pathOrURIToURI(options.gutterIconPath) : undefined,
-			gutterIconSize: options.gutterIconSize,
-			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
-			before: options.before ? ThemableDecorationAttachmentRenderOptions.from(options.before) : undefined,
-			after: options.after ? ThemableDecorationAttachmentRenderOptions.from(options.after) : undefined,
+			wettewSpacing: options.wettewSpacing,
+			guttewIconPath: options.guttewIconPath ? pathOwUWIToUWI(options.guttewIconPath) : undefined,
+			guttewIconSize: options.guttewIconSize,
+			ovewviewWuwewCowow: <stwing | types.ThemeCowow>options.ovewviewWuwewCowow,
+			befowe: options.befowe ? ThemabweDecowationAttachmentWendewOptions.fwom(options.befowe) : undefined,
+			afta: options.afta ? ThemabweDecowationAttachmentWendewOptions.fwom(options.afta) : undefined,
 		};
 	}
 }
 
-export namespace DecorationRangeBehavior {
-	export function from(value: types.DecorationRangeBehavior): TrackedRangeStickiness {
-		if (typeof value === 'undefined') {
-			return value;
+expowt namespace DecowationWangeBehaviow {
+	expowt function fwom(vawue: types.DecowationWangeBehaviow): TwackedWangeStickiness {
+		if (typeof vawue === 'undefined') {
+			wetuwn vawue;
 		}
-		switch (value) {
-			case types.DecorationRangeBehavior.OpenOpen:
-				return TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
-			case types.DecorationRangeBehavior.ClosedClosed:
-				return TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-			case types.DecorationRangeBehavior.OpenClosed:
-				return TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
-			case types.DecorationRangeBehavior.ClosedOpen:
-				return TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+		switch (vawue) {
+			case types.DecowationWangeBehaviow.OpenOpen:
+				wetuwn TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges;
+			case types.DecowationWangeBehaviow.CwosedCwosed:
+				wetuwn TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges;
+			case types.DecowationWangeBehaviow.OpenCwosed:
+				wetuwn TwackedWangeStickiness.GwowsOnwyWhenTypingBefowe;
+			case types.DecowationWangeBehaviow.CwosedOpen:
+				wetuwn TwackedWangeStickiness.GwowsOnwyWhenTypingAfta;
 		}
 	}
 }
 
-export namespace DecorationRenderOptions {
-	export function from(options: vscode.DecorationRenderOptions): IDecorationRenderOptions {
-		return {
-			isWholeLine: options.isWholeLine,
-			rangeBehavior: options.rangeBehavior ? DecorationRangeBehavior.from(options.rangeBehavior) : undefined,
-			overviewRulerLane: options.overviewRulerLane,
-			light: options.light ? ThemableDecorationRenderOptions.from(options.light) : undefined,
-			dark: options.dark ? ThemableDecorationRenderOptions.from(options.dark) : undefined,
+expowt namespace DecowationWendewOptions {
+	expowt function fwom(options: vscode.DecowationWendewOptions): IDecowationWendewOptions {
+		wetuwn {
+			isWhoweWine: options.isWhoweWine,
+			wangeBehaviow: options.wangeBehaviow ? DecowationWangeBehaviow.fwom(options.wangeBehaviow) : undefined,
+			ovewviewWuwewWane: options.ovewviewWuwewWane,
+			wight: options.wight ? ThemabweDecowationWendewOptions.fwom(options.wight) : undefined,
+			dawk: options.dawk ? ThemabweDecowationWendewOptions.fwom(options.dawk) : undefined,
 
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			outline: options.outline,
-			outlineColor: <string | types.ThemeColor>options.outlineColor,
-			outlineStyle: options.outlineStyle,
-			outlineWidth: options.outlineWidth,
-			border: options.border,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			borderRadius: options.borderRadius,
-			borderSpacing: options.borderSpacing,
-			borderStyle: options.borderStyle,
-			borderWidth: options.borderWidth,
-			fontStyle: options.fontStyle,
+			backgwoundCowow: <stwing | types.ThemeCowow>options.backgwoundCowow,
+			outwine: options.outwine,
+			outwineCowow: <stwing | types.ThemeCowow>options.outwineCowow,
+			outwineStywe: options.outwineStywe,
+			outwineWidth: options.outwineWidth,
+			bowda: options.bowda,
+			bowdewCowow: <stwing | types.ThemeCowow>options.bowdewCowow,
+			bowdewWadius: options.bowdewWadius,
+			bowdewSpacing: options.bowdewSpacing,
+			bowdewStywe: options.bowdewStywe,
+			bowdewWidth: options.bowdewWidth,
+			fontStywe: options.fontStywe,
 			fontWeight: options.fontWeight,
-			textDecoration: options.textDecoration,
-			cursor: options.cursor,
-			color: <string | types.ThemeColor>options.color,
+			textDecowation: options.textDecowation,
+			cuwsow: options.cuwsow,
+			cowow: <stwing | types.ThemeCowow>options.cowow,
 			opacity: options.opacity,
-			letterSpacing: options.letterSpacing,
-			gutterIconPath: options.gutterIconPath ? pathOrURIToURI(options.gutterIconPath) : undefined,
-			gutterIconSize: options.gutterIconSize,
-			overviewRulerColor: <string | types.ThemeColor>options.overviewRulerColor,
-			before: options.before ? ThemableDecorationAttachmentRenderOptions.from(options.before) : undefined,
-			after: options.after ? ThemableDecorationAttachmentRenderOptions.from(options.after) : undefined,
+			wettewSpacing: options.wettewSpacing,
+			guttewIconPath: options.guttewIconPath ? pathOwUWIToUWI(options.guttewIconPath) : undefined,
+			guttewIconSize: options.guttewIconSize,
+			ovewviewWuwewCowow: <stwing | types.ThemeCowow>options.ovewviewWuwewCowow,
+			befowe: options.befowe ? ThemabweDecowationAttachmentWendewOptions.fwom(options.befowe) : undefined,
+			afta: options.afta ? ThemabweDecowationAttachmentWendewOptions.fwom(options.afta) : undefined,
 		};
 	}
 }
 
-export namespace TextEdit {
+expowt namespace TextEdit {
 
-	export function from(edit: vscode.TextEdit): modes.TextEdit {
-		return <modes.TextEdit>{
+	expowt function fwom(edit: vscode.TextEdit): modes.TextEdit {
+		wetuwn <modes.TextEdit>{
 			text: edit.newText,
-			eol: edit.newEol && EndOfLine.from(edit.newEol),
-			range: Range.from(edit.range)
+			eow: edit.newEow && EndOfWine.fwom(edit.newEow),
+			wange: Wange.fwom(edit.wange)
 		};
 	}
 
-	export function to(edit: modes.TextEdit): types.TextEdit {
-		const result = new types.TextEdit(Range.to(edit.range), edit.text);
-		result.newEol = (typeof edit.eol === 'undefined' ? undefined : EndOfLine.to(edit.eol))!;
-		return result;
+	expowt function to(edit: modes.TextEdit): types.TextEdit {
+		const wesuwt = new types.TextEdit(Wange.to(edit.wange), edit.text);
+		wesuwt.newEow = (typeof edit.eow === 'undefined' ? undefined : EndOfWine.to(edit.eow))!;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, extHostNotebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
-		const result: extHostProtocol.IWorkspaceEditDto = {
+expowt namespace WowkspaceEdit {
+	expowt function fwom(vawue: vscode.WowkspaceEdit, documents?: ExtHostDocumentsAndEditows, extHostNotebooks?: ExtHostNotebookContwowwa): extHostPwotocow.IWowkspaceEditDto {
+		const wesuwt: extHostPwotocow.IWowkspaceEditDto = {
 			edits: []
 		};
 
-		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value._allEntries()) {
+		if (vawue instanceof types.WowkspaceEdit) {
+			fow (wet entwy of vawue._awwEntwies()) {
 
-				if (entry._type === types.FileEditType.File) {
-					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.File,
-						oldUri: entry.from,
-						newUri: entry.to,
-						options: entry.options,
-						metadata: entry.metadata
+				if (entwy._type === types.FiweEditType.Fiwe) {
+					// fiwe opewation
+					wesuwt.edits.push(<extHostPwotocow.IWowkspaceFiweEditDto>{
+						_type: extHostPwotocow.WowkspaceEditType.Fiwe,
+						owdUwi: entwy.fwom,
+						newUwi: entwy.to,
+						options: entwy.options,
+						metadata: entwy.metadata
 					});
 
-				} else if (entry._type === types.FileEditType.Text) {
+				} ewse if (entwy._type === types.FiweEditType.Text) {
 					// text edits
-					const doc = documents?.getDocument(entry.uri);
-					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Text,
-						resource: entry.uri,
-						edit: TextEdit.from(entry.edit),
-						modelVersionId: doc?.version,
-						metadata: entry.metadata
+					const doc = documents?.getDocument(entwy.uwi);
+					wesuwt.edits.push(<extHostPwotocow.IWowkspaceTextEditDto>{
+						_type: extHostPwotocow.WowkspaceEditType.Text,
+						wesouwce: entwy.uwi,
+						edit: TextEdit.fwom(entwy.edit),
+						modewVewsionId: doc?.vewsion,
+						metadata: entwy.metadata
 					});
-				} else if (entry._type === types.FileEditType.Cell) {
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
-						_type: extHostProtocol.WorkspaceEditType.Cell,
-						metadata: entry.metadata,
-						resource: entry.uri,
-						edit: entry.edit,
-						notebookMetadata: entry.notebookMetadata,
-						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version
+				} ewse if (entwy._type === types.FiweEditType.Ceww) {
+					wesuwt.edits.push(<extHostPwotocow.IWowkspaceCewwEditDto>{
+						_type: extHostPwotocow.WowkspaceEditType.Ceww,
+						metadata: entwy.metadata,
+						wesouwce: entwy.uwi,
+						edit: entwy.edit,
+						notebookMetadata: entwy.notebookMetadata,
+						notebookVewsionId: extHostNotebooks?.getNotebookDocument(entwy.uwi, twue)?.apiNotebook.vewsion
 					});
 
-				} else if (entry._type === types.FileEditType.CellReplace) {
-					result.edits.push({
-						_type: extHostProtocol.WorkspaceEditType.Cell,
-						metadata: entry.metadata,
-						resource: entry.uri,
-						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version,
+				} ewse if (entwy._type === types.FiweEditType.CewwWepwace) {
+					wesuwt.edits.push({
+						_type: extHostPwotocow.WowkspaceEditType.Ceww,
+						metadata: entwy.metadata,
+						wesouwce: entwy.uwi,
+						notebookVewsionId: extHostNotebooks?.getNotebookDocument(entwy.uwi, twue)?.apiNotebook.vewsion,
 						edit: {
-							editType: notebooks.CellEditType.Replace,
-							index: entry.index,
-							count: entry.count,
-							cells: entry.cells.map(NotebookCellData.from)
+							editType: notebooks.CewwEditType.Wepwace,
+							index: entwy.index,
+							count: entwy.count,
+							cewws: entwy.cewws.map(NotebookCewwData.fwom)
 						}
 					});
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function to(value: extHostProtocol.IWorkspaceEditDto) {
-		const result = new types.WorkspaceEdit();
-		for (const edit of value.edits) {
-			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).edit) {
-				result.replace(
-					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).edit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).edit.text
+	expowt function to(vawue: extHostPwotocow.IWowkspaceEditDto) {
+		const wesuwt = new types.WowkspaceEdit();
+		fow (const edit of vawue.edits) {
+			if ((<extHostPwotocow.IWowkspaceTextEditDto>edit).edit) {
+				wesuwt.wepwace(
+					UWI.wevive((<extHostPwotocow.IWowkspaceTextEditDto>edit).wesouwce),
+					Wange.to((<extHostPwotocow.IWowkspaceTextEditDto>edit).edit.wange),
+					(<extHostPwotocow.IWowkspaceTextEditDto>edit).edit.text
 				);
-			} else {
-				result.renameFile(
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldUri!),
-					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).newUri!),
-					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
+			} ewse {
+				wesuwt.wenameFiwe(
+					UWI.wevive((<extHostPwotocow.IWowkspaceFiweEditDto>edit).owdUwi!),
+					UWI.wevive((<extHostPwotocow.IWowkspaceFiweEditDto>edit).newUwi!),
+					(<extHostPwotocow.IWowkspaceFiweEditDto>edit).options
 				);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 
-export namespace SymbolKind {
+expowt namespace SymbowKind {
 
-	const _fromMapping: { [kind: number]: modes.SymbolKind; } = Object.create(null);
-	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
-	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
-	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
-	_fromMapping[types.SymbolKind.Package] = modes.SymbolKind.Package;
-	_fromMapping[types.SymbolKind.Class] = modes.SymbolKind.Class;
-	_fromMapping[types.SymbolKind.Method] = modes.SymbolKind.Method;
-	_fromMapping[types.SymbolKind.Property] = modes.SymbolKind.Property;
-	_fromMapping[types.SymbolKind.Field] = modes.SymbolKind.Field;
-	_fromMapping[types.SymbolKind.Constructor] = modes.SymbolKind.Constructor;
-	_fromMapping[types.SymbolKind.Enum] = modes.SymbolKind.Enum;
-	_fromMapping[types.SymbolKind.Interface] = modes.SymbolKind.Interface;
-	_fromMapping[types.SymbolKind.Function] = modes.SymbolKind.Function;
-	_fromMapping[types.SymbolKind.Variable] = modes.SymbolKind.Variable;
-	_fromMapping[types.SymbolKind.Constant] = modes.SymbolKind.Constant;
-	_fromMapping[types.SymbolKind.String] = modes.SymbolKind.String;
-	_fromMapping[types.SymbolKind.Number] = modes.SymbolKind.Number;
-	_fromMapping[types.SymbolKind.Boolean] = modes.SymbolKind.Boolean;
-	_fromMapping[types.SymbolKind.Array] = modes.SymbolKind.Array;
-	_fromMapping[types.SymbolKind.Object] = modes.SymbolKind.Object;
-	_fromMapping[types.SymbolKind.Key] = modes.SymbolKind.Key;
-	_fromMapping[types.SymbolKind.Null] = modes.SymbolKind.Null;
-	_fromMapping[types.SymbolKind.EnumMember] = modes.SymbolKind.EnumMember;
-	_fromMapping[types.SymbolKind.Struct] = modes.SymbolKind.Struct;
-	_fromMapping[types.SymbolKind.Event] = modes.SymbolKind.Event;
-	_fromMapping[types.SymbolKind.Operator] = modes.SymbolKind.Operator;
-	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
+	const _fwomMapping: { [kind: numba]: modes.SymbowKind; } = Object.cweate(nuww);
+	_fwomMapping[types.SymbowKind.Fiwe] = modes.SymbowKind.Fiwe;
+	_fwomMapping[types.SymbowKind.Moduwe] = modes.SymbowKind.Moduwe;
+	_fwomMapping[types.SymbowKind.Namespace] = modes.SymbowKind.Namespace;
+	_fwomMapping[types.SymbowKind.Package] = modes.SymbowKind.Package;
+	_fwomMapping[types.SymbowKind.Cwass] = modes.SymbowKind.Cwass;
+	_fwomMapping[types.SymbowKind.Method] = modes.SymbowKind.Method;
+	_fwomMapping[types.SymbowKind.Pwopewty] = modes.SymbowKind.Pwopewty;
+	_fwomMapping[types.SymbowKind.Fiewd] = modes.SymbowKind.Fiewd;
+	_fwomMapping[types.SymbowKind.Constwuctow] = modes.SymbowKind.Constwuctow;
+	_fwomMapping[types.SymbowKind.Enum] = modes.SymbowKind.Enum;
+	_fwomMapping[types.SymbowKind.Intewface] = modes.SymbowKind.Intewface;
+	_fwomMapping[types.SymbowKind.Function] = modes.SymbowKind.Function;
+	_fwomMapping[types.SymbowKind.Vawiabwe] = modes.SymbowKind.Vawiabwe;
+	_fwomMapping[types.SymbowKind.Constant] = modes.SymbowKind.Constant;
+	_fwomMapping[types.SymbowKind.Stwing] = modes.SymbowKind.Stwing;
+	_fwomMapping[types.SymbowKind.Numba] = modes.SymbowKind.Numba;
+	_fwomMapping[types.SymbowKind.Boowean] = modes.SymbowKind.Boowean;
+	_fwomMapping[types.SymbowKind.Awway] = modes.SymbowKind.Awway;
+	_fwomMapping[types.SymbowKind.Object] = modes.SymbowKind.Object;
+	_fwomMapping[types.SymbowKind.Key] = modes.SymbowKind.Key;
+	_fwomMapping[types.SymbowKind.Nuww] = modes.SymbowKind.Nuww;
+	_fwomMapping[types.SymbowKind.EnumMemba] = modes.SymbowKind.EnumMemba;
+	_fwomMapping[types.SymbowKind.Stwuct] = modes.SymbowKind.Stwuct;
+	_fwomMapping[types.SymbowKind.Event] = modes.SymbowKind.Event;
+	_fwomMapping[types.SymbowKind.Opewatow] = modes.SymbowKind.Opewatow;
+	_fwomMapping[types.SymbowKind.TypePawameta] = modes.SymbowKind.TypePawameta;
 
-	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return typeof _fromMapping[kind] === 'number' ? _fromMapping[kind] : modes.SymbolKind.Property;
+	expowt function fwom(kind: vscode.SymbowKind): modes.SymbowKind {
+		wetuwn typeof _fwomMapping[kind] === 'numba' ? _fwomMapping[kind] : modes.SymbowKind.Pwopewty;
 	}
 
-	export function to(kind: modes.SymbolKind): vscode.SymbolKind {
-		for (const k in _fromMapping) {
-			if (_fromMapping[k] === kind) {
-				return Number(k);
+	expowt function to(kind: modes.SymbowKind): vscode.SymbowKind {
+		fow (const k in _fwomMapping) {
+			if (_fwomMapping[k] === kind) {
+				wetuwn Numba(k);
 			}
 		}
-		return types.SymbolKind.Property;
+		wetuwn types.SymbowKind.Pwopewty;
 	}
 }
 
-export namespace SymbolTag {
+expowt namespace SymbowTag {
 
-	export function from(kind: types.SymbolTag): modes.SymbolTag {
+	expowt function fwom(kind: types.SymbowTag): modes.SymbowTag {
 		switch (kind) {
-			case types.SymbolTag.Deprecated: return modes.SymbolTag.Deprecated;
+			case types.SymbowTag.Depwecated: wetuwn modes.SymbowTag.Depwecated;
 		}
 	}
 
-	export function to(kind: modes.SymbolTag): types.SymbolTag {
+	expowt function to(kind: modes.SymbowTag): types.SymbowTag {
 		switch (kind) {
-			case modes.SymbolTag.Deprecated: return types.SymbolTag.Deprecated;
+			case modes.SymbowTag.Depwecated: wetuwn types.SymbowTag.Depwecated;
 		}
 	}
 }
 
-export namespace WorkspaceSymbol {
-	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
-		return <search.IWorkspaceSymbol>{
+expowt namespace WowkspaceSymbow {
+	expowt function fwom(info: vscode.SymbowInfowmation): seawch.IWowkspaceSymbow {
+		wetuwn <seawch.IWowkspaceSymbow>{
 			name: info.name,
-			kind: SymbolKind.from(info.kind),
-			tags: info.tags && info.tags.map(SymbolTag.from),
-			containerName: info.containerName,
-			location: location.from(info.location)
+			kind: SymbowKind.fwom(info.kind),
+			tags: info.tags && info.tags.map(SymbowTag.fwom),
+			containewName: info.containewName,
+			wocation: wocation.fwom(info.wocation)
 		};
 	}
-	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
-		const result = new types.SymbolInformation(
+	expowt function to(info: seawch.IWowkspaceSymbow): types.SymbowInfowmation {
+		const wesuwt = new types.SymbowInfowmation(
 			info.name,
-			SymbolKind.to(info.kind),
-			info.containerName,
-			location.to(info.location)
+			SymbowKind.to(info.kind),
+			info.containewName,
+			wocation.to(info.wocation)
 		);
-		result.tags = info.tags && info.tags.map(SymbolTag.to);
-		return result;
+		wesuwt.tags = info.tags && info.tags.map(SymbowTag.to);
+		wetuwn wesuwt;
 	}
 }
 
-export namespace DocumentSymbol {
-	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
-		const result: modes.DocumentSymbol = {
+expowt namespace DocumentSymbow {
+	expowt function fwom(info: vscode.DocumentSymbow): modes.DocumentSymbow {
+		const wesuwt: modes.DocumentSymbow = {
 			name: info.name || '!!MISSING: name!!',
-			detail: info.detail,
-			range: Range.from(info.range),
-			selectionRange: Range.from(info.selectionRange),
-			kind: SymbolKind.from(info.kind),
-			tags: info.tags?.map(SymbolTag.from) ?? []
+			detaiw: info.detaiw,
+			wange: Wange.fwom(info.wange),
+			sewectionWange: Wange.fwom(info.sewectionWange),
+			kind: SymbowKind.fwom(info.kind),
+			tags: info.tags?.map(SymbowTag.fwom) ?? []
 		};
-		if (info.children) {
-			result.children = info.children.map(from);
+		if (info.chiwdwen) {
+			wesuwt.chiwdwen = info.chiwdwen.map(fwom);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
-	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
-		const result = new types.DocumentSymbol(
+	expowt function to(info: modes.DocumentSymbow): vscode.DocumentSymbow {
+		const wesuwt = new types.DocumentSymbow(
 			info.name,
-			info.detail,
-			SymbolKind.to(info.kind),
-			Range.to(info.range),
-			Range.to(info.selectionRange),
+			info.detaiw,
+			SymbowKind.to(info.kind),
+			Wange.to(info.wange),
+			Wange.to(info.sewectionWange),
 		);
-		if (isNonEmptyArray(info.tags)) {
-			result.tags = info.tags.map(SymbolTag.to);
+		if (isNonEmptyAwway(info.tags)) {
+			wesuwt.tags = info.tags.map(SymbowTag.to);
 		}
-		if (info.children) {
-			result.children = info.children.map(to) as any;
+		if (info.chiwdwen) {
+			wesuwt.chiwdwen = info.chiwdwen.map(to) as any;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace CallHierarchyItem {
+expowt namespace CawwHiewawchyItem {
 
-	export function to(item: extHostProtocol.ICallHierarchyItemDto): types.CallHierarchyItem {
-		const result = new types.CallHierarchyItem(
-			SymbolKind.to(item.kind),
+	expowt function to(item: extHostPwotocow.ICawwHiewawchyItemDto): types.CawwHiewawchyItem {
+		const wesuwt = new types.CawwHiewawchyItem(
+			SymbowKind.to(item.kind),
 			item.name,
-			item.detail || '',
-			URI.revive(item.uri),
-			Range.to(item.range),
-			Range.to(item.selectionRange)
+			item.detaiw || '',
+			UWI.wevive(item.uwi),
+			Wange.to(item.wange),
+			Wange.to(item.sewectionWange)
 		);
 
-		result._sessionId = item._sessionId;
-		result._itemId = item._itemId;
+		wesuwt._sessionId = item._sessionId;
+		wesuwt._itemId = item._itemId;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function from(item: vscode.CallHierarchyItem, sessionId?: string, itemId?: string): extHostProtocol.ICallHierarchyItemDto {
+	expowt function fwom(item: vscode.CawwHiewawchyItem, sessionId?: stwing, itemId?: stwing): extHostPwotocow.ICawwHiewawchyItemDto {
 
-		sessionId = sessionId ?? (<types.CallHierarchyItem>item)._sessionId;
-		itemId = itemId ?? (<types.CallHierarchyItem>item)._itemId;
+		sessionId = sessionId ?? (<types.CawwHiewawchyItem>item)._sessionId;
+		itemId = itemId ?? (<types.CawwHiewawchyItem>item)._itemId;
 
 		if (sessionId === undefined || itemId === undefined) {
-			throw new Error('invalid item');
+			thwow new Ewwow('invawid item');
 		}
 
-		return {
+		wetuwn {
 			_sessionId: sessionId,
 			_itemId: itemId,
 			name: item.name,
-			detail: item.detail,
-			kind: SymbolKind.from(item.kind),
-			uri: item.uri,
-			range: Range.from(item.range),
-			selectionRange: Range.from(item.selectionRange),
-			tags: item.tags?.map(SymbolTag.from)
+			detaiw: item.detaiw,
+			kind: SymbowKind.fwom(item.kind),
+			uwi: item.uwi,
+			wange: Wange.fwom(item.wange),
+			sewectionWange: Wange.fwom(item.sewectionWange),
+			tags: item.tags?.map(SymbowTag.fwom)
 		};
 	}
 }
 
-export namespace CallHierarchyIncomingCall {
+expowt namespace CawwHiewawchyIncomingCaww {
 
-	export function to(item: extHostProtocol.IIncomingCallDto): types.CallHierarchyIncomingCall {
-		return new types.CallHierarchyIncomingCall(
-			CallHierarchyItem.to(item.from),
-			item.fromRanges.map(r => Range.to(r))
+	expowt function to(item: extHostPwotocow.IIncomingCawwDto): types.CawwHiewawchyIncomingCaww {
+		wetuwn new types.CawwHiewawchyIncomingCaww(
+			CawwHiewawchyItem.to(item.fwom),
+			item.fwomWanges.map(w => Wange.to(w))
 		);
 	}
 }
 
-export namespace CallHierarchyOutgoingCall {
+expowt namespace CawwHiewawchyOutgoingCaww {
 
-	export function to(item: extHostProtocol.IOutgoingCallDto): types.CallHierarchyOutgoingCall {
-		return new types.CallHierarchyOutgoingCall(
-			CallHierarchyItem.to(item.to),
-			item.fromRanges.map(r => Range.to(r))
+	expowt function to(item: extHostPwotocow.IOutgoingCawwDto): types.CawwHiewawchyOutgoingCaww {
+		wetuwn new types.CawwHiewawchyOutgoingCaww(
+			CawwHiewawchyItem.to(item.to),
+			item.fwomWanges.map(w => Wange.to(w))
 		);
 	}
 }
 
 
-export namespace location {
-	export function from(value: vscode.Location): modes.Location {
-		return {
-			range: value.range && Range.from(value.range),
-			uri: value.uri
+expowt namespace wocation {
+	expowt function fwom(vawue: vscode.Wocation): modes.Wocation {
+		wetuwn {
+			wange: vawue.wange && Wange.fwom(vawue.wange),
+			uwi: vawue.uwi
 		};
 	}
 
-	export function to(value: extHostProtocol.ILocationDto): types.Location {
-		return new types.Location(URI.revive(value.uri), Range.to(value.range));
+	expowt function to(vawue: extHostPwotocow.IWocationDto): types.Wocation {
+		wetuwn new types.Wocation(UWI.wevive(vawue.uwi), Wange.to(vawue.wange));
 	}
 }
 
-export namespace DefinitionLink {
-	export function from(value: vscode.Location | vscode.DefinitionLink): modes.LocationLink {
-		const definitionLink = <vscode.DefinitionLink>value;
-		const location = <vscode.Location>value;
-		return {
-			originSelectionRange: definitionLink.originSelectionRange
-				? Range.from(definitionLink.originSelectionRange)
+expowt namespace DefinitionWink {
+	expowt function fwom(vawue: vscode.Wocation | vscode.DefinitionWink): modes.WocationWink {
+		const definitionWink = <vscode.DefinitionWink>vawue;
+		const wocation = <vscode.Wocation>vawue;
+		wetuwn {
+			owiginSewectionWange: definitionWink.owiginSewectionWange
+				? Wange.fwom(definitionWink.owiginSewectionWange)
 				: undefined,
-			uri: definitionLink.targetUri ? definitionLink.targetUri : location.uri,
-			range: Range.from(definitionLink.targetRange ? definitionLink.targetRange : location.range),
-			targetSelectionRange: definitionLink.targetSelectionRange
-				? Range.from(definitionLink.targetSelectionRange)
+			uwi: definitionWink.tawgetUwi ? definitionWink.tawgetUwi : wocation.uwi,
+			wange: Wange.fwom(definitionWink.tawgetWange ? definitionWink.tawgetWange : wocation.wange),
+			tawgetSewectionWange: definitionWink.tawgetSewectionWange
+				? Wange.fwom(definitionWink.tawgetSewectionWange)
 				: undefined,
 		};
 	}
-	export function to(value: extHostProtocol.IDefinitionLinkDto): vscode.LocationLink {
-		return {
-			targetUri: URI.revive(value.uri),
-			targetRange: Range.to(value.range),
-			targetSelectionRange: value.targetSelectionRange
-				? Range.to(value.targetSelectionRange)
+	expowt function to(vawue: extHostPwotocow.IDefinitionWinkDto): vscode.WocationWink {
+		wetuwn {
+			tawgetUwi: UWI.wevive(vawue.uwi),
+			tawgetWange: Wange.to(vawue.wange),
+			tawgetSewectionWange: vawue.tawgetSewectionWange
+				? Wange.to(vawue.tawgetSewectionWange)
 				: undefined,
-			originSelectionRange: value.originSelectionRange
-				? Range.to(value.originSelectionRange)
+			owiginSewectionWange: vawue.owiginSewectionWange
+				? Wange.to(vawue.owiginSewectionWange)
 				: undefined
 		};
 	}
 }
 
-export namespace Hover {
-	export function from(hover: vscode.Hover): modes.Hover {
-		return <modes.Hover>{
-			range: Range.from(hover.range),
-			contents: MarkdownString.fromMany(hover.contents)
+expowt namespace Hova {
+	expowt function fwom(hova: vscode.Hova): modes.Hova {
+		wetuwn <modes.Hova>{
+			wange: Wange.fwom(hova.wange),
+			contents: MawkdownStwing.fwomMany(hova.contents)
 		};
 	}
 
-	export function to(info: modes.Hover): types.Hover {
-		return new types.Hover(info.contents.map(MarkdownString.to), Range.to(info.range));
+	expowt function to(info: modes.Hova): types.Hova {
+		wetuwn new types.Hova(info.contents.map(MawkdownStwing.to), Wange.to(info.wange));
 	}
 }
 
-export namespace EvaluatableExpression {
-	export function from(expression: vscode.EvaluatableExpression): modes.EvaluatableExpression {
-		return <modes.EvaluatableExpression>{
-			range: Range.from(expression.range),
-			expression: expression.expression
+expowt namespace EvawuatabweExpwession {
+	expowt function fwom(expwession: vscode.EvawuatabweExpwession): modes.EvawuatabweExpwession {
+		wetuwn <modes.EvawuatabweExpwession>{
+			wange: Wange.fwom(expwession.wange),
+			expwession: expwession.expwession
 		};
 	}
 
-	export function to(info: modes.EvaluatableExpression): types.EvaluatableExpression {
-		return new types.EvaluatableExpression(Range.to(info.range), info.expression);
+	expowt function to(info: modes.EvawuatabweExpwession): types.EvawuatabweExpwession {
+		wetuwn new types.EvawuatabweExpwession(Wange.to(info.wange), info.expwession);
 	}
 }
 
-export namespace InlineValue {
-	export function from(inlineValue: vscode.InlineValue): modes.InlineValue {
-		if (inlineValue instanceof types.InlineValueText) {
-			return <modes.InlineValueText>{
+expowt namespace InwineVawue {
+	expowt function fwom(inwineVawue: vscode.InwineVawue): modes.InwineVawue {
+		if (inwineVawue instanceof types.InwineVawueText) {
+			wetuwn <modes.InwineVawueText>{
 				type: 'text',
-				range: Range.from(inlineValue.range),
-				text: inlineValue.text
+				wange: Wange.fwom(inwineVawue.wange),
+				text: inwineVawue.text
 			};
-		} else if (inlineValue instanceof types.InlineValueVariableLookup) {
-			return <modes.InlineValueVariableLookup>{
-				type: 'variable',
-				range: Range.from(inlineValue.range),
-				variableName: inlineValue.variableName,
-				caseSensitiveLookup: inlineValue.caseSensitiveLookup
+		} ewse if (inwineVawue instanceof types.InwineVawueVawiabweWookup) {
+			wetuwn <modes.InwineVawueVawiabweWookup>{
+				type: 'vawiabwe',
+				wange: Wange.fwom(inwineVawue.wange),
+				vawiabweName: inwineVawue.vawiabweName,
+				caseSensitiveWookup: inwineVawue.caseSensitiveWookup
 			};
-		} else if (inlineValue instanceof types.InlineValueEvaluatableExpression) {
-			return <modes.InlineValueExpression>{
-				type: 'expression',
-				range: Range.from(inlineValue.range),
-				expression: inlineValue.expression
+		} ewse if (inwineVawue instanceof types.InwineVawueEvawuatabweExpwession) {
+			wetuwn <modes.InwineVawueExpwession>{
+				type: 'expwession',
+				wange: Wange.fwom(inwineVawue.wange),
+				expwession: inwineVawue.expwession
 			};
-		} else {
-			throw new Error(`Unknown 'InlineValue' type`);
+		} ewse {
+			thwow new Ewwow(`Unknown 'InwineVawue' type`);
 		}
 	}
 
-	export function to(inlineValue: modes.InlineValue): vscode.InlineValue {
-		switch (inlineValue.type) {
+	expowt function to(inwineVawue: modes.InwineVawue): vscode.InwineVawue {
+		switch (inwineVawue.type) {
 			case 'text':
-				return <vscode.InlineValueText>{
-					range: Range.to(inlineValue.range),
-					text: inlineValue.text
+				wetuwn <vscode.InwineVawueText>{
+					wange: Wange.to(inwineVawue.wange),
+					text: inwineVawue.text
 				};
-			case 'variable':
-				return <vscode.InlineValueVariableLookup>{
-					range: Range.to(inlineValue.range),
-					variableName: inlineValue.variableName,
-					caseSensitiveLookup: inlineValue.caseSensitiveLookup
+			case 'vawiabwe':
+				wetuwn <vscode.InwineVawueVawiabweWookup>{
+					wange: Wange.to(inwineVawue.wange),
+					vawiabweName: inwineVawue.vawiabweName,
+					caseSensitiveWookup: inwineVawue.caseSensitiveWookup
 				};
-			case 'expression':
-				return <vscode.InlineValueEvaluatableExpression>{
-					range: Range.to(inlineValue.range),
-					expression: inlineValue.expression
+			case 'expwession':
+				wetuwn <vscode.InwineVawueEvawuatabweExpwession>{
+					wange: Wange.to(inwineVawue.wange),
+					expwession: inwineVawue.expwession
 				};
 		}
 	}
 }
 
-export namespace InlineValueContext {
-	export function from(inlineValueContext: vscode.InlineValueContext): extHostProtocol.IInlineValueContextDto {
-		return <extHostProtocol.IInlineValueContextDto>{
-			frameId: inlineValueContext.frameId,
-			stoppedLocation: Range.from(inlineValueContext.stoppedLocation)
+expowt namespace InwineVawueContext {
+	expowt function fwom(inwineVawueContext: vscode.InwineVawueContext): extHostPwotocow.IInwineVawueContextDto {
+		wetuwn <extHostPwotocow.IInwineVawueContextDto>{
+			fwameId: inwineVawueContext.fwameId,
+			stoppedWocation: Wange.fwom(inwineVawueContext.stoppedWocation)
 		};
 	}
 
-	export function to(inlineValueContext: extHostProtocol.IInlineValueContextDto): types.InlineValueContext {
-		return new types.InlineValueContext(inlineValueContext.frameId, Range.to(inlineValueContext.stoppedLocation));
+	expowt function to(inwineVawueContext: extHostPwotocow.IInwineVawueContextDto): types.InwineVawueContext {
+		wetuwn new types.InwineVawueContext(inwineVawueContext.fwameId, Wange.to(inwineVawueContext.stoppedWocation));
 	}
 }
 
-export namespace DocumentHighlight {
-	export function from(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
-		return {
-			range: Range.from(documentHighlight.range),
-			kind: documentHighlight.kind
+expowt namespace DocumentHighwight {
+	expowt function fwom(documentHighwight: vscode.DocumentHighwight): modes.DocumentHighwight {
+		wetuwn {
+			wange: Wange.fwom(documentHighwight.wange),
+			kind: documentHighwight.kind
 		};
 	}
-	export function to(occurrence: modes.DocumentHighlight): types.DocumentHighlight {
-		return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
+	expowt function to(occuwwence: modes.DocumentHighwight): types.DocumentHighwight {
+		wetuwn new types.DocumentHighwight(Wange.to(occuwwence.wange), occuwwence.kind);
 	}
 }
 
-export namespace CompletionTriggerKind {
-	export function to(kind: modes.CompletionTriggerKind) {
+expowt namespace CompwetionTwiggewKind {
+	expowt function to(kind: modes.CompwetionTwiggewKind) {
 		switch (kind) {
-			case modes.CompletionTriggerKind.TriggerCharacter:
-				return types.CompletionTriggerKind.TriggerCharacter;
-			case modes.CompletionTriggerKind.TriggerForIncompleteCompletions:
-				return types.CompletionTriggerKind.TriggerForIncompleteCompletions;
-			case modes.CompletionTriggerKind.Invoke:
-			default:
-				return types.CompletionTriggerKind.Invoke;
+			case modes.CompwetionTwiggewKind.TwiggewChawacta:
+				wetuwn types.CompwetionTwiggewKind.TwiggewChawacta;
+			case modes.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions:
+				wetuwn types.CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions;
+			case modes.CompwetionTwiggewKind.Invoke:
+			defauwt:
+				wetuwn types.CompwetionTwiggewKind.Invoke;
 		}
 	}
 }
 
-export namespace CompletionContext {
-	export function to(context: modes.CompletionContext): types.CompletionContext {
-		return {
-			triggerKind: CompletionTriggerKind.to(context.triggerKind),
-			triggerCharacter: context.triggerCharacter
+expowt namespace CompwetionContext {
+	expowt function to(context: modes.CompwetionContext): types.CompwetionContext {
+		wetuwn {
+			twiggewKind: CompwetionTwiggewKind.to(context.twiggewKind),
+			twiggewChawacta: context.twiggewChawacta
 		};
 	}
 }
 
-export namespace CompletionItemTag {
+expowt namespace CompwetionItemTag {
 
-	export function from(kind: types.CompletionItemTag): modes.CompletionItemTag {
+	expowt function fwom(kind: types.CompwetionItemTag): modes.CompwetionItemTag {
 		switch (kind) {
-			case types.CompletionItemTag.Deprecated: return modes.CompletionItemTag.Deprecated;
+			case types.CompwetionItemTag.Depwecated: wetuwn modes.CompwetionItemTag.Depwecated;
 		}
 	}
 
-	export function to(kind: modes.CompletionItemTag): types.CompletionItemTag {
+	expowt function to(kind: modes.CompwetionItemTag): types.CompwetionItemTag {
 		switch (kind) {
-			case modes.CompletionItemTag.Deprecated: return types.CompletionItemTag.Deprecated;
+			case modes.CompwetionItemTag.Depwecated: wetuwn types.CompwetionItemTag.Depwecated;
 		}
 	}
 }
 
-export namespace CompletionItemKind {
+expowt namespace CompwetionItemKind {
 
-	const _from = new Map<types.CompletionItemKind, modes.CompletionItemKind>([
-		[types.CompletionItemKind.Method, modes.CompletionItemKind.Method],
-		[types.CompletionItemKind.Function, modes.CompletionItemKind.Function],
-		[types.CompletionItemKind.Constructor, modes.CompletionItemKind.Constructor],
-		[types.CompletionItemKind.Field, modes.CompletionItemKind.Field],
-		[types.CompletionItemKind.Variable, modes.CompletionItemKind.Variable],
-		[types.CompletionItemKind.Class, modes.CompletionItemKind.Class],
-		[types.CompletionItemKind.Interface, modes.CompletionItemKind.Interface],
-		[types.CompletionItemKind.Struct, modes.CompletionItemKind.Struct],
-		[types.CompletionItemKind.Module, modes.CompletionItemKind.Module],
-		[types.CompletionItemKind.Property, modes.CompletionItemKind.Property],
-		[types.CompletionItemKind.Unit, modes.CompletionItemKind.Unit],
-		[types.CompletionItemKind.Value, modes.CompletionItemKind.Value],
-		[types.CompletionItemKind.Constant, modes.CompletionItemKind.Constant],
-		[types.CompletionItemKind.Enum, modes.CompletionItemKind.Enum],
-		[types.CompletionItemKind.EnumMember, modes.CompletionItemKind.EnumMember],
-		[types.CompletionItemKind.Keyword, modes.CompletionItemKind.Keyword],
-		[types.CompletionItemKind.Snippet, modes.CompletionItemKind.Snippet],
-		[types.CompletionItemKind.Text, modes.CompletionItemKind.Text],
-		[types.CompletionItemKind.Color, modes.CompletionItemKind.Color],
-		[types.CompletionItemKind.File, modes.CompletionItemKind.File],
-		[types.CompletionItemKind.Reference, modes.CompletionItemKind.Reference],
-		[types.CompletionItemKind.Folder, modes.CompletionItemKind.Folder],
-		[types.CompletionItemKind.Event, modes.CompletionItemKind.Event],
-		[types.CompletionItemKind.Operator, modes.CompletionItemKind.Operator],
-		[types.CompletionItemKind.TypeParameter, modes.CompletionItemKind.TypeParameter],
-		[types.CompletionItemKind.Issue, modes.CompletionItemKind.Issue],
-		[types.CompletionItemKind.User, modes.CompletionItemKind.User],
+	const _fwom = new Map<types.CompwetionItemKind, modes.CompwetionItemKind>([
+		[types.CompwetionItemKind.Method, modes.CompwetionItemKind.Method],
+		[types.CompwetionItemKind.Function, modes.CompwetionItemKind.Function],
+		[types.CompwetionItemKind.Constwuctow, modes.CompwetionItemKind.Constwuctow],
+		[types.CompwetionItemKind.Fiewd, modes.CompwetionItemKind.Fiewd],
+		[types.CompwetionItemKind.Vawiabwe, modes.CompwetionItemKind.Vawiabwe],
+		[types.CompwetionItemKind.Cwass, modes.CompwetionItemKind.Cwass],
+		[types.CompwetionItemKind.Intewface, modes.CompwetionItemKind.Intewface],
+		[types.CompwetionItemKind.Stwuct, modes.CompwetionItemKind.Stwuct],
+		[types.CompwetionItemKind.Moduwe, modes.CompwetionItemKind.Moduwe],
+		[types.CompwetionItemKind.Pwopewty, modes.CompwetionItemKind.Pwopewty],
+		[types.CompwetionItemKind.Unit, modes.CompwetionItemKind.Unit],
+		[types.CompwetionItemKind.Vawue, modes.CompwetionItemKind.Vawue],
+		[types.CompwetionItemKind.Constant, modes.CompwetionItemKind.Constant],
+		[types.CompwetionItemKind.Enum, modes.CompwetionItemKind.Enum],
+		[types.CompwetionItemKind.EnumMemba, modes.CompwetionItemKind.EnumMemba],
+		[types.CompwetionItemKind.Keywowd, modes.CompwetionItemKind.Keywowd],
+		[types.CompwetionItemKind.Snippet, modes.CompwetionItemKind.Snippet],
+		[types.CompwetionItemKind.Text, modes.CompwetionItemKind.Text],
+		[types.CompwetionItemKind.Cowow, modes.CompwetionItemKind.Cowow],
+		[types.CompwetionItemKind.Fiwe, modes.CompwetionItemKind.Fiwe],
+		[types.CompwetionItemKind.Wefewence, modes.CompwetionItemKind.Wefewence],
+		[types.CompwetionItemKind.Fowda, modes.CompwetionItemKind.Fowda],
+		[types.CompwetionItemKind.Event, modes.CompwetionItemKind.Event],
+		[types.CompwetionItemKind.Opewatow, modes.CompwetionItemKind.Opewatow],
+		[types.CompwetionItemKind.TypePawameta, modes.CompwetionItemKind.TypePawameta],
+		[types.CompwetionItemKind.Issue, modes.CompwetionItemKind.Issue],
+		[types.CompwetionItemKind.Usa, modes.CompwetionItemKind.Usa],
 	]);
 
-	export function from(kind: types.CompletionItemKind): modes.CompletionItemKind {
-		return _from.get(kind) ?? modes.CompletionItemKind.Property;
+	expowt function fwom(kind: types.CompwetionItemKind): modes.CompwetionItemKind {
+		wetuwn _fwom.get(kind) ?? modes.CompwetionItemKind.Pwopewty;
 	}
 
-	const _to = new Map<modes.CompletionItemKind, types.CompletionItemKind>([
-		[modes.CompletionItemKind.Method, types.CompletionItemKind.Method],
-		[modes.CompletionItemKind.Function, types.CompletionItemKind.Function],
-		[modes.CompletionItemKind.Constructor, types.CompletionItemKind.Constructor],
-		[modes.CompletionItemKind.Field, types.CompletionItemKind.Field],
-		[modes.CompletionItemKind.Variable, types.CompletionItemKind.Variable],
-		[modes.CompletionItemKind.Class, types.CompletionItemKind.Class],
-		[modes.CompletionItemKind.Interface, types.CompletionItemKind.Interface],
-		[modes.CompletionItemKind.Struct, types.CompletionItemKind.Struct],
-		[modes.CompletionItemKind.Module, types.CompletionItemKind.Module],
-		[modes.CompletionItemKind.Property, types.CompletionItemKind.Property],
-		[modes.CompletionItemKind.Unit, types.CompletionItemKind.Unit],
-		[modes.CompletionItemKind.Value, types.CompletionItemKind.Value],
-		[modes.CompletionItemKind.Constant, types.CompletionItemKind.Constant],
-		[modes.CompletionItemKind.Enum, types.CompletionItemKind.Enum],
-		[modes.CompletionItemKind.EnumMember, types.CompletionItemKind.EnumMember],
-		[modes.CompletionItemKind.Keyword, types.CompletionItemKind.Keyword],
-		[modes.CompletionItemKind.Snippet, types.CompletionItemKind.Snippet],
-		[modes.CompletionItemKind.Text, types.CompletionItemKind.Text],
-		[modes.CompletionItemKind.Color, types.CompletionItemKind.Color],
-		[modes.CompletionItemKind.File, types.CompletionItemKind.File],
-		[modes.CompletionItemKind.Reference, types.CompletionItemKind.Reference],
-		[modes.CompletionItemKind.Folder, types.CompletionItemKind.Folder],
-		[modes.CompletionItemKind.Event, types.CompletionItemKind.Event],
-		[modes.CompletionItemKind.Operator, types.CompletionItemKind.Operator],
-		[modes.CompletionItemKind.TypeParameter, types.CompletionItemKind.TypeParameter],
-		[modes.CompletionItemKind.User, types.CompletionItemKind.User],
-		[modes.CompletionItemKind.Issue, types.CompletionItemKind.Issue],
+	const _to = new Map<modes.CompwetionItemKind, types.CompwetionItemKind>([
+		[modes.CompwetionItemKind.Method, types.CompwetionItemKind.Method],
+		[modes.CompwetionItemKind.Function, types.CompwetionItemKind.Function],
+		[modes.CompwetionItemKind.Constwuctow, types.CompwetionItemKind.Constwuctow],
+		[modes.CompwetionItemKind.Fiewd, types.CompwetionItemKind.Fiewd],
+		[modes.CompwetionItemKind.Vawiabwe, types.CompwetionItemKind.Vawiabwe],
+		[modes.CompwetionItemKind.Cwass, types.CompwetionItemKind.Cwass],
+		[modes.CompwetionItemKind.Intewface, types.CompwetionItemKind.Intewface],
+		[modes.CompwetionItemKind.Stwuct, types.CompwetionItemKind.Stwuct],
+		[modes.CompwetionItemKind.Moduwe, types.CompwetionItemKind.Moduwe],
+		[modes.CompwetionItemKind.Pwopewty, types.CompwetionItemKind.Pwopewty],
+		[modes.CompwetionItemKind.Unit, types.CompwetionItemKind.Unit],
+		[modes.CompwetionItemKind.Vawue, types.CompwetionItemKind.Vawue],
+		[modes.CompwetionItemKind.Constant, types.CompwetionItemKind.Constant],
+		[modes.CompwetionItemKind.Enum, types.CompwetionItemKind.Enum],
+		[modes.CompwetionItemKind.EnumMemba, types.CompwetionItemKind.EnumMemba],
+		[modes.CompwetionItemKind.Keywowd, types.CompwetionItemKind.Keywowd],
+		[modes.CompwetionItemKind.Snippet, types.CompwetionItemKind.Snippet],
+		[modes.CompwetionItemKind.Text, types.CompwetionItemKind.Text],
+		[modes.CompwetionItemKind.Cowow, types.CompwetionItemKind.Cowow],
+		[modes.CompwetionItemKind.Fiwe, types.CompwetionItemKind.Fiwe],
+		[modes.CompwetionItemKind.Wefewence, types.CompwetionItemKind.Wefewence],
+		[modes.CompwetionItemKind.Fowda, types.CompwetionItemKind.Fowda],
+		[modes.CompwetionItemKind.Event, types.CompwetionItemKind.Event],
+		[modes.CompwetionItemKind.Opewatow, types.CompwetionItemKind.Opewatow],
+		[modes.CompwetionItemKind.TypePawameta, types.CompwetionItemKind.TypePawameta],
+		[modes.CompwetionItemKind.Usa, types.CompwetionItemKind.Usa],
+		[modes.CompwetionItemKind.Issue, types.CompwetionItemKind.Issue],
 	]);
 
-	export function to(kind: modes.CompletionItemKind): types.CompletionItemKind {
-		return _to.get(kind) ?? types.CompletionItemKind.Property;
+	expowt function to(kind: modes.CompwetionItemKind): types.CompwetionItemKind {
+		wetuwn _to.get(kind) ?? types.CompwetionItemKind.Pwopewty;
 	}
 }
 
-export namespace CompletionItem {
+expowt namespace CompwetionItem {
 
-	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
+	expowt function to(suggestion: modes.CompwetionItem, convewta?: CommandsConvewta): types.CompwetionItem {
 
-		const result = new types.CompletionItem(suggestion.label);
-		result.insertText = suggestion.insertText;
-		result.kind = CompletionItemKind.to(suggestion.kind);
-		result.tags = suggestion.tags?.map(CompletionItemTag.to);
-		result.detail = suggestion.detail;
-		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
-		result.sortText = suggestion.sortText;
-		result.filterText = suggestion.filterText;
-		result.preselect = suggestion.preselect;
-		result.commitCharacters = suggestion.commitCharacters;
+		const wesuwt = new types.CompwetionItem(suggestion.wabew);
+		wesuwt.insewtText = suggestion.insewtText;
+		wesuwt.kind = CompwetionItemKind.to(suggestion.kind);
+		wesuwt.tags = suggestion.tags?.map(CompwetionItemTag.to);
+		wesuwt.detaiw = suggestion.detaiw;
+		wesuwt.documentation = htmwContent.isMawkdownStwing(suggestion.documentation) ? MawkdownStwing.to(suggestion.documentation) : suggestion.documentation;
+		wesuwt.sowtText = suggestion.sowtText;
+		wesuwt.fiwtewText = suggestion.fiwtewText;
+		wesuwt.pwesewect = suggestion.pwesewect;
+		wesuwt.commitChawactews = suggestion.commitChawactews;
 
-		// range
-		if (editorRange.Range.isIRange(suggestion.range)) {
-			result.range = Range.to(suggestion.range);
-		} else if (typeof suggestion.range === 'object') {
-			result.range = { inserting: Range.to(suggestion.range.insert), replacing: Range.to(suggestion.range.replace) };
+		// wange
+		if (editowWange.Wange.isIWange(suggestion.wange)) {
+			wesuwt.wange = Wange.to(suggestion.wange);
+		} ewse if (typeof suggestion.wange === 'object') {
+			wesuwt.wange = { insewting: Wange.to(suggestion.wange.insewt), wepwacing: Wange.to(suggestion.wange.wepwace) };
 		}
 
-		result.keepWhitespace = typeof suggestion.insertTextRules === 'undefined' ? false : Boolean(suggestion.insertTextRules & modes.CompletionItemInsertTextRule.KeepWhitespace);
-		// 'insertText'-logic
-		if (typeof suggestion.insertTextRules !== 'undefined' && suggestion.insertTextRules & modes.CompletionItemInsertTextRule.InsertAsSnippet) {
-			result.insertText = new types.SnippetString(suggestion.insertText);
-		} else {
-			result.insertText = suggestion.insertText;
-			result.textEdit = result.range instanceof types.Range ? new types.TextEdit(result.range, result.insertText) : undefined;
+		wesuwt.keepWhitespace = typeof suggestion.insewtTextWuwes === 'undefined' ? fawse : Boowean(suggestion.insewtTextWuwes & modes.CompwetionItemInsewtTextWuwe.KeepWhitespace);
+		// 'insewtText'-wogic
+		if (typeof suggestion.insewtTextWuwes !== 'undefined' && suggestion.insewtTextWuwes & modes.CompwetionItemInsewtTextWuwe.InsewtAsSnippet) {
+			wesuwt.insewtText = new types.SnippetStwing(suggestion.insewtText);
+		} ewse {
+			wesuwt.insewtText = suggestion.insewtText;
+			wesuwt.textEdit = wesuwt.wange instanceof types.Wange ? new types.TextEdit(wesuwt.wange, wesuwt.insewtText) : undefined;
 		}
-		if (suggestion.additionalTextEdits && suggestion.additionalTextEdits.length > 0) {
-			result.additionalTextEdits = suggestion.additionalTextEdits.map(e => TextEdit.to(e as modes.TextEdit));
+		if (suggestion.additionawTextEdits && suggestion.additionawTextEdits.wength > 0) {
+			wesuwt.additionawTextEdits = suggestion.additionawTextEdits.map(e => TextEdit.to(e as modes.TextEdit));
 		}
-		result.command = converter && suggestion.command ? converter.fromInternal(suggestion.command) : undefined;
+		wesuwt.command = convewta && suggestion.command ? convewta.fwomIntewnaw(suggestion.command) : undefined;
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace ParameterInformation {
-	export function from(info: types.ParameterInformation): modes.ParameterInformation {
-		return {
-			label: info.label,
-			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined
+expowt namespace PawametewInfowmation {
+	expowt function fwom(info: types.PawametewInfowmation): modes.PawametewInfowmation {
+		wetuwn {
+			wabew: info.wabew,
+			documentation: info.documentation ? MawkdownStwing.fwomStwict(info.documentation) : undefined
 		};
 	}
-	export function to(info: modes.ParameterInformation): types.ParameterInformation {
-		return {
-			label: info.label,
-			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation
-		};
-	}
-}
-
-export namespace SignatureInformation {
-
-	export function from(info: types.SignatureInformation): modes.SignatureInformation {
-		return {
-			label: info.label,
-			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
-			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : [],
-			activeParameter: info.activeParameter,
-		};
-	}
-
-	export function to(info: modes.SignatureInformation): types.SignatureInformation {
-		return {
-			label: info.label,
-			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
-			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : [],
-			activeParameter: info.activeParameter,
+	expowt function to(info: modes.PawametewInfowmation): types.PawametewInfowmation {
+		wetuwn {
+			wabew: info.wabew,
+			documentation: htmwContent.isMawkdownStwing(info.documentation) ? MawkdownStwing.to(info.documentation) : info.documentation
 		};
 	}
 }
 
-export namespace SignatureHelp {
+expowt namespace SignatuweInfowmation {
 
-	export function from(help: types.SignatureHelp): modes.SignatureHelp {
-		return {
-			activeSignature: help.activeSignature,
-			activeParameter: help.activeParameter,
-			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.from) : [],
+	expowt function fwom(info: types.SignatuweInfowmation): modes.SignatuweInfowmation {
+		wetuwn {
+			wabew: info.wabew,
+			documentation: info.documentation ? MawkdownStwing.fwomStwict(info.documentation) : undefined,
+			pawametews: Awway.isAwway(info.pawametews) ? info.pawametews.map(PawametewInfowmation.fwom) : [],
+			activePawameta: info.activePawameta,
 		};
 	}
 
-	export function to(help: modes.SignatureHelp): types.SignatureHelp {
-		return {
-			activeSignature: help.activeSignature,
-			activeParameter: help.activeParameter,
-			signatures: Array.isArray(help.signatures) ? help.signatures.map(SignatureInformation.to) : [],
+	expowt function to(info: modes.SignatuweInfowmation): types.SignatuweInfowmation {
+		wetuwn {
+			wabew: info.wabew,
+			documentation: htmwContent.isMawkdownStwing(info.documentation) ? MawkdownStwing.to(info.documentation) : info.documentation,
+			pawametews: Awway.isAwway(info.pawametews) ? info.pawametews.map(PawametewInfowmation.to) : [],
+			activePawameta: info.activePawameta,
 		};
 	}
 }
 
-export namespace InlayHint {
+expowt namespace SignatuweHewp {
 
-	export function from(hint: vscode.InlayHint): modes.InlayHint {
-		return {
+	expowt function fwom(hewp: types.SignatuweHewp): modes.SignatuweHewp {
+		wetuwn {
+			activeSignatuwe: hewp.activeSignatuwe,
+			activePawameta: hewp.activePawameta,
+			signatuwes: Awway.isAwway(hewp.signatuwes) ? hewp.signatuwes.map(SignatuweInfowmation.fwom) : [],
+		};
+	}
+
+	expowt function to(hewp: modes.SignatuweHewp): types.SignatuweHewp {
+		wetuwn {
+			activeSignatuwe: hewp.activeSignatuwe,
+			activePawameta: hewp.activePawameta,
+			signatuwes: Awway.isAwway(hewp.signatuwes) ? hewp.signatuwes.map(SignatuweInfowmation.to) : [],
+		};
+	}
+}
+
+expowt namespace InwayHint {
+
+	expowt function fwom(hint: vscode.InwayHint): modes.InwayHint {
+		wetuwn {
 			text: hint.text,
-			position: Position.from(hint.position),
-			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other),
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
+			position: Position.fwom(hint.position),
+			kind: InwayHintKind.fwom(hint.kind ?? types.InwayHintKind.Otha),
+			whitespaceBefowe: hint.whitespaceBefowe,
+			whitespaceAfta: hint.whitespaceAfta
 		};
 	}
 
-	export function to(hint: modes.InlayHint): vscode.InlayHint {
-		const res = new types.InlayHint(
+	expowt function to(hint: modes.InwayHint): vscode.InwayHint {
+		const wes = new types.InwayHint(
 			hint.text,
 			Position.to(hint.position),
-			InlayHintKind.to(hint.kind)
+			InwayHintKind.to(hint.kind)
 		);
-		res.whitespaceAfter = hint.whitespaceAfter;
-		res.whitespaceBefore = hint.whitespaceBefore;
-		return res;
+		wes.whitespaceAfta = hint.whitespaceAfta;
+		wes.whitespaceBefowe = hint.whitespaceBefowe;
+		wetuwn wes;
 	}
 }
 
-export namespace InlayHintKind {
-	export function from(kind: vscode.InlayHintKind): modes.InlayHintKind {
-		return kind;
+expowt namespace InwayHintKind {
+	expowt function fwom(kind: vscode.InwayHintKind): modes.InwayHintKind {
+		wetuwn kind;
 	}
-	export function to(kind: modes.InlayHintKind): vscode.InlayHintKind {
-		return kind;
+	expowt function to(kind: modes.InwayHintKind): vscode.InwayHintKind {
+		wetuwn kind;
 	}
 }
 
-export namespace DocumentLink {
+expowt namespace DocumentWink {
 
-	export function from(link: vscode.DocumentLink): modes.ILink {
-		return {
-			range: Range.from(link.range),
-			url: link.target,
-			tooltip: link.tooltip
+	expowt function fwom(wink: vscode.DocumentWink): modes.IWink {
+		wetuwn {
+			wange: Wange.fwom(wink.wange),
+			uww: wink.tawget,
+			toowtip: wink.toowtip
 		};
 	}
 
-	export function to(link: modes.ILink): vscode.DocumentLink {
-		let target: URI | undefined = undefined;
-		if (link.url) {
-			try {
-				target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
-			} catch (err) {
-				// ignore
+	expowt function to(wink: modes.IWink): vscode.DocumentWink {
+		wet tawget: UWI | undefined = undefined;
+		if (wink.uww) {
+			twy {
+				tawget = typeof wink.uww === 'stwing' ? UWI.pawse(wink.uww, twue) : UWI.wevive(wink.uww);
+			} catch (eww) {
+				// ignowe
 			}
 		}
-		return new types.DocumentLink(Range.to(link.range), target);
+		wetuwn new types.DocumentWink(Wange.to(wink.wange), tawget);
 	}
 }
 
-export namespace ColorPresentation {
-	export function to(colorPresentation: modes.IColorPresentation): types.ColorPresentation {
-		const cp = new types.ColorPresentation(colorPresentation.label);
-		if (colorPresentation.textEdit) {
-			cp.textEdit = TextEdit.to(colorPresentation.textEdit);
+expowt namespace CowowPwesentation {
+	expowt function to(cowowPwesentation: modes.ICowowPwesentation): types.CowowPwesentation {
+		const cp = new types.CowowPwesentation(cowowPwesentation.wabew);
+		if (cowowPwesentation.textEdit) {
+			cp.textEdit = TextEdit.to(cowowPwesentation.textEdit);
 		}
-		if (colorPresentation.additionalTextEdits) {
-			cp.additionalTextEdits = colorPresentation.additionalTextEdits.map(value => TextEdit.to(value));
+		if (cowowPwesentation.additionawTextEdits) {
+			cp.additionawTextEdits = cowowPwesentation.additionawTextEdits.map(vawue => TextEdit.to(vawue));
 		}
-		return cp;
+		wetuwn cp;
 	}
 
-	export function from(colorPresentation: vscode.ColorPresentation): modes.IColorPresentation {
-		return {
-			label: colorPresentation.label,
-			textEdit: colorPresentation.textEdit ? TextEdit.from(colorPresentation.textEdit) : undefined,
-			additionalTextEdits: colorPresentation.additionalTextEdits ? colorPresentation.additionalTextEdits.map(value => TextEdit.from(value)) : undefined
+	expowt function fwom(cowowPwesentation: vscode.CowowPwesentation): modes.ICowowPwesentation {
+		wetuwn {
+			wabew: cowowPwesentation.wabew,
+			textEdit: cowowPwesentation.textEdit ? TextEdit.fwom(cowowPwesentation.textEdit) : undefined,
+			additionawTextEdits: cowowPwesentation.additionawTextEdits ? cowowPwesentation.additionawTextEdits.map(vawue => TextEdit.fwom(vawue)) : undefined
 		};
 	}
 }
 
-export namespace Color {
-	export function to(c: [number, number, number, number]): types.Color {
-		return new types.Color(c[0], c[1], c[2], c[3]);
+expowt namespace Cowow {
+	expowt function to(c: [numba, numba, numba, numba]): types.Cowow {
+		wetuwn new types.Cowow(c[0], c[1], c[2], c[3]);
 	}
-	export function from(color: types.Color): [number, number, number, number] {
-		return [color.red, color.green, color.blue, color.alpha];
-	}
-}
-
-
-export namespace SelectionRange {
-	export function from(obj: vscode.SelectionRange): modes.SelectionRange {
-		return { range: Range.from(obj.range) };
-	}
-
-	export function to(obj: modes.SelectionRange): vscode.SelectionRange {
-		return new types.SelectionRange(Range.to(obj.range));
+	expowt function fwom(cowow: types.Cowow): [numba, numba, numba, numba] {
+		wetuwn [cowow.wed, cowow.gween, cowow.bwue, cowow.awpha];
 	}
 }
 
-export namespace TextDocumentSaveReason {
 
-	export function to(reason: SaveReason): vscode.TextDocumentSaveReason {
-		switch (reason) {
-			case SaveReason.AUTO:
-				return types.TextDocumentSaveReason.AfterDelay;
-			case SaveReason.EXPLICIT:
-				return types.TextDocumentSaveReason.Manual;
-			case SaveReason.FOCUS_CHANGE:
-			case SaveReason.WINDOW_CHANGE:
-				return types.TextDocumentSaveReason.FocusOut;
-		}
+expowt namespace SewectionWange {
+	expowt function fwom(obj: vscode.SewectionWange): modes.SewectionWange {
+		wetuwn { wange: Wange.fwom(obj.wange) };
+	}
+
+	expowt function to(obj: modes.SewectionWange): vscode.SewectionWange {
+		wetuwn new types.SewectionWange(Wange.to(obj.wange));
 	}
 }
 
-export namespace TextEditorLineNumbersStyle {
-	export function from(style: vscode.TextEditorLineNumbersStyle): RenderLineNumbersType {
-		switch (style) {
-			case types.TextEditorLineNumbersStyle.Off:
-				return RenderLineNumbersType.Off;
-			case types.TextEditorLineNumbersStyle.Relative:
-				return RenderLineNumbersType.Relative;
-			case types.TextEditorLineNumbersStyle.On:
-			default:
-				return RenderLineNumbersType.On;
-		}
-	}
-	export function to(style: RenderLineNumbersType): vscode.TextEditorLineNumbersStyle {
-		switch (style) {
-			case RenderLineNumbersType.Off:
-				return types.TextEditorLineNumbersStyle.Off;
-			case RenderLineNumbersType.Relative:
-				return types.TextEditorLineNumbersStyle.Relative;
-			case RenderLineNumbersType.On:
-			default:
-				return types.TextEditorLineNumbersStyle.On;
+expowt namespace TextDocumentSaveWeason {
+
+	expowt function to(weason: SaveWeason): vscode.TextDocumentSaveWeason {
+		switch (weason) {
+			case SaveWeason.AUTO:
+				wetuwn types.TextDocumentSaveWeason.AftewDeway;
+			case SaveWeason.EXPWICIT:
+				wetuwn types.TextDocumentSaveWeason.Manuaw;
+			case SaveWeason.FOCUS_CHANGE:
+			case SaveWeason.WINDOW_CHANGE:
+				wetuwn types.TextDocumentSaveWeason.FocusOut;
 		}
 	}
 }
 
-export namespace EndOfLine {
-
-	export function from(eol: vscode.EndOfLine): EndOfLineSequence | undefined {
-		if (eol === types.EndOfLine.CRLF) {
-			return EndOfLineSequence.CRLF;
-		} else if (eol === types.EndOfLine.LF) {
-			return EndOfLineSequence.LF;
+expowt namespace TextEditowWineNumbewsStywe {
+	expowt function fwom(stywe: vscode.TextEditowWineNumbewsStywe): WendewWineNumbewsType {
+		switch (stywe) {
+			case types.TextEditowWineNumbewsStywe.Off:
+				wetuwn WendewWineNumbewsType.Off;
+			case types.TextEditowWineNumbewsStywe.Wewative:
+				wetuwn WendewWineNumbewsType.Wewative;
+			case types.TextEditowWineNumbewsStywe.On:
+			defauwt:
+				wetuwn WendewWineNumbewsType.On;
 		}
-		return undefined;
 	}
-
-	export function to(eol: EndOfLineSequence): vscode.EndOfLine | undefined {
-		if (eol === EndOfLineSequence.CRLF) {
-			return types.EndOfLine.CRLF;
-		} else if (eol === EndOfLineSequence.LF) {
-			return types.EndOfLine.LF;
+	expowt function to(stywe: WendewWineNumbewsType): vscode.TextEditowWineNumbewsStywe {
+		switch (stywe) {
+			case WendewWineNumbewsType.Off:
+				wetuwn types.TextEditowWineNumbewsStywe.Off;
+			case WendewWineNumbewsType.Wewative:
+				wetuwn types.TextEditowWineNumbewsStywe.Wewative;
+			case WendewWineNumbewsType.On:
+			defauwt:
+				wetuwn types.TextEditowWineNumbewsStywe.On;
 		}
-		return undefined;
-	}
-}
-
-export namespace ProgressLocation {
-	export function from(loc: vscode.ProgressLocation | { viewId: string }): MainProgressLocation | string {
-		if (typeof loc === 'object') {
-			return loc.viewId;
-		}
-
-		switch (loc) {
-			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
-			case types.ProgressLocation.Window: return MainProgressLocation.Window;
-			case types.ProgressLocation.Notification: return MainProgressLocation.Notification;
-		}
-		throw new Error(`Unknown 'ProgressLocation'`);
 	}
 }
 
-export namespace FoldingRange {
-	export function from(r: vscode.FoldingRange): modes.FoldingRange {
-		const range: modes.FoldingRange = { start: r.start + 1, end: r.end + 1 };
-		if (r.kind) {
-			range.kind = FoldingRangeKind.from(r.kind);
+expowt namespace EndOfWine {
+
+	expowt function fwom(eow: vscode.EndOfWine): EndOfWineSequence | undefined {
+		if (eow === types.EndOfWine.CWWF) {
+			wetuwn EndOfWineSequence.CWWF;
+		} ewse if (eow === types.EndOfWine.WF) {
+			wetuwn EndOfWineSequence.WF;
 		}
-		return range;
+		wetuwn undefined;
+	}
+
+	expowt function to(eow: EndOfWineSequence): vscode.EndOfWine | undefined {
+		if (eow === EndOfWineSequence.CWWF) {
+			wetuwn types.EndOfWine.CWWF;
+		} ewse if (eow === EndOfWineSequence.WF) {
+			wetuwn types.EndOfWine.WF;
+		}
+		wetuwn undefined;
 	}
 }
 
-export namespace FoldingRangeKind {
-	export function from(kind: vscode.FoldingRangeKind | undefined): modes.FoldingRangeKind | undefined {
+expowt namespace PwogwessWocation {
+	expowt function fwom(woc: vscode.PwogwessWocation | { viewId: stwing }): MainPwogwessWocation | stwing {
+		if (typeof woc === 'object') {
+			wetuwn woc.viewId;
+		}
+
+		switch (woc) {
+			case types.PwogwessWocation.SouwceContwow: wetuwn MainPwogwessWocation.Scm;
+			case types.PwogwessWocation.Window: wetuwn MainPwogwessWocation.Window;
+			case types.PwogwessWocation.Notification: wetuwn MainPwogwessWocation.Notification;
+		}
+		thwow new Ewwow(`Unknown 'PwogwessWocation'`);
+	}
+}
+
+expowt namespace FowdingWange {
+	expowt function fwom(w: vscode.FowdingWange): modes.FowdingWange {
+		const wange: modes.FowdingWange = { stawt: w.stawt + 1, end: w.end + 1 };
+		if (w.kind) {
+			wange.kind = FowdingWangeKind.fwom(w.kind);
+		}
+		wetuwn wange;
+	}
+}
+
+expowt namespace FowdingWangeKind {
+	expowt function fwom(kind: vscode.FowdingWangeKind | undefined): modes.FowdingWangeKind | undefined {
 		if (kind) {
 			switch (kind) {
-				case types.FoldingRangeKind.Comment:
-					return modes.FoldingRangeKind.Comment;
-				case types.FoldingRangeKind.Imports:
-					return modes.FoldingRangeKind.Imports;
-				case types.FoldingRangeKind.Region:
-					return modes.FoldingRangeKind.Region;
+				case types.FowdingWangeKind.Comment:
+					wetuwn modes.FowdingWangeKind.Comment;
+				case types.FowdingWangeKind.Impowts:
+					wetuwn modes.FowdingWangeKind.Impowts;
+				case types.FowdingWangeKind.Wegion:
+					wetuwn modes.FowdingWangeKind.Wegion;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
-	background?: boolean;
-	override?: boolean;
+expowt intewface TextEditowOpenOptions extends vscode.TextDocumentShowOptions {
+	backgwound?: boowean;
+	ovewwide?: boowean;
 }
 
-export namespace TextEditorOpenOptions {
+expowt namespace TextEditowOpenOptions {
 
-	export function from(options?: TextEditorOpenOptions): ITextEditorOptions | undefined {
+	expowt function fwom(options?: TextEditowOpenOptions): ITextEditowOptions | undefined {
 		if (options) {
-			return {
-				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-				inactive: options.background,
-				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
-				override: typeof options.override === 'boolean' ? EditorResolution.DISABLED : undefined
+			wetuwn {
+				pinned: typeof options.pweview === 'boowean' ? !options.pweview : undefined,
+				inactive: options.backgwound,
+				pwesewveFocus: options.pwesewveFocus,
+				sewection: typeof options.sewection === 'object' ? Wange.fwom(options.sewection) : undefined,
+				ovewwide: typeof options.ovewwide === 'boowean' ? EditowWesowution.DISABWED : undefined
 			};
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 }
 
-export namespace GlobPattern {
+expowt namespace GwobPattewn {
 
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
-	export function from(pattern: undefined): undefined;
-	export function from(pattern: null): null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null;
-	export function from(pattern: vscode.GlobPattern | undefined | null): string | types.RelativePattern | undefined | null {
-		if (pattern instanceof types.RelativePattern) {
-			return pattern;
+	expowt function fwom(pattewn: vscode.GwobPattewn): stwing | types.WewativePattewn;
+	expowt function fwom(pattewn: undefined): undefined;
+	expowt function fwom(pattewn: nuww): nuww;
+	expowt function fwom(pattewn: vscode.GwobPattewn | undefined | nuww): stwing | types.WewativePattewn | undefined | nuww;
+	expowt function fwom(pattewn: vscode.GwobPattewn | undefined | nuww): stwing | types.WewativePattewn | undefined | nuww {
+		if (pattewn instanceof types.WewativePattewn) {
+			wetuwn pattewn;
 		}
 
-		if (typeof pattern === 'string') {
-			return pattern;
+		if (typeof pattewn === 'stwing') {
+			wetuwn pattewn;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (isWewativePattewn(pattewn)) {
+			wetuwn new types.WewativePattewn(pattewn.base, pattewn.pattewn);
 		}
 
-		return pattern; // preserve `undefined` and `null`
+		wetuwn pattewn; // pwesewve `undefined` and `nuww`
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	function isWewativePattewn(obj: any): obj is vscode.WewativePattewn {
+		const wp = obj as vscode.WewativePattewn;
+		wetuwn wp && typeof wp.base === 'stwing' && typeof wp.pattewn === 'stwing';
 	}
 }
 
-export namespace LanguageSelector {
+expowt namespace WanguageSewectow {
 
-	export function from(selector: undefined): undefined;
-	export function from(selector: vscode.DocumentSelector): languageSelector.LanguageSelector;
-	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined;
-	export function from(selector: vscode.DocumentSelector | undefined): languageSelector.LanguageSelector | undefined {
-		if (!selector) {
-			return undefined;
-		} else if (Array.isArray(selector)) {
-			return <languageSelector.LanguageSelector>selector.map(from);
-		} else if (typeof selector === 'string') {
-			return selector;
-		} else {
-			const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
-			return <languageSelector.LanguageFilter>{
-				language: filter.language,
-				scheme: filter.scheme,
-				pattern: typeof filter.pattern === 'undefined' ? undefined : GlobPattern.from(filter.pattern),
-				exclusive: filter.exclusive
+	expowt function fwom(sewectow: undefined): undefined;
+	expowt function fwom(sewectow: vscode.DocumentSewectow): wanguageSewectow.WanguageSewectow;
+	expowt function fwom(sewectow: vscode.DocumentSewectow | undefined): wanguageSewectow.WanguageSewectow | undefined;
+	expowt function fwom(sewectow: vscode.DocumentSewectow | undefined): wanguageSewectow.WanguageSewectow | undefined {
+		if (!sewectow) {
+			wetuwn undefined;
+		} ewse if (Awway.isAwway(sewectow)) {
+			wetuwn <wanguageSewectow.WanguageSewectow>sewectow.map(fwom);
+		} ewse if (typeof sewectow === 'stwing') {
+			wetuwn sewectow;
+		} ewse {
+			const fiwta = sewectow as vscode.DocumentFiwta; // TODO: micwosoft/TypeScwipt#42768
+			wetuwn <wanguageSewectow.WanguageFiwta>{
+				wanguage: fiwta.wanguage,
+				scheme: fiwta.scheme,
+				pattewn: typeof fiwta.pattewn === 'undefined' ? undefined : GwobPattewn.fwom(fiwta.pattewn),
+				excwusive: fiwta.excwusive
 			};
 		}
 	}
 }
 
-export namespace NotebookRange {
+expowt namespace NotebookWange {
 
-	export function from(range: vscode.NotebookRange): ICellRange {
-		return { start: range.start, end: range.end };
+	expowt function fwom(wange: vscode.NotebookWange): ICewwWange {
+		wetuwn { stawt: wange.stawt, end: wange.end };
 	}
 
-	export function to(range: ICellRange): types.NotebookRange {
-		return new types.NotebookRange(range.start, range.end);
-	}
-}
-
-export namespace NotebookCellExecutionSummary {
-	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
-		return {
-			timing: typeof data.runStartTime === 'number' && typeof data.runEndTime === 'number' ? { startTime: data.runStartTime, endTime: data.runEndTime } : undefined,
-			executionOrder: data.executionOrder,
-			success: data.lastRunSuccess
-		};
-	}
-
-	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellInternalMetadata> {
-		return {
-			lastRunSuccess: data.success,
-			runStartTime: data.timing?.startTime,
-			runEndTime: data.timing?.endTime,
-			executionOrder: data.executionOrder
-		};
+	expowt function to(wange: ICewwWange): types.NotebookWange {
+		wetuwn new types.NotebookWange(wange.stawt, wange.end);
 	}
 }
 
-export namespace NotebookCellKind {
-	export function from(data: vscode.NotebookCellKind): notebooks.CellKind {
+expowt namespace NotebookCewwExecutionSummawy {
+	expowt function to(data: notebooks.NotebookCewwIntewnawMetadata): vscode.NotebookCewwExecutionSummawy {
+		wetuwn {
+			timing: typeof data.wunStawtTime === 'numba' && typeof data.wunEndTime === 'numba' ? { stawtTime: data.wunStawtTime, endTime: data.wunEndTime } : undefined,
+			executionOwda: data.executionOwda,
+			success: data.wastWunSuccess
+		};
+	}
+
+	expowt function fwom(data: vscode.NotebookCewwExecutionSummawy): Pawtiaw<notebooks.NotebookCewwIntewnawMetadata> {
+		wetuwn {
+			wastWunSuccess: data.success,
+			wunStawtTime: data.timing?.stawtTime,
+			wunEndTime: data.timing?.endTime,
+			executionOwda: data.executionOwda
+		};
+	}
+}
+
+expowt namespace NotebookCewwKind {
+	expowt function fwom(data: vscode.NotebookCewwKind): notebooks.CewwKind {
 		switch (data) {
-			case types.NotebookCellKind.Markup:
-				return notebooks.CellKind.Markup;
-			case types.NotebookCellKind.Code:
-			default:
-				return notebooks.CellKind.Code;
+			case types.NotebookCewwKind.Mawkup:
+				wetuwn notebooks.CewwKind.Mawkup;
+			case types.NotebookCewwKind.Code:
+			defauwt:
+				wetuwn notebooks.CewwKind.Code;
 		}
 	}
 
-	export function to(data: notebooks.CellKind): vscode.NotebookCellKind {
+	expowt function to(data: notebooks.CewwKind): vscode.NotebookCewwKind {
 		switch (data) {
-			case notebooks.CellKind.Markup:
-				return types.NotebookCellKind.Markup;
-			case notebooks.CellKind.Code:
-			default:
-				return types.NotebookCellKind.Code;
+			case notebooks.CewwKind.Mawkup:
+				wetuwn types.NotebookCewwKind.Mawkup;
+			case notebooks.CewwKind.Code:
+			defauwt:
+				wetuwn types.NotebookCewwKind.Code;
 		}
 	}
 }
 
-export namespace NotebookData {
+expowt namespace NotebookData {
 
-	export function from(data: vscode.NotebookData): extHostProtocol.NotebookDataDto {
-		const res: extHostProtocol.NotebookDataDto = {
-			metadata: data.metadata ?? Object.create(null),
-			cells: [],
+	expowt function fwom(data: vscode.NotebookData): extHostPwotocow.NotebookDataDto {
+		const wes: extHostPwotocow.NotebookDataDto = {
+			metadata: data.metadata ?? Object.cweate(nuww),
+			cewws: [],
 		};
-		for (let cell of data.cells) {
-			types.NotebookCellData.validate(cell);
-			res.cells.push(NotebookCellData.from(cell));
+		fow (wet ceww of data.cewws) {
+			types.NotebookCewwData.vawidate(ceww);
+			wes.cewws.push(NotebookCewwData.fwom(ceww));
 		}
-		return res;
+		wetuwn wes;
 	}
 
-	export function to(data: extHostProtocol.NotebookDataDto): vscode.NotebookData {
-		const res = new types.NotebookData(
-			data.cells.map(NotebookCellData.to),
+	expowt function to(data: extHostPwotocow.NotebookDataDto): vscode.NotebookData {
+		const wes = new types.NotebookData(
+			data.cewws.map(NotebookCewwData.to),
 		);
 		if (!isEmptyObject(data.metadata)) {
-			res.metadata = data.metadata;
+			wes.metadata = data.metadata;
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-export namespace NotebookCellData {
+expowt namespace NotebookCewwData {
 
-	export function from(data: vscode.NotebookCellData): extHostProtocol.NotebookCellDataDto {
-		return {
-			cellKind: NotebookCellKind.from(data.kind),
-			language: data.languageId,
+	expowt function fwom(data: vscode.NotebookCewwData): extHostPwotocow.NotebookCewwDataDto {
+		wetuwn {
+			cewwKind: NotebookCewwKind.fwom(data.kind),
+			wanguage: data.wanguageId,
 			mime: data.mime,
-			source: data.value,
+			souwce: data.vawue,
 			metadata: data.metadata,
-			internalMetadata: NotebookCellExecutionSummary.from(data.executionSummary ?? {}),
-			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
+			intewnawMetadata: NotebookCewwExecutionSummawy.fwom(data.executionSummawy ?? {}),
+			outputs: data.outputs ? data.outputs.map(NotebookCewwOutput.fwom) : []
 		};
 	}
 
-	export function to(data: extHostProtocol.NotebookCellDataDto): vscode.NotebookCellData {
-		return new types.NotebookCellData(
-			NotebookCellKind.to(data.cellKind),
-			data.source,
-			data.language,
+	expowt function to(data: extHostPwotocow.NotebookCewwDataDto): vscode.NotebookCewwData {
+		wetuwn new types.NotebookCewwData(
+			NotebookCewwKind.to(data.cewwKind),
+			data.souwce,
+			data.wanguage,
 			data.mime,
-			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
+			data.outputs ? data.outputs.map(NotebookCewwOutput.to) : undefined,
 			data.metadata,
-			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
+			data.intewnawMetadata ? NotebookCewwExecutionSummawy.to(data.intewnawMetadata) : undefined
 		);
 	}
 }
 
-export namespace NotebookCellOutputItem {
-	export function from(item: types.NotebookCellOutputItem): extHostProtocol.NotebookOutputItemDto {
-		return {
+expowt namespace NotebookCewwOutputItem {
+	expowt function fwom(item: types.NotebookCewwOutputItem): extHostPwotocow.NotebookOutputItemDto {
+		wetuwn {
 			mime: item.mime,
-			valueBytes: VSBuffer.wrap(item.data),
+			vawueBytes: VSBuffa.wwap(item.data),
 		};
 	}
 
-	export function to(item: extHostProtocol.NotebookOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.valueBytes.buffer, item.mime);
+	expowt function to(item: extHostPwotocow.NotebookOutputItemDto): types.NotebookCewwOutputItem {
+		wetuwn new types.NotebookCewwOutputItem(item.vawueBytes.buffa, item.mime);
 	}
 }
 
-export namespace NotebookCellOutput {
-	export function from(output: vscode.NotebookCellOutput): extHostProtocol.NotebookOutputDto {
-		return {
+expowt namespace NotebookCewwOutput {
+	expowt function fwom(output: vscode.NotebookCewwOutput): extHostPwotocow.NotebookOutputDto {
+		wetuwn {
 			outputId: output.id,
-			items: output.items.map(NotebookCellOutputItem.from),
+			items: output.items.map(NotebookCewwOutputItem.fwom),
 			metadata: output.metadata
 		};
 	}
 
-	export function to(output: extHostProtocol.NotebookOutputDto): vscode.NotebookCellOutput {
-		const items = output.items.map(NotebookCellOutputItem.to);
-		return new types.NotebookCellOutput(items, output.outputId, output.metadata);
+	expowt function to(output: extHostPwotocow.NotebookOutputDto): vscode.NotebookCewwOutput {
+		const items = output.items.map(NotebookCewwOutputItem.to);
+		wetuwn new types.NotebookCewwOutput(items, output.outputId, output.metadata);
 	}
 }
 
 
-export namespace NotebookExclusiveDocumentPattern {
-	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
-	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
-	export function from(pattern: undefined): undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
-	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
-		if (pattern === null || pattern === undefined) {
-			return undefined;
+expowt namespace NotebookExcwusiveDocumentPattewn {
+	expowt function fwom(pattewn: { incwude: vscode.GwobPattewn | undefined, excwude: vscode.GwobPattewn | undefined }): { incwude: stwing | types.WewativePattewn | undefined, excwude: stwing | types.WewativePattewn | undefined };
+	expowt function fwom(pattewn: vscode.GwobPattewn): stwing | types.WewativePattewn;
+	expowt function fwom(pattewn: undefined): undefined;
+	expowt function fwom(pattewn: { incwude: vscode.GwobPattewn | undefined | nuww, excwude: vscode.GwobPattewn | undefined } | vscode.GwobPattewn | undefined): stwing | types.WewativePattewn | { incwude: stwing | types.WewativePattewn | undefined, excwude: stwing | types.WewativePattewn | undefined } | undefined;
+	expowt function fwom(pattewn: { incwude: vscode.GwobPattewn | undefined | nuww, excwude: vscode.GwobPattewn | undefined } | vscode.GwobPattewn | undefined): stwing | types.WewativePattewn | { incwude: stwing | types.WewativePattewn | undefined, excwude: stwing | types.WewativePattewn | undefined } | undefined {
+		if (pattewn === nuww || pattewn === undefined) {
+			wetuwn undefined;
 		}
 
-		if (pattern instanceof types.RelativePattern) {
-			return pattern;
+		if (pattewn instanceof types.WewativePattewn) {
+			wetuwn pattewn;
 		}
 
-		if (typeof pattern === 'string') {
-			return pattern;
+		if (typeof pattewn === 'stwing') {
+			wetuwn pattewn;
 		}
 
 
-		if (isRelativePattern(pattern)) {
-			return new types.RelativePattern(pattern.base, pattern.pattern);
+		if (isWewativePattewn(pattewn)) {
+			wetuwn new types.WewativePattewn(pattewn.base, pattewn.pattewn);
 		}
 
-		if (isExclusivePattern(pattern)) {
-			return {
-				include: GlobPattern.from(pattern.include) || undefined,
-				exclude: GlobPattern.from(pattern.exclude) || undefined
+		if (isExcwusivePattewn(pattewn)) {
+			wetuwn {
+				incwude: GwobPattewn.fwom(pattewn.incwude) || undefined,
+				excwude: GwobPattewn.fwom(pattewn.excwude) || undefined
 			};
 		}
 
-		return undefined; // preserve `undefined`
+		wetuwn undefined; // pwesewve `undefined`
 
 	}
 
-	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
-		if (typeof pattern === 'string') {
-			return pattern;
+	expowt function to(pattewn: stwing | types.WewativePattewn | { incwude: stwing | types.WewativePattewn, excwude: stwing | types.WewativePattewn }): { incwude: vscode.GwobPattewn, excwude: vscode.GwobPattewn } | vscode.GwobPattewn {
+		if (typeof pattewn === 'stwing') {
+			wetuwn pattewn;
 		}
 
-		if (isRelativePattern(pattern)) {
-			return {
-				base: pattern.base,
-				pattern: pattern.pattern
+		if (isWewativePattewn(pattewn)) {
+			wetuwn {
+				base: pattewn.base,
+				pattewn: pattewn.pattewn
 			};
 		}
 
-		return {
-			include: pattern.include,
-			exclude: pattern.exclude
+		wetuwn {
+			incwude: pattewn.incwude,
+			excwude: pattewn.excwude
 		};
 	}
 
-	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
-		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
-		const include = GlobPattern.from(ep.include);
-		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
-			return false;
+	function isExcwusivePattewn(obj: any): obj is { incwude: types.WewativePattewn | undefined | nuww, excwude: types.WewativePattewn | undefined | nuww } {
+		const ep = obj as { incwude: vscode.GwobPattewn, excwude: vscode.GwobPattewn };
+		const incwude = GwobPattewn.fwom(ep.incwude);
+		if (!(incwude && incwude instanceof types.WewativePattewn || typeof incwude === 'stwing')) {
+			wetuwn fawse;
 		}
 
-		const exclude = GlobPattern.from(ep.exclude);
-		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
-			return false;
+		const excwude = GwobPattewn.fwom(ep.excwude);
+		if (!(excwude && excwude instanceof types.WewativePattewn || typeof excwude === 'stwing')) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
-		const rp = obj as vscode.RelativePattern;
-		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	function isWewativePattewn(obj: any): obj is vscode.WewativePattewn {
+		const wp = obj as vscode.WewativePattewn;
+		wetuwn wp && typeof wp.base === 'stwing' && typeof wp.pattewn === 'stwing';
 	}
 }
 
-export namespace NotebookDecorationRenderOptions {
-	export function from(options: vscode.NotebookDecorationRenderOptions): notebooks.INotebookDecorationRenderOptions {
-		return {
-			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
-			borderColor: <string | types.ThemeColor>options.borderColor,
-			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+expowt namespace NotebookDecowationWendewOptions {
+	expowt function fwom(options: vscode.NotebookDecowationWendewOptions): notebooks.INotebookDecowationWendewOptions {
+		wetuwn {
+			backgwoundCowow: <stwing | types.ThemeCowow>options.backgwoundCowow,
+			bowdewCowow: <stwing | types.ThemeCowow>options.bowdewCowow,
+			top: options.top ? ThemabweDecowationAttachmentWendewOptions.fwom(options.top) : undefined
 		};
 	}
 }
 
-export namespace NotebookStatusBarItem {
-	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: CommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
-		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
-		return {
-			alignment: item.alignment === types.NotebookCellStatusBarAlignment.Left ? notebooks.CellStatusbarAlignment.Left : notebooks.CellStatusbarAlignment.Right,
-			command: commandsConverter.toInternal(command, disposables), // TODO@roblou
+expowt namespace NotebookStatusBawItem {
+	expowt function fwom(item: vscode.NotebookCewwStatusBawItem, commandsConvewta: CommandsConvewta, disposabwes: DisposabweStowe): notebooks.INotebookCewwStatusBawItem {
+		const command = typeof item.command === 'stwing' ? { titwe: '', command: item.command } : item.command;
+		wetuwn {
+			awignment: item.awignment === types.NotebookCewwStatusBawAwignment.Weft ? notebooks.CewwStatusbawAwignment.Weft : notebooks.CewwStatusbawAwignment.Wight,
+			command: commandsConvewta.toIntewnaw(command, disposabwes), // TODO@wobwou
 			text: item.text,
-			tooltip: item.tooltip,
-			accessibilityInformation: item.accessibilityInformation,
-			priority: item.priority
+			toowtip: item.toowtip,
+			accessibiwityInfowmation: item.accessibiwityInfowmation,
+			pwiowity: item.pwiowity
 		};
 	}
 }
 
-export namespace NotebookDocumentContentOptions {
-	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
-		return {
-			transientOutputs: options?.transientOutputs ?? false,
-			transientCellMetadata: options?.transientCellMetadata ?? {},
-			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
+expowt namespace NotebookDocumentContentOptions {
+	expowt function fwom(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TwansientOptions {
+		wetuwn {
+			twansientOutputs: options?.twansientOutputs ?? fawse,
+			twansientCewwMetadata: options?.twansientCewwMetadata ?? {},
+			twansientDocumentMetadata: options?.twansientDocumentMetadata ?? {}
 		};
 	}
 }
 
-export namespace NotebookRendererScript {
-	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: string[] } {
-		return {
-			uri: preload.uri,
-			provides: preload.provides
+expowt namespace NotebookWendewewScwipt {
+	expowt function fwom(pwewoad: vscode.NotebookWendewewScwipt): { uwi: UwiComponents; pwovides: stwing[] } {
+		wetuwn {
+			uwi: pwewoad.uwi,
+			pwovides: pwewoad.pwovides
 		};
 	}
-	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookRendererScript {
-		return new types.NotebookRendererScript(URI.revive(preload.uri), preload.provides);
+	expowt function to(pwewoad: { uwi: UwiComponents; pwovides: stwing[] }): vscode.NotebookWendewewScwipt {
+		wetuwn new types.NotebookWendewewScwipt(UWI.wevive(pwewoad.uwi), pwewoad.pwovides);
 	}
 }
 
-export namespace TestMessage {
-	export function from(message: vscode.TestMessage): SerializedTestErrorMessage {
-		return {
-			message: MarkdownString.fromStrict(message.message) || '',
-			type: TestMessageType.Error,
+expowt namespace TestMessage {
+	expowt function fwom(message: vscode.TestMessage): SewiawizedTestEwwowMessage {
+		wetuwn {
+			message: MawkdownStwing.fwomStwict(message.message) || '',
+			type: TestMessageType.Ewwow,
 			expected: message.expectedOutput,
-			actual: message.actualOutput,
-			location: message.location ? location.from(message.location) as any : undefined,
+			actuaw: message.actuawOutput,
+			wocation: message.wocation ? wocation.fwom(message.wocation) as any : undefined,
 		};
 	}
 
-	export function to(item: SerializedTestErrorMessage): vscode.TestMessage {
-		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
-		message.actualOutput = item.actual;
+	expowt function to(item: SewiawizedTestEwwowMessage): vscode.TestMessage {
+		const message = new types.TestMessage(typeof item.message === 'stwing' ? item.message : MawkdownStwing.to(item.message));
+		message.actuawOutput = item.actuaw;
 		message.expectedOutput = item.expected;
-		message.location = item.location ? location.to(item.location) : undefined;
-		return message;
+		message.wocation = item.wocation ? wocation.to(item.wocation) : undefined;
+		wetuwn message;
 	}
 }
 
-export namespace TestTag {
+expowt namespace TestTag {
 	const enum Constants {
-		Delimiter = '\0',
+		Dewimita = '\0',
 	}
 
-	export const namespace = (ctrlId: string, tagId: string) =>
-		ctrlId + Constants.Delimiter + tagId;
+	expowt const namespace = (ctwwId: stwing, tagId: stwing) =>
+		ctwwId + Constants.Dewimita + tagId;
 
-	export const denamespace = (namespaced: string) => {
-		const index = namespaced.indexOf(Constants.Delimiter);
-		return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
+	expowt const denamespace = (namespaced: stwing) => {
+		const index = namespaced.indexOf(Constants.Dewimita);
+		wetuwn { ctwwId: namespaced.swice(0, index), tagId: namespaced.swice(index + 1) };
 	};
 }
 
-export namespace TestItem {
-	export type Raw = vscode.TestItem;
+expowt namespace TestItem {
+	expowt type Waw = vscode.TestItem;
 
-	export function from(item: TestItemImpl): ITestItem {
-		const ctrlId = getPrivateApiFor(item).controllerId;
-		return {
-			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
-			label: item.label,
-			uri: item.uri,
-			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
-			range: Range.from(item.range) || null,
-			description: item.description || null,
-			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
+	expowt function fwom(item: TestItemImpw): ITestItem {
+		const ctwwId = getPwivateApiFow(item).contwowwewId;
+		wetuwn {
+			extId: TestId.fwomExtHostTestItem(item, ctwwId).toStwing(),
+			wabew: item.wabew,
+			uwi: item.uwi,
+			tags: item.tags.map(t => TestTag.namespace(ctwwId, t.id)),
+			wange: Wange.fwom(item.wange) || nuww,
+			descwiption: item.descwiption || nuww,
+			ewwow: item.ewwow ? (MawkdownStwing.fwomStwict(item.ewwow) || nuww) : nuww,
 		};
 	}
 
-	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
-		return {
-			id: TestId.fromString(item.extId).localId,
-			label: item.label,
-			uri: URI.revive(item.uri),
+	expowt function toPwain(item: ITestItem): Omit<vscode.TestItem, 'chiwdwen' | 'invawidate' | 'discovewChiwdwen'> {
+		wetuwn {
+			id: TestId.fwomStwing(item.extId).wocawId,
+			wabew: item.wabew,
+			uwi: UWI.wevive(item.uwi),
 			tags: (item.tags || []).map(t => {
 				const { tagId } = TestTag.denamespace(t);
-				return new types.TestTag(tagId);
+				wetuwn new types.TestTag(tagId);
 			}),
-			range: Range.to(item.range || undefined),
-			invalidateResults: () => undefined,
-			canResolveChildren: false,
-			busy: false,
-			description: item.description || undefined,
+			wange: Wange.to(item.wange || undefined),
+			invawidateWesuwts: () => undefined,
+			canWesowveChiwdwen: fawse,
+			busy: fawse,
+			descwiption: item.descwiption || undefined,
 		};
 	}
 
-	function to(item: ITestItem): TestItemImpl {
-		const testId = TestId.fromString(item.extId);
-		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri));
-		testItem.range = Range.to(item.range || undefined);
-		testItem.description = item.description || undefined;
-		return testItem;
+	function to(item: ITestItem): TestItemImpw {
+		const testId = TestId.fwomStwing(item.extId);
+		const testItem = new TestItemImpw(testId.contwowwewId, testId.wocawId, item.wabew, UWI.wevive(item.uwi));
+		testItem.wange = Wange.to(item.wange || undefined);
+		testItem.descwiption = item.descwiption || undefined;
+		wetuwn testItem;
 	}
 
-	export function toItemFromContext(context: ITestItemContext): TestItemImpl {
-		let node: TestItemImpl | undefined;
-		for (const test of context.tests) {
+	expowt function toItemFwomContext(context: ITestItemContext): TestItemImpw {
+		wet node: TestItemImpw | undefined;
+		fow (const test of context.tests) {
 			const next = to(test.item);
-			getPrivateApiFor(next).parent = node;
+			getPwivateApiFow(next).pawent = node;
 			node = next;
 		}
 
-		return node!;
+		wetuwn node!;
 	}
 }
 
-export namespace TestTag {
-	export function from(tag: vscode.TestTag): ITestTag {
-		return { id: tag.id };
+expowt namespace TestTag {
+	expowt function fwom(tag: vscode.TestTag): ITestTag {
+		wetuwn { id: tag.id };
 	}
 
-	export function to(tag: ITestTag): vscode.TestTag {
-		return new types.TestTag(tag.id);
+	expowt function to(tag: ITestTag): vscode.TestTag {
+		wetuwn new types.TestTag(tag.id);
 	}
 }
 
-export namespace TestResults {
-	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => {
-		const snapshot: vscode.TestResultSnapshot = ({
-			...TestItem.toPlain(item.item),
-			parent: undefined,
+expowt namespace TestWesuwts {
+	const convewtTestWesuwtItem = (item: SewiawizedTestWesuwtItem, byIntewnawId: Map<stwing, SewiawizedTestWesuwtItem>): vscode.TestWesuwtSnapshot => {
+		const snapshot: vscode.TestWesuwtSnapshot = ({
+			...TestItem.toPwain(item.item),
+			pawent: undefined,
 			taskStates: item.tasks.map(t => ({
-				state: t.state as number as types.TestResultState,
-				duration: t.duration,
+				state: t.state as numba as types.TestWesuwtState,
+				duwation: t.duwation,
 				messages: t.messages
-					.filter((m): m is ITestErrorMessage => m.type === TestMessageType.Error)
+					.fiwta((m): m is ITestEwwowMessage => m.type === TestMessageType.Ewwow)
 					.map(TestMessage.to),
 			})),
-			children: item.children
-				.map(c => byInternalId.get(c))
-				.filter(isDefined)
-				.map(c => convertTestResultItem(c, byInternalId))
+			chiwdwen: item.chiwdwen
+				.map(c => byIntewnawId.get(c))
+				.fiwta(isDefined)
+				.map(c => convewtTestWesuwtItem(c, byIntewnawId))
 		});
 
-		for (const child of snapshot.children) {
-			(child as any).parent = snapshot;
+		fow (const chiwd of snapshot.chiwdwen) {
+			(chiwd as any).pawent = snapshot;
 		}
 
-		return snapshot;
+		wetuwn snapshot;
 	};
 
-	export function to(serialized: ISerializedTestResults): vscode.TestRunResult {
-		const roots: SerializedTestResultItem[] = [];
-		const byInternalId = new Map<string, SerializedTestResultItem>();
-		for (const item of serialized.items) {
-			byInternalId.set(item.item.extId, item);
-			if (serialized.request.targets.some(t => t.controllerId === item.controllerId && t.testIds.includes(item.item.extId))) {
-				roots.push(item);
+	expowt function to(sewiawized: ISewiawizedTestWesuwts): vscode.TestWunWesuwt {
+		const woots: SewiawizedTestWesuwtItem[] = [];
+		const byIntewnawId = new Map<stwing, SewiawizedTestWesuwtItem>();
+		fow (const item of sewiawized.items) {
+			byIntewnawId.set(item.item.extId, item);
+			if (sewiawized.wequest.tawgets.some(t => t.contwowwewId === item.contwowwewId && t.testIds.incwudes(item.item.extId))) {
+				woots.push(item);
 			}
 		}
 
-		return {
-			completedAt: serialized.completedAt,
-			results: roots.map(r => convertTestResultItem(r, byInternalId)),
+		wetuwn {
+			compwetedAt: sewiawized.compwetedAt,
+			wesuwts: woots.map(w => convewtTestWesuwtItem(w, byIntewnawId)),
 		};
 	}
 }
 
-export namespace TestCoverage {
-	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
-		return { covered: count.covered, total: count.covered };
+expowt namespace TestCovewage {
+	function fwomCovewedCount(count: vscode.CovewedCount): ICovewedCount {
+		wetuwn { covewed: count.covewed, totaw: count.covewed };
 	}
 
-	function fromLocation(location: vscode.Range | vscode.Position) {
-		return 'line' in location ? Position.from(location) : Range.from(location);
+	function fwomWocation(wocation: vscode.Wange | vscode.Position) {
+		wetuwn 'wine' in wocation ? Position.fwom(wocation) : Wange.fwom(wocation);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails {
-		if ('branches' in coverage) {
-			return {
-				count: coverage.executionCount,
-				location: fromLocation(coverage.location),
-				type: DetailType.Statement,
-				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location) }))
+	expowt function fwomDetaiwed(covewage: vscode.DetaiwedCovewage): CovewageDetaiws {
+		if ('bwanches' in covewage) {
+			wetuwn {
+				count: covewage.executionCount,
+				wocation: fwomWocation(covewage.wocation),
+				type: DetaiwType.Statement,
+				bwanches: covewage.bwanches.wength
+					? covewage.bwanches.map(b => ({ count: b.executionCount, wocation: b.wocation && fwomWocation(b.wocation) }))
 					: undefined,
 			};
-		} else {
-			return {
-				type: DetailType.Function,
-				count: coverage.executionCount,
-				location: fromLocation(coverage.location),
+		} ewse {
+			wetuwn {
+				type: DetaiwType.Function,
+				count: covewage.executionCount,
+				wocation: fwomWocation(covewage.wocation),
 			};
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage {
-		return {
-			uri: coverage.uri,
-			statement: fromCoveredCount(coverage.statementCoverage),
-			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
-			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
-			details: coverage.detailedCoverage?.map(fromDetailed),
+	expowt function fwomFiwe(covewage: vscode.FiweCovewage): IFiweCovewage {
+		wetuwn {
+			uwi: covewage.uwi,
+			statement: fwomCovewedCount(covewage.statementCovewage),
+			bwanch: covewage.bwanchCovewage && fwomCovewedCount(covewage.bwanchCovewage),
+			function: covewage.functionCovewage && fwomCovewedCount(covewage.functionCovewage),
+			detaiws: covewage.detaiwedCovewage?.map(fwomDetaiwed),
 		};
 	}
 }
 
-export namespace CodeActionTriggerKind {
+expowt namespace CodeActionTwiggewKind {
 
-	export function to(value: modes.CodeActionTriggerType): types.CodeActionTriggerKind {
-		switch (value) {
-			case modes.CodeActionTriggerType.Invoke:
-				return types.CodeActionTriggerKind.Invoke;
+	expowt function to(vawue: modes.CodeActionTwiggewType): types.CodeActionTwiggewKind {
+		switch (vawue) {
+			case modes.CodeActionTwiggewType.Invoke:
+				wetuwn types.CodeActionTwiggewKind.Invoke;
 
-			case modes.CodeActionTriggerType.Auto:
-				return types.CodeActionTriggerKind.Automatic;
+			case modes.CodeActionTwiggewType.Auto:
+				wetuwn types.CodeActionTwiggewKind.Automatic;
 		}
 	}
 }
 
-export namespace TypeHierarchyItem {
+expowt namespace TypeHiewawchyItem {
 
-	export function to(item: extHostProtocol.ITypeHierarchyItemDto): types.TypeHierarchyItem {
-		const result = new types.TypeHierarchyItem(
-			SymbolKind.to(item.kind),
+	expowt function to(item: extHostPwotocow.ITypeHiewawchyItemDto): types.TypeHiewawchyItem {
+		const wesuwt = new types.TypeHiewawchyItem(
+			SymbowKind.to(item.kind),
 			item.name,
-			item.detail || '',
-			URI.revive(item.uri),
-			Range.to(item.range),
-			Range.to(item.selectionRange)
+			item.detaiw || '',
+			UWI.wevive(item.uwi),
+			Wange.to(item.wange),
+			Wange.to(item.sewectionWange)
 		);
 
-		result._sessionId = item._sessionId;
-		result._itemId = item._itemId;
+		wesuwt._sessionId = item._sessionId;
+		wesuwt._itemId = item._itemId;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function from(item: vscode.TypeHierarchyItem, sessionId?: string, itemId?: string): extHostProtocol.ITypeHierarchyItemDto {
+	expowt function fwom(item: vscode.TypeHiewawchyItem, sessionId?: stwing, itemId?: stwing): extHostPwotocow.ITypeHiewawchyItemDto {
 
-		sessionId = sessionId ?? (<types.TypeHierarchyItem>item)._sessionId;
-		itemId = itemId ?? (<types.TypeHierarchyItem>item)._itemId;
+		sessionId = sessionId ?? (<types.TypeHiewawchyItem>item)._sessionId;
+		itemId = itemId ?? (<types.TypeHiewawchyItem>item)._itemId;
 
 		if (sessionId === undefined || itemId === undefined) {
-			throw new Error('invalid item');
+			thwow new Ewwow('invawid item');
 		}
 
-		return {
+		wetuwn {
 			_sessionId: sessionId,
 			_itemId: itemId,
-			kind: SymbolKind.from(item.kind),
+			kind: SymbowKind.fwom(item.kind),
 			name: item.name,
-			detail: item.detail ?? '',
-			uri: item.uri,
-			range: Range.from(item.range),
-			selectionRange: Range.from(item.selectionRange),
-			tags: item.tags?.map(SymbolTag.from)
+			detaiw: item.detaiw ?? '',
+			uwi: item.uwi,
+			wange: Wange.fwom(item.wange),
+			sewectionWange: Wange.fwom(item.sewectionWange),
+			tags: item.tags?.map(SymbowTag.fwom)
 		};
 	}
 }

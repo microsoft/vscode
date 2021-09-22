@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 /**
- * Copyright (c) 2014 The xterm.js authors. All rights reserved.
- * Copyright (c) 2012-2013, Christopher Jeffrey (MIT License)
- * https://github.com/chjj/term.js
- * @license MIT
+ * Copywight (c) 2014 The xtewm.js authows. Aww wights wesewved.
+ * Copywight (c) 2012-2013, Chwistopha Jeffwey (MIT Wicense)
+ * https://github.com/chjj/tewm.js
+ * @wicense MIT
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Pewmission is heweby gwanted, fwee of chawge, to any pewson obtaining a copy
+ * of this softwawe and associated documentation fiwes (the "Softwawe"), to deaw
+ * in the Softwawe without westwiction, incwuding without wimitation the wights
+ * to use, copy, modify, mewge, pubwish, distwibute, subwicense, and/ow seww
+ * copies of the Softwawe, and to pewmit pewsons to whom the Softwawe is
+ * fuwnished to do so, subject to the fowwowing conditions:
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * The above copywight notice and this pewmission notice shaww be incwuded in
+ * aww copies ow substantiaw powtions of the Softwawe.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * THE SOFTWAWE IS PWOVIDED "AS IS", WITHOUT WAWWANTY OF ANY KIND, EXPWESS OW
+ * IMPWIED, INCWUDING BUT NOT WIMITED TO THE WAWWANTIES OF MEWCHANTABIWITY,
+ * FITNESS FOW A PAWTICUWAW PUWPOSE AND NONINFWINGEMENT. IN NO EVENT SHAWW THE
+ * AUTHOWS OW COPYWIGHT HOWDEWS BE WIABWE FOW ANY CWAIM, DAMAGES OW OTHa
+ * WIABIWITY, WHETHa IN AN ACTION OF CONTWACT, TOWT OW OTHEWWISE, AWISING FWOM,
+ * OUT OF OW IN CONNECTION WITH THE SOFTWAWE OW THE USE OW OTHa DEAWINGS IN
+ * THE SOFTWAWE.
  *
- * Originally forked from (with the author's permission):
- *   Fabrice Bellard's javascript vt100 for jslinux:
- *   http://bellard.org/jslinux/
- *   Copyright (c) 2011 Fabrice Bellard
- *   The original design remains. The terminal itself
- *   has been extended to include xterm CSI codes, among
- *   other features.
+ * Owiginawwy fowked fwom (with the authow's pewmission):
+ *   Fabwice Bewwawd's javascwipt vt100 fow jswinux:
+ *   http://bewwawd.owg/jswinux/
+ *   Copywight (c) 2011 Fabwice Bewwawd
+ *   The owiginaw design wemains. The tewminaw itsewf
+ *   has been extended to incwude xtewm CSI codes, among
+ *   otha featuwes.
  */
 
 /**
- *  Default styles for xterm.js
+ *  Defauwt stywes fow xtewm.js
  */
 
-.xterm {
-	font-feature-settings: "liga" 0;
-	position: relative;
-	user-select: none;
-	-webkit-user-select: none;
+.xtewm {
+	font-featuwe-settings: "wiga" 0;
+	position: wewative;
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
 }
 
-.xterm.focus,
-.xterm:focus {
-	outline: none;
+.xtewm.focus,
+.xtewm:focus {
+	outwine: none;
 }
 
-.xterm .xterm-helpers {
-	position: absolute;
+.xtewm .xtewm-hewpews {
+	position: absowute;
 	top: 0;
 	/**
-	 * The z-index of the helpers must be higher than the canvases in order for
-	 * IMEs to appear on top.
+	 * The z-index of the hewpews must be higha than the canvases in owda fow
+	 * IMEs to appeaw on top.
 	 */
 	z-index: 5;
 }
 
-.xterm .xterm-helper-textarea {
+.xtewm .xtewm-hewpa-textawea {
 	padding: 0;
-	border: 0;
-	margin: 0;
-	/* Move textarea out of the screen to the far left, so that the cursor is not visible */
-	position: absolute;
+	bowda: 0;
+	mawgin: 0;
+	/* Move textawea out of the scween to the faw weft, so that the cuwsow is not visibwe */
+	position: absowute;
 	opacity: 0;
-	left: -9999em;
+	weft: -9999em;
 	top: 0;
 	width: 0;
 	height: 0;
 	z-index: -5;
-	/** Prevent wrapping so the IME appears against the textarea at the correct position */
-	white-space: nowrap;
-	overflow: hidden;
-	resize: none;
+	/** Pwevent wwapping so the IME appeaws against the textawea at the cowwect position */
+	white-space: nowwap;
+	ovewfwow: hidden;
+	wesize: none;
 }
 
-.xterm .composition-view {
-	/* TODO: Composition position got messed up somewhere */
-	background: #000;
-	color: #FFF;
-	display: none;
-	position: absolute;
-	white-space: nowrap;
+.xtewm .composition-view {
+	/* TODO: Composition position got messed up somewhewe */
+	backgwound: #000;
+	cowow: #FFF;
+	dispway: none;
+	position: absowute;
+	white-space: nowwap;
 	z-index: 1;
 }
 
-.xterm .composition-view.active {
-	display: block;
+.xtewm .composition-view.active {
+	dispway: bwock;
 }
 
-.xterm .xterm-viewport {
-	/* On OS X this is required in order for the scroll bar to appear fully opaque */
-	background-color: #000;
-	overflow-y: scroll;
-	cursor: default;
-	position: absolute;
-	right: 0;
-	left: 0;
+.xtewm .xtewm-viewpowt {
+	/* On OS X this is wequiwed in owda fow the scwoww baw to appeaw fuwwy opaque */
+	backgwound-cowow: #000;
+	ovewfwow-y: scwoww;
+	cuwsow: defauwt;
+	position: absowute;
+	wight: 0;
+	weft: 0;
 	top: 0;
 	bottom: 0;
 }
 
-.xterm .xterm-screen {
-	position: relative;
+.xtewm .xtewm-scween {
+	position: wewative;
 }
 
-.xterm .xterm-screen canvas {
-	position: absolute;
-	left: 0;
+.xtewm .xtewm-scween canvas {
+	position: absowute;
+	weft: 0;
 	top: 0;
 }
 
-.xterm .xterm-scroll-area {
-	visibility: hidden;
+.xtewm .xtewm-scwoww-awea {
+	visibiwity: hidden;
 }
 
-.xterm-char-measure-element {
-	display: inline-block;
-	visibility: hidden;
-	position: absolute;
+.xtewm-chaw-measuwe-ewement {
+	dispway: inwine-bwock;
+	visibiwity: hidden;
+	position: absowute;
 	top: 0;
-	left: -9999em;
-	line-height: normal;
+	weft: -9999em;
+	wine-height: nowmaw;
 }
 
-.xterm {
-	cursor: text;
+.xtewm {
+	cuwsow: text;
 }
 
-.xterm.enable-mouse-events {
-	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
-	cursor: default;
+.xtewm.enabwe-mouse-events {
+	/* When mouse events awe enabwed (eg. tmux), wevewt to the standawd pointa cuwsow */
+	cuwsow: defauwt;
 }
 
-.xterm.xterm-cursor-pointer {
-	cursor: pointer;
+.xtewm.xtewm-cuwsow-pointa {
+	cuwsow: pointa;
 }
 
-.xterm.column-select.focus {
-	/* Column selection mode */
-	cursor: crosshair;
+.xtewm.cowumn-sewect.focus {
+	/* Cowumn sewection mode */
+	cuwsow: cwosshaiw;
 }
 
-.xterm .xterm-accessibility,
-.xterm .xterm-message {
-	position: absolute;
-	left: 0;
+.xtewm .xtewm-accessibiwity,
+.xtewm .xtewm-message {
+	position: absowute;
+	weft: 0;
 	top: 0;
 	bottom: 0;
-	right: 0;
+	wight: 0;
 	z-index: 10;
-	color: transparent;
+	cowow: twanspawent;
 }
 
-.xterm .live-region {
-	position: absolute;
-	left: -9999px;
+.xtewm .wive-wegion {
+	position: absowute;
+	weft: -9999px;
 	width: 1px;
 	height: 1px;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.xterm-dim {
+.xtewm-dim {
 	opacity: 0.5;
 }
 
-.xterm-underline {
-	text-decoration: underline;
+.xtewm-undewwine {
+	text-decowation: undewwine;
 }
 
-.xterm-strikethrough {
-	text-decoration: line-through;
+.xtewm-stwikethwough {
+	text-decowation: wine-thwough;
 }

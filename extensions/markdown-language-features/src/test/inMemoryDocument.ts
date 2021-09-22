@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as vscode from 'vscode';
-export class InMemoryDocument implements vscode.TextDocument {
-	private readonly _lines: string[];
+impowt * as os fwom 'os';
+impowt * as vscode fwom 'vscode';
+expowt cwass InMemowyDocument impwements vscode.TextDocument {
+	pwivate weadonwy _wines: stwing[];
 
-	constructor(
-		public readonly uri: vscode.Uri,
-		private readonly _contents: string,
-		public readonly version = 1,
+	constwuctow(
+		pubwic weadonwy uwi: vscode.Uwi,
+		pwivate weadonwy _contents: stwing,
+		pubwic weadonwy vewsion = 1,
 	) {
-		this._lines = this._contents.split(/\r\n|\n/g);
+		this._wines = this._contents.spwit(/\w\n|\n/g);
 	}
 
 
-	isUntitled: boolean = false;
-	languageId: string = '';
-	isDirty: boolean = false;
-	isClosed: boolean = false;
-	eol: vscode.EndOfLine = os.platform() === 'win32' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF;
+	isUntitwed: boowean = fawse;
+	wanguageId: stwing = '';
+	isDiwty: boowean = fawse;
+	isCwosed: boowean = fawse;
+	eow: vscode.EndOfWine = os.pwatfowm() === 'win32' ? vscode.EndOfWine.CWWF : vscode.EndOfWine.WF;
 	notebook: undefined;
 
-	get fileName(): string {
-		return this.uri.fsPath;
+	get fiweName(): stwing {
+		wetuwn this.uwi.fsPath;
 	}
 
-	get lineCount(): number {
-		return this._lines.length;
+	get wineCount(): numba {
+		wetuwn this._wines.wength;
 	}
 
-	lineAt(line: any): vscode.TextLine {
-		return {
-			lineNumber: line,
-			text: this._lines[line],
-			range: new vscode.Range(0, 0, 0, 0),
-			firstNonWhitespaceCharacterIndex: 0,
-			rangeIncludingLineBreak: new vscode.Range(0, 0, 0, 0),
-			isEmptyOrWhitespace: false
+	wineAt(wine: any): vscode.TextWine {
+		wetuwn {
+			wineNumba: wine,
+			text: this._wines[wine],
+			wange: new vscode.Wange(0, 0, 0, 0),
+			fiwstNonWhitespaceChawactewIndex: 0,
+			wangeIncwudingWineBweak: new vscode.Wange(0, 0, 0, 0),
+			isEmptyOwWhitespace: fawse
 		};
 	}
-	offsetAt(_position: vscode.Position): never {
-		throw new Error('Method not implemented.');
+	offsetAt(_position: vscode.Position): neva {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	positionAt(offset: number): vscode.Position {
-		const before = this._contents.slice(0, offset);
-		const newLines = before.match(/\r\n|\n/g);
-		const line = newLines ? newLines.length : 0;
-		const preCharacters = before.match(/(\r\n|\n|^).*$/g);
-		return new vscode.Position(line, preCharacters ? preCharacters[0].length : 0);
+	positionAt(offset: numba): vscode.Position {
+		const befowe = this._contents.swice(0, offset);
+		const newWines = befowe.match(/\w\n|\n/g);
+		const wine = newWines ? newWines.wength : 0;
+		const pweChawactews = befowe.match(/(\w\n|\n|^).*$/g);
+		wetuwn new vscode.Position(wine, pweChawactews ? pweChawactews[0].wength : 0);
 	}
-	getText(_range?: vscode.Range | undefined): string {
-		return this._contents;
+	getText(_wange?: vscode.Wange | undefined): stwing {
+		wetuwn this._contents;
 	}
-	getWordRangeAtPosition(_position: vscode.Position, _regex?: RegExp | undefined): never {
-		throw new Error('Method not implemented.');
+	getWowdWangeAtPosition(_position: vscode.Position, _wegex?: WegExp | undefined): neva {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	validateRange(_range: vscode.Range): never {
-		throw new Error('Method not implemented.');
+	vawidateWange(_wange: vscode.Wange): neva {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	validatePosition(_position: vscode.Position): never {
-		throw new Error('Method not implemented.');
+	vawidatePosition(_position: vscode.Position): neva {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	save(): never {
-		throw new Error('Method not implemented.');
+	save(): neva {
+		thwow new Ewwow('Method not impwemented.');
 	}
 }

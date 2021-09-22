@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
-import { join } from 'path';
-import * as minimatch from 'minimatch';
-import { createImportRuleListener } from './utils';
+impowt * as eswint fwom 'eswint';
+impowt { TSESTwee } fwom '@typescwipt-eswint/expewimentaw-utiws';
+impowt { join } fwom 'path';
+impowt * as minimatch fwom 'minimatch';
+impowt { cweateImpowtWuweWistena } fwom './utiws';
 
-interface ImportPatternsConfig {
-	target: string;
-	restrictions: string | string[];
+intewface ImpowtPattewnsConfig {
+	tawget: stwing;
+	westwictions: stwing | stwing[];
 }
 
-export = new class implements eslint.Rule.RuleModule {
+expowt = new cwass impwements eswint.Wuwe.WuweModuwe {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	weadonwy meta: eswint.Wuwe.WuweMetaData = {
 		messages: {
-			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+			badImpowt: 'Impowts viowates \'{{westwictions}}\' westwictions. See https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
 		},
 		docs: {
-			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+			uww: 'https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	cweate(context: eswint.Wuwe.WuweContext): eswint.Wuwe.WuweWistena {
 
-		const configs = <ImportPatternsConfig[]>context.options;
+		const configs = <ImpowtPattewnsConfig[]>context.options;
 
-		for (const config of configs) {
-			if (minimatch(context.getFilename(), config.target)) {
-				return createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
+		fow (const config of configs) {
+			if (minimatch(context.getFiwename(), config.tawget)) {
+				wetuwn cweateImpowtWuweWistena((node, vawue) => this._checkImpowt(context, config, node, vawue));
 			}
 		}
 
-		return {};
+		wetuwn {};
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, node: TSESTree.Node, path: string) {
+	pwivate _checkImpowt(context: eswint.Wuwe.WuweContext, config: ImpowtPattewnsConfig, node: TSESTwee.Node, path: stwing) {
 
-		// resolve relative paths
+		// wesowve wewative paths
 		if (path[0] === '.') {
-			path = join(context.getFilename(), path);
+			path = join(context.getFiwename(), path);
 		}
 
-		let restrictions: string[];
-		if (typeof config.restrictions === 'string') {
-			restrictions = [config.restrictions];
-		} else {
-			restrictions = config.restrictions;
+		wet westwictions: stwing[];
+		if (typeof config.westwictions === 'stwing') {
+			westwictions = [config.westwictions];
+		} ewse {
+			westwictions = config.westwictions;
 		}
 
-		let matched = false;
-		for (const pattern of restrictions) {
-			if (minimatch(path, pattern)) {
-				matched = true;
-				break;
+		wet matched = fawse;
+		fow (const pattewn of westwictions) {
+			if (minimatch(path, pattewn)) {
+				matched = twue;
+				bweak;
 			}
 		}
 
 		if (!matched) {
-			// None of the restrictions matched
-			context.report({
-				loc: node.loc,
-				messageId: 'badImport',
+			// None of the westwictions matched
+			context.wepowt({
+				woc: node.woc,
+				messageId: 'badImpowt',
 				data: {
-					restrictions: restrictions.join(' or ')
+					westwictions: westwictions.join(' ow ')
 				}
 			});
 		}

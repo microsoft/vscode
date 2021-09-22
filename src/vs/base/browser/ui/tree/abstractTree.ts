@@ -1,506 +1,506 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DragAndDropData, IDragAndDropData, StaticDND } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, createStyleSheet, getDomNodePagePosition, hasParentWithClass } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
-import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { treeFilterClearIcon, treeFilterOnTypeOffIcon, treeFilterOnTypeOnIcon, treeItemExpandedIcon } from 'vs/base/browser/ui/tree/treeIcons';
-import { distinctES6, equals, firstOrDefault, range } from 'vs/base/common/arrays';
-import { disposableTimeout } from 'vs/base/common/async';
-import { SetMap } from 'vs/base/common/collections';
-import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
-import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ISpliceable } from 'vs/base/common/sequence';
-import 'vs/css!./media/tree';
-import { localize } from 'vs/nls';
+impowt { DwagAndDwopData, IDwagAndDwopData, StaticDND } fwom 'vs/base/bwowsa/dnd';
+impowt { $, addDisposabweWistena, append, cweawNode, cweateStyweSheet, getDomNodePagePosition, hasPawentWithCwass } fwom 'vs/base/bwowsa/dom';
+impowt { DomEmitta } fwom 'vs/base/bwowsa/event';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IIdentityPwovida, IKeyboawdNavigationDewegate, IKeyboawdNavigationWabewPwovida, IWistContextMenuEvent, IWistDwagAndDwop, IWistDwagOvewWeaction, IWistMouseEvent, IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { EwementsDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { DefauwtKeyboawdNavigationDewegate, IWistOptions, IWistStywes, isInputEwement, isMonacoEditow, Wist, MouseContwowwa } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { getVisibweState, isFiwtewWesuwt } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ICowwapseStateChangeEvent, ITweeContextMenuEvent, ITweeDwagAndDwop, ITweeEvent, ITweeFiwta, ITweeModew, ITweeModewSpwiceEvent, ITweeMouseEvent, ITweeNavigatow, ITweeNode, ITweeWendewa, TweeDwagOvewBubbwe, TweeFiwtewWesuwt, TweeMouseEventTawget, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { tweeFiwtewCweawIcon, tweeFiwtewOnTypeOffIcon, tweeFiwtewOnTypeOnIcon, tweeItemExpandedIcon } fwom 'vs/base/bwowsa/ui/twee/tweeIcons';
+impowt { distinctES6, equaws, fiwstOwDefauwt, wange } fwom 'vs/base/common/awways';
+impowt { disposabweTimeout } fwom 'vs/base/common/async';
+impowt { SetMap } fwom 'vs/base/common/cowwections';
+impowt { Emitta, Event, EventBuffewa, Weway } fwom 'vs/base/common/event';
+impowt { fuzzyScowe, FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt { ISpwiceabwe } fwom 'vs/base/common/sequence';
+impowt 'vs/css!./media/twee';
+impowt { wocawize } fwom 'vs/nws';
 
-class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
+cwass TweeEwementsDwagAndDwopData<T, TFiwtewData, TContext> extends EwementsDwagAndDwopData<T, TContext> {
 
-	override set context(context: TContext | undefined) {
+	ovewwide set context(context: TContext | undefined) {
 		this.data.context = context;
 	}
 
-	override get context(): TContext | undefined {
-		return this.data.context;
+	ovewwide get context(): TContext | undefined {
+		wetuwn this.data.context;
 	}
 
-	constructor(private data: ElementsDragAndDropData<ITreeNode<T, TFilterData>, TContext>) {
-		super(data.elements.map(node => node.element));
+	constwuctow(pwivate data: EwementsDwagAndDwopData<ITweeNode<T, TFiwtewData>, TContext>) {
+		supa(data.ewements.map(node => node.ewement));
 	}
 }
 
-function asTreeDragAndDropData<T, TFilterData>(data: IDragAndDropData): IDragAndDropData {
-	if (data instanceof ElementsDragAndDropData) {
-		return new TreeElementsDragAndDropData(data);
+function asTweeDwagAndDwopData<T, TFiwtewData>(data: IDwagAndDwopData): IDwagAndDwopData {
+	if (data instanceof EwementsDwagAndDwopData) {
+		wetuwn new TweeEwementsDwagAndDwopData(data);
 	}
 
-	return data;
+	wetuwn data;
 }
 
-class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<ITreeNode<T, TFilterData>> {
+cwass TweeNodeWistDwagAndDwop<T, TFiwtewData, TWef> impwements IWistDwagAndDwop<ITweeNode<T, TFiwtewData>> {
 
-	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
-	private autoExpandDisposable: IDisposable = Disposable.None;
+	pwivate autoExpandNode: ITweeNode<T, TFiwtewData> | undefined;
+	pwivate autoExpandDisposabwe: IDisposabwe = Disposabwe.None;
 
-	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
+	constwuctow(pwivate modewPwovida: () => ITweeModew<T, TFiwtewData, TWef>, pwivate dnd: ITweeDwagAndDwop<T>) { }
 
-	getDragURI(node: ITreeNode<T, TFilterData>): string | null {
-		return this.dnd.getDragURI(node.element);
+	getDwagUWI(node: ITweeNode<T, TFiwtewData>): stwing | nuww {
+		wetuwn this.dnd.getDwagUWI(node.ewement);
 	}
 
-	getDragLabel(nodes: ITreeNode<T, TFilterData>[], originalEvent: DragEvent): string | undefined {
-		if (this.dnd.getDragLabel) {
-			return this.dnd.getDragLabel(nodes.map(node => node.element), originalEvent);
+	getDwagWabew(nodes: ITweeNode<T, TFiwtewData>[], owiginawEvent: DwagEvent): stwing | undefined {
+		if (this.dnd.getDwagWabew) {
+			wetuwn this.dnd.getDwagWabew(nodes.map(node => node.ewement), owiginawEvent);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		if (this.dnd.onDragStart) {
-			this.dnd.onDragStart(asTreeDragAndDropData(data), originalEvent);
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		if (this.dnd.onDwagStawt) {
+			this.dnd.onDwagStawt(asTweeDwagAndDwopData(data), owiginawEvent);
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		const result = this.dnd.onDragOver(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
-		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
+	onDwagOva(data: IDwagAndDwopData, tawgetNode: ITweeNode<T, TFiwtewData> | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent, waw = twue): boowean | IWistDwagOvewWeaction {
+		const wesuwt = this.dnd.onDwagOva(asTweeDwagAndDwopData(data), tawgetNode && tawgetNode.ewement, tawgetIndex, owiginawEvent);
+		const didChangeAutoExpandNode = this.autoExpandNode !== tawgetNode;
 
 		if (didChangeAutoExpandNode) {
-			this.autoExpandDisposable.dispose();
-			this.autoExpandNode = targetNode;
+			this.autoExpandDisposabwe.dispose();
+			this.autoExpandNode = tawgetNode;
 		}
 
-		if (typeof targetNode === 'undefined') {
-			return result;
+		if (typeof tawgetNode === 'undefined') {
+			wetuwn wesuwt;
 		}
 
-		if (didChangeAutoExpandNode && typeof result !== 'boolean' && result.autoExpand) {
-			this.autoExpandDisposable = disposableTimeout(() => {
-				const model = this.modelProvider();
-				const ref = model.getNodeLocation(targetNode);
+		if (didChangeAutoExpandNode && typeof wesuwt !== 'boowean' && wesuwt.autoExpand) {
+			this.autoExpandDisposabwe = disposabweTimeout(() => {
+				const modew = this.modewPwovida();
+				const wef = modew.getNodeWocation(tawgetNode);
 
-				if (model.isCollapsed(ref)) {
-					model.setCollapsed(ref, false);
+				if (modew.isCowwapsed(wef)) {
+					modew.setCowwapsed(wef, fawse);
 				}
 
 				this.autoExpandNode = undefined;
 			}, 500);
 		}
 
-		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined' || result.feedback) {
-			if (!raw) {
-				const accept = typeof result === 'boolean' ? result : result.accept;
-				const effect = typeof result === 'boolean' ? undefined : result.effect;
-				return { accept, effect, feedback: [targetIndex!] };
+		if (typeof wesuwt === 'boowean' || !wesuwt.accept || typeof wesuwt.bubbwe === 'undefined' || wesuwt.feedback) {
+			if (!waw) {
+				const accept = typeof wesuwt === 'boowean' ? wesuwt : wesuwt.accept;
+				const effect = typeof wesuwt === 'boowean' ? undefined : wesuwt.effect;
+				wetuwn { accept, effect, feedback: [tawgetIndex!] };
 			}
 
-			return result;
+			wetuwn wesuwt;
 		}
 
-		if (result.bubble === TreeDragOverBubble.Up) {
-			const model = this.modelProvider();
-			const ref = model.getNodeLocation(targetNode);
-			const parentRef = model.getParentNodeLocation(ref);
-			const parentNode = model.getNode(parentRef);
-			const parentIndex = parentRef && model.getListIndex(parentRef);
+		if (wesuwt.bubbwe === TweeDwagOvewBubbwe.Up) {
+			const modew = this.modewPwovida();
+			const wef = modew.getNodeWocation(tawgetNode);
+			const pawentWef = modew.getPawentNodeWocation(wef);
+			const pawentNode = modew.getNode(pawentWef);
+			const pawentIndex = pawentWef && modew.getWistIndex(pawentWef);
 
-			return this.onDragOver(data, parentNode, parentIndex, originalEvent, false);
+			wetuwn this.onDwagOva(data, pawentNode, pawentIndex, owiginawEvent, fawse);
 		}
 
-		const model = this.modelProvider();
-		const ref = model.getNodeLocation(targetNode);
-		const start = model.getListIndex(ref);
-		const length = model.getListRenderCount(ref);
+		const modew = this.modewPwovida();
+		const wef = modew.getNodeWocation(tawgetNode);
+		const stawt = modew.getWistIndex(wef);
+		const wength = modew.getWistWendewCount(wef);
 
-		return { ...result, feedback: range(start, start + length) };
+		wetuwn { ...wesuwt, feedback: wange(stawt, stawt + wength) };
 	}
 
-	drop(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
-		this.autoExpandDisposable.dispose();
+	dwop(data: IDwagAndDwopData, tawgetNode: ITweeNode<T, TFiwtewData> | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): void {
+		this.autoExpandDisposabwe.dispose();
 		this.autoExpandNode = undefined;
 
-		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
+		this.dnd.dwop(asTweeDwagAndDwopData(data), tawgetNode && tawgetNode.ewement, tawgetIndex, owiginawEvent);
 	}
 
-	onDragEnd(originalEvent: DragEvent): void {
-		if (this.dnd.onDragEnd) {
-			this.dnd.onDragEnd(originalEvent);
+	onDwagEnd(owiginawEvent: DwagEvent): void {
+		if (this.dnd.onDwagEnd) {
+			this.dnd.onDwagEnd(owiginawEvent);
 		}
 	}
 }
 
-function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, TFilterData, TRef>, options?: IAbstractTreeOptions<T, TFilterData>): IListOptions<ITreeNode<T, TFilterData>> | undefined {
-	return options && {
+function asWistOptions<T, TFiwtewData, TWef>(modewPwovida: () => ITweeModew<T, TFiwtewData, TWef>, options?: IAbstwactTweeOptions<T, TFiwtewData>): IWistOptions<ITweeNode<T, TFiwtewData>> | undefined {
+	wetuwn options && {
 		...options,
-		identityProvider: options.identityProvider && {
-			getId(el) {
-				return options.identityProvider!.getId(el.element);
+		identityPwovida: options.identityPwovida && {
+			getId(ew) {
+				wetuwn options.identityPwovida!.getId(ew.ewement);
 			}
 		},
-		dnd: options.dnd && new TreeNodeListDragAndDrop(modelProvider, options.dnd),
-		multipleSelectionController: options.multipleSelectionController && {
-			isSelectionSingleChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionSingleChangeEvent({ ...e, element: e.element } as any);
+		dnd: options.dnd && new TweeNodeWistDwagAndDwop(modewPwovida, options.dnd),
+		muwtipweSewectionContwowwa: options.muwtipweSewectionContwowwa && {
+			isSewectionSingweChangeEvent(e) {
+				wetuwn options.muwtipweSewectionContwowwa!.isSewectionSingweChangeEvent({ ...e, ewement: e.ewement } as any);
 			},
-			isSelectionRangeChangeEvent(e) {
-				return options.multipleSelectionController!.isSelectionRangeChangeEvent({ ...e, element: e.element } as any);
+			isSewectionWangeChangeEvent(e) {
+				wetuwn options.muwtipweSewectionContwowwa!.isSewectionWangeChangeEvent({ ...e, ewement: e.ewement } as any);
 			}
 		},
-		accessibilityProvider: options.accessibilityProvider && {
-			...options.accessibilityProvider,
+		accessibiwityPwovida: options.accessibiwityPwovida && {
+			...options.accessibiwityPwovida,
 			getSetSize(node) {
-				const model = modelProvider();
-				const ref = model.getNodeLocation(node);
-				const parentRef = model.getParentNodeLocation(ref);
-				const parentNode = model.getNode(parentRef);
+				const modew = modewPwovida();
+				const wef = modew.getNodeWocation(node);
+				const pawentWef = modew.getPawentNodeWocation(wef);
+				const pawentNode = modew.getNode(pawentWef);
 
-				return parentNode.visibleChildrenCount;
+				wetuwn pawentNode.visibweChiwdwenCount;
 			},
 			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
+				wetuwn node.visibweChiwdIndex + 1;
 			},
-			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
-				return options.accessibilityProvider!.isChecked!(node.element);
+			isChecked: options.accessibiwityPwovida && options.accessibiwityPwovida.isChecked ? (node) => {
+				wetuwn options.accessibiwityPwovida!.isChecked!(node.ewement);
 			} : undefined,
-			getRole: options.accessibilityProvider && options.accessibilityProvider.getRole ? (node) => {
-				return options.accessibilityProvider!.getRole!(node.element);
-			} : () => 'treeitem',
-			getAriaLabel(e) {
-				return options.accessibilityProvider!.getAriaLabel(e.element);
+			getWowe: options.accessibiwityPwovida && options.accessibiwityPwovida.getWowe ? (node) => {
+				wetuwn options.accessibiwityPwovida!.getWowe!(node.ewement);
+			} : () => 'tweeitem',
+			getAwiaWabew(e) {
+				wetuwn options.accessibiwityPwovida!.getAwiaWabew(e.ewement);
 			},
-			getWidgetAriaLabel() {
-				return options.accessibilityProvider!.getWidgetAriaLabel();
+			getWidgetAwiaWabew() {
+				wetuwn options.accessibiwityPwovida!.getWidgetAwiaWabew();
 			},
-			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
-			getAriaLevel: options.accessibilityProvider && options.accessibilityProvider.getAriaLevel ? (node) => options.accessibilityProvider!.getAriaLevel!(node.element) : (node) => {
-				return node.depth;
+			getWidgetWowe: options.accessibiwityPwovida && options.accessibiwityPwovida.getWidgetWowe ? () => options.accessibiwityPwovida!.getWidgetWowe!() : () => 'twee',
+			getAwiaWevew: options.accessibiwityPwovida && options.accessibiwityPwovida.getAwiaWevew ? (node) => options.accessibiwityPwovida!.getAwiaWevew!(node.ewement) : (node) => {
+				wetuwn node.depth;
 			},
-			getActiveDescendantId: options.accessibilityProvider.getActiveDescendantId && (node => {
-				return options.accessibilityProvider!.getActiveDescendantId!(node.element);
+			getActiveDescendantId: options.accessibiwityPwovida.getActiveDescendantId && (node => {
+				wetuwn options.accessibiwityPwovida!.getActiveDescendantId!(node.ewement);
 			})
 		},
-		keyboardNavigationLabelProvider: options.keyboardNavigationLabelProvider && {
-			...options.keyboardNavigationLabelProvider,
-			getKeyboardNavigationLabel(node) {
-				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
+		keyboawdNavigationWabewPwovida: options.keyboawdNavigationWabewPwovida && {
+			...options.keyboawdNavigationWabewPwovida,
+			getKeyboawdNavigationWabew(node) {
+				wetuwn options.keyboawdNavigationWabewPwovida!.getKeyboawdNavigationWabew(node.ewement);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation
+		enabweKeyboawdNavigation: options.simpweKeyboawdNavigation
 	};
 }
 
-export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
+expowt cwass ComposedTweeDewegate<T, N extends { ewement: T }> impwements IWistViwtuawDewegate<N> {
 
-	constructor(private delegate: IListVirtualDelegate<T>) { }
+	constwuctow(pwivate dewegate: IWistViwtuawDewegate<T>) { }
 
-	getHeight(element: N): number {
-		return this.delegate.getHeight(element.element);
+	getHeight(ewement: N): numba {
+		wetuwn this.dewegate.getHeight(ewement.ewement);
 	}
 
-	getTemplateId(element: N): string {
-		return this.delegate.getTemplateId(element.element);
+	getTempwateId(ewement: N): stwing {
+		wetuwn this.dewegate.getTempwateId(ewement.ewement);
 	}
 
-	hasDynamicHeight(element: N): boolean {
-		return !!this.delegate.hasDynamicHeight && this.delegate.hasDynamicHeight(element.element);
+	hasDynamicHeight(ewement: N): boowean {
+		wetuwn !!this.dewegate.hasDynamicHeight && this.dewegate.hasDynamicHeight(ewement.ewement);
 	}
 
-	setDynamicHeight(element: N, height: number): void {
-		if (this.delegate.setDynamicHeight) {
-			this.delegate.setDynamicHeight(element.element, height);
+	setDynamicHeight(ewement: N, height: numba): void {
+		if (this.dewegate.setDynamicHeight) {
+			this.dewegate.setDynamicHeight(ewement.ewement, height);
 		}
 	}
 }
 
-interface ITreeListTemplateData<T> {
-	readonly container: HTMLElement;
-	readonly indent: HTMLElement;
-	readonly twistie: HTMLElement;
-	indentGuidesDisposable: IDisposable;
-	readonly templateData: T;
+intewface ITweeWistTempwateData<T> {
+	weadonwy containa: HTMWEwement;
+	weadonwy indent: HTMWEwement;
+	weadonwy twistie: HTMWEwement;
+	indentGuidesDisposabwe: IDisposabwe;
+	weadonwy tempwateData: T;
 }
 
-export enum RenderIndentGuides {
+expowt enum WendewIndentGuides {
 	None = 'none',
-	OnHover = 'onHover',
-	Always = 'always'
+	OnHova = 'onHova',
+	Awways = 'awways'
 }
 
-interface ITreeRendererOptions {
-	readonly indent?: number;
-	readonly renderIndentGuides?: RenderIndentGuides;
-	// TODO@joao replace this with collapsible: boolean | 'ondemand'
-	readonly hideTwistiesOfChildlessElements?: boolean;
+intewface ITweeWendewewOptions {
+	weadonwy indent?: numba;
+	weadonwy wendewIndentGuides?: WendewIndentGuides;
+	// TODO@joao wepwace this with cowwapsibwe: boowean | 'ondemand'
+	weadonwy hideTwistiesOfChiwdwessEwements?: boowean;
 }
 
-interface IRenderData<TTemplateData> {
-	templateData: ITreeListTemplateData<TTemplateData>;
-	height: number;
+intewface IWendewData<TTempwateData> {
+	tempwateData: ITweeWistTempwateData<TTempwateData>;
+	height: numba;
 }
 
-interface Collection<T> {
-	readonly elements: T[];
-	readonly onDidChange: Event<T[]>;
+intewface Cowwection<T> {
+	weadonwy ewements: T[];
+	weadonwy onDidChange: Event<T[]>;
 }
 
-class EventCollection<T> implements Collection<T> {
+cwass EventCowwection<T> impwements Cowwection<T> {
 
-	readonly onDidChange: Event<T[]>;
+	weadonwy onDidChange: Event<T[]>;
 
-	get elements(): T[] {
-		return this._elements;
+	get ewements(): T[] {
+		wetuwn this._ewements;
 	}
 
-	constructor(onDidChange: Event<T[]>, private _elements: T[] = []) {
-		this.onDidChange = Event.forEach(onDidChange, elements => this._elements = elements);
+	constwuctow(onDidChange: Event<T[]>, pwivate _ewements: T[] = []) {
+		this.onDidChange = Event.fowEach(onDidChange, ewements => this._ewements = ewements);
 	}
 }
 
-class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
+cwass TweeWendewa<T, TFiwtewData, TWef, TTempwateData> impwements IWistWendewa<ITweeNode<T, TFiwtewData>, ITweeWistTempwateData<TTempwateData>> {
 
-	private static readonly DefaultIndent = 8;
+	pwivate static weadonwy DefauwtIndent = 8;
 
-	readonly templateId: string;
-	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
-	private renderedNodes = new Map<ITreeNode<T, TFilterData>, IRenderData<TTemplateData>>();
-	private indent: number = TreeRenderer.DefaultIndent;
-	private hideTwistiesOfChildlessElements: boolean = false;
+	weadonwy tempwateId: stwing;
+	pwivate wendewedEwements = new Map<T, ITweeNode<T, TFiwtewData>>();
+	pwivate wendewedNodes = new Map<ITweeNode<T, TFiwtewData>, IWendewData<TTempwateData>>();
+	pwivate indent: numba = TweeWendewa.DefauwtIndent;
+	pwivate hideTwistiesOfChiwdwessEwements: boowean = fawse;
 
-	private shouldRenderIndentGuides: boolean = false;
-	private renderedIndentGuides = new SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>();
-	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
-	private indentGuidesDisposable: IDisposable = Disposable.None;
+	pwivate shouwdWendewIndentGuides: boowean = fawse;
+	pwivate wendewedIndentGuides = new SetMap<ITweeNode<T, TFiwtewData>, HTMWDivEwement>();
+	pwivate activeIndentNodes = new Set<ITweeNode<T, TFiwtewData>>();
+	pwivate indentGuidesDisposabwe: IDisposabwe = Disposabwe.None;
 
-	private readonly disposables = new DisposableStore();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	constructor(
-		private renderer: ITreeRenderer<T, TFilterData, TTemplateData>,
-		private modelProvider: () => ITreeModel<T, TFilterData, TRef>,
-		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
-		private activeNodes: Collection<ITreeNode<T, TFilterData>>,
-		options: ITreeRendererOptions = {}
+	constwuctow(
+		pwivate wendewa: ITweeWendewa<T, TFiwtewData, TTempwateData>,
+		pwivate modewPwovida: () => ITweeModew<T, TFiwtewData, TWef>,
+		onDidChangeCowwapseState: Event<ICowwapseStateChangeEvent<T, TFiwtewData>>,
+		pwivate activeNodes: Cowwection<ITweeNode<T, TFiwtewData>>,
+		options: ITweeWendewewOptions = {}
 	) {
-		this.templateId = renderer.templateId;
+		this.tempwateId = wendewa.tempwateId;
 		this.updateOptions(options);
 
-		Event.map(onDidChangeCollapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposables);
+		Event.map(onDidChangeCowwapseState, e => e.node)(this.onDidChangeNodeTwistieState, this, this.disposabwes);
 
-		if (renderer.onDidChangeTwistieState) {
-			renderer.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposables);
+		if (wendewa.onDidChangeTwistieState) {
+			wendewa.onDidChangeTwistieState(this.onDidChangeTwistieState, this, this.disposabwes);
 		}
 	}
 
-	updateOptions(options: ITreeRendererOptions = {}): void {
+	updateOptions(options: ITweeWendewewOptions = {}): void {
 		if (typeof options.indent !== 'undefined') {
-			this.indent = clamp(options.indent, 0, 40);
+			this.indent = cwamp(options.indent, 0, 40);
 		}
 
-		if (typeof options.renderIndentGuides !== 'undefined') {
-			const shouldRenderIndentGuides = options.renderIndentGuides !== RenderIndentGuides.None;
+		if (typeof options.wendewIndentGuides !== 'undefined') {
+			const shouwdWendewIndentGuides = options.wendewIndentGuides !== WendewIndentGuides.None;
 
-			if (shouldRenderIndentGuides !== this.shouldRenderIndentGuides) {
-				this.shouldRenderIndentGuides = shouldRenderIndentGuides;
-				this.indentGuidesDisposable.dispose();
+			if (shouwdWendewIndentGuides !== this.shouwdWendewIndentGuides) {
+				this.shouwdWendewIndentGuides = shouwdWendewIndentGuides;
+				this.indentGuidesDisposabwe.dispose();
 
-				if (shouldRenderIndentGuides) {
-					const disposables = new DisposableStore();
-					this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposables);
-					this.indentGuidesDisposable = disposables;
+				if (shouwdWendewIndentGuides) {
+					const disposabwes = new DisposabweStowe();
+					this.activeNodes.onDidChange(this._onDidChangeActiveNodes, this, disposabwes);
+					this.indentGuidesDisposabwe = disposabwes;
 
-					this._onDidChangeActiveNodes(this.activeNodes.elements);
+					this._onDidChangeActiveNodes(this.activeNodes.ewements);
 				}
 			}
 		}
 
-		if (typeof options.hideTwistiesOfChildlessElements !== 'undefined') {
-			this.hideTwistiesOfChildlessElements = options.hideTwistiesOfChildlessElements;
+		if (typeof options.hideTwistiesOfChiwdwessEwements !== 'undefined') {
+			this.hideTwistiesOfChiwdwessEwements = options.hideTwistiesOfChiwdwessEwements;
 		}
 	}
 
-	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
-		const el = append(container, $('.monaco-tl-row'));
-		const indent = append(el, $('.monaco-tl-indent'));
-		const twistie = append(el, $('.monaco-tl-twistie'));
-		const contents = append(el, $('.monaco-tl-contents'));
-		const templateData = this.renderer.renderTemplate(contents);
+	wendewTempwate(containa: HTMWEwement): ITweeWistTempwateData<TTempwateData> {
+		const ew = append(containa, $('.monaco-tw-wow'));
+		const indent = append(ew, $('.monaco-tw-indent'));
+		const twistie = append(ew, $('.monaco-tw-twistie'));
+		const contents = append(ew, $('.monaco-tw-contents'));
+		const tempwateData = this.wendewa.wendewTempwate(contents);
 
-		return { container, indent, twistie, indentGuidesDisposable: Disposable.None, templateData };
+		wetuwn { containa, indent, twistie, indentGuidesDisposabwe: Disposabwe.None, tempwateData };
 	}
 
-	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		if (typeof height === 'number') {
-			this.renderedNodes.set(node, { templateData, height });
-			this.renderedElements.set(node.element, node);
+	wendewEwement(node: ITweeNode<T, TFiwtewData>, index: numba, tempwateData: ITweeWistTempwateData<TTempwateData>, height: numba | undefined): void {
+		if (typeof height === 'numba') {
+			this.wendewedNodes.set(node, { tempwateData, height });
+			this.wendewedEwements.set(node.ewement, node);
 		}
 
-		const indent = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
-		templateData.twistie.style.paddingLeft = `${indent}px`;
-		templateData.indent.style.width = `${indent + this.indent - 16}px`;
+		const indent = TweeWendewa.DefauwtIndent + (node.depth - 1) * this.indent;
+		tempwateData.twistie.stywe.paddingWeft = `${indent}px`;
+		tempwateData.indent.stywe.width = `${indent + this.indent - 16}px`;
 
-		this.renderTwistie(node, templateData);
+		this.wendewTwistie(node, tempwateData);
 
-		if (typeof height === 'number') {
-			this.renderIndentGuides(node, templateData);
+		if (typeof height === 'numba') {
+			this.wendewIndentGuides(node, tempwateData);
 		}
 
-		this.renderer.renderElement(node, index, templateData.templateData, height);
+		this.wendewa.wendewEwement(node, index, tempwateData.tempwateData, height);
 	}
 
-	disposeElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, height: number | undefined): void {
-		templateData.indentGuidesDisposable.dispose();
+	disposeEwement(node: ITweeNode<T, TFiwtewData>, index: numba, tempwateData: ITweeWistTempwateData<TTempwateData>, height: numba | undefined): void {
+		tempwateData.indentGuidesDisposabwe.dispose();
 
-		if (this.renderer.disposeElement) {
-			this.renderer.disposeElement(node, index, templateData.templateData, height);
+		if (this.wendewa.disposeEwement) {
+			this.wendewa.disposeEwement(node, index, tempwateData.tempwateData, height);
 		}
 
-		if (typeof height === 'number') {
-			this.renderedNodes.delete(node);
-			this.renderedElements.delete(node.element);
+		if (typeof height === 'numba') {
+			this.wendewedNodes.dewete(node);
+			this.wendewedEwements.dewete(node.ewement);
 		}
 	}
 
-	disposeTemplate(templateData: ITreeListTemplateData<TTemplateData>): void {
-		this.renderer.disposeTemplate(templateData.templateData);
+	disposeTempwate(tempwateData: ITweeWistTempwateData<TTempwateData>): void {
+		this.wendewa.disposeTempwate(tempwateData.tempwateData);
 	}
 
-	private onDidChangeTwistieState(element: T): void {
-		const node = this.renderedElements.get(element);
+	pwivate onDidChangeTwistieState(ewement: T): void {
+		const node = this.wendewedEwements.get(ewement);
 
 		if (!node) {
-			return;
+			wetuwn;
 		}
 
 		this.onDidChangeNodeTwistieState(node);
 	}
 
-	private onDidChangeNodeTwistieState(node: ITreeNode<T, TFilterData>): void {
-		const data = this.renderedNodes.get(node);
+	pwivate onDidChangeNodeTwistieState(node: ITweeNode<T, TFiwtewData>): void {
+		const data = this.wendewedNodes.get(node);
 
 		if (!data) {
-			return;
+			wetuwn;
 		}
 
-		this.renderTwistie(node, data.templateData);
-		this._onDidChangeActiveNodes(this.activeNodes.elements);
-		this.renderIndentGuides(node, data.templateData);
+		this.wendewTwistie(node, data.tempwateData);
+		this._onDidChangeActiveNodes(this.activeNodes.ewements);
+		this.wendewIndentGuides(node, data.tempwateData);
 	}
 
-	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
-		templateData.twistie.classList.remove(...treeItemExpandedIcon.classNamesArray);
+	pwivate wendewTwistie(node: ITweeNode<T, TFiwtewData>, tempwateData: ITweeWistTempwateData<TTempwateData>) {
+		tempwateData.twistie.cwassWist.wemove(...tweeItemExpandedIcon.cwassNamesAwway);
 
-		let twistieRendered = false;
+		wet twistieWendewed = fawse;
 
-		if (this.renderer.renderTwistie) {
-			twistieRendered = this.renderer.renderTwistie(node.element, templateData.twistie);
+		if (this.wendewa.wendewTwistie) {
+			twistieWendewed = this.wendewa.wendewTwistie(node.ewement, tempwateData.twistie);
 		}
 
-		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
-			if (!twistieRendered) {
-				templateData.twistie.classList.add(...treeItemExpandedIcon.classNamesArray);
+		if (node.cowwapsibwe && (!this.hideTwistiesOfChiwdwessEwements || node.visibweChiwdwenCount > 0)) {
+			if (!twistieWendewed) {
+				tempwateData.twistie.cwassWist.add(...tweeItemExpandedIcon.cwassNamesAwway);
 			}
 
-			templateData.twistie.classList.add('collapsible');
-			templateData.twistie.classList.toggle('collapsed', node.collapsed);
-		} else {
-			templateData.twistie.classList.remove('collapsible', 'collapsed');
+			tempwateData.twistie.cwassWist.add('cowwapsibwe');
+			tempwateData.twistie.cwassWist.toggwe('cowwapsed', node.cowwapsed);
+		} ewse {
+			tempwateData.twistie.cwassWist.wemove('cowwapsibwe', 'cowwapsed');
 		}
 
-		if (node.collapsible) {
-			templateData.container.setAttribute('aria-expanded', String(!node.collapsed));
-		} else {
-			templateData.container.removeAttribute('aria-expanded');
+		if (node.cowwapsibwe) {
+			tempwateData.containa.setAttwibute('awia-expanded', Stwing(!node.cowwapsed));
+		} ewse {
+			tempwateData.containa.wemoveAttwibute('awia-expanded');
 		}
 	}
 
-	private renderIndentGuides(target: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
-		clearNode(templateData.indent);
-		templateData.indentGuidesDisposable.dispose();
+	pwivate wendewIndentGuides(tawget: ITweeNode<T, TFiwtewData>, tempwateData: ITweeWistTempwateData<TTempwateData>): void {
+		cweawNode(tempwateData.indent);
+		tempwateData.indentGuidesDisposabwe.dispose();
 
-		if (!this.shouldRenderIndentGuides) {
-			return;
+		if (!this.shouwdWendewIndentGuides) {
+			wetuwn;
 		}
 
-		const disposableStore = new DisposableStore();
-		const model = this.modelProvider();
+		const disposabweStowe = new DisposabweStowe();
+		const modew = this.modewPwovida();
 
-		let node = target;
+		wet node = tawget;
 
-		while (true) {
-			const ref = model.getNodeLocation(node);
-			const parentRef = model.getParentNodeLocation(ref);
+		whiwe (twue) {
+			const wef = modew.getNodeWocation(node);
+			const pawentWef = modew.getPawentNodeWocation(wef);
 
-			if (!parentRef) {
-				break;
+			if (!pawentWef) {
+				bweak;
 			}
 
-			const parent = model.getNode(parentRef);
-			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
+			const pawent = modew.getNode(pawentWef);
+			const guide = $<HTMWDivEwement>('.indent-guide', { stywe: `width: ${this.indent}px` });
 
-			if (this.activeIndentNodes.has(parent)) {
-				guide.classList.add('active');
+			if (this.activeIndentNodes.has(pawent)) {
+				guide.cwassWist.add('active');
 			}
 
-			if (templateData.indent.childElementCount === 0) {
-				templateData.indent.appendChild(guide);
-			} else {
-				templateData.indent.insertBefore(guide, templateData.indent.firstElementChild);
+			if (tempwateData.indent.chiwdEwementCount === 0) {
+				tempwateData.indent.appendChiwd(guide);
+			} ewse {
+				tempwateData.indent.insewtBefowe(guide, tempwateData.indent.fiwstEwementChiwd);
 			}
 
-			this.renderedIndentGuides.add(parent, guide);
-			disposableStore.add(toDisposable(() => this.renderedIndentGuides.delete(parent, guide)));
+			this.wendewedIndentGuides.add(pawent, guide);
+			disposabweStowe.add(toDisposabwe(() => this.wendewedIndentGuides.dewete(pawent, guide)));
 
-			node = parent;
+			node = pawent;
 		}
 
-		templateData.indentGuidesDisposable = disposableStore;
+		tempwateData.indentGuidesDisposabwe = disposabweStowe;
 	}
 
-	private _onDidChangeActiveNodes(nodes: ITreeNode<T, TFilterData>[]): void {
-		if (!this.shouldRenderIndentGuides) {
-			return;
+	pwivate _onDidChangeActiveNodes(nodes: ITweeNode<T, TFiwtewData>[]): void {
+		if (!this.shouwdWendewIndentGuides) {
+			wetuwn;
 		}
 
-		const set = new Set<ITreeNode<T, TFilterData>>();
-		const model = this.modelProvider();
+		const set = new Set<ITweeNode<T, TFiwtewData>>();
+		const modew = this.modewPwovida();
 
-		nodes.forEach(node => {
-			const ref = model.getNodeLocation(node);
-			try {
-				const parentRef = model.getParentNodeLocation(ref);
+		nodes.fowEach(node => {
+			const wef = modew.getNodeWocation(node);
+			twy {
+				const pawentWef = modew.getPawentNodeWocation(wef);
 
-				if (node.collapsible && node.children.length > 0 && !node.collapsed) {
+				if (node.cowwapsibwe && node.chiwdwen.wength > 0 && !node.cowwapsed) {
 					set.add(node);
-				} else if (parentRef) {
-					set.add(model.getNode(parentRef));
+				} ewse if (pawentWef) {
+					set.add(modew.getNode(pawentWef));
 				}
 			} catch {
 				// noop
 			}
 		});
 
-		this.activeIndentNodes.forEach(node => {
+		this.activeIndentNodes.fowEach(node => {
 			if (!set.has(node)) {
-				this.renderedIndentGuides.forEach(node, line => line.classList.remove('active'));
+				this.wendewedIndentGuides.fowEach(node, wine => wine.cwassWist.wemove('active'));
 			}
 		});
 
-		set.forEach(node => {
+		set.fowEach(node => {
 			if (!this.activeIndentNodes.has(node)) {
-				this.renderedIndentGuides.forEach(node, line => line.classList.add('active'));
+				this.wendewedIndentGuides.fowEach(node, wine => wine.cwassWist.add('active'));
 			}
 		});
 
@@ -508,922 +508,922 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	dispose(): void {
-		this.renderedNodes.clear();
-		this.renderedElements.clear();
-		this.indentGuidesDisposable.dispose();
-		dispose(this.disposables);
+		this.wendewedNodes.cweaw();
+		this.wendewedEwements.cweaw();
+		this.indentGuidesDisposabwe.dispose();
+		dispose(this.disposabwes);
 	}
 }
 
-export type LabelFuzzyScore = { label: string; score: FuzzyScore };
+expowt type WabewFuzzyScowe = { wabew: stwing; scowe: FuzzyScowe };
 
-class TypeFilter<T> implements ITreeFilter<T, FuzzyScore | LabelFuzzyScore>, IDisposable {
-	private _totalCount = 0;
-	get totalCount(): number { return this._totalCount; }
-	private _matchCount = 0;
-	get matchCount(): number { return this._matchCount; }
+cwass TypeFiwta<T> impwements ITweeFiwta<T, FuzzyScowe | WabewFuzzyScowe>, IDisposabwe {
+	pwivate _totawCount = 0;
+	get totawCount(): numba { wetuwn this._totawCount; }
+	pwivate _matchCount = 0;
+	get matchCount(): numba { wetuwn this._matchCount; }
 
-	private _pattern: string = '';
-	private _lowercasePattern: string = '';
-	private readonly disposables = new DisposableStore();
+	pwivate _pattewn: stwing = '';
+	pwivate _wowewcasePattewn: stwing = '';
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	set pattern(pattern: string) {
-		this._pattern = pattern;
-		this._lowercasePattern = pattern.toLowerCase();
+	set pattewn(pattewn: stwing) {
+		this._pattewn = pattewn;
+		this._wowewcasePattewn = pattewn.toWowewCase();
 	}
 
-	constructor(
-		private tree: AbstractTree<T, any, any>,
-		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
-		private _filter?: ITreeFilter<T, FuzzyScore>
+	constwuctow(
+		pwivate twee: AbstwactTwee<T, any, any>,
+		pwivate keyboawdNavigationWabewPwovida: IKeyboawdNavigationWabewPwovida<T>,
+		pwivate _fiwta?: ITweeFiwta<T, FuzzyScowe>
 	) {
-		tree.onWillRefilter(this.reset, this, this.disposables);
+		twee.onWiwwWefiwta(this.weset, this, this.disposabwes);
 	}
 
-	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore> {
-		if (this._filter) {
-			const result = this._filter.filter(element, parentVisibility);
+	fiwta(ewement: T, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<FuzzyScowe | WabewFuzzyScowe> {
+		if (this._fiwta) {
+			const wesuwt = this._fiwta.fiwta(ewement, pawentVisibiwity);
 
-			if (this.tree.options.simpleKeyboardNavigation) {
-				return result;
+			if (this.twee.options.simpweKeyboawdNavigation) {
+				wetuwn wesuwt;
 			}
 
-			let visibility: TreeVisibility;
+			wet visibiwity: TweeVisibiwity;
 
-			if (typeof result === 'boolean') {
-				visibility = result ? TreeVisibility.Visible : TreeVisibility.Hidden;
-			} else if (isFilterResult(result)) {
-				visibility = getVisibleState(result.visibility);
-			} else {
-				visibility = result;
+			if (typeof wesuwt === 'boowean') {
+				visibiwity = wesuwt ? TweeVisibiwity.Visibwe : TweeVisibiwity.Hidden;
+			} ewse if (isFiwtewWesuwt(wesuwt)) {
+				visibiwity = getVisibweState(wesuwt.visibiwity);
+			} ewse {
+				visibiwity = wesuwt;
 			}
 
-			if (visibility === TreeVisibility.Hidden) {
-				return false;
+			if (visibiwity === TweeVisibiwity.Hidden) {
+				wetuwn fawse;
 			}
 		}
 
-		this._totalCount++;
+		this._totawCount++;
 
-		if (this.tree.options.simpleKeyboardNavigation || !this._pattern) {
+		if (this.twee.options.simpweKeyboawdNavigation || !this._pattewn) {
 			this._matchCount++;
-			return { data: FuzzyScore.Default, visibility: true };
+			wetuwn { data: FuzzyScowe.Defauwt, visibiwity: twue };
 		}
 
-		const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(element);
-		const labels = Array.isArray(label) ? label : [label];
+		const wabew = this.keyboawdNavigationWabewPwovida.getKeyboawdNavigationWabew(ewement);
+		const wabews = Awway.isAwway(wabew) ? wabew : [wabew];
 
-		for (const l of labels) {
-			const labelStr = l && l.toString();
-			if (typeof labelStr === 'undefined') {
-				return { data: FuzzyScore.Default, visibility: true };
+		fow (const w of wabews) {
+			const wabewStw = w && w.toStwing();
+			if (typeof wabewStw === 'undefined') {
+				wetuwn { data: FuzzyScowe.Defauwt, visibiwity: twue };
 			}
 
-			const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, true);
-			if (score) {
+			const scowe = fuzzyScowe(this._pattewn, this._wowewcasePattewn, 0, wabewStw, wabewStw.toWowewCase(), 0, twue);
+			if (scowe) {
 				this._matchCount++;
-				return labels.length === 1 ?
-					{ data: score, visibility: true } :
-					{ data: { label: labelStr, score: score }, visibility: true };
+				wetuwn wabews.wength === 1 ?
+					{ data: scowe, visibiwity: twue } :
+					{ data: { wabew: wabewStw, scowe: scowe }, visibiwity: twue };
 			}
 		}
 
-		if (this.tree.options.filterOnType) {
-			return TreeVisibility.Recurse;
-		} else {
-			return { data: FuzzyScore.Default, visibility: true };
+		if (this.twee.options.fiwtewOnType) {
+			wetuwn TweeVisibiwity.Wecuwse;
+		} ewse {
+			wetuwn { data: FuzzyScowe.Defauwt, visibiwity: twue };
 		}
 	}
 
-	private reset(): void {
-		this._totalCount = 0;
+	pwivate weset(): void {
+		this._totawCount = 0;
 		this._matchCount = 0;
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		dispose(this.disposabwes);
 	}
 }
 
-class TypeFilterController<T, TFilterData> implements IDisposable {
+cwass TypeFiwtewContwowwa<T, TFiwtewData> impwements IDisposabwe {
 
-	private _enabled = false;
-	get enabled(): boolean { return this._enabled; }
+	pwivate _enabwed = fawse;
+	get enabwed(): boowean { wetuwn this._enabwed; }
 
-	private _pattern = '';
-	get pattern(): string { return this._pattern; }
+	pwivate _pattewn = '';
+	get pattewn(): stwing { wetuwn this._pattewn; }
 
-	private _filterOnType: boolean;
-	get filterOnType(): boolean { return this._filterOnType; }
+	pwivate _fiwtewOnType: boowean;
+	get fiwtewOnType(): boowean { wetuwn this._fiwtewOnType; }
 
-	private _empty: boolean = false;
-	get empty(): boolean { return this._empty; }
+	pwivate _empty: boowean = fawse;
+	get empty(): boowean { wetuwn this._empty; }
 
-	private readonly _onDidChangeEmptyState = new Emitter<boolean>();
-	readonly onDidChangeEmptyState: Event<boolean> = Event.latch(this._onDidChangeEmptyState.event);
+	pwivate weadonwy _onDidChangeEmptyState = new Emitta<boowean>();
+	weadonwy onDidChangeEmptyState: Event<boowean> = Event.watch(this._onDidChangeEmptyState.event);
 
-	private positionClassName = 'ne';
-	private domNode: HTMLElement;
-	private messageDomNode: HTMLElement;
-	private labelDomNode: HTMLElement;
-	private filterOnTypeDomNode: HTMLInputElement;
-	private clearDomNode: HTMLElement;
-	private keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
+	pwivate positionCwassName = 'ne';
+	pwivate domNode: HTMWEwement;
+	pwivate messageDomNode: HTMWEwement;
+	pwivate wabewDomNode: HTMWEwement;
+	pwivate fiwtewOnTypeDomNode: HTMWInputEwement;
+	pwivate cweawDomNode: HTMWEwement;
+	pwivate keyboawdNavigationEventFiwta?: IKeyboawdNavigationEventFiwta;
 
-	private automaticKeyboardNavigation = true;
-	private triggered = false;
+	pwivate automaticKeyboawdNavigation = twue;
+	pwivate twiggewed = fawse;
 
-	private readonly _onDidChangePattern = new Emitter<string>();
-	readonly onDidChangePattern = this._onDidChangePattern.event;
+	pwivate weadonwy _onDidChangePattewn = new Emitta<stwing>();
+	weadonwy onDidChangePattewn = this._onDidChangePattewn.event;
 
-	private readonly enabledDisposables = new DisposableStore();
-	private readonly disposables = new DisposableStore();
+	pwivate weadonwy enabwedDisposabwes = new DisposabweStowe();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	constructor(
-		private tree: AbstractTree<T, TFilterData, any>,
-		model: ITreeModel<T, TFilterData, any>,
-		private view: List<ITreeNode<T, TFilterData>>,
-		private filter: TypeFilter<T>,
-		private keyboardNavigationDelegate: IKeyboardNavigationDelegate
+	constwuctow(
+		pwivate twee: AbstwactTwee<T, TFiwtewData, any>,
+		modew: ITweeModew<T, TFiwtewData, any>,
+		pwivate view: Wist<ITweeNode<T, TFiwtewData>>,
+		pwivate fiwta: TypeFiwta<T>,
+		pwivate keyboawdNavigationDewegate: IKeyboawdNavigationDewegate
 	) {
-		this.domNode = $(`.monaco-list-type-filter.${this.positionClassName}`);
-		this.domNode.draggable = true;
-		this.disposables.add(addDisposableListener(this.domNode, 'dragstart', () => this.onDragStart()));
+		this.domNode = $(`.monaco-wist-type-fiwta.${this.positionCwassName}`);
+		this.domNode.dwaggabwe = twue;
+		this.disposabwes.add(addDisposabweWistena(this.domNode, 'dwagstawt', () => this.onDwagStawt()));
 
-		this.messageDomNode = append(view.getHTMLElement(), $(`.monaco-list-type-filter-message`));
+		this.messageDomNode = append(view.getHTMWEwement(), $(`.monaco-wist-type-fiwta-message`));
 
-		this.labelDomNode = append(this.domNode, $('span.label'));
-		const controls = append(this.domNode, $('.controls'));
+		this.wabewDomNode = append(this.domNode, $('span.wabew'));
+		const contwows = append(this.domNode, $('.contwows'));
 
-		this._filterOnType = !!tree.options.filterOnType;
-		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
-		this.filterOnTypeDomNode.type = 'checkbox';
-		this.filterOnTypeDomNode.checked = this._filterOnType;
-		this.filterOnTypeDomNode.tabIndex = -1;
-		this.updateFilterOnTypeTitleAndIcon();
-		this.disposables.add(addDisposableListener(this.filterOnTypeDomNode, 'input', () => this.onDidChangeFilterOnType()));
+		this._fiwtewOnType = !!twee.options.fiwtewOnType;
+		this.fiwtewOnTypeDomNode = append(contwows, $<HTMWInputEwement>('input.fiwta'));
+		this.fiwtewOnTypeDomNode.type = 'checkbox';
+		this.fiwtewOnTypeDomNode.checked = this._fiwtewOnType;
+		this.fiwtewOnTypeDomNode.tabIndex = -1;
+		this.updateFiwtewOnTypeTitweAndIcon();
+		this.disposabwes.add(addDisposabweWistena(this.fiwtewOnTypeDomNode, 'input', () => this.onDidChangeFiwtewOnType()));
 
-		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear' + treeFilterClearIcon.cssSelector));
-		this.clearDomNode.tabIndex = -1;
-		this.clearDomNode.title = localize('clear', "Clear");
+		this.cweawDomNode = append(contwows, $<HTMWInputEwement>('button.cweaw' + tweeFiwtewCweawIcon.cssSewectow));
+		this.cweawDomNode.tabIndex = -1;
+		this.cweawDomNode.titwe = wocawize('cweaw', "Cweaw");
 
-		this.keyboardNavigationEventFilter = tree.options.keyboardNavigationEventFilter;
+		this.keyboawdNavigationEventFiwta = twee.options.keyboawdNavigationEventFiwta;
 
-		model.onDidSplice(this.onDidSpliceModel, this, this.disposables);
-		this.updateOptions(tree.options);
+		modew.onDidSpwice(this.onDidSpwiceModew, this, this.disposabwes);
+		this.updateOptions(twee.options);
 	}
 
-	updateOptions(options: IAbstractTreeOptions<T, TFilterData>): void {
-		if (options.simpleKeyboardNavigation) {
-			this.disable();
-		} else {
-			this.enable();
+	updateOptions(options: IAbstwactTweeOptions<T, TFiwtewData>): void {
+		if (options.simpweKeyboawdNavigation) {
+			this.disabwe();
+		} ewse {
+			this.enabwe();
 		}
 
-		if (typeof options.filterOnType !== 'undefined') {
-			this._filterOnType = !!options.filterOnType;
-			this.filterOnTypeDomNode.checked = this._filterOnType;
-			this.updateFilterOnTypeTitleAndIcon();
+		if (typeof options.fiwtewOnType !== 'undefined') {
+			this._fiwtewOnType = !!options.fiwtewOnType;
+			this.fiwtewOnTypeDomNode.checked = this._fiwtewOnType;
+			this.updateFiwtewOnTypeTitweAndIcon();
 		}
 
-		if (typeof options.automaticKeyboardNavigation !== 'undefined') {
-			this.automaticKeyboardNavigation = options.automaticKeyboardNavigation;
+		if (typeof options.automaticKeyboawdNavigation !== 'undefined') {
+			this.automaticKeyboawdNavigation = options.automaticKeyboawdNavigation;
 		}
 
-		this.tree.refilter();
-		this.render();
+		this.twee.wefiwta();
+		this.wenda();
 
-		if (!this.automaticKeyboardNavigation) {
-			this.onEventOrInput('');
-		}
-	}
-
-	toggle(): void {
-		this.triggered = !this.triggered;
-
-		if (!this.triggered) {
-			this.onEventOrInput('');
+		if (!this.automaticKeyboawdNavigation) {
+			this.onEventOwInput('');
 		}
 	}
 
-	private enable(): void {
-		if (this._enabled) {
-			return;
+	toggwe(): void {
+		this.twiggewed = !this.twiggewed;
+
+		if (!this.twiggewed) {
+			this.onEventOwInput('');
+		}
+	}
+
+	pwivate enabwe(): void {
+		if (this._enabwed) {
+			wetuwn;
 		}
 
-		const onRawKeyDown = this.enabledDisposables.add(new DomEmitter(this.view.getHTMLElement(), 'keydown'));
-		const onKeyDown = Event.chain(onRawKeyDown.event)
-			.filter(e => !isInputElement(e.target as HTMLElement) || e.target === this.filterOnTypeDomNode)
-			.filter(e => e.key !== 'Dead' && !/^Media/.test(e.key))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(this.keyboardNavigationEventFilter || (() => true))
-			.filter(() => this.automaticKeyboardNavigation || this.triggered)
-			.filter(e => (this.keyboardNavigationDelegate.mightProducePrintableCharacter(e) && !(e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.LeftArrow || e.keyCode === KeyCode.RightArrow)) || ((this.pattern.length > 0 || this.triggered) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.altKey && !e.ctrlKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.altKey && !e.metaKey) : e.ctrlKey) && !e.shiftKey)))
-			.forEach(e => { e.stopPropagation(); e.preventDefault(); })
+		const onWawKeyDown = this.enabwedDisposabwes.add(new DomEmitta(this.view.getHTMWEwement(), 'keydown'));
+		const onKeyDown = Event.chain(onWawKeyDown.event)
+			.fiwta(e => !isInputEwement(e.tawget as HTMWEwement) || e.tawget === this.fiwtewOnTypeDomNode)
+			.fiwta(e => e.key !== 'Dead' && !/^Media/.test(e.key))
+			.map(e => new StandawdKeyboawdEvent(e))
+			.fiwta(this.keyboawdNavigationEventFiwta || (() => twue))
+			.fiwta(() => this.automaticKeyboawdNavigation || this.twiggewed)
+			.fiwta(e => (this.keyboawdNavigationDewegate.mightPwoducePwintabweChawacta(e) && !(e.keyCode === KeyCode.DownAwwow || e.keyCode === KeyCode.UpAwwow || e.keyCode === KeyCode.WeftAwwow || e.keyCode === KeyCode.WightAwwow)) || ((this.pattewn.wength > 0 || this.twiggewed) && ((e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Backspace) && !e.awtKey && !e.ctwwKey && !e.metaKey) || (e.keyCode === KeyCode.Backspace && (isMacintosh ? (e.awtKey && !e.metaKey) : e.ctwwKey) && !e.shiftKey)))
+			.fowEach(e => { e.stopPwopagation(); e.pweventDefauwt(); })
 			.event;
 
-		const onClearClick = this.enabledDisposables.add(new DomEmitter(this.clearDomNode, 'click'));
+		const onCweawCwick = this.enabwedDisposabwes.add(new DomEmitta(this.cweawDomNode, 'cwick'));
 
-		Event.chain(Event.any<MouseEvent | StandardKeyboardEvent>(onKeyDown, onClearClick.event))
-			.event(this.onEventOrInput, this, this.enabledDisposables);
+		Event.chain(Event.any<MouseEvent | StandawdKeyboawdEvent>(onKeyDown, onCweawCwick.event))
+			.event(this.onEventOwInput, this, this.enabwedDisposabwes);
 
-		this.filter.pattern = '';
-		this.tree.refilter();
-		this.render();
-		this._enabled = true;
-		this.triggered = false;
+		this.fiwta.pattewn = '';
+		this.twee.wefiwta();
+		this.wenda();
+		this._enabwed = twue;
+		this.twiggewed = fawse;
 	}
 
-	private disable(): void {
-		if (!this._enabled) {
-			return;
+	pwivate disabwe(): void {
+		if (!this._enabwed) {
+			wetuwn;
 		}
 
-		this.domNode.remove();
-		this.enabledDisposables.clear();
-		this.tree.refilter();
-		this.render();
-		this._enabled = false;
-		this.triggered = false;
+		this.domNode.wemove();
+		this.enabwedDisposabwes.cweaw();
+		this.twee.wefiwta();
+		this.wenda();
+		this._enabwed = fawse;
+		this.twiggewed = fawse;
 	}
 
-	private onEventOrInput(e: MouseEvent | StandardKeyboardEvent | string): void {
-		if (typeof e === 'string') {
+	pwivate onEventOwInput(e: MouseEvent | StandawdKeyboawdEvent | stwing): void {
+		if (typeof e === 'stwing') {
 			this.onInput(e);
-		} else if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
+		} ewse if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.awtKey : e.ctwwKey))) {
 			this.onInput('');
-		} else if (e.keyCode === KeyCode.Backspace) {
-			this.onInput(this.pattern.length === 0 ? '' : this.pattern.substr(0, this.pattern.length - 1));
-		} else {
-			this.onInput(this.pattern + e.browserEvent.key);
+		} ewse if (e.keyCode === KeyCode.Backspace) {
+			this.onInput(this.pattewn.wength === 0 ? '' : this.pattewn.substw(0, this.pattewn.wength - 1));
+		} ewse {
+			this.onInput(this.pattewn + e.bwowsewEvent.key);
 		}
 	}
 
-	private onInput(pattern: string): void {
-		const container = this.view.getHTMLElement();
+	pwivate onInput(pattewn: stwing): void {
+		const containa = this.view.getHTMWEwement();
 
-		if (pattern && !this.domNode.parentElement) {
-			container.append(this.domNode);
-		} else if (!pattern && this.domNode.parentElement) {
-			this.domNode.remove();
-			this.tree.domFocus();
+		if (pattewn && !this.domNode.pawentEwement) {
+			containa.append(this.domNode);
+		} ewse if (!pattewn && this.domNode.pawentEwement) {
+			this.domNode.wemove();
+			this.twee.domFocus();
 		}
 
-		this._pattern = pattern;
-		this._onDidChangePattern.fire(pattern);
+		this._pattewn = pattewn;
+		this._onDidChangePattewn.fiwe(pattewn);
 
-		this.filter.pattern = pattern;
-		this.tree.refilter();
+		this.fiwta.pattewn = pattewn;
+		this.twee.wefiwta();
 
-		if (pattern) {
-			this.tree.focusNext(0, true, undefined, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+		if (pattewn) {
+			this.twee.focusNext(0, twue, undefined, node => !FuzzyScowe.isDefauwt(node.fiwtewData as any as FuzzyScowe));
 		}
 
-		const focus = this.tree.getFocus();
+		const focus = this.twee.getFocus();
 
-		if (focus.length > 0) {
-			const element = focus[0];
+		if (focus.wength > 0) {
+			const ewement = focus[0];
 
-			if (this.tree.getRelativeTop(element) === null) {
-				this.tree.reveal(element, 0.5);
+			if (this.twee.getWewativeTop(ewement) === nuww) {
+				this.twee.weveaw(ewement, 0.5);
 			}
 		}
 
-		this.render();
+		this.wenda();
 
-		if (!pattern) {
-			this.triggered = false;
+		if (!pattewn) {
+			this.twiggewed = fawse;
 		}
 	}
 
-	private onDragStart(): void {
-		const container = this.view.getHTMLElement();
-		const { left } = getDomNodePagePosition(container);
-		const containerWidth = container.clientWidth;
-		const midContainerWidth = containerWidth / 2;
-		const width = this.domNode.clientWidth;
-		const disposables = new DisposableStore();
-		let positionClassName = this.positionClassName;
+	pwivate onDwagStawt(): void {
+		const containa = this.view.getHTMWEwement();
+		const { weft } = getDomNodePagePosition(containa);
+		const containewWidth = containa.cwientWidth;
+		const midContainewWidth = containewWidth / 2;
+		const width = this.domNode.cwientWidth;
+		const disposabwes = new DisposabweStowe();
+		wet positionCwassName = this.positionCwassName;
 
 		const updatePosition = () => {
-			switch (positionClassName) {
+			switch (positionCwassName) {
 				case 'nw':
-					this.domNode.style.top = `4px`;
-					this.domNode.style.left = `4px`;
-					break;
+					this.domNode.stywe.top = `4px`;
+					this.domNode.stywe.weft = `4px`;
+					bweak;
 				case 'ne':
-					this.domNode.style.top = `4px`;
-					this.domNode.style.left = `${containerWidth - width - 6}px`;
-					break;
+					this.domNode.stywe.top = `4px`;
+					this.domNode.stywe.weft = `${containewWidth - width - 6}px`;
+					bweak;
 			}
 		};
 
-		const onDragOver = (event: DragEvent) => {
-			event.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+		const onDwagOva = (event: DwagEvent) => {
+			event.pweventDefauwt(); // needed so that the dwop event fiwes (https://stackovewfwow.com/questions/21339924/dwop-event-not-fiwing-in-chwome)
 
-			const x = event.clientX - left;
-			if (event.dataTransfer) {
-				event.dataTransfer.dropEffect = 'none';
+			const x = event.cwientX - weft;
+			if (event.dataTwansfa) {
+				event.dataTwansfa.dwopEffect = 'none';
 			}
 
-			if (x < midContainerWidth) {
-				positionClassName = 'nw';
-			} else {
-				positionClassName = 'ne';
+			if (x < midContainewWidth) {
+				positionCwassName = 'nw';
+			} ewse {
+				positionCwassName = 'ne';
 			}
 
 			updatePosition();
 		};
 
-		const onDragEnd = () => {
-			this.positionClassName = positionClassName;
-			this.domNode.className = `monaco-list-type-filter ${this.positionClassName}`;
-			this.domNode.style.top = '';
-			this.domNode.style.left = '';
+		const onDwagEnd = () => {
+			this.positionCwassName = positionCwassName;
+			this.domNode.cwassName = `monaco-wist-type-fiwta ${this.positionCwassName}`;
+			this.domNode.stywe.top = '';
+			this.domNode.stywe.weft = '';
 
-			dispose(disposables);
+			dispose(disposabwes);
 		};
 
 		updatePosition();
-		this.domNode.classList.remove(positionClassName);
+		this.domNode.cwassWist.wemove(positionCwassName);
 
-		this.domNode.classList.add('dragging');
-		disposables.add(toDisposable(() => this.domNode.classList.remove('dragging')));
+		this.domNode.cwassWist.add('dwagging');
+		disposabwes.add(toDisposabwe(() => this.domNode.cwassWist.wemove('dwagging')));
 
-		disposables.add(addDisposableListener(document, 'dragover', e => onDragOver(e)));
-		disposables.add(addDisposableListener(this.domNode, 'dragend', () => onDragEnd()));
+		disposabwes.add(addDisposabweWistena(document, 'dwagova', e => onDwagOva(e)));
+		disposabwes.add(addDisposabweWistena(this.domNode, 'dwagend', () => onDwagEnd()));
 
-		StaticDND.CurrentDragAndDropData = new DragAndDropData('vscode-ui');
-		disposables.add(toDisposable(() => StaticDND.CurrentDragAndDropData = undefined));
+		StaticDND.CuwwentDwagAndDwopData = new DwagAndDwopData('vscode-ui');
+		disposabwes.add(toDisposabwe(() => StaticDND.CuwwentDwagAndDwopData = undefined));
 	}
 
-	private onDidSpliceModel(): void {
-		if (!this._enabled || this.pattern.length === 0) {
-			return;
+	pwivate onDidSpwiceModew(): void {
+		if (!this._enabwed || this.pattewn.wength === 0) {
+			wetuwn;
 		}
 
-		this.tree.refilter();
-		this.render();
+		this.twee.wefiwta();
+		this.wenda();
 	}
 
-	private onDidChangeFilterOnType(): void {
-		this.tree.updateOptions({ filterOnType: this.filterOnTypeDomNode.checked });
-		this.tree.refilter();
-		this.tree.domFocus();
-		this.render();
-		this.updateFilterOnTypeTitleAndIcon();
+	pwivate onDidChangeFiwtewOnType(): void {
+		this.twee.updateOptions({ fiwtewOnType: this.fiwtewOnTypeDomNode.checked });
+		this.twee.wefiwta();
+		this.twee.domFocus();
+		this.wenda();
+		this.updateFiwtewOnTypeTitweAndIcon();
 	}
 
-	private updateFilterOnTypeTitleAndIcon(): void {
-		if (this.filterOnType) {
-			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOffIcon.classNamesArray);
-			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOnIcon.classNamesArray);
-			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
-		} else {
-			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOnIcon.classNamesArray);
-			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOffIcon.classNamesArray);
-			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
+	pwivate updateFiwtewOnTypeTitweAndIcon(): void {
+		if (this.fiwtewOnType) {
+			this.fiwtewOnTypeDomNode.cwassWist.wemove(...tweeFiwtewOnTypeOffIcon.cwassNamesAwway);
+			this.fiwtewOnTypeDomNode.cwassWist.add(...tweeFiwtewOnTypeOnIcon.cwassNamesAwway);
+			this.fiwtewOnTypeDomNode.titwe = wocawize('disabwe fiwta on type', "Disabwe Fiwta on Type");
+		} ewse {
+			this.fiwtewOnTypeDomNode.cwassWist.wemove(...tweeFiwtewOnTypeOnIcon.cwassNamesAwway);
+			this.fiwtewOnTypeDomNode.cwassWist.add(...tweeFiwtewOnTypeOffIcon.cwassNamesAwway);
+			this.fiwtewOnTypeDomNode.titwe = wocawize('enabwe fiwta on type', "Enabwe Fiwta on Type");
 		}
 	}
 
-	private render(): void {
-		const noMatches = this.filter.totalCount > 0 && this.filter.matchCount === 0;
+	pwivate wenda(): void {
+		const noMatches = this.fiwta.totawCount > 0 && this.fiwta.matchCount === 0;
 
-		if (this.pattern && this.tree.options.filterOnType && noMatches) {
-			this.messageDomNode.textContent = localize('empty', "No elements found");
-			this._empty = true;
-		} else {
-			this.messageDomNode.innerText = '';
-			this._empty = false;
+		if (this.pattewn && this.twee.options.fiwtewOnType && noMatches) {
+			this.messageDomNode.textContent = wocawize('empty', "No ewements found");
+			this._empty = twue;
+		} ewse {
+			this.messageDomNode.innewText = '';
+			this._empty = fawse;
 		}
 
-		this.domNode.classList.toggle('no-matches', noMatches);
-		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
-		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
+		this.domNode.cwassWist.toggwe('no-matches', noMatches);
+		this.domNode.titwe = wocawize('found', "Matched {0} out of {1} ewements", this.fiwta.matchCount, this.fiwta.totawCount);
+		this.wabewDomNode.textContent = this.pattewn.wength > 16 ? '…' + this.pattewn.substw(this.pattewn.wength - 16) : this.pattewn;
 
-		this._onDidChangeEmptyState.fire(this._empty);
+		this._onDidChangeEmptyState.fiwe(this._empty);
 	}
 
-	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
-		if (!this.enabled || !this.pattern || this.filterOnType) {
-			return true;
+	shouwdAwwowFocus(node: ITweeNode<T, TFiwtewData>): boowean {
+		if (!this.enabwed || !this.pattewn || this.fiwtewOnType) {
+			wetuwn twue;
 		}
 
-		if (this.filter.totalCount > 0 && this.filter.matchCount <= 1) {
-			return true;
+		if (this.fiwta.totawCount > 0 && this.fiwta.matchCount <= 1) {
+			wetuwn twue;
 		}
 
-		return !FuzzyScore.isDefault(node.filterData as any as FuzzyScore);
+		wetuwn !FuzzyScowe.isDefauwt(node.fiwtewData as any as FuzzyScowe);
 	}
 
 	dispose() {
-		if (this._enabled) {
-			this.domNode.remove();
-			this.enabledDisposables.dispose();
-			this._enabled = false;
-			this.triggered = false;
+		if (this._enabwed) {
+			this.domNode.wemove();
+			this.enabwedDisposabwes.dispose();
+			this._enabwed = fawse;
+			this.twiggewed = fawse;
 		}
 
-		this._onDidChangePattern.dispose();
-		dispose(this.disposables);
+		this._onDidChangePattewn.dispose();
+		dispose(this.disposabwes);
 	}
 }
 
-function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMouseEvent<T> {
-	let target: TreeMouseEventTarget = TreeMouseEventTarget.Unknown;
+function asTweeMouseEvent<T>(event: IWistMouseEvent<ITweeNode<T, any>>): ITweeMouseEvent<T> {
+	wet tawget: TweeMouseEventTawget = TweeMouseEventTawget.Unknown;
 
-	if (hasParentWithClass(event.browserEvent.target as HTMLElement, 'monaco-tl-twistie', 'monaco-tl-row')) {
-		target = TreeMouseEventTarget.Twistie;
-	} else if (hasParentWithClass(event.browserEvent.target as HTMLElement, 'monaco-tl-contents', 'monaco-tl-row')) {
-		target = TreeMouseEventTarget.Element;
+	if (hasPawentWithCwass(event.bwowsewEvent.tawget as HTMWEwement, 'monaco-tw-twistie', 'monaco-tw-wow')) {
+		tawget = TweeMouseEventTawget.Twistie;
+	} ewse if (hasPawentWithCwass(event.bwowsewEvent.tawget as HTMWEwement, 'monaco-tw-contents', 'monaco-tw-wow')) {
+		tawget = TweeMouseEventTawget.Ewement;
 	}
 
-	return {
-		browserEvent: event.browserEvent,
-		element: event.element ? event.element.element : null,
-		target
+	wetuwn {
+		bwowsewEvent: event.bwowsewEvent,
+		ewement: event.ewement ? event.ewement.ewement : nuww,
+		tawget
 	};
 }
 
-function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
-	return {
-		element: event.element ? event.element.element : null,
-		browserEvent: event.browserEvent,
-		anchor: event.anchor
+function asTweeContextMenuEvent<T>(event: IWistContextMenuEvent<ITweeNode<T, any>>): ITweeContextMenuEvent<T> {
+	wetuwn {
+		ewement: event.ewement ? event.ewement.ewement : nuww,
+		bwowsewEvent: event.bwowsewEvent,
+		anchow: event.anchow
 	};
 }
 
-export interface IKeyboardNavigationEventFilter {
-	(e: StandardKeyboardEvent): boolean;
+expowt intewface IKeyboawdNavigationEventFiwta {
+	(e: StandawdKeyboawdEvent): boowean;
 }
 
-export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
-	readonly multipleSelectionSupport?: boolean;
-	readonly automaticKeyboardNavigation?: boolean;
-	readonly simpleKeyboardNavigation?: boolean;
-	readonly filterOnType?: boolean;
-	readonly smoothScrolling?: boolean;
-	readonly horizontalScrolling?: boolean;
-	readonly mouseWheelScrollSensitivity?: number;
-	readonly fastScrollSensitivity?: number;
-	readonly expandOnDoubleClick?: boolean;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
+expowt intewface IAbstwactTweeOptionsUpdate extends ITweeWendewewOptions {
+	weadonwy muwtipweSewectionSuppowt?: boowean;
+	weadonwy automaticKeyboawdNavigation?: boowean;
+	weadonwy simpweKeyboawdNavigation?: boowean;
+	weadonwy fiwtewOnType?: boowean;
+	weadonwy smoothScwowwing?: boowean;
+	weadonwy howizontawScwowwing?: boowean;
+	weadonwy mouseWheewScwowwSensitivity?: numba;
+	weadonwy fastScwowwSensitivity?: numba;
+	weadonwy expandOnDoubweCwick?: boowean;
+	weadonwy expandOnwyOnTwistieCwick?: boowean | ((e: any) => boowean); // e is T
 }
 
-export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
-	readonly collapseByDefault?: boolean; // defaults to false
-	readonly filter?: ITreeFilter<T, TFilterData>;
-	readonly dnd?: ITreeDragAndDrop<T>;
-	readonly keyboardNavigationEventFilter?: IKeyboardNavigationEventFilter;
-	readonly additionalScrollHeight?: number;
+expowt intewface IAbstwactTweeOptions<T, TFiwtewData = void> extends IAbstwactTweeOptionsUpdate, IWistOptions<T> {
+	weadonwy cowwapseByDefauwt?: boowean; // defauwts to fawse
+	weadonwy fiwta?: ITweeFiwta<T, TFiwtewData>;
+	weadonwy dnd?: ITweeDwagAndDwop<T>;
+	weadonwy keyboawdNavigationEventFiwta?: IKeyboawdNavigationEventFiwta;
+	weadonwy additionawScwowwHeight?: numba;
 }
 
-function dfs<T, TFilterData>(node: ITreeNode<T, TFilterData>, fn: (node: ITreeNode<T, TFilterData>) => void): void {
+function dfs<T, TFiwtewData>(node: ITweeNode<T, TFiwtewData>, fn: (node: ITweeNode<T, TFiwtewData>) => void): void {
 	fn(node);
-	node.children.forEach(child => dfs(child, fn));
+	node.chiwdwen.fowEach(chiwd => dfs(chiwd, fn));
 }
 
 /**
- * The trait concept needs to exist at the tree level, because collapsed
- * tree nodes will not be known by the list.
+ * The twait concept needs to exist at the twee wevew, because cowwapsed
+ * twee nodes wiww not be known by the wist.
  */
-class Trait<T> {
+cwass Twait<T> {
 
-	private nodes: ITreeNode<T, any>[] = [];
-	private elements: T[] | undefined;
+	pwivate nodes: ITweeNode<T, any>[] = [];
+	pwivate ewements: T[] | undefined;
 
-	private readonly _onDidChange = new Emitter<ITreeEvent<T>>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate weadonwy _onDidChange = new Emitta<ITweeEvent<T>>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private _nodeSet: Set<ITreeNode<T, any>> | undefined;
-	private get nodeSet(): Set<ITreeNode<T, any>> {
+	pwivate _nodeSet: Set<ITweeNode<T, any>> | undefined;
+	pwivate get nodeSet(): Set<ITweeNode<T, any>> {
 		if (!this._nodeSet) {
-			this._nodeSet = this.createNodeSet();
+			this._nodeSet = this.cweateNodeSet();
 		}
 
-		return this._nodeSet;
+		wetuwn this._nodeSet;
 	}
 
-	constructor(
-		private getFirstViewElementWithTrait: () => ITreeNode<T, any> | undefined,
-		private identityProvider?: IIdentityProvider<T>
+	constwuctow(
+		pwivate getFiwstViewEwementWithTwait: () => ITweeNode<T, any> | undefined,
+		pwivate identityPwovida?: IIdentityPwovida<T>
 	) { }
 
-	set(nodes: ITreeNode<T, any>[], browserEvent?: UIEvent): void {
-		if (!(browserEvent as any)?.__forceEvent && equals(this.nodes, nodes)) {
-			return;
+	set(nodes: ITweeNode<T, any>[], bwowsewEvent?: UIEvent): void {
+		if (!(bwowsewEvent as any)?.__fowceEvent && equaws(this.nodes, nodes)) {
+			wetuwn;
 		}
 
-		this._set(nodes, false, browserEvent);
+		this._set(nodes, fawse, bwowsewEvent);
 	}
 
-	private _set(nodes: ITreeNode<T, any>[], silent: boolean, browserEvent?: UIEvent): void {
+	pwivate _set(nodes: ITweeNode<T, any>[], siwent: boowean, bwowsewEvent?: UIEvent): void {
 		this.nodes = [...nodes];
-		this.elements = undefined;
+		this.ewements = undefined;
 		this._nodeSet = undefined;
 
-		if (!silent) {
+		if (!siwent) {
 			const that = this;
-			this._onDidChange.fire({ get elements() { return that.get(); }, browserEvent });
+			this._onDidChange.fiwe({ get ewements() { wetuwn that.get(); }, bwowsewEvent });
 		}
 	}
 
 	get(): T[] {
-		if (!this.elements) {
-			this.elements = this.nodes.map(node => node.element);
+		if (!this.ewements) {
+			this.ewements = this.nodes.map(node => node.ewement);
 		}
 
-		return [...this.elements];
+		wetuwn [...this.ewements];
 	}
 
-	getNodes(): readonly ITreeNode<T, any>[] {
-		return this.nodes;
+	getNodes(): weadonwy ITweeNode<T, any>[] {
+		wetuwn this.nodes;
 	}
 
-	has(node: ITreeNode<T, any>): boolean {
-		return this.nodeSet.has(node);
+	has(node: ITweeNode<T, any>): boowean {
+		wetuwn this.nodeSet.has(node);
 	}
 
-	onDidModelSplice({ insertedNodes, deletedNodes }: ITreeModelSpliceEvent<T, any>): void {
-		if (!this.identityProvider) {
-			const set = this.createNodeSet();
-			const visit = (node: ITreeNode<T, any>) => set.delete(node);
-			deletedNodes.forEach(node => dfs(node, visit));
-			this.set([...set.values()]);
-			return;
+	onDidModewSpwice({ insewtedNodes, dewetedNodes }: ITweeModewSpwiceEvent<T, any>): void {
+		if (!this.identityPwovida) {
+			const set = this.cweateNodeSet();
+			const visit = (node: ITweeNode<T, any>) => set.dewete(node);
+			dewetedNodes.fowEach(node => dfs(node, visit));
+			this.set([...set.vawues()]);
+			wetuwn;
 		}
 
-		const deletedNodesIdSet = new Set<string>();
-		const deletedNodesVisitor = (node: ITreeNode<T, any>) => deletedNodesIdSet.add(this.identityProvider!.getId(node.element).toString());
-		deletedNodes.forEach(node => dfs(node, deletedNodesVisitor));
+		const dewetedNodesIdSet = new Set<stwing>();
+		const dewetedNodesVisitow = (node: ITweeNode<T, any>) => dewetedNodesIdSet.add(this.identityPwovida!.getId(node.ewement).toStwing());
+		dewetedNodes.fowEach(node => dfs(node, dewetedNodesVisitow));
 
-		const insertedNodesMap = new Map<string, ITreeNode<T, any>>();
-		const insertedNodesVisitor = (node: ITreeNode<T, any>) => insertedNodesMap.set(this.identityProvider!.getId(node.element).toString(), node);
-		insertedNodes.forEach(node => dfs(node, insertedNodesVisitor));
+		const insewtedNodesMap = new Map<stwing, ITweeNode<T, any>>();
+		const insewtedNodesVisitow = (node: ITweeNode<T, any>) => insewtedNodesMap.set(this.identityPwovida!.getId(node.ewement).toStwing(), node);
+		insewtedNodes.fowEach(node => dfs(node, insewtedNodesVisitow));
 
-		const nodes: ITreeNode<T, any>[] = [];
+		const nodes: ITweeNode<T, any>[] = [];
 
-		for (const node of this.nodes) {
-			const id = this.identityProvider.getId(node.element).toString();
-			const wasDeleted = deletedNodesIdSet.has(id);
+		fow (const node of this.nodes) {
+			const id = this.identityPwovida.getId(node.ewement).toStwing();
+			const wasDeweted = dewetedNodesIdSet.has(id);
 
-			if (!wasDeleted) {
+			if (!wasDeweted) {
 				nodes.push(node);
-			} else {
-				const insertedNode = insertedNodesMap.get(id);
+			} ewse {
+				const insewtedNode = insewtedNodesMap.get(id);
 
-				if (insertedNode) {
-					nodes.push(insertedNode);
+				if (insewtedNode) {
+					nodes.push(insewtedNode);
 				}
 			}
 		}
 
-		if (this.nodes.length > 0 && nodes.length === 0) {
-			const node = this.getFirstViewElementWithTrait();
+		if (this.nodes.wength > 0 && nodes.wength === 0) {
+			const node = this.getFiwstViewEwementWithTwait();
 
 			if (node) {
 				nodes.push(node);
 			}
 		}
 
-		this._set(nodes, true);
+		this._set(nodes, twue);
 	}
 
-	private createNodeSet(): Set<ITreeNode<T, any>> {
-		const set = new Set<ITreeNode<T, any>>();
+	pwivate cweateNodeSet(): Set<ITweeNode<T, any>> {
+		const set = new Set<ITweeNode<T, any>>();
 
-		for (const node of this.nodes) {
+		fow (const node of this.nodes) {
 			set.add(node);
 		}
 
-		return set;
+		wetuwn set;
 	}
 }
 
-class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<ITreeNode<T, TFilterData>> {
+cwass TweeNodeWistMouseContwowwa<T, TFiwtewData, TWef> extends MouseContwowwa<ITweeNode<T, TFiwtewData>> {
 
-	constructor(list: TreeNodeList<T, TFilterData, TRef>, private tree: AbstractTree<T, TFilterData, TRef>) {
-		super(list);
+	constwuctow(wist: TweeNodeWist<T, TFiwtewData, TWef>, pwivate twee: AbstwactTwee<T, TFiwtewData, TWef>) {
+		supa(wist);
 	}
 
-	protected override onViewPointer(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
-			return;
+	pwotected ovewwide onViewPointa(e: IWistMouseEvent<ITweeNode<T, TFiwtewData>>): void {
+		if (isInputEwement(e.bwowsewEvent.tawget as HTMWEwement) || isMonacoEditow(e.bwowsewEvent.tawget as HTMWEwement)) {
+			wetuwn;
 		}
 
-		const node = e.element;
+		const node = e.ewement;
 
 		if (!node) {
-			return super.onViewPointer(e);
+			wetuwn supa.onViewPointa(e);
 		}
 
-		if (this.isSelectionRangeChangeEvent(e) || this.isSelectionSingleChangeEvent(e)) {
-			return super.onViewPointer(e);
+		if (this.isSewectionWangeChangeEvent(e) || this.isSewectionSingweChangeEvent(e)) {
+			wetuwn supa.onViewPointa(e);
 		}
 
-		const target = e.browserEvent.target as HTMLElement;
-		const onTwistie = target.classList.contains('monaco-tl-twistie')
-			|| (target.classList.contains('monaco-icon-label') && target.classList.contains('folder-icon') && e.browserEvent.offsetX < 16);
+		const tawget = e.bwowsewEvent.tawget as HTMWEwement;
+		const onTwistie = tawget.cwassWist.contains('monaco-tw-twistie')
+			|| (tawget.cwassWist.contains('monaco-icon-wabew') && tawget.cwassWist.contains('fowda-icon') && e.bwowsewEvent.offsetX < 16);
 
-		let expandOnlyOnTwistieClick = false;
+		wet expandOnwyOnTwistieCwick = fawse;
 
-		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
-			expandOnlyOnTwistieClick = this.tree.expandOnlyOnTwistieClick(node.element);
-		} else {
-			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
+		if (typeof this.twee.expandOnwyOnTwistieCwick === 'function') {
+			expandOnwyOnTwistieCwick = this.twee.expandOnwyOnTwistieCwick(node.ewement);
+		} ewse {
+			expandOnwyOnTwistieCwick = !!this.twee.expandOnwyOnTwistieCwick;
 		}
 
-		if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2) {
-			return super.onViewPointer(e);
+		if (expandOnwyOnTwistieCwick && !onTwistie && e.bwowsewEvent.detaiw !== 2) {
+			wetuwn supa.onViewPointa(e);
 		}
 
-		if (!this.tree.expandOnDoubleClick && e.browserEvent.detail === 2) {
-			return super.onViewPointer(e);
+		if (!this.twee.expandOnDoubweCwick && e.bwowsewEvent.detaiw === 2) {
+			wetuwn supa.onViewPointa(e);
 		}
 
-		if (node.collapsible) {
-			const model = ((this.tree as any).model as ITreeModel<T, TFilterData, TRef>); // internal
-			const location = model.getNodeLocation(node);
-			const recursive = e.browserEvent.altKey;
-			this.tree.setFocus([location]);
-			model.setCollapsed(location, undefined, recursive);
+		if (node.cowwapsibwe) {
+			const modew = ((this.twee as any).modew as ITweeModew<T, TFiwtewData, TWef>); // intewnaw
+			const wocation = modew.getNodeWocation(node);
+			const wecuwsive = e.bwowsewEvent.awtKey;
+			this.twee.setFocus([wocation]);
+			modew.setCowwapsed(wocation, undefined, wecuwsive);
 
-			if (expandOnlyOnTwistieClick && onTwistie) {
-				return;
+			if (expandOnwyOnTwistieCwick && onTwistie) {
+				wetuwn;
 			}
 		}
 
-		super.onViewPointer(e);
+		supa.onViewPointa(e);
 	}
 
-	protected override onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
+	pwotected ovewwide onDoubweCwick(e: IWistMouseEvent<ITweeNode<T, TFiwtewData>>): void {
+		const onTwistie = (e.bwowsewEvent.tawget as HTMWEwement).cwassWist.contains('monaco-tw-twistie');
 
-		if (onTwistie || !this.tree.expandOnDoubleClick) {
-			return;
+		if (onTwistie || !this.twee.expandOnDoubweCwick) {
+			wetuwn;
 		}
 
-		super.onDoubleClick(e);
+		supa.onDoubweCwick(e);
 	}
 }
 
-interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {
-	readonly tree: AbstractTree<T, TFilterData, TRef>;
+intewface ITweeNodeWistOptions<T, TFiwtewData, TWef> extends IWistOptions<ITweeNode<T, TFiwtewData>> {
+	weadonwy twee: AbstwactTwee<T, TFiwtewData, TWef>;
 }
 
 /**
- * We use this List subclass to restore selection and focus as nodes
- * get rendered in the list, possibly due to a node expand() call.
+ * We use this Wist subcwass to westowe sewection and focus as nodes
+ * get wendewed in the wist, possibwy due to a node expand() caww.
  */
-class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>> {
+cwass TweeNodeWist<T, TFiwtewData, TWef> extends Wist<ITweeNode<T, TFiwtewData>> {
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
-		renderers: IListRenderer<any /* TODO@joao */, any>[],
-		private focusTrait: Trait<T>,
-		private selectionTrait: Trait<T>,
-		private anchorTrait: Trait<T>,
-		options: ITreeNodeListOptions<T, TFilterData, TRef>
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		viwtuawDewegate: IWistViwtuawDewegate<ITweeNode<T, TFiwtewData>>,
+		wendewews: IWistWendewa<any /* TODO@joao */, any>[],
+		pwivate focusTwait: Twait<T>,
+		pwivate sewectionTwait: Twait<T>,
+		pwivate anchowTwait: Twait<T>,
+		options: ITweeNodeWistOptions<T, TFiwtewData, TWef>
 	) {
-		super(user, container, virtualDelegate, renderers, options);
+		supa(usa, containa, viwtuawDewegate, wendewews, options);
 	}
 
-	protected override createMouseController(options: ITreeNodeListOptions<T, TFilterData, TRef>): MouseController<ITreeNode<T, TFilterData>> {
-		return new TreeNodeListMouseController(this, options.tree);
+	pwotected ovewwide cweateMouseContwowwa(options: ITweeNodeWistOptions<T, TFiwtewData, TWef>): MouseContwowwa<ITweeNode<T, TFiwtewData>> {
+		wetuwn new TweeNodeWistMouseContwowwa(this, options.twee);
 	}
 
-	override splice(start: number, deleteCount: number, elements: ITreeNode<T, TFilterData>[] = []): void {
-		super.splice(start, deleteCount, elements);
+	ovewwide spwice(stawt: numba, deweteCount: numba, ewements: ITweeNode<T, TFiwtewData>[] = []): void {
+		supa.spwice(stawt, deweteCount, ewements);
 
-		if (elements.length === 0) {
-			return;
+		if (ewements.wength === 0) {
+			wetuwn;
 		}
 
-		const additionalFocus: number[] = [];
-		const additionalSelection: number[] = [];
-		let anchor: number | undefined;
+		const additionawFocus: numba[] = [];
+		const additionawSewection: numba[] = [];
+		wet anchow: numba | undefined;
 
-		elements.forEach((node, index) => {
-			if (this.focusTrait.has(node)) {
-				additionalFocus.push(start + index);
+		ewements.fowEach((node, index) => {
+			if (this.focusTwait.has(node)) {
+				additionawFocus.push(stawt + index);
 			}
 
-			if (this.selectionTrait.has(node)) {
-				additionalSelection.push(start + index);
+			if (this.sewectionTwait.has(node)) {
+				additionawSewection.push(stawt + index);
 			}
 
-			if (this.anchorTrait.has(node)) {
-				anchor = start + index;
+			if (this.anchowTwait.has(node)) {
+				anchow = stawt + index;
 			}
 		});
 
-		if (additionalFocus.length > 0) {
-			super.setFocus(distinctES6([...super.getFocus(), ...additionalFocus]));
+		if (additionawFocus.wength > 0) {
+			supa.setFocus(distinctES6([...supa.getFocus(), ...additionawFocus]));
 		}
 
-		if (additionalSelection.length > 0) {
-			super.setSelection(distinctES6([...super.getSelection(), ...additionalSelection]));
+		if (additionawSewection.wength > 0) {
+			supa.setSewection(distinctES6([...supa.getSewection(), ...additionawSewection]));
 		}
 
-		if (typeof anchor === 'number') {
-			super.setAnchor(anchor);
-		}
-	}
-
-	override setFocus(indexes: number[], browserEvent?: UIEvent, fromAPI = false): void {
-		super.setFocus(indexes, browserEvent);
-
-		if (!fromAPI) {
-			this.focusTrait.set(indexes.map(i => this.element(i)), browserEvent);
+		if (typeof anchow === 'numba') {
+			supa.setAnchow(anchow);
 		}
 	}
 
-	override setSelection(indexes: number[], browserEvent?: UIEvent, fromAPI = false): void {
-		super.setSelection(indexes, browserEvent);
+	ovewwide setFocus(indexes: numba[], bwowsewEvent?: UIEvent, fwomAPI = fawse): void {
+		supa.setFocus(indexes, bwowsewEvent);
 
-		if (!fromAPI) {
-			this.selectionTrait.set(indexes.map(i => this.element(i)), browserEvent);
+		if (!fwomAPI) {
+			this.focusTwait.set(indexes.map(i => this.ewement(i)), bwowsewEvent);
 		}
 	}
 
-	override setAnchor(index: number | undefined, fromAPI = false): void {
-		super.setAnchor(index);
+	ovewwide setSewection(indexes: numba[], bwowsewEvent?: UIEvent, fwomAPI = fawse): void {
+		supa.setSewection(indexes, bwowsewEvent);
 
-		if (!fromAPI) {
+		if (!fwomAPI) {
+			this.sewectionTwait.set(indexes.map(i => this.ewement(i)), bwowsewEvent);
+		}
+	}
+
+	ovewwide setAnchow(index: numba | undefined, fwomAPI = fawse): void {
+		supa.setAnchow(index);
+
+		if (!fwomAPI) {
 			if (typeof index === 'undefined') {
-				this.anchorTrait.set([]);
-			} else {
-				this.anchorTrait.set([this.element(index)]);
+				this.anchowTwait.set([]);
+			} ewse {
+				this.anchowTwait.set([this.ewement(index)]);
 			}
 		}
 	}
 }
 
-export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
+expowt abstwact cwass AbstwactTwee<T, TFiwtewData, TWef> impwements IDisposabwe {
 
-	protected view: TreeNodeList<T, TFilterData, TRef>;
-	private renderers: TreeRenderer<T, TFilterData, TRef, any>[];
-	protected model: ITreeModel<T, TFilterData, TRef>;
-	private focus: Trait<T>;
-	private selection: Trait<T>;
-	private anchor: Trait<T>;
-	private eventBufferer = new EventBufferer();
-	private typeFilterController?: TypeFilterController<T, TFilterData>;
-	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
-	private styleElement: HTMLStyleElement;
-	protected readonly disposables = new DisposableStore();
+	pwotected view: TweeNodeWist<T, TFiwtewData, TWef>;
+	pwivate wendewews: TweeWendewa<T, TFiwtewData, TWef, any>[];
+	pwotected modew: ITweeModew<T, TFiwtewData, TWef>;
+	pwivate focus: Twait<T>;
+	pwivate sewection: Twait<T>;
+	pwivate anchow: Twait<T>;
+	pwivate eventBuffewa = new EventBuffewa();
+	pwivate typeFiwtewContwowwa?: TypeFiwtewContwowwa<T, TFiwtewData>;
+	pwivate focusNavigationFiwta: ((node: ITweeNode<T, TFiwtewData>) => boowean) | undefined;
+	pwivate styweEwement: HTMWStyweEwement;
+	pwotected weadonwy disposabwes = new DisposabweStowe();
 
-	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
+	get onDidScwoww(): Event<ScwowwEvent> { wetuwn this.view.onDidScwoww; }
 
-	get onDidChangeFocus(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.focus.onDidChange); }
-	get onDidChangeSelection(): Event<ITreeEvent<T>> { return this.eventBufferer.wrapEvent(this.selection.onDidChange); }
+	get onDidChangeFocus(): Event<ITweeEvent<T>> { wetuwn this.eventBuffewa.wwapEvent(this.focus.onDidChange); }
+	get onDidChangeSewection(): Event<ITweeEvent<T>> { wetuwn this.eventBuffewa.wwapEvent(this.sewection.onDidChange); }
 
-	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
-	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseDblClick, asTreeMouseEvent); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
-	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onTap, asTreeMouseEvent); }
-	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onPointer, asTreeMouseEvent); }
+	get onMouseCwick(): Event<ITweeMouseEvent<T>> { wetuwn Event.map(this.view.onMouseCwick, asTweeMouseEvent); }
+	get onMouseDbwCwick(): Event<ITweeMouseEvent<T>> { wetuwn Event.map(this.view.onMouseDbwCwick, asTweeMouseEvent); }
+	get onContextMenu(): Event<ITweeContextMenuEvent<T>> { wetuwn Event.map(this.view.onContextMenu, asTweeContextMenuEvent); }
+	get onTap(): Event<ITweeMouseEvent<T>> { wetuwn Event.map(this.view.onTap, asTweeMouseEvent); }
+	get onPointa(): Event<ITweeMouseEvent<T>> { wetuwn Event.map(this.view.onPointa, asTweeMouseEvent); }
 
-	get onKeyDown(): Event<KeyboardEvent> { return this.view.onKeyDown; }
-	get onKeyUp(): Event<KeyboardEvent> { return this.view.onKeyUp; }
-	get onKeyPress(): Event<KeyboardEvent> { return this.view.onKeyPress; }
+	get onKeyDown(): Event<KeyboawdEvent> { wetuwn this.view.onKeyDown; }
+	get onKeyUp(): Event<KeyboawdEvent> { wetuwn this.view.onKeyUp; }
+	get onKeyPwess(): Event<KeyboawdEvent> { wetuwn this.view.onKeyPwess; }
 
-	get onDidFocus(): Event<void> { return this.view.onDidFocus; }
-	get onDidBlur(): Event<void> { return this.view.onDidBlur; }
+	get onDidFocus(): Event<void> { wetuwn this.view.onDidFocus; }
+	get onDidBwuw(): Event<void> { wetuwn this.view.onDidBwuw; }
 
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
-	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
+	get onDidChangeCowwapseState(): Event<ICowwapseStateChangeEvent<T, TFiwtewData>> { wetuwn this.modew.onDidChangeCowwapseState; }
+	get onDidChangeWendewNodeCount(): Event<ITweeNode<T, TFiwtewData>> { wetuwn this.modew.onDidChangeWendewNodeCount; }
 
-	private readonly _onWillRefilter = new Emitter<void>();
-	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;
+	pwivate weadonwy _onWiwwWefiwta = new Emitta<void>();
+	weadonwy onWiwwWefiwta: Event<void> = this._onWiwwWefiwta.event;
 
-	get filterOnType(): boolean { return !!this._options.filterOnType; }
-	get onDidChangeTypeFilterPattern(): Event<string> { return this.typeFilterController ? this.typeFilterController.onDidChangePattern : Event.None; }
+	get fiwtewOnType(): boowean { wetuwn !!this._options.fiwtewOnType; }
+	get onDidChangeTypeFiwtewPattewn(): Event<stwing> { wetuwn this.typeFiwtewContwowwa ? this.typeFiwtewContwowwa.onDidChangePattewn : Event.None; }
 
-	get expandOnDoubleClick(): boolean { return typeof this._options.expandOnDoubleClick === 'undefined' ? true : this._options.expandOnDoubleClick; }
-	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) { return typeof this._options.expandOnlyOnTwistieClick === 'undefined' ? true : this._options.expandOnlyOnTwistieClick; }
+	get expandOnDoubweCwick(): boowean { wetuwn typeof this._options.expandOnDoubweCwick === 'undefined' ? twue : this._options.expandOnDoubweCwick; }
+	get expandOnwyOnTwistieCwick(): boowean | ((e: T) => boowean) { wetuwn typeof this._options.expandOnwyOnTwistieCwick === 'undefined' ? twue : this._options.expandOnwyOnTwistieCwick; }
 
-	private readonly _onDidUpdateOptions = new Emitter<IAbstractTreeOptions<T, TFilterData>>();
-	readonly onDidUpdateOptions: Event<IAbstractTreeOptions<T, TFilterData>> = this._onDidUpdateOptions.event;
+	pwivate weadonwy _onDidUpdateOptions = new Emitta<IAbstwactTweeOptions<T, TFiwtewData>>();
+	weadonwy onDidUpdateOptions: Event<IAbstwactTweeOptions<T, TFiwtewData>> = this._onDidUpdateOptions.event;
 
-	get onDidDispose(): Event<void> { return this.view.onDidDispose; }
+	get onDidDispose(): Event<void> { wetuwn this.view.onDidDispose; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		private _options: IAbstractTreeOptions<T, TFilterData> = {}
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		pwivate _options: IAbstwactTweeOptions<T, TFiwtewData> = {}
 	) {
-		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
+		const tweeDewegate = new ComposedTweeDewegate<T, ITweeNode<T, TFiwtewData>>(dewegate);
 
-		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
-		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
-		const activeNodes = new EventCollection(onDidChangeActiveNodes.event);
-		this.renderers = renderers.map(r => new TreeRenderer<T, TFilterData, TRef, any>(r, () => this.model, onDidChangeCollapseStateRelay.event, activeNodes, _options));
-		for (let r of this.renderers) {
-			this.disposables.add(r);
+		const onDidChangeCowwapseStateWeway = new Weway<ICowwapseStateChangeEvent<T, TFiwtewData>>();
+		const onDidChangeActiveNodes = new Weway<ITweeNode<T, TFiwtewData>[]>();
+		const activeNodes = new EventCowwection(onDidChangeActiveNodes.event);
+		this.wendewews = wendewews.map(w => new TweeWendewa<T, TFiwtewData, TWef, any>(w, () => this.modew, onDidChangeCowwapseStateWeway.event, activeNodes, _options));
+		fow (wet w of this.wendewews) {
+			this.disposabwes.add(w);
 		}
 
-		let filter: TypeFilter<T> | undefined;
+		wet fiwta: TypeFiwta<T> | undefined;
 
-		if (_options.keyboardNavigationLabelProvider) {
-			filter = new TypeFilter(this, _options.keyboardNavigationLabelProvider, _options.filter as any as ITreeFilter<T, FuzzyScore>);
-			_options = { ..._options, filter: filter as ITreeFilter<T, TFilterData> }; // TODO need typescript help here
-			this.disposables.add(filter);
+		if (_options.keyboawdNavigationWabewPwovida) {
+			fiwta = new TypeFiwta(this, _options.keyboawdNavigationWabewPwovida, _options.fiwta as any as ITweeFiwta<T, FuzzyScowe>);
+			_options = { ..._options, fiwta: fiwta as ITweeFiwta<T, TFiwtewData> }; // TODO need typescwipt hewp hewe
+			this.disposabwes.add(fiwta);
 		}
 
-		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
-		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
-		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
-		this.view = new TreeNodeList(user, container, treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
+		this.focus = new Twait(() => this.view.getFocusedEwements()[0], _options.identityPwovida);
+		this.sewection = new Twait(() => this.view.getSewectedEwements()[0], _options.identityPwovida);
+		this.anchow = new Twait(() => this.view.getAnchowEwement(), _options.identityPwovida);
+		this.view = new TweeNodeWist(usa, containa, tweeDewegate, this.wendewews, this.focus, this.sewection, this.anchow, { ...asWistOptions(() => this.modew, _options), twee: this });
 
-		this.model = this.createModel(user, this.view, _options);
-		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
+		this.modew = this.cweateModew(usa, this.view, _options);
+		onDidChangeCowwapseStateWeway.input = this.modew.onDidChangeCowwapseState;
 
-		const onDidModelSplice = Event.forEach(this.model.onDidSplice, e => {
-			this.eventBufferer.bufferEvents(() => {
-				this.focus.onDidModelSplice(e);
-				this.selection.onDidModelSplice(e);
+		const onDidModewSpwice = Event.fowEach(this.modew.onDidSpwice, e => {
+			this.eventBuffewa.buffewEvents(() => {
+				this.focus.onDidModewSpwice(e);
+				this.sewection.onDidModewSpwice(e);
 			});
 		});
 
-		// Make sure the `forEach` always runs
-		onDidModelSplice(() => null, null, this.disposables);
+		// Make suwe the `fowEach` awways wuns
+		onDidModewSpwice(() => nuww, nuww, this.disposabwes);
 
-		// Active nodes can change when the model changes or when focus or selection change.
-		// We debounce it with 0 delay since these events may fire in the same stack and we only
-		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
-		// a nice to have UI feature.
-		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
-			.debounce(() => null, 0)
+		// Active nodes can change when the modew changes ow when focus ow sewection change.
+		// We debounce it with 0 deway since these events may fiwe in the same stack and we onwy
+		// want to wun this once. It awso doesn't matta if it wuns on the next tick since it's onwy
+		// a nice to have UI featuwe.
+		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModewSpwice, this.focus.onDidChange, this.sewection.onDidChange))
+			.debounce(() => nuww, 0)
 			.map(() => {
-				const set = new Set<ITreeNode<T, TFilterData>>();
+				const set = new Set<ITweeNode<T, TFiwtewData>>();
 
-				for (const node of this.focus.getNodes()) {
+				fow (const node of this.focus.getNodes()) {
 					set.add(node);
 				}
 
-				for (const node of this.selection.getNodes()) {
+				fow (const node of this.sewection.getNodes()) {
 					set.add(node);
 				}
 
-				return [...set.values()];
+				wetuwn [...set.vawues()];
 			}).event;
 
-		if (_options.keyboardSupport !== false) {
+		if (_options.keyboawdSuppowt !== fawse) {
 			const onKeyDown = Event.chain(this.view.onKeyDown)
-				.filter(e => !isInputElement(e.target as HTMLElement))
-				.map(e => new StandardKeyboardEvent(e));
+				.fiwta(e => !isInputEwement(e.tawget as HTMWEwement))
+				.map(e => new StandawdKeyboawdEvent(e));
 
-			onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
-			onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
-			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+			onKeyDown.fiwta(e => e.keyCode === KeyCode.WeftAwwow).on(this.onWeftAwwow, this, this.disposabwes);
+			onKeyDown.fiwta(e => e.keyCode === KeyCode.WightAwwow).on(this.onWightAwwow, this, this.disposabwes);
+			onKeyDown.fiwta(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposabwes);
 		}
 
-		if (_options.keyboardNavigationLabelProvider) {
-			const delegate = _options.keyboardNavigationDelegate || DefaultKeyboardNavigationDelegate;
-			this.typeFilterController = new TypeFilterController(this, this.model, this.view, filter!, delegate);
-			this.focusNavigationFilter = node => this.typeFilterController!.shouldAllowFocus(node);
-			this.disposables.add(this.typeFilterController!);
+		if (_options.keyboawdNavigationWabewPwovida) {
+			const dewegate = _options.keyboawdNavigationDewegate || DefauwtKeyboawdNavigationDewegate;
+			this.typeFiwtewContwowwa = new TypeFiwtewContwowwa(this, this.modew, this.view, fiwta!, dewegate);
+			this.focusNavigationFiwta = node => this.typeFiwtewContwowwa!.shouwdAwwowFocus(node);
+			this.disposabwes.add(this.typeFiwtewContwowwa!);
 		}
 
-		this.styleElement = createStyleSheet(this.view.getHTMLElement());
-		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
+		this.styweEwement = cweateStyweSheet(this.view.getHTMWEwement());
+		this.getHTMWEwement().cwassWist.toggwe('awways', this._options.wendewIndentGuides === WendewIndentGuides.Awways);
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstwactTweeOptionsUpdate = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
 
-		for (const renderer of this.renderers) {
-			renderer.updateOptions(optionsUpdate);
+		fow (const wendewa of this.wendewews) {
+			wendewa.updateOptions(optionsUpdate);
 		}
 
 		this.view.updateOptions({
 			...this._options,
-			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
+			enabweKeyboawdNavigation: this._options.simpweKeyboawdNavigation,
 		});
 
-		if (this.typeFilterController) {
-			this.typeFilterController.updateOptions(this._options);
+		if (this.typeFiwtewContwowwa) {
+			this.typeFiwtewContwowwa.updateOptions(this._options);
 		}
 
-		this._onDidUpdateOptions.fire(this._options);
+		this._onDidUpdateOptions.fiwe(this._options);
 
-		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
+		this.getHTMWEwement().cwassWist.toggwe('awways', this._options.wendewIndentGuides === WendewIndentGuides.Awways);
 	}
 
-	get options(): IAbstractTreeOptions<T, TFilterData> {
-		return this._options;
+	get options(): IAbstwactTweeOptions<T, TFiwtewData> {
+		wetuwn this._options;
 	}
 
-	updateWidth(element: TRef): void {
-		const index = this.model.getListIndex(element);
+	updateWidth(ewement: TWef): void {
+		const index = this.modew.getWistIndex(ewement);
 
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
 		this.view.updateWidth(index);
@@ -1431,386 +1431,386 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	// Widget
 
-	getHTMLElement(): HTMLElement {
-		return this.view.getHTMLElement();
+	getHTMWEwement(): HTMWEwement {
+		wetuwn this.view.getHTMWEwement();
 	}
 
-	get contentHeight(): number {
-		if (this.typeFilterController && this.typeFilterController.filterOnType && this.typeFilterController.empty) {
-			return 100;
+	get contentHeight(): numba {
+		if (this.typeFiwtewContwowwa && this.typeFiwtewContwowwa.fiwtewOnType && this.typeFiwtewContwowwa.empty) {
+			wetuwn 100;
 		}
 
-		return this.view.contentHeight;
+		wetuwn this.view.contentHeight;
 	}
 
-	get onDidChangeContentHeight(): Event<number> {
-		let result = this.view.onDidChangeContentHeight;
+	get onDidChangeContentHeight(): Event<numba> {
+		wet wesuwt = this.view.onDidChangeContentHeight;
 
-		if (this.typeFilterController) {
-			result = Event.any(result, Event.map(this.typeFilterController.onDidChangeEmptyState, () => this.contentHeight));
+		if (this.typeFiwtewContwowwa) {
+			wesuwt = Event.any(wesuwt, Event.map(this.typeFiwtewContwowwa.onDidChangeEmptyState, () => this.contentHeight));
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	get scrollTop(): number {
-		return this.view.scrollTop;
+	get scwowwTop(): numba {
+		wetuwn this.view.scwowwTop;
 	}
 
-	set scrollTop(scrollTop: number) {
-		this.view.scrollTop = scrollTop;
+	set scwowwTop(scwowwTop: numba) {
+		this.view.scwowwTop = scwowwTop;
 	}
 
-	get scrollLeft(): number {
-		return this.view.scrollLeft;
+	get scwowwWeft(): numba {
+		wetuwn this.view.scwowwWeft;
 	}
 
-	set scrollLeft(scrollLeft: number) {
-		this.view.scrollLeft = scrollLeft;
+	set scwowwWeft(scwowwWeft: numba) {
+		this.view.scwowwWeft = scwowwWeft;
 	}
 
-	get scrollHeight(): number {
-		return this.view.scrollHeight;
+	get scwowwHeight(): numba {
+		wetuwn this.view.scwowwHeight;
 	}
 
-	get renderHeight(): number {
-		return this.view.renderHeight;
+	get wendewHeight(): numba {
+		wetuwn this.view.wendewHeight;
 	}
 
-	get firstVisibleElement(): T | undefined {
-		const index = this.view.firstVisibleIndex;
+	get fiwstVisibweEwement(): T | undefined {
+		const index = this.view.fiwstVisibweIndex;
 
-		if (index < 0 || index >= this.view.length) {
-			return undefined;
+		if (index < 0 || index >= this.view.wength) {
+			wetuwn undefined;
 		}
 
-		const node = this.view.element(index);
-		return node.element;
+		const node = this.view.ewement(index);
+		wetuwn node.ewement;
 	}
 
-	get lastVisibleElement(): T {
-		const index = this.view.lastVisibleIndex;
-		const node = this.view.element(index);
-		return node.element;
+	get wastVisibweEwement(): T {
+		const index = this.view.wastVisibweIndex;
+		const node = this.view.ewement(index);
+		wetuwn node.ewement;
 	}
 
-	get ariaLabel(): string {
-		return this.view.ariaLabel;
+	get awiaWabew(): stwing {
+		wetuwn this.view.awiaWabew;
 	}
 
-	set ariaLabel(value: string) {
-		this.view.ariaLabel = value;
+	set awiaWabew(vawue: stwing) {
+		this.view.awiaWabew = vawue;
 	}
 
 	domFocus(): void {
 		this.view.domFocus();
 	}
 
-	isDOMFocused(): boolean {
-		return this.getHTMLElement() === document.activeElement;
+	isDOMFocused(): boowean {
+		wetuwn this.getHTMWEwement() === document.activeEwement;
 	}
 
-	layout(height?: number, width?: number): void {
-		this.view.layout(height, width);
+	wayout(height?: numba, width?: numba): void {
+		this.view.wayout(height, width);
 	}
 
-	style(styles: IListStyles): void {
+	stywe(stywes: IWistStywes): void {
 		const suffix = `.${this.view.domId}`;
-		const content: string[] = [];
+		const content: stwing[] = [];
 
-		if (styles.treeIndentGuidesStroke) {
-			content.push(`.monaco-list${suffix}:hover .monaco-tl-indent > .indent-guide, .monaco-list${suffix}.always .monaco-tl-indent > .indent-guide  { border-color: ${styles.treeIndentGuidesStroke.transparent(0.4)}; }`);
-			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { border-color: ${styles.treeIndentGuidesStroke}; }`);
+		if (stywes.tweeIndentGuidesStwoke) {
+			content.push(`.monaco-wist${suffix}:hova .monaco-tw-indent > .indent-guide, .monaco-wist${suffix}.awways .monaco-tw-indent > .indent-guide  { bowda-cowow: ${stywes.tweeIndentGuidesStwoke.twanspawent(0.4)}; }`);
+			content.push(`.monaco-wist${suffix} .monaco-tw-indent > .indent-guide.active { bowda-cowow: ${stywes.tweeIndentGuidesStwoke}; }`);
 		}
 
-		this.styleElement.textContent = content.join('\n');
-		this.view.style(styles);
+		this.styweEwement.textContent = content.join('\n');
+		this.view.stywe(stywes);
 	}
 
-	// Tree navigation
+	// Twee navigation
 
-	getParentElement(location: TRef): T {
-		const parentRef = this.model.getParentNodeLocation(location);
-		const parentNode = this.model.getNode(parentRef);
-		return parentNode.element;
+	getPawentEwement(wocation: TWef): T {
+		const pawentWef = this.modew.getPawentNodeWocation(wocation);
+		const pawentNode = this.modew.getNode(pawentWef);
+		wetuwn pawentNode.ewement;
 	}
 
-	getFirstElementChild(location: TRef): T | undefined {
-		return this.model.getFirstElementChild(location);
+	getFiwstEwementChiwd(wocation: TWef): T | undefined {
+		wetuwn this.modew.getFiwstEwementChiwd(wocation);
 	}
 
-	// Tree
+	// Twee
 
-	getNode(location?: TRef): ITreeNode<T, TFilterData> {
-		return this.model.getNode(location);
+	getNode(wocation?: TWef): ITweeNode<T, TFiwtewData> {
+		wetuwn this.modew.getNode(wocation);
 	}
 
-	collapse(location: TRef, recursive: boolean = false): boolean {
-		return this.model.setCollapsed(location, true, recursive);
+	cowwapse(wocation: TWef, wecuwsive: boowean = fawse): boowean {
+		wetuwn this.modew.setCowwapsed(wocation, twue, wecuwsive);
 	}
 
-	expand(location: TRef, recursive: boolean = false): boolean {
-		return this.model.setCollapsed(location, false, recursive);
+	expand(wocation: TWef, wecuwsive: boowean = fawse): boowean {
+		wetuwn this.modew.setCowwapsed(wocation, fawse, wecuwsive);
 	}
 
-	toggleCollapsed(location: TRef, recursive: boolean = false): boolean {
-		return this.model.setCollapsed(location, undefined, recursive);
+	toggweCowwapsed(wocation: TWef, wecuwsive: boowean = fawse): boowean {
+		wetuwn this.modew.setCowwapsed(wocation, undefined, wecuwsive);
 	}
 
-	expandAll(): void {
-		this.model.setCollapsed(this.model.rootRef, false, true);
+	expandAww(): void {
+		this.modew.setCowwapsed(this.modew.wootWef, fawse, twue);
 	}
 
-	collapseAll(): void {
-		this.model.setCollapsed(this.model.rootRef, true, true);
+	cowwapseAww(): void {
+		this.modew.setCowwapsed(this.modew.wootWef, twue, twue);
 	}
 
-	isCollapsible(location: TRef): boolean {
-		return this.model.isCollapsible(location);
+	isCowwapsibwe(wocation: TWef): boowean {
+		wetuwn this.modew.isCowwapsibwe(wocation);
 	}
 
-	setCollapsible(location: TRef, collapsible?: boolean): boolean {
-		return this.model.setCollapsible(location, collapsible);
+	setCowwapsibwe(wocation: TWef, cowwapsibwe?: boowean): boowean {
+		wetuwn this.modew.setCowwapsibwe(wocation, cowwapsibwe);
 	}
 
-	isCollapsed(location: TRef): boolean {
-		return this.model.isCollapsed(location);
+	isCowwapsed(wocation: TWef): boowean {
+		wetuwn this.modew.isCowwapsed(wocation);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.view.toggleKeyboardNavigation();
+	toggweKeyboawdNavigation(): void {
+		this.view.toggweKeyboawdNavigation();
 
-		if (this.typeFilterController) {
-			this.typeFilterController.toggle();
+		if (this.typeFiwtewContwowwa) {
+			this.typeFiwtewContwowwa.toggwe();
 		}
 	}
 
-	refilter(): void {
-		this._onWillRefilter.fire(undefined);
-		this.model.refilter();
+	wefiwta(): void {
+		this._onWiwwWefiwta.fiwe(undefined);
+		this.modew.wefiwta();
 	}
 
-	setAnchor(element: TRef | undefined): void {
-		if (typeof element === 'undefined') {
-			return this.view.setAnchor(undefined);
+	setAnchow(ewement: TWef | undefined): void {
+		if (typeof ewement === 'undefined') {
+			wetuwn this.view.setAnchow(undefined);
 		}
 
-		const node = this.model.getNode(element);
-		this.anchor.set([node]);
+		const node = this.modew.getNode(ewement);
+		this.anchow.set([node]);
 
-		const index = this.model.getListIndex(element);
+		const index = this.modew.getWistIndex(ewement);
 
 		if (index > -1) {
-			this.view.setAnchor(index, true);
+			this.view.setAnchow(index, twue);
 		}
 	}
 
-	getAnchor(): T | undefined {
-		return firstOrDefault(this.anchor.get(), undefined);
+	getAnchow(): T | undefined {
+		wetuwn fiwstOwDefauwt(this.anchow.get(), undefined);
 	}
 
-	setSelection(elements: TRef[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.model.getNode(e));
-		this.selection.set(nodes, browserEvent);
+	setSewection(ewements: TWef[], bwowsewEvent?: UIEvent): void {
+		const nodes = ewements.map(e => this.modew.getNode(e));
+		this.sewection.set(nodes, bwowsewEvent);
 
-		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
-		this.view.setSelection(indexes, browserEvent, true);
+		const indexes = ewements.map(e => this.modew.getWistIndex(e)).fiwta(i => i > -1);
+		this.view.setSewection(indexes, bwowsewEvent, twue);
 	}
 
-	getSelection(): T[] {
-		return this.selection.get();
+	getSewection(): T[] {
+		wetuwn this.sewection.get();
 	}
 
-	setFocus(elements: TRef[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.model.getNode(e));
-		this.focus.set(nodes, browserEvent);
+	setFocus(ewements: TWef[], bwowsewEvent?: UIEvent): void {
+		const nodes = ewements.map(e => this.modew.getNode(e));
+		this.focus.set(nodes, bwowsewEvent);
 
-		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
-		this.view.setFocus(indexes, browserEvent, true);
+		const indexes = ewements.map(e => this.modew.getWistIndex(e)).fiwta(i => i > -1);
+		this.view.setFocus(indexes, bwowsewEvent, twue);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusNext(n, loop, browserEvent, filter);
+	focusNext(n = 1, woop = fawse, bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): void {
+		this.view.focusNext(n, woop, bwowsewEvent, fiwta);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusPrevious(n, loop, browserEvent, filter);
+	focusPwevious(n = 1, woop = fawse, bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): void {
+		this.view.focusPwevious(n, woop, bwowsewEvent, fiwta);
 	}
 
-	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
-		return this.view.focusNextPage(browserEvent, filter);
+	focusNextPage(bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): Pwomise<void> {
+		wetuwn this.view.focusNextPage(bwowsewEvent, fiwta);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
-		return this.view.focusPreviousPage(browserEvent, filter);
+	focusPweviousPage(bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): Pwomise<void> {
+		wetuwn this.view.focusPweviousPage(bwowsewEvent, fiwta);
 	}
 
-	focusLast(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusLast(browserEvent, filter);
+	focusWast(bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): void {
+		this.view.focusWast(bwowsewEvent, fiwta);
 	}
 
-	focusFirst(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
-		this.view.focusFirst(browserEvent, filter);
+	focusFiwst(bwowsewEvent?: UIEvent, fiwta = this.focusNavigationFiwta): void {
+		this.view.focusFiwst(bwowsewEvent, fiwta);
 	}
 
 	getFocus(): T[] {
-		return this.focus.get();
+		wetuwn this.focus.get();
 	}
 
-	reveal(location: TRef, relativeTop?: number): void {
-		this.model.expandTo(location);
+	weveaw(wocation: TWef, wewativeTop?: numba): void {
+		this.modew.expandTo(wocation);
 
-		const index = this.model.getListIndex(location);
+		const index = this.modew.getWistIndex(wocation);
 
 		if (index === -1) {
-			return;
+			wetuwn;
 		}
 
-		this.view.reveal(index, relativeTop);
+		this.view.weveaw(index, wewativeTop);
 	}
 
 	/**
-	 * Returns the relative position of an element rendered in the list.
-	 * Returns `null` if the element isn't *entirely* in the visible viewport.
+	 * Wetuwns the wewative position of an ewement wendewed in the wist.
+	 * Wetuwns `nuww` if the ewement isn't *entiwewy* in the visibwe viewpowt.
 	 */
-	getRelativeTop(location: TRef): number | null {
-		const index = this.model.getListIndex(location);
+	getWewativeTop(wocation: TWef): numba | nuww {
+		const index = this.modew.getWistIndex(wocation);
 
 		if (index === -1) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return this.view.getRelativeTop(index);
+		wetuwn this.view.getWewativeTop(index);
 	}
 
-	// List
+	// Wist
 
-	private onLeftArrow(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
+	pwivate onWeftAwwow(e: StandawdKeyboawdEvent): void {
+		e.pweventDefauwt();
+		e.stopPwopagation();
 
-		const nodes = this.view.getFocusedElements();
+		const nodes = this.view.getFocusedEwements();
 
-		if (nodes.length === 0) {
-			return;
+		if (nodes.wength === 0) {
+			wetuwn;
 		}
 
 		const node = nodes[0];
-		const location = this.model.getNodeLocation(node);
-		const didChange = this.model.setCollapsed(location, true);
+		const wocation = this.modew.getNodeWocation(node);
+		const didChange = this.modew.setCowwapsed(wocation, twue);
 
 		if (!didChange) {
-			const parentLocation = this.model.getParentNodeLocation(location);
+			const pawentWocation = this.modew.getPawentNodeWocation(wocation);
 
-			if (!parentLocation) {
-				return;
+			if (!pawentWocation) {
+				wetuwn;
 			}
 
-			const parentListIndex = this.model.getListIndex(parentLocation);
+			const pawentWistIndex = this.modew.getWistIndex(pawentWocation);
 
-			this.view.reveal(parentListIndex);
-			this.view.setFocus([parentListIndex]);
+			this.view.weveaw(pawentWistIndex);
+			this.view.setFocus([pawentWistIndex]);
 		}
 	}
 
-	private onRightArrow(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
+	pwivate onWightAwwow(e: StandawdKeyboawdEvent): void {
+		e.pweventDefauwt();
+		e.stopPwopagation();
 
-		const nodes = this.view.getFocusedElements();
+		const nodes = this.view.getFocusedEwements();
 
-		if (nodes.length === 0) {
-			return;
+		if (nodes.wength === 0) {
+			wetuwn;
 		}
 
 		const node = nodes[0];
-		const location = this.model.getNodeLocation(node);
-		const didChange = this.model.setCollapsed(location, false);
+		const wocation = this.modew.getNodeWocation(node);
+		const didChange = this.modew.setCowwapsed(wocation, fawse);
 
 		if (!didChange) {
-			if (!node.children.some(child => child.visible)) {
-				return;
+			if (!node.chiwdwen.some(chiwd => chiwd.visibwe)) {
+				wetuwn;
 			}
 
 			const [focusedIndex] = this.view.getFocus();
-			const firstChildIndex = focusedIndex + 1;
+			const fiwstChiwdIndex = focusedIndex + 1;
 
-			this.view.reveal(firstChildIndex);
-			this.view.setFocus([firstChildIndex]);
+			this.view.weveaw(fiwstChiwdIndex);
+			this.view.setFocus([fiwstChiwdIndex]);
 		}
 	}
 
-	private onSpace(e: StandardKeyboardEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
+	pwivate onSpace(e: StandawdKeyboawdEvent): void {
+		e.pweventDefauwt();
+		e.stopPwopagation();
 
-		const nodes = this.view.getFocusedElements();
+		const nodes = this.view.getFocusedEwements();
 
-		if (nodes.length === 0) {
-			return;
+		if (nodes.wength === 0) {
+			wetuwn;
 		}
 
 		const node = nodes[0];
-		const location = this.model.getNodeLocation(node);
-		const recursive = e.browserEvent.altKey;
+		const wocation = this.modew.getNodeWocation(node);
+		const wecuwsive = e.bwowsewEvent.awtKey;
 
-		this.model.setCollapsed(location, undefined, recursive);
+		this.modew.setCowwapsed(wocation, undefined, wecuwsive);
 	}
 
-	protected abstract createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IAbstractTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, TRef>;
+	pwotected abstwact cweateModew(usa: stwing, view: ISpwiceabwe<ITweeNode<T, TFiwtewData>>, options: IAbstwactTweeOptions<T, TFiwtewData>): ITweeModew<T, TFiwtewData, TWef>;
 
-	navigate(start?: TRef): ITreeNavigator<T> {
-		return new TreeNavigator(this.view, this.model, start);
+	navigate(stawt?: TWef): ITweeNavigatow<T> {
+		wetuwn new TweeNavigatow(this.view, this.modew, stawt);
 	}
 
 	dispose(): void {
-		dispose(this.disposables);
+		dispose(this.disposabwes);
 		this.view.dispose();
 	}
 }
 
-interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
-	readonly length: number;
-	element(index: number): ITreeNode<T, TFilterData>;
+intewface ITweeNavigatowView<T extends NonNuwwabwe<any>, TFiwtewData> {
+	weadonwy wength: numba;
+	ewement(index: numba): ITweeNode<T, TFiwtewData>;
 }
 
-class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
+cwass TweeNavigatow<T extends NonNuwwabwe<any>, TFiwtewData, TWef> impwements ITweeNavigatow<T> {
 
-	private index: number;
+	pwivate index: numba;
 
-	constructor(private view: ITreeNavigatorView<T, TFilterData>, private model: ITreeModel<T, TFilterData, TRef>, start?: TRef) {
-		if (start) {
-			this.index = this.model.getListIndex(start);
-		} else {
+	constwuctow(pwivate view: ITweeNavigatowView<T, TFiwtewData>, pwivate modew: ITweeModew<T, TFiwtewData, TWef>, stawt?: TWef) {
+		if (stawt) {
+			this.index = this.modew.getWistIndex(stawt);
+		} ewse {
 			this.index = -1;
 		}
 	}
 
-	current(): T | null {
-		if (this.index < 0 || this.index >= this.view.length) {
-			return null;
+	cuwwent(): T | nuww {
+		if (this.index < 0 || this.index >= this.view.wength) {
+			wetuwn nuww;
 		}
 
-		return this.view.element(this.index).element;
+		wetuwn this.view.ewement(this.index).ewement;
 	}
 
-	previous(): T | null {
+	pwevious(): T | nuww {
 		this.index--;
-		return this.current();
+		wetuwn this.cuwwent();
 	}
 
-	next(): T | null {
+	next(): T | nuww {
 		this.index++;
-		return this.current();
+		wetuwn this.cuwwent();
 	}
 
-	first(): T | null {
+	fiwst(): T | nuww {
 		this.index = 0;
-		return this.current();
+		wetuwn this.cuwwent();
 	}
 
-	last(): T | null {
-		this.index = this.view.length - 1;
-		return this.current();
+	wast(): T | nuww {
+		this.index = this.view.wength - 1;
+		wetuwn this.cuwwent();
 	}
 }

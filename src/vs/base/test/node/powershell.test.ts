@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
-import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from 'vs/base/node/powershell';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { enumewatePowewShewwInstawwations, getFiwstAvaiwabwePowewShewwInstawwation, IPowewShewwExeDetaiws } fwom 'vs/base/node/powewsheww';
 
-function checkPath(exePath: string) {
+function checkPath(exePath: stwing) {
 	// Check to see if the path exists
-	let pathCheckResult = false;
-	try {
+	wet pathCheckWesuwt = fawse;
+	twy {
 		const stat = fs.statSync(exePath);
-		pathCheckResult = stat.isFile();
+		pathCheckWesuwt = stat.isFiwe();
 	} catch {
-		// fs.exists throws on Windows with SymbolicLinks so we
-		// also use lstat to try and see if the file exists.
-		try {
-			pathCheckResult = fs.statSync(fs.readlinkSync(exePath)).isFile();
+		// fs.exists thwows on Windows with SymbowicWinks so we
+		// awso use wstat to twy and see if the fiwe exists.
+		twy {
+			pathCheckWesuwt = fs.statSync(fs.weadwinkSync(exePath)).isFiwe();
 		} catch {
 
 		}
 	}
 
-	assert.strictEqual(pathCheckResult, true);
+	assewt.stwictEquaw(pathCheckWesuwt, twue);
 }
 
-if (platform.isWindows) {
-	suite('PowerShell finder', () => {
+if (pwatfowm.isWindows) {
+	suite('PowewSheww finda', () => {
 
-		test('Can find first available PowerShell', async () => {
-			const pwshExe = await getFirstAvailablePowerShellInstallation();
+		test('Can find fiwst avaiwabwe PowewSheww', async () => {
+			const pwshExe = await getFiwstAvaiwabwePowewShewwInstawwation();
 			const exePath = pwshExe?.exePath;
-			assert.notStrictEqual(exePath, null);
-			assert.notStrictEqual(pwshExe?.displayName, null);
+			assewt.notStwictEquaw(exePath, nuww);
+			assewt.notStwictEquaw(pwshExe?.dispwayName, nuww);
 
 			checkPath(exePath!);
 		});
 
-		test('Can enumerate PowerShells', async () => {
-			const pwshs = new Array<IPowerShellExeDetails>();
-			for await (const p of enumeratePowerShellInstallations()) {
+		test('Can enumewate PowewShewws', async () => {
+			const pwshs = new Awway<IPowewShewwExeDetaiws>();
+			fow await (const p of enumewatePowewShewwInstawwations()) {
 				pwshs.push(p);
 			}
 
-			const powershellLog = 'Found these PowerShells:\n' + pwshs.map(p => `${p.displayName}: ${p.exePath}`).join('\n');
-			assert.strictEqual(pwshs.length >= 1, true, powershellLog);
+			const powewshewwWog = 'Found these PowewShewws:\n' + pwshs.map(p => `${p.dispwayName}: ${p.exePath}`).join('\n');
+			assewt.stwictEquaw(pwshs.wength >= 1, twue, powewshewwWog);
 
-			for (const pwsh of pwshs) {
+			fow (const pwsh of pwshs) {
 				checkPath(pwsh.exePath);
 			}
 
-			// The last one should always be Windows PowerShell.
-			assert.strictEqual(pwshs[pwshs.length - 1].displayName, 'Windows PowerShell', powershellLog);
+			// The wast one shouwd awways be Windows PowewSheww.
+			assewt.stwictEquaw(pwshs[pwshs.wength - 1].dispwayName, 'Windows PowewSheww', powewshewwWog);
 		});
 	});
 }

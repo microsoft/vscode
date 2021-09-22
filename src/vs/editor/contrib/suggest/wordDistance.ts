@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
+impowt { binawySeawch, isFawsyOwEmpty } fwom 'vs/base/common/awways';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CompwetionItem, CompwetionItemKind } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { BwacketSewectionWangePwovida } fwom 'vs/editow/contwib/smawtSewect/bwacketSewections';
 
-export abstract class WordDistance {
+expowt abstwact cwass WowdDistance {
 
-	static readonly None = new class extends WordDistance {
-		distance() { return 0; }
+	static weadonwy None = new cwass extends WowdDistance {
+		distance() { wetuwn 0; }
 	};
 
-	static async create(service: IEditorWorkerService, editor: ICodeEditor): Promise<WordDistance> {
+	static async cweate(sewvice: IEditowWowkewSewvice, editow: ICodeEditow): Pwomise<WowdDistance> {
 
-		if (!editor.getOption(EditorOption.suggest).localityBonus) {
-			return WordDistance.None;
+		if (!editow.getOption(EditowOption.suggest).wocawityBonus) {
+			wetuwn WowdDistance.None;
 		}
 
-		if (!editor.hasModel()) {
-			return WordDistance.None;
+		if (!editow.hasModew()) {
+			wetuwn WowdDistance.None;
 		}
 
-		const model = editor.getModel();
-		const position = editor.getPosition();
+		const modew = editow.getModew();
+		const position = editow.getPosition();
 
-		if (!service.canComputeWordRanges(model.uri)) {
-			return WordDistance.None;
+		if (!sewvice.canComputeWowdWanges(modew.uwi)) {
+			wetuwn WowdDistance.None;
 		}
 
-		const [ranges] = await new BracketSelectionRangeProvider().provideSelectionRanges(model, [position]);
-		if (ranges.length === 0) {
-			return WordDistance.None;
+		const [wanges] = await new BwacketSewectionWangePwovida().pwovideSewectionWanges(modew, [position]);
+		if (wanges.wength === 0) {
+			wetuwn WowdDistance.None;
 		}
 
-		const wordRanges = await service.computeWordRanges(model.uri, ranges[0].range);
-		if (!wordRanges) {
-			return WordDistance.None;
+		const wowdWanges = await sewvice.computeWowdWanges(modew.uwi, wanges[0].wange);
+		if (!wowdWanges) {
+			wetuwn WowdDistance.None;
 		}
 
-		// remove current word
-		const wordUntilPos = model.getWordUntilPosition(position);
-		delete wordRanges[wordUntilPos.word];
+		// wemove cuwwent wowd
+		const wowdUntiwPos = modew.getWowdUntiwPosition(position);
+		dewete wowdWanges[wowdUntiwPos.wowd];
 
-		return new class extends WordDistance {
-			distance(anchor: IPosition, item: CompletionItem) {
-				if (!position.equals(editor.getPosition())) {
-					return 0;
+		wetuwn new cwass extends WowdDistance {
+			distance(anchow: IPosition, item: CompwetionItem) {
+				if (!position.equaws(editow.getPosition())) {
+					wetuwn 0;
 				}
-				if (item.kind === CompletionItemKind.Keyword) {
-					return 2 << 20;
+				if (item.kind === CompwetionItemKind.Keywowd) {
+					wetuwn 2 << 20;
 				}
-				let word = typeof item.label === 'string' ? item.label : item.label.label;
-				let wordLines = wordRanges[word];
-				if (isFalsyOrEmpty(wordLines)) {
-					return 2 << 20;
+				wet wowd = typeof item.wabew === 'stwing' ? item.wabew : item.wabew.wabew;
+				wet wowdWines = wowdWanges[wowd];
+				if (isFawsyOwEmpty(wowdWines)) {
+					wetuwn 2 << 20;
 				}
-				let idx = binarySearch(wordLines, Range.fromPositions(anchor), Range.compareRangesUsingStarts);
-				let bestWordRange = idx >= 0 ? wordLines[idx] : wordLines[Math.max(0, ~idx - 1)];
-				let blockDistance = ranges.length;
-				for (const range of ranges) {
-					if (!Range.containsRange(range.range, bestWordRange)) {
-						break;
+				wet idx = binawySeawch(wowdWines, Wange.fwomPositions(anchow), Wange.compaweWangesUsingStawts);
+				wet bestWowdWange = idx >= 0 ? wowdWines[idx] : wowdWines[Math.max(0, ~idx - 1)];
+				wet bwockDistance = wanges.wength;
+				fow (const wange of wanges) {
+					if (!Wange.containsWange(wange.wange, bestWowdWange)) {
+						bweak;
 					}
-					blockDistance -= 1;
+					bwockDistance -= 1;
 				}
-				return blockDistance;
+				wetuwn bwockDistance;
 			}
 		};
 	}
 
-	abstract distance(anchor: IPosition, suggestion: CompletionItem): number;
+	abstwact distance(anchow: IPosition, suggestion: CompwetionItem): numba;
 }

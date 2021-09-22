@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IURLService } from 'vs/platform/url/common/url';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
-import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
-import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuId, MenuWegistwy, Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ExtewnawUwiWesowvewContwibution } fwom 'vs/wowkbench/contwib/uww/bwowsa/extewnawUwiWesowva';
+impowt { manageTwustedDomainSettingsCommand } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomains';
+impowt { TwustedDomainsFiweSystemPwovida } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomainsFiweSystemPwovida';
+impowt { OpenewVawidatowContwibutions } fwom 'vs/wowkbench/contwib/uww/bwowsa/twustedDomainsVawidatow';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
 
-class OpenUrlAction extends Action2 {
+cwass OpenUwwAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'workbench.action.url.openUrl',
-			title: { value: localize('openUrl', "Open URL"), original: 'Open URL' },
-			category: CATEGORIES.Developer,
-			f1: true
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.uww.openUww',
+			titwe: { vawue: wocawize('openUww', "Open UWW"), owiginaw: 'Open UWW' },
+			categowy: CATEGOWIES.Devewopa,
+			f1: twue
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const quickInputService = accessor.get(IQuickInputService);
-		const urlService = accessor.get(IURLService);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const uwwSewvice = accessow.get(IUWWSewvice);
 
-		return quickInputService.input({ prompt: localize('urlToOpen', "URL to open") }).then(input => {
+		wetuwn quickInputSewvice.input({ pwompt: wocawize('uwwToOpen', "UWW to open") }).then(input => {
 			if (input) {
-				const uri = URI.parse(input);
-				urlService.open(uri, { originalUrl: input });
+				const uwi = UWI.pawse(input);
+				uwwSewvice.open(uwi, { owiginawUww: input });
 			}
 		});
 	}
 }
 
-registerAction2(OpenUrlAction);
+wegistewAction2(OpenUwwAction);
 
 /**
- * Trusted Domains Contribution
+ * Twusted Domains Contwibution
  */
 
-CommandsRegistry.registerCommand(manageTrustedDomainSettingsCommand);
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+CommandsWegistwy.wegistewCommand(manageTwustedDomainSettingsCommand);
+MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
 	command: {
-		id: manageTrustedDomainSettingsCommand.id,
-		title: {
-			value: manageTrustedDomainSettingsCommand.description.description,
-			original: 'Manage Trusted Domains'
+		id: manageTwustedDomainSettingsCommand.id,
+		titwe: {
+			vawue: manageTwustedDomainSettingsCommand.descwiption.descwiption,
+			owiginaw: 'Manage Twusted Domains'
 		}
 	}
 });
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	OpenerValidatorContributions,
-	LifecyclePhase.Restored
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(
+	OpenewVawidatowContwibutions,
+	WifecycwePhase.Westowed
 );
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	TrustedDomainsFileSystemProvider,
-	LifecyclePhase.Ready
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(
+	TwustedDomainsFiweSystemPwovida,
+	WifecycwePhase.Weady
 );
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	ExternalUriResolverContribution,
-	LifecyclePhase.Ready
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(
+	ExtewnawUwiWesowvewContwibution,
+	WifecycwePhase.Weady
 );
 
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	properties: {
-		'workbench.trustedDomains.promptInTrustedWorkspace': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: false,
-			description: localize('workbench.trustedDomains.promptInTrustedWorkspace', "When enabled, trusted domain prompts will appear when opening links in trusted workspaces.")
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
+	...wowkbenchConfiguwationNodeBase,
+	pwopewties: {
+		'wowkbench.twustedDomains.pwomptInTwustedWowkspace': {
+			scope: ConfiguwationScope.APPWICATION,
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: wocawize('wowkbench.twustedDomains.pwomptInTwustedWowkspace', "When enabwed, twusted domain pwompts wiww appeaw when opening winks in twusted wowkspaces.")
 		}
 	}
 });

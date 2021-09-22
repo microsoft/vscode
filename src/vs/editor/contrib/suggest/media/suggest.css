@@ -1,421 +1,421 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /* Suggest widget*/
 
-.monaco-editor .suggest-widget {
+.monaco-editow .suggest-widget {
 	width: 430px;
 	z-index: 40;
-	display: flex;
-	flex-direction: column;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-editor .suggest-widget.message {
-	flex-direction: row;
-	align-items: center;
+.monaco-editow .suggest-widget.message {
+	fwex-diwection: wow;
+	awign-items: centa;
 }
 
-.monaco-editor .suggest-widget,
-.monaco-editor .suggest-details {
-	flex: 0 1 auto;
+.monaco-editow .suggest-widget,
+.monaco-editow .suggest-detaiws {
+	fwex: 0 1 auto;
 	width: 100%;
-	border-style: solid;
-	border-width: 1px;
+	bowda-stywe: sowid;
+	bowda-width: 1px;
 }
 
-.monaco-editor.hc-black .suggest-widget,
-.monaco-editor.hc-black .suggest-details {
-	border-width: 2px;
+.monaco-editow.hc-bwack .suggest-widget,
+.monaco-editow.hc-bwack .suggest-detaiws {
+	bowda-width: 2px;
 }
 
-/* Styles for status bar part */
+/* Stywes fow status baw pawt */
 
 
-.monaco-editor .suggest-widget .suggest-status-bar {
-	box-sizing: border-box;
-	display: none;
-	flex-flow: row nowrap;
+.monaco-editow .suggest-widget .suggest-status-baw {
+	box-sizing: bowda-box;
+	dispway: none;
+	fwex-fwow: wow nowwap;
 	justify-content: space-between;
 	width: 100%;
 	font-size: 80%;
 	padding: 0 4px 0 4px;
-	border-top: 1px solid transparent;
-	overflow: hidden;
+	bowda-top: 1px sowid twanspawent;
+	ovewfwow: hidden;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
-	display: flex;
+.monaco-editow .suggest-widget.with-status-baw .suggest-status-baw {
+	dispway: fwex;
 }
 
-.monaco-editor .suggest-widget .suggest-status-bar .left {
-	padding-right: 8px;
+.monaco-editow .suggest-widget .suggest-status-baw .weft {
+	padding-wight: 8px;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
+.monaco-editow .suggest-widget.with-status-baw .suggest-status-baw .action-wabew {
 	opacity: 0.5;
-	color: inherit;
+	cowow: inhewit;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label {
-	margin-right: 0;
+.monaco-editow .suggest-widget.with-status-baw .suggest-status-baw .action-item:not(:wast-of-type) .action-wabew {
+	mawgin-wight: 0;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label::after {
+.monaco-editow .suggest-widget.with-status-baw .suggest-status-baw .action-item:not(:wast-of-type) .action-wabew::afta {
 	content: ', ';
-	margin-right: 0.3em;
+	mawgin-wight: 0.3em;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row>.contents>.main>.right>.readMore,
-.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
-	display: none;
+.monaco-editow .suggest-widget.with-status-baw .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe,
+.monaco-editow .suggest-widget.with-status-baw .monaco-wist .monaco-wist-wow.focused.stwing-wabew>.contents>.main>.wight>.weadMowe {
+	dispway: none;
 }
 
-.monaco-editor .suggest-widget.with-status-bar:not(.docs-side) .monaco-list .monaco-list-row:hover>.contents>.main>.right.can-expand-details>.details-label {
+.monaco-editow .suggest-widget.with-status-baw:not(.docs-side) .monaco-wist .monaco-wist-wow:hova>.contents>.main>.wight.can-expand-detaiws>.detaiws-wabew {
 	width: 100%;
 }
 
-/* Styles for Message element for when widget is loading or is empty */
+/* Stywes fow Message ewement fow when widget is woading ow is empty */
 
-.monaco-editor .suggest-widget>.message {
-	padding-left: 22px;
+.monaco-editow .suggest-widget>.message {
+	padding-weft: 22px;
 }
 
-/** Styles for the list element **/
+/** Stywes fow the wist ewement **/
 
-.monaco-editor .suggest-widget>.tree {
+.monaco-editow .suggest-widget>.twee {
 	height: 100%;
 	width: 100%;
 }
 
-.monaco-editor .suggest-widget .monaco-list {
-	user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-editow .suggest-widget .monaco-wist {
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+	-ms-usa-sewect: none;
 }
 
-/** Styles for each row in the list element **/
+/** Stywes fow each wow in the wist ewement **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row {
-	display: flex;
-	-mox-box-sizing: border-box;
-	box-sizing: border-box;
-	padding-right: 10px;
-	background-repeat: no-repeat;
-	background-position: 2px 2px;
-	white-space: nowrap;
-	cursor: pointer;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow {
+	dispway: fwex;
+	-mox-box-sizing: bowda-box;
+	box-sizing: bowda-box;
+	padding-wight: 10px;
+	backgwound-wepeat: no-wepeat;
+	backgwound-position: 2px 2px;
+	white-space: nowwap;
+	cuwsow: pointa;
 	touch-action: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents {
-	flex: 1;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents {
+	fwex: 1;
 	height: 100%;
-	overflow: hidden;
-	padding-left: 2px;
+	ovewfwow: hidden;
+	padding-weft: 2px;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main {
-	display: flex;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: pre;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main {
+	dispway: fwex;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	white-space: pwe;
 	justify-content: space-between;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
-	display: flex;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.weft, .monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight {
+	dispway: fwex;
 }
 
-.monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
-	font-weight: bold;
+.monaco-editow .suggest-widget:not(.fwozen) .monaco-highwighted-wabew .highwight {
+	font-weight: bowd;
 }
 
-/** ReadMore Icon styles **/
+/** WeadMowe Icon stywes **/
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.codicon-close,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore::before {
-	color: inherit;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.heada>.codicon-cwose,
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe::befowe {
+	cowow: inhewit;
 	opacity: 1;
 	font-size: 14px;
-	cursor: pointer;
+	cuwsow: pointa;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.codicon-close {
-	position: absolute;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.heada>.codicon-cwose {
+	position: absowute;
 	top: 6px;
-	right: 2px;
+	wight: 2px;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.codicon-close:hover,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore:hover {
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.heada>.codicon-cwose:hova,
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe:hova {
 	opacity: 1;
 }
 
-/** signature, qualifier, type/details opacity **/
+/** signatuwe, quawifia, type/detaiws opacity **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.detaiws-wabew {
 	opacity: 0.7;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.signature-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.weft>.signatuwe-wabew {
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 	opacity: 0.6;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.qualifier-label {
-	margin-left: 12px;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.weft>.quawifia-wabew {
+	mawgin-weft: 12px;
 	opacity: 0.4;
 	font-size: 85%;
-	line-height: initial;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	align-self: center;
+	wine-height: initiaw;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	awign-sewf: centa;
 }
 
-/** Type Info and icon next to the label in the focused completion item **/
+/** Type Info and icon next to the wabew in the focused compwetion item **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.detaiws-wabew {
 	font-size: 85%;
-	margin-left: 1.1em;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	mawgin-weft: 1.1em;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	white-space: nowwap;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label>.monaco-tokenized-source {
-	display: inline;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.detaiws-wabew>.monaco-tokenized-souwce {
+	dispway: inwine;
 }
 
-/** Details: if using CompletionItem#details, show on focus **/
+/** Detaiws: if using CompwetionItem#detaiws, show on focus **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
-	display: none;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.detaiws-wabew {
+	dispway: none;
 }
 
-.monaco-editor .suggest-widget:not(.shows-details) .monaco-list .monaco-list-row.focused>.contents>.main>.right>.details-label {
-	display: inline;
+.monaco-editow .suggest-widget:not(.shows-detaiws) .monaco-wist .monaco-wist-wow.focused>.contents>.main>.wight>.detaiws-wabew {
+	dispway: inwine;
 }
 
-/** Details: if using CompletionItemLabel#details, always show **/
+/** Detaiws: if using CompwetionItemWabew#detaiws, awways show **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label)>.contents>.main>.right>.details-label,
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused:not(.string-label)>.contents>.main>.right>.details-label {
-	display: inline;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow:not(.stwing-wabew)>.contents>.main>.wight>.detaiws-wabew,
+.monaco-editow .suggest-widget.docs-side .monaco-wist .monaco-wist-wow.focused:not(.stwing-wabew)>.contents>.main>.wight>.detaiws-wabew {
+	dispway: inwine;
 }
 
-/** Ellipsis on hover **/
+/** Ewwipsis on hova **/
 
-.monaco-editor .suggest-widget:not(.docs-side) .monaco-list .monaco-list-row:hover>.contents>.main>.right.can-expand-details>.details-label {
-	width: calc(100% - 26px);
+.monaco-editow .suggest-widget:not(.docs-side) .monaco-wist .monaco-wist-wow:hova>.contents>.main>.wight.can-expand-detaiws>.detaiws-wabew {
+	width: cawc(100% - 26px);
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left {
-	flex-shrink: 1;
-	flex-grow: 1;
-	overflow: hidden;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.weft {
+	fwex-shwink: 1;
+	fwex-gwow: 1;
+	ovewfwow: hidden;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.monaco-icon-label {
-	flex-shrink: 0;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.weft>.monaco-icon-wabew {
+	fwex-shwink: 0;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:not(.string-label)>.contents>.main>.left>.monaco-icon-label {
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow:not(.stwing-wabew)>.contents>.main>.weft>.monaco-icon-wabew {
 	max-width: 100%;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label>.contents>.main>.left>.monaco-icon-label {
-	flex-shrink: 1;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.stwing-wabew>.contents>.main>.weft>.monaco-icon-wabew {
+	fwex-shwink: 1;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
-	overflow: hidden;
-	flex-shrink: 4;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight {
+	ovewfwow: hidden;
+	fwex-shwink: 4;
 	max-width: 70%;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
-	display: inline-block;
-	position: absolute;
-	right: 10px;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe {
+	dispway: inwine-bwock;
+	position: absowute;
+	wight: 10px;
 	width: 18px;
 	height: 18px;
-	visibility: hidden;
+	visibiwity: hidden;
 }
 
-/** Do NOT display ReadMore when docs is side/below **/
+/** Do NOT dispway WeadMowe when docs is side/bewow **/
 
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row>.contents>.main>.right>.readMore, .monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
-	display: none !important;
+.monaco-editow .suggest-widget.docs-side .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe, .monaco-editow .suggest-widget.docs-bewow .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe {
+	dispway: none !impowtant;
 }
 
-/** Do NOT display ReadMore when using plain CompletionItemLabel (details/documentation might not be resolved) **/
+/** Do NOT dispway WeadMowe when using pwain CompwetionItemWabew (detaiws/documentation might not be wesowved) **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.string-label>.contents>.main>.right>.readMore {
-	display: none;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.stwing-wabew>.contents>.main>.wight>.weadMowe {
+	dispway: none;
 }
 
-/** Focused item can show ReadMore, but can't when docs is side/below **/
+/** Focused item can show WeadMowe, but can't when docs is side/bewow **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
-	display: inline-block;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow.focused.stwing-wabew>.contents>.main>.wight>.weadMowe {
+	dispway: inwine-bwock;
 }
 
-.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row>.contents>.main>.right>.readMore,
-.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
-	display: none;
+.monaco-editow .suggest-widget.docs-side .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe,
+.monaco-editow .suggest-widget.docs-bewow .monaco-wist .monaco-wist-wow>.contents>.main>.wight>.weadMowe {
+	dispway: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row:hover>.contents>.main>.right>.readMore {
-	visibility: visible;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow:hova>.contents>.main>.wight>.weadMowe {
+	visibiwity: visibwe;
 }
 
-/** Styles for each row in the list **/
+/** Stywes fow each wow in the wist **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated {
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .monaco-icon-wabew.depwecated {
 	opacity: 0.66;
-	text-decoration: unset;
+	text-decowation: unset;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label.deprecated>.monaco-icon-label-container>.monaco-icon-name-container {
-	text-decoration: line-through;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .monaco-icon-wabew.depwecated>.monaco-icon-wabew-containa>.monaco-icon-name-containa {
+	text-decowation: wine-thwough;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label::before {
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .monaco-icon-wabew::befowe {
 	height: 100%;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
-	display: block;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .icon {
+	dispway: bwock;
 	height: 16px;
 	width: 16px;
-	margin-left: 2px;
-	background-repeat: no-repeat;
-	background-size: 80%;
-	background-position: center;
+	mawgin-weft: 2px;
+	backgwound-wepeat: no-wepeat;
+	backgwound-size: 80%;
+	backgwound-position: centa;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.hide {
-	display: none;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .icon.hide {
+	dispway: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .suggest-icon {
-	display: flex;
-	align-items: center;
-	margin-right: 4px;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .suggest-icon {
+	dispway: fwex;
+	awign-items: centa;
+	mawgin-wight: 4px;
 }
 
-.monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .icon, .monaco-editor .suggest-widget.no-icons .monaco-list .monaco-list-row .suggest-icon::before {
-	display: none;
+.monaco-editow .suggest-widget.no-icons .monaco-wist .monaco-wist-wow .icon, .monaco-editow .suggest-widget.no-icons .monaco-wist .monaco-wist-wow .suggest-icon::befowe {
+	dispway: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.customcolor .colorspan {
-	margin: 0 0 0 0.3em;
-	border: 0.1em solid #000;
+.monaco-editow .suggest-widget .monaco-wist .monaco-wist-wow .icon.customcowow .cowowspan {
+	mawgin: 0 0 0 0.3em;
+	bowda: 0.1em sowid #000;
 	width: 0.7em;
 	height: 0.7em;
-	display: inline-block;
+	dispway: inwine-bwock;
 }
 
-/** Styles for the docs of the completion item in focus **/
+/** Stywes fow the docs of the compwetion item in focus **/
 
-.monaco-editor .suggest-details-container {
+.monaco-editow .suggest-detaiws-containa {
 	z-index: 41;
 }
 
-.monaco-editor .suggest-details {
-	display: flex;
-	flex-direction: column;
-	cursor: default;
+.monaco-editow .suggest-detaiws {
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	cuwsow: defauwt;
 }
 
-.monaco-editor .suggest-details.no-docs {
-	display: none;
+.monaco-editow .suggest-detaiws.no-docs {
+	dispway: none;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element {
-	flex: 1;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement {
+	fwex: 1;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body {
-	box-sizing: border-box;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body {
+	box-sizing: bowda-box;
 	height: 100%;
 	width: 100%;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.type {
-	flex: 2;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.heada>.type {
+	fwex: 2;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 	opacity: 0.7;
-	white-space: pre;
-	margin: 0 24px 0 0;
+	white-space: pwe;
+	mawgin: 0 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.header>.type.auto-wrap {
-	white-space: normal;
-	word-break: break-all;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.heada>.type.auto-wwap {
+	white-space: nowmaw;
+	wowd-bweak: bweak-aww;
 }
 
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs {
-	margin: 0;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs {
+	mawgin: 0;
 	padding: 4px 5px;
-	white-space: pre-wrap;
+	white-space: pwe-wwap;
 }
 
-.monaco-editor .suggest-details.no-type>.monaco-scrollable-element>.body>.docs {
-	margin-right: 24px;
+.monaco-editow .suggest-detaiws.no-type>.monaco-scwowwabwe-ewement>.body>.docs {
+	mawgin-wight: 24px;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs {
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs {
 	padding: 0;
-	white-space: initial;
-	min-height: calc(1rem + 8px);
+	white-space: initiaw;
+	min-height: cawc(1wem + 8px);
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs>div,
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs>span:not(:empty) {
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs>div,
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs>span:not(:empty) {
 	padding: 4px 5px;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs>div>p:first-child {
-	margin-top: 0;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs>div>p:fiwst-chiwd {
+	mawgin-top: 0;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs>div>p:last-child {
-	margin-bottom: 0;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs>div>p:wast-chiwd {
+	mawgin-bottom: 0;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs .code {
-	white-space: pre-wrap;
-	word-wrap: break-word;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs .code {
+	white-space: pwe-wwap;
+	wowd-wwap: bweak-wowd;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs .codicon {
-	vertical-align: sub;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>.docs.mawkdown-docs .codicon {
+	vewticaw-awign: sub;
 }
 
-.monaco-editor .suggest-details>.monaco-scrollable-element>.body>p:empty {
-	display: none;
+.monaco-editow .suggest-detaiws>.monaco-scwowwabwe-ewement>.body>p:empty {
+	dispway: none;
 }
 
-.monaco-editor .suggest-details code {
-	border-radius: 3px;
+.monaco-editow .suggest-detaiws code {
+	bowda-wadius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-editor .suggest-details ul {
-	padding-left: 20px;
+.monaco-editow .suggest-detaiws uw {
+	padding-weft: 20px;
 }
 
-.monaco-editor .suggest-details ol {
-	padding-left: 20px;
+.monaco-editow .suggest-detaiws ow {
+	padding-weft: 20px;
 }
 
-.monaco-editor .suggest-details p code {
-	font-family: var(--monaco-monospace-font);
+.monaco-editow .suggest-detaiws p code {
+	font-famiwy: vaw(--monaco-monospace-font);
 }

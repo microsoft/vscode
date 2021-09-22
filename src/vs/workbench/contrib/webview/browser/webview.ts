@@ -1,229 +1,229 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { equals } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWebviewPowtMapping } fwom 'vs/pwatfowm/webview/common/webviewPowtMapping';
 
 /**
- * Set when the find widget in a webview is visible.
+ * Set when the find widget in a webview is visibwe.
  */
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('webviewFindWidgetFocused', false);
-export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED = new RawContextKey<boolean>('webviewFindWidgetEnabled', false);
+expowt const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBWE = new WawContextKey<boowean>('webviewFindWidgetVisibwe', fawse);
+expowt const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED = new WawContextKey<boowean>('webviewFindWidgetFocused', fawse);
+expowt const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABWED = new WawContextKey<boowean>('webviewFindWidgetEnabwed', fawse);
 
-export const IWebviewService = createDecorator<IWebviewService>('webviewService');
+expowt const IWebviewSewvice = cweateDecowatow<IWebviewSewvice>('webviewSewvice');
 
-export interface IWebviewService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * The currently focused webview.
-	 */
-	readonly activeWebview: Webview | undefined;
+expowt intewface IWebviewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * All webviews.
+	 * The cuwwentwy focused webview.
 	 */
-	readonly webviews: Iterable<Webview>;
+	weadonwy activeWebview: Webview | undefined;
 
 	/**
-	 * Fired when the currently focused webview changes.
+	 * Aww webviews.
 	 */
-	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
+	weadonwy webviews: Itewabwe<Webview>;
 
 	/**
-	 * Create a basic webview dom element.
+	 * Fiwed when the cuwwentwy focused webview changes.
 	 */
-	createWebviewElement(
-		id: string,
+	weadonwy onDidChangeActiveWebview: Event<Webview | undefined>;
+
+	/**
+	 * Cweate a basic webview dom ewement.
+	 */
+	cweateWebviewEwement(
+		id: stwing,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): WebviewElement;
+		extension: WebviewExtensionDescwiption | undefined,
+	): WebviewEwement;
 
 	/**
-	 * Create a lazily created webview element that is overlaid on top of another element.
+	 * Cweate a waziwy cweated webview ewement that is ovewwaid on top of anotha ewement.
 	 *
-	 * Allows us to avoid re-parenting the webview (which destroys its contents) when
-	 * moving webview around the workbench.
+	 * Awwows us to avoid we-pawenting the webview (which destwoys its contents) when
+	 * moving webview awound the wowkbench.
 	 */
-	createWebviewOverlay(
-		id: string,
+	cweateWebviewOvewway(
+		id: stwing,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-	): WebviewOverlay;
+		extension: WebviewExtensionDescwiption | undefined,
+	): WebviewOvewway;
 }
 
-export const enum WebviewContentPurpose {
-	NotebookRenderer = 'notebookRenderer',
-	CustomEditor = 'customEditor',
+expowt const enum WebviewContentPuwpose {
+	NotebookWendewa = 'notebookWendewa',
+	CustomEditow = 'customEditow',
 }
 
-export type WebviewStyles = { [key: string]: string | number; };
+expowt type WebviewStywes = { [key: stwing]: stwing | numba; };
 
-export interface WebviewOptions {
-	// The purpose of the webview; this is (currently) only used for filtering in js-debug
-	readonly purpose?: WebviewContentPurpose;
-	readonly customClasses?: string;
-	readonly enableFindWidget?: boolean;
-	readonly tryRestoreScrollPosition?: boolean;
-	readonly retainContextWhenHidden?: boolean;
-	transformCssVariables?(styles: Readonly<WebviewStyles>): Readonly<WebviewStyles>;
+expowt intewface WebviewOptions {
+	// The puwpose of the webview; this is (cuwwentwy) onwy used fow fiwtewing in js-debug
+	weadonwy puwpose?: WebviewContentPuwpose;
+	weadonwy customCwasses?: stwing;
+	weadonwy enabweFindWidget?: boowean;
+	weadonwy twyWestoweScwowwPosition?: boowean;
+	weadonwy wetainContextWhenHidden?: boowean;
+	twansfowmCssVawiabwes?(stywes: Weadonwy<WebviewStywes>): Weadonwy<WebviewStywes>;
 }
 
-export interface WebviewContentOptions {
-	readonly allowMultipleAPIAcquire?: boolean;
-	readonly allowScripts?: boolean;
-	readonly allowForms?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
-	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
-	readonly enableCommandUris?: boolean;
+expowt intewface WebviewContentOptions {
+	weadonwy awwowMuwtipweAPIAcquiwe?: boowean;
+	weadonwy awwowScwipts?: boowean;
+	weadonwy awwowFowms?: boowean;
+	weadonwy wocawWesouwceWoots?: WeadonwyAwway<UWI>;
+	weadonwy powtMapping?: WeadonwyAwway<IWebviewPowtMapping>;
+	weadonwy enabweCommandUwis?: boowean;
 }
 
-export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: WebviewContentOptions): boolean {
-	return (
-		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire
-		&& a.allowScripts === b.allowScripts
-		&& a.allowForms === b.allowForms
-		&& equals(a.localResourceRoots, b.localResourceRoots, isEqual)
-		&& equals(a.portMapping, b.portMapping, (a, b) => a.extensionHostPort === b.extensionHostPort && a.webviewPort === b.webviewPort)
-		&& a.enableCommandUris === b.enableCommandUris
+expowt function aweWebviewContentOptionsEquaw(a: WebviewContentOptions, b: WebviewContentOptions): boowean {
+	wetuwn (
+		a.awwowMuwtipweAPIAcquiwe === b.awwowMuwtipweAPIAcquiwe
+		&& a.awwowScwipts === b.awwowScwipts
+		&& a.awwowFowms === b.awwowFowms
+		&& equaws(a.wocawWesouwceWoots, b.wocawWesouwceWoots, isEquaw)
+		&& equaws(a.powtMapping, b.powtMapping, (a, b) => a.extensionHostPowt === b.extensionHostPowt && a.webviewPowt === b.webviewPowt)
+		&& a.enabweCommandUwis === b.enabweCommandUwis
 	);
 }
 
-export interface WebviewExtensionDescription {
-	readonly location: URI;
-	readonly id: ExtensionIdentifier;
+expowt intewface WebviewExtensionDescwiption {
+	weadonwy wocation: UWI;
+	weadonwy id: ExtensionIdentifia;
 }
 
-export interface IDataLinkClickEvent {
-	dataURL: string;
-	downloadName?: string;
+expowt intewface IDataWinkCwickEvent {
+	dataUWW: stwing;
+	downwoadName?: stwing;
 }
 
-export interface WebviewMessageReceivedEvent {
-	readonly message: any;
-	readonly transfer?: readonly ArrayBuffer[];
+expowt intewface WebviewMessageWeceivedEvent {
+	weadonwy message: any;
+	weadonwy twansfa?: weadonwy AwwayBuffa[];
 }
 
-export interface Webview extends IDisposable {
+expowt intewface Webview extends IDisposabwe {
 
-	readonly id: string;
+	weadonwy id: stwing;
 
-	html: string;
+	htmw: stwing;
 	contentOptions: WebviewContentOptions;
-	localResourcesRoot: readonly URI[];
-	extension: WebviewExtensionDescription | undefined;
-	initialScrollProgress: number;
-	state: string | undefined;
+	wocawWesouwcesWoot: weadonwy UWI[];
+	extension: WebviewExtensionDescwiption | undefined;
+	initiawScwowwPwogwess: numba;
+	state: stwing | undefined;
 
-	readonly isFocused: boolean;
+	weadonwy isFocused: boowean;
 
-	readonly onDidFocus: Event<void>;
-	readonly onDidBlur: Event<void>;
-	readonly onDidDispose: Event<void>;
+	weadonwy onDidFocus: Event<void>;
+	weadonwy onDidBwuw: Event<void>;
+	weadonwy onDidDispose: Event<void>;
 
-	readonly onDidClickLink: Event<string>;
-	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
-	readonly onDidWheel: Event<IMouseWheelEvent>;
-	readonly onDidUpdateState: Event<string | undefined>;
-	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<WebviewMessageReceivedEvent>;
-	readonly onMissingCsp: Event<ExtensionIdentifier>;
+	weadonwy onDidCwickWink: Event<stwing>;
+	weadonwy onDidScwoww: Event<{ scwowwYPewcentage: numba }>;
+	weadonwy onDidWheew: Event<IMouseWheewEvent>;
+	weadonwy onDidUpdateState: Event<stwing | undefined>;
+	weadonwy onDidWewoad: Event<void>;
+	weadonwy onMessage: Event<WebviewMessageWeceivedEvent>;
+	weadonwy onMissingCsp: Event<ExtensionIdentifia>;
 
-	postMessage(message: any, transfer?: readonly ArrayBuffer[]): void;
+	postMessage(message: any, twansfa?: weadonwy AwwayBuffa[]): void;
 
 	focus(): void;
-	reload(): void;
+	wewoad(): void;
 
 	showFind(): void;
 	hideFind(): void;
-	runFindAction(previous: boolean): void;
+	wunFindAction(pwevious: boowean): void;
 
-	selectAll(): void;
+	sewectAww(): void;
 	copy(): void;
 	paste(): void;
 	cut(): void;
 	undo(): void;
-	redo(): void;
+	wedo(): void;
 
-	windowDidDragStart(): void;
-	windowDidDragEnd(): void;
+	windowDidDwagStawt(): void;
+	windowDidDwagEnd(): void;
 
-	setContextKeyService(scopedContextKeyService: IContextKeyService): void;
+	setContextKeySewvice(scopedContextKeySewvice: IContextKeySewvice): void;
 }
 
 /**
- * Basic webview rendered directly in the dom
+ * Basic webview wendewed diwectwy in the dom
  */
-export interface WebviewElement extends Webview {
+expowt intewface WebviewEwement extends Webview {
 	/**
-	 * Append the webview to a HTML element.
+	 * Append the webview to a HTMW ewement.
 	 *
-	 * Note that the webview content will be destroyed if any part of the parent hierarchy
-	 * changes. You can avoid this by using a {@link WebviewOverlay} instead.
+	 * Note that the webview content wiww be destwoyed if any pawt of the pawent hiewawchy
+	 * changes. You can avoid this by using a {@wink WebviewOvewway} instead.
 	 *
-	 * @param parent Element to append the webview to.
+	 * @pawam pawent Ewement to append the webview to.
 	 */
-	mountTo(parent: HTMLElement): void;
+	mountTo(pawent: HTMWEwement): void;
 }
 
 /**
- * Lazily created {@link Webview} that is absolutely positioned over another element.
+ * Waziwy cweated {@wink Webview} that is absowutewy positioned ova anotha ewement.
  *
- * Absolute positioning lets us avoid having the webview be re-parented, which would destroy the
+ * Absowute positioning wets us avoid having the webview be we-pawented, which wouwd destwoy the
  * webview's content.
  *
- * Note that the underlying webview owned by a `WebviewOverlay` can be dynamically created
- * and destroyed depending on who has {@link WebviewOverlay.claim claimed} or {@link WebviewOverlay.release released} it.
+ * Note that the undewwying webview owned by a `WebviewOvewway` can be dynamicawwy cweated
+ * and destwoyed depending on who has {@wink WebviewOvewway.cwaim cwaimed} ow {@wink WebviewOvewway.wewease weweased} it.
  */
-export interface WebviewOverlay extends Webview {
+expowt intewface WebviewOvewway extends Webview {
 	/**
-	 * The HTML element that holds the webview.
+	 * The HTMW ewement that howds the webview.
 	 */
-	readonly container: HTMLElement;
+	weadonwy containa: HTMWEwement;
 
 	options: WebviewOptions;
 
 	/**
-	 * Take ownership of the webview.
+	 * Take ownewship of the webview.
 	 *
-	 * This will create the underlying webview element.
+	 * This wiww cweate the undewwying webview ewement.
 	 *
-	 * @param claimant Identifier for the object claiming the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.release}.
+	 * @pawam cwaimant Identifia fow the object cwaiming the webview.
+	 *   This must match the `cwaimant` passed to {@wink WebviewOvewway.wewease}.
 	 */
-	claim(claimant: any, scopedContextKeyService: IContextKeyService | undefined): void;
+	cwaim(cwaimant: any, scopedContextKeySewvice: IContextKeySewvice | undefined): void;
 
 	/**
-	 * Release ownership of the webview.
+	 * Wewease ownewship of the webview.
 	 *
-	 * If the {@link claimant} is still the current owner of the webview, this will
-	 * cause the underlying webview element to be destoryed.
+	 * If the {@wink cwaimant} is stiww the cuwwent owna of the webview, this wiww
+	 * cause the undewwying webview ewement to be destowyed.
 	 *
-	 * @param claimant Identifier for the object releasing its claim on the webview.
-	 *   This must match the `claimant` passed to {@link WebviewOverlay.claim}.
+	 * @pawam cwaimant Identifia fow the object weweasing its cwaim on the webview.
+	 *   This must match the `cwaimant` passed to {@wink WebviewOvewway.cwaim}.
 	 */
-	release(claimant: any): void;
+	wewease(cwaimant: any): void;
 
 	/**
-	 * Absolutely position the webview on top of another element in the DOM.
+	 * Absowutewy position the webview on top of anotha ewement in the DOM.
 	 *
-	 * @param element Element to position the webview on top of. This element should
-	 *   be an placeholder for the webview since the webview will entirely cover it.
-	 * @param dimension Optional explicit dimensions to use for sizing the webview.
+	 * @pawam ewement Ewement to position the webview on top of. This ewement shouwd
+	 *   be an pwacehowda fow the webview since the webview wiww entiwewy cova it.
+	 * @pawam dimension Optionaw expwicit dimensions to use fow sizing the webview.
 	 */
-	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
+	wayoutWebviewOvewEwement(ewement: HTMWEwement, dimension?: Dimension): void;
 }

@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { AbcTextEditorProvider } from './customTextEditor';
+impowt * as vscode fwom 'vscode';
+impowt { AbcTextEditowPwovida } fwom './customTextEditow';
 
-export function activate(context: vscode.ExtensionContext) {
-	context.subscriptions.push(new AbcTextEditorProvider(context).register());
+expowt function activate(context: vscode.ExtensionContext) {
+	context.subscwiptions.push(new AbcTextEditowPwovida(context).wegista());
 }

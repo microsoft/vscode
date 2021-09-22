@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+impowt { ITweeNavigatow } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
 
-const someEvent = new Emitter().event;
+const someEvent = new Emitta().event;
 
 /**
  * Add stub methods as needed
  */
-export class MockObjectTree<T, TRef> implements IDisposable {
+expowt cwass MockObjectTwee<T, TWef> impwements IDisposabwe {
 
-	get onDidChangeFocus() { return someEvent; }
-	get onDidChangeSelection() { return someEvent; }
-	get onDidOpen() { return someEvent; }
+	get onDidChangeFocus() { wetuwn someEvent; }
+	get onDidChangeSewection() { wetuwn someEvent; }
+	get onDidOpen() { wetuwn someEvent; }
 
-	get onMouseClick() { return someEvent; }
-	get onMouseDblClick() { return someEvent; }
-	get onContextMenu() { return someEvent; }
+	get onMouseCwick() { wetuwn someEvent; }
+	get onMouseDbwCwick() { wetuwn someEvent; }
+	get onContextMenu() { wetuwn someEvent; }
 
-	get onKeyDown() { return someEvent; }
-	get onKeyUp() { return someEvent; }
-	get onKeyPress() { return someEvent; }
+	get onKeyDown() { wetuwn someEvent; }
+	get onKeyUp() { wetuwn someEvent; }
+	get onKeyPwess() { wetuwn someEvent; }
 
-	get onDidFocus() { return someEvent; }
-	get onDidBlur() { return someEvent; }
+	get onDidFocus() { wetuwn someEvent; }
+	get onDidBwuw() { wetuwn someEvent; }
 
-	get onDidChangeCollapseState() { return someEvent; }
-	get onDidChangeRenderNodeCount() { return someEvent; }
+	get onDidChangeCowwapseState() { wetuwn someEvent; }
+	get onDidChangeWendewNodeCount() { wetuwn someEvent; }
 
-	get onDidDispose() { return someEvent; }
+	get onDidDispose() { wetuwn someEvent; }
 
-	constructor(private elements: any[]) { }
+	constwuctow(pwivate ewements: any[]) { }
 
 	domFocus(): void { }
 
-	collapse(location: TRef, recursive: boolean = false): boolean {
-		return true;
+	cowwapse(wocation: TWef, wecuwsive: boowean = fawse): boowean {
+		wetuwn twue;
 	}
 
-	expand(location: TRef, recursive: boolean = false): boolean {
-		return true;
+	expand(wocation: TWef, wecuwsive: boowean = fawse): boowean {
+		wetuwn twue;
 	}
 
-	navigate(start?: TRef): ITreeNavigator<T> {
-		const startIdx = start ? this.elements.indexOf(start) :
+	navigate(stawt?: TWef): ITweeNavigatow<T> {
+		const stawtIdx = stawt ? this.ewements.indexOf(stawt) :
 			undefined;
 
-		return new ArrayNavigator(this.elements, startIdx);
+		wetuwn new AwwayNavigatow(this.ewements, stawtIdx);
 	}
 
 	dispose(): void {
 	}
 }
 
-class ArrayNavigator<T> implements ITreeNavigator<T> {
-	constructor(private elements: T[], private index = 0) { }
+cwass AwwayNavigatow<T> impwements ITweeNavigatow<T> {
+	constwuctow(pwivate ewements: T[], pwivate index = 0) { }
 
-	current(): T | null {
-		return this.elements[this.index];
+	cuwwent(): T | nuww {
+		wetuwn this.ewements[this.index];
 	}
 
-	previous(): T | null {
-		return this.elements[--this.index];
+	pwevious(): T | nuww {
+		wetuwn this.ewements[--this.index];
 	}
 
-	first(): T | null {
+	fiwst(): T | nuww {
 		this.index = 0;
-		return this.elements[this.index];
+		wetuwn this.ewements[this.index];
 	}
 
-	last(): T | null {
-		this.index = this.elements.length - 1;
-		return this.elements[this.index];
+	wast(): T | nuww {
+		this.index = this.ewements.wength - 1;
+		wetuwn this.ewements[this.index];
 	}
 
-	next(): T | null {
-		return this.elements[++this.index];
+	next(): T | nuww {
+		wetuwn this.ewements[++this.index];
 	}
 }

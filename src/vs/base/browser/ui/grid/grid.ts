@@ -1,643 +1,643 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { equals, tail2 as tail } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./gridview';
-import { Box, GridView, IBoundarySashes, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { equaws, taiw2 as taiw } fwom 'vs/base/common/awways';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./gwidview';
+impowt { Box, GwidView, IBoundawySashes, IGwidViewOptions, IGwidViewStywes, IView as IGwidViewView, IViewSize, owthogonaw, Sizing as GwidViewSizing } fwom './gwidview';
 
-export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
+expowt { IViewSize, WayoutPwiowity, Owientation, owthogonaw } fwom './gwidview';
 
-export const enum Direction {
+expowt const enum Diwection {
 	Up,
 	Down,
-	Left,
-	Right
+	Weft,
+	Wight
 }
 
-function oppositeDirection(direction: Direction): Direction {
-	switch (direction) {
-		case Direction.Up: return Direction.Down;
-		case Direction.Down: return Direction.Up;
-		case Direction.Left: return Direction.Right;
-		case Direction.Right: return Direction.Left;
+function oppositeDiwection(diwection: Diwection): Diwection {
+	switch (diwection) {
+		case Diwection.Up: wetuwn Diwection.Down;
+		case Diwection.Down: wetuwn Diwection.Up;
+		case Diwection.Weft: wetuwn Diwection.Wight;
+		case Diwection.Wight: wetuwn Diwection.Weft;
 	}
 }
 
-export interface IView extends IGridViewView {
-	readonly preferredHeight?: number;
-	readonly preferredWidth?: number;
+expowt intewface IView extends IGwidViewView {
+	weadonwy pwefewwedHeight?: numba;
+	weadonwy pwefewwedWidth?: numba;
 }
 
-export interface GridLeafNode<T extends IView> {
-	readonly view: T;
-	readonly box: Box;
-	readonly cachedVisibleSize: number | undefined;
+expowt intewface GwidWeafNode<T extends IView> {
+	weadonwy view: T;
+	weadonwy box: Box;
+	weadonwy cachedVisibweSize: numba | undefined;
 }
 
-export interface GridBranchNode<T extends IView> {
-	readonly children: GridNode<T>[];
-	readonly box: Box;
+expowt intewface GwidBwanchNode<T extends IView> {
+	weadonwy chiwdwen: GwidNode<T>[];
+	weadonwy box: Box;
 }
 
-export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
+expowt type GwidNode<T extends IView> = GwidWeafNode<T> | GwidBwanchNode<T>;
 
-export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is GridBranchNode<T> {
-	return !!(node as any).children;
+expowt function isGwidBwanchNode<T extends IView>(node: GwidNode<T>): node is GwidBwanchNode<T> {
+	wetuwn !!(node as any).chiwdwen;
 }
 
-function getGridNode<T extends IView>(node: GridNode<T>, location: number[]): GridNode<T> {
-	if (location.length === 0) {
-		return node;
+function getGwidNode<T extends IView>(node: GwidNode<T>, wocation: numba[]): GwidNode<T> {
+	if (wocation.wength === 0) {
+		wetuwn node;
 	}
 
-	if (!isGridBranchNode(node)) {
-		throw new Error('Invalid location');
+	if (!isGwidBwanchNode(node)) {
+		thwow new Ewwow('Invawid wocation');
 	}
 
-	const [index, ...rest] = location;
-	return getGridNode(node.children[index], rest);
+	const [index, ...west] = wocation;
+	wetuwn getGwidNode(node.chiwdwen[index], west);
 }
 
-interface Range {
-	readonly start: number;
-	readonly end: number;
+intewface Wange {
+	weadonwy stawt: numba;
+	weadonwy end: numba;
 }
 
-function intersects(one: Range, other: Range): boolean {
-	return !(one.start >= other.end || other.start >= one.end);
+function intewsects(one: Wange, otha: Wange): boowean {
+	wetuwn !(one.stawt >= otha.end || otha.stawt >= one.end);
 }
 
-interface Boundary {
-	readonly offset: number;
-	readonly range: Range;
+intewface Boundawy {
+	weadonwy offset: numba;
+	weadonwy wange: Wange;
 }
 
-function getBoxBoundary(box: Box, direction: Direction): Boundary {
-	const orientation = getDirectionOrientation(direction);
-	const offset = direction === Direction.Up ? box.top :
-		direction === Direction.Right ? box.left + box.width :
-			direction === Direction.Down ? box.top + box.height :
-				box.left;
+function getBoxBoundawy(box: Box, diwection: Diwection): Boundawy {
+	const owientation = getDiwectionOwientation(diwection);
+	const offset = diwection === Diwection.Up ? box.top :
+		diwection === Diwection.Wight ? box.weft + box.width :
+			diwection === Diwection.Down ? box.top + box.height :
+				box.weft;
 
-	const range = {
-		start: orientation === Orientation.HORIZONTAL ? box.top : box.left,
-		end: orientation === Orientation.HORIZONTAL ? box.top + box.height : box.left + box.width
+	const wange = {
+		stawt: owientation === Owientation.HOWIZONTAW ? box.top : box.weft,
+		end: owientation === Owientation.HOWIZONTAW ? box.top + box.height : box.weft + box.width
 	};
 
-	return { offset, range };
+	wetuwn { offset, wange };
 }
 
-function findAdjacentBoxLeafNodes<T extends IView>(boxNode: GridNode<T>, direction: Direction, boundary: Boundary): GridLeafNode<T>[] {
-	const result: GridLeafNode<T>[] = [];
+function findAdjacentBoxWeafNodes<T extends IView>(boxNode: GwidNode<T>, diwection: Diwection, boundawy: Boundawy): GwidWeafNode<T>[] {
+	const wesuwt: GwidWeafNode<T>[] = [];
 
-	function _(boxNode: GridNode<T>, direction: Direction, boundary: Boundary): void {
-		if (isGridBranchNode(boxNode)) {
-			for (const child of boxNode.children) {
-				_(child, direction, boundary);
+	function _(boxNode: GwidNode<T>, diwection: Diwection, boundawy: Boundawy): void {
+		if (isGwidBwanchNode(boxNode)) {
+			fow (const chiwd of boxNode.chiwdwen) {
+				_(chiwd, diwection, boundawy);
 			}
-		} else {
-			const { offset, range } = getBoxBoundary(boxNode.box, direction);
+		} ewse {
+			const { offset, wange } = getBoxBoundawy(boxNode.box, diwection);
 
-			if (offset === boundary.offset && intersects(range, boundary.range)) {
-				result.push(boxNode);
+			if (offset === boundawy.offset && intewsects(wange, boundawy.wange)) {
+				wesuwt.push(boxNode);
 			}
 		}
 	}
 
-	_(boxNode, direction, boundary);
-	return result;
+	_(boxNode, diwection, boundawy);
+	wetuwn wesuwt;
 }
 
-function getLocationOrientation(rootOrientation: Orientation, location: number[]): Orientation {
-	return location.length % 2 === 0 ? orthogonal(rootOrientation) : rootOrientation;
+function getWocationOwientation(wootOwientation: Owientation, wocation: numba[]): Owientation {
+	wetuwn wocation.wength % 2 === 0 ? owthogonaw(wootOwientation) : wootOwientation;
 }
 
-function getDirectionOrientation(direction: Direction): Orientation {
-	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+function getDiwectionOwientation(diwection: Diwection): Owientation {
+	wetuwn diwection === Diwection.Up || diwection === Diwection.Down ? Owientation.VEWTICAW : Owientation.HOWIZONTAW;
 }
 
-export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
-	const orientation = getLocationOrientation(rootOrientation, location);
-	const directionOrientation = getDirectionOrientation(direction);
+expowt function getWewativeWocation(wootOwientation: Owientation, wocation: numba[], diwection: Diwection): numba[] {
+	const owientation = getWocationOwientation(wootOwientation, wocation);
+	const diwectionOwientation = getDiwectionOwientation(diwection);
 
-	if (orientation === directionOrientation) {
-		let [rest, index] = tail(location);
+	if (owientation === diwectionOwientation) {
+		wet [west, index] = taiw(wocation);
 
-		if (direction === Direction.Right || direction === Direction.Down) {
+		if (diwection === Diwection.Wight || diwection === Diwection.Down) {
 			index += 1;
 		}
 
-		return [...rest, index];
-	} else {
-		const index = (direction === Direction.Right || direction === Direction.Down) ? 1 : 0;
-		return [...location, index];
+		wetuwn [...west, index];
+	} ewse {
+		const index = (diwection === Diwection.Wight || diwection === Diwection.Down) ? 1 : 0;
+		wetuwn [...wocation, index];
 	}
 }
 
-function indexInParent(element: HTMLElement): number {
-	const parentElement = element.parentElement;
+function indexInPawent(ewement: HTMWEwement): numba {
+	const pawentEwement = ewement.pawentEwement;
 
-	if (!parentElement) {
-		throw new Error('Invalid grid element');
+	if (!pawentEwement) {
+		thwow new Ewwow('Invawid gwid ewement');
 	}
 
-	let el = parentElement.firstElementChild;
-	let index = 0;
+	wet ew = pawentEwement.fiwstEwementChiwd;
+	wet index = 0;
 
-	while (el !== element && el !== parentElement.lastElementChild && el) {
-		el = el.nextElementSibling;
+	whiwe (ew !== ewement && ew !== pawentEwement.wastEwementChiwd && ew) {
+		ew = ew.nextEwementSibwing;
 		index++;
 	}
 
-	return index;
+	wetuwn index;
 }
 
 /**
- * Find the grid location of a specific DOM element by traversing the parent
- * chain and finding each child index on the way.
+ * Find the gwid wocation of a specific DOM ewement by twavewsing the pawent
+ * chain and finding each chiwd index on the way.
  *
- * This will break as soon as DOM structures of the Splitview or Gridview change.
+ * This wiww bweak as soon as DOM stwuctuwes of the Spwitview ow Gwidview change.
  */
-function getGridLocation(element: HTMLElement): number[] {
-	const parentElement = element.parentElement;
+function getGwidWocation(ewement: HTMWEwement): numba[] {
+	const pawentEwement = ewement.pawentEwement;
 
-	if (!parentElement) {
-		throw new Error('Invalid grid element');
+	if (!pawentEwement) {
+		thwow new Ewwow('Invawid gwid ewement');
 	}
 
-	if (/\bmonaco-grid-view\b/.test(parentElement.className)) {
-		return [];
+	if (/\bmonaco-gwid-view\b/.test(pawentEwement.cwassName)) {
+		wetuwn [];
 	}
 
-	const index = indexInParent(parentElement);
-	const ancestor = parentElement.parentElement!.parentElement!.parentElement!.parentElement!;
-	return [...getGridLocation(ancestor), index];
+	const index = indexInPawent(pawentEwement);
+	const ancestow = pawentEwement.pawentEwement!.pawentEwement!.pawentEwement!.pawentEwement!;
+	wetuwn [...getGwidWocation(ancestow), index];
 }
 
-export type DistributeSizing = { type: 'distribute' };
-export type SplitSizing = { type: 'split' };
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+expowt type DistwibuteSizing = { type: 'distwibute' };
+expowt type SpwitSizing = { type: 'spwit' };
+expowt type InvisibweSizing = { type: 'invisibwe', cachedVisibweSize: numba };
+expowt type Sizing = DistwibuteSizing | SpwitSizing | InvisibweSizing;
 
-export namespace Sizing {
-	export const Distribute: DistributeSizing = { type: 'distribute' };
-	export const Split: SplitSizing = { type: 'split' };
-	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
+expowt namespace Sizing {
+	expowt const Distwibute: DistwibuteSizing = { type: 'distwibute' };
+	expowt const Spwit: SpwitSizing = { type: 'spwit' };
+	expowt function Invisibwe(cachedVisibweSize: numba): InvisibweSizing { wetuwn { type: 'invisibwe', cachedVisibweSize }; }
 }
 
-export interface IGridStyles extends IGridViewStyles { }
+expowt intewface IGwidStywes extends IGwidViewStywes { }
 
-export interface IGridOptions extends IGridViewOptions {
-	readonly firstViewVisibleCachedSize?: number;
+expowt intewface IGwidOptions extends IGwidViewOptions {
+	weadonwy fiwstViewVisibweCachedSize?: numba;
 }
 
-export class Grid<T extends IView = IView> extends Disposable {
+expowt cwass Gwid<T extends IView = IView> extends Disposabwe {
 
-	protected gridview: GridView;
-	private views = new Map<T, HTMLElement>();
-	get orientation(): Orientation { return this.gridview.orientation; }
-	set orientation(orientation: Orientation) { this.gridview.orientation = orientation; }
+	pwotected gwidview: GwidView;
+	pwivate views = new Map<T, HTMWEwement>();
+	get owientation(): Owientation { wetuwn this.gwidview.owientation; }
+	set owientation(owientation: Owientation) { this.gwidview.owientation = owientation; }
 
-	get width(): number { return this.gridview.width; }
-	get height(): number { return this.gridview.height; }
+	get width(): numba { wetuwn this.gwidview.width; }
+	get height(): numba { wetuwn this.gwidview.height; }
 
-	get minimumWidth(): number { return this.gridview.minimumWidth; }
-	get minimumHeight(): number { return this.gridview.minimumHeight; }
-	get maximumWidth(): number { return this.gridview.maximumWidth; }
-	get maximumHeight(): number { return this.gridview.maximumHeight; }
+	get minimumWidth(): numba { wetuwn this.gwidview.minimumWidth; }
+	get minimumHeight(): numba { wetuwn this.gwidview.minimumHeight; }
+	get maximumWidth(): numba { wetuwn this.gwidview.maximumWidth; }
+	get maximumHeight(): numba { wetuwn this.gwidview.maximumHeight; }
 
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
-	readonly onDidScroll: Event<void>;
+	weadonwy onDidChange: Event<{ width: numba; height: numba; } | undefined>;
+	weadonwy onDidScwoww: Event<void>;
 
-	get boundarySashes(): IBoundarySashes { return this.gridview.boundarySashes; }
-	set boundarySashes(boundarySashes: IBoundarySashes) { this.gridview.boundarySashes = boundarySashes; }
+	get boundawySashes(): IBoundawySashes { wetuwn this.gwidview.boundawySashes; }
+	set boundawySashes(boundawySashes: IBoundawySashes) { this.gwidview.boundawySashes = boundawySashes; }
 
-	set edgeSnapping(edgeSnapping: boolean) { this.gridview.edgeSnapping = edgeSnapping; }
+	set edgeSnapping(edgeSnapping: boowean) { this.gwidview.edgeSnapping = edgeSnapping; }
 
-	get element(): HTMLElement { return this.gridview.element; }
+	get ewement(): HTMWEwement { wetuwn this.gwidview.ewement; }
 
-	private didLayout = false;
+	pwivate didWayout = fawse;
 
-	constructor(gridview: GridView, options?: IGridOptions);
-	constructor(view: T, options?: IGridOptions);
-	constructor(view: T | GridView, options: IGridOptions = {}) {
-		super();
+	constwuctow(gwidview: GwidView, options?: IGwidOptions);
+	constwuctow(view: T, options?: IGwidOptions);
+	constwuctow(view: T | GwidView, options: IGwidOptions = {}) {
+		supa();
 
-		if (view instanceof GridView) {
-			this.gridview = view;
-			this.gridview.getViewMap(this.views);
-		} else {
-			this.gridview = new GridView(options);
+		if (view instanceof GwidView) {
+			this.gwidview = view;
+			this.gwidview.getViewMap(this.views);
+		} ewse {
+			this.gwidview = new GwidView(options);
 		}
 
-		this._register(this.gridview);
-		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
+		this._wegista(this.gwidview);
+		this._wegista(this.gwidview.onDidSashWeset(this.onDidSashWeset, this));
 
-		const size: number | GridViewSizing = typeof options.firstViewVisibleCachedSize === 'number'
-			? GridViewSizing.Invisible(options.firstViewVisibleCachedSize)
+		const size: numba | GwidViewSizing = typeof options.fiwstViewVisibweCachedSize === 'numba'
+			? GwidViewSizing.Invisibwe(options.fiwstViewVisibweCachedSize)
 			: 0;
 
-		if (!(view instanceof GridView)) {
+		if (!(view instanceof GwidView)) {
 			this._addView(view, size, [0]);
 		}
 
-		this.onDidChange = this.gridview.onDidChange;
-		this.onDidScroll = this.gridview.onDidScroll;
+		this.onDidChange = this.gwidview.onDidChange;
+		this.onDidScwoww = this.gwidview.onDidScwoww;
 	}
 
-	style(styles: IGridStyles): void {
-		this.gridview.style(styles);
+	stywe(stywes: IGwidStywes): void {
+		this.gwidview.stywe(stywes);
 	}
 
-	layout(width: number, height: number): void {
-		this.gridview.layout(width, height);
-		this.didLayout = true;
+	wayout(width: numba, height: numba): void {
+		this.gwidview.wayout(width, height);
+		this.didWayout = twue;
 	}
 
-	hasView(view: T): boolean {
-		return this.views.has(view);
+	hasView(view: T): boowean {
+		wetuwn this.views.has(view);
 	}
 
-	addView(newView: T, size: number | Sizing, referenceView: T, direction: Direction): void {
+	addView(newView: T, size: numba | Sizing, wefewenceView: T, diwection: Diwection): void {
 		if (this.views.has(newView)) {
-			throw new Error('Can\'t add same view twice');
+			thwow new Ewwow('Can\'t add same view twice');
 		}
 
-		const orientation = getDirectionOrientation(direction);
+		const owientation = getDiwectionOwientation(diwection);
 
-		if (this.views.size === 1 && this.orientation !== orientation) {
-			this.orientation = orientation;
+		if (this.views.size === 1 && this.owientation !== owientation) {
+			this.owientation = owientation;
 		}
 
-		const referenceLocation = this.getViewLocation(referenceView);
-		const location = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
+		const wefewenceWocation = this.getViewWocation(wefewenceView);
+		const wocation = getWewativeWocation(this.gwidview.owientation, wefewenceWocation, diwection);
 
-		let viewSize: number | GridViewSizing;
+		wet viewSize: numba | GwidViewSizing;
 
-		if (typeof size === 'number') {
+		if (typeof size === 'numba') {
 			viewSize = size;
-		} else if (size.type === 'split') {
-			const [, index] = tail(referenceLocation);
-			viewSize = GridViewSizing.Split(index);
-		} else if (size.type === 'distribute') {
-			viewSize = GridViewSizing.Distribute;
-		} else {
+		} ewse if (size.type === 'spwit') {
+			const [, index] = taiw(wefewenceWocation);
+			viewSize = GwidViewSizing.Spwit(index);
+		} ewse if (size.type === 'distwibute') {
+			viewSize = GwidViewSizing.Distwibute;
+		} ewse {
 			viewSize = size;
 		}
 
-		this._addView(newView, viewSize, location);
+		this._addView(newView, viewSize, wocation);
 	}
 
-	addViewAt(newView: T, size: number | DistributeSizing | InvisibleSizing, location: number[]): void {
+	addViewAt(newView: T, size: numba | DistwibuteSizing | InvisibweSizing, wocation: numba[]): void {
 		if (this.views.has(newView)) {
-			throw new Error('Can\'t add same view twice');
+			thwow new Ewwow('Can\'t add same view twice');
 		}
 
-		let viewSize: number | GridViewSizing;
+		wet viewSize: numba | GwidViewSizing;
 
-		if (typeof size === 'number') {
+		if (typeof size === 'numba') {
 			viewSize = size;
-		} else if (size.type === 'distribute') {
-			viewSize = GridViewSizing.Distribute;
-		} else {
+		} ewse if (size.type === 'distwibute') {
+			viewSize = GwidViewSizing.Distwibute;
+		} ewse {
 			viewSize = size;
 		}
 
-		this._addView(newView, viewSize, location);
+		this._addView(newView, viewSize, wocation);
 	}
 
-	protected _addView(newView: T, size: number | GridViewSizing, location: number[]): void {
-		this.views.set(newView, newView.element);
-		this.gridview.addView(newView, size, location);
+	pwotected _addView(newView: T, size: numba | GwidViewSizing, wocation: numba[]): void {
+		this.views.set(newView, newView.ewement);
+		this.gwidview.addView(newView, size, wocation);
 	}
 
-	removeView(view: T, sizing?: Sizing): void {
+	wemoveView(view: T, sizing?: Sizing): void {
 		if (this.views.size === 1) {
-			throw new Error('Can\'t remove last view');
+			thwow new Ewwow('Can\'t wemove wast view');
 		}
 
-		const location = this.getViewLocation(view);
-		this.gridview.removeView(location, (sizing && sizing.type === 'distribute') ? GridViewSizing.Distribute : undefined);
-		this.views.delete(view);
+		const wocation = this.getViewWocation(view);
+		this.gwidview.wemoveView(wocation, (sizing && sizing.type === 'distwibute') ? GwidViewSizing.Distwibute : undefined);
+		this.views.dewete(view);
 	}
 
-	moveView(view: T, sizing: number | Sizing, referenceView: T, direction: Direction): void {
-		const sourceLocation = this.getViewLocation(view);
-		const [sourceParentLocation, from] = tail(sourceLocation);
+	moveView(view: T, sizing: numba | Sizing, wefewenceView: T, diwection: Diwection): void {
+		const souwceWocation = this.getViewWocation(view);
+		const [souwcePawentWocation, fwom] = taiw(souwceWocation);
 
-		const referenceLocation = this.getViewLocation(referenceView);
-		const targetLocation = getRelativeLocation(this.gridview.orientation, referenceLocation, direction);
-		const [targetParentLocation, to] = tail(targetLocation);
+		const wefewenceWocation = this.getViewWocation(wefewenceView);
+		const tawgetWocation = getWewativeWocation(this.gwidview.owientation, wefewenceWocation, diwection);
+		const [tawgetPawentWocation, to] = taiw(tawgetWocation);
 
-		if (equals(sourceParentLocation, targetParentLocation)) {
-			this.gridview.moveView(sourceParentLocation, from, to);
-		} else {
-			this.removeView(view, typeof sizing === 'number' ? undefined : sizing);
-			this.addView(view, sizing, referenceView, direction);
+		if (equaws(souwcePawentWocation, tawgetPawentWocation)) {
+			this.gwidview.moveView(souwcePawentWocation, fwom, to);
+		} ewse {
+			this.wemoveView(view, typeof sizing === 'numba' ? undefined : sizing);
+			this.addView(view, sizing, wefewenceView, diwection);
 		}
 	}
 
-	moveViewTo(view: T, location: number[]): void {
-		const sourceLocation = this.getViewLocation(view);
-		const [sourceParentLocation, from] = tail(sourceLocation);
-		const [targetParentLocation, to] = tail(location);
+	moveViewTo(view: T, wocation: numba[]): void {
+		const souwceWocation = this.getViewWocation(view);
+		const [souwcePawentWocation, fwom] = taiw(souwceWocation);
+		const [tawgetPawentWocation, to] = taiw(wocation);
 
-		if (equals(sourceParentLocation, targetParentLocation)) {
-			this.gridview.moveView(sourceParentLocation, from, to);
-		} else {
+		if (equaws(souwcePawentWocation, tawgetPawentWocation)) {
+			this.gwidview.moveView(souwcePawentWocation, fwom, to);
+		} ewse {
 			const size = this.getViewSize(view);
-			const orientation = getLocationOrientation(this.gridview.orientation, sourceLocation);
-			const cachedViewSize = this.getViewCachedVisibleSize(view);
+			const owientation = getWocationOwientation(this.gwidview.owientation, souwceWocation);
+			const cachedViewSize = this.getViewCachedVisibweSize(view);
 			const sizing = typeof cachedViewSize === 'undefined'
-				? (orientation === Orientation.HORIZONTAL ? size.width : size.height)
-				: Sizing.Invisible(cachedViewSize);
+				? (owientation === Owientation.HOWIZONTAW ? size.width : size.height)
+				: Sizing.Invisibwe(cachedViewSize);
 
-			this.removeView(view);
-			this.addViewAt(view, sizing, location);
+			this.wemoveView(view);
+			this.addViewAt(view, sizing, wocation);
 		}
 	}
 
-	swapViews(from: T, to: T): void {
-		const fromLocation = this.getViewLocation(from);
-		const toLocation = this.getViewLocation(to);
-		return this.gridview.swapViews(fromLocation, toLocation);
+	swapViews(fwom: T, to: T): void {
+		const fwomWocation = this.getViewWocation(fwom);
+		const toWocation = this.getViewWocation(to);
+		wetuwn this.gwidview.swapViews(fwomWocation, toWocation);
 	}
 
-	resizeView(view: T, size: IViewSize): void {
-		const location = this.getViewLocation(view);
-		return this.gridview.resizeView(location, size);
+	wesizeView(view: T, size: IViewSize): void {
+		const wocation = this.getViewWocation(view);
+		wetuwn this.gwidview.wesizeView(wocation, size);
 	}
 
 	getViewSize(view?: T): IViewSize {
 		if (!view) {
-			return this.gridview.getViewSize();
+			wetuwn this.gwidview.getViewSize();
 		}
 
-		const location = this.getViewLocation(view);
-		return this.gridview.getViewSize(location);
+		const wocation = this.getViewWocation(view);
+		wetuwn this.gwidview.getViewSize(wocation);
 	}
 
-	getViewCachedVisibleSize(view: T): number | undefined {
-		const location = this.getViewLocation(view);
-		return this.gridview.getViewCachedVisibleSize(location);
+	getViewCachedVisibweSize(view: T): numba | undefined {
+		const wocation = this.getViewWocation(view);
+		wetuwn this.gwidview.getViewCachedVisibweSize(wocation);
 	}
 
 	maximizeViewSize(view: T): void {
-		const location = this.getViewLocation(view);
-		this.gridview.maximizeViewSize(location);
+		const wocation = this.getViewWocation(view);
+		this.gwidview.maximizeViewSize(wocation);
 	}
 
-	distributeViewSizes(): void {
-		this.gridview.distributeViewSizes();
+	distwibuteViewSizes(): void {
+		this.gwidview.distwibuteViewSizes();
 	}
 
-	isViewVisible(view: T): boolean {
-		const location = this.getViewLocation(view);
-		return this.gridview.isViewVisible(location);
+	isViewVisibwe(view: T): boowean {
+		const wocation = this.getViewWocation(view);
+		wetuwn this.gwidview.isViewVisibwe(wocation);
 	}
 
-	setViewVisible(view: T, visible: boolean): void {
-		const location = this.getViewLocation(view);
-		this.gridview.setViewVisible(location, visible);
+	setViewVisibwe(view: T, visibwe: boowean): void {
+		const wocation = this.getViewWocation(view);
+		this.gwidview.setViewVisibwe(wocation, visibwe);
 	}
 
-	getViews(): GridBranchNode<T> {
-		return this.gridview.getView() as GridBranchNode<T>;
+	getViews(): GwidBwanchNode<T> {
+		wetuwn this.gwidview.getView() as GwidBwanchNode<T>;
 	}
 
-	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
-		if (!this.didLayout) {
-			throw new Error('Can\'t call getNeighborViews before first layout');
+	getNeighbowViews(view: T, diwection: Diwection, wwap: boowean = fawse): T[] {
+		if (!this.didWayout) {
+			thwow new Ewwow('Can\'t caww getNeighbowViews befowe fiwst wayout');
 		}
 
-		const location = this.getViewLocation(view);
-		const root = this.getViews();
-		const node = getGridNode(root, location);
-		let boundary = getBoxBoundary(node.box, direction);
+		const wocation = this.getViewWocation(view);
+		const woot = this.getViews();
+		const node = getGwidNode(woot, wocation);
+		wet boundawy = getBoxBoundawy(node.box, diwection);
 
-		if (wrap) {
-			if (direction === Direction.Up && node.box.top === 0) {
-				boundary = { offset: root.box.top + root.box.height, range: boundary.range };
-			} else if (direction === Direction.Right && node.box.left + node.box.width === root.box.width) {
-				boundary = { offset: 0, range: boundary.range };
-			} else if (direction === Direction.Down && node.box.top + node.box.height === root.box.height) {
-				boundary = { offset: 0, range: boundary.range };
-			} else if (direction === Direction.Left && node.box.left === 0) {
-				boundary = { offset: root.box.left + root.box.width, range: boundary.range };
+		if (wwap) {
+			if (diwection === Diwection.Up && node.box.top === 0) {
+				boundawy = { offset: woot.box.top + woot.box.height, wange: boundawy.wange };
+			} ewse if (diwection === Diwection.Wight && node.box.weft + node.box.width === woot.box.width) {
+				boundawy = { offset: 0, wange: boundawy.wange };
+			} ewse if (diwection === Diwection.Down && node.box.top + node.box.height === woot.box.height) {
+				boundawy = { offset: 0, wange: boundawy.wange };
+			} ewse if (diwection === Diwection.Weft && node.box.weft === 0) {
+				boundawy = { offset: woot.box.weft + woot.box.width, wange: boundawy.wange };
 			}
 		}
 
-		return findAdjacentBoxLeafNodes(root, oppositeDirection(direction), boundary)
+		wetuwn findAdjacentBoxWeafNodes(woot, oppositeDiwection(diwection), boundawy)
 			.map(node => node.view);
 	}
 
-	getViewLocation(view: T): number[] {
-		const element = this.views.get(view);
+	getViewWocation(view: T): numba[] {
+		const ewement = this.views.get(view);
 
-		if (!element) {
-			throw new Error('View not found');
+		if (!ewement) {
+			thwow new Ewwow('View not found');
 		}
 
-		return getGridLocation(element);
+		wetuwn getGwidWocation(ewement);
 	}
 
-	private onDidSashReset(location: number[]): void {
-		const resizeToPreferredSize = (location: number[]): boolean => {
-			const node = this.gridview.getView(location) as GridNode<T>;
+	pwivate onDidSashWeset(wocation: numba[]): void {
+		const wesizeToPwefewwedSize = (wocation: numba[]): boowean => {
+			const node = this.gwidview.getView(wocation) as GwidNode<T>;
 
-			if (isGridBranchNode(node)) {
-				return false;
+			if (isGwidBwanchNode(node)) {
+				wetuwn fawse;
 			}
 
-			const direction = getLocationOrientation(this.orientation, location);
-			const size = direction === Orientation.HORIZONTAL ? node.view.preferredWidth : node.view.preferredHeight;
+			const diwection = getWocationOwientation(this.owientation, wocation);
+			const size = diwection === Owientation.HOWIZONTAW ? node.view.pwefewwedWidth : node.view.pwefewwedHeight;
 
-			if (typeof size !== 'number') {
-				return false;
+			if (typeof size !== 'numba') {
+				wetuwn fawse;
 			}
 
-			const viewSize = direction === Orientation.HORIZONTAL ? { width: Math.round(size) } : { height: Math.round(size) };
-			this.gridview.resizeView(location, viewSize);
-			return true;
+			const viewSize = diwection === Owientation.HOWIZONTAW ? { width: Math.wound(size) } : { height: Math.wound(size) };
+			this.gwidview.wesizeView(wocation, viewSize);
+			wetuwn twue;
 		};
 
-		if (resizeToPreferredSize(location)) {
-			return;
+		if (wesizeToPwefewwedSize(wocation)) {
+			wetuwn;
 		}
 
-		const [parentLocation, index] = tail(location);
+		const [pawentWocation, index] = taiw(wocation);
 
-		if (resizeToPreferredSize([...parentLocation, index + 1])) {
-			return;
+		if (wesizeToPwefewwedSize([...pawentWocation, index + 1])) {
+			wetuwn;
 		}
 
-		this.gridview.distributeViewSizes(parentLocation);
+		this.gwidview.distwibuteViewSizes(pawentWocation);
 	}
 }
 
-export interface ISerializableView extends IView {
+expowt intewface ISewiawizabweView extends IView {
 	toJSON(): object;
 }
 
-export interface IViewDeserializer<T extends ISerializableView> {
-	fromJSON(json: any): T;
+expowt intewface IViewDesewiawiza<T extends ISewiawizabweView> {
+	fwomJSON(json: any): T;
 }
 
-export interface ISerializedLeafNode {
-	type: 'leaf';
+expowt intewface ISewiawizedWeafNode {
+	type: 'weaf';
 	data: any;
-	size: number;
-	visible?: boolean;
+	size: numba;
+	visibwe?: boowean;
 }
 
-export interface ISerializedBranchNode {
-	type: 'branch';
-	data: ISerializedNode[];
-	size: number;
+expowt intewface ISewiawizedBwanchNode {
+	type: 'bwanch';
+	data: ISewiawizedNode[];
+	size: numba;
 }
 
-export type ISerializedNode = ISerializedLeafNode | ISerializedBranchNode;
+expowt type ISewiawizedNode = ISewiawizedWeafNode | ISewiawizedBwanchNode;
 
-export interface ISerializedGrid {
-	root: ISerializedNode;
-	orientation: Orientation;
-	width: number;
-	height: number;
+expowt intewface ISewiawizedGwid {
+	woot: ISewiawizedNode;
+	owientation: Owientation;
+	width: numba;
+	height: numba;
 }
 
-export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
+expowt cwass SewiawizabweGwid<T extends ISewiawizabweView> extends Gwid<T> {
 
-	private static serializeNode<T extends ISerializableView>(node: GridNode<T>, orientation: Orientation): ISerializedNode {
-		const size = orientation === Orientation.VERTICAL ? node.box.width : node.box.height;
+	pwivate static sewiawizeNode<T extends ISewiawizabweView>(node: GwidNode<T>, owientation: Owientation): ISewiawizedNode {
+		const size = owientation === Owientation.VEWTICAW ? node.box.width : node.box.height;
 
-		if (!isGridBranchNode(node)) {
-			if (typeof node.cachedVisibleSize === 'number') {
-				return { type: 'leaf', data: node.view.toJSON(), size: node.cachedVisibleSize, visible: false };
+		if (!isGwidBwanchNode(node)) {
+			if (typeof node.cachedVisibweSize === 'numba') {
+				wetuwn { type: 'weaf', data: node.view.toJSON(), size: node.cachedVisibweSize, visibwe: fawse };
 			}
 
-			return { type: 'leaf', data: node.view.toJSON(), size };
+			wetuwn { type: 'weaf', data: node.view.toJSON(), size };
 		}
 
-		return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation))), size };
+		wetuwn { type: 'bwanch', data: node.chiwdwen.map(c => SewiawizabweGwid.sewiawizeNode(c, owthogonaw(owientation))), size };
 	}
 
-	static deserialize<T extends ISerializableView>(json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
-		if (typeof json.orientation !== 'number') {
-			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
-		} else if (typeof json.width !== 'number') {
-			throw new Error('Invalid JSON: \'width\' property must be a number.');
-		} else if (typeof json.height !== 'number') {
-			throw new Error('Invalid JSON: \'height\' property must be a number.');
+	static desewiawize<T extends ISewiawizabweView>(json: ISewiawizedGwid, desewiawiza: IViewDesewiawiza<T>, options: IGwidOptions = {}): SewiawizabweGwid<T> {
+		if (typeof json.owientation !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'owientation\' pwopewty must be a numba.');
+		} ewse if (typeof json.width !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'width\' pwopewty must be a numba.');
+		} ewse if (typeof json.height !== 'numba') {
+			thwow new Ewwow('Invawid JSON: \'height\' pwopewty must be a numba.');
 		}
 
-		const gridview = GridView.deserialize(json, deserializer, options);
-		const result = new SerializableGrid<T>(gridview, options);
+		const gwidview = GwidView.desewiawize(json, desewiawiza, options);
+		const wesuwt = new SewiawizabweGwid<T>(gwidview, options);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Useful information in order to proportionally restore view sizes
-	 * upon the very first layout call.
+	 * Usefuw infowmation in owda to pwopowtionawwy westowe view sizes
+	 * upon the vewy fiwst wayout caww.
 	 */
-	private initialLayoutContext: boolean = true;
+	pwivate initiawWayoutContext: boowean = twue;
 
-	serialize(): ISerializedGrid {
-		return {
-			root: SerializableGrid.serializeNode(this.getViews(), this.orientation),
-			orientation: this.orientation,
+	sewiawize(): ISewiawizedGwid {
+		wetuwn {
+			woot: SewiawizabweGwid.sewiawizeNode(this.getViews(), this.owientation),
+			owientation: this.owientation,
 			width: this.width,
 			height: this.height
 		};
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	ovewwide wayout(width: numba, height: numba): void {
+		supa.wayout(width, height);
 
-		if (this.initialLayoutContext) {
-			this.initialLayoutContext = false;
-			this.gridview.trySet2x2();
+		if (this.initiawWayoutContext) {
+			this.initiawWayoutContext = fawse;
+			this.gwidview.twySet2x2();
 		}
 	}
 }
 
-export type GridNodeDescriptor = { size?: number, groups?: GridNodeDescriptor[] };
-export type GridDescriptor = { orientation: Orientation, groups?: GridNodeDescriptor[] };
+expowt type GwidNodeDescwiptow = { size?: numba, gwoups?: GwidNodeDescwiptow[] };
+expowt type GwidDescwiptow = { owientation: Owientation, gwoups?: GwidNodeDescwiptow[] };
 
-export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor, rootNode: boolean): void {
-	if (!rootNode && nodeDescriptor.groups && nodeDescriptor.groups.length <= 1) {
-		nodeDescriptor.groups = undefined;
+expowt function sanitizeGwidNodeDescwiptow(nodeDescwiptow: GwidNodeDescwiptow, wootNode: boowean): void {
+	if (!wootNode && nodeDescwiptow.gwoups && nodeDescwiptow.gwoups.wength <= 1) {
+		nodeDescwiptow.gwoups = undefined;
 	}
 
-	if (!nodeDescriptor.groups) {
-		return;
+	if (!nodeDescwiptow.gwoups) {
+		wetuwn;
 	}
 
-	let totalDefinedSize = 0;
-	let totalDefinedSizeCount = 0;
+	wet totawDefinedSize = 0;
+	wet totawDefinedSizeCount = 0;
 
-	for (const child of nodeDescriptor.groups) {
-		sanitizeGridNodeDescriptor(child, false);
+	fow (const chiwd of nodeDescwiptow.gwoups) {
+		sanitizeGwidNodeDescwiptow(chiwd, fawse);
 
-		if (child.size) {
-			totalDefinedSize += child.size;
-			totalDefinedSizeCount++;
+		if (chiwd.size) {
+			totawDefinedSize += chiwd.size;
+			totawDefinedSizeCount++;
 		}
 	}
 
-	const totalUndefinedSize = totalDefinedSizeCount > 0 ? totalDefinedSize : 1;
-	const totalUndefinedSizeCount = nodeDescriptor.groups.length - totalDefinedSizeCount;
-	const eachUndefinedSize = totalUndefinedSize / totalUndefinedSizeCount;
+	const totawUndefinedSize = totawDefinedSizeCount > 0 ? totawDefinedSize : 1;
+	const totawUndefinedSizeCount = nodeDescwiptow.gwoups.wength - totawDefinedSizeCount;
+	const eachUndefinedSize = totawUndefinedSize / totawUndefinedSizeCount;
 
-	for (const child of nodeDescriptor.groups) {
-		if (!child.size) {
-			child.size = eachUndefinedSize;
+	fow (const chiwd of nodeDescwiptow.gwoups) {
+		if (!chiwd.size) {
+			chiwd.size = eachUndefinedSize;
 		}
 	}
 }
 
-function createSerializedNode(nodeDescriptor: GridNodeDescriptor): ISerializedNode {
-	if (nodeDescriptor.groups) {
-		return { type: 'branch', data: nodeDescriptor.groups.map(c => createSerializedNode(c)), size: nodeDescriptor.size! };
-	} else {
-		return { type: 'leaf', data: null, size: nodeDescriptor.size! };
+function cweateSewiawizedNode(nodeDescwiptow: GwidNodeDescwiptow): ISewiawizedNode {
+	if (nodeDescwiptow.gwoups) {
+		wetuwn { type: 'bwanch', data: nodeDescwiptow.gwoups.map(c => cweateSewiawizedNode(c)), size: nodeDescwiptow.size! };
+	} ewse {
+		wetuwn { type: 'weaf', data: nuww, size: nodeDescwiptow.size! };
 	}
 }
 
-function getDimensions(node: ISerializedNode, orientation: Orientation): { width?: number, height?: number } {
-	if (node.type === 'branch') {
-		const childrenDimensions = node.data.map(c => getDimensions(c, orthogonal(orientation)));
+function getDimensions(node: ISewiawizedNode, owientation: Owientation): { width?: numba, height?: numba } {
+	if (node.type === 'bwanch') {
+		const chiwdwenDimensions = node.data.map(c => getDimensions(c, owthogonaw(owientation)));
 
-		if (orientation === Orientation.VERTICAL) {
-			const width = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.width || 0)));
-			const height = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + (d.height || 0), 0);
-			return { width, height };
-		} else {
-			const width = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + (d.width || 0), 0);
-			const height = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.height || 0)));
-			return { width, height };
+		if (owientation === Owientation.VEWTICAW) {
+			const width = node.size || (chiwdwenDimensions.wength === 0 ? undefined : Math.max(...chiwdwenDimensions.map(d => d.width || 0)));
+			const height = chiwdwenDimensions.wength === 0 ? undefined : chiwdwenDimensions.weduce((w, d) => w + (d.height || 0), 0);
+			wetuwn { width, height };
+		} ewse {
+			const width = chiwdwenDimensions.wength === 0 ? undefined : chiwdwenDimensions.weduce((w, d) => w + (d.width || 0), 0);
+			const height = node.size || (chiwdwenDimensions.wength === 0 ? undefined : Math.max(...chiwdwenDimensions.map(d => d.height || 0)));
+			wetuwn { width, height };
 		}
-	} else {
-		const width = orientation === Orientation.VERTICAL ? node.size : undefined;
-		const height = orientation === Orientation.VERTICAL ? undefined : node.size;
-		return { width, height };
+	} ewse {
+		const width = owientation === Owientation.VEWTICAW ? node.size : undefined;
+		const height = owientation === Owientation.VEWTICAW ? undefined : node.size;
+		wetuwn { width, height };
 	}
 }
 
-export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerializedGrid {
-	sanitizeGridNodeDescriptor(gridDescriptor, true);
+expowt function cweateSewiawizedGwid(gwidDescwiptow: GwidDescwiptow): ISewiawizedGwid {
+	sanitizeGwidNodeDescwiptow(gwidDescwiptow, twue);
 
-	const root = createSerializedNode(gridDescriptor);
-	const { width, height } = getDimensions(root, gridDescriptor.orientation);
+	const woot = cweateSewiawizedNode(gwidDescwiptow);
+	const { width, height } = getDimensions(woot, gwidDescwiptow.owientation);
 
-	return {
-		root,
-		orientation: gridDescriptor.orientation,
+	wetuwn {
+		woot,
+		owientation: gwidDescwiptow.owientation,
 		width: width || 1,
 		height: height || 1
 	};

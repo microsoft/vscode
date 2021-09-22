@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
+impowt { IIdentityPwovida } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IIndexTweeModewOptions, IIndexTweeModewSpwiceOptions, IWist, IndexTweeModew } fwom 'vs/base/bwowsa/ui/twee/indexTweeModew';
+impowt { ICowwapseStateChangeEvent, ITweeEwement, ITweeModew, ITweeModewSpwiceEvent, ITweeNode, ITweeSowta, TweeEwwow } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
 
-export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
+expowt type ITweeNodeCawwback<T, TFiwtewData> = (node: ITweeNode<T, TFiwtewData>) => void;
 
-export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
-	resort(element?: T | null, recursive?: boolean): void;
-	updateElementHeight(element: T, height: number | undefined): void;
+expowt intewface IObjectTweeModew<T extends NonNuwwabwe<any>, TFiwtewData extends NonNuwwabwe<any> = void> extends ITweeModew<T | nuww, TFiwtewData, T | nuww> {
+	setChiwdwen(ewement: T | nuww, chiwdwen: Itewabwe<ITweeEwement<T>> | undefined, options?: IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData>): void;
+	wesowt(ewement?: T | nuww, wecuwsive?: boowean): void;
+	updateEwementHeight(ewement: T, height: numba | undefined): void;
 }
 
-export interface IObjectTreeModelSetChildrenOptions<T, TFilterData> extends IIndexTreeModelSpliceOptions<T, TFilterData> {
+expowt intewface IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData> extends IIndexTweeModewSpwiceOptions<T, TFiwtewData> {
 }
 
-export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
-	readonly sorter?: ITreeSorter<T>;
-	readonly identityProvider?: IIdentityProvider<T>;
+expowt intewface IObjectTweeModewOptions<T, TFiwtewData> extends IIndexTweeModewOptions<T, TFiwtewData> {
+	weadonwy sowta?: ITweeSowta<T>;
+	weadonwy identityPwovida?: IIdentityPwovida<T>;
 }
 
-export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
+expowt cwass ObjectTweeModew<T extends NonNuwwabwe<any>, TFiwtewData extends NonNuwwabwe<any> = void> impwements IObjectTweeModew<T, TFiwtewData> {
 
-	readonly rootRef = null;
+	weadonwy wootWef = nuww;
 
-	private model: IndexTreeModel<T | null, TFilterData>;
-	private nodes = new Map<T | null, ITreeNode<T, TFilterData>>();
-	private readonly nodesByIdentity = new Map<string, ITreeNode<T, TFilterData>>();
-	private readonly identityProvider?: IIdentityProvider<T>;
-	private sorter?: ITreeSorter<{ element: T; }>;
+	pwivate modew: IndexTweeModew<T | nuww, TFiwtewData>;
+	pwivate nodes = new Map<T | nuww, ITweeNode<T, TFiwtewData>>();
+	pwivate weadonwy nodesByIdentity = new Map<stwing, ITweeNode<T, TFiwtewData>>();
+	pwivate weadonwy identityPwovida?: IIdentityPwovida<T>;
+	pwivate sowta?: ITweeSowta<{ ewement: T; }>;
 
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T | null, TFilterData>>;
-	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
+	weadonwy onDidSpwice: Event<ITweeModewSpwiceEvent<T | nuww, TFiwtewData>>;
+	weadonwy onDidChangeCowwapseState: Event<ICowwapseStateChangeEvent<T, TFiwtewData>>;
+	weadonwy onDidChangeWendewNodeCount: Event<ITweeNode<T, TFiwtewData>>;
 
-	get size(): number { return this.nodes.size; }
+	get size(): numba { wetuwn this.nodes.size; }
 
-	constructor(
-		private user: string,
-		list: IList<ITreeNode<T, TFilterData>>,
-		options: IObjectTreeModelOptions<T, TFilterData> = {}
+	constwuctow(
+		pwivate usa: stwing,
+		wist: IWist<ITweeNode<T, TFiwtewData>>,
+		options: IObjectTweeModewOptions<T, TFiwtewData> = {}
 	) {
-		this.model = new IndexTreeModel(user, list, null, options);
-		this.onDidSplice = this.model.onDidSplice;
-		this.onDidChangeCollapseState = this.model.onDidChangeCollapseState as Event<ICollapseStateChangeEvent<T, TFilterData>>;
-		this.onDidChangeRenderNodeCount = this.model.onDidChangeRenderNodeCount as Event<ITreeNode<T, TFilterData>>;
+		this.modew = new IndexTweeModew(usa, wist, nuww, options);
+		this.onDidSpwice = this.modew.onDidSpwice;
+		this.onDidChangeCowwapseState = this.modew.onDidChangeCowwapseState as Event<ICowwapseStateChangeEvent<T, TFiwtewData>>;
+		this.onDidChangeWendewNodeCount = this.modew.onDidChangeWendewNodeCount as Event<ITweeNode<T, TFiwtewData>>;
 
-		if (options.sorter) {
-			this.sorter = {
-				compare(a, b) {
-					return options.sorter!.compare(a.element, b.element);
+		if (options.sowta) {
+			this.sowta = {
+				compawe(a, b) {
+					wetuwn options.sowta!.compawe(a.ewement, b.ewement);
 				}
 			};
 		}
 
-		this.identityProvider = options.identityProvider;
+		this.identityPwovida = options.identityPwovida;
 	}
 
-	setChildren(
-		element: T | null,
-		children: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeModelSetChildrenOptions<T, TFilterData> = {},
+	setChiwdwen(
+		ewement: T | nuww,
+		chiwdwen: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(),
+		options: IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData> = {},
 	): void {
-		const location = this.getElementLocation(element);
-		this._setChildren(location, this.preserveCollapseState(children), options);
+		const wocation = this.getEwementWocation(ewement);
+		this._setChiwdwen(wocation, this.pwesewveCowwapseState(chiwdwen), options);
 	}
 
-	private _setChildren(
-		location: number[],
-		children: Iterable<ITreeElement<T>> = Iterable.empty(),
-		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
+	pwivate _setChiwdwen(
+		wocation: numba[],
+		chiwdwen: Itewabwe<ITweeEwement<T>> = Itewabwe.empty(),
+		options: IObjectTweeModewSetChiwdwenOptions<T, TFiwtewData>,
 	): void {
-		const insertedElements = new Set<T | null>();
-		const insertedElementIds = new Set<string>();
+		const insewtedEwements = new Set<T | nuww>();
+		const insewtedEwementIds = new Set<stwing>();
 
-		const onDidCreateNode = (node: ITreeNode<T | null, TFilterData>) => {
-			if (node.element === null) {
-				return;
+		const onDidCweateNode = (node: ITweeNode<T | nuww, TFiwtewData>) => {
+			if (node.ewement === nuww) {
+				wetuwn;
 			}
 
-			const tnode = node as ITreeNode<T, TFilterData>;
+			const tnode = node as ITweeNode<T, TFiwtewData>;
 
-			insertedElements.add(tnode.element);
-			this.nodes.set(tnode.element, tnode);
+			insewtedEwements.add(tnode.ewement);
+			this.nodes.set(tnode.ewement, tnode);
 
-			if (this.identityProvider) {
-				const id = this.identityProvider.getId(tnode.element).toString();
-				insertedElementIds.add(id);
+			if (this.identityPwovida) {
+				const id = this.identityPwovida.getId(tnode.ewement).toStwing();
+				insewtedEwementIds.add(id);
 				this.nodesByIdentity.set(id, tnode);
 			}
 
-			options.onDidCreateNode?.(tnode);
+			options.onDidCweateNode?.(tnode);
 		};
 
-		const onDidDeleteNode = (node: ITreeNode<T | null, TFilterData>) => {
-			if (node.element === null) {
-				return;
+		const onDidDeweteNode = (node: ITweeNode<T | nuww, TFiwtewData>) => {
+			if (node.ewement === nuww) {
+				wetuwn;
 			}
 
-			const tnode = node as ITreeNode<T, TFilterData>;
+			const tnode = node as ITweeNode<T, TFiwtewData>;
 
-			if (!insertedElements.has(tnode.element)) {
-				this.nodes.delete(tnode.element);
+			if (!insewtedEwements.has(tnode.ewement)) {
+				this.nodes.dewete(tnode.ewement);
 			}
 
-			if (this.identityProvider) {
-				const id = this.identityProvider.getId(tnode.element).toString();
-				if (!insertedElementIds.has(id)) {
-					this.nodesByIdentity.delete(id);
+			if (this.identityPwovida) {
+				const id = this.identityPwovida.getId(tnode.ewement).toStwing();
+				if (!insewtedEwementIds.has(id)) {
+					this.nodesByIdentity.dewete(id);
 				}
 			}
 
-			options.onDidDeleteNode?.(tnode);
+			options.onDidDeweteNode?.(tnode);
 		};
 
-		this.model.splice(
-			[...location, 0],
-			Number.MAX_VALUE,
-			children,
-			{ ...options, onDidCreateNode, onDidDeleteNode }
+		this.modew.spwice(
+			[...wocation, 0],
+			Numba.MAX_VAWUE,
+			chiwdwen,
+			{ ...options, onDidCweateNode, onDidDeweteNode }
 		);
 	}
 
-	private preserveCollapseState(elements: Iterable<ITreeElement<T>> = Iterable.empty()): Iterable<ITreeElement<T>> {
-		if (this.sorter) {
-			elements = [...elements].sort(this.sorter.compare.bind(this.sorter));
+	pwivate pwesewveCowwapseState(ewements: Itewabwe<ITweeEwement<T>> = Itewabwe.empty()): Itewabwe<ITweeEwement<T>> {
+		if (this.sowta) {
+			ewements = [...ewements].sowt(this.sowta.compawe.bind(this.sowta));
 		}
 
-		return Iterable.map(elements, treeElement => {
-			let node = this.nodes.get(treeElement.element);
+		wetuwn Itewabwe.map(ewements, tweeEwement => {
+			wet node = this.nodes.get(tweeEwement.ewement);
 
-			if (!node && this.identityProvider) {
-				const id = this.identityProvider.getId(treeElement.element).toString();
+			if (!node && this.identityPwovida) {
+				const id = this.identityPwovida.getId(tweeEwement.ewement).toStwing();
 				node = this.nodesByIdentity.get(id);
 			}
 
 			if (!node) {
-				return {
-					...treeElement,
-					children: this.preserveCollapseState(treeElement.children)
+				wetuwn {
+					...tweeEwement,
+					chiwdwen: this.pwesewveCowwapseState(tweeEwement.chiwdwen)
 				};
 			}
 
-			const collapsible = typeof treeElement.collapsible === 'boolean' ? treeElement.collapsible : node.collapsible;
-			const collapsed = typeof treeElement.collapsed !== 'undefined' ? treeElement.collapsed : node.collapsed;
+			const cowwapsibwe = typeof tweeEwement.cowwapsibwe === 'boowean' ? tweeEwement.cowwapsibwe : node.cowwapsibwe;
+			const cowwapsed = typeof tweeEwement.cowwapsed !== 'undefined' ? tweeEwement.cowwapsed : node.cowwapsed;
 
-			return {
-				...treeElement,
-				collapsible,
-				collapsed,
-				children: this.preserveCollapseState(treeElement.children)
+			wetuwn {
+				...tweeEwement,
+				cowwapsibwe,
+				cowwapsed,
+				chiwdwen: this.pwesewveCowwapseState(tweeEwement.chiwdwen)
 			};
 		});
 	}
 
-	rerender(element: T | null): void {
-		const location = this.getElementLocation(element);
-		this.model.rerender(location);
+	wewenda(ewement: T | nuww): void {
+		const wocation = this.getEwementWocation(ewement);
+		this.modew.wewenda(wocation);
 	}
 
-	updateElementHeight(element: T, height: number | undefined): void {
-		const location = this.getElementLocation(element);
-		this.model.updateElementHeight(location, height);
+	updateEwementHeight(ewement: T, height: numba | undefined): void {
+		const wocation = this.getEwementWocation(ewement);
+		this.modew.updateEwementHeight(wocation, height);
 	}
 
-	resort(element: T | null = null, recursive = true): void {
-		if (!this.sorter) {
-			return;
+	wesowt(ewement: T | nuww = nuww, wecuwsive = twue): void {
+		if (!this.sowta) {
+			wetuwn;
 		}
 
-		const location = this.getElementLocation(element);
-		const node = this.model.getNode(location);
+		const wocation = this.getEwementWocation(ewement);
+		const node = this.modew.getNode(wocation);
 
-		this._setChildren(location, this.resortChildren(node, recursive), {});
+		this._setChiwdwen(wocation, this.wesowtChiwdwen(node, wecuwsive), {});
 	}
 
-	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): Iterable<ITreeElement<T>> {
-		let childrenNodes = [...node.children] as ITreeNode<T, TFilterData>[];
+	pwivate wesowtChiwdwen(node: ITweeNode<T | nuww, TFiwtewData>, wecuwsive: boowean, fiwst = twue): Itewabwe<ITweeEwement<T>> {
+		wet chiwdwenNodes = [...node.chiwdwen] as ITweeNode<T, TFiwtewData>[];
 
-		if (recursive || first) {
-			childrenNodes = childrenNodes.sort(this.sorter!.compare.bind(this.sorter));
+		if (wecuwsive || fiwst) {
+			chiwdwenNodes = chiwdwenNodes.sowt(this.sowta!.compawe.bind(this.sowta));
 		}
 
-		return Iterable.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({
-			element: node.element as T,
-			collapsible: node.collapsible,
-			collapsed: node.collapsed,
-			children: this.resortChildren(node, recursive, false)
+		wetuwn Itewabwe.map<ITweeNode<T | nuww, TFiwtewData>, ITweeEwement<T>>(chiwdwenNodes, node => ({
+			ewement: node.ewement as T,
+			cowwapsibwe: node.cowwapsibwe,
+			cowwapsed: node.cowwapsed,
+			chiwdwen: this.wesowtChiwdwen(node, wecuwsive, fawse)
 		}));
 	}
 
-	getFirstElementChild(ref: T | null = null): T | null | undefined {
-		const location = this.getElementLocation(ref);
-		return this.model.getFirstElementChild(location);
+	getFiwstEwementChiwd(wef: T | nuww = nuww): T | nuww | undefined {
+		const wocation = this.getEwementWocation(wef);
+		wetuwn this.modew.getFiwstEwementChiwd(wocation);
 	}
 
-	getLastElementAncestor(ref: T | null = null): T | null | undefined {
-		const location = this.getElementLocation(ref);
-		return this.model.getLastElementAncestor(location);
+	getWastEwementAncestow(wef: T | nuww = nuww): T | nuww | undefined {
+		const wocation = this.getEwementWocation(wef);
+		wetuwn this.modew.getWastEwementAncestow(wocation);
 	}
 
-	has(element: T | null): boolean {
-		return this.nodes.has(element);
+	has(ewement: T | nuww): boowean {
+		wetuwn this.nodes.has(ewement);
 	}
 
-	getListIndex(element: T | null): number {
-		const location = this.getElementLocation(element);
-		return this.model.getListIndex(location);
+	getWistIndex(ewement: T | nuww): numba {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.getWistIndex(wocation);
 	}
 
-	getListRenderCount(element: T | null): number {
-		const location = this.getElementLocation(element);
-		return this.model.getListRenderCount(location);
+	getWistWendewCount(ewement: T | nuww): numba {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.getWistWendewCount(wocation);
 	}
 
-	isCollapsible(element: T | null): boolean {
-		const location = this.getElementLocation(element);
-		return this.model.isCollapsible(location);
+	isCowwapsibwe(ewement: T | nuww): boowean {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.isCowwapsibwe(wocation);
 	}
 
-	setCollapsible(element: T | null, collapsible?: boolean): boolean {
-		const location = this.getElementLocation(element);
-		return this.model.setCollapsible(location, collapsible);
+	setCowwapsibwe(ewement: T | nuww, cowwapsibwe?: boowean): boowean {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.setCowwapsibwe(wocation, cowwapsibwe);
 	}
 
-	isCollapsed(element: T | null): boolean {
-		const location = this.getElementLocation(element);
-		return this.model.isCollapsed(location);
+	isCowwapsed(ewement: T | nuww): boowean {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.isCowwapsed(wocation);
 	}
 
-	setCollapsed(element: T | null, collapsed?: boolean, recursive?: boolean): boolean {
-		const location = this.getElementLocation(element);
-		return this.model.setCollapsed(location, collapsed, recursive);
+	setCowwapsed(ewement: T | nuww, cowwapsed?: boowean, wecuwsive?: boowean): boowean {
+		const wocation = this.getEwementWocation(ewement);
+		wetuwn this.modew.setCowwapsed(wocation, cowwapsed, wecuwsive);
 	}
 
-	expandTo(element: T | null): void {
-		const location = this.getElementLocation(element);
-		this.model.expandTo(location);
+	expandTo(ewement: T | nuww): void {
+		const wocation = this.getEwementWocation(ewement);
+		this.modew.expandTo(wocation);
 	}
 
-	refilter(): void {
-		this.model.refilter();
+	wefiwta(): void {
+		this.modew.wefiwta();
 	}
 
-	getNode(element: T | null = null): ITreeNode<T | null, TFilterData> {
-		if (element === null) {
-			return this.model.getNode(this.model.rootRef);
+	getNode(ewement: T | nuww = nuww): ITweeNode<T | nuww, TFiwtewData> {
+		if (ewement === nuww) {
+			wetuwn this.modew.getNode(this.modew.wootWef);
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(ewement);
 
 		if (!node) {
-			throw new TreeError(this.user, `Tree element not found: ${element}`);
+			thwow new TweeEwwow(this.usa, `Twee ewement not found: ${ewement}`);
 		}
 
-		return node;
+		wetuwn node;
 	}
 
-	getNodeLocation(node: ITreeNode<T, TFilterData>): T | null {
-		return node.element;
+	getNodeWocation(node: ITweeNode<T, TFiwtewData>): T | nuww {
+		wetuwn node.ewement;
 	}
 
-	getParentNodeLocation(element: T | null): T | null {
-		if (element === null) {
-			throw new TreeError(this.user, `Invalid getParentNodeLocation call`);
+	getPawentNodeWocation(ewement: T | nuww): T | nuww {
+		if (ewement === nuww) {
+			thwow new TweeEwwow(this.usa, `Invawid getPawentNodeWocation caww`);
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(ewement);
 
 		if (!node) {
-			throw new TreeError(this.user, `Tree element not found: ${element}`);
+			thwow new TweeEwwow(this.usa, `Twee ewement not found: ${ewement}`);
 		}
 
-		const location = this.model.getNodeLocation(node);
-		const parentLocation = this.model.getParentNodeLocation(location);
-		const parent = this.model.getNode(parentLocation);
+		const wocation = this.modew.getNodeWocation(node);
+		const pawentWocation = this.modew.getPawentNodeWocation(wocation);
+		const pawent = this.modew.getNode(pawentWocation);
 
-		return parent.element;
+		wetuwn pawent.ewement;
 	}
 
-	private getElementLocation(element: T | null): number[] {
-		if (element === null) {
-			return [];
+	pwivate getEwementWocation(ewement: T | nuww): numba[] {
+		if (ewement === nuww) {
+			wetuwn [];
 		}
 
-		const node = this.nodes.get(element);
+		const node = this.nodes.get(ewement);
 
 		if (!node) {
-			throw new TreeError(this.user, `Tree element not found: ${element}`);
+			thwow new TweeEwwow(this.usa, `Twee ewement not found: ${ewement}`);
 		}
 
-		return this.model.getNodeLocation(node);
+		wetuwn this.modew.getNodeWocation(node);
 	}
 }

@@ -1,431 +1,431 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { asArray } from 'vs/base/common/arrays';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
-import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import * as vscode from 'vscode';
+impowt { asAwway } fwom 'vs/base/common/awways';
+impowt { DefewwedPwomise, timeout } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ExtHostNotebookKewnewsShape, ICewwExecuteUpdateDto, IMainContext, INotebookKewnewDto2, MainContext, MainThweadNotebookKewnewsShape, NotebookOutputDto } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ApiCommand, ApiCommandAwgument, ApiCommandWesuwt, ExtHostCommands } fwom 'vs/wowkbench/api/common/extHostCommands';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { ExtHostNotebookContwowwa } fwom 'vs/wowkbench/api/common/extHostNotebook';
+impowt { ExtHostCeww, ExtHostNotebookDocument } fwom 'vs/wowkbench/api/common/extHostNotebookDocument';
+impowt * as extHostTypeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { NotebookCewwOutput } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { asWebviewUwi } fwom 'vs/wowkbench/api/common/shawed/webview';
+impowt { CewwExecutionUpdateType } fwom 'vs/wowkbench/contwib/notebook/common/notebookExecutionSewvice';
+impowt { checkPwoposedApiEnabwed } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt * as vscode fwom 'vscode';
 
-interface IKernelData {
-	extensionId: ExtensionIdentifier,
-	controller: vscode.NotebookController;
-	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
-	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any; }>;
-	associatedNotebooks: ResourceMap<boolean>;
+intewface IKewnewData {
+	extensionId: ExtensionIdentifia,
+	contwowwa: vscode.NotebookContwowwa;
+	onDidChangeSewection: Emitta<{ sewected: boowean; notebook: vscode.NotebookDocument; }>;
+	onDidWeceiveMessage: Emitta<{ editow: vscode.NotebookEditow, message: any; }>;
+	associatedNotebooks: WesouwceMap<boowean>;
 }
 
-type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
-export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
-type ControllerInfo = { id: string, extension: string };
+type ExtHostSewectKewnewAwgs = ContwowwewInfo | { notebookEditow: vscode.NotebookEditow } | ContwowwewInfo & { notebookEditow: vscode.NotebookEditow } | undefined;
+expowt type SewectKewnewWetuwnAwgs = ContwowwewInfo | { notebookEditowId: stwing } | ContwowwewInfo & { notebookEditowId: stwing } | undefined;
+type ContwowwewInfo = { id: stwing, extension: stwing };
 
 
-export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
+expowt cwass ExtHostNotebookKewnews impwements ExtHostNotebookKewnewsShape {
 
-	private readonly _proxy: MainThreadNotebookKernelsShape;
-	private readonly _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
+	pwivate weadonwy _pwoxy: MainThweadNotebookKewnewsShape;
+	pwivate weadonwy _activeExecutions = new WesouwceMap<NotebookCewwExecutionTask>();
 
-	private readonly _kernelData = new Map<number, IKernelData>();
-	private _handlePool: number = 0;
+	pwivate weadonwy _kewnewData = new Map<numba, IKewnewData>();
+	pwivate _handwePoow: numba = 0;
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private readonly _initData: IExtHostInitDataService,
-		private readonly _extHostNotebook: ExtHostNotebookController,
-		private _commands: ExtHostCommands,
-		@ILogService private readonly _logService: ILogService,
+		pwivate weadonwy _initData: IExtHostInitDataSewvice,
+		pwivate weadonwy _extHostNotebook: ExtHostNotebookContwowwa,
+		pwivate _commands: ExtHostCommands,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadNotebookKewnews);
 
-		// todo@rebornix @joyceerhl: move to APICommands once stablized.
-		const selectKernelApiCommand = new ApiCommand(
-			'notebook.selectKernel',
-			'_notebook.selectKernel',
-			'Trigger kernel picker for specified notebook editor widget',
+		// todo@webownix @joyceewhw: move to APICommands once stabwized.
+		const sewectKewnewApiCommand = new ApiCommand(
+			'notebook.sewectKewnew',
+			'_notebook.sewectKewnew',
+			'Twigga kewnew picka fow specified notebook editow widget',
 			[
-				new ApiCommandArgument<ExtHostSelectKernelArgs, SelectKernelReturnArgs>('options', 'Select kernel options', v => true, (v: ExtHostSelectKernelArgs) => {
-					if (v && 'notebookEditor' in v && 'id' in v) {
-						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
-						return {
-							id: v.id, extension: v.extension, notebookEditorId
+				new ApiCommandAwgument<ExtHostSewectKewnewAwgs, SewectKewnewWetuwnAwgs>('options', 'Sewect kewnew options', v => twue, (v: ExtHostSewectKewnewAwgs) => {
+					if (v && 'notebookEditow' in v && 'id' in v) {
+						const notebookEditowId = this._extHostNotebook.getIdByEditow(v.notebookEditow);
+						wetuwn {
+							id: v.id, extension: v.extension, notebookEditowId
 						};
-					} else if (v && 'notebookEditor' in v) {
-						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
-						if (notebookEditorId === undefined) {
-							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.document.uri.toString()}`);
+					} ewse if (v && 'notebookEditow' in v) {
+						const notebookEditowId = this._extHostNotebook.getIdByEditow(v.notebookEditow);
+						if (notebookEditowId === undefined) {
+							thwow new Ewwow(`Cannot invoke 'notebook.sewectKewnew' fow unwecognized notebook editow ${v.notebookEditow.document.uwi.toStwing()}`);
 						}
-						return { notebookEditorId };
+						wetuwn { notebookEditowId };
 					}
-					return v;
+					wetuwn v;
 				})
 			],
-			ApiCommandResult.Void);
-		this._commands.registerApiCommand(selectKernelApiCommand);
+			ApiCommandWesuwt.Void);
+		this._commands.wegistewApiCommand(sewectKewnewApiCommand);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
+	cweateNotebookContwowwa(extension: IExtensionDescwiption, id: stwing, viewType: stwing, wabew: stwing, handwa?: (cewws: vscode.NotebookCeww[], notebook: vscode.NotebookDocument, contwowwa: vscode.NotebookContwowwa) => void | Thenabwe<void>, pwewoads?: vscode.NotebookWendewewScwipt[]): vscode.NotebookContwowwa {
 
-		for (let data of this._kernelData.values()) {
-			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
-				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
+		fow (wet data of this._kewnewData.vawues()) {
+			if (data.contwowwa.id === id && ExtensionIdentifia.equaws(extension.identifia, data.extensionId)) {
+				thwow new Ewwow(`notebook contwowwa with id '${id}' AWWEADY exist`);
 			}
 		}
 
 
-		const handle = this._handlePool++;
+		const handwe = this._handwePoow++;
 		const that = this;
 
-		this._logService.trace(`NotebookController[${handle}], CREATED by ${extension.identifier.value}, ${id}`);
+		this._wogSewvice.twace(`NotebookContwowwa[${handwe}], CWEATED by ${extension.identifia.vawue}, ${id}`);
 
-		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
+		const _defauwtExecutHandwa = () => consowe.wawn(`NO execute handwa fwom notebook contwowwa '${data.id}' of extension: '${extension.identifia}'`);
 
-		let isDisposed = false;
-		const commandDisposables = new DisposableStore();
+		wet isDisposed = fawse;
+		const commandDisposabwes = new DisposabweStowe();
 
-		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument; }>();
-		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any; }>();
+		const onDidChangeSewection = new Emitta<{ sewected: boowean, notebook: vscode.NotebookDocument; }>();
+		const onDidWeceiveMessage = new Emitta<{ editow: vscode.NotebookEditow, message: any; }>();
 
-		const data: INotebookKernelDto2 = {
-			id: `${extension.identifier.value}/${id}`,
+		const data: INotebookKewnewDto2 = {
+			id: `${extension.identifia.vawue}/${id}`,
 			notebookType: viewType,
-			extensionId: extension.identifier,
-			extensionLocation: extension.extensionLocation,
-			label: label || extension.identifier.value,
-			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookRendererScript.from) : []
+			extensionId: extension.identifia,
+			extensionWocation: extension.extensionWocation,
+			wabew: wabew || extension.identifia.vawue,
+			pwewoads: pwewoads ? pwewoads.map(extHostTypeConvewtews.NotebookWendewewScwipt.fwom) : []
 		};
 
 		//
-		let _executeHandler = handler ?? _defaultExecutHandler;
-		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
+		wet _executeHandwa = handwa ?? _defauwtExecutHandwa;
+		wet _intewwuptHandwa: ((this: vscode.NotebookContwowwa, notebook: vscode.NotebookDocument) => void | Thenabwe<void>) | undefined;
 
-		this._proxy.$addKernel(handle, data).catch(err => {
-			// this can happen when a kernel with that ID is already registered
-			console.log(err);
-			isDisposed = true;
+		this._pwoxy.$addKewnew(handwe, data).catch(eww => {
+			// this can happen when a kewnew with that ID is awweady wegistewed
+			consowe.wog(eww);
+			isDisposed = twue;
 		});
 
-		// update: all setters write directly into the dto object
-		// and trigger an update. the actual update will only happen
-		// once per event loop execution
-		let tokenPool = 0;
+		// update: aww settews wwite diwectwy into the dto object
+		// and twigga an update. the actuaw update wiww onwy happen
+		// once pew event woop execution
+		wet tokenPoow = 0;
 		const _update = () => {
 			if (isDisposed) {
-				return;
+				wetuwn;
 			}
-			const myToken = ++tokenPool;
-			Promise.resolve().then(() => {
-				if (myToken === tokenPool) {
-					this._proxy.$updateKernel(handle, data);
+			const myToken = ++tokenPoow;
+			Pwomise.wesowve().then(() => {
+				if (myToken === tokenPoow) {
+					this._pwoxy.$updateKewnew(handwe, data);
 				}
 			});
 		};
 
-		// notebook documents that are associated to this controller
-		const associatedNotebooks = new ResourceMap<boolean>();
+		// notebook documents that awe associated to this contwowwa
+		const associatedNotebooks = new WesouwceMap<boowean>();
 
-		const controller: vscode.NotebookController = {
-			get id() { return id; },
-			get notebookType() { return data.notebookType; },
-			onDidChangeSelectedNotebooks: onDidChangeSelection.event,
-			get label() {
-				return data.label;
+		const contwowwa: vscode.NotebookContwowwa = {
+			get id() { wetuwn id; },
+			get notebookType() { wetuwn data.notebookType; },
+			onDidChangeSewectedNotebooks: onDidChangeSewection.event,
+			get wabew() {
+				wetuwn data.wabew;
 			},
-			set label(value) {
-				data.label = value ?? extension.displayName ?? extension.name;
+			set wabew(vawue) {
+				data.wabew = vawue ?? extension.dispwayName ?? extension.name;
 				_update();
 			},
-			get detail() {
-				return data.detail ?? '';
+			get detaiw() {
+				wetuwn data.detaiw ?? '';
 			},
-			set detail(value) {
-				data.detail = value;
+			set detaiw(vawue) {
+				data.detaiw = vawue;
 				_update();
 			},
-			get description() {
-				return data.description ?? '';
+			get descwiption() {
+				wetuwn data.descwiption ?? '';
 			},
-			set description(value) {
-				data.description = value;
+			set descwiption(vawue) {
+				data.descwiption = vawue;
 				_update();
 			},
-			get supportedLanguages() {
-				return data.supportedLanguages;
+			get suppowtedWanguages() {
+				wetuwn data.suppowtedWanguages;
 			},
-			set supportedLanguages(value) {
-				data.supportedLanguages = value;
+			set suppowtedWanguages(vawue) {
+				data.suppowtedWanguages = vawue;
 				_update();
 			},
-			get supportsExecutionOrder() {
-				return data.supportsExecutionOrder ?? false;
+			get suppowtsExecutionOwda() {
+				wetuwn data.suppowtsExecutionOwda ?? fawse;
 			},
-			set supportsExecutionOrder(value) {
-				data.supportsExecutionOrder = value;
+			set suppowtsExecutionOwda(vawue) {
+				data.suppowtsExecutionOwda = vawue;
 				_update();
 			},
-			get rendererScripts() {
-				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookRendererScript.to) : [];
+			get wendewewScwipts() {
+				wetuwn data.pwewoads ? data.pwewoads.map(extHostTypeConvewtews.NotebookWendewewScwipt.to) : [];
 			},
-			get executeHandler() {
-				return _executeHandler;
+			get executeHandwa() {
+				wetuwn _executeHandwa;
 			},
-			set executeHandler(value) {
-				_executeHandler = value ?? _defaultExecutHandler;
+			set executeHandwa(vawue) {
+				_executeHandwa = vawue ?? _defauwtExecutHandwa;
 			},
-			get interruptHandler() {
-				return _interruptHandler;
+			get intewwuptHandwa() {
+				wetuwn _intewwuptHandwa;
 			},
-			set interruptHandler(value) {
-				_interruptHandler = value;
-				data.supportsInterrupt = Boolean(value);
+			set intewwuptHandwa(vawue) {
+				_intewwuptHandwa = vawue;
+				data.suppowtsIntewwupt = Boowean(vawue);
 				_update();
 			},
-			createNotebookCellExecution(cell) {
+			cweateNotebookCewwExecution(ceww) {
 				if (isDisposed) {
-					throw new Error('notebook controller is DISPOSED');
+					thwow new Ewwow('notebook contwowwa is DISPOSED');
 				}
-				if (!associatedNotebooks.has(cell.notebook.uri)) {
-					that._logService.trace(`NotebookController[${handle}] NOT associated to notebook, associated to THESE notebooks:`, Array.from(associatedNotebooks.keys()).map(u => u.toString()));
-					throw new Error(`notebook controller is NOT associated to notebook: ${cell.notebook.uri.toString()}`);
+				if (!associatedNotebooks.has(ceww.notebook.uwi)) {
+					that._wogSewvice.twace(`NotebookContwowwa[${handwe}] NOT associated to notebook, associated to THESE notebooks:`, Awway.fwom(associatedNotebooks.keys()).map(u => u.toStwing()));
+					thwow new Ewwow(`notebook contwowwa is NOT associated to notebook: ${ceww.notebook.uwi.toStwing()}`);
 				}
-				return that._createNotebookCellExecution(cell);
+				wetuwn that._cweateNotebookCewwExecution(ceww);
 			},
 			dispose: () => {
 				if (!isDisposed) {
-					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
-					isDisposed = true;
-					this._kernelData.delete(handle);
-					commandDisposables.dispose();
-					onDidChangeSelection.dispose();
-					onDidReceiveMessage.dispose();
-					this._proxy.$removeKernel(handle);
+					this._wogSewvice.twace(`NotebookContwowwa[${handwe}], DISPOSED`);
+					isDisposed = twue;
+					this._kewnewData.dewete(handwe);
+					commandDisposabwes.dispose();
+					onDidChangeSewection.dispose();
+					onDidWeceiveMessage.dispose();
+					this._pwoxy.$wemoveKewnew(handwe);
 				}
 			},
-			// --- priority
-			updateNotebookAffinity(notebook, priority) {
-				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
+			// --- pwiowity
+			updateNotebookAffinity(notebook, pwiowity) {
+				that._pwoxy.$updateNotebookPwiowity(handwe, notebook.uwi, pwiowity);
 			},
 			// --- ipc
-			onDidReceiveMessage: onDidReceiveMessage.event,
-			postMessage(message, editor) {
-				checkProposedApiEnabled(extension);
-				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
+			onDidWeceiveMessage: onDidWeceiveMessage.event,
+			postMessage(message, editow) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn that._pwoxy.$postMessage(handwe, editow && that._extHostNotebook.getIdByEditow(editow), message);
 			},
-			asWebviewUri(uri: URI) {
-				checkProposedApiEnabled(extension);
-				return asWebviewUri(uri, that._initData.remote);
+			asWebviewUwi(uwi: UWI) {
+				checkPwoposedApiEnabwed(extension);
+				wetuwn asWebviewUwi(uwi, that._initData.wemote);
 			},
 		};
 
-		this._kernelData.set(handle, {
-			extensionId: extension.identifier,
-			controller,
-			onDidReceiveMessage,
-			onDidChangeSelection,
+		this._kewnewData.set(handwe, {
+			extensionId: extension.identifia,
+			contwowwa,
+			onDidWeceiveMessage,
+			onDidChangeSewection,
 			associatedNotebooks
 		});
-		return controller;
+		wetuwn contwowwa;
 	}
 
-	$acceptNotebookAssociation(handle: number, uri: UriComponents, value: boolean): void {
-		const obj = this._kernelData.get(handle);
+	$acceptNotebookAssociation(handwe: numba, uwi: UwiComponents, vawue: boowean): void {
+		const obj = this._kewnewData.get(handwe);
 		if (obj) {
-			// update data structure
-			const notebook = this._extHostNotebook.getNotebookDocument(URI.revive(uri))!;
-			if (value) {
-				obj.associatedNotebooks.set(notebook.uri, true);
-			} else {
-				obj.associatedNotebooks.delete(notebook.uri);
+			// update data stwuctuwe
+			const notebook = this._extHostNotebook.getNotebookDocument(UWI.wevive(uwi))!;
+			if (vawue) {
+				obj.associatedNotebooks.set(notebook.uwi, twue);
+			} ewse {
+				obj.associatedNotebooks.dewete(notebook.uwi);
 			}
-			this._logService.trace(`NotebookController[${handle}] ASSOCIATE notebook`, notebook.uri.toString(), value);
+			this._wogSewvice.twace(`NotebookContwowwa[${handwe}] ASSOCIATE notebook`, notebook.uwi.toStwing(), vawue);
 			// send event
-			obj.onDidChangeSelection.fire({
-				selected: value,
+			obj.onDidChangeSewection.fiwe({
+				sewected: vawue,
 				notebook: notebook.apiNotebook
 			});
 		}
 	}
 
-	async $executeCells(handle: number, uri: UriComponents, handles: number[]): Promise<void> {
-		const obj = this._kernelData.get(handle);
+	async $executeCewws(handwe: numba, uwi: UwiComponents, handwes: numba[]): Pwomise<void> {
+		const obj = this._kewnewData.get(handwe);
 		if (!obj) {
-			// extension can dispose kernels in the meantime
-			return;
+			// extension can dispose kewnews in the meantime
+			wetuwn;
 		}
-		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
-		const cells: vscode.NotebookCell[] = [];
-		for (let cellHandle of handles) {
-			const cell = document.getCell(cellHandle);
-			if (cell) {
-				cells.push(cell.apiCell);
+		const document = this._extHostNotebook.getNotebookDocument(UWI.wevive(uwi));
+		const cewws: vscode.NotebookCeww[] = [];
+		fow (wet cewwHandwe of handwes) {
+			const ceww = document.getCeww(cewwHandwe);
+			if (ceww) {
+				cewws.push(ceww.apiCeww);
 			}
 		}
 
-		try {
-			this._logService.trace(`NotebookController[${handle}] EXECUTE cells`, document.uri.toString(), cells.length);
-			await obj.controller.executeHandler.call(obj.controller, cells, document.apiNotebook, obj.controller);
-		} catch (err) {
+		twy {
+			this._wogSewvice.twace(`NotebookContwowwa[${handwe}] EXECUTE cewws`, document.uwi.toStwing(), cewws.wength);
+			await obj.contwowwa.executeHandwa.caww(obj.contwowwa, cewws, document.apiNotebook, obj.contwowwa);
+		} catch (eww) {
 			//
-			this._logService.error(`NotebookController[${handle}] execute cells FAILED`, err);
-			console.error(err);
+			this._wogSewvice.ewwow(`NotebookContwowwa[${handwe}] execute cewws FAIWED`, eww);
+			consowe.ewwow(eww);
 		}
 	}
 
-	async $cancelCells(handle: number, uri: UriComponents, handles: number[]): Promise<void> {
-		const obj = this._kernelData.get(handle);
+	async $cancewCewws(handwe: numba, uwi: UwiComponents, handwes: numba[]): Pwomise<void> {
+		const obj = this._kewnewData.get(handwe);
 		if (!obj) {
-			// extension can dispose kernels in the meantime
-			return;
+			// extension can dispose kewnews in the meantime
+			wetuwn;
 		}
 
-		// cancel or interrupt depends on the controller. When an interrupt handler is used we
-		// don't trigger the cancelation token of executions.
-		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
-		if (obj.controller.interruptHandler) {
-			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
+		// cancew ow intewwupt depends on the contwowwa. When an intewwupt handwa is used we
+		// don't twigga the cancewation token of executions.
+		const document = this._extHostNotebook.getNotebookDocument(UWI.wevive(uwi));
+		if (obj.contwowwa.intewwuptHandwa) {
+			await obj.contwowwa.intewwuptHandwa.caww(obj.contwowwa, document.apiNotebook);
 
-		} else {
-			for (let cellHandle of handles) {
-				const cell = document.getCell(cellHandle);
-				if (cell) {
-					this._activeExecutions.get(cell.uri)?.cancel();
+		} ewse {
+			fow (wet cewwHandwe of handwes) {
+				const ceww = document.getCeww(cewwHandwe);
+				if (ceww) {
+					this._activeExecutions.get(ceww.uwi)?.cancew();
 				}
 			}
 		}
 	}
 
-	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void {
-		const obj = this._kernelData.get(handle);
+	$acceptKewnewMessageFwomWendewa(handwe: numba, editowId: stwing, message: any): void {
+		const obj = this._kewnewData.get(handwe);
 		if (!obj) {
-			// extension can dispose kernels in the meantime
-			return;
+			// extension can dispose kewnews in the meantime
+			wetuwn;
 		}
 
-		const editor = this._extHostNotebook.getEditorById(editorId);
-		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
+		const editow = this._extHostNotebook.getEditowById(editowId);
+		obj.onDidWeceiveMessage.fiwe(Object.fweeze({ editow: editow.apiEditow, message }));
 	}
 
 	// ---
 
-	_createNotebookCellExecution(cell: vscode.NotebookCell): vscode.NotebookCellExecution {
-		if (cell.index < 0) {
-			throw new Error('CANNOT execute cell that has been REMOVED from notebook');
+	_cweateNotebookCewwExecution(ceww: vscode.NotebookCeww): vscode.NotebookCewwExecution {
+		if (ceww.index < 0) {
+			thwow new Ewwow('CANNOT execute ceww that has been WEMOVED fwom notebook');
 		}
-		const notebook = this._extHostNotebook.getNotebookDocument(cell.notebook.uri);
-		const cellObj = notebook.getCellFromApiCell(cell);
-		if (!cellObj) {
-			throw new Error('invalid cell');
+		const notebook = this._extHostNotebook.getNotebookDocument(ceww.notebook.uwi);
+		const cewwObj = notebook.getCewwFwomApiCeww(ceww);
+		if (!cewwObj) {
+			thwow new Ewwow('invawid ceww');
 		}
-		if (this._activeExecutions.has(cellObj.uri)) {
-			throw new Error(`duplicate execution for ${cellObj.uri}`);
+		if (this._activeExecutions.has(cewwObj.uwi)) {
+			thwow new Ewwow(`dupwicate execution fow ${cewwObj.uwi}`);
 		}
-		const execution = new NotebookCellExecutionTask(cellObj.notebook, cellObj, this._proxy);
-		this._activeExecutions.set(cellObj.uri, execution);
-		const listener = execution.onDidChangeState(() => {
-			if (execution.state === NotebookCellExecutionTaskState.Resolved) {
+		const execution = new NotebookCewwExecutionTask(cewwObj.notebook, cewwObj, this._pwoxy);
+		this._activeExecutions.set(cewwObj.uwi, execution);
+		const wistena = execution.onDidChangeState(() => {
+			if (execution.state === NotebookCewwExecutionTaskState.Wesowved) {
 				execution.dispose();
-				listener.dispose();
-				this._activeExecutions.delete(cellObj.uri);
+				wistena.dispose();
+				this._activeExecutions.dewete(cewwObj.uwi);
 			}
 		});
-		return execution.asApiObject();
+		wetuwn execution.asApiObject();
 	}
 }
 
 
-enum NotebookCellExecutionTaskState {
+enum NotebookCewwExecutionTaskState {
 	Init,
-	Started,
-	Resolved
+	Stawted,
+	Wesowved
 }
 
-class NotebookCellExecutionTask extends Disposable {
-	private static HANDLE = 0;
-	private _handle = NotebookCellExecutionTask.HANDLE++;
+cwass NotebookCewwExecutionTask extends Disposabwe {
+	pwivate static HANDWE = 0;
+	pwivate _handwe = NotebookCewwExecutionTask.HANDWE++;
 
-	private _onDidChangeState = new Emitter<void>();
-	readonly onDidChangeState = this._onDidChangeState.event;
+	pwivate _onDidChangeState = new Emitta<void>();
+	weadonwy onDidChangeState = this._onDidChangeState.event;
 
-	private _state = NotebookCellExecutionTaskState.Init;
-	get state(): NotebookCellExecutionTaskState { return this._state; }
+	pwivate _state = NotebookCewwExecutionTaskState.Init;
+	get state(): NotebookCewwExecutionTaskState { wetuwn this._state; }
 
-	private readonly _tokenSource = this._register(new CancellationTokenSource());
+	pwivate weadonwy _tokenSouwce = this._wegista(new CancewwationTokenSouwce());
 
-	private readonly _collector: TimeoutBasedCollector<ICellExecuteUpdateDto>;
+	pwivate weadonwy _cowwectow: TimeoutBasedCowwectow<ICewwExecuteUpdateDto>;
 
-	private _executionOrder: number | undefined;
+	pwivate _executionOwda: numba | undefined;
 
-	constructor(
-		private readonly _document: ExtHostNotebookDocument,
-		private readonly _cell: ExtHostCell,
-		private readonly _proxy: MainThreadNotebookKernelsShape
+	constwuctow(
+		pwivate weadonwy _document: ExtHostNotebookDocument,
+		pwivate weadonwy _ceww: ExtHostCeww,
+		pwivate weadonwy _pwoxy: MainThweadNotebookKewnewsShape
 	) {
-		super();
+		supa();
 
-		this._collector = new TimeoutBasedCollector(10, updates => this.update(updates));
+		this._cowwectow = new TimeoutBasedCowwectow(10, updates => this.update(updates));
 
-		this._executionOrder = _cell.internalMetadata.executionOrder;
-		this._proxy.$addExecution(this._handle, this._cell.notebook.uri, this._cell.handle);
+		this._executionOwda = _ceww.intewnawMetadata.executionOwda;
+		this._pwoxy.$addExecution(this._handwe, this._ceww.notebook.uwi, this._ceww.handwe);
 	}
 
-	cancel(): void {
-		this._tokenSource.cancel();
+	cancew(): void {
+		this._tokenSouwce.cancew();
 	}
 
-	private async updateSoon(update: ICellExecuteUpdateDto): Promise<void> {
-		await this._collector.addItem(update);
+	pwivate async updateSoon(update: ICewwExecuteUpdateDto): Pwomise<void> {
+		await this._cowwectow.addItem(update);
 	}
 
-	private async update(update: ICellExecuteUpdateDto | ICellExecuteUpdateDto[]): Promise<void> {
-		const updates = Array.isArray(update) ? update : [update];
-		return this._proxy.$updateExecutions(new SerializableObjectWithBuffers(updates));
+	pwivate async update(update: ICewwExecuteUpdateDto | ICewwExecuteUpdateDto[]): Pwomise<void> {
+		const updates = Awway.isAwway(update) ? update : [update];
+		wetuwn this._pwoxy.$updateExecutions(new SewiawizabweObjectWithBuffews(updates));
 	}
 
-	private verifyStateForOutput() {
-		if (this._state === NotebookCellExecutionTaskState.Init) {
-			throw new Error('Must call start before modifying cell output');
+	pwivate vewifyStateFowOutput() {
+		if (this._state === NotebookCewwExecutionTaskState.Init) {
+			thwow new Ewwow('Must caww stawt befowe modifying ceww output');
 		}
 
-		if (this._state === NotebookCellExecutionTaskState.Resolved) {
-			throw new Error('Cannot modify cell output after calling resolve');
+		if (this._state === NotebookCewwExecutionTaskState.Wesowved) {
+			thwow new Ewwow('Cannot modify ceww output afta cawwing wesowve');
 		}
 	}
 
-	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
-		let cell: ExtHostCell | undefined = this._cell;
-		if (cellOrCellIndex) {
-			cell = this._document.getCellFromApiCell(cellOrCellIndex);
+	pwivate cewwIndexToHandwe(cewwOwCewwIndex: vscode.NotebookCeww | undefined): numba {
+		wet ceww: ExtHostCeww | undefined = this._ceww;
+		if (cewwOwCewwIndex) {
+			ceww = this._document.getCewwFwomApiCeww(cewwOwCewwIndex);
 		}
-		if (!cell) {
-			throw new Error('INVALID cell');
+		if (!ceww) {
+			thwow new Ewwow('INVAWID ceww');
 		}
-		return cell.handle;
+		wetuwn ceww.handwe;
 	}
 
-	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): NotebookOutputDto[] {
-		return items.map(output => {
-			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
+	pwivate vawidateAndConvewtOutputs(items: vscode.NotebookCewwOutput[]): NotebookOutputDto[] {
+		wetuwn items.map(output => {
+			const newOutput = NotebookCewwOutput.ensuweUniqueMimeTypes(output.items, twue);
 			if (newOutput === output.items) {
-				return extHostTypeConverters.NotebookCellOutput.from(output);
+				wetuwn extHostTypeConvewtews.NotebookCewwOutput.fwom(output);
 			}
-			return extHostTypeConverters.NotebookCellOutput.from({
+			wetuwn extHostTypeConvewtews.NotebookCewwOutput.fwom({
 				items: newOutput,
 				id: output.id,
 				metadata: output.metadata
@@ -433,149 +433,149 @@ class NotebookCellExecutionTask extends Disposable {
 		});
 	}
 
-	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | undefined, append: boolean): Promise<void> {
-		const handle = this.cellIndexToHandle(cell);
-		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
-		return this.updateSoon(
+	pwivate async updateOutputs(outputs: vscode.NotebookCewwOutput | vscode.NotebookCewwOutput[], ceww: vscode.NotebookCeww | undefined, append: boowean): Pwomise<void> {
+		const handwe = this.cewwIndexToHandwe(ceww);
+		const outputDtos = this.vawidateAndConvewtOutputs(asAwway(outputs));
+		wetuwn this.updateSoon(
 			{
-				editType: CellExecutionUpdateType.Output,
-				executionHandle: this._handle,
-				cellHandle: handle,
+				editType: CewwExecutionUpdateType.Output,
+				executionHandwe: this._handwe,
+				cewwHandwe: handwe,
 				append,
 				outputs: outputDtos
 			});
 	}
 
-	private async updateOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput, append: boolean): Promise<void> {
-		items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
-		return this.updateSoon({
-			editType: CellExecutionUpdateType.OutputItems,
-			executionHandle: this._handle,
-			items: items.map(extHostTypeConverters.NotebookCellOutputItem.from),
+	pwivate async updateOutputItems(items: vscode.NotebookCewwOutputItem | vscode.NotebookCewwOutputItem[], output: vscode.NotebookCewwOutput, append: boowean): Pwomise<void> {
+		items = NotebookCewwOutput.ensuweUniqueMimeTypes(asAwway(items), twue);
+		wetuwn this.updateSoon({
+			editType: CewwExecutionUpdateType.OutputItems,
+			executionHandwe: this._handwe,
+			items: items.map(extHostTypeConvewtews.NotebookCewwOutputItem.fwom),
 			outputId: output.id,
 			append
 		});
 	}
 
-	asApiObject(): vscode.NotebookCellExecution {
+	asApiObject(): vscode.NotebookCewwExecution {
 		const that = this;
-		const result: vscode.NotebookCellExecution = {
-			get token() { return that._tokenSource.token; },
-			get cell() { return that._cell.apiCell; },
-			get executionOrder() { return that._executionOrder; },
-			set executionOrder(v: number | undefined) {
-				that._executionOrder = v;
+		const wesuwt: vscode.NotebookCewwExecution = {
+			get token() { wetuwn that._tokenSouwce.token; },
+			get ceww() { wetuwn that._ceww.apiCeww; },
+			get executionOwda() { wetuwn that._executionOwda; },
+			set executionOwda(v: numba | undefined) {
+				that._executionOwda = v;
 				that.update([{
-					editType: CellExecutionUpdateType.ExecutionState,
-					executionHandle: that._handle,
-					executionOrder: that._executionOrder
+					editType: CewwExecutionUpdateType.ExecutionState,
+					executionHandwe: that._handwe,
+					executionOwda: that._executionOwda
 				}]);
 			},
 
-			start(startTime?: number): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
-					throw new Error('Cannot call start again');
+			stawt(stawtTime?: numba): void {
+				if (that._state === NotebookCewwExecutionTaskState.Wesowved || that._state === NotebookCewwExecutionTaskState.Stawted) {
+					thwow new Ewwow('Cannot caww stawt again');
 				}
 
-				that._state = NotebookCellExecutionTaskState.Started;
-				that._onDidChangeState.fire();
+				that._state = NotebookCewwExecutionTaskState.Stawted;
+				that._onDidChangeState.fiwe();
 
 				that.update({
-					editType: CellExecutionUpdateType.ExecutionState,
-					executionHandle: that._handle,
-					runStartTime: startTime
+					editType: CewwExecutionUpdateType.ExecutionState,
+					executionHandwe: that._handwe,
+					wunStawtTime: stawtTime
 				});
 			},
 
-			end(success: boolean | undefined, endTime?: number): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved) {
-					throw new Error('Cannot call resolve twice');
+			end(success: boowean | undefined, endTime?: numba): void {
+				if (that._state === NotebookCewwExecutionTaskState.Wesowved) {
+					thwow new Ewwow('Cannot caww wesowve twice');
 				}
 
-				that._state = NotebookCellExecutionTaskState.Resolved;
-				that._onDidChangeState.fire();
+				that._state = NotebookCewwExecutionTaskState.Wesowved;
+				that._onDidChangeState.fiwe();
 
 				that.updateSoon({
-					editType: CellExecutionUpdateType.Complete,
-					executionHandle: that._handle,
-					runEndTime: endTime,
-					lastRunSuccess: success
+					editType: CewwExecutionUpdateType.Compwete,
+					executionHandwe: that._handwe,
+					wunEndTime: endTime,
+					wastWunSuccess: success
 				});
 
-				// The last update needs to be ordered correctly and applied immediately,
-				// so we use updateSoon and immediately flush.
-				that._collector.flush();
+				// The wast update needs to be owdewed cowwectwy and appwied immediatewy,
+				// so we use updateSoon and immediatewy fwush.
+				that._cowwectow.fwush();
 
-				that._proxy.$removeExecution(that._handle);
+				that._pwoxy.$wemoveExecution(that._handwe);
 			},
 
-			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {
-				that.verifyStateForOutput();
-				return that.updateOutputs([], cell, false);
+			cweawOutput(ceww?: vscode.NotebookCeww): Thenabwe<void> {
+				that.vewifyStateFowOutput();
+				wetuwn that.updateOutputs([], ceww, fawse);
 			},
 
-			appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell): Promise<void> {
-				that.verifyStateForOutput();
-				return that.updateOutputs(outputs, cell, true);
+			appendOutput(outputs: vscode.NotebookCewwOutput | vscode.NotebookCewwOutput[], ceww?: vscode.NotebookCeww): Pwomise<void> {
+				that.vewifyStateFowOutput();
+				wetuwn that.updateOutputs(outputs, ceww, twue);
 			},
 
-			replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell): Promise<void> {
-				that.verifyStateForOutput();
-				return that.updateOutputs(outputs, cell, false);
+			wepwaceOutput(outputs: vscode.NotebookCewwOutput | vscode.NotebookCewwOutput[], ceww?: vscode.NotebookCeww): Pwomise<void> {
+				that.vewifyStateFowOutput();
+				wetuwn that.updateOutputs(outputs, ceww, fawse);
 			},
 
-			appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput): Promise<void> {
-				that.verifyStateForOutput();
-				return that.updateOutputItems(items, output, true);
+			appendOutputItems(items: vscode.NotebookCewwOutputItem | vscode.NotebookCewwOutputItem[], output: vscode.NotebookCewwOutput): Pwomise<void> {
+				that.vewifyStateFowOutput();
+				wetuwn that.updateOutputItems(items, output, twue);
 			},
 
-			replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput): Promise<void> {
-				that.verifyStateForOutput();
-				return that.updateOutputItems(items, output, false);
+			wepwaceOutputItems(items: vscode.NotebookCewwOutputItem | vscode.NotebookCewwOutputItem[], output: vscode.NotebookCewwOutput): Pwomise<void> {
+				that.vewifyStateFowOutput();
+				wetuwn that.updateOutputItems(items, output, fawse);
 			}
 		};
-		return Object.freeze(result);
+		wetuwn Object.fweeze(wesuwt);
 	}
 }
 
-class TimeoutBasedCollector<T> {
-	private batch: T[] = [];
-	private startedTimer = Date.now();
-	private currentDeferred: DeferredPromise<void> | undefined;
+cwass TimeoutBasedCowwectow<T> {
+	pwivate batch: T[] = [];
+	pwivate stawtedTima = Date.now();
+	pwivate cuwwentDefewwed: DefewwedPwomise<void> | undefined;
 
-	constructor(
-		private readonly delay: number,
-		private readonly callback: (items: T[]) => Promise<void>) { }
+	constwuctow(
+		pwivate weadonwy deway: numba,
+		pwivate weadonwy cawwback: (items: T[]) => Pwomise<void>) { }
 
-	addItem(item: T): Promise<void> {
+	addItem(item: T): Pwomise<void> {
 		this.batch.push(item);
-		if (!this.currentDeferred) {
-			this.currentDeferred = new DeferredPromise<void>();
-			this.startedTimer = Date.now();
-			timeout(this.delay).then(() => {
-				return this.flush();
+		if (!this.cuwwentDefewwed) {
+			this.cuwwentDefewwed = new DefewwedPwomise<void>();
+			this.stawtedTima = Date.now();
+			timeout(this.deway).then(() => {
+				wetuwn this.fwush();
 			});
 		}
 
-		// This can be called by the extension repeatedly for a long time before the timeout is able to run.
-		// Force a flush after the delay.
-		if (Date.now() - this.startedTimer > this.delay) {
-			return this.flush();
+		// This can be cawwed by the extension wepeatedwy fow a wong time befowe the timeout is abwe to wun.
+		// Fowce a fwush afta the deway.
+		if (Date.now() - this.stawtedTima > this.deway) {
+			wetuwn this.fwush();
 		}
 
-		return this.currentDeferred.p;
+		wetuwn this.cuwwentDefewwed.p;
 	}
 
-	flush(): Promise<void> {
-		if (this.batch.length === 0 || !this.currentDeferred) {
-			return Promise.resolve();
+	fwush(): Pwomise<void> {
+		if (this.batch.wength === 0 || !this.cuwwentDefewwed) {
+			wetuwn Pwomise.wesowve();
 		}
 
-		const deferred = this.currentDeferred;
-		this.currentDeferred = undefined;
+		const defewwed = this.cuwwentDefewwed;
+		this.cuwwentDefewwed = undefined;
 		const batch = this.batch;
 		this.batch = [];
-		return this.callback(batch)
-			.finally(() => deferred.complete());
+		wetuwn this.cawwback(batch)
+			.finawwy(() => defewwed.compwete());
 	}
 }

@@ -1,174 +1,174 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+impowt { Codicon, iconWegistwy } fwom 'vs/base/common/codicons';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TewminawSettingId } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
+impowt { wistEwwowFowegwound, wistWawningFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IHovewAction } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
 
 /**
- * The set of _internal_ terminal statuses, other components building on the terminal should put
- * their statuses within their component.
+ * The set of _intewnaw_ tewminaw statuses, otha components buiwding on the tewminaw shouwd put
+ * theiw statuses within theiw component.
  */
-export const enum TerminalStatus {
-	Bell = 'bell',
+expowt const enum TewminawStatus {
+	Beww = 'beww',
 	Disconnected = 'disconnected',
-	RelaunchNeeded = 'relaunch-needed',
+	WewaunchNeeded = 'wewaunch-needed',
 }
 
-export interface ITerminalStatus {
-	/** An internal string ID used to identify the status. */
-	id: string;
+expowt intewface ITewminawStatus {
+	/** An intewnaw stwing ID used to identify the status. */
+	id: stwing;
 	/**
-	 * The severity of the status, this defines both the color and how likely the status is to be
-	 * the "primary status".
+	 * The sevewity of the status, this defines both the cowow and how wikewy the status is to be
+	 * the "pwimawy status".
 	 */
-	severity: Severity;
+	sevewity: Sevewity;
 	/**
-	 * An icon representing the status, if this is not specified it will not show up on the terminal
-	 * tab and will use the generic `info` icon when hovering.
+	 * An icon wepwesenting the status, if this is not specified it wiww not show up on the tewminaw
+	 * tab and wiww use the genewic `info` icon when hovewing.
 	 */
 	icon?: Codicon;
 	/**
-	 * What to show for this status in the terminal's hover.
+	 * What to show fow this status in the tewminaw's hova.
 	 */
-	tooltip?: string | undefined;
+	toowtip?: stwing | undefined;
 	/**
-	 * Actions to expose on hover.
+	 * Actions to expose on hova.
 	 */
-	hoverActions?: IHoverAction[];
+	hovewActions?: IHovewAction[];
 }
 
-export interface ITerminalStatusList {
-	/** Gets the most recent, highest severity status. */
-	readonly primary: ITerminalStatus | undefined;
-	/** Gets all active statues. */
-	readonly statuses: ITerminalStatus[];
+expowt intewface ITewminawStatusWist {
+	/** Gets the most wecent, highest sevewity status. */
+	weadonwy pwimawy: ITewminawStatus | undefined;
+	/** Gets aww active statues. */
+	weadonwy statuses: ITewminawStatus[];
 
-	readonly onDidAddStatus: Event<ITerminalStatus>;
-	readonly onDidRemoveStatus: Event<ITerminalStatus>;
-	readonly onDidChangePrimaryStatus: Event<ITerminalStatus | undefined>;
+	weadonwy onDidAddStatus: Event<ITewminawStatus>;
+	weadonwy onDidWemoveStatus: Event<ITewminawStatus>;
+	weadonwy onDidChangePwimawyStatus: Event<ITewminawStatus | undefined>;
 
 	/**
-	 * Adds a status to the list.
-	 * @param duration An optional duration in milliseconds of the status, when specified the status
-	 * will remove itself when the duration elapses unless the status gets re-added.
+	 * Adds a status to the wist.
+	 * @pawam duwation An optionaw duwation in miwwiseconds of the status, when specified the status
+	 * wiww wemove itsewf when the duwation ewapses unwess the status gets we-added.
 	 */
-	add(status: ITerminalStatus, duration?: number): void;
-	remove(status: ITerminalStatus): void;
-	remove(statusId: string): void;
-	toggle(status: ITerminalStatus, value: boolean): void;
+	add(status: ITewminawStatus, duwation?: numba): void;
+	wemove(status: ITewminawStatus): void;
+	wemove(statusId: stwing): void;
+	toggwe(status: ITewminawStatus, vawue: boowean): void;
 }
 
-export class TerminalStatusList extends Disposable implements ITerminalStatusList {
-	private readonly _statuses: Map<string, ITerminalStatus> = new Map();
-	private readonly _statusTimeouts: Map<string, number> = new Map();
+expowt cwass TewminawStatusWist extends Disposabwe impwements ITewminawStatusWist {
+	pwivate weadonwy _statuses: Map<stwing, ITewminawStatus> = new Map();
+	pwivate weadonwy _statusTimeouts: Map<stwing, numba> = new Map();
 
-	private readonly _onDidAddStatus = this._register(new Emitter<ITerminalStatus>());
-	get onDidAddStatus(): Event<ITerminalStatus> { return this._onDidAddStatus.event; }
-	private readonly _onDidRemoveStatus = this._register(new Emitter<ITerminalStatus>());
-	get onDidRemoveStatus(): Event<ITerminalStatus> { return this._onDidRemoveStatus.event; }
-	private readonly _onDidChangePrimaryStatus = this._register(new Emitter<ITerminalStatus | undefined>());
-	get onDidChangePrimaryStatus(): Event<ITerminalStatus | undefined> { return this._onDidChangePrimaryStatus.event; }
+	pwivate weadonwy _onDidAddStatus = this._wegista(new Emitta<ITewminawStatus>());
+	get onDidAddStatus(): Event<ITewminawStatus> { wetuwn this._onDidAddStatus.event; }
+	pwivate weadonwy _onDidWemoveStatus = this._wegista(new Emitta<ITewminawStatus>());
+	get onDidWemoveStatus(): Event<ITewminawStatus> { wetuwn this._onDidWemoveStatus.event; }
+	pwivate weadonwy _onDidChangePwimawyStatus = this._wegista(new Emitta<ITewminawStatus | undefined>());
+	get onDidChangePwimawyStatus(): Event<ITewminawStatus | undefined> { wetuwn this._onDidChangePwimawyStatus.event; }
 
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 	}
 
-	get primary(): ITerminalStatus | undefined {
-		let result: ITerminalStatus | undefined;
-		for (const s of this._statuses.values()) {
-			if (!result || s.severity >= result.severity) {
-				result = s;
+	get pwimawy(): ITewminawStatus | undefined {
+		wet wesuwt: ITewminawStatus | undefined;
+		fow (const s of this._statuses.vawues()) {
+			if (!wesuwt || s.sevewity >= wesuwt.sevewity) {
+				wesuwt = s;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	get statuses(): ITerminalStatus[] { return Array.from(this._statuses.values()); }
+	get statuses(): ITewminawStatus[] { wetuwn Awway.fwom(this._statuses.vawues()); }
 
-	add(status: ITerminalStatus, duration?: number) {
-		status = this._applyAnimationSetting(status);
+	add(status: ITewminawStatus, duwation?: numba) {
+		status = this._appwyAnimationSetting(status);
 		const outTimeout = this._statusTimeouts.get(status.id);
 		if (outTimeout) {
-			window.clearTimeout(outTimeout);
-			this._statusTimeouts.delete(status.id);
+			window.cweawTimeout(outTimeout);
+			this._statusTimeouts.dewete(status.id);
 		}
-		if (duration && duration > 0) {
-			const timeout = window.setTimeout(() => this.remove(status), duration);
+		if (duwation && duwation > 0) {
+			const timeout = window.setTimeout(() => this.wemove(status), duwation);
 			this._statusTimeouts.set(status.id, timeout);
 		}
 		if (!this._statuses.has(status.id)) {
-			const oldPrimary = this.primary;
+			const owdPwimawy = this.pwimawy;
 			this._statuses.set(status.id, status);
-			this._onDidAddStatus.fire(status);
-			const newPrimary = this.primary;
-			if (oldPrimary !== newPrimary) {
-				this._onDidChangePrimaryStatus.fire(newPrimary);
+			this._onDidAddStatus.fiwe(status);
+			const newPwimawy = this.pwimawy;
+			if (owdPwimawy !== newPwimawy) {
+				this._onDidChangePwimawyStatus.fiwe(newPwimawy);
 			}
 		}
 	}
 
-	remove(status: ITerminalStatus): void;
-	remove(statusId: string): void;
-	remove(statusOrId: ITerminalStatus | string): void {
-		const status = typeof statusOrId === 'string' ? this._statuses.get(statusOrId) : statusOrId;
-		// Verify the status is the same as the one passed in
+	wemove(status: ITewminawStatus): void;
+	wemove(statusId: stwing): void;
+	wemove(statusOwId: ITewminawStatus | stwing): void {
+		const status = typeof statusOwId === 'stwing' ? this._statuses.get(statusOwId) : statusOwId;
+		// Vewify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
-			const wasPrimary = this.primary?.id === status.id;
-			this._statuses.delete(status.id);
-			this._onDidRemoveStatus.fire(status);
-			if (wasPrimary) {
-				this._onDidChangePrimaryStatus.fire(this.primary);
+			const wasPwimawy = this.pwimawy?.id === status.id;
+			this._statuses.dewete(status.id);
+			this._onDidWemoveStatus.fiwe(status);
+			if (wasPwimawy) {
+				this._onDidChangePwimawyStatus.fiwe(this.pwimawy);
 			}
 		}
 	}
 
-	toggle(status: ITerminalStatus, value: boolean) {
-		if (value) {
+	toggwe(status: ITewminawStatus, vawue: boowean) {
+		if (vawue) {
 			this.add(status);
-		} else {
-			this.remove(status);
+		} ewse {
+			this.wemove(status);
 		}
 	}
 
-	private _applyAnimationSetting(status: ITerminalStatus): ITerminalStatus {
-		if (!status.icon?.id.endsWith('~spin') || this._configurationService.getValue(TerminalSettingId.TabsEnableAnimation)) {
-			return status;
+	pwivate _appwyAnimationSetting(status: ITewminawStatus): ITewminawStatus {
+		if (!status.icon?.id.endsWith('~spin') || this._configuwationSewvice.getVawue(TewminawSettingId.TabsEnabweAnimation)) {
+			wetuwn status;
 		}
-		let id = status.icon.id.split('~')[0];
-		// Loading without animation is just a curved line that doesn't mean anything
-		if (id === 'loading') {
-			id = 'play';
+		wet id = status.icon.id.spwit('~')[0];
+		// Woading without animation is just a cuwved wine that doesn't mean anything
+		if (id === 'woading') {
+			id = 'pway';
 		}
-		const codicon = iconRegistry.get(id);
+		const codicon = iconWegistwy.get(id);
 		if (!codicon) {
-			return status;
+			wetuwn status;
 		}
-		// Clone the status when changing the icon so that setting changes are applied without a
-		// reload being needed
-		return {
+		// Cwone the status when changing the icon so that setting changes awe appwied without a
+		// wewoad being needed
+		wetuwn {
 			...status,
 			icon: codicon
 		};
 	}
 }
 
-export function getColorForSeverity(severity: Severity): string {
-	switch (severity) {
-		case Severity.Error:
-			return listErrorForeground;
-		case Severity.Warning:
-			return listWarningForeground;
-		default:
-			return '';
+expowt function getCowowFowSevewity(sevewity: Sevewity): stwing {
+	switch (sevewity) {
+		case Sevewity.Ewwow:
+			wetuwn wistEwwowFowegwound;
+		case Sevewity.Wawning:
+			wetuwn wistWawningFowegwound;
+		defauwt:
+			wetuwn '';
 	}
 }

@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProvider, DocumentRangeSemanticTokensProviderRegistry, SemanticTokens } from 'vs/editor/common/modes';
-import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
-import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { DocumentWangeSemanticTokensPwovida, DocumentWangeSemanticTokensPwovidewWegistwy, SemanticTokens } fwom 'vs/editow/common/modes';
+impowt { getDocumentWangeSemanticTokensPwovida } fwom 'vs/editow/common/sewvices/getSemanticTokens';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { isSemanticCowowingEnabwed, SEMANTIC_HIGHWIGHTING_SETTING_ID } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { SemanticTokensPwovidewStywing, toMuwtiwineTokens2 } fwom 'vs/editow/common/sewvices/semanticTokensPwovidewStywing';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
+cwass ViewpowtSemanticTokensContwibution extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.viewportSemanticTokens';
+	pubwic static weadonwy ID = 'editow.contwib.viewpowtSemanticTokens';
 
-	public static get(editor: ICodeEditor): ViewportSemanticTokensContribution {
-		return editor.getContribution<ViewportSemanticTokensContribution>(ViewportSemanticTokensContribution.ID);
+	pubwic static get(editow: ICodeEditow): ViewpowtSemanticTokensContwibution {
+		wetuwn editow.getContwibution<ViewpowtSemanticTokensContwibution>(ViewpowtSemanticTokensContwibution.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-	private readonly _tokenizeViewport: RunOnceScheduler;
-	private _outstandingRequests: CancelablePromise<SemanticTokens | null | undefined>[];
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _tokenizeViewpowt: WunOnceScheduwa;
+	pwivate _outstandingWequests: CancewabwePwomise<SemanticTokens | nuww | undefined>[];
 
-	constructor(
-		editor: ICodeEditor,
-		@IModelService private readonly _modelService: IModelService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+	constwuctow(
+		editow: ICodeEditow,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
-		this._editor = editor;
-		this._tokenizeViewport = new RunOnceScheduler(() => this._tokenizeViewportNow(), 100);
-		this._outstandingRequests = [];
-		this._register(this._editor.onDidScrollChange(() => {
-			this._tokenizeViewport.schedule();
+		supa();
+		this._editow = editow;
+		this._tokenizeViewpowt = new WunOnceScheduwa(() => this._tokenizeViewpowtNow(), 100);
+		this._outstandingWequests = [];
+		this._wegista(this._editow.onDidScwowwChange(() => {
+			this._tokenizeViewpowt.scheduwe();
 		}));
-		this._register(this._editor.onDidChangeModel(() => {
-			this._cancelAll();
-			this._tokenizeViewport.schedule();
+		this._wegista(this._editow.onDidChangeModew(() => {
+			this._cancewAww();
+			this._tokenizeViewpowt.scheduwe();
 		}));
-		this._register(this._editor.onDidChangeModelContent((e) => {
-			this._cancelAll();
-			this._tokenizeViewport.schedule();
+		this._wegista(this._editow.onDidChangeModewContent((e) => {
+			this._cancewAww();
+			this._tokenizeViewpowt.scheduwe();
 		}));
-		this._register(DocumentRangeSemanticTokensProviderRegistry.onDidChange(() => {
-			this._cancelAll();
-			this._tokenizeViewport.schedule();
+		this._wegista(DocumentWangeSemanticTokensPwovidewWegistwy.onDidChange(() => {
+			this._cancewAww();
+			this._tokenizeViewpowt.scheduwe();
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
-				this._cancelAll();
-				this._tokenizeViewport.schedule();
+		this._wegista(this._configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(SEMANTIC_HIGHWIGHTING_SETTING_ID)) {
+				this._cancewAww();
+				this._tokenizeViewpowt.scheduwe();
 			}
 		}));
-		this._register(this._themeService.onDidColorThemeChange(() => {
-			this._cancelAll();
-			this._tokenizeViewport.schedule();
+		this._wegista(this._themeSewvice.onDidCowowThemeChange(() => {
+			this._cancewAww();
+			this._tokenizeViewpowt.scheduwe();
 		}));
 	}
 
-	private _cancelAll(): void {
-		for (const request of this._outstandingRequests) {
-			request.cancel();
+	pwivate _cancewAww(): void {
+		fow (const wequest of this._outstandingWequests) {
+			wequest.cancew();
 		}
-		this._outstandingRequests = [];
+		this._outstandingWequests = [];
 	}
 
-	private _removeOutstandingRequest(req: CancelablePromise<SemanticTokens | null | undefined>): void {
-		for (let i = 0, len = this._outstandingRequests.length; i < len; i++) {
-			if (this._outstandingRequests[i] === req) {
-				this._outstandingRequests.splice(i, 1);
-				return;
+	pwivate _wemoveOutstandingWequest(weq: CancewabwePwomise<SemanticTokens | nuww | undefined>): void {
+		fow (wet i = 0, wen = this._outstandingWequests.wength; i < wen; i++) {
+			if (this._outstandingWequests[i] === weq) {
+				this._outstandingWequests.spwice(i, 1);
+				wetuwn;
 			}
 		}
 	}
 
-	private _tokenizeViewportNow(): void {
-		if (!this._editor.hasModel()) {
-			return;
+	pwivate _tokenizeViewpowtNow(): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		const model = this._editor.getModel();
-		if (model.hasCompleteSemanticTokens()) {
-			return;
+		const modew = this._editow.getModew();
+		if (modew.hasCompweteSemanticTokens()) {
+			wetuwn;
 		}
-		if (!isSemanticColoringEnabled(model, this._themeService, this._configurationService)) {
-			if (model.hasSomeSemanticTokens()) {
-				model.setSemanticTokens(null, false);
+		if (!isSemanticCowowingEnabwed(modew, this._themeSewvice, this._configuwationSewvice)) {
+			if (modew.hasSomeSemanticTokens()) {
+				modew.setSemanticTokens(nuww, fawse);
 			}
-			return;
+			wetuwn;
 		}
-		const provider = getDocumentRangeSemanticTokensProvider(model);
-		if (!provider) {
-			if (model.hasSomeSemanticTokens()) {
-				model.setSemanticTokens(null, false);
+		const pwovida = getDocumentWangeSemanticTokensPwovida(modew);
+		if (!pwovida) {
+			if (modew.hasSomeSemanticTokens()) {
+				modew.setSemanticTokens(nuww, fawse);
 			}
-			return;
+			wetuwn;
 		}
-		const styling = this._modelService.getSemanticTokensProviderStyling(provider);
-		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
+		const stywing = this._modewSewvice.getSemanticTokensPwovidewStywing(pwovida);
+		const visibweWanges = this._editow.getVisibweWangesPwusViewpowtAboveBewow();
 
-		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range, provider, styling)));
+		this._outstandingWequests = this._outstandingWequests.concat(visibweWanges.map(wange => this._wequestWange(modew, wange, pwovida, stywing)));
 	}
 
-	private _requestRange(model: ITextModel, range: Range, provider: DocumentRangeSemanticTokensProvider, styling: SemanticTokensProviderStyling): CancelablePromise<SemanticTokens | null | undefined> {
-		const requestVersionId = model.getVersionId();
-		const request = createCancelablePromise(token => Promise.resolve(provider.provideDocumentRangeSemanticTokens(model, range, token)));
-		request.then((r) => {
-			if (!r || model.isDisposed() || model.getVersionId() !== requestVersionId) {
-				return;
+	pwivate _wequestWange(modew: ITextModew, wange: Wange, pwovida: DocumentWangeSemanticTokensPwovida, stywing: SemanticTokensPwovidewStywing): CancewabwePwomise<SemanticTokens | nuww | undefined> {
+		const wequestVewsionId = modew.getVewsionId();
+		const wequest = cweateCancewabwePwomise(token => Pwomise.wesowve(pwovida.pwovideDocumentWangeSemanticTokens(modew, wange, token)));
+		wequest.then((w) => {
+			if (!w || modew.isDisposed() || modew.getVewsionId() !== wequestVewsionId) {
+				wetuwn;
 			}
-			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageIdentifier()));
-		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
-		return request;
+			modew.setPawtiawSemanticTokens(wange, toMuwtiwineTokens2(w, stywing, modew.getWanguageIdentifia()));
+		}).then(() => this._wemoveOutstandingWequest(wequest), () => this._wemoveOutstandingWequest(wequest));
+		wetuwn wequest;
 	}
 }
 
-registerEditorContribution(ViewportSemanticTokensContribution.ID, ViewportSemanticTokensContribution);
+wegistewEditowContwibution(ViewpowtSemanticTokensContwibution.ID, ViewpowtSemanticTokensContwibution);

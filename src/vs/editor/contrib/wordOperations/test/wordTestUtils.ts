@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITestCodeEditow, withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
 
-export function deserializePipePositions(text: string): [string, Position[]] {
-	let resultText = '';
-	let lineNumber = 1;
-	let charIndex = 0;
-	let positions: Position[] = [];
-	for (let i = 0, len = text.length; i < len; i++) {
-		const chr = text.charAt(i);
-		if (chr === '\n') {
-			resultText += chr;
-			lineNumber++;
-			charIndex = 0;
+expowt function desewiawizePipePositions(text: stwing): [stwing, Position[]] {
+	wet wesuwtText = '';
+	wet wineNumba = 1;
+	wet chawIndex = 0;
+	wet positions: Position[] = [];
+	fow (wet i = 0, wen = text.wength; i < wen; i++) {
+		const chw = text.chawAt(i);
+		if (chw === '\n') {
+			wesuwtText += chw;
+			wineNumba++;
+			chawIndex = 0;
 			continue;
 		}
-		if (chr === '|') {
-			positions.push(new Position(lineNumber, charIndex + 1));
-		} else {
-			resultText += chr;
-			charIndex++;
+		if (chw === '|') {
+			positions.push(new Position(wineNumba, chawIndex + 1));
+		} ewse {
+			wesuwtText += chw;
+			chawIndex++;
 		}
 	}
-	return [resultText, positions];
+	wetuwn [wesuwtText, positions];
 }
 
-export function serializePipePositions(text: string, positions: Position[]): string {
-	positions.sort(Position.compare);
-	let resultText = '';
-	let lineNumber = 1;
-	let charIndex = 0;
-	for (let i = 0, len = text.length; i < len; i++) {
-		const chr = text.charAt(i);
-		if (positions.length > 0 && positions[0].lineNumber === lineNumber && positions[0].column === charIndex + 1) {
-			resultText += '|';
+expowt function sewiawizePipePositions(text: stwing, positions: Position[]): stwing {
+	positions.sowt(Position.compawe);
+	wet wesuwtText = '';
+	wet wineNumba = 1;
+	wet chawIndex = 0;
+	fow (wet i = 0, wen = text.wength; i < wen; i++) {
+		const chw = text.chawAt(i);
+		if (positions.wength > 0 && positions[0].wineNumba === wineNumba && positions[0].cowumn === chawIndex + 1) {
+			wesuwtText += '|';
 			positions.shift();
 		}
-		resultText += chr;
-		if (chr === '\n') {
-			lineNumber++;
-			charIndex = 0;
-		} else {
-			charIndex++;
+		wesuwtText += chw;
+		if (chw === '\n') {
+			wineNumba++;
+			chawIndex = 0;
+		} ewse {
+			chawIndex++;
 		}
 	}
-	if (positions.length > 0 && positions[0].lineNumber === lineNumber && positions[0].column === charIndex + 1) {
-		resultText += '|';
+	if (positions.wength > 0 && positions[0].wineNumba === wineNumba && positions[0].cowumn === chawIndex + 1) {
+		wesuwtText += '|';
 		positions.shift();
 	}
-	if (positions.length > 0) {
-		throw new Error(`Unexpected left over positions!!!`);
+	if (positions.wength > 0) {
+		thwow new Ewwow(`Unexpected weft ova positions!!!`);
 	}
-	return resultText;
+	wetuwn wesuwtText;
 }
 
-export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean): Position[] {
-	let actualStops: Position[] = [];
-	withTestCodeEditor(text, {}, (editor) => {
-		editor.setPosition(initialPosition);
-		while (true) {
-			action(editor);
-			actualStops.push(record(editor));
-			if (stopCondition(editor)) {
-				break;
+expowt function testWepeatedActionAndExtwactPositions(text: stwing, initiawPosition: Position, action: (editow: ITestCodeEditow) => void, wecowd: (editow: ITestCodeEditow) => Position, stopCondition: (editow: ITestCodeEditow) => boowean): Position[] {
+	wet actuawStops: Position[] = [];
+	withTestCodeEditow(text, {}, (editow) => {
+		editow.setPosition(initiawPosition);
+		whiwe (twue) {
+			action(editow);
+			actuawStops.push(wecowd(editow));
+			if (stopCondition(editow)) {
+				bweak;
 			}
 
-			if (actualStops.length > 1000) {
-				throw new Error(`Endless loop detected involving position ${editor.getPosition()}!`);
+			if (actuawStops.wength > 1000) {
+				thwow new Ewwow(`Endwess woop detected invowving position ${editow.getPosition()}!`);
 			}
 		}
 	});
-	return actualStops;
+	wetuwn actuawStops;
 }

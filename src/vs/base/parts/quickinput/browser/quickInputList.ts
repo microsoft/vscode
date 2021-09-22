@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { Action } from 'vs/base/common/actions';
-import { range } from 'vs/base/common/arrays';
-import { getCodiconAriaLabel } from 'vs/base/common/codicons';
-import { compareAnything } from 'vs/base/common/comparers';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMatch } from 'vs/base/common/filters';
-import { matchesFuzzyIconAware, parseLabelWithIcons } from 'vs/base/common/iconLabels';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
-import 'vs/css!./media/quickInput';
-import { localize } from 'vs/nls';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IconWabew, IIconWabewVawueOptions } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { KeybindingWabew } fwom 'vs/base/bwowsa/ui/keybindingWabew/keybindingWabew';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistAccessibiwityPwovida, IWistOptions, IWistStywes, Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { wange } fwom 'vs/base/common/awways';
+impowt { getCodiconAwiaWabew } fwom 'vs/base/common/codicons';
+impowt { compaweAnything } fwom 'vs/base/common/compawews';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IMatch } fwom 'vs/base/common/fiwtews';
+impowt { matchesFuzzyIconAwawe, pawseWabewWithIcons } fwom 'vs/base/common/iconWabews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IQuickInputOptions } fwom 'vs/base/pawts/quickinput/bwowsa/quickInput';
+impowt { getIconCwass } fwom 'vs/base/pawts/quickinput/bwowsa/quickInputUtiws';
+impowt { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSepawatow } fwom 'vs/base/pawts/quickinput/common/quickInput';
+impowt 'vs/css!./media/quickInput';
+impowt { wocawize } fwom 'vs/nws';
 
 const $ = dom.$;
 
-interface IListElement {
-	readonly index: number;
-	readonly item: IQuickPickItem;
-	readonly saneLabel: string;
-	readonly saneMeta?: string;
-	readonly saneAriaLabel: string;
-	readonly saneDescription?: string;
-	readonly saneDetail?: string;
-	readonly labelHighlights?: IMatch[];
-	readonly descriptionHighlights?: IMatch[];
-	readonly detailHighlights?: IMatch[];
-	readonly checked: boolean;
-	readonly separator?: IQuickPickSeparator;
-	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
+intewface IWistEwement {
+	weadonwy index: numba;
+	weadonwy item: IQuickPickItem;
+	weadonwy saneWabew: stwing;
+	weadonwy saneMeta?: stwing;
+	weadonwy saneAwiaWabew: stwing;
+	weadonwy saneDescwiption?: stwing;
+	weadonwy saneDetaiw?: stwing;
+	weadonwy wabewHighwights?: IMatch[];
+	weadonwy descwiptionHighwights?: IMatch[];
+	weadonwy detaiwHighwights?: IMatch[];
+	weadonwy checked: boowean;
+	weadonwy sepawatow?: IQuickPickSepawatow;
+	weadonwy fiweButtonTwiggewed: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
-class ListElement implements IListElement, IDisposable {
-	index!: number;
+cwass WistEwement impwements IWistEwement, IDisposabwe {
+	index!: numba;
 	item!: IQuickPickItem;
-	saneLabel!: string;
-	saneMeta!: string;
-	saneAriaLabel!: string;
-	saneDescription?: string;
-	saneDetail?: string;
-	hidden = false;
-	private readonly _onChecked = new Emitter<boolean>();
+	saneWabew!: stwing;
+	saneMeta!: stwing;
+	saneAwiaWabew!: stwing;
+	saneDescwiption?: stwing;
+	saneDetaiw?: stwing;
+	hidden = fawse;
+	pwivate weadonwy _onChecked = new Emitta<boowean>();
 	onChecked = this._onChecked.event;
-	_checked?: boolean;
+	_checked?: boowean;
 	get checked() {
-		return !!this._checked;
+		wetuwn !!this._checked;
 	}
-	set checked(value: boolean) {
-		if (value !== this._checked) {
-			this._checked = value;
-			this._onChecked.fire(value);
+	set checked(vawue: boowean) {
+		if (vawue !== this._checked) {
+			this._checked = vawue;
+			this._onChecked.fiwe(vawue);
 		}
 	}
-	separator?: IQuickPickSeparator;
-	labelHighlights?: IMatch[];
-	descriptionHighlights?: IMatch[];
-	detailHighlights?: IMatch[];
-	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
+	sepawatow?: IQuickPickSepawatow;
+	wabewHighwights?: IMatch[];
+	descwiptionHighwights?: IMatch[];
+	detaiwHighwights?: IMatch[];
+	fiweButtonTwiggewed!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
-	constructor(init: IListElement) {
+	constwuctow(init: IWistEwement) {
 		Object.assign(this, init);
 	}
 
@@ -83,669 +83,669 @@ class ListElement implements IListElement, IDisposable {
 	}
 }
 
-interface IListElementTemplateData {
-	entry: HTMLDivElement;
-	checkbox: HTMLInputElement;
-	label: IconLabel;
-	keybinding: KeybindingLabel;
-	detail: HighlightedLabel;
-	separator: HTMLDivElement;
-	actionBar: ActionBar;
-	element: ListElement;
-	toDisposeElement: IDisposable[];
-	toDisposeTemplate: IDisposable[];
+intewface IWistEwementTempwateData {
+	entwy: HTMWDivEwement;
+	checkbox: HTMWInputEwement;
+	wabew: IconWabew;
+	keybinding: KeybindingWabew;
+	detaiw: HighwightedWabew;
+	sepawatow: HTMWDivEwement;
+	actionBaw: ActionBaw;
+	ewement: WistEwement;
+	toDisposeEwement: IDisposabwe[];
+	toDisposeTempwate: IDisposabwe[];
 }
 
-class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
+cwass WistEwementWendewa impwements IWistWendewa<WistEwement, IWistEwementTempwateData> {
 
-	static readonly ID = 'listelement';
+	static weadonwy ID = 'wistewement';
 
-	get templateId() {
-		return ListElementRenderer.ID;
+	get tempwateId() {
+		wetuwn WistEwementWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IListElementTemplateData {
-		const data: IListElementTemplateData = Object.create(null);
-		data.toDisposeElement = [];
-		data.toDisposeTemplate = [];
+	wendewTempwate(containa: HTMWEwement): IWistEwementTempwateData {
+		const data: IWistEwementTempwateData = Object.cweate(nuww);
+		data.toDisposeEwement = [];
+		data.toDisposeTempwate = [];
 
-		data.entry = dom.append(container, $('.quick-input-list-entry'));
+		data.entwy = dom.append(containa, $('.quick-input-wist-entwy'));
 
 		// Checkbox
-		const label = dom.append(data.entry, $('label.quick-input-list-label'));
-		data.toDisposeTemplate.push(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
-			if (!data.checkbox.offsetParent) { // If checkbox not visible:
-				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
+		const wabew = dom.append(data.entwy, $('wabew.quick-input-wist-wabew'));
+		data.toDisposeTempwate.push(dom.addStandawdDisposabweWistena(wabew, dom.EventType.CWICK, e => {
+			if (!data.checkbox.offsetPawent) { // If checkbox not visibwe:
+				e.pweventDefauwt(); // Pwevent toggwe of checkbox when it is immediatewy shown aftewwawds. #91740
 			}
 		}));
-		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
+		data.checkbox = <HTMWInputEwement>dom.append(wabew, $('input.quick-input-wist-checkbox'));
 		data.checkbox.type = 'checkbox';
-		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
-			data.element.checked = data.checkbox.checked;
+		data.toDisposeTempwate.push(dom.addStandawdDisposabweWistena(data.checkbox, dom.EventType.CHANGE, e => {
+			data.ewement.checked = data.checkbox.checked;
 		}));
 
-		// Rows
-		const rows = dom.append(label, $('.quick-input-list-rows'));
-		const row1 = dom.append(rows, $('.quick-input-list-row'));
-		const row2 = dom.append(rows, $('.quick-input-list-row'));
+		// Wows
+		const wows = dom.append(wabew, $('.quick-input-wist-wows'));
+		const wow1 = dom.append(wows, $('.quick-input-wist-wow'));
+		const wow2 = dom.append(wows, $('.quick-input-wist-wow'));
 
-		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		// Wabew
+		data.wabew = new IconWabew(wow1, { suppowtHighwights: twue, suppowtDescwiptionHighwights: twue, suppowtIcons: twue });
 
 		// Keybinding
-		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
-		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+		const keybindingContaina = dom.append(wow1, $('.quick-input-wist-entwy-keybinding'));
+		data.keybinding = new KeybindingWabew(keybindingContaina, pwatfowm.OS);
 
-		// Detail
-		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new HighlightedLabel(detailContainer, true);
+		// Detaiw
+		const detaiwContaina = dom.append(wow2, $('.quick-input-wist-wabew-meta'));
+		data.detaiw = new HighwightedWabew(detaiwContaina, twue);
 
-		// Separator
-		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
+		// Sepawatow
+		data.sepawatow = dom.append(data.entwy, $('.quick-input-wist-sepawatow'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry);
-		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
-		data.toDisposeTemplate.push(data.actionBar);
+		data.actionBaw = new ActionBaw(data.entwy);
+		data.actionBaw.domNode.cwassWist.add('quick-input-wist-entwy-action-baw');
+		data.toDisposeTempwate.push(data.actionBaw);
 
-		return data;
+		wetuwn data;
 	}
 
-	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
-		data.toDisposeElement = dispose(data.toDisposeElement);
-		data.element = element;
-		data.checkbox.checked = element.checked;
-		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
+	wendewEwement(ewement: WistEwement, index: numba, data: IWistEwementTempwateData): void {
+		data.toDisposeEwement = dispose(data.toDisposeEwement);
+		data.ewement = ewement;
+		data.checkbox.checked = ewement.checked;
+		data.toDisposeEwement.push(ewement.onChecked(checked => data.checkbox.checked = checked));
 
-		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+		const { wabewHighwights, descwiptionHighwights, detaiwHighwights } = ewement;
 
-		// Label
-		const options: IIconLabelValueOptions = Object.create(null);
-		options.matches = labelHighlights || [];
-		options.descriptionTitle = element.saneDescription;
-		options.descriptionMatches = descriptionHighlights || [];
-		options.extraClasses = element.item.iconClasses;
-		options.italic = element.item.italic;
-		options.strikethrough = element.item.strikethrough;
-		data.label.setLabel(element.saneLabel, element.saneDescription, options);
+		// Wabew
+		const options: IIconWabewVawueOptions = Object.cweate(nuww);
+		options.matches = wabewHighwights || [];
+		options.descwiptionTitwe = ewement.saneDescwiption;
+		options.descwiptionMatches = descwiptionHighwights || [];
+		options.extwaCwasses = ewement.item.iconCwasses;
+		options.itawic = ewement.item.itawic;
+		options.stwikethwough = ewement.item.stwikethwough;
+		data.wabew.setWabew(ewement.saneWabew, ewement.saneDescwiption, options);
 
 		// Keybinding
-		data.keybinding.set(element.item.keybinding);
+		data.keybinding.set(ewement.item.keybinding);
 
 		// Meta
-		data.detail.set(element.saneDetail, detailHighlights);
+		data.detaiw.set(ewement.saneDetaiw, detaiwHighwights);
 
-		// Separator
-		if (element.separator && element.separator.label) {
-			data.separator.textContent = element.separator.label;
-			data.separator.style.display = '';
-		} else {
-			data.separator.style.display = 'none';
+		// Sepawatow
+		if (ewement.sepawatow && ewement.sepawatow.wabew) {
+			data.sepawatow.textContent = ewement.sepawatow.wabew;
+			data.sepawatow.stywe.dispway = '';
+		} ewse {
+			data.sepawatow.stywe.dispway = 'none';
 		}
-		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
+		data.entwy.cwassWist.toggwe('quick-input-wist-sepawatow-bowda', !!ewement.sepawatow);
 
 		// Actions
-		data.actionBar.clear();
-		const buttons = element.item.buttons;
-		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index) => {
-				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
-				if (button.alwaysVisible) {
-					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
+		data.actionBaw.cweaw();
+		const buttons = ewement.item.buttons;
+		if (buttons && buttons.wength) {
+			data.actionBaw.push(buttons.map((button, index) => {
+				wet cssCwasses = button.iconCwass || (button.iconPath ? getIconCwass(button.iconPath) : undefined);
+				if (button.awwaysVisibwe) {
+					cssCwasses = cssCwasses ? `${cssCwasses} awways-visibwe` : 'awways-visibwe';
 				}
-				const action = new Action(`id-${index}`, '', cssClasses, true, async () => {
-					element.fireButtonTriggered({
+				const action = new Action(`id-${index}`, '', cssCwasses, twue, async () => {
+					ewement.fiweButtonTwiggewed({
 						button,
-						item: element.item
+						item: ewement.item
 					});
 				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
-			data.entry.classList.add('has-actions');
-		} else {
-			data.entry.classList.remove('has-actions');
+				action.toowtip = button.toowtip || '';
+				wetuwn action;
+			}), { icon: twue, wabew: fawse });
+			data.entwy.cwassWist.add('has-actions');
+		} ewse {
+			data.entwy.cwassWist.wemove('has-actions');
 		}
 	}
 
-	disposeElement(element: ListElement, index: number, data: IListElementTemplateData): void {
-		data.toDisposeElement = dispose(data.toDisposeElement);
+	disposeEwement(ewement: WistEwement, index: numba, data: IWistEwementTempwateData): void {
+		data.toDisposeEwement = dispose(data.toDisposeEwement);
 	}
 
-	disposeTemplate(data: IListElementTemplateData): void {
-		data.toDisposeElement = dispose(data.toDisposeElement);
-		data.toDisposeTemplate = dispose(data.toDisposeTemplate);
-	}
-}
-
-class ListElementDelegate implements IListVirtualDelegate<ListElement> {
-
-	getHeight(element: ListElement): number {
-		return element.saneDetail ? 44 : 22;
-	}
-
-	getTemplateId(element: ListElement): string {
-		return ListElementRenderer.ID;
+	disposeTempwate(data: IWistEwementTempwateData): void {
+		data.toDisposeEwement = dispose(data.toDisposeEwement);
+		data.toDisposeTempwate = dispose(data.toDisposeTempwate);
 	}
 }
 
-export enum QuickInputListFocus {
-	First = 1,
+cwass WistEwementDewegate impwements IWistViwtuawDewegate<WistEwement> {
+
+	getHeight(ewement: WistEwement): numba {
+		wetuwn ewement.saneDetaiw ? 44 : 22;
+	}
+
+	getTempwateId(ewement: WistEwement): stwing {
+		wetuwn WistEwementWendewa.ID;
+	}
+}
+
+expowt enum QuickInputWistFocus {
+	Fiwst = 1,
 	Second,
-	Last,
+	Wast,
 	Next,
-	Previous,
+	Pwevious,
 	NextPage,
-	PreviousPage
+	PweviousPage
 }
 
-export class QuickInputList {
+expowt cwass QuickInputWist {
 
-	readonly id: string;
-	private container: HTMLElement;
-	private list: List<ListElement>;
-	private inputElements: Array<IQuickPickItem | IQuickPickSeparator> = [];
-	private elements: ListElement[] = [];
-	private elementsToIndexes = new Map<IQuickPickItem, number>();
-	matchOnDescription = false;
-	matchOnDetail = false;
-	matchOnLabel = true;
-	matchOnMeta = true;
-	sortByLabel = true;
-	private readonly _onChangedAllVisibleChecked = new Emitter<boolean>();
-	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
-	private readonly _onChangedCheckedCount = new Emitter<number>();
-	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
-	private readonly _onChangedVisibleCount = new Emitter<number>();
-	onChangedVisibleCount: Event<number> = this._onChangedVisibleCount.event;
-	private readonly _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
-	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
-	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
-	onButtonTriggered = this._onButtonTriggered.event;
-	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
-	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
-	private readonly _onLeave = new Emitter<void>();
-	onLeave: Event<void> = this._onLeave.event;
-	private _fireCheckedEvents = true;
-	private elementDisposables: IDisposable[] = [];
-	private disposables: IDisposable[] = [];
+	weadonwy id: stwing;
+	pwivate containa: HTMWEwement;
+	pwivate wist: Wist<WistEwement>;
+	pwivate inputEwements: Awway<IQuickPickItem | IQuickPickSepawatow> = [];
+	pwivate ewements: WistEwement[] = [];
+	pwivate ewementsToIndexes = new Map<IQuickPickItem, numba>();
+	matchOnDescwiption = fawse;
+	matchOnDetaiw = fawse;
+	matchOnWabew = twue;
+	matchOnMeta = twue;
+	sowtByWabew = twue;
+	pwivate weadonwy _onChangedAwwVisibweChecked = new Emitta<boowean>();
+	onChangedAwwVisibweChecked: Event<boowean> = this._onChangedAwwVisibweChecked.event;
+	pwivate weadonwy _onChangedCheckedCount = new Emitta<numba>();
+	onChangedCheckedCount: Event<numba> = this._onChangedCheckedCount.event;
+	pwivate weadonwy _onChangedVisibweCount = new Emitta<numba>();
+	onChangedVisibweCount: Event<numba> = this._onChangedVisibweCount.event;
+	pwivate weadonwy _onChangedCheckedEwements = new Emitta<IQuickPickItem[]>();
+	onChangedCheckedEwements: Event<IQuickPickItem[]> = this._onChangedCheckedEwements.event;
+	pwivate weadonwy _onButtonTwiggewed = new Emitta<IQuickPickItemButtonEvent<IQuickPickItem>>();
+	onButtonTwiggewed = this._onButtonTwiggewed.event;
+	pwivate weadonwy _onKeyDown = new Emitta<StandawdKeyboawdEvent>();
+	onKeyDown: Event<StandawdKeyboawdEvent> = this._onKeyDown.event;
+	pwivate weadonwy _onWeave = new Emitta<void>();
+	onWeave: Event<void> = this._onWeave.event;
+	pwivate _fiweCheckedEvents = twue;
+	pwivate ewementDisposabwes: IDisposabwe[] = [];
+	pwivate disposabwes: IDisposabwe[] = [];
 
-	constructor(
-		private parent: HTMLElement,
-		id: string,
+	constwuctow(
+		pwivate pawent: HTMWEwement,
+		id: stwing,
 		options: IQuickInputOptions,
 	) {
 		this.id = id;
-		this.container = dom.append(this.parent, $('.quick-input-list'));
-		const delegate = new ListElementDelegate();
-		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
-			identityProvider: { getId: element => element.saneLabel },
-			setRowLineHeight: false,
-			multipleSelectionSupport: false,
-			horizontalScrolling: false,
-			accessibilityProvider
-		} as IListOptions<ListElement>);
-		this.list.getHTMLElement().id = id;
-		this.disposables.push(this.list);
-		this.disposables.push(this.list.onKeyDown(e => {
-			const event = new StandardKeyboardEvent(e);
+		this.containa = dom.append(this.pawent, $('.quick-input-wist'));
+		const dewegate = new WistEwementDewegate();
+		const accessibiwityPwovida = new QuickInputAccessibiwityPwovida();
+		this.wist = options.cweateWist('QuickInput', this.containa, dewegate, [new WistEwementWendewa()], {
+			identityPwovida: { getId: ewement => ewement.saneWabew },
+			setWowWineHeight: fawse,
+			muwtipweSewectionSuppowt: fawse,
+			howizontawScwowwing: fawse,
+			accessibiwityPwovida
+		} as IWistOptions<WistEwement>);
+		this.wist.getHTMWEwement().id = id;
+		this.disposabwes.push(this.wist);
+		this.disposabwes.push(this.wist.onKeyDown(e => {
+			const event = new StandawdKeyboawdEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Space:
-					this.toggleCheckbox();
-					break;
+					this.toggweCheckbox();
+					bweak;
 				case KeyCode.KEY_A:
-					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
-						this.list.setFocus(range(this.list.length));
+					if (pwatfowm.isMacintosh ? e.metaKey : e.ctwwKey) {
+						this.wist.setFocus(wange(this.wist.wength));
 					}
-					break;
-				case KeyCode.UpArrow:
-					const focus1 = this.list.getFocus();
-					if (focus1.length === 1 && focus1[0] === 0) {
-						this._onLeave.fire();
+					bweak;
+				case KeyCode.UpAwwow:
+					const focus1 = this.wist.getFocus();
+					if (focus1.wength === 1 && focus1[0] === 0) {
+						this._onWeave.fiwe();
 					}
-					break;
-				case KeyCode.DownArrow:
-					const focus2 = this.list.getFocus();
-					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
-						this._onLeave.fire();
+					bweak;
+				case KeyCode.DownAwwow:
+					const focus2 = this.wist.getFocus();
+					if (focus2.wength === 1 && focus2[0] === this.wist.wength - 1) {
+						this._onWeave.fiwe();
 					}
-					break;
+					bweak;
 			}
 
-			this._onKeyDown.fire(event);
+			this._onKeyDown.fiwe(event);
 		}));
-		this.disposables.push(this.list.onMouseDown(e => {
-			if (e.browserEvent.button !== 2) {
-				// Works around / fixes #64350.
-				e.browserEvent.preventDefault();
+		this.disposabwes.push(this.wist.onMouseDown(e => {
+			if (e.bwowsewEvent.button !== 2) {
+				// Wowks awound / fixes #64350.
+				e.bwowsewEvent.pweventDefauwt();
 			}
 		}));
-		this.disposables.push(dom.addDisposableListener(this.container, dom.EventType.CLICK, e => {
-			if (e.x || e.y) { // Avoid 'click' triggered by 'space' on checkbox.
-				this._onLeave.fire();
+		this.disposabwes.push(dom.addDisposabweWistena(this.containa, dom.EventType.CWICK, e => {
+			if (e.x || e.y) { // Avoid 'cwick' twiggewed by 'space' on checkbox.
+				this._onWeave.fiwe();
 			}
 		}));
-		this.disposables.push(this.list.onMouseMiddleClick(e => {
-			this._onLeave.fire();
+		this.disposabwes.push(this.wist.onMouseMiddweCwick(e => {
+			this._onWeave.fiwe();
 		}));
-		this.disposables.push(this.list.onContextMenu(e => {
-			if (typeof e.index === 'number') {
-				e.browserEvent.preventDefault();
+		this.disposabwes.push(this.wist.onContextMenu(e => {
+			if (typeof e.index === 'numba') {
+				e.bwowsewEvent.pweventDefauwt();
 
-				// we want to treat a context menu event as
-				// a gesture to open the item at the index
+				// we want to tweat a context menu event as
+				// a gestuwe to open the item at the index
 				// since we do not have any context menu
-				// this enables for example macOS to Ctrl-
-				// click on an item to open it.
-				this.list.setSelection([e.index]);
+				// this enabwes fow exampwe macOS to Ctww-
+				// cwick on an item to open it.
+				this.wist.setSewection([e.index]);
 			}
 		}));
-		this.disposables.push(
-			this._onChangedAllVisibleChecked,
+		this.disposabwes.push(
+			this._onChangedAwwVisibweChecked,
 			this._onChangedCheckedCount,
-			this._onChangedVisibleCount,
-			this._onChangedCheckedElements,
-			this._onButtonTriggered,
-			this._onLeave,
+			this._onChangedVisibweCount,
+			this._onChangedCheckedEwements,
+			this._onButtonTwiggewed,
+			this._onWeave,
 			this._onKeyDown
 		);
 	}
 
 	@memoize
 	get onDidChangeFocus() {
-		return Event.map(this.list.onDidChangeFocus, e => e.elements.map(e => e.item));
+		wetuwn Event.map(this.wist.onDidChangeFocus, e => e.ewements.map(e => e.item));
 	}
 
 	@memoize
-	get onDidChangeSelection() {
-		return Event.map(this.list.onDidChangeSelection, e => ({ items: e.elements.map(e => e.item), event: e.browserEvent }));
+	get onDidChangeSewection() {
+		wetuwn Event.map(this.wist.onDidChangeSewection, e => ({ items: e.ewements.map(e => e.item), event: e.bwowsewEvent }));
 	}
 
-	get scrollTop() {
-		return this.list.scrollTop;
+	get scwowwTop() {
+		wetuwn this.wist.scwowwTop;
 	}
 
-	set scrollTop(scrollTop: number) {
-		this.list.scrollTop = scrollTop;
+	set scwowwTop(scwowwTop: numba) {
+		this.wist.scwowwTop = scwowwTop;
 	}
 
-	getAllVisibleChecked() {
-		return this.allVisibleChecked(this.elements, false);
+	getAwwVisibweChecked() {
+		wetuwn this.awwVisibweChecked(this.ewements, fawse);
 	}
 
-	private allVisibleChecked(elements: ListElement[], whenNoneVisible = true) {
-		for (let i = 0, n = elements.length; i < n; i++) {
-			const element = elements[i];
-			if (!element.hidden) {
-				if (!element.checked) {
-					return false;
-				} else {
-					whenNoneVisible = true;
+	pwivate awwVisibweChecked(ewements: WistEwement[], whenNoneVisibwe = twue) {
+		fow (wet i = 0, n = ewements.wength; i < n; i++) {
+			const ewement = ewements[i];
+			if (!ewement.hidden) {
+				if (!ewement.checked) {
+					wetuwn fawse;
+				} ewse {
+					whenNoneVisibwe = twue;
 				}
 			}
 		}
-		return whenNoneVisible;
+		wetuwn whenNoneVisibwe;
 	}
 
 	getCheckedCount() {
-		let count = 0;
-		const elements = this.elements;
-		for (let i = 0, n = elements.length; i < n; i++) {
-			if (elements[i].checked) {
+		wet count = 0;
+		const ewements = this.ewements;
+		fow (wet i = 0, n = ewements.wength; i < n; i++) {
+			if (ewements[i].checked) {
 				count++;
 			}
 		}
-		return count;
+		wetuwn count;
 	}
 
-	getVisibleCount() {
-		let count = 0;
-		const elements = this.elements;
-		for (let i = 0, n = elements.length; i < n; i++) {
-			if (!elements[i].hidden) {
+	getVisibweCount() {
+		wet count = 0;
+		const ewements = this.ewements;
+		fow (wet i = 0, n = ewements.wength; i < n; i++) {
+			if (!ewements[i].hidden) {
 				count++;
 			}
 		}
-		return count;
+		wetuwn count;
 	}
 
-	setAllVisibleChecked(checked: boolean) {
-		try {
-			this._fireCheckedEvents = false;
-			this.elements.forEach(element => {
-				if (!element.hidden) {
-					element.checked = checked;
+	setAwwVisibweChecked(checked: boowean) {
+		twy {
+			this._fiweCheckedEvents = fawse;
+			this.ewements.fowEach(ewement => {
+				if (!ewement.hidden) {
+					ewement.checked = checked;
 				}
 			});
-		} finally {
-			this._fireCheckedEvents = true;
-			this.fireCheckedEvents();
+		} finawwy {
+			this._fiweCheckedEvents = twue;
+			this.fiweCheckedEvents();
 		}
 	}
 
-	setElements(inputElements: Array<IQuickPickItem | IQuickPickSeparator>): void {
-		this.elementDisposables = dispose(this.elementDisposables);
-		const fireButtonTriggered = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event);
-		this.inputElements = inputElements;
-		this.elements = inputElements.reduce((result, item, index) => {
-			if (item.type !== 'separator') {
-				const previous = index && inputElements[index - 1];
-				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
-				const saneMeta = item.meta && item.meta.replace(/\r?\n/g, ' ');
-				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
-				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
-				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-					.map(s => getCodiconAriaLabel(s))
-					.filter(s => !!s)
+	setEwements(inputEwements: Awway<IQuickPickItem | IQuickPickSepawatow>): void {
+		this.ewementDisposabwes = dispose(this.ewementDisposabwes);
+		const fiweButtonTwiggewed = (event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fiweButtonTwiggewed(event);
+		this.inputEwements = inputEwements;
+		this.ewements = inputEwements.weduce((wesuwt, item, index) => {
+			if (item.type !== 'sepawatow') {
+				const pwevious = index && inputEwements[index - 1];
+				const saneWabew = item.wabew && item.wabew.wepwace(/\w?\n/g, ' ');
+				const saneMeta = item.meta && item.meta.wepwace(/\w?\n/g, ' ');
+				const saneDescwiption = item.descwiption && item.descwiption.wepwace(/\w?\n/g, ' ');
+				const saneDetaiw = item.detaiw && item.detaiw.wepwace(/\w?\n/g, ' ');
+				const saneAwiaWabew = item.awiaWabew || [saneWabew, saneDescwiption, saneDetaiw]
+					.map(s => getCodiconAwiaWabew(s))
+					.fiwta(s => !!s)
 					.join(', ');
 
-				result.push(new ListElement({
+				wesuwt.push(new WistEwement({
 					index,
 					item,
-					saneLabel,
+					saneWabew,
 					saneMeta,
-					saneAriaLabel,
-					saneDescription,
-					saneDetail,
-					labelHighlights: item.highlights?.label,
-					descriptionHighlights: item.highlights?.description,
-					detailHighlights: item.highlights?.detail,
-					checked: false,
-					separator: previous && previous.type === 'separator' ? previous : undefined,
-					fireButtonTriggered
+					saneAwiaWabew,
+					saneDescwiption,
+					saneDetaiw,
+					wabewHighwights: item.highwights?.wabew,
+					descwiptionHighwights: item.highwights?.descwiption,
+					detaiwHighwights: item.highwights?.detaiw,
+					checked: fawse,
+					sepawatow: pwevious && pwevious.type === 'sepawatow' ? pwevious : undefined,
+					fiweButtonTwiggewed
 				}));
 			}
-			return result;
-		}, [] as ListElement[]);
-		this.elementDisposables.push(...this.elements);
-		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
+			wetuwn wesuwt;
+		}, [] as WistEwement[]);
+		this.ewementDisposabwes.push(...this.ewements);
+		this.ewementDisposabwes.push(...this.ewements.map(ewement => ewement.onChecked(() => this.fiweCheckedEvents())));
 
-		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
-			map.set(element.item, index);
-			return map;
-		}, new Map<IQuickPickItem, number>());
-		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
-		this.list.splice(0, this.list.length, this.elements);
-		this._onChangedVisibleCount.fire(this.elements.length);
+		this.ewementsToIndexes = this.ewements.weduce((map, ewement, index) => {
+			map.set(ewement.item, index);
+			wetuwn map;
+		}, new Map<IQuickPickItem, numba>());
+		this.wist.spwice(0, this.wist.wength); // Cweaw focus and sewection fiwst, sending the events when the wist is empty.
+		this.wist.spwice(0, this.wist.wength, this.ewements);
+		this._onChangedVisibweCount.fiwe(this.ewements.wength);
 	}
 
-	getElementsCount(): number {
-		return this.inputElements.length;
+	getEwementsCount(): numba {
+		wetuwn this.inputEwements.wength;
 	}
 
-	getFocusedElements() {
-		return this.list.getFocusedElements()
+	getFocusedEwements() {
+		wetuwn this.wist.getFocusedEwements()
 			.map(e => e.item);
 	}
 
-	setFocusedElements(items: IQuickPickItem[]) {
-		this.list.setFocus(items
-			.filter(item => this.elementsToIndexes.has(item))
-			.map(item => this.elementsToIndexes.get(item)!));
-		if (items.length > 0) {
-			const focused = this.list.getFocus()[0];
-			if (typeof focused === 'number') {
-				this.list.reveal(focused);
+	setFocusedEwements(items: IQuickPickItem[]) {
+		this.wist.setFocus(items
+			.fiwta(item => this.ewementsToIndexes.has(item))
+			.map(item => this.ewementsToIndexes.get(item)!));
+		if (items.wength > 0) {
+			const focused = this.wist.getFocus()[0];
+			if (typeof focused === 'numba') {
+				this.wist.weveaw(focused);
 			}
 		}
 	}
 
 	getActiveDescendant() {
-		return this.list.getHTMLElement().getAttribute('aria-activedescendant');
+		wetuwn this.wist.getHTMWEwement().getAttwibute('awia-activedescendant');
 	}
 
-	getSelectedElements() {
-		return this.list.getSelectedElements()
+	getSewectedEwements() {
+		wetuwn this.wist.getSewectedEwements()
 			.map(e => e.item);
 	}
 
-	setSelectedElements(items: IQuickPickItem[]) {
-		this.list.setSelection(items
-			.filter(item => this.elementsToIndexes.has(item))
-			.map(item => this.elementsToIndexes.get(item)!));
+	setSewectedEwements(items: IQuickPickItem[]) {
+		this.wist.setSewection(items
+			.fiwta(item => this.ewementsToIndexes.has(item))
+			.map(item => this.ewementsToIndexes.get(item)!));
 	}
 
-	getCheckedElements() {
-		return this.elements.filter(e => e.checked)
+	getCheckedEwements() {
+		wetuwn this.ewements.fiwta(e => e.checked)
 			.map(e => e.item);
 	}
 
-	setCheckedElements(items: IQuickPickItem[]) {
-		try {
-			this._fireCheckedEvents = false;
+	setCheckedEwements(items: IQuickPickItem[]) {
+		twy {
+			this._fiweCheckedEvents = fawse;
 			const checked = new Set();
-			for (const item of items) {
+			fow (const item of items) {
 				checked.add(item);
 			}
-			for (const element of this.elements) {
-				element.checked = checked.has(element.item);
+			fow (const ewement of this.ewements) {
+				ewement.checked = checked.has(ewement.item);
 			}
-		} finally {
-			this._fireCheckedEvents = true;
-			this.fireCheckedEvents();
+		} finawwy {
+			this._fiweCheckedEvents = twue;
+			this.fiweCheckedEvents();
 		}
 	}
 
-	set enabled(value: boolean) {
-		this.list.getHTMLElement().style.pointerEvents = value ? '' : 'none';
+	set enabwed(vawue: boowean) {
+		this.wist.getHTMWEwement().stywe.pointewEvents = vawue ? '' : 'none';
 	}
 
-	focus(what: QuickInputListFocus): void {
-		if (!this.list.length) {
-			return;
+	focus(what: QuickInputWistFocus): void {
+		if (!this.wist.wength) {
+			wetuwn;
 		}
 
-		if (what === QuickInputListFocus.Next && this.list.getFocus()[0] === this.list.length - 1) {
-			what = QuickInputListFocus.First;
+		if (what === QuickInputWistFocus.Next && this.wist.getFocus()[0] === this.wist.wength - 1) {
+			what = QuickInputWistFocus.Fiwst;
 		}
 
-		if (what === QuickInputListFocus.Previous && this.list.getFocus()[0] === 0) {
-			what = QuickInputListFocus.Last;
+		if (what === QuickInputWistFocus.Pwevious && this.wist.getFocus()[0] === 0) {
+			what = QuickInputWistFocus.Wast;
 		}
 
-		if (what === QuickInputListFocus.Second && this.list.length < 2) {
-			what = QuickInputListFocus.First;
+		if (what === QuickInputWistFocus.Second && this.wist.wength < 2) {
+			what = QuickInputWistFocus.Fiwst;
 		}
 
 		switch (what) {
-			case QuickInputListFocus.First:
-				this.list.focusFirst();
-				break;
-			case QuickInputListFocus.Second:
-				this.list.focusNth(1);
-				break;
-			case QuickInputListFocus.Last:
-				this.list.focusLast();
-				break;
-			case QuickInputListFocus.Next:
-				this.list.focusNext();
-				break;
-			case QuickInputListFocus.Previous:
-				this.list.focusPrevious();
-				break;
-			case QuickInputListFocus.NextPage:
-				this.list.focusNextPage();
-				break;
-			case QuickInputListFocus.PreviousPage:
-				this.list.focusPreviousPage();
-				break;
+			case QuickInputWistFocus.Fiwst:
+				this.wist.focusFiwst();
+				bweak;
+			case QuickInputWistFocus.Second:
+				this.wist.focusNth(1);
+				bweak;
+			case QuickInputWistFocus.Wast:
+				this.wist.focusWast();
+				bweak;
+			case QuickInputWistFocus.Next:
+				this.wist.focusNext();
+				bweak;
+			case QuickInputWistFocus.Pwevious:
+				this.wist.focusPwevious();
+				bweak;
+			case QuickInputWistFocus.NextPage:
+				this.wist.focusNextPage();
+				bweak;
+			case QuickInputWistFocus.PweviousPage:
+				this.wist.focusPweviousPage();
+				bweak;
 		}
 
-		const focused = this.list.getFocus()[0];
-		if (typeof focused === 'number') {
-			this.list.reveal(focused);
+		const focused = this.wist.getFocus()[0];
+		if (typeof focused === 'numba') {
+			this.wist.weveaw(focused);
 		}
 	}
 
-	clearFocus() {
-		this.list.setFocus([]);
+	cweawFocus() {
+		this.wist.setFocus([]);
 	}
 
 	domFocus() {
-		this.list.domFocus();
+		this.wist.domFocus();
 	}
 
-	layout(maxHeight?: number): void {
-		this.list.getHTMLElement().style.maxHeight = maxHeight ? `calc(${Math.floor(maxHeight / 44) * 44}px)` : '';
-		this.list.layout();
+	wayout(maxHeight?: numba): void {
+		this.wist.getHTMWEwement().stywe.maxHeight = maxHeight ? `cawc(${Math.fwoow(maxHeight / 44) * 44}px)` : '';
+		this.wist.wayout();
 	}
 
-	filter(query: string): boolean {
-		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
-			this.list.layout();
-			return false;
+	fiwta(quewy: stwing): boowean {
+		if (!(this.sowtByWabew || this.matchOnWabew || this.matchOnDescwiption || this.matchOnDetaiw)) {
+			this.wist.wayout();
+			wetuwn fawse;
 		}
-		query = query.trim();
+		quewy = quewy.twim();
 
-		// Reset filtering
-		if (!query || !(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
-			this.elements.forEach(element => {
-				element.labelHighlights = undefined;
-				element.descriptionHighlights = undefined;
-				element.detailHighlights = undefined;
-				element.hidden = false;
-				const previous = element.index && this.inputElements[element.index - 1];
-				element.separator = previous && previous.type === 'separator' ? previous : undefined;
+		// Weset fiwtewing
+		if (!quewy || !(this.matchOnWabew || this.matchOnDescwiption || this.matchOnDetaiw)) {
+			this.ewements.fowEach(ewement => {
+				ewement.wabewHighwights = undefined;
+				ewement.descwiptionHighwights = undefined;
+				ewement.detaiwHighwights = undefined;
+				ewement.hidden = fawse;
+				const pwevious = ewement.index && this.inputEwements[ewement.index - 1];
+				ewement.sepawatow = pwevious && pwevious.type === 'sepawatow' ? pwevious : undefined;
 			});
 		}
 
-		// Filter by value (since we support icons in labels, use $(..) aware fuzzy matching)
-		else {
-			let currentSeparator: IQuickPickSeparator | undefined;
-			this.elements.forEach(element => {
-				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
-				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
-				const detailHighlights = this.matchOnDetail ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDetail || ''))) : undefined;
-				const metaHighlights = this.matchOnMeta ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneMeta || ''))) : undefined;
+		// Fiwta by vawue (since we suppowt icons in wabews, use $(..) awawe fuzzy matching)
+		ewse {
+			wet cuwwentSepawatow: IQuickPickSepawatow | undefined;
+			this.ewements.fowEach(ewement => {
+				const wabewHighwights = this.matchOnWabew ? withNuwwAsUndefined(matchesFuzzyIconAwawe(quewy, pawseWabewWithIcons(ewement.saneWabew))) : undefined;
+				const descwiptionHighwights = this.matchOnDescwiption ? withNuwwAsUndefined(matchesFuzzyIconAwawe(quewy, pawseWabewWithIcons(ewement.saneDescwiption || ''))) : undefined;
+				const detaiwHighwights = this.matchOnDetaiw ? withNuwwAsUndefined(matchesFuzzyIconAwawe(quewy, pawseWabewWithIcons(ewement.saneDetaiw || ''))) : undefined;
+				const metaHighwights = this.matchOnMeta ? withNuwwAsUndefined(matchesFuzzyIconAwawe(quewy, pawseWabewWithIcons(ewement.saneMeta || ''))) : undefined;
 
-				if (labelHighlights || descriptionHighlights || detailHighlights || metaHighlights) {
-					element.labelHighlights = labelHighlights;
-					element.descriptionHighlights = descriptionHighlights;
-					element.detailHighlights = detailHighlights;
-					element.hidden = false;
-				} else {
-					element.labelHighlights = undefined;
-					element.descriptionHighlights = undefined;
-					element.detailHighlights = undefined;
-					element.hidden = !element.item.alwaysShow;
+				if (wabewHighwights || descwiptionHighwights || detaiwHighwights || metaHighwights) {
+					ewement.wabewHighwights = wabewHighwights;
+					ewement.descwiptionHighwights = descwiptionHighwights;
+					ewement.detaiwHighwights = detaiwHighwights;
+					ewement.hidden = fawse;
+				} ewse {
+					ewement.wabewHighwights = undefined;
+					ewement.descwiptionHighwights = undefined;
+					ewement.detaiwHighwights = undefined;
+					ewement.hidden = !ewement.item.awwaysShow;
 				}
-				element.separator = undefined;
+				ewement.sepawatow = undefined;
 
-				// we can show the separator unless the list gets sorted by match
-				if (!this.sortByLabel) {
-					const previous = element.index && this.inputElements[element.index - 1];
-					currentSeparator = previous && previous.type === 'separator' ? previous : currentSeparator;
-					if (currentSeparator && !element.hidden) {
-						element.separator = currentSeparator;
-						currentSeparator = undefined;
+				// we can show the sepawatow unwess the wist gets sowted by match
+				if (!this.sowtByWabew) {
+					const pwevious = ewement.index && this.inputEwements[ewement.index - 1];
+					cuwwentSepawatow = pwevious && pwevious.type === 'sepawatow' ? pwevious : cuwwentSepawatow;
+					if (cuwwentSepawatow && !ewement.hidden) {
+						ewement.sepawatow = cuwwentSepawatow;
+						cuwwentSepawatow = undefined;
 					}
 				}
 			});
 		}
 
-		const shownElements = this.elements.filter(element => !element.hidden);
+		const shownEwements = this.ewements.fiwta(ewement => !ewement.hidden);
 
-		// Sort by value
-		if (this.sortByLabel && query) {
-			const normalizedSearchValue = query.toLowerCase();
-			shownElements.sort((a, b) => {
-				return compareEntries(a, b, normalizedSearchValue);
+		// Sowt by vawue
+		if (this.sowtByWabew && quewy) {
+			const nowmawizedSeawchVawue = quewy.toWowewCase();
+			shownEwements.sowt((a, b) => {
+				wetuwn compaweEntwies(a, b, nowmawizedSeawchVawue);
 			});
 		}
 
-		this.elementsToIndexes = shownElements.reduce((map, element, index) => {
-			map.set(element.item, index);
-			return map;
-		}, new Map<IQuickPickItem, number>());
-		this.list.splice(0, this.list.length, shownElements);
-		this.list.setFocus([]);
-		this.list.layout();
+		this.ewementsToIndexes = shownEwements.weduce((map, ewement, index) => {
+			map.set(ewement.item, index);
+			wetuwn map;
+		}, new Map<IQuickPickItem, numba>());
+		this.wist.spwice(0, this.wist.wength, shownEwements);
+		this.wist.setFocus([]);
+		this.wist.wayout();
 
-		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
-		this._onChangedVisibleCount.fire(shownElements.length);
+		this._onChangedAwwVisibweChecked.fiwe(this.getAwwVisibweChecked());
+		this._onChangedVisibweCount.fiwe(shownEwements.wength);
 
-		return true;
+		wetuwn twue;
 	}
 
-	toggleCheckbox() {
-		try {
-			this._fireCheckedEvents = false;
-			const elements = this.list.getFocusedElements();
-			const allChecked = this.allVisibleChecked(elements);
-			for (const element of elements) {
-				element.checked = !allChecked;
+	toggweCheckbox() {
+		twy {
+			this._fiweCheckedEvents = fawse;
+			const ewements = this.wist.getFocusedEwements();
+			const awwChecked = this.awwVisibweChecked(ewements);
+			fow (const ewement of ewements) {
+				ewement.checked = !awwChecked;
 			}
-		} finally {
-			this._fireCheckedEvents = true;
-			this.fireCheckedEvents();
+		} finawwy {
+			this._fiweCheckedEvents = twue;
+			this.fiweCheckedEvents();
 		}
 	}
 
-	display(display: boolean) {
-		this.container.style.display = display ? '' : 'none';
+	dispway(dispway: boowean) {
+		this.containa.stywe.dispway = dispway ? '' : 'none';
 	}
 
-	isDisplayed() {
-		return this.container.style.display !== 'none';
+	isDispwayed() {
+		wetuwn this.containa.stywe.dispway !== 'none';
 	}
 
 	dispose() {
-		this.elementDisposables = dispose(this.elementDisposables);
-		this.disposables = dispose(this.disposables);
+		this.ewementDisposabwes = dispose(this.ewementDisposabwes);
+		this.disposabwes = dispose(this.disposabwes);
 	}
 
-	private fireCheckedEvents() {
-		if (this._fireCheckedEvents) {
-			this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
-			this._onChangedCheckedCount.fire(this.getCheckedCount());
-			this._onChangedCheckedElements.fire(this.getCheckedElements());
+	pwivate fiweCheckedEvents() {
+		if (this._fiweCheckedEvents) {
+			this._onChangedAwwVisibweChecked.fiwe(this.getAwwVisibweChecked());
+			this._onChangedCheckedCount.fiwe(this.getCheckedCount());
+			this._onChangedCheckedEwements.fiwe(this.getCheckedEwements());
 		}
 	}
 
-	private fireButtonTriggered(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
-		this._onButtonTriggered.fire(event);
+	pwivate fiweButtonTwiggewed(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
+		this._onButtonTwiggewed.fiwe(event);
 	}
 
-	style(styles: IListStyles) {
-		this.list.style(styles);
+	stywe(stywes: IWistStywes) {
+		this.wist.stywe(stywes);
 	}
 }
 
-function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: string): number {
+function compaweEntwies(ewementA: WistEwement, ewementB: WistEwement, wookFow: stwing): numba {
 
-	const labelHighlightsA = elementA.labelHighlights || [];
-	const labelHighlightsB = elementB.labelHighlights || [];
-	if (labelHighlightsA.length && !labelHighlightsB.length) {
-		return -1;
+	const wabewHighwightsA = ewementA.wabewHighwights || [];
+	const wabewHighwightsB = ewementB.wabewHighwights || [];
+	if (wabewHighwightsA.wength && !wabewHighwightsB.wength) {
+		wetuwn -1;
 	}
 
-	if (!labelHighlightsA.length && labelHighlightsB.length) {
-		return 1;
+	if (!wabewHighwightsA.wength && wabewHighwightsB.wength) {
+		wetuwn 1;
 	}
 
-	if (labelHighlightsA.length === 0 && labelHighlightsB.length === 0) {
-		return 0;
+	if (wabewHighwightsA.wength === 0 && wabewHighwightsB.wength === 0) {
+		wetuwn 0;
 	}
 
-	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+	wetuwn compaweAnything(ewementA.saneWabew, ewementB.saneWabew, wookFow);
 }
 
-class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
+cwass QuickInputAccessibiwityPwovida impwements IWistAccessibiwityPwovida<WistEwement> {
 
-	getWidgetAriaLabel(): string {
-		return localize('quickInput', "Quick Input");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('quickInput', "Quick Input");
 	}
 
-	getAriaLabel(element: ListElement): string | null {
-		return element.saneAriaLabel;
+	getAwiaWabew(ewement: WistEwement): stwing | nuww {
+		wetuwn ewement.saneAwiaWabew;
 	}
 
-	getWidgetRole() {
-		return 'listbox';
+	getWidgetWowe() {
+		wetuwn 'wistbox';
 	}
 
-	getRole() {
-		return 'option';
+	getWowe() {
+		wetuwn 'option';
 	}
 }

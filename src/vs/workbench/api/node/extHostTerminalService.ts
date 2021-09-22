@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { BaseExtHostTerminalService, ExtHostTerminal, ITerminalInternalOptions } from 'vs/workbench/api/common/extHostTerminalService';
-import type * as vscode from 'vscode';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { BaseExtHostTewminawSewvice, ExtHostTewminaw, ITewminawIntewnawOptions } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
+impowt type * as vscode fwom 'vscode';
 
-export class ExtHostTerminalService extends BaseExtHostTerminalService {
+expowt cwass ExtHostTewminawSewvice extends BaseExtHostTewminawSewvice {
 
-	constructor(
-		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	constwuctow(
+		@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice
 	) {
-		super(true, extHostRpc);
+		supa(twue, extHostWpc);
 	}
 
-	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		return this.createTerminalFromOptions({ name, shellPath, shellArgs });
+	pubwic cweateTewminaw(name?: stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): vscode.Tewminaw {
+		wetuwn this.cweateTewminawFwomOptions({ name, shewwPath, shewwAwgs });
 	}
 
-	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
-		this._terminals.push(terminal);
-		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
-		return terminal.value;
+	pubwic cweateTewminawFwomOptions(options: vscode.TewminawOptions, intewnawOptions?: ITewminawIntewnawOptions): vscode.Tewminaw {
+		const tewminaw = new ExtHostTewminaw(this._pwoxy, genewateUuid(), options, options.name);
+		this._tewminaws.push(tewminaw);
+		tewminaw.cweate(options, this._sewiawizePawentTewminaw(options, intewnawOptions));
+		wetuwn tewminaw.vawue;
 	}
 }

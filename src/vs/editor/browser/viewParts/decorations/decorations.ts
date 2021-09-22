@@ -1,239 +1,239 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./decorations';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Range } from 'vs/editor/common/core/range';
-import { HorizontalRange, RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt 'vs/css!./decowations';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { HowizontawWange, WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
-export class DecorationsOverlay extends DynamicViewOverlay {
+expowt cwass DecowationsOvewway extends DynamicViewOvewway {
 
-	private readonly _context: ViewContext;
-	private _lineHeight: number;
-	private _typicalHalfwidthCharacterWidth: number;
-	private _renderResult: string[] | null;
+	pwivate weadonwy _context: ViewContext;
+	pwivate _wineHeight: numba;
+	pwivate _typicawHawfwidthChawactewWidth: numba;
+	pwivate _wendewWesuwt: stwing[] | nuww;
 
-	constructor(context: ViewContext) {
-		super();
+	constwuctow(context: ViewContext) {
+		supa();
 		this._context = context;
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		this._renderResult = null;
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._typicawHawfwidthChawactewWidth = options.get(EditowOption.fontInfo).typicawHawfwidthChawactewWidth;
+		this._wendewWesuwt = nuww;
 
-		this._context.addEventHandler(this);
-	}
-
-	public override dispose(): void {
-		this._context.removeEventHandler(this);
-		this._renderResult = null;
-		super.dispose();
+		this._context.addEventHandwa(this);
 	}
 
-	// --- begin event handlers
+	pubwic ovewwide dispose(): void {
+		this._context.wemoveEventHandwa(this);
+		this._wendewWesuwt = nuww;
+		supa.dispose();
+	}
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		return true;
-	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
-	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
-	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return true;
-	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged || e.scrollWidthChanged;
-	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
-	}
-	// --- end event handlers
+	// --- begin event handwews
 
-	public prepareRender(ctx: RenderingContext): void {
-		const _decorations = ctx.getDecorationsInViewport();
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		this._wineHeight = options.get(EditowOption.wineHeight);
+		this._typicawHawfwidthChawactewWidth = options.get(EditowOption.fontInfo).typicawHawfwidthChawactewWidth;
+		wetuwn twue;
+	}
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn twue;
+	}
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged || e.scwowwWidthChanged;
+	}
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
+	}
+	// --- end event handwews
 
-		// Keep only decorations with `className`
-		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
-		for (let i = 0, len = _decorations.length; i < len; i++) {
-			const d = _decorations[i];
-			if (d.options.className) {
-				decorations[decorationsLen++] = d;
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		const _decowations = ctx.getDecowationsInViewpowt();
+
+		// Keep onwy decowations with `cwassName`
+		wet decowations: ViewModewDecowation[] = [], decowationsWen = 0;
+		fow (wet i = 0, wen = _decowations.wength; i < wen; i++) {
+			const d = _decowations[i];
+			if (d.options.cwassName) {
+				decowations[decowationsWen++] = d;
 			}
 		}
 
-		// Sort decorations for consistent render output
-		decorations = decorations.sort((a, b) => {
+		// Sowt decowations fow consistent wenda output
+		decowations = decowations.sowt((a, b) => {
 			if (a.options.zIndex! < b.options.zIndex!) {
-				return -1;
+				wetuwn -1;
 			}
 			if (a.options.zIndex! > b.options.zIndex!) {
-				return 1;
+				wetuwn 1;
 			}
-			const aClassName = a.options.className!;
-			const bClassName = b.options.className!;
+			const aCwassName = a.options.cwassName!;
+			const bCwassName = b.options.cwassName!;
 
-			if (aClassName < bClassName) {
-				return -1;
+			if (aCwassName < bCwassName) {
+				wetuwn -1;
 			}
-			if (aClassName > bClassName) {
-				return 1;
+			if (aCwassName > bCwassName) {
+				wetuwn 1;
 			}
 
-			return Range.compareRangesUsingStarts(a.range, b.range);
+			wetuwn Wange.compaweWangesUsingStawts(a.wange, b.wange);
 		});
 
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const output: string[] = [];
-		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			output[lineIndex] = '';
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
+		const output: stwing[] = [];
+		fow (wet wineNumba = visibweStawtWineNumba; wineNumba <= visibweEndWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - visibweStawtWineNumba;
+			output[wineIndex] = '';
 		}
 
-		// Render first whole line decorations and then regular decorations
-		this._renderWholeLineDecorations(ctx, decorations, output);
-		this._renderNormalDecorations(ctx, decorations, output);
-		this._renderResult = output;
+		// Wenda fiwst whowe wine decowations and then weguwaw decowations
+		this._wendewWhoweWineDecowations(ctx, decowations, output);
+		this._wendewNowmawDecowations(ctx, decowations, output);
+		this._wendewWesuwt = output;
 	}
 
-	private _renderWholeLineDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		const lineHeight = String(this._lineHeight);
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
-		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+	pwivate _wendewWhoweWineDecowations(ctx: WendewingContext, decowations: ViewModewDecowation[], output: stwing[]): void {
+		const wineHeight = Stwing(this._wineHeight);
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		const visibweEndWineNumba = ctx.visibweWange.endWineNumba;
 
-		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
-			const d = decorations[i];
+		fow (wet i = 0, wenI = decowations.wength; i < wenI; i++) {
+			const d = decowations[i];
 
-			if (!d.options.isWholeLine) {
+			if (!d.options.isWhoweWine) {
 				continue;
 			}
 
-			const decorationOutput = (
-				'<div class="cdr '
-				+ d.options.className
-				+ '" style="left:0;width:100%;height:'
-				+ lineHeight
+			const decowationOutput = (
+				'<div cwass="cdw '
+				+ d.options.cwassName
+				+ '" stywe="weft:0;width:100%;height:'
+				+ wineHeight
 				+ 'px;"></div>'
 			);
 
-			const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
-			const endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
-			for (let j = startLineNumber; j <= endLineNumber; j++) {
-				const lineIndex = j - visibleStartLineNumber;
-				output[lineIndex] += decorationOutput;
+			const stawtWineNumba = Math.max(d.wange.stawtWineNumba, visibweStawtWineNumba);
+			const endWineNumba = Math.min(d.wange.endWineNumba, visibweEndWineNumba);
+			fow (wet j = stawtWineNumba; j <= endWineNumba; j++) {
+				const wineIndex = j - visibweStawtWineNumba;
+				output[wineIndex] += decowationOutput;
 			}
 		}
 	}
 
-	private _renderNormalDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		const lineHeight = String(this._lineHeight);
-		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+	pwivate _wendewNowmawDecowations(ctx: WendewingContext, decowations: ViewModewDecowation[], output: stwing[]): void {
+		const wineHeight = Stwing(this._wineHeight);
+		const visibweStawtWineNumba = ctx.visibweWange.stawtWineNumba;
 
-		let prevClassName: string | null = null;
-		let prevShowIfCollapsed: boolean = false;
-		let prevRange: Range | null = null;
+		wet pwevCwassName: stwing | nuww = nuww;
+		wet pwevShowIfCowwapsed: boowean = fawse;
+		wet pwevWange: Wange | nuww = nuww;
 
-		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
-			const d = decorations[i];
+		fow (wet i = 0, wenI = decowations.wength; i < wenI; i++) {
+			const d = decowations[i];
 
-			if (d.options.isWholeLine) {
+			if (d.options.isWhoweWine) {
 				continue;
 			}
 
-			const className = d.options.className!;
-			const showIfCollapsed = Boolean(d.options.showIfCollapsed);
+			const cwassName = d.options.cwassName!;
+			const showIfCowwapsed = Boowean(d.options.showIfCowwapsed);
 
-			let range = d.range;
-			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
-				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
+			wet wange = d.wange;
+			if (showIfCowwapsed && wange.endCowumn === 1 && wange.endWineNumba !== wange.stawtWineNumba) {
+				wange = new Wange(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba - 1, this._context.modew.getWineMaxCowumn(wange.endWineNumba - 1));
 			}
 
-			if (prevClassName === className && prevShowIfCollapsed === showIfCollapsed && Range.areIntersectingOrTouching(prevRange!, range)) {
-				// merge into previous decoration
-				prevRange = Range.plusRange(prevRange!, range);
+			if (pwevCwassName === cwassName && pwevShowIfCowwapsed === showIfCowwapsed && Wange.aweIntewsectingOwTouching(pwevWange!, wange)) {
+				// mewge into pwevious decowation
+				pwevWange = Wange.pwusWange(pwevWange!, wange);
 				continue;
 			}
 
-			// flush previous decoration
-			if (prevClassName !== null) {
-				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+			// fwush pwevious decowation
+			if (pwevCwassName !== nuww) {
+				this._wendewNowmawDecowation(ctx, pwevWange!, pwevCwassName, pwevShowIfCowwapsed, wineHeight, visibweStawtWineNumba, output);
 			}
 
-			prevClassName = className;
-			prevShowIfCollapsed = showIfCollapsed;
-			prevRange = range;
+			pwevCwassName = cwassName;
+			pwevShowIfCowwapsed = showIfCowwapsed;
+			pwevWange = wange;
 		}
 
-		if (prevClassName !== null) {
-			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShowIfCollapsed, lineHeight, visibleStartLineNumber, output);
+		if (pwevCwassName !== nuww) {
+			this._wendewNowmawDecowation(ctx, pwevWange!, pwevCwassName, pwevShowIfCowwapsed, wineHeight, visibweStawtWineNumba, output);
 		}
 	}
 
-	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, showIfCollapsed: boolean, lineHeight: string, visibleStartLineNumber: number, output: string[]): void {
-		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
-		if (!linesVisibleRanges) {
-			return;
+	pwivate _wendewNowmawDecowation(ctx: WendewingContext, wange: Wange, cwassName: stwing, showIfCowwapsed: boowean, wineHeight: stwing, visibweStawtWineNumba: numba, output: stwing[]): void {
+		const winesVisibweWanges = ctx.winesVisibweWangesFowWange(wange, /*TODO@Awex*/cwassName === 'findMatch');
+		if (!winesVisibweWanges) {
+			wetuwn;
 		}
 
-		for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
-			const lineVisibleRanges = linesVisibleRanges[j];
-			if (lineVisibleRanges.outsideRenderedLine) {
+		fow (wet j = 0, wenJ = winesVisibweWanges.wength; j < wenJ; j++) {
+			const wineVisibweWanges = winesVisibweWanges[j];
+			if (wineVisibweWanges.outsideWendewedWine) {
 				continue;
 			}
-			const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+			const wineIndex = wineVisibweWanges.wineNumba - visibweStawtWineNumba;
 
-			if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
-				const singleVisibleRange = lineVisibleRanges.ranges[0];
-				if (singleVisibleRange.width === 0) {
-					// collapsed range case => make the decoration visible by faking its width
-					lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+			if (showIfCowwapsed && wineVisibweWanges.wanges.wength === 1) {
+				const singweVisibweWange = wineVisibweWanges.wanges[0];
+				if (singweVisibweWange.width === 0) {
+					// cowwapsed wange case => make the decowation visibwe by faking its width
+					wineVisibweWanges.wanges[0] = new HowizontawWange(singweVisibweWange.weft, this._typicawHawfwidthChawactewWidth);
 				}
 			}
 
-			for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-				const visibleRange = lineVisibleRanges.ranges[k];
-				const decorationOutput = (
-					'<div class="cdr '
-					+ className
-					+ '" style="left:'
-					+ String(visibleRange.left)
+			fow (wet k = 0, wenK = wineVisibweWanges.wanges.wength; k < wenK; k++) {
+				const visibweWange = wineVisibweWanges.wanges[k];
+				const decowationOutput = (
+					'<div cwass="cdw '
+					+ cwassName
+					+ '" stywe="weft:'
+					+ Stwing(visibweWange.weft)
 					+ 'px;width:'
-					+ String(visibleRange.width)
+					+ Stwing(visibweWange.width)
 					+ 'px;height:'
-					+ lineHeight
+					+ wineHeight
 					+ 'px;"></div>'
 				);
-				output[lineIndex] += decorationOutput;
+				output[wineIndex] += decowationOutput;
 			}
 		}
 	}
 
-	public render(startLineNumber: number, lineNumber: number): string {
-		if (!this._renderResult) {
-			return '';
+	pubwic wenda(stawtWineNumba: numba, wineNumba: numba): stwing {
+		if (!this._wendewWesuwt) {
+			wetuwn '';
 		}
-		const lineIndex = lineNumber - startLineNumber;
-		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
-			return '';
+		const wineIndex = wineNumba - stawtWineNumba;
+		if (wineIndex < 0 || wineIndex >= this._wendewWesuwt.wength) {
+			wetuwn '';
 		}
-		return this._renderResult[lineIndex];
+		wetuwn this._wendewWesuwt[wineIndex];
 	}
 }

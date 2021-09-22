@@ -1,281 +1,281 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { Configuwation } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { DynamicViewOvewway } fwom 'vs/editow/bwowsa/view/dynamicViewOvewway';
+impowt { IVisibweWine, IVisibweWinesHost, VisibweWinesCowwection } fwom 'vs/editow/bwowsa/view/viewWaya';
+impowt { ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { IStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt { IConfiguwation } fwom 'vs/editow/common/editowCommon';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 
-export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
+expowt cwass ViewOvewways extends ViewPawt impwements IVisibweWinesHost<ViewOvewwayWine> {
 
-	private readonly _visibleLines: VisibleLinesCollection<ViewOverlayLine>;
-	protected readonly domNode: FastDomNode<HTMLElement>;
-	private _dynamicOverlays: DynamicViewOverlay[];
-	private _isFocused: boolean;
+	pwivate weadonwy _visibweWines: VisibweWinesCowwection<ViewOvewwayWine>;
+	pwotected weadonwy domNode: FastDomNode<HTMWEwement>;
+	pwivate _dynamicOvewways: DynamicViewOvewway[];
+	pwivate _isFocused: boowean;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
-		this.domNode = this._visibleLines.domNode;
+		this._visibweWines = new VisibweWinesCowwection<ViewOvewwayWine>(this);
+		this.domNode = this._visibweWines.domNode;
 
-		this._dynamicOverlays = [];
-		this._isFocused = false;
+		this._dynamicOvewways = [];
+		this._isFocused = fawse;
 
-		this.domNode.setClassName('view-overlays');
+		this.domNode.setCwassName('view-ovewways');
 	}
 
-	public override shouldRender(): boolean {
-		if (super.shouldRender()) {
-			return true;
+	pubwic ovewwide shouwdWenda(): boowean {
+		if (supa.shouwdWenda()) {
+			wetuwn twue;
 		}
 
-		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			const dynamicOverlay = this._dynamicOverlays[i];
-			if (dynamicOverlay.shouldRender()) {
-				return true;
+		fow (wet i = 0, wen = this._dynamicOvewways.wength; i < wen; i++) {
+			const dynamicOvewway = this._dynamicOvewways[i];
+			if (dynamicOvewway.shouwdWenda()) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 
-		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			const dynamicOverlay = this._dynamicOverlays[i];
-			dynamicOverlay.dispose();
+		fow (wet i = 0, wen = this._dynamicOvewways.wength; i < wen; i++) {
+			const dynamicOvewway = this._dynamicOvewways[i];
+			dynamicOvewway.dispose();
 		}
-		this._dynamicOverlays = [];
+		this._dynamicOvewways = [];
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this.domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this.domNode;
 	}
 
-	// ---- begin IVisibleLinesHost
+	// ---- begin IVisibweWinesHost
 
-	public createVisibleLine(): ViewOverlayLine {
-		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
+	pubwic cweateVisibweWine(): ViewOvewwayWine {
+		wetuwn new ViewOvewwayWine(this._context.configuwation, this._dynamicOvewways);
 	}
 
-	// ---- end IVisibleLinesHost
+	// ---- end IVisibweWinesHost
 
-	public addDynamicOverlay(overlay: DynamicViewOverlay): void {
-		this._dynamicOverlays.push(overlay);
+	pubwic addDynamicOvewway(ovewway: DynamicViewOvewway): void {
+		this._dynamicOvewways.push(ovewway);
 	}
 
-	// ----- event handlers
+	// ----- event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._visibleLines.onConfigurationChanged(e);
-		const startLineNumber = this._visibleLines.getStartLineNumber();
-		const endLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const line = this._visibleLines.getVisibleLine(lineNumber);
-			line.onConfigurationChanged(e);
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		this._visibweWines.onConfiguwationChanged(e);
+		const stawtWineNumba = this._visibweWines.getStawtWineNumba();
+		const endWineNumba = this._visibweWines.getEndWineNumba();
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			const wine = this._visibweWines.getVisibweWine(wineNumba);
+			wine.onConfiguwationChanged(e);
 		}
-		return true;
+		wetuwn twue;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return this._visibleLines.onFlushed(e);
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn this._visibweWines.onFwushed(e);
 	}
-	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	pubwic ovewwide onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boowean {
 		this._isFocused = e.isFocused;
-		return true;
+		wetuwn twue;
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._visibleLines.onLinesChanged(e);
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn this._visibweWines.onWinesChanged(e);
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return this._visibleLines.onLinesDeleted(e);
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn this._visibweWines.onWinesDeweted(e);
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return this._visibleLines.onLinesInserted(e);
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn this._visibweWines.onWinesInsewted(e);
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return this._visibleLines.onScrollChanged(e) || true;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn this._visibweWines.onScwowwChanged(e) || twue;
 	}
-	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._visibleLines.onTokensChanged(e);
+	pubwic ovewwide onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		wetuwn this._visibweWines.onTokensChanged(e);
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return this._visibleLines.onZonesChanged(e);
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn this._visibweWines.onZonesChanged(e);
 	}
 
-	// ----- end event handlers
+	// ----- end event handwews
 
-	public prepareRender(ctx: RenderingContext): void {
-		const toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		const toWenda = this._dynamicOvewways.fiwta(ovewway => ovewway.shouwdWenda());
 
-		for (let i = 0, len = toRender.length; i < len; i++) {
-			const dynamicOverlay = toRender[i];
-			dynamicOverlay.prepareRender(ctx);
-			dynamicOverlay.onDidRender();
+		fow (wet i = 0, wen = toWenda.wength; i < wen; i++) {
+			const dynamicOvewway = toWenda[i];
+			dynamicOvewway.pwepaweWenda(ctx);
+			dynamicOvewway.onDidWenda();
 		}
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		// Overwriting to bypass `shouldRender` flag
-		this._viewOverlaysRender(ctx);
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		// Ovewwwiting to bypass `shouwdWenda` fwag
+		this._viewOvewwaysWenda(ctx);
 
-		this.domNode.toggleClassName('focused', this._isFocused);
+		this.domNode.toggweCwassName('focused', this._isFocused);
 	}
 
-	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
-		this._visibleLines.renderLines(ctx.viewportData);
+	_viewOvewwaysWenda(ctx: WestwictedWendewingContext): void {
+		this._visibweWines.wendewWines(ctx.viewpowtData);
 	}
 }
 
-export class ViewOverlayLine implements IVisibleLine {
+expowt cwass ViewOvewwayWine impwements IVisibweWine {
 
-	private readonly _configuration: IConfiguration;
-	private readonly _dynamicOverlays: DynamicViewOverlay[];
-	private _domNode: FastDomNode<HTMLElement> | null;
-	private _renderedContent: string | null;
-	private _lineHeight: number;
+	pwivate weadonwy _configuwation: IConfiguwation;
+	pwivate weadonwy _dynamicOvewways: DynamicViewOvewway[];
+	pwivate _domNode: FastDomNode<HTMWEwement> | nuww;
+	pwivate _wendewedContent: stwing | nuww;
+	pwivate _wineHeight: numba;
 
-	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
-		this._configuration = configuration;
-		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
-		this._dynamicOverlays = dynamicOverlays;
+	constwuctow(configuwation: IConfiguwation, dynamicOvewways: DynamicViewOvewway[]) {
+		this._configuwation = configuwation;
+		this._wineHeight = this._configuwation.options.get(EditowOption.wineHeight);
+		this._dynamicOvewways = dynamicOvewways;
 
-		this._domNode = null;
-		this._renderedContent = null;
+		this._domNode = nuww;
+		this._wendewedContent = nuww;
 	}
 
-	public getDomNode(): HTMLElement | null {
+	pubwic getDomNode(): HTMWEwement | nuww {
 		if (!this._domNode) {
-			return null;
+			wetuwn nuww;
 		}
-		return this._domNode.domNode;
+		wetuwn this._domNode.domNode;
 	}
-	public setDomNode(domNode: HTMLElement): void {
-		this._domNode = createFastDomNode(domNode);
+	pubwic setDomNode(domNode: HTMWEwement): void {
+		this._domNode = cweateFastDomNode(domNode);
 	}
 
-	public onContentChanged(): void {
+	pubwic onContentChanged(): void {
 		// Nothing
 	}
-	public onTokensChanged(): void {
+	pubwic onTokensChanged(): void {
 		// Nothing
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
+	pubwic onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): void {
+		this._wineHeight = this._configuwation.options.get(EditowOption.wineHeight);
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
-		let result = '';
-		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			const dynamicOverlay = this._dynamicOverlays[i];
-			result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
+	pubwic wendewWine(wineNumba: numba, dewtaTop: numba, viewpowtData: ViewpowtData, sb: IStwingBuiwda): boowean {
+		wet wesuwt = '';
+		fow (wet i = 0, wen = this._dynamicOvewways.wength; i < wen; i++) {
+			const dynamicOvewway = this._dynamicOvewways[i];
+			wesuwt += dynamicOvewway.wenda(viewpowtData.stawtWineNumba, wineNumba);
 		}
 
-		if (this._renderedContent === result) {
-			// No rendering needed
-			return false;
+		if (this._wendewedContent === wesuwt) {
+			// No wendewing needed
+			wetuwn fawse;
 		}
 
-		this._renderedContent = result;
+		this._wendewedContent = wesuwt;
 
-		sb.appendASCIIString('<div style="position:absolute;top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;width:100%;height:');
-		sb.appendASCIIString(String(this._lineHeight));
-		sb.appendASCIIString('px;">');
-		sb.appendASCIIString(result);
-		sb.appendASCIIString('</div>');
+		sb.appendASCIIStwing('<div stywe="position:absowute;top:');
+		sb.appendASCIIStwing(Stwing(dewtaTop));
+		sb.appendASCIIStwing('px;width:100%;height:');
+		sb.appendASCIIStwing(Stwing(this._wineHeight));
+		sb.appendASCIIStwing('px;">');
+		sb.appendASCIIStwing(wesuwt);
+		sb.appendASCIIStwing('</div>');
 
-		return true;
+		wetuwn twue;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number): void {
+	pubwic wayoutWine(wineNumba: numba, dewtaTop: numba): void {
 		if (this._domNode) {
-			this._domNode.setTop(deltaTop);
-			this._domNode.setHeight(this._lineHeight);
+			this._domNode.setTop(dewtaTop);
+			this._domNode.setHeight(this._wineHeight);
 		}
 	}
 }
 
-export class ContentViewOverlays extends ViewOverlays {
+expowt cwass ContentViewOvewways extends ViewOvewways {
 
-	private _contentWidth: number;
+	pwivate _contentWidth: numba;
 
-	constructor(context: ViewContext) {
-		super(context);
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._contentWidth = layoutInfo.contentWidth;
+	constwuctow(context: ViewContext) {
+		supa(context);
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		this._contentWidth = wayoutInfo.contentWidth;
 
 		this.domNode.setHeight(0);
 	}
 
-	// --- begin event handlers
+	// --- begin event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._contentWidth = layoutInfo.contentWidth;
-		return super.onConfigurationChanged(e) || true;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		this._contentWidth = wayoutInfo.contentWidth;
+		wetuwn supa.onConfiguwationChanged(e) || twue;
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollWidthChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn supa.onScwowwChanged(e) || e.scwowwWidthChanged;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
-		super._viewOverlaysRender(ctx);
+	ovewwide _viewOvewwaysWenda(ctx: WestwictedWendewingContext): void {
+		supa._viewOvewwaysWenda(ctx);
 
-		this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
+		this.domNode.setWidth(Math.max(ctx.scwowwWidth, this._contentWidth));
 	}
 }
 
-export class MarginViewOverlays extends ViewOverlays {
+expowt cwass MawginViewOvewways extends ViewOvewways {
 
-	private _contentLeft: number;
+	pwivate _contentWeft: numba;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		const options = this._context.configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._contentLeft = layoutInfo.contentLeft;
+		const options = this._context.configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		this._contentWeft = wayoutInfo.contentWeft;
 
-		this.domNode.setClassName('margin-view-overlays');
+		this.domNode.setCwassName('mawgin-view-ovewways');
 		this.domNode.setWidth(1);
 
-		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
+		Configuwation.appwyFontInfo(this.domNode, options.get(EditowOption.fontInfo));
 	}
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const options = this._context.configuration.options;
-		Configuration.applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._contentLeft = layoutInfo.contentLeft;
-		return super.onConfigurationChanged(e) || true;
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		const options = this._context.configuwation.options;
+		Configuwation.appwyFontInfo(this.domNode, options.get(EditowOption.fontInfo));
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		this._contentWeft = wayoutInfo.contentWeft;
+		wetuwn supa.onConfiguwationChanged(e) || twue;
 	}
 
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollHeightChanged;
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn supa.onScwowwChanged(e) || e.scwowwHeightChanged;
 	}
 
-	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
-		super._viewOverlaysRender(ctx);
-		const height = Math.min(ctx.scrollHeight, 1000000);
+	ovewwide _viewOvewwaysWenda(ctx: WestwictedWendewingContext): void {
+		supa._viewOvewwaysWenda(ctx);
+		const height = Math.min(ctx.scwowwHeight, 1000000);
 		this.domNode.setHeight(height);
-		this.domNode.setWidth(this._contentLeft);
+		this.domNode.setWidth(this._contentWeft);
 	}
 }

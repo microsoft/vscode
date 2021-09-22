@@ -1,196 +1,196 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { CommonFindController } from 'vs/editor/contrib/find/findController';
-import { AddSelectionToNextFindMatchAction, InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction } from 'vs/editor/contrib/multicursor/multicursor';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWineSequence } fwom 'vs/editow/common/modew';
+impowt { CommonFindContwowwa } fwom 'vs/editow/contwib/find/findContwowwa';
+impowt { AddSewectionToNextFindMatchAction, InsewtCuwsowAbove, InsewtCuwsowBewow, MuwtiCuwsowSewectionContwowwa, SewectHighwightsAction } fwom 'vs/editow/contwib/muwticuwsow/muwticuwsow';
+impowt { ITestCodeEditow, withTestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-suite('Multicursor', () => {
+suite('Muwticuwsow', () => {
 
-	test('issue #2205: Multi-cursor pastes in reverse order', () => {
-		withTestCodeEditor([
+	test('issue #2205: Muwti-cuwsow pastes in wevewse owda', () => {
+		withTestCodeEditow([
 			'abc',
 			'def'
-		], {}, (editor, viewModel) => {
-			let addCursorUpAction = new InsertCursorAbove();
+		], {}, (editow, viewModew) => {
+			wet addCuwsowUpAction = new InsewtCuwsowAbove();
 
-			editor.setSelection(new Selection(2, 1, 2, 1));
-			addCursorUpAction.run(null!, editor, {});
-			assert.strictEqual(viewModel.getSelections().length, 2);
+			editow.setSewection(new Sewection(2, 1, 2, 1));
+			addCuwsowUpAction.wun(nuww!, editow, {});
+			assewt.stwictEquaw(viewModew.getSewections().wength, 2);
 
-			editor.trigger('test', Handler.Paste, {
+			editow.twigga('test', Handwa.Paste, {
 				text: '1\n2',
-				multicursorText: [
+				muwticuwsowText: [
 					'1',
 					'2'
 				]
 			});
 
-			assert.strictEqual(editor.getModel()!.getLineContent(1), '1abc');
-			assert.strictEqual(editor.getModel()!.getLineContent(2), '2def');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(1), '1abc');
+			assewt.stwictEquaw(editow.getModew()!.getWineContent(2), '2def');
 		});
 	});
 
-	test('issue #1336: Insert cursor below on last line adds a cursor to the end of the current line', () => {
-		withTestCodeEditor([
+	test('issue #1336: Insewt cuwsow bewow on wast wine adds a cuwsow to the end of the cuwwent wine', () => {
+		withTestCodeEditow([
 			'abc'
-		], {}, (editor, viewModel) => {
-			let addCursorDownAction = new InsertCursorBelow();
-			addCursorDownAction.run(null!, editor, {});
-			assert.strictEqual(viewModel.getSelections().length, 1);
+		], {}, (editow, viewModew) => {
+			wet addCuwsowDownAction = new InsewtCuwsowBewow();
+			addCuwsowDownAction.wun(nuww!, editow, {});
+			assewt.stwictEquaw(viewModew.getSewections().wength, 1);
 		});
 	});
 
 });
 
-function fromRange(rng: Range): number[] {
-	return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+function fwomWange(wng: Wange): numba[] {
+	wetuwn [wng.stawtWineNumba, wng.stawtCowumn, wng.endWineNumba, wng.endCowumn];
 }
 
-suite('Multicursor selection', () => {
-	let queryState: { [key: string]: any; } = {};
-	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeValue: Event.None,
-		onDidChangeTarget: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined,
-		logStorage: () => undefined,
-		migrate: (toWorkspace) => Promise.resolve(undefined),
-		flush: () => Promise.resolve(undefined),
-		isNew: () => true,
+suite('Muwticuwsow sewection', () => {
+	wet quewyState: { [key: stwing]: any; } = {};
+	wet sewviceCowwection = new SewviceCowwection();
+	sewviceCowwection.set(IStowageSewvice, {
+		_sewviceBwand: undefined,
+		onDidChangeVawue: Event.None,
+		onDidChangeTawget: Event.None,
+		onWiwwSaveState: Event.None,
+		get: (key: stwing) => quewyState[key],
+		getBoowean: (key: stwing) => !!quewyState[key],
+		getNumba: (key: stwing) => undefined!,
+		stowe: (key: stwing, vawue: any) => { quewyState[key] = vawue; wetuwn Pwomise.wesowve(); },
+		wemove: (key) => undefined,
+		wogStowage: () => undefined,
+		migwate: (toWowkspace) => Pwomise.wesowve(undefined),
+		fwush: () => Pwomise.wesowve(undefined),
+		isNew: () => twue,
 		keys: () => []
-	} as IStorageService);
+	} as IStowageSewvice);
 
-	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor) => {
+	test('issue #8817: Cuwsow position changes when you cancew muwticuwsow', () => {
+		withTestCodeEditow([
+			'vaw x = (3 * 5)',
+			'vaw y = (3 * 5)',
+			'vaw z = (3 * 5)',
+		], { sewviceCowwection: sewviceCowwection }, (editow) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let selectHighlightsAction = new SelectHighlightsAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+			wet sewectHighwightsAction = new SewectHighwightsAction();
 
-			editor.setSelection(new Selection(2, 9, 2, 16));
+			editow.setSewection(new Sewection(2, 9, 2, 16));
 
-			selectHighlightsAction.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			sewectHighwightsAction.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[2, 9, 2, 16],
 				[1, 9, 1, 16],
 				[3, 9, 3, 16],
 			]);
 
-			editor.trigger('test', 'removeSecondaryCursors', null);
+			editow.twigga('test', 'wemoveSecondawyCuwsows', nuww);
 
-			assert.deepStrictEqual(fromRange(editor.getSelection()!), [2, 9, 2, 16]);
+			assewt.deepStwictEquaw(fwomWange(editow.getSewection()!), [2, 9, 2, 16]);
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #5400: "Select All Occurrences of Find Match" does not select all if find uses regex', () => {
-		withTestCodeEditor([
+	test('issue #5400: "Sewect Aww Occuwwences of Find Match" does not sewect aww if find uses wegex', () => {
+		withTestCodeEditow([
 			'something',
 			'someething',
 			'someeething',
 			'nothing'
-		], { serviceCollection: serviceCollection }, (editor) => {
+		], { sewviceCowwection: sewviceCowwection }, (editow) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let selectHighlightsAction = new SelectHighlightsAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+			wet sewectHighwightsAction = new SewectHighwightsAction();
 
-			editor.setSelection(new Selection(1, 1, 1, 1));
-			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
+			editow.setSewection(new Sewection(1, 1, 1, 1));
+			findContwowwa.getState().change({ seawchStwing: 'some+thing', isWegex: twue, isWeveawed: twue }, fawse);
 
-			selectHighlightsAction.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			sewectHighwightsAction.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[1, 1, 1, 10],
 				[2, 1, 2, 11],
 				[3, 1, 3, 12],
 			]);
 
-			assert.strictEqual(findController.getState().searchString, 'some+thing');
+			assewt.stwictEquaw(findContwowwa.getState().seawchStwing, 'some+thing');
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
-		withTestCodeEditor([
+	test('AddSewectionToNextFindMatchAction can wowk with muwtiwine', () => {
+		withTestCodeEditow([
 			'',
 			'qwe',
-			'rty',
+			'wty',
 			'',
 			'qwe',
 			'',
-			'rty',
+			'wty',
 			'qwe',
-			'rty'
-		], { serviceCollection: serviceCollection }, (editor) => {
+			'wty'
+		], { sewviceCowwection: sewviceCowwection }, (editow) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+			wet addSewectionToNextFindMatch = new AddSewectionToNextFindMatchAction();
 
-			editor.setSelection(new Selection(2, 1, 3, 4));
+			editow.setSewection(new Sewection(2, 1, 3, 4));
 
-			addSelectionToNextFindMatch.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[2, 1, 3, 4],
 				[8, 1, 9, 4]
 			]);
 
-			editor.trigger('test', 'removeSecondaryCursors', null);
+			editow.twigga('test', 'wemoveSecondawyCuwsows', nuww);
 
-			assert.deepStrictEqual(fromRange(editor.getSelection()!), [2, 1, 3, 4]);
+			assewt.deepStwictEquaw(fwomWange(editow.getSewection()!), [2, 1, 3, 4]);
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #6661: AddSelectionToNextFindMatchAction can work with touching ranges', () => {
-		withTestCodeEditor([
+	test('issue #6661: AddSewectionToNextFindMatchAction can wowk with touching wanges', () => {
+		withTestCodeEditow([
 			'abcabc',
 			'abc',
 			'abcabc',
-		], { serviceCollection: serviceCollection }, (editor) => {
+		], { sewviceCowwection: sewviceCowwection }, (editow) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+			wet addSewectionToNextFindMatch = new AddSewectionToNextFindMatchAction();
 
-			editor.setSelection(new Selection(1, 1, 1, 4));
+			editow.setSewection(new Sewection(1, 1, 1, 4));
 
-			addSelectionToNextFindMatch.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[1, 1, 1, 4],
 				[1, 4, 1, 7]
 			]);
 
-			addSelectionToNextFindMatch.run(null!, editor);
-			addSelectionToNextFindMatch.run(null!, editor);
-			addSelectionToNextFindMatch.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[1, 1, 1, 4],
 				[1, 4, 1, 7],
 				[2, 1, 2, 4],
@@ -198,245 +198,245 @@ suite('Multicursor selection', () => {
 				[3, 4, 3, 7]
 			]);
 
-			editor.trigger('test', Handler.Type, { text: 'z' });
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			editow.twigga('test', Handwa.Type, { text: 'z' });
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[1, 2, 1, 2],
 				[1, 3, 1, 3],
 				[2, 2, 2, 2],
 				[3, 2, 3, 2],
 				[3, 3, 3, 3]
 			]);
-			assert.strictEqual(editor.getValue(), [
+			assewt.stwictEquaw(editow.getVawue(), [
 				'zz',
 				'z',
 				'zz',
 			].join('\n'));
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	test('issue #23541: Multiline Ctrl+D does not work in CRLF files', () => {
-		withTestCodeEditor([
+	test('issue #23541: Muwtiwine Ctww+D does not wowk in CWWF fiwes', () => {
+		withTestCodeEditow([
 			'',
 			'qwe',
-			'rty',
+			'wty',
 			'',
 			'qwe',
 			'',
-			'rty',
+			'wty',
 			'qwe',
-			'rty'
-		], { serviceCollection: serviceCollection }, (editor) => {
+			'wty'
+		], { sewviceCowwection: sewviceCowwection }, (editow) => {
 
-			editor.getModel()!.setEOL(EndOfLineSequence.CRLF);
+			editow.getModew()!.setEOW(EndOfWineSequence.CWWF);
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
+			wet addSewectionToNextFindMatch = new AddSewectionToNextFindMatchAction();
 
-			editor.setSelection(new Selection(2, 1, 3, 4));
+			editow.setSewection(new Sewection(2, 1, 3, 4));
 
-			addSelectionToNextFindMatch.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+			addSewectionToNextFindMatch.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections()!.map(fwomWange), [
 				[2, 1, 3, 4],
 				[8, 1, 9, 4]
 			]);
 
-			editor.trigger('test', 'removeSecondaryCursors', null);
+			editow.twigga('test', 'wemoveSecondawyCuwsows', nuww);
 
-			assert.deepStrictEqual(fromRange(editor.getSelection()!), [2, 1, 3, 4]);
+			assewt.deepStwictEquaw(fwomWange(editow.getSewection()!), [2, 1, 3, 4]);
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	});
 
-	function testMulticursor(text: string[], callback: (editor: ITestCodeEditor, findController: CommonFindController) => void): void {
-		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor) => {
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+	function testMuwticuwsow(text: stwing[], cawwback: (editow: ITestCodeEditow, findContwowwa: CommonFindContwowwa) => void): void {
+		withTestCodeEditow(text, { sewviceCowwection: sewviceCowwection }, (editow) => {
+			wet findContwowwa = editow.wegistewAndInstantiateContwibution(CommonFindContwowwa.ID, CommonFindContwowwa);
+			wet muwtiCuwsowSewectContwowwa = editow.wegistewAndInstantiateContwibution(MuwtiCuwsowSewectionContwowwa.ID, MuwtiCuwsowSewectionContwowwa);
 
-			callback(editor, findController);
+			cawwback(editow, findContwowwa);
 
-			multiCursorSelectController.dispose();
-			findController.dispose();
+			muwtiCuwsowSewectContwowwa.dispose();
+			findContwowwa.dispose();
 		});
 	}
 
-	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: ITestCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
-		testMulticursor(text, (editor, findController) => {
-			let action = new AddSelectionToNextFindMatchAction();
-			callback(editor, action, findController);
+	function testAddSewectionToNextFindMatchAction(text: stwing[], cawwback: (editow: ITestCodeEditow, action: AddSewectionToNextFindMatchAction, findContwowwa: CommonFindContwowwa) => void): void {
+		testMuwticuwsow(text, (editow, findContwowwa) => {
+			wet action = new AddSewectionToNextFindMatchAction();
+			cawwback(editow, action, findContwowwa);
 		});
 	}
 
-	test('AddSelectionToNextFindMatchAction starting with single collapsed selection', () => {
+	test('AddSewectionToNextFindMatchAction stawting with singwe cowwapsed sewection', () => {
 		const text = [
 			'abc pizza',
 			'abc house',
-			'abc bar'
+			'abc baw'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 2, 1, 2),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 2, 1, 2),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 		});
 	});
 
-	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 1)', () => {
+	test('AddSewectionToNextFindMatchAction stawting with two sewections, one being cowwapsed 1)', () => {
 		const text = [
 			'abc pizza',
 			'abc house',
-			'abc bar'
+			'abc baw'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 2, 2, 2),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 2, 2, 2),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 		});
 	});
 
-	test('AddSelectionToNextFindMatchAction starting with two selections, one being collapsed 2)', () => {
+	test('AddSewectionToNextFindMatchAction stawting with two sewections, one being cowwapsed 2)', () => {
 		const text = [
 			'abc pizza',
 			'abc house',
-			'abc bar'
+			'abc baw'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 2, 1, 2),
-				new Selection(2, 1, 2, 4),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 2, 1, 2),
+				new Sewection(2, 1, 2, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 		});
 	});
 
-	test('AddSelectionToNextFindMatchAction starting with all collapsed selections', () => {
+	test('AddSewectionToNextFindMatchAction stawting with aww cowwapsed sewections', () => {
 		const text = [
 			'abc pizza',
 			'abc house',
-			'abc bar'
+			'abc baw'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 2, 1, 2),
-				new Selection(2, 2, 2, 2),
-				new Selection(3, 1, 3, 1),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 2, 1, 2),
+				new Sewection(2, 2, 2, 2),
+				new Sewection(3, 1, 3, 1),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 4),
-				new Selection(2, 1, 2, 4),
-				new Selection(3, 1, 3, 4),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 4),
+				new Sewection(2, 1, 2, 4),
+				new Sewection(3, 1, 3, 4),
 			]);
 		});
 	});
 
-	test('AddSelectionToNextFindMatchAction starting with all collapsed selections on different words', () => {
+	test('AddSewectionToNextFindMatchAction stawting with aww cowwapsed sewections on diffewent wowds', () => {
 		const text = [
 			'abc pizza',
 			'abc house',
-			'abc bar'
+			'abc baw'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 6, 1, 6),
-				new Selection(2, 6, 2, 6),
-				new Selection(3, 6, 3, 6),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 6, 1, 6),
+				new Sewection(2, 6, 2, 6),
+				new Sewection(3, 6, 3, 6),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 5, 1, 10),
-				new Selection(2, 5, 2, 10),
-				new Selection(3, 5, 3, 8),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 5, 1, 10),
+				new Sewection(2, 5, 2, 10),
+				new Sewection(3, 5, 3, 8),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 5, 1, 10),
-				new Selection(2, 5, 2, 10),
-				new Selection(3, 5, 3, 8),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 5, 1, 10),
+				new Sewection(2, 5, 2, 10),
+				new Sewection(3, 5, 3, 8),
 			]);
 		});
 	});
 
-	test('issue #20651: AddSelectionToNextFindMatchAction case insensitive', () => {
+	test('issue #20651: AddSewectionToNextFindMatchAction case insensitive', () => {
 		const text = [
 			'test',
 			'testte',
@@ -444,48 +444,48 @@ suite('Multicursor selection', () => {
 			'testte',
 			'test'
 		];
-		testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-			editor.setSelections([
-				new Selection(1, 1, 1, 5),
+		testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+			editow.setSewections([
+				new Sewection(1, 1, 1, 5),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
+				new Sewection(4, 1, 4, 5),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
-				new Selection(5, 1, 5, 5),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
+				new Sewection(4, 1, 4, 5),
+				new Sewection(5, 1, 5, 5),
 			]);
 
-			action.run(null!, editor);
-			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(2, 1, 2, 5),
-				new Selection(3, 1, 3, 5),
-				new Selection(4, 1, 4, 5),
-				new Selection(5, 1, 5, 5),
+			action.wun(nuww!, editow);
+			assewt.deepStwictEquaw(editow.getSewections(), [
+				new Sewection(1, 1, 1, 5),
+				new Sewection(2, 1, 2, 5),
+				new Sewection(3, 1, 3, 5),
+				new Sewection(4, 1, 4, 5),
+				new Sewection(5, 1, 5, 5),
 			]);
 		});
 	});
@@ -494,88 +494,88 @@ suite('Multicursor selection', () => {
 
 		const text = [
 			'app',
-			'apples',
+			'appwes',
 			'whatsapp',
 			'app',
 			'App',
 			' app'
 		];
 
-		test('enters mode', () => {
-			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-				editor.setSelections([
-					new Selection(1, 2, 1, 2),
+		test('entews mode', () => {
+			testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+				editow.setSewections([
+					new Sewection(1, 2, 1, 2),
 				]);
 
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
 				]);
 
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(4, 1, 4, 4),
 				]);
 
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-					new Selection(6, 2, 6, 5),
-				]);
-			});
-		});
-
-		test('leaves mode when selection changes', () => {
-			testAddSelectionToNextFindMatchAction(text, (editor, action, findController) => {
-				editor.setSelections([
-					new Selection(1, 2, 1, 2),
-				]);
-
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-				]);
-
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-				]);
-
-				// change selection
-				editor.setSelections([
-					new Selection(1, 1, 1, 4),
-				]);
-
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(2, 1, 2, 4),
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(4, 1, 4, 4),
+					new Sewection(6, 2, 6, 5),
 				]);
 			});
 		});
 
-		test('Select Highlights respects mode ', () => {
-			testMulticursor(text, (editor, findController) => {
-				let action = new SelectHighlightsAction();
-				editor.setSelections([
-					new Selection(1, 2, 1, 2),
+		test('weaves mode when sewection changes', () => {
+			testAddSewectionToNextFindMatchAction(text, (editow, action, findContwowwa) => {
+				editow.setSewections([
+					new Sewection(1, 2, 1, 2),
 				]);
 
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-					new Selection(6, 2, 6, 5),
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
 				]);
 
-				action.run(null!, editor);
-				assert.deepStrictEqual(editor.getSelections(), [
-					new Selection(1, 1, 1, 4),
-					new Selection(4, 1, 4, 4),
-					new Selection(6, 2, 6, 5),
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(4, 1, 4, 4),
+				]);
+
+				// change sewection
+				editow.setSewections([
+					new Sewection(1, 1, 1, 4),
+				]);
+
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(2, 1, 2, 4),
+				]);
+			});
+		});
+
+		test('Sewect Highwights wespects mode ', () => {
+			testMuwticuwsow(text, (editow, findContwowwa) => {
+				wet action = new SewectHighwightsAction();
+				editow.setSewections([
+					new Sewection(1, 2, 1, 2),
+				]);
+
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(4, 1, 4, 4),
+					new Sewection(6, 2, 6, 5),
+				]);
+
+				action.wun(nuww!, editow);
+				assewt.deepStwictEquaw(editow.getSewections(), [
+					new Sewection(1, 1, 1, 4),
+					new Sewection(4, 1, 4, 4),
+					new Sewection(6, 2, 6, 5),
 				]);
 			});
 		});

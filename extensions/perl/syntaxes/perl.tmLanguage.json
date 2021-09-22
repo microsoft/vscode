@@ -1,608 +1,608 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/perl.tmbundle/blob/master/Syntaxes/Perl.plist",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/peww.tmbundwe/bwob/masta/Syntaxes/Peww.pwist",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/perl.tmbundle/commit/a85927a902d6e5d7805f56a653f324d34dfad53a",
-	"name": "Perl",
-	"scopeName": "source.perl",
-	"comment": "\n\tTODO:\tInclude RegExp syntax\n",
-	"patterns": [
+	"vewsion": "https://github.com/textmate/peww.tmbundwe/commit/a85927a902d6e5d7805f56a653f324d34dfad53a",
+	"name": "Peww",
+	"scopeName": "souwce.peww",
+	"comment": "\n\tTODO:\tIncwude WegExp syntax\n",
+	"pattewns": [
 		{
-			"include": "#line_comment"
+			"incwude": "#wine_comment"
 		},
 		{
 			"begin": "^(?==[a-zA-Z]+)",
 			"end": "^(=cut\\b.*$)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#pod"
+							"incwude": "#pod"
 						}
 					]
 				}
 			},
-			"name": "comment.block.documentation.perl",
-			"patterns": [
+			"name": "comment.bwock.documentation.peww",
+			"pattewns": [
 				{
-					"include": "#pod"
+					"incwude": "#pod"
 				}
 			]
 		},
 		{
-			"include": "#variable"
+			"incwude": "#vawiabwe"
 		},
 		{
-			"applyEndPatternLast": 1,
-			"begin": "\\b(?=qr\\s*[^\\s\\w])",
-			"comment": "string.regexp.compile.perl",
-			"end": "((([egimosxradlupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
-			"endCaptures": {
+			"appwyEndPattewnWast": 1,
+			"begin": "\\b(?=qw\\s*[^\\s\\w])",
+			"comment": "stwing.wegexp.compiwe.peww",
+			"end": "((([egimosxwadwupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.compile.perl"
+					"name": "stwing.wegexp.compiwe.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"begin": "(qr)\\s*\\{",
-					"captures": {
+					"begin": "(qw)\\s*\\{",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\}",
-					"name": "string.regexp.compile.nested_braces.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.nested_bwaces.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_braces_interpolated"
+							"incwude": "#nested_bwaces_intewpowated"
 						}
 					]
 				},
 				{
-					"begin": "(qr)\\s*\\[",
-					"captures": {
+					"begin": "(qw)\\s*\\[",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\]",
-					"name": "string.regexp.compile.nested_brackets.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.nested_bwackets.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_brackets_interpolated"
+							"incwude": "#nested_bwackets_intewpowated"
 						}
 					]
 				},
 				{
-					"begin": "(qr)\\s*<",
-					"captures": {
+					"begin": "(qw)\\s*<",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": ">",
-					"name": "string.regexp.compile.nested_ltgt.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.nested_wtgt.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_ltgt_interpolated"
+							"incwude": "#nested_wtgt_intewpowated"
 						}
 					]
 				},
 				{
-					"begin": "(qr)\\s*\\(",
-					"captures": {
+					"begin": "(qw)\\s*\\(",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\)",
-					"name": "string.regexp.compile.nested_parens.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.nested_pawens.peww",
+					"pattewns": [
 						{
-							"comment": "This is to prevent thinks like qr/foo$/ to treat $/ as a variable",
+							"comment": "This is to pwevent thinks wike qw/foo$/ to tweat $/ as a vawiabwe",
 							"match": "\\$(?=[^\\s\\w\\\\'\\{\\[\\(\\<])"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_parens_interpolated"
+							"incwude": "#nested_pawens_intewpowated"
 						}
 					]
 				},
 				{
-					"begin": "(qr)\\s*'",
-					"captures": {
+					"begin": "(qw)\\s*'",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "'",
-					"name": "string.regexp.compile.single-quote.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.singwe-quote.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
-					"begin": "(qr)\\s*([^\\s\\w'\\{\\[\\(\\<])",
-					"captures": {
+					"begin": "(qw)\\s*([^\\s\\w'\\{\\[\\(\\<])",
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\2",
-					"name": "string.regexp.compile.simple-delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.compiwe.simpwe-dewimita.peww",
+					"pattewns": [
 						{
-							"comment": "This is to prevent thinks like qr/foo$/ to treat $/ as a variable",
+							"comment": "This is to pwevent thinks wike qw/foo$/ to tweat $/ as a vawiabwe",
 							"match": "\\$(?=[^\\s\\w'\\{\\[\\(\\<])",
-							"name": "keyword.control.anchor.perl"
+							"name": "keywowd.contwow.anchow.peww"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_parens_interpolated"
+							"incwude": "#nested_pawens_intewpowated"
 						}
 					]
 				}
 			]
 		},
 		{
-			"applyEndPatternLast": 1,
+			"appwyEndPattewnWast": 1,
 			"begin": "(?<!\\{|\\+|\\-)\\b(?=m\\s*[^\\sa-zA-Z0-9])",
-			"comment": "string.regexp.find-m.perl",
-			"end": "((([egimosxradlupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
-			"endCaptures": {
+			"comment": "stwing.wegexp.find-m.peww",
+			"end": "((([egimosxwadwupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.find-m.perl"
+					"name": "stwing.wegexp.find-m.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(m)\\s*\\{",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\}",
-					"name": "string.regexp.find-m.nested_braces.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.nested_bwaces.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_braces_interpolated"
+							"incwude": "#nested_bwaces_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "(m)\\s*\\[",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\]",
-					"name": "string.regexp.find-m.nested_brackets.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.nested_bwackets.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_brackets_interpolated"
+							"incwude": "#nested_bwackets_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "(m)\\s*<",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": ">",
-					"name": "string.regexp.find-m.nested_ltgt.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.nested_wtgt.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_ltgt_interpolated"
+							"incwude": "#nested_wtgt_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "(m)\\s*\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\)",
-					"name": "string.regexp.find-m.nested_parens.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.nested_pawens.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_parens_interpolated"
+							"incwude": "#nested_pawens_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "(m)\\s*'",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "'",
-					"name": "string.regexp.find-m.single-quote.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.singwe-quote.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "\\G(?<!\\{|\\+|\\-)(m)(?!_)\\s*([^\\sa-zA-Z0-9'\\{\\[\\(\\<])",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\2",
-					"name": "string.regexp.find-m.simple-delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.find-m.simpwe-dewimita.peww",
+					"pattewns": [
 						{
-							"comment": "This is to prevent thinks like qr/foo$/ to treat $/ as a variable",
+							"comment": "This is to pwevent thinks wike qw/foo$/ to tweat $/ as a vawiabwe",
 							"match": "\\$(?=[^\\sa-zA-Z0-9'\\{\\[\\(\\<])",
-							"name": "keyword.control.anchor.perl"
+							"name": "keywowd.contwow.anchow.peww"
 						},
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
 							"begin": "\\[",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.character-class.begin.perl"
+									"name": "punctuation.definition.chawacta-cwass.begin.peww"
 								}
 							},
 							"end": "\\]",
-							"endCaptures": {
+							"endCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.character-class.end.perl"
+									"name": "punctuation.definition.chawacta-cwass.end.peww"
 								}
 							},
-							"name": "constant.other.character-class.set.perl",
-							"patterns": [
+							"name": "constant.otha.chawacta-cwass.set.peww",
+							"pattewns": [
 								{
-									"comment": "This is to prevent thinks like qr/foo$/ to treat $/ as a variable",
+									"comment": "This is to pwevent thinks wike qw/foo$/ to tweat $/ as a vawiabwe",
 									"match": "\\$(?=[^\\s\\w'\\{\\[\\(\\<])",
-									"name": "keyword.control.anchor.perl"
+									"name": "keywowd.contwow.anchow.peww"
 								},
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								}
 							]
 						},
 						{
-							"include": "#nested_parens_interpolated"
+							"incwude": "#nested_pawens_intewpowated"
 						}
 					]
 				}
 			]
 		},
 		{
-			"applyEndPatternLast": 1,
+			"appwyEndPattewnWast": 1,
 			"begin": "\\b(?=(?<!\\&)(s)(\\s+\\S|\\s*[;\\,\\{\\}\\(\\)\\[<]|$))",
-			"comment": "string.regexp.replace.perl",
-			"end": "((([egimosxradlupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\{\\}\\)\\]>]|\\s*$))",
-			"endCaptures": {
+			"comment": "stwing.wegexp.wepwace.peww",
+			"end": "((([egimosxwadwupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\{\\}\\)\\]>]|\\s*$))",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.replace.perl"
+					"name": "stwing.wegexp.wepwace.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(s)\\s*\\{",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\}",
-					"name": "string.regexp.nested_braces.perl",
-					"patterns": [
+					"name": "stwing.wegexp.nested_bwaces.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#nested_braces"
+							"incwude": "#nested_bwaces"
 						}
 					]
 				},
 				{
 					"begin": "(s)\\s*\\[",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\]",
-					"name": "string.regexp.nested_brackets.perl",
-					"patterns": [
+					"name": "stwing.wegexp.nested_bwackets.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#nested_brackets"
+							"incwude": "#nested_bwackets"
 						}
 					]
 				},
 				{
 					"begin": "(s)\\s*<",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": ">",
-					"name": "string.regexp.nested_ltgt.perl",
-					"patterns": [
+					"name": "stwing.wegexp.nested_wtgt.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#nested_ltgt"
+							"incwude": "#nested_wtgt"
 						}
 					]
 				},
 				{
 					"begin": "(s)\\s*\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "\\)",
-					"name": "string.regexp.nested_parens.perl",
-					"patterns": [
+					"name": "stwing.wegexp.nested_pawens.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#nested_parens"
+							"incwude": "#nested_pawens"
 						}
 					]
 				},
 				{
 					"begin": "\\{",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "\\}",
-					"name": "string.regexp.format.nested_braces.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.nested_bwaces.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_braces_interpolated"
+							"incwude": "#nested_bwaces_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "\\[",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "\\]",
-					"name": "string.regexp.format.nested_brackets.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.nested_bwackets.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_brackets_interpolated"
+							"incwude": "#nested_bwackets_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "<",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": ">",
-					"name": "string.regexp.format.nested_ltgt.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.nested_wtgt.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_ltgt_interpolated"
+							"incwude": "#nested_wtgt_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "\\(",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "\\)",
-					"name": "string.regexp.format.nested_parens.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.nested_pawens.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						},
 						{
-							"include": "#nested_parens_interpolated"
+							"incwude": "#nested_pawens_intewpowated"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "'",
-					"name": "string.regexp.format.single_quote.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.singwe_quote.peww",
+					"pattewns": [
 						{
 							"match": "\\\\['\\\\]",
-							"name": "constant.character.escape.perl"
+							"name": "constant.chawacta.escape.peww"
 						}
 					]
 				},
 				{
 					"begin": "([^\\s\\w\\[({<;])",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "\\1",
-					"name": "string.regexp.format.simple_delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.fowmat.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				},
@@ -612,70 +612,70 @@
 			]
 		},
 		{
-			"begin": "\\b(?=s([^\\sa-zA-Z0-9\\[({<]).*\\1([egimosxradlupcn]*)([\\}\\)\\;\\,]|\\s+))",
-			"comment": "string.regexp.replaceXXX",
-			"end": "((([egimosxradlupcn]*)))(?=([\\}\\)\\;\\,]|\\s+|\\s*$))",
-			"endCaptures": {
+			"begin": "\\b(?=s([^\\sa-zA-Z0-9\\[({<]).*\\1([egimosxwadwupcn]*)([\\}\\)\\;\\,]|\\s+))",
+			"comment": "stwing.wegexp.wepwaceXXX",
+			"end": "((([egimosxwadwupcn]*)))(?=([\\}\\)\\;\\,]|\\s+|\\s*$))",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.replace.perl"
+					"name": "stwing.wegexp.wepwace.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(s\\s*)([^\\sa-zA-Z0-9\\[({<])",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "(?=\\2)",
-					"name": "string.regexp.replaceXXX.simple_delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.wepwaceXXX.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "'",
-					"name": "string.regexp.replaceXXX.format.single_quote.perl",
-					"patterns": [
+					"name": "stwing.wegexp.wepwaceXXX.fowmat.singwe_quote.peww",
+					"pattewns": [
 						{
 							"match": "\\\\['\\\\]",
-							"name": "constant.character.escape.perl.perl"
+							"name": "constant.chawacta.escape.peww.peww"
 						}
 					]
 				},
 				{
 					"begin": "([^\\sa-zA-Z0-9\\[({<])",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
 					"end": "\\1",
-					"name": "string.regexp.replaceXXX.format.simple_delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.wepwaceXXX.fowmat.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				}
@@ -683,171 +683,171 @@
 		},
 		{
 			"begin": "\\b(?=(?<!\\\\)s\\s*([^\\s\\w\\[({<>]))",
-			"comment": "string.regexp.replace.extended",
-			"end": "((([egimosradlupc]*x[egimosradlupc]*)))\\b",
-			"endCaptures": {
+			"comment": "stwing.wegexp.wepwace.extended",
+			"end": "((([egimoswadwupc]*x[egimoswadwupc]*)))\\b",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.replace.perl"
+					"name": "stwing.wegexp.wepwace.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(s)\\s*(.)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						},
 						"1": {
-							"name": "support.function.perl"
+							"name": "suppowt.function.peww"
 						}
 					},
 					"end": "(?=\\2)",
-					"name": "string.regexp.replace.extended.simple_delimiter.perl",
-					"patterns": [
+					"name": "stwing.wegexp.wepwace.extended.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "'",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
-					"end": "'(?=[egimosradlupc]*x[egimosradlupc]*)\\b",
-					"name": "string.regexp.replace.extended.simple_delimiter.perl",
-					"patterns": [
+					"end": "'(?=[egimoswadwupc]*x[egimoswadwupc]*)\\b",
+					"name": "stwing.wegexp.wepwace.extended.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						}
 					]
 				},
 				{
 					"begin": "(.)",
-					"captures": {
+					"captuwes": {
 						"0": {
-							"name": "punctuation.definition.string.perl"
+							"name": "punctuation.definition.stwing.peww"
 						}
 					},
-					"end": "\\1(?=[egimosradlupc]*x[egimosradlupc]*)\\b",
-					"name": "string.regexp.replace.extended.simple_delimiter.perl",
-					"patterns": [
+					"end": "\\1(?=[egimoswadwupc]*x[egimoswadwupc]*)\\b",
+					"name": "stwing.wegexp.wepwace.extended.simpwe_dewimita.peww",
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				}
 			]
 		},
 		{
-			"begin": "(?<=\\(|\\{|~|&|\\||if|unless|^)\\s*((\\/))",
-			"beginCaptures": {
+			"begin": "(?<=\\(|\\{|~|&|\\||if|unwess|^)\\s*((\\/))",
+			"beginCaptuwes": {
 				"1": {
-					"name": "string.regexp.find.perl"
+					"name": "stwing.wegexp.find.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				}
 			},
-			"contentName": "string.regexp.find.perl",
-			"end": "((\\1([egimosxradlupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
-			"endCaptures": {
+			"contentName": "stwing.wegexp.find.peww",
+			"end": "((\\1([egimosxwadwupcn]*)))(?=(\\s+\\S|\\s*[;\\,\\#\\{\\}\\)]|\\s*$))",
+			"endCaptuwes": {
 				"1": {
-					"name": "string.regexp.find.perl"
+					"name": "stwing.wegexp.find.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"3": {
-					"name": "keyword.control.regexp-option.perl"
+					"name": "keywowd.contwow.wegexp-option.peww"
 				}
 			},
-			"patterns": [
+			"pattewns": [
 				{
-					"comment": "This is to prevent thinks like /foo$/ to treat $/ as a variable",
+					"comment": "This is to pwevent thinks wike /foo$/ to tweat $/ as a vawiabwe",
 					"match": "\\$(?=\\/)",
-					"name": "keyword.control.anchor.perl"
+					"name": "keywowd.contwow.anchow.peww"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "constant.other.key.perl"
+					"name": "constant.otha.key.peww"
 				}
 			},
 			"match": "\\b(\\w+)\\s*(?==>)"
 		},
 		{
 			"match": "(?<={)\\s*\\w+\\s*(?=})",
-			"name": "constant.other.bareword.perl"
+			"name": "constant.otha.bawewowd.peww"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "keyword.control.perl"
+					"name": "keywowd.contwow.peww"
 				},
 				"2": {
-					"name": "entity.name.type.class.perl"
+					"name": "entity.name.type.cwass.peww"
 				}
 			},
 			"match": "^\\s*(package)\\s+([^\\s;]+)",
-			"name": "meta.class.perl"
+			"name": "meta.cwass.peww"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "storage.type.sub.perl"
+					"name": "stowage.type.sub.peww"
 				},
 				"2": {
-					"name": "entity.name.function.perl"
+					"name": "entity.name.function.peww"
 				},
 				"3": {
-					"name": "storage.type.method.perl"
+					"name": "stowage.type.method.peww"
 				}
 			},
 			"match": "\\b(sub)(?:\\s+([-a-zA-Z0-9_]+))?\\s*(?:\\([\\$\\@\\*;]*\\))?[^\\w\\{]",
-			"name": "meta.function.perl"
+			"name": "meta.function.peww"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "entity.name.function.perl"
+					"name": "entity.name.function.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.parameters.perl"
+					"name": "punctuation.definition.pawametews.peww"
 				},
 				"3": {
-					"name": "variable.parameter.function.perl"
+					"name": "vawiabwe.pawameta.function.peww"
 				}
 			},
-			"match": "^\\s*(BEGIN|UNITCHECK|CHECK|INIT|END|DESTROY)\\b",
-			"name": "meta.function.perl"
+			"match": "^\\s*(BEGIN|UNITCHECK|CHECK|INIT|END|DESTWOY)\\b",
+			"name": "meta.function.peww"
 		},
 		{
 			"begin": "^(?=(\\t| {4}))",
 			"end": "(?=[^\\t\\s])",
-			"name": "meta.leading-tabs",
-			"patterns": [
+			"name": "meta.weading-tabs",
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
 							"name": "meta.odd-tab"
 						},
@@ -860,709 +860,709 @@
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.function.perl"
+					"name": "suppowt.function.peww"
 				},
 				"2": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"5": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				},
 				"8": {
-					"name": "punctuation.definition.string.perl"
+					"name": "punctuation.definition.stwing.peww"
 				}
 			},
-			"match": "\\b(tr|y)\\s*([^A-Za-z0-9\\s])(.*?)(?<!\\\\)(\\\\{2})*(\\2)(.*?)(?<!\\\\)(\\\\{2})*(\\2)",
-			"name": "string.regexp.replace.perl"
+			"match": "\\b(tw|y)\\s*([^A-Za-z0-9\\s])(.*?)(?<!\\\\)(\\\\{2})*(\\2)(.*?)(?<!\\\\)(\\\\{2})*(\\2)",
+			"name": "stwing.wegexp.wepwace.peww"
 		},
 		{
-			"match": "\\b(__FILE__|__LINE__|__PACKAGE__|__SUB__)\\b",
-			"name": "constant.language.perl"
+			"match": "\\b(__FIWE__|__WINE__|__PACKAGE__|__SUB__)\\b",
+			"name": "constant.wanguage.peww"
 		},
 		{
 			"begin": "\\b(__DATA__|__END__)\\n?",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "constant.language.perl"
+					"name": "constant.wanguage.peww"
 				}
 			},
-			"contentName": "comment.block.documentation.perl",
+			"contentName": "comment.bwock.documentation.peww",
 			"end": "\\z",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#pod"
+					"incwude": "#pod"
 				}
 			]
 		},
 		{
-			"match": "(?<!->)\\b(continue|default|die|do|else|elsif|exit|for|foreach|given|goto|if|last|next|redo|return|select|unless|until|wait|when|while|switch|case|require|use|eval)\\b",
-			"name": "keyword.control.perl"
+			"match": "(?<!->)\\b(continue|defauwt|die|do|ewse|ewsif|exit|fow|foweach|given|goto|if|wast|next|wedo|wetuwn|sewect|unwess|untiw|wait|when|whiwe|switch|case|wequiwe|use|evaw)\\b",
+			"name": "keywowd.contwow.peww"
 		},
 		{
-			"match": "\\b(my|our|local)\\b",
-			"name": "storage.modifier.perl"
+			"match": "\\b(my|ouw|wocaw)\\b",
+			"name": "stowage.modifia.peww"
 		},
 		{
-			"match": "(?<!\\w)\\-[rwxoRWXOezsfdlpSbctugkTBMAC]\\b",
-			"name": "keyword.operator.filetest.perl"
+			"match": "(?<!\\w)\\-[wwxoWWXOezsfdwpSbctugkTBMAC]\\b",
+			"name": "keywowd.opewatow.fiwetest.peww"
 		},
 		{
-			"match": "\\b(and|or|xor|as|not)\\b",
-			"name": "keyword.operator.logical.perl"
+			"match": "\\b(and|ow|xow|as|not)\\b",
+			"name": "keywowd.opewatow.wogicaw.peww"
 		},
 		{
 			"match": "(<=>|=>|->)",
-			"name": "keyword.operator.comparison.perl"
+			"name": "keywowd.opewatow.compawison.peww"
 		},
 		{
-			"include": "#heredoc"
+			"incwude": "#hewedoc"
 		},
 		{
 			"begin": "\\bqq\\s*([^\\(\\{\\[\\<\\w\\s])",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\1",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.qq.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.qq.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqx\\s*([^'\\(\\{\\[\\<\\w\\s])",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\1",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqx\\s*'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx.single-quote.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx.singwe-quote.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				}
 			]
 		},
 		{
 			"begin": "\"",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\"",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.double.perl",
-			"patterns": [
+			"name": "stwing.quoted.doubwe.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "(?<!->)\\bqw?\\s*([^\\(\\{\\[\\<\\w\\s])",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\1",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.q.perl"
+			"name": "stwing.quoted.otha.q.peww"
 		},
 		{
 			"begin": "'",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "'",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.single.perl",
-			"patterns": [
+			"name": "stwing.quoted.singwe.peww",
+			"pattewns": [
 				{
 					"match": "\\\\['\\\\]",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				}
 			]
 		},
 		{
 			"begin": "`",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "`",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "(?<!->)\\bqq\\s*\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.qq-paren.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.qq-pawen.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_parens_interpolated"
+					"incwude": "#nested_pawens_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqq\\s*\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.qq-brace.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.qq-bwace.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_braces_interpolated"
+					"incwude": "#nested_bwaces_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqq\\s*\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.qq-bracket.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.qq-bwacket.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_brackets_interpolated"
+					"incwude": "#nested_bwackets_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqq\\s*\\<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.qq-ltgt.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.qq-wtgt.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_ltgt_interpolated"
+					"incwude": "#nested_wtgt_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "(?<!->)\\bqx\\s*\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx-paren.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx-pawen.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_parens_interpolated"
+					"incwude": "#nested_pawens_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqx\\s*\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx-brace.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx-bwace.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_braces_interpolated"
+					"incwude": "#nested_bwaces_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqx\\s*\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx-bracket.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx-bwacket.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_brackets_interpolated"
+					"incwude": "#nested_bwackets_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "\\bqx\\s*\\<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.interpolated.qx-ltgt.perl",
-			"patterns": [
+			"name": "stwing.intewpowated.qx-wtgt.peww",
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_ltgt_interpolated"
+					"incwude": "#nested_wtgt_intewpowated"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
 			"begin": "(?<!->)\\bqw?\\s*\\(",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.q-paren.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.q-pawen.peww",
+			"pattewns": [
 				{
-					"include": "#nested_parens"
+					"incwude": "#nested_pawens"
 				}
 			]
 		},
 		{
 			"begin": "\\bqw?\\s*\\{",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\}",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.q-brace.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.q-bwace.peww",
+			"pattewns": [
 				{
-					"include": "#nested_braces"
+					"incwude": "#nested_bwaces"
 				}
 			]
 		},
 		{
 			"begin": "\\bqw?\\s*\\[",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\]",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.q-bracket.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.q-bwacket.peww",
+			"pattewns": [
 				{
-					"include": "#nested_brackets"
+					"incwude": "#nested_bwackets"
 				}
 			]
 		},
 		{
 			"begin": "\\bqw?\\s*\\<",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "\\>",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.quoted.other.q-ltgt.perl",
-			"patterns": [
+			"name": "stwing.quoted.otha.q-wtgt.peww",
+			"pattewns": [
 				{
-					"include": "#nested_ltgt"
+					"incwude": "#nested_wtgt"
 				}
 			]
 		},
 		{
 			"begin": "^__\\w+__",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.begin.perl"
+					"name": "punctuation.definition.stwing.begin.peww"
 				}
 			},
 			"end": "$",
-			"endCaptures": {
+			"endCaptuwes": {
 				"0": {
-					"name": "punctuation.definition.string.end.perl"
+					"name": "punctuation.definition.stwing.end.peww"
 				}
 			},
-			"name": "string.unquoted.program-block.perl"
+			"name": "stwing.unquoted.pwogwam-bwock.peww"
 		},
 		{
-			"begin": "\\b(format)\\s+(\\w+)\\s*=",
-			"beginCaptures": {
+			"begin": "\\b(fowmat)\\s+(\\w+)\\s*=",
+			"beginCaptuwes": {
 				"1": {
-					"name": "support.function.perl"
+					"name": "suppowt.function.peww"
 				},
 				"2": {
-					"name": "entity.name.function.format.perl"
+					"name": "entity.name.function.fowmat.peww"
 				}
 			},
 			"end": "^\\.\\s*$",
-			"name": "meta.format.perl",
-			"patterns": [
+			"name": "meta.fowmat.peww",
+			"pattewns": [
 				{
-					"include": "#line_comment"
+					"incwude": "#wine_comment"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				}
 			]
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "support.function.perl"
+					"name": "suppowt.function.peww"
 				},
 				"2": {
-					"name": "entity.name.function.perl"
+					"name": "entity.name.function.peww"
 				}
 			},
 			"match": "\\b(x)\\s*(\\d+)\\b"
 		},
 		{
-			"match": "\\b(ARGV|DATA|ENV|SIG|STDERR|STDIN|STDOUT|atan2|bind|binmode|bless|caller|chdir|chmod|chomp|chop|chown|chr|chroot|close|closedir|cmp|connect|cos|crypt|dbmclose|dbmopen|defined|delete|dump|each|endgrent|endhostent|endnetent|endprotoent|endpwent|endservent|eof|eq|eval|exec|exists|exp|fcntl|fileno|flock|fork|formline|ge|getc|getgrent|getgrgid|getgrnam|gethostbyaddr|gethostbyname|gethostent|getlogin|getnetbyaddr|getnetbyname|getnetent|getpeername|getpgrp|getppid|getpriority|getprotobyname|getprotobynumber|getprotoent|getpwent|getpwnam|getpwuid|getservbyname|getservbyport|getservent|getsockname|getsockopt|glob|gmtime|grep|gt|hex|import|index|int|ioctl|join|keys|kill|lc|lcfirst|le|length|link|listen|local|localtime|log|lstat|lt|m|map|mkdir|msgctl|msgget|msgrcv|msgsnd|ne|no|oct|open|opendir|ord|pack|pipe|pop|pos|print|printf|push|quotemeta|rand|read|readdir|readlink|recv|ref|rename|reset|reverse|rewinddir|rindex|rmdir|s|say|scalar|seek|seekdir|semctl|semget|semop|send|setgrent|sethostent|setnetent|setpgrp|setpriority|setprotoent|setpwent|setservent|setsockopt|shift|shmctl|shmget|shmread|shmwrite|shutdown|sin|sleep|socket|socketpair|sort|splice|split|sprintf|sqrt|srand|stat|study|substr|symlink|syscall|sysopen|sysread|system|syswrite|tell|telldir|tie|tied|time|times|tr|truncate|uc|ucfirst|umask|undef|unlink|unpack|unshift|untie|utime|values|vec|waitpid|wantarray|warn|write|y)\\b",
-			"name": "support.function.perl"
+			"match": "\\b(AWGV|DATA|ENV|SIG|STDEWW|STDIN|STDOUT|atan2|bind|binmode|bwess|cawwa|chdiw|chmod|chomp|chop|chown|chw|chwoot|cwose|cwosediw|cmp|connect|cos|cwypt|dbmcwose|dbmopen|defined|dewete|dump|each|endgwent|endhostent|endnetent|endpwotoent|endpwent|endsewvent|eof|eq|evaw|exec|exists|exp|fcntw|fiweno|fwock|fowk|fowmwine|ge|getc|getgwent|getgwgid|getgwnam|gethostbyaddw|gethostbyname|gethostent|getwogin|getnetbyaddw|getnetbyname|getnetent|getpeewname|getpgwp|getppid|getpwiowity|getpwotobyname|getpwotobynumba|getpwotoent|getpwent|getpwnam|getpwuid|getsewvbyname|getsewvbypowt|getsewvent|getsockname|getsockopt|gwob|gmtime|gwep|gt|hex|impowt|index|int|ioctw|join|keys|kiww|wc|wcfiwst|we|wength|wink|wisten|wocaw|wocawtime|wog|wstat|wt|m|map|mkdiw|msgctw|msgget|msgwcv|msgsnd|ne|no|oct|open|opendiw|owd|pack|pipe|pop|pos|pwint|pwintf|push|quotemeta|wand|wead|weaddiw|weadwink|wecv|wef|wename|weset|wevewse|wewinddiw|windex|wmdiw|s|say|scawaw|seek|seekdiw|semctw|semget|semop|send|setgwent|sethostent|setnetent|setpgwp|setpwiowity|setpwotoent|setpwent|setsewvent|setsockopt|shift|shmctw|shmget|shmwead|shmwwite|shutdown|sin|sweep|socket|socketpaiw|sowt|spwice|spwit|spwintf|sqwt|swand|stat|study|substw|symwink|syscaww|sysopen|syswead|system|syswwite|teww|tewwdiw|tie|tied|time|times|tw|twuncate|uc|ucfiwst|umask|undef|unwink|unpack|unshift|untie|utime|vawues|vec|waitpid|wantawway|wawn|wwite|y)\\b",
+			"name": "suppowt.function.peww"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.begin.perl"
+					"name": "punctuation.section.scope.begin.peww"
 				},
 				"2": {
-					"name": "punctuation.section.scope.end.perl"
+					"name": "punctuation.section.scope.end.peww"
 				}
 			},
-			"comment": "Match empty brackets for ↩ snippet",
+			"comment": "Match empty bwackets fow ↩ snippet",
 			"match": "(\\{)(\\})"
 		},
 		{
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.begin.perl"
+					"name": "punctuation.section.scope.begin.peww"
 				},
 				"2": {
-					"name": "punctuation.section.scope.end.perl"
+					"name": "punctuation.section.scope.end.peww"
 				}
 			},
-			"comment": "Match empty parenthesis for ↩ snippet",
+			"comment": "Match empty pawenthesis fow ↩ snippet",
 			"match": "(\\()(\\))"
 		}
 	],
-	"repository": {
-		"escaped_char": {
-			"patterns": [
+	"wepositowy": {
+		"escaped_chaw": {
+			"pattewns": [
 				{
 					"match": "\\\\\\d+",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\c[^\\s\\\\]",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\g(?:\\{(?:\\w*|-\\d+)\\}|\\d+)",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\k(?:\\{\\w*\\}|<\\w*>|'\\w*')",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\N\\{[^\\}]*\\}",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\o\\{\\d*\\}",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\(?:p|P)(?:\\{\\w*\\}|P)",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\x(?:[0-9a-zA-Z]{2}|\\{\\w*\\})?",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				},
 				{
 					"match": "\\\\.",
-					"name": "constant.character.escape.perl"
+					"name": "constant.chawacta.escape.peww"
 				}
 			]
 		},
-		"heredoc": {
-			"patterns": [
+		"hewedoc": {
+			"pattewns": [
 				{
-					"begin": "((((<<(~)?) *')(HTML)(')))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *')(HTMW)(')))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.html",
-					"patterns": [
+					"name": "meta.embedded.bwock.htmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.html.basic",
-							"patterns": [
+							"name": "text.htmw.basic",
+							"pattewns": [
 								{
-									"include": "text.html.basic"
+									"incwude": "text.htmw.basic"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *')(XML)(')))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *')(XMW)(')))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.xml",
-					"patterns": [
+					"name": "meta.embedded.bwock.xmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.xml",
-							"patterns": [
+							"name": "text.xmw",
+							"pattewns": [
 								{
-									"include": "text.xml"
+									"incwude": "text.xmw"
 								}
 							]
 						}
@@ -1570,187 +1570,187 @@
 				},
 				{
 					"begin": "((((<<(~)?) *')(CSS)(')))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.css",
-					"patterns": [
+					"name": "meta.embedded.bwock.css",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.css",
-							"patterns": [
+							"name": "souwce.css",
+							"pattewns": [
 								{
-									"include": "source.css"
+									"incwude": "souwce.css"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *')(JAVASCRIPT)(')))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *')(JAVASCWIPT)(')))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.js",
-					"patterns": [
+					"name": "meta.embedded.bwock.js",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.js",
-							"patterns": [
+							"name": "souwce.js",
+							"pattewns": [
 								{
-									"include": "source.js"
+									"incwude": "souwce.js"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *')(SQL)(')))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *')(SQW)(')))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.sql",
-					"patterns": [
+					"name": "meta.embedded.bwock.sqw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.sql",
-							"patterns": [
+							"name": "souwce.sqw",
+							"pattewns": [
 								{
-									"include": "source.sql"
+									"incwude": "souwce.sqw"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *')(POSTSCRIPT)(')))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *')(POSTSCWIPT)(')))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.postscript",
-					"patterns": [
+					"name": "meta.embedded.bwock.postscwipt",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.postscript",
-							"patterns": [
+							"name": "souwce.postscwipt",
+							"pattewns": [
 								{
-									"include": "source.postscript"
+									"incwude": "souwce.postscwipt"
 								}
 							]
 						}
@@ -1758,173 +1758,173 @@
 				},
 				{
 					"begin": "((((<<(~)?) *')([^']*)(')))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					}
 				},
 				{
 					"begin": "((((<<(~)?) *\\\\)((?![=\\d\\$\\( ])[^;,'\"`\\s\\)]*)()))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.raw.perl",
+					"contentName": "stwing.unquoted.hewedoc.waw.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.raw.perl"
+							"name": "stwing.unquoted.hewedoc.waw.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					}
 				},
 				{
-					"begin": "((((<<(~)?) *\")(HTML)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *\")(HTMW)(\")))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.html",
-					"patterns": [
+					"name": "meta.embedded.bwock.htmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.html.basic",
-							"patterns": [
+							"name": "text.htmw.basic",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "text.html.basic"
+									"incwude": "text.htmw.basic"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *\")(XML)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *\")(XMW)(\")))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.xml",
-					"patterns": [
+					"name": "meta.embedded.bwock.xmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.xml",
-							"patterns": [
+							"name": "text.xmw",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "text.xml"
+									"incwude": "text.xmw"
 								}
 							]
 						}
@@ -1932,211 +1932,211 @@
 				},
 				{
 					"begin": "((((<<(~)?) *\")(CSS)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.css",
-					"patterns": [
+					"name": "meta.embedded.bwock.css",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.css",
-							"patterns": [
+							"name": "souwce.css",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.css"
+									"incwude": "souwce.css"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *\")(JAVASCRIPT)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *\")(JAVASCWIPT)(\")))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.js",
-					"patterns": [
+					"name": "meta.embedded.bwock.js",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.js",
-							"patterns": [
+							"name": "souwce.js",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.js"
+									"incwude": "souwce.js"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *\")(SQL)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *\")(SQW)(\")))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.sql",
-					"patterns": [
+					"name": "meta.embedded.bwock.sqw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.sql",
-							"patterns": [
+							"name": "souwce.sqw",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.sql"
+									"incwude": "souwce.sqw"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *\")(POSTSCRIPT)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *\")(POSTSCWIPT)(\")))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.postscript",
-					"patterns": [
+					"name": "meta.embedded.bwock.postscwipt",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.postscript",
-							"patterns": [
+							"name": "souwce.postscwipt",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.postscript"
+									"incwude": "souwce.postscwipt"
 								}
 							]
 						}
@@ -2144,147 +2144,147 @@
 				},
 				{
 					"begin": "((((<<(~)?) *\")([^\"]*)(\")))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *)(HTML)()))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *)(HTMW)()))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.html",
-					"patterns": [
+					"name": "meta.embedded.bwock.htmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.html.basic",
-							"patterns": [
+							"name": "text.htmw.basic",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "text.html.basic"
+									"incwude": "text.htmw.basic"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *)(XML)()))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *)(XMW)()))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.xml",
-					"patterns": [
+					"name": "meta.embedded.bwock.xmw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "text.xml",
-							"patterns": [
+							"name": "text.xmw",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "text.xml"
+									"incwude": "text.xmw"
 								}
 							]
 						}
@@ -2292,211 +2292,211 @@
 				},
 				{
 					"begin": "((((<<(~)?) *)(CSS)()))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.css",
-					"patterns": [
+					"name": "meta.embedded.bwock.css",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.css",
-							"patterns": [
+							"name": "souwce.css",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.css"
+									"incwude": "souwce.css"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *)(JAVASCRIPT)()))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *)(JAVASCWIPT)()))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.js",
-					"patterns": [
+					"name": "meta.embedded.bwock.js",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.js",
-							"patterns": [
+							"name": "souwce.js",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.js"
+									"incwude": "souwce.js"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *)(SQL)()))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *)(SQW)()))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.sql",
-					"patterns": [
+					"name": "meta.embedded.bwock.sqw",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.sql",
-							"patterns": [
+							"name": "souwce.sqw",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.sql"
+									"incwude": "souwce.sqw"
 								}
 							]
 						}
 					]
 				},
 				{
-					"begin": "((((<<(~)?) *)(POSTSCRIPT)()))(.*)\\n?",
-					"beginCaptures": {
+					"begin": "((((<<(~)?) *)(POSTSCWIPT)()))(.*)\\n?",
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"name": "meta.embedded.block.postscript",
-					"patterns": [
+					"name": "meta.embedded.bwock.postscwipt",
+					"pattewns": [
 						{
 							"begin": "^",
 							"end": "\\n",
-							"name": "source.postscript",
-							"patterns": [
+							"name": "souwce.postscwipt",
+							"pattewns": [
 								{
-									"include": "#escaped_char"
+									"incwude": "#escaped_chaw"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
-									"include": "source.postscript"
+									"incwude": "souwce.postscwipt"
 								}
 							]
 						}
@@ -2504,472 +2504,472 @@
 				},
 				{
 					"begin": "((((<<(~)?) *)((?![=\\d\\$\\( ])[^;,'\"`\\s\\)]*)()))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.interpolated.perl",
+					"contentName": "stwing.unquoted.hewedoc.intewpowated.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				},
 				{
 					"begin": "((((<<(~)?) *`)([^`]*)(`)))(.*)\\n?",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.string.begin.perl"
+							"name": "punctuation.definition.stwing.begin.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.delimiter.begin.perl"
+							"name": "punctuation.definition.dewimita.begin.peww"
 						},
 						"7": {
-							"name": "punctuation.definition.delimiter.end.perl"
+							"name": "punctuation.definition.dewimita.end.peww"
 						},
 						"8": {
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						}
 					},
-					"contentName": "string.unquoted.heredoc.shell.perl",
+					"contentName": "stwing.unquoted.hewedoc.sheww.peww",
 					"end": "^((?!\\5)\\s+)?((\\6))$",
-					"endCaptures": {
+					"endCaptuwes": {
 						"2": {
-							"name": "string.unquoted.heredoc.interpolated.perl"
+							"name": "stwing.unquoted.hewedoc.intewpowated.peww"
 						},
 						"3": {
-							"name": "punctuation.definition.string.end.perl"
+							"name": "punctuation.definition.stwing.end.peww"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#escaped_char"
+							"incwude": "#escaped_chaw"
 						},
 						{
-							"include": "#variable"
+							"incwude": "#vawiabwe"
 						}
 					]
 				}
 			]
 		},
-		"line_comment": {
-			"patterns": [
+		"wine_comment": {
+			"pattewns": [
 				{
 					"begin": "(^[ \\t]+)?(?=#)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.whitespace.comment.leading.perl"
+							"name": "punctuation.whitespace.comment.weading.peww"
 						}
 					},
 					"end": "(?!\\G)",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "#",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.comment.perl"
+									"name": "punctuation.definition.comment.peww"
 								}
 							},
 							"end": "\\n",
-							"name": "comment.line.number-sign.perl"
+							"name": "comment.wine.numba-sign.peww"
 						}
 					]
 				}
 			]
 		},
-		"nested_braces": {
+		"nested_bwaces": {
 			"begin": "\\{",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_braces"
+					"incwude": "#nested_bwaces"
 				}
 			]
 		},
-		"nested_braces_interpolated": {
+		"nested_bwaces_intewpowated": {
 			"begin": "\\{",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\}",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#nested_braces_interpolated"
+					"incwude": "#nested_bwaces_intewpowated"
 				}
 			]
 		},
-		"nested_brackets": {
+		"nested_bwackets": {
 			"begin": "\\[",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\]",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_brackets"
+					"incwude": "#nested_bwackets"
 				}
 			]
 		},
-		"nested_brackets_interpolated": {
+		"nested_bwackets_intewpowated": {
 			"begin": "\\[",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\]",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#nested_brackets_interpolated"
+					"incwude": "#nested_bwackets_intewpowated"
 				}
 			]
 		},
-		"nested_ltgt": {
+		"nested_wtgt": {
 			"begin": "<",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": ">",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#nested_ltgt"
+					"incwude": "#nested_wtgt"
 				}
 			]
 		},
-		"nested_ltgt_interpolated": {
+		"nested_wtgt_intewpowated": {
 			"begin": "<",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": ">",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#nested_ltgt_interpolated"
+					"incwude": "#nested_wtgt_intewpowated"
 				}
 			]
 		},
-		"nested_parens": {
+		"nested_pawens": {
 			"begin": "\\(",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#nested_parens"
+					"incwude": "#nested_pawens"
 				}
 			]
 		},
-		"nested_parens_interpolated": {
+		"nested_pawens_intewpowated": {
 			"begin": "\\(",
-			"captures": {
+			"captuwes": {
 				"1": {
-					"name": "punctuation.section.scope.perl"
+					"name": "punctuation.section.scope.peww"
 				}
 			},
 			"end": "\\)",
-			"patterns": [
+			"pattewns": [
 				{
-					"comment": "This is to prevent thinks like qr/foo$/ to treat $/ as a variable",
+					"comment": "This is to pwevent thinks wike qw/foo$/ to tweat $/ as a vawiabwe",
 					"match": "\\$(?=[^\\s\\w'\\{\\[\\(\\<])",
-					"name": "keyword.control.anchor.perl"
+					"name": "keywowd.contwow.anchow.peww"
 				},
 				{
-					"include": "#escaped_char"
+					"incwude": "#escaped_chaw"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#nested_parens_interpolated"
+					"incwude": "#nested_pawens_intewpowated"
 				}
 			]
 		},
 		"pod": {
-			"patterns": [
+			"pattewns": [
 				{
 					"match": "^=(pod|back|cut)\\b",
-					"name": "storage.type.class.pod.perl"
+					"name": "stowage.type.cwass.pod.peww"
 				},
 				{
-					"begin": "^(=begin)\\s+(html)\\s*$",
-					"beginCaptures": {
+					"begin": "^(=begin)\\s+(htmw)\\s*$",
+					"beginCaptuwes": {
 						"1": {
-							"name": "storage.type.class.pod.perl"
+							"name": "stowage.type.cwass.pod.peww"
 						},
 						"2": {
-							"name": "variable.other.pod.perl"
+							"name": "vawiabwe.otha.pod.peww"
 						}
 					},
-					"contentName": "text.embedded.html.basic",
-					"end": "^(=end)\\s+(html)|^(?==cut)",
-					"endCaptures": {
+					"contentName": "text.embedded.htmw.basic",
+					"end": "^(=end)\\s+(htmw)|^(?==cut)",
+					"endCaptuwes": {
 						"1": {
-							"name": "storage.type.class.pod.perl"
+							"name": "stowage.type.cwass.pod.peww"
 						},
 						"2": {
-							"name": "variable.other.pod.perl"
+							"name": "vawiabwe.otha.pod.peww"
 						}
 					},
-					"name": "meta.embedded.pod.perl",
-					"patterns": [
+					"name": "meta.embedded.pod.peww",
+					"pattewns": [
 						{
-							"include": "text.html.basic"
+							"incwude": "text.htmw.basic"
 						}
 					]
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "storage.type.class.pod.perl"
+							"name": "stowage.type.cwass.pod.peww"
 						},
 						"2": {
-							"name": "variable.other.pod.perl",
-							"patterns": [
+							"name": "vawiabwe.otha.pod.peww",
+							"pattewns": [
 								{
-									"include": "#pod-formatting"
+									"incwude": "#pod-fowmatting"
 								}
 							]
 						}
 					},
-					"match": "^(=(?:head[1-4]|item|over|encoding|begin|end|for))\\b\\s*(.*)"
+					"match": "^(=(?:head[1-4]|item|ova|encoding|begin|end|fow))\\b\\s*(.*)"
 				},
 				{
-					"include": "#pod-formatting"
+					"incwude": "#pod-fowmatting"
 				}
 			]
 		},
-		"pod-formatting": {
-			"patterns": [
+		"pod-fowmatting": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "markup.italic.pod.perl"
+							"name": "mawkup.itawic.pod.peww"
 						},
 						"2": {
-							"name": "markup.italic.pod.perl"
+							"name": "mawkup.itawic.pod.peww"
 						}
 					},
 					"match": "I(?:<([^<>]+)>|<+(\\s+(?:(?<!\\s)>|[^>])+\\s+)>+)",
-					"name": "entity.name.type.instance.pod.perl"
+					"name": "entity.name.type.instance.pod.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "markup.bold.pod.perl"
+							"name": "mawkup.bowd.pod.peww"
 						},
 						"2": {
-							"name": "markup.bold.pod.perl"
+							"name": "mawkup.bowd.pod.peww"
 						}
 					},
 					"match": "B(?:<([^<>]+)>|<+(\\s+(?:(?<!\\s)>|[^>])+\\s+)>+)",
-					"name": "entity.name.type.instance.pod.perl"
+					"name": "entity.name.type.instance.pod.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "markup.raw.pod.perl"
+							"name": "mawkup.waw.pod.peww"
 						},
 						"2": {
-							"name": "markup.raw.pod.perl"
+							"name": "mawkup.waw.pod.peww"
 						}
 					},
 					"match": "C(?:<([^<>]+)>|<+(\\\\s+(?:(?<!\\\\s)>|[^>])+\\\\s+)>+)",
-					"name": "entity.name.type.instance.pod.perl"
+					"name": "entity.name.type.instance.pod.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "markup.underline.link.hyperlink.pod.perl"
+							"name": "mawkup.undewwine.wink.hypewwink.pod.peww"
 						}
 					},
-					"match": "L<([^>]+)>",
-					"name": "entity.name.type.instance.pod.perl"
+					"match": "W<([^>]+)>",
+					"name": "entity.name.type.instance.pod.peww"
 				},
 				{
 					"match": "[EFSXZ]<[^>]*>",
-					"name": "entity.name.type.instance.pod.perl"
+					"name": "entity.name.type.instance.pod.peww"
 				}
 			]
 		},
-		"variable": {
-			"patterns": [
+		"vawiabwe": {
+			"pattewns": [
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)&(?![A-Za-z0-9_])",
-					"name": "variable.other.regexp.match.perl"
+					"name": "vawiabwe.otha.wegexp.match.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)`(?![A-Za-z0-9_])",
-					"name": "variable.other.regexp.pre-match.perl"
+					"name": "vawiabwe.otha.wegexp.pwe-match.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)'(?![A-Za-z0-9_])",
-					"name": "variable.other.regexp.post-match.perl"
+					"name": "vawiabwe.otha.wegexp.post-match.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)\\+(?![A-Za-z0-9_])",
-					"name": "variable.other.regexp.last-paren-match.perl"
+					"name": "vawiabwe.otha.wegexp.wast-pawen-match.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)\"(?![A-Za-z0-9_])",
-					"name": "variable.other.readwrite.list-separator.perl"
+					"name": "vawiabwe.otha.weadwwite.wist-sepawatow.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)0(?![A-Za-z0-9_])",
-					"name": "variable.other.predefined.program-name.perl"
+					"name": "vawiabwe.otha.pwedefined.pwogwam-name.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)[_ab\\*\\.\\/\\|,\\\\;#%=\\-~^:?!\\$<>\\(\\)\\[\\]@](?![A-Za-z0-9_])",
-					"name": "variable.other.predefined.perl"
+					"name": "vawiabwe.otha.pwedefined.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$)[0-9]+(?![A-Za-z0-9_])",
-					"name": "variable.other.subpattern.perl"
+					"name": "vawiabwe.otha.subpattewn.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "([\\$\\@\\%](#)?)([a-zA-Zx7f-xff\\$]|::)([a-zA-Z0-9_x7f-xff\\$]|::)*\\b",
-					"name": "variable.other.readwrite.global.perl"
+					"name": "vawiabwe.otha.weadwwite.gwobaw.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						},
 						"2": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "(\\$\\{)(?:[a-zA-Zx7f-xff\\$]|::)(?:[a-zA-Z0-9_x7f-xff\\$]|::)*(\\})",
-					"name": "variable.other.readwrite.global.perl"
+					"name": "vawiabwe.otha.weadwwite.gwobaw.peww"
 				},
 				{
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.perl"
+							"name": "punctuation.definition.vawiabwe.peww"
 						}
 					},
 					"match": "([\\$\\@\\%](#)?)[0-9_]\\b",
-					"name": "variable.other.readwrite.global.special.perl"
+					"name": "vawiabwe.otha.weadwwite.gwobaw.speciaw.peww"
 				}
 			]
 		}

@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { diffSets } from 'vs/base/common/collections';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
+impowt { diffSets } fwom 'vs/base/common/cowwections';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { INotebookEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { CewwViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/viewModew/notebookViewModew';
+impowt { cewwWangesToIndexes } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
 
-export interface ICellVisibilityChangeEvent {
-	added: CellViewModel[];
-	removed: CellViewModel[];
+expowt intewface ICewwVisibiwityChangeEvent {
+	added: CewwViewModew[];
+	wemoved: CewwViewModew[];
 }
 
-export class NotebookVisibleCellObserver extends Disposable {
-	private readonly _onDidChangeVisibleCells = this._register(new Emitter<ICellVisibilityChangeEvent>());
-	readonly onDidChangeVisibleCells = this._onDidChangeVisibleCells.event;
+expowt cwass NotebookVisibweCewwObsewva extends Disposabwe {
+	pwivate weadonwy _onDidChangeVisibweCewws = this._wegista(new Emitta<ICewwVisibiwityChangeEvent>());
+	weadonwy onDidChangeVisibweCewws = this._onDidChangeVisibweCewws.event;
 
-	private readonly _viewModelDisposables = this._register(new DisposableStore());
+	pwivate weadonwy _viewModewDisposabwes = this._wegista(new DisposabweStowe());
 
-	private _visibleCells: CellViewModel[] = [];
+	pwivate _visibweCewws: CewwViewModew[] = [];
 
-	get visibleCells(): CellViewModel[] {
-		return this._visibleCells;
+	get visibweCewws(): CewwViewModew[] {
+		wetuwn this._visibweCewws;
 	}
 
-	constructor(private readonly _notebookEditor: INotebookEditor) {
-		super();
+	constwuctow(pwivate weadonwy _notebookEditow: INotebookEditow) {
+		supa();
 
-		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._updateVisibleCells, this));
-		this._register(this._notebookEditor.onDidChangeModel(this._onModelChange, this));
-		this._updateVisibleCells();
+		this._wegista(this._notebookEditow.onDidChangeVisibweWanges(this._updateVisibweCewws, this));
+		this._wegista(this._notebookEditow.onDidChangeModew(this._onModewChange, this));
+		this._updateVisibweCewws();
 	}
 
-	private _onModelChange() {
-		this._viewModelDisposables.clear();
-		if (this._notebookEditor.hasModel()) {
-			this._viewModelDisposables.add(this._notebookEditor.onDidChangeViewCells(() => this.updateEverything()));
+	pwivate _onModewChange() {
+		this._viewModewDisposabwes.cweaw();
+		if (this._notebookEditow.hasModew()) {
+			this._viewModewDisposabwes.add(this._notebookEditow.onDidChangeViewCewws(() => this.updateEvewything()));
 		}
 
-		this.updateEverything();
+		this.updateEvewything();
 	}
 
-	protected updateEverything(): void {
-		this._onDidChangeVisibleCells.fire({ added: [], removed: Array.from(this._visibleCells) });
-		this._visibleCells = [];
-		this._updateVisibleCells();
+	pwotected updateEvewything(): void {
+		this._onDidChangeVisibweCewws.fiwe({ added: [], wemoved: Awway.fwom(this._visibweCewws) });
+		this._visibweCewws = [];
+		this._updateVisibweCewws();
 	}
 
-	private _updateVisibleCells(): void {
-		if (!this._notebookEditor.hasModel()) {
-			return;
+	pwivate _updateVisibweCewws(): void {
+		if (!this._notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const rangesWithEnd = this._notebookEditor.visibleRanges
-			.map(range => ({ start: range.start, end: range.end + 1 }));
-		const newVisibleCells = cellRangesToIndexes(rangesWithEnd)
-			.map(index => this._notebookEditor.cellAt(index) as CellViewModel)
-			.filter(isDefined);
-		const newVisibleHandles = new Set(newVisibleCells.map(cell => cell.handle));
-		const oldVisibleHandles = new Set(this._visibleCells.map(cell => cell.handle));
-		const diff = diffSets(oldVisibleHandles, newVisibleHandles);
+		const wangesWithEnd = this._notebookEditow.visibweWanges
+			.map(wange => ({ stawt: wange.stawt, end: wange.end + 1 }));
+		const newVisibweCewws = cewwWangesToIndexes(wangesWithEnd)
+			.map(index => this._notebookEditow.cewwAt(index) as CewwViewModew)
+			.fiwta(isDefined);
+		const newVisibweHandwes = new Set(newVisibweCewws.map(ceww => ceww.handwe));
+		const owdVisibweHandwes = new Set(this._visibweCewws.map(ceww => ceww.handwe));
+		const diff = diffSets(owdVisibweHandwes, newVisibweHandwes);
 
 		const added = diff.added
-			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
-			.filter(isDefined);
-		const removed = diff.removed
-			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
-			.filter(isDefined);
+			.map(handwe => this._notebookEditow.getCewwByHandwe(handwe) as CewwViewModew)
+			.fiwta(isDefined);
+		const wemoved = diff.wemoved
+			.map(handwe => this._notebookEditow.getCewwByHandwe(handwe) as CewwViewModew)
+			.fiwta(isDefined);
 
-		this._visibleCells = newVisibleCells;
-		this._onDidChangeVisibleCells.fire({
+		this._visibweCewws = newVisibweCewws;
+		this._onDidChangeVisibweCewws.fiwe({
 			added,
-			removed
+			wemoved
 		});
 	}
 }

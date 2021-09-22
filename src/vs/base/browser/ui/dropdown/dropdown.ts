@@ -1,233 +1,233 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, DOMEvent, EventHelper, EventType } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
-import { AnchorAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./dropdown';
+impowt { IContextMenuPwovida } fwom 'vs/base/bwowsa/contextmenu';
+impowt { $, addDisposabweWistena, append, DOMEvent, EventHewpa, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { EventType as GestuweEventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { AnchowAwignment, IAnchow, IContextViewPwovida } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { IMenuOptions } fwom 'vs/base/bwowsa/ui/menu/menu';
+impowt { ActionWunna, IAction } fwom 'vs/base/common/actions';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./dwopdown';
 
-export interface ILabelRenderer {
-	(container: HTMLElement): IDisposable | null;
+expowt intewface IWabewWendewa {
+	(containa: HTMWEwement): IDisposabwe | nuww;
 }
 
-export interface IBaseDropdownOptions {
-	label?: string;
-	labelRenderer?: ILabelRenderer;
+expowt intewface IBaseDwopdownOptions {
+	wabew?: stwing;
+	wabewWendewa?: IWabewWendewa;
 }
 
-export class BaseDropdown extends ActionRunner {
-	private _element: HTMLElement;
-	private boxContainer?: HTMLElement;
-	private _label?: HTMLElement;
-	private contents?: HTMLElement;
+expowt cwass BaseDwopdown extends ActionWunna {
+	pwivate _ewement: HTMWEwement;
+	pwivate boxContaina?: HTMWEwement;
+	pwivate _wabew?: HTMWEwement;
+	pwivate contents?: HTMWEwement;
 
-	private visible: boolean | undefined;
-	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate visibwe: boowean | undefined;
+	pwivate _onDidChangeVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
-		super();
+	constwuctow(containa: HTMWEwement, options: IBaseDwopdownOptions) {
+		supa();
 
-		this._element = append(container, $('.monaco-dropdown'));
+		this._ewement = append(containa, $('.monaco-dwopdown'));
 
-		this._label = append(this._element, $('.dropdown-label'));
+		this._wabew = append(this._ewement, $('.dwopdown-wabew'));
 
-		let labelRenderer = options.labelRenderer;
-		if (!labelRenderer) {
-			labelRenderer = (container: HTMLElement): IDisposable | null => {
-				container.textContent = options.label || '';
+		wet wabewWendewa = options.wabewWendewa;
+		if (!wabewWendewa) {
+			wabewWendewa = (containa: HTMWEwement): IDisposabwe | nuww => {
+				containa.textContent = options.wabew || '';
 
-				return null;
+				wetuwn nuww;
 			};
 		}
 
-		for (const event of [EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap]) {
-			this._register(addDisposableListener(this.element, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
+		fow (const event of [EventType.CWICK, EventType.MOUSE_DOWN, GestuweEventType.Tap]) {
+			this._wegista(addDisposabweWistena(this.ewement, event, e => EventHewpa.stop(e, twue))); // pwevent defauwt cwick behaviouw to twigga
 		}
 
-		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {
-			this._register(addDisposableListener(this._label, event, e => {
-				if (e instanceof MouseEvent && e.detail > 1) {
-					return; // prevent multiple clicks to open multiple context menus (https://github.com/microsoft/vscode/issues/41363)
+		fow (const event of [EventType.MOUSE_DOWN, GestuweEventType.Tap]) {
+			this._wegista(addDisposabweWistena(this._wabew, event, e => {
+				if (e instanceof MouseEvent && e.detaiw > 1) {
+					wetuwn; // pwevent muwtipwe cwicks to open muwtipwe context menus (https://github.com/micwosoft/vscode/issues/41363)
 				}
 
-				if (this.visible) {
+				if (this.visibwe) {
 					this.hide();
-				} else {
+				} ewse {
 					this.show();
 				}
 			}));
 		}
 
-		this._register(addDisposableListener(this._label, EventType.KEY_UP, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				EventHelper.stop(e, true); // https://github.com/microsoft/vscode/issues/57997
+		this._wegista(addDisposabweWistena(this._wabew, EventType.KEY_UP, e => {
+			const event = new StandawdKeyboawdEvent(e);
+			if (event.equaws(KeyCode.Enta) || event.equaws(KeyCode.Space)) {
+				EventHewpa.stop(e, twue); // https://github.com/micwosoft/vscode/issues/57997
 
-				if (this.visible) {
+				if (this.visibwe) {
 					this.hide();
-				} else {
+				} ewse {
 					this.show();
 				}
 			}
 		}));
 
-		const cleanupFn = labelRenderer(this._label);
-		if (cleanupFn) {
-			this._register(cleanupFn);
+		const cweanupFn = wabewWendewa(this._wabew);
+		if (cweanupFn) {
+			this._wegista(cweanupFn);
 		}
 
-		this._register(Gesture.addTarget(this._label));
+		this._wegista(Gestuwe.addTawget(this._wabew));
 	}
 
-	get element(): HTMLElement {
-		return this._element;
+	get ewement(): HTMWEwement {
+		wetuwn this._ewement;
 	}
 
-	get label() {
-		return this._label;
+	get wabew() {
+		wetuwn this._wabew;
 	}
 
-	set tooltip(tooltip: string) {
-		if (this._label) {
-			this._label.title = tooltip;
+	set toowtip(toowtip: stwing) {
+		if (this._wabew) {
+			this._wabew.titwe = toowtip;
 		}
 	}
 
 	show(): void {
-		if (!this.visible) {
-			this.visible = true;
-			this._onDidChangeVisibility.fire(true);
+		if (!this.visibwe) {
+			this.visibwe = twue;
+			this._onDidChangeVisibiwity.fiwe(twue);
 		}
 	}
 
 	hide(): void {
-		if (this.visible) {
-			this.visible = false;
-			this._onDidChangeVisibility.fire(false);
+		if (this.visibwe) {
+			this.visibwe = fawse;
+			this._onDidChangeVisibiwity.fiwe(fawse);
 		}
 	}
 
-	isVisible(): boolean {
-		return !!this.visible;
+	isVisibwe(): boowean {
+		wetuwn !!this.visibwe;
 	}
 
-	protected onEvent(e: DOMEvent, activeElement: HTMLElement): void {
+	pwotected onEvent(e: DOMEvent, activeEwement: HTMWEwement): void {
 		this.hide();
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 		this.hide();
 
-		if (this.boxContainer) {
-			this.boxContainer.remove();
-			this.boxContainer = undefined;
+		if (this.boxContaina) {
+			this.boxContaina.wemove();
+			this.boxContaina = undefined;
 		}
 
 		if (this.contents) {
-			this.contents.remove();
+			this.contents.wemove();
 			this.contents = undefined;
 		}
 
-		if (this._label) {
-			this._label.remove();
-			this._label = undefined;
+		if (this._wabew) {
+			this._wabew.wemove();
+			this._wabew = undefined;
 		}
 	}
 }
 
-export interface IDropdownOptions extends IBaseDropdownOptions {
-	contextViewProvider: IContextViewProvider;
+expowt intewface IDwopdownOptions extends IBaseDwopdownOptions {
+	contextViewPwovida: IContextViewPwovida;
 }
 
-export class Dropdown extends BaseDropdown {
-	private contextViewProvider: IContextViewProvider;
+expowt cwass Dwopdown extends BaseDwopdown {
+	pwivate contextViewPwovida: IContextViewPwovida;
 
-	constructor(container: HTMLElement, options: IDropdownOptions) {
-		super(container, options);
+	constwuctow(containa: HTMWEwement, options: IDwopdownOptions) {
+		supa(containa, options);
 
-		this.contextViewProvider = options.contextViewProvider;
+		this.contextViewPwovida = options.contextViewPwovida;
 	}
 
-	override show(): void {
-		super.show();
+	ovewwide show(): void {
+		supa.show();
 
-		this.element.classList.add('active');
+		this.ewement.cwassWist.add('active');
 
-		this.contextViewProvider.showContextView({
-			getAnchor: () => this.getAnchor(),
+		this.contextViewPwovida.showContextView({
+			getAnchow: () => this.getAnchow(),
 
-			render: (container) => {
-				return this.renderContents(container);
+			wenda: (containa) => {
+				wetuwn this.wendewContents(containa);
 			},
 
-			onDOMEvent: (e, activeElement) => {
-				this.onEvent(e, activeElement);
+			onDOMEvent: (e, activeEwement) => {
+				this.onEvent(e, activeEwement);
 			},
 
 			onHide: () => this.onHide()
 		});
 	}
 
-	protected getAnchor(): HTMLElement | IAnchor {
-		return this.element;
+	pwotected getAnchow(): HTMWEwement | IAnchow {
+		wetuwn this.ewement;
 	}
 
-	protected onHide(): void {
-		this.element.classList.remove('active');
+	pwotected onHide(): void {
+		this.ewement.cwassWist.wemove('active');
 	}
 
-	override hide(): void {
-		super.hide();
+	ovewwide hide(): void {
+		supa.hide();
 
-		if (this.contextViewProvider) {
-			this.contextViewProvider.hideContextView();
+		if (this.contextViewPwovida) {
+			this.contextViewPwovida.hideContextView();
 		}
 	}
 
-	protected renderContents(container: HTMLElement): IDisposable | null {
-		return null;
+	pwotected wendewContents(containa: HTMWEwement): IDisposabwe | nuww {
+		wetuwn nuww;
 	}
 }
 
-export interface IActionProvider {
-	getActions(): readonly IAction[];
+expowt intewface IActionPwovida {
+	getActions(): weadonwy IAction[];
 }
 
-export interface IDropdownMenuOptions extends IBaseDropdownOptions {
-	contextMenuProvider: IContextMenuProvider;
-	readonly actions?: IAction[];
-	readonly actionProvider?: IActionProvider;
-	menuClassName?: string;
-	menuAsChild?: boolean; // scope down for #99448
+expowt intewface IDwopdownMenuOptions extends IBaseDwopdownOptions {
+	contextMenuPwovida: IContextMenuPwovida;
+	weadonwy actions?: IAction[];
+	weadonwy actionPwovida?: IActionPwovida;
+	menuCwassName?: stwing;
+	menuAsChiwd?: boowean; // scope down fow #99448
 }
 
-export class DropdownMenu extends BaseDropdown {
-	private _contextMenuProvider: IContextMenuProvider;
-	private _menuOptions: IMenuOptions | undefined;
-	private _actions: readonly IAction[] = [];
-	private actionProvider?: IActionProvider;
-	private menuClassName: string;
-	private menuAsChild?: boolean;
+expowt cwass DwopdownMenu extends BaseDwopdown {
+	pwivate _contextMenuPwovida: IContextMenuPwovida;
+	pwivate _menuOptions: IMenuOptions | undefined;
+	pwivate _actions: weadonwy IAction[] = [];
+	pwivate actionPwovida?: IActionPwovida;
+	pwivate menuCwassName: stwing;
+	pwivate menuAsChiwd?: boowean;
 
-	constructor(container: HTMLElement, options: IDropdownMenuOptions) {
-		super(container, options);
+	constwuctow(containa: HTMWEwement, options: IDwopdownMenuOptions) {
+		supa(containa, options);
 
-		this._contextMenuProvider = options.contextMenuProvider;
+		this._contextMenuPwovida = options.contextMenuPwovida;
 		this.actions = options.actions || [];
-		this.actionProvider = options.actionProvider;
-		this.menuClassName = options.menuClassName || '';
-		this.menuAsChild = !!options.menuAsChild;
+		this.actionPwovida = options.actionPwovida;
+		this.menuCwassName = options.menuCwassName || '';
+		this.menuAsChiwd = !!options.menuAsChiwd;
 	}
 
 	set menuOptions(options: IMenuOptions | undefined) {
@@ -235,46 +235,46 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	get menuOptions(): IMenuOptions | undefined {
-		return this._menuOptions;
+		wetuwn this._menuOptions;
 	}
 
-	private get actions(): readonly IAction[] {
-		if (this.actionProvider) {
-			return this.actionProvider.getActions();
+	pwivate get actions(): weadonwy IAction[] {
+		if (this.actionPwovida) {
+			wetuwn this.actionPwovida.getActions();
 		}
 
-		return this._actions;
+		wetuwn this._actions;
 	}
 
-	private set actions(actions: readonly IAction[]) {
+	pwivate set actions(actions: weadonwy IAction[]) {
 		this._actions = actions;
 	}
 
-	override show(): void {
-		super.show();
+	ovewwide show(): void {
+		supa.show();
 
-		this.element.classList.add('active');
+		this.ewement.cwassWist.add('active');
 
-		this._contextMenuProvider.showContextMenu({
-			getAnchor: () => this.element,
+		this._contextMenuPwovida.showContextMenu({
+			getAnchow: () => this.ewement,
 			getActions: () => this.actions,
-			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
-			getActionViewItem: action => this.menuOptions && this.menuOptions.actionViewItemProvider ? this.menuOptions.actionViewItemProvider(action) : undefined,
+			getActionsContext: () => this.menuOptions ? this.menuOptions.context : nuww,
+			getActionViewItem: action => this.menuOptions && this.menuOptions.actionViewItemPwovida ? this.menuOptions.actionViewItemPwovida(action) : undefined,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : undefined,
-			getMenuClassName: () => this.menuClassName,
+			getMenuCwassName: () => this.menuCwassName,
 			onHide: () => this.onHide(),
-			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
-			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			domForShadowRoot: this.menuAsChild ? this.element : undefined
+			actionWunna: this.menuOptions ? this.menuOptions.actionWunna : undefined,
+			anchowAwignment: this.menuOptions ? this.menuOptions.anchowAwignment : AnchowAwignment.WEFT,
+			domFowShadowWoot: this.menuAsChiwd ? this.ewement : undefined
 		});
 	}
 
-	override hide(): void {
-		super.hide();
+	ovewwide hide(): void {
+		supa.hide();
 	}
 
-	private onHide(): void {
+	pwivate onHide(): void {
 		this.hide();
-		this.element.classList.remove('active');
+		this.ewement.cwassWist.wemove('active');
 	}
 }

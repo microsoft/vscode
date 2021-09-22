@@ -1,297 +1,297 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as extpath from 'vs/base/common/extpath';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/testing';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { localize } from 'vs/nls';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
-import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
-import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from './testExplorerActions';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { ActionBaw, IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { IIdentityPwovida, IKeyboawdNavigationWabewPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { DefauwtKeyboawdNavigationDewegate, IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { ITweeContextMenuEvent, ITweeFiwta, ITweeNode, ITweeWendewa, ITweeSowta, TweeFiwtewWesuwt, TweeVisibiwity } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Action, ActionWunna, IAction, Sepawatow } fwom 'vs/base/common/actions';
+impowt { disposabweTimeout, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { Cowow, WGBA } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as extpath fwom 'vs/base/common/extpath';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe, dispose, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { isDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt 'vs/css!./media/testing';
+impowt { MawkdownWendewa } fwom 'vs/editow/bwowsa/cowe/mawkdownWendewa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { DwopdownWithPwimawyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/dwopdownWithPwimawyActionViewItem';
+impowt { cweateAndFiwwInActionBawActions, MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { FiweKind } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WowkbenchObjectTwee } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UnmanagedPwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { fowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachButtonStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWesouwceWabew, IWesouwceWabewOptions, IWesouwceWabewPwops, WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { HiewawchicawByWocationPwojection } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/hiewawchawByWocation';
+impowt { ByNameTestItemEwement, HiewawchicawByNamePwojection } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/hiewawchawByName';
+impowt { ITestTweePwojection, TestExpwowewTweeEwement, TestItemTweeEwement, TestTweeEwwowMessage } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/index';
+impowt { getTestItemContextOvewway } fwom 'vs/wowkbench/contwib/testing/bwowsa/expwowewPwojections/testItemContextOvewway';
+impowt * as icons fwom 'vs/wowkbench/contwib/testing/bwowsa/icons';
+impowt { TestingExpwowewFiwta } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingExpwowewFiwta';
+impowt { ITestingPwogwessUiSewvice } fwom 'vs/wowkbench/contwib/testing/bwowsa/testingPwogwessUiSewvice';
+impowt { getTestingConfiguwation, TestingConfigKeys } fwom 'vs/wowkbench/contwib/testing/common/configuwation';
+impowt { wabewFowTestInState, TestExpwowewViewMode, TestExpwowewViewSowting, Testing, testStateNames } fwom 'vs/wowkbench/contwib/testing/common/constants';
+impowt { IntewnawTestItem, ITestWunPwofiwe, TestItemExpandState, TestWesuwtState, TestWunPwofiweBitset } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { ITestExpwowewFiwtewState, TestExpwowewFiwtewState, TestFiwtewTewm } fwom 'vs/wowkbench/contwib/testing/common/testExpwowewFiwtewState';
+impowt { TestId } fwom 'vs/wowkbench/contwib/testing/common/testId';
+impowt { TestingContextKeys } fwom 'vs/wowkbench/contwib/testing/common/testingContextKeys';
+impowt { ITestingPeekOpena } fwom 'vs/wowkbench/contwib/testing/common/testingPeekOpena';
+impowt { cmpPwiowity, isFaiwedState, isStateWithWesuwt } fwom 'vs/wowkbench/contwib/testing/common/testingStates';
+impowt { canUsePwofiweWithTest, ITestPwofiweSewvice } fwom 'vs/wowkbench/contwib/testing/common/testPwofiweSewvice';
+impowt { TestWesuwtItemChangeWeason } fwom 'vs/wowkbench/contwib/testing/common/testWesuwt';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
+impowt { IMainThweadTestCowwection, ITestSewvice, testCowwectionIsEmpty } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ConfiguweTestPwofiwesAction, DebugSewectedAction, WunSewectedAction, SewectDefauwtTestPwofiwes } fwom './testExpwowewActions';
 
-export class TestingExplorerView extends ViewPane {
-	public viewModel!: TestingExplorerViewModel;
-	private filterActionBar = this._register(new MutableDisposable());
-	private container!: HTMLElement;
-	private treeHeader!: HTMLElement;
-	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
-	private filter?: TestingExplorerFilter;
-	private readonly dimensions = { width: 0, height: 0 };
+expowt cwass TestingExpwowewView extends ViewPane {
+	pubwic viewModew!: TestingExpwowewViewModew;
+	pwivate fiwtewActionBaw = this._wegista(new MutabweDisposabwe());
+	pwivate containa!: HTMWEwement;
+	pwivate tweeHeada!: HTMWEwement;
+	pwivate discovewyPwogwess = this._wegista(new MutabweDisposabwe<UnmanagedPwogwess>());
+	pwivate fiwta?: TestingExpwowewFiwta;
+	pwivate weadonwy dimensions = { width: 0, height: 0 };
 
-	constructor(
-		options: IViewletViewOptions,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
-		@ITestService private readonly testService: ITestService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ITestingProgressUiService private readonly testProgressService: ITestingProgressUiService,
-		@ITestProfileService private readonly testProfileService: ITestProfileService,
-		@ICommandService private readonly commandService: ICommandService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@ITestingPwogwessUiSewvice pwivate weadonwy testPwogwessSewvice: ITestingPwogwessUiSewvice,
+		@ITestPwofiweSewvice pwivate weadonwy testPwofiweSewvice: ITestPwofiweSewvice,
+		@ICommandSewvice pwivate weadonwy commandSewvice: ICommandSewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
-		this._register(this.onDidChangeViewWelcomeState(() => {
-			if (!this.shouldShowWelcome()) {
-				relayout.schedule();
+		const wewayout = this._wegista(new WunOnceScheduwa(() => this.wayoutBody(), 1));
+		this._wegista(this.onDidChangeViewWewcomeState(() => {
+			if (!this.shouwdShowWewcome()) {
+				wewayout.scheduwe();
 			}
 		}));
 
-		this._register(testService.collection.onBusyProvidersChange(busy => {
-			this.updateDiscoveryProgress(busy);
+		this._wegista(testSewvice.cowwection.onBusyPwovidewsChange(busy => {
+			this.updateDiscovewyPwogwess(busy);
 		}));
 
-		this._register(testProfileService.onDidChange(() => this.updateActions()));
+		this._wegista(testPwofiweSewvice.onDidChange(() => this.updateActions()));
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override shouldShowWelcome() {
-		return this.viewModel?.welcomeExperience === WelcomeExperience.ForWorkspace ?? true;
+	pubwic ovewwide shouwdShowWewcome() {
+		wetuwn this.viewModew?.wewcomeExpewience === WewcomeExpewience.FowWowkspace ?? twue;
 	}
 
-	public getSelectedOrVisibleItems(profile?: ITestRunProfile) {
-		const projection = this.viewModel.projection.value;
-		if (!projection) {
-			return { include: [], exclude: [] };
+	pubwic getSewectedOwVisibweItems(pwofiwe?: ITestWunPwofiwe) {
+		const pwojection = this.viewModew.pwojection.vawue;
+		if (!pwojection) {
+			wetuwn { incwude: [], excwude: [] };
 		}
 
-		if (projection instanceof ByNameTestItemElement) {
-			return {
-				include: [...this.testService.collection.rootItems],
-				exclude: [],
+		if (pwojection instanceof ByNameTestItemEwement) {
+			wetuwn {
+				incwude: [...this.testSewvice.cowwection.wootItems],
+				excwude: [],
 			};
 		}
 
-		// To calculate includes and excludes, we include the first children that
-		// have a majority of their items included too, and then apply exclusions.
-		const include: InternalTestItem[] = [];
-		const exclude: InternalTestItem[] = [];
+		// To cawcuwate incwudes and excwudes, we incwude the fiwst chiwdwen that
+		// have a majowity of theiw items incwuded too, and then appwy excwusions.
+		const incwude: IntewnawTestItem[] = [];
+		const excwude: IntewnawTestItem[] = [];
 
-		const attempt = (element: TestExplorerTreeElement, alreadyIncluded: boolean) => {
-			// sanity check hasElement since updates are debounced and they may exist
-			// but not be rendered yet
-			if (!(element instanceof TestItemTreeElement) || !this.viewModel.tree.hasElement(element)) {
-				return;
+		const attempt = (ewement: TestExpwowewTweeEwement, awweadyIncwuded: boowean) => {
+			// sanity check hasEwement since updates awe debounced and they may exist
+			// but not be wendewed yet
+			if (!(ewement instanceof TestItemTweeEwement) || !this.viewModew.twee.hasEwement(ewement)) {
+				wetuwn;
 			}
 
-			// If the current node is not visible or runnable in the current profile, it's excluded
-			const inTree = this.viewModel.tree.getNode(element);
-			if (!inTree.visible) {
-				if (alreadyIncluded) { exclude.push(element.test); }
-				return;
+			// If the cuwwent node is not visibwe ow wunnabwe in the cuwwent pwofiwe, it's excwuded
+			const inTwee = this.viewModew.twee.getNode(ewement);
+			if (!inTwee.visibwe) {
+				if (awweadyIncwuded) { excwude.push(ewement.test); }
+				wetuwn;
 			}
 
-			// If it's not already included but most of its children are, then add it
-			// if it can be run under the current profile (when specified)
+			// If it's not awweady incwuded but most of its chiwdwen awe, then add it
+			// if it can be wun unda the cuwwent pwofiwe (when specified)
 			if (
-				// If it's not already included...
-				!alreadyIncluded
-				// And it can be run using the current profile (if any)
-				&& (!profile || canUseProfileWithTest(profile, element.test))
-				// And either it's a leaf node or most children are included, the  include it.
-				&& (inTree.children.length === 0 || inTree.visibleChildrenCount * 2 >= inTree.children.length)
-				// And not if we're only showing a single of its children, since it
-				// probably fans out later. (Worse case we'll directly include its single child)
-				&& inTree.visibleChildrenCount !== 1
+				// If it's not awweady incwuded...
+				!awweadyIncwuded
+				// And it can be wun using the cuwwent pwofiwe (if any)
+				&& (!pwofiwe || canUsePwofiweWithTest(pwofiwe, ewement.test))
+				// And eitha it's a weaf node ow most chiwdwen awe incwuded, the  incwude it.
+				&& (inTwee.chiwdwen.wength === 0 || inTwee.visibweChiwdwenCount * 2 >= inTwee.chiwdwen.wength)
+				// And not if we'we onwy showing a singwe of its chiwdwen, since it
+				// pwobabwy fans out wata. (Wowse case we'ww diwectwy incwude its singwe chiwd)
+				&& inTwee.visibweChiwdwenCount !== 1
 			) {
-				include.push(element.test);
-				alreadyIncluded = true;
+				incwude.push(ewement.test);
+				awweadyIncwuded = twue;
 			}
 
-			// Recurse ✨
-			for (const child of element.children) {
-				attempt(child, alreadyIncluded);
+			// Wecuwse ✨
+			fow (const chiwd of ewement.chiwdwen) {
+				attempt(chiwd, awweadyIncwuded);
 			}
 		};
 
-		for (const root of this.testService.collection.rootItems) {
-			const element = projection.getElementByTestId(root.item.extId);
-			if (!element) {
+		fow (const woot of this.testSewvice.cowwection.wootItems) {
+			const ewement = pwojection.getEwementByTestId(woot.item.extId);
+			if (!ewement) {
 				continue;
 			}
 
-			if (profile && !canUseProfileWithTest(profile, root)) {
+			if (pwofiwe && !canUsePwofiweWithTest(pwofiwe, woot)) {
 				continue;
 			}
 
-			// single controllers won't have visible root ID nodes, handle that  case specially
-			if (!this.viewModel.tree.hasElement(element)) {
-				const visibleChildren = [...element.children].reduce((acc, c) =>
-					this.viewModel.tree.hasElement(c) && this.viewModel.tree.getNode(c).visible ? acc + 1 : acc, 0);
+			// singwe contwowwews won't have visibwe woot ID nodes, handwe that  case speciawwy
+			if (!this.viewModew.twee.hasEwement(ewement)) {
+				const visibweChiwdwen = [...ewement.chiwdwen].weduce((acc, c) =>
+					this.viewModew.twee.hasEwement(c) && this.viewModew.twee.getNode(c).visibwe ? acc + 1 : acc, 0);
 
-				// note we intentionally check children > 0 here, unlike above, since
-				// we don't want to bother dispatching to controllers who have no discovered tests
-				if (element.children.size > 0 && visibleChildren * 2 >= element.children.size) {
-					include.push(element.test);
-					element.children.forEach(c => attempt(c, true));
-				} else {
-					element.children.forEach(c => attempt(c, false));
+				// note we intentionawwy check chiwdwen > 0 hewe, unwike above, since
+				// we don't want to botha dispatching to contwowwews who have no discovewed tests
+				if (ewement.chiwdwen.size > 0 && visibweChiwdwen * 2 >= ewement.chiwdwen.size) {
+					incwude.push(ewement.test);
+					ewement.chiwdwen.fowEach(c => attempt(c, twue));
+				} ewse {
+					ewement.chiwdwen.fowEach(c => attempt(c, fawse));
 				}
-			} else {
-				attempt(element, false);
+			} ewse {
+				attempt(ewement, fawse);
 			}
 		}
 
-		return { include, exclude };
+		wetuwn { incwude, excwude };
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	pwotected ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		this.container = dom.append(container, dom.$('.test-explorer'));
-		this.treeHeader = dom.append(this.container, dom.$('.test-explorer-header'));
-		this.filterActionBar.value = this.createFilterActionBar();
+		this.containa = dom.append(containa, dom.$('.test-expwowa'));
+		this.tweeHeada = dom.append(this.containa, dom.$('.test-expwowa-heada'));
+		this.fiwtewActionBaw.vawue = this.cweateFiwtewActionBaw();
 
-		const messagesContainer = dom.append(this.treeHeader, dom.$('.test-explorer-messages'));
-		this._register(this.testProgressService.onTextChange(text => {
-			const hadText = !!messagesContainer.innerText;
+		const messagesContaina = dom.append(this.tweeHeada, dom.$('.test-expwowa-messages'));
+		this._wegista(this.testPwogwessSewvice.onTextChange(text => {
+			const hadText = !!messagesContaina.innewText;
 			const hasText = !!text;
-			messagesContainer.innerText = text;
+			messagesContaina.innewText = text;
 
 			if (hadText !== hasText) {
-				this.layoutBody();
+				this.wayoutBody();
 			}
 		}));
 
-		const progress = new MutableDisposable<UnmanagedProgress>();
-		this._register(this.testProgressService.onCountChange(evt => {
-			if (!evt.isRunning && progress.value) {
-				progress.clear();
-			} else if (evt.isRunning) {
-				if (!progress.value) {
-					progress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation(), total: 100 });
+		const pwogwess = new MutabweDisposabwe<UnmanagedPwogwess>();
+		this._wegista(this.testPwogwessSewvice.onCountChange(evt => {
+			if (!evt.isWunning && pwogwess.vawue) {
+				pwogwess.cweaw();
+			} ewse if (evt.isWunning) {
+				if (!pwogwess.vawue) {
+					pwogwess.vawue = this.instantiationSewvice.cweateInstance(UnmanagedPwogwess, { wocation: this.getPwogwessWocation(), totaw: 100 });
 				}
-				progress.value.report({ increment: evt.runSoFar, total: evt.totalWillBeRun });
+				pwogwess.vawue.wepowt({ incwement: evt.wunSoFaw, totaw: evt.totawWiwwBeWun });
 			}
 		}));
 
-		const listContainer = dom.append(this.container, dom.$('.test-explorer-tree'));
-		this.viewModel = this.instantiationService.createInstance(TestingExplorerViewModel, listContainer, this.onDidChangeBodyVisibility);
-		this._register(this.viewModel.onChangeWelcomeVisibility(() => this._onDidChangeViewWelcomeState.fire()));
-		this._register(this.viewModel);
-		this._onDidChangeViewWelcomeState.fire();
+		const wistContaina = dom.append(this.containa, dom.$('.test-expwowa-twee'));
+		this.viewModew = this.instantiationSewvice.cweateInstance(TestingExpwowewViewModew, wistContaina, this.onDidChangeBodyVisibiwity);
+		this._wegista(this.viewModew.onChangeWewcomeVisibiwity(() => this._onDidChangeViewWewcomeState.fiwe()));
+		this._wegista(this.viewModew);
+		this._onDidChangeViewWewcomeState.fiwe();
 	}
 
-	/** @override  */
-	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	/** @ovewwide  */
+	pubwic ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			case Testing.FilterActionId:
-				return this.filter = this.instantiationService.createInstance(TestingExplorerFilter, action);
-			case RunSelectedAction.ID:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
-			case DebugSelectedAction.ID:
-				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
-			default:
-				return super.getActionViewItem(action);
+			case Testing.FiwtewActionId:
+				wetuwn this.fiwta = this.instantiationSewvice.cweateInstance(TestingExpwowewFiwta, action);
+			case WunSewectedAction.ID:
+				wetuwn this.getWunGwoupDwopdown(TestWunPwofiweBitset.Wun, action);
+			case DebugSewectedAction.ID:
+				wetuwn this.getWunGwoupDwopdown(TestWunPwofiweBitset.Debug, action);
+			defauwt:
+				wetuwn supa.getActionViewItem(action);
 		}
 	}
 
-	/** @inheritdoc */
-	private getTestConfigGroupActions(group: TestRunProfileBitset) {
-		const profileActions: IAction[] = [];
+	/** @inhewitdoc */
+	pwivate getTestConfigGwoupActions(gwoup: TestWunPwofiweBitset) {
+		const pwofiweActions: IAction[] = [];
 
-		let participatingGroups = 0;
-		let hasConfigurable = false;
-		const defaults = this.testProfileService.getGroupDefaultProfiles(group);
-		for (const { profiles, controller } of this.testProfileService.all()) {
-			let hasAdded = false;
+		wet pawticipatingGwoups = 0;
+		wet hasConfiguwabwe = fawse;
+		const defauwts = this.testPwofiweSewvice.getGwoupDefauwtPwofiwes(gwoup);
+		fow (const { pwofiwes, contwowwa } of this.testPwofiweSewvice.aww()) {
+			wet hasAdded = fawse;
 
-			for (const profile of profiles) {
-				if (profile.group !== group) {
+			fow (const pwofiwe of pwofiwes) {
+				if (pwofiwe.gwoup !== gwoup) {
 					continue;
 				}
 
 				if (!hasAdded) {
-					hasAdded = true;
-					participatingGroups++;
-					profileActions.push(new Action(`${controller.id}.$root`, controller.label.value, undefined, false));
+					hasAdded = twue;
+					pawticipatingGwoups++;
+					pwofiweActions.push(new Action(`${contwowwa.id}.$woot`, contwowwa.wabew.vawue, undefined, fawse));
 				}
 
-				hasConfigurable = hasConfigurable || profile.hasConfigurationHandler;
-				profileActions.push(new Action(
-					`${controller.id}.${profile.profileId}`,
-					defaults.includes(profile) ? localize('defaultTestProfile', '{0} (Default)', profile.label) : profile.label,
+				hasConfiguwabwe = hasConfiguwabwe || pwofiwe.hasConfiguwationHandwa;
+				pwofiweActions.push(new Action(
+					`${contwowwa.id}.${pwofiwe.pwofiweId}`,
+					defauwts.incwudes(pwofiwe) ? wocawize('defauwtTestPwofiwe', '{0} (Defauwt)', pwofiwe.wabew) : pwofiwe.wabew,
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getSelectedOrVisibleItems(profile);
-						this.testService.runResolvedTests({
-							exclude: exclude.map(e => e.item.extId),
-							targets: [{
-								profileGroup: profile.group,
-								profileId: profile.profileId,
-								controllerId: profile.controllerId,
-								testIds: include.map(i => i.item.extId),
+						const { incwude, excwude } = this.getSewectedOwVisibweItems(pwofiwe);
+						this.testSewvice.wunWesowvedTests({
+							excwude: excwude.map(e => e.item.extId),
+							tawgets: [{
+								pwofiweGwoup: pwofiwe.gwoup,
+								pwofiweId: pwofiwe.pwofiweId,
+								contwowwewId: pwofiwe.contwowwewId,
+								testIds: incwude.map(i => i.item.extId),
 							}]
 						});
 					},
@@ -299,980 +299,980 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		// If there's only one group, don't add a heading for it in the dropdown.
-		if (participatingGroups === 1) {
-			profileActions.shift();
+		// If thewe's onwy one gwoup, don't add a heading fow it in the dwopdown.
+		if (pawticipatingGwoups === 1) {
+			pwofiweActions.shift();
 		}
 
-		let postActions: IAction[] = [];
-		if (profileActions.length > 1) {
+		wet postActions: IAction[] = [];
+		if (pwofiweActions.wength > 1) {
 			postActions.push(new Action(
-				'selectDefaultTestConfigurations',
-				localize('selectDefaultConfigs', 'Select Default Profile'),
+				'sewectDefauwtTestConfiguwations',
+				wocawize('sewectDefauwtConfigs', 'Sewect Defauwt Pwofiwe'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(SelectDefaultTestProfiles.ID, group),
+				() => this.commandSewvice.executeCommand<ITestWunPwofiwe>(SewectDefauwtTestPwofiwes.ID, gwoup),
 			));
 		}
 
-		if (hasConfigurable) {
+		if (hasConfiguwabwe) {
 			postActions.push(new Action(
-				'configureTestProfiles',
-				localize('configureTestProfiles', 'Configure Test Profiles'),
+				'configuweTestPwofiwes',
+				wocawize('configuweTestPwofiwes', 'Configuwe Test Pwofiwes'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(ConfigureTestProfilesAction.ID, group),
+				() => this.commandSewvice.executeCommand<ITestWunPwofiwe>(ConfiguweTestPwofiwesAction.ID, gwoup),
 			));
 		}
 
-		return Separator.join(profileActions, postActions);
+		wetuwn Sepawatow.join(pwofiweActions, postActions);
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	public override saveState() {
-		this.filter?.saveState();
-		super.saveState();
+	pubwic ovewwide saveState() {
+		this.fiwta?.saveState();
+		supa.saveState();
 	}
 
-	private getRunGroupDropdown(group: TestRunProfileBitset, defaultAction: IAction) {
-		const dropdownActions = this.getTestConfigGroupActions(group);
-		if (dropdownActions.length < 2) {
-			return super.getActionViewItem(defaultAction);
+	pwivate getWunGwoupDwopdown(gwoup: TestWunPwofiweBitset, defauwtAction: IAction) {
+		const dwopdownActions = this.getTestConfigGwoupActions(gwoup);
+		if (dwopdownActions.wength < 2) {
+			wetuwn supa.getActionViewItem(defauwtAction);
 		}
 
-		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
-			id: defaultAction.id,
-			title: defaultAction.label,
-			icon: group === TestRunProfileBitset.Run
-				? icons.testingRunAllIcon
-				: icons.testingDebugAllIcon,
+		const pwimawyAction = this.instantiationSewvice.cweateInstance(MenuItemAction, {
+			id: defauwtAction.id,
+			titwe: defauwtAction.wabew,
+			icon: gwoup === TestWunPwofiweBitset.Wun
+				? icons.testingWunAwwIcon
+				: icons.testingDebugAwwIcon,
 		}, undefined, undefined);
 
-		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
+		const dwopdownAction = new Action('sewectWunConfig', 'Sewect Configuwation...', 'codicon-chevwon-down', twue);
 
-		return this.instantiationService.createInstance(
-			DropdownWithPrimaryActionViewItem,
-			primaryAction, dropdownAction, dropdownActions,
+		wetuwn this.instantiationSewvice.cweateInstance(
+			DwopdownWithPwimawyActionViewItem,
+			pwimawyAction, dwopdownAction, dwopdownActions,
 			'',
-			this.contextMenuService,
+			this.contextMenuSewvice,
 			{}
 		);
 	}
 
-	private createFilterActionBar() {
-		const bar = new ActionBar(this.treeHeader, {
-			actionViewItemProvider: action => this.getActionViewItem(action),
-			triggerKeys: { keyDown: false, keys: [] },
+	pwivate cweateFiwtewActionBaw() {
+		const baw = new ActionBaw(this.tweeHeada, {
+			actionViewItemPwovida: action => this.getActionViewItem(action),
+			twiggewKeys: { keyDown: fawse, keys: [] },
 		});
-		bar.push(new Action(Testing.FilterActionId));
-		bar.getContainer().classList.add('testing-filter-action-bar');
-		return bar;
+		baw.push(new Action(Testing.FiwtewActionId));
+		baw.getContaina().cwassWist.add('testing-fiwta-action-baw');
+		wetuwn baw;
 	}
 
-	private updateDiscoveryProgress(busy: number) {
-		if (!busy && this.discoveryProgress) {
-			this.discoveryProgress.clear();
-		} else if (busy && !this.discoveryProgress.value) {
-			this.discoveryProgress.value = this.instantiationService.createInstance(UnmanagedProgress, { location: this.getProgressLocation() });
+	pwivate updateDiscovewyPwogwess(busy: numba) {
+		if (!busy && this.discovewyPwogwess) {
+			this.discovewyPwogwess.cweaw();
+		} ewse if (busy && !this.discovewyPwogwess.vawue) {
+			this.discovewyPwogwess.vawue = this.instantiationSewvice.cweateInstance(UnmanagedPwogwess, { wocation: this.getPwogwessWocation() });
 		}
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected override layoutBody(height = this.dimensions.height, width = this.dimensions.width): void {
-		super.layoutBody(height, width);
+	pwotected ovewwide wayoutBody(height = this.dimensions.height, width = this.dimensions.width): void {
+		supa.wayoutBody(height, width);
 		this.dimensions.height = height;
 		this.dimensions.width = width;
-		this.container.style.height = `${height}px`;
-		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
-		this.filter?.layout(width);
+		this.containa.stywe.height = `${height}px`;
+		this.viewModew.wayout(height - this.tweeHeada.cwientHeight, width);
+		this.fiwta?.wayout(width);
 	}
 }
 
-const enum WelcomeExperience {
+const enum WewcomeExpewience {
 	None,
-	ForWorkspace,
-	ForDocument,
+	FowWowkspace,
+	FowDocument,
 }
 
-export class TestingExplorerViewModel extends Disposable {
-	public tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>;
-	private filter: TestsFilter;
-	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
+expowt cwass TestingExpwowewViewModew extends Disposabwe {
+	pubwic twee: ObjectTwee<TestExpwowewTweeEwement, FuzzyScowe>;
+	pwivate fiwta: TestsFiwta;
+	pubwic pwojection = this._wegista(new MutabweDisposabwe<ITestTweePwojection>());
 
-	private readonly revealTimeout = new MutableDisposable();
-	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
-	private readonly _viewSorting = TestingContextKeys.viewSorting.bindTo(this.contextKeyService);
-	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
-	private readonly actionRunner = new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined));
-	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;
+	pwivate weadonwy weveawTimeout = new MutabweDisposabwe();
+	pwivate weadonwy _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeySewvice);
+	pwivate weadonwy _viewSowting = TestingContextKeys.viewSowting.bindTo(this.contextKeySewvice);
+	pwivate weadonwy wewcomeVisibiwityEmitta = new Emitta<WewcomeExpewience>();
+	pwivate weadonwy actionWunna = new TestExpwowewActionWunna(() => this.twee.getSewection().fiwta(isDefined));
+	pwivate weadonwy noTestFowDocumentWidget: NoTestsFowDocumentWidget;
 
 	/**
-	 * Whether there's a reveal request which has not yet been delivered. This
-	 * can happen if the user asks to reveal before the test tree is loaded.
-	 * We check to see if the reveal request is present on each tree update,
+	 * Whetha thewe's a weveaw wequest which has not yet been dewivewed. This
+	 * can happen if the usa asks to weveaw befowe the test twee is woaded.
+	 * We check to see if the weveaw wequest is pwesent on each twee update,
 	 * and do it then if so.
 	 */
-	private hasPendingReveal = false;
+	pwivate hasPendingWeveaw = fawse;
 	/**
-	 * Fires when the visibility of the placeholder state changes.
+	 * Fiwes when the visibiwity of the pwacehowda state changes.
 	 */
-	public readonly onChangeWelcomeVisibility = this.welcomeVisibilityEmitter.event;
+	pubwic weadonwy onChangeWewcomeVisibiwity = this.wewcomeVisibiwityEmitta.event;
 
 	/**
-	 * Gets whether the welcome should be visible.
+	 * Gets whetha the wewcome shouwd be visibwe.
 	 */
-	public welcomeExperience = WelcomeExperience.None;
+	pubwic wewcomeExpewience = WewcomeExpewience.None;
 
-	public get viewMode() {
-		return this._viewMode.get() ?? TestExplorerViewMode.Tree;
+	pubwic get viewMode() {
+		wetuwn this._viewMode.get() ?? TestExpwowewViewMode.Twee;
 	}
 
-	public set viewMode(newMode: TestExplorerViewMode) {
+	pubwic set viewMode(newMode: TestExpwowewViewMode) {
 		if (newMode === this._viewMode.get()) {
-			return;
+			wetuwn;
 		}
 
 		this._viewMode.set(newMode);
-		this.updatePreferredProjection();
-		this.storageService.store('testing.viewMode', newMode, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.updatePwefewwedPwojection();
+		this.stowageSewvice.stowe('testing.viewMode', newMode, StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
 
-	public get viewSorting() {
-		return this._viewSorting.get() ?? TestExplorerViewSorting.ByStatus;
+	pubwic get viewSowting() {
+		wetuwn this._viewSowting.get() ?? TestExpwowewViewSowting.ByStatus;
 	}
 
-	public set viewSorting(newSorting: TestExplorerViewSorting) {
-		if (newSorting === this._viewSorting.get()) {
-			return;
+	pubwic set viewSowting(newSowting: TestExpwowewViewSowting) {
+		if (newSowting === this._viewSowting.get()) {
+			wetuwn;
 		}
 
-		this._viewSorting.set(newSorting);
-		this.tree.resort(null);
-		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
+		this._viewSowting.set(newSowting);
+		this.twee.wesowt(nuww);
+		this.stowageSewvice.stowe('testing.viewSowting', newSowting, StowageScope.WOWKSPACE, StowageTawget.USa);
 	}
 
-	constructor(
-		listContainer: HTMLElement,
-		onDidChangeVisibility: Event<boolean>,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ITestService private readonly testService: ITestService,
-		@ITestExplorerFilterState private readonly filterState: TestExplorerFilterState,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITestResultService private readonly testResults: ITestResultService,
-		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
-		@ITestProfileService private readonly testProfileService: ITestProfileService,
+	constwuctow(
+		wistContaina: HTMWEwement,
+		onDidChangeVisibiwity: Event<boowean>,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
+		@ITestExpwowewFiwtewState pwivate weadonwy fiwtewState: TestExpwowewFiwtewState,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@ITestWesuwtSewvice pwivate weadonwy testWesuwts: ITestWesuwtSewvice,
+		@ITestingPeekOpena pwivate weadonwy peekOpena: ITestingPeekOpena,
+		@ITestPwofiweSewvice pwivate weadonwy testPwofiweSewvice: ITestPwofiweSewvice,
 	) {
-		super();
+		supa();
 
-		this.hasPendingReveal = !!filterState.reveal.value;
-		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
-		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
-		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
+		this.hasPendingWeveaw = !!fiwtewState.weveaw.vawue;
+		this.noTestFowDocumentWidget = this._wegista(instantiationSewvice.cweateInstance(NoTestsFowDocumentWidget, wistContaina));
+		this._viewMode.set(this.stowageSewvice.get('testing.viewMode', StowageScope.WOWKSPACE, TestExpwowewViewMode.Twee) as TestExpwowewViewMode);
+		this._viewSowting.set(this.stowageSewvice.get('testing.viewSowting', StowageScope.WOWKSPACE, TestExpwowewViewSowting.ByWocation) as TestExpwowewViewSowting);
 
-		const labels = this._register(instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: onDidChangeVisibility }));
+		const wabews = this._wegista(instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: onDidChangeVisibiwity }));
 
-		this.reevaluateWelcomeState();
-		this.filter = this.instantiationService.createInstance(TestsFilter, testService.collection);
-		this.tree = instantiationService.createInstance(
-			WorkbenchObjectTree,
-			'Test Explorer List',
-			listContainer,
-			new ListDelegate(),
+		this.weevawuateWewcomeState();
+		this.fiwta = this.instantiationSewvice.cweateInstance(TestsFiwta, testSewvice.cowwection);
+		this.twee = instantiationSewvice.cweateInstance(
+			WowkbenchObjectTwee,
+			'Test Expwowa Wist',
+			wistContaina,
+			new WistDewegate(),
 			[
-				instantiationService.createInstance(TestItemRenderer, labels, this.actionRunner),
-				instantiationService.createInstance(ErrorRenderer),
+				instantiationSewvice.cweateInstance(TestItemWendewa, wabews, this.actionWunna),
+				instantiationSewvice.cweateInstance(EwwowWendewa),
 			],
 			{
-				simpleKeyboardNavigation: true,
-				identityProvider: instantiationService.createInstance(IdentityProvider),
-				hideTwistiesOfChildlessElements: false,
-				sorter: instantiationService.createInstance(TreeSorter, this),
-				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
-				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
-				filter: this.filter,
-			}) as WorkbenchObjectTree<TestExplorerTreeElement, FuzzyScore>;
+				simpweKeyboawdNavigation: twue,
+				identityPwovida: instantiationSewvice.cweateInstance(IdentityPwovida),
+				hideTwistiesOfChiwdwessEwements: fawse,
+				sowta: instantiationSewvice.cweateInstance(TweeSowta, this),
+				keyboawdNavigationWabewPwovida: instantiationSewvice.cweateInstance(TweeKeyboawdNavigationWabewPwovida),
+				accessibiwityPwovida: instantiationSewvice.cweateInstance(WistAccessibiwityPwovida),
+				fiwta: this.fiwta,
+			}) as WowkbenchObjectTwee<TestExpwowewTweeEwement, FuzzyScowe>;
 
-		this._register(this.tree.onDidChangeCollapseState(evt => {
-			if (evt.node.element instanceof TestItemTreeElement) {
-				this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+		this._wegista(this.twee.onDidChangeCowwapseState(evt => {
+			if (evt.node.ewement instanceof TestItemTweeEwement) {
+				this.pwojection.vawue?.expandEwement(evt.node.ewement, evt.deep ? Infinity : 0);
 			}
 		}));
 
-		this._register(onDidChangeVisibility(visible => {
-			if (visible) {
-				this.ensureProjection();
+		this._wegista(onDidChangeVisibiwity(visibwe => {
+			if (visibwe) {
+				this.ensuwePwojection();
 			}
 		}));
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._wegista(this.twee.onContextMenu(e => this.onContextMenu(e)));
 
-		this._register(Event.any(
-			filterState.text.onDidChange,
-			testService.excluded.onTestExclusionsChanged,
-		)(this.tree.refilter, this.tree));
+		this._wegista(Event.any(
+			fiwtewState.text.onDidChange,
+			testSewvice.excwuded.onTestExcwusionsChanged,
+		)(this.twee.wefiwta, this.twee));
 
-		this._register(this.tree);
+		this._wegista(this.twee);
 
-		this._register(this.onChangeWelcomeVisibility(e => {
-			this.noTestForDocumentWidget.setVisible(e === WelcomeExperience.ForDocument);
+		this._wegista(this.onChangeWewcomeVisibiwity(e => {
+			this.noTestFowDocumentWidget.setVisibwe(e === WewcomeExpewience.FowDocument);
 		}));
 
-		this._register(dom.addStandardDisposableListener(this.tree.getHTMLElement(), 'keydown', evt => {
-			if (evt.equals(KeyCode.Enter)) {
-				this.handleExecuteKeypress(evt);
-			} else if (DefaultKeyboardNavigationDelegate.mightProducePrintableCharacter(evt)) {
-				filterState.text.value = evt.browserEvent.key;
-				filterState.focusInput();
-			}
-		}));
-
-		this._register(filterState.reveal.onDidChange(id => this.revealById(id, undefined, false)));
-
-		this._register(onDidChangeVisibility(visible => {
-			if (visible) {
-				filterState.focusInput();
+		this._wegista(dom.addStandawdDisposabweWistena(this.twee.getHTMWEwement(), 'keydown', evt => {
+			if (evt.equaws(KeyCode.Enta)) {
+				this.handweExecuteKeypwess(evt);
+			} ewse if (DefauwtKeyboawdNavigationDewegate.mightPwoducePwintabweChawacta(evt)) {
+				fiwtewState.text.vawue = evt.bwowsewEvent.key;
+				fiwtewState.focusInput();
 			}
 		}));
 
-		this._register(this.tree.onDidChangeSelection(evt => {
-			if (evt.browserEvent instanceof MouseEvent && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
-				return; // don't focus when alt-clicking to multi select
-			}
+		this._wegista(fiwtewState.weveaw.onDidChange(id => this.weveawById(id, undefined, fawse)));
 
-			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
-				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-				this.tryPeekError(selected);
+		this._wegista(onDidChangeVisibiwity(visibwe => {
+			if (visibwe) {
+				fiwtewState.focusInput();
 			}
 		}));
 
-		let followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
-		this._register(configurationService.onDidChangeConfiguration(() => {
-			followRunningTests = getTestingConfiguration(configurationService, TestingConfigKeys.FollowRunningTest);
+		this._wegista(this.twee.onDidChangeSewection(evt => {
+			if (evt.bwowsewEvent instanceof MouseEvent && (evt.bwowsewEvent.awtKey || evt.bwowsewEvent.shiftKey)) {
+				wetuwn; // don't focus when awt-cwicking to muwti sewect
+			}
+
+			const sewected = evt.ewements[0];
+			if (sewected && evt.bwowsewEvent && sewected instanceof TestItemTweeEwement
+				&& sewected.chiwdwen.size === 0 && sewected.test.expand === TestItemExpandState.NotExpandabwe) {
+				this.twyPeekEwwow(sewected);
+			}
 		}));
 
-		this._register(testResults.onTestChanged(evt => {
-			if (!followRunningTests) {
-				return;
-			}
-
-			if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
-				return;
-			}
-
-			// follow running tests, or tests whose state changed. Tests that
-			// complete very fast may not enter the running state at all.
-			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previous === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
-				return;
-			}
-
-			this.revealById(evt.item.item.extId, false, false);
+		wet fowwowWunningTests = getTestingConfiguwation(configuwationSewvice, TestingConfigKeys.FowwowWunningTest);
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(() => {
+			fowwowWunningTests = getTestingConfiguwation(configuwationSewvice, TestingConfigKeys.FowwowWunningTest);
 		}));
 
-		this._register(testResults.onResultsChanged(evt => {
-			this.tree.resort(null);
+		this._wegista(testWesuwts.onTestChanged(evt => {
+			if (!fowwowWunningTests) {
+				wetuwn;
+			}
 
-			if (followRunningTests && 'completed' in evt) {
-				const selected = this.tree.getSelection()[0];
-				if (selected) {
-					this.tree.reveal(selected, 0.5);
+			if (evt.weason !== TestWesuwtItemChangeWeason.OwnStateChange) {
+				wetuwn;
+			}
+
+			// fowwow wunning tests, ow tests whose state changed. Tests that
+			// compwete vewy fast may not enta the wunning state at aww.
+			if (evt.item.ownComputedState !== TestWesuwtState.Wunning && !(evt.pwevious === TestWesuwtState.Queued && isStateWithWesuwt(evt.item.ownComputedState))) {
+				wetuwn;
+			}
+
+			this.weveawById(evt.item.item.extId, fawse, fawse);
+		}));
+
+		this._wegista(testWesuwts.onWesuwtsChanged(evt => {
+			this.twee.wesowt(nuww);
+
+			if (fowwowWunningTests && 'compweted' in evt) {
+				const sewected = this.twee.getSewection()[0];
+				if (sewected) {
+					this.twee.weveaw(sewected, 0.5);
 				}
 			}
 		}));
 
-		this._register(this.testProfileService.onDidChange(() => {
-			this.tree.rerender();
+		this._wegista(this.testPwofiweSewvice.onDidChange(() => {
+			this.twee.wewenda();
 		}));
 
-		const onEditorChange = () => {
-			this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
-			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
-				this.tree.refilter();
+		const onEditowChange = () => {
+			this.fiwta.fiwtewToDocumentUwi(editowSewvice.activeEditow?.wesouwce);
+			if (this.fiwtewState.isFiwtewingFow(TestFiwtewTewm.CuwwentDoc)) {
+				this.twee.wefiwta();
 			}
 		};
 
-		this._register(editorService.onDidActiveEditorChange(onEditorChange));
+		this._wegista(editowSewvice.onDidActiveEditowChange(onEditowChange));
 
-		onEditorChange();
+		onEditowChange();
 	}
 
 	/**
-	 * Re-layout the tree.
+	 * We-wayout the twee.
 	 */
-	public layout(height?: number, width?: number): void {
-		this.tree.layout(height, width);
+	pubwic wayout(height?: numba, width?: numba): void {
+		this.twee.wayout(height, width);
 	}
 
 	/**
-	 * Tries to reveal by extension ID. Queues the request if the extension
-	 * ID is not currently available.
+	 * Twies to weveaw by extension ID. Queues the wequest if the extension
+	 * ID is not cuwwentwy avaiwabwe.
 	 */
-	private revealById(id: string | undefined, expand = true, focus = true) {
+	pwivate weveawById(id: stwing | undefined, expand = twue, focus = twue) {
 		if (!id) {
-			this.hasPendingReveal = false;
-			return;
+			this.hasPendingWeveaw = fawse;
+			wetuwn;
 		}
 
-		const projection = this.ensureProjection();
+		const pwojection = this.ensuwePwojection();
 
-		// If the item itself is visible in the tree, show it. Otherwise, expand
-		// its closest parent.
-		let expandToLevel = 0;
-		const idPath = [...TestId.fromString(id).idsFromRoot()];
-		for (let i = idPath.length - 1; i >= expandToLevel; i--) {
-			const element = projection.getElementByTestId(idPath[i].toString());
-			// Skip all elements that aren't in the tree.
-			if (!element || !this.tree.hasElement(element)) {
+		// If the item itsewf is visibwe in the twee, show it. Othewwise, expand
+		// its cwosest pawent.
+		wet expandToWevew = 0;
+		const idPath = [...TestId.fwomStwing(id).idsFwomWoot()];
+		fow (wet i = idPath.wength - 1; i >= expandToWevew; i--) {
+			const ewement = pwojection.getEwementByTestId(idPath[i].toStwing());
+			// Skip aww ewements that awen't in the twee.
+			if (!ewement || !this.twee.hasEwement(ewement)) {
 				continue;
 			}
 
-			// If this 'if' is true, we're at the closest-visible parent to the node
-			// we want to expand. Expand that, and then start the loop again because
-			// we might already have children for it.
-			if (i < idPath.length - 1) {
+			// If this 'if' is twue, we'we at the cwosest-visibwe pawent to the node
+			// we want to expand. Expand that, and then stawt the woop again because
+			// we might awweady have chiwdwen fow it.
+			if (i < idPath.wength - 1) {
 				if (expand) {
-					this.tree.expand(element);
-					expandToLevel = i + 1; // avoid an infinite loop if the test does not exist
-					i = idPath.length - 1; // restart the loop since new children may now be visible
+					this.twee.expand(ewement);
+					expandToWevew = i + 1; // avoid an infinite woop if the test does not exist
+					i = idPath.wength - 1; // westawt the woop since new chiwdwen may now be visibwe
 					continue;
 				}
 			}
 
-			// Otherwise, we've arrived!
+			// Othewwise, we've awwived!
 
-			// If the node or any of its children are excluded, flip on the 'show
-			// excluded tests' checkbox automatically.
-			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
-				if (n.test && this.testService.excluded.contains(n.test)) {
-					this.filterState.toggleFilteringFor(TestFilterTerm.Hidden, true);
-					break;
+			// If the node ow any of its chiwdwen awe excwuded, fwip on the 'show
+			// excwuded tests' checkbox automaticawwy.
+			fow (wet n: TestItemTweeEwement | nuww = ewement; n instanceof TestItemTweeEwement; n = n.pawent) {
+				if (n.test && this.testSewvice.excwuded.contains(n.test)) {
+					this.fiwtewState.toggweFiwtewingFow(TestFiwtewTewm.Hidden, twue);
+					bweak;
 				}
 			}
 
-			this.filterState.reveal.value = undefined;
-			this.hasPendingReveal = false;
+			this.fiwtewState.weveaw.vawue = undefined;
+			this.hasPendingWeveaw = fawse;
 			if (focus) {
-				this.tree.domFocus();
+				this.twee.domFocus();
 			}
 
-			this.revealTimeout.value = disposableTimeout(() => {
-				// Don't scroll to the item if it's already visible
-				if (this.tree.getRelativeTop(element) === null) {
-					this.tree.reveal(element, 0.5);
+			this.weveawTimeout.vawue = disposabweTimeout(() => {
+				// Don't scwoww to the item if it's awweady visibwe
+				if (this.twee.getWewativeTop(ewement) === nuww) {
+					this.twee.weveaw(ewement, 0.5);
 				}
 
-				this.tree.setFocus([element]);
-				this.tree.setSelection([element]);
+				this.twee.setFocus([ewement]);
+				this.twee.setSewection([ewement]);
 			}, 1);
 
-			return;
+			wetuwn;
 		}
 
-		// If here, we've expanded all parents we can. Waiting on data to come
-		// in to possibly show the revealed test.
-		this.hasPendingReveal = true;
+		// If hewe, we've expanded aww pawents we can. Waiting on data to come
+		// in to possibwy show the weveawed test.
+		this.hasPendingWeveaw = twue;
 	}
 
 	/**
-	 * Collapse all items in the tree.
+	 * Cowwapse aww items in the twee.
 	 */
-	public async collapseAll() {
-		this.tree.collapseAll();
+	pubwic async cowwapseAww() {
+		this.twee.cowwapseAww();
 	}
 
 	/**
-	 * Tries to peek the first test error, if the item is in a failed state.
+	 * Twies to peek the fiwst test ewwow, if the item is in a faiwed state.
 	 */
-	private tryPeekError(item: TestItemTreeElement) {
-		const lookup = item.test && this.testResults.getStateById(item.test.item.extId);
-		return lookup && lookup[1].tasks.some(s => isFailedState(s.state))
-			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
-			: false;
+	pwivate twyPeekEwwow(item: TestItemTweeEwement) {
+		const wookup = item.test && this.testWesuwts.getStateById(item.test.item.extId);
+		wetuwn wookup && wookup[1].tasks.some(s => isFaiwedState(s.state))
+			? this.peekOpena.twyPeekFiwstEwwow(wookup[0], wookup[1], { pwesewveFocus: twue })
+			: fawse;
 	}
 
-	private onContextMenu(evt: ITreeContextMenuEvent<TestExplorerTreeElement | null>) {
-		const element = evt.element;
-		if (!(element instanceof TestItemTreeElement)) {
-			return;
+	pwivate onContextMenu(evt: ITweeContextMenuEvent<TestExpwowewTweeEwement | nuww>) {
+		const ewement = evt.ewement;
+		if (!(ewement instanceof TestItemTweeEwement)) {
+			wetuwn;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => evt.anchor,
+		const actions = getActionabweEwementActions(this.contextKeySewvice, this.menuSewvice, this.testSewvice, this.testPwofiweSewvice, ewement);
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => evt.anchow,
 			getActions: () => [
-				...actions.value.primary,
-				new Separator(),
-				...actions.value.secondary,
+				...actions.vawue.pwimawy,
+				new Sepawatow(),
+				...actions.vawue.secondawy,
 			],
-			getActionsContext: () => element,
+			getActionsContext: () => ewement,
 			onHide: () => actions.dispose(),
-			actionRunner: this.actionRunner,
+			actionWunna: this.actionWunna,
 		});
 	}
 
-	private handleExecuteKeypress(evt: IKeyboardEvent) {
-		const focused = this.tree.getFocus();
-		const selected = this.tree.getSelection();
-		let targeted: (TestExplorerTreeElement | null)[];
-		if (focused.length === 1 && selected.includes(focused[0])) {
-			evt.browserEvent?.preventDefault();
-			targeted = selected;
-		} else {
-			targeted = focused;
+	pwivate handweExecuteKeypwess(evt: IKeyboawdEvent) {
+		const focused = this.twee.getFocus();
+		const sewected = this.twee.getSewection();
+		wet tawgeted: (TestExpwowewTweeEwement | nuww)[];
+		if (focused.wength === 1 && sewected.incwudes(focused[0])) {
+			evt.bwowsewEvent?.pweventDefauwt();
+			tawgeted = sewected;
+		} ewse {
+			tawgeted = focused;
 		}
 
-		const toRun = targeted
-			.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
+		const toWun = tawgeted
+			.fiwta((e): e is TestItemTweeEwement => e instanceof TestItemTweeEwement);
 
-		if (toRun.length) {
-			this.testService.runTests({
-				group: TestRunProfileBitset.Run,
-				tests: toRun.map(t => t.test),
+		if (toWun.wength) {
+			this.testSewvice.wunTests({
+				gwoup: TestWunPwofiweBitset.Wun,
+				tests: toWun.map(t => t.test),
 			});
 		}
 	}
 
-	private reevaluateWelcomeState() {
-		const shouldShowWelcome = this.testService.collection.busyProviders === 0 && testCollectionIsEmpty(this.testService.collection);
-		const welcomeExperience = shouldShowWelcome
-			? (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc) ? WelcomeExperience.ForDocument : WelcomeExperience.ForWorkspace)
-			: WelcomeExperience.None;
+	pwivate weevawuateWewcomeState() {
+		const shouwdShowWewcome = this.testSewvice.cowwection.busyPwovidews === 0 && testCowwectionIsEmpty(this.testSewvice.cowwection);
+		const wewcomeExpewience = shouwdShowWewcome
+			? (this.fiwtewState.isFiwtewingFow(TestFiwtewTewm.CuwwentDoc) ? WewcomeExpewience.FowDocument : WewcomeExpewience.FowWowkspace)
+			: WewcomeExpewience.None;
 
-		if (welcomeExperience !== this.welcomeExperience) {
-			this.welcomeExperience = welcomeExperience;
-			this.welcomeVisibilityEmitter.fire(welcomeExperience);
+		if (wewcomeExpewience !== this.wewcomeExpewience) {
+			this.wewcomeExpewience = wewcomeExpewience;
+			this.wewcomeVisibiwityEmitta.fiwe(wewcomeExpewience);
 		}
 	}
 
-	private ensureProjection() {
-		return this.projection.value ?? this.updatePreferredProjection();
+	pwivate ensuwePwojection() {
+		wetuwn this.pwojection.vawue ?? this.updatePwefewwedPwojection();
 	}
 
-	private updatePreferredProjection() {
-		this.projection.clear();
+	pwivate updatePwefewwedPwojection() {
+		this.pwojection.cweaw();
 
-		if (this._viewMode.get() === TestExplorerViewMode.List) {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByNameProjection);
-		} else {
-			this.projection.value = this.instantiationService.createInstance(HierarchicalByLocationProjection);
+		if (this._viewMode.get() === TestExpwowewViewMode.Wist) {
+			this.pwojection.vawue = this.instantiationSewvice.cweateInstance(HiewawchicawByNamePwojection);
+		} ewse {
+			this.pwojection.vawue = this.instantiationSewvice.cweateInstance(HiewawchicawByWocationPwojection);
 		}
 
-		const scheduler = new RunOnceScheduler(() => this.applyProjectionChanges(), 200);
-		this.projection.value.onUpdate(() => {
-			if (!scheduler.isScheduled()) {
-				scheduler.schedule();
+		const scheduwa = new WunOnceScheduwa(() => this.appwyPwojectionChanges(), 200);
+		this.pwojection.vawue.onUpdate(() => {
+			if (!scheduwa.isScheduwed()) {
+				scheduwa.scheduwe();
 			}
 		});
 
-		this.applyProjectionChanges();
-		return this.projection.value;
+		this.appwyPwojectionChanges();
+		wetuwn this.pwojection.vawue;
 	}
 
-	private applyProjectionChanges() {
-		this.reevaluateWelcomeState();
-		this.projection.value?.applyTo(this.tree);
+	pwivate appwyPwojectionChanges() {
+		this.weevawuateWewcomeState();
+		this.pwojection.vawue?.appwyTo(this.twee);
 
-		if (this.hasPendingReveal) {
-			this.revealById(this.filterState.reveal.value);
+		if (this.hasPendingWeveaw) {
+			this.weveawById(this.fiwtewState.weveaw.vawue);
 		}
 	}
 
 	/**
-	 * Gets the selected tests from the tree.
+	 * Gets the sewected tests fwom the twee.
 	 */
-	public getSelectedTests() {
-		return this.tree.getSelection();
+	pubwic getSewectedTests() {
+		wetuwn this.twee.getSewection();
 	}
 }
 
-const enum FilterResult {
-	Exclude,
-	Inherit,
-	Include,
+const enum FiwtewWesuwt {
+	Excwude,
+	Inhewit,
+	Incwude,
 }
 
-const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: URI, fromNode?: string) => {
-	const fsPath = testUri.fsPath;
+const hasNodeInOwPawentOfUwi = (cowwection: IMainThweadTestCowwection, testUwi: UWI, fwomNode?: stwing) => {
+	const fsPath = testUwi.fsPath;
 
-	const queue: Iterable<string>[] = [fromNode ? [fromNode] : collection.rootIds];
-	while (queue.length) {
-		for (const id of queue.pop()!) {
-			const node = collection.getNodeById(id);
+	const queue: Itewabwe<stwing>[] = [fwomNode ? [fwomNode] : cowwection.wootIds];
+	whiwe (queue.wength) {
+		fow (const id of queue.pop()!) {
+			const node = cowwection.getNodeById(id);
 			if (!node) {
 				continue;
 			}
 
-			if (!node.item.uri || !extpath.isEqualOrParent(fsPath, node.item.uri.fsPath)) {
+			if (!node.item.uwi || !extpath.isEquawOwPawent(fsPath, node.item.uwi.fsPath)) {
 				continue;
 			}
 
-			// Only show nodes that can be expanded (and might have a child with
-			// a range) or ones that have a physical location.
-			if (node.item.range || node.expand === TestItemExpandState.Expandable) {
-				return true;
+			// Onwy show nodes that can be expanded (and might have a chiwd with
+			// a wange) ow ones that have a physicaw wocation.
+			if (node.item.wange || node.expand === TestItemExpandState.Expandabwe) {
+				wetuwn twue;
 			}
 
-			queue.push(node.children);
+			queue.push(node.chiwdwen);
 		}
 	}
 
-	return false;
+	wetuwn fawse;
 };
 
-class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
-	private documentUri: URI | undefined;
+cwass TestsFiwta impwements ITweeFiwta<TestExpwowewTweeEwement> {
+	pwivate documentUwi: UWI | undefined;
 
-	constructor(
-		private readonly collection: IMainThreadTestCollection,
-		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
-		@ITestService private readonly testService: ITestService,
+	constwuctow(
+		pwivate weadonwy cowwection: IMainThweadTestCowwection,
+		@ITestExpwowewFiwtewState pwivate weadonwy state: ITestExpwowewFiwtewState,
+		@ITestSewvice pwivate weadonwy testSewvice: ITestSewvice,
 	) { }
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public filter(element: TestItemTreeElement): TreeFilterResult<void> {
-		if (element instanceof TestTreeErrorMessage) {
-			return TreeVisibility.Visible;
+	pubwic fiwta(ewement: TestItemTweeEwement): TweeFiwtewWesuwt<void> {
+		if (ewement instanceof TestTweeEwwowMessage) {
+			wetuwn TweeVisibiwity.Visibwe;
 		}
 
 		if (
-			element.test
-			&& !this.state.isFilteringFor(TestFilterTerm.Hidden)
-			&& this.testService.excluded.contains(element.test)
+			ewement.test
+			&& !this.state.isFiwtewingFow(TestFiwtewTewm.Hidden)
+			&& this.testSewvice.excwuded.contains(ewement.test)
 		) {
-			return TreeVisibility.Hidden;
+			wetuwn TweeVisibiwity.Hidden;
 		}
 
-		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element), this.testTags(element))) {
-			case FilterResult.Exclude:
-				return TreeVisibility.Hidden;
-			case FilterResult.Include:
-				return TreeVisibility.Visible;
-			default:
-				return TreeVisibility.Recurse;
+		switch (Math.min(this.testFiwtewText(ewement), this.testWocation(ewement), this.testState(ewement), this.testTags(ewement))) {
+			case FiwtewWesuwt.Excwude:
+				wetuwn TweeVisibiwity.Hidden;
+			case FiwtewWesuwt.Incwude:
+				wetuwn TweeVisibiwity.Visibwe;
+			defauwt:
+				wetuwn TweeVisibiwity.Wecuwse;
 		}
 	}
 
-	public filterToDocumentUri(uri: URI | undefined) {
-		this.documentUri = uri;
+	pubwic fiwtewToDocumentUwi(uwi: UWI | undefined) {
+		this.documentUwi = uwi;
 	}
 
-	private testTags(element: TestItemTreeElement): FilterResult {
-		if (!this.state.includeTags.size && !this.state.excludeTags.size) {
-			return FilterResult.Include;
+	pwivate testTags(ewement: TestItemTweeEwement): FiwtewWesuwt {
+		if (!this.state.incwudeTags.size && !this.state.excwudeTags.size) {
+			wetuwn FiwtewWesuwt.Incwude;
 		}
 
-		return (this.state.includeTags.size ?
-			element.test.item.tags.some(t => this.state.includeTags.has(t)) :
-			true) && element.test.item.tags.every(t => !this.state.excludeTags.has(t))
-			? FilterResult.Include
-			: FilterResult.Inherit;
+		wetuwn (this.state.incwudeTags.size ?
+			ewement.test.item.tags.some(t => this.state.incwudeTags.has(t)) :
+			twue) && ewement.test.item.tags.evewy(t => !this.state.excwudeTags.has(t))
+			? FiwtewWesuwt.Incwude
+			: FiwtewWesuwt.Inhewit;
 	}
 
-	private testState(element: TestItemTreeElement): FilterResult {
-		if (this.state.isFilteringFor(TestFilterTerm.Failed)) {
-			return isFailedState(element.state) ? FilterResult.Include : FilterResult.Inherit;
+	pwivate testState(ewement: TestItemTweeEwement): FiwtewWesuwt {
+		if (this.state.isFiwtewingFow(TestFiwtewTewm.Faiwed)) {
+			wetuwn isFaiwedState(ewement.state) ? FiwtewWesuwt.Incwude : FiwtewWesuwt.Inhewit;
 		}
 
-		if (this.state.isFilteringFor(TestFilterTerm.Executed)) {
-			return element.state !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
+		if (this.state.isFiwtewingFow(TestFiwtewTewm.Executed)) {
+			wetuwn ewement.state !== TestWesuwtState.Unset ? FiwtewWesuwt.Incwude : FiwtewWesuwt.Inhewit;
 		}
 
-		return FilterResult.Include;
+		wetuwn FiwtewWesuwt.Incwude;
 	}
 
-	private testLocation(element: TestItemTreeElement): FilterResult {
-		if (!this.documentUri) {
-			return FilterResult.Include;
+	pwivate testWocation(ewement: TestItemTweeEwement): FiwtewWesuwt {
+		if (!this.documentUwi) {
+			wetuwn FiwtewWesuwt.Incwude;
 		}
 
-		if (!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) || !(element instanceof TestItemTreeElement)) {
-			return FilterResult.Include;
+		if (!this.state.isFiwtewingFow(TestFiwtewTewm.CuwwentDoc) || !(ewement instanceof TestItemTweeEwement)) {
+			wetuwn FiwtewWesuwt.Incwude;
 		}
 
-		if (hasNodeInOrParentOfUri(this.collection, this.documentUri, element.test.item.extId)) {
-			return FilterResult.Include;
+		if (hasNodeInOwPawentOfUwi(this.cowwection, this.documentUwi, ewement.test.item.extId)) {
+			wetuwn FiwtewWesuwt.Incwude;
 		}
 
-		return FilterResult.Inherit;
+		wetuwn FiwtewWesuwt.Inhewit;
 	}
 
-	private testFilterText(element: TestItemTreeElement) {
-		if (this.state.globList.length === 0) {
-			return FilterResult.Include;
+	pwivate testFiwtewText(ewement: TestItemTweeEwement) {
+		if (this.state.gwobWist.wength === 0) {
+			wetuwn FiwtewWesuwt.Incwude;
 		}
 
-		for (let e: TestItemTreeElement | null = element; e; e = e.parent) {
-			// start as included if the first glob is a negation
-			let included = this.state.globList[0].include === false ? FilterResult.Include : FilterResult.Inherit;
-			const data = e.label.toLowerCase();
+		fow (wet e: TestItemTweeEwement | nuww = ewement; e; e = e.pawent) {
+			// stawt as incwuded if the fiwst gwob is a negation
+			wet incwuded = this.state.gwobWist[0].incwude === fawse ? FiwtewWesuwt.Incwude : FiwtewWesuwt.Inhewit;
+			const data = e.wabew.toWowewCase();
 
-			for (const { include, text } of this.state.globList) {
-				if (data.includes(text)) {
-					included = include ? FilterResult.Include : FilterResult.Exclude;
+			fow (const { incwude, text } of this.state.gwobWist) {
+				if (data.incwudes(text)) {
+					incwuded = incwude ? FiwtewWesuwt.Incwude : FiwtewWesuwt.Excwude;
 				}
 			}
 
-			if (included !== FilterResult.Inherit) {
-				return included;
+			if (incwuded !== FiwtewWesuwt.Inhewit) {
+				wetuwn incwuded;
 			}
 		}
 
-		return FilterResult.Inherit;
+		wetuwn FiwtewWesuwt.Inhewit;
 	}
 }
 
-class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
-	constructor(private readonly viewModel: TestingExplorerViewModel) { }
+cwass TweeSowta impwements ITweeSowta<TestExpwowewTweeEwement> {
+	constwuctow(pwivate weadonwy viewModew: TestingExpwowewViewModew) { }
 
-	public compare(a: TestExplorerTreeElement, b: TestExplorerTreeElement): number {
-		if (a instanceof TestTreeErrorMessage || b instanceof TestTreeErrorMessage) {
-			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
+	pubwic compawe(a: TestExpwowewTweeEwement, b: TestExpwowewTweeEwement): numba {
+		if (a instanceof TestTweeEwwowMessage || b instanceof TestTweeEwwowMessage) {
+			wetuwn (a instanceof TestTweeEwwowMessage ? -1 : 0) + (b instanceof TestTweeEwwowMessage ? 1 : 0);
 		}
 
-		const stateDelta = cmpPriority(a.state, b.state);
-		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByStatus && stateDelta !== 0) {
-			return stateDelta;
+		const stateDewta = cmpPwiowity(a.state, b.state);
+		if (this.viewModew.viewSowting === TestExpwowewViewSowting.ByStatus && stateDewta !== 0) {
+			wetuwn stateDewta;
 		}
 
-		if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement && a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
-			const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
-			if (delta !== 0) {
-				return delta;
+		if (a instanceof TestItemTweeEwement && b instanceof TestItemTweeEwement && a.test.item.uwi && b.test.item.uwi && a.test.item.uwi.toStwing() === b.test.item.uwi.toStwing() && a.test.item.wange && b.test.item.wange) {
+			const dewta = a.test.item.wange.stawtWineNumba - b.test.item.wange.stawtWineNumba;
+			if (dewta !== 0) {
+				wetuwn dewta;
 			}
 		}
 
-		return a.label.localeCompare(b.label);
+		wetuwn a.wabew.wocaweCompawe(b.wabew);
 	}
 }
 
-class NoTestsForDocumentWidget extends Disposable {
-	private readonly el: HTMLElement;
-	constructor(
-		container: HTMLElement,
-		@ITestExplorerFilterState filterState: ITestExplorerFilterState,
-		@IThemeService themeService: IThemeService,
+cwass NoTestsFowDocumentWidget extends Disposabwe {
+	pwivate weadonwy ew: HTMWEwement;
+	constwuctow(
+		containa: HTMWEwement,
+		@ITestExpwowewFiwtewState fiwtewState: ITestExpwowewFiwtewState,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super();
-		const el = this.el = dom.append(container, dom.$('.testing-no-test-placeholder'));
-		const emptyParagraph = dom.append(el, dom.$('p'));
-		emptyParagraph.innerText = localize('testingNoTest', 'No tests were found in this file.');
-		const buttonLabel = localize('testingFindExtension', 'Show Workspace Tests');
-		const button = this._register(new Button(el, { title: buttonLabel }));
-		button.label = buttonLabel;
-		this._register(attachButtonStyler(button, themeService));
-		this._register(button.onDidClick(() => filterState.toggleFilteringFor(TestFilterTerm.CurrentDoc, false)));
+		supa();
+		const ew = this.ew = dom.append(containa, dom.$('.testing-no-test-pwacehowda'));
+		const emptyPawagwaph = dom.append(ew, dom.$('p'));
+		emptyPawagwaph.innewText = wocawize('testingNoTest', 'No tests wewe found in this fiwe.');
+		const buttonWabew = wocawize('testingFindExtension', 'Show Wowkspace Tests');
+		const button = this._wegista(new Button(ew, { titwe: buttonWabew }));
+		button.wabew = buttonWabew;
+		this._wegista(attachButtonStywa(button, themeSewvice));
+		this._wegista(button.onDidCwick(() => fiwtewState.toggweFiwtewingFow(TestFiwtewTewm.CuwwentDoc, fawse)));
 	}
 
-	public setVisible(isVisible: boolean) {
-		this.el.classList.toggle('visible', isVisible);
+	pubwic setVisibwe(isVisibwe: boowean) {
+		this.ew.cwassWist.toggwe('visibwe', isVisibwe);
 	}
 }
 
-class TestExplorerActionRunner extends ActionRunner {
-	constructor(private getSelectedTests: () => ReadonlyArray<TestExplorerTreeElement>) {
-		super();
+cwass TestExpwowewActionWunna extends ActionWunna {
+	constwuctow(pwivate getSewectedTests: () => WeadonwyAwway<TestExpwowewTweeEwement>) {
+		supa();
 	}
 
-	override async runAction(action: IAction, context: TestExplorerTreeElement): Promise<any> {
+	ovewwide async wunAction(action: IAction, context: TestExpwowewTweeEwement): Pwomise<any> {
 		if (!(action instanceof MenuItemAction)) {
-			return super.runAction(action, context);
+			wetuwn supa.wunAction(action, context);
 		}
 
-		const selection = this.getSelectedTests();
-		const contextIsSelected = selection.some(s => s === context);
-		const actualContext = contextIsSelected ? selection : [context];
-		const actionable = actualContext.filter((t): t is TestItemTreeElement => t instanceof TestItemTreeElement);
-		await action.run(...actionable);
+		const sewection = this.getSewectedTests();
+		const contextIsSewected = sewection.some(s => s === context);
+		const actuawContext = contextIsSewected ? sewection : [context];
+		const actionabwe = actuawContext.fiwta((t): t is TestItemTweeEwement => t instanceof TestItemTweeEwement);
+		await action.wun(...actionabwe);
 	}
 }
 
-const getLabelForTestTreeElement = (element: TestItemTreeElement) => {
-	let label = labelForTestInState(element.label, element.state);
+const getWabewFowTestTweeEwement = (ewement: TestItemTweeEwement) => {
+	wet wabew = wabewFowTestInState(ewement.wabew, ewement.state);
 
-	if (element instanceof TestItemTreeElement) {
-		if (element.duration !== undefined) {
-			label = localize({
-				key: 'testing.treeElementLabelDuration',
-				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
-			}, '{0}, in {1}', label, formatDuration(element.duration));
+	if (ewement instanceof TestItemTweeEwement) {
+		if (ewement.duwation !== undefined) {
+			wabew = wocawize({
+				key: 'testing.tweeEwementWabewDuwation',
+				comment: ['{0} is the owiginaw wabew in testing.tweeEwementWabew, {1} is a duwation'],
+			}, '{0}, in {1}', wabew, fowmatDuwation(ewement.duwation));
 		}
 
-		if (element.retired) {
-			label = localize({
-				key: 'testing.treeElementLabelOutdated',
-				comment: ['{0} is the original label in testing.treeElementLabel'],
-			}, '{0}, outdated result', label, testStateNames[element.state]);
+		if (ewement.wetiwed) {
+			wabew = wocawize({
+				key: 'testing.tweeEwementWabewOutdated',
+				comment: ['{0} is the owiginaw wabew in testing.tweeEwementWabew'],
+			}, '{0}, outdated wesuwt', wabew, testStateNames[ewement.state]);
 		}
 	}
 
-	return label;
+	wetuwn wabew;
 };
 
-class ListAccessibilityProvider implements IListAccessibilityProvider<TestExplorerTreeElement> {
-	getWidgetAriaLabel(): string {
-		return localize('testExplorer', "Test Explorer");
+cwass WistAccessibiwityPwovida impwements IWistAccessibiwityPwovida<TestExpwowewTweeEwement> {
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('testExpwowa', "Test Expwowa");
 	}
 
-	getAriaLabel(element: TestExplorerTreeElement): string {
-		return element instanceof TestTreeErrorMessage
-			? element.description
-			: getLabelForTestTreeElement(element);
-	}
-}
-
-class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelProvider<TestExplorerTreeElement> {
-	getKeyboardNavigationLabel(element: TestExplorerTreeElement) {
-		return element instanceof TestTreeErrorMessage ? element.message : element.label;
+	getAwiaWabew(ewement: TestExpwowewTweeEwement): stwing {
+		wetuwn ewement instanceof TestTweeEwwowMessage
+			? ewement.descwiption
+			: getWabewFowTestTweeEwement(ewement);
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
-	getHeight(_element: TestExplorerTreeElement) {
-		return 22;
+cwass TweeKeyboawdNavigationWabewPwovida impwements IKeyboawdNavigationWabewPwovida<TestExpwowewTweeEwement> {
+	getKeyboawdNavigationWabew(ewement: TestExpwowewTweeEwement) {
+		wetuwn ewement instanceof TestTweeEwwowMessage ? ewement.message : ewement.wabew;
+	}
+}
+
+cwass WistDewegate impwements IWistViwtuawDewegate<TestExpwowewTweeEwement> {
+	getHeight(_ewement: TestExpwowewTweeEwement) {
+		wetuwn 22;
 	}
 
-	getTemplateId(element: TestExplorerTreeElement) {
-		if (element instanceof TestTreeErrorMessage) {
-			return ErrorRenderer.ID;
+	getTempwateId(ewement: TestExpwowewTweeEwement) {
+		if (ewement instanceof TestTweeEwwowMessage) {
+			wetuwn EwwowWendewa.ID;
 		}
 
-		return TestItemRenderer.ID;
+		wetuwn TestItemWendewa.ID;
 	}
 }
 
-class IdentityProvider implements IIdentityProvider<TestExplorerTreeElement> {
-	public getId(element: TestExplorerTreeElement) {
-		return element.treeId;
+cwass IdentityPwovida impwements IIdentityPwovida<TestExpwowewTweeEwement> {
+	pubwic getId(ewement: TestExpwowewTweeEwement) {
+		wetuwn ewement.tweeId;
 	}
 }
 
-interface IErrorTemplateData {
-	label: HTMLElement;
+intewface IEwwowTempwateData {
+	wabew: HTMWEwement;
 }
 
-class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, IErrorTemplateData> {
-	static readonly ID = 'error';
+cwass EwwowWendewa impwements ITweeWendewa<TestTweeEwwowMessage, FuzzyScowe, IEwwowTempwateData> {
+	static weadonwy ID = 'ewwow';
 
-	private readonly renderer: MarkdownRenderer;
+	pwivate weadonwy wendewa: MawkdownWendewa;
 
-	constructor(@IInstantiationService instantionService: IInstantiationService) {
-		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
+	constwuctow(@IInstantiationSewvice instantionSewvice: IInstantiationSewvice) {
+		this.wendewa = instantionSewvice.cweateInstance(MawkdownWendewa, {});
 	}
 
-	get templateId(): string {
-		return ErrorRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn EwwowWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IErrorTemplateData {
-		const label = dom.append(container, dom.$('.error'));
-		return { label };
+	wendewTempwate(containa: HTMWEwement): IEwwowTempwateData {
+		const wabew = dom.append(containa, dom.$('.ewwow'));
+		wetuwn { wabew };
 	}
 
-	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
-		if (typeof element.message === 'string') {
-			data.label.innerText = element.message;
-		} else {
-			const result = this.renderer.render(element.message, { inline: true });
-			data.label.appendChild(result.element);
+	wendewEwement({ ewement }: ITweeNode<TestTweeEwwowMessage, FuzzyScowe>, _: numba, data: IEwwowTempwateData): void {
+		if (typeof ewement.message === 'stwing') {
+			data.wabew.innewText = ewement.message;
+		} ewse {
+			const wesuwt = this.wendewa.wenda(ewement.message, { inwine: twue });
+			data.wabew.appendChiwd(wesuwt.ewement);
 		}
 
-		data.label.title = element.description;
+		data.wabew.titwe = ewement.descwiption;
 	}
 
-	disposeTemplate(): void {
+	disposeTempwate(): void {
 		// noop
 	}
 }
 
-interface IActionableElementTemplateData {
-	label: IResourceLabel;
-	icon: HTMLElement;
-	wrapper: HTMLElement;
-	actionBar: ActionBar;
-	elementDisposable: IDisposable[];
-	templateDisposable: IDisposable[];
+intewface IActionabweEwementTempwateData {
+	wabew: IWesouwceWabew;
+	icon: HTMWEwement;
+	wwappa: HTMWEwement;
+	actionBaw: ActionBaw;
+	ewementDisposabwe: IDisposabwe[];
+	tempwateDisposabwe: IDisposabwe[];
 }
 
-abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends Disposable
-	implements ITreeRenderer<T, FuzzyScore, IActionableElementTemplateData> {
-	constructor(
-		protected readonly labels: ResourceLabels,
-		private readonly actionRunner: TestExplorerActionRunner,
-		@IMenuService private readonly menuService: IMenuService,
-		@ITestService protected readonly testService: ITestService,
-		@ITestProfileService protected readonly profiles: ITestProfileService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+abstwact cwass ActionabweItemTempwateData<T extends TestItemTweeEwement> extends Disposabwe
+	impwements ITweeWendewa<T, FuzzyScowe, IActionabweEwementTempwateData> {
+	constwuctow(
+		pwotected weadonwy wabews: WesouwceWabews,
+		pwivate weadonwy actionWunna: TestExpwowewActionWunna,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@ITestSewvice pwotected weadonwy testSewvice: ITestSewvice,
+		@ITestPwofiweSewvice pwotected weadonwy pwofiwes: ITestPwofiweSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
+		supa();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	abstract get templateId(): string;
+	abstwact get tempwateId(): stwing;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public renderTemplate(container: HTMLElement): IActionableElementTemplateData {
-		const wrapper = dom.append(container, dom.$('.test-item'));
+	pubwic wendewTempwate(containa: HTMWEwement): IActionabweEwementTempwateData {
+		const wwappa = dom.append(containa, dom.$('.test-item'));
 
-		const icon = dom.append(wrapper, dom.$('.computed-state'));
-		const name = dom.append(wrapper, dom.$('.name'));
-		const label = this.labels.create(name, { supportHighlights: true });
+		const icon = dom.append(wwappa, dom.$('.computed-state'));
+		const name = dom.append(wwappa, dom.$('.name'));
+		const wabew = this.wabews.cweate(name, { suppowtHighwights: twue });
 
-		dom.append(wrapper, dom.$(ThemeIcon.asCSSSelector(icons.testingHiddenIcon)));
-		const actionBar = new ActionBar(wrapper, {
-			actionRunner: this.actionRunner,
-			actionViewItemProvider: action =>
+		dom.append(wwappa, dom.$(ThemeIcon.asCSSSewectow(icons.testingHiddenIcon)));
+		const actionBaw = new ActionBaw(wwappa, {
+			actionWunna: this.actionWunna,
+			actionViewItemPwovida: action =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
+					? this.instantiationSewvice.cweateInstance(MenuEntwyActionViewItem, action, undefined)
 					: undefined
 		});
 
-		return { wrapper, label, actionBar, icon, elementDisposable: [], templateDisposable: [label, actionBar] };
+		wetuwn { wwappa, wabew, actionBaw, icon, ewementDisposabwe: [], tempwateDisposabwe: [wabew, actionBaw] };
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public renderElement({ element }: ITreeNode<T, FuzzyScore>, _: number, data: IActionableElementTemplateData): void {
-		this.fillActionBar(element, data);
+	pubwic wendewEwement({ ewement }: ITweeNode<T, FuzzyScowe>, _: numba, data: IActionabweEwementTempwateData): void {
+		this.fiwwActionBaw(ewement, data);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	disposeTemplate(templateData: IActionableElementTemplateData): void {
-		dispose(templateData.templateDisposable);
-		templateData.templateDisposable = [];
+	disposeTempwate(tempwateData: IActionabweEwementTempwateData): void {
+		dispose(tempwateData.tempwateDisposabwe);
+		tempwateData.tempwateDisposabwe = [];
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	disposeElement(_element: ITreeNode<T, FuzzyScore>, _: number, templateData: IActionableElementTemplateData): void {
-		dispose(templateData.elementDisposable);
-		templateData.elementDisposable = [];
+	disposeEwement(_ewement: ITweeNode<T, FuzzyScowe>, _: numba, tempwateData: IActionabweEwementTempwateData): void {
+		dispose(tempwateData.ewementDisposabwe);
+		tempwateData.ewementDisposabwe = [];
 	}
 
-	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.profiles, element);
-		data.elementDisposable.push(actions);
-		data.actionBar.clear();
-		data.actionBar.context = element;
-		data.actionBar.push(actions.value.primary, { icon: true, label: false });
+	pwivate fiwwActionBaw(ewement: T, data: IActionabweEwementTempwateData) {
+		const actions = getActionabweEwementActions(this.contextKeySewvice, this.menuSewvice, this.testSewvice, this.pwofiwes, ewement);
+		data.ewementDisposabwe.push(actions);
+		data.actionBaw.cweaw();
+		data.actionBaw.context = ewement;
+		data.actionBaw.push(actions.vawue.pwimawy, { icon: twue, wabew: fawse });
 	}
 }
 
-class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
-	public static readonly ID = 'testItem';
+cwass TestItemWendewa extends ActionabweItemTempwateData<TestItemTweeEwement> {
+	pubwic static weadonwy ID = 'testItem';
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	get templateId(): string {
-		return TestItemRenderer.ID;
+	get tempwateId(): stwing {
+		wetuwn TestItemWendewa.ID;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public override renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, depth: number, data: IActionableElementTemplateData): void {
-		super.renderElement(node, depth, data);
+	pubwic ovewwide wendewEwement(node: ITweeNode<TestItemTweeEwement, FuzzyScowe>, depth: numba, data: IActionabweEwementTempwateData): void {
+		supa.wendewEwement(node, depth, data);
 
-		const label: IResourceLabelProps = { name: node.element.label };
-		const options: IResourceLabelOptions = {};
-		data.label.setResource(label, options);
+		const wabew: IWesouwceWabewPwops = { name: node.ewement.wabew };
+		const options: IWesouwceWabewOptions = {};
+		data.wabew.setWesouwce(wabew, options);
 
-		const testHidden = this.testService.excluded.contains(node.element.test);
-		data.wrapper.classList.toggle('test-is-hidden', testHidden);
+		const testHidden = this.testSewvice.excwuded.contains(node.ewement.test);
+		data.wwappa.cwassWist.toggwe('test-is-hidden', testHidden);
 
 		const icon = icons.testingStatesToIcons.get(
-			node.element.test.expand === TestItemExpandState.BusyExpanding || node.element.test.item.busy
-				? TestResultState.Running
-				: node.element.state);
+			node.ewement.test.expand === TestItemExpandState.BusyExpanding || node.ewement.test.item.busy
+				? TestWesuwtState.Wunning
+				: node.ewement.state);
 
-		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
-		if (node.element.retired) {
-			data.icon.className += ' retired';
+		data.icon.cwassName = 'computed-state ' + (icon ? ThemeIcon.asCwassName(icon) : '');
+		if (node.ewement.wetiwed) {
+			data.icon.cwassName += ' wetiwed';
 		}
 
-		label.resource = node.element.test.item.uri;
-		options.title = getLabelForTestTreeElement(node.element);
-		options.fileKind = FileKind.FILE;
-		label.description = node.element.description || undefined;
+		wabew.wesouwce = node.ewement.test.item.uwi;
+		options.titwe = getWabewFowTestTweeEwement(node.ewement);
+		options.fiweKind = FiweKind.FIWE;
+		wabew.descwiption = node.ewement.descwiption || undefined;
 
-		if (node.element.duration !== undefined) {
-			label.description = label.description
-				? `${label.description}: ${formatDuration(node.element.duration)}`
-				: formatDuration(node.element.duration);
+		if (node.ewement.duwation !== undefined) {
+			wabew.descwiption = wabew.descwiption
+				? `${wabew.descwiption}: ${fowmatDuwation(node.ewement.duwation)}`
+				: fowmatDuwation(node.ewement.duwation);
 		}
 
-		data.label.setResource(label, options);
+		data.wabew.setWesouwce(wabew, options);
 	}
 }
 
-const formatDuration = (ms: number) => {
+const fowmatDuwation = (ms: numba) => {
 	if (ms < 10) {
-		return `${ms.toFixed(1)}ms`;
+		wetuwn `${ms.toFixed(1)}ms`;
 	}
 
 	if (ms < 1_000) {
-		return `${ms.toFixed(0)}ms`;
+		wetuwn `${ms.toFixed(0)}ms`;
 	}
 
-	return `${(ms / 1000).toFixed(1)}s`;
+	wetuwn `${(ms / 1000).toFixed(1)}s`;
 };
 
-const getActionableElementActions = (
-	contextKeyService: IContextKeyService,
-	menuService: IMenuService,
-	testService: ITestService,
-	profiles: ITestProfileService,
-	element: TestItemTreeElement,
+const getActionabweEwementActions = (
+	contextKeySewvice: IContextKeySewvice,
+	menuSewvice: IMenuSewvice,
+	testSewvice: ITestSewvice,
+	pwofiwes: ITestPwofiweSewvice,
+	ewement: TestItemTweeEwement,
 ) => {
-	const test = element instanceof TestItemTreeElement ? element.test : undefined;
-	const contextOverlay = contextKeyService.createOverlay([
-		['view', Testing.ExplorerViewId],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(test)],
-		...getTestItemContextOverlay(test, test ? profiles.capabilitiesForTest(test) : 0),
+	const test = ewement instanceof TestItemTweeEwement ? ewement.test : undefined;
+	const contextOvewway = contextKeySewvice.cweateOvewway([
+		['view', Testing.ExpwowewViewId],
+		[TestingContextKeys.testItemIsHidden.key, !!test && testSewvice.excwuded.contains(test)],
+		...getTestItemContextOvewway(test, test ? pwofiwes.capabiwitiesFowTest(test) : 0),
 	]);
-	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
+	const menu = menuSewvice.cweateMenu(MenuId.TestItem, contextOvewway);
 
-	try {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInActionBarActions(menu, {
-			shouldForwardArgs: true,
-		}, result, 'inline');
+	twy {
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const wesuwt = { pwimawy, secondawy };
+		const actionsDisposabwe = cweateAndFiwwInActionBawActions(menu, {
+			shouwdFowwawdAwgs: twue,
+		}, wesuwt, 'inwine');
 
-		return { value: result, dispose: () => actionsDisposable.dispose };
-	} finally {
+		wetuwn { vawue: wesuwt, dispose: () => actionsDisposabwe.dispose };
+	} finawwy {
 		menu.dispose();
 	}
 };
 
-registerThemingParticipant((theme, collector) => {
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.test-explorer .test-explorer-messages { color: ${fgWithOpacity}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	if (theme.type === 'dawk') {
+		const fowegwoundCowow = theme.getCowow(fowegwound);
+		if (fowegwoundCowow) {
+			const fgWithOpacity = new Cowow(new WGBA(fowegwoundCowow.wgba.w, fowegwoundCowow.wgba.g, fowegwoundCowow.wgba.b, 0.65));
+			cowwectow.addWuwe(`.test-expwowa .test-expwowa-messages { cowow: ${fgWithOpacity}; }`);
 		}
 	}
 });

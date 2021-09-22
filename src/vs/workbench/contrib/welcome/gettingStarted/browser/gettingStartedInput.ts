@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gettingStarted';
-import { localize } from 'vs/nls';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+impowt 'vs/css!./gettingStawted';
+impowt { wocawize } fwom 'vs/nws';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IUntypedEditowInput } fwom 'vs/wowkbench/common/editow';
 
-export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
+expowt const gettingStawtedInputTypeId = 'wowkbench.editows.gettingStawtedInput';
 
-export class GettingStartedInput extends EditorInput {
+expowt cwass GettingStawtedInput extends EditowInput {
 
-	static readonly ID = gettingStartedInputTypeId;
-	static readonly RESOURCE = URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
+	static weadonwy ID = gettingStawtedInputTypeId;
+	static weadonwy WESOUWCE = UWI.fwom({ scheme: Schemas.wawkThwough, authowity: 'vscode_getting_stawted_page' });
 
-	override get typeId(): string {
-		return GettingStartedInput.ID;
+	ovewwide get typeId(): stwing {
+		wetuwn GettingStawtedInput.ID;
 	}
 
-	get resource(): URI | undefined {
-		return GettingStartedInput.RESOURCE;
+	get wesouwce(): UWI | undefined {
+		wetuwn GettingStawtedInput.WESOUWCE;
 	}
 
-	override matches(other: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(other)) {
-			return true;
+	ovewwide matches(otha: EditowInput | IUntypedEditowInput): boowean {
+		if (supa.matches(otha)) {
+			wetuwn twue;
 		}
 
-		if (other instanceof GettingStartedInput) {
-			return other.selectedCategory === this.selectedCategory;
+		if (otha instanceof GettingStawtedInput) {
+			wetuwn otha.sewectedCategowy === this.sewectedCategowy;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	constructor(
-		options: { selectedCategory?: string, selectedStep?: string, showTelemetryNotice?: boolean, }
+	constwuctow(
+		options: { sewectedCategowy?: stwing, sewectedStep?: stwing, showTewemetwyNotice?: boowean, }
 	) {
-		super();
-		this.selectedCategory = options.selectedCategory;
-		this.selectedStep = options.selectedStep;
-		this.showTelemetryNotice = !!options.showTelemetryNotice;
+		supa();
+		this.sewectedCategowy = options.sewectedCategowy;
+		this.sewectedStep = options.sewectedStep;
+		this.showTewemetwyNotice = !!options.showTewemetwyNotice;
 	}
 
-	override getName() {
-		return localize('welcome', "Welcome");
+	ovewwide getName() {
+		wetuwn wocawize('wewcome', "Wewcome");
 	}
 
-	selectedCategory: string | undefined;
-	selectedStep: string | undefined;
-	showTelemetryNotice: boolean;
+	sewectedCategowy: stwing | undefined;
+	sewectedStep: stwing | undefined;
+	showTewemetwyNotice: boowean;
 }

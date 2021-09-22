@@ -1,24 +1,24 @@
 [
 	{
 		"c": ".ssdsd",
-		"t": "text.pug entity.other.attribute-name.class.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug entity.otha.attwibute-name.cwass.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "    // asdsdas",
-		"t": "text.pug string.comment.buffered.block.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug stwing.comment.buffewed.bwock.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	}
 ]

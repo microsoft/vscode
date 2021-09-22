@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { localize } from 'vs/nls';
-import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createStyleSheet } from 'vs/base/browser/dom';
+impowt { IThemeSewvice, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewCowow, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchWayoutSewvice, Pawts } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IDebugSewvice, State, IDebugSession } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { STATUS_BAW_NO_FOWDEW_BACKGWOUND, STATUS_BAW_NO_FOWDEW_FOWEGWOUND, STATUS_BAW_BACKGWOUND, STATUS_BAW_FOWEGWOUND, STATUS_BAW_NO_FOWDEW_BOWDa, STATUS_BAW_BOWDa } fwom 'vs/wowkbench/common/theme';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
 
-// colors for theming
+// cowows fow theming
 
-export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
-	dark: '#CC6633',
-	light: '#CC6633',
+expowt const STATUS_BAW_DEBUGGING_BACKGWOUND = wegistewCowow('statusBaw.debuggingBackgwound', {
+	dawk: '#CC6633',
+	wight: '#CC6633',
 	hc: '#CC6633'
-}, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
+}, wocawize('statusBawDebuggingBackgwound', "Status baw backgwound cowow when a pwogwam is being debugged. The status baw is shown in the bottom of the window"));
 
-export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggingForeground', {
-	dark: STATUS_BAR_FOREGROUND,
-	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
-}, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
+expowt const STATUS_BAW_DEBUGGING_FOWEGWOUND = wegistewCowow('statusBaw.debuggingFowegwound', {
+	dawk: STATUS_BAW_FOWEGWOUND,
+	wight: STATUS_BAW_FOWEGWOUND,
+	hc: STATUS_BAW_FOWEGWOUND
+}, wocawize('statusBawDebuggingFowegwound', "Status baw fowegwound cowow when a pwogwam is being debugged. The status baw is shown in the bottom of the window"));
 
-export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
-	dark: STATUS_BAR_BORDER,
-	light: STATUS_BAR_BORDER,
-	hc: STATUS_BAR_BORDER
-}, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
+expowt const STATUS_BAW_DEBUGGING_BOWDa = wegistewCowow('statusBaw.debuggingBowda', {
+	dawk: STATUS_BAW_BOWDa,
+	wight: STATUS_BAW_BOWDa,
+	hc: STATUS_BAW_BOWDa
+}, wocawize('statusBawDebuggingBowda', "Status baw bowda cowow sepawating to the sidebaw and editow when a pwogwam is being debugged. The status baw is shown in the bottom of the window"));
 
-export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
-	private styleElement: HTMLStyleElement | undefined;
+expowt cwass StatusBawCowowPwovida extends Themabwe impwements IWowkbenchContwibution {
+	pwivate styweEwement: HTMWStyweEwement | undefined;
 
-	constructor(
-		@IThemeService themeService: IThemeService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	constwuctow(
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 
-		this.registerListeners();
-		this.updateStyles();
+		this.wegistewWistenews();
+		this.updateStywes();
 	}
 
-	private registerListeners(): void {
-		this._register(this.debugService.onDidChangeState(state => this.updateStyles()));
-		this._register(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.debugSewvice.onDidChangeState(state => this.updateStywes()));
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(state => this.updateStywes()));
 	}
 
-	protected override updateStyles(): void {
-		super.updateStyles();
+	pwotected ovewwide updateStywes(): void {
+		supa.updateStywes();
 
-		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
-		if (isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
-			container.classList.add('debugging');
-		} else {
-			container.classList.remove('debugging');
+		const containa = assewtIsDefined(this.wayoutSewvice.getContaina(Pawts.STATUSBAW_PAWT));
+		if (isStatusbawInDebugMode(this.debugSewvice.state, this.debugSewvice.getViewModew().focusedSession)) {
+			containa.cwassWist.add('debugging');
+		} ewse {
+			containa.cwassWist.wemove('debugging');
 		}
 
-		// Container Colors
-		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
-		container.style.backgroundColor = backgroundColor || '';
-		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND)) || '';
+		// Containa Cowows
+		const backgwoundCowow = this.getCowow(this.getCowowKey(STATUS_BAW_NO_FOWDEW_BACKGWOUND, STATUS_BAW_DEBUGGING_BACKGWOUND, STATUS_BAW_BACKGWOUND));
+		containa.stywe.backgwoundCowow = backgwoundCowow || '';
+		containa.stywe.cowow = this.getCowow(this.getCowowKey(STATUS_BAW_NO_FOWDEW_FOWEGWOUND, STATUS_BAW_DEBUGGING_FOWEGWOUND, STATUS_BAW_FOWEGWOUND)) || '';
 
-		// Border Color
-		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
-		if (borderColor) {
-			container.classList.add('status-border-top');
-			container.style.setProperty('--status-border-top-color', borderColor.toString());
-		} else {
-			container.classList.remove('status-border-top');
-			container.style.removeProperty('--status-border-top-color');
+		// Bowda Cowow
+		const bowdewCowow = this.getCowow(this.getCowowKey(STATUS_BAW_NO_FOWDEW_BOWDa, STATUS_BAW_DEBUGGING_BOWDa, STATUS_BAW_BOWDa)) || this.getCowow(contwastBowda);
+		if (bowdewCowow) {
+			containa.cwassWist.add('status-bowda-top');
+			containa.stywe.setPwopewty('--status-bowda-top-cowow', bowdewCowow.toStwing());
+		} ewse {
+			containa.cwassWist.wemove('status-bowda-top');
+			containa.stywe.wemovePwopewty('--status-bowda-top-cowow');
 		}
 
 		// Notification Beak
-		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
+		if (!this.styweEwement) {
+			this.styweEwement = cweateStyweSheet(containa);
 		}
 
-		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+		this.styweEwement.textContent = `.monaco-wowkbench .pawt.statusbaw > .items-containa > .statusbaw-item.has-beak:befowe { bowda-bottom-cowow: ${backgwoundCowow} !impowtant; }`;
 	}
 
-	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
+	pwivate getCowowKey(noFowdewCowow: stwing, debuggingCowow: stwing, nowmawCowow: stwing): stwing {
 
 		// Not debugging
-		if (!isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-				return normalColor;
+		if (!isStatusbawInDebugMode(this.debugSewvice.state, this.debugSewvice.getViewModew().focusedSession)) {
+			if (this.contextSewvice.getWowkbenchState() !== WowkbenchState.EMPTY) {
+				wetuwn nowmawCowow;
 			}
 
-			return noFolderColor;
+			wetuwn noFowdewCowow;
 		}
 
 		// Debugging
-		return debuggingColor;
+		wetuwn debuggingCowow;
 	}
 }
 
-export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
-	if (state === State.Inactive || state === State.Initializing || session?.isSimpleUI) {
-		return false;
+expowt function isStatusbawInDebugMode(state: State, session: IDebugSession | undefined): boowean {
+	if (state === State.Inactive || state === State.Initiawizing || session?.isSimpweUI) {
+		wetuwn fawse;
 	}
-	const isRunningWithoutDebug = session?.configuration?.noDebug;
-	if (isRunningWithoutDebug) {
-		return false;
+	const isWunningWithoutDebug = session?.configuwation?.noDebug;
+	if (isWunningWithoutDebug) {
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }

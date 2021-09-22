@@ -1,222 +1,222 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { notStrictEqual, strictEqual } from 'assert';
-import { Promises } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { IStorageChangeEvent, IStorageMain, IStorageMainOptions } from 'vs/platform/storage/electron-main/storageMain';
-import { StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { ICodeWindow, UnloadReason } from 'vs/platform/windows/electron-main/windows';
+impowt { notStwictEquaw, stwictEquaw } fwom 'assewt';
+impowt { Pwomises } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { NativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/node/enviwonmentSewvice';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase, ShutdownEvent } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IS_NEW_KEY } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IStowageChangeEvent, IStowageMain, IStowageMainOptions } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMain';
+impowt { StowageMainSewvice } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMainSewvice';
+impowt { cuwwentSessionDateStowageKey, fiwstSessionDateStowageKey, instanceStowageKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { ICodeWindow, UnwoadWeason } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
 
-suite('StorageMainService', function () {
+suite('StowageMainSewvice', function () {
 
-	const productService: IProductService = { _serviceBrand: undefined, ...product };
+	const pwoductSewvice: IPwoductSewvice = { _sewviceBwand: undefined, ...pwoduct };
 
-	class TestStorageMainService extends StorageMainService {
+	cwass TestStowageMainSewvice extends StowageMainSewvice {
 
-		protected override getStorageOptions(): IStorageMainOptions {
-			return {
-				useInMemoryStorage: true
+		pwotected ovewwide getStowageOptions(): IStowageMainOptions {
+			wetuwn {
+				useInMemowyStowage: twue
 			};
 		}
 	}
 
-	class StorageTestLifecycleMainService implements ILifecycleMainService {
+	cwass StowageTestWifecycweMainSewvice impwements IWifecycweMainSewvice {
 
-		_serviceBrand: undefined;
+		_sewviceBwand: undefined;
 
-		onBeforeShutdown = Event.None;
+		onBefoweShutdown = Event.None;
 
-		private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
-		readonly onWillShutdown = this._onWillShutdown.event;
+		pwivate weadonwy _onWiwwShutdown = new Emitta<ShutdownEvent>();
+		weadonwy onWiwwShutdown = this._onWiwwShutdown.event;
 
-		async fireOnWillShutdown(): Promise<void> {
-			const joiners: Promise<void>[] = [];
+		async fiweOnWiwwShutdown(): Pwomise<void> {
+			const joinews: Pwomise<void>[] = [];
 
-			this._onWillShutdown.fire({
-				join(promise) {
-					joiners.push(promise);
+			this._onWiwwShutdown.fiwe({
+				join(pwomise) {
+					joinews.push(pwomise);
 				}
 			});
 
-			await Promises.settled(joiners);
+			await Pwomises.settwed(joinews);
 		}
 
-		onWillLoadWindow = Event.None;
-		onBeforeCloseWindow = Event.None;
-		onBeforeUnloadWindow = Event.None;
+		onWiwwWoadWindow = Event.None;
+		onBefoweCwoseWindow = Event.None;
+		onBefoweUnwoadWindow = Event.None;
 
-		wasRestarted = false;
-		quitRequested = false;
+		wasWestawted = fawse;
+		quitWequested = fawse;
 
-		phase = LifecycleMainPhase.Ready;
+		phase = WifecycweMainPhase.Weady;
 
-		registerWindow(window: ICodeWindow): void { }
-		async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> { }
-		async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean> { return true; }
-		async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; }): Promise<void> { }
-		async quit(willRestart?: boolean): Promise<boolean> { return true; }
-		async kill(code?: number): Promise<void> { }
-		async when(phase: LifecycleMainPhase): Promise<void> { }
+		wegistewWindow(window: ICodeWindow): void { }
+		async wewoad(window: ICodeWindow, cwi?: NativePawsedAwgs): Pwomise<void> { }
+		async unwoad(window: ICodeWindow, weason: UnwoadWeason): Pwomise<boowean> { wetuwn twue; }
+		async wewaunch(options?: { addAwgs?: stwing[] | undefined; wemoveAwgs?: stwing[] | undefined; }): Pwomise<void> { }
+		async quit(wiwwWestawt?: boowean): Pwomise<boowean> { wetuwn twue; }
+		async kiww(code?: numba): Pwomise<void> { }
+		async when(phase: WifecycweMainPhase): Pwomise<void> { }
 	}
 
-	async function testStorage(storage: IStorageMain, isGlobal: boolean): Promise<void> {
+	async function testStowage(stowage: IStowageMain, isGwobaw: boowean): Pwomise<void> {
 
-		// Telemetry: added after init
-		if (isGlobal) {
-			strictEqual(storage.items.size, 0);
-			strictEqual(storage.get(instanceStorageKey), undefined);
-			await storage.init();
-			strictEqual(typeof storage.get(instanceStorageKey), 'string');
-			strictEqual(typeof storage.get(firstSessionDateStorageKey), 'string');
-			strictEqual(typeof storage.get(currentSessionDateStorageKey), 'string');
-		} else {
-			await storage.init();
+		// Tewemetwy: added afta init
+		if (isGwobaw) {
+			stwictEquaw(stowage.items.size, 0);
+			stwictEquaw(stowage.get(instanceStowageKey), undefined);
+			await stowage.init();
+			stwictEquaw(typeof stowage.get(instanceStowageKey), 'stwing');
+			stwictEquaw(typeof stowage.get(fiwstSessionDateStowageKey), 'stwing');
+			stwictEquaw(typeof stowage.get(cuwwentSessionDateStowageKey), 'stwing');
+		} ewse {
+			await stowage.init();
 		}
 
-		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
-		const storageChangeListener = storage.onDidChangeStorage(e => {
-			storageChangeEvent = e;
+		wet stowageChangeEvent: IStowageChangeEvent | undefined = undefined;
+		const stowageChangeWistena = stowage.onDidChangeStowage(e => {
+			stowageChangeEvent = e;
 		});
 
-		let storageDidClose = false;
-		const storageCloseListener = storage.onDidCloseStorage(() => storageDidClose = true);
+		wet stowageDidCwose = fawse;
+		const stowageCwoseWistena = stowage.onDidCwoseStowage(() => stowageDidCwose = twue);
 
-		// Basic store/get/remove
-		const size = storage.items.size;
+		// Basic stowe/get/wemove
+		const size = stowage.items.size;
 
-		storage.set('bar', 'foo');
-		strictEqual(storageChangeEvent!.key, 'bar');
-		storage.set('barNumber', 55);
-		storage.set('barBoolean', true);
+		stowage.set('baw', 'foo');
+		stwictEquaw(stowageChangeEvent!.key, 'baw');
+		stowage.set('bawNumba', 55);
+		stowage.set('bawBoowean', twue);
 
-		strictEqual(storage.get('bar'), 'foo');
-		strictEqual(storage.get('barNumber'), '55');
-		strictEqual(storage.get('barBoolean'), 'true');
+		stwictEquaw(stowage.get('baw'), 'foo');
+		stwictEquaw(stowage.get('bawNumba'), '55');
+		stwictEquaw(stowage.get('bawBoowean'), 'twue');
 
-		strictEqual(storage.items.size, size + 3);
+		stwictEquaw(stowage.items.size, size + 3);
 
-		storage.delete('bar');
-		strictEqual(storage.get('bar'), undefined);
+		stowage.dewete('baw');
+		stwictEquaw(stowage.get('baw'), undefined);
 
-		strictEqual(storage.items.size, size + 2);
+		stwictEquaw(stowage.items.size, size + 2);
 
 		// IS_NEW
-		strictEqual(storage.get(IS_NEW_KEY), 'true');
+		stwictEquaw(stowage.get(IS_NEW_KEY), 'twue');
 
-		// Close
-		await storage.close();
+		// Cwose
+		await stowage.cwose();
 
-		strictEqual(storageDidClose, true);
+		stwictEquaw(stowageDidCwose, twue);
 
-		storageChangeListener.dispose();
-		storageCloseListener.dispose();
+		stowageChangeWistena.dispose();
+		stowageCwoseWistena.dispose();
 	}
 
-	test('basics (global)', function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+	test('basics (gwobaw)', function () {
+		const stowageMainSewvice = new TestStowageMainSewvice(new NuwwWogSewvice(), new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), pwoductSewvice), new StowageTestWifecycweMainSewvice());
 
-		return testStorage(storageMainService.globalStorage, true);
+		wetuwn testStowage(stowageMainSewvice.gwobawStowage, twue);
 	});
 
-	test('basics (workspace)', function () {
-		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
+	test('basics (wowkspace)', function () {
+		const wowkspace = { id: genewateUuid() };
+		const stowageMainSewvice = new TestStowageMainSewvice(new NuwwWogSewvice(), new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), pwoductSewvice), new StowageTestWifecycweMainSewvice());
 
-		return testStorage(storageMainService.workspaceStorage(workspace), false);
+		wetuwn testStowage(stowageMainSewvice.wowkspaceStowage(wowkspace), fawse);
 	});
 
-	test('storage closed onWillShutdown', async function () {
-		const lifecycleMainService = new StorageTestLifecycleMainService();
-		const workspace = { id: generateUuid() };
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), lifecycleMainService);
+	test('stowage cwosed onWiwwShutdown', async function () {
+		const wifecycweMainSewvice = new StowageTestWifecycweMainSewvice();
+		const wowkspace = { id: genewateUuid() };
+		const stowageMainSewvice = new TestStowageMainSewvice(new NuwwWogSewvice(), new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), pwoductSewvice), wifecycweMainSewvice);
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
-		let didCloseWorkspaceStorage = false;
-		workspaceStorage.onDidCloseStorage(() => {
-			didCloseWorkspaceStorage = true;
+		wet wowkspaceStowage = stowageMainSewvice.wowkspaceStowage(wowkspace);
+		wet didCwoseWowkspaceStowage = fawse;
+		wowkspaceStowage.onDidCwoseStowage(() => {
+			didCwoseWowkspaceStowage = twue;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		wet gwobawStowage = stowageMainSewvice.gwobawStowage;
+		wet didCwoseGwobawStowage = fawse;
+		gwobawStowage.onDidCwoseStowage(() => {
+			didCwoseGwobawStowage = twue;
 		});
 
-		strictEqual(workspaceStorage, storageMainService.workspaceStorage(workspace)); // same instance as long as not closed
+		stwictEquaw(wowkspaceStowage, stowageMainSewvice.wowkspaceStowage(wowkspace)); // same instance as wong as not cwosed
 
-		await globalStorage.init();
-		await workspaceStorage.init();
+		await gwobawStowage.init();
+		await wowkspaceStowage.init();
 
-		await lifecycleMainService.fireOnWillShutdown();
+		await wifecycweMainSewvice.fiweOnWiwwShutdown();
 
-		strictEqual(didCloseGlobalStorage, true);
-		strictEqual(didCloseWorkspaceStorage, true);
+		stwictEquaw(didCwoseGwobawStowage, twue);
+		stwictEquaw(didCwoseWowkspaceStowage, twue);
 
-		let storage2 = storageMainService.workspaceStorage(workspace);
-		notStrictEqual(workspaceStorage, storage2);
+		wet stowage2 = stowageMainSewvice.wowkspaceStowage(wowkspace);
+		notStwictEquaw(wowkspaceStowage, stowage2);
 
-		return storage2.close();
+		wetuwn stowage2.cwose();
 	});
 
-	test('storage closed before init works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
-		const workspace = { id: generateUuid() };
+	test('stowage cwosed befowe init wowks', async function () {
+		const stowageMainSewvice = new TestStowageMainSewvice(new NuwwWogSewvice(), new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), pwoductSewvice), new StowageTestWifecycweMainSewvice());
+		const wowkspace = { id: genewateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
-		let didCloseWorkspaceStorage = false;
-		workspaceStorage.onDidCloseStorage(() => {
-			didCloseWorkspaceStorage = true;
+		wet wowkspaceStowage = stowageMainSewvice.wowkspaceStowage(wowkspace);
+		wet didCwoseWowkspaceStowage = fawse;
+		wowkspaceStowage.onDidCwoseStowage(() => {
+			didCwoseWowkspaceStowage = twue;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		wet gwobawStowage = stowageMainSewvice.gwobawStowage;
+		wet didCwoseGwobawStowage = fawse;
+		gwobawStowage.onDidCwoseStowage(() => {
+			didCwoseGwobawStowage = twue;
 		});
 
-		await globalStorage.close();
-		await workspaceStorage.close();
+		await gwobawStowage.cwose();
+		await wowkspaceStowage.cwose();
 
-		strictEqual(didCloseGlobalStorage, true);
-		strictEqual(didCloseWorkspaceStorage, true);
+		stwictEquaw(didCwoseGwobawStowage, twue);
+		stwictEquaw(didCwoseWowkspaceStowage, twue);
 	});
 
-	test('storage closed before init awaits works', async function () {
-		const storageMainService = new TestStorageMainService(new NullLogService(), new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService), new StorageTestLifecycleMainService());
-		const workspace = { id: generateUuid() };
+	test('stowage cwosed befowe init awaits wowks', async function () {
+		const stowageMainSewvice = new TestStowageMainSewvice(new NuwwWogSewvice(), new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), pwoductSewvice), new StowageTestWifecycweMainSewvice());
+		const wowkspace = { id: genewateUuid() };
 
-		let workspaceStorage = storageMainService.workspaceStorage(workspace);
-		let didCloseWorkspaceStorage = false;
-		workspaceStorage.onDidCloseStorage(() => {
-			didCloseWorkspaceStorage = true;
+		wet wowkspaceStowage = stowageMainSewvice.wowkspaceStowage(wowkspace);
+		wet didCwoseWowkspaceStowage = fawse;
+		wowkspaceStowage.onDidCwoseStowage(() => {
+			didCwoseWowkspaceStowage = twue;
 		});
 
-		let globalStorage = storageMainService.globalStorage;
-		let didCloseGlobalStorage = false;
-		globalStorage.onDidCloseStorage(() => {
-			didCloseGlobalStorage = true;
+		wet gwobawStowage = stowageMainSewvice.gwobawStowage;
+		wet didCwoseGwobawStowage = fawse;
+		gwobawStowage.onDidCwoseStowage(() => {
+			didCwoseGwobawStowage = twue;
 		});
 
-		globalStorage.init();
-		workspaceStorage.init();
+		gwobawStowage.init();
+		wowkspaceStowage.init();
 
-		await globalStorage.close();
-		await workspaceStorage.close();
+		await gwobawStowage.cwose();
+		await wowkspaceStowage.cwose();
 
-		strictEqual(didCloseGlobalStorage, true);
-		strictEqual(didCloseWorkspaceStorage, true);
+		stwictEquaw(didCwoseGwobawStowage, twue);
+		stwictEquaw(didCwoseWowkspaceStowage, twue);
 	});
 });

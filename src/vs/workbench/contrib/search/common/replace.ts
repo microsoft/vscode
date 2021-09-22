@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Match, FileMatch, FileMatchOrMatch } from 'vs/workbench/contrib/search/common/searchModel';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+impowt { Match, FiweMatch, FiweMatchOwMatch } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwogwess, IPwogwessStep } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-export const IReplaceService = createDecorator<IReplaceService>('replaceService');
+expowt const IWepwaceSewvice = cweateDecowatow<IWepwaceSewvice>('wepwaceSewvice');
 
-export interface IReplaceService {
+expowt intewface IWepwaceSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Replaces the given match in the file that match belongs to
-	 */
-	replace(match: Match): Promise<any>;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 *	Replace all the matches from the given file matches in the files
-	 *  You can also pass the progress runner to update the progress of replacing.
+	 * Wepwaces the given match in the fiwe that match bewongs to
 	 */
-	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
+	wepwace(match: Match): Pwomise<any>;
 
 	/**
-	 * Opens the replace preview for given file match or match
+	 *	Wepwace aww the matches fwom the given fiwe matches in the fiwes
+	 *  You can awso pass the pwogwess wunna to update the pwogwess of wepwacing.
 	 */
-	openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any>;
+	wepwace(fiwes: FiweMatch[], pwogwess?: IPwogwess<IPwogwessStep>): Pwomise<any>;
 
 	/**
-	 * Update the replace preview for the given file.
-	 * If `override` is `true`, then replace preview is constructed from source model
+	 * Opens the wepwace pweview fow given fiwe match ow match
 	 */
-	updateReplacePreview(file: FileMatch, override?: boolean): Promise<void>;
+	openWepwacePweview(ewement: FiweMatchOwMatch, pwesewveFocus?: boowean, sideBySide?: boowean, pinned?: boowean): Pwomise<any>;
+
+	/**
+	 * Update the wepwace pweview fow the given fiwe.
+	 * If `ovewwide` is `twue`, then wepwace pweview is constwucted fwom souwce modew
+	 */
+	updateWepwacePweview(fiwe: FiweMatch, ovewwide?: boowean): Pwomise<void>;
 }

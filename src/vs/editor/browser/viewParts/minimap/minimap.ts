@@ -1,1457 +1,1457 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./minimap';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderMinimap, EditorOption, MINIMAP_GUTTER_WIDTH, EditorLayoutInfoComputer } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { RGBA8 } from 'vs/editor/common/core/rgba';
-import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
-import { ColorId } from 'vs/editor/common/modes';
-import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
-import { Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
-import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewLineData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
-import { minimapSelection, scrollbarShadow, minimapBackground, minimapSliderBackground, minimapSliderHoverBackground, minimapSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Color } from 'vs/base/common/color';
-import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
-import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
-import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { once } from 'vs/base/common/functional';
+impowt 'vs/css!./minimap';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { GwobawMouseMoveMonitow, IStandawdMouseMoveEventData, standawdMouseMoveMewga } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { IDisposabwe, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { IWine, WendewedWinesCowwection } fwom 'vs/editow/bwowsa/view/viewWaya';
+impowt { PawtFingewpwint, PawtFingewpwints, ViewPawt } fwom 'vs/editow/bwowsa/view/viewPawt';
+impowt { WendewMinimap, EditowOption, MINIMAP_GUTTEW_WIDTH, EditowWayoutInfoComputa } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { WGBA8 } fwom 'vs/editow/common/cowe/wgba';
+impowt { IConfiguwation, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { CowowId } fwom 'vs/editow/common/modes';
+impowt { MinimapChawWendewa } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawWendewa';
+impowt { Constants } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawSheet';
+impowt { MinimapTokensCowowTwacka } fwom 'vs/editow/common/viewModew/minimapTokensCowowTwacka';
+impowt { WendewingContext, WestwictedWendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewContext, EditowTheme } fwom 'vs/editow/common/view/viewContext';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewWineData, ViewModewDecowation } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { minimapSewection, scwowwbawShadow, minimapBackgwound, minimapSwidewBackgwound, minimapSwidewHovewBackgwound, minimapSwidewActiveBackgwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ModewDecowationMinimapOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { GestuweEvent, EventType, Gestuwe } fwom 'vs/base/bwowsa/touch';
+impowt { MinimapChawWendewewFactowy } fwom 'vs/editow/bwowsa/viewPawts/minimap/minimapChawWendewewFactowy';
+impowt { MinimapPosition, TextModewWesowvedOptions } fwom 'vs/editow/common/modew';
+impowt { once } fwom 'vs/base/common/functionaw';
 
 /**
- * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ * The owthogonaw distance to the swida at which dwagging "wesets". This impwements "snapping"
  */
-const MOUSE_DRAG_RESET_DISTANCE = 140;
+const MOUSE_DWAG_WESET_DISTANCE = 140;
 
-const GUTTER_DECORATION_WIDTH = 2;
+const GUTTEW_DECOWATION_WIDTH = 2;
 
-class MinimapOptions {
+cwass MinimapOptions {
 
-	public readonly renderMinimap: RenderMinimap;
+	pubwic weadonwy wendewMinimap: WendewMinimap;
 
-	public readonly size: 'proportional' | 'fill' | 'fit';
+	pubwic weadonwy size: 'pwopowtionaw' | 'fiww' | 'fit';
 
-	public readonly minimapHeightIsEditorHeight: boolean;
+	pubwic weadonwy minimapHeightIsEditowHeight: boowean;
 
-	public readonly scrollBeyondLastLine: boolean;
+	pubwic weadonwy scwowwBeyondWastWine: boowean;
 
-	public readonly showSlider: 'always' | 'mouseover';
+	pubwic weadonwy showSwida: 'awways' | 'mouseova';
 
-	public readonly pixelRatio: number;
+	pubwic weadonwy pixewWatio: numba;
 
-	public readonly typicalHalfwidthCharacterWidth: number;
+	pubwic weadonwy typicawHawfwidthChawactewWidth: numba;
 
-	public readonly lineHeight: number;
-
-	/**
-	 * container dom node left position (in CSS px)
-	 */
-	public readonly minimapLeft: number;
-	/**
-	 * container dom node width (in CSS px)
-	 */
-	public readonly minimapWidth: number;
-	/**
-	 * container dom node height (in CSS px)
-	 */
-	public readonly minimapHeight: number;
+	pubwic weadonwy wineHeight: numba;
 
 	/**
-	 * canvas backing store width (in device px)
+	 * containa dom node weft position (in CSS px)
 	 */
-	public readonly canvasInnerWidth: number;
+	pubwic weadonwy minimapWeft: numba;
 	/**
-	 * canvas backing store height (in device px)
+	 * containa dom node width (in CSS px)
 	 */
-	public readonly canvasInnerHeight: number;
+	pubwic weadonwy minimapWidth: numba;
+	/**
+	 * containa dom node height (in CSS px)
+	 */
+	pubwic weadonwy minimapHeight: numba;
+
+	/**
+	 * canvas backing stowe width (in device px)
+	 */
+	pubwic weadonwy canvasInnewWidth: numba;
+	/**
+	 * canvas backing stowe height (in device px)
+	 */
+	pubwic weadonwy canvasInnewHeight: numba;
 
 	/**
 	 * canvas width (in CSS px)
 	 */
-	public readonly canvasOuterWidth: number;
+	pubwic weadonwy canvasOutewWidth: numba;
 	/**
 	 * canvas height (in CSS px)
 	 */
-	public readonly canvasOuterHeight: number;
+	pubwic weadonwy canvasOutewHeight: numba;
 
-	public readonly isSampling: boolean;
-	public readonly editorHeight: number;
-	public readonly fontScale: number;
-	public readonly minimapLineHeight: number;
-	public readonly minimapCharWidth: number;
+	pubwic weadonwy isSampwing: boowean;
+	pubwic weadonwy editowHeight: numba;
+	pubwic weadonwy fontScawe: numba;
+	pubwic weadonwy minimapWineHeight: numba;
+	pubwic weadonwy minimapChawWidth: numba;
 
-	public readonly charRenderer: () => MinimapCharRenderer;
-	public readonly backgroundColor: RGBA8;
+	pubwic weadonwy chawWendewa: () => MinimapChawWendewa;
+	pubwic weadonwy backgwoundCowow: WGBA8;
 
-	constructor(configuration: IConfiguration, theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker) {
-		const options = configuration.options;
-		const pixelRatio = options.get(EditorOption.pixelRatio);
-		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const minimapLayout = layoutInfo.minimap;
-		const fontInfo = options.get(EditorOption.fontInfo);
-		const minimapOpts = options.get(EditorOption.minimap);
+	constwuctow(configuwation: IConfiguwation, theme: EditowTheme, tokensCowowTwacka: MinimapTokensCowowTwacka) {
+		const options = configuwation.options;
+		const pixewWatio = options.get(EditowOption.pixewWatio);
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
+		const minimapWayout = wayoutInfo.minimap;
+		const fontInfo = options.get(EditowOption.fontInfo);
+		const minimapOpts = options.get(EditowOption.minimap);
 
-		this.renderMinimap = minimapLayout.renderMinimap;
+		this.wendewMinimap = minimapWayout.wendewMinimap;
 		this.size = minimapOpts.size;
-		this.minimapHeightIsEditorHeight = minimapLayout.minimapHeightIsEditorHeight;
-		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
-		this.showSlider = minimapOpts.showSlider;
-		this.pixelRatio = pixelRatio;
-		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
-		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.minimapLeft = minimapLayout.minimapLeft;
-		this.minimapWidth = minimapLayout.minimapWidth;
-		this.minimapHeight = layoutInfo.height;
+		this.minimapHeightIsEditowHeight = minimapWayout.minimapHeightIsEditowHeight;
+		this.scwowwBeyondWastWine = options.get(EditowOption.scwowwBeyondWastWine);
+		this.showSwida = minimapOpts.showSwida;
+		this.pixewWatio = pixewWatio;
+		this.typicawHawfwidthChawactewWidth = fontInfo.typicawHawfwidthChawactewWidth;
+		this.wineHeight = options.get(EditowOption.wineHeight);
+		this.minimapWeft = minimapWayout.minimapWeft;
+		this.minimapWidth = minimapWayout.minimapWidth;
+		this.minimapHeight = wayoutInfo.height;
 
-		this.canvasInnerWidth = minimapLayout.minimapCanvasInnerWidth;
-		this.canvasInnerHeight = minimapLayout.minimapCanvasInnerHeight;
-		this.canvasOuterWidth = minimapLayout.minimapCanvasOuterWidth;
-		this.canvasOuterHeight = minimapLayout.minimapCanvasOuterHeight;
+		this.canvasInnewWidth = minimapWayout.minimapCanvasInnewWidth;
+		this.canvasInnewHeight = minimapWayout.minimapCanvasInnewHeight;
+		this.canvasOutewWidth = minimapWayout.minimapCanvasOutewWidth;
+		this.canvasOutewHeight = minimapWayout.minimapCanvasOutewHeight;
 
-		this.isSampling = minimapLayout.minimapIsSampling;
-		this.editorHeight = layoutInfo.height;
-		this.fontScale = minimapLayout.minimapScale;
-		this.minimapLineHeight = minimapLayout.minimapLineHeight;
-		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
+		this.isSampwing = minimapWayout.minimapIsSampwing;
+		this.editowHeight = wayoutInfo.height;
+		this.fontScawe = minimapWayout.minimapScawe;
+		this.minimapWineHeight = minimapWayout.minimapWineHeight;
+		this.minimapChawWidth = Constants.BASE_CHAW_WIDTH * this.fontScawe;
 
-		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
-		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, tokensColorTracker);
+		this.chawWendewa = once(() => MinimapChawWendewewFactowy.cweate(this.fontScawe, fontInfo.fontFamiwy));
+		this.backgwoundCowow = MinimapOptions._getMinimapBackgwound(theme, tokensCowowTwacka);
 	}
 
-	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
-		const themeColor = theme.getColor(minimapBackground);
-		if (themeColor) {
-			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, themeColor.rgba.a);
+	pwivate static _getMinimapBackgwound(theme: EditowTheme, tokensCowowTwacka: MinimapTokensCowowTwacka): WGBA8 {
+		const themeCowow = theme.getCowow(minimapBackgwound);
+		if (themeCowow) {
+			wetuwn new WGBA8(themeCowow.wgba.w, themeCowow.wgba.g, themeCowow.wgba.b, themeCowow.wgba.a);
 		}
-		return tokensColorTracker.getColor(ColorId.DefaultBackground);
+		wetuwn tokensCowowTwacka.getCowow(CowowId.DefauwtBackgwound);
 	}
 
-	public equals(other: MinimapOptions): boolean {
-		return (this.renderMinimap === other.renderMinimap
-			&& this.size === other.size
-			&& this.minimapHeightIsEditorHeight === other.minimapHeightIsEditorHeight
-			&& this.scrollBeyondLastLine === other.scrollBeyondLastLine
-			&& this.showSlider === other.showSlider
-			&& this.pixelRatio === other.pixelRatio
-			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
-			&& this.lineHeight === other.lineHeight
-			&& this.minimapLeft === other.minimapLeft
-			&& this.minimapWidth === other.minimapWidth
-			&& this.minimapHeight === other.minimapHeight
-			&& this.canvasInnerWidth === other.canvasInnerWidth
-			&& this.canvasInnerHeight === other.canvasInnerHeight
-			&& this.canvasOuterWidth === other.canvasOuterWidth
-			&& this.canvasOuterHeight === other.canvasOuterHeight
-			&& this.isSampling === other.isSampling
-			&& this.editorHeight === other.editorHeight
-			&& this.fontScale === other.fontScale
-			&& this.minimapLineHeight === other.minimapLineHeight
-			&& this.minimapCharWidth === other.minimapCharWidth
-			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
+	pubwic equaws(otha: MinimapOptions): boowean {
+		wetuwn (this.wendewMinimap === otha.wendewMinimap
+			&& this.size === otha.size
+			&& this.minimapHeightIsEditowHeight === otha.minimapHeightIsEditowHeight
+			&& this.scwowwBeyondWastWine === otha.scwowwBeyondWastWine
+			&& this.showSwida === otha.showSwida
+			&& this.pixewWatio === otha.pixewWatio
+			&& this.typicawHawfwidthChawactewWidth === otha.typicawHawfwidthChawactewWidth
+			&& this.wineHeight === otha.wineHeight
+			&& this.minimapWeft === otha.minimapWeft
+			&& this.minimapWidth === otha.minimapWidth
+			&& this.minimapHeight === otha.minimapHeight
+			&& this.canvasInnewWidth === otha.canvasInnewWidth
+			&& this.canvasInnewHeight === otha.canvasInnewHeight
+			&& this.canvasOutewWidth === otha.canvasOutewWidth
+			&& this.canvasOutewHeight === otha.canvasOutewHeight
+			&& this.isSampwing === otha.isSampwing
+			&& this.editowHeight === otha.editowHeight
+			&& this.fontScawe === otha.fontScawe
+			&& this.minimapWineHeight === otha.minimapWineHeight
+			&& this.minimapChawWidth === otha.minimapChawWidth
+			&& this.backgwoundCowow && this.backgwoundCowow.equaws(otha.backgwoundCowow)
 		);
 	}
 }
 
-class MinimapLayout {
+cwass MinimapWayout {
 
 	/**
-	 * The given editor scrollTop (input).
+	 * The given editow scwowwTop (input).
 	 */
-	public readonly scrollTop: number;
+	pubwic weadonwy scwowwTop: numba;
 
 	/**
-	* The given editor scrollHeight (input).
+	* The given editow scwowwHeight (input).
 	*/
-	public readonly scrollHeight: number;
+	pubwic weadonwy scwowwHeight: numba;
 
-	public readonly sliderNeeded: boolean;
-	private readonly _computedSliderRatio: number;
-
-	/**
-	 * slider dom node top (in CSS px)
-	 */
-	public readonly sliderTop: number;
-	/**
-	 * slider dom node height (in CSS px)
-	 */
-	public readonly sliderHeight: number;
+	pubwic weadonwy swidewNeeded: boowean;
+	pwivate weadonwy _computedSwidewWatio: numba;
 
 	/**
-	 * minimap render start line number.
+	 * swida dom node top (in CSS px)
 	 */
-	public readonly startLineNumber: number;
+	pubwic weadonwy swidewTop: numba;
 	/**
-	 * minimap render end line number.
+	 * swida dom node height (in CSS px)
 	 */
-	public readonly endLineNumber: number;
+	pubwic weadonwy swidewHeight: numba;
 
-	constructor(
-		scrollTop: number,
-		scrollHeight: number,
-		sliderNeeded: boolean,
-		computedSliderRatio: number,
-		sliderTop: number,
-		sliderHeight: number,
-		startLineNumber: number,
-		endLineNumber: number
+	/**
+	 * minimap wenda stawt wine numba.
+	 */
+	pubwic weadonwy stawtWineNumba: numba;
+	/**
+	 * minimap wenda end wine numba.
+	 */
+	pubwic weadonwy endWineNumba: numba;
+
+	constwuctow(
+		scwowwTop: numba,
+		scwowwHeight: numba,
+		swidewNeeded: boowean,
+		computedSwidewWatio: numba,
+		swidewTop: numba,
+		swidewHeight: numba,
+		stawtWineNumba: numba,
+		endWineNumba: numba
 	) {
-		this.scrollTop = scrollTop;
-		this.scrollHeight = scrollHeight;
-		this.sliderNeeded = sliderNeeded;
-		this._computedSliderRatio = computedSliderRatio;
-		this.sliderTop = sliderTop;
-		this.sliderHeight = sliderHeight;
-		this.startLineNumber = startLineNumber;
-		this.endLineNumber = endLineNumber;
+		this.scwowwTop = scwowwTop;
+		this.scwowwHeight = scwowwHeight;
+		this.swidewNeeded = swidewNeeded;
+		this._computedSwidewWatio = computedSwidewWatio;
+		this.swidewTop = swidewTop;
+		this.swidewHeight = swidewHeight;
+		this.stawtWineNumba = stawtWineNumba;
+		this.endWineNumba = endWineNumba;
 	}
 
 	/**
-	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
+	 * Compute a desiwed `scwowwPosition` such that the swida moves by `dewta`.
 	 */
-	public getDesiredScrollTopFromDelta(delta: number): number {
-		return Math.round(this.scrollTop + delta / this._computedSliderRatio);
+	pubwic getDesiwedScwowwTopFwomDewta(dewta: numba): numba {
+		wetuwn Math.wound(this.scwowwTop + dewta / this._computedSwidewWatio);
 	}
 
-	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
-		return Math.round((pageY - this.sliderHeight / 2) / this._computedSliderRatio);
+	pubwic getDesiwedScwowwTopFwomTouchWocation(pageY: numba): numba {
+		wetuwn Math.wound((pageY - this.swidewHeight / 2) / this._computedSwidewWatio);
 	}
 
-	public static create(
+	pubwic static cweate(
 		options: MinimapOptions,
-		viewportStartLineNumber: number,
-		viewportEndLineNumber: number,
-		viewportStartLineNumberVerticalOffset: number,
-		viewportHeight: number,
-		viewportContainsWhitespaceGaps: boolean,
-		lineCount: number,
-		realLineCount: number,
-		scrollTop: number,
-		scrollHeight: number,
-		previousLayout: MinimapLayout | null
-	): MinimapLayout {
-		const pixelRatio = options.pixelRatio;
-		const minimapLineHeight = options.minimapLineHeight;
-		const minimapLinesFitting = Math.floor(options.canvasInnerHeight / minimapLineHeight);
-		const lineHeight = options.lineHeight;
+		viewpowtStawtWineNumba: numba,
+		viewpowtEndWineNumba: numba,
+		viewpowtStawtWineNumbewVewticawOffset: numba,
+		viewpowtHeight: numba,
+		viewpowtContainsWhitespaceGaps: boowean,
+		wineCount: numba,
+		weawWineCount: numba,
+		scwowwTop: numba,
+		scwowwHeight: numba,
+		pweviousWayout: MinimapWayout | nuww
+	): MinimapWayout {
+		const pixewWatio = options.pixewWatio;
+		const minimapWineHeight = options.minimapWineHeight;
+		const minimapWinesFitting = Math.fwoow(options.canvasInnewHeight / minimapWineHeight);
+		const wineHeight = options.wineHeight;
 
-		if (options.minimapHeightIsEditorHeight) {
-			const logicalScrollHeight = (
-				realLineCount * options.lineHeight
-				+ (options.scrollBeyondLastLine ? viewportHeight - options.lineHeight : 0)
+		if (options.minimapHeightIsEditowHeight) {
+			const wogicawScwowwHeight = (
+				weawWineCount * options.wineHeight
+				+ (options.scwowwBeyondWastWine ? viewpowtHeight - options.wineHeight : 0)
 			);
-			const sliderHeight = Math.max(1, Math.floor(viewportHeight * viewportHeight / logicalScrollHeight));
-			const maxMinimapSliderTop = Math.max(0, options.minimapHeight - sliderHeight);
-			// The slider can move from 0 to `maxMinimapSliderTop`
-			// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
-			const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
-			const sliderTop = (scrollTop * computedSliderRatio);
-			const sliderNeeded = (maxMinimapSliderTop > 0);
-			const maxLinesFitting = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, 1, Math.min(lineCount, maxLinesFitting));
+			const swidewHeight = Math.max(1, Math.fwoow(viewpowtHeight * viewpowtHeight / wogicawScwowwHeight));
+			const maxMinimapSwidewTop = Math.max(0, options.minimapHeight - swidewHeight);
+			// The swida can move fwom 0 to `maxMinimapSwidewTop`
+			// in the same way `scwowwTop` can move fwom 0 to `scwowwHeight` - `viewpowtHeight`.
+			const computedSwidewWatio = (maxMinimapSwidewTop) / (scwowwHeight - viewpowtHeight);
+			const swidewTop = (scwowwTop * computedSwidewWatio);
+			const swidewNeeded = (maxMinimapSwidewTop > 0);
+			const maxWinesFitting = Math.fwoow(options.canvasInnewHeight / options.minimapWineHeight);
+			wetuwn new MinimapWayout(scwowwTop, scwowwHeight, swidewNeeded, computedSwidewWatio, swidewTop, swidewHeight, 1, Math.min(wineCount, maxWinesFitting));
 		}
 
-		// The visible line count in a viewport can change due to a number of reasons:
-		//  a) with the same viewport width, different scroll positions can result in partial lines being visible:
-		//    e.g. for a line height of 20, and a viewport height of 600
-		//          * scrollTop = 0  => visible lines are [1, 30]
-		//          * scrollTop = 10 => visible lines are [1, 31] (with lines 1 and 31 partially visible)
-		//          * scrollTop = 20 => visible lines are [2, 31]
-		//  b) whitespace gaps might make their way in the viewport (which results in a decrease in the visible line count)
-		//  c) we could be in the scroll beyond last line case (which also results in a decrease in the visible line count, down to possibly only one line being visible)
+		// The visibwe wine count in a viewpowt can change due to a numba of weasons:
+		//  a) with the same viewpowt width, diffewent scwoww positions can wesuwt in pawtiaw wines being visibwe:
+		//    e.g. fow a wine height of 20, and a viewpowt height of 600
+		//          * scwowwTop = 0  => visibwe wines awe [1, 30]
+		//          * scwowwTop = 10 => visibwe wines awe [1, 31] (with wines 1 and 31 pawtiawwy visibwe)
+		//          * scwowwTop = 20 => visibwe wines awe [2, 31]
+		//  b) whitespace gaps might make theiw way in the viewpowt (which wesuwts in a decwease in the visibwe wine count)
+		//  c) we couwd be in the scwoww beyond wast wine case (which awso wesuwts in a decwease in the visibwe wine count, down to possibwy onwy one wine being visibwe)
 
-		// We must first establish a desirable slider height.
-		let sliderHeight: number;
-		if (viewportContainsWhitespaceGaps && viewportEndLineNumber !== lineCount) {
-			// case b) from above: there are whitespace gaps in the viewport.
-			// In this case, the height of the slider directly reflects the visible line count.
-			const viewportLineCount = viewportEndLineNumber - viewportStartLineNumber + 1;
-			sliderHeight = Math.floor(viewportLineCount * minimapLineHeight / pixelRatio);
-		} else {
-			// The slider has a stable height
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			sliderHeight = Math.floor(expectedViewportLineCount * minimapLineHeight / pixelRatio);
+		// We must fiwst estabwish a desiwabwe swida height.
+		wet swidewHeight: numba;
+		if (viewpowtContainsWhitespaceGaps && viewpowtEndWineNumba !== wineCount) {
+			// case b) fwom above: thewe awe whitespace gaps in the viewpowt.
+			// In this case, the height of the swida diwectwy wefwects the visibwe wine count.
+			const viewpowtWineCount = viewpowtEndWineNumba - viewpowtStawtWineNumba + 1;
+			swidewHeight = Math.fwoow(viewpowtWineCount * minimapWineHeight / pixewWatio);
+		} ewse {
+			// The swida has a stabwe height
+			const expectedViewpowtWineCount = viewpowtHeight / wineHeight;
+			swidewHeight = Math.fwoow(expectedViewpowtWineCount * minimapWineHeight / pixewWatio);
 		}
 
-		let maxMinimapSliderTop: number;
-		if (options.scrollBeyondLastLine) {
-			// The minimap slider, when dragged all the way down, will contain the last line at its top
-			maxMinimapSliderTop = (lineCount - 1) * minimapLineHeight / pixelRatio;
-		} else {
-			// The minimap slider, when dragged all the way down, will contain the last line at its bottom
-			maxMinimapSliderTop = Math.max(0, lineCount * minimapLineHeight / pixelRatio - sliderHeight);
+		wet maxMinimapSwidewTop: numba;
+		if (options.scwowwBeyondWastWine) {
+			// The minimap swida, when dwagged aww the way down, wiww contain the wast wine at its top
+			maxMinimapSwidewTop = (wineCount - 1) * minimapWineHeight / pixewWatio;
+		} ewse {
+			// The minimap swida, when dwagged aww the way down, wiww contain the wast wine at its bottom
+			maxMinimapSwidewTop = Math.max(0, wineCount * minimapWineHeight / pixewWatio - swidewHeight);
 		}
-		maxMinimapSliderTop = Math.min(options.minimapHeight - sliderHeight, maxMinimapSliderTop);
+		maxMinimapSwidewTop = Math.min(options.minimapHeight - swidewHeight, maxMinimapSwidewTop);
 
-		// The slider can move from 0 to `maxMinimapSliderTop`
-		// in the same way `scrollTop` can move from 0 to `scrollHeight` - `viewportHeight`.
-		const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
-		const sliderTop = (scrollTop * computedSliderRatio);
+		// The swida can move fwom 0 to `maxMinimapSwidewTop`
+		// in the same way `scwowwTop` can move fwom 0 to `scwowwHeight` - `viewpowtHeight`.
+		const computedSwidewWatio = (maxMinimapSwidewTop) / (scwowwHeight - viewpowtHeight);
+		const swidewTop = (scwowwTop * computedSwidewWatio);
 
-		let extraLinesAtTheBottom = 0;
-		if (options.scrollBeyondLastLine) {
-			const expectedViewportLineCount = viewportHeight / lineHeight;
-			extraLinesAtTheBottom = expectedViewportLineCount - 1;
+		wet extwaWinesAtTheBottom = 0;
+		if (options.scwowwBeyondWastWine) {
+			const expectedViewpowtWineCount = viewpowtHeight / wineHeight;
+			extwaWinesAtTheBottom = expectedViewpowtWineCount - 1;
 		}
-		if (minimapLinesFitting >= lineCount + extraLinesAtTheBottom) {
-			// All lines fit in the minimap
-			const startLineNumber = 1;
-			const endLineNumber = lineCount;
-			const sliderNeeded = (maxMinimapSliderTop > 0);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
-		} else {
-			let startLineNumber = Math.max(1, Math.floor(viewportStartLineNumber - sliderTop * pixelRatio / minimapLineHeight));
+		if (minimapWinesFitting >= wineCount + extwaWinesAtTheBottom) {
+			// Aww wines fit in the minimap
+			const stawtWineNumba = 1;
+			const endWineNumba = wineCount;
+			const swidewNeeded = (maxMinimapSwidewTop > 0);
+			wetuwn new MinimapWayout(scwowwTop, scwowwHeight, swidewNeeded, computedSwidewWatio, swidewTop, swidewHeight, stawtWineNumba, endWineNumba);
+		} ewse {
+			wet stawtWineNumba = Math.max(1, Math.fwoow(viewpowtStawtWineNumba - swidewTop * pixewWatio / minimapWineHeight));
 
-			// Avoid flickering caused by a partial viewport start line
-			// by being consistent w.r.t. the previous layout decision
-			if (previousLayout && previousLayout.scrollHeight === scrollHeight) {
-				if (previousLayout.scrollTop > scrollTop) {
-					// Scrolling up => never increase `startLineNumber`
-					startLineNumber = Math.min(startLineNumber, previousLayout.startLineNumber);
+			// Avoid fwickewing caused by a pawtiaw viewpowt stawt wine
+			// by being consistent w.w.t. the pwevious wayout decision
+			if (pweviousWayout && pweviousWayout.scwowwHeight === scwowwHeight) {
+				if (pweviousWayout.scwowwTop > scwowwTop) {
+					// Scwowwing up => neva incwease `stawtWineNumba`
+					stawtWineNumba = Math.min(stawtWineNumba, pweviousWayout.stawtWineNumba);
 				}
-				if (previousLayout.scrollTop < scrollTop) {
-					// Scrolling down => never decrease `startLineNumber`
-					startLineNumber = Math.max(startLineNumber, previousLayout.startLineNumber);
+				if (pweviousWayout.scwowwTop < scwowwTop) {
+					// Scwowwing down => neva decwease `stawtWineNumba`
+					stawtWineNumba = Math.max(stawtWineNumba, pweviousWayout.stawtWineNumba);
 				}
 			}
 
-			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
-			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
-			const sliderTopAligned = (viewportStartLineNumber - startLineNumber + partialLine) * minimapLineHeight / pixelRatio;
+			const endWineNumba = Math.min(wineCount, stawtWineNumba + minimapWinesFitting - 1);
+			const pawtiawWine = (scwowwTop - viewpowtStawtWineNumbewVewticawOffset) / wineHeight;
+			const swidewTopAwigned = (viewpowtStawtWineNumba - stawtWineNumba + pawtiawWine) * minimapWineHeight / pixewWatio;
 
-			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, startLineNumber, endLineNumber);
+			wetuwn new MinimapWayout(scwowwTop, scwowwHeight, twue, computedSwidewWatio, swidewTopAwigned, swidewHeight, stawtWineNumba, endWineNumba);
 		}
 	}
 }
 
-class MinimapLine implements ILine {
+cwass MinimapWine impwements IWine {
 
-	public static readonly INVALID = new MinimapLine(-1);
+	pubwic static weadonwy INVAWID = new MinimapWine(-1);
 
-	dy: number;
+	dy: numba;
 
-	constructor(dy: number) {
+	constwuctow(dy: numba) {
 		this.dy = dy;
 	}
 
-	public onContentChanged(): void {
+	pubwic onContentChanged(): void {
 		this.dy = -1;
 	}
 
-	public onTokensChanged(): void {
+	pubwic onTokensChanged(): void {
 		this.dy = -1;
 	}
 }
 
-class RenderData {
+cwass WendewData {
 	/**
-	 * last rendered layout.
+	 * wast wendewed wayout.
 	 */
-	public readonly renderedLayout: MinimapLayout;
-	private readonly _imageData: ImageData;
-	private readonly _renderedLines: RenderedLinesCollection<MinimapLine>;
+	pubwic weadonwy wendewedWayout: MinimapWayout;
+	pwivate weadonwy _imageData: ImageData;
+	pwivate weadonwy _wendewedWines: WendewedWinesCowwection<MinimapWine>;
 
-	constructor(
-		renderedLayout: MinimapLayout,
+	constwuctow(
+		wendewedWayout: MinimapWayout,
 		imageData: ImageData,
-		lines: MinimapLine[]
+		wines: MinimapWine[]
 	) {
-		this.renderedLayout = renderedLayout;
+		this.wendewedWayout = wendewedWayout;
 		this._imageData = imageData;
-		this._renderedLines = new RenderedLinesCollection(
-			() => MinimapLine.INVALID
+		this._wendewedWines = new WendewedWinesCowwection(
+			() => MinimapWine.INVAWID
 		);
-		this._renderedLines._set(renderedLayout.startLineNumber, lines);
+		this._wendewedWines._set(wendewedWayout.stawtWineNumba, wines);
 	}
 
 	/**
-	 * Check if the current RenderData matches accurately the new desired layout and no painting is needed.
+	 * Check if the cuwwent WendewData matches accuwatewy the new desiwed wayout and no painting is needed.
 	 */
-	public linesEquals(layout: MinimapLayout): boolean {
-		if (!this.scrollEquals(layout)) {
-			return false;
+	pubwic winesEquaws(wayout: MinimapWayout): boowean {
+		if (!this.scwowwEquaws(wayout)) {
+			wetuwn fawse;
 		}
 
-		const tmp = this._renderedLines._get();
-		const lines = tmp.lines;
-		for (let i = 0, len = lines.length; i < len; i++) {
-			if (lines[i].dy === -1) {
-				// This line is invalid
-				return false;
+		const tmp = this._wendewedWines._get();
+		const wines = tmp.wines;
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			if (wines[i].dy === -1) {
+				// This wine is invawid
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
 	/**
-	 * Check if the current RenderData matches the new layout's scroll position
+	 * Check if the cuwwent WendewData matches the new wayout's scwoww position
 	 */
-	public scrollEquals(layout: MinimapLayout): boolean {
-		return this.renderedLayout.startLineNumber === layout.startLineNumber
-			&& this.renderedLayout.endLineNumber === layout.endLineNumber;
+	pubwic scwowwEquaws(wayout: MinimapWayout): boowean {
+		wetuwn this.wendewedWayout.stawtWineNumba === wayout.stawtWineNumba
+			&& this.wendewedWayout.endWineNumba === wayout.endWineNumba;
 	}
 
-	_get(): { imageData: ImageData; rendLineNumberStart: number; lines: MinimapLine[]; } {
-		const tmp = this._renderedLines._get();
-		return {
+	_get(): { imageData: ImageData; wendWineNumbewStawt: numba; wines: MinimapWine[]; } {
+		const tmp = this._wendewedWines._get();
+		wetuwn {
 			imageData: this._imageData,
-			rendLineNumberStart: tmp.rendLineNumberStart,
-			lines: tmp.lines
+			wendWineNumbewStawt: tmp.wendWineNumbewStawt,
+			wines: tmp.wines
 		};
 	}
 
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
-		return this._renderedLines.onLinesChanged(changeFromLineNumber, changeToLineNumber);
+	pubwic onWinesChanged(changeFwomWineNumba: numba, changeToWineNumba: numba): boowean {
+		wetuwn this._wendewedWines.onWinesChanged(changeFwomWineNumba, changeToWineNumba);
 	}
-	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): void {
-		this._renderedLines.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+	pubwic onWinesDeweted(deweteFwomWineNumba: numba, deweteToWineNumba: numba): void {
+		this._wendewedWines.onWinesDeweted(deweteFwomWineNumba, deweteToWineNumba);
 	}
-	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): void {
-		this._renderedLines.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+	pubwic onWinesInsewted(insewtFwomWineNumba: numba, insewtToWineNumba: numba): void {
+		this._wendewedWines.onWinesInsewted(insewtFwomWineNumba, insewtToWineNumba);
 	}
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
-		return this._renderedLines.onTokensChanged(ranges);
+	pubwic onTokensChanged(wanges: { fwomWineNumba: numba; toWineNumba: numba; }[]): boowean {
+		wetuwn this._wendewedWines.onTokensChanged(wanges);
 	}
 }
 
 /**
- * Some sort of double buffering.
+ * Some sowt of doubwe buffewing.
  *
- * Keeps two buffers around that will be rotated for painting.
- * Always gives a buffer that is filled with the background color.
+ * Keeps two buffews awound that wiww be wotated fow painting.
+ * Awways gives a buffa that is fiwwed with the backgwound cowow.
  */
-class MinimapBuffers {
+cwass MinimapBuffews {
 
-	private readonly _backgroundFillData: Uint8ClampedArray;
-	private readonly _buffers: [ImageData, ImageData];
-	private _lastUsedBuffer: number;
+	pwivate weadonwy _backgwoundFiwwData: Uint8CwampedAwway;
+	pwivate weadonwy _buffews: [ImageData, ImageData];
+	pwivate _wastUsedBuffa: numba;
 
-	constructor(ctx: CanvasRenderingContext2D, WIDTH: number, HEIGHT: number, background: RGBA8) {
-		this._backgroundFillData = MinimapBuffers._createBackgroundFillData(WIDTH, HEIGHT, background);
-		this._buffers = [
-			ctx.createImageData(WIDTH, HEIGHT),
-			ctx.createImageData(WIDTH, HEIGHT)
+	constwuctow(ctx: CanvasWendewingContext2D, WIDTH: numba, HEIGHT: numba, backgwound: WGBA8) {
+		this._backgwoundFiwwData = MinimapBuffews._cweateBackgwoundFiwwData(WIDTH, HEIGHT, backgwound);
+		this._buffews = [
+			ctx.cweateImageData(WIDTH, HEIGHT),
+			ctx.cweateImageData(WIDTH, HEIGHT)
 		];
-		this._lastUsedBuffer = 0;
+		this._wastUsedBuffa = 0;
 	}
 
-	public getBuffer(): ImageData {
-		// rotate buffers
-		this._lastUsedBuffer = 1 - this._lastUsedBuffer;
-		const result = this._buffers[this._lastUsedBuffer];
+	pubwic getBuffa(): ImageData {
+		// wotate buffews
+		this._wastUsedBuffa = 1 - this._wastUsedBuffa;
+		const wesuwt = this._buffews[this._wastUsedBuffa];
 
-		// fill with background color
-		result.data.set(this._backgroundFillData);
+		// fiww with backgwound cowow
+		wesuwt.data.set(this._backgwoundFiwwData);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _createBackgroundFillData(WIDTH: number, HEIGHT: number, background: RGBA8): Uint8ClampedArray {
-		const backgroundR = background.r;
-		const backgroundG = background.g;
-		const backgroundB = background.b;
+	pwivate static _cweateBackgwoundFiwwData(WIDTH: numba, HEIGHT: numba, backgwound: WGBA8): Uint8CwampedAwway {
+		const backgwoundW = backgwound.w;
+		const backgwoundG = backgwound.g;
+		const backgwoundB = backgwound.b;
 
-		const result = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
-		let offset = 0;
-		for (let i = 0; i < HEIGHT; i++) {
-			for (let j = 0; j < WIDTH; j++) {
-				result[offset] = backgroundR;
-				result[offset + 1] = backgroundG;
-				result[offset + 2] = backgroundB;
-				result[offset + 3] = 255;
+		const wesuwt = new Uint8CwampedAwway(WIDTH * HEIGHT * 4);
+		wet offset = 0;
+		fow (wet i = 0; i < HEIGHT; i++) {
+			fow (wet j = 0; j < WIDTH; j++) {
+				wesuwt[offset] = backgwoundW;
+				wesuwt[offset + 1] = backgwoundG;
+				wesuwt[offset + 2] = backgwoundB;
+				wesuwt[offset + 3] = 255;
 				offset += 4;
 			}
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export interface IMinimapModel {
-	readonly tokensColorTracker: MinimapTokensColorTracker;
-	readonly options: MinimapOptions;
+expowt intewface IMinimapModew {
+	weadonwy tokensCowowTwacka: MinimapTokensCowowTwacka;
+	weadonwy options: MinimapOptions;
 
-	getLineCount(): number;
-	getRealLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineMaxColumn(lineNumber: number): number;
-	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
-	getSelections(): Selection[];
-	getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
-	getOptions(): TextModelResolvedOptions;
-	revealLineNumber(lineNumber: number): void;
-	setScrollTop(scrollTop: number): void;
+	getWineCount(): numba;
+	getWeawWineCount(): numba;
+	getWineContent(wineNumba: numba): stwing;
+	getWineMaxCowumn(wineNumba: numba): numba;
+	getMinimapWinesWendewingData(stawtWineNumba: numba, endWineNumba: numba, needed: boowean[]): (ViewWineData | nuww)[];
+	getSewections(): Sewection[];
+	getMinimapDecowationsInViewpowt(stawtWineNumba: numba, endWineNumba: numba): ViewModewDecowation[];
+	getOptions(): TextModewWesowvedOptions;
+	weveawWineNumba(wineNumba: numba): void;
+	setScwowwTop(scwowwTop: numba): void;
 }
 
-interface IMinimapRenderingContext {
-	readonly viewportContainsWhitespaceGaps: boolean;
+intewface IMinimapWendewingContext {
+	weadonwy viewpowtContainsWhitespaceGaps: boowean;
 
-	readonly scrollWidth: number;
-	readonly scrollHeight: number;
+	weadonwy scwowwWidth: numba;
+	weadonwy scwowwHeight: numba;
 
-	readonly viewportStartLineNumber: number;
-	readonly viewportEndLineNumber: number;
-	readonly viewportStartLineNumberVerticalOffset: number;
+	weadonwy viewpowtStawtWineNumba: numba;
+	weadonwy viewpowtEndWineNumba: numba;
+	weadonwy viewpowtStawtWineNumbewVewticawOffset: numba;
 
-	readonly scrollTop: number;
-	readonly scrollLeft: number;
+	weadonwy scwowwTop: numba;
+	weadonwy scwowwWeft: numba;
 
-	readonly viewportWidth: number;
-	readonly viewportHeight: number;
+	weadonwy viewpowtWidth: numba;
+	weadonwy viewpowtHeight: numba;
 }
 
-interface SamplingStateLinesDeletedEvent {
-	type: 'deleted';
-	_oldIndex: number;
-	deleteFromLineNumber: number;
-	deleteToLineNumber: number;
+intewface SampwingStateWinesDewetedEvent {
+	type: 'deweted';
+	_owdIndex: numba;
+	deweteFwomWineNumba: numba;
+	deweteToWineNumba: numba;
 }
 
-interface SamplingStateLinesInsertedEvent {
-	type: 'inserted';
-	_i: number;
-	insertFromLineNumber: number;
-	insertToLineNumber: number;
+intewface SampwingStateWinesInsewtedEvent {
+	type: 'insewted';
+	_i: numba;
+	insewtFwomWineNumba: numba;
+	insewtToWineNumba: numba;
 }
 
-interface SamplingStateFlushEvent {
-	type: 'flush';
+intewface SampwingStateFwushEvent {
+	type: 'fwush';
 }
 
-type SamplingStateEvent = SamplingStateLinesInsertedEvent | SamplingStateLinesDeletedEvent | SamplingStateFlushEvent;
+type SampwingStateEvent = SampwingStateWinesInsewtedEvent | SampwingStateWinesDewetedEvent | SampwingStateFwushEvent;
 
-class MinimapSamplingState {
+cwass MinimapSampwingState {
 
-	public static compute(options: MinimapOptions, viewLineCount: number, oldSamplingState: MinimapSamplingState | null): [MinimapSamplingState | null, SamplingStateEvent[]] {
-		if (options.renderMinimap === RenderMinimap.None || !options.isSampling) {
-			return [null, []];
+	pubwic static compute(options: MinimapOptions, viewWineCount: numba, owdSampwingState: MinimapSampwingState | nuww): [MinimapSampwingState | nuww, SampwingStateEvent[]] {
+		if (options.wendewMinimap === WendewMinimap.None || !options.isSampwing) {
+			wetuwn [nuww, []];
 		}
 
-		// ratio is intentionally not part of the layout to avoid the layout changing all the time
-		// so we need to recompute it again...
-		const pixelRatio = options.pixelRatio;
-		const lineHeight = options.lineHeight;
-		const scrollBeyondLastLine = options.scrollBeyondLastLine;
-		const { minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
-			viewLineCount: viewLineCount,
-			scrollBeyondLastLine: scrollBeyondLastLine,
-			height: options.editorHeight,
-			lineHeight: lineHeight,
-			pixelRatio: pixelRatio
+		// watio is intentionawwy not pawt of the wayout to avoid the wayout changing aww the time
+		// so we need to wecompute it again...
+		const pixewWatio = options.pixewWatio;
+		const wineHeight = options.wineHeight;
+		const scwowwBeyondWastWine = options.scwowwBeyondWastWine;
+		const { minimapWineCount } = EditowWayoutInfoComputa.computeContainedMinimapWineCount({
+			viewWineCount: viewWineCount,
+			scwowwBeyondWastWine: scwowwBeyondWastWine,
+			height: options.editowHeight,
+			wineHeight: wineHeight,
+			pixewWatio: pixewWatio
 		});
-		const ratio = viewLineCount / minimapLineCount;
-		const halfRatio = ratio / 2;
+		const watio = viewWineCount / minimapWineCount;
+		const hawfWatio = watio / 2;
 
-		if (!oldSamplingState || oldSamplingState.minimapLines.length === 0) {
-			let result: number[] = [];
-			result[0] = 1;
-			if (minimapLineCount > 1) {
-				for (let i = 0, lastIndex = minimapLineCount - 1; i < lastIndex; i++) {
-					result[i] = Math.round(i * ratio + halfRatio);
+		if (!owdSampwingState || owdSampwingState.minimapWines.wength === 0) {
+			wet wesuwt: numba[] = [];
+			wesuwt[0] = 1;
+			if (minimapWineCount > 1) {
+				fow (wet i = 0, wastIndex = minimapWineCount - 1; i < wastIndex; i++) {
+					wesuwt[i] = Math.wound(i * watio + hawfWatio);
 				}
-				result[minimapLineCount - 1] = viewLineCount;
+				wesuwt[minimapWineCount - 1] = viewWineCount;
 			}
-			return [new MinimapSamplingState(ratio, result), []];
+			wetuwn [new MinimapSampwingState(watio, wesuwt), []];
 		}
 
-		const oldMinimapLines = oldSamplingState.minimapLines;
-		const oldLength = oldMinimapLines.length;
-		let result: number[] = [];
-		let oldIndex = 0;
-		let oldDeltaLineCount = 0;
-		let minViewLineNumber = 1;
-		const MAX_EVENT_COUNT = 10; // generate at most 10 events, if there are more than 10 changes, just flush all previous data
-		let events: SamplingStateEvent[] = [];
-		let lastEvent: SamplingStateEvent | null = null;
-		for (let i = 0; i < minimapLineCount; i++) {
-			const fromViewLineNumber = Math.max(minViewLineNumber, Math.round(i * ratio));
-			const toViewLineNumber = Math.max(fromViewLineNumber, Math.round((i + 1) * ratio));
+		const owdMinimapWines = owdSampwingState.minimapWines;
+		const owdWength = owdMinimapWines.wength;
+		wet wesuwt: numba[] = [];
+		wet owdIndex = 0;
+		wet owdDewtaWineCount = 0;
+		wet minViewWineNumba = 1;
+		const MAX_EVENT_COUNT = 10; // genewate at most 10 events, if thewe awe mowe than 10 changes, just fwush aww pwevious data
+		wet events: SampwingStateEvent[] = [];
+		wet wastEvent: SampwingStateEvent | nuww = nuww;
+		fow (wet i = 0; i < minimapWineCount; i++) {
+			const fwomViewWineNumba = Math.max(minViewWineNumba, Math.wound(i * watio));
+			const toViewWineNumba = Math.max(fwomViewWineNumba, Math.wound((i + 1) * watio));
 
-			while (oldIndex < oldLength && oldMinimapLines[oldIndex] < fromViewLineNumber) {
-				if (events.length < MAX_EVENT_COUNT) {
-					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
-					if (lastEvent && lastEvent.type === 'deleted' && lastEvent._oldIndex === oldIndex - 1) {
-						lastEvent.deleteToLineNumber++;
-					} else {
-						lastEvent = { type: 'deleted', _oldIndex: oldIndex, deleteFromLineNumber: oldMinimapLineNumber, deleteToLineNumber: oldMinimapLineNumber };
-						events.push(lastEvent);
+			whiwe (owdIndex < owdWength && owdMinimapWines[owdIndex] < fwomViewWineNumba) {
+				if (events.wength < MAX_EVENT_COUNT) {
+					const owdMinimapWineNumba = owdIndex + 1 + owdDewtaWineCount;
+					if (wastEvent && wastEvent.type === 'deweted' && wastEvent._owdIndex === owdIndex - 1) {
+						wastEvent.deweteToWineNumba++;
+					} ewse {
+						wastEvent = { type: 'deweted', _owdIndex: owdIndex, deweteFwomWineNumba: owdMinimapWineNumba, deweteToWineNumba: owdMinimapWineNumba };
+						events.push(wastEvent);
 					}
-					oldDeltaLineCount--;
+					owdDewtaWineCount--;
 				}
-				oldIndex++;
+				owdIndex++;
 			}
 
-			let selectedViewLineNumber: number;
-			if (oldIndex < oldLength && oldMinimapLines[oldIndex] <= toViewLineNumber) {
-				// reuse the old sampled line
-				selectedViewLineNumber = oldMinimapLines[oldIndex];
-				oldIndex++;
-			} else {
+			wet sewectedViewWineNumba: numba;
+			if (owdIndex < owdWength && owdMinimapWines[owdIndex] <= toViewWineNumba) {
+				// weuse the owd sampwed wine
+				sewectedViewWineNumba = owdMinimapWines[owdIndex];
+				owdIndex++;
+			} ewse {
 				if (i === 0) {
-					selectedViewLineNumber = 1;
-				} else if (i + 1 === minimapLineCount) {
-					selectedViewLineNumber = viewLineCount;
-				} else {
-					selectedViewLineNumber = Math.round(i * ratio + halfRatio);
+					sewectedViewWineNumba = 1;
+				} ewse if (i + 1 === minimapWineCount) {
+					sewectedViewWineNumba = viewWineCount;
+				} ewse {
+					sewectedViewWineNumba = Math.wound(i * watio + hawfWatio);
 				}
-				if (events.length < MAX_EVENT_COUNT) {
-					const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
-					if (lastEvent && lastEvent.type === 'inserted' && lastEvent._i === i - 1) {
-						lastEvent.insertToLineNumber++;
-					} else {
-						lastEvent = { type: 'inserted', _i: i, insertFromLineNumber: oldMinimapLineNumber, insertToLineNumber: oldMinimapLineNumber };
-						events.push(lastEvent);
+				if (events.wength < MAX_EVENT_COUNT) {
+					const owdMinimapWineNumba = owdIndex + 1 + owdDewtaWineCount;
+					if (wastEvent && wastEvent.type === 'insewted' && wastEvent._i === i - 1) {
+						wastEvent.insewtToWineNumba++;
+					} ewse {
+						wastEvent = { type: 'insewted', _i: i, insewtFwomWineNumba: owdMinimapWineNumba, insewtToWineNumba: owdMinimapWineNumba };
+						events.push(wastEvent);
 					}
-					oldDeltaLineCount++;
+					owdDewtaWineCount++;
 				}
 			}
 
-			result[i] = selectedViewLineNumber;
-			minViewLineNumber = selectedViewLineNumber;
+			wesuwt[i] = sewectedViewWineNumba;
+			minViewWineNumba = sewectedViewWineNumba;
 		}
 
-		if (events.length < MAX_EVENT_COUNT) {
-			while (oldIndex < oldLength) {
-				const oldMinimapLineNumber = oldIndex + 1 + oldDeltaLineCount;
-				if (lastEvent && lastEvent.type === 'deleted' && lastEvent._oldIndex === oldIndex - 1) {
-					lastEvent.deleteToLineNumber++;
-				} else {
-					lastEvent = { type: 'deleted', _oldIndex: oldIndex, deleteFromLineNumber: oldMinimapLineNumber, deleteToLineNumber: oldMinimapLineNumber };
-					events.push(lastEvent);
+		if (events.wength < MAX_EVENT_COUNT) {
+			whiwe (owdIndex < owdWength) {
+				const owdMinimapWineNumba = owdIndex + 1 + owdDewtaWineCount;
+				if (wastEvent && wastEvent.type === 'deweted' && wastEvent._owdIndex === owdIndex - 1) {
+					wastEvent.deweteToWineNumba++;
+				} ewse {
+					wastEvent = { type: 'deweted', _owdIndex: owdIndex, deweteFwomWineNumba: owdMinimapWineNumba, deweteToWineNumba: owdMinimapWineNumba };
+					events.push(wastEvent);
 				}
-				oldDeltaLineCount--;
-				oldIndex++;
+				owdDewtaWineCount--;
+				owdIndex++;
 			}
-		} else {
+		} ewse {
 			// too many events, just give up
-			events = [{ type: 'flush' }];
+			events = [{ type: 'fwush' }];
 		}
 
-		return [new MinimapSamplingState(ratio, result), events];
+		wetuwn [new MinimapSampwingState(watio, wesuwt), events];
 	}
 
-	constructor(
-		public readonly samplingRatio: number,
-		public readonly minimapLines: number[]
+	constwuctow(
+		pubwic weadonwy sampwingWatio: numba,
+		pubwic weadonwy minimapWines: numba[]
 	) {
 	}
 
-	public modelLineToMinimapLine(lineNumber: number): number {
-		return Math.min(this.minimapLines.length, Math.max(1, Math.round(lineNumber / this.samplingRatio)));
+	pubwic modewWineToMinimapWine(wineNumba: numba): numba {
+		wetuwn Math.min(this.minimapWines.wength, Math.max(1, Math.wound(wineNumba / this.sampwingWatio)));
 	}
 
 	/**
-	 * Will return null if the model line ranges are not intersecting with a sampled model line.
+	 * Wiww wetuwn nuww if the modew wine wanges awe not intewsecting with a sampwed modew wine.
 	 */
-	public modelLineRangeToMinimapLineRange(fromLineNumber: number, toLineNumber: number): [number, number] | null {
-		let fromLineIndex = this.modelLineToMinimapLine(fromLineNumber) - 1;
-		while (fromLineIndex > 0 && this.minimapLines[fromLineIndex - 1] >= fromLineNumber) {
-			fromLineIndex--;
+	pubwic modewWineWangeToMinimapWineWange(fwomWineNumba: numba, toWineNumba: numba): [numba, numba] | nuww {
+		wet fwomWineIndex = this.modewWineToMinimapWine(fwomWineNumba) - 1;
+		whiwe (fwomWineIndex > 0 && this.minimapWines[fwomWineIndex - 1] >= fwomWineNumba) {
+			fwomWineIndex--;
 		}
-		let toLineIndex = this.modelLineToMinimapLine(toLineNumber) - 1;
-		while (toLineIndex + 1 < this.minimapLines.length && this.minimapLines[toLineIndex + 1] <= toLineNumber) {
-			toLineIndex++;
+		wet toWineIndex = this.modewWineToMinimapWine(toWineNumba) - 1;
+		whiwe (toWineIndex + 1 < this.minimapWines.wength && this.minimapWines[toWineIndex + 1] <= toWineNumba) {
+			toWineIndex++;
 		}
-		if (fromLineIndex === toLineIndex) {
-			const sampledLineNumber = this.minimapLines[fromLineIndex];
-			if (sampledLineNumber < fromLineNumber || sampledLineNumber > toLineNumber) {
-				// This line is not part of the sampled lines ==> nothing to do
-				return null;
+		if (fwomWineIndex === toWineIndex) {
+			const sampwedWineNumba = this.minimapWines[fwomWineIndex];
+			if (sampwedWineNumba < fwomWineNumba || sampwedWineNumba > toWineNumba) {
+				// This wine is not pawt of the sampwed wines ==> nothing to do
+				wetuwn nuww;
 			}
 		}
-		return [fromLineIndex + 1, toLineIndex + 1];
+		wetuwn [fwomWineIndex + 1, toWineIndex + 1];
 	}
 
 	/**
-	 * Will always return a range, even if it is not intersecting with a sampled model line.
+	 * Wiww awways wetuwn a wange, even if it is not intewsecting with a sampwed modew wine.
 	 */
-	public decorationLineRangeToMinimapLineRange(startLineNumber: number, endLineNumber: number): [number, number] {
-		let minimapLineStart = this.modelLineToMinimapLine(startLineNumber);
-		let minimapLineEnd = this.modelLineToMinimapLine(endLineNumber);
-		if (startLineNumber !== endLineNumber && minimapLineEnd === minimapLineStart) {
-			if (minimapLineEnd === this.minimapLines.length) {
-				if (minimapLineStart > 1) {
-					minimapLineStart--;
+	pubwic decowationWineWangeToMinimapWineWange(stawtWineNumba: numba, endWineNumba: numba): [numba, numba] {
+		wet minimapWineStawt = this.modewWineToMinimapWine(stawtWineNumba);
+		wet minimapWineEnd = this.modewWineToMinimapWine(endWineNumba);
+		if (stawtWineNumba !== endWineNumba && minimapWineEnd === minimapWineStawt) {
+			if (minimapWineEnd === this.minimapWines.wength) {
+				if (minimapWineStawt > 1) {
+					minimapWineStawt--;
 				}
-			} else {
-				minimapLineEnd++;
+			} ewse {
+				minimapWineEnd++;
 			}
 		}
-		return [minimapLineStart, minimapLineEnd];
+		wetuwn [minimapWineStawt, minimapWineEnd];
 	}
 
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): [number, number] {
+	pubwic onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): [numba, numba] {
 		// have the mapping be sticky
-		const deletedLineCount = e.toLineNumber - e.fromLineNumber + 1;
-		let changeStartIndex = this.minimapLines.length;
-		let changeEndIndex = 0;
-		for (let i = this.minimapLines.length - 1; i >= 0; i--) {
-			if (this.minimapLines[i] < e.fromLineNumber) {
-				break;
+		const dewetedWineCount = e.toWineNumba - e.fwomWineNumba + 1;
+		wet changeStawtIndex = this.minimapWines.wength;
+		wet changeEndIndex = 0;
+		fow (wet i = this.minimapWines.wength - 1; i >= 0; i--) {
+			if (this.minimapWines[i] < e.fwomWineNumba) {
+				bweak;
 			}
-			if (this.minimapLines[i] <= e.toLineNumber) {
-				// this line got deleted => move to previous available
-				this.minimapLines[i] = Math.max(1, e.fromLineNumber - 1);
-				changeStartIndex = Math.min(changeStartIndex, i);
+			if (this.minimapWines[i] <= e.toWineNumba) {
+				// this wine got deweted => move to pwevious avaiwabwe
+				this.minimapWines[i] = Math.max(1, e.fwomWineNumba - 1);
+				changeStawtIndex = Math.min(changeStawtIndex, i);
 				changeEndIndex = Math.max(changeEndIndex, i);
-			} else {
-				this.minimapLines[i] -= deletedLineCount;
+			} ewse {
+				this.minimapWines[i] -= dewetedWineCount;
 			}
 		}
-		return [changeStartIndex, changeEndIndex];
+		wetuwn [changeStawtIndex, changeEndIndex];
 	}
 
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
+	pubwic onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): void {
 		// have the mapping be sticky
-		const insertedLineCount = e.toLineNumber - e.fromLineNumber + 1;
-		for (let i = this.minimapLines.length - 1; i >= 0; i--) {
-			if (this.minimapLines[i] < e.fromLineNumber) {
-				break;
+		const insewtedWineCount = e.toWineNumba - e.fwomWineNumba + 1;
+		fow (wet i = this.minimapWines.wength - 1; i >= 0; i--) {
+			if (this.minimapWines[i] < e.fwomWineNumba) {
+				bweak;
 			}
-			this.minimapLines[i] += insertedLineCount;
+			this.minimapWines[i] += insewtedWineCount;
 		}
 	}
 }
 
-export class Minimap extends ViewPart implements IMinimapModel {
+expowt cwass Minimap extends ViewPawt impwements IMinimapModew {
 
-	public readonly tokensColorTracker: MinimapTokensColorTracker;
+	pubwic weadonwy tokensCowowTwacka: MinimapTokensCowowTwacka;
 
-	private _selections: Selection[];
-	private _minimapSelections: Selection[] | null;
+	pwivate _sewections: Sewection[];
+	pwivate _minimapSewections: Sewection[] | nuww;
 
-	public options: MinimapOptions;
+	pubwic options: MinimapOptions;
 
-	private _samplingState: MinimapSamplingState | null;
-	private _shouldCheckSampling: boolean;
+	pwivate _sampwingState: MinimapSampwingState | nuww;
+	pwivate _shouwdCheckSampwing: boowean;
 
-	private _actual: InnerMinimap;
+	pwivate _actuaw: InnewMinimap;
 
-	constructor(context: ViewContext) {
-		super(context);
+	constwuctow(context: ViewContext) {
+		supa(context);
 
-		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
+		this.tokensCowowTwacka = MinimapTokensCowowTwacka.getInstance();
 
-		this._selections = [];
-		this._minimapSelections = null;
+		this._sewections = [];
+		this._minimapSewections = nuww;
 
-		this.options = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker);
-		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), null);
-		this._samplingState = samplingState;
-		this._shouldCheckSampling = false;
+		this.options = new MinimapOptions(this._context.configuwation, this._context.theme, this.tokensCowowTwacka);
+		const [sampwingState,] = MinimapSampwingState.compute(this.options, this._context.modew.getWineCount(), nuww);
+		this._sampwingState = sampwingState;
+		this._shouwdCheckSampwing = fawse;
 
-		this._actual = new InnerMinimap(context.theme, this);
+		this._actuaw = new InnewMinimap(context.theme, this);
 	}
 
-	public override dispose(): void {
-		this._actual.dispose();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._actuaw.dispose();
+		supa.dispose();
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._actual.getDomNode();
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._actuaw.getDomNode();
 	}
 
-	private _onOptionsMaybeChanged(): boolean {
-		const opts = new MinimapOptions(this._context.configuration, this._context.theme, this.tokensColorTracker);
-		if (this.options.equals(opts)) {
-			return false;
+	pwivate _onOptionsMaybeChanged(): boowean {
+		const opts = new MinimapOptions(this._context.configuwation, this._context.theme, this.tokensCowowTwacka);
+		if (this.options.equaws(opts)) {
+			wetuwn fawse;
 		}
 		this.options = opts;
-		this._recreateLineSampling();
-		this._actual.onDidChangeOptions();
-		return true;
+		this._wecweateWineSampwing();
+		this._actuaw.onDidChangeOptions();
+		wetuwn twue;
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return this._onOptionsMaybeChanged();
+	pubwic ovewwide onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		wetuwn this._onOptionsMaybeChanged();
 	}
-	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		this._selections = e.selections;
-		this._minimapSelections = null;
-		return this._actual.onSelectionChanged();
+	pubwic ovewwide onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		this._sewections = e.sewections;
+		this._minimapSewections = nuww;
+		wetuwn this._actuaw.onSewectionChanged();
 	}
-	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	pubwic ovewwide onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
 		if (e.affectsMinimap) {
-			return this._actual.onDecorationsChanged();
+			wetuwn this._actuaw.onDecowationsChanged();
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		if (this._samplingState) {
-			this._shouldCheckSampling = true;
+	pubwic ovewwide onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		if (this._sampwingState) {
+			this._shouwdCheckSampwing = twue;
 		}
-		return this._actual.onFlushed();
+		wetuwn this._actuaw.onFwushed();
 	}
-	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		if (this._samplingState) {
-			const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(e.fromLineNumber, e.toLineNumber);
-			if (minimapLineRange) {
-				return this._actual.onLinesChanged(minimapLineRange[0], minimapLineRange[1]);
-			} else {
-				return false;
+	pubwic ovewwide onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		if (this._sampwingState) {
+			const minimapWineWange = this._sampwingState.modewWineWangeToMinimapWineWange(e.fwomWineNumba, e.toWineNumba);
+			if (minimapWineWange) {
+				wetuwn this._actuaw.onWinesChanged(minimapWineWange[0], minimapWineWange[1]);
+			} ewse {
+				wetuwn fawse;
 			}
-		} else {
-			return this._actual.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+		} ewse {
+			wetuwn this._actuaw.onWinesChanged(e.fwomWineNumba, e.toWineNumba);
 		}
 	}
-	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		if (this._samplingState) {
-			const [changeStartIndex, changeEndIndex] = this._samplingState.onLinesDeleted(e);
-			if (changeStartIndex <= changeEndIndex) {
-				this._actual.onLinesChanged(changeStartIndex + 1, changeEndIndex + 1);
+	pubwic ovewwide onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		if (this._sampwingState) {
+			const [changeStawtIndex, changeEndIndex] = this._sampwingState.onWinesDeweted(e);
+			if (changeStawtIndex <= changeEndIndex) {
+				this._actuaw.onWinesChanged(changeStawtIndex + 1, changeEndIndex + 1);
 			}
-			this._shouldCheckSampling = true;
-			return true;
-		} else {
-			return this._actual.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+			this._shouwdCheckSampwing = twue;
+			wetuwn twue;
+		} ewse {
+			wetuwn this._actuaw.onWinesDeweted(e.fwomWineNumba, e.toWineNumba);
 		}
 	}
-	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		if (this._samplingState) {
-			this._samplingState.onLinesInserted(e);
-			this._shouldCheckSampling = true;
-			return true;
-		} else {
-			return this._actual.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+	pubwic ovewwide onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		if (this._sampwingState) {
+			this._sampwingState.onWinesInsewted(e);
+			this._shouwdCheckSampwing = twue;
+			wetuwn twue;
+		} ewse {
+			wetuwn this._actuaw.onWinesInsewted(e.fwomWineNumba, e.toWineNumba);
 		}
 	}
-	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return this._actual.onScrollChanged();
+	pubwic ovewwide onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn this._actuaw.onScwowwChanged();
 	}
-	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		this._context.model.invalidateMinimapColorCache();
-		this._actual.onThemeChanged();
+	pubwic ovewwide onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boowean {
+		this._context.modew.invawidateMinimapCowowCache();
+		this._actuaw.onThemeChanged();
 		this._onOptionsMaybeChanged();
-		return true;
+		wetuwn twue;
 	}
-	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		if (this._samplingState) {
-			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
-			for (const range of e.ranges) {
-				const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(range.fromLineNumber, range.toLineNumber);
-				if (minimapLineRange) {
-					ranges.push({ fromLineNumber: minimapLineRange[0], toLineNumber: minimapLineRange[1] });
+	pubwic ovewwide onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		if (this._sampwingState) {
+			wet wanges: { fwomWineNumba: numba; toWineNumba: numba; }[] = [];
+			fow (const wange of e.wanges) {
+				const minimapWineWange = this._sampwingState.modewWineWangeToMinimapWineWange(wange.fwomWineNumba, wange.toWineNumba);
+				if (minimapWineWange) {
+					wanges.push({ fwomWineNumba: minimapWineWange[0], toWineNumba: minimapWineWange[1] });
 				}
 			}
-			if (ranges.length) {
-				return this._actual.onTokensChanged(ranges);
-			} else {
-				return false;
+			if (wanges.wength) {
+				wetuwn this._actuaw.onTokensChanged(wanges);
+			} ewse {
+				wetuwn fawse;
 			}
-		} else {
-			return this._actual.onTokensChanged(e.ranges);
+		} ewse {
+			wetuwn this._actuaw.onTokensChanged(e.wanges);
 		}
 	}
-	public override onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+	pubwic ovewwide onTokensCowowsChanged(e: viewEvents.ViewTokensCowowsChangedEvent): boowean {
 		this._onOptionsMaybeChanged();
-		return this._actual.onTokensColorsChanged();
+		wetuwn this._actuaw.onTokensCowowsChanged();
 	}
-	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return this._actual.onZonesChanged();
+	pubwic ovewwide onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn this._actuaw.onZonesChanged();
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	public prepareRender(ctx: RenderingContext): void {
-		if (this._shouldCheckSampling) {
-			this._shouldCheckSampling = false;
-			this._recreateLineSampling();
+	pubwic pwepaweWenda(ctx: WendewingContext): void {
+		if (this._shouwdCheckSampwing) {
+			this._shouwdCheckSampwing = fawse;
+			this._wecweateWineSampwing();
 		}
 	}
 
-	public render(ctx: RestrictedRenderingContext): void {
-		let viewportStartLineNumber = ctx.visibleRange.startLineNumber;
-		let viewportEndLineNumber = ctx.visibleRange.endLineNumber;
+	pubwic wenda(ctx: WestwictedWendewingContext): void {
+		wet viewpowtStawtWineNumba = ctx.visibweWange.stawtWineNumba;
+		wet viewpowtEndWineNumba = ctx.visibweWange.endWineNumba;
 
-		if (this._samplingState) {
-			viewportStartLineNumber = this._samplingState.modelLineToMinimapLine(viewportStartLineNumber);
-			viewportEndLineNumber = this._samplingState.modelLineToMinimapLine(viewportEndLineNumber);
+		if (this._sampwingState) {
+			viewpowtStawtWineNumba = this._sampwingState.modewWineToMinimapWine(viewpowtStawtWineNumba);
+			viewpowtEndWineNumba = this._sampwingState.modewWineToMinimapWine(viewpowtEndWineNumba);
 		}
 
-		const minimapCtx: IMinimapRenderingContext = {
-			viewportContainsWhitespaceGaps: (ctx.viewportData.whitespaceViewportData.length > 0),
+		const minimapCtx: IMinimapWendewingContext = {
+			viewpowtContainsWhitespaceGaps: (ctx.viewpowtData.whitespaceViewpowtData.wength > 0),
 
-			scrollWidth: ctx.scrollWidth,
-			scrollHeight: ctx.scrollHeight,
+			scwowwWidth: ctx.scwowwWidth,
+			scwowwHeight: ctx.scwowwHeight,
 
-			viewportStartLineNumber: viewportStartLineNumber,
-			viewportEndLineNumber: viewportEndLineNumber,
-			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
+			viewpowtStawtWineNumba: viewpowtStawtWineNumba,
+			viewpowtEndWineNumba: viewpowtEndWineNumba,
+			viewpowtStawtWineNumbewVewticawOffset: ctx.getVewticawOffsetFowWineNumba(viewpowtStawtWineNumba),
 
-			scrollTop: ctx.scrollTop,
-			scrollLeft: ctx.scrollLeft,
+			scwowwTop: ctx.scwowwTop,
+			scwowwWeft: ctx.scwowwWeft,
 
-			viewportWidth: ctx.viewportWidth,
-			viewportHeight: ctx.viewportHeight,
+			viewpowtWidth: ctx.viewpowtWidth,
+			viewpowtHeight: ctx.viewpowtHeight,
 		};
-		this._actual.render(minimapCtx);
+		this._actuaw.wenda(minimapCtx);
 	}
 
-	//#region IMinimapModel
+	//#wegion IMinimapModew
 
-	private _recreateLineSampling(): void {
-		this._minimapSelections = null;
+	pwivate _wecweateWineSampwing(): void {
+		this._minimapSewections = nuww;
 
-		const wasSampling = Boolean(this._samplingState);
-		const [samplingState, events] = MinimapSamplingState.compute(this.options, this._context.model.getLineCount(), this._samplingState);
-		this._samplingState = samplingState;
+		const wasSampwing = Boowean(this._sampwingState);
+		const [sampwingState, events] = MinimapSampwingState.compute(this.options, this._context.modew.getWineCount(), this._sampwingState);
+		this._sampwingState = sampwingState;
 
-		if (wasSampling && this._samplingState) {
-			// was sampling, is sampling
-			for (const event of events) {
+		if (wasSampwing && this._sampwingState) {
+			// was sampwing, is sampwing
+			fow (const event of events) {
 				switch (event.type) {
-					case 'deleted':
-						this._actual.onLinesDeleted(event.deleteFromLineNumber, event.deleteToLineNumber);
-						break;
-					case 'inserted':
-						this._actual.onLinesInserted(event.insertFromLineNumber, event.insertToLineNumber);
-						break;
-					case 'flush':
-						this._actual.onFlushed();
-						break;
+					case 'deweted':
+						this._actuaw.onWinesDeweted(event.deweteFwomWineNumba, event.deweteToWineNumba);
+						bweak;
+					case 'insewted':
+						this._actuaw.onWinesInsewted(event.insewtFwomWineNumba, event.insewtToWineNumba);
+						bweak;
+					case 'fwush':
+						this._actuaw.onFwushed();
+						bweak;
 				}
 			}
 		}
 	}
 
-	public getLineCount(): number {
-		if (this._samplingState) {
-			return this._samplingState.minimapLines.length;
+	pubwic getWineCount(): numba {
+		if (this._sampwingState) {
+			wetuwn this._sampwingState.minimapWines.wength;
 		}
-		return this._context.model.getLineCount();
+		wetuwn this._context.modew.getWineCount();
 	}
 
-	public getRealLineCount(): number {
-		return this._context.model.getLineCount();
+	pubwic getWeawWineCount(): numba {
+		wetuwn this._context.modew.getWineCount();
 	}
 
-	public getLineContent(lineNumber: number): string {
-		if (this._samplingState) {
-			return this._context.model.getLineContent(this._samplingState.minimapLines[lineNumber - 1]);
+	pubwic getWineContent(wineNumba: numba): stwing {
+		if (this._sampwingState) {
+			wetuwn this._context.modew.getWineContent(this._sampwingState.minimapWines[wineNumba - 1]);
 		}
-		return this._context.model.getLineContent(lineNumber);
+		wetuwn this._context.modew.getWineContent(wineNumba);
 	}
 
-	public getLineMaxColumn(lineNumber: number): number {
-		if (this._samplingState) {
-			return this._context.model.getLineMaxColumn(this._samplingState.minimapLines[lineNumber - 1]);
+	pubwic getWineMaxCowumn(wineNumba: numba): numba {
+		if (this._sampwingState) {
+			wetuwn this._context.modew.getWineMaxCowumn(this._sampwingState.minimapWines[wineNumba - 1]);
 		}
-		return this._context.model.getLineMaxColumn(lineNumber);
+		wetuwn this._context.modew.getWineMaxCowumn(wineNumba);
 	}
 
-	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[] {
-		if (this._samplingState) {
-			let result: (ViewLineData | null)[] = [];
-			for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
-				if (needed[lineIndex]) {
-					result[lineIndex] = this._context.model.getViewLineData(this._samplingState.minimapLines[startLineNumber + lineIndex - 1]);
-				} else {
-					result[lineIndex] = null;
+	pubwic getMinimapWinesWendewingData(stawtWineNumba: numba, endWineNumba: numba, needed: boowean[]): (ViewWineData | nuww)[] {
+		if (this._sampwingState) {
+			wet wesuwt: (ViewWineData | nuww)[] = [];
+			fow (wet wineIndex = 0, wineCount = endWineNumba - stawtWineNumba + 1; wineIndex < wineCount; wineIndex++) {
+				if (needed[wineIndex]) {
+					wesuwt[wineIndex] = this._context.modew.getViewWineData(this._sampwingState.minimapWines[stawtWineNumba + wineIndex - 1]);
+				} ewse {
+					wesuwt[wineIndex] = nuww;
 				}
 			}
-			return result;
+			wetuwn wesuwt;
 		}
-		return this._context.model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed).data;
+		wetuwn this._context.modew.getMinimapWinesWendewingData(stawtWineNumba, endWineNumba, needed).data;
 	}
 
-	public getSelections(): Selection[] {
-		if (this._minimapSelections === null) {
-			if (this._samplingState) {
-				this._minimapSelections = [];
-				for (const selection of this._selections) {
-					const [minimapLineStart, minimapLineEnd] = this._samplingState.decorationLineRangeToMinimapLineRange(selection.startLineNumber, selection.endLineNumber);
-					this._minimapSelections.push(new Selection(minimapLineStart, selection.startColumn, minimapLineEnd, selection.endColumn));
+	pubwic getSewections(): Sewection[] {
+		if (this._minimapSewections === nuww) {
+			if (this._sampwingState) {
+				this._minimapSewections = [];
+				fow (const sewection of this._sewections) {
+					const [minimapWineStawt, minimapWineEnd] = this._sampwingState.decowationWineWangeToMinimapWineWange(sewection.stawtWineNumba, sewection.endWineNumba);
+					this._minimapSewections.push(new Sewection(minimapWineStawt, sewection.stawtCowumn, minimapWineEnd, sewection.endCowumn));
 				}
-			} else {
-				this._minimapSelections = this._selections;
+			} ewse {
+				this._minimapSewections = this._sewections;
 			}
 		}
-		return this._minimapSelections;
+		wetuwn this._minimapSewections;
 	}
 
-	public getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
-		let visibleRange: Range;
-		if (this._samplingState) {
-			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
-			const modelEndLineNumber = this._samplingState.minimapLines[endLineNumber - 1];
-			visibleRange = new Range(modelStartLineNumber, 1, modelEndLineNumber, this._context.model.getLineMaxColumn(modelEndLineNumber));
-		} else {
-			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.model.getLineMaxColumn(endLineNumber));
+	pubwic getMinimapDecowationsInViewpowt(stawtWineNumba: numba, endWineNumba: numba): ViewModewDecowation[] {
+		wet visibweWange: Wange;
+		if (this._sampwingState) {
+			const modewStawtWineNumba = this._sampwingState.minimapWines[stawtWineNumba - 1];
+			const modewEndWineNumba = this._sampwingState.minimapWines[endWineNumba - 1];
+			visibweWange = new Wange(modewStawtWineNumba, 1, modewEndWineNumba, this._context.modew.getWineMaxCowumn(modewEndWineNumba));
+		} ewse {
+			visibweWange = new Wange(stawtWineNumba, 1, endWineNumba, this._context.modew.getWineMaxCowumn(endWineNumba));
 		}
-		const decorations = this._context.model.getDecorationsInViewport(visibleRange);
+		const decowations = this._context.modew.getDecowationsInViewpowt(visibweWange);
 
-		if (this._samplingState) {
-			let result: ViewModelDecoration[] = [];
-			for (const decoration of decorations) {
-				if (!decoration.options.minimap) {
+		if (this._sampwingState) {
+			wet wesuwt: ViewModewDecowation[] = [];
+			fow (const decowation of decowations) {
+				if (!decowation.options.minimap) {
 					continue;
 				}
-				const range = decoration.range;
-				const minimapStartLineNumber = this._samplingState.modelLineToMinimapLine(range.startLineNumber);
-				const minimapEndLineNumber = this._samplingState.modelLineToMinimapLine(range.endLineNumber);
-				result.push(new ViewModelDecoration(new Range(minimapStartLineNumber, range.startColumn, minimapEndLineNumber, range.endColumn), decoration.options));
+				const wange = decowation.wange;
+				const minimapStawtWineNumba = this._sampwingState.modewWineToMinimapWine(wange.stawtWineNumba);
+				const minimapEndWineNumba = this._sampwingState.modewWineToMinimapWine(wange.endWineNumba);
+				wesuwt.push(new ViewModewDecowation(new Wange(minimapStawtWineNumba, wange.stawtCowumn, minimapEndWineNumba, wange.endCowumn), decowation.options));
 			}
-			return result;
+			wetuwn wesuwt;
 		}
-		return decorations;
+		wetuwn decowations;
 	}
 
-	public getOptions(): TextModelResolvedOptions {
-		return this._context.model.getTextModelOptions();
+	pubwic getOptions(): TextModewWesowvedOptions {
+		wetuwn this._context.modew.getTextModewOptions();
 	}
 
-	public revealLineNumber(lineNumber: number): void {
-		if (this._samplingState) {
-			lineNumber = this._samplingState.minimapLines[lineNumber - 1];
+	pubwic weveawWineNumba(wineNumba: numba): void {
+		if (this._sampwingState) {
+			wineNumba = this._sampwingState.minimapWines[wineNumba - 1];
 		}
-		this._context.model.revealRange(
+		this._context.modew.weveawWange(
 			'mouse',
-			false,
-			new Range(lineNumber, 1, lineNumber, 1),
-			viewEvents.VerticalRevealType.Center,
-			ScrollType.Smooth
+			fawse,
+			new Wange(wineNumba, 1, wineNumba, 1),
+			viewEvents.VewticawWeveawType.Centa,
+			ScwowwType.Smooth
 		);
 	}
 
-	public setScrollTop(scrollTop: number): void {
-		this._context.model.setScrollPosition({
-			scrollTop: scrollTop
-		}, ScrollType.Immediate);
+	pubwic setScwowwTop(scwowwTop: numba): void {
+		this._context.modew.setScwowwPosition({
+			scwowwTop: scwowwTop
+		}, ScwowwType.Immediate);
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-class InnerMinimap extends Disposable {
+cwass InnewMinimap extends Disposabwe {
 
-	private readonly _theme: EditorTheme;
-	private readonly _model: IMinimapModel;
+	pwivate weadonwy _theme: EditowTheme;
+	pwivate weadonwy _modew: IMinimapModew;
 
-	private readonly _domNode: FastDomNode<HTMLElement>;
-	private readonly _shadow: FastDomNode<HTMLElement>;
-	private readonly _canvas: FastDomNode<HTMLCanvasElement>;
-	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
-	private readonly _slider: FastDomNode<HTMLElement>;
-	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
-	private readonly _mouseDownListener: IDisposable;
-	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-	private readonly _sliderMouseDownListener: IDisposable;
-	private readonly _gestureDisposable: IDisposable;
-	private readonly _sliderTouchStartListener: IDisposable;
-	private readonly _sliderTouchMoveListener: IDisposable;
-	private readonly _sliderTouchEndListener: IDisposable;
+	pwivate weadonwy _domNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _shadow: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _canvas: FastDomNode<HTMWCanvasEwement>;
+	pwivate weadonwy _decowationsCanvas: FastDomNode<HTMWCanvasEwement>;
+	pwivate weadonwy _swida: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _swidewHowizontaw: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _mouseDownWistena: IDisposabwe;
+	pwivate weadonwy _swidewMouseMoveMonitow: GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>;
+	pwivate weadonwy _swidewMouseDownWistena: IDisposabwe;
+	pwivate weadonwy _gestuweDisposabwe: IDisposabwe;
+	pwivate weadonwy _swidewTouchStawtWistena: IDisposabwe;
+	pwivate weadonwy _swidewTouchMoveWistena: IDisposabwe;
+	pwivate weadonwy _swidewTouchEndWistena: IDisposabwe;
 
-	private _lastRenderData: RenderData | null;
-	private _selectionColor: Color | undefined;
-	private _renderDecorations: boolean = false;
-	private _gestureInProgress: boolean = false;
-	private _buffers: MinimapBuffers | null;
+	pwivate _wastWendewData: WendewData | nuww;
+	pwivate _sewectionCowow: Cowow | undefined;
+	pwivate _wendewDecowations: boowean = fawse;
+	pwivate _gestuweInPwogwess: boowean = fawse;
+	pwivate _buffews: MinimapBuffews | nuww;
 
-	constructor(
-		theme: EditorTheme,
-		model: IMinimapModel
+	constwuctow(
+		theme: EditowTheme,
+		modew: IMinimapModew
 	) {
-		super();
+		supa();
 
 		this._theme = theme;
-		this._model = model;
+		this._modew = modew;
 
-		this._lastRenderData = null;
-		this._buffers = null;
-		this._selectionColor = this._theme.getColor(minimapSelection);
+		this._wastWendewData = nuww;
+		this._buffews = nuww;
+		this._sewectionCowow = this._theme.getCowow(minimapSewection);
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
-		this._domNode.setClassName(this._getMinimapDomNodeClassName());
-		this._domNode.setPosition('absolute');
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		PawtFingewpwints.wwite(this._domNode, PawtFingewpwint.Minimap);
+		this._domNode.setCwassName(this._getMinimapDomNodeCwassName());
+		this._domNode.setPosition('absowute');
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 
-		this._shadow = createFastDomNode(document.createElement('div'));
-		this._shadow.setClassName('minimap-shadow-hidden');
-		this._domNode.appendChild(this._shadow);
+		this._shadow = cweateFastDomNode(document.cweateEwement('div'));
+		this._shadow.setCwassName('minimap-shadow-hidden');
+		this._domNode.appendChiwd(this._shadow);
 
-		this._canvas = createFastDomNode(document.createElement('canvas'));
-		this._canvas.setPosition('absolute');
-		this._canvas.setLeft(0);
-		this._domNode.appendChild(this._canvas);
+		this._canvas = cweateFastDomNode(document.cweateEwement('canvas'));
+		this._canvas.setPosition('absowute');
+		this._canvas.setWeft(0);
+		this._domNode.appendChiwd(this._canvas);
 
-		this._decorationsCanvas = createFastDomNode(document.createElement('canvas'));
-		this._decorationsCanvas.setPosition('absolute');
-		this._decorationsCanvas.setClassName('minimap-decorations-layer');
-		this._decorationsCanvas.setLeft(0);
-		this._domNode.appendChild(this._decorationsCanvas);
+		this._decowationsCanvas = cweateFastDomNode(document.cweateEwement('canvas'));
+		this._decowationsCanvas.setPosition('absowute');
+		this._decowationsCanvas.setCwassName('minimap-decowations-waya');
+		this._decowationsCanvas.setWeft(0);
+		this._domNode.appendChiwd(this._decowationsCanvas);
 
-		this._slider = createFastDomNode(document.createElement('div'));
-		this._slider.setPosition('absolute');
-		this._slider.setClassName('minimap-slider');
-		this._slider.setLayerHinting(true);
-		this._slider.setContain('strict');
-		this._domNode.appendChild(this._slider);
+		this._swida = cweateFastDomNode(document.cweateEwement('div'));
+		this._swida.setPosition('absowute');
+		this._swida.setCwassName('minimap-swida');
+		this._swida.setWayewHinting(twue);
+		this._swida.setContain('stwict');
+		this._domNode.appendChiwd(this._swida);
 
-		this._sliderHorizontal = createFastDomNode(document.createElement('div'));
-		this._sliderHorizontal.setPosition('absolute');
-		this._sliderHorizontal.setClassName('minimap-slider-horizontal');
-		this._slider.appendChild(this._sliderHorizontal);
+		this._swidewHowizontaw = cweateFastDomNode(document.cweateEwement('div'));
+		this._swidewHowizontaw.setPosition('absowute');
+		this._swidewHowizontaw.setCwassName('minimap-swida-howizontaw');
+		this._swida.appendChiwd(this._swidewHowizontaw);
 
-		this._applyLayout();
+		this._appwyWayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
-			e.preventDefault();
+		this._mouseDownWistena = dom.addStandawdDisposabweWistena(this._domNode.domNode, 'mousedown', (e) => {
+			e.pweventDefauwt();
 
-			const renderMinimap = this._model.options.renderMinimap;
-			if (renderMinimap === RenderMinimap.None) {
-				return;
+			const wendewMinimap = this._modew.options.wendewMinimap;
+			if (wendewMinimap === WendewMinimap.None) {
+				wetuwn;
 			}
-			if (!this._lastRenderData) {
-				return;
+			if (!this._wastWendewData) {
+				wetuwn;
 			}
-			if (this._model.options.size !== 'proportional') {
-				if (e.leftButton && this._lastRenderData) {
-					// pretend the click occurred in the center of the slider
-					const position = dom.getDomNodePagePosition(this._slider.domNode);
-					const initialPosY = position.top + position.height / 2;
-					this._startSliderDragging(e.buttons, e.posx, initialPosY, e.posy, this._lastRenderData.renderedLayout);
+			if (this._modew.options.size !== 'pwopowtionaw') {
+				if (e.weftButton && this._wastWendewData) {
+					// pwetend the cwick occuwwed in the centa of the swida
+					const position = dom.getDomNodePagePosition(this._swida.domNode);
+					const initiawPosY = position.top + position.height / 2;
+					this._stawtSwidewDwagging(e.buttons, e.posx, initiawPosY, e.posy, this._wastWendewData.wendewedWayout);
 				}
-				return;
+				wetuwn;
 			}
-			const minimapLineHeight = this._model.options.minimapLineHeight;
-			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.browserEvent.offsetY;
-			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
+			const minimapWineHeight = this._modew.options.minimapWineHeight;
+			const intewnawOffsetY = (this._modew.options.canvasInnewHeight / this._modew.options.canvasOutewHeight) * e.bwowsewEvent.offsetY;
+			const wineIndex = Math.fwoow(intewnawOffsetY / minimapWineHeight);
 
-			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
-			lineNumber = Math.min(lineNumber, this._model.getLineCount());
+			wet wineNumba = wineIndex + this._wastWendewData.wendewedWayout.stawtWineNumba;
+			wineNumba = Math.min(wineNumba, this._modew.getWineCount());
 
-			this._model.revealLineNumber(lineNumber);
+			this._modew.weveawWineNumba(wineNumba);
 		});
 
-		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+		this._swidewMouseMoveMonitow = new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>();
 
-		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			if (e.leftButton && this._lastRenderData) {
-				this._startSliderDragging(e.buttons, e.posx, e.posy, e.posy, this._lastRenderData.renderedLayout);
+		this._swidewMouseDownWistena = dom.addStandawdDisposabweWistena(this._swida.domNode, 'mousedown', (e) => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			if (e.weftButton && this._wastWendewData) {
+				this._stawtSwidewDwagging(e.buttons, e.posx, e.posy, e.posy, this._wastWendewData.wendewedWayout);
 			}
 		});
 
-		this._gestureDisposable = Gesture.addTarget(this._domNode.domNode);
-		this._sliderTouchStartListener = dom.addDisposableListener(this._domNode.domNode, EventType.Start, (e: GestureEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			if (this._lastRenderData) {
-				this._slider.toggleClassName('active', true);
-				this._gestureInProgress = true;
-				this.scrollDueToTouchEvent(e);
+		this._gestuweDisposabwe = Gestuwe.addTawget(this._domNode.domNode);
+		this._swidewTouchStawtWistena = dom.addDisposabweWistena(this._domNode.domNode, EventType.Stawt, (e: GestuweEvent) => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			if (this._wastWendewData) {
+				this._swida.toggweCwassName('active', twue);
+				this._gestuweInPwogwess = twue;
+				this.scwowwDueToTouchEvent(e);
 			}
-		}, { passive: false });
+		}, { passive: fawse });
 
-		this._sliderTouchMoveListener = dom.addDisposableListener(this._domNode.domNode, EventType.Change, (e: GestureEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			if (this._lastRenderData && this._gestureInProgress) {
-				this.scrollDueToTouchEvent(e);
+		this._swidewTouchMoveWistena = dom.addDisposabweWistena(this._domNode.domNode, EventType.Change, (e: GestuweEvent) => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			if (this._wastWendewData && this._gestuweInPwogwess) {
+				this.scwowwDueToTouchEvent(e);
 			}
-		}, { passive: false });
+		}, { passive: fawse });
 
-		this._sliderTouchEndListener = dom.addStandardDisposableListener(this._domNode.domNode, EventType.End, (e: GestureEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._gestureInProgress = false;
-			this._slider.toggleClassName('active', false);
+		this._swidewTouchEndWistena = dom.addStandawdDisposabweWistena(this._domNode.domNode, EventType.End, (e: GestuweEvent) => {
+			e.pweventDefauwt();
+			e.stopPwopagation();
+			this._gestuweInPwogwess = fawse;
+			this._swida.toggweCwassName('active', fawse);
 		});
 	}
 
-	private _startSliderDragging(initialButtons: number, initialPosX: number, initialPosY: number, posy: number, initialSliderState: MinimapLayout): void {
-		this._slider.toggleClassName('active', true);
+	pwivate _stawtSwidewDwagging(initiawButtons: numba, initiawPosX: numba, initiawPosY: numba, posy: numba, initiawSwidewState: MinimapWayout): void {
+		this._swida.toggweCwassName('active', twue);
 
-		const handleMouseMove = (posy: number, posx: number) => {
-			const mouseOrthogonalDelta = Math.abs(posx - initialPosX);
+		const handweMouseMove = (posy: numba, posx: numba) => {
+			const mouseOwthogonawDewta = Math.abs(posx - initiawPosX);
 
-			if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-				// The mouse has wondered away from the scrollbar => reset dragging
-				this._model.setScrollTop(initialSliderState.scrollTop);
-				return;
+			if (pwatfowm.isWindows && mouseOwthogonawDewta > MOUSE_DWAG_WESET_DISTANCE) {
+				// The mouse has wondewed away fwom the scwowwbaw => weset dwagging
+				this._modew.setScwowwTop(initiawSwidewState.scwowwTop);
+				wetuwn;
 			}
 
-			const mouseDelta = posy - initialPosY;
-			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(mouseDelta));
+			const mouseDewta = posy - initiawPosY;
+			this._modew.setScwowwTop(initiawSwidewState.getDesiwedScwowwTopFwomDewta(mouseDewta));
 		};
 
-		if (posy !== initialPosY) {
-			handleMouseMove(posy, initialPosX);
+		if (posy !== initiawPosY) {
+			handweMouseMove(posy, initiawPosX);
 		}
 
-		this._sliderMouseMoveMonitor.startMonitoring(
-			this._slider.domNode,
-			initialButtons,
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => handleMouseMove(mouseMoveData.posy, mouseMoveData.posx),
+		this._swidewMouseMoveMonitow.stawtMonitowing(
+			this._swida.domNode,
+			initiawButtons,
+			standawdMouseMoveMewga,
+			(mouseMoveData: IStandawdMouseMoveEventData) => handweMouseMove(mouseMoveData.posy, mouseMoveData.posx),
 			() => {
-				this._slider.toggleClassName('active', false);
+				this._swida.toggweCwassName('active', fawse);
 			}
 		);
 	}
 
-	private scrollDueToTouchEvent(touch: GestureEvent) {
-		const startY = this._domNode.domNode.getBoundingClientRect().top;
-		const scrollTop = this._lastRenderData!.renderedLayout.getDesiredScrollTopFromTouchLocation(touch.pageY - startY);
-		this._model.setScrollTop(scrollTop);
+	pwivate scwowwDueToTouchEvent(touch: GestuweEvent) {
+		const stawtY = this._domNode.domNode.getBoundingCwientWect().top;
+		const scwowwTop = this._wastWendewData!.wendewedWayout.getDesiwedScwowwTopFwomTouchWocation(touch.pageY - stawtY);
+		this._modew.setScwowwTop(scwowwTop);
 	}
 
-	public override dispose(): void {
-		this._mouseDownListener.dispose();
-		this._sliderMouseMoveMonitor.dispose();
-		this._sliderMouseDownListener.dispose();
-		this._gestureDisposable.dispose();
-		this._sliderTouchStartListener.dispose();
-		this._sliderTouchMoveListener.dispose();
-		this._sliderTouchEndListener.dispose();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._mouseDownWistena.dispose();
+		this._swidewMouseMoveMonitow.dispose();
+		this._swidewMouseDownWistena.dispose();
+		this._gestuweDisposabwe.dispose();
+		this._swidewTouchStawtWistena.dispose();
+		this._swidewTouchMoveWistena.dispose();
+		this._swidewTouchEndWistena.dispose();
+		supa.dispose();
 	}
 
-	private _getMinimapDomNodeClassName(): string {
-		if (this._model.options.showSlider === 'always') {
-			return 'minimap slider-always';
+	pwivate _getMinimapDomNodeCwassName(): stwing {
+		if (this._modew.options.showSwida === 'awways') {
+			wetuwn 'minimap swida-awways';
 		}
-		return 'minimap slider-mouseover';
+		wetuwn 'minimap swida-mouseova';
 	}
 
-	public getDomNode(): FastDomNode<HTMLElement> {
-		return this._domNode;
+	pubwic getDomNode(): FastDomNode<HTMWEwement> {
+		wetuwn this._domNode;
 	}
 
-	private _applyLayout(): void {
-		this._domNode.setLeft(this._model.options.minimapLeft);
-		this._domNode.setWidth(this._model.options.minimapWidth);
-		this._domNode.setHeight(this._model.options.minimapHeight);
-		this._shadow.setHeight(this._model.options.minimapHeight);
+	pwivate _appwyWayout(): void {
+		this._domNode.setWeft(this._modew.options.minimapWeft);
+		this._domNode.setWidth(this._modew.options.minimapWidth);
+		this._domNode.setHeight(this._modew.options.minimapHeight);
+		this._shadow.setHeight(this._modew.options.minimapHeight);
 
-		this._canvas.setWidth(this._model.options.canvasOuterWidth);
-		this._canvas.setHeight(this._model.options.canvasOuterHeight);
-		this._canvas.domNode.width = this._model.options.canvasInnerWidth;
-		this._canvas.domNode.height = this._model.options.canvasInnerHeight;
+		this._canvas.setWidth(this._modew.options.canvasOutewWidth);
+		this._canvas.setHeight(this._modew.options.canvasOutewHeight);
+		this._canvas.domNode.width = this._modew.options.canvasInnewWidth;
+		this._canvas.domNode.height = this._modew.options.canvasInnewHeight;
 
-		this._decorationsCanvas.setWidth(this._model.options.canvasOuterWidth);
-		this._decorationsCanvas.setHeight(this._model.options.canvasOuterHeight);
-		this._decorationsCanvas.domNode.width = this._model.options.canvasInnerWidth;
-		this._decorationsCanvas.domNode.height = this._model.options.canvasInnerHeight;
+		this._decowationsCanvas.setWidth(this._modew.options.canvasOutewWidth);
+		this._decowationsCanvas.setHeight(this._modew.options.canvasOutewHeight);
+		this._decowationsCanvas.domNode.width = this._modew.options.canvasInnewWidth;
+		this._decowationsCanvas.domNode.height = this._modew.options.canvasInnewHeight;
 
-		this._slider.setWidth(this._model.options.minimapWidth);
+		this._swida.setWidth(this._modew.options.minimapWidth);
 	}
 
-	private _getBuffer(): ImageData | null {
-		if (!this._buffers) {
-			if (this._model.options.canvasInnerWidth > 0 && this._model.options.canvasInnerHeight > 0) {
-				this._buffers = new MinimapBuffers(
+	pwivate _getBuffa(): ImageData | nuww {
+		if (!this._buffews) {
+			if (this._modew.options.canvasInnewWidth > 0 && this._modew.options.canvasInnewHeight > 0) {
+				this._buffews = new MinimapBuffews(
 					this._canvas.domNode.getContext('2d')!,
-					this._model.options.canvasInnerWidth,
-					this._model.options.canvasInnerHeight,
-					this._model.options.backgroundColor
+					this._modew.options.canvasInnewWidth,
+					this._modew.options.canvasInnewHeight,
+					this._modew.options.backgwoundCowow
 				);
 			}
 		}
-		return this._buffers ? this._buffers.getBuffer() : null;
+		wetuwn this._buffews ? this._buffews.getBuffa() : nuww;
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public onDidChangeOptions(): void {
-		this._lastRenderData = null;
-		this._buffers = null;
-		this._applyLayout();
-		this._domNode.setClassName(this._getMinimapDomNodeClassName());
+	pubwic onDidChangeOptions(): void {
+		this._wastWendewData = nuww;
+		this._buffews = nuww;
+		this._appwyWayout();
+		this._domNode.setCwassName(this._getMinimapDomNodeCwassName());
 	}
-	public onSelectionChanged(): boolean {
-		this._renderDecorations = true;
-		return true;
+	pubwic onSewectionChanged(): boowean {
+		this._wendewDecowations = twue;
+		wetuwn twue;
 	}
-	public onDecorationsChanged(): boolean {
-		this._renderDecorations = true;
-		return true;
+	pubwic onDecowationsChanged(): boowean {
+		this._wendewDecowations = twue;
+		wetuwn twue;
 	}
-	public onFlushed(): boolean {
-		this._lastRenderData = null;
-		return true;
+	pubwic onFwushed(): boowean {
+		this._wastWendewData = nuww;
+		wetuwn twue;
 	}
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			return this._lastRenderData.onLinesChanged(changeFromLineNumber, changeToLineNumber);
+	pubwic onWinesChanged(changeFwomWineNumba: numba, changeToWineNumba: numba): boowean {
+		if (this._wastWendewData) {
+			wetuwn this._wastWendewData.onWinesChanged(changeFwomWineNumba, changeToWineNumba);
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesDeleted(deleteFromLineNumber, deleteToLineNumber);
+	pubwic onWinesDeweted(deweteFwomWineNumba: numba, deweteToWineNumba: numba): boowean {
+		if (this._wastWendewData) {
+			this._wastWendewData.onWinesDeweted(deweteFwomWineNumba, deweteToWineNumba);
 		}
-		return true;
+		wetuwn twue;
 	}
-	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): boolean {
-		if (this._lastRenderData) {
-			this._lastRenderData.onLinesInserted(insertFromLineNumber, insertToLineNumber);
+	pubwic onWinesInsewted(insewtFwomWineNumba: numba, insewtToWineNumba: numba): boowean {
+		if (this._wastWendewData) {
+			this._wastWendewData.onWinesInsewted(insewtFwomWineNumba, insewtToWineNumba);
 		}
-		return true;
+		wetuwn twue;
 	}
-	public onScrollChanged(): boolean {
-		this._renderDecorations = true;
-		return true;
+	pubwic onScwowwChanged(): boowean {
+		this._wendewDecowations = twue;
+		wetuwn twue;
 	}
-	public onThemeChanged(): boolean {
-		this._selectionColor = this._theme.getColor(minimapSelection);
-		this._renderDecorations = true;
-		return true;
+	pubwic onThemeChanged(): boowean {
+		this._sewectionCowow = this._theme.getCowow(minimapSewection);
+		this._wendewDecowations = twue;
+		wetuwn twue;
 	}
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
-		if (this._lastRenderData) {
-			return this._lastRenderData.onTokensChanged(ranges);
+	pubwic onTokensChanged(wanges: { fwomWineNumba: numba; toWineNumba: numba; }[]): boowean {
+		if (this._wastWendewData) {
+			wetuwn this._wastWendewData.onTokensChanged(wanges);
 		}
-		return false;
+		wetuwn fawse;
 	}
-	public onTokensColorsChanged(): boolean {
-		this._lastRenderData = null;
-		this._buffers = null;
-		return true;
+	pubwic onTokensCowowsChanged(): boowean {
+		this._wastWendewData = nuww;
+		this._buffews = nuww;
+		wetuwn twue;
 	}
-	public onZonesChanged(): boolean {
-		this._lastRenderData = null;
-		return true;
+	pubwic onZonesChanged(): boowean {
+		this._wastWendewData = nuww;
+		wetuwn twue;
 	}
 
-	// --- end event handlers
+	// --- end event handwews
 
-	public render(renderingCtx: IMinimapRenderingContext): void {
-		const renderMinimap = this._model.options.renderMinimap;
-		if (renderMinimap === RenderMinimap.None) {
-			this._shadow.setClassName('minimap-shadow-hidden');
-			this._sliderHorizontal.setWidth(0);
-			this._sliderHorizontal.setHeight(0);
-			return;
+	pubwic wenda(wendewingCtx: IMinimapWendewingContext): void {
+		const wendewMinimap = this._modew.options.wendewMinimap;
+		if (wendewMinimap === WendewMinimap.None) {
+			this._shadow.setCwassName('minimap-shadow-hidden');
+			this._swidewHowizontaw.setWidth(0);
+			this._swidewHowizontaw.setHeight(0);
+			wetuwn;
 		}
-		if (renderingCtx.scrollLeft + renderingCtx.viewportWidth >= renderingCtx.scrollWidth) {
-			this._shadow.setClassName('minimap-shadow-hidden');
-		} else {
-			this._shadow.setClassName('minimap-shadow-visible');
+		if (wendewingCtx.scwowwWeft + wendewingCtx.viewpowtWidth >= wendewingCtx.scwowwWidth) {
+			this._shadow.setCwassName('minimap-shadow-hidden');
+		} ewse {
+			this._shadow.setCwassName('minimap-shadow-visibwe');
 		}
 
-		const layout = MinimapLayout.create(
-			this._model.options,
-			renderingCtx.viewportStartLineNumber,
-			renderingCtx.viewportEndLineNumber,
-			renderingCtx.viewportStartLineNumberVerticalOffset,
-			renderingCtx.viewportHeight,
-			renderingCtx.viewportContainsWhitespaceGaps,
-			this._model.getLineCount(),
-			this._model.getRealLineCount(),
-			renderingCtx.scrollTop,
-			renderingCtx.scrollHeight,
-			this._lastRenderData ? this._lastRenderData.renderedLayout : null
+		const wayout = MinimapWayout.cweate(
+			this._modew.options,
+			wendewingCtx.viewpowtStawtWineNumba,
+			wendewingCtx.viewpowtEndWineNumba,
+			wendewingCtx.viewpowtStawtWineNumbewVewticawOffset,
+			wendewingCtx.viewpowtHeight,
+			wendewingCtx.viewpowtContainsWhitespaceGaps,
+			this._modew.getWineCount(),
+			this._modew.getWeawWineCount(),
+			wendewingCtx.scwowwTop,
+			wendewingCtx.scwowwHeight,
+			this._wastWendewData ? this._wastWendewData.wendewedWayout : nuww
 		);
-		this._slider.setDisplay(layout.sliderNeeded ? 'block' : 'none');
-		this._slider.setTop(layout.sliderTop);
-		this._slider.setHeight(layout.sliderHeight);
+		this._swida.setDispway(wayout.swidewNeeded ? 'bwock' : 'none');
+		this._swida.setTop(wayout.swidewTop);
+		this._swida.setHeight(wayout.swidewHeight);
 
-		// Compute horizontal slider coordinates
-		const scrollLeftChars = renderingCtx.scrollLeft / this._model.options.typicalHalfwidthCharacterWidth;
-		const horizontalSliderLeft = Math.min(this._model.options.minimapWidth, Math.round(scrollLeftChars * this._model.options.minimapCharWidth / this._model.options.pixelRatio));
-		this._sliderHorizontal.setLeft(horizontalSliderLeft);
-		this._sliderHorizontal.setWidth(this._model.options.minimapWidth - horizontalSliderLeft);
-		this._sliderHorizontal.setTop(0);
-		this._sliderHorizontal.setHeight(layout.sliderHeight);
+		// Compute howizontaw swida coowdinates
+		const scwowwWeftChaws = wendewingCtx.scwowwWeft / this._modew.options.typicawHawfwidthChawactewWidth;
+		const howizontawSwidewWeft = Math.min(this._modew.options.minimapWidth, Math.wound(scwowwWeftChaws * this._modew.options.minimapChawWidth / this._modew.options.pixewWatio));
+		this._swidewHowizontaw.setWeft(howizontawSwidewWeft);
+		this._swidewHowizontaw.setWidth(this._modew.options.minimapWidth - howizontawSwidewWeft);
+		this._swidewHowizontaw.setTop(0);
+		this._swidewHowizontaw.setHeight(wayout.swidewHeight);
 
-		this.renderDecorations(layout);
-		this._lastRenderData = this.renderLines(layout);
+		this.wendewDecowations(wayout);
+		this._wastWendewData = this.wendewWines(wayout);
 	}
 
-	private renderDecorations(layout: MinimapLayout) {
-		if (this._renderDecorations) {
-			this._renderDecorations = false;
-			const selections = this._model.getSelections();
-			selections.sort(Range.compareRangesUsingStarts);
+	pwivate wendewDecowations(wayout: MinimapWayout) {
+		if (this._wendewDecowations) {
+			this._wendewDecowations = fawse;
+			const sewections = this._modew.getSewections();
+			sewections.sowt(Wange.compaweWangesUsingStawts);
 
-			const decorations = this._model.getMinimapDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
-			decorations.sort((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
+			const decowations = this._modew.getMinimapDecowationsInViewpowt(wayout.stawtWineNumba, wayout.endWineNumba);
+			decowations.sowt((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
 
-			const { canvasInnerWidth, canvasInnerHeight } = this._model.options;
-			const lineHeight = this._model.options.minimapLineHeight;
-			const characterWidth = this._model.options.minimapCharWidth;
-			const tabSize = this._model.getOptions().tabSize;
-			const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+			const { canvasInnewWidth, canvasInnewHeight } = this._modew.options;
+			const wineHeight = this._modew.options.minimapWineHeight;
+			const chawactewWidth = this._modew.options.minimapChawWidth;
+			const tabSize = this._modew.getOptions().tabSize;
+			const canvasContext = this._decowationsCanvas.domNode.getContext('2d')!;
 
-			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
+			canvasContext.cweawWect(0, 0, canvasInnewWidth, canvasInnewHeight);
 
-			// We first need to render line highlights and then render decorations on top of those.
-			// But we need to pick a single color for each line, and use that as a line highlight.
-			// This needs to be the color of the decoration with the highest `zIndex`, but priority
-			// is given to the selection.
+			// We fiwst need to wenda wine highwights and then wenda decowations on top of those.
+			// But we need to pick a singwe cowow fow each wine, and use that as a wine highwight.
+			// This needs to be the cowow of the decowation with the highest `zIndex`, but pwiowity
+			// is given to the sewection.
 
-			const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
-			this._renderSelectionLineHighlights(canvasContext, selections, highlightedLines, layout, lineHeight);
-			this._renderDecorationsLineHighlights(canvasContext, decorations, highlightedLines, layout, lineHeight);
+			const highwightedWines = new ContiguousWineMap<boowean>(wayout.stawtWineNumba, wayout.endWineNumba, fawse);
+			this._wendewSewectionWineHighwights(canvasContext, sewections, highwightedWines, wayout, wineHeight);
+			this._wendewDecowationsWineHighwights(canvasContext, decowations, highwightedWines, wayout, wineHeight);
 
-			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
-			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
-			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+			const wineOffsetMap = new ContiguousWineMap<numba[] | nuww>(wayout.stawtWineNumba, wayout.endWineNumba, nuww);
+			this._wendewSewectionsHighwights(canvasContext, sewections, wineOffsetMap, wayout, wineHeight, tabSize, chawactewWidth, canvasInnewWidth);
+			this._wendewDecowationsHighwights(canvasContext, decowations, wineOffsetMap, wayout, wineHeight, tabSize, chawactewWidth, canvasInnewWidth);
 		}
 	}
 
-	private _renderSelectionLineHighlights(
-		canvasContext: CanvasRenderingContext2D,
-		selections: Selection[],
-		highlightedLines: ContiguousLineMap<boolean>,
-		layout: MinimapLayout,
-		lineHeight: number
+	pwivate _wendewSewectionWineHighwights(
+		canvasContext: CanvasWendewingContext2D,
+		sewections: Sewection[],
+		highwightedWines: ContiguousWineMap<boowean>,
+		wayout: MinimapWayout,
+		wineHeight: numba
 	): void {
-		if (!this._selectionColor || this._selectionColor.isTransparent()) {
-			return;
+		if (!this._sewectionCowow || this._sewectionCowow.isTwanspawent()) {
+			wetuwn;
 		}
 
-		canvasContext.fillStyle = this._selectionColor.transparent(0.5).toString();
+		canvasContext.fiwwStywe = this._sewectionCowow.twanspawent(0.5).toStwing();
 
-		let y1 = 0;
-		let y2 = 0;
+		wet y1 = 0;
+		wet y2 = 0;
 
-		for (const selection of selections) {
-			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
-			if (startLineNumber > endLineNumber) {
-				// entirely outside minimap's viewport
+		fow (const sewection of sewections) {
+			const stawtWineNumba = Math.max(wayout.stawtWineNumba, sewection.stawtWineNumba);
+			const endWineNumba = Math.min(wayout.endWineNumba, sewection.endWineNumba);
+			if (stawtWineNumba > endWineNumba) {
+				// entiwewy outside minimap's viewpowt
 				continue;
 			}
 
-			for (let line = startLineNumber; line <= endLineNumber; line++) {
-				highlightedLines.set(line, true);
+			fow (wet wine = stawtWineNumba; wine <= endWineNumba; wine++) {
+				highwightedWines.set(wine, twue);
 			}
 
-			const yy1 = (startLineNumber - layout.startLineNumber) * lineHeight;
-			const yy2 = (endLineNumber - layout.startLineNumber) * lineHeight + lineHeight;
+			const yy1 = (stawtWineNumba - wayout.stawtWineNumba) * wineHeight;
+			const yy2 = (endWineNumba - wayout.stawtWineNumba) * wineHeight + wineHeight;
 
 			if (y2 >= yy1) {
-				// merge into previous
+				// mewge into pwevious
 				y2 = yy2;
-			} else {
+			} ewse {
 				if (y2 > y1) {
-					// flush
-					canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+					// fwush
+					canvasContext.fiwwWect(MINIMAP_GUTTEW_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
 				}
 				y1 = yy1;
 				y2 = yy2;
@@ -1459,460 +1459,460 @@ class InnerMinimap extends Disposable {
 		}
 
 		if (y2 > y1) {
-			// flush
-			canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+			// fwush
+			canvasContext.fiwwWect(MINIMAP_GUTTEW_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
 		}
 	}
 
-	private _renderDecorationsLineHighlights(
-		canvasContext: CanvasRenderingContext2D,
-		decorations: ViewModelDecoration[],
-		highlightedLines: ContiguousLineMap<boolean>,
-		layout: MinimapLayout,
-		lineHeight: number
+	pwivate _wendewDecowationsWineHighwights(
+		canvasContext: CanvasWendewingContext2D,
+		decowations: ViewModewDecowation[],
+		highwightedWines: ContiguousWineMap<boowean>,
+		wayout: MinimapWayout,
+		wineHeight: numba
 	): void {
 
-		const highlightColors = new Map<string, string>();
+		const highwightCowows = new Map<stwing, stwing>();
 
-		// Loop backwards to hit first decorations with higher `zIndex`
-		for (let i = decorations.length - 1; i >= 0; i--) {
-			const decoration = decorations[i];
+		// Woop backwawds to hit fiwst decowations with higha `zIndex`
+		fow (wet i = decowations.wength - 1; i >= 0; i--) {
+			const decowation = decowations[i];
 
-			const minimapOptions = <ModelDecorationMinimapOptions | null | undefined>decoration.options.minimap;
-			if (!minimapOptions || minimapOptions.position !== MinimapPosition.Inline) {
+			const minimapOptions = <ModewDecowationMinimapOptions | nuww | undefined>decowation.options.minimap;
+			if (!minimapOptions || minimapOptions.position !== MinimapPosition.Inwine) {
 				continue;
 			}
 
-			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
-			if (startLineNumber > endLineNumber) {
-				// entirely outside minimap's viewport
+			const stawtWineNumba = Math.max(wayout.stawtWineNumba, decowation.wange.stawtWineNumba);
+			const endWineNumba = Math.min(wayout.endWineNumba, decowation.wange.endWineNumba);
+			if (stawtWineNumba > endWineNumba) {
+				// entiwewy outside minimap's viewpowt
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
-			if (!decorationColor || decorationColor.isTransparent()) {
+			const decowationCowow = minimapOptions.getCowow(this._theme);
+			if (!decowationCowow || decowationCowow.isTwanspawent()) {
 				continue;
 			}
 
-			let highlightColor = highlightColors.get(decorationColor.toString());
-			if (!highlightColor) {
-				highlightColor = decorationColor.transparent(0.5).toString();
-				highlightColors.set(decorationColor.toString(), highlightColor);
+			wet highwightCowow = highwightCowows.get(decowationCowow.toStwing());
+			if (!highwightCowow) {
+				highwightCowow = decowationCowow.twanspawent(0.5).toStwing();
+				highwightCowows.set(decowationCowow.toStwing(), highwightCowow);
 			}
 
-			canvasContext.fillStyle = highlightColor;
-			for (let line = startLineNumber; line <= endLineNumber; line++) {
-				if (highlightedLines.has(line)) {
+			canvasContext.fiwwStywe = highwightCowow;
+			fow (wet wine = stawtWineNumba; wine <= endWineNumba; wine++) {
+				if (highwightedWines.has(wine)) {
 					continue;
 				}
-				highlightedLines.set(line, true);
-				const y = (startLineNumber - layout.startLineNumber) * lineHeight;
-				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, lineHeight);
+				highwightedWines.set(wine, twue);
+				const y = (stawtWineNumba - wayout.stawtWineNumba) * wineHeight;
+				canvasContext.fiwwWect(MINIMAP_GUTTEW_WIDTH, y, canvasContext.canvas.width, wineHeight);
 			}
 		}
 	}
 
-	private _renderSelectionsHighlights(
-		canvasContext: CanvasRenderingContext2D,
-		selections: Selection[],
-		lineOffsetMap: ContiguousLineMap<number[] | null>,
-		layout: MinimapLayout,
-		lineHeight: number,
-		tabSize: number,
-		characterWidth: number,
-		canvasInnerWidth: number
+	pwivate _wendewSewectionsHighwights(
+		canvasContext: CanvasWendewingContext2D,
+		sewections: Sewection[],
+		wineOffsetMap: ContiguousWineMap<numba[] | nuww>,
+		wayout: MinimapWayout,
+		wineHeight: numba,
+		tabSize: numba,
+		chawactewWidth: numba,
+		canvasInnewWidth: numba
 	): void {
-		if (!this._selectionColor || this._selectionColor.isTransparent()) {
-			return;
+		if (!this._sewectionCowow || this._sewectionCowow.isTwanspawent()) {
+			wetuwn;
 		}
-		for (const selection of selections) {
-			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
-			if (startLineNumber > endLineNumber) {
-				// entirely outside minimap's viewport
+		fow (const sewection of sewections) {
+			const stawtWineNumba = Math.max(wayout.stawtWineNumba, sewection.stawtWineNumba);
+			const endWineNumba = Math.min(wayout.endWineNumba, sewection.endWineNumba);
+			if (stawtWineNumba > endWineNumba) {
+				// entiwewy outside minimap's viewpowt
 				continue;
 			}
 
-			for (let line = startLineNumber; line <= endLineNumber; line++) {
-				this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+			fow (wet wine = stawtWineNumba; wine <= endWineNumba; wine++) {
+				this.wendewDecowationOnWine(canvasContext, wineOffsetMap, sewection, this._sewectionCowow, wayout, wine, wineHeight, wineHeight, tabSize, chawactewWidth, canvasInnewWidth);
 			}
 		}
 	}
 
-	private _renderDecorationsHighlights(
-		canvasContext: CanvasRenderingContext2D,
-		decorations: ViewModelDecoration[],
-		lineOffsetMap: ContiguousLineMap<number[] | null>,
-		layout: MinimapLayout,
-		lineHeight: number,
-		tabSize: number,
-		characterWidth: number,
-		canvasInnerWidth: number
+	pwivate _wendewDecowationsHighwights(
+		canvasContext: CanvasWendewingContext2D,
+		decowations: ViewModewDecowation[],
+		wineOffsetMap: ContiguousWineMap<numba[] | nuww>,
+		wayout: MinimapWayout,
+		wineHeight: numba,
+		tabSize: numba,
+		chawactewWidth: numba,
+		canvasInnewWidth: numba
 	): void {
-		// Loop forwards to hit first decorations with lower `zIndex`
-		for (const decoration of decorations) {
+		// Woop fowwawds to hit fiwst decowations with wowa `zIndex`
+		fow (const decowation of decowations) {
 
-			const minimapOptions = <ModelDecorationMinimapOptions | null | undefined>decoration.options.minimap;
+			const minimapOptions = <ModewDecowationMinimapOptions | nuww | undefined>decowation.options.minimap;
 			if (!minimapOptions) {
 				continue;
 			}
 
-			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
-			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
-			if (startLineNumber > endLineNumber) {
-				// entirely outside minimap's viewport
+			const stawtWineNumba = Math.max(wayout.stawtWineNumba, decowation.wange.stawtWineNumba);
+			const endWineNumba = Math.min(wayout.endWineNumba, decowation.wange.endWineNumba);
+			if (stawtWineNumba > endWineNumba) {
+				// entiwewy outside minimap's viewpowt
 				continue;
 			}
 
-			const decorationColor = minimapOptions.getColor(this._theme);
-			if (!decorationColor || decorationColor.isTransparent()) {
+			const decowationCowow = minimapOptions.getCowow(this._theme);
+			if (!decowationCowow || decowationCowow.isTwanspawent()) {
 				continue;
 			}
 
-			for (let line = startLineNumber; line <= endLineNumber; line++) {
+			fow (wet wine = stawtWineNumba; wine <= endWineNumba; wine++) {
 				switch (minimapOptions.position) {
 
-					case MinimapPosition.Inline:
-						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+					case MinimapPosition.Inwine:
+						this.wendewDecowationOnWine(canvasContext, wineOffsetMap, decowation.wange, decowationCowow, wayout, wine, wineHeight, wineHeight, tabSize, chawactewWidth, canvasInnewWidth);
 						continue;
 
-					case MinimapPosition.Gutter:
-						const y = (line - layout.startLineNumber) * lineHeight;
+					case MinimapPosition.Gutta:
+						const y = (wine - wayout.stawtWineNumba) * wineHeight;
 						const x = 2;
-						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
+						this.wendewDecowation(canvasContext, decowationCowow, x, y, GUTTEW_DECOWATION_WIDTH, wineHeight);
 						continue;
 				}
 			}
 		}
 	}
 
-	private renderDecorationOnLine(
-		canvasContext: CanvasRenderingContext2D,
-		lineOffsetMap: ContiguousLineMap<number[] | null>,
-		decorationRange: Range,
-		decorationColor: Color | undefined,
-		layout: MinimapLayout,
-		lineNumber: number,
-		height: number,
-		lineHeight: number,
-		tabSize: number,
-		charWidth: number,
-		canvasInnerWidth: number
+	pwivate wendewDecowationOnWine(
+		canvasContext: CanvasWendewingContext2D,
+		wineOffsetMap: ContiguousWineMap<numba[] | nuww>,
+		decowationWange: Wange,
+		decowationCowow: Cowow | undefined,
+		wayout: MinimapWayout,
+		wineNumba: numba,
+		height: numba,
+		wineHeight: numba,
+		tabSize: numba,
+		chawWidth: numba,
+		canvasInnewWidth: numba
 	): void {
-		const y = (lineNumber - layout.startLineNumber) * lineHeight;
+		const y = (wineNumba - wayout.stawtWineNumba) * wineHeight;
 
-		// Skip rendering the line if it's vertically outside our viewport
-		if (y + height < 0 || y > this._model.options.canvasInnerHeight) {
-			return;
+		// Skip wendewing the wine if it's vewticawwy outside ouw viewpowt
+		if (y + height < 0 || y > this._modew.options.canvasInnewHeight) {
+			wetuwn;
 		}
 
-		const { startLineNumber, endLineNumber } = decorationRange;
-		const startColumn = (startLineNumber === lineNumber ? decorationRange.startColumn : 1);
-		const endColumn = (endLineNumber === lineNumber ? decorationRange.endColumn : this._model.getLineMaxColumn(lineNumber));
+		const { stawtWineNumba, endWineNumba } = decowationWange;
+		const stawtCowumn = (stawtWineNumba === wineNumba ? decowationWange.stawtCowumn : 1);
+		const endCowumn = (endWineNumba === wineNumba ? decowationWange.endCowumn : this._modew.getWineMaxCowumn(wineNumba));
 
-		const x1 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, startColumn, tabSize, charWidth, canvasInnerWidth);
-		const x2 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, endColumn, tabSize, charWidth, canvasInnerWidth);
+		const x1 = this.getXOffsetFowPosition(wineOffsetMap, wineNumba, stawtCowumn, tabSize, chawWidth, canvasInnewWidth);
+		const x2 = this.getXOffsetFowPosition(wineOffsetMap, wineNumba, endCowumn, tabSize, chawWidth, canvasInnewWidth);
 
-		this.renderDecoration(canvasContext, decorationColor, x1, y, x2 - x1, height);
+		this.wendewDecowation(canvasContext, decowationCowow, x1, y, x2 - x1, height);
 	}
 
-	private getXOffsetForPosition(
-		lineOffsetMap: ContiguousLineMap<number[] | null>,
-		lineNumber: number,
-		column: number,
-		tabSize: number,
-		charWidth: number,
-		canvasInnerWidth: number
-	): number {
-		if (column === 1) {
-			return MINIMAP_GUTTER_WIDTH;
+	pwivate getXOffsetFowPosition(
+		wineOffsetMap: ContiguousWineMap<numba[] | nuww>,
+		wineNumba: numba,
+		cowumn: numba,
+		tabSize: numba,
+		chawWidth: numba,
+		canvasInnewWidth: numba
+	): numba {
+		if (cowumn === 1) {
+			wetuwn MINIMAP_GUTTEW_WIDTH;
 		}
 
-		const minimumXOffset = (column - 1) * charWidth;
-		if (minimumXOffset >= canvasInnerWidth) {
-			// there is no need to look at actual characters,
-			// as this column is certainly after the minimap width
-			return canvasInnerWidth;
+		const minimumXOffset = (cowumn - 1) * chawWidth;
+		if (minimumXOffset >= canvasInnewWidth) {
+			// thewe is no need to wook at actuaw chawactews,
+			// as this cowumn is cewtainwy afta the minimap width
+			wetuwn canvasInnewWidth;
 		}
 
-		// Cache line offset data so that it is only read once per line
-		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
-		if (!lineIndexToXOffset) {
-			const lineData = this._model.getLineContent(lineNumber);
-			lineIndexToXOffset = [MINIMAP_GUTTER_WIDTH];
-			let prevx = MINIMAP_GUTTER_WIDTH;
-			for (let i = 1; i < lineData.length + 1; i++) {
-				const charCode = lineData.charCodeAt(i - 1);
-				const dx = charCode === CharCode.Tab
-					? tabSize * charWidth
-					: strings.isFullWidthCharacter(charCode)
-						? 2 * charWidth
-						: charWidth;
+		// Cache wine offset data so that it is onwy wead once pew wine
+		wet wineIndexToXOffset = wineOffsetMap.get(wineNumba);
+		if (!wineIndexToXOffset) {
+			const wineData = this._modew.getWineContent(wineNumba);
+			wineIndexToXOffset = [MINIMAP_GUTTEW_WIDTH];
+			wet pwevx = MINIMAP_GUTTEW_WIDTH;
+			fow (wet i = 1; i < wineData.wength + 1; i++) {
+				const chawCode = wineData.chawCodeAt(i - 1);
+				const dx = chawCode === ChawCode.Tab
+					? tabSize * chawWidth
+					: stwings.isFuwwWidthChawacta(chawCode)
+						? 2 * chawWidth
+						: chawWidth;
 
-				const x = prevx + dx;
-				if (x >= canvasInnerWidth) {
+				const x = pwevx + dx;
+				if (x >= canvasInnewWidth) {
 					// no need to keep on going, as we've hit the canvas width
-					lineIndexToXOffset[i] = canvasInnerWidth;
-					break;
+					wineIndexToXOffset[i] = canvasInnewWidth;
+					bweak;
 				}
 
-				lineIndexToXOffset[i] = x;
-				prevx = x;
+				wineIndexToXOffset[i] = x;
+				pwevx = x;
 			}
 
-			lineOffsetMap.set(lineNumber, lineIndexToXOffset);
+			wineOffsetMap.set(wineNumba, wineIndexToXOffset);
 		}
 
-		if (column - 1 < lineIndexToXOffset.length) {
-			return lineIndexToXOffset[column - 1];
+		if (cowumn - 1 < wineIndexToXOffset.wength) {
+			wetuwn wineIndexToXOffset[cowumn - 1];
 		}
-		// goes over the canvas width
-		return canvasInnerWidth;
+		// goes ova the canvas width
+		wetuwn canvasInnewWidth;
 	}
 
-	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
-		canvasContext.fillStyle = decorationColor && decorationColor.toString() || '';
-		canvasContext.fillRect(x, y, width, height);
+	pwivate wendewDecowation(canvasContext: CanvasWendewingContext2D, decowationCowow: Cowow | undefined, x: numba, y: numba, width: numba, height: numba) {
+		canvasContext.fiwwStywe = decowationCowow && decowationCowow.toStwing() || '';
+		canvasContext.fiwwWect(x, y, width, height);
 	}
 
-	private renderLines(layout: MinimapLayout): RenderData | null {
-		const startLineNumber = layout.startLineNumber;
-		const endLineNumber = layout.endLineNumber;
-		const minimapLineHeight = this._model.options.minimapLineHeight;
+	pwivate wendewWines(wayout: MinimapWayout): WendewData | nuww {
+		const stawtWineNumba = wayout.stawtWineNumba;
+		const endWineNumba = wayout.endWineNumba;
+		const minimapWineHeight = this._modew.options.minimapWineHeight;
 
-		// Check if nothing changed w.r.t. lines from last frame
-		if (this._lastRenderData && this._lastRenderData.linesEquals(layout)) {
-			const _lastData = this._lastRenderData._get();
-			// Nice!! Nothing changed from last frame
-			return new RenderData(layout, _lastData.imageData, _lastData.lines);
+		// Check if nothing changed w.w.t. wines fwom wast fwame
+		if (this._wastWendewData && this._wastWendewData.winesEquaws(wayout)) {
+			const _wastData = this._wastWendewData._get();
+			// Nice!! Nothing changed fwom wast fwame
+			wetuwn new WendewData(wayout, _wastData.imageData, _wastData.wines);
 		}
 
-		// Oh well!! We need to repaint some lines...
+		// Oh weww!! We need to wepaint some wines...
 
-		const imageData = this._getBuffer();
+		const imageData = this._getBuffa();
 		if (!imageData) {
-			// 0 width or 0 height canvas, nothing to do
-			return null;
+			// 0 width ow 0 height canvas, nothing to do
+			wetuwn nuww;
 		}
 
-		// Render untouched lines by using last rendered data.
-		let [_dirtyY1, _dirtyY2, needed] = InnerMinimap._renderUntouchedLines(
+		// Wenda untouched wines by using wast wendewed data.
+		wet [_diwtyY1, _diwtyY2, needed] = InnewMinimap._wendewUntouchedWines(
 			imageData,
-			startLineNumber,
-			endLineNumber,
-			minimapLineHeight,
-			this._lastRenderData
+			stawtWineNumba,
+			endWineNumba,
+			minimapWineHeight,
+			this._wastWendewData
 		);
 
-		// Fetch rendering info from view model for rest of lines that need rendering.
-		const lineInfo = this._model.getMinimapLinesRenderingData(startLineNumber, endLineNumber, needed);
-		const tabSize = this._model.getOptions().tabSize;
-		const background = this._model.options.backgroundColor;
-		const tokensColorTracker = this._model.tokensColorTracker;
-		const useLighterFont = tokensColorTracker.backgroundIsLight();
-		const renderMinimap = this._model.options.renderMinimap;
-		const charRenderer = this._model.options.charRenderer();
-		const fontScale = this._model.options.fontScale;
-		const minimapCharWidth = this._model.options.minimapCharWidth;
+		// Fetch wendewing info fwom view modew fow west of wines that need wendewing.
+		const wineInfo = this._modew.getMinimapWinesWendewingData(stawtWineNumba, endWineNumba, needed);
+		const tabSize = this._modew.getOptions().tabSize;
+		const backgwound = this._modew.options.backgwoundCowow;
+		const tokensCowowTwacka = this._modew.tokensCowowTwacka;
+		const useWightewFont = tokensCowowTwacka.backgwoundIsWight();
+		const wendewMinimap = this._modew.options.wendewMinimap;
+		const chawWendewa = this._modew.options.chawWendewa();
+		const fontScawe = this._modew.options.fontScawe;
+		const minimapChawWidth = this._modew.options.minimapChawWidth;
 
-		const baseCharHeight = (renderMinimap === RenderMinimap.Text ? Constants.BASE_CHAR_HEIGHT : Constants.BASE_CHAR_HEIGHT + 1);
-		const renderMinimapLineHeight = baseCharHeight * fontScale;
-		const innerLinePadding = (minimapLineHeight > renderMinimapLineHeight ? Math.floor((minimapLineHeight - renderMinimapLineHeight) / 2) : 0);
+		const baseChawHeight = (wendewMinimap === WendewMinimap.Text ? Constants.BASE_CHAW_HEIGHT : Constants.BASE_CHAW_HEIGHT + 1);
+		const wendewMinimapWineHeight = baseChawHeight * fontScawe;
+		const innewWinePadding = (minimapWineHeight > wendewMinimapWineHeight ? Math.fwoow((minimapWineHeight - wendewMinimapWineHeight) / 2) : 0);
 
-		// Render the rest of lines
-		let dy = 0;
-		const renderedLines: MinimapLine[] = [];
-		for (let lineIndex = 0, lineCount = endLineNumber - startLineNumber + 1; lineIndex < lineCount; lineIndex++) {
-			if (needed[lineIndex]) {
-				InnerMinimap._renderLine(
+		// Wenda the west of wines
+		wet dy = 0;
+		const wendewedWines: MinimapWine[] = [];
+		fow (wet wineIndex = 0, wineCount = endWineNumba - stawtWineNumba + 1; wineIndex < wineCount; wineIndex++) {
+			if (needed[wineIndex]) {
+				InnewMinimap._wendewWine(
 					imageData,
-					background,
-					useLighterFont,
-					renderMinimap,
-					minimapCharWidth,
-					tokensColorTracker,
-					charRenderer,
+					backgwound,
+					useWightewFont,
+					wendewMinimap,
+					minimapChawWidth,
+					tokensCowowTwacka,
+					chawWendewa,
 					dy,
-					innerLinePadding,
+					innewWinePadding,
 					tabSize,
-					lineInfo[lineIndex]!,
-					fontScale,
-					minimapLineHeight
+					wineInfo[wineIndex]!,
+					fontScawe,
+					minimapWineHeight
 				);
 			}
-			renderedLines[lineIndex] = new MinimapLine(dy);
-			dy += minimapLineHeight;
+			wendewedWines[wineIndex] = new MinimapWine(dy);
+			dy += minimapWineHeight;
 		}
 
-		const dirtyY1 = (_dirtyY1 === -1 ? 0 : _dirtyY1);
-		const dirtyY2 = (_dirtyY2 === -1 ? imageData.height : _dirtyY2);
-		const dirtyHeight = dirtyY2 - dirtyY1;
+		const diwtyY1 = (_diwtyY1 === -1 ? 0 : _diwtyY1);
+		const diwtyY2 = (_diwtyY2 === -1 ? imageData.height : _diwtyY2);
+		const diwtyHeight = diwtyY2 - diwtyY1;
 
-		// Finally, paint to the canvas
+		// Finawwy, paint to the canvas
 		const ctx = this._canvas.domNode.getContext('2d')!;
-		ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
+		ctx.putImageData(imageData, 0, 0, 0, diwtyY1, imageData.width, diwtyHeight);
 
-		// Save rendered data for reuse on next frame if possible
-		return new RenderData(
-			layout,
+		// Save wendewed data fow weuse on next fwame if possibwe
+		wetuwn new WendewData(
+			wayout,
 			imageData,
-			renderedLines
+			wendewedWines
 		);
 	}
 
-	private static _renderUntouchedLines(
-		target: ImageData,
-		startLineNumber: number,
-		endLineNumber: number,
-		minimapLineHeight: number,
-		lastRenderData: RenderData | null,
-	): [number, number, boolean[]] {
+	pwivate static _wendewUntouchedWines(
+		tawget: ImageData,
+		stawtWineNumba: numba,
+		endWineNumba: numba,
+		minimapWineHeight: numba,
+		wastWendewData: WendewData | nuww,
+	): [numba, numba, boowean[]] {
 
-		const needed: boolean[] = [];
-		if (!lastRenderData) {
-			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
-				needed[i] = true;
+		const needed: boowean[] = [];
+		if (!wastWendewData) {
+			fow (wet i = 0, wen = endWineNumba - stawtWineNumba + 1; i < wen; i++) {
+				needed[i] = twue;
 			}
-			return [-1, -1, needed];
+			wetuwn [-1, -1, needed];
 		}
 
-		const _lastData = lastRenderData._get();
-		const lastTargetData = _lastData.imageData.data;
-		const lastStartLineNumber = _lastData.rendLineNumberStart;
-		const lastLines = _lastData.lines;
-		const lastLinesLength = lastLines.length;
-		const WIDTH = target.width;
-		const targetData = target.data;
+		const _wastData = wastWendewData._get();
+		const wastTawgetData = _wastData.imageData.data;
+		const wastStawtWineNumba = _wastData.wendWineNumbewStawt;
+		const wastWines = _wastData.wines;
+		const wastWinesWength = wastWines.wength;
+		const WIDTH = tawget.width;
+		const tawgetData = tawget.data;
 
-		const maxDestPixel = (endLineNumber - startLineNumber + 1) * minimapLineHeight * WIDTH * 4;
-		let dirtyPixel1 = -1; // the pixel offset up to which all the data is equal to the prev frame
-		let dirtyPixel2 = -1; // the pixel offset after which all the data is equal to the prev frame
+		const maxDestPixew = (endWineNumba - stawtWineNumba + 1) * minimapWineHeight * WIDTH * 4;
+		wet diwtyPixew1 = -1; // the pixew offset up to which aww the data is equaw to the pwev fwame
+		wet diwtyPixew2 = -1; // the pixew offset afta which aww the data is equaw to the pwev fwame
 
-		let copySourceStart = -1;
-		let copySourceEnd = -1;
-		let copyDestStart = -1;
-		let copyDestEnd = -1;
+		wet copySouwceStawt = -1;
+		wet copySouwceEnd = -1;
+		wet copyDestStawt = -1;
+		wet copyDestEnd = -1;
 
-		let dest_dy = 0;
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - startLineNumber;
-			const lastLineIndex = lineNumber - lastStartLineNumber;
-			const source_dy = (lastLineIndex >= 0 && lastLineIndex < lastLinesLength ? lastLines[lastLineIndex].dy : -1);
+		wet dest_dy = 0;
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - stawtWineNumba;
+			const wastWineIndex = wineNumba - wastStawtWineNumba;
+			const souwce_dy = (wastWineIndex >= 0 && wastWineIndex < wastWinesWength ? wastWines[wastWineIndex].dy : -1);
 
-			if (source_dy === -1) {
-				needed[lineIndex] = true;
-				dest_dy += minimapLineHeight;
+			if (souwce_dy === -1) {
+				needed[wineIndex] = twue;
+				dest_dy += minimapWineHeight;
 				continue;
 			}
 
-			const sourceStart = source_dy * WIDTH * 4;
-			const sourceEnd = (source_dy + minimapLineHeight) * WIDTH * 4;
-			const destStart = dest_dy * WIDTH * 4;
-			const destEnd = (dest_dy + minimapLineHeight) * WIDTH * 4;
+			const souwceStawt = souwce_dy * WIDTH * 4;
+			const souwceEnd = (souwce_dy + minimapWineHeight) * WIDTH * 4;
+			const destStawt = dest_dy * WIDTH * 4;
+			const destEnd = (dest_dy + minimapWineHeight) * WIDTH * 4;
 
-			if (copySourceEnd === sourceStart && copyDestEnd === destStart) {
-				// contiguous zone => extend copy request
-				copySourceEnd = sourceEnd;
+			if (copySouwceEnd === souwceStawt && copyDestEnd === destStawt) {
+				// contiguous zone => extend copy wequest
+				copySouwceEnd = souwceEnd;
 				copyDestEnd = destEnd;
-			} else {
-				if (copySourceStart !== -1) {
-					// flush existing copy request
-					targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
-					if (dirtyPixel1 === -1 && copySourceStart === 0 && copySourceStart === copyDestStart) {
-						dirtyPixel1 = copySourceEnd;
+			} ewse {
+				if (copySouwceStawt !== -1) {
+					// fwush existing copy wequest
+					tawgetData.set(wastTawgetData.subawway(copySouwceStawt, copySouwceEnd), copyDestStawt);
+					if (diwtyPixew1 === -1 && copySouwceStawt === 0 && copySouwceStawt === copyDestStawt) {
+						diwtyPixew1 = copySouwceEnd;
 					}
-					if (dirtyPixel2 === -1 && copySourceEnd === maxDestPixel && copySourceStart === copyDestStart) {
-						dirtyPixel2 = copySourceStart;
+					if (diwtyPixew2 === -1 && copySouwceEnd === maxDestPixew && copySouwceStawt === copyDestStawt) {
+						diwtyPixew2 = copySouwceStawt;
 					}
 				}
-				copySourceStart = sourceStart;
-				copySourceEnd = sourceEnd;
-				copyDestStart = destStart;
+				copySouwceStawt = souwceStawt;
+				copySouwceEnd = souwceEnd;
+				copyDestStawt = destStawt;
 				copyDestEnd = destEnd;
 			}
 
-			needed[lineIndex] = false;
-			dest_dy += minimapLineHeight;
+			needed[wineIndex] = fawse;
+			dest_dy += minimapWineHeight;
 		}
 
-		if (copySourceStart !== -1) {
-			// flush existing copy request
-			targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
-			if (dirtyPixel1 === -1 && copySourceStart === 0 && copySourceStart === copyDestStart) {
-				dirtyPixel1 = copySourceEnd;
+		if (copySouwceStawt !== -1) {
+			// fwush existing copy wequest
+			tawgetData.set(wastTawgetData.subawway(copySouwceStawt, copySouwceEnd), copyDestStawt);
+			if (diwtyPixew1 === -1 && copySouwceStawt === 0 && copySouwceStawt === copyDestStawt) {
+				diwtyPixew1 = copySouwceEnd;
 			}
-			if (dirtyPixel2 === -1 && copySourceEnd === maxDestPixel && copySourceStart === copyDestStart) {
-				dirtyPixel2 = copySourceStart;
+			if (diwtyPixew2 === -1 && copySouwceEnd === maxDestPixew && copySouwceStawt === copyDestStawt) {
+				diwtyPixew2 = copySouwceStawt;
 			}
 		}
 
-		const dirtyY1 = (dirtyPixel1 === -1 ? -1 : dirtyPixel1 / (WIDTH * 4));
-		const dirtyY2 = (dirtyPixel2 === -1 ? -1 : dirtyPixel2 / (WIDTH * 4));
+		const diwtyY1 = (diwtyPixew1 === -1 ? -1 : diwtyPixew1 / (WIDTH * 4));
+		const diwtyY2 = (diwtyPixew2 === -1 ? -1 : diwtyPixew2 / (WIDTH * 4));
 
-		return [dirtyY1, dirtyY2, needed];
+		wetuwn [diwtyY1, diwtyY2, needed];
 	}
 
-	private static _renderLine(
-		target: ImageData,
-		backgroundColor: RGBA8,
-		useLighterFont: boolean,
-		renderMinimap: RenderMinimap,
-		charWidth: number,
-		colorTracker: MinimapTokensColorTracker,
-		minimapCharRenderer: MinimapCharRenderer,
-		dy: number,
-		innerLinePadding: number,
-		tabSize: number,
-		lineData: ViewLineData,
-		fontScale: number,
-		minimapLineHeight: number
+	pwivate static _wendewWine(
+		tawget: ImageData,
+		backgwoundCowow: WGBA8,
+		useWightewFont: boowean,
+		wendewMinimap: WendewMinimap,
+		chawWidth: numba,
+		cowowTwacka: MinimapTokensCowowTwacka,
+		minimapChawWendewa: MinimapChawWendewa,
+		dy: numba,
+		innewWinePadding: numba,
+		tabSize: numba,
+		wineData: ViewWineData,
+		fontScawe: numba,
+		minimapWineHeight: numba
 	): void {
-		const content = lineData.content;
-		const tokens = lineData.tokens;
-		const maxDx = target.width - charWidth;
-		const force1pxHeight = (minimapLineHeight === 1);
+		const content = wineData.content;
+		const tokens = wineData.tokens;
+		const maxDx = tawget.width - chawWidth;
+		const fowce1pxHeight = (minimapWineHeight === 1);
 
-		let dx = MINIMAP_GUTTER_WIDTH;
-		let charIndex = 0;
-		let tabsCharDelta = 0;
+		wet dx = MINIMAP_GUTTEW_WIDTH;
+		wet chawIndex = 0;
+		wet tabsChawDewta = 0;
 
-		for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+		fow (wet tokenIndex = 0, tokensWen = tokens.getCount(); tokenIndex < tokensWen; tokenIndex++) {
 			const tokenEndIndex = tokens.getEndOffset(tokenIndex);
-			const tokenColorId = tokens.getForeground(tokenIndex);
-			const tokenColor = colorTracker.getColor(tokenColorId);
+			const tokenCowowId = tokens.getFowegwound(tokenIndex);
+			const tokenCowow = cowowTwacka.getCowow(tokenCowowId);
 
-			for (; charIndex < tokenEndIndex; charIndex++) {
+			fow (; chawIndex < tokenEndIndex; chawIndex++) {
 				if (dx > maxDx) {
 					// hit edge of minimap
-					return;
+					wetuwn;
 				}
-				const charCode = content.charCodeAt(charIndex);
+				const chawCode = content.chawCodeAt(chawIndex);
 
-				if (charCode === CharCode.Tab) {
-					const insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
-					tabsCharDelta += insertSpacesCount - 1;
-					// No need to render anything since tab is invisible
-					dx += insertSpacesCount * charWidth;
-				} else if (charCode === CharCode.Space) {
-					// No need to render anything since space is invisible
-					dx += charWidth;
-				} else {
-					// Render twice for a full width character
-					const count = strings.isFullWidthCharacter(charCode) ? 2 : 1;
+				if (chawCode === ChawCode.Tab) {
+					const insewtSpacesCount = tabSize - (chawIndex + tabsChawDewta) % tabSize;
+					tabsChawDewta += insewtSpacesCount - 1;
+					// No need to wenda anything since tab is invisibwe
+					dx += insewtSpacesCount * chawWidth;
+				} ewse if (chawCode === ChawCode.Space) {
+					// No need to wenda anything since space is invisibwe
+					dx += chawWidth;
+				} ewse {
+					// Wenda twice fow a fuww width chawacta
+					const count = stwings.isFuwwWidthChawacta(chawCode) ? 2 : 1;
 
-					for (let i = 0; i < count; i++) {
-						if (renderMinimap === RenderMinimap.Blocks) {
-							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, backgroundColor, useLighterFont, force1pxHeight);
-						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, backgroundColor, fontScale, useLighterFont, force1pxHeight);
+					fow (wet i = 0; i < count; i++) {
+						if (wendewMinimap === WendewMinimap.Bwocks) {
+							minimapChawWendewa.bwockWendewChaw(tawget, dx, dy + innewWinePadding, tokenCowow, backgwoundCowow, useWightewFont, fowce1pxHeight);
+						} ewse { // WendewMinimap.Text
+							minimapChawWendewa.wendewChaw(tawget, dx, dy + innewWinePadding, chawCode, tokenCowow, backgwoundCowow, fontScawe, useWightewFont, fowce1pxHeight);
 						}
 
-						dx += charWidth;
+						dx += chawWidth;
 
 						if (dx > maxDx) {
 							// hit edge of minimap
-							return;
+							wetuwn;
 						}
 					}
 				}
@@ -1921,61 +1921,61 @@ class InnerMinimap extends Disposable {
 	}
 }
 
-class ContiguousLineMap<T> {
+cwass ContiguousWineMap<T> {
 
-	private readonly _startLineNumber: number;
-	private readonly _endLineNumber: number;
-	private readonly _defaultValue: T;
-	private readonly _values: T[];
+	pwivate weadonwy _stawtWineNumba: numba;
+	pwivate weadonwy _endWineNumba: numba;
+	pwivate weadonwy _defauwtVawue: T;
+	pwivate weadonwy _vawues: T[];
 
-	constructor(startLineNumber: number, endLineNumber: number, defaultValue: T) {
-		this._startLineNumber = startLineNumber;
-		this._endLineNumber = endLineNumber;
-		this._defaultValue = defaultValue;
-		this._values = [];
-		for (let i = 0, count = this._endLineNumber - this._startLineNumber + 1; i < count; i++) {
-			this._values[i] = defaultValue;
+	constwuctow(stawtWineNumba: numba, endWineNumba: numba, defauwtVawue: T) {
+		this._stawtWineNumba = stawtWineNumba;
+		this._endWineNumba = endWineNumba;
+		this._defauwtVawue = defauwtVawue;
+		this._vawues = [];
+		fow (wet i = 0, count = this._endWineNumba - this._stawtWineNumba + 1; i < count; i++) {
+			this._vawues[i] = defauwtVawue;
 		}
 	}
 
-	public has(lineNumber: number): boolean {
-		return (this.get(lineNumber) !== this._defaultValue);
+	pubwic has(wineNumba: numba): boowean {
+		wetuwn (this.get(wineNumba) !== this._defauwtVawue);
 	}
 
-	public set(lineNumber: number, value: T): void {
-		if (lineNumber < this._startLineNumber || lineNumber > this._endLineNumber) {
-			return;
+	pubwic set(wineNumba: numba, vawue: T): void {
+		if (wineNumba < this._stawtWineNumba || wineNumba > this._endWineNumba) {
+			wetuwn;
 		}
-		this._values[lineNumber - this._startLineNumber] = value;
+		this._vawues[wineNumba - this._stawtWineNumba] = vawue;
 	}
 
-	public get(lineNumber: number): T {
-		if (lineNumber < this._startLineNumber || lineNumber > this._endLineNumber) {
-			return this._defaultValue;
+	pubwic get(wineNumba: numba): T {
+		if (wineNumba < this._stawtWineNumba || wineNumba > this._endWineNumba) {
+			wetuwn this._defauwtVawue;
 		}
-		return this._values[lineNumber - this._startLineNumber];
+		wetuwn this._vawues[wineNumba - this._stawtWineNumba];
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const minimapBackgroundValue = theme.getColor(minimapBackground);
-	if (minimapBackgroundValue) {
-		collector.addRule(`.monaco-editor .minimap > canvas { opacity: ${minimapBackgroundValue.rgba.a}; will-change: opacity; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const minimapBackgwoundVawue = theme.getCowow(minimapBackgwound);
+	if (minimapBackgwoundVawue) {
+		cowwectow.addWuwe(`.monaco-editow .minimap > canvas { opacity: ${minimapBackgwoundVawue.wgba.a}; wiww-change: opacity; }`);
 	}
-	const sliderBackground = theme.getColor(minimapSliderBackground);
-	if (sliderBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${sliderBackground}; }`);
+	const swidewBackgwound = theme.getCowow(minimapSwidewBackgwound);
+	if (swidewBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .minimap-swida .minimap-swida-howizontaw { backgwound: ${swidewBackgwound}; }`);
 	}
-	const sliderHoverBackground = theme.getColor(minimapSliderHoverBackground);
-	if (sliderHoverBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider:hover .minimap-slider-horizontal { background: ${sliderHoverBackground}; }`);
+	const swidewHovewBackgwound = theme.getCowow(minimapSwidewHovewBackgwound);
+	if (swidewHovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .minimap-swida:hova .minimap-swida-howizontaw { backgwound: ${swidewHovewBackgwound}; }`);
 	}
-	const sliderActiveBackground = theme.getColor(minimapSliderActiveBackground);
-	if (sliderActiveBackground) {
-		collector.addRule(`.monaco-editor .minimap-slider.active .minimap-slider-horizontal { background: ${sliderActiveBackground}; }`);
+	const swidewActiveBackgwound = theme.getCowow(minimapSwidewActiveBackgwound);
+	if (swidewActiveBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .minimap-swida.active .minimap-swida-howizontaw { backgwound: ${swidewActiveBackgwound}; }`);
 	}
-	const shadow = theme.getColor(scrollbarShadow);
+	const shadow = theme.getCowow(scwowwbawShadow);
 	if (shadow) {
-		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
+		cowwectow.addWuwe(`.monaco-editow .minimap-shadow-visibwe { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
 	}
 });

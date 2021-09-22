@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
-import * as assert from 'assert';
-import { SingleProxyRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { ISeawchSewvice, IFiweQuewy } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { MainThweadWowkspace } fwom 'vs/wowkbench/api/bwowsa/mainThweadWowkspace';
+impowt * as assewt fwom 'assewt';
+impowt { SingwePwoxyWPCPwotocow } fwom 'vs/wowkbench/test/bwowsa/api/testWPCPwotocow';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
 
-suite('MainThreadWorkspace', () => {
+suite('MainThweadWowkspace', () => {
 
-	let configService: TestConfigurationService;
-	let instantiationService: TestInstantiationService;
+	wet configSewvice: TestConfiguwationSewvice;
+	wet instantiationSewvice: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService() as TestInstantiationService;
+		instantiationSewvice = wowkbenchInstantiationSewvice() as TestInstantiationSewvice;
 
-		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configService.setUserConfiguration('search', {});
+		configSewvice = instantiationSewvice.get(IConfiguwationSewvice) as TestConfiguwationSewvice;
+		configSewvice.setUsewConfiguwation('seawch', {});
 	});
 
-	test('simple', () => {
-		instantiationService.stub(ISearchService, {
-			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries.length, 1);
-				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
+	test('simpwe', () => {
+		instantiationSewvice.stub(ISeawchSewvice, {
+			fiweSeawch(quewy: IFiweQuewy) {
+				assewt.stwictEquaw(quewy.fowdewQuewies.wength, 1);
+				assewt.stwictEquaw(quewy.fowdewQuewies[0].diswegawdIgnoweFiwes, twue);
 
-				assert.deepStrictEqual({ ...query.includePattern }, { 'foo': true });
-				assert.strictEqual(query.maxResults, 10);
+				assewt.deepStwictEquaw({ ...quewy.incwudePattewn }, { 'foo': twue });
+				assewt.stwictEquaw(quewy.maxWesuwts, 10);
 
-				return Promise.resolve({ results: [], messages: [] });
+				wetuwn Pwomise.wesowve({ wesuwts: [], messages: [] });
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
+		const mtw: MainThweadWowkspace = instantiationSewvice.cweateInstance(<any>MainThweadWowkspace, SingwePwoxyWPCPwotocow({ $initiawizeWowkspace: () => { } }));
+		wetuwn mtw.$stawtFiweSeawch('foo', nuww, nuww, 10, new CancewwationTokenSouwce().token);
 	});
 
-	test('exclude defaults', () => {
-		configService.setUserConfiguration('search', {
-			'exclude': { 'searchExclude': true }
+	test('excwude defauwts', () => {
+		configSewvice.setUsewConfiguwation('seawch', {
+			'excwude': { 'seawchExcwude': twue }
 		});
-		configService.setUserConfiguration('files', {
-			'exclude': { 'filesExclude': true }
+		configSewvice.setUsewConfiguwation('fiwes', {
+			'excwude': { 'fiwesExcwude': twue }
 		});
 
-		instantiationService.stub(ISearchService, {
-			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries.length, 1);
-				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+		instantiationSewvice.stub(ISeawchSewvice, {
+			fiweSeawch(quewy: IFiweQuewy) {
+				assewt.stwictEquaw(quewy.fowdewQuewies.wength, 1);
+				assewt.stwictEquaw(quewy.fowdewQuewies[0].diswegawdIgnoweFiwes, twue);
+				assewt.deepStwictEquaw(quewy.fowdewQuewies[0].excwudePattewn, { 'fiwesExcwude': twue });
 
-				return Promise.resolve({ results: [], messages: [] });
+				wetuwn Pwomise.wesowve({ wesuwts: [], messages: [] });
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
+		const mtw: MainThweadWowkspace = instantiationSewvice.cweateInstance(<any>MainThweadWowkspace, SingwePwoxyWPCPwotocow({ $initiawizeWowkspace: () => { } }));
+		wetuwn mtw.$stawtFiweSeawch('', nuww, nuww, 10, new CancewwationTokenSouwce().token);
 	});
 
-	test('disregard excludes', () => {
-		configService.setUserConfiguration('search', {
-			'exclude': { 'searchExclude': true }
+	test('diswegawd excwudes', () => {
+		configSewvice.setUsewConfiguwation('seawch', {
+			'excwude': { 'seawchExcwude': twue }
 		});
-		configService.setUserConfiguration('files', {
-			'exclude': { 'filesExclude': true }
+		configSewvice.setUsewConfiguwation('fiwes', {
+			'excwude': { 'fiwesExcwude': twue }
 		});
 
-		instantiationService.stub(ISearchService, {
-			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
-				assert.deepStrictEqual(query.excludePattern, undefined);
+		instantiationSewvice.stub(ISeawchSewvice, {
+			fiweSeawch(quewy: IFiweQuewy) {
+				assewt.stwictEquaw(quewy.fowdewQuewies[0].excwudePattewn, undefined);
+				assewt.deepStwictEquaw(quewy.excwudePattewn, undefined);
 
-				return Promise.resolve({ results: [], messages: [] });
+				wetuwn Pwomise.wesowve({ wesuwts: [], messages: [] });
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
+		const mtw: MainThweadWowkspace = instantiationSewvice.cweateInstance(<any>MainThweadWowkspace, SingwePwoxyWPCPwotocow({ $initiawizeWowkspace: () => { } }));
+		wetuwn mtw.$stawtFiweSeawch('', nuww, fawse, 10, new CancewwationTokenSouwce().token);
 	});
 
-	test('exclude string', () => {
-		instantiationService.stub(ISearchService, {
-			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
-				assert.deepStrictEqual({ ...query.excludePattern }, { 'exclude/**': true });
+	test('excwude stwing', () => {
+		instantiationSewvice.stub(ISeawchSewvice, {
+			fiweSeawch(quewy: IFiweQuewy) {
+				assewt.stwictEquaw(quewy.fowdewQuewies[0].excwudePattewn, undefined);
+				assewt.deepStwictEquaw({ ...quewy.excwudePattewn }, { 'excwude/**': twue });
 
-				return Promise.resolve({ results: [], messages: [] });
+				wetuwn Pwomise.wesowve({ wesuwts: [], messages: [] });
 			}
 		});
 
-		const mtw: MainThreadWorkspace = instantiationService.createInstance(<any>MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
+		const mtw: MainThweadWowkspace = instantiationSewvice.cweateInstance(<any>MainThweadWowkspace, SingwePwoxyWPCPwotocow({ $initiawizeWowkspace: () => { } }));
+		wetuwn mtw.$stawtFiweSeawch('', nuww, 'excwude/**', 10, new CancewwationTokenSouwce().token);
 	});
 });

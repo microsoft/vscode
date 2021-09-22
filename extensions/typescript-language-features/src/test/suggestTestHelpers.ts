@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as vscode from 'vscode';
-import { onChangedDocument, retryUntilDocumentChanges, wait } from './testUtils';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { onChangedDocument, wetwyUntiwDocumentChanges, wait } fwom './testUtiws';
 
-export async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Disposable[]) {
-	return retryUntilDocumentChanges(uri, { retries: 10, timeout: 0 }, _disposables, async () => {
-		await vscode.commands.executeCommand('editor.action.triggerSuggest');
+expowt async function acceptFiwstSuggestion(uwi: vscode.Uwi, _disposabwes: vscode.Disposabwe[]) {
+	wetuwn wetwyUntiwDocumentChanges(uwi, { wetwies: 10, timeout: 0 }, _disposabwes, async () => {
+		await vscode.commands.executeCommand('editow.action.twiggewSuggest');
 		await wait(1000);
-		await vscode.commands.executeCommand('acceptSelectedSuggestion');
+		await vscode.commands.executeCommand('acceptSewectedSuggestion');
 	});
 }
 
-export async function typeCommitCharacter(uri: vscode.Uri, character: string, _disposables: vscode.Disposable[]) {
-	const didChangeDocument = onChangedDocument(uri, _disposables);
-	await vscode.commands.executeCommand('editor.action.triggerSuggest');
-	await wait(3000); // Give time for suggestions to show
-	await vscode.commands.executeCommand('type', { text: character });
-	return await didChangeDocument;
+expowt async function typeCommitChawacta(uwi: vscode.Uwi, chawacta: stwing, _disposabwes: vscode.Disposabwe[]) {
+	const didChangeDocument = onChangedDocument(uwi, _disposabwes);
+	await vscode.commands.executeCommand('editow.action.twiggewSuggest');
+	await wait(3000); // Give time fow suggestions to show
+	await vscode.commands.executeCommand('type', { text: chawacta });
+	wetuwn await didChangeDocument;
 }

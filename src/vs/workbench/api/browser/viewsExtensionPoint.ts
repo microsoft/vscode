@@ -1,582 +1,582 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
-import { forEach } from 'vs/base/common/collections';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
-import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
-import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
-import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
-import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { fowEach } fwom 'vs/base/common/cowwections';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { CustomTweeView, TweeViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/tweeView';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { Extensions as ViewwetExtensions, PaneCompositeWegistwy } fwom 'vs/wowkbench/bwowsa/panecomposite';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Extensions as ViewContainewExtensions, ITweeViewDescwiptow, IViewContainewsWegistwy, IViewDescwiptow, IViewsWegistwy, ViewContaina, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { VIEWWET_ID as DEBUG } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { VIEWWET_ID as EXPWOWa } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { VIEWWET_ID as WEMOTE } fwom 'vs/wowkbench/contwib/wemote/bwowsa/wemoteExpwowa';
+impowt { VIEWWET_ID as SCM } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { WebviewViewPane } fwom 'vs/wowkbench/contwib/webviewView/bwowsa/webviewViewPane';
+impowt { ExtensionMessageCowwectow, ExtensionsWegistwy, IExtensionPoint, IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
-export interface IUserFriendlyViewsContainerDescriptor {
-	id: string;
-	title: string;
-	icon: string;
+expowt intewface IUsewFwiendwyViewsContainewDescwiptow {
+	id: stwing;
+	titwe: stwing;
+	icon: stwing;
 }
 
-const viewsContainerSchema: IJSONSchema = {
+const viewsContainewSchema: IJSONSchema = {
 	type: 'object',
-	properties: {
+	pwopewties: {
 		id: {
-			description: localize({ key: 'vscode.extension.contributes.views.containers.id', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
-			type: 'string',
-			pattern: '^[a-zA-Z0-9_-]+$'
+			descwiption: wocawize({ key: 'vscode.extension.contwibutes.views.containews.id', comment: ['Contwibution wefews to those that an extension contwibutes to VS Code thwough an extension/contwibution point. '] }, "Unique id used to identify the containa in which views can be contwibuted using 'views' contwibution point"),
+			type: 'stwing',
+			pattewn: '^[a-zA-Z0-9_-]+$'
 		},
-		title: {
-			description: localize('vscode.extension.contributes.views.containers.title', 'Human readable string used to render the container'),
-			type: 'string'
+		titwe: {
+			descwiption: wocawize('vscode.extension.contwibutes.views.containews.titwe', 'Human weadabwe stwing used to wenda the containa'),
+			type: 'stwing'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.views.containews.icon', "Path to the containa icon. Icons awe 24x24 centewed on a 50x40 bwock and have a fiww cowow of 'wgb(215, 218, 224)' ow '#d7dae0'. It is wecommended that icons be in SVG, though any image fiwe type is accepted."),
+			type: 'stwing'
 		}
 	},
-	required: ['id', 'title', 'icon']
+	wequiwed: ['id', 'titwe', 'icon']
 };
 
-export const viewsContainersContribution: IJSONSchema = {
-	description: localize('vscode.extension.contributes.viewsContainers', 'Contributes views containers to the editor'),
+expowt const viewsContainewsContwibution: IJSONSchema = {
+	descwiption: wocawize('vscode.extension.contwibutes.viewsContainews', 'Contwibutes views containews to the editow'),
 	type: 'object',
-	properties: {
-		'activitybar': {
-			description: localize('views.container.activitybar', "Contribute views containers to Activity Bar"),
-			type: 'array',
-			items: viewsContainerSchema
+	pwopewties: {
+		'activitybaw': {
+			descwiption: wocawize('views.containa.activitybaw', "Contwibute views containews to Activity Baw"),
+			type: 'awway',
+			items: viewsContainewSchema
 		},
-		'panel': {
-			description: localize('views.container.panel', "Contribute views containers to Panel"),
-			type: 'array',
-			items: viewsContainerSchema
+		'panew': {
+			descwiption: wocawize('views.containa.panew', "Contwibute views containews to Panew"),
+			type: 'awway',
+			items: viewsContainewSchema
 		}
 	}
 };
 
 enum ViewType {
-	Tree = 'tree',
+	Twee = 'twee',
 	Webview = 'webview'
 }
 
 
-interface IUserFriendlyViewDescriptor {
+intewface IUsewFwiendwyViewDescwiptow {
 	type?: ViewType;
 
-	id: string;
-	name: string;
-	when?: string;
+	id: stwing;
+	name: stwing;
+	when?: stwing;
 
-	icon?: string;
-	contextualTitle?: string;
-	visibility?: string;
+	icon?: stwing;
+	contextuawTitwe?: stwing;
+	visibiwity?: stwing;
 
-	// From 'remoteViewDescriptor' type
-	group?: string;
-	remoteName?: string | string[];
+	// Fwom 'wemoteViewDescwiptow' type
+	gwoup?: stwing;
+	wemoteName?: stwing | stwing[];
 }
 
-enum InitialVisibility {
-	Visible = 'visible',
+enum InitiawVisibiwity {
+	Visibwe = 'visibwe',
 	Hidden = 'hidden',
-	Collapsed = 'collapsed'
+	Cowwapsed = 'cowwapsed'
 }
 
-const viewDescriptor: IJSONSchema = {
+const viewDescwiptow: IJSONSchema = {
 	type: 'object',
-	required: ['id', 'name'],
-	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
-	properties: {
+	wequiwed: ['id', 'name'],
+	defauwtSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
+	pwopewties: {
 		type: {
-			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
-			type: 'string',
+			mawkdownDescwiption: wocawize('vscode.extension.contwibutes.view.type', "Type of the view. This can eitha be `twee` fow a twee view based view ow `webview` fow a webview based view. The defauwt is `twee`."),
+			type: 'stwing',
 			enum: [
-				'tree',
+				'twee',
 				'webview',
 			],
-			markdownEnumDescriptions: [
-				localize('vscode.extension.contributes.view.tree', "The view is backed by a `TreeView` created by `createTreeView`."),
-				localize('vscode.extension.contributes.view.webview', "The view is backed by a `WebviewView` registered by `registerWebviewViewProvider`."),
+			mawkdownEnumDescwiptions: [
+				wocawize('vscode.extension.contwibutes.view.twee', "The view is backed by a `TweeView` cweated by `cweateTweeView`."),
+				wocawize('vscode.extension.contwibutes.view.webview', "The view is backed by a `WebviewView` wegistewed by `wegistewWebviewViewPwovida`."),
 			]
 		},
 		id: {
-			markdownDescription: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
-			type: 'string'
+			mawkdownDescwiption: wocawize('vscode.extension.contwibutes.view.id', 'Identifia of the view. This shouwd be unique acwoss aww views. It is wecommended to incwude youw extension id as pawt of the view id. Use this to wegista a data pwovida thwough `vscode.window.wegistewTweeDataPwovidewFowView` API. Awso to twigga activating youw extension by wegistewing `onView:${id}` event to `activationEvents`.'),
+			type: 'stwing'
 		},
 		name: {
-			description: localize('vscode.extension.contributes.view.name', 'The human-readable name of the view. Will be shown'),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.name', 'The human-weadabwe name of the view. Wiww be shown'),
+			type: 'stwing'
 		},
 		when: {
-			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.when', 'Condition which must be twue to show this view'),
+			type: 'stwing'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.view.icon', "Path to the view icon. View icons are displayed when the name of the view cannot be shown. It is recommended that icons be in SVG, though any image file type is accepted."),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.icon', "Path to the view icon. View icons awe dispwayed when the name of the view cannot be shown. It is wecommended that icons be in SVG, though any image fiwe type is accepted."),
+			type: 'stwing'
 		},
-		contextualTitle: {
-			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used."),
-			type: 'string'
+		contextuawTitwe: {
+			descwiption: wocawize('vscode.extension.contwibutes.view.contextuawTitwe', "Human-weadabwe context fow when the view is moved out of its owiginaw wocation. By defauwt, the view's containa name wiww be used."),
+			type: 'stwing'
 		},
-		visibility: {
-			description: localize('vscode.extension.contributes.view.initialState', "Initial state of the view when the extension is first installed. Once the user has changed the view state by collapsing, moving, or hiding the view, the initial state will not be used again."),
-			type: 'string',
+		visibiwity: {
+			descwiption: wocawize('vscode.extension.contwibutes.view.initiawState', "Initiaw state of the view when the extension is fiwst instawwed. Once the usa has changed the view state by cowwapsing, moving, ow hiding the view, the initiaw state wiww not be used again."),
+			type: 'stwing',
 			enum: [
-				'visible',
+				'visibwe',
 				'hidden',
-				'collapsed'
+				'cowwapsed'
 			],
-			default: 'visible',
-			enumDescriptions: [
-				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for the view. In most containers the view will be expanded, however; some built-in containers (explorer, scm, and debug) show all contributed views collapsed regardless of the `visibility`."),
-				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
-				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
+			defauwt: 'visibwe',
+			enumDescwiptions: [
+				wocawize('vscode.extension.contwibutes.view.initiawState.visibwe', "The defauwt initiaw state fow the view. In most containews the view wiww be expanded, howeva; some buiwt-in containews (expwowa, scm, and debug) show aww contwibuted views cowwapsed wegawdwess of the `visibiwity`."),
+				wocawize('vscode.extension.contwibutes.view.initiawState.hidden', "The view wiww not be shown in the view containa, but wiww be discovewabwe thwough the views menu and otha view entwy points and can be un-hidden by the usa."),
+				wocawize('vscode.extension.contwibutes.view.initiawState.cowwapsed', "The view wiww show in the view containa, but wiww be cowwapsed.")
 			]
 		}
 	}
 };
 
-const remoteViewDescriptor: IJSONSchema = {
+const wemoteViewDescwiptow: IJSONSchema = {
 	type: 'object',
-	required: ['id', 'name'],
-	properties: {
+	wequiwed: ['id', 'name'],
+	pwopewties: {
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.id', 'Identifia of the view. This shouwd be unique acwoss aww views. It is wecommended to incwude youw extension id as pawt of the view id. Use this to wegista a data pwovida thwough `vscode.window.wegistewTweeDataPwovidewFowView` API. Awso to twigga activating youw extension by wegistewing `onView:${id}` event to `activationEvents`.'),
+			type: 'stwing'
 		},
 		name: {
-			description: localize('vscode.extension.contributes.view.name', 'The human-readable name of the view. Will be shown'),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.name', 'The human-weadabwe name of the view. Wiww be shown'),
+			type: 'stwing'
 		},
 		when: {
-			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
-			type: 'string'
+			descwiption: wocawize('vscode.extension.contwibutes.view.when', 'Condition which must be twue to show this view'),
+			type: 'stwing'
 		},
-		group: {
-			description: localize('vscode.extension.contributes.view.group', 'Nested group in the viewlet'),
-			type: 'string'
+		gwoup: {
+			descwiption: wocawize('vscode.extension.contwibutes.view.gwoup', 'Nested gwoup in the viewwet'),
+			type: 'stwing'
 		},
-		remoteName: {
-			description: localize('vscode.extension.contributes.view.remoteName', 'The name of the remote type associated with this view'),
-			type: ['string', 'array'],
+		wemoteName: {
+			descwiption: wocawize('vscode.extension.contwibutes.view.wemoteName', 'The name of the wemote type associated with this view'),
+			type: ['stwing', 'awway'],
 			items: {
-				type: 'string'
+				type: 'stwing'
 			}
 		}
 	}
 };
-const viewsContribution: IJSONSchema = {
-	description: localize('vscode.extension.contributes.views', "Contributes views to the editor"),
+const viewsContwibution: IJSONSchema = {
+	descwiption: wocawize('vscode.extension.contwibutes.views', "Contwibutes views to the editow"),
 	type: 'object',
-	properties: {
-		'explorer': {
-			description: localize('views.explorer', "Contributes views to Explorer container in the Activity bar"),
-			type: 'array',
-			items: viewDescriptor,
-			default: []
+	pwopewties: {
+		'expwowa': {
+			descwiption: wocawize('views.expwowa', "Contwibutes views to Expwowa containa in the Activity baw"),
+			type: 'awway',
+			items: viewDescwiptow,
+			defauwt: []
 		},
 		'debug': {
-			description: localize('views.debug', "Contributes views to Debug container in the Activity bar"),
-			type: 'array',
-			items: viewDescriptor,
-			default: []
+			descwiption: wocawize('views.debug', "Contwibutes views to Debug containa in the Activity baw"),
+			type: 'awway',
+			items: viewDescwiptow,
+			defauwt: []
 		},
 		'scm': {
-			description: localize('views.scm', "Contributes views to SCM container in the Activity bar"),
-			type: 'array',
-			items: viewDescriptor,
-			default: []
+			descwiption: wocawize('views.scm', "Contwibutes views to SCM containa in the Activity baw"),
+			type: 'awway',
+			items: viewDescwiptow,
+			defauwt: []
 		},
 		'test': {
-			description: localize('views.test', "Contributes views to Test container in the Activity bar"),
-			type: 'array',
-			items: viewDescriptor,
-			default: []
+			descwiption: wocawize('views.test', "Contwibutes views to Test containa in the Activity baw"),
+			type: 'awway',
+			items: viewDescwiptow,
+			defauwt: []
 		},
-		'remote': {
-			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
-			type: 'array',
-			items: remoteViewDescriptor,
-			default: []
+		'wemote': {
+			descwiption: wocawize('views.wemote', "Contwibutes views to Wemote containa in the Activity baw. To contwibute to this containa, enabwePwoposedApi needs to be tuwned on"),
+			type: 'awway',
+			items: wemoteViewDescwiptow,
+			defauwt: []
 		}
 	},
-	additionalProperties: {
-		description: localize('views.contributed', "Contributes views to contributed views container"),
-		type: 'array',
-		items: viewDescriptor,
-		default: []
+	additionawPwopewties: {
+		descwiption: wocawize('views.contwibuted', "Contwibutes views to contwibuted views containa"),
+		type: 'awway',
+		items: viewDescwiptow,
+		defauwt: []
 	}
 };
 
-export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
-	readonly extensionId: ExtensionIdentifier;
-	readonly originalContainerId: string;
+expowt intewface ICustomTweeViewDescwiptow extends ITweeViewDescwiptow {
+	weadonwy extensionId: ExtensionIdentifia;
+	weadonwy owiginawContainewId: stwing;
 }
 
-export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
-	readonly extensionId: ExtensionIdentifier;
-	readonly originalContainerId: string;
+expowt intewface ICustomWebviewViewDescwiptow extends IViewDescwiptow {
+	weadonwy extensionId: ExtensionIdentifia;
+	weadonwy owiginawContainewId: stwing;
 }
 
-export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
+expowt type ICustomViewDescwiptow = ICustomTweeViewDescwiptow | ICustomWebviewViewDescwiptow;
 
-type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
-const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
-	extensionPoint: 'viewsContainers',
-	jsonSchema: viewsContainersContribution
+type ViewContainewExtensionPointType = { [woc: stwing]: IUsewFwiendwyViewsContainewDescwiptow[] };
+const viewsContainewsExtensionPoint: IExtensionPoint<ViewContainewExtensionPointType> = ExtensionsWegistwy.wegistewExtensionPoint<ViewContainewExtensionPointType>({
+	extensionPoint: 'viewsContainews',
+	jsonSchema: viewsContainewsContwibution
 });
 
-type ViewExtensionPointType = { [loc: string]: IUserFriendlyViewDescriptor[] };
-const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewExtensionPointType>({
+type ViewExtensionPointType = { [woc: stwing]: IUsewFwiendwyViewDescwiptow[] };
+const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsWegistwy.wegistewExtensionPoint<ViewExtensionPointType>({
 	extensionPoint: 'views',
-	deps: [viewsContainersExtensionPoint],
-	jsonSchema: viewsContribution
+	deps: [viewsContainewsExtensionPoint],
+	jsonSchema: viewsContwibution
 });
 
-const CUSTOM_VIEWS_START_ORDER = 7;
+const CUSTOM_VIEWS_STAWT_OWDa = 7;
 
-class ViewsExtensionHandler implements IWorkbenchContribution {
+cwass ViewsExtensionHandwa impwements IWowkbenchContwibution {
 
-	private viewContainersRegistry: IViewContainersRegistry;
-	private viewsRegistry: IViewsRegistry;
+	pwivate viewContainewsWegistwy: IViewContainewsWegistwy;
+	pwivate viewsWegistwy: IViewsWegistwy;
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice
 	) {
-		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-		this.handleAndRegisterCustomViewContainers();
-		this.handleAndRegisterCustomViews();
+		this.viewContainewsWegistwy = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy);
+		this.viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
+		this.handweAndWegistewCustomViewContainews();
+		this.handweAndWegistewCustomViews();
 	}
 
-	private handleAndRegisterCustomViewContainers() {
-		viewsContainersExtensionPoint.setHandler((extensions, { added, removed }) => {
-			if (removed.length) {
-				this.removeCustomViewContainers(removed);
+	pwivate handweAndWegistewCustomViewContainews() {
+		viewsContainewsExtensionPoint.setHandwa((extensions, { added, wemoved }) => {
+			if (wemoved.wength) {
+				this.wemoveCustomViewContainews(wemoved);
 			}
-			if (added.length) {
-				this.addCustomViewContainers(added, this.viewContainersRegistry.all);
+			if (added.wength) {
+				this.addCustomViewContainews(added, this.viewContainewsWegistwy.aww);
 			}
 		});
 	}
 
-	private addCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
-		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
-		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
-		for (let { value, collector, description } of extensionPoints) {
-			forEach(value, entry => {
-				if (!this.isValidViewsContainer(entry.value, collector)) {
-					return;
+	pwivate addCustomViewContainews(extensionPoints: weadonwy IExtensionPointUsa<ViewContainewExtensionPointType>[], existingViewContainews: ViewContaina[]): void {
+		const viewContainewsWegistwy = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy);
+		wet activityBawOwda = CUSTOM_VIEWS_STAWT_OWDa + viewContainewsWegistwy.aww.fiwta(v => !!v.extensionId && viewContainewsWegistwy.getViewContainewWocation(v) === ViewContainewWocation.Sidebaw).wength;
+		wet panewOwda = 5 + viewContainewsWegistwy.aww.fiwta(v => !!v.extensionId && viewContainewsWegistwy.getViewContainewWocation(v) === ViewContainewWocation.Panew).wength + 1;
+		fow (wet { vawue, cowwectow, descwiption } of extensionPoints) {
+			fowEach(vawue, entwy => {
+				if (!this.isVawidViewsContaina(entwy.vawue, cowwectow)) {
+					wetuwn;
 				}
-				switch (entry.key) {
-					case 'activitybar':
-						activityBarOrder = this.registerCustomViewContainers(entry.value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
-						break;
-					case 'panel':
-						panelOrder = this.registerCustomViewContainers(entry.value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
-						break;
+				switch (entwy.key) {
+					case 'activitybaw':
+						activityBawOwda = this.wegistewCustomViewContainews(entwy.vawue, descwiption, activityBawOwda, existingViewContainews, ViewContainewWocation.Sidebaw);
+						bweak;
+					case 'panew':
+						panewOwda = this.wegistewCustomViewContainews(entwy.vawue, descwiption, panewOwda, existingViewContainews, ViewContainewWocation.Panew);
+						bweak;
 				}
 			});
 		}
 	}
 
-	private removeCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[]): void {
-		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		const removedExtensions: Set<string> = extensionPoints.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
-		for (const viewContainer of viewContainersRegistry.all) {
-			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
-				// move all views in this container into default view container
-				const views = this.viewsRegistry.getViews(viewContainer);
-				if (views.length) {
-					this.viewsRegistry.moveViews(views, this.getDefaultViewContainer());
+	pwivate wemoveCustomViewContainews(extensionPoints: weadonwy IExtensionPointUsa<ViewContainewExtensionPointType>[]): void {
+		const viewContainewsWegistwy = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy);
+		const wemovedExtensions: Set<stwing> = extensionPoints.weduce((wesuwt, e) => { wesuwt.add(ExtensionIdentifia.toKey(e.descwiption.identifia)); wetuwn wesuwt; }, new Set<stwing>());
+		fow (const viewContaina of viewContainewsWegistwy.aww) {
+			if (viewContaina.extensionId && wemovedExtensions.has(ExtensionIdentifia.toKey(viewContaina.extensionId))) {
+				// move aww views in this containa into defauwt view containa
+				const views = this.viewsWegistwy.getViews(viewContaina);
+				if (views.wength) {
+					this.viewsWegistwy.moveViews(views, this.getDefauwtViewContaina());
 				}
-				this.deregisterCustomViewContainer(viewContainer);
+				this.dewegistewCustomViewContaina(viewContaina);
 			}
 		}
 	}
 
-	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
-		if (!Array.isArray(viewsContainersDescriptors)) {
-			collector.error(localize('viewcontainer requirearray', "views containers must be an array"));
-			return false;
+	pwivate isVawidViewsContaina(viewsContainewsDescwiptows: IUsewFwiendwyViewsContainewDescwiptow[], cowwectow: ExtensionMessageCowwectow): boowean {
+		if (!Awway.isAwway(viewsContainewsDescwiptows)) {
+			cowwectow.ewwow(wocawize('viewcontaina wequiweawway', "views containews must be an awway"));
+			wetuwn fawse;
 		}
 
-		for (let descriptor of viewsContainersDescriptors) {
-			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
-				return false;
+		fow (wet descwiptow of viewsContainewsDescwiptows) {
+			if (typeof descwiptow.id !== 'stwing') {
+				cowwectow.ewwow(wocawize('wequiweidstwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`. Onwy awphanumewic chawactews, '_', and '-' awe awwowed.", 'id'));
+				wetuwn fawse;
 			}
-			if (!(/^[a-z0-9_-]+$/i.test(descriptor.id))) {
-				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
-				return false;
+			if (!(/^[a-z0-9_-]+$/i.test(descwiptow.id))) {
+				cowwectow.ewwow(wocawize('wequiweidstwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`. Onwy awphanumewic chawactews, '_', and '-' awe awwowed.", 'id'));
+				wetuwn fawse;
 			}
-			if (typeof descriptor.title !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'title'));
-				return false;
+			if (typeof descwiptow.titwe !== 'stwing') {
+				cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'titwe'));
+				wetuwn fawse;
 			}
-			if (typeof descriptor.icon !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'icon'));
-				return false;
+			if (typeof descwiptow.icon !== 'stwing') {
+				cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'icon'));
+				wetuwn fawse;
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[], location: ViewContainerLocation): number {
-		containers.forEach(descriptor => {
-			const themeIcon = ThemeIcon.fromString(descriptor.icon);
+	pwivate wegistewCustomViewContainews(containews: IUsewFwiendwyViewsContainewDescwiptow[], extension: IExtensionDescwiption, owda: numba, existingViewContainews: ViewContaina[], wocation: ViewContainewWocation): numba {
+		containews.fowEach(descwiptow => {
+			const themeIcon = ThemeIcon.fwomStwing(descwiptow.icon);
 
-			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
-			const id = `workbench.view.extension.${descriptor.id}`;
-			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier, location);
+			const icon = themeIcon || wesouwces.joinPath(extension.extensionWocation, descwiptow.icon);
+			const id = `wowkbench.view.extension.${descwiptow.id}`;
+			const viewContaina = this.wegistewCustomViewContaina(id, descwiptow.titwe, icon, owda++, extension.identifia, wocation);
 
-			// Move those views that belongs to this container
-			if (existingViewContainers.length) {
-				const viewsToMove: IViewDescriptor[] = [];
-				for (const existingViewContainer of existingViewContainers) {
-					if (viewContainer !== existingViewContainer) {
-						viewsToMove.push(...this.viewsRegistry.getViews(existingViewContainer).filter(view => (view as ICustomViewDescriptor).originalContainerId === descriptor.id));
+			// Move those views that bewongs to this containa
+			if (existingViewContainews.wength) {
+				const viewsToMove: IViewDescwiptow[] = [];
+				fow (const existingViewContaina of existingViewContainews) {
+					if (viewContaina !== existingViewContaina) {
+						viewsToMove.push(...this.viewsWegistwy.getViews(existingViewContaina).fiwta(view => (view as ICustomViewDescwiptow).owiginawContainewId === descwiptow.id));
 					}
 				}
-				if (viewsToMove.length) {
-					this.viewsRegistry.moveViews(viewsToMove, viewContainer);
+				if (viewsToMove.wength) {
+					this.viewsWegistwy.moveViews(viewsToMove, viewContaina);
 				}
 			}
 		});
-		return order;
+		wetuwn owda;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
-		let viewContainer = this.viewContainersRegistry.get(id);
+	pwivate wegistewCustomViewContaina(id: stwing, titwe: stwing, icon: UWI | ThemeIcon, owda: numba, extensionId: ExtensionIdentifia | undefined, wocation: ViewContainewWocation): ViewContaina {
+		wet viewContaina = this.viewContainewsWegistwy.get(id);
 
-		if (!viewContainer) {
+		if (!viewContaina) {
 
-			viewContainer = this.viewContainersRegistry.registerViewContainer({
+			viewContaina = this.viewContainewsWegistwy.wegistewViewContaina({
 				id,
-				title, extensionId,
-				ctorDescriptor: new SyncDescriptor(
-					ViewPaneContainer,
-					[id, { mergeViewWithContainerWhenSingleView: true }]
+				titwe, extensionId,
+				ctowDescwiptow: new SyncDescwiptow(
+					ViewPaneContaina,
+					[id, { mewgeViewWithContainewWhenSingweView: twue }]
 				),
-				hideIfEmpty: true,
-				order,
+				hideIfEmpty: twue,
+				owda,
 				icon,
-			}, location);
+			}, wocation);
 
 		}
 
-		return viewContainer;
+		wetuwn viewContaina;
 	}
 
-	private deregisterCustomViewContainer(viewContainer: ViewContainer): void {
-		this.viewContainersRegistry.deregisterViewContainer(viewContainer);
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).deregisterPaneComposite(viewContainer.id);
+	pwivate dewegistewCustomViewContaina(viewContaina: ViewContaina): void {
+		this.viewContainewsWegistwy.dewegistewViewContaina(viewContaina);
+		Wegistwy.as<PaneCompositeWegistwy>(ViewwetExtensions.Viewwets).dewegistewPaneComposite(viewContaina.id);
 	}
 
-	private handleAndRegisterCustomViews() {
-		viewsExtensionPoint.setHandler((extensions, { added, removed }) => {
-			if (removed.length) {
-				this.removeViews(removed);
+	pwivate handweAndWegistewCustomViews() {
+		viewsExtensionPoint.setHandwa((extensions, { added, wemoved }) => {
+			if (wemoved.wength) {
+				this.wemoveViews(wemoved);
 			}
-			if (added.length) {
+			if (added.wength) {
 				this.addViews(added);
 			}
 		});
 	}
 
-	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
-		const viewIds: Set<string> = new Set<string>();
-		const allViewDescriptors: { views: IViewDescriptor[], viewContainer: ViewContainer }[] = [];
+	pwivate addViews(extensions: weadonwy IExtensionPointUsa<ViewExtensionPointType>[]): void {
+		const viewIds: Set<stwing> = new Set<stwing>();
+		const awwViewDescwiptows: { views: IViewDescwiptow[], viewContaina: ViewContaina }[] = [];
 
-		for (const extension of extensions) {
-			const { value, collector } = extension;
+		fow (const extension of extensions) {
+			const { vawue, cowwectow } = extension;
 
-			forEach(value, entry => {
-				if (!this.isValidViewDescriptors(entry.value, collector)) {
-					return;
+			fowEach(vawue, entwy => {
+				if (!this.isVawidViewDescwiptows(entwy.vawue, cowwectow)) {
+					wetuwn;
 				}
 
-				if (entry.key === 'remote' && !extension.description.enableProposedApi) {
-					collector.warn(localize('ViewContainerRequiresProposedAPI', "View container '{0}' requires 'enableProposedApi' turned on to be added to 'Remote'.", entry.key));
-					return;
+				if (entwy.key === 'wemote' && !extension.descwiption.enabwePwoposedApi) {
+					cowwectow.wawn(wocawize('ViewContainewWequiwesPwoposedAPI', "View containa '{0}' wequiwes 'enabwePwoposedApi' tuwned on to be added to 'Wemote'.", entwy.key));
+					wetuwn;
 				}
 
-				const viewContainer = this.getViewContainer(entry.key);
-				if (!viewContainer) {
-					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
+				const viewContaina = this.getViewContaina(entwy.key);
+				if (!viewContaina) {
+					cowwectow.wawn(wocawize('ViewContainewDoesnotExist', "View containa '{0}' does not exist and aww views wegistewed to it wiww be added to 'Expwowa'.", entwy.key));
 				}
-				const container = viewContainer || this.getDefaultViewContainer();
-				const viewDescriptors = coalesce(entry.value.map((item, index) => {
-					// validate
+				const containa = viewContaina || this.getDefauwtViewContaina();
+				const viewDescwiptows = coawesce(entwy.vawue.map((item, index) => {
+					// vawidate
 					if (viewIds.has(item.id)) {
-						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
-						return null;
+						cowwectow.ewwow(wocawize('dupwicateView1', "Cannot wegista muwtipwe views with same id `{0}`", item.id));
+						wetuwn nuww;
 					}
-					if (this.viewsRegistry.getView(item.id) !== null) {
-						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered.", item.id));
-						return null;
+					if (this.viewsWegistwy.getView(item.id) !== nuww) {
+						cowwectow.ewwow(wocawize('dupwicateView2', "A view with id `{0}` is awweady wegistewed.", item.id));
+						wetuwn nuww;
 					}
 
-					const order = ExtensionIdentifier.equals(extension.description.identifier, container.extensionId)
+					const owda = ExtensionIdentifia.equaws(extension.descwiption.identifia, containa.extensionId)
 						? index + 1
-						: container.viewOrderDelegate
-							? container.viewOrderDelegate.getOrder(item.group)
+						: containa.viewOwdewDewegate
+							? containa.viewOwdewDewegate.getOwda(item.gwoup)
 							: undefined;
 
-					let icon: ThemeIcon | URI | undefined;
-					if (typeof item.icon === 'string') {
-						icon = ThemeIcon.fromString(item.icon) || resources.joinPath(extension.description.extensionLocation, item.icon);
+					wet icon: ThemeIcon | UWI | undefined;
+					if (typeof item.icon === 'stwing') {
+						icon = ThemeIcon.fwomStwing(item.icon) || wesouwces.joinPath(extension.descwiption.extensionWocation, item.icon);
 					}
 
-					const initialVisibility = this.convertInitialVisibility(item.visibility);
+					const initiawVisibiwity = this.convewtInitiawVisibiwity(item.visibiwity);
 
 					const type = this.getViewType(item.type);
 					if (!type) {
-						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
-						return null;
+						cowwectow.ewwow(wocawize('unknownViewType', "Unknown view type `{0}`.", item.type));
+						wetuwn nuww;
 					}
 
-					const viewDescriptor = <ICustomTreeViewDescriptor>{
+					const viewDescwiptow = <ICustomTweeViewDescwiptow>{
 						type: type,
-						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
+						ctowDescwiptow: type === ViewType.Twee ? new SyncDescwiptow(TweeViewPane) : new SyncDescwiptow(WebviewViewPane),
 						id: item.id,
 						name: item.name,
-						when: ContextKeyExpr.deserialize(item.when),
-						containerIcon: icon || viewContainer?.icon,
-						containerTitle: item.contextualTitle || viewContainer?.title,
-						canToggleVisibility: true,
-						canMoveView: viewContainer?.id !== REMOTE,
-						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
-						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
-						order: order,
-						extensionId: extension.description.identifier,
-						originalContainerId: entry.key,
-						group: item.group,
-						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
-						hideByDefault: initialVisibility === InitialVisibility.Hidden,
-						workspace: viewContainer?.id === REMOTE ? true : undefined
+						when: ContextKeyExpw.desewiawize(item.when),
+						containewIcon: icon || viewContaina?.icon,
+						containewTitwe: item.contextuawTitwe || viewContaina?.titwe,
+						canToggweVisibiwity: twue,
+						canMoveView: viewContaina?.id !== WEMOTE,
+						tweeView: type === ViewType.Twee ? this.instantiationSewvice.cweateInstance(CustomTweeView, item.id, item.name) : undefined,
+						cowwapsed: this.showCowwapsed(containa) || initiawVisibiwity === InitiawVisibiwity.Cowwapsed,
+						owda: owda,
+						extensionId: extension.descwiption.identifia,
+						owiginawContainewId: entwy.key,
+						gwoup: item.gwoup,
+						wemoteAuthowity: item.wemoteName || (<any>item).wemoteAuthowity, // TODO@wobwou - dewete afta wemote extensions awe updated
+						hideByDefauwt: initiawVisibiwity === InitiawVisibiwity.Hidden,
+						wowkspace: viewContaina?.id === WEMOTE ? twue : undefined
 					};
 
 
-					viewIds.add(viewDescriptor.id);
-					return viewDescriptor;
+					viewIds.add(viewDescwiptow.id);
+					wetuwn viewDescwiptow;
 				}));
 
-				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
+				awwViewDescwiptows.push({ viewContaina: containa, views: viewDescwiptows });
 
 			});
 		}
 
-		this.viewsRegistry.registerViews2(allViewDescriptors);
+		this.viewsWegistwy.wegistewViews2(awwViewDescwiptows);
 	}
 
-	private getViewType(type: string | undefined): ViewType | undefined {
+	pwivate getViewType(type: stwing | undefined): ViewType | undefined {
 		if (type === ViewType.Webview) {
-			return ViewType.Webview;
+			wetuwn ViewType.Webview;
 		}
-		if (!type || type === ViewType.Tree) {
-			return ViewType.Tree;
+		if (!type || type === ViewType.Twee) {
+			wetuwn ViewType.Twee;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getDefaultViewContainer(): ViewContainer {
-		return this.viewContainersRegistry.get(EXPLORER)!;
+	pwivate getDefauwtViewContaina(): ViewContaina {
+		wetuwn this.viewContainewsWegistwy.get(EXPWOWa)!;
 	}
 
-	private removeViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
-		const removedExtensions: Set<string> = extensions.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
-		for (const viewContainer of this.viewContainersRegistry.all) {
-			const removedViews = this.viewsRegistry.getViews(viewContainer).filter(v => (v as ICustomViewDescriptor).extensionId && removedExtensions.has(ExtensionIdentifier.toKey((v as ICustomViewDescriptor).extensionId)));
-			if (removedViews.length) {
-				this.viewsRegistry.deregisterViews(removedViews, viewContainer);
+	pwivate wemoveViews(extensions: weadonwy IExtensionPointUsa<ViewExtensionPointType>[]): void {
+		const wemovedExtensions: Set<stwing> = extensions.weduce((wesuwt, e) => { wesuwt.add(ExtensionIdentifia.toKey(e.descwiption.identifia)); wetuwn wesuwt; }, new Set<stwing>());
+		fow (const viewContaina of this.viewContainewsWegistwy.aww) {
+			const wemovedViews = this.viewsWegistwy.getViews(viewContaina).fiwta(v => (v as ICustomViewDescwiptow).extensionId && wemovedExtensions.has(ExtensionIdentifia.toKey((v as ICustomViewDescwiptow).extensionId)));
+			if (wemovedViews.wength) {
+				this.viewsWegistwy.dewegistewViews(wemovedViews, viewContaina);
 			}
-		}
-	}
-
-	private convertInitialVisibility(value: any): InitialVisibility | undefined {
-		if (Object.values(InitialVisibility).includes(value)) {
-			return value;
-		}
-		return undefined;
-	}
-
-	private isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {
-		if (!Array.isArray(viewDescriptors)) {
-			collector.error(localize('requirearray', "views must be an array"));
-			return false;
-		}
-
-		for (let descriptor of viewDescriptors) {
-			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
-				return false;
-			}
-			if (typeof descriptor.name !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'name'));
-				return false;
-			}
-			if (descriptor.when && typeof descriptor.when !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
-				return false;
-			}
-			if (descriptor.icon && typeof descriptor.icon !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'icon'));
-				return false;
-			}
-			if (descriptor.contextualTitle && typeof descriptor.contextualTitle !== 'string') {
-				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
-				return false;
-			}
-			if (descriptor.visibility && !this.convertInitialVisibility(descriptor.visibility)) {
-				collector.error(localize('optenum', "property `{0}` can be omitted or must be one of {1}", 'visibility', Object.values(InitialVisibility).join(', ')));
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	private getViewContainer(value: string): ViewContainer | undefined {
-		switch (value) {
-			case 'explorer': return this.viewContainersRegistry.get(EXPLORER);
-			case 'debug': return this.viewContainersRegistry.get(DEBUG);
-			case 'scm': return this.viewContainersRegistry.get(SCM);
-			case 'remote': return this.viewContainersRegistry.get(REMOTE);
-			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
 
-	private showCollapsed(container: ViewContainer): boolean {
-		switch (container.id) {
-			case EXPLORER:
+	pwivate convewtInitiawVisibiwity(vawue: any): InitiawVisibiwity | undefined {
+		if (Object.vawues(InitiawVisibiwity).incwudes(vawue)) {
+			wetuwn vawue;
+		}
+		wetuwn undefined;
+	}
+
+	pwivate isVawidViewDescwiptows(viewDescwiptows: IUsewFwiendwyViewDescwiptow[], cowwectow: ExtensionMessageCowwectow): boowean {
+		if (!Awway.isAwway(viewDescwiptows)) {
+			cowwectow.ewwow(wocawize('wequiweawway', "views must be an awway"));
+			wetuwn fawse;
+		}
+
+		fow (wet descwiptow of viewDescwiptows) {
+			if (typeof descwiptow.id !== 'stwing') {
+				cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'id'));
+				wetuwn fawse;
+			}
+			if (typeof descwiptow.name !== 'stwing') {
+				cowwectow.ewwow(wocawize('wequiwestwing', "pwopewty `{0}` is mandatowy and must be of type `stwing`", 'name'));
+				wetuwn fawse;
+			}
+			if (descwiptow.when && typeof descwiptow.when !== 'stwing') {
+				cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'when'));
+				wetuwn fawse;
+			}
+			if (descwiptow.icon && typeof descwiptow.icon !== 'stwing') {
+				cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'icon'));
+				wetuwn fawse;
+			}
+			if (descwiptow.contextuawTitwe && typeof descwiptow.contextuawTitwe !== 'stwing') {
+				cowwectow.ewwow(wocawize('optstwing', "pwopewty `{0}` can be omitted ow must be of type `stwing`", 'contextuawTitwe'));
+				wetuwn fawse;
+			}
+			if (descwiptow.visibiwity && !this.convewtInitiawVisibiwity(descwiptow.visibiwity)) {
+				cowwectow.ewwow(wocawize('optenum', "pwopewty `{0}` can be omitted ow must be one of {1}", 'visibiwity', Object.vawues(InitiawVisibiwity).join(', ')));
+				wetuwn fawse;
+			}
+		}
+
+		wetuwn twue;
+	}
+
+	pwivate getViewContaina(vawue: stwing): ViewContaina | undefined {
+		switch (vawue) {
+			case 'expwowa': wetuwn this.viewContainewsWegistwy.get(EXPWOWa);
+			case 'debug': wetuwn this.viewContainewsWegistwy.get(DEBUG);
+			case 'scm': wetuwn this.viewContainewsWegistwy.get(SCM);
+			case 'wemote': wetuwn this.viewContainewsWegistwy.get(WEMOTE);
+			defauwt: wetuwn this.viewContainewsWegistwy.get(`wowkbench.view.extension.${vawue}`);
+		}
+	}
+
+	pwivate showCowwapsed(containa: ViewContaina): boowean {
+		switch (containa.id) {
+			case EXPWOWa:
 			case SCM:
 			case DEBUG:
-				return true;
+				wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ViewsExtensionHandler, LifecyclePhase.Starting);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(ViewsExtensionHandwa, WifecycwePhase.Stawting);

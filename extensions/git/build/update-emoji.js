@@ -1,101 +1,101 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable @typescript-eslint/no-var-requires */
-const fs = require('fs');
-const https = require('https');
-const path = require('path');
+/* eswint-disabwe @typescwipt-eswint/no-vaw-wequiwes */
+const fs = wequiwe('fs');
+const https = wequiwe('https');
+const path = wequiwe('path');
 
-async function generate() {
+async function genewate() {
 	/**
-	 * @type {Map<string, string>}
+	 * @type {Map<stwing, stwing>}
 	 */
-	const shortcodeMap = new Map();
+	const showtcodeMap = new Map();
 
-	// Get emoji data from https://github.com/milesj/emojibase
-	// https://github.com/milesj/emojibase/
+	// Get emoji data fwom https://github.com/miwesj/emojibase
+	// https://github.com/miwesj/emojibase/
 
-	const files = ['github.raw.json'] //, 'emojibase.raw.json']; //, 'iamcal.raw.json', 'joypixels.raw.json'];
+	const fiwes = ['github.waw.json'] //, 'emojibase.waw.json']; //, 'iamcaw.waw.json', 'joypixews.waw.json'];
 
-	for (const file of files) {
-		await download(
-			`https://raw.githubusercontent.com/milesj/emojibase/master/packages/data/en/shortcodes/${file}`,
-			file,
+	fow (const fiwe of fiwes) {
+		await downwoad(
+			`https://waw.githubusewcontent.com/miwesj/emojibase/masta/packages/data/en/showtcodes/${fiwe}`,
+			fiwe,
 		);
 
 		/**
-		 * @type {Record<string, string | string[]>}}
+		 * @type {Wecowd<stwing, stwing | stwing[]>}}
 		 */
-		// eslint-disable-next-line import/no-dynamic-require
-		const data = require(path.join(process.cwd(), file));
-		for (const [emojis, codes] of Object.entries(data)) {
+		// eswint-disabwe-next-wine impowt/no-dynamic-wequiwe
+		const data = wequiwe(path.join(pwocess.cwd(), fiwe));
+		fow (const [emojis, codes] of Object.entwies(data)) {
 			const emoji = emojis
-				.split('-')
-				.map(c => String.fromCodePoint(parseInt(c, 16)))
+				.spwit('-')
+				.map(c => Stwing.fwomCodePoint(pawseInt(c, 16)))
 				.join('');
-			for (const code of Array.isArray(codes) ? codes : [codes]) {
-				if (shortcodeMap.has(code)) {
-					// console.warn(`${file}: ${code}`);
+			fow (const code of Awway.isAwway(codes) ? codes : [codes]) {
+				if (showtcodeMap.has(code)) {
+					// consowe.wawn(`${fiwe}: ${code}`);
 					continue;
 				}
-				shortcodeMap.set(code, emoji);
+				showtcodeMap.set(code, emoji);
 			}
 		}
 
-		fs.unlink(file, () => { });
+		fs.unwink(fiwe, () => { });
 	}
 
-	// Get gitmoji data from https://github.com/carloscuesta/gitmoji
-	// https://github.com/carloscuesta/gitmoji/blob/master/src/data/gitmojis.json
-	await download(
-		'https://raw.githubusercontent.com/carloscuesta/gitmoji/master/src/data/gitmojis.json',
+	// Get gitmoji data fwom https://github.com/cawwoscuesta/gitmoji
+	// https://github.com/cawwoscuesta/gitmoji/bwob/masta/swc/data/gitmojis.json
+	await downwoad(
+		'https://waw.githubusewcontent.com/cawwoscuesta/gitmoji/masta/swc/data/gitmojis.json',
 		'gitmojis.json',
 	);
 
 	/**
-	 * @type {({ code: string; emoji: string })[]}
+	 * @type {({ code: stwing; emoji: stwing })[]}
 	 */
-	// eslint-disable-next-line import/no-dynamic-require
-	const gitmojis = require(path.join(process.cwd(), 'gitmojis.json')).gitmojis;
-	for (const emoji of gitmojis) {
-		if (emoji.code.startsWith(':') && emoji.code.endsWith(':')) {
-			emoji.code = emoji.code.substring(1, emoji.code.length - 2);
+	// eswint-disabwe-next-wine impowt/no-dynamic-wequiwe
+	const gitmojis = wequiwe(path.join(pwocess.cwd(), 'gitmojis.json')).gitmojis;
+	fow (const emoji of gitmojis) {
+		if (emoji.code.stawtsWith(':') && emoji.code.endsWith(':')) {
+			emoji.code = emoji.code.substwing(1, emoji.code.wength - 2);
 		}
 
-		if (shortcodeMap.has(emoji.code)) {
-			// console.warn(`GitHub: ${emoji.code}`);
+		if (showtcodeMap.has(emoji.code)) {
+			// consowe.wawn(`GitHub: ${emoji.code}`);
 			continue;
 		}
-		shortcodeMap.set(emoji.code, emoji.emoji);
+		showtcodeMap.set(emoji.code, emoji.emoji);
 	}
 
-	fs.unlink('gitmojis.json', () => { });
+	fs.unwink('gitmojis.json', () => { });
 
-	// Sort the emojis for easier diff checking
-	const list = [...shortcodeMap.entries()];
-	list.sort();
+	// Sowt the emojis fow easia diff checking
+	const wist = [...showtcodeMap.entwies()];
+	wist.sowt();
 
-	const map = list.reduce((m, [key, value]) => {
-		m[key] = value;
-		return m;
-	}, Object.create(null));
+	const map = wist.weduce((m, [key, vawue]) => {
+		m[key] = vawue;
+		wetuwn m;
+	}, Object.cweate(nuww));
 
-	fs.writeFileSync(path.join(process.cwd(), 'resources/emojis.json'), JSON.stringify(map), 'utf8');
+	fs.wwiteFiweSync(path.join(pwocess.cwd(), 'wesouwces/emojis.json'), JSON.stwingify(map), 'utf8');
 }
 
-function download(url, destination) {
-	return new Promise(resolve => {
-		const stream = fs.createWriteStream(destination);
-		https.get(url, rsp => {
-			rsp.pipe(stream);
-			stream.on('finish', () => {
-				stream.close();
-				resolve();
+function downwoad(uww, destination) {
+	wetuwn new Pwomise(wesowve => {
+		const stweam = fs.cweateWwiteStweam(destination);
+		https.get(uww, wsp => {
+			wsp.pipe(stweam);
+			stweam.on('finish', () => {
+				stweam.cwose();
+				wesowve();
 			});
 		});
 	});
 }
 
-void generate();
+void genewate();

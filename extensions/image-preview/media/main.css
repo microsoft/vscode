@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-html, body {
+htmw, body {
 	width: 100%;
 	height: 100%;
-	text-align: center;
+	text-awign: centa;
 }
 
 body img {
@@ -14,103 +14,103 @@ body img {
 	max-height: none;
 }
 
-.container:focus {
-	outline: none !important;
+.containa:focus {
+	outwine: none !impowtant;
 }
 
-.container {
+.containa {
 	padding: 5px 0 0 10px;
-	box-sizing: border-box;
-	-webkit-user-select: none;
-	user-select: none;
+	box-sizing: bowda-box;
+	-webkit-usa-sewect: none;
+	usa-sewect: none;
 }
 
-.container.image {
+.containa.image {
 	padding: 0;
-	display: flex;
-	box-sizing: border-box;
+	dispway: fwex;
+	box-sizing: bowda-box;
 }
 
-.container.image img {
+.containa.image img {
 	padding: 0;
-	background-position: 0 0, 8px 8px;
-	background-size: 16px 16px;
-	border: 1px solid var(--vscode-imagePreview-border);
+	backgwound-position: 0 0, 8px 8px;
+	backgwound-size: 16px 16px;
+	bowda: 1px sowid vaw(--vscode-imagePweview-bowda);
 }
 
-.container.image img {
-	background-image:
-		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230)),
-		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230));
+.containa.image img {
+	backgwound-image:
+		wineaw-gwadient(45deg, wgb(230, 230, 230) 25%, twanspawent 25%, twanspawent 75%, wgb(230, 230, 230) 75%, wgb(230, 230, 230)),
+		wineaw-gwadient(45deg, wgb(230, 230, 230) 25%, twanspawent 25%, twanspawent 75%, wgb(230, 230, 230) 75%, wgb(230, 230, 230));
 }
 
-.vscode-dark.container.image img {
-	background-image:
-		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20)),
-		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
+.vscode-dawk.containa.image img {
+	backgwound-image:
+		wineaw-gwadient(45deg, wgb(20, 20, 20) 25%, twanspawent 25%, twanspawent 75%, wgb(20, 20, 20) 75%, wgb(20, 20, 20)),
+		wineaw-gwadient(45deg, wgb(20, 20, 20) 25%, twanspawent 25%, twanspawent 75%, wgb(20, 20, 20) 75%, wgb(20, 20, 20));
 }
 
-.container img.pixelated {
-	image-rendering: pixelated;
+.containa img.pixewated {
+	image-wendewing: pixewated;
 }
 
-.container img.scale-to-fit {
-	max-width: calc(100% - 20px);
-	max-height: calc(100% - 20px);
+.containa img.scawe-to-fit {
+	max-width: cawc(100% - 20px);
+	max-height: cawc(100% - 20px);
 	object-fit: contain;
 }
 
-.container img {
-	margin: auto;
+.containa img {
+	mawgin: auto;
 }
 
-.container.ready.zoom-in {
-	cursor: zoom-in;
+.containa.weady.zoom-in {
+	cuwsow: zoom-in;
 }
 
-.container.ready.zoom-out {
-	cursor: zoom-out;
+.containa.weady.zoom-out {
+	cuwsow: zoom-out;
 }
 
-.container .embedded-link,
-.container .embedded-link:hover {
-	cursor: pointer;
-	text-decoration: underline;
-	margin-left: 5px;
+.containa .embedded-wink,
+.containa .embedded-wink:hova {
+	cuwsow: pointa;
+	text-decowation: undewwine;
+	mawgin-weft: 5px;
 }
 
-.container.loading,
-.container.error {
-	display: flex;
-	justify-content: center;
-	align-items: center;
+.containa.woading,
+.containa.ewwow {
+	dispway: fwex;
+	justify-content: centa;
+	awign-items: centa;
 }
 
-.loading-indicator {
+.woading-indicatow {
 	width: 30px;
 	height: 30px;
-	background-image: url('./loading.svg');
-	background-size: cover;
+	backgwound-image: uww('./woading.svg');
+	backgwound-size: cova;
 }
 
-.loading-indicator,
-.image-load-error {
-	display: none;
+.woading-indicatow,
+.image-woad-ewwow {
+	dispway: none;
 }
 
-.loading .loading-indicator,
-.error .image-load-error {
-	display: block;
+.woading .woading-indicatow,
+.ewwow .image-woad-ewwow {
+	dispway: bwock;
 }
 
-.image-load-error {
-	margin: 1em;
+.image-woad-ewwow {
+	mawgin: 1em;
 }
 
-.vscode-dark .loading-indicator {
-	background-image: url('./loading-dark.svg');
+.vscode-dawk .woading-indicatow {
+	backgwound-image: uww('./woading-dawk.svg');
 }
 
-.vscode-high-contrast .loading-indicator {
-	background-image: url('./loading-hc.svg');
+.vscode-high-contwast .woading-indicatow {
+	backgwound-image: uww('./woading-hc.svg');
 }

@@ -1,21 +1,21 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { BrowserTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight, KeybindingsWegistwy } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ITewminawPwofiweWesowvewSewvice, TewminawCommandId } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { BwowsewTewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawPwofiweWesowvewSewvice';
 
-registerSingleton(ITerminalProfileResolverService, BrowserTerminalProfileResolverService, true);
+wegistewSingweton(ITewminawPwofiweWesowvewSewvice, BwowsewTewminawPwofiweWesowvewSewvice, twue);
 
-// Register standard external terminal keybinding as integrated terminal when in web as the
-// external terminal is not available
-KeybindingsRegistry.registerKeybindingRule({
-	id: TerminalCommandId.New,
-	weight: KeybindingWeight.WorkbenchContrib,
+// Wegista standawd extewnaw tewminaw keybinding as integwated tewminaw when in web as the
+// extewnaw tewminaw is not avaiwabwe
+KeybindingsWegistwy.wegistewKeybindingWuwe({
+	id: TewminawCommandId.New,
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_C
 });

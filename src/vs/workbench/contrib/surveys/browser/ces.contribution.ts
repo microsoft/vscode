@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { language } from 'vs/base/common/platform';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { URI } from 'vs/base/common/uri';
-import { platform } from 'vs/base/common/process';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+impowt * as nws fwom 'vs/nws';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Sevewity, INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { ITASExpewimentSewvice } fwom 'vs/wowkbench/sewvices/expewiment/common/expewimentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
+impowt { ThwottwedDewaya } fwom 'vs/base/common/async';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
 
-const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hour
-const MIN_WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 2; // 2 minutes
-const MAX_INSTALL_AGE = 1000 * 60 * 60 * 24; // 24 hours
-const REMIND_LATER_DELAY = 1000 * 60 * 60 * 4; // 4 hours
-const SKIP_SURVEY_KEY = 'ces/skipSurvey';
-const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
+const WAIT_TIME_TO_SHOW_SUWVEY = 1000 * 60 * 60; // 1 houw
+const MIN_WAIT_TIME_TO_SHOW_SUWVEY = 1000 * 60 * 2; // 2 minutes
+const MAX_INSTAWW_AGE = 1000 * 60 * 60 * 24; // 24 houws
+const WEMIND_WATEW_DEWAY = 1000 * 60 * 60 * 4; // 4 houws
+const SKIP_SUWVEY_KEY = 'ces/skipSuwvey';
+const WEMIND_WATEW_DATE_KEY = 'ces/wemindWatewDate';
 
-class CESContribution extends Disposable implements IWorkbenchContribution {
+cwass CESContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private promptDelayer = this._register(new ThrottledDelayer<void>(0));
-	private readonly tasExperimentService: ITASExperimentService | undefined;
+	pwivate pwomptDewaya = this._wegista(new ThwottwedDewaya<void>(0));
+	pwivate weadonwy tasExpewimentSewvice: ITASExpewimentSewvice | undefined;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@ITASExpewimentSewvice tasExpewimentSewvice: ITASExpewimentSewvice,
 	) {
-		super();
+		supa();
 
-		this.tasExperimentService = tasExperimentService;
+		this.tasExpewimentSewvice = tasExpewimentSewvice;
 
-		if (!productService.cesSurveyUrl) {
-			return;
+		if (!pwoductSewvice.cesSuwveyUww) {
+			wetuwn;
 		}
 
-		const skipSurvey = storageService.get(SKIP_SURVEY_KEY, StorageScope.GLOBAL, '');
-		if (skipSurvey) {
-			return;
+		const skipSuwvey = stowageSewvice.get(SKIP_SUWVEY_KEY, StowageScope.GWOBAW, '');
+		if (skipSuwvey) {
+			wetuwn;
 		}
 
-		this.schedulePrompt();
+		this.scheduwePwompt();
 	}
 
-	private async promptUser() {
-		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
-			/* __GDPR__
-			"cesSurvey:popup" : {
-				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	pwivate async pwomptUsa() {
+		const sendTewemetwy = (usewWeaction: 'accept' | 'wemindWata' | 'nevewShowAgain' | 'cancewwed') => {
+			/* __GDPW__
+			"cesSuwvey:popup" : {
+				"usewWeaction" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 			*/
-			this.telemetryService.publicLog('cesSurvey:popup', { userReaction });
+			this.tewemetwySewvice.pubwicWog('cesSuwvey:popup', { usewWeaction });
 		};
 
-		const message = await this.tasExperimentService?.getTreatment<string>('CESSurveyMessage') ?? nls.localize('cesSurveyQuestion', 'Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.');
-		const button = await this.tasExperimentService?.getTreatment<string>('CESSurveyButton') ?? nls.localize('giveFeedback', "Give Feedback");
+		const message = await this.tasExpewimentSewvice?.getTweatment<stwing>('CESSuwveyMessage') ?? nws.wocawize('cesSuwveyQuestion', 'Got a moment to hewp the VS Code team? Pwease teww us about youw expewience with VS Code so faw.');
+		const button = await this.tasExpewimentSewvice?.getTweatment<stwing>('CESSuwveyButton') ?? nws.wocawize('giveFeedback', "Give Feedback");
 
-		const notification = this.notificationService.prompt(
-			Severity.Info,
+		const notification = this.notificationSewvice.pwompt(
+			Sevewity.Info,
 			message,
 			[{
-				label: button,
-				run: () => {
-					sendTelemetry('accept');
-					this.telemetryService.getTelemetryInfo().then(info => {
-						let surveyUrl = `${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}`;
+				wabew: button,
+				wun: () => {
+					sendTewemetwy('accept');
+					this.tewemetwySewvice.getTewemetwyInfo().then(info => {
+						wet suwveyUww = `${this.pwoductSewvice.cesSuwveyUww}?o=${encodeUWIComponent(pwatfowm)}&v=${encodeUWIComponent(this.pwoductSewvice.vewsion)}&m=${encodeUWIComponent(info.machineId)}`;
 
-						const usedParams = this.productService.surveys
-							?.filter(surveyData => surveyData.surveyId && surveyData.languageId)
-							// Counts provided by contrib/surveys/browser/languageSurveys
-							.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.GLOBAL, 0) > 0)
-							.map(surveyData => `${encodeURIComponent(surveyData.languageId)}Lang=1`)
+						const usedPawams = this.pwoductSewvice.suwveys
+							?.fiwta(suwveyData => suwveyData.suwveyId && suwveyData.wanguageId)
+							// Counts pwovided by contwib/suwveys/bwowsa/wanguageSuwveys
+							.fiwta(suwveyData => this.stowageSewvice.getNumba(`${suwveyData.suwveyId}.editedCount`, StowageScope.GWOBAW, 0) > 0)
+							.map(suwveyData => `${encodeUWIComponent(suwveyData.wanguageId)}Wang=1`)
 							.join('&');
-						if (usedParams) {
-							surveyUrl += `&${usedParams}`;
+						if (usedPawams) {
+							suwveyUww += `&${usedPawams}`;
 						}
-						this.openerService.open(URI.parse(surveyUrl));
-						this.skipSurvey();
+						this.openewSewvice.open(UWI.pawse(suwveyUww));
+						this.skipSuwvey();
 					});
 				}
 			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => {
-					sendTelemetry('remindLater');
-					this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
-					this.schedulePrompt();
+				wabew: nws.wocawize('wemindWata', "Wemind Me wata"),
+				wun: () => {
+					sendTewemetwy('wemindWata');
+					this.stowageSewvice.stowe(WEMIND_WATEW_DATE_KEY, new Date().toUTCStwing(), StowageScope.GWOBAW, StowageTawget.USa);
+					this.scheduwePwompt();
 				}
 			}],
 			{
-				sticky: true,
-				onCancel: () => {
-					sendTelemetry('cancelled');
-					this.skipSurvey();
+				sticky: twue,
+				onCancew: () => {
+					sendTewemetwy('cancewwed');
+					this.skipSuwvey();
 				}
 			}
 		);
 
-		await Event.toPromise(notification.onDidClose);
+		await Event.toPwomise(notification.onDidCwose);
 	}
 
-	private async schedulePrompt(): Promise<void> {
-		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+	pwivate async scheduwePwompt(): Pwomise<void> {
+		const isCandidate = await this.tasExpewimentSewvice?.getTweatment<boowean>('CESSuwvey');
 		if (!isCandidate) {
-			this.skipSurvey();
-			return;
+			this.skipSuwvey();
+			wetuwn;
 		}
 
-		let waitTimeToShowSurvey = 0;
-		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
-		if (remindLaterDate) {
-			const timeToRemind = new Date(remindLaterDate).getTime() + REMIND_LATER_DELAY - Date.now();
-			if (timeToRemind > 0) {
-				waitTimeToShowSurvey = timeToRemind;
+		wet waitTimeToShowSuwvey = 0;
+		const wemindWatewDate = this.stowageSewvice.get(WEMIND_WATEW_DATE_KEY, StowageScope.GWOBAW, '');
+		if (wemindWatewDate) {
+			const timeToWemind = new Date(wemindWatewDate).getTime() + WEMIND_WATEW_DEWAY - Date.now();
+			if (timeToWemind > 0) {
+				waitTimeToShowSuwvey = timeToWemind;
 			}
-		} else {
-			const info = await this.telemetryService.getTelemetryInfo();
-			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
-			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
+		} ewse {
+			const info = await this.tewemetwySewvice.getTewemetwyInfo();
+			const timeFwomInstaww = Date.now() - new Date(info.fiwstSessionDate).getTime();
+			const isNewInstaww = !isNaN(timeFwomInstaww) && timeFwomInstaww < MAX_INSTAWW_AGE;
 
-			// Installation is older than MAX_INSTALL_AGE
-			if (!isNewInstall) {
-				this.skipSurvey();
-				return;
+			// Instawwation is owda than MAX_INSTAWW_AGE
+			if (!isNewInstaww) {
+				this.skipSuwvey();
+				wetuwn;
 			}
-			if (timeFromInstall < WAIT_TIME_TO_SHOW_SURVEY) {
-				waitTimeToShowSurvey = WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall;
+			if (timeFwomInstaww < WAIT_TIME_TO_SHOW_SUWVEY) {
+				waitTimeToShowSuwvey = WAIT_TIME_TO_SHOW_SUWVEY - timeFwomInstaww;
 			}
 		}
-		/* __GDPR__
-		"cesSurvey:schedule" : { }
+		/* __GDPW__
+		"cesSuwvey:scheduwe" : { }
 		*/
-		this.telemetryService.publicLog('cesSurvey:schedule');
+		this.tewemetwySewvice.pubwicWog('cesSuwvey:scheduwe');
 
-		this.promptDelayer.trigger(async () => {
-			await this.promptUser();
-		}, Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
+		this.pwomptDewaya.twigga(async () => {
+			await this.pwomptUsa();
+		}, Math.max(waitTimeToShowSuwvey, MIN_WAIT_TIME_TO_SHOW_SUWVEY));
 	}
 
-	private skipSurvey(): void {
-		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+	pwivate skipSuwvey(): void {
+		this.stowageSewvice.stowe(SKIP_SUWVEY_KEY, this.pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 }
 
-if (language === 'en') {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(CESContribution, LifecyclePhase.Restored);
+if (wanguage === 'en') {
+	const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+	wowkbenchWegistwy.wegistewWowkbenchContwibution(CESContwibution, WifecycwePhase.Westowed);
 }

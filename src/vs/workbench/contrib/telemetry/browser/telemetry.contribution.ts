@@ -1,218 +1,218 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { language } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
-import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { guessMimeTypes } from 'vs/base/common/mime';
-import { hash } from 'vs/base/common/hash';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase, IWifecycweSewvice, StawtupKind } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt EwwowTewemetwy fwom 'vs/pwatfowm/tewemetwy/bwowsa/ewwowTewemetwy';
+impowt { configuwationTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ITextFiweSewvice, ITextFiweSaveEvent, ITextFiweWesowveEvent } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { extname, basename, isEquaw, isEquawOwPawent } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { guessMimeTypes } fwom 'vs/base/common/mime';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-type TelemetryData = {
-	mimeType: string;
-	ext: string;
-	path: number;
-	reason?: number;
-	allowlistedjson?: string;
+type TewemetwyData = {
+	mimeType: stwing;
+	ext: stwing;
+	path: numba;
+	weason?: numba;
+	awwowwistedjson?: stwing;
 };
 
-type FileTelemetryDataFragment = {
-	mimeType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	path: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	reason?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	allowlistedjson?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type FiweTewemetwyDataFwagment = {
+	mimeType: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	ext: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	path: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	weason?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+	awwowwistedjson?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass TewemetwyContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private static ALLOWLIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
-	private static ALLOWLIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
+	pwivate static AWWOWWIST_JSON = ['package.json', 'package-wock.json', 'tsconfig.json', 'jsconfig.json', 'bowa.json', '.eswintwc.json', 'tswint.json', 'composa.json'];
+	pwivate static AWWOWWIST_WOWKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'waunch.json'];
 
-	constructor(
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IEditorService editorService: IEditorService,
-		@IKeybindingService keybindingsService: IKeybindingService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
-		@ITextFileService textFileService: ITextFileService
+	constwuctow(
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IWifecycweSewvice wifecycweSewvice: IWifecycweSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IKeybindingSewvice keybindingsSewvice: IKeybindingSewvice,
+		@IWowkbenchThemeSewvice themeSewvice: IWowkbenchThemeSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IPaneCompositePawtSewvice paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@ITextFiweSewvice textFiweSewvice: ITextFiweSewvice
 	) {
-		super();
+		supa();
 
-		const { filesToOpenOrCreate, filesToDiff } = environmentService.configuration;
-		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+		const { fiwesToOpenOwCweate, fiwesToDiff } = enviwonmentSewvice.configuwation;
+		const activeViewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-		type WindowSizeFragment = {
-			innerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			innerWidth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			outerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			outerWidth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		type WindowSizeFwagment = {
+			innewHeight: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			innewWidth: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			outewHeight: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			outewWidth: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 		};
 
-		type WorkspaceLoadClassification = {
-			userAgent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			emptyWorkbench: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			windowSize: WindowSizeFragment;
-			'workbench.filesToOpenOrCreate': { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			'workbench.filesToDiff': { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			customKeybindingsCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			theme: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			language: { classification: 'SystemMetaData', purpose: 'BusinessInsight' };
-			pinnedViewlets: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			restoredViewlet?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			restoredEditors: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			startupKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		type WowkspaceWoadCwassification = {
+			usewAgent: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			emptyWowkbench: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			windowSize: WindowSizeFwagment;
+			'wowkbench.fiwesToOpenOwCweate': { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			'wowkbench.fiwesToDiff': { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			customKeybindingsCount: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			theme: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			wanguage: { cwassification: 'SystemMetaData', puwpose: 'BusinessInsight' };
+			pinnedViewwets: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			westowedViewwet?: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+			westowedEditows: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
+			stawtupKind: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight', isMeasuwement: twue };
 		};
 
-		type WorkspaceLoadEvent = {
-			userAgent: string;
-			windowSize: { innerHeight: number, innerWidth: number, outerHeight: number, outerWidth: number };
-			emptyWorkbench: boolean;
-			'workbench.filesToOpenOrCreate': number;
-			'workbench.filesToDiff': number;
-			customKeybindingsCount: number;
-			theme: string;
-			language: string;
-			pinnedViewlets: string[];
-			restoredViewlet?: string;
-			restoredEditors: number;
-			startupKind: StartupKind;
+		type WowkspaceWoadEvent = {
+			usewAgent: stwing;
+			windowSize: { innewHeight: numba, innewWidth: numba, outewHeight: numba, outewWidth: numba };
+			emptyWowkbench: boowean;
+			'wowkbench.fiwesToOpenOwCweate': numba;
+			'wowkbench.fiwesToDiff': numba;
+			customKeybindingsCount: numba;
+			theme: stwing;
+			wanguage: stwing;
+			pinnedViewwets: stwing[];
+			westowedViewwet?: stwing;
+			westowedEditows: numba;
+			stawtupKind: StawtupKind;
 		};
 
-		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
-			userAgent: navigator.userAgent,
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
-			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
-			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
-			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
-			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
-			theme: themeService.getColorTheme().id,
-			language,
-			pinnedViewlets: paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Sidebar),
-			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
-			restoredEditors: editorService.visibleEditors.length,
-			startupKind: lifecycleService.startupKind
+		tewemetwySewvice.pubwicWog2<WowkspaceWoadEvent, WowkspaceWoadCwassification>('wowkspaceWoad', {
+			usewAgent: navigatow.usewAgent,
+			windowSize: { innewHeight: window.innewHeight, innewWidth: window.innewWidth, outewHeight: window.outewHeight, outewWidth: window.outewWidth },
+			emptyWowkbench: contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY,
+			'wowkbench.fiwesToOpenOwCweate': fiwesToOpenOwCweate && fiwesToOpenOwCweate.wength || 0,
+			'wowkbench.fiwesToDiff': fiwesToDiff && fiwesToDiff.wength || 0,
+			customKeybindingsCount: keybindingsSewvice.customKeybindingsCount(),
+			theme: themeSewvice.getCowowTheme().id,
+			wanguage,
+			pinnedViewwets: paneCompositeSewvice.getPinnedPaneCompositeIds(ViewContainewWocation.Sidebaw),
+			westowedViewwet: activeViewwet ? activeViewwet.getId() : undefined,
+			westowedEditows: editowSewvice.visibweEditows.wength,
+			stawtupKind: wifecycweSewvice.stawtupKind
 		});
 
-		// Error Telemetry
-		this._register(new ErrorTelemetry(telemetryService));
+		// Ewwow Tewemetwy
+		this._wegista(new EwwowTewemetwy(tewemetwySewvice));
 
-		// Configuration Telemetry
-		this._register(configurationTelemetry(telemetryService, configurationService));
+		// Configuwation Tewemetwy
+		this._wegista(configuwationTewemetwy(tewemetwySewvice, configuwationSewvice));
 
-		//  Files Telemetry
-		this._register(textFileService.files.onDidResolve(e => this.onTextFileModelResolved(e)));
-		this._register(textFileService.files.onDidSave(e => this.onTextFileModelSaved(e)));
+		//  Fiwes Tewemetwy
+		this._wegista(textFiweSewvice.fiwes.onDidWesowve(e => this.onTextFiweModewWesowved(e)));
+		this._wegista(textFiweSewvice.fiwes.onDidSave(e => this.onTextFiweModewSaved(e)));
 
-		// Lifecycle
-		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
+		// Wifecycwe
+		this._wegista(wifecycweSewvice.onDidShutdown(() => this.dispose()));
 	}
 
-	private onTextFileModelResolved(e: ITextFileResolveEvent): void {
-		const settingsType = this.getTypeIfSettings(e.model.resource);
+	pwivate onTextFiweModewWesowved(e: ITextFiweWesowveEvent): void {
+		const settingsType = this.getTypeIfSettings(e.modew.wesouwce);
 		if (settingsType) {
-			type SettingsReadClassification = {
-				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			type SettingsWeadCwassification = {
+				settingsType: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 			};
 
-			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
-		} else {
-			type FileGetClassification = {} & FileTelemetryDataFragment;
+			this.tewemetwySewvice.pubwicWog2<{ settingsType: stwing }, SettingsWeadCwassification>('settingsWead', { settingsType }); // Do not wog wead to usa settings.json and .vscode fowda as a fiweGet event as it wuins ouw JSON usage data
+		} ewse {
+			type FiweGetCwassification = {} & FiweTewemetwyDataFwagment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
+			this.tewemetwySewvice.pubwicWog2<TewemetwyData, FiweGetCwassification>('fiweGet', this.getTewemetwyData(e.modew.wesouwce, e.weason));
 		}
 	}
 
-	private onTextFileModelSaved(e: ITextFileSaveEvent): void {
-		const settingsType = this.getTypeIfSettings(e.model.resource);
+	pwivate onTextFiweModewSaved(e: ITextFiweSaveEvent): void {
+		const settingsType = this.getTypeIfSettings(e.modew.wesouwce);
 		if (settingsType) {
-			type SettingsWrittenClassification = {
-				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			type SettingsWwittenCwassification = {
+				settingsType: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 			};
-			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
-		} else {
-			type FilePutClassfication = {} & FileTelemetryDataFragment;
-			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
+			this.tewemetwySewvice.pubwicWog2<{ settingsType: stwing }, SettingsWwittenCwassification>('settingsWwitten', { settingsType }); // Do not wog wwite to usa settings.json and .vscode fowda as a fiwePUT event as it wuins ouw JSON usage data
+		} ewse {
+			type FiwePutCwassfication = {} & FiweTewemetwyDataFwagment;
+			this.tewemetwySewvice.pubwicWog2<TewemetwyData, FiwePutCwassfication>('fiwePUT', this.getTewemetwyData(e.modew.wesouwce, e.weason));
 		}
 	}
 
-	private getTypeIfSettings(resource: URI): string {
-		if (extname(resource) !== '.json') {
-			return '';
+	pwivate getTypeIfSettings(wesouwce: UWI): stwing {
+		if (extname(wesouwce) !== '.json') {
+			wetuwn '';
 		}
 
-		// Check for global settings file
-		if (isEqual(resource, this.environmentService.settingsResource)) {
-			return 'global-settings';
+		// Check fow gwobaw settings fiwe
+		if (isEquaw(wesouwce, this.enviwonmentSewvice.settingsWesouwce)) {
+			wetuwn 'gwobaw-settings';
 		}
 
-		// Check for keybindings file
-		if (isEqual(resource, this.environmentService.keybindingsResource)) {
-			return 'keybindings';
+		// Check fow keybindings fiwe
+		if (isEquaw(wesouwce, this.enviwonmentSewvice.keybindingsWesouwce)) {
+			wetuwn 'keybindings';
 		}
 
-		// Check for snippets
-		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
-			return 'snippets';
+		// Check fow snippets
+		if (isEquawOwPawent(wesouwce, this.enviwonmentSewvice.snippetsHome)) {
+			wetuwn 'snippets';
 		}
 
-		// Check for workspace settings file
-		const folders = this.contextService.getWorkspace().folders;
-		for (const folder of folders) {
-			if (isEqualOrParent(resource, folder.toResource('.vscode'))) {
-				const filename = basename(resource);
-				if (TelemetryContribution.ALLOWLIST_WORKSPACE_JSON.indexOf(filename) > -1) {
-					return `.vscode/${filename}`;
+		// Check fow wowkspace settings fiwe
+		const fowdews = this.contextSewvice.getWowkspace().fowdews;
+		fow (const fowda of fowdews) {
+			if (isEquawOwPawent(wesouwce, fowda.toWesouwce('.vscode'))) {
+				const fiwename = basename(wesouwce);
+				if (TewemetwyContwibution.AWWOWWIST_WOWKSPACE_JSON.indexOf(fiwename) > -1) {
+					wetuwn `.vscode/${fiwename}`;
 				}
 			}
 		}
 
-		return '';
+		wetuwn '';
 	}
 
-	private getTelemetryData(resource: URI, reason?: number): TelemetryData {
-		let ext = extname(resource);
-		// Remove query parameters from the resource extension
-		const queryStringLocation = ext.indexOf('?');
-		ext = queryStringLocation !== -1 ? ext.substr(0, queryStringLocation) : ext;
-		const fileName = basename(resource);
-		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
-		const telemetryData = {
-			mimeType: guessMimeTypes(resource).join(', '),
+	pwivate getTewemetwyData(wesouwce: UWI, weason?: numba): TewemetwyData {
+		wet ext = extname(wesouwce);
+		// Wemove quewy pawametews fwom the wesouwce extension
+		const quewyStwingWocation = ext.indexOf('?');
+		ext = quewyStwingWocation !== -1 ? ext.substw(0, quewyStwingWocation) : ext;
+		const fiweName = basename(wesouwce);
+		const path = wesouwce.scheme === Schemas.fiwe ? wesouwce.fsPath : wesouwce.path;
+		const tewemetwyData = {
+			mimeType: guessMimeTypes(wesouwce).join(', '),
 			ext,
 			path: hash(path),
-			reason,
-			allowlistedjson: undefined as string | undefined
+			weason,
+			awwowwistedjson: undefined as stwing | undefined
 		};
 
-		if (ext === '.json' && TelemetryContribution.ALLOWLIST_JSON.indexOf(fileName) > -1) {
-			telemetryData['allowlistedjson'] = fileName;
+		if (ext === '.json' && TewemetwyContwibution.AWWOWWIST_JSON.indexOf(fiweName) > -1) {
+			tewemetwyData['awwowwistedjson'] = fiweName;
 		}
 
-		return telemetryData;
+		wetuwn tewemetwyData;
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TelemetryContribution, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(TewemetwyContwibution, WifecycwePhase.Westowed);

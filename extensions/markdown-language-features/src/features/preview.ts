@@ -1,817 +1,817 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { OpenDocumentLinkCommand, resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
-import { Logger } from '../logger';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributionProvider } from '../markdownExtensions';
-import { Disposable } from '../util/dispose';
-import { isMarkdownFile } from '../util/file';
-import * as path from '../util/path';
-import { WebviewResourceProvider } from '../util/resources';
-import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { urlToUri } from '../util/url';
-import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { OpenDocumentWinkCommand, wesowveWinkToMawkdownFiwe } fwom '../commands/openDocumentWink';
+impowt { Wogga } fwom '../wogga';
+impowt { MawkdownEngine } fwom '../mawkdownEngine';
+impowt { MawkdownContwibutionPwovida } fwom '../mawkdownExtensions';
+impowt { Disposabwe } fwom '../utiw/dispose';
+impowt { isMawkdownFiwe } fwom '../utiw/fiwe';
+impowt * as path fwom '../utiw/path';
+impowt { WebviewWesouwcePwovida } fwom '../utiw/wesouwces';
+impowt { getVisibweWine, WastScwowwWocation, TopmostWineMonitow } fwom '../utiw/topmostWineMonitow';
+impowt { uwwToUwi } fwom '../utiw/uww';
+impowt { MawkdownPweviewConfiguwationManaga } fwom './pweviewConfig';
+impowt { MawkdownContentPwovida, MawkdownContentPwovidewOutput } fwom './pweviewContentPwovida';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-interface WebviewMessage {
-	readonly source: string;
+intewface WebviewMessage {
+	weadonwy souwce: stwing;
 }
 
-interface CacheImageSizesMessage extends WebviewMessage {
-	readonly type: 'cacheImageSizes';
-	readonly body: { id: string, width: number, height: number; }[];
+intewface CacheImageSizesMessage extends WebviewMessage {
+	weadonwy type: 'cacheImageSizes';
+	weadonwy body: { id: stwing, width: numba, height: numba; }[];
 }
 
-interface RevealLineMessage extends WebviewMessage {
-	readonly type: 'revealLine';
-	readonly body: {
-		readonly line: number;
+intewface WeveawWineMessage extends WebviewMessage {
+	weadonwy type: 'weveawWine';
+	weadonwy body: {
+		weadonwy wine: numba;
 	};
 }
 
-interface DidClickMessage extends WebviewMessage {
-	readonly type: 'didClick';
-	readonly body: {
-		readonly line: number;
+intewface DidCwickMessage extends WebviewMessage {
+	weadonwy type: 'didCwick';
+	weadonwy body: {
+		weadonwy wine: numba;
 	};
 }
 
-interface ClickLinkMessage extends WebviewMessage {
-	readonly type: 'openLink';
-	readonly body: {
-		readonly href: string;
+intewface CwickWinkMessage extends WebviewMessage {
+	weadonwy type: 'openWink';
+	weadonwy body: {
+		weadonwy hwef: stwing;
 	};
 }
 
-interface ShowPreviewSecuritySelectorMessage extends WebviewMessage {
-	readonly type: 'showPreviewSecuritySelector';
+intewface ShowPweviewSecuwitySewectowMessage extends WebviewMessage {
+	weadonwy type: 'showPweviewSecuwitySewectow';
 }
 
-interface PreviewStyleLoadErrorMessage extends WebviewMessage {
-	readonly type: 'previewStyleLoadError';
-	readonly body: {
-		readonly unloadedStyles: string[];
+intewface PweviewStyweWoadEwwowMessage extends WebviewMessage {
+	weadonwy type: 'pweviewStyweWoadEwwow';
+	weadonwy body: {
+		weadonwy unwoadedStywes: stwing[];
 	};
 }
 
-export class PreviewDocumentVersion {
+expowt cwass PweviewDocumentVewsion {
 
-	private readonly resource: vscode.Uri;
-	private readonly version: number;
+	pwivate weadonwy wesouwce: vscode.Uwi;
+	pwivate weadonwy vewsion: numba;
 
-	public constructor(document: vscode.TextDocument) {
-		this.resource = document.uri;
-		this.version = document.version;
+	pubwic constwuctow(document: vscode.TextDocument) {
+		this.wesouwce = document.uwi;
+		this.vewsion = document.vewsion;
 	}
 
-	public equals(other: PreviewDocumentVersion): boolean {
-		return this.resource.fsPath === other.resource.fsPath
-			&& this.version === other.version;
+	pubwic equaws(otha: PweviewDocumentVewsion): boowean {
+		wetuwn this.wesouwce.fsPath === otha.wesouwce.fsPath
+			&& this.vewsion === otha.vewsion;
 	}
 }
 
-interface MarkdownPreviewDelegate {
-	getTitle?(resource: vscode.Uri): string;
-	getAdditionalState(): {},
-	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string): void;
+intewface MawkdownPweviewDewegate {
+	getTitwe?(wesouwce: vscode.Uwi): stwing;
+	getAdditionawState(): {},
+	openPweviewWinkToMawkdownFiwe(mawkdownWink: vscode.Uwi, fwagment: stwing): void;
 }
 
-class StartingScrollLine {
-	public readonly type = 'line';
+cwass StawtingScwowwWine {
+	pubwic weadonwy type = 'wine';
 
-	constructor(
-		public readonly line: number,
+	constwuctow(
+		pubwic weadonwy wine: numba,
 	) { }
 }
 
-export class StartingScrollFragment {
-	public readonly type = 'fragment';
+expowt cwass StawtingScwowwFwagment {
+	pubwic weadonwy type = 'fwagment';
 
-	constructor(
-		public readonly fragment: string,
+	constwuctow(
+		pubwic weadonwy fwagment: stwing,
 	) { }
 }
 
-type StartingScrollLocation = StartingScrollLine | StartingScrollFragment;
+type StawtingScwowwWocation = StawtingScwowwWine | StawtingScwowwFwagment;
 
-class MarkdownPreview extends Disposable implements WebviewResourceProvider {
+cwass MawkdownPweview extends Disposabwe impwements WebviewWesouwcePwovida {
 
-	private readonly delay = 300;
+	pwivate weadonwy deway = 300;
 
-	private readonly _resource: vscode.Uri;
-	private readonly _webviewPanel: vscode.WebviewPanel;
+	pwivate weadonwy _wesouwce: vscode.Uwi;
+	pwivate weadonwy _webviewPanew: vscode.WebviewPanew;
 
-	private throttleTimer: any;
+	pwivate thwottweTima: any;
 
-	private line: number | undefined;
-	private scrollToFragment: string | undefined;
+	pwivate wine: numba | undefined;
+	pwivate scwowwToFwagment: stwing | undefined;
 
-	private firstUpdate = true;
-	private currentVersion?: PreviewDocumentVersion;
-	private isScrolling = false;
-	private _disposed: boolean = false;
-	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
+	pwivate fiwstUpdate = twue;
+	pwivate cuwwentVewsion?: PweviewDocumentVewsion;
+	pwivate isScwowwing = fawse;
+	pwivate _disposed: boowean = fawse;
+	pwivate imageInfo: { weadonwy id: stwing, weadonwy width: numba, weadonwy height: numba; }[] = [];
 
-	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
-	private readonly _onScrollEmitter = this._register(new vscode.EventEmitter<LastScrollLocation>());
-	public readonly onScroll = this._onScrollEmitter.event;
+	pwivate weadonwy _fiweWatchewsBySwc = new Map</* swc: */ stwing, vscode.FiweSystemWatcha>();
+	pwivate weadonwy _onScwowwEmitta = this._wegista(new vscode.EventEmitta<WastScwowwWocation>());
+	pubwic weadonwy onScwoww = this._onScwowwEmitta.event;
 
-	constructor(
-		webview: vscode.WebviewPanel,
-		resource: vscode.Uri,
-		startingScroll: StartingScrollLocation | undefined,
-		private readonly delegate: MarkdownPreviewDelegate,
-		private readonly engine: MarkdownEngine,
-		private readonly _contentProvider: MarkdownContentProvider,
-		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _logger: Logger,
-		private readonly _contributionProvider: MarkdownContributionProvider,
+	constwuctow(
+		webview: vscode.WebviewPanew,
+		wesouwce: vscode.Uwi,
+		stawtingScwoww: StawtingScwowwWocation | undefined,
+		pwivate weadonwy dewegate: MawkdownPweviewDewegate,
+		pwivate weadonwy engine: MawkdownEngine,
+		pwivate weadonwy _contentPwovida: MawkdownContentPwovida,
+		pwivate weadonwy _pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		pwivate weadonwy _wogga: Wogga,
+		pwivate weadonwy _contwibutionPwovida: MawkdownContwibutionPwovida,
 	) {
-		super();
+		supa();
 
-		this._webviewPanel = webview;
-		this._resource = resource;
+		this._webviewPanew = webview;
+		this._wesouwce = wesouwce;
 
-		switch (startingScroll?.type) {
-			case 'line':
-				if (!isNaN(startingScroll.line!)) {
-					this.line = startingScroll.line;
+		switch (stawtingScwoww?.type) {
+			case 'wine':
+				if (!isNaN(stawtingScwoww.wine!)) {
+					this.wine = stawtingScwoww.wine;
 				}
-				break;
+				bweak;
 
-			case 'fragment':
-				this.scrollToFragment = startingScroll.fragment;
-				break;
+			case 'fwagment':
+				this.scwowwToFwagment = stawtingScwoww.fwagment;
+				bweak;
 		}
 
-		this._register(_contributionProvider.onContributionsChanged(() => {
-			setTimeout(() => this.refresh(), 0);
+		this._wegista(_contwibutionPwovida.onContwibutionsChanged(() => {
+			setTimeout(() => this.wefwesh(), 0);
 		}));
 
-		this._register(vscode.workspace.onDidChangeTextDocument(event => {
-			if (this.isPreviewOf(event.document.uri)) {
-				this.refresh();
+		this._wegista(vscode.wowkspace.onDidChangeTextDocument(event => {
+			if (this.isPweviewOf(event.document.uwi)) {
+				this.wefwesh();
 			}
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
-		this._register(watcher.onDidChange(uri => {
-			if (this.isPreviewOf(uri)) {
-				// Only use the file system event when VS Code does not already know about the file
-				if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() !== uri.toString())) {
-					this.refresh();
+		const watcha = this._wegista(vscode.wowkspace.cweateFiweSystemWatcha(wesouwce.fsPath));
+		this._wegista(watcha.onDidChange(uwi => {
+			if (this.isPweviewOf(uwi)) {
+				// Onwy use the fiwe system event when VS Code does not awweady know about the fiwe
+				if (!vscode.wowkspace.textDocuments.some(doc => doc.uwi.toStwing() !== uwi.toStwing())) {
+					this.wefwesh();
 				}
 			}
 		}));
 
-		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
-			if (e.source !== this._resource.toString()) {
-				return;
+		this._wegista(this._webviewPanew.webview.onDidWeceiveMessage((e: CacheImageSizesMessage | WeveawWineMessage | DidCwickMessage | CwickWinkMessage | ShowPweviewSecuwitySewectowMessage | PweviewStyweWoadEwwowMessage) => {
+			if (e.souwce !== this._wesouwce.toStwing()) {
+				wetuwn;
 			}
 
 			switch (e.type) {
 				case 'cacheImageSizes':
 					this.imageInfo = e.body;
-					break;
+					bweak;
 
-				case 'revealLine':
-					this.onDidScrollPreview(e.body.line);
-					break;
+				case 'weveawWine':
+					this.onDidScwowwPweview(e.body.wine);
+					bweak;
 
-				case 'didClick':
-					this.onDidClickPreview(e.body.line);
-					break;
+				case 'didCwick':
+					this.onDidCwickPweview(e.body.wine);
+					bweak;
 
-				case 'openLink':
-					this.onDidClickPreviewLink(e.body.href);
-					break;
+				case 'openWink':
+					this.onDidCwickPweviewWink(e.body.hwef);
+					bweak;
 
-				case 'showPreviewSecuritySelector':
-					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.source);
-					break;
+				case 'showPweviewSecuwitySewectow':
+					vscode.commands.executeCommand('mawkdown.showPweviewSecuwitySewectow', e.souwce);
+					bweak;
 
-				case 'previewStyleLoadError':
-					vscode.window.showWarningMessage(
-						localize('onPreviewStyleLoadError',
-							"Could not load 'markdown.styles': {0}",
-							e.body.unloadedStyles.join(', ')));
-					break;
+				case 'pweviewStyweWoadEwwow':
+					vscode.window.showWawningMessage(
+						wocawize('onPweviewStyweWoadEwwow',
+							"Couwd not woad 'mawkdown.stywes': {0}",
+							e.body.unwoadedStywes.join(', ')));
+					bweak;
 			}
 		}));
 
-		this.updatePreview();
+		this.updatePweview();
 	}
 
-	override dispose() {
-		super.dispose();
-		this._disposed = true;
-		clearTimeout(this.throttleTimer);
-		for (const entry of this._fileWatchersBySrc.values()) {
-			entry.dispose();
+	ovewwide dispose() {
+		supa.dispose();
+		this._disposed = twue;
+		cweawTimeout(this.thwottweTima);
+		fow (const entwy of this._fiweWatchewsBySwc.vawues()) {
+			entwy.dispose();
 		}
 	}
 
-	public get resource(): vscode.Uri {
-		return this._resource;
+	pubwic get wesouwce(): vscode.Uwi {
+		wetuwn this._wesouwce;
 	}
 
-	public get state() {
-		return {
-			resource: this._resource.toString(),
-			line: this.line,
+	pubwic get state() {
+		wetuwn {
+			wesouwce: this._wesouwce.toStwing(),
+			wine: this.wine,
 			imageInfo: this.imageInfo,
-			fragment: this.scrollToFragment,
-			...this.delegate.getAdditionalState(),
+			fwagment: this.scwowwToFwagment,
+			...this.dewegate.getAdditionawState(),
 		};
 	}
 
 	/**
-	 * The first call immediately refreshes the preview,
-	 * calls happening shortly thereafter are debounced.
+	 * The fiwst caww immediatewy wefweshes the pweview,
+	 * cawws happening showtwy theweafta awe debounced.
 	*/
-	public refresh() {
-		// Schedule update if none is pending
-		if (!this.throttleTimer) {
-			if (this.firstUpdate) {
-				this.updatePreview(true);
-			} else {
-				this.throttleTimer = setTimeout(() => this.updatePreview(true), this.delay);
+	pubwic wefwesh() {
+		// Scheduwe update if none is pending
+		if (!this.thwottweTima) {
+			if (this.fiwstUpdate) {
+				this.updatePweview(twue);
+			} ewse {
+				this.thwottweTima = setTimeout(() => this.updatePweview(twue), this.deway);
 			}
 		}
 
-		this.firstUpdate = false;
+		this.fiwstUpdate = fawse;
 	}
 
-	private get iconPath() {
-		const root = vscode.Uri.joinPath(this._contributionProvider.extensionUri, 'media');
-		return {
-			light: vscode.Uri.joinPath(root, 'preview-light.svg'),
-			dark: vscode.Uri.joinPath(root, 'preview-dark.svg'),
+	pwivate get iconPath() {
+		const woot = vscode.Uwi.joinPath(this._contwibutionPwovida.extensionUwi, 'media');
+		wetuwn {
+			wight: vscode.Uwi.joinPath(woot, 'pweview-wight.svg'),
+			dawk: vscode.Uwi.joinPath(woot, 'pweview-dawk.svg'),
 		};
 	}
 
-	public isPreviewOf(resource: vscode.Uri): boolean {
-		return this._resource.fsPath === resource.fsPath;
+	pubwic isPweviewOf(wesouwce: vscode.Uwi): boowean {
+		wetuwn this._wesouwce.fsPath === wesouwce.fsPath;
 	}
 
-	public postMessage(msg: any) {
+	pubwic postMessage(msg: any) {
 		if (!this._disposed) {
-			this._webviewPanel.webview.postMessage(msg);
+			this._webviewPanew.webview.postMessage(msg);
 		}
 	}
 
-	public scrollTo(topLine: number) {
+	pubwic scwowwTo(topWine: numba) {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		if (this.isScrolling) {
-			this.isScrolling = false;
-			return;
+		if (this.isScwowwing) {
+			this.isScwowwing = fawse;
+			wetuwn;
 		}
 
-		this._logger.log('updateForView', { markdownFile: this._resource });
-		this.line = topLine;
+		this._wogga.wog('updateFowView', { mawkdownFiwe: this._wesouwce });
+		this.wine = topWine;
 		this.postMessage({
 			type: 'updateView',
-			line: topLine,
-			source: this._resource.toString()
+			wine: topWine,
+			souwce: this._wesouwce.toStwing()
 		});
 	}
 
-	private async updatePreview(forceUpdate?: boolean): Promise<void> {
-		clearTimeout(this.throttleTimer);
-		this.throttleTimer = undefined;
+	pwivate async updatePweview(fowceUpdate?: boowean): Pwomise<void> {
+		cweawTimeout(this.thwottweTima);
+		this.thwottweTima = undefined;
 
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		let document: vscode.TextDocument;
-		try {
-			document = await vscode.workspace.openTextDocument(this._resource);
+		wet document: vscode.TextDocument;
+		twy {
+			document = await vscode.wowkspace.openTextDocument(this._wesouwce);
 		} catch {
-			await this.showFileNotFoundError();
-			return;
+			await this.showFiweNotFoundEwwow();
+			wetuwn;
 		}
 
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		const pendingVersion = new PreviewDocumentVersion(document);
-		if (!forceUpdate && this.currentVersion?.equals(pendingVersion)) {
-			if (this.line) {
-				this.scrollTo(this.line);
+		const pendingVewsion = new PweviewDocumentVewsion(document);
+		if (!fowceUpdate && this.cuwwentVewsion?.equaws(pendingVewsion)) {
+			if (this.wine) {
+				this.scwowwTo(this.wine);
 			}
-			return;
+			wetuwn;
 		}
 
-		this.currentVersion = pendingVersion;
-		const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
+		this.cuwwentVewsion = pendingVewsion;
+		const content = await this._contentPwovida.pwovideTextDocumentContent(document, this, this._pweviewConfiguwations, this.wine, this.state);
 
-		// Another call to `doUpdate` may have happened.
-		// Make sure we are still updating for the correct document
-		if (this.currentVersion?.equals(pendingVersion)) {
+		// Anotha caww to `doUpdate` may have happened.
+		// Make suwe we awe stiww updating fow the cowwect document
+		if (this.cuwwentVewsion?.equaws(pendingVewsion)) {
 			this.setContent(content);
 		}
 	}
 
-	private onDidScrollPreview(line: number) {
-		this.line = line;
-		this._onScrollEmitter.fire({ line: this.line, uri: this._resource });
-		const config = this._previewConfigurations.loadAndCacheConfiguration(this._resource);
-		if (!config.scrollEditorWithPreview) {
-			return;
+	pwivate onDidScwowwPweview(wine: numba) {
+		this.wine = wine;
+		this._onScwowwEmitta.fiwe({ wine: this.wine, uwi: this._wesouwce });
+		const config = this._pweviewConfiguwations.woadAndCacheConfiguwation(this._wesouwce);
+		if (!config.scwowwEditowWithPweview) {
+			wetuwn;
 		}
 
-		for (const editor of vscode.window.visibleTextEditors) {
-			if (!this.isPreviewOf(editor.document.uri)) {
+		fow (const editow of vscode.window.visibweTextEditows) {
+			if (!this.isPweviewOf(editow.document.uwi)) {
 				continue;
 			}
 
-			this.isScrolling = true;
-			scrollEditorToLine(line, editor);
+			this.isScwowwing = twue;
+			scwowwEditowToWine(wine, editow);
 		}
 	}
 
-	private async onDidClickPreview(line: number): Promise<void> {
-		// fix #82457, find currently opened but unfocused source tab
-		await vscode.commands.executeCommand('markdown.showSource');
+	pwivate async onDidCwickPweview(wine: numba): Pwomise<void> {
+		// fix #82457, find cuwwentwy opened but unfocused souwce tab
+		await vscode.commands.executeCommand('mawkdown.showSouwce');
 
-		for (const visibleEditor of vscode.window.visibleTextEditors) {
-			if (this.isPreviewOf(visibleEditor.document.uri)) {
-				const editor = await vscode.window.showTextDocument(visibleEditor.document, visibleEditor.viewColumn);
-				const position = new vscode.Position(line, 0);
-				editor.selection = new vscode.Selection(position, position);
-				return;
+		fow (const visibweEditow of vscode.window.visibweTextEditows) {
+			if (this.isPweviewOf(visibweEditow.document.uwi)) {
+				const editow = await vscode.window.showTextDocument(visibweEditow.document, visibweEditow.viewCowumn);
+				const position = new vscode.Position(wine, 0);
+				editow.sewection = new vscode.Sewection(position, position);
+				wetuwn;
 			}
 		}
 
-		await vscode.workspace.openTextDocument(this._resource)
+		await vscode.wowkspace.openTextDocument(this._wesouwce)
 			.then(vscode.window.showTextDocument)
 			.then(undefined, () => {
-				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));
+				vscode.window.showEwwowMessage(wocawize('pweview.cwickOpenFaiwed', 'Couwd not open {0}', this._wesouwce.toStwing()));
 			});
 	}
 
-	private async showFileNotFoundError() {
-		this._webviewPanel.webview.html = this._contentProvider.provideFileNotFoundContent(this._resource);
+	pwivate async showFiweNotFoundEwwow() {
+		this._webviewPanew.webview.htmw = this._contentPwovida.pwovideFiweNotFoundContent(this._wesouwce);
 	}
 
-	private setContent(content: MarkdownContentProviderOutput): void {
+	pwivate setContent(content: MawkdownContentPwovidewOutput): void {
 		if (this._disposed) {
-			return;
+			wetuwn;
 		}
 
-		if (this.delegate.getTitle) {
-			this._webviewPanel.title = this.delegate.getTitle(this._resource);
+		if (this.dewegate.getTitwe) {
+			this._webviewPanew.titwe = this.dewegate.getTitwe(this._wesouwce);
 		}
-		this._webviewPanel.iconPath = this.iconPath;
-		this._webviewPanel.webview.options = this.getWebviewOptions();
+		this._webviewPanew.iconPath = this.iconPath;
+		this._webviewPanew.webview.options = this.getWebviewOptions();
 
-		this._webviewPanel.webview.html = content.html;
+		this._webviewPanew.webview.htmw = content.htmw;
 
-		const srcs = new Set(content.containingImages.map(img => img.src));
+		const swcs = new Set(content.containingImages.map(img => img.swc));
 
-		// Delete stale file watchers.
-		for (const [src, watcher] of [...this._fileWatchersBySrc]) {
-			if (!srcs.has(src)) {
-				watcher.dispose();
-				this._fileWatchersBySrc.delete(src);
+		// Dewete stawe fiwe watchews.
+		fow (const [swc, watcha] of [...this._fiweWatchewsBySwc]) {
+			if (!swcs.has(swc)) {
+				watcha.dispose();
+				this._fiweWatchewsBySwc.dewete(swc);
 			}
 		}
 
-		// Create new file watchers.
-		const root = vscode.Uri.joinPath(this._resource, '../');
-		for (const src of srcs) {
-			const uri = urlToUri(src, root);
-			if (uri && uri.scheme === 'file' && !this._fileWatchersBySrc.has(src)) {
-				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
-				watcher.onDidChange(() => {
-					this.refresh();
+		// Cweate new fiwe watchews.
+		const woot = vscode.Uwi.joinPath(this._wesouwce, '../');
+		fow (const swc of swcs) {
+			const uwi = uwwToUwi(swc, woot);
+			if (uwi && uwi.scheme === 'fiwe' && !this._fiweWatchewsBySwc.has(swc)) {
+				const watcha = vscode.wowkspace.cweateFiweSystemWatcha(uwi.fsPath);
+				watcha.onDidChange(() => {
+					this.wefwesh();
 				});
-				this._fileWatchersBySrc.set(src, watcher);
+				this._fiweWatchewsBySwc.set(swc, watcha);
 			}
 		}
 	}
 
-	private getWebviewOptions(): vscode.WebviewOptions {
-		return {
-			enableScripts: true,
-			enableForms: false,
-			localResourceRoots: this.getLocalResourceRoots()
+	pwivate getWebviewOptions(): vscode.WebviewOptions {
+		wetuwn {
+			enabweScwipts: twue,
+			enabweFowms: fawse,
+			wocawWesouwceWoots: this.getWocawWesouwceWoots()
 		};
 	}
 
-	private getLocalResourceRoots(): ReadonlyArray<vscode.Uri> {
-		const baseRoots = Array.from(this._contributionProvider.contributions.previewResourceRoots);
+	pwivate getWocawWesouwceWoots(): WeadonwyAwway<vscode.Uwi> {
+		const baseWoots = Awway.fwom(this._contwibutionPwovida.contwibutions.pweviewWesouwceWoots);
 
-		const folder = vscode.workspace.getWorkspaceFolder(this._resource);
-		if (folder) {
-			const workspaceRoots = vscode.workspace.workspaceFolders?.map(folder => folder.uri);
-			if (workspaceRoots) {
-				baseRoots.push(...workspaceRoots);
+		const fowda = vscode.wowkspace.getWowkspaceFowda(this._wesouwce);
+		if (fowda) {
+			const wowkspaceWoots = vscode.wowkspace.wowkspaceFowdews?.map(fowda => fowda.uwi);
+			if (wowkspaceWoots) {
+				baseWoots.push(...wowkspaceWoots);
 			}
-		} else if (!this._resource.scheme || this._resource.scheme === 'file') {
-			baseRoots.push(vscode.Uri.file(path.dirname(this._resource.fsPath)));
+		} ewse if (!this._wesouwce.scheme || this._wesouwce.scheme === 'fiwe') {
+			baseWoots.push(vscode.Uwi.fiwe(path.diwname(this._wesouwce.fsPath)));
 		}
 
-		return baseRoots;
+		wetuwn baseWoots;
 	}
 
 
-	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
+	pwivate async onDidCwickPweviewWink(hwef: stwing) {
+		wet [hwefPath, fwagment] = hwef.spwit('#').map(c => decodeUWIComponent(c));
 
-		if (hrefPath[0] !== '/') {
-			// We perviously already resolve absolute paths.
-			// Now make sure we handle relative file paths
-			const dirnameUri = vscode.Uri.parse(path.dirname(this.resource.path));
-			hrefPath = vscode.Uri.joinPath(dirnameUri, hrefPath).path;
-		} else {
-			// Handle any normalized file paths
-			hrefPath = vscode.Uri.parse(hrefPath.replace('/file', '')).path;
+		if (hwefPath[0] !== '/') {
+			// We pewviouswy awweady wesowve absowute paths.
+			// Now make suwe we handwe wewative fiwe paths
+			const diwnameUwi = vscode.Uwi.pawse(path.diwname(this.wesouwce.path));
+			hwefPath = vscode.Uwi.joinPath(diwnameUwi, hwefPath).path;
+		} ewse {
+			// Handwe any nowmawized fiwe paths
+			hwefPath = vscode.Uwi.pawse(hwefPath.wepwace('/fiwe', '')).path;
 		}
 
-		const config = vscode.workspace.getConfiguration('markdown', this.resource);
-		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
-		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(hrefPath);
-			if (markdownLink) {
-				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, fragment);
-				return;
+		const config = vscode.wowkspace.getConfiguwation('mawkdown', this.wesouwce);
+		const openWinks = config.get<stwing>('pweview.openMawkdownWinks', 'inPweview');
+		if (openWinks === 'inPweview') {
+			const mawkdownWink = await wesowveWinkToMawkdownFiwe(hwefPath);
+			if (mawkdownWink) {
+				this.dewegate.openPweviewWinkToMawkdownFiwe(mawkdownWink, fwagment);
+				wetuwn;
 			}
 		}
 
-		OpenDocumentLinkCommand.execute(this.engine, { parts: { path: hrefPath }, fragment, fromResource: this.resource.toJSON() });
+		OpenDocumentWinkCommand.execute(this.engine, { pawts: { path: hwefPath }, fwagment, fwomWesouwce: this.wesouwce.toJSON() });
 	}
 
-	//#region WebviewResourceProvider
+	//#wegion WebviewWesouwcePwovida
 
-	asWebviewUri(resource: vscode.Uri) {
-		return this._webviewPanel.webview.asWebviewUri(resource);
+	asWebviewUwi(wesouwce: vscode.Uwi) {
+		wetuwn this._webviewPanew.webview.asWebviewUwi(wesouwce);
 	}
 
-	get cspSource() {
-		return this._webviewPanel.webview.cspSource;
+	get cspSouwce() {
+		wetuwn this._webviewPanew.webview.cspSouwce;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export interface ManagedMarkdownPreview {
+expowt intewface ManagedMawkdownPweview {
 
-	readonly resource: vscode.Uri;
-	readonly resourceColumn: vscode.ViewColumn;
+	weadonwy wesouwce: vscode.Uwi;
+	weadonwy wesouwceCowumn: vscode.ViewCowumn;
 
-	readonly onDispose: vscode.Event<void>;
-	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent>;
+	weadonwy onDispose: vscode.Event<void>;
+	weadonwy onDidChangeViewState: vscode.Event<vscode.WebviewPanewOnDidChangeViewStateEvent>;
 
 	dispose(): void;
 
-	refresh(): void;
-	updateConfiguration(): void;
+	wefwesh(): void;
+	updateConfiguwation(): void;
 
-	matchesResource(
-		otherResource: vscode.Uri,
-		otherPosition: vscode.ViewColumn | undefined,
-		otherLocked: boolean
-	): boolean;
+	matchesWesouwce(
+		othewWesouwce: vscode.Uwi,
+		othewPosition: vscode.ViewCowumn | undefined,
+		othewWocked: boowean
+	): boowean;
 }
 
-export class StaticMarkdownPreview extends Disposable implements ManagedMarkdownPreview {
+expowt cwass StaticMawkdownPweview extends Disposabwe impwements ManagedMawkdownPweview {
 
-	public static revive(
-		resource: vscode.Uri,
-		webview: vscode.WebviewPanel,
-		contentProvider: MarkdownContentProvider,
-		previewConfigurations: MarkdownPreviewConfigurationManager,
-		topmostLineMonitor: TopmostLineMonitor,
-		logger: Logger,
-		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
-		scrollLine?: number,
-	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, engine, scrollLine);
+	pubwic static wevive(
+		wesouwce: vscode.Uwi,
+		webview: vscode.WebviewPanew,
+		contentPwovida: MawkdownContentPwovida,
+		pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		topmostWineMonitow: TopmostWineMonitow,
+		wogga: Wogga,
+		contwibutionPwovida: MawkdownContwibutionPwovida,
+		engine: MawkdownEngine,
+		scwowwWine?: numba,
+	): StaticMawkdownPweview {
+		wetuwn new StaticMawkdownPweview(webview, wesouwce, contentPwovida, pweviewConfiguwations, topmostWineMonitow, wogga, contwibutionPwovida, engine, scwowwWine);
 	}
 
-	private readonly preview: MarkdownPreview;
+	pwivate weadonwy pweview: MawkdownPweview;
 
-	private constructor(
-		private readonly _webviewPanel: vscode.WebviewPanel,
-		resource: vscode.Uri,
-		contentProvider: MarkdownContentProvider,
-		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		topmostLineMonitor: TopmostLineMonitor,
-		logger: Logger,
-		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
-		scrollLine?: number,
+	pwivate constwuctow(
+		pwivate weadonwy _webviewPanew: vscode.WebviewPanew,
+		wesouwce: vscode.Uwi,
+		contentPwovida: MawkdownContentPwovida,
+		pwivate weadonwy _pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		topmostWineMonitow: TopmostWineMonitow,
+		wogga: Wogga,
+		contwibutionPwovida: MawkdownContwibutionPwovida,
+		engine: MawkdownEngine,
+		scwowwWine?: numba,
 	) {
-		super();
-		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
-		this.preview = this._register(new MarkdownPreview(this._webviewPanel, resource, topScrollLocation, {
-			getAdditionalState: () => { return {}; },
-			openPreviewLinkToMarkdownFile: () => { /* todo */ }
-		}, engine, contentProvider, _previewConfigurations, logger, contributionProvider));
+		supa();
+		const topScwowwWocation = scwowwWine ? new StawtingScwowwWine(scwowwWine) : undefined;
+		this.pweview = this._wegista(new MawkdownPweview(this._webviewPanew, wesouwce, topScwowwWocation, {
+			getAdditionawState: () => { wetuwn {}; },
+			openPweviewWinkToMawkdownFiwe: () => { /* todo */ }
+		}, engine, contentPwovida, _pweviewConfiguwations, wogga, contwibutionPwovida));
 
-		this._register(this._webviewPanel.onDidDispose(() => {
+		this._wegista(this._webviewPanew.onDidDispose(() => {
 			this.dispose();
 		}));
 
-		this._register(this._webviewPanel.onDidChangeViewState(e => {
-			this._onDidChangeViewState.fire(e);
+		this._wegista(this._webviewPanew.onDidChangeViewState(e => {
+			this._onDidChangeViewState.fiwe(e);
 		}));
 
-		this._register(this.preview.onScroll((scrollInfo) => {
-			topmostLineMonitor.setPreviousStaticEditorLine(scrollInfo);
+		this._wegista(this.pweview.onScwoww((scwowwInfo) => {
+			topmostWineMonitow.setPweviousStaticEditowWine(scwowwInfo);
 		}));
 
-		this._register(topmostLineMonitor.onDidChanged(event => {
-			if (this.preview.isPreviewOf(event.resource)) {
-				this.preview.scrollTo(event.line);
+		this._wegista(topmostWineMonitow.onDidChanged(event => {
+			if (this.pweview.isPweviewOf(event.wesouwce)) {
+				this.pweview.scwowwTo(event.wine);
 			}
 		}));
 	}
 
-	private readonly _onDispose = this._register(new vscode.EventEmitter<void>());
-	public readonly onDispose = this._onDispose.event;
+	pwivate weadonwy _onDispose = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDispose = this._onDispose.event;
 
-	private readonly _onDidChangeViewState = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
-	public readonly onDidChangeViewState = this._onDidChangeViewState.event;
+	pwivate weadonwy _onDidChangeViewState = this._wegista(new vscode.EventEmitta<vscode.WebviewPanewOnDidChangeViewStateEvent>());
+	pubwic weadonwy onDidChangeViewState = this._onDidChangeViewState.event;
 
-	override dispose() {
-		this._onDispose.fire();
-		super.dispose();
+	ovewwide dispose() {
+		this._onDispose.fiwe();
+		supa.dispose();
 	}
 
-	public matchesResource(
-		_otherResource: vscode.Uri,
-		_otherPosition: vscode.ViewColumn | undefined,
-		_otherLocked: boolean
-	): boolean {
-		return false;
+	pubwic matchesWesouwce(
+		_othewWesouwce: vscode.Uwi,
+		_othewPosition: vscode.ViewCowumn | undefined,
+		_othewWocked: boowean
+	): boowean {
+		wetuwn fawse;
 	}
 
-	public refresh() {
-		this.preview.refresh();
+	pubwic wefwesh() {
+		this.pweview.wefwesh();
 	}
 
-	public updateConfiguration() {
-		if (this._previewConfigurations.hasConfigurationChanged(this.preview.resource)) {
-			this.refresh();
+	pubwic updateConfiguwation() {
+		if (this._pweviewConfiguwations.hasConfiguwationChanged(this.pweview.wesouwce)) {
+			this.wefwesh();
 		}
 	}
 
-	public get resource() {
-		return this.preview.resource;
+	pubwic get wesouwce() {
+		wetuwn this.pweview.wesouwce;
 	}
 
-	public get resourceColumn() {
-		return this._webviewPanel.viewColumn || vscode.ViewColumn.One;
+	pubwic get wesouwceCowumn() {
+		wetuwn this._webviewPanew.viewCowumn || vscode.ViewCowumn.One;
 	}
 }
 
-interface DynamicPreviewInput {
-	readonly resource: vscode.Uri;
-	readonly resourceColumn: vscode.ViewColumn;
-	readonly locked: boolean;
-	readonly line?: number;
+intewface DynamicPweviewInput {
+	weadonwy wesouwce: vscode.Uwi;
+	weadonwy wesouwceCowumn: vscode.ViewCowumn;
+	weadonwy wocked: boowean;
+	weadonwy wine?: numba;
 }
 
 /**
  * A
  */
-export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdownPreview {
+expowt cwass DynamicMawkdownPweview extends Disposabwe impwements ManagedMawkdownPweview {
 
-	public static readonly viewType = 'markdown.preview';
+	pubwic static weadonwy viewType = 'mawkdown.pweview';
 
-	private readonly _resourceColumn: vscode.ViewColumn;
-	private _locked: boolean;
+	pwivate weadonwy _wesouwceCowumn: vscode.ViewCowumn;
+	pwivate _wocked: boowean;
 
-	private readonly _webviewPanel: vscode.WebviewPanel;
-	private _preview: MarkdownPreview;
+	pwivate weadonwy _webviewPanew: vscode.WebviewPanew;
+	pwivate _pweview: MawkdownPweview;
 
-	public static revive(
-		input: DynamicPreviewInput,
-		webview: vscode.WebviewPanel,
-		contentProvider: MarkdownContentProvider,
-		previewConfigurations: MarkdownPreviewConfigurationManager,
-		logger: Logger,
-		topmostLineMonitor: TopmostLineMonitor,
-		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
-	): DynamicMarkdownPreview {
-		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
+	pubwic static wevive(
+		input: DynamicPweviewInput,
+		webview: vscode.WebviewPanew,
+		contentPwovida: MawkdownContentPwovida,
+		pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		wogga: Wogga,
+		topmostWineMonitow: TopmostWineMonitow,
+		contwibutionPwovida: MawkdownContwibutionPwovida,
+		engine: MawkdownEngine,
+	): DynamicMawkdownPweview {
+		wetuwn new DynamicMawkdownPweview(webview, input,
+			contentPwovida, pweviewConfiguwations, wogga, topmostWineMonitow, contwibutionPwovida, engine);
 	}
 
-	public static create(
-		input: DynamicPreviewInput,
-		previewColumn: vscode.ViewColumn,
-		contentProvider: MarkdownContentProvider,
-		previewConfigurations: MarkdownPreviewConfigurationManager,
-		logger: Logger,
-		topmostLineMonitor: TopmostLineMonitor,
-		contributionProvider: MarkdownContributionProvider,
-		engine: MarkdownEngine,
-	): DynamicMarkdownPreview {
-		const webview = vscode.window.createWebviewPanel(
-			DynamicMarkdownPreview.viewType,
-			DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked),
-			previewColumn, { enableFindWidget: true, });
+	pubwic static cweate(
+		input: DynamicPweviewInput,
+		pweviewCowumn: vscode.ViewCowumn,
+		contentPwovida: MawkdownContentPwovida,
+		pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		wogga: Wogga,
+		topmostWineMonitow: TopmostWineMonitow,
+		contwibutionPwovida: MawkdownContwibutionPwovida,
+		engine: MawkdownEngine,
+	): DynamicMawkdownPweview {
+		const webview = vscode.window.cweateWebviewPanew(
+			DynamicMawkdownPweview.viewType,
+			DynamicMawkdownPweview.getPweviewTitwe(input.wesouwce, input.wocked),
+			pweviewCowumn, { enabweFindWidget: twue, });
 
-		return new DynamicMarkdownPreview(webview, input,
-			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
+		wetuwn new DynamicMawkdownPweview(webview, input,
+			contentPwovida, pweviewConfiguwations, wogga, topmostWineMonitow, contwibutionPwovida, engine);
 	}
 
-	private constructor(
-		webview: vscode.WebviewPanel,
-		input: DynamicPreviewInput,
-		private readonly _contentProvider: MarkdownContentProvider,
-		private readonly _previewConfigurations: MarkdownPreviewConfigurationManager,
-		private readonly _logger: Logger,
-		private readonly _topmostLineMonitor: TopmostLineMonitor,
-		private readonly _contributionProvider: MarkdownContributionProvider,
-		private readonly _engine: MarkdownEngine,
+	pwivate constwuctow(
+		webview: vscode.WebviewPanew,
+		input: DynamicPweviewInput,
+		pwivate weadonwy _contentPwovida: MawkdownContentPwovida,
+		pwivate weadonwy _pweviewConfiguwations: MawkdownPweviewConfiguwationManaga,
+		pwivate weadonwy _wogga: Wogga,
+		pwivate weadonwy _topmostWineMonitow: TopmostWineMonitow,
+		pwivate weadonwy _contwibutionPwovida: MawkdownContwibutionPwovida,
+		pwivate weadonwy _engine: MawkdownEngine,
 	) {
-		super();
+		supa();
 
-		this._webviewPanel = webview;
+		this._webviewPanew = webview;
 
-		this._resourceColumn = input.resourceColumn;
-		this._locked = input.locked;
+		this._wesouwceCowumn = input.wesouwceCowumn;
+		this._wocked = input.wocked;
 
-		this._preview = this.createPreview(input.resource, typeof input.line === 'number' ? new StartingScrollLine(input.line) : undefined);
+		this._pweview = this.cweatePweview(input.wesouwce, typeof input.wine === 'numba' ? new StawtingScwowwWine(input.wine) : undefined);
 
-		this._register(webview.onDidDispose(() => { this.dispose(); }));
+		this._wegista(webview.onDidDispose(() => { this.dispose(); }));
 
-		this._register(this._webviewPanel.onDidChangeViewState(e => {
-			this._onDidChangeViewStateEmitter.fire(e);
+		this._wegista(this._webviewPanew.onDidChangeViewState(e => {
+			this._onDidChangeViewStateEmitta.fiwe(e);
 		}));
 
-		this._register(this._topmostLineMonitor.onDidChanged(event => {
-			if (this._preview.isPreviewOf(event.resource)) {
-				this._preview.scrollTo(event.line);
+		this._wegista(this._topmostWineMonitow.onDidChanged(event => {
+			if (this._pweview.isPweviewOf(event.wesouwce)) {
+				this._pweview.scwowwTo(event.wine);
 			}
 		}));
 
-		this._register(vscode.window.onDidChangeTextEditorSelection(event => {
-			if (this._preview.isPreviewOf(event.textEditor.document.uri)) {
-				this._preview.postMessage({
-					type: 'onDidChangeTextEditorSelection',
-					line: event.selections[0].active.line,
-					source: this._preview.resource.toString()
+		this._wegista(vscode.window.onDidChangeTextEditowSewection(event => {
+			if (this._pweview.isPweviewOf(event.textEditow.document.uwi)) {
+				this._pweview.postMessage({
+					type: 'onDidChangeTextEditowSewection',
+					wine: event.sewections[0].active.wine,
+					souwce: this._pweview.wesouwce.toStwing()
 				});
 			}
 		}));
 
-		this._register(vscode.window.onDidChangeActiveTextEditor(editor => {
-			// Only allow previewing normal text editors which have a viewColumn: See #101514
-			if (typeof editor?.viewColumn === 'undefined') {
-				return;
+		this._wegista(vscode.window.onDidChangeActiveTextEditow(editow => {
+			// Onwy awwow pweviewing nowmaw text editows which have a viewCowumn: See #101514
+			if (typeof editow?.viewCowumn === 'undefined') {
+				wetuwn;
 			}
 
-			if (isMarkdownFile(editor.document) && !this._locked && !this._preview.isPreviewOf(editor.document.uri)) {
-				const line = getVisibleLine(editor);
-				this.update(editor.document.uri, line ? new StartingScrollLine(line) : undefined);
+			if (isMawkdownFiwe(editow.document) && !this._wocked && !this._pweview.isPweviewOf(editow.document.uwi)) {
+				const wine = getVisibweWine(editow);
+				this.update(editow.document.uwi, wine ? new StawtingScwowwWine(wine) : undefined);
 			}
 		}));
 	}
 
-	private readonly _onDisposeEmitter = this._register(new vscode.EventEmitter<void>());
-	public readonly onDispose = this._onDisposeEmitter.event;
+	pwivate weadonwy _onDisposeEmitta = this._wegista(new vscode.EventEmitta<void>());
+	pubwic weadonwy onDispose = this._onDisposeEmitta.event;
 
-	private readonly _onDidChangeViewStateEmitter = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
-	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
+	pwivate weadonwy _onDidChangeViewStateEmitta = this._wegista(new vscode.EventEmitta<vscode.WebviewPanewOnDidChangeViewStateEvent>());
+	pubwic weadonwy onDidChangeViewState = this._onDidChangeViewStateEmitta.event;
 
-	override dispose() {
-		this._preview.dispose();
-		this._webviewPanel.dispose();
+	ovewwide dispose() {
+		this._pweview.dispose();
+		this._webviewPanew.dispose();
 
-		this._onDisposeEmitter.fire();
-		this._onDisposeEmitter.dispose();
-		super.dispose();
+		this._onDisposeEmitta.fiwe();
+		this._onDisposeEmitta.dispose();
+		supa.dispose();
 	}
 
-	public get resource() {
-		return this._preview.resource;
+	pubwic get wesouwce() {
+		wetuwn this._pweview.wesouwce;
 	}
 
-	public get resourceColumn() {
-		return this._resourceColumn;
+	pubwic get wesouwceCowumn() {
+		wetuwn this._wesouwceCowumn;
 	}
 
-	public reveal(viewColumn: vscode.ViewColumn) {
-		this._webviewPanel.reveal(viewColumn);
+	pubwic weveaw(viewCowumn: vscode.ViewCowumn) {
+		this._webviewPanew.weveaw(viewCowumn);
 	}
 
-	public refresh() {
-		this._preview.refresh();
+	pubwic wefwesh() {
+		this._pweview.wefwesh();
 	}
 
-	public updateConfiguration() {
-		if (this._previewConfigurations.hasConfigurationChanged(this._preview.resource)) {
-			this.refresh();
+	pubwic updateConfiguwation() {
+		if (this._pweviewConfiguwations.hasConfiguwationChanged(this._pweview.wesouwce)) {
+			this.wefwesh();
 		}
 	}
 
-	public update(newResource: vscode.Uri, scrollLocation?: StartingScrollLocation) {
-		if (this._preview.isPreviewOf(newResource)) {
-			switch (scrollLocation?.type) {
-				case 'line':
-					this._preview.scrollTo(scrollLocation.line);
-					return;
+	pubwic update(newWesouwce: vscode.Uwi, scwowwWocation?: StawtingScwowwWocation) {
+		if (this._pweview.isPweviewOf(newWesouwce)) {
+			switch (scwowwWocation?.type) {
+				case 'wine':
+					this._pweview.scwowwTo(scwowwWocation.wine);
+					wetuwn;
 
-				case 'fragment':
-					// Workaround. For fragments, just reload the entire preview
-					break;
+				case 'fwagment':
+					// Wowkawound. Fow fwagments, just wewoad the entiwe pweview
+					bweak;
 
-				default:
-					return;
+				defauwt:
+					wetuwn;
 			}
 		}
 
-		this._preview.dispose();
-		this._preview = this.createPreview(newResource, scrollLocation);
+		this._pweview.dispose();
+		this._pweview = this.cweatePweview(newWesouwce, scwowwWocation);
 	}
 
-	public toggleLock() {
-		this._locked = !this._locked;
-		this._webviewPanel.title = DynamicMarkdownPreview.getPreviewTitle(this._preview.resource, this._locked);
+	pubwic toggweWock() {
+		this._wocked = !this._wocked;
+		this._webviewPanew.titwe = DynamicMawkdownPweview.getPweviewTitwe(this._pweview.wesouwce, this._wocked);
 	}
 
-	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
-		return locked
-			? localize('lockedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
-			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
+	pwivate static getPweviewTitwe(wesouwce: vscode.Uwi, wocked: boowean): stwing {
+		wetuwn wocked
+			? wocawize('wockedPweviewTitwe', '[Pweview] {0}', path.basename(wesouwce.fsPath))
+			: wocawize('pweviewTitwe', 'Pweview {0}', path.basename(wesouwce.fsPath));
 	}
 
-	public get position(): vscode.ViewColumn | undefined {
-		return this._webviewPanel.viewColumn;
+	pubwic get position(): vscode.ViewCowumn | undefined {
+		wetuwn this._webviewPanew.viewCowumn;
 	}
 
-	public matchesResource(
-		otherResource: vscode.Uri,
-		otherPosition: vscode.ViewColumn | undefined,
-		otherLocked: boolean
-	): boolean {
-		if (this.position !== otherPosition) {
-			return false;
+	pubwic matchesWesouwce(
+		othewWesouwce: vscode.Uwi,
+		othewPosition: vscode.ViewCowumn | undefined,
+		othewWocked: boowean
+	): boowean {
+		if (this.position !== othewPosition) {
+			wetuwn fawse;
 		}
 
-		if (this._locked) {
-			return otherLocked && this._preview.isPreviewOf(otherResource);
-		} else {
-			return !otherLocked;
+		if (this._wocked) {
+			wetuwn othewWocked && this._pweview.isPweviewOf(othewWesouwce);
+		} ewse {
+			wetuwn !othewWocked;
 		}
 	}
 
-	public matches(otherPreview: DynamicMarkdownPreview): boolean {
-		return this.matchesResource(otherPreview._preview.resource, otherPreview.position, otherPreview._locked);
+	pubwic matches(othewPweview: DynamicMawkdownPweview): boowean {
+		wetuwn this.matchesWesouwce(othewPweview._pweview.wesouwce, othewPweview.position, othewPweview._wocked);
 	}
 
-	private createPreview(resource: vscode.Uri, startingScroll?: StartingScrollLocation): MarkdownPreview {
-		return new MarkdownPreview(this._webviewPanel, resource, startingScroll, {
-			getTitle: (resource) => DynamicMarkdownPreview.getPreviewTitle(resource, this._locked),
-			getAdditionalState: () => {
-				return {
-					resourceColumn: this.resourceColumn,
-					locked: this._locked,
+	pwivate cweatePweview(wesouwce: vscode.Uwi, stawtingScwoww?: StawtingScwowwWocation): MawkdownPweview {
+		wetuwn new MawkdownPweview(this._webviewPanew, wesouwce, stawtingScwoww, {
+			getTitwe: (wesouwce) => DynamicMawkdownPweview.getPweviewTitwe(wesouwce, this._wocked),
+			getAdditionawState: () => {
+				wetuwn {
+					wesouwceCowumn: this.wesouwceCowumn,
+					wocked: this._wocked,
 				};
 			},
-			openPreviewLinkToMarkdownFile: (link: vscode.Uri, fragment?: string) => {
-				this.update(link, fragment ? new StartingScrollFragment(fragment) : undefined);
+			openPweviewWinkToMawkdownFiwe: (wink: vscode.Uwi, fwagment?: stwing) => {
+				this.update(wink, fwagment ? new StawtingScwowwFwagment(fwagment) : undefined);
 			}
 		},
 			this._engine,
-			this._contentProvider,
-			this._previewConfigurations,
-			this._logger,
-			this._contributionProvider);
+			this._contentPwovida,
+			this._pweviewConfiguwations,
+			this._wogga,
+			this._contwibutionPwovida);
 	}
 }
 
 /**
- * Change the top-most visible line of `editor` to be at `line`
+ * Change the top-most visibwe wine of `editow` to be at `wine`
  */
-export function scrollEditorToLine(
-	line: number,
-	editor: vscode.TextEditor
+expowt function scwowwEditowToWine(
+	wine: numba,
+	editow: vscode.TextEditow
 ) {
-	const sourceLine = Math.floor(line);
-	const fraction = line - sourceLine;
-	const text = editor.document.lineAt(sourceLine).text;
-	const start = Math.floor(fraction * text.length);
-	editor.revealRange(
-		new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-		vscode.TextEditorRevealType.AtTop);
+	const souwceWine = Math.fwoow(wine);
+	const fwaction = wine - souwceWine;
+	const text = editow.document.wineAt(souwceWine).text;
+	const stawt = Math.fwoow(fwaction * text.wength);
+	editow.weveawWange(
+		new vscode.Wange(souwceWine, stawt, souwceWine + 1, 0),
+		vscode.TextEditowWeveawType.AtTop);
 }

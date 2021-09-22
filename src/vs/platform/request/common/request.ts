@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt { stweamToBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ConfiguwationScope, Extensions, IConfiguwationNode, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
-export const IRequestService = createDecorator<IRequestService>('requestService');
+expowt const IWequestSewvice = cweateDecowatow<IWequestSewvice>('wequestSewvice');
 
-export interface IRequestService {
-	readonly _serviceBrand: undefined;
+expowt intewface IWequestSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext>;
+	wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext>;
 
-	resolveProxy(url: string): Promise<string | undefined>;
+	wesowvePwoxy(uww: stwing): Pwomise<stwing | undefined>;
 }
 
-export function isSuccess(context: IRequestContext): boolean {
-	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
+expowt function isSuccess(context: IWequestContext): boowean {
+	wetuwn (context.wes.statusCode && context.wes.statusCode >= 200 && context.wes.statusCode < 300) || context.wes.statusCode === 1223;
 }
 
-function hasNoContent(context: IRequestContext): boolean {
-	return context.res.statusCode === 204;
+function hasNoContent(context: IWequestContext): boowean {
+	wetuwn context.wes.statusCode === 204;
 }
 
-export async function asText(context: IRequestContext): Promise<string | null> {
+expowt async function asText(context: IWequestContext): Pwomise<stwing | nuww> {
 	if (!isSuccess(context)) {
-		throw new Error('Server returned ' + context.res.statusCode);
+		thwow new Ewwow('Sewva wetuwned ' + context.wes.statusCode);
 	}
 	if (hasNoContent(context)) {
-		return null;
+		wetuwn nuww;
 	}
-	const buffer = await streamToBuffer(context.stream);
-	return buffer.toString();
+	const buffa = await stweamToBuffa(context.stweam);
+	wetuwn buffa.toStwing();
 }
 
-export async function asJson<T = {}>(context: IRequestContext): Promise<T | null> {
+expowt async function asJson<T = {}>(context: IWequestContext): Pwomise<T | nuww> {
 	if (!isSuccess(context)) {
-		throw new Error('Server returned ' + context.res.statusCode);
+		thwow new Ewwow('Sewva wetuwned ' + context.wes.statusCode);
 	}
 	if (hasNoContent(context)) {
-		return null;
+		wetuwn nuww;
 	}
-	const buffer = await streamToBuffer(context.stream);
-	const str = buffer.toString();
-	try {
-		return JSON.parse(str);
-	} catch (err) {
-		err.message += ':\n' + str;
-		throw err;
+	const buffa = await stweamToBuffa(context.stweam);
+	const stw = buffa.toStwing();
+	twy {
+		wetuwn JSON.pawse(stw);
+	} catch (eww) {
+		eww.message += ':\n' + stw;
+		thwow eww;
 	}
 }
 
 
-export interface IHTTPConfiguration {
+expowt intewface IHTTPConfiguwation {
 	http?: {
-		proxy?: string;
-		proxyStrictSSL?: boolean;
-		proxyAuthorization?: string;
+		pwoxy?: stwing;
+		pwoxyStwictSSW?: boowean;
+		pwoxyAuthowization?: stwing;
 	};
 }
 
-export function updateProxyConfigurationsScope(scope: ConfigurationScope): void {
-	registerProxyConfigurations(scope);
+expowt function updatePwoxyConfiguwationsScope(scope: ConfiguwationScope): void {
+	wegistewPwoxyConfiguwations(scope);
 }
 
-let proxyConfiguration: IConfigurationNode | undefined;
-function registerProxyConfigurations(scope: ConfigurationScope): void {
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	const oldProxyConfiguration = proxyConfiguration;
-	proxyConfiguration = {
+wet pwoxyConfiguwation: IConfiguwationNode | undefined;
+function wegistewPwoxyConfiguwations(scope: ConfiguwationScope): void {
+	const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation);
+	const owdPwoxyConfiguwation = pwoxyConfiguwation;
+	pwoxyConfiguwation = {
 		id: 'http',
-		order: 15,
-		title: localize('httpConfigurationTitle', "HTTP"),
+		owda: 15,
+		titwe: wocawize('httpConfiguwationTitwe', "HTTP"),
 		type: 'object',
 		scope,
-		properties: {
-			'http.proxy': {
-				type: 'string',
-				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
-				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
-				restricted: true
+		pwopewties: {
+			'http.pwoxy': {
+				type: 'stwing',
+				pattewn: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				mawkdownDescwiption: wocawize('pwoxy', "The pwoxy setting to use. If not set, wiww be inhewited fwom the `http_pwoxy` and `https_pwoxy` enviwonment vawiabwes."),
+				westwicted: twue
 			},
-			'http.proxyStrictSSL': {
-				type: 'boolean',
-				default: true,
-				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs."),
-				restricted: true
+			'http.pwoxyStwictSSW': {
+				type: 'boowean',
+				defauwt: twue,
+				descwiption: wocawize('stwictSSW', "Contwows whetha the pwoxy sewva cewtificate shouwd be vewified against the wist of suppwied CAs."),
+				westwicted: twue
 			},
-			'http.proxyAuthorization': {
-				type: ['null', 'string'],
-				default: null,
-				markdownDescription: localize('proxyAuthorization', "The value to send as the `Proxy-Authorization` header for every network request."),
-				restricted: true
+			'http.pwoxyAuthowization': {
+				type: ['nuww', 'stwing'],
+				defauwt: nuww,
+				mawkdownDescwiption: wocawize('pwoxyAuthowization', "The vawue to send as the `Pwoxy-Authowization` heada fow evewy netwowk wequest."),
+				westwicted: twue
 			},
-			'http.proxySupport': {
-				type: 'string',
-				enum: ['off', 'on', 'fallback', 'override'],
-				enumDescriptions: [
-					localize('proxySupportOff', "Disable proxy support for extensions."),
-					localize('proxySupportOn', "Enable proxy support for extensions."),
-					localize('proxySupportFallback', "Enable proxy support for extensions, fall back to request options, when no proxy found."),
-					localize('proxySupportOverride', "Enable proxy support for extensions, override request options."),
+			'http.pwoxySuppowt': {
+				type: 'stwing',
+				enum: ['off', 'on', 'fawwback', 'ovewwide'],
+				enumDescwiptions: [
+					wocawize('pwoxySuppowtOff', "Disabwe pwoxy suppowt fow extensions."),
+					wocawize('pwoxySuppowtOn', "Enabwe pwoxy suppowt fow extensions."),
+					wocawize('pwoxySuppowtFawwback', "Enabwe pwoxy suppowt fow extensions, faww back to wequest options, when no pwoxy found."),
+					wocawize('pwoxySuppowtOvewwide', "Enabwe pwoxy suppowt fow extensions, ovewwide wequest options."),
 				],
-				default: 'override',
-				description: localize('proxySupport', "Use the proxy support for extensions."),
-				restricted: true
+				defauwt: 'ovewwide',
+				descwiption: wocawize('pwoxySuppowt', "Use the pwoxy suppowt fow extensions."),
+				westwicted: twue
 			},
-			'http.systemCertificates': {
-				type: 'boolean',
-				default: true,
-				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
-				restricted: true
+			'http.systemCewtificates': {
+				type: 'boowean',
+				defauwt: twue,
+				descwiption: wocawize('systemCewtificates', "Contwows whetha CA cewtificates shouwd be woaded fwom the OS. (On Windows and macOS, a wewoad of the window is wequiwed afta tuwning this off.)"),
+				westwicted: twue
 			}
 		}
 	};
-	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
+	configuwationWegistwy.updateConfiguwations({ add: [pwoxyConfiguwation], wemove: owdPwoxyConfiguwation ? [owdPwoxyConfiguwation] : [] });
 }
 
-registerProxyConfigurations(ConfigurationScope.MACHINE);
+wegistewPwoxyConfiguwations(ConfiguwationScope.MACHINE);

@@ -1,1505 +1,1505 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
+decwawe moduwe 'vscode' {
 
 	/**
-	 * The version of the editor.
+	 * The vewsion of the editow.
 	 */
-	export const version: string;
+	expowt const vewsion: stwing;
 
 	/**
-	 * Represents a reference to a command. Provides a title which
-	 * will be used to represent a command in the UI and, optionally,
-	 * an array of arguments which will be passed to the command handler
+	 * Wepwesents a wefewence to a command. Pwovides a titwe which
+	 * wiww be used to wepwesent a command in the UI and, optionawwy,
+	 * an awway of awguments which wiww be passed to the command handwa
 	 * function when invoked.
 	 */
-	export interface Command {
+	expowt intewface Command {
 		/**
-		 * Title of the command, like `save`.
+		 * Titwe of the command, wike `save`.
 		 */
-		title: string;
+		titwe: stwing;
 
 		/**
-		 * The identifier of the actual command handler.
-		 * @see {@link commands.registerCommand}
+		 * The identifia of the actuaw command handwa.
+		 * @see {@wink commands.wegistewCommand}
 		 */
-		command: string;
+		command: stwing;
 
 		/**
-		 * A tooltip for the command, when represented in the UI.
+		 * A toowtip fow the command, when wepwesented in the UI.
 		 */
-		tooltip?: string;
+		toowtip?: stwing;
 
 		/**
-		 * Arguments that the command handler should be
+		 * Awguments that the command handwa shouwd be
 		 * invoked with.
 		 */
-		arguments?: any[];
+		awguments?: any[];
 	}
 
 	/**
-	 * Represents a line of text, such as a line of source code.
+	 * Wepwesents a wine of text, such as a wine of souwce code.
 	 *
-	 * TextLine objects are __immutable__. When a {@link TextDocument document} changes,
-	 * previously retrieved lines will not represent the latest state.
+	 * TextWine objects awe __immutabwe__. When a {@wink TextDocument document} changes,
+	 * pweviouswy wetwieved wines wiww not wepwesent the watest state.
 	 */
-	export interface TextLine {
+	expowt intewface TextWine {
 
 		/**
-		 * The zero-based line number.
+		 * The zewo-based wine numba.
 		 */
-		readonly lineNumber: number;
+		weadonwy wineNumba: numba;
 
 		/**
-		 * The text of this line without the line separator characters.
+		 * The text of this wine without the wine sepawatow chawactews.
 		 */
-		readonly text: string;
+		weadonwy text: stwing;
 
 		/**
-		 * The range this line covers without the line separator characters.
+		 * The wange this wine covews without the wine sepawatow chawactews.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 
 		/**
-		 * The range this line covers with the line separator characters.
+		 * The wange this wine covews with the wine sepawatow chawactews.
 		 */
-		readonly rangeIncludingLineBreak: Range;
+		weadonwy wangeIncwudingWineBweak: Wange;
 
 		/**
-		 * The offset of the first character which is not a whitespace character as defined
-		 * by `/\s/`. **Note** that if a line is all whitespace the length of the line is returned.
+		 * The offset of the fiwst chawacta which is not a whitespace chawacta as defined
+		 * by `/\s/`. **Note** that if a wine is aww whitespace the wength of the wine is wetuwned.
 		 */
-		readonly firstNonWhitespaceCharacterIndex: number;
+		weadonwy fiwstNonWhitespaceChawactewIndex: numba;
 
 		/**
-		 * Whether this line is whitespace only, shorthand
-		 * for {@link TextLine.firstNonWhitespaceCharacterIndex} === {@link TextLine.text TextLine.text.length}.
+		 * Whetha this wine is whitespace onwy, showthand
+		 * fow {@wink TextWine.fiwstNonWhitespaceChawactewIndex} === {@wink TextWine.text TextWine.text.wength}.
 		 */
-		readonly isEmptyOrWhitespace: boolean;
+		weadonwy isEmptyOwWhitespace: boowean;
 	}
 
 	/**
-	 * Represents a text document, such as a source file. Text documents have
-	 * {@link TextLine lines} and knowledge about an underlying resource like a file.
+	 * Wepwesents a text document, such as a souwce fiwe. Text documents have
+	 * {@wink TextWine wines} and knowwedge about an undewwying wesouwce wike a fiwe.
 	 */
-	export interface TextDocument {
+	expowt intewface TextDocument {
 
 		/**
-		 * The associated uri for this document.
+		 * The associated uwi fow this document.
 		 *
-		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
-		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 * *Note* that most documents use the `fiwe`-scheme, which means they awe fiwes on disk. Howeva, **not** aww documents awe
+		 * saved on disk and thewefowe the `scheme` must be checked befowe twying to access the undewwying fiwe ow sibwings on disk.
 		 *
-		 * @see {@link FileSystemProvider}
-		 * @see {@link TextDocumentContentProvider}
+		 * @see {@wink FiweSystemPwovida}
+		 * @see {@wink TextDocumentContentPwovida}
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 
 		/**
-		 * The file system path of the associated resource. Shorthand
-		 * notation for {@link TextDocument.uri TextDocument.uri.fsPath}. Independent of the uri scheme.
+		 * The fiwe system path of the associated wesouwce. Showthand
+		 * notation fow {@wink TextDocument.uwi TextDocument.uwi.fsPath}. Independent of the uwi scheme.
 		 */
-		readonly fileName: string;
+		weadonwy fiweName: stwing;
 
 		/**
-		 * Is this document representing an untitled file which has never been saved yet. *Note* that
-		 * this does not mean the document will be saved to disk, use {@linkcode Uri.scheme}
-		 * to figure out where a document will be {@link FileSystemProvider saved}, e.g. `file`, `ftp` etc.
+		 * Is this document wepwesenting an untitwed fiwe which has neva been saved yet. *Note* that
+		 * this does not mean the document wiww be saved to disk, use {@winkcode Uwi.scheme}
+		 * to figuwe out whewe a document wiww be {@wink FiweSystemPwovida saved}, e.g. `fiwe`, `ftp` etc.
 		 */
-		readonly isUntitled: boolean;
+		weadonwy isUntitwed: boowean;
 
 		/**
-		 * The identifier of the language associated with this document.
+		 * The identifia of the wanguage associated with this document.
 		 */
-		readonly languageId: string;
+		weadonwy wanguageId: stwing;
 
 		/**
-		 * The version number of this document (it will strictly increase after each
-		 * change, including undo/redo).
+		 * The vewsion numba of this document (it wiww stwictwy incwease afta each
+		 * change, incwuding undo/wedo).
 		 */
-		readonly version: number;
+		weadonwy vewsion: numba;
 
 		/**
-		 * `true` if there are unpersisted changes.
+		 * `twue` if thewe awe unpewsisted changes.
 		 */
-		readonly isDirty: boolean;
+		weadonwy isDiwty: boowean;
 
 		/**
-		 * `true` if the document has been closed. A closed document isn't synchronized anymore
-		 * and won't be re-used when the same resource is opened again.
+		 * `twue` if the document has been cwosed. A cwosed document isn't synchwonized anymowe
+		 * and won't be we-used when the same wesouwce is opened again.
 		 */
-		readonly isClosed: boolean;
+		weadonwy isCwosed: boowean;
 
 		/**
-		 * Save the underlying file.
+		 * Save the undewwying fiwe.
 		 *
-		 * @return A promise that will resolve to true when the file
-		 * has been saved. If the file was not dirty or the save failed,
-		 * will return false.
+		 * @wetuwn A pwomise that wiww wesowve to twue when the fiwe
+		 * has been saved. If the fiwe was not diwty ow the save faiwed,
+		 * wiww wetuwn fawse.
 		 */
-		save(): Thenable<boolean>;
+		save(): Thenabwe<boowean>;
 
 		/**
-		 * The {@link EndOfLine end of line} sequence that is predominately
+		 * The {@wink EndOfWine end of wine} sequence that is pwedominatewy
 		 * used in this document.
 		 */
-		readonly eol: EndOfLine;
+		weadonwy eow: EndOfWine;
 
 		/**
-		 * The number of lines in this document.
+		 * The numba of wines in this document.
 		 */
-		readonly lineCount: number;
+		weadonwy wineCount: numba;
 
 		/**
-		 * Returns a text line denoted by the line number. Note
-		 * that the returned object is *not* live and changes to the
-		 * document are not reflected.
+		 * Wetuwns a text wine denoted by the wine numba. Note
+		 * that the wetuwned object is *not* wive and changes to the
+		 * document awe not wefwected.
 		 *
-		 * @param line A line number in [0, lineCount).
-		 * @return A {@link TextLine line}.
+		 * @pawam wine A wine numba in [0, wineCount).
+		 * @wetuwn A {@wink TextWine wine}.
 		 */
-		lineAt(line: number): TextLine;
+		wineAt(wine: numba): TextWine;
 
 		/**
-		 * Returns a text line denoted by the position. Note
-		 * that the returned object is *not* live and changes to the
-		 * document are not reflected.
+		 * Wetuwns a text wine denoted by the position. Note
+		 * that the wetuwned object is *not* wive and changes to the
+		 * document awe not wefwected.
 		 *
-		 * The position will be {@link TextDocument.validatePosition adjusted}.
+		 * The position wiww be {@wink TextDocument.vawidatePosition adjusted}.
 		 *
-		 * @see {@link TextDocument.lineAt}
+		 * @see {@wink TextDocument.wineAt}
 		 *
-		 * @param position A position.
-		 * @return A {@link TextLine line}.
+		 * @pawam position A position.
+		 * @wetuwn A {@wink TextWine wine}.
 		 */
-		lineAt(position: Position): TextLine;
+		wineAt(position: Position): TextWine;
 
 		/**
-		 * Converts the position to a zero-based offset.
+		 * Convewts the position to a zewo-based offset.
 		 *
-		 * The position will be {@link TextDocument.validatePosition adjusted}.
+		 * The position wiww be {@wink TextDocument.vawidatePosition adjusted}.
 		 *
-		 * @param position A position.
-		 * @return A valid zero-based offset.
+		 * @pawam position A position.
+		 * @wetuwn A vawid zewo-based offset.
 		 */
-		offsetAt(position: Position): number;
+		offsetAt(position: Position): numba;
 
 		/**
-		 * Converts a zero-based offset to a position.
+		 * Convewts a zewo-based offset to a position.
 		 *
-		 * @param offset A zero-based offset.
-		 * @return A valid {@link Position}.
+		 * @pawam offset A zewo-based offset.
+		 * @wetuwn A vawid {@wink Position}.
 		 */
-		positionAt(offset: number): Position;
+		positionAt(offset: numba): Position;
 
 		/**
-		 * Get the text of this document. A substring can be retrieved by providing
-		 * a range. The range will be {@link TextDocument.validateRange adjusted}.
+		 * Get the text of this document. A substwing can be wetwieved by pwoviding
+		 * a wange. The wange wiww be {@wink TextDocument.vawidateWange adjusted}.
 		 *
-		 * @param range Include only the text included by the range.
-		 * @return The text inside the provided range or the entire text.
+		 * @pawam wange Incwude onwy the text incwuded by the wange.
+		 * @wetuwn The text inside the pwovided wange ow the entiwe text.
 		 */
-		getText(range?: Range): string;
+		getText(wange?: Wange): stwing;
 
 		/**
-		 * Get a word-range at the given position. By default words are defined by
-		 * common separators, like space, -, _, etc. In addition, per language custom
-		 * [word definitions} can be defined. It
-		 * is also possible to provide a custom regular expression.
+		 * Get a wowd-wange at the given position. By defauwt wowds awe defined by
+		 * common sepawatows, wike space, -, _, etc. In addition, pew wanguage custom
+		 * [wowd definitions} can be defined. It
+		 * is awso possibwe to pwovide a custom weguwaw expwession.
 		 *
-		 * * *Note 1:* A custom regular expression must not match the empty string and
-		 * if it does, it will be ignored.
-		 * * *Note 2:* A custom regular expression will fail to match multiline strings
-		 * and in the name of speed regular expressions should not match words with
-		 * spaces. Use {@linkcode TextLine.text} for more complex, non-wordy, scenarios.
+		 * * *Note 1:* A custom weguwaw expwession must not match the empty stwing and
+		 * if it does, it wiww be ignowed.
+		 * * *Note 2:* A custom weguwaw expwession wiww faiw to match muwtiwine stwings
+		 * and in the name of speed weguwaw expwessions shouwd not match wowds with
+		 * spaces. Use {@winkcode TextWine.text} fow mowe compwex, non-wowdy, scenawios.
 		 *
-		 * The position will be {@link TextDocument.validatePosition adjusted}.
+		 * The position wiww be {@wink TextDocument.vawidatePosition adjusted}.
 		 *
-		 * @param position A position.
-		 * @param regex Optional regular expression that describes what a word is.
-		 * @return A range spanning a word, or `undefined`.
+		 * @pawam position A position.
+		 * @pawam wegex Optionaw weguwaw expwession that descwibes what a wowd is.
+		 * @wetuwn A wange spanning a wowd, ow `undefined`.
 		 */
-		getWordRangeAtPosition(position: Position, regex?: RegExp): Range | undefined;
+		getWowdWangeAtPosition(position: Position, wegex?: WegExp): Wange | undefined;
 
 		/**
-		 * Ensure a range is completely contained in this document.
+		 * Ensuwe a wange is compwetewy contained in this document.
 		 *
-		 * @param range A range.
-		 * @return The given range or a new, adjusted range.
+		 * @pawam wange A wange.
+		 * @wetuwn The given wange ow a new, adjusted wange.
 		 */
-		validateRange(range: Range): Range;
+		vawidateWange(wange: Wange): Wange;
 
 		/**
-		 * Ensure a position is contained in the range of this document.
+		 * Ensuwe a position is contained in the wange of this document.
 		 *
-		 * @param position A position.
-		 * @return The given position or a new, adjusted position.
+		 * @pawam position A position.
+		 * @wetuwn The given position ow a new, adjusted position.
 		 */
-		validatePosition(position: Position): Position;
+		vawidatePosition(position: Position): Position;
 	}
 
 	/**
-	 * Represents a line and character position, such as
-	 * the position of the cursor.
+	 * Wepwesents a wine and chawacta position, such as
+	 * the position of the cuwsow.
 	 *
-	 * Position objects are __immutable__. Use the {@link Position.with with} or
-	 * {@link Position.translate translate} methods to derive new positions
-	 * from an existing position.
+	 * Position objects awe __immutabwe__. Use the {@wink Position.with with} ow
+	 * {@wink Position.twanswate twanswate} methods to dewive new positions
+	 * fwom an existing position.
 	 */
-	export class Position {
+	expowt cwass Position {
 
 		/**
-		 * The zero-based line value.
+		 * The zewo-based wine vawue.
 		 */
-		readonly line: number;
+		weadonwy wine: numba;
 
 		/**
-		 * The zero-based character value.
+		 * The zewo-based chawacta vawue.
 		 */
-		readonly character: number;
+		weadonwy chawacta: numba;
 
 		/**
-		 * @param line A zero-based line value.
-		 * @param character A zero-based character value.
+		 * @pawam wine A zewo-based wine vawue.
+		 * @pawam chawacta A zewo-based chawacta vawue.
 		 */
-		constructor(line: number, character: number);
+		constwuctow(wine: numba, chawacta: numba);
 
 		/**
-		 * Check if this position is before `other`.
+		 * Check if this position is befowe `otha`.
 		 *
-		 * @param other A position.
-		 * @return `true` if position is on a smaller line
-		 * or on the same line on a smaller character.
+		 * @pawam otha A position.
+		 * @wetuwn `twue` if position is on a smawwa wine
+		 * ow on the same wine on a smawwa chawacta.
 		 */
-		isBefore(other: Position): boolean;
+		isBefowe(otha: Position): boowean;
 
 		/**
-		 * Check if this position is before or equal to `other`.
+		 * Check if this position is befowe ow equaw to `otha`.
 		 *
-		 * @param other A position.
-		 * @return `true` if position is on a smaller line
-		 * or on the same line on a smaller or equal character.
+		 * @pawam otha A position.
+		 * @wetuwn `twue` if position is on a smawwa wine
+		 * ow on the same wine on a smawwa ow equaw chawacta.
 		 */
-		isBeforeOrEqual(other: Position): boolean;
+		isBefoweOwEquaw(otha: Position): boowean;
 
 		/**
-		 * Check if this position is after `other`.
+		 * Check if this position is afta `otha`.
 		 *
-		 * @param other A position.
-		 * @return `true` if position is on a greater line
-		 * or on the same line on a greater character.
+		 * @pawam otha A position.
+		 * @wetuwn `twue` if position is on a gweata wine
+		 * ow on the same wine on a gweata chawacta.
 		 */
-		isAfter(other: Position): boolean;
+		isAfta(otha: Position): boowean;
 
 		/**
-		 * Check if this position is after or equal to `other`.
+		 * Check if this position is afta ow equaw to `otha`.
 		 *
-		 * @param other A position.
-		 * @return `true` if position is on a greater line
-		 * or on the same line on a greater or equal character.
+		 * @pawam otha A position.
+		 * @wetuwn `twue` if position is on a gweata wine
+		 * ow on the same wine on a gweata ow equaw chawacta.
 		 */
-		isAfterOrEqual(other: Position): boolean;
+		isAftewOwEquaw(otha: Position): boowean;
 
 		/**
-		 * Check if this position is equal to `other`.
+		 * Check if this position is equaw to `otha`.
 		 *
-		 * @param other A position.
-		 * @return `true` if the line and character of the given position are equal to
-		 * the line and character of this position.
+		 * @pawam otha A position.
+		 * @wetuwn `twue` if the wine and chawacta of the given position awe equaw to
+		 * the wine and chawacta of this position.
 		 */
-		isEqual(other: Position): boolean;
+		isEquaw(otha: Position): boowean;
 
 		/**
-		 * Compare this to `other`.
+		 * Compawe this to `otha`.
 		 *
-		 * @param other A position.
-		 * @return A number smaller than zero if this position is before the given position,
-		 * a number greater than zero if this position is after the given position, or zero when
-		 * this and the given position are equal.
+		 * @pawam otha A position.
+		 * @wetuwn A numba smawwa than zewo if this position is befowe the given position,
+		 * a numba gweata than zewo if this position is afta the given position, ow zewo when
+		 * this and the given position awe equaw.
 		 */
-		compareTo(other: Position): number;
+		compaweTo(otha: Position): numba;
 
 		/**
-		 * Create a new position relative to this position.
+		 * Cweate a new position wewative to this position.
 		 *
-		 * @param lineDelta Delta value for the line value, default is `0`.
-		 * @param characterDelta Delta value for the character value, default is `0`.
-		 * @return A position which line and character is the sum of the current line and
-		 * character and the corresponding deltas.
+		 * @pawam wineDewta Dewta vawue fow the wine vawue, defauwt is `0`.
+		 * @pawam chawactewDewta Dewta vawue fow the chawacta vawue, defauwt is `0`.
+		 * @wetuwn A position which wine and chawacta is the sum of the cuwwent wine and
+		 * chawacta and the cowwesponding dewtas.
 		 */
-		translate(lineDelta?: number, characterDelta?: number): Position;
+		twanswate(wineDewta?: numba, chawactewDewta?: numba): Position;
 
 		/**
-		 * Derived a new position relative to this position.
+		 * Dewived a new position wewative to this position.
 		 *
-		 * @param change An object that describes a delta to this position.
-		 * @return A position that reflects the given delta. Will return `this` position if the change
+		 * @pawam change An object that descwibes a dewta to this position.
+		 * @wetuwn A position that wefwects the given dewta. Wiww wetuwn `this` position if the change
 		 * is not changing anything.
 		 */
-		translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+		twanswate(change: { wineDewta?: numba; chawactewDewta?: numba; }): Position;
 
 		/**
-		 * Create a new position derived from this position.
+		 * Cweate a new position dewived fwom this position.
 		 *
-		 * @param line Value that should be used as line value, default is the {@link Position.line existing value}
-		 * @param character Value that should be used as character value, default is the {@link Position.character existing value}
-		 * @return A position where line and character are replaced by the given values.
+		 * @pawam wine Vawue that shouwd be used as wine vawue, defauwt is the {@wink Position.wine existing vawue}
+		 * @pawam chawacta Vawue that shouwd be used as chawacta vawue, defauwt is the {@wink Position.chawacta existing vawue}
+		 * @wetuwn A position whewe wine and chawacta awe wepwaced by the given vawues.
 		 */
-		with(line?: number, character?: number): Position;
+		with(wine?: numba, chawacta?: numba): Position;
 
 		/**
-		 * Derived a new position from this position.
+		 * Dewived a new position fwom this position.
 		 *
-		 * @param change An object that describes a change to this position.
-		 * @return A position that reflects the given change. Will return `this` position if the change
+		 * @pawam change An object that descwibes a change to this position.
+		 * @wetuwn A position that wefwects the given change. Wiww wetuwn `this` position if the change
 		 * is not changing anything.
 		 */
-		with(change: { line?: number; character?: number; }): Position;
+		with(change: { wine?: numba; chawacta?: numba; }): Position;
 	}
 
 	/**
-	 * A range represents an ordered pair of two positions.
-	 * It is guaranteed that {@link Range.start start}.isBeforeOrEqual({@link Range.end end})
+	 * A wange wepwesents an owdewed paiw of two positions.
+	 * It is guawanteed that {@wink Wange.stawt stawt}.isBefoweOwEquaw({@wink Wange.end end})
 	 *
-	 * Range objects are __immutable__. Use the {@link Range.with with},
-	 * {@link Range.intersection intersection}, or {@link Range.union union} methods
-	 * to derive new ranges from an existing range.
+	 * Wange objects awe __immutabwe__. Use the {@wink Wange.with with},
+	 * {@wink Wange.intewsection intewsection}, ow {@wink Wange.union union} methods
+	 * to dewive new wanges fwom an existing wange.
 	 */
-	export class Range {
+	expowt cwass Wange {
 
 		/**
-		 * The start position. It is before or equal to {@link Range.end end}.
+		 * The stawt position. It is befowe ow equaw to {@wink Wange.end end}.
 		 */
-		readonly start: Position;
+		weadonwy stawt: Position;
 
 		/**
-		 * The end position. It is after or equal to {@link Range.start start}.
+		 * The end position. It is afta ow equaw to {@wink Wange.stawt stawt}.
 		 */
-		readonly end: Position;
+		weadonwy end: Position;
 
 		/**
-		 * Create a new range from two positions. If `start` is not
-		 * before or equal to `end`, the values will be swapped.
+		 * Cweate a new wange fwom two positions. If `stawt` is not
+		 * befowe ow equaw to `end`, the vawues wiww be swapped.
 		 *
-		 * @param start A position.
-		 * @param end A position.
+		 * @pawam stawt A position.
+		 * @pawam end A position.
 		 */
-		constructor(start: Position, end: Position);
+		constwuctow(stawt: Position, end: Position);
 
 		/**
-		 * Create a new range from number coordinates. It is a shorter equivalent of
-		 * using `new Range(new Position(startLine, startCharacter), new Position(endLine, endCharacter))`
+		 * Cweate a new wange fwom numba coowdinates. It is a showta equivawent of
+		 * using `new Wange(new Position(stawtWine, stawtChawacta), new Position(endWine, endChawacta))`
 		 *
-		 * @param startLine A zero-based line value.
-		 * @param startCharacter A zero-based character value.
-		 * @param endLine A zero-based line value.
-		 * @param endCharacter A zero-based character value.
+		 * @pawam stawtWine A zewo-based wine vawue.
+		 * @pawam stawtChawacta A zewo-based chawacta vawue.
+		 * @pawam endWine A zewo-based wine vawue.
+		 * @pawam endChawacta A zewo-based chawacta vawue.
 		 */
-		constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
+		constwuctow(stawtWine: numba, stawtChawacta: numba, endWine: numba, endChawacta: numba);
 
 		/**
-		 * `true` if `start` and `end` are equal.
+		 * `twue` if `stawt` and `end` awe equaw.
 		 */
-		isEmpty: boolean;
+		isEmpty: boowean;
 
 		/**
-		 * `true` if `start.line` and `end.line` are equal.
+		 * `twue` if `stawt.wine` and `end.wine` awe equaw.
 		 */
-		isSingleLine: boolean;
+		isSingweWine: boowean;
 
 		/**
-		 * Check if a position or a range is contained in this range.
+		 * Check if a position ow a wange is contained in this wange.
 		 *
-		 * @param positionOrRange A position or a range.
-		 * @return `true` if the position or range is inside or equal
-		 * to this range.
+		 * @pawam positionOwWange A position ow a wange.
+		 * @wetuwn `twue` if the position ow wange is inside ow equaw
+		 * to this wange.
 		 */
-		contains(positionOrRange: Position | Range): boolean;
+		contains(positionOwWange: Position | Wange): boowean;
 
 		/**
-		 * Check if `other` equals this range.
+		 * Check if `otha` equaws this wange.
 		 *
-		 * @param other A range.
-		 * @return `true` when start and end are {@link Position.isEqual equal} to
-		 * start and end of this range.
+		 * @pawam otha A wange.
+		 * @wetuwn `twue` when stawt and end awe {@wink Position.isEquaw equaw} to
+		 * stawt and end of this wange.
 		 */
-		isEqual(other: Range): boolean;
+		isEquaw(otha: Wange): boowean;
 
 		/**
-		 * Intersect `range` with this range and returns a new range or `undefined`
-		 * if the ranges have no overlap.
+		 * Intewsect `wange` with this wange and wetuwns a new wange ow `undefined`
+		 * if the wanges have no ovewwap.
 		 *
-		 * @param range A range.
-		 * @return A range of the greater start and smaller end positions. Will
-		 * return undefined when there is no overlap.
+		 * @pawam wange A wange.
+		 * @wetuwn A wange of the gweata stawt and smawwa end positions. Wiww
+		 * wetuwn undefined when thewe is no ovewwap.
 		 */
-		intersection(range: Range): Range | undefined;
+		intewsection(wange: Wange): Wange | undefined;
 
 		/**
-		 * Compute the union of `other` with this range.
+		 * Compute the union of `otha` with this wange.
 		 *
-		 * @param other A range.
-		 * @return A range of smaller start position and the greater end position.
+		 * @pawam otha A wange.
+		 * @wetuwn A wange of smawwa stawt position and the gweata end position.
 		 */
-		union(other: Range): Range;
+		union(otha: Wange): Wange;
 
 		/**
-		 * Derived a new range from this range.
+		 * Dewived a new wange fwom this wange.
 		 *
-		 * @param start A position that should be used as start. The default value is the {@link Range.start current start}.
-		 * @param end A position that should be used as end. The default value is the {@link Range.end current end}.
-		 * @return A range derived from this range with the given start and end position.
-		 * If start and end are not different `this` range will be returned.
+		 * @pawam stawt A position that shouwd be used as stawt. The defauwt vawue is the {@wink Wange.stawt cuwwent stawt}.
+		 * @pawam end A position that shouwd be used as end. The defauwt vawue is the {@wink Wange.end cuwwent end}.
+		 * @wetuwn A wange dewived fwom this wange with the given stawt and end position.
+		 * If stawt and end awe not diffewent `this` wange wiww be wetuwned.
 		 */
-		with(start?: Position, end?: Position): Range;
+		with(stawt?: Position, end?: Position): Wange;
 
 		/**
-		 * Derived a new range from this range.
+		 * Dewived a new wange fwom this wange.
 		 *
-		 * @param change An object that describes a change to this range.
-		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * @pawam change An object that descwibes a change to this wange.
+		 * @wetuwn A wange that wefwects the given change. Wiww wetuwn `this` wange if the change
 		 * is not changing anything.
 		 */
-		with(change: { start?: Position, end?: Position }): Range;
+		with(change: { stawt?: Position, end?: Position }): Wange;
 	}
 
 	/**
-	 * Represents a text selection in an editor.
+	 * Wepwesents a text sewection in an editow.
 	 */
-	export class Selection extends Range {
+	expowt cwass Sewection extends Wange {
 
 		/**
-		 * The position at which the selection starts.
-		 * This position might be before or after {@link Selection.active active}.
+		 * The position at which the sewection stawts.
+		 * This position might be befowe ow afta {@wink Sewection.active active}.
 		 */
-		anchor: Position;
+		anchow: Position;
 
 		/**
-		 * The position of the cursor.
-		 * This position might be before or after {@link Selection.anchor anchor}.
+		 * The position of the cuwsow.
+		 * This position might be befowe ow afta {@wink Sewection.anchow anchow}.
 		 */
 		active: Position;
 
 		/**
-		 * Create a selection from two positions.
+		 * Cweate a sewection fwom two positions.
 		 *
-		 * @param anchor A position.
-		 * @param active A position.
+		 * @pawam anchow A position.
+		 * @pawam active A position.
 		 */
-		constructor(anchor: Position, active: Position);
+		constwuctow(anchow: Position, active: Position);
 
 		/**
-		 * Create a selection from four coordinates.
+		 * Cweate a sewection fwom fouw coowdinates.
 		 *
-		 * @param anchorLine A zero-based line value.
-		 * @param anchorCharacter A zero-based character value.
-		 * @param activeLine A zero-based line value.
-		 * @param activeCharacter A zero-based character value.
+		 * @pawam anchowWine A zewo-based wine vawue.
+		 * @pawam anchowChawacta A zewo-based chawacta vawue.
+		 * @pawam activeWine A zewo-based wine vawue.
+		 * @pawam activeChawacta A zewo-based chawacta vawue.
 		 */
-		constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number);
+		constwuctow(anchowWine: numba, anchowChawacta: numba, activeWine: numba, activeChawacta: numba);
 
 		/**
-		 * A selection is reversed if its {@link Selection.anchor anchor} is the {@link Selection.end end} position.
+		 * A sewection is wevewsed if its {@wink Sewection.anchow anchow} is the {@wink Sewection.end end} position.
 		 */
-		isReversed: boolean;
+		isWevewsed: boowean;
 	}
 
 	/**
-	 * Represents sources that can cause {@link window.onDidChangeTextEditorSelection selection change events}.
+	 * Wepwesents souwces that can cause {@wink window.onDidChangeTextEditowSewection sewection change events}.
 	*/
-	export enum TextEditorSelectionChangeKind {
+	expowt enum TextEditowSewectionChangeKind {
 		/**
-		 * Selection changed due to typing in the editor.
+		 * Sewection changed due to typing in the editow.
 		 */
-		Keyboard = 1,
+		Keyboawd = 1,
 		/**
-		 * Selection change due to clicking in the editor.
+		 * Sewection change due to cwicking in the editow.
 		 */
 		Mouse = 2,
 		/**
-		 * Selection changed because a command ran.
+		 * Sewection changed because a command wan.
 		 */
 		Command = 3
 	}
 
 	/**
-	 * Represents an event describing the change in a {@link TextEditor.selections text editor's selections}.
+	 * Wepwesents an event descwibing the change in a {@wink TextEditow.sewections text editow's sewections}.
 	 */
-	export interface TextEditorSelectionChangeEvent {
+	expowt intewface TextEditowSewectionChangeEvent {
 		/**
-		 * The {@link TextEditor text editor} for which the selections have changed.
+		 * The {@wink TextEditow text editow} fow which the sewections have changed.
 		 */
-		readonly textEditor: TextEditor;
+		weadonwy textEditow: TextEditow;
 		/**
-		 * The new value for the {@link TextEditor.selections text editor's selections}.
+		 * The new vawue fow the {@wink TextEditow.sewections text editow's sewections}.
 		 */
-		readonly selections: readonly Selection[];
+		weadonwy sewections: weadonwy Sewection[];
 		/**
-		 * The {@link TextEditorSelectionChangeKind change kind} which has triggered this
+		 * The {@wink TextEditowSewectionChangeKind change kind} which has twiggewed this
 		 * event. Can be `undefined`.
 		 */
-		readonly kind?: TextEditorSelectionChangeKind;
+		weadonwy kind?: TextEditowSewectionChangeKind;
 	}
 
 	/**
-	 * Represents an event describing the change in a {@link TextEditor.visibleRanges text editor's visible ranges}.
+	 * Wepwesents an event descwibing the change in a {@wink TextEditow.visibweWanges text editow's visibwe wanges}.
 	 */
-	export interface TextEditorVisibleRangesChangeEvent {
+	expowt intewface TextEditowVisibweWangesChangeEvent {
 		/**
-		 * The {@link TextEditor text editor} for which the visible ranges have changed.
+		 * The {@wink TextEditow text editow} fow which the visibwe wanges have changed.
 		 */
-		readonly textEditor: TextEditor;
+		weadonwy textEditow: TextEditow;
 		/**
-		 * The new value for the {@link TextEditor.visibleRanges text editor's visible ranges}.
+		 * The new vawue fow the {@wink TextEditow.visibweWanges text editow's visibwe wanges}.
 		 */
-		readonly visibleRanges: readonly Range[];
+		weadonwy visibweWanges: weadonwy Wange[];
 	}
 
 	/**
-	 * Represents an event describing the change in a {@link TextEditor.options text editor's options}.
+	 * Wepwesents an event descwibing the change in a {@wink TextEditow.options text editow's options}.
 	 */
-	export interface TextEditorOptionsChangeEvent {
+	expowt intewface TextEditowOptionsChangeEvent {
 		/**
-		 * The {@link TextEditor text editor} for which the options have changed.
+		 * The {@wink TextEditow text editow} fow which the options have changed.
 		 */
-		readonly textEditor: TextEditor;
+		weadonwy textEditow: TextEditow;
 		/**
-		 * The new value for the {@link TextEditor.options text editor's options}.
+		 * The new vawue fow the {@wink TextEditow.options text editow's options}.
 		 */
-		readonly options: TextEditorOptions;
+		weadonwy options: TextEditowOptions;
 	}
 
 	/**
-	 * Represents an event describing the change of a {@link TextEditor.viewColumn text editor's view column}.
+	 * Wepwesents an event descwibing the change of a {@wink TextEditow.viewCowumn text editow's view cowumn}.
 	 */
-	export interface TextEditorViewColumnChangeEvent {
+	expowt intewface TextEditowViewCowumnChangeEvent {
 		/**
-		 * The {@link TextEditor text editor} for which the view column has changed.
+		 * The {@wink TextEditow text editow} fow which the view cowumn has changed.
 		 */
-		readonly textEditor: TextEditor;
+		weadonwy textEditow: TextEditow;
 		/**
-		 * The new value for the {@link TextEditor.viewColumn text editor's view column}.
+		 * The new vawue fow the {@wink TextEditow.viewCowumn text editow's view cowumn}.
 		 */
-		readonly viewColumn: ViewColumn;
+		weadonwy viewCowumn: ViewCowumn;
 	}
 
 	/**
-	 * Rendering style of the cursor.
+	 * Wendewing stywe of the cuwsow.
 	 */
-	export enum TextEditorCursorStyle {
+	expowt enum TextEditowCuwsowStywe {
 		/**
-		 * Render the cursor as a vertical thick line.
+		 * Wenda the cuwsow as a vewticaw thick wine.
 		 */
-		Line = 1,
+		Wine = 1,
 		/**
-		 * Render the cursor as a block filled.
+		 * Wenda the cuwsow as a bwock fiwwed.
 		 */
-		Block = 2,
+		Bwock = 2,
 		/**
-		 * Render the cursor as a thick horizontal line.
+		 * Wenda the cuwsow as a thick howizontaw wine.
 		 */
-		Underline = 3,
+		Undewwine = 3,
 		/**
-		 * Render the cursor as a vertical thin line.
+		 * Wenda the cuwsow as a vewticaw thin wine.
 		 */
-		LineThin = 4,
+		WineThin = 4,
 		/**
-		 * Render the cursor as a block outlined.
+		 * Wenda the cuwsow as a bwock outwined.
 		 */
-		BlockOutline = 5,
+		BwockOutwine = 5,
 		/**
-		 * Render the cursor as a thin horizontal line.
+		 * Wenda the cuwsow as a thin howizontaw wine.
 		 */
-		UnderlineThin = 6
+		UndewwineThin = 6
 	}
 
 	/**
-	 * Rendering style of the line numbers.
+	 * Wendewing stywe of the wine numbews.
 	 */
-	export enum TextEditorLineNumbersStyle {
+	expowt enum TextEditowWineNumbewsStywe {
 		/**
-		 * Do not render the line numbers.
+		 * Do not wenda the wine numbews.
 		 */
 		Off = 0,
 		/**
-		 * Render the line numbers.
+		 * Wenda the wine numbews.
 		 */
 		On = 1,
 		/**
-		 * Render the line numbers with values relative to the primary cursor location.
+		 * Wenda the wine numbews with vawues wewative to the pwimawy cuwsow wocation.
 		 */
-		Relative = 2
+		Wewative = 2
 	}
 
 	/**
-	 * Represents a {@link TextEditor text editor}'s {@link TextEditor.options options}.
+	 * Wepwesents a {@wink TextEditow text editow}'s {@wink TextEditow.options options}.
 	 */
-	export interface TextEditorOptions {
+	expowt intewface TextEditowOptions {
 
 		/**
-		 * The size in spaces a tab takes. This is used for two purposes:
-		 *  - the rendering width of a tab character;
-		 *  - the number of spaces to insert when {@link TextEditorOptions.insertSpaces insertSpaces} is true.
+		 * The size in spaces a tab takes. This is used fow two puwposes:
+		 *  - the wendewing width of a tab chawacta;
+		 *  - the numba of spaces to insewt when {@wink TextEditowOptions.insewtSpaces insewtSpaces} is twue.
 		 *
-		 * When getting a text editor's options, this property will always be a number (resolved).
-		 * When setting a text editor's options, this property is optional and it can be a number or `"auto"`.
+		 * When getting a text editow's options, this pwopewty wiww awways be a numba (wesowved).
+		 * When setting a text editow's options, this pwopewty is optionaw and it can be a numba ow `"auto"`.
 		 */
-		tabSize?: number | string;
+		tabSize?: numba | stwing;
 
 		/**
-		 * When pressing Tab insert {@link TextEditorOptions.tabSize n} spaces.
-		 * When getting a text editor's options, this property will always be a boolean (resolved).
-		 * When setting a text editor's options, this property is optional and it can be a boolean or `"auto"`.
+		 * When pwessing Tab insewt {@wink TextEditowOptions.tabSize n} spaces.
+		 * When getting a text editow's options, this pwopewty wiww awways be a boowean (wesowved).
+		 * When setting a text editow's options, this pwopewty is optionaw and it can be a boowean ow `"auto"`.
 		 */
-		insertSpaces?: boolean | string;
+		insewtSpaces?: boowean | stwing;
 
 		/**
-		 * The rendering style of the cursor in this editor.
-		 * When getting a text editor's options, this property will always be present.
-		 * When setting a text editor's options, this property is optional.
+		 * The wendewing stywe of the cuwsow in this editow.
+		 * When getting a text editow's options, this pwopewty wiww awways be pwesent.
+		 * When setting a text editow's options, this pwopewty is optionaw.
 		 */
-		cursorStyle?: TextEditorCursorStyle;
+		cuwsowStywe?: TextEditowCuwsowStywe;
 
 		/**
-		 * Render relative line numbers w.r.t. the current line number.
-		 * When getting a text editor's options, this property will always be present.
-		 * When setting a text editor's options, this property is optional.
+		 * Wenda wewative wine numbews w.w.t. the cuwwent wine numba.
+		 * When getting a text editow's options, this pwopewty wiww awways be pwesent.
+		 * When setting a text editow's options, this pwopewty is optionaw.
 		 */
-		lineNumbers?: TextEditorLineNumbersStyle;
+		wineNumbews?: TextEditowWineNumbewsStywe;
 	}
 
 	/**
-	 * Represents a handle to a set of decorations
-	 * sharing the same {@link DecorationRenderOptions styling options} in a {@link TextEditor text editor}.
+	 * Wepwesents a handwe to a set of decowations
+	 * shawing the same {@wink DecowationWendewOptions stywing options} in a {@wink TextEditow text editow}.
 	 *
-	 * To get an instance of a `TextEditorDecorationType` use
-	 * {@link window.createTextEditorDecorationType createTextEditorDecorationType}.
+	 * To get an instance of a `TextEditowDecowationType` use
+	 * {@wink window.cweateTextEditowDecowationType cweateTextEditowDecowationType}.
 	 */
-	export interface TextEditorDecorationType {
+	expowt intewface TextEditowDecowationType {
 
 		/**
-		 * Internal representation of the handle.
+		 * Intewnaw wepwesentation of the handwe.
 		 */
-		readonly key: string;
+		weadonwy key: stwing;
 
 		/**
-		 * Remove this decoration type and all decorations on all text editors using it.
+		 * Wemove this decowation type and aww decowations on aww text editows using it.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Represents different {@link TextEditor.revealRange reveal} strategies in a text editor.
+	 * Wepwesents diffewent {@wink TextEditow.weveawWange weveaw} stwategies in a text editow.
 	 */
-	export enum TextEditorRevealType {
+	expowt enum TextEditowWeveawType {
 		/**
-		 * The range will be revealed with as little scrolling as possible.
+		 * The wange wiww be weveawed with as wittwe scwowwing as possibwe.
 		 */
-		Default = 0,
+		Defauwt = 0,
 		/**
-		 * The range will always be revealed in the center of the viewport.
+		 * The wange wiww awways be weveawed in the centa of the viewpowt.
 		 */
-		InCenter = 1,
+		InCenta = 1,
 		/**
-		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
-		 * Otherwise, it will be revealed with as little scrolling as possible.
+		 * If the wange is outside the viewpowt, it wiww be weveawed in the centa of the viewpowt.
+		 * Othewwise, it wiww be weveawed with as wittwe scwowwing as possibwe.
 		 */
-		InCenterIfOutsideViewport = 2,
+		InCentewIfOutsideViewpowt = 2,
 		/**
-		 * The range will always be revealed at the top of the viewport.
+		 * The wange wiww awways be weveawed at the top of the viewpowt.
 		 */
 		AtTop = 3
 	}
 
 	/**
-	 * Represents different positions for rendering a decoration in an {@link DecorationRenderOptions.overviewRulerLane overview ruler}.
-	 * The overview ruler supports three lanes.
+	 * Wepwesents diffewent positions fow wendewing a decowation in an {@wink DecowationWendewOptions.ovewviewWuwewWane ovewview wuwa}.
+	 * The ovewview wuwa suppowts thwee wanes.
 	 */
-	export enum OverviewRulerLane {
-		Left = 1,
-		Center = 2,
-		Right = 4,
-		Full = 7
+	expowt enum OvewviewWuwewWane {
+		Weft = 1,
+		Centa = 2,
+		Wight = 4,
+		Fuww = 7
 	}
 
 	/**
-	 * Describes the behavior of decorations when typing/editing at their edges.
+	 * Descwibes the behaviow of decowations when typing/editing at theiw edges.
 	 */
-	export enum DecorationRangeBehavior {
+	expowt enum DecowationWangeBehaviow {
 		/**
-		 * The decoration's range will widen when edits occur at the start or end.
+		 * The decowation's wange wiww widen when edits occuw at the stawt ow end.
 		 */
 		OpenOpen = 0,
 		/**
-		 * The decoration's range will not widen when edits occur at the start of end.
+		 * The decowation's wange wiww not widen when edits occuw at the stawt of end.
 		 */
-		ClosedClosed = 1,
+		CwosedCwosed = 1,
 		/**
-		 * The decoration's range will widen when edits occur at the start, but not at the end.
+		 * The decowation's wange wiww widen when edits occuw at the stawt, but not at the end.
 		 */
-		OpenClosed = 2,
+		OpenCwosed = 2,
 		/**
-		 * The decoration's range will widen when edits occur at the end, but not at the start.
+		 * The decowation's wange wiww widen when edits occuw at the end, but not at the stawt.
 		 */
-		ClosedOpen = 3
+		CwosedOpen = 3
 	}
 
 	/**
-	 * Represents options to configure the behavior of showing a {@link TextDocument document} in an {@link TextEditor editor}.
+	 * Wepwesents options to configuwe the behaviow of showing a {@wink TextDocument document} in an {@wink TextEditow editow}.
 	 */
-	export interface TextDocumentShowOptions {
+	expowt intewface TextDocumentShowOptions {
 		/**
-		 * An optional view column in which the {@link TextEditor editor} should be shown.
-		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
-		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
-		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
-		 * editor to the side of the currently active one.
+		 * An optionaw view cowumn in which the {@wink TextEditow editow} shouwd be shown.
+		 * The defauwt is the {@wink ViewCowumn.Active active}, otha vawues awe adjusted to
+		 * be `Min(cowumn, cowumnCount + 1)`, the {@wink ViewCowumn.Active active}-cowumn is
+		 * not adjusted. Use {@winkcode ViewCowumn.Beside} to open the
+		 * editow to the side of the cuwwentwy active one.
 		 */
-		viewColumn?: ViewColumn;
+		viewCowumn?: ViewCowumn;
 
 		/**
-		 * An optional flag that when `true` will stop the {@link TextEditor editor} from taking focus.
+		 * An optionaw fwag that when `twue` wiww stop the {@wink TextEditow editow} fwom taking focus.
 		 */
-		preserveFocus?: boolean;
+		pwesewveFocus?: boowean;
 
 		/**
-		 * An optional flag that controls if an {@link TextEditor editor}-tab will be replaced
-		 * with the next editor or if it will be kept.
+		 * An optionaw fwag that contwows if an {@wink TextEditow editow}-tab wiww be wepwaced
+		 * with the next editow ow if it wiww be kept.
 		 */
-		preview?: boolean;
+		pweview?: boowean;
 
 		/**
-		 * An optional selection to apply for the document in the {@link TextEditor editor}.
+		 * An optionaw sewection to appwy fow the document in the {@wink TextEditow editow}.
 		 */
-		selection?: Range;
+		sewection?: Wange;
 	}
 
 	/**
-	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
-	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
+	 * A wefewence to one of the wowkbench cowows as defined in https://code.visuawstudio.com/docs/getstawted/theme-cowow-wefewence.
+	 * Using a theme cowow is pwefewwed ova a custom cowow as it gives theme authows and usews the possibiwity to change the cowow.
 	 */
-	export class ThemeColor {
+	expowt cwass ThemeCowow {
 
 		/**
-		 * Creates a reference to a theme color.
-		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+		 * Cweates a wefewence to a theme cowow.
+		 * @pawam id of the cowow. The avaiwabwe cowows awe wisted in https://code.visuawstudio.com/docs/getstawted/theme-cowow-wefewence.
 		 */
-		constructor(id: string);
+		constwuctow(id: stwing);
 	}
 
 	/**
-	 * A reference to a named icon. Currently, {@link ThemeIcon.File File}, {@link ThemeIcon.Folder Folder},
-	 * and [ThemeIcon ids](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing) are supported.
-	 * Using a theme icon is preferred over a custom icon as it gives product theme authors the possibility to change the icons.
+	 * A wefewence to a named icon. Cuwwentwy, {@wink ThemeIcon.Fiwe Fiwe}, {@wink ThemeIcon.Fowda Fowda},
+	 * and [ThemeIcon ids](https://code.visuawstudio.com/api/wefewences/icons-in-wabews#icon-wisting) awe suppowted.
+	 * Using a theme icon is pwefewwed ova a custom icon as it gives pwoduct theme authows the possibiwity to change the icons.
 	 *
-	 * *Note* that theme icons can also be rendered inside labels and descriptions. Places that support theme icons spell this out
-	 * and they use the `$(<name>)`-syntax, for instance `quickPick.label = "Hello World $(globe)"`.
+	 * *Note* that theme icons can awso be wendewed inside wabews and descwiptions. Pwaces that suppowt theme icons speww this out
+	 * and they use the `$(<name>)`-syntax, fow instance `quickPick.wabew = "Hewwo Wowwd $(gwobe)"`.
 	 */
-	export class ThemeIcon {
+	expowt cwass ThemeIcon {
 		/**
-		 * Reference to an icon representing a file. The icon is taken from the current file icon theme or a placeholder icon is used.
+		 * Wefewence to an icon wepwesenting a fiwe. The icon is taken fwom the cuwwent fiwe icon theme ow a pwacehowda icon is used.
 		 */
-		static readonly File: ThemeIcon;
+		static weadonwy Fiwe: ThemeIcon;
 
 		/**
-		 * Reference to an icon representing a folder. The icon is taken from the current file icon theme or a placeholder icon is used.
+		 * Wefewence to an icon wepwesenting a fowda. The icon is taken fwom the cuwwent fiwe icon theme ow a pwacehowda icon is used.
 		 */
-		static readonly Folder: ThemeIcon;
+		static weadonwy Fowda: ThemeIcon;
 
 		/**
-		 * The id of the icon. The available icons are listed in https://code.visualstudio.com/api/references/icons-in-labels#icon-listing.
+		 * The id of the icon. The avaiwabwe icons awe wisted in https://code.visuawstudio.com/api/wefewences/icons-in-wabews#icon-wisting.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The optional ThemeColor of the icon. The color is currently only used in {@link TreeItem}.
+		 * The optionaw ThemeCowow of the icon. The cowow is cuwwentwy onwy used in {@wink TweeItem}.
 		 */
-		readonly color?: ThemeColor;
+		weadonwy cowow?: ThemeCowow;
 
 		/**
-		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The available icons are listed in https://code.visualstudio.com/api/references/icons-in-labels#icon-listing.
-		 * @param color optional `ThemeColor` for the icon. The color is currently only used in {@link TreeItem}.
+		 * Cweates a wefewence to a theme icon.
+		 * @pawam id id of the icon. The avaiwabwe icons awe wisted in https://code.visuawstudio.com/api/wefewences/icons-in-wabews#icon-wisting.
+		 * @pawam cowow optionaw `ThemeCowow` fow the icon. The cowow is cuwwentwy onwy used in {@wink TweeItem}.
 		 */
-		constructor(id: string, color?: ThemeColor);
+		constwuctow(id: stwing, cowow?: ThemeCowow);
 	}
 
 	/**
-	 * Represents theme specific rendering styles for a {@link TextEditorDecorationType text editor decoration}.
+	 * Wepwesents theme specific wendewing stywes fow a {@wink TextEditowDecowationType text editow decowation}.
 	 */
-	export interface ThemableDecorationRenderOptions {
+	expowt intewface ThemabweDecowationWendewOptions {
 		/**
-		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
-		 * Alternatively a color from the color registry can be {@link ThemeColor referenced}.
+		 * Backgwound cowow of the decowation. Use wgba() and define twanspawent backgwound cowows to pway weww with otha decowations.
+		 * Awtewnativewy a cowow fwom the cowow wegistwy can be {@wink ThemeCowow wefewenced}.
 		 */
-		backgroundColor?: string | ThemeColor;
+		backgwoundCowow?: stwing | ThemeCowow;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		outline?: string;
+		outwine?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'outline' for setting one or more of the individual outline properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'outwine' fow setting one ow mowe of the individuaw outwine pwopewties.
 		 */
-		outlineColor?: string | ThemeColor;
+		outwineCowow?: stwing | ThemeCowow;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'outline' for setting one or more of the individual outline properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'outwine' fow setting one ow mowe of the individuaw outwine pwopewties.
 		 */
-		outlineStyle?: string;
+		outwineStywe?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'outline' for setting one or more of the individual outline properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'outwine' fow setting one ow mowe of the individuaw outwine pwopewties.
 		 */
-		outlineWidth?: string;
+		outwineWidth?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		border?: string;
+		bowda?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'border' for setting one or more of the individual border properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'bowda' fow setting one ow mowe of the individuaw bowda pwopewties.
 		 */
-		borderColor?: string | ThemeColor;
+		bowdewCowow?: stwing | ThemeCowow;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'border' for setting one or more of the individual border properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'bowda' fow setting one ow mowe of the individuaw bowda pwopewties.
 		 */
-		borderRadius?: string;
+		bowdewWadius?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'border' for setting one or more of the individual border properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'bowda' fow setting one ow mowe of the individuaw bowda pwopewties.
 		 */
-		borderSpacing?: string;
+		bowdewSpacing?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'border' for setting one or more of the individual border properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'bowda' fow setting one ow mowe of the individuaw bowda pwopewties.
 		 */
-		borderStyle?: string;
+		bowdewStywe?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
-		 * Better use 'border' for setting one or more of the individual border properties.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
+		 * Betta use 'bowda' fow setting one ow mowe of the individuaw bowda pwopewties.
 		 */
-		borderWidth?: string;
+		bowdewWidth?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		fontStyle?: string;
+		fontStywe?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		fontWeight?: string;
+		fontWeight?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		textDecoration?: string;
+		textDecowation?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		cursor?: string;
+		cuwsow?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		color?: string | ThemeColor;
+		cowow?: stwing | ThemeCowow;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		opacity?: string;
+		opacity?: stwing;
 
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		letterSpacing?: string;
+		wettewSpacing?: stwing;
 
 		/**
-		 * An **absolute path** or an URI to an image to be rendered in the gutter.
+		 * An **absowute path** ow an UWI to an image to be wendewed in the gutta.
 		 */
-		gutterIconPath?: string | Uri;
+		guttewIconPath?: stwing | Uwi;
 
 		/**
-		 * Specifies the size of the gutter icon.
-		 * Available values are 'auto', 'contain', 'cover' and any percentage value.
-		 * For further information: https://msdn.microsoft.com/en-us/library/jj127316(v=vs.85).aspx
+		 * Specifies the size of the gutta icon.
+		 * Avaiwabwe vawues awe 'auto', 'contain', 'cova' and any pewcentage vawue.
+		 * Fow fuwtha infowmation: https://msdn.micwosoft.com/en-us/wibwawy/jj127316(v=vs.85).aspx
 		 */
-		gutterIconSize?: string;
+		guttewIconSize?: stwing;
 
 		/**
-		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
+		 * The cowow of the decowation in the ovewview wuwa. Use wgba() and define twanspawent cowows to pway weww with otha decowations.
 		 */
-		overviewRulerColor?: string | ThemeColor;
+		ovewviewWuwewCowow?: stwing | ThemeCowow;
 
 		/**
-		 * Defines the rendering options of the attachment that is inserted before the decorated text.
+		 * Defines the wendewing options of the attachment that is insewted befowe the decowated text.
 		 */
-		before?: ThemableDecorationAttachmentRenderOptions;
+		befowe?: ThemabweDecowationAttachmentWendewOptions;
 
 		/**
-		 * Defines the rendering options of the attachment that is inserted after the decorated text.
+		 * Defines the wendewing options of the attachment that is insewted afta the decowated text.
 		 */
-		after?: ThemableDecorationAttachmentRenderOptions;
+		afta?: ThemabweDecowationAttachmentWendewOptions;
 	}
 
-	export interface ThemableDecorationAttachmentRenderOptions {
+	expowt intewface ThemabweDecowationAttachmentWendewOptions {
 		/**
-		 * Defines a text content that is shown in the attachment. Either an icon or a text can be shown, but not both.
+		 * Defines a text content that is shown in the attachment. Eitha an icon ow a text can be shown, but not both.
 		 */
-		contentText?: string;
+		contentText?: stwing;
 		/**
-		 * An **absolute path** or an URI to an image to be rendered in the attachment. Either an icon
-		 * or a text can be shown, but not both.
+		 * An **absowute path** ow an UWI to an image to be wendewed in the attachment. Eitha an icon
+		 * ow a text can be shown, but not both.
 		 */
-		contentIconPath?: string | Uri;
+		contentIconPath?: stwing | Uwi;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		border?: string;
+		bowda?: stwing;
 		/**
-		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 * CSS stywing pwopewty that wiww be appwied to text encwosed by a decowation.
 		 */
-		borderColor?: string | ThemeColor;
+		bowdewCowow?: stwing | ThemeCowow;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		fontStyle?: string;
+		fontStywe?: stwing;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		fontWeight?: string;
+		fontWeight?: stwing;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		textDecoration?: string;
+		textDecowation?: stwing;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		color?: string | ThemeColor;
+		cowow?: stwing | ThemeCowow;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		backgroundColor?: string | ThemeColor;
+		backgwoundCowow?: stwing | ThemeCowow;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		margin?: string;
+		mawgin?: stwing;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		width?: string;
+		width?: stwing;
 		/**
-		 * CSS styling property that will be applied to the decoration attachment.
+		 * CSS stywing pwopewty that wiww be appwied to the decowation attachment.
 		 */
-		height?: string;
+		height?: stwing;
 	}
 
 	/**
-	 * Represents rendering styles for a {@link TextEditorDecorationType text editor decoration}.
+	 * Wepwesents wendewing stywes fow a {@wink TextEditowDecowationType text editow decowation}.
 	 */
-	export interface DecorationRenderOptions extends ThemableDecorationRenderOptions {
+	expowt intewface DecowationWendewOptions extends ThemabweDecowationWendewOptions {
 		/**
-		 * Should the decoration be rendered also on the whitespace after the line text.
-		 * Defaults to `false`.
+		 * Shouwd the decowation be wendewed awso on the whitespace afta the wine text.
+		 * Defauwts to `fawse`.
 		 */
-		isWholeLine?: boolean;
+		isWhoweWine?: boowean;
 
 		/**
-		 * Customize the growing behavior of the decoration when edits occur at the edges of the decoration's range.
-		 * Defaults to `DecorationRangeBehavior.OpenOpen`.
+		 * Customize the gwowing behaviow of the decowation when edits occuw at the edges of the decowation's wange.
+		 * Defauwts to `DecowationWangeBehaviow.OpenOpen`.
 		 */
-		rangeBehavior?: DecorationRangeBehavior;
+		wangeBehaviow?: DecowationWangeBehaviow;
 
 		/**
-		 * The position in the overview ruler where the decoration should be rendered.
+		 * The position in the ovewview wuwa whewe the decowation shouwd be wendewed.
 		 */
-		overviewRulerLane?: OverviewRulerLane;
+		ovewviewWuwewWane?: OvewviewWuwewWane;
 
 		/**
-		 * Overwrite options for light themes.
+		 * Ovewwwite options fow wight themes.
 		 */
-		light?: ThemableDecorationRenderOptions;
+		wight?: ThemabweDecowationWendewOptions;
 
 		/**
-		 * Overwrite options for dark themes.
+		 * Ovewwwite options fow dawk themes.
 		 */
-		dark?: ThemableDecorationRenderOptions;
+		dawk?: ThemabweDecowationWendewOptions;
 	}
 
 	/**
-	 * Represents options for a specific decoration in a {@link TextEditorDecorationType decoration set}.
+	 * Wepwesents options fow a specific decowation in a {@wink TextEditowDecowationType decowation set}.
 	 */
-	export interface DecorationOptions {
+	expowt intewface DecowationOptions {
 
 		/**
-		 * Range to which this decoration is applied. The range must not be empty.
+		 * Wange to which this decowation is appwied. The wange must not be empty.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * A message that should be rendered when hovering over the decoration.
+		 * A message that shouwd be wendewed when hovewing ova the decowation.
 		 */
-		hoverMessage?: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>;
+		hovewMessage?: MawkdownStwing | MawkedStwing | Awway<MawkdownStwing | MawkedStwing>;
 
 		/**
-		 * Render options applied to the current decoration. For performance reasons, keep the
-		 * number of decoration specific options small, and use decoration types wherever possible.
+		 * Wenda options appwied to the cuwwent decowation. Fow pewfowmance weasons, keep the
+		 * numba of decowation specific options smaww, and use decowation types wheweva possibwe.
 		 */
-		renderOptions?: DecorationInstanceRenderOptions;
+		wendewOptions?: DecowationInstanceWendewOptions;
 	}
 
-	export interface ThemableDecorationInstanceRenderOptions {
+	expowt intewface ThemabweDecowationInstanceWendewOptions {
 		/**
-		 * Defines the rendering options of the attachment that is inserted before the decorated text.
+		 * Defines the wendewing options of the attachment that is insewted befowe the decowated text.
 		 */
-		before?: ThemableDecorationAttachmentRenderOptions;
+		befowe?: ThemabweDecowationAttachmentWendewOptions;
 
 		/**
-		 * Defines the rendering options of the attachment that is inserted after the decorated text.
+		 * Defines the wendewing options of the attachment that is insewted afta the decowated text.
 		 */
-		after?: ThemableDecorationAttachmentRenderOptions;
+		afta?: ThemabweDecowationAttachmentWendewOptions;
 	}
 
-	export interface DecorationInstanceRenderOptions extends ThemableDecorationInstanceRenderOptions {
+	expowt intewface DecowationInstanceWendewOptions extends ThemabweDecowationInstanceWendewOptions {
 		/**
-		 * Overwrite options for light themes.
+		 * Ovewwwite options fow wight themes.
 		 */
-		light?: ThemableDecorationInstanceRenderOptions;
+		wight?: ThemabweDecowationInstanceWendewOptions;
 
 		/**
-		 * Overwrite options for dark themes.
+		 * Ovewwwite options fow dawk themes.
 		 */
-		dark?: ThemableDecorationInstanceRenderOptions;
+		dawk?: ThemabweDecowationInstanceWendewOptions;
 	}
 
 	/**
-	 * Represents an editor that is attached to a {@link TextDocument document}.
+	 * Wepwesents an editow that is attached to a {@wink TextDocument document}.
 	 */
-	export interface TextEditor {
+	expowt intewface TextEditow {
 
 		/**
-		 * The document associated with this text editor. The document will be the same for the entire lifetime of this text editor.
+		 * The document associated with this text editow. The document wiww be the same fow the entiwe wifetime of this text editow.
 		 */
-		readonly document: TextDocument;
+		weadonwy document: TextDocument;
 
 		/**
-		 * The primary selection on this text editor. Shorthand for `TextEditor.selections[0]`.
+		 * The pwimawy sewection on this text editow. Showthand fow `TextEditow.sewections[0]`.
 		 */
-		selection: Selection;
+		sewection: Sewection;
 
 		/**
-		 * The selections in this text editor. The primary selection is always at index 0.
+		 * The sewections in this text editow. The pwimawy sewection is awways at index 0.
 		 */
-		selections: Selection[];
+		sewections: Sewection[];
 
 		/**
-		 * The current visible ranges in the editor (vertically).
-		 * This accounts only for vertical scrolling, and not for horizontal scrolling.
+		 * The cuwwent visibwe wanges in the editow (vewticawwy).
+		 * This accounts onwy fow vewticaw scwowwing, and not fow howizontaw scwowwing.
 		 */
-		readonly visibleRanges: Range[];
+		weadonwy visibweWanges: Wange[];
 
 		/**
-		 * Text editor options.
+		 * Text editow options.
 		 */
-		options: TextEditorOptions;
+		options: TextEditowOptions;
 
 		/**
-		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
-		 * column is larger than three.
+		 * The cowumn in which this editow shows. Wiww be `undefined` in case this
+		 * isn't one of the main editows, e.g. an embedded editow, ow when the editow
+		 * cowumn is wawga than thwee.
 		 */
-		readonly viewColumn?: ViewColumn;
+		weadonwy viewCowumn?: ViewCowumn;
 
 		/**
-		 * Perform an edit on the document associated with this text editor.
+		 * Pewfowm an edit on the document associated with this text editow.
 		 *
-		 * The given callback-function is invoked with an {@link TextEditorEdit edit-builder} which must
-		 * be used to make edits. Note that the edit-builder is only valid while the
-		 * callback executes.
+		 * The given cawwback-function is invoked with an {@wink TextEditowEdit edit-buiwda} which must
+		 * be used to make edits. Note that the edit-buiwda is onwy vawid whiwe the
+		 * cawwback executes.
 		 *
-		 * @param callback A function which can create edits using an {@link TextEditorEdit edit-builder}.
-		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
-		 * @return A promise that resolves with a value indicating if the edits could be applied.
+		 * @pawam cawwback A function which can cweate edits using an {@wink TextEditowEdit edit-buiwda}.
+		 * @pawam options The undo/wedo behaviow awound this edit. By defauwt, undo stops wiww be cweated befowe and afta this edit.
+		 * @wetuwn A pwomise that wesowves with a vawue indicating if the edits couwd be appwied.
 		 */
-		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		edit(cawwback: (editBuiwda: TextEditowEdit) => void, options?: { undoStopBefowe: boowean; undoStopAfta: boowean; }): Thenabwe<boowean>;
 
 		/**
-		 * Insert a {@link SnippetString snippet} and put the editor into snippet mode. "Snippet mode"
-		 * means the editor adds placeholders and additional cursors so that the user can complete
-		 * or accept the snippet.
+		 * Insewt a {@wink SnippetStwing snippet} and put the editow into snippet mode. "Snippet mode"
+		 * means the editow adds pwacehowdews and additionaw cuwsows so that the usa can compwete
+		 * ow accept the snippet.
 		 *
-		 * @param snippet The snippet to insert in this edit.
-		 * @param location Position or range at which to insert the snippet, defaults to the current editor selection or selections.
-		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
-		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
-		 * that the snippet is completely filled-in or accepted.
+		 * @pawam snippet The snippet to insewt in this edit.
+		 * @pawam wocation Position ow wange at which to insewt the snippet, defauwts to the cuwwent editow sewection ow sewections.
+		 * @pawam options The undo/wedo behaviow awound this edit. By defauwt, undo stops wiww be cweated befowe and afta this edit.
+		 * @wetuwn A pwomise that wesowves with a vawue indicating if the snippet couwd be insewted. Note that the pwomise does not signaw
+		 * that the snippet is compwetewy fiwwed-in ow accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | readonly Position[] | readonly Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insewtSnippet(snippet: SnippetStwing, wocation?: Position | Wange | weadonwy Position[] | weadonwy Wange[], options?: { undoStopBefowe: boowean; undoStopAfta: boowean; }): Thenabwe<boowean>;
 
 		/**
-		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
-		 * the given {@link TextEditorDecorationType decoration type}, they will be replaced. If
-		 * `rangesOrOptions` is empty, the existing decorations with the given {@link TextEditorDecorationType decoration type}
-		 * will be removed.
+		 * Adds a set of decowations to the text editow. If a set of decowations awweady exists with
+		 * the given {@wink TextEditowDecowationType decowation type}, they wiww be wepwaced. If
+		 * `wangesOwOptions` is empty, the existing decowations with the given {@wink TextEditowDecowationType decowation type}
+		 * wiww be wemoved.
 		 *
-		 * @see {@link window.createTextEditorDecorationType createTextEditorDecorationType}.
+		 * @see {@wink window.cweateTextEditowDecowationType cweateTextEditowDecowationType}.
 		 *
-		 * @param decorationType A decoration type.
-		 * @param rangesOrOptions Either {@link Range ranges} or more detailed {@link DecorationOptions options}.
+		 * @pawam decowationType A decowation type.
+		 * @pawam wangesOwOptions Eitha {@wink Wange wanges} ow mowe detaiwed {@wink DecowationOptions options}.
 		 */
-		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: readonly Range[] | readonly DecorationOptions[]): void;
+		setDecowations(decowationType: TextEditowDecowationType, wangesOwOptions: weadonwy Wange[] | weadonwy DecowationOptions[]): void;
 
 		/**
-		 * Scroll as indicated by `revealType` in order to reveal the given range.
+		 * Scwoww as indicated by `weveawType` in owda to weveaw the given wange.
 		 *
-		 * @param range A range.
-		 * @param revealType The scrolling strategy for revealing `range`.
+		 * @pawam wange A wange.
+		 * @pawam weveawType The scwowwing stwategy fow weveawing `wange`.
 		 */
-		revealRange(range: Range, revealType?: TextEditorRevealType): void;
+		weveawWange(wange: Wange, weveawType?: TextEditowWeveawType): void;
 
 		/**
-		 * Show the text editor.
+		 * Show the text editow.
 		 *
-		 * @deprecated Use {@link window.showTextDocument} instead.
+		 * @depwecated Use {@wink window.showTextDocument} instead.
 		 *
-		 * @param column The {@link ViewColumn column} in which to show this editor.
-		 * This method shows unexpected behavior and will be removed in the next major update.
+		 * @pawam cowumn The {@wink ViewCowumn cowumn} in which to show this editow.
+		 * This method shows unexpected behaviow and wiww be wemoved in the next majow update.
 		 */
-		show(column?: ViewColumn): void;
+		show(cowumn?: ViewCowumn): void;
 
 		/**
-		 * Hide the text editor.
+		 * Hide the text editow.
 		 *
-		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
-		 * This method shows unexpected behavior and will be removed in the next major update.
+		 * @depwecated Use the command `wowkbench.action.cwoseActiveEditow` instead.
+		 * This method shows unexpected behaviow and wiww be wemoved in the next majow update.
 		 */
 		hide(): void;
 	}
 
 	/**
-	 * Represents an end of line character sequence in a {@link TextDocument document}.
+	 * Wepwesents an end of wine chawacta sequence in a {@wink TextDocument document}.
 	 */
-	export enum EndOfLine {
+	expowt enum EndOfWine {
 		/**
-		 * The line feed `\n` character.
+		 * The wine feed `\n` chawacta.
 		 */
-		LF = 1,
+		WF = 1,
 		/**
-		 * The carriage return line feed `\r\n` sequence.
+		 * The cawwiage wetuwn wine feed `\w\n` sequence.
 		 */
-		CRLF = 2
+		CWWF = 2
 	}
 
 	/**
-	 * A complex edit that will be applied in one transaction on a TextEditor.
-	 * This holds a description of the edits and if the edits are valid (i.e. no overlapping regions, document was not changed in the meantime, etc.)
-	 * they can be applied on a {@link TextDocument document} associated with a {@link TextEditor text editor}.
+	 * A compwex edit that wiww be appwied in one twansaction on a TextEditow.
+	 * This howds a descwiption of the edits and if the edits awe vawid (i.e. no ovewwapping wegions, document was not changed in the meantime, etc.)
+	 * they can be appwied on a {@wink TextDocument document} associated with a {@wink TextEditow text editow}.
 	 */
-	export interface TextEditorEdit {
+	expowt intewface TextEditowEdit {
 		/**
-		 * Replace a certain text region with a new value.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
+		 * Wepwace a cewtain text wegion with a new vawue.
+		 * You can use \w\n ow \n in `vawue` and they wiww be nowmawized to the cuwwent {@wink TextDocument document}.
 		 *
-		 * @param location The range this operation should remove.
-		 * @param value The new text this operation should insert after removing `location`.
+		 * @pawam wocation The wange this opewation shouwd wemove.
+		 * @pawam vawue The new text this opewation shouwd insewt afta wemoving `wocation`.
 		 */
-		replace(location: Position | Range | Selection, value: string): void;
+		wepwace(wocation: Position | Wange | Sewection, vawue: stwing): void;
 
 		/**
-		 * Insert text at a location.
-		 * You can use \r\n or \n in `value` and they will be normalized to the current {@link TextDocument document}.
-		 * Although the equivalent text edit can be made with {@link TextEditorEdit.replace replace}, `insert` will produce a different resulting selection (it will get moved).
+		 * Insewt text at a wocation.
+		 * You can use \w\n ow \n in `vawue` and they wiww be nowmawized to the cuwwent {@wink TextDocument document}.
+		 * Awthough the equivawent text edit can be made with {@wink TextEditowEdit.wepwace wepwace}, `insewt` wiww pwoduce a diffewent wesuwting sewection (it wiww get moved).
 		 *
-		 * @param location The position where the new text should be inserted.
-		 * @param value The new text this operation should insert.
+		 * @pawam wocation The position whewe the new text shouwd be insewted.
+		 * @pawam vawue The new text this opewation shouwd insewt.
 		 */
-		insert(location: Position, value: string): void;
+		insewt(wocation: Position, vawue: stwing): void;
 
 		/**
-		 * Delete a certain text region.
+		 * Dewete a cewtain text wegion.
 		 *
-		 * @param location The range this operation should remove.
+		 * @pawam wocation The wange this opewation shouwd wemove.
 		 */
-		delete(location: Range | Selection): void;
+		dewete(wocation: Wange | Sewection): void;
 
 		/**
-		 * Set the end of line sequence.
+		 * Set the end of wine sequence.
 		 *
-		 * @param endOfLine The new end of line for the {@link TextDocument document}.
+		 * @pawam endOfWine The new end of wine fow the {@wink TextDocument document}.
 		 */
-		setEndOfLine(endOfLine: EndOfLine): void;
+		setEndOfWine(endOfWine: EndOfWine): void;
 	}
 
 	/**
-	 * A universal resource identifier representing either a file on disk
-	 * or another resource, like untitled resources.
+	 * A univewsaw wesouwce identifia wepwesenting eitha a fiwe on disk
+	 * ow anotha wesouwce, wike untitwed wesouwces.
 	 */
-	export class Uri {
+	expowt cwass Uwi {
 
 		/**
-		 * Create an URI from a string, e.g. `http://www.msft.com/some/path`,
-		 * `file:///usr/home`, or `scheme:with/path`.
+		 * Cweate an UWI fwom a stwing, e.g. `http://www.msft.com/some/path`,
+		 * `fiwe:///usw/home`, ow `scheme:with/path`.
 		 *
-		 * *Note* that for a while uris without a `scheme` were accepted. That is not correct
-		 * as all uris should have a scheme. To avoid breakage of existing code the optional
-		 * `strict`-argument has been added. We *strongly* advise to use it, e.g. `Uri.parse('my:uri', true)`
+		 * *Note* that fow a whiwe uwis without a `scheme` wewe accepted. That is not cowwect
+		 * as aww uwis shouwd have a scheme. To avoid bweakage of existing code the optionaw
+		 * `stwict`-awgument has been added. We *stwongwy* advise to use it, e.g. `Uwi.pawse('my:uwi', twue)`
 		 *
-		 * @see {@link Uri.toString}
-		 * @param value The string value of an Uri.
-		 * @param strict Throw an error when `value` is empty or when no `scheme` can be parsed.
-		 * @return A new Uri instance.
+		 * @see {@wink Uwi.toStwing}
+		 * @pawam vawue The stwing vawue of an Uwi.
+		 * @pawam stwict Thwow an ewwow when `vawue` is empty ow when no `scheme` can be pawsed.
+		 * @wetuwn A new Uwi instance.
 		 */
-		static parse(value: string, strict?: boolean): Uri;
+		static pawse(vawue: stwing, stwict?: boowean): Uwi;
 
 		/**
-		 * Create an URI from a file system path. The {@link Uri.scheme scheme}
-		 * will be `file`.
+		 * Cweate an UWI fwom a fiwe system path. The {@wink Uwi.scheme scheme}
+		 * wiww be `fiwe`.
 		 *
-		 * The *difference* between {@link Uri.parse} and {@link Uri.file} is that the latter treats the argument
-		 * as path, not as stringified-uri. E.g. `Uri.file(path)` is *not* the same as
-		 * `Uri.parse('file://' + path)` because the path might contain characters that are
-		 * interpreted (# and ?). See the following sample:
+		 * The *diffewence* between {@wink Uwi.pawse} and {@wink Uwi.fiwe} is that the watta tweats the awgument
+		 * as path, not as stwingified-uwi. E.g. `Uwi.fiwe(path)` is *not* the same as
+		 * `Uwi.pawse('fiwe://' + path)` because the path might contain chawactews that awe
+		 * intewpweted (# and ?). See the fowwowing sampwe:
 		 * ```ts
-		const good = URI.file('/coding/c#/project1');
-		good.scheme === 'file';
-		good.path === '/coding/c#/project1';
-		good.fragment === '';
+		const good = UWI.fiwe('/coding/c#/pwoject1');
+		good.scheme === 'fiwe';
+		good.path === '/coding/c#/pwoject1';
+		good.fwagment === '';
 
-		const bad = URI.parse('file://' + '/coding/c#/project1');
-		bad.scheme === 'file';
-		bad.path === '/coding/c'; // path is now broken
-		bad.fragment === '/project1';
+		const bad = UWI.pawse('fiwe://' + '/coding/c#/pwoject1');
+		bad.scheme === 'fiwe';
+		bad.path === '/coding/c'; // path is now bwoken
+		bad.fwagment === '/pwoject1';
 		```
 		 *
-		 * @param path A file system or UNC path.
-		 * @return A new Uri instance.
+		 * @pawam path A fiwe system ow UNC path.
+		 * @wetuwn A new Uwi instance.
 		 */
-		static file(path: string): Uri;
+		static fiwe(path: stwing): Uwi;
 
 		/**
-		 * Create a new uri which path is the result of joining
-		 * the path of the base uri with the provided path segments.
+		 * Cweate a new uwi which path is the wesuwt of joining
+		 * the path of the base uwi with the pwovided path segments.
 		 *
-		 * - Note 1: `joinPath` only affects the path component
-		 * and all other components (scheme, authority, query, and fragment) are
-		 * left as they are.
-		 * - Note 2: The base uri must have a path; an error is thrown otherwise.
+		 * - Note 1: `joinPath` onwy affects the path component
+		 * and aww otha components (scheme, authowity, quewy, and fwagment) awe
+		 * weft as they awe.
+		 * - Note 2: The base uwi must have a path; an ewwow is thwown othewwise.
 		 *
-		 * The path segments are normalized in the following ways:
-		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
-		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
-		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segment
-		 * - paths have a root which always remains, for instance on windows drive-letters are roots
-		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
+		 * The path segments awe nowmawized in the fowwowing ways:
+		 * - sequences of path sepawatows (`/` ow `\`) awe wepwaced with a singwe sepawatow
+		 * - fow `fiwe`-uwis on windows, the backswash-chawacta (`\`) is considewed a path-sepawatow
+		 * - the `..`-segment denotes the pawent segment, the `.` denotes the cuwwent segment
+		 * - paths have a woot which awways wemains, fow instance on windows dwive-wettews awe woots
+		 * so that is twue: `joinPath(Uwi.fiwe('fiwe:///c:/woot'), '../../otha').fsPath === 'c:/otha'`
 		 *
-		 * @param base An uri. Must have a path.
-		 * @param pathSegments One more more path fragments
-		 * @returns A new uri which path is joined with the given fragments
+		 * @pawam base An uwi. Must have a path.
+		 * @pawam pathSegments One mowe mowe path fwagments
+		 * @wetuwns A new uwi which path is joined with the given fwagments
 		 */
-		static joinPath(base: Uri, ...pathSegments: string[]): Uri;
+		static joinPath(base: Uwi, ...pathSegments: stwing[]): Uwi;
 
 		/**
-		 * Create an URI from its component parts
+		 * Cweate an UWI fwom its component pawts
 		 *
-		 * @see {@link Uri.toString}
-		 * @param components The component parts of an Uri.
-		 * @return A new Uri instance.
+		 * @see {@wink Uwi.toStwing}
+		 * @pawam components The component pawts of an Uwi.
+		 * @wetuwn A new Uwi instance.
 		 */
-		static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
+		static fwom(components: { scheme: stwing; authowity?: stwing; path?: stwing; quewy?: stwing; fwagment?: stwing }): Uwi;
 
 		/**
-		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
+		 * Use the `fiwe` and `pawse` factowy functions to cweate new `Uwi` objects.
 		 */
-		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
+		pwivate constwuctow(scheme: stwing, authowity: stwing, path: stwing, quewy: stwing, fwagment: stwing);
 
 		/**
-		 * Scheme is the `http` part of `http://www.msft.com/some/path?query#fragment`.
-		 * The part before the first colon.
+		 * Scheme is the `http` pawt of `http://www.msft.com/some/path?quewy#fwagment`.
+		 * The pawt befowe the fiwst cowon.
 		 */
-		readonly scheme: string;
+		weadonwy scheme: stwing;
 
 		/**
-		 * Authority is the `www.msft.com` part of `http://www.msft.com/some/path?query#fragment`.
-		 * The part between the first double slashes and the next slash.
+		 * Authowity is the `www.msft.com` pawt of `http://www.msft.com/some/path?quewy#fwagment`.
+		 * The pawt between the fiwst doubwe swashes and the next swash.
 		 */
-		readonly authority: string;
+		weadonwy authowity: stwing;
 
 		/**
-		 * Path is the `/some/path` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Path is the `/some/path` pawt of `http://www.msft.com/some/path?quewy#fwagment`.
 		 */
-		readonly path: string;
+		weadonwy path: stwing;
 
 		/**
-		 * Query is the `query` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Quewy is the `quewy` pawt of `http://www.msft.com/some/path?quewy#fwagment`.
 		 */
-		readonly query: string;
+		weadonwy quewy: stwing;
 
 		/**
-		 * Fragment is the `fragment` part of `http://www.msft.com/some/path?query#fragment`.
+		 * Fwagment is the `fwagment` pawt of `http://www.msft.com/some/path?quewy#fwagment`.
 		 */
-		readonly fragment: string;
+		weadonwy fwagment: stwing;
 
 		/**
-		 * The string representing the corresponding file system path of this Uri.
+		 * The stwing wepwesenting the cowwesponding fiwe system path of this Uwi.
 		 *
-		 * Will handle UNC paths and normalize windows drive letters to lower-case. Also
-		 * uses the platform specific path separator.
+		 * Wiww handwe UNC paths and nowmawize windows dwive wettews to wowa-case. Awso
+		 * uses the pwatfowm specific path sepawatow.
 		 *
-		 * * Will *not* validate the path for invalid characters and semantics.
-		 * * Will *not* look at the scheme of this Uri.
-		 * * The resulting string shall *not* be used for display purposes but
-		 * for disk operations, like `readFile` et al.
+		 * * Wiww *not* vawidate the path fow invawid chawactews and semantics.
+		 * * Wiww *not* wook at the scheme of this Uwi.
+		 * * The wesuwting stwing shaww *not* be used fow dispway puwposes but
+		 * fow disk opewations, wike `weadFiwe` et aw.
 		 *
-		 * The *difference* to the {@linkcode Uri.path path}-property is the use of the platform specific
-		 * path separator and the handling of UNC paths. The sample below outlines the difference:
+		 * The *diffewence* to the {@winkcode Uwi.path path}-pwopewty is the use of the pwatfowm specific
+		 * path sepawatow and the handwing of UNC paths. The sampwe bewow outwines the diffewence:
 		 * ```ts
-		const u = URI.parse('file://server/c$/folder/file.txt')
-		u.authority === 'server'
-		u.path === '/shares/c$/file.txt'
-		u.fsPath === '\\server\c$\folder\file.txt'
+		const u = UWI.pawse('fiwe://sewva/c$/fowda/fiwe.txt')
+		u.authowity === 'sewva'
+		u.path === '/shawes/c$/fiwe.txt'
+		u.fsPath === '\\sewva\c$\fowda\fiwe.txt'
 		```
 		 */
-		readonly fsPath: string;
+		weadonwy fsPath: stwing;
 
 		/**
-		 * Derive a new Uri from this Uri.
+		 * Dewive a new Uwi fwom this Uwi.
 		 *
 		 * ```ts
-		 * let file = Uri.parse('before:some/file/path');
-		 * let other = file.with({ scheme: 'after' });
-		 * assert.ok(other.toString() === 'after:some/file/path');
+		 * wet fiwe = Uwi.pawse('befowe:some/fiwe/path');
+		 * wet otha = fiwe.with({ scheme: 'afta' });
+		 * assewt.ok(otha.toStwing() === 'afta:some/fiwe/path');
 		 * ```
 		 *
-		 * @param change An object that describes a change to this Uri. To unset components use `null` or
-		 *  the empty string.
-		 * @return A new Uri that reflects the given change. Will return `this` Uri if the change
+		 * @pawam change An object that descwibes a change to this Uwi. To unset components use `nuww` ow
+		 *  the empty stwing.
+		 * @wetuwn A new Uwi that wefwects the given change. Wiww wetuwn `this` Uwi if the change
 		 *  is not changing anything.
 		 */
-		with(change: { scheme?: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
+		with(change: { scheme?: stwing; authowity?: stwing; path?: stwing; quewy?: stwing; fwagment?: stwing }): Uwi;
 
 		/**
-		 * Returns a string representation of this Uri. The representation and normalization
-		 * of a URI depends on the scheme.
+		 * Wetuwns a stwing wepwesentation of this Uwi. The wepwesentation and nowmawization
+		 * of a UWI depends on the scheme.
 		 *
-		 * * The resulting string can be safely used with {@link Uri.parse}.
-		 * * The resulting string shall *not* be used for display purposes.
+		 * * The wesuwting stwing can be safewy used with {@wink Uwi.pawse}.
+		 * * The wesuwting stwing shaww *not* be used fow dispway puwposes.
 		 *
-		 * *Note* that the implementation will encode _aggressive_ which often leads to unexpected,
-		 * but not incorrect, results. For instance, colons are encoded to `%3A` which might be unexpected
-		 * in file-uri. Also `&` and `=` will be encoded which might be unexpected for http-uris. For stability
-		 * reasons this cannot be changed anymore. If you suffer from too aggressive encoding you should use
-		 * the `skipEncoding`-argument: `uri.toString(true)`.
+		 * *Note* that the impwementation wiww encode _aggwessive_ which often weads to unexpected,
+		 * but not incowwect, wesuwts. Fow instance, cowons awe encoded to `%3A` which might be unexpected
+		 * in fiwe-uwi. Awso `&` and `=` wiww be encoded which might be unexpected fow http-uwis. Fow stabiwity
+		 * weasons this cannot be changed anymowe. If you suffa fwom too aggwessive encoding you shouwd use
+		 * the `skipEncoding`-awgument: `uwi.toStwing(twue)`.
 		 *
-		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
-		 *	the `#` and `?` characters occurring in the path will always be encoded.
-		 * @returns A string representation of this Uri.
+		 * @pawam skipEncoding Do not pewcentage-encode the wesuwt, defauwts to `fawse`. Note that
+		 *	the `#` and `?` chawactews occuwwing in the path wiww awways be encoded.
+		 * @wetuwns A stwing wepwesentation of this Uwi.
 		 */
-		toString(skipEncoding?: boolean): string;
+		toStwing(skipEncoding?: boowean): stwing;
 
 		/**
-		 * Returns a JSON representation of this Uri.
+		 * Wetuwns a JSON wepwesentation of this Uwi.
 		 *
-		 * @return An object.
+		 * @wetuwn An object.
 		 */
 		toJSON(): any;
 	}
 
 	/**
-	 * A cancellation token is passed to an asynchronous or long running
-	 * operation to request cancellation, like cancelling a request
-	 * for completion items because the user continued to type.
+	 * A cancewwation token is passed to an asynchwonous ow wong wunning
+	 * opewation to wequest cancewwation, wike cancewwing a wequest
+	 * fow compwetion items because the usa continued to type.
 	 *
-	 * To get an instance of a `CancellationToken` use a
-	 * {@link CancellationTokenSource}.
+	 * To get an instance of a `CancewwationToken` use a
+	 * {@wink CancewwationTokenSouwce}.
 	 */
-	export interface CancellationToken {
+	expowt intewface CancewwationToken {
 
 		/**
-		 * Is `true` when the token has been cancelled, `false` otherwise.
+		 * Is `twue` when the token has been cancewwed, `fawse` othewwise.
 		 */
-		isCancellationRequested: boolean;
+		isCancewwationWequested: boowean;
 
 		/**
-		 * An {@link Event} which fires upon cancellation.
+		 * An {@wink Event} which fiwes upon cancewwation.
 		 */
-		onCancellationRequested: Event<any>;
+		onCancewwationWequested: Event<any>;
 	}
 
 	/**
-	 * A cancellation source creates and controls a {@link CancellationToken cancellation token}.
+	 * A cancewwation souwce cweates and contwows a {@wink CancewwationToken cancewwation token}.
 	 */
-	export class CancellationTokenSource {
+	expowt cwass CancewwationTokenSouwce {
 
 		/**
-		 * The cancellation token of this source.
+		 * The cancewwation token of this souwce.
 		 */
-		token: CancellationToken;
+		token: CancewwationToken;
 
 		/**
-		 * Signal cancellation on the token.
+		 * Signaw cancewwation on the token.
 		 */
-		cancel(): void;
+		cancew(): void;
 
 		/**
-		 * Dispose object and free resources.
+		 * Dispose object and fwee wesouwces.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * An error type that should be used to signal cancellation of an operation.
+	 * An ewwow type that shouwd be used to signaw cancewwation of an opewation.
 	 *
-	 * This type can be used in response to a {@link CancellationToken cancellation token}
-	 * being cancelled or when an operation is being cancelled by the
-	 * executor of that operation.
+	 * This type can be used in wesponse to a {@wink CancewwationToken cancewwation token}
+	 * being cancewwed ow when an opewation is being cancewwed by the
+	 * executow of that opewation.
 	 */
-	export class CancellationError extends Error {
+	expowt cwass CancewwationEwwow extends Ewwow {
 
 		/**
-		 * Creates a new cancellation error.
+		 * Cweates a new cancewwation ewwow.
 		 */
-		constructor();
+		constwuctow();
 	}
 
 	/**
-	 * Represents a type which can release resources, such
-	 * as event listening or a timer.
+	 * Wepwesents a type which can wewease wesouwces, such
+	 * as event wistening ow a tima.
 	 */
-	export class Disposable {
+	expowt cwass Disposabwe {
 
 		/**
-		 * Combine many disposable-likes into one. Use this method
-		 * when having objects with a dispose function which are not
-		 * instances of Disposable.
+		 * Combine many disposabwe-wikes into one. Use this method
+		 * when having objects with a dispose function which awe not
+		 * instances of Disposabwe.
 		 *
-		 * @param disposableLikes Objects that have at least a `dispose`-function member.
-		 * @return Returns a new disposable which, upon dispose, will
-		 * dispose all provided disposables.
+		 * @pawam disposabweWikes Objects that have at weast a `dispose`-function memba.
+		 * @wetuwn Wetuwns a new disposabwe which, upon dispose, wiww
+		 * dispose aww pwovided disposabwes.
 		 */
-		static from(...disposableLikes: { dispose: () => any }[]): Disposable;
+		static fwom(...disposabweWikes: { dispose: () => any }[]): Disposabwe;
 
 		/**
-		 * Creates a new Disposable calling the provided function
+		 * Cweates a new Disposabwe cawwing the pwovided function
 		 * on dispose.
-		 * @param callOnDispose Function that disposes something.
+		 * @pawam cawwOnDispose Function that disposes something.
 		 */
-		constructor(callOnDispose: Function);
+		constwuctow(cawwOnDispose: Function);
 
 		/**
 		 * Dispose this object.
@@ -1508,5373 +1508,5373 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a typed event.
+	 * Wepwesents a typed event.
 	 *
-	 * A function that represents an event to which you subscribe by calling it with
-	 * a listener function as argument.
+	 * A function that wepwesents an event to which you subscwibe by cawwing it with
+	 * a wistena function as awgument.
 	 *
-	 * @example
-	 * item.onDidChange(function(event) { console.log("Event happened: " + event); });
+	 * @exampwe
+	 * item.onDidChange(function(event) { consowe.wog("Event happened: " + event); });
 	 */
-	export interface Event<T> {
+	expowt intewface Event<T> {
 
 		/**
-		 * A function that represents an event to which you subscribe by calling it with
-		 * a listener function as argument.
+		 * A function that wepwesents an event to which you subscwibe by cawwing it with
+		 * a wistena function as awgument.
 		 *
-		 * @param listener The listener function will be called when the event happens.
-		 * @param thisArgs The `this`-argument which will be used when calling the event listener.
-		 * @param disposables An array to which a {@link Disposable} will be added.
-		 * @return A disposable which unsubscribes the event listener.
+		 * @pawam wistena The wistena function wiww be cawwed when the event happens.
+		 * @pawam thisAwgs The `this`-awgument which wiww be used when cawwing the event wistena.
+		 * @pawam disposabwes An awway to which a {@wink Disposabwe} wiww be added.
+		 * @wetuwn A disposabwe which unsubscwibes the event wistena.
 		 */
-		(listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]): Disposable;
+		(wistena: (e: T) => any, thisAwgs?: any, disposabwes?: Disposabwe[]): Disposabwe;
 	}
 
 	/**
-	 * An event emitter can be used to create and manage an {@link Event} for others
-	 * to subscribe to. One emitter always owns one event.
+	 * An event emitta can be used to cweate and manage an {@wink Event} fow othews
+	 * to subscwibe to. One emitta awways owns one event.
 	 *
-	 * Use this class if you want to provide event from within your extension, for instance
-	 * inside a {@link TextDocumentContentProvider} or when providing
-	 * API to other extensions.
+	 * Use this cwass if you want to pwovide event fwom within youw extension, fow instance
+	 * inside a {@wink TextDocumentContentPwovida} ow when pwoviding
+	 * API to otha extensions.
 	 */
-	export class EventEmitter<T> {
+	expowt cwass EventEmitta<T> {
 
 		/**
-		 * The event listeners can subscribe to.
+		 * The event wistenews can subscwibe to.
 		 */
 		event: Event<T>;
 
 		/**
-		 * Notify all subscribers of the {@link EventEmitter.event event}. Failure
-		 * of one or more listener will not fail this function call.
+		 * Notify aww subscwibews of the {@wink EventEmitta.event event}. Faiwuwe
+		 * of one ow mowe wistena wiww not faiw this function caww.
 		 *
-		 * @param data The event object.
+		 * @pawam data The event object.
 		 */
-		fire(data: T): void;
+		fiwe(data: T): void;
 
 		/**
-		 * Dispose this object and free resources.
+		 * Dispose this object and fwee wesouwces.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * A file system watcher notifies about changes to files and folders
-	 * on disk or from other {@link FileSystemProvider FileSystemProviders}.
+	 * A fiwe system watcha notifies about changes to fiwes and fowdews
+	 * on disk ow fwom otha {@wink FiweSystemPwovida FiweSystemPwovidews}.
 	 *
-	 * To get an instance of a `FileSystemWatcher` use
-	 * {@link workspace.createFileSystemWatcher createFileSystemWatcher}.
+	 * To get an instance of a `FiweSystemWatcha` use
+	 * {@wink wowkspace.cweateFiweSystemWatcha cweateFiweSystemWatcha}.
 	 */
-	export interface FileSystemWatcher extends Disposable {
+	expowt intewface FiweSystemWatcha extends Disposabwe {
 
 		/**
-		 * true if this file system watcher has been created such that
-		 * it ignores creation file system events.
+		 * twue if this fiwe system watcha has been cweated such that
+		 * it ignowes cweation fiwe system events.
 		 */
-		ignoreCreateEvents: boolean;
+		ignoweCweateEvents: boowean;
 
 		/**
-		 * true if this file system watcher has been created such that
-		 * it ignores change file system events.
+		 * twue if this fiwe system watcha has been cweated such that
+		 * it ignowes change fiwe system events.
 		 */
-		ignoreChangeEvents: boolean;
+		ignoweChangeEvents: boowean;
 
 		/**
-		 * true if this file system watcher has been created such that
-		 * it ignores delete file system events.
+		 * twue if this fiwe system watcha has been cweated such that
+		 * it ignowes dewete fiwe system events.
 		 */
-		ignoreDeleteEvents: boolean;
+		ignoweDeweteEvents: boowean;
 
 		/**
-		 * An event which fires on file/folder creation.
+		 * An event which fiwes on fiwe/fowda cweation.
 		 */
-		onDidCreate: Event<Uri>;
+		onDidCweate: Event<Uwi>;
 
 		/**
-		 * An event which fires on file/folder change.
+		 * An event which fiwes on fiwe/fowda change.
 		 */
-		onDidChange: Event<Uri>;
+		onDidChange: Event<Uwi>;
 
 		/**
-		 * An event which fires on file/folder deletion.
+		 * An event which fiwes on fiwe/fowda dewetion.
 		 */
-		onDidDelete: Event<Uri>;
+		onDidDewete: Event<Uwi>;
 	}
 
 	/**
-	 * A text document content provider allows to add readonly documents
-	 * to the editor, such as source from a dll or generated html from md.
+	 * A text document content pwovida awwows to add weadonwy documents
+	 * to the editow, such as souwce fwom a dww ow genewated htmw fwom md.
 	 *
-	 * Content providers are {@link workspace.registerTextDocumentContentProvider registered}
-	 * for a {@link Uri.scheme uri-scheme}. When a uri with that scheme is to
-	 * be {@link workspace.openTextDocument loaded} the content provider is
+	 * Content pwovidews awe {@wink wowkspace.wegistewTextDocumentContentPwovida wegistewed}
+	 * fow a {@wink Uwi.scheme uwi-scheme}. When a uwi with that scheme is to
+	 * be {@wink wowkspace.openTextDocument woaded} the content pwovida is
 	 * asked.
 	 */
-	export interface TextDocumentContentProvider {
+	expowt intewface TextDocumentContentPwovida {
 
 		/**
-		 * An event to signal a resource has changed.
+		 * An event to signaw a wesouwce has changed.
 		 */
-		onDidChange?: Event<Uri>;
+		onDidChange?: Event<Uwi>;
 
 		/**
-		 * Provide textual content for a given uri.
+		 * Pwovide textuaw content fow a given uwi.
 		 *
-		 * The editor will use the returned string-content to create a readonly
-		 * {@link TextDocument document}. Resources allocated should be released when
-		 * the corresponding document has been {@link workspace.onDidCloseTextDocument closed}.
+		 * The editow wiww use the wetuwned stwing-content to cweate a weadonwy
+		 * {@wink TextDocument document}. Wesouwces awwocated shouwd be weweased when
+		 * the cowwesponding document has been {@wink wowkspace.onDidCwoseTextDocument cwosed}.
 		 *
-		 * **Note**: The contents of the created {@link TextDocument document} might not be
-		 * identical to the provided text due to end-of-line-sequence normalization.
+		 * **Note**: The contents of the cweated {@wink TextDocument document} might not be
+		 * identicaw to the pwovided text due to end-of-wine-sequence nowmawization.
 		 *
-		 * @param uri An uri which scheme matches the scheme this provider was {@link workspace.registerTextDocumentContentProvider registered} for.
-		 * @param token A cancellation token.
-		 * @return A string or a thenable that resolves to such.
+		 * @pawam uwi An uwi which scheme matches the scheme this pwovida was {@wink wowkspace.wegistewTextDocumentContentPwovida wegistewed} fow.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A stwing ow a thenabwe that wesowves to such.
 		 */
-		provideTextDocumentContent(uri: Uri, token: CancellationToken): ProviderResult<string>;
+		pwovideTextDocumentContent(uwi: Uwi, token: CancewwationToken): PwovidewWesuwt<stwing>;
 	}
 
 	/**
-	 * Represents an item that can be selected from
-	 * a list of items.
+	 * Wepwesents an item that can be sewected fwom
+	 * a wist of items.
 	 */
-	export interface QuickPickItem {
+	expowt intewface QuickPickItem {
 
 		/**
-		 * A human-readable string which is rendered prominent. Supports rendering of {@link ThemeIcon theme icons} via
+		 * A human-weadabwe stwing which is wendewed pwominent. Suppowts wendewing of {@wink ThemeIcon theme icons} via
 		 * the `$(<name>)`-syntax.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
-		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 * A human-weadabwe stwing which is wendewed wess pwominent in the same wine. Suppowts wendewing of
+		 * {@wink ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
-		description?: string;
+		descwiption?: stwing;
 
 		/**
-		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
-		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 * A human-weadabwe stwing which is wendewed wess pwominent in a sepawate wine. Suppowts wendewing of
+		 * {@wink ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * Optional flag indicating if this item is picked initially.
-		 * (Only honored when the picker allows multiple selections.)
+		 * Optionaw fwag indicating if this item is picked initiawwy.
+		 * (Onwy honowed when the picka awwows muwtipwe sewections.)
 		 *
-		 * @see {@link QuickPickOptions.canPickMany}
+		 * @see {@wink QuickPickOptions.canPickMany}
 		 */
-		picked?: boolean;
+		picked?: boowean;
 
 		/**
-		 * Always show this item.
+		 * Awways show this item.
 		 */
-		alwaysShow?: boolean;
+		awwaysShow?: boowean;
 	}
 
 	/**
-	 * Options to configure the behavior of the quick pick UI.
+	 * Options to configuwe the behaviow of the quick pick UI.
 	 */
-	export interface QuickPickOptions {
+	expowt intewface QuickPickOptions {
 
 		/**
-		 * An optional string that represents the title of the quick pick.
+		 * An optionaw stwing that wepwesents the titwe of the quick pick.
 		 */
-		title?: string;
+		titwe?: stwing;
 
 		/**
-		 * An optional flag to include the description when filtering the picks.
+		 * An optionaw fwag to incwude the descwiption when fiwtewing the picks.
 		 */
-		matchOnDescription?: boolean;
+		matchOnDescwiption?: boowean;
 
 		/**
-		 * An optional flag to include the detail when filtering the picks.
+		 * An optionaw fwag to incwude the detaiw when fiwtewing the picks.
 		 */
-		matchOnDetail?: boolean;
+		matchOnDetaiw?: boowean;
 
 		/**
-		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
+		 * An optionaw stwing to show as pwacehowda in the input box to guide the usa what to pick on.
 		 */
-		placeHolder?: string;
+		pwaceHowda?: stwing;
 
 		/**
-		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 * This setting is ignored on iPad and is always false.
+		 * Set to `twue` to keep the picka open when focus moves to anotha pawt of the editow ow to anotha window.
+		 * This setting is ignowed on iPad and is awways fawse.
 		 */
-		ignoreFocusOut?: boolean;
+		ignoweFocusOut?: boowean;
 
 		/**
-		 * An optional flag to make the picker accept multiple selections, if true the result is an array of picks.
+		 * An optionaw fwag to make the picka accept muwtipwe sewections, if twue the wesuwt is an awway of picks.
 		 */
-		canPickMany?: boolean;
+		canPickMany?: boowean;
 
 		/**
-		 * An optional function that is invoked whenever an item is selected.
+		 * An optionaw function that is invoked wheneva an item is sewected.
 		 */
-		onDidSelectItem?(item: QuickPickItem | string): any;
+		onDidSewectItem?(item: QuickPickItem | stwing): any;
 	}
 
 	/**
-	 * Options to configure the behaviour of the {@link WorkspaceFolder workspace folder} pick UI.
+	 * Options to configuwe the behaviouw of the {@wink WowkspaceFowda wowkspace fowda} pick UI.
 	 */
-	export interface WorkspaceFolderPickOptions {
+	expowt intewface WowkspaceFowdewPickOptions {
 
 		/**
-		 * An optional string to show as placeholder in the input box to guide the user what to pick on.
+		 * An optionaw stwing to show as pwacehowda in the input box to guide the usa what to pick on.
 		 */
-		placeHolder?: string;
+		pwaceHowda?: stwing;
 
 		/**
-		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 * This setting is ignored on iPad and is always false.
+		 * Set to `twue` to keep the picka open when focus moves to anotha pawt of the editow ow to anotha window.
+		 * This setting is ignowed on iPad and is awways fawse.
 		 */
-		ignoreFocusOut?: boolean;
+		ignoweFocusOut?: boowean;
 	}
 
 	/**
-	 * Options to configure the behaviour of a file open dialog.
+	 * Options to configuwe the behaviouw of a fiwe open diawog.
 	 *
-	 * * Note 1: On Windows and Linux, a file dialog cannot be both a file selector and a folder selector, so if you
-	 * set both `canSelectFiles` and `canSelectFolders` to `true` on these platforms, a folder selector will be shown.
-	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
-	 * and the editor then silently adjusts the options to select files.
+	 * * Note 1: On Windows and Winux, a fiwe diawog cannot be both a fiwe sewectow and a fowda sewectow, so if you
+	 * set both `canSewectFiwes` and `canSewectFowdews` to `twue` on these pwatfowms, a fowda sewectow wiww be shown.
+	 * * Note 2: Expwicitwy setting `canSewectFiwes` and `canSewectFowdews` to `fawse` is futiwe
+	 * and the editow then siwentwy adjusts the options to sewect fiwes.
 	 */
-	export interface OpenDialogOptions {
+	expowt intewface OpenDiawogOptions {
 		/**
-		 * The resource the dialog shows when opened.
+		 * The wesouwce the diawog shows when opened.
 		 */
-		defaultUri?: Uri;
+		defauwtUwi?: Uwi;
 
 		/**
-		 * A human-readable string for the open button.
+		 * A human-weadabwe stwing fow the open button.
 		 */
-		openLabel?: string;
+		openWabew?: stwing;
 
 		/**
-		 * Allow to select files, defaults to `true`.
+		 * Awwow to sewect fiwes, defauwts to `twue`.
 		 */
-		canSelectFiles?: boolean;
+		canSewectFiwes?: boowean;
 
 		/**
-		 * Allow to select folders, defaults to `false`.
+		 * Awwow to sewect fowdews, defauwts to `fawse`.
 		 */
-		canSelectFolders?: boolean;
+		canSewectFowdews?: boowean;
 
 		/**
-		 * Allow to select many files or folders.
+		 * Awwow to sewect many fiwes ow fowdews.
 		 */
-		canSelectMany?: boolean;
+		canSewectMany?: boowean;
 
 		/**
-		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
-		 * like "TypeScript", and an array of extensions, e.g.
+		 * A set of fiwe fiwtews that awe used by the diawog. Each entwy is a human-weadabwe wabew,
+		 * wike "TypeScwipt", and an awway of extensions, e.g.
 		 * ```ts
 		 * {
 		 * 	'Images': ['png', 'jpg']
-		 * 	'TypeScript': ['ts', 'tsx']
+		 * 	'TypeScwipt': ['ts', 'tsx']
 		 * }
 		 * ```
 		 */
-		filters?: { [name: string]: string[] };
+		fiwtews?: { [name: stwing]: stwing[] };
 
 		/**
-		 * Dialog title.
+		 * Diawog titwe.
 		 *
-		 * This parameter might be ignored, as not all operating systems display a title on open dialogs
-		 * (for example, macOS).
+		 * This pawameta might be ignowed, as not aww opewating systems dispway a titwe on open diawogs
+		 * (fow exampwe, macOS).
 		 */
-		title?: string;
+		titwe?: stwing;
 	}
 
 	/**
-	 * Options to configure the behaviour of a file save dialog.
+	 * Options to configuwe the behaviouw of a fiwe save diawog.
 	 */
-	export interface SaveDialogOptions {
+	expowt intewface SaveDiawogOptions {
 		/**
-		 * The resource the dialog shows when opened.
+		 * The wesouwce the diawog shows when opened.
 		 */
-		defaultUri?: Uri;
+		defauwtUwi?: Uwi;
 
 		/**
-		 * A human-readable string for the save button.
+		 * A human-weadabwe stwing fow the save button.
 		 */
-		saveLabel?: string;
+		saveWabew?: stwing;
 
 		/**
-		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
-		 * like "TypeScript", and an array of extensions, e.g.
+		 * A set of fiwe fiwtews that awe used by the diawog. Each entwy is a human-weadabwe wabew,
+		 * wike "TypeScwipt", and an awway of extensions, e.g.
 		 * ```ts
 		 * {
 		 * 	'Images': ['png', 'jpg']
-		 * 	'TypeScript': ['ts', 'tsx']
+		 * 	'TypeScwipt': ['ts', 'tsx']
 		 * }
 		 * ```
 		 */
-		filters?: { [name: string]: string[] };
+		fiwtews?: { [name: stwing]: stwing[] };
 
 		/**
-		 * Dialog title.
+		 * Diawog titwe.
 		 *
-		 * This parameter might be ignored, as not all operating systems display a title on save dialogs
-		 * (for example, macOS).
+		 * This pawameta might be ignowed, as not aww opewating systems dispway a titwe on save diawogs
+		 * (fow exampwe, macOS).
 		 */
-		title?: string;
+		titwe?: stwing;
 	}
 
 	/**
-	 * Represents an action that is shown with an information, warning, or
-	 * error message.
+	 * Wepwesents an action that is shown with an infowmation, wawning, ow
+	 * ewwow message.
 	 *
-	 * @see {@link window.showInformationMessage showInformationMessage}
-	 * @see {@link window.showWarningMessage showWarningMessage}
-	 * @see {@link window.showErrorMessage showErrorMessage}
+	 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
+	 * @see {@wink window.showWawningMessage showWawningMessage}
+	 * @see {@wink window.showEwwowMessage showEwwowMessage}
 	 */
-	export interface MessageItem {
+	expowt intewface MessageItem {
 
 		/**
-		 * A short title like 'Retry', 'Open Log' etc.
+		 * A showt titwe wike 'Wetwy', 'Open Wog' etc.
 		 */
-		title: string;
+		titwe: stwing;
 
 		/**
-		 * A hint for modal dialogs that the item should be triggered
-		 * when the user cancels the dialog (e.g. by pressing the ESC
+		 * A hint fow modaw diawogs that the item shouwd be twiggewed
+		 * when the usa cancews the diawog (e.g. by pwessing the ESC
 		 * key).
 		 *
-		 * Note: this option is ignored for non-modal messages.
+		 * Note: this option is ignowed fow non-modaw messages.
 		 */
-		isCloseAffordance?: boolean;
+		isCwoseAffowdance?: boowean;
 	}
 
 	/**
-	 * Options to configure the behavior of the message.
+	 * Options to configuwe the behaviow of the message.
 	 *
-	 * @see {@link window.showInformationMessage showInformationMessage}
-	 * @see {@link window.showWarningMessage showWarningMessage}
-	 * @see {@link window.showErrorMessage showErrorMessage}
+	 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
+	 * @see {@wink window.showWawningMessage showWawningMessage}
+	 * @see {@wink window.showEwwowMessage showEwwowMessage}
 	 */
-	export interface MessageOptions {
+	expowt intewface MessageOptions {
 
 		/**
-		 * Indicates that this message should be modal.
+		 * Indicates that this message shouwd be modaw.
 		 */
-		modal?: boolean;
+		modaw?: boowean;
 
 		/**
-		 * Human-readable detail message that is rendered less prominent. _Note_ that detail
-		 * is only shown for {@link MessageOptions.modal modal} messages.
+		 * Human-weadabwe detaiw message that is wendewed wess pwominent. _Note_ that detaiw
+		 * is onwy shown fow {@wink MessageOptions.modaw modaw} messages.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 	}
 
 	/**
-	 * Options to configure the behavior of the input box UI.
+	 * Options to configuwe the behaviow of the input box UI.
 	 */
-	export interface InputBoxOptions {
+	expowt intewface InputBoxOptions {
 
 		/**
-		 * An optional string that represents the title of the input box.
+		 * An optionaw stwing that wepwesents the titwe of the input box.
 		 */
-		title?: string;
+		titwe?: stwing;
 
 		/**
-		 * The value to prefill in the input box.
+		 * The vawue to pwefiww in the input box.
 		 */
-		value?: string;
+		vawue?: stwing;
 
 		/**
-		 * Selection of the prefilled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
-		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * word will be selected, when empty (start equals end) only the cursor will be set,
-		 * otherwise the defined range will be selected.
+		 * Sewection of the pwefiwwed {@winkcode InputBoxOptions.vawue vawue}. Defined as tupwe of two numba whewe the
+		 * fiwst is the incwusive stawt index and the second the excwusive end index. When `undefined` the whowe
+		 * wowd wiww be sewected, when empty (stawt equaws end) onwy the cuwsow wiww be set,
+		 * othewwise the defined wange wiww be sewected.
 		 */
-		valueSelection?: [number, number];
+		vawueSewection?: [numba, numba];
 
 		/**
-		 * The text to display underneath the input box.
+		 * The text to dispway undewneath the input box.
 		 */
-		prompt?: string;
+		pwompt?: stwing;
 
 		/**
-		 * An optional string to show as placeholder in the input box to guide the user what to type.
+		 * An optionaw stwing to show as pwacehowda in the input box to guide the usa what to type.
 		 */
-		placeHolder?: string;
+		pwaceHowda?: stwing;
 
 		/**
-		 * Controls if a password input is shown. Password input hides the typed text.
+		 * Contwows if a passwowd input is shown. Passwowd input hides the typed text.
 		 */
-		password?: boolean;
+		passwowd?: boowean;
 
 		/**
-		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
-		 * This setting is ignored on iPad and is always false.
+		 * Set to `twue` to keep the input box open when focus moves to anotha pawt of the editow ow to anotha window.
+		 * This setting is ignowed on iPad and is awways fawse.
 		 */
-		ignoreFocusOut?: boolean;
+		ignoweFocusOut?: boowean;
 
 		/**
-		 * An optional function that will be called to validate input and to give a hint
-		 * to the user.
+		 * An optionaw function that wiww be cawwed to vawidate input and to give a hint
+		 * to the usa.
 		 *
-		 * @param value The current value of the input box.
-		 * @return A human-readable string which is presented as diagnostic message.
-		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
+		 * @pawam vawue The cuwwent vawue of the input box.
+		 * @wetuwn A human-weadabwe stwing which is pwesented as diagnostic message.
+		 * Wetuwn `undefined`, `nuww`, ow the empty stwing when 'vawue' is vawid.
 		 */
-		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
+		vawidateInput?(vawue: stwing): stwing | undefined | nuww | Thenabwe<stwing | undefined | nuww>;
 	}
 
 	/**
-	 * A relative pattern is a helper to construct glob patterns that are matched
-	 * relatively to a base file path. The base path can either be an absolute file
-	 * path as string or uri or a {@link WorkspaceFolder workspace folder}, which is the
-	 * preferred way of creating the relative pattern.
+	 * A wewative pattewn is a hewpa to constwuct gwob pattewns that awe matched
+	 * wewativewy to a base fiwe path. The base path can eitha be an absowute fiwe
+	 * path as stwing ow uwi ow a {@wink WowkspaceFowda wowkspace fowda}, which is the
+	 * pwefewwed way of cweating the wewative pattewn.
 	 */
-	export class RelativePattern {
+	expowt cwass WewativePattewn {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base fiwe path to which this pattewn wiww be matched against wewativewy.
 		 */
-		base: string;
+		base: stwing;
 
 		/**
-		 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
-		 * relative to the base path.
+		 * A fiwe gwob pattewn wike `*.{ts,js}` that wiww be matched on fiwe paths
+		 * wewative to the base path.
 		 *
-		 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
-		 * the file glob pattern will match on `index.js`.
+		 * Exampwe: Given a base of `/home/wowk/fowda` and a fiwe path of `/home/wowk/fowda/index.js`,
+		 * the fiwe gwob pattewn wiww match on `index.js`.
 		 */
-		pattern: string;
+		pattewn: stwing;
 
 		/**
-		 * Creates a new relative pattern object with a base file path and pattern to match. This pattern
-		 * will be matched on file paths relative to the base.
+		 * Cweates a new wewative pattewn object with a base fiwe path and pattewn to match. This pattewn
+		 * wiww be matched on fiwe paths wewative to the base.
 		 *
-		 * Example:
+		 * Exampwe:
 		 * ```ts
-		 * const folder = vscode.workspace.workspaceFolders?.[0];
-		 * if (folder) {
+		 * const fowda = vscode.wowkspace.wowkspaceFowdews?.[0];
+		 * if (fowda) {
 		 *
-		 *   // Match any TypeScript file in the root of this workspace folder
-		 *   const pattern1 = new vscode.RelativePattern(folder, '*.ts');
+		 *   // Match any TypeScwipt fiwe in the woot of this wowkspace fowda
+		 *   const pattewn1 = new vscode.WewativePattewn(fowda, '*.ts');
 		 *
-		 *   // Match any TypeScript file in `someFolder` inside this workspace folder
-		 *   const pattern2 = new vscode.RelativePattern(folder, 'someFolder/*.ts');
+		 *   // Match any TypeScwipt fiwe in `someFowda` inside this wowkspace fowda
+		 *   const pattewn2 = new vscode.WewativePattewn(fowda, 'someFowda/*.ts');
 		 * }
 		 * ```
 		 *
-		 * @param base A base to which this pattern will be matched against relatively. It is recommended
-		 * to pass in a {@link WorkspaceFolder workspace folder} if the pattern should match inside the workspace.
-		 * Otherwise, a uri or string should only be used if the pattern is for a file path outside the workspace.
-		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on paths relative to the base.
+		 * @pawam base A base to which this pattewn wiww be matched against wewativewy. It is wecommended
+		 * to pass in a {@wink WowkspaceFowda wowkspace fowda} if the pattewn shouwd match inside the wowkspace.
+		 * Othewwise, a uwi ow stwing shouwd onwy be used if the pattewn is fow a fiwe path outside the wowkspace.
+		 * @pawam pattewn A fiwe gwob pattewn wike `*.{ts,js}` that wiww be matched on paths wewative to the base.
 		 */
-		constructor(base: WorkspaceFolder | Uri | string, pattern: string)
+		constwuctow(base: WowkspaceFowda | Uwi | stwing, pattewn: stwing)
 	}
 
 	/**
-	 * A file glob pattern to match file paths against. This can either be a glob pattern string
-	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a {@link RelativePattern relative pattern}.
+	 * A fiwe gwob pattewn to match fiwe paths against. This can eitha be a gwob pattewn stwing
+	 * (wike `**​/*.{ts,js}` ow `*.{ts,js}`) ow a {@wink WewativePattewn wewative pattewn}.
 	 *
-	 * Glob patterns can have the following syntax:
-	 * * `*` to match one or more characters in a path segment
-	 * * `?` to match on one character in a path segment
-	 * * `**` to match any number of path segments, including none
-	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
-	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
-	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
+	 * Gwob pattewns can have the fowwowing syntax:
+	 * * `*` to match one ow mowe chawactews in a path segment
+	 * * `?` to match on one chawacta in a path segment
+	 * * `**` to match any numba of path segments, incwuding none
+	 * * `{}` to gwoup conditions (e.g. `**​/*.{ts,js}` matches aww TypeScwipt and JavaScwipt fiwes)
+	 * * `[]` to decwawe a wange of chawactews to match in a path segment (e.g., `exampwe.[0-9]` to match on `exampwe.0`, `exampwe.1`, …)
+	 * * `[!...]` to negate a wange of chawactews to match in a path segment (e.g., `exampwe.[!0-9]` to match on `exampwe.a`, `exampwe.b`, but not `exampwe.0`)
 	 *
-	 * Note: a backslash (`\`) is not valid within a glob pattern. If you have an existing file
-	 * path to match against, consider to use the {@link RelativePattern relative pattern} support
-	 * that takes care of converting any backslash into slash. Otherwise, make sure to convert
-	 * any backslash to slash when creating the glob pattern.
+	 * Note: a backswash (`\`) is not vawid within a gwob pattewn. If you have an existing fiwe
+	 * path to match against, consida to use the {@wink WewativePattewn wewative pattewn} suppowt
+	 * that takes cawe of convewting any backswash into swash. Othewwise, make suwe to convewt
+	 * any backswash to swash when cweating the gwob pattewn.
 	 */
-	export type GlobPattern = string | RelativePattern;
+	expowt type GwobPattewn = stwing | WewativePattewn;
 
 	/**
-	 * A document filter denotes a document by different properties like
-	 * the {@link TextDocument.languageId language}, the {@link Uri.scheme scheme} of
-	 * its resource, or a glob-pattern that is applied to the {@link TextDocument.fileName path}.
+	 * A document fiwta denotes a document by diffewent pwopewties wike
+	 * the {@wink TextDocument.wanguageId wanguage}, the {@wink Uwi.scheme scheme} of
+	 * its wesouwce, ow a gwob-pattewn that is appwied to the {@wink TextDocument.fiweName path}.
 	 *
-	 * @example <caption>A language filter that applies to typescript files on disk</caption>
-	 * { language: 'typescript', scheme: 'file' }
+	 * @exampwe <caption>A wanguage fiwta that appwies to typescwipt fiwes on disk</caption>
+	 * { wanguage: 'typescwipt', scheme: 'fiwe' }
 	 *
-	 * @example <caption>A language filter that applies to all package.json paths</caption>
-	 * { language: 'json', pattern: '**​/package.json' }
+	 * @exampwe <caption>A wanguage fiwta that appwies to aww package.json paths</caption>
+	 * { wanguage: 'json', pattewn: '**​/package.json' }
 	 */
-	export interface DocumentFilter {
+	expowt intewface DocumentFiwta {
 
 		/**
-		 * A language id, like `typescript`.
+		 * A wanguage id, wike `typescwipt`.
 		 */
-		readonly language?: string;
+		weadonwy wanguage?: stwing;
 
 		/**
-		 * A Uri {@link Uri.scheme scheme}, like `file` or `untitled`.
+		 * A Uwi {@wink Uwi.scheme scheme}, wike `fiwe` ow `untitwed`.
 		 */
-		readonly scheme?: string;
+		weadonwy scheme?: stwing;
 
 		/**
-		 * A {@link GlobPattern glob pattern} that is matched on the absolute path of the document. Use a {@link RelativePattern relative pattern}
-		 * to filter documents to a {@link WorkspaceFolder workspace folder}.
+		 * A {@wink GwobPattewn gwob pattewn} that is matched on the absowute path of the document. Use a {@wink WewativePattewn wewative pattewn}
+		 * to fiwta documents to a {@wink WowkspaceFowda wowkspace fowda}.
 		 */
-		readonly pattern?: GlobPattern;
+		weadonwy pattewn?: GwobPattewn;
 	}
 
 	/**
-	 * A language selector is the combination of one or many language identifiers
-	 * and {@link DocumentFilter language filters}.
+	 * A wanguage sewectow is the combination of one ow many wanguage identifiews
+	 * and {@wink DocumentFiwta wanguage fiwtews}.
 	 *
-	 * *Note* that a document selector that is just a language identifier selects *all*
-	 * documents, even those that are not saved on disk. Only use such selectors when
-	 * a feature works without further context, e.g. without the need to resolve related
-	 * 'files'.
+	 * *Note* that a document sewectow that is just a wanguage identifia sewects *aww*
+	 * documents, even those that awe not saved on disk. Onwy use such sewectows when
+	 * a featuwe wowks without fuwtha context, e.g. without the need to wesowve wewated
+	 * 'fiwes'.
 	 *
-	 * @example
-	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
+	 * @exampwe
+	 * wet sew:DocumentSewectow = { scheme: 'fiwe', wanguage: 'typescwipt' };
 	 */
-	export type DocumentSelector = DocumentFilter | string | ReadonlyArray<DocumentFilter | string>;
+	expowt type DocumentSewectow = DocumentFiwta | stwing | WeadonwyAwway<DocumentFiwta | stwing>;
 
 	/**
-	 * A provider result represents the values a provider, like the {@linkcode HoverProvider},
-	 * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
-	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
-	 * thenable.
+	 * A pwovida wesuwt wepwesents the vawues a pwovida, wike the {@winkcode HovewPwovida},
+	 * may wetuwn. Fow once this is the actuaw wesuwt type `T`, wike `Hova`, ow a thenabwe that wesowves
+	 * to that type `T`. In addition, `nuww` and `undefined` can be wetuwned - eitha diwectwy ow fwom a
+	 * thenabwe.
 	 *
-	 * The snippets below are all valid implementations of the {@linkcode HoverProvider}:
+	 * The snippets bewow awe aww vawid impwementations of the {@winkcode HovewPwovida}:
 	 *
 	 * ```ts
-	 * let a: HoverProvider = {
-	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
-	 * 		return new Hover('Hello World');
+	 * wet a: HovewPwovida = {
+	 * 	pwovideHova(doc, pos, token): PwovidewWesuwt<Hova> {
+	 * 		wetuwn new Hova('Hewwo Wowwd');
 	 * 	}
 	 * }
 	 *
-	 * let b: HoverProvider = {
-	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
-	 * 		return new Promise(resolve => {
-	 * 			resolve(new Hover('Hello World'));
+	 * wet b: HovewPwovida = {
+	 * 	pwovideHova(doc, pos, token): PwovidewWesuwt<Hova> {
+	 * 		wetuwn new Pwomise(wesowve => {
+	 * 			wesowve(new Hova('Hewwo Wowwd'));
 	 * 	 	});
 	 * 	}
 	 * }
 	 *
-	 * let c: HoverProvider = {
-	 * 	provideHover(doc, pos, token): ProviderResult<Hover> {
-	 * 		return; // undefined
+	 * wet c: HovewPwovida = {
+	 * 	pwovideHova(doc, pos, token): PwovidewWesuwt<Hova> {
+	 * 		wetuwn; // undefined
 	 * 	}
 	 * }
 	 * ```
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+	expowt type PwovidewWesuwt<T> = T | undefined | nuww | Thenabwe<T | undefined | nuww>;
 
 	/**
 	 * Kind of a code action.
 	 *
-	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
+	 * Kinds awe a hiewawchicaw wist of identifiews sepawated by `.`, e.g. `"wefactow.extwact.function"`.
 	 *
-	 * Code action kinds are used by the editor for UI elements such as the refactoring context menu. Users
-	 * can also trigger code actions with a specific kind with the `editor.action.codeAction` command.
+	 * Code action kinds awe used by the editow fow UI ewements such as the wefactowing context menu. Usews
+	 * can awso twigga code actions with a specific kind with the `editow.action.codeAction` command.
 	 */
-	export class CodeActionKind {
+	expowt cwass CodeActionKind {
 		/**
 		 * Empty kind.
 		 */
-		static readonly Empty: CodeActionKind;
+		static weadonwy Empty: CodeActionKind;
 
 		/**
-		 * Base kind for quickfix actions: `quickfix`.
+		 * Base kind fow quickfix actions: `quickfix`.
 		 *
-		 * Quick fix actions address a problem in the code and are shown in the normal code action context menu.
+		 * Quick fix actions addwess a pwobwem in the code and awe shown in the nowmaw code action context menu.
 		 */
-		static readonly QuickFix: CodeActionKind;
+		static weadonwy QuickFix: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring actions: `refactor`
+		 * Base kind fow wefactowing actions: `wefactow`
 		 *
-		 * Refactoring actions are shown in the refactoring context menu.
+		 * Wefactowing actions awe shown in the wefactowing context menu.
 		 */
-		static readonly Refactor: CodeActionKind;
+		static weadonwy Wefactow: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring extraction actions: `refactor.extract`
+		 * Base kind fow wefactowing extwaction actions: `wefactow.extwact`
 		 *
-		 * Example extract actions:
+		 * Exampwe extwact actions:
 		 *
-		 * - Extract method
-		 * - Extract function
-		 * - Extract variable
-		 * - Extract interface from class
+		 * - Extwact method
+		 * - Extwact function
+		 * - Extwact vawiabwe
+		 * - Extwact intewface fwom cwass
 		 * - ...
 		 */
-		static readonly RefactorExtract: CodeActionKind;
+		static weadonwy WefactowExtwact: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring inline actions: `refactor.inline`
+		 * Base kind fow wefactowing inwine actions: `wefactow.inwine`
 		 *
-		 * Example inline actions:
+		 * Exampwe inwine actions:
 		 *
-		 * - Inline function
-		 * - Inline variable
-		 * - Inline constant
+		 * - Inwine function
+		 * - Inwine vawiabwe
+		 * - Inwine constant
 		 * - ...
 		 */
-		static readonly RefactorInline: CodeActionKind;
+		static weadonwy WefactowInwine: CodeActionKind;
 
 		/**
-		 * Base kind for refactoring rewrite actions: `refactor.rewrite`
+		 * Base kind fow wefactowing wewwite actions: `wefactow.wewwite`
 		 *
-		 * Example rewrite actions:
+		 * Exampwe wewwite actions:
 		 *
-		 * - Convert JavaScript function to class
-		 * - Add or remove parameter
-		 * - Encapsulate field
+		 * - Convewt JavaScwipt function to cwass
+		 * - Add ow wemove pawameta
+		 * - Encapsuwate fiewd
 		 * - Make method static
-		 * - Move method to base class
+		 * - Move method to base cwass
 		 * - ...
 		 */
-		static readonly RefactorRewrite: CodeActionKind;
+		static weadonwy WefactowWewwite: CodeActionKind;
 
 		/**
-		 * Base kind for source actions: `source`
+		 * Base kind fow souwce actions: `souwce`
 		 *
-		 * Source code actions apply to the entire file. They must be explicitly requested and will not show in the
-		 * normal [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) menu. Source actions
-		 * can be run on save using `editor.codeActionsOnSave` and are also shown in the `source` context menu.
+		 * Souwce code actions appwy to the entiwe fiwe. They must be expwicitwy wequested and wiww not show in the
+		 * nowmaw [wightbuwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action) menu. Souwce actions
+		 * can be wun on save using `editow.codeActionsOnSave` and awe awso shown in the `souwce` context menu.
 		 */
-		static readonly Source: CodeActionKind;
+		static weadonwy Souwce: CodeActionKind;
 
 		/**
-		 * Base kind for an organize imports source action: `source.organizeImports`.
+		 * Base kind fow an owganize impowts souwce action: `souwce.owganizeImpowts`.
 		 */
-		static readonly SourceOrganizeImports: CodeActionKind;
+		static weadonwy SouwceOwganizeImpowts: CodeActionKind;
 
 		/**
-		 * Base kind for auto-fix source actions: `source.fixAll`.
+		 * Base kind fow auto-fix souwce actions: `souwce.fixAww`.
 		 *
-		 * Fix all actions automatically fix errors that have a clear fix that do not require user input.
-		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
+		 * Fix aww actions automaticawwy fix ewwows that have a cweaw fix that do not wequiwe usa input.
+		 * They shouwd not suppwess ewwows ow pewfowm unsafe fixes such as genewating new types ow cwasses.
 		 */
-		static readonly SourceFixAll: CodeActionKind;
+		static weadonwy SouwceFixAww: CodeActionKind;
 
-		private constructor(value: string);
-
-		/**
-		 * String value of the kind, e.g. `"refactor.extract.function"`.
-		 */
-		readonly value: string;
+		pwivate constwuctow(vawue: stwing);
 
 		/**
-		 * Create a new kind by appending a more specific selector to the current kind.
-		 *
-		 * Does not modify the current kind.
+		 * Stwing vawue of the kind, e.g. `"wefactow.extwact.function"`.
 		 */
-		append(parts: string): CodeActionKind;
+		weadonwy vawue: stwing;
 
 		/**
-		 * Checks if this code action kind intersects `other`.
+		 * Cweate a new kind by appending a mowe specific sewectow to the cuwwent kind.
 		 *
-		 * The kind `"refactor.extract"` for example intersects `refactor`, `"refactor.extract"` and ``"refactor.extract.function"`,
-		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"`.
-		 *
-		 * @param other Kind to check.
+		 * Does not modify the cuwwent kind.
 		 */
-		intersects(other: CodeActionKind): boolean;
+		append(pawts: stwing): CodeActionKind;
 
 		/**
-		 * Checks if `other` is a sub-kind of this `CodeActionKind`.
+		 * Checks if this code action kind intewsects `otha`.
 		 *
-		 * The kind `"refactor.extract"` for example contains `"refactor.extract"` and ``"refactor.extract.function"`,
-		 * but not `"unicorn.refactor.extract"`, or `"refactor.extractAll"` or `refactor`.
+		 * The kind `"wefactow.extwact"` fow exampwe intewsects `wefactow`, `"wefactow.extwact"` and ``"wefactow.extwact.function"`,
+		 * but not `"unicown.wefactow.extwact"`, ow `"wefactow.extwactAww"`.
 		 *
-		 * @param other Kind to check.
+		 * @pawam otha Kind to check.
 		 */
-		contains(other: CodeActionKind): boolean;
+		intewsects(otha: CodeActionKind): boowean;
+
+		/**
+		 * Checks if `otha` is a sub-kind of this `CodeActionKind`.
+		 *
+		 * The kind `"wefactow.extwact"` fow exampwe contains `"wefactow.extwact"` and ``"wefactow.extwact.function"`,
+		 * but not `"unicown.wefactow.extwact"`, ow `"wefactow.extwactAww"` ow `wefactow`.
+		 *
+		 * @pawam otha Kind to check.
+		 */
+		contains(otha: CodeActionKind): boowean;
 	}
 
 	/**
-	 * The reason why code actions were requested.
+	 * The weason why code actions wewe wequested.
 	 */
-	export enum CodeActionTriggerKind {
+	expowt enum CodeActionTwiggewKind {
 		/**
-		 * Code actions were explicitly requested by the user or by an extension.
+		 * Code actions wewe expwicitwy wequested by the usa ow by an extension.
 		 */
 		Invoke = 1,
 
 		/**
-		 * Code actions were requested automatically.
+		 * Code actions wewe wequested automaticawwy.
 		 *
-		 * This typically happens when current selection in a file changes, but can
-		 * also be triggered when file content changes.
+		 * This typicawwy happens when cuwwent sewection in a fiwe changes, but can
+		 * awso be twiggewed when fiwe content changes.
 		 */
 		Automatic = 2,
 	}
 
 	/**
-	 * Contains additional diagnostic information about the context in which
-	 * a {@link CodeActionProvider.provideCodeActions code action} is run.
+	 * Contains additionaw diagnostic infowmation about the context in which
+	 * a {@wink CodeActionPwovida.pwovideCodeActions code action} is wun.
 	 */
-	export interface CodeActionContext {
+	expowt intewface CodeActionContext {
 		/**
-		 * The reason why code actions were requested.
+		 * The weason why code actions wewe wequested.
 		 */
-		readonly triggerKind: CodeActionTriggerKind;
+		weadonwy twiggewKind: CodeActionTwiggewKind;
 
 		/**
-		 * An array of diagnostics.
+		 * An awway of diagnostics.
 		 */
-		readonly diagnostics: readonly Diagnostic[];
+		weadonwy diagnostics: weadonwy Diagnostic[];
 
 		/**
-		 * Requested kind of actions to return.
+		 * Wequested kind of actions to wetuwn.
 		 *
-		 * Actions not of this kind are filtered out before being shown by the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action).
+		 * Actions not of this kind awe fiwtewed out befowe being shown by the [wightbuwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action).
 		 */
-		readonly only?: CodeActionKind;
+		weadonwy onwy?: CodeActionKind;
 	}
 
 	/**
-	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
-	 * to refactor code.
+	 * A code action wepwesents a change that can be pewfowmed in code, e.g. to fix a pwobwem ow
+	 * to wefactow code.
 	 *
-	 * A CodeAction must set either {@linkcode CodeAction.edit edit} and/or a {@linkcode CodeAction.command command}. If both are supplied, the `edit` is applied first, then the command is executed.
+	 * A CodeAction must set eitha {@winkcode CodeAction.edit edit} and/ow a {@winkcode CodeAction.command command}. If both awe suppwied, the `edit` is appwied fiwst, then the command is executed.
 	 */
-	export class CodeAction {
+	expowt cwass CodeAction {
 
 		/**
-		 * A short, human-readable, title for this code action.
+		 * A showt, human-weadabwe, titwe fow this code action.
 		 */
-		title: string;
+		titwe: stwing;
 
 		/**
-		 * A {@link WorkspaceEdit workspace edit} this code action performs.
+		 * A {@wink WowkspaceEdit wowkspace edit} this code action pewfowms.
 		 */
-		edit?: WorkspaceEdit;
+		edit?: WowkspaceEdit;
 
 		/**
-		 * {@link Diagnostic Diagnostics} that this code action resolves.
+		 * {@wink Diagnostic Diagnostics} that this code action wesowves.
 		 */
 		diagnostics?: Diagnostic[];
 
 		/**
-		 * A {@link Command} this code action executes.
+		 * A {@wink Command} this code action executes.
 		 *
-		 * If this command throws an exception, the editor displays the exception message to users in the editor at the
-		 * current cursor position.
+		 * If this command thwows an exception, the editow dispways the exception message to usews in the editow at the
+		 * cuwwent cuwsow position.
 		 */
 		command?: Command;
 
 		/**
-		 * {@link CodeActionKind Kind} of the code action.
+		 * {@wink CodeActionKind Kind} of the code action.
 		 *
-		 * Used to filter code actions.
+		 * Used to fiwta code actions.
 		 */
 		kind?: CodeActionKind;
 
 		/**
-		 * Marks this as a preferred action. Preferred actions are used by the `auto fix` command and can be targeted
+		 * Mawks this as a pwefewwed action. Pwefewwed actions awe used by the `auto fix` command and can be tawgeted
 		 * by keybindings.
 		 *
-		 * A quick fix should be marked preferred if it properly addresses the underlying error.
-		 * A refactoring should be marked preferred if it is the most reasonable choice of actions to take.
+		 * A quick fix shouwd be mawked pwefewwed if it pwopewwy addwesses the undewwying ewwow.
+		 * A wefactowing shouwd be mawked pwefewwed if it is the most weasonabwe choice of actions to take.
 		 */
-		isPreferred?: boolean;
+		isPwefewwed?: boowean;
 
 		/**
-		 * Marks that the code action cannot currently be applied.
+		 * Mawks that the code action cannot cuwwentwy be appwied.
 		 *
-		 * - Disabled code actions are not shown in automatic [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+		 * - Disabwed code actions awe not shown in automatic [wightbuwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action)
 		 * code action menu.
 		 *
-		 * - Disabled actions are shown as faded out in the code action menu when the user request a more specific type
-		 * of code action, such as refactorings.
+		 * - Disabwed actions awe shown as faded out in the code action menu when the usa wequest a mowe specific type
+		 * of code action, such as wefactowings.
 		 *
-		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
-		 * that auto applies a code action and only a disabled code actions are returned, the editor will show the user an
-		 * error message with `reason` in the editor.
+		 * - If the usa has a [keybinding](https://code.visuawstudio.com/docs/editow/wefactowing#_keybindings-fow-code-actions)
+		 * that auto appwies a code action and onwy a disabwed code actions awe wetuwned, the editow wiww show the usa an
+		 * ewwow message with `weason` in the editow.
 		 */
-		disabled?: {
+		disabwed?: {
 			/**
-			 * Human readable description of why the code action is currently disabled.
+			 * Human weadabwe descwiption of why the code action is cuwwentwy disabwed.
 			 *
-			 * This is displayed in the code actions UI.
+			 * This is dispwayed in the code actions UI.
 			 */
-			readonly reason: string;
+			weadonwy weason: stwing;
 		};
 
 		/**
-		 * Creates a new code action.
+		 * Cweates a new code action.
 		 *
-		 * A code action must have at least a {@link CodeAction.title title} and {@link CodeAction.edit edits}
-		 * and/or a {@link CodeAction.command command}.
+		 * A code action must have at weast a {@wink CodeAction.titwe titwe} and {@wink CodeAction.edit edits}
+		 * and/ow a {@wink CodeAction.command command}.
 		 *
-		 * @param title The title of the code action.
-		 * @param kind The kind of the code action.
+		 * @pawam titwe The titwe of the code action.
+		 * @pawam kind The kind of the code action.
 		 */
-		constructor(title: string, kind?: CodeActionKind);
+		constwuctow(titwe: stwing, kind?: CodeActionKind);
 	}
 
 	/**
-	 * The code action interface defines the contract between extensions and
-	 * the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * The code action intewface defines the contwact between extensions and
+	 * the [wightbuwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action) featuwe.
 	 *
-	 * A code action can be any command that is {@link commands.getCommands known} to the system.
+	 * A code action can be any command that is {@wink commands.getCommands known} to the system.
 	 */
-	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
+	expowt intewface CodeActionPwovida<T extends CodeAction = CodeAction> {
 		/**
-		 * Provide commands for the given document and range.
+		 * Pwovide commands fow the given document and wange.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The selector or range for which the command was invoked. This will always be a selection if
-		 * there is a currently active editor.
-		 * @param context Context carrying additional information.
-		 * @param token A cancellation token.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam wange The sewectow ow wange fow which the command was invoked. This wiww awways be a sewection if
+		 * thewe is a cuwwentwy active editow.
+		 * @pawam context Context cawwying additionaw infowmation.
+		 * @pawam token A cancewwation token.
 		 *
-		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
-		 * by returning `undefined`, `null`, or an empty array.
+		 * @wetuwn An awway of code actions, such as quick fixes ow wefactowings. The wack of a wesuwt can be signawed
+		 * by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 *
-		 * We also support returning `Command` for legacy reasons, however all new extensions should return
+		 * We awso suppowt wetuwning `Command` fow wegacy weasons, howeva aww new extensions shouwd wetuwn
 		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
+		pwovideCodeActions(document: TextDocument, wange: Wange | Sewection, context: CodeActionContext, token: CancewwationToken): PwovidewWesuwt<(Command | T)[]>;
 
 		/**
-		 * Given a code action fill in its {@linkcode CodeAction.edit edit}-property. Changes to
-		 * all other properties, like title, are ignored. A code action that has an edit
-		 * will not be resolved.
+		 * Given a code action fiww in its {@winkcode CodeAction.edit edit}-pwopewty. Changes to
+		 * aww otha pwopewties, wike titwe, awe ignowed. A code action that has an edit
+		 * wiww not be wesowved.
 		 *
-		 * *Note* that a code action provider that returns commands, not code actions, cannot successfully
-		 * implement this function. Returning commands is deprecated and instead code actions should be
-		 * returned.
+		 * *Note* that a code action pwovida that wetuwns commands, not code actions, cannot successfuwwy
+		 * impwement this function. Wetuwning commands is depwecated and instead code actions shouwd be
+		 * wetuwned.
 		 *
-		 * @param codeAction A code action.
-		 * @param token A cancellation token.
-		 * @return The resolved code action or a thenable that resolves to such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
+		 * @pawam codeAction A code action.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved code action ow a thenabwe that wesowves to such. It is OK to wetuwn the given
+		 * `item`. When no wesuwt is wetuwned, the given `item` wiww be used.
 		 */
-		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
+		wesowveCodeAction?(codeAction: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+	 * Metadata about the type of code actions that a {@wink CodeActionPwovida} pwovides.
 	 */
-	export interface CodeActionProviderMetadata {
+	expowt intewface CodeActionPwovidewMetadata {
 		/**
-		 * List of {@link CodeActionKind CodeActionKinds} that a {@link CodeActionProvider} may return.
+		 * Wist of {@wink CodeActionKind CodeActionKinds} that a {@wink CodeActionPwovida} may wetuwn.
 		 *
-		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
-		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
-		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
-		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
+		 * This wist is used to detewmine if a given `CodeActionPwovida` shouwd be invoked ow not.
+		 * To avoid unnecessawy computation, evewy `CodeActionPwovida` shouwd wist use `pwovidedCodeActionKinds`. The
+		 * wist of kinds may eitha be genewic, such as `[CodeActionKind.Wefactow]`, ow wist out evewy kind pwovided,
+		 * such as `[CodeActionKind.Wefactow.Extwact.append('function'), CodeActionKind.Wefactow.Extwact.append('constant'), ...]`.
 		 */
-		readonly providedCodeActionKinds?: readonly CodeActionKind[];
+		weadonwy pwovidedCodeActionKinds?: weadonwy CodeActionKind[];
 
 		/**
-		 * Static documentation for a class of code actions.
+		 * Static documentation fow a cwass of code actions.
 		 *
-		 * Documentation from the provider is shown in the code actions menu if either:
+		 * Documentation fwom the pwovida is shown in the code actions menu if eitha:
 		 *
-		 * - Code actions of `kind` are requested by the editor. In this case, the editor will show the documentation that
-		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
-		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   the editor will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 * - Code actions of `kind` awe wequested by the editow. In this case, the editow wiww show the documentation that
+		 *   most cwosewy matches the wequested code action kind. Fow exampwe, if a pwovida has documentation fow
+		 *   both `Wefactow` and `WefactowExtwact`, when the usa wequests code actions fow `WefactowExtwact`,
+		 *   the editow wiww use the documentation fow `WefactowExtwact` instead of the documentation fow `Wefactow`.
 		 *
-		 * - Any code actions of `kind` are returned by the provider.
+		 * - Any code actions of `kind` awe wetuwned by the pwovida.
 		 *
-		 * At most one documentation entry will be shown per provider.
+		 * At most one documentation entwy wiww be shown pew pwovida.
 		 */
-		readonly documentation?: ReadonlyArray<{
+		weadonwy documentation?: WeadonwyAwway<{
 			/**
 			 * The kind of the code action being documented.
 			 *
-			 * If the kind is generic, such as `CodeActionKind.Refactor`, the documentation will be shown whenever any
-			 * refactorings are returned. If the kind if more specific, such as `CodeActionKind.RefactorExtract`, the
-			 * documentation will only be shown when extract refactoring code actions are returned.
+			 * If the kind is genewic, such as `CodeActionKind.Wefactow`, the documentation wiww be shown wheneva any
+			 * wefactowings awe wetuwned. If the kind if mowe specific, such as `CodeActionKind.WefactowExtwact`, the
+			 * documentation wiww onwy be shown when extwact wefactowing code actions awe wetuwned.
 			 */
-			readonly kind: CodeActionKind;
+			weadonwy kind: CodeActionKind;
 
 			/**
-			 * Command that displays the documentation to the user.
+			 * Command that dispways the documentation to the usa.
 			 *
-			 * This can display the documentation directly in the editor or open a website using {@linkcode env.openExternal};
+			 * This can dispway the documentation diwectwy in the editow ow open a website using {@winkcode env.openExtewnaw};
 			 *
-			 * The title of this documentation code action is taken from {@linkcode Command.title}
+			 * The titwe of this documentation code action is taken fwom {@winkcode Command.titwe}
 			 */
-			readonly command: Command;
+			weadonwy command: Command;
 		}>;
 	}
 
 	/**
-	 * A code lens represents a {@link Command} that should be shown along with
-	 * source text, like the number of references, a way to run tests, etc.
+	 * A code wens wepwesents a {@wink Command} that shouwd be shown awong with
+	 * souwce text, wike the numba of wefewences, a way to wun tests, etc.
 	 *
-	 * A code lens is _unresolved_ when no command is associated to it. For performance
-	 * reasons the creation of a code lens and resolving should be done to two stages.
+	 * A code wens is _unwesowved_ when no command is associated to it. Fow pewfowmance
+	 * weasons the cweation of a code wens and wesowving shouwd be done to two stages.
 	 *
-	 * @see {@link CodeLensProvider.provideCodeLenses}
-	 * @see {@link CodeLensProvider.resolveCodeLens}
+	 * @see {@wink CodeWensPwovida.pwovideCodeWenses}
+	 * @see {@wink CodeWensPwovida.wesowveCodeWens}
 	 */
-	export class CodeLens {
+	expowt cwass CodeWens {
 
 		/**
-		 * The range in which this code lens is valid. Should only span a single line.
+		 * The wange in which this code wens is vawid. Shouwd onwy span a singwe wine.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The command this code lens represents.
+		 * The command this code wens wepwesents.
 		 */
 		command?: Command;
 
 		/**
-		 * `true` when there is a command associated.
+		 * `twue` when thewe is a command associated.
 		 */
-		readonly isResolved: boolean;
+		weadonwy isWesowved: boowean;
 
 		/**
-		 * Creates a new code lens object.
+		 * Cweates a new code wens object.
 		 *
-		 * @param range The range to which this code lens applies.
-		 * @param command The command associated to this code lens.
+		 * @pawam wange The wange to which this code wens appwies.
+		 * @pawam command The command associated to this code wens.
 		 */
-		constructor(range: Range, command?: Command);
+		constwuctow(wange: Wange, command?: Command);
 	}
 
 	/**
-	 * A code lens provider adds {@link Command commands} to source text. The commands will be shown
-	 * as dedicated horizontal lines in between the source text.
+	 * A code wens pwovida adds {@wink Command commands} to souwce text. The commands wiww be shown
+	 * as dedicated howizontaw wines in between the souwce text.
 	 */
-	export interface CodeLensProvider<T extends CodeLens = CodeLens> {
+	expowt intewface CodeWensPwovida<T extends CodeWens = CodeWens> {
 
 		/**
-		 * An optional event to signal that the code lenses from this provider have changed.
+		 * An optionaw event to signaw that the code wenses fwom this pwovida have changed.
 		 */
-		onDidChangeCodeLenses?: Event<void>;
+		onDidChangeCodeWenses?: Event<void>;
 
 		/**
-		 * Compute a list of {@link CodeLens lenses}. This call should return as fast as possible and if
-		 * computing the commands is expensive implementors should only return code lens objects with the
-		 * range set and implement {@link CodeLensProvider.resolveCodeLens resolve}.
+		 * Compute a wist of {@wink CodeWens wenses}. This caww shouwd wetuwn as fast as possibwe and if
+		 * computing the commands is expensive impwementows shouwd onwy wetuwn code wens objects with the
+		 * wange set and impwement {@wink CodeWensPwovida.wesowveCodeWens wesowve}.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of code lenses or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of code wenses ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
+		pwovideCodeWenses(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<T[]>;
 
 		/**
-		 * This function will be called for each visible code lens, usually when scrolling and after
-		 * calls to {@link CodeLensProvider.provideCodeLenses compute}-lenses.
+		 * This function wiww be cawwed fow each visibwe code wens, usuawwy when scwowwing and afta
+		 * cawws to {@wink CodeWensPwovida.pwovideCodeWenses compute}-wenses.
 		 *
-		 * @param codeLens Code lens that must be resolved.
-		 * @param token A cancellation token.
-		 * @return The given, resolved code lens or thenable that resolves to such.
+		 * @pawam codeWens Code wens that must be wesowved.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The given, wesowved code wens ow thenabwe that wesowves to such.
 		 */
-		resolveCodeLens?(codeLens: T, token: CancellationToken): ProviderResult<T>;
+		wesowveCodeWens?(codeWens: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * Information about where a symbol is defined.
+	 * Infowmation about whewe a symbow is defined.
 	 *
-	 * Provides additional metadata over normal {@link Location} definitions, including the range of
-	 * the defining symbol
+	 * Pwovides additionaw metadata ova nowmaw {@wink Wocation} definitions, incwuding the wange of
+	 * the defining symbow
 	 */
-	export type DefinitionLink = LocationLink;
+	expowt type DefinitionWink = WocationWink;
 
 	/**
-	 * The definition of a symbol represented as one or many {@link Location locations}.
-	 * For most programming languages there is only one location at which a symbol is
+	 * The definition of a symbow wepwesented as one ow many {@wink Wocation wocations}.
+	 * Fow most pwogwamming wanguages thewe is onwy one wocation at which a symbow is
 	 * defined.
 	 */
-	export type Definition = Location | Location[];
+	expowt type Definition = Wocation | Wocation[];
 
 	/**
-	 * The definition provider interface defines the contract between extensions and
-	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
-	 * and peek definition features.
+	 * The definition pwovida intewface defines the contwact between extensions and
+	 * the [go to definition](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-definition)
+	 * and peek definition featuwes.
 	 */
-	export interface DefinitionProvider {
+	expowt intewface DefinitionPwovida {
 
 		/**
-		 * Provide the definition of the symbol at the given position and document.
+		 * Pwovide the definition of the symbow at the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return A definition or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A definition ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		pwovideDefinition(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | DefinitionWink[]>;
 	}
 
 	/**
-	 * The implementation provider interface defines the contract between extensions and
-	 * the go to implementation feature.
+	 * The impwementation pwovida intewface defines the contwact between extensions and
+	 * the go to impwementation featuwe.
 	 */
-	export interface ImplementationProvider {
+	expowt intewface ImpwementationPwovida {
 
 		/**
-		 * Provide the implementations of the symbol at the given position and document.
+		 * Pwovide the impwementations of the symbow at the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return A definition or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A definition ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideImplementation(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		pwovideImpwementation(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | DefinitionWink[]>;
 	}
 
 	/**
-	 * The type definition provider defines the contract between extensions and
-	 * the go to type definition feature.
+	 * The type definition pwovida defines the contwact between extensions and
+	 * the go to type definition featuwe.
 	 */
-	export interface TypeDefinitionProvider {
+	expowt intewface TypeDefinitionPwovida {
 
 		/**
-		 * Provide the type definition of the symbol at the given position and document.
+		 * Pwovide the type definition of the symbow at the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return A definition or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A definition ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideTypeDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+		pwovideTypeDefinition(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | DefinitionWink[]>;
 	}
 
 	/**
-	 * The declaration of a symbol representation as one or many {@link Location locations}
-	 * or {@link LocationLink location links}.
+	 * The decwawation of a symbow wepwesentation as one ow many {@wink Wocation wocations}
+	 * ow {@wink WocationWink wocation winks}.
 	 */
-	export type Declaration = Location | Location[] | LocationLink[];
+	expowt type Decwawation = Wocation | Wocation[] | WocationWink[];
 
 	/**
-	 * The declaration provider interface defines the contract between extensions and
-	 * the go to declaration feature.
+	 * The decwawation pwovida intewface defines the contwact between extensions and
+	 * the go to decwawation featuwe.
 	 */
-	export interface DeclarationProvider {
+	expowt intewface DecwawationPwovida {
 
 		/**
-		 * Provide the declaration of the symbol at the given position and document.
+		 * Pwovide the decwawation of the symbow at the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return A declaration or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A decwawation ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideDeclaration(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Declaration>;
+		pwovideDecwawation(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Decwawation>;
 	}
 
 	/**
-	 * The MarkdownString represents human-readable text that supports formatting via the
-	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
+	 * The MawkdownStwing wepwesents human-weadabwe text that suppowts fowmatting via the
+	 * mawkdown syntax. Standawd mawkdown is suppowted, awso tabwes, but no embedded htmw.
 	 *
-	 * Rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax is supported
-	 * when the {@linkcode MarkdownString.supportThemeIcons supportThemeIcons} is set to `true`.
+	 * Wendewing of {@wink ThemeIcon theme icons} via the `$(<name>)`-syntax is suppowted
+	 * when the {@winkcode MawkdownStwing.suppowtThemeIcons suppowtThemeIcons} is set to `twue`.
 	 */
-	export class MarkdownString {
+	expowt cwass MawkdownStwing {
 
 		/**
-		 * The markdown string.
+		 * The mawkdown stwing.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * Indicates that this markdown string is from a trusted source. Only *trusted*
-		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
+		 * Indicates that this mawkdown stwing is fwom a twusted souwce. Onwy *twusted*
+		 * mawkdown suppowts winks that execute commands, e.g. `[Wun it](command:myCommandId)`.
 		 */
-		isTrusted?: boolean;
+		isTwusted?: boowean;
 
 		/**
-		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
+		 * Indicates that this mawkdown stwing can contain {@wink ThemeIcon ThemeIcons}, e.g. `$(zap)`.
 		 */
-		supportThemeIcons?: boolean;
+		suppowtThemeIcons?: boowean;
 
 		/**
-		 * Creates a new markdown string with the given value.
+		 * Cweates a new mawkdown stwing with the given vawue.
 		 *
-		 * @param value Optional, initial value.
-		 * @param supportThemeIcons Optional, Specifies whether {@link ThemeIcon ThemeIcons} are supported within the {@linkcode MarkdownString}.
+		 * @pawam vawue Optionaw, initiaw vawue.
+		 * @pawam suppowtThemeIcons Optionaw, Specifies whetha {@wink ThemeIcon ThemeIcons} awe suppowted within the {@winkcode MawkdownStwing}.
 		 */
-		constructor(value?: string, supportThemeIcons?: boolean);
+		constwuctow(vawue?: stwing, suppowtThemeIcons?: boowean);
 
 		/**
-		 * Appends and escapes the given string to this markdown string.
-		 * @param value Plain text.
+		 * Appends and escapes the given stwing to this mawkdown stwing.
+		 * @pawam vawue Pwain text.
 		 */
-		appendText(value: string): MarkdownString;
+		appendText(vawue: stwing): MawkdownStwing;
 
 		/**
-		 * Appends the given string 'as is' to this markdown string. When {@linkcode MarkdownString.supportThemeIcons supportThemeIcons} is `true`, {@link ThemeIcon ThemeIcons} in the `value` will be iconified.
-		 * @param value Markdown string.
+		 * Appends the given stwing 'as is' to this mawkdown stwing. When {@winkcode MawkdownStwing.suppowtThemeIcons suppowtThemeIcons} is `twue`, {@wink ThemeIcon ThemeIcons} in the `vawue` wiww be iconified.
+		 * @pawam vawue Mawkdown stwing.
 		 */
-		appendMarkdown(value: string): MarkdownString;
+		appendMawkdown(vawue: stwing): MawkdownStwing;
 
 		/**
-		 * Appends the given string as codeblock using the provided language.
-		 * @param value A code snippet.
-		 * @param language An optional {@link languages.getLanguages language identifier}.
+		 * Appends the given stwing as codebwock using the pwovided wanguage.
+		 * @pawam vawue A code snippet.
+		 * @pawam wanguage An optionaw {@wink wanguages.getWanguages wanguage identifia}.
 		 */
-		appendCodeblock(value: string, language?: string): MarkdownString;
+		appendCodebwock(vawue: stwing, wanguage?: stwing): MawkdownStwing;
 	}
 
 	/**
-	 * MarkedString can be used to render human-readable text. It is either a markdown string
-	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.
+	 * MawkedStwing can be used to wenda human-weadabwe text. It is eitha a mawkdown stwing
+	 * ow a code-bwock that pwovides a wanguage and a code snippet. Note that
+	 * mawkdown stwings wiww be sanitized - that means htmw wiww be escaped.
 	 *
-	 * @deprecated This type is deprecated, please use {@linkcode MarkdownString} instead.
+	 * @depwecated This type is depwecated, pwease use {@winkcode MawkdownStwing} instead.
 	 */
-	export type MarkedString = string | { language: string; value: string };
+	expowt type MawkedStwing = stwing | { wanguage: stwing; vawue: stwing };
 
 	/**
-	 * A hover represents additional information for a symbol or word. Hovers are
-	 * rendered in a tooltip-like widget.
+	 * A hova wepwesents additionaw infowmation fow a symbow ow wowd. Hovews awe
+	 * wendewed in a toowtip-wike widget.
 	 */
-	export class Hover {
+	expowt cwass Hova {
 
 		/**
-		 * The contents of this hover.
+		 * The contents of this hova.
 		 */
-		contents: Array<MarkdownString | MarkedString>;
+		contents: Awway<MawkdownStwing | MawkedStwing>;
 
 		/**
-		 * The range to which this hover applies. When missing, the
-		 * editor will use the range at the current position or the
-		 * current position itself.
+		 * The wange to which this hova appwies. When missing, the
+		 * editow wiww use the wange at the cuwwent position ow the
+		 * cuwwent position itsewf.
 		 */
-		range?: Range;
+		wange?: Wange;
 
 		/**
-		 * Creates a new hover object.
+		 * Cweates a new hova object.
 		 *
-		 * @param contents The contents of the hover.
-		 * @param range The range to which the hover applies.
+		 * @pawam contents The contents of the hova.
+		 * @pawam wange The wange to which the hova appwies.
 		 */
-		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
+		constwuctow(contents: MawkdownStwing | MawkedStwing | Awway<MawkdownStwing | MawkedStwing>, wange?: Wange);
 	}
 
 	/**
-	 * The hover provider interface defines the contract between extensions and
-	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+	 * The hova pwovida intewface defines the contwact between extensions and
+	 * the [hova](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
 	 */
-	export interface HoverProvider {
+	expowt intewface HovewPwovida {
 
 		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
-		 * position will be merged by the editor. A hover can have a range which defaults
-		 * to the word range at the position when omitted.
+		 * Pwovide a hova fow the given position and document. Muwtipwe hovews at the same
+		 * position wiww be mewged by the editow. A hova can have a wange which defauwts
+		 * to the wowd wange at the position when omitted.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return A hover or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A hova ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideHover(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Hover>;
+		pwovideHova(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Hova>;
 	}
 
 	/**
-	 * An EvaluatableExpression represents an expression in a document that can be evaluated by an active debugger or runtime.
-	 * The result of this evaluation is shown in a tooltip-like widget.
-	 * If only a range is specified, the expression will be extracted from the underlying document.
-	 * An optional expression can be used to override the extracted expression.
-	 * In this case the range is still used to highlight the range in the document.
+	 * An EvawuatabweExpwession wepwesents an expwession in a document that can be evawuated by an active debugga ow wuntime.
+	 * The wesuwt of this evawuation is shown in a toowtip-wike widget.
+	 * If onwy a wange is specified, the expwession wiww be extwacted fwom the undewwying document.
+	 * An optionaw expwession can be used to ovewwide the extwacted expwession.
+	 * In this case the wange is stiww used to highwight the wange in the document.
 	 */
-	export class EvaluatableExpression {
+	expowt cwass EvawuatabweExpwession {
 
 		/*
-		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
+		 * The wange is used to extwact the evawuatabwe expwession fwom the undewwying document and to highwight it.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 
 		/*
-		 * If specified the expression overrides the extracted expression.
+		 * If specified the expwession ovewwides the extwacted expwession.
 		 */
-		readonly expression?: string;
+		weadonwy expwession?: stwing;
 
 		/**
-		 * Creates a new evaluatable expression object.
+		 * Cweates a new evawuatabwe expwession object.
 		 *
-		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
-		 * @param expression If specified overrides the extracted expression.
+		 * @pawam wange The wange in the undewwying document fwom which the evawuatabwe expwession is extwacted.
+		 * @pawam expwession If specified ovewwides the extwacted expwession.
 		 */
-		constructor(range: Range, expression?: string);
+		constwuctow(wange: Wange, expwession?: stwing);
 	}
 
 	/**
-	 * The evaluatable expression provider interface defines the contract between extensions and
-	 * the debug hover. In this contract the provider returns an evaluatable expression for a given position
-	 * in a document and the editor evaluates this expression in the active debug session and shows the result in a debug hover.
+	 * The evawuatabwe expwession pwovida intewface defines the contwact between extensions and
+	 * the debug hova. In this contwact the pwovida wetuwns an evawuatabwe expwession fow a given position
+	 * in a document and the editow evawuates this expwession in the active debug session and shows the wesuwt in a debug hova.
 	 */
-	export interface EvaluatableExpressionProvider {
+	expowt intewface EvawuatabweExpwessionPwovida {
 
 		/**
-		 * Provide an evaluatable expression for the given document and position.
-		 * The editor will evaluate this expression in the active debug session and will show the result in the debug hover.
-		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
+		 * Pwovide an evawuatabwe expwession fow the given document and position.
+		 * The editow wiww evawuate this expwession in the active debug session and wiww show the wesuwt in the debug hova.
+		 * The expwession can be impwicitwy specified by the wange in the undewwying document ow by expwicitwy wetuwning an expwession.
 		 *
-		 * @param document The document for which the debug hover is about to appear.
-		 * @param position The line and character position in the document where the debug hover is about to appear.
-		 * @param token A cancellation token.
-		 * @return An EvaluatableExpression or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document fow which the debug hova is about to appeaw.
+		 * @pawam position The wine and chawacta position in the document whewe the debug hova is about to appeaw.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An EvawuatabweExpwession ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+		pwovideEvawuatabweExpwession(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<EvawuatabweExpwession>;
 	}
 
 	/**
-	 * Provide inline value as text.
+	 * Pwovide inwine vawue as text.
 	 */
-	export class InlineValueText {
+	expowt cwass InwineVawueText {
 		/**
-		 * The document range for which the inline value applies.
+		 * The document wange fow which the inwine vawue appwies.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 		/**
-		 * The text of the inline value.
+		 * The text of the inwine vawue.
 		 */
-		readonly text: string;
+		weadonwy text: stwing;
 		/**
-		 * Creates a new InlineValueText object.
+		 * Cweates a new InwineVawueText object.
 		 *
-		 * @param range The document line where to show the inline value.
-		 * @param text The value to be shown for the line.
+		 * @pawam wange The document wine whewe to show the inwine vawue.
+		 * @pawam text The vawue to be shown fow the wine.
 		 */
-		constructor(range: Range, text: string);
+		constwuctow(wange: Wange, text: stwing);
 	}
 
 	/**
-	 * Provide inline value through a variable lookup.
-	 * If only a range is specified, the variable name will be extracted from the underlying document.
-	 * An optional variable name can be used to override the extracted name.
+	 * Pwovide inwine vawue thwough a vawiabwe wookup.
+	 * If onwy a wange is specified, the vawiabwe name wiww be extwacted fwom the undewwying document.
+	 * An optionaw vawiabwe name can be used to ovewwide the extwacted name.
 	 */
-	export class InlineValueVariableLookup {
+	expowt cwass InwineVawueVawiabweWookup {
 		/**
-		 * The document range for which the inline value applies.
-		 * The range is used to extract the variable name from the underlying document.
+		 * The document wange fow which the inwine vawue appwies.
+		 * The wange is used to extwact the vawiabwe name fwom the undewwying document.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 		/**
-		 * If specified the name of the variable to look up.
+		 * If specified the name of the vawiabwe to wook up.
 		 */
-		readonly variableName?: string;
+		weadonwy vawiabweName?: stwing;
 		/**
-		 * How to perform the lookup.
+		 * How to pewfowm the wookup.
 		 */
-		readonly caseSensitiveLookup: boolean;
+		weadonwy caseSensitiveWookup: boowean;
 		/**
-		 * Creates a new InlineValueVariableLookup object.
+		 * Cweates a new InwineVawueVawiabweWookup object.
 		 *
-		 * @param range The document line where to show the inline value.
-		 * @param variableName The name of the variable to look up.
-		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
+		 * @pawam wange The document wine whewe to show the inwine vawue.
+		 * @pawam vawiabweName The name of the vawiabwe to wook up.
+		 * @pawam caseSensitiveWookup How to pewfowm the wookup. If missing wookup is case sensitive.
 		 */
-		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
+		constwuctow(wange: Wange, vawiabweName?: stwing, caseSensitiveWookup?: boowean);
 	}
 
 	/**
-	 * Provide an inline value through an expression evaluation.
-	 * If only a range is specified, the expression will be extracted from the underlying document.
-	 * An optional expression can be used to override the extracted expression.
+	 * Pwovide an inwine vawue thwough an expwession evawuation.
+	 * If onwy a wange is specified, the expwession wiww be extwacted fwom the undewwying document.
+	 * An optionaw expwession can be used to ovewwide the extwacted expwession.
 	 */
-	export class InlineValueEvaluatableExpression {
+	expowt cwass InwineVawueEvawuatabweExpwession {
 		/**
-		 * The document range for which the inline value applies.
-		 * The range is used to extract the evaluatable expression from the underlying document.
+		 * The document wange fow which the inwine vawue appwies.
+		 * The wange is used to extwact the evawuatabwe expwession fwom the undewwying document.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 		/**
-		 * If specified the expression overrides the extracted expression.
+		 * If specified the expwession ovewwides the extwacted expwession.
 		 */
-		readonly expression?: string;
+		weadonwy expwession?: stwing;
 		/**
-		 * Creates a new InlineValueEvaluatableExpression object.
+		 * Cweates a new InwineVawueEvawuatabweExpwession object.
 		 *
-		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
-		 * @param expression If specified overrides the extracted expression.
+		 * @pawam wange The wange in the undewwying document fwom which the evawuatabwe expwession is extwacted.
+		 * @pawam expwession If specified ovewwides the extwacted expwession.
 		 */
-		constructor(range: Range, expression?: string);
+		constwuctow(wange: Wange, expwession?: stwing);
 	}
 
 	/**
-	 * Inline value information can be provided by different means:
-	 * - directly as a text value (class InlineValueText).
-	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
-	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
-	 * The InlineValue types combines all inline value types into one type.
+	 * Inwine vawue infowmation can be pwovided by diffewent means:
+	 * - diwectwy as a text vawue (cwass InwineVawueText).
+	 * - as a name to use fow a vawiabwe wookup (cwass InwineVawueVawiabweWookup)
+	 * - as an evawuatabwe expwession (cwass InwineVawueEvawuatabweExpwession)
+	 * The InwineVawue types combines aww inwine vawue types into one type.
 	 */
-	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
+	expowt type InwineVawue = InwineVawueText | InwineVawueVawiabweWookup | InwineVawueEvawuatabweExpwession;
 
 	/**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+	 * A vawue-object that contains contextuaw infowmation when wequesting inwine vawues fwom a InwineVawuesPwovida.
 	 */
-	export interface InlineValueContext {
+	expowt intewface InwineVawueContext {
 
 		/**
-		 * The stack frame (as a DAP Id) where the execution has stopped.
+		 * The stack fwame (as a DAP Id) whewe the execution has stopped.
 		 */
-		readonly frameId: number;
+		weadonwy fwameId: numba;
 
 		/**
-		 * The document range where execution has stopped.
-		 * Typically the end position of the range denotes the line where the inline values are shown.
+		 * The document wange whewe execution has stopped.
+		 * Typicawwy the end position of the wange denotes the wine whewe the inwine vawues awe shown.
 		 */
-		readonly stoppedLocation: Range;
+		weadonwy stoppedWocation: Wange;
 	}
 
 	/**
-	 * The inline values provider interface defines the contract between extensions and the editor's debugger inline values feature.
-	 * In this contract the provider returns inline value information for a given document range
-	 * and the editor shows this information in the editor at the end of lines.
+	 * The inwine vawues pwovida intewface defines the contwact between extensions and the editow's debugga inwine vawues featuwe.
+	 * In this contwact the pwovida wetuwns inwine vawue infowmation fow a given document wange
+	 * and the editow shows this infowmation in the editow at the end of wines.
 	 */
-	export interface InlineValuesProvider {
+	expowt intewface InwineVawuesPwovida {
 
 		/**
-		 * An optional event to signal that inline values have changed.
-		 * @see {@link EventEmitter}
+		 * An optionaw event to signaw that inwine vawues have changed.
+		 * @see {@wink EventEmitta}
 		 */
-		onDidChangeInlineValues?: Event<void> | undefined;
+		onDidChangeInwineVawues?: Event<void> | undefined;
 
 		/**
-		 * Provide "inline value" information for a given document and range.
-		 * The editor calls this method whenever debugging stops in the given document.
-		 * The returned inline values information is rendered in the editor at the end of lines.
+		 * Pwovide "inwine vawue" infowmation fow a given document and wange.
+		 * The editow cawws this method wheneva debugging stops in the given document.
+		 * The wetuwned inwine vawues infowmation is wendewed in the editow at the end of wines.
 		 *
-		 * @param document The document for which the inline values information is needed.
-		 * @param viewPort The visible document range for which inline values should be computed.
-		 * @param context A bag containing contextual information like the current location.
-		 * @param token A cancellation token.
-		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document fow which the inwine vawues infowmation is needed.
+		 * @pawam viewPowt The visibwe document wange fow which inwine vawues shouwd be computed.
+		 * @pawam context A bag containing contextuaw infowmation wike the cuwwent wocation.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of InwineVawueDescwiptows ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
+		pwovideInwineVawues(document: TextDocument, viewPowt: Wange, context: InwineVawueContext, token: CancewwationToken): PwovidewWesuwt<InwineVawue[]>;
 	}
 
 	/**
-	 * A document highlight kind.
+	 * A document highwight kind.
 	 */
-	export enum DocumentHighlightKind {
+	expowt enum DocumentHighwightKind {
 
 		/**
-		 * A textual occurrence.
+		 * A textuaw occuwwence.
 		 */
 		Text = 0,
 
 		/**
-		 * Read-access of a symbol, like reading a variable.
+		 * Wead-access of a symbow, wike weading a vawiabwe.
 		 */
-		Read = 1,
+		Wead = 1,
 
 		/**
-		 * Write-access of a symbol, like writing to a variable.
+		 * Wwite-access of a symbow, wike wwiting to a vawiabwe.
 		 */
-		Write = 2
+		Wwite = 2
 	}
 
 	/**
-	 * A document highlight is a range inside a text document which deserves
-	 * special attention. Usually a document highlight is visualized by changing
-	 * the background color of its range.
+	 * A document highwight is a wange inside a text document which desewves
+	 * speciaw attention. Usuawwy a document highwight is visuawized by changing
+	 * the backgwound cowow of its wange.
 	 */
-	export class DocumentHighlight {
+	expowt cwass DocumentHighwight {
 
 		/**
-		 * The range this highlight applies to.
+		 * The wange this highwight appwies to.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The highlight kind, default is {@link DocumentHighlightKind.Text text}.
+		 * The highwight kind, defauwt is {@wink DocumentHighwightKind.Text text}.
 		 */
-		kind?: DocumentHighlightKind;
+		kind?: DocumentHighwightKind;
 
 		/**
-		 * Creates a new document highlight object.
+		 * Cweates a new document highwight object.
 		 *
-		 * @param range The range the highlight applies to.
-		 * @param kind The highlight kind, default is {@link DocumentHighlightKind.Text text}.
+		 * @pawam wange The wange the highwight appwies to.
+		 * @pawam kind The highwight kind, defauwt is {@wink DocumentHighwightKind.Text text}.
 		 */
-		constructor(range: Range, kind?: DocumentHighlightKind);
+		constwuctow(wange: Wange, kind?: DocumentHighwightKind);
 	}
 
 	/**
-	 * The document highlight provider interface defines the contract between extensions and
-	 * the word-highlight-feature.
+	 * The document highwight pwovida intewface defines the contwact between extensions and
+	 * the wowd-highwight-featuwe.
 	 */
-	export interface DocumentHighlightProvider {
+	expowt intewface DocumentHighwightPwovida {
 
 		/**
-		 * Provide a set of document highlights, like all occurrences of a variable or
-		 * all exit-points of a function.
+		 * Pwovide a set of document highwights, wike aww occuwwences of a vawiabwe ow
+		 * aww exit-points of a function.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of document highwights ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentHighlights(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+		pwovideDocumentHighwights(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<DocumentHighwight[]>;
 	}
 
 	/**
-	 * A symbol kind.
+	 * A symbow kind.
 	 */
-	export enum SymbolKind {
-		File = 0,
-		Module = 1,
+	expowt enum SymbowKind {
+		Fiwe = 0,
+		Moduwe = 1,
 		Namespace = 2,
 		Package = 3,
-		Class = 4,
+		Cwass = 4,
 		Method = 5,
-		Property = 6,
-		Field = 7,
-		Constructor = 8,
+		Pwopewty = 6,
+		Fiewd = 7,
+		Constwuctow = 8,
 		Enum = 9,
-		Interface = 10,
+		Intewface = 10,
 		Function = 11,
-		Variable = 12,
+		Vawiabwe = 12,
 		Constant = 13,
-		String = 14,
-		Number = 15,
-		Boolean = 16,
-		Array = 17,
+		Stwing = 14,
+		Numba = 15,
+		Boowean = 16,
+		Awway = 17,
 		Object = 18,
 		Key = 19,
-		Null = 20,
-		EnumMember = 21,
-		Struct = 22,
+		Nuww = 20,
+		EnumMemba = 21,
+		Stwuct = 22,
 		Event = 23,
-		Operator = 24,
-		TypeParameter = 25
+		Opewatow = 24,
+		TypePawameta = 25
 	}
 
 	/**
-	 * Symbol tags are extra annotations that tweak the rendering of a symbol.
+	 * Symbow tags awe extwa annotations that tweak the wendewing of a symbow.
 	 */
-	export enum SymbolTag {
+	expowt enum SymbowTag {
 
 		/**
-		 * Render a symbol as obsolete, usually using a strike-out.
+		 * Wenda a symbow as obsowete, usuawwy using a stwike-out.
 		 */
-		Deprecated = 1
+		Depwecated = 1
 	}
 
 	/**
-	 * Represents information about programming constructs like variables, classes,
-	 * interfaces etc.
+	 * Wepwesents infowmation about pwogwamming constwucts wike vawiabwes, cwasses,
+	 * intewfaces etc.
 	 */
-	export class SymbolInformation {
+	expowt cwass SymbowInfowmation {
 
 		/**
-		 * The name of this symbol.
+		 * The name of this symbow.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * The name of the symbol containing this symbol.
+		 * The name of the symbow containing this symbow.
 		 */
-		containerName: string;
+		containewName: stwing;
 
 		/**
-		 * The kind of this symbol.
+		 * The kind of this symbow.
 		 */
-		kind: SymbolKind;
+		kind: SymbowKind;
 
 		/**
-		 * Tags for this symbol.
+		 * Tags fow this symbow.
 		 */
-		tags?: readonly SymbolTag[];
+		tags?: weadonwy SymbowTag[];
 
 		/**
-		 * The location of this symbol.
+		 * The wocation of this symbow.
 		 */
-		location: Location;
+		wocation: Wocation;
 
 		/**
-		 * Creates a new symbol information object.
+		 * Cweates a new symbow infowmation object.
 		 *
-		 * @param name The name of the symbol.
-		 * @param kind The kind of the symbol.
-		 * @param containerName The name of the symbol containing the symbol.
-		 * @param location The location of the symbol.
+		 * @pawam name The name of the symbow.
+		 * @pawam kind The kind of the symbow.
+		 * @pawam containewName The name of the symbow containing the symbow.
+		 * @pawam wocation The wocation of the symbow.
 		 */
-		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
+		constwuctow(name: stwing, kind: SymbowKind, containewName: stwing, wocation: Wocation);
 
 		/**
-		 * Creates a new symbol information object.
+		 * Cweates a new symbow infowmation object.
 		 *
-		 * @deprecated Please use the constructor taking a {@link Location} object.
+		 * @depwecated Pwease use the constwuctow taking a {@wink Wocation} object.
 		 *
-		 * @param name The name of the symbol.
-		 * @param kind The kind of the symbol.
-		 * @param range The range of the location of the symbol.
-		 * @param uri The resource of the location of symbol, defaults to the current document.
-		 * @param containerName The name of the symbol containing the symbol.
+		 * @pawam name The name of the symbow.
+		 * @pawam kind The kind of the symbow.
+		 * @pawam wange The wange of the wocation of the symbow.
+		 * @pawam uwi The wesouwce of the wocation of symbow, defauwts to the cuwwent document.
+		 * @pawam containewName The name of the symbow containing the symbow.
 		 */
-		constructor(name: string, kind: SymbolKind, range: Range, uri?: Uri, containerName?: string);
+		constwuctow(name: stwing, kind: SymbowKind, wange: Wange, uwi?: Uwi, containewName?: stwing);
 	}
 
 	/**
-	 * Represents programming constructs like variables, classes, interfaces etc. that appear in a document. Document
-	 * symbols can be hierarchical and they have two ranges: one that encloses its definition and one that points to
-	 * its most interesting range, e.g. the range of an identifier.
+	 * Wepwesents pwogwamming constwucts wike vawiabwes, cwasses, intewfaces etc. that appeaw in a document. Document
+	 * symbows can be hiewawchicaw and they have two wanges: one that encwoses its definition and one that points to
+	 * its most intewesting wange, e.g. the wange of an identifia.
 	 */
-	export class DocumentSymbol {
+	expowt cwass DocumentSymbow {
 
 		/**
-		 * The name of this symbol.
+		 * The name of this symbow.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * More detail for this symbol, e.g. the signature of a function.
+		 * Mowe detaiw fow this symbow, e.g. the signatuwe of a function.
 		 */
-		detail: string;
+		detaiw: stwing;
 
 		/**
-		 * The kind of this symbol.
+		 * The kind of this symbow.
 		 */
-		kind: SymbolKind;
+		kind: SymbowKind;
 
 		/**
-		 * Tags for this symbol.
+		 * Tags fow this symbow.
 		 */
-		tags?: readonly SymbolTag[];
+		tags?: weadonwy SymbowTag[];
 
 		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 * The wange encwosing this symbow not incwuding weading/twaiwing whitespace but evewything ewse, e.g. comments and code.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The range that should be selected and reveal when this symbol is being picked, e.g. the name of a function.
-		 * Must be contained by the {@linkcode DocumentSymbol.range range}.
+		 * The wange that shouwd be sewected and weveaw when this symbow is being picked, e.g. the name of a function.
+		 * Must be contained by the {@winkcode DocumentSymbow.wange wange}.
 		 */
-		selectionRange: Range;
+		sewectionWange: Wange;
 
 		/**
-		 * Children of this symbol, e.g. properties of a class.
+		 * Chiwdwen of this symbow, e.g. pwopewties of a cwass.
 		 */
-		children: DocumentSymbol[];
+		chiwdwen: DocumentSymbow[];
 
 		/**
-		 * Creates a new document symbol.
+		 * Cweates a new document symbow.
 		 *
-		 * @param name The name of the symbol.
-		 * @param detail Details for the symbol.
-		 * @param kind The kind of the symbol.
-		 * @param range The full range of the symbol.
-		 * @param selectionRange The range that should be reveal.
+		 * @pawam name The name of the symbow.
+		 * @pawam detaiw Detaiws fow the symbow.
+		 * @pawam kind The kind of the symbow.
+		 * @pawam wange The fuww wange of the symbow.
+		 * @pawam sewectionWange The wange that shouwd be weveaw.
 		 */
-		constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range);
+		constwuctow(name: stwing, detaiw: stwing, kind: SymbowKind, wange: Wange, sewectionWange: Wange);
 	}
 
 	/**
-	 * The document symbol provider interface defines the contract between extensions and
-	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
+	 * The document symbow pwovida intewface defines the contwact between extensions and
+	 * the [go to symbow](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-symbow)-featuwe.
 	 */
-	export interface DocumentSymbolProvider {
+	expowt intewface DocumentSymbowPwovida {
 
 		/**
-		 * Provide symbol information for the given document.
+		 * Pwovide symbow infowmation fow the given document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of document highwights ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
+		pwovideDocumentSymbows(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<SymbowInfowmation[] | DocumentSymbow[]>;
 	}
 
 	/**
-	 * Metadata about a document symbol provider.
+	 * Metadata about a document symbow pwovida.
 	 */
-	export interface DocumentSymbolProviderMetadata {
+	expowt intewface DocumentSymbowPwovidewMetadata {
 		/**
-		 * A human-readable string that is shown when multiple outlines trees show for one document.
+		 * A human-weadabwe stwing that is shown when muwtipwe outwines twees show fow one document.
 		 */
-		label?: string;
+		wabew?: stwing;
 	}
 
 	/**
-	 * The workspace symbol provider interface defines the contract between extensions and
-	 * the [symbol search](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name)-feature.
+	 * The wowkspace symbow pwovida intewface defines the contwact between extensions and
+	 * the [symbow seawch](https://code.visuawstudio.com/docs/editow/editingevowved#_open-symbow-by-name)-featuwe.
 	 */
-	export interface WorkspaceSymbolProvider<T extends SymbolInformation = SymbolInformation> {
+	expowt intewface WowkspaceSymbowPwovida<T extends SymbowInfowmation = SymbowInfowmation> {
 
 		/**
-		 * Project-wide search for a symbol matching the given query string.
+		 * Pwoject-wide seawch fow a symbow matching the given quewy stwing.
 		 *
-		 * The `query`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
-		 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
-		 * characters of *query* appear in their order in a candidate symbol. Don't use prefix, substring, or similar
-		 * strict matching.
+		 * The `quewy`-pawameta shouwd be intewpweted in a *wewaxed way* as the editow wiww appwy its own highwighting
+		 * and scowing on the wesuwts. A good wuwe of thumb is to match case-insensitive and to simpwy check that the
+		 * chawactews of *quewy* appeaw in theiw owda in a candidate symbow. Don't use pwefix, substwing, ow simiwaw
+		 * stwict matching.
 		 *
-		 * To improve performance implementors can implement `resolveWorkspaceSymbol` and then provide symbols with partial
-		 * {@link SymbolInformation.location location}-objects, without a `range` defined. The editor will then call
-		 * `resolveWorkspaceSymbol` for selected symbols only, e.g. when opening a workspace symbol.
+		 * To impwove pewfowmance impwementows can impwement `wesowveWowkspaceSymbow` and then pwovide symbows with pawtiaw
+		 * {@wink SymbowInfowmation.wocation wocation}-objects, without a `wange` defined. The editow wiww then caww
+		 * `wesowveWowkspaceSymbow` fow sewected symbows onwy, e.g. when opening a wowkspace symbow.
 		 *
-		 * @param query A query string, can be the empty string in which case all symbols should be returned.
-		 * @param token A cancellation token.
-		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam quewy A quewy stwing, can be the empty stwing in which case aww symbows shouwd be wetuwned.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of document highwights ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideWorkspaceSymbols(query: string, token: CancellationToken): ProviderResult<T[]>;
+		pwovideWowkspaceSymbows(quewy: stwing, token: CancewwationToken): PwovidewWesuwt<T[]>;
 
 		/**
-		 * Given a symbol fill in its {@link SymbolInformation.location location}. This method is called whenever a symbol
-		 * is selected in the UI. Providers can implement this method and return incomplete symbols from
-		 * {@linkcode WorkspaceSymbolProvider.provideWorkspaceSymbols provideWorkspaceSymbols} which often helps to improve
-		 * performance.
+		 * Given a symbow fiww in its {@wink SymbowInfowmation.wocation wocation}. This method is cawwed wheneva a symbow
+		 * is sewected in the UI. Pwovidews can impwement this method and wetuwn incompwete symbows fwom
+		 * {@winkcode WowkspaceSymbowPwovida.pwovideWowkspaceSymbows pwovideWowkspaceSymbows} which often hewps to impwove
+		 * pewfowmance.
 		 *
-		 * @param symbol The symbol that is to be resolved. Guaranteed to be an instance of an object returned from an
-		 * earlier call to `provideWorkspaceSymbols`.
-		 * @param token A cancellation token.
-		 * @return The resolved symbol or a thenable that resolves to that. When no result is returned,
-		 * the given `symbol` is used.
+		 * @pawam symbow The symbow that is to be wesowved. Guawanteed to be an instance of an object wetuwned fwom an
+		 * eawwia caww to `pwovideWowkspaceSymbows`.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved symbow ow a thenabwe that wesowves to that. When no wesuwt is wetuwned,
+		 * the given `symbow` is used.
 		 */
-		resolveWorkspaceSymbol?(symbol: T, token: CancellationToken): ProviderResult<T>;
+		wesowveWowkspaceSymbow?(symbow: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * Value-object that contains additional information when
-	 * requesting references.
+	 * Vawue-object that contains additionaw infowmation when
+	 * wequesting wefewences.
 	 */
-	export interface ReferenceContext {
+	expowt intewface WefewenceContext {
 
 		/**
-		 * Include the declaration of the current symbol.
+		 * Incwude the decwawation of the cuwwent symbow.
 		 */
-		includeDeclaration: boolean;
+		incwudeDecwawation: boowean;
 	}
 
 	/**
-	 * The reference provider interface defines the contract between extensions and
-	 * the [find references](https://code.visualstudio.com/docs/editor/editingevolved#_peek)-feature.
+	 * The wefewence pwovida intewface defines the contwact between extensions and
+	 * the [find wefewences](https://code.visuawstudio.com/docs/editow/editingevowved#_peek)-featuwe.
 	 */
-	export interface ReferenceProvider {
+	expowt intewface WefewencePwovida {
 
 		/**
-		 * Provide a set of project-wide references for the given position and document.
+		 * Pwovide a set of pwoject-wide wefewences fow the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
 		 *
-		 * @return An array of locations or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @wetuwn An awway of wocations ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideReferences(document: TextDocument, position: Position, context: ReferenceContext, token: CancellationToken): ProviderResult<Location[]>;
+		pwovideWefewences(document: TextDocument, position: Position, context: WefewenceContext, token: CancewwationToken): PwovidewWesuwt<Wocation[]>;
 	}
 
 	/**
-	 * A text edit represents edits that should be applied
+	 * A text edit wepwesents edits that shouwd be appwied
 	 * to a document.
 	 */
-	export class TextEdit {
+	expowt cwass TextEdit {
 
 		/**
-		 * Utility to create a replace edit.
+		 * Utiwity to cweate a wepwace edit.
 		 *
-		 * @param range A range.
-		 * @param newText A string.
-		 * @return A new text edit object.
+		 * @pawam wange A wange.
+		 * @pawam newText A stwing.
+		 * @wetuwn A new text edit object.
 		 */
-		static replace(range: Range, newText: string): TextEdit;
+		static wepwace(wange: Wange, newText: stwing): TextEdit;
 
 		/**
-		 * Utility to create an insert edit.
+		 * Utiwity to cweate an insewt edit.
 		 *
-		 * @param position A position, will become an empty range.
-		 * @param newText A string.
-		 * @return A new text edit object.
+		 * @pawam position A position, wiww become an empty wange.
+		 * @pawam newText A stwing.
+		 * @wetuwn A new text edit object.
 		 */
-		static insert(position: Position, newText: string): TextEdit;
+		static insewt(position: Position, newText: stwing): TextEdit;
 
 		/**
-		 * Utility to create a delete edit.
+		 * Utiwity to cweate a dewete edit.
 		 *
-		 * @param range A range.
-		 * @return A new text edit object.
+		 * @pawam wange A wange.
+		 * @wetuwn A new text edit object.
 		 */
-		static delete(range: Range): TextEdit;
+		static dewete(wange: Wange): TextEdit;
 
 		/**
-		 * Utility to create an eol-edit.
+		 * Utiwity to cweate an eow-edit.
 		 *
-		 * @param eol An eol-sequence
-		 * @return A new text edit object.
+		 * @pawam eow An eow-sequence
+		 * @wetuwn A new text edit object.
 		 */
-		static setEndOfLine(eol: EndOfLine): TextEdit;
+		static setEndOfWine(eow: EndOfWine): TextEdit;
 
 		/**
-		 * The range this edit applies to.
+		 * The wange this edit appwies to.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The string this edit will insert.
+		 * The stwing this edit wiww insewt.
 		 */
-		newText: string;
+		newText: stwing;
 
 		/**
-		 * The eol-sequence used in the document.
+		 * The eow-sequence used in the document.
 		 *
-		 * *Note* that the eol-sequence will be applied to the
-		 * whole document.
+		 * *Note* that the eow-sequence wiww be appwied to the
+		 * whowe document.
 		 */
-		newEol?: EndOfLine;
+		newEow?: EndOfWine;
 
 		/**
-		 * Create a new TextEdit.
+		 * Cweate a new TextEdit.
 		 *
-		 * @param range A range.
-		 * @param newText A string.
+		 * @pawam wange A wange.
+		 * @pawam newText A stwing.
 		 */
-		constructor(range: Range, newText: string);
+		constwuctow(wange: Wange, newText: stwing);
 	}
 
 	/**
-	 * Additional data for entries of a workspace edit. Supports to label entries and marks entries
-	 * as needing confirmation by the user. The editor groups edits with equal labels into tree nodes,
-	 * for instance all edits labelled with "Changes in Strings" would be a tree node.
+	 * Additionaw data fow entwies of a wowkspace edit. Suppowts to wabew entwies and mawks entwies
+	 * as needing confiwmation by the usa. The editow gwoups edits with equaw wabews into twee nodes,
+	 * fow instance aww edits wabewwed with "Changes in Stwings" wouwd be a twee node.
 	 */
-	export interface WorkspaceEditEntryMetadata {
+	expowt intewface WowkspaceEditEntwyMetadata {
 
 		/**
-		 * A flag which indicates that user confirmation is needed.
+		 * A fwag which indicates that usa confiwmation is needed.
 		 */
-		needsConfirmation: boolean;
+		needsConfiwmation: boowean;
 
 		/**
-		 * A human-readable string which is rendered prominent.
+		 * A human-weadabwe stwing which is wendewed pwominent.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * A human-readable string which is rendered less prominent on the same line.
+		 * A human-weadabwe stwing which is wendewed wess pwominent on the same wine.
 		 */
-		description?: string;
+		descwiption?: stwing;
 
 		/**
-		 * The icon path or {@link ThemeIcon} for the edit.
+		 * The icon path ow {@wink ThemeIcon} fow the edit.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		iconPath?: Uwi | { wight: Uwi; dawk: Uwi } | ThemeIcon;
 	}
 
 	/**
-	 * A workspace edit is a collection of textual and files changes for
-	 * multiple resources and documents.
+	 * A wowkspace edit is a cowwection of textuaw and fiwes changes fow
+	 * muwtipwe wesouwces and documents.
 	 *
-	 * Use the {@link workspace.applyEdit applyEdit}-function to apply a workspace edit.
+	 * Use the {@wink wowkspace.appwyEdit appwyEdit}-function to appwy a wowkspace edit.
 	 */
-	export class WorkspaceEdit {
+	expowt cwass WowkspaceEdit {
 
 		/**
-		 * The number of affected resources of textual or resource changes.
+		 * The numba of affected wesouwces of textuaw ow wesouwce changes.
 		 */
-		readonly size: number;
+		weadonwy size: numba;
 
 		/**
-		 * Replace the given range with given text for the given resource.
+		 * Wepwace the given wange with given text fow the given wesouwce.
 		 *
-		 * @param uri A resource identifier.
-		 * @param range A range.
-		 * @param newText A string.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam wange A wange.
+		 * @pawam newText A stwing.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		replace(uri: Uri, range: Range, newText: string, metadata?: WorkspaceEditEntryMetadata): void;
+		wepwace(uwi: Uwi, wange: Wange, newText: stwing, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Insert the given text at the given position.
+		 * Insewt the given text at the given position.
 		 *
-		 * @param uri A resource identifier.
-		 * @param position A position.
-		 * @param newText A string.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam position A position.
+		 * @pawam newText A stwing.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		insert(uri: Uri, position: Position, newText: string, metadata?: WorkspaceEditEntryMetadata): void;
+		insewt(uwi: Uwi, position: Position, newText: stwing, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Delete the text at the given range.
+		 * Dewete the text at the given wange.
 		 *
-		 * @param uri A resource identifier.
-		 * @param range A range.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam wange A wange.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		delete(uri: Uri, range: Range, metadata?: WorkspaceEditEntryMetadata): void;
+		dewete(uwi: Uwi, wange: Wange, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Check if a text edit for a resource exists.
+		 * Check if a text edit fow a wesouwce exists.
 		 *
-		 * @param uri A resource identifier.
-		 * @return `true` if the given resource will be touched by this edit.
+		 * @pawam uwi A wesouwce identifia.
+		 * @wetuwn `twue` if the given wesouwce wiww be touched by this edit.
 		 */
-		has(uri: Uri): boolean;
+		has(uwi: Uwi): boowean;
 
 		/**
-		 * Set (and replace) text edits for a resource.
+		 * Set (and wepwace) text edits fow a wesouwce.
 		 *
-		 * @param uri A resource identifier.
-		 * @param edits An array of text edits.
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam edits An awway of text edits.
 		 */
-		set(uri: Uri, edits: TextEdit[]): void;
+		set(uwi: Uwi, edits: TextEdit[]): void;
 
 		/**
-		 * Get the text edits for a resource.
+		 * Get the text edits fow a wesouwce.
 		 *
-		 * @param uri A resource identifier.
-		 * @return An array of text edits.
+		 * @pawam uwi A wesouwce identifia.
+		 * @wetuwn An awway of text edits.
 		 */
-		get(uri: Uri): TextEdit[];
+		get(uwi: Uwi): TextEdit[];
 
 		/**
-		 * Create a regular file.
+		 * Cweate a weguwaw fiwe.
 		 *
-		 * @param uri Uri of the new file..
-		 * @param options Defines if an existing file should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
-		 * When both are unset and when the file already exists then the edit cannot
-		 * be applied successfully.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam uwi Uwi of the new fiwe..
+		 * @pawam options Defines if an existing fiwe shouwd be ovewwwitten ow be
+		 * ignowed. When ovewwwite and ignoweIfExists awe both set ovewwwite wins.
+		 * When both awe unset and when the fiwe awweady exists then the edit cannot
+		 * be appwied successfuwwy.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		cweateFiwe(uwi: Uwi, options?: { ovewwwite?: boowean, ignoweIfExists?: boowean }, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Delete a file or folder.
+		 * Dewete a fiwe ow fowda.
 		 *
-		 * @param uri The uri of the file that is to be deleted.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam uwi The uwi of the fiwe that is to be deweted.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deweteFiwe(uwi: Uwi, options?: { wecuwsive?: boowean, ignoweIfNotExists?: boowean }, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Rename a file or folder.
+		 * Wename a fiwe ow fowda.
 		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
-		 * @param metadata Optional metadata for the entry.
+		 * @pawam owdUwi The existing fiwe.
+		 * @pawam newUwi The new wocation.
+		 * @pawam options Defines if existing fiwes shouwd be ovewwwitten ow be
+		 * ignowed. When ovewwwite and ignoweIfExists awe both set ovewwwite wins.
+		 * @pawam metadata Optionaw metadata fow the entwy.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		wenameFiwe(owdUwi: Uwi, newUwi: Uwi, options?: { ovewwwite?: boowean, ignoweIfExists?: boowean }, metadata?: WowkspaceEditEntwyMetadata): void;
 
 		/**
-		 * Get all text edits grouped by resource.
+		 * Get aww text edits gwouped by wesouwce.
 		 *
-		 * @return A shallow copy of `[Uri, TextEdit[]]`-tuples.
+		 * @wetuwn A shawwow copy of `[Uwi, TextEdit[]]`-tupwes.
 		 */
-		entries(): [Uri, TextEdit[]][];
+		entwies(): [Uwi, TextEdit[]][];
 	}
 
 	/**
-	 * A snippet string is a template which allows to insert text
-	 * and to control the editor cursor when insertion happens.
+	 * A snippet stwing is a tempwate which awwows to insewt text
+	 * and to contwow the editow cuwsow when insewtion happens.
 	 *
-	 * A snippet can define tab stops and placeholders with `$1`, `$2`
-	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
-	 * the end of the snippet. Variables are defined with `$name` and
-	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * A snippet can define tab stops and pwacehowdews with `$1`, `$2`
+	 * and `${3:foo}`. `$0` defines the finaw tab stop, it defauwts to
+	 * the end of the snippet. Vawiabwes awe defined with `$name` and
+	 * `${name:defauwt vawue}`. The fuww snippet syntax is documented
+	 * [hewe](https://code.visuawstudio.com/docs/editow/usewdefinedsnippets#_cweating-youw-own-snippets).
 	 */
-	export class SnippetString {
+	expowt cwass SnippetStwing {
 
 		/**
-		 * The snippet string.
+		 * The snippet stwing.
 		 */
-		value: string;
+		vawue: stwing;
 
-		constructor(value?: string);
+		constwuctow(vawue?: stwing);
 
 		/**
-		 * Builder-function that appends the given string to
-		 * the {@linkcode SnippetString.value value} of this snippet string.
+		 * Buiwda-function that appends the given stwing to
+		 * the {@winkcode SnippetStwing.vawue vawue} of this snippet stwing.
 		 *
-		 * @param string A value to append 'as given'. The string will be escaped.
-		 * @return This snippet string.
+		 * @pawam stwing A vawue to append 'as given'. The stwing wiww be escaped.
+		 * @wetuwn This snippet stwing.
 		 */
-		appendText(string: string): SnippetString;
+		appendText(stwing: stwing): SnippetStwing;
 
 		/**
-		 * Builder-function that appends a tabstop (`$1`, `$2` etc) to
-		 * the {@linkcode SnippetString.value value} of this snippet string.
+		 * Buiwda-function that appends a tabstop (`$1`, `$2` etc) to
+		 * the {@winkcode SnippetStwing.vawue vawue} of this snippet stwing.
 		 *
-		 * @param number The number of this tabstop, defaults to an auto-increment
-		 * value starting at 1.
-		 * @return This snippet string.
+		 * @pawam numba The numba of this tabstop, defauwts to an auto-incwement
+		 * vawue stawting at 1.
+		 * @wetuwn This snippet stwing.
 		 */
-		appendTabstop(number?: number): SnippetString;
+		appendTabstop(numba?: numba): SnippetStwing;
 
 		/**
-		 * Builder-function that appends a placeholder (`${1:value}`) to
-		 * the {@linkcode SnippetString.value value} of this snippet string.
+		 * Buiwda-function that appends a pwacehowda (`${1:vawue}`) to
+		 * the {@winkcode SnippetStwing.vawue vawue} of this snippet stwing.
 		 *
-		 * @param value The value of this placeholder - either a string or a function
-		 * with which a nested snippet can be created.
-		 * @param number The number of this tabstop, defaults to an auto-increment
-		 * value starting at 1.
-		 * @return This snippet string.
+		 * @pawam vawue The vawue of this pwacehowda - eitha a stwing ow a function
+		 * with which a nested snippet can be cweated.
+		 * @pawam numba The numba of this tabstop, defauwts to an auto-incwement
+		 * vawue stawting at 1.
+		 * @wetuwn This snippet stwing.
 		 */
-		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
+		appendPwacehowda(vawue: stwing | ((snippet: SnippetStwing) => any), numba?: numba): SnippetStwing;
 
 		/**
-		 * Builder-function that appends a choice (`${1|a,b,c|}`) to
-		 * the {@linkcode SnippetString.value value} of this snippet string.
+		 * Buiwda-function that appends a choice (`${1|a,b,c|}`) to
+		 * the {@winkcode SnippetStwing.vawue vawue} of this snippet stwing.
 		 *
-		 * @param values The values for choices - the array of strings
-		 * @param number The number of this tabstop, defaults to an auto-increment
-		 * value starting at 1.
-		 * @return This snippet string.
+		 * @pawam vawues The vawues fow choices - the awway of stwings
+		 * @pawam numba The numba of this tabstop, defauwts to an auto-incwement
+		 * vawue stawting at 1.
+		 * @wetuwn This snippet stwing.
 		 */
-		appendChoice(values: string[], number?: number): SnippetString;
+		appendChoice(vawues: stwing[], numba?: numba): SnippetStwing;
 
 		/**
-		 * Builder-function that appends a variable (`${VAR}`) to
-		 * the {@linkcode SnippetString.value value} of this snippet string.
+		 * Buiwda-function that appends a vawiabwe (`${VAW}`) to
+		 * the {@winkcode SnippetStwing.vawue vawue} of this snippet stwing.
 		 *
-		 * @param name The name of the variable - excluding the `$`.
-		 * @param defaultValue The default value which is used when the variable name cannot
-		 * be resolved - either a string or a function with which a nested snippet can be created.
-		 * @return This snippet string.
+		 * @pawam name The name of the vawiabwe - excwuding the `$`.
+		 * @pawam defauwtVawue The defauwt vawue which is used when the vawiabwe name cannot
+		 * be wesowved - eitha a stwing ow a function with which a nested snippet can be cweated.
+		 * @wetuwn This snippet stwing.
 		 */
-		appendVariable(name: string, defaultValue: string | ((snippet: SnippetString) => any)): SnippetString;
+		appendVawiabwe(name: stwing, defauwtVawue: stwing | ((snippet: SnippetStwing) => any)): SnippetStwing;
 	}
 
 	/**
-	 * The rename provider interface defines the contract between extensions and
-	 * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
+	 * The wename pwovida intewface defines the contwact between extensions and
+	 * the [wename](https://code.visuawstudio.com/docs/editow/editingevowved#_wename-symbow)-featuwe.
 	 */
-	export interface RenameProvider {
+	expowt intewface WenamePwovida {
 
 		/**
-		 * Provide an edit that describes changes that have to be made to one
-		 * or many resources to rename a symbol to a different name.
+		 * Pwovide an edit that descwibes changes that have to be made to one
+		 * ow many wesouwces to wename a symbow to a diffewent name.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param newName The new name of the symbol. If the given name is not valid, the provider must return a rejected promise.
-		 * @param token A cancellation token.
-		 * @return A workspace edit or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam newName The new name of the symbow. If the given name is not vawid, the pwovida must wetuwn a wejected pwomise.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A wowkspace edit ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
+		pwovideWenameEdits(document: TextDocument, position: Position, newName: stwing, token: CancewwationToken): PwovidewWesuwt<WowkspaceEdit>;
 
 		/**
-		 * Optional function for resolving and validating a position *before* running rename. The result can
-		 * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
-		 * which is being renamed - when omitted the text in the returned range is used.
+		 * Optionaw function fow wesowving and vawidating a position *befowe* wunning wename. The wesuwt can
+		 * be a wange ow a wange and a pwacehowda text. The pwacehowda text shouwd be the identifia of the symbow
+		 * which is being wenamed - when omitted the text in the wetuwned wange is used.
 		 *
-		 * *Note: * This function should throw an error or return a rejected thenable when the provided location
-		 * doesn't allow for a rename.
+		 * *Note: * This function shouwd thwow an ewwow ow wetuwn a wejected thenabwe when the pwovided wocation
+		 * doesn't awwow fow a wename.
 		 *
-		 * @param document The document in which rename will be invoked.
-		 * @param position The position at which rename will be invoked.
-		 * @param token A cancellation token.
-		 * @return The range or range and placeholder text of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which wename wiww be invoked.
+		 * @pawam position The position at which wename wiww be invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wange ow wange and pwacehowda text of the identifia that is to be wenamed. The wack of a wesuwt can signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
+		pwepaweWename?(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<Wange | { wange: Wange, pwacehowda: stwing }>;
 	}
 
 	/**
-	 * A semantic tokens legend contains the needed information to decipher
-	 * the integer encoded representation of semantic tokens.
+	 * A semantic tokens wegend contains the needed infowmation to decipha
+	 * the intega encoded wepwesentation of semantic tokens.
 	 */
-	export class SemanticTokensLegend {
+	expowt cwass SemanticTokensWegend {
 		/**
-		 * The possible token types.
+		 * The possibwe token types.
 		 */
-		readonly tokenTypes: string[];
+		weadonwy tokenTypes: stwing[];
 		/**
-		 * The possible token modifiers.
+		 * The possibwe token modifiews.
 		 */
-		readonly tokenModifiers: string[];
+		weadonwy tokenModifiews: stwing[];
 
-		constructor(tokenTypes: string[], tokenModifiers?: string[]);
+		constwuctow(tokenTypes: stwing[], tokenModifiews?: stwing[]);
 	}
 
 	/**
-	 * A semantic tokens builder can help with creating a `SemanticTokens` instance
-	 * which contains delta encoded semantic tokens.
+	 * A semantic tokens buiwda can hewp with cweating a `SemanticTokens` instance
+	 * which contains dewta encoded semantic tokens.
 	 */
-	export class SemanticTokensBuilder {
+	expowt cwass SemanticTokensBuiwda {
 
-		constructor(legend?: SemanticTokensLegend);
+		constwuctow(wegend?: SemanticTokensWegend);
 
 		/**
-		 * Add another token.
+		 * Add anotha token.
 		 *
-		 * @param line The token start line number (absolute value).
-		 * @param char The token start character (absolute value).
-		 * @param length The token length in characters.
-		 * @param tokenType The encoded token type.
-		 * @param tokenModifiers The encoded token modifiers.
+		 * @pawam wine The token stawt wine numba (absowute vawue).
+		 * @pawam chaw The token stawt chawacta (absowute vawue).
+		 * @pawam wength The token wength in chawactews.
+		 * @pawam tokenType The encoded token type.
+		 * @pawam tokenModifiews The encoded token modifiews.
 		 */
-		push(line: number, char: number, length: number, tokenType: number, tokenModifiers?: number): void;
+		push(wine: numba, chaw: numba, wength: numba, tokenType: numba, tokenModifiews?: numba): void;
 
 		/**
-		 * Add another token. Use only when providing a legend.
+		 * Add anotha token. Use onwy when pwoviding a wegend.
 		 *
-		 * @param range The range of the token. Must be single-line.
-		 * @param tokenType The token type.
-		 * @param tokenModifiers The token modifiers.
+		 * @pawam wange The wange of the token. Must be singwe-wine.
+		 * @pawam tokenType The token type.
+		 * @pawam tokenModifiews The token modifiews.
 		 */
-		push(range: Range, tokenType: string, tokenModifiers?: string[]): void;
+		push(wange: Wange, tokenType: stwing, tokenModifiews?: stwing[]): void;
 
 		/**
-		 * Finish and create a `SemanticTokens` instance.
+		 * Finish and cweate a `SemanticTokens` instance.
 		 */
-		build(resultId?: string): SemanticTokens;
+		buiwd(wesuwtId?: stwing): SemanticTokens;
 	}
 
 	/**
-	 * Represents semantic tokens, either in a range or in an entire document.
-	 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens} for an explanation of the format.
-	 * @see {@link SemanticTokensBuilder} for a helper to create an instance.
+	 * Wepwesents semantic tokens, eitha in a wange ow in an entiwe document.
+	 * @see {@wink DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokens pwovideDocumentSemanticTokens} fow an expwanation of the fowmat.
+	 * @see {@wink SemanticTokensBuiwda} fow a hewpa to cweate an instance.
 	 */
-	export class SemanticTokens {
+	expowt cwass SemanticTokens {
 		/**
-		 * The result id of the tokens.
+		 * The wesuwt id of the tokens.
 		 *
-		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
+		 * This is the id that wiww be passed to `DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokensEdits` (if impwemented).
 		 */
-		readonly resultId?: string;
+		weadonwy wesuwtId?: stwing;
 		/**
-		 * The actual tokens data.
-		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens} for an explanation of the format.
+		 * The actuaw tokens data.
+		 * @see {@wink DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokens pwovideDocumentSemanticTokens} fow an expwanation of the fowmat.
 		 */
-		readonly data: Uint32Array;
+		weadonwy data: Uint32Awway;
 
-		constructor(data: Uint32Array, resultId?: string);
+		constwuctow(data: Uint32Awway, wesuwtId?: stwing);
 	}
 
 	/**
-	 * Represents edits to semantic tokens.
-	 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits provideDocumentSemanticTokensEdits} for an explanation of the format.
+	 * Wepwesents edits to semantic tokens.
+	 * @see {@wink DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokensEdits pwovideDocumentSemanticTokensEdits} fow an expwanation of the fowmat.
 	 */
-	export class SemanticTokensEdits {
+	expowt cwass SemanticTokensEdits {
 		/**
-		 * The result id of the tokens.
+		 * The wesuwt id of the tokens.
 		 *
-		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
+		 * This is the id that wiww be passed to `DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokensEdits` (if impwemented).
 		 */
-		readonly resultId?: string;
+		weadonwy wesuwtId?: stwing;
 		/**
 		 * The edits to the tokens data.
-		 * All edits refer to the initial data state.
+		 * Aww edits wefa to the initiaw data state.
 		 */
-		readonly edits: SemanticTokensEdit[];
+		weadonwy edits: SemanticTokensEdit[];
 
-		constructor(edits: SemanticTokensEdit[], resultId?: string);
+		constwuctow(edits: SemanticTokensEdit[], wesuwtId?: stwing);
 	}
 
 	/**
-	 * Represents an edit to semantic tokens.
-	 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits provideDocumentSemanticTokensEdits} for an explanation of the format.
+	 * Wepwesents an edit to semantic tokens.
+	 * @see {@wink DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokensEdits pwovideDocumentSemanticTokensEdits} fow an expwanation of the fowmat.
 	 */
-	export class SemanticTokensEdit {
+	expowt cwass SemanticTokensEdit {
 		/**
-		 * The start offset of the edit.
+		 * The stawt offset of the edit.
 		 */
-		readonly start: number;
+		weadonwy stawt: numba;
 		/**
-		 * The count of elements to remove.
+		 * The count of ewements to wemove.
 		 */
-		readonly deleteCount: number;
+		weadonwy deweteCount: numba;
 		/**
-		 * The elements to insert.
+		 * The ewements to insewt.
 		 */
-		readonly data?: Uint32Array;
+		weadonwy data?: Uint32Awway;
 
-		constructor(start: number, deleteCount: number, data?: Uint32Array);
+		constwuctow(stawt: numba, deweteCount: numba, data?: Uint32Awway);
 	}
 
 	/**
-	 * The document semantic tokens provider interface defines the contract between extensions and
+	 * The document semantic tokens pwovida intewface defines the contwact between extensions and
 	 * semantic tokens.
 	 */
-	export interface DocumentSemanticTokensProvider {
+	expowt intewface DocumentSemanticTokensPwovida {
 		/**
-		 * An optional event to signal that the semantic tokens from this provider have changed.
+		 * An optionaw event to signaw that the semantic tokens fwom this pwovida have changed.
 		 */
 		onDidChangeSemanticTokens?: Event<void>;
 
 		/**
-		 * Tokens in a file are represented as an array of integers. The position of each token is expressed relative to
-		 * the token before it, because most tokens remain stable relative to each other when edits are made in a file.
+		 * Tokens in a fiwe awe wepwesented as an awway of integews. The position of each token is expwessed wewative to
+		 * the token befowe it, because most tokens wemain stabwe wewative to each otha when edits awe made in a fiwe.
 		 *
 		 * ---
-		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following array indices:
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
-		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
-		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`. We currently ask that `tokenType` < 65536.
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
+		 * In showt, each token takes 5 integews to wepwesent, so a specific token `i` in the fiwe consists of the fowwowing awway indices:
+		 *  - at index `5*i`   - `dewtaWine`: token wine numba, wewative to the pwevious token
+		 *  - at index `5*i+1` - `dewtaStawt`: token stawt chawacta, wewative to the pwevious token (wewative to 0 ow the pwevious token's stawt if they awe on the same wine)
+		 *  - at index `5*i+2` - `wength`: the wength of the token. A token cannot be muwtiwine.
+		 *  - at index `5*i+3` - `tokenType`: wiww be wooked up in `SemanticTokensWegend.tokenTypes`. We cuwwentwy ask that `tokenType` < 65536.
+		 *  - at index `5*i+4` - `tokenModifiews`: each set bit wiww be wooked up in `SemanticTokensWegend.tokenModifiews`
 		 *
 		 * ---
 		 * ### How to encode tokens
 		 *
-		 * Here is an example for encoding a file with 3 tokens in a uint32 array:
+		 * Hewe is an exampwe fow encoding a fiwe with 3 tokens in a uint32 awway:
 		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: "property",  tokenModifiers: ["private", "static"] },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: "type",      tokenModifiers: [] },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: "class",     tokenModifiers: [] }
-		 * ```
-		 *
-		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
-		 * For this example, we will choose the following legend which must be passed in when registering the provider:
-		 * ```
-		 *    tokenTypes: ['property', 'type', 'class'],
-		 *    tokenModifiers: ['private', 'static']
+		 *    { wine: 2, stawtChaw:  5, wength: 3, tokenType: "pwopewty",  tokenModifiews: ["pwivate", "static"] },
+		 *    { wine: 2, stawtChaw: 10, wength: 4, tokenType: "type",      tokenModifiews: [] },
+		 *    { wine: 5, stawtChaw:  2, wength: 7, tokenType: "cwass",     tokenModifiews: [] }
 		 * ```
 		 *
-		 * 2. The first transformation step is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
-		 * so a `tokenModifier` value of `3` is first viewed as binary `0b00000011`, which means `[tokenModifiers[0], tokenModifiers[1]]` because
-		 * bits 0 and 1 are set. Using this legend, the tokens now are:
+		 * 1. Fiwst of aww, a wegend must be devised. This wegend must be pwovided up-fwont and captuwe aww possibwe token types.
+		 * Fow this exampwe, we wiww choose the fowwowing wegend which must be passed in when wegistewing the pwovida:
 		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: 2, tokenModifiers: 0 }
+		 *    tokenTypes: ['pwopewty', 'type', 'cwass'],
+		 *    tokenModifiews: ['pwivate', 'static']
 		 * ```
 		 *
-		 * 3. The next step is to represent each token relative to the previous token in the file. In this case, the second token
-		 * is on the same line as the first token, so the `startChar` of the second token is made relative to the `startChar`
-		 * of the first token, so it will be `10 - 5`. The third token is on a different line than the second token, so the
-		 * `startChar` of the third token will not be altered:
+		 * 2. The fiwst twansfowmation step is to encode `tokenType` and `tokenModifiews` as integews using the wegend. Token types awe wooked
+		 * up by index, so a `tokenType` vawue of `1` means `tokenTypes[1]`. Muwtipwe token modifiews can be set by using bit fwags,
+		 * so a `tokenModifia` vawue of `3` is fiwst viewed as binawy `0b00000011`, which means `[tokenModifiews[0], tokenModifiews[1]]` because
+		 * bits 0 and 1 awe set. Using this wegend, the tokens now awe:
 		 * ```
-		 *    { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 2, tokenModifiers: 0 }
+		 *    { wine: 2, stawtChaw:  5, wength: 3, tokenType: 0, tokenModifiews: 3 },
+		 *    { wine: 2, stawtChaw: 10, wength: 4, tokenType: 1, tokenModifiews: 0 },
+		 *    { wine: 5, stawtChaw:  2, wength: 7, tokenType: 2, tokenModifiews: 0 }
 		 * ```
 		 *
-		 * 4. Finally, the last step is to inline each of the 5 fields for a token in a single array, which is a memory friendly representation:
+		 * 3. The next step is to wepwesent each token wewative to the pwevious token in the fiwe. In this case, the second token
+		 * is on the same wine as the fiwst token, so the `stawtChaw` of the second token is made wewative to the `stawtChaw`
+		 * of the fiwst token, so it wiww be `10 - 5`. The thiwd token is on a diffewent wine than the second token, so the
+		 * `stawtChaw` of the thiwd token wiww not be awtewed:
 		 * ```
-		 *    // 1st token,  2nd token,  3rd token
+		 *    { dewtaWine: 2, dewtaStawtChaw: 5, wength: 3, tokenType: 0, tokenModifiews: 3 },
+		 *    { dewtaWine: 0, dewtaStawtChaw: 5, wength: 4, tokenType: 1, tokenModifiews: 0 },
+		 *    { dewtaWine: 3, dewtaStawtChaw: 2, wength: 7, tokenType: 2, tokenModifiews: 0 }
+		 * ```
+		 *
+		 * 4. Finawwy, the wast step is to inwine each of the 5 fiewds fow a token in a singwe awway, which is a memowy fwiendwy wepwesentation:
+		 * ```
+		 *    // 1st token,  2nd token,  3wd token
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
 		 *
-		 * @see {@link SemanticTokensBuilder} for a helper to encode tokens as integers.
-		 * *NOTE*: When doing edits, it is possible that multiple edits occur until the editor decides to invoke the semantic tokens provider.
-		 * *NOTE*: If the provider cannot temporarily compute semantic tokens, it can indicate this by throwing an error with the message 'Busy'.
+		 * @see {@wink SemanticTokensBuiwda} fow a hewpa to encode tokens as integews.
+		 * *NOTE*: When doing edits, it is possibwe that muwtipwe edits occuw untiw the editow decides to invoke the semantic tokens pwovida.
+		 * *NOTE*: If the pwovida cannot tempowawiwy compute semantic tokens, it can indicate this by thwowing an ewwow with the message 'Busy'.
 		 */
-		provideDocumentSemanticTokens(document: TextDocument, token: CancellationToken): ProviderResult<SemanticTokens>;
+		pwovideDocumentSemanticTokens(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<SemanticTokens>;
 
 		/**
-		 * Instead of always returning all the tokens in a file, it is possible for a `DocumentSemanticTokensProvider` to implement
-		 * this method (`provideDocumentSemanticTokensEdits`) and then return incremental updates to the previously provided semantic tokens.
+		 * Instead of awways wetuwning aww the tokens in a fiwe, it is possibwe fow a `DocumentSemanticTokensPwovida` to impwement
+		 * this method (`pwovideDocumentSemanticTokensEdits`) and then wetuwn incwementaw updates to the pweviouswy pwovided semantic tokens.
 		 *
 		 * ---
 		 * ### How tokens change when the document changes
 		 *
-		 * Suppose that `provideDocumentSemanticTokens` has previously returned the following semantic tokens:
+		 * Suppose that `pwovideDocumentSemanticTokens` has pweviouswy wetuwned the fowwowing semantic tokens:
 		 * ```
-		 *    // 1st token,  2nd token,  3rd token
+		 *    // 1st token,  2nd token,  3wd token
 		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
 		 *
-		 * Also suppose that after some edits, the new semantic tokens in a file are:
+		 * Awso suppose that afta some edits, the new semantic tokens in a fiwe awe:
 		 * ```
-		 *    // 1st token,  2nd token,  3rd token
+		 *    // 1st token,  2nd token,  3wd token
 		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
 		 * ```
-		 * It is possible to express these new tokens in terms of an edit applied to the previous tokens:
+		 * It is possibwe to expwess these new tokens in tewms of an edit appwied to the pwevious tokens:
 		 * ```
-		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // old tokens
+		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // owd tokens
 		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ] // new tokens
 		 *
-		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
+		 *    edit: { stawt:  0, deweteCount: 1, data: [3] } // wepwace intega at offset 0 with 3
 		 * ```
 		 *
-		 * *NOTE*: If the provider cannot compute `SemanticTokensEdits`, it can "give up" and return all the tokens in the document again.
-		 * *NOTE*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
+		 * *NOTE*: If the pwovida cannot compute `SemanticTokensEdits`, it can "give up" and wetuwn aww the tokens in the document again.
+		 * *NOTE*: Aww edits in `SemanticTokensEdits` contain indices in the owd integews awway, so they aww wefa to the pwevious wesuwt state.
 		 */
-		provideDocumentSemanticTokensEdits?(document: TextDocument, previousResultId: string, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
+		pwovideDocumentSemanticTokensEdits?(document: TextDocument, pweviousWesuwtId: stwing, token: CancewwationToken): PwovidewWesuwt<SemanticTokens | SemanticTokensEdits>;
 	}
 
 	/**
-	 * The document range semantic tokens provider interface defines the contract between extensions and
+	 * The document wange semantic tokens pwovida intewface defines the contwact between extensions and
 	 * semantic tokens.
 	 */
-	export interface DocumentRangeSemanticTokensProvider {
+	expowt intewface DocumentWangeSemanticTokensPwovida {
 		/**
-		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens}.
+		 * @see {@wink DocumentSemanticTokensPwovida.pwovideDocumentSemanticTokens pwovideDocumentSemanticTokens}.
 		 */
-		provideDocumentRangeSemanticTokens(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+		pwovideDocumentWangeSemanticTokens(document: TextDocument, wange: Wange, token: CancewwationToken): PwovidewWesuwt<SemanticTokens>;
 	}
 
 	/**
-	 * Value-object describing what options formatting should use.
+	 * Vawue-object descwibing what options fowmatting shouwd use.
 	 */
-	export interface FormattingOptions {
+	expowt intewface FowmattingOptions {
 
 		/**
 		 * Size of a tab in spaces.
 		 */
-		tabSize: number;
+		tabSize: numba;
 
 		/**
-		 * Prefer spaces over tabs.
+		 * Pwefa spaces ova tabs.
 		 */
-		insertSpaces: boolean;
+		insewtSpaces: boowean;
 
 		/**
-		 * Signature for further properties.
+		 * Signatuwe fow fuwtha pwopewties.
 		 */
-		[key: string]: boolean | number | string;
+		[key: stwing]: boowean | numba | stwing;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface DocumentFormattingEditProvider {
+	expowt intewface DocumentFowmattingEditPwovida {
 
 		/**
-		 * Provide formatting edits for a whole document.
+		 * Pwovide fowmatting edits fow a whowe document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param options Options controlling formatting.
-		 * @param token A cancellation token.
-		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam options Options contwowwing fowmatting.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A set of text edits ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentFormattingEdits(document: TextDocument, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideDocumentFowmattingEdits(document: TextDocument, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface DocumentRangeFormattingEditProvider {
+	expowt intewface DocumentWangeFowmattingEditPwovida {
 
 		/**
-		 * Provide formatting edits for a range in a document.
+		 * Pwovide fowmatting edits fow a wange in a document.
 		 *
-		 * The given range is a hint and providers can decide to format a smaller
-		 * or larger range. Often this is done by adjusting the start and end
-		 * of the range to full syntax nodes.
+		 * The given wange is a hint and pwovidews can decide to fowmat a smawwa
+		 * ow wawga wange. Often this is done by adjusting the stawt and end
+		 * of the wange to fuww syntax nodes.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The range which should be formatted.
-		 * @param options Options controlling formatting.
-		 * @param token A cancellation token.
-		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam wange The wange which shouwd be fowmatted.
+		 * @pawam options Options contwowwing fowmatting.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A set of text edits ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideDocumentWangeFowmattingEdits(document: TextDocument, wange: Wange, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * The document formatting provider interface defines the contract between extensions and
-	 * the formatting-feature.
+	 * The document fowmatting pwovida intewface defines the contwact between extensions and
+	 * the fowmatting-featuwe.
 	 */
-	export interface OnTypeFormattingEditProvider {
+	expowt intewface OnTypeFowmattingEditPwovida {
 
 		/**
-		 * Provide formatting edits after a character has been typed.
+		 * Pwovide fowmatting edits afta a chawacta has been typed.
 		 *
-		 * The given position and character should hint to the provider
-		 * what range the position to expand to, like find the matching `{`
-		 * when `}` has been entered.
+		 * The given position and chawacta shouwd hint to the pwovida
+		 * what wange the position to expand to, wike find the matching `{`
+		 * when `}` has been entewed.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param ch The character that has been typed.
-		 * @param options Options controlling formatting.
-		 * @param token A cancellation token.
-		 * @return A set of text edits or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam ch The chawacta that has been typed.
+		 * @pawam options Options contwowwing fowmatting.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A set of text edits ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideOnTypeFormattingEdits(document: TextDocument, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		pwovideOnTypeFowmattingEdits(document: TextDocument, position: Position, ch: stwing, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 	}
 
 	/**
-	 * Represents a parameter of a callable-signature. A parameter can
-	 * have a label and a doc-comment.
+	 * Wepwesents a pawameta of a cawwabwe-signatuwe. A pawameta can
+	 * have a wabew and a doc-comment.
 	 */
-	export class ParameterInformation {
+	expowt cwass PawametewInfowmation {
 
 		/**
-		 * The label of this signature.
+		 * The wabew of this signatuwe.
 		 *
-		 * Either a string or inclusive start and exclusive end offsets within its containing
-		 * {@link SignatureInformation.label signature label}. *Note*: A label of type string must be
-		 * a substring of its containing signature information's {@link SignatureInformation.label label}.
+		 * Eitha a stwing ow incwusive stawt and excwusive end offsets within its containing
+		 * {@wink SignatuweInfowmation.wabew signatuwe wabew}. *Note*: A wabew of type stwing must be
+		 * a substwing of its containing signatuwe infowmation's {@wink SignatuweInfowmation.wabew wabew}.
 		 */
-		label: string | [number, number];
+		wabew: stwing | [numba, numba];
 
 		/**
-		 * The human-readable doc-comment of this signature. Will be shown
+		 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string | MarkdownString;
+		documentation?: stwing | MawkdownStwing;
 
 		/**
-		 * Creates a new parameter information object.
+		 * Cweates a new pawameta infowmation object.
 		 *
-		 * @param label A label string or inclusive start and exclusive end offsets within its containing signature label.
-		 * @param documentation A doc string.
+		 * @pawam wabew A wabew stwing ow incwusive stawt and excwusive end offsets within its containing signatuwe wabew.
+		 * @pawam documentation A doc stwing.
 		 */
-		constructor(label: string | [number, number], documentation?: string | MarkdownString);
+		constwuctow(wabew: stwing | [numba, numba], documentation?: stwing | MawkdownStwing);
 	}
 
 	/**
-	 * Represents the signature of something callable. A signature
-	 * can have a label, like a function-name, a doc-comment, and
-	 * a set of parameters.
+	 * Wepwesents the signatuwe of something cawwabwe. A signatuwe
+	 * can have a wabew, wike a function-name, a doc-comment, and
+	 * a set of pawametews.
 	 */
-	export class SignatureInformation {
+	expowt cwass SignatuweInfowmation {
 
 		/**
-		 * The label of this signature. Will be shown in
+		 * The wabew of this signatuwe. Wiww be shown in
 		 * the UI.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * The human-readable doc-comment of this signature. Will be shown
+		 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
 		 * in the UI but can be omitted.
 		 */
-		documentation?: string | MarkdownString;
+		documentation?: stwing | MawkdownStwing;
 
 		/**
-		 * The parameters of this signature.
+		 * The pawametews of this signatuwe.
 		 */
-		parameters: ParameterInformation[];
+		pawametews: PawametewInfowmation[];
 
 		/**
-		 * The index of the active parameter.
+		 * The index of the active pawameta.
 		 *
-		 * If provided, this is used in place of {@linkcode SignatureHelp.activeSignature}.
+		 * If pwovided, this is used in pwace of {@winkcode SignatuweHewp.activeSignatuwe}.
 		 */
-		activeParameter?: number;
+		activePawameta?: numba;
 
 		/**
-		 * Creates a new signature information object.
+		 * Cweates a new signatuwe infowmation object.
 		 *
-		 * @param label A label string.
-		 * @param documentation A doc string.
+		 * @pawam wabew A wabew stwing.
+		 * @pawam documentation A doc stwing.
 		 */
-		constructor(label: string, documentation?: string | MarkdownString);
+		constwuctow(wabew: stwing, documentation?: stwing | MawkdownStwing);
 	}
 
 	/**
-	 * Signature help represents the signature of something
-	 * callable. There can be multiple signatures but only one
-	 * active and only one active parameter.
+	 * Signatuwe hewp wepwesents the signatuwe of something
+	 * cawwabwe. Thewe can be muwtipwe signatuwes but onwy one
+	 * active and onwy one active pawameta.
 	 */
-	export class SignatureHelp {
+	expowt cwass SignatuweHewp {
 
 		/**
-		 * One or more signatures.
+		 * One ow mowe signatuwes.
 		 */
-		signatures: SignatureInformation[];
+		signatuwes: SignatuweInfowmation[];
 
 		/**
-		 * The active signature.
+		 * The active signatuwe.
 		 */
-		activeSignature: number;
+		activeSignatuwe: numba;
 
 		/**
-		 * The active parameter of the active signature.
+		 * The active pawameta of the active signatuwe.
 		 */
-		activeParameter: number;
+		activePawameta: numba;
 	}
 
 	/**
-	 * How a {@linkcode SignatureHelpProvider} was triggered.
+	 * How a {@winkcode SignatuweHewpPwovida} was twiggewed.
 	 */
-	export enum SignatureHelpTriggerKind {
+	expowt enum SignatuweHewpTwiggewKind {
 		/**
-		 * Signature help was invoked manually by the user or by a command.
+		 * Signatuwe hewp was invoked manuawwy by the usa ow by a command.
 		 */
 		Invoke = 1,
 
 		/**
-		 * Signature help was triggered by a trigger character.
+		 * Signatuwe hewp was twiggewed by a twigga chawacta.
 		 */
-		TriggerCharacter = 2,
+		TwiggewChawacta = 2,
 
 		/**
-		 * Signature help was triggered by the cursor moving or by the document content changing.
+		 * Signatuwe hewp was twiggewed by the cuwsow moving ow by the document content changing.
 		 */
 		ContentChange = 3,
 	}
 
 	/**
-	 * Additional information about the context in which a
-	 * {@linkcode SignatureHelpProvider.provideSignatureHelp SignatureHelpProvider} was triggered.
+	 * Additionaw infowmation about the context in which a
+	 * {@winkcode SignatuweHewpPwovida.pwovideSignatuweHewp SignatuweHewpPwovida} was twiggewed.
 	 */
-	export interface SignatureHelpContext {
+	expowt intewface SignatuweHewpContext {
 		/**
-		 * Action that caused signature help to be triggered.
+		 * Action that caused signatuwe hewp to be twiggewed.
 		 */
-		readonly triggerKind: SignatureHelpTriggerKind;
+		weadonwy twiggewKind: SignatuweHewpTwiggewKind;
 
 		/**
-		 * Character that caused signature help to be triggered.
+		 * Chawacta that caused signatuwe hewp to be twiggewed.
 		 *
-		 * This is `undefined` when signature help is not triggered by typing, such as when manually invoking
-		 * signature help or when moving the cursor.
+		 * This is `undefined` when signatuwe hewp is not twiggewed by typing, such as when manuawwy invoking
+		 * signatuwe hewp ow when moving the cuwsow.
 		 */
-		readonly triggerCharacter?: string;
+		weadonwy twiggewChawacta?: stwing;
 
 		/**
-		 * `true` if signature help was already showing when it was triggered.
+		 * `twue` if signatuwe hewp was awweady showing when it was twiggewed.
 		 *
-		 * Retriggers occur when the signature help is already active and can be caused by actions such as
-		 * typing a trigger character, a cursor move, or document content changes.
+		 * Wetwiggews occuw when the signatuwe hewp is awweady active and can be caused by actions such as
+		 * typing a twigga chawacta, a cuwsow move, ow document content changes.
 		 */
-		readonly isRetrigger: boolean;
+		weadonwy isWetwigga: boowean;
 
 		/**
-		 * The currently active {@linkcode SignatureHelp}.
+		 * The cuwwentwy active {@winkcode SignatuweHewp}.
 		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
-		 * the user arrowing through available signatures.
+		 * The `activeSignatuweHewp` has its [`SignatuweHewp.activeSignatuwe`] fiewd updated based on
+		 * the usa awwowing thwough avaiwabwe signatuwes.
 		 */
-		readonly activeSignatureHelp?: SignatureHelp;
+		weadonwy activeSignatuweHewp?: SignatuweHewp;
 	}
 
 	/**
-	 * The signature help provider interface defines the contract between extensions and
-	 * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+	 * The signatuwe hewp pwovida intewface defines the contwact between extensions and
+	 * the [pawameta hints](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
 	 */
-	export interface SignatureHelpProvider {
+	expowt intewface SignatuweHewpPwovida {
 
 		/**
-		 * Provide help for the signature at the given position and document.
+		 * Pwovide hewp fow the signatuwe at the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @param context Information about how signature help was triggered.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @pawam context Infowmation about how signatuwe hewp was twiggewed.
 		 *
-		 * @return Signature help or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @wetuwn Signatuwe hewp ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelp>;
+		pwovideSignatuweHewp(document: TextDocument, position: Position, token: CancewwationToken, context: SignatuweHewpContext): PwovidewWesuwt<SignatuweHewp>;
 	}
 
 	/**
-	 * Metadata about a registered {@linkcode SignatureHelpProvider}.
+	 * Metadata about a wegistewed {@winkcode SignatuweHewpPwovida}.
 	 */
-	export interface SignatureHelpProviderMetadata {
+	expowt intewface SignatuweHewpPwovidewMetadata {
 		/**
-		 * List of characters that trigger signature help.
+		 * Wist of chawactews that twigga signatuwe hewp.
 		 */
-		readonly triggerCharacters: readonly string[];
+		weadonwy twiggewChawactews: weadonwy stwing[];
 
 		/**
-		 * List of characters that re-trigger signature help.
+		 * Wist of chawactews that we-twigga signatuwe hewp.
 		 *
-		 * These trigger characters are only active when signature help is already showing. All trigger characters
-		 * are also counted as re-trigger characters.
+		 * These twigga chawactews awe onwy active when signatuwe hewp is awweady showing. Aww twigga chawactews
+		 * awe awso counted as we-twigga chawactews.
 		 */
-		readonly retriggerCharacters: readonly string[];
+		weadonwy wetwiggewChawactews: weadonwy stwing[];
 	}
 
 	/**
-	 * A structured label for a {@link CompletionItem completion item}.
+	 * A stwuctuwed wabew fow a {@wink CompwetionItem compwetion item}.
 	 */
-	export interface CompletionItemLabel {
+	expowt intewface CompwetionItemWabew {
 
 		/**
-		 * The label of this completion item.
+		 * The wabew of this compwetion item.
 		 *
-		 * By default this is also the text that is inserted when this completion is selected.
+		 * By defauwt this is awso the text that is insewted when this compwetion is sewected.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * An optional string which is rendered less prominently directly after {@link CompletionItemLabel.label label},
-		 * without any spacing. Should be used for function signatures or type annotations.
+		 * An optionaw stwing which is wendewed wess pwominentwy diwectwy afta {@wink CompwetionItemWabew.wabew wabew},
+		 * without any spacing. Shouwd be used fow function signatuwes ow type annotations.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * An optional string which is rendered less prominently after {@link CompletionItemLabel.detail}. Should be used
-		 * for fully qualified names or file path.
+		 * An optionaw stwing which is wendewed wess pwominentwy afta {@wink CompwetionItemWabew.detaiw}. Shouwd be used
+		 * fow fuwwy quawified names ow fiwe path.
 		 */
-		description?: string;
+		descwiption?: stwing;
 	}
 
 	/**
-	 * Completion item kinds.
+	 * Compwetion item kinds.
 	 */
-	export enum CompletionItemKind {
+	expowt enum CompwetionItemKind {
 		Text = 0,
 		Method = 1,
 		Function = 2,
-		Constructor = 3,
-		Field = 4,
-		Variable = 5,
-		Class = 6,
-		Interface = 7,
-		Module = 8,
-		Property = 9,
+		Constwuctow = 3,
+		Fiewd = 4,
+		Vawiabwe = 5,
+		Cwass = 6,
+		Intewface = 7,
+		Moduwe = 8,
+		Pwopewty = 9,
 		Unit = 10,
-		Value = 11,
+		Vawue = 11,
 		Enum = 12,
-		Keyword = 13,
+		Keywowd = 13,
 		Snippet = 14,
-		Color = 15,
-		Reference = 17,
-		File = 16,
-		Folder = 18,
-		EnumMember = 19,
+		Cowow = 15,
+		Wefewence = 17,
+		Fiwe = 16,
+		Fowda = 18,
+		EnumMemba = 19,
 		Constant = 20,
-		Struct = 21,
+		Stwuct = 21,
 		Event = 22,
-		Operator = 23,
-		TypeParameter = 24,
-		User = 25,
+		Opewatow = 23,
+		TypePawameta = 24,
+		Usa = 25,
 		Issue = 26,
 	}
 
 	/**
-	 * Completion item tags are extra annotations that tweak the rendering of a completion
+	 * Compwetion item tags awe extwa annotations that tweak the wendewing of a compwetion
 	 * item.
 	 */
-	export enum CompletionItemTag {
+	expowt enum CompwetionItemTag {
 		/**
-		 * Render a completion as obsolete, usually using a strike-out.
+		 * Wenda a compwetion as obsowete, usuawwy using a stwike-out.
 		 */
-		Deprecated = 1
+		Depwecated = 1
 	}
 
 	/**
-	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
+	 * A compwetion item wepwesents a text snippet that is pwoposed to compwete text that is being typed.
 	 *
-	 * It is sufficient to create a completion item from just a {@link CompletionItem.label label}. In that
-	 * case the completion item will replace the {@link TextDocument.getWordRangeAtPosition word}
-	 * until the cursor with the given label or {@link CompletionItem.insertText insertText}. Otherwise the
-	 * given {@link CompletionItem.textEdit edit} is used.
+	 * It is sufficient to cweate a compwetion item fwom just a {@wink CompwetionItem.wabew wabew}. In that
+	 * case the compwetion item wiww wepwace the {@wink TextDocument.getWowdWangeAtPosition wowd}
+	 * untiw the cuwsow with the given wabew ow {@wink CompwetionItem.insewtText insewtText}. Othewwise the
+	 * given {@wink CompwetionItem.textEdit edit} is used.
 	 *
-	 * When selecting a completion item in the editor its defined or synthesized text edit will be applied
-	 * to *all* cursors/selections whereas {@link CompletionItem.additionalTextEdits additionalTextEdits} will be
-	 * applied as provided.
+	 * When sewecting a compwetion item in the editow its defined ow synthesized text edit wiww be appwied
+	 * to *aww* cuwsows/sewections wheweas {@wink CompwetionItem.additionawTextEdits additionawTextEdits} wiww be
+	 * appwied as pwovided.
 	 *
-	 * @see {@link CompletionItemProvider.provideCompletionItems}
-	 * @see {@link CompletionItemProvider.resolveCompletionItem}
+	 * @see {@wink CompwetionItemPwovida.pwovideCompwetionItems}
+	 * @see {@wink CompwetionItemPwovida.wesowveCompwetionItem}
 	 */
-	export class CompletionItem {
+	expowt cwass CompwetionItem {
 
 		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
+		 * The wabew of this compwetion item. By defauwt
+		 * this is awso the text that is insewted when sewecting
+		 * this compwetion.
 		 */
-		label: string | CompletionItemLabel;
+		wabew: stwing | CompwetionItemWabew;
 
 		/**
-		 * The kind of this completion item. Based on the kind
-		 * an icon is chosen by the editor.
+		 * The kind of this compwetion item. Based on the kind
+		 * an icon is chosen by the editow.
 		 */
-		kind?: CompletionItemKind;
+		kind?: CompwetionItemKind;
 
 		/**
-		 * Tags for this completion item.
+		 * Tags fow this compwetion item.
 		 */
-		tags?: readonly CompletionItemTag[];
+		tags?: weadonwy CompwetionItemTag[];
 
 		/**
-		 * A human-readable string with additional information
-		 * about this item, like type or symbol information.
+		 * A human-weadabwe stwing with additionaw infowmation
+		 * about this item, wike type ow symbow infowmation.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * A human-readable string that represents a doc-comment.
+		 * A human-weadabwe stwing that wepwesents a doc-comment.
 		 */
-		documentation?: string | MarkdownString;
+		documentation?: stwing | MawkdownStwing;
 
 		/**
-		 * A string that should be used when comparing this item
-		 * with other items. When `falsy` the {@link CompletionItem.label label}
+		 * A stwing that shouwd be used when compawing this item
+		 * with otha items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 		 * is used.
 		 *
-		 * Note that `sortText` is only used for the initial ordering of completion
-		 * items. When having a leading word (prefix) ordering is based on how
-		 * well completions match that prefix and the initial ordering is only used
-		 * when completions match equally well. The prefix is defined by the
-		 * {@linkcode CompletionItem.range range}-property and can therefore be different
-		 * for each completion.
+		 * Note that `sowtText` is onwy used fow the initiaw owdewing of compwetion
+		 * items. When having a weading wowd (pwefix) owdewing is based on how
+		 * weww compwetions match that pwefix and the initiaw owdewing is onwy used
+		 * when compwetions match equawwy weww. The pwefix is defined by the
+		 * {@winkcode CompwetionItem.wange wange}-pwopewty and can thewefowe be diffewent
+		 * fow each compwetion.
 		 */
-		sortText?: string;
+		sowtText?: stwing;
 
 		/**
-		 * A string that should be used when filtering a set of
-		 * completion items. When `falsy` the {@link CompletionItem.label label}
+		 * A stwing that shouwd be used when fiwtewing a set of
+		 * compwetion items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 		 * is used.
 		 *
-		 * Note that the filter text is matched against the leading word (prefix) which is defined
-		 * by the {@linkcode CompletionItem.range range}-property.
+		 * Note that the fiwta text is matched against the weading wowd (pwefix) which is defined
+		 * by the {@winkcode CompwetionItem.wange wange}-pwopewty.
 		 */
-		filterText?: string;
+		fiwtewText?: stwing;
 
 		/**
-		 * Select this item when showing. *Note* that only one completion item can be selected and
-		 * that the editor decides which item that is. The rule is that the *first* item of those
-		 * that match best is selected.
+		 * Sewect this item when showing. *Note* that onwy one compwetion item can be sewected and
+		 * that the editow decides which item that is. The wuwe is that the *fiwst* item of those
+		 * that match best is sewected.
 		 */
-		preselect?: boolean;
+		pwesewect?: boowean;
 
 		/**
-		 * A string or snippet that should be inserted in a document when selecting
-		 * this completion. When `falsy` the {@link CompletionItem.label label}
+		 * A stwing ow snippet that shouwd be insewted in a document when sewecting
+		 * this compwetion. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 		 * is used.
 		 */
-		insertText?: string | SnippetString;
+		insewtText?: stwing | SnippetStwing;
 
 		/**
-		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
+		 * A wange ow a insewt and wepwace wange sewecting the text that shouwd be wepwaced by this compwetion item.
 		 *
-		 * When omitted, the range of the {@link TextDocument.getWordRangeAtPosition current word} is used as replace-range
-		 * and as insert-range the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-		 * current position is used.
+		 * When omitted, the wange of the {@wink TextDocument.getWowdWangeAtPosition cuwwent wowd} is used as wepwace-wange
+		 * and as insewt-wange the stawt of the {@wink TextDocument.getWowdWangeAtPosition cuwwent wowd} to the
+		 * cuwwent position is used.
 		 *
-		 * *Note 1:* A range must be a {@link Range.isSingleLine single line} and it must
-		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
-		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
+		 * *Note 1:* A wange must be a {@wink Wange.isSingweWine singwe wine} and it must
+		 * {@wink Wange.contains contain} the position at which compwetion has been {@wink CompwetionItemPwovida.pwovideCompwetionItems wequested}.
+		 * *Note 2:* A insewt wange must be a pwefix of a wepwace wange, that means it must be contained and stawting at the same position.
 		 */
-		range?: Range | { inserting: Range; replacing: Range; };
+		wange?: Wange | { insewting: Wange; wepwacing: Wange; };
 
 		/**
-		 * An optional set of characters that when pressed while this completion is active will accept it first and
-		 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-		 * characters will be ignored.
+		 * An optionaw set of chawactews that when pwessed whiwe this compwetion is active wiww accept it fiwst and
+		 * then type that chawacta. *Note* that aww commit chawactews shouwd have `wength=1` and that supewfwuous
+		 * chawactews wiww be ignowed.
 		 */
-		commitCharacters?: string[];
+		commitChawactews?: stwing[];
 
 		/**
-		 * Keep whitespace of the {@link CompletionItem.insertText insertText} as is. By default, the editor adjusts leading
-		 * whitespace of new lines so that they match the indentation of the line for which the item is accepted - setting
-		 * this to `true` will prevent that.
+		 * Keep whitespace of the {@wink CompwetionItem.insewtText insewtText} as is. By defauwt, the editow adjusts weading
+		 * whitespace of new wines so that they match the indentation of the wine fow which the item is accepted - setting
+		 * this to `twue` wiww pwevent that.
 		 */
-		keepWhitespace?: boolean;
+		keepWhitespace?: boowean;
 
 		/**
-		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
+		 * @depwecated Use `CompwetionItem.insewtText` and `CompwetionItem.wange` instead.
 		 *
-		 * An {@link TextEdit edit} which is applied to a document when selecting
-		 * this completion. When an edit is provided the value of
-		 * {@link CompletionItem.insertText insertText} is ignored.
+		 * An {@wink TextEdit edit} which is appwied to a document when sewecting
+		 * this compwetion. When an edit is pwovided the vawue of
+		 * {@wink CompwetionItem.insewtText insewtText} is ignowed.
 		 *
-		 * The {@link Range} of the edit must be single-line and on the same
-		 * line completions were {@link CompletionItemProvider.provideCompletionItems requested} at.
+		 * The {@wink Wange} of the edit must be singwe-wine and on the same
+		 * wine compwetions wewe {@wink CompwetionItemPwovida.pwovideCompwetionItems wequested} at.
 		 */
 		textEdit?: TextEdit;
 
 		/**
-		 * An optional array of additional {@link TextEdit text edits} that are applied when
-		 * selecting this completion. Edits must not overlap with the main {@link CompletionItem.textEdit edit}
-		 * nor with themselves.
+		 * An optionaw awway of additionaw {@wink TextEdit text edits} that awe appwied when
+		 * sewecting this compwetion. Edits must not ovewwap with the main {@wink CompwetionItem.textEdit edit}
+		 * now with themsewves.
 		 */
-		additionalTextEdits?: TextEdit[];
+		additionawTextEdits?: TextEdit[];
 
 		/**
-		 * An optional {@link Command} that is executed *after* inserting this completion. *Note* that
-		 * additional modifications to the current document should be described with the
-		 * {@link CompletionItem.additionalTextEdits additionalTextEdits}-property.
+		 * An optionaw {@wink Command} that is executed *afta* insewting this compwetion. *Note* that
+		 * additionaw modifications to the cuwwent document shouwd be descwibed with the
+		 * {@wink CompwetionItem.additionawTextEdits additionawTextEdits}-pwopewty.
 		 */
 		command?: Command;
 
 		/**
-		 * Creates a new completion item.
+		 * Cweates a new compwetion item.
 		 *
-		 * Completion items must have at least a {@link CompletionItem.label label} which then
-		 * will be used as insert text as well as for sorting and filtering.
+		 * Compwetion items must have at weast a {@wink CompwetionItem.wabew wabew} which then
+		 * wiww be used as insewt text as weww as fow sowting and fiwtewing.
 		 *
-		 * @param label The label of the completion.
-		 * @param kind The {@link CompletionItemKind kind} of the completion.
+		 * @pawam wabew The wabew of the compwetion.
+		 * @pawam kind The {@wink CompwetionItemKind kind} of the compwetion.
 		 */
-		constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind);
+		constwuctow(wabew: stwing | CompwetionItemWabew, kind?: CompwetionItemKind);
 	}
 
 	/**
-	 * Represents a collection of {@link CompletionItem completion items} to be presented
-	 * in the editor.
+	 * Wepwesents a cowwection of {@wink CompwetionItem compwetion items} to be pwesented
+	 * in the editow.
 	 */
-	export class CompletionList<T extends CompletionItem = CompletionItem> {
+	expowt cwass CompwetionWist<T extends CompwetionItem = CompwetionItem> {
 
 		/**
-		 * This list is not complete. Further typing should result in recomputing
-		 * this list.
+		 * This wist is not compwete. Fuwtha typing shouwd wesuwt in wecomputing
+		 * this wist.
 		 */
-		isIncomplete?: boolean;
+		isIncompwete?: boowean;
 
 		/**
-		 * The completion items.
+		 * The compwetion items.
 		 */
 		items: T[];
 
 		/**
-		 * Creates a new completion list.
+		 * Cweates a new compwetion wist.
 		 *
-		 * @param items The completion items.
-		 * @param isIncomplete The list is not complete.
+		 * @pawam items The compwetion items.
+		 * @pawam isIncompwete The wist is not compwete.
 		 */
-		constructor(items?: T[], isIncomplete?: boolean);
+		constwuctow(items?: T[], isIncompwete?: boowean);
 	}
 
 	/**
-	 * How a {@link CompletionItemProvider completion provider} was triggered
+	 * How a {@wink CompwetionItemPwovida compwetion pwovida} was twiggewed
 	 */
-	export enum CompletionTriggerKind {
+	expowt enum CompwetionTwiggewKind {
 		/**
-		 * Completion was triggered normally.
+		 * Compwetion was twiggewed nowmawwy.
 		 */
 		Invoke = 0,
 		/**
-		 * Completion was triggered by a trigger character.
+		 * Compwetion was twiggewed by a twigga chawacta.
 		 */
-		TriggerCharacter = 1,
+		TwiggewChawacta = 1,
 		/**
-		 * Completion was re-triggered as current completion list is incomplete
+		 * Compwetion was we-twiggewed as cuwwent compwetion wist is incompwete
 		 */
-		TriggerForIncompleteCompletions = 2
+		TwiggewFowIncompweteCompwetions = 2
 	}
 
 	/**
-	 * Contains additional information about the context in which
-	 * {@link CompletionItemProvider.provideCompletionItems completion provider} is triggered.
+	 * Contains additionaw infowmation about the context in which
+	 * {@wink CompwetionItemPwovida.pwovideCompwetionItems compwetion pwovida} is twiggewed.
 	 */
-	export interface CompletionContext {
+	expowt intewface CompwetionContext {
 		/**
-		 * How the completion was triggered.
+		 * How the compwetion was twiggewed.
 		 */
-		readonly triggerKind: CompletionTriggerKind;
+		weadonwy twiggewKind: CompwetionTwiggewKind;
 
 		/**
-		 * Character that triggered the completion item provider.
+		 * Chawacta that twiggewed the compwetion item pwovida.
 		 *
-		 * `undefined` if provider was not triggered by a character.
+		 * `undefined` if pwovida was not twiggewed by a chawacta.
 		 *
-		 * The trigger character is already in the document when the completion provider is triggered.
+		 * The twigga chawacta is awweady in the document when the compwetion pwovida is twiggewed.
 		 */
-		readonly triggerCharacter?: string;
+		weadonwy twiggewChawacta?: stwing;
 	}
 
 	/**
-	 * The completion item provider interface defines the contract between extensions and
-	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+	 * The compwetion item pwovida intewface defines the contwact between extensions and
+	 * [IntewwiSense](https://code.visuawstudio.com/docs/editow/intewwisense).
 	 *
-	 * Providers can delay the computation of the {@linkcode CompletionItem.detail detail}
-	 * and {@linkcode CompletionItem.documentation documentation} properties by implementing the
-	 * {@linkcode CompletionItemProvider.resolveCompletionItem resolveCompletionItem}-function. However, properties that
-	 * are needed for the initial sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
-	 * not be changed during resolve.
+	 * Pwovidews can deway the computation of the {@winkcode CompwetionItem.detaiw detaiw}
+	 * and {@winkcode CompwetionItem.documentation documentation} pwopewties by impwementing the
+	 * {@winkcode CompwetionItemPwovida.wesowveCompwetionItem wesowveCompwetionItem}-function. Howeva, pwopewties that
+	 * awe needed fow the initiaw sowting and fiwtewing, wike `sowtText`, `fiwtewText`, `insewtText`, and `wange`, must
+	 * not be changed duwing wesowve.
 	 *
-	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
-	 * implicitly when typing words or trigger characters.
+	 * Pwovidews awe asked fow compwetions eitha expwicitwy by a usa gestuwe ow -depending on the configuwation-
+	 * impwicitwy when typing wowds ow twigga chawactews.
 	 */
-	export interface CompletionItemProvider<T extends CompletionItem = CompletionItem> {
+	expowt intewface CompwetionItemPwovida<T extends CompwetionItem = CompwetionItem> {
 
 		/**
-		 * Provide completion items for the given position and document.
+		 * Pwovide compwetion items fow the given position and document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @param context How the completion was triggered.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @pawam context How the compwetion was twiggewed.
 		 *
-		 * @return An array of completions, a {@link CompletionList completion list}, or a thenable that resolves to either.
-		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @wetuwn An awway of compwetions, a {@wink CompwetionWist compwetion wist}, ow a thenabwe that wesowves to eitha.
+		 * The wack of a wesuwt can be signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken, context: CompletionContext): ProviderResult<T[] | CompletionList<T>>;
+		pwovideCompwetionItems(document: TextDocument, position: Position, token: CancewwationToken, context: CompwetionContext): PwovidewWesuwt<T[] | CompwetionWist<T>>;
 
 		/**
-		 * Given a completion item fill in more data, like {@link CompletionItem.documentation doc-comment}
-		 * or {@link CompletionItem.detail details}.
+		 * Given a compwetion item fiww in mowe data, wike {@wink CompwetionItem.documentation doc-comment}
+		 * ow {@wink CompwetionItem.detaiw detaiws}.
 		 *
-		 * The editor will only resolve a completion item once.
+		 * The editow wiww onwy wesowve a compwetion item once.
 		 *
-		 * *Note* that this function is called when completion items are already showing in the UI or when an item has been
-		 * selected for insertion. Because of that, no property that changes the presentation (label, sorting, filtering etc)
-		 * or the (primary) insert behaviour ({@link CompletionItem.insertText insertText}) can be changed.
+		 * *Note* that this function is cawwed when compwetion items awe awweady showing in the UI ow when an item has been
+		 * sewected fow insewtion. Because of that, no pwopewty that changes the pwesentation (wabew, sowting, fiwtewing etc)
+		 * ow the (pwimawy) insewt behaviouw ({@wink CompwetionItem.insewtText insewtText}) can be changed.
 		 *
-		 * This function may fill in {@link CompletionItem.additionalTextEdits additionalTextEdits}. However, that means an item might be
-		 * inserted *before* resolving is done and in that case the editor will do a best effort to still apply those additional
+		 * This function may fiww in {@wink CompwetionItem.additionawTextEdits additionawTextEdits}. Howeva, that means an item might be
+		 * insewted *befowe* wesowving is done and in that case the editow wiww do a best effowt to stiww appwy those additionaw
 		 * text edits.
 		 *
-		 * @param item A completion item currently active in the UI.
-		 * @param token A cancellation token.
-		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
+		 * @pawam item A compwetion item cuwwentwy active in the UI.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved compwetion item ow a thenabwe that wesowves to of such. It is OK to wetuwn the given
+		 * `item`. When no wesuwt is wetuwned, the given `item` wiww be used.
 		 */
-		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
+		wesowveCompwetionItem?(item: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * A document link is a range in a text document that links to an internal or external resource, like another
-	 * text document or a web site.
+	 * A document wink is a wange in a text document that winks to an intewnaw ow extewnaw wesouwce, wike anotha
+	 * text document ow a web site.
 	 */
-	export class DocumentLink {
+	expowt cwass DocumentWink {
 
 		/**
-		 * The range this link applies to.
+		 * The wange this wink appwies to.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The uri this link points to.
+		 * The uwi this wink points to.
 		 */
-		target?: Uri;
+		tawget?: Uwi;
 
 		/**
-		 * The tooltip text when you hover over this link.
+		 * The toowtip text when you hova ova this wink.
 		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on how to
-		 * trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary depending on OS,
-		 * user settings, and localization.
+		 * If a toowtip is pwovided, is wiww be dispwayed in a stwing that incwudes instwuctions on how to
+		 * twigga the wink, such as `{0} (ctww + cwick)`. The specific instwuctions vawy depending on OS,
+		 * usa settings, and wocawization.
 		 */
-		tooltip?: string;
+		toowtip?: stwing;
 
 		/**
-		 * Creates a new document link.
+		 * Cweates a new document wink.
 		 *
-		 * @param range The range the document link applies to. Must not be empty.
-		 * @param target The uri the document link points to.
+		 * @pawam wange The wange the document wink appwies to. Must not be empty.
+		 * @pawam tawget The uwi the document wink points to.
 		 */
-		constructor(range: Range, target?: Uri);
+		constwuctow(wange: Wange, tawget?: Uwi);
 	}
 
 	/**
-	 * The document link provider defines the contract between extensions and feature of showing
-	 * links in the editor.
+	 * The document wink pwovida defines the contwact between extensions and featuwe of showing
+	 * winks in the editow.
 	 */
-	export interface DocumentLinkProvider<T extends DocumentLink = DocumentLink> {
+	expowt intewface DocumentWinkPwovida<T extends DocumentWink = DocumentWink> {
 
 		/**
-		 * Provide links for the given document. Note that the editor ships with a default provider that detects
-		 * `http(s)` and `file` links.
+		 * Pwovide winks fow the given document. Note that the editow ships with a defauwt pwovida that detects
+		 * `http(s)` and `fiwe` winks.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of {@link DocumentLink document links} or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of {@wink DocumentWink document winks} ow a thenabwe that wesowves to such. The wack of a wesuwt
+		 * can be signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentLinks(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
+		pwovideDocumentWinks(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<T[]>;
 
 		/**
-		 * Given a link fill in its {@link DocumentLink.target target}. This method is called when an incomplete
-		 * link is selected in the UI. Providers can implement this method and return incomplete links
-		 * (without target) from the {@linkcode DocumentLinkProvider.provideDocumentLinks provideDocumentLinks} method which
-		 * often helps to improve performance.
+		 * Given a wink fiww in its {@wink DocumentWink.tawget tawget}. This method is cawwed when an incompwete
+		 * wink is sewected in the UI. Pwovidews can impwement this method and wetuwn incompwete winks
+		 * (without tawget) fwom the {@winkcode DocumentWinkPwovida.pwovideDocumentWinks pwovideDocumentWinks} method which
+		 * often hewps to impwove pewfowmance.
 		 *
-		 * @param link The link that is to be resolved.
-		 * @param token A cancellation token.
+		 * @pawam wink The wink that is to be wesowved.
+		 * @pawam token A cancewwation token.
 		 */
-		resolveDocumentLink?(link: T, token: CancellationToken): ProviderResult<T>;
+		wesowveDocumentWink?(wink: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * Represents a color in RGBA space.
+	 * Wepwesents a cowow in WGBA space.
 	 */
-	export class Color {
+	expowt cwass Cowow {
 
 		/**
-		 * The red component of this color in the range [0-1].
+		 * The wed component of this cowow in the wange [0-1].
 		 */
-		readonly red: number;
+		weadonwy wed: numba;
 
 		/**
-		 * The green component of this color in the range [0-1].
+		 * The gween component of this cowow in the wange [0-1].
 		 */
-		readonly green: number;
+		weadonwy gween: numba;
 
 		/**
-		 * The blue component of this color in the range [0-1].
+		 * The bwue component of this cowow in the wange [0-1].
 		 */
-		readonly blue: number;
+		weadonwy bwue: numba;
 
 		/**
-		 * The alpha component of this color in the range [0-1].
+		 * The awpha component of this cowow in the wange [0-1].
 		 */
-		readonly alpha: number;
+		weadonwy awpha: numba;
 
 		/**
-		 * Creates a new color instance.
+		 * Cweates a new cowow instance.
 		 *
-		 * @param red The red component.
-		 * @param green The green component.
-		 * @param blue The blue component.
-		 * @param alpha The alpha component.
+		 * @pawam wed The wed component.
+		 * @pawam gween The gween component.
+		 * @pawam bwue The bwue component.
+		 * @pawam awpha The awpha component.
 		 */
-		constructor(red: number, green: number, blue: number, alpha: number);
+		constwuctow(wed: numba, gween: numba, bwue: numba, awpha: numba);
 	}
 
 	/**
-	 * Represents a color range from a document.
+	 * Wepwesents a cowow wange fwom a document.
 	 */
-	export class ColorInformation {
+	expowt cwass CowowInfowmation {
 
 		/**
-		 * The range in the document where this color appears.
+		 * The wange in the document whewe this cowow appeaws.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The actual color value for this color range.
+		 * The actuaw cowow vawue fow this cowow wange.
 		 */
-		color: Color;
+		cowow: Cowow;
 
 		/**
-		 * Creates a new color range.
+		 * Cweates a new cowow wange.
 		 *
-		 * @param range The range the color appears in. Must not be empty.
-		 * @param color The value of the color.
-		 * @param format The format in which this color is currently formatted.
+		 * @pawam wange The wange the cowow appeaws in. Must not be empty.
+		 * @pawam cowow The vawue of the cowow.
+		 * @pawam fowmat The fowmat in which this cowow is cuwwentwy fowmatted.
 		 */
-		constructor(range: Range, color: Color);
+		constwuctow(wange: Wange, cowow: Cowow);
 	}
 
 	/**
-	 * A color presentation object describes how a {@linkcode Color} should be represented as text and what
-	 * edits are required to refer to it from source code.
+	 * A cowow pwesentation object descwibes how a {@winkcode Cowow} shouwd be wepwesented as text and what
+	 * edits awe wequiwed to wefa to it fwom souwce code.
 	 *
-	 * For some languages one color can have multiple presentations, e.g. css can represent the color red with
-	 * the constant `Red`, the hex-value `#ff0000`, or in rgba and hsla forms. In csharp other representations
-	 * apply, e.g. `System.Drawing.Color.Red`.
+	 * Fow some wanguages one cowow can have muwtipwe pwesentations, e.g. css can wepwesent the cowow wed with
+	 * the constant `Wed`, the hex-vawue `#ff0000`, ow in wgba and hswa fowms. In cshawp otha wepwesentations
+	 * appwy, e.g. `System.Dwawing.Cowow.Wed`.
 	 */
-	export class ColorPresentation {
+	expowt cwass CowowPwesentation {
 
 		/**
-		 * The label of this color presentation. It will be shown on the color
-		 * picker header. By default this is also the text that is inserted when selecting
-		 * this color presentation.
+		 * The wabew of this cowow pwesentation. It wiww be shown on the cowow
+		 * picka heada. By defauwt this is awso the text that is insewted when sewecting
+		 * this cowow pwesentation.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * An {@link TextEdit edit} which is applied to a document when selecting
-		 * this presentation for the color.  When `falsy` the {@link ColorPresentation.label label}
+		 * An {@wink TextEdit edit} which is appwied to a document when sewecting
+		 * this pwesentation fow the cowow.  When `fawsy` the {@wink CowowPwesentation.wabew wabew}
 		 * is used.
 		 */
 		textEdit?: TextEdit;
 
 		/**
-		 * An optional array of additional {@link TextEdit text edits} that are applied when
-		 * selecting this color presentation. Edits must not overlap with the main {@link ColorPresentation.textEdit edit} nor with themselves.
+		 * An optionaw awway of additionaw {@wink TextEdit text edits} that awe appwied when
+		 * sewecting this cowow pwesentation. Edits must not ovewwap with the main {@wink CowowPwesentation.textEdit edit} now with themsewves.
 		 */
-		additionalTextEdits?: TextEdit[];
+		additionawTextEdits?: TextEdit[];
 
 		/**
-		 * Creates a new color presentation.
+		 * Cweates a new cowow pwesentation.
 		 *
-		 * @param label The label of this color presentation.
+		 * @pawam wabew The wabew of this cowow pwesentation.
 		 */
-		constructor(label: string);
+		constwuctow(wabew: stwing);
 	}
 
 	/**
-	 * The document color provider defines the contract between extensions and feature of
-	 * picking and modifying colors in the editor.
+	 * The document cowow pwovida defines the contwact between extensions and featuwe of
+	 * picking and modifying cowows in the editow.
 	 */
-	export interface DocumentColorProvider {
+	expowt intewface DocumentCowowPwovida {
 
 		/**
-		 * Provide colors for the given document.
+		 * Pwovide cowows fow the given document.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return An array of {@link ColorInformation color information} or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of {@wink CowowInfowmation cowow infowmation} ow a thenabwe that wesowves to such. The wack of a wesuwt
+		 * can be signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
+		pwovideDocumentCowows(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<CowowInfowmation[]>;
 
 		/**
-		 * Provide {@link ColorPresentation representations} for a color.
+		 * Pwovide {@wink CowowPwesentation wepwesentations} fow a cowow.
 		 *
-		 * @param color The color to show and insert.
-		 * @param context A context object with additional information
-		 * @param token A cancellation token.
-		 * @return An array of color presentations or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam cowow The cowow to show and insewt.
+		 * @pawam context A context object with additionaw infowmation
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of cowow pwesentations ow a thenabwe that wesowves to such. The wack of a wesuwt
+		 * can be signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+		pwovideCowowPwesentations(cowow: Cowow, context: { document: TextDocument, wange: Wange }, token: CancewwationToken): PwovidewWesuwt<CowowPwesentation[]>;
 	}
 
 	/**
-	 * A line based folding range. To be valid, start and end line must be bigger than zero and smaller than the number of lines in the document.
-	 * Invalid ranges will be ignored.
+	 * A wine based fowding wange. To be vawid, stawt and end wine must be bigga than zewo and smawwa than the numba of wines in the document.
+	 * Invawid wanges wiww be ignowed.
 	 */
-	export class FoldingRange {
+	expowt cwass FowdingWange {
 
 		/**
-		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
-		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
+		 * The zewo-based stawt wine of the wange to fowd. The fowded awea stawts afta the wine's wast chawacta.
+		 * To be vawid, the end must be zewo ow wawga and smawwa than the numba of wines in the document.
 		 */
-		start: number;
+		stawt: numba;
 
 		/**
-		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
-		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
+		 * The zewo-based end wine of the wange to fowd. The fowded awea ends with the wine's wast chawacta.
+		 * To be vawid, the end must be zewo ow wawga and smawwa than the numba of wines in the document.
 		 */
-		end: number;
+		end: numba;
 
 		/**
-		 * Describes the {@link FoldingRangeKind Kind} of the folding range such as {@link FoldingRangeKind.Comment Comment} or
-		 * {@link FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges and used by commands
-		 * like 'Fold all comments'. See
-		 * {@link FoldingRangeKind} for an enumeration of all kinds.
-		 * If not set, the range is originated from a syntax element.
+		 * Descwibes the {@wink FowdingWangeKind Kind} of the fowding wange such as {@wink FowdingWangeKind.Comment Comment} ow
+		 * {@wink FowdingWangeKind.Wegion Wegion}. The kind is used to categowize fowding wanges and used by commands
+		 * wike 'Fowd aww comments'. See
+		 * {@wink FowdingWangeKind} fow an enumewation of aww kinds.
+		 * If not set, the wange is owiginated fwom a syntax ewement.
 		 */
-		kind?: FoldingRangeKind;
+		kind?: FowdingWangeKind;
 
 		/**
-		 * Creates a new folding range.
+		 * Cweates a new fowding wange.
 		 *
-		 * @param start The start line of the folded range.
-		 * @param end The end line of the folded range.
-		 * @param kind The kind of the folding range.
+		 * @pawam stawt The stawt wine of the fowded wange.
+		 * @pawam end The end wine of the fowded wange.
+		 * @pawam kind The kind of the fowding wange.
 		 */
-		constructor(start: number, end: number, kind?: FoldingRangeKind);
+		constwuctow(stawt: numba, end: numba, kind?: FowdingWangeKind);
 	}
 
 	/**
-	 * An enumeration of specific folding range kinds. The kind is an optional field of a {@link FoldingRange}
-	 * and is used to distinguish specific folding ranges such as ranges originated from comments. The kind is used by commands like
-	 * `Fold all comments` or `Fold all regions`.
-	 * If the kind is not set on the range, the range originated from a syntax element other than comments, imports or region markers.
+	 * An enumewation of specific fowding wange kinds. The kind is an optionaw fiewd of a {@wink FowdingWange}
+	 * and is used to distinguish specific fowding wanges such as wanges owiginated fwom comments. The kind is used by commands wike
+	 * `Fowd aww comments` ow `Fowd aww wegions`.
+	 * If the kind is not set on the wange, the wange owiginated fwom a syntax ewement otha than comments, impowts ow wegion mawkews.
 	 */
-	export enum FoldingRangeKind {
+	expowt enum FowdingWangeKind {
 		/**
-		 * Kind for folding range representing a comment.
+		 * Kind fow fowding wange wepwesenting a comment.
 		 */
 		Comment = 1,
 		/**
-		 * Kind for folding range representing a import.
+		 * Kind fow fowding wange wepwesenting a impowt.
 		 */
-		Imports = 2,
+		Impowts = 2,
 		/**
-		 * Kind for folding range representing regions originating from folding markers like `#region` and `#endregion`.
+		 * Kind fow fowding wange wepwesenting wegions owiginating fwom fowding mawkews wike `#wegion` and `#endwegion`.
 		 */
-		Region = 3
+		Wegion = 3
 	}
 
 	/**
-	 * Folding context (for future use)
+	 * Fowding context (fow futuwe use)
 	 */
-	export interface FoldingContext {
+	expowt intewface FowdingContext {
 	}
 
 	/**
-	 * The folding range provider interface defines the contract between extensions and
-	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
+	 * The fowding wange pwovida intewface defines the contwact between extensions and
+	 * [Fowding](https://code.visuawstudio.com/docs/editow/codebasics#_fowding) in the editow.
 	 */
-	export interface FoldingRangeProvider {
+	expowt intewface FowdingWangePwovida {
 
 		/**
-		 * An optional event to signal that the folding ranges from this provider have changed.
+		 * An optionaw event to signaw that the fowding wanges fwom this pwovida have changed.
 		 */
-		onDidChangeFoldingRanges?: Event<void>;
+		onDidChangeFowdingWanges?: Event<void>;
 
 		/**
-		 * Returns a list of folding ranges or null and undefined if the provider
-		 * does not want to participate or was cancelled.
-		 * @param document The document in which the command was invoked.
-		 * @param context Additional context information (for future use)
-		 * @param token A cancellation token.
+		 * Wetuwns a wist of fowding wanges ow nuww and undefined if the pwovida
+		 * does not want to pawticipate ow was cancewwed.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam context Additionaw context infowmation (fow futuwe use)
+		 * @pawam token A cancewwation token.
 		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
+		pwovideFowdingWanges(document: TextDocument, context: FowdingContext, token: CancewwationToken): PwovidewWesuwt<FowdingWange[]>;
 	}
 
 	/**
-	 * A selection range represents a part of a selection hierarchy. A selection range
-	 * may have a parent selection range that contains it.
+	 * A sewection wange wepwesents a pawt of a sewection hiewawchy. A sewection wange
+	 * may have a pawent sewection wange that contains it.
 	 */
-	export class SelectionRange {
+	expowt cwass SewectionWange {
 
 		/**
-		 * The {@link Range} of this selection range.
+		 * The {@wink Wange} of this sewection wange.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The parent selection range containing this range.
+		 * The pawent sewection wange containing this wange.
 		 */
-		parent?: SelectionRange;
+		pawent?: SewectionWange;
 
 		/**
-		 * Creates a new selection range.
+		 * Cweates a new sewection wange.
 		 *
-		 * @param range The range of the selection range.
-		 * @param parent The parent of the selection range.
+		 * @pawam wange The wange of the sewection wange.
+		 * @pawam pawent The pawent of the sewection wange.
 		 */
-		constructor(range: Range, parent?: SelectionRange);
+		constwuctow(wange: Wange, pawent?: SewectionWange);
 	}
 
-	export interface SelectionRangeProvider {
+	expowt intewface SewectionWangePwovida {
 		/**
-		 * Provide selection ranges for the given positions.
+		 * Pwovide sewection wanges fow the given positions.
 		 *
-		 * Selection ranges should be computed individually and independent for each position. The editor will merge
-		 * and deduplicate ranges but providers must return hierarchies of selection ranges so that a range
-		 * is {@link Range.contains contained} by its parent.
+		 * Sewection wanges shouwd be computed individuawwy and independent fow each position. The editow wiww mewge
+		 * and dedupwicate wanges but pwovidews must wetuwn hiewawchies of sewection wanges so that a wange
+		 * is {@wink Wange.contains contained} by its pawent.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param positions The positions at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @return Selection ranges or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam positions The positions at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn Sewection wanges ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideSelectionRanges(document: TextDocument, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[]>;
+		pwovideSewectionWanges(document: TextDocument, positions: Position[], token: CancewwationToken): PwovidewWesuwt<SewectionWange[]>;
 	}
 
 	/**
-	 * Represents programming constructs like functions or constructors in the context
-	 * of call hierarchy.
+	 * Wepwesents pwogwamming constwucts wike functions ow constwuctows in the context
+	 * of caww hiewawchy.
 	 */
-	export class CallHierarchyItem {
+	expowt cwass CawwHiewawchyItem {
 		/**
 		 * The name of this item.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
 		 * The kind of this item.
 		 */
-		kind: SymbolKind;
+		kind: SymbowKind;
 
 		/**
-		 * Tags for this item.
+		 * Tags fow this item.
 		 */
-		tags?: readonly SymbolTag[];
+		tags?: weadonwy SymbowTag[];
 
 		/**
-		 * More detail for this item, e.g. the signature of a function.
+		 * Mowe detaiw fow this item, e.g. the signatuwe of a function.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * The resource identifier of this item.
+		 * The wesouwce identifia of this item.
 		 */
-		uri: Uri;
+		uwi: Uwi;
 
 		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
+		 * The wange encwosing this symbow not incwuding weading/twaiwing whitespace but evewything ewse, e.g. comments and code.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The range that should be selected and revealed when this symbol is being picked, e.g. the name of a function.
-		 * Must be contained by the {@linkcode CallHierarchyItem.range range}.
+		 * The wange that shouwd be sewected and weveawed when this symbow is being picked, e.g. the name of a function.
+		 * Must be contained by the {@winkcode CawwHiewawchyItem.wange wange}.
 		 */
-		selectionRange: Range;
+		sewectionWange: Wange;
 
 		/**
-		 * Creates a new call hierarchy item.
+		 * Cweates a new caww hiewawchy item.
 		 */
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+		constwuctow(kind: SymbowKind, name: stwing, detaiw: stwing, uwi: Uwi, wange: Wange, sewectionWange: Wange);
 	}
 
 	/**
-	 * Represents an incoming call, e.g. a caller of a method or constructor.
+	 * Wepwesents an incoming caww, e.g. a cawwa of a method ow constwuctow.
 	 */
-	export class CallHierarchyIncomingCall {
+	expowt cwass CawwHiewawchyIncomingCaww {
 
 		/**
-		 * The item that makes the call.
+		 * The item that makes the caww.
 		 */
-		from: CallHierarchyItem;
+		fwom: CawwHiewawchyItem;
 
 		/**
-		 * The range at which at which the calls appears. This is relative to the caller
-		 * denoted by {@linkcode CallHierarchyIncomingCall.from this.from}.
+		 * The wange at which at which the cawws appeaws. This is wewative to the cawwa
+		 * denoted by {@winkcode CawwHiewawchyIncomingCaww.fwom this.fwom}.
 		 */
-		fromRanges: Range[];
+		fwomWanges: Wange[];
 
 		/**
-		 * Create a new call object.
+		 * Cweate a new caww object.
 		 *
-		 * @param item The item making the call.
-		 * @param fromRanges The ranges at which the calls appear.
+		 * @pawam item The item making the caww.
+		 * @pawam fwomWanges The wanges at which the cawws appeaw.
 		 */
-		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+		constwuctow(item: CawwHiewawchyItem, fwomWanges: Wange[]);
 	}
 
 	/**
-	 * Represents an outgoing call, e.g. calling a getter from a method or a method from a constructor etc.
+	 * Wepwesents an outgoing caww, e.g. cawwing a getta fwom a method ow a method fwom a constwuctow etc.
 	 */
-	export class CallHierarchyOutgoingCall {
+	expowt cwass CawwHiewawchyOutgoingCaww {
 
 		/**
-		 * The item that is called.
+		 * The item that is cawwed.
 		 */
-		to: CallHierarchyItem;
+		to: CawwHiewawchyItem;
 
 		/**
-		 * The range at which this item is called. This is the range relative to the caller, e.g the item
-		 * passed to {@linkcode CallHierarchyProvider.provideCallHierarchyOutgoingCalls provideCallHierarchyOutgoingCalls}
-		 * and not {@linkcode CallHierarchyOutgoingCall.to this.to}.
+		 * The wange at which this item is cawwed. This is the wange wewative to the cawwa, e.g the item
+		 * passed to {@winkcode CawwHiewawchyPwovida.pwovideCawwHiewawchyOutgoingCawws pwovideCawwHiewawchyOutgoingCawws}
+		 * and not {@winkcode CawwHiewawchyOutgoingCaww.to this.to}.
 		 */
-		fromRanges: Range[];
+		fwomWanges: Wange[];
 
 		/**
-		 * Create a new call object.
+		 * Cweate a new caww object.
 		 *
-		 * @param item The item being called
-		 * @param fromRanges The ranges at which the calls appear.
+		 * @pawam item The item being cawwed
+		 * @pawam fwomWanges The wanges at which the cawws appeaw.
 		 */
-		constructor(item: CallHierarchyItem, fromRanges: Range[]);
+		constwuctow(item: CawwHiewawchyItem, fwomWanges: Wange[]);
 	}
 
 	/**
-	 * The call hierarchy provider interface describes the contract between extensions
-	 * and the call hierarchy feature which allows to browse calls and caller of function,
-	 * methods, constructor etc.
+	 * The caww hiewawchy pwovida intewface descwibes the contwact between extensions
+	 * and the caww hiewawchy featuwe which awwows to bwowse cawws and cawwa of function,
+	 * methods, constwuctow etc.
 	 */
-	export interface CallHierarchyProvider {
+	expowt intewface CawwHiewawchyPwovida {
 
 		/**
-		 * Bootstraps call hierarchy by returning the item that is denoted by the given document
-		 * and position. This item will be used as entry into the call graph. Providers should
-		 * return `undefined` or `null` when there is no item at the given location.
+		 * Bootstwaps caww hiewawchy by wetuwning the item that is denoted by the given document
+		 * and position. This item wiww be used as entwy into the caww gwaph. Pwovidews shouwd
+		 * wetuwn `undefined` ow `nuww` when thewe is no item at the given wocation.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @returns One or multiple call hierarchy items or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns One ow muwtipwe caww hiewawchy items ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		prepareCallHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<CallHierarchyItem | CallHierarchyItem[]>;
+		pwepaweCawwHiewawchy(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<CawwHiewawchyItem | CawwHiewawchyItem[]>;
 
 		/**
-		 * Provide all incoming calls for an item, e.g all callers for a method. In graph terms this describes directed
-		 * and annotated edges inside the call graph, e.g the given item is the starting node and the result is the nodes
-		 * that can be reached.
+		 * Pwovide aww incoming cawws fow an item, e.g aww cawwews fow a method. In gwaph tewms this descwibes diwected
+		 * and annotated edges inside the caww gwaph, e.g the given item is the stawting node and the wesuwt is the nodes
+		 * that can be weached.
 		 *
-		 * @param item The hierarchy item for which incoming calls should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of incoming calls or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam item The hiewawchy item fow which incoming cawws shouwd be computed.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns A set of incoming cawws ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+		pwovideCawwHiewawchyIncomingCawws(item: CawwHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<CawwHiewawchyIncomingCaww[]>;
 
 		/**
-		 * Provide all outgoing calls for an item, e.g call calls to functions, methods, or constructors from the given item. In
-		 * graph terms this describes directed and annotated edges inside the call graph, e.g the given item is the starting
-		 * node and the result is the nodes that can be reached.
+		 * Pwovide aww outgoing cawws fow an item, e.g caww cawws to functions, methods, ow constwuctows fwom the given item. In
+		 * gwaph tewms this descwibes diwected and annotated edges inside the caww gwaph, e.g the given item is the stawting
+		 * node and the wesuwt is the nodes that can be weached.
 		 *
-		 * @param item The hierarchy item for which outgoing calls should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of outgoing calls or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam item The hiewawchy item fow which outgoing cawws shouwd be computed.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns A set of outgoing cawws ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+		pwovideCawwHiewawchyOutgoingCawws(item: CawwHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<CawwHiewawchyOutgoingCaww[]>;
 	}
 
 	/**
-	 * Represents an item of a type hierarchy, like a class or an interface.
+	 * Wepwesents an item of a type hiewawchy, wike a cwass ow an intewface.
 	 */
-	export class TypeHierarchyItem {
+	expowt cwass TypeHiewawchyItem {
 		/**
 		 * The name of this item.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
 		 * The kind of this item.
 		 */
-		kind: SymbolKind;
+		kind: SymbowKind;
 
 		/**
-		 * Tags for this item.
+		 * Tags fow this item.
 		 */
-		tags?: ReadonlyArray<SymbolTag>;
+		tags?: WeadonwyAwway<SymbowTag>;
 
 		/**
-		 * More detail for this item, e.g. the signature of a function.
+		 * Mowe detaiw fow this item, e.g. the signatuwe of a function.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * The resource identifier of this item.
+		 * The wesouwce identifia of this item.
 		 */
-		uri: Uri;
+		uwi: Uwi;
 
 		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace
-		 * but everything else, e.g. comments and code.
+		 * The wange encwosing this symbow not incwuding weading/twaiwing whitespace
+		 * but evewything ewse, e.g. comments and code.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The range that should be selected and revealed when this symbol is being
-		 * picked, e.g. the name of a class. Must be contained by the {@link TypeHierarchyItem.range range}-property.
+		 * The wange that shouwd be sewected and weveawed when this symbow is being
+		 * picked, e.g. the name of a cwass. Must be contained by the {@wink TypeHiewawchyItem.wange wange}-pwopewty.
 		 */
-		selectionRange: Range;
+		sewectionWange: Wange;
 
 		/**
-		 * Creates a new type hierarchy item.
+		 * Cweates a new type hiewawchy item.
 		 *
-		 * @param kind The kind of the item.
-		 * @param name The name of the item.
-		 * @param detail The details of the item.
-		 * @param uri The Uri of the item.
-		 * @param range The whole range of the item.
-		 * @param selectionRange The selection range of the item.
+		 * @pawam kind The kind of the item.
+		 * @pawam name The name of the item.
+		 * @pawam detaiw The detaiws of the item.
+		 * @pawam uwi The Uwi of the item.
+		 * @pawam wange The whowe wange of the item.
+		 * @pawam sewectionWange The sewection wange of the item.
 		 */
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+		constwuctow(kind: SymbowKind, name: stwing, detaiw: stwing, uwi: Uwi, wange: Wange, sewectionWange: Wange);
 	}
 
 	/**
-	 * The type hierarchy provider interface describes the contract between extensions
-	 * and the type hierarchy feature.
+	 * The type hiewawchy pwovida intewface descwibes the contwact between extensions
+	 * and the type hiewawchy featuwe.
 	 */
-	export interface TypeHierarchyProvider {
+	expowt intewface TypeHiewawchyPwovida {
 
 		/**
-		 * Bootstraps type hierarchy by returning the item that is denoted by the given document
-		 * and position. This item will be used as entry into the type graph. Providers should
-		 * return `undefined` or `null` when there is no item at the given location.
+		 * Bootstwaps type hiewawchy by wetuwning the item that is denoted by the given document
+		 * and position. This item wiww be used as entwy into the type gwaph. Pwovidews shouwd
+		 * wetuwn `undefined` ow `nuww` when thewe is no item at the given wocation.
 		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @returns One or multiple type hierarchy items or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @pawam document The document in which the command was invoked.
+		 * @pawam position The position at which the command was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns One ow muwtipwe type hiewawchy items ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined`, `nuww`, ow an empty awway.
 		 */
-		prepareTypeHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<TypeHierarchyItem | TypeHierarchyItem[]>;
+		pwepaweTypeHiewawchy(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchyItem | TypeHiewawchyItem[]>;
 
 		/**
-		 * Provide all supertypes for an item, e.g all types from which a type is derived/inherited. In graph terms this describes directed
-		 * and annotated edges inside the type graph, e.g the given item is the starting node and the result is the nodes
-		 * that can be reached.
+		 * Pwovide aww supewtypes fow an item, e.g aww types fwom which a type is dewived/inhewited. In gwaph tewms this descwibes diwected
+		 * and annotated edges inside the type gwaph, e.g the given item is the stawting node and the wesuwt is the nodes
+		 * that can be weached.
 		 *
-		 * @param item The hierarchy item for which super types should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of direct supertypes or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam item The hiewawchy item fow which supa types shouwd be computed.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns A set of diwect supewtypes ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+		pwovideTypeHiewawchySupewtypes(item: TypeHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchyItem[]>;
 
 		/**
-		 * Provide all subtypes for an item, e.g all types which are derived/inherited from the given item. In
-		 * graph terms this describes directed and annotated edges inside the type graph, e.g the given item is the starting
-		 * node and the result is the nodes that can be reached.
+		 * Pwovide aww subtypes fow an item, e.g aww types which awe dewived/inhewited fwom the given item. In
+		 * gwaph tewms this descwibes diwected and annotated edges inside the type gwaph, e.g the given item is the stawting
+		 * node and the wesuwt is the nodes that can be weached.
 		 *
-		 * @param item The hierarchy item for which subtypes should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of direct subtypes or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
+		 * @pawam item The hiewawchy item fow which subtypes shouwd be computed.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns A set of diwect subtypes ow a thenabwe that wesowves to such. The wack of a wesuwt can be
+		 * signawed by wetuwning `undefined` ow `nuww`.
 		 */
-		provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+		pwovideTypeHiewawchySubtypes(item: TypeHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchyItem[]>;
 	}
 
 	/**
-	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid range contents.
+	 * Wepwesents a wist of wanges that can be edited togetha awong with a wowd pattewn to descwibe vawid wange contents.
 	 */
-	export class LinkedEditingRanges {
+	expowt cwass WinkedEditingWanges {
 		/**
-		 * Create a new linked editing ranges object.
+		 * Cweate a new winked editing wanges object.
 		 *
-		 * @param ranges A list of ranges that can be edited together
-		 * @param wordPattern An optional word pattern that describes valid contents for the given ranges
+		 * @pawam wanges A wist of wanges that can be edited togetha
+		 * @pawam wowdPattewn An optionaw wowd pattewn that descwibes vawid contents fow the given wanges
 		 */
-		constructor(ranges: Range[], wordPattern?: RegExp);
+		constwuctow(wanges: Wange[], wowdPattewn?: WegExp);
 
 		/**
-		 * A list of ranges that can be edited together. The ranges must have
-		 * identical length and text content. The ranges cannot overlap.
+		 * A wist of wanges that can be edited togetha. The wanges must have
+		 * identicaw wength and text content. The wanges cannot ovewwap.
 		 */
-		readonly ranges: Range[];
+		weadonwy wanges: Wange[];
 
 		/**
-		 * An optional word pattern that describes valid contents for the given ranges.
-		 * If no pattern is provided, the language configuration's word pattern will be used.
+		 * An optionaw wowd pattewn that descwibes vawid contents fow the given wanges.
+		 * If no pattewn is pwovided, the wanguage configuwation's wowd pattewn wiww be used.
 		 */
-		readonly wordPattern?: RegExp;
+		weadonwy wowdPattewn?: WegExp;
 	}
 
 	/**
-	 * The linked editing range provider interface defines the contract between extensions and
-	 * the linked editing feature.
+	 * The winked editing wange pwovida intewface defines the contwact between extensions and
+	 * the winked editing featuwe.
 	 */
-	export interface LinkedEditingRangeProvider {
+	expowt intewface WinkedEditingWangePwovida {
 		/**
-		 * For a given position in a document, returns the range of the symbol at the position and all ranges
-		 * that have the same content. A change to one of the ranges can be applied to all other ranges if the new content
-		 * is valid. An optional word pattern can be returned with the result to describe valid contents.
-		 * If no result-specific word pattern is provided, the word pattern from the language configuration is used.
+		 * Fow a given position in a document, wetuwns the wange of the symbow at the position and aww wanges
+		 * that have the same content. A change to one of the wanges can be appwied to aww otha wanges if the new content
+		 * is vawid. An optionaw wowd pattewn can be wetuwned with the wesuwt to descwibe vawid contents.
+		 * If no wesuwt-specific wowd pattewn is pwovided, the wowd pattewn fwom the wanguage configuwation is used.
 		 *
-		 * @param document The document in which the provider was invoked.
-		 * @param position The position at which the provider was invoked.
-		 * @param token A cancellation token.
-		 * @return A list of ranges that can be edited together
+		 * @pawam document The document in which the pwovida was invoked.
+		 * @pawam position The position at which the pwovida was invoked.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A wist of wanges that can be edited togetha
 		 */
-		provideLinkedEditingRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
+		pwovideWinkedEditingWanges(document: TextDocument, position: Position, token: CancewwationToken): PwovidewWesuwt<WinkedEditingWanges>;
 	}
 
 	/**
-	 * A tuple of two characters, like a pair of
-	 * opening and closing brackets.
+	 * A tupwe of two chawactews, wike a paiw of
+	 * opening and cwosing bwackets.
 	 */
-	export type CharacterPair = [string, string];
+	expowt type ChawactewPaiw = [stwing, stwing];
 
 	/**
-	 * Describes how comments for a language work.
+	 * Descwibes how comments fow a wanguage wowk.
 	 */
-	export interface CommentRule {
+	expowt intewface CommentWuwe {
 
 		/**
-		 * The line comment token, like `// this is a comment`
+		 * The wine comment token, wike `// this is a comment`
 		 */
-		lineComment?: string;
+		wineComment?: stwing;
 
 		/**
-		 * The block comment character pair, like `/* block comment *&#47;`
+		 * The bwock comment chawacta paiw, wike `/* bwock comment *&#47;`
 		 */
-		blockComment?: CharacterPair;
+		bwockComment?: ChawactewPaiw;
 	}
 
 	/**
-	 * Describes indentation rules for a language.
+	 * Descwibes indentation wuwes fow a wanguage.
 	 */
-	export interface IndentationRule {
+	expowt intewface IndentationWuwe {
 		/**
-		 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
+		 * If a wine matches this pattewn, then aww the wines afta it shouwd be unindented once (untiw anotha wuwe matches).
 		 */
-		decreaseIndentPattern: RegExp;
+		decweaseIndentPattewn: WegExp;
 		/**
-		 * If a line matches this pattern, then all the lines after it should be indented once (until another rule matches).
+		 * If a wine matches this pattewn, then aww the wines afta it shouwd be indented once (untiw anotha wuwe matches).
 		 */
-		increaseIndentPattern: RegExp;
+		incweaseIndentPattewn: WegExp;
 		/**
-		 * If a line matches this pattern, then **only the next line** after it should be indented once.
+		 * If a wine matches this pattewn, then **onwy the next wine** afta it shouwd be indented once.
 		 */
-		indentNextLinePattern?: RegExp;
+		indentNextWinePattewn?: WegExp;
 		/**
-		 * If a line matches this pattern, then its indentation should not be changed and it should not be evaluated against the other rules.
+		 * If a wine matches this pattewn, then its indentation shouwd not be changed and it shouwd not be evawuated against the otha wuwes.
 		 */
-		unIndentedLinePattern?: RegExp;
+		unIndentedWinePattewn?: WegExp;
 	}
 
 	/**
-	 * Describes what to do with the indentation when pressing Enter.
+	 * Descwibes what to do with the indentation when pwessing Enta.
 	 */
-	export enum IndentAction {
+	expowt enum IndentAction {
 		/**
-		 * Insert new line and copy the previous line's indentation.
+		 * Insewt new wine and copy the pwevious wine's indentation.
 		 */
 		None = 0,
 		/**
-		 * Insert new line and indent once (relative to the previous line's indentation).
+		 * Insewt new wine and indent once (wewative to the pwevious wine's indentation).
 		 */
 		Indent = 1,
 		/**
-		 * Insert two new lines:
-		 *  - the first one indented which will hold the cursor
-		 *  - the second one at the same indentation level
+		 * Insewt two new wines:
+		 *  - the fiwst one indented which wiww howd the cuwsow
+		 *  - the second one at the same indentation wevew
 		 */
 		IndentOutdent = 2,
 		/**
-		 * Insert new line and outdent once (relative to the previous line's indentation).
+		 * Insewt new wine and outdent once (wewative to the pwevious wine's indentation).
 		 */
 		Outdent = 3
 	}
 
 	/**
-	 * Describes what to do when pressing Enter.
+	 * Descwibes what to do when pwessing Enta.
 	 */
-	export interface EnterAction {
+	expowt intewface EntewAction {
 		/**
-		 * Describe what to do with the indentation.
+		 * Descwibe what to do with the indentation.
 		 */
 		indentAction: IndentAction;
 		/**
-		 * Describes text to be appended after the new line and after the indentation.
+		 * Descwibes text to be appended afta the new wine and afta the indentation.
 		 */
-		appendText?: string;
+		appendText?: stwing;
 		/**
-		 * Describes the number of characters to remove from the new line's indentation.
+		 * Descwibes the numba of chawactews to wemove fwom the new wine's indentation.
 		 */
-		removeText?: number;
+		wemoveText?: numba;
 	}
 
 	/**
-	 * Describes a rule to be evaluated when pressing Enter.
+	 * Descwibes a wuwe to be evawuated when pwessing Enta.
 	 */
-	export interface OnEnterRule {
+	expowt intewface OnEntewWuwe {
 		/**
-		 * This rule will only execute if the text before the cursor matches this regular expression.
+		 * This wuwe wiww onwy execute if the text befowe the cuwsow matches this weguwaw expwession.
 		 */
-		beforeText: RegExp;
+		befoweText: WegExp;
 		/**
-		 * This rule will only execute if the text after the cursor matches this regular expression.
+		 * This wuwe wiww onwy execute if the text afta the cuwsow matches this weguwaw expwession.
 		 */
-		afterText?: RegExp;
+		aftewText?: WegExp;
 		/**
-		 * This rule will only execute if the text above the current line matches this regular expression.
+		 * This wuwe wiww onwy execute if the text above the cuwwent wine matches this weguwaw expwession.
 		 */
-		previousLineText?: RegExp;
+		pweviousWineText?: WegExp;
 		/**
 		 * The action to execute.
 		 */
-		action: EnterAction;
+		action: EntewAction;
 	}
 
 	/**
-	 * The language configuration interfaces defines the contract between extensions
-	 * and various editor features, like automatic bracket insertion, automatic indentation etc.
+	 * The wanguage configuwation intewfaces defines the contwact between extensions
+	 * and vawious editow featuwes, wike automatic bwacket insewtion, automatic indentation etc.
 	 */
-	export interface LanguageConfiguration {
+	expowt intewface WanguageConfiguwation {
 		/**
-		 * The language's comment settings.
+		 * The wanguage's comment settings.
 		 */
-		comments?: CommentRule;
+		comments?: CommentWuwe;
 		/**
-		 * The language's brackets.
-		 * This configuration implicitly affects pressing Enter around these brackets.
+		 * The wanguage's bwackets.
+		 * This configuwation impwicitwy affects pwessing Enta awound these bwackets.
 		 */
-		brackets?: CharacterPair[];
+		bwackets?: ChawactewPaiw[];
 		/**
-		 * The language's word definition.
-		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
-		 * to provide a word definition that uses exclusion of known separators.
-		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
+		 * The wanguage's wowd definition.
+		 * If the wanguage suppowts Unicode identifiews (e.g. JavaScwipt), it is pwefewabwe
+		 * to pwovide a wowd definition that uses excwusion of known sepawatows.
+		 * e.g.: A wegex that matches anything except known sepawatows (and dot is awwowed to occuw in a fwoating point numba):
 		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
 		 */
-		wordPattern?: RegExp;
+		wowdPattewn?: WegExp;
 		/**
-		 * The language's indentation settings.
+		 * The wanguage's indentation settings.
 		 */
-		indentationRules?: IndentationRule;
+		indentationWuwes?: IndentationWuwe;
 		/**
-		 * The language's rules to be evaluated when pressing Enter.
+		 * The wanguage's wuwes to be evawuated when pwessing Enta.
 		 */
-		onEnterRules?: OnEnterRule[];
+		onEntewWuwes?: OnEntewWuwe[];
 
 		/**
-		 * **Deprecated** Do not use.
+		 * **Depwecated** Do not use.
 		 *
-		 * @deprecated Will be replaced by a better API soon.
+		 * @depwecated Wiww be wepwaced by a betta API soon.
 		 */
-		__electricCharacterSupport?: {
+		__ewectwicChawactewSuppowt?: {
 			/**
-			 * This property is deprecated and will be **ignored** from
-			 * the editor.
-			 * @deprecated
+			 * This pwopewty is depwecated and wiww be **ignowed** fwom
+			 * the editow.
+			 * @depwecated
 			 */
-			brackets?: any;
+			bwackets?: any;
 			/**
-			 * This property is deprecated and not fully supported anymore by
-			 * the editor (scope and lineStart are ignored).
-			 * Use the autoClosingPairs property in the language configuration file instead.
-			 * @deprecated
+			 * This pwopewty is depwecated and not fuwwy suppowted anymowe by
+			 * the editow (scope and wineStawt awe ignowed).
+			 * Use the autoCwosingPaiws pwopewty in the wanguage configuwation fiwe instead.
+			 * @depwecated
 			 */
 			docComment?: {
-				scope: string;
-				open: string;
-				lineStart: string;
-				close?: string;
+				scope: stwing;
+				open: stwing;
+				wineStawt: stwing;
+				cwose?: stwing;
 			};
 		};
 
 		/**
-		 * **Deprecated** Do not use.
+		 * **Depwecated** Do not use.
 		 *
-		 * @deprecated * Use the autoClosingPairs property in the language configuration file instead.
+		 * @depwecated * Use the autoCwosingPaiws pwopewty in the wanguage configuwation fiwe instead.
 		 */
-		__characterPairSupport?: {
-			autoClosingPairs: {
-				open: string;
-				close: string;
-				notIn?: string[];
+		__chawactewPaiwSuppowt?: {
+			autoCwosingPaiws: {
+				open: stwing;
+				cwose: stwing;
+				notIn?: stwing[];
 			}[];
 		};
 	}
 
 	/**
-	 * The configuration target
+	 * The configuwation tawget
 	 */
-	export enum ConfigurationTarget {
+	expowt enum ConfiguwationTawget {
 		/**
-		 * Global configuration
+		 * Gwobaw configuwation
 		*/
-		Global = 1,
+		Gwobaw = 1,
 
 		/**
-		 * Workspace configuration
+		 * Wowkspace configuwation
 		 */
-		Workspace = 2,
+		Wowkspace = 2,
 
 		/**
-		 * Workspace folder configuration
+		 * Wowkspace fowda configuwation
 		 */
-		WorkspaceFolder = 3
+		WowkspaceFowda = 3
 	}
 
 	/**
-	 * Represents the configuration. It is a merged view of
+	 * Wepwesents the configuwation. It is a mewged view of
 	 *
-	 * - *Default Settings*
-	 * - *Global (User) Settings*
-	 * - *Workspace settings*
-	 * - *Workspace Folder settings* - From one of the {@link workspace.workspaceFolders Workspace Folders} under which requested resource belongs to.
-	 * - *Language settings* - Settings defined under requested language.
+	 * - *Defauwt Settings*
+	 * - *Gwobaw (Usa) Settings*
+	 * - *Wowkspace settings*
+	 * - *Wowkspace Fowda settings* - Fwom one of the {@wink wowkspace.wowkspaceFowdews Wowkspace Fowdews} unda which wequested wesouwce bewongs to.
+	 * - *Wanguage settings* - Settings defined unda wequested wanguage.
 	 *
-	 * The *effective* value (returned by {@linkcode WorkspaceConfiguration.get get}) is computed by overriding or merging the values in the following order.
+	 * The *effective* vawue (wetuwned by {@winkcode WowkspaceConfiguwation.get get}) is computed by ovewwiding ow mewging the vawues in the fowwowing owda.
 	 *
 	 * ```
-	 * `defaultValue` (if defined in `package.json` otherwise derived from the value's type)
-	 * `globalValue` (if defined)
-	 * `workspaceValue` (if defined)
-	 * `workspaceFolderValue` (if defined)
-	 * `defaultLanguageValue` (if defined)
-	 * `globalLanguageValue` (if defined)
-	 * `workspaceLanguageValue` (if defined)
-	 * `workspaceFolderLanguageValue` (if defined)
+	 * `defauwtVawue` (if defined in `package.json` othewwise dewived fwom the vawue's type)
+	 * `gwobawVawue` (if defined)
+	 * `wowkspaceVawue` (if defined)
+	 * `wowkspaceFowdewVawue` (if defined)
+	 * `defauwtWanguageVawue` (if defined)
+	 * `gwobawWanguageVawue` (if defined)
+	 * `wowkspaceWanguageVawue` (if defined)
+	 * `wowkspaceFowdewWanguageVawue` (if defined)
 	 * ```
-	 * **Note:** Only `object` value types are merged and all other value types are overridden.
+	 * **Note:** Onwy `object` vawue types awe mewged and aww otha vawue types awe ovewwidden.
 	 *
-	 * Example 1: Overriding
+	 * Exampwe 1: Ovewwiding
 	 *
 	 * ```ts
-	 * defaultValue = 'on';
-	 * globalValue = 'relative'
-	 * workspaceFolderValue = 'off'
-	 * value = 'off'
+	 * defauwtVawue = 'on';
+	 * gwobawVawue = 'wewative'
+	 * wowkspaceFowdewVawue = 'off'
+	 * vawue = 'off'
 	 * ```
 	 *
-	 * Example 2: Language Values
+	 * Exampwe 2: Wanguage Vawues
 	 *
 	 * ```ts
-	 * defaultValue = 'on';
-	 * globalValue = 'relative'
-	 * workspaceFolderValue = 'off'
-	 * globalLanguageValue = 'on'
-	 * value = 'on'
+	 * defauwtVawue = 'on';
+	 * gwobawVawue = 'wewative'
+	 * wowkspaceFowdewVawue = 'off'
+	 * gwobawWanguageVawue = 'on'
+	 * vawue = 'on'
 	 * ```
 	 *
-	 * Example 3: Object Values
+	 * Exampwe 3: Object Vawues
 	 *
 	 * ```ts
-	 * defaultValue = { "a": 1, "b": 2 };
-	 * globalValue = { "b": 3, "c": 4 };
-	 * value = { "a": 1, "b": 3, "c": 4 };
+	 * defauwtVawue = { "a": 1, "b": 2 };
+	 * gwobawVawue = { "b": 3, "c": 4 };
+	 * vawue = { "a": 1, "b": 3, "c": 4 };
 	 * ```
 	 *
-	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
-	 * part of the section identifier. The following snippets shows how to retrieve all configurations
-	 * from `launch.json`:
+	 * *Note:* Wowkspace and Wowkspace Fowda configuwations contains `waunch` and `tasks` settings. Theiw basename wiww be
+	 * pawt of the section identifia. The fowwowing snippets shows how to wetwieve aww configuwations
+	 * fwom `waunch.json`:
 	 *
 	 * ```ts
-	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
+	 * // waunch.json configuwation
+	 * const config = wowkspace.getConfiguwation('waunch', vscode.wowkspace.wowkspaceFowdews[0].uwi);
 	 *
-	 * // retrieve values
-	 * const values = config.get('configurations');
+	 * // wetwieve vawues
+	 * const vawues = config.get('configuwations');
 	 * ```
 	 *
-	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+	 * Wefa to [Settings](https://code.visuawstudio.com/docs/getstawted/settings) fow mowe infowmation.
 	 */
-	export interface WorkspaceConfiguration {
+	expowt intewface WowkspaceConfiguwation {
 
 		/**
-		 * Return a value from this configuration.
+		 * Wetuwn a vawue fwom this configuwation.
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return The value `section` denotes or `undefined`.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @wetuwn The vawue `section` denotes ow `undefined`.
 		 */
-		get<T>(section: string): T | undefined;
+		get<T>(section: stwing): T | undefined;
 
 		/**
-		 * Return a value from this configuration.
+		 * Wetuwn a vawue fwom this configuwation.
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param defaultValue A value should be returned when no value could be found, is `undefined`.
-		 * @return The value `section` denotes or the default.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @pawam defauwtVawue A vawue shouwd be wetuwned when no vawue couwd be found, is `undefined`.
+		 * @wetuwn The vawue `section` denotes ow the defauwt.
 		 */
-		get<T>(section: string, defaultValue: T): T;
+		get<T>(section: stwing, defauwtVawue: T): T;
 
 		/**
-		 * Check if this configuration has a certain value.
+		 * Check if this configuwation has a cewtain vawue.
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return `true` if the section doesn't resolve to `undefined`.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @wetuwn `twue` if the section doesn't wesowve to `undefined`.
 		 */
-		has(section: string): boolean;
+		has(section: stwing): boowean;
 
 		/**
-		 * Retrieve all information about a configuration setting. A configuration value
-		 * often consists of a *default* value, a global or installation-wide value,
-		 * a workspace-specific value, folder-specific value
-		 * and language-specific values (if {@link WorkspaceConfiguration} is scoped to a language).
+		 * Wetwieve aww infowmation about a configuwation setting. A configuwation vawue
+		 * often consists of a *defauwt* vawue, a gwobaw ow instawwation-wide vawue,
+		 * a wowkspace-specific vawue, fowda-specific vawue
+		 * and wanguage-specific vawues (if {@wink WowkspaceConfiguwation} is scoped to a wanguage).
 		 *
-		 * Also provides all language ids under which the given configuration setting is defined.
+		 * Awso pwovides aww wanguage ids unda which the given configuwation setting is defined.
 		 *
-		 * *Note:* The configuration name must denote a leaf in the configuration tree
-		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
+		 * *Note:* The configuwation name must denote a weaf in the configuwation twee
+		 * (`editow.fontSize` vs `editow`) othewwise no wesuwt is wetuwned.
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return Information about a configuration setting or `undefined`.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @wetuwn Infowmation about a configuwation setting ow `undefined`.
 		 */
-		inspect<T>(section: string): {
-			key: string;
+		inspect<T>(section: stwing): {
+			key: stwing;
 
-			defaultValue?: T;
-			globalValue?: T;
-			workspaceValue?: T,
-			workspaceFolderValue?: T,
+			defauwtVawue?: T;
+			gwobawVawue?: T;
+			wowkspaceVawue?: T,
+			wowkspaceFowdewVawue?: T,
 
-			defaultLanguageValue?: T;
-			globalLanguageValue?: T;
-			workspaceLanguageValue?: T;
-			workspaceFolderLanguageValue?: T;
+			defauwtWanguageVawue?: T;
+			gwobawWanguageVawue?: T;
+			wowkspaceWanguageVawue?: T;
+			wowkspaceFowdewWanguageVawue?: T;
 
-			languageIds?: string[];
+			wanguageIds?: stwing[];
 
 		} | undefined;
 
 		/**
-		 * Update a configuration value. The updated configuration values are persisted.
+		 * Update a configuwation vawue. The updated configuwation vawues awe pewsisted.
 		 *
-		 * A value can be changed in
+		 * A vawue can be changed in
 		 *
-		 * - {@link ConfigurationTarget.Global Global settings}: Changes the value for all instances of the editor.
-		 * - {@link ConfigurationTarget.Workspace Workspace settings}: Changes the value for current workspace, if available.
-		 * - {@link ConfigurationTarget.WorkspaceFolder Workspace folder settings}: Changes the value for settings from one of the {@link workspace.workspaceFolders Workspace Folders} under which the requested resource belongs to.
-		 * - Language settings: Changes the value for the requested languageId.
+		 * - {@wink ConfiguwationTawget.Gwobaw Gwobaw settings}: Changes the vawue fow aww instances of the editow.
+		 * - {@wink ConfiguwationTawget.Wowkspace Wowkspace settings}: Changes the vawue fow cuwwent wowkspace, if avaiwabwe.
+		 * - {@wink ConfiguwationTawget.WowkspaceFowda Wowkspace fowda settings}: Changes the vawue fow settings fwom one of the {@wink wowkspace.wowkspaceFowdews Wowkspace Fowdews} unda which the wequested wesouwce bewongs to.
+		 * - Wanguage settings: Changes the vawue fow the wequested wanguageId.
 		 *
-		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
+		 * *Note:* To wemove a configuwation vawue use `undefined`, wike so: `config.update('somekey', undefined)`
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 * @param configurationTarget The {@link ConfigurationTarget configuration target} or a boolean value.
-		 *	- If `true` updates {@link ConfigurationTarget.Global Global settings}.
-		 *	- If `false` updates {@link ConfigurationTarget.Workspace Workspace settings}.
-		 *	- If `undefined` or `null` updates to {@link ConfigurationTarget.WorkspaceFolder Workspace folder settings} if configuration is resource specific,
-		 * 	otherwise to {@link ConfigurationTarget.Workspace Workspace settings}.
-		 * @param overrideInLanguage Whether to update the value in the scope of requested languageId or not.
-		 *	- If `true` updates the value under the requested languageId.
-		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
-		 * @throws error while updating
-		 *	- configuration which is not registered.
-		 *	- window configuration to workspace folder
-		 *	- configuration to workspace or workspace folder when no workspace is opened.
-		 *	- configuration to workspace folder when there is no workspace folder settings.
-		 *	- configuration to workspace folder when {@link WorkspaceConfiguration} is not scoped to a resource.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @pawam vawue The new vawue.
+		 * @pawam configuwationTawget The {@wink ConfiguwationTawget configuwation tawget} ow a boowean vawue.
+		 *	- If `twue` updates {@wink ConfiguwationTawget.Gwobaw Gwobaw settings}.
+		 *	- If `fawse` updates {@wink ConfiguwationTawget.Wowkspace Wowkspace settings}.
+		 *	- If `undefined` ow `nuww` updates to {@wink ConfiguwationTawget.WowkspaceFowda Wowkspace fowda settings} if configuwation is wesouwce specific,
+		 * 	othewwise to {@wink ConfiguwationTawget.Wowkspace Wowkspace settings}.
+		 * @pawam ovewwideInWanguage Whetha to update the vawue in the scope of wequested wanguageId ow not.
+		 *	- If `twue` updates the vawue unda the wequested wanguageId.
+		 *	- If `undefined` updates the vawue unda the wequested wanguageId onwy if the configuwation is defined fow the wanguage.
+		 * @thwows ewwow whiwe updating
+		 *	- configuwation which is not wegistewed.
+		 *	- window configuwation to wowkspace fowda
+		 *	- configuwation to wowkspace ow wowkspace fowda when no wowkspace is opened.
+		 *	- configuwation to wowkspace fowda when thewe is no wowkspace fowda settings.
+		 *	- configuwation to wowkspace fowda when {@wink WowkspaceConfiguwation} is not scoped to a wesouwce.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean | null, overrideInLanguage?: boolean): Thenable<void>;
+		update(section: stwing, vawue: any, configuwationTawget?: ConfiguwationTawget | boowean | nuww, ovewwideInWanguage?: boowean): Thenabwe<void>;
 
 		/**
-		 * Readable dictionary that backs this configuration.
+		 * Weadabwe dictionawy that backs this configuwation.
 		 */
-		readonly [key: string]: any;
+		weadonwy [key: stwing]: any;
 	}
 
 	/**
-	 * Represents a location inside a resource, such as a line
-	 * inside a text file.
+	 * Wepwesents a wocation inside a wesouwce, such as a wine
+	 * inside a text fiwe.
 	 */
-	export class Location {
+	expowt cwass Wocation {
 
 		/**
-		 * The resource identifier of this location.
+		 * The wesouwce identifia of this wocation.
 		 */
-		uri: Uri;
+		uwi: Uwi;
 
 		/**
-		 * The document range of this location.
+		 * The document wange of this wocation.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * Creates a new location object.
+		 * Cweates a new wocation object.
 		 *
-		 * @param uri The resource identifier.
-		 * @param rangeOrPosition The range or position. Positions will be converted to an empty range.
+		 * @pawam uwi The wesouwce identifia.
+		 * @pawam wangeOwPosition The wange ow position. Positions wiww be convewted to an empty wange.
 		 */
-		constructor(uri: Uri, rangeOrPosition: Range | Position);
+		constwuctow(uwi: Uwi, wangeOwPosition: Wange | Position);
 	}
 
 	/**
-	 * Represents the connection of two locations. Provides additional metadata over normal {@link Location locations},
-	 * including an origin range.
+	 * Wepwesents the connection of two wocations. Pwovides additionaw metadata ova nowmaw {@wink Wocation wocations},
+	 * incwuding an owigin wange.
 	 */
-	export interface LocationLink {
+	expowt intewface WocationWink {
 		/**
-		 * Span of the origin of this link.
+		 * Span of the owigin of this wink.
 		 *
-		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
+		 * Used as the undewwined span fow mouse definition hova. Defauwts to the wowd wange at
 		 * the definition position.
 		 */
-		originSelectionRange?: Range;
+		owiginSewectionWange?: Wange;
 
 		/**
-		 * The target resource identifier of this link.
+		 * The tawget wesouwce identifia of this wink.
 		 */
-		targetUri: Uri;
+		tawgetUwi: Uwi;
 
 		/**
-		 * The full target range of this link.
+		 * The fuww tawget wange of this wink.
 		 */
-		targetRange: Range;
+		tawgetWange: Wange;
 
 		/**
-		 * The span of this link.
+		 * The span of this wink.
 		 */
-		targetSelectionRange?: Range;
+		tawgetSewectionWange?: Wange;
 	}
 
 	/**
-	 * The event that is fired when diagnostics change.
+	 * The event that is fiwed when diagnostics change.
 	 */
-	export interface DiagnosticChangeEvent {
+	expowt intewface DiagnosticChangeEvent {
 
 		/**
-		 * An array of resources for which diagnostics have changed.
+		 * An awway of wesouwces fow which diagnostics have changed.
 		 */
-		readonly uris: readonly Uri[];
+		weadonwy uwis: weadonwy Uwi[];
 	}
 
 	/**
-	 * Represents the severity of diagnostics.
+	 * Wepwesents the sevewity of diagnostics.
 	 */
-	export enum DiagnosticSeverity {
+	expowt enum DiagnosticSevewity {
 
 		/**
-		 * Something not allowed by the rules of a language or other means.
+		 * Something not awwowed by the wuwes of a wanguage ow otha means.
 		 */
-		Error = 0,
+		Ewwow = 0,
 
 		/**
-		 * Something suspicious but allowed.
+		 * Something suspicious but awwowed.
 		 */
-		Warning = 1,
+		Wawning = 1,
 
 		/**
-		 * Something to inform about but not a problem.
+		 * Something to infowm about but not a pwobwem.
 		 */
-		Information = 2,
+		Infowmation = 2,
 
 		/**
-		 * Something to hint to a better way of doing it, like proposing
-		 * a refactoring.
+		 * Something to hint to a betta way of doing it, wike pwoposing
+		 * a wefactowing.
 		 */
 		Hint = 3
 	}
 
 	/**
-	 * Represents a related message and source code location for a diagnostic. This should be
-	 * used to point to code locations that cause or related to a diagnostics, e.g. when duplicating
-	 * a symbol in a scope.
+	 * Wepwesents a wewated message and souwce code wocation fow a diagnostic. This shouwd be
+	 * used to point to code wocations that cause ow wewated to a diagnostics, e.g. when dupwicating
+	 * a symbow in a scope.
 	 */
-	export class DiagnosticRelatedInformation {
+	expowt cwass DiagnosticWewatedInfowmation {
 
 		/**
-		 * The location of this related diagnostic information.
+		 * The wocation of this wewated diagnostic infowmation.
 		 */
-		location: Location;
+		wocation: Wocation;
 
 		/**
-		 * The message of this related diagnostic information.
+		 * The message of this wewated diagnostic infowmation.
 		 */
-		message: string;
+		message: stwing;
 
 		/**
-		 * Creates a new related diagnostic information object.
+		 * Cweates a new wewated diagnostic infowmation object.
 		 *
-		 * @param location The location.
-		 * @param message The message.
+		 * @pawam wocation The wocation.
+		 * @pawam message The message.
 		 */
-		constructor(location: Location, message: string);
+		constwuctow(wocation: Wocation, message: stwing);
 	}
 
 	/**
-	 * Additional metadata about the type of a diagnostic.
+	 * Additionaw metadata about the type of a diagnostic.
 	 */
-	export enum DiagnosticTag {
+	expowt enum DiagnosticTag {
 		/**
-		 * Unused or unnecessary code.
+		 * Unused ow unnecessawy code.
 		 *
-		 * Diagnostics with this tag are rendered faded out. The amount of fading
-		 * is controlled by the `"editorUnnecessaryCode.opacity"` theme color. For
-		 * example, `"editorUnnecessaryCode.opacity": "#000000c0"` will render the
-		 * code with 75% opacity. For high contrast themes, use the
-		 * `"editorUnnecessaryCode.border"` theme color to underline unnecessary code
+		 * Diagnostics with this tag awe wendewed faded out. The amount of fading
+		 * is contwowwed by the `"editowUnnecessawyCode.opacity"` theme cowow. Fow
+		 * exampwe, `"editowUnnecessawyCode.opacity": "#000000c0"` wiww wenda the
+		 * code with 75% opacity. Fow high contwast themes, use the
+		 * `"editowUnnecessawyCode.bowda"` theme cowow to undewwine unnecessawy code
 		 * instead of fading it out.
 		 */
-		Unnecessary = 1,
+		Unnecessawy = 1,
 
 		/**
-		 * Deprecated or obsolete code.
+		 * Depwecated ow obsowete code.
 		 *
-		 * Diagnostics with this tag are rendered with a strike through.
+		 * Diagnostics with this tag awe wendewed with a stwike thwough.
 		 */
-		Deprecated = 2,
+		Depwecated = 2,
 	}
 
 	/**
-	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
-	 * are only valid in the scope of a file.
+	 * Wepwesents a diagnostic, such as a compiwa ewwow ow wawning. Diagnostic objects
+	 * awe onwy vawid in the scope of a fiwe.
 	 */
-	export class Diagnostic {
+	expowt cwass Diagnostic {
 
 		/**
-		 * The range to which this diagnostic applies.
+		 * The wange to which this diagnostic appwies.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The human-readable message.
+		 * The human-weadabwe message.
 		 */
-		message: string;
+		message: stwing;
 
 		/**
-		 * The severity, default is {@link DiagnosticSeverity.Error error}.
+		 * The sevewity, defauwt is {@wink DiagnosticSevewity.Ewwow ewwow}.
 		 */
-		severity: DiagnosticSeverity;
+		sevewity: DiagnosticSevewity;
 
 		/**
-		 * A human-readable string describing the source of this
-		 * diagnostic, e.g. 'typescript' or 'super lint'.
+		 * A human-weadabwe stwing descwibing the souwce of this
+		 * diagnostic, e.g. 'typescwipt' ow 'supa wint'.
 		 */
-		source?: string;
+		souwce?: stwing;
 
 		/**
-		 * A code or identifier for this diagnostic.
-		 * Should be used for later processing, e.g. when providing {@link CodeActionContext code actions}.
+		 * A code ow identifia fow this diagnostic.
+		 * Shouwd be used fow wata pwocessing, e.g. when pwoviding {@wink CodeActionContext code actions}.
 		 */
-		code?: string | number | {
+		code?: stwing | numba | {
 			/**
-			 * A code or identifier for this diagnostic.
-			 * Should be used for later processing, e.g. when providing {@link CodeActionContext code actions}.
+			 * A code ow identifia fow this diagnostic.
+			 * Shouwd be used fow wata pwocessing, e.g. when pwoviding {@wink CodeActionContext code actions}.
 			 */
-			value: string | number;
+			vawue: stwing | numba;
 
 			/**
-			 * A target URI to open with more information about the diagnostic error.
+			 * A tawget UWI to open with mowe infowmation about the diagnostic ewwow.
 			 */
-			target: Uri;
+			tawget: Uwi;
 		};
 
 		/**
-		 * An array of related diagnostic information, e.g. when symbol-names within
-		 * a scope collide all definitions can be marked via this property.
+		 * An awway of wewated diagnostic infowmation, e.g. when symbow-names within
+		 * a scope cowwide aww definitions can be mawked via this pwopewty.
 		 */
-		relatedInformation?: DiagnosticRelatedInformation[];
+		wewatedInfowmation?: DiagnosticWewatedInfowmation[];
 
 		/**
-		 * Additional metadata about the diagnostic.
+		 * Additionaw metadata about the diagnostic.
 		 */
 		tags?: DiagnosticTag[];
 
 		/**
-		 * Creates a new diagnostic object.
+		 * Cweates a new diagnostic object.
 		 *
-		 * @param range The range to which this diagnostic applies.
-		 * @param message The human-readable message.
-		 * @param severity The severity, default is {@link DiagnosticSeverity.Error error}.
+		 * @pawam wange The wange to which this diagnostic appwies.
+		 * @pawam message The human-weadabwe message.
+		 * @pawam sevewity The sevewity, defauwt is {@wink DiagnosticSevewity.Ewwow ewwow}.
 		 */
-		constructor(range: Range, message: string, severity?: DiagnosticSeverity);
+		constwuctow(wange: Wange, message: stwing, sevewity?: DiagnosticSevewity);
 	}
 
 	/**
-	 * A diagnostics collection is a container that manages a set of
-	 * {@link Diagnostic diagnostics}. Diagnostics are always scopes to a
-	 * diagnostics collection and a resource.
+	 * A diagnostics cowwection is a containa that manages a set of
+	 * {@wink Diagnostic diagnostics}. Diagnostics awe awways scopes to a
+	 * diagnostics cowwection and a wesouwce.
 	 *
-	 * To get an instance of a `DiagnosticCollection` use
-	 * {@link languages.createDiagnosticCollection createDiagnosticCollection}.
+	 * To get an instance of a `DiagnosticCowwection` use
+	 * {@wink wanguages.cweateDiagnosticCowwection cweateDiagnosticCowwection}.
 	 */
-	export interface DiagnosticCollection {
+	expowt intewface DiagnosticCowwection {
 
 		/**
-		 * The name of this diagnostic collection, for instance `typescript`. Every diagnostic
-		 * from this collection will be associated with this name. Also, the task framework uses this
-		 * name when defining [problem matchers](https://code.visualstudio.com/docs/editor/tasks#_defining-a-problem-matcher).
+		 * The name of this diagnostic cowwection, fow instance `typescwipt`. Evewy diagnostic
+		 * fwom this cowwection wiww be associated with this name. Awso, the task fwamewowk uses this
+		 * name when defining [pwobwem matchews](https://code.visuawstudio.com/docs/editow/tasks#_defining-a-pwobwem-matcha).
 		 */
-		readonly name: string;
+		weadonwy name: stwing;
 
 		/**
-		 * Assign diagnostics for given resource. Will replace
-		 * existing diagnostics for that resource.
+		 * Assign diagnostics fow given wesouwce. Wiww wepwace
+		 * existing diagnostics fow that wesouwce.
 		 *
-		 * @param uri A resource identifier.
-		 * @param diagnostics Array of diagnostics or `undefined`
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam diagnostics Awway of diagnostics ow `undefined`
 		 */
-		set(uri: Uri, diagnostics: readonly Diagnostic[] | undefined): void;
+		set(uwi: Uwi, diagnostics: weadonwy Diagnostic[] | undefined): void;
 
 		/**
-		 * Replace diagnostics for multiple resources in this collection.
+		 * Wepwace diagnostics fow muwtipwe wesouwces in this cowwection.
 		 *
-		 *  _Note_ that multiple tuples of the same uri will be merged, e.g
-		 * `[[file1, [d1]], [file1, [d2]]]` is equivalent to `[[file1, [d1, d2]]]`.
-		 * If a diagnostics item is `undefined` as in `[file1, undefined]`
-		 * all previous but not subsequent diagnostics are removed.
+		 *  _Note_ that muwtipwe tupwes of the same uwi wiww be mewged, e.g
+		 * `[[fiwe1, [d1]], [fiwe1, [d2]]]` is equivawent to `[[fiwe1, [d1, d2]]]`.
+		 * If a diagnostics item is `undefined` as in `[fiwe1, undefined]`
+		 * aww pwevious but not subsequent diagnostics awe wemoved.
 		 *
-		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
+		 * @pawam entwies An awway of tupwes, wike `[[fiwe1, [d1, d2]], [fiwe2, [d3, d4, d5]]]`, ow `undefined`.
 		 */
-		set(entries: ReadonlyArray<[Uri, readonly Diagnostic[] | undefined]>): void;
+		set(entwies: WeadonwyAwway<[Uwi, weadonwy Diagnostic[] | undefined]>): void;
 
 		/**
-		 * Remove all diagnostics from this collection that belong
-		 * to the provided `uri`. The same as `#set(uri, undefined)`.
+		 * Wemove aww diagnostics fwom this cowwection that bewong
+		 * to the pwovided `uwi`. The same as `#set(uwi, undefined)`.
 		 *
-		 * @param uri A resource identifier.
+		 * @pawam uwi A wesouwce identifia.
 		 */
-		delete(uri: Uri): void;
+		dewete(uwi: Uwi): void;
 
 		/**
-		 * Remove all diagnostics from this collection. The same
-		 * as calling `#set(undefined)`;
+		 * Wemove aww diagnostics fwom this cowwection. The same
+		 * as cawwing `#set(undefined)`;
 		 */
-		clear(): void;
+		cweaw(): void;
 
 		/**
-		 * Iterate over each entry in this collection.
+		 * Itewate ova each entwy in this cowwection.
 		 *
-		 * @param callback Function to execute for each entry.
-		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @pawam cawwback Function to execute fow each entwy.
+		 * @pawam thisAwg The `this` context used when invoking the handwa function.
 		 */
-		forEach(callback: (uri: Uri, diagnostics: readonly Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
+		fowEach(cawwback: (uwi: Uwi, diagnostics: weadonwy Diagnostic[], cowwection: DiagnosticCowwection) => any, thisAwg?: any): void;
 
 		/**
-		 * Get the diagnostics for a given resource. *Note* that you cannot
-		 * modify the diagnostics-array returned from this call.
+		 * Get the diagnostics fow a given wesouwce. *Note* that you cannot
+		 * modify the diagnostics-awway wetuwned fwom this caww.
 		 *
-		 * @param uri A resource identifier.
-		 * @returns An immutable array of {@link Diagnostic diagnostics} or `undefined`.
+		 * @pawam uwi A wesouwce identifia.
+		 * @wetuwns An immutabwe awway of {@wink Diagnostic diagnostics} ow `undefined`.
 		 */
-		get(uri: Uri): readonly Diagnostic[] | undefined;
+		get(uwi: Uwi): weadonwy Diagnostic[] | undefined;
 
 		/**
-		 * Check if this collection contains diagnostics for a
-		 * given resource.
+		 * Check if this cowwection contains diagnostics fow a
+		 * given wesouwce.
 		 *
-		 * @param uri A resource identifier.
-		 * @returns `true` if this collection has diagnostic for the given resource.
+		 * @pawam uwi A wesouwce identifia.
+		 * @wetuwns `twue` if this cowwection has diagnostic fow the given wesouwce.
 		 */
-		has(uri: Uri): boolean;
+		has(uwi: Uwi): boowean;
 
 		/**
-		 * Dispose and free associated resources. Calls
-		 * {@link DiagnosticCollection.clear clear}.
+		 * Dispose and fwee associated wesouwces. Cawws
+		 * {@wink DiagnosticCowwection.cweaw cweaw}.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
-	 * and each column represents one editor location in that grid by counting the editors
-	 * in order of their appearance.
+	 * Denotes a wocation of an editow in the window. Editows can be awwanged in a gwid
+	 * and each cowumn wepwesents one editow wocation in that gwid by counting the editows
+	 * in owda of theiw appeawance.
 	 */
-	export enum ViewColumn {
+	expowt enum ViewCowumn {
 		/**
-		 * A *symbolic* editor column representing the currently active column. This value
-		 * can be used when opening editors, but the *resolved* {@link TextEditor.viewColumn viewColumn}-value
-		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Active`.
+		 * A *symbowic* editow cowumn wepwesenting the cuwwentwy active cowumn. This vawue
+		 * can be used when opening editows, but the *wesowved* {@wink TextEditow.viewCowumn viewCowumn}-vawue
+		 * of editows wiww awways be `One`, `Two`, `Thwee`,... ow `undefined` but neva `Active`.
 		 */
 		Active = -1,
 		/**
-		 * A *symbolic* editor column representing the column to the side of the active one. This value
-		 * can be used when opening editors, but the *resolved* {@link TextEditor.viewColumn viewColumn}-value
-		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Beside`.
+		 * A *symbowic* editow cowumn wepwesenting the cowumn to the side of the active one. This vawue
+		 * can be used when opening editows, but the *wesowved* {@wink TextEditow.viewCowumn viewCowumn}-vawue
+		 * of editows wiww awways be `One`, `Two`, `Thwee`,... ow `undefined` but neva `Beside`.
 		 */
 		Beside = -2,
 		/**
-		 * The first editor column.
+		 * The fiwst editow cowumn.
 		 */
 		One = 1,
 		/**
-		 * The second editor column.
+		 * The second editow cowumn.
 		 */
 		Two = 2,
 		/**
-		 * The third editor column.
+		 * The thiwd editow cowumn.
 		 */
-		Three = 3,
+		Thwee = 3,
 		/**
-		 * The fourth editor column.
+		 * The fouwth editow cowumn.
 		 */
-		Four = 4,
+		Fouw = 4,
 		/**
-		 * The fifth editor column.
+		 * The fifth editow cowumn.
 		 */
 		Five = 5,
 		/**
-		 * The sixth editor column.
+		 * The sixth editow cowumn.
 		 */
 		Six = 6,
 		/**
-		 * The seventh editor column.
+		 * The seventh editow cowumn.
 		 */
 		Seven = 7,
 		/**
-		 * The eighth editor column.
+		 * The eighth editow cowumn.
 		 */
 		Eight = 8,
 		/**
-		 * The ninth editor column.
+		 * The ninth editow cowumn.
 		 */
 		Nine = 9
 	}
 
 	/**
-	 * An output channel is a container for readonly textual information.
+	 * An output channew is a containa fow weadonwy textuaw infowmation.
 	 *
-	 * To get an instance of an `OutputChannel` use
-	 * {@link window.createOutputChannel createOutputChannel}.
+	 * To get an instance of an `OutputChannew` use
+	 * {@wink window.cweateOutputChannew cweateOutputChannew}.
 	 */
-	export interface OutputChannel {
+	expowt intewface OutputChannew {
 
 		/**
-		 * The human-readable name of this output channel.
+		 * The human-weadabwe name of this output channew.
 		 */
-		readonly name: string;
+		weadonwy name: stwing;
 
 		/**
-		 * Append the given value to the channel.
+		 * Append the given vawue to the channew.
 		 *
-		 * @param value A string, falsy values will not be printed.
+		 * @pawam vawue A stwing, fawsy vawues wiww not be pwinted.
 		 */
-		append(value: string): void;
+		append(vawue: stwing): void;
 
 		/**
-		 * Append the given value and a line feed character
-		 * to the channel.
+		 * Append the given vawue and a wine feed chawacta
+		 * to the channew.
 		 *
-		 * @param value A string, falsy values will be printed.
+		 * @pawam vawue A stwing, fawsy vawues wiww be pwinted.
 		 */
-		appendLine(value: string): void;
+		appendWine(vawue: stwing): void;
 
 		/**
-		 * Removes all output from the channel.
+		 * Wemoves aww output fwom the channew.
 		 */
-		clear(): void;
+		cweaw(): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * Weveaw this channew in the UI.
 		 *
-		 * @param preserveFocus When `true` the channel will not take focus.
+		 * @pawam pwesewveFocus When `twue` the channew wiww not take focus.
 		 */
-		show(preserveFocus?: boolean): void;
+		show(pwesewveFocus?: boowean): void;
 
 		/**
-		 * Reveal this channel in the UI.
+		 * Weveaw this channew in the UI.
 		 *
-		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
+		 * @depwecated Use the ovewwoad with just one pawameta (`show(pwesewveFocus?: boowean): void`).
 		 *
-		 * @param column This argument is **deprecated** and will be ignored.
-		 * @param preserveFocus When `true` the channel will not take focus.
+		 * @pawam cowumn This awgument is **depwecated** and wiww be ignowed.
+		 * @pawam pwesewveFocus When `twue` the channew wiww not take focus.
 		 */
-		show(column?: ViewColumn, preserveFocus?: boolean): void;
+		show(cowumn?: ViewCowumn, pwesewveFocus?: boowean): void;
 
 		/**
-		 * Hide this channel from the UI.
+		 * Hide this channew fwom the UI.
 		 */
 		hide(): void;
 
 		/**
-		 * Dispose and free associated resources.
+		 * Dispose and fwee associated wesouwces.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Accessibility information which controls screen reader behavior.
+	 * Accessibiwity infowmation which contwows scween weada behaviow.
 	 */
-	export interface AccessibilityInformation {
+	expowt intewface AccessibiwityInfowmation {
 		/**
-		 * Label to be read out by a screen reader once the item has focus.
+		 * Wabew to be wead out by a scween weada once the item has focus.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * Role of the widget which defines how a screen reader interacts with it.
-		 * The role should be set in special cases when for example a tree-like element behaves like a checkbox.
-		 * If role is not specified the editor will pick the appropriate role automatically.
-		 * More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
+		 * Wowe of the widget which defines how a scween weada intewacts with it.
+		 * The wowe shouwd be set in speciaw cases when fow exampwe a twee-wike ewement behaves wike a checkbox.
+		 * If wowe is not specified the editow wiww pick the appwopwiate wowe automaticawwy.
+		 * Mowe about awia wowes can be found hewe https://w3c.github.io/awia/#widget_wowes
 		 */
-		role?: string;
+		wowe?: stwing;
 	}
 
 	/**
-	 * Represents the alignment of status bar items.
+	 * Wepwesents the awignment of status baw items.
 	 */
-	export enum StatusBarAlignment {
+	expowt enum StatusBawAwignment {
 
 		/**
-		 * Aligned to the left side.
+		 * Awigned to the weft side.
 		 */
-		Left = 1,
+		Weft = 1,
 
 		/**
-		 * Aligned to the right side.
+		 * Awigned to the wight side.
 		 */
-		Right = 2
+		Wight = 2
 	}
 
 	/**
-	 * A status bar item is a status bar contribution that can
-	 * show text and icons and run a command on click.
+	 * A status baw item is a status baw contwibution that can
+	 * show text and icons and wun a command on cwick.
 	 */
-	export interface StatusBarItem {
+	expowt intewface StatusBawItem {
 
 		/**
-		 * The identifier of this item.
+		 * The identifia of this item.
 		 *
-		 * *Note*: if no identifier was provided by the {@linkcode window.createStatusBarItem}
-		 * method, the identifier will match the {@link Extension.id extension identifier}.
+		 * *Note*: if no identifia was pwovided by the {@winkcode window.cweateStatusBawItem}
+		 * method, the identifia wiww match the {@wink Extension.id extension identifia}.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The alignment of this item.
+		 * The awignment of this item.
 		 */
-		readonly alignment: StatusBarAlignment;
+		weadonwy awignment: StatusBawAwignment;
 
 		/**
-		 * The priority of this item. Higher value means the item should
-		 * be shown more to the left.
+		 * The pwiowity of this item. Higha vawue means the item shouwd
+		 * be shown mowe to the weft.
 		 */
-		readonly priority?: number;
+		weadonwy pwiowity?: numba;
 
 		/**
-		 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc.
-		 * Try to keep the length of the name short, yet descriptive enough that
-		 * users can understand what the status bar item is about.
+		 * The name of the entwy, wike 'Python Wanguage Indicatow', 'Git Status' etc.
+		 * Twy to keep the wength of the name showt, yet descwiptive enough that
+		 * usews can undewstand what the status baw item is about.
 		 */
-		name: string | undefined;
+		name: stwing | undefined;
 
 		/**
-		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+		 * The text to show fow the entwy. You can embed icons in the text by wevewaging the syntax:
 		 *
-		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
+		 * `My text $(icon-name) contains icons wike $(icon-name) this one.`
 		 *
-		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
-		 * `light-bulb`, `thumbsup`, `zap` etc.
+		 * Whewe the icon-name is taken fwom the ThemeIcon [icon set](https://code.visuawstudio.com/api/wefewences/icons-in-wabews#icon-wisting), e.g.
+		 * `wight-buwb`, `thumbsup`, `zap` etc.
 		 */
-		text: string;
+		text: stwing;
 
 		/**
-		 * The tooltip text when you hover over this entry.
+		 * The toowtip text when you hova ova this entwy.
 		 */
-		tooltip: string | MarkdownString | undefined;
+		toowtip: stwing | MawkdownStwing | undefined;
 
 		/**
-		 * The foreground color for this entry.
+		 * The fowegwound cowow fow this entwy.
 		 */
-		color: string | ThemeColor | undefined;
+		cowow: stwing | ThemeCowow | undefined;
 
 		/**
-		 * The background color for this entry.
+		 * The backgwound cowow fow this entwy.
 		 *
-		 * *Note*: only the following colors are supported:
-		 * * `new ThemeColor('statusBarItem.errorBackground')`
-		 * * `new ThemeColor('statusBarItem.warningBackground')`
+		 * *Note*: onwy the fowwowing cowows awe suppowted:
+		 * * `new ThemeCowow('statusBawItem.ewwowBackgwound')`
+		 * * `new ThemeCowow('statusBawItem.wawningBackgwound')`
 		 *
-		 * More background colors may be supported in the future.
+		 * Mowe backgwound cowows may be suppowted in the futuwe.
 		 *
-		 * *Note*: when a background color is set, the statusbar may override
-		 * the `color` choice to ensure the entry is readable in all themes.
+		 * *Note*: when a backgwound cowow is set, the statusbaw may ovewwide
+		 * the `cowow` choice to ensuwe the entwy is weadabwe in aww themes.
 		 */
-		backgroundColor: ThemeColor | undefined;
+		backgwoundCowow: ThemeCowow | undefined;
 
 		/**
-		 * {@linkcode Command} or identifier of a command to run on click.
+		 * {@winkcode Command} ow identifia of a command to wun on cwick.
 		 *
-		 * The command must be {@link commands.getCommands known}.
+		 * The command must be {@wink commands.getCommands known}.
 		 *
-		 * Note that if this is a {@linkcode Command} object, only the {@linkcode Command.command command} and {@linkcode Command.arguments arguments}
-		 * are used by the editor.
+		 * Note that if this is a {@winkcode Command} object, onwy the {@winkcode Command.command command} and {@winkcode Command.awguments awguments}
+		 * awe used by the editow.
 		 */
-		command: string | Command | undefined;
+		command: stwing | Command | undefined;
 
 		/**
-		 * Accessibility information used when a screen reader interacts with this StatusBar item
+		 * Accessibiwity infowmation used when a scween weada intewacts with this StatusBaw item
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		accessibiwityInfowmation?: AccessibiwityInfowmation;
 
 		/**
-		 * Shows the entry in the status bar.
+		 * Shows the entwy in the status baw.
 		 */
 		show(): void;
 
 		/**
-		 * Hide the entry in the status bar.
+		 * Hide the entwy in the status baw.
 		 */
 		hide(): void;
 
 		/**
-		 * Dispose and free associated resources. Call
-		 * {@link StatusBarItem.hide hide}.
+		 * Dispose and fwee associated wesouwces. Caww
+		 * {@wink StatusBawItem.hide hide}.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Defines a generalized way of reporting progress updates.
+	 * Defines a genewawized way of wepowting pwogwess updates.
 	 */
-	export interface Progress<T> {
+	expowt intewface Pwogwess<T> {
 
 		/**
-		 * Report a progress update.
-		 * @param value A progress item, like a message and/or an
-		 * report on how much work finished
+		 * Wepowt a pwogwess update.
+		 * @pawam vawue A pwogwess item, wike a message and/ow an
+		 * wepowt on how much wowk finished
 		 */
-		report(value: T): void;
+		wepowt(vawue: T): void;
 	}
 
 	/**
-	 * An individual terminal instance within the integrated terminal.
+	 * An individuaw tewminaw instance within the integwated tewminaw.
 	 */
-	export interface Terminal {
+	expowt intewface Tewminaw {
 
 		/**
-		 * The name of the terminal.
+		 * The name of the tewminaw.
 		 */
-		readonly name: string;
+		weadonwy name: stwing;
 
 		/**
-		 * The process ID of the shell process.
+		 * The pwocess ID of the sheww pwocess.
 		 */
-		readonly processId: Thenable<number | undefined>;
+		weadonwy pwocessId: Thenabwe<numba | undefined>;
 
 		/**
-		 * The object used to initialize the terminal, this is useful for example to detecting the
-		 * shell type of when the terminal was not launched by this extension or for detecting what
-		 * folder the shell was launched in.
+		 * The object used to initiawize the tewminaw, this is usefuw fow exampwe to detecting the
+		 * sheww type of when the tewminaw was not waunched by this extension ow fow detecting what
+		 * fowda the sheww was waunched in.
 		 */
-		readonly creationOptions: Readonly<TerminalOptions | ExtensionTerminalOptions>;
+		weadonwy cweationOptions: Weadonwy<TewminawOptions | ExtensionTewminawOptions>;
 
 		/**
-		 * The exit status of the terminal, this will be undefined while the terminal is active.
+		 * The exit status of the tewminaw, this wiww be undefined whiwe the tewminaw is active.
 		 *
-		 * **Example:** Show a notification with the exit code when the terminal exits with a
-		 * non-zero exit code.
-		 * ```typescript
-		 * window.onDidCloseTerminal(t => {
+		 * **Exampwe:** Show a notification with the exit code when the tewminaw exits with a
+		 * non-zewo exit code.
+		 * ```typescwipt
+		 * window.onDidCwoseTewminaw(t => {
 		 *   if (t.exitStatus && t.exitStatus.code) {
-		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
+		 *   	vscode.window.showInfowmationMessage(`Exit code: ${t.exitStatus.code}`);
 		 *   }
 		 * });
 		 * ```
 		 */
-		readonly exitStatus: TerminalExitStatus | undefined;
+		weadonwy exitStatus: TewminawExitStatus | undefined;
 
 		/**
-		 * The current state of the {@link Terminal}.
+		 * The cuwwent state of the {@wink Tewminaw}.
 		 */
-		readonly state: TerminalState;
+		weadonwy state: TewminawState;
 
 		/**
-		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
-		 * (shell) of the terminal.
+		 * Send text to the tewminaw. The text is wwitten to the stdin of the undewwying pty pwocess
+		 * (sheww) of the tewminaw.
 		 *
-		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
+		 * @pawam text The text to send.
+		 * @pawam addNewWine Whetha to add a new wine to the text being sent, this is nowmawwy
+		 * wequiwed to wun a command in the tewminaw. The chawacta(s) added awe \n ow \w\n
+		 * depending on the pwatfowm. This defauwts to `twue`.
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		sendText(text: stwing, addNewWine?: boowean): void;
 
 		/**
-		 * Show the terminal panel and reveal this terminal in the UI.
+		 * Show the tewminaw panew and weveaw this tewminaw in the UI.
 		 *
-		 * @param preserveFocus When `true` the terminal will not take focus.
+		 * @pawam pwesewveFocus When `twue` the tewminaw wiww not take focus.
 		 */
-		show(preserveFocus?: boolean): void;
+		show(pwesewveFocus?: boowean): void;
 
 		/**
-		 * Hide the terminal panel if this terminal is currently showing.
+		 * Hide the tewminaw panew if this tewminaw is cuwwentwy showing.
 		 */
 		hide(): void;
 
 		/**
-		 * Dispose and free associated resources.
+		 * Dispose and fwee associated wesouwces.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Represents the state of a {@link Terminal}.
+	 * Wepwesents the state of a {@wink Tewminaw}.
 	 */
-	export interface TerminalState {
+	expowt intewface TewminawState {
 		/**
-		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
-		 * terminal has sent data to the process which depending on the terminal's _mode_. By
-		 * default input is sent when a key is pressed or when a command or extension sends text,
-		 * but based on the terminal's mode it can also happen on:
+		 * Whetha the {@wink Tewminaw} has been intewacted with. Intewaction means that the
+		 * tewminaw has sent data to the pwocess which depending on the tewminaw's _mode_. By
+		 * defauwt input is sent when a key is pwessed ow when a command ow extension sends text,
+		 * but based on the tewminaw's mode it can awso happen on:
 		 *
-		 * - a pointer click event
-		 * - a pointer scroll event
-		 * - a pointer move event
-		 * - terminal focus in/out
+		 * - a pointa cwick event
+		 * - a pointa scwoww event
+		 * - a pointa move event
+		 * - tewminaw focus in/out
 		 *
-		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
-		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+		 * Fow mowe infowmation on events that can send data see "DEC Pwivate Mode Set (DECSET)" on
+		 * https://invisibwe-iswand.net/xtewm/ctwseqs/ctwseqs.htmw
 		 */
-		readonly isInteractedWith: boolean;
+		weadonwy isIntewactedWith: boowean;
 	}
 
 	/**
-	 * Provides information on a line in a terminal in order to provide links for it.
+	 * Pwovides infowmation on a wine in a tewminaw in owda to pwovide winks fow it.
 	 */
-	export interface TerminalLinkContext {
+	expowt intewface TewminawWinkContext {
 		/**
-		 * This is the text from the unwrapped line in the terminal.
+		 * This is the text fwom the unwwapped wine in the tewminaw.
 		 */
-		line: string;
+		wine: stwing;
 
 		/**
-		 * The terminal the link belongs to.
+		 * The tewminaw the wink bewongs to.
 		 */
-		terminal: Terminal;
+		tewminaw: Tewminaw;
 	}
 
 	/**
-	 * A provider that enables detection and handling of links within terminals.
+	 * A pwovida that enabwes detection and handwing of winks within tewminaws.
 	 */
-	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+	expowt intewface TewminawWinkPwovida<T extends TewminawWink = TewminawWink> {
 		/**
-		 * Provide terminal links for the given context. Note that this can be called multiple times
-		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
-		 * that could have problems when asynchronous usage may overlap.
-		 * @param context Information about what links are being provided for.
-		 * @param token A cancellation token.
-		 * @return A list of terminal links for the given line.
+		 * Pwovide tewminaw winks fow the given context. Note that this can be cawwed muwtipwe times
+		 * even befowe pwevious cawws wesowve, make suwe to not shawe gwobaw objects (eg. `WegExp`)
+		 * that couwd have pwobwems when asynchwonous usage may ovewwap.
+		 * @pawam context Infowmation about what winks awe being pwovided fow.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A wist of tewminaw winks fow the given wine.
 		 */
-		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>;
+		pwovideTewminawWinks(context: TewminawWinkContext, token: CancewwationToken): PwovidewWesuwt<T[]>;
 
 		/**
-		 * Handle an activated terminal link.
-		 * @param link The link to handle.
+		 * Handwe an activated tewminaw wink.
+		 * @pawam wink The wink to handwe.
 		 */
-		handleTerminalLink(link: T): ProviderResult<void>;
+		handweTewminawWink(wink: T): PwovidewWesuwt<void>;
 	}
 
 	/**
-	 * A link on a terminal line.
+	 * A wink on a tewminaw wine.
 	 */
-	export class TerminalLink {
+	expowt cwass TewminawWink {
 		/**
-		 * The start index of the link on {@link TerminalLinkContext.line}.
+		 * The stawt index of the wink on {@wink TewminawWinkContext.wine}.
 		 */
-		startIndex: number;
+		stawtIndex: numba;
 
 		/**
-		 * The length of the link on {@link TerminalLinkContext.line}.
+		 * The wength of the wink on {@wink TewminawWinkContext.wine}.
 		 */
-		length: number;
+		wength: numba;
 
 		/**
-		 * The tooltip text when you hover over this link.
+		 * The toowtip text when you hova ova this wink.
 		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
-		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
-		 * depending on OS, user settings, and localization.
+		 * If a toowtip is pwovided, is wiww be dispwayed in a stwing that incwudes instwuctions on
+		 * how to twigga the wink, such as `{0} (ctww + cwick)`. The specific instwuctions vawy
+		 * depending on OS, usa settings, and wocawization.
 		 */
-		tooltip?: string;
+		toowtip?: stwing;
 
 		/**
-		 * Creates a new terminal link.
-		 * @param startIndex The start index of the link on {@link TerminalLinkContext.line}.
-		 * @param length The length of the link on {@link TerminalLinkContext.line}.
-		 * @param tooltip The tooltip text when you hover over this link.
+		 * Cweates a new tewminaw wink.
+		 * @pawam stawtIndex The stawt index of the wink on {@wink TewminawWinkContext.wine}.
+		 * @pawam wength The wength of the wink on {@wink TewminawWinkContext.wine}.
+		 * @pawam toowtip The toowtip text when you hova ova this wink.
 		 *
-		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
-		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
-		 * depending on OS, user settings, and localization.
+		 * If a toowtip is pwovided, is wiww be dispwayed in a stwing that incwudes instwuctions on
+		 * how to twigga the wink, such as `{0} (ctww + cwick)`. The specific instwuctions vawy
+		 * depending on OS, usa settings, and wocawization.
 		 */
-		constructor(startIndex: number, length: number, tooltip?: string);
+		constwuctow(stawtIndex: numba, wength: numba, toowtip?: stwing);
 	}
 
 	/**
-	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * Pwovides a tewminaw pwofiwe fow the contwibuted tewminaw pwofiwe when waunched via the UI ow
 	 * command.
 	 */
-	export interface TerminalProfileProvider {
+	expowt intewface TewminawPwofiwePwovida {
 		/**
-		 * Provide the terminal profile.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 * @returns The terminal profile.
+		 * Pwovide the tewminaw pwofiwe.
+		 * @pawam token A cancewwation token that indicates the wesuwt is no wonga needed.
+		 * @wetuwns The tewminaw pwofiwe.
 		 */
-		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+		pwovideTewminawPwofiwe(token: CancewwationToken): PwovidewWesuwt<TewminawPwofiwe>;
 	}
 
 	/**
-	 * A terminal profile defines how a terminal will be launched.
+	 * A tewminaw pwofiwe defines how a tewminaw wiww be waunched.
 	 */
-	export class TerminalProfile {
+	expowt cwass TewminawPwofiwe {
 		/**
-		 * The options that the terminal will launch with.
+		 * The options that the tewminaw wiww waunch with.
 		 */
-		options: TerminalOptions | ExtensionTerminalOptions;
+		options: TewminawOptions | ExtensionTewminawOptions;
 
 		/**
-		 * Creates a new terminal profile.
-		 * @param options The options that the terminal will launch with.
+		 * Cweates a new tewminaw pwofiwe.
+		 * @pawam options The options that the tewminaw wiww waunch with.
 		 */
-		constructor(options: TerminalOptions | ExtensionTerminalOptions);
+		constwuctow(options: TewminawOptions | ExtensionTewminawOptions);
 	}
 
 	/**
-	 * A file decoration represents metadata that can be rendered with a file.
+	 * A fiwe decowation wepwesents metadata that can be wendewed with a fiwe.
 	 */
-	export class FileDecoration {
+	expowt cwass FiweDecowation {
 
 		/**
-		 * A very short string that represents this decoration.
+		 * A vewy showt stwing that wepwesents this decowation.
 		 */
-		badge?: string;
+		badge?: stwing;
 
 		/**
-		 * A human-readable tooltip for this decoration.
+		 * A human-weadabwe toowtip fow this decowation.
 		 */
-		tooltip?: string;
+		toowtip?: stwing;
 
 		/**
-		 * The color of this decoration.
+		 * The cowow of this decowation.
 		 */
-		color?: ThemeColor;
+		cowow?: ThemeCowow;
 
 		/**
-		 * A flag expressing that this decoration should be
-		 * propagated to its parents.
+		 * A fwag expwessing that this decowation shouwd be
+		 * pwopagated to its pawents.
 		 */
-		propagate?: boolean;
+		pwopagate?: boowean;
 
 		/**
-		 * Creates a new decoration.
+		 * Cweates a new decowation.
 		 *
-		 * @param badge A letter that represents the decoration.
-		 * @param tooltip The tooltip of the decoration.
-		 * @param color The color of the decoration.
+		 * @pawam badge A wetta that wepwesents the decowation.
+		 * @pawam toowtip The toowtip of the decowation.
+		 * @pawam cowow The cowow of the decowation.
 		 */
-		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
+		constwuctow(badge?: stwing, toowtip?: stwing, cowow?: ThemeCowow);
 	}
 
 	/**
-	 * The decoration provider interfaces defines the contract between extensions and
-	 * file decorations.
+	 * The decowation pwovida intewfaces defines the contwact between extensions and
+	 * fiwe decowations.
 	 */
-	export interface FileDecorationProvider {
+	expowt intewface FiweDecowationPwovida {
 
 		/**
-		 * An optional event to signal that decorations for one or many files have changed.
+		 * An optionaw event to signaw that decowations fow one ow many fiwes have changed.
 		 *
-		 * *Note* that this event should be used to propagate information about children.
+		 * *Note* that this event shouwd be used to pwopagate infowmation about chiwdwen.
 		 *
-		 * @see {@link EventEmitter}
+		 * @see {@wink EventEmitta}
 		 */
-		onDidChangeFileDecorations?: Event<undefined | Uri | Uri[]>;
+		onDidChangeFiweDecowations?: Event<undefined | Uwi | Uwi[]>;
 
 		/**
-		 * Provide decorations for a given uri.
+		 * Pwovide decowations fow a given uwi.
 		 *
-		 * *Note* that this function is only called when a file gets rendered in the UI.
-		 * This means a decoration from a descendent that propagates upwards must be signaled
-		 * to the editor via the {@link FileDecorationProvider.onDidChangeFileDecorations onDidChangeFileDecorations}-event.
+		 * *Note* that this function is onwy cawwed when a fiwe gets wendewed in the UI.
+		 * This means a decowation fwom a descendent that pwopagates upwawds must be signawed
+		 * to the editow via the {@wink FiweDecowationPwovida.onDidChangeFiweDecowations onDidChangeFiweDecowations}-event.
 		 *
-		 * @param uri The uri of the file to provide a decoration for.
-		 * @param token A cancellation token.
-		 * @returns A decoration or a thenable that resolves to such.
+		 * @pawam uwi The uwi of the fiwe to pwovide a decowation fow.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns A decowation ow a thenabwe that wesowves to such.
 		 */
-		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
+		pwovideFiweDecowation(uwi: Uwi, token: CancewwationToken): PwovidewWesuwt<FiweDecowation>;
 	}
 
 
 	/**
-	 * In a remote window the extension kind describes if an extension
-	 * runs where the UI (window) runs or if an extension runs remotely.
+	 * In a wemote window the extension kind descwibes if an extension
+	 * wuns whewe the UI (window) wuns ow if an extension wuns wemotewy.
 	 */
-	export enum ExtensionKind {
+	expowt enum ExtensionKind {
 
 		/**
-		 * Extension runs where the UI runs.
+		 * Extension wuns whewe the UI wuns.
 		 */
 		UI = 1,
 
 		/**
-		 * Extension runs where the remote extension host runs.
+		 * Extension wuns whewe the wemote extension host wuns.
 		 */
-		Workspace = 2
+		Wowkspace = 2
 	}
 
 	/**
-	 * Represents an extension.
+	 * Wepwesents an extension.
 	 *
-	 * To get an instance of an `Extension` use {@link extensions.getExtension getExtension}.
+	 * To get an instance of an `Extension` use {@wink extensions.getExtension getExtension}.
 	 */
-	export interface Extension<T> {
+	expowt intewface Extension<T> {
 
 		/**
-		 * The canonical extension identifier in the form of: `publisher.name`.
+		 * The canonicaw extension identifia in the fowm of: `pubwisha.name`.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The uri of the directory containing the extension.
+		 * The uwi of the diwectowy containing the extension.
 		 */
-		readonly extensionUri: Uri;
+		weadonwy extensionUwi: Uwi;
 
 		/**
-		 * The absolute file path of the directory containing this extension. Shorthand
-		 * notation for {@link Extension.extensionUri Extension.extensionUri.fsPath} (independent of the uri scheme).
+		 * The absowute fiwe path of the diwectowy containing this extension. Showthand
+		 * notation fow {@wink Extension.extensionUwi Extension.extensionUwi.fsPath} (independent of the uwi scheme).
 		 */
-		readonly extensionPath: string;
+		weadonwy extensionPath: stwing;
 
 		/**
-		 * `true` if the extension has been activated.
+		 * `twue` if the extension has been activated.
 		 */
-		readonly isActive: boolean;
+		weadonwy isActive: boowean;
 
 		/**
-		 * The parsed contents of the extension's package.json.
+		 * The pawsed contents of the extension's package.json.
 		 */
-		readonly packageJSON: any;
+		weadonwy packageJSON: any;
 
 		/**
-		 * The extension kind describes if an extension runs where the UI runs
-		 * or if an extension runs where the remote extension host runs. The extension kind
-		 * is defined in the `package.json`-file of extensions but can also be refined
-		 * via the `remote.extensionKind`-setting. When no remote extension host exists,
-		 * the value is {@linkcode ExtensionKind.UI}.
+		 * The extension kind descwibes if an extension wuns whewe the UI wuns
+		 * ow if an extension wuns whewe the wemote extension host wuns. The extension kind
+		 * is defined in the `package.json`-fiwe of extensions but can awso be wefined
+		 * via the `wemote.extensionKind`-setting. When no wemote extension host exists,
+		 * the vawue is {@winkcode ExtensionKind.UI}.
 		 */
 		extensionKind: ExtensionKind;
 
 		/**
-		 * The public API exported by this extension. It is an invalid action
-		 * to access this field before this extension has been activated.
+		 * The pubwic API expowted by this extension. It is an invawid action
+		 * to access this fiewd befowe this extension has been activated.
 		 */
-		readonly exports: T;
+		weadonwy expowts: T;
 
 		/**
-		 * Activates this extension and returns its public API.
+		 * Activates this extension and wetuwns its pubwic API.
 		 *
-		 * @return A promise that will resolve when this extension has been activated.
+		 * @wetuwn A pwomise that wiww wesowve when this extension has been activated.
 		 */
-		activate(): Thenable<T>;
+		activate(): Thenabwe<T>;
 	}
 
 	/**
-	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
-	 * mode the specific extension is running in.
+	 * The ExtensionMode is pwovided on the `ExtensionContext` and indicates the
+	 * mode the specific extension is wunning in.
 	 */
-	export enum ExtensionMode {
+	expowt enum ExtensionMode {
 		/**
-		 * The extension is installed normally (for example, from the marketplace
-		 * or VSIX) in the editor.
+		 * The extension is instawwed nowmawwy (fow exampwe, fwom the mawketpwace
+		 * ow VSIX) in the editow.
 		 */
-		Production = 1,
+		Pwoduction = 1,
 
 		/**
-		 * The extension is running from an `--extensionDevelopmentPath` provided
-		 * when launching the editor.
+		 * The extension is wunning fwom an `--extensionDevewopmentPath` pwovided
+		 * when waunching the editow.
 		 */
-		Development = 2,
+		Devewopment = 2,
 
 		/**
-		 * The extension is running from an `--extensionTestsPath` and
-		 * the extension host is running unit tests.
+		 * The extension is wunning fwom an `--extensionTestsPath` and
+		 * the extension host is wunning unit tests.
 		 */
 		Test = 3,
 	}
 
 	/**
-	 * An extension context is a collection of utilities private to an
+	 * An extension context is a cowwection of utiwities pwivate to an
 	 * extension.
 	 *
-	 * An instance of an `ExtensionContext` is provided as the first
-	 * parameter to the `activate`-call of an extension.
+	 * An instance of an `ExtensionContext` is pwovided as the fiwst
+	 * pawameta to the `activate`-caww of an extension.
 	 */
-	export interface ExtensionContext {
+	expowt intewface ExtensionContext {
 
 		/**
-		 * An array to which disposables can be added. When this
-		 * extension is deactivated the disposables will be disposed.
+		 * An awway to which disposabwes can be added. When this
+		 * extension is deactivated the disposabwes wiww be disposed.
 		 */
-		readonly subscriptions: { dispose(): any }[];
+		weadonwy subscwiptions: { dispose(): any }[];
 
 		/**
-		 * A memento object that stores state in the context
-		 * of the currently opened {@link workspace.workspaceFolders workspace}.
+		 * A memento object that stowes state in the context
+		 * of the cuwwentwy opened {@wink wowkspace.wowkspaceFowdews wowkspace}.
 		 */
-		readonly workspaceState: Memento;
+		weadonwy wowkspaceState: Memento;
 
 		/**
-		 * A memento object that stores state independent
-		 * of the current opened {@link workspace.workspaceFolders workspace}.
+		 * A memento object that stowes state independent
+		 * of the cuwwent opened {@wink wowkspace.wowkspaceFowdews wowkspace}.
 		 */
-		readonly globalState: Memento & {
+		weadonwy gwobawState: Memento & {
 			/**
-			 * Set the keys whose values should be synchronized across devices when synchronizing user-data
-			 * like configuration, extensions, and mementos.
+			 * Set the keys whose vawues shouwd be synchwonized acwoss devices when synchwonizing usa-data
+			 * wike configuwation, extensions, and mementos.
 			 *
-			 * Note that this function defines the whole set of keys whose values are synchronized:
-			 *  - calling it with an empty array stops synchronization for this memento
-			 *  - calling it with a non-empty array replaces all keys whose values are synchronized
+			 * Note that this function defines the whowe set of keys whose vawues awe synchwonized:
+			 *  - cawwing it with an empty awway stops synchwonization fow this memento
+			 *  - cawwing it with a non-empty awway wepwaces aww keys whose vawues awe synchwonized
 			 *
-			 * For any given set of keys this function needs to be called only once but there is no harm in
-			 * repeatedly calling it.
+			 * Fow any given set of keys this function needs to be cawwed onwy once but thewe is no hawm in
+			 * wepeatedwy cawwing it.
 			 *
-			 * @param keys The set of keys whose values are synced.
+			 * @pawam keys The set of keys whose vawues awe synced.
 			 */
-			setKeysForSync(keys: readonly string[]): void;
+			setKeysFowSync(keys: weadonwy stwing[]): void;
 		};
 
 		/**
-		 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
-		 * current opened {@link workspace.workspaceFolders workspace}.
+		 * A stowage utiwity fow secwets. Secwets awe pewsisted acwoss wewoads and awe independent of the
+		 * cuwwent opened {@wink wowkspace.wowkspaceFowdews wowkspace}.
 		 */
-		readonly secrets: SecretStorage;
+		weadonwy secwets: SecwetStowage;
 
 		/**
-		 * The uri of the directory containing the extension.
+		 * The uwi of the diwectowy containing the extension.
 		 */
-		readonly extensionUri: Uri;
+		weadonwy extensionUwi: Uwi;
 
 		/**
-		 * The absolute file path of the directory containing the extension. Shorthand
-		 * notation for {@link TextDocument.uri ExtensionContext.extensionUri.fsPath} (independent of the uri scheme).
+		 * The absowute fiwe path of the diwectowy containing the extension. Showthand
+		 * notation fow {@wink TextDocument.uwi ExtensionContext.extensionUwi.fsPath} (independent of the uwi scheme).
 		 */
-		readonly extensionPath: string;
+		weadonwy extensionPath: stwing;
 
 		/**
-		 * Gets the extension's environment variable collection for this workspace, enabling changes
-		 * to be applied to terminal environment variables.
+		 * Gets the extension's enviwonment vawiabwe cowwection fow this wowkspace, enabwing changes
+		 * to be appwied to tewminaw enviwonment vawiabwes.
 		 */
-		readonly environmentVariableCollection: EnvironmentVariableCollection;
+		weadonwy enviwonmentVawiabweCowwection: EnviwonmentVawiabweCowwection;
 
 		/**
-		 * Get the absolute path of a resource contained in the extension.
+		 * Get the absowute path of a wesouwce contained in the extension.
 		 *
-		 * *Note* that an absolute uri can be constructed via {@linkcode Uri.joinPath} and
-		 * {@linkcode ExtensionContext.extensionUri extensionUri}, e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 * *Note* that an absowute uwi can be constwucted via {@winkcode Uwi.joinPath} and
+		 * {@winkcode ExtensionContext.extensionUwi extensionUwi}, e.g. `vscode.Uwi.joinPath(context.extensionUwi, wewativePath);`
 		 *
-		 * @param relativePath A relative path to a resource contained in the extension.
-		 * @return The absolute path of the resource.
+		 * @pawam wewativePath A wewative path to a wesouwce contained in the extension.
+		 * @wetuwn The absowute path of the wesouwce.
 		 */
-		asAbsolutePath(relativePath: string): string;
+		asAbsowutePath(wewativePath: stwing): stwing;
 
 		/**
-		 * The uri of a workspace specific directory in which the extension
-		 * can store private state. The directory might not exist and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
-		 * The value is `undefined` when no workspace nor folder has been opened.
+		 * The uwi of a wowkspace specific diwectowy in which the extension
+		 * can stowe pwivate state. The diwectowy might not exist and cweation is
+		 * up to the extension. Howeva, the pawent diwectowy is guawanteed to be existent.
+		 * The vawue is `undefined` when no wowkspace now fowda has been opened.
 		 *
-		 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+		 * Use {@winkcode ExtensionContext.wowkspaceState wowkspaceState} ow
+		 * {@winkcode ExtensionContext.gwobawState gwobawState} to stowe key vawue data.
 		 *
-		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 * @see {@winkcode FiweSystem wowkspace.fs} fow how to wead and wwite fiwes and fowdews fwom
+		 *  an uwi.
 		 */
-		readonly storageUri: Uri | undefined;
+		weadonwy stowageUwi: Uwi | undefined;
 
 		/**
-		 * An absolute file path of a workspace specific directory in which the extension
-		 * can store private state. The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * An absowute fiwe path of a wowkspace specific diwectowy in which the extension
+		 * can stowe pwivate state. The diwectowy might not exist on disk and cweation is
+		 * up to the extension. Howeva, the pawent diwectowy is guawanteed to be existent.
 		 *
-		 * Use {@linkcode ExtensionContext.workspaceState workspaceState} or
-		 * {@linkcode ExtensionContext.globalState globalState} to store key value data.
+		 * Use {@winkcode ExtensionContext.wowkspaceState wowkspaceState} ow
+		 * {@winkcode ExtensionContext.gwobawState gwobawState} to stowe key vawue data.
 		 *
-		 * @deprecated Use {@link ExtensionContext.storageUri storageUri} instead.
+		 * @depwecated Use {@wink ExtensionContext.stowageUwi stowageUwi} instead.
 		 */
-		readonly storagePath: string | undefined;
+		weadonwy stowagePath: stwing | undefined;
 
 		/**
-		 * The uri of a directory in which the extension can store global state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The uwi of a diwectowy in which the extension can stowe gwobaw state.
+		 * The diwectowy might not exist on disk and cweation is
+		 * up to the extension. Howeva, the pawent diwectowy is guawanteed to be existent.
 		 *
-		 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+		 * Use {@winkcode ExtensionContext.gwobawState gwobawState} to stowe key vawue data.
 		 *
-		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 * @see {@winkcode FiweSystem wowkspace.fs} fow how to wead and wwite fiwes and fowdews fwom
+		 *  an uwi.
 		 */
-		readonly globalStorageUri: Uri;
+		weadonwy gwobawStowageUwi: Uwi;
 
 		/**
-		 * An absolute file path in which the extension can store global state.
-		 * The directory might not exist on disk and creation is
-		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * An absowute fiwe path in which the extension can stowe gwobaw state.
+		 * The diwectowy might not exist on disk and cweation is
+		 * up to the extension. Howeva, the pawent diwectowy is guawanteed to be existent.
 		 *
-		 * Use {@linkcode ExtensionContext.globalState globalState} to store key value data.
+		 * Use {@winkcode ExtensionContext.gwobawState gwobawState} to stowe key vawue data.
 		 *
-		 * @deprecated Use {@link ExtensionContext.globalStorageUri globalStorageUri} instead.
+		 * @depwecated Use {@wink ExtensionContext.gwobawStowageUwi gwobawStowageUwi} instead.
 		 */
-		readonly globalStoragePath: string;
+		weadonwy gwobawStowagePath: stwing;
 
 		/**
-		 * The uri of a directory in which the extension can create log files.
-		 * The directory might not exist on disk and creation is up to the extension. However,
-		 * the parent directory is guaranteed to be existent.
+		 * The uwi of a diwectowy in which the extension can cweate wog fiwes.
+		 * The diwectowy might not exist on disk and cweation is up to the extension. Howeva,
+		 * the pawent diwectowy is guawanteed to be existent.
 		 *
-		 * @see {@linkcode FileSystem workspace.fs} for how to read and write files and folders from
-		 *  an uri.
+		 * @see {@winkcode FiweSystem wowkspace.fs} fow how to wead and wwite fiwes and fowdews fwom
+		 *  an uwi.
 		 */
-		readonly logUri: Uri;
+		weadonwy wogUwi: Uwi;
 
 		/**
-		 * An absolute file path of a directory in which the extension can create log files.
-		 * The directory might not exist on disk and creation is up to the extension. However,
-		 * the parent directory is guaranteed to be existent.
+		 * An absowute fiwe path of a diwectowy in which the extension can cweate wog fiwes.
+		 * The diwectowy might not exist on disk and cweation is up to the extension. Howeva,
+		 * the pawent diwectowy is guawanteed to be existent.
 		 *
-		 * @deprecated Use {@link ExtensionContext.logUri logUri} instead.
+		 * @depwecated Use {@wink ExtensionContext.wogUwi wogUwi} instead.
 		 */
-		readonly logPath: string;
+		weadonwy wogPath: stwing;
 
 		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
+		 * The mode the extension is wunning in. This is specific to the cuwwent
+		 * extension. One extension may be in `ExtensionMode.Devewopment` whiwe
+		 * otha extensions in the host wun in `ExtensionMode.Wewease`.
 		 */
-		readonly extensionMode: ExtensionMode;
+		weadonwy extensionMode: ExtensionMode;
 
 		/**
-		 * The current `Extension` instance.
+		 * The cuwwent `Extension` instance.
 		 */
-		readonly extension: Extension<any>;
+		weadonwy extension: Extension<any>;
 	}
 
 	/**
-	 * A memento represents a storage utility. It can store and retrieve
-	 * values.
+	 * A memento wepwesents a stowage utiwity. It can stowe and wetwieve
+	 * vawues.
 	 */
-	export interface Memento {
+	expowt intewface Memento {
 
 		/**
-		 * Returns the stored keys.
+		 * Wetuwns the stowed keys.
 		 *
-		 * @return The stored keys.
+		 * @wetuwn The stowed keys.
 		 */
-		keys(): readonly string[];
+		keys(): weadonwy stwing[];
 
 		/**
-		 * Return a value.
+		 * Wetuwn a vawue.
 		 *
-		 * @param key A string.
-		 * @return The stored value or `undefined`.
+		 * @pawam key A stwing.
+		 * @wetuwn The stowed vawue ow `undefined`.
 		 */
-		get<T>(key: string): T | undefined;
+		get<T>(key: stwing): T | undefined;
 
 		/**
-		 * Return a value.
+		 * Wetuwn a vawue.
 		 *
-		 * @param key A string.
-		 * @param defaultValue A value that should be returned when there is no
-		 * value (`undefined`) with the given key.
-		 * @return The stored value or the defaultValue.
+		 * @pawam key A stwing.
+		 * @pawam defauwtVawue A vawue that shouwd be wetuwned when thewe is no
+		 * vawue (`undefined`) with the given key.
+		 * @wetuwn The stowed vawue ow the defauwtVawue.
 		 */
-		get<T>(key: string, defaultValue: T): T;
+		get<T>(key: stwing, defauwtVawue: T): T;
 
 		/**
-		 * Store a value. The value must be JSON-stringifyable.
+		 * Stowe a vawue. The vawue must be JSON-stwingifyabwe.
 		 *
-		 * @param key A string.
-		 * @param value A value. MUST not contain cyclic references.
+		 * @pawam key A stwing.
+		 * @pawam vawue A vawue. MUST not contain cycwic wefewences.
 		 */
-		update(key: string, value: any): Thenable<void>;
+		update(key: stwing, vawue: any): Thenabwe<void>;
 	}
 
 	/**
-	 * The event data that is fired when a secret is added or removed.
+	 * The event data that is fiwed when a secwet is added ow wemoved.
 	 */
-	export interface SecretStorageChangeEvent {
+	expowt intewface SecwetStowageChangeEvent {
 		/**
-		 * The key of the secret that has changed.
+		 * The key of the secwet that has changed.
 		 */
-		readonly key: string;
+		weadonwy key: stwing;
 	}
 
 	/**
-	 * Represents a storage utility for secrets, information that is
+	 * Wepwesents a stowage utiwity fow secwets, infowmation that is
 	 * sensitive.
 	 */
-	export interface SecretStorage {
+	expowt intewface SecwetStowage {
 		/**
-		 * Retrieve a secret that was stored with key. Returns undefined if there
-		 * is no password matching that key.
-		 * @param key The key the secret was stored under.
-		 * @returns The stored value or `undefined`.
+		 * Wetwieve a secwet that was stowed with key. Wetuwns undefined if thewe
+		 * is no passwowd matching that key.
+		 * @pawam key The key the secwet was stowed unda.
+		 * @wetuwns The stowed vawue ow `undefined`.
 		 */
-		get(key: string): Thenable<string | undefined>;
+		get(key: stwing): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Store a secret under a given key.
-		 * @param key The key to store the secret under.
-		 * @param value The secret.
+		 * Stowe a secwet unda a given key.
+		 * @pawam key The key to stowe the secwet unda.
+		 * @pawam vawue The secwet.
 		 */
-		store(key: string, value: string): Thenable<void>;
+		stowe(key: stwing, vawue: stwing): Thenabwe<void>;
 
 		/**
-		 * Remove a secret from storage.
-		 * @param key The key the secret was stored under.
+		 * Wemove a secwet fwom stowage.
+		 * @pawam key The key the secwet was stowed unda.
 		 */
-		delete(key: string): Thenable<void>;
+		dewete(key: stwing): Thenabwe<void>;
 
 		/**
-		 * Fires when a secret is stored or deleted.
+		 * Fiwes when a secwet is stowed ow deweted.
 		 */
-		onDidChange: Event<SecretStorageChangeEvent>;
+		onDidChange: Event<SecwetStowageChangeEvent>;
 	}
 
 	/**
-	 * Represents a color theme kind.
+	 * Wepwesents a cowow theme kind.
 	 */
-	export enum ColorThemeKind {
-		Light = 1,
-		Dark = 2,
-		HighContrast = 3
+	expowt enum CowowThemeKind {
+		Wight = 1,
+		Dawk = 2,
+		HighContwast = 3
 	}
 
 	/**
-	 * Represents a color theme.
+	 * Wepwesents a cowow theme.
 	 */
-	export interface ColorTheme {
+	expowt intewface CowowTheme {
 
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The kind of this cowow theme: wight, dawk ow high contwast.
 		 */
-		readonly kind: ColorThemeKind;
+		weadonwy kind: CowowThemeKind;
 	}
 
 	/**
-	 * Controls the behaviour of the terminal's visibility.
+	 * Contwows the behaviouw of the tewminaw's visibiwity.
 	 */
-	export enum TaskRevealKind {
+	expowt enum TaskWeveawKind {
 		/**
-		 * Always brings the terminal to front if the task is executed.
+		 * Awways bwings the tewminaw to fwont if the task is executed.
 		 */
-		Always = 1,
+		Awways = 1,
 
 		/**
-		 * Only brings the terminal to front if a problem is detected executing the task
-		 * (e.g. the task couldn't be started because).
+		 * Onwy bwings the tewminaw to fwont if a pwobwem is detected executing the task
+		 * (e.g. the task couwdn't be stawted because).
 		 */
-		Silent = 2,
+		Siwent = 2,
 
 		/**
-		 * The terminal never comes to front when the task is executed.
+		 * The tewminaw neva comes to fwont when the task is executed.
 		 */
-		Never = 3
+		Neva = 3
 	}
 
 	/**
-	 * Controls how the task channel is used between tasks
+	 * Contwows how the task channew is used between tasks
 	 */
-	export enum TaskPanelKind {
+	expowt enum TaskPanewKind {
 
 		/**
-		 * Shares a panel with other tasks. This is the default.
+		 * Shawes a panew with otha tasks. This is the defauwt.
 		 */
-		Shared = 1,
+		Shawed = 1,
 
 		/**
-		 * Uses a dedicated panel for this tasks. The panel is not
-		 * shared with other tasks.
+		 * Uses a dedicated panew fow this tasks. The panew is not
+		 * shawed with otha tasks.
 		 */
 		Dedicated = 2,
 
 		/**
-		 * Creates a new panel whenever this task is executed.
+		 * Cweates a new panew wheneva this task is executed.
 		 */
 		New = 3
 	}
 
 	/**
-	 * Controls how the task is presented in the UI.
+	 * Contwows how the task is pwesented in the UI.
 	 */
-	export interface TaskPresentationOptions {
+	expowt intewface TaskPwesentationOptions {
 		/**
-		 * Controls whether the task output is reveal in the user interface.
-		 * Defaults to `RevealKind.Always`.
+		 * Contwows whetha the task output is weveaw in the usa intewface.
+		 * Defauwts to `WeveawKind.Awways`.
 		 */
-		reveal?: TaskRevealKind;
+		weveaw?: TaskWeveawKind;
 
 		/**
-		 * Controls whether the command associated with the task is echoed
-		 * in the user interface.
+		 * Contwows whetha the command associated with the task is echoed
+		 * in the usa intewface.
 		 */
-		echo?: boolean;
+		echo?: boowean;
 
 		/**
-		 * Controls whether the panel showing the task output is taking focus.
+		 * Contwows whetha the panew showing the task output is taking focus.
 		 */
-		focus?: boolean;
+		focus?: boowean;
 
 		/**
-		 * Controls if the task panel is used for this task only (dedicated),
-		 * shared between tasks (shared) or if a new panel is created on
-		 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
+		 * Contwows if the task panew is used fow this task onwy (dedicated),
+		 * shawed between tasks (shawed) ow if a new panew is cweated on
+		 * evewy task execution (new). Defauwts to `TaskInstanceKind.Shawed`
 		 */
-		panel?: TaskPanelKind;
+		panew?: TaskPanewKind;
 
 		/**
-		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+		 * Contwows whetha to show the "Tewminaw wiww be weused by tasks, pwess any key to cwose it" message.
 		 */
-		showReuseMessage?: boolean;
+		showWeuseMessage?: boowean;
 
 		/**
-		 * Controls whether the terminal is cleared before executing the task.
+		 * Contwows whetha the tewminaw is cweawed befowe executing the task.
 		 */
-		clear?: boolean;
+		cweaw?: boowean;
 	}
 
 	/**
-	 * A grouping for tasks. The editor by default supports the
-	 * 'Clean', 'Build', 'RebuildAll' and 'Test' group.
+	 * A gwouping fow tasks. The editow by defauwt suppowts the
+	 * 'Cwean', 'Buiwd', 'WebuiwdAww' and 'Test' gwoup.
 	 */
-	export class TaskGroup {
+	expowt cwass TaskGwoup {
 
 		/**
-		 * The clean task group;
+		 * The cwean task gwoup;
 		 */
-		static Clean: TaskGroup;
+		static Cwean: TaskGwoup;
 
 		/**
-		 * The build task group;
+		 * The buiwd task gwoup;
 		 */
-		static Build: TaskGroup;
+		static Buiwd: TaskGwoup;
 
 		/**
-		 * The rebuild all task group;
+		 * The webuiwd aww task gwoup;
 		 */
-		static Rebuild: TaskGroup;
+		static Webuiwd: TaskGwoup;
 
 		/**
-		 * The test all task group;
+		 * The test aww task gwoup;
 		 */
-		static Test: TaskGroup;
+		static Test: TaskGwoup;
 
 		/**
-		 * Whether the task that is part of this group is the default for the group.
-		 * This property cannot be set through API, and is controlled by a user's task configurations.
+		 * Whetha the task that is pawt of this gwoup is the defauwt fow the gwoup.
+		 * This pwopewty cannot be set thwough API, and is contwowwed by a usa's task configuwations.
 		 */
-		readonly isDefault?: boolean;
+		weadonwy isDefauwt?: boowean;
 
 		/**
-		 * The ID of the task group. Is one of TaskGroup.Clean.id, TaskGroup.Build.id, TaskGroup.Rebuild.id, or TaskGroup.Test.id.
+		 * The ID of the task gwoup. Is one of TaskGwoup.Cwean.id, TaskGwoup.Buiwd.id, TaskGwoup.Webuiwd.id, ow TaskGwoup.Test.id.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
-		private constructor(id: string, label: string);
+		pwivate constwuctow(id: stwing, wabew: stwing);
 	}
 
 	/**
-	 * A structure that defines a task kind in the system.
-	 * The value must be JSON-stringifyable.
+	 * A stwuctuwe that defines a task kind in the system.
+	 * The vawue must be JSON-stwingifyabwe.
 	 */
-	export interface TaskDefinition {
+	expowt intewface TaskDefinition {
 		/**
-		 * The task definition describing the task provided by an extension.
-		 * Usually a task provider defines more properties to identify
+		 * The task definition descwibing the task pwovided by an extension.
+		 * Usuawwy a task pwovida defines mowe pwopewties to identify
 		 * a task. They need to be defined in the package.json of the
-		 * extension under the 'taskDefinitions' extension point. The npm
-		 * task definition for example looks like this
-		 * ```typescript
-		 * interface NpmTaskDefinition extends TaskDefinition {
-		 *     script: string;
+		 * extension unda the 'taskDefinitions' extension point. The npm
+		 * task definition fow exampwe wooks wike this
+		 * ```typescwipt
+		 * intewface NpmTaskDefinition extends TaskDefinition {
+		 *     scwipt: stwing;
 		 * }
 		 * ```
 		 *
-		 * Note that type identifier starting with a '$' are reserved for internal
-		 * usages and shouldn't be used by extensions.
+		 * Note that type identifia stawting with a '$' awe wesewved fow intewnaw
+		 * usages and shouwdn't be used by extensions.
 		 */
-		readonly type: string;
+		weadonwy type: stwing;
 
 		/**
-		 * Additional attributes of a concrete task definition.
+		 * Additionaw attwibutes of a concwete task definition.
 		 */
-		[name: string]: any;
+		[name: stwing]: any;
 	}
 
 	/**
-	 * Options for a process execution
+	 * Options fow a pwocess execution
 	 */
-	export interface ProcessExecutionOptions {
+	expowt intewface PwocessExecutionOptions {
 		/**
-		 * The current working directory of the executed program or shell.
-		 * If omitted the tools current workspace root is used.
+		 * The cuwwent wowking diwectowy of the executed pwogwam ow sheww.
+		 * If omitted the toows cuwwent wowkspace woot is used.
 		 */
-		cwd?: string;
+		cwd?: stwing;
 
 		/**
-		 * The additional environment of the executed program or shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
+		 * The additionaw enviwonment of the executed pwogwam ow sheww. If omitted
+		 * the pawent pwocess' enviwonment is used. If pwovided it is mewged with
+		 * the pawent pwocess' enviwonment.
 		 */
-		env?: { [key: string]: string };
+		env?: { [key: stwing]: stwing };
 	}
 
 	/**
-	 * The execution of a task happens as an external process
-	 * without shell interaction.
+	 * The execution of a task happens as an extewnaw pwocess
+	 * without sheww intewaction.
 	 */
-	export class ProcessExecution {
+	expowt cwass PwocessExecution {
 
 		/**
-		 * Creates a process execution.
+		 * Cweates a pwocess execution.
 		 *
-		 * @param process The process to start.
-		 * @param options Optional options for the started process.
+		 * @pawam pwocess The pwocess to stawt.
+		 * @pawam options Optionaw options fow the stawted pwocess.
 		 */
-		constructor(process: string, options?: ProcessExecutionOptions);
+		constwuctow(pwocess: stwing, options?: PwocessExecutionOptions);
 
 		/**
-		 * Creates a process execution.
+		 * Cweates a pwocess execution.
 		 *
-		 * @param process The process to start.
-		 * @param args Arguments to be passed to the process.
-		 * @param options Optional options for the started process.
+		 * @pawam pwocess The pwocess to stawt.
+		 * @pawam awgs Awguments to be passed to the pwocess.
+		 * @pawam options Optionaw options fow the stawted pwocess.
 		 */
-		constructor(process: string, args: string[], options?: ProcessExecutionOptions);
+		constwuctow(pwocess: stwing, awgs: stwing[], options?: PwocessExecutionOptions);
 
 		/**
-		 * The process to be executed.
+		 * The pwocess to be executed.
 		 */
-		process: string;
+		pwocess: stwing;
 
 		/**
-		 * The arguments passed to the process. Defaults to an empty array.
+		 * The awguments passed to the pwocess. Defauwts to an empty awway.
 		 */
-		args: string[];
+		awgs: stwing[];
 
 		/**
-		 * The process options used when the process is executed.
-		 * Defaults to undefined.
+		 * The pwocess options used when the pwocess is executed.
+		 * Defauwts to undefined.
 		 */
-		options?: ProcessExecutionOptions;
+		options?: PwocessExecutionOptions;
 	}
 
 	/**
-	 * The shell quoting options.
+	 * The sheww quoting options.
 	 */
-	export interface ShellQuotingOptions {
+	expowt intewface ShewwQuotingOptions {
 
 		/**
-		 * The character used to do character escaping. If a string is provided only spaces
-		 * are escaped. If a `{ escapeChar, charsToEscape }` literal is provide all characters
-		 * in `charsToEscape` are escaped using the `escapeChar`.
+		 * The chawacta used to do chawacta escaping. If a stwing is pwovided onwy spaces
+		 * awe escaped. If a `{ escapeChaw, chawsToEscape }` witewaw is pwovide aww chawactews
+		 * in `chawsToEscape` awe escaped using the `escapeChaw`.
 		 */
-		escape?: string | {
+		escape?: stwing | {
 			/**
-			 * The escape character.
+			 * The escape chawacta.
 			 */
-			escapeChar: string;
+			escapeChaw: stwing;
 			/**
-			 * The characters to escape.
+			 * The chawactews to escape.
 			 */
-			charsToEscape: string;
+			chawsToEscape: stwing;
 		};
 
 		/**
-		 * The character used for strong quoting. The string's length must be 1.
+		 * The chawacta used fow stwong quoting. The stwing's wength must be 1.
 		 */
-		strong?: string;
+		stwong?: stwing;
 
 		/**
-		 * The character used for weak quoting. The string's length must be 1.
+		 * The chawacta used fow weak quoting. The stwing's wength must be 1.
 		 */
-		weak?: string;
+		weak?: stwing;
 	}
 
 	/**
-	 * Options for a shell execution
+	 * Options fow a sheww execution
 	 */
-	export interface ShellExecutionOptions {
+	expowt intewface ShewwExecutionOptions {
 		/**
-		 * The shell executable.
+		 * The sheww executabwe.
 		 */
-		executable?: string;
+		executabwe?: stwing;
 
 		/**
-		 * The arguments to be passed to the shell executable used to run the task. Most shells
-		 * require special arguments to execute a command. For  example `bash` requires the `-c`
-		 * argument to execute a command, `PowerShell` requires `-Command` and `cmd` requires both
+		 * The awguments to be passed to the sheww executabwe used to wun the task. Most shewws
+		 * wequiwe speciaw awguments to execute a command. Fow  exampwe `bash` wequiwes the `-c`
+		 * awgument to execute a command, `PowewSheww` wequiwes `-Command` and `cmd` wequiwes both
 		 * `/d` and `/c`.
 		 */
-		shellArgs?: string[];
+		shewwAwgs?: stwing[];
 
 		/**
-		 * The shell quotes supported by this shell.
+		 * The sheww quotes suppowted by this sheww.
 		 */
-		shellQuoting?: ShellQuotingOptions;
+		shewwQuoting?: ShewwQuotingOptions;
 
 		/**
-		 * The current working directory of the executed shell.
-		 * If omitted the tools current workspace root is used.
+		 * The cuwwent wowking diwectowy of the executed sheww.
+		 * If omitted the toows cuwwent wowkspace woot is used.
 		 */
-		cwd?: string;
+		cwd?: stwing;
 
 		/**
-		 * The additional environment of the executed shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
+		 * The additionaw enviwonment of the executed sheww. If omitted
+		 * the pawent pwocess' enviwonment is used. If pwovided it is mewged with
+		 * the pawent pwocess' enviwonment.
 		 */
-		env?: { [key: string]: string };
+		env?: { [key: stwing]: stwing };
 	}
 
 	/**
-	 * Defines how an argument should be quoted if it contains
-	 * spaces or unsupported characters.
+	 * Defines how an awgument shouwd be quoted if it contains
+	 * spaces ow unsuppowted chawactews.
 	 */
-	export enum ShellQuoting {
+	expowt enum ShewwQuoting {
 
 		/**
-		 * Character escaping should be used. This for example
-		 * uses \ on bash and ` on PowerShell.
+		 * Chawacta escaping shouwd be used. This fow exampwe
+		 * uses \ on bash and ` on PowewSheww.
 		 */
 		Escape = 1,
 
 		/**
-		 * Strong string quoting should be used. This for example
-		 * uses " for Windows cmd and ' for bash and PowerShell.
-		 * Strong quoting treats arguments as literal strings.
-		 * Under PowerShell echo 'The value is $(2 * 3)' will
-		 * print `The value is $(2 * 3)`
+		 * Stwong stwing quoting shouwd be used. This fow exampwe
+		 * uses " fow Windows cmd and ' fow bash and PowewSheww.
+		 * Stwong quoting tweats awguments as witewaw stwings.
+		 * Unda PowewSheww echo 'The vawue is $(2 * 3)' wiww
+		 * pwint `The vawue is $(2 * 3)`
 		 */
-		Strong = 2,
+		Stwong = 2,
 
 		/**
-		 * Weak string quoting should be used. This for example
-		 * uses " for Windows cmd, bash and PowerShell. Weak quoting
-		 * still performs some kind of evaluation inside the quoted
-		 * string.  Under PowerShell echo "The value is $(2 * 3)"
-		 * will print `The value is 6`
+		 * Weak stwing quoting shouwd be used. This fow exampwe
+		 * uses " fow Windows cmd, bash and PowewSheww. Weak quoting
+		 * stiww pewfowms some kind of evawuation inside the quoted
+		 * stwing.  Unda PowewSheww echo "The vawue is $(2 * 3)"
+		 * wiww pwint `The vawue is 6`
 		 */
 		Weak = 3
 	}
 
 	/**
-	 * A string that will be quoted depending on the used shell.
+	 * A stwing that wiww be quoted depending on the used sheww.
 	 */
-	export interface ShellQuotedString {
+	expowt intewface ShewwQuotedStwing {
 		/**
-		 * The actual string value.
+		 * The actuaw stwing vawue.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * The quoting style to use.
+		 * The quoting stywe to use.
 		 */
-		quoting: ShellQuoting;
+		quoting: ShewwQuoting;
 	}
 
-	export class ShellExecution {
+	expowt cwass ShewwExecution {
 		/**
-		 * Creates a shell execution with a full command line.
+		 * Cweates a sheww execution with a fuww command wine.
 		 *
-		 * @param commandLine The command line to execute.
-		 * @param options Optional options for the started the shell.
+		 * @pawam commandWine The command wine to execute.
+		 * @pawam options Optionaw options fow the stawted the sheww.
 		 */
-		constructor(commandLine: string, options?: ShellExecutionOptions);
+		constwuctow(commandWine: stwing, options?: ShewwExecutionOptions);
 
 		/**
-		 * Creates a shell execution with a command and arguments. For the real execution the editor will
-		 * construct a command line from the command and the arguments. This is subject to interpretation
-		 * especially when it comes to quoting. If full control over the command line is needed please
-		 * use the constructor that creates a `ShellExecution` with the full command line.
+		 * Cweates a sheww execution with a command and awguments. Fow the weaw execution the editow wiww
+		 * constwuct a command wine fwom the command and the awguments. This is subject to intewpwetation
+		 * especiawwy when it comes to quoting. If fuww contwow ova the command wine is needed pwease
+		 * use the constwuctow that cweates a `ShewwExecution` with the fuww command wine.
 		 *
-		 * @param command The command to execute.
-		 * @param args The command arguments.
-		 * @param options Optional options for the started the shell.
+		 * @pawam command The command to execute.
+		 * @pawam awgs The command awguments.
+		 * @pawam options Optionaw options fow the stawted the sheww.
 		 */
-		constructor(command: string | ShellQuotedString, args: (string | ShellQuotedString)[], options?: ShellExecutionOptions);
+		constwuctow(command: stwing | ShewwQuotedStwing, awgs: (stwing | ShewwQuotedStwing)[], options?: ShewwExecutionOptions);
 
 		/**
-		 * The shell command line. Is `undefined` if created with a command and arguments.
+		 * The sheww command wine. Is `undefined` if cweated with a command and awguments.
 		 */
-		commandLine: string | undefined;
+		commandWine: stwing | undefined;
 
 		/**
-		 * The shell command. Is `undefined` if created with a full command line.
+		 * The sheww command. Is `undefined` if cweated with a fuww command wine.
 		 */
-		command: string | ShellQuotedString;
+		command: stwing | ShewwQuotedStwing;
 
 		/**
-		 * The shell args. Is `undefined` if created with a full command line.
+		 * The sheww awgs. Is `undefined` if cweated with a fuww command wine.
 		 */
-		args: (string | ShellQuotedString)[];
+		awgs: (stwing | ShewwQuotedStwing)[];
 
 		/**
-		 * The shell options used when the command line is executed in a shell.
-		 * Defaults to undefined.
+		 * The sheww options used when the command wine is executed in a sheww.
+		 * Defauwts to undefined.
 		 */
-		options?: ShellExecutionOptions;
+		options?: ShewwExecutionOptions;
 	}
 
 	/**
-	 * Class used to execute an extension callback as a task.
+	 * Cwass used to execute an extension cawwback as a task.
 	 */
-	export class CustomExecution {
+	expowt cwass CustomExecution {
 		/**
-		 * Constructs a CustomExecution task object. The callback will be executed when the task is run, at which point the
-		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
-		 * {@link Pseudoterminal.open} is called. Task cancellation should be handled using
-		 * {@link Pseudoterminal.close}. When the task is complete fire
-		 * {@link Pseudoterminal.onDidClose}.
-		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
-		 * were in the task definition will be resolved and passed into the callback as `resolvedDefinition`.
+		 * Constwucts a CustomExecution task object. The cawwback wiww be executed when the task is wun, at which point the
+		 * extension shouwd wetuwn the Pseudotewminaw it wiww "wun in". The task shouwd wait to do fuwtha execution untiw
+		 * {@wink Pseudotewminaw.open} is cawwed. Task cancewwation shouwd be handwed using
+		 * {@wink Pseudotewminaw.cwose}. When the task is compwete fiwe
+		 * {@wink Pseudotewminaw.onDidCwose}.
+		 * @pawam cawwback The cawwback that wiww be cawwed when the task is stawted by a usa. Any ${} stywe vawiabwes that
+		 * wewe in the task definition wiww be wesowved and passed into the cawwback as `wesowvedDefinition`.
 		 */
-		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
+		constwuctow(cawwback: (wesowvedDefinition: TaskDefinition) => Thenabwe<Pseudotewminaw>);
 	}
 
 	/**
 	 * The scope of a task.
 	 */
-	export enum TaskScope {
+	expowt enum TaskScope {
 		/**
-		 * The task is a global task. Global tasks are currently not supported.
+		 * The task is a gwobaw task. Gwobaw tasks awe cuwwentwy not suppowted.
 		 */
-		Global = 1,
+		Gwobaw = 1,
 
 		/**
-		 * The task is a workspace task
+		 * The task is a wowkspace task
 		 */
-		Workspace = 2
+		Wowkspace = 2
 	}
 
 	/**
-	 * Run options for a task.
+	 * Wun options fow a task.
 	 */
-	export interface RunOptions {
+	expowt intewface WunOptions {
 		/**
-		 * Controls whether task variables are re-evaluated on rerun.
+		 * Contwows whetha task vawiabwes awe we-evawuated on wewun.
 		 */
-		reevaluateOnRerun?: boolean;
+		weevawuateOnWewun?: boowean;
 	}
 
 	/**
 	 * A task to execute
 	 */
-	export class Task {
+	expowt cwass Task {
 
 		/**
-		 * Creates a new task.
+		 * Cweates a new task.
 		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder. Global tasks are currently not supported.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
+		 * @pawam definition The task definition as defined in the taskDefinitions extension point.
+		 * @pawam scope Specifies the task's scope. It is eitha a gwobaw ow a wowkspace task ow a task fow a specific wowkspace fowda. Gwobaw tasks awe cuwwentwy not suppowted.
+		 * @pawam name The task's name. Is pwesented in the usa intewface.
+		 * @pawam souwce The task's souwce (e.g. 'guwp', 'npm', ...). Is pwesented in the usa intewface.
+		 * @pawam execution The pwocess ow sheww execution.
+		 * @pawam pwobwemMatchews the names of pwobwem matchews to use, wike '$tsc'
+		 *  ow '$eswint'. Pwobwem matchews can be contwibuted by an extension using
+		 *  the `pwobwemMatchews` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
+		constwuctow(taskDefinition: TaskDefinition, scope: WowkspaceFowda | TaskScope.Gwobaw | TaskScope.Wowkspace, name: stwing, souwce: stwing, execution?: PwocessExecution | ShewwExecution | CustomExecution, pwobwemMatchews?: stwing | stwing[]);
 
 		/**
-		 * Creates a new task.
+		 * Cweates a new task.
 		 *
-		 * @deprecated Use the new constructors that allow specifying a scope for the task.
+		 * @depwecated Use the new constwuctows that awwow specifying a scope fow the task.
 		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param name The task's name. Is presented in the user interface.
-		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
-		 * @param execution The process or shell execution.
-		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
-		 *  or '$eslint'. Problem matchers can be contributed by an extension using
-		 *  the `problemMatchers` extension point.
+		 * @pawam definition The task definition as defined in the taskDefinitions extension point.
+		 * @pawam name The task's name. Is pwesented in the usa intewface.
+		 * @pawam souwce The task's souwce (e.g. 'guwp', 'npm', ...). Is pwesented in the usa intewface.
+		 * @pawam execution The pwocess ow sheww execution.
+		 * @pawam pwobwemMatchews the names of pwobwem matchews to use, wike '$tsc'
+		 *  ow '$eswint'. Pwobwem matchews can be contwibuted by an extension using
+		 *  the `pwobwemMatchews` extension point.
 		 */
-		constructor(taskDefinition: TaskDefinition, name: string, source: string, execution?: ProcessExecution | ShellExecution, problemMatchers?: string | string[]);
+		constwuctow(taskDefinition: TaskDefinition, name: stwing, souwce: stwing, execution?: PwocessExecution | ShewwExecution, pwobwemMatchews?: stwing | stwing[]);
 
 		/**
 		 * The task's definition.
@@ -6884,7665 +6884,7665 @@ declare module 'vscode' {
 		/**
 		 * The task's scope.
 		 */
-		readonly scope?: TaskScope.Global | TaskScope.Workspace | WorkspaceFolder;
+		weadonwy scope?: TaskScope.Gwobaw | TaskScope.Wowkspace | WowkspaceFowda;
 
 		/**
 		 * The task's name
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * A human-readable string which is rendered less prominently on a separate line in places
-		 * where the task's name is displayed. Supports rendering of {@link ThemeIcon theme icons}
+		 * A human-weadabwe stwing which is wendewed wess pwominentwy on a sepawate wine in pwaces
+		 * whewe the task's name is dispwayed. Suppowts wendewing of {@wink ThemeIcon theme icons}
 		 * via the `$(<name>)`-syntax.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
 		 * The task's execution engine
 		 */
-		execution?: ProcessExecution | ShellExecution | CustomExecution;
+		execution?: PwocessExecution | ShewwExecution | CustomExecution;
 
 		/**
-		 * Whether the task is a background task or not.
+		 * Whetha the task is a backgwound task ow not.
 		 */
-		isBackground: boolean;
+		isBackgwound: boowean;
 
 		/**
-		 * A human-readable string describing the source of this shell task, e.g. 'gulp'
-		 * or 'npm'. Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 * A human-weadabwe stwing descwibing the souwce of this sheww task, e.g. 'guwp'
+		 * ow 'npm'. Suppowts wendewing of {@wink ThemeIcon theme icons} via the `$(<name>)`-syntax.
 		 */
-		source: string;
+		souwce: stwing;
 
 		/**
-		 * The task group this tasks belongs to. See TaskGroup
-		 * for a predefined set of available groups.
-		 * Defaults to undefined meaning that the task doesn't
-		 * belong to any special group.
+		 * The task gwoup this tasks bewongs to. See TaskGwoup
+		 * fow a pwedefined set of avaiwabwe gwoups.
+		 * Defauwts to undefined meaning that the task doesn't
+		 * bewong to any speciaw gwoup.
 		 */
-		group?: TaskGroup;
+		gwoup?: TaskGwoup;
 
 		/**
-		 * The presentation options. Defaults to an empty literal.
+		 * The pwesentation options. Defauwts to an empty witewaw.
 		 */
-		presentationOptions: TaskPresentationOptions;
+		pwesentationOptions: TaskPwesentationOptions;
 
 		/**
-		 * The problem matchers attached to the task. Defaults to an empty
-		 * array.
+		 * The pwobwem matchews attached to the task. Defauwts to an empty
+		 * awway.
 		 */
-		problemMatchers: string[];
+		pwobwemMatchews: stwing[];
 
 		/**
-		 * Run options for the task
+		 * Wun options fow the task
 		 */
-		runOptions: RunOptions;
+		wunOptions: WunOptions;
 	}
 
 	/**
-	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registered via {@link tasks.registerTaskProvider}.
+	 * A task pwovida awwows to add tasks to the task sewvice.
+	 * A task pwovida is wegistewed via {@wink tasks.wegistewTaskPwovida}.
 	 */
-	export interface TaskProvider<T extends Task = Task> {
+	expowt intewface TaskPwovida<T extends Task = Task> {
 		/**
-		 * Provides tasks.
-		 * @param token A cancellation token.
-		 * @return an array of tasks
+		 * Pwovides tasks.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn an awway of tasks
 		 */
-		provideTasks(token: CancellationToken): ProviderResult<T[]>;
+		pwovideTasks(token: CancewwationToken): PwovidewWesuwt<T[]>;
 
 		/**
-		 * Resolves a task that has no {@linkcode Task.execution execution} set. Tasks are
-		 * often created from information found in the `tasks.json`-file. Such tasks miss
-		 * the information on how to execute them and a task provider must fill in
-		 * the missing information in the `resolveTask`-method. This method will not be
-		 * called for tasks returned from the above `provideTasks` method since those
-		 * tasks are always fully resolved. A valid default implementation for the
-		 * `resolveTask` method is to return `undefined`.
+		 * Wesowves a task that has no {@winkcode Task.execution execution} set. Tasks awe
+		 * often cweated fwom infowmation found in the `tasks.json`-fiwe. Such tasks miss
+		 * the infowmation on how to execute them and a task pwovida must fiww in
+		 * the missing infowmation in the `wesowveTask`-method. This method wiww not be
+		 * cawwed fow tasks wetuwned fwom the above `pwovideTasks` method since those
+		 * tasks awe awways fuwwy wesowved. A vawid defauwt impwementation fow the
+		 * `wesowveTask` method is to wetuwn `undefined`.
 		 *
-		 * Note that when filling in the properties of `task`, you _must_ be sure to
-		 * use the exact same `TaskDefinition` and not create a new one. Other properties
+		 * Note that when fiwwing in the pwopewties of `task`, you _must_ be suwe to
+		 * use the exact same `TaskDefinition` and not cweate a new one. Otha pwopewties
 		 * may be changed.
 		 *
-		 * @param task The task to resolve.
-		 * @param token A cancellation token.
-		 * @return The resolved task
+		 * @pawam task The task to wesowve.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved task
 		 */
-		resolveTask(task: T, token: CancellationToken): ProviderResult<T>;
+		wesowveTask(task: T, token: CancewwationToken): PwovidewWesuwt<T>;
 	}
 
 	/**
-	 * An object representing an executed Task. It can be used
-	 * to terminate a task.
+	 * An object wepwesenting an executed Task. It can be used
+	 * to tewminate a task.
 	 *
-	 * This interface is not intended to be implemented.
+	 * This intewface is not intended to be impwemented.
 	 */
-	export interface TaskExecution {
+	expowt intewface TaskExecution {
 		/**
-		 * The task that got started.
+		 * The task that got stawted.
 		 */
 		task: Task;
 
 		/**
-		 * Terminates the task execution.
+		 * Tewminates the task execution.
 		 */
-		terminate(): void;
+		tewminate(): void;
 	}
 
 	/**
-	 * An event signaling the start of a task execution.
+	 * An event signawing the stawt of a task execution.
 	 *
-	 * This interface is not intended to be implemented.
+	 * This intewface is not intended to be impwemented.
 	 */
-	interface TaskStartEvent {
+	intewface TaskStawtEvent {
 		/**
-		 * The task item representing the task that got started.
+		 * The task item wepwesenting the task that got stawted.
 		 */
-		readonly execution: TaskExecution;
+		weadonwy execution: TaskExecution;
 	}
 
 	/**
-	 * An event signaling the end of an executed task.
+	 * An event signawing the end of an executed task.
 	 *
-	 * This interface is not intended to be implemented.
+	 * This intewface is not intended to be impwemented.
 	 */
-	interface TaskEndEvent {
+	intewface TaskEndEvent {
 		/**
-		 * The task item representing the task that finished.
+		 * The task item wepwesenting the task that finished.
 		 */
-		readonly execution: TaskExecution;
+		weadonwy execution: TaskExecution;
 	}
 
 	/**
-	 * An event signaling the start of a process execution
-	 * triggered through a task
+	 * An event signawing the stawt of a pwocess execution
+	 * twiggewed thwough a task
 	 */
-	export interface TaskProcessStartEvent {
+	expowt intewface TaskPwocessStawtEvent {
 
 		/**
-		 * The task execution for which the process got started.
+		 * The task execution fow which the pwocess got stawted.
 		 */
-		readonly execution: TaskExecution;
+		weadonwy execution: TaskExecution;
 
 		/**
-		 * The underlying process id.
+		 * The undewwying pwocess id.
 		 */
-		readonly processId: number;
+		weadonwy pwocessId: numba;
 	}
 
 	/**
-	 * An event signaling the end of a process execution
-	 * triggered through a task
+	 * An event signawing the end of a pwocess execution
+	 * twiggewed thwough a task
 	 */
-	export interface TaskProcessEndEvent {
+	expowt intewface TaskPwocessEndEvent {
 
 		/**
-		 * The task execution for which the process got started.
+		 * The task execution fow which the pwocess got stawted.
 		 */
-		readonly execution: TaskExecution;
+		weadonwy execution: TaskExecution;
 
 		/**
-		 * The process's exit code. Will be `undefined` when the task is terminated.
+		 * The pwocess's exit code. Wiww be `undefined` when the task is tewminated.
 		 */
-		readonly exitCode: number | undefined;
+		weadonwy exitCode: numba | undefined;
 	}
 
-	export interface TaskFilter {
+	expowt intewface TaskFiwta {
 		/**
-		 * The task version as used in the tasks.json file.
-		 * The string support the package.json semver notation.
+		 * The task vewsion as used in the tasks.json fiwe.
+		 * The stwing suppowt the package.json semva notation.
 		 */
-		version?: string;
+		vewsion?: stwing;
 
 		/**
-		 * The task type to return;
+		 * The task type to wetuwn;
 		 */
-		type?: string;
-	}
-
-	/**
-	 * Namespace for tasks functionality.
-	 */
-	export namespace tasks {
-
-		/**
-		 * Register a task provider.
-		 *
-		 * @param type The task kind type this provider is registered for.
-		 * @param provider A task provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
-		 */
-		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
-
-		/**
-		 * Fetches all tasks available in the systems. This includes tasks
-		 * from `tasks.json` files as well as tasks from task providers
-		 * contributed through extensions.
-		 *
-		 * @param filter Optional filter to select tasks of a certain type or version.
-		 */
-		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
-
-		/**
-		 * Executes a task that is managed by the editor. The returned
-		 * task execution can be used to terminate the task.
-		 *
-		 * @throws When running a ShellExecution or a ProcessExecution
-		 * task in an environment where a new process cannot be started.
-		 * In such an environment, only CustomExecution tasks can be run.
-		 *
-		 * @param task the task to execute
-		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
-
-		/**
-		 * The currently active task executions or an empty array.
-		 */
-		export const taskExecutions: readonly TaskExecution[];
-
-		/**
-		 * Fires when a task starts.
-		 */
-		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Fires when a task ends.
-		 */
-		export const onDidEndTask: Event<TaskEndEvent>;
-
-		/**
-		 * Fires when the underlying process has been started.
-		 * This event will not fire for tasks that don't
-		 * execute an underlying process.
-		 */
-		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
-
-		/**
-		 * Fires when the underlying process has ended.
-		 * This event will not fire for tasks that don't
-		 * execute an underlying process.
-		 */
-		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
+		type?: stwing;
 	}
 
 	/**
-	 * Enumeration of file types. The types `File` and `Directory` can also be
-	 * a symbolic links, in that case use `FileType.File | FileType.SymbolicLink` and
-	 * `FileType.Directory | FileType.SymbolicLink`.
+	 * Namespace fow tasks functionawity.
 	 */
-	export enum FileType {
+	expowt namespace tasks {
+
 		/**
-		 * The file type is unknown.
+		 * Wegista a task pwovida.
+		 *
+		 * @pawam type The task kind type this pwovida is wegistewed fow.
+		 * @pawam pwovida A task pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
+		 */
+		expowt function wegistewTaskPwovida(type: stwing, pwovida: TaskPwovida): Disposabwe;
+
+		/**
+		 * Fetches aww tasks avaiwabwe in the systems. This incwudes tasks
+		 * fwom `tasks.json` fiwes as weww as tasks fwom task pwovidews
+		 * contwibuted thwough extensions.
+		 *
+		 * @pawam fiwta Optionaw fiwta to sewect tasks of a cewtain type ow vewsion.
+		 */
+		expowt function fetchTasks(fiwta?: TaskFiwta): Thenabwe<Task[]>;
+
+		/**
+		 * Executes a task that is managed by the editow. The wetuwned
+		 * task execution can be used to tewminate the task.
+		 *
+		 * @thwows When wunning a ShewwExecution ow a PwocessExecution
+		 * task in an enviwonment whewe a new pwocess cannot be stawted.
+		 * In such an enviwonment, onwy CustomExecution tasks can be wun.
+		 *
+		 * @pawam task the task to execute
+		 */
+		expowt function executeTask(task: Task): Thenabwe<TaskExecution>;
+
+		/**
+		 * The cuwwentwy active task executions ow an empty awway.
+		 */
+		expowt const taskExecutions: weadonwy TaskExecution[];
+
+		/**
+		 * Fiwes when a task stawts.
+		 */
+		expowt const onDidStawtTask: Event<TaskStawtEvent>;
+
+		/**
+		 * Fiwes when a task ends.
+		 */
+		expowt const onDidEndTask: Event<TaskEndEvent>;
+
+		/**
+		 * Fiwes when the undewwying pwocess has been stawted.
+		 * This event wiww not fiwe fow tasks that don't
+		 * execute an undewwying pwocess.
+		 */
+		expowt const onDidStawtTaskPwocess: Event<TaskPwocessStawtEvent>;
+
+		/**
+		 * Fiwes when the undewwying pwocess has ended.
+		 * This event wiww not fiwe fow tasks that don't
+		 * execute an undewwying pwocess.
+		 */
+		expowt const onDidEndTaskPwocess: Event<TaskPwocessEndEvent>;
+	}
+
+	/**
+	 * Enumewation of fiwe types. The types `Fiwe` and `Diwectowy` can awso be
+	 * a symbowic winks, in that case use `FiweType.Fiwe | FiweType.SymbowicWink` and
+	 * `FiweType.Diwectowy | FiweType.SymbowicWink`.
+	 */
+	expowt enum FiweType {
+		/**
+		 * The fiwe type is unknown.
 		 */
 		Unknown = 0,
 		/**
-		 * A regular file.
+		 * A weguwaw fiwe.
 		 */
-		File = 1,
+		Fiwe = 1,
 		/**
-		 * A directory.
+		 * A diwectowy.
 		 */
-		Directory = 2,
+		Diwectowy = 2,
 		/**
-		 * A symbolic link to a file.
+		 * A symbowic wink to a fiwe.
 		 */
-		SymbolicLink = 64
+		SymbowicWink = 64
 	}
 
-	export enum FilePermission {
+	expowt enum FiwePewmission {
 		/**
-		 * The file is readonly.
+		 * The fiwe is weadonwy.
 		 *
-		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
-		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
-		 * is set. As a consequence, it is not possible to have a readonly file system provider
-		 * registered where some `FileStat` are not readonly.
+		 * *Note:* Aww `FiweStat` fwom a `FiweSystemPwovida` that is wegistewed with
+		 * the option `isWeadonwy: twue` wiww be impwicitwy handwed as if `FiwePewmission.Weadonwy`
+		 * is set. As a consequence, it is not possibwe to have a weadonwy fiwe system pwovida
+		 * wegistewed whewe some `FiweStat` awe not weadonwy.
 		 */
-		Readonly = 1
+		Weadonwy = 1
 	}
 
 	/**
-	 * The `FileStat`-type represents metadata about a file
+	 * The `FiweStat`-type wepwesents metadata about a fiwe
 	 */
-	export interface FileStat {
+	expowt intewface FiweStat {
 		/**
-		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
-		 * to a file.
+		 * The type of the fiwe, e.g. is a weguwaw fiwe, a diwectowy, ow symbowic wink
+		 * to a fiwe.
 		 *
-		 * *Note:* This value might be a bitmask, e.g. `FileType.File | FileType.SymbolicLink`.
+		 * *Note:* This vawue might be a bitmask, e.g. `FiweType.Fiwe | FiweType.SymbowicWink`.
 		 */
-		type: FileType;
+		type: FiweType;
 		/**
-		 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+		 * The cweation timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 		 */
-		ctime: number;
+		ctime: numba;
 		/**
-		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+		 * The modification timestamp in miwwiseconds ewapsed since Januawy 1, 1970 00:00:00 UTC.
 		 *
-		 * *Note:* If the file changed, it is important to provide an updated `mtime` that advanced
-		 * from the previous value. Otherwise there may be optimizations in place that will not show
-		 * the updated file contents in an editor for example.
+		 * *Note:* If the fiwe changed, it is impowtant to pwovide an updated `mtime` that advanced
+		 * fwom the pwevious vawue. Othewwise thewe may be optimizations in pwace that wiww not show
+		 * the updated fiwe contents in an editow fow exampwe.
 		 */
-		mtime: number;
+		mtime: numba;
 		/**
 		 * The size in bytes.
 		 *
-		 * *Note:* If the file changed, it is important to provide an updated `size`. Otherwise there
-		 * may be optimizations in place that will not show the updated file contents in an editor for
-		 * example.
+		 * *Note:* If the fiwe changed, it is impowtant to pwovide an updated `size`. Othewwise thewe
+		 * may be optimizations in pwace that wiww not show the updated fiwe contents in an editow fow
+		 * exampwe.
 		 */
-		size: number;
+		size: numba;
 		/**
-		 * The permissions of the file, e.g. whether the file is readonly.
+		 * The pewmissions of the fiwe, e.g. whetha the fiwe is weadonwy.
 		 *
-		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 * *Note:* This vawue might be a bitmask, e.g. `FiwePewmission.Weadonwy | FiwePewmission.Otha`.
 		 */
-		permissions?: FilePermission;
+		pewmissions?: FiwePewmission;
 	}
 
 	/**
-	 * A type that filesystem providers should use to signal errors.
+	 * A type that fiwesystem pwovidews shouwd use to signaw ewwows.
 	 *
-	 * This class has factory methods for common error-cases, like `FileNotFound` when
-	 * a file or folder doesn't exist, use them like so: `throw vscode.FileSystemError.FileNotFound(someUri);`
+	 * This cwass has factowy methods fow common ewwow-cases, wike `FiweNotFound` when
+	 * a fiwe ow fowda doesn't exist, use them wike so: `thwow vscode.FiweSystemEwwow.FiweNotFound(someUwi);`
 	 */
-	export class FileSystemError extends Error {
+	expowt cwass FiweSystemEwwow extends Ewwow {
 
 		/**
-		 * Create an error to signal that a file or folder wasn't found.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that a fiwe ow fowda wasn't found.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static FileNotFound(messageOrUri?: string | Uri): FileSystemError;
+		static FiweNotFound(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Create an error to signal that a file or folder already exists, e.g. when
-		 * creating but not overwriting a file.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that a fiwe ow fowda awweady exists, e.g. when
+		 * cweating but not ovewwwiting a fiwe.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static FileExists(messageOrUri?: string | Uri): FileSystemError;
+		static FiweExists(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Create an error to signal that a file is not a folder.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that a fiwe is not a fowda.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static FileNotADirectory(messageOrUri?: string | Uri): FileSystemError;
+		static FiweNotADiwectowy(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Create an error to signal that a file is a folder.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that a fiwe is a fowda.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+		static FiweIsADiwectowy(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Create an error to signal that an operation lacks required permissions.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that an opewation wacks wequiwed pewmissions.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
+		static NoPewmissions(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Create an error to signal that the file system is unavailable or too busy to
-		 * complete a request.
-		 * @param messageOrUri Message or uri.
+		 * Cweate an ewwow to signaw that the fiwe system is unavaiwabwe ow too busy to
+		 * compwete a wequest.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		static Unavailable(messageOrUri?: string | Uri): FileSystemError;
+		static Unavaiwabwe(messageOwUwi?: stwing | Uwi): FiweSystemEwwow;
 
 		/**
-		 * Creates a new filesystem error.
+		 * Cweates a new fiwesystem ewwow.
 		 *
-		 * @param messageOrUri Message or uri.
+		 * @pawam messageOwUwi Message ow uwi.
 		 */
-		constructor(messageOrUri?: string | Uri);
+		constwuctow(messageOwUwi?: stwing | Uwi);
 
 		/**
-		 * A code that identifies this error.
+		 * A code that identifies this ewwow.
 		 *
-		 * Possible values are names of errors, like {@linkcode FileSystemError.FileNotFound FileNotFound},
-		 * or `Unknown` for unspecified errors.
+		 * Possibwe vawues awe names of ewwows, wike {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound},
+		 * ow `Unknown` fow unspecified ewwows.
 		 */
-		readonly code: string;
+		weadonwy code: stwing;
 	}
 
 	/**
-	 * Enumeration of file change types.
+	 * Enumewation of fiwe change types.
 	 */
-	export enum FileChangeType {
+	expowt enum FiweChangeType {
 
 		/**
-		 * The contents or metadata of a file have changed.
+		 * The contents ow metadata of a fiwe have changed.
 		 */
 		Changed = 1,
 
 		/**
-		 * A file has been created.
+		 * A fiwe has been cweated.
 		 */
-		Created = 2,
+		Cweated = 2,
 
 		/**
-		 * A file has been deleted.
+		 * A fiwe has been deweted.
 		 */
-		Deleted = 3,
+		Deweted = 3,
 	}
 
 	/**
-	 * The event filesystem providers must use to signal a file change.
+	 * The event fiwesystem pwovidews must use to signaw a fiwe change.
 	 */
-	export interface FileChangeEvent {
+	expowt intewface FiweChangeEvent {
 
 		/**
 		 * The type of change.
 		 */
-		readonly type: FileChangeType;
+		weadonwy type: FiweChangeType;
 
 		/**
-		 * The uri of the file that has changed.
+		 * The uwi of the fiwe that has changed.
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 	}
 
 	/**
-	 * The filesystem provider defines what the editor needs to read, write, discover,
-	 * and to manage files and folders. It allows extensions to serve files from remote places,
-	 * like ftp-servers, and to seamlessly integrate those into the editor.
+	 * The fiwesystem pwovida defines what the editow needs to wead, wwite, discova,
+	 * and to manage fiwes and fowdews. It awwows extensions to sewve fiwes fwom wemote pwaces,
+	 * wike ftp-sewvews, and to seamwesswy integwate those into the editow.
 	 *
-	 * * *Note 1:* The filesystem provider API works with {@link Uri uris} and assumes hierarchical
-	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
-	 * * *Note 2:* There is an activation event `onFileSystem:<scheme>` that fires when a file
-	 * or folder is being accessed.
-	 * * *Note 3:* The word 'file' is often used to denote all {@link FileType kinds} of files, e.g.
-	 * folders, symbolic links, and regular files.
+	 * * *Note 1:* The fiwesystem pwovida API wowks with {@wink Uwi uwis} and assumes hiewawchicaw
+	 * paths, e.g. `foo:/my/path` is a chiwd of `foo:/my/` and a pawent of `foo:/my/path/deepa`.
+	 * * *Note 2:* Thewe is an activation event `onFiweSystem:<scheme>` that fiwes when a fiwe
+	 * ow fowda is being accessed.
+	 * * *Note 3:* The wowd 'fiwe' is often used to denote aww {@wink FiweType kinds} of fiwes, e.g.
+	 * fowdews, symbowic winks, and weguwaw fiwes.
 	 */
-	export interface FileSystemProvider {
+	expowt intewface FiweSystemPwovida {
 
 		/**
-		 * An event to signal that a resource has been created, changed, or deleted. This
-		 * event should fire for resources that are being {@link FileSystemProvider.watch watched}
-		 * by clients of this provider.
+		 * An event to signaw that a wesouwce has been cweated, changed, ow deweted. This
+		 * event shouwd fiwe fow wesouwces that awe being {@wink FiweSystemPwovida.watch watched}
+		 * by cwients of this pwovida.
 		 *
-		 * *Note:* It is important that the metadata of the file that changed provides an
-		 * updated `mtime` that advanced from the previous value in the {@link FileStat stat} and a
-		 * correct `size` value. Otherwise there may be optimizations in place that will not show
-		 * the change in an editor for example.
+		 * *Note:* It is impowtant that the metadata of the fiwe that changed pwovides an
+		 * updated `mtime` that advanced fwom the pwevious vawue in the {@wink FiweStat stat} and a
+		 * cowwect `size` vawue. Othewwise thewe may be optimizations in pwace that wiww not show
+		 * the change in an editow fow exampwe.
 		 */
-		readonly onDidChangeFile: Event<FileChangeEvent[]>;
+		weadonwy onDidChangeFiwe: Event<FiweChangeEvent[]>;
 
 		/**
-		 * Subscribe to events in the file or folder denoted by `uri`.
+		 * Subscwibe to events in the fiwe ow fowda denoted by `uwi`.
 		 *
-		 * The editor will call this function for files and folders. In the latter case, the
-		 * options differ from defaults, e.g. what files/folders to exclude from watching
-		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 * The editow wiww caww this function fow fiwes and fowdews. In the watta case, the
+		 * options diffa fwom defauwts, e.g. what fiwes/fowdews to excwude fwom watching
+		 * and if subfowdews, sub-subfowda, etc. shouwd be watched (`wecuwsive`).
 		 *
-		 * @param uri The uri of the file to be watched.
-		 * @param options Configures the watch.
-		 * @returns A disposable that tells the provider to stop watching the `uri`.
+		 * @pawam uwi The uwi of the fiwe to be watched.
+		 * @pawam options Configuwes the watch.
+		 * @wetuwns A disposabwe that tewws the pwovida to stop watching the `uwi`.
 		 */
-		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
+		watch(uwi: Uwi, options: { wecuwsive: boowean; excwudes: stwing[] }): Disposabwe;
 
 		/**
-		 * Retrieve metadata about a file.
+		 * Wetwieve metadata about a fiwe.
 		 *
-		 * Note that the metadata for symbolic links should be the metadata of the file they refer to.
-		 * Still, the {@link FileType.SymbolicLink SymbolicLink}-type must be used in addition to the actual type, e.g.
-		 * `FileType.SymbolicLink | FileType.Directory`.
+		 * Note that the metadata fow symbowic winks shouwd be the metadata of the fiwe they wefa to.
+		 * Stiww, the {@wink FiweType.SymbowicWink SymbowicWink}-type must be used in addition to the actuaw type, e.g.
+		 * `FiweType.SymbowicWink | FiweType.Diwectowy`.
 		 *
-		 * @param uri The uri of the file to retrieve metadata about.
-		 * @return The file metadata about the file.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
+		 * @pawam uwi The uwi of the fiwe to wetwieve metadata about.
+		 * @wetuwn The fiwe metadata about the fiwe.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `uwi` doesn't exist.
 		 */
-		stat(uri: Uri): FileStat | Thenable<FileStat>;
+		stat(uwi: Uwi): FiweStat | Thenabwe<FiweStat>;
 
 		/**
-		 * Retrieve all entries of a {@link FileType.Directory directory}.
+		 * Wetwieve aww entwies of a {@wink FiweType.Diwectowy diwectowy}.
 		 *
-		 * @param uri The uri of the folder.
-		 * @return An array of name/type-tuples or a thenable that resolves to such.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
+		 * @pawam uwi The uwi of the fowda.
+		 * @wetuwn An awway of name/type-tupwes ow a thenabwe that wesowves to such.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `uwi` doesn't exist.
 		 */
-		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
+		weadDiwectowy(uwi: Uwi): [stwing, FiweType][] | Thenabwe<[stwing, FiweType][]>;
 
 		/**
-		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 * Cweate a new diwectowy (Note, that new fiwes awe cweated via `wwite`-cawws).
 		 *
-		 * @param uri The uri of the new folder.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when the parent of `uri` doesn't exist, e.g. no mkdirp-logic required.
-		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `uri` already exists.
-		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
+		 * @pawam uwi The uwi of the new fowda.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when the pawent of `uwi` doesn't exist, e.g. no mkdiwp-wogic wequiwed.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweExists FiweExists} when `uwi` awweady exists.
+		 * @thwows {@winkcode FiweSystemEwwow.NoPewmissions NoPewmissions} when pewmissions awen't sufficient.
 		 */
-		createDirectory(uri: Uri): void | Thenable<void>;
+		cweateDiwectowy(uwi: Uwi): void | Thenabwe<void>;
 
 		/**
-		 * Read the entire contents of a file.
+		 * Wead the entiwe contents of a fiwe.
 		 *
-		 * @param uri The uri of the file.
-		 * @return An array of bytes or a thenable that resolves to such.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
+		 * @pawam uwi The uwi of the fiwe.
+		 * @wetuwn An awway of bytes ow a thenabwe that wesowves to such.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `uwi` doesn't exist.
 		 */
-		readFile(uri: Uri): Uint8Array | Thenable<Uint8Array>;
+		weadFiwe(uwi: Uwi): Uint8Awway | Thenabwe<Uint8Awway>;
 
 		/**
-		 * Write data to a file, replacing its entire contents.
+		 * Wwite data to a fiwe, wepwacing its entiwe contents.
 		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 * @param options Defines if missing files should or must be created.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist and `create` is not set.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when the parent of `uri` doesn't exist and `create` is set, e.g. no mkdirp-logic required.
-		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `uri` already exists, `create` is set but `overwrite` is not set.
-		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
+		 * @pawam uwi The uwi of the fiwe.
+		 * @pawam content The new content of the fiwe.
+		 * @pawam options Defines if missing fiwes shouwd ow must be cweated.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `uwi` doesn't exist and `cweate` is not set.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when the pawent of `uwi` doesn't exist and `cweate` is set, e.g. no mkdiwp-wogic wequiwed.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweExists FiweExists} when `uwi` awweady exists, `cweate` is set but `ovewwwite` is not set.
+		 * @thwows {@winkcode FiweSystemEwwow.NoPewmissions NoPewmissions} when pewmissions awen't sufficient.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
+		wwiteFiwe(uwi: Uwi, content: Uint8Awway, options: { cweate: boowean, ovewwwite: boowean }): void | Thenabwe<void>;
 
 		/**
-		 * Delete a file.
+		 * Dewete a fiwe.
 		 *
-		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if deletion of folders is recursive.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
-		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
+		 * @pawam uwi The wesouwce that is to be deweted.
+		 * @pawam options Defines if dewetion of fowdews is wecuwsive.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `uwi` doesn't exist.
+		 * @thwows {@winkcode FiweSystemEwwow.NoPewmissions NoPewmissions} when pewmissions awen't sufficient.
 		 */
-		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
+		dewete(uwi: Uwi, options: { wecuwsive: boowean }): void | Thenabwe<void>;
 
 		/**
-		 * Rename a file or folder.
+		 * Wename a fiwe ow fowda.
 		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `oldUri` doesn't exist.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when parent of `newUri` doesn't exist, e.g. no mkdirp-logic required.
-		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `newUri` exists and when the `overwrite` option is not `true`.
-		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
+		 * @pawam owdUwi The existing fiwe.
+		 * @pawam newUwi The new wocation.
+		 * @pawam options Defines if existing fiwes shouwd be ovewwwitten.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `owdUwi` doesn't exist.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when pawent of `newUwi` doesn't exist, e.g. no mkdiwp-wogic wequiwed.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweExists FiweExists} when `newUwi` exists and when the `ovewwwite` option is not `twue`.
+		 * @thwows {@winkcode FiweSystemEwwow.NoPewmissions NoPewmissions} when pewmissions awen't sufficient.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void | Thenable<void>;
+		wename(owdUwi: Uwi, newUwi: Uwi, options: { ovewwwite: boowean }): void | Thenabwe<void>;
 
 		/**
-		 * Copy files or folders. Implementing this function is optional but it will speedup
-		 * the copy operation.
+		 * Copy fiwes ow fowdews. Impwementing this function is optionaw but it wiww speedup
+		 * the copy opewation.
 		 *
-		 * @param source The existing file.
-		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwritten.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `source` doesn't exist.
-		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
-		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `destination` exists and when the `overwrite` option is not `true`.
-		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
+		 * @pawam souwce The existing fiwe.
+		 * @pawam destination The destination wocation.
+		 * @pawam options Defines if existing fiwes shouwd be ovewwwitten.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when `souwce` doesn't exist.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweNotFound FiweNotFound} when pawent of `destination` doesn't exist, e.g. no mkdiwp-wogic wequiwed.
+		 * @thwows {@winkcode FiweSystemEwwow.FiweExists FiweExists} when `destination` exists and when the `ovewwwite` option is not `twue`.
+		 * @thwows {@winkcode FiweSystemEwwow.NoPewmissions NoPewmissions} when pewmissions awen't sufficient.
 		 */
-		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
+		copy?(souwce: Uwi, destination: Uwi, options: { ovewwwite: boowean }): void | Thenabwe<void>;
 	}
 
 	/**
-	 * The file system interface exposes the editor's built-in and contributed
-	 * {@link FileSystemProvider file system providers}. It allows extensions to work
-	 * with files from the local disk as well as files from remote places, like the
-	 * remote extension host or ftp-servers.
+	 * The fiwe system intewface exposes the editow's buiwt-in and contwibuted
+	 * {@wink FiweSystemPwovida fiwe system pwovidews}. It awwows extensions to wowk
+	 * with fiwes fwom the wocaw disk as weww as fiwes fwom wemote pwaces, wike the
+	 * wemote extension host ow ftp-sewvews.
 	 *
-	 * *Note* that an instance of this interface is available as {@linkcode workspace.fs}.
+	 * *Note* that an instance of this intewface is avaiwabwe as {@winkcode wowkspace.fs}.
 	 */
-	export interface FileSystem {
+	expowt intewface FiweSystem {
 
 		/**
-		 * Retrieve metadata about a file.
+		 * Wetwieve metadata about a fiwe.
 		 *
-		 * @param uri The uri of the file to retrieve metadata about.
-		 * @return The file metadata about the file.
+		 * @pawam uwi The uwi of the fiwe to wetwieve metadata about.
+		 * @wetuwn The fiwe metadata about the fiwe.
 		 */
-		stat(uri: Uri): Thenable<FileStat>;
+		stat(uwi: Uwi): Thenabwe<FiweStat>;
 
 		/**
-		 * Retrieve all entries of a {@link FileType.Directory directory}.
+		 * Wetwieve aww entwies of a {@wink FiweType.Diwectowy diwectowy}.
 		 *
-		 * @param uri The uri of the folder.
-		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 * @pawam uwi The uwi of the fowda.
+		 * @wetuwn An awway of name/type-tupwes ow a thenabwe that wesowves to such.
 		 */
-		readDirectory(uri: Uri): Thenable<[string, FileType][]>;
+		weadDiwectowy(uwi: Uwi): Thenabwe<[stwing, FiweType][]>;
 
 		/**
-		 * Create a new directory (Note, that new files are created via `write`-calls).
+		 * Cweate a new diwectowy (Note, that new fiwes awe cweated via `wwite`-cawws).
 		 *
-		 * *Note* that missing directories are created automatically, e.g this call has
-		 * `mkdirp` semantics.
+		 * *Note* that missing diwectowies awe cweated automaticawwy, e.g this caww has
+		 * `mkdiwp` semantics.
 		 *
-		 * @param uri The uri of the new folder.
+		 * @pawam uwi The uwi of the new fowda.
 		 */
-		createDirectory(uri: Uri): Thenable<void>;
+		cweateDiwectowy(uwi: Uwi): Thenabwe<void>;
 
 		/**
-		 * Read the entire contents of a file.
+		 * Wead the entiwe contents of a fiwe.
 		 *
-		 * @param uri The uri of the file.
-		 * @return An array of bytes or a thenable that resolves to such.
+		 * @pawam uwi The uwi of the fiwe.
+		 * @wetuwn An awway of bytes ow a thenabwe that wesowves to such.
 		 */
-		readFile(uri: Uri): Thenable<Uint8Array>;
+		weadFiwe(uwi: Uwi): Thenabwe<Uint8Awway>;
 
 		/**
-		 * Write data to a file, replacing its entire contents.
+		 * Wwite data to a fiwe, wepwacing its entiwe contents.
 		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
+		 * @pawam uwi The uwi of the fiwe.
+		 * @pawam content The new content of the fiwe.
 		 */
-		writeFile(uri: Uri, content: Uint8Array): Thenable<void>;
+		wwiteFiwe(uwi: Uwi, content: Uint8Awway): Thenabwe<void>;
 
 		/**
-		 * Delete a file.
+		 * Dewete a fiwe.
 		 *
-		 * @param uri The resource that is to be deleted.
-		 * @param options Defines if trash can should be used and if deletion of folders is recursive
+		 * @pawam uwi The wesouwce that is to be deweted.
+		 * @pawam options Defines if twash can shouwd be used and if dewetion of fowdews is wecuwsive
 		 */
-		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
+		dewete(uwi: Uwi, options?: { wecuwsive?: boowean, useTwash?: boowean }): Thenabwe<void>;
 
 		/**
-		 * Rename a file or folder.
+		 * Wename a fiwe ow fowda.
 		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwritten.
+		 * @pawam owdUwi The existing fiwe.
+		 * @pawam newUwi The new wocation.
+		 * @pawam options Defines if existing fiwes shouwd be ovewwwitten.
 		 */
-		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+		wename(souwce: Uwi, tawget: Uwi, options?: { ovewwwite?: boowean }): Thenabwe<void>;
 
 		/**
-		 * Copy files or folders.
+		 * Copy fiwes ow fowdews.
 		 *
-		 * @param source The existing file.
-		 * @param destination The destination location.
-		 * @param options Defines if existing files should be overwritten.
+		 * @pawam souwce The existing fiwe.
+		 * @pawam destination The destination wocation.
+		 * @pawam options Defines if existing fiwes shouwd be ovewwwitten.
 		 */
-		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
+		copy(souwce: Uwi, tawget: Uwi, options?: { ovewwwite?: boowean }): Thenabwe<void>;
 
 		/**
-		 * Check if a given file system supports writing files.
+		 * Check if a given fiwe system suppowts wwiting fiwes.
 		 *
-		 * Keep in mind that just because a file system supports writing, that does
-		 * not mean that writes will always succeed. There may be permissions issues
-		 * or other errors that prevent writing a file.
+		 * Keep in mind that just because a fiwe system suppowts wwiting, that does
+		 * not mean that wwites wiww awways succeed. Thewe may be pewmissions issues
+		 * ow otha ewwows that pwevent wwiting a fiwe.
 		 *
-		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 * @pawam scheme The scheme of the fiwesystem, fow exampwe `fiwe` ow `git`.
 		 *
-		 * @return `true` if the file system supports writing, `false` if it does not
-		 * support writing (i.e. it is readonly), and `undefined` if the editor does not
-		 * know about the filesystem.
+		 * @wetuwn `twue` if the fiwe system suppowts wwiting, `fawse` if it does not
+		 * suppowt wwiting (i.e. it is weadonwy), and `undefined` if the editow does not
+		 * know about the fiwesystem.
 		 */
-		isWritableFileSystem(scheme: string): boolean | undefined;
+		isWwitabweFiweSystem(scheme: stwing): boowean | undefined;
 	}
 
 	/**
-	 * Defines a port mapping used for localhost inside the webview.
+	 * Defines a powt mapping used fow wocawhost inside the webview.
 	 */
-	export interface WebviewPortMapping {
+	expowt intewface WebviewPowtMapping {
 		/**
-		 * Localhost port to remap inside the webview.
+		 * Wocawhost powt to wemap inside the webview.
 		 */
-		readonly webviewPort: number;
+		weadonwy webviewPowt: numba;
 
 		/**
-		 * Destination port. The `webviewPort` is resolved to this port.
+		 * Destination powt. The `webviewPowt` is wesowved to this powt.
 		 */
-		readonly extensionHostPort: number;
+		weadonwy extensionHostPowt: numba;
 	}
 
 	/**
-	 * Content settings for a webview.
+	 * Content settings fow a webview.
 	 */
-	export interface WebviewOptions {
+	expowt intewface WebviewOptions {
 		/**
-		 * Controls whether scripts are enabled in the webview content or not.
+		 * Contwows whetha scwipts awe enabwed in the webview content ow not.
 		 *
-		 * Defaults to false (scripts-disabled).
+		 * Defauwts to fawse (scwipts-disabwed).
 		 */
-		readonly enableScripts?: boolean;
+		weadonwy enabweScwipts?: boowean;
 
 		/**
-		 * Controls whether forms are enabled in the webview content or not.
+		 * Contwows whetha fowms awe enabwed in the webview content ow not.
 		 *
-		 * Defaults to true if {@link enableScripts scripts are enabled}. Otherwise defaults to false.
-		 * Explicitly setting this property to either true or false overrides the default.
+		 * Defauwts to twue if {@wink enabweScwipts scwipts awe enabwed}. Othewwise defauwts to fawse.
+		 * Expwicitwy setting this pwopewty to eitha twue ow fawse ovewwides the defauwt.
 		 */
-		readonly enableForms?: boolean;
+		weadonwy enabweFowms?: boowean;
 
 		/**
-		 * Controls whether command uris are enabled in webview content or not.
+		 * Contwows whetha command uwis awe enabwed in webview content ow not.
 		 *
-		 * Defaults to false.
+		 * Defauwts to fawse.
 		 */
-		readonly enableCommandUris?: boolean;
+		weadonwy enabweCommandUwis?: boowean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
+		 * Woot paths fwom which the webview can woad wocaw (fiwesystem) wesouwces using uwis fwom `asWebviewUwi`
 		 *
-		 * Default to the root folders of the current workspace plus the extension's install directory.
+		 * Defauwt to the woot fowdews of the cuwwent wowkspace pwus the extension's instaww diwectowy.
 		 *
-		 * Pass in an empty array to disallow access to any local resources.
+		 * Pass in an empty awway to disawwow access to any wocaw wesouwces.
 		 */
-		readonly localResourceRoots?: readonly Uri[];
+		weadonwy wocawWesouwceWoots?: weadonwy Uwi[];
 
 		/**
-		 * Mappings of localhost ports used inside the webview.
+		 * Mappings of wocawhost powts used inside the webview.
 		 *
-		 * Port mapping allow webviews to transparently define how localhost ports are resolved. This can be used
-		 * to allow using a static localhost port inside the webview that is resolved to random port that a service is
-		 * running on.
+		 * Powt mapping awwow webviews to twanspawentwy define how wocawhost powts awe wesowved. This can be used
+		 * to awwow using a static wocawhost powt inside the webview that is wesowved to wandom powt that a sewvice is
+		 * wunning on.
 		 *
-		 * If a webview accesses localhost content, we recommend that you specify port mappings even if
-		 * the `webviewPort` and `extensionHostPort` ports are the same.
+		 * If a webview accesses wocawhost content, we wecommend that you specify powt mappings even if
+		 * the `webviewPowt` and `extensionHostPowt` powts awe the same.
 		 *
-		 * *Note* that port mappings only work for `http` or `https` urls. Websocket urls (e.g. `ws://localhost:3000`)
-		 * cannot be mapped to another port.
+		 * *Note* that powt mappings onwy wowk fow `http` ow `https` uwws. Websocket uwws (e.g. `ws://wocawhost:3000`)
+		 * cannot be mapped to anotha powt.
 		 */
-		readonly portMapping?: readonly WebviewPortMapping[];
+		weadonwy powtMapping?: weadonwy WebviewPowtMapping[];
 	}
 
 	/**
-	 * Displays html content, similarly to an iframe.
+	 * Dispways htmw content, simiwawwy to an ifwame.
 	 */
-	export interface Webview {
+	expowt intewface Webview {
 		/**
-		 * Content settings for the webview.
+		 * Content settings fow the webview.
 		 */
 		options: WebviewOptions;
 
 		/**
-		 * HTML contents of the webview.
+		 * HTMW contents of the webview.
 		 *
-		 * This should be a complete, valid html document. Changing this property causes the webview to be reloaded.
+		 * This shouwd be a compwete, vawid htmw document. Changing this pwopewty causes the webview to be wewoaded.
 		 *
-		 * Webviews are sandboxed from normal extension process, so all communication with the webview must use
-		 * message passing. To send a message from the extension to the webview, use {@linkcode Webview.postMessage postMessage}.
-		 * To send message from the webview back to an extension, use the `acquireVsCodeApi` function inside the webview
-		 * to get a handle to the editor's api and then call `.postMessage()`:
+		 * Webviews awe sandboxed fwom nowmaw extension pwocess, so aww communication with the webview must use
+		 * message passing. To send a message fwom the extension to the webview, use {@winkcode Webview.postMessage postMessage}.
+		 * To send message fwom the webview back to an extension, use the `acquiweVsCodeApi` function inside the webview
+		 * to get a handwe to the editow's api and then caww `.postMessage()`:
 		 *
-		 * ```html
-		 * <script>
-		 *     const vscode = acquireVsCodeApi(); // acquireVsCodeApi can only be invoked once
-		 *     vscode.postMessage({ message: 'hello!' });
-		 * </script>
+		 * ```htmw
+		 * <scwipt>
+		 *     const vscode = acquiweVsCodeApi(); // acquiweVsCodeApi can onwy be invoked once
+		 *     vscode.postMessage({ message: 'hewwo!' });
+		 * </scwipt>
 		 * ```
 		 *
-		 * To load a resources from the workspace inside a webview, use the {@linkcode Webview.asWebviewUri asWebviewUri} method
-		 * and ensure the resource's directory is listed in {@linkcode WebviewOptions.localResourceRoots}.
+		 * To woad a wesouwces fwom the wowkspace inside a webview, use the {@winkcode Webview.asWebviewUwi asWebviewUwi} method
+		 * and ensuwe the wesouwce's diwectowy is wisted in {@winkcode WebviewOptions.wocawWesouwceWoots}.
 		 *
-		 * Keep in mind that even though webviews are sandboxed, they still allow running scripts and loading arbitrary content,
-		 * so extensions must follow all standard web security best practices when working with webviews. This includes
-		 * properly sanitizing all untrusted input (including content from the workspace) and
-		 * setting a [content security policy](https://aka.ms/vscode-api-webview-csp).
+		 * Keep in mind that even though webviews awe sandboxed, they stiww awwow wunning scwipts and woading awbitwawy content,
+		 * so extensions must fowwow aww standawd web secuwity best pwactices when wowking with webviews. This incwudes
+		 * pwopewwy sanitizing aww untwusted input (incwuding content fwom the wowkspace) and
+		 * setting a [content secuwity powicy](https://aka.ms/vscode-api-webview-csp).
 		 */
-		html: string;
+		htmw: stwing;
 
 		/**
-		 * Fired when the webview content posts a message.
+		 * Fiwed when the webview content posts a message.
 		 *
-		 * Webview content can post strings or json serializable objects back to an extension. They cannot
-		 * post `Blob`, `File`, `ImageData` and other DOM specific objects since the extension that receives the
-		 * message does not run in a browser environment.
+		 * Webview content can post stwings ow json sewiawizabwe objects back to an extension. They cannot
+		 * post `Bwob`, `Fiwe`, `ImageData` and otha DOM specific objects since the extension that weceives the
+		 * message does not wun in a bwowsa enviwonment.
 		 */
-		readonly onDidReceiveMessage: Event<any>;
+		weadonwy onDidWeceiveMessage: Event<any>;
 
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only delivered if the webview is live (either visible or in the
-		 * background with `retainContextWhenHidden`).
+		 * Messages awe onwy dewivewed if the webview is wive (eitha visibwe ow in the
+		 * backgwound with `wetainContextWhenHidden`).
 		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
+		 * @pawam message Body of the message. This must be a stwing ow otha json sewiawizabwe object.
 		 *
-		 *   For older versions of vscode, if an `ArrayBuffer` is included in `message`,
-		 *   it will not be serialized properly and will not be received by the webview.
-		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
-		 *   serialized and will also not be recreated as a typed array inside the webview.
+		 *   Fow owda vewsions of vscode, if an `AwwayBuffa` is incwuded in `message`,
+		 *   it wiww not be sewiawized pwopewwy and wiww not be weceived by the webview.
+		 *   Simiwawwy any TypedAwways, such as a `Uint8Awway`, wiww be vewy inefficientwy
+		 *   sewiawized and wiww awso not be wecweated as a typed awway inside the webview.
 		 *
-		 *   However if your extension targets vscode 1.57+ in the `engines` field of its
-		 *   `package.json`, any `ArrayBuffer` values that appear in `message` will be more
-		 *   efficiently transferred to the webview and will also be correctly recreated inside
+		 *   Howeva if youw extension tawgets vscode 1.57+ in the `engines` fiewd of its
+		 *   `package.json`, any `AwwayBuffa` vawues that appeaw in `message` wiww be mowe
+		 *   efficientwy twansfewwed to the webview and wiww awso be cowwectwy wecweated inside
 		 *   of the webview.
 		 */
-		postMessage(message: any): Thenable<boolean>;
+		postMessage(message: any): Thenabwe<boowean>;
 
 		/**
-		 * Convert a uri for the local file system to one that can be used inside webviews.
+		 * Convewt a uwi fow the wocaw fiwe system to one that can be used inside webviews.
 		 *
-		 * Webviews cannot directly load resources from the workspace or local file system using `file:` uris. The
-		 * `asWebviewUri` function takes a local `file:` uri and converts it into a uri that can be used inside of
-		 * a webview to load the same resource:
+		 * Webviews cannot diwectwy woad wesouwces fwom the wowkspace ow wocaw fiwe system using `fiwe:` uwis. The
+		 * `asWebviewUwi` function takes a wocaw `fiwe:` uwi and convewts it into a uwi that can be used inside of
+		 * a webview to woad the same wesouwce:
 		 *
 		 * ```ts
-		 * webview.html = `<img src="${webview.asWebviewUri(vscode.Uri.file('/Users/codey/workspace/cat.gif'))}">`
+		 * webview.htmw = `<img swc="${webview.asWebviewUwi(vscode.Uwi.fiwe('/Usews/codey/wowkspace/cat.gif'))}">`
 		 * ```
 		 */
-		asWebviewUri(localResource: Uri): Uri;
+		asWebviewUwi(wocawWesouwce: Uwi): Uwi;
 
 		/**
-		 * Content security policy source for webview resources.
+		 * Content secuwity powicy souwce fow webview wesouwces.
 		 *
-		 * This is the origin that should be used in a content security policy rule:
+		 * This is the owigin that shouwd be used in a content secuwity powicy wuwe:
 		 *
 		 * ```
-		 * img-src https: ${webview.cspSource} ...;
+		 * img-swc https: ${webview.cspSouwce} ...;
 		 * ```
 		 */
-		readonly cspSource: string;
+		weadonwy cspSouwce: stwing;
 	}
 
 	/**
-	 * Content settings for a webview panel.
+	 * Content settings fow a webview panew.
 	 */
-	export interface WebviewPanelOptions {
+	expowt intewface WebviewPanewOptions {
 		/**
-		 * Controls if the find widget is enabled in the panel.
+		 * Contwows if the find widget is enabwed in the panew.
 		 *
-		 * Defaults to false.
+		 * Defauwts to fawse.
 		 */
-		readonly enableFindWidget?: boolean;
+		weadonwy enabweFindWidget?: boowean;
 
 		/**
-		 * Controls if the webview panel's content (iframe) is kept around even when the panel
-		 * is no longer visible.
+		 * Contwows if the webview panew's content (ifwame) is kept awound even when the panew
+		 * is no wonga visibwe.
 		 *
-		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is hidden. Extensions that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make the editor keep the webview
-		 * context around, even when the webview moves to a background tab. When a webview using
-		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
-		 * When the panel becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally. You cannot send messages to a
-		 * hidden webview, even with `retainContextWhenHidden` enabled.
+		 * Nowmawwy the webview panew's htmw context is cweated when the panew becomes visibwe
+		 * and destwoyed when it is hidden. Extensions that have compwex state
+		 * ow UI can set the `wetainContextWhenHidden` to make the editow keep the webview
+		 * context awound, even when the webview moves to a backgwound tab. When a webview using
+		 * `wetainContextWhenHidden` becomes hidden, its scwipts and otha dynamic content awe suspended.
+		 * When the panew becomes visibwe again, the context is automaticawwy westowed
+		 * in the exact same state it was in owiginawwy. You cannot send messages to a
+		 * hidden webview, even with `wetainContextWhenHidden` enabwed.
 		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your panel's context cannot be quickly saved and restored.
+		 * `wetainContextWhenHidden` has a high memowy ovewhead and shouwd onwy be used if
+		 * youw panew's context cannot be quickwy saved and westowed.
 		 */
-		readonly retainContextWhenHidden?: boolean;
+		weadonwy wetainContextWhenHidden?: boowean;
 	}
 
 	/**
-	 * A panel that contains a webview.
+	 * A panew that contains a webview.
 	 */
-	interface WebviewPanel {
+	intewface WebviewPanew {
 		/**
-		 * Identifies the type of the webview panel, such as `'markdown.preview'`.
+		 * Identifies the type of the webview panew, such as `'mawkdown.pweview'`.
 		 */
-		readonly viewType: string;
+		weadonwy viewType: stwing;
 
 		/**
-		 * Title of the panel shown in UI.
+		 * Titwe of the panew shown in UI.
 		 */
-		title: string;
+		titwe: stwing;
 
 		/**
-		 * Icon for the panel shown in UI.
+		 * Icon fow the panew shown in UI.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri };
+		iconPath?: Uwi | { wight: Uwi; dawk: Uwi };
 
 		/**
-		 * {@linkcode Webview} belonging to the panel.
+		 * {@winkcode Webview} bewonging to the panew.
 		 */
-		readonly webview: Webview;
+		weadonwy webview: Webview;
 
 		/**
-		 * Content settings for the webview panel.
+		 * Content settings fow the webview panew.
 		 */
-		readonly options: WebviewPanelOptions;
+		weadonwy options: WebviewPanewOptions;
 
 		/**
-		 * Editor position of the panel. This property is only set if the webview is in
-		 * one of the editor view columns.
+		 * Editow position of the panew. This pwopewty is onwy set if the webview is in
+		 * one of the editow view cowumns.
 		 */
-		readonly viewColumn?: ViewColumn;
+		weadonwy viewCowumn?: ViewCowumn;
 
 		/**
-		 * Whether the panel is active (focused by the user).
+		 * Whetha the panew is active (focused by the usa).
 		 */
-		readonly active: boolean;
+		weadonwy active: boowean;
 
 		/**
-		 * Whether the panel is visible.
+		 * Whetha the panew is visibwe.
 		 */
-		readonly visible: boolean;
+		weadonwy visibwe: boowean;
 
 		/**
-		 * Fired when the panel's view state changes.
+		 * Fiwed when the panew's view state changes.
 		 */
-		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
+		weadonwy onDidChangeViewState: Event<WebviewPanewOnDidChangeViewStateEvent>;
 
 		/**
-		 * Fired when the panel is disposed.
+		 * Fiwed when the panew is disposed.
 		 *
-		 * This may be because the user closed the panel or because `.dispose()` was
-		 * called on it.
+		 * This may be because the usa cwosed the panew ow because `.dispose()` was
+		 * cawwed on it.
 		 *
-		 * Trying to use the panel after it has been disposed throws an exception.
+		 * Twying to use the panew afta it has been disposed thwows an exception.
 		 */
-		readonly onDidDispose: Event<void>;
+		weadonwy onDidDispose: Event<void>;
 
 		/**
-		 * Show the webview panel in a given column.
+		 * Show the webview panew in a given cowumn.
 		 *
-		 * A webview panel may only show in a single column at a time. If it is already showing, this
-		 * method moves it to a new column.
+		 * A webview panew may onwy show in a singwe cowumn at a time. If it is awweady showing, this
+		 * method moves it to a new cowumn.
 		 *
-		 * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
-		 * @param preserveFocus When `true`, the webview will not take focus.
+		 * @pawam viewCowumn View cowumn to show the panew in. Shows in the cuwwent `viewCowumn` if undefined.
+		 * @pawam pwesewveFocus When `twue`, the webview wiww not take focus.
 		 */
-		reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
+		weveaw(viewCowumn?: ViewCowumn, pwesewveFocus?: boowean): void;
 
 		/**
-		 * Dispose of the webview panel.
+		 * Dispose of the webview panew.
 		 *
-		 * This closes the panel if it showing and disposes of the resources owned by the webview.
-		 * Webview panels are also disposed when the user closes the webview panel. Both cases
-		 * fire the `onDispose` event.
+		 * This cwoses the panew if it showing and disposes of the wesouwces owned by the webview.
+		 * Webview panews awe awso disposed when the usa cwoses the webview panew. Both cases
+		 * fiwe the `onDispose` event.
 		 */
 		dispose(): any;
 	}
 
 	/**
-	 * Event fired when a webview panel's view state changes.
+	 * Event fiwed when a webview panew's view state changes.
 	 */
-	export interface WebviewPanelOnDidChangeViewStateEvent {
+	expowt intewface WebviewPanewOnDidChangeViewStateEvent {
 		/**
-		 * Webview panel whose view state changed.
+		 * Webview panew whose view state changed.
 		 */
-		readonly webviewPanel: WebviewPanel;
+		weadonwy webviewPanew: WebviewPanew;
 	}
 
 	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
+	 * Westowe webview panews that have been pewsisted when vscode shuts down.
 	 *
-	 * There are two types of webview persistence:
+	 * Thewe awe two types of webview pewsistence:
 	 *
-	 * - Persistence within a session.
-	 * - Persistence across sessions (across restarts of the editor).
+	 * - Pewsistence within a session.
+	 * - Pewsistence acwoss sessions (acwoss westawts of the editow).
 	 *
-	 * A `WebviewPanelSerializer` is only required for the second case: persisting a webview across sessions.
+	 * A `WebviewPanewSewiawiza` is onwy wequiwed fow the second case: pewsisting a webview acwoss sessions.
 	 *
-	 * Persistence within a session allows a webview to save its state when it becomes hidden
-	 * and restore its content from this state when it becomes visible again. It is powered entirely
-	 * by the webview content itself. To save off a persisted state, call `acquireVsCodeApi().setState()` with
-	 * any json serializable object. To restore the state again, call `getState()`
+	 * Pewsistence within a session awwows a webview to save its state when it becomes hidden
+	 * and westowe its content fwom this state when it becomes visibwe again. It is powewed entiwewy
+	 * by the webview content itsewf. To save off a pewsisted state, caww `acquiweVsCodeApi().setState()` with
+	 * any json sewiawizabwe object. To westowe the state again, caww `getState()`
 	 *
 	 * ```js
 	 * // Within the webview
-	 * const vscode = acquireVsCodeApi();
+	 * const vscode = acquiweVsCodeApi();
 	 *
 	 * // Get existing state
-	 * const oldState = vscode.getState() || { value: 0 };
+	 * const owdState = vscode.getState() || { vawue: 0 };
 	 *
 	 * // Update state
-	 * setState({ value: oldState.value + 1 })
+	 * setState({ vawue: owdState.vawue + 1 })
 	 * ```
 	 *
-	 * A `WebviewPanelSerializer` extends this persistence across restarts of the editor. When the editor is shutdown,
-	 * it will save off the state from `setState` of all webviews that have a serializer. When the
-	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
-	 * The extension can then restore the old `WebviewPanel` from this state.
+	 * A `WebviewPanewSewiawiza` extends this pewsistence acwoss westawts of the editow. When the editow is shutdown,
+	 * it wiww save off the state fwom `setState` of aww webviews that have a sewiawiza. When the
+	 * webview fiwst becomes visibwe afta the westawt, this state is passed to `desewiawizeWebviewPanew`.
+	 * The extension can then westowe the owd `WebviewPanew` fwom this state.
 	 *
-	 * @param T Type of the webview's state.
+	 * @pawam T Type of the webview's state.
 	 */
-	interface WebviewPanelSerializer<T = unknown> {
+	intewface WebviewPanewSewiawiza<T = unknown> {
 		/**
-		 * Restore a webview panel from its serialized `state`.
+		 * Westowe a webview panew fwom its sewiawized `state`.
 		 *
-		 * Called when a serialized webview first becomes visible.
+		 * Cawwed when a sewiawized webview fiwst becomes visibwe.
 		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel. The
-		 * serializer must restore the webview's `.html` and hook up all webview events.
-		 * @param state Persisted state from the webview content.
+		 * @pawam webviewPanew Webview panew to westowe. The sewiawiza shouwd take ownewship of this panew. The
+		 * sewiawiza must westowe the webview's `.htmw` and hook up aww webview events.
+		 * @pawam state Pewsisted state fwom the webview content.
 		 *
-		 * @return Thenable indicating that the webview has been fully restored.
+		 * @wetuwn Thenabwe indicating that the webview has been fuwwy westowed.
 		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: T): Thenable<void>;
+		desewiawizeWebviewPanew(webviewPanew: WebviewPanew, state: T): Thenabwe<void>;
 	}
 
 	/**
 	 * A webview based view.
 	 */
-	export interface WebviewView {
+	expowt intewface WebviewView {
 		/**
-		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
+		 * Identifies the type of the webview view, such as `'hexEditow.dataView'`.
 		 */
-		readonly viewType: string;
+		weadonwy viewType: stwing;
 
 		/**
-		 * The underlying webview for the view.
+		 * The undewwying webview fow the view.
 		 */
-		readonly webview: Webview;
+		weadonwy webview: Webview;
 
 		/**
-		 * View title displayed in the UI.
+		 * View titwe dispwayed in the UI.
 		 *
-		 * The view title is initially taken from the extension `package.json` contribution.
+		 * The view titwe is initiawwy taken fwom the extension `package.json` contwibution.
 		 */
-		title?: string;
+		titwe?: stwing;
 
 		/**
-		 * Human-readable string which is rendered less prominently in the title.
+		 * Human-weadabwe stwing which is wendewed wess pwominentwy in the titwe.
 		 */
-		description?: string;
+		descwiption?: stwing;
 
 		/**
-		 * Event fired when the view is disposed.
+		 * Event fiwed when the view is disposed.
 		 *
-		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
-		 * right clicks in a view and unchecks the webview view).
+		 * Views awe disposed when they awe expwicitwy hidden by a usa (this happens when a usa
+		 * wight cwicks in a view and unchecks the webview view).
 		 *
-		 * Trying to use the view after it has been disposed throws an exception.
+		 * Twying to use the view afta it has been disposed thwows an exception.
 		 */
-		readonly onDidDispose: Event<void>;
+		weadonwy onDidDispose: Event<void>;
 
 		/**
-		 * Tracks if the webview is currently visible.
+		 * Twacks if the webview is cuwwentwy visibwe.
 		 *
-		 * Views are visible when they are on the screen and expanded.
+		 * Views awe visibwe when they awe on the scween and expanded.
 		 */
-		readonly visible: boolean;
+		weadonwy visibwe: boowean;
 
 		/**
-		 * Event fired when the visibility of the view changes.
+		 * Event fiwed when the visibiwity of the view changes.
 		 *
-		 * Actions that trigger a visibility change:
+		 * Actions that twigga a visibiwity change:
 		 *
-		 * - The view is collapsed or expanded.
-		 * - The user switches to a different view group in the sidebar or panel.
+		 * - The view is cowwapsed ow expanded.
+		 * - The usa switches to a diffewent view gwoup in the sidebaw ow panew.
 		 *
-		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
+		 * Note that hiding a view using the context menu instead disposes of the view and fiwes `onDidDispose`.
 		 */
-		readonly onDidChangeVisibility: Event<void>;
+		weadonwy onDidChangeVisibiwity: Event<void>;
 
 		/**
-		 * Reveal the view in the UI.
+		 * Weveaw the view in the UI.
 		 *
-		 * If the view is collapsed, this will expand it.
+		 * If the view is cowwapsed, this wiww expand it.
 		 *
-		 * @param preserveFocus When `true` the view will not take focus.
+		 * @pawam pwesewveFocus When `twue` the view wiww not take focus.
 		 */
-		show(preserveFocus?: boolean): void;
+		show(pwesewveFocus?: boowean): void;
 	}
 
 	/**
-	 * Additional information the webview view being resolved.
+	 * Additionaw infowmation the webview view being wesowved.
 	 *
-	 * @param T Type of the webview's state.
+	 * @pawam T Type of the webview's state.
 	 */
-	interface WebviewViewResolveContext<T = unknown> {
+	intewface WebviewViewWesowveContext<T = unknown> {
 		/**
-		 * Persisted state from the webview content.
+		 * Pewsisted state fwom the webview content.
 		 *
-		 * To save resources, the editor normally deallocates webview documents (the iframe content) that are not visible.
-		 * For example, when the user collapse a view or switches to another top level activity in the sidebar, the
-		 * `WebviewView` itself is kept alive but the webview's underlying document is deallocated. It is recreated when
-		 * the view becomes visible again.
+		 * To save wesouwces, the editow nowmawwy deawwocates webview documents (the ifwame content) that awe not visibwe.
+		 * Fow exampwe, when the usa cowwapse a view ow switches to anotha top wevew activity in the sidebaw, the
+		 * `WebviewView` itsewf is kept awive but the webview's undewwying document is deawwocated. It is wecweated when
+		 * the view becomes visibwe again.
 		 *
-		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
-		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
-		 * save off a webview's state so that it can be quickly recreated as needed.
+		 * You can pwevent this behaviow by setting `wetainContextWhenHidden` in the `WebviewOptions`. Howeva this
+		 * incweases wesouwce usage and shouwd be avoided wheweva possibwe. Instead, you can use pewsisted state to
+		 * save off a webview's state so that it can be quickwy wecweated as needed.
 		 *
-		 * To save off a persisted state, inside the webview call `acquireVsCodeApi().setState()` with
-		 * any json serializable object. To restore the state again, call `getState()`. For example:
+		 * To save off a pewsisted state, inside the webview caww `acquiweVsCodeApi().setState()` with
+		 * any json sewiawizabwe object. To westowe the state again, caww `getState()`. Fow exampwe:
 		 *
 		 * ```js
 		 * // Within the webview
-		 * const vscode = acquireVsCodeApi();
+		 * const vscode = acquiweVsCodeApi();
 		 *
 		 * // Get existing state
-		 * const oldState = vscode.getState() || { value: 0 };
+		 * const owdState = vscode.getState() || { vawue: 0 };
 		 *
 		 * // Update state
-		 * setState({ value: oldState.value + 1 })
+		 * setState({ vawue: owdState.vawue + 1 })
 		 * ```
 		 *
-		 * The editor ensures that the persisted state is saved correctly when a webview is hidden and across
-		 * editor restarts.
+		 * The editow ensuwes that the pewsisted state is saved cowwectwy when a webview is hidden and acwoss
+		 * editow westawts.
 		 */
-		readonly state: T | undefined;
+		weadonwy state: T | undefined;
 	}
 
 	/**
-	 * Provider for creating `WebviewView` elements.
+	 * Pwovida fow cweating `WebviewView` ewements.
 	 */
-	export interface WebviewViewProvider {
+	expowt intewface WebviewViewPwovida {
 		/**
-		 * Revolves a webview view.
+		 * Wevowves a webview view.
 		 *
-		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
-		 * first loaded or when the user hides and then shows a view again.
+		 * `wesowveWebviewView` is cawwed when a view fiwst becomes visibwe. This may happen when the view is
+		 * fiwst woaded ow when the usa hides and then shows a view again.
 		 *
-		 * @param webviewView Webview view to restore. The provider should take ownership of this view. The
-		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
-		 * @param context Additional metadata about the view being resolved.
-		 * @param token Cancellation token indicating that the view being provided is no longer needed.
+		 * @pawam webviewView Webview view to westowe. The pwovida shouwd take ownewship of this view. The
+		 *    pwovida must set the webview's `.htmw` and hook up aww webview events it is intewested in.
+		 * @pawam context Additionaw metadata about the view being wesowved.
+		 * @pawam token Cancewwation token indicating that the view being pwovided is no wonga needed.
 		 *
-		 * @return Optional thenable indicating that the view has been fully resolved.
+		 * @wetuwn Optionaw thenabwe indicating that the view has been fuwwy wesowved.
 		 */
-		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Thenable<void> | void;
+		wesowveWebviewView(webviewView: WebviewView, context: WebviewViewWesowveContext, token: CancewwationToken): Thenabwe<void> | void;
 	}
 
 	/**
-	 * Provider for text based custom editors.
+	 * Pwovida fow text based custom editows.
 	 *
-	 * Text based custom editors use a {@linkcode TextDocument} as their data model. This considerably simplifies
-	 * implementing a custom editor as it allows the editor to handle many common operations such as
-	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
+	 * Text based custom editows use a {@winkcode TextDocument} as theiw data modew. This considewabwy simpwifies
+	 * impwementing a custom editow as it awwows the editow to handwe many common opewations such as
+	 * undo and backup. The pwovida is wesponsibwe fow synchwonizing text changes between the webview and the `TextDocument`.
 	 */
-	export interface CustomTextEditorProvider {
+	expowt intewface CustomTextEditowPwovida {
 
 		/**
-		 * Resolve a custom editor for a given text resource.
+		 * Wesowve a custom editow fow a given text wesouwce.
 		 *
-		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
-		 * existing editor using this `CustomTextEditorProvider`.
+		 * This is cawwed when a usa fiwst opens a wesouwce fow a `CustomTextEditowPwovida`, ow if they weopen an
+		 * existing editow using this `CustomTextEditowPwovida`.
 		 *
 		 *
-		 * @param document Document for the resource to resolve.
+		 * @pawam document Document fow the wesouwce to wesowve.
 		 *
-		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 * @pawam webviewPanew The webview panew used to dispway the editow UI fow this wesouwce.
 		 *
-		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
-		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
-		 * use later for example in a command. See {@linkcode WebviewPanel} for additional details.
+		 * Duwing wesowve, the pwovida must fiww in the initiaw htmw fow the content webview panew and hook up aww
+		 * the event wistenews on it that it is intewested in. The pwovida can awso howd onto the `WebviewPanew` to
+		 * use wata fow exampwe in a command. See {@winkcode WebviewPanew} fow additionaw detaiws.
 		 *
-		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @pawam token A cancewwation token that indicates the wesuwt is no wonga needed.
 		 *
-		 * @return Thenable indicating that the custom editor has been resolved.
+		 * @wetuwn Thenabwe indicating that the custom editow has been wesowved.
 		 */
-		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+		wesowveCustomTextEditow(document: TextDocument, webviewPanew: WebviewPanew, token: CancewwationToken): Thenabwe<void> | void;
 	}
 
 	/**
-	 * Represents a custom document used by a {@linkcode CustomEditorProvider}.
+	 * Wepwesents a custom document used by a {@winkcode CustomEditowPwovida}.
 	 *
-	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
-	 * managed by the editor. When no more references remain to a `CustomDocument`, it is disposed of.
+	 * Custom documents awe onwy used within a given `CustomEditowPwovida`. The wifecycwe of a `CustomDocument` is
+	 * managed by the editow. When no mowe wefewences wemain to a `CustomDocument`, it is disposed of.
 	 */
-	interface CustomDocument {
+	intewface CustomDocument {
 		/**
-		 * The associated uri for this document.
+		 * The associated uwi fow this document.
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 
 		/**
 		 * Dispose of the custom document.
 		 *
-		 * This is invoked by the editor when there are no more references to a given `CustomDocument` (for example when
-		 * all editors associated with the document have been closed.)
+		 * This is invoked by the editow when thewe awe no mowe wefewences to a given `CustomDocument` (fow exampwe when
+		 * aww editows associated with the document have been cwosed.)
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Event triggered by extensions to signal to the editor that an edit has occurred on an {@linkcode CustomDocument}.
+	 * Event twiggewed by extensions to signaw to the editow that an edit has occuwwed on an {@winkcode CustomDocument}.
 	 *
-	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
+	 * @see {@winkcode CustomEditowPwovida.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
+	intewface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
 		/**
-		 * The document that the edit is for.
+		 * The document that the edit is fow.
 		 */
-		readonly document: T;
+		weadonwy document: T;
 
 		/**
-		 * Undo the edit operation.
+		 * Undo the edit opewation.
 		 *
-		 * This is invoked by the editor when the user undoes this edit. To implement `undo`, your
-		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
+		 * This is invoked by the editow when the usa undoes this edit. To impwement `undo`, youw
+		 * extension shouwd westowe the document and editow to the state they wewe in just befowe this
+		 * edit was added to the editow's intewnaw edit stack by `onDidChangeCustomDocument`.
 		 */
-		undo(): Thenable<void> | void;
+		undo(): Thenabwe<void> | void;
 
 		/**
-		 * Redo the edit operation.
+		 * Wedo the edit opewation.
 		 *
-		 * This is invoked by the editor when the user redoes this edit. To implement `redo`, your
-		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
+		 * This is invoked by the editow when the usa wedoes this edit. To impwement `wedo`, youw
+		 * extension shouwd westowe the document and editow to the state they wewe in just afta this
+		 * edit was added to the editow's intewnaw edit stack by `onDidChangeCustomDocument`.
 		 */
-		redo(): Thenable<void> | void;
+		wedo(): Thenabwe<void> | void;
 
 		/**
-		 * Display name describing the edit.
+		 * Dispway name descwibing the edit.
 		 *
-		 * This will be shown to users in the UI for undo/redo operations.
+		 * This wiww be shown to usews in the UI fow undo/wedo opewations.
 		 */
-		readonly label?: string;
+		weadonwy wabew?: stwing;
 	}
 
 	/**
-	 * Event triggered by extensions to signal to the editor that the content of a {@linkcode CustomDocument}
+	 * Event twiggewed by extensions to signaw to the editow that the content of a {@winkcode CustomDocument}
 	 * has changed.
 	 *
-	 * @see {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
+	 * @see {@winkcode CustomEditowPwovida.onDidChangeCustomDocument}.
 	 */
-	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
+	intewface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
-		 * The document that the change is for.
+		 * The document that the change is fow.
 		 */
-		readonly document: T;
+		weadonwy document: T;
 	}
 
 	/**
-	 * A backup for an {@linkcode CustomDocument}.
+	 * A backup fow an {@winkcode CustomDocument}.
 	 */
-	interface CustomDocumentBackup {
+	intewface CustomDocumentBackup {
 		/**
-		 * Unique identifier for the backup.
+		 * Unique identifia fow the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to youw extension in `openCustomDocument` when opening a custom editow fwom a backup.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * Delete the current backup.
+		 * Dewete the cuwwent backup.
 		 *
-		 * This is called by the editor when it is clear the current backup is no longer needed, such as when a new backup
-		 * is made or when the file is saved.
+		 * This is cawwed by the editow when it is cweaw the cuwwent backup is no wonga needed, such as when a new backup
+		 * is made ow when the fiwe is saved.
 		 */
-		delete(): void;
+		dewete(): void;
 	}
 
 	/**
-	 * Additional information used to implement {@linkcode CustomEditableDocument.backup}.
+	 * Additionaw infowmation used to impwement {@winkcode CustomEditabweDocument.backup}.
 	 */
-	interface CustomDocumentBackupContext {
+	intewface CustomDocumentBackupContext {
 		/**
-		 * Suggested file location to write the new backup.
+		 * Suggested fiwe wocation to wwite the new backup.
 		 *
-		 * Note that your extension is free to ignore this and use its own strategy for backup.
+		 * Note that youw extension is fwee to ignowe this and use its own stwategy fow backup.
 		 *
-		 * If the editor is for a resource from the current workspace, `destination` will point to a file inside
-		 * `ExtensionContext.storagePath`. The parent folder of `destination` may not exist, so make sure to created it
-		 * before writing the backup to this location.
+		 * If the editow is fow a wesouwce fwom the cuwwent wowkspace, `destination` wiww point to a fiwe inside
+		 * `ExtensionContext.stowagePath`. The pawent fowda of `destination` may not exist, so make suwe to cweated it
+		 * befowe wwiting the backup to this wocation.
 		 */
-		readonly destination: Uri;
+		weadonwy destination: Uwi;
 	}
 
 	/**
-	 * Additional information about the opening custom document.
+	 * Additionaw infowmation about the opening custom document.
 	 */
-	interface CustomDocumentOpenContext {
+	intewface CustomDocumentOpenContext {
 		/**
-		 * The id of the backup to restore the document from or `undefined` if there is no backup.
+		 * The id of the backup to westowe the document fwom ow `undefined` if thewe is no backup.
 		 *
-		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
-		 * from the user's workspace.
+		 * If this is pwovided, youw extension shouwd westowe the editow fwom the backup instead of weading the fiwe
+		 * fwom the usa's wowkspace.
 		 */
-		readonly backupId?: string;
+		weadonwy backupId?: stwing;
 
 		/**
-		 * If the URI is an untitled file, this will be populated with the byte data of that file
+		 * If the UWI is an untitwed fiwe, this wiww be popuwated with the byte data of that fiwe
 		 *
-		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
+		 * If this is pwovided, youw extension shouwd utiwize this byte data watha than executing fs APIs on the UWI passed in
 		 */
-		readonly untitledDocumentData?: Uint8Array;
+		weadonwy untitwedDocumentData?: Uint8Awway;
 	}
 
 	/**
-	 * Provider for readonly custom editors that use a custom document model.
+	 * Pwovida fow weadonwy custom editows that use a custom document modew.
 	 *
-	 * Custom editors use {@linkcode CustomDocument} as their document model instead of a {@linkcode TextDocument}.
+	 * Custom editows use {@winkcode CustomDocument} as theiw document modew instead of a {@winkcode TextDocument}.
 	 *
-	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
-	 * text based documents, use {@linkcode CustomTextEditorProvider} instead.
+	 * You shouwd use this type of custom editow when deawing with binawy fiwes ow mowe compwex scenawios. Fow simpwe
+	 * text based documents, use {@winkcode CustomTextEditowPwovida} instead.
 	 *
-	 * @param T Type of the custom document returned by this provider.
+	 * @pawam T Type of the custom document wetuwned by this pwovida.
 	 */
-	export interface CustomReadonlyEditorProvider<T extends CustomDocument = CustomDocument> {
+	expowt intewface CustomWeadonwyEditowPwovida<T extends CustomDocument = CustomDocument> {
 
 		/**
-		 * Create a new document for a given resource.
+		 * Cweate a new document fow a given wesouwce.
 		 *
-		 * `openCustomDocument` is called when the first time an editor for a given resource is opened. The opened
-		 * document is then passed to `resolveCustomEditor` so that the editor can be shown to the user.
+		 * `openCustomDocument` is cawwed when the fiwst time an editow fow a given wesouwce is opened. The opened
+		 * document is then passed to `wesowveCustomEditow` so that the editow can be shown to the usa.
 		 *
-		 * Already opened `CustomDocument` are re-used if the user opened additional editors. When all editors for a
-		 * given resource are closed, the `CustomDocument` is disposed of. Opening an editor at this point will
-		 * trigger another call to `openCustomDocument`.
+		 * Awweady opened `CustomDocument` awe we-used if the usa opened additionaw editows. When aww editows fow a
+		 * given wesouwce awe cwosed, the `CustomDocument` is disposed of. Opening an editow at this point wiww
+		 * twigga anotha caww to `openCustomDocument`.
 		 *
-		 * @param uri Uri of the document to open.
-		 * @param openContext Additional information about the opening custom document.
-		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @pawam uwi Uwi of the document to open.
+		 * @pawam openContext Additionaw infowmation about the opening custom document.
+		 * @pawam token A cancewwation token that indicates the wesuwt is no wonga needed.
 		 *
-		 * @return The custom document.
+		 * @wetuwn The custom document.
 		 */
-		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
+		openCustomDocument(uwi: Uwi, openContext: CustomDocumentOpenContext, token: CancewwationToken): Thenabwe<T> | T;
 
 		/**
-		 * Resolve a custom editor for a given resource.
+		 * Wesowve a custom editow fow a given wesouwce.
 		 *
-		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
+		 * This is cawwed wheneva the usa opens a new editow fow this `CustomEditowPwovida`.
 		 *
-		 * @param document Document for the resource being resolved.
+		 * @pawam document Document fow the wesouwce being wesowved.
 		 *
-		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 * @pawam webviewPanew The webview panew used to dispway the editow UI fow this wesouwce.
 		 *
-		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
-		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
-		 * use later for example in a command. See {@linkcode WebviewPanel} for additional details.
+		 * Duwing wesowve, the pwovida must fiww in the initiaw htmw fow the content webview panew and hook up aww
+		 * the event wistenews on it that it is intewested in. The pwovida can awso howd onto the `WebviewPanew` to
+		 * use wata fow exampwe in a command. See {@winkcode WebviewPanew} fow additionaw detaiws.
 		 *
-		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @pawam token A cancewwation token that indicates the wesuwt is no wonga needed.
 		 *
-		 * @return Optional thenable indicating that the custom editor has been resolved.
+		 * @wetuwn Optionaw thenabwe indicating that the custom editow has been wesowved.
 		 */
-		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+		wesowveCustomEditow(document: T, webviewPanew: WebviewPanew, token: CancewwationToken): Thenabwe<void> | void;
 	}
 
 	/**
-	 * Provider for editable custom editors that use a custom document model.
+	 * Pwovida fow editabwe custom editows that use a custom document modew.
 	 *
-	 * Custom editors use {@linkcode CustomDocument} as their document model instead of a {@linkcode TextDocument}.
-	 * This gives extensions full control over actions such as edit, save, and backup.
+	 * Custom editows use {@winkcode CustomDocument} as theiw document modew instead of a {@winkcode TextDocument}.
+	 * This gives extensions fuww contwow ova actions such as edit, save, and backup.
 	 *
-	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
-	 * text based documents, use {@linkcode CustomTextEditorProvider} instead.
+	 * You shouwd use this type of custom editow when deawing with binawy fiwes ow mowe compwex scenawios. Fow simpwe
+	 * text based documents, use {@winkcode CustomTextEditowPwovida} instead.
 	 *
-	 * @param T Type of the custom document returned by this provider.
+	 * @pawam T Type of the custom document wetuwned by this pwovida.
 	 */
-	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
+	expowt intewface CustomEditowPwovida<T extends CustomDocument = CustomDocument> extends CustomWeadonwyEditowPwovida<T> {
 		/**
-		 * Signal that an edit has occurred inside a custom editor.
+		 * Signaw that an edit has occuwwed inside a custom editow.
 		 *
-		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
-		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
-		 * define what an edit is and what data is stored on each edit.
+		 * This event must be fiwed by youw extension wheneva an edit happens in a custom editow. An edit can be
+		 * anything fwom changing some text, to cwopping an image, to weowdewing a wist. Youw extension is fwee to
+		 * define what an edit is and what data is stowed on each edit.
 		 *
-		 * Firing `onDidChange` causes the editors to be marked as being dirty. This is cleared when the user either
-		 * saves or reverts the file.
+		 * Fiwing `onDidChange` causes the editows to be mawked as being diwty. This is cweawed when the usa eitha
+		 * saves ow wevewts the fiwe.
 		 *
-		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
-		 * users to undo and redo the edit using the editor's standard keyboard shortcuts. The editor will also mark
-		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 * Editows that suppowt undo/wedo must fiwe a `CustomDocumentEditEvent` wheneva an edit happens. This awwows
+		 * usews to undo and wedo the edit using the editow's standawd keyboawd showtcuts. The editow wiww awso mawk
+		 * the editow as no wonga being diwty if the usa undoes aww edits to the wast saved state.
 		 *
-		 * Editors that support editing but cannot use the editor's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
-		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
-		 * `save` or `revert` the file.
+		 * Editows that suppowt editing but cannot use the editow's standawd undo/wedo mechanism must fiwe a `CustomDocumentContentChangeEvent`.
+		 * The onwy way fow a usa to cweaw the diwty state of an editow that does not suppowt undo/wedo is to eitha
+		 * `save` ow `wevewt` the fiwe.
 		 *
-		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 * An editow shouwd onwy eva fiwe `CustomDocumentEditEvent` events, ow onwy eva fiwe `CustomDocumentContentChangeEvent` events.
 		 */
-		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
+		weadonwy onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
 
 		/**
 		 * Save a custom document.
 		 *
-		 * This method is invoked by the editor when the user saves a custom editor. This can happen when the user
-		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
+		 * This method is invoked by the editow when the usa saves a custom editow. This can happen when the usa
+		 * twiggews save whiwe the custom editow is active, by commands such as `save aww`, ow by auto save if enabwed.
 		 *
-		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
-		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
-		 * no longer be marked as dirty.
+		 * To impwement `save`, the impwementa must pewsist the custom editow. This usuawwy means wwiting the
+		 * fiwe data fow the custom document to disk. Afta `save` compwetes, any associated editow instances wiww
+		 * no wonga be mawked as diwty.
 		 *
-		 * @param document Document to save.
-		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 * @pawam document Document to save.
+		 * @pawam cancewwation Token that signaws the save is no wonga wequiwed (fow exampwe, if anotha save was twiggewed).
 		 *
-		 * @return Thenable signaling that saving has completed.
+		 * @wetuwn Thenabwe signawing that saving has compweted.
 		 */
-		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocument(document: T, cancewwation: CancewwationToken): Thenabwe<void>;
 
 		/**
-		 * Save a custom document to a different location.
+		 * Save a custom document to a diffewent wocation.
 		 *
-		 * This method is invoked by the editor when the user triggers 'save as' on a custom editor. The implementer must
-		 * persist the custom editor to `destination`.
+		 * This method is invoked by the editow when the usa twiggews 'save as' on a custom editow. The impwementa must
+		 * pewsist the custom editow to `destination`.
 		 *
-		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
+		 * When the usa accepts save as, the cuwwent editow is be wepwaced by an non-diwty editow fow the newwy saved fiwe.
 		 *
-		 * @param document Document to save.
-		 * @param destination Location to save to.
-		 * @param cancellation Token that signals the save is no longer required.
+		 * @pawam document Document to save.
+		 * @pawam destination Wocation to save to.
+		 * @pawam cancewwation Token that signaws the save is no wonga wequiwed.
 		 *
-		 * @return Thenable signaling that saving has completed.
+		 * @wetuwn Thenabwe signawing that saving has compweted.
 		 */
-		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocumentAs(document: T, destination: Uwi, cancewwation: CancewwationToken): Thenabwe<void>;
 
 		/**
-		 * Revert a custom document to its last saved state.
+		 * Wevewt a custom document to its wast saved state.
 		 *
-		 * This method is invoked by the editor when the user triggers `File: Revert File` in a custom editor. (Note that
-		 * this is only used using the editor's `File: Revert File` command and not on a `git revert` of the file).
+		 * This method is invoked by the editow when the usa twiggews `Fiwe: Wevewt Fiwe` in a custom editow. (Note that
+		 * this is onwy used using the editow's `Fiwe: Wevewt Fiwe` command and not on a `git wevewt` of the fiwe).
 		 *
-		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
-		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
-		 * workspace.
+		 * To impwement `wevewt`, the impwementa must make suwe aww editow instances (webviews) fow `document`
+		 * awe dispwaying the document in the same state is saved in. This usuawwy means wewoading the fiwe fwom the
+		 * wowkspace.
 		 *
-		 * @param document Document to revert.
-		 * @param cancellation Token that signals the revert is no longer required.
+		 * @pawam document Document to wevewt.
+		 * @pawam cancewwation Token that signaws the wevewt is no wonga wequiwed.
 		 *
-		 * @return Thenable signaling that the change has completed.
+		 * @wetuwn Thenabwe signawing that the change has compweted.
 		 */
-		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+		wevewtCustomDocument(document: T, cancewwation: CancewwationToken): Thenabwe<void>;
 
 		/**
-		 * Back up a dirty custom document.
+		 * Back up a diwty custom document.
 		 *
-		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
-		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
-		 * the `ExtensionContext.storagePath`. When the editor reloads and your custom editor is opened for a resource,
-		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
-		 * extension should load the file contents from there instead of from the resource in the workspace.
+		 * Backups awe used fow hot exit and to pwevent data woss. Youw `backup` method shouwd pewsist the wesouwce in
+		 * its cuwwent state, i.e. with the edits appwied. Most commonwy this means saving the wesouwce to disk in
+		 * the `ExtensionContext.stowagePath`. When the editow wewoads and youw custom editow is opened fow a wesouwce,
+		 * youw extension shouwd fiwst check to see if any backups exist fow the wesouwce. If thewe is a backup, youw
+		 * extension shouwd woad the fiwe contents fwom thewe instead of fwom the wesouwce in the wowkspace.
 		 *
-		 * `backup` is triggered approximately one second after the user stops editing the document. If the user
-		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
+		 * `backup` is twiggewed appwoximatewy one second afta the usa stops editing the document. If the usa
+		 * wapidwy edits the document, `backup` wiww not be invoked untiw the editing stops.
 		 *
-		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
+		 * `backup` is not invoked when `auto save` is enabwed (since auto save awweady pewsists the wesouwce).
 		 *
-		 * @param document Document to backup.
-		 * @param context Information that can be used to backup the document.
-		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
-		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
-		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
-		 * than cancelling it to ensure that the editor has some valid backup.
+		 * @pawam document Document to backup.
+		 * @pawam context Infowmation that can be used to backup the document.
+		 * @pawam cancewwation Token that signaws the cuwwent backup since a new backup is coming in. It is up to youw
+		 * extension to decided how to wespond to cancewwation. If fow exampwe youw extension is backing up a wawge fiwe
+		 * in an opewation that takes time to compwete, youw extension may decide to finish the ongoing backup watha
+		 * than cancewwing it to ensuwe that the editow has some vawid backup.
 		 */
-		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancewwation: CancewwationToken): Thenabwe<CustomDocumentBackup>;
 	}
 
 	/**
-	 * The clipboard provides read and write access to the system's clipboard.
+	 * The cwipboawd pwovides wead and wwite access to the system's cwipboawd.
 	 */
-	export interface Clipboard {
+	expowt intewface Cwipboawd {
 
 		/**
-		 * Read the current clipboard contents as text.
-		 * @returns A thenable that resolves to a string.
+		 * Wead the cuwwent cwipboawd contents as text.
+		 * @wetuwns A thenabwe that wesowves to a stwing.
 		 */
-		readText(): Thenable<string>;
+		weadText(): Thenabwe<stwing>;
 
 		/**
-		 * Writes text into the clipboard.
-		 * @returns A thenable that resolves when writing happened.
+		 * Wwites text into the cwipboawd.
+		 * @wetuwns A thenabwe that wesowves when wwiting happened.
 		 */
-		writeText(value: string): Thenable<void>;
+		wwiteText(vawue: stwing): Thenabwe<void>;
 	}
 
 	/**
-	 * Possible kinds of UI that can use extensions.
+	 * Possibwe kinds of UI that can use extensions.
 	 */
-	export enum UIKind {
+	expowt enum UIKind {
 
 		/**
-		 * Extensions are accessed from a desktop application.
+		 * Extensions awe accessed fwom a desktop appwication.
 		 */
 		Desktop = 1,
 
 		/**
-		 * Extensions are accessed from a web browser.
+		 * Extensions awe accessed fwom a web bwowsa.
 		 */
 		Web = 2
 	}
 
 	/**
-	 * Namespace describing the environment the editor runs in.
+	 * Namespace descwibing the enviwonment the editow wuns in.
 	 */
-	export namespace env {
+	expowt namespace env {
 
 		/**
-		 * The application name of the editor, like 'VS Code'.
+		 * The appwication name of the editow, wike 'VS Code'.
 		 */
-		export const appName: string;
+		expowt const appName: stwing;
 
 		/**
-		 * The application root folder from which the editor is running.
+		 * The appwication woot fowda fwom which the editow is wunning.
 		 *
-		 * *Note* that the value is the empty string when running in an
-		 * environment that has no representation of an application root folder.
+		 * *Note* that the vawue is the empty stwing when wunning in an
+		 * enviwonment that has no wepwesentation of an appwication woot fowda.
 		 */
-		export const appRoot: string;
+		expowt const appWoot: stwing;
 
 		/**
-		 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
+		 * The enviwonment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
 		 */
-		export const appHost: string;
+		expowt const appHost: stwing;
 
 		/**
-		 * The custom uri scheme the editor registers to in the operating system.
+		 * The custom uwi scheme the editow wegistews to in the opewating system.
 		 */
-		export const uriScheme: string;
+		expowt const uwiScheme: stwing;
 
 		/**
-		 * Represents the preferred user-language, like `de-CH`, `fr`, or `en-US`.
+		 * Wepwesents the pwefewwed usa-wanguage, wike `de-CH`, `fw`, ow `en-US`.
 		 */
-		export const language: string;
+		expowt const wanguage: stwing;
 
 		/**
-		 * The system clipboard.
+		 * The system cwipboawd.
 		 */
-		export const clipboard: Clipboard;
+		expowt const cwipboawd: Cwipboawd;
 
 		/**
-		 * A unique identifier for the computer.
+		 * A unique identifia fow the computa.
 		 */
-		export const machineId: string;
+		expowt const machineId: stwing;
 
 		/**
-		 * A unique identifier for the current session.
-		 * Changes each time the editor is started.
+		 * A unique identifia fow the cuwwent session.
+		 * Changes each time the editow is stawted.
 		 */
-		export const sessionId: string;
+		expowt const sessionId: stwing;
 
 		/**
-		 * Indicates that this is a fresh install of the application.
-		 * `true` if within the first day of installation otherwise `false`.
+		 * Indicates that this is a fwesh instaww of the appwication.
+		 * `twue` if within the fiwst day of instawwation othewwise `fawse`.
 		 */
-		export const isNewAppInstall: boolean;
+		expowt const isNewAppInstaww: boowean;
 
 		/**
-		 * Indicates whether the users has telemetry enabled.
-		 * Can be observed to determine if the extension should send telemetry.
+		 * Indicates whetha the usews has tewemetwy enabwed.
+		 * Can be obsewved to detewmine if the extension shouwd send tewemetwy.
 		 */
-		export const isTelemetryEnabled: boolean;
+		expowt const isTewemetwyEnabwed: boowean;
 
 		/**
-		 * An {@link Event} which fires when the user enabled or disables telemetry.
-		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
+		 * An {@wink Event} which fiwes when the usa enabwed ow disabwes tewemetwy.
+		 * `twue` if the usa has enabwed tewemetwy ow `fawse` if the usa has disabwed tewemetwy.
 		 */
-		export const onDidChangeTelemetryEnabled: Event<boolean>;
+		expowt const onDidChangeTewemetwyEnabwed: Event<boowean>;
 
 		/**
-		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
-		 * Subsystem for Linux or `ssh-remote` for remotes using a secure shell.
+		 * The name of a wemote. Defined by extensions, popuwaw sampwes awe `wsw` fow the Windows
+		 * Subsystem fow Winux ow `ssh-wemote` fow wemotes using a secuwe sheww.
 		 *
-		 * *Note* that the value is `undefined` when there is no remote extension host but that the
-		 * value is defined in all extension hosts (local and remote) in case a remote extension host
-		 * exists. Use {@link Extension.extensionKind} to know if
-		 * a specific extension runs remote or not.
+		 * *Note* that the vawue is `undefined` when thewe is no wemote extension host but that the
+		 * vawue is defined in aww extension hosts (wocaw and wemote) in case a wemote extension host
+		 * exists. Use {@wink Extension.extensionKind} to know if
+		 * a specific extension wuns wemote ow not.
 		 */
-		export const remoteName: string | undefined;
+		expowt const wemoteName: stwing | undefined;
 
 		/**
-		 * The detected default shell for the extension host, this is overridden by the
-		 * `terminal.integrated.shell` setting for the extension host's platform. Note that in
-		 * environments that do not support a shell the value is the empty string.
+		 * The detected defauwt sheww fow the extension host, this is ovewwidden by the
+		 * `tewminaw.integwated.sheww` setting fow the extension host's pwatfowm. Note that in
+		 * enviwonments that do not suppowt a sheww the vawue is the empty stwing.
 		 */
-		export const shell: string;
+		expowt const sheww: stwing;
 
 		/**
-		 * The UI kind property indicates from which UI extensions
-		 * are accessed from. For example, extensions could be accessed
-		 * from a desktop application or a web browser.
+		 * The UI kind pwopewty indicates fwom which UI extensions
+		 * awe accessed fwom. Fow exampwe, extensions couwd be accessed
+		 * fwom a desktop appwication ow a web bwowsa.
 		 */
-		export const uiKind: UIKind;
+		expowt const uiKind: UIKind;
 
 		/**
-		 * Opens a link externally using the default application. Depending on the
+		 * Opens a wink extewnawwy using the defauwt appwication. Depending on the
 		 * used scheme this can be:
-		 * * a browser (`http:`, `https:`)
-		 * * a mail client (`mailto:`)
-		 * * VSCode itself (`vscode:` from `vscode.env.uriScheme`)
+		 * * a bwowsa (`http:`, `https:`)
+		 * * a maiw cwient (`maiwto:`)
+		 * * VSCode itsewf (`vscode:` fwom `vscode.env.uwiScheme`)
 		 *
-		 * *Note* that {@linkcode window.showTextDocument showTextDocument} is the right
-		 * way to open a text document inside the editor, not this function.
+		 * *Note* that {@winkcode window.showTextDocument showTextDocument} is the wight
+		 * way to open a text document inside the editow, not this function.
 		 *
-		 * @param target The uri that should be opened.
-		 * @returns A promise indicating if open was successful.
+		 * @pawam tawget The uwi that shouwd be opened.
+		 * @wetuwns A pwomise indicating if open was successfuw.
 		 */
-		export function openExternal(target: Uri): Thenable<boolean>;
+		expowt function openExtewnaw(tawget: Uwi): Thenabwe<boowean>;
 
 		/**
-		 * Resolves a uri to a form that is accessible externally.
+		 * Wesowves a uwi to a fowm that is accessibwe extewnawwy.
 		 *
-		 * #### `http:` or `https:` scheme
+		 * #### `http:` ow `https:` scheme
 		 *
-		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
-		 * uri to the same resource on the client machine.
+		 * Wesowves an *extewnaw* uwi, such as a `http:` ow `https:` wink, fwom whewe the extension is wunning to a
+		 * uwi to the same wesouwce on the cwient machine.
 		 *
-		 * This is a no-op if the extension is running on the client machine.
+		 * This is a no-op if the extension is wunning on the cwient machine.
 		 *
-		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
-		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port forwarding tunnel is managed by the editor and the tunnel can be closed by the user.
+		 * If the extension is wunning wemotewy, this function automaticawwy estabwishes a powt fowwawding tunnew
+		 * fwom the wocaw machine to `tawget` on the wemote and wetuwns a wocaw uwi to the tunnew. The wifetime of
+		 * the powt fowwawding tunnew is managed by the editow and the tunnew can be cwosed by the usa.
 		 *
-		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
+		 * *Note* that uwis passed thwough `openExtewnaw` awe automaticawwy wesowved and you shouwd not caww `asExtewnawUwi` on them.
 		 *
-		 * #### `vscode.env.uriScheme`
+		 * #### `vscode.env.uwiScheme`
 		 *
-		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
-		 * to trigger.
+		 * Cweates a uwi that - if opened in a bwowsa (e.g. via `openExtewnaw`) - wiww wesuwt in a wegistewed {@wink UwiHandwa}
+		 * to twigga.
 		 *
-		 * Extensions should not make any assumptions about the resulting uri and should not alter it in any way.
-		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
-		 * argument to the server to authenticate to.
+		 * Extensions shouwd not make any assumptions about the wesuwting uwi and shouwd not awta it in any way.
+		 * Watha, extensions can e.g. use this uwi in an authentication fwow, by adding the uwi as cawwback quewy
+		 * awgument to the sewva to authenticate to.
 		 *
-		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
-		 * will appear in the uri that is passed to the {@link UriHandler}.
+		 * *Note* that if the sewva decides to add additionaw quewy pawametews to the uwi (e.g. a token ow secwet), it
+		 * wiww appeaw in the uwi that is passed to the {@wink UwiHandwa}.
 		 *
-		 * **Example** of an authentication flow:
-		 * ```typescript
-		 * vscode.window.registerUriHandler({
-		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
-		 *     if (uri.path === '/did-authenticate') {
-		 *       console.log(uri.toString());
+		 * **Exampwe** of an authentication fwow:
+		 * ```typescwipt
+		 * vscode.window.wegistewUwiHandwa({
+		 *   handweUwi(uwi: vscode.Uwi): vscode.PwovidewWesuwt<void> {
+		 *     if (uwi.path === '/did-authenticate') {
+		 *       consowe.wog(uwi.toStwing());
 		 *     }
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
-		 * await vscode.env.openExternal(callableUri);
+		 * const cawwabweUwi = await vscode.env.asExtewnawUwi(vscode.Uwi.pawse(`${vscode.env.uwiScheme}://my.extension/did-authenticate`));
+		 * await vscode.env.openExtewnaw(cawwabweUwi);
 		 * ```
 		 *
-		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
-		 * `asExternalUri`.
+		 * *Note* that extensions shouwd not cache the wesuwt of `asExtewnawUwi` as the wesowved uwi may become invawid due to
+		 * a system ow usa action — fow exampwe, in wemote cases, a usa may cwose a powt fowwawding tunnew that was opened by
+		 * `asExtewnawUwi`.
 		 *
-		 * #### Any other scheme
+		 * #### Any otha scheme
 		 *
-		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
-		 * a URI which, when handled, will make the editor open the workspace.
+		 * Any otha scheme wiww be handwed as if the pwovided UWI is a wowkspace UWI. In that case, the method wiww wetuwn
+		 * a UWI which, when handwed, wiww make the editow open the wowkspace.
 		 *
-		 * @return A uri that can be used on the client machine.
+		 * @wetuwn A uwi that can be used on the cwient machine.
 		 */
-		export function asExternalUri(target: Uri): Thenable<Uri>;
+		expowt function asExtewnawUwi(tawget: Uwi): Thenabwe<Uwi>;
 	}
 
 	/**
-	 * Namespace for dealing with commands. In short, a command is a function with a
-	 * unique identifier. The function is sometimes also called _command handler_.
+	 * Namespace fow deawing with commands. In showt, a command is a function with a
+	 * unique identifia. The function is sometimes awso cawwed _command handwew_.
 	 *
-	 * Commands can be added to the editor using the {@link commands.registerCommand registerCommand}
-	 * and {@link commands.registerTextEditorCommand registerTextEditorCommand} functions. Commands
-	 * can be executed {@link commands.executeCommand manually} or from a UI gesture. Those are:
+	 * Commands can be added to the editow using the {@wink commands.wegistewCommand wegistewCommand}
+	 * and {@wink commands.wegistewTextEditowCommand wegistewTextEditowCommand} functions. Commands
+	 * can be executed {@wink commands.executeCommand manuawwy} ow fwom a UI gestuwe. Those awe:
 	 *
-	 * * palette - Use the `commands`-section in `package.json` to make a command show in
-	 * the [command palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette).
-	 * * keybinding - Use the `keybindings`-section in `package.json` to enable
-	 * [keybindings](https://code.visualstudio.com/docs/getstarted/keybindings#_customizing-shortcuts)
-	 * for your extension.
+	 * * pawette - Use the `commands`-section in `package.json` to make a command show in
+	 * the [command pawette](https://code.visuawstudio.com/docs/getstawted/usewintewface#_command-pawette).
+	 * * keybinding - Use the `keybindings`-section in `package.json` to enabwe
+	 * [keybindings](https://code.visuawstudio.com/docs/getstawted/keybindings#_customizing-showtcuts)
+	 * fow youw extension.
 	 *
-	 * Commands from other extensions and from the editor itself are accessible to an extension. However,
-	 * when invoking an editor command not all argument types are supported.
+	 * Commands fwom otha extensions and fwom the editow itsewf awe accessibwe to an extension. Howeva,
+	 * when invoking an editow command not aww awgument types awe suppowted.
 	 *
-	 * This is a sample that registers a command handler and adds an entry for that command to the palette. First
-	 * register a command handler with the identifier `extension.sayHello`.
-	 * ```javascript
-	 * commands.registerCommand('extension.sayHello', () => {
-	 * 	window.showInformationMessage('Hello World!');
+	 * This is a sampwe that wegistews a command handwa and adds an entwy fow that command to the pawette. Fiwst
+	 * wegista a command handwa with the identifia `extension.sayHewwo`.
+	 * ```javascwipt
+	 * commands.wegistewCommand('extension.sayHewwo', () => {
+	 * 	window.showInfowmationMessage('Hewwo Wowwd!');
 	 * });
 	 * ```
-	 * Second, bind the command identifier to a title under which it will show in the palette (`package.json`).
+	 * Second, bind the command identifia to a titwe unda which it wiww show in the pawette (`package.json`).
 	 * ```json
 	 * {
-	 * 	"contributes": {
+	 * 	"contwibutes": {
 	 * 		"commands": [{
-	 * 			"command": "extension.sayHello",
-	 * 			"title": "Hello World"
+	 * 			"command": "extension.sayHewwo",
+	 * 			"titwe": "Hewwo Wowwd"
 	 * 		}]
 	 * 	}
 	 * }
 	 * ```
 	 */
-	export namespace commands {
+	expowt namespace commands {
 
 		/**
-		 * Registers a command that can be invoked via a keyboard shortcut,
-		 * a menu item, an action, or directly.
+		 * Wegistews a command that can be invoked via a keyboawd showtcut,
+		 * a menu item, an action, ow diwectwy.
 		 *
-		 * Registering a command with an existing command identifier twice
-		 * will cause an error.
+		 * Wegistewing a command with an existing command identifia twice
+		 * wiww cause an ewwow.
 		 *
-		 * @param command A unique identifier for the command.
-		 * @param callback A command handler function.
-		 * @param thisArg The `this` context used when invoking the handler function.
-		 * @return Disposable which unregisters this command on disposal.
+		 * @pawam command A unique identifia fow the command.
+		 * @pawam cawwback A command handwa function.
+		 * @pawam thisAwg The `this` context used when invoking the handwa function.
+		 * @wetuwn Disposabwe which unwegistews this command on disposaw.
 		 */
-		export function registerCommand(command: string, callback: (...args: any[]) => any, thisArg?: any): Disposable;
+		expowt function wegistewCommand(command: stwing, cawwback: (...awgs: any[]) => any, thisAwg?: any): Disposabwe;
 
 		/**
-		 * Registers a text editor command that can be invoked via a keyboard shortcut,
-		 * a menu item, an action, or directly.
+		 * Wegistews a text editow command that can be invoked via a keyboawd showtcut,
+		 * a menu item, an action, ow diwectwy.
 		 *
-		 * Text editor commands are different from ordinary {@link commands.registerCommand commands} as
-		 * they only execute when there is an active editor when the command is called. Also, the
-		 * command handler of an editor command has access to the active editor and to an
-		 * {@link TextEditorEdit edit}-builder. Note that the edit-builder is only valid while the
-		 * callback executes.
+		 * Text editow commands awe diffewent fwom owdinawy {@wink commands.wegistewCommand commands} as
+		 * they onwy execute when thewe is an active editow when the command is cawwed. Awso, the
+		 * command handwa of an editow command has access to the active editow and to an
+		 * {@wink TextEditowEdit edit}-buiwda. Note that the edit-buiwda is onwy vawid whiwe the
+		 * cawwback executes.
 		 *
-		 * @param command A unique identifier for the command.
-		 * @param callback A command handler function with access to an {@link TextEditor editor} and an {@link TextEditorEdit edit}.
-		 * @param thisArg The `this` context used when invoking the handler function.
-		 * @return Disposable which unregisters this command on disposal.
+		 * @pawam command A unique identifia fow the command.
+		 * @pawam cawwback A command handwa function with access to an {@wink TextEditow editow} and an {@wink TextEditowEdit edit}.
+		 * @pawam thisAwg The `this` context used when invoking the handwa function.
+		 * @wetuwn Disposabwe which unwegistews this command on disposaw.
 		 */
-		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
+		expowt function wegistewTextEditowCommand(command: stwing, cawwback: (textEditow: TextEditow, edit: TextEditowEdit, ...awgs: any[]) => void, thisAwg?: any): Disposabwe;
 
 		/**
-		 * Executes the command denoted by the given command identifier.
+		 * Executes the command denoted by the given command identifia.
 		 *
-		 * * *Note 1:* When executing an editor command not all types are allowed to
-		 * be passed as arguments. Allowed are the primitive types `string`, `boolean`,
-		 * `number`, `undefined`, and `null`, as well as {@linkcode Position}, {@linkcode Range}, {@linkcode Uri} and {@linkcode Location}.
-		 * * *Note 2:* There are no restrictions when executing commands that have been contributed
+		 * * *Note 1:* When executing an editow command not aww types awe awwowed to
+		 * be passed as awguments. Awwowed awe the pwimitive types `stwing`, `boowean`,
+		 * `numba`, `undefined`, and `nuww`, as weww as {@winkcode Position}, {@winkcode Wange}, {@winkcode Uwi} and {@winkcode Wocation}.
+		 * * *Note 2:* Thewe awe no westwictions when executing commands that have been contwibuted
 		 * by extensions.
 		 *
-		 * @param command Identifier of the command to execute.
-		 * @param rest Parameters passed to the command function.
-		 * @return A thenable that resolves to the returned value of the given command. `undefined` when
-		 * the command handler function doesn't return anything.
+		 * @pawam command Identifia of the command to execute.
+		 * @pawam west Pawametews passed to the command function.
+		 * @wetuwn A thenabwe that wesowves to the wetuwned vawue of the given command. `undefined` when
+		 * the command handwa function doesn't wetuwn anything.
 		 */
-		export function executeCommand<T>(command: string, ...rest: any[]): Thenable<T | undefined>;
+		expowt function executeCommand<T>(command: stwing, ...west: any[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Retrieve the list of all available commands. Commands starting with an underscore are
-		 * treated as internal commands.
+		 * Wetwieve the wist of aww avaiwabwe commands. Commands stawting with an undewscowe awe
+		 * tweated as intewnaw commands.
 		 *
-		 * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
-		 * @return Thenable that resolves to a list of command ids.
+		 * @pawam fiwtewIntewnaw Set `twue` to not see intewnaw commands (stawting with an undewscowe)
+		 * @wetuwn Thenabwe that wesowves to a wist of command ids.
 		 */
-		export function getCommands(filterInternal?: boolean): Thenable<string[]>;
+		expowt function getCommands(fiwtewIntewnaw?: boowean): Thenabwe<stwing[]>;
 	}
 
 	/**
-	 * Represents the state of a window.
+	 * Wepwesents the state of a window.
 	 */
-	export interface WindowState {
+	expowt intewface WindowState {
 
 		/**
-		 * Whether the current window is focused.
+		 * Whetha the cuwwent window is focused.
 		 */
-		readonly focused: boolean;
+		weadonwy focused: boowean;
 	}
 
 	/**
-	 * A uri handler is responsible for handling system-wide {@link Uri uris}.
+	 * A uwi handwa is wesponsibwe fow handwing system-wide {@wink Uwi uwis}.
 	 *
-	 * @see {@link window.registerUriHandler}.
+	 * @see {@wink window.wegistewUwiHandwa}.
 	 */
-	export interface UriHandler {
+	expowt intewface UwiHandwa {
 
 		/**
-		 * Handle the provided system-wide {@link Uri}.
+		 * Handwe the pwovided system-wide {@wink Uwi}.
 		 *
-		 * @see {@link window.registerUriHandler}.
+		 * @see {@wink window.wegistewUwiHandwa}.
 		 */
-		handleUri(uri: Uri): ProviderResult<void>;
+		handweUwi(uwi: Uwi): PwovidewWesuwt<void>;
 	}
 
 	/**
-	 * Namespace for dealing with the current window of the editor. That is visible
-	 * and active editors, as well as, UI elements to show messages, selections, and
-	 * asking for user input.
+	 * Namespace fow deawing with the cuwwent window of the editow. That is visibwe
+	 * and active editows, as weww as, UI ewements to show messages, sewections, and
+	 * asking fow usa input.
 	 */
-	export namespace window {
+	expowt namespace window {
 
 		/**
-		 * The currently active editor or `undefined`. The active editor is the one
-		 * that currently has focus or, when none has focus, the one that has changed
-		 * input most recently.
+		 * The cuwwentwy active editow ow `undefined`. The active editow is the one
+		 * that cuwwentwy has focus ow, when none has focus, the one that has changed
+		 * input most wecentwy.
 		 */
-		export let activeTextEditor: TextEditor | undefined;
+		expowt wet activeTextEditow: TextEditow | undefined;
 
 		/**
-		 * The currently visible editors or an empty array.
+		 * The cuwwentwy visibwe editows ow an empty awway.
 		 */
-		export let visibleTextEditors: TextEditor[];
+		expowt wet visibweTextEditows: TextEditow[];
 
 		/**
-		 * An {@link Event} which fires when the {@link window.activeTextEditor active editor}
-		 * has changed. *Note* that the event also fires when the active editor changes
+		 * An {@wink Event} which fiwes when the {@wink window.activeTextEditow active editow}
+		 * has changed. *Note* that the event awso fiwes when the active editow changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
+		expowt const onDidChangeActiveTextEditow: Event<TextEditow | undefined>;
 
 		/**
-		 * An {@link Event} which fires when the array of {@link window.visibleTextEditors visible editors}
+		 * An {@wink Event} which fiwes when the awway of {@wink window.visibweTextEditows visibwe editows}
 		 * has changed.
 		 */
-		export const onDidChangeVisibleTextEditors: Event<TextEditor[]>;
+		expowt const onDidChangeVisibweTextEditows: Event<TextEditow[]>;
 
 		/**
-		 * An {@link Event} which fires when the selection in an editor has changed.
+		 * An {@wink Event} which fiwes when the sewection in an editow has changed.
 		 */
-		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
+		expowt const onDidChangeTextEditowSewection: Event<TextEditowSewectionChangeEvent>;
 
 		/**
-		 * An {@link Event} which fires when the visible ranges of an editor has changed.
+		 * An {@wink Event} which fiwes when the visibwe wanges of an editow has changed.
 		 */
-		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
+		expowt const onDidChangeTextEditowVisibweWanges: Event<TextEditowVisibweWangesChangeEvent>;
 
 		/**
-		 * An {@link Event} which fires when the options of an editor have changed.
+		 * An {@wink Event} which fiwes when the options of an editow have changed.
 		 */
-		export const onDidChangeTextEditorOptions: Event<TextEditorOptionsChangeEvent>;
+		expowt const onDidChangeTextEditowOptions: Event<TextEditowOptionsChangeEvent>;
 
 		/**
-		 * An {@link Event} which fires when the view column of an editor has changed.
+		 * An {@wink Event} which fiwes when the view cowumn of an editow has changed.
 		 */
-		export const onDidChangeTextEditorViewColumn: Event<TextEditorViewColumnChangeEvent>;
+		expowt const onDidChangeTextEditowViewCowumn: Event<TextEditowViewCowumnChangeEvent>;
 
 		/**
-		 * The currently opened terminals or an empty array.
+		 * The cuwwentwy opened tewminaws ow an empty awway.
 		 */
-		export const terminals: readonly Terminal[];
+		expowt const tewminaws: weadonwy Tewminaw[];
 
 		/**
-		 * The currently active terminal or `undefined`. The active terminal is the one that
-		 * currently has focus or most recently had focus.
+		 * The cuwwentwy active tewminaw ow `undefined`. The active tewminaw is the one that
+		 * cuwwentwy has focus ow most wecentwy had focus.
 		 */
-		export const activeTerminal: Terminal | undefined;
+		expowt const activeTewminaw: Tewminaw | undefined;
 
 		/**
-		 * An {@link Event} which fires when the {@link window.activeTerminal active terminal}
-		 * has changed. *Note* that the event also fires when the active terminal changes
+		 * An {@wink Event} which fiwes when the {@wink window.activeTewminaw active tewminaw}
+		 * has changed. *Note* that the event awso fiwes when the active tewminaw changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
+		expowt const onDidChangeActiveTewminaw: Event<Tewminaw | undefined>;
 
 		/**
-		 * An {@link Event} which fires when a terminal has been created, either through the
-		 * {@link window.createTerminal createTerminal} API or commands.
+		 * An {@wink Event} which fiwes when a tewminaw has been cweated, eitha thwough the
+		 * {@wink window.cweateTewminaw cweateTewminaw} API ow commands.
 		 */
-		export const onDidOpenTerminal: Event<Terminal>;
+		expowt const onDidOpenTewminaw: Event<Tewminaw>;
 
 		/**
-		 * An {@link Event} which fires when a terminal is disposed.
+		 * An {@wink Event} which fiwes when a tewminaw is disposed.
 		 */
-		export const onDidCloseTerminal: Event<Terminal>;
+		expowt const onDidCwoseTewminaw: Event<Tewminaw>;
 
 		/**
-		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
+		 * An {@wink Event} which fiwes when a {@wink Tewminaw.state tewminaw's state} has changed.
 		 */
-		export const onDidChangeTerminalState: Event<Terminal>;
+		expowt const onDidChangeTewminawState: Event<Tewminaw>;
 
 		/**
-		 * Represents the current window's state.
+		 * Wepwesents the cuwwent window's state.
 		 */
-		export const state: WindowState;
+		expowt const state: WindowState;
 
 		/**
-		 * An {@link Event} which fires when the focus state of the current window
-		 * changes. The value of the event represents whether the window is focused.
+		 * An {@wink Event} which fiwes when the focus state of the cuwwent window
+		 * changes. The vawue of the event wepwesents whetha the window is focused.
 		 */
-		export const onDidChangeWindowState: Event<WindowState>;
+		expowt const onDidChangeWindowState: Event<WindowState>;
 
 		/**
-		 * Show the given document in a text editor. A {@link ViewColumn column} can be provided
-		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
+		 * Show the given document in a text editow. A {@wink ViewCowumn cowumn} can be pwovided
+		 * to contwow whewe the editow is being shown. Might change the {@wink window.activeTextEditow active editow}.
 		 *
-		 * @param document A text document to be shown.
-		 * @param column A view column in which the {@link TextEditor editor} should be shown. The default is the {@link ViewColumn.Active active}, other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is not adjusted. Use {@linkcode ViewColumn.Beside}
-		 * to open the editor to the side of the currently active one.
-		 * @param preserveFocus When `true` the editor will not take focus.
-		 * @return A promise that resolves to an {@link TextEditor editor}.
+		 * @pawam document A text document to be shown.
+		 * @pawam cowumn A view cowumn in which the {@wink TextEditow editow} shouwd be shown. The defauwt is the {@wink ViewCowumn.Active active}, otha vawues
+		 * awe adjusted to be `Min(cowumn, cowumnCount + 1)`, the {@wink ViewCowumn.Active active}-cowumn is not adjusted. Use {@winkcode ViewCowumn.Beside}
+		 * to open the editow to the side of the cuwwentwy active one.
+		 * @pawam pwesewveFocus When `twue` the editow wiww not take focus.
+		 * @wetuwn A pwomise that wesowves to an {@wink TextEditow editow}.
 		 */
-		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
+		expowt function showTextDocument(document: TextDocument, cowumn?: ViewCowumn, pwesewveFocus?: boowean): Thenabwe<TextEditow>;
 
 		/**
-		 * Show the given document in a text editor. {@link TextDocumentShowOptions Options} can be provided
-		 * to control options of the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
+		 * Show the given document in a text editow. {@wink TextDocumentShowOptions Options} can be pwovided
+		 * to contwow options of the editow is being shown. Might change the {@wink window.activeTextEditow active editow}.
 		 *
-		 * @param document A text document to be shown.
-		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
-		 * @return A promise that resolves to an {@link TextEditor editor}.
+		 * @pawam document A text document to be shown.
+		 * @pawam options {@wink TextDocumentShowOptions Editow options} to configuwe the behaviow of showing the {@wink TextEditow editow}.
+		 * @wetuwn A pwomise that wesowves to an {@wink TextEditow editow}.
 		 */
-		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+		expowt function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenabwe<TextEditow>;
 
 		/**
-		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
+		 * A showt-hand fow `openTextDocument(uwi).then(document => showTextDocument(document, options))`.
 		 *
-		 * @see {@link openTextDocument}
+		 * @see {@wink openTextDocument}
 		 *
-		 * @param uri A resource identifier.
-		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
-		 * @return A promise that resolves to an {@link TextEditor editor}.
+		 * @pawam uwi A wesouwce identifia.
+		 * @pawam options {@wink TextDocumentShowOptions Editow options} to configuwe the behaviow of showing the {@wink TextEditow editow}.
+		 * @wetuwn A pwomise that wesowves to an {@wink TextEditow editow}.
 		 */
-		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+		expowt function showTextDocument(uwi: Uwi, options?: TextDocumentShowOptions): Thenabwe<TextEditow>;
 
 		/**
-		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
+		 * Cweate a TextEditowDecowationType that can be used to add decowations to text editows.
 		 *
-		 * @param options Rendering options for the decoration type.
-		 * @return A new decoration type instance.
+		 * @pawam options Wendewing options fow the decowation type.
+		 * @wetuwn A new decowation type instance.
 		 */
-		export function createTextEditorDecorationType(options: DecorationRenderOptions): TextEditorDecorationType;
+		expowt function cweateTextEditowDecowationType(options: DecowationWendewOptions): TextEditowDecowationType;
 
 		/**
-		 * Show an information message to users. Optionally provide an array of items which will be presented as
-		 * clickable buttons.
+		 * Show an infowmation message to usews. Optionawwy pwovide an awway of items which wiww be pwesented as
+		 * cwickabwe buttons.
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		expowt function showInfowmationMessage(message: stwing, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show an information message to users. Optionally provide an array of items which will be presented as
-		 * clickable buttons.
+		 * Show an infowmation message to usews. Optionawwy pwovide an awway of items which wiww be pwesented as
+		 * cwickabwe buttons.
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showInformationMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		expowt function showInfowmationMessage(message: stwing, options: MessageOptions, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show an information message.
+		 * Show an infowmation message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		expowt function showInfowmationMessage<T extends MessageItem>(message: stwing, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Show an information message.
+		 * Show an infowmation message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showInformationMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		expowt function showInfowmationMessage<T extends MessageItem>(message: stwing, options: MessageOptions, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Show a warning message.
+		 * Show a wawning message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		expowt function showWawningMessage(message: stwing, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show a warning message.
+		 * Show a wawning message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showWarningMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		expowt function showWawningMessage(message: stwing, options: MessageOptions, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show a warning message.
+		 * Show a wawning message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showWarningMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		expowt function showWawningMessage<T extends MessageItem>(message: stwing, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Show a warning message.
+		 * Show a wawning message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showWarningMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		expowt function showWawningMessage<T extends MessageItem>(message: stwing, options: MessageOptions, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Show an error message.
+		 * Show an ewwow message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+		expowt function showEwwowMessage(message: stwing, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show an error message.
+		 * Show an ewwow message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showErrorMessage(message: string, options: MessageOptions, ...items: string[]): Thenable<string | undefined>;
+		expowt function showEwwowMessage(message: stwing, options: MessageOptions, ...items: stwing[]): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Show an error message.
+		 * Show an ewwow message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends MessageItem>(message: string, ...items: T[]): Thenable<T | undefined>;
+		expowt function showEwwowMessage<T extends MessageItem>(message: stwing, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Show an error message.
+		 * Show an ewwow message.
 		 *
-		 * @see {@link window.showInformationMessage showInformationMessage}
+		 * @see {@wink window.showInfowmationMessage showInfowmationMessage}
 		 *
-		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
-		 * @param items A set of items that will be rendered as actions in the message.
-		 * @return A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 * @pawam message The message to show.
+		 * @pawam options Configuwes the behaviouw of the message.
+		 * @pawam items A set of items that wiww be wendewed as actions in the message.
+		 * @wetuwn A thenabwe that wesowves to the sewected item ow `undefined` when being dismissed.
 		 */
-		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
+		expowt function showEwwowMessage<T extends MessageItem>(message: stwing, options: MessageOptions, ...items: T[]): Thenabwe<T | undefined>;
 
 		/**
-		 * Shows a selection list allowing multiple selections.
+		 * Shows a sewection wist awwowing muwtipwe sewections.
 		 *
-		 * @param items An array of strings, or a promise that resolves to an array of strings.
-		 * @param options Configures the behavior of the selection list.
-		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selected items or `undefined`.
+		 * @pawam items An awway of stwings, ow a pwomise that wesowves to an awway of stwings.
+		 * @pawam options Configuwes the behaviow of the sewection wist.
+		 * @pawam token A token that can be used to signaw cancewwation.
+		 * @wetuwn A pwomise that wesowves to the sewected items ow `undefined`.
 		 */
-		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+		expowt function showQuickPick(items: weadonwy stwing[] | Thenabwe<weadonwy stwing[]>, options: QuickPickOptions & { canPickMany: twue; }, token?: CancewwationToken): Thenabwe<stwing[] | undefined>;
 
 		/**
-		 * Shows a selection list.
+		 * Shows a sewection wist.
 		 *
-		 * @param items An array of strings, or a promise that resolves to an array of strings.
-		 * @param options Configures the behavior of the selection list.
-		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selection or `undefined`.
+		 * @pawam items An awway of stwings, ow a pwomise that wesowves to an awway of stwings.
+		 * @pawam options Configuwes the behaviow of the sewection wist.
+		 * @pawam token A token that can be used to signaw cancewwation.
+		 * @wetuwn A pwomise that wesowves to the sewection ow `undefined`.
 		 */
-		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+		expowt function showQuickPick(items: weadonwy stwing[] | Thenabwe<weadonwy stwing[]>, options?: QuickPickOptions, token?: CancewwationToken): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Shows a selection list allowing multiple selections.
+		 * Shows a sewection wist awwowing muwtipwe sewections.
 		 *
-		 * @param items An array of items, or a promise that resolves to an array of items.
-		 * @param options Configures the behavior of the selection list.
-		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selected items or `undefined`.
+		 * @pawam items An awway of items, ow a pwomise that wesowves to an awway of items.
+		 * @pawam options Configuwes the behaviow of the sewection wist.
+		 * @pawam token A token that can be used to signaw cancewwation.
+		 * @wetuwn A pwomise that wesowves to the sewected items ow `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
+		expowt function showQuickPick<T extends QuickPickItem>(items: weadonwy T[] | Thenabwe<weadonwy T[]>, options: QuickPickOptions & { canPickMany: twue; }, token?: CancewwationToken): Thenabwe<T[] | undefined>;
 
 		/**
-		 * Shows a selection list.
+		 * Shows a sewection wist.
 		 *
-		 * @param items An array of items, or a promise that resolves to an array of items.
-		 * @param options Configures the behavior of the selection list.
-		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to the selected item or `undefined`.
+		 * @pawam items An awway of items, ow a pwomise that wesowves to an awway of items.
+		 * @pawam options Configuwes the behaviow of the sewection wist.
+		 * @pawam token A token that can be used to signaw cancewwation.
+		 * @wetuwn A pwomise that wesowves to the sewected item ow `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+		expowt function showQuickPick<T extends QuickPickItem>(items: weadonwy T[] | Thenabwe<weadonwy T[]>, options?: QuickPickOptions, token?: CancewwationToken): Thenabwe<T | undefined>;
 
 		/**
-		 * Shows a selection list of {@link workspace.workspaceFolders workspace folders} to pick from.
-		 * Returns `undefined` if no folder is open.
+		 * Shows a sewection wist of {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} to pick fwom.
+		 * Wetuwns `undefined` if no fowda is open.
 		 *
-		 * @param options Configures the behavior of the workspace folder list.
-		 * @return A promise that resolves to the workspace folder or `undefined`.
+		 * @pawam options Configuwes the behaviow of the wowkspace fowda wist.
+		 * @wetuwn A pwomise that wesowves to the wowkspace fowda ow `undefined`.
 		 */
-		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
+		expowt function showWowkspaceFowdewPick(options?: WowkspaceFowdewPickOptions): Thenabwe<WowkspaceFowda | undefined>;
 
 		/**
-		 * Shows a file open dialog to the user which allows to select a file
-		 * for opening-purposes.
+		 * Shows a fiwe open diawog to the usa which awwows to sewect a fiwe
+		 * fow opening-puwposes.
 		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resources or `undefined`.
+		 * @pawam options Options that contwow the diawog.
+		 * @wetuwns A pwomise that wesowves to the sewected wesouwces ow `undefined`.
 		 */
-		export function showOpenDialog(options?: OpenDialogOptions): Thenable<Uri[] | undefined>;
+		expowt function showOpenDiawog(options?: OpenDiawogOptions): Thenabwe<Uwi[] | undefined>;
 
 		/**
-		 * Shows a file save dialog to the user which allows to select a file
-		 * for saving-purposes.
+		 * Shows a fiwe save diawog to the usa which awwows to sewect a fiwe
+		 * fow saving-puwposes.
 		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resource or `undefined`.
+		 * @pawam options Options that contwow the diawog.
+		 * @wetuwns A pwomise that wesowves to the sewected wesouwce ow `undefined`.
 		 */
-		export function showSaveDialog(options?: SaveDialogOptions): Thenable<Uri | undefined>;
+		expowt function showSaveDiawog(options?: SaveDiawogOptions): Thenabwe<Uwi | undefined>;
 
 		/**
-		 * Opens an input box to ask the user for input.
+		 * Opens an input box to ask the usa fow input.
 		 *
-		 * The returned value will be `undefined` if the input box was canceled (e.g. pressing ESC). Otherwise the
-		 * returned value will be the string typed by the user or an empty string if the user did not type
+		 * The wetuwned vawue wiww be `undefined` if the input box was cancewed (e.g. pwessing ESC). Othewwise the
+		 * wetuwned vawue wiww be the stwing typed by the usa ow an empty stwing if the usa did not type
 		 * anything but dismissed the input box with OK.
 		 *
-		 * @param options Configures the behavior of the input box.
-		 * @param token A token that can be used to signal cancellation.
-		 * @return A promise that resolves to a string the user provided or to `undefined` in case of dismissal.
+		 * @pawam options Configuwes the behaviow of the input box.
+		 * @pawam token A token that can be used to signaw cancewwation.
+		 * @wetuwn A pwomise that wesowves to a stwing the usa pwovided ow to `undefined` in case of dismissaw.
 		 */
-		export function showInputBox(options?: InputBoxOptions, token?: CancellationToken): Thenable<string | undefined>;
+		expowt function showInputBox(options?: InputBoxOptions, token?: CancewwationToken): Thenabwe<stwing | undefined>;
 
 		/**
-		 * Creates a {@link QuickPick} to let the user pick an item from a list
+		 * Cweates a {@wink QuickPick} to wet the usa pick an item fwom a wist
 		 * of items of type T.
 		 *
-		 * Note that in many cases the more convenient {@link window.showQuickPick}
-		 * is easier to use. {@link window.createQuickPick} should be used
-		 * when {@link window.showQuickPick} does not offer the required flexibility.
+		 * Note that in many cases the mowe convenient {@wink window.showQuickPick}
+		 * is easia to use. {@wink window.cweateQuickPick} shouwd be used
+		 * when {@wink window.showQuickPick} does not offa the wequiwed fwexibiwity.
 		 *
-		 * @return A new {@link QuickPick}.
+		 * @wetuwn A new {@wink QuickPick}.
 		 */
-		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
+		expowt function cweateQuickPick<T extends QuickPickItem>(): QuickPick<T>;
 
 		/**
-		 * Creates a {@link InputBox} to let the user enter some text input.
+		 * Cweates a {@wink InputBox} to wet the usa enta some text input.
 		 *
-		 * Note that in many cases the more convenient {@link window.showInputBox}
-		 * is easier to use. {@link window.createInputBox} should be used
-		 * when {@link window.showInputBox} does not offer the required flexibility.
+		 * Note that in many cases the mowe convenient {@wink window.showInputBox}
+		 * is easia to use. {@wink window.cweateInputBox} shouwd be used
+		 * when {@wink window.showInputBox} does not offa the wequiwed fwexibiwity.
 		 *
-		 * @return A new {@link InputBox}.
+		 * @wetuwn A new {@wink InputBox}.
 		 */
-		export function createInputBox(): InputBox;
+		expowt function cweateInputBox(): InputBox;
 
 		/**
-		 * Creates a new {@link OutputChannel output channel} with the given name.
+		 * Cweates a new {@wink OutputChannew output channew} with the given name.
 		 *
-		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @pawam name Human-weadabwe stwing which wiww be used to wepwesent the channew in the UI.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		expowt function cweateOutputChannew(name: stwing): OutputChannew;
 
 		/**
-		 * Create and show a new webview panel.
+		 * Cweate and show a new webview panew.
 		 *
-		 * @param viewType Identifies the type of the webview panel.
-		 * @param title Title of the panel.
-		 * @param showOptions Where to show the webview in the editor. If preserveFocus is set, the new webview will not take focus.
-		 * @param options Settings for the new panel.
+		 * @pawam viewType Identifies the type of the webview panew.
+		 * @pawam titwe Titwe of the panew.
+		 * @pawam showOptions Whewe to show the webview in the editow. If pwesewveFocus is set, the new webview wiww not take focus.
+		 * @pawam options Settings fow the new panew.
 		 *
-		 * @return New webview panel.
+		 * @wetuwn New webview panew.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		expowt function cweateWebviewPanew(viewType: stwing, titwe: stwing, showOptions: ViewCowumn | { viewCowumn: ViewCowumn, pwesewveFocus?: boowean }, options?: WebviewPanewOptions & WebviewOptions): WebviewPanew;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerful
-		 * status bar {@link window.createStatusBarItem items}.
+		 * Set a message to the status baw. This is a showt hand fow the mowe powewfuw
+		 * status baw {@wink window.cweateStatusBawItem items}.
 		 *
-		 * @param text The message to show, supports icon substitution as in status bar {@link StatusBarItem.text items}.
-		 * @param hideAfterTimeout Timeout in milliseconds after which the message will be disposed.
-		 * @return A disposable which hides the status bar message.
+		 * @pawam text The message to show, suppowts icon substitution as in status baw {@wink StatusBawItem.text items}.
+		 * @pawam hideAftewTimeout Timeout in miwwiseconds afta which the message wiww be disposed.
+		 * @wetuwn A disposabwe which hides the status baw message.
 		 */
-		export function setStatusBarMessage(text: string, hideAfterTimeout: number): Disposable;
+		expowt function setStatusBawMessage(text: stwing, hideAftewTimeout: numba): Disposabwe;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerful
-		 * status bar {@link window.createStatusBarItem items}.
+		 * Set a message to the status baw. This is a showt hand fow the mowe powewfuw
+		 * status baw {@wink window.cweateStatusBawItem items}.
 		 *
-		 * @param text The message to show, supports icon substitution as in status bar {@link StatusBarItem.text items}.
-		 * @param hideWhenDone Thenable on which completion (resolve or reject) the message will be disposed.
-		 * @return A disposable which hides the status bar message.
+		 * @pawam text The message to show, suppowts icon substitution as in status baw {@wink StatusBawItem.text items}.
+		 * @pawam hideWhenDone Thenabwe on which compwetion (wesowve ow weject) the message wiww be disposed.
+		 * @wetuwn A disposabwe which hides the status baw message.
 		 */
-		export function setStatusBarMessage(text: string, hideWhenDone: Thenable<any>): Disposable;
+		expowt function setStatusBawMessage(text: stwing, hideWhenDone: Thenabwe<any>): Disposabwe;
 
 		/**
-		 * Set a message to the status bar. This is a short hand for the more powerful
-		 * status bar {@link window.createStatusBarItem items}.
+		 * Set a message to the status baw. This is a showt hand fow the mowe powewfuw
+		 * status baw {@wink window.cweateStatusBawItem items}.
 		 *
-		 * *Note* that status bar messages stack and that they must be disposed when no
-		 * longer used.
+		 * *Note* that status baw messages stack and that they must be disposed when no
+		 * wonga used.
 		 *
-		 * @param text The message to show, supports icon substitution as in status bar {@link StatusBarItem.text items}.
-		 * @return A disposable which hides the status bar message.
+		 * @pawam text The message to show, suppowts icon substitution as in status baw {@wink StatusBawItem.text items}.
+		 * @wetuwn A disposabwe which hides the status baw message.
 		 */
-		export function setStatusBarMessage(text: string): Disposable;
+		expowt function setStatusBawMessage(text: stwing): Disposabwe;
 
 		/**
-		 * Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.
+		 * Show pwogwess in the Souwce Contwow viewwet whiwe wunning the given cawwback and whiwe
+		 * its wetuwned pwomise isn't wesowve ow wejected.
 		 *
-		 * @deprecated Use `withProgress` instead.
+		 * @depwecated Use `withPwogwess` instead.
 		 *
-		 * @param task A callback returning a promise. Progress increments can be reported with
-		 * the provided {@link Progress}-object.
-		 * @return The thenable the task did return.
+		 * @pawam task A cawwback wetuwning a pwomise. Pwogwess incwements can be wepowted with
+		 * the pwovided {@wink Pwogwess}-object.
+		 * @wetuwn The thenabwe the task did wetuwn.
 		 */
-		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
+		expowt function withScmPwogwess<W>(task: (pwogwess: Pwogwess<numba>) => Thenabwe<W>): Thenabwe<W>;
 
 		/**
-		 * Show progress in the editor. Progress is shown while running the given callback
-		 * and while the promise it returned isn't resolved nor rejected. The location at which
-		 * progress should show (and other details) is defined via the passed {@linkcode ProgressOptions}.
+		 * Show pwogwess in the editow. Pwogwess is shown whiwe wunning the given cawwback
+		 * and whiwe the pwomise it wetuwned isn't wesowved now wejected. The wocation at which
+		 * pwogwess shouwd show (and otha detaiws) is defined via the passed {@winkcode PwogwessOptions}.
 		 *
-		 * @param task A callback returning a promise. Progress state can be reported with
-		 * the provided {@link Progress}-object.
+		 * @pawam task A cawwback wetuwning a pwomise. Pwogwess state can be wepowted with
+		 * the pwovided {@wink Pwogwess}-object.
 		 *
-		 * To report discrete progress, use `increment` to indicate how much work has been completed. Each call with
-		 * a `increment` value will be summed up and reflected as overall progress until 100% is reached (a value of
-		 * e.g. `10` accounts for `10%` of work done).
-		 * Note that currently only `ProgressLocation.Notification` is capable of showing discrete progress.
+		 * To wepowt discwete pwogwess, use `incwement` to indicate how much wowk has been compweted. Each caww with
+		 * a `incwement` vawue wiww be summed up and wefwected as ovewaww pwogwess untiw 100% is weached (a vawue of
+		 * e.g. `10` accounts fow `10%` of wowk done).
+		 * Note that cuwwentwy onwy `PwogwessWocation.Notification` is capabwe of showing discwete pwogwess.
 		 *
-		 * To monitor if the operation has been cancelled by the user, use the provided {@linkcode CancellationToken}.
-		 * Note that currently only `ProgressLocation.Notification` is supporting to show a cancel button to cancel the
-		 * long running operation.
+		 * To monitow if the opewation has been cancewwed by the usa, use the pwovided {@winkcode CancewwationToken}.
+		 * Note that cuwwentwy onwy `PwogwessWocation.Notification` is suppowting to show a cancew button to cancew the
+		 * wong wunning opewation.
 		 *
-		 * @return The thenable the task-callback returned.
+		 * @wetuwn The thenabwe the task-cawwback wetuwned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; increment?: number }>, token: CancellationToken) => Thenable<R>): Thenable<R>;
+		expowt function withPwogwess<W>(options: PwogwessOptions, task: (pwogwess: Pwogwess<{ message?: stwing; incwement?: numba }>, token: CancewwationToken) => Thenabwe<W>): Thenabwe<W>;
 
 		/**
-		 * Creates a status bar {@link StatusBarItem item}.
+		 * Cweates a status baw {@wink StatusBawItem item}.
 		 *
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
+		 * @pawam awignment The awignment of the item.
+		 * @pawam pwiowity The pwiowity of the item. Higha vawues mean the item shouwd be shown mowe to the weft.
+		 * @wetuwn A new status baw item.
 		 */
-		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+		expowt function cweateStatusBawItem(awignment?: StatusBawAwignment, pwiowity?: numba): StatusBawItem;
 
 		/**
-		 * Creates a status bar {@link StatusBarItem item}.
+		 * Cweates a status baw {@wink StatusBawItem item}.
 		 *
-		 * @param id The unique identifier of the item.
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
+		 * @pawam id The unique identifia of the item.
+		 * @pawam awignment The awignment of the item.
+		 * @pawam pwiowity The pwiowity of the item. Higha vawues mean the item shouwd be shown mowe to the weft.
+		 * @wetuwn A new status baw item.
 		 */
-		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+		expowt function cweateStatusBawItem(id: stwing, awignment?: StatusBawAwignment, pwiowity?: numba): StatusBawItem;
 
 		/**
-		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
-		 * directory if it exists.
+		 * Cweates a {@wink Tewminaw} with a backing sheww pwocess. The cwd of the tewminaw wiww be the wowkspace
+		 * diwectowy if it exists.
 		 *
-		 * @param name Optional human-readable string which will be used to represent the terminal in the UI.
-		 * @param shellPath Optional path to a custom shell executable to be used in the terminal.
-		 * @param shellArgs Optional args for the custom shell executable. A string can be used on Windows only which
-		 * allows specifying shell args in
-		 * [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
-		 * @return A new Terminal.
-		 * @throws When running in an environment where a new process cannot be started.
+		 * @pawam name Optionaw human-weadabwe stwing which wiww be used to wepwesent the tewminaw in the UI.
+		 * @pawam shewwPath Optionaw path to a custom sheww executabwe to be used in the tewminaw.
+		 * @pawam shewwAwgs Optionaw awgs fow the custom sheww executabwe. A stwing can be used on Windows onwy which
+		 * awwows specifying sheww awgs in
+		 * [command-wine fowmat](https://msdn.micwosoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
+		 * @wetuwn A new Tewminaw.
+		 * @thwows When wunning in an enviwonment whewe a new pwocess cannot be stawted.
 		 */
-		export function createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): Terminal;
+		expowt function cweateTewminaw(name?: stwing, shewwPath?: stwing, shewwAwgs?: stwing[] | stwing): Tewminaw;
 
 		/**
-		 * Creates a {@link Terminal} with a backing shell process.
+		 * Cweates a {@wink Tewminaw} with a backing sheww pwocess.
 		 *
-		 * @param options A TerminalOptions object describing the characteristics of the new terminal.
-		 * @return A new Terminal.
-		 * @throws When running in an environment where a new process cannot be started.
+		 * @pawam options A TewminawOptions object descwibing the chawactewistics of the new tewminaw.
+		 * @wetuwn A new Tewminaw.
+		 * @thwows When wunning in an enviwonment whewe a new pwocess cannot be stawted.
 		 */
-		export function createTerminal(options: TerminalOptions): Terminal;
+		expowt function cweateTewminaw(options: TewminawOptions): Tewminaw;
 
 		/**
-		 * Creates a {@link Terminal} where an extension controls its input and output.
+		 * Cweates a {@wink Tewminaw} whewe an extension contwows its input and output.
 		 *
-		 * @param options An {@link ExtensionTerminalOptions} object describing
-		 * the characteristics of the new terminal.
-		 * @return A new Terminal.
+		 * @pawam options An {@wink ExtensionTewminawOptions} object descwibing
+		 * the chawactewistics of the new tewminaw.
+		 * @wetuwn A new Tewminaw.
 		 */
-		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
+		expowt function cweateTewminaw(options: ExtensionTewminawOptions): Tewminaw;
 
 		/**
-		 * Register a {@link TreeDataProvider} for the view contributed using the extension point `views`.
-		 * This will allow you to contribute data to the {@link TreeView} and update if the data changes.
+		 * Wegista a {@wink TweeDataPwovida} fow the view contwibuted using the extension point `views`.
+		 * This wiww awwow you to contwibute data to the {@wink TweeView} and update if the data changes.
 		 *
-		 * **Note:** To get access to the {@link TreeView} and perform operations on it, use {@link window.createTreeView createTreeView}.
+		 * **Note:** To get access to the {@wink TweeView} and pewfowm opewations on it, use {@wink window.cweateTweeView cweateTweeView}.
 		 *
-		 * @param viewId Id of the view contributed using the extension point `views`.
-		 * @param treeDataProvider A {@link TreeDataProvider} that provides tree data for the view
+		 * @pawam viewId Id of the view contwibuted using the extension point `views`.
+		 * @pawam tweeDataPwovida A {@wink TweeDataPwovida} that pwovides twee data fow the view
 		 */
-		export function registerTreeDataProvider<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
+		expowt function wegistewTweeDataPwovida<T>(viewId: stwing, tweeDataPwovida: TweeDataPwovida<T>): Disposabwe;
 
 		/**
-		 * Create a {@link TreeView} for the view contributed using the extension point `views`.
-		 * @param viewId Id of the view contributed using the extension point `views`.
-		 * @param options Options for creating the {@link TreeView}
-		 * @returns a {@link TreeView}.
+		 * Cweate a {@wink TweeView} fow the view contwibuted using the extension point `views`.
+		 * @pawam viewId Id of the view contwibuted using the extension point `views`.
+		 * @pawam options Options fow cweating the {@wink TweeView}
+		 * @wetuwns a {@wink TweeView}.
 		 */
-		export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
+		expowt function cweateTweeView<T>(viewId: stwing, options: TweeViewOptions<T>): TweeView<T>;
 
 		/**
-		 * Registers a {@link UriHandler uri handler} capable of handling system-wide {@link Uri uris}.
-		 * In case there are multiple windows open, the topmost window will handle the uri.
-		 * A uri handler is scoped to the extension it is contributed from; it will only
-		 * be able to handle uris which are directed to the extension itself. A uri must respect
-		 * the following rules:
+		 * Wegistews a {@wink UwiHandwa uwi handwa} capabwe of handwing system-wide {@wink Uwi uwis}.
+		 * In case thewe awe muwtipwe windows open, the topmost window wiww handwe the uwi.
+		 * A uwi handwa is scoped to the extension it is contwibuted fwom; it wiww onwy
+		 * be abwe to handwe uwis which awe diwected to the extension itsewf. A uwi must wespect
+		 * the fowwowing wuwes:
 		 *
-		 * - The uri-scheme must be `vscode.env.uriScheme`;
-		 * - The uri-authority must be the extension id (e.g. `my.extension`);
-		 * - The uri-path, -query and -fragment parts are arbitrary.
+		 * - The uwi-scheme must be `vscode.env.uwiScheme`;
+		 * - The uwi-authowity must be the extension id (e.g. `my.extension`);
+		 * - The uwi-path, -quewy and -fwagment pawts awe awbitwawy.
 		 *
-		 * For example, if the `my.extension` extension registers a uri handler, it will only
-		 * be allowed to handle uris with the prefix `product-name://my.extension`.
+		 * Fow exampwe, if the `my.extension` extension wegistews a uwi handwa, it wiww onwy
+		 * be awwowed to handwe uwis with the pwefix `pwoduct-name://my.extension`.
 		 *
-		 * An extension can only register a single uri handler in its entire activation lifetime.
+		 * An extension can onwy wegista a singwe uwi handwa in its entiwe activation wifetime.
 		 *
-		 * * *Note:* There is an activation event `onUri` that fires when a uri directed for
-		 * the current extension is about to be handled.
+		 * * *Note:* Thewe is an activation event `onUwi` that fiwes when a uwi diwected fow
+		 * the cuwwent extension is about to be handwed.
 		 *
-		 * @param handler The uri handler to register for this extension.
+		 * @pawam handwa The uwi handwa to wegista fow this extension.
 		 */
-		export function registerUriHandler(handler: UriHandler): Disposable;
+		expowt function wegistewUwiHandwa(handwa: UwiHandwa): Disposabwe;
 
 		/**
-		 * Registers a webview panel serializer.
+		 * Wegistews a webview panew sewiawiza.
 		 *
-		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
-		 * make sure that {@link registerWebviewPanelSerializer} is called during activation.
+		 * Extensions that suppowt weviving shouwd have an `"onWebviewPanew:viewType"` activation event and
+		 * make suwe that {@wink wegistewWebviewPanewSewiawiza} is cawwed duwing activation.
 		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 * Onwy a singwe sewiawiza may be wegistewed at a time fow a given `viewType`.
 		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param serializer Webview serializer.
+		 * @pawam viewType Type of the webview panew that can be sewiawized.
+		 * @pawam sewiawiza Webview sewiawiza.
 		 */
-		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
+		expowt function wegistewWebviewPanewSewiawiza(viewType: stwing, sewiawiza: WebviewPanewSewiawiza): Disposabwe;
 
 		/**
-		 * Register a new provider for webview views.
+		 * Wegista a new pwovida fow webview views.
 		 *
-		 * @param viewId Unique id of the view. This should match the `id` from the
-		 *   `views` contribution in the package.json.
-		 * @param provider Provider for the webview views.
+		 * @pawam viewId Unique id of the view. This shouwd match the `id` fwom the
+		 *   `views` contwibution in the package.json.
+		 * @pawam pwovida Pwovida fow the webview views.
 		 *
-		 * @return Disposable that unregisters the provider.
+		 * @wetuwn Disposabwe that unwegistews the pwovida.
 		 */
-		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider, options?: {
+		expowt function wegistewWebviewViewPwovida(viewId: stwing, pwovida: WebviewViewPwovida, options?: {
 			/**
-			 * Content settings for the webview created for this view.
+			 * Content settings fow the webview cweated fow this view.
 			 */
-			readonly webviewOptions?: {
+			weadonwy webviewOptions?: {
 				/**
-				 * Controls if the webview element itself (iframe) is kept around even when the view
-				 * is no longer visible.
+				 * Contwows if the webview ewement itsewf (ifwame) is kept awound even when the view
+				 * is no wonga visibwe.
 				 *
-				 * Normally the webview's html context is created when the view becomes visible
-				 * and destroyed when it is hidden. Extensions that have complex state
-				 * or UI can set the `retainContextWhenHidden` to make the editor keep the webview
-				 * context around, even when the webview moves to a background tab. When a webview using
-				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
-				 * When the view becomes visible again, the context is automatically restored
-				 * in the exact same state it was in originally. You cannot send messages to a
-				 * hidden webview, even with `retainContextWhenHidden` enabled.
+				 * Nowmawwy the webview's htmw context is cweated when the view becomes visibwe
+				 * and destwoyed when it is hidden. Extensions that have compwex state
+				 * ow UI can set the `wetainContextWhenHidden` to make the editow keep the webview
+				 * context awound, even when the webview moves to a backgwound tab. When a webview using
+				 * `wetainContextWhenHidden` becomes hidden, its scwipts and otha dynamic content awe suspended.
+				 * When the view becomes visibwe again, the context is automaticawwy westowed
+				 * in the exact same state it was in owiginawwy. You cannot send messages to a
+				 * hidden webview, even with `wetainContextWhenHidden` enabwed.
 				 *
-				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-				 * your view's context cannot be quickly saved and restored.
+				 * `wetainContextWhenHidden` has a high memowy ovewhead and shouwd onwy be used if
+				 * youw view's context cannot be quickwy saved and westowed.
 				 */
-				readonly retainContextWhenHidden?: boolean;
+				weadonwy wetainContextWhenHidden?: boowean;
 			};
-		}): Disposable;
+		}): Disposabwe;
 
 		/**
-		 * Register a provider for custom editors for the `viewType` contributed by the `customEditors` extension point.
+		 * Wegista a pwovida fow custom editows fow the `viewType` contwibuted by the `customEditows` extension point.
 		 *
-		 * When a custom editor is opened, an `onCustomEditor:viewType` activation event is fired. Your extension
-		 * must register a {@linkcode CustomTextEditorProvider}, {@linkcode CustomReadonlyEditorProvider},
-		 * {@linkcode CustomEditorProvider}for `viewType` as part of activation.
+		 * When a custom editow is opened, an `onCustomEditow:viewType` activation event is fiwed. Youw extension
+		 * must wegista a {@winkcode CustomTextEditowPwovida}, {@winkcode CustomWeadonwyEditowPwovida},
+		 * {@winkcode CustomEditowPwovida}fow `viewType` as pawt of activation.
 		 *
-		 * @param viewType Unique identifier for the custom editor provider. This should match the `viewType` from the
-		 *   `customEditors` contribution point.
-		 * @param provider Provider that resolves custom editors.
-		 * @param options Options for the provider.
+		 * @pawam viewType Unique identifia fow the custom editow pwovida. This shouwd match the `viewType` fwom the
+		 *   `customEditows` contwibution point.
+		 * @pawam pwovida Pwovida that wesowves custom editows.
+		 * @pawam options Options fow the pwovida.
 		 *
-		 * @return Disposable that unregisters the provider.
+		 * @wetuwn Disposabwe that unwegistews the pwovida.
 		 */
-		export function registerCustomEditorProvider(viewType: string, provider: CustomTextEditorProvider | CustomReadonlyEditorProvider | CustomEditorProvider, options?: {
+		expowt function wegistewCustomEditowPwovida(viewType: stwing, pwovida: CustomTextEditowPwovida | CustomWeadonwyEditowPwovida | CustomEditowPwovida, options?: {
 			/**
-			 * Content settings for the webview panels created for this custom editor.
+			 * Content settings fow the webview panews cweated fow this custom editow.
 			 */
-			readonly webviewOptions?: WebviewPanelOptions;
+			weadonwy webviewOptions?: WebviewPanewOptions;
 
 			/**
-			 * Only applies to `CustomReadonlyEditorProvider | CustomEditorProvider`.
+			 * Onwy appwies to `CustomWeadonwyEditowPwovida | CustomEditowPwovida`.
 			 *
-			 * Indicates that the provider allows multiple editor instances to be open at the same time for
-			 * the same resource.
+			 * Indicates that the pwovida awwows muwtipwe editow instances to be open at the same time fow
+			 * the same wesouwce.
 			 *
-			 * By default, the editor only allows one editor instance to be open at a time for each resource. If the
-			 * user tries to open a second editor instance for the resource, the first one is instead moved to where
+			 * By defauwt, the editow onwy awwows one editow instance to be open at a time fow each wesouwce. If the
+			 * usa twies to open a second editow instance fow the wesouwce, the fiwst one is instead moved to whewe
 			 * the second one was to be opened.
 			 *
-			 * When `supportsMultipleEditorsPerDocument` is enabled, users can split and create copies of the custom
-			 * editor. In this case, the custom editor must make sure it can properly synchronize the states of all
-			 * editor instances for a resource so that they are consistent.
+			 * When `suppowtsMuwtipweEditowsPewDocument` is enabwed, usews can spwit and cweate copies of the custom
+			 * editow. In this case, the custom editow must make suwe it can pwopewwy synchwonize the states of aww
+			 * editow instances fow a wesouwce so that they awe consistent.
 			 */
-			readonly supportsMultipleEditorsPerDocument?: boolean;
-		}): Disposable;
+			weadonwy suppowtsMuwtipweEditowsPewDocument?: boowean;
+		}): Disposabwe;
 
 		/**
-		 * Register provider that enables the detection and handling of links within the terminal.
-		 * @param provider The provider that provides the terminal links.
-		 * @return Disposable that unregisters the provider.
+		 * Wegista pwovida that enabwes the detection and handwing of winks within the tewminaw.
+		 * @pawam pwovida The pwovida that pwovides the tewminaw winks.
+		 * @wetuwn Disposabwe that unwegistews the pwovida.
 		 */
-		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
+		expowt function wegistewTewminawWinkPwovida(pwovida: TewminawWinkPwovida): Disposabwe;
 
 		/**
-		 * Registers a provider for a contributed terminal profile.
-		 * @param id The ID of the contributed terminal profile.
-		 * @param provider The terminal profile provider.
+		 * Wegistews a pwovida fow a contwibuted tewminaw pwofiwe.
+		 * @pawam id The ID of the contwibuted tewminaw pwofiwe.
+		 * @pawam pwovida The tewminaw pwofiwe pwovida.
 		 */
-		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
+		expowt function wegistewTewminawPwofiwePwovida(id: stwing, pwovida: TewminawPwofiwePwovida): Disposabwe;
 		/**
-		 * Register a file decoration provider.
+		 * Wegista a fiwe decowation pwovida.
 		 *
-		 * @param provider A {@link FileDecorationProvider}.
-		 * @return A {@link Disposable} that unregisters the provider.
+		 * @pawam pwovida A {@wink FiweDecowationPwovida}.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews the pwovida.
 		 */
-		export function registerFileDecorationProvider(provider: FileDecorationProvider): Disposable;
+		expowt function wegistewFiweDecowationPwovida(pwovida: FiweDecowationPwovida): Disposabwe;
 
 		/**
-		 * The currently active color theme as configured in the settings. The active
-		 * theme can be changed via the `workbench.colorTheme` setting.
+		 * The cuwwentwy active cowow theme as configuwed in the settings. The active
+		 * theme can be changed via the `wowkbench.cowowTheme` setting.
 		 */
-		export let activeColorTheme: ColorTheme;
+		expowt wet activeCowowTheme: CowowTheme;
 
 		/**
-		 * An {@link Event} which fires when the active color theme is changed or has changes.
+		 * An {@wink Event} which fiwes when the active cowow theme is changed ow has changes.
 		 */
-		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+		expowt const onDidChangeActiveCowowTheme: Event<CowowTheme>;
 	}
 
 	/**
-	 * Options for creating a {@link TreeView}
+	 * Options fow cweating a {@wink TweeView}
 	 */
-	export interface TreeViewOptions<T> {
+	expowt intewface TweeViewOptions<T> {
 
 		/**
-		 * A data provider that provides tree data.
+		 * A data pwovida that pwovides twee data.
 		 */
-		treeDataProvider: TreeDataProvider<T>;
+		tweeDataPwovida: TweeDataPwovida<T>;
 
 		/**
-		 * Whether to show collapse all action or not.
+		 * Whetha to show cowwapse aww action ow not.
 		 */
-		showCollapseAll?: boolean;
+		showCowwapseAww?: boowean;
 
 		/**
-		 * Whether the tree supports multi-select. When the tree supports multi-select and a command is executed from the tree,
-		 * the first argument to the command is the tree item that the command was executed on and the second argument is an
-		 * array containing all selected tree items.
+		 * Whetha the twee suppowts muwti-sewect. When the twee suppowts muwti-sewect and a command is executed fwom the twee,
+		 * the fiwst awgument to the command is the twee item that the command was executed on and the second awgument is an
+		 * awway containing aww sewected twee items.
 		 */
-		canSelectMany?: boolean;
+		canSewectMany?: boowean;
 	}
 
 	/**
-	 * The event that is fired when an element in the {@link TreeView} is expanded or collapsed
+	 * The event that is fiwed when an ewement in the {@wink TweeView} is expanded ow cowwapsed
 	 */
-	export interface TreeViewExpansionEvent<T> {
+	expowt intewface TweeViewExpansionEvent<T> {
 
 		/**
-		 * Element that is expanded or collapsed.
+		 * Ewement that is expanded ow cowwapsed.
 		 */
-		readonly element: T;
-
-	}
-
-	/**
-	 * The event that is fired when there is a change in {@link TreeView.selection tree view's selection}
-	 */
-	export interface TreeViewSelectionChangeEvent<T> {
-
-		/**
-		 * Selected elements.
-		 */
-		readonly selection: T[];
+		weadonwy ewement: T;
 
 	}
 
 	/**
-	 * The event that is fired when there is a change in {@link TreeView.visible tree view's visibility}
+	 * The event that is fiwed when thewe is a change in {@wink TweeView.sewection twee view's sewection}
 	 */
-	export interface TreeViewVisibilityChangeEvent {
+	expowt intewface TweeViewSewectionChangeEvent<T> {
 
 		/**
-		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
+		 * Sewected ewements.
 		 */
-		readonly visible: boolean;
+		weadonwy sewection: T[];
 
 	}
 
 	/**
-	 * Represents a Tree view
+	 * The event that is fiwed when thewe is a change in {@wink TweeView.visibwe twee view's visibiwity}
 	 */
-	export interface TreeView<T> extends Disposable {
+	expowt intewface TweeViewVisibiwityChangeEvent {
 
 		/**
-		 * Event that is fired when an element is expanded
+		 * `twue` if the {@wink TweeView twee view} is visibwe othewwise `fawse`.
 		 */
-		readonly onDidExpandElement: Event<TreeViewExpansionEvent<T>>;
+		weadonwy visibwe: boowean;
 
-		/**
-		 * Event that is fired when an element is collapsed
-		 */
-		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
-
-		/**
-		 * Currently selected elements.
-		 */
-		readonly selection: T[];
-
-		/**
-		 * Event that is fired when the {@link TreeView.selection selection} has changed
-		 */
-		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
-
-		/**
-		 * `true` if the {@link TreeView tree view} is visible otherwise `false`.
-		 */
-		readonly visible: boolean;
-
-		/**
-		 * Event that is fired when {@link TreeView.visible visibility} has changed
-		 */
-		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
-
-		/**
-		 * An optional human-readable message that will be rendered in the view.
-		 * Setting the message to null, undefined, or empty string will remove the message from the view.
-		 */
-		message?: string;
-
-		/**
-		 * The tree view title is initially taken from the extension package.json
-		 * Changes to the title property will be properly reflected in the UI in the title of the view.
-		 */
-		title?: string;
-
-		/**
-		 * An optional human-readable description which is rendered less prominently in the title of the view.
-		 * Setting the title description to null, undefined, or empty string will remove the description from the view.
-		 */
-		description?: string;
-
-		/**
-		 * Reveals the given element in the tree view.
-		 * If the tree view is not visible then the tree view is shown and element is revealed.
-		 *
-		 * By default revealed element is selected.
-		 * In order to not to select, set the option `select` to `false`.
-		 * In order to focus, set the option `focus` to `true`.
-		 * In order to expand the revealed element, set the option `expand` to `true`. To expand recursively set `expand` to the number of levels to expand.
-		 * **NOTE:** You can expand only to 3 levels maximum.
-		 *
-		 * **NOTE:** The {@link TreeDataProvider} that the `TreeView` {@link window.createTreeView is registered with} with must implement {@link TreeDataProvider.getParent getParent} method to access this API.
-		 */
-		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
 
 	/**
-	 * A data provider that provides tree data
+	 * Wepwesents a Twee view
 	 */
-	export interface TreeDataProvider<T> {
-		/**
-		 * An optional event to signal that an element or root has changed.
-		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
-		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
-		 */
-		onDidChangeTreeData?: Event<T | undefined | null | void>;
+	expowt intewface TweeView<T> extends Disposabwe {
 
 		/**
-		 * Get {@link TreeItem} representation of the `element`
-		 *
-		 * @param element The element for which {@link TreeItem} representation is asked for.
-		 * @return TreeItem representation of the element.
+		 * Event that is fiwed when an ewement is expanded
 		 */
-		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
+		weadonwy onDidExpandEwement: Event<TweeViewExpansionEvent<T>>;
 
 		/**
-		 * Get the children of `element` or root if no element is passed.
-		 *
-		 * @param element The element from which the provider gets children. Can be `undefined`.
-		 * @return Children of `element` or root if no element is passed.
+		 * Event that is fiwed when an ewement is cowwapsed
 		 */
-		getChildren(element?: T): ProviderResult<T[]>;
+		weadonwy onDidCowwapseEwement: Event<TweeViewExpansionEvent<T>>;
 
 		/**
-		 * Optional method to return the parent of `element`.
-		 * Return `null` or `undefined` if `element` is a child of root.
-		 *
-		 * **NOTE:** This method should be implemented in order to access {@link TreeView.reveal reveal} API.
-		 *
-		 * @param element The element for which the parent has to be returned.
-		 * @return Parent of `element`.
+		 * Cuwwentwy sewected ewements.
 		 */
-		getParent?(element: T): ProviderResult<T>;
+		weadonwy sewection: T[];
 
 		/**
-		 * Called on hover to resolve the {@link TreeItem.tooltip TreeItem} property if it is undefined.
-		 * Called on tree item click/open to resolve the {@link TreeItem.command TreeItem} property if it is undefined.
-		 * Only properties that were undefined can be resolved in `resolveTreeItem`.
-		 * Functionality may be expanded later to include being called to resolve other missing
-		 * properties on selection and/or on open.
+		 * Event that is fiwed when the {@wink TweeView.sewection sewection} has changed
+		 */
+		weadonwy onDidChangeSewection: Event<TweeViewSewectionChangeEvent<T>>;
+
+		/**
+		 * `twue` if the {@wink TweeView twee view} is visibwe othewwise `fawse`.
+		 */
+		weadonwy visibwe: boowean;
+
+		/**
+		 * Event that is fiwed when {@wink TweeView.visibwe visibiwity} has changed
+		 */
+		weadonwy onDidChangeVisibiwity: Event<TweeViewVisibiwityChangeEvent>;
+
+		/**
+		 * An optionaw human-weadabwe message that wiww be wendewed in the view.
+		 * Setting the message to nuww, undefined, ow empty stwing wiww wemove the message fwom the view.
+		 */
+		message?: stwing;
+
+		/**
+		 * The twee view titwe is initiawwy taken fwom the extension package.json
+		 * Changes to the titwe pwopewty wiww be pwopewwy wefwected in the UI in the titwe of the view.
+		 */
+		titwe?: stwing;
+
+		/**
+		 * An optionaw human-weadabwe descwiption which is wendewed wess pwominentwy in the titwe of the view.
+		 * Setting the titwe descwiption to nuww, undefined, ow empty stwing wiww wemove the descwiption fwom the view.
+		 */
+		descwiption?: stwing;
+
+		/**
+		 * Weveaws the given ewement in the twee view.
+		 * If the twee view is not visibwe then the twee view is shown and ewement is weveawed.
 		 *
-		 * Will only ever be called once per TreeItem.
+		 * By defauwt weveawed ewement is sewected.
+		 * In owda to not to sewect, set the option `sewect` to `fawse`.
+		 * In owda to focus, set the option `focus` to `twue`.
+		 * In owda to expand the weveawed ewement, set the option `expand` to `twue`. To expand wecuwsivewy set `expand` to the numba of wevews to expand.
+		 * **NOTE:** You can expand onwy to 3 wevews maximum.
 		 *
-		 * onDidChangeTreeData should not be triggered from within resolveTreeItem.
+		 * **NOTE:** The {@wink TweeDataPwovida} that the `TweeView` {@wink window.cweateTweeView is wegistewed with} with must impwement {@wink TweeDataPwovida.getPawent getPawent} method to access this API.
+		 */
+		weveaw(ewement: T, options?: { sewect?: boowean, focus?: boowean, expand?: boowean | numba }): Thenabwe<void>;
+	}
+
+	/**
+	 * A data pwovida that pwovides twee data
+	 */
+	expowt intewface TweeDataPwovida<T> {
+		/**
+		 * An optionaw event to signaw that an ewement ow woot has changed.
+		 * This wiww twigga the view to update the changed ewement/woot and its chiwdwen wecuwsivewy (if shown).
+		 * To signaw that woot has changed, do not pass any awgument ow pass `undefined` ow `nuww`.
+		 */
+		onDidChangeTweeData?: Event<T | undefined | nuww | void>;
+
+		/**
+		 * Get {@wink TweeItem} wepwesentation of the `ewement`
 		 *
-		 * *Note* that this function is called when tree items are already showing in the UI.
-		 * Because of that, no property that changes the presentation (label, description, etc.)
+		 * @pawam ewement The ewement fow which {@wink TweeItem} wepwesentation is asked fow.
+		 * @wetuwn TweeItem wepwesentation of the ewement.
+		 */
+		getTweeItem(ewement: T): TweeItem | Thenabwe<TweeItem>;
+
+		/**
+		 * Get the chiwdwen of `ewement` ow woot if no ewement is passed.
+		 *
+		 * @pawam ewement The ewement fwom which the pwovida gets chiwdwen. Can be `undefined`.
+		 * @wetuwn Chiwdwen of `ewement` ow woot if no ewement is passed.
+		 */
+		getChiwdwen(ewement?: T): PwovidewWesuwt<T[]>;
+
+		/**
+		 * Optionaw method to wetuwn the pawent of `ewement`.
+		 * Wetuwn `nuww` ow `undefined` if `ewement` is a chiwd of woot.
+		 *
+		 * **NOTE:** This method shouwd be impwemented in owda to access {@wink TweeView.weveaw weveaw} API.
+		 *
+		 * @pawam ewement The ewement fow which the pawent has to be wetuwned.
+		 * @wetuwn Pawent of `ewement`.
+		 */
+		getPawent?(ewement: T): PwovidewWesuwt<T>;
+
+		/**
+		 * Cawwed on hova to wesowve the {@wink TweeItem.toowtip TweeItem} pwopewty if it is undefined.
+		 * Cawwed on twee item cwick/open to wesowve the {@wink TweeItem.command TweeItem} pwopewty if it is undefined.
+		 * Onwy pwopewties that wewe undefined can be wesowved in `wesowveTweeItem`.
+		 * Functionawity may be expanded wata to incwude being cawwed to wesowve otha missing
+		 * pwopewties on sewection and/ow on open.
+		 *
+		 * Wiww onwy eva be cawwed once pew TweeItem.
+		 *
+		 * onDidChangeTweeData shouwd not be twiggewed fwom within wesowveTweeItem.
+		 *
+		 * *Note* that this function is cawwed when twee items awe awweady showing in the UI.
+		 * Because of that, no pwopewty that changes the pwesentation (wabew, descwiption, etc.)
 		 * can be changed.
 		 *
-		 * @param item Undefined properties of `item` should be set then `item` should be returned.
-		 * @param element The object associated with the TreeItem.
-		 * @param token A cancellation token.
-		 * @return The resolved tree item or a thenable that resolves to such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
+		 * @pawam item Undefined pwopewties of `item` shouwd be set then `item` shouwd be wetuwned.
+		 * @pawam ewement The object associated with the TweeItem.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved twee item ow a thenabwe that wesowves to such. It is OK to wetuwn the given
+		 * `item`. When no wesuwt is wetuwned, the given `item` wiww be used.
 		 */
-		resolveTreeItem?(item: TreeItem, element: T, token: CancellationToken): ProviderResult<TreeItem>;
+		wesowveTweeItem?(item: TweeItem, ewement: T, token: CancewwationToken): PwovidewWesuwt<TweeItem>;
 	}
 
-	export class TreeItem {
+	expowt cwass TweeItem {
 		/**
-		 * A human-readable string describing this item. When `falsy`, it is derived from {@link TreeItem.resourceUri resourceUri}.
+		 * A human-weadabwe stwing descwibing this item. When `fawsy`, it is dewived fwom {@wink TweeItem.wesouwceUwi wesouwceUwi}.
 		 */
-		label?: string | TreeItemLabel;
+		wabew?: stwing | TweeItemWabew;
 
 		/**
-		 * Optional id for the tree item that has to be unique across tree. The id is used to preserve the selection and expansion state of the tree item.
+		 * Optionaw id fow the twee item that has to be unique acwoss twee. The id is used to pwesewve the sewection and expansion state of the twee item.
 		 *
-		 * If not provided, an id is generated using the tree item's label. **Note** that when labels change, ids will change and that selection and expansion state cannot be kept stable anymore.
+		 * If not pwovided, an id is genewated using the twee item's wabew. **Note** that when wabews change, ids wiww change and that sewection and expansion state cannot be kept stabwe anymowe.
 		 */
-		id?: string;
+		id?: stwing;
 
 		/**
-		 * The icon path or {@link ThemeIcon} for the tree item.
-		 * When `falsy`, {@link ThemeIcon.Folder Folder Theme Icon} is assigned, if item is collapsible otherwise {@link ThemeIcon.File File Theme Icon}.
-		 * When a file or folder {@link ThemeIcon} is specified, icon is derived from the current file icon theme for the specified theme icon using {@link TreeItem.resourceUri resourceUri} (if provided).
+		 * The icon path ow {@wink ThemeIcon} fow the twee item.
+		 * When `fawsy`, {@wink ThemeIcon.Fowda Fowda Theme Icon} is assigned, if item is cowwapsibwe othewwise {@wink ThemeIcon.Fiwe Fiwe Theme Icon}.
+		 * When a fiwe ow fowda {@wink ThemeIcon} is specified, icon is dewived fwom the cuwwent fiwe icon theme fow the specified theme icon using {@wink TweeItem.wesouwceUwi wesouwceUwi} (if pwovided).
 		 */
-		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		iconPath?: stwing | Uwi | { wight: stwing | Uwi; dawk: stwing | Uwi } | ThemeIcon;
 
 		/**
-		 * A human-readable string which is rendered less prominent.
-		 * When `true`, it is derived from {@link TreeItem.resourceUri resourceUri} and when `falsy`, it is not shown.
+		 * A human-weadabwe stwing which is wendewed wess pwominent.
+		 * When `twue`, it is dewived fwom {@wink TweeItem.wesouwceUwi wesouwceUwi} and when `fawsy`, it is not shown.
 		 */
-		description?: string | boolean;
+		descwiption?: stwing | boowean;
 
 		/**
-		 * The {@link Uri} of the resource representing this item.
+		 * The {@wink Uwi} of the wesouwce wepwesenting this item.
 		 *
-		 * Will be used to derive the {@link TreeItem.label label}, when it is not provided.
-		 * Will be used to derive the icon from current file icon theme, when {@link TreeItem.iconPath iconPath} has {@link ThemeIcon} value.
+		 * Wiww be used to dewive the {@wink TweeItem.wabew wabew}, when it is not pwovided.
+		 * Wiww be used to dewive the icon fwom cuwwent fiwe icon theme, when {@wink TweeItem.iconPath iconPath} has {@wink ThemeIcon} vawue.
 		 */
-		resourceUri?: Uri;
+		wesouwceUwi?: Uwi;
 
 		/**
-		 * The tooltip text when you hover over this item.
+		 * The toowtip text when you hova ova this item.
 		 */
-		tooltip?: string | MarkdownString | undefined;
+		toowtip?: stwing | MawkdownStwing | undefined;
 
 		/**
-		 * The {@link Command} that should be executed when the tree item is selected.
+		 * The {@wink Command} that shouwd be executed when the twee item is sewected.
 		 *
-		 * Please use `vscode.open` or `vscode.diff` as command IDs when the tree item is opening
-		 * something in the editor. Using these commands ensures that the resulting editor will
-		 * appear consistent with how other built-in trees open editors.
+		 * Pwease use `vscode.open` ow `vscode.diff` as command IDs when the twee item is opening
+		 * something in the editow. Using these commands ensuwes that the wesuwting editow wiww
+		 * appeaw consistent with how otha buiwt-in twees open editows.
 		 */
 		command?: Command;
 
 		/**
-		 * {@link TreeItemCollapsibleState} of the tree item.
+		 * {@wink TweeItemCowwapsibweState} of the twee item.
 		 */
-		collapsibleState?: TreeItemCollapsibleState;
+		cowwapsibweState?: TweeItemCowwapsibweState;
 
 		/**
-		 * Context value of the tree item. This can be used to contribute item specific actions in the tree.
-		 * For example, a tree item is given a context value as `folder`. When contributing actions to `view/item/context`
-		 * using `menus` extension point, you can specify context value for key `viewItem` in `when` expression like `viewItem == folder`.
+		 * Context vawue of the twee item. This can be used to contwibute item specific actions in the twee.
+		 * Fow exampwe, a twee item is given a context vawue as `fowda`. When contwibuting actions to `view/item/context`
+		 * using `menus` extension point, you can specify context vawue fow key `viewItem` in `when` expwession wike `viewItem == fowda`.
 		 * ```
-		 *	"contributes": {
+		 *	"contwibutes": {
 		 *		"menus": {
 		 *			"view/item/context": [
 		 *				{
-		 *					"command": "extension.deleteFolder",
-		 *					"when": "viewItem == folder"
+		 *					"command": "extension.deweteFowda",
+		 *					"when": "viewItem == fowda"
 		 *				}
 		 *			]
 		 *		}
 		 *	}
 		 * ```
-		 * This will show action `extension.deleteFolder` only for items with `contextValue` is `folder`.
+		 * This wiww show action `extension.deweteFowda` onwy fow items with `contextVawue` is `fowda`.
 		 */
-		contextValue?: string;
+		contextVawue?: stwing;
 
 		/**
-		 * Accessibility information used when screen reader interacts with this tree item.
-		 * Generally, a TreeItem has no need to set the `role` of the accessibilityInformation;
-		 * however, there are cases where a TreeItem is not displayed in a tree-like way where setting the `role` may make sense.
+		 * Accessibiwity infowmation used when scween weada intewacts with this twee item.
+		 * Genewawwy, a TweeItem has no need to set the `wowe` of the accessibiwityInfowmation;
+		 * howeva, thewe awe cases whewe a TweeItem is not dispwayed in a twee-wike way whewe setting the `wowe` may make sense.
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		accessibiwityInfowmation?: AccessibiwityInfowmation;
 
 		/**
-		 * @param label A human-readable string describing this item
-		 * @param collapsibleState {@link TreeItemCollapsibleState} of the tree item. Default is {@link TreeItemCollapsibleState.None}
+		 * @pawam wabew A human-weadabwe stwing descwibing this item
+		 * @pawam cowwapsibweState {@wink TweeItemCowwapsibweState} of the twee item. Defauwt is {@wink TweeItemCowwapsibweState.None}
 		 */
-		constructor(label: string | TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
+		constwuctow(wabew: stwing | TweeItemWabew, cowwapsibweState?: TweeItemCowwapsibweState);
 
 		/**
-		 * @param resourceUri The {@link Uri} of the resource representing this item.
-		 * @param collapsibleState {@link TreeItemCollapsibleState} of the tree item. Default is {@link TreeItemCollapsibleState.None}
+		 * @pawam wesouwceUwi The {@wink Uwi} of the wesouwce wepwesenting this item.
+		 * @pawam cowwapsibweState {@wink TweeItemCowwapsibweState} of the twee item. Defauwt is {@wink TweeItemCowwapsibweState.None}
 		 */
-		constructor(resourceUri: Uri, collapsibleState?: TreeItemCollapsibleState);
+		constwuctow(wesouwceUwi: Uwi, cowwapsibweState?: TweeItemCowwapsibweState);
 	}
 
 	/**
-	 * Collapsible state of the tree item
+	 * Cowwapsibwe state of the twee item
 	 */
-	export enum TreeItemCollapsibleState {
+	expowt enum TweeItemCowwapsibweState {
 		/**
-		 * Determines an item can be neither collapsed nor expanded. Implies it has no children.
+		 * Detewmines an item can be neitha cowwapsed now expanded. Impwies it has no chiwdwen.
 		 */
 		None = 0,
 		/**
-		 * Determines an item is collapsed
+		 * Detewmines an item is cowwapsed
 		 */
-		Collapsed = 1,
+		Cowwapsed = 1,
 		/**
-		 * Determines an item is expanded
+		 * Detewmines an item is expanded
 		 */
 		Expanded = 2
 	}
 
 	/**
-	 * Label describing the {@link TreeItem Tree item}
+	 * Wabew descwibing the {@wink TweeItem Twee item}
 	 */
-	export interface TreeItemLabel {
+	expowt intewface TweeItemWabew {
 
 		/**
-		 * A human-readable string describing the {@link TreeItem Tree item}.
+		 * A human-weadabwe stwing descwibing the {@wink TweeItem Twee item}.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * Ranges in the label to highlight. A range is defined as a tuple of two number where the
-		 * first is the inclusive start index and the second the exclusive end index
+		 * Wanges in the wabew to highwight. A wange is defined as a tupwe of two numba whewe the
+		 * fiwst is the incwusive stawt index and the second the excwusive end index
 		 */
-		highlights?: [number, number][];
+		highwights?: [numba, numba][];
 	}
 
 	/**
-	 * Value-object describing what options a terminal should use.
+	 * Vawue-object descwibing what options a tewminaw shouwd use.
 	 */
-	export interface TerminalOptions {
+	expowt intewface TewminawOptions {
 		/**
-		 * A human-readable string which will be used to represent the terminal in the UI.
+		 * A human-weadabwe stwing which wiww be used to wepwesent the tewminaw in the UI.
 		 */
-		name?: string;
+		name?: stwing;
 
 		/**
-		 * A path to a custom shell executable to be used in the terminal.
+		 * A path to a custom sheww executabwe to be used in the tewminaw.
 		 */
-		shellPath?: string;
+		shewwPath?: stwing;
 
 		/**
-		 * Args for the custom shell executable. A string can be used on Windows only which allows
-		 * specifying shell args in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
+		 * Awgs fow the custom sheww executabwe. A stwing can be used on Windows onwy which awwows
+		 * specifying sheww awgs in [command-wine fowmat](https://msdn.micwosoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6).
 		 */
-		shellArgs?: string[] | string;
+		shewwAwgs?: stwing[] | stwing;
 
 		/**
-		 * A path or Uri for the current working directory to be used for the terminal.
+		 * A path ow Uwi fow the cuwwent wowking diwectowy to be used fow the tewminaw.
 		 */
-		cwd?: string | Uri;
+		cwd?: stwing | Uwi;
 
 		/**
-		 * Object with environment variables that will be added to the editor process.
+		 * Object with enviwonment vawiabwes that wiww be added to the editow pwocess.
 		 */
-		env?: { [key: string]: string | null | undefined };
+		env?: { [key: stwing]: stwing | nuww | undefined };
 
 		/**
-		 * Whether the terminal process environment should be exactly as provided in
-		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
-		 * window's environment and also apply configured platform settings like
-		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
-		 * must be provided as nothing will be inherited from the process or any configuration.
+		 * Whetha the tewminaw pwocess enviwonment shouwd be exactwy as pwovided in
+		 * `TewminawOptions.env`. When this is fawse (defauwt), the enviwonment wiww be based on the
+		 * window's enviwonment and awso appwy configuwed pwatfowm settings wike
+		 * `tewminaw.integwated.windows.env` on top. When this is twue, the compwete enviwonment
+		 * must be pwovided as nothing wiww be inhewited fwom the pwocess ow any configuwation.
 		 */
-		strictEnv?: boolean;
+		stwictEnv?: boowean;
 
 		/**
-		 * When enabled the terminal will run the process as normal but not be surfaced to the user
-		 * until `Terminal.show` is called. The typical usage for this is when you need to run
-		 * something that may need interactivity but only want to tell the user about it when
-		 * interaction is needed. Note that the terminals will still be exposed to all extensions
-		 * as normal.
+		 * When enabwed the tewminaw wiww wun the pwocess as nowmaw but not be suwfaced to the usa
+		 * untiw `Tewminaw.show` is cawwed. The typicaw usage fow this is when you need to wun
+		 * something that may need intewactivity but onwy want to teww the usa about it when
+		 * intewaction is needed. Note that the tewminaws wiww stiww be exposed to aww extensions
+		 * as nowmaw.
 		 */
-		hideFromUser?: boolean;
+		hideFwomUsa?: boowean;
 
 		/**
-		 * A message to write to the terminal on first launch, note that this is not sent to the
-		 * process but, rather written directly to the terminal. This supports escape sequences such
-		 * a setting text style.
+		 * A message to wwite to the tewminaw on fiwst waunch, note that this is not sent to the
+		 * pwocess but, watha wwitten diwectwy to the tewminaw. This suppowts escape sequences such
+		 * a setting text stywe.
 		 */
-		message?: string;
+		message?: stwing;
 
 		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
+		 * The icon path ow {@wink ThemeIcon} fow the tewminaw.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		iconPath?: Uwi | { wight: Uwi; dawk: Uwi } | ThemeIcon;
 
 		/**
-		 * The icon {@link ThemeColor} for the terminal.
-		 * The `terminal.ansi*` theme keys are
-		 * recommended for the best contrast and consistency across themes.
+		 * The icon {@wink ThemeCowow} fow the tewminaw.
+		 * The `tewminaw.ansi*` theme keys awe
+		 * wecommended fow the best contwast and consistency acwoss themes.
 		 */
-		color?: ThemeColor;
+		cowow?: ThemeCowow;
 	}
 
 	/**
-	 * Value-object describing what options a virtual process terminal should use.
+	 * Vawue-object descwibing what options a viwtuaw pwocess tewminaw shouwd use.
 	 */
-	export interface ExtensionTerminalOptions {
+	expowt intewface ExtensionTewminawOptions {
 		/**
-		 * A human-readable string which will be used to represent the terminal in the UI.
+		 * A human-weadabwe stwing which wiww be used to wepwesent the tewminaw in the UI.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * An implementation of {@link Pseudoterminal} that allows an extension to
-		 * control a terminal.
+		 * An impwementation of {@wink Pseudotewminaw} that awwows an extension to
+		 * contwow a tewminaw.
 		 */
-		pty: Pseudoterminal;
+		pty: Pseudotewminaw;
 
 		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
+		 * The icon path ow {@wink ThemeIcon} fow the tewminaw.
 		 */
-		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		iconPath?: Uwi | { wight: Uwi; dawk: Uwi } | ThemeIcon;
 
 		/**
-		 * The icon {@link ThemeColor} for the terminal.
-		 * The standard `terminal.ansi*` theme keys are
-		 * recommended for the best contrast and consistency across themes.
+		 * The icon {@wink ThemeCowow} fow the tewminaw.
+		 * The standawd `tewminaw.ansi*` theme keys awe
+		 * wecommended fow the best contwast and consistency acwoss themes.
 		 */
-		color?: ThemeColor;
+		cowow?: ThemeCowow;
 	}
 
 	/**
-	 * Defines the interface of a terminal pty, enabling extensions to control a terminal.
+	 * Defines the intewface of a tewminaw pty, enabwing extensions to contwow a tewminaw.
 	 */
-	interface Pseudoterminal {
+	intewface Pseudotewminaw {
 		/**
-		 * An event that when fired will write data to the terminal. Unlike
-		 * {@link Terminal.sendText} which sends text to the underlying child
-		 * pseudo-device (the child), this will write the text to parent pseudo-device (the
-		 * _terminal_ itself).
+		 * An event that when fiwed wiww wwite data to the tewminaw. Unwike
+		 * {@wink Tewminaw.sendText} which sends text to the undewwying chiwd
+		 * pseudo-device (the chiwd), this wiww wwite the text to pawent pseudo-device (the
+		 * _tewminaw_ itsewf).
 		 *
-		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
-		 * to move the cursor to the left-most cell.
+		 * Note wwiting `\n` wiww just move the cuwsow down 1 wow, you need to wwite `\w` as weww
+		 * to move the cuwsow to the weft-most ceww.
 		 *
-		 * **Example:** Write red text to the terminal
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   open: () => writeEmitter.fire('\x1b[31mHello world\x1b[0m'),
-		 *   close: () => {}
+		 * **Exampwe:** Wwite wed text to the tewminaw
+		 * ```typescwipt
+		 * const wwiteEmitta = new vscode.EventEmitta<stwing>();
+		 * const pty: vscode.Pseudotewminaw = {
+		 *   onDidWwite: wwiteEmitta.event,
+		 *   open: () => wwiteEmitta.fiwe('\x1b[31mHewwo wowwd\x1b[0m'),
+		 *   cwose: () => {}
 		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * vscode.window.cweateTewminaw({ name: 'My tewminaw', pty });
 		 * ```
 		 *
-		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
-		 * ```typescript
-		 * writeEmitter.fire('\x1b[10;20H*');
+		 * **Exampwe:** Move the cuwsow to the 10th wow and 20th cowumn and wwite an astewisk
+		 * ```typescwipt
+		 * wwiteEmitta.fiwe('\x1b[10;20H*');
 		 * ```
 		 */
-		onDidWrite: Event<string>;
+		onDidWwite: Event<stwing>;
 
 		/**
-		 * An event that when fired allows overriding the {@link Pseudoterminal.setDimensions dimensions} of the
-		 * terminal. Note that when set, the overridden dimensions will only take effect when they
-		 * are lower than the actual dimensions of the terminal (ie. there will never be a scroll
-		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
-		 * the size of the panel).
+		 * An event that when fiwed awwows ovewwiding the {@wink Pseudotewminaw.setDimensions dimensions} of the
+		 * tewminaw. Note that when set, the ovewwidden dimensions wiww onwy take effect when they
+		 * awe wowa than the actuaw dimensions of the tewminaw (ie. thewe wiww neva be a scwoww
+		 * baw). Set to `undefined` fow the tewminaw to go back to the weguwaw dimensions (fit to
+		 * the size of the panew).
 		 *
-		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
-		 * ```typescript
-		 * const dimensionsEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidOverrideDimensions: dimensionsEmitter.event,
+		 * **Exampwe:** Ovewwide the dimensions of a tewminaw to 20 cowumns and 10 wows
+		 * ```typescwipt
+		 * const dimensionsEmitta = new vscode.EventEmitta<vscode.TewminawDimensions>();
+		 * const pty: vscode.Pseudotewminaw = {
+		 *   onDidWwite: wwiteEmitta.event,
+		 *   onDidOvewwideDimensions: dimensionsEmitta.event,
 		 *   open: () => {
-		 *     dimensionsEmitter.fire({
-		 *       columns: 20,
-		 *       rows: 10
+		 *     dimensionsEmitta.fiwe({
+		 *       cowumns: 20,
+		 *       wows: 10
 		 *     });
 		 *   },
-		 *   close: () => {}
+		 *   cwose: () => {}
 		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * vscode.window.cweateTewminaw({ name: 'My tewminaw', pty });
 		 * ```
 		 */
-		onDidOverrideDimensions?: Event<TerminalDimensions | undefined>;
+		onDidOvewwideDimensions?: Event<TewminawDimensions | undefined>;
 
 		/**
-		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
+		 * An event that when fiwed wiww signaw that the pty is cwosed and dispose of the tewminaw.
 		 *
-		 * A number can be used to provide an exit code for the terminal. Exit codes must be
-		 * positive and a non-zero exit codes signals failure which shows a notification for a
-		 * regular terminal and allows dependent tasks to proceed when used with the
+		 * A numba can be used to pwovide an exit code fow the tewminaw. Exit codes must be
+		 * positive and a non-zewo exit codes signaws faiwuwe which shows a notification fow a
+		 * weguwaw tewminaw and awwows dependent tasks to pwoceed when used with the
 		 * `CustomExecution` API.
 		 *
-		 * **Example:** Exit the terminal when "y" is pressed, otherwise show a notification.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const closeEmitter = new vscode.EventEmitter<vscode.TerminalDimensions>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidClose: closeEmitter.event,
-		 *   open: () => writeEmitter.fire('Press y to exit successfully'),
-		 *   close: () => {},
-		 *   handleInput: data => {
+		 * **Exampwe:** Exit the tewminaw when "y" is pwessed, othewwise show a notification.
+		 * ```typescwipt
+		 * const wwiteEmitta = new vscode.EventEmitta<stwing>();
+		 * const cwoseEmitta = new vscode.EventEmitta<vscode.TewminawDimensions>();
+		 * const pty: vscode.Pseudotewminaw = {
+		 *   onDidWwite: wwiteEmitta.event,
+		 *   onDidCwose: cwoseEmitta.event,
+		 *   open: () => wwiteEmitta.fiwe('Pwess y to exit successfuwwy'),
+		 *   cwose: () => {},
+		 *   handweInput: data => {
 		 *     if (data !== 'y') {
-		 *       vscode.window.showInformationMessage('Something went wrong');
+		 *       vscode.window.showInfowmationMessage('Something went wwong');
 		 *     }
-		 *     closeEmitter.fire();
+		 *     cwoseEmitta.fiwe();
 		 *   }
 		 * };
-		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * vscode.window.cweateTewminaw({ name: 'Exit exampwe', pty });
 		 * ```
 		 */
-		onDidClose?: Event<void | number>;
+		onDidCwose?: Event<void | numba>;
 
 		/**
-		 * An event that when fired allows changing the name of the terminal.
+		 * An event that when fiwed awwows changing the name of the tewminaw.
 		 *
-		 * **Example:** Change the terminal name to "My new terminal".
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const changeNameEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidChangeName: changeNameEmitter.event,
-		 *   open: () => changeNameEmitter.fire('My new terminal'),
-		 *   close: () => {}
+		 * **Exampwe:** Change the tewminaw name to "My new tewminaw".
+		 * ```typescwipt
+		 * const wwiteEmitta = new vscode.EventEmitta<stwing>();
+		 * const changeNameEmitta = new vscode.EventEmitta<stwing>();
+		 * const pty: vscode.Pseudotewminaw = {
+		 *   onDidWwite: wwiteEmitta.event,
+		 *   onDidChangeName: changeNameEmitta.event,
+		 *   open: () => changeNameEmitta.fiwe('My new tewminaw'),
+		 *   cwose: () => {}
 		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * vscode.window.cweateTewminaw({ name: 'My tewminaw', pty });
 		 * ```
 		 */
-		onDidChangeName?: Event<string>;
+		onDidChangeName?: Event<stwing>;
 
 		/**
-		 * Implement to handle when the pty is open and ready to start firing events.
+		 * Impwement to handwe when the pty is open and weady to stawt fiwing events.
 		 *
-		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
-		 * terminal panel has not been opened before this is called.
+		 * @pawam initiawDimensions The dimensions of the tewminaw, this wiww be undefined if the
+		 * tewminaw panew has not been opened befowe this is cawwed.
 		 */
-		open(initialDimensions: TerminalDimensions | undefined): void;
+		open(initiawDimensions: TewminawDimensions | undefined): void;
 
 		/**
-		 * Implement to handle when the terminal is closed by an act of the user.
+		 * Impwement to handwe when the tewminaw is cwosed by an act of the usa.
 		 */
-		close(): void;
+		cwose(): void;
 
 		/**
-		 * Implement to handle incoming keystrokes in the terminal or when an extension calls
-		 * {@link Terminal.sendText}. `data` contains the keystrokes/text serialized into
-		 * their corresponding VT sequence representation.
+		 * Impwement to handwe incoming keystwokes in the tewminaw ow when an extension cawws
+		 * {@wink Tewminaw.sendText}. `data` contains the keystwokes/text sewiawized into
+		 * theiw cowwesponding VT sequence wepwesentation.
 		 *
-		 * @param data The incoming data.
+		 * @pawam data The incoming data.
 		 *
-		 * **Example:** Echo input in the terminal. The sequence for enter (`\r`) is translated to
-		 * CRLF to go to a new line and move the cursor to the start of the line.
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
+		 * **Exampwe:** Echo input in the tewminaw. The sequence fow enta (`\w`) is twanswated to
+		 * CWWF to go to a new wine and move the cuwsow to the stawt of the wine.
+		 * ```typescwipt
+		 * const wwiteEmitta = new vscode.EventEmitta<stwing>();
+		 * const pty: vscode.Pseudotewminaw = {
+		 *   onDidWwite: wwiteEmitta.event,
 		 *   open: () => {},
-		 *   close: () => {},
-		 *   handleInput: data => writeEmitter.fire(data === '\r' ? '\r\n' : data)
+		 *   cwose: () => {},
+		 *   handweInput: data => wwiteEmitta.fiwe(data === '\w' ? '\w\n' : data)
 		 * };
-		 * vscode.window.createTerminal({ name: 'Local echo', pty });
+		 * vscode.window.cweateTewminaw({ name: 'Wocaw echo', pty });
 		 * ```
 		 */
-		handleInput?(data: string): void;
+		handweInput?(data: stwing): void;
 
 		/**
-		 * Implement to handle when the number of rows and columns that fit into the terminal panel
-		 * changes, for example when font size changes or when the panel is resized. The initial
-		 * state of a terminal's dimensions should be treated as `undefined` until this is triggered
-		 * as the size of a terminal isn't known until it shows up in the user interface.
+		 * Impwement to handwe when the numba of wows and cowumns that fit into the tewminaw panew
+		 * changes, fow exampwe when font size changes ow when the panew is wesized. The initiaw
+		 * state of a tewminaw's dimensions shouwd be tweated as `undefined` untiw this is twiggewed
+		 * as the size of a tewminaw isn't known untiw it shows up in the usa intewface.
 		 *
-		 * When dimensions are overridden by
-		 * {@link Pseudoterminal.onDidOverrideDimensions onDidOverrideDimensions}, `setDimensions` will
-		 * continue to be called with the regular panel dimensions, allowing the extension continue
-		 * to react dimension changes.
+		 * When dimensions awe ovewwidden by
+		 * {@wink Pseudotewminaw.onDidOvewwideDimensions onDidOvewwideDimensions}, `setDimensions` wiww
+		 * continue to be cawwed with the weguwaw panew dimensions, awwowing the extension continue
+		 * to weact dimension changes.
 		 *
-		 * @param dimensions The new dimensions.
+		 * @pawam dimensions The new dimensions.
 		 */
-		setDimensions?(dimensions: TerminalDimensions): void;
+		setDimensions?(dimensions: TewminawDimensions): void;
 	}
 
 	/**
-	 * Represents the dimensions of a terminal.
+	 * Wepwesents the dimensions of a tewminaw.
 	 */
-	export interface TerminalDimensions {
+	expowt intewface TewminawDimensions {
 		/**
-		 * The number of columns in the terminal.
+		 * The numba of cowumns in the tewminaw.
 		 */
-		readonly columns: number;
+		weadonwy cowumns: numba;
 
 		/**
-		 * The number of rows in the terminal.
+		 * The numba of wows in the tewminaw.
 		 */
-		readonly rows: number;
+		weadonwy wows: numba;
 	}
 
 	/**
-	 * Represents how a terminal exited.
+	 * Wepwesents how a tewminaw exited.
 	 */
-	export interface TerminalExitStatus {
+	expowt intewface TewminawExitStatus {
 		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
-		 *   without providing an exit code.
+		 * The exit code that a tewminaw exited with, it can have the fowwowing vawues:
+		 * - Zewo: the tewminaw pwocess ow custom execution succeeded.
+		 * - Non-zewo: the tewminaw pwocess ow custom execution faiwed.
+		 * - `undefined`: the usa fowcibwy cwosed the tewminaw ow a custom execution exited
+		 *   without pwoviding an exit code.
 		 */
-		readonly code: number | undefined;
+		weadonwy code: numba | undefined;
 	}
 
 	/**
-	 * A type of mutation that can be applied to an environment variable.
+	 * A type of mutation that can be appwied to an enviwonment vawiabwe.
 	 */
-	export enum EnvironmentVariableMutatorType {
+	expowt enum EnviwonmentVawiabweMutatowType {
 		/**
-		 * Replace the variable's existing value.
+		 * Wepwace the vawiabwe's existing vawue.
 		 */
-		Replace = 1,
+		Wepwace = 1,
 		/**
-		 * Append to the end of the variable's existing value.
+		 * Append to the end of the vawiabwe's existing vawue.
 		 */
 		Append = 2,
 		/**
-		 * Prepend to the start of the variable's existing value.
+		 * Pwepend to the stawt of the vawiabwe's existing vawue.
 		 */
-		Prepend = 3
+		Pwepend = 3
 	}
 
 	/**
-	 * A type of mutation and its value to be applied to an environment variable.
+	 * A type of mutation and its vawue to be appwied to an enviwonment vawiabwe.
 	 */
-	export interface EnvironmentVariableMutator {
+	expowt intewface EnviwonmentVawiabweMutatow {
 		/**
-		 * The type of mutation that will occur to the variable.
+		 * The type of mutation that wiww occuw to the vawiabwe.
 		 */
-		readonly type: EnvironmentVariableMutatorType;
+		weadonwy type: EnviwonmentVawiabweMutatowType;
 
 		/**
-		 * The value to use for the variable.
+		 * The vawue to use fow the vawiabwe.
 		 */
-		readonly value: string;
+		weadonwy vawue: stwing;
 	}
 
 	/**
-	 * A collection of mutations that an extension can apply to a process environment.
+	 * A cowwection of mutations that an extension can appwy to a pwocess enviwonment.
 	 */
-	export interface EnvironmentVariableCollection {
+	expowt intewface EnviwonmentVawiabweCowwection {
 		/**
-		 * Whether the collection should be cached for the workspace and applied to the terminal
-		 * across window reloads. When true the collection will be active immediately such when the
-		 * window reloads. Additionally, this API will return the cached version if it exists. The
-		 * collection will be invalidated when the extension is uninstalled or when the collection
-		 * is cleared. Defaults to true.
+		 * Whetha the cowwection shouwd be cached fow the wowkspace and appwied to the tewminaw
+		 * acwoss window wewoads. When twue the cowwection wiww be active immediatewy such when the
+		 * window wewoads. Additionawwy, this API wiww wetuwn the cached vewsion if it exists. The
+		 * cowwection wiww be invawidated when the extension is uninstawwed ow when the cowwection
+		 * is cweawed. Defauwts to twue.
 		 */
-		persistent: boolean;
+		pewsistent: boowean;
 
 		/**
-		 * Replace an environment variable with a value.
+		 * Wepwace an enviwonment vawiabwe with a vawue.
 		 *
-		 * Note that an extension can only make a single change to any one variable, so this will
-		 * overwrite any previous calls to replace, append or prepend.
+		 * Note that an extension can onwy make a singwe change to any one vawiabwe, so this wiww
+		 * ovewwwite any pwevious cawws to wepwace, append ow pwepend.
 		 *
-		 * @param variable The variable to replace.
-		 * @param value The value to replace the variable with.
+		 * @pawam vawiabwe The vawiabwe to wepwace.
+		 * @pawam vawue The vawue to wepwace the vawiabwe with.
 		 */
-		replace(variable: string, value: string): void;
+		wepwace(vawiabwe: stwing, vawue: stwing): void;
 
 		/**
-		 * Append a value to an environment variable.
+		 * Append a vawue to an enviwonment vawiabwe.
 		 *
-		 * Note that an extension can only make a single change to any one variable, so this will
-		 * overwrite any previous calls to replace, append or prepend.
+		 * Note that an extension can onwy make a singwe change to any one vawiabwe, so this wiww
+		 * ovewwwite any pwevious cawws to wepwace, append ow pwepend.
 		 *
-		 * @param variable The variable to append to.
-		 * @param value The value to append to the variable.
+		 * @pawam vawiabwe The vawiabwe to append to.
+		 * @pawam vawue The vawue to append to the vawiabwe.
 		 */
-		append(variable: string, value: string): void;
+		append(vawiabwe: stwing, vawue: stwing): void;
 
 		/**
-		 * Prepend a value to an environment variable.
+		 * Pwepend a vawue to an enviwonment vawiabwe.
 		 *
-		 * Note that an extension can only make a single change to any one variable, so this will
-		 * overwrite any previous calls to replace, append or prepend.
+		 * Note that an extension can onwy make a singwe change to any one vawiabwe, so this wiww
+		 * ovewwwite any pwevious cawws to wepwace, append ow pwepend.
 		 *
-		 * @param variable The variable to prepend.
-		 * @param value The value to prepend to the variable.
+		 * @pawam vawiabwe The vawiabwe to pwepend.
+		 * @pawam vawue The vawue to pwepend to the vawiabwe.
 		 */
-		prepend(variable: string, value: string): void;
+		pwepend(vawiabwe: stwing, vawue: stwing): void;
 
 		/**
-		 * Gets the mutator that this collection applies to a variable, if any.
+		 * Gets the mutatow that this cowwection appwies to a vawiabwe, if any.
 		 *
-		 * @param variable The variable to get the mutator for.
+		 * @pawam vawiabwe The vawiabwe to get the mutatow fow.
 		 */
-		get(variable: string): EnvironmentVariableMutator | undefined;
+		get(vawiabwe: stwing): EnviwonmentVawiabweMutatow | undefined;
 
 		/**
-		 * Iterate over each mutator in this collection.
+		 * Itewate ova each mutatow in this cowwection.
 		 *
-		 * @param callback Function to execute for each entry.
-		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @pawam cawwback Function to execute fow each entwy.
+		 * @pawam thisAwg The `this` context used when invoking the handwa function.
 		 */
-		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+		fowEach(cawwback: (vawiabwe: stwing, mutatow: EnviwonmentVawiabweMutatow, cowwection: EnviwonmentVawiabweCowwection) => any, thisAwg?: any): void;
 
 		/**
-		 * Deletes this collection's mutator for a variable.
+		 * Dewetes this cowwection's mutatow fow a vawiabwe.
 		 *
-		 * @param variable The variable to delete the mutator for.
+		 * @pawam vawiabwe The vawiabwe to dewete the mutatow fow.
 		 */
-		delete(variable: string): void;
+		dewete(vawiabwe: stwing): void;
 
 		/**
-		 * Clears all mutators from this collection.
+		 * Cweaws aww mutatows fwom this cowwection.
 		 */
-		clear(): void;
+		cweaw(): void;
 	}
 
 	/**
-	 * A location in the editor at which progress information can be shown. It depends on the
-	 * location how progress is visually represented.
+	 * A wocation in the editow at which pwogwess infowmation can be shown. It depends on the
+	 * wocation how pwogwess is visuawwy wepwesented.
 	 */
-	export enum ProgressLocation {
+	expowt enum PwogwessWocation {
 
 		/**
-		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
-		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress.
+		 * Show pwogwess fow the souwce contwow viewwet, as ovewway fow the icon and as pwogwess baw
+		 * inside the viewwet (when visibwe). Neitha suppowts cancewwation now discwete pwogwess.
 		 */
-		SourceControl = 1,
+		SouwceContwow = 1,
 
 		/**
-		 * Show progress in the status bar of the editor. Neither supports cancellation nor discrete progress.
+		 * Show pwogwess in the status baw of the editow. Neitha suppowts cancewwation now discwete pwogwess.
 		 */
 		Window = 10,
 
 		/**
-		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
+		 * Show pwogwess as notification with an optionaw cancew button. Suppowts to show infinite and discwete pwogwess.
 		 */
 		Notification = 15
 	}
 
 	/**
-	 * Value-object describing where and how progress should show.
+	 * Vawue-object descwibing whewe and how pwogwess shouwd show.
 	 */
-	export interface ProgressOptions {
+	expowt intewface PwogwessOptions {
 
 		/**
-		 * The location at which progress should show.
+		 * The wocation at which pwogwess shouwd show.
 		 */
-		location: ProgressLocation | { viewId: string };
+		wocation: PwogwessWocation | { viewId: stwing };
 
 		/**
-		 * A human-readable string which will be used to describe the
-		 * operation.
+		 * A human-weadabwe stwing which wiww be used to descwibe the
+		 * opewation.
 		 */
-		title?: string;
+		titwe?: stwing;
 
 		/**
-		 * Controls if a cancel button should show to allow the user to
-		 * cancel the long running operation.  Note that currently only
-		 * `ProgressLocation.Notification` is supporting to show a cancel
+		 * Contwows if a cancew button shouwd show to awwow the usa to
+		 * cancew the wong wunning opewation.  Note that cuwwentwy onwy
+		 * `PwogwessWocation.Notification` is suppowting to show a cancew
 		 * button.
 		 */
-		cancellable?: boolean;
+		cancewwabwe?: boowean;
 	}
 
 	/**
-	 * A light-weight user input UI that is initially not visible. After
-	 * configuring it through its properties the extension can make it
-	 * visible by calling {@link QuickInput.show}.
+	 * A wight-weight usa input UI that is initiawwy not visibwe. Afta
+	 * configuwing it thwough its pwopewties the extension can make it
+	 * visibwe by cawwing {@wink QuickInput.show}.
 	 *
-	 * There are several reasons why this UI might have to be hidden and
-	 * the extension will be notified through {@link QuickInput.onDidHide}.
-	 * (Examples include: an explicit call to {@link QuickInput.hide},
-	 * the user pressing Esc, some other input UI opening, etc.)
+	 * Thewe awe sevewaw weasons why this UI might have to be hidden and
+	 * the extension wiww be notified thwough {@wink QuickInput.onDidHide}.
+	 * (Exampwes incwude: an expwicit caww to {@wink QuickInput.hide},
+	 * the usa pwessing Esc, some otha input UI opening, etc.)
 	 *
-	 * A user pressing Enter or some other gesture implying acceptance
-	 * of the current state does not automatically hide this UI component.
-	 * It is up to the extension to decide whether to accept the user's input
-	 * and if the UI should indeed be hidden through a call to {@link QuickInput.hide}.
+	 * A usa pwessing Enta ow some otha gestuwe impwying acceptance
+	 * of the cuwwent state does not automaticawwy hide this UI component.
+	 * It is up to the extension to decide whetha to accept the usa's input
+	 * and if the UI shouwd indeed be hidden thwough a caww to {@wink QuickInput.hide}.
 	 *
-	 * When the extension no longer needs this input UI, it should
-	 * {@link QuickInput.dispose} it to allow for freeing up
-	 * any resources associated with it.
+	 * When the extension no wonga needs this input UI, it shouwd
+	 * {@wink QuickInput.dispose} it to awwow fow fweeing up
+	 * any wesouwces associated with it.
 	 *
-	 * See {@link QuickPick} and {@link InputBox} for concrete UIs.
+	 * See {@wink QuickPick} and {@wink InputBox} fow concwete UIs.
 	 */
-	export interface QuickInput {
+	expowt intewface QuickInput {
 
 		/**
-		 * An optional title.
+		 * An optionaw titwe.
 		 */
-		title: string | undefined;
+		titwe: stwing | undefined;
 
 		/**
-		 * An optional current step count.
+		 * An optionaw cuwwent step count.
 		 */
-		step: number | undefined;
+		step: numba | undefined;
 
 		/**
-		 * An optional total step count.
+		 * An optionaw totaw step count.
 		 */
-		totalSteps: number | undefined;
+		totawSteps: numba | undefined;
 
 		/**
-		 * If the UI should allow for user input. Defaults to true.
+		 * If the UI shouwd awwow fow usa input. Defauwts to twue.
 		 *
-		 * Change this to false, e.g., while validating user input or
-		 * loading data for the next step in user input.
+		 * Change this to fawse, e.g., whiwe vawidating usa input ow
+		 * woading data fow the next step in usa input.
 		 */
-		enabled: boolean;
+		enabwed: boowean;
 
 		/**
-		 * If the UI should show a progress indicator. Defaults to false.
+		 * If the UI shouwd show a pwogwess indicatow. Defauwts to fawse.
 		 *
-		 * Change this to true, e.g., while loading more data or validating
-		 * user input.
+		 * Change this to twue, e.g., whiwe woading mowe data ow vawidating
+		 * usa input.
 		 */
-		busy: boolean;
+		busy: boowean;
 
 		/**
-		 * If the UI should stay open even when loosing UI focus. Defaults to false.
-		 * This setting is ignored on iPad and is always false.
+		 * If the UI shouwd stay open even when woosing UI focus. Defauwts to fawse.
+		 * This setting is ignowed on iPad and is awways fawse.
 		 */
-		ignoreFocusOut: boolean;
+		ignoweFocusOut: boowean;
 
 		/**
-		 * Makes the input UI visible in its current configuration. Any other input
-		 * UI will first fire an {@link QuickInput.onDidHide} event.
+		 * Makes the input UI visibwe in its cuwwent configuwation. Any otha input
+		 * UI wiww fiwst fiwe an {@wink QuickInput.onDidHide} event.
 		 */
 		show(): void;
 
 		/**
-		 * Hides this input UI. This will also fire an {@link QuickInput.onDidHide}
+		 * Hides this input UI. This wiww awso fiwe an {@wink QuickInput.onDidHide}
 		 * event.
 		 */
 		hide(): void;
 
 		/**
-		 * An event signaling when this input UI is hidden.
+		 * An event signawing when this input UI is hidden.
 		 *
-		 * There are several reasons why this UI might have to be hidden and
-		 * the extension will be notified through {@link QuickInput.onDidHide}.
-		 * (Examples include: an explicit call to {@link QuickInput.hide},
-		 * the user pressing Esc, some other input UI opening, etc.)
+		 * Thewe awe sevewaw weasons why this UI might have to be hidden and
+		 * the extension wiww be notified thwough {@wink QuickInput.onDidHide}.
+		 * (Exampwes incwude: an expwicit caww to {@wink QuickInput.hide},
+		 * the usa pwessing Esc, some otha input UI opening, etc.)
 		 */
 		onDidHide: Event<void>;
 
 		/**
-		 * Dispose of this input UI and any associated resources. If it is still
-		 * visible, it is first hidden. After this call the input UI is no longer
-		 * functional and no additional methods or properties on it should be
-		 * accessed. Instead a new input UI should be created.
+		 * Dispose of this input UI and any associated wesouwces. If it is stiww
+		 * visibwe, it is fiwst hidden. Afta this caww the input UI is no wonga
+		 * functionaw and no additionaw methods ow pwopewties on it shouwd be
+		 * accessed. Instead a new input UI shouwd be cweated.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * A concrete {@link QuickInput} to let the user pick an item from a
-	 * list of items of type T. The items can be filtered through a filter text field and
-	 * there is an option {@link QuickPick.canSelectMany canSelectMany} to allow for
-	 * selecting multiple items.
+	 * A concwete {@wink QuickInput} to wet the usa pick an item fwom a
+	 * wist of items of type T. The items can be fiwtewed thwough a fiwta text fiewd and
+	 * thewe is an option {@wink QuickPick.canSewectMany canSewectMany} to awwow fow
+	 * sewecting muwtipwe items.
 	 *
-	 * Note that in many cases the more convenient {@link window.showQuickPick}
-	 * is easier to use. {@link window.createQuickPick} should be used
-	 * when {@link window.showQuickPick} does not offer the required flexibility.
+	 * Note that in many cases the mowe convenient {@wink window.showQuickPick}
+	 * is easia to use. {@wink window.cweateQuickPick} shouwd be used
+	 * when {@wink window.showQuickPick} does not offa the wequiwed fwexibiwity.
 	 */
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+	expowt intewface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		/**
-		 * Current value of the filter text.
+		 * Cuwwent vawue of the fiwta text.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optionaw pwacehowda in the fiwta text.
 		 */
-		placeholder: string | undefined;
+		pwacehowda: stwing | undefined;
 
 		/**
-		 * An event signaling when the value of the filter text has changed.
+		 * An event signawing when the vawue of the fiwta text has changed.
 		 */
-		readonly onDidChangeValue: Event<string>;
+		weadonwy onDidChangeVawue: Event<stwing>;
 
 		/**
-		 * An event signaling when the user indicated acceptance of the selected item(s).
+		 * An event signawing when the usa indicated acceptance of the sewected item(s).
 		 */
-		readonly onDidAccept: Event<void>;
+		weadonwy onDidAccept: Event<void>;
 
 		/**
-		 * Buttons for actions in the UI.
+		 * Buttons fow actions in the UI.
 		 */
-		buttons: readonly QuickInputButton[];
+		buttons: weadonwy QuickInputButton[];
 
 		/**
-		 * An event signaling when a button in the title bar was triggered.
-		 * This event does not fire for buttons on a {@link QuickPickItem}.
+		 * An event signawing when a button in the titwe baw was twiggewed.
+		 * This event does not fiwe fow buttons on a {@wink QuickPickItem}.
 		 */
-		readonly onDidTriggerButton: Event<QuickInputButton>;
+		weadonwy onDidTwiggewButton: Event<QuickInputButton>;
 
 		/**
-		 * Items to pick from. This can be read and updated by the extension.
+		 * Items to pick fwom. This can be wead and updated by the extension.
 		 */
-		items: readonly T[];
+		items: weadonwy T[];
 
 		/**
-		 * If multiple items can be selected at the same time. Defaults to false.
+		 * If muwtipwe items can be sewected at the same time. Defauwts to fawse.
 		 */
-		canSelectMany: boolean;
+		canSewectMany: boowean;
 
 		/**
-		 * If the filter text should also be matched against the description of the items. Defaults to false.
+		 * If the fiwta text shouwd awso be matched against the descwiption of the items. Defauwts to fawse.
 		 */
-		matchOnDescription: boolean;
+		matchOnDescwiption: boowean;
 
 		/**
-		 * If the filter text should also be matched against the detail of the items. Defaults to false.
+		 * If the fiwta text shouwd awso be matched against the detaiw of the items. Defauwts to fawse.
 		 */
-		matchOnDetail: boolean;
+		matchOnDetaiw: boowean;
 
 		/**
-		 * Active items. This can be read and updated by the extension.
+		 * Active items. This can be wead and updated by the extension.
 		 */
-		activeItems: readonly T[];
+		activeItems: weadonwy T[];
 
 		/**
-		 * An event signaling when the active items have changed.
+		 * An event signawing when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<readonly T[]>;
+		weadonwy onDidChangeActive: Event<weadonwy T[]>;
 
 		/**
-		 * Selected items. This can be read and updated by the extension.
+		 * Sewected items. This can be wead and updated by the extension.
 		 */
-		selectedItems: readonly T[];
+		sewectedItems: weadonwy T[];
 
 		/**
-		 * An event signaling when the selected items have changed.
+		 * An event signawing when the sewected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<readonly T[]>;
+		weadonwy onDidChangeSewection: Event<weadonwy T[]>;
 	}
 
 	/**
-	 * A concrete {@link QuickInput} to let the user input a text value.
+	 * A concwete {@wink QuickInput} to wet the usa input a text vawue.
 	 *
-	 * Note that in many cases the more convenient {@link window.showInputBox}
-	 * is easier to use. {@link window.createInputBox} should be used
-	 * when {@link window.showInputBox} does not offer the required flexibility.
+	 * Note that in many cases the mowe convenient {@wink window.showInputBox}
+	 * is easia to use. {@wink window.cweateInputBox} shouwd be used
+	 * when {@wink window.showInputBox} does not offa the wequiwed fwexibiwity.
 	 */
-	export interface InputBox extends QuickInput {
+	expowt intewface InputBox extends QuickInput {
 
 		/**
-		 * Current input value.
+		 * Cuwwent input vawue.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optionaw pwacehowda in the fiwta text.
 		 */
-		placeholder: string | undefined;
+		pwacehowda: stwing | undefined;
 
 		/**
-		 * If the input value should be hidden. Defaults to false.
+		 * If the input vawue shouwd be hidden. Defauwts to fawse.
 		 */
-		password: boolean;
+		passwowd: boowean;
 
 		/**
-		 * An event signaling when the value has changed.
+		 * An event signawing when the vawue has changed.
 		 */
-		readonly onDidChangeValue: Event<string>;
+		weadonwy onDidChangeVawue: Event<stwing>;
 
 		/**
-		 * An event signaling when the user indicated acceptance of the input value.
+		 * An event signawing when the usa indicated acceptance of the input vawue.
 		 */
-		readonly onDidAccept: Event<void>;
+		weadonwy onDidAccept: Event<void>;
 
 		/**
-		 * Buttons for actions in the UI.
+		 * Buttons fow actions in the UI.
 		 */
-		buttons: readonly QuickInputButton[];
+		buttons: weadonwy QuickInputButton[];
 
 		/**
-		 * An event signaling when a button was triggered.
+		 * An event signawing when a button was twiggewed.
 		 */
-		readonly onDidTriggerButton: Event<QuickInputButton>;
+		weadonwy onDidTwiggewButton: Event<QuickInputButton>;
 
 		/**
-		 * An optional prompt text providing some ask or explanation to the user.
+		 * An optionaw pwompt text pwoviding some ask ow expwanation to the usa.
 		 */
-		prompt: string | undefined;
+		pwompt: stwing | undefined;
 
 		/**
-		 * An optional validation message indicating a problem with the current input value.
+		 * An optionaw vawidation message indicating a pwobwem with the cuwwent input vawue.
 		 */
-		validationMessage: string | undefined;
+		vawidationMessage: stwing | undefined;
 	}
 
 	/**
-	 * Button for an action in a {@link QuickPick} or {@link InputBox}.
+	 * Button fow an action in a {@wink QuickPick} ow {@wink InputBox}.
 	 */
-	export interface QuickInputButton {
+	expowt intewface QuickInputButton {
 
 		/**
-		 * Icon for the button.
+		 * Icon fow the button.
 		 */
-		readonly iconPath: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		weadonwy iconPath: Uwi | { wight: Uwi; dawk: Uwi } | ThemeIcon;
 
 		/**
-		 * An optional tooltip.
+		 * An optionaw toowtip.
 		 */
-		readonly tooltip?: string | undefined;
+		weadonwy toowtip?: stwing | undefined;
 	}
 
 	/**
-	 * Predefined buttons for {@link QuickPick} and {@link InputBox}.
+	 * Pwedefined buttons fow {@wink QuickPick} and {@wink InputBox}.
 	 */
-	export class QuickInputButtons {
+	expowt cwass QuickInputButtons {
 
 		/**
-		 * A back button for {@link QuickPick} and {@link InputBox}.
+		 * A back button fow {@wink QuickPick} and {@wink InputBox}.
 		 *
-		 * When a navigation 'back' button is needed this one should be used for consistency.
-		 * It comes with a predefined icon, tooltip and location.
+		 * When a navigation 'back' button is needed this one shouwd be used fow consistency.
+		 * It comes with a pwedefined icon, toowtip and wocation.
 		 */
-		static readonly Back: QuickInputButton;
+		static weadonwy Back: QuickInputButton;
 
 		/**
 		 * @hidden
 		 */
-		private constructor();
+		pwivate constwuctow();
 	}
 
 	/**
-	 * An event describing an individual change in the text of a {@link TextDocument document}.
+	 * An event descwibing an individuaw change in the text of a {@wink TextDocument document}.
 	 */
-	export interface TextDocumentContentChangeEvent {
+	expowt intewface TextDocumentContentChangeEvent {
 		/**
-		 * The range that got replaced.
+		 * The wange that got wepwaced.
 		 */
-		readonly range: Range;
+		weadonwy wange: Wange;
 		/**
-		 * The offset of the range that got replaced.
+		 * The offset of the wange that got wepwaced.
 		 */
-		readonly rangeOffset: number;
+		weadonwy wangeOffset: numba;
 		/**
-		 * The length of the range that got replaced.
+		 * The wength of the wange that got wepwaced.
 		 */
-		readonly rangeLength: number;
+		weadonwy wangeWength: numba;
 		/**
-		 * The new text for the range.
+		 * The new text fow the wange.
 		 */
-		readonly text: string;
+		weadonwy text: stwing;
 	}
 
-	export enum TextDocumentChangeReason {
-		/** The text change is caused by an undo operation. */
+	expowt enum TextDocumentChangeWeason {
+		/** The text change is caused by an undo opewation. */
 		Undo = 1,
 
-		/** The text change is caused by an redo operation. */
-		Redo = 2,
+		/** The text change is caused by an wedo opewation. */
+		Wedo = 2,
 	}
 
 	/**
-	 * An event describing a transactional {@link TextDocument document} change.
+	 * An event descwibing a twansactionaw {@wink TextDocument document} change.
 	 */
-	export interface TextDocumentChangeEvent {
+	expowt intewface TextDocumentChangeEvent {
 
 		/**
 		 * The affected document.
 		 */
-		readonly document: TextDocument;
+		weadonwy document: TextDocument;
 
 		/**
-		 * An array of content changes.
+		 * An awway of content changes.
 		 */
-		readonly contentChanges: readonly TextDocumentContentChangeEvent[];
+		weadonwy contentChanges: weadonwy TextDocumentContentChangeEvent[];
 
 		/**
-		 * The reason why the document was changed.
-		 * Is undefined if the reason is not known.
+		 * The weason why the document was changed.
+		 * Is undefined if the weason is not known.
 		*/
-		readonly reason?: TextDocumentChangeReason;
+		weadonwy weason?: TextDocumentChangeWeason;
 	}
 
 	/**
-	 * Represents reasons why a text document is saved.
+	 * Wepwesents weasons why a text document is saved.
 	 */
-	export enum TextDocumentSaveReason {
+	expowt enum TextDocumentSaveWeason {
 
 		/**
-		 * Manually triggered, e.g. by the user pressing save, by starting debugging,
-		 * or by an API call.
+		 * Manuawwy twiggewed, e.g. by the usa pwessing save, by stawting debugging,
+		 * ow by an API caww.
 		 */
-		Manual = 1,
+		Manuaw = 1,
 
 		/**
-		 * Automatic after a delay.
+		 * Automatic afta a deway.
 		 */
-		AfterDelay = 2,
+		AftewDeway = 2,
 
 		/**
-		 * When the editor lost focus.
+		 * When the editow wost focus.
 		 */
 		FocusOut = 3
 	}
 
 	/**
-	 * An event that is fired when a {@link TextDocument document} will be saved.
+	 * An event that is fiwed when a {@wink TextDocument document} wiww be saved.
 	 *
-	 * To make modifications to the document before it is being saved, call the
-	 * {@linkcode TextDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
-	 * that resolves to an array of {@link TextEdit text edits}.
+	 * To make modifications to the document befowe it is being saved, caww the
+	 * {@winkcode TextDocumentWiwwSaveEvent.waitUntiw waitUntiw}-function with a thenabwe
+	 * that wesowves to an awway of {@wink TextEdit text edits}.
 	 */
-	export interface TextDocumentWillSaveEvent {
+	expowt intewface TextDocumentWiwwSaveEvent {
 
 		/**
-		 * The document that will be saved.
+		 * The document that wiww be saved.
 		 */
-		readonly document: TextDocument;
+		weadonwy document: TextDocument;
 
 		/**
-		 * The reason why save was triggered.
+		 * The weason why save was twiggewed.
 		 */
-		readonly reason: TextDocumentSaveReason;
+		weadonwy weason: TextDocumentSaveWeason;
 
 		/**
-		 * Allows to pause the event loop and to apply {@link TextEdit pre-save-edits}.
-		 * Edits of subsequent calls to this function will be applied in order. The
-		 * edits will be *ignored* if concurrent modifications of the document happened.
+		 * Awwows to pause the event woop and to appwy {@wink TextEdit pwe-save-edits}.
+		 * Edits of subsequent cawws to this function wiww be appwied in owda. The
+		 * edits wiww be *ignowed* if concuwwent modifications of the document happened.
 		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
+		 * *Note:* This function can onwy be cawwed duwing event dispatch and not
+		 * in an asynchwonous manna:
 		 *
 		 * ```ts
-		 * workspace.onWillSaveTextDocument(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
+		 * wowkspace.onWiwwSaveTextDocument(event => {
+		 * 	// async, wiww *thwow* an ewwow
+		 * 	setTimeout(() => event.waitUntiw(pwomise));
 		 *
 		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
+		 * 	event.waitUntiw(pwomise);
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that resolves to {@link TextEdit pre-save-edits}.
+		 * @pawam thenabwe A thenabwe that wesowves to {@wink TextEdit pwe-save-edits}.
 		 */
-		waitUntil(thenable: Thenable<TextEdit[]>): void;
+		waitUntiw(thenabwe: Thenabwe<TextEdit[]>): void;
 
 		/**
-		 * Allows to pause the event loop until the provided thenable resolved.
+		 * Awwows to pause the event woop untiw the pwovided thenabwe wesowved.
 		 *
-		 * *Note:* This function can only be called during event dispatch.
+		 * *Note:* This function can onwy be cawwed duwing event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntiw(thenabwe: Thenabwe<any>): void;
 	}
 
 	/**
-	 * An event that is fired when files are going to be created.
+	 * An event that is fiwed when fiwes awe going to be cweated.
 	 *
-	 * To make modifications to the workspace before the files are created,
-	 * call the {@linkcode FileWillCreateEvent.waitUntil waitUntil}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * To make modifications to the wowkspace befowe the fiwes awe cweated,
+	 * caww the {@winkcode FiweWiwwCweateEvent.waitUntiw waitUntiw}-function with a
+	 * thenabwe that wesowves to a {@wink WowkspaceEdit wowkspace edit}.
 	 */
-	export interface FileWillCreateEvent {
+	expowt intewface FiweWiwwCweateEvent {
 
 		/**
-		 * The files that are going to be created.
+		 * The fiwes that awe going to be cweated.
 		 */
-		readonly files: readonly Uri[];
+		weadonwy fiwes: weadonwy Uwi[];
 
 		/**
-		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
+		 * Awwows to pause the event and to appwy a {@wink WowkspaceEdit wowkspace edit}.
 		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
+		 * *Note:* This function can onwy be cawwed duwing event dispatch and not
+		 * in an asynchwonous manna:
 		 *
 		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
+		 * wowkspace.onWiwwCweateFiwes(event => {
+		 * 	// async, wiww *thwow* an ewwow
+		 * 	setTimeout(() => event.waitUntiw(pwomise));
 		 *
 		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
+		 * 	event.waitUntiw(pwomise);
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntiw(thenabwe: Thenabwe<WowkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Awwows to pause the event untiw the pwovided thenabwe wesowves.
 		 *
-		 * *Note:* This function can only be called during event dispatch.
+		 * *Note:* This function can onwy be cawwed duwing event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntiw(thenabwe: Thenabwe<any>): void;
 	}
 
 	/**
-	 * An event that is fired after files are created.
+	 * An event that is fiwed afta fiwes awe cweated.
 	 */
-	export interface FileCreateEvent {
+	expowt intewface FiweCweateEvent {
 
 		/**
-		 * The files that got created.
+		 * The fiwes that got cweated.
 		 */
-		readonly files: readonly Uri[];
+		weadonwy fiwes: weadonwy Uwi[];
 	}
 
 	/**
-	 * An event that is fired when files are going to be deleted.
+	 * An event that is fiwed when fiwes awe going to be deweted.
 	 *
-	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * To make modifications to the wowkspace befowe the fiwes awe deweted,
+	 * caww the {@wink FiweWiwwCweateEvent.waitUntiw `waitUntiw}-function with a
+	 * thenabwe that wesowves to a {@wink WowkspaceEdit wowkspace edit}.
 	 */
-	export interface FileWillDeleteEvent {
+	expowt intewface FiweWiwwDeweteEvent {
 
 		/**
-		 * The files that are going to be deleted.
+		 * The fiwes that awe going to be deweted.
 		 */
-		readonly files: readonly Uri[];
+		weadonwy fiwes: weadonwy Uwi[];
 
 		/**
-		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
+		 * Awwows to pause the event and to appwy a {@wink WowkspaceEdit wowkspace edit}.
 		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
+		 * *Note:* This function can onwy be cawwed duwing event dispatch and not
+		 * in an asynchwonous manna:
 		 *
 		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
+		 * wowkspace.onWiwwCweateFiwes(event => {
+		 * 	// async, wiww *thwow* an ewwow
+		 * 	setTimeout(() => event.waitUntiw(pwomise));
 		 *
 		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
+		 * 	event.waitUntiw(pwomise);
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntiw(thenabwe: Thenabwe<WowkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Awwows to pause the event untiw the pwovided thenabwe wesowves.
 		 *
-		 * *Note:* This function can only be called during event dispatch.
+		 * *Note:* This function can onwy be cawwed duwing event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntiw(thenabwe: Thenabwe<any>): void;
 	}
 
 	/**
-	 * An event that is fired after files are deleted.
+	 * An event that is fiwed afta fiwes awe deweted.
 	 */
-	export interface FileDeleteEvent {
+	expowt intewface FiweDeweteEvent {
 
 		/**
-		 * The files that got deleted.
+		 * The fiwes that got deweted.
 		 */
-		readonly files: readonly Uri[];
+		weadonwy fiwes: weadonwy Uwi[];
 	}
 
 	/**
-	 * An event that is fired when files are going to be renamed.
+	 * An event that is fiwed when fiwes awe going to be wenamed.
 	 *
-	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
-	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
+	 * To make modifications to the wowkspace befowe the fiwes awe wenamed,
+	 * caww the {@wink FiweWiwwCweateEvent.waitUntiw `waitUntiw}-function with a
+	 * thenabwe that wesowves to a {@wink WowkspaceEdit wowkspace edit}.
 	 */
-	export interface FileWillRenameEvent {
+	expowt intewface FiweWiwwWenameEvent {
 
 		/**
-		 * The files that are going to be renamed.
+		 * The fiwes that awe going to be wenamed.
 		 */
-		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
+		weadonwy fiwes: WeadonwyAwway<{ weadonwy owdUwi: Uwi, weadonwy newUwi: Uwi }>;
 
 		/**
-		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
+		 * Awwows to pause the event and to appwy a {@wink WowkspaceEdit wowkspace edit}.
 		 *
-		 * *Note:* This function can only be called during event dispatch and not
-		 * in an asynchronous manner:
+		 * *Note:* This function can onwy be cawwed duwing event dispatch and not
+		 * in an asynchwonous manna:
 		 *
 		 * ```ts
-		 * workspace.onWillCreateFiles(event => {
-		 * 	// async, will *throw* an error
-		 * 	setTimeout(() => event.waitUntil(promise));
+		 * wowkspace.onWiwwCweateFiwes(event => {
+		 * 	// async, wiww *thwow* an ewwow
+		 * 	setTimeout(() => event.waitUntiw(pwomise));
 		 *
 		 * 	// sync, OK
-		 * 	event.waitUntil(promise);
+		 * 	event.waitUntiw(pwomise);
 		 * })
 		 * ```
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+		waitUntiw(thenabwe: Thenabwe<WowkspaceEdit>): void;
 
 		/**
-		 * Allows to pause the event until the provided thenable resolves.
+		 * Awwows to pause the event untiw the pwovided thenabwe wesowves.
 		 *
-		 * *Note:* This function can only be called during event dispatch.
+		 * *Note:* This function can onwy be cawwed duwing event dispatch.
 		 *
-		 * @param thenable A thenable that delays saving.
+		 * @pawam thenabwe A thenabwe that deways saving.
 		 */
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntiw(thenabwe: Thenabwe<any>): void;
 	}
 
 	/**
-	 * An event that is fired after files are renamed.
+	 * An event that is fiwed afta fiwes awe wenamed.
 	 */
-	export interface FileRenameEvent {
+	expowt intewface FiweWenameEvent {
 
 		/**
-		 * The files that got renamed.
+		 * The fiwes that got wenamed.
 		 */
-		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
+		weadonwy fiwes: WeadonwyAwway<{ weadonwy owdUwi: Uwi, weadonwy newUwi: Uwi }>;
 	}
 
 	/**
-	 * An event describing a change to the set of {@link workspace.workspaceFolders workspace folders}.
+	 * An event descwibing a change to the set of {@wink wowkspace.wowkspaceFowdews wowkspace fowdews}.
 	 */
-	export interface WorkspaceFoldersChangeEvent {
+	expowt intewface WowkspaceFowdewsChangeEvent {
 		/**
-		 * Added workspace folders.
+		 * Added wowkspace fowdews.
 		 */
-		readonly added: readonly WorkspaceFolder[];
+		weadonwy added: weadonwy WowkspaceFowda[];
 
 		/**
-		 * Removed workspace folders.
+		 * Wemoved wowkspace fowdews.
 		 */
-		readonly removed: readonly WorkspaceFolder[];
+		weadonwy wemoved: weadonwy WowkspaceFowda[];
 	}
 
 	/**
-	 * A workspace folder is one of potentially many roots opened by the editor. All workspace folders
-	 * are equal which means there is no notion of an active or primary workspace folder.
+	 * A wowkspace fowda is one of potentiawwy many woots opened by the editow. Aww wowkspace fowdews
+	 * awe equaw which means thewe is no notion of an active ow pwimawy wowkspace fowda.
 	 */
-	export interface WorkspaceFolder {
+	expowt intewface WowkspaceFowda {
 
 		/**
-		 * The associated uri for this workspace folder.
+		 * The associated uwi fow this wowkspace fowda.
 		 *
-		 * *Note:* The {@link Uri}-type was intentionally chosen such that future releases of the editor can support
-		 * workspace folders that are not stored on the local disk, e.g. `ftp://server/workspaces/foo`.
+		 * *Note:* The {@wink Uwi}-type was intentionawwy chosen such that futuwe weweases of the editow can suppowt
+		 * wowkspace fowdews that awe not stowed on the wocaw disk, e.g. `ftp://sewva/wowkspaces/foo`.
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 
 		/**
-		 * The name of this workspace folder. Defaults to
-		 * the basename of its {@link Uri.path uri-path}
+		 * The name of this wowkspace fowda. Defauwts to
+		 * the basename of its {@wink Uwi.path uwi-path}
 		 */
-		readonly name: string;
+		weadonwy name: stwing;
 
 		/**
-		 * The ordinal number of this workspace folder.
+		 * The owdinaw numba of this wowkspace fowda.
 		 */
-		readonly index: number;
+		weadonwy index: numba;
 	}
 
 	/**
-	 * Namespace for dealing with the current workspace. A workspace is the collection of one
-	 * or more folders that are opened in an editor window (instance).
+	 * Namespace fow deawing with the cuwwent wowkspace. A wowkspace is the cowwection of one
+	 * ow mowe fowdews that awe opened in an editow window (instance).
 	 *
-	 * It is also possible to open an editor without a workspace. For example, when you open a
-	 * new editor window by selecting a file from your platform's File menu, you will not be
-	 * inside a workspace. In this mode, some of the editor's capabilities are reduced but you can
-	 * still open text files and edit them.
+	 * It is awso possibwe to open an editow without a wowkspace. Fow exampwe, when you open a
+	 * new editow window by sewecting a fiwe fwom youw pwatfowm's Fiwe menu, you wiww not be
+	 * inside a wowkspace. In this mode, some of the editow's capabiwities awe weduced but you can
+	 * stiww open text fiwes and edit them.
 	 *
-	 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
-	 * the concept of workspaces.
+	 * Wefa to https://code.visuawstudio.com/docs/editow/wowkspaces fow mowe infowmation on
+	 * the concept of wowkspaces.
 	 *
-	 * The workspace offers support for {@link workspace.createFileSystemWatcher listening} to fs
-	 * events and for {@link workspace.findFiles finding} files. Both perform well and run _outside_
-	 * the editor-process so that they should be always used instead of nodejs-equivalents.
+	 * The wowkspace offews suppowt fow {@wink wowkspace.cweateFiweSystemWatcha wistening} to fs
+	 * events and fow {@wink wowkspace.findFiwes finding} fiwes. Both pewfowm weww and wun _outside_
+	 * the editow-pwocess so that they shouwd be awways used instead of nodejs-equivawents.
 	 */
-	export namespace workspace {
+	expowt namespace wowkspace {
 
 		/**
-		 * A {@link FileSystem file system} instance that allows to interact with local and remote
-		 * files, e.g. `vscode.workspace.fs.readDirectory(someUri)` allows to retrieve all entries
-		 * of a directory or `vscode.workspace.fs.stat(anotherUri)` returns the meta data for a
-		 * file.
+		 * A {@wink FiweSystem fiwe system} instance that awwows to intewact with wocaw and wemote
+		 * fiwes, e.g. `vscode.wowkspace.fs.weadDiwectowy(someUwi)` awwows to wetwieve aww entwies
+		 * of a diwectowy ow `vscode.wowkspace.fs.stat(anothewUwi)` wetuwns the meta data fow a
+		 * fiwe.
 		 */
-		export const fs: FileSystem;
+		expowt const fs: FiweSystem;
 
 		/**
-		 * The uri of the first entry of {@linkcode workspace.workspaceFolders workspaceFolders}
-		 * as `string`. `undefined` if there is no first entry.
+		 * The uwi of the fiwst entwy of {@winkcode wowkspace.wowkspaceFowdews wowkspaceFowdews}
+		 * as `stwing`. `undefined` if thewe is no fiwst entwy.
 		 *
-		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
-		 * on workspaces.
+		 * Wefa to https://code.visuawstudio.com/docs/editow/wowkspaces fow mowe infowmation
+		 * on wowkspaces.
 		 *
-		 * @deprecated Use {@linkcode workspace.workspaceFolders workspaceFolders} instead.
+		 * @depwecated Use {@winkcode wowkspace.wowkspaceFowdews wowkspaceFowdews} instead.
 		 */
-		export const rootPath: string | undefined;
+		expowt const wootPath: stwing | undefined;
 
 		/**
-		 * List of workspace folders (0-N) that are open in the editor. `undefined` when no workspace
+		 * Wist of wowkspace fowdews (0-N) that awe open in the editow. `undefined` when no wowkspace
 		 * has been opened.
 		 *
-		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
-		 * on workspaces.
+		 * Wefa to https://code.visuawstudio.com/docs/editow/wowkspaces fow mowe infowmation
+		 * on wowkspaces.
 		 */
-		export const workspaceFolders: readonly WorkspaceFolder[] | undefined;
+		expowt const wowkspaceFowdews: weadonwy WowkspaceFowda[] | undefined;
 
 		/**
-		 * The name of the workspace. `undefined` when no workspace
+		 * The name of the wowkspace. `undefined` when no wowkspace
 		 * has been opened.
 		 *
-		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
-		 * the concept of workspaces.
+		 * Wefa to https://code.visuawstudio.com/docs/editow/wowkspaces fow mowe infowmation on
+		 * the concept of wowkspaces.
 		 */
-		export const name: string | undefined;
+		expowt const name: stwing | undefined;
 
 		/**
-		 * The location of the workspace file, for example:
+		 * The wocation of the wowkspace fiwe, fow exampwe:
 		 *
-		 * `file:///Users/name/Development/myProject.code-workspace`
+		 * `fiwe:///Usews/name/Devewopment/myPwoject.code-wowkspace`
 		 *
-		 * or
+		 * ow
 		 *
-		 * `untitled:1555503116870`
+		 * `untitwed:1555503116870`
 		 *
-		 * for a workspace that is untitled and not yet saved.
+		 * fow a wowkspace that is untitwed and not yet saved.
 		 *
-		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace is opened
-		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
-		 * is untitled, the returned URI will use the `untitled:` scheme
+		 * Depending on the wowkspace that is opened, the vawue wiww be:
+		 *  * `undefined` when no wowkspace is opened
+		 *  * the path of the wowkspace fiwe as `Uwi` othewwise. if the wowkspace
+		 * is untitwed, the wetuwned UWI wiww use the `untitwed:` scheme
 		 *
-		 * The location can e.g. be used with the `vscode.openFolder` command to
-		 * open the workspace again after it has been closed.
+		 * The wocation can e.g. be used with the `vscode.openFowda` command to
+		 * open the wowkspace again afta it has been cwosed.
 		 *
-		 * **Example:**
-		 * ```typescript
-		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
+		 * **Exampwe:**
+		 * ```typescwipt
+		 * vscode.commands.executeCommand('vscode.openFowda', uwiOfWowkspace);
 		 * ```
 		 *
-		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
-		 * the concept of workspaces.
+		 * Wefa to https://code.visuawstudio.com/docs/editow/wowkspaces fow mowe infowmation on
+		 * the concept of wowkspaces.
 		 *
-		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
-		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
-		 * for that purpose which will work both when a single folder is opened as
-		 * well as an untitled or saved workspace.
+		 * **Note:** it is not advised to use `wowkspace.wowkspaceFiwe` to wwite
+		 * configuwation data into the fiwe. You can use `wowkspace.getConfiguwation().update()`
+		 * fow that puwpose which wiww wowk both when a singwe fowda is opened as
+		 * weww as an untitwed ow saved wowkspace.
 		 */
-		export const workspaceFile: Uri | undefined;
+		expowt const wowkspaceFiwe: Uwi | undefined;
 
 		/**
-		 * An event that is emitted when a workspace folder is added or removed.
+		 * An event that is emitted when a wowkspace fowda is added ow wemoved.
 		 */
-		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
+		expowt const onDidChangeWowkspaceFowdews: Event<WowkspaceFowdewsChangeEvent>;
 
 		/**
-		 * Returns the {@link WorkspaceFolder workspace folder} that contains a given uri.
-		 * * returns `undefined` when the given uri doesn't match any workspace folder
-		 * * returns the *input* when the given uri is a workspace folder itself
+		 * Wetuwns the {@wink WowkspaceFowda wowkspace fowda} that contains a given uwi.
+		 * * wetuwns `undefined` when the given uwi doesn't match any wowkspace fowda
+		 * * wetuwns the *input* when the given uwi is a wowkspace fowda itsewf
 		 *
-		 * @param uri An uri.
-		 * @return A workspace folder or `undefined`
+		 * @pawam uwi An uwi.
+		 * @wetuwn A wowkspace fowda ow `undefined`
 		 */
-		export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
+		expowt function getWowkspaceFowda(uwi: Uwi): WowkspaceFowda | undefined;
 
 		/**
-		 * Returns a path that is relative to the workspace folder or folders.
+		 * Wetuwns a path that is wewative to the wowkspace fowda ow fowdews.
 		 *
-		 * When there are no {@link workspace.workspaceFolders workspace folders} or when the path
-		 * is not contained in them, the input is returned.
+		 * When thewe awe no {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} ow when the path
+		 * is not contained in them, the input is wetuwned.
 		 *
-		 * @param pathOrUri A path or uri. When a uri is given its {@link Uri.fsPath fsPath} is used.
-		 * @param includeWorkspaceFolder When `true` and when the given path is contained inside a
-		 * workspace folder the name of the workspace is prepended. Defaults to `true` when there are
-		 * multiple workspace folders and `false` otherwise.
-		 * @return A path relative to the root or the input.
+		 * @pawam pathOwUwi A path ow uwi. When a uwi is given its {@wink Uwi.fsPath fsPath} is used.
+		 * @pawam incwudeWowkspaceFowda When `twue` and when the given path is contained inside a
+		 * wowkspace fowda the name of the wowkspace is pwepended. Defauwts to `twue` when thewe awe
+		 * muwtipwe wowkspace fowdews and `fawse` othewwise.
+		 * @wetuwn A path wewative to the woot ow the input.
 		 */
-		export function asRelativePath(pathOrUri: string | Uri, includeWorkspaceFolder?: boolean): string;
+		expowt function asWewativePath(pathOwUwi: stwing | Uwi, incwudeWowkspaceFowda?: boowean): stwing;
 
 		/**
-		 * This method replaces `deleteCount` {@link workspace.workspaceFolders workspace folders} starting at index `start`
-		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
-		 * behavior can be used to add, remove and change workspace folders in a single operation.
+		 * This method wepwaces `deweteCount` {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} stawting at index `stawt`
+		 * by an optionaw set of `wowkspaceFowdewsToAdd` on the `vscode.wowkspace.wowkspaceFowdews` awway. This "spwice"
+		 * behaviow can be used to add, wemove and change wowkspace fowdews in a singwe opewation.
 		 *
-		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
-		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
-		 * updated to point to the first workspace folder.
+		 * If the fiwst wowkspace fowda is added, wemoved ow changed, the cuwwentwy executing extensions (incwuding the
+		 * one that cawwed this method) wiww be tewminated and westawted so that the (depwecated) `wootPath` pwopewty is
+		 * updated to point to the fiwst wowkspace fowda.
 		 *
-		 * Use the {@linkcode onDidChangeWorkspaceFolders onDidChangeWorkspaceFolders()} event to get notified when the
-		 * workspace folders have been updated.
+		 * Use the {@winkcode onDidChangeWowkspaceFowdews onDidChangeWowkspaceFowdews()} event to get notified when the
+		 * wowkspace fowdews have been updated.
 		 *
-		 * **Example:** adding a new workspace folder at the end of workspace folders
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(workspace.workspaceFolders ? workspace.workspaceFolders.length : 0, null, { uri: ...});
+		 * **Exampwe:** adding a new wowkspace fowda at the end of wowkspace fowdews
+		 * ```typescwipt
+		 * wowkspace.updateWowkspaceFowdews(wowkspace.wowkspaceFowdews ? wowkspace.wowkspaceFowdews.wength : 0, nuww, { uwi: ...});
 		 * ```
 		 *
-		 * **Example:** removing the first workspace folder
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(0, 1);
+		 * **Exampwe:** wemoving the fiwst wowkspace fowda
+		 * ```typescwipt
+		 * wowkspace.updateWowkspaceFowdews(0, 1);
 		 * ```
 		 *
-		 * **Example:** replacing an existing workspace folder with a new one
-		 * ```typescript
-		 * workspace.updateWorkspaceFolders(0, 1, { uri: ...});
+		 * **Exampwe:** wepwacing an existing wowkspace fowda with a new one
+		 * ```typescwipt
+		 * wowkspace.updateWowkspaceFowdews(0, 1, { uwi: ...});
 		 * ```
 		 *
-		 * It is valid to remove an existing workspace folder and add it again with a different name
-		 * to rename that folder.
+		 * It is vawid to wemove an existing wowkspace fowda and add it again with a diffewent name
+		 * to wename that fowda.
 		 *
-		 * **Note:** it is not valid to call {@link updateWorkspaceFolders updateWorkspaceFolders()} multiple times
-		 * without waiting for the {@linkcode onDidChangeWorkspaceFolders onDidChangeWorkspaceFolders()} to fire.
+		 * **Note:** it is not vawid to caww {@wink updateWowkspaceFowdews updateWowkspaceFowdews()} muwtipwe times
+		 * without waiting fow the {@winkcode onDidChangeWowkspaceFowdews onDidChangeWowkspaceFowdews()} to fiwe.
 		 *
-		 * @param start the zero-based location in the list of currently opened {@link WorkspaceFolder workspace folders}
-		 * from which to start deleting workspace folders.
-		 * @param deleteCount the optional number of workspace folders to remove.
-		 * @param workspaceFoldersToAdd the optional variable set of workspace folders to add in place of the deleted ones.
-		 * Each workspace is identified with a mandatory URI and an optional name.
-		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
-		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
+		 * @pawam stawt the zewo-based wocation in the wist of cuwwentwy opened {@wink WowkspaceFowda wowkspace fowdews}
+		 * fwom which to stawt deweting wowkspace fowdews.
+		 * @pawam deweteCount the optionaw numba of wowkspace fowdews to wemove.
+		 * @pawam wowkspaceFowdewsToAdd the optionaw vawiabwe set of wowkspace fowdews to add in pwace of the deweted ones.
+		 * Each wowkspace is identified with a mandatowy UWI and an optionaw name.
+		 * @wetuwn twue if the opewation was successfuwwy stawted and fawse othewwise if awguments wewe used that wouwd wesuwt
+		 * in invawid wowkspace fowda state (e.g. 2 fowdews with the same UWI).
 		 */
-		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
+		expowt function updateWowkspaceFowdews(stawt: numba, deweteCount: numba | undefined | nuww, ...wowkspaceFowdewsToAdd: { uwi: Uwi, name?: stwing }[]): boowean;
 
 		/**
-		 * Creates a file system watcher.
+		 * Cweates a fiwe system watcha.
 		 *
-		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
-		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
+		 * A gwob pattewn that fiwtews the fiwe events on theiw absowute path must be pwovided. Optionawwy,
+		 * fwags to ignowe cewtain kinds of events can be pwovided. To stop wistening to events the watcha must be disposed.
 		 *
-		 * *Note* that only files within the current {@link workspace.workspaceFolders workspace folders} can be watched.
-		 * *Note* that when watching for file changes such as '**​/*.js', notifications will not be sent when a parent folder is
-		 * moved or deleted (this is a known limitation of the current implementation and may change in the future).
+		 * *Note* that onwy fiwes within the cuwwent {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} can be watched.
+		 * *Note* that when watching fow fiwe changes such as '**​/*.js', notifications wiww not be sent when a pawent fowda is
+		 * moved ow deweted (this is a known wimitation of the cuwwent impwementation and may change in the futuwe).
 		 *
-		 * @param globPattern A {@link GlobPattern glob pattern} that is applied to the absolute paths of created, changed,
-		 * and deleted files. Use a {@link RelativePattern relative pattern} to limit events to a certain {@link WorkspaceFolder workspace folder}.
-		 * @param ignoreCreateEvents Ignore when files have been created.
-		 * @param ignoreChangeEvents Ignore when files have been changed.
-		 * @param ignoreDeleteEvents Ignore when files have been deleted.
-		 * @return A new file system watcher instance.
+		 * @pawam gwobPattewn A {@wink GwobPattewn gwob pattewn} that is appwied to the absowute paths of cweated, changed,
+		 * and deweted fiwes. Use a {@wink WewativePattewn wewative pattewn} to wimit events to a cewtain {@wink WowkspaceFowda wowkspace fowda}.
+		 * @pawam ignoweCweateEvents Ignowe when fiwes have been cweated.
+		 * @pawam ignoweChangeEvents Ignowe when fiwes have been changed.
+		 * @pawam ignoweDeweteEvents Ignowe when fiwes have been deweted.
+		 * @wetuwn A new fiwe system watcha instance.
 		 */
-		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
+		expowt function cweateFiweSystemWatcha(gwobPattewn: GwobPattewn, ignoweCweateEvents?: boowean, ignoweChangeEvents?: boowean, ignoweDeweteEvents?: boowean): FiweSystemWatcha;
 
 		/**
-		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
+		 * Find fiwes acwoss aww {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} in the wowkspace.
 		 *
-		 * @example
-		 * findFiles('**​/*.js', '**​/node_modules/**', 10)
+		 * @exampwe
+		 * findFiwes('**​/*.js', '**​/node_moduwes/**', 10)
 		 *
-		 * @param include A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. Use a {@link RelativePattern relative pattern}
-		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
-		 * @param exclude  A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes and the user's
-		 * configured excludes will apply. When `null`, no excludes will apply.
-		 * @param maxResults An upper-bound for the result.
-		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
-		 * {@link workspace.workspaceFolders workspace folders} are opened.
+		 * @pawam incwude A {@wink GwobPattewn gwob pattewn} that defines the fiwes to seawch fow. The gwob pattewn
+		 * wiww be matched against the fiwe paths of wesuwting matches wewative to theiw wowkspace. Use a {@wink WewativePattewn wewative pattewn}
+		 * to westwict the seawch wesuwts to a {@wink WowkspaceFowda wowkspace fowda}.
+		 * @pawam excwude  A {@wink GwobPattewn gwob pattewn} that defines fiwes and fowdews to excwude. The gwob pattewn
+		 * wiww be matched against the fiwe paths of wesuwting matches wewative to theiw wowkspace. When `undefined`, defauwt excwudes and the usa's
+		 * configuwed excwudes wiww appwy. When `nuww`, no excwudes wiww appwy.
+		 * @pawam maxWesuwts An uppa-bound fow the wesuwt.
+		 * @pawam token A token that can be used to signaw cancewwation to the undewwying seawch engine.
+		 * @wetuwn A thenabwe that wesowves to an awway of wesouwce identifiews. Wiww wetuwn no wesuwts if no
+		 * {@wink wowkspace.wowkspaceFowdews wowkspace fowdews} awe opened.
 		 */
-		export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		expowt function findFiwes(incwude: GwobPattewn, excwude?: GwobPattewn | nuww, maxWesuwts?: numba, token?: CancewwationToken): Thenabwe<Uwi[]>;
 
 		/**
-		 * Save all dirty files.
+		 * Save aww diwty fiwes.
 		 *
-		 * @param includeUntitled Also save files that have been created during this session.
-		 * @return A thenable that resolves when the files have been saved.
+		 * @pawam incwudeUntitwed Awso save fiwes that have been cweated duwing this session.
+		 * @wetuwn A thenabwe that wesowves when the fiwes have been saved.
 		 */
-		export function saveAll(includeUntitled?: boolean): Thenable<boolean>;
+		expowt function saveAww(incwudeUntitwed?: boowean): Thenabwe<boowean>;
 
 		/**
-		 * Make changes to one or many resources or create, delete, and rename resources as defined by the given
-		 * {@link WorkspaceEdit workspace edit}.
+		 * Make changes to one ow many wesouwces ow cweate, dewete, and wename wesouwces as defined by the given
+		 * {@wink WowkspaceEdit wowkspace edit}.
 		 *
-		 * All changes of a workspace edit are applied in the same order in which they have been added. If
-		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
-		 * in the order the 'inserts' were made, unless that are interleaved with resource edits. Invalid sequences
-		 * like 'delete file a' -> 'insert text in file a' cause failure of the operation.
+		 * Aww changes of a wowkspace edit awe appwied in the same owda in which they have been added. If
+		 * muwtipwe textuaw insewts awe made at the same position, these stwings appeaw in the wesuwting text
+		 * in the owda the 'insewts' wewe made, unwess that awe intewweaved with wesouwce edits. Invawid sequences
+		 * wike 'dewete fiwe a' -> 'insewt text in fiwe a' cause faiwuwe of the opewation.
 		 *
-		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
-		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consecutive edits will
-		 * not be attempted, when a single edit fails.
+		 * When appwying a wowkspace edit that consists onwy of text edits an 'aww-ow-nothing'-stwategy is used.
+		 * A wowkspace edit with wesouwce cweations ow dewetions abowts the opewation, e.g. consecutive edits wiww
+		 * not be attempted, when a singwe edit faiws.
 		 *
-		 * @param edit A workspace edit.
-		 * @return A thenable that resolves when the edit could be applied.
+		 * @pawam edit A wowkspace edit.
+		 * @wetuwn A thenabwe that wesowves when the edit couwd be appwied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+		expowt function appwyEdit(edit: WowkspaceEdit): Thenabwe<boowean>;
 
 		/**
-		 * All text documents currently known to the editor.
+		 * Aww text documents cuwwentwy known to the editow.
 		 */
-		export const textDocuments: readonly TextDocument[];
+		expowt const textDocuments: weadonwy TextDocument[];
 
 		/**
-		 * Opens a document. Will return early if this document is already open. Otherwise
-		 * the document is loaded and the {@link workspace.onDidOpenTextDocument didOpen}-event fires.
+		 * Opens a document. Wiww wetuwn eawwy if this document is awweady open. Othewwise
+		 * the document is woaded and the {@wink wowkspace.onDidOpenTextDocument didOpen}-event fiwes.
 		 *
-		 * The document is denoted by an {@link Uri}. Depending on the {@link Uri.scheme scheme} the
-		 * following rules apply:
-		 * * `file`-scheme: Open a file on disk (`openTextDocument(Uri.file(path))`). Will be rejected if the file
-		 * does not exist or cannot be loaded.
-		 * * `untitled`-scheme: Open a blank untitled file with associated path (`openTextDocument(Uri.file(path).with({ scheme: 'untitled' }))`).
-		 * The language will be derived from the file name.
-		 * * For all other schemes contributed {@link TextDocumentContentProvider text document content providers} and
-		 * {@link FileSystemProvider file system providers} are consulted.
+		 * The document is denoted by an {@wink Uwi}. Depending on the {@wink Uwi.scheme scheme} the
+		 * fowwowing wuwes appwy:
+		 * * `fiwe`-scheme: Open a fiwe on disk (`openTextDocument(Uwi.fiwe(path))`). Wiww be wejected if the fiwe
+		 * does not exist ow cannot be woaded.
+		 * * `untitwed`-scheme: Open a bwank untitwed fiwe with associated path (`openTextDocument(Uwi.fiwe(path).with({ scheme: 'untitwed' }))`).
+		 * The wanguage wiww be dewived fwom the fiwe name.
+		 * * Fow aww otha schemes contwibuted {@wink TextDocumentContentPwovida text document content pwovidews} and
+		 * {@wink FiweSystemPwovida fiwe system pwovidews} awe consuwted.
 		 *
-		 * *Note* that the lifecycle of the returned document is owned by the editor and not by the extension. That means an
-		 * {@linkcode workspace.onDidCloseTextDocument onDidClose}-event can occur at any time after opening it.
+		 * *Note* that the wifecycwe of the wetuwned document is owned by the editow and not by the extension. That means an
+		 * {@winkcode wowkspace.onDidCwoseTextDocument onDidCwose}-event can occuw at any time afta opening it.
 		 *
-		 * @param uri Identifies the resource to open.
-		 * @return A promise that resolves to a {@link TextDocument document}.
+		 * @pawam uwi Identifies the wesouwce to open.
+		 * @wetuwn A pwomise that wesowves to a {@wink TextDocument document}.
 		 */
-		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
+		expowt function openTextDocument(uwi: Uwi): Thenabwe<TextDocument>;
 
 		/**
-		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
+		 * A showt-hand fow `openTextDocument(Uwi.fiwe(fiweName))`.
 		 *
-		 * @see {@link openTextDocument}
-		 * @param fileName A name of a file on disk.
-		 * @return A promise that resolves to a {@link TextDocument document}.
+		 * @see {@wink openTextDocument}
+		 * @pawam fiweName A name of a fiwe on disk.
+		 * @wetuwn A pwomise that wesowves to a {@wink TextDocument document}.
 		 */
-		export function openTextDocument(fileName: string): Thenable<TextDocument>;
+		expowt function openTextDocument(fiweName: stwing): Thenabwe<TextDocument>;
 
 		/**
-		 * Opens an untitled text document. The editor will prompt the user for a file
-		 * path when the document is to be saved. The `options` parameter allows to
-		 * specify the *language* and/or the *content* of the document.
+		 * Opens an untitwed text document. The editow wiww pwompt the usa fow a fiwe
+		 * path when the document is to be saved. The `options` pawameta awwows to
+		 * specify the *wanguage* and/ow the *content* of the document.
 		 *
-		 * @param options Options to control how the document will be created.
-		 * @return A promise that resolves to a {@link TextDocument document}.
+		 * @pawam options Options to contwow how the document wiww be cweated.
+		 * @wetuwn A pwomise that wesowves to a {@wink TextDocument document}.
 		 */
-		export function openTextDocument(options?: { language?: string; content?: string; }): Thenable<TextDocument>;
+		expowt function openTextDocument(options?: { wanguage?: stwing; content?: stwing; }): Thenabwe<TextDocument>;
 
 		/**
-		 * Register a text document content provider.
+		 * Wegista a text document content pwovida.
 		 *
-		 * Only one provider can be registered per scheme.
+		 * Onwy one pwovida can be wegistewed pew scheme.
 		 *
-		 * @param scheme The uri-scheme to register for.
-		 * @param provider A content provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam scheme The uwi-scheme to wegista fow.
+		 * @pawam pwovida A content pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerTextDocumentContentProvider(scheme: string, provider: TextDocumentContentProvider): Disposable;
+		expowt function wegistewTextDocumentContentPwovida(scheme: stwing, pwovida: TextDocumentContentPwovida): Disposabwe;
 
 		/**
-		 * An event that is emitted when a {@link TextDocument text document} is opened or when the language id
-		 * of a text document {@link languages.setTextDocumentLanguage has been changed}.
+		 * An event that is emitted when a {@wink TextDocument text document} is opened ow when the wanguage id
+		 * of a text document {@wink wanguages.setTextDocumentWanguage has been changed}.
 		 *
-		 * To add an event listener when a visible text document is opened, use the {@link TextEditor} events in the
-		 * {@link window} namespace. Note that:
+		 * To add an event wistena when a visibwe text document is opened, use the {@wink TextEditow} events in the
+		 * {@wink window} namespace. Note that:
 		 *
-		 * - The event is emitted before the {@link TextDocument document} is updated in the
-		 * {@link window.activeTextEditor active text editor}
-		 * - When a {@link TextDocument text document} is already open (e.g.: open in another {@link window.visibleTextEditors visible text editor}) this event is not emitted
+		 * - The event is emitted befowe the {@wink TextDocument document} is updated in the
+		 * {@wink window.activeTextEditow active text editow}
+		 * - When a {@wink TextDocument text document} is awweady open (e.g.: open in anotha {@wink window.visibweTextEditows visibwe text editow}) this event is not emitted
 		 *
 		 */
-		export const onDidOpenTextDocument: Event<TextDocument>;
+		expowt const onDidOpenTextDocument: Event<TextDocument>;
 
 		/**
-		 * An event that is emitted when a {@link TextDocument text document} is disposed or when the language id
-		 * of a text document {@link languages.setTextDocumentLanguage has been changed}.
+		 * An event that is emitted when a {@wink TextDocument text document} is disposed ow when the wanguage id
+		 * of a text document {@wink wanguages.setTextDocumentWanguage has been changed}.
 		 *
-		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed, use the
-		 * {@linkcode window.onDidChangeVisibleTextEditors onDidChangeVisibleTextEditors}-event to know when editors change.
+		 * *Note 1:* Thewe is no guawantee that this event fiwes when an editow tab is cwosed, use the
+		 * {@winkcode window.onDidChangeVisibweTextEditows onDidChangeVisibweTextEditows}-event to know when editows change.
 		 *
-		 * *Note 2:* A document can be open but not shown in an editor which means this event can fire
-		 * for a document that has not been shown in an editor.
+		 * *Note 2:* A document can be open but not shown in an editow which means this event can fiwe
+		 * fow a document that has not been shown in an editow.
 		 */
-		export const onDidCloseTextDocument: Event<TextDocument>;
+		expowt const onDidCwoseTextDocument: Event<TextDocument>;
 
 		/**
-		 * An event that is emitted when a {@link TextDocument text document} is changed. This usually happens
-		 * when the {@link TextDocument.getText contents} changes but also when other things like the
-		 * {@link TextDocument.isDirty dirty}-state changes.
+		 * An event that is emitted when a {@wink TextDocument text document} is changed. This usuawwy happens
+		 * when the {@wink TextDocument.getText contents} changes but awso when otha things wike the
+		 * {@wink TextDocument.isDiwty diwty}-state changes.
 		 */
-		export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
+		expowt const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 
 		/**
-		 * An event that is emitted when a {@link TextDocument text document} will be saved to disk.
+		 * An event that is emitted when a {@wink TextDocument text document} wiww be saved to disk.
 		 *
-		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
-		 * might save without firing this event. For instance when shutting down with dirty files.
+		 * *Note 1:* Subscwibews can deway saving by wegistewing asynchwonous wowk. Fow the sake of data integwity the editow
+		 * might save without fiwing this event. Fow instance when shutting down with diwty fiwes.
 		 *
-		 * *Note 2:* Subscribers are called sequentially and they can {@link TextDocumentWillSaveEvent.waitUntil delay} saving
-		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
-		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
-		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 * *Note 2:* Subscwibews awe cawwed sequentiawwy and they can {@wink TextDocumentWiwwSaveEvent.waitUntiw deway} saving
+		 * by wegistewing asynchwonous wowk. Pwotection against misbehaving wistenews is impwemented as such:
+		 *  * thewe is an ovewaww time budget that aww wistenews shawe and if that is exhausted no fuwtha wistena is cawwed
+		 *  * wistenews that take a wong time ow pwoduce ewwows fwequentwy wiww not be cawwed anymowe
 		 *
-		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+		 * The cuwwent thweshowds awe 1.5 seconds as ovewaww time budget and a wistena can misbehave 3 times befowe being ignowed.
 		 */
-		export const onWillSaveTextDocument: Event<TextDocumentWillSaveEvent>;
+		expowt const onWiwwSaveTextDocument: Event<TextDocumentWiwwSaveEvent>;
 
 		/**
-		 * An event that is emitted when a {@link TextDocument text document} is saved to disk.
+		 * An event that is emitted when a {@wink TextDocument text document} is saved to disk.
 		 */
-		export const onDidSaveTextDocument: Event<TextDocument>;
+		expowt const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
-		 * All notebook documents currently known to the editor.
+		 * Aww notebook documents cuwwentwy known to the editow.
 		 */
-		export const notebookDocuments: readonly NotebookDocument[];
+		expowt const notebookDocuments: weadonwy NotebookDocument[];
 
 		/**
-		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
-		 * the notebook is loaded and the {@linkcode notebook.onDidOpenNotebookDocument onDidOpenNotebookDocument}-event fires.
+		 * Open a notebook. Wiww wetuwn eawwy if this notebook is awweady {@wink notebook.notebookDocuments woaded}. Othewwise
+		 * the notebook is woaded and the {@winkcode notebook.onDidOpenNotebookDocument onDidOpenNotebookDocument}-event fiwes.
 		 *
-		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
-		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
+		 * *Note* that the wifecycwe of the wetuwned notebook is owned by the editow and not by the extension. That means an
+		 * {@winkcode notebook.onDidCwoseNotebookDocument onDidCwoseNotebookDocument}-event can occuw at any time afta.
 		 *
-		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
+		 * *Note* that opening a notebook does not show a notebook editow. This function onwy wetuwns a notebook document which
+		 * can be showns in a notebook editow but it can awso be used fow otha things.
 		 *
-		 * @param uri The resource to open.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 * @pawam uwi The wesouwce to open.
+		 * @wetuwns A pwomise that wesowves to a {@wink NotebookDocument notebook}
 		 */
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+		expowt function openNotebookDocument(uwi: Uwi): Thenabwe<NotebookDocument>;
 
 		/**
-		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * Open an untitwed notebook. The editow wiww pwompt the usa fow a fiwe
 		 * path when the document is to be saved.
 		 *
-		 * @see {@link openNotebookDocument}
-		 * @param notebookType The notebook type that should be used.
-		 * @param content The initial contents of the notebook.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 * @see {@wink openNotebookDocument}
+		 * @pawam notebookType The notebook type that shouwd be used.
+		 * @pawam content The initiaw contents of the notebook.
+		 * @wetuwns A pwomise that wesowves to a {@wink NotebookDocument notebook}.
 		 */
-		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
+		expowt function openNotebookDocument(notebookType: stwing, content?: NotebookData): Thenabwe<NotebookDocument>;
 
 		/**
-		 * Register a {@link NotebookSerializer notebook serializer}.
+		 * Wegista a {@wink NotebookSewiawiza notebook sewiawiza}.
 		 *
-		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
-		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
+		 * A notebook sewiawiza must be contwibuted thwough the `notebooks` extension point. When opening a notebook fiwe, the editow wiww send
+		 * the `onNotebook:<notebookType>` activation event, and extensions must wegista theiw sewiawiza in wetuwn.
 		 *
-		 * @param notebookType A notebook.
-		 * @param serializer A notebook serialzier.
-		 * @param options Optional context options that define what parts of a notebook should be persisted
-		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
+		 * @pawam notebookType A notebook.
+		 * @pawam sewiawiza A notebook sewiawzia.
+		 * @pawam options Optionaw context options that define what pawts of a notebook shouwd be pewsisted
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this sewiawiza when being disposed.
 		 */
-		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+		expowt function wegistewNotebookSewiawiza(notebookType: stwing, sewiawiza: NotebookSewiawiza, options?: NotebookDocumentContentOptions): Disposabwe;
 
 		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 * An event that is emitted when a {@wink NotebookDocument notebook} is opened.
 		 */
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		expowt const onDidOpenNotebookDocument: Event<NotebookDocument>;
 
 		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 * An event that is emitted when a {@wink NotebookDocument notebook} is disposed.
 		 *
-		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 * *Note 1:* Thewe is no guawantee that this event fiwes when an editow tab is cwosed.
 		 *
-		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
-		 * for a notebook that has not been shown in an editor.
+		 * *Note 2:* A notebook can be open but not shown in an editow which means this event can fiwe
+		 * fow a notebook that has not been shown in an editow.
 		 */
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		expowt const onDidCwoseNotebookDocument: Event<NotebookDocument>;
 
 		/**
-		 * An event that is emitted when files are being created.
+		 * An event that is emitted when fiwes awe being cweated.
 		 *
-		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the {@linkcode workspace.applyEdit}-api. This event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note 1:* This event is twiggewed by usa gestuwes, wike cweating a fiwe fwom the
+		 * expwowa, ow fwom the {@winkcode wowkspace.appwyEdit}-api. This event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 *
-		 * *Note 2:* When this event is fired, edits to files that are are being created cannot be applied.
+		 * *Note 2:* When this event is fiwed, edits to fiwes that awe awe being cweated cannot be appwied.
 		 */
-		export const onWillCreateFiles: Event<FileWillCreateEvent>;
+		expowt const onWiwwCweateFiwes: Event<FiweWiwwCweateEvent>;
 
 		/**
-		 * An event that is emitted when files have been created.
+		 * An event that is emitted when fiwes have been cweated.
 		 *
-		 * *Note:* This event is triggered by user gestures, like creating a file from the
-		 * explorer, or from the {@linkcode workspace.applyEdit}-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note:* This event is twiggewed by usa gestuwes, wike cweating a fiwe fwom the
+		 * expwowa, ow fwom the {@winkcode wowkspace.appwyEdit}-api, but this event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 */
-		export const onDidCreateFiles: Event<FileCreateEvent>;
+		expowt const onDidCweateFiwes: Event<FiweCweateEvent>;
 
 		/**
-		 * An event that is emitted when files are being deleted.
+		 * An event that is emitted when fiwes awe being deweted.
 		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the {@linkcode workspace.applyEdit}-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note 1:* This event is twiggewed by usa gestuwes, wike deweting a fiwe fwom the
+		 * expwowa, ow fwom the {@winkcode wowkspace.appwyEdit}-api, but this event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 * *Note 2:* When deweting a fowda with chiwdwen onwy one event is fiwed.
 		 */
-		export const onWillDeleteFiles: Event<FileWillDeleteEvent>;
+		expowt const onWiwwDeweteFiwes: Event<FiweWiwwDeweteEvent>;
 
 		/**
-		 * An event that is emitted when files have been deleted.
+		 * An event that is emitted when fiwes have been deweted.
 		 *
-		 * *Note 1:* This event is triggered by user gestures, like deleting a file from the
-		 * explorer, or from the {@linkcode workspace.applyEdit}-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note 1:* This event is twiggewed by usa gestuwes, wike deweting a fiwe fwom the
+		 * expwowa, ow fwom the {@winkcode wowkspace.appwyEdit}-api, but this event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 *
-		 * *Note 2:* When deleting a folder with children only one event is fired.
+		 * *Note 2:* When deweting a fowda with chiwdwen onwy one event is fiwed.
 		 */
-		export const onDidDeleteFiles: Event<FileDeleteEvent>;
+		expowt const onDidDeweteFiwes: Event<FiweDeweteEvent>;
 
 		/**
-		 * An event that is emitted when files are being renamed.
+		 * An event that is emitted when fiwes awe being wenamed.
 		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the {@linkcode workspace.applyEdit}-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note 1:* This event is twiggewed by usa gestuwes, wike wenaming a fiwe fwom the
+		 * expwowa, and fwom the {@winkcode wowkspace.appwyEdit}-api, but this event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 * *Note 2:* When wenaming a fowda with chiwdwen onwy one event is fiwed.
 		 */
-		export const onWillRenameFiles: Event<FileWillRenameEvent>;
+		expowt const onWiwwWenameFiwes: Event<FiweWiwwWenameEvent>;
 
 		/**
-		 * An event that is emitted when files have been renamed.
+		 * An event that is emitted when fiwes have been wenamed.
 		 *
-		 * *Note 1:* This event is triggered by user gestures, like renaming a file from the
-		 * explorer, and from the {@linkcode workspace.applyEdit}-api, but this event is *not* fired when
-		 * files change on disk, e.g triggered by another application, or when using the
-		 * {@linkcode FileSystem workspace.fs}-api.
+		 * *Note 1:* This event is twiggewed by usa gestuwes, wike wenaming a fiwe fwom the
+		 * expwowa, and fwom the {@winkcode wowkspace.appwyEdit}-api, but this event is *not* fiwed when
+		 * fiwes change on disk, e.g twiggewed by anotha appwication, ow when using the
+		 * {@winkcode FiweSystem wowkspace.fs}-api.
 		 *
-		 * *Note 2:* When renaming a folder with children only one event is fired.
+		 * *Note 2:* When wenaming a fowda with chiwdwen onwy one event is fiwed.
 		 */
-		export const onDidRenameFiles: Event<FileRenameEvent>;
+		expowt const onDidWenameFiwes: Event<FiweWenameEvent>;
 
 		/**
-		 * Get a workspace configuration object.
+		 * Get a wowkspace configuwation object.
 		 *
-		 * When a section-identifier is provided only that part of the configuration
-		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
+		 * When a section-identifia is pwovided onwy that pawt of the configuwation
+		 * is wetuwned. Dots in the section-identifia awe intewpweted as chiwd-access,
+		 * wike `{ myExt: { setting: { doIt: twue }}}` and `getConfiguwation('myExt.setting').get('doIt') === twue`.
 		 *
-		 * When a scope is provided configuration confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 * When a scope is pwovided configuwation confined to that scope is wetuwned. Scope can be a wesouwce ow a wanguage identifia ow both.
 		 *
-		 * @param section A dot-separated identifier.
-		 * @param scope A scope for which the configuration is asked for.
-		 * @return The full configuration or a subset.
+		 * @pawam section A dot-sepawated identifia.
+		 * @pawam scope A scope fow which the configuwation is asked fow.
+		 * @wetuwn The fuww configuwation ow a subset.
 		 */
-		export function getConfiguration(section?: string, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+		expowt function getConfiguwation(section?: stwing, scope?: ConfiguwationScope | nuww): WowkspaceConfiguwation;
 
 		/**
-		 * An event that is emitted when the {@link WorkspaceConfiguration configuration} changed.
+		 * An event that is emitted when the {@wink WowkspaceConfiguwation configuwation} changed.
 		 */
-		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
+		expowt const onDidChangeConfiguwation: Event<ConfiguwationChangeEvent>;
 
 		/**
-		 * Register a task provider.
+		 * Wegista a task pwovida.
 		 *
-		 * @deprecated Use the corresponding function on the `tasks` namespace instead
+		 * @depwecated Use the cowwesponding function on the `tasks` namespace instead
 		 *
-		 * @param type The task kind type this provider is registered for.
-		 * @param provider A task provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam type The task kind type this pwovida is wegistewed fow.
+		 * @pawam pwovida A task pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+		expowt function wegistewTaskPwovida(type: stwing, pwovida: TaskPwovida): Disposabwe;
 
 		/**
-		 * Register a filesystem provider for a given scheme, e.g. `ftp`.
+		 * Wegista a fiwesystem pwovida fow a given scheme, e.g. `ftp`.
 		 *
-		 * There can only be one provider per scheme and an error is being thrown when a scheme
-		 * has been claimed by another provider or when it is reserved.
+		 * Thewe can onwy be one pwovida pew scheme and an ewwow is being thwown when a scheme
+		 * has been cwaimed by anotha pwovida ow when it is wesewved.
 		 *
-		 * @param scheme The uri-{@link Uri.scheme scheme} the provider registers for.
-		 * @param provider The filesystem provider.
-		 * @param options Immutable metadata about the provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam scheme The uwi-{@wink Uwi.scheme scheme} the pwovida wegistews fow.
+		 * @pawam pwovida The fiwesystem pwovida.
+		 * @pawam options Immutabwe metadata about the pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
+		expowt function wegistewFiweSystemPwovida(scheme: stwing, pwovida: FiweSystemPwovida, options?: { weadonwy isCaseSensitive?: boowean, weadonwy isWeadonwy?: boowean }): Disposabwe;
 
 		/**
-		 * When true, the user has explicitly trusted the contents of the workspace.
+		 * When twue, the usa has expwicitwy twusted the contents of the wowkspace.
 		 */
-		export const isTrusted: boolean;
+		expowt const isTwusted: boowean;
 
 		/**
-		 * Event that fires when the current workspace has been trusted.
+		 * Event that fiwes when the cuwwent wowkspace has been twusted.
 		 */
-		export const onDidGrantWorkspaceTrust: Event<void>;
+		expowt const onDidGwantWowkspaceTwust: Event<void>;
 	}
 
 	/**
-	 * The configuration scope which can be a
-	 * a 'resource' or a languageId or both or
-	 * a '{@link TextDocument}' or
-	 * a '{@link WorkspaceFolder}'
+	 * The configuwation scope which can be a
+	 * a 'wesouwce' ow a wanguageId ow both ow
+	 * a '{@wink TextDocument}' ow
+	 * a '{@wink WowkspaceFowda}'
 	 */
-	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
+	expowt type ConfiguwationScope = Uwi | TextDocument | WowkspaceFowda | { uwi?: Uwi, wanguageId: stwing };
 
 	/**
-	 * An event describing the change in Configuration
+	 * An event descwibing the change in Configuwation
 	 */
-	export interface ConfigurationChangeEvent {
+	expowt intewface ConfiguwationChangeEvent {
 
 		/**
 		 * Checks if the given section has changed.
-		 * If scope is provided, checks if the section has changed for resources under the given scope.
+		 * If scope is pwovided, checks if the section has changed fow wesouwces unda the given scope.
 		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param scope A scope in which to check.
-		 * @return `true` if the given section has changed.
+		 * @pawam section Configuwation name, suppowts _dotted_ names.
+		 * @pawam scope A scope in which to check.
+		 * @wetuwn `twue` if the given section has changed.
 		 */
-		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
+		affectsConfiguwation(section: stwing, scope?: ConfiguwationScope): boowean;
 	}
 
 	/**
-	 * Namespace for participating in language-specific editor [features](https://code.visualstudio.com/docs/editor/editingevolved),
-	 * like IntelliSense, code actions, diagnostics etc.
+	 * Namespace fow pawticipating in wanguage-specific editow [featuwes](https://code.visuawstudio.com/docs/editow/editingevowved),
+	 * wike IntewwiSense, code actions, diagnostics etc.
 	 *
-	 * Many programming languages exist and there is huge variety in syntaxes, semantics, and paradigms. Despite that, features
-	 * like automatic word-completion, code navigation, or code checking have become popular across different tools for different
-	 * programming languages.
+	 * Many pwogwamming wanguages exist and thewe is huge vawiety in syntaxes, semantics, and pawadigms. Despite that, featuwes
+	 * wike automatic wowd-compwetion, code navigation, ow code checking have become popuwaw acwoss diffewent toows fow diffewent
+	 * pwogwamming wanguages.
 	 *
-	 * The editor provides an API that makes it simple to provide such common features by having all UI and actions already in place and
-	 * by allowing you to participate by providing data only. For instance, to contribute a hover all you have to do is provide a function
-	 * that can be called with a {@link TextDocument} and a {@link Position} returning hover info. The rest, like tracking the
-	 * mouse, positioning the hover, keeping the hover stable etc. is taken care of by the editor.
+	 * The editow pwovides an API that makes it simpwe to pwovide such common featuwes by having aww UI and actions awweady in pwace and
+	 * by awwowing you to pawticipate by pwoviding data onwy. Fow instance, to contwibute a hova aww you have to do is pwovide a function
+	 * that can be cawwed with a {@wink TextDocument} and a {@wink Position} wetuwning hova info. The west, wike twacking the
+	 * mouse, positioning the hova, keeping the hova stabwe etc. is taken cawe of by the editow.
 	 *
-	 * ```javascript
-	 * languages.registerHoverProvider('javascript', {
-	 * 	provideHover(document, position, token) {
-	 * 		return new Hover('I am a hover!');
+	 * ```javascwipt
+	 * wanguages.wegistewHovewPwovida('javascwipt', {
+	 * 	pwovideHova(document, position, token) {
+	 * 		wetuwn new Hova('I am a hova!');
 	 * 	}
 	 * });
 	 * ```
 	 *
-	 * Registration is done using a {@link DocumentSelector document selector} which is either a language id, like `javascript` or
-	 * a more complex {@link DocumentFilter filter} like `{ language: 'typescript', scheme: 'file' }`. Matching a document against such
-	 * a selector will result in a {@link languages.match score} that is used to determine if and how a provider shall be used. When
-	 * scores are equal the provider that came last wins. For features that allow full arity, like {@link languages.registerHoverProvider hover},
-	 * the score is only checked to be `>0`, for other features, like {@link languages.registerCompletionItemProvider IntelliSense} the
-	 * score is used for determining the order in which providers are asked to participate.
+	 * Wegistwation is done using a {@wink DocumentSewectow document sewectow} which is eitha a wanguage id, wike `javascwipt` ow
+	 * a mowe compwex {@wink DocumentFiwta fiwta} wike `{ wanguage: 'typescwipt', scheme: 'fiwe' }`. Matching a document against such
+	 * a sewectow wiww wesuwt in a {@wink wanguages.match scowe} that is used to detewmine if and how a pwovida shaww be used. When
+	 * scowes awe equaw the pwovida that came wast wins. Fow featuwes that awwow fuww awity, wike {@wink wanguages.wegistewHovewPwovida hova},
+	 * the scowe is onwy checked to be `>0`, fow otha featuwes, wike {@wink wanguages.wegistewCompwetionItemPwovida IntewwiSense} the
+	 * scowe is used fow detewmining the owda in which pwovidews awe asked to pawticipate.
 	 */
-	export namespace languages {
+	expowt namespace wanguages {
 
 		/**
-		 * Return the identifiers of all known languages.
-		 * @return Promise resolving to an array of identifier strings.
+		 * Wetuwn the identifiews of aww known wanguages.
+		 * @wetuwn Pwomise wesowving to an awway of identifia stwings.
 		 */
-		export function getLanguages(): Thenable<string[]>;
+		expowt function getWanguages(): Thenabwe<stwing[]>;
 
 		/**
-		 * Set (and change) the {@link TextDocument.languageId language} that is associated
+		 * Set (and change) the {@wink TextDocument.wanguageId wanguage} that is associated
 		 * with the given document.
 		 *
-		 * *Note* that calling this function will trigger the {@linkcode workspace.onDidCloseTextDocument onDidCloseTextDocument} event
-		 * followed by the {@linkcode workspace.onDidOpenTextDocument onDidOpenTextDocument} event.
+		 * *Note* that cawwing this function wiww twigga the {@winkcode wowkspace.onDidCwoseTextDocument onDidCwoseTextDocument} event
+		 * fowwowed by the {@winkcode wowkspace.onDidOpenTextDocument onDidOpenTextDocument} event.
 		 *
-		 * @param document The document which language is to be changed
-		 * @param languageId The new language identifier.
-		 * @returns A thenable that resolves with the updated document.
+		 * @pawam document The document which wanguage is to be changed
+		 * @pawam wanguageId The new wanguage identifia.
+		 * @wetuwns A thenabwe that wesowves with the updated document.
 		 */
-		export function setTextDocumentLanguage(document: TextDocument, languageId: string): Thenable<TextDocument>;
+		expowt function setTextDocumentWanguage(document: TextDocument, wanguageId: stwing): Thenabwe<TextDocument>;
 
 		/**
-		 * Compute the match between a document {@link DocumentSelector selector} and a document. Values
-		 * greater than zero mean the selector matches the document.
+		 * Compute the match between a document {@wink DocumentSewectow sewectow} and a document. Vawues
+		 * gweata than zewo mean the sewectow matches the document.
 		 *
-		 * A match is computed according to these rules:
-		 * 1. When {@linkcode DocumentSelector} is an array, compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
-		 * 2. A string will be desugared to become the `language`-part of a {@linkcode DocumentFilter}, so `"fooLang"` is like `{ language: "fooLang" }`.
-		 * 3. A {@linkcode DocumentFilter} will be matched against the document by comparing its parts with the document. The following rules apply:
-		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn’t match, the result is `0`
-		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  4. The result is the maximum value of each match
+		 * A match is computed accowding to these wuwes:
+		 * 1. When {@winkcode DocumentSewectow} is an awway, compute the match fow each contained `DocumentFiwta` ow wanguage identifia and take the maximum vawue.
+		 * 2. A stwing wiww be desugawed to become the `wanguage`-pawt of a {@winkcode DocumentFiwta}, so `"fooWang"` is wike `{ wanguage: "fooWang" }`.
+		 * 3. A {@winkcode DocumentFiwta} wiww be matched against the document by compawing its pawts with the document. The fowwowing wuwes appwy:
+		 *  1. When the `DocumentFiwta` is empty (`{}`) the wesuwt is `0`
+		 *  2. When `scheme`, `wanguage`, ow `pattewn` awe defined but one doesn’t match, the wesuwt is `0`
+		 *  3. Matching against `*` gives a scowe of `5`, matching via equawity ow via a gwob-pattewn gives a scowe of `10`
+		 *  4. The wesuwt is the maximum vawue of each match
 		 *
-		 * Samples:
+		 * Sampwes:
 		 * ```js
-		 * // default document from disk (file-scheme)
-		 * doc.uri; //'file:///my/file.js'
-		 * doc.languageId; // 'javascript'
-		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript'}, doc); // 10;
-		 * match({language: 'javascript', scheme: 'file'}, doc); // 10;
+		 * // defauwt document fwom disk (fiwe-scheme)
+		 * doc.uwi; //'fiwe:///my/fiwe.js'
+		 * doc.wanguageId; // 'javascwipt'
+		 * match('javascwipt', doc); // 10;
+		 * match({wanguage: 'javascwipt'}, doc); // 10;
+		 * match({wanguage: 'javascwipt', scheme: 'fiwe'}, doc); // 10;
 		 * match('*', doc); // 5
-		 * match('fooLang', doc); // 0
-		 * match(['fooLang', '*'], doc); // 5
+		 * match('fooWang', doc); // 0
+		 * match(['fooWang', '*'], doc); // 5
 		 *
-		 * // virtual document, e.g. from git-index
-		 * doc.uri; // 'git:/my/file.js'
-		 * doc.languageId; // 'javascript'
-		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
+		 * // viwtuaw document, e.g. fwom git-index
+		 * doc.uwi; // 'git:/my/fiwe.js'
+		 * doc.wanguageId; // 'javascwipt'
+		 * match('javascwipt', doc); // 10;
+		 * match({wanguage: 'javascwipt', scheme: 'git'}, doc); // 10;
 		 * match('*', doc); // 5
 		 * ```
 		 *
-		 * @param selector A document selector.
-		 * @param document A text document.
-		 * @return A number `>0` when the selector matches and `0` when the selector does not match.
+		 * @pawam sewectow A document sewectow.
+		 * @pawam document A text document.
+		 * @wetuwn A numba `>0` when the sewectow matches and `0` when the sewectow does not match.
 		 */
-		export function match(selector: DocumentSelector, document: TextDocument): number;
+		expowt function match(sewectow: DocumentSewectow, document: TextDocument): numba;
 
 		/**
-		 * An {@link Event} which fires when the global set of diagnostics changes. This is
-		 * newly added and removed diagnostics.
+		 * An {@wink Event} which fiwes when the gwobaw set of diagnostics changes. This is
+		 * newwy added and wemoved diagnostics.
 		 */
-		export const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
+		expowt const onDidChangeDiagnostics: Event<DiagnosticChangeEvent>;
 
 		/**
-		 * Get all diagnostics for a given resource.
+		 * Get aww diagnostics fow a given wesouwce.
 		 *
-		 * @param resource A resource
-		 * @returns An array of {@link Diagnostic diagnostics} objects or an empty array.
+		 * @pawam wesouwce A wesouwce
+		 * @wetuwns An awway of {@wink Diagnostic diagnostics} objects ow an empty awway.
 		 */
-		export function getDiagnostics(resource: Uri): Diagnostic[];
+		expowt function getDiagnostics(wesouwce: Uwi): Diagnostic[];
 
 		/**
-		 * Get all diagnostics.
+		 * Get aww diagnostics.
 		 *
-		 * @returns An array of uri-diagnostics tuples or an empty array.
+		 * @wetuwns An awway of uwi-diagnostics tupwes ow an empty awway.
 		 */
-		export function getDiagnostics(): [Uri, Diagnostic[]][];
+		expowt function getDiagnostics(): [Uwi, Diagnostic[]][];
 
 		/**
-		 * Create a diagnostics collection.
+		 * Cweate a diagnostics cowwection.
 		 *
-		 * @param name The {@link DiagnosticCollection.name name} of the collection.
-		 * @return A new diagnostic collection.
+		 * @pawam name The {@wink DiagnosticCowwection.name name} of the cowwection.
+		 * @wetuwn A new diagnostic cowwection.
 		 */
-		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
+		expowt function cweateDiagnosticCowwection(name?: stwing): DiagnosticCowwection;
 
 		/**
-		 * Register a completion provider.
+		 * Wegista a compwetion pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and groups of equal score are sequentially asked for
-		 * completion items. The process stops when one or many providers of a group return a
-		 * result. A failing provider (rejected promise or exception) will not fail the whole
-		 * operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and gwoups of equaw scowe awe sequentiawwy asked fow
+		 * compwetion items. The pwocess stops when one ow many pwovidews of a gwoup wetuwn a
+		 * wesuwt. A faiwing pwovida (wejected pwomise ow exception) wiww not faiw the whowe
+		 * opewation.
 		 *
-		 * A completion item provider can be associated with a set of `triggerCharacters`. When trigger
-		 * characters are being typed, completions are requested but only from providers that registered
-		 * the typed character. Because of that trigger characters should be different than {@link LanguageConfiguration.wordPattern word characters},
-		 * a common trigger character is `.` to trigger member completions.
+		 * A compwetion item pwovida can be associated with a set of `twiggewChawactews`. When twigga
+		 * chawactews awe being typed, compwetions awe wequested but onwy fwom pwovidews that wegistewed
+		 * the typed chawacta. Because of that twigga chawactews shouwd be diffewent than {@wink WanguageConfiguwation.wowdPattewn wowd chawactews},
+		 * a common twigga chawacta is `.` to twigga memba compwetions.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A completion provider.
-		 * @param triggerCharacters Trigger completion when the user types one of the characters.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A compwetion pwovida.
+		 * @pawam twiggewChawactews Twigga compwetion when the usa types one of the chawactews.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerCompletionItemProvider(selector: DocumentSelector, provider: CompletionItemProvider, ...triggerCharacters: string[]): Disposable;
+		expowt function wegistewCompwetionItemPwovida(sewectow: DocumentSewectow, pwovida: CompwetionItemPwovida, ...twiggewChawactews: stwing[]): Disposabwe;
 
 		/**
-		 * Register a code action provider.
+		 * Wegista a code action pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A code action provider.
-		 * @param metadata Metadata about the kind of code actions the provider provides.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A code action pwovida.
+		 * @pawam metadata Metadata about the kind of code actions the pwovida pwovides.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): Disposable;
+		expowt function wegistewCodeActionsPwovida(sewectow: DocumentSewectow, pwovida: CodeActionPwovida, metadata?: CodeActionPwovidewMetadata): Disposabwe;
 
 		/**
-		 * Register a code lens provider.
+		 * Wegista a code wens pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A code lens provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A code wens pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerCodeLensProvider(selector: DocumentSelector, provider: CodeLensProvider): Disposable;
+		expowt function wegistewCodeWensPwovida(sewectow: DocumentSewectow, pwovida: CodeWensPwovida): Disposabwe;
 
 		/**
-		 * Register a definition provider.
+		 * Wegista a definition pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A definition provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A definition pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable;
+		expowt function wegistewDefinitionPwovida(sewectow: DocumentSewectow, pwovida: DefinitionPwovida): Disposabwe;
 
 		/**
-		 * Register an implementation provider.
+		 * Wegista an impwementation pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An implementation provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida An impwementation pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerImplementationProvider(selector: DocumentSelector, provider: ImplementationProvider): Disposable;
+		expowt function wegistewImpwementationPwovida(sewectow: DocumentSewectow, pwovida: ImpwementationPwovida): Disposabwe;
 
 		/**
-		 * Register a type definition provider.
+		 * Wegista a type definition pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A type definition provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A type definition pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerTypeDefinitionProvider(selector: DocumentSelector, provider: TypeDefinitionProvider): Disposable;
+		expowt function wegistewTypeDefinitionPwovida(sewectow: DocumentSewectow, pwovida: TypeDefinitionPwovida): Disposabwe;
 
 		/**
-		 * Register a declaration provider.
+		 * Wegista a decwawation pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A declaration provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A decwawation pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDeclarationProvider(selector: DocumentSelector, provider: DeclarationProvider): Disposable;
+		expowt function wegistewDecwawationPwovida(sewectow: DocumentSewectow, pwovida: DecwawationPwovida): Disposabwe;
 
 		/**
-		 * Register a hover provider.
+		 * Wegista a hova pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A hover provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A hova pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable;
+		expowt function wegistewHovewPwovida(sewectow: DocumentSewectow, pwovida: HovewPwovida): Disposabwe;
 
 		/**
-		 * Register a provider that locates evaluatable expressions in text documents.
-		 * The editor will evaluate the expression in the active debug session and will show the result in the debug hover.
+		 * Wegista a pwovida that wocates evawuatabwe expwessions in text documents.
+		 * The editow wiww evawuate the expwession in the active debug session and wiww show the wesuwt in the debug hova.
 		 *
-		 * If multiple providers are registered for a language an arbitrary provider will be used.
+		 * If muwtipwe pwovidews awe wegistewed fow a wanguage an awbitwawy pwovida wiww be used.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An evaluatable expression provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida An evawuatabwe expwession pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+		expowt function wegistewEvawuatabweExpwessionPwovida(sewectow: DocumentSewectow, pwovida: EvawuatabweExpwessionPwovida): Disposabwe;
 
 		/**
-		 * Register a provider that returns data for the debugger's 'inline value' feature.
-		 * Whenever the generic debugger has stopped in a source file, providers registered for the language of the file
-		 * are called to return textual data that will be shown in the editor at the end of lines.
+		 * Wegista a pwovida that wetuwns data fow the debugga's 'inwine vawue' featuwe.
+		 * Wheneva the genewic debugga has stopped in a souwce fiwe, pwovidews wegistewed fow the wanguage of the fiwe
+		 * awe cawwed to wetuwn textuaw data that wiww be shown in the editow at the end of wines.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An inline values provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida An inwine vawues pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
+		expowt function wegistewInwineVawuesPwovida(sewectow: DocumentSewectow, pwovida: InwineVawuesPwovida): Disposabwe;
 
 		/**
-		 * Register a document highlight provider.
+		 * Wegista a document highwight pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and groups sequentially asked for document highlights.
-		 * The process stops when a provider returns a `non-falsy` or `non-failure` result.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and gwoups sequentiawwy asked fow document highwights.
+		 * The pwocess stops when a pwovida wetuwns a `non-fawsy` ow `non-faiwuwe` wesuwt.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document highlight provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document highwight pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentHighlightProvider(selector: DocumentSelector, provider: DocumentHighlightProvider): Disposable;
+		expowt function wegistewDocumentHighwightPwovida(sewectow: DocumentSewectow, pwovida: DocumentHighwightPwovida): Disposabwe;
 
 		/**
-		 * Register a document symbol provider.
+		 * Wegista a document symbow pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document symbol provider.
-		 * @param metaData metadata about the provider
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document symbow pwovida.
+		 * @pawam metaData metadata about the pwovida
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentSymbolProvider(selector: DocumentSelector, provider: DocumentSymbolProvider, metaData?: DocumentSymbolProviderMetadata): Disposable;
+		expowt function wegistewDocumentSymbowPwovida(sewectow: DocumentSewectow, pwovida: DocumentSymbowPwovida, metaData?: DocumentSymbowPwovidewMetadata): Disposabwe;
 
 		/**
-		 * Register a workspace symbol provider.
+		 * Wegista a wowkspace symbow pwovida.
 		 *
-		 * Multiple providers can be registered. In that case providers are asked in parallel and
-		 * the results are merged. A failing provider (rejected promise or exception) will not cause
-		 * a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed. In that case pwovidews awe asked in pawawwew and
+		 * the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww not cause
+		 * a faiwuwe of the whowe opewation.
 		 *
-		 * @param provider A workspace symbol provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam pwovida A wowkspace symbow pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerWorkspaceSymbolProvider(provider: WorkspaceSymbolProvider): Disposable;
+		expowt function wegistewWowkspaceSymbowPwovida(pwovida: WowkspaceSymbowPwovida): Disposabwe;
 
 		/**
-		 * Register a reference provider.
+		 * Wegista a wefewence pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A reference provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A wefewence pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerReferenceProvider(selector: DocumentSelector, provider: ReferenceProvider): Disposable;
+		expowt function wegistewWefewencePwovida(sewectow: DocumentSewectow, pwovida: WefewencePwovida): Disposabwe;
 
 		/**
-		 * Register a rename provider.
+		 * Wegista a wename pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and asked in sequence. The first provider producing a result
-		 * defines the result of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and asked in sequence. The fiwst pwovida pwoducing a wesuwt
+		 * defines the wesuwt of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A rename provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A wename pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable;
+		expowt function wegistewWenamePwovida(sewectow: DocumentSewectow, pwovida: WenamePwovida): Disposabwe;
 
 		/**
-		 * Register a semantic tokens provider for a whole document.
+		 * Wegista a semantic tokens pwovida fow a whowe document.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document semantic tokens provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document semantic tokens pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentSemanticTokensProvider(selector: DocumentSelector, provider: DocumentSemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
+		expowt function wegistewDocumentSemanticTokensPwovida(sewectow: DocumentSewectow, pwovida: DocumentSemanticTokensPwovida, wegend: SemanticTokensWegend): Disposabwe;
 
 		/**
-		 * Register a semantic tokens provider for a document range.
+		 * Wegista a semantic tokens pwovida fow a document wange.
 		 *
-		 * *Note:* If a document has both a `DocumentSemanticTokensProvider` and a `DocumentRangeSemanticTokensProvider`,
-		 * the range provider will be invoked only initially, for the time in which the full document provider takes
-		 * to resolve the first request. Once the full document provider resolves the first request, the semantic tokens
-		 * provided via the range provider will be discarded and from that point forward, only the document provider
-		 * will be used.
+		 * *Note:* If a document has both a `DocumentSemanticTokensPwovida` and a `DocumentWangeSemanticTokensPwovida`,
+		 * the wange pwovida wiww be invoked onwy initiawwy, fow the time in which the fuww document pwovida takes
+		 * to wesowve the fiwst wequest. Once the fuww document pwovida wesowves the fiwst wequest, the semantic tokens
+		 * pwovided via the wange pwovida wiww be discawded and fwom that point fowwawd, onwy the document pwovida
+		 * wiww be used.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document range semantic tokens provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document wange semantic tokens pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentRangeSemanticTokensProvider(selector: DocumentSelector, provider: DocumentRangeSemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
+		expowt function wegistewDocumentWangeSemanticTokensPwovida(sewectow: DocumentSewectow, pwovida: DocumentWangeSemanticTokensPwovida, wegend: SemanticTokensWegend): Disposabwe;
 
 		/**
-		 * Register a formatting provider for a document.
+		 * Wegista a fowmatting pwovida fow a document.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document formatting edit provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document fowmatting edit pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentFormattingEditProvider(selector: DocumentSelector, provider: DocumentFormattingEditProvider): Disposable;
+		expowt function wegistewDocumentFowmattingEditPwovida(sewectow: DocumentSewectow, pwovida: DocumentFowmattingEditPwovida): Disposabwe;
 
 		/**
-		 * Register a formatting provider for a document range.
+		 * Wegista a fowmatting pwovida fow a document wange.
 		 *
-		 * *Note:* A document range provider is also a {@link DocumentFormattingEditProvider document formatter}
-		 * which means there is no need to {@link languages.registerDocumentFormattingEditProvider register} a document
-		 * formatter when also registering a range provider.
+		 * *Note:* A document wange pwovida is awso a {@wink DocumentFowmattingEditPwovida document fowmatta}
+		 * which means thewe is no need to {@wink wanguages.wegistewDocumentFowmattingEditPwovida wegista} a document
+		 * fowmatta when awso wegistewing a wange pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document range formatting edit provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document wange fowmatting edit pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
+		expowt function wegistewDocumentWangeFowmattingEditPwovida(sewectow: DocumentSewectow, pwovida: DocumentWangeFowmattingEditPwovida): Disposabwe;
 
 		/**
-		 * Register a formatting provider that works on type. The provider is active when the user enables the setting `editor.formatOnType`.
+		 * Wegista a fowmatting pwovida that wowks on type. The pwovida is active when the usa enabwes the setting `editow.fowmatOnType`.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An on type formatting edit provider.
-		 * @param firstTriggerCharacter A character on which formatting should be triggered, like `}`.
-		 * @param moreTriggerCharacter More trigger characters.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida An on type fowmatting edit pwovida.
+		 * @pawam fiwstTwiggewChawacta A chawacta on which fowmatting shouwd be twiggewed, wike `}`.
+		 * @pawam moweTwiggewChawacta Mowe twigga chawactews.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerOnTypeFormattingEditProvider(selector: DocumentSelector, provider: OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacter: string[]): Disposable;
+		expowt function wegistewOnTypeFowmattingEditPwovida(sewectow: DocumentSewectow, pwovida: OnTypeFowmattingEditPwovida, fiwstTwiggewChawacta: stwing, ...moweTwiggewChawacta: stwing[]): Disposabwe;
 
 		/**
-		 * Register a signature help provider.
+		 * Wegista a signatuwe hewp pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and called sequentially until a provider returns a
-		 * valid result.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and cawwed sequentiawwy untiw a pwovida wetuwns a
+		 * vawid wesuwt.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A signature help provider.
-		 * @param triggerCharacters Trigger signature help when the user types one of the characters, like `,` or `(`.
-		 * @param metadata Information about the provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A signatuwe hewp pwovida.
+		 * @pawam twiggewChawactews Twigga signatuwe hewp when the usa types one of the chawactews, wike `,` ow `(`.
+		 * @pawam metadata Infowmation about the pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, ...triggerCharacters: string[]): Disposable;
-		export function registerSignatureHelpProvider(selector: DocumentSelector, provider: SignatureHelpProvider, metadata: SignatureHelpProviderMetadata): Disposable;
+		expowt function wegistewSignatuweHewpPwovida(sewectow: DocumentSewectow, pwovida: SignatuweHewpPwovida, ...twiggewChawactews: stwing[]): Disposabwe;
+		expowt function wegistewSignatuweHewpPwovida(sewectow: DocumentSewectow, pwovida: SignatuweHewpPwovida, metadata: SignatuweHewpPwovidewMetadata): Disposabwe;
 
 		/**
-		 * Register a document link provider.
+		 * Wegista a document wink pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A document link provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A document wink pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDocumentLinkProvider(selector: DocumentSelector, provider: DocumentLinkProvider): Disposable;
+		expowt function wegistewDocumentWinkPwovida(sewectow: DocumentSewectow, pwovida: DocumentWinkPwovida): Disposabwe;
 
 		/**
-		 * Register a color provider.
+		 * Wegista a cowow pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A color provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A cowow pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+		expowt function wegistewCowowPwovida(sewectow: DocumentSewectow, pwovida: DocumentCowowPwovida): Disposabwe;
 
 		/**
-		 * Register a folding range provider.
+		 * Wegista a fowding wange pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged.
-		 * If multiple folding ranges start at the same position, only the range of the first registered provider is used.
-		 * If a folding range overlaps with an other range that has a smaller position, it is also ignored.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged.
+		 * If muwtipwe fowding wanges stawt at the same position, onwy the wange of the fiwst wegistewed pwovida is used.
+		 * If a fowding wange ovewwaps with an otha wange that has a smawwa position, it is awso ignowed.
 		 *
-		 * A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding range provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A fowding wange pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
+		expowt function wegistewFowdingWangePwovida(sewectow: DocumentSewectow, pwovida: FowdingWangePwovida): Disposabwe;
 
 		/**
-		 * Register a selection range provider.
+		 * Wegista a sewection wange pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe asked in
+		 * pawawwew and the wesuwts awe mewged. A faiwing pwovida (wejected pwomise ow exception) wiww
+		 * not cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A selection range provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A sewection wange pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable;
+		expowt function wegistewSewectionWangePwovida(sewectow: DocumentSewectow, pwovida: SewectionWangePwovida): Disposabwe;
 
 		/**
-		 * Register a call hierarchy provider.
+		 * Wegista a caww hiewawchy pwovida.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A call hierarchy provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A caww hiewawchy pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
+		expowt function wegistewCawwHiewawchyPwovida(sewectow: DocumentSewectow, pwovida: CawwHiewawchyPwovida): Disposabwe;
 
 		/**
-		 * Register a type hierarchy provider.
+		 * Wegista a type hiewawchy pwovida.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A type hierarchy provider.
-		 * @return {@link Disposable Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A type hiewawchy pwovida.
+		 * @wetuwn {@wink Disposabwe Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerTypeHierarchyProvider(selector: DocumentSelector, provider: TypeHierarchyProvider): Disposable;
+		expowt function wegistewTypeHiewawchyPwovida(sewectow: DocumentSewectow, pwovida: TypeHiewawchyPwovida): Disposabwe;
 
 		/**
-		 * Register a linked editing range provider.
+		 * Wegista a winked editing wange pwovida.
 		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their {@link languages.match score} and the best-matching provider that has a result is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Muwtipwe pwovidews can be wegistewed fow a wanguage. In that case pwovidews awe sowted
+		 * by theiw {@wink wanguages.match scowe} and the best-matching pwovida that has a wesuwt is used. Faiwuwe
+		 * of the sewected pwovida wiww cause a faiwuwe of the whowe opewation.
 		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A linked editing range provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam sewectow A sewectow that defines the documents this pwovida is appwicabwe to.
+		 * @pawam pwovida A winked editing wange pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerLinkedEditingRangeProvider(selector: DocumentSelector, provider: LinkedEditingRangeProvider): Disposable;
+		expowt function wegistewWinkedEditingWangePwovida(sewectow: DocumentSewectow, pwovida: WinkedEditingWangePwovida): Disposabwe;
 
 		/**
-		 * Set a {@link LanguageConfiguration language configuration} for a language.
+		 * Set a {@wink WanguageConfiguwation wanguage configuwation} fow a wanguage.
 		 *
-		 * @param language A language identifier like `typescript`.
-		 * @param configuration Language configuration.
-		 * @return A {@link Disposable} that unsets this configuration.
+		 * @pawam wanguage A wanguage identifia wike `typescwipt`.
+		 * @pawam configuwation Wanguage configuwation.
+		 * @wetuwn A {@wink Disposabwe} that unsets this configuwation.
 		 */
-		export function setLanguageConfiguration(language: string, configuration: LanguageConfiguration): Disposable;
+		expowt function setWanguageConfiguwation(wanguage: stwing, configuwation: WanguageConfiguwation): Disposabwe;
 
 	}
 
 	/**
-	 * A notebook cell kind.
+	 * A notebook ceww kind.
 	 */
-	export enum NotebookCellKind {
+	expowt enum NotebookCewwKind {
 
 		/**
-		 * A markup-cell is formatted source that is used for display.
+		 * A mawkup-ceww is fowmatted souwce that is used fow dispway.
 		 */
-		Markup = 1,
+		Mawkup = 1,
 
 		/**
-		 * A code-cell is source that can be {@link NotebookController executed} and that
-		 * produces {@link NotebookCellOutput output}.
+		 * A code-ceww is souwce that can be {@wink NotebookContwowwa executed} and that
+		 * pwoduces {@wink NotebookCewwOutput output}.
 		 */
 		Code = 2
 	}
 
 	/**
-	 * Represents a cell of a {@link NotebookDocument notebook}, either a {@link NotebookCellKind.Code code}-cell
-	 * or {@link NotebookCellKind.Markup markup}-cell.
+	 * Wepwesents a ceww of a {@wink NotebookDocument notebook}, eitha a {@wink NotebookCewwKind.Code code}-ceww
+	 * ow {@wink NotebookCewwKind.Mawkup mawkup}-ceww.
 	 *
-	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
+	 * NotebookCeww instances awe immutabwe and awe kept in sync fow as wong as they awe pawt of theiw notebook.
 	 */
-	export interface NotebookCell {
+	expowt intewface NotebookCeww {
 
 		/**
-		 * The index of this cell in its {@link NotebookDocument.cellAt containing notebook}. The
-		 * index is updated when a cell is moved within its notebook. The index is `-1`
-		 * when the cell has been removed from its notebook.
+		 * The index of this ceww in its {@wink NotebookDocument.cewwAt containing notebook}. The
+		 * index is updated when a ceww is moved within its notebook. The index is `-1`
+		 * when the ceww has been wemoved fwom its notebook.
 		 */
-		readonly index: number;
+		weadonwy index: numba;
 
 		/**
-		 * The {@link NotebookDocument notebook} that contains this cell.
+		 * The {@wink NotebookDocument notebook} that contains this ceww.
 		 */
-		readonly notebook: NotebookDocument;
+		weadonwy notebook: NotebookDocument;
 
 		/**
-		 * The kind of this cell.
+		 * The kind of this ceww.
 		 */
-		readonly kind: NotebookCellKind;
+		weadonwy kind: NotebookCewwKind;
 
 		/**
-		 * The {@link TextDocument text} of this cell, represented as text document.
+		 * The {@wink TextDocument text} of this ceww, wepwesented as text document.
 		 */
-		readonly document: TextDocument;
+		weadonwy document: TextDocument;
 
 		/**
-		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
+		 * The metadata of this ceww. Can be anything but must be JSON-stwingifyabwe.
 		 */
-		readonly metadata: { [key: string]: any };
+		weadonwy metadata: { [key: stwing]: any };
 
 		/**
-		 * The outputs of this cell.
+		 * The outputs of this ceww.
 		 */
-		readonly outputs: readonly NotebookCellOutput[];
+		weadonwy outputs: weadonwy NotebookCewwOutput[];
 
 		/**
-		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
+		 * The most wecent {@wink NotebookCewwExecutionSummawy execution summawy} fow this ceww.
 		 */
-		readonly executionSummary?: NotebookCellExecutionSummary;
+		weadonwy executionSummawy?: NotebookCewwExecutionSummawy;
 	}
 
 	/**
-	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
-	 * Additional properties of the NotebookEditor are available in the proposed
-	 * API, which will be finalized later.
+	 * Wepwesents a notebook editow that is attached to a {@wink NotebookDocument notebook}.
+	 * Additionaw pwopewties of the NotebookEditow awe avaiwabwe in the pwoposed
+	 * API, which wiww be finawized wata.
 	 */
-	export interface NotebookEditor {
+	expowt intewface NotebookEditow {
 
 	}
 
 	/**
-	 * Renderer messaging is used to communicate with a single renderer. It's returned from {@link notebooks.createRendererMessaging}.
+	 * Wendewa messaging is used to communicate with a singwe wendewa. It's wetuwned fwom {@wink notebooks.cweateWendewewMessaging}.
 	 */
-	export interface NotebookRendererMessaging {
+	expowt intewface NotebookWendewewMessaging {
 		/**
-		 * An event that fires when a message is received from a renderer.
+		 * An event that fiwes when a message is weceived fwom a wendewa.
 		 */
-		readonly onDidReceiveMessage: Event<{
-			readonly editor: NotebookEditor;
-			readonly message: any;
+		weadonwy onDidWeceiveMessage: Event<{
+			weadonwy editow: NotebookEditow;
+			weadonwy message: any;
 		}>;
 
 		/**
-		 * Send a message to one or all renderer.
+		 * Send a message to one ow aww wendewa.
 		 *
-		 * @param message Message to send
-		 * @param editor Editor to target with the message. If not provided, the
-		 * message is sent to all renderers.
-		 * @returns a boolean indicating whether the message was successfully
-		 * delivered to any renderer.
+		 * @pawam message Message to send
+		 * @pawam editow Editow to tawget with the message. If not pwovided, the
+		 * message is sent to aww wendewews.
+		 * @wetuwns a boowean indicating whetha the message was successfuwwy
+		 * dewivewed to any wendewa.
 		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+		postMessage(message: any, editow?: NotebookEditow): Thenabwe<boowean>;
 	}
 
 	/**
-	 * Represents a notebook which itself is a sequence of {@link NotebookCell code or markup cells}. Notebook documents are
-	 * created from {@link NotebookData notebook data}.
+	 * Wepwesents a notebook which itsewf is a sequence of {@wink NotebookCeww code ow mawkup cewws}. Notebook documents awe
+	 * cweated fwom {@wink NotebookData notebook data}.
 	 */
-	export interface NotebookDocument {
+	expowt intewface NotebookDocument {
 
 		/**
-		 * The associated uri for this notebook.
+		 * The associated uwi fow this notebook.
 		 *
-		 * *Note* that most notebooks use the `file`-scheme, which means they are files on disk. However, **not** all notebooks are
-		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 * *Note* that most notebooks use the `fiwe`-scheme, which means they awe fiwes on disk. Howeva, **not** aww notebooks awe
+		 * saved on disk and thewefowe the `scheme` must be checked befowe twying to access the undewwying fiwe ow sibwings on disk.
 		 *
-		 * @see {@link FileSystemProvider}
+		 * @see {@wink FiweSystemPwovida}
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 
 		/**
 		 * The type of notebook.
 		 */
-		readonly notebookType: string;
+		weadonwy notebookType: stwing;
 
 		/**
-		 * The version number of this notebook (it will strictly increase after each
-		 * change, including undo/redo).
+		 * The vewsion numba of this notebook (it wiww stwictwy incwease afta each
+		 * change, incwuding undo/wedo).
 		 */
-		readonly version: number;
+		weadonwy vewsion: numba;
 
 		/**
-		 * `true` if there are unpersisted changes.
+		 * `twue` if thewe awe unpewsisted changes.
 		 */
-		readonly isDirty: boolean;
+		weadonwy isDiwty: boowean;
 
 		/**
-		 * Is this notebook representing an untitled file which has not been saved yet.
+		 * Is this notebook wepwesenting an untitwed fiwe which has not been saved yet.
 		 */
-		readonly isUntitled: boolean;
+		weadonwy isUntitwed: boowean;
 
 		/**
-		 * `true` if the notebook has been closed. A closed notebook isn't synchronized anymore
-		 * and won't be re-used when the same resource is opened again.
+		 * `twue` if the notebook has been cwosed. A cwosed notebook isn't synchwonized anymowe
+		 * and won't be we-used when the same wesouwce is opened again.
 		 */
-		readonly isClosed: boolean;
+		weadonwy isCwosed: boowean;
 
 		/**
-		 * Arbitrary metadata for this notebook. Can be anything but must be JSON-stringifyable.
+		 * Awbitwawy metadata fow this notebook. Can be anything but must be JSON-stwingifyabwe.
 		 */
-		readonly metadata: { [key: string]: any };
+		weadonwy metadata: { [key: stwing]: any };
 
 		/**
-		 * The number of cells in the notebook.
+		 * The numba of cewws in the notebook.
 		 */
-		readonly cellCount: number;
+		weadonwy cewwCount: numba;
 
 		/**
-		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 * Wetuwn the ceww at the specified index. The index wiww be adjusted to the notebook.
 		 *
-		 * @param index - The index of the cell to retrieve.
-		 * @return A {@link NotebookCell cell}.
+		 * @pawam index - The index of the ceww to wetwieve.
+		 * @wetuwn A {@wink NotebookCeww ceww}.
 		 */
-		cellAt(index: number): NotebookCell;
+		cewwAt(index: numba): NotebookCeww;
 
 		/**
-		 * Get the cells of this notebook. A subset can be retrieved by providing
-		 * a range. The range will be adjusted to the notebook.
+		 * Get the cewws of this notebook. A subset can be wetwieved by pwoviding
+		 * a wange. The wange wiww be adjusted to the notebook.
 		 *
-		 * @param range A notebook range.
-		 * @returns The cells contained by the range or all cells.
+		 * @pawam wange A notebook wange.
+		 * @wetuwns The cewws contained by the wange ow aww cewws.
 		 */
-		getCells(range?: NotebookRange): NotebookCell[];
+		getCewws(wange?: NotebookWange): NotebookCeww[];
 
 		/**
-		 * Save the document. The saving will be handled by the corresponding {@link NotebookSerializer serializer}.
+		 * Save the document. The saving wiww be handwed by the cowwesponding {@wink NotebookSewiawiza sewiawiza}.
 		 *
-		 * @return A promise that will resolve to true when the document
-		 * has been saved. Will return false if the file was not dirty or when save failed.
+		 * @wetuwn A pwomise that wiww wesowve to twue when the document
+		 * has been saved. Wiww wetuwn fawse if the fiwe was not diwty ow when save faiwed.
 		 */
-		save(): Thenable<boolean>;
+		save(): Thenabwe<boowean>;
 	}
 
 	/**
-	 * The summary of a notebook cell execution.
+	 * The summawy of a notebook ceww execution.
 	 */
-	export interface NotebookCellExecutionSummary {
+	expowt intewface NotebookCewwExecutionSummawy {
 
 		/**
-		 * The order in which the execution happened.
+		 * The owda in which the execution happened.
 		 */
-		readonly executionOrder?: number;
+		weadonwy executionOwda?: numba;
 
 		/**
-		 * If the execution finished successfully.
+		 * If the execution finished successfuwwy.
 		 */
-		readonly success?: boolean;
+		weadonwy success?: boowean;
 
 		/**
-		 * The times at which execution started and ended, as unix timestamps
+		 * The times at which execution stawted and ended, as unix timestamps
 		 */
-		readonly timing?: { startTime: number, endTime: number };
+		weadonwy timing?: { stawtTime: numba, endTime: numba };
 	}
 
 	/**
-	 * A notebook range represents an ordered pair of two cell indices.
-	 * It is guaranteed that start is less than or equal to end.
+	 * A notebook wange wepwesents an owdewed paiw of two ceww indices.
+	 * It is guawanteed that stawt is wess than ow equaw to end.
 	 */
-	export class NotebookRange {
+	expowt cwass NotebookWange {
 
 		/**
-		 * The zero-based start index of this range.
+		 * The zewo-based stawt index of this wange.
 		 */
-		readonly start: number;
+		weadonwy stawt: numba;
 
 		/**
-		 * The exclusive end index of this range (zero-based).
+		 * The excwusive end index of this wange (zewo-based).
 		 */
-		readonly end: number;
+		weadonwy end: numba;
 
 		/**
-		 * `true` if `start` and `end` are equal.
+		 * `twue` if `stawt` and `end` awe equaw.
 		 */
-		readonly isEmpty: boolean;
+		weadonwy isEmpty: boowean;
 
 		/**
-		 * Create a new notebook range. If `start` is not
-		 * before or equal to `end`, the values will be swapped.
+		 * Cweate a new notebook wange. If `stawt` is not
+		 * befowe ow equaw to `end`, the vawues wiww be swapped.
 		 *
-		 * @param start start index
-		 * @param end end index.
+		 * @pawam stawt stawt index
+		 * @pawam end end index.
 		 */
-		constructor(start: number, end: number);
+		constwuctow(stawt: numba, end: numba);
 
 		/**
-		 * Derive a new range for this range.
+		 * Dewive a new wange fow this wange.
 		 *
-		 * @param change An object that describes a change to this range.
-		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * @pawam change An object that descwibes a change to this wange.
+		 * @wetuwn A wange that wefwects the given change. Wiww wetuwn `this` wange if the change
 		 * is not changing anything.
 		 */
-		with(change: { start?: number, end?: number }): NotebookRange;
+		with(change: { stawt?: numba, end?: numba }): NotebookWange;
 	}
 
 	/**
-	 * One representation of a {@link NotebookCellOutput notebook output}, defined by MIME type and data.
+	 * One wepwesentation of a {@wink NotebookCewwOutput notebook output}, defined by MIME type and data.
 	 */
-	export class NotebookCellOutputItem {
+	expowt cwass NotebookCewwOutputItem {
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 * Factowy function to cweate a `NotebookCewwOutputItem` fwom a stwing.
 		 *
-		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 * *Note* that an UTF-8 encoda is used to cweate bytes fow the stwing.
 		 *
-		 * @param value A string.
-		 * @param mime Optional MIME type, defaults to `text/plain`.
-		 * @returns A new output item object.
+		 * @pawam vawue A stwing.
+		 * @pawam mime Optionaw MIME type, defauwts to `text/pwain`.
+		 * @wetuwns A new output item object.
 		 */
-		static text(value: string, mime?: string): NotebookCellOutputItem;
+		static text(vawue: stwing, mime?: stwing): NotebookCewwOutputItem;
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` from
+		 * Factowy function to cweate a `NotebookCewwOutputItem` fwom
 		 * a JSON object.
 		 *
-		 * *Note* that this function is not expecting "stringified JSON" but
-		 * an object that can be stringified. This function will throw an error
-		 * when the passed value cannot be JSON-stringified.
+		 * *Note* that this function is not expecting "stwingified JSON" but
+		 * an object that can be stwingified. This function wiww thwow an ewwow
+		 * when the passed vawue cannot be JSON-stwingified.
 		 *
-		 * @param value A JSON-stringifyable value.
-		 * @param mime Optional MIME type, defaults to `application/json`
-		 * @returns A new output item object.
+		 * @pawam vawue A JSON-stwingifyabwe vawue.
+		 * @pawam mime Optionaw MIME type, defauwts to `appwication/json`
+		 * @wetuwns A new output item object.
 		 */
-		static json(value: any, mime?: string): NotebookCellOutputItem;
+		static json(vawue: any, mime?: stwing): NotebookCewwOutputItem;
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/vnd.code.notebook.stdout` mime type.
+		 * Factowy function to cweate a `NotebookCewwOutputItem` that uses
+		 * uses the `appwication/vnd.code.notebook.stdout` mime type.
 		 *
-		 * @param value A string.
-		 * @returns A new output item object.
+		 * @pawam vawue A stwing.
+		 * @wetuwns A new output item object.
 		 */
-		static stdout(value: string): NotebookCellOutputItem;
+		static stdout(vawue: stwing): NotebookCewwOutputItem;
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/vnd.code.notebook.stderr` mime type.
+		 * Factowy function to cweate a `NotebookCewwOutputItem` that uses
+		 * uses the `appwication/vnd.code.notebook.stdeww` mime type.
 		 *
-		 * @param value A string.
-		 * @returns A new output item object.
+		 * @pawam vawue A stwing.
+		 * @wetuwns A new output item object.
 		 */
-		static stderr(value: string): NotebookCellOutputItem;
+		static stdeww(vawue: stwing): NotebookCewwOutputItem;
 
 		/**
-		 * Factory function to create a `NotebookCellOutputItem` that uses
-		 * uses the `application/vnd.code.notebook.error` mime type.
+		 * Factowy function to cweate a `NotebookCewwOutputItem` that uses
+		 * uses the `appwication/vnd.code.notebook.ewwow` mime type.
 		 *
-		 * @param value An error object.
-		 * @returns A new output item object.
+		 * @pawam vawue An ewwow object.
+		 * @wetuwns A new output item object.
 		 */
-		static error(value: Error): NotebookCellOutputItem;
+		static ewwow(vawue: Ewwow): NotebookCewwOutputItem;
 
 		/**
-		 * The mime type which determines how the {@linkcode NotebookCellOutputItem.data data}-property
-		 * is interpreted.
+		 * The mime type which detewmines how the {@winkcode NotebookCewwOutputItem.data data}-pwopewty
+		 * is intewpweted.
 		 *
-		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
-		 * types and override existing types.
+		 * Notebooks have buiwt-in suppowt fow cewtain mime-types, extensions can add suppowt fow new
+		 * types and ovewwide existing types.
 		 */
-		mime: string;
+		mime: stwing;
 
 		/**
-		 * The data of this output item. Must always be an array of unsigned 8-bit integers.
+		 * The data of this output item. Must awways be an awway of unsigned 8-bit integews.
 		 */
-		data: Uint8Array;
+		data: Uint8Awway;
 
 		/**
-		 * Create a new notebook cell output item.
+		 * Cweate a new notebook ceww output item.
 		 *
-		 * @param data The value of the output item.
-		 * @param mime The mime type of the output item.
+		 * @pawam data The vawue of the output item.
+		 * @pawam mime The mime type of the output item.
 		 */
-		constructor(data: Uint8Array, mime: string);
+		constwuctow(data: Uint8Awway, mime: stwing);
 	}
 
 	/**
-	 * Notebook cell output represents a result of executing a cell. It is a container type for multiple
-	 * {@link NotebookCellOutputItem output items} where contained items represent the same result but
-	 * use different MIME types.
+	 * Notebook ceww output wepwesents a wesuwt of executing a ceww. It is a containa type fow muwtipwe
+	 * {@wink NotebookCewwOutputItem output items} whewe contained items wepwesent the same wesuwt but
+	 * use diffewent MIME types.
 	 */
-	export class NotebookCellOutput {
+	expowt cwass NotebookCewwOutput {
 
 		/**
-		 * The output items of this output. Each item must represent the same result. _Note_ that repeated
-		 * MIME types per output is invalid and that the editor will just pick one of them.
+		 * The output items of this output. Each item must wepwesent the same wesuwt. _Note_ that wepeated
+		 * MIME types pew output is invawid and that the editow wiww just pick one of them.
 		 *
 		 * ```ts
-		 * new vscode.NotebookCellOutput([
-		 * 	vscode.NotebookCellOutputItem.text('Hello', 'text/plain'),
-		 * 	vscode.NotebookCellOutputItem.text('<i>Hello</i>', 'text/html'),
-		 * 	vscode.NotebookCellOutputItem.text('_Hello_', 'text/markdown'),
-		 * 	vscode.NotebookCellOutputItem.text('Hey', 'text/plain'), // INVALID: repeated type, editor will pick just one
+		 * new vscode.NotebookCewwOutput([
+		 * 	vscode.NotebookCewwOutputItem.text('Hewwo', 'text/pwain'),
+		 * 	vscode.NotebookCewwOutputItem.text('<i>Hewwo</i>', 'text/htmw'),
+		 * 	vscode.NotebookCewwOutputItem.text('_Hewwo_', 'text/mawkdown'),
+		 * 	vscode.NotebookCewwOutputItem.text('Hey', 'text/pwain'), // INVAWID: wepeated type, editow wiww pick just one
 		 * ])
 		 * ```
 		 */
-		items: NotebookCellOutputItem[];
+		items: NotebookCewwOutputItem[];
 
 		/**
-		 * Arbitrary metadata for this cell output. Can be anything but must be JSON-stringifyable.
+		 * Awbitwawy metadata fow this ceww output. Can be anything but must be JSON-stwingifyabwe.
 		 */
-		metadata?: { [key: string]: any };
+		metadata?: { [key: stwing]: any };
 
 		/**
-		 * Create new notebook output.
+		 * Cweate new notebook output.
 		 *
-		 * @param items Notebook output items.
-		 * @param metadata Optional metadata.
+		 * @pawam items Notebook output items.
+		 * @pawam metadata Optionaw metadata.
 		 */
-		constructor(items: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+		constwuctow(items: NotebookCewwOutputItem[], metadata?: { [key: stwing]: any });
 	}
 
 	/**
-	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@linkcode NotebookData}.
+	 * NotebookCewwData is the waw wepwesentation of notebook cewws. Its is pawt of {@winkcode NotebookData}.
 	 */
-	export class NotebookCellData {
+	expowt cwass NotebookCewwData {
 
 		/**
-		 * The {@link NotebookCellKind kind} of this cell data.
+		 * The {@wink NotebookCewwKind kind} of this ceww data.
 		 */
-		kind: NotebookCellKind;
+		kind: NotebookCewwKind;
 
 		/**
-		 * The source value of this cell data - either source code or formatted text.
+		 * The souwce vawue of this ceww data - eitha souwce code ow fowmatted text.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * The language identifier of the source value of this cell data. Any value from
-		 * {@linkcode languages.getLanguages getLanguages} is possible.
+		 * The wanguage identifia of the souwce vawue of this ceww data. Any vawue fwom
+		 * {@winkcode wanguages.getWanguages getWanguages} is possibwe.
 		 */
-		languageId: string;
+		wanguageId: stwing;
 
 		/**
-		 * The outputs of this cell data.
+		 * The outputs of this ceww data.
 		 */
-		outputs?: NotebookCellOutput[];
+		outputs?: NotebookCewwOutput[];
 
 		/**
-		 * Arbitrary metadata of this cell data. Can be anything but must be JSON-stringifyable.
+		 * Awbitwawy metadata of this ceww data. Can be anything but must be JSON-stwingifyabwe.
 		 */
-		metadata?: { [key: string]: any };
+		metadata?: { [key: stwing]: any };
 
 		/**
-		 * The execution summary of this cell data.
+		 * The execution summawy of this ceww data.
 		 */
-		executionSummary?: NotebookCellExecutionSummary;
+		executionSummawy?: NotebookCewwExecutionSummawy;
 
 		/**
-		 * Create new cell data. Minimal cell data specifies its kind, its source value, and the
-		 * language identifier of its source.
+		 * Cweate new ceww data. Minimaw ceww data specifies its kind, its souwce vawue, and the
+		 * wanguage identifia of its souwce.
 		 *
-		 * @param kind The kind.
-		 * @param value The source value.
-		 * @param languageId The language identifier of the source value.
+		 * @pawam kind The kind.
+		 * @pawam vawue The souwce vawue.
+		 * @pawam wanguageId The wanguage identifia of the souwce vawue.
 		 */
-		constructor(kind: NotebookCellKind, value: string, languageId: string);
+		constwuctow(kind: NotebookCewwKind, vawue: stwing, wanguageId: stwing);
 	}
 
 	/**
-	 * Raw representation of a notebook.
+	 * Waw wepwesentation of a notebook.
 	 *
-	 * Extensions are responsible for creating {@linkcode NotebookData} so that the editor
-	 * can create a {@linkcode NotebookDocument}.
+	 * Extensions awe wesponsibwe fow cweating {@winkcode NotebookData} so that the editow
+	 * can cweate a {@winkcode NotebookDocument}.
 	 *
-	 * @see {@link NotebookSerializer}
+	 * @see {@wink NotebookSewiawiza}
 	 */
-	export class NotebookData {
+	expowt cwass NotebookData {
 		/**
-		 * The cell data of this notebook data.
+		 * The ceww data of this notebook data.
 		 */
-		cells: NotebookCellData[];
+		cewws: NotebookCewwData[];
 
 		/**
-		 * Arbitrary metadata of notebook data.
+		 * Awbitwawy metadata of notebook data.
 		 */
-		metadata?: { [key: string]: any };
+		metadata?: { [key: stwing]: any };
 
 		/**
-		 * Create new notebook data.
+		 * Cweate new notebook data.
 		 *
-		 * @param cells An array of cell data.
+		 * @pawam cewws An awway of ceww data.
 		 */
-		constructor(cells: NotebookCellData[]);
+		constwuctow(cewws: NotebookCewwData[]);
 	}
 
 	/**
-	 * The notebook serializer enables the editor to open notebook files.
+	 * The notebook sewiawiza enabwes the editow to open notebook fiwes.
 	 *
-	 * At its core the editor only knows a {@link NotebookData notebook data structure} but not
-	 * how that data structure is written to a file, nor how it is read from a file. The
-	 * notebook serializer bridges this gap by deserializing bytes into notebook data and
-	 * vice versa.
+	 * At its cowe the editow onwy knows a {@wink NotebookData notebook data stwuctuwe} but not
+	 * how that data stwuctuwe is wwitten to a fiwe, now how it is wead fwom a fiwe. The
+	 * notebook sewiawiza bwidges this gap by desewiawizing bytes into notebook data and
+	 * vice vewsa.
 	 */
-	export interface NotebookSerializer {
+	expowt intewface NotebookSewiawiza {
 
 		/**
-		 * Deserialize contents of a notebook file into the notebook data structure.
+		 * Desewiawize contents of a notebook fiwe into the notebook data stwuctuwe.
 		 *
-		 * @param content Contents of a notebook file.
-		 * @param token A cancellation token.
-		 * @return Notebook data or a thenable that resolves to such.
+		 * @pawam content Contents of a notebook fiwe.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn Notebook data ow a thenabwe that wesowves to such.
 		 */
-		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+		desewiawizeNotebook(content: Uint8Awway, token: CancewwationToken): NotebookData | Thenabwe<NotebookData>;
 
 		/**
-		 * Serialize notebook data into file contents.
+		 * Sewiawize notebook data into fiwe contents.
 		 *
-		 * @param data A notebook data structure.
-		 * @param token A cancellation token.
-		 * @returns An array of bytes or a thenable that resolves to such.
+		 * @pawam data A notebook data stwuctuwe.
+		 * @pawam token A cancewwation token.
+		 * @wetuwns An awway of bytes ow a thenabwe that wesowves to such.
 		 */
-		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		sewiawizeNotebook(data: NotebookData, token: CancewwationToken): Uint8Awway | Thenabwe<Uint8Awway>;
 	}
 
 	/**
-	 * Notebook content options define what parts of a notebook are persisted. Note
+	 * Notebook content options define what pawts of a notebook awe pewsisted. Note
 	 *
-	 * For instance, a notebook serializer can opt-out of saving outputs and in that case the editor doesn't mark a
-	 * notebooks as {@link NotebookDocument.isDirty dirty} when its output has changed.
+	 * Fow instance, a notebook sewiawiza can opt-out of saving outputs and in that case the editow doesn't mawk a
+	 * notebooks as {@wink NotebookDocument.isDiwty diwty} when its output has changed.
 	 */
-	export interface NotebookDocumentContentOptions {
+	expowt intewface NotebookDocumentContentOptions {
 		/**
-		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 * Contwows if outputs change wiww twigga notebook document content change and if it wiww be used in the diff editow
+		 * Defauwt to fawse. If the content pwovida doesn't pewsisit the outputs in the fiwe document, this shouwd be set to twue.
 		 */
-		transientOutputs?: boolean;
+		twansientOutputs?: boowean;
 
 		/**
-		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 * Contwows if a ceww metadata pwopewty change wiww twigga notebook document content change and if it wiww be used in the diff editow
+		 * Defauwt to fawse. If the content pwovida doesn't pewsisit a metadata pwopewty in the fiwe document, it shouwd be set to twue.
 		 */
-		transientCellMetadata?: { [key: string]: boolean | undefined };
+		twansientCewwMetadata?: { [key: stwing]: boowean | undefined };
 
 		/**
-		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		* Contwows if a document metadata pwopewty change wiww twigga notebook document content change and if it wiww be used in the diff editow
+		* Defauwt to fawse. If the content pwovida doesn't pewsisit a metadata pwopewty in the fiwe document, it shouwd be set to twue.
 		*/
-		transientDocumentMetadata?: { [key: string]: boolean | undefined };
+		twansientDocumentMetadata?: { [key: stwing]: boowean | undefined };
 	}
 
 	/**
-	 * Notebook controller affinity for notebook documents.
+	 * Notebook contwowwa affinity fow notebook documents.
 	 *
-	 * @see {@link NotebookController.updateNotebookAffinity}
+	 * @see {@wink NotebookContwowwa.updateNotebookAffinity}
 	 */
-	export enum NotebookControllerAffinity {
+	expowt enum NotebookContwowwewAffinity {
 		/**
-		 * Default affinity.
+		 * Defauwt affinity.
 		 */
-		Default = 1,
+		Defauwt = 1,
 		/**
-		 * A controller is preferred for a notebook.
+		 * A contwowwa is pwefewwed fow a notebook.
 		 */
-		Preferred = 2
+		Pwefewwed = 2
 	}
 
 	/**
-	 * A notebook controller represents an entity that can execute notebook cells. This is often referred to as a kernel.
+	 * A notebook contwowwa wepwesents an entity that can execute notebook cewws. This is often wefewwed to as a kewnew.
 	 *
-	 * There can be multiple controllers and the editor will let users choose which controller to use for a certain notebook. The
-	 * {@linkcode NotebookController.notebookType notebookType}-property defines for what kind of notebooks a controller is for and
-	 * the {@linkcode NotebookController.updateNotebookAffinity updateNotebookAffinity}-function allows controllers to set a preference
-	 * for specific notebook documents. When a controller has been selected its
-	 * {@link NotebookController.onDidChangeSelectedNotebooks onDidChangeSelectedNotebooks}-event fires.
+	 * Thewe can be muwtipwe contwowwews and the editow wiww wet usews choose which contwowwa to use fow a cewtain notebook. The
+	 * {@winkcode NotebookContwowwa.notebookType notebookType}-pwopewty defines fow what kind of notebooks a contwowwa is fow and
+	 * the {@winkcode NotebookContwowwa.updateNotebookAffinity updateNotebookAffinity}-function awwows contwowwews to set a pwefewence
+	 * fow specific notebook documents. When a contwowwa has been sewected its
+	 * {@wink NotebookContwowwa.onDidChangeSewectedNotebooks onDidChangeSewectedNotebooks}-event fiwes.
 	 *
-	 * When a cell is being run the editor will invoke the {@linkcode NotebookController.executeHandler executeHandler} and a controller
-	 * is expected to create and finalize a {@link NotebookCellExecution notebook cell execution}. However, controllers are also free
-	 * to create executions by themselves.
+	 * When a ceww is being wun the editow wiww invoke the {@winkcode NotebookContwowwa.executeHandwa executeHandwa} and a contwowwa
+	 * is expected to cweate and finawize a {@wink NotebookCewwExecution notebook ceww execution}. Howeva, contwowwews awe awso fwee
+	 * to cweate executions by themsewves.
 	 */
-	export interface NotebookController {
+	expowt intewface NotebookContwowwa {
 
 		/**
-		 * The identifier of this notebook controller.
+		 * The identifia of this notebook contwowwa.
 		 *
-		 * _Note_ that controllers are remembered by their identifier and that extensions should use
-		 * stable identifiers across sessions.
+		 * _Note_ that contwowwews awe wemembewed by theiw identifia and that extensions shouwd use
+		 * stabwe identifiews acwoss sessions.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The notebook type this controller is for.
+		 * The notebook type this contwowwa is fow.
 		 */
-		readonly notebookType: string;
+		weadonwy notebookType: stwing;
 
 		/**
-		 * An array of language identifiers that are supported by this
-		 * controller. Any language identifier from {@linkcode languages.getLanguages getLanguages}
-		 * is possible. When falsy all languages are supported.
+		 * An awway of wanguage identifiews that awe suppowted by this
+		 * contwowwa. Any wanguage identifia fwom {@winkcode wanguages.getWanguages getWanguages}
+		 * is possibwe. When fawsy aww wanguages awe suppowted.
 		 *
-		 * Samples:
+		 * Sampwes:
 		 * ```js
-		 * // support JavaScript and TypeScript
-		 * myController.supportedLanguages = ['javascript', 'typescript']
+		 * // suppowt JavaScwipt and TypeScwipt
+		 * myContwowwa.suppowtedWanguages = ['javascwipt', 'typescwipt']
 		 *
-		 * // support all languages
-		 * myController.supportedLanguages = undefined; // falsy
-		 * myController.supportedLanguages = []; // falsy
+		 * // suppowt aww wanguages
+		 * myContwowwa.suppowtedWanguages = undefined; // fawsy
+		 * myContwowwa.suppowtedWanguages = []; // fawsy
 		 * ```
 		 */
-		supportedLanguages?: string[];
+		suppowtedWanguages?: stwing[];
 
 		/**
-		 * The human-readable label of this notebook controller.
+		 * The human-weadabwe wabew of this notebook contwowwa.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * The human-readable description which is rendered less prominent.
+		 * The human-weadabwe descwiption which is wendewed wess pwominent.
 		 */
-		description?: string;
+		descwiption?: stwing;
 
 		/**
-		 * The human-readable detail which is rendered less prominent.
+		 * The human-weadabwe detaiw which is wendewed wess pwominent.
 		 */
-		detail?: string;
+		detaiw?: stwing;
 
 		/**
-		 * Whether this controller supports execution order so that the
-		 * editor can render placeholders for them.
+		 * Whetha this contwowwa suppowts execution owda so that the
+		 * editow can wenda pwacehowdews fow them.
 		 */
-		supportsExecutionOrder?: boolean;
+		suppowtsExecutionOwda?: boowean;
 
 		/**
-		 * Create a cell execution task.
+		 * Cweate a ceww execution task.
 		 *
-		 * _Note_ that there can only be one execution per cell at a time and that an error is thrown if
-		 * a cell execution is created while another is still active.
+		 * _Note_ that thewe can onwy be one execution pew ceww at a time and that an ewwow is thwown if
+		 * a ceww execution is cweated whiwe anotha is stiww active.
 		 *
-		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
-		 * being called or when cell execution has been started else, e.g when a cell was already
-		 * executing or when cell execution was triggered from another source.
+		 * This shouwd be used in wesponse to the {@wink NotebookContwowwa.executeHandwa execution handwa}
+		 * being cawwed ow when ceww execution has been stawted ewse, e.g when a ceww was awweady
+		 * executing ow when ceww execution was twiggewed fwom anotha souwce.
 		 *
-		 * @param cell The notebook cell for which to create the execution.
-		 * @returns A notebook cell execution.
+		 * @pawam ceww The notebook ceww fow which to cweate the execution.
+		 * @wetuwns A notebook ceww execution.
 		 */
-		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
+		cweateNotebookCewwExecution(ceww: NotebookCeww): NotebookCewwExecution;
 
 		/**
-		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
-		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
+		 * The execute handwa is invoked when the wun gestuwes in the UI awe sewected, e.g Wun Ceww, Wun Aww,
+		 * Wun Sewection etc. The execute handwa is wesponsibwe fow cweating and managing {@wink NotebookCewwExecution execution}-objects.
 		 */
-		executeHandler: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>;
+		executeHandwa: (cewws: NotebookCeww[], notebook: NotebookDocument, contwowwa: NotebookContwowwa) => void | Thenabwe<void>;
 
 		/**
-		 * Optional interrupt handler.
+		 * Optionaw intewwupt handwa.
 		 *
-		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
-		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
-		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
-		 * running. For those cases the interrupt handler exists - it can be thought of as the equivalent of `SIGINT`
-		 * or `Control+C` in terminals.
+		 * By defauwt ceww execution is cancewed via {@wink NotebookCewwExecution.token tokens}. Cancewwation
+		 * tokens wequiwe that a contwowwa can keep twack of its execution so that it can cancew a specific execution at a wata
+		 * point. Not aww scenawios awwow fow that, eg. WEPW-stywe contwowwews often wowk by intewwupting whateva is cuwwentwy
+		 * wunning. Fow those cases the intewwupt handwa exists - it can be thought of as the equivawent of `SIGINT`
+		 * ow `Contwow+C` in tewminaws.
 		 *
-		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
-		 * only be used when tokens cannot be supported.
+		 * _Note_ that suppowting {@wink NotebookCewwExecution.token cancewwation tokens} is pwefewwed and that intewwupt handwews shouwd
+		 * onwy be used when tokens cannot be suppowted.
 		 */
-		interruptHandler?: (notebook: NotebookDocument) => void | Thenable<void>;
+		intewwuptHandwa?: (notebook: NotebookDocument) => void | Thenabwe<void>;
 
 		/**
-		 * An event that fires whenever a controller has been selected or un-selected for a notebook document.
+		 * An event that fiwes wheneva a contwowwa has been sewected ow un-sewected fow a notebook document.
 		 *
-		 * There can be multiple controllers for a notebook and in that case a controllers needs to be _selected_. This is a user gesture
-		 * and happens either explicitly or implicitly when interacting with a notebook for which a controller was _suggested_. When possible,
-		 * the editor _suggests_ a controller that is most likely to be _selected_.
+		 * Thewe can be muwtipwe contwowwews fow a notebook and in that case a contwowwews needs to be _sewected_. This is a usa gestuwe
+		 * and happens eitha expwicitwy ow impwicitwy when intewacting with a notebook fow which a contwowwa was _suggested_. When possibwe,
+		 * the editow _suggests_ a contwowwa that is most wikewy to be _sewected_.
 		 *
-		 * _Note_ that controller selection is persisted (by the controllers {@link NotebookController.id id}) and restored as soon as a
-		 * controller is re-created or as a notebook is {@link workspace.onDidOpenNotebookDocument opened}.
+		 * _Note_ that contwowwa sewection is pewsisted (by the contwowwews {@wink NotebookContwowwa.id id}) and westowed as soon as a
+		 * contwowwa is we-cweated ow as a notebook is {@wink wowkspace.onDidOpenNotebookDocument opened}.
 		 */
-		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument, selected: boolean }>;
+		weadonwy onDidChangeSewectedNotebooks: Event<{ notebook: NotebookDocument, sewected: boowean }>;
 
 		/**
-		 * A controller can set affinities for specific notebook documents. This allows a controller
-		 * to be presented more prominent for some notebooks.
+		 * A contwowwa can set affinities fow specific notebook documents. This awwows a contwowwa
+		 * to be pwesented mowe pwominent fow some notebooks.
 		 *
-		 * @param notebook The notebook for which a priority is set.
-		 * @param affinity A controller affinity
+		 * @pawam notebook The notebook fow which a pwiowity is set.
+		 * @pawam affinity A contwowwa affinity
 		 */
-		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookContwowwewAffinity): void;
 
 		/**
-		 * Dispose and free associated resources.
+		 * Dispose and fwee associated wesouwces.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * A NotebookCellExecution is how {@link NotebookController notebook controller} modify a notebook cell as
+	 * A NotebookCewwExecution is how {@wink NotebookContwowwa notebook contwowwa} modify a notebook ceww as
 	 * it is executing.
 	 *
-	 * When a cell execution object is created, the cell enters the {@linkcode NotebookCellExecutionState.Pending Pending} state.
-	 * When {@linkcode NotebookCellExecution.start start(...)} is called on the execution task, it enters the {@linkcode NotebookCellExecutionState.Executing Executing} state. When
-	 * {@linkcode NotebookCellExecution.end end(...)} is called, it enters the {@linkcode NotebookCellExecutionState.Idle Idle} state.
+	 * When a ceww execution object is cweated, the ceww entews the {@winkcode NotebookCewwExecutionState.Pending Pending} state.
+	 * When {@winkcode NotebookCewwExecution.stawt stawt(...)} is cawwed on the execution task, it entews the {@winkcode NotebookCewwExecutionState.Executing Executing} state. When
+	 * {@winkcode NotebookCewwExecution.end end(...)} is cawwed, it entews the {@winkcode NotebookCewwExecutionState.Idwe Idwe} state.
 	 */
-	export interface NotebookCellExecution {
+	expowt intewface NotebookCewwExecution {
 
 		/**
-		 * The {@link NotebookCell cell} for which this execution has been created.
+		 * The {@wink NotebookCeww ceww} fow which this execution has been cweated.
 		 */
-		readonly cell: NotebookCell;
+		weadonwy ceww: NotebookCeww;
 
 		/**
-		 * A cancellation token which will be triggered when the cell execution is canceled
-		 * from the UI.
+		 * A cancewwation token which wiww be twiggewed when the ceww execution is cancewed
+		 * fwom the UI.
 		 *
-		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
-		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
+		 * _Note_ that the cancewwation token wiww not be twiggewed when the {@wink NotebookContwowwa contwowwa}
+		 * that cweated this execution uses an {@wink NotebookContwowwa.intewwuptHandwa intewwupt-handwa}.
 		 */
-		readonly token: CancellationToken;
+		weadonwy token: CancewwationToken;
 
 		/**
-		 * Set and unset the order of this cell execution.
+		 * Set and unset the owda of this ceww execution.
 		 */
-		executionOrder: number | undefined;
+		executionOwda: numba | undefined;
 
 		/**
-		 * Signal that the execution has begun.
+		 * Signaw that the execution has begun.
 		 *
-		 * @param startTime The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
-		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 * @pawam stawtTime The time that execution began, in miwwiseconds in the Unix epoch. Used to dwive the cwock
+		 * that shows fow how wong a ceww has been wunning. If not given, the cwock won't be shown.
 		 */
-		start(startTime?: number): void;
+		stawt(stawtTime?: numba): void;
 
 		/**
-		 * Signal that execution has ended.
+		 * Signaw that execution has ended.
 		 *
-		 * @param success If true, a green check is shown on the cell status bar.
-		 * If false, a red X is shown.
-		 * If undefined, no check or X icon is shown.
-		 * @param endTime The time that execution finished, in milliseconds in the Unix epoch.
+		 * @pawam success If twue, a gween check is shown on the ceww status baw.
+		 * If fawse, a wed X is shown.
+		 * If undefined, no check ow X icon is shown.
+		 * @pawam endTime The time that execution finished, in miwwiseconds in the Unix epoch.
 		 */
-		end(success: boolean | undefined, endTime?: number): void;
+		end(success: boowean | undefined, endTime?: numba): void;
 
 		/**
-		 * Clears the output of the cell that is executing or of another cell that is affected by this execution.
+		 * Cweaws the output of the ceww that is executing ow of anotha ceww that is affected by this execution.
 		 *
-		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * @pawam ceww Ceww fow which output is cweawed. Defauwts to the {@wink NotebookCewwExecution.ceww ceww} of
 		 * this execution.
-		 * @return A thenable that resolves when the operation finished.
+		 * @wetuwn A thenabwe that wesowves when the opewation finished.
 		 */
-		clearOutput(cell?: NotebookCell): Thenable<void>;
+		cweawOutput(ceww?: NotebookCeww): Thenabwe<void>;
 
 		/**
-		 * Replace the output of the cell that is executing or of another cell that is affected by this execution.
+		 * Wepwace the output of the ceww that is executing ow of anotha ceww that is affected by this execution.
 		 *
-		 * @param out Output that replaces the current output.
-		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * @pawam out Output that wepwaces the cuwwent output.
+		 * @pawam ceww Ceww fow which output is cweawed. Defauwts to the {@wink NotebookCewwExecution.ceww ceww} of
 		 * this execution.
-		 * @return A thenable that resolves when the operation finished.
+		 * @wetuwn A thenabwe that wesowves when the opewation finished.
 		 */
-		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		wepwaceOutput(out: NotebookCewwOutput | NotebookCewwOutput[], ceww?: NotebookCeww): Thenabwe<void>;
 
 		/**
-		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
+		 * Append to the output of the ceww that is executing ow to anotha ceww that is affected by this execution.
 		 *
-		 * @param out Output that is appended to the current output.
-		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * @pawam out Output that is appended to the cuwwent output.
+		 * @pawam ceww Ceww fow which output is cweawed. Defauwts to the {@wink NotebookCewwExecution.ceww ceww} of
 		 * this execution.
-		 * @return A thenable that resolves when the operation finished.
+		 * @wetuwn A thenabwe that wesowves when the opewation finished.
 		 */
-		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+		appendOutput(out: NotebookCewwOutput | NotebookCewwOutput[], ceww?: NotebookCeww): Thenabwe<void>;
 
 		/**
-		 * Replace all output items of existing cell output.
+		 * Wepwace aww output items of existing ceww output.
 		 *
-		 * @param items Output items that replace the items of existing output.
-		 * @param output Output object that already exists.
-		 * @return A thenable that resolves when the operation finished.
+		 * @pawam items Output items that wepwace the items of existing output.
+		 * @pawam output Output object that awweady exists.
+		 * @wetuwn A thenabwe that wesowves when the opewation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		wepwaceOutputItems(items: NotebookCewwOutputItem | NotebookCewwOutputItem[], output: NotebookCewwOutput): Thenabwe<void>;
 
 		/**
-		 * Append output items to existing cell output.
+		 * Append output items to existing ceww output.
 		 *
-		 * @param items Output items that are append to existing output.
-		 * @param output Output object that already exists.
-		 * @return A thenable that resolves when the operation finished.
+		 * @pawam items Output items that awe append to existing output.
+		 * @pawam output Output object that awweady exists.
+		 * @wetuwn A thenabwe that wesowves when the opewation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
+		appendOutputItems(items: NotebookCewwOutputItem | NotebookCewwOutputItem[], output: NotebookCewwOutput): Thenabwe<void>;
 	}
 
 	/**
-	 * Represents the alignment of status bar items.
+	 * Wepwesents the awignment of status baw items.
 	 */
-	export enum NotebookCellStatusBarAlignment {
+	expowt enum NotebookCewwStatusBawAwignment {
 
 		/**
-		 * Aligned to the left side.
+		 * Awigned to the weft side.
 		 */
-		Left = 1,
+		Weft = 1,
 
 		/**
-		 * Aligned to the right side.
+		 * Awigned to the wight side.
 		 */
-		Right = 2
+		Wight = 2
 	}
 
 	/**
-	 * A contribution to a cell's status bar
+	 * A contwibution to a ceww's status baw
 	 */
-	export class NotebookCellStatusBarItem {
+	expowt cwass NotebookCewwStatusBawItem {
 		/**
-		 * The text to show for the item.
+		 * The text to show fow the item.
 		 */
-		text: string;
+		text: stwing;
 
 		/**
-		 * Whether the item is aligned to the left or right.
+		 * Whetha the item is awigned to the weft ow wight.
 		 */
-		alignment: NotebookCellStatusBarAlignment;
+		awignment: NotebookCewwStatusBawAwignment;
 
 		/**
-		 * An optional {@linkcode Command} or identifier of a command to run on click.
+		 * An optionaw {@winkcode Command} ow identifia of a command to wun on cwick.
 		 *
-		 * The command must be {@link commands.getCommands known}.
+		 * The command must be {@wink commands.getCommands known}.
 		 *
-		 * Note that if this is a {@linkcode Command} object, only the {@linkcode Command.command command} and {@linkcode Command.arguments arguments}
-		 * are used by the editor.
+		 * Note that if this is a {@winkcode Command} object, onwy the {@winkcode Command.command command} and {@winkcode Command.awguments awguments}
+		 * awe used by the editow.
 		 */
-		command?: string | Command;
+		command?: stwing | Command;
 
 		/**
-		 * A tooltip to show when the item is hovered.
+		 * A toowtip to show when the item is hovewed.
 		 */
-		tooltip?: string;
+		toowtip?: stwing;
 
 		/**
-		 * The priority of the item. A higher value item will be shown more to the left.
+		 * The pwiowity of the item. A higha vawue item wiww be shown mowe to the weft.
 		 */
-		priority?: number;
+		pwiowity?: numba;
 
 		/**
-		 * Accessibility information used when a screen reader interacts with this item.
+		 * Accessibiwity infowmation used when a scween weada intewacts with this item.
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		accessibiwityInfowmation?: AccessibiwityInfowmation;
 
 		/**
-		 * Creates a new NotebookCellStatusBarItem.
-		 * @param text The text to show for the item.
-		 * @param alignment Whether the item is aligned to the left or right.
+		 * Cweates a new NotebookCewwStatusBawItem.
+		 * @pawam text The text to show fow the item.
+		 * @pawam awignment Whetha the item is awigned to the weft ow wight.
 		 */
-		constructor(text: string, alignment: NotebookCellStatusBarAlignment);
+		constwuctow(text: stwing, awignment: NotebookCewwStatusBawAwignment);
 	}
 
 	/**
-	 * A provider that can contribute items to the status bar that appears below a cell's editor.
+	 * A pwovida that can contwibute items to the status baw that appeaws bewow a ceww's editow.
 	 */
-	export interface NotebookCellStatusBarItemProvider {
+	expowt intewface NotebookCewwStatusBawItemPwovida {
 		/**
-		 * An optional event to signal that statusbar items have changed. The provide method will be called again.
+		 * An optionaw event to signaw that statusbaw items have changed. The pwovide method wiww be cawwed again.
 		 */
-		onDidChangeCellStatusBarItems?: Event<void>;
+		onDidChangeCewwStatusBawItems?: Event<void>;
 
 		/**
-		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
-		 * @param cell The cell for which to return items.
-		 * @param token A token triggered if this request should be cancelled.
-		 * @return One or more {@link NotebookCellStatusBarItem cell statusbar items}
+		 * The pwovida wiww be cawwed when the ceww scwowws into view, when its content, outputs, wanguage, ow metadata change, and when it changes execution state.
+		 * @pawam ceww The ceww fow which to wetuwn items.
+		 * @pawam token A token twiggewed if this wequest shouwd be cancewwed.
+		 * @wetuwn One ow mowe {@wink NotebookCewwStatusBawItem ceww statusbaw items}
 		 */
-		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem | NotebookCellStatusBarItem[]>;
+		pwovideCewwStatusBawItems(ceww: NotebookCeww, token: CancewwationToken): PwovidewWesuwt<NotebookCewwStatusBawItem | NotebookCewwStatusBawItem[]>;
 	}
 
 	/**
-	 * Namespace for notebooks.
+	 * Namespace fow notebooks.
 	 *
-	 * The notebooks functionality is composed of three loosely coupled components:
+	 * The notebooks functionawity is composed of thwee woosewy coupwed components:
 	 *
-	 * 1. {@link NotebookSerializer} enable the editor to open, show, and save notebooks
-	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
-	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
+	 * 1. {@wink NotebookSewiawiza} enabwe the editow to open, show, and save notebooks
+	 * 2. {@wink NotebookContwowwa} own the execution of notebooks, e.g they cweate output fwom code cewws.
+	 * 3. NotebookWendewa pwesent notebook output in the editow. They wun in a sepawate context.
 	 */
-	export namespace notebooks {
+	expowt namespace notebooks {
 
 		/**
-		 * Creates a new notebook controller.
+		 * Cweates a new notebook contwowwa.
 		 *
-		 * @param id Identifier of the controller. Must be unique per extension.
-		 * @param notebookType A notebook type for which this controller is for.
-		 * @param label The label of the controller.
-		 * @param handler The execute-handler of the controller.
+		 * @pawam id Identifia of the contwowwa. Must be unique pew extension.
+		 * @pawam notebookType A notebook type fow which this contwowwa is fow.
+		 * @pawam wabew The wabew of the contwowwa.
+		 * @pawam handwa The execute-handwa of the contwowwa.
 		 */
-		export function createNotebookController(id: string, notebookType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>): NotebookController;
+		expowt function cweateNotebookContwowwa(id: stwing, notebookType: stwing, wabew: stwing, handwa?: (cewws: NotebookCeww[], notebook: NotebookDocument, contwowwa: NotebookContwowwa) => void | Thenabwe<void>): NotebookContwowwa;
 
 		/**
-		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
+		 * Wegista a {@wink NotebookCewwStatusBawItemPwovida ceww statusbaw item pwovida} fow the given notebook type.
 		 *
-		 * @param notebookType The notebook type to register for.
-		 * @param provider A cell status bar provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam notebookType The notebook type to wegista fow.
+		 * @pawam pwovida A ceww status baw pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
+		expowt function wegistewNotebookCewwStatusBawItemPwovida(notebookType: stwing, pwovida: NotebookCewwStatusBawItemPwovida): Disposabwe;
 
 		/**
-		 * Creates a new messaging instance used to communicate with a specific renderer.
+		 * Cweates a new messaging instance used to communicate with a specific wendewa.
 		 *
-		 * * *Note 1:* Extensions can only create renderer that they have defined in their `package.json`-file
-		 * * *Note 2:* A renderer only has access to messaging if `requiresMessaging` is set to `always` or `optional` in
-		 * its `notebookRenderer` contribution.
+		 * * *Note 1:* Extensions can onwy cweate wendewa that they have defined in theiw `package.json`-fiwe
+		 * * *Note 2:* A wendewa onwy has access to messaging if `wequiwesMessaging` is set to `awways` ow `optionaw` in
+		 * its `notebookWendewa` contwibution.
 		 *
-		 * @param rendererId The renderer ID to communicate with
-		 * @returns A new notebook renderer messaging object.
+		 * @pawam wendewewId The wendewa ID to communicate with
+		 * @wetuwns A new notebook wendewa messaging object.
 		*/
-		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
+		expowt function cweateWendewewMessaging(wendewewId: stwing): NotebookWendewewMessaging;
 	}
 
 	/**
-	 * Represents the input box in the Source Control viewlet.
+	 * Wepwesents the input box in the Souwce Contwow viewwet.
 	 */
-	export interface SourceControlInputBox {
+	expowt intewface SouwceContwowInputBox {
 
 		/**
-		 * Setter and getter for the contents of the input box.
+		 * Setta and getta fow the contents of the input box.
 		 */
-		value: string;
+		vawue: stwing;
 
 		/**
-		 * A string to show as placeholder in the input box to guide the user.
+		 * A stwing to show as pwacehowda in the input box to guide the usa.
 		 */
-		placeholder: string;
+		pwacehowda: stwing;
 
 		/**
-		 * Controls whether the input box is visible (default is `true`).
+		 * Contwows whetha the input box is visibwe (defauwt is `twue`).
 		 */
-		visible: boolean;
+		visibwe: boowean;
 	}
 
-	interface QuickDiffProvider {
+	intewface QuickDiffPwovida {
 
 		/**
-		 * Provide a {@link Uri} to the original resource of any given resource uri.
+		 * Pwovide a {@wink Uwi} to the owiginaw wesouwce of any given wesouwce uwi.
 		 *
-		 * @param uri The uri of the resource open in a text editor.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to uri of the matching original resource.
+		 * @pawam uwi The uwi of the wesouwce open in a text editow.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn A thenabwe that wesowves to uwi of the matching owiginaw wesouwce.
 		 */
-		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
+		pwovideOwiginawWesouwce?(uwi: Uwi, token: CancewwationToken): PwovidewWesuwt<Uwi>;
 	}
 
 	/**
-	 * The theme-aware decorations for a
-	 * {@link SourceControlResourceState source control resource state}.
+	 * The theme-awawe decowations fow a
+	 * {@wink SouwceContwowWesouwceState souwce contwow wesouwce state}.
 	 */
-	export interface SourceControlResourceThemableDecorations {
+	expowt intewface SouwceContwowWesouwceThemabweDecowations {
 
 		/**
-		 * The icon path for a specific
-		 * {@link SourceControlResourceState source control resource state}.
+		 * The icon path fow a specific
+		 * {@wink SouwceContwowWesouwceState souwce contwow wesouwce state}.
 		 */
-		readonly iconPath?: string | Uri | ThemeIcon;
+		weadonwy iconPath?: stwing | Uwi | ThemeIcon;
 	}
 
 	/**
-	 * The decorations for a {@link SourceControlResourceState source control resource state}.
-	 * Can be independently specified for light and dark themes.
+	 * The decowations fow a {@wink SouwceContwowWesouwceState souwce contwow wesouwce state}.
+	 * Can be independentwy specified fow wight and dawk themes.
 	 */
-	export interface SourceControlResourceDecorations extends SourceControlResourceThemableDecorations {
+	expowt intewface SouwceContwowWesouwceDecowations extends SouwceContwowWesouwceThemabweDecowations {
 
 		/**
-		 * Whether the {@link SourceControlResourceState source control resource state} should
-		 * be striked-through in the UI.
+		 * Whetha the {@wink SouwceContwowWesouwceState souwce contwow wesouwce state} shouwd
+		 * be stwiked-thwough in the UI.
 		 */
-		readonly strikeThrough?: boolean;
+		weadonwy stwikeThwough?: boowean;
 
 		/**
-		 * Whether the {@link SourceControlResourceState source control resource state} should
+		 * Whetha the {@wink SouwceContwowWesouwceState souwce contwow wesouwce state} shouwd
 		 * be faded in the UI.
 		 */
-		readonly faded?: boolean;
+		weadonwy faded?: boowean;
 
 		/**
-		 * The title for a specific
-		 * {@link SourceControlResourceState source control resource state}.
+		 * The titwe fow a specific
+		 * {@wink SouwceContwowWesouwceState souwce contwow wesouwce state}.
 		 */
-		readonly tooltip?: string;
+		weadonwy toowtip?: stwing;
 
 		/**
-		 * The light theme decorations.
+		 * The wight theme decowations.
 		 */
-		readonly light?: SourceControlResourceThemableDecorations;
+		weadonwy wight?: SouwceContwowWesouwceThemabweDecowations;
 
 		/**
-		 * The dark theme decorations.
+		 * The dawk theme decowations.
 		 */
-		readonly dark?: SourceControlResourceThemableDecorations;
+		weadonwy dawk?: SouwceContwowWesouwceThemabweDecowations;
 	}
 
 	/**
-	 * An source control resource state represents the state of an underlying workspace
-	 * resource within a certain {@link SourceControlResourceGroup source control group}.
+	 * An souwce contwow wesouwce state wepwesents the state of an undewwying wowkspace
+	 * wesouwce within a cewtain {@wink SouwceContwowWesouwceGwoup souwce contwow gwoup}.
 	 */
-	export interface SourceControlResourceState {
+	expowt intewface SouwceContwowWesouwceState {
 
 		/**
-		 * The {@link Uri} of the underlying resource inside the workspace.
+		 * The {@wink Uwi} of the undewwying wesouwce inside the wowkspace.
 		 */
-		readonly resourceUri: Uri;
+		weadonwy wesouwceUwi: Uwi;
 
 		/**
-		 * The {@link Command} which should be run when the resource
-		 * state is open in the Source Control viewlet.
+		 * The {@wink Command} which shouwd be wun when the wesouwce
+		 * state is open in the Souwce Contwow viewwet.
 		 */
-		readonly command?: Command;
+		weadonwy command?: Command;
 
 		/**
-		 * The {@link SourceControlResourceDecorations decorations} for this source control
-		 * resource state.
+		 * The {@wink SouwceContwowWesouwceDecowations decowations} fow this souwce contwow
+		 * wesouwce state.
 		 */
-		readonly decorations?: SourceControlResourceDecorations;
+		weadonwy decowations?: SouwceContwowWesouwceDecowations;
 
 		/**
-		 * Context value of the resource state. This can be used to contribute resource specific actions.
-		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
-		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
+		 * Context vawue of the wesouwce state. This can be used to contwibute wesouwce specific actions.
+		 * Fow exampwe, if a wesouwce is given a context vawue as `diffabwe`. When contwibuting actions to `scm/wesouwceState/context`
+		 * using `menus` extension point, you can specify context vawue fow key `scmWesouwceState` in `when` expwessions, wike `scmWesouwceState == diffabwe`.
 		 * ```
-		 *	"contributes": {
+		 *	"contwibutes": {
 		 *		"menus": {
-		 *			"scm/resourceState/context": [
+		 *			"scm/wesouwceState/context": [
 		 *				{
 		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
+		 *					"when": "scmWesouwceState == diffabwe"
 		 *				}
 		 *			]
 		 *		}
 		 *	}
 		 * ```
-		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
+		 * This wiww show action `extension.diff` onwy fow wesouwces with `contextVawue` is `diffabwe`.
 		 */
-		readonly contextValue?: string;
+		weadonwy contextVawue?: stwing;
 	}
 
 	/**
-	 * A source control resource group is a collection of
-	 * {@link SourceControlResourceState source control resource states}.
+	 * A souwce contwow wesouwce gwoup is a cowwection of
+	 * {@wink SouwceContwowWesouwceState souwce contwow wesouwce states}.
 	 */
-	export interface SourceControlResourceGroup {
+	expowt intewface SouwceContwowWesouwceGwoup {
 
 		/**
-		 * The id of this source control resource group.
+		 * The id of this souwce contwow wesouwce gwoup.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The label of this source control resource group.
+		 * The wabew of this souwce contwow wesouwce gwoup.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * Whether this source control resource group is hidden when it contains
-		 * no {@link SourceControlResourceState source control resource states}.
+		 * Whetha this souwce contwow wesouwce gwoup is hidden when it contains
+		 * no {@wink SouwceContwowWesouwceState souwce contwow wesouwce states}.
 		 */
-		hideWhenEmpty?: boolean;
+		hideWhenEmpty?: boowean;
 
 		/**
-		 * This group's collection of
-		 * {@link SourceControlResourceState source control resource states}.
+		 * This gwoup's cowwection of
+		 * {@wink SouwceContwowWesouwceState souwce contwow wesouwce states}.
 		 */
-		resourceStates: SourceControlResourceState[];
+		wesouwceStates: SouwceContwowWesouwceState[];
 
 		/**
-		 * Dispose this source control resource group.
+		 * Dispose this souwce contwow wesouwce gwoup.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * An source control is able to provide {@link SourceControlResourceState resource states}
-	 * to the editor and interact with the editor in several source control related ways.
+	 * An souwce contwow is abwe to pwovide {@wink SouwceContwowWesouwceState wesouwce states}
+	 * to the editow and intewact with the editow in sevewaw souwce contwow wewated ways.
 	 */
-	export interface SourceControl {
+	expowt intewface SouwceContwow {
 
 		/**
-		 * The id of this source control.
+		 * The id of this souwce contwow.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The human-readable label of this source control.
+		 * The human-weadabwe wabew of this souwce contwow.
 		 */
-		readonly label: string;
+		weadonwy wabew: stwing;
 
 		/**
-		 * The (optional) Uri of the root of this source control.
+		 * The (optionaw) Uwi of the woot of this souwce contwow.
 		 */
-		readonly rootUri: Uri | undefined;
+		weadonwy wootUwi: Uwi | undefined;
 
 		/**
-		 * The {@link SourceControlInputBox input box} for this source control.
+		 * The {@wink SouwceContwowInputBox input box} fow this souwce contwow.
 		 */
-		readonly inputBox: SourceControlInputBox;
+		weadonwy inputBox: SouwceContwowInputBox;
 
 		/**
-		 * The UI-visible count of {@link SourceControlResourceState resource states} of
-		 * this source control.
+		 * The UI-visibwe count of {@wink SouwceContwowWesouwceState wesouwce states} of
+		 * this souwce contwow.
 		 *
-		 * Equals to the total number of {@link SourceControlResourceState resource state}
-		 * of this source control, if undefined.
+		 * Equaws to the totaw numba of {@wink SouwceContwowWesouwceState wesouwce state}
+		 * of this souwce contwow, if undefined.
 		 */
-		count?: number;
+		count?: numba;
 
 		/**
-		 * An optional {@link QuickDiffProvider quick diff provider}.
+		 * An optionaw {@wink QuickDiffPwovida quick diff pwovida}.
 		 */
-		quickDiffProvider?: QuickDiffProvider;
+		quickDiffPwovida?: QuickDiffPwovida;
 
 		/**
-		 * Optional commit template string.
+		 * Optionaw commit tempwate stwing.
 		 *
-		 * The Source Control viewlet will populate the Source Control
-		 * input with this value when appropriate.
+		 * The Souwce Contwow viewwet wiww popuwate the Souwce Contwow
+		 * input with this vawue when appwopwiate.
 		 */
-		commitTemplate?: string;
+		commitTempwate?: stwing;
 
 		/**
-		 * Optional accept input command.
+		 * Optionaw accept input command.
 		 *
-		 * This command will be invoked when the user accepts the value
-		 * in the Source Control input.
+		 * This command wiww be invoked when the usa accepts the vawue
+		 * in the Souwce Contwow input.
 		 */
 		acceptInputCommand?: Command;
 
 		/**
-		 * Optional status bar commands.
+		 * Optionaw status baw commands.
 		 *
-		 * These commands will be displayed in the editor's status bar.
+		 * These commands wiww be dispwayed in the editow's status baw.
 		 */
-		statusBarCommands?: Command[];
+		statusBawCommands?: Command[];
 
 		/**
-		 * Create a new {@link SourceControlResourceGroup resource group}.
+		 * Cweate a new {@wink SouwceContwowWesouwceGwoup wesouwce gwoup}.
 		 */
-		createResourceGroup(id: string, label: string): SourceControlResourceGroup;
+		cweateWesouwceGwoup(id: stwing, wabew: stwing): SouwceContwowWesouwceGwoup;
 
 		/**
-		 * Dispose this source control.
+		 * Dispose this souwce contwow.
 		 */
 		dispose(): void;
 	}
 
-	export namespace scm {
+	expowt namespace scm {
 
 		/**
-		 * The {@link SourceControlInputBox input box} for the last source control
-		 * created by the extension.
+		 * The {@wink SouwceContwowInputBox input box} fow the wast souwce contwow
+		 * cweated by the extension.
 		 *
-		 * @deprecated Use SourceControl.inputBox instead
+		 * @depwecated Use SouwceContwow.inputBox instead
 		 */
-		export const inputBox: SourceControlInputBox;
+		expowt const inputBox: SouwceContwowInputBox;
 
 		/**
-		 * Creates a new {@link SourceControl source control} instance.
+		 * Cweates a new {@wink SouwceContwow souwce contwow} instance.
 		 *
-		 * @param id An `id` for the source control. Something short, e.g.: `git`.
-		 * @param label A human-readable string for the source control. E.g.: `Git`.
-		 * @param rootUri An optional Uri of the root of the source control. E.g.: `Uri.parse(workspaceRoot)`.
-		 * @return An instance of {@link SourceControl source control}.
+		 * @pawam id An `id` fow the souwce contwow. Something showt, e.g.: `git`.
+		 * @pawam wabew A human-weadabwe stwing fow the souwce contwow. E.g.: `Git`.
+		 * @pawam wootUwi An optionaw Uwi of the woot of the souwce contwow. E.g.: `Uwi.pawse(wowkspaceWoot)`.
+		 * @wetuwn An instance of {@wink SouwceContwow souwce contwow}.
 		 */
-		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
+		expowt function cweateSouwceContwow(id: stwing, wabew: stwing, wootUwi?: Uwi): SouwceContwow;
 	}
 
 	/**
-	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
+	 * A DebugPwotocowMessage is an opaque stand-in type fow the [PwotocowMessage](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Base_Pwotocow_PwotocowMessage) type defined in the Debug Adapta Pwotocow.
 	 */
-	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+	expowt intewface DebugPwotocowMessage {
+		// Pwopewties: see detaiws [hewe](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Base_Pwotocow_PwotocowMessage).
 	}
 
 	/**
-	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 * A DebugPwotocowSouwce is an opaque stand-in type fow the [Souwce](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Types_Souwce) type defined in the Debug Adapta Pwotocow.
 	 */
-	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	expowt intewface DebugPwotocowSouwce {
+		// Pwopewties: see detaiws [hewe](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Types_Souwce).
 	}
 
 	/**
-	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
+	 * A DebugPwotocowBweakpoint is an opaque stand-in type fow the [Bweakpoint](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Types_Bweakpoint) type defined in the Debug Adapta Pwotocow.
 	 */
-	export interface DebugProtocolBreakpoint {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+	expowt intewface DebugPwotocowBweakpoint {
+		// Pwopewties: see detaiws [hewe](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Types_Bweakpoint).
 	}
 
 	/**
-	 * Configuration for a debug session.
+	 * Configuwation fow a debug session.
 	 */
-	export interface DebugConfiguration {
+	expowt intewface DebugConfiguwation {
 		/**
 		 * The type of the debug session.
 		 */
-		type: string;
+		type: stwing;
 
 		/**
 		 * The name of the debug session.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * The request type of the debug session.
+		 * The wequest type of the debug session.
 		 */
-		request: string;
+		wequest: stwing;
 
 		/**
-		 * Additional debug type specific properties.
+		 * Additionaw debug type specific pwopewties.
 		 */
-		[key: string]: any;
+		[key: stwing]: any;
 	}
 
 	/**
 	 * A debug session.
 	 */
-	export interface DebugSession {
+	expowt intewface DebugSession {
 
 		/**
 		 * The unique ID of this debug session.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The debug session's type from the {@link DebugConfiguration debug configuration}.
+		 * The debug session's type fwom the {@wink DebugConfiguwation debug configuwation}.
 		 */
-		readonly type: string;
+		weadonwy type: stwing;
 
 		/**
-		 * The parent session of this debug session, if it was created as a child.
-		 * @see DebugSessionOptions.parentSession
+		 * The pawent session of this debug session, if it was cweated as a chiwd.
+		 * @see DebugSessionOptions.pawentSession
 		 */
-		readonly parentSession?: DebugSession;
+		weadonwy pawentSession?: DebugSession;
 
 		/**
-		 * The debug session's name is initially taken from the {@link DebugConfiguration debug configuration}.
-		 * Any changes will be properly reflected in the UI.
+		 * The debug session's name is initiawwy taken fwom the {@wink DebugConfiguwation debug configuwation}.
+		 * Any changes wiww be pwopewwy wefwected in the UI.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * The workspace folder of this session or `undefined` for a folderless setup.
+		 * The wowkspace fowda of this session ow `undefined` fow a fowdewwess setup.
 		 */
-		readonly workspaceFolder: WorkspaceFolder | undefined;
+		weadonwy wowkspaceFowda: WowkspaceFowda | undefined;
 
 		/**
-		 * The "resolved" {@link DebugConfiguration debug configuration} of this session.
-		 * "Resolved" means that
-		 * - all variables have been substituted and
-		 * - platform specific attribute sections have been "flattened" for the matching platform and removed for non-matching platforms.
+		 * The "wesowved" {@wink DebugConfiguwation debug configuwation} of this session.
+		 * "Wesowved" means that
+		 * - aww vawiabwes have been substituted and
+		 * - pwatfowm specific attwibute sections have been "fwattened" fow the matching pwatfowm and wemoved fow non-matching pwatfowms.
 		 */
-		readonly configuration: DebugConfiguration;
+		weadonwy configuwation: DebugConfiguwation;
 
 		/**
-		 * Send a custom request to the debug adapter.
+		 * Send a custom wequest to the debug adapta.
 		 */
-		customRequest(command: string, args?: any): Thenable<any>;
+		customWequest(command: stwing, awgs?: any): Thenabwe<any>;
 
 		/**
-		 * Maps a breakpoint in the editor to the corresponding Debug Adapter Protocol (DAP) breakpoint that is managed by the debug adapter of the debug session.
-		 * If no DAP breakpoint exists (either because the editor breakpoint was not yet registered or because the debug adapter is not interested in the breakpoint), the value `undefined` is returned.
+		 * Maps a bweakpoint in the editow to the cowwesponding Debug Adapta Pwotocow (DAP) bweakpoint that is managed by the debug adapta of the debug session.
+		 * If no DAP bweakpoint exists (eitha because the editow bweakpoint was not yet wegistewed ow because the debug adapta is not intewested in the bweakpoint), the vawue `undefined` is wetuwned.
 		 *
-		 * @param breakpoint A {@link Breakpoint} in the editor.
-		 * @return A promise that resolves to the Debug Adapter Protocol breakpoint or `undefined`.
+		 * @pawam bweakpoint A {@wink Bweakpoint} in the editow.
+		 * @wetuwn A pwomise that wesowves to the Debug Adapta Pwotocow bweakpoint ow `undefined`.
 		 */
-		getDebugProtocolBreakpoint(breakpoint: Breakpoint): Thenable<DebugProtocolBreakpoint | undefined>;
+		getDebugPwotocowBweakpoint(bweakpoint: Bweakpoint): Thenabwe<DebugPwotocowBweakpoint | undefined>;
 	}
 
 	/**
-	 * A custom Debug Adapter Protocol event received from a {@link DebugSession debug session}.
+	 * A custom Debug Adapta Pwotocow event weceived fwom a {@wink DebugSession debug session}.
 	 */
-	export interface DebugSessionCustomEvent {
+	expowt intewface DebugSessionCustomEvent {
 		/**
-		 * The {@link DebugSession debug session} for which the custom event was received.
+		 * The {@wink DebugSession debug session} fow which the custom event was weceived.
 		 */
-		readonly session: DebugSession;
+		weadonwy session: DebugSession;
 
 		/**
 		 * Type of event.
 		 */
-		readonly event: string;
+		weadonwy event: stwing;
 
 		/**
-		 * Event specific information.
+		 * Event specific infowmation.
 		 */
-		readonly body?: any;
+		weadonwy body?: any;
 	}
 
 	/**
-	 * A debug configuration provider allows to add debug configurations to the debug service
-	 * and to resolve launch configurations before they are used to start a debug session.
-	 * A debug configuration provider is registered via {@link debug.registerDebugConfigurationProvider}.
+	 * A debug configuwation pwovida awwows to add debug configuwations to the debug sewvice
+	 * and to wesowve waunch configuwations befowe they awe used to stawt a debug session.
+	 * A debug configuwation pwovida is wegistewed via {@wink debug.wegistewDebugConfiguwationPwovida}.
 	 */
-	export interface DebugConfigurationProvider {
+	expowt intewface DebugConfiguwationPwovida {
 		/**
-		 * Provides {@link DebugConfiguration debug configuration} to the debug service. If more than one debug configuration provider is
-		 * registered for the same type, debug configurations are concatenated in arbitrary order.
+		 * Pwovides {@wink DebugConfiguwation debug configuwation} to the debug sewvice. If mowe than one debug configuwation pwovida is
+		 * wegistewed fow the same type, debug configuwations awe concatenated in awbitwawy owda.
 		 *
-		 * @param folder The workspace folder for which the configurations are used or `undefined` for a folderless setup.
-		 * @param token A cancellation token.
-		 * @return An array of {@link DebugConfiguration debug configurations}.
+		 * @pawam fowda The wowkspace fowda fow which the configuwations awe used ow `undefined` fow a fowdewwess setup.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn An awway of {@wink DebugConfiguwation debug configuwations}.
 		 */
-		provideDebugConfigurations?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugConfiguration[]>;
+		pwovideDebugConfiguwations?(fowda: WowkspaceFowda | undefined, token?: CancewwationToken): PwovidewWesuwt<DebugConfiguwation[]>;
 
 		/**
-		 * Resolves a {@link DebugConfiguration debug configuration} by filling in missing values or by adding/changing/removing attributes.
-		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
-		 * in arbitrary order and the initial debug configuration is piped through the chain.
-		 * Returning the value 'undefined' prevents the debug session from starting.
-		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 * Wesowves a {@wink DebugConfiguwation debug configuwation} by fiwwing in missing vawues ow by adding/changing/wemoving attwibutes.
+		 * If mowe than one debug configuwation pwovida is wegistewed fow the same type, the wesowveDebugConfiguwation cawws awe chained
+		 * in awbitwawy owda and the initiaw debug configuwation is piped thwough the chain.
+		 * Wetuwning the vawue 'undefined' pwevents the debug session fwom stawting.
+		 * Wetuwning the vawue 'nuww' pwevents the debug session fwom stawting and opens the undewwying debug configuwation instead.
 		 *
-		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
-		 * @param debugConfiguration The {@link DebugConfiguration debug configuration} to resolve.
-		 * @param token A cancellation token.
-		 * @return The resolved debug configuration or undefined or null.
+		 * @pawam fowda The wowkspace fowda fwom which the configuwation owiginates fwom ow `undefined` fow a fowdewwess setup.
+		 * @pawam debugConfiguwation The {@wink DebugConfiguwation debug configuwation} to wesowve.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved debug configuwation ow undefined ow nuww.
 		 */
-		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+		wesowveDebugConfiguwation?(fowda: WowkspaceFowda | undefined, debugConfiguwation: DebugConfiguwation, token?: CancewwationToken): PwovidewWesuwt<DebugConfiguwation>;
 
 		/**
-		 * This hook is directly called after 'resolveDebugConfiguration' but with all variables substituted.
-		 * It can be used to resolve or verify a {@link DebugConfiguration debug configuration} by filling in missing values or by adding/changing/removing attributes.
-		 * If more than one debug configuration provider is registered for the same type, the 'resolveDebugConfigurationWithSubstitutedVariables' calls are chained
-		 * in arbitrary order and the initial debug configuration is piped through the chain.
-		 * Returning the value 'undefined' prevents the debug session from starting.
-		 * Returning the value 'null' prevents the debug session from starting and opens the underlying debug configuration instead.
+		 * This hook is diwectwy cawwed afta 'wesowveDebugConfiguwation' but with aww vawiabwes substituted.
+		 * It can be used to wesowve ow vewify a {@wink DebugConfiguwation debug configuwation} by fiwwing in missing vawues ow by adding/changing/wemoving attwibutes.
+		 * If mowe than one debug configuwation pwovida is wegistewed fow the same type, the 'wesowveDebugConfiguwationWithSubstitutedVawiabwes' cawws awe chained
+		 * in awbitwawy owda and the initiaw debug configuwation is piped thwough the chain.
+		 * Wetuwning the vawue 'undefined' pwevents the debug session fwom stawting.
+		 * Wetuwning the vawue 'nuww' pwevents the debug session fwom stawting and opens the undewwying debug configuwation instead.
 		 *
-		 * @param folder The workspace folder from which the configuration originates from or `undefined` for a folderless setup.
-		 * @param debugConfiguration The {@link DebugConfiguration debug configuration} to resolve.
-		 * @param token A cancellation token.
-		 * @return The resolved debug configuration or undefined or null.
+		 * @pawam fowda The wowkspace fowda fwom which the configuwation owiginates fwom ow `undefined` fow a fowdewwess setup.
+		 * @pawam debugConfiguwation The {@wink DebugConfiguwation debug configuwation} to wesowve.
+		 * @pawam token A cancewwation token.
+		 * @wetuwn The wesowved debug configuwation ow undefined ow nuww.
 		 */
-		resolveDebugConfigurationWithSubstitutedVariables?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+		wesowveDebugConfiguwationWithSubstitutedVawiabwes?(fowda: WowkspaceFowda | undefined, debugConfiguwation: DebugConfiguwation, token?: CancewwationToken): PwovidewWesuwt<DebugConfiguwation>;
 	}
 
 	/**
-	 * Represents a debug adapter executable and optional arguments and runtime options passed to it.
+	 * Wepwesents a debug adapta executabwe and optionaw awguments and wuntime options passed to it.
 	 */
-	export class DebugAdapterExecutable {
+	expowt cwass DebugAdaptewExecutabwe {
 
 		/**
-		 * Creates a description for a debug adapter based on an executable program.
+		 * Cweates a descwiption fow a debug adapta based on an executabwe pwogwam.
 		 *
-		 * @param command The command or executable path that implements the debug adapter.
-		 * @param args Optional arguments to be passed to the command or executable.
-		 * @param options Optional options to be used when starting the command or executable.
+		 * @pawam command The command ow executabwe path that impwements the debug adapta.
+		 * @pawam awgs Optionaw awguments to be passed to the command ow executabwe.
+		 * @pawam options Optionaw options to be used when stawting the command ow executabwe.
 		 */
-		constructor(command: string, args?: string[], options?: DebugAdapterExecutableOptions);
+		constwuctow(command: stwing, awgs?: stwing[], options?: DebugAdaptewExecutabweOptions);
 
 		/**
-		 * The command or path of the debug adapter executable.
-		 * A command must be either an absolute path of an executable or the name of an command to be looked up via the PATH environment variable.
-		 * The special value 'node' will be mapped to the editor's built-in Node.js runtime.
+		 * The command ow path of the debug adapta executabwe.
+		 * A command must be eitha an absowute path of an executabwe ow the name of an command to be wooked up via the PATH enviwonment vawiabwe.
+		 * The speciaw vawue 'node' wiww be mapped to the editow's buiwt-in Node.js wuntime.
 		 */
-		readonly command: string;
+		weadonwy command: stwing;
 
 		/**
-		 * The arguments passed to the debug adapter executable. Defaults to an empty array.
+		 * The awguments passed to the debug adapta executabwe. Defauwts to an empty awway.
 		 */
-		readonly args: string[];
+		weadonwy awgs: stwing[];
 
 		/**
-		 * Optional options to be used when the debug adapter is started.
-		 * Defaults to undefined.
+		 * Optionaw options to be used when the debug adapta is stawted.
+		 * Defauwts to undefined.
 		 */
-		readonly options?: DebugAdapterExecutableOptions;
+		weadonwy options?: DebugAdaptewExecutabweOptions;
 	}
 
 	/**
-	 * Options for a debug adapter executable.
+	 * Options fow a debug adapta executabwe.
 	 */
-	export interface DebugAdapterExecutableOptions {
+	expowt intewface DebugAdaptewExecutabweOptions {
 
 		/**
-		 * The additional environment of the executed program or shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
+		 * The additionaw enviwonment of the executed pwogwam ow sheww. If omitted
+		 * the pawent pwocess' enviwonment is used. If pwovided it is mewged with
+		 * the pawent pwocess' enviwonment.
 		 */
-		env?: { [key: string]: string };
+		env?: { [key: stwing]: stwing };
 
 		/**
-		 * The current working directory for the executed debug adapter.
+		 * The cuwwent wowking diwectowy fow the executed debug adapta.
 		 */
-		cwd?: string;
+		cwd?: stwing;
 	}
 
 	/**
-	 * Represents a debug adapter running as a socket based server.
+	 * Wepwesents a debug adapta wunning as a socket based sewva.
 	 */
-	export class DebugAdapterServer {
+	expowt cwass DebugAdaptewSewva {
 
 		/**
-		 * The port.
+		 * The powt.
 		 */
-		readonly port: number;
+		weadonwy powt: numba;
 
 		/**
 		 * The host.
 		 */
-		readonly host?: string;
+		weadonwy host?: stwing;
 
 		/**
-		 * Create a description for a debug adapter running as a socket based server.
+		 * Cweate a descwiption fow a debug adapta wunning as a socket based sewva.
 		 */
-		constructor(port: number, host?: string);
+		constwuctow(powt: numba, host?: stwing);
 	}
 
 	/**
-	 * Represents a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
+	 * Wepwesents a debug adapta wunning as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based sewva.
 	 */
-	export class DebugAdapterNamedPipeServer {
+	expowt cwass DebugAdaptewNamedPipeSewva {
 		/**
 		 * The path to the NamedPipe/UNIX Domain Socket.
 		 */
-		readonly path: string;
+		weadonwy path: stwing;
 
 		/**
-		 * Create a description for a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
+		 * Cweate a descwiption fow a debug adapta wunning as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based sewva.
 		 */
-		constructor(path: string);
+		constwuctow(path: stwing);
 	}
 
 	/**
-	 * A debug adapter that implements the Debug Adapter Protocol can be registered with the editor if it implements the DebugAdapter interface.
+	 * A debug adapta that impwements the Debug Adapta Pwotocow can be wegistewed with the editow if it impwements the DebugAdapta intewface.
 	 */
-	export interface DebugAdapter extends Disposable {
+	expowt intewface DebugAdapta extends Disposabwe {
 
 		/**
-		 * An event which fires after the debug adapter has sent a Debug Adapter Protocol message to the editor.
-		 * Messages can be requests, responses, or events.
+		 * An event which fiwes afta the debug adapta has sent a Debug Adapta Pwotocow message to the editow.
+		 * Messages can be wequests, wesponses, ow events.
 		 */
-		readonly onDidSendMessage: Event<DebugProtocolMessage>;
+		weadonwy onDidSendMessage: Event<DebugPwotocowMessage>;
 
 		/**
-		 * Handle a Debug Adapter Protocol message.
-		 * Messages can be requests, responses, or events.
-		 * Results or errors are returned via onSendMessage events.
-		 * @param message A Debug Adapter Protocol message
+		 * Handwe a Debug Adapta Pwotocow message.
+		 * Messages can be wequests, wesponses, ow events.
+		 * Wesuwts ow ewwows awe wetuwned via onSendMessage events.
+		 * @pawam message A Debug Adapta Pwotocow message
 		 */
-		handleMessage(message: DebugProtocolMessage): void;
+		handweMessage(message: DebugPwotocowMessage): void;
 	}
 
 	/**
-	 * A debug adapter descriptor for an inline implementation.
+	 * A debug adapta descwiptow fow an inwine impwementation.
 	 */
-	export class DebugAdapterInlineImplementation {
+	expowt cwass DebugAdaptewInwineImpwementation {
 
 		/**
-		 * Create a descriptor for an inline implementation of a debug adapter.
+		 * Cweate a descwiptow fow an inwine impwementation of a debug adapta.
 		 */
-		constructor(implementation: DebugAdapter);
+		constwuctow(impwementation: DebugAdapta);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
+	expowt type DebugAdaptewDescwiptow = DebugAdaptewExecutabwe | DebugAdaptewSewva | DebugAdaptewNamedPipeSewva | DebugAdaptewInwineImpwementation;
 
-	export interface DebugAdapterDescriptorFactory {
+	expowt intewface DebugAdaptewDescwiptowFactowy {
 		/**
-		 * 'createDebugAdapterDescriptor' is called at the start of a debug session to provide details about the debug adapter to use.
-		 * These details must be returned as objects of type {@link DebugAdapterDescriptor}.
-		 * Currently two types of debug adapters are supported:
-		 * - a debug adapter executable is specified as a command path and arguments (see {@link DebugAdapterExecutable}),
-		 * - a debug adapter server reachable via a communication port (see {@link DebugAdapterServer}).
-		 * If the method is not implemented the default behavior is this:
-		 *   createDebugAdapter(session: DebugSession, executable: DebugAdapterExecutable) {
-		 *      if (typeof session.configuration.debugServer === 'number') {
-		 *         return new DebugAdapterServer(session.configuration.debugServer);
+		 * 'cweateDebugAdaptewDescwiptow' is cawwed at the stawt of a debug session to pwovide detaiws about the debug adapta to use.
+		 * These detaiws must be wetuwned as objects of type {@wink DebugAdaptewDescwiptow}.
+		 * Cuwwentwy two types of debug adaptews awe suppowted:
+		 * - a debug adapta executabwe is specified as a command path and awguments (see {@wink DebugAdaptewExecutabwe}),
+		 * - a debug adapta sewva weachabwe via a communication powt (see {@wink DebugAdaptewSewva}).
+		 * If the method is not impwemented the defauwt behaviow is this:
+		 *   cweateDebugAdapta(session: DebugSession, executabwe: DebugAdaptewExecutabwe) {
+		 *      if (typeof session.configuwation.debugSewva === 'numba') {
+		 *         wetuwn new DebugAdaptewSewva(session.configuwation.debugSewva);
 		 *      }
-		 *      return executable;
+		 *      wetuwn executabwe;
 		 *   }
-		 * @param session The {@link DebugSession debug session} for which the debug adapter will be used.
-		 * @param executable The debug adapter's executable information as specified in the package.json (or undefined if no such information exists).
-		 * @return a {@link DebugAdapterDescriptor debug adapter descriptor} or undefined.
+		 * @pawam session The {@wink DebugSession debug session} fow which the debug adapta wiww be used.
+		 * @pawam executabwe The debug adapta's executabwe infowmation as specified in the package.json (ow undefined if no such infowmation exists).
+		 * @wetuwn a {@wink DebugAdaptewDescwiptow debug adapta descwiptow} ow undefined.
 		 */
-		createDebugAdapterDescriptor(session: DebugSession, executable: DebugAdapterExecutable | undefined): ProviderResult<DebugAdapterDescriptor>;
+		cweateDebugAdaptewDescwiptow(session: DebugSession, executabwe: DebugAdaptewExecutabwe | undefined): PwovidewWesuwt<DebugAdaptewDescwiptow>;
 	}
 
 	/**
-	 * A Debug Adapter Tracker is a means to track the communication between the editor and a Debug Adapter.
+	 * A Debug Adapta Twacka is a means to twack the communication between the editow and a Debug Adapta.
 	 */
-	export interface DebugAdapterTracker {
+	expowt intewface DebugAdaptewTwacka {
 		/**
-		 * A session with the debug adapter is about to be started.
+		 * A session with the debug adapta is about to be stawted.
 		 */
-		onWillStartSession?(): void;
+		onWiwwStawtSession?(): void;
 		/**
-		 * The debug adapter is about to receive a Debug Adapter Protocol message from the editor.
+		 * The debug adapta is about to weceive a Debug Adapta Pwotocow message fwom the editow.
 		 */
-		onWillReceiveMessage?(message: any): void;
+		onWiwwWeceiveMessage?(message: any): void;
 		/**
-		 * The debug adapter has sent a Debug Adapter Protocol message to the editor.
+		 * The debug adapta has sent a Debug Adapta Pwotocow message to the editow.
 		 */
 		onDidSendMessage?(message: any): void;
 		/**
-		 * The debug adapter session is about to be stopped.
+		 * The debug adapta session is about to be stopped.
 		 */
-		onWillStopSession?(): void;
+		onWiwwStopSession?(): void;
 		/**
-		 * An error with the debug adapter has occurred.
+		 * An ewwow with the debug adapta has occuwwed.
 		 */
-		onError?(error: Error): void;
+		onEwwow?(ewwow: Ewwow): void;
 		/**
-		 * The debug adapter has exited with the given exit code or signal.
+		 * The debug adapta has exited with the given exit code ow signaw.
 		 */
-		onExit?(code: number | undefined, signal: string | undefined): void;
+		onExit?(code: numba | undefined, signaw: stwing | undefined): void;
 	}
 
-	export interface DebugAdapterTrackerFactory {
+	expowt intewface DebugAdaptewTwackewFactowy {
 		/**
-		 * The method 'createDebugAdapterTracker' is called at the start of a debug session in order
-		 * to return a "tracker" object that provides read-access to the communication between the editor and a debug adapter.
+		 * The method 'cweateDebugAdaptewTwacka' is cawwed at the stawt of a debug session in owda
+		 * to wetuwn a "twacka" object that pwovides wead-access to the communication between the editow and a debug adapta.
 		 *
-		 * @param session The {@link DebugSession debug session} for which the debug adapter tracker will be used.
-		 * @return A {@link DebugAdapterTracker debug adapter tracker} or undefined.
+		 * @pawam session The {@wink DebugSession debug session} fow which the debug adapta twacka wiww be used.
+		 * @wetuwn A {@wink DebugAdaptewTwacka debug adapta twacka} ow undefined.
 		 */
-		createDebugAdapterTracker(session: DebugSession): ProviderResult<DebugAdapterTracker>;
+		cweateDebugAdaptewTwacka(session: DebugSession): PwovidewWesuwt<DebugAdaptewTwacka>;
 	}
 
 	/**
-	 * Represents the debug console.
+	 * Wepwesents the debug consowe.
 	 */
-	export interface DebugConsole {
+	expowt intewface DebugConsowe {
 		/**
-		 * Append the given value to the debug console.
+		 * Append the given vawue to the debug consowe.
 		 *
-		 * @param value A string, falsy values will not be printed.
+		 * @pawam vawue A stwing, fawsy vawues wiww not be pwinted.
 		 */
-		append(value: string): void;
+		append(vawue: stwing): void;
 
 		/**
-		 * Append the given value and a line feed character
-		 * to the debug console.
+		 * Append the given vawue and a wine feed chawacta
+		 * to the debug consowe.
 		 *
-		 * @param value A string, falsy values will be printed.
+		 * @pawam vawue A stwing, fawsy vawues wiww be pwinted.
 		 */
-		appendLine(value: string): void;
+		appendWine(vawue: stwing): void;
 	}
 
 	/**
-	 * An event describing the changes to the set of {@link Breakpoint breakpoints}.
+	 * An event descwibing the changes to the set of {@wink Bweakpoint bweakpoints}.
 	 */
-	export interface BreakpointsChangeEvent {
+	expowt intewface BweakpointsChangeEvent {
 		/**
-		 * Added breakpoints.
+		 * Added bweakpoints.
 		 */
-		readonly added: readonly Breakpoint[];
+		weadonwy added: weadonwy Bweakpoint[];
 
 		/**
-		 * Removed breakpoints.
+		 * Wemoved bweakpoints.
 		 */
-		readonly removed: readonly Breakpoint[];
+		weadonwy wemoved: weadonwy Bweakpoint[];
 
 		/**
-		 * Changed breakpoints.
+		 * Changed bweakpoints.
 		 */
-		readonly changed: readonly Breakpoint[];
+		weadonwy changed: weadonwy Bweakpoint[];
 	}
 
 	/**
-	 * The base class of all breakpoint types.
+	 * The base cwass of aww bweakpoint types.
 	 */
-	export class Breakpoint {
+	expowt cwass Bweakpoint {
 		/**
-		 * The unique ID of the breakpoint.
+		 * The unique ID of the bweakpoint.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 		/**
-		 * Is breakpoint enabled.
+		 * Is bweakpoint enabwed.
 		 */
-		readonly enabled: boolean;
+		weadonwy enabwed: boowean;
 		/**
-		 * An optional expression for conditional breakpoints.
+		 * An optionaw expwession fow conditionaw bweakpoints.
 		 */
-		readonly condition?: string;
+		weadonwy condition?: stwing;
 		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 * An optionaw expwession that contwows how many hits of the bweakpoint awe ignowed.
 		 */
-		readonly hitCondition?: string;
+		weadonwy hitCondition?: stwing;
 		/**
-		 * An optional message that gets logged when this breakpoint is hit. Embedded expressions within {} are interpolated by the debug adapter.
+		 * An optionaw message that gets wogged when this bweakpoint is hit. Embedded expwessions within {} awe intewpowated by the debug adapta.
 		 */
-		readonly logMessage?: string;
+		weadonwy wogMessage?: stwing;
 
-		protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
+		pwotected constwuctow(enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing);
 	}
 
 	/**
-	 * A breakpoint specified by a source location.
+	 * A bweakpoint specified by a souwce wocation.
 	 */
-	export class SourceBreakpoint extends Breakpoint {
+	expowt cwass SouwceBweakpoint extends Bweakpoint {
 		/**
-		 * The source and line position of this breakpoint.
+		 * The souwce and wine position of this bweakpoint.
 		 */
-		readonly location: Location;
+		weadonwy wocation: Wocation;
 
 		/**
-		 * Create a new breakpoint for a source location.
+		 * Cweate a new bweakpoint fow a souwce wocation.
 		 */
-		constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
+		constwuctow(wocation: Wocation, enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing);
 	}
 
 	/**
-	 * A breakpoint specified by a function name.
+	 * A bweakpoint specified by a function name.
 	 */
-	export class FunctionBreakpoint extends Breakpoint {
+	expowt cwass FunctionBweakpoint extends Bweakpoint {
 		/**
-		 * The name of the function to which this breakpoint is attached.
+		 * The name of the function to which this bweakpoint is attached.
 		 */
-		readonly functionName: string;
+		weadonwy functionName: stwing;
 
 		/**
-		 * Create a new function breakpoint.
+		 * Cweate a new function bweakpoint.
 		 */
-		constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string);
+		constwuctow(functionName: stwing, enabwed?: boowean, condition?: stwing, hitCondition?: stwing, wogMessage?: stwing);
 	}
 
 	/**
-	 * Debug console mode used by debug session, see {@link DebugSessionOptions options}.
+	 * Debug consowe mode used by debug session, see {@wink DebugSessionOptions options}.
 	 */
-	export enum DebugConsoleMode {
+	expowt enum DebugConsoweMode {
 		/**
-		 * Debug session should have a separate debug console.
+		 * Debug session shouwd have a sepawate debug consowe.
 		 */
-		Separate = 0,
+		Sepawate = 0,
 
 		/**
-		 * Debug session should share debug console with its parent session.
-		 * This value has no effect for sessions which do not have a parent session.
+		 * Debug session shouwd shawe debug consowe with its pawent session.
+		 * This vawue has no effect fow sessions which do not have a pawent session.
 		 */
-		MergeWithParent = 1
+		MewgeWithPawent = 1
 	}
 
 	/**
-	 * Options for {@link debug.startDebugging starting a debug session}.
+	 * Options fow {@wink debug.stawtDebugging stawting a debug session}.
 	 */
-	export interface DebugSessionOptions {
+	expowt intewface DebugSessionOptions {
 
 		/**
-		 * When specified the newly created debug session is registered as a "child" session of this
-		 * "parent" debug session.
+		 * When specified the newwy cweated debug session is wegistewed as a "chiwd" session of this
+		 * "pawent" debug session.
 		 */
-		parentSession?: DebugSession;
+		pawentSession?: DebugSession;
 
 		/**
-		 * Controls whether lifecycle requests like 'restart' are sent to the newly created session or its parent session.
-		 * By default (if the property is false or missing), lifecycle requests are sent to the new session.
-		 * This property is ignored if the session has no parent session.
+		 * Contwows whetha wifecycwe wequests wike 'westawt' awe sent to the newwy cweated session ow its pawent session.
+		 * By defauwt (if the pwopewty is fawse ow missing), wifecycwe wequests awe sent to the new session.
+		 * This pwopewty is ignowed if the session has no pawent session.
 		 */
-		lifecycleManagedByParent?: boolean;
+		wifecycweManagedByPawent?: boowean;
 
 		/**
-		 * Controls whether this session should have a separate debug console or share it
-		 * with the parent session. Has no effect for sessions which do not have a parent session.
-		 * Defaults to Separate.
+		 * Contwows whetha this session shouwd have a sepawate debug consowe ow shawe it
+		 * with the pawent session. Has no effect fow sessions which do not have a pawent session.
+		 * Defauwts to Sepawate.
 		 */
-		consoleMode?: DebugConsoleMode;
+		consoweMode?: DebugConsoweMode;
 
 		/**
-		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
-		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 * Contwows whetha this session shouwd wun without debugging, thus ignowing bweakpoints.
+		 * When this pwopewty is not specified, the vawue fwom the pawent session (if thewe is one) is used.
 		 */
-		noDebug?: boolean;
+		noDebug?: boowean;
 
 		/**
-		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
-		 * By default, the debug session will never hide its parent.
-		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 * Contwows if the debug session's pawent session is shown in the CAWW STACK view even if it has onwy a singwe chiwd.
+		 * By defauwt, the debug session wiww neva hide its pawent.
+		 * If compact is twue, debug sessions with a singwe chiwd awe hidden in the CAWW STACK view to make the twee mowe compact.
 		 */
-		compact?: boolean;
+		compact?: boowean;
 	}
 
 	/**
-	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
-	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
-	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 * A trigger kind is used when registering a `DebugConfigurationProvider` with {@link debug.registerDebugConfigurationProvider}.
+	 * A DebugConfiguwationPwovidewTwiggewKind specifies when the `pwovideDebugConfiguwations` method of a `DebugConfiguwationPwovida` is twiggewed.
+	 * Cuwwentwy thewe awe two situations: to pwovide the initiaw debug configuwations fow a newwy cweated waunch.json ow
+	 * to pwovide dynamicawwy genewated debug configuwations when the usa asks fow them thwough the UI (e.g. via the "Sewect and Stawt Debugging" command).
+	 * A twigga kind is used when wegistewing a `DebugConfiguwationPwovida` with {@wink debug.wegistewDebugConfiguwationPwovida}.
 	 */
-	export enum DebugConfigurationProviderTriggerKind {
+	expowt enum DebugConfiguwationPwovidewTwiggewKind {
 		/**
-		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+		 *	`DebugConfiguwationPwovida.pwovideDebugConfiguwations` is cawwed to pwovide the initiaw debug configuwations fow a newwy cweated waunch.json.
 		 */
-		Initial = 1,
+		Initiaw = 1,
 		/**
-		 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+		 * `DebugConfiguwationPwovida.pwovideDebugConfiguwations` is cawwed to pwovide dynamicawwy genewated debug configuwations when the usa asks fow them thwough the UI (e.g. via the "Sewect and Stawt Debugging" command).
 		 */
 		Dynamic = 2
 	}
 
 	/**
-	 * Namespace for debug functionality.
+	 * Namespace fow debug functionawity.
 	 */
-	export namespace debug {
+	expowt namespace debug {
 
 		/**
-		 * The currently active {@link DebugSession debug session} or `undefined`. The active debug session is the one
-		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
-		 * If no debug session is active, the value is `undefined`.
+		 * The cuwwentwy active {@wink DebugSession debug session} ow `undefined`. The active debug session is the one
+		 * wepwesented by the debug action fwoating window ow the one cuwwentwy shown in the dwop down menu of the debug action fwoating window.
+		 * If no debug session is active, the vawue is `undefined`.
 		 */
-		export let activeDebugSession: DebugSession | undefined;
+		expowt wet activeDebugSession: DebugSession | undefined;
 
 		/**
-		 * The currently active {@link DebugConsole debug console}.
-		 * If no debug session is active, output sent to the debug console is not shown.
+		 * The cuwwentwy active {@wink DebugConsowe debug consowe}.
+		 * If no debug session is active, output sent to the debug consowe is not shown.
 		 */
-		export let activeDebugConsole: DebugConsole;
+		expowt wet activeDebugConsowe: DebugConsowe;
 
 		/**
-		 * List of breakpoints.
+		 * Wist of bweakpoints.
 		 */
-		export let breakpoints: Breakpoint[];
+		expowt wet bweakpoints: Bweakpoint[];
 
 		/**
-		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
-		 * has changed. *Note* that the event also fires when the active debug session changes
+		 * An {@wink Event} which fiwes when the {@wink debug.activeDebugSession active debug session}
+		 * has changed. *Note* that the event awso fiwes when the active debug session changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
+		expowt const onDidChangeActiveDebugSession: Event<DebugSession | undefined>;
 
 		/**
-		 * An {@link Event} which fires when a new {@link DebugSession debug session} has been started.
+		 * An {@wink Event} which fiwes when a new {@wink DebugSession debug session} has been stawted.
 		 */
-		export const onDidStartDebugSession: Event<DebugSession>;
+		expowt const onDidStawtDebugSession: Event<DebugSession>;
 
 		/**
-		 * An {@link Event} which fires when a custom DAP event is received from the {@link DebugSession debug session}.
+		 * An {@wink Event} which fiwes when a custom DAP event is weceived fwom the {@wink DebugSession debug session}.
 		 */
-		export const onDidReceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
+		expowt const onDidWeceiveDebugSessionCustomEvent: Event<DebugSessionCustomEvent>;
 
 		/**
-		 * An {@link Event} which fires when a {@link DebugSession debug session} has terminated.
+		 * An {@wink Event} which fiwes when a {@wink DebugSession debug session} has tewminated.
 		 */
-		export const onDidTerminateDebugSession: Event<DebugSession>;
+		expowt const onDidTewminateDebugSession: Event<DebugSession>;
 
 		/**
-		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
+		 * An {@wink Event} that is emitted when the set of bweakpoints is added, wemoved, ow changed.
 		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+		expowt const onDidChangeBweakpoints: Event<BweakpointsChangeEvent>;
 
 		/**
-		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
-		 * The optional {@link DebugConfigurationProviderTriggerKind triggerKind} can be used to specify when the `provideDebugConfigurations` method of the provider is triggered.
-		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch.json.
-		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
-		 * Please note that the `triggerKind` argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
-		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
-		 * More than one provider can be registered for the same type.
+		 * Wegista a {@wink DebugConfiguwationPwovida debug configuwation pwovida} fow a specific debug type.
+		 * The optionaw {@wink DebugConfiguwationPwovidewTwiggewKind twiggewKind} can be used to specify when the `pwovideDebugConfiguwations` method of the pwovida is twiggewed.
+		 * Cuwwentwy two twigga kinds awe possibwe: with the vawue `Initiaw` (ow if no twigga kind awgument is given) the `pwovideDebugConfiguwations` method is used to pwovide the initiaw debug configuwations to be copied into a newwy cweated waunch.json.
+		 * With the twigga kind `Dynamic` the `pwovideDebugConfiguwations` method is used to dynamicawwy detewmine debug configuwations to be pwesented to the usa (in addition to the static configuwations fwom the waunch.json).
+		 * Pwease note that the `twiggewKind` awgument onwy appwies to the `pwovideDebugConfiguwations` method: so the `wesowveDebugConfiguwation` methods awe not affected at aww.
+		 * Wegistewing a singwe pwovida with wesowve methods fow diffewent twigga kinds, wesuwts in the same wesowve methods cawwed muwtipwe times.
+		 * Mowe than one pwovida can be wegistewed fow the same type.
 		 *
-		 * @param type The debug type for which the provider is registered.
-		 * @param provider The {@link DebugConfigurationProvider debug configuration provider} to register.
-		 * @param triggerKind The {@link DebugConfigurationProviderTrigger trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam type The debug type fow which the pwovida is wegistewed.
+		 * @pawam pwovida The {@wink DebugConfiguwationPwovida debug configuwation pwovida} to wegista.
+		 * @pawam twiggewKind The {@wink DebugConfiguwationPwovidewTwigga twigga} fow which the 'pwovideDebugConfiguwation' method of the pwovida is wegistewed. If `twiggewKind` is missing, the vawue `DebugConfiguwationPwovidewTwiggewKind.Initiaw` is assumed.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
+		expowt function wegistewDebugConfiguwationPwovida(debugType: stwing, pwovida: DebugConfiguwationPwovida, twiggewKind?: DebugConfiguwationPwovidewTwiggewKind): Disposabwe;
 
 		/**
-		 * Register a {@link DebugAdapterDescriptorFactory debug adapter descriptor factory} for a specific debug type.
-		 * An extension is only allowed to register a DebugAdapterDescriptorFactory for the debug type(s) defined by the extension. Otherwise an error is thrown.
-		 * Registering more than one DebugAdapterDescriptorFactory for a debug type results in an error.
+		 * Wegista a {@wink DebugAdaptewDescwiptowFactowy debug adapta descwiptow factowy} fow a specific debug type.
+		 * An extension is onwy awwowed to wegista a DebugAdaptewDescwiptowFactowy fow the debug type(s) defined by the extension. Othewwise an ewwow is thwown.
+		 * Wegistewing mowe than one DebugAdaptewDescwiptowFactowy fow a debug type wesuwts in an ewwow.
 		 *
-		 * @param debugType The debug type for which the factory is registered.
-		 * @param factory The {@link DebugAdapterDescriptorFactory debug adapter descriptor factory} to register.
-		 * @return A {@link Disposable} that unregisters this factory when being disposed.
+		 * @pawam debugType The debug type fow which the factowy is wegistewed.
+		 * @pawam factowy The {@wink DebugAdaptewDescwiptowFactowy debug adapta descwiptow factowy} to wegista.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this factowy when being disposed.
 		 */
-		export function registerDebugAdapterDescriptorFactory(debugType: string, factory: DebugAdapterDescriptorFactory): Disposable;
+		expowt function wegistewDebugAdaptewDescwiptowFactowy(debugType: stwing, factowy: DebugAdaptewDescwiptowFactowy): Disposabwe;
 
 		/**
-		 * Register a debug adapter tracker factory for the given debug type.
+		 * Wegista a debug adapta twacka factowy fow the given debug type.
 		 *
-		 * @param debugType The debug type for which the factory is registered or '*' for matching all debug types.
-		 * @param factory The {@link DebugAdapterTrackerFactory debug adapter tracker factory} to register.
-		 * @return A {@link Disposable} that unregisters this factory when being disposed.
+		 * @pawam debugType The debug type fow which the factowy is wegistewed ow '*' fow matching aww debug types.
+		 * @pawam factowy The {@wink DebugAdaptewTwackewFactowy debug adapta twacka factowy} to wegista.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this factowy when being disposed.
 		 */
-		export function registerDebugAdapterTrackerFactory(debugType: string, factory: DebugAdapterTrackerFactory): Disposable;
+		expowt function wegistewDebugAdaptewTwackewFactowy(debugType: stwing, factowy: DebugAdaptewTwackewFactowy): Disposabwe;
 
 		/**
-		 * Start debugging by using either a named launch or named compound configuration,
-		 * or by directly passing a {@link DebugConfiguration}.
-		 * The named configurations are looked up in '.vscode/launch.json' found in the given folder.
-		 * Before debugging starts, all unsaved files are saved and the launch configurations are brought up-to-date.
-		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
-		 * @param folder The {@link WorkspaceFolder workspace folder} for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
-		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a {@link DebugConfiguration} object.
-		 * @param parentSessionOrOptions Debug session options. When passed a parent {@link DebugSession debug session}, assumes options with just this parent session.
-		 * @return A thenable that resolves when debugging could be successfully started.
+		 * Stawt debugging by using eitha a named waunch ow named compound configuwation,
+		 * ow by diwectwy passing a {@wink DebugConfiguwation}.
+		 * The named configuwations awe wooked up in '.vscode/waunch.json' found in the given fowda.
+		 * Befowe debugging stawts, aww unsaved fiwes awe saved and the waunch configuwations awe bwought up-to-date.
+		 * Fowda specific vawiabwes used in the configuwation (e.g. '${wowkspaceFowda}') awe wesowved against the given fowda.
+		 * @pawam fowda The {@wink WowkspaceFowda wowkspace fowda} fow wooking up named configuwations and wesowving vawiabwes ow `undefined` fow a non-fowda setup.
+		 * @pawam nameOwConfiguwation Eitha the name of a debug ow compound configuwation ow a {@wink DebugConfiguwation} object.
+		 * @pawam pawentSessionOwOptions Debug session options. When passed a pawent {@wink DebugSession debug session}, assumes options with just this pawent session.
+		 * @wetuwn A thenabwe that wesowves when debugging couwd be successfuwwy stawted.
 		 */
-		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
+		expowt function stawtDebugging(fowda: WowkspaceFowda | undefined, nameOwConfiguwation: stwing | DebugConfiguwation, pawentSessionOwOptions?: DebugSession | DebugSessionOptions): Thenabwe<boowean>;
 
 		/**
-		 * Stop the given debug session or stop all debug sessions if session is omitted.
-		 * @param session The {@link DebugSession debug session} to stop; if omitted all sessions are stopped.
+		 * Stop the given debug session ow stop aww debug sessions if session is omitted.
+		 * @pawam session The {@wink DebugSession debug session} to stop; if omitted aww sessions awe stopped.
 		 */
-		export function stopDebugging(session?: DebugSession): Thenable<void>;
+		expowt function stopDebugging(session?: DebugSession): Thenabwe<void>;
 
 		/**
-		 * Add breakpoints.
-		 * @param breakpoints The breakpoints to add.
+		 * Add bweakpoints.
+		 * @pawam bweakpoints The bweakpoints to add.
 		*/
-		export function addBreakpoints(breakpoints: readonly Breakpoint[]): void;
+		expowt function addBweakpoints(bweakpoints: weadonwy Bweakpoint[]): void;
 
 		/**
-		 * Remove breakpoints.
-		 * @param breakpoints The breakpoints to remove.
+		 * Wemove bweakpoints.
+		 * @pawam bweakpoints The bweakpoints to wemove.
 		 */
-		export function removeBreakpoints(breakpoints: readonly Breakpoint[]): void;
+		expowt function wemoveBweakpoints(bweakpoints: weadonwy Bweakpoint[]): void;
 
 		/**
-		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
-		 * If the source descriptor is based on a path, a file Uri is returned.
-		 * If the source descriptor uses a reference number, a specific debug Uri (scheme 'debug') is constructed that requires a corresponding ContentProvider and a running debug session
+		 * Convewts a "Souwce" descwiptow object weceived via the Debug Adapta Pwotocow into a Uwi that can be used to woad its contents.
+		 * If the souwce descwiptow is based on a path, a fiwe Uwi is wetuwned.
+		 * If the souwce descwiptow uses a wefewence numba, a specific debug Uwi (scheme 'debug') is constwucted that wequiwes a cowwesponding ContentPwovida and a wunning debug session
 		 *
-		 * If the "Source" descriptor has insufficient information for creating the Uri, an error is thrown.
+		 * If the "Souwce" descwiptow has insufficient infowmation fow cweating the Uwi, an ewwow is thwown.
 		 *
-		 * @param source An object conforming to the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-		 * @param session An optional debug session that will be used when the source descriptor uses a reference number to load the contents from an active debug session.
-		 * @return A uri that can be used to load the contents of the source.
+		 * @pawam souwce An object confowming to the [Souwce](https://micwosoft.github.io/debug-adapta-pwotocow/specification#Types_Souwce) type defined in the Debug Adapta Pwotocow.
+		 * @pawam session An optionaw debug session that wiww be used when the souwce descwiptow uses a wefewence numba to woad the contents fwom an active debug session.
+		 * @wetuwn A uwi that can be used to woad the contents of the souwce.
 		 */
-		export function asDebugSourceUri(source: DebugProtocolSource, session?: DebugSession): Uri;
+		expowt function asDebugSouwceUwi(souwce: DebugPwotocowSouwce, session?: DebugSession): Uwi;
 	}
 
 	/**
-	 * Namespace for dealing with installed extensions. Extensions are represented
-	 * by an {@link Extension}-interface which enables reflection on them.
+	 * Namespace fow deawing with instawwed extensions. Extensions awe wepwesented
+	 * by an {@wink Extension}-intewface which enabwes wefwection on them.
 	 *
-	 * Extension writers can provide APIs to other extensions by returning their API public
-	 * surface from the `activate`-call.
+	 * Extension wwitews can pwovide APIs to otha extensions by wetuwning theiw API pubwic
+	 * suwface fwom the `activate`-caww.
 	 *
-	 * ```javascript
-	 * export function activate(context: vscode.ExtensionContext) {
-	 * 	let api = {
+	 * ```javascwipt
+	 * expowt function activate(context: vscode.ExtensionContext) {
+	 * 	wet api = {
 	 * 		sum(a, b) {
-	 * 			return a + b;
+	 * 			wetuwn a + b;
 	 * 		},
-	 * 		mul(a, b) {
-	 * 			return a * b;
+	 * 		muw(a, b) {
+	 * 			wetuwn a * b;
 	 * 		}
 	 * 	};
-	 * 	// 'export' public api-surface
-	 * 	return api;
+	 * 	// 'expowt' pubwic api-suwface
+	 * 	wetuwn api;
 	 * }
 	 * ```
-	 * When depending on the API of another extension add an `extensionDependencies`-entry
-	 * to `package.json`, and use the {@link extensions.getExtension getExtension}-function
-	 * and the {@link Extension.exports exports}-property, like below:
+	 * When depending on the API of anotha extension add an `extensionDependencies`-entwy
+	 * to `package.json`, and use the {@wink extensions.getExtension getExtension}-function
+	 * and the {@wink Extension.expowts expowts}-pwopewty, wike bewow:
 	 *
-	 * ```javascript
-	 * let mathExt = extensions.getExtension('genius.math');
-	 * let importedApi = mathExt.exports;
+	 * ```javascwipt
+	 * wet mathExt = extensions.getExtension('genius.math');
+	 * wet impowtedApi = mathExt.expowts;
 	 *
-	 * console.log(importedApi.mul(42, 1));
+	 * consowe.wog(impowtedApi.muw(42, 1));
 	 * ```
 	 */
-	export namespace extensions {
+	expowt namespace extensions {
 
 		/**
-		 * Get an extension by its full identifier in the form of: `publisher.name`.
+		 * Get an extension by its fuww identifia in the fowm of: `pubwisha.name`.
 		 *
-		 * @param extensionId An extension identifier.
-		 * @return An extension or `undefined`.
+		 * @pawam extensionId An extension identifia.
+		 * @wetuwn An extension ow `undefined`.
 		 */
-		export function getExtension(extensionId: string): Extension<any> | undefined;
+		expowt function getExtension(extensionId: stwing): Extension<any> | undefined;
 
 		/**
-		 * Get an extension by its full identifier in the form of: `publisher.name`.
+		 * Get an extension by its fuww identifia in the fowm of: `pubwisha.name`.
 		 *
-		 * @param extensionId An extension identifier.
-		 * @return An extension or `undefined`.
+		 * @pawam extensionId An extension identifia.
+		 * @wetuwn An extension ow `undefined`.
 		 */
-		export function getExtension<T>(extensionId: string): Extension<T> | undefined;
+		expowt function getExtension<T>(extensionId: stwing): Extension<T> | undefined;
 
 		/**
-		 * All extensions currently known to the system.
+		 * Aww extensions cuwwentwy known to the system.
 		 */
-		export const all: readonly Extension<any>[];
+		expowt const aww: weadonwy Extension<any>[];
 
 		/**
-		 * An event which fires when `extensions.all` changes. This can happen when extensions are
-		 * installed, uninstalled, enabled or disabled.
+		 * An event which fiwes when `extensions.aww` changes. This can happen when extensions awe
+		 * instawwed, uninstawwed, enabwed ow disabwed.
 		 */
-		export const onDidChange: Event<void>;
+		expowt const onDidChange: Event<void>;
 	}
 
 	/**
-	 * Collapsible state of a {@link CommentThread comment thread}
+	 * Cowwapsibwe state of a {@wink CommentThwead comment thwead}
 	 */
-	export enum CommentThreadCollapsibleState {
+	expowt enum CommentThweadCowwapsibweState {
 		/**
-		 * Determines an item is collapsed
+		 * Detewmines an item is cowwapsed
 		 */
-		Collapsed = 0,
+		Cowwapsed = 0,
 
 		/**
-		 * Determines an item is expanded
+		 * Detewmines an item is expanded
 		 */
 		Expanded = 1
 	}
 
 	/**
-	 * Comment mode of a {@link Comment}
+	 * Comment mode of a {@wink Comment}
 	 */
-	export enum CommentMode {
+	expowt enum CommentMode {
 		/**
-		 * Displays the comment editor
+		 * Dispways the comment editow
 		 */
 		Editing = 0,
 
 		/**
-		 * Displays the preview of the comment
+		 * Dispways the pweview of the comment
 		 */
-		Preview = 1
+		Pweview = 1
 	}
 
 	/**
-	 * A collection of {@link Comment comments} representing a conversation at a particular range in a document.
+	 * A cowwection of {@wink Comment comments} wepwesenting a convewsation at a pawticuwaw wange in a document.
 	 */
-	export interface CommentThread {
+	expowt intewface CommentThwead {
 		/**
-		 * The uri of the document the thread has been created on.
+		 * The uwi of the document the thwead has been cweated on.
 		 */
-		readonly uri: Uri;
+		weadonwy uwi: Uwi;
 
 		/**
-		 * The range the comment thread is located within the document. The thread icon will be shown
-		 * at the first line of the range.
+		 * The wange the comment thwead is wocated within the document. The thwead icon wiww be shown
+		 * at the fiwst wine of the wange.
 		 */
-		range: Range;
+		wange: Wange;
 
 		/**
-		 * The ordered comments of the thread.
+		 * The owdewed comments of the thwead.
 		 */
-		comments: readonly Comment[];
+		comments: weadonwy Comment[];
 
 		/**
-		 * Whether the thread should be collapsed or expanded when opening the document.
-		 * Defaults to Collapsed.
+		 * Whetha the thwead shouwd be cowwapsed ow expanded when opening the document.
+		 * Defauwts to Cowwapsed.
 		 */
-		collapsibleState: CommentThreadCollapsibleState;
+		cowwapsibweState: CommentThweadCowwapsibweState;
 
 		/**
-		 * Whether the thread supports reply.
-		 * Defaults to true.
+		 * Whetha the thwead suppowts wepwy.
+		 * Defauwts to twue.
 		 */
-		canReply: boolean;
+		canWepwy: boowean;
 
 		/**
-		 * Context value of the comment thread. This can be used to contribute thread specific actions.
-		 * For example, a comment thread is given a context value as `editable`. When contributing actions to `comments/commentThread/title`
-		 * using `menus` extension point, you can specify context value for key `commentThread` in `when` expression like `commentThread == editable`.
+		 * Context vawue of the comment thwead. This can be used to contwibute thwead specific actions.
+		 * Fow exampwe, a comment thwead is given a context vawue as `editabwe`. When contwibuting actions to `comments/commentThwead/titwe`
+		 * using `menus` extension point, you can specify context vawue fow key `commentThwead` in `when` expwession wike `commentThwead == editabwe`.
 		 * ```
-		 *	"contributes": {
+		 *	"contwibutes": {
 		 *		"menus": {
-		 *			"comments/commentThread/title": [
+		 *			"comments/commentThwead/titwe": [
 		 *				{
-		 *					"command": "extension.deleteCommentThread",
-		 *					"when": "commentThread == editable"
+		 *					"command": "extension.deweteCommentThwead",
+		 *					"when": "commentThwead == editabwe"
 		 *				}
 		 *			]
 		 *		}
 		 *	}
 		 * ```
-		 * This will show action `extension.deleteCommentThread` only for comment threads with `contextValue` is `editable`.
+		 * This wiww show action `extension.deweteCommentThwead` onwy fow comment thweads with `contextVawue` is `editabwe`.
 		 */
-		contextValue?: string;
+		contextVawue?: stwing;
 
 		/**
-		 * The optional human-readable label describing the {@link CommentThread Comment Thread}
+		 * The optionaw human-weadabwe wabew descwibing the {@wink CommentThwead Comment Thwead}
 		 */
-		label?: string;
+		wabew?: stwing;
 
 		/**
-		 * Dispose this comment thread.
+		 * Dispose this comment thwead.
 		 *
-		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when appropriate.
+		 * Once disposed, this comment thwead wiww be wemoved fwom visibwe editows and Comment Panew when appwopwiate.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Author information of a {@link Comment}
+	 * Authow infowmation of a {@wink Comment}
 	 */
-	export interface CommentAuthorInformation {
+	expowt intewface CommentAuthowInfowmation {
 		/**
-		 * The display name of the author of the comment
+		 * The dispway name of the authow of the comment
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * The optional icon path for the author
+		 * The optionaw icon path fow the authow
 		 */
-		iconPath?: Uri;
+		iconPath?: Uwi;
 	}
 
 	/**
-	 * Reactions of a {@link Comment}
+	 * Weactions of a {@wink Comment}
 	 */
-	export interface CommentReaction {
+	expowt intewface CommentWeaction {
 		/**
-		 * The human-readable label for the reaction
+		 * The human-weadabwe wabew fow the weaction
 		 */
-		readonly label: string;
+		weadonwy wabew: stwing;
 
 		/**
-		 * Icon for the reaction shown in UI.
+		 * Icon fow the weaction shown in UI.
 		 */
-		readonly iconPath: string | Uri;
+		weadonwy iconPath: stwing | Uwi;
 
 		/**
-		 * The number of users who have reacted to this reaction
+		 * The numba of usews who have weacted to this weaction
 		 */
-		readonly count: number;
+		weadonwy count: numba;
 
 		/**
-		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
+		 * Whetha the [authow](CommentAuthowInfowmation) of the comment has weacted to this weaction
 		 */
-		readonly authorHasReacted: boolean;
+		weadonwy authowHasWeacted: boowean;
 	}
 
 	/**
-	 * A comment is displayed within the editor or the Comments Panel, depending on how it is provided.
+	 * A comment is dispwayed within the editow ow the Comments Panew, depending on how it is pwovided.
 	 */
-	export interface Comment {
+	expowt intewface Comment {
 		/**
-		 * The human-readable comment body
+		 * The human-weadabwe comment body
 		 */
-		body: string | MarkdownString;
+		body: stwing | MawkdownStwing;
 
 		/**
-		 * {@link CommentMode Comment mode} of the comment
+		 * {@wink CommentMode Comment mode} of the comment
 		 */
 		mode: CommentMode;
 
 		/**
-		 * The {@link CommentAuthorInformation author information} of the comment
+		 * The {@wink CommentAuthowInfowmation authow infowmation} of the comment
 		 */
-		author: CommentAuthorInformation;
+		authow: CommentAuthowInfowmation;
 
 		/**
-		 * Context value of the comment. This can be used to contribute comment specific actions.
-		 * For example, a comment is given a context value as `editable`. When contributing actions to `comments/comment/title`
-		 * using `menus` extension point, you can specify context value for key `comment` in `when` expression like `comment == editable`.
+		 * Context vawue of the comment. This can be used to contwibute comment specific actions.
+		 * Fow exampwe, a comment is given a context vawue as `editabwe`. When contwibuting actions to `comments/comment/titwe`
+		 * using `menus` extension point, you can specify context vawue fow key `comment` in `when` expwession wike `comment == editabwe`.
 		 * ```json
-		 *	"contributes": {
+		 *	"contwibutes": {
 		 *		"menus": {
-		 *			"comments/comment/title": [
+		 *			"comments/comment/titwe": [
 		 *				{
-		 *					"command": "extension.deleteComment",
-		 *					"when": "comment == editable"
+		 *					"command": "extension.deweteComment",
+		 *					"when": "comment == editabwe"
 		 *				}
 		 *			]
 		 *		}
 		 *	}
 		 * ```
-		 * This will show action `extension.deleteComment` only for comments with `contextValue` is `editable`.
+		 * This wiww show action `extension.deweteComment` onwy fow comments with `contextVawue` is `editabwe`.
 		 */
-		contextValue?: string;
+		contextVawue?: stwing;
 
 		/**
-		 * Optional reactions of the {@link Comment}
+		 * Optionaw weactions of the {@wink Comment}
 		 */
-		reactions?: CommentReaction[];
+		weactions?: CommentWeaction[];
 
 		/**
-		 * Optional label describing the {@link Comment}
-		 * Label will be rendered next to authorName if exists.
+		 * Optionaw wabew descwibing the {@wink Comment}
+		 * Wabew wiww be wendewed next to authowName if exists.
 		 */
-		label?: string;
+		wabew?: stwing;
 	}
 
 	/**
-	 * Command argument for actions registered in `comments/commentThread/context`.
+	 * Command awgument fow actions wegistewed in `comments/commentThwead/context`.
 	 */
-	export interface CommentReply {
+	expowt intewface CommentWepwy {
 		/**
-		 * The active {@link CommentThread comment thread}
+		 * The active {@wink CommentThwead comment thwead}
 		 */
-		thread: CommentThread;
+		thwead: CommentThwead;
 
 		/**
-		 * The value in the comment editor
+		 * The vawue in the comment editow
 		 */
-		text: string;
+		text: stwing;
 	}
 
 	/**
-	 * Commenting range provider for a {@link CommentController comment controller}.
+	 * Commenting wange pwovida fow a {@wink CommentContwowwa comment contwowwa}.
 	 */
-	export interface CommentingRangeProvider {
+	expowt intewface CommentingWangePwovida {
 		/**
-		 * Provide a list of ranges which allow new comment threads creation or null for a given document
+		 * Pwovide a wist of wanges which awwow new comment thweads cweation ow nuww fow a given document
 		 */
-		provideCommentingRanges(document: TextDocument, token: CancellationToken): ProviderResult<Range[]>;
+		pwovideCommentingWanges(document: TextDocument, token: CancewwationToken): PwovidewWesuwt<Wange[]>;
 	}
 
 	/**
-	 * Represents a {@link CommentController comment controller}'s {@link CommentController.options options}.
+	 * Wepwesents a {@wink CommentContwowwa comment contwowwa}'s {@wink CommentContwowwa.options options}.
 	 */
-	export interface CommentOptions {
+	expowt intewface CommentOptions {
 		/**
-		 * An optional string to show on the comment input box when it's collapsed.
+		 * An optionaw stwing to show on the comment input box when it's cowwapsed.
 		 */
-		prompt?: string;
+		pwompt?: stwing;
 
 		/**
-		 * An optional string to show as placeholder in the comment input box when it's focused.
+		 * An optionaw stwing to show as pwacehowda in the comment input box when it's focused.
 		 */
-		placeHolder?: string;
+		pwaceHowda?: stwing;
 	}
 
 	/**
-	 * A comment controller is able to provide {@link CommentThread comments} support to the editor and
-	 * provide users various ways to interact with comments.
+	 * A comment contwowwa is abwe to pwovide {@wink CommentThwead comments} suppowt to the editow and
+	 * pwovide usews vawious ways to intewact with comments.
 	 */
-	export interface CommentController {
+	expowt intewface CommentContwowwa {
 		/**
-		 * The id of this comment controller.
+		 * The id of this comment contwowwa.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The human-readable label of this comment controller.
+		 * The human-weadabwe wabew of this comment contwowwa.
 		 */
-		readonly label: string;
+		weadonwy wabew: stwing;
 
 		/**
-		 * Comment controller options
+		 * Comment contwowwa options
 		 */
 		options?: CommentOptions;
 
 		/**
-		 * Optional commenting range provider. Provide a list {@link Range ranges} which support commenting to any given resource uri.
+		 * Optionaw commenting wange pwovida. Pwovide a wist {@wink Wange wanges} which suppowt commenting to any given wesouwce uwi.
 		 *
-		 * If not provided, users can leave comments in any document opened in the editor.
+		 * If not pwovided, usews can weave comments in any document opened in the editow.
 		 */
-		commentingRangeProvider?: CommentingRangeProvider;
+		commentingWangePwovida?: CommentingWangePwovida;
 
 		/**
-		 * Create a {@link CommentThread comment thread}. The comment thread will be displayed in visible text editors (if the resource matches)
-		 * and Comments Panel once created.
+		 * Cweate a {@wink CommentThwead comment thwead}. The comment thwead wiww be dispwayed in visibwe text editows (if the wesouwce matches)
+		 * and Comments Panew once cweated.
 		 *
-		 * @param uri The uri of the document the thread has been created on.
-		 * @param range The range the comment thread is located within the document.
-		 * @param comments The ordered comments of the thread.
+		 * @pawam uwi The uwi of the document the thwead has been cweated on.
+		 * @pawam wange The wange the comment thwead is wocated within the document.
+		 * @pawam comments The owdewed comments of the thwead.
 		 */
-		createCommentThread(uri: Uri, range: Range, comments: readonly Comment[]): CommentThread;
+		cweateCommentThwead(uwi: Uwi, wange: Wange, comments: weadonwy Comment[]): CommentThwead;
 
 		/**
-		 * Optional reaction handler for creating and deleting reactions on a {@link Comment}.
+		 * Optionaw weaction handwa fow cweating and deweting weactions on a {@wink Comment}.
 		 */
-		reactionHandler?: (comment: Comment, reaction: CommentReaction) => Thenable<void>;
+		weactionHandwa?: (comment: Comment, weaction: CommentWeaction) => Thenabwe<void>;
 
 		/**
-		 * Dispose this comment controller.
+		 * Dispose this comment contwowwa.
 		 *
-		 * Once disposed, all {@link CommentThread comment threads} created by this comment controller will also be removed from the editor
-		 * and Comments Panel.
+		 * Once disposed, aww {@wink CommentThwead comment thweads} cweated by this comment contwowwa wiww awso be wemoved fwom the editow
+		 * and Comments Panew.
 		 */
 		dispose(): void;
 	}
 
 	namespace comments {
 		/**
-		 * Creates a new {@link CommentController comment controller} instance.
+		 * Cweates a new {@wink CommentContwowwa comment contwowwa} instance.
 		 *
-		 * @param id An `id` for the comment controller.
-		 * @param label A human-readable string for the comment controller.
-		 * @return An instance of {@link CommentController comment controller}.
+		 * @pawam id An `id` fow the comment contwowwa.
+		 * @pawam wabew A human-weadabwe stwing fow the comment contwowwa.
+		 * @wetuwn An instance of {@wink CommentContwowwa comment contwowwa}.
 		 */
-		export function createCommentController(id: string, label: string): CommentController;
+		expowt function cweateCommentContwowwa(id: stwing, wabew: stwing): CommentContwowwa;
 	}
 
-	//#endregion
+	//#endwegion
 
 	/**
-	 * Represents a session of a currently logged in user.
+	 * Wepwesents a session of a cuwwentwy wogged in usa.
 	 */
-	export interface AuthenticationSession {
+	expowt intewface AuthenticationSession {
 		/**
-		 * The identifier of the authentication session.
+		 * The identifia of the authentication session.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
 		 * The access token.
 		 */
-		readonly accessToken: string;
+		weadonwy accessToken: stwing;
 
 		/**
 		 * The account associated with the session.
 		 */
-		readonly account: AuthenticationSessionAccountInformation;
+		weadonwy account: AuthenticationSessionAccountInfowmation;
 
 		/**
-		 * The permissions granted by the session's access token. Available scopes
-		 * are defined by the {@link AuthenticationProvider}.
+		 * The pewmissions gwanted by the session's access token. Avaiwabwe scopes
+		 * awe defined by the {@wink AuthenticationPwovida}.
 		 */
-		readonly scopes: readonly string[];
+		weadonwy scopes: weadonwy stwing[];
 	}
 
 	/**
-	 * The information of an account associated with an {@link AuthenticationSession}.
+	 * The infowmation of an account associated with an {@wink AuthenticationSession}.
 	 */
-	export interface AuthenticationSessionAccountInformation {
+	expowt intewface AuthenticationSessionAccountInfowmation {
 		/**
-		 * The unique identifier of the account.
+		 * The unique identifia of the account.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The human-readable name of the account.
+		 * The human-weadabwe name of the account.
 		 */
-		readonly label: string;
+		weadonwy wabew: stwing;
 	}
 
 
 	/**
-	 * Options to be used when getting an {@link AuthenticationSession} from an {@link AuthenticationProvider}.
+	 * Options to be used when getting an {@wink AuthenticationSession} fwom an {@wink AuthenticationPwovida}.
 	 */
-	export interface AuthenticationGetSessionOptions {
+	expowt intewface AuthenticationGetSessionOptions {
 		/**
-		 * Whether login should be performed if there is no matching session.
+		 * Whetha wogin shouwd be pewfowmed if thewe is no matching session.
 		 *
-		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
-		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
-		 * allows quietly prompting the user to sign in.
+		 * If twue, a modaw diawog wiww be shown asking the usa to sign in. If fawse, a numbewed badge wiww be shown
+		 * on the accounts activity baw icon. An entwy fow the extension wiww be added unda the menu to sign in. This
+		 * awwows quietwy pwompting the usa to sign in.
 		 *
-		 * If there is a matching session but the extension has not been granted access to it, setting this to true
-		 * will also result in an immediate modal dialog, and false will add a numbered badge to the accounts icon.
+		 * If thewe is a matching session but the extension has not been gwanted access to it, setting this to twue
+		 * wiww awso wesuwt in an immediate modaw diawog, and fawse wiww add a numbewed badge to the accounts icon.
 		 *
-		 * Defaults to false.
+		 * Defauwts to fawse.
 		 */
-		createIfNone?: boolean;
+		cweateIfNone?: boowean;
 
 		/**
-		 * Whether the existing user session preference should be cleared.
+		 * Whetha the existing usa session pwefewence shouwd be cweawed.
 		 *
-		 * For authentication providers that support being signed into multiple accounts at once, the user will be
-		 * prompted to select an account to use when {@link authentication.getSession getSession} is called. This preference
-		 * is remembered until {@link authentication.getSession getSession} is called with this flag.
+		 * Fow authentication pwovidews that suppowt being signed into muwtipwe accounts at once, the usa wiww be
+		 * pwompted to sewect an account to use when {@wink authentication.getSession getSession} is cawwed. This pwefewence
+		 * is wemembewed untiw {@wink authentication.getSession getSession} is cawwed with this fwag.
 		 *
-		 * Defaults to false.
+		 * Defauwts to fawse.
 		 */
-		clearSessionPreference?: boolean;
+		cweawSessionPwefewence?: boowean;
 	}
 
 	/**
-	 * Basic information about an {@link AuthenticationProvider}
+	 * Basic infowmation about an {@wink AuthenticationPwovida}
 	 */
-	export interface AuthenticationProviderInformation {
+	expowt intewface AuthenticationPwovidewInfowmation {
 		/**
-		 * The unique identifier of the authentication provider.
+		 * The unique identifia of the authentication pwovida.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * The human-readable name of the authentication provider.
+		 * The human-weadabwe name of the authentication pwovida.
 		 */
-		readonly label: string;
+		weadonwy wabew: stwing;
 	}
 
 	/**
-	 * An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
+	 * An {@wink Event} which fiwes when an {@wink AuthenticationSession} is added, wemoved, ow changed.
 	 */
-	export interface AuthenticationSessionsChangeEvent {
+	expowt intewface AuthenticationSessionsChangeEvent {
 		/**
-		 * The {@link AuthenticationProvider} that has had its sessions change.
+		 * The {@wink AuthenticationPwovida} that has had its sessions change.
 		 */
-		readonly provider: AuthenticationProviderInformation;
+		weadonwy pwovida: AuthenticationPwovidewInfowmation;
 	}
 
 	/**
-	 * Options for creating an {@link AuthenticationProvider}.
+	 * Options fow cweating an {@wink AuthenticationPwovida}.
 	 */
-	export interface AuthenticationProviderOptions {
+	expowt intewface AuthenticationPwovidewOptions {
 		/**
-		 * Whether it is possible to be signed into multiple accounts at once with this provider.
-		 * If not specified, will default to false.
+		 * Whetha it is possibwe to be signed into muwtipwe accounts at once with this pwovida.
+		 * If not specified, wiww defauwt to fawse.
 		*/
-		readonly supportsMultipleAccounts?: boolean;
+		weadonwy suppowtsMuwtipweAccounts?: boowean;
 	}
 
 	/**
-	* An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
+	* An {@wink Event} which fiwes when an {@wink AuthenticationSession} is added, wemoved, ow changed.
 	*/
-	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
+	expowt intewface AuthenticationPwovidewAuthenticationSessionsChangeEvent {
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been added.
+		 * The {@wink AuthenticationSession}s of the {@wink AuthenticationPwovida} that have been added.
 		*/
-		readonly added?: readonly AuthenticationSession[];
+		weadonwy added?: weadonwy AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been removed.
+		 * The {@wink AuthenticationSession}s of the {@wink AuthenticationPwovida} that have been wemoved.
 		 */
-		readonly removed?: readonly AuthenticationSession[];
+		weadonwy wemoved?: weadonwy AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been changed.
-		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
-		 * access token being set for the session.
+		 * The {@wink AuthenticationSession}s of the {@wink AuthenticationPwovida} that have been changed.
+		 * A session changes when its data excwuding the id awe updated. An exampwe of this is a session wefwesh that wesuwts in a new
+		 * access token being set fow the session.
 		 */
-		readonly changed?: readonly AuthenticationSession[];
+		weadonwy changed?: weadonwy AuthenticationSession[];
 	}
 
 	/**
-	 * A provider for performing authentication to a service.
+	 * A pwovida fow pewfowming authentication to a sewvice.
 	 */
-	export interface AuthenticationProvider {
+	expowt intewface AuthenticationPwovida {
 		/**
-		 * An {@link Event} which fires when the array of sessions has changed, or data
+		 * An {@wink Event} which fiwes when the awway of sessions has changed, ow data
 		 * within a session has changed.
 		 */
-		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
+		weadonwy onDidChangeSessions: Event<AuthenticationPwovidewAuthenticationSessionsChangeEvent>;
 
 		/**
-		 * Get a list of sessions.
-		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
-		 * these permissions, otherwise all sessions should be returned.
-		 * @returns A promise that resolves to an array of authentication sessions.
+		 * Get a wist of sessions.
+		 * @pawam scopes An optionaw wist of scopes. If pwovided, the sessions wetuwned shouwd match
+		 * these pewmissions, othewwise aww sessions shouwd be wetuwned.
+		 * @wetuwns A pwomise that wesowves to an awway of authentication sessions.
 		 */
-		getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		getSessions(scopes?: weadonwy stwing[]): Thenabwe<weadonwy AuthenticationSession[]>;
 
 		/**
-		 * Prompts a user to login.
+		 * Pwompts a usa to wogin.
 		 *
-		 * If login is successful, the onDidChangeSessions event should be fired.
+		 * If wogin is successfuw, the onDidChangeSessions event shouwd be fiwed.
 		 *
-		 * If login fails, a rejected promise should be returned.
+		 * If wogin faiws, a wejected pwomise shouwd be wetuwned.
 		 *
-		 * If the provider has specified that it does not support multiple accounts,
-		 * then this should never be called if there is already an existing session matching these
+		 * If the pwovida has specified that it does not suppowt muwtipwe accounts,
+		 * then this shouwd neva be cawwed if thewe is awweady an existing session matching these
 		 * scopes.
-		 * @param scopes A list of scopes, permissions, that the new session should be created with.
-		 * @returns A promise that resolves to an authentication session.
+		 * @pawam scopes A wist of scopes, pewmissions, that the new session shouwd be cweated with.
+		 * @wetuwns A pwomise that wesowves to an authentication session.
 		 */
-		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
+		cweateSession(scopes: weadonwy stwing[]): Thenabwe<AuthenticationSession>;
 
 		/**
-		 * Removes the session corresponding to session id.
+		 * Wemoves the session cowwesponding to session id.
 		 *
-		 * If the removal is successful, the onDidChangeSessions event should be fired.
+		 * If the wemovaw is successfuw, the onDidChangeSessions event shouwd be fiwed.
 		 *
-		 * If a session cannot be removed, the provider should reject with an error message.
-		 * @param sessionId The id of the session to remove.
+		 * If a session cannot be wemoved, the pwovida shouwd weject with an ewwow message.
+		 * @pawam sessionId The id of the session to wemove.
 		 */
-		removeSession(sessionId: string): Thenable<void>;
+		wemoveSession(sessionId: stwing): Thenabwe<void>;
 	}
 
 
 	/**
-	 * Namespace for authentication.
+	 * Namespace fow authentication.
 	 */
-	export namespace authentication {
+	expowt namespace authentication {
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desiwed scopes. Wejects if a pwovida with pwovidewId is not
+		 * wegistewed, ow if the usa does not consent to shawing authentication infowmation with
+		 * the extension. If thewe awe muwtipwe sessions with the same scopes, the usa wiww be shown a
+		 * quickpick to sewect which account they wouwd wike to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session
+		 * Cuwwentwy, thewe awe onwy two authentication pwovidews that awe contwibuted fwom buiwt in extensions
+		 * to the editow that impwement GitHub and Micwosoft authentication: theiw pwovidewId's awe 'github' and 'micwosoft'.
+		 * @pawam pwovidewId The id of the pwovida to use
+		 * @pawam scopes A wist of scopes wepwesenting the pewmissions wequested. These awe dependent on the authentication pwovida
+		 * @pawam options The {@wink AuthenticationGetSessionOptions} to use
+		 * @wetuwns A thenabwe that wesowves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
+		expowt function getSession(pwovidewId: stwing, scopes: weadonwy stwing[], options: AuthenticationGetSessionOptions & { cweateIfNone: twue }): Thenabwe<AuthenticationSession>;
 
 		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
+		 * Get an authentication session matching the desiwed scopes. Wejects if a pwovida with pwovidewId is not
+		 * wegistewed, ow if the usa does not consent to shawing authentication infowmation with
+		 * the extension. If thewe awe muwtipwe sessions with the same scopes, the usa wiww be shown a
+		 * quickpick to sewect which account they wouwd wike to use.
 		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The {@link AuthenticationGetSessionOptions} to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 * Cuwwentwy, thewe awe onwy two authentication pwovidews that awe contwibuted fwom buiwt in extensions
+		 * to the editow that impwement GitHub and Micwosoft authentication: theiw pwovidewId's awe 'github' and 'micwosoft'.
+		 * @pawam pwovidewId The id of the pwovida to use
+		 * @pawam scopes A wist of scopes wepwesenting the pewmissions wequested. These awe dependent on the authentication pwovida
+		 * @pawam options The {@wink AuthenticationGetSessionOptions} to use
+		 * @wetuwns A thenabwe that wesowves to an authentication session if avaiwabwe, ow undefined if thewe awe no sessions
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		expowt function getSession(pwovidewId: stwing, scopes: weadonwy stwing[], options?: AuthenticationGetSessionOptions): Thenabwe<AuthenticationSession | undefined>;
 
 		/**
-		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
-		 * been added, removed, or changed.
+		 * An {@wink Event} which fiwes when the authentication sessions of an authentication pwovida have
+		 * been added, wemoved, ow changed.
 		 */
-		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+		expowt const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 
 		/**
-		 * Register an authentication provider.
+		 * Wegista an authentication pwovida.
 		 *
-		 * There can only be one provider per id and an error is being thrown when an id
-		 * has already been used by another provider. Ids are case-sensitive.
+		 * Thewe can onwy be one pwovida pew id and an ewwow is being thwown when an id
+		 * has awweady been used by anotha pwovida. Ids awe case-sensitive.
 		 *
-		 * @param id The unique identifier of the provider.
-		 * @param label The human-readable name of the provider.
-		 * @param provider The authentication provider provider.
-		 * @params options Additional options for the provider.
-		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 * @pawam id The unique identifia of the pwovida.
+		 * @pawam wabew The human-weadabwe name of the pwovida.
+		 * @pawam pwovida The authentication pwovida pwovida.
+		 * @pawams options Additionaw options fow the pwovida.
+		 * @wetuwn A {@wink Disposabwe} that unwegistews this pwovida when being disposed.
 		 */
-		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
+		expowt function wegistewAuthenticationPwovida(id: stwing, wabew: stwing, pwovida: AuthenticationPwovida, options?: AuthenticationPwovidewOptions): Disposabwe;
 	}
 
 	/**
-	 * Namespace for testing functionality. Tests are published by registering
-	 * {@link TestController} instances, then adding {@link TestItem TestItems}.
-	 * Controllers may also describe how to run tests by creating one or more
-	 * {@link TestRunProfile} instances.
+	 * Namespace fow testing functionawity. Tests awe pubwished by wegistewing
+	 * {@wink TestContwowwa} instances, then adding {@wink TestItem TestItems}.
+	 * Contwowwews may awso descwibe how to wun tests by cweating one ow mowe
+	 * {@wink TestWunPwofiwe} instances.
 	 */
-	export namespace tests {
+	expowt namespace tests {
 		/**
-		 * Creates a new test controller.
+		 * Cweates a new test contwowwa.
 		 *
-		 * @param id Identifier for the controller, must be globally unique.
-		 * @param label A human-readable label for the controller.
-		 * @returns An instance of the {@link TestController}.
+		 * @pawam id Identifia fow the contwowwa, must be gwobawwy unique.
+		 * @pawam wabew A human-weadabwe wabew fow the contwowwa.
+		 * @wetuwns An instance of the {@wink TestContwowwa}.
 		*/
-		export function createTestController(id: string, label: string): TestController;
+		expowt function cweateTestContwowwa(id: stwing, wabew: stwing): TestContwowwa;
 	}
 
 	/**
-	 * The kind of executions that {@link TestRunProfile TestRunProfiles} control.
+	 * The kind of executions that {@wink TestWunPwofiwe TestWunPwofiwes} contwow.
 	 */
-	export enum TestRunProfileKind {
-		Run = 1,
+	expowt enum TestWunPwofiweKind {
+		Wun = 1,
 		Debug = 2,
-		Coverage = 3,
+		Covewage = 3,
 	}
 
 	/**
-	 * Tags can be associated with {@link TestItem TestItems} and
-	 * {@link TestRunProfile TestRunProfiles}. A profile with a tag can only
-	 * execute tests that include that tag in their {@link TestItem.tags} array.
+	 * Tags can be associated with {@wink TestItem TestItems} and
+	 * {@wink TestWunPwofiwe TestWunPwofiwes}. A pwofiwe with a tag can onwy
+	 * execute tests that incwude that tag in theiw {@wink TestItem.tags} awway.
 	 */
-	export class TestTag {
+	expowt cwass TestTag {
 		/**
-		 * ID of the test tag. `TestTag` instances with the same ID are considered
-		 * to be identical.
+		 * ID of the test tag. `TestTag` instances with the same ID awe considewed
+		 * to be identicaw.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * Creates a new TestTag instance.
-		 * @param id ID of the test tag.
+		 * Cweates a new TestTag instance.
+		 * @pawam id ID of the test tag.
 		 */
-		constructor(id: string);
+		constwuctow(id: stwing);
 	}
 
 	/**
-	 * A TestRunProfile describes one way to execute tests in a {@link TestController}.
+	 * A TestWunPwofiwe descwibes one way to execute tests in a {@wink TestContwowwa}.
 	 */
-	export interface TestRunProfile {
+	expowt intewface TestWunPwofiwe {
 		/**
-		 * Label shown to the user in the UI.
+		 * Wabew shown to the usa in the UI.
 		 *
-		 * Note that the label has some significance if the user requests that
-		 * tests be re-run in a certain way. For example, if tests were run
-		 * normally and the user requests to re-run them in debug mode, the editor
-		 * will attempt use a configuration with the same label of the `Debug`
-		 * kind. If there is no such configuration, the default will be used.
+		 * Note that the wabew has some significance if the usa wequests that
+		 * tests be we-wun in a cewtain way. Fow exampwe, if tests wewe wun
+		 * nowmawwy and the usa wequests to we-wun them in debug mode, the editow
+		 * wiww attempt use a configuwation with the same wabew of the `Debug`
+		 * kind. If thewe is no such configuwation, the defauwt wiww be used.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * Configures what kind of execution this profile controls. If there
-		 * are no profiles for a kind, it will not be available in the UI.
+		 * Configuwes what kind of execution this pwofiwe contwows. If thewe
+		 * awe no pwofiwes fow a kind, it wiww not be avaiwabwe in the UI.
 		 */
-		readonly kind: TestRunProfileKind;
+		weadonwy kind: TestWunPwofiweKind;
 
 		/**
-		 * Controls whether this profile is the default action that will
-		 * be taken when its kind is actioned. For example, if the user clicks
-		 * the generic "run all" button, then the default profile for
-		 * {@link TestRunProfileKind.Run} will be executed, although the
-		 * user can configure this.
+		 * Contwows whetha this pwofiwe is the defauwt action that wiww
+		 * be taken when its kind is actioned. Fow exampwe, if the usa cwicks
+		 * the genewic "wun aww" button, then the defauwt pwofiwe fow
+		 * {@wink TestWunPwofiweKind.Wun} wiww be executed, awthough the
+		 * usa can configuwe this.
 		 */
-		isDefault: boolean;
+		isDefauwt: boowean;
 
 		/**
-		 * Associated tag for the profile. If this is set, only {@link TestItem}
-		 * instances with the same tag will be eligible to execute in this profile.
+		 * Associated tag fow the pwofiwe. If this is set, onwy {@wink TestItem}
+		 * instances with the same tag wiww be ewigibwe to execute in this pwofiwe.
 		 */
 		tag?: TestTag;
 
 		/**
-		 * If this method is present, a configuration gear will be present in the
-		 * UI, and this method will be invoked when it's clicked. When called,
-		 * you can take other editor actions, such as showing a quick pick or
-		 * opening a configuration file.
+		 * If this method is pwesent, a configuwation geaw wiww be pwesent in the
+		 * UI, and this method wiww be invoked when it's cwicked. When cawwed,
+		 * you can take otha editow actions, such as showing a quick pick ow
+		 * opening a configuwation fiwe.
 		 */
-		configureHandler?: () => void;
+		configuweHandwa?: () => void;
 
 		/**
-		 * Handler called to start a test run. When invoked, the function should call
-		 * {@link TestController.createTestRun} at least once, and all test runs
-		 * associated with the request should be created before the function returns
-		 * or the returned promise is resolved.
+		 * Handwa cawwed to stawt a test wun. When invoked, the function shouwd caww
+		 * {@wink TestContwowwa.cweateTestWun} at weast once, and aww test wuns
+		 * associated with the wequest shouwd be cweated befowe the function wetuwns
+		 * ow the wetuwned pwomise is wesowved.
 		 *
-		 * @param request Request information for the test run.
-		 * @param cancellationToken Token that signals the used asked to abort the
-		 * test run. If cancellation is requested on this token, all {@link TestRun}
-		 * instances associated with the request will be
-		 * automatically cancelled as well.
+		 * @pawam wequest Wequest infowmation fow the test wun.
+		 * @pawam cancewwationToken Token that signaws the used asked to abowt the
+		 * test wun. If cancewwation is wequested on this token, aww {@wink TestWun}
+		 * instances associated with the wequest wiww be
+		 * automaticawwy cancewwed as weww.
 		 */
-		runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
+		wunHandwa: (wequest: TestWunWequest, token: CancewwationToken) => Thenabwe<void> | void;
 
 		/**
-		 * Deletes the run profile.
+		 * Dewetes the wun pwofiwe.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * Entry point to discover and execute tests. It contains {@link TestController.items} which
-	 * are used to populate the editor UI, and is associated with
-	 * {@link TestController.createRunProfile run profiles} to allow
-	 * for tests to be executed.
+	 * Entwy point to discova and execute tests. It contains {@wink TestContwowwa.items} which
+	 * awe used to popuwate the editow UI, and is associated with
+	 * {@wink TestContwowwa.cweateWunPwofiwe wun pwofiwes} to awwow
+	 * fow tests to be executed.
 	 */
-	export interface TestController {
+	expowt intewface TestContwowwa {
 		/**
-		 * The id of the controller passed in {@link vscode.tests.createTestController}.
-		 * This must be globally unique.
+		 * The id of the contwowwa passed in {@wink vscode.tests.cweateTestContwowwa}.
+		 * This must be gwobawwy unique.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * Human-readable label for the test controller.
+		 * Human-weadabwe wabew fow the test contwowwa.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * A collection of "top-level" {@link TestItem} instances, which can in
-		 * turn have their own {@link TestItem.children children} to form the
-		 * "test tree."
+		 * A cowwection of "top-wevew" {@wink TestItem} instances, which can in
+		 * tuwn have theiw own {@wink TestItem.chiwdwen chiwdwen} to fowm the
+		 * "test twee."
 		 *
-		 * The extension controls when to add tests. For example, extensions should
-		 * add tests for a file when {@link vscode.workspace.onDidOpenTextDocument}
-		 * fires in order for decorations for tests within a file to be visible.
+		 * The extension contwows when to add tests. Fow exampwe, extensions shouwd
+		 * add tests fow a fiwe when {@wink vscode.wowkspace.onDidOpenTextDocument}
+		 * fiwes in owda fow decowations fow tests within a fiwe to be visibwe.
 		 *
-		 * However, the editor may sometimes explicitly request children using the
-		 * {@link resolveHandler} See the documentation on that method for more details.
+		 * Howeva, the editow may sometimes expwicitwy wequest chiwdwen using the
+		 * {@wink wesowveHandwa} See the documentation on that method fow mowe detaiws.
 		 */
-		readonly items: TestItemCollection;
+		weadonwy items: TestItemCowwection;
 
 		/**
-		 * Creates a profile used for running tests. Extensions must create
-		 * at least one profile in order for tests to be run.
-		 * @param label A human-readable label for this profile.
-		 * @param kind Configures what kind of execution this profile manages.
-		 * @param runHandler Function called to start a test run.
-		 * @param isDefault Whether this is the default action for its kind.
-		 * @param tag Profile test tag.
-		 * @returns An instance of a {@link TestRunProfile}, which is automatically
-		 * associated with this controller.
+		 * Cweates a pwofiwe used fow wunning tests. Extensions must cweate
+		 * at weast one pwofiwe in owda fow tests to be wun.
+		 * @pawam wabew A human-weadabwe wabew fow this pwofiwe.
+		 * @pawam kind Configuwes what kind of execution this pwofiwe manages.
+		 * @pawam wunHandwa Function cawwed to stawt a test wun.
+		 * @pawam isDefauwt Whetha this is the defauwt action fow its kind.
+		 * @pawam tag Pwofiwe test tag.
+		 * @wetuwns An instance of a {@wink TestWunPwofiwe}, which is automaticawwy
+		 * associated with this contwowwa.
 		 */
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
+		cweateWunPwofiwe(wabew: stwing, kind: TestWunPwofiweKind, wunHandwa: (wequest: TestWunWequest, token: CancewwationToken) => Thenabwe<void> | void, isDefauwt?: boowean, tag?: TestTag): TestWunPwofiwe;
 
 		/**
-		 * A function provided by the extension that the editor may call to request
-		 * children of a test item, if the {@link TestItem.canResolveChildren} is
-		 * `true`. When called, the item should discover children and call
-		 * {@link vscode.tests.createTestItem} as children are discovered.
+		 * A function pwovided by the extension that the editow may caww to wequest
+		 * chiwdwen of a test item, if the {@wink TestItem.canWesowveChiwdwen} is
+		 * `twue`. When cawwed, the item shouwd discova chiwdwen and caww
+		 * {@wink vscode.tests.cweateTestItem} as chiwdwen awe discovewed.
 		 *
-		 * Generally the extension manages the lifecycle of test items, but under
-		 * certain conditions the editor may request the children of a specific
-		 * item to be loaded. For example, if the user requests to re-run tests
-		 * after reloading the editor, the editor may need to call this method
-		 * to resolve the previously-run tests.
+		 * Genewawwy the extension manages the wifecycwe of test items, but unda
+		 * cewtain conditions the editow may wequest the chiwdwen of a specific
+		 * item to be woaded. Fow exampwe, if the usa wequests to we-wun tests
+		 * afta wewoading the editow, the editow may need to caww this method
+		 * to wesowve the pweviouswy-wun tests.
 		 *
-		 * The item in the explorer will automatically be marked as "busy" until
-		 * the function returns or the returned thenable resolves.
+		 * The item in the expwowa wiww automaticawwy be mawked as "busy" untiw
+		 * the function wetuwns ow the wetuwned thenabwe wesowves.
 		 *
-		 * @param item An unresolved test item for which children are being
-		 * requested, or `undefined` to resolve the controller's initial {@link items}.
+		 * @pawam item An unwesowved test item fow which chiwdwen awe being
+		 * wequested, ow `undefined` to wesowve the contwowwa's initiaw {@wink items}.
 		 */
-		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
+		wesowveHandwa?: (item: TestItem | undefined) => Thenabwe<void> | void;
 
 		/**
-		 * Creates a {@link TestRun}. This should be called by the
-		 * {@link TestRunProfile} when a request is made to execute tests, and may
-		 * also be called if a test run is detected externally. Once created, tests
-		 * that are included in the request will be moved into the queued state.
+		 * Cweates a {@wink TestWun}. This shouwd be cawwed by the
+		 * {@wink TestWunPwofiwe} when a wequest is made to execute tests, and may
+		 * awso be cawwed if a test wun is detected extewnawwy. Once cweated, tests
+		 * that awe incwuded in the wequest wiww be moved into the queued state.
 		 *
-		 * All runs created using the same `request` instance will be grouped
-		 * together. This is useful if, for example, a single suite of tests is
-		 * run on multiple platforms.
+		 * Aww wuns cweated using the same `wequest` instance wiww be gwouped
+		 * togetha. This is usefuw if, fow exampwe, a singwe suite of tests is
+		 * wun on muwtipwe pwatfowms.
 		 *
-		 * @param request Test run request. Only tests inside the `include` may be
-		 * modified, and tests in its `exclude` are ignored.
-		 * @param name The human-readable name of the run. This can be used to
-		 * disambiguate multiple sets of results in a test run. It is useful if
-		 * tests are run across multiple platforms, for example.
-		 * @param persist Whether the results created by the run should be
-		 * persisted in the editor. This may be false if the results are coming from
-		 * a file already saved externally, such as a coverage information file.
-		 * @returns An instance of the {@link TestRun}. It will be considered "running"
-		 * from the moment this method is invoked until {@link TestRun.end} is called.
+		 * @pawam wequest Test wun wequest. Onwy tests inside the `incwude` may be
+		 * modified, and tests in its `excwude` awe ignowed.
+		 * @pawam name The human-weadabwe name of the wun. This can be used to
+		 * disambiguate muwtipwe sets of wesuwts in a test wun. It is usefuw if
+		 * tests awe wun acwoss muwtipwe pwatfowms, fow exampwe.
+		 * @pawam pewsist Whetha the wesuwts cweated by the wun shouwd be
+		 * pewsisted in the editow. This may be fawse if the wesuwts awe coming fwom
+		 * a fiwe awweady saved extewnawwy, such as a covewage infowmation fiwe.
+		 * @wetuwns An instance of the {@wink TestWun}. It wiww be considewed "wunning"
+		 * fwom the moment this method is invoked untiw {@wink TestWun.end} is cawwed.
 		 */
-		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
+		cweateTestWun(wequest: TestWunWequest, name?: stwing, pewsist?: boowean): TestWun;
 
 		/**
-		 * Creates a new managed {@link TestItem} instance. It can be added into
-		 * the {@link TestItem.children} of an existing item, or into the
-		 * {@link TestController.items}.
+		 * Cweates a new managed {@wink TestItem} instance. It can be added into
+		 * the {@wink TestItem.chiwdwen} of an existing item, ow into the
+		 * {@wink TestContwowwa.items}.
 		 *
-		 * @param id Identifier for the TestItem. The test item's ID must be unique
-		 * in the {@link TestItemCollection} it's added to.
-		 * @param label Human-readable label of the test item.
-		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 * @pawam id Identifia fow the TestItem. The test item's ID must be unique
+		 * in the {@wink TestItemCowwection} it's added to.
+		 * @pawam wabew Human-weadabwe wabew of the test item.
+		 * @pawam uwi UWI this TestItem is associated with. May be a fiwe ow diwectowy.
 		 */
-		createTestItem(id: string, label: string, uri?: Uri): TestItem;
+		cweateTestItem(id: stwing, wabew: stwing, uwi?: Uwi): TestItem;
 
 		/**
-		 * Unregisters the test controller, disposing of its associated tests
-		 * and unpersisted results.
+		 * Unwegistews the test contwowwa, disposing of its associated tests
+		 * and unpewsisted wesuwts.
 		 */
 		dispose(): void;
 	}
 
 	/**
-	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
-	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
-	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link profile}).
+	 * A TestWunWequest is a pwecuwsow to a {@wink TestWun}, which in tuwn is
+	 * cweated by passing a wequest to {@wink tests.wunTests}. The TestWunWequest
+	 * contains infowmation about which tests shouwd be wun, which shouwd not be
+	 * wun, and how they awe wun (via the {@wink pwofiwe}).
 	 *
-	 * In general, TestRunRequests are created by the editor and pass to
-	 * {@link TestRunProfile.runHandler}, however you can also create test
-	 * requests and runs outside of the `runHandler`.
+	 * In genewaw, TestWunWequests awe cweated by the editow and pass to
+	 * {@wink TestWunPwofiwe.wunHandwa}, howeva you can awso cweate test
+	 * wequests and wuns outside of the `wunHandwa`.
 	 */
-	export class TestRunRequest {
+	expowt cwass TestWunWequest {
 		/**
-		 * A filter for specific tests to run. If given, the extension should run
-		 * all of the included tests and all their children, excluding any tests
-		 * that appear in {@link TestRunRequest.exclude}. If this property is
-		 * undefined, then the extension should simply run all tests.
+		 * A fiwta fow specific tests to wun. If given, the extension shouwd wun
+		 * aww of the incwuded tests and aww theiw chiwdwen, excwuding any tests
+		 * that appeaw in {@wink TestWunWequest.excwude}. If this pwopewty is
+		 * undefined, then the extension shouwd simpwy wun aww tests.
 		 *
-		 * The process of running tests should resolve the children of any test
-		 * items who have not yet been resolved.
+		 * The pwocess of wunning tests shouwd wesowve the chiwdwen of any test
+		 * items who have not yet been wesowved.
 		 */
-		readonly include?: TestItem[];
+		weadonwy incwude?: TestItem[];
 
 		/**
-		 * An array of tests the user has marked as excluded from the test included
-		 * in this run; exclusions should apply after inclusions.
+		 * An awway of tests the usa has mawked as excwuded fwom the test incwuded
+		 * in this wun; excwusions shouwd appwy afta incwusions.
 		 *
-		 * May be omitted if no exclusions were requested. Test controllers should
-		 * not run excluded tests or any children of excluded tests.
+		 * May be omitted if no excwusions wewe wequested. Test contwowwews shouwd
+		 * not wun excwuded tests ow any chiwdwen of excwuded tests.
 		 */
-		readonly exclude?: TestItem[];
+		weadonwy excwude?: TestItem[];
 
 		/**
-		 * The profile used for this request. This will always be defined
-		 * for requests issued from the editor UI, though extensions may
-		 * programmatically create requests not associated with any profile.
+		 * The pwofiwe used fow this wequest. This wiww awways be defined
+		 * fow wequests issued fwom the editow UI, though extensions may
+		 * pwogwammaticawwy cweate wequests not associated with any pwofiwe.
 		 */
-		readonly profile?: TestRunProfile;
+		weadonwy pwofiwe?: TestWunPwofiwe;
 
 		/**
-		 * @param tests Array of specific tests to run, or undefined to run all tests
-		 * @param exclude An array of tests to exclude from the run.
-		 * @param profile The run profile used for this request.
+		 * @pawam tests Awway of specific tests to wun, ow undefined to wun aww tests
+		 * @pawam excwude An awway of tests to excwude fwom the wun.
+		 * @pawam pwofiwe The wun pwofiwe used fow this wequest.
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile);
+		constwuctow(incwude?: weadonwy TestItem[], excwude?: weadonwy TestItem[], pwofiwe?: TestWunPwofiwe);
 	}
 
 	/**
-	 * Options given to {@link TestController.runTests}
+	 * Options given to {@wink TestContwowwa.wunTests}
 	 */
-	export interface TestRun {
+	expowt intewface TestWun {
 		/**
-		 * The human-readable name of the run. This can be used to
-		 * disambiguate multiple sets of results in a test run. It is useful if
-		 * tests are run across multiple platforms, for example.
+		 * The human-weadabwe name of the wun. This can be used to
+		 * disambiguate muwtipwe sets of wesuwts in a test wun. It is usefuw if
+		 * tests awe wun acwoss muwtipwe pwatfowms, fow exampwe.
 		 */
-		readonly name?: string;
+		weadonwy name?: stwing;
 
 		/**
-		 * A cancellation token which will be triggered when the test run is
-		 * canceled from the UI.
+		 * A cancewwation token which wiww be twiggewed when the test wun is
+		 * cancewed fwom the UI.
 		 */
-		readonly token: CancellationToken;
+		weadonwy token: CancewwationToken;
 
 		/**
-		 * Whether the test run will be persisted across reloads by the editor.
+		 * Whetha the test wun wiww be pewsisted acwoss wewoads by the editow.
 		 */
-		readonly isPersisted: boolean;
+		weadonwy isPewsisted: boowean;
 
 		/**
-		 * Indicates a test is queued for later execution.
-		 * @param test Test item to update.
+		 * Indicates a test is queued fow wata execution.
+		 * @pawam test Test item to update.
 		 */
 		enqueued(test: TestItem): void;
 
 		/**
-		 * Indicates a test has started running.
-		 * @param test Test item to update.
+		 * Indicates a test has stawted wunning.
+		 * @pawam test Test item to update.
 		 */
-		started(test: TestItem): void;
+		stawted(test: TestItem): void;
 
 		/**
 		 * Indicates a test has been skipped.
-		 * @param test Test item to update.
+		 * @pawam test Test item to update.
 		 */
 		skipped(test: TestItem): void;
 
 		/**
-		 * Indicates a test has failed. You should pass one or more
-		 * {@link TestMessage TestMessages} to describe the failure.
-		 * @param test Test item to update.
-		 * @param messages Messages associated with the test failure.
-		 * @param duration How long the test took to execute, in milliseconds.
+		 * Indicates a test has faiwed. You shouwd pass one ow mowe
+		 * {@wink TestMessage TestMessages} to descwibe the faiwuwe.
+		 * @pawam test Test item to update.
+		 * @pawam messages Messages associated with the test faiwuwe.
+		 * @pawam duwation How wong the test took to execute, in miwwiseconds.
 		 */
-		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
+		faiwed(test: TestItem, message: TestMessage | weadonwy TestMessage[], duwation?: numba): void;
 
 		/**
-		 * Indicates a test has errored. You should pass one or more
-		 * {@link TestMessage TestMessages} to describe the failure. This differs
-		 * from the "failed" state in that it indicates a test that couldn't be
-		 * executed at all, from a compilation error for example.
-		 * @param test Test item to update.
-		 * @param messages Messages associated with the test failure.
-		 * @param duration How long the test took to execute, in milliseconds.
+		 * Indicates a test has ewwowed. You shouwd pass one ow mowe
+		 * {@wink TestMessage TestMessages} to descwibe the faiwuwe. This diffews
+		 * fwom the "faiwed" state in that it indicates a test that couwdn't be
+		 * executed at aww, fwom a compiwation ewwow fow exampwe.
+		 * @pawam test Test item to update.
+		 * @pawam messages Messages associated with the test faiwuwe.
+		 * @pawam duwation How wong the test took to execute, in miwwiseconds.
 		 */
-		errored(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
+		ewwowed(test: TestItem, message: TestMessage | weadonwy TestMessage[], duwation?: numba): void;
 
 		/**
 		 * Indicates a test has passed.
-		 * @param test Test item to update.
-		 * @param duration How long the test took to execute, in milliseconds.
+		 * @pawam test Test item to update.
+		 * @pawam duwation How wong the test took to execute, in miwwiseconds.
 		 */
-		passed(test: TestItem, duration?: number): void;
+		passed(test: TestItem, duwation?: numba): void;
 
 		/**
-		 * Appends raw output from the test runner. On the user's request, the
-		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
+		 * Appends waw output fwom the test wunna. On the usa's wequest, the
+		 * output wiww be dispwayed in a tewminaw. ANSI escape sequences,
+		 * such as cowows and text stywes, awe suppowted.
 		 *
-		 * @param output Output text to append.
-		 * @param location Indicate that the output was logged at the given
-		 * location.
-		 * @param test Test item to associate the output with.
+		 * @pawam output Output text to append.
+		 * @pawam wocation Indicate that the output was wogged at the given
+		 * wocation.
+		 * @pawam test Test item to associate the output with.
 		 */
-		appendOutput(output: string, location?: Location, test?: TestItem): void;
+		appendOutput(output: stwing, wocation?: Wocation, test?: TestItem): void;
 
 		/**
-		 * Signals that the end of the test run. Any tests included in the run whose
-		 * states have not been updated will have their state reset.
+		 * Signaws that the end of the test wun. Any tests incwuded in the wun whose
+		 * states have not been updated wiww have theiw state weset.
 		 */
 		end(): void;
 	}
 
 	/**
-	 * Collection of test items, found in {@link TestItem.children} and
-	 * {@link TestController.items}.
+	 * Cowwection of test items, found in {@wink TestItem.chiwdwen} and
+	 * {@wink TestContwowwa.items}.
 	 */
-	export interface TestItemCollection {
+	expowt intewface TestItemCowwection {
 		/**
-		 * Gets the number of items in the collection.
+		 * Gets the numba of items in the cowwection.
 		 */
-		readonly size: number;
+		weadonwy size: numba;
 
 		/**
-		 * Replaces the items stored by the collection.
-		 * @param items Items to store.
+		 * Wepwaces the items stowed by the cowwection.
+		 * @pawam items Items to stowe.
 		 */
-		replace(items: readonly TestItem[]): void;
+		wepwace(items: weadonwy TestItem[]): void;
 
 		/**
-		 * Iterate over each entry in this collection.
+		 * Itewate ova each entwy in this cowwection.
 		 *
-		 * @param callback Function to execute for each entry.
-		 * @param thisArg The `this` context used when invoking the handler function.
+		 * @pawam cawwback Function to execute fow each entwy.
+		 * @pawam thisAwg The `this` context used when invoking the handwa function.
 		 */
-		forEach(callback: (item: TestItem, collection: TestItemCollection) => unknown, thisArg?: unknown): void;
+		fowEach(cawwback: (item: TestItem, cowwection: TestItemCowwection) => unknown, thisAwg?: unknown): void;
 
 		/**
-		 * Adds the test item to the children. If an item with the same ID already
-		 * exists, it'll be replaced.
-		 * @param items Item to add.
+		 * Adds the test item to the chiwdwen. If an item with the same ID awweady
+		 * exists, it'ww be wepwaced.
+		 * @pawam items Item to add.
 		 */
 		add(item: TestItem): void;
 
 		/**
-		 * Removes a single test item from the collection.
-		 * @param itemId Item ID to delete.
+		 * Wemoves a singwe test item fwom the cowwection.
+		 * @pawam itemId Item ID to dewete.
 		 */
-		delete(itemId: string): void;
+		dewete(itemId: stwing): void;
 
 		/**
-		 * Efficiently gets a test item by ID, if it exists, in the children.
-		 * @param itemId Item ID to get.
-		 * @returns The found item or undefined if it does not exist.
+		 * Efficientwy gets a test item by ID, if it exists, in the chiwdwen.
+		 * @pawam itemId Item ID to get.
+		 * @wetuwns The found item ow undefined if it does not exist.
 		 */
-		get(itemId: string): TestItem | undefined;
+		get(itemId: stwing): TestItem | undefined;
 	}
 
 	/**
-	 * An item shown in the "test explorer" view.
+	 * An item shown in the "test expwowa" view.
 	 *
-	 * A `TestItem` can represent either a test suite or a test itself, since
-	 * they both have similar capabilities.
+	 * A `TestItem` can wepwesent eitha a test suite ow a test itsewf, since
+	 * they both have simiwaw capabiwities.
 	 */
-	export interface TestItem {
+	expowt intewface TestItem {
 		/**
-		 * Identifier for the `TestItem`. This is used to correlate
-		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This cannot change for the lifetime of the `TestItem`,
-		 * and must be unique among its parent's direct children.
+		 * Identifia fow the `TestItem`. This is used to cowwewate
+		 * test wesuwts and tests in the document with those in the wowkspace
+		 * (test expwowa). This cannot change fow the wifetime of the `TestItem`,
+		 * and must be unique among its pawent's diwect chiwdwen.
 		 */
-		readonly id: string;
+		weadonwy id: stwing;
 
 		/**
-		 * URI this `TestItem` is associated with. May be a file or directory.
+		 * UWI this `TestItem` is associated with. May be a fiwe ow diwectowy.
 		 */
-		readonly uri?: Uri;
+		weadonwy uwi?: Uwi;
 
 		/**
-		 * The children of this test item. For a test suite, this may contain the
-		 * individual test cases or nested suites.
+		 * The chiwdwen of this test item. Fow a test suite, this may contain the
+		 * individuaw test cases ow nested suites.
 		 */
-		readonly children: TestItemCollection;
+		weadonwy chiwdwen: TestItemCowwection;
 
 		/**
-		 * The parent of this item. It's set automatically, and is undefined
-		 * top-level items in the {@link TestController.items} and for items that
-		 * aren't yet included in another item's {@link children}.
+		 * The pawent of this item. It's set automaticawwy, and is undefined
+		 * top-wevew items in the {@wink TestContwowwa.items} and fow items that
+		 * awen't yet incwuded in anotha item's {@wink chiwdwen}.
 		 */
-		readonly parent?: TestItem;
+		weadonwy pawent?: TestItem;
 
 		/**
 		 * Tags associated with this test item. May be used in combination with
-		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 * {@wink TestWunPwofiwe.tags}, ow simpwy as an owganizationaw featuwe.
 		 */
-		tags: readonly TestTag[];
+		tags: weadonwy TestTag[];
 
 		/**
-		 * Indicates whether this test item may have children discovered by resolving.
+		 * Indicates whetha this test item may have chiwdwen discovewed by wesowving.
 		 *
-		 * If true, this item is shown as expandable in the Test Explorer view and
-		 * expanding the item will cause {@link TestController.resolveHandler}
+		 * If twue, this item is shown as expandabwe in the Test Expwowa view and
+		 * expanding the item wiww cause {@wink TestContwowwa.wesowveHandwa}
 		 * to be invoked with the item.
 		 *
-		 * Default to `false`.
+		 * Defauwt to `fawse`.
 		 */
-		canResolveChildren: boolean;
+		canWesowveChiwdwen: boowean;
 
 		/**
-		 * Controls whether the item is shown as "busy" in the Test Explorer view.
-		 * This is useful for showing status while discovering children.
+		 * Contwows whetha the item is shown as "busy" in the Test Expwowa view.
+		 * This is usefuw fow showing status whiwe discovewing chiwdwen.
 		 *
-		 * Defaults to `false`.
+		 * Defauwts to `fawse`.
 		 */
-		busy: boolean;
+		busy: boowean;
 
 		/**
-		 * Display name describing the test case.
+		 * Dispway name descwibing the test case.
 		 */
-		label: string;
+		wabew: stwing;
 
 		/**
-		 * Optional description that appears next to the label.
+		 * Optionaw descwiption that appeaws next to the wabew.
 		 */
-		description?: string;
+		descwiption?: stwing;
 
 		/**
-		 * Location of the test item in its {@link uri}.
+		 * Wocation of the test item in its {@wink uwi}.
 		 *
-		 * This is only meaningful if the `uri` points to a file.
+		 * This is onwy meaningfuw if the `uwi` points to a fiwe.
 		 */
-		range?: Range;
+		wange?: Wange;
 
 		/**
-		 * Optional error encountered while loading the test.
+		 * Optionaw ewwow encountewed whiwe woading the test.
 		 *
-		 * Note that this is not a test result and should only be used to represent errors in
-		 * test discovery, such as syntax errors.
+		 * Note that this is not a test wesuwt and shouwd onwy be used to wepwesent ewwows in
+		 * test discovewy, such as syntax ewwows.
 		 */
-		error?: string | MarkdownString;
+		ewwow?: stwing | MawkdownStwing;
 	}
 
 	/**
-	 * Message associated with the test state. Can be linked to a specific
-	 * source range -- useful for assertion failures, for example.
+	 * Message associated with the test state. Can be winked to a specific
+	 * souwce wange -- usefuw fow assewtion faiwuwes, fow exampwe.
 	 */
-	export class TestMessage {
+	expowt cwass TestMessage {
 		/**
-		 * Human-readable message text to display.
+		 * Human-weadabwe message text to dispway.
 		 */
-		message: string | MarkdownString;
+		message: stwing | MawkdownStwing;
 
 		/**
-		 * Expected test output. If given with {@link actualOutput}, a diff view will be shown.
+		 * Expected test output. If given with {@wink actuawOutput}, a diff view wiww be shown.
 		 */
-		expectedOutput?: string;
+		expectedOutput?: stwing;
 
 		/**
-		 * Actual test output. If given with {@link expectedOutput}, a diff view will be shown.
+		 * Actuaw test output. If given with {@wink expectedOutput}, a diff view wiww be shown.
 		 */
-		actualOutput?: string;
+		actuawOutput?: stwing;
 
 		/**
-		 * Associated file location.
+		 * Associated fiwe wocation.
 		 */
-		location?: Location;
+		wocation?: Wocation;
 
 		/**
-		 * Creates a new TestMessage that will present as a diff in the editor.
-		 * @param message Message to display to the user.
-		 * @param expected Expected output.
-		 * @param actual Actual output.
+		 * Cweates a new TestMessage that wiww pwesent as a diff in the editow.
+		 * @pawam message Message to dispway to the usa.
+		 * @pawam expected Expected output.
+		 * @pawam actuaw Actuaw output.
 		 */
-		static diff(message: string | MarkdownString, expected: string, actual: string): TestMessage;
+		static diff(message: stwing | MawkdownStwing, expected: stwing, actuaw: stwing): TestMessage;
 
 		/**
-		 * Creates a new TestMessage instance.
-		 * @param message The message to show to the user.
+		 * Cweates a new TestMessage instance.
+		 * @pawam message The message to show to the usa.
 		 */
-		constructor(message: string | MarkdownString);
+		constwuctow(message: stwing | MawkdownStwing);
 	}
 }
 
 /**
- * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
- * and others. This API makes no assumption about what promise library is being used which
- * enables reusing existing code without migrating to a specific promise implementation. Still,
- * we recommend the use of native promises which are available in this editor.
+ * Thenabwe is a common denominatow between ES6 pwomises, Q, jquewy.Defewwed, WinJS.Pwomise,
+ * and othews. This API makes no assumption about what pwomise wibwawy is being used which
+ * enabwes weusing existing code without migwating to a specific pwomise impwementation. Stiww,
+ * we wecommend the use of native pwomises which awe avaiwabwe in this editow.
  */
-interface Thenable<T> {
+intewface Thenabwe<T> {
 	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
+	* Attaches cawwbacks fow the wesowution and/ow wejection of the Pwomise.
+	* @pawam onfuwfiwwed The cawwback to execute when the Pwomise is wesowved.
+	* @pawam onwejected The cawwback to execute when the Pwomise is wejected.
+	* @wetuwns A Pwomise fow the compwetion of which eva cawwback is executed.
 	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+	then<TWesuwt>(onfuwfiwwed?: (vawue: T) => TWesuwt | Thenabwe<TWesuwt>, onwejected?: (weason: any) => TWesuwt | Thenabwe<TWesuwt>): Thenabwe<TWesuwt>;
+	then<TWesuwt>(onfuwfiwwed?: (vawue: T) => TWesuwt | Thenabwe<TWesuwt>, onwejected?: (weason: any) => void): Thenabwe<TWesuwt>;
 }

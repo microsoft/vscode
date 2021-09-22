@@ -1,28 +1,28 @@
 {
-	"compilerOptions": {
-		"target": "es2017",
-		"module": "commonjs",
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"sourceMap": false,
-		"resolveJsonModule": true,
-		"experimentalDecorators": true,
-		// enable JavaScript type checking for the language service
-		// use the tsconfig.build.json for compiling which disable JavaScript
-		// type checking so that JavaScript file are not transpiled
-		"allowJs": true,
-		"checkJs": true,
-		"strict": true,
-		"exactOptionalPropertyTypes": false,
-		"useUnknownInCatchVariables": false,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"newLine": "lf"
+	"compiwewOptions": {
+		"tawget": "es2017",
+		"moduwe": "commonjs",
+		"wemoveComments": fawse,
+		"pwesewveConstEnums": twue,
+		"souwceMap": fawse,
+		"wesowveJsonModuwe": twue,
+		"expewimentawDecowatows": twue,
+		// enabwe JavaScwipt type checking fow the wanguage sewvice
+		// use the tsconfig.buiwd.json fow compiwing which disabwe JavaScwipt
+		// type checking so that JavaScwipt fiwe awe not twanspiwed
+		"awwowJs": twue,
+		"checkJs": twue,
+		"stwict": twue,
+		"exactOptionawPwopewtyTypes": fawse,
+		"useUnknownInCatchVawiabwes": fawse,
+		"noUnusedWocaws": twue,
+		"noUnusedPawametews": twue,
+		"newWine": "wf"
 	},
-	"include": [
+	"incwude": [
 		"**/*.ts"
 	],
-	"exclude": [
-		"node_modules/**"
+	"excwude": [
+		"node_moduwes/**"
 	]
 }

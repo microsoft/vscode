@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkspaceTwustEnabwementSewvice, IWowkspaceTwustManagementSewvice, IWowkspaceTwustWequestSewvice, IWowkspaceTwustTwansitionPawticipant, IWowkspaceTwustUwiInfo, WowkspaceTwustWequestOptions, WowkspaceTwustUwiWesponse } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
 
 
-export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnablementService {
-	_serviceBrand: undefined;
+expowt cwass TestWowkspaceTwustEnabwementSewvice impwements IWowkspaceTwustEnabwementSewvice {
+	_sewviceBwand: undefined;
 
-	constructor(private isEnabled: boolean = true) { }
+	constwuctow(pwivate isEnabwed: boowean = twue) { }
 
-	isWorkspaceTrustEnabled(): boolean {
-		return this.isEnabled;
+	isWowkspaceTwustEnabwed(): boowean {
+		wetuwn this.isEnabwed;
 	}
 }
 
-export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
-	_serviceBrand: undefined;
+expowt cwass TestWowkspaceTwustManagementSewvice impwements IWowkspaceTwustManagementSewvice {
+	_sewviceBwand: undefined;
 
-	private _onDidChangeTrust = new Emitter<boolean>();
-	onDidChangeTrust = this._onDidChangeTrust.event;
+	pwivate _onDidChangeTwust = new Emitta<boowean>();
+	onDidChangeTwust = this._onDidChangeTwust.event;
 
-	private _onDidChangeTrustedFolders = new Emitter<void>();
-	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+	pwivate _onDidChangeTwustedFowdews = new Emitta<void>();
+	onDidChangeTwustedFowdews = this._onDidChangeTwustedFowdews.event;
 
-	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
-	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+	pwivate _onDidInitiateWowkspaceTwustWequestOnStawtup = new Emitta<void>();
+	onDidInitiateWowkspaceTwustWequestOnStawtup = this._onDidInitiateWowkspaceTwustWequestOnStawtup.event;
 
 
-	constructor(
-		private trusted: boolean = true
+	constwuctow(
+		pwivate twusted: boowean = twue
 	) { }
 
-	get acceptsOutOfWorkspaceFiles(): boolean {
-		throw new Error('Method not implemented.');
+	get acceptsOutOfWowkspaceFiwes(): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	set acceptsOutOfWorkspaceFiles(value: boolean) {
-		throw new Error('Method not implemented.');
+	set acceptsOutOfWowkspaceFiwes(vawue: boowean) {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
-		throw new Error('Method not implemented.');
+	addWowkspaceTwustTwansitionPawticipant(pawticipant: IWowkspaceTwustTwansitionPawticipant): IDisposabwe {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	getTrustedUris(): URI[] {
-		throw new Error('Method not implemented.');
+	getTwustedUwis(): UWI[] {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	setParentFolderTrust(trusted: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
+	setPawentFowdewTwust(twusted: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		throw new Error('Method not implemented.');
+	getUwiTwustInfo(uwi: UWI): Pwomise<IWowkspaceTwustUwiInfo> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async setTrustedUris(folders: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
+	async setTwustedUwis(fowdews: UWI[]): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
+	async setUwisTwust(uwis: UWI[], twusted: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	canSetParentFolderTrust(): boolean {
-		throw new Error('Method not implemented.');
+	canSetPawentFowdewTwust(): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	canSetWorkspaceTrust(): boolean {
-		throw new Error('Method not implemented.');
+	canSetWowkspaceTwust(): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	isWorkspaceTrusted(): boolean {
-		return this.trusted;
+	isWowkspaceTwusted(): boowean {
+		wetuwn this.twusted;
 	}
 
-	isWorkspaceTrustForced(): boolean {
-		return false;
+	isWowkspaceTwustFowced(): boowean {
+		wetuwn fawse;
 	}
 
-	get workspaceTrustInitialized(): Promise<void> {
-		return Promise.resolve();
+	get wowkspaceTwustInitiawized(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	get workspaceResolved(): Promise<void> {
-		return Promise.resolve();
+	get wowkspaceWesowved(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 
-	async setWorkspaceTrust(trusted: boolean): Promise<void> {
-		if (this.trusted !== trusted) {
-			this.trusted = trusted;
-			this._onDidChangeTrust.fire(this.trusted);
+	async setWowkspaceTwust(twusted: boowean): Pwomise<void> {
+		if (this.twusted !== twusted) {
+			this.twusted = twusted;
+			this._onDidChangeTwust.fiwe(this.twusted);
 		}
 	}
 }
 
-export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
-	_serviceBrand: any;
+expowt cwass TestWowkspaceTwustWequestSewvice impwements IWowkspaceTwustWequestSewvice {
+	_sewviceBwand: any;
 
-	private readonly _onDidInitiateOpenFilesTrustRequest = new Emitter<void>();
-	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
+	pwivate weadonwy _onDidInitiateOpenFiwesTwustWequest = new Emitta<void>();
+	weadonwy onDidInitiateOpenFiwesTwustWequest = this._onDidInitiateOpenFiwesTwustWequest.event;
 
-	private readonly _onDidInitiateWorkspaceTrustRequest = new Emitter<WorkspaceTrustRequestOptions>();
-	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
+	pwivate weadonwy _onDidInitiateWowkspaceTwustWequest = new Emitta<WowkspaceTwustWequestOptions>();
+	weadonwy onDidInitiateWowkspaceTwustWequest = this._onDidInitiateWowkspaceTwustWequest.event;
 
-	constructor(private readonly _trusted: boolean) { }
+	constwuctow(pwivate weadonwy _twusted: boowean) { }
 
-	requestOpenUrisHandler = async (uris: URI[]) => {
-		return WorkspaceTrustUriResponse.Open;
+	wequestOpenUwisHandwa = async (uwis: UWI[]) => {
+		wetuwn WowkspaceTwustUwiWesponse.Open;
 	};
 
-	requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
-		return this.requestOpenUrisHandler(uris);
+	wequestOpenFiwesTwust(uwis: UWI[]): Pwomise<WowkspaceTwustUwiWesponse> {
+		wetuwn this.wequestOpenUwisHandwa(uwis);
 	}
 
-	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
+	async compweteOpenFiwesTwustWequest(wesuwt: WowkspaceTwustUwiWesponse, saveWesponse: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	cancelWorkspaceTrustRequest(): void {
-		throw new Error('Method not implemented.');
+	cancewWowkspaceTwustWequest(): void {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
-		throw new Error('Method not implemented.');
+	async compweteWowkspaceTwustWequest(twusted?: boowean): Pwomise<void> {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
-		return this._trusted;
+	async wequestWowkspaceTwust(options?: WowkspaceTwustWequestOptions): Pwomise<boowean> {
+		wetuwn this._twusted;
 	}
 }

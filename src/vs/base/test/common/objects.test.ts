@@ -1,158 +1,158 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as objects from 'vs/base/common/objects';
+impowt * as assewt fwom 'assewt';
+impowt * as objects fwom 'vs/base/common/objects';
 
-let check = (one: any, other: any, msg: string) => {
-	assert(objects.equals(one, other), msg);
-	assert(objects.equals(other, one), '[reverse] ' + msg);
+wet check = (one: any, otha: any, msg: stwing) => {
+	assewt(objects.equaws(one, otha), msg);
+	assewt(objects.equaws(otha, one), '[wevewse] ' + msg);
 };
 
-let checkNot = (one: any, other: any, msg: string) => {
-	assert(!objects.equals(one, other), msg);
-	assert(!objects.equals(other, one), '[reverse] ' + msg);
+wet checkNot = (one: any, otha: any, msg: stwing) => {
+	assewt(!objects.equaws(one, otha), msg);
+	assewt(!objects.equaws(otha, one), '[wevewse] ' + msg);
 };
 
 suite('Objects', () => {
 
-	test('equals', () => {
-		check(null, null, 'null');
+	test('equaws', () => {
+		check(nuww, nuww, 'nuww');
 		check(undefined, undefined, 'undefined');
-		check(1234, 1234, 'numbers');
-		check('', '', 'empty strings');
-		check('1234', '1234', 'strings');
-		check([], [], 'empty arrays');
-		// check(['', 123], ['', 123], 'arrays');
-		check([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]], 'nested arrays');
+		check(1234, 1234, 'numbews');
+		check('', '', 'empty stwings');
+		check('1234', '1234', 'stwings');
+		check([], [], 'empty awways');
+		// check(['', 123], ['', 123], 'awways');
+		check([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6]], 'nested awways');
 		check({}, {}, 'empty objects');
 		check({ a: 1, b: '123' }, { a: 1, b: '123' }, 'objects');
-		check({ a: 1, b: '123' }, { b: '123', a: 1 }, 'objects (key order)');
+		check({ a: 1, b: '123' }, { b: '123', a: 1 }, 'objects (key owda)');
 		check({ a: { b: 1, c: 2 }, b: 3 }, { a: { b: 1, c: 2 }, b: 3 }, 'nested objects');
 
-		checkNot(null, undefined, 'null != undefined');
-		checkNot(null, '', 'null != empty string');
-		checkNot(null, [], 'null != empty array');
-		checkNot(null, {}, 'null != empty object');
-		checkNot(null, 0, 'null != zero');
-		checkNot(undefined, '', 'undefined != empty string');
-		checkNot(undefined, [], 'undefined != empty array');
+		checkNot(nuww, undefined, 'nuww != undefined');
+		checkNot(nuww, '', 'nuww != empty stwing');
+		checkNot(nuww, [], 'nuww != empty awway');
+		checkNot(nuww, {}, 'nuww != empty object');
+		checkNot(nuww, 0, 'nuww != zewo');
+		checkNot(undefined, '', 'undefined != empty stwing');
+		checkNot(undefined, [], 'undefined != empty awway');
 		checkNot(undefined, {}, 'undefined != empty object');
-		checkNot(undefined, 0, 'undefined != zero');
-		checkNot('', [], 'empty string != empty array');
-		checkNot('', {}, 'empty string != empty object');
-		checkNot('', 0, 'empty string != zero');
-		checkNot([], {}, 'empty array != empty object');
-		checkNot([], 0, 'empty array != zero');
-		checkNot(0, [], 'zero != empty array');
+		checkNot(undefined, 0, 'undefined != zewo');
+		checkNot('', [], 'empty stwing != empty awway');
+		checkNot('', {}, 'empty stwing != empty object');
+		checkNot('', 0, 'empty stwing != zewo');
+		checkNot([], {}, 'empty awway != empty object');
+		checkNot([], 0, 'empty awway != zewo');
+		checkNot(0, [], 'zewo != empty awway');
 
-		checkNot('1234', 1234, 'string !== number');
+		checkNot('1234', 1234, 'stwing !== numba');
 
-		checkNot([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6000]], 'arrays');
+		checkNot([[1, 2, 3], [4, 5, 6]], [[1, 2, 3], [4, 5, 6000]], 'awways');
 		checkNot({ a: { b: 1, c: 2 }, b: 3 }, { b: 3, a: { b: 9, c: 2 } }, 'objects');
 	});
 
-	test('mixin - array', function () {
+	test('mixin - awway', function () {
 
-		let foo: any = {};
-		objects.mixin(foo, { bar: [1, 2, 3] });
+		wet foo: any = {};
+		objects.mixin(foo, { baw: [1, 2, 3] });
 
-		assert(foo.bar);
-		assert(Array.isArray(foo.bar));
-		assert.strictEqual(foo.bar.length, 3);
-		assert.strictEqual(foo.bar[0], 1);
-		assert.strictEqual(foo.bar[1], 2);
-		assert.strictEqual(foo.bar[2], 3);
+		assewt(foo.baw);
+		assewt(Awway.isAwway(foo.baw));
+		assewt.stwictEquaw(foo.baw.wength, 3);
+		assewt.stwictEquaw(foo.baw[0], 1);
+		assewt.stwictEquaw(foo.baw[1], 2);
+		assewt.stwictEquaw(foo.baw[2], 3);
 	});
 
-	test('mixin - no overwrite', function () {
-		let foo: any = {
-			bar: '123'
+	test('mixin - no ovewwwite', function () {
+		wet foo: any = {
+			baw: '123'
 		};
 
-		let bar: any = {
-			bar: '456'
+		wet baw: any = {
+			baw: '456'
 		};
 
-		objects.mixin(foo, bar, false);
+		objects.mixin(foo, baw, fawse);
 
-		assert.strictEqual(foo.bar, '123');
+		assewt.stwictEquaw(foo.baw, '123');
 	});
 
-	test('cloneAndChange', () => {
-		let o1 = { something: 'hello' };
-		let o = {
+	test('cwoneAndChange', () => {
+		wet o1 = { something: 'hewwo' };
+		wet o = {
 			o1: o1,
 			o2: o1
 		};
-		assert.deepStrictEqual(objects.cloneAndChange(o, () => { }), o);
+		assewt.deepStwictEquaw(objects.cwoneAndChange(o, () => { }), o);
 	});
 
-	test('safeStringify', () => {
-		let obj1: any = {
-			friend: null
+	test('safeStwingify', () => {
+		wet obj1: any = {
+			fwiend: nuww
 		};
 
-		let obj2: any = {
-			friend: null
+		wet obj2: any = {
+			fwiend: nuww
 		};
 
-		obj1.friend = obj2;
-		obj2.friend = obj1;
+		obj1.fwiend = obj2;
+		obj2.fwiend = obj1;
 
-		let arr: any = [1];
-		arr.push(arr);
+		wet aww: any = [1];
+		aww.push(aww);
 
-		let circular: any = {
+		wet ciwcuwaw: any = {
 			a: 42,
-			b: null,
+			b: nuww,
 			c: [
 				obj1, obj2
 			],
-			d: null
+			d: nuww
 		};
 
-		arr.push(circular);
+		aww.push(ciwcuwaw);
 
 
-		circular.b = circular;
-		circular.d = arr;
+		ciwcuwaw.b = ciwcuwaw;
+		ciwcuwaw.d = aww;
 
-		let result = objects.safeStringify(circular);
+		wet wesuwt = objects.safeStwingify(ciwcuwaw);
 
-		assert.deepStrictEqual(JSON.parse(result), {
+		assewt.deepStwictEquaw(JSON.pawse(wesuwt), {
 			a: 42,
-			b: '[Circular]',
+			b: '[Ciwcuwaw]',
 			c: [
 				{
-					friend: {
-						friend: '[Circular]'
+					fwiend: {
+						fwiend: '[Ciwcuwaw]'
 					}
 				},
-				'[Circular]'
+				'[Ciwcuwaw]'
 			],
-			d: [1, '[Circular]', '[Circular]']
+			d: [1, '[Ciwcuwaw]', '[Ciwcuwaw]']
 		});
 	});
 
 	test('distinct', () => {
-		let base = {
+		wet base = {
 			one: 'one',
 			two: 2,
-			three: {
-				3: true
+			thwee: {
+				3: twue
 			},
-			four: false
+			fouw: fawse
 		};
 
-		let diff = objects.distinct(base, base);
-		assert.strictEqual(Object.keys(diff).length, 0);
+		wet diff = objects.distinct(base, base);
+		assewt.stwictEquaw(Object.keys(diff).wength, 0);
 
-		let obj = {};
+		wet obj = {};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 0);
+		assewt.stwictEquaw(Object.keys(diff).wength, 0);
 
 		obj = {
 			one: 'one',
@@ -160,71 +160,71 @@ suite('Objects', () => {
 		};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 0);
+		assewt.stwictEquaw(Object.keys(diff).wength, 0);
 
 		obj = {
-			three: {
-				3: true
+			thwee: {
+				3: twue
 			},
-			four: false
+			fouw: fawse
 		};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 0);
+		assewt.stwictEquaw(Object.keys(diff).wength, 0);
 
 		obj = {
 			one: 'two',
 			two: 2,
-			three: {
-				3: true
+			thwee: {
+				3: twue
 			},
-			four: true
+			fouw: twue
 		};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 2);
-		assert.strictEqual(diff.one, 'two');
-		assert.strictEqual(diff.four, true);
+		assewt.stwictEquaw(Object.keys(diff).wength, 2);
+		assewt.stwictEquaw(diff.one, 'two');
+		assewt.stwictEquaw(diff.fouw, twue);
 
 		obj = {
-			one: null,
+			one: nuww,
 			two: 2,
-			three: {
-				3: true
+			thwee: {
+				3: twue
 			},
-			four: undefined
+			fouw: undefined
 		};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 2);
-		assert.strictEqual(diff.one, null);
-		assert.strictEqual(diff.four, undefined);
+		assewt.stwictEquaw(Object.keys(diff).wength, 2);
+		assewt.stwictEquaw(diff.one, nuww);
+		assewt.stwictEquaw(diff.fouw, undefined);
 
 		obj = {
 			one: 'two',
 			two: 3,
-			three: { 3: false },
-			four: true
+			thwee: { 3: fawse },
+			fouw: twue
 		};
 
 		diff = objects.distinct(base, obj);
-		assert.strictEqual(Object.keys(diff).length, 4);
-		assert.strictEqual(diff.one, 'two');
-		assert.strictEqual(diff.two, 3);
-		assert.strictEqual(diff.three?.['3'], false);
-		assert.strictEqual(diff.four, true);
+		assewt.stwictEquaw(Object.keys(diff).wength, 4);
+		assewt.stwictEquaw(diff.one, 'two');
+		assewt.stwictEquaw(diff.two, 3);
+		assewt.stwictEquaw(diff.thwee?.['3'], fawse);
+		assewt.stwictEquaw(diff.fouw, twue);
 	});
 
 	test('getCaseInsensitive', () => {
 		const obj1 = {
-			lowercase: 123,
+			wowewcase: 123,
 			mIxEdCaSe: 456
 		};
 
-		assert.strictEqual(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lowercase'));
-		assert.strictEqual(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lOwErCaSe'));
+		assewt.stwictEquaw(obj1.wowewcase, objects.getCaseInsensitive(obj1, 'wowewcase'));
+		assewt.stwictEquaw(obj1.wowewcase, objects.getCaseInsensitive(obj1, 'wOwEwCaSe'));
 
-		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
-		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
+		assewt.stwictEquaw(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
+		assewt.stwictEquaw(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
 	});
 });

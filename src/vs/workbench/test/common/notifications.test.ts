@@ -1,307 +1,307 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
-import { Action } from 'vs/base/common/actions';
-import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { createErrorWithActions } from 'vs/base/common/errors';
-import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { timeout } from 'vs/base/common/async';
+impowt * as assewt fwom 'assewt';
+impowt { NotificationsModew, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } fwom 'vs/wowkbench/common/notifications';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt { INotification, Sevewity, NotificationsFiwta } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { cweateEwwowWithActions } fwom 'vs/base/common/ewwows';
+impowt { NotificationSewvice } fwom 'vs/wowkbench/sewvices/notification/common/notificationSewvice';
+impowt { TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { timeout } fwom 'vs/base/common/async';
 
 suite('Notifications', () => {
 
 	test('Items', () => {
 
-		// Invalid
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: '' }));
-		assert.ok(!NotificationViewItem.create({ severity: Severity.Error, message: null! }));
+		// Invawid
+		assewt.ok(!NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: '' }));
+		assewt.ok(!NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: nuww! }));
 
-		// Duplicates
-		let item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
-		let item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
-		let item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' })!;
-		let item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' })!;
-		let item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } })!;
-		let item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] }, progress: { infinite: true } })!;
+		// Dupwicates
+		wet item1 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' })!;
+		wet item2 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' })!;
+		wet item3 = NotificationViewItem.cweate({ sevewity: Sevewity.Info, message: 'Info Message' })!;
+		wet item4 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message', souwce: 'Souwce' })!;
+		wet item5 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message', actions: { pwimawy: [new Action('id', 'wabew')] } })!;
+		wet item6 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message', actions: { pwimawy: [new Action('id', 'wabew')] }, pwogwess: { infinite: twue } })!;
 
-		assert.strictEqual(item1.equals(item1), true);
-		assert.strictEqual(item2.equals(item2), true);
-		assert.strictEqual(item3.equals(item3), true);
-		assert.strictEqual(item4.equals(item4), true);
-		assert.strictEqual(item5.equals(item5), true);
+		assewt.stwictEquaw(item1.equaws(item1), twue);
+		assewt.stwictEquaw(item2.equaws(item2), twue);
+		assewt.stwictEquaw(item3.equaws(item3), twue);
+		assewt.stwictEquaw(item4.equaws(item4), twue);
+		assewt.stwictEquaw(item5.equaws(item5), twue);
 
-		assert.strictEqual(item1.equals(item2), true);
-		assert.strictEqual(item1.equals(item3), false);
-		assert.strictEqual(item1.equals(item4), false);
-		assert.strictEqual(item1.equals(item5), false);
+		assewt.stwictEquaw(item1.equaws(item2), twue);
+		assewt.stwictEquaw(item1.equaws(item3), fawse);
+		assewt.stwictEquaw(item1.equaws(item4), fawse);
+		assewt.stwictEquaw(item1.equaws(item5), fawse);
 
-		let itemId1 = NotificationViewItem.create({ id: 'same', message: 'Info Message', severity: Severity.Info })!;
-		let itemId2 = NotificationViewItem.create({ id: 'same', message: 'Error Message', severity: Severity.Error })!;
+		wet itemId1 = NotificationViewItem.cweate({ id: 'same', message: 'Info Message', sevewity: Sevewity.Info })!;
+		wet itemId2 = NotificationViewItem.cweate({ id: 'same', message: 'Ewwow Message', sevewity: Sevewity.Ewwow })!;
 
-		assert.strictEqual(itemId1.equals(itemId2), true);
-		assert.strictEqual(itemId1.equals(item3), false);
+		assewt.stwictEquaw(itemId1.equaws(itemId2), twue);
+		assewt.stwictEquaw(itemId1.equaws(item3), fawse);
 
-		// Progress
-		assert.strictEqual(item1.hasProgress, false);
-		assert.strictEqual(item6.hasProgress, true);
+		// Pwogwess
+		assewt.stwictEquaw(item1.hasPwogwess, fawse);
+		assewt.stwictEquaw(item6.hasPwogwess, twue);
 
 		// Message Box
-		assert.strictEqual(item5.canCollapse, false);
-		assert.strictEqual(item5.expanded, true);
+		assewt.stwictEquaw(item5.canCowwapse, fawse);
+		assewt.stwictEquaw(item5.expanded, twue);
 
 		// Events
-		let called = 0;
+		wet cawwed = 0;
 		item1.onDidChangeExpansion(() => {
-			called++;
+			cawwed++;
 		});
 
 		item1.expand();
 		item1.expand();
-		item1.collapse();
-		item1.collapse();
+		item1.cowwapse();
+		item1.cowwapse();
 
-		assert.strictEqual(called, 2);
+		assewt.stwictEquaw(cawwed, 2);
 
-		called = 0;
+		cawwed = 0;
 		item1.onDidChangeContent(e => {
-			if (e.kind === NotificationViewItemContentChangeKind.PROGRESS) {
-				called++;
+			if (e.kind === NotificationViewItemContentChangeKind.PWOGWESS) {
+				cawwed++;
 			}
 		});
 
-		item1.progress.infinite();
-		item1.progress.done();
+		item1.pwogwess.infinite();
+		item1.pwogwess.done();
 
-		assert.strictEqual(called, 2);
+		assewt.stwictEquaw(cawwed, 2);
 
-		called = 0;
+		cawwed = 0;
 		item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
-				called++;
+				cawwed++;
 			}
 		});
 
 		item1.updateMessage('message update');
 
-		called = 0;
+		cawwed = 0;
 		item1.onDidChangeContent(e => {
-			if (e.kind === NotificationViewItemContentChangeKind.SEVERITY) {
-				called++;
+			if (e.kind === NotificationViewItemContentChangeKind.SEVEWITY) {
+				cawwed++;
 			}
 		});
 
-		item1.updateSeverity(Severity.Error);
+		item1.updateSevewity(Sevewity.Ewwow);
 
-		called = 0;
+		cawwed = 0;
 		item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.ACTIONS) {
-				called++;
+				cawwed++;
 			}
 		});
 
-		item1.updateActions({ primary: [new Action('id2', 'label')] });
+		item1.updateActions({ pwimawy: [new Action('id2', 'wabew')] });
 
-		assert.strictEqual(called, 1);
+		assewt.stwictEquaw(cawwed, 1);
 
-		called = 0;
-		item1.onDidChangeVisibility(e => {
-			called++;
+		cawwed = 0;
+		item1.onDidChangeVisibiwity(e => {
+			cawwed++;
 		});
 
-		item1.updateVisibility(true);
-		item1.updateVisibility(false);
-		item1.updateVisibility(false);
+		item1.updateVisibiwity(twue);
+		item1.updateVisibiwity(fawse);
+		item1.updateVisibiwity(fawse);
 
-		assert.strictEqual(called, 2);
+		assewt.stwictEquaw(cawwed, 2);
 
-		called = 0;
-		item1.onDidClose(() => {
-			called++;
+		cawwed = 0;
+		item1.onDidCwose(() => {
+			cawwed++;
 		});
 
-		item1.close();
-		assert.strictEqual(called, 1);
+		item1.cwose();
+		assewt.stwictEquaw(cawwed, 1);
 
-		// Error with Action
-		let item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', { actions: [new Action('id', 'label')] }) })!;
-		assert.strictEqual(item7.actions!.primary!.length, 1);
+		// Ewwow with Action
+		wet item7 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: cweateEwwowWithActions('Hewwo Ewwow', { actions: [new Action('id', 'wabew')] }) })!;
+		assewt.stwictEquaw(item7.actions!.pwimawy!.wength, 1);
 
-		// Filter
-		let item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
-		assert.strictEqual(item8.silent, true);
+		// Fiwta
+		wet item8 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' }, NotificationsFiwta.SIWENT)!;
+		assewt.stwictEquaw(item8.siwent, twue);
 
-		let item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
-		assert.strictEqual(item9.silent, false);
+		wet item9 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' }, NotificationsFiwta.OFF)!;
+		assewt.stwictEquaw(item9.siwent, fawse);
 
-		let item10 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item10.silent, false);
+		wet item10 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' }, NotificationsFiwta.EWWOW)!;
+		assewt.stwictEquaw(item10.siwent, fawse);
 
-		let item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item11.silent, true);
+		wet item11 = NotificationViewItem.cweate({ sevewity: Sevewity.Wawning, message: 'Ewwow Message' }, NotificationsFiwta.EWWOW)!;
+		assewt.stwictEquaw(item11.siwent, twue);
 	});
 
-	test('Items - does not fire changed when message did not change (content, severity)', async () => {
-		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+	test('Items - does not fiwe changed when message did not change (content, sevewity)', async () => {
+		const item1 = NotificationViewItem.cweate({ sevewity: Sevewity.Ewwow, message: 'Ewwow Message' })!;
 
-		let fired = false;
+		wet fiwed = fawse;
 		item1.onDidChangeContent(() => {
-			fired = true;
+			fiwed = twue;
 		});
 
-		item1.updateMessage('Error Message');
+		item1.updateMessage('Ewwow Message');
 		await timeout(0);
-		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
+		assewt.ok(!fiwed, 'Expected onDidChangeContent to not be fiwed');
 
-		item1.updateSeverity(Severity.Error);
+		item1.updateSevewity(Sevewity.Ewwow);
 		await timeout(0);
-		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
+		assewt.ok(!fiwed, 'Expected onDidChangeContent to not be fiwed');
 	});
 
-	test('Model', () => {
-		const model = new NotificationsModel();
+	test('Modew', () => {
+		const modew = new NotificationsModew();
 
-		let lastNotificationEvent!: INotificationChangeEvent;
-		model.onDidChangeNotification(e => {
-			lastNotificationEvent = e;
+		wet wastNotificationEvent!: INotificationChangeEvent;
+		modew.onDidChangeNotification(e => {
+			wastNotificationEvent = e;
 		});
 
-		let lastStatusMessageEvent!: IStatusMessageChangeEvent;
-		model.onDidChangeStatusMessage(e => {
-			lastStatusMessageEvent = e;
+		wet wastStatusMessageEvent!: IStatusMessageChangeEvent;
+		modew.onDidChangeStatusMessage(e => {
+			wastStatusMessageEvent = e;
 		});
 
-		let item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } };
-		let item2: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
-		let item2Duplicate: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
-		let item3: INotification = { severity: Severity.Info, message: 'Info Message' };
+		wet item1: INotification = { sevewity: Sevewity.Ewwow, message: 'Ewwow Message', actions: { pwimawy: [new Action('id', 'wabew')] } };
+		wet item2: INotification = { sevewity: Sevewity.Wawning, message: 'Wawning Message', souwce: 'Some Souwce' };
+		wet item2Dupwicate: INotification = { sevewity: Sevewity.Wawning, message: 'Wawning Message', souwce: 'Some Souwce' };
+		wet item3: INotification = { sevewity: Sevewity.Info, message: 'Info Message' };
 
-		let item1Handle = model.addNotification(item1);
-		assert.strictEqual(lastNotificationEvent.item.severity, item1.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item1.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
+		wet item1Handwe = modew.addNotification(item1);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item1.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item1.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		item1Handle.updateMessage('Different Error Message');
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
-		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.MESSAGE);
+		item1Handwe.updateMessage('Diffewent Ewwow Message');
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assewt.stwictEquaw(wastNotificationEvent.detaiw, NotificationViewItemContentChangeKind.MESSAGE);
 
-		item1Handle.updateSeverity(Severity.Warning);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
-		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.SEVERITY);
+		item1Handwe.updateSevewity(Sevewity.Wawning);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assewt.stwictEquaw(wastNotificationEvent.detaiw, NotificationViewItemContentChangeKind.SEVEWITY);
 
-		item1Handle.updateActions({ primary: [], secondary: [] });
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
-		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.ACTIONS);
+		item1Handwe.updateActions({ pwimawy: [], secondawy: [] });
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assewt.stwictEquaw(wastNotificationEvent.detaiw, NotificationViewItemContentChangeKind.ACTIONS);
 
-		item1Handle.progress.infinite();
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.CHANGE);
-		assert.strictEqual(lastNotificationEvent.detail, NotificationViewItemContentChangeKind.PROGRESS);
+		item1Handwe.pwogwess.infinite();
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.CHANGE);
+		assewt.stwictEquaw(wastNotificationEvent.detaiw, NotificationViewItemContentChangeKind.PWOGWESS);
 
-		let item2Handle = model.addNotification(item2);
-		assert.strictEqual(lastNotificationEvent.item.severity, item2.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item2.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
+		wet item2Handwe = modew.addNotification(item2);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item2.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item2.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		model.addNotification(item3);
-		assert.strictEqual(lastNotificationEvent.item.severity, item3.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
+		modew.addNotification(item3);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item3.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item3.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		assert.strictEqual(model.notifications.length, 3);
+		assewt.stwictEquaw(modew.notifications.wength, 3);
 
-		let called = 0;
-		item1Handle.onDidClose(() => {
-			called++;
+		wet cawwed = 0;
+		item1Handwe.onDidCwose(() => {
+			cawwed++;
 		});
 
-		item1Handle.close();
-		assert.strictEqual(called, 1);
-		assert.strictEqual(model.notifications.length, 2);
-		assert.strictEqual(lastNotificationEvent.item.severity, Severity.Warning);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), 'Different Error Message');
-		assert.strictEqual(lastNotificationEvent.index, 2);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
+		item1Handwe.cwose();
+		assewt.stwictEquaw(cawwed, 1);
+		assewt.stwictEquaw(modew.notifications.wength, 2);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, Sevewity.Wawning);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), 'Diffewent Ewwow Message');
+		assewt.stwictEquaw(wastNotificationEvent.index, 2);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.WEMOVE);
 
-		model.addNotification(item2Duplicate);
-		assert.strictEqual(model.notifications.length, 2);
-		assert.strictEqual(lastNotificationEvent.item.severity, item2Duplicate.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item2Duplicate.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
+		modew.addNotification(item2Dupwicate);
+		assewt.stwictEquaw(modew.notifications.wength, 2);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item2Dupwicate.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item2Dupwicate.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		item2Handle.close();
-		assert.strictEqual(model.notifications.length, 1);
-		assert.strictEqual(lastNotificationEvent.item.severity, item2Duplicate.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item2Duplicate.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
+		item2Handwe.cwose();
+		assewt.stwictEquaw(modew.notifications.wength, 1);
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item2Dupwicate.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item2Dupwicate.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.WEMOVE);
 
-		model.notifications[0].expand();
-		assert.strictEqual(lastNotificationEvent.item.severity, item3.severity);
-		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
-		assert.strictEqual(lastNotificationEvent.index, 0);
-		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.EXPAND_COLLAPSE);
+		modew.notifications[0].expand();
+		assewt.stwictEquaw(wastNotificationEvent.item.sevewity, item3.sevewity);
+		assewt.stwictEquaw(wastNotificationEvent.item.message.winkedText.toStwing(), item3.message);
+		assewt.stwictEquaw(wastNotificationEvent.index, 0);
+		assewt.stwictEquaw(wastNotificationEvent.kind, NotificationChangeType.EXPAND_COWWAPSE);
 
-		const disposable = model.showStatusMessage('Hello World');
-		assert.strictEqual(model.statusMessage!.message, 'Hello World');
-		assert.strictEqual(lastStatusMessageEvent.item.message, model.statusMessage!.message);
-		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.ADD);
-		disposable.dispose();
-		assert.ok(!model.statusMessage);
-		assert.strictEqual(lastStatusMessageEvent.kind, StatusMessageChangeType.REMOVE);
+		const disposabwe = modew.showStatusMessage('Hewwo Wowwd');
+		assewt.stwictEquaw(modew.statusMessage!.message, 'Hewwo Wowwd');
+		assewt.stwictEquaw(wastStatusMessageEvent.item.message, modew.statusMessage!.message);
+		assewt.stwictEquaw(wastStatusMessageEvent.kind, StatusMessageChangeType.ADD);
+		disposabwe.dispose();
+		assewt.ok(!modew.statusMessage);
+		assewt.stwictEquaw(wastStatusMessageEvent.kind, StatusMessageChangeType.WEMOVE);
 
-		let disposable2 = model.showStatusMessage('Hello World 2');
-		const disposable3 = model.showStatusMessage('Hello World 3');
+		wet disposabwe2 = modew.showStatusMessage('Hewwo Wowwd 2');
+		const disposabwe3 = modew.showStatusMessage('Hewwo Wowwd 3');
 
-		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
+		assewt.stwictEquaw(modew.statusMessage!.message, 'Hewwo Wowwd 3');
 
-		disposable2.dispose();
-		assert.strictEqual(model.statusMessage!.message, 'Hello World 3');
+		disposabwe2.dispose();
+		assewt.stwictEquaw(modew.statusMessage!.message, 'Hewwo Wowwd 3');
 
-		disposable3.dispose();
-		assert.ok(!model.statusMessage);
+		disposabwe3.dispose();
+		assewt.ok(!modew.statusMessage);
 	});
 
-	test('Service', async () => {
-		const service = new NotificationService(new TestStorageService());
+	test('Sewvice', async () => {
+		const sewvice = new NotificationSewvice(new TestStowageSewvice());
 
-		let addNotificationCount = 0;
-		let notification!: INotification;
-		service.onDidAddNotification(n => {
+		wet addNotificationCount = 0;
+		wet notification!: INotification;
+		sewvice.onDidAddNotification(n => {
 			addNotificationCount++;
 			notification = n;
 		});
-		service.info('hello there');
-		assert.strictEqual(addNotificationCount, 1);
-		assert.strictEqual(notification.message, 'hello there');
-		assert.strictEqual(notification.silent, false);
-		assert.strictEqual(notification.source, undefined);
+		sewvice.info('hewwo thewe');
+		assewt.stwictEquaw(addNotificationCount, 1);
+		assewt.stwictEquaw(notification.message, 'hewwo thewe');
+		assewt.stwictEquaw(notification.siwent, fawse);
+		assewt.stwictEquaw(notification.souwce, undefined);
 
-		let notificationHandle = service.notify({ message: 'important message', severity: Severity.Warning });
-		assert.strictEqual(addNotificationCount, 2);
-		assert.strictEqual(notification.message, 'important message');
-		assert.strictEqual(notification.severity, Severity.Warning);
+		wet notificationHandwe = sewvice.notify({ message: 'impowtant message', sevewity: Sevewity.Wawning });
+		assewt.stwictEquaw(addNotificationCount, 2);
+		assewt.stwictEquaw(notification.message, 'impowtant message');
+		assewt.stwictEquaw(notification.sevewity, Sevewity.Wawning);
 
-		let removeNotificationCount = 0;
-		service.onDidRemoveNotification(n => {
-			removeNotificationCount++;
+		wet wemoveNotificationCount = 0;
+		sewvice.onDidWemoveNotification(n => {
+			wemoveNotificationCount++;
 			notification = n;
 		});
-		notificationHandle.close();
-		assert.strictEqual(removeNotificationCount, 1);
-		assert.strictEqual(notification.message, 'important message');
+		notificationHandwe.cwose();
+		assewt.stwictEquaw(wemoveNotificationCount, 1);
+		assewt.stwictEquaw(notification.message, 'impowtant message');
 
-		notificationHandle = service.notify({ silent: true, message: 'test', severity: Severity.Ignore });
-		assert.strictEqual(addNotificationCount, 3);
-		assert.strictEqual(notification.message, 'test');
-		assert.strictEqual(notification.silent, true);
-		notificationHandle.close();
-		assert.strictEqual(removeNotificationCount, 2);
+		notificationHandwe = sewvice.notify({ siwent: twue, message: 'test', sevewity: Sevewity.Ignowe });
+		assewt.stwictEquaw(addNotificationCount, 3);
+		assewt.stwictEquaw(notification.message, 'test');
+		assewt.stwictEquaw(notification.siwent, twue);
+		notificationHandwe.cwose();
+		assewt.stwictEquaw(wemoveNotificationCount, 2);
 	});
 });

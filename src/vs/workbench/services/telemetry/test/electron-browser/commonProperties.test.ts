@@ -1,99 +1,99 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import { join } from 'vs/base/common/path';
-import { release, tmpdir, hostname } from 'os';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-sandbox/workbenchCommonProperties';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Promises } from 'vs/base/node/pfs';
-import { timeout } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt { join } fwom 'vs/base/common/path';
+impowt { wewease, tmpdiw, hostname } fwom 'os';
+impowt { wesowveWowkbenchCommonPwopewties } fwom 'vs/wowkbench/sewvices/tewemetwy/ewectwon-sandbox/wowkbenchCommonPwopewties';
+impowt { getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
+impowt { IStowageSewvice, StowageScope, InMemowyStowageSewvice, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
 
-suite('Telemetry - common properties', function () {
-	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'telemetryservice');
-	const installSource = join(parentDir, 'installSource');
+suite('Tewemetwy - common pwopewties', function () {
+	const pawentDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'tewemetwysewvice');
+	const instawwSouwce = join(pawentDiw, 'instawwSouwce');
 
-	const commit: string = (undefined)!;
-	const version: string = (undefined)!;
-	let testStorageService: IStorageService;
-	let testFileService: IFileService;
-	let diskFileSystemProvider: DiskFileSystemProvider;
+	const commit: stwing = (undefined)!;
+	const vewsion: stwing = (undefined)!;
+	wet testStowageSewvice: IStowageSewvice;
+	wet testFiweSewvice: IFiweSewvice;
+	wet diskFiweSystemPwovida: DiskFiweSystemPwovida;
 
 	setup(() => {
-		testStorageService = new InMemoryStorageService();
-		const logService = new NullLogService();
-		testFileService = new FileService(logService);
+		testStowageSewvice = new InMemowyStowageSewvice();
+		const wogSewvice = new NuwwWogSewvice();
+		testFiweSewvice = new FiweSewvice(wogSewvice);
 
-		diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		testFileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		diskFiweSystemPwovida = new DiskFiweSystemPwovida(wogSewvice);
+		testFiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
 	});
 
-	teardown(() => {
-		diskFileSystemProvider.dispose();
+	teawdown(() => {
+		diskFiweSystemPwovida.dispose();
 
-		return Promises.rm(parentDir);
+		wetuwn Pwomises.wm(pawentDiw);
 	});
 
-	test('default', async function () {
-		await Promises.mkdir(parentDir, { recursive: true });
-		fs.writeFileSync(installSource, 'my.install.source');
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
-		assert.ok('commitHash' in props);
-		assert.ok('sessionID' in props);
-		assert.ok('timestamp' in props);
-		assert.ok('common.platform' in props);
-		assert.ok('common.nodePlatform' in props);
-		assert.ok('common.nodeArch' in props);
-		assert.ok('common.timesincesessionstart' in props);
-		assert.ok('common.sequence' in props);
-		// assert.ok('common.version.shell' in first.data); // only when running on electron
-		// assert.ok('common.version.renderer' in first.data);
-		assert.ok('common.platformVersion' in props, 'platformVersion');
-		assert.ok('version' in props);
-		assert.strictEqual(props['common.source'], 'my.install.source');
-		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
-		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
-		assert.ok('common.isNewSession' in props, 'isNewSession');
-		// machine id et al
-		assert.ok('common.instanceId' in props, 'instanceId');
-		assert.ok('common.machineId' in props, 'machineId');
-		fs.unlinkSync(installSource);
-		const props_1 = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
-		assert.ok(!('common.source' in props_1));
+	test('defauwt', async function () {
+		await Pwomises.mkdiw(pawentDiw, { wecuwsive: twue });
+		fs.wwiteFiweSync(instawwSouwce, 'my.instaww.souwce');
+		const pwops = await wesowveWowkbenchCommonPwopewties(testStowageSewvice, testFiweSewvice, wewease(), hostname(), commit, vewsion, 'someMachineId', undefined, instawwSouwce);
+		assewt.ok('commitHash' in pwops);
+		assewt.ok('sessionID' in pwops);
+		assewt.ok('timestamp' in pwops);
+		assewt.ok('common.pwatfowm' in pwops);
+		assewt.ok('common.nodePwatfowm' in pwops);
+		assewt.ok('common.nodeAwch' in pwops);
+		assewt.ok('common.timesincesessionstawt' in pwops);
+		assewt.ok('common.sequence' in pwops);
+		// assewt.ok('common.vewsion.sheww' in fiwst.data); // onwy when wunning on ewectwon
+		// assewt.ok('common.vewsion.wendewa' in fiwst.data);
+		assewt.ok('common.pwatfowmVewsion' in pwops, 'pwatfowmVewsion');
+		assewt.ok('vewsion' in pwops);
+		assewt.stwictEquaw(pwops['common.souwce'], 'my.instaww.souwce');
+		assewt.ok('common.fiwstSessionDate' in pwops, 'fiwstSessionDate');
+		assewt.ok('common.wastSessionDate' in pwops, 'wastSessionDate'); // conditionaw, see bewow, 'wastSessionDate'ow
+		assewt.ok('common.isNewSession' in pwops, 'isNewSession');
+		// machine id et aw
+		assewt.ok('common.instanceId' in pwops, 'instanceId');
+		assewt.ok('common.machineId' in pwops, 'machineId');
+		fs.unwinkSync(instawwSouwce);
+		const pwops_1 = await wesowveWowkbenchCommonPwopewties(testStowageSewvice, testFiweSewvice, wewease(), hostname(), commit, vewsion, 'someMachineId', undefined, instawwSouwce);
+		assewt.ok(!('common.souwce' in pwops_1));
 	});
 
-	test('lastSessionDate when aviablale', async function () {
+	test('wastSessionDate when aviabwawe', async function () {
 
-		testStorageService.store('telemetry.lastSessionDate', new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		testStowageSewvice.stowe('tewemetwy.wastSessionDate', new Date().toUTCStwing(), StowageScope.GWOBAW, StowageTawget.MACHINE);
 
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
-		assert.ok('common.lastSessionDate' in props); // conditional, see below
-		assert.ok('common.isNewSession' in props);
-		assert.strictEqual(props['common.isNewSession'], '0');
+		const pwops = await wesowveWowkbenchCommonPwopewties(testStowageSewvice, testFiweSewvice, wewease(), hostname(), commit, vewsion, 'someMachineId', undefined, instawwSouwce);
+		assewt.ok('common.wastSessionDate' in pwops); // conditionaw, see bewow
+		assewt.ok('common.isNewSession' in pwops);
+		assewt.stwictEquaw(pwops['common.isNewSession'], '0');
 	});
 
-	test('values chance on ask', async function () {
-		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
-		let value1 = props['common.sequence'];
-		let value2 = props['common.sequence'];
-		assert.ok(value1 !== value2, 'seq');
+	test('vawues chance on ask', async function () {
+		const pwops = await wesowveWowkbenchCommonPwopewties(testStowageSewvice, testFiweSewvice, wewease(), hostname(), commit, vewsion, 'someMachineId', undefined, instawwSouwce);
+		wet vawue1 = pwops['common.sequence'];
+		wet vawue2 = pwops['common.sequence'];
+		assewt.ok(vawue1 !== vawue2, 'seq');
 
-		value1 = props['timestamp'];
-		value2 = props['timestamp'];
-		assert.ok(value1 !== value2, 'timestamp');
+		vawue1 = pwops['timestamp'];
+		vawue2 = pwops['timestamp'];
+		assewt.ok(vawue1 !== vawue2, 'timestamp');
 
-		value1 = props['common.timesincesessionstart'];
+		vawue1 = pwops['common.timesincesessionstawt'];
 		await timeout(10);
-		value2 = props['common.timesincesessionstart'];
-		assert.ok(value1 !== value2, 'timesincesessionstart');
+		vawue2 = pwops['common.timesincesessionstawt'];
+		assewt.ok(vawue1 !== vawue2, 'timesincesessionstawt');
 	});
 });

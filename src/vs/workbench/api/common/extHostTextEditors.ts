@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as arrays from 'vs/base/common/arrays';
-import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { ExtHostEditowsShape, IEditowPwopewtiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditowPositionData, MainContext, MainThweadTextEditowsShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostDocumentsAndEditows } fwom 'vs/wowkbench/api/common/extHostDocumentsAndEditows';
+impowt { ExtHostTextEditow, TextEditowDecowationType } fwom 'vs/wowkbench/api/common/extHostTextEditow';
+impowt * as TypeConvewtews fwom 'vs/wowkbench/api/common/extHostTypeConvewtews';
+impowt { TextEditowSewectionChangeKind } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class ExtHostEditors implements ExtHostEditorsShape {
+expowt cwass ExtHostEditows impwements ExtHostEditowsShape {
 
-	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
-	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
-	private readonly _onDidChangeTextEditorVisibleRanges = new Emitter<vscode.TextEditorVisibleRangesChangeEvent>();
-	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
+	pwivate weadonwy _onDidChangeTextEditowSewection = new Emitta<vscode.TextEditowSewectionChangeEvent>();
+	pwivate weadonwy _onDidChangeTextEditowOptions = new Emitta<vscode.TextEditowOptionsChangeEvent>();
+	pwivate weadonwy _onDidChangeTextEditowVisibweWanges = new Emitta<vscode.TextEditowVisibweWangesChangeEvent>();
+	pwivate weadonwy _onDidChangeTextEditowViewCowumn = new Emitta<vscode.TextEditowViewCowumnChangeEvent>();
+	pwivate weadonwy _onDidChangeActiveTextEditow = new Emitta<vscode.TextEditow | undefined>();
+	pwivate weadonwy _onDidChangeVisibweTextEditows = new Emitta<vscode.TextEditow[]>();
 
-	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
-	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
-	readonly onDidChangeTextEditorVisibleRanges: Event<vscode.TextEditorVisibleRangesChangeEvent> = this._onDidChangeTextEditorVisibleRanges.event;
-	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
-	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
-	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	weadonwy onDidChangeTextEditowSewection: Event<vscode.TextEditowSewectionChangeEvent> = this._onDidChangeTextEditowSewection.event;
+	weadonwy onDidChangeTextEditowOptions: Event<vscode.TextEditowOptionsChangeEvent> = this._onDidChangeTextEditowOptions.event;
+	weadonwy onDidChangeTextEditowVisibweWanges: Event<vscode.TextEditowVisibweWangesChangeEvent> = this._onDidChangeTextEditowVisibweWanges.event;
+	weadonwy onDidChangeTextEditowViewCowumn: Event<vscode.TextEditowViewCowumnChangeEvent> = this._onDidChangeTextEditowViewCowumn.event;
+	weadonwy onDidChangeActiveTextEditow: Event<vscode.TextEditow | undefined> = this._onDidChangeActiveTextEditow.event;
+	weadonwy onDidChangeVisibweTextEditows: Event<vscode.TextEditow[]> = this._onDidChangeVisibweTextEditows.event;
 
-	private readonly _proxy: MainThreadTextEditorsShape;
+	pwivate weadonwy _pwoxy: MainThweadTextEditowsShape;
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		pwivate weadonwy _extHostDocumentsAndEditows: ExtHostDocumentsAndEditows,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadTextEditows);
 
 
-		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
-		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
+		this._extHostDocumentsAndEditows.onDidChangeVisibweTextEditows(e => this._onDidChangeVisibweTextEditows.fiwe(e));
+		this._extHostDocumentsAndEditows.onDidChangeActiveTextEditow(e => this._onDidChangeActiveTextEditow.fiwe(e));
 	}
 
-	getActiveTextEditor(): vscode.TextEditor | undefined {
-		return this._extHostDocumentsAndEditors.activeEditor();
+	getActiveTextEditow(): vscode.TextEditow | undefined {
+		wetuwn this._extHostDocumentsAndEditows.activeEditow();
 	}
 
-	getVisibleTextEditors(): vscode.TextEditor[];
-	getVisibleTextEditors(internal: true): ExtHostTextEditor[];
-	getVisibleTextEditors(internal?: true): ExtHostTextEditor[] | vscode.TextEditor[] {
-		const editors = this._extHostDocumentsAndEditors.allEditors();
-		return internal
-			? editors
-			: editors.map(editor => editor.value);
+	getVisibweTextEditows(): vscode.TextEditow[];
+	getVisibweTextEditows(intewnaw: twue): ExtHostTextEditow[];
+	getVisibweTextEditows(intewnaw?: twue): ExtHostTextEditow[] | vscode.TextEditow[] {
+		const editows = this._extHostDocumentsAndEditows.awwEditows();
+		wetuwn intewnaw
+			? editows
+			: editows.map(editow => editow.vawue);
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Promise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Promise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor>;
-	async showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor> {
-		let options: ITextDocumentShowOptions;
-		if (typeof columnOrOptions === 'number') {
+	showTextDocument(document: vscode.TextDocument, cowumn: vscode.ViewCowumn, pwesewveFocus: boowean): Pwomise<vscode.TextEditow>;
+	showTextDocument(document: vscode.TextDocument, options: { cowumn: vscode.ViewCowumn, pwesewveFocus: boowean, pinned: boowean }): Pwomise<vscode.TextEditow>;
+	showTextDocument(document: vscode.TextDocument, cowumnOwOptions: vscode.ViewCowumn | vscode.TextDocumentShowOptions | undefined, pwesewveFocus?: boowean): Pwomise<vscode.TextEditow>;
+	async showTextDocument(document: vscode.TextDocument, cowumnOwOptions: vscode.ViewCowumn | vscode.TextDocumentShowOptions | undefined, pwesewveFocus?: boowean): Pwomise<vscode.TextEditow> {
+		wet options: ITextDocumentShowOptions;
+		if (typeof cowumnOwOptions === 'numba') {
 			options = {
-				position: TypeConverters.ViewColumn.from(columnOrOptions),
-				preserveFocus
+				position: TypeConvewtews.ViewCowumn.fwom(cowumnOwOptions),
+				pwesewveFocus
 			};
-		} else if (typeof columnOrOptions === 'object') {
+		} ewse if (typeof cowumnOwOptions === 'object') {
 			options = {
-				position: TypeConverters.ViewColumn.from(columnOrOptions.viewColumn),
-				preserveFocus: columnOrOptions.preserveFocus,
-				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.Range.from(columnOrOptions.selection) : undefined,
-				pinned: typeof columnOrOptions.preview === 'boolean' ? !columnOrOptions.preview : undefined
+				position: TypeConvewtews.ViewCowumn.fwom(cowumnOwOptions.viewCowumn),
+				pwesewveFocus: cowumnOwOptions.pwesewveFocus,
+				sewection: typeof cowumnOwOptions.sewection === 'object' ? TypeConvewtews.Wange.fwom(cowumnOwOptions.sewection) : undefined,
+				pinned: typeof cowumnOwOptions.pweview === 'boowean' ? !cowumnOwOptions.pweview : undefined
 			};
-		} else {
+		} ewse {
 			options = {
-				preserveFocus: false
+				pwesewveFocus: fawse
 			};
 		}
 
-		const editorId = await this._proxy.$tryShowTextDocument(document.uri, options);
-		const editor = editorId && this._extHostDocumentsAndEditors.getEditor(editorId);
-		if (editor) {
-			return editor.value;
+		const editowId = await this._pwoxy.$twyShowTextDocument(document.uwi, options);
+		const editow = editowId && this._extHostDocumentsAndEditows.getEditow(editowId);
+		if (editow) {
+			wetuwn editow.vawue;
 		}
-		// we have no editor... having an id means that we had an editor
-		// on the main side and that it isn't the current editor anymore...
-		if (editorId) {
-			throw new Error(`Could NOT open editor for "${document.uri.toString()}" because another editor opened in the meantime.`);
-		} else {
-			throw new Error(`Could NOT open editor for "${document.uri.toString()}".`);
+		// we have no editow... having an id means that we had an editow
+		// on the main side and that it isn't the cuwwent editow anymowe...
+		if (editowId) {
+			thwow new Ewwow(`Couwd NOT open editow fow "${document.uwi.toStwing()}" because anotha editow opened in the meantime.`);
+		} ewse {
+			thwow new Ewwow(`Couwd NOT open editow fow "${document.uwi.toStwing()}".`);
 		}
 	}
 
-	createTextEditorDecorationType(extension: IExtensionDescription, options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-		return new TextEditorDecorationType(this._proxy, extension, options).value;
+	cweateTextEditowDecowationType(extension: IExtensionDescwiption, options: vscode.DecowationWendewOptions): vscode.TextEditowDecowationType {
+		wetuwn new TextEditowDecowationType(this._pwoxy, extension, options).vawue;
 	}
 
-	// --- called from main thread
+	// --- cawwed fwom main thwead
 
-	$acceptEditorPropertiesChanged(id: string, data: IEditorPropertiesChangeData): void {
-		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-		if (!textEditor) {
-			throw new Error('unknown text editor');
+	$acceptEditowPwopewtiesChanged(id: stwing, data: IEditowPwopewtiesChangeData): void {
+		const textEditow = this._extHostDocumentsAndEditows.getEditow(id);
+		if (!textEditow) {
+			thwow new Ewwow('unknown text editow');
 		}
 
-		// (1) set all properties
+		// (1) set aww pwopewties
 		if (data.options) {
-			textEditor._acceptOptions(data.options);
+			textEditow._acceptOptions(data.options);
 		}
-		if (data.selections) {
-			const selections = data.selections.selections.map(TypeConverters.Selection.to);
-			textEditor._acceptSelections(selections);
+		if (data.sewections) {
+			const sewections = data.sewections.sewections.map(TypeConvewtews.Sewection.to);
+			textEditow._acceptSewections(sewections);
 		}
-		if (data.visibleRanges) {
-			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
-			textEditor._acceptVisibleRanges(visibleRanges);
+		if (data.visibweWanges) {
+			const visibweWanges = awways.coawesce(data.visibweWanges.map(TypeConvewtews.Wange.to));
+			textEditow._acceptVisibweWanges(visibweWanges);
 		}
 
-		// (2) fire change events
+		// (2) fiwe change events
 		if (data.options) {
-			this._onDidChangeTextEditorOptions.fire({
-				textEditor: textEditor.value,
-				options: { ...data.options, lineNumbers: TypeConverters.TextEditorLineNumbersStyle.to(data.options.lineNumbers) }
+			this._onDidChangeTextEditowOptions.fiwe({
+				textEditow: textEditow.vawue,
+				options: { ...data.options, wineNumbews: TypeConvewtews.TextEditowWineNumbewsStywe.to(data.options.wineNumbews) }
 			});
 		}
-		if (data.selections) {
-			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
-			const selections = data.selections.selections.map(TypeConverters.Selection.to);
-			this._onDidChangeTextEditorSelection.fire({
-				textEditor: textEditor.value,
-				selections,
+		if (data.sewections) {
+			const kind = TextEditowSewectionChangeKind.fwomVawue(data.sewections.souwce);
+			const sewections = data.sewections.sewections.map(TypeConvewtews.Sewection.to);
+			this._onDidChangeTextEditowSewection.fiwe({
+				textEditow: textEditow.vawue,
+				sewections,
 				kind
 			});
 		}
-		if (data.visibleRanges) {
-			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
-			this._onDidChangeTextEditorVisibleRanges.fire({
-				textEditor: textEditor.value,
-				visibleRanges
+		if (data.visibweWanges) {
+			const visibweWanges = awways.coawesce(data.visibweWanges.map(TypeConvewtews.Wange.to));
+			this._onDidChangeTextEditowVisibweWanges.fiwe({
+				textEditow: textEditow.vawue,
+				visibweWanges
 			});
 		}
 	}
 
-	$acceptEditorPositionData(data: ITextEditorPositionData): void {
-		for (const id in data) {
-			const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-			if (!textEditor) {
-				throw new Error('Unknown text editor');
+	$acceptEditowPositionData(data: ITextEditowPositionData): void {
+		fow (const id in data) {
+			const textEditow = this._extHostDocumentsAndEditows.getEditow(id);
+			if (!textEditow) {
+				thwow new Ewwow('Unknown text editow');
 			}
-			const viewColumn = TypeConverters.ViewColumn.to(data[id]);
-			if (textEditor.value.viewColumn !== viewColumn) {
-				textEditor._acceptViewColumn(viewColumn);
-				this._onDidChangeTextEditorViewColumn.fire({ textEditor: textEditor.value, viewColumn });
+			const viewCowumn = TypeConvewtews.ViewCowumn.to(data[id]);
+			if (textEditow.vawue.viewCowumn !== viewCowumn) {
+				textEditow._acceptViewCowumn(viewCowumn);
+				this._onDidChangeTextEditowViewCowumn.fiwe({ textEditow: textEditow.vawue, viewCowumn });
 			}
 		}
 	}
 
-	getDiffInformation(id: string): Promise<vscode.LineChange[]> {
-		return Promise.resolve(this._proxy.$getDiffInformation(id));
+	getDiffInfowmation(id: stwing): Pwomise<vscode.WineChange[]> {
+		wetuwn Pwomise.wesowve(this._pwoxy.$getDiffInfowmation(id));
 	}
 }

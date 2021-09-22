@@ -1,137 +1,137 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import { snippetForFunctionCall } from '../../utils/snippetForFunctionCall';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt { snippetFowFunctionCaww } fwom '../../utiws/snippetFowFunctionCaww';
 
-suite('typescript function call snippets', () => {
-	test('Should use label as function name', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'abc', },
+suite('typescwipt function caww snippets', () => {
+	test('Shouwd use wabew as function name', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'abc', },
 				[]
-			).snippet.value,
+			).snippet.vawue,
 			'abc()$0');
 	});
 
-	test('Should use insertText string to override function name', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'abc', insertText: 'def' },
+	test('Shouwd use insewtText stwing to ovewwide function name', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'abc', insewtText: 'def' },
 				[]
-			).snippet.value,
+			).snippet.vawue,
 			'def()$0');
 	});
 
-	test('Should return insertText as-is if it is already a snippet', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'abc', insertText: new vscode.SnippetString('bla()$0') },
+	test('Shouwd wetuwn insewtText as-is if it is awweady a snippet', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'abc', insewtText: new vscode.SnippetStwing('bwa()$0') },
 				[]
-			).snippet.value,
-			'bla()$0');
+			).snippet.vawue,
+			'bwa()$0');
 	});
 
-	test('Should return insertText as-is if it is already a snippet', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'abc', insertText: new vscode.SnippetString('bla()$0') },
+	test('Shouwd wetuwn insewtText as-is if it is awweady a snippet', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'abc', insewtText: new vscode.SnippetStwing('bwa()$0') },
 				[]
-			).snippet.value,
-			'bla()$0');
+			).snippet.vawue,
+			'bwa()$0');
 	});
 
-	test('Should extract parameter from display parts', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'activate' },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'activate', 'kind': 'text' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'context', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'vscode', 'kind': 'aliasName' }, { 'text': '.', 'kind': 'punctuation' }, { 'text': 'ExtensionContext', 'kind': 'interfaceName' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
+	test('Shouwd extwact pawameta fwom dispway pawts', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'activate' },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'activate', 'kind': 'text' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'context', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'vscode', 'kind': 'awiasName' }, { 'text': '.', 'kind': 'punctuation' }, { 'text': 'ExtensionContext', 'kind': 'intewfaceName' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
 			'activate(${1:context})$0');
 	});
 
-	test('Should extract all parameters from display parts', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foo' },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'b', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'c', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'boolean', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
+	test('Shouwd extwact aww pawametews fwom dispway pawts', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foo' },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'b', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'c', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'boowean', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
 			'foo(${1:a}, ${2:b}, ${3:c})$0');
 	});
 
-	test('Should create empty placeholder at rest parameter', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foo' },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '...', 'kind': 'punctuation' }, { 'text': 'rest', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keyword' }, { 'text': '[', 'kind': 'punctuation' }, { 'text': ']', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
+	test('Shouwd cweate empty pwacehowda at west pawameta', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foo' },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '...', 'kind': 'punctuation' }, { 'text': 'west', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keywowd' }, { 'text': '[', 'kind': 'punctuation' }, { 'text': ']', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
 			'foo(${1:a}$2)$0');
 	});
 
-	test('Should skip over inline function and object types when extracting parameters', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foo' },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'x', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'propertyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'b', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'propertyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
+	test('Shouwd skip ova inwine function and object types when extwacting pawametews', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foo' },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'x', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'pwopewtyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'b', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'pwopewtyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
 			'foo(${1:a}, ${2:b})$0');
 	});
 
-	test('Should skip over return type while extracting parameters', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foo' },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'propertyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'b', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '}', 'kind': 'punctuation' }]
-			).snippet.value,
+	test('Shouwd skip ova wetuwn type whiwe extwacting pawametews', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foo' },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foo', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'a', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'f', 'kind': 'pwopewtyName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'b', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '=>', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '}', 'kind': 'punctuation' }]
+			).snippet.vawue,
 			'foo(${1:a})$0');
 	});
 
-	test('Should skip over prefix type while extracting parameters', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foo' },
-				[{ 'text': '(', 'kind': 'punctuation' }, { 'text': 'method', 'kind': 'text' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'Array', 'kind': 'localName' }, { 'text': '<', 'kind': 'punctuation' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'dispose', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': '>', 'kind': 'punctuation' }, { 'text': '.', 'kind': 'punctuation' }, { 'text': 'foo', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'searchElement', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'dispose', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'fromIndex', 'kind': 'parameterName' }, { 'text': '?', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }]
-			).snippet.value,
-			'foo(${1:searchElement}$2)$0');
+	test('Shouwd skip ova pwefix type whiwe extwacting pawametews', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foo' },
+				[{ 'text': '(', 'kind': 'punctuation' }, { 'text': 'method', 'kind': 'text' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'Awway', 'kind': 'wocawName' }, { 'text': '<', 'kind': 'punctuation' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'dispose', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': '>', 'kind': 'punctuation' }, { 'text': '.', 'kind': 'punctuation' }, { 'text': 'foo', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'seawchEwement', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '    ', 'kind': 'space' }, { 'text': 'dispose', 'kind': 'methodName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'any', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'fwomIndex', 'kind': 'pawametewName' }, { 'text': '?', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }]
+			).snippet.vawue,
+			'foo(${1:seawchEwement}$2)$0');
 	});
 
-	test('Should complete property names', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'methoda' },
-				[{ 'text': '(', 'kind': 'punctuation' }, { 'text': 'method', 'kind': 'text' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'methoda', 'kind': 'propertyName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'x', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'number', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
+	test('Shouwd compwete pwopewty names', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'methoda' },
+				[{ 'text': '(', 'kind': 'punctuation' }, { 'text': 'method', 'kind': 'text' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'methoda', 'kind': 'pwopewtyName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'x', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'numba', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
 			'methoda(${1:x})$0');
 	});
 
-	test('Should escape snippet syntax in method name', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: '$abc', },
+	test('Shouwd escape snippet syntax in method name', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: '$abc', },
 				[]
-			).snippet.value,
+			).snippet.vawue,
 			'\\$abc()$0');
 	});
 
-	test('Should not include object key signature in completion, #66297', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foobar', },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foobar', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'param', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '    ', 'kind': 'space' }, { 'text': '[', 'kind': 'punctuation' }, { 'text': 'key', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ']', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'lineBreak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
-			'foobar(${1:param})$0');
+	test('Shouwd not incwude object key signatuwe in compwetion, #66297', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foobaw', },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foobaw', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'pawam', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': '{', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '    ', 'kind': 'space' }, { 'text': '[', 'kind': 'punctuation' }, { 'text': 'key', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ']', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ';', 'kind': 'punctuation' }, { 'text': '\n', 'kind': 'wineBweak' }, { 'text': '}', 'kind': 'punctuation' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
+			'foobaw(${1:pawam})$0');
 	});
 
-	test('Should skip over this parameter', async () => {
-		assert.strictEqual(
-			snippetForFunctionCall(
-				{ label: 'foobar', },
-				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foobar', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'this', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': 'param', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
-			).snippet.value,
-			'foobar(${1:param})$0');
+	test('Shouwd skip ova this pawameta', async () => {
+		assewt.stwictEquaw(
+			snippetFowFunctionCaww(
+				{ wabew: 'foobaw', },
+				[{ 'text': 'function', 'kind': 'keywowd' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foobaw', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'this', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': 'pawam', 'kind': 'pawametewName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'stwing', 'kind': 'keywowd' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keywowd' }]
+			).snippet.vawue,
+			'foobaw(${1:pawam})$0');
 	});
 });

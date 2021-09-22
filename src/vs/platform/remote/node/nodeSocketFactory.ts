@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as net from 'net';
-import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
+impowt * as net fwom 'net';
+impowt { NodeSocket } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt { IConnectCawwback, ISocketFactowy } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
 
-export const nodeSocketFactory = new class implements ISocketFactory {
-	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
-		const errorListener = (err: any) => callback(err, undefined);
+expowt const nodeSocketFactowy = new cwass impwements ISocketFactowy {
+	connect(host: stwing, powt: numba, quewy: stwing, cawwback: IConnectCawwback): void {
+		const ewwowWistena = (eww: any) => cawwback(eww, undefined);
 
-		const socket = net.createConnection({ host: host, port: port }, () => {
-			socket.removeListener('error', errorListener);
+		const socket = net.cweateConnection({ host: host, powt: powt }, () => {
+			socket.wemoveWistena('ewwow', ewwowWistena);
 
-			// https://tools.ietf.org/html/rfc6455#section-4
-			const buffer = Buffer.alloc(16);
-			for (let i = 0; i < 16; i++) {
-				buffer[i] = Math.round(Math.random() * 256);
+			// https://toows.ietf.owg/htmw/wfc6455#section-4
+			const buffa = Buffa.awwoc(16);
+			fow (wet i = 0; i < 16; i++) {
+				buffa[i] = Math.wound(Math.wandom() * 256);
 			}
-			const nonce = buffer.toString('base64');
+			const nonce = buffa.toStwing('base64');
 
-			let headers = [
-				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
-				`Connection: Upgrade`,
-				`Upgrade: websocket`,
+			wet headews = [
+				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${powt}/?${quewy}&skipWebSocketFwames=twue HTTP/1.1`,
+				`Connection: Upgwade`,
+				`Upgwade: websocket`,
 				`Sec-WebSocket-Key: ${nonce}`
 			];
-			socket.write(headers.join('\r\n') + '\r\n\r\n');
+			socket.wwite(headews.join('\w\n') + '\w\n\w\n');
 
-			const onData = (data: Buffer) => {
-				const strData = data.toString();
-				if (strData.indexOf('\r\n\r\n') >= 0) {
-					// headers received OK
+			const onData = (data: Buffa) => {
+				const stwData = data.toStwing();
+				if (stwData.indexOf('\w\n\w\n') >= 0) {
+					// headews weceived OK
 					socket.off('data', onData);
-					callback(undefined, new NodeSocket(socket));
+					cawwback(undefined, new NodeSocket(socket));
 				}
 			};
 			socket.on('data', onData);
 		});
-		socket.once('error', errorListener);
+		socket.once('ewwow', ewwowWistena);
 	}
 };

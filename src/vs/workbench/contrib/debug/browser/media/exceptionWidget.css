@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .zone-widget.exception-widget-container {
-	overflow: hidden;
+.monaco-editow .zone-widget.exception-widget-containa {
+	ovewfwow: hidden;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget {
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget {
 	padding: 6px 10px;
-	white-space: pre-wrap;
-	user-select: text;
-	-webkit-user-select: text;
+	white-space: pwe-wwap;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
-	display: flex;
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .titwe {
+	dispway: fwex;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .label {
-	font-weight: bold;
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .titwe .wabew {
+	font-weight: bowd;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .actions {
-	flex: 1;
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .titwe .actions {
+	fwex: 1;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
-	font-family: var(--monaco-monospace-font);
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .descwiption,
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .stack-twace {
+	font-famiwy: vaw(--monaco-monospace-font);
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
-	margin-top: 0.5em;
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .stack-twace {
+	mawgin-top: 0.5em;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace a {
-	text-decoration: underline;
-	cursor: pointer;
+.monaco-editow .zone-widget .zone-widget-containa.exception-widget .stack-twace a {
+	text-decowation: undewwine;
+	cuwsow: pointa;
 }
 
-.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
+.monaco-wowkbench.mac .zone-widget .zone-widget-containa.exception-widget {
 	font-size: 11px;
 }
 
-.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
-.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
+.monaco-wowkbench.windows .zone-widget .zone-widget-containa.exception-widget,
+.monaco-wowkbench.winux .zone-widget .zone-widget-containa.exception-widget {
 	font-size: 13px;
 }

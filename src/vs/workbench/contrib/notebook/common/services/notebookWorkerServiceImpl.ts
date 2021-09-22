@@ -1,259 +1,259 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
-import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IMainCellDto, INotebookDiffResult, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { NotebookEditorSimpleWorker } from 'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+impowt { Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { SimpweWowkewCwient } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { DefauwtWowkewFactowy } fwom 'vs/base/wowka/defauwtWowkewFactowy';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { IMainCewwDto, INotebookDiffWesuwt, NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookSewvice';
+impowt { NotebookEditowSimpweWowka } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookSimpweWowka';
+impowt { INotebookEditowWowkewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/sewvices/notebookWowkewSewvice';
 
-export class NotebookEditorWorkerServiceImpl extends Disposable implements INotebookEditorWorkerService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass NotebookEditowWowkewSewviceImpw extends Disposabwe impwements INotebookEditowWowkewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _workerManager: WorkerManager;
+	pwivate weadonwy _wowkewManaga: WowkewManaga;
 
-	constructor(
-		@INotebookService notebookService: INotebookService
+	constwuctow(
+		@INotebookSewvice notebookSewvice: INotebookSewvice
 	) {
-		super();
+		supa();
 
-		this._workerManager = this._register(new WorkerManager(notebookService));
+		this._wowkewManaga = this._wegista(new WowkewManaga(notebookSewvice));
 	}
-	canComputeDiff(original: URI, modified: URI): boolean {
-		throw new Error('Method not implemented.');
+	canComputeDiff(owiginaw: UWI, modified: UWI): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult> {
-		return this._workerManager.withWorker().then(client => {
-			return client.computeDiff(original, modified);
+	computeDiff(owiginaw: UWI, modified: UWI): Pwomise<INotebookDiffWesuwt> {
+		wetuwn this._wowkewManaga.withWowka().then(cwient => {
+			wetuwn cwient.computeDiff(owiginaw, modified);
 		});
 	}
 }
 
-export class WorkerManager extends Disposable {
-	private _editorWorkerClient: NotebookWorkerClient | null;
-	// private _lastWorkerUsedTime: number;
+expowt cwass WowkewManaga extends Disposabwe {
+	pwivate _editowWowkewCwient: NotebookWowkewCwient | nuww;
+	// pwivate _wastWowkewUsedTime: numba;
 
-	constructor(
-		private readonly _notebookService: INotebookService
+	constwuctow(
+		pwivate weadonwy _notebookSewvice: INotebookSewvice
 	) {
-		super();
-		this._editorWorkerClient = null;
-		// this._lastWorkerUsedTime = (new Date()).getTime();
+		supa();
+		this._editowWowkewCwient = nuww;
+		// this._wastWowkewUsedTime = (new Date()).getTime();
 	}
 
-	withWorker(): Promise<NotebookWorkerClient> {
-		// this._lastWorkerUsedTime = (new Date()).getTime();
-		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new NotebookWorkerClient(this._notebookService, 'notebookEditorWorkerService');
+	withWowka(): Pwomise<NotebookWowkewCwient> {
+		// this._wastWowkewUsedTime = (new Date()).getTime();
+		if (!this._editowWowkewCwient) {
+			this._editowWowkewCwient = new NotebookWowkewCwient(this._notebookSewvice, 'notebookEditowWowkewSewvice');
 		}
-		return Promise.resolve(this._editorWorkerClient);
+		wetuwn Pwomise.wesowve(this._editowWowkewCwient);
 	}
 }
 
-export interface IWorkerClient<W> {
-	getProxyObject(): Promise<W>;
+expowt intewface IWowkewCwient<W> {
+	getPwoxyObject(): Pwomise<W>;
 	dispose(): void;
 }
 
-export class NotebookEditorModelManager extends Disposable {
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
+expowt cwass NotebookEditowModewManaga extends Disposabwe {
+	pwivate _syncedModews: { [modewUww: stwing]: IDisposabwe; } = Object.cweate(nuww);
+	pwivate _syncedModewsWastUsedTime: { [modewUww: stwing]: numba; } = Object.cweate(nuww);
 
-	constructor(
-		private readonly _proxy: NotebookEditorSimpleWorker,
-		private readonly _notebookService: INotebookService
+	constwuctow(
+		pwivate weadonwy _pwoxy: NotebookEditowSimpweWowka,
+		pwivate weadonwy _notebookSewvice: INotebookSewvice
 	) {
-		super();
+		supa();
 	}
 
-	public ensureSyncedResources(resources: URI[]): void {
-		for (const resource of resources) {
-			let resourceStr = resource.toString();
+	pubwic ensuweSyncedWesouwces(wesouwces: UWI[]): void {
+		fow (const wesouwce of wesouwces) {
+			wet wesouwceStw = wesouwce.toStwing();
 
-			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
+			if (!this._syncedModews[wesouwceStw]) {
+				this._beginModewSync(wesouwce);
 			}
-			if (this._syncedModels[resourceStr]) {
-				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
+			if (this._syncedModews[wesouwceStw]) {
+				this._syncedModewsWastUsedTime[wesouwceStw] = (new Date()).getTime();
 			}
 		}
 	}
 
-	private _beginModelSync(resource: URI): void {
-		let model = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === resource.toString());
-		if (!model) {
-			return;
+	pwivate _beginModewSync(wesouwce: UWI): void {
+		wet modew = this._notebookSewvice.wistNotebookDocuments().find(document => document.uwi.toStwing() === wesouwce.toStwing());
+		if (!modew) {
+			wetuwn;
 		}
 
-		let modelUrl = resource.toString();
+		wet modewUww = wesouwce.toStwing();
 
-		this._proxy.acceptNewModel(
-			model.uri.toString(),
+		this._pwoxy.acceptNewModew(
+			modew.uwi.toStwing(),
 			{
-				cells: model.cells.map(cell => ({
-					handle: cell.handle,
-					uri: cell.uri,
-					source: cell.getValue(),
-					eol: cell.textBuffer.getEOL(),
-					language: cell.language,
-					mime: cell.mime,
-					cellKind: cell.cellKind,
-					outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
-					metadata: cell.metadata,
-					internalMetadata: cell.internalMetadata,
+				cewws: modew.cewws.map(ceww => ({
+					handwe: ceww.handwe,
+					uwi: ceww.uwi,
+					souwce: ceww.getVawue(),
+					eow: ceww.textBuffa.getEOW(),
+					wanguage: ceww.wanguage,
+					mime: ceww.mime,
+					cewwKind: ceww.cewwKind,
+					outputs: ceww.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
+					metadata: ceww.metadata,
+					intewnawMetadata: ceww.intewnawMetadata,
 				})),
-				metadata: model.metadata
+				metadata: modew.metadata
 			}
 		);
 
-		const toDispose = new DisposableStore();
+		const toDispose = new DisposabweStowe();
 
-		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
-			return {
-				handle: cell.handle,
-				uri: cell.uri,
-				source: cell.textBuffer.getLinesContent(),
-				eol: cell.textBuffer.getEOL(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: cell.metadata,
-				internalMetadata: cell.internalMetadata,
+		const cewwToDto = (ceww: NotebookCewwTextModew): IMainCewwDto => {
+			wetuwn {
+				handwe: ceww.handwe,
+				uwi: ceww.uwi,
+				souwce: ceww.textBuffa.getWinesContent(),
+				eow: ceww.textBuffa.getEOW(),
+				wanguage: ceww.wanguage,
+				cewwKind: ceww.cewwKind,
+				outputs: ceww.outputs,
+				metadata: ceww.metadata,
+				intewnawMetadata: ceww.intewnawMetadata,
 			};
 		};
 
-		toDispose.add(model.onDidChangeContent((event) => {
-			const dto = event.rawEvents.map(e => {
+		toDispose.add(modew.onDidChangeContent((event) => {
+			const dto = event.wawEvents.map(e => {
 				const data =
-					e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
+					e.kind === NotebookCewwsChangeType.ModewChange || e.kind === NotebookCewwsChangeType.Initiawize
 						? {
 							kind: e.kind,
-							versionId: event.versionId,
-							changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+							vewsionId: event.vewsionId,
+							changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(ceww => cewwToDto(ceww as NotebookCewwTextModew))] as [numba, numba, IMainCewwDto[]])
 						}
 						: (
-							e.kind === NotebookCellsChangeType.Move
+							e.kind === NotebookCewwsChangeType.Move
 								? {
 									kind: e.kind,
 									index: e.index,
-									length: e.length,
+									wength: e.wength,
 									newIdx: e.newIdx,
-									versionId: event.versionId,
-									cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+									vewsionId: event.vewsionId,
+									cewws: e.cewws.map(ceww => cewwToDto(ceww as NotebookCewwTextModew))
 								}
 								: e
 						);
 
-				return data;
+				wetuwn data;
 			});
 
-			this._proxy.acceptModelChanged(modelUrl.toString(), {
-				rawEvents: dto,
-				versionId: event.versionId
+			this._pwoxy.acceptModewChanged(modewUww.toStwing(), {
+				wawEvents: dto,
+				vewsionId: event.vewsionId
 			});
 		}));
 
-		toDispose.add(model.onWillDispose(() => {
-			this._stopModelSync(modelUrl);
+		toDispose.add(modew.onWiwwDispose(() => {
+			this._stopModewSync(modewUww);
 		}));
-		toDispose.add(toDisposable(() => {
-			this._proxy.acceptRemovedModel(modelUrl);
+		toDispose.add(toDisposabwe(() => {
+			this._pwoxy.acceptWemovedModew(modewUww);
 		}));
 
-		this._syncedModels[modelUrl] = toDispose;
+		this._syncedModews[modewUww] = toDispose;
 	}
 
-	private _stopModelSync(modelUrl: string): void {
-		let toDispose = this._syncedModels[modelUrl];
-		delete this._syncedModels[modelUrl];
-		delete this._syncedModelsLastUsedTime[modelUrl];
+	pwivate _stopModewSync(modewUww: stwing): void {
+		wet toDispose = this._syncedModews[modewUww];
+		dewete this._syncedModews[modewUww];
+		dewete this._syncedModewsWastUsedTime[modewUww];
 		dispose(toDispose);
 	}
 }
 
-export class EditorWorkerHost {
+expowt cwass EditowWowkewHost {
 
-	private readonly _workerClient: NotebookWorkerClient;
+	pwivate weadonwy _wowkewCwient: NotebookWowkewCwient;
 
-	constructor(workerClient: NotebookWorkerClient) {
-		this._workerClient = workerClient;
+	constwuctow(wowkewCwient: NotebookWowkewCwient) {
+		this._wowkewCwient = wowkewCwient;
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		return this._workerClient.fhr(method, args);
+	// foweign host wequest
+	pubwic fhw(method: stwing, awgs: any[]): Pwomise<any> {
+		wetuwn this._wowkewCwient.fhw(method, awgs);
 	}
 }
 
-export class NotebookWorkerClient extends Disposable {
-	private _worker: IWorkerClient<NotebookEditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
-	private _modelManager: NotebookEditorModelManager | null;
+expowt cwass NotebookWowkewCwient extends Disposabwe {
+	pwivate _wowka: IWowkewCwient<NotebookEditowSimpweWowka> | nuww;
+	pwivate weadonwy _wowkewFactowy: DefauwtWowkewFactowy;
+	pwivate _modewManaga: NotebookEditowModewManaga | nuww;
 
 
-	constructor(private readonly _notebookService: INotebookService, label: string) {
-		super();
-		this._workerFactory = new DefaultWorkerFactory(label);
-		this._worker = null;
-		this._modelManager = null;
+	constwuctow(pwivate weadonwy _notebookSewvice: INotebookSewvice, wabew: stwing) {
+		supa();
+		this._wowkewFactowy = new DefauwtWowkewFactowy(wabew);
+		this._wowka = nuww;
+		this._modewManaga = nuww;
 
 	}
 
-	// foreign host request
-	public fhr(method: string, args: any[]): Promise<any> {
-		throw new Error(`Not implemented!`);
+	// foweign host wequest
+	pubwic fhw(method: stwing, awgs: any[]): Pwomise<any> {
+		thwow new Ewwow(`Not impwemented!`);
 	}
 
-	computeDiff(original: URI, modified: URI) {
-		return this._withSyncedResources([original, modified]).then(proxy => {
-			return proxy.computeDiff(original.toString(), modified.toString());
+	computeDiff(owiginaw: UWI, modified: UWI) {
+		wetuwn this._withSyncedWesouwces([owiginaw, modified]).then(pwoxy => {
+			wetuwn pwoxy.computeDiff(owiginaw.toStwing(), modified.toStwing());
 		});
 	}
 
-	private _getOrCreateModelManager(proxy: NotebookEditorSimpleWorker): NotebookEditorModelManager {
-		if (!this._modelManager) {
-			this._modelManager = this._register(new NotebookEditorModelManager(proxy, this._notebookService));
+	pwivate _getOwCweateModewManaga(pwoxy: NotebookEditowSimpweWowka): NotebookEditowModewManaga {
+		if (!this._modewManaga) {
+			this._modewManaga = this._wegista(new NotebookEditowModewManaga(pwoxy, this._notebookSewvice));
 		}
-		return this._modelManager;
+		wetuwn this._modewManaga;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<NotebookEditorSimpleWorker> {
-		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
-			return proxy;
+	pwotected _withSyncedWesouwces(wesouwces: UWI[]): Pwomise<NotebookEditowSimpweWowka> {
+		wetuwn this._getPwoxy().then((pwoxy) => {
+			this._getOwCweateModewManaga(pwoxy).ensuweSyncedWesouwces(wesouwces);
+			wetuwn pwoxy;
 		});
 	}
 
-	private _getOrCreateWorker(): IWorkerClient<NotebookEditorSimpleWorker> {
-		if (!this._worker) {
-			try {
-				this._worker = this._register(new SimpleWorkerClient<NotebookEditorSimpleWorker, EditorWorkerHost>(
-					this._workerFactory,
-					'vs/workbench/contrib/notebook/common/services/notebookSimpleWorker',
-					new EditorWorkerHost(this)
+	pwivate _getOwCweateWowka(): IWowkewCwient<NotebookEditowSimpweWowka> {
+		if (!this._wowka) {
+			twy {
+				this._wowka = this._wegista(new SimpweWowkewCwient<NotebookEditowSimpweWowka, EditowWowkewHost>(
+					this._wowkewFactowy,
+					'vs/wowkbench/contwib/notebook/common/sewvices/notebookSimpweWowka',
+					new EditowWowkewHost(this)
 				));
-			} catch (err) {
-				// logOnceWebWorkerWarning(err);
-				// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
-				throw (err);
+			} catch (eww) {
+				// wogOnceWebWowkewWawning(eww);
+				// this._wowka = new SynchwonousWowkewCwient(new EditowSimpweWowka(new EditowWowkewHost(this), nuww));
+				thwow (eww);
 			}
 		}
-		return this._worker;
+		wetuwn this._wowka;
 	}
 
-	protected _getProxy(): Promise<NotebookEditorSimpleWorker> {
-		return this._getOrCreateWorker().getProxyObject().then(undefined, (err) => {
-			// logOnceWebWorkerWarning(err);
-			// this._worker = new SynchronousWorkerClient(new EditorSimpleWorker(new EditorWorkerHost(this), null));
-			// return this._getOrCreateWorker().getProxyObject();
-			throw (err);
+	pwotected _getPwoxy(): Pwomise<NotebookEditowSimpweWowka> {
+		wetuwn this._getOwCweateWowka().getPwoxyObject().then(undefined, (eww) => {
+			// wogOnceWebWowkewWawning(eww);
+			// this._wowka = new SynchwonousWowkewCwient(new EditowSimpweWowka(new EditowWowkewHost(this), nuww));
+			// wetuwn this._getOwCweateWowka().getPwoxyObject();
+			thwow (eww);
 		});
 	}
 

@@ -1,45 +1,45 @@
 {
-  "name": "handlebars",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "handwebaws",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin daaain/Handwebaws gwammaws/Handwebaws.json ./syntaxes/Handwebaws.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "handlebars",
+        "id": "handwebaws",
         "extensions": [
-          ".handlebars",
+          ".handwebaws",
           ".hbs",
           ".hjs"
         ],
-        "aliases": [
-          "Handlebars",
-          "handlebars"
+        "awiases": [
+          "Handwebaws",
+          "handwebaws"
         ],
         "mimetypes": [
-          "text/x-handlebars-template"
+          "text/x-handwebaws-tempwate"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "handlebars",
-        "scopeName": "text.html.handlebars",
-        "path": "./syntaxes/Handlebars.tmLanguage.json"
+        "wanguage": "handwebaws",
+        "scopeName": "text.htmw.handwebaws",
+        "path": "./syntaxes/Handwebaws.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

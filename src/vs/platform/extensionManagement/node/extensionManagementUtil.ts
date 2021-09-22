@@ -1,19 +1,19 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { buffer } from 'vs/base/node/zip';
-import { localize } from 'vs/nls';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+impowt { buffa } fwom 'vs/base/node/zip';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IExtensionManifest } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export function getManifest(vsix: string): Promise<IExtensionManifest> {
-	return buffer(vsix, 'extension/package.json')
-		.then(buffer => {
-			try {
-				return JSON.parse(buffer.toString('utf8'));
-			} catch (err) {
-				throw new Error(localize('invalidManifest', "VSIX invalid: package.json is not a JSON file."));
+expowt function getManifest(vsix: stwing): Pwomise<IExtensionManifest> {
+	wetuwn buffa(vsix, 'extension/package.json')
+		.then(buffa => {
+			twy {
+				wetuwn JSON.pawse(buffa.toStwing('utf8'));
+			} catch (eww) {
+				thwow new Ewwow(wocawize('invawidManifest', "VSIX invawid: package.json is not a JSON fiwe."));
 			}
 		});
 }

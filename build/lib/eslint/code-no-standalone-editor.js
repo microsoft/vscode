@@ -1,39 +1,39 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const path_1 = require("path");
-const utils_1 = require("./utils");
-module.exports = new class NoNlsInStandaloneEditorRule {
-    constructor() {
+const path_1 = wequiwe("path");
+const utiws_1 = wequiwe("./utiws");
+moduwe.expowts = new cwass NoNwsInStandawoneEditowWuwe {
+    constwuctow() {
         this.meta = {
             messages: {
-                badImport: 'Not allowed to import standalone editor modules.'
+                badImpowt: 'Not awwowed to impowt standawone editow moduwes.'
             },
             docs: {
-                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+                uww: 'https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
             }
         };
     }
-    create(context) {
-        if (/vs(\/|\\)editor/.test(context.getFilename())) {
-            // the vs/editor folder is allowed to use the standalone editor
-            return {};
+    cweate(context) {
+        if (/vs(\/|\\)editow/.test(context.getFiwename())) {
+            // the vs/editow fowda is awwowed to use the standawone editow
+            wetuwn {};
         }
-        return (0, utils_1.createImportRuleListener)((node, path) => {
-            // resolve relative paths
+        wetuwn (0, utiws_1.cweateImpowtWuweWistena)((node, path) => {
+            // wesowve wewative paths
             if (path[0] === '.') {
-                path = (0, path_1.join)(context.getFilename(), path);
+                path = (0, path_1.join)(context.getFiwename(), path);
             }
-            if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(path)
-                || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(path)
-                || /vs(\/|\\)editor(\/|\\)editor.api/.test(path)
-                || /vs(\/|\\)editor(\/|\\)editor.main/.test(path)
-                || /vs(\/|\\)editor(\/|\\)editor.worker/.test(path)) {
-                context.report({
-                    loc: node.loc,
-                    messageId: 'badImport'
+            if (/vs(\/|\\)editow(\/|\\)standawone(\/|\\)/.test(path)
+                || /vs(\/|\\)editow(\/|\\)common(\/|\\)standawone(\/|\\)/.test(path)
+                || /vs(\/|\\)editow(\/|\\)editow.api/.test(path)
+                || /vs(\/|\\)editow(\/|\\)editow.main/.test(path)
+                || /vs(\/|\\)editow(\/|\\)editow.wowka/.test(path)) {
+                context.wepowt({
+                    woc: node.woc,
+                    messageId: 'badImpowt'
                 });
             }
         });

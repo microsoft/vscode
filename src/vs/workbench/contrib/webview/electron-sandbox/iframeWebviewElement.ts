@@ -1,194 +1,194 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { IFrameWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
-import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWemoteAuthowityWesowvewSewvice } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
+impowt { ITunnewSewvice } fwom 'vs/pwatfowm/wemote/common/tunnew';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { FindInFwameOptions, IWebviewManagewSewvice } fwom 'vs/pwatfowm/webview/common/webviewManagewSewvice';
+impowt { WebviewThemeDataPwovida } fwom 'vs/wowkbench/contwib/webview/bwowsa/themeing';
+impowt { WebviewContentOptions, WebviewExtensionDescwiption, WebviewOptions } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { IFwameWebview, WebviewMessageChannews } fwom 'vs/wowkbench/contwib/webview/bwowsa/webviewEwement';
+impowt { WebviewFindDewegate, WebviewFindWidget } fwom 'vs/wowkbench/contwib/webview/bwowsa/webviewFindWidget';
+impowt { WindowIgnoweMenuShowtcutsManaga } fwom 'vs/wowkbench/contwib/webview/ewectwon-sandbox/windowIgnoweMenuShowtcutsManaga';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
 /**
- * Webview backed by an iframe but that uses Electron APIs to power the webview.
+ * Webview backed by an ifwame but that uses Ewectwon APIs to powa the webview.
  */
-export class ElectronIframeWebview extends IFrameWebview implements WebviewFindDelegate {
+expowt cwass EwectwonIfwameWebview extends IFwameWebview impwements WebviewFindDewegate {
 
-	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
+	pwivate weadonwy _webviewKeyboawdHandwa: WindowIgnoweMenuShowtcutsManaga;
 
-	private _webviewFindWidget: WebviewFindWidget | undefined;
-	private _findStarted: boolean = false;
-	private _cachedHtmlContent: string | undefined;
+	pwivate _webviewFindWidget: WebviewFindWidget | undefined;
+	pwivate _findStawted: boowean = fawse;
+	pwivate _cachedHtmwContent: stwing | undefined;
 
-	private readonly _webviewMainService: IWebviewManagerService;
-	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
+	pwivate weadonwy _webviewMainSewvice: IWebviewManagewSewvice;
+	pwivate weadonwy _ifwameDewaya = this._wegista(new Dewaya<void>(200));
 
-	public readonly checkImeCompletionState = true;
+	pubwic weadonwy checkImeCompwetionState = twue;
 
-	protected override get platform() { return 'electron'; }
+	pwotected ovewwide get pwatfowm() { wetuwn 'ewectwon'; }
 
-	constructor(
-		id: string,
+	constwuctow(
+		id: stwing,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		webviewThemeDataProvider: WebviewThemeDataProvider,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITunnelService tunnelService: ITunnelService,
-		@IFileService fileService: IFileService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IMenuService menuService: IMenuService,
-		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IMainProcessService mainProcessService: IMainProcessService,
-		@INotificationService notificationService: INotificationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService instantiationService: IInstantiationService
+		extension: WebviewExtensionDescwiption | undefined,
+		webviewThemeDataPwovida: WebviewThemeDataPwovida,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@ITunnewSewvice tunnewSewvice: ITunnewSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWemoteAuthowityWesowvewSewvice wemoteAuthowityWesowvewSewvice: IWemoteAuthowityWesowvewSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IMainPwocessSewvice mainPwocessSewvice: IMainPwocessSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			configurationService, contextMenuService, menuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService);
+		supa(id, options, contentOptions, extension, webviewThemeDataPwovida,
+			configuwationSewvice, contextMenuSewvice, menuSewvice, notificationSewvice, enviwonmentSewvice,
+			fiweSewvice, wogSewvice, wemoteAuthowityWesowvewSewvice, tewemetwySewvice, tunnewSewvice);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
+		this._webviewKeyboawdHandwa = new WindowIgnoweMenuShowtcutsManaga(configuwationSewvice, mainPwocessSewvice, nativeHostSewvice);
 
-		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
+		this._webviewMainSewvice = PwoxyChannew.toSewvice<IWebviewManagewSewvice>(mainPwocessSewvice.getChannew('webview'));
 
-		this._register(this.on(WebviewMessageChannels.didFocus, () => {
-			this._webviewKeyboardHandler.didFocus();
+		this._wegista(this.on(WebviewMessageChannews.didFocus, () => {
+			this._webviewKeyboawdHandwa.didFocus();
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didBlur, () => {
-			this._webviewKeyboardHandler.didBlur();
+		this._wegista(this.on(WebviewMessageChannews.didBwuw, () => {
+			this._webviewKeyboawdHandwa.didBwuw();
 		}));
 
-		if (options.enableFindWidget) {
-			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+		if (options.enabweFindWidget) {
+			this._webviewFindWidget = this._wegista(instantiationSewvice.cweateInstance(WebviewFindWidget, this));
 
-			this._register(this.onDidHtmlChange((newContent) => {
-				if (this._findStarted && this._cachedHtmlContent !== newContent) {
-					this.stopFind(false);
-					this._cachedHtmlContent = newContent;
+			this._wegista(this.onDidHtmwChange((newContent) => {
+				if (this._findStawted && this._cachedHtmwContent !== newContent) {
+					this.stopFind(fawse);
+					this._cachedHtmwContent = newContent;
 				}
 			}));
 
-			this._register(this._webviewMainService.onFoundInFrame((result) => {
-				this._hasFindResult.fire(result.matches > 0);
+			this._wegista(this._webviewMainSewvice.onFoundInFwame((wesuwt) => {
+				this._hasFindWesuwt.fiwe(wesuwt.matches > 0);
 			}));
 
-			this.styledFindWidget();
+			this.stywedFindWidget();
 		}
 	}
 
-	public override mountTo(parent: HTMLElement) {
-		if (!this.element) {
-			return;
+	pubwic ovewwide mountTo(pawent: HTMWEwement) {
+		if (!this.ewement) {
+			wetuwn;
 		}
 
 		if (this._webviewFindWidget) {
-			parent.appendChild(this._webviewFindWidget.getDomNode()!);
+			pawent.appendChiwd(this._webviewFindWidget.getDomNode()!);
 		}
-		parent.appendChild(this.element);
+		pawent.appendChiwd(this.ewement);
 	}
 
-	protected override get webviewContentEndpoint(): string {
-		return `${Schemas.vscodeWebview}://${this.id}`;
+	pwotected ovewwide get webviewContentEndpoint(): stwing {
+		wetuwn `${Schemas.vscodeWebview}://${this.id}`;
 	}
 
-	protected override style(): void {
-		super.style();
-		this.styledFindWidget();
+	pwotected ovewwide stywe(): void {
+		supa.stywe();
+		this.stywedFindWidget();
 	}
 
-	private styledFindWidget() {
-		this._webviewFindWidget?.updateTheme(this.webviewThemeDataProvider.getTheme());
+	pwivate stywedFindWidget() {
+		this._webviewFindWidget?.updateTheme(this.webviewThemeDataPwovida.getTheme());
 	}
 
-	private readonly _hasFindResult = this._register(new Emitter<boolean>());
-	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
+	pwivate weadonwy _hasFindWesuwt = this._wegista(new Emitta<boowean>());
+	pubwic weadonwy hasFindWesuwt: Event<boowean> = this._hasFindWesuwt.event;
 
-	private readonly _onDidStopFind = this._register(new Emitter<void>());
-	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
+	pwivate weadonwy _onDidStopFind = this._wegista(new Emitta<void>());
+	pubwic weadonwy onDidStopFind: Event<void> = this._onDidStopFind.event;
 
-	public startFind(value: string) {
-		if (!value || !this.element) {
-			return;
+	pubwic stawtFind(vawue: stwing) {
+		if (!vawue || !this.ewement) {
+			wetuwn;
 		}
 
-		// FindNext must be true for a first request
-		const options: FindInFrameOptions = {
-			forward: true,
-			findNext: true,
-			matchCase: false
+		// FindNext must be twue fow a fiwst wequest
+		const options: FindInFwameOptions = {
+			fowwawd: twue,
+			findNext: twue,
+			matchCase: fawse
 		};
 
-		this._iframeDelayer.trigger(() => {
-			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+		this._ifwameDewaya.twigga(() => {
+			this._findStawted = twue;
+			this._webviewMainSewvice.findInFwame({ windowId: this.nativeHostSewvice.windowId }, this.id, vawue, options);
 		});
 	}
 
 	/**
-	 * Webviews expose a stateful find API.
-	 * Successive calls to find will move forward or backward through onFindResults
-	 * depending on the supplied options.
+	 * Webviews expose a statefuw find API.
+	 * Successive cawws to find wiww move fowwawd ow backwawd thwough onFindWesuwts
+	 * depending on the suppwied options.
 	 *
-	 * @param value The string to search for. Empty strings are ignored.
+	 * @pawam vawue The stwing to seawch fow. Empty stwings awe ignowed.
 	 */
-	public find(value: string, previous: boolean): void {
-		if (!this.element) {
-			return;
+	pubwic find(vawue: stwing, pwevious: boowean): void {
+		if (!this.ewement) {
+			wetuwn;
 		}
 
-		if (!this._findStarted) {
-			this.startFind(value);
-		} else {
-			// continuing the find, so set findNext to false
-			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+		if (!this._findStawted) {
+			this.stawtFind(vawue);
+		} ewse {
+			// continuing the find, so set findNext to fawse
+			const options: FindInFwameOptions = { fowwawd: !pwevious, findNext: fawse, matchCase: fawse };
+			this._webviewMainSewvice.findInFwame({ windowId: this.nativeHostSewvice.windowId }, this.id, vawue, options);
 		}
 	}
 
-	public stopFind(keepSelection?: boolean): void {
-		if (!this.element) {
-			return;
+	pubwic stopFind(keepSewection?: boowean): void {
+		if (!this.ewement) {
+			wetuwn;
 		}
-		this._iframeDelayer.cancel();
-		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this.nativeHostService.windowId }, this.id, {
-			keepSelection
+		this._ifwameDewaya.cancew();
+		this._findStawted = fawse;
+		this._webviewMainSewvice.stopFindInFwame({ windowId: this.nativeHostSewvice.windowId }, this.id, {
+			keepSewection
 		});
-		this._onDidStopFind.fire();
+		this._onDidStopFind.fiwe();
 	}
 
-	public override showFind() {
-		this._webviewFindWidget?.reveal();
+	pubwic ovewwide showFind() {
+		this._webviewFindWidget?.weveaw();
 	}
 
-	public override hideFind() {
+	pubwic ovewwide hideFind() {
 		this._webviewFindWidget?.hide();
 	}
 
-	public override runFindAction(previous: boolean) {
-		this._webviewFindWidget?.find(previous);
+	pubwic ovewwide wunFindAction(pwevious: boowean) {
+		this._webviewFindWidget?.find(pwevious);
 	}
 }

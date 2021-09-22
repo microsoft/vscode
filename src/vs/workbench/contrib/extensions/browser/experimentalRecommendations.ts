@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { IExpewimentSewvice, ExpewimentActionType, ExpewimentState } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
 
-export class ExperimentalRecommendations extends ExtensionRecommendations {
+expowt cwass ExpewimentawWecommendations extends ExtensionWecommendations {
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	pwivate _wecommendations: ExtensionWecommendation[] = [];
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._wecommendations; }
 
-	constructor(
-		@IExperimentService private readonly experimentService: IExperimentService,
+	constwuctow(
+		@IExpewimentSewvice pwivate weadonwy expewimentSewvice: IExpewimentSewvice,
 	) {
-		super();
+		supa();
 	}
 
 	/**
-	 * Fetch extensions used by others on the same workspace as recommendations
+	 * Fetch extensions used by othews on the same wowkspace as wecommendations
 	 */
-	protected async doActivate(): Promise<void> {
-		const experiments = await this.experimentService.getExperimentsByType(ExperimentActionType.AddToRecommendations);
-		for (const { action, state } of experiments) {
-			if (state === ExperimentState.Run && isNonEmptyArray(action?.properties?.recommendations) && action?.properties?.recommendationReason) {
-				action.properties.recommendations.forEach((extensionId: string) => this._recommendations.push({
-					extensionId: extensionId.toLowerCase(),
-					reason: {
-						reasonId: ExtensionRecommendationReason.Experimental,
-						reasonText: action.properties.recommendationReason
+	pwotected async doActivate(): Pwomise<void> {
+		const expewiments = await this.expewimentSewvice.getExpewimentsByType(ExpewimentActionType.AddToWecommendations);
+		fow (const { action, state } of expewiments) {
+			if (state === ExpewimentState.Wun && isNonEmptyAwway(action?.pwopewties?.wecommendations) && action?.pwopewties?.wecommendationWeason) {
+				action.pwopewties.wecommendations.fowEach((extensionId: stwing) => this._wecommendations.push({
+					extensionId: extensionId.toWowewCase(),
+					weason: {
+						weasonId: ExtensionWecommendationWeason.Expewimentaw,
+						weasonText: action.pwopewties.wecommendationWeason
 					}
 				}));
 			}

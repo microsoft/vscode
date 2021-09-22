@@ -1,160 +1,160 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ApplicationInsights } from '@microsoft/applicationinsights-web';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
-import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
+impowt type { AppwicationInsights } fwom '@micwosoft/appwicationinsights-web';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWoggewSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { CwassifiedEvent, GDPWCwassification, StwictPwopewtyCheck } fwom 'vs/pwatfowm/tewemetwy/common/gdpwTypings';
+impowt { ITewemetwyData, ITewemetwyInfo, ITewemetwySewvice, TewemetwyWevew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { TewemetwyWogAppenda } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyWogAppenda';
+impowt { ITewemetwySewviceConfig, TewemetwySewvice as BaseTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwySewvice';
+impowt { ITewemetwyAppenda, NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { wesowveWowkbenchCommonPwopewties } fwom 'vs/wowkbench/sewvices/tewemetwy/bwowsa/wowkbenchCommonPwopewties';
 
-class WebAppInsightsAppender implements ITelemetryAppender {
-	private _aiClient: ApplicationInsights | undefined;
-	private _aiClientLoaded = false;
-	private _telemetryCache: { eventName: string, data: any }[] = [];
+cwass WebAppInsightsAppenda impwements ITewemetwyAppenda {
+	pwivate _aiCwient: AppwicationInsights | undefined;
+	pwivate _aiCwientWoaded = fawse;
+	pwivate _tewemetwyCache: { eventName: stwing, data: any }[] = [];
 
-	constructor(private _eventPrefix: string, aiKey: string) {
-		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
-		import('@microsoft/applicationinsights-web').then(aiLibrary => {
-			this._aiClient = new aiLibrary.ApplicationInsights({
+	constwuctow(pwivate _eventPwefix: stwing, aiKey: stwing) {
+		const endpointUww = 'https://vowtex.data.micwosoft.com/cowwect/v1';
+		impowt('@micwosoft/appwicationinsights-web').then(aiWibwawy => {
+			this._aiCwient = new aiWibwawy.AppwicationInsights({
 				config: {
-					instrumentationKey: aiKey,
-					endpointUrl,
-					disableAjaxTracking: true,
-					disableExceptionTracking: true,
-					disableFetchTracking: true,
-					disableCorrelationHeaders: true,
-					disableCookiesUsage: true,
-					autoTrackPageVisitTime: false,
-					emitLineDelimitedJson: true,
+					instwumentationKey: aiKey,
+					endpointUww,
+					disabweAjaxTwacking: twue,
+					disabweExceptionTwacking: twue,
+					disabweFetchTwacking: twue,
+					disabweCowwewationHeadews: twue,
+					disabweCookiesUsage: twue,
+					autoTwackPageVisitTime: fawse,
+					emitWineDewimitedJson: twue,
 				},
 			});
-			this._aiClient.loadAppInsights();
-			// Client is loaded we can now flush the cached events
-			this._aiClientLoaded = true;
-			this._telemetryCache.forEach(cacheEntry => this.log(cacheEntry.eventName, cacheEntry.data));
-			this._telemetryCache = [];
+			this._aiCwient.woadAppInsights();
+			// Cwient is woaded we can now fwush the cached events
+			this._aiCwientWoaded = twue;
+			this._tewemetwyCache.fowEach(cacheEntwy => this.wog(cacheEntwy.eventName, cacheEntwy.data));
+			this._tewemetwyCache = [];
 
-			// If we cannot access the endpoint this most likely means it's being blocked
-			// and we should not attempt to send any telemetry.
-			fetch(endpointUrl).catch(() => (this._aiClient = undefined));
-		}).catch(err => {
-			console.error(err);
+			// If we cannot access the endpoint this most wikewy means it's being bwocked
+			// and we shouwd not attempt to send any tewemetwy.
+			fetch(endpointUww).catch(() => (this._aiCwient = undefined));
+		}).catch(eww => {
+			consowe.ewwow(eww);
 		});
 	}
 
 	/**
-	 * Logs a telemetry event with eventName and data
-	 * @param eventName The event name
-	 * @param data The data associated with the events
+	 * Wogs a tewemetwy event with eventName and data
+	 * @pawam eventName The event name
+	 * @pawam data The data associated with the events
 	 */
-	public log(eventName: string, data: any): void {
-		if (!this._aiClient && this._aiClientLoaded) {
-			return;
-		} else if (!this._aiClient && !this._aiClientLoaded) {
-			this._telemetryCache.push({ eventName, data });
-			return;
+	pubwic wog(eventName: stwing, data: any): void {
+		if (!this._aiCwient && this._aiCwientWoaded) {
+			wetuwn;
+		} ewse if (!this._aiCwient && !this._aiCwientWoaded) {
+			this._tewemetwyCache.push({ eventName, data });
+			wetuwn;
 		}
 
-		// undefined assertion is ok since above two if statements cover both cases
-		this._aiClient!.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
+		// undefined assewtion is ok since above two if statements cova both cases
+		this._aiCwient!.twackEvent({ name: this._eventPwefix + '/' + eventName }, data);
 	}
 
 	/**
-	 * Flushes all the telemetry data still in the buffer
+	 * Fwushes aww the tewemetwy data stiww in the buffa
 	 */
-	public flush(): Promise<any> {
-		if (this._aiClient) {
-			this._aiClient.flush();
-			this._aiClient = undefined;
+	pubwic fwush(): Pwomise<any> {
+		if (this._aiCwient) {
+			this._aiCwient.fwush();
+			this._aiCwient = undefined;
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }
 
-class WebTelemetryAppender implements ITelemetryAppender {
+cwass WebTewemetwyAppenda impwements ITewemetwyAppenda {
 
-	constructor(private _appender: ITelemetryAppender) { }
+	constwuctow(pwivate _appenda: ITewemetwyAppenda) { }
 
-	log(eventName: string, data: any): void {
-		this._appender.log(eventName, data);
+	wog(eventName: stwing, data: any): void {
+		this._appenda.wog(eventName, data);
 	}
 
-	flush(): Promise<void> {
-		return this._appender.flush();
+	fwush(): Pwomise<void> {
+		wetuwn this._appenda.fwush();
 	}
 }
 
-export class TelemetryService extends Disposable implements ITelemetryService {
+expowt cwass TewemetwySewvice extends Disposabwe impwements ITewemetwySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry = false;
+	pwivate impw: ITewemetwySewvice;
+	pubwic weadonwy sendEwwowTewemetwy = fawse;
 
-	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ILoggerService loggerService: ILoggerService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IProductService productService: IProductService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWoggewSewvice woggewSewvice: IWoggewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		super();
+		supa();
 
-		if (!!productService.enableTelemetry && productService.aiConfig?.asimovKey && environmentService.isBuilt) {
-			// If remote server is present send telemetry through that, else use the client side appender
-			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
-			const config: ITelemetryServiceConfig = {
-				appenders: [new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
-				sendErrorTelemetry: false,
+		if (!!pwoductSewvice.enabweTewemetwy && pwoductSewvice.aiConfig?.asimovKey && enviwonmentSewvice.isBuiwt) {
+			// If wemote sewva is pwesent send tewemetwy thwough that, ewse use the cwient side appenda
+			const tewemetwyPwovida: ITewemetwyAppenda = wemoteAgentSewvice.getConnection() !== nuww ? { wog: wemoteAgentSewvice.wogTewemetwy.bind(wemoteAgentSewvice), fwush: wemoteAgentSewvice.fwushTewemetwy.bind(wemoteAgentSewvice) } : new WebAppInsightsAppenda('monacowowkbench', pwoductSewvice.aiConfig?.asimovKey);
+			const config: ITewemetwySewviceConfig = {
+				appendews: [new WebTewemetwyAppenda(tewemetwyPwovida), new TewemetwyWogAppenda(woggewSewvice, enviwonmentSewvice)],
+				commonPwopewties: wesowveWowkbenchCommonPwopewties(stowageSewvice, pwoductSewvice.commit, pwoductSewvice.vewsion, enviwonmentSewvice.wemoteAuthowity, pwoductSewvice.embeddewIdentifia, enviwonmentSewvice.options && enviwonmentSewvice.options.wesowveCommonTewemetwyPwopewties),
+				sendEwwowTewemetwy: fawse,
 			};
 
-			this.impl = this._register(new BaseTelemetryService(config, configurationService));
-		} else {
-			this.impl = NullTelemetryService;
+			this.impw = this._wegista(new BaseTewemetwySewvice(config, configuwationSewvice));
+		} ewse {
+			this.impw = NuwwTewemetwySewvice;
 		}
 	}
 
-	setExperimentProperty(name: string, value: string): void {
-		return this.impl.setExperimentProperty(name, value);
+	setExpewimentPwopewty(name: stwing, vawue: stwing): void {
+		wetuwn this.impw.setExpewimentPwopewty(name, vawue);
 	}
 
-	get telemetryLevel(): TelemetryLevel {
-		return this.impl.telemetryLevel;
+	get tewemetwyWevew(): TewemetwyWevew {
+		wetuwn this.impw.tewemetwyWevew;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-		return this.impl.publicLog(eventName, data, anonymizeFilePaths);
+	pubwicWog(eventName: stwing, data?: ITewemetwyData, anonymizeFiwePaths?: boowean): Pwomise<void> {
+		wetuwn this.impw.pubwicWog(eventName, data, anonymizeFiwePaths);
 	}
 
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean) {
-		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
+	pubwicWog2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>, anonymizeFiwePaths?: boowean) {
+		wetuwn this.pubwicWog(eventName, data as ITewemetwyData, anonymizeFiwePaths);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
-		return this.impl.publicLog(errorEventName, data);
+	pubwicWogEwwow(ewwowEventName: stwing, data?: ITewemetwyData): Pwomise<void> {
+		wetuwn this.impw.pubwicWog(ewwowEventName, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
+	pubwicWogEwwow2<E extends CwassifiedEvent<T> = neva, T extends GDPWCwassification<T> = neva>(eventName: stwing, data?: StwictPwopewtyCheck<T, E>) {
+		wetuwn this.pubwicWogEwwow(eventName, data as ITewemetwyData);
 	}
 
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return this.impl.getTelemetryInfo();
+	getTewemetwyInfo(): Pwomise<ITewemetwyInfo> {
+		wetuwn this.impw.getTewemetwyInfo();
 	}
 }
 
-registerSingleton(ITelemetryService, TelemetryService);
+wegistewSingweton(ITewemetwySewvice, TewemetwySewvice);

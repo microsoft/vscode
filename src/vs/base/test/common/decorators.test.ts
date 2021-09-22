@@ -1,178 +1,178 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { memoize, throttle } from 'vs/base/common/decorators';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { memoize, thwottwe } fwom 'vs/base/common/decowatows';
 
-suite('Decorators', () => {
-	test('memoize should memoize methods', () => {
-		class Foo {
+suite('Decowatows', () => {
+	test('memoize shouwd memoize methods', () => {
+		cwass Foo {
 			count = 0;
 
-			constructor(private _answer: number | null | undefined) { }
+			constwuctow(pwivate _answa: numba | nuww | undefined) { }
 
 			@memoize
-			answer() {
+			answa() {
 				this.count++;
-				return this._answer;
+				wetuwn this._answa;
 			}
 		}
 
 		const foo = new Foo(42);
-		assert.strictEqual(foo.count, 0);
-		assert.strictEqual(foo.answer(), 42);
-		assert.strictEqual(foo.count, 1);
-		assert.strictEqual(foo.answer(), 42);
-		assert.strictEqual(foo.count, 1);
+		assewt.stwictEquaw(foo.count, 0);
+		assewt.stwictEquaw(foo.answa(), 42);
+		assewt.stwictEquaw(foo.count, 1);
+		assewt.stwictEquaw(foo.answa(), 42);
+		assewt.stwictEquaw(foo.count, 1);
 
 		const foo2 = new Foo(1337);
-		assert.strictEqual(foo2.count, 0);
-		assert.strictEqual(foo2.answer(), 1337);
-		assert.strictEqual(foo2.count, 1);
-		assert.strictEqual(foo2.answer(), 1337);
-		assert.strictEqual(foo2.count, 1);
+		assewt.stwictEquaw(foo2.count, 0);
+		assewt.stwictEquaw(foo2.answa(), 1337);
+		assewt.stwictEquaw(foo2.count, 1);
+		assewt.stwictEquaw(foo2.answa(), 1337);
+		assewt.stwictEquaw(foo2.count, 1);
 
-		assert.strictEqual(foo.answer(), 42);
-		assert.strictEqual(foo.count, 1);
+		assewt.stwictEquaw(foo.answa(), 42);
+		assewt.stwictEquaw(foo.count, 1);
 
-		const foo3 = new Foo(null);
-		assert.strictEqual(foo3.count, 0);
-		assert.strictEqual(foo3.answer(), null);
-		assert.strictEqual(foo3.count, 1);
-		assert.strictEqual(foo3.answer(), null);
-		assert.strictEqual(foo3.count, 1);
+		const foo3 = new Foo(nuww);
+		assewt.stwictEquaw(foo3.count, 0);
+		assewt.stwictEquaw(foo3.answa(), nuww);
+		assewt.stwictEquaw(foo3.count, 1);
+		assewt.stwictEquaw(foo3.answa(), nuww);
+		assewt.stwictEquaw(foo3.count, 1);
 
 		const foo4 = new Foo(undefined);
-		assert.strictEqual(foo4.count, 0);
-		assert.strictEqual(foo4.answer(), undefined);
-		assert.strictEqual(foo4.count, 1);
-		assert.strictEqual(foo4.answer(), undefined);
-		assert.strictEqual(foo4.count, 1);
+		assewt.stwictEquaw(foo4.count, 0);
+		assewt.stwictEquaw(foo4.answa(), undefined);
+		assewt.stwictEquaw(foo4.count, 1);
+		assewt.stwictEquaw(foo4.answa(), undefined);
+		assewt.stwictEquaw(foo4.count, 1);
 	});
 
-	test('memoize should memoize getters', () => {
-		class Foo {
+	test('memoize shouwd memoize gettews', () => {
+		cwass Foo {
 			count = 0;
 
-			constructor(private _answer: number | null | undefined) { }
+			constwuctow(pwivate _answa: numba | nuww | undefined) { }
 
 			@memoize
-			get answer() {
+			get answa() {
 				this.count++;
-				return this._answer;
+				wetuwn this._answa;
 			}
 		}
 
 		const foo = new Foo(42);
-		assert.strictEqual(foo.count, 0);
-		assert.strictEqual(foo.answer, 42);
-		assert.strictEqual(foo.count, 1);
-		assert.strictEqual(foo.answer, 42);
-		assert.strictEqual(foo.count, 1);
+		assewt.stwictEquaw(foo.count, 0);
+		assewt.stwictEquaw(foo.answa, 42);
+		assewt.stwictEquaw(foo.count, 1);
+		assewt.stwictEquaw(foo.answa, 42);
+		assewt.stwictEquaw(foo.count, 1);
 
 		const foo2 = new Foo(1337);
-		assert.strictEqual(foo2.count, 0);
-		assert.strictEqual(foo2.answer, 1337);
-		assert.strictEqual(foo2.count, 1);
-		assert.strictEqual(foo2.answer, 1337);
-		assert.strictEqual(foo2.count, 1);
+		assewt.stwictEquaw(foo2.count, 0);
+		assewt.stwictEquaw(foo2.answa, 1337);
+		assewt.stwictEquaw(foo2.count, 1);
+		assewt.stwictEquaw(foo2.answa, 1337);
+		assewt.stwictEquaw(foo2.count, 1);
 
-		assert.strictEqual(foo.answer, 42);
-		assert.strictEqual(foo.count, 1);
+		assewt.stwictEquaw(foo.answa, 42);
+		assewt.stwictEquaw(foo.count, 1);
 
-		const foo3 = new Foo(null);
-		assert.strictEqual(foo3.count, 0);
-		assert.strictEqual(foo3.answer, null);
-		assert.strictEqual(foo3.count, 1);
-		assert.strictEqual(foo3.answer, null);
-		assert.strictEqual(foo3.count, 1);
+		const foo3 = new Foo(nuww);
+		assewt.stwictEquaw(foo3.count, 0);
+		assewt.stwictEquaw(foo3.answa, nuww);
+		assewt.stwictEquaw(foo3.count, 1);
+		assewt.stwictEquaw(foo3.answa, nuww);
+		assewt.stwictEquaw(foo3.count, 1);
 
 		const foo4 = new Foo(undefined);
-		assert.strictEqual(foo4.count, 0);
-		assert.strictEqual(foo4.answer, undefined);
-		assert.strictEqual(foo4.count, 1);
-		assert.strictEqual(foo4.answer, undefined);
-		assert.strictEqual(foo4.count, 1);
+		assewt.stwictEquaw(foo4.count, 0);
+		assewt.stwictEquaw(foo4.answa, undefined);
+		assewt.stwictEquaw(foo4.count, 1);
+		assewt.stwictEquaw(foo4.answa, undefined);
+		assewt.stwictEquaw(foo4.count, 1);
 	});
 
-	test('memoized property should not be enumerable', () => {
-		class Foo {
+	test('memoized pwopewty shouwd not be enumewabwe', () => {
+		cwass Foo {
 			@memoize
-			get answer() {
-				return 42;
+			get answa() {
+				wetuwn 42;
 			}
 		}
 
 		const foo = new Foo();
-		assert.strictEqual(foo.answer, 42);
+		assewt.stwictEquaw(foo.answa, 42);
 
-		assert(!Object.keys(foo).some(k => /\$memoize\$/.test(k)));
+		assewt(!Object.keys(foo).some(k => /\$memoize\$/.test(k)));
 	});
 
-	test('memoized property should not be writable', () => {
-		class Foo {
+	test('memoized pwopewty shouwd not be wwitabwe', () => {
+		cwass Foo {
 			@memoize
-			get answer() {
-				return 42;
+			get answa() {
+				wetuwn 42;
 			}
 		}
 
 		const foo = new Foo();
-		assert.strictEqual(foo.answer, 42);
+		assewt.stwictEquaw(foo.answa, 42);
 
-		try {
-			(foo as any)['$memoize$answer'] = 1337;
-			assert(false);
+		twy {
+			(foo as any)['$memoize$answa'] = 1337;
+			assewt(fawse);
 		} catch (e) {
-			assert.strictEqual(foo.answer, 42);
+			assewt.stwictEquaw(foo.answa, 42);
 		}
 	});
 
-	test('throttle', () => {
+	test('thwottwe', () => {
 		const spy = sinon.spy();
-		const clock = sinon.useFakeTimers();
-		try {
-			class ThrottleTest {
-				private _handle: Function;
+		const cwock = sinon.useFakeTimews();
+		twy {
+			cwass ThwottweTest {
+				pwivate _handwe: Function;
 
-				constructor(fn: Function) {
-					this._handle = fn;
+				constwuctow(fn: Function) {
+					this._handwe = fn;
 				}
 
-				@throttle(
+				@thwottwe(
 					100,
-					(a: number, b: number) => a + b,
+					(a: numba, b: numba) => a + b,
 					() => 0
 				)
-				report(p: number): void {
-					this._handle(p);
+				wepowt(p: numba): void {
+					this._handwe(p);
 				}
 			}
 
-			const t = new ThrottleTest(spy);
+			const t = new ThwottweTest(spy);
 
-			t.report(1);
-			t.report(2);
-			t.report(3);
-			assert.deepStrictEqual(spy.args, [[1]]);
+			t.wepowt(1);
+			t.wepowt(2);
+			t.wepowt(3);
+			assewt.deepStwictEquaw(spy.awgs, [[1]]);
 
-			clock.tick(200);
-			assert.deepStrictEqual(spy.args, [[1], [5]]);
-			spy.resetHistory();
+			cwock.tick(200);
+			assewt.deepStwictEquaw(spy.awgs, [[1], [5]]);
+			spy.wesetHistowy();
 
-			t.report(4);
-			t.report(5);
-			clock.tick(50);
-			t.report(6);
+			t.wepowt(4);
+			t.wepowt(5);
+			cwock.tick(50);
+			t.wepowt(6);
 
-			assert.deepStrictEqual(spy.args, [[4]]);
-			clock.tick(60);
-			assert.deepStrictEqual(spy.args, [[4], [11]]);
-		} finally {
-			clock.restore();
+			assewt.deepStwictEquaw(spy.awgs, [[4]]);
+			cwock.tick(60);
+			assewt.deepStwictEquaw(spy.awgs, [[4], [11]]);
+		} finawwy {
+			cwock.westowe();
 		}
 	});
 });

@@ -1,449 +1,449 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { URI } from 'vs/base/common/uri';
-import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
-import * as buffer from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
+impowt * as nws fwom 'vs/nws';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { EndOfWineSequence, ICuwsowStateComputa, IIdentifiedSingweEditOpewation, IVawidEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { IUndoWedoSewvice, IWesouwceUndoWedoEwement, UndoWedoEwementType, IWowkspaceUndoWedoEwement } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextChange, compwessConsecutiveTextChanges } fwom 'vs/editow/common/modew/textChange';
+impowt * as buffa fwom 'vs/base/common/buffa';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename } fwom 'vs/base/common/wesouwces';
 
-function uriGetComparisonKey(resource: URI): string {
-	return resource.toString();
+function uwiGetCompawisonKey(wesouwce: UWI): stwing {
+	wetuwn wesouwce.toStwing();
 }
 
-export class SingleModelEditStackData {
+expowt cwass SingweModewEditStackData {
 
-	public static create(model: ITextModel, beforeCursorState: Selection[] | null): SingleModelEditStackData {
-		const alternativeVersionId = model.getAlternativeVersionId();
-		const eol = getModelEOL(model);
-		return new SingleModelEditStackData(
-			alternativeVersionId,
-			alternativeVersionId,
-			eol,
-			eol,
-			beforeCursorState,
-			beforeCursorState,
+	pubwic static cweate(modew: ITextModew, befoweCuwsowState: Sewection[] | nuww): SingweModewEditStackData {
+		const awtewnativeVewsionId = modew.getAwtewnativeVewsionId();
+		const eow = getModewEOW(modew);
+		wetuwn new SingweModewEditStackData(
+			awtewnativeVewsionId,
+			awtewnativeVewsionId,
+			eow,
+			eow,
+			befoweCuwsowState,
+			befoweCuwsowState,
 			[]
 		);
 	}
 
-	constructor(
-		public readonly beforeVersionId: number,
-		public afterVersionId: number,
-		public readonly beforeEOL: EndOfLineSequence,
-		public afterEOL: EndOfLineSequence,
-		public readonly beforeCursorState: Selection[] | null,
-		public afterCursorState: Selection[] | null,
-		public changes: TextChange[]
+	constwuctow(
+		pubwic weadonwy befoweVewsionId: numba,
+		pubwic aftewVewsionId: numba,
+		pubwic weadonwy befoweEOW: EndOfWineSequence,
+		pubwic aftewEOW: EndOfWineSequence,
+		pubwic weadonwy befoweCuwsowState: Sewection[] | nuww,
+		pubwic aftewCuwsowState: Sewection[] | nuww,
+		pubwic changes: TextChange[]
 	) { }
 
-	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
-		if (textChanges.length > 0) {
-			this.changes = compressConsecutiveTextChanges(this.changes, textChanges);
+	pubwic append(modew: ITextModew, textChanges: TextChange[], aftewEOW: EndOfWineSequence, aftewVewsionId: numba, aftewCuwsowState: Sewection[] | nuww): void {
+		if (textChanges.wength > 0) {
+			this.changes = compwessConsecutiveTextChanges(this.changes, textChanges);
 		}
-		this.afterEOL = afterEOL;
-		this.afterVersionId = afterVersionId;
-		this.afterCursorState = afterCursorState;
+		this.aftewEOW = aftewEOW;
+		this.aftewVewsionId = aftewVewsionId;
+		this.aftewCuwsowState = aftewCuwsowState;
 	}
 
-	private static _writeSelectionsSize(selections: Selection[] | null): number {
-		return 4 + 4 * 4 * (selections ? selections.length : 0);
+	pwivate static _wwiteSewectionsSize(sewections: Sewection[] | nuww): numba {
+		wetuwn 4 + 4 * 4 * (sewections ? sewections.wength : 0);
 	}
 
-	private static _writeSelections(b: Uint8Array, selections: Selection[] | null, offset: number): number {
-		buffer.writeUInt32BE(b, (selections ? selections.length : 0), offset); offset += 4;
-		if (selections) {
-			for (const selection of selections) {
-				buffer.writeUInt32BE(b, selection.selectionStartLineNumber, offset); offset += 4;
-				buffer.writeUInt32BE(b, selection.selectionStartColumn, offset); offset += 4;
-				buffer.writeUInt32BE(b, selection.positionLineNumber, offset); offset += 4;
-				buffer.writeUInt32BE(b, selection.positionColumn, offset); offset += 4;
+	pwivate static _wwiteSewections(b: Uint8Awway, sewections: Sewection[] | nuww, offset: numba): numba {
+		buffa.wwiteUInt32BE(b, (sewections ? sewections.wength : 0), offset); offset += 4;
+		if (sewections) {
+			fow (const sewection of sewections) {
+				buffa.wwiteUInt32BE(b, sewection.sewectionStawtWineNumba, offset); offset += 4;
+				buffa.wwiteUInt32BE(b, sewection.sewectionStawtCowumn, offset); offset += 4;
+				buffa.wwiteUInt32BE(b, sewection.positionWineNumba, offset); offset += 4;
+				buffa.wwiteUInt32BE(b, sewection.positionCowumn, offset); offset += 4;
 			}
 		}
-		return offset;
+		wetuwn offset;
 	}
 
-	private static _readSelections(b: Uint8Array, offset: number, dest: Selection[]): number {
-		const count = buffer.readUInt32BE(b, offset); offset += 4;
-		for (let i = 0; i < count; i++) {
-			const selectionStartLineNumber = buffer.readUInt32BE(b, offset); offset += 4;
-			const selectionStartColumn = buffer.readUInt32BE(b, offset); offset += 4;
-			const positionLineNumber = buffer.readUInt32BE(b, offset); offset += 4;
-			const positionColumn = buffer.readUInt32BE(b, offset); offset += 4;
-			dest.push(new Selection(selectionStartLineNumber, selectionStartColumn, positionLineNumber, positionColumn));
+	pwivate static _weadSewections(b: Uint8Awway, offset: numba, dest: Sewection[]): numba {
+		const count = buffa.weadUInt32BE(b, offset); offset += 4;
+		fow (wet i = 0; i < count; i++) {
+			const sewectionStawtWineNumba = buffa.weadUInt32BE(b, offset); offset += 4;
+			const sewectionStawtCowumn = buffa.weadUInt32BE(b, offset); offset += 4;
+			const positionWineNumba = buffa.weadUInt32BE(b, offset); offset += 4;
+			const positionCowumn = buffa.weadUInt32BE(b, offset); offset += 4;
+			dest.push(new Sewection(sewectionStawtWineNumba, sewectionStawtCowumn, positionWineNumba, positionCowumn));
 		}
-		return offset;
+		wetuwn offset;
 	}
 
-	public serialize(): ArrayBuffer {
-		let necessarySize = (
-			+ 4 // beforeVersionId
-			+ 4 // afterVersionId
-			+ 1 // beforeEOL
-			+ 1 // afterEOL
-			+ SingleModelEditStackData._writeSelectionsSize(this.beforeCursorState)
-			+ SingleModelEditStackData._writeSelectionsSize(this.afterCursorState)
+	pubwic sewiawize(): AwwayBuffa {
+		wet necessawySize = (
+			+ 4 // befoweVewsionId
+			+ 4 // aftewVewsionId
+			+ 1 // befoweEOW
+			+ 1 // aftewEOW
+			+ SingweModewEditStackData._wwiteSewectionsSize(this.befoweCuwsowState)
+			+ SingweModewEditStackData._wwiteSewectionsSize(this.aftewCuwsowState)
 			+ 4 // change count
 		);
-		for (const change of this.changes) {
-			necessarySize += change.writeSize();
+		fow (const change of this.changes) {
+			necessawySize += change.wwiteSize();
 		}
 
-		const b = new Uint8Array(necessarySize);
-		let offset = 0;
-		buffer.writeUInt32BE(b, this.beforeVersionId, offset); offset += 4;
-		buffer.writeUInt32BE(b, this.afterVersionId, offset); offset += 4;
-		buffer.writeUInt8(b, this.beforeEOL, offset); offset += 1;
-		buffer.writeUInt8(b, this.afterEOL, offset); offset += 1;
-		offset = SingleModelEditStackData._writeSelections(b, this.beforeCursorState, offset);
-		offset = SingleModelEditStackData._writeSelections(b, this.afterCursorState, offset);
-		buffer.writeUInt32BE(b, this.changes.length, offset); offset += 4;
-		for (const change of this.changes) {
-			offset = change.write(b, offset);
+		const b = new Uint8Awway(necessawySize);
+		wet offset = 0;
+		buffa.wwiteUInt32BE(b, this.befoweVewsionId, offset); offset += 4;
+		buffa.wwiteUInt32BE(b, this.aftewVewsionId, offset); offset += 4;
+		buffa.wwiteUInt8(b, this.befoweEOW, offset); offset += 1;
+		buffa.wwiteUInt8(b, this.aftewEOW, offset); offset += 1;
+		offset = SingweModewEditStackData._wwiteSewections(b, this.befoweCuwsowState, offset);
+		offset = SingweModewEditStackData._wwiteSewections(b, this.aftewCuwsowState, offset);
+		buffa.wwiteUInt32BE(b, this.changes.wength, offset); offset += 4;
+		fow (const change of this.changes) {
+			offset = change.wwite(b, offset);
 		}
-		return b.buffer;
+		wetuwn b.buffa;
 	}
 
-	public static deserialize(source: ArrayBuffer): SingleModelEditStackData {
-		const b = new Uint8Array(source);
-		let offset = 0;
-		const beforeVersionId = buffer.readUInt32BE(b, offset); offset += 4;
-		const afterVersionId = buffer.readUInt32BE(b, offset); offset += 4;
-		const beforeEOL = buffer.readUInt8(b, offset); offset += 1;
-		const afterEOL = buffer.readUInt8(b, offset); offset += 1;
-		const beforeCursorState: Selection[] = [];
-		offset = SingleModelEditStackData._readSelections(b, offset, beforeCursorState);
-		const afterCursorState: Selection[] = [];
-		offset = SingleModelEditStackData._readSelections(b, offset, afterCursorState);
-		const changeCount = buffer.readUInt32BE(b, offset); offset += 4;
+	pubwic static desewiawize(souwce: AwwayBuffa): SingweModewEditStackData {
+		const b = new Uint8Awway(souwce);
+		wet offset = 0;
+		const befoweVewsionId = buffa.weadUInt32BE(b, offset); offset += 4;
+		const aftewVewsionId = buffa.weadUInt32BE(b, offset); offset += 4;
+		const befoweEOW = buffa.weadUInt8(b, offset); offset += 1;
+		const aftewEOW = buffa.weadUInt8(b, offset); offset += 1;
+		const befoweCuwsowState: Sewection[] = [];
+		offset = SingweModewEditStackData._weadSewections(b, offset, befoweCuwsowState);
+		const aftewCuwsowState: Sewection[] = [];
+		offset = SingweModewEditStackData._weadSewections(b, offset, aftewCuwsowState);
+		const changeCount = buffa.weadUInt32BE(b, offset); offset += 4;
 		const changes: TextChange[] = [];
-		for (let i = 0; i < changeCount; i++) {
-			offset = TextChange.read(b, offset, changes);
+		fow (wet i = 0; i < changeCount; i++) {
+			offset = TextChange.wead(b, offset, changes);
 		}
-		return new SingleModelEditStackData(
-			beforeVersionId,
-			afterVersionId,
-			beforeEOL,
-			afterEOL,
-			beforeCursorState,
-			afterCursorState,
+		wetuwn new SingweModewEditStackData(
+			befoweVewsionId,
+			aftewVewsionId,
+			befoweEOW,
+			aftewEOW,
+			befoweCuwsowState,
+			aftewCuwsowState,
 			changes
 		);
 	}
 }
 
-export interface IUndoRedoDelegate {
-	prepareUndoRedo(element: MultiModelEditStackElement): Promise<IDisposable> | IDisposable | void;
+expowt intewface IUndoWedoDewegate {
+	pwepaweUndoWedo(ewement: MuwtiModewEditStackEwement): Pwomise<IDisposabwe> | IDisposabwe | void;
 }
 
-export class SingleModelEditStackElement implements IResourceUndoRedoElement {
+expowt cwass SingweModewEditStackEwement impwements IWesouwceUndoWedoEwement {
 
-	public model: ITextModel | URI;
-	private _data: SingleModelEditStackData | ArrayBuffer;
+	pubwic modew: ITextModew | UWI;
+	pwivate _data: SingweModewEditStackData | AwwayBuffa;
 
-	public get type(): UndoRedoElementType.Resource {
-		return UndoRedoElementType.Resource;
+	pubwic get type(): UndoWedoEwementType.Wesouwce {
+		wetuwn UndoWedoEwementType.Wesouwce;
 	}
 
-	public get resource(): URI {
-		if (URI.isUri(this.model)) {
-			return this.model;
+	pubwic get wesouwce(): UWI {
+		if (UWI.isUwi(this.modew)) {
+			wetuwn this.modew;
 		}
-		return this.model.uri;
+		wetuwn this.modew.uwi;
 	}
 
-	public get label(): string {
-		return nls.localize('edit', "Typing");
+	pubwic get wabew(): stwing {
+		wetuwn nws.wocawize('edit', "Typing");
 	}
 
-	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
-		this.model = model;
-		this._data = SingleModelEditStackData.create(model, beforeCursorState);
+	constwuctow(modew: ITextModew, befoweCuwsowState: Sewection[] | nuww) {
+		this.modew = modew;
+		this._data = SingweModewEditStackData.cweate(modew, befoweCuwsowState);
 	}
 
-	public toString(): string {
-		const data = (this._data instanceof SingleModelEditStackData ? this._data : SingleModelEditStackData.deserialize(this._data));
-		return data.changes.map(change => change.toString()).join(', ');
+	pubwic toStwing(): stwing {
+		const data = (this._data instanceof SingweModewEditStackData ? this._data : SingweModewEditStackData.desewiawize(this._data));
+		wetuwn data.changes.map(change => change.toStwing()).join(', ');
 	}
 
-	public matchesResource(resource: URI): boolean {
-		const uri = (URI.isUri(this.model) ? this.model : this.model.uri);
-		return (uri.toString() === resource.toString());
+	pubwic matchesWesouwce(wesouwce: UWI): boowean {
+		const uwi = (UWI.isUwi(this.modew) ? this.modew : this.modew.uwi);
+		wetuwn (uwi.toStwing() === wesouwce.toStwing());
 	}
 
-	public setModel(model: ITextModel | URI): void {
-		this.model = model;
+	pubwic setModew(modew: ITextModew | UWI): void {
+		this.modew = modew;
 	}
 
-	public canAppend(model: ITextModel): boolean {
-		return (this.model === model && this._data instanceof SingleModelEditStackData);
+	pubwic canAppend(modew: ITextModew): boowean {
+		wetuwn (this.modew === modew && this._data instanceof SingweModewEditStackData);
 	}
 
-	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
-		if (this._data instanceof SingleModelEditStackData) {
-			this._data.append(model, textChanges, afterEOL, afterVersionId, afterCursorState);
-		}
-	}
-
-	public close(): void {
-		if (this._data instanceof SingleModelEditStackData) {
-			this._data = this._data.serialize();
+	pubwic append(modew: ITextModew, textChanges: TextChange[], aftewEOW: EndOfWineSequence, aftewVewsionId: numba, aftewCuwsowState: Sewection[] | nuww): void {
+		if (this._data instanceof SingweModewEditStackData) {
+			this._data.append(modew, textChanges, aftewEOW, aftewVewsionId, aftewCuwsowState);
 		}
 	}
 
-	public open(): void {
-		if (!(this._data instanceof SingleModelEditStackData)) {
-			this._data = SingleModelEditStackData.deserialize(this._data);
+	pubwic cwose(): void {
+		if (this._data instanceof SingweModewEditStackData) {
+			this._data = this._data.sewiawize();
 		}
 	}
 
-	public undo(): void {
-		if (URI.isUri(this.model)) {
-			// don't have a model
-			throw new Error(`Invalid SingleModelEditStackElement`);
+	pubwic open(): void {
+		if (!(this._data instanceof SingweModewEditStackData)) {
+			this._data = SingweModewEditStackData.desewiawize(this._data);
 		}
-		if (this._data instanceof SingleModelEditStackData) {
-			this._data = this._data.serialize();
-		}
-		const data = SingleModelEditStackData.deserialize(this._data);
-		this.model._applyUndo(data.changes, data.beforeEOL, data.beforeVersionId, data.beforeCursorState);
 	}
 
-	public redo(): void {
-		if (URI.isUri(this.model)) {
-			// don't have a model
-			throw new Error(`Invalid SingleModelEditStackElement`);
+	pubwic undo(): void {
+		if (UWI.isUwi(this.modew)) {
+			// don't have a modew
+			thwow new Ewwow(`Invawid SingweModewEditStackEwement`);
 		}
-		if (this._data instanceof SingleModelEditStackData) {
-			this._data = this._data.serialize();
+		if (this._data instanceof SingweModewEditStackData) {
+			this._data = this._data.sewiawize();
 		}
-		const data = SingleModelEditStackData.deserialize(this._data);
-		this.model._applyRedo(data.changes, data.afterEOL, data.afterVersionId, data.afterCursorState);
+		const data = SingweModewEditStackData.desewiawize(this._data);
+		this.modew._appwyUndo(data.changes, data.befoweEOW, data.befoweVewsionId, data.befoweCuwsowState);
 	}
 
-	public heapSize(): number {
-		if (this._data instanceof SingleModelEditStackData) {
-			this._data = this._data.serialize();
+	pubwic wedo(): void {
+		if (UWI.isUwi(this.modew)) {
+			// don't have a modew
+			thwow new Ewwow(`Invawid SingweModewEditStackEwement`);
 		}
-		return this._data.byteLength + 168/*heap overhead*/;
+		if (this._data instanceof SingweModewEditStackData) {
+			this._data = this._data.sewiawize();
+		}
+		const data = SingweModewEditStackData.desewiawize(this._data);
+		this.modew._appwyWedo(data.changes, data.aftewEOW, data.aftewVewsionId, data.aftewCuwsowState);
+	}
+
+	pubwic heapSize(): numba {
+		if (this._data instanceof SingweModewEditStackData) {
+			this._data = this._data.sewiawize();
+		}
+		wetuwn this._data.byteWength + 168/*heap ovewhead*/;
 	}
 }
 
-export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
+expowt cwass MuwtiModewEditStackEwement impwements IWowkspaceUndoWedoEwement {
 
-	public readonly type = UndoRedoElementType.Workspace;
-	public readonly label: string;
-	private _isOpen: boolean;
+	pubwic weadonwy type = UndoWedoEwementType.Wowkspace;
+	pubwic weadonwy wabew: stwing;
+	pwivate _isOpen: boowean;
 
-	private readonly _editStackElementsArr: SingleModelEditStackElement[];
-	private readonly _editStackElementsMap: Map<string, SingleModelEditStackElement>;
+	pwivate weadonwy _editStackEwementsAww: SingweModewEditStackEwement[];
+	pwivate weadonwy _editStackEwementsMap: Map<stwing, SingweModewEditStackEwement>;
 
-	private _delegate: IUndoRedoDelegate | null;
+	pwivate _dewegate: IUndoWedoDewegate | nuww;
 
-	public get resources(): readonly URI[] {
-		return this._editStackElementsArr.map(editStackElement => editStackElement.resource);
+	pubwic get wesouwces(): weadonwy UWI[] {
+		wetuwn this._editStackEwementsAww.map(editStackEwement => editStackEwement.wesouwce);
 	}
 
-	constructor(
-		label: string,
-		editStackElements: SingleModelEditStackElement[]
+	constwuctow(
+		wabew: stwing,
+		editStackEwements: SingweModewEditStackEwement[]
 	) {
-		this.label = label;
-		this._isOpen = true;
-		this._editStackElementsArr = editStackElements.slice(0);
-		this._editStackElementsMap = new Map<string, SingleModelEditStackElement>();
-		for (const editStackElement of this._editStackElementsArr) {
-			const key = uriGetComparisonKey(editStackElement.resource);
-			this._editStackElementsMap.set(key, editStackElement);
+		this.wabew = wabew;
+		this._isOpen = twue;
+		this._editStackEwementsAww = editStackEwements.swice(0);
+		this._editStackEwementsMap = new Map<stwing, SingweModewEditStackEwement>();
+		fow (const editStackEwement of this._editStackEwementsAww) {
+			const key = uwiGetCompawisonKey(editStackEwement.wesouwce);
+			this._editStackEwementsMap.set(key, editStackEwement);
 		}
-		this._delegate = null;
+		this._dewegate = nuww;
 	}
 
-	public setDelegate(delegate: IUndoRedoDelegate): void {
-		this._delegate = delegate;
+	pubwic setDewegate(dewegate: IUndoWedoDewegate): void {
+		this._dewegate = dewegate;
 	}
 
-	public prepareUndoRedo(): Promise<IDisposable> | IDisposable | void {
-		if (this._delegate) {
-			return this._delegate.prepareUndoRedo(this);
+	pubwic pwepaweUndoWedo(): Pwomise<IDisposabwe> | IDisposabwe | void {
+		if (this._dewegate) {
+			wetuwn this._dewegate.pwepaweUndoWedo(this);
 		}
 	}
 
-	public getMissingModels(): URI[] {
-		const result: URI[] = [];
-		for (const editStackElement of this._editStackElementsArr) {
-			if (URI.isUri(editStackElement.model)) {
-				result.push(editStackElement.model);
+	pubwic getMissingModews(): UWI[] {
+		const wesuwt: UWI[] = [];
+		fow (const editStackEwement of this._editStackEwementsAww) {
+			if (UWI.isUwi(editStackEwement.modew)) {
+				wesuwt.push(editStackEwement.modew);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public matchesResource(resource: URI): boolean {
-		const key = uriGetComparisonKey(resource);
-		return (this._editStackElementsMap.has(key));
+	pubwic matchesWesouwce(wesouwce: UWI): boowean {
+		const key = uwiGetCompawisonKey(wesouwce);
+		wetuwn (this._editStackEwementsMap.has(key));
 	}
 
-	public setModel(model: ITextModel | URI): void {
-		const key = uriGetComparisonKey(URI.isUri(model) ? model : model.uri);
-		if (this._editStackElementsMap.has(key)) {
-			this._editStackElementsMap.get(key)!.setModel(model);
+	pubwic setModew(modew: ITextModew | UWI): void {
+		const key = uwiGetCompawisonKey(UWI.isUwi(modew) ? modew : modew.uwi);
+		if (this._editStackEwementsMap.has(key)) {
+			this._editStackEwementsMap.get(key)!.setModew(modew);
 		}
 	}
 
-	public canAppend(model: ITextModel): boolean {
+	pubwic canAppend(modew: ITextModew): boowean {
 		if (!this._isOpen) {
-			return false;
+			wetuwn fawse;
 		}
-		const key = uriGetComparisonKey(model.uri);
-		if (this._editStackElementsMap.has(key)) {
-			const editStackElement = this._editStackElementsMap.get(key)!;
-			return editStackElement.canAppend(model);
+		const key = uwiGetCompawisonKey(modew.uwi);
+		if (this._editStackEwementsMap.has(key)) {
+			const editStackEwement = this._editStackEwementsMap.get(key)!;
+			wetuwn editStackEwement.canAppend(modew);
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public append(model: ITextModel, textChanges: TextChange[], afterEOL: EndOfLineSequence, afterVersionId: number, afterCursorState: Selection[] | null): void {
-		const key = uriGetComparisonKey(model.uri);
-		const editStackElement = this._editStackElementsMap.get(key)!;
-		editStackElement.append(model, textChanges, afterEOL, afterVersionId, afterCursorState);
+	pubwic append(modew: ITextModew, textChanges: TextChange[], aftewEOW: EndOfWineSequence, aftewVewsionId: numba, aftewCuwsowState: Sewection[] | nuww): void {
+		const key = uwiGetCompawisonKey(modew.uwi);
+		const editStackEwement = this._editStackEwementsMap.get(key)!;
+		editStackEwement.append(modew, textChanges, aftewEOW, aftewVewsionId, aftewCuwsowState);
 	}
 
-	public close(): void {
-		this._isOpen = false;
+	pubwic cwose(): void {
+		this._isOpen = fawse;
 	}
 
-	public open(): void {
-		// cannot reopen
+	pubwic open(): void {
+		// cannot weopen
 	}
 
-	public undo(): void {
-		this._isOpen = false;
+	pubwic undo(): void {
+		this._isOpen = fawse;
 
-		for (const editStackElement of this._editStackElementsArr) {
-			editStackElement.undo();
-		}
-	}
-
-	public redo(): void {
-		for (const editStackElement of this._editStackElementsArr) {
-			editStackElement.redo();
+		fow (const editStackEwement of this._editStackEwementsAww) {
+			editStackEwement.undo();
 		}
 	}
 
-	public heapSize(resource: URI): number {
-		const key = uriGetComparisonKey(resource);
-		if (this._editStackElementsMap.has(key)) {
-			const editStackElement = this._editStackElementsMap.get(key)!;
-			return editStackElement.heapSize();
+	pubwic wedo(): void {
+		fow (const editStackEwement of this._editStackEwementsAww) {
+			editStackEwement.wedo();
 		}
-		return 0;
 	}
 
-	public split(): IResourceUndoRedoElement[] {
-		return this._editStackElementsArr;
+	pubwic heapSize(wesouwce: UWI): numba {
+		const key = uwiGetCompawisonKey(wesouwce);
+		if (this._editStackEwementsMap.has(key)) {
+			const editStackEwement = this._editStackEwementsMap.get(key)!;
+			wetuwn editStackEwement.heapSize();
+		}
+		wetuwn 0;
 	}
 
-	public toString(): string {
-		let result: string[] = [];
-		for (const editStackElement of this._editStackElementsArr) {
-			result.push(`${basename(editStackElement.resource)}: ${editStackElement}`);
+	pubwic spwit(): IWesouwceUndoWedoEwement[] {
+		wetuwn this._editStackEwementsAww;
+	}
+
+	pubwic toStwing(): stwing {
+		wet wesuwt: stwing[] = [];
+		fow (const editStackEwement of this._editStackEwementsAww) {
+			wesuwt.push(`${basename(editStackEwement.wesouwce)}: ${editStackEwement}`);
 		}
-		return `{${result.join(', ')}}`;
+		wetuwn `{${wesuwt.join(', ')}}`;
 	}
 }
 
-export type EditStackElement = SingleModelEditStackElement | MultiModelEditStackElement;
+expowt type EditStackEwement = SingweModewEditStackEwement | MuwtiModewEditStackEwement;
 
-function getModelEOL(model: ITextModel): EndOfLineSequence {
-	const eol = model.getEOL();
-	if (eol === '\n') {
-		return EndOfLineSequence.LF;
-	} else {
-		return EndOfLineSequence.CRLF;
+function getModewEOW(modew: ITextModew): EndOfWineSequence {
+	const eow = modew.getEOW();
+	if (eow === '\n') {
+		wetuwn EndOfWineSequence.WF;
+	} ewse {
+		wetuwn EndOfWineSequence.CWWF;
 	}
 }
 
-export function isEditStackElement(element: IResourceUndoRedoElement | IWorkspaceUndoRedoElement | null): element is EditStackElement {
-	if (!element) {
-		return false;
+expowt function isEditStackEwement(ewement: IWesouwceUndoWedoEwement | IWowkspaceUndoWedoEwement | nuww): ewement is EditStackEwement {
+	if (!ewement) {
+		wetuwn fawse;
 	}
-	return ((element instanceof SingleModelEditStackElement) || (element instanceof MultiModelEditStackElement));
+	wetuwn ((ewement instanceof SingweModewEditStackEwement) || (ewement instanceof MuwtiModewEditStackEwement));
 }
 
-export class EditStack {
+expowt cwass EditStack {
 
-	private readonly _model: TextModel;
-	private readonly _undoRedoService: IUndoRedoService;
+	pwivate weadonwy _modew: TextModew;
+	pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice;
 
-	constructor(model: TextModel, undoRedoService: IUndoRedoService) {
-		this._model = model;
-		this._undoRedoService = undoRedoService;
+	constwuctow(modew: TextModew, undoWedoSewvice: IUndoWedoSewvice) {
+		this._modew = modew;
+		this._undoWedoSewvice = undoWedoSewvice;
 	}
 
-	public pushStackElement(): void {
-		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (isEditStackElement(lastElement)) {
-			lastElement.close();
+	pubwic pushStackEwement(): void {
+		const wastEwement = this._undoWedoSewvice.getWastEwement(this._modew.uwi);
+		if (isEditStackEwement(wastEwement)) {
+			wastEwement.cwose();
 		}
 	}
 
-	public popStackElement(): void {
-		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (isEditStackElement(lastElement)) {
-			lastElement.open();
+	pubwic popStackEwement(): void {
+		const wastEwement = this._undoWedoSewvice.getWastEwement(this._modew.uwi);
+		if (isEditStackEwement(wastEwement)) {
+			wastEwement.open();
 		}
 	}
 
-	public clear(): void {
-		this._undoRedoService.removeElements(this._model.uri);
+	pubwic cweaw(): void {
+		this._undoWedoSewvice.wemoveEwements(this._modew.uwi);
 	}
 
-	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement {
-		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
-		if (isEditStackElement(lastElement) && lastElement.canAppend(this._model)) {
-			return lastElement;
+	pwivate _getOwCweateEditStackEwement(befoweCuwsowState: Sewection[] | nuww): EditStackEwement {
+		const wastEwement = this._undoWedoSewvice.getWastEwement(this._modew.uwi);
+		if (isEditStackEwement(wastEwement) && wastEwement.canAppend(this._modew)) {
+			wetuwn wastEwement;
 		}
-		const newElement = new SingleModelEditStackElement(this._model, beforeCursorState);
-		this._undoRedoService.pushElement(newElement);
-		return newElement;
+		const newEwement = new SingweModewEditStackEwement(this._modew, befoweCuwsowState);
+		this._undoWedoSewvice.pushEwement(newEwement);
+		wetuwn newEwement;
 	}
 
-	public pushEOL(eol: EndOfLineSequence): void {
-		const editStackElement = this._getOrCreateEditStackElement(null);
-		this._model.setEOL(eol);
-		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
+	pubwic pushEOW(eow: EndOfWineSequence): void {
+		const editStackEwement = this._getOwCweateEditStackEwement(nuww);
+		this._modew.setEOW(eow);
+		editStackEwement.append(this._modew, [], getModewEOW(this._modew), this._modew.getAwtewnativeVewsionId(), nuww);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
-		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
-		const inverseEditOperations = this._model.applyEdits(editOperations, true);
-		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
-		const textChanges = inverseEditOperations.map((op, index) => ({ index: index, textChange: op.textChange }));
-		textChanges.sort((a, b) => {
-			if (a.textChange.oldPosition === b.textChange.oldPosition) {
-				return a.index - b.index;
+	pubwic pushEditOpewation(befoweCuwsowState: Sewection[] | nuww, editOpewations: IIdentifiedSingweEditOpewation[], cuwsowStateComputa: ICuwsowStateComputa | nuww): Sewection[] | nuww {
+		const editStackEwement = this._getOwCweateEditStackEwement(befoweCuwsowState);
+		const invewseEditOpewations = this._modew.appwyEdits(editOpewations, twue);
+		const aftewCuwsowState = EditStack._computeCuwsowState(cuwsowStateComputa, invewseEditOpewations);
+		const textChanges = invewseEditOpewations.map((op, index) => ({ index: index, textChange: op.textChange }));
+		textChanges.sowt((a, b) => {
+			if (a.textChange.owdPosition === b.textChange.owdPosition) {
+				wetuwn a.index - b.index;
 			}
-			return a.textChange.oldPosition - b.textChange.oldPosition;
+			wetuwn a.textChange.owdPosition - b.textChange.owdPosition;
 		});
-		editStackElement.append(this._model, textChanges.map(op => op.textChange), getModelEOL(this._model), this._model.getAlternativeVersionId(), afterCursorState);
-		return afterCursorState;
+		editStackEwement.append(this._modew, textChanges.map(op => op.textChange), getModewEOW(this._modew), this._modew.getAwtewnativeVewsionId(), aftewCuwsowState);
+		wetuwn aftewCuwsowState;
 	}
 
-	private static _computeCursorState(cursorStateComputer: ICursorStateComputer | null, inverseEditOperations: IValidEditOperation[]): Selection[] | null {
-		try {
-			return cursorStateComputer ? cursorStateComputer(inverseEditOperations) : null;
+	pwivate static _computeCuwsowState(cuwsowStateComputa: ICuwsowStateComputa | nuww, invewseEditOpewations: IVawidEditOpewation[]): Sewection[] | nuww {
+		twy {
+			wetuwn cuwsowStateComputa ? cuwsowStateComputa(invewseEditOpewations) : nuww;
 		} catch (e) {
-			onUnexpectedError(e);
-			return null;
+			onUnexpectedEwwow(e);
+			wetuwn nuww;
 		}
 	}
 }

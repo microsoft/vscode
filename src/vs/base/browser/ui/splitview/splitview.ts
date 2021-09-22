@@ -1,813 +1,813 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as types from 'vs/base/common/types';
-import 'vs/css!./splitview';
-export { Orientation } from 'vs/base/browser/ui/sash/sash';
+impowt { $, addDisposabweWistena, append, scheduweAtNextAnimationFwame } fwom 'vs/base/bwowsa/dom';
+impowt { ISashEvent as IBaseSashEvent, Owientation, Sash, SashState } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { SmoothScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { pushToEnd, pushToStawt, wange } fwom 'vs/base/common/awways';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { combinedDisposabwe, Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cwamp } fwom 'vs/base/common/numbews';
+impowt { Scwowwabwe, ScwowwbawVisibiwity, ScwowwEvent } fwom 'vs/base/common/scwowwabwe';
+impowt * as types fwom 'vs/base/common/types';
+impowt 'vs/css!./spwitview';
+expowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
 
-export interface ISplitViewStyles {
-	separatorBorder: Color;
+expowt intewface ISpwitViewStywes {
+	sepawatowBowda: Cowow;
 }
 
-const defaultStyles: ISplitViewStyles = {
-	separatorBorder: Color.transparent
+const defauwtStywes: ISpwitViewStywes = {
+	sepawatowBowda: Cowow.twanspawent
 };
 
-export interface ISplitViewOptions<TLayoutContext = undefined> {
-	readonly orientation?: Orientation; // default Orientation.VERTICAL
-	readonly styles?: ISplitViewStyles;
-	readonly orthogonalStartSash?: Sash;
-	readonly orthogonalEndSash?: Sash;
-	readonly inverseAltBehavior?: boolean;
-	readonly proportionalLayout?: boolean; // default true,
-	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
-	readonly scrollbarVisibility?: ScrollbarVisibility;
-	readonly getSashOrthogonalSize?: () => number;
+expowt intewface ISpwitViewOptions<TWayoutContext = undefined> {
+	weadonwy owientation?: Owientation; // defauwt Owientation.VEWTICAW
+	weadonwy stywes?: ISpwitViewStywes;
+	weadonwy owthogonawStawtSash?: Sash;
+	weadonwy owthogonawEndSash?: Sash;
+	weadonwy invewseAwtBehaviow?: boowean;
+	weadonwy pwopowtionawWayout?: boowean; // defauwt twue,
+	weadonwy descwiptow?: ISpwitViewDescwiptow<TWayoutContext>;
+	weadonwy scwowwbawVisibiwity?: ScwowwbawVisibiwity;
+	weadonwy getSashOwthogonawSize?: () => numba;
 }
 
 /**
- * Only used when `proportionalLayout` is false.
+ * Onwy used when `pwopowtionawWayout` is fawse.
  */
-export const enum LayoutPriority {
-	Normal,
-	Low,
+expowt const enum WayoutPwiowity {
+	Nowmaw,
+	Wow,
 	High
 }
 
-export interface IView<TLayoutContext = undefined> {
-	readonly element: HTMLElement;
-	readonly minimumSize: number;
-	readonly maximumSize: number;
-	readonly onDidChange: Event<number | undefined>;
-	readonly priority?: LayoutPriority;
-	readonly snap?: boolean;
-	layout(size: number, offset: number, context: TLayoutContext | undefined): void;
-	setVisible?(visible: boolean): void;
+expowt intewface IView<TWayoutContext = undefined> {
+	weadonwy ewement: HTMWEwement;
+	weadonwy minimumSize: numba;
+	weadonwy maximumSize: numba;
+	weadonwy onDidChange: Event<numba | undefined>;
+	weadonwy pwiowity?: WayoutPwiowity;
+	weadonwy snap?: boowean;
+	wayout(size: numba, offset: numba, context: TWayoutContext | undefined): void;
+	setVisibwe?(visibwe: boowean): void;
 }
 
-interface ISashEvent {
-	readonly sash: Sash;
-	readonly start: number;
-	readonly current: number;
-	readonly alt: boolean;
+intewface ISashEvent {
+	weadonwy sash: Sash;
+	weadonwy stawt: numba;
+	weadonwy cuwwent: numba;
+	weadonwy awt: boowean;
 }
 
-type ViewItemSize = number | { cachedVisibleSize: number };
+type ViewItemSize = numba | { cachedVisibweSize: numba };
 
-abstract class ViewItem<TLayoutContext> {
+abstwact cwass ViewItem<TWayoutContext> {
 
-	private _size: number;
-	set size(size: number) {
+	pwivate _size: numba;
+	set size(size: numba) {
 		this._size = size;
 	}
 
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
-	private _cachedVisibleSize: number | undefined = undefined;
-	get cachedVisibleSize(): number | undefined { return this._cachedVisibleSize; }
+	pwivate _cachedVisibweSize: numba | undefined = undefined;
+	get cachedVisibweSize(): numba | undefined { wetuwn this._cachedVisibweSize; }
 
-	get visible(): boolean {
-		return typeof this._cachedVisibleSize === 'undefined';
+	get visibwe(): boowean {
+		wetuwn typeof this._cachedVisibweSize === 'undefined';
 	}
 
-	setVisible(visible: boolean, size?: number): void {
-		if (visible === this.visible) {
-			return;
+	setVisibwe(visibwe: boowean, size?: numba): void {
+		if (visibwe === this.visibwe) {
+			wetuwn;
 		}
 
-		if (visible) {
-			this.size = clamp(this._cachedVisibleSize!, this.viewMinimumSize, this.viewMaximumSize);
-			this._cachedVisibleSize = undefined;
-		} else {
-			this._cachedVisibleSize = typeof size === 'number' ? size : this.size;
+		if (visibwe) {
+			this.size = cwamp(this._cachedVisibweSize!, this.viewMinimumSize, this.viewMaximumSize);
+			this._cachedVisibweSize = undefined;
+		} ewse {
+			this._cachedVisibweSize = typeof size === 'numba' ? size : this.size;
 			this.size = 0;
 		}
 
-		this.container.classList.toggle('visible', visible);
+		this.containa.cwassWist.toggwe('visibwe', visibwe);
 
-		if (this.view.setVisible) {
-			this.view.setVisible(visible);
+		if (this.view.setVisibwe) {
+			this.view.setVisibwe(visibwe);
 		}
 	}
 
-	get minimumSize(): number { return this.visible ? this.view.minimumSize : 0; }
-	get viewMinimumSize(): number { return this.view.minimumSize; }
+	get minimumSize(): numba { wetuwn this.visibwe ? this.view.minimumSize : 0; }
+	get viewMinimumSize(): numba { wetuwn this.view.minimumSize; }
 
-	get maximumSize(): number { return this.visible ? this.view.maximumSize : 0; }
-	get viewMaximumSize(): number { return this.view.maximumSize; }
+	get maximumSize(): numba { wetuwn this.visibwe ? this.view.maximumSize : 0; }
+	get viewMaximumSize(): numba { wetuwn this.view.maximumSize; }
 
-	get priority(): LayoutPriority | undefined { return this.view.priority; }
-	get snap(): boolean { return !!this.view.snap; }
+	get pwiowity(): WayoutPwiowity | undefined { wetuwn this.view.pwiowity; }
+	get snap(): boowean { wetuwn !!this.view.snap; }
 
-	set enabled(enabled: boolean) {
-		this.container.style.pointerEvents = enabled ? '' : 'none';
+	set enabwed(enabwed: boowean) {
+		this.containa.stywe.pointewEvents = enabwed ? '' : 'none';
 	}
 
-	constructor(
-		protected container: HTMLElement,
-		private view: IView<TLayoutContext>,
+	constwuctow(
+		pwotected containa: HTMWEwement,
+		pwivate view: IView<TWayoutContext>,
 		size: ViewItemSize,
-		private disposable: IDisposable
+		pwivate disposabwe: IDisposabwe
 	) {
-		if (typeof size === 'number') {
+		if (typeof size === 'numba') {
 			this._size = size;
-			this._cachedVisibleSize = undefined;
-			container.classList.add('visible');
-		} else {
+			this._cachedVisibweSize = undefined;
+			containa.cwassWist.add('visibwe');
+		} ewse {
 			this._size = 0;
-			this._cachedVisibleSize = size.cachedVisibleSize;
+			this._cachedVisibweSize = size.cachedVisibweSize;
 		}
 	}
 
-	layout(offset: number, layoutContext: TLayoutContext | undefined): void {
-		this.layoutContainer(offset);
-		this.view.layout(this.size, offset, layoutContext);
+	wayout(offset: numba, wayoutContext: TWayoutContext | undefined): void {
+		this.wayoutContaina(offset);
+		this.view.wayout(this.size, offset, wayoutContext);
 	}
 
-	abstract layoutContainer(offset: number): void;
+	abstwact wayoutContaina(offset: numba): void;
 
-	dispose(): IView<TLayoutContext> {
-		this.disposable.dispose();
-		return this.view;
-	}
-}
-
-class VerticalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
-
-	layoutContainer(offset: number): void {
-		this.container.style.top = `${offset}px`;
-		this.container.style.height = `${this.size}px`;
+	dispose(): IView<TWayoutContext> {
+		this.disposabwe.dispose();
+		wetuwn this.view;
 	}
 }
 
-class HorizontalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
+cwass VewticawViewItem<TWayoutContext> extends ViewItem<TWayoutContext> {
 
-	layoutContainer(offset: number): void {
-		this.container.style.left = `${offset}px`;
-		this.container.style.width = `${this.size}px`;
+	wayoutContaina(offset: numba): void {
+		this.containa.stywe.top = `${offset}px`;
+		this.containa.stywe.height = `${this.size}px`;
 	}
 }
 
-interface ISashItem {
+cwass HowizontawViewItem<TWayoutContext> extends ViewItem<TWayoutContext> {
+
+	wayoutContaina(offset: numba): void {
+		this.containa.stywe.weft = `${offset}px`;
+		this.containa.stywe.width = `${this.size}px`;
+	}
+}
+
+intewface ISashItem {
 	sash: Sash;
-	disposable: IDisposable;
+	disposabwe: IDisposabwe;
 }
 
-interface ISashDragSnapState {
-	readonly index: number;
-	readonly limitDelta: number;
-	readonly size: number;
+intewface ISashDwagSnapState {
+	weadonwy index: numba;
+	weadonwy wimitDewta: numba;
+	weadonwy size: numba;
 }
 
-interface ISashDragState {
-	index: number;
-	start: number;
-	current: number;
-	sizes: number[];
-	minDelta: number;
-	maxDelta: number;
-	alt: boolean;
-	snapBefore: ISashDragSnapState | undefined;
-	snapAfter: ISashDragSnapState | undefined;
-	disposable: IDisposable;
+intewface ISashDwagState {
+	index: numba;
+	stawt: numba;
+	cuwwent: numba;
+	sizes: numba[];
+	minDewta: numba;
+	maxDewta: numba;
+	awt: boowean;
+	snapBefowe: ISashDwagSnapState | undefined;
+	snapAfta: ISashDwagSnapState | undefined;
+	disposabwe: IDisposabwe;
 }
 
 enum State {
-	Idle,
+	Idwe,
 	Busy
 }
 
-export type DistributeSizing = { type: 'distribute' };
-export type SplitSizing = { type: 'split', index: number };
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+expowt type DistwibuteSizing = { type: 'distwibute' };
+expowt type SpwitSizing = { type: 'spwit', index: numba };
+expowt type InvisibweSizing = { type: 'invisibwe', cachedVisibweSize: numba };
+expowt type Sizing = DistwibuteSizing | SpwitSizing | InvisibweSizing;
 
-export namespace Sizing {
-	export const Distribute: DistributeSizing = { type: 'distribute' };
-	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
-	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
+expowt namespace Sizing {
+	expowt const Distwibute: DistwibuteSizing = { type: 'distwibute' };
+	expowt function Spwit(index: numba): SpwitSizing { wetuwn { type: 'spwit', index }; }
+	expowt function Invisibwe(cachedVisibweSize: numba): InvisibweSizing { wetuwn { type: 'invisibwe', cachedVisibweSize }; }
 }
 
-export interface ISplitViewDescriptor<TLayoutContext = undefined> {
-	size: number;
+expowt intewface ISpwitViewDescwiptow<TWayoutContext = undefined> {
+	size: numba;
 	views: {
-		visible?: boolean;
-		size: number;
-		view: IView<TLayoutContext>;
+		visibwe?: boowean;
+		size: numba;
+		view: IView<TWayoutContext>;
 	}[];
 }
 
-export class SplitView<TLayoutContext = undefined> extends Disposable {
+expowt cwass SpwitView<TWayoutContext = undefined> extends Disposabwe {
 
-	readonly orientation: Orientation;
-	readonly el: HTMLElement;
-	private sashContainer: HTMLElement;
-	private viewContainer: HTMLElement;
-	private scrollable: Scrollable;
-	private scrollableElement: SmoothScrollableElement;
-	private size = 0;
-	private layoutContext: TLayoutContext | undefined;
-	private contentSize = 0;
-	private proportions: undefined | number[] = undefined;
-	private viewItems: ViewItem<TLayoutContext>[] = [];
-	private sashItems: ISashItem[] = [];
-	private sashDragState: ISashDragState | undefined;
-	private state: State = State.Idle;
-	private inverseAltBehavior: boolean;
-	private proportionalLayout: boolean;
-	private readonly getSashOrthogonalSize: { (): number } | undefined;
+	weadonwy owientation: Owientation;
+	weadonwy ew: HTMWEwement;
+	pwivate sashContaina: HTMWEwement;
+	pwivate viewContaina: HTMWEwement;
+	pwivate scwowwabwe: Scwowwabwe;
+	pwivate scwowwabweEwement: SmoothScwowwabweEwement;
+	pwivate size = 0;
+	pwivate wayoutContext: TWayoutContext | undefined;
+	pwivate contentSize = 0;
+	pwivate pwopowtions: undefined | numba[] = undefined;
+	pwivate viewItems: ViewItem<TWayoutContext>[] = [];
+	pwivate sashItems: ISashItem[] = [];
+	pwivate sashDwagState: ISashDwagState | undefined;
+	pwivate state: State = State.Idwe;
+	pwivate invewseAwtBehaviow: boowean;
+	pwivate pwopowtionawWayout: boowean;
+	pwivate weadonwy getSashOwthogonawSize: { (): numba } | undefined;
 
-	private _onDidSashChange = this._register(new Emitter<number>());
-	readonly onDidSashChange = this._onDidSashChange.event;
+	pwivate _onDidSashChange = this._wegista(new Emitta<numba>());
+	weadonwy onDidSashChange = this._onDidSashChange.event;
 
-	private _onDidSashReset = this._register(new Emitter<number>());
-	readonly onDidSashReset = this._onDidSashReset.event;
+	pwivate _onDidSashWeset = this._wegista(new Emitta<numba>());
+	weadonwy onDidSashWeset = this._onDidSashWeset.event;
 
-	readonly onDidScroll: Event<ScrollEvent>;
+	weadonwy onDidScwoww: Event<ScwowwEvent>;
 
-	get length(): number {
-		return this.viewItems.length;
+	get wength(): numba {
+		wetuwn this.viewItems.wength;
 	}
 
-	get minimumSize(): number {
-		return this.viewItems.reduce((r, item) => r + item.minimumSize, 0);
+	get minimumSize(): numba {
+		wetuwn this.viewItems.weduce((w, item) => w + item.minimumSize, 0);
 	}
 
-	get maximumSize(): number {
-		return this.length === 0 ? Number.POSITIVE_INFINITY : this.viewItems.reduce((r, item) => r + item.maximumSize, 0);
+	get maximumSize(): numba {
+		wetuwn this.wength === 0 ? Numba.POSITIVE_INFINITY : this.viewItems.weduce((w, item) => w + item.maximumSize, 0);
 	}
 
-	private _orthogonalStartSash: Sash | undefined;
-	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
-	set orthogonalStartSash(sash: Sash | undefined) {
-		for (const sashItem of this.sashItems) {
-			sashItem.sash.orthogonalStartSash = sash;
+	pwivate _owthogonawStawtSash: Sash | undefined;
+	get owthogonawStawtSash(): Sash | undefined { wetuwn this._owthogonawStawtSash; }
+	set owthogonawStawtSash(sash: Sash | undefined) {
+		fow (const sashItem of this.sashItems) {
+			sashItem.sash.owthogonawStawtSash = sash;
 		}
 
-		this._orthogonalStartSash = sash;
+		this._owthogonawStawtSash = sash;
 	}
 
-	private _orthogonalEndSash: Sash | undefined;
-	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
-	set orthogonalEndSash(sash: Sash | undefined) {
-		for (const sashItem of this.sashItems) {
-			sashItem.sash.orthogonalEndSash = sash;
+	pwivate _owthogonawEndSash: Sash | undefined;
+	get owthogonawEndSash(): Sash | undefined { wetuwn this._owthogonawEndSash; }
+	set owthogonawEndSash(sash: Sash | undefined) {
+		fow (const sashItem of this.sashItems) {
+			sashItem.sash.owthogonawEndSash = sash;
 		}
 
-		this._orthogonalEndSash = sash;
+		this._owthogonawEndSash = sash;
 	}
 
 	get sashes(): Sash[] {
-		return this.sashItems.map(s => s.sash);
+		wetuwn this.sashItems.map(s => s.sash);
 	}
 
-	private _startSnappingEnabled = true;
-	get startSnappingEnabled(): boolean { return this._startSnappingEnabled; }
-	set startSnappingEnabled(startSnappingEnabled: boolean) {
-		if (this._startSnappingEnabled === startSnappingEnabled) {
-			return;
+	pwivate _stawtSnappingEnabwed = twue;
+	get stawtSnappingEnabwed(): boowean { wetuwn this._stawtSnappingEnabwed; }
+	set stawtSnappingEnabwed(stawtSnappingEnabwed: boowean) {
+		if (this._stawtSnappingEnabwed === stawtSnappingEnabwed) {
+			wetuwn;
 		}
 
-		this._startSnappingEnabled = startSnappingEnabled;
-		this.updateSashEnablement();
+		this._stawtSnappingEnabwed = stawtSnappingEnabwed;
+		this.updateSashEnabwement();
 	}
 
-	private _endSnappingEnabled = true;
-	get endSnappingEnabled(): boolean { return this._endSnappingEnabled; }
-	set endSnappingEnabled(endSnappingEnabled: boolean) {
-		if (this._endSnappingEnabled === endSnappingEnabled) {
-			return;
+	pwivate _endSnappingEnabwed = twue;
+	get endSnappingEnabwed(): boowean { wetuwn this._endSnappingEnabwed; }
+	set endSnappingEnabwed(endSnappingEnabwed: boowean) {
+		if (this._endSnappingEnabwed === endSnappingEnabwed) {
+			wetuwn;
 		}
 
-		this._endSnappingEnabled = endSnappingEnabled;
-		this.updateSashEnablement();
+		this._endSnappingEnabwed = endSnappingEnabwed;
+		this.updateSashEnabwement();
 	}
 
-	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext> = {}) {
-		super();
+	constwuctow(containa: HTMWEwement, options: ISpwitViewOptions<TWayoutContext> = {}) {
+		supa();
 
-		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
-		this.inverseAltBehavior = !!options.inverseAltBehavior;
-		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
-		this.getSashOrthogonalSize = options.getSashOrthogonalSize;
+		this.owientation = types.isUndefined(options.owientation) ? Owientation.VEWTICAW : options.owientation;
+		this.invewseAwtBehaviow = !!options.invewseAwtBehaviow;
+		this.pwopowtionawWayout = types.isUndefined(options.pwopowtionawWayout) ? twue : !!options.pwopowtionawWayout;
+		this.getSashOwthogonawSize = options.getSashOwthogonawSize;
 
-		this.el = document.createElement('div');
-		this.el.classList.add('monaco-split-view2');
-		this.el.classList.add(this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
-		container.appendChild(this.el);
+		this.ew = document.cweateEwement('div');
+		this.ew.cwassWist.add('monaco-spwit-view2');
+		this.ew.cwassWist.add(this.owientation === Owientation.VEWTICAW ? 'vewticaw' : 'howizontaw');
+		containa.appendChiwd(this.ew);
 
-		this.sashContainer = append(this.el, $('.sash-container'));
-		this.viewContainer = $('.split-view-container');
+		this.sashContaina = append(this.ew, $('.sash-containa'));
+		this.viewContaina = $('.spwit-view-containa');
 
-		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
-		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
-			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
-			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
-		}, this.scrollable));
+		this.scwowwabwe = new Scwowwabwe(125, scheduweAtNextAnimationFwame);
+		this.scwowwabweEwement = this._wegista(new SmoothScwowwabweEwement(this.viewContaina, {
+			vewticaw: this.owientation === Owientation.VEWTICAW ? (options.scwowwbawVisibiwity ?? ScwowwbawVisibiwity.Auto) : ScwowwbawVisibiwity.Hidden,
+			howizontaw: this.owientation === Owientation.HOWIZONTAW ? (options.scwowwbawVisibiwity ?? ScwowwbawVisibiwity.Auto) : ScwowwbawVisibiwity.Hidden
+		}, this.scwowwabwe));
 
-		this.onDidScroll = this.scrollableElement.onScroll;
-		this._register(this.onDidScroll(e => {
-			this.viewContainer.scrollTop = e.scrollTop;
-			this.viewContainer.scrollLeft = e.scrollLeft;
+		this.onDidScwoww = this.scwowwabweEwement.onScwoww;
+		this._wegista(this.onDidScwoww(e => {
+			this.viewContaina.scwowwTop = e.scwowwTop;
+			this.viewContaina.scwowwWeft = e.scwowwWeft;
 		}));
 
-		append(this.el, this.scrollableElement.getDomNode());
+		append(this.ew, this.scwowwabweEwement.getDomNode());
 
-		this.style(options.styles || defaultStyles);
+		this.stywe(options.stywes || defauwtStywes);
 
 		// We have an existing set of view, add them now
-		if (options.descriptor) {
-			this.size = options.descriptor.size;
-			options.descriptor.views.forEach((viewDescriptor, index) => {
-				const sizing = types.isUndefined(viewDescriptor.visible) || viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } as InvisibleSizing;
+		if (options.descwiptow) {
+			this.size = options.descwiptow.size;
+			options.descwiptow.views.fowEach((viewDescwiptow, index) => {
+				const sizing = types.isUndefined(viewDescwiptow.visibwe) || viewDescwiptow.visibwe ? viewDescwiptow.size : { type: 'invisibwe', cachedVisibweSize: viewDescwiptow.size } as InvisibweSizing;
 
-				const view = viewDescriptor.view;
-				this.doAddView(view, sizing, index, true);
+				const view = viewDescwiptow.view;
+				this.doAddView(view, sizing, index, twue);
 			});
 
-			// Initialize content size and proportions for first layout
-			this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-			this.saveProportions();
+			// Initiawize content size and pwopowtions fow fiwst wayout
+			this.contentSize = this.viewItems.weduce((w, i) => w + i.size, 0);
+			this.savePwopowtions();
 		}
 	}
 
-	style(styles: ISplitViewStyles): void {
-		if (styles.separatorBorder.isTransparent()) {
-			this.el.classList.remove('separator-border');
-			this.el.style.removeProperty('--separator-border');
-		} else {
-			this.el.classList.add('separator-border');
-			this.el.style.setProperty('--separator-border', styles.separatorBorder.toString());
+	stywe(stywes: ISpwitViewStywes): void {
+		if (stywes.sepawatowBowda.isTwanspawent()) {
+			this.ew.cwassWist.wemove('sepawatow-bowda');
+			this.ew.stywe.wemovePwopewty('--sepawatow-bowda');
+		} ewse {
+			this.ew.cwassWist.add('sepawatow-bowda');
+			this.ew.stywe.setPwopewty('--sepawatow-bowda', stywes.sepawatowBowda.toStwing());
 		}
 	}
 
-	addView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
-		this.doAddView(view, size, index, skipLayout);
+	addView(view: IView<TWayoutContext>, size: numba | Sizing, index = this.viewItems.wength, skipWayout?: boowean): void {
+		this.doAddView(view, size, index, skipWayout);
 	}
 
-	removeView(index: number, sizing?: Sizing): IView<TLayoutContext> {
-		if (this.state !== State.Idle) {
-			throw new Error('Cant modify splitview');
+	wemoveView(index: numba, sizing?: Sizing): IView<TWayoutContext> {
+		if (this.state !== State.Idwe) {
+			thwow new Ewwow('Cant modify spwitview');
 		}
 
 		this.state = State.Busy;
 
-		if (index < 0 || index >= this.viewItems.length) {
-			throw new Error('Index out of bounds');
+		if (index < 0 || index >= this.viewItems.wength) {
+			thwow new Ewwow('Index out of bounds');
 		}
 
-		// Remove view
-		const viewItem = this.viewItems.splice(index, 1)[0];
+		// Wemove view
+		const viewItem = this.viewItems.spwice(index, 1)[0];
 		const view = viewItem.dispose();
 
-		// Remove sash
-		if (this.viewItems.length >= 1) {
+		// Wemove sash
+		if (this.viewItems.wength >= 1) {
 			const sashIndex = Math.max(index - 1, 0);
-			const sashItem = this.sashItems.splice(sashIndex, 1)[0];
-			sashItem.disposable.dispose();
+			const sashItem = this.sashItems.spwice(sashIndex, 1)[0];
+			sashItem.disposabwe.dispose();
 		}
 
-		this.relayout();
-		this.state = State.Idle;
+		this.wewayout();
+		this.state = State.Idwe;
 
-		if (sizing && sizing.type === 'distribute') {
-			this.distributeViewSizes();
+		if (sizing && sizing.type === 'distwibute') {
+			this.distwibuteViewSizes();
 		}
 
-		return view;
+		wetuwn view;
 	}
 
-	moveView(from: number, to: number): void {
-		if (this.state !== State.Idle) {
-			throw new Error('Cant modify splitview');
+	moveView(fwom: numba, to: numba): void {
+		if (this.state !== State.Idwe) {
+			thwow new Ewwow('Cant modify spwitview');
 		}
 
-		const cachedVisibleSize = this.getViewCachedVisibleSize(from);
-		const sizing = typeof cachedVisibleSize === 'undefined' ? this.getViewSize(from) : Sizing.Invisible(cachedVisibleSize);
-		const view = this.removeView(from);
+		const cachedVisibweSize = this.getViewCachedVisibweSize(fwom);
+		const sizing = typeof cachedVisibweSize === 'undefined' ? this.getViewSize(fwom) : Sizing.Invisibwe(cachedVisibweSize);
+		const view = this.wemoveView(fwom);
 		this.addView(view, sizing, to);
 	}
 
-	swapViews(from: number, to: number): void {
-		if (this.state !== State.Idle) {
-			throw new Error('Cant modify splitview');
+	swapViews(fwom: numba, to: numba): void {
+		if (this.state !== State.Idwe) {
+			thwow new Ewwow('Cant modify spwitview');
 		}
 
-		if (from > to) {
-			return this.swapViews(to, from);
+		if (fwom > to) {
+			wetuwn this.swapViews(to, fwom);
 		}
 
-		const fromSize = this.getViewSize(from);
+		const fwomSize = this.getViewSize(fwom);
 		const toSize = this.getViewSize(to);
-		const toView = this.removeView(to);
-		const fromView = this.removeView(from);
+		const toView = this.wemoveView(to);
+		const fwomView = this.wemoveView(fwom);
 
-		this.addView(toView, fromSize, from);
-		this.addView(fromView, toSize, to);
+		this.addView(toView, fwomSize, fwom);
+		this.addView(fwomView, toSize, to);
 	}
 
-	isViewVisible(index: number): boolean {
-		if (index < 0 || index >= this.viewItems.length) {
-			throw new Error('Index out of bounds');
+	isViewVisibwe(index: numba): boowean {
+		if (index < 0 || index >= this.viewItems.wength) {
+			thwow new Ewwow('Index out of bounds');
 		}
 
 		const viewItem = this.viewItems[index];
-		return viewItem.visible;
+		wetuwn viewItem.visibwe;
 	}
 
-	setViewVisible(index: number, visible: boolean): void {
-		if (index < 0 || index >= this.viewItems.length) {
-			throw new Error('Index out of bounds');
+	setViewVisibwe(index: numba, visibwe: boowean): void {
+		if (index < 0 || index >= this.viewItems.wength) {
+			thwow new Ewwow('Index out of bounds');
 		}
 
 		const viewItem = this.viewItems[index];
-		viewItem.setVisible(visible);
+		viewItem.setVisibwe(visibwe);
 
-		this.distributeEmptySpace(index);
-		this.layoutViews();
-		this.saveProportions();
+		this.distwibuteEmptySpace(index);
+		this.wayoutViews();
+		this.savePwopowtions();
 	}
 
-	getViewCachedVisibleSize(index: number): number | undefined {
-		if (index < 0 || index >= this.viewItems.length) {
-			throw new Error('Index out of bounds');
+	getViewCachedVisibweSize(index: numba): numba | undefined {
+		if (index < 0 || index >= this.viewItems.wength) {
+			thwow new Ewwow('Index out of bounds');
 		}
 
 		const viewItem = this.viewItems[index];
-		return viewItem.cachedVisibleSize;
+		wetuwn viewItem.cachedVisibweSize;
 	}
 
-	layout(size: number, layoutContext?: TLayoutContext): void {
-		const previousSize = Math.max(this.size, this.contentSize);
+	wayout(size: numba, wayoutContext?: TWayoutContext): void {
+		const pweviousSize = Math.max(this.size, this.contentSize);
 		this.size = size;
-		this.layoutContext = layoutContext;
+		this.wayoutContext = wayoutContext;
 
-		if (!this.proportions) {
-			const indexes = range(this.viewItems.length);
-			const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low);
-			const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+		if (!this.pwopowtions) {
+			const indexes = wange(this.viewItems.wength);
+			const wowPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.Wow);
+			const highPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.High);
 
-			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
-		} else {
-			for (let i = 0; i < this.viewItems.length; i++) {
+			this.wesize(this.viewItems.wength - 1, size - pweviousSize, undefined, wowPwiowityIndexes, highPwiowityIndexes);
+		} ewse {
+			fow (wet i = 0; i < this.viewItems.wength; i++) {
 				const item = this.viewItems[i];
-				item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
+				item.size = cwamp(Math.wound(this.pwopowtions[i] * size), item.minimumSize, item.maximumSize);
 			}
 		}
 
-		this.distributeEmptySpace();
-		this.layoutViews();
+		this.distwibuteEmptySpace();
+		this.wayoutViews();
 	}
 
-	private saveProportions(): void {
-		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
+	pwivate savePwopowtions(): void {
+		if (this.pwopowtionawWayout && this.contentSize > 0) {
+			this.pwopowtions = this.viewItems.map(i => i.size / this.contentSize);
 		}
 	}
 
-	private onSashStart({ sash, start, alt }: ISashEvent): void {
-		for (const item of this.viewItems) {
-			item.enabled = false;
+	pwivate onSashStawt({ sash, stawt, awt }: ISashEvent): void {
+		fow (const item of this.viewItems) {
+			item.enabwed = fawse;
 		}
 
 		const index = this.sashItems.findIndex(item => item.sash === sash);
 
-		// This way, we can press Alt while we resize a sash, macOS style!
-		const disposable = combinedDisposable(
-			addDisposableListener(document.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
-			addDisposableListener(document.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
+		// This way, we can pwess Awt whiwe we wesize a sash, macOS stywe!
+		const disposabwe = combinedDisposabwe(
+			addDisposabweWistena(document.body, 'keydown', e => wesetSashDwagState(this.sashDwagState!.cuwwent, e.awtKey)),
+			addDisposabweWistena(document.body, 'keyup', () => wesetSashDwagState(this.sashDwagState!.cuwwent, fawse))
 		);
 
-		const resetSashDragState = (start: number, alt: boolean) => {
+		const wesetSashDwagState = (stawt: numba, awt: boowean) => {
 			const sizes = this.viewItems.map(i => i.size);
-			let minDelta = Number.NEGATIVE_INFINITY;
-			let maxDelta = Number.POSITIVE_INFINITY;
+			wet minDewta = Numba.NEGATIVE_INFINITY;
+			wet maxDewta = Numba.POSITIVE_INFINITY;
 
-			if (this.inverseAltBehavior) {
-				alt = !alt;
+			if (this.invewseAwtBehaviow) {
+				awt = !awt;
 			}
 
-			if (alt) {
-				// When we're using the last sash with Alt, we're resizing
-				// the view to the left/up, instead of right/down as usual
-				// Thus, we must do the inverse of the usual
-				const isLastSash = index === this.sashItems.length - 1;
+			if (awt) {
+				// When we'we using the wast sash with Awt, we'we wesizing
+				// the view to the weft/up, instead of wight/down as usuaw
+				// Thus, we must do the invewse of the usuaw
+				const isWastSash = index === this.sashItems.wength - 1;
 
-				if (isLastSash) {
+				if (isWastSash) {
 					const viewItem = this.viewItems[index];
-					minDelta = (viewItem.minimumSize - viewItem.size) / 2;
-					maxDelta = (viewItem.maximumSize - viewItem.size) / 2;
-				} else {
+					minDewta = (viewItem.minimumSize - viewItem.size) / 2;
+					maxDewta = (viewItem.maximumSize - viewItem.size) / 2;
+				} ewse {
 					const viewItem = this.viewItems[index + 1];
-					minDelta = (viewItem.size - viewItem.maximumSize) / 2;
-					maxDelta = (viewItem.size - viewItem.minimumSize) / 2;
+					minDewta = (viewItem.size - viewItem.maximumSize) / 2;
+					maxDewta = (viewItem.size - viewItem.minimumSize) / 2;
 				}
 			}
 
-			let snapBefore: ISashDragSnapState | undefined;
-			let snapAfter: ISashDragSnapState | undefined;
+			wet snapBefowe: ISashDwagSnapState | undefined;
+			wet snapAfta: ISashDwagSnapState | undefined;
 
-			if (!alt) {
-				const upIndexes = range(index, -1);
-				const downIndexes = range(index + 1, this.viewItems.length);
-				const minDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].minimumSize - sizes[i]), 0);
-				const maxDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].viewMaximumSize - sizes[i]), 0);
-				const maxDeltaDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].minimumSize), 0);
-				const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].viewMaximumSize), 0);
-				const minDelta = Math.max(minDeltaUp, minDeltaDown);
-				const maxDelta = Math.min(maxDeltaDown, maxDeltaUp);
-				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+			if (!awt) {
+				const upIndexes = wange(index, -1);
+				const downIndexes = wange(index + 1, this.viewItems.wength);
+				const minDewtaUp = upIndexes.weduce((w, i) => w + (this.viewItems[i].minimumSize - sizes[i]), 0);
+				const maxDewtaUp = upIndexes.weduce((w, i) => w + (this.viewItems[i].viewMaximumSize - sizes[i]), 0);
+				const maxDewtaDown = downIndexes.wength === 0 ? Numba.POSITIVE_INFINITY : downIndexes.weduce((w, i) => w + (sizes[i] - this.viewItems[i].minimumSize), 0);
+				const minDewtaDown = downIndexes.wength === 0 ? Numba.NEGATIVE_INFINITY : downIndexes.weduce((w, i) => w + (sizes[i] - this.viewItems[i].viewMaximumSize), 0);
+				const minDewta = Math.max(minDewtaUp, minDewtaDown);
+				const maxDewta = Math.min(maxDewtaDown, maxDewtaUp);
+				const snapBefoweIndex = this.findFiwstSnapIndex(upIndexes);
+				const snapAftewIndex = this.findFiwstSnapIndex(downIndexes);
 
-				if (typeof snapBeforeIndex === 'number') {
-					const viewItem = this.viewItems[snapBeforeIndex];
-					const halfSize = Math.floor(viewItem.viewMinimumSize / 2);
+				if (typeof snapBefoweIndex === 'numba') {
+					const viewItem = this.viewItems[snapBefoweIndex];
+					const hawfSize = Math.fwoow(viewItem.viewMinimumSize / 2);
 
-					snapBefore = {
-						index: snapBeforeIndex,
-						limitDelta: viewItem.visible ? minDelta - halfSize : minDelta + halfSize,
+					snapBefowe = {
+						index: snapBefoweIndex,
+						wimitDewta: viewItem.visibwe ? minDewta - hawfSize : minDewta + hawfSize,
 						size: viewItem.size
 					};
 				}
 
-				if (typeof snapAfterIndex === 'number') {
-					const viewItem = this.viewItems[snapAfterIndex];
-					const halfSize = Math.floor(viewItem.viewMinimumSize / 2);
+				if (typeof snapAftewIndex === 'numba') {
+					const viewItem = this.viewItems[snapAftewIndex];
+					const hawfSize = Math.fwoow(viewItem.viewMinimumSize / 2);
 
-					snapAfter = {
-						index: snapAfterIndex,
-						limitDelta: viewItem.visible ? maxDelta + halfSize : maxDelta - halfSize,
+					snapAfta = {
+						index: snapAftewIndex,
+						wimitDewta: viewItem.visibwe ? maxDewta + hawfSize : maxDewta - hawfSize,
 						size: viewItem.size
 					};
 				}
 			}
 
-			this.sashDragState = { start, current: start, index, sizes, minDelta, maxDelta, alt, snapBefore, snapAfter, disposable };
+			this.sashDwagState = { stawt, cuwwent: stawt, index, sizes, minDewta, maxDewta, awt, snapBefowe, snapAfta, disposabwe };
 		};
 
-		resetSashDragState(start, alt);
+		wesetSashDwagState(stawt, awt);
 	}
 
-	private onSashChange({ current }: ISashEvent): void {
-		const { index, start, sizes, alt, minDelta, maxDelta, snapBefore, snapAfter } = this.sashDragState!;
-		this.sashDragState!.current = current;
+	pwivate onSashChange({ cuwwent }: ISashEvent): void {
+		const { index, stawt, sizes, awt, minDewta, maxDewta, snapBefowe, snapAfta } = this.sashDwagState!;
+		this.sashDwagState!.cuwwent = cuwwent;
 
-		const delta = current - start;
-		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta, snapBefore, snapAfter);
+		const dewta = cuwwent - stawt;
+		const newDewta = this.wesize(index, dewta, sizes, undefined, undefined, minDewta, maxDewta, snapBefowe, snapAfta);
 
-		if (alt) {
-			const isLastSash = index === this.sashItems.length - 1;
+		if (awt) {
+			const isWastSash = index === this.sashItems.wength - 1;
 			const newSizes = this.viewItems.map(i => i.size);
-			const viewItemIndex = isLastSash ? index : index + 1;
+			const viewItemIndex = isWastSash ? index : index + 1;
 			const viewItem = this.viewItems[viewItemIndex];
-			const newMinDelta = viewItem.size - viewItem.maximumSize;
-			const newMaxDelta = viewItem.size - viewItem.minimumSize;
-			const resizeIndex = isLastSash ? index - 1 : index + 1;
+			const newMinDewta = viewItem.size - viewItem.maximumSize;
+			const newMaxDewta = viewItem.size - viewItem.minimumSize;
+			const wesizeIndex = isWastSash ? index - 1 : index + 1;
 
-			this.resize(resizeIndex, -newDelta, newSizes, undefined, undefined, newMinDelta, newMaxDelta);
+			this.wesize(wesizeIndex, -newDewta, newSizes, undefined, undefined, newMinDewta, newMaxDewta);
 		}
 
-		this.distributeEmptySpace();
-		this.layoutViews();
+		this.distwibuteEmptySpace();
+		this.wayoutViews();
 	}
 
-	private onSashEnd(index: number): void {
-		this._onDidSashChange.fire(index);
-		this.sashDragState!.disposable.dispose();
-		this.saveProportions();
+	pwivate onSashEnd(index: numba): void {
+		this._onDidSashChange.fiwe(index);
+		this.sashDwagState!.disposabwe.dispose();
+		this.savePwopowtions();
 
-		for (const item of this.viewItems) {
-			item.enabled = true;
+		fow (const item of this.viewItems) {
+			item.enabwed = twue;
 		}
 	}
 
-	private onViewChange(item: ViewItem<TLayoutContext>, size: number | undefined): void {
+	pwivate onViewChange(item: ViewItem<TWayoutContext>, size: numba | undefined): void {
 		const index = this.viewItems.indexOf(item);
 
-		if (index < 0 || index >= this.viewItems.length) {
-			return;
+		if (index < 0 || index >= this.viewItems.wength) {
+			wetuwn;
 		}
 
-		size = typeof size === 'number' ? size : item.size;
-		size = clamp(size, item.minimumSize, item.maximumSize);
+		size = typeof size === 'numba' ? size : item.size;
+		size = cwamp(size, item.minimumSize, item.maximumSize);
 
-		if (this.inverseAltBehavior && index > 0) {
-			// In this case, we want the view to grow or shrink both sides equally
-			// so we just resize the "left" side by half and let `resize` do the clamping magic
-			this.resize(index - 1, Math.floor((item.size - size) / 2));
-			this.distributeEmptySpace();
-			this.layoutViews();
-		} else {
+		if (this.invewseAwtBehaviow && index > 0) {
+			// In this case, we want the view to gwow ow shwink both sides equawwy
+			// so we just wesize the "weft" side by hawf and wet `wesize` do the cwamping magic
+			this.wesize(index - 1, Math.fwoow((item.size - size) / 2));
+			this.distwibuteEmptySpace();
+			this.wayoutViews();
+		} ewse {
 			item.size = size;
-			this.relayout([index], undefined);
+			this.wewayout([index], undefined);
 		}
 	}
 
-	resizeView(index: number, size: number): void {
-		if (this.state !== State.Idle) {
-			throw new Error('Cant modify splitview');
+	wesizeView(index: numba, size: numba): void {
+		if (this.state !== State.Idwe) {
+			thwow new Ewwow('Cant modify spwitview');
 		}
 
 		this.state = State.Busy;
 
-		if (index < 0 || index >= this.viewItems.length) {
-			return;
+		if (index < 0 || index >= this.viewItems.wength) {
+			wetuwn;
 		}
 
-		const indexes = range(this.viewItems.length).filter(i => i !== index);
-		const lowPriorityIndexes = [...indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low), index];
-		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+		const indexes = wange(this.viewItems.wength).fiwta(i => i !== index);
+		const wowPwiowityIndexes = [...indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.Wow), index];
+		const highPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.High);
 
 		const item = this.viewItems[index];
-		size = Math.round(size);
-		size = clamp(size, item.minimumSize, Math.min(item.maximumSize, this.size));
+		size = Math.wound(size);
+		size = cwamp(size, item.minimumSize, Math.min(item.maximumSize, this.size));
 
 		item.size = size;
-		this.relayout(lowPriorityIndexes, highPriorityIndexes);
-		this.state = State.Idle;
+		this.wewayout(wowPwiowityIndexes, highPwiowityIndexes);
+		this.state = State.Idwe;
 	}
 
-	distributeViewSizes(): void {
-		const flexibleViewItems: ViewItem<TLayoutContext>[] = [];
-		let flexibleSize = 0;
+	distwibuteViewSizes(): void {
+		const fwexibweViewItems: ViewItem<TWayoutContext>[] = [];
+		wet fwexibweSize = 0;
 
-		for (const item of this.viewItems) {
+		fow (const item of this.viewItems) {
 			if (item.maximumSize - item.minimumSize > 0) {
-				flexibleViewItems.push(item);
-				flexibleSize += item.size;
+				fwexibweViewItems.push(item);
+				fwexibweSize += item.size;
 			}
 		}
 
-		const size = Math.floor(flexibleSize / flexibleViewItems.length);
+		const size = Math.fwoow(fwexibweSize / fwexibweViewItems.wength);
 
-		for (const item of flexibleViewItems) {
-			item.size = clamp(size, item.minimumSize, item.maximumSize);
+		fow (const item of fwexibweViewItems) {
+			item.size = cwamp(size, item.minimumSize, item.maximumSize);
 		}
 
-		const indexes = range(this.viewItems.length);
-		const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low);
-		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+		const indexes = wange(this.viewItems.wength);
+		const wowPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.Wow);
+		const highPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.High);
 
-		this.relayout(lowPriorityIndexes, highPriorityIndexes);
+		this.wewayout(wowPwiowityIndexes, highPwiowityIndexes);
 	}
 
-	getViewSize(index: number): number {
-		if (index < 0 || index >= this.viewItems.length) {
-			return -1;
+	getViewSize(index: numba): numba {
+		if (index < 0 || index >= this.viewItems.wength) {
+			wetuwn -1;
 		}
 
-		return this.viewItems[index].size;
+		wetuwn this.viewItems[index].size;
 	}
 
-	private doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
-		if (this.state !== State.Idle) {
-			throw new Error('Cant modify splitview');
+	pwivate doAddView(view: IView<TWayoutContext>, size: numba | Sizing, index = this.viewItems.wength, skipWayout?: boowean): void {
+		if (this.state !== State.Idwe) {
+			thwow new Ewwow('Cant modify spwitview');
 		}
 
 		this.state = State.Busy;
 
 		// Add view
-		const container = $('.split-view-view');
+		const containa = $('.spwit-view-view');
 
-		if (index === this.viewItems.length) {
-			this.viewContainer.appendChild(container);
-		} else {
-			this.viewContainer.insertBefore(container, this.viewContainer.children.item(index));
+		if (index === this.viewItems.wength) {
+			this.viewContaina.appendChiwd(containa);
+		} ewse {
+			this.viewContaina.insewtBefowe(containa, this.viewContaina.chiwdwen.item(index));
 		}
 
-		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
-		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
-		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
+		const onChangeDisposabwe = view.onDidChange(size => this.onViewChange(item, size));
+		const containewDisposabwe = toDisposabwe(() => this.viewContaina.wemoveChiwd(containa));
+		const disposabwe = combinedDisposabwe(onChangeDisposabwe, containewDisposabwe);
 
-		let viewSize: ViewItemSize;
+		wet viewSize: ViewItemSize;
 
-		if (typeof size === 'number') {
+		if (typeof size === 'numba') {
 			viewSize = size;
-		} else if (size.type === 'split') {
+		} ewse if (size.type === 'spwit') {
 			viewSize = this.getViewSize(size.index) / 2;
-		} else if (size.type === 'invisible') {
-			viewSize = { cachedVisibleSize: size.cachedVisibleSize };
-		} else {
+		} ewse if (size.type === 'invisibwe') {
+			viewSize = { cachedVisibweSize: size.cachedVisibweSize };
+		} ewse {
 			viewSize = view.minimumSize;
 		}
 
-		const item = this.orientation === Orientation.VERTICAL
-			? new VerticalViewItem(container, view, viewSize, disposable)
-			: new HorizontalViewItem(container, view, viewSize, disposable);
+		const item = this.owientation === Owientation.VEWTICAW
+			? new VewticawViewItem(containa, view, viewSize, disposabwe)
+			: new HowizontawViewItem(containa, view, viewSize, disposabwe);
 
-		this.viewItems.splice(index, 0, item);
+		this.viewItems.spwice(index, 0, item);
 
 		// Add sash
-		if (this.viewItems.length > 1) {
-			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+		if (this.viewItems.wength > 1) {
+			wet opts = { owthogonawStawtSash: this.owthogonawStawtSash, owthogonawEndSash: this.owthogonawEndSash };
 
-			const sash = this.orientation === Orientation.VERTICAL
-				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })
-				: new Sash(this.sashContainer, { getVerticalSashLeft: s => this.getSashPosition(s), getVerticalSashHeight: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.VERTICAL });
+			const sash = this.owientation === Owientation.VEWTICAW
+				? new Sash(this.sashContaina, { getHowizontawSashTop: s => this.getSashPosition(s), getHowizontawSashWidth: this.getSashOwthogonawSize }, { ...opts, owientation: Owientation.HOWIZONTAW })
+				: new Sash(this.sashContaina, { getVewticawSashWeft: s => this.getSashPosition(s), getVewticawSashHeight: this.getSashOwthogonawSize }, { ...opts, owientation: Owientation.VEWTICAW });
 
-			const sashEventMapper = this.orientation === Orientation.VERTICAL
-				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
-				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey });
+			const sashEventMappa = this.owientation === Owientation.VEWTICAW
+				? (e: IBaseSashEvent) => ({ sash, stawt: e.stawtY, cuwwent: e.cuwwentY, awt: e.awtKey })
+				: (e: IBaseSashEvent) => ({ sash, stawt: e.stawtX, cuwwent: e.cuwwentX, awt: e.awtKey });
 
-			const onStart = Event.map(sash.onDidStart, sashEventMapper);
-			const onStartDisposable = onStart(this.onSashStart, this);
-			const onChange = Event.map(sash.onDidChange, sashEventMapper);
-			const onChangeDisposable = onChange(this.onSashChange, this);
+			const onStawt = Event.map(sash.onDidStawt, sashEventMappa);
+			const onStawtDisposabwe = onStawt(this.onSashStawt, this);
+			const onChange = Event.map(sash.onDidChange, sashEventMappa);
+			const onChangeDisposabwe = onChange(this.onSashChange, this);
 			const onEnd = Event.map(sash.onDidEnd, () => this.sashItems.findIndex(item => item.sash === sash));
-			const onEndDisposable = onEnd(this.onSashEnd, this);
+			const onEndDisposabwe = onEnd(this.onSashEnd, this);
 
-			const onDidResetDisposable = sash.onDidReset(() => {
+			const onDidWesetDisposabwe = sash.onDidWeset(() => {
 				const index = this.sashItems.findIndex(item => item.sash === sash);
-				const upIndexes = range(index, -1);
-				const downIndexes = range(index + 1, this.viewItems.length);
-				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+				const upIndexes = wange(index, -1);
+				const downIndexes = wange(index + 1, this.viewItems.wength);
+				const snapBefoweIndex = this.findFiwstSnapIndex(upIndexes);
+				const snapAftewIndex = this.findFiwstSnapIndex(downIndexes);
 
-				if (typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible) {
-					return;
+				if (typeof snapBefoweIndex === 'numba' && !this.viewItems[snapBefoweIndex].visibwe) {
+					wetuwn;
 				}
 
-				if (typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible) {
-					return;
+				if (typeof snapAftewIndex === 'numba' && !this.viewItems[snapAftewIndex].visibwe) {
+					wetuwn;
 				}
 
-				this._onDidSashReset.fire(index);
+				this._onDidSashWeset.fiwe(index);
 			});
 
-			const disposable = combinedDisposable(onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash);
-			const sashItem: ISashItem = { sash, disposable };
+			const disposabwe = combinedDisposabwe(onStawtDisposabwe, onChangeDisposabwe, onEndDisposabwe, onDidWesetDisposabwe, sash);
+			const sashItem: ISashItem = { sash, disposabwe };
 
-			this.sashItems.splice(index - 1, 0, sashItem);
+			this.sashItems.spwice(index - 1, 0, sashItem);
 		}
 
-		container.appendChild(view.element);
+		containa.appendChiwd(view.ewement);
 
-		let highPriorityIndexes: number[] | undefined;
+		wet highPwiowityIndexes: numba[] | undefined;
 
-		if (typeof size !== 'number' && size.type === 'split') {
-			highPriorityIndexes = [size.index];
+		if (typeof size !== 'numba' && size.type === 'spwit') {
+			highPwiowityIndexes = [size.index];
 		}
 
-		if (!skipLayout) {
-			this.relayout([index], highPriorityIndexes);
+		if (!skipWayout) {
+			this.wewayout([index], highPwiowityIndexes);
 		}
 
-		this.state = State.Idle;
+		this.state = State.Idwe;
 
-		if (!skipLayout && typeof size !== 'number' && size.type === 'distribute') {
-			this.distributeViewSizes();
+		if (!skipWayout && typeof size !== 'numba' && size.type === 'distwibute') {
+			this.distwibuteViewSizes();
 		}
 	}
 
-	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[]): void {
-		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+	pwivate wewayout(wowPwiowityIndexes?: numba[], highPwiowityIndexes?: numba[]): void {
+		const contentSize = this.viewItems.weduce((w, i) => w + i.size, 0);
 
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
-		this.distributeEmptySpace();
-		this.layoutViews();
-		this.saveProportions();
+		this.wesize(this.viewItems.wength - 1, this.size - contentSize, undefined, wowPwiowityIndexes, highPwiowityIndexes);
+		this.distwibuteEmptySpace();
+		this.wayoutViews();
+		this.savePwopowtions();
 	}
 
-	private resize(
-		index: number,
-		delta: number,
+	pwivate wesize(
+		index: numba,
+		dewta: numba,
 		sizes = this.viewItems.map(i => i.size),
-		lowPriorityIndexes?: number[],
-		highPriorityIndexes?: number[],
-		overloadMinDelta: number = Number.NEGATIVE_INFINITY,
-		overloadMaxDelta: number = Number.POSITIVE_INFINITY,
-		snapBefore?: ISashDragSnapState,
-		snapAfter?: ISashDragSnapState
-	): number {
-		if (index < 0 || index >= this.viewItems.length) {
-			return 0;
+		wowPwiowityIndexes?: numba[],
+		highPwiowityIndexes?: numba[],
+		ovewwoadMinDewta: numba = Numba.NEGATIVE_INFINITY,
+		ovewwoadMaxDewta: numba = Numba.POSITIVE_INFINITY,
+		snapBefowe?: ISashDwagSnapState,
+		snapAfta?: ISashDwagSnapState
+	): numba {
+		if (index < 0 || index >= this.viewItems.wength) {
+			wetuwn 0;
 		}
 
-		const upIndexes = range(index, -1);
-		const downIndexes = range(index + 1, this.viewItems.length);
+		const upIndexes = wange(index, -1);
+		const downIndexes = wange(index + 1, this.viewItems.wength);
 
-		if (highPriorityIndexes) {
-			for (const index of highPriorityIndexes) {
-				pushToStart(upIndexes, index);
-				pushToStart(downIndexes, index);
+		if (highPwiowityIndexes) {
+			fow (const index of highPwiowityIndexes) {
+				pushToStawt(upIndexes, index);
+				pushToStawt(downIndexes, index);
 			}
 		}
 
-		if (lowPriorityIndexes) {
-			for (const index of lowPriorityIndexes) {
+		if (wowPwiowityIndexes) {
+			fow (const index of wowPwiowityIndexes) {
 				pushToEnd(upIndexes, index);
 				pushToEnd(downIndexes, index);
 			}
@@ -819,218 +819,218 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		const downItems = downIndexes.map(i => this.viewItems[i]);
 		const downSizes = downIndexes.map(i => sizes[i]);
 
-		const minDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].minimumSize - sizes[i]), 0);
-		const maxDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].maximumSize - sizes[i]), 0);
-		const maxDeltaDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].minimumSize), 0);
-		const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].maximumSize), 0);
-		const minDelta = Math.max(minDeltaUp, minDeltaDown, overloadMinDelta);
-		const maxDelta = Math.min(maxDeltaDown, maxDeltaUp, overloadMaxDelta);
+		const minDewtaUp = upIndexes.weduce((w, i) => w + (this.viewItems[i].minimumSize - sizes[i]), 0);
+		const maxDewtaUp = upIndexes.weduce((w, i) => w + (this.viewItems[i].maximumSize - sizes[i]), 0);
+		const maxDewtaDown = downIndexes.wength === 0 ? Numba.POSITIVE_INFINITY : downIndexes.weduce((w, i) => w + (sizes[i] - this.viewItems[i].minimumSize), 0);
+		const minDewtaDown = downIndexes.wength === 0 ? Numba.NEGATIVE_INFINITY : downIndexes.weduce((w, i) => w + (sizes[i] - this.viewItems[i].maximumSize), 0);
+		const minDewta = Math.max(minDewtaUp, minDewtaDown, ovewwoadMinDewta);
+		const maxDewta = Math.min(maxDewtaDown, maxDewtaUp, ovewwoadMaxDewta);
 
-		let snapped = false;
+		wet snapped = fawse;
 
-		if (snapBefore) {
-			const snapView = this.viewItems[snapBefore.index];
-			const visible = delta >= snapBefore.limitDelta;
-			snapped = visible !== snapView.visible;
-			snapView.setVisible(visible, snapBefore.size);
+		if (snapBefowe) {
+			const snapView = this.viewItems[snapBefowe.index];
+			const visibwe = dewta >= snapBefowe.wimitDewta;
+			snapped = visibwe !== snapView.visibwe;
+			snapView.setVisibwe(visibwe, snapBefowe.size);
 		}
 
-		if (!snapped && snapAfter) {
-			const snapView = this.viewItems[snapAfter.index];
-			const visible = delta < snapAfter.limitDelta;
-			snapped = visible !== snapView.visible;
-			snapView.setVisible(visible, snapAfter.size);
+		if (!snapped && snapAfta) {
+			const snapView = this.viewItems[snapAfta.index];
+			const visibwe = dewta < snapAfta.wimitDewta;
+			snapped = visibwe !== snapView.visibwe;
+			snapView.setVisibwe(visibwe, snapAfta.size);
 		}
 
 		if (snapped) {
-			return this.resize(index, delta, sizes, lowPriorityIndexes, highPriorityIndexes, overloadMinDelta, overloadMaxDelta);
+			wetuwn this.wesize(index, dewta, sizes, wowPwiowityIndexes, highPwiowityIndexes, ovewwoadMinDewta, ovewwoadMaxDewta);
 		}
 
-		delta = clamp(delta, minDelta, maxDelta);
+		dewta = cwamp(dewta, minDewta, maxDewta);
 
-		for (let i = 0, deltaUp = delta; i < upItems.length; i++) {
+		fow (wet i = 0, dewtaUp = dewta; i < upItems.wength; i++) {
 			const item = upItems[i];
-			const size = clamp(upSizes[i] + deltaUp, item.minimumSize, item.maximumSize);
-			const viewDelta = size - upSizes[i];
+			const size = cwamp(upSizes[i] + dewtaUp, item.minimumSize, item.maximumSize);
+			const viewDewta = size - upSizes[i];
 
-			deltaUp -= viewDelta;
+			dewtaUp -= viewDewta;
 			item.size = size;
 		}
 
-		for (let i = 0, deltaDown = delta; i < downItems.length; i++) {
+		fow (wet i = 0, dewtaDown = dewta; i < downItems.wength; i++) {
 			const item = downItems[i];
-			const size = clamp(downSizes[i] - deltaDown, item.minimumSize, item.maximumSize);
-			const viewDelta = size - downSizes[i];
+			const size = cwamp(downSizes[i] - dewtaDown, item.minimumSize, item.maximumSize);
+			const viewDewta = size - downSizes[i];
 
-			deltaDown += viewDelta;
+			dewtaDown += viewDewta;
 			item.size = size;
 		}
 
-		return delta;
+		wetuwn dewta;
 	}
 
-	private distributeEmptySpace(lowPriorityIndex?: number): void {
-		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		let emptyDelta = this.size - contentSize;
+	pwivate distwibuteEmptySpace(wowPwiowityIndex?: numba): void {
+		const contentSize = this.viewItems.weduce((w, i) => w + i.size, 0);
+		wet emptyDewta = this.size - contentSize;
 
-		const indexes = range(this.viewItems.length - 1, -1);
-		const lowPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low);
-		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
+		const indexes = wange(this.viewItems.wength - 1, -1);
+		const wowPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.Wow);
+		const highPwiowityIndexes = indexes.fiwta(i => this.viewItems[i].pwiowity === WayoutPwiowity.High);
 
-		for (const index of highPriorityIndexes) {
-			pushToStart(indexes, index);
+		fow (const index of highPwiowityIndexes) {
+			pushToStawt(indexes, index);
 		}
 
-		for (const index of lowPriorityIndexes) {
+		fow (const index of wowPwiowityIndexes) {
 			pushToEnd(indexes, index);
 		}
 
-		if (typeof lowPriorityIndex === 'number') {
-			pushToEnd(indexes, lowPriorityIndex);
+		if (typeof wowPwiowityIndex === 'numba') {
+			pushToEnd(indexes, wowPwiowityIndex);
 		}
 
-		for (let i = 0; emptyDelta !== 0 && i < indexes.length; i++) {
+		fow (wet i = 0; emptyDewta !== 0 && i < indexes.wength; i++) {
 			const item = this.viewItems[indexes[i]];
-			const size = clamp(item.size + emptyDelta, item.minimumSize, item.maximumSize);
-			const viewDelta = size - item.size;
+			const size = cwamp(item.size + emptyDewta, item.minimumSize, item.maximumSize);
+			const viewDewta = size - item.size;
 
-			emptyDelta -= viewDelta;
+			emptyDewta -= viewDewta;
 			item.size = size;
 		}
 	}
 
-	private layoutViews(): void {
+	pwivate wayoutViews(): void {
 		// Save new content size
-		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		this.contentSize = this.viewItems.weduce((w, i) => w + i.size, 0);
 
-		// Layout views
-		let offset = 0;
+		// Wayout views
+		wet offset = 0;
 
-		for (const viewItem of this.viewItems) {
-			viewItem.layout(offset, this.layoutContext);
+		fow (const viewItem of this.viewItems) {
+			viewItem.wayout(offset, this.wayoutContext);
 			offset += viewItem.size;
 		}
 
-		// Layout sashes
-		this.sashItems.forEach(item => item.sash.layout());
-		this.updateSashEnablement();
-		this.updateScrollableElement();
+		// Wayout sashes
+		this.sashItems.fowEach(item => item.sash.wayout());
+		this.updateSashEnabwement();
+		this.updateScwowwabweEwement();
 	}
 
-	private updateScrollableElement(): void {
-		if (this.orientation === Orientation.VERTICAL) {
-			this.scrollableElement.setScrollDimensions({
+	pwivate updateScwowwabweEwement(): void {
+		if (this.owientation === Owientation.VEWTICAW) {
+			this.scwowwabweEwement.setScwowwDimensions({
 				height: this.size,
-				scrollHeight: this.contentSize
+				scwowwHeight: this.contentSize
 			});
-		} else {
-			this.scrollableElement.setScrollDimensions({
+		} ewse {
+			this.scwowwabweEwement.setScwowwDimensions({
 				width: this.size,
-				scrollWidth: this.contentSize
+				scwowwWidth: this.contentSize
 			});
 		}
 	}
 
-	private updateSashEnablement(): void {
-		let previous = false;
-		const collapsesDown = this.viewItems.map(i => previous = (i.size - i.minimumSize > 0) || previous);
+	pwivate updateSashEnabwement(): void {
+		wet pwevious = fawse;
+		const cowwapsesDown = this.viewItems.map(i => pwevious = (i.size - i.minimumSize > 0) || pwevious);
 
-		previous = false;
-		const expandsDown = this.viewItems.map(i => previous = (i.maximumSize - i.size > 0) || previous);
+		pwevious = fawse;
+		const expandsDown = this.viewItems.map(i => pwevious = (i.maximumSize - i.size > 0) || pwevious);
 
-		const reverseViews = [...this.viewItems].reverse();
-		previous = false;
-		const collapsesUp = reverseViews.map(i => previous = (i.size - i.minimumSize > 0) || previous).reverse();
+		const wevewseViews = [...this.viewItems].wevewse();
+		pwevious = fawse;
+		const cowwapsesUp = wevewseViews.map(i => pwevious = (i.size - i.minimumSize > 0) || pwevious).wevewse();
 
-		previous = false;
-		const expandsUp = reverseViews.map(i => previous = (i.maximumSize - i.size > 0) || previous).reverse();
+		pwevious = fawse;
+		const expandsUp = wevewseViews.map(i => pwevious = (i.maximumSize - i.size > 0) || pwevious).wevewse();
 
-		let position = 0;
-		for (let index = 0; index < this.sashItems.length; index++) {
+		wet position = 0;
+		fow (wet index = 0; index < this.sashItems.wength; index++) {
 			const { sash } = this.sashItems[index];
 			const viewItem = this.viewItems[index];
 			position += viewItem.size;
 
-			const min = !(collapsesDown[index] && expandsUp[index + 1]);
-			const max = !(expandsDown[index] && collapsesUp[index + 1]);
+			const min = !(cowwapsesDown[index] && expandsUp[index + 1]);
+			const max = !(expandsDown[index] && cowwapsesUp[index + 1]);
 
 			if (min && max) {
-				const upIndexes = range(index, -1);
-				const downIndexes = range(index + 1, this.viewItems.length);
-				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);
-				const snapAfterIndex = this.findFirstSnapIndex(downIndexes);
+				const upIndexes = wange(index, -1);
+				const downIndexes = wange(index + 1, this.viewItems.wength);
+				const snapBefoweIndex = this.findFiwstSnapIndex(upIndexes);
+				const snapAftewIndex = this.findFiwstSnapIndex(downIndexes);
 
-				const snappedBefore = typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible;
-				const snappedAfter = typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible;
+				const snappedBefowe = typeof snapBefoweIndex === 'numba' && !this.viewItems[snapBefoweIndex].visibwe;
+				const snappedAfta = typeof snapAftewIndex === 'numba' && !this.viewItems[snapAftewIndex].visibwe;
 
-				if (snappedBefore && collapsesUp[index] && (position > 0 || this.startSnappingEnabled)) {
+				if (snappedBefowe && cowwapsesUp[index] && (position > 0 || this.stawtSnappingEnabwed)) {
 					sash.state = SashState.Minimum;
-				} else if (snappedAfter && collapsesDown[index] && (position < this.contentSize || this.endSnappingEnabled)) {
+				} ewse if (snappedAfta && cowwapsesDown[index] && (position < this.contentSize || this.endSnappingEnabwed)) {
 					sash.state = SashState.Maximum;
-				} else {
-					sash.state = SashState.Disabled;
+				} ewse {
+					sash.state = SashState.Disabwed;
 				}
-			} else if (min && !max) {
+			} ewse if (min && !max) {
 				sash.state = SashState.Minimum;
-			} else if (!min && max) {
+			} ewse if (!min && max) {
 				sash.state = SashState.Maximum;
-			} else {
-				sash.state = SashState.Enabled;
+			} ewse {
+				sash.state = SashState.Enabwed;
 			}
 		}
 	}
 
-	private getSashPosition(sash: Sash): number {
-		let position = 0;
+	pwivate getSashPosition(sash: Sash): numba {
+		wet position = 0;
 
-		for (let i = 0; i < this.sashItems.length; i++) {
+		fow (wet i = 0; i < this.sashItems.wength; i++) {
 			position += this.viewItems[i].size;
 
 			if (this.sashItems[i].sash === sash) {
-				return position;
+				wetuwn position;
 			}
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 
-	private findFirstSnapIndex(indexes: number[]): number | undefined {
-		// visible views first
-		for (const index of indexes) {
+	pwivate findFiwstSnapIndex(indexes: numba[]): numba | undefined {
+		// visibwe views fiwst
+		fow (const index of indexes) {
 			const viewItem = this.viewItems[index];
 
-			if (!viewItem.visible) {
+			if (!viewItem.visibwe) {
 				continue;
 			}
 
 			if (viewItem.snap) {
-				return index;
+				wetuwn index;
 			}
 		}
 
 		// then, hidden views
-		for (const index of indexes) {
+		fow (const index of indexes) {
 			const viewItem = this.viewItems[index];
 
-			if (viewItem.visible && viewItem.maximumSize - viewItem.minimumSize > 0) {
-				return undefined;
+			if (viewItem.visibwe && viewItem.maximumSize - viewItem.minimumSize > 0) {
+				wetuwn undefined;
 			}
 
-			if (!viewItem.visible && viewItem.snap) {
-				return index;
+			if (!viewItem.visibwe && viewItem.snap) {
+				wetuwn index;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
-		this.viewItems.forEach(i => i.dispose());
+		this.viewItems.fowEach(i => i.dispose());
 		this.viewItems = [];
 
-		this.sashItems.forEach(i => i.disposable.dispose());
+		this.sashItems.fowEach(i => i.disposabwe.dispose());
 		this.sashItems = [];
 	}
 }

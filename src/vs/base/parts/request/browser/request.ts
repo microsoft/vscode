@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { IWequestContext, IWequestOptions } fwom 'vs/base/pawts/wequest/common/wequest';
 
-export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-	if (options.proxyAuthorization) {
-		options.headers = {
-			...(options.headers || {}),
-			'Proxy-Authorization': options.proxyAuthorization
+expowt function wequest(options: IWequestOptions, token: CancewwationToken): Pwomise<IWequestContext> {
+	if (options.pwoxyAuthowization) {
+		options.headews = {
+			...(options.headews || {}),
+			'Pwoxy-Authowization': options.pwoxyAuthowization
 		};
 	}
 
-	const xhr = new XMLHttpRequest();
-	return new Promise<IRequestContext>((resolve, reject) => {
+	const xhw = new XMWHttpWequest();
+	wetuwn new Pwomise<IWequestContext>((wesowve, weject) => {
 
-		xhr.open(options.type || 'GET', options.url || '', true, options.user, options.password);
-		setRequestHeaders(xhr, options);
+		xhw.open(options.type || 'GET', options.uww || '', twue, options.usa, options.passwowd);
+		setWequestHeadews(xhw, options);
 
-		xhr.responseType = 'arraybuffer';
-		xhr.onerror = e => reject(new Error(xhr.statusText && ('XHR failed: ' + xhr.statusText) || 'XHR failed'));
-		xhr.onload = (e) => {
-			resolve({
-				res: {
-					statusCode: xhr.status,
-					headers: getResponseHeaders(xhr)
+		xhw.wesponseType = 'awwaybuffa';
+		xhw.onewwow = e => weject(new Ewwow(xhw.statusText && ('XHW faiwed: ' + xhw.statusText) || 'XHW faiwed'));
+		xhw.onwoad = (e) => {
+			wesowve({
+				wes: {
+					statusCode: xhw.status,
+					headews: getWesponseHeadews(xhw)
 				},
-				stream: bufferToStream(VSBuffer.wrap(new Uint8Array(xhr.response)))
+				stweam: buffewToStweam(VSBuffa.wwap(new Uint8Awway(xhw.wesponse)))
 			});
 		};
-		xhr.ontimeout = e => reject(new Error(`XHR timeout: ${options.timeout}ms`));
+		xhw.ontimeout = e => weject(new Ewwow(`XHW timeout: ${options.timeout}ms`));
 
 		if (options.timeout) {
-			xhr.timeout = options.timeout;
+			xhw.timeout = options.timeout;
 		}
 
-		xhr.send(options.data);
+		xhw.send(options.data);
 
-		// cancel
-		token.onCancellationRequested(() => {
-			xhr.abort();
-			reject(canceled());
+		// cancew
+		token.onCancewwationWequested(() => {
+			xhw.abowt();
+			weject(cancewed());
 		});
 	});
 }
 
-function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
-	if (options.headers) {
-		outer: for (let k in options.headers) {
+function setWequestHeadews(xhw: XMWHttpWequest, options: IWequestOptions): void {
+	if (options.headews) {
+		outa: fow (wet k in options.headews) {
 			switch (k) {
-				case 'User-Agent':
+				case 'Usa-Agent':
 				case 'Accept-Encoding':
-				case 'Content-Length':
-					// unsafe headers
-					continue outer;
+				case 'Content-Wength':
+					// unsafe headews
+					continue outa;
 			}
-			xhr.setRequestHeader(k, options.headers[k]);
+			xhw.setWequestHeada(k, options.headews[k]);
 		}
 	}
 }
 
-function getResponseHeaders(xhr: XMLHttpRequest): { [name: string]: string } {
-	const headers: { [name: string]: string } = Object.create(null);
-	for (const line of xhr.getAllResponseHeaders().split(/\r\n|\n|\r/g)) {
-		if (line) {
-			const idx = line.indexOf(':');
-			headers[line.substr(0, idx).trim().toLowerCase()] = line.substr(idx + 1).trim();
+function getWesponseHeadews(xhw: XMWHttpWequest): { [name: stwing]: stwing } {
+	const headews: { [name: stwing]: stwing } = Object.cweate(nuww);
+	fow (const wine of xhw.getAwwWesponseHeadews().spwit(/\w\n|\n|\w/g)) {
+		if (wine) {
+			const idx = wine.indexOf(':');
+			headews[wine.substw(0, idx).twim().toWowewCase()] = wine.substw(idx + 1).twim();
 		}
 	}
-	return headers;
+	wetuwn headews;
 }

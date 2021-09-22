@@ -1,516 +1,516 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { Command, CommandManager } from '../commands/commandManager';
-import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as fileSchemes from '../utils/fileSchemes';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
-import FormattingOptionsManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { Command, CommandManaga } fwom '../commands/commandManaga';
+impowt { WeawnMoweAboutWefactowingsCommand } fwom '../commands/weawnMoweAboutWefactowings';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { nuwToken } fwom '../utiws/cancewwation';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as fiweSchemes fwom '../utiws/fiweSchemes';
+impowt { TewemetwyWepowta } fwom '../utiws/tewemetwy';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt FowmattingOptionsManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
 
-interface DidApplyRefactoringCommand_Args {
-	readonly codeAction: InlinedCodeAction
+intewface DidAppwyWefactowingCommand_Awgs {
+	weadonwy codeAction: InwinedCodeAction
 }
 
-class DidApplyRefactoringCommand implements Command {
-	public static readonly ID = '_typescript.didApplyRefactoring';
-	public readonly id = DidApplyRefactoringCommand.ID;
+cwass DidAppwyWefactowingCommand impwements Command {
+	pubwic static weadonwy ID = '_typescwipt.didAppwyWefactowing';
+	pubwic weadonwy id = DidAppwyWefactowingCommand.ID;
 
-	constructor(
-		private readonly telemetryReporter: TelemetryReporter
+	constwuctow(
+		pwivate weadonwy tewemetwyWepowta: TewemetwyWepowta
 	) { }
 
-	public async execute(args: DidApplyRefactoringCommand_Args): Promise<void> {
-		/* __GDPR__
-			"refactor.execute" : {
-				"action" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${TypeScriptCommonProperties}"
+	pubwic async execute(awgs: DidAppwyWefactowingCommand_Awgs): Pwomise<void> {
+		/* __GDPW__
+			"wefactow.execute" : {
+				"action" : { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+				"${incwude}": [
+					"${TypeScwiptCommonPwopewties}"
 				]
 			}
 		*/
-		this.telemetryReporter.logTelemetry('refactor.execute', {
-			action: args.codeAction.action,
+		this.tewemetwyWepowta.wogTewemetwy('wefactow.execute', {
+			action: awgs.codeAction.action,
 		});
 
-		if (!args.codeAction.edit?.size) {
-			vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
-			return;
+		if (!awgs.codeAction.edit?.size) {
+			vscode.window.showEwwowMessage(wocawize('wefactowingFaiwed', "Couwd not appwy wefactowing"));
+			wetuwn;
 		}
 
-		const renameLocation = args.codeAction.renameLocation;
-		if (renameLocation) {
-			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
-			if (args.codeAction.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
-				await vscode.commands.executeCommand('editor.action.rename', [
-					args.codeAction.document.uri,
-					typeConverters.Position.fromLocation(renameLocation)
+		const wenameWocation = awgs.codeAction.wenameWocation;
+		if (wenameWocation) {
+			// Disabwe wenames in intewactive pwaygwound https://github.com/micwosoft/vscode/issues/75137
+			if (awgs.codeAction.document.uwi.scheme !== fiweSchemes.wawkThwoughSnippet) {
+				await vscode.commands.executeCommand('editow.action.wename', [
+					awgs.codeAction.document.uwi,
+					typeConvewtews.Position.fwomWocation(wenameWocation)
 				]);
 			}
 		}
 	}
 }
 
-interface SelectRefactorCommand_Args {
-	readonly action: vscode.CodeAction;
-	readonly document: vscode.TextDocument;
-	readonly info: Proto.ApplicableRefactorInfo;
-	readonly rangeOrSelection: vscode.Range | vscode.Selection;
+intewface SewectWefactowCommand_Awgs {
+	weadonwy action: vscode.CodeAction;
+	weadonwy document: vscode.TextDocument;
+	weadonwy info: Pwoto.AppwicabweWefactowInfo;
+	weadonwy wangeOwSewection: vscode.Wange | vscode.Sewection;
 }
 
-class SelectRefactorCommand implements Command {
-	public static readonly ID = '_typescript.selectRefactoring';
-	public readonly id = SelectRefactorCommand.ID;
+cwass SewectWefactowCommand impwements Command {
+	pubwic static weadonwy ID = '_typescwipt.sewectWefactowing';
+	pubwic weadonwy id = SewectWefactowCommand.ID;
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly didApplyCommand: DidApplyRefactoringCommand
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy didAppwyCommand: DidAppwyWefactowingCommand
 	) { }
 
-	public async execute(args: SelectRefactorCommand_Args): Promise<void> {
-		const file = this.client.toOpenedFilePath(args.document);
-		if (!file) {
-			return;
+	pubwic async execute(awgs: SewectWefactowCommand_Awgs): Pwomise<void> {
+		const fiwe = this.cwient.toOpenedFiwePath(awgs.document);
+		if (!fiwe) {
+			wetuwn;
 		}
 
-		const selected = await vscode.window.showQuickPick(args.info.actions.map((action): vscode.QuickPickItem => ({
-			label: action.name,
-			description: action.description,
+		const sewected = await vscode.window.showQuickPick(awgs.info.actions.map((action): vscode.QuickPickItem => ({
+			wabew: action.name,
+			descwiption: action.descwiption,
 		})));
-		if (!selected) {
-			return;
+		if (!sewected) {
+			wetuwn;
 		}
 
-		const tsAction = new InlinedCodeAction(this.client, args.action.title, args.action.kind, args.document, args.info.name, selected.label, args.rangeOrSelection);
-		await tsAction.resolve(nulToken);
+		const tsAction = new InwinedCodeAction(this.cwient, awgs.action.titwe, awgs.action.kind, awgs.document, awgs.info.name, sewected.wabew, awgs.wangeOwSewection);
+		await tsAction.wesowve(nuwToken);
 
 		if (tsAction.edit) {
-			if (!(await vscode.workspace.applyEdit(tsAction.edit))) {
-				vscode.window.showErrorMessage(localize('refactoringFailed', "Could not apply refactoring"));
-				return;
+			if (!(await vscode.wowkspace.appwyEdit(tsAction.edit))) {
+				vscode.window.showEwwowMessage(wocawize('wefactowingFaiwed', "Couwd not appwy wefactowing"));
+				wetuwn;
 			}
 		}
 
-		await this.didApplyCommand.execute({ codeAction: tsAction });
+		await this.didAppwyCommand.execute({ codeAction: tsAction });
 	}
 }
 
-interface CodeActionKind {
-	readonly kind: vscode.CodeActionKind;
-	matches(refactor: Proto.RefactorActionInfo): boolean;
+intewface CodeActionKind {
+	weadonwy kind: vscode.CodeActionKind;
+	matches(wefactow: Pwoto.WefactowActionInfo): boowean;
 }
 
-const Extract_Function = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorExtract.append('function'),
-	matches: refactor => refactor.name.startsWith('function_')
+const Extwact_Function = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowExtwact.append('function'),
+	matches: wefactow => wefactow.name.stawtsWith('function_')
 });
 
-const Extract_Constant = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorExtract.append('constant'),
-	matches: refactor => refactor.name.startsWith('constant_')
+const Extwact_Constant = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowExtwact.append('constant'),
+	matches: wefactow => wefactow.name.stawtsWith('constant_')
 });
 
-const Extract_Type = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorExtract.append('type'),
-	matches: refactor => refactor.name.startsWith('Extract to type alias')
+const Extwact_Type = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowExtwact.append('type'),
+	matches: wefactow => wefactow.name.stawtsWith('Extwact to type awias')
 });
 
-const Extract_Interface = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorExtract.append('interface'),
-	matches: refactor => refactor.name.startsWith('Extract to interface')
+const Extwact_Intewface = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowExtwact.append('intewface'),
+	matches: wefactow => wefactow.name.stawtsWith('Extwact to intewface')
 });
 
-const Move_NewFile = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
-	matches: refactor => refactor.name.startsWith('Move to a new file')
+const Move_NewFiwe = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.Wefactow.append('move').append('newFiwe'),
+	matches: wefactow => wefactow.name.stawtsWith('Move to a new fiwe')
 });
 
-const Rewrite_Import = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('import'),
-	matches: refactor => refactor.name.startsWith('Convert namespace import') || refactor.name.startsWith('Convert named imports')
+const Wewwite_Impowt = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowWewwite.append('impowt'),
+	matches: wefactow => wefactow.name.stawtsWith('Convewt namespace impowt') || wefactow.name.stawtsWith('Convewt named impowts')
 });
 
-const Rewrite_Export = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('export'),
-	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
+const Wewwite_Expowt = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowWewwite.append('expowt'),
+	matches: wefactow => wefactow.name.stawtsWith('Convewt defauwt expowt') || wefactow.name.stawtsWith('Convewt named expowt')
 });
 
-const Rewrite_Arrow_Braces = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('arrow').append('braces'),
-	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
+const Wewwite_Awwow_Bwaces = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowWewwite.append('awwow').append('bwaces'),
+	matches: wefactow => wefactow.name.stawtsWith('Convewt defauwt expowt') || wefactow.name.stawtsWith('Convewt named expowt')
 });
 
-const Rewrite_Parameters_ToDestructured = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('parameters').append('toDestructured'),
-	matches: refactor => refactor.name.startsWith('Convert parameters to destructured object')
+const Wewwite_Pawametews_ToDestwuctuwed = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowWewwite.append('pawametews').append('toDestwuctuwed'),
+	matches: wefactow => wefactow.name.stawtsWith('Convewt pawametews to destwuctuwed object')
 });
 
-const Rewrite_Property_GenerateAccessors = Object.freeze<CodeActionKind>({
-	kind: vscode.CodeActionKind.RefactorRewrite.append('property').append('generateAccessors'),
-	matches: refactor => refactor.name.startsWith('Generate \'get\' and \'set\' accessors')
+const Wewwite_Pwopewty_GenewateAccessows = Object.fweeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.WefactowWewwite.append('pwopewty').append('genewateAccessows'),
+	matches: wefactow => wefactow.name.stawtsWith('Genewate \'get\' and \'set\' accessows')
 });
 
-const allKnownCodeActionKinds = [
-	Extract_Function,
-	Extract_Constant,
-	Extract_Type,
-	Extract_Interface,
-	Move_NewFile,
-	Rewrite_Import,
-	Rewrite_Export,
-	Rewrite_Arrow_Braces,
-	Rewrite_Parameters_ToDestructured,
-	Rewrite_Property_GenerateAccessors
+const awwKnownCodeActionKinds = [
+	Extwact_Function,
+	Extwact_Constant,
+	Extwact_Type,
+	Extwact_Intewface,
+	Move_NewFiwe,
+	Wewwite_Impowt,
+	Wewwite_Expowt,
+	Wewwite_Awwow_Bwaces,
+	Wewwite_Pawametews_ToDestwuctuwed,
+	Wewwite_Pwopewty_GenewateAccessows
 ];
 
-class InlinedCodeAction extends vscode.CodeAction {
-	constructor(
-		public readonly client: ITypeScriptServiceClient,
-		title: string,
+cwass InwinedCodeAction extends vscode.CodeAction {
+	constwuctow(
+		pubwic weadonwy cwient: ITypeScwiptSewviceCwient,
+		titwe: stwing,
 		kind: vscode.CodeActionKind | undefined,
-		public readonly document: vscode.TextDocument,
-		public readonly refactor: string,
-		public readonly action: string,
-		public readonly range: vscode.Range,
+		pubwic weadonwy document: vscode.TextDocument,
+		pubwic weadonwy wefactow: stwing,
+		pubwic weadonwy action: stwing,
+		pubwic weadonwy wange: vscode.Wange,
 	) {
-		super(title, kind);
+		supa(titwe, kind);
 	}
 
-	// Filled in during resolve
-	public renameLocation?: Proto.Location;
+	// Fiwwed in duwing wesowve
+	pubwic wenameWocation?: Pwoto.Wocation;
 
-	public async resolve(token: vscode.CancellationToken): Promise<undefined> {
-		const file = this.client.toOpenedFilePath(this.document);
-		if (!file) {
-			return;
+	pubwic async wesowve(token: vscode.CancewwationToken): Pwomise<undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(this.document);
+		if (!fiwe) {
+			wetuwn;
 		}
 
-		const args: Proto.GetEditsForRefactorRequestArgs = {
-			...typeConverters.Range.toFileRangeRequestArgs(file, this.range),
-			refactor: this.refactor,
+		const awgs: Pwoto.GetEditsFowWefactowWequestAwgs = {
+			...typeConvewtews.Wange.toFiweWangeWequestAwgs(fiwe, this.wange),
+			wefactow: this.wefactow,
 			action: this.action,
 		};
 
-		const response = await this.client.execute('getEditsForRefactor', args, token);
-		if (response.type !== 'response' || !response.body) {
-			return;
+		const wesponse = await this.cwient.execute('getEditsFowWefactow', awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn;
 		}
 
-		// Resolve
-		this.edit = InlinedCodeAction.getWorkspaceEditForRefactoring(this.client, response.body);
-		this.renameLocation = response.body.renameLocation;
+		// Wesowve
+		this.edit = InwinedCodeAction.getWowkspaceEditFowWefactowing(this.cwient, wesponse.body);
+		this.wenameWocation = wesponse.body.wenameWocation;
 
-		return;
+		wetuwn;
 	}
 
-	private static getWorkspaceEditForRefactoring(
-		client: ITypeScriptServiceClient,
-		body: Proto.RefactorEditInfo,
-	): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		for (const edit of body.edits) {
-			const resource = client.toResource(edit.fileName);
-			if (resource.scheme === fileSchemes.file) {
-				workspaceEdit.createFile(resource, { ignoreIfExists: true });
+	pwivate static getWowkspaceEditFowWefactowing(
+		cwient: ITypeScwiptSewviceCwient,
+		body: Pwoto.WefactowEditInfo,
+	): vscode.WowkspaceEdit {
+		const wowkspaceEdit = new vscode.WowkspaceEdit();
+		fow (const edit of body.edits) {
+			const wesouwce = cwient.toWesouwce(edit.fiweName);
+			if (wesouwce.scheme === fiweSchemes.fiwe) {
+				wowkspaceEdit.cweateFiwe(wesouwce, { ignoweIfExists: twue });
 			}
 		}
-		typeConverters.WorkspaceEdit.withFileCodeEdits(workspaceEdit, client, body.edits);
-		return workspaceEdit;
+		typeConvewtews.WowkspaceEdit.withFiweCodeEdits(wowkspaceEdit, cwient, body.edits);
+		wetuwn wowkspaceEdit;
 	}
 }
 
-class SelectCodeAction extends vscode.CodeAction {
-	constructor(
-		info: Proto.ApplicableRefactorInfo,
+cwass SewectCodeAction extends vscode.CodeAction {
+	constwuctow(
+		info: Pwoto.AppwicabweWefactowInfo,
 		document: vscode.TextDocument,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		wangeOwSewection: vscode.Wange | vscode.Sewection
 	) {
-		super(info.description, vscode.CodeActionKind.Refactor);
+		supa(info.descwiption, vscode.CodeActionKind.Wefactow);
 		this.command = {
-			title: info.description,
-			command: SelectRefactorCommand.ID,
-			arguments: [<SelectRefactorCommand_Args>{ action: this, document, info, rangeOrSelection }]
+			titwe: info.descwiption,
+			command: SewectWefactowCommand.ID,
+			awguments: [<SewectWefactowCommand_Awgs>{ action: this, document, info, wangeOwSewection }]
 		};
 	}
 }
 
-type TsCodeAction = InlinedCodeAction | SelectCodeAction;
+type TsCodeAction = InwinedCodeAction | SewectCodeAction;
 
-class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
-	public static readonly minVersion = API.v240;
+cwass TypeScwiptWefactowPwovida impwements vscode.CodeActionPwovida<TsCodeAction> {
+	pubwic static weadonwy minVewsion = API.v240;
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FormattingOptionsManager,
-		commandManager: CommandManager,
-		telemetryReporter: TelemetryReporter
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fowmattingOptionsManaga: FowmattingOptionsManaga,
+		commandManaga: CommandManaga,
+		tewemetwyWepowta: TewemetwyWepowta
 	) {
-		const didApplyRefactoringCommand = commandManager.register(new DidApplyRefactoringCommand(telemetryReporter));
-		commandManager.register(new SelectRefactorCommand(this.client, didApplyRefactoringCommand));
+		const didAppwyWefactowingCommand = commandManaga.wegista(new DidAppwyWefactowingCommand(tewemetwyWepowta));
+		commandManaga.wegista(new SewectWefactowCommand(this.cwient, didAppwyWefactowingCommand));
 	}
 
-	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [
-			vscode.CodeActionKind.Refactor,
-			...allKnownCodeActionKinds.map(x => x.kind),
+	pubwic static weadonwy metadata: vscode.CodeActionPwovidewMetadata = {
+		pwovidedCodeActionKinds: [
+			vscode.CodeActionKind.Wefactow,
+			...awwKnownCodeActionKinds.map(x => x.kind),
 		],
 		documentation: [
 			{
-				kind: vscode.CodeActionKind.Refactor,
+				kind: vscode.CodeActionKind.Wefactow,
 				command: {
-					command: LearnMoreAboutRefactoringsCommand.id,
-					title: localize('refactor.documentation.title', "Learn more about JS/TS refactorings")
+					command: WeawnMoweAboutWefactowingsCommand.id,
+					titwe: wocawize('wefactow.documentation.titwe', "Weawn mowe about JS/TS wefactowings")
 				}
 			}
 		]
 	};
 
-	public async provideCodeActions(
+	pubwic async pwovideCodeActions(
 		document: vscode.TextDocument,
-		rangeOrSelection: vscode.Range | vscode.Selection,
+		wangeOwSewection: vscode.Wange | vscode.Sewection,
 		context: vscode.CodeActionContext,
-		token: vscode.CancellationToken
-	): Promise<TsCodeAction[] | undefined> {
-		if (!this.shouldTrigger(context, rangeOrSelection)) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<TsCodeAction[] | undefined> {
+		if (!this.shouwdTwigga(context, wangeOwSewection)) {
+			wetuwn undefined;
 		}
-		if (!this.client.toOpenedFilePath(document)) {
-			return undefined;
+		if (!this.cwient.toOpenedFiwePath(document)) {
+			wetuwn undefined;
 		}
 
-		const response = await this.client.interruptGetErr(() => {
-			const file = this.client.toOpenedFilePath(document);
-			if (!file) {
-				return undefined;
+		const wesponse = await this.cwient.intewwuptGetEww(() => {
+			const fiwe = this.cwient.toOpenedFiwePath(document);
+			if (!fiwe) {
+				wetuwn undefined;
 			}
-			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
+			this.fowmattingOptionsManaga.ensuweConfiguwationFowDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs & { kind?: string } = {
-				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
-				triggerReason: this.toTsTriggerReason(context),
-				kind: context.only?.value
+			const awgs: Pwoto.GetAppwicabweWefactowsWequestAwgs & { kind?: stwing } = {
+				...typeConvewtews.Wange.toFiweWangeWequestAwgs(fiwe, wangeOwSewection),
+				twiggewWeason: this.toTsTwiggewWeason(context),
+				kind: context.onwy?.vawue
 			};
-			return this.client.execute('getApplicableRefactors', args, token);
+			wetuwn this.cwient.execute('getAppwicabweWefactows', awgs, token);
 		});
-		if (response?.type !== 'response' || !response.body) {
-			return undefined;
+		if (wesponse?.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection).filter(action => {
-			if (this.client.apiVersion.lt(API.v430)) {
-				// Don't show 'infer return type' refactoring unless it has been explicitly requested
-				// https://github.com/microsoft/TypeScript/issues/42993
-				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
-					return false;
+		const actions = this.convewtAppwicabweWefactows(wesponse.body, document, wangeOwSewection).fiwta(action => {
+			if (this.cwient.apiVewsion.wt(API.v430)) {
+				// Don't show 'infa wetuwn type' wefactowing unwess it has been expwicitwy wequested
+				// https://github.com/micwosoft/TypeScwipt/issues/42993
+				if (!context.onwy && action.kind?.vawue === 'wefactow.wewwite.function.wetuwnType') {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		});
 
-		if (!context.only) {
-			return actions;
+		if (!context.onwy) {
+			wetuwn actions;
 		}
-		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
+		wetuwn this.pwuneInvawidActions(this.appendInvawidActions(actions), context.onwy, /* numbewOfInvawid = */ 5);
 	}
 
-	public async resolveCodeAction(
+	pubwic async wesowveCodeAction(
 		codeAction: TsCodeAction,
-		token: vscode.CancellationToken,
-	): Promise<TsCodeAction> {
-		if (codeAction instanceof InlinedCodeAction) {
-			await codeAction.resolve(token);
+		token: vscode.CancewwationToken,
+	): Pwomise<TsCodeAction> {
+		if (codeAction instanceof InwinedCodeAction) {
+			await codeAction.wesowve(token);
 		}
-		return codeAction;
+		wetuwn codeAction;
 	}
 
-	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
-			return 'invoked';
+	pwivate toTsTwiggewWeason(context: vscode.CodeActionContext): Pwoto.WefactowTwiggewWeason | undefined {
+		if (context.twiggewKind === vscode.CodeActionTwiggewKind.Invoke) {
+			wetuwn 'invoked';
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private convertApplicableRefactors(
-		body: Proto.ApplicableRefactorInfo[],
+	pwivate convewtAppwicabweWefactows(
+		body: Pwoto.AppwicabweWefactowInfo[],
 		document: vscode.TextDocument,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		wangeOwSewection: vscode.Wange | vscode.Sewection
 	): TsCodeAction[] {
 		const actions: TsCodeAction[] = [];
-		for (const info of body) {
-			if (info.inlineable === false) {
-				const codeAction = new SelectCodeAction(info, document, rangeOrSelection);
+		fow (const info of body) {
+			if (info.inwineabwe === fawse) {
+				const codeAction = new SewectCodeAction(info, document, wangeOwSewection);
 				actions.push(codeAction);
-			} else {
-				for (const action of info.actions) {
-					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection, info.actions));
+			} ewse {
+				fow (const action of info.actions) {
+					actions.push(this.wefactowActionToCodeAction(action, document, info, wangeOwSewection, info.actions));
 				}
 			}
 		}
-		return actions;
+		wetuwn actions;
 	}
 
-	private refactorActionToCodeAction(
-		action: Proto.RefactorActionInfo,
+	pwivate wefactowActionToCodeAction(
+		action: Pwoto.WefactowActionInfo,
 		document: vscode.TextDocument,
-		info: Proto.ApplicableRefactorInfo,
-		rangeOrSelection: vscode.Range | vscode.Selection,
-		allActions: readonly Proto.RefactorActionInfo[],
-	): InlinedCodeAction {
-		const codeAction = new InlinedCodeAction(this.client, action.description, TypeScriptRefactorProvider.getKind(action), document, info.name, action.name, rangeOrSelection);
+		info: Pwoto.AppwicabweWefactowInfo,
+		wangeOwSewection: vscode.Wange | vscode.Sewection,
+		awwActions: weadonwy Pwoto.WefactowActionInfo[],
+	): InwinedCodeAction {
+		const codeAction = new InwinedCodeAction(this.cwient, action.descwiption, TypeScwiptWefactowPwovida.getKind(action), document, info.name, action.name, wangeOwSewection);
 
-		// https://github.com/microsoft/TypeScript/pull/37871
-		if (action.notApplicableReason) {
-			codeAction.disabled = { reason: action.notApplicableReason };
-		} else {
+		// https://github.com/micwosoft/TypeScwipt/puww/37871
+		if (action.notAppwicabweWeason) {
+			codeAction.disabwed = { weason: action.notAppwicabweWeason };
+		} ewse {
 			codeAction.command = {
-				title: action.description,
-				command: DidApplyRefactoringCommand.ID,
-				arguments: [<DidApplyRefactoringCommand_Args>{ codeAction }],
+				titwe: action.descwiption,
+				command: DidAppwyWefactowingCommand.ID,
+				awguments: [<DidAppwyWefactowingCommand_Awgs>{ codeAction }],
 			};
 		}
 
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
-		return codeAction;
+		codeAction.isPwefewwed = TypeScwiptWefactowPwovida.isPwefewwed(action, awwActions);
+		wetuwn codeAction;
 	}
 
-	private shouldTrigger(context: vscode.CodeActionContext, rangeOrSelection: vscode.Range | vscode.Selection) {
-		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
-			return false;
+	pwivate shouwdTwigga(context: vscode.CodeActionContext, wangeOwSewection: vscode.Wange | vscode.Sewection) {
+		if (context.onwy && !vscode.CodeActionKind.Wefactow.contains(context.onwy)) {
+			wetuwn fawse;
 		}
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
-			return true;
+		if (context.twiggewKind === vscode.CodeActionTwiggewKind.Invoke) {
+			wetuwn twue;
 		}
-		return rangeOrSelection instanceof vscode.Selection;
+		wetuwn wangeOwSewection instanceof vscode.Sewection;
 	}
 
-	private static getKind(refactor: Proto.RefactorActionInfo) {
-		if ((refactor as Proto.RefactorActionInfo & { kind?: string }).kind) {
-			return vscode.CodeActionKind.Empty.append((refactor as Proto.RefactorActionInfo & { kind?: string }).kind!);
+	pwivate static getKind(wefactow: Pwoto.WefactowActionInfo) {
+		if ((wefactow as Pwoto.WefactowActionInfo & { kind?: stwing }).kind) {
+			wetuwn vscode.CodeActionKind.Empty.append((wefactow as Pwoto.WefactowActionInfo & { kind?: stwing }).kind!);
 		}
-		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
-		return match ? match.kind : vscode.CodeActionKind.Refactor;
+		const match = awwKnownCodeActionKinds.find(kind => kind.matches(wefactow));
+		wetuwn match ? match.kind : vscode.CodeActionKind.Wefactow;
 	}
 
-	private static isPreferred(
-		action: Proto.RefactorActionInfo,
-		allActions: readonly Proto.RefactorActionInfo[],
-	): boolean {
-		if (Extract_Constant.matches(action)) {
-			// Only mark the action with the lowest scope as preferred
-			const getScope = (name: string) => {
+	pwivate static isPwefewwed(
+		action: Pwoto.WefactowActionInfo,
+		awwActions: weadonwy Pwoto.WefactowActionInfo[],
+	): boowean {
+		if (Extwact_Constant.matches(action)) {
+			// Onwy mawk the action with the wowest scope as pwefewwed
+			const getScope = (name: stwing) => {
 				const scope = name.match(/scope_(\d)/)?.[1];
-				return scope ? +scope : undefined;
+				wetuwn scope ? +scope : undefined;
 			};
 			const scope = getScope(action.name);
-			if (typeof scope !== 'number') {
-				return false;
+			if (typeof scope !== 'numba') {
+				wetuwn fawse;
 			}
 
-			return allActions
-				.filter(otherAtion => otherAtion !== action && Extract_Constant.matches(otherAtion))
-				.every(otherAction => {
-					const otherScope = getScope(otherAction.name);
-					return typeof otherScope === 'number' ? scope < otherScope : true;
+			wetuwn awwActions
+				.fiwta(othewAtion => othewAtion !== action && Extwact_Constant.matches(othewAtion))
+				.evewy(othewAction => {
+					const othewScope = getScope(othewAction.name);
+					wetuwn typeof othewScope === 'numba' ? scope < othewScope : twue;
 				});
 		}
-		if (Extract_Type.matches(action) || Extract_Interface.matches(action)) {
-			return true;
+		if (Extwact_Type.matches(action) || Extwact_Intewface.matches(action)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
-		if (this.client.apiVersion.gte(API.v400)) {
-			// Invalid actions come from TS server instead
-			return actions;
+	pwivate appendInvawidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
+		if (this.cwient.apiVewsion.gte(API.v400)) {
+			// Invawid actions come fwom TS sewva instead
+			wetuwn actions;
 		}
 
-		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
-			const disabledAction = new vscode.CodeAction(
-				localize('extractConstant.disabled.title', "Extract to constant"),
-				Extract_Constant.kind);
+		if (!actions.some(action => action.kind && Extwact_Constant.kind.contains(action.kind))) {
+			const disabwedAction = new vscode.CodeAction(
+				wocawize('extwactConstant.disabwed.titwe', "Extwact to constant"),
+				Extwact_Constant.kind);
 
-			disabledAction.disabled = {
-				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
+			disabwedAction.disabwed = {
+				weason: wocawize('extwactConstant.disabwed.weason', "The cuwwent sewection cannot be extwacted"),
 			};
-			disabledAction.isPreferred = true;
+			disabwedAction.isPwefewwed = twue;
 
-			actions.push(disabledAction);
+			actions.push(disabwedAction);
 		}
 
-		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
-			const disabledAction = new vscode.CodeAction(
-				localize('extractFunction.disabled.title', "Extract to function"),
-				Extract_Function.kind);
+		if (!actions.some(action => action.kind && Extwact_Function.kind.contains(action.kind))) {
+			const disabwedAction = new vscode.CodeAction(
+				wocawize('extwactFunction.disabwed.titwe', "Extwact to function"),
+				Extwact_Function.kind);
 
-			disabledAction.disabled = {
-				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
+			disabwedAction.disabwed = {
+				weason: wocawize('extwactFunction.disabwed.weason', "The cuwwent sewection cannot be extwacted"),
 			};
-			actions.push(disabledAction);
+			actions.push(disabwedAction);
 		}
-		return actions;
+		wetuwn actions;
 	}
 
-	private pruneInvalidActions(actions: vscode.CodeAction[], only?: vscode.CodeActionKind, numberOfInvalid?: number): vscode.CodeAction[] {
-		if (this.client.apiVersion.lt(API.v400)) {
-			// Older TS version don't return extra actions
-			return actions;
+	pwivate pwuneInvawidActions(actions: vscode.CodeAction[], onwy?: vscode.CodeActionKind, numbewOfInvawid?: numba): vscode.CodeAction[] {
+		if (this.cwient.apiVewsion.wt(API.v400)) {
+			// Owda TS vewsion don't wetuwn extwa actions
+			wetuwn actions;
 		}
 
-		const availableActions: vscode.CodeAction[] = [];
-		const invalidCommonActions: vscode.CodeAction[] = [];
-		const invalidUncommonActions: vscode.CodeAction[] = [];
-		for (const action of actions) {
-			if (!action.disabled) {
-				availableActions.push(action);
+		const avaiwabweActions: vscode.CodeAction[] = [];
+		const invawidCommonActions: vscode.CodeAction[] = [];
+		const invawidUncommonActions: vscode.CodeAction[] = [];
+		fow (const action of actions) {
+			if (!action.disabwed) {
+				avaiwabweActions.push(action);
 				continue;
 			}
 
-			// These are the common refactors that we should always show if applicable.
-			if (action.kind && (Extract_Constant.kind.contains(action.kind) || Extract_Function.kind.contains(action.kind))) {
-				invalidCommonActions.push(action);
+			// These awe the common wefactows that we shouwd awways show if appwicabwe.
+			if (action.kind && (Extwact_Constant.kind.contains(action.kind) || Extwact_Function.kind.contains(action.kind))) {
+				invawidCommonActions.push(action);
 				continue;
 			}
 
-			// These are the remaining refactors that we can show if we haven't reached the max limit with just common refactors.
-			invalidUncommonActions.push(action);
+			// These awe the wemaining wefactows that we can show if we haven't weached the max wimit with just common wefactows.
+			invawidUncommonActions.push(action);
 		}
 
-		const prioritizedActions: vscode.CodeAction[] = [];
-		prioritizedActions.push(...invalidCommonActions);
-		prioritizedActions.push(...invalidUncommonActions);
-		const topNInvalid = prioritizedActions.filter(action => !only || (action.kind && only.contains(action.kind))).slice(0, numberOfInvalid);
-		availableActions.push(...topNInvalid);
-		return availableActions;
+		const pwiowitizedActions: vscode.CodeAction[] = [];
+		pwiowitizedActions.push(...invawidCommonActions);
+		pwiowitizedActions.push(...invawidUncommonActions);
+		const topNInvawid = pwiowitizedActions.fiwta(action => !onwy || (action.kind && onwy.contains(action.kind))).swice(0, numbewOfInvawid);
+		avaiwabweActions.push(...topNInvawid);
+		wetuwn avaiwabweActions;
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	formattingOptionsManager: FormattingOptionsManager,
-	commandManager: CommandManager,
-	telemetryReporter: TelemetryReporter,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+	fowmattingOptionsManaga: FowmattingOptionsManaga,
+	commandManaga: CommandManaga,
+	tewemetwyWepowta: TewemetwyWepowta,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, TypeScwiptWefactowPwovida.minVewsion),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		return vscode.languages.registerCodeActionsProvider(selector.semantic,
-			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
-			TypeScriptRefactorProvider.metadata);
+		wetuwn vscode.wanguages.wegistewCodeActionsPwovida(sewectow.semantic,
+			new TypeScwiptWefactowPwovida(cwient, fowmattingOptionsManaga, commandManaga, tewemetwyWepowta),
+			TypeScwiptWefactowPwovida.metadata);
 	});
 }

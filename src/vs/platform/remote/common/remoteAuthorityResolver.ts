@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
+expowt const IWemoteAuthowityWesowvewSewvice = cweateDecowatow<IWemoteAuthowityWesowvewSewvice>('wemoteAuthowityWesowvewSewvice');
 
-export interface ResolvedAuthority {
-	readonly authority: string;
-	readonly host: string;
-	readonly port: number;
-	readonly connectionToken: string | undefined;
+expowt intewface WesowvedAuthowity {
+	weadonwy authowity: stwing;
+	weadonwy host: stwing;
+	weadonwy powt: numba;
+	weadonwy connectionToken: stwing | undefined;
 }
 
-export interface ResolvedOptions {
-	readonly extensionHostEnv?: { [key: string]: string | null };
-	readonly isTrusted?: boolean;
+expowt intewface WesowvedOptions {
+	weadonwy extensionHostEnv?: { [key: stwing]: stwing | nuww };
+	weadonwy isTwusted?: boowean;
 }
 
-export interface TunnelDescription {
-	remoteAddress: { port: number, host: string };
-	localAddress: { port: number, host: string } | string;
+expowt intewface TunnewDescwiption {
+	wemoteAddwess: { powt: numba, host: stwing };
+	wocawAddwess: { powt: numba, host: stwing } | stwing;
 }
-export interface TunnelInformation {
-	environmentTunnels?: TunnelDescription[];
-}
-
-export interface ResolverResult {
-	authority: ResolvedAuthority;
-	options?: ResolvedOptions;
-	tunnelInformation?: TunnelInformation;
+expowt intewface TunnewInfowmation {
+	enviwonmentTunnews?: TunnewDescwiption[];
 }
 
-export interface IRemoteConnectionData {
-	host: string;
-	port: number;
-	connectionToken: string | undefined;
+expowt intewface WesowvewWesuwt {
+	authowity: WesowvedAuthowity;
+	options?: WesowvedOptions;
+	tunnewInfowmation?: TunnewInfowmation;
 }
 
-export enum RemoteAuthorityResolverErrorCode {
+expowt intewface IWemoteConnectionData {
+	host: stwing;
+	powt: numba;
+	connectionToken: stwing | undefined;
+}
+
+expowt enum WemoteAuthowityWesowvewEwwowCode {
 	Unknown = 'Unknown',
-	NotAvailable = 'NotAvailable',
-	TemporarilyNotAvailable = 'TemporarilyNotAvailable',
-	NoResolverFound = 'NoResolverFound'
+	NotAvaiwabwe = 'NotAvaiwabwe',
+	TempowawiwyNotAvaiwabwe = 'TempowawiwyNotAvaiwabwe',
+	NoWesowvewFound = 'NoWesowvewFound'
 }
 
-export class RemoteAuthorityResolverError extends Error {
+expowt cwass WemoteAuthowityWesowvewEwwow extends Ewwow {
 
-	public static isTemporarilyNotAvailable(err: any): boolean {
-		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
+	pubwic static isTempowawiwyNotAvaiwabwe(eww: any): boowean {
+		wetuwn (eww instanceof WemoteAuthowityWesowvewEwwow) && eww._code === WemoteAuthowityWesowvewEwwowCode.TempowawiwyNotAvaiwabwe;
 	}
 
-	public static isNoResolverFound(err: any): err is RemoteAuthorityResolverError {
-		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NoResolverFound;
+	pubwic static isNoWesowvewFound(eww: any): eww is WemoteAuthowityWesowvewEwwow {
+		wetuwn (eww instanceof WemoteAuthowityWesowvewEwwow) && eww._code === WemoteAuthowityWesowvewEwwowCode.NoWesowvewFound;
 	}
 
-	public static isHandled(err: any): boolean {
-		return (err instanceof RemoteAuthorityResolverError) && err.isHandled;
+	pubwic static isHandwed(eww: any): boowean {
+		wetuwn (eww instanceof WemoteAuthowityWesowvewEwwow) && eww.isHandwed;
 	}
 
-	public readonly _message: string | undefined;
-	public readonly _code: RemoteAuthorityResolverErrorCode;
-	public readonly _detail: any;
+	pubwic weadonwy _message: stwing | undefined;
+	pubwic weadonwy _code: WemoteAuthowityWesowvewEwwowCode;
+	pubwic weadonwy _detaiw: any;
 
-	public isHandled: boolean;
+	pubwic isHandwed: boowean;
 
-	constructor(message?: string, code: RemoteAuthorityResolverErrorCode = RemoteAuthorityResolverErrorCode.Unknown, detail?: any) {
-		super(message);
+	constwuctow(message?: stwing, code: WemoteAuthowityWesowvewEwwowCode = WemoteAuthowityWesowvewEwwowCode.Unknown, detaiw?: any) {
+		supa(message);
 
 		this._message = message;
 		this._code = code;
-		this._detail = detail;
+		this._detaiw = detaiw;
 
-		this.isHandled = (code === RemoteAuthorityResolverErrorCode.NotAvailable) && detail === true;
+		this.isHandwed = (code === WemoteAuthowityWesowvewEwwowCode.NotAvaiwabwe) && detaiw === twue;
 
-		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
+		// wowkawound when extending buiwtin objects and when compiwing to ES5, see:
+		// https://github.com/micwosoft/TypeScwipt-wiki/bwob/masta/Bweaking-Changes.md#extending-buiwt-ins-wike-ewwow-awway-and-map-may-no-wonga-wowk
+		if (typeof (<any>Object).setPwototypeOf === 'function') {
+			(<any>Object).setPwototypeOf(this, WemoteAuthowityWesowvewEwwow.pwototype);
 		}
 	}
 }
 
-export interface IRemoteAuthorityResolverService {
+expowt intewface IWemoteAuthowityWesowvewSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onDidChangeConnectionData: Event<void>;
+	weadonwy onDidChangeConnectionData: Event<void>;
 
-	resolveAuthority(authority: string): Promise<ResolverResult>;
-	getConnectionData(authority: string): IRemoteConnectionData | null;
+	wesowveAuthowity(authowity: stwing): Pwomise<WesowvewWesuwt>;
+	getConnectionData(authowity: stwing): IWemoteConnectionData | nuww;
 	/**
-	 * Get the canonical URI for a `vscode-remote://` URI.
+	 * Get the canonicaw UWI fow a `vscode-wemote://` UWI.
 	 *
-	 * **NOTE**: This can throw e.g. in cases where there is no resolver installed for the specific remote authority.
+	 * **NOTE**: This can thwow e.g. in cases whewe thewe is no wesowva instawwed fow the specific wemote authowity.
 	 *
-	 * @param uri The `vscode-remote://` URI
+	 * @pawam uwi The `vscode-wemote://` UWI
 	 */
-	getCanonicalURI(uri: URI): Promise<URI>;
+	getCanonicawUWI(uwi: UWI): Pwomise<UWI>;
 
-	_clearResolvedAuthority(authority: string): void;
-	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	_setResolvedAuthorityError(authority: string, err: any): void;
-	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
-	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void;
+	_cweawWesowvedAuthowity(authowity: stwing): void;
+	_setWesowvedAuthowity(wesowvedAuthowity: WesowvedAuthowity, wesowvedOptions?: WesowvedOptions): void;
+	_setWesowvedAuthowityEwwow(authowity: stwing, eww: any): void;
+	_setAuthowityConnectionToken(authowity: stwing, connectionToken: stwing): void;
+	_setCanonicawUWIPwovida(pwovida: (uwi: UWI) => Pwomise<UWI>): void;
 }

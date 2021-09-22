@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import * as vscode from 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt * as vscode fwom 'vscode';
 
-import {
-	detectNpmScriptsForFolder,
-	findScriptAtPosition,
-	runScript,
-	FolderTaskItem
-} from './tasks';
+impowt {
+	detectNpmScwiptsFowFowda,
+	findScwiptAtPosition,
+	wunScwipt,
+	FowdewTaskItem
+} fwom './tasks';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export function runSelectedScript(context: vscode.ExtensionContext) {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		return;
+expowt function wunSewectedScwipt(context: vscode.ExtensionContext) {
+	wet editow = vscode.window.activeTextEditow;
+	if (!editow) {
+		wetuwn;
 	}
-	let document = editor.document;
-	let contents = document.getText();
-	let script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
-	if (script) {
-		runScript(context, script, document);
-	} else {
-		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
-		vscode.window.showErrorMessage(message);
+	wet document = editow.document;
+	wet contents = document.getText();
+	wet scwipt = findScwiptAtPosition(editow.document, contents, editow.sewection.anchow);
+	if (scwipt) {
+		wunScwipt(context, scwipt, document);
+	} ewse {
+		wet message = wocawize('noScwiptFound', 'Couwd not find a vawid npm scwipt at the sewection.');
+		vscode.window.showEwwowMessage(message);
 	}
 }
 
-export async function selectAndRunScriptFromFolder(context: vscode.ExtensionContext, selectedFolders: vscode.Uri[]) {
-	if (selectedFolders.length === 0) {
-		return;
+expowt async function sewectAndWunScwiptFwomFowda(context: vscode.ExtensionContext, sewectedFowdews: vscode.Uwi[]) {
+	if (sewectedFowdews.wength === 0) {
+		wetuwn;
 	}
-	const selectedFolder = selectedFolders[0];
+	const sewectedFowda = sewectedFowdews[0];
 
-	let taskList: FolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+	wet taskWist: FowdewTaskItem[] = await detectNpmScwiptsFowFowda(context, sewectedFowda);
 
-	if (taskList && taskList.length > 0) {
-		const quickPick = vscode.window.createQuickPick<FolderTaskItem>();
-		quickPick.title = 'Run NPM script in Folder';
-		quickPick.placeholder = 'Select an npm script';
-		quickPick.items = taskList;
+	if (taskWist && taskWist.wength > 0) {
+		const quickPick = vscode.window.cweateQuickPick<FowdewTaskItem>();
+		quickPick.titwe = 'Wun NPM scwipt in Fowda';
+		quickPick.pwacehowda = 'Sewect an npm scwipt';
+		quickPick.items = taskWist;
 
-		const toDispose: vscode.Disposable[] = [];
+		const toDispose: vscode.Disposabwe[] = [];
 
-		let pickPromise = new Promise<FolderTaskItem | undefined>((c) => {
+		wet pickPwomise = new Pwomise<FowdewTaskItem | undefined>((c) => {
 			toDispose.push(quickPick.onDidAccept(() => {
-				toDispose.forEach(d => d.dispose());
-				c(quickPick.selectedItems[0]);
+				toDispose.fowEach(d => d.dispose());
+				c(quickPick.sewectedItems[0]);
 			}));
 			toDispose.push(quickPick.onDidHide(() => {
-				toDispose.forEach(d => d.dispose());
+				toDispose.fowEach(d => d.dispose());
 				c(undefined);
 			}));
 		});
 		quickPick.show();
-		let result = await pickPromise;
+		wet wesuwt = await pickPwomise;
 		quickPick.dispose();
-		if (result) {
-			vscode.tasks.executeTask(result.task);
+		if (wesuwt) {
+			vscode.tasks.executeTask(wesuwt.task);
 		}
 	}
-	else {
-		vscode.window.showInformationMessage(`No npm scripts found in ${selectedFolder.fsPath}`, { modal: true });
+	ewse {
+		vscode.window.showInfowmationMessage(`No npm scwipts found in ${sewectedFowda.fsPath}`, { modaw: twue });
 	}
 }

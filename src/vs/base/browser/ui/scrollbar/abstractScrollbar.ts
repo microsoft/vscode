@@ -1,296 +1,296 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
-import { IMouseEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
-import { Widget } from 'vs/base/browser/ui/widget';
-import * as platform from 'vs/base/common/platform';
-import { INewScrollPosition, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { cweateFastDomNode, FastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { GwobawMouseMoveMonitow, IStandawdMouseMoveEventData, standawdMouseMoveMewga } fwom 'vs/base/bwowsa/gwobawMouseMoveMonitow';
+impowt { IMouseEvent, StandawdWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
+impowt { ScwowwbawAwwow, ScwowwbawAwwowOptions } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawAwwow';
+impowt { ScwowwbawState } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawState';
+impowt { ScwowwbawVisibiwityContwowwa } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwbawVisibiwityContwowwa';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { INewScwowwPosition, Scwowwabwe, ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
 
 /**
- * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
+ * The owthogonaw distance to the swida at which dwagging "wesets". This impwements "snapping"
  */
-const MOUSE_DRAG_RESET_DISTANCE = 140;
+const MOUSE_DWAG_WESET_DISTANCE = 140;
 
-export interface ISimplifiedMouseEvent {
-	buttons: number;
-	posx: number;
-	posy: number;
+expowt intewface ISimpwifiedMouseEvent {
+	buttons: numba;
+	posx: numba;
+	posy: numba;
 }
 
-export interface ScrollbarHost {
-	onMouseWheel(mouseWheelEvent: StandardWheelEvent): void;
-	onDragStart(): void;
-	onDragEnd(): void;
+expowt intewface ScwowwbawHost {
+	onMouseWheew(mouseWheewEvent: StandawdWheewEvent): void;
+	onDwagStawt(): void;
+	onDwagEnd(): void;
 }
 
-export interface AbstractScrollbarOptions {
-	lazyRender: boolean;
-	host: ScrollbarHost;
-	scrollbarState: ScrollbarState;
-	visibility: ScrollbarVisibility;
-	extraScrollbarClassName: string;
-	scrollable: Scrollable;
-	scrollByPage: boolean;
+expowt intewface AbstwactScwowwbawOptions {
+	wazyWenda: boowean;
+	host: ScwowwbawHost;
+	scwowwbawState: ScwowwbawState;
+	visibiwity: ScwowwbawVisibiwity;
+	extwaScwowwbawCwassName: stwing;
+	scwowwabwe: Scwowwabwe;
+	scwowwByPage: boowean;
 }
 
-export abstract class AbstractScrollbar extends Widget {
+expowt abstwact cwass AbstwactScwowwbaw extends Widget {
 
-	protected _host: ScrollbarHost;
-	protected _scrollable: Scrollable;
-	protected _scrollByPage: boolean;
-	private _lazyRender: boolean;
-	protected _scrollbarState: ScrollbarState;
-	protected _visibilityController: ScrollbarVisibilityController;
-	private _mouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
+	pwotected _host: ScwowwbawHost;
+	pwotected _scwowwabwe: Scwowwabwe;
+	pwotected _scwowwByPage: boowean;
+	pwivate _wazyWenda: boowean;
+	pwotected _scwowwbawState: ScwowwbawState;
+	pwotected _visibiwityContwowwa: ScwowwbawVisibiwityContwowwa;
+	pwivate _mouseMoveMonitow: GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>;
 
-	public domNode: FastDomNode<HTMLElement>;
-	public slider!: FastDomNode<HTMLElement>;
+	pubwic domNode: FastDomNode<HTMWEwement>;
+	pubwic swida!: FastDomNode<HTMWEwement>;
 
-	protected _shouldRender: boolean;
+	pwotected _shouwdWenda: boowean;
 
-	constructor(opts: AbstractScrollbarOptions) {
-		super();
-		this._lazyRender = opts.lazyRender;
+	constwuctow(opts: AbstwactScwowwbawOptions) {
+		supa();
+		this._wazyWenda = opts.wazyWenda;
 		this._host = opts.host;
-		this._scrollable = opts.scrollable;
-		this._scrollByPage = opts.scrollByPage;
-		this._scrollbarState = opts.scrollbarState;
-		this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
-		this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
-		this._mouseMoveMonitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
-		this._shouldRender = true;
-		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setAttribute('role', 'presentation');
-		this.domNode.setAttribute('aria-hidden', 'true');
+		this._scwowwabwe = opts.scwowwabwe;
+		this._scwowwByPage = opts.scwowwByPage;
+		this._scwowwbawState = opts.scwowwbawState;
+		this._visibiwityContwowwa = this._wegista(new ScwowwbawVisibiwityContwowwa(opts.visibiwity, 'visibwe scwowwbaw ' + opts.extwaScwowwbawCwassName, 'invisibwe scwowwbaw ' + opts.extwaScwowwbawCwassName));
+		this._visibiwityContwowwa.setIsNeeded(this._scwowwbawState.isNeeded());
+		this._mouseMoveMonitow = this._wegista(new GwobawMouseMoveMonitow<IStandawdMouseMoveEventData>());
+		this._shouwdWenda = twue;
+		this.domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this.domNode.setAttwibute('wowe', 'pwesentation');
+		this.domNode.setAttwibute('awia-hidden', 'twue');
 
-		this._visibilityController.setDomNode(this.domNode);
-		this.domNode.setPosition('absolute');
+		this._visibiwityContwowwa.setDomNode(this.domNode);
+		this.domNode.setPosition('absowute');
 
 		this.onmousedown(this.domNode.domNode, (e) => this._domNodeMouseDown(e));
 	}
 
-	// ----------------- creation
+	// ----------------- cweation
 
 	/**
-	 * Creates the dom node for an arrow & adds it to the container
+	 * Cweates the dom node fow an awwow & adds it to the containa
 	 */
-	protected _createArrow(opts: ScrollbarArrowOptions): void {
-		const arrow = this._register(new ScrollbarArrow(opts));
-		this.domNode.domNode.appendChild(arrow.bgDomNode);
-		this.domNode.domNode.appendChild(arrow.domNode);
+	pwotected _cweateAwwow(opts: ScwowwbawAwwowOptions): void {
+		const awwow = this._wegista(new ScwowwbawAwwow(opts));
+		this.domNode.domNode.appendChiwd(awwow.bgDomNode);
+		this.domNode.domNode.appendChiwd(awwow.domNode);
 	}
 
 	/**
-	 * Creates the slider dom node, adds it to the container & hooks up the events
+	 * Cweates the swida dom node, adds it to the containa & hooks up the events
 	 */
-	protected _createSlider(top: number, left: number, width: number | undefined, height: number | undefined): void {
-		this.slider = createFastDomNode(document.createElement('div'));
-		this.slider.setClassName('slider');
-		this.slider.setPosition('absolute');
-		this.slider.setTop(top);
-		this.slider.setLeft(left);
-		if (typeof width === 'number') {
-			this.slider.setWidth(width);
+	pwotected _cweateSwida(top: numba, weft: numba, width: numba | undefined, height: numba | undefined): void {
+		this.swida = cweateFastDomNode(document.cweateEwement('div'));
+		this.swida.setCwassName('swida');
+		this.swida.setPosition('absowute');
+		this.swida.setTop(top);
+		this.swida.setWeft(weft);
+		if (typeof width === 'numba') {
+			this.swida.setWidth(width);
 		}
-		if (typeof height === 'number') {
-			this.slider.setHeight(height);
+		if (typeof height === 'numba') {
+			this.swida.setHeight(height);
 		}
-		this.slider.setLayerHinting(true);
-		this.slider.setContain('strict');
+		this.swida.setWayewHinting(twue);
+		this.swida.setContain('stwict');
 
-		this.domNode.domNode.appendChild(this.slider.domNode);
+		this.domNode.domNode.appendChiwd(this.swida.domNode);
 
-		this.onmousedown(this.slider.domNode, (e) => {
-			if (e.leftButton) {
-				e.preventDefault();
-				this._sliderMouseDown(e, () => { /*nothing to do*/ });
+		this.onmousedown(this.swida.domNode, (e) => {
+			if (e.weftButton) {
+				e.pweventDefauwt();
+				this._swidewMouseDown(e, () => { /*nothing to do*/ });
 			}
 		});
 
-		this.onclick(this.slider.domNode, e => {
-			if (e.leftButton) {
-				e.stopPropagation();
+		this.oncwick(this.swida.domNode, e => {
+			if (e.weftButton) {
+				e.stopPwopagation();
 			}
 		});
 	}
 
 	// ----------------- Update state
 
-	protected _onElementSize(visibleSize: number): boolean {
-		if (this._scrollbarState.setVisibleSize(visibleSize)) {
-			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
-			this._shouldRender = true;
-			if (!this._lazyRender) {
-				this.render();
+	pwotected _onEwementSize(visibweSize: numba): boowean {
+		if (this._scwowwbawState.setVisibweSize(visibweSize)) {
+			this._visibiwityContwowwa.setIsNeeded(this._scwowwbawState.isNeeded());
+			this._shouwdWenda = twue;
+			if (!this._wazyWenda) {
+				this.wenda();
 			}
 		}
-		return this._shouldRender;
+		wetuwn this._shouwdWenda;
 	}
 
-	protected _onElementScrollSize(elementScrollSize: number): boolean {
-		if (this._scrollbarState.setScrollSize(elementScrollSize)) {
-			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
-			this._shouldRender = true;
-			if (!this._lazyRender) {
-				this.render();
+	pwotected _onEwementScwowwSize(ewementScwowwSize: numba): boowean {
+		if (this._scwowwbawState.setScwowwSize(ewementScwowwSize)) {
+			this._visibiwityContwowwa.setIsNeeded(this._scwowwbawState.isNeeded());
+			this._shouwdWenda = twue;
+			if (!this._wazyWenda) {
+				this.wenda();
 			}
 		}
-		return this._shouldRender;
+		wetuwn this._shouwdWenda;
 	}
 
-	protected _onElementScrollPosition(elementScrollPosition: number): boolean {
-		if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
-			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
-			this._shouldRender = true;
-			if (!this._lazyRender) {
-				this.render();
+	pwotected _onEwementScwowwPosition(ewementScwowwPosition: numba): boowean {
+		if (this._scwowwbawState.setScwowwPosition(ewementScwowwPosition)) {
+			this._visibiwityContwowwa.setIsNeeded(this._scwowwbawState.isNeeded());
+			this._shouwdWenda = twue;
+			if (!this._wazyWenda) {
+				this.wenda();
 			}
 		}
-		return this._shouldRender;
+		wetuwn this._shouwdWenda;
 	}
 
-	// ----------------- rendering
+	// ----------------- wendewing
 
-	public beginReveal(): void {
-		this._visibilityController.setShouldBeVisible(true);
+	pubwic beginWeveaw(): void {
+		this._visibiwityContwowwa.setShouwdBeVisibwe(twue);
 	}
 
-	public beginHide(): void {
-		this._visibilityController.setShouldBeVisible(false);
+	pubwic beginHide(): void {
+		this._visibiwityContwowwa.setShouwdBeVisibwe(fawse);
 	}
 
-	public render(): void {
-		if (!this._shouldRender) {
-			return;
+	pubwic wenda(): void {
+		if (!this._shouwdWenda) {
+			wetuwn;
 		}
-		this._shouldRender = false;
+		this._shouwdWenda = fawse;
 
-		this._renderDomNode(this._scrollbarState.getRectangleLargeSize(), this._scrollbarState.getRectangleSmallSize());
-		this._updateSlider(this._scrollbarState.getSliderSize(), this._scrollbarState.getArrowSize() + this._scrollbarState.getSliderPosition());
+		this._wendewDomNode(this._scwowwbawState.getWectangweWawgeSize(), this._scwowwbawState.getWectangweSmawwSize());
+		this._updateSwida(this._scwowwbawState.getSwidewSize(), this._scwowwbawState.getAwwowSize() + this._scwowwbawState.getSwidewPosition());
 	}
 	// ----------------- DOM events
 
-	private _domNodeMouseDown(e: IMouseEvent): void {
-		if (e.target !== this.domNode.domNode) {
-			return;
+	pwivate _domNodeMouseDown(e: IMouseEvent): void {
+		if (e.tawget !== this.domNode.domNode) {
+			wetuwn;
 		}
 		this._onMouseDown(e);
 	}
 
-	public delegateMouseDown(e: IMouseEvent): void {
-		const domTop = this.domNode.domNode.getClientRects()[0].top;
-		const sliderStart = domTop + this._scrollbarState.getSliderPosition();
-		const sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
-		const mousePos = this._sliderMousePosition(e);
-		if (sliderStart <= mousePos && mousePos <= sliderStop) {
-			// Act as if it was a mouse down on the slider
-			if (e.leftButton) {
-				e.preventDefault();
-				this._sliderMouseDown(e, () => { /*nothing to do*/ });
+	pubwic dewegateMouseDown(e: IMouseEvent): void {
+		const domTop = this.domNode.domNode.getCwientWects()[0].top;
+		const swidewStawt = domTop + this._scwowwbawState.getSwidewPosition();
+		const swidewStop = domTop + this._scwowwbawState.getSwidewPosition() + this._scwowwbawState.getSwidewSize();
+		const mousePos = this._swidewMousePosition(e);
+		if (swidewStawt <= mousePos && mousePos <= swidewStop) {
+			// Act as if it was a mouse down on the swida
+			if (e.weftButton) {
+				e.pweventDefauwt();
+				this._swidewMouseDown(e, () => { /*nothing to do*/ });
 			}
-		} else {
-			// Act as if it was a mouse down on the scrollbar
+		} ewse {
+			// Act as if it was a mouse down on the scwowwbaw
 			this._onMouseDown(e);
 		}
 	}
 
-	private _onMouseDown(e: IMouseEvent): void {
-		let offsetX: number;
-		let offsetY: number;
-		if (e.target === this.domNode.domNode && typeof e.browserEvent.offsetX === 'number' && typeof e.browserEvent.offsetY === 'number') {
-			offsetX = e.browserEvent.offsetX;
-			offsetY = e.browserEvent.offsetY;
-		} else {
+	pwivate _onMouseDown(e: IMouseEvent): void {
+		wet offsetX: numba;
+		wet offsetY: numba;
+		if (e.tawget === this.domNode.domNode && typeof e.bwowsewEvent.offsetX === 'numba' && typeof e.bwowsewEvent.offsetY === 'numba') {
+			offsetX = e.bwowsewEvent.offsetX;
+			offsetY = e.bwowsewEvent.offsetY;
+		} ewse {
 			const domNodePosition = dom.getDomNodePagePosition(this.domNode.domNode);
-			offsetX = e.posx - domNodePosition.left;
+			offsetX = e.posx - domNodePosition.weft;
 			offsetY = e.posy - domNodePosition.top;
 		}
 
-		const offset = this._mouseDownRelativePosition(offsetX, offsetY);
-		this._setDesiredScrollPositionNow(
-			this._scrollByPage
-				? this._scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset)
-				: this._scrollbarState.getDesiredScrollPositionFromOffset(offset)
+		const offset = this._mouseDownWewativePosition(offsetX, offsetY);
+		this._setDesiwedScwowwPositionNow(
+			this._scwowwByPage
+				? this._scwowwbawState.getDesiwedScwowwPositionFwomOffsetPaged(offset)
+				: this._scwowwbawState.getDesiwedScwowwPositionFwomOffset(offset)
 		);
 
-		if (e.leftButton) {
-			e.preventDefault();
-			this._sliderMouseDown(e, () => { /*nothing to do*/ });
+		if (e.weftButton) {
+			e.pweventDefauwt();
+			this._swidewMouseDown(e, () => { /*nothing to do*/ });
 		}
 	}
 
-	private _sliderMouseDown(e: IMouseEvent, onDragFinished: () => void): void {
-		const initialMousePosition = this._sliderMousePosition(e);
-		const initialMouseOrthogonalPosition = this._sliderOrthogonalMousePosition(e);
-		const initialScrollbarState = this._scrollbarState.clone();
-		this.slider.toggleClassName('active', true);
+	pwivate _swidewMouseDown(e: IMouseEvent, onDwagFinished: () => void): void {
+		const initiawMousePosition = this._swidewMousePosition(e);
+		const initiawMouseOwthogonawPosition = this._swidewOwthogonawMousePosition(e);
+		const initiawScwowwbawState = this._scwowwbawState.cwone();
+		this.swida.toggweCwassName('active', twue);
 
-		this._mouseMoveMonitor.startMonitoring(
-			e.target,
+		this._mouseMoveMonitow.stawtMonitowing(
+			e.tawget,
 			e.buttons,
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => {
-				const mouseOrthogonalPosition = this._sliderOrthogonalMousePosition(mouseMoveData);
-				const mouseOrthogonalDelta = Math.abs(mouseOrthogonalPosition - initialMouseOrthogonalPosition);
+			standawdMouseMoveMewga,
+			(mouseMoveData: IStandawdMouseMoveEventData) => {
+				const mouseOwthogonawPosition = this._swidewOwthogonawMousePosition(mouseMoveData);
+				const mouseOwthogonawDewta = Math.abs(mouseOwthogonawPosition - initiawMouseOwthogonawPosition);
 
-				if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-					// The mouse has wondered away from the scrollbar => reset dragging
-					this._setDesiredScrollPositionNow(initialScrollbarState.getScrollPosition());
-					return;
+				if (pwatfowm.isWindows && mouseOwthogonawDewta > MOUSE_DWAG_WESET_DISTANCE) {
+					// The mouse has wondewed away fwom the scwowwbaw => weset dwagging
+					this._setDesiwedScwowwPositionNow(initiawScwowwbawState.getScwowwPosition());
+					wetuwn;
 				}
 
-				const mousePosition = this._sliderMousePosition(mouseMoveData);
-				const mouseDelta = mousePosition - initialMousePosition;
-				this._setDesiredScrollPositionNow(initialScrollbarState.getDesiredScrollPositionFromDelta(mouseDelta));
+				const mousePosition = this._swidewMousePosition(mouseMoveData);
+				const mouseDewta = mousePosition - initiawMousePosition;
+				this._setDesiwedScwowwPositionNow(initiawScwowwbawState.getDesiwedScwowwPositionFwomDewta(mouseDewta));
 			},
 			() => {
-				this.slider.toggleClassName('active', false);
-				this._host.onDragEnd();
-				onDragFinished();
+				this.swida.toggweCwassName('active', fawse);
+				this._host.onDwagEnd();
+				onDwagFinished();
 			}
 		);
 
-		this._host.onDragStart();
+		this._host.onDwagStawt();
 	}
 
-	private _setDesiredScrollPositionNow(_desiredScrollPosition: number): void {
+	pwivate _setDesiwedScwowwPositionNow(_desiwedScwowwPosition: numba): void {
 
-		const desiredScrollPosition: INewScrollPosition = {};
-		this.writeScrollPosition(desiredScrollPosition, _desiredScrollPosition);
+		const desiwedScwowwPosition: INewScwowwPosition = {};
+		this.wwiteScwowwPosition(desiwedScwowwPosition, _desiwedScwowwPosition);
 
-		this._scrollable.setScrollPositionNow(desiredScrollPosition);
+		this._scwowwabwe.setScwowwPositionNow(desiwedScwowwPosition);
 	}
 
-	public updateScrollbarSize(scrollbarSize: number): void {
-		this._updateScrollbarSize(scrollbarSize);
-		this._scrollbarState.setScrollbarSize(scrollbarSize);
-		this._shouldRender = true;
-		if (!this._lazyRender) {
-			this.render();
+	pubwic updateScwowwbawSize(scwowwbawSize: numba): void {
+		this._updateScwowwbawSize(scwowwbawSize);
+		this._scwowwbawState.setScwowwbawSize(scwowwbawSize);
+		this._shouwdWenda = twue;
+		if (!this._wazyWenda) {
+			this.wenda();
 		}
 	}
 
-	public isNeeded(): boolean {
-		return this._scrollbarState.isNeeded();
+	pubwic isNeeded(): boowean {
+		wetuwn this._scwowwbawState.isNeeded();
 	}
 
-	// ----------------- Overwrite these
+	// ----------------- Ovewwwite these
 
-	protected abstract _renderDomNode(largeSize: number, smallSize: number): void;
-	protected abstract _updateSlider(sliderSize: number, sliderPosition: number): void;
+	pwotected abstwact _wendewDomNode(wawgeSize: numba, smawwSize: numba): void;
+	pwotected abstwact _updateSwida(swidewSize: numba, swidewPosition: numba): void;
 
-	protected abstract _mouseDownRelativePosition(offsetX: number, offsetY: number): number;
-	protected abstract _sliderMousePosition(e: ISimplifiedMouseEvent): number;
-	protected abstract _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number;
-	protected abstract _updateScrollbarSize(size: number): void;
+	pwotected abstwact _mouseDownWewativePosition(offsetX: numba, offsetY: numba): numba;
+	pwotected abstwact _swidewMousePosition(e: ISimpwifiedMouseEvent): numba;
+	pwotected abstwact _swidewOwthogonawMousePosition(e: ISimpwifiedMouseEvent): numba;
+	pwotected abstwact _updateScwowwbawSize(size: numba): void;
 
-	public abstract writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void;
+	pubwic abstwact wwiteScwowwPosition(tawget: INewScwowwPosition, scwowwPosition: numba): void;
 }

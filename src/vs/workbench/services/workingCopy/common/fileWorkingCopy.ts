@@ -1,113 +1,113 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
 
-export interface IFileWorkingCopyModelFactory<M extends IFileWorkingCopyModel> {
+expowt intewface IFiweWowkingCopyModewFactowy<M extends IFiweWowkingCopyModew> {
 
 	/**
-	 * Create a model for the untitled or stored working copy
-	 * from the given content under the provided resource.
+	 * Cweate a modew fow the untitwed ow stowed wowking copy
+	 * fwom the given content unda the pwovided wesouwce.
 	 *
-	 * @param resource the `URI` of the model
-	 * @param contents the content of the model to create it
-	 * @param token support for cancellation
+	 * @pawam wesouwce the `UWI` of the modew
+	 * @pawam contents the content of the modew to cweate it
+	 * @pawam token suppowt fow cancewwation
 	 */
-	createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<M>;
+	cweateModew(wesouwce: UWI, contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<M>;
 }
 
 /**
- * A generic file working copy model to be reused by untitled
- * and stored file working copies.
+ * A genewic fiwe wowking copy modew to be weused by untitwed
+ * and stowed fiwe wowking copies.
  */
-export interface IFileWorkingCopyModel extends IDisposable {
+expowt intewface IFiweWowkingCopyModew extends IDisposabwe {
 
 	/**
-	 * This event signals ANY changes to the contents, for example:
-	 * - through the user typing into the editor
-	 * - from API usage (e.g. bulk edits)
-	 * - when `IFileWorkingCopyModel#update` is invoked with contents
-	 *   that are different from the current contents
+	 * This event signaws ANY changes to the contents, fow exampwe:
+	 * - thwough the usa typing into the editow
+	 * - fwom API usage (e.g. buwk edits)
+	 * - when `IFiweWowkingCopyModew#update` is invoked with contents
+	 *   that awe diffewent fwom the cuwwent contents
 	 *
-	 * The file working copy will listen to these changes and may mark
-	 * the working copy as dirty whenever this event fires.
+	 * The fiwe wowking copy wiww wisten to these changes and may mawk
+	 * the wowking copy as diwty wheneva this event fiwes.
 	 *
-	 * Note: ONLY report changes to the model but not the underlying
-	 * file. The file working copy is tracking changes to the file
-	 * automatically.
+	 * Note: ONWY wepowt changes to the modew but not the undewwying
+	 * fiwe. The fiwe wowking copy is twacking changes to the fiwe
+	 * automaticawwy.
 	 */
-	readonly onDidChangeContent: Event<unknown>;
+	weadonwy onDidChangeContent: Event<unknown>;
 
 	/**
-	 * An event emitted right before disposing the model.
+	 * An event emitted wight befowe disposing the modew.
 	 */
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
 	/**
-	 * Snapshots the model's current content for writing. This must include
-	 * any changes that were made to the model that are in memory.
+	 * Snapshots the modew's cuwwent content fow wwiting. This must incwude
+	 * any changes that wewe made to the modew that awe in memowy.
 	 *
-	 * @param token support for cancellation
+	 * @pawam token suppowt fow cancewwation
 	 */
-	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
+	snapshot(token: CancewwationToken): Pwomise<VSBuffewWeadabweStweam>;
 
 	/**
-	 * Updates the model with the provided contents. The implementation should
-	 * behave in a similar fashion as `IFileWorkingCopyModelFactory#createModel`
-	 * except that here the model already exists and just needs to update to
-	 * the provided contents.
+	 * Updates the modew with the pwovided contents. The impwementation shouwd
+	 * behave in a simiwaw fashion as `IFiweWowkingCopyModewFactowy#cweateModew`
+	 * except that hewe the modew awweady exists and just needs to update to
+	 * the pwovided contents.
 	 *
-	 * Note: it is expected that the model fires a `onDidChangeContent` event
-	 * as part of the update.
+	 * Note: it is expected that the modew fiwes a `onDidChangeContent` event
+	 * as pawt of the update.
 	 *
-	 * @param the contents to use for the model
-	 * @param token support for cancellation
+	 * @pawam the contents to use fow the modew
+	 * @pawam token suppowt fow cancewwation
 	 */
-	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
+	update(contents: VSBuffewWeadabweStweam, token: CancewwationToken): Pwomise<void>;
 }
 
-export interface IFileWorkingCopy<M extends IFileWorkingCopyModel> extends IWorkingCopy, IDisposable {
+expowt intewface IFiweWowkingCopy<M extends IFiweWowkingCopyModew> extends IWowkingCopy, IDisposabwe {
 
 	/**
-	 * An event for when the file working copy has been reverted.
+	 * An event fow when the fiwe wowking copy has been wevewted.
 	 */
-	readonly onDidRevert: Event<void>;
+	weadonwy onDidWevewt: Event<void>;
 
 	/**
-	 * An event for when the file working copy has been disposed.
+	 * An event fow when the fiwe wowking copy has been disposed.
 	 */
-	readonly onWillDispose: Event<void>;
+	weadonwy onWiwwDispose: Event<void>;
 
 	/**
-	 * Provides access to the underlying model of this file
-	 * based working copy. As long as the file working copy
-	 * has not been resolved, the model is `undefined`.
+	 * Pwovides access to the undewwying modew of this fiwe
+	 * based wowking copy. As wong as the fiwe wowking copy
+	 * has not been wesowved, the modew is `undefined`.
 	 */
-	readonly model: M | undefined;
+	weadonwy modew: M | undefined;
 
 	/**
-	 * Resolves the file working copy and thus makes the `model`
-	 * available.
+	 * Wesowves the fiwe wowking copy and thus makes the `modew`
+	 * avaiwabwe.
 	 */
-	resolve(): Promise<void>;
+	wesowve(): Pwomise<void>;
 
 	/**
-	 * Whether we have a resolved model or not.
+	 * Whetha we have a wesowved modew ow not.
 	 */
-	isResolved(): this is IResolvedFileWorkingCopy<M>;
+	isWesowved(): this is IWesowvedFiweWowkingCopy<M>;
 }
 
-export interface IResolvedFileWorkingCopy<M extends IFileWorkingCopyModel> extends IFileWorkingCopy<M> {
+expowt intewface IWesowvedFiweWowkingCopy<M extends IFiweWowkingCopyModew> extends IFiweWowkingCopy<M> {
 
 	/**
-	 * A resolved file working copy has a resolved model.
+	 * A wesowved fiwe wowking copy has a wesowved modew.
 	 */
-	readonly model: M;
+	weadonwy modew: M;
 }

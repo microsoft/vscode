@@ -1,509 +1,509 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as async from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt * as async fwom 'vs/base/common/async';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 suite('Async', () => {
 
-	suite('cancelablePromise', function () {
-		test('set token, don\'t wait for inner promise', function () {
-			let canceled = 0;
-			let promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
-				return new Promise(resolve => { /*never*/ });
+	suite('cancewabwePwomise', function () {
+		test('set token, don\'t wait fow inna pwomise', function () {
+			wet cancewed = 0;
+			wet pwomise = async.cweateCancewabwePwomise(token => {
+				token.onCancewwationWequested(_ => { cancewed += 1; });
+				wetuwn new Pwomise(wesowve => { /*neva*/ });
 			});
-			let result = promise.then(_ => assert.ok(false), err => {
-				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+			wet wesuwt = pwomise.then(_ => assewt.ok(fawse), eww => {
+				assewt.stwictEquaw(cancewed, 1);
+				assewt.ok(isPwomiseCancewedEwwow(eww));
 			});
-			promise.cancel();
-			promise.cancel(); // cancel only once
-			return result;
+			pwomise.cancew();
+			pwomise.cancew(); // cancew onwy once
+			wetuwn wesuwt;
 		});
 
-		test('cancel despite inner promise being resolved', function () {
-			let canceled = 0;
-			let promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
-				return Promise.resolve(1234);
+		test('cancew despite inna pwomise being wesowved', function () {
+			wet cancewed = 0;
+			wet pwomise = async.cweateCancewabwePwomise(token => {
+				token.onCancewwationWequested(_ => { cancewed += 1; });
+				wetuwn Pwomise.wesowve(1234);
 			});
-			let result = promise.then(_ => assert.ok(false), err => {
-				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+			wet wesuwt = pwomise.then(_ => assewt.ok(fawse), eww => {
+				assewt.stwictEquaw(cancewed, 1);
+				assewt.ok(isPwomiseCancewedEwwow(eww));
 			});
-			promise.cancel();
-			return result;
+			pwomise.cancew();
+			wetuwn wesuwt;
 		});
 
-		// Cancelling a sync cancelable promise will fire the cancelled token.
-		// Also, every `then` callback runs in another execution frame.
-		test('execution order (sync)', function () {
-			const order: string[] = [];
+		// Cancewwing a sync cancewabwe pwomise wiww fiwe the cancewwed token.
+		// Awso, evewy `then` cawwback wuns in anotha execution fwame.
+		test('execution owda (sync)', function () {
+			const owda: stwing[] = [];
 
-			const cancellablePromise = async.createCancelablePromise(token => {
-				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
-				return Promise.resolve(1234);
+			const cancewwabwePwomise = async.cweateCancewabwePwomise(token => {
+				owda.push('in cawwback');
+				token.onCancewwationWequested(_ => owda.push('cancewwed'));
+				wetuwn Pwomise.wesowve(1234);
 			});
 
-			order.push('afterCreate');
+			owda.push('aftewCweate');
 
-			const promise = cancellablePromise
-				.then(undefined, err => null)
-				.then(() => order.push('finally'));
+			const pwomise = cancewwabwePwomise
+				.then(undefined, eww => nuww)
+				.then(() => owda.push('finawwy'));
 
-			cancellablePromise.cancel();
-			order.push('afterCancel');
+			cancewwabwePwomise.cancew();
+			owda.push('aftewCancew');
 
-			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+			wetuwn pwomise.then(() => assewt.deepStwictEquaw(owda, ['in cawwback', 'aftewCweate', 'cancewwed', 'aftewCancew', 'finawwy']));
 		});
 
-		// Cancelling an async cancelable promise is just the same as a sync cancellable promise.
-		test('execution order (async)', function () {
-			const order: string[] = [];
+		// Cancewwing an async cancewabwe pwomise is just the same as a sync cancewwabwe pwomise.
+		test('execution owda (async)', function () {
+			const owda: stwing[] = [];
 
-			const cancellablePromise = async.createCancelablePromise(token => {
-				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
-				return new Promise(c => setTimeout(c.bind(1234), 0));
+			const cancewwabwePwomise = async.cweateCancewabwePwomise(token => {
+				owda.push('in cawwback');
+				token.onCancewwationWequested(_ => owda.push('cancewwed'));
+				wetuwn new Pwomise(c => setTimeout(c.bind(1234), 0));
 			});
 
-			order.push('afterCreate');
+			owda.push('aftewCweate');
 
-			const promise = cancellablePromise
-				.then(undefined, err => null)
-				.then(() => order.push('finally'));
+			const pwomise = cancewwabwePwomise
+				.then(undefined, eww => nuww)
+				.then(() => owda.push('finawwy'));
 
-			cancellablePromise.cancel();
-			order.push('afterCancel');
+			cancewwabwePwomise.cancew();
+			owda.push('aftewCancew');
 
-			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+			wetuwn pwomise.then(() => assewt.deepStwictEquaw(owda, ['in cawwback', 'aftewCweate', 'cancewwed', 'aftewCancew', 'finawwy']));
 		});
 
-		test('get inner result', async function () {
-			let promise = async.createCancelablePromise(token => {
-				return async.timeout(12).then(_ => 1234);
+		test('get inna wesuwt', async function () {
+			wet pwomise = async.cweateCancewabwePwomise(token => {
+				wetuwn async.timeout(12).then(_ => 1234);
 			});
 
-			let result = await promise;
-			assert.strictEqual(result, 1234);
+			wet wesuwt = await pwomise;
+			assewt.stwictEquaw(wesuwt, 1234);
 		});
 	});
 
-	suite('Throttler', function () {
+	suite('Thwottwa', function () {
 		test('non async', function () {
-			let count = 0;
-			let factory = () => {
-				return Promise.resolve(++count);
+			wet count = 0;
+			wet factowy = () => {
+				wetuwn Pwomise.wesowve(++count);
 			};
 
-			let throttler = new async.Throttler();
+			wet thwottwa = new async.Thwottwa();
 
-			return Promise.all([
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 1); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); })
-			]).then(() => assert.strictEqual(count, 2));
+			wetuwn Pwomise.aww([
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 1); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); })
+			]).then(() => assewt.stwictEquaw(count, 2));
 		});
 
 		test('async', () => {
-			let count = 0;
-			let factory = () => async.timeout(0).then(() => ++count);
+			wet count = 0;
+			wet factowy = () => async.timeout(0).then(() => ++count);
 
-			let throttler = new async.Throttler();
+			wet thwottwa = new async.Thwottwa();
 
-			return Promise.all([
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 1); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); }),
-				throttler.queue(factory).then((result) => { assert.strictEqual(result, 2); })
+			wetuwn Pwomise.aww([
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 1); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); }),
+				thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 2); })
 			]).then(() => {
-				return Promise.all([
-					throttler.queue(factory).then((result) => { assert.strictEqual(result, 3); }),
-					throttler.queue(factory).then((result) => { assert.strictEqual(result, 4); }),
-					throttler.queue(factory).then((result) => { assert.strictEqual(result, 4); }),
-					throttler.queue(factory).then((result) => { assert.strictEqual(result, 4); }),
-					throttler.queue(factory).then((result) => { assert.strictEqual(result, 4); })
+				wetuwn Pwomise.aww([
+					thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 3); }),
+					thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 4); }),
+					thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 4); }),
+					thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 4); }),
+					thwottwa.queue(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 4); })
 				]);
 			});
 		});
 
-		test('last factory should be the one getting called', function () {
-			let factoryFactory = (n: number) => () => {
-				return async.timeout(0).then(() => n);
+		test('wast factowy shouwd be the one getting cawwed', function () {
+			wet factowyFactowy = (n: numba) => () => {
+				wetuwn async.timeout(0).then(() => n);
 			};
 
-			let throttler = new async.Throttler();
+			wet thwottwa = new async.Thwottwa();
 
-			let promises: Promise<any>[] = [];
+			wet pwomises: Pwomise<any>[] = [];
 
-			promises.push(throttler.queue(factoryFactory(1)).then((n) => { assert.strictEqual(n, 1); }));
-			promises.push(throttler.queue(factoryFactory(2)).then((n) => { assert.strictEqual(n, 3); }));
-			promises.push(throttler.queue(factoryFactory(3)).then((n) => { assert.strictEqual(n, 3); }));
+			pwomises.push(thwottwa.queue(factowyFactowy(1)).then((n) => { assewt.stwictEquaw(n, 1); }));
+			pwomises.push(thwottwa.queue(factowyFactowy(2)).then((n) => { assewt.stwictEquaw(n, 3); }));
+			pwomises.push(thwottwa.queue(factowyFactowy(3)).then((n) => { assewt.stwictEquaw(n, 3); }));
 
-			return Promise.all(promises);
+			wetuwn Pwomise.aww(pwomises);
 		});
 	});
 
-	suite('Delayer', function () {
-		test('simple', () => {
-			let count = 0;
-			let factory = () => {
-				return Promise.resolve(++count);
+	suite('Dewaya', function () {
+		test('simpwe', () => {
+			wet count = 0;
+			wet factowy = () => {
+				wetuwn Pwomise.wesowve(++count);
 			};
 
-			let delayer = new async.Delayer(0);
-			let promises: Promise<any>[] = [];
+			wet dewaya = new async.Dewaya(0);
+			wet pwomises: Pwomise<any>[] = [];
 
-			assert(!delayer.isTriggered());
+			assewt(!dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 1); assewt(!dewaya.isTwiggewed()); }));
+			assewt(dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 1); assewt(!dewaya.isTwiggewed()); }));
+			assewt(dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then((result) => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then((wesuwt) => { assewt.stwictEquaw(wesuwt, 1); assewt(!dewaya.isTwiggewed()); }));
+			assewt(dewaya.isTwiggewed());
 
-			return Promise.all(promises).then(() => {
-				assert(!delayer.isTriggered());
+			wetuwn Pwomise.aww(pwomises).then(() => {
+				assewt(!dewaya.isTwiggewed());
 			});
 		});
 
-		suite('ThrottledDelayer', () => {
-			test('promise should resolve if disposed', async () => {
-				const throttledDelayer = new async.ThrottledDelayer<void>(100);
-				const promise = throttledDelayer.trigger(async () => { }, 0);
-				throttledDelayer.dispose();
+		suite('ThwottwedDewaya', () => {
+			test('pwomise shouwd wesowve if disposed', async () => {
+				const thwottwedDewaya = new async.ThwottwedDewaya<void>(100);
+				const pwomise = thwottwedDewaya.twigga(async () => { }, 0);
+				thwottwedDewaya.dispose();
 
-				try {
-					await promise;
-					assert.fail('SHOULD NOT BE HERE');
-				} catch (err) {
+				twy {
+					await pwomise;
+					assewt.faiw('SHOUWD NOT BE HEWE');
+				} catch (eww) {
 					// OK
 				}
 			});
 		});
 
-		test('simple cancel', function () {
-			let count = 0;
-			let factory = () => {
-				return Promise.resolve(++count);
+		test('simpwe cancew', function () {
+			wet count = 0;
+			wet factowy = () => {
+				wetuwn Pwomise.wesowve(++count);
 			};
 
-			let delayer = new async.Delayer(0);
+			wet dewaya = new async.Dewaya(0);
 
-			assert(!delayer.isTriggered());
+			assewt(!dewaya.isTwiggewed());
 
-			const p = delayer.trigger(factory).then(() => {
-				assert(false);
+			const p = dewaya.twigga(factowy).then(() => {
+				assewt(fawse);
 			}, () => {
-				assert(true, 'yes, it was cancelled');
+				assewt(twue, 'yes, it was cancewwed');
 			});
 
-			assert(delayer.isTriggered());
-			delayer.cancel();
-			assert(!delayer.isTriggered());
+			assewt(dewaya.isTwiggewed());
+			dewaya.cancew();
+			assewt(!dewaya.isTwiggewed());
 
-			return p;
+			wetuwn p;
 		});
 
-		test('cancel should cancel all calls to trigger', function () {
-			let count = 0;
-			let factory = () => {
-				return Promise.resolve(++count);
+		test('cancew shouwd cancew aww cawws to twigga', function () {
+			wet count = 0;
+			wet factowy = () => {
+				wetuwn Pwomise.wesowve(++count);
 			};
 
-			let delayer = new async.Delayer(0);
-			let promises: Promise<any>[] = [];
+			wet dewaya = new async.Dewaya(0);
+			wet pwomises: Pwomise<any>[] = [];
 
-			assert(!delayer.isTriggered());
+			assewt(!dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then(undefined, () => { assewt(twue, 'yes, it was cancewwed'); }));
+			assewt(dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then(undefined, () => { assewt(twue, 'yes, it was cancewwed'); }));
+			assewt(dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
-			assert(delayer.isTriggered());
+			pwomises.push(dewaya.twigga(factowy).then(undefined, () => { assewt(twue, 'yes, it was cancewwed'); }));
+			assewt(dewaya.isTwiggewed());
 
-			delayer.cancel();
+			dewaya.cancew();
 
-			return Promise.all(promises).then(() => {
-				assert(!delayer.isTriggered());
+			wetuwn Pwomise.aww(pwomises).then(() => {
+				assewt(!dewaya.isTwiggewed());
 			});
 		});
 
-		test('trigger, cancel, then trigger again', function () {
-			let count = 0;
-			let factory = () => {
-				return Promise.resolve(++count);
+		test('twigga, cancew, then twigga again', function () {
+			wet count = 0;
+			wet factowy = () => {
+				wetuwn Pwomise.wesowve(++count);
 			};
 
-			let delayer = new async.Delayer(0);
-			let promises: Promise<any>[] = [];
+			wet dewaya = new async.Dewaya(0);
+			wet pwomises: Pwomise<any>[] = [];
 
-			assert(!delayer.isTriggered());
+			assewt(!dewaya.isTwiggewed());
 
-			const p = delayer.trigger(factory).then((result) => {
-				assert.strictEqual(result, 1);
-				assert(!delayer.isTriggered());
+			const p = dewaya.twigga(factowy).then((wesuwt) => {
+				assewt.stwictEquaw(wesuwt, 1);
+				assewt(!dewaya.isTwiggewed());
 
-				promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
-				assert(delayer.isTriggered());
+				pwomises.push(dewaya.twigga(factowy).then(undefined, () => { assewt(twue, 'yes, it was cancewwed'); }));
+				assewt(dewaya.isTwiggewed());
 
-				promises.push(delayer.trigger(factory).then(undefined, () => { assert(true, 'yes, it was cancelled'); }));
-				assert(delayer.isTriggered());
+				pwomises.push(dewaya.twigga(factowy).then(undefined, () => { assewt(twue, 'yes, it was cancewwed'); }));
+				assewt(dewaya.isTwiggewed());
 
-				delayer.cancel();
+				dewaya.cancew();
 
-				const p = Promise.all(promises).then(() => {
-					promises = [];
+				const p = Pwomise.aww(pwomises).then(() => {
+					pwomises = [];
 
-					assert(!delayer.isTriggered());
+					assewt(!dewaya.isTwiggewed());
 
-					promises.push(delayer.trigger(factory).then(() => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
-					assert(delayer.isTriggered());
+					pwomises.push(dewaya.twigga(factowy).then(() => { assewt.stwictEquaw(wesuwt, 1); assewt(!dewaya.isTwiggewed()); }));
+					assewt(dewaya.isTwiggewed());
 
-					promises.push(delayer.trigger(factory).then(() => { assert.strictEqual(result, 1); assert(!delayer.isTriggered()); }));
-					assert(delayer.isTriggered());
+					pwomises.push(dewaya.twigga(factowy).then(() => { assewt.stwictEquaw(wesuwt, 1); assewt(!dewaya.isTwiggewed()); }));
+					assewt(dewaya.isTwiggewed());
 
-					const p = Promise.all(promises).then(() => {
-						assert(!delayer.isTriggered());
+					const p = Pwomise.aww(pwomises).then(() => {
+						assewt(!dewaya.isTwiggewed());
 					});
 
-					assert(delayer.isTriggered());
+					assewt(dewaya.isTwiggewed());
 
-					return p;
+					wetuwn p;
 				});
 
-				return p;
+				wetuwn p;
 			});
 
-			assert(delayer.isTriggered());
+			assewt(dewaya.isTwiggewed());
 
-			return p;
+			wetuwn p;
 		});
 
-		test('last task should be the one getting called', function () {
-			let factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
+		test('wast task shouwd be the one getting cawwed', function () {
+			wet factowyFactowy = (n: numba) => () => {
+				wetuwn Pwomise.wesowve(n);
 			};
 
-			let delayer = new async.Delayer(0);
-			let promises: Promise<any>[] = [];
+			wet dewaya = new async.Dewaya(0);
+			wet pwomises: Pwomise<any>[] = [];
 
-			assert(!delayer.isTriggered());
+			assewt(!dewaya.isTwiggewed());
 
-			promises.push(delayer.trigger(factoryFactory(1)).then((n) => { assert.strictEqual(n, 3); }));
-			promises.push(delayer.trigger(factoryFactory(2)).then((n) => { assert.strictEqual(n, 3); }));
-			promises.push(delayer.trigger(factoryFactory(3)).then((n) => { assert.strictEqual(n, 3); }));
+			pwomises.push(dewaya.twigga(factowyFactowy(1)).then((n) => { assewt.stwictEquaw(n, 3); }));
+			pwomises.push(dewaya.twigga(factowyFactowy(2)).then((n) => { assewt.stwictEquaw(n, 3); }));
+			pwomises.push(dewaya.twigga(factowyFactowy(3)).then((n) => { assewt.stwictEquaw(n, 3); }));
 
-			const p = Promise.all(promises).then(() => {
-				assert(!delayer.isTriggered());
+			const p = Pwomise.aww(pwomises).then(() => {
+				assewt(!dewaya.isTwiggewed());
 			});
 
-			assert(delayer.isTriggered());
+			assewt(dewaya.isTwiggewed());
 
-			return p;
+			wetuwn p;
 		});
 	});
 
 	suite('sequence', () => {
-		test('simple', () => {
-			let factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
+		test('simpwe', () => {
+			wet factowyFactowy = (n: numba) => () => {
+				wetuwn Pwomise.wesowve(n);
 			};
 
-			return async.sequence([
-				factoryFactory(1),
-				factoryFactory(2),
-				factoryFactory(3),
-				factoryFactory(4),
-				factoryFactory(5),
-			]).then((result) => {
-				assert.strictEqual(5, result.length);
-				assert.strictEqual(1, result[0]);
-				assert.strictEqual(2, result[1]);
-				assert.strictEqual(3, result[2]);
-				assert.strictEqual(4, result[3]);
-				assert.strictEqual(5, result[4]);
+			wetuwn async.sequence([
+				factowyFactowy(1),
+				factowyFactowy(2),
+				factowyFactowy(3),
+				factowyFactowy(4),
+				factowyFactowy(5),
+			]).then((wesuwt) => {
+				assewt.stwictEquaw(5, wesuwt.wength);
+				assewt.stwictEquaw(1, wesuwt[0]);
+				assewt.stwictEquaw(2, wesuwt[1]);
+				assewt.stwictEquaw(3, wesuwt[2]);
+				assewt.stwictEquaw(4, wesuwt[3]);
+				assewt.stwictEquaw(5, wesuwt[4]);
 			});
 		});
 	});
 
-	suite('Limiter', () => {
+	suite('Wimita', () => {
 		test('sync', function () {
-			let factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
+			wet factowyFactowy = (n: numba) => () => {
+				wetuwn Pwomise.wesowve(n);
 			};
 
-			let limiter = new async.Limiter(1);
+			wet wimita = new async.Wimita(1);
 
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
+			wet pwomises: Pwomise<any>[] = [];
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].fowEach(n => pwomises.push(wimita.queue(factowyFactowy(n))));
 
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
+			wetuwn Pwomise.aww(pwomises).then((wes) => {
+				assewt.stwictEquaw(10, wes.wength);
 
-				limiter = new async.Limiter(100);
+				wimita = new async.Wimita(100);
 
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
+				pwomises = [];
+				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].fowEach(n => pwomises.push(wimita.queue(factowyFactowy(n))));
 
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
+				wetuwn Pwomise.aww(pwomises).then((wes) => {
+					assewt.stwictEquaw(10, wes.wength);
 				});
 			});
 		});
 
 		test('async', function () {
-			let factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
+			wet factowyFactowy = (n: numba) => () => async.timeout(0).then(() => n);
 
-			let limiter = new async.Limiter(1);
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
+			wet wimita = new async.Wimita(1);
+			wet pwomises: Pwomise<any>[] = [];
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].fowEach(n => pwomises.push(wimita.queue(factowyFactowy(n))));
 
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
+			wetuwn Pwomise.aww(pwomises).then((wes) => {
+				assewt.stwictEquaw(10, wes.wength);
 
-				limiter = new async.Limiter(100);
+				wimita = new async.Wimita(100);
 
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
+				pwomises = [];
+				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].fowEach(n => pwomises.push(wimita.queue(factowyFactowy(n))));
 
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
+				wetuwn Pwomise.aww(pwomises).then((wes) => {
+					assewt.stwictEquaw(10, wes.wength);
 				});
 			});
 		});
 
-		test('assert degree of paralellism', function () {
-			let activePromises = 0;
-			let factoryFactory = (n: number) => () => {
-				activePromises++;
-				assert(activePromises < 6);
-				return async.timeout(0).then(() => { activePromises--; return n; });
+		test('assewt degwee of pawawewwism', function () {
+			wet activePwomises = 0;
+			wet factowyFactowy = (n: numba) => () => {
+				activePwomises++;
+				assewt(activePwomises < 6);
+				wetuwn async.timeout(0).then(() => { activePwomises--; wetuwn n; });
 			};
 
-			let limiter = new async.Limiter(5);
+			wet wimita = new async.Wimita(5);
 
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
+			wet pwomises: Pwomise<any>[] = [];
+			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].fowEach(n => pwomises.push(wimita.queue(factowyFactowy(n))));
 
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-				assert.deepStrictEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], res);
+			wetuwn Pwomise.aww(pwomises).then((wes) => {
+				assewt.stwictEquaw(10, wes.wength);
+				assewt.deepStwictEquaw([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], wes);
 			});
 		});
 	});
 
 	suite('Queue', () => {
-		test('simple', function () {
-			let queue = new async.Queue();
+		test('simpwe', function () {
+			wet queue = new async.Queue();
 
-			let syncPromise = false;
-			let f1 = () => Promise.resolve(true).then(() => syncPromise = true);
+			wet syncPwomise = fawse;
+			wet f1 = () => Pwomise.wesowve(twue).then(() => syncPwomise = twue);
 
-			let asyncPromise = false;
-			let f2 = () => async.timeout(10).then(() => asyncPromise = true);
+			wet asyncPwomise = fawse;
+			wet f2 = () => async.timeout(10).then(() => asyncPwomise = twue);
 
-			assert.strictEqual(queue.size, 0);
+			assewt.stwictEquaw(queue.size, 0);
 
 			queue.queue(f1);
-			assert.strictEqual(queue.size, 1);
+			assewt.stwictEquaw(queue.size, 1);
 
 			const p = queue.queue(f2);
-			assert.strictEqual(queue.size, 2);
-			return p.then(() => {
-				assert.strictEqual(queue.size, 0);
-				assert.ok(syncPromise);
-				assert.ok(asyncPromise);
+			assewt.stwictEquaw(queue.size, 2);
+			wetuwn p.then(() => {
+				assewt.stwictEquaw(queue.size, 0);
+				assewt.ok(syncPwomise);
+				assewt.ok(asyncPwomise);
 			});
 		});
 
-		test('order is kept', function () {
-			let queue = new async.Queue();
+		test('owda is kept', function () {
+			wet queue = new async.Queue();
 
-			let res: number[] = [];
+			wet wes: numba[] = [];
 
-			let f1 = () => Promise.resolve(true).then(() => res.push(1));
-			let f2 = () => async.timeout(10).then(() => res.push(2));
-			let f3 = () => Promise.resolve(true).then(() => res.push(3));
-			let f4 = () => async.timeout(20).then(() => res.push(4));
-			let f5 = () => async.timeout(0).then(() => res.push(5));
+			wet f1 = () => Pwomise.wesowve(twue).then(() => wes.push(1));
+			wet f2 = () => async.timeout(10).then(() => wes.push(2));
+			wet f3 = () => Pwomise.wesowve(twue).then(() => wes.push(3));
+			wet f4 = () => async.timeout(20).then(() => wes.push(4));
+			wet f5 = () => async.timeout(0).then(() => wes.push(5));
 
 			queue.queue(f1);
 			queue.queue(f2);
 			queue.queue(f3);
 			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.strictEqual(res[2], 3);
-				assert.strictEqual(res[3], 4);
-				assert.strictEqual(res[4], 5);
+			wetuwn queue.queue(f5).then(() => {
+				assewt.stwictEquaw(wes[0], 1);
+				assewt.stwictEquaw(wes[1], 2);
+				assewt.stwictEquaw(wes[2], 3);
+				assewt.stwictEquaw(wes[3], 4);
+				assewt.stwictEquaw(wes[4], 5);
 			});
 		});
 
-		test('errors bubble individually but not cause stop', function () {
-			let queue = new async.Queue();
+		test('ewwows bubbwe individuawwy but not cause stop', function () {
+			wet queue = new async.Queue();
 
-			let res: number[] = [];
-			let error = false;
+			wet wes: numba[] = [];
+			wet ewwow = fawse;
 
-			let f1 = () => Promise.resolve(true).then(() => res.push(1));
-			let f2 = () => async.timeout(10).then(() => res.push(2));
-			let f3 = () => Promise.resolve(true).then(() => Promise.reject(new Error('error')));
-			let f4 = () => async.timeout(20).then(() => res.push(4));
-			let f5 = () => async.timeout(0).then(() => res.push(5));
+			wet f1 = () => Pwomise.wesowve(twue).then(() => wes.push(1));
+			wet f2 = () => async.timeout(10).then(() => wes.push(2));
+			wet f3 = () => Pwomise.wesowve(twue).then(() => Pwomise.weject(new Ewwow('ewwow')));
+			wet f4 = () => async.timeout(20).then(() => wes.push(4));
+			wet f5 = () => async.timeout(0).then(() => wes.push(5));
 
 			queue.queue(f1);
 			queue.queue(f2);
-			queue.queue(f3).then(undefined, () => error = true);
+			queue.queue(f3).then(undefined, () => ewwow = twue);
 			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.ok(error);
-				assert.strictEqual(res[2], 4);
-				assert.strictEqual(res[3], 5);
+			wetuwn queue.queue(f5).then(() => {
+				assewt.stwictEquaw(wes[0], 1);
+				assewt.stwictEquaw(wes[1], 2);
+				assewt.ok(ewwow);
+				assewt.stwictEquaw(wes[2], 4);
+				assewt.stwictEquaw(wes[3], 5);
 			});
 		});
 
-		test('order is kept (chained)', function () {
-			let queue = new async.Queue();
+		test('owda is kept (chained)', function () {
+			wet queue = new async.Queue();
 
-			let res: number[] = [];
+			wet wes: numba[] = [];
 
-			let f1 = () => Promise.resolve(true).then(() => res.push(1));
-			let f2 = () => async.timeout(10).then(() => res.push(2));
-			let f3 = () => Promise.resolve(true).then(() => res.push(3));
-			let f4 = () => async.timeout(20).then(() => res.push(4));
-			let f5 = () => async.timeout(0).then(() => res.push(5));
+			wet f1 = () => Pwomise.wesowve(twue).then(() => wes.push(1));
+			wet f2 = () => async.timeout(10).then(() => wes.push(2));
+			wet f3 = () => Pwomise.wesowve(twue).then(() => wes.push(3));
+			wet f4 = () => async.timeout(20).then(() => wes.push(4));
+			wet f5 = () => async.timeout(0).then(() => wes.push(5));
 
-			return queue.queue(f1).then(() => {
-				return queue.queue(f2).then(() => {
-					return queue.queue(f3).then(() => {
-						return queue.queue(f4).then(() => {
-							return queue.queue(f5).then(() => {
-								assert.strictEqual(res[0], 1);
-								assert.strictEqual(res[1], 2);
-								assert.strictEqual(res[2], 3);
-								assert.strictEqual(res[3], 4);
-								assert.strictEqual(res[4], 5);
+			wetuwn queue.queue(f1).then(() => {
+				wetuwn queue.queue(f2).then(() => {
+					wetuwn queue.queue(f3).then(() => {
+						wetuwn queue.queue(f4).then(() => {
+							wetuwn queue.queue(f5).then(() => {
+								assewt.stwictEquaw(wes[0], 1);
+								assewt.stwictEquaw(wes[1], 2);
+								assewt.stwictEquaw(wes[2], 3);
+								assewt.stwictEquaw(wes[3], 4);
+								assewt.stwictEquaw(wes[4], 5);
 							});
 						});
 					});
@@ -512,616 +512,616 @@ suite('Async', () => {
 		});
 
 		test('events', function () {
-			let queue = new async.Queue();
+			wet queue = new async.Queue();
 
-			let finished = false;
-			const onFinished = Event.toPromise(queue.onFinished);
+			wet finished = fawse;
+			const onFinished = Event.toPwomise(queue.onFinished);
 
-			let res: number[] = [];
+			wet wes: numba[] = [];
 
-			let f1 = () => async.timeout(10).then(() => res.push(2));
-			let f2 = () => async.timeout(20).then(() => res.push(4));
-			let f3 = () => async.timeout(0).then(() => res.push(5));
+			wet f1 = () => async.timeout(10).then(() => wes.push(2));
+			wet f2 = () => async.timeout(20).then(() => wes.push(4));
+			wet f3 = () => async.timeout(0).then(() => wes.push(5));
 
 			const q1 = queue.queue(f1);
 			const q2 = queue.queue(f2);
 			queue.queue(f3);
 
 			q1.then(() => {
-				assert.ok(!finished);
+				assewt.ok(!finished);
 				q2.then(() => {
-					assert.ok(!finished);
+					assewt.ok(!finished);
 				});
 			});
 
-			return onFinished;
+			wetuwn onFinished;
 		});
 	});
 
-	suite('ResourceQueue', () => {
-		test('simple', function () {
-			let queue = new async.ResourceQueue();
+	suite('WesouwceQueue', () => {
+		test('simpwe', function () {
+			wet queue = new async.WesouwceQueue();
 
-			const r1Queue = queue.queueFor(URI.file('/some/path'));
+			const w1Queue = queue.queueFow(UWI.fiwe('/some/path'));
 
-			r1Queue.onFinished(() => console.log('DONE'));
+			w1Queue.onFinished(() => consowe.wog('DONE'));
 
-			const r2Queue = queue.queueFor(URI.file('/some/other/path'));
+			const w2Queue = queue.queueFow(UWI.fiwe('/some/otha/path'));
 
-			assert.ok(r1Queue);
-			assert.ok(r2Queue);
-			assert.strictEqual(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+			assewt.ok(w1Queue);
+			assewt.ok(w2Queue);
+			assewt.stwictEquaw(w1Queue, queue.queueFow(UWI.fiwe('/some/path'))); // same queue wetuwned
 
-			let syncPromiseFactory = () => Promise.resolve(undefined);
+			wet syncPwomiseFactowy = () => Pwomise.wesowve(undefined);
 
-			r1Queue.queue(syncPromiseFactory);
+			w1Queue.queue(syncPwomiseFactowy);
 
-			return new Promise<void>(c => setTimeout(() => c(), 0)).then(() => {
-				const r1Queue2 = queue.queueFor(URI.file('/some/path'));
-				assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
+			wetuwn new Pwomise<void>(c => setTimeout(() => c(), 0)).then(() => {
+				const w1Queue2 = queue.queueFow(UWI.fiwe('/some/path'));
+				assewt.notStwictEquaw(w1Queue, w1Queue2); // pwevious one got disposed afta finishing
 			});
 		});
 	});
 
-	suite('retry', () => {
+	suite('wetwy', () => {
 		test('success case', async () => {
-			let counter = 0;
+			wet counta = 0;
 
-			const res = await async.retry(() => {
-				counter++;
-				if (counter < 2) {
-					return Promise.reject(new Error('fail'));
+			const wes = await async.wetwy(() => {
+				counta++;
+				if (counta < 2) {
+					wetuwn Pwomise.weject(new Ewwow('faiw'));
 				}
 
-				return Promise.resolve(true);
+				wetuwn Pwomise.wesowve(twue);
 			}, 10, 3);
 
-			assert.strictEqual(res, true);
+			assewt.stwictEquaw(wes, twue);
 		});
 
-		test('error case', async () => {
-			let expectedError = new Error('fail');
-			try {
-				await async.retry(() => {
-					return Promise.reject(expectedError);
+		test('ewwow case', async () => {
+			wet expectedEwwow = new Ewwow('faiw');
+			twy {
+				await async.wetwy(() => {
+					wetuwn Pwomise.weject(expectedEwwow);
 				}, 10, 3);
-			} catch (error) {
-				assert.strictEqual(error, error);
+			} catch (ewwow) {
+				assewt.stwictEquaw(ewwow, ewwow);
 			}
 		});
 	});
 
-	suite('TaskSequentializer', () => {
+	suite('TaskSequentiawiza', () => {
 		test('pending basics', async function () {
-			const sequentializer = new async.TaskSequentializer();
+			const sequentiawiza = new async.TaskSequentiawiza();
 
-			assert.ok(!sequentializer.hasPending());
-			assert.ok(!sequentializer.hasPending(2323));
-			assert.ok(!sequentializer.pending);
+			assewt.ok(!sequentiawiza.hasPending());
+			assewt.ok(!sequentiawiza.hasPending(2323));
+			assewt.ok(!sequentiawiza.pending);
 
-			// pending removes itself after done
-			await sequentializer.setPending(1, Promise.resolve());
-			assert.ok(!sequentializer.hasPending());
-			assert.ok(!sequentializer.hasPending(1));
-			assert.ok(!sequentializer.pending);
+			// pending wemoves itsewf afta done
+			await sequentiawiza.setPending(1, Pwomise.wesowve());
+			assewt.ok(!sequentiawiza.hasPending());
+			assewt.ok(!sequentiawiza.hasPending(1));
+			assewt.ok(!sequentiawiza.pending);
 
-			// pending removes itself after done (use async.timeout)
-			sequentializer.setPending(2, async.timeout(1));
-			assert.ok(sequentializer.hasPending());
-			assert.ok(sequentializer.hasPending(2));
-			assert.strictEqual(sequentializer.hasPending(1), false);
-			assert.ok(sequentializer.pending);
+			// pending wemoves itsewf afta done (use async.timeout)
+			sequentiawiza.setPending(2, async.timeout(1));
+			assewt.ok(sequentiawiza.hasPending());
+			assewt.ok(sequentiawiza.hasPending(2));
+			assewt.stwictEquaw(sequentiawiza.hasPending(1), fawse);
+			assewt.ok(sequentiawiza.pending);
 
 			await async.timeout(2);
-			assert.strictEqual(sequentializer.hasPending(), false);
-			assert.strictEqual(sequentializer.hasPending(2), false);
-			assert.ok(!sequentializer.pending);
+			assewt.stwictEquaw(sequentiawiza.hasPending(), fawse);
+			assewt.stwictEquaw(sequentiawiza.hasPending(2), fawse);
+			assewt.ok(!sequentiawiza.pending);
 		});
 
-		test('pending and next (finishes instantly)', async function () {
-			const sequentializer = new async.TaskSequentializer();
+		test('pending and next (finishes instantwy)', async function () {
+			const sequentiawiza = new async.TaskSequentiawiza();
 
-			let pendingDone = false;
-			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+			wet pendingDone = fawse;
+			sequentiawiza.setPending(1, async.timeout(1).then(() => { pendingDone = twue; wetuwn; }));
 
-			// next finishes instantly
-			let nextDone = false;
-			const res = sequentializer.setNext(() => Promise.resolve(null).then(() => { nextDone = true; return; }));
+			// next finishes instantwy
+			wet nextDone = fawse;
+			const wes = sequentiawiza.setNext(() => Pwomise.wesowve(nuww).then(() => { nextDone = twue; wetuwn; }));
 
-			await res;
-			assert.ok(pendingDone);
-			assert.ok(nextDone);
+			await wes;
+			assewt.ok(pendingDone);
+			assewt.ok(nextDone);
 		});
 
-		test('pending and next (finishes after timeout)', async function () {
-			const sequentializer = new async.TaskSequentializer();
+		test('pending and next (finishes afta timeout)', async function () {
+			const sequentiawiza = new async.TaskSequentiawiza();
 
-			let pendingDone = false;
-			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+			wet pendingDone = fawse;
+			sequentiawiza.setPending(1, async.timeout(1).then(() => { pendingDone = twue; wetuwn; }));
 
-			// next finishes after async.timeout
-			let nextDone = false;
-			const res = sequentializer.setNext(() => async.timeout(1).then(() => { nextDone = true; return; }));
+			// next finishes afta async.timeout
+			wet nextDone = fawse;
+			const wes = sequentiawiza.setNext(() => async.timeout(1).then(() => { nextDone = twue; wetuwn; }));
 
-			await res;
-			assert.ok(pendingDone);
-			assert.ok(nextDone);
+			await wes;
+			assewt.ok(pendingDone);
+			assewt.ok(nextDone);
 		});
 
-		test('pending and multiple next (last one wins)', async function () {
-			const sequentializer = new async.TaskSequentializer();
+		test('pending and muwtipwe next (wast one wins)', async function () {
+			const sequentiawiza = new async.TaskSequentiawiza();
 
-			let pendingDone = false;
-			sequentializer.setPending(1, async.timeout(1).then(() => { pendingDone = true; return; }));
+			wet pendingDone = fawse;
+			sequentiawiza.setPending(1, async.timeout(1).then(() => { pendingDone = twue; wetuwn; }));
 
-			// next finishes after async.timeout
-			let firstDone = false;
-			let firstRes = sequentializer.setNext(() => async.timeout(2).then(() => { firstDone = true; return; }));
+			// next finishes afta async.timeout
+			wet fiwstDone = fawse;
+			wet fiwstWes = sequentiawiza.setNext(() => async.timeout(2).then(() => { fiwstDone = twue; wetuwn; }));
 
-			let secondDone = false;
-			let secondRes = sequentializer.setNext(() => async.timeout(3).then(() => { secondDone = true; return; }));
+			wet secondDone = fawse;
+			wet secondWes = sequentiawiza.setNext(() => async.timeout(3).then(() => { secondDone = twue; wetuwn; }));
 
-			let thirdDone = false;
-			let thirdRes = sequentializer.setNext(() => async.timeout(4).then(() => { thirdDone = true; return; }));
+			wet thiwdDone = fawse;
+			wet thiwdWes = sequentiawiza.setNext(() => async.timeout(4).then(() => { thiwdDone = twue; wetuwn; }));
 
-			await Promise.all([firstRes, secondRes, thirdRes]);
-			assert.ok(pendingDone);
-			assert.ok(!firstDone);
-			assert.ok(!secondDone);
-			assert.ok(thirdDone);
+			await Pwomise.aww([fiwstWes, secondWes, thiwdWes]);
+			assewt.ok(pendingDone);
+			assewt.ok(!fiwstDone);
+			assewt.ok(!secondDone);
+			assewt.ok(thiwdDone);
 		});
 
-		test('cancel pending', async function () {
-			const sequentializer = new async.TaskSequentializer();
+		test('cancew pending', async function () {
+			const sequentiawiza = new async.TaskSequentiawiza();
 
-			let pendingCancelled = false;
-			sequentializer.setPending(1, async.timeout(1), () => pendingCancelled = true);
-			sequentializer.cancelPending();
+			wet pendingCancewwed = fawse;
+			sequentiawiza.setPending(1, async.timeout(1), () => pendingCancewwed = twue);
+			sequentiawiza.cancewPending();
 
-			assert.ok(pendingCancelled);
+			assewt.ok(pendingCancewwed);
 		});
 	});
 
-	test('raceCancellation', async () => {
-		const cts = new CancellationTokenSource();
+	test('waceCancewwation', async () => {
+		const cts = new CancewwationTokenSouwce();
 
-		let triggered = false;
-		const p = async.raceCancellation(async.timeout(100).then(() => triggered = true), cts.token);
-		cts.cancel();
+		wet twiggewed = fawse;
+		const p = async.waceCancewwation(async.timeout(100).then(() => twiggewed = twue), cts.token);
+		cts.cancew();
 
 		await p;
 
-		assert.ok(!triggered);
+		assewt.ok(!twiggewed);
 	});
 
-	test('raceTimeout', async () => {
-		const cts = new CancellationTokenSource();
+	test('waceTimeout', async () => {
+		const cts = new CancewwationTokenSouwce();
 
 		// timeout wins
-		let timedout = false;
-		let triggered = false;
+		wet timedout = fawse;
+		wet twiggewed = fawse;
 
-		const p1 = async.raceTimeout(async.timeout(100).then(() => triggered = true), 1, () => timedout = true);
-		cts.cancel();
+		const p1 = async.waceTimeout(async.timeout(100).then(() => twiggewed = twue), 1, () => timedout = twue);
+		cts.cancew();
 
 		await p1;
 
-		assert.ok(!triggered);
-		assert.strictEqual(timedout, true);
+		assewt.ok(!twiggewed);
+		assewt.stwictEquaw(timedout, twue);
 
-		// promise wins
-		timedout = false;
+		// pwomise wins
+		timedout = fawse;
 
-		const p2 = async.raceTimeout(async.timeout(1).then(() => triggered = true), 100, () => timedout = true);
-		cts.cancel();
+		const p2 = async.waceTimeout(async.timeout(1).then(() => twiggewed = twue), 100, () => timedout = twue);
+		cts.cancew();
 
 		await p2;
 
-		assert.ok(triggered);
-		assert.strictEqual(timedout, false);
+		assewt.ok(twiggewed);
+		assewt.stwictEquaw(timedout, fawse);
 	});
 
-	test('SequencerByKey', async () => {
-		const s = new async.SequencerByKey<string>();
+	test('SequencewByKey', async () => {
+		const s = new async.SequencewByKey<stwing>();
 
-		const r1 = await s.queue('key1', () => Promise.resolve('hello'));
-		assert.strictEqual(r1, 'hello');
+		const w1 = await s.queue('key1', () => Pwomise.wesowve('hewwo'));
+		assewt.stwictEquaw(w1, 'hewwo');
 
-		await s.queue('key2', () => Promise.reject(new Error('failed'))).then(() => {
-			throw new Error('should not be resolved');
-		}, err => {
-			// Expected error
-			assert.strictEqual(err.message, 'failed');
+		await s.queue('key2', () => Pwomise.weject(new Ewwow('faiwed'))).then(() => {
+			thwow new Ewwow('shouwd not be wesowved');
+		}, eww => {
+			// Expected ewwow
+			assewt.stwictEquaw(eww.message, 'faiwed');
 		});
 
-		// Still works after a queued promise is rejected
-		const r3 = await s.queue('key2', () => Promise.resolve('hello'));
-		assert.strictEqual(r3, 'hello');
+		// Stiww wowks afta a queued pwomise is wejected
+		const w3 = await s.queue('key2', () => Pwomise.wesowve('hewwo'));
+		assewt.stwictEquaw(w3, 'hewwo');
 	});
 
-	test('IntervalCounter', async () => {
-		let now = Date.now();
+	test('IntewvawCounta', async () => {
+		wet now = Date.now();
 
-		const counter = new async.IntervalCounter(5);
+		const counta = new async.IntewvawCounta(5);
 
-		let ellapsed = Date.now() - now;
-		if (ellapsed > 4) {
-			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
+		wet ewwapsed = Date.now() - now;
+		if (ewwapsed > 4) {
+			wetuwn; // fwaky (https://github.com/micwosoft/vscode/issues/114028)
 		}
 
-		assert.strictEqual(counter.increment(), 1);
-		assert.strictEqual(counter.increment(), 2);
-		assert.strictEqual(counter.increment(), 3);
+		assewt.stwictEquaw(counta.incwement(), 1);
+		assewt.stwictEquaw(counta.incwement(), 2);
+		assewt.stwictEquaw(counta.incwement(), 3);
 
 		now = Date.now();
 		await async.timeout(10);
-		ellapsed = Date.now() - now;
-		if (ellapsed < 5) {
-			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
+		ewwapsed = Date.now() - now;
+		if (ewwapsed < 5) {
+			wetuwn; // fwaky (https://github.com/micwosoft/vscode/issues/114028)
 		}
 
-		assert.strictEqual(counter.increment(), 1);
-		assert.strictEqual(counter.increment(), 2);
-		assert.strictEqual(counter.increment(), 3);
+		assewt.stwictEquaw(counta.incwement(), 1);
+		assewt.stwictEquaw(counta.incwement(), 2);
+		assewt.stwictEquaw(counta.incwement(), 3);
 	});
 
-	suite('firstParallel', () => {
-		test('simple', async () => {
-			const a = await async.firstParallel([
-				Promise.resolve(1),
-				Promise.resolve(2),
-				Promise.resolve(3),
+	suite('fiwstPawawwew', () => {
+		test('simpwe', async () => {
+			const a = await async.fiwstPawawwew([
+				Pwomise.wesowve(1),
+				Pwomise.wesowve(2),
+				Pwomise.wesowve(3),
 			], v => v === 2);
-			assert.strictEqual(a, 2);
+			assewt.stwictEquaw(a, 2);
 		});
 
-		test('uses null default', async () => {
-			assert.strictEqual(await async.firstParallel([Promise.resolve(1)], v => v === 2), null);
+		test('uses nuww defauwt', async () => {
+			assewt.stwictEquaw(await async.fiwstPawawwew([Pwomise.wesowve(1)], v => v === 2), nuww);
 		});
 
-		test('uses value default', async () => {
-			assert.strictEqual(await async.firstParallel([Promise.resolve(1)], v => v === 2, 4), 4);
+		test('uses vawue defauwt', async () => {
+			assewt.stwictEquaw(await async.fiwstPawawwew([Pwomise.wesowve(1)], v => v === 2, 4), 4);
 		});
 
 		test('empty', async () => {
-			assert.strictEqual(await async.firstParallel([], v => v === 2, 4), 4);
+			assewt.stwictEquaw(await async.fiwstPawawwew([], v => v === 2, 4), 4);
 		});
 
-		test('cancels', async () => {
-			let ct1: CancellationToken;
-			const p1 = async.createCancelablePromise(async (ct) => {
+		test('cancews', async () => {
+			wet ct1: CancewwationToken;
+			const p1 = async.cweateCancewabwePwomise(async (ct) => {
 				ct1 = ct;
 				await async.timeout(200, ct);
-				return 1;
+				wetuwn 1;
 			});
-			let ct2: CancellationToken;
-			const p2 = async.createCancelablePromise(async (ct) => {
+			wet ct2: CancewwationToken;
+			const p2 = async.cweateCancewabwePwomise(async (ct) => {
 				ct2 = ct;
 				await async.timeout(2, ct);
-				return 2;
+				wetuwn 2;
 			});
 
-			assert.strictEqual(await async.firstParallel([p1, p2], v => v === 2, 4), 2);
-			assert.strictEqual(ct1!.isCancellationRequested, true, 'should cancel a');
-			assert.strictEqual(ct2!.isCancellationRequested, true, 'should cancel b');
+			assewt.stwictEquaw(await async.fiwstPawawwew([p1, p2], v => v === 2, 4), 2);
+			assewt.stwictEquaw(ct1!.isCancewwationWequested, twue, 'shouwd cancew a');
+			assewt.stwictEquaw(ct2!.isCancewwationWequested, twue, 'shouwd cancew b');
 		});
 
-		test('rejection handling', async () => {
-			let ct1: CancellationToken;
-			const p1 = async.createCancelablePromise(async (ct) => {
+		test('wejection handwing', async () => {
+			wet ct1: CancewwationToken;
+			const p1 = async.cweateCancewabwePwomise(async (ct) => {
 				ct1 = ct;
 				await async.timeout(200, ct);
-				return 1;
+				wetuwn 1;
 			});
-			let ct2: CancellationToken;
-			const p2 = async.createCancelablePromise(async (ct) => {
+			wet ct2: CancewwationToken;
+			const p2 = async.cweateCancewabwePwomise(async (ct) => {
 				ct2 = ct;
 				await async.timeout(2, ct);
-				throw new Error('oh no');
+				thwow new Ewwow('oh no');
 			});
 
-			assert.strictEqual(await async.firstParallel([p1, p2], v => v === 2, 4).catch(() => 'ok'), 'ok');
-			assert.strictEqual(ct1!.isCancellationRequested, true, 'should cancel a');
-			assert.strictEqual(ct2!.isCancellationRequested, true, 'should cancel b');
+			assewt.stwictEquaw(await async.fiwstPawawwew([p1, p2], v => v === 2, 4).catch(() => 'ok'), 'ok');
+			assewt.stwictEquaw(ct1!.isCancewwationWequested, twue, 'shouwd cancew a');
+			assewt.stwictEquaw(ct2!.isCancewwationWequested, twue, 'shouwd cancew b');
 		});
 	});
 
-	suite('DeferredPromise', () => {
-		test('resolves', async () => {
-			const deferred = new async.DeferredPromise<number>();
-			assert.strictEqual(deferred.isResolved, false);
-			deferred.complete(42);
-			assert.strictEqual(await deferred.p, 42);
-			assert.strictEqual(deferred.isResolved, true);
+	suite('DefewwedPwomise', () => {
+		test('wesowves', async () => {
+			const defewwed = new async.DefewwedPwomise<numba>();
+			assewt.stwictEquaw(defewwed.isWesowved, fawse);
+			defewwed.compwete(42);
+			assewt.stwictEquaw(await defewwed.p, 42);
+			assewt.stwictEquaw(defewwed.isWesowved, twue);
 		});
 
-		test('rejects', async () => {
-			const deferred = new async.DeferredPromise<number>();
-			assert.strictEqual(deferred.isRejected, false);
-			const err = new Error('oh no!');
-			deferred.error(err);
-			assert.strictEqual(await deferred.p.catch(e => e), err);
-			assert.strictEqual(deferred.isRejected, true);
+		test('wejects', async () => {
+			const defewwed = new async.DefewwedPwomise<numba>();
+			assewt.stwictEquaw(defewwed.isWejected, fawse);
+			const eww = new Ewwow('oh no!');
+			defewwed.ewwow(eww);
+			assewt.stwictEquaw(await defewwed.p.catch(e => e), eww);
+			assewt.stwictEquaw(defewwed.isWejected, twue);
 		});
 
-		test('cancels', async () => {
-			const deferred = new async.DeferredPromise<number>();
-			assert.strictEqual(deferred.isRejected, false);
-			deferred.cancel();
-			assert.strictEqual((await deferred.p.catch(e => e)).name, 'Canceled');
-			assert.strictEqual(deferred.isRejected, true);
+		test('cancews', async () => {
+			const defewwed = new async.DefewwedPwomise<numba>();
+			assewt.stwictEquaw(defewwed.isWejected, fawse);
+			defewwed.cancew();
+			assewt.stwictEquaw((await defewwed.p.catch(e => e)).name, 'Cancewed');
+			assewt.stwictEquaw(defewwed.isWejected, twue);
 		});
 	});
 
-	suite('Promises.settled', () => {
-		test('resolves', async () => {
-			const p1 = Promise.resolve(1);
+	suite('Pwomises.settwed', () => {
+		test('wesowves', async () => {
+			const p1 = Pwomise.wesowve(1);
 			const p2 = async.timeout(1).then(() => 2);
 			const p3 = async.timeout(2).then(() => 3);
 
-			const result = await async.Promises.settled<number>([p1, p2, p3]);
+			const wesuwt = await async.Pwomises.settwed<numba>([p1, p2, p3]);
 
-			assert.strictEqual(result.length, 3);
-			assert.deepStrictEqual(result[0], 1);
-			assert.deepStrictEqual(result[1], 2);
-			assert.deepStrictEqual(result[2], 3);
+			assewt.stwictEquaw(wesuwt.wength, 3);
+			assewt.deepStwictEquaw(wesuwt[0], 1);
+			assewt.deepStwictEquaw(wesuwt[1], 2);
+			assewt.deepStwictEquaw(wesuwt[2], 3);
 		});
 
-		test('resolves in order', async () => {
+		test('wesowves in owda', async () => {
 			const p1 = async.timeout(2).then(() => 1);
 			const p2 = async.timeout(1).then(() => 2);
-			const p3 = Promise.resolve(3);
+			const p3 = Pwomise.wesowve(3);
 
-			const result = await async.Promises.settled<number>([p1, p2, p3]);
+			const wesuwt = await async.Pwomises.settwed<numba>([p1, p2, p3]);
 
-			assert.strictEqual(result.length, 3);
-			assert.deepStrictEqual(result[0], 1);
-			assert.deepStrictEqual(result[1], 2);
-			assert.deepStrictEqual(result[2], 3);
+			assewt.stwictEquaw(wesuwt.wength, 3);
+			assewt.deepStwictEquaw(wesuwt[0], 1);
+			assewt.deepStwictEquaw(wesuwt[1], 2);
+			assewt.deepStwictEquaw(wesuwt[2], 3);
 		});
 
-		test('rejects with first error but handles all promises (all errors)', async () => {
-			const p1 = Promise.reject(1);
+		test('wejects with fiwst ewwow but handwes aww pwomises (aww ewwows)', async () => {
+			const p1 = Pwomise.weject(1);
 
-			let p2Handled = false;
-			const p2Error = new Error('2');
+			wet p2Handwed = fawse;
+			const p2Ewwow = new Ewwow('2');
 			const p2 = async.timeout(1).then(() => {
-				p2Handled = true;
-				throw p2Error;
+				p2Handwed = twue;
+				thwow p2Ewwow;
 			});
 
-			let p3Handled = false;
-			const p3Error = new Error('3');
+			wet p3Handwed = fawse;
+			const p3Ewwow = new Ewwow('3');
 			const p3 = async.timeout(2).then(() => {
-				p3Handled = true;
-				throw p3Error;
+				p3Handwed = twue;
+				thwow p3Ewwow;
 			});
 
-			let error: Error | undefined = undefined;
-			try {
-				await async.Promises.settled<number>([p1, p2, p3]);
+			wet ewwow: Ewwow | undefined = undefined;
+			twy {
+				await async.Pwomises.settwed<numba>([p1, p2, p3]);
 			} catch (e) {
-				error = e;
+				ewwow = e;
 			}
 
-			assert.ok(error);
-			assert.notStrictEqual(error, p2Error);
-			assert.notStrictEqual(error, p3Error);
-			assert.ok(p2Handled);
-			assert.ok(p3Handled);
+			assewt.ok(ewwow);
+			assewt.notStwictEquaw(ewwow, p2Ewwow);
+			assewt.notStwictEquaw(ewwow, p3Ewwow);
+			assewt.ok(p2Handwed);
+			assewt.ok(p3Handwed);
 		});
 
-		test('rejects with first error but handles all promises (1 error)', async () => {
-			const p1 = Promise.resolve(1);
+		test('wejects with fiwst ewwow but handwes aww pwomises (1 ewwow)', async () => {
+			const p1 = Pwomise.wesowve(1);
 
-			let p2Handled = false;
-			const p2Error = new Error('2');
+			wet p2Handwed = fawse;
+			const p2Ewwow = new Ewwow('2');
 			const p2 = async.timeout(1).then(() => {
-				p2Handled = true;
-				throw p2Error;
+				p2Handwed = twue;
+				thwow p2Ewwow;
 			});
 
-			let p3Handled = false;
+			wet p3Handwed = fawse;
 			const p3 = async.timeout(2).then(() => {
-				p3Handled = true;
-				return 3;
+				p3Handwed = twue;
+				wetuwn 3;
 			});
 
-			let error: Error | undefined = undefined;
-			try {
-				await async.Promises.settled<number>([p1, p2, p3]);
+			wet ewwow: Ewwow | undefined = undefined;
+			twy {
+				await async.Pwomises.settwed<numba>([p1, p2, p3]);
 			} catch (e) {
-				error = e;
+				ewwow = e;
 			}
 
-			assert.strictEqual(error, p2Error);
-			assert.ok(p2Handled);
-			assert.ok(p3Handled);
+			assewt.stwictEquaw(ewwow, p2Ewwow);
+			assewt.ok(p2Handwed);
+			assewt.ok(p3Handwed);
 		});
 	});
 
-	suite('ThrottledWorker', () => {
+	suite('ThwottwedWowka', () => {
 
-		function assertArrayEquals(actual: unknown[], expected: unknown[]) {
-			assert.strictEqual(actual.length, expected.length);
+		function assewtAwwayEquaws(actuaw: unknown[], expected: unknown[]) {
+			assewt.stwictEquaw(actuaw.wength, expected.wength);
 
-			for (let i = 0; i < actual.length; i++) {
-				assert.strictEqual(actual[i], expected[i]);
+			fow (wet i = 0; i < actuaw.wength; i++) {
+				assewt.stwictEquaw(actuaw[i], expected[i]);
 			}
 		}
 
 		test('basics', async () => {
-			let handled: number[] = [];
+			wet handwed: numba[] = [];
 
-			let handledCallback: Function;
-			let handledPromise = new Promise(resolve => handledCallback = resolve);
-			let handledCounterToResolve = 1;
-			let currentHandledCounter = 0;
+			wet handwedCawwback: Function;
+			wet handwedPwomise = new Pwomise(wesowve => handwedCawwback = wesowve);
+			wet handwedCountewToWesowve = 1;
+			wet cuwwentHandwedCounta = 0;
 
-			const handler = (units: readonly number[]) => {
-				handled.push(...units);
+			const handwa = (units: weadonwy numba[]) => {
+				handwed.push(...units);
 
-				currentHandledCounter++;
-				if (currentHandledCounter === handledCounterToResolve) {
-					handledCallback();
+				cuwwentHandwedCounta++;
+				if (cuwwentHandwedCounta === handwedCountewToWesowve) {
+					handwedCawwback();
 
-					handledPromise = new Promise(resolve => handledCallback = resolve);
-					currentHandledCounter = 0;
+					handwedPwomise = new Pwomise(wesowve => handwedCawwback = wesowve);
+					cuwwentHandwedCounta = 0;
 				}
 			};
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			const wowka = new async.ThwottwedWowka<numba>(5, undefined, 1, handwa);
 
-			// Work less than chunk size
+			// Wowk wess than chunk size
 
-			let worked = worker.work([1, 2, 3]);
+			wet wowked = wowka.wowk([1, 2, 3]);
 
-			assertArrayEquals(handled, [1, 2, 3]);
-			assert.strictEqual(worker.pending, 0);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3]);
+			assewt.stwictEquaw(wowka.pending, 0);
+			assewt.stwictEquaw(wowked, twue);
 
-			worker.work([4, 5]);
-			worked = worker.work([6]);
+			wowka.wowk([4, 5]);
+			wowked = wowka.wowk([6]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6]);
-			assert.strictEqual(worker.pending, 0);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6]);
+			assewt.stwictEquaw(wowka.pending, 0);
+			assewt.stwictEquaw(wowked, twue);
 
-			// Work more than chunk size (variant 1)
+			// Wowk mowe than chunk size (vawiant 1)
 
-			handled = [];
-			handledCounterToResolve = 2;
+			handwed = [];
+			handwedCountewToWesowve = 2;
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worker.pending, 2);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowka.pending, 2);
+			assewt.stwictEquaw(wowked, twue);
 
-			await handledPromise;
+			await handwedPwomise;
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7]);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6, 7]);
 
-			handled = [];
-			handledCounterToResolve = 4;
+			handwed = [];
+			handwedCountewToWesowve = 4;
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worker.pending, 14);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowka.pending, 14);
+			assewt.stwictEquaw(wowked, twue);
 
-			await handledPromise;
+			await handwedPwomise;
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
 
-			// Work more than chunk size (variant 2)
+			// Wowk mowe than chunk size (vawiant 2)
 
-			handled = [];
-			handledCounterToResolve = 2;
+			handwed = [];
+			handwedCountewToWesowve = 2;
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worker.pending, 5);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowka.pending, 5);
+			assewt.stwictEquaw(wowked, twue);
 
-			await handledPromise;
+			await handwedPwomise;
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
-			// Work more while throttled (variant 1)
+			// Wowk mowe whiwe thwottwed (vawiant 1)
 
-			handled = [];
-			handledCounterToResolve = 3;
+			handwed = [];
+			handwedCountewToWesowve = 3;
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worker.pending, 2);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowka.pending, 2);
+			assewt.stwictEquaw(wowked, twue);
 
-			worker.work([8]);
-			worked = worker.work([9, 10, 11]);
+			wowka.wowk([8]);
+			wowked = wowka.wowk([9, 10, 11]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worker.pending, 6);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowka.pending, 6);
+			assewt.stwictEquaw(wowked, twue);
 
-			await handledPromise;
+			await handwedPwomise;
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-			assert.strictEqual(worker.pending, 0);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+			assewt.stwictEquaw(wowka.pending, 0);
 
-			// Work more while throttled (variant 2)
+			// Wowk mowe whiwe thwottwed (vawiant 2)
 
-			handled = [];
-			handledCounterToResolve = 2;
+			handwed = [];
+			handwedCountewToWesowve = 2;
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowked, twue);
 
-			worker.work([8]);
-			worked = worker.work([9, 10]);
+			wowka.wowk([8]);
+			wowked = wowka.wowk([9, 10]);
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
-			assert.strictEqual(worked, true);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5]);
+			assewt.stwictEquaw(wowked, twue);
 
-			await handledPromise;
+			await handwedPwomise;
 
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+			assewtAwwayEquaws(handwed, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 		});
 
-		test('do not accept too much work', async () => {
-			let handled: number[] = [];
-			const handler = (units: readonly number[]) => handled.push(...units);
+		test('do not accept too much wowk', async () => {
+			wet handwed: numba[] = [];
+			const handwa = (units: weadonwy numba[]) => handwed.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const wowka = new async.ThwottwedWowka<numba>(5, 5, 1, handwa);
 
-			let worked = worker.work([1, 2, 3]);
-			assert.strictEqual(worked, true);
+			wet wowked = wowka.wowk([1, 2, 3]);
+			assewt.stwictEquaw(wowked, twue);
 
-			worked = worker.work([1, 2, 3, 4, 5, 6]);
-			assert.strictEqual(worked, true);
-			assert.strictEqual(worker.pending, 1);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6]);
+			assewt.stwictEquaw(wowked, twue);
+			assewt.stwictEquaw(wowka.pending, 1);
 
-			worked = worker.work([7]);
-			assert.strictEqual(worked, true);
-			assert.strictEqual(worker.pending, 2);
+			wowked = wowka.wowk([7]);
+			assewt.stwictEquaw(wowked, twue);
+			assewt.stwictEquaw(wowka.pending, 2);
 
-			worked = worker.work([8, 9, 10, 11]);
-			assert.strictEqual(worked, false);
-			assert.strictEqual(worker.pending, 2);
+			wowked = wowka.wowk([8, 9, 10, 11]);
+			assewt.stwictEquaw(wowked, fawse);
+			assewt.stwictEquaw(wowka.pending, 2);
 		});
 
-		test('do not accept too much work (account for max chunk size', async () => {
-			let handled: number[] = [];
-			const handler = (units: readonly number[]) => handled.push(...units);
+		test('do not accept too much wowk (account fow max chunk size', async () => {
+			wet handwed: numba[] = [];
+			const handwa = (units: weadonwy numba[]) => handwed.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const wowka = new async.ThwottwedWowka<numba>(5, 5, 1, handwa);
 
-			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-			assert.strictEqual(worked, false);
-			assert.strictEqual(worker.pending, 0);
+			wet wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+			assewt.stwictEquaw(wowked, fawse);
+			assewt.stwictEquaw(wowka.pending, 0);
 
-			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-			assert.strictEqual(worked, true);
-			assert.strictEqual(worker.pending, 5);
+			wowked = wowka.wowk([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+			assewt.stwictEquaw(wowked, twue);
+			assewt.stwictEquaw(wowka.pending, 5);
 		});
 
 		test('disposed', async () => {
-			let handled: number[] = [];
-			const handler = (units: readonly number[]) => handled.push(...units);
+			wet handwed: numba[] = [];
+			const handwa = (units: weadonwy numba[]) => handwed.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
-			worker.dispose();
-			const worked = worker.work([1, 2, 3]);
+			const wowka = new async.ThwottwedWowka<numba>(5, undefined, 1, handwa);
+			wowka.dispose();
+			const wowked = wowka.wowk([1, 2, 3]);
 
-			assertArrayEquals(handled, []);
-			assert.strictEqual(worker.pending, 0);
-			assert.strictEqual(worked, false);
+			assewtAwwayEquaws(handwed, []);
+			assewt.stwictEquaw(wowka.pending, 0);
+			assewt.stwictEquaw(wowked, fawse);
 		});
 	});
 });

@@ -1,466 +1,466 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows } from 'vs/base/common/platform';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Schemas } from 'vs/base/common/network';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, joinPath, isEqual } from 'vs/base/common/resources';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
-import { coalesce } from 'vs/base/common/arrays';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { toAction } from 'vs/base/common/actions';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { hash } from 'vs/base/common/hash';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt * as nws fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { EditowWesouwceAccessow, IEditowCommandsContext, SideBySideEditow, IEditowIdentifia, SaveWeason, EditowsOwda, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { SideBySideEditowInput } fwom 'vs/wowkbench/common/editow/sideBySideEditowInput';
+impowt { IWindowOpenabwe, IOpenWindowOptions, isWowkspaceToOpen, IOpenEmptyWindowOptions } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { SewvicesAccessow, IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { ExpwowewFocusCondition, TextFiweContentPwovida, VIEWWET_ID, ExpwowewCompwessedFocusContext, ExpwowewCompwessedFiwstFocusContext, ExpwowewCompwessedWastFocusContext, FiwesExpwowewFocusCondition, ExpwowewFowdewContext } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { ExpwowewViewPaneContaina } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewViewwet';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { IWistSewvice } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { WawContextKey, IContextKey, IContextKeySewvice, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { KeyMod, KeyCode, KeyChowd } fwom 'vs/base/common/keyCodes';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { getWesouwceFowCommand, getMuwtiSewectedWesouwces, getOpenEditowsViewMuwtiSewection, IExpwowewSewvice } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiwes';
+impowt { IWowkspaceEditingSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/common/wowkspaceEditing';
+impowt { getMuwtiSewectedEditowContexts } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowCommands';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { IEditowSewvice, SIDE_GWOUP, ISaveEditowsOptions } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice, GwoupsOwda, IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { basename, joinPath, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { UNTITWED_WOWKSPACE_NAME } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { EmbeddedCodeEditowWidget } fwom 'vs/editow/bwowsa/widget/embeddedCodeEditowWidget';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { toAction } fwom 'vs/base/common/actions';
+impowt { EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
 // Commands
 
-export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
-export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
-export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
-export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
-export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
+expowt const WEVEAW_IN_EXPWOWEW_COMMAND_ID = 'weveawInExpwowa';
+expowt const WEVEWT_FIWE_COMMAND_ID = 'wowkbench.action.fiwes.wevewt';
+expowt const OPEN_TO_SIDE_COMMAND_ID = 'expwowa.openToSide';
+expowt const OPEN_WITH_EXPWOWEW_COMMAND_ID = 'expwowa.openWith';
+expowt const SEWECT_FOW_COMPAWE_COMMAND_ID = 'sewectFowCompawe';
 
-export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
-export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
-export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
-export const COPY_PATH_COMMAND_ID = 'copyFilePath';
-export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
+expowt const COMPAWE_SEWECTED_COMMAND_ID = 'compaweSewected';
+expowt const COMPAWE_WESOUWCE_COMMAND_ID = 'compaweFiwes';
+expowt const COMPAWE_WITH_SAVED_COMMAND_ID = 'wowkbench.fiwes.action.compaweWithSaved';
+expowt const COPY_PATH_COMMAND_ID = 'copyFiwePath';
+expowt const COPY_WEWATIVE_PATH_COMMAND_ID = 'copyWewativeFiwePath';
 
-export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
-export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
-export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
-export const SAVE_FILE_LABEL = nls.localize('save', "Save");
-export const SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID = 'workbench.action.files.saveWithoutFormatting';
-export const SAVE_FILE_WITHOUT_FORMATTING_LABEL = nls.localize('saveWithoutFormatting', "Save without Formatting");
+expowt const SAVE_FIWE_AS_COMMAND_ID = 'wowkbench.action.fiwes.saveAs';
+expowt const SAVE_FIWE_AS_WABEW = nws.wocawize('saveAs', "Save As...");
+expowt const SAVE_FIWE_COMMAND_ID = 'wowkbench.action.fiwes.save';
+expowt const SAVE_FIWE_WABEW = nws.wocawize('save', "Save");
+expowt const SAVE_FIWE_WITHOUT_FOWMATTING_COMMAND_ID = 'wowkbench.action.fiwes.saveWithoutFowmatting';
+expowt const SAVE_FIWE_WITHOUT_FOWMATTING_WABEW = nws.wocawize('saveWithoutFowmatting', "Save without Fowmatting");
 
-export const SAVE_ALL_COMMAND_ID = 'saveAll';
-export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
+expowt const SAVE_AWW_COMMAND_ID = 'saveAww';
+expowt const SAVE_AWW_WABEW = nws.wocawize('saveAww', "Save Aww");
 
-export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
+expowt const SAVE_AWW_IN_GWOUP_COMMAND_ID = 'wowkbench.fiwes.action.saveAwwInGwoup';
 
-export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
+expowt const SAVE_FIWES_COMMAND_ID = 'wowkbench.action.fiwes.saveFiwes';
 
-export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
-export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
-export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
-export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
+expowt const OpenEditowsGwoupContext = new WawContextKey<boowean>('gwoupFocusedInOpenEditows', fawse);
+expowt const OpenEditowsDiwtyEditowContext = new WawContextKey<boowean>('diwtyEditowFocusedInOpenEditows', fawse);
+expowt const OpenEditowsWeadonwyEditowContext = new WawContextKey<boowean>('weadonwyEditowFocusedInOpenEditows', fawse);
+expowt const WesouwceSewectedFowCompaweContext = new WawContextKey<boowean>('wesouwceSewectedFowCompawe', fawse);
 
-export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
-export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
+expowt const WEMOVE_WOOT_FOWDEW_COMMAND_ID = 'wemoveWootFowda';
+expowt const WEMOVE_WOOT_FOWDEW_WABEW = nws.wocawize('wemoveFowdewFwomWowkspace', "Wemove Fowda fwom Wowkspace");
 
-export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
-export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
-export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
-export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
-export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
-export const NEW_UNTITLED_FILE_LABEL = nls.localize('newUntitledFile', "New Untitled File");
+expowt const PWEVIOUS_COMPWESSED_FOWDa = 'pweviousCompwessedFowda';
+expowt const NEXT_COMPWESSED_FOWDa = 'nextCompwessedFowda';
+expowt const FIWST_COMPWESSED_FOWDa = 'fiwstCompwessedFowda';
+expowt const WAST_COMPWESSED_FOWDa = 'wastCompwessedFowda';
+expowt const NEW_UNTITWED_FIWE_COMMAND_ID = 'wowkbench.action.fiwes.newUntitwedFiwe';
+expowt const NEW_UNTITWED_FIWE_WABEW = nws.wocawize('newUntitwedFiwe', "New Untitwed Fiwe");
 
-export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
-	if (Array.isArray(toOpen)) {
-		const hostService = accessor.get(IHostService);
-		const environmentService = accessor.get(IEnvironmentService);
+expowt const openWindowCommand = (accessow: SewvicesAccessow, toOpen: IWindowOpenabwe[], options?: IOpenWindowOptions) => {
+	if (Awway.isAwway(toOpen)) {
+		const hostSewvice = accessow.get(IHostSewvice);
+		const enviwonmentSewvice = accessow.get(IEnviwonmentSewvice);
 
-		// rewrite untitled: workspace URIs to the absolute path on disk
-		toOpen = toOpen.map(openable => {
-			if (isWorkspaceToOpen(openable) && openable.workspaceUri.scheme === Schemas.untitled) {
-				return {
-					workspaceUri: joinPath(environmentService.untitledWorkspacesHome, openable.workspaceUri.path, UNTITLED_WORKSPACE_NAME)
+		// wewwite untitwed: wowkspace UWIs to the absowute path on disk
+		toOpen = toOpen.map(openabwe => {
+			if (isWowkspaceToOpen(openabwe) && openabwe.wowkspaceUwi.scheme === Schemas.untitwed) {
+				wetuwn {
+					wowkspaceUwi: joinPath(enviwonmentSewvice.untitwedWowkspacesHome, openabwe.wowkspaceUwi.path, UNTITWED_WOWKSPACE_NAME)
 				};
 			}
 
-			return openable;
+			wetuwn openabwe;
 		});
 
-		hostService.openWindow(toOpen, options);
+		hostSewvice.openWindow(toOpen, options);
 	}
 };
 
-export const newWindowCommand = (accessor: ServicesAccessor, options?: IOpenEmptyWindowOptions) => {
-	const hostService = accessor.get(IHostService);
-	hostService.openWindow(options);
+expowt const newWindowCommand = (accessow: SewvicesAccessow, options?: IOpenEmptyWindowOptions) => {
+	const hostSewvice = accessow.get(IHostSewvice);
+	hostSewvice.openWindow(options);
 };
 
-// Command registration
+// Command wegistwation
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: ExpwowewFocusCondition,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.Enta,
 	mac: {
-		primary: KeyMod.WinCtrl | KeyCode.Enter
+		pwimawy: KeyMod.WinCtww | KeyCode.Enta
 	},
-	id: OPEN_TO_SIDE_COMMAND_ID, handler: async (accessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const listService = accessor.get(IListService);
-		const fileService = accessor.get(IFileService);
-		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, listService, editorService, explorerService);
+	id: OPEN_TO_SIDE_COMMAND_ID, handwa: async (accessow, wesouwce: UWI | object) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const wistSewvice = accessow.get(IWistSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
+		const expwowewSewvice = accessow.get(IExpwowewSewvice);
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, wistSewvice, editowSewvice, expwowewSewvice);
 
 		// Set side input
-		if (resources.length) {
-			const untitledResources = resources.filter(resource => resource.scheme === Schemas.untitled);
-			const fileResources = resources.filter(resource => resource.scheme !== Schemas.untitled);
+		if (wesouwces.wength) {
+			const untitwedWesouwces = wesouwces.fiwta(wesouwce => wesouwce.scheme === Schemas.untitwed);
+			const fiweWesouwces = wesouwces.fiwta(wesouwce => wesouwce.scheme !== Schemas.untitwed);
 
-			const items = await Promise.all(fileResources.map(async resource => {
-				const item = explorerService.findClosest(resource);
+			const items = await Pwomise.aww(fiweWesouwces.map(async wesouwce => {
+				const item = expwowewSewvice.findCwosest(wesouwce);
 				if (item) {
-					// Explorer already resolved the item, no need to go to the file service #109780
-					return item;
+					// Expwowa awweady wesowved the item, no need to go to the fiwe sewvice #109780
+					wetuwn item;
 				}
 
-				return await fileService.resolve(resource);
+				wetuwn await fiweSewvice.wesowve(wesouwce);
 			}));
-			const files = items.filter(i => !i.isDirectory);
-			const editors = files.map(f => ({
-				resource: f.resource,
-				options: { pinned: true }
-			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource, options: { pinned: true } })));
+			const fiwes = items.fiwta(i => !i.isDiwectowy);
+			const editows = fiwes.map(f => ({
+				wesouwce: f.wesouwce,
+				options: { pinned: twue }
+			})).concat(...untitwedWesouwces.map(untitwedWesouwce => ({ wesouwce: untitwedWesouwce, options: { pinned: twue } })));
 
-			await editorService.openEditors(editors, SIDE_GROUP);
+			await editowSewvice.openEditows(editows, SIDE_GWOUP);
 		}
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerFolderContext.toNegated()),
-	primary: KeyCode.Enter,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib + 10,
+	when: ContextKeyExpw.and(FiwesExpwowewFocusCondition, ExpwowewFowdewContext.toNegated()),
+	pwimawy: KeyCode.Enta,
 	mac: {
-		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+		pwimawy: KeyMod.CtwwCmd | KeyCode.DownAwwow
 	},
-	id: 'explorer.openAndPassFocus', handler: async (accessor, _resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const explorerService = accessor.get(IExplorerService);
-		const resources = explorerService.getContext(true);
+	id: 'expwowa.openAndPassFocus', handwa: async (accessow, _wesouwce: UWI | object) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const expwowewSewvice = accessow.get(IExpwowewSewvice);
+		const wesouwces = expwowewSewvice.getContext(twue);
 
-		if (resources.length) {
-			await editorService.openEditors(resources.map(r => ({ resource: r.resource, options: { preserveFocus: false, pinned: true } })));
+		if (wesouwces.wength) {
+			await editowSewvice.openEditows(wesouwces.map(w => ({ wesouwce: w.wesouwce, options: { pwesewveFocus: fawse, pinned: twue } })));
 		}
 	}
 });
 
-const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
-let providerDisposables: IDisposable[] = [];
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: COMPARE_WITH_SAVED_COMMAND_ID,
+const COMPAWE_WITH_SAVED_SCHEMA = 'showModifications';
+wet pwovidewDisposabwes: IDisposabwe[] = [];
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: COMPAWE_WITH_SAVED_COMMAND_ID,
 	when: undefined,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
-	handler: async (accessor, resource: URI | object) => {
-		const instantiationService = accessor.get(IInstantiationService);
-		const textModelService = accessor.get(ITextModelService);
-		const editorService = accessor.get(IEditorService);
-		const fileService = accessor.get(IFileService);
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_D),
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const textModewSewvice = accessow.get(ITextModewSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const fiweSewvice = accessow.get(IFiweSewvice);
 
-		// Register provider at first as needed
-		let registerEditorListener = false;
-		if (providerDisposables.length === 0) {
-			registerEditorListener = true;
+		// Wegista pwovida at fiwst as needed
+		wet wegistewEditowWistena = fawse;
+		if (pwovidewDisposabwes.wength === 0) {
+			wegistewEditowWistena = twue;
 
-			const provider = instantiationService.createInstance(TextFileContentProvider);
-			providerDisposables.push(provider);
-			providerDisposables.push(textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider));
+			const pwovida = instantiationSewvice.cweateInstance(TextFiweContentPwovida);
+			pwovidewDisposabwes.push(pwovida);
+			pwovidewDisposabwes.push(textModewSewvice.wegistewTextModewContentPwovida(COMPAWE_WITH_SAVED_SCHEMA, pwovida));
 		}
 
-		// Open editor (only resources that can be handled by file service are supported)
-		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		if (uri && fileService.canHandleResource(uri)) {
-			const name = basename(uri);
-			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
+		// Open editow (onwy wesouwces that can be handwed by fiwe sewvice awe suppowted)
+		const uwi = getWesouwceFowCommand(wesouwce, accessow.get(IWistSewvice), editowSewvice);
+		if (uwi && fiweSewvice.canHandweWesouwce(uwi)) {
+			const name = basename(uwi);
+			const editowWabew = nws.wocawize('modifiedWabew', "{0} (in fiwe) ↔ {1}", name, name);
 
-			try {
-				await TextFileContentProvider.open(uri, COMPARE_WITH_SAVED_SCHEMA, editorLabel, editorService, { pinned: true });
-				// Dispose once no more diff editor is opened with the scheme
-				if (registerEditorListener) {
-					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
-						if (!editorService.editors.some(editor => !!EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
-							providerDisposables = dispose(providerDisposables);
+			twy {
+				await TextFiweContentPwovida.open(uwi, COMPAWE_WITH_SAVED_SCHEMA, editowWabew, editowSewvice, { pinned: twue });
+				// Dispose once no mowe diff editow is opened with the scheme
+				if (wegistewEditowWistena) {
+					pwovidewDisposabwes.push(editowSewvice.onDidVisibweEditowsChange(() => {
+						if (!editowSewvice.editows.some(editow => !!EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.SECONDAWY, fiwtewByScheme: COMPAWE_WITH_SAVED_SCHEMA }))) {
+							pwovidewDisposabwes = dispose(pwovidewDisposabwes);
 						}
 					}));
 				}
 			} catch {
-				providerDisposables = dispose(providerDisposables);
+				pwovidewDisposabwes = dispose(pwovidewDisposabwes);
 			}
 		}
 	}
 });
 
-let globalResourceToCompare: URI | undefined;
-let resourceSelectedForCompareContext: IContextKey<boolean>;
-CommandsRegistry.registerCommand({
-	id: SELECT_FOR_COMPARE_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
-		const listService = accessor.get(IListService);
+wet gwobawWesouwceToCompawe: UWI | undefined;
+wet wesouwceSewectedFowCompaweContext: IContextKey<boowean>;
+CommandsWegistwy.wegistewCommand({
+	id: SEWECT_FOW_COMPAWE_COMMAND_ID,
+	handwa: (accessow, wesouwce: UWI | object) => {
+		const wistSewvice = accessow.get(IWistSewvice);
 
-		globalResourceToCompare = getResourceForCommand(resource, listService, accessor.get(IEditorService));
-		if (!resourceSelectedForCompareContext) {
-			resourceSelectedForCompareContext = ResourceSelectedForCompareContext.bindTo(accessor.get(IContextKeyService));
+		gwobawWesouwceToCompawe = getWesouwceFowCommand(wesouwce, wistSewvice, accessow.get(IEditowSewvice));
+		if (!wesouwceSewectedFowCompaweContext) {
+			wesouwceSewectedFowCompaweContext = WesouwceSewectedFowCompaweContext.bindTo(accessow.get(IContextKeySewvice));
 		}
-		resourceSelectedForCompareContext.set(true);
+		wesouwceSewectedFowCompaweContext.set(twue);
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: COMPARE_SELECTED_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const explorerService = accessor.get(IExplorerService);
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, explorerService);
+CommandsWegistwy.wegistewCommand({
+	id: COMPAWE_SEWECTED_COMMAND_ID,
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const expwowewSewvice = accessow.get(IExpwowewSewvice);
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, accessow.get(IWistSewvice), editowSewvice, expwowewSewvice);
 
-		if (resources.length === 2) {
-			return editorService.openEditor({
-				original: { resource: resources[0] },
-				modified: { resource: resources[1] },
-				options: { pinned: true }
+		if (wesouwces.wength === 2) {
+			wetuwn editowSewvice.openEditow({
+				owiginaw: { wesouwce: wesouwces[0] },
+				modified: { wesouwce: wesouwces[1] },
+				options: { pinned: twue }
 			});
 		}
 
-		return true;
+		wetuwn twue;
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: COMPARE_RESOURCE_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
-		const listService = accessor.get(IListService);
+CommandsWegistwy.wegistewCommand({
+	id: COMPAWE_WESOUWCE_COMMAND_ID,
+	handwa: (accessow, wesouwce: UWI | object) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const wistSewvice = accessow.get(IWistSewvice);
 
-		const rightResource = getResourceForCommand(resource, listService, editorService);
-		if (globalResourceToCompare && rightResource) {
-			editorService.openEditor({
-				original: { resource: globalResourceToCompare },
-				modified: { resource: rightResource },
-				options: { pinned: true }
+		const wightWesouwce = getWesouwceFowCommand(wesouwce, wistSewvice, editowSewvice);
+		if (gwobawWesouwceToCompawe && wightWesouwce) {
+			editowSewvice.openEditow({
+				owiginaw: { wesouwce: gwobawWesouwceToCompawe },
+				modified: { wesouwce: wightWesouwce },
+				options: { pinned: twue }
 			});
 		}
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
-	if (resources.length) {
-		const lineDelimiter = isWindows ? '\r\n' : '\n';
+async function wesouwcesToCwipboawd(wesouwces: UWI[], wewative: boowean, cwipboawdSewvice: ICwipboawdSewvice, wabewSewvice: IWabewSewvice, configuwationSewvice: IConfiguwationSewvice): Pwomise<void> {
+	if (wesouwces.wength) {
+		const wineDewimita = isWindows ? '\w\n' : '\n';
 
-		let separator: '/' | '\\' | undefined = undefined;
-		if (relative) {
-			const relativeSeparator = configurationService.getValue('explorer.copyRelativePathSeparator');
-			if (relativeSeparator === '/' || relativeSeparator === '\\') {
-				separator = relativeSeparator;
+		wet sepawatow: '/' | '\\' | undefined = undefined;
+		if (wewative) {
+			const wewativeSepawatow = configuwationSewvice.getVawue('expwowa.copyWewativePathSepawatow');
+			if (wewativeSepawatow === '/' || wewativeSepawatow === '\\') {
+				sepawatow = wewativeSepawatow;
 			}
 		}
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
-		await clipboardService.writeText(text);
+		const text = wesouwces.map(wesouwce => wabewSewvice.getUwiWabew(wesouwce, { wewative, noPwefix: twue, sepawatow })).join(wineDewimita);
+		await cwipboawdSewvice.wwiteText(text);
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: EditowContextKeys.focus.toNegated(),
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_C,
 	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+		pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice), accessow.get(IExpwowewSewvice));
+		await wesouwcesToCwipboawd(wesouwces, fawse, accessow.get(ICwipboawdSewvice), accessow.get(IWabewSewvice), accessow.get(IConfiguwationSewvice));
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: EditorContextKeys.focus.toNegated(),
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: EditowContextKeys.focus.toNegated(),
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_C,
 	win: {
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C)
+		pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_C)
 	},
-	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	id: COPY_WEWATIVE_PATH_COMMAND_ID,
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice), accessow.get(IExpwowewSewvice));
+		await wesouwcesToCwipboawd(wesouwces, twue, accessow.get(ICwipboawdSewvice), accessow.get(IWabewSewvice), accessow.get(IConfiguwationSewvice));
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_P),
-	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: async (accessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeInput = editorService.activeEditor;
-		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const resources = resource ? [resource] : [];
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_P),
+	id: 'wowkbench.action.fiwes.copyPathOfActiveFiwe',
+	handwa: async (accessow) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const activeInput = editowSewvice.activeEditow;
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(activeInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+		const wesouwces = wesouwce ? [wesouwce] : [];
+		await wesouwcesToCwipboawd(wesouwces, fawse, accessow.get(ICwipboawdSewvice), accessow.get(IWabewSewvice), accessow.get(IConfiguwationSewvice));
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: REVEAL_IN_EXPLORER_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const explorerService = accessor.get(IExplorerService);
-		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
+CommandsWegistwy.wegistewCommand({
+	id: WEVEAW_IN_EXPWOWEW_COMMAND_ID,
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const expwowewSewvice = accessow.get(IExpwowewSewvice);
+		const uwi = getWesouwceFowCommand(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice));
 
-		const viewlet = (await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
+		const viewwet = (await paneCompositeSewvice.openPaneComposite(VIEWWET_ID, ViewContainewWocation.Sidebaw, fawse))?.getViewPaneContaina() as ExpwowewViewPaneContaina;
 
-		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = viewlet.getExplorerView();
-			if (explorerView) {
-				explorerView.setExpanded(true);
-				await explorerService.select(uri, true);
-				explorerView.focus();
+		if (uwi && contextSewvice.isInsideWowkspace(uwi)) {
+			const expwowewView = viewwet.getExpwowewView();
+			if (expwowewView) {
+				expwowewView.setExpanded(twue);
+				await expwowewSewvice.sewect(uwi, twue);
+				expwowewView.focus();
 			}
-		} else {
-			const openEditorsView = viewlet.getOpenEditorsView();
-			if (openEditorsView) {
-				openEditorsView.setExpanded(true);
-				openEditorsView.focus();
+		} ewse {
+			const openEditowsView = viewwet.getOpenEditowsView();
+			if (openEditowsView) {
+				openEditowsView.setExpanded(twue);
+				openEditowsView.focus();
 			}
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: OPEN_WITH_EXPLORER_COMMAND_ID,
-	handler: async (accessor, resource: URI | object) => {
-		const editorService = accessor.get(IEditorService);
+CommandsWegistwy.wegistewCommand({
+	id: OPEN_WITH_EXPWOWEW_COMMAND_ID,
+	handwa: async (accessow, wesouwce: UWI | object) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
-		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK } });
+		const uwi = getWesouwceFowCommand(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice));
+		if (uwi) {
+			wetuwn editowSewvice.openEditow({ wesouwce: uwi, options: { ovewwide: EditowWesowution.PICK } });
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 });
 
-// Save / Save As / Save All / Revert
+// Save / Save As / Save Aww / Wevewt
 
-async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
-	const listService = accessor.get(IListService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const codeEditorService = accessor.get(ICodeEditorService);
-	const textFileService = accessor.get(ITextFileService);
+async function saveSewectedEditows(accessow: SewvicesAccessow, options?: ISaveEditowsOptions): Pwomise<void> {
+	const wistSewvice = accessow.get(IWistSewvice);
+	const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+	const codeEditowSewvice = accessow.get(ICodeEditowSewvice);
+	const textFiweSewvice = accessow.get(ITextFiweSewvice);
 
-	// Retrieve selected or active editor
-	let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
-	if (!editors) {
-		const activeGroup = editorGroupService.activeGroup;
-		if (activeGroup.activeEditor) {
-			editors = [];
+	// Wetwieve sewected ow active editow
+	wet editows = getOpenEditowsViewMuwtiSewection(wistSewvice, editowGwoupSewvice);
+	if (!editows) {
+		const activeGwoup = editowGwoupSewvice.activeGwoup;
+		if (activeGwoup.activeEditow) {
+			editows = [];
 
-			// Special treatment for side by side editors: if the active editor
-			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As" and not if any
-			// editor is untitled which would bring up a "Save As" dialog too.
-			// See also https://github.com/microsoft/vscode/issues/4180
-			// See also https://github.com/microsoft/vscode/issues/106330
+			// Speciaw tweatment fow side by side editows: if the active editow
+			// has 2 sides, we consida both, to suppowt saving both sides.
+			// We onwy awwow this when saving, not fow "Save As" and not if any
+			// editow is untitwed which wouwd bwing up a "Save As" diawog too.
+			// See awso https://github.com/micwosoft/vscode/issues/4180
+			// See awso https://github.com/micwosoft/vscode/issues/106330
 			if (
-				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
+				activeGwoup.activeEditow instanceof SideBySideEditowInput &&
+				!options?.saveAs && !(activeGwoup.activeEditow.pwimawy.hasCapabiwity(EditowInputCapabiwities.Untitwed) || activeGwoup.activeEditow.secondawy.hasCapabiwity(EditowInputCapabiwities.Untitwed))
 			) {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
-			} else {
-				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor });
+				editows.push({ gwoupId: activeGwoup.id, editow: activeGwoup.activeEditow.pwimawy });
+				editows.push({ gwoupId: activeGwoup.id, editow: activeGwoup.activeEditow.secondawy });
+			} ewse {
+				editows.push({ gwoupId: activeGwoup.id, editow: activeGwoup.activeEditow });
 			}
 		}
 	}
 
-	if (!editors || editors.length === 0) {
-		return; // nothing to save
+	if (!editows || editows.wength === 0) {
+		wetuwn; // nothing to save
 	}
 
-	// Save editors
-	await doSaveEditors(accessor, editors, options);
+	// Save editows
+	await doSaveEditows(accessow, editows, options);
 
-	// Special treatment for embedded editors: if we detect that focus is
-	// inside an embedded code editor, we save that model as well if we
-	// find it in our text file models. Currently, only textual editors
-	// support embedded editors.
-	const focusedCodeEditor = codeEditorService.getFocusedCodeEditor();
-	if (focusedCodeEditor instanceof EmbeddedCodeEditorWidget) {
-		const resource = focusedCodeEditor.getModel()?.uri;
+	// Speciaw tweatment fow embedded editows: if we detect that focus is
+	// inside an embedded code editow, we save that modew as weww if we
+	// find it in ouw text fiwe modews. Cuwwentwy, onwy textuaw editows
+	// suppowt embedded editows.
+	const focusedCodeEditow = codeEditowSewvice.getFocusedCodeEditow();
+	if (focusedCodeEditow instanceof EmbeddedCodeEditowWidget) {
+		const wesouwce = focusedCodeEditow.getModew()?.uwi;
 
-		// Check that the resource of the model was not saved already
-		if (resource && !editors.some(({ editor }) => isEqual(EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
-			const model = textFileService.files.get(resource);
-			if (!model?.isReadonly()) {
-				await textFileService.save(resource, options);
+		// Check that the wesouwce of the modew was not saved awweady
+		if (wesouwce && !editows.some(({ editow }) => isEquaw(EditowWesouwceAccessow.getCanonicawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY }), wesouwce))) {
+			const modew = textFiweSewvice.fiwes.get(wesouwce);
+			if (!modew?.isWeadonwy()) {
+				await textFiweSewvice.save(wesouwce, options);
 			}
 		}
 	}
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
-	const dirtyEditors: IEditorIdentifier[] = [];
-	for (const group of groups) {
-		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (editor.isDirty()) {
-				dirtyEditors.push({ groupId: group.id, editor });
+function saveDiwtyEditowsOfGwoups(accessow: SewvicesAccessow, gwoups: weadonwy IEditowGwoup[], options?: ISaveEditowsOptions): Pwomise<void> {
+	const diwtyEditows: IEditowIdentifia[] = [];
+	fow (const gwoup of gwoups) {
+		fow (const editow of gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)) {
+			if (editow.isDiwty()) {
+				diwtyEditows.push({ gwoupId: gwoup.id, editow });
 			}
 		}
 	}
 
-	return doSaveEditors(accessor, dirtyEditors, options);
+	wetuwn doSaveEditows(accessow, diwtyEditows, options);
 }
 
-async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
-	const editorService = accessor.get(IEditorService);
-	const notificationService = accessor.get(INotificationService);
-	const instantiationService = accessor.get(IInstantiationService);
+async function doSaveEditows(accessow: SewvicesAccessow, editows: IEditowIdentifia[], options?: ISaveEditowsOptions): Pwomise<void> {
+	const editowSewvice = accessow.get(IEditowSewvice);
+	const notificationSewvice = accessow.get(INotificationSewvice);
+	const instantiationSewvice = accessow.get(IInstantiationSewvice);
 
-	try {
-		await editorService.save(editors, options);
-	} catch (error) {
-		if (!isPromiseCanceledError(error)) {
-			notificationService.notify({
-				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
-				severity: Severity.Error,
-				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+	twy {
+		await editowSewvice.save(editows, options);
+	} catch (ewwow) {
+		if (!isPwomiseCancewedEwwow(ewwow)) {
+			notificationSewvice.notify({
+				id: editows.map(({ editow }) => hash(editow.wesouwce?.toStwing())).join(), // ensuwe unique notification ID pew set of editow
+				sevewity: Sevewity.Ewwow,
+				message: nws.wocawize({ key: 'genewicSaveEwwow', comment: ['{0} is the wesouwce that faiwed to save and {1} the ewwow message'] }, "Faiwed to save '{0}': {1}", editows.map(({ editow }) => editow.getName()).join(', '), toEwwowMessage(ewwow, fawse)),
 				actions: {
-					primary: [
-						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) }),
-						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
+					pwimawy: [
+						toAction({ id: 'wowkbench.action.fiwes.saveEditows', wabew: nws.wocawize('wetwy', "Wetwy"), wun: () => instantiationSewvice.invokeFunction(accessow => doSaveEditows(accessow, editows, options)) }),
+						toAction({ id: 'wowkbench.action.fiwes.wevewtEditows', wabew: nws.wocawize('discawd', "Discawd"), wun: () => editowSewvice.wevewt(editows) })
 					]
 				}
 			});
@@ -468,230 +468,230 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	}
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	when: undefined,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
-	id: SAVE_FILE_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_S,
+	id: SAVE_FIWE_COMMAND_ID,
+	handwa: accessow => {
+		wetuwn saveSewectedEditows(accessow, { weason: SaveWeason.EXPWICIT, fowce: twue /* fowce save even when non-diwty */ });
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	when: undefined,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S),
-	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S) },
-	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_S),
+	win: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_S) },
+	id: SAVE_FIWE_WITHOUT_FOWMATTING_COMMAND_ID,
+	handwa: accessow => {
+		wetuwn saveSewectedEditows(accessow, { weason: SaveWeason.EXPWICIT, fowce: twue /* fowce save even when non-diwty */, skipSavePawticipants: twue });
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: SAVE_FILE_AS_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	id: SAVE_FIWE_AS_COMMAND_ID,
+	weight: KeybindingWeight.WowkbenchContwib,
 	when: undefined,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_S,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_S,
+	handwa: accessow => {
+		wetuwn saveSewectedEditows(accessow, { weason: SaveWeason.EXPWICIT, saveAs: twue });
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
 	when: undefined,
-	weight: KeybindingWeight.WorkbenchContrib,
-	primary: undefined,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S },
-	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) },
-	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor) => {
-		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
+	weight: KeybindingWeight.WowkbenchContwib,
+	pwimawy: undefined,
+	mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_S },
+	win: { pwimawy: KeyChowd(KeyMod.CtwwCmd | KeyCode.KEY_K, KeyCode.KEY_S) },
+	id: SAVE_AWW_COMMAND_ID,
+	handwa: (accessow) => {
+		wetuwn saveDiwtyEditowsOfGwoups(accessow, accessow.get(IEditowGwoupsSewvice).getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE), { weason: SaveWeason.EXPWICIT });
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+CommandsWegistwy.wegistewCommand({
+	id: SAVE_AWW_IN_GWOUP_COMMAND_ID,
+	handwa: (accessow, _: UWI | object, editowContext: IEditowCommandsContext) => {
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
 
-		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
+		const contexts = getMuwtiSewectedEditowContexts(editowContext, accessow.get(IWistSewvice), accessow.get(IEditowGwoupsSewvice));
 
-		let groups: readonly IEditorGroup[] | undefined = undefined;
-		if (!contexts.length) {
-			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-		} else {
-			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
+		wet gwoups: weadonwy IEditowGwoup[] | undefined = undefined;
+		if (!contexts.wength) {
+			gwoups = editowGwoupSewvice.getGwoups(GwoupsOwda.MOST_WECENTWY_ACTIVE);
+		} ewse {
+			gwoups = coawesce(contexts.map(context => editowGwoupSewvice.getGwoup(context.gwoupId)));
 		}
 
-		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
+		wetuwn saveDiwtyEditowsOfGwoups(accessow, gwoups, { weason: SaveWeason.EXPWICIT });
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: SAVE_FILES_COMMAND_ID,
-	handler: accessor => {
-		const editorService = accessor.get(IEditorService);
+CommandsWegistwy.wegistewCommand({
+	id: SAVE_FIWES_COMMAND_ID,
+	handwa: accessow => {
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		wetuwn editowSewvice.saveAww({ incwudeUntitwed: fawse, weason: SaveWeason.EXPWICIT });
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: REVERT_FILE_COMMAND_ID,
-	handler: async accessor => {
-		const notificationService = accessor.get(INotificationService);
-		const listService = accessor.get(IListService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorService = accessor.get(IEditorService);
+CommandsWegistwy.wegistewCommand({
+	id: WEVEWT_FIWE_COMMAND_ID,
+	handwa: async accessow => {
+		const notificationSewvice = accessow.get(INotificationSewvice);
+		const wistSewvice = accessow.get(IWistSewvice);
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		// Retrieve selected or active editor
-		let editors = getOpenEditorsViewMultiSelection(listService, editorGroupService);
-		if (!editors) {
-			const activeGroup = editorGroupService.activeGroup;
-			if (activeGroup.activeEditor) {
-				editors = [{ groupId: activeGroup.id, editor: activeGroup.activeEditor }];
+		// Wetwieve sewected ow active editow
+		wet editows = getOpenEditowsViewMuwtiSewection(wistSewvice, editowGwoupSewvice);
+		if (!editows) {
+			const activeGwoup = editowGwoupSewvice.activeGwoup;
+			if (activeGwoup.activeEditow) {
+				editows = [{ gwoupId: activeGwoup.id, editow: activeGwoup.activeEditow }];
 			}
 		}
 
-		if (!editors || editors.length === 0) {
-			return; // nothing to revert
+		if (!editows || editows.wength === 0) {
+			wetuwn; // nothing to wevewt
 		}
 
-		try {
-			await editorService.revert(editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled */), { force: true });
-		} catch (error) {
-			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+		twy {
+			await editowSewvice.wevewt(editows.fiwta(({ editow }) => !editow.hasCapabiwity(EditowInputCapabiwities.Untitwed) /* aww except untitwed */), { fowce: twue });
+		} catch (ewwow) {
+			notificationSewvice.ewwow(nws.wocawize('genewicWevewtEwwow', "Faiwed to wevewt '{0}': {1}", editows.map(({ editow }) => editow.getName()).join(', '), toEwwowMessage(ewwow, fawse)));
 		}
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const contextService = accessor.get(IWorkspaceContextService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
-		const workspace = contextService.getWorkspace();
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService)).filter(resource =>
-			workspace.folders.some(folder => uriIdentityService.extUri.isEqual(folder.uri, resource)) // Need to verify resources are workspaces since multi selection can trigger this command on some non workspace resources
+CommandsWegistwy.wegistewCommand({
+	id: WEMOVE_WOOT_FOWDEW_COMMAND_ID,
+	handwa: (accessow, wesouwce: UWI | object) => {
+		const wowkspaceEditingSewvice = accessow.get(IWowkspaceEditingSewvice);
+		const contextSewvice = accessow.get(IWowkspaceContextSewvice);
+		const uwiIdentitySewvice = accessow.get(IUwiIdentitySewvice);
+		const wowkspace = contextSewvice.getWowkspace();
+		const wesouwces = getMuwtiSewectedWesouwces(wesouwce, accessow.get(IWistSewvice), accessow.get(IEditowSewvice), accessow.get(IExpwowewSewvice)).fiwta(wesouwce =>
+			wowkspace.fowdews.some(fowda => uwiIdentitySewvice.extUwi.isEquaw(fowda.uwi, wesouwce)) // Need to vewify wesouwces awe wowkspaces since muwti sewection can twigga this command on some non wowkspace wesouwces
 		);
 
-		return workspaceEditingService.removeFolders(resources);
+		wetuwn wowkspaceEditingSewvice.wemoveFowdews(wesouwces);
 	}
 });
 
-// Compressed item navigation
+// Compwessed item navigation
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
-	primary: KeyCode.LeftArrow,
-	id: PREVIOUS_COMPRESSED_FOLDER,
-	handler: (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib + 10,
+	when: ContextKeyExpw.and(FiwesExpwowewFocusCondition, ExpwowewCompwessedFocusContext, ExpwowewCompwessedFiwstFocusContext.negate()),
+	pwimawy: KeyCode.WeftAwwow,
+	id: PWEVIOUS_COMPWESSED_FOWDa,
+	handwa: (accessow) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-		if (viewlet?.getId() !== VIEWLET_ID) {
-			return;
+		if (viewwet?.getId() !== VIEWWET_ID) {
+			wetuwn;
 		}
 
-		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-		const view = explorer.getExplorerView();
-		view.previousCompressedStat();
+		const expwowa = viewwet.getViewPaneContaina() as ExpwowewViewPaneContaina;
+		const view = expwowa.getExpwowewView();
+		view.pweviousCompwessedStat();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
-	primary: KeyCode.RightArrow,
-	id: NEXT_COMPRESSED_FOLDER,
-	handler: (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib + 10,
+	when: ContextKeyExpw.and(FiwesExpwowewFocusCondition, ExpwowewCompwessedFocusContext, ExpwowewCompwessedWastFocusContext.negate()),
+	pwimawy: KeyCode.WightAwwow,
+	id: NEXT_COMPWESSED_FOWDa,
+	handwa: (accessow) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-		if (viewlet?.getId() !== VIEWLET_ID) {
-			return;
+		if (viewwet?.getId() !== VIEWWET_ID) {
+			wetuwn;
 		}
 
-		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-		const view = explorer.getExplorerView();
-		view.nextCompressedStat();
+		const expwowa = viewwet.getViewPaneContaina() as ExpwowewViewPaneContaina;
+		const view = expwowa.getExpwowewView();
+		view.nextCompwessedStat();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
-	primary: KeyCode.Home,
-	id: FIRST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib + 10,
+	when: ContextKeyExpw.and(FiwesExpwowewFocusCondition, ExpwowewCompwessedFocusContext, ExpwowewCompwessedFiwstFocusContext.negate()),
+	pwimawy: KeyCode.Home,
+	id: FIWST_COMPWESSED_FOWDa,
+	handwa: (accessow) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-		if (viewlet?.getId() !== VIEWLET_ID) {
-			return;
+		if (viewwet?.getId() !== VIEWWET_ID) {
+			wetuwn;
 		}
 
-		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-		const view = explorer.getExplorerView();
-		view.firstCompressedStat();
+		const expwowa = viewwet.getViewPaneContaina() as ExpwowewViewPaneContaina;
+		const view = expwowa.getExpwowewView();
+		view.fiwstCompwessedStat();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib + 10,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
-	primary: KeyCode.End,
-	id: LAST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib + 10,
+	when: ContextKeyExpw.and(FiwesExpwowewFocusCondition, ExpwowewCompwessedFocusContext, ExpwowewCompwessedWastFocusContext.negate()),
+	pwimawy: KeyCode.End,
+	id: WAST_COMPWESSED_FOWDa,
+	handwa: (accessow) => {
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
+		const viewwet = paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
 
-		if (viewlet?.getId() !== VIEWLET_ID) {
-			return;
+		if (viewwet?.getId() !== VIEWWET_ID) {
+			wetuwn;
 		}
 
-		const explorer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
-		const view = explorer.getExplorerView();
-		view.lastCompressedStat();
+		const expwowa = viewwet.getViewPaneContaina() as ExpwowewViewPaneContaina;
+		const view = expwowa.getExpwowewView();
+		view.wastCompwessedStat();
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: null,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
-	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	description: {
-		description: NEW_UNTITLED_FILE_LABEL,
-		args: [
+KeybindingsWegistwy.wegistewCommandAndKeybindingWuwe({
+	weight: KeybindingWeight.WowkbenchContwib,
+	when: nuww,
+	pwimawy: KeyMod.CtwwCmd | KeyCode.KEY_N,
+	id: NEW_UNTITWED_FIWE_COMMAND_ID,
+	descwiption: {
+		descwiption: NEW_UNTITWED_FIWE_WABEW,
+		awgs: [
 			{
-				isOptional: true,
+				isOptionaw: twue,
 				name: 'viewType',
-				description: 'The editor view type',
+				descwiption: 'The editow view type',
 				schema: {
 					'type': 'object',
-					'required': ['viewType'],
-					'properties': {
+					'wequiwed': ['viewType'],
+					'pwopewties': {
 						'viewType': {
-							'type': 'string'
+							'type': 'stwing'
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, args?: { viewType: string }) => {
-		const editorService = accessor.get(IEditorService);
+	handwa: async (accessow, awgs?: { viewType: stwing }) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
 
-		await editorService.openEditor({
-			resource: undefined,
+		await editowSewvice.openEditow({
+			wesouwce: undefined,
 			options: {
-				override: args?.viewType,
-				pinned: true
+				ovewwide: awgs?.viewType,
+				pinned: twue
 			}
 		});
 	}

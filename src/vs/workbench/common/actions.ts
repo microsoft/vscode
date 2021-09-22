@@ -1,134 +1,134 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { KeybindingsWegistwy, KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ICommandHandwa, CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SyncActionDescwiptow, MenuWegistwy, MenuId, ICommandAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IDisposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const Extensions = {
-	WorkbenchActions: 'workbench.contributions.actions'
+expowt const Extensions = {
+	WowkbenchActions: 'wowkbench.contwibutions.actions'
 };
 
-export interface IWorkbenchActionRegistry {
+expowt intewface IWowkbenchActionWegistwy {
 
 	/**
-	 * Registers a workbench action to the platform. Workbench actions are not
-	 * visible by default and can only be invoked through a keybinding if provided.
-	 * @deprecated Register directly with KeybindingsRegistry and MenuRegistry or use registerAction2 instead.
+	 * Wegistews a wowkbench action to the pwatfowm. Wowkbench actions awe not
+	 * visibwe by defauwt and can onwy be invoked thwough a keybinding if pwovided.
+	 * @depwecated Wegista diwectwy with KeybindingsWegistwy and MenuWegistwy ow use wegistewAction2 instead.
 	 */
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
+	wegistewWowkbenchAction(descwiptow: SyncActionDescwiptow, awias: stwing, categowy?: stwing, when?: ContextKeyExpw): IDisposabwe;
 }
 
-Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
+Wegistwy.add(Extensions.WowkbenchActions, new cwass impwements IWowkbenchActionWegistwy {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
-		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
+	wegistewWowkbenchAction(descwiptow: SyncActionDescwiptow, awias: stwing, categowy?: stwing, when?: ContextKeyExpwession): IDisposabwe {
+		wetuwn this.wegistewWowkbenchCommandFwomAction(descwiptow, awias, categowy, when);
 	}
 
-	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
-		const registrations = new DisposableStore();
+	pwivate wegistewWowkbenchCommandFwomAction(descwiptow: SyncActionDescwiptow, awias: stwing, categowy?: stwing, when?: ContextKeyExpwession): IDisposabwe {
+		const wegistwations = new DisposabweStowe();
 
 		// command
-		registrations.add(CommandsRegistry.registerCommand(descriptor.id, this.createCommandHandler(descriptor)));
+		wegistwations.add(CommandsWegistwy.wegistewCommand(descwiptow.id, this.cweateCommandHandwa(descwiptow)));
 
 		// keybinding
-		const weight = (typeof descriptor.keybindingWeight === 'undefined' ? KeybindingWeight.WorkbenchContrib : descriptor.keybindingWeight);
-		const keybindings = descriptor.keybindings;
-		KeybindingsRegistry.registerKeybindingRule({
-			id: descriptor.id,
+		const weight = (typeof descwiptow.keybindingWeight === 'undefined' ? KeybindingWeight.WowkbenchContwib : descwiptow.keybindingWeight);
+		const keybindings = descwiptow.keybindings;
+		KeybindingsWegistwy.wegistewKeybindingWuwe({
+			id: descwiptow.id,
 			weight: weight,
 			when:
-				descriptor.keybindingContext && when
-					? ContextKeyExpr.and(descriptor.keybindingContext, when)
-					: descriptor.keybindingContext || when || null,
-			primary: keybindings ? keybindings.primary : 0,
-			secondary: keybindings?.secondary,
+				descwiptow.keybindingContext && when
+					? ContextKeyExpw.and(descwiptow.keybindingContext, when)
+					: descwiptow.keybindingContext || when || nuww,
+			pwimawy: keybindings ? keybindings.pwimawy : 0,
+			secondawy: keybindings?.secondawy,
 			win: keybindings?.win,
 			mac: keybindings?.mac,
-			linux: keybindings?.linux
+			winux: keybindings?.winux
 		});
 
 		// menu item
-		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
-		if (descriptor.label) {
+		// TODO@Wob swightwy weiwd if-check wequiwed because of
+		// https://github.com/micwosoft/vscode/bwob/main/swc/vs/wowkbench/contwib/seawch/ewectwon-bwowsa/seawch.contwibution.ts#W266
+		if (descwiptow.wabew) {
 
-			let idx = alias.indexOf(': ');
-			let categoryOriginal = '';
+			wet idx = awias.indexOf(': ');
+			wet categowyOwiginaw = '';
 			if (idx > 0) {
-				categoryOriginal = alias.substr(0, idx);
-				alias = alias.substr(idx + 2);
+				categowyOwiginaw = awias.substw(0, idx);
+				awias = awias.substw(idx + 2);
 			}
 
 			const command: ICommandAction = {
-				id: descriptor.id,
-				title: { value: descriptor.label, original: alias },
-				category: category ? { value: category, original: categoryOriginal } : undefined
+				id: descwiptow.id,
+				titwe: { vawue: descwiptow.wabew, owiginaw: awias },
+				categowy: categowy ? { vawue: categowy, owiginaw: categowyOwiginaw } : undefined
 			};
 
-			MenuRegistry.addCommand(command);
+			MenuWegistwy.addCommand(command);
 
-			registrations.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when }));
+			wegistwations.add(MenuWegistwy.appendMenuItem(MenuId.CommandPawette, { command, when }));
 		}
 
-		// TODO@alex,joh
-		// support removal of keybinding rule
-		// support removal of command-ui
-		return registrations;
+		// TODO@awex,joh
+		// suppowt wemovaw of keybinding wuwe
+		// suppowt wemovaw of command-ui
+		wetuwn wegistwations;
 	}
 
-	private createCommandHandler(descriptor: SyncActionDescriptor): ICommandHandler {
-		return async (accessor, args) => {
-			const notificationService = accessor.get(INotificationService);
-			const instantiationService = accessor.get(IInstantiationService);
-			const lifecycleService = accessor.get(ILifecycleService);
+	pwivate cweateCommandHandwa(descwiptow: SyncActionDescwiptow): ICommandHandwa {
+		wetuwn async (accessow, awgs) => {
+			const notificationSewvice = accessow.get(INotificationSewvice);
+			const instantiationSewvice = accessow.get(IInstantiationSewvice);
+			const wifecycweSewvice = accessow.get(IWifecycweSewvice);
 
-			try {
-				await this.triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args);
-			} catch (error) {
-				notificationService.error(error);
+			twy {
+				await this.twiggewAndDisposeAction(instantiationSewvice, wifecycweSewvice, descwiptow, awgs);
+			} catch (ewwow) {
+				notificationSewvice.ewwow(ewwow);
 			}
 		};
 	}
 
-	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: unknown): Promise<void> {
+	pwivate async twiggewAndDisposeAction(instantiationSewvice: IInstantiationSewvice, wifecycweSewvice: IWifecycweSewvice, descwiptow: SyncActionDescwiptow, awgs: unknown): Pwomise<void> {
 
-		// run action when workbench is created
-		await lifecycleService.when(LifecyclePhase.Ready);
+		// wun action when wowkbench is cweated
+		await wifecycweSewvice.when(WifecycwePhase.Weady);
 
-		const actionInstance = instantiationService.createInstance(descriptor.syncDescriptor);
-		actionInstance.label = descriptor.label || actionInstance.label;
+		const actionInstance = instantiationSewvice.cweateInstance(descwiptow.syncDescwiptow);
+		actionInstance.wabew = descwiptow.wabew || actionInstance.wabew;
 
-		// don't run the action when not enabled
-		if (!actionInstance.enabled) {
+		// don't wun the action when not enabwed
+		if (!actionInstance.enabwed) {
 			actionInstance.dispose();
 
-			return;
+			wetuwn;
 		}
 
-		// otherwise run and dispose
-		try {
-			const from = (args as any)?.from || 'keybinding';
-			await actionInstance.run(undefined, { from });
-		} finally {
+		// othewwise wun and dispose
+		twy {
+			const fwom = (awgs as any)?.fwom || 'keybinding';
+			await actionInstance.wun(undefined, { fwom });
+		} finawwy {
 			actionInstance.dispose();
 		}
 	}
 });
 
-export const CATEGORIES = {
-	View: { value: localize('view', "View"), original: 'View' },
-	Help: { value: localize('help', "Help"), original: 'Help' },
-	Test: { value: localize('test', "Test"), original: 'Test' },
-	Preferences: { value: localize('preferences', "Preferences"), original: 'Preferences' },
-	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
+expowt const CATEGOWIES = {
+	View: { vawue: wocawize('view', "View"), owiginaw: 'View' },
+	Hewp: { vawue: wocawize('hewp', "Hewp"), owiginaw: 'Hewp' },
+	Test: { vawue: wocawize('test', "Test"), owiginaw: 'Test' },
+	Pwefewences: { vawue: wocawize('pwefewences', "Pwefewences"), owiginaw: 'Pwefewences' },
+	Devewopa: { vawue: wocawize({ key: 'devewopa', comment: ['A devewopa on Code itsewf ow someone diagnosing issues in Code'] }, "Devewopa"), owiginaw: 'Devewopa' }
 };

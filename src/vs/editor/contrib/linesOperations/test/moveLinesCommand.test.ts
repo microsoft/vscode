@@ -1,404 +1,404 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+impowt { EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { IndentationWuwe } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { MoveWinesCommand } fwom 'vs/editow/contwib/winesOpewations/moveWinesCommand';
+impowt { testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
 
-function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
+function testMoveWinesDownCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new MoveWinesCommand(sew, twue, EditowAutoIndentStwategy.Advanced), expectedWines, expectedSewection);
 }
 
-function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced), expectedLines, expectedSelection);
+function testMoveWinesUpCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new MoveWinesCommand(sew, fawse, EditowAutoIndentStwategy.Advanced), expectedWines, expectedSewection);
 }
 
-function testMoveLinesDownWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
+function testMoveWinesDownWithIndentCommand(wanguageId: WanguageIdentifia, wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, wanguageId, sewection, (sew) => new MoveWinesCommand(sew, twue, EditowAutoIndentStwategy.Fuww), expectedWines, expectedSewection);
 }
 
-function testMoveLinesUpWithIndentCommand(languageId: LanguageIdentifier, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageId, selection, (sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full), expectedLines, expectedSelection);
+function testMoveWinesUpWithIndentCommand(wanguageId: WanguageIdentifia, wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, wanguageId, sewection, (sew) => new MoveWinesCommand(sew, fawse, EditowAutoIndentStwategy.Fuww), expectedWines, expectedSewection);
 }
 
-suite('Editor Contrib - Move Lines Command', () => {
+suite('Editow Contwib - Move Wines Command', () => {
 
-	test('move first up / last down disabled', function () {
-		testMoveLinesUpCommand(
+	test('move fiwst up / wast down disabwed', function () {
+		testMoveWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 
-		testMoveLinesDownCommand(
+		testMoveWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 1, 5, 1),
+			new Sewection(5, 1, 5, 1),
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 1, 5, 1)
-		);
-	});
-
-	test('move first line down', function () {
-		testMoveLinesDownCommand(
-			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(1, 4, 1, 1),
-			[
-				'second line',
-				'first',
-				'third line',
-				'fourth line',
-				'fifth'
-			],
-			new Selection(2, 4, 2, 1)
+			new Sewection(5, 1, 5, 1)
 		);
 	});
 
-	test('move 2nd line up', function () {
-		testMoveLinesUpCommand(
+	test('move fiwst wine down', function () {
+		testMoveWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 2, 1),
+			new Sewection(1, 4, 1, 1),
 			[
-				'second line',
-				'first',
-				'third line',
-				'fourth line',
+				'second wine',
+				'fiwst',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(2, 4, 2, 1)
 		);
 	});
 
-	test('issue #1322a: move 2nd line up', function () {
-		testMoveLinesUpCommand(
+	test('move 2nd wine up', function () {
+		testMoveWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 12, 2, 12),
+			new Sewection(2, 1, 2, 1),
 			[
-				'second line',
-				'first',
-				'third line',
-				'fourth line',
+				'second wine',
+				'fiwst',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(1, 12, 1, 12)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
 
-	test('issue #1322b: move last line up', function () {
-		testMoveLinesUpCommand(
+	test('issue #1322a: move 2nd wine up', function () {
+		testMoveWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 6, 5, 6),
+			new Sewection(2, 12, 2, 12),
 			[
-				'first',
-				'second line',
-				'third line',
+				'second wine',
+				'fiwst',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(1, 12, 1, 12)
+		);
+	});
+
+	test('issue #1322b: move wast wine up', function () {
+		testMoveWinesUpCommand(
+			[
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
+				'fifth'
+			],
+			new Sewection(5, 6, 5, 6),
+			[
+				'fiwst',
+				'second wine',
+				'thiwd wine',
 				'fifth',
-				'fourth line'
+				'fouwth wine'
 			],
-			new Selection(4, 6, 4, 6)
+			new Sewection(4, 6, 4, 6)
 		);
 	});
 
-	test('issue #1322c: move last line selected up', function () {
-		testMoveLinesUpCommand(
+	test('issue #1322c: move wast wine sewected up', function () {
+		testMoveWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 6, 5, 1),
+			new Sewection(5, 6, 5, 1),
 			[
-				'first',
-				'second line',
-				'third line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
 				'fifth',
-				'fourth line'
+				'fouwth wine'
 			],
-			new Selection(4, 6, 4, 1)
+			new Sewection(4, 6, 4, 1)
 		);
 	});
 
-	test('move last line up', function () {
-		testMoveLinesUpCommand(
+	test('move wast wine up', function () {
+		testMoveWinesUpCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(5, 1, 5, 1),
+			new Sewection(5, 1, 5, 1),
 			[
-				'first',
-				'second line',
-				'third line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
 				'fifth',
-				'fourth line'
+				'fouwth wine'
 			],
-			new Selection(4, 1, 4, 1)
+			new Sewection(4, 1, 4, 1)
 		);
 	});
 
-	test('move 4th line down', function () {
-		testMoveLinesDownCommand(
+	test('move 4th wine down', function () {
+		testMoveWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 1, 4, 1),
+			new Sewection(4, 1, 4, 1),
 			[
-				'first',
-				'second line',
-				'third line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
 				'fifth',
-				'fourth line'
+				'fouwth wine'
 			],
-			new Selection(5, 1, 5, 1)
+			new Sewection(5, 1, 5, 1)
 		);
 	});
 
-	test('move multiple lines down', function () {
-		testMoveLinesDownCommand(
+	test('move muwtipwe wines down', function () {
+		testMoveWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(4, 4, 2, 2),
+			new Sewection(4, 4, 2, 2),
 			[
-				'first',
+				'fiwst',
 				'fifth',
-				'second line',
-				'third line',
-				'fourth line'
+				'second wine',
+				'thiwd wine',
+				'fouwth wine'
 			],
-			new Selection(5, 4, 3, 2)
+			new Sewection(5, 4, 3, 2)
 		);
 	});
 
-	test('invisible selection is ignored', function () {
-		testMoveLinesDownCommand(
+	test('invisibwe sewection is ignowed', function () {
+		testMoveWinesDownCommand(
 			[
-				'first',
-				'second line',
-				'third line',
-				'fourth line',
+				'fiwst',
+				'second wine',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(2, 1, 1, 1),
+			new Sewection(2, 1, 1, 1),
 			[
-				'second line',
-				'first',
-				'third line',
-				'fourth line',
+				'second wine',
+				'fiwst',
+				'thiwd wine',
+				'fouwth wine',
 				'fifth'
 			],
-			new Selection(3, 1, 2, 1)
+			new Sewection(3, 1, 2, 1)
 		);
 	});
 });
 
-class IndentRulesMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('moveLinesIndentMode', 7);
-	constructor(indentationRules: IndentationRule) {
-		super(IndentRulesMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			indentationRules: indentationRules
+cwass IndentWuwesMode extends MockMode {
+	pwivate static weadonwy _id = new WanguageIdentifia('moveWinesIndentMode', 7);
+	constwuctow(indentationWuwes: IndentationWuwe) {
+		supa(IndentWuwesMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			indentationWuwes: indentationWuwes
 		}));
 	}
 }
 
-suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
-	let indentRules = {
-		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
-		indentNextLinePattern: /^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
-		unIndentedLinePattern: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(for|while|if|else)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
+suite('Editow contwib - Move Wines Command honows Indentation Wuwes', () => {
+	wet indentWuwes = {
+		decweaseIndentPattewn: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|defauwt):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		incweaseIndentPattewn: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|defauwt):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
+		indentNextWinePattewn: /^\s*(fow|whiwe|if|ewse)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$)/,
+		unIndentedWinePattewn: /^(?!.*([;{}]|\S:)\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!.*(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|defauwt):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|defauwt):\s*(\/\/.*|\/[*].*[*]\/\s*)?$)(?!^\s*(fow|whiwe|if|ewse)\b(?!.*[;{}]\s*(\/\/.*|\/[*].*[*]\/\s*)?$))/
 	};
 
-	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307862797
-	test('first line indentation adjust to 0', () => {
-		let mode = new IndentRulesMode(indentRules);
+	// https://github.com/micwosoft/vscode/issues/28552#issuecomment-307862797
+	test('fiwst wine indentation adjust to 0', () => {
+		wet mode = new IndentWuwesMode(indentWuwes);
 
-		testMoveLinesUpWithIndentCommand(
-			mode.getLanguageIdentifier(),
+		testMoveWinesUpWithIndentCommand(
+			mode.getWanguageIdentifia(),
 			[
-				'class X {',
+				'cwass X {',
 				'\tz = 2',
 				'}'
 			],
-			new Selection(2, 1, 2, 1),
+			new Sewection(2, 1, 2, 1),
 			[
 				'z = 2',
-				'class X {',
+				'cwass X {',
 				'}'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 
 		mode.dispose();
 	});
 
-	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307867717
-	test('move lines across block', () => {
-		let mode = new IndentRulesMode(indentRules);
+	// https://github.com/micwosoft/vscode/issues/28552#issuecomment-307867717
+	test('move wines acwoss bwock', () => {
+		wet mode = new IndentWuwesMode(indentWuwes);
 
-		testMoveLinesDownWithIndentCommand(
-			mode.getLanguageIdentifier(),
+		testMoveWinesDownWithIndentCommand(
+			mode.getWanguageIdentifia(),
 			[
-				'const value = 2;',
-				'const standardLanguageDescriptions = [',
+				'const vawue = 2;',
+				'const standawdWanguageDescwiptions = [',
 				'    {',
-				'        diagnosticSource: \'js\',',
+				'        diagnosticSouwce: \'js\',',
 				'    }',
 				'];'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
-				'const standardLanguageDescriptions = [',
-				'    const value = 2;',
+				'const standawdWanguageDescwiptions = [',
+				'    const vawue = 2;',
 				'    {',
-				'        diagnosticSource: \'js\',',
+				'        diagnosticSouwce: \'js\',',
 				'    }',
 				'];'
 			],
-			new Selection(2, 5, 2, 5)
+			new Sewection(2, 5, 2, 5)
 		);
 
 		mode.dispose();
 	});
 
 
-	test('move line should still work as before if there is no indentation rules', () => {
-		testMoveLinesUpWithIndentCommand(
-			null!,
+	test('move wine shouwd stiww wowk as befowe if thewe is no indentation wuwes', () => {
+		testMoveWinesUpWithIndentCommand(
+			nuww!,
 			[
-				'if (true) {',
-				'    var task = new Task(() => {',
-				'        var work = 1234;',
+				'if (twue) {',
+				'    vaw task = new Task(() => {',
+				'        vaw wowk = 1234;',
 				'    });',
 				'}'
 			],
-			new Selection(3, 1, 3, 1),
+			new Sewection(3, 1, 3, 1),
 			[
-				'if (true) {',
-				'        var work = 1234;',
-				'    var task = new Task(() => {',
+				'if (twue) {',
+				'        vaw wowk = 1234;',
+				'    vaw task = new Task(() => {',
 				'    });',
 				'}'
 			],
-			new Selection(2, 1, 2, 1)
+			new Sewection(2, 1, 2, 1)
 		);
 	});
 });
 
-class EnterRulesMode extends MockMode {
-	private static readonly _id = new LanguageIdentifier('moveLinesEnterMode', 8);
-	constructor() {
-		super(EnterRulesMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-			indentationRules: {
-				decreaseIndentPattern: /^\s*\[$/,
-				increaseIndentPattern: /^\s*\]$/,
+cwass EntewWuwesMode extends MockMode {
+	pwivate static weadonwy _id = new WanguageIdentifia('moveWinesEntewMode', 8);
+	constwuctow() {
+		supa(EntewWuwesMode._id);
+		this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {
+			indentationWuwes: {
+				decweaseIndentPattewn: /^\s*\[$/,
+				incweaseIndentPattewn: /^\s*\]$/,
 			},
-			brackets: [
+			bwackets: [
 				['{', '}']
 			]
 		}));
 	}
 }
 
-suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
+suite('Editow - contwib - Move Wines Command honows onEnta Wuwes', () => {
 
-	test('issue #54829. move block across block', () => {
-		let mode = new EnterRulesMode();
+	test('issue #54829. move bwock acwoss bwock', () => {
+		wet mode = new EntewWuwesMode();
 
-		testMoveLinesDownWithIndentCommand(
-			mode.getLanguageIdentifier(),
+		testMoveWinesDownWithIndentCommand(
+			mode.getWanguageIdentifia(),
 
 			[
-				'if (true) {',
-				'    if (false) {',
+				'if (twue) {',
+				'    if (fawse) {',
 				'        if (1) {',
-				'            console.log(\'b\');',
+				'            consowe.wog(\'b\');',
 				'        }',
-				'        console.log(\'a\');',
+				'        consowe.wog(\'a\');',
 				'    }',
 				'}'
 			],
-			new Selection(3, 9, 5, 10),
+			new Sewection(3, 9, 5, 10),
 			[
-				'if (true) {',
-				'    if (false) {',
-				'        console.log(\'a\');',
+				'if (twue) {',
+				'    if (fawse) {',
+				'        consowe.wog(\'a\');',
 				'        if (1) {',
-				'            console.log(\'b\');',
+				'            consowe.wog(\'b\');',
 				'        }',
 				'    }',
 				'}'
 			],
-			new Selection(4, 9, 6, 10),
+			new Sewection(4, 9, 6, 10),
 		);
 
 		mode.dispose();

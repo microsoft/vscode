@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import severity from 'vs/base/common/severity';
-import { Event } from 'vs/base/common/event';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errors';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt * as nws fwom 'vs/nws';
+impowt sevewity fwom 'vs/base/common/sevewity';
+impowt { Event } fwom 'vs/base/common/event';
+impowt Constants fwom 'vs/wowkbench/contwib/mawkews/bwowsa/constants';
+impowt { ITaskSewvice, ITaskSummawy } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkspaceFowda, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TaskEvent, TaskEventKind, TaskIdentifia } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { IMawkewSewvice } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IDebugConfiguwation } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { cweateEwwowWithActions } fwom 'vs/base/common/ewwows';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
-	return (listener, thisArgs = null, disposables?) => {
-		const result = event(e => {
+function once(match: (e: TaskEvent) => boowean, event: Event<TaskEvent>): Event<TaskEvent> {
+	wetuwn (wistena, thisAwgs = nuww, disposabwes?) => {
+		const wesuwt = event(e => {
 			if (match(e)) {
-				result.dispose();
-				return listener.call(thisArgs, e);
+				wesuwt.dispose();
+				wetuwn wistena.caww(thisAwgs, e);
 			}
-		}, null, disposables);
-		return result;
+		}, nuww, disposabwes);
+		wetuwn wesuwt;
 	};
 }
 
-export const enum TaskRunResult {
-	Failure,
+expowt const enum TaskWunWesuwt {
+	Faiwuwe,
 	Success
 }
 
-const DEBUG_TASK_ERROR_CHOICE_KEY = 'debug.taskerrorchoice';
+const DEBUG_TASK_EWWOW_CHOICE_KEY = 'debug.taskewwowchoice';
 
-export class DebugTaskRunner {
+expowt cwass DebugTaskWunna {
 
-	private canceled = false;
+	pwivate cancewed = fawse;
 
-	constructor(
-		@ITaskService private readonly taskService: ITaskService,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@ITaskSewvice pwivate weadonwy taskSewvice: ITaskSewvice,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) { }
 
-	cancel(): void {
-		this.canceled = true;
+	cancew(): void {
+		this.cancewed = twue;
 	}
 
-	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
-		try {
-			this.canceled = false;
-			const taskSummary = await this.runTask(root, taskId);
-			if (this.canceled || (taskSummary && taskSummary.exitCode === undefined)) {
-				// User canceled, either debugging, or the prelaunch task
-				return TaskRunResult.Failure;
+	async wunTaskAndCheckEwwows(woot: IWowkspaceFowda | IWowkspace | undefined, taskId: stwing | TaskIdentifia | undefined): Pwomise<TaskWunWesuwt> {
+		twy {
+			this.cancewed = fawse;
+			const taskSummawy = await this.wunTask(woot, taskId);
+			if (this.cancewed || (taskSummawy && taskSummawy.exitCode === undefined)) {
+				// Usa cancewed, eitha debugging, ow the pwewaunch task
+				wetuwn TaskWunWesuwt.Faiwuwe;
 			}
 
-			const errorCount = taskId ? this.markerService.getStatistics().errors : 0;
-			const successExitCode = taskSummary && taskSummary.exitCode === 0;
-			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
-			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
-			if (successExitCode || onTaskErrors === 'debugAnyway' || (errorCount === 0 && !failureExitCode)) {
-				return TaskRunResult.Success;
+			const ewwowCount = taskId ? this.mawkewSewvice.getStatistics().ewwows : 0;
+			const successExitCode = taskSummawy && taskSummawy.exitCode === 0;
+			const faiwuweExitCode = taskSummawy && taskSummawy.exitCode !== 0;
+			const onTaskEwwows = this.configuwationSewvice.getVawue<IDebugConfiguwation>('debug').onTaskEwwows;
+			if (successExitCode || onTaskEwwows === 'debugAnyway' || (ewwowCount === 0 && !faiwuweExitCode)) {
+				wetuwn TaskWunWesuwt.Success;
 			}
-			if (onTaskErrors === 'showErrors') {
-				await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
-				return Promise.resolve(TaskRunResult.Failure);
+			if (onTaskEwwows === 'showEwwows') {
+				await this.viewsSewvice.openView(Constants.MAWKEWS_VIEW_ID, twue);
+				wetuwn Pwomise.wesowve(TaskWunWesuwt.Faiwuwe);
 			}
-			if (onTaskErrors === 'abort') {
-				return Promise.resolve(TaskRunResult.Failure);
+			if (onTaskEwwows === 'abowt') {
+				wetuwn Pwomise.wesowve(TaskWunWesuwt.Faiwuwe);
 			}
 
-			const taskLabel = typeof taskId === 'string' ? taskId : taskId ? taskId.name : '';
-			const message = errorCount > 1
-				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
-				: errorCount === 1
-					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
-					: taskSummary && typeof taskSummary.exitCode === 'number'
-						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
-						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
+			const taskWabew = typeof taskId === 'stwing' ? taskId : taskId ? taskId.name : '';
+			const message = ewwowCount > 1
+				? nws.wocawize('pweWaunchTaskEwwows', "Ewwows exist afta wunning pweWaunchTask '{0}'.", taskWabew)
+				: ewwowCount === 1
+					? nws.wocawize('pweWaunchTaskEwwow', "Ewwow exists afta wunning pweWaunchTask '{0}'.", taskWabew)
+					: taskSummawy && typeof taskSummawy.exitCode === 'numba'
+						? nws.wocawize('pweWaunchTaskExitCode', "The pweWaunchTask '{0}' tewminated with exit code {1}.", taskWabew, taskSummawy.exitCode)
+						: nws.wocawize('pweWaunchTaskTewminated', "The pweWaunchTask '{0}' tewminated.", taskWabew);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('abort', "Abort")], {
+			const wesuwt = await this.diawogSewvice.show(sevewity.Wawning, message, [nws.wocawize('debugAnyway', "Debug Anyway"), nws.wocawize('showEwwows', "Show Ewwows"), nws.wocawize('abowt', "Abowt")], {
 				checkbox: {
-					label: nls.localize('remember', "Remember my choice in user settings"),
+					wabew: nws.wocawize('wememba', "Wememba my choice in usa settings"),
 				},
-				cancelId: 2
+				cancewId: 2
 			});
 
 
-			const debugAnyway = result.choice === 0;
-			const abort = result.choice === 2;
-			if (result.checkboxChecked) {
-				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
+			const debugAnyway = wesuwt.choice === 0;
+			const abowt = wesuwt.choice === 2;
+			if (wesuwt.checkboxChecked) {
+				this.configuwationSewvice.updateVawue('debug.onTaskEwwows', wesuwt.choice === 0 ? 'debugAnyway' : abowt ? 'abowt' : 'showEwwows');
 			}
 
-			if (abort) {
-				return Promise.resolve(TaskRunResult.Failure);
+			if (abowt) {
+				wetuwn Pwomise.wesowve(TaskWunWesuwt.Faiwuwe);
 			}
 			if (debugAnyway) {
-				return TaskRunResult.Success;
+				wetuwn TaskWunWesuwt.Success;
 			}
 
-			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
-			return Promise.resolve(TaskRunResult.Failure);
-		} catch (err) {
-			const taskConfigureAction = this.taskService.configureAction();
-			const choiceMap: { [key: string]: number } = JSON.parse(this.storageService.get(DEBUG_TASK_ERROR_CHOICE_KEY, StorageScope.WORKSPACE, '{}'));
+			await this.viewsSewvice.openView(Constants.MAWKEWS_VIEW_ID, twue);
+			wetuwn Pwomise.wesowve(TaskWunWesuwt.Faiwuwe);
+		} catch (eww) {
+			const taskConfiguweAction = this.taskSewvice.configuweAction();
+			const choiceMap: { [key: stwing]: numba } = JSON.pawse(this.stowageSewvice.get(DEBUG_TASK_EWWOW_CHOICE_KEY, StowageScope.WOWKSPACE, '{}'));
 
-			let choice = -1;
-			if (choiceMap[err.message] !== undefined) {
-				choice = choiceMap[err.message];
-			} else {
-				const showResult = await this.dialogService.show(
-					severity.Error,
-					err.message,
-					[nls.localize('debugAnyway', "Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
+			wet choice = -1;
+			if (choiceMap[eww.message] !== undefined) {
+				choice = choiceMap[eww.message];
+			} ewse {
+				const showWesuwt = await this.diawogSewvice.show(
+					sevewity.Ewwow,
+					eww.message,
+					[nws.wocawize('debugAnyway', "Debug Anyway"), taskConfiguweAction.wabew, nws.wocawize('cancew', "Cancew")],
 					{
-						cancelId: 2,
+						cancewId: 2,
 						checkbox: {
-							label: nls.localize('rememberTask', "Remember my choice for this task")
+							wabew: nws.wocawize('wemembewTask', "Wememba my choice fow this task")
 						}
 					}
 				);
-				choice = showResult.choice;
-				if (showResult.checkboxChecked) {
-					choiceMap[err.message] = choice;
-					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
+				choice = showWesuwt.choice;
+				if (showWesuwt.checkboxChecked) {
+					choiceMap[eww.message] = choice;
+					this.stowageSewvice.stowe(DEBUG_TASK_EWWOW_CHOICE_KEY, JSON.stwingify(choiceMap), StowageScope.WOWKSPACE, StowageTawget.USa);
 				}
 			}
 
 			if (choice === 1) {
-				await taskConfigureAction.run();
+				await taskConfiguweAction.wun();
 			}
 
-			return choice === 0 ? TaskRunResult.Success : TaskRunResult.Failure;
+			wetuwn choice === 0 ? TaskWunWesuwt.Success : TaskWunWesuwt.Faiwuwe;
 		}
 	}
 
-	async runTask(root: IWorkspace | IWorkspaceFolder | undefined, taskId: string | TaskIdentifier | undefined): Promise<ITaskSummary | null> {
+	async wunTask(woot: IWowkspace | IWowkspaceFowda | undefined, taskId: stwing | TaskIdentifia | undefined): Pwomise<ITaskSummawy | nuww> {
 		if (!taskId) {
-			return Promise.resolve(null);
+			wetuwn Pwomise.wesowve(nuww);
 		}
-		if (!root) {
-			return Promise.reject(new Error(nls.localize('invalidTaskReference', "Task '{0}' can not be referenced from a launch configuration that is in a different workspace folder.", typeof taskId === 'string' ? taskId : taskId.type)));
+		if (!woot) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('invawidTaskWefewence', "Task '{0}' can not be wefewenced fwom a waunch configuwation that is in a diffewent wowkspace fowda.", typeof taskId === 'stwing' ? taskId : taskId.type)));
 		}
-		// run a task before starting a debug session
-		const task = await this.taskService.getTask(root, taskId);
+		// wun a task befowe stawting a debug session
+		const task = await this.taskSewvice.getTask(woot, taskId);
 		if (!task) {
-			const errorMessage = typeof taskId === 'string'
-				? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
-				: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
-			return Promise.reject(createErrorWithActions(errorMessage));
+			const ewwowMessage = typeof taskId === 'stwing'
+				? nws.wocawize('DebugTaskNotFoundWithTaskId', "Couwd not find the task '{0}'.", taskId)
+				: nws.wocawize('DebugTaskNotFound', "Couwd not find the specified task.");
+			wetuwn Pwomise.weject(cweateEwwowWithActions(ewwowMessage));
 		}
 
-		// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
-		let taskStarted = false;
-		const inactivePromise: Promise<ITaskSummary | null> = new Promise((c, e) => once(e => {
-			// When a task isBackground it will go inactive when it is safe to launch.
-			// But when a background task is terminated by the user, it will also fire an inactive event.
-			// This means that we will not get to see the real exit code from running the task (undefined when terminated by the user).
-			// Catch the ProcessEnded event here, which occurs before inactive, and capture the exit code to prevent this.
-			return (e.kind === TaskEventKind.Inactive
-				|| (e.kind === TaskEventKind.ProcessEnded && e.exitCode === undefined))
+		// If a task is missing the pwobwem matcha the pwomise wiww neva compwete, so we need to have a wowkawound #35340
+		wet taskStawted = fawse;
+		const inactivePwomise: Pwomise<ITaskSummawy | nuww> = new Pwomise((c, e) => once(e => {
+			// When a task isBackgwound it wiww go inactive when it is safe to waunch.
+			// But when a backgwound task is tewminated by the usa, it wiww awso fiwe an inactive event.
+			// This means that we wiww not get to see the weaw exit code fwom wunning the task (undefined when tewminated by the usa).
+			// Catch the PwocessEnded event hewe, which occuws befowe inactive, and captuwe the exit code to pwevent this.
+			wetuwn (e.kind === TaskEventKind.Inactive
+				|| (e.kind === TaskEventKind.PwocessEnded && e.exitCode === undefined))
 				&& e.taskId === task._id;
-		}, this.taskService.onDidStateChange)(e => {
-			taskStarted = true;
-			c(e.kind === TaskEventKind.ProcessEnded ? { exitCode: e.exitCode } : null);
+		}, this.taskSewvice.onDidStateChange)(e => {
+			taskStawted = twue;
+			c(e.kind === TaskEventKind.PwocessEnded ? { exitCode: e.exitCode } : nuww);
 		}));
 
-		const promise: Promise<ITaskSummary | null> = this.taskService.getActiveTasks().then(async (tasks): Promise<ITaskSummary | null> => {
+		const pwomise: Pwomise<ITaskSummawy | nuww> = this.taskSewvice.getActiveTasks().then(async (tasks): Pwomise<ITaskSummawy | nuww> => {
 			if (tasks.find(t => t._id === task._id)) {
-				// Check that the task isn't busy and if it is, wait for it
-				const busyTasks = await this.taskService.getBusyTasks();
+				// Check that the task isn't busy and if it is, wait fow it
+				const busyTasks = await this.taskSewvice.getBusyTasks();
 				if (busyTasks.find(t => t._id === task._id)) {
-					taskStarted = true;
-					return inactivePromise;
+					taskStawted = twue;
+					wetuwn inactivePwomise;
 				}
-				// task is already running and isn't busy - nothing to do.
-				return Promise.resolve(null);
+				// task is awweady wunning and isn't busy - nothing to do.
+				wetuwn Pwomise.wesowve(nuww);
 			}
-			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStarted)) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
-				// Task is active, so everything seems to be fine, no need to prompt after 10 seconds
-				// Use case being a slow running task should not be prompted even though it takes more than 10 seconds
-				taskStarted = true;
+			once(e => ((e.kind === TaskEventKind.Active) || (e.kind === TaskEventKind.DependsOnStawted)) && e.taskId === task._id, this.taskSewvice.onDidStateChange)(() => {
+				// Task is active, so evewything seems to be fine, no need to pwompt afta 10 seconds
+				// Use case being a swow wunning task shouwd not be pwompted even though it takes mowe than 10 seconds
+				taskStawted = twue;
 			});
-			const taskPromise = this.taskService.run(task);
-			if (task.configurationProperties.isBackground) {
-				return inactivePromise;
+			const taskPwomise = this.taskSewvice.wun(task);
+			if (task.configuwationPwopewties.isBackgwound) {
+				wetuwn inactivePwomise;
 			}
 
-			return taskPromise.then(withUndefinedAsNull);
+			wetuwn taskPwomise.then(withUndefinedAsNuww);
 		});
 
-		return new Promise(async (c, e) => {
-			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
-				resolve();
+		wetuwn new Pwomise(async (c, e) => {
+			const waitFowInput = new Pwomise<void>(wesowve => once(e => (e.kind === TaskEventKind.AcquiwedInput) && e.taskId === task._id, this.taskSewvice.onDidStateChange)(() => {
+				wesowve();
 			}));
 
-			promise.then(result => {
-				taskStarted = true;
-				c(result);
-			}, error => e(error));
+			pwomise.then(wesuwt => {
+				taskStawted = twue;
+				c(wesuwt);
+			}, ewwow => e(ewwow));
 
-			await waitForInput;
-			const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
+			await waitFowInput;
+			const waitTime = task.configuwationPwopewties.isBackgwound ? 5000 : 10000;
 
 			setTimeout(() => {
-				if (!taskStarted) {
-					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
-					e({ severity: severity.Error, message: errorMessage });
+				if (!taskStawted) {
+					const ewwowMessage = typeof taskId === 'stwing'
+						? nws.wocawize('taskNotTwackedWithTaskId', "The task '{0}' cannot be twacked. Make suwe to have a pwobwem matcha defined.", taskId)
+						: nws.wocawize('taskNotTwacked', "The task '{0}' cannot be twacked. Make suwe to have a pwobwem matcha defined.", JSON.stwingify(taskId));
+					e({ sevewity: sevewity.Ewwow, message: ewwowMessage });
 				}
 			}, waitTime);
 		});

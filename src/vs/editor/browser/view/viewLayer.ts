@@ -1,617 +1,617 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { IStwingBuiwda, cweateStwingBuiwda } fwom 'vs/editow/common/cowe/stwingBuiwda';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
+impowt { ViewpowtData } fwom 'vs/editow/common/viewWayout/viewWinesViewpowtData';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
 
 /**
- * Represents a visible line
+ * Wepwesents a visibwe wine
  */
-export interface IVisibleLine extends ILine {
-	getDomNode(): HTMLElement | null;
-	setDomNode(domNode: HTMLElement): void;
+expowt intewface IVisibweWine extends IWine {
+	getDomNode(): HTMWEwement | nuww;
+	setDomNode(domNode: HTMWEwement): void;
 
 	/**
-	 * Return null if the HTML should not be touched.
-	 * Return the new HTML otherwise.
+	 * Wetuwn nuww if the HTMW shouwd not be touched.
+	 * Wetuwn the new HTMW othewwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean;
+	wendewWine(wineNumba: numba, dewtaTop: numba, viewpowtData: ViewpowtData, sb: IStwingBuiwda): boowean;
 
 	/**
-	 * Layout the line.
+	 * Wayout the wine.
 	 */
-	layoutLine(lineNumber: number, deltaTop: number): void;
+	wayoutWine(wineNumba: numba, dewtaTop: numba): void;
 }
 
-export interface ILine {
+expowt intewface IWine {
 	onContentChanged(): void;
 	onTokensChanged(): void;
 }
 
-export class RenderedLinesCollection<T extends ILine> {
-	private readonly _createLine: () => T;
-	private _lines!: T[];
-	private _rendLineNumberStart!: number;
+expowt cwass WendewedWinesCowwection<T extends IWine> {
+	pwivate weadonwy _cweateWine: () => T;
+	pwivate _wines!: T[];
+	pwivate _wendWineNumbewStawt!: numba;
 
-	constructor(createLine: () => T) {
-		this._createLine = createLine;
+	constwuctow(cweateWine: () => T) {
+		this._cweateWine = cweateWine;
 		this._set(1, []);
 	}
 
-	public flush(): void {
+	pubwic fwush(): void {
 		this._set(1, []);
 	}
 
-	_set(rendLineNumberStart: number, lines: T[]): void {
-		this._lines = lines;
-		this._rendLineNumberStart = rendLineNumberStart;
+	_set(wendWineNumbewStawt: numba, wines: T[]): void {
+		this._wines = wines;
+		this._wendWineNumbewStawt = wendWineNumbewStawt;
 	}
 
-	_get(): { rendLineNumberStart: number; lines: T[]; } {
-		return {
-			rendLineNumberStart: this._rendLineNumberStart,
-			lines: this._lines
+	_get(): { wendWineNumbewStawt: numba; wines: T[]; } {
+		wetuwn {
+			wendWineNumbewStawt: this._wendWineNumbewStawt,
+			wines: this._wines
 		};
 	}
 
 	/**
-	 * @returns Inclusive line number that is inside this collection
+	 * @wetuwns Incwusive wine numba that is inside this cowwection
 	 */
-	public getStartLineNumber(): number {
-		return this._rendLineNumberStart;
+	pubwic getStawtWineNumba(): numba {
+		wetuwn this._wendWineNumbewStawt;
 	}
 
 	/**
-	 * @returns Inclusive line number that is inside this collection
+	 * @wetuwns Incwusive wine numba that is inside this cowwection
 	 */
-	public getEndLineNumber(): number {
-		return this._rendLineNumberStart + this._lines.length - 1;
+	pubwic getEndWineNumba(): numba {
+		wetuwn this._wendWineNumbewStawt + this._wines.wength - 1;
 	}
 
-	public getCount(): number {
-		return this._lines.length;
+	pubwic getCount(): numba {
+		wetuwn this._wines.wength;
 	}
 
-	public getLine(lineNumber: number): T {
-		const lineIndex = lineNumber - this._rendLineNumberStart;
-		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber');
+	pubwic getWine(wineNumba: numba): T {
+		const wineIndex = wineNumba - this._wendWineNumbewStawt;
+		if (wineIndex < 0 || wineIndex >= this._wines.wength) {
+			thwow new Ewwow('Iwwegaw vawue fow wineNumba');
 		}
-		return this._lines[lineIndex];
+		wetuwn this._wines[wineIndex];
 	}
 
 	/**
-	 * @returns Lines that were removed from this collection
+	 * @wetuwns Wines that wewe wemoved fwom this cowwection
 	 */
-	public onLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number): T[] | null {
+	pubwic onWinesDeweted(deweteFwomWineNumba: numba, deweteToWineNumba: numba): T[] | nuww {
 		if (this.getCount() === 0) {
-			// no lines
-			return null;
+			// no wines
+			wetuwn nuww;
 		}
 
-		const startLineNumber = this.getStartLineNumber();
-		const endLineNumber = this.getEndLineNumber();
+		const stawtWineNumba = this.getStawtWineNumba();
+		const endWineNumba = this.getEndWineNumba();
 
-		if (deleteToLineNumber < startLineNumber) {
-			// deleting above the viewport
-			const deleteCnt = deleteToLineNumber - deleteFromLineNumber + 1;
-			this._rendLineNumberStart -= deleteCnt;
-			return null;
+		if (deweteToWineNumba < stawtWineNumba) {
+			// deweting above the viewpowt
+			const deweteCnt = deweteToWineNumba - deweteFwomWineNumba + 1;
+			this._wendWineNumbewStawt -= deweteCnt;
+			wetuwn nuww;
 		}
 
-		if (deleteFromLineNumber > endLineNumber) {
-			// deleted below the viewport
-			return null;
+		if (deweteFwomWineNumba > endWineNumba) {
+			// deweted bewow the viewpowt
+			wetuwn nuww;
 		}
 
-		// Record what needs to be deleted
-		let deleteStartIndex = 0;
-		let deleteCount = 0;
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineIndex = lineNumber - this._rendLineNumberStart;
+		// Wecowd what needs to be deweted
+		wet deweteStawtIndex = 0;
+		wet deweteCount = 0;
+		fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+			const wineIndex = wineNumba - this._wendWineNumbewStawt;
 
-			if (deleteFromLineNumber <= lineNumber && lineNumber <= deleteToLineNumber) {
-				// this is a line to be deleted
-				if (deleteCount === 0) {
-					// this is the first line to be deleted
-					deleteStartIndex = lineIndex;
-					deleteCount = 1;
-				} else {
-					deleteCount++;
+			if (deweteFwomWineNumba <= wineNumba && wineNumba <= deweteToWineNumba) {
+				// this is a wine to be deweted
+				if (deweteCount === 0) {
+					// this is the fiwst wine to be deweted
+					deweteStawtIndex = wineIndex;
+					deweteCount = 1;
+				} ewse {
+					deweteCount++;
 				}
 			}
 		}
 
-		// Adjust this._rendLineNumberStart for lines deleted above
-		if (deleteFromLineNumber < startLineNumber) {
-			// Something was deleted above
-			let deleteAboveCount = 0;
+		// Adjust this._wendWineNumbewStawt fow wines deweted above
+		if (deweteFwomWineNumba < stawtWineNumba) {
+			// Something was deweted above
+			wet deweteAboveCount = 0;
 
-			if (deleteToLineNumber < startLineNumber) {
-				// the entire deleted lines are above
-				deleteAboveCount = deleteToLineNumber - deleteFromLineNumber + 1;
-			} else {
-				deleteAboveCount = startLineNumber - deleteFromLineNumber;
+			if (deweteToWineNumba < stawtWineNumba) {
+				// the entiwe deweted wines awe above
+				deweteAboveCount = deweteToWineNumba - deweteFwomWineNumba + 1;
+			} ewse {
+				deweteAboveCount = stawtWineNumba - deweteFwomWineNumba;
 			}
 
-			this._rendLineNumberStart -= deleteAboveCount;
+			this._wendWineNumbewStawt -= deweteAboveCount;
 		}
 
-		const deleted = this._lines.splice(deleteStartIndex, deleteCount);
-		return deleted;
+		const deweted = this._wines.spwice(deweteStawtIndex, deweteCount);
+		wetuwn deweted;
 	}
 
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
+	pubwic onWinesChanged(changeFwomWineNumba: numba, changeToWineNumba: numba): boowean {
 		if (this.getCount() === 0) {
-			// no lines
-			return false;
+			// no wines
+			wetuwn fawse;
 		}
 
-		const startLineNumber = this.getStartLineNumber();
-		const endLineNumber = this.getEndLineNumber();
+		const stawtWineNumba = this.getStawtWineNumba();
+		const endWineNumba = this.getEndWineNumba();
 
-		let someoneNotified = false;
+		wet someoneNotified = fawse;
 
-		for (let changedLineNumber = changeFromLineNumber; changedLineNumber <= changeToLineNumber; changedLineNumber++) {
-			if (changedLineNumber >= startLineNumber && changedLineNumber <= endLineNumber) {
-				// Notify the line
-				this._lines[changedLineNumber - this._rendLineNumberStart].onContentChanged();
-				someoneNotified = true;
+		fow (wet changedWineNumba = changeFwomWineNumba; changedWineNumba <= changeToWineNumba; changedWineNumba++) {
+			if (changedWineNumba >= stawtWineNumba && changedWineNumba <= endWineNumba) {
+				// Notify the wine
+				this._wines[changedWineNumba - this._wendWineNumbewStawt].onContentChanged();
+				someoneNotified = twue;
 			}
 		}
 
-		return someoneNotified;
+		wetuwn someoneNotified;
 	}
 
-	public onLinesInserted(insertFromLineNumber: number, insertToLineNumber: number): T[] | null {
+	pubwic onWinesInsewted(insewtFwomWineNumba: numba, insewtToWineNumba: numba): T[] | nuww {
 		if (this.getCount() === 0) {
-			// no lines
-			return null;
+			// no wines
+			wetuwn nuww;
 		}
 
-		const insertCnt = insertToLineNumber - insertFromLineNumber + 1;
-		const startLineNumber = this.getStartLineNumber();
-		const endLineNumber = this.getEndLineNumber();
+		const insewtCnt = insewtToWineNumba - insewtFwomWineNumba + 1;
+		const stawtWineNumba = this.getStawtWineNumba();
+		const endWineNumba = this.getEndWineNumba();
 
-		if (insertFromLineNumber <= startLineNumber) {
-			// inserting above the viewport
-			this._rendLineNumberStart += insertCnt;
-			return null;
+		if (insewtFwomWineNumba <= stawtWineNumba) {
+			// insewting above the viewpowt
+			this._wendWineNumbewStawt += insewtCnt;
+			wetuwn nuww;
 		}
 
-		if (insertFromLineNumber > endLineNumber) {
-			// inserting below the viewport
-			return null;
+		if (insewtFwomWineNumba > endWineNumba) {
+			// insewting bewow the viewpowt
+			wetuwn nuww;
 		}
 
-		if (insertCnt + insertFromLineNumber > endLineNumber) {
-			// insert inside the viewport in such a way that all remaining lines are pushed outside
-			const deleted = this._lines.splice(insertFromLineNumber - this._rendLineNumberStart, endLineNumber - insertFromLineNumber + 1);
-			return deleted;
+		if (insewtCnt + insewtFwomWineNumba > endWineNumba) {
+			// insewt inside the viewpowt in such a way that aww wemaining wines awe pushed outside
+			const deweted = this._wines.spwice(insewtFwomWineNumba - this._wendWineNumbewStawt, endWineNumba - insewtFwomWineNumba + 1);
+			wetuwn deweted;
 		}
 
-		// insert inside the viewport, push out some lines, but not all remaining lines
-		const newLines: T[] = [];
-		for (let i = 0; i < insertCnt; i++) {
-			newLines[i] = this._createLine();
+		// insewt inside the viewpowt, push out some wines, but not aww wemaining wines
+		const newWines: T[] = [];
+		fow (wet i = 0; i < insewtCnt; i++) {
+			newWines[i] = this._cweateWine();
 		}
-		const insertIndex = insertFromLineNumber - this._rendLineNumberStart;
-		const beforeLines = this._lines.slice(0, insertIndex);
-		const afterLines = this._lines.slice(insertIndex, this._lines.length - insertCnt);
-		const deletedLines = this._lines.slice(this._lines.length - insertCnt, this._lines.length);
+		const insewtIndex = insewtFwomWineNumba - this._wendWineNumbewStawt;
+		const befoweWines = this._wines.swice(0, insewtIndex);
+		const aftewWines = this._wines.swice(insewtIndex, this._wines.wength - insewtCnt);
+		const dewetedWines = this._wines.swice(this._wines.wength - insewtCnt, this._wines.wength);
 
-		this._lines = beforeLines.concat(newLines).concat(afterLines);
+		this._wines = befoweWines.concat(newWines).concat(aftewWines);
 
-		return deletedLines;
+		wetuwn dewetedWines;
 	}
 
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	pubwic onTokensChanged(wanges: { fwomWineNumba: numba; toWineNumba: numba; }[]): boowean {
 		if (this.getCount() === 0) {
-			// no lines
-			return false;
+			// no wines
+			wetuwn fawse;
 		}
 
-		const startLineNumber = this.getStartLineNumber();
-		const endLineNumber = this.getEndLineNumber();
+		const stawtWineNumba = this.getStawtWineNumba();
+		const endWineNumba = this.getEndWineNumba();
 
-		let notifiedSomeone = false;
-		for (let i = 0, len = ranges.length; i < len; i++) {
-			const rng = ranges[i];
+		wet notifiedSomeone = fawse;
+		fow (wet i = 0, wen = wanges.wength; i < wen; i++) {
+			const wng = wanges[i];
 
-			if (rng.toLineNumber < startLineNumber || rng.fromLineNumber > endLineNumber) {
-				// range outside viewport
+			if (wng.toWineNumba < stawtWineNumba || wng.fwomWineNumba > endWineNumba) {
+				// wange outside viewpowt
 				continue;
 			}
 
-			const from = Math.max(startLineNumber, rng.fromLineNumber);
-			const to = Math.min(endLineNumber, rng.toLineNumber);
+			const fwom = Math.max(stawtWineNumba, wng.fwomWineNumba);
+			const to = Math.min(endWineNumba, wng.toWineNumba);
 
-			for (let lineNumber = from; lineNumber <= to; lineNumber++) {
-				const lineIndex = lineNumber - this._rendLineNumberStart;
-				this._lines[lineIndex].onTokensChanged();
-				notifiedSomeone = true;
+			fow (wet wineNumba = fwom; wineNumba <= to; wineNumba++) {
+				const wineIndex = wineNumba - this._wendWineNumbewStawt;
+				this._wines[wineIndex].onTokensChanged();
+				notifiedSomeone = twue;
 			}
 		}
 
-		return notifiedSomeone;
+		wetuwn notifiedSomeone;
 	}
 }
 
-export interface IVisibleLinesHost<T extends IVisibleLine> {
-	createVisibleLine(): T;
+expowt intewface IVisibweWinesHost<T extends IVisibweWine> {
+	cweateVisibweWine(): T;
 }
 
-export class VisibleLinesCollection<T extends IVisibleLine> {
+expowt cwass VisibweWinesCowwection<T extends IVisibweWine> {
 
-	private readonly _host: IVisibleLinesHost<T>;
-	public readonly domNode: FastDomNode<HTMLElement>;
-	private readonly _linesCollection: RenderedLinesCollection<T>;
+	pwivate weadonwy _host: IVisibweWinesHost<T>;
+	pubwic weadonwy domNode: FastDomNode<HTMWEwement>;
+	pwivate weadonwy _winesCowwection: WendewedWinesCowwection<T>;
 
-	constructor(host: IVisibleLinesHost<T>) {
+	constwuctow(host: IVisibweWinesHost<T>) {
 		this._host = host;
-		this.domNode = this._createDomNode();
-		this._linesCollection = new RenderedLinesCollection<T>(() => this._host.createVisibleLine());
+		this.domNode = this._cweateDomNode();
+		this._winesCowwection = new WendewedWinesCowwection<T>(() => this._host.cweateVisibweWine());
 	}
 
-	private _createDomNode(): FastDomNode<HTMLElement> {
-		const domNode = createFastDomNode(document.createElement('div'));
-		domNode.setClassName('view-layer');
-		domNode.setPosition('absolute');
-		domNode.domNode.setAttribute('role', 'presentation');
-		domNode.domNode.setAttribute('aria-hidden', 'true');
-		return domNode;
+	pwivate _cweateDomNode(): FastDomNode<HTMWEwement> {
+		const domNode = cweateFastDomNode(document.cweateEwement('div'));
+		domNode.setCwassName('view-waya');
+		domNode.setPosition('absowute');
+		domNode.domNode.setAttwibute('wowe', 'pwesentation');
+		domNode.domNode.setAttwibute('awia-hidden', 'twue');
+		wetuwn domNode;
 	}
 
-	// ---- begin view event handlers
+	// ---- begin view event handwews
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.hasChanged(EditorOption.layoutInfo)) {
-			return true;
+	pubwic onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		if (e.hasChanged(EditowOption.wayoutInfo)) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._linesCollection.flush();
-		// No need to clear the dom node because a full .innerHTML will occur in ViewLayerRenderer._render
-		return true;
+	pubwic onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		this._winesCowwection.fwush();
+		// No need to cweaw the dom node because a fuww .innewHTMW wiww occuw in ViewWayewWendewa._wenda
+		wetuwn twue;
 	}
 
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+	pubwic onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn this._winesCowwection.onWinesChanged(e.fwomWineNumba, e.toWineNumba);
 	}
 
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		const deleted = this._linesCollection.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
-		if (deleted) {
-			// Remove from DOM
-			for (let i = 0, len = deleted.length; i < len; i++) {
-				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
+	pubwic onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		const deweted = this._winesCowwection.onWinesDeweted(e.fwomWineNumba, e.toWineNumba);
+		if (deweted) {
+			// Wemove fwom DOM
+			fow (wet i = 0, wen = deweted.wength; i < wen; i++) {
+				const wineDomNode = deweted[i].getDomNode();
+				if (wineDomNode) {
+					this.domNode.domNode.wemoveChiwd(wineDomNode);
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		const deleted = this._linesCollection.onLinesInserted(e.fromLineNumber, e.toLineNumber);
-		if (deleted) {
-			// Remove from DOM
-			for (let i = 0, len = deleted.length; i < len; i++) {
-				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
+	pubwic onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		const deweted = this._winesCowwection.onWinesInsewted(e.fwomWineNumba, e.toWineNumba);
+		if (deweted) {
+			// Wemove fwom DOM
+			fow (wet i = 0, wen = deweted.wength; i < wen; i++) {
+				const wineDomNode = deweted[i].getDomNode();
+				if (wineDomNode) {
+					this.domNode.domNode.wemoveChiwd(wineDomNode);
 				}
 			}
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollTopChanged;
+	pubwic onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn e.scwowwTopChanged;
 	}
 
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return this._linesCollection.onTokensChanged(e.ranges);
+	pubwic onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		wetuwn this._winesCowwection.onTokensChanged(e.wanges);
 	}
 
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	pubwic onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn twue;
 	}
 
-	// ---- end view event handlers
+	// ---- end view event handwews
 
-	public getStartLineNumber(): number {
-		return this._linesCollection.getStartLineNumber();
+	pubwic getStawtWineNumba(): numba {
+		wetuwn this._winesCowwection.getStawtWineNumba();
 	}
 
-	public getEndLineNumber(): number {
-		return this._linesCollection.getEndLineNumber();
+	pubwic getEndWineNumba(): numba {
+		wetuwn this._winesCowwection.getEndWineNumba();
 	}
 
-	public getVisibleLine(lineNumber: number): T {
-		return this._linesCollection.getLine(lineNumber);
+	pubwic getVisibweWine(wineNumba: numba): T {
+		wetuwn this._winesCowwection.getWine(wineNumba);
 	}
 
-	public renderLines(viewportData: ViewportData): void {
+	pubwic wendewWines(viewpowtData: ViewpowtData): void {
 
-		const inp = this._linesCollection._get();
+		const inp = this._winesCowwection._get();
 
-		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._host, viewportData);
+		const wendewa = new ViewWayewWendewa<T>(this.domNode.domNode, this._host, viewpowtData);
 
-		const ctx: IRendererContext<T> = {
-			rendLineNumberStart: inp.rendLineNumberStart,
-			lines: inp.lines,
-			linesLength: inp.lines.length
+		const ctx: IWendewewContext<T> = {
+			wendWineNumbewStawt: inp.wendWineNumbewStawt,
+			wines: inp.wines,
+			winesWength: inp.wines.wength
 		};
 
-		// Decide if this render will do a single update (single large .innerHTML) or many updates (inserting/removing dom nodes)
-		const resCtx = renderer.render(ctx, viewportData.startLineNumber, viewportData.endLineNumber, viewportData.relativeVerticalOffset);
+		// Decide if this wenda wiww do a singwe update (singwe wawge .innewHTMW) ow many updates (insewting/wemoving dom nodes)
+		const wesCtx = wendewa.wenda(ctx, viewpowtData.stawtWineNumba, viewpowtData.endWineNumba, viewpowtData.wewativeVewticawOffset);
 
-		this._linesCollection._set(resCtx.rendLineNumberStart, resCtx.lines);
+		this._winesCowwection._set(wesCtx.wendWineNumbewStawt, wesCtx.wines);
 	}
 }
 
-interface IRendererContext<T extends IVisibleLine> {
-	rendLineNumberStart: number;
-	lines: T[];
-	linesLength: number;
+intewface IWendewewContext<T extends IVisibweWine> {
+	wendWineNumbewStawt: numba;
+	wines: T[];
+	winesWength: numba;
 }
 
-class ViewLayerRenderer<T extends IVisibleLine> {
+cwass ViewWayewWendewa<T extends IVisibweWine> {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('editorViewLayer', { createHTML: value => value });
+	pwivate static _ttPowicy = window.twustedTypes?.cweatePowicy('editowViewWaya', { cweateHTMW: vawue => vawue });
 
-	readonly domNode: HTMLElement;
-	readonly host: IVisibleLinesHost<T>;
-	readonly viewportData: ViewportData;
+	weadonwy domNode: HTMWEwement;
+	weadonwy host: IVisibweWinesHost<T>;
+	weadonwy viewpowtData: ViewpowtData;
 
-	constructor(domNode: HTMLElement, host: IVisibleLinesHost<T>, viewportData: ViewportData) {
+	constwuctow(domNode: HTMWEwement, host: IVisibweWinesHost<T>, viewpowtData: ViewpowtData) {
 		this.domNode = domNode;
 		this.host = host;
-		this.viewportData = viewportData;
+		this.viewpowtData = viewpowtData;
 	}
 
-	public render(inContext: IRendererContext<T>, startLineNumber: number, stopLineNumber: number, deltaTop: number[]): IRendererContext<T> {
+	pubwic wenda(inContext: IWendewewContext<T>, stawtWineNumba: numba, stopWineNumba: numba, dewtaTop: numba[]): IWendewewContext<T> {
 
-		const ctx: IRendererContext<T> = {
-			rendLineNumberStart: inContext.rendLineNumberStart,
-			lines: inContext.lines.slice(0),
-			linesLength: inContext.linesLength
+		const ctx: IWendewewContext<T> = {
+			wendWineNumbewStawt: inContext.wendWineNumbewStawt,
+			wines: inContext.wines.swice(0),
+			winesWength: inContext.winesWength
 		};
 
-		if ((ctx.rendLineNumberStart + ctx.linesLength - 1 < startLineNumber) || (stopLineNumber < ctx.rendLineNumberStart)) {
-			// There is no overlap whatsoever
-			ctx.rendLineNumberStart = startLineNumber;
-			ctx.linesLength = stopLineNumber - startLineNumber + 1;
-			ctx.lines = [];
-			for (let x = startLineNumber; x <= stopLineNumber; x++) {
-				ctx.lines[x - startLineNumber] = this.host.createVisibleLine();
+		if ((ctx.wendWineNumbewStawt + ctx.winesWength - 1 < stawtWineNumba) || (stopWineNumba < ctx.wendWineNumbewStawt)) {
+			// Thewe is no ovewwap whatsoeva
+			ctx.wendWineNumbewStawt = stawtWineNumba;
+			ctx.winesWength = stopWineNumba - stawtWineNumba + 1;
+			ctx.wines = [];
+			fow (wet x = stawtWineNumba; x <= stopWineNumba; x++) {
+				ctx.wines[x - stawtWineNumba] = this.host.cweateVisibweWine();
 			}
-			this._finishRendering(ctx, true, deltaTop);
-			return ctx;
+			this._finishWendewing(ctx, twue, dewtaTop);
+			wetuwn ctx;
 		}
 
-		// Update lines which will remain untouched
-		this._renderUntouchedLines(
+		// Update wines which wiww wemain untouched
+		this._wendewUntouchedWines(
 			ctx,
-			Math.max(startLineNumber - ctx.rendLineNumberStart, 0),
-			Math.min(stopLineNumber - ctx.rendLineNumberStart, ctx.linesLength - 1),
-			deltaTop,
-			startLineNumber
+			Math.max(stawtWineNumba - ctx.wendWineNumbewStawt, 0),
+			Math.min(stopWineNumba - ctx.wendWineNumbewStawt, ctx.winesWength - 1),
+			dewtaTop,
+			stawtWineNumba
 		);
 
-		if (ctx.rendLineNumberStart > startLineNumber) {
-			// Insert lines before
-			const fromLineNumber = startLineNumber;
-			const toLineNumber = Math.min(stopLineNumber, ctx.rendLineNumberStart - 1);
-			if (fromLineNumber <= toLineNumber) {
-				this._insertLinesBefore(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
-				ctx.linesLength += toLineNumber - fromLineNumber + 1;
+		if (ctx.wendWineNumbewStawt > stawtWineNumba) {
+			// Insewt wines befowe
+			const fwomWineNumba = stawtWineNumba;
+			const toWineNumba = Math.min(stopWineNumba, ctx.wendWineNumbewStawt - 1);
+			if (fwomWineNumba <= toWineNumba) {
+				this._insewtWinesBefowe(ctx, fwomWineNumba, toWineNumba, dewtaTop, stawtWineNumba);
+				ctx.winesWength += toWineNumba - fwomWineNumba + 1;
 			}
-		} else if (ctx.rendLineNumberStart < startLineNumber) {
-			// Remove lines before
-			const removeCnt = Math.min(ctx.linesLength, startLineNumber - ctx.rendLineNumberStart);
-			if (removeCnt > 0) {
-				this._removeLinesBefore(ctx, removeCnt);
-				ctx.linesLength -= removeCnt;
-			}
-		}
-
-		ctx.rendLineNumberStart = startLineNumber;
-
-		if (ctx.rendLineNumberStart + ctx.linesLength - 1 < stopLineNumber) {
-			// Insert lines after
-			const fromLineNumber = ctx.rendLineNumberStart + ctx.linesLength;
-			const toLineNumber = stopLineNumber;
-
-			if (fromLineNumber <= toLineNumber) {
-				this._insertLinesAfter(ctx, fromLineNumber, toLineNumber, deltaTop, startLineNumber);
-				ctx.linesLength += toLineNumber - fromLineNumber + 1;
-			}
-
-		} else if (ctx.rendLineNumberStart + ctx.linesLength - 1 > stopLineNumber) {
-			// Remove lines after
-			const fromLineNumber = Math.max(0, stopLineNumber - ctx.rendLineNumberStart + 1);
-			const toLineNumber = ctx.linesLength - 1;
-			const removeCnt = toLineNumber - fromLineNumber + 1;
-
-			if (removeCnt > 0) {
-				this._removeLinesAfter(ctx, removeCnt);
-				ctx.linesLength -= removeCnt;
+		} ewse if (ctx.wendWineNumbewStawt < stawtWineNumba) {
+			// Wemove wines befowe
+			const wemoveCnt = Math.min(ctx.winesWength, stawtWineNumba - ctx.wendWineNumbewStawt);
+			if (wemoveCnt > 0) {
+				this._wemoveWinesBefowe(ctx, wemoveCnt);
+				ctx.winesWength -= wemoveCnt;
 			}
 		}
 
-		this._finishRendering(ctx, false, deltaTop);
+		ctx.wendWineNumbewStawt = stawtWineNumba;
 
-		return ctx;
-	}
+		if (ctx.wendWineNumbewStawt + ctx.winesWength - 1 < stopWineNumba) {
+			// Insewt wines afta
+			const fwomWineNumba = ctx.wendWineNumbewStawt + ctx.winesWength;
+			const toWineNumba = stopWineNumba;
 
-	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
-		const rendLineNumberStart = ctx.rendLineNumberStart;
-		const lines = ctx.lines;
+			if (fwomWineNumba <= toWineNumba) {
+				this._insewtWinesAfta(ctx, fwomWineNumba, toWineNumba, dewtaTop, stawtWineNumba);
+				ctx.winesWength += toWineNumba - fwomWineNumba + 1;
+			}
 
-		for (let i = startIndex; i <= endIndex; i++) {
-			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
-		}
-	}
+		} ewse if (ctx.wendWineNumbewStawt + ctx.winesWength - 1 > stopWineNumba) {
+			// Wemove wines afta
+			const fwomWineNumba = Math.max(0, stopWineNumba - ctx.wendWineNumbewStawt + 1);
+			const toWineNumba = ctx.winesWength - 1;
+			const wemoveCnt = toWineNumba - fwomWineNumba + 1;
 
-	private _insertLinesBefore(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
-		const newLines: T[] = [];
-		let newLinesLen = 0;
-		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this.host.createVisibleLine();
-		}
-		ctx.lines = newLines.concat(ctx.lines);
-	}
-
-	private _removeLinesBefore(ctx: IRendererContext<T>, removeCount: number): void {
-		for (let i = 0; i < removeCount; i++) {
-			const lineDomNode = ctx.lines[i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
+			if (wemoveCnt > 0) {
+				this._wemoveWinesAfta(ctx, wemoveCnt);
+				ctx.winesWength -= wemoveCnt;
 			}
 		}
-		ctx.lines.splice(0, removeCount);
+
+		this._finishWendewing(ctx, fawse, dewtaTop);
+
+		wetuwn ctx;
 	}
 
-	private _insertLinesAfter(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {
-		const newLines: T[] = [];
-		let newLinesLen = 0;
-		for (let lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-			newLines[newLinesLen++] = this.host.createVisibleLine();
+	pwivate _wendewUntouchedWines(ctx: IWendewewContext<T>, stawtIndex: numba, endIndex: numba, dewtaTop: numba[], dewtaWN: numba): void {
+		const wendWineNumbewStawt = ctx.wendWineNumbewStawt;
+		const wines = ctx.wines;
+
+		fow (wet i = stawtIndex; i <= endIndex; i++) {
+			const wineNumba = wendWineNumbewStawt + i;
+			wines[i].wayoutWine(wineNumba, dewtaTop[wineNumba - dewtaWN]);
 		}
-		ctx.lines = ctx.lines.concat(newLines);
 	}
 
-	private _removeLinesAfter(ctx: IRendererContext<T>, removeCount: number): void {
-		const removeIndex = ctx.linesLength - removeCount;
+	pwivate _insewtWinesBefowe(ctx: IWendewewContext<T>, fwomWineNumba: numba, toWineNumba: numba, dewtaTop: numba[], dewtaWN: numba): void {
+		const newWines: T[] = [];
+		wet newWinesWen = 0;
+		fow (wet wineNumba = fwomWineNumba; wineNumba <= toWineNumba; wineNumba++) {
+			newWines[newWinesWen++] = this.host.cweateVisibweWine();
+		}
+		ctx.wines = newWines.concat(ctx.wines);
+	}
 
-		for (let i = 0; i < removeCount; i++) {
-			const lineDomNode = ctx.lines[removeIndex + i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
+	pwivate _wemoveWinesBefowe(ctx: IWendewewContext<T>, wemoveCount: numba): void {
+		fow (wet i = 0; i < wemoveCount; i++) {
+			const wineDomNode = ctx.wines[i].getDomNode();
+			if (wineDomNode) {
+				this.domNode.wemoveChiwd(wineDomNode);
 			}
 		}
-		ctx.lines.splice(removeIndex, removeCount);
+		ctx.wines.spwice(0, wemoveCount);
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string | TrustedHTML, wasNew: boolean[]): void {
-		if (ViewLayerRenderer._ttPolicy) {
-			newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML as string);
+	pwivate _insewtWinesAfta(ctx: IWendewewContext<T>, fwomWineNumba: numba, toWineNumba: numba, dewtaTop: numba[], dewtaWN: numba): void {
+		const newWines: T[] = [];
+		wet newWinesWen = 0;
+		fow (wet wineNumba = fwomWineNumba; wineNumba <= toWineNumba; wineNumba++) {
+			newWines[newWinesWen++] = this.host.cweateVisibweWine();
 		}
-		const lastChild = <HTMLElement>this.domNode.lastChild;
-		if (domNodeIsEmpty || !lastChild) {
-			this.domNode.innerHTML = newLinesHTML as string; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393;
-		} else {
-			lastChild.insertAdjacentHTML('afterend', newLinesHTML as string);
+		ctx.wines = ctx.wines.concat(newWines);
+	}
+
+	pwivate _wemoveWinesAfta(ctx: IWendewewContext<T>, wemoveCount: numba): void {
+		const wemoveIndex = ctx.winesWength - wemoveCount;
+
+		fow (wet i = 0; i < wemoveCount; i++) {
+			const wineDomNode = ctx.wines[wemoveIndex + i].getDomNode();
+			if (wineDomNode) {
+				this.domNode.wemoveChiwd(wineDomNode);
+			}
+		}
+		ctx.wines.spwice(wemoveIndex, wemoveCount);
+	}
+
+	pwivate _finishWendewingNewWines(ctx: IWendewewContext<T>, domNodeIsEmpty: boowean, newWinesHTMW: stwing | TwustedHTMW, wasNew: boowean[]): void {
+		if (ViewWayewWendewa._ttPowicy) {
+			newWinesHTMW = ViewWayewWendewa._ttPowicy.cweateHTMW(newWinesHTMW as stwing);
+		}
+		const wastChiwd = <HTMWEwement>this.domNode.wastChiwd;
+		if (domNodeIsEmpty || !wastChiwd) {
+			this.domNode.innewHTMW = newWinesHTMW as stwing; // expwains the ugwy casts -> https://github.com/micwosoft/vscode/issues/106396#issuecomment-692625393;
+		} ewse {
+			wastChiwd.insewtAdjacentHTMW('aftewend', newWinesHTMW as stwing);
 		}
 
-		let currChild = <HTMLElement>this.domNode.lastChild;
-		for (let i = ctx.linesLength - 1; i >= 0; i--) {
-			const line = ctx.lines[i];
+		wet cuwwChiwd = <HTMWEwement>this.domNode.wastChiwd;
+		fow (wet i = ctx.winesWength - 1; i >= 0; i--) {
+			const wine = ctx.wines[i];
 			if (wasNew[i]) {
-				line.setDomNode(currChild);
-				currChild = <HTMLElement>currChild.previousSibling;
+				wine.setDomNode(cuwwChiwd);
+				cuwwChiwd = <HTMWEwement>cuwwChiwd.pweviousSibwing;
 			}
 		}
 	}
 
-	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string | TrustedHTML, wasInvalid: boolean[]): void {
-		const hugeDomNode = document.createElement('div');
+	pwivate _finishWendewingInvawidWines(ctx: IWendewewContext<T>, invawidWinesHTMW: stwing | TwustedHTMW, wasInvawid: boowean[]): void {
+		const hugeDomNode = document.cweateEwement('div');
 
-		if (ViewLayerRenderer._ttPolicy) {
-			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML as string);
+		if (ViewWayewWendewa._ttPowicy) {
+			invawidWinesHTMW = ViewWayewWendewa._ttPowicy.cweateHTMW(invawidWinesHTMW as stwing);
 		}
-		hugeDomNode.innerHTML = invalidLinesHTML as string;
+		hugeDomNode.innewHTMW = invawidWinesHTMW as stwing;
 
-		for (let i = 0; i < ctx.linesLength; i++) {
-			const line = ctx.lines[i];
-			if (wasInvalid[i]) {
-				const source = <HTMLElement>hugeDomNode.firstChild;
-				const lineDomNode = line.getDomNode()!;
-				lineDomNode.parentNode!.replaceChild(source, lineDomNode);
-				line.setDomNode(source);
+		fow (wet i = 0; i < ctx.winesWength; i++) {
+			const wine = ctx.wines[i];
+			if (wasInvawid[i]) {
+				const souwce = <HTMWEwement>hugeDomNode.fiwstChiwd;
+				const wineDomNode = wine.getDomNode()!;
+				wineDomNode.pawentNode!.wepwaceChiwd(souwce, wineDomNode);
+				wine.setDomNode(souwce);
 			}
 		}
 	}
 
-	private static readonly _sb = createStringBuilder(100000);
+	pwivate static weadonwy _sb = cweateStwingBuiwda(100000);
 
-	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
+	pwivate _finishWendewing(ctx: IWendewewContext<T>, domNodeIsEmpty: boowean, dewtaTop: numba[]): void {
 
-		const sb = ViewLayerRenderer._sb;
-		const linesLength = ctx.linesLength;
-		const lines = ctx.lines;
-		const rendLineNumberStart = ctx.rendLineNumberStart;
+		const sb = ViewWayewWendewa._sb;
+		const winesWength = ctx.winesWength;
+		const wines = ctx.wines;
+		const wendWineNumbewStawt = ctx.wendWineNumbewStawt;
 
-		const wasNew: boolean[] = [];
+		const wasNew: boowean[] = [];
 		{
-			sb.reset();
-			let hadNewLine = false;
+			sb.weset();
+			wet hadNewWine = fawse;
 
-			for (let i = 0; i < linesLength; i++) {
-				const line = lines[i];
-				wasNew[i] = false;
+			fow (wet i = 0; i < winesWength; i++) {
+				const wine = wines[i];
+				wasNew[i] = fawse;
 
-				const lineDomNode = line.getDomNode();
-				if (lineDomNode) {
-					// line is not new
+				const wineDomNode = wine.getDomNode();
+				if (wineDomNode) {
+					// wine is not new
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
-				if (!renderResult) {
-					// line does not need rendering
+				const wendewWesuwt = wine.wendewWine(i + wendWineNumbewStawt, dewtaTop[i], this.viewpowtData, sb);
+				if (!wendewWesuwt) {
+					// wine does not need wendewing
 					continue;
 				}
 
-				wasNew[i] = true;
-				hadNewLine = true;
+				wasNew[i] = twue;
+				hadNewWine = twue;
 			}
 
-			if (hadNewLine) {
-				this._finishRenderingNewLines(ctx, domNodeIsEmpty, sb.build(), wasNew);
+			if (hadNewWine) {
+				this._finishWendewingNewWines(ctx, domNodeIsEmpty, sb.buiwd(), wasNew);
 			}
 		}
 
 		{
-			sb.reset();
+			sb.weset();
 
-			let hadInvalidLine = false;
-			const wasInvalid: boolean[] = [];
+			wet hadInvawidWine = fawse;
+			const wasInvawid: boowean[] = [];
 
-			for (let i = 0; i < linesLength; i++) {
-				const line = lines[i];
-				wasInvalid[i] = false;
+			fow (wet i = 0; i < winesWength; i++) {
+				const wine = wines[i];
+				wasInvawid[i] = fawse;
 
 				if (wasNew[i]) {
-					// line was new
+					// wine was new
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
-				if (!renderResult) {
-					// line does not need rendering
+				const wendewWesuwt = wine.wendewWine(i + wendWineNumbewStawt, dewtaTop[i], this.viewpowtData, sb);
+				if (!wendewWesuwt) {
+					// wine does not need wendewing
 					continue;
 				}
 
-				wasInvalid[i] = true;
-				hadInvalidLine = true;
+				wasInvawid[i] = twue;
+				hadInvawidWine = twue;
 			}
 
-			if (hadInvalidLine) {
-				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
+			if (hadInvawidWine) {
+				this._finishWendewingInvawidWines(ctx, sb.buiwd(), wasInvawid);
 			}
 		}
 	}

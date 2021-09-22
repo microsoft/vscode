@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { getRootNode } from './parseDocument';
-import { validate, getHtmlFlatNode, offsetRangeToVsRange } from './util';
-import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+impowt * as vscode fwom 'vscode';
+impowt { getWootNode } fwom './pawseDocument';
+impowt { vawidate, getHtmwFwatNode, offsetWangeToVsWange } fwom './utiw';
+impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
 
-export function removeTag() {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+expowt function wemoveTag() {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = <HtmlFlatNode>getRootNode(document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = <HtmwFwatNode>getWootNode(document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	let finalRangesToRemove = editor.selections.reverse()
-		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToRemove(editor.document, rootNode, selection)), []);
+	wet finawWangesToWemove = editow.sewections.wevewse()
+		.weduce<vscode.Wange[]>((pwev, sewection) =>
+			pwev.concat(getWangesToWemove(editow.document, wootNode, sewection)), []);
 
-	return editor.edit(editBuilder => {
-		finalRangesToRemove.forEach(range => {
-			editBuilder.replace(range, '');
+	wetuwn editow.edit(editBuiwda => {
+		finawWangesToWemove.fowEach(wange => {
+			editBuiwda.wepwace(wange, '');
 		});
 	});
 }
 
 /**
- * Calculates the ranges to remove, along with what to replace those ranges with.
- * It finds the node to remove based on the selection's start position
- * and then removes that node, reindenting the content in between.
+ * Cawcuwates the wanges to wemove, awong with what to wepwace those wanges with.
+ * It finds the node to wemove based on the sewection's stawt position
+ * and then wemoves that node, weindenting the content in between.
  */
-function getRangesToRemove(document: vscode.TextDocument, rootNode: HtmlFlatNode, selection: vscode.Selection): vscode.Range[] {
-	const offset = document.offsetAt(selection.start);
-	const nodeToUpdate = getHtmlFlatNode(document.getText(), rootNode, offset, true);
+function getWangesToWemove(document: vscode.TextDocument, wootNode: HtmwFwatNode, sewection: vscode.Sewection): vscode.Wange[] {
+	const offset = document.offsetAt(sewection.stawt);
+	const nodeToUpdate = getHtmwFwatNode(document.getText(), wootNode, offset, twue);
 	if (!nodeToUpdate) {
-		return [];
+		wetuwn [];
 	}
 
-	let openTagRange: vscode.Range | undefined;
+	wet openTagWange: vscode.Wange | undefined;
 	if (nodeToUpdate.open) {
-		openTagRange = offsetRangeToVsRange(document, nodeToUpdate.open.start, nodeToUpdate.open.end);
+		openTagWange = offsetWangeToVsWange(document, nodeToUpdate.open.stawt, nodeToUpdate.open.end);
 	}
-	let closeTagRange: vscode.Range | undefined;
-	if (nodeToUpdate.close) {
-		closeTagRange = offsetRangeToVsRange(document, nodeToUpdate.close.start, nodeToUpdate.close.end);
+	wet cwoseTagWange: vscode.Wange | undefined;
+	if (nodeToUpdate.cwose) {
+		cwoseTagWange = offsetWangeToVsWange(document, nodeToUpdate.cwose.stawt, nodeToUpdate.cwose.end);
 	}
 
-	let rangesToRemove = [];
-	if (openTagRange) {
-		rangesToRemove.push(openTagRange);
-		if (closeTagRange) {
-			const indentAmountToRemove = calculateIndentAmountToRemove(document, openTagRange, closeTagRange);
-			for (let i = openTagRange.start.line + 1; i < closeTagRange.start.line; i++) {
-				rangesToRemove.push(new vscode.Range(i, 0, i, indentAmountToRemove));
+	wet wangesToWemove = [];
+	if (openTagWange) {
+		wangesToWemove.push(openTagWange);
+		if (cwoseTagWange) {
+			const indentAmountToWemove = cawcuwateIndentAmountToWemove(document, openTagWange, cwoseTagWange);
+			fow (wet i = openTagWange.stawt.wine + 1; i < cwoseTagWange.stawt.wine; i++) {
+				wangesToWemove.push(new vscode.Wange(i, 0, i, indentAmountToWemove));
 			}
-			rangesToRemove.push(closeTagRange);
+			wangesToWemove.push(cwoseTagWange);
 		}
 	}
-	return rangesToRemove;
+	wetuwn wangesToWemove;
 }
 
 /**
- * Calculates the amount of indent to remove for getRangesToRemove.
+ * Cawcuwates the amount of indent to wemove fow getWangesToWemove.
  */
-function calculateIndentAmountToRemove(document: vscode.TextDocument, openRange: vscode.Range, closeRange: vscode.Range): number {
-	const startLine = openRange.start.line;
-	const endLine = closeRange.start.line;
+function cawcuwateIndentAmountToWemove(document: vscode.TextDocument, openWange: vscode.Wange, cwoseWange: vscode.Wange): numba {
+	const stawtWine = openWange.stawt.wine;
+	const endWine = cwoseWange.stawt.wine;
 
-	const startLineIndent = document.lineAt(startLine).firstNonWhitespaceCharacterIndex;
-	const endLineIndent = document.lineAt(endLine).firstNonWhitespaceCharacterIndex;
+	const stawtWineIndent = document.wineAt(stawtWine).fiwstNonWhitespaceChawactewIndex;
+	const endWineIndent = document.wineAt(endWine).fiwstNonWhitespaceChawactewIndex;
 
-	let contentIndent: number | undefined;
-	for (let i = startLine + 1; i < endLine; i++) {
-		const lineIndent = document.lineAt(i).firstNonWhitespaceCharacterIndex;
-		contentIndent = !contentIndent ? lineIndent : Math.min(contentIndent, lineIndent);
+	wet contentIndent: numba | undefined;
+	fow (wet i = stawtWine + 1; i < endWine; i++) {
+		const wineIndent = document.wineAt(i).fiwstNonWhitespaceChawactewIndex;
+		contentIndent = !contentIndent ? wineIndent : Math.min(contentIndent, wineIndent);
 	}
 
-	let indentAmount = 0;
+	wet indentAmount = 0;
 	if (contentIndent) {
-		if (contentIndent < startLineIndent || contentIndent < endLineIndent) {
+		if (contentIndent < stawtWineIndent || contentIndent < endWineIndent) {
 			indentAmount = 0;
 		}
-		else {
-			indentAmount = Math.min(contentIndent - startLineIndent, contentIndent - endLineIndent);
+		ewse {
+			indentAmount = Math.min(contentIndent - stawtWineIndent, contentIndent - endWineIndent);
 		}
 	}
-	return indentAmount;
+	wetuwn indentAmount;
 }

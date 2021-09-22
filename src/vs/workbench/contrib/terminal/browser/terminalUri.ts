@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+impowt { DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITewminawInstance } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
 
-export function parseTerminalUri(resource: URI): ITerminalIdentifier {
-	const [, workspaceId, instanceId] = resource.path.split('/');
-	if (!workspaceId || !Number.parseInt(instanceId)) {
-		throw new Error(`Could not parse terminal uri for resource ${resource}`);
+expowt function pawseTewminawUwi(wesouwce: UWI): ITewminawIdentifia {
+	const [, wowkspaceId, instanceId] = wesouwce.path.spwit('/');
+	if (!wowkspaceId || !Numba.pawseInt(instanceId)) {
+		thwow new Ewwow(`Couwd not pawse tewminaw uwi fow wesouwce ${wesouwce}`);
 	}
-	return { workspaceId, instanceId: Number.parseInt(instanceId) };
+	wetuwn { wowkspaceId, instanceId: Numba.pawseInt(instanceId) };
 }
 
-export function getTerminalUri(workspaceId: string, instanceId: number, title?: string): URI {
-	return URI.from({
-		scheme: Schemas.vscodeTerminal,
-		path: `/${workspaceId}/${instanceId}`,
-		fragment: title || undefined,
+expowt function getTewminawUwi(wowkspaceId: stwing, instanceId: numba, titwe?: stwing): UWI {
+	wetuwn UWI.fwom({
+		scheme: Schemas.vscodeTewminaw,
+		path: `/${wowkspaceId}/${instanceId}`,
+		fwagment: titwe || undefined,
 	});
 }
 
-export interface ITerminalIdentifier {
-	workspaceId: string;
-	instanceId: number | undefined;
+expowt intewface ITewminawIdentifia {
+	wowkspaceId: stwing;
+	instanceId: numba | undefined;
 }
 
-export interface IPartialDragEvent {
-	dataTransfer: Pick<DataTransfer, 'getData'> | null;
+expowt intewface IPawtiawDwagEvent {
+	dataTwansfa: Pick<DataTwansfa, 'getData'> | nuww;
 }
 
-export function getTerminalResourcesFromDragEvent(event: IPartialDragEvent): URI[] | undefined {
-	const resources = event.dataTransfer?.getData(DataTransfers.TERMINALS);
-	if (resources) {
-		const json = JSON.parse(resources);
-		const result = [];
-		for (const entry of json) {
-			result.push(URI.parse(entry));
+expowt function getTewminawWesouwcesFwomDwagEvent(event: IPawtiawDwagEvent): UWI[] | undefined {
+	const wesouwces = event.dataTwansfa?.getData(DataTwansfews.TEWMINAWS);
+	if (wesouwces) {
+		const json = JSON.pawse(wesouwces);
+		const wesuwt = [];
+		fow (const entwy of json) {
+			wesuwt.push(UWI.pawse(entwy));
 		}
-		return result.length === 0 ? undefined : result;
+		wetuwn wesuwt.wength === 0 ? undefined : wesuwt;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function getInstanceFromResource<T extends Pick<ITerminalInstance, 'resource'>>(instances: T[], resource: URI | undefined): T | undefined {
-	if (resource) {
-		for (const instance of instances) {
-			// Note that the URI's workspace and instance id might not originally be from this window
-			// Don't bother checking the scheme and assume instances only contains terminals
-			if (instance.resource.path === resource.path) {
-				return instance;
+expowt function getInstanceFwomWesouwce<T extends Pick<ITewminawInstance, 'wesouwce'>>(instances: T[], wesouwce: UWI | undefined): T | undefined {
+	if (wesouwce) {
+		fow (const instance of instances) {
+			// Note that the UWI's wowkspace and instance id might not owiginawwy be fwom this window
+			// Don't botha checking the scheme and assume instances onwy contains tewminaws
+			if (instance.wesouwce.path === wesouwce.path) {
+				wetuwn instance;
 			}
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }

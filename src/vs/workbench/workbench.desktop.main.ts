@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
 //
-//       The `node` & `electron-browser` layer is deprecated for workbench!
-//
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-//#region --- workbench common & sandbox
-
-import 'vs/workbench/workbench.sandbox.main';
-
-//#endregion
-
-
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
-//
-//       The `node` & `electron-browser` layer is deprecated for workbench!
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-//#region --- workbench (desktop main)
+//#wegion --- wowkbench common & sandbox
 
-import 'vs/workbench/electron-browser/desktop.main';
+impowt 'vs/wowkbench/wowkbench.sandbox.main';
 
-//#endregion
-
-
-//#region --- workbench services
+//#endwegion
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
 //
-//       The `node` & `electron-browser` layer is deprecated for workbench!
-//
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-import 'vs/workbench/services/search/electron-browser/searchService';
-import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
-
-
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
-//
-//       The `node` & `electron-browser` layer is deprecated for workbench!
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-//#endregion
+//#wegion --- wowkbench (desktop main)
+
+impowt 'vs/wowkbench/ewectwon-bwowsa/desktop.main';
+
+//#endwegion
+
+
+//#wegion --- wowkbench sewvices
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
 //
-//       The `node` & `electron-browser` layer is deprecated for workbench!
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-//#region --- workbench contributions
+impowt 'vs/wowkbench/sewvices/seawch/ewectwon-bwowsa/seawchSewvice';
+impowt 'vs/wowkbench/sewvices/extensions/ewectwon-bwowsa/extensionSewvice';
+impowt 'vs/wowkbench/sewvices/wemote/ewectwon-bwowsa/tunnewSewviceImpw';
+
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
 //
-//       The `node` & `electron-browser` layer is deprecated for workbench!
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+//#endwegion
+
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
+//
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+//#wegion --- wowkbench contwibutions
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+//
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
+//
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 
 // Extensions Management
-import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution';
+impowt 'vs/wowkbench/contwib/extensions/ewectwon-bwowsa/extensions.contwibution';
 
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
-// NOTE: Please do NOT register services here. Use `registerSingleton()`
-//       from `workbench.common.main.ts` if the service is shared between
-//       desktop and web or `workbench.sandbox.main.ts` if the service
-//       is desktop only.
+// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+//       desktop and web ow `wowkbench.sandbox.main.ts` if the sewvice
+//       is desktop onwy.
 //
-//       The `node` & `electron-browser` layer is deprecated for workbench!
+//       The `node` & `ewectwon-bwowsa` waya is depwecated fow wowkbench!
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-//#endregion
+//#endwegion

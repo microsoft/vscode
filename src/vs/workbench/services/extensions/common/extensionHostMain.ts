@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import * as errors from 'vs/base/common/errors';
-import * as performance from 'vs/base/common/performance';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { IInitData, MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { IInitData, MainContext, MainThweadConsoweShape } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { WPCPwotocow } fwom 'vs/wowkbench/sewvices/extensions/common/wpcPwotocow';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getSingwetonSewviceDescwiptows } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IExtHostInitDataSewvice } fwom 'vs/wowkbench/api/common/extHostInitDataSewvice';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice, ExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IUWITwansfowmewSewvice, UWITwansfowmewSewvice } fwom 'vs/wowkbench/api/common/extHostUwiTwansfowmewSewvice';
+impowt { IExtHostExtensionSewvice, IHostUtiws } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { IExtHostTewminawSewvice } fwom 'vs/wowkbench/api/common/extHostTewminawSewvice';
 
-export interface IExitFn {
-	(code?: number): any;
+expowt intewface IExitFn {
+	(code?: numba): any;
 }
 
-export interface IConsolePatchFn {
-	(mainThreadConsole: MainThreadConsoleShape): any;
+expowt intewface IConsowePatchFn {
+	(mainThweadConsowe: MainThweadConsoweShape): any;
 }
 
-export class ExtensionHostMain {
+expowt cwass ExtensionHostMain {
 
-	private _isTerminating: boolean;
-	private readonly _hostUtils: IHostUtils;
-	private readonly _rpcProtocol: RPCProtocol;
-	private readonly _extensionService: IExtHostExtensionService;
-	private readonly _logService: ILogService;
-	private readonly _disposables = new DisposableStore();
+	pwivate _isTewminating: boowean;
+	pwivate weadonwy _hostUtiws: IHostUtiws;
+	pwivate weadonwy _wpcPwotocow: WPCPwotocow;
+	pwivate weadonwy _extensionSewvice: IExtHostExtensionSewvice;
+	pwivate weadonwy _wogSewvice: IWogSewvice;
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	constructor(
-		protocol: IMessagePassingProtocol,
+	constwuctow(
+		pwotocow: IMessagePassingPwotocow,
 		initData: IInitData,
-		hostUtils: IHostUtils,
-		uriTransformer: IURITransformer | null
+		hostUtiws: IHostUtiws,
+		uwiTwansfowma: IUWITwansfowma | nuww
 	) {
-		this._isTerminating = false;
-		this._hostUtils = hostUtils;
-		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		this._isTewminating = fawse;
+		this._hostUtiws = hostUtiws;
+		this._wpcPwotocow = new WPCPwotocow(pwotocow, nuww, uwiTwansfowma);
 
-		// ensure URIs are transformed and revived
-		initData = ExtensionHostMain._transform(initData, this._rpcProtocol);
+		// ensuwe UWIs awe twansfowmed and wevived
+		initData = ExtensionHostMain._twansfowm(initData, this._wpcPwotocow);
 
-		// bootstrap services
-		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
-		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
-		services.set(IURITransformerService, new URITransformerService(uriTransformer));
-		services.set(IHostUtils, hostUtils);
+		// bootstwap sewvices
+		const sewvices = new SewviceCowwection(...getSingwetonSewviceDescwiptows());
+		sewvices.set(IExtHostInitDataSewvice, { _sewviceBwand: undefined, ...initData });
+		sewvices.set(IExtHostWpcSewvice, new ExtHostWpcSewvice(this._wpcPwotocow));
+		sewvices.set(IUWITwansfowmewSewvice, new UWITwansfowmewSewvice(uwiTwansfowma));
+		sewvices.set(IHostUtiws, hostUtiws);
 
-		const instaService: IInstantiationService = new InstantiationService(services, true);
+		const instaSewvice: IInstantiationSewvice = new InstantiationSewvice(sewvices, twue);
 
-		// ugly self - inject
-		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
-		this._disposables.add(terminalService);
+		// ugwy sewf - inject
+		const tewminawSewvice = instaSewvice.invokeFunction(accessow => accessow.get(IExtHostTewminawSewvice));
+		this._disposabwes.add(tewminawSewvice);
 
-		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
+		this._wogSewvice = instaSewvice.invokeFunction(accessow => accessow.get(IWogSewvice));
 
-		performance.mark(`code/extHost/didCreateServices`);
-		this._logService.info('extension host started');
-		this._logService.trace('initData', initData);
+		pewfowmance.mawk(`code/extHost/didCweateSewvices`);
+		this._wogSewvice.info('extension host stawted');
+		this._wogSewvice.twace('initData', initData);
 
-		// ugly self - inject
-		// must call initialize *after* creating the extension service
-		// because `initialize` itself creates instances that depend on it
-		this._extensionService = instaService.invokeFunction(accessor => accessor.get(IExtHostExtensionService));
-		this._extensionService.initialize();
+		// ugwy sewf - inject
+		// must caww initiawize *afta* cweating the extension sewvice
+		// because `initiawize` itsewf cweates instances that depend on it
+		this._extensionSewvice = instaSewvice.invokeFunction(accessow => accessow.get(IExtHostExtensionSewvice));
+		this._extensionSewvice.initiawize();
 
-		// error forwarding and stack trace scanning
-		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-		const extensionErrors = new WeakMap<Error, IExtensionDescription | undefined>();
-		this._extensionService.getExtensionPathIndex().then(map => {
-			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
-				let stackTraceMessage = '';
-				let extension: IExtensionDescription | undefined;
-				let fileName: string;
-				for (const call of stackTrace) {
-					stackTraceMessage += `\n\tat ${call.toString()}`;
-					fileName = call.getFileName();
-					if (!extension && fileName) {
-						extension = map.findSubstr(fileName);
+		// ewwow fowwawding and stack twace scanning
+		Ewwow.stackTwaceWimit = 100; // incwease numba of stack fwames (fwom 10, https://github.com/v8/v8/wiki/Stack-Twace-API)
+		const extensionEwwows = new WeakMap<Ewwow, IExtensionDescwiption | undefined>();
+		this._extensionSewvice.getExtensionPathIndex().then(map => {
+			(<any>Ewwow).pwepaweStackTwace = (ewwow: Ewwow, stackTwace: ewwows.V8CawwSite[]) => {
+				wet stackTwaceMessage = '';
+				wet extension: IExtensionDescwiption | undefined;
+				wet fiweName: stwing;
+				fow (const caww of stackTwace) {
+					stackTwaceMessage += `\n\tat ${caww.toStwing()}`;
+					fiweName = caww.getFiweName();
+					if (!extension && fiweName) {
+						extension = map.findSubstw(fiweName);
 					}
 
 				}
-				extensionErrors.set(error, extension);
-				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
+				extensionEwwows.set(ewwow, extension);
+				wetuwn `${ewwow.name || 'Ewwow'}: ${ewwow.message || ''}${stackTwaceMessage}`;
 			};
 		});
 
-		const mainThreadExtensions = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = this._rpcProtocol.getProxy(MainContext.MainThreadErrors);
-		errors.setUnexpectedErrorHandler(err => {
-			const data = errors.transformErrorForSerialization(err);
-			const extension = extensionErrors.get(err);
+		const mainThweadExtensions = this._wpcPwotocow.getPwoxy(MainContext.MainThweadExtensionSewvice);
+		const mainThweadEwwows = this._wpcPwotocow.getPwoxy(MainContext.MainThweadEwwows);
+		ewwows.setUnexpectedEwwowHandwa(eww => {
+			const data = ewwows.twansfowmEwwowFowSewiawization(eww);
+			const extension = extensionEwwows.get(eww);
 			if (extension) {
-				mainThreadExtensions.$onExtensionRuntimeError(extension.identifier, data);
-			} else {
-				mainThreadErrors.$onUnexpectedError(data);
+				mainThweadExtensions.$onExtensionWuntimeEwwow(extension.identifia, data);
+			} ewse {
+				mainThweadEwwows.$onUnexpectedEwwow(data);
 			}
 		});
 	}
 
-	terminate(reason: string): void {
-		if (this._isTerminating) {
-			// we are already shutting down...
-			return;
+	tewminate(weason: stwing): void {
+		if (this._isTewminating) {
+			// we awe awweady shutting down...
+			wetuwn;
 		}
-		this._isTerminating = true;
-		this._logService.info(`extension host terminating: ${reason}`);
-		this._logService.flush();
+		this._isTewminating = twue;
+		this._wogSewvice.info(`extension host tewminating: ${weason}`);
+		this._wogSewvice.fwush();
 
-		this._disposables.dispose();
+		this._disposabwes.dispose();
 
-		errors.setUnexpectedErrorHandler((err) => {
-			this._logService.error(err);
+		ewwows.setUnexpectedEwwowHandwa((eww) => {
+			this._wogSewvice.ewwow(eww);
 		});
 
-		// Invalidate all proxies
-		this._rpcProtocol.dispose();
+		// Invawidate aww pwoxies
+		this._wpcPwotocow.dispose();
 
-		const extensionsDeactivated = this._extensionService.deactivateAll();
+		const extensionsDeactivated = this._extensionSewvice.deactivateAww();
 
-		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
+		// Give extensions 1 second to wwap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				this._logService.info(`exiting with code 0`);
-				this._logService.flush();
-				this._logService.dispose();
-				this._hostUtils.exit(0);
+			Pwomise.wace([timeout(4000), extensionsDeactivated]).finawwy(() => {
+				this._wogSewvice.info(`exiting with code 0`);
+				this._wogSewvice.fwush();
+				this._wogSewvice.dispose();
+				this._hostUtiws.exit(0);
 			});
 		}, 1000);
 	}
 
-	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
-		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
-		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
-		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
-		if (extDevLocs) {
-			initData.environment.extensionDevelopmentLocationURI = extDevLocs.map(url => URI.revive(rpcProtocol.transformIncomingURIs(url)));
+	pwivate static _twansfowm(initData: IInitData, wpcPwotocow: WPCPwotocow): IInitData {
+		initData.extensions.fowEach((ext) => (<any>ext).extensionWocation = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(ext.extensionWocation)));
+		initData.enviwonment.appWoot = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.enviwonment.appWoot));
+		const extDevWocs = initData.enviwonment.extensionDevewopmentWocationUWI;
+		if (extDevWocs) {
+			initData.enviwonment.extensionDevewopmentWocationUWI = extDevWocs.map(uww => UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(uww)));
 		}
-		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
-		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
-		initData.environment.workspaceStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.workspaceStorageHome));
-		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
-		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
-		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
-		return initData;
+		initData.enviwonment.extensionTestsWocationUWI = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.enviwonment.extensionTestsWocationUWI));
+		initData.enviwonment.gwobawStowageHome = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.enviwonment.gwobawStowageHome));
+		initData.enviwonment.wowkspaceStowageHome = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.enviwonment.wowkspaceStowageHome));
+		initData.wogsWocation = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.wogsWocation));
+		initData.wogFiwe = UWI.wevive(wpcPwotocow.twansfowmIncomingUWIs(initData.wogFiwe));
+		initData.wowkspace = wpcPwotocow.twansfowmIncomingUWIs(initData.wowkspace);
+		wetuwn initData;
 	}
 }

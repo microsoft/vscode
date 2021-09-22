@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { SewiawizedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IExtensionHostStarter = createDecorator<IExtensionHostStarter>('extensionHostStarter');
+expowt const IExtensionHostStawta = cweateDecowatow<IExtensionHostStawta>('extensionHostStawta');
 
-export const ipcExtensionHostStarterChannelName = 'extensionHostStarter';
+expowt const ipcExtensionHostStawtewChannewName = 'extensionHostStawta';
 
-export interface IExtensionHostProcessOptions {
-	env: { [key: string]: string | undefined; };
-	detached: boolean;
-	execArgv: string[] | undefined;
-	silent: boolean;
+expowt intewface IExtensionHostPwocessOptions {
+	env: { [key: stwing]: stwing | undefined; };
+	detached: boowean;
+	execAwgv: stwing[] | undefined;
+	siwent: boowean;
 }
 
-export interface IExtensionHostStarter {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionHostStawta {
+	weadonwy _sewviceBwand: undefined;
 
-	onScopedStdout(id: string): Event<string>;
-	onScopedStderr(id: string): Event<string>;
-	onScopedMessage(id: string): Event<any>;
-	onScopedError(id: string): Event<{ error: SerializedError; }>;
-	onScopedExit(id: string): Event<{ code: number; signal: string }>;
+	onScopedStdout(id: stwing): Event<stwing>;
+	onScopedStdeww(id: stwing): Event<stwing>;
+	onScopedMessage(id: stwing): Event<any>;
+	onScopedEwwow(id: stwing): Event<{ ewwow: SewiawizedEwwow; }>;
+	onScopedExit(id: stwing): Event<{ code: numba; signaw: stwing }>;
 
-	createExtensionHost(): Promise<{ id: string; }>;
-	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }>;
-	enableInspectPort(id: string): Promise<boolean>;
-	kill(id: string): Promise<void>;
+	cweateExtensionHost(): Pwomise<{ id: stwing; }>;
+	stawt(id: stwing, opts: IExtensionHostPwocessOptions): Pwomise<{ pid: numba; }>;
+	enabweInspectPowt(id: stwing): Pwomise<boowean>;
+	kiww(id: stwing): Pwomise<void>;
 
 }

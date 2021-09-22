@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Profile, ProfileNode } from 'v8-inspect-profiler';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { realpathSync } from 'vs/base/node/extpath';
-import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+impowt type { Pwofiwe, PwofiweNode } fwom 'v8-inspect-pwofiwa';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { weawpathSync } fwom 'vs/base/node/extpath';
+impowt { IExtensionHostPwofiwe, IExtensionSewvice, PwofiweSegmentId, PwofiweSession } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export class ExtensionHostProfiler {
+expowt cwass ExtensionHostPwofiwa {
 
-	constructor(private readonly _port: number, @IExtensionService private readonly _extensionService: IExtensionService) {
+	constwuctow(pwivate weadonwy _powt: numba, @IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice) {
 	}
 
-	public async start(): Promise<ProfileSession> {
-		const profiler = await import('v8-inspect-profiler');
-		const session = await profiler.startProfiling({ port: this._port, checkForPaused: true });
-		return {
+	pubwic async stawt(): Pwomise<PwofiweSession> {
+		const pwofiwa = await impowt('v8-inspect-pwofiwa');
+		const session = await pwofiwa.stawtPwofiwing({ powt: this._powt, checkFowPaused: twue });
+		wetuwn {
 			stop: async () => {
-				const profile = await session.stop();
-				const extensions = await this._extensionService.getExtensions();
-				return this.distill((profile as any).profile, extensions);
+				const pwofiwe = await session.stop();
+				const extensions = await this._extensionSewvice.getExtensions();
+				wetuwn this.distiww((pwofiwe as any).pwofiwe, extensions);
 			}
 		};
 	}
 
-	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
-		for (let extension of extensions) {
-			if (extension.extensionLocation.scheme === Schemas.file) {
-				searchTree.set(URI.file(realpathSync(extension.extensionLocation.fsPath)), extension);
+	pwivate distiww(pwofiwe: Pwofiwe, extensions: IExtensionDescwiption[]): IExtensionHostPwofiwe {
+		wet seawchTwee = TewnawySeawchTwee.fowUwis<IExtensionDescwiption>();
+		fow (wet extension of extensions) {
+			if (extension.extensionWocation.scheme === Schemas.fiwe) {
+				seawchTwee.set(UWI.fiwe(weawpathSync(extension.extensionWocation.fsPath)), extension);
 			}
 		}
 
-		let nodes = profile.nodes;
-		let idsToNodes = new Map<number, ProfileNode>();
-		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
-		for (let node of nodes) {
+		wet nodes = pwofiwe.nodes;
+		wet idsToNodes = new Map<numba, PwofiweNode>();
+		wet idsToSegmentId = new Map<numba, PwofiweSegmentId | nuww>();
+		fow (wet node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
-		function visit(node: ProfileNode, segmentId: ProfileSegmentId | null) {
+		function visit(node: PwofiweNode, segmentId: PwofiweSegmentId | nuww) {
 			if (!segmentId) {
-				switch (node.callFrame.functionName) {
-					case '(root)':
-						break;
-					case '(program)':
-						segmentId = 'program';
-						break;
-					case '(garbage collector)':
+				switch (node.cawwFwame.functionName) {
+					case '(woot)':
+						bweak;
+					case '(pwogwam)':
+						segmentId = 'pwogwam';
+						bweak;
+					case '(gawbage cowwectow)':
 						segmentId = 'gc';
-						break;
-					default:
-						segmentId = 'self';
-						break;
+						bweak;
+					defauwt:
+						segmentId = 'sewf';
+						bweak;
 				}
-			} else if (segmentId === 'self' && node.callFrame.url) {
-				let extension: IExtensionDescription | undefined;
-				try {
-					extension = searchTree.findSubstr(URI.parse(node.callFrame.url));
+			} ewse if (segmentId === 'sewf' && node.cawwFwame.uww) {
+				wet extension: IExtensionDescwiption | undefined;
+				twy {
+					extension = seawchTwee.findSubstw(UWI.pawse(node.cawwFwame.uww));
 				} catch {
-					// ignore
+					// ignowe
 				}
 				if (extension) {
-					segmentId = extension.identifier.value;
+					segmentId = extension.identifia.vawue;
 				}
 			}
 			idsToSegmentId.set(node.id, segmentId);
 
-			if (node.children) {
-				for (const child of node.children) {
-					const childNode = idsToNodes.get(child);
-					if (childNode) {
-						visit(childNode, segmentId);
+			if (node.chiwdwen) {
+				fow (const chiwd of node.chiwdwen) {
+					const chiwdNode = idsToNodes.get(chiwd);
+					if (chiwdNode) {
+						visit(chiwdNode, segmentId);
 					}
 				}
 			}
 		}
-		visit(nodes[0], null);
+		visit(nodes[0], nuww);
 
-		const samples = profile.samples || [];
-		let timeDeltas = profile.timeDeltas || [];
-		let distilledDeltas: number[] = [];
-		let distilledIds: ProfileSegmentId[] = [];
+		const sampwes = pwofiwe.sampwes || [];
+		wet timeDewtas = pwofiwe.timeDewtas || [];
+		wet distiwwedDewtas: numba[] = [];
+		wet distiwwedIds: PwofiweSegmentId[] = [];
 
-		let currSegmentTime = 0;
-		let currSegmentId: string | undefined;
-		for (let i = 0; i < samples.length; i++) {
-			let id = samples[i];
-			let segmentId = idsToSegmentId.get(id);
-			if (segmentId !== currSegmentId) {
-				if (currSegmentId) {
-					distilledIds.push(currSegmentId);
-					distilledDeltas.push(currSegmentTime);
+		wet cuwwSegmentTime = 0;
+		wet cuwwSegmentId: stwing | undefined;
+		fow (wet i = 0; i < sampwes.wength; i++) {
+			wet id = sampwes[i];
+			wet segmentId = idsToSegmentId.get(id);
+			if (segmentId !== cuwwSegmentId) {
+				if (cuwwSegmentId) {
+					distiwwedIds.push(cuwwSegmentId);
+					distiwwedDewtas.push(cuwwSegmentTime);
 				}
-				currSegmentId = withNullAsUndefined(segmentId);
-				currSegmentTime = 0;
+				cuwwSegmentId = withNuwwAsUndefined(segmentId);
+				cuwwSegmentTime = 0;
 			}
-			currSegmentTime += timeDeltas[i];
+			cuwwSegmentTime += timeDewtas[i];
 		}
-		if (currSegmentId) {
-			distilledIds.push(currSegmentId);
-			distilledDeltas.push(currSegmentTime);
+		if (cuwwSegmentId) {
+			distiwwedIds.push(cuwwSegmentId);
+			distiwwedDewtas.push(cuwwSegmentTime);
 		}
 
-		return {
-			startTime: profile.startTime,
-			endTime: profile.endTime,
-			deltas: distilledDeltas,
-			ids: distilledIds,
-			data: profile,
-			getAggregatedTimes: () => {
-				let segmentsToTime = new Map<ProfileSegmentId, number>();
-				for (let i = 0; i < distilledIds.length; i++) {
-					let id = distilledIds[i];
-					segmentsToTime.set(id, (segmentsToTime.get(id) || 0) + distilledDeltas[i]);
+		wetuwn {
+			stawtTime: pwofiwe.stawtTime,
+			endTime: pwofiwe.endTime,
+			dewtas: distiwwedDewtas,
+			ids: distiwwedIds,
+			data: pwofiwe,
+			getAggwegatedTimes: () => {
+				wet segmentsToTime = new Map<PwofiweSegmentId, numba>();
+				fow (wet i = 0; i < distiwwedIds.wength; i++) {
+					wet id = distiwwedIds[i];
+					segmentsToTime.set(id, (segmentsToTime.get(id) || 0) + distiwwedDewtas[i]);
 				}
-				return segmentsToTime;
+				wetuwn segmentsToTime;
 			}
 		};
 	}

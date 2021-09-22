@@ -1,50 +1,50 @@
 {
-  "name": "fsharp",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "fshawp",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin ionide/ionide-fsgrammar grammars/fsharp.json ./syntaxes/fsharp.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin ionide/ionide-fsgwammaw gwammaws/fshawp.json ./syntaxes/fshawp.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "fsharp",
+        "id": "fshawp",
         "extensions": [
           ".fs",
           ".fsi",
           ".fsx",
-          ".fsscript"
+          ".fsscwipt"
         ],
-        "aliases": [
+        "awiases": [
           "F#",
-          "FSharp",
-          "fsharp"
+          "FShawp",
+          "fshawp"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "fsharp",
-        "scopeName": "source.fsharp",
-        "path": "./syntaxes/fsharp.tmLanguage.json"
+        "wanguage": "fshawp",
+        "scopeName": "souwce.fshawp",
+        "path": "./syntaxes/fshawp.tmWanguage.json"
       }
     ],
     "snippets": [
       {
-        "language": "fsharp",
-        "path": "./snippets/fsharp.code-snippets"
+        "wanguage": "fshawp",
+        "path": "./snippets/fshawp.code-snippets"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

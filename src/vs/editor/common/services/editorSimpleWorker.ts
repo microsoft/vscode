@@ -1,179 +1,179 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { stringDiff } from 'vs/base/common/diff/diff';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
-import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/modes';
-import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/modes/linkComputer';
-import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
-import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import * as types from 'vs/base/common/types';
-import { EditorWorkerHost } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { StopWatch } from 'vs/base/common/stopwatch';
+impowt { stwingDiff } fwom 'vs/base/common/diff/diff';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { gwobaws } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IWequestHandwa } fwom 'vs/base/common/wowka/simpweWowka';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { DiffComputa } fwom 'vs/editow/common/diff/diffComputa';
+impowt { IChange } fwom 'vs/editow/common/editowCommon';
+impowt { EndOfWineSequence, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { IMiwwowTextModew, IModewChangedEvent, MiwwowTextModew as BaseMiwwowModew } fwom 'vs/editow/common/modew/miwwowTextModew';
+impowt { ensuweVawidWowdDefinition, getWowdAtText } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt { IInpwaceWepwaceSuppowtWesuwt, IWink, TextEdit } fwom 'vs/editow/common/modes';
+impowt { IWinkComputewTawget, computeWinks } fwom 'vs/editow/common/modes/winkComputa';
+impowt { BasicInpwaceWepwace } fwom 'vs/editow/common/modes/suppowts/inpwaceWepwaceSuppowt';
+impowt { IDiffComputationWesuwt } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { cweateMonacoBaseAPI } fwom 'vs/editow/common/standawone/standawoneBase';
+impowt * as types fwom 'vs/base/common/types';
+impowt { EditowWowkewHost } fwom 'vs/editow/common/sewvices/editowWowkewSewviceImpw';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
 
-export interface IMirrorModel extends IMirrorTextModel {
-	readonly uri: URI;
-	readonly version: number;
-	getValue(): string;
+expowt intewface IMiwwowModew extends IMiwwowTextModew {
+	weadonwy uwi: UWI;
+	weadonwy vewsion: numba;
+	getVawue(): stwing;
 }
 
-export interface IWorkerContext<H = undefined> {
+expowt intewface IWowkewContext<H = undefined> {
 	/**
-	 * A proxy to the main thread host object.
+	 * A pwoxy to the main thwead host object.
 	 */
 	host: H;
 	/**
-	 * Get all available mirror models in this worker.
+	 * Get aww avaiwabwe miwwow modews in this wowka.
 	 */
-	getMirrorModels(): IMirrorModel[];
+	getMiwwowModews(): IMiwwowModew[];
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IRawModelData {
-	url: string;
-	versionId: number;
-	lines: string[];
-	EOL: string;
+expowt intewface IWawModewData {
+	uww: stwing;
+	vewsionId: numba;
+	wines: stwing[];
+	EOW: stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
-	uri: URI;
-	version: number;
-	eol: string;
-	getValue(): string;
+expowt intewface ICommonModew extends IWinkComputewTawget, IMiwwowModew {
+	uwi: UWI;
+	vewsion: numba;
+	eow: stwing;
+	getVawue(): stwing;
 
-	getLinesContent(): string[];
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
-	words(wordDefinition: RegExp): Iterable<string>;
-	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
-	getValueInRange(range: IRange): string;
-	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
-	offsetAt(position: IPosition): number;
-	positionAt(offset: number): IPosition;
+	getWinesContent(): stwing[];
+	getWineCount(): numba;
+	getWineContent(wineNumba: numba): stwing;
+	getWineWowds(wineNumba: numba, wowdDefinition: WegExp): IWowdAtPosition[];
+	wowds(wowdDefinition: WegExp): Itewabwe<stwing>;
+	getWowdUntiwPosition(position: IPosition, wowdDefinition: WegExp): IWowdAtPosition;
+	getVawueInWange(wange: IWange): stwing;
+	getWowdAtPosition(position: IPosition, wowdDefinition: WegExp): Wange | nuww;
+	offsetAt(position: IPosition): numba;
+	positionAt(offset: numba): IPosition;
 }
 
 /**
- * Range of a word inside a model.
- * @internal
+ * Wange of a wowd inside a modew.
+ * @intewnaw
  */
-export interface IWordRange {
+expowt intewface IWowdWange {
 	/**
-	 * The index where the word starts.
+	 * The index whewe the wowd stawts.
 	 */
-	readonly start: number;
+	weadonwy stawt: numba;
 	/**
-	 * The index where the word ends.
+	 * The index whewe the wowd ends.
 	 */
-	readonly end: number;
+	weadonwy end: numba;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class MirrorModel extends BaseMirrorModel implements ICommonModel {
+expowt cwass MiwwowModew extends BaseMiwwowModew impwements ICommonModew {
 
-	public get uri(): URI {
-		return this._uri;
+	pubwic get uwi(): UWI {
+		wetuwn this._uwi;
 	}
 
-	public get eol(): string {
-		return this._eol;
+	pubwic get eow(): stwing {
+		wetuwn this._eow;
 	}
 
-	public getValue(): string {
-		return this.getText();
+	pubwic getVawue(): stwing {
+		wetuwn this.getText();
 	}
 
-	public getLinesContent(): string[] {
-		return this._lines.slice(0);
+	pubwic getWinesContent(): stwing[] {
+		wetuwn this._wines.swice(0);
 	}
 
-	public getLineCount(): number {
-		return this._lines.length;
+	pubwic getWineCount(): numba {
+		wetuwn this._wines.wength;
 	}
 
-	public getLineContent(lineNumber: number): string {
-		return this._lines[lineNumber - 1];
+	pubwic getWineContent(wineNumba: numba): stwing {
+		wetuwn this._wines[wineNumba - 1];
 	}
 
-	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null {
+	pubwic getWowdAtPosition(position: IPosition, wowdDefinition: WegExp): Wange | nuww {
 
-		let wordAtText = getWordAtText(
-			position.column,
-			ensureValidWordDefinition(wordDefinition),
-			this._lines[position.lineNumber - 1],
+		wet wowdAtText = getWowdAtText(
+			position.cowumn,
+			ensuweVawidWowdDefinition(wowdDefinition),
+			this._wines[position.wineNumba - 1],
 			0
 		);
 
-		if (wordAtText) {
-			return new Range(position.lineNumber, wordAtText.startColumn, position.lineNumber, wordAtText.endColumn);
+		if (wowdAtText) {
+			wetuwn new Wange(position.wineNumba, wowdAtText.stawtCowumn, position.wineNumba, wowdAtText.endCowumn);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition {
-		const wordAtPosition = this.getWordAtPosition(position, wordDefinition);
-		if (!wordAtPosition) {
-			return {
-				word: '',
-				startColumn: position.column,
-				endColumn: position.column
+	pubwic getWowdUntiwPosition(position: IPosition, wowdDefinition: WegExp): IWowdAtPosition {
+		const wowdAtPosition = this.getWowdAtPosition(position, wowdDefinition);
+		if (!wowdAtPosition) {
+			wetuwn {
+				wowd: '',
+				stawtCowumn: position.cowumn,
+				endCowumn: position.cowumn
 			};
 		}
-		return {
-			word: this._lines[position.lineNumber - 1].substring(wordAtPosition.startColumn - 1, position.column - 1),
-			startColumn: wordAtPosition.startColumn,
-			endColumn: position.column
+		wetuwn {
+			wowd: this._wines[position.wineNumba - 1].substwing(wowdAtPosition.stawtCowumn - 1, position.cowumn - 1),
+			stawtCowumn: wowdAtPosition.stawtCowumn,
+			endCowumn: position.cowumn
 		};
 	}
 
 
-	public words(wordDefinition: RegExp): Iterable<string> {
+	pubwic wowds(wowdDefinition: WegExp): Itewabwe<stwing> {
 
-		const lines = this._lines;
-		const wordenize = this._wordenize.bind(this);
+		const wines = this._wines;
+		const wowdenize = this._wowdenize.bind(this);
 
-		let lineNumber = 0;
-		let lineText = '';
-		let wordRangesIdx = 0;
-		let wordRanges: IWordRange[] = [];
+		wet wineNumba = 0;
+		wet wineText = '';
+		wet wowdWangesIdx = 0;
+		wet wowdWanges: IWowdWange[] = [];
 
-		return {
-			*[Symbol.iterator]() {
-				while (true) {
-					if (wordRangesIdx < wordRanges.length) {
-						const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
-						wordRangesIdx += 1;
-						yield value;
-					} else {
-						if (lineNumber < lines.length) {
-							lineText = lines[lineNumber];
-							wordRanges = wordenize(lineText, wordDefinition);
-							wordRangesIdx = 0;
-							lineNumber += 1;
-						} else {
-							break;
+		wetuwn {
+			*[Symbow.itewatow]() {
+				whiwe (twue) {
+					if (wowdWangesIdx < wowdWanges.wength) {
+						const vawue = wineText.substwing(wowdWanges[wowdWangesIdx].stawt, wowdWanges[wowdWangesIdx].end);
+						wowdWangesIdx += 1;
+						yiewd vawue;
+					} ewse {
+						if (wineNumba < wines.wength) {
+							wineText = wines[wineNumba];
+							wowdWanges = wowdenize(wineText, wowdDefinition);
+							wowdWangesIdx = 0;
+							wineNumba += 1;
+						} ewse {
+							bweak;
 						}
 					}
 				}
@@ -181,505 +181,505 @@ export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
-		let content = this._lines[lineNumber - 1];
-		let ranges = this._wordenize(content, wordDefinition);
-		let words: IWordAtPosition[] = [];
-		for (const range of ranges) {
-			words.push({
-				word: content.substring(range.start, range.end),
-				startColumn: range.start + 1,
-				endColumn: range.end + 1
+	pubwic getWineWowds(wineNumba: numba, wowdDefinition: WegExp): IWowdAtPosition[] {
+		wet content = this._wines[wineNumba - 1];
+		wet wanges = this._wowdenize(content, wowdDefinition);
+		wet wowds: IWowdAtPosition[] = [];
+		fow (const wange of wanges) {
+			wowds.push({
+				wowd: content.substwing(wange.stawt, wange.end),
+				stawtCowumn: wange.stawt + 1,
+				endCowumn: wange.end + 1
 			});
 		}
-		return words;
+		wetuwn wowds;
 	}
 
-	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
-		const result: IWordRange[] = [];
-		let match: RegExpExecArray | null;
+	pwivate _wowdenize(content: stwing, wowdDefinition: WegExp): IWowdWange[] {
+		const wesuwt: IWowdWange[] = [];
+		wet match: WegExpExecAwway | nuww;
 
-		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure
+		wowdDefinition.wastIndex = 0; // weset wastIndex just to be suwe
 
-		while (match = wordDefinition.exec(content)) {
-			if (match[0].length === 0) {
-				// it did match the empty string
-				break;
+		whiwe (match = wowdDefinition.exec(content)) {
+			if (match[0].wength === 0) {
+				// it did match the empty stwing
+				bweak;
 			}
-			result.push({ start: match.index, end: match.index + match[0].length });
+			wesuwt.push({ stawt: match.index, end: match.index + match[0].wength });
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getValueInRange(range: IRange): string {
-		range = this._validateRange(range);
+	pubwic getVawueInWange(wange: IWange): stwing {
+		wange = this._vawidateWange(wange);
 
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
+		if (wange.stawtWineNumba === wange.endWineNumba) {
+			wetuwn this._wines[wange.stawtWineNumba - 1].substwing(wange.stawtCowumn - 1, wange.endCowumn - 1);
 		}
 
-		let lineEnding = this._eol;
-		let startLineIndex = range.startLineNumber - 1;
-		let endLineIndex = range.endLineNumber - 1;
-		let resultLines: string[] = [];
+		wet wineEnding = this._eow;
+		wet stawtWineIndex = wange.stawtWineNumba - 1;
+		wet endWineIndex = wange.endWineNumba - 1;
+		wet wesuwtWines: stwing[] = [];
 
-		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
-		for (let i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._lines[i]);
+		wesuwtWines.push(this._wines[stawtWineIndex].substwing(wange.stawtCowumn - 1));
+		fow (wet i = stawtWineIndex + 1; i < endWineIndex; i++) {
+			wesuwtWines.push(this._wines[i]);
 		}
-		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
+		wesuwtWines.push(this._wines[endWineIndex].substwing(0, wange.endCowumn - 1));
 
-		return resultLines.join(lineEnding);
+		wetuwn wesuwtWines.join(wineEnding);
 	}
 
-	public offsetAt(position: IPosition): number {
-		position = this._validatePosition(position);
-		this._ensureLineStarts();
-		return this._lineStarts!.getPrefixSum(position.lineNumber - 2) + (position.column - 1);
+	pubwic offsetAt(position: IPosition): numba {
+		position = this._vawidatePosition(position);
+		this._ensuweWineStawts();
+		wetuwn this._wineStawts!.getPwefixSum(position.wineNumba - 2) + (position.cowumn - 1);
 	}
 
-	public positionAt(offset: number): IPosition {
-		offset = Math.floor(offset);
+	pubwic positionAt(offset: numba): IPosition {
+		offset = Math.fwoow(offset);
 		offset = Math.max(0, offset);
 
-		this._ensureLineStarts();
-		let out = this._lineStarts!.getIndexOf(offset);
-		let lineLength = this._lines[out.index].length;
+		this._ensuweWineStawts();
+		wet out = this._wineStawts!.getIndexOf(offset);
+		wet wineWength = this._wines[out.index].wength;
 
-		// Ensure we return a valid position
-		return {
-			lineNumber: 1 + out.index,
-			column: 1 + Math.min(out.remainder, lineLength)
+		// Ensuwe we wetuwn a vawid position
+		wetuwn {
+			wineNumba: 1 + out.index,
+			cowumn: 1 + Math.min(out.wemainda, wineWength)
 		};
 	}
 
-	private _validateRange(range: IRange): IRange {
+	pwivate _vawidateWange(wange: IWange): IWange {
 
-		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
-		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
+		const stawt = this._vawidatePosition({ wineNumba: wange.stawtWineNumba, cowumn: wange.stawtCowumn });
+		const end = this._vawidatePosition({ wineNumba: wange.endWineNumba, cowumn: wange.endCowumn });
 
-		if (start.lineNumber !== range.startLineNumber
-			|| start.column !== range.startColumn
-			|| end.lineNumber !== range.endLineNumber
-			|| end.column !== range.endColumn) {
+		if (stawt.wineNumba !== wange.stawtWineNumba
+			|| stawt.cowumn !== wange.stawtCowumn
+			|| end.wineNumba !== wange.endWineNumba
+			|| end.cowumn !== wange.endCowumn) {
 
-			return {
-				startLineNumber: start.lineNumber,
-				startColumn: start.column,
-				endLineNumber: end.lineNumber,
-				endColumn: end.column
+			wetuwn {
+				stawtWineNumba: stawt.wineNumba,
+				stawtCowumn: stawt.cowumn,
+				endWineNumba: end.wineNumba,
+				endCowumn: end.cowumn
 			};
 		}
 
-		return range;
+		wetuwn wange;
 	}
 
-	private _validatePosition(position: IPosition): IPosition {
+	pwivate _vawidatePosition(position: IPosition): IPosition {
 		if (!Position.isIPosition(position)) {
-			throw new Error('bad position');
+			thwow new Ewwow('bad position');
 		}
-		let { lineNumber, column } = position;
-		let hasChanged = false;
+		wet { wineNumba, cowumn } = position;
+		wet hasChanged = fawse;
 
-		if (lineNumber < 1) {
-			lineNumber = 1;
-			column = 1;
-			hasChanged = true;
+		if (wineNumba < 1) {
+			wineNumba = 1;
+			cowumn = 1;
+			hasChanged = twue;
 
-		} else if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-			column = this._lines[lineNumber - 1].length + 1;
-			hasChanged = true;
+		} ewse if (wineNumba > this._wines.wength) {
+			wineNumba = this._wines.wength;
+			cowumn = this._wines[wineNumba - 1].wength + 1;
+			hasChanged = twue;
 
-		} else {
-			let maxCharacter = this._lines[lineNumber - 1].length + 1;
-			if (column < 1) {
-				column = 1;
-				hasChanged = true;
+		} ewse {
+			wet maxChawacta = this._wines[wineNumba - 1].wength + 1;
+			if (cowumn < 1) {
+				cowumn = 1;
+				hasChanged = twue;
 			}
-			else if (column > maxCharacter) {
-				column = maxCharacter;
-				hasChanged = true;
+			ewse if (cowumn > maxChawacta) {
+				cowumn = maxChawacta;
+				hasChanged = twue;
 			}
 		}
 
 		if (!hasChanged) {
-			return position;
-		} else {
-			return { lineNumber, column };
+			wetuwn position;
+		} ewse {
+			wetuwn { wineNumba, cowumn };
 		}
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IForeignModuleFactory {
-	(ctx: IWorkerContext, createData: any): any;
+expowt intewface IFoweignModuweFactowy {
+	(ctx: IWowkewContext, cweateData: any): any;
 }
 
-declare const require: any;
+decwawe const wequiwe: any;
 
 /**
- * @internal
+ * @intewnaw
  */
-export class EditorSimpleWorker implements IRequestHandler, IDisposable {
-	_requestHandlerBrand: any;
+expowt cwass EditowSimpweWowka impwements IWequestHandwa, IDisposabwe {
+	_wequestHandwewBwand: any;
 
-	protected readonly _host: EditorWorkerHost;
-	private _models: { [uri: string]: MirrorModel; };
-	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
-	private _foreignModule: any;
+	pwotected weadonwy _host: EditowWowkewHost;
+	pwivate _modews: { [uwi: stwing]: MiwwowModew; };
+	pwivate weadonwy _foweignModuweFactowy: IFoweignModuweFactowy | nuww;
+	pwivate _foweignModuwe: any;
 
-	constructor(host: EditorWorkerHost, foreignModuleFactory: IForeignModuleFactory | null) {
+	constwuctow(host: EditowWowkewHost, foweignModuweFactowy: IFoweignModuweFactowy | nuww) {
 		this._host = host;
-		this._models = Object.create(null);
-		this._foreignModuleFactory = foreignModuleFactory;
-		this._foreignModule = null;
+		this._modews = Object.cweate(nuww);
+		this._foweignModuweFactowy = foweignModuweFactowy;
+		this._foweignModuwe = nuww;
 	}
 
-	public dispose(): void {
-		this._models = Object.create(null);
+	pubwic dispose(): void {
+		this._modews = Object.cweate(nuww);
 	}
 
-	protected _getModel(uri: string): ICommonModel {
-		return this._models[uri];
+	pwotected _getModew(uwi: stwing): ICommonModew {
+		wetuwn this._modews[uwi];
 	}
 
-	private _getModels(): ICommonModel[] {
-		let all: MirrorModel[] = [];
-		Object.keys(this._models).forEach((key) => all.push(this._models[key]));
-		return all;
+	pwivate _getModews(): ICommonModew[] {
+		wet aww: MiwwowModew[] = [];
+		Object.keys(this._modews).fowEach((key) => aww.push(this._modews[key]));
+		wetuwn aww;
 	}
 
-	public acceptNewModel(data: IRawModelData): void {
-		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
+	pubwic acceptNewModew(data: IWawModewData): void {
+		this._modews[data.uww] = new MiwwowModew(UWI.pawse(data.uww), data.wines, data.EOW, data.vewsionId);
 	}
 
-	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
-		if (!this._models[strURL]) {
-			return;
+	pubwic acceptModewChanged(stwUWW: stwing, e: IModewChangedEvent): void {
+		if (!this._modews[stwUWW]) {
+			wetuwn;
 		}
-		let model = this._models[strURL];
-		model.onEvents(e);
+		wet modew = this._modews[stwUWW];
+		modew.onEvents(e);
 	}
 
-	public acceptRemovedModel(strURL: string): void {
-		if (!this._models[strURL]) {
-			return;
+	pubwic acceptWemovedModew(stwUWW: stwing): void {
+		if (!this._modews[stwUWW]) {
+			wetuwn;
 		}
-		delete this._models[strURL];
+		dewete this._modews[stwUWW];
 	}
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		const original = this._getModel(originalUrl);
-		const modified = this._getModel(modifiedUrl);
-		if (!original || !modified) {
-			return null;
+	pubwic async computeDiff(owiginawUww: stwing, modifiedUww: stwing, ignoweTwimWhitespace: boowean, maxComputationTime: numba): Pwomise<IDiffComputationWesuwt | nuww> {
+		const owiginaw = this._getModew(owiginawUww);
+		const modified = this._getModew(modifiedUww);
+		if (!owiginaw || !modified) {
+			wetuwn nuww;
 		}
 
-		const originalLines = original.getLinesContent();
-		const modifiedLines = modified.getLinesContent();
-		const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-			shouldComputeCharChanges: true,
-			shouldPostProcessCharChanges: true,
-			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldMakePrettyDiff: true,
+		const owiginawWines = owiginaw.getWinesContent();
+		const modifiedWines = modified.getWinesContent();
+		const diffComputa = new DiffComputa(owiginawWines, modifiedWines, {
+			shouwdComputeChawChanges: twue,
+			shouwdPostPwocessChawChanges: twue,
+			shouwdIgnoweTwimWhitespace: ignoweTwimWhitespace,
+			shouwdMakePwettyDiff: twue,
 			maxComputationTime: maxComputationTime
 		});
 
-		const diffResult = diffComputer.computeDiff();
-		const identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(original, modified));
-		return {
-			quitEarly: diffResult.quitEarly,
-			identical: identical,
-			changes: diffResult.changes
+		const diffWesuwt = diffComputa.computeDiff();
+		const identicaw = (diffWesuwt.changes.wength > 0 ? fawse : this._modewsAweIdenticaw(owiginaw, modified));
+		wetuwn {
+			quitEawwy: diffWesuwt.quitEawwy,
+			identicaw: identicaw,
+			changes: diffWesuwt.changes
 		};
 	}
 
-	private _modelsAreIdentical(original: ICommonModel, modified: ICommonModel): boolean {
-		const originalLineCount = original.getLineCount();
-		const modifiedLineCount = modified.getLineCount();
-		if (originalLineCount !== modifiedLineCount) {
-			return false;
+	pwivate _modewsAweIdenticaw(owiginaw: ICommonModew, modified: ICommonModew): boowean {
+		const owiginawWineCount = owiginaw.getWineCount();
+		const modifiedWineCount = modified.getWineCount();
+		if (owiginawWineCount !== modifiedWineCount) {
+			wetuwn fawse;
 		}
-		for (let line = 1; line <= originalLineCount; line++) {
-			const originalLine = original.getLineContent(line);
-			const modifiedLine = modified.getLineContent(line);
-			if (originalLine !== modifiedLine) {
-				return false;
+		fow (wet wine = 1; wine <= owiginawWineCount; wine++) {
+			const owiginawWine = owiginaw.getWineContent(wine);
+			const modifiedWine = modified.getWineContent(wine);
+			if (owiginawWine !== modifiedWine) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
-		let original = this._getModel(originalUrl);
-		let modified = this._getModel(modifiedUrl);
-		if (!original || !modified) {
-			return null;
+	pubwic async computeDiwtyDiff(owiginawUww: stwing, modifiedUww: stwing, ignoweTwimWhitespace: boowean): Pwomise<IChange[] | nuww> {
+		wet owiginaw = this._getModew(owiginawUww);
+		wet modified = this._getModew(modifiedUww);
+		if (!owiginaw || !modified) {
+			wetuwn nuww;
 		}
 
-		let originalLines = original.getLinesContent();
-		let modifiedLines = modified.getLinesContent();
-		let diffComputer = new DiffComputer(originalLines, modifiedLines, {
-			shouldComputeCharChanges: false,
-			shouldPostProcessCharChanges: false,
-			shouldIgnoreTrimWhitespace: ignoreTrimWhitespace,
-			shouldMakePrettyDiff: true,
+		wet owiginawWines = owiginaw.getWinesContent();
+		wet modifiedWines = modified.getWinesContent();
+		wet diffComputa = new DiffComputa(owiginawWines, modifiedWines, {
+			shouwdComputeChawChanges: fawse,
+			shouwdPostPwocessChawChanges: fawse,
+			shouwdIgnoweTwimWhitespace: ignoweTwimWhitespace,
+			shouwdMakePwettyDiff: twue,
 			maxComputationTime: 1000
 		});
-		return diffComputer.computeDiff().changes;
+		wetuwn diffComputa.computeDiff().changes;
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
 
 
-	// ---- BEGIN minimal edits ---------------------------------------------------------------
+	// ---- BEGIN minimaw edits ---------------------------------------------------------------
 
-	private static readonly _diffLimit = 100000;
+	pwivate static weadonwy _diffWimit = 100000;
 
-	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
-		const model = this._getModel(modelUrl);
-		if (!model) {
-			return edits;
+	pubwic async computeMoweMinimawEdits(modewUww: stwing, edits: TextEdit[]): Pwomise<TextEdit[]> {
+		const modew = this._getModew(modewUww);
+		if (!modew) {
+			wetuwn edits;
 		}
 
-		const result: TextEdit[] = [];
-		let lastEol: EndOfLineSequence | undefined = undefined;
+		const wesuwt: TextEdit[] = [];
+		wet wastEow: EndOfWineSequence | undefined = undefined;
 
-		edits = edits.slice(0).sort((a, b) => {
-			if (a.range && b.range) {
-				return Range.compareRangesUsingStarts(a.range, b.range);
+		edits = edits.swice(0).sowt((a, b) => {
+			if (a.wange && b.wange) {
+				wetuwn Wange.compaweWangesUsingStawts(a.wange, b.wange);
 			}
-			// eol only changes should go to the end
-			let aRng = a.range ? 0 : 1;
-			let bRng = b.range ? 0 : 1;
-			return aRng - bRng;
+			// eow onwy changes shouwd go to the end
+			wet aWng = a.wange ? 0 : 1;
+			wet bWng = b.wange ? 0 : 1;
+			wetuwn aWng - bWng;
 		});
 
-		for (let { range, text, eol } of edits) {
+		fow (wet { wange, text, eow } of edits) {
 
-			if (typeof eol === 'number') {
-				lastEol = eol;
+			if (typeof eow === 'numba') {
+				wastEow = eow;
 			}
 
-			if (Range.isEmpty(range) && !text) {
+			if (Wange.isEmpty(wange) && !text) {
 				// empty change
 				continue;
 			}
 
-			const original = model.getValueInRange(range);
-			text = text.replace(/\r\n|\n|\r/g, model.eol);
+			const owiginaw = modew.getVawueInWange(wange);
+			text = text.wepwace(/\w\n|\n|\w/g, modew.eow);
 
-			if (original === text) {
+			if (owiginaw === text) {
 				// noop
 				continue;
 			}
 
-			// make sure diff won't take too long
-			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
-				result.push({ range, text });
+			// make suwe diff won't take too wong
+			if (Math.max(text.wength, owiginaw.wength) > EditowSimpweWowka._diffWimit) {
+				wesuwt.push({ wange, text });
 				continue;
 			}
 
-			// compute diff between original and edit.text
-			const changes = stringDiff(original, text, false);
-			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
+			// compute diff between owiginaw and edit.text
+			const changes = stwingDiff(owiginaw, text, fawse);
+			const editOffset = modew.offsetAt(Wange.wift(wange).getStawtPosition());
 
-			for (const change of changes) {
-				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+			fow (const change of changes) {
+				const stawt = modew.positionAt(editOffset + change.owiginawStawt);
+				const end = modew.positionAt(editOffset + change.owiginawStawt + change.owiginawWength);
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
-					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
+					text: text.substw(change.modifiedStawt, change.modifiedWength),
+					wange: { stawtWineNumba: stawt.wineNumba, stawtCowumn: stawt.cowumn, endWineNumba: end.wineNumba, endCowumn: end.cowumn }
 				};
 
-				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
-					result.push(newEdit);
+				if (modew.getVawueInWange(newEdit.wange) !== newEdit.text) {
+					wesuwt.push(newEdit);
 				}
 			}
 		}
 
-		if (typeof lastEol === 'number') {
-			result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
+		if (typeof wastEow === 'numba') {
+			wesuwt.push({ eow: wastEow, text: '', wange: { stawtWineNumba: 0, stawtCowumn: 0, endWineNumba: 0, endCowumn: 0 } });
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	// ---- END minimal edits ---------------------------------------------------------------
+	// ---- END minimaw edits ---------------------------------------------------------------
 
-	public async computeLinks(modelUrl: string): Promise<ILink[] | null> {
-		let model = this._getModel(modelUrl);
-		if (!model) {
-			return null;
+	pubwic async computeWinks(modewUww: stwing): Pwomise<IWink[] | nuww> {
+		wet modew = this._getModew(modewUww);
+		if (!modew) {
+			wetuwn nuww;
 		}
 
-		return computeLinks(model);
+		wetuwn computeWinks(modew);
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	private static readonly _suggestionsLimit = 10000;
+	pwivate static weadonwy _suggestionsWimit = 10000;
 
-	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[], duration: number } | null> {
+	pubwic async textuawSuggest(modewUwws: stwing[], weadingWowd: stwing | undefined, wowdDef: stwing, wowdDefFwags: stwing): Pwomise<{ wowds: stwing[], duwation: numba } | nuww> {
 
-		const sw = new StopWatch(true);
-		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		const seen = new Set<string>();
+		const sw = new StopWatch(twue);
+		const wowdDefWegExp = new WegExp(wowdDef, wowdDefFwags);
+		const seen = new Set<stwing>();
 
-		outer: for (let url of modelUrls) {
-			const model = this._getModel(url);
-			if (!model) {
+		outa: fow (wet uww of modewUwws) {
+			const modew = this._getModew(uww);
+			if (!modew) {
 				continue;
 			}
 
-			for (let word of model.words(wordDefRegExp)) {
-				if (word === leadingWord || !isNaN(Number(word))) {
+			fow (wet wowd of modew.wowds(wowdDefWegExp)) {
+				if (wowd === weadingWowd || !isNaN(Numba(wowd))) {
 					continue;
 				}
-				seen.add(word);
-				if (seen.size > EditorSimpleWorker._suggestionsLimit) {
-					break outer;
+				seen.add(wowd);
+				if (seen.size > EditowSimpweWowka._suggestionsWimit) {
+					bweak outa;
 				}
 			}
 		}
 
-		return { words: Array.from(seen), duration: sw.elapsed() };
+		wetuwn { wowds: Awway.fwom(seen), duwation: sw.ewapsed() };
 	}
 
 
 	// ---- END suggest --------------------------------------------------------------------------
 
-	//#region -- word ranges --
+	//#wegion -- wowd wanges --
 
-	public async computeWordRanges(modelUrl: string, range: IRange, wordDef: string, wordDefFlags: string): Promise<{ [word: string]: IRange[] }> {
-		let model = this._getModel(modelUrl);
-		if (!model) {
-			return Object.create(null);
+	pubwic async computeWowdWanges(modewUww: stwing, wange: IWange, wowdDef: stwing, wowdDefFwags: stwing): Pwomise<{ [wowd: stwing]: IWange[] }> {
+		wet modew = this._getModew(modewUww);
+		if (!modew) {
+			wetuwn Object.cweate(nuww);
 		}
-		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
-		const result: { [word: string]: IRange[] } = Object.create(null);
-		for (let line = range.startLineNumber; line < range.endLineNumber; line++) {
-			let words = model.getLineWords(line, wordDefRegExp);
-			for (const word of words) {
-				if (!isNaN(Number(word.word))) {
+		const wowdDefWegExp = new WegExp(wowdDef, wowdDefFwags);
+		const wesuwt: { [wowd: stwing]: IWange[] } = Object.cweate(nuww);
+		fow (wet wine = wange.stawtWineNumba; wine < wange.endWineNumba; wine++) {
+			wet wowds = modew.getWineWowds(wine, wowdDefWegExp);
+			fow (const wowd of wowds) {
+				if (!isNaN(Numba(wowd.wowd))) {
 					continue;
 				}
-				let array = result[word.word];
-				if (!array) {
-					array = [];
-					result[word.word] = array;
+				wet awway = wesuwt[wowd.wowd];
+				if (!awway) {
+					awway = [];
+					wesuwt[wowd.wowd] = awway;
 				}
-				array.push({
-					startLineNumber: line,
-					startColumn: word.startColumn,
-					endLineNumber: line,
-					endColumn: word.endColumn
+				awway.push({
+					stawtWineNumba: wine,
+					stawtCowumn: wowd.stawtCowumn,
+					endWineNumba: wine,
+					endCowumn: wowd.endCowumn
 				});
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	//#endregion
+	//#endwegion
 
-	public async navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): Promise<IInplaceReplaceSupportResult | null> {
-		let model = this._getModel(modelUrl);
-		if (!model) {
-			return null;
+	pubwic async navigateVawueSet(modewUww: stwing, wange: IWange, up: boowean, wowdDef: stwing, wowdDefFwags: stwing): Pwomise<IInpwaceWepwaceSuppowtWesuwt | nuww> {
+		wet modew = this._getModew(modewUww);
+		if (!modew) {
+			wetuwn nuww;
 		}
 
-		let wordDefRegExp = new RegExp(wordDef, wordDefFlags);
+		wet wowdDefWegExp = new WegExp(wowdDef, wowdDefFwags);
 
-		if (range.startColumn === range.endColumn) {
-			range = {
-				startLineNumber: range.startLineNumber,
-				startColumn: range.startColumn,
-				endLineNumber: range.endLineNumber,
-				endColumn: range.endColumn + 1
+		if (wange.stawtCowumn === wange.endCowumn) {
+			wange = {
+				stawtWineNumba: wange.stawtWineNumba,
+				stawtCowumn: wange.stawtCowumn,
+				endWineNumba: wange.endWineNumba,
+				endCowumn: wange.endCowumn + 1
 			};
 		}
 
-		let selectionText = model.getValueInRange(range);
+		wet sewectionText = modew.getVawueInWange(wange);
 
-		let wordRange = model.getWordAtPosition({ lineNumber: range.startLineNumber, column: range.startColumn }, wordDefRegExp);
-		if (!wordRange) {
-			return null;
+		wet wowdWange = modew.getWowdAtPosition({ wineNumba: wange.stawtWineNumba, cowumn: wange.stawtCowumn }, wowdDefWegExp);
+		if (!wowdWange) {
+			wetuwn nuww;
 		}
-		let word = model.getValueInRange(wordRange);
-		let result = BasicInplaceReplace.INSTANCE.navigateValueSet(range, selectionText, wordRange, word, up);
-		return result;
+		wet wowd = modew.getVawueInWange(wowdWange);
+		wet wesuwt = BasicInpwaceWepwace.INSTANCE.navigateVawueSet(wange, sewectionText, wowdWange, wowd, up);
+		wetuwn wesuwt;
 	}
 
-	// ---- BEGIN foreign module support --------------------------------------------------------------------------
+	// ---- BEGIN foweign moduwe suppowt --------------------------------------------------------------------------
 
-	public loadForeignModule(moduleId: string, createData: any, foreignHostMethods: string[]): Promise<string[]> {
-		const proxyMethodRequest = (method: string, args: any[]): Promise<any> => {
-			return this._host.fhr(method, args);
+	pubwic woadFoweignModuwe(moduweId: stwing, cweateData: any, foweignHostMethods: stwing[]): Pwomise<stwing[]> {
+		const pwoxyMethodWequest = (method: stwing, awgs: any[]): Pwomise<any> => {
+			wetuwn this._host.fhw(method, awgs);
 		};
 
-		const foreignHost = types.createProxyObject(foreignHostMethods, proxyMethodRequest);
+		const foweignHost = types.cweatePwoxyObject(foweignHostMethods, pwoxyMethodWequest);
 
-		let ctx: IWorkerContext<any> = {
-			host: foreignHost,
-			getMirrorModels: (): IMirrorModel[] => {
-				return this._getModels();
+		wet ctx: IWowkewContext<any> = {
+			host: foweignHost,
+			getMiwwowModews: (): IMiwwowModew[] => {
+				wetuwn this._getModews();
 			}
 		};
 
-		if (this._foreignModuleFactory) {
-			this._foreignModule = this._foreignModuleFactory(ctx, createData);
-			// static foreing module
-			return Promise.resolve(types.getAllMethodNames(this._foreignModule));
+		if (this._foweignModuweFactowy) {
+			this._foweignModuwe = this._foweignModuweFactowy(ctx, cweateData);
+			// static foweing moduwe
+			wetuwn Pwomise.wesowve(types.getAwwMethodNames(this._foweignModuwe));
 		}
 		// ESM-comment-begin
-		return new Promise<any>((resolve, reject) => {
-			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
-				this._foreignModule = foreignModule.create(ctx, createData);
+		wetuwn new Pwomise<any>((wesowve, weject) => {
+			wequiwe([moduweId], (foweignModuwe: { cweate: IFoweignModuweFactowy }) => {
+				this._foweignModuwe = foweignModuwe.cweate(ctx, cweateData);
 
-				resolve(types.getAllMethodNames(this._foreignModule));
+				wesowve(types.getAwwMethodNames(this._foweignModuwe));
 
-			}, reject);
+			}, weject);
 		});
 		// ESM-comment-end
 
 		// ESM-uncomment-begin
-		// return Promise.reject(new Error(`Unexpected usage`));
+		// wetuwn Pwomise.weject(new Ewwow(`Unexpected usage`));
 		// ESM-uncomment-end
 	}
 
-	// foreign method request
-	public fmr(method: string, args: any[]): Promise<any> {
-		if (!this._foreignModule || typeof this._foreignModule[method] !== 'function') {
-			return Promise.reject(new Error('Missing requestHandler or method: ' + method));
+	// foweign method wequest
+	pubwic fmw(method: stwing, awgs: any[]): Pwomise<any> {
+		if (!this._foweignModuwe || typeof this._foweignModuwe[method] !== 'function') {
+			wetuwn Pwomise.weject(new Ewwow('Missing wequestHandwa ow method: ' + method));
 		}
 
-		try {
-			return Promise.resolve(this._foreignModule[method].apply(this._foreignModule, args));
+		twy {
+			wetuwn Pwomise.wesowve(this._foweignModuwe[method].appwy(this._foweignModuwe, awgs));
 		} catch (e) {
-			return Promise.reject(e);
+			wetuwn Pwomise.weject(e);
 		}
 	}
 
-	// ---- END foreign module support --------------------------------------------------------------------------
+	// ---- END foweign moduwe suppowt --------------------------------------------------------------------------
 }
 
 /**
- * Called on the worker side
- * @internal
+ * Cawwed on the wowka side
+ * @intewnaw
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
-	return new EditorSimpleWorker(host, null);
+expowt function cweate(host: EditowWowkewHost): IWequestHandwa {
+	wetuwn new EditowSimpweWowka(host, nuww);
 }
 
-// This is only available in a Web Worker
-declare function importScripts(...urls: string[]): void;
+// This is onwy avaiwabwe in a Web Wowka
+decwawe function impowtScwipts(...uwws: stwing[]): void;
 
-if (typeof importScripts === 'function') {
-	// Running in a web worker
-	globals.monaco = createMonacoBaseAPI();
+if (typeof impowtScwipts === 'function') {
+	// Wunning in a web wowka
+	gwobaws.monaco = cweateMonacoBaseAPI();
 }

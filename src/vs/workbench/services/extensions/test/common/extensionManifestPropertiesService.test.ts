@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { isWeb } from 'vs/base/common/platform';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { IExtensionManifest, ExtensionUntwustedWowkspaceSuppowtType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionManifestPwopewtiesSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestPwoductSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { TestWowkspaceTwustEnabwementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
+impowt { IWowkspaceTwustEnabwementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
+suite('ExtensionManifestPwopewtiesSewvice - ExtensionKind', () => {
 
-	let testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService());
+	wet testObject = new ExtensionManifestPwopewtiesSewvice(TestPwoductSewvice, new TestConfiguwationSewvice(), new TestWowkspaceTwustEnabwementSewvice(), new NuwwWogSewvice());
 
-	test('declarative with extension dependencies', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('decwawative with extension dependencies', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('declarative extension pack', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('decwawative extension pack', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('declarative extension pack and extension dependencies', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('decwawative extension pack and extension dependencies', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('declarative with unknown contribution point => workspace, web in web and => workspace in desktop', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('decwawative with unknown contwibution point => wowkspace, web in web and => wowkspace in desktop', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ contwibutes: <any>{ 'unknownPoint': { something: twue } } }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('declarative extension pack with unknown contribution point', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('decwawative extension pack with unknown contwibution point', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contwibutes: <any>{ 'unknownPoint': { something: twue } } }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('simple declarative => ui, workspace, web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{}), ['ui', 'workspace', 'web']);
+	test('simpwe decwawative => ui, wowkspace, web', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{}), ['ui', 'wowkspace', 'web']);
 	});
 
-	test('only browser => web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js' }), ['web']);
+	test('onwy bwowsa => web', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ bwowsa: 'main.bwowsa.js' }), ['web']);
 	});
 
-	test('only main => workspace', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js' }), ['workspace']);
+	test('onwy main => wowkspace', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js' }), ['wowkspace']);
 	});
 
-	test('main and browser => workspace, web in web and workspace in desktop', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', browser: 'main.browser.js' }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('main and bwowsa => wowkspace, web in web and wowkspace in desktop', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', bwowsa: 'main.bwowsa.js' }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('browser entry point with workspace extensionKind => workspace, web in web and workspace in desktop', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', browser: 'main.browser.js', extensionKind: ['workspace'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
+	test('bwowsa entwy point with wowkspace extensionKind => wowkspace, web in web and wowkspace in desktop', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', bwowsa: 'main.bwowsa.js', extensionKind: ['wowkspace'] }), isWeb ? ['wowkspace', 'web'] : ['wowkspace']);
 	});
 
-	test('only browser entry point with out extensionKind => web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js' }), ['web']);
+	test('onwy bwowsa entwy point with out extensionKind => web', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ bwowsa: 'main.bwowsa.js' }), ['web']);
 	});
 
-	test('simple descriptive with workspace, ui extensionKind => workspace, ui, web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['workspace', 'ui'] }), ['workspace', 'ui', 'web']);
+	test('simpwe descwiptive with wowkspace, ui extensionKind => wowkspace, ui, web', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['wowkspace', 'ui'] }), ['wowkspace', 'ui', 'web']);
 	});
 
-	test('opt out from web through settings even if it can run in web', () => {
-		testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService());
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js', publisher: 'pub', name: 'a' }), ['ui', 'workspace']);
+	test('opt out fwom web thwough settings even if it can wun in web', () => {
+		testObject = new ExtensionManifestPwopewtiesSewvice(TestPwoductSewvice, new TestConfiguwationSewvice({ wemote: { extensionKind: { 'pub.a': ['-web'] } } }), new TestWowkspaceTwustEnabwementSewvice(), new NuwwWogSewvice());
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ bwowsa: 'main.bwowsa.js', pubwisha: 'pub', name: 'a' }), ['ui', 'wowkspace']);
 	});
 
-	test('opt out from web and include only workspace through settings even if it can run in web', () => {
-		testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web', 'workspace'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService());
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js', publisher: 'pub', name: 'a' }), ['workspace']);
+	test('opt out fwom web and incwude onwy wowkspace thwough settings even if it can wun in web', () => {
+		testObject = new ExtensionManifestPwopewtiesSewvice(TestPwoductSewvice, new TestConfiguwationSewvice({ wemote: { extensionKind: { 'pub.a': ['-web', 'wowkspace'] } } }), new TestWowkspaceTwustEnabwementSewvice(), new NuwwWogSewvice());
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<IExtensionManifest>{ bwowsa: 'main.bwowsa.js', pubwisha: 'pub', name: 'a' }), ['wowkspace']);
 	});
 
-	test('extension cannot opt out from web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ browser: 'main.browser.js', extensionKind: ['-web'] }), ['web']);
+	test('extension cannot opt out fwom web', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<any>{ bwowsa: 'main.bwowsa.js', extensionKind: ['-web'] }), ['web']);
 	});
 
 	test('extension cannot opt into web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web', 'workspace', 'ui'] }), ['workspace', 'ui']);
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web', 'wowkspace', 'ui'] }), ['wowkspace', 'ui']);
 	});
 
-	test('extension cannot opt into web only', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), []);
+	test('extension cannot opt into web onwy', () => {
+		assewt.deepStwictEquaw(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), []);
 	});
 });
 
 
-// Workspace Trust is disabled in web at the moment
+// Wowkspace Twust is disabwed in web at the moment
 if (!isWeb) {
-	suite('ExtensionManifestPropertiesService - ExtensionUntrustedWorkspaceSupportType', () => {
-		let testObject: ExtensionManifestPropertiesService;
-		let instantiationService: TestInstantiationService;
-		let testConfigurationService: TestConfigurationService;
+	suite('ExtensionManifestPwopewtiesSewvice - ExtensionUntwustedWowkspaceSuppowtType', () => {
+		wet testObject: ExtensionManifestPwopewtiesSewvice;
+		wet instantiationSewvice: TestInstantiationSewvice;
+		wet testConfiguwationSewvice: TestConfiguwationSewvice;
 
 		setup(async () => {
-			instantiationService = new TestInstantiationService();
+			instantiationSewvice = new TestInstantiationSewvice();
 
-			testConfigurationService = new TestConfigurationService();
-			instantiationService.stub(IConfigurationService, testConfigurationService);
+			testConfiguwationSewvice = new TestConfiguwationSewvice();
+			instantiationSewvice.stub(IConfiguwationSewvice, testConfiguwationSewvice);
 		});
 
-		teardown(() => testObject.dispose());
+		teawdown(() => testObject.dispose());
 
-		function assertUntrustedWorkspaceSupport(extensionMaifest: IExtensionManifest, expected: ExtensionUntrustedWorkspaceSupportType): void {
-			testObject = instantiationService.createInstance(ExtensionManifestPropertiesService);
-			const untrustedWorkspaceSupport = testObject.getExtensionUntrustedWorkspaceSupportType(extensionMaifest);
+		function assewtUntwustedWowkspaceSuppowt(extensionMaifest: IExtensionManifest, expected: ExtensionUntwustedWowkspaceSuppowtType): void {
+			testObject = instantiationSewvice.cweateInstance(ExtensionManifestPwopewtiesSewvice);
+			const untwustedWowkspaceSuppowt = testObject.getExtensionUntwustedWowkspaceSuppowtType(extensionMaifest);
 
-			assert.strictEqual(untrustedWorkspaceSupport, expected);
+			assewt.stwictEquaw(untwustedWowkspaceSuppowt, expected);
 		}
 
-		function getExtensionManifest(properties: any = {}): IExtensionManifest {
-			return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;
+		function getExtensionManifest(pwopewties: any = {}): IExtensionManifest {
+			wetuwn Object.cweate({ name: 'a', pubwisha: 'pub', vewsion: '1.0.0', ...pwopewties }) as IExtensionManifest;
 		}
 
-		test('test extension workspace trust request when main entry point is missing', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when main entwy point is missing', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
 			const extensionMaifest = getExtensionManifest();
-			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, twue);
 		});
 
-		test('test extension workspace trust request when workspace trust is disabled', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService(false));
+		test('test extension wowkspace twust wequest when wowkspace twust is disabwed', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice(fawse));
 
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js' });
-			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, twue);
 		});
 
-		test('test extension workspace trust request when "true" override exists in settings.json', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when "twue" ovewwide exists in settings.json', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true } } });
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+			await testConfiguwationSewvice.setUsewConfiguwation('extensions', { suppowtUntwustedWowkspaces: { 'pub.a': { suppowted: twue } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, twue);
 		});
 
-		test('test extension workspace trust request when override (false) exists in settings.json', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide (fawse) exists in settings.json', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: false } } });
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+			await testConfiguwationSewvice.setUsewConfiguwation('extensions', { suppowtUntwustedWowkspaces: { 'pub.a': { suppowted: fawse } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, fawse);
 		});
 
-		test('test extension workspace trust request when override (true) for the version exists in settings.json', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide (twue) fow the vewsion exists in settings.json', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true, version: '1.0.0' } } });
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+			await testConfiguwationSewvice.setUsewConfiguwation('extensions', { suppowtUntwustedWowkspaces: { 'pub.a': { suppowted: twue, vewsion: '1.0.0' } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, twue);
 		});
 
-		test('test extension workspace trust request when override (false) for the version exists in settings.json', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide (fawse) fow the vewsion exists in settings.json', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: false, version: '1.0.0' } } });
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+			await testConfiguwationSewvice.setUsewConfiguwation('extensions', { suppowtUntwustedWowkspaces: { 'pub.a': { suppowted: fawse, vewsion: '1.0.0' } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, fawse);
 		});
 
-		test('test extension workspace trust request when override for a different version exists in settings.json', async () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide fow a diffewent vewsion exists in settings.json', async () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true, version: '2.0.0' } } });
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
+			await testConfiguwationSewvice.setUsewConfiguwation('extensions', { suppowtUntwustedWowkspaces: { 'pub.a': { suppowted: twue, vewsion: '2.0.0' } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, 'wimited');
 		});
 
-		test('test extension workspace trust request when default (true) exists in product.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { default: true } } });
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when defauwt (twue) exists in pwoduct.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{ extensionUntwustedWowkspaceSuppowt: { 'pub.a': { defauwt: twue } } });
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js' });
-			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, twue);
 		});
 
-		test('test extension workspace trust request when default (false) exists in product.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { default: false } } });
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when defauwt (fawse) exists in pwoduct.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{ extensionUntwustedWowkspaceSuppowt: { 'pub.a': { defauwt: fawse } } });
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js' });
-			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, fawse);
 		});
 
-		test('test extension workspace trust request when override (limited) exists in product.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { override: 'limited' } } });
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide (wimited) exists in pwoduct.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{ extensionUntwustedWowkspaceSuppowt: { 'pub.a': { ovewwide: 'wimited' } } });
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: true } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: twue } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, 'wimited');
 		});
 
-		test('test extension workspace trust request when override (false) exists in product.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { override: false } } });
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when ovewwide (fawse) exists in pwoduct.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{ extensionUntwustedWowkspaceSuppowt: { 'pub.a': { ovewwide: fawse } } });
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: true } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: twue } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, fawse);
 		});
 
-		test('test extension workspace trust request when value exists in package.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when vawue exists in package.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
-			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
-			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabiwities: { untwustedWowkspaces: { suppowted: 'wimited' } } });
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, 'wimited');
 		});
 
-		test('test extension workspace trust request when no value exists in package.json', () => {
-			instantiationService.stub(IProductService, <Partial<IProductService>>{});
-			instantiationService.stub(IWorkspaceTrustEnablementService, new TestWorkspaceTrustEnablementService());
+		test('test extension wowkspace twust wequest when no vawue exists in package.json', () => {
+			instantiationSewvice.stub(IPwoductSewvice, <Pawtiaw<IPwoductSewvice>>{});
+			instantiationSewvice.stub(IWowkspaceTwustEnabwementSewvice, new TestWowkspaceTwustEnabwementSewvice());
 
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js' });
-			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+			assewtUntwustedWowkspaceSuppowt(extensionMaifest, fawse);
 		});
 	});
 }

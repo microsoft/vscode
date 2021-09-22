@@ -1,8 +1,8 @@
-src/**
+swc/**
 test/**
 out/**
 tsconfig.json
-build/**
+buiwd/**
 extension.webpack.config.js
 cgmanifest.json
-yarn.lock
+yawn.wock

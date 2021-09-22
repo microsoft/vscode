@@ -1,222 +1,222 @@
 [
 	{
 		"c": "{",
-		"t": "source.json meta.structure.dictionary.json punctuation.definition.dictionary.begin.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json punctuation.definition.dictionawy.begin.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "source.json meta.structure.dictionary.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json punctuation.suppowt.type.pwopewty-name.begin.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
-		"c": "compilerOptions",
-		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"c": "compiwewOptions",
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json punctuation.suppowt.type.pwopewty-name.end.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json punctuation.separator.dictionary.key-value.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json punctuation.sepawatow.dictionawy.key-vawue.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json punctuation.definition.dictionary.begin.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json punctuation.definition.dictionawy.begin.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\t\t",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json punctuation.suppowt.type.pwopewty-name.begin.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
-		"c": "target",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"c": "tawget",
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
-			"hc_black": "support.type.property-name: #D4D4D4"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json stwing.json suppowt.type.pwopewty-name.json punctuation.suppowt.type.pwopewty-name.end.json",
+		"w": {
+			"dawk_pwus": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_pwus": "suppowt.type.pwopewty-name.json: #0451A5",
+			"dawk_vs": "suppowt.type.pwopewty-name: #9CDCFE",
+			"wight_vs": "suppowt.type.pwopewty-name.json: #0451A5",
+			"hc_bwack": "suppowt.type.pwopewty-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json punctuation.separator.dictionary.key-value.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json punctuation.sepawatow.dictionawy.key-vawue.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json string.quoted.double.json punctuation.definition.string.begin.json",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json stwing.quoted.doubwe.json punctuation.definition.stwing.begin.json",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "es6",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json string.quoted.double.json",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json stwing.quoted.doubwe.json",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json string.quoted.double.json punctuation.definition.string.end.json",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json stwing.quoted.doubwe.json punctuation.definition.stwing.end.json",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "\t",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json meta.structure.dictionary.value.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json punctuation.definition.dictionary.end.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json meta.stwuctuwe.dictionawy.vawue.json meta.stwuctuwe.dictionawy.json punctuation.definition.dictionawy.end.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "source.json meta.structure.dictionary.json punctuation.definition.dictionary.end.json",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "souwce.json meta.stwuctuwe.dictionawy.json punctuation.definition.dictionawy.end.json",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	}
 ]

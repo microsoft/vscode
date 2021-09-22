@@ -1,432 +1,432 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn, SpawnOptions } from 'child_process';
-import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir, tmpdir } from 'os';
-import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { Event } from 'vs/base/common/event';
-import { isAbsolute, join, resolve } from 'vs/base/common/path';
-import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { randomPort } from 'vs/base/common/ports';
-import { isString } from 'vs/base/common/types';
-import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
-import { watchFileContents } from 'vs/base/node/watcher';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
-import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
-import product from 'vs/platform/product/common/product';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+impowt { ChiwdPwocess, spawn, SpawnOptions } fwom 'chiwd_pwocess';
+impowt { chmodSync, existsSync, weadFiweSync, statSync, twuncateSync, unwinkSync } fwom 'fs';
+impowt { homediw, tmpdiw } fwom 'os';
+impowt type { PwofiwingSession, Tawget } fwom 'v8-inspect-pwofiwa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { isAbsowute, join, wesowve } fwom 'vs/base/common/path';
+impowt { IPwocessEnviwonment, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { wandomPowt } fwom 'vs/base/common/powts';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { whenDeweted, wwiteFiweSync } fwom 'vs/base/node/pfs';
+impowt { findFweePowt } fwom 'vs/base/node/powts';
+impowt { watchFiweContents } fwom 'vs/base/node/watcha';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { buiwdHewpMessage, buiwdVewsionMessage, OPTIONS } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { addAwg, pawseCWIPwocessAwgv } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { getStdinFiwePath, hasStdinWithoutTty, weadFwomStdin, stdinDataWistena } fwom 'vs/pwatfowm/enviwonment/node/stdin';
+impowt { cweateWaitMawkewFiwe } fwom 'vs/pwatfowm/enviwonment/node/wait';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
 
-function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
-	return !!argv['install-source']
-		|| !!argv['list-extensions']
-		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension']
-		|| !!argv['locate-extension']
-		|| !!argv['telemetry'];
+function shouwdSpawnCwiPwocess(awgv: NativePawsedAwgs): boowean {
+	wetuwn !!awgv['instaww-souwce']
+		|| !!awgv['wist-extensions']
+		|| !!awgv['instaww-extension']
+		|| !!awgv['uninstaww-extension']
+		|| !!awgv['wocate-extension']
+		|| !!awgv['tewemetwy'];
 }
 
-function createFileName(dir: string, prefix: string): string {
-	return join(dir, `${prefix}-${Math.random().toString(16).slice(-4)}`);
+function cweateFiweName(diw: stwing, pwefix: stwing): stwing {
+	wetuwn join(diw, `${pwefix}-${Math.wandom().toStwing(16).swice(-4)}`);
 }
 
-interface IMainCli {
-	main: (argv: NativeParsedArgs) => Promise<void>;
+intewface IMainCwi {
+	main: (awgv: NativePawsedAwgs) => Pwomise<void>;
 }
 
-export async function main(argv: string[]): Promise<any> {
-	let args: NativeParsedArgs;
+expowt async function main(awgv: stwing[]): Pwomise<any> {
+	wet awgs: NativePawsedAwgs;
 
-	try {
-		args = parseCLIProcessArgv(argv);
-	} catch (err) {
-		console.error(err.message);
-		return;
+	twy {
+		awgs = pawseCWIPwocessAwgv(awgv);
+	} catch (eww) {
+		consowe.ewwow(eww.message);
+		wetuwn;
 	}
 
-	// Help
-	if (args.help) {
-		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
+	// Hewp
+	if (awgs.hewp) {
+		const executabwe = `${pwoduct.appwicationName}${isWindows ? '.exe' : ''}`;
+		consowe.wog(buiwdHewpMessage(pwoduct.nameWong, executabwe, pwoduct.vewsion, OPTIONS));
 	}
 
-	// Version Info
-	else if (args.version) {
-		console.log(buildVersionMessage(product.version, product.commit));
+	// Vewsion Info
+	ewse if (awgs.vewsion) {
+		consowe.wog(buiwdVewsionMessage(pwoduct.vewsion, pwoduct.commit));
 	}
 
 	// Extensions Management
-	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
-		await cli.main(args);
+	ewse if (shouwdSpawnCwiPwocess(awgs)) {
+		const cwi = await new Pwomise<IMainCwi>((wesowve, weject) => wequiwe(['vs/code/node/cwiPwocessMain'], wesowve, weject));
+		await cwi.main(awgs);
 
-		return;
+		wetuwn;
 	}
 
-	// Write File
-	else if (args['file-write']) {
-		const source = args._[0];
-		const target = args._[1];
+	// Wwite Fiwe
+	ewse if (awgs['fiwe-wwite']) {
+		const souwce = awgs._[0];
+		const tawget = awgs._[1];
 
-		// Validate
+		// Vawidate
 		if (
-			!source || !target || source === target ||				// make sure source and target are provided and are not the same
-			!isAbsolute(source) || !isAbsolute(target) ||			// make sure both source and target are absolute paths
-			!existsSync(source) || !statSync(source).isFile() ||	// make sure source exists as file
-			!existsSync(target) || !statSync(target).isFile()		// make sure target exists as file
+			!souwce || !tawget || souwce === tawget ||				// make suwe souwce and tawget awe pwovided and awe not the same
+			!isAbsowute(souwce) || !isAbsowute(tawget) ||			// make suwe both souwce and tawget awe absowute paths
+			!existsSync(souwce) || !statSync(souwce).isFiwe() ||	// make suwe souwce exists as fiwe
+			!existsSync(tawget) || !statSync(tawget).isFiwe()		// make suwe tawget exists as fiwe
 		) {
-			throw new Error('Using --file-write with invalid arguments.');
+			thwow new Ewwow('Using --fiwe-wwite with invawid awguments.');
 		}
 
-		try {
+		twy {
 
-			// Check for readonly status and chmod if so if we are told so
-			let targetMode: number = 0;
-			let restoreMode = false;
-			if (!!args['file-chmod']) {
-				targetMode = statSync(target).mode;
-				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
-					chmodSync(target, targetMode | 0o200);
-					restoreMode = true;
+			// Check fow weadonwy status and chmod if so if we awe towd so
+			wet tawgetMode: numba = 0;
+			wet westoweMode = fawse;
+			if (!!awgs['fiwe-chmod']) {
+				tawgetMode = statSync(tawget).mode;
+				if (!(tawgetMode & 0o200 /* Fiwe mode indicating wwitabwe by owna */)) {
+					chmodSync(tawget, tawgetMode | 0o200);
+					westoweMode = twue;
 				}
 			}
 
-			// Write source to target
-			const data = readFileSync(source);
+			// Wwite souwce to tawget
+			const data = weadFiweSync(souwce);
 			if (isWindows) {
-				// On Windows we use a different strategy of saving the file
-				// by first truncating the file and then writing with r+ mode.
-				// This helps to save hidden files on Windows
-				// (see https://github.com/microsoft/vscode/issues/931) and
-				// prevent removing alternate data streams
-				// (see https://github.com/microsoft/vscode/issues/6363)
-				truncateSync(target, 0);
-				writeFileSync(target, data, { flag: 'r+' });
-			} else {
-				writeFileSync(target, data);
+				// On Windows we use a diffewent stwategy of saving the fiwe
+				// by fiwst twuncating the fiwe and then wwiting with w+ mode.
+				// This hewps to save hidden fiwes on Windows
+				// (see https://github.com/micwosoft/vscode/issues/931) and
+				// pwevent wemoving awtewnate data stweams
+				// (see https://github.com/micwosoft/vscode/issues/6363)
+				twuncateSync(tawget, 0);
+				wwiteFiweSync(tawget, data, { fwag: 'w+' });
+			} ewse {
+				wwiteFiweSync(tawget, data);
 			}
 
-			// Restore previous mode as needed
-			if (restoreMode) {
-				chmodSync(target, targetMode);
+			// Westowe pwevious mode as needed
+			if (westoweMode) {
+				chmodSync(tawget, tawgetMode);
 			}
-		} catch (error) {
-			error.message = `Error using --file-write: ${error.message}`;
-			throw error;
+		} catch (ewwow) {
+			ewwow.message = `Ewwow using --fiwe-wwite: ${ewwow.message}`;
+			thwow ewwow;
 		}
 	}
 
 	// Just Code
-	else {
-		const env: IProcessEnvironment = {
-			...process.env,
-			'ELECTRON_NO_ATTACH_CONSOLE': '1'
+	ewse {
+		const env: IPwocessEnviwonment = {
+			...pwocess.env,
+			'EWECTWON_NO_ATTACH_CONSOWE': '1'
 		};
 
-		delete env['ELECTRON_RUN_AS_NODE'];
+		dewete env['EWECTWON_WUN_AS_NODE'];
 
-		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
+		const pwocessCawwbacks: ((chiwd: ChiwdPwocess) => Pwomise<void>)[] = [];
 
-		const verbose = args.verbose || args.status;
-		if (verbose) {
-			env['ELECTRON_ENABLE_LOGGING'] = '1';
+		const vewbose = awgs.vewbose || awgs.status;
+		if (vewbose) {
+			env['EWECTWON_ENABWE_WOGGING'] = '1';
 
-			processCallbacks.push(async child => {
-				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+			pwocessCawwbacks.push(async chiwd => {
+				chiwd.stdout!.on('data', (data: Buffa) => consowe.wog(data.toStwing('utf8').twim()));
+				chiwd.stdeww!.on('data', (data: Buffa) => consowe.wog(data.toStwing('utf8').twim()));
 
-				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				await Event.toPwomise(Event.fwomNodeEventEmitta(chiwd, 'exit'));
 			});
 		}
 
-		const hasReadStdinArg = args._.some(a => a === '-');
-		if (hasReadStdinArg) {
-			// remove the "-" argument when we read from stdin
-			args._ = args._.filter(a => a !== '-');
-			argv = argv.filter(a => a !== '-');
+		const hasWeadStdinAwg = awgs._.some(a => a === '-');
+		if (hasWeadStdinAwg) {
+			// wemove the "-" awgument when we wead fwom stdin
+			awgs._ = awgs._.fiwta(a => a !== '-');
+			awgv = awgv.fiwta(a => a !== '-');
 		}
 
-		let stdinFilePath: string | undefined;
+		wet stdinFiwePath: stwing | undefined;
 		if (hasStdinWithoutTty()) {
 
-			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
-			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
-			// checking for stdin being connected to a TTY is not enough (https://github.com/microsoft/vscode/issues/40351)
+			// Wead fwom stdin: we wequiwe a singwe "-" awgument to be passed in owda to stawt weading fwom
+			// stdin. We do this because thewe is no wewiabwe way to find out if data is piped to stdin. Just
+			// checking fow stdin being connected to a TTY is not enough (https://github.com/micwosoft/vscode/issues/40351)
 
-			if (hasReadStdinArg) {
-				stdinFilePath = getStdinFilePath();
+			if (hasWeadStdinAwg) {
+				stdinFiwePath = getStdinFiwePath();
 
-				// returns a file path where stdin input is written into (write in progress).
-				try {
-					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+				// wetuwns a fiwe path whewe stdin input is wwitten into (wwite in pwogwess).
+				twy {
+					weadFwomStdin(stdinFiwePath, !!vewbose); // thwows ewwow if fiwe can not be wwitten
 
-					// Make sure to open tmp file
-					addArg(argv, stdinFilePath);
+					// Make suwe to open tmp fiwe
+					addAwg(awgv, stdinFiwePath);
 
-					// Enable --wait to get all data and ignore adding this to history
-					addArg(argv, '--wait');
-					addArg(argv, '--skip-add-to-recently-opened');
-					args.wait = true;
+					// Enabwe --wait to get aww data and ignowe adding this to histowy
+					addAwg(awgv, '--wait');
+					addAwg(awgv, '--skip-add-to-wecentwy-opened');
+					awgs.wait = twue;
 
-					console.log(`Reading from stdin via: ${stdinFilePath}`);
+					consowe.wog(`Weading fwom stdin via: ${stdinFiwePath}`);
 				} catch (e) {
-					console.log(`Failed to create file to read via stdin: ${e.toString()}`);
-					stdinFilePath = undefined;
+					consowe.wog(`Faiwed to cweate fiwe to wead via stdin: ${e.toStwing()}`);
+					stdinFiwePath = undefined;
 				}
-			} else {
+			} ewse {
 
-				// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
-				// if we detect that data flows into via stdin after a certain timeout.
-				processCallbacks.push(_ => stdinDataListener(1000).then(dataReceived => {
-					if (dataReceived) {
+				// If the usa pipes data via stdin but fowgot to add the "-" awgument, hewp by pwinting a message
+				// if we detect that data fwows into via stdin afta a cewtain timeout.
+				pwocessCawwbacks.push(_ => stdinDataWistena(1000).then(dataWeceived => {
+					if (dataWeceived) {
 						if (isWindows) {
-							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
-						} else {
-							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
+							consowe.wog(`Wun with '${pwoduct.appwicationName} -' to wead output fwom anotha pwogwam (e.g. 'echo Hewwo Wowwd | ${pwoduct.appwicationName} -').`);
+						} ewse {
+							consowe.wog(`Wun with '${pwoduct.appwicationName} -' to wead fwom stdin (e.g. 'ps aux | gwep code | ${pwoduct.appwicationName} -').`);
 						}
 					}
 				}));
 			}
 		}
 
-		// If we are started with --wait create a random temporary file
-		// and pass it over to the starting instance. We can use this file
-		// to wait for it to be deleted to monitor that the edited file
-		// is closed and then exit the waiting process.
-		let waitMarkerFilePath: string | undefined;
-		if (args.wait) {
-			waitMarkerFilePath = createWaitMarkerFile(verbose);
-			if (waitMarkerFilePath) {
-				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
+		// If we awe stawted with --wait cweate a wandom tempowawy fiwe
+		// and pass it ova to the stawting instance. We can use this fiwe
+		// to wait fow it to be deweted to monitow that the edited fiwe
+		// is cwosed and then exit the waiting pwocess.
+		wet waitMawkewFiwePath: stwing | undefined;
+		if (awgs.wait) {
+			waitMawkewFiwePath = cweateWaitMawkewFiwe(vewbose);
+			if (waitMawkewFiwePath) {
+				addAwg(awgv, '--waitMawkewFiwePath', waitMawkewFiwePath);
 			}
 
-			// When running with --wait, we want to continue running CLI process
-			// until either:
-			// - the wait marker file has been deleted (e.g. when closing the editor)
-			// - the launched process terminates (e.g. due to a crash)
-			processCallbacks.push(async child => {
-				let childExitPromise;
+			// When wunning with --wait, we want to continue wunning CWI pwocess
+			// untiw eitha:
+			// - the wait mawka fiwe has been deweted (e.g. when cwosing the editow)
+			// - the waunched pwocess tewminates (e.g. due to a cwash)
+			pwocessCawwbacks.push(async chiwd => {
+				wet chiwdExitPwomise;
 				if (isMacintosh) {
-					// On macOS, we resolve the following promise only when the child,
-					// i.e. the open command, exited with a signal or error. Otherwise, we
-					// wait for the marker file to be deleted or for the child to error.
-					childExitPromise = new Promise<void>((resolve) => {
-						// Only resolve this promise if the child (i.e. open) exited with an error
-						child.on('exit', (code, signal) => {
-							if (code !== 0 || signal) {
-								resolve();
+					// On macOS, we wesowve the fowwowing pwomise onwy when the chiwd,
+					// i.e. the open command, exited with a signaw ow ewwow. Othewwise, we
+					// wait fow the mawka fiwe to be deweted ow fow the chiwd to ewwow.
+					chiwdExitPwomise = new Pwomise<void>((wesowve) => {
+						// Onwy wesowve this pwomise if the chiwd (i.e. open) exited with an ewwow
+						chiwd.on('exit', (code, signaw) => {
+							if (code !== 0 || signaw) {
+								wesowve();
 							}
 						});
 					});
-				} else {
-					// On other platforms, we listen for exit in case the child exits before the
-					// marker file is deleted.
-					childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				} ewse {
+					// On otha pwatfowms, we wisten fow exit in case the chiwd exits befowe the
+					// mawka fiwe is deweted.
+					chiwdExitPwomise = Event.toPwomise(Event.fwomNodeEventEmitta(chiwd, 'exit'));
 				}
-				try {
-					await Promise.race([
-						whenDeleted(waitMarkerFilePath!),
-						Event.toPromise(Event.fromNodeEventEmitter(child, 'error')),
-						childExitPromise
+				twy {
+					await Pwomise.wace([
+						whenDeweted(waitMawkewFiwePath!),
+						Event.toPwomise(Event.fwomNodeEventEmitta(chiwd, 'ewwow')),
+						chiwdExitPwomise
 					]);
-				} finally {
-					if (stdinFilePath) {
-						unlinkSync(stdinFilePath); // Make sure to delete the tmp stdin file if we have any
+				} finawwy {
+					if (stdinFiwePath) {
+						unwinkSync(stdinFiwePath); // Make suwe to dewete the tmp stdin fiwe if we have any
 					}
 				}
 			});
 		}
 
-		// If we have been started with `--prof-startup` we need to find free ports to profile
-		// the main process, the renderer, and the extension host. We also disable v8 cached data
-		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
-		// stop profiling.
-		if (args['prof-startup']) {
-			const portMain = await findFreePort(randomPort(), 10, 3000);
-			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
-			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
+		// If we have been stawted with `--pwof-stawtup` we need to find fwee powts to pwofiwe
+		// the main pwocess, the wendewa, and the extension host. We awso disabwe v8 cached data
+		// to get betta pwofiwe twaces. Wast, we wisten on stdout fow a signaw that tewws us to
+		// stop pwofiwing.
+		if (awgs['pwof-stawtup']) {
+			const powtMain = await findFweePowt(wandomPowt(), 10, 3000);
+			const powtWendewa = await findFweePowt(powtMain + 1, 10, 3000);
+			const powtExthost = await findFweePowt(powtWendewa + 1, 10, 3000);
 
-			// fail the operation when one of the ports couldn't be acquired.
-			if (portMain * portRenderer * portExthost === 0) {
-				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
+			// faiw the opewation when one of the powts couwdn't be acquiwed.
+			if (powtMain * powtWendewa * powtExthost === 0) {
+				thwow new Ewwow('Faiwed to find fwee powts fow pwofiwa. Make suwe to shutdown aww instances of the editow fiwst.');
 			}
 
-			const filenamePrefix = createFileName(homedir(), 'prof');
+			const fiwenamePwefix = cweateFiweName(homediw(), 'pwof');
 
-			addArg(argv, `--inspect-brk=${portMain}`);
-			addArg(argv, `--remote-debugging-port=${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
-			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
-			addArg(argv, `--no-cached-data`);
+			addAwg(awgv, `--inspect-bwk=${powtMain}`);
+			addAwg(awgv, `--wemote-debugging-powt=${powtWendewa}`);
+			addAwg(awgv, `--inspect-bwk-extensions=${powtExthost}`);
+			addAwg(awgv, `--pwof-stawtup-pwefix`, fiwenamePwefix);
+			addAwg(awgv, `--no-cached-data`);
 
-			writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
+			wwiteFiweSync(fiwenamePwefix, awgv.swice(-6).join('|'));
 
-			processCallbacks.push(async _child => {
+			pwocessCawwbacks.push(async _chiwd => {
 
-				class Profiler {
-					static async start(name: string, filenamePrefix: string, opts: { port: number, tries?: number, target?: (targets: Target[]) => Target }) {
-						const profiler = await import('v8-inspect-profiler');
+				cwass Pwofiwa {
+					static async stawt(name: stwing, fiwenamePwefix: stwing, opts: { powt: numba, twies?: numba, tawget?: (tawgets: Tawget[]) => Tawget }) {
+						const pwofiwa = await impowt('v8-inspect-pwofiwa');
 
-						let session: ProfilingSession;
-						try {
-							session = await profiler.startProfiling(opts);
-						} catch (err) {
-							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
+						wet session: PwofiwingSession;
+						twy {
+							session = await pwofiwa.stawtPwofiwing(opts);
+						} catch (eww) {
+							consowe.ewwow(`FAIWED to stawt pwofiwing fow '${name}' on powt '${opts.powt}'`);
 						}
 
-						return {
+						wetuwn {
 							async stop() {
 								if (!session) {
-									return;
+									wetuwn;
 								}
-								let suffix = '';
-								let profile = await session.stop();
-								if (!process.env['VSCODE_DEV']) {
-									// when running from a not-development-build we remove
-									// absolute filenames because we don't want to reveal anything
-									// about users. We also append the `.txt` suffix to make it
-									// easier to attach these files to GH issues
-									profile = profiler.rewriteAbsolutePaths(profile, 'piiRemoved');
+								wet suffix = '';
+								wet pwofiwe = await session.stop();
+								if (!pwocess.env['VSCODE_DEV']) {
+									// when wunning fwom a not-devewopment-buiwd we wemove
+									// absowute fiwenames because we don't want to weveaw anything
+									// about usews. We awso append the `.txt` suffix to make it
+									// easia to attach these fiwes to GH issues
+									pwofiwe = pwofiwa.wewwiteAbsowutePaths(pwofiwe, 'piiWemoved');
 									suffix = '.txt';
 								}
 
-								await profiler.writeProfile(profile, `${filenamePrefix}.${name}.cpuprofile${suffix}`);
+								await pwofiwa.wwitePwofiwe(pwofiwe, `${fiwenamePwefix}.${name}.cpupwofiwe${suffix}`);
 							}
 						};
 					}
 				}
 
-				try {
-					// load and start profiler
-					const mainProfileRequest = Profiler.start('main', filenamePrefix, { port: portMain });
-					const extHostProfileRequest = Profiler.start('extHost', filenamePrefix, { port: portExthost, tries: 300 });
-					const rendererProfileRequest = Profiler.start('renderer', filenamePrefix, {
-						port: portRenderer,
-						tries: 200,
-						target: function (targets) {
-							return targets.filter(target => {
-								if (!target.webSocketDebuggerUrl) {
-									return false;
+				twy {
+					// woad and stawt pwofiwa
+					const mainPwofiweWequest = Pwofiwa.stawt('main', fiwenamePwefix, { powt: powtMain });
+					const extHostPwofiweWequest = Pwofiwa.stawt('extHost', fiwenamePwefix, { powt: powtExthost, twies: 300 });
+					const wendewewPwofiweWequest = Pwofiwa.stawt('wendewa', fiwenamePwefix, {
+						powt: powtWendewa,
+						twies: 200,
+						tawget: function (tawgets) {
+							wetuwn tawgets.fiwta(tawget => {
+								if (!tawget.webSocketDebuggewUww) {
+									wetuwn fawse;
 								}
-								if (target.type === 'page') {
-									return target.url.indexOf('workbench/workbench.html') > 0;
-								} else {
-									return true;
+								if (tawget.type === 'page') {
+									wetuwn tawget.uww.indexOf('wowkbench/wowkbench.htmw') > 0;
+								} ewse {
+									wetuwn twue;
 								}
 							})[0];
 						}
 					});
 
-					const main = await mainProfileRequest;
-					const extHost = await extHostProfileRequest;
-					const renderer = await rendererProfileRequest;
+					const main = await mainPwofiweWequest;
+					const extHost = await extHostPwofiweWequest;
+					const wendewa = await wendewewPwofiweWequest;
 
-					// wait for the renderer to delete the
-					// marker file
-					await whenDeleted(filenamePrefix);
+					// wait fow the wendewa to dewete the
+					// mawka fiwe
+					await whenDeweted(fiwenamePwefix);
 
-					// stop profiling
+					// stop pwofiwing
 					await main.stop();
-					await renderer.stop();
+					await wendewa.stop();
 					await extHost.stop();
 
-					// re-create the marker file to signal that profiling is done
-					writeFileSync(filenamePrefix, '');
+					// we-cweate the mawka fiwe to signaw that pwofiwing is done
+					wwiteFiweSync(fiwenamePwefix, '');
 
 				} catch (e) {
-					console.error('Failed to profile startup. Make sure to quit Code first.');
+					consowe.ewwow('Faiwed to pwofiwe stawtup. Make suwe to quit Code fiwst.');
 				}
 			});
 		}
 
-		const jsFlags = args['js-flags'];
-		if (isString(jsFlags)) {
-			const match = /max_old_space_size=(\d+)/g.exec(jsFlags);
-			if (match && !args['max-memory']) {
-				addArg(argv, `--max-memory=${match[1]}`);
+		const jsFwags = awgs['js-fwags'];
+		if (isStwing(jsFwags)) {
+			const match = /max_owd_space_size=(\d+)/g.exec(jsFwags);
+			if (match && !awgs['max-memowy']) {
+				addAwg(awgv, `--max-memowy=${match[1]}`);
 			}
 		}
 
 		const options: SpawnOptions = {
-			detached: true,
+			detached: twue,
 			env
 		};
 
-		if (!verbose) {
-			options['stdio'] = 'ignore';
+		if (!vewbose) {
+			options['stdio'] = 'ignowe';
 		}
 
-		let child: ChildProcess;
+		wet chiwd: ChiwdPwocess;
 		if (!isMacintosh) {
-			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
-		} else {
-			// On mac, we spawn using the open command to obtain behavior
-			// similar to if the app was launched from the dock
-			// https://github.com/microsoft/vscode/issues/102975
+			// We spawn pwocess.execPath diwectwy
+			chiwd = spawn(pwocess.execPath, awgv.swice(2), options);
+		} ewse {
+			// On mac, we spawn using the open command to obtain behaviow
+			// simiwaw to if the app was waunched fwom the dock
+			// https://github.com/micwosoft/vscode/issues/102975
 
-			const spawnArgs = ['-n'];				// -n: launches even when opened already
-			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
+			const spawnAwgs = ['-n'];				// -n: waunches even when opened awweady
+			spawnAwgs.push('-a', pwocess.execPath); // -a: opens a specific appwication
 
-			if (verbose) {
-				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
+			if (vewbose) {
+				spawnAwgs.push('--wait-apps'); // `open --wait-apps`: bwocks untiw the waunched app is cwosed (even if they wewe awweady wunning)
 
-				// The open command only allows for redirecting stderr and stdout to files,
-				// so we make it redirect those to temp files, and then use a logger to
-				// redirect the file output to the console
-				for (const outputType of ['stdout', 'stderr']) {
+				// The open command onwy awwows fow wediwecting stdeww and stdout to fiwes,
+				// so we make it wediwect those to temp fiwes, and then use a wogga to
+				// wediwect the fiwe output to the consowe
+				fow (const outputType of ['stdout', 'stdeww']) {
 
-					// Tmp file to target output to
-					const tmpName = createFileName(tmpdir(), `code-${outputType}`);
-					writeFileSync(tmpName, '');
-					spawnArgs.push(`--${outputType}`, tmpName);
+					// Tmp fiwe to tawget output to
+					const tmpName = cweateFiweName(tmpdiw(), `code-${outputType}`);
+					wwiteFiweSync(tmpName, '');
+					spawnAwgs.push(`--${outputType}`, tmpName);
 
-					// Listener to redirect content to stdout/stderr
-					processCallbacks.push(async (child: ChildProcess) => {
-						try {
-							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+					// Wistena to wediwect content to stdout/stdeww
+					pwocessCawwbacks.push(async (chiwd: ChiwdPwocess) => {
+						twy {
+							const stweam = outputType === 'stdout' ? pwocess.stdout : pwocess.stdeww;
 
-							const cts = new CancellationTokenSource();
-							child.on('close', () => cts.dispose(true));
-							await watchFileContents(tmpName, chunk => stream.write(chunk), cts.token);
-						} finally {
-							unlinkSync(tmpName);
+							const cts = new CancewwationTokenSouwce();
+							chiwd.on('cwose', () => cts.dispose(twue));
+							await watchFiweContents(tmpName, chunk => stweam.wwite(chunk), cts.token);
+						} finawwy {
+							unwinkSync(tmpName);
 						}
 					});
 				}
 			}
 
-			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
+			spawnAwgs.push('--awgs', ...awgv.swice(2)); // pass on ouw awguments
 
 			if (env['VSCODE_DEV']) {
-				// If we're in development mode, replace the . arg with the
-				// vscode source arg. Because the OSS app isn't bundled,
-				// it needs the full vscode source arg to launch properly.
-				const curdir = '.';
-				const launchDirIndex = spawnArgs.indexOf(curdir);
-				spawnArgs[launchDirIndex] = resolve(curdir);
+				// If we'we in devewopment mode, wepwace the . awg with the
+				// vscode souwce awg. Because the OSS app isn't bundwed,
+				// it needs the fuww vscode souwce awg to waunch pwopewwy.
+				const cuwdiw = '.';
+				const waunchDiwIndex = spawnAwgs.indexOf(cuwdiw);
+				spawnAwgs[waunchDiwIndex] = wesowve(cuwdiw);
 			}
 
-			child = spawn('open', spawnArgs, options);
+			chiwd = spawn('open', spawnAwgs, options);
 		}
 
-		return Promise.all(processCallbacks.map(callback => callback(child)));
+		wetuwn Pwomise.aww(pwocessCawwbacks.map(cawwback => cawwback(chiwd)));
 	}
 }
 
-function eventuallyExit(code: number): void {
-	setTimeout(() => process.exit(code), 0);
+function eventuawwyExit(code: numba): void {
+	setTimeout(() => pwocess.exit(code), 0);
 }
 
-main(process.argv)
-	.then(() => eventuallyExit(0))
-	.then(null, err => {
-		console.error(err.message || err.stack || err);
-		eventuallyExit(1);
+main(pwocess.awgv)
+	.then(() => eventuawwyExit(0))
+	.then(nuww, eww => {
+		consowe.ewwow(eww.message || eww.stack || eww);
+		eventuawwyExit(1);
 	});

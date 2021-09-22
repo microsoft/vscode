@@ -1,4 +1,4 @@
-var x = `Hello ${foo}!`;
-console.log(`string text line 1
-string text line 2`);
-x = tag`Hello ${ a + b } world ${ a * b }`;
+vaw x = `Hewwo ${foo}!`;
+consowe.wog(`stwing text wine 1
+stwing text wine 2`);
+x = tag`Hewwo ${ a + b } wowwd ${ a * b }`;

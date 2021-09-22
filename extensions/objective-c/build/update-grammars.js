@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/objc.tmLanguage.json', './syntaxes/objective-c.tmLanguage.json', undefined, 'master', 'source/languages/cpp');
-updateGrammar.update('jeff-hykin/cpp-textmate-grammar', 'syntaxes/objcpp.tmLanguage.json', './syntaxes/objective-c++.tmLanguage.json', undefined, 'master', 'source/languages/cpp');
+updateGwammaw.update('jeff-hykin/cpp-textmate-gwammaw', 'syntaxes/objc.tmWanguage.json', './syntaxes/objective-c.tmWanguage.json', undefined, 'masta', 'souwce/wanguages/cpp');
+updateGwammaw.update('jeff-hykin/cpp-textmate-gwammaw', 'syntaxes/objcpp.tmWanguage.json', './syntaxes/objective-c++.tmWanguage.json', undefined, 'masta', 'souwce/wanguages/cpp');
 

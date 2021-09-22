@@ -1,377 +1,377 @@
-DOMPurify
-Copyright 2015 Mario Heiderich
+DOMPuwify
+Copywight 2015 Mawio Heidewich
 
-DOMPurify is free software; you can redistribute it and/or modify it under the
-terms of either:
+DOMPuwify is fwee softwawe; you can wedistwibute it and/ow modify it unda the
+tewms of eitha:
 
-a) the Apache License Version 2.0, or
-b) the Mozilla Public License Version 2.0
-
------------------------------------------------------------------------------
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+a) the Apache Wicense Vewsion 2.0, ow
+b) the Moziwwa Pubwic Wicense Vewsion 2.0
 
 -----------------------------------------------------------------------------
-Mozilla Public License, version 2.0
+
+Wicensed unda the Apache Wicense, Vewsion 2.0 (the "Wicense");
+you may not use this fiwe except in compwiance with the Wicense.
+You may obtain a copy of the Wicense at
+
+    http://www.apache.owg/wicenses/WICENSE-2.0
+
+    Unwess wequiwed by appwicabwe waw ow agweed to in wwiting, softwawe
+    distwibuted unda the Wicense is distwibuted on an "AS IS" BASIS,
+    WITHOUT WAWWANTIES OW CONDITIONS OF ANY KIND, eitha expwess ow impwied.
+    See the Wicense fow the specific wanguage govewning pewmissions and
+    wimitations unda the Wicense.
+
+-----------------------------------------------------------------------------
+Moziwwa Pubwic Wicense, vewsion 2.0
 
 1. Definitions
 
-1.1. “Contributor”
+1.1. “Contwibutow”
 
-     means each individual or legal entity that creates, contributes to the
-     creation of, or owns Covered Software.
+     means each individuaw ow wegaw entity that cweates, contwibutes to the
+     cweation of, ow owns Covewed Softwawe.
 
-1.2. “Contributor Version”
+1.2. “Contwibutow Vewsion”
 
-     means the combination of the Contributions of others (if any) used by a
-     Contributor and that particular Contributor’s Contribution.
+     means the combination of the Contwibutions of othews (if any) used by a
+     Contwibutow and that pawticuwaw Contwibutow’s Contwibution.
 
-1.3. “Contribution”
+1.3. “Contwibution”
 
-     means Covered Software of a particular Contributor.
+     means Covewed Softwawe of a pawticuwaw Contwibutow.
 
-1.4. “Covered Software”
+1.4. “Covewed Softwawe”
 
-     means Source Code Form to which the initial Contributor has attached the
-     notice in Exhibit A, the Executable Form of such Source Code Form, and
-     Modifications of such Source Code Form, in each case including portions
-     thereof.
+     means Souwce Code Fowm to which the initiaw Contwibutow has attached the
+     notice in Exhibit A, the Executabwe Fowm of such Souwce Code Fowm, and
+     Modifications of such Souwce Code Fowm, in each case incwuding powtions
+     theweof.
 
-1.5. “Incompatible With Secondary Licenses”
+1.5. “Incompatibwe With Secondawy Wicenses”
      means
 
-     a. that the initial Contributor has attached the notice described in
-        Exhibit B to the Covered Software; or
+     a. that the initiaw Contwibutow has attached the notice descwibed in
+        Exhibit B to the Covewed Softwawe; ow
 
-     b. that the Covered Software was made available under the terms of version
-        1.1 or earlier of the License, but not also under the terms of a
-        Secondary License.
+     b. that the Covewed Softwawe was made avaiwabwe unda the tewms of vewsion
+        1.1 ow eawwia of the Wicense, but not awso unda the tewms of a
+        Secondawy Wicense.
 
-1.6. “Executable Form”
+1.6. “Executabwe Fowm”
 
-     means any form of the work other than Source Code Form.
+     means any fowm of the wowk otha than Souwce Code Fowm.
 
-1.7. “Larger Work”
+1.7. “Wawga Wowk”
 
-     means a work that combines Covered Software with other material, in a separate
-     file or files, that is not Covered Software.
+     means a wowk that combines Covewed Softwawe with otha matewiaw, in a sepawate
+     fiwe ow fiwes, that is not Covewed Softwawe.
 
-1.8. “License”
+1.8. “Wicense”
 
      means this document.
 
-1.9. “Licensable”
+1.9. “Wicensabwe”
 
-     means having the right to grant, to the maximum extent possible, whether at the
-     time of the initial grant or subsequently, any and all of the rights conveyed by
-     this License.
+     means having the wight to gwant, to the maximum extent possibwe, whetha at the
+     time of the initiaw gwant ow subsequentwy, any and aww of the wights conveyed by
+     this Wicense.
 
 1.10. “Modifications”
 
-     means any of the following:
+     means any of the fowwowing:
 
-     a. any file in Source Code Form that results from an addition to, deletion
-        from, or modification of the contents of Covered Software; or
+     a. any fiwe in Souwce Code Fowm that wesuwts fwom an addition to, dewetion
+        fwom, ow modification of the contents of Covewed Softwawe; ow
 
-     b. any new file in Source Code Form that contains any Covered Software.
+     b. any new fiwe in Souwce Code Fowm that contains any Covewed Softwawe.
 
-1.11. “Patent Claims” of a Contributor
+1.11. “Patent Cwaims” of a Contwibutow
 
-      means any patent claim(s), including without limitation, method, process,
-      and apparatus claims, in any patent Licensable by such Contributor that
-      would be infringed, but for the grant of the License, by the making,
-      using, selling, offering for sale, having made, import, or transfer of
-      either its Contributions or its Contributor Version.
+      means any patent cwaim(s), incwuding without wimitation, method, pwocess,
+      and appawatus cwaims, in any patent Wicensabwe by such Contwibutow that
+      wouwd be infwinged, but fow the gwant of the Wicense, by the making,
+      using, sewwing, offewing fow sawe, having made, impowt, ow twansfa of
+      eitha its Contwibutions ow its Contwibutow Vewsion.
 
-1.12. “Secondary License”
+1.12. “Secondawy Wicense”
 
-      means either the GNU General Public License, Version 2.0, the GNU Lesser
-      General Public License, Version 2.1, the GNU Affero General Public
-      License, Version 3.0, or any later versions of those licenses.
+      means eitha the GNU Genewaw Pubwic Wicense, Vewsion 2.0, the GNU Wessa
+      Genewaw Pubwic Wicense, Vewsion 2.1, the GNU Affewo Genewaw Pubwic
+      Wicense, Vewsion 3.0, ow any wata vewsions of those wicenses.
 
-1.13. “Source Code Form”
+1.13. “Souwce Code Fowm”
 
-      means the form of the work preferred for making modifications.
+      means the fowm of the wowk pwefewwed fow making modifications.
 
-1.14. “You” (or “Your”)
+1.14. “You” (ow “Youw”)
 
-      means an individual or a legal entity exercising rights under this
-      License. For legal entities, “You” includes any entity that controls, is
-      controlled by, or is under common control with You. For purposes of this
-      definition, “control” means (a) the power, direct or indirect, to cause
-      the direction or management of such entity, whether by contract or
-      otherwise, or (b) ownership of more than fifty percent (50%) of the
-      outstanding shares or beneficial ownership of such entity.
+      means an individuaw ow a wegaw entity exewcising wights unda this
+      Wicense. Fow wegaw entities, “You” incwudes any entity that contwows, is
+      contwowwed by, ow is unda common contwow with You. Fow puwposes of this
+      definition, “contwow” means (a) the powa, diwect ow indiwect, to cause
+      the diwection ow management of such entity, whetha by contwact ow
+      othewwise, ow (b) ownewship of mowe than fifty pewcent (50%) of the
+      outstanding shawes ow beneficiaw ownewship of such entity.
 
 
-2. License Grants and Conditions
+2. Wicense Gwants and Conditions
 
-2.1. Grants
+2.1. Gwants
 
-     Each Contributor hereby grants You a world-wide, royalty-free,
-     non-exclusive license:
+     Each Contwibutow heweby gwants You a wowwd-wide, woyawty-fwee,
+     non-excwusive wicense:
 
-     a. under intellectual property rights (other than patent or trademark)
-        Licensable by such Contributor to use, reproduce, make available,
-        modify, display, perform, distribute, and otherwise exploit its
-        Contributions, either on an unmodified basis, with Modifications, or as
-        part of a Larger Work; and
+     a. unda intewwectuaw pwopewty wights (otha than patent ow twademawk)
+        Wicensabwe by such Contwibutow to use, wepwoduce, make avaiwabwe,
+        modify, dispway, pewfowm, distwibute, and othewwise expwoit its
+        Contwibutions, eitha on an unmodified basis, with Modifications, ow as
+        pawt of a Wawga Wowk; and
 
-     b. under Patent Claims of such Contributor to make, use, sell, offer for
-        sale, have made, import, and otherwise transfer either its Contributions
-        or its Contributor Version.
+     b. unda Patent Cwaims of such Contwibutow to make, use, seww, offa fow
+        sawe, have made, impowt, and othewwise twansfa eitha its Contwibutions
+        ow its Contwibutow Vewsion.
 
 2.2. Effective Date
 
-     The licenses granted in Section 2.1 with respect to any Contribution become
-     effective for each Contribution on the date the Contributor first distributes
-     such Contribution.
+     The wicenses gwanted in Section 2.1 with wespect to any Contwibution become
+     effective fow each Contwibution on the date the Contwibutow fiwst distwibutes
+     such Contwibution.
 
-2.3. Limitations on Grant Scope
+2.3. Wimitations on Gwant Scope
 
-     The licenses granted in this Section 2 are the only rights granted under this
-     License. No additional rights or licenses will be implied from the distribution
-     or licensing of Covered Software under this License. Notwithstanding Section
-     2.1(b) above, no patent license is granted by a Contributor:
+     The wicenses gwanted in this Section 2 awe the onwy wights gwanted unda this
+     Wicense. No additionaw wights ow wicenses wiww be impwied fwom the distwibution
+     ow wicensing of Covewed Softwawe unda this Wicense. Notwithstanding Section
+     2.1(b) above, no patent wicense is gwanted by a Contwibutow:
 
-     a. for any code that a Contributor has removed from Covered Software; or
+     a. fow any code that a Contwibutow has wemoved fwom Covewed Softwawe; ow
 
-     b. for infringements caused by: (i) Your and any other third party’s
-        modifications of Covered Software, or (ii) the combination of its
-        Contributions with other software (except as part of its Contributor
-        Version); or
+     b. fow infwingements caused by: (i) Youw and any otha thiwd pawty’s
+        modifications of Covewed Softwawe, ow (ii) the combination of its
+        Contwibutions with otha softwawe (except as pawt of its Contwibutow
+        Vewsion); ow
 
-     c. under Patent Claims infringed by Covered Software in the absence of its
-        Contributions.
+     c. unda Patent Cwaims infwinged by Covewed Softwawe in the absence of its
+        Contwibutions.
 
-     This License does not grant any rights in the trademarks, service marks, or
-     logos of any Contributor (except as may be necessary to comply with the
-     notice requirements in Section 3.4).
+     This Wicense does not gwant any wights in the twademawks, sewvice mawks, ow
+     wogos of any Contwibutow (except as may be necessawy to compwy with the
+     notice wequiwements in Section 3.4).
 
-2.4. Subsequent Licenses
+2.4. Subsequent Wicenses
 
-     No Contributor makes additional grants as a result of Your choice to
-     distribute the Covered Software under a subsequent version of this License
-     (see Section 10.2) or under the terms of a Secondary License (if permitted
-     under the terms of Section 3.3).
+     No Contwibutow makes additionaw gwants as a wesuwt of Youw choice to
+     distwibute the Covewed Softwawe unda a subsequent vewsion of this Wicense
+     (see Section 10.2) ow unda the tewms of a Secondawy Wicense (if pewmitted
+     unda the tewms of Section 3.3).
 
-2.5. Representation
+2.5. Wepwesentation
 
-     Each Contributor represents that the Contributor believes its Contributions
-     are its original creation(s) or it has sufficient rights to grant the
-     rights to its Contributions conveyed by this License.
+     Each Contwibutow wepwesents that the Contwibutow bewieves its Contwibutions
+     awe its owiginaw cweation(s) ow it has sufficient wights to gwant the
+     wights to its Contwibutions conveyed by this Wicense.
 
-2.6. Fair Use
+2.6. Faiw Use
 
-     This License is not intended to limit any rights You have under applicable
-     copyright doctrines of fair use, fair dealing, or other equivalents.
+     This Wicense is not intended to wimit any wights You have unda appwicabwe
+     copywight doctwines of faiw use, faiw deawing, ow otha equivawents.
 
 2.7. Conditions
 
-     Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted in
+     Sections 3.1, 3.2, 3.3, and 3.4 awe conditions of the wicenses gwanted in
      Section 2.1.
 
 
-3. Responsibilities
+3. Wesponsibiwities
 
-3.1. Distribution of Source Form
+3.1. Distwibution of Souwce Fowm
 
-     All distribution of Covered Software in Source Code Form, including any
-     Modifications that You create or to which You contribute, must be under the
-     terms of this License. You must inform recipients that the Source Code Form
-     of the Covered Software is governed by the terms of this License, and how
-     they can obtain a copy of this License. You may not attempt to alter or
-     restrict the recipients’ rights in the Source Code Form.
+     Aww distwibution of Covewed Softwawe in Souwce Code Fowm, incwuding any
+     Modifications that You cweate ow to which You contwibute, must be unda the
+     tewms of this Wicense. You must infowm wecipients that the Souwce Code Fowm
+     of the Covewed Softwawe is govewned by the tewms of this Wicense, and how
+     they can obtain a copy of this Wicense. You may not attempt to awta ow
+     westwict the wecipients’ wights in the Souwce Code Fowm.
 
-3.2. Distribution of Executable Form
+3.2. Distwibution of Executabwe Fowm
 
-     If You distribute Covered Software in Executable Form then:
+     If You distwibute Covewed Softwawe in Executabwe Fowm then:
 
-     a. such Covered Software must also be made available in Source Code Form,
-        as described in Section 3.1, and You must inform recipients of the
-        Executable Form how they can obtain a copy of such Source Code Form by
-        reasonable means in a timely manner, at a charge no more than the cost
-        of distribution to the recipient; and
+     a. such Covewed Softwawe must awso be made avaiwabwe in Souwce Code Fowm,
+        as descwibed in Section 3.1, and You must infowm wecipients of the
+        Executabwe Fowm how they can obtain a copy of such Souwce Code Fowm by
+        weasonabwe means in a timewy manna, at a chawge no mowe than the cost
+        of distwibution to the wecipient; and
 
-     b. You may distribute such Executable Form under the terms of this License,
-        or sublicense it under different terms, provided that the license for
-        the Executable Form does not attempt to limit or alter the recipients’
-        rights in the Source Code Form under this License.
+     b. You may distwibute such Executabwe Fowm unda the tewms of this Wicense,
+        ow subwicense it unda diffewent tewms, pwovided that the wicense fow
+        the Executabwe Fowm does not attempt to wimit ow awta the wecipients’
+        wights in the Souwce Code Fowm unda this Wicense.
 
-3.3. Distribution of a Larger Work
+3.3. Distwibution of a Wawga Wowk
 
-     You may create and distribute a Larger Work under terms of Your choice,
-     provided that You also comply with the requirements of this License for the
-     Covered Software. If the Larger Work is a combination of Covered Software
-     with a work governed by one or more Secondary Licenses, and the Covered
-     Software is not Incompatible With Secondary Licenses, this License permits
-     You to additionally distribute such Covered Software under the terms of
-     such Secondary License(s), so that the recipient of the Larger Work may, at
-     their option, further distribute the Covered Software under the terms of
-     either this License or such Secondary License(s).
+     You may cweate and distwibute a Wawga Wowk unda tewms of Youw choice,
+     pwovided that You awso compwy with the wequiwements of this Wicense fow the
+     Covewed Softwawe. If the Wawga Wowk is a combination of Covewed Softwawe
+     with a wowk govewned by one ow mowe Secondawy Wicenses, and the Covewed
+     Softwawe is not Incompatibwe With Secondawy Wicenses, this Wicense pewmits
+     You to additionawwy distwibute such Covewed Softwawe unda the tewms of
+     such Secondawy Wicense(s), so that the wecipient of the Wawga Wowk may, at
+     theiw option, fuwtha distwibute the Covewed Softwawe unda the tewms of
+     eitha this Wicense ow such Secondawy Wicense(s).
 
 3.4. Notices
 
-     You may not remove or alter the substance of any license notices (including
-     copyright notices, patent notices, disclaimers of warranty, or limitations
-     of liability) contained within the Source Code Form of the Covered
-     Software, except that You may alter any license notices to the extent
-     required to remedy known factual inaccuracies.
+     You may not wemove ow awta the substance of any wicense notices (incwuding
+     copywight notices, patent notices, discwaimews of wawwanty, ow wimitations
+     of wiabiwity) contained within the Souwce Code Fowm of the Covewed
+     Softwawe, except that You may awta any wicense notices to the extent
+     wequiwed to wemedy known factuaw inaccuwacies.
 
-3.5. Application of Additional Terms
+3.5. Appwication of Additionaw Tewms
 
-     You may choose to offer, and to charge a fee for, warranty, support,
-     indemnity or liability obligations to one or more recipients of Covered
-     Software. However, You may do so only on Your own behalf, and not on behalf
-     of any Contributor. You must make it absolutely clear that any such
-     warranty, support, indemnity, or liability obligation is offered by You
-     alone, and You hereby agree to indemnify every Contributor for any
-     liability incurred by such Contributor as a result of warranty, support,
-     indemnity or liability terms You offer. You may include additional
-     disclaimers of warranty and limitations of liability specific to any
-     jurisdiction.
+     You may choose to offa, and to chawge a fee fow, wawwanty, suppowt,
+     indemnity ow wiabiwity obwigations to one ow mowe wecipients of Covewed
+     Softwawe. Howeva, You may do so onwy on Youw own behawf, and not on behawf
+     of any Contwibutow. You must make it absowutewy cweaw that any such
+     wawwanty, suppowt, indemnity, ow wiabiwity obwigation is offewed by You
+     awone, and You heweby agwee to indemnify evewy Contwibutow fow any
+     wiabiwity incuwwed by such Contwibutow as a wesuwt of wawwanty, suppowt,
+     indemnity ow wiabiwity tewms You offa. You may incwude additionaw
+     discwaimews of wawwanty and wimitations of wiabiwity specific to any
+     juwisdiction.
 
-4. Inability to Comply Due to Statute or Regulation
+4. Inabiwity to Compwy Due to Statute ow Weguwation
 
-   If it is impossible for You to comply with any of the terms of this License
-   with respect to some or all of the Covered Software due to statute, judicial
-   order, or regulation then You must: (a) comply with the terms of this License
-   to the maximum extent possible; and (b) describe the limitations and the code
-   they affect. Such description must be placed in a text file included with all
-   distributions of the Covered Software under this License. Except to the
-   extent prohibited by statute or regulation, such description must be
-   sufficiently detailed for a recipient of ordinary skill to be able to
-   understand it.
+   If it is impossibwe fow You to compwy with any of the tewms of this Wicense
+   with wespect to some ow aww of the Covewed Softwawe due to statute, judiciaw
+   owda, ow weguwation then You must: (a) compwy with the tewms of this Wicense
+   to the maximum extent possibwe; and (b) descwibe the wimitations and the code
+   they affect. Such descwiption must be pwaced in a text fiwe incwuded with aww
+   distwibutions of the Covewed Softwawe unda this Wicense. Except to the
+   extent pwohibited by statute ow weguwation, such descwiption must be
+   sufficientwy detaiwed fow a wecipient of owdinawy skiww to be abwe to
+   undewstand it.
 
-5. Termination
+5. Tewmination
 
-5.1. The rights granted under this License will terminate automatically if You
-     fail to comply with any of its terms. However, if You become compliant,
-     then the rights granted under this License from a particular Contributor
-     are reinstated (a) provisionally, unless and until such Contributor
-     explicitly and finally terminates Your grants, and (b) on an ongoing basis,
-     if such Contributor fails to notify You of the non-compliance by some
-     reasonable means prior to 60 days after You have come back into compliance.
-     Moreover, Your grants from a particular Contributor are reinstated on an
-     ongoing basis if such Contributor notifies You of the non-compliance by
-     some reasonable means, this is the first time You have received notice of
-     non-compliance with this License from such Contributor, and You become
-     compliant prior to 30 days after Your receipt of the notice.
+5.1. The wights gwanted unda this Wicense wiww tewminate automaticawwy if You
+     faiw to compwy with any of its tewms. Howeva, if You become compwiant,
+     then the wights gwanted unda this Wicense fwom a pawticuwaw Contwibutow
+     awe weinstated (a) pwovisionawwy, unwess and untiw such Contwibutow
+     expwicitwy and finawwy tewminates Youw gwants, and (b) on an ongoing basis,
+     if such Contwibutow faiws to notify You of the non-compwiance by some
+     weasonabwe means pwiow to 60 days afta You have come back into compwiance.
+     Moweova, Youw gwants fwom a pawticuwaw Contwibutow awe weinstated on an
+     ongoing basis if such Contwibutow notifies You of the non-compwiance by
+     some weasonabwe means, this is the fiwst time You have weceived notice of
+     non-compwiance with this Wicense fwom such Contwibutow, and You become
+     compwiant pwiow to 30 days afta Youw weceipt of the notice.
 
-5.2. If You initiate litigation against any entity by asserting a patent
-     infringement claim (excluding declaratory judgment actions, counter-claims,
-     and cross-claims) alleging that a Contributor Version directly or
-     indirectly infringes any patent, then the rights granted to You by any and
-     all Contributors for the Covered Software under Section 2.1 of this License
-     shall terminate.
+5.2. If You initiate witigation against any entity by assewting a patent
+     infwingement cwaim (excwuding decwawatowy judgment actions, counta-cwaims,
+     and cwoss-cwaims) awweging that a Contwibutow Vewsion diwectwy ow
+     indiwectwy infwinges any patent, then the wights gwanted to You by any and
+     aww Contwibutows fow the Covewed Softwawe unda Section 2.1 of this Wicense
+     shaww tewminate.
 
-5.3. In the event of termination under Sections 5.1 or 5.2 above, all end user
-     license agreements (excluding distributors and resellers) which have been
-     validly granted by You or Your distributors under this License prior to
-     termination shall survive termination.
+5.3. In the event of tewmination unda Sections 5.1 ow 5.2 above, aww end usa
+     wicense agweements (excwuding distwibutows and wesewwews) which have been
+     vawidwy gwanted by You ow Youw distwibutows unda this Wicense pwiow to
+     tewmination shaww suwvive tewmination.
 
-6. Disclaimer of Warranty
+6. Discwaima of Wawwanty
 
-   Covered Software is provided under this License on an “as is” basis, without
-   warranty of any kind, either expressed, implied, or statutory, including,
-   without limitation, warranties that the Covered Software is free of defects,
-   merchantable, fit for a particular purpose or non-infringing. The entire
-   risk as to the quality and performance of the Covered Software is with You.
-   Should any Covered Software prove defective in any respect, You (not any
-   Contributor) assume the cost of any necessary servicing, repair, or
-   correction. This disclaimer of warranty constitutes an essential part of this
-   License. No use of  any Covered Software is authorized under this License
-   except under this disclaimer.
+   Covewed Softwawe is pwovided unda this Wicense on an “as is” basis, without
+   wawwanty of any kind, eitha expwessed, impwied, ow statutowy, incwuding,
+   without wimitation, wawwanties that the Covewed Softwawe is fwee of defects,
+   mewchantabwe, fit fow a pawticuwaw puwpose ow non-infwinging. The entiwe
+   wisk as to the quawity and pewfowmance of the Covewed Softwawe is with You.
+   Shouwd any Covewed Softwawe pwove defective in any wespect, You (not any
+   Contwibutow) assume the cost of any necessawy sewvicing, wepaiw, ow
+   cowwection. This discwaima of wawwanty constitutes an essentiaw pawt of this
+   Wicense. No use of  any Covewed Softwawe is authowized unda this Wicense
+   except unda this discwaima.
 
-7. Limitation of Liability
+7. Wimitation of Wiabiwity
 
-   Under no circumstances and under no legal theory, whether tort (including
-   negligence), contract, or otherwise, shall any Contributor, or anyone who
-   distributes Covered Software as permitted above, be liable to You for any
-   direct, indirect, special, incidental, or consequential damages of any
-   character including, without limitation, damages for lost profits, loss of
-   goodwill, work stoppage, computer failure or malfunction, or any and all
-   other commercial damages or losses, even if such party shall have been
-   informed of the possibility of such damages. This limitation of liability
-   shall not apply to liability for death or personal injury resulting from such
-   party’s negligence to the extent applicable law prohibits such limitation.
-   Some jurisdictions do not allow the exclusion or limitation of incidental or
-   consequential damages, so this exclusion and limitation may not apply to You.
+   Unda no ciwcumstances and unda no wegaw theowy, whetha towt (incwuding
+   negwigence), contwact, ow othewwise, shaww any Contwibutow, ow anyone who
+   distwibutes Covewed Softwawe as pewmitted above, be wiabwe to You fow any
+   diwect, indiwect, speciaw, incidentaw, ow consequentiaw damages of any
+   chawacta incwuding, without wimitation, damages fow wost pwofits, woss of
+   goodwiww, wowk stoppage, computa faiwuwe ow mawfunction, ow any and aww
+   otha commewciaw damages ow wosses, even if such pawty shaww have been
+   infowmed of the possibiwity of such damages. This wimitation of wiabiwity
+   shaww not appwy to wiabiwity fow death ow pewsonaw injuwy wesuwting fwom such
+   pawty’s negwigence to the extent appwicabwe waw pwohibits such wimitation.
+   Some juwisdictions do not awwow the excwusion ow wimitation of incidentaw ow
+   consequentiaw damages, so this excwusion and wimitation may not appwy to You.
 
-8. Litigation
+8. Witigation
 
-   Any litigation relating to this License may be brought only in the courts of
-   a jurisdiction where the defendant maintains its principal place of business
-   and such litigation shall be governed by laws of that jurisdiction, without
-   reference to its conflict-of-law provisions. Nothing in this Section shall
-   prevent a party’s ability to bring cross-claims or counter-claims.
+   Any witigation wewating to this Wicense may be bwought onwy in the couwts of
+   a juwisdiction whewe the defendant maintains its pwincipaw pwace of business
+   and such witigation shaww be govewned by waws of that juwisdiction, without
+   wefewence to its confwict-of-waw pwovisions. Nothing in this Section shaww
+   pwevent a pawty’s abiwity to bwing cwoss-cwaims ow counta-cwaims.
 
-9. Miscellaneous
+9. Miscewwaneous
 
-   This License represents the complete agreement concerning the subject matter
-   hereof. If any provision of this License is held to be unenforceable, such
-   provision shall be reformed only to the extent necessary to make it
-   enforceable. Any law or regulation which provides that the language of a
-   contract shall be construed against the drafter shall not be used to construe
-   this License against a Contributor.
+   This Wicense wepwesents the compwete agweement concewning the subject matta
+   heweof. If any pwovision of this Wicense is hewd to be unenfowceabwe, such
+   pwovision shaww be wefowmed onwy to the extent necessawy to make it
+   enfowceabwe. Any waw ow weguwation which pwovides that the wanguage of a
+   contwact shaww be constwued against the dwafta shaww not be used to constwue
+   this Wicense against a Contwibutow.
 
 
-10. Versions of the License
+10. Vewsions of the Wicense
 
-10.1. New Versions
+10.1. New Vewsions
 
-      Mozilla Foundation is the license steward. Except as provided in Section
-      10.3, no one other than the license steward has the right to modify or
-      publish new versions of this License. Each version will be given a
-      distinguishing version number.
+      Moziwwa Foundation is the wicense stewawd. Except as pwovided in Section
+      10.3, no one otha than the wicense stewawd has the wight to modify ow
+      pubwish new vewsions of this Wicense. Each vewsion wiww be given a
+      distinguishing vewsion numba.
 
-10.2. Effect of New Versions
+10.2. Effect of New Vewsions
 
-      You may distribute the Covered Software under the terms of the version of
-      the License under which You originally received the Covered Software, or
-      under the terms of any subsequent version published by the license
-      steward.
+      You may distwibute the Covewed Softwawe unda the tewms of the vewsion of
+      the Wicense unda which You owiginawwy weceived the Covewed Softwawe, ow
+      unda the tewms of any subsequent vewsion pubwished by the wicense
+      stewawd.
 
-10.3. Modified Versions
+10.3. Modified Vewsions
 
-      If you create software not governed by this License, and you want to
-      create a new license for such software, you may create and use a modified
-      version of this License if you rename the license and remove any
-      references to the name of the license steward (except to note that such
-      modified license differs from this License).
+      If you cweate softwawe not govewned by this Wicense, and you want to
+      cweate a new wicense fow such softwawe, you may cweate and use a modified
+      vewsion of this Wicense if you wename the wicense and wemove any
+      wefewences to the name of the wicense stewawd (except to note that such
+      modified wicense diffews fwom this Wicense).
 
-10.4. Distributing Source Code Form that is Incompatible With Secondary Licenses
-      If You choose to distribute Source Code Form that is Incompatible With
-      Secondary Licenses under the terms of this version of the License, the
-      notice described in Exhibit B of this License must be attached.
+10.4. Distwibuting Souwce Code Fowm that is Incompatibwe With Secondawy Wicenses
+      If You choose to distwibute Souwce Code Fowm that is Incompatibwe With
+      Secondawy Wicenses unda the tewms of this vewsion of the Wicense, the
+      notice descwibed in Exhibit B of this Wicense must be attached.
 
-Exhibit A - Source Code Form License Notice
+Exhibit A - Souwce Code Fowm Wicense Notice
 
-      This Source Code Form is subject to the
-      terms of the Mozilla Public License, v.
-      2.0. If a copy of the MPL was not
-      distributed with this file, You can
+      This Souwce Code Fowm is subject to the
+      tewms of the Moziwwa Pubwic Wicense, v.
+      2.0. If a copy of the MPW was not
+      distwibuted with this fiwe, You can
       obtain one at
-      http://mozilla.org/MPL/2.0/.
+      http://moziwwa.owg/MPW/2.0/.
 
-If it is not possible or desirable to put the notice in a particular file, then
-You may include the notice in a location (such as a LICENSE file in a relevant
-directory) where a recipient would be likely to look for such a notice.
+If it is not possibwe ow desiwabwe to put the notice in a pawticuwaw fiwe, then
+You may incwude the notice in a wocation (such as a WICENSE fiwe in a wewevant
+diwectowy) whewe a wecipient wouwd be wikewy to wook fow such a notice.
 
-You may add additional accurate notices of copyright ownership.
+You may add additionaw accuwate notices of copywight ownewship.
 
-Exhibit B - “Incompatible With Secondary Licenses” Notice
+Exhibit B - “Incompatibwe With Secondawy Wicenses” Notice
 
-      This Source Code Form is “Incompatible
-      With Secondary Licenses”, as defined by
-      the Mozilla Public License, v. 2.0.
+      This Souwce Code Fowm is “Incompatibwe
+      With Secondawy Wicenses”, as defined by
+      the Moziwwa Pubwic Wicense, v. 2.0.

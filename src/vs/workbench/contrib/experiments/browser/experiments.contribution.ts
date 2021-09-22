@@ -1,35 +1,35 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExperimentService, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ExperimentalPrompts } from 'vs/workbench/contrib/experiments/browser/experimentalPrompt';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+impowt { wocawize } fwom 'vs/nws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IExpewimentSewvice, ExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { ExpewimentawPwompts } fwom 'vs/wowkbench/contwib/expewiments/bwowsa/expewimentawPwompt';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { wowkbenchConfiguwationNodeBase } fwom 'vs/wowkbench/common/configuwation';
 
-registerSingleton(IExperimentService, ExperimentService, true);
+wegistewSingweton(IExpewimentSewvice, ExpewimentSewvice, twue);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExperimentalPrompts, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(ExpewimentawPwompts, WifecycwePhase.Eventuawwy);
 
-const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const wegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-// Configuration
-registry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.enableExperiments': {
-			'type': 'boolean',
-			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
-			'default': true,
-			'scope': ConfigurationScope.APPLICATION,
-			'restricted': true,
-			'tags': ['usesOnlineServices']
+// Configuwation
+wegistwy.wegistewConfiguwation({
+	...wowkbenchConfiguwationNodeBase,
+	'pwopewties': {
+		'wowkbench.enabweExpewiments': {
+			'type': 'boowean',
+			'descwiption': wocawize('wowkbench.enabweExpewiments', "Fetches expewiments to wun fwom a Micwosoft onwine sewvice."),
+			'defauwt': twue,
+			'scope': ConfiguwationScope.APPWICATION,
+			'westwicted': twue,
+			'tags': ['usesOnwineSewvices']
 		}
 	}
 });

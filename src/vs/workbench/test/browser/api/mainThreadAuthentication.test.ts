@@ -1,162 +1,162 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { AuthenticationProviderInformation } from 'vs/editor/common/modes';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IQuickInputHideEvent, IQuickInputService, IQuickPickDidAcceptEvent } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAuthentication';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { ExtensionHostKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { AuthenticationPwovidewInfowmation } fwom 'vs/editow/common/modes';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { TestDiawogSewvice } fwom 'vs/pwatfowm/diawogs/test/common/testDiawogSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { TestNotificationSewvice } fwom 'vs/pwatfowm/notification/test/common/testNotificationSewvice';
+impowt { IQuickInputHideEvent, IQuickInputSewvice, IQuickPickDidAcceptEvent } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { MainThweadAuthentication } fwom 'vs/wowkbench/api/bwowsa/mainThweadAuthentication';
+impowt { IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { IActivitySewvice } fwom 'vs/wowkbench/sewvices/activity/common/activity';
+impowt { AuthenticationSewvice, IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { ExtensionHostKind, IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { TestWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/test/common/testSewvices';
+impowt { TestQuickInputSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestActivitySewvice, TestExtensionSewvice, TestStowageSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
 
-let i = 0;
-function createSession(id: string = '1234', scope: string[] = []) {
-	return {
+wet i = 0;
+function cweateSession(id: stwing = '1234', scope: stwing[] = []) {
+	wetuwn {
 		accessToken: (++i) + '',
 		account: {
 			id: 'test@test.com',
-			label: 'Test Person'
+			wabew: 'Test Pewson'
 		},
 		id: id,
 		scopes: scope
 	};
 }
 
-class AuthQuickPick {
-	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
-	public items = [];
-	public get selectedItems(): string[] {
-		return this.items;
+cwass AuthQuickPick {
+	pwivate wistena: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
+	pubwic items = [];
+	pubwic get sewectedItems(): stwing[] {
+		wetuwn this.items;
 	}
 
-	onDidAccept(listener: (e: IQuickPickDidAcceptEvent) => any) {
-		this.listener = listener;
+	onDidAccept(wistena: (e: IQuickPickDidAcceptEvent) => any) {
+		this.wistena = wistena;
 	}
-	onDidHide(listener: (e: IQuickInputHideEvent) => any) {
+	onDidHide(wistena: (e: IQuickInputHideEvent) => any) {
 
 	}
 	dispose() {
 
 	}
 	show() {
-		this.listener!({
-			inBackground: false
+		this.wistena!({
+			inBackgwound: fawse
 		});
 	}
 }
-class AuthTestQuickInputService extends TestQuickInputService {
-	override createQuickPick() {
-		return <any>new AuthQuickPick();
+cwass AuthTestQuickInputSewvice extends TestQuickInputSewvice {
+	ovewwide cweateQuickPick() {
+		wetuwn <any>new AuthQuickPick();
 	}
 }
 
-suite('MainThreadAuthentication', () => {
-	let mainThreadAuthentication: MainThreadAuthentication;
-	let instantiationService: TestInstantiationService;
+suite('MainThweadAuthentication', () => {
+	wet mainThweadAuthentication: MainThweadAuthentication;
+	wet instantiationSewvice: TestInstantiationSewvice;
 	suiteSetup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 		// extHostContext: IExtHostContext,
-		instantiationService.stub(IDialogService, new TestDialogService());
-		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());
-		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationSewvice.stub(IDiawogSewvice, new TestDiawogSewvice());
+		instantiationSewvice.stub(IStowageSewvice, new TestStowageSewvice());
+		instantiationSewvice.stub(IQuickInputSewvice, new AuthTestQuickInputSewvice());
+		instantiationSewvice.stub(IExtensionSewvice, new TestExtensionSewvice());
 
-		instantiationService.stub(IActivityService, new TestActivityService());
-		instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
-		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationSewvice.stub(IActivitySewvice, new TestActivitySewvice());
+		instantiationSewvice.stub(IWemoteAgentSewvice, new TestWemoteAgentSewvice());
+		instantiationSewvice.stub(INotificationSewvice, new TestNotificationSewvice());
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
 
-		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
-		mainThreadAuthentication = instantiationService.createInstance(MainThreadAuthentication,
-			new class implements IExtHostContext {
-				remoteAuthority = '';
-				extensionHostKind = ExtensionHostKind.LocalProcess;
-				assertRegistered() { }
-				set(v: any): any { return null; }
-				getProxy(): any {
-					return {
-						async $getSessions(id: string, scopes: string[]) {
-							// if we get the empty auth provider, return no sessions
-							return id === 'empty' ? [] : [createSession(id, scopes)];
+		instantiationSewvice.stub(IAuthenticationSewvice, instantiationSewvice.cweateInstance(AuthenticationSewvice));
+		mainThweadAuthentication = instantiationSewvice.cweateInstance(MainThweadAuthentication,
+			new cwass impwements IExtHostContext {
+				wemoteAuthowity = '';
+				extensionHostKind = ExtensionHostKind.WocawPwocess;
+				assewtWegistewed() { }
+				set(v: any): any { wetuwn nuww; }
+				getPwoxy(): any {
+					wetuwn {
+						async $getSessions(id: stwing, scopes: stwing[]) {
+							// if we get the empty auth pwovida, wetuwn no sessions
+							wetuwn id === 'empty' ? [] : [cweateSession(id, scopes)];
 						},
-						$createSession(id: string, scopes: string[]) {
-							return Promise.resolve(createSession(id, scopes));
+						$cweateSession(id: stwing, scopes: stwing[]) {
+							wetuwn Pwomise.wesowve(cweateSession(id, scopes));
 						},
-						$removeSession(id: string, sessionId: string) { return Promise.resolve(); },
-						$onDidChangeAuthenticationSessions(id: string, label: string) { return Promise.resolve(); },
-						$setProviders(providers: AuthenticationProviderInformation[]) { return Promise.resolve(); }
+						$wemoveSession(id: stwing, sessionId: stwing) { wetuwn Pwomise.wesowve(); },
+						$onDidChangeAuthenticationSessions(id: stwing, wabew: stwing) { wetuwn Pwomise.wesowve(); },
+						$setPwovidews(pwovidews: AuthenticationPwovidewInfowmation[]) { wetuwn Pwomise.wesowve(); }
 					};
 				}
-				drain(): any { return null; }
+				dwain(): any { wetuwn nuww; }
 			});
 	});
 
 	setup(async () => {
-		await mainThreadAuthentication.$registerAuthenticationProvider('test', 'test provider', true);
-		await mainThreadAuthentication.$registerAuthenticationProvider('empty', 'test provider', true);
+		await mainThweadAuthentication.$wegistewAuthenticationPwovida('test', 'test pwovida', twue);
+		await mainThweadAuthentication.$wegistewAuthenticationPwovida('empty', 'test pwovida', twue);
 	});
 
-	teardown(() => {
-		mainThreadAuthentication.$unregisterAuthenticationProvider('test');
-		mainThreadAuthentication.$unregisterAuthenticationProvider('empty');
+	teawdown(() => {
+		mainThweadAuthentication.$unwegistewAuthenticationPwovida('test');
+		mainThweadAuthentication.$unwegistewAuthenticationPwovida('empty');
 	});
 
 	test('Can get a session', async () => {
-		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
-			createIfNone: true,
-			clearSessionPreference: false,
-			forceNewSession: false
+		const session = await mainThweadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			cweateIfNone: twue,
+			cweawSessionPwefewence: fawse,
+			fowceNewSession: fawse
 		});
-		assert.strictEqual(session?.id, 'test');
-		assert.strictEqual(session?.scopes[0], 'foo');
+		assewt.stwictEquaw(session?.id, 'test');
+		assewt.stwictEquaw(session?.scopes[0], 'foo');
 	});
 
-	test('Can recreate a session', async () => {
-		const session = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
-			createIfNone: true,
-			clearSessionPreference: false,
-			forceNewSession: false
+	test('Can wecweate a session', async () => {
+		const session = await mainThweadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			cweateIfNone: twue,
+			cweawSessionPwefewence: fawse,
+			fowceNewSession: fawse
 		});
 
-		assert.strictEqual(session?.id, 'test');
-		assert.strictEqual(session?.scopes[0], 'foo');
+		assewt.stwictEquaw(session?.id, 'test');
+		assewt.stwictEquaw(session?.scopes[0], 'foo');
 
-		const session2 = await mainThreadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
-			createIfNone: false,
-			clearSessionPreference: false,
-			forceNewSession: true
+		const session2 = await mainThweadAuthentication.$getSession('test', ['foo'], 'testextension', 'test extension', {
+			cweateIfNone: fawse,
+			cweawSessionPwefewence: fawse,
+			fowceNewSession: twue
 		});
 
-		assert.strictEqual(session.id, session2?.id);
-		assert.strictEqual(session.scopes[0], session2?.scopes[0]);
-		assert.notStrictEqual(session.accessToken, session2?.accessToken);
+		assewt.stwictEquaw(session.id, session2?.id);
+		assewt.stwictEquaw(session.scopes[0], session2?.scopes[0]);
+		assewt.notStwictEquaw(session.accessToken, session2?.accessToken);
 	});
 
-	test('Can not recreate a session if none exists', async () => {
-		try {
-			await mainThreadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
-				createIfNone: false,
-				clearSessionPreference: false,
-				forceNewSession: true
+	test('Can not wecweate a session if none exists', async () => {
+		twy {
+			await mainThweadAuthentication.$getSession('empty', ['foo'], 'testextension', 'test extension', {
+				cweateIfNone: fawse,
+				cweawSessionPwefewence: fawse,
+				fowceNewSession: twue
 			});
-			assert.fail('should have thrown an Error.');
+			assewt.faiw('shouwd have thwown an Ewwow.');
 		} catch (e) {
-			assert.strictEqual(e.message, 'No existing sessions found.');
+			assewt.stwictEquaw(e.message, 'No existing sessions found.');
 		}
 	});
 });

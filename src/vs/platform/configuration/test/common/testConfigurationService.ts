@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, getConfigurationValue, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { TewnawySeawchTwee } fwom 'vs/base/common/map';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { getConfiguwationKeys, getConfiguwationVawue, IConfiguwationOvewwides, IConfiguwationSewvice, IConfiguwationVawue, isConfiguwationOvewwides } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export class TestConfigurationService implements IConfigurationService {
-	public _serviceBrand: undefined;
+expowt cwass TestConfiguwationSewvice impwements IConfiguwationSewvice {
+	pubwic _sewviceBwand: undefined;
 
-	private configuration: any;
-	readonly onDidChangeConfiguration = new Emitter<any>().event;
+	pwivate configuwation: any;
+	weadonwy onDidChangeConfiguwation = new Emitta<any>().event;
 
-	constructor(configuration?: any) {
-		this.configuration = configuration || Object.create(null);
+	constwuctow(configuwation?: any) {
+		this.configuwation = configuwation || Object.cweate(nuww);
 	}
 
-	private configurationByRoot: TernarySearchTree<string, any> = TernarySearchTree.forPaths<any>();
+	pwivate configuwationByWoot: TewnawySeawchTwee<stwing, any> = TewnawySeawchTwee.fowPaths<any>();
 
-	public reloadConfiguration<T>(): Promise<T> {
-		return Promise.resolve(this.getValue());
+	pubwic wewoadConfiguwation<T>(): Pwomise<T> {
+		wetuwn Pwomise.wesowve(this.getVawue());
 	}
 
-	public getValue(arg1?: any, arg2?: any): any {
-		let configuration;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : undefined;
-		if (overrides) {
-			if (overrides.resource) {
-				configuration = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
+	pubwic getVawue(awg1?: any, awg2?: any): any {
+		wet configuwation;
+		const ovewwides = isConfiguwationOvewwides(awg1) ? awg1 : isConfiguwationOvewwides(awg2) ? awg2 : undefined;
+		if (ovewwides) {
+			if (ovewwides.wesouwce) {
+				configuwation = this.configuwationByWoot.findSubstw(ovewwides.wesouwce.fsPath);
 			}
 		}
-		configuration = configuration ? configuration : this.configuration;
-		if (arg1 && typeof arg1 === 'string') {
-			return configuration[arg1] ?? getConfigurationValue(configuration, arg1);
+		configuwation = configuwation ? configuwation : this.configuwation;
+		if (awg1 && typeof awg1 === 'stwing') {
+			wetuwn configuwation[awg1] ?? getConfiguwationVawue(configuwation, awg1);
 		}
-		return configuration;
+		wetuwn configuwation;
 	}
 
-	public updateValue(key: string, value: any): Promise<void> {
-		return Promise.resolve(undefined);
+	pubwic updateVawue(key: stwing, vawue: any): Pwomise<void> {
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public setUserConfiguration(key: any, value: any, root?: URI): Promise<void> {
-		if (root) {
-			const configForRoot = this.configurationByRoot.get(root.fsPath) || Object.create(null);
-			configForRoot[key] = value;
-			this.configurationByRoot.set(root.fsPath, configForRoot);
-		} else {
-			this.configuration[key] = value;
+	pubwic setUsewConfiguwation(key: any, vawue: any, woot?: UWI): Pwomise<void> {
+		if (woot) {
+			const configFowWoot = this.configuwationByWoot.get(woot.fsPath) || Object.cweate(nuww);
+			configFowWoot[key] = vawue;
+			this.configuwationByWoot.set(woot.fsPath, configFowWoot);
+		} ewse {
+			this.configuwation[key] = vawue;
 		}
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
-		const config = this.getValue(undefined, overrides);
+	pubwic inspect<T>(key: stwing, ovewwides?: IConfiguwationOvewwides): IConfiguwationVawue<T> {
+		const config = this.getVawue(undefined, ovewwides);
 
-		return {
-			value: getConfigurationValue<T>(config, key),
-			defaultValue: getConfigurationValue<T>(config, key),
-			userValue: getConfigurationValue<T>(config, key)
+		wetuwn {
+			vawue: getConfiguwationVawue<T>(config, key),
+			defauwtVawue: getConfiguwationVawue<T>(config, key),
+			usewVawue: getConfiguwationVawue<T>(config, key)
 		};
 	}
 
-	public keys() {
-		return {
-			default: getConfigurationKeys(),
-			user: Object.keys(this.configuration),
-			workspace: [],
-			workspaceFolder: []
+	pubwic keys() {
+		wetuwn {
+			defauwt: getConfiguwationKeys(),
+			usa: Object.keys(this.configuwation),
+			wowkspace: [],
+			wowkspaceFowda: []
 		};
 	}
 
-	public getConfigurationData() {
-		return null;
+	pubwic getConfiguwationData() {
+		wetuwn nuww;
 	}
 }

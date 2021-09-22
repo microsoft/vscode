@@ -1,144 +1,144 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  - task: geekweawningio.gw-vsts-tasks-yawn.yawn-instawwa-task.YawnInstawwa@2
     inputs:
-      versionSpec: "1.x"
+      vewsionSpec: "1.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'github-distwo-mixin-passwowd,ticino-stowage-key'
 
-  - script: |
+  - scwipt: |
       set -e
-      cat << EOF > ~/.netrc
+      cat << EOF > ~/.netwc
       machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
+      wogin vscode
+      passwowd $(github-distwo-mixin-passwowd)
       EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+      git config usa.emaiw "vscode@micwosoft.com"
+      git config usa.name "VSCode"
+    dispwayName: Pwepawe toowing
 
-  - script: |
+  - scwipt: |
       set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+      git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo")
+    dispwayName: Mewge distwo
 
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  - scwipt: |
+      mkdiw -p .buiwd
+      node buiwd/azuwe-pipewines/common/computeNodeModuwesCacheKey.js $VSCODE_AWCH $ENABWE_TEWWAPIN > .buiwd/yawnwockhash
+    dispwayName: Pwepawe yawn cache fwags
 
-  # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
+  # using `genewicNodeModuwes` instead of `nodeModuwes` hewe to avoid shawing the cache with buiwds wunning inside containews
   - task: Cache@2
     inputs:
-      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+      key: "genewicNodeModuwes | $(Agent.OS) | .buiwd/yawnwockhash"
+      path: .buiwd/node_moduwes_cache
+      cacheHitVaw: NODE_MODUWES_WESTOWED
+    dispwayName: Westowe node_moduwes cache
 
-  - script: |
+  - scwipt: |
       set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+      taw -xzf .buiwd/node_moduwes_cache/cache.tgz
+    condition: and(succeeded(), eq(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Extwact node_moduwes cache
 
-  - script: |
+  - scwipt: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
+      npx https://aka.ms/enabwesecuwefeed standAwone
     timeoutInMinutes: 5
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'), eq(vawiabwes['ENABWE_TEWWAPIN'], 'twue'))
+    dispwayName: Switch to Tewwapin packages
 
-  - script: |
+  - scwipt: |
       set -e
       sudo apt update -y
-      sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libsecret-1-dev libnotify-bin
-    displayName: Install build tools
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      sudo apt instaww -y buiwd-essentiaw pkg-config wibx11-dev wibx11-xcb-dev wibxkbfiwe-dev wibsecwet-1-dev wibnotify-bin
+    dispwayName: Instaww buiwd toows
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
 
-  - script: |
+  - scwipt: |
       set -e
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
+      fow i in {1..3}; do # twy 3 times, fow Tewwapin
+        yawn --fwozen-wockfiwe && bweak
         if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+          echo "Yawn faiwed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Yawn faiwed $i, twying again..."
       done
     env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      EWECTWON_SKIP_BINAWY_DOWNWOAD: 1
+      PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+      GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+    dispwayName: Instaww dependencies
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
 
-  - script: |
+  - scwipt: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+      node buiwd/azuwe-pipewines/common/wistNodeModuwes.js .buiwd/node_moduwes_wist.txt
+      mkdiw -p .buiwd/node_moduwes_cache
+      taw -czf .buiwd/node_moduwes_cache/cache.tgz --fiwes-fwom .buiwd/node_moduwes_wist.txt
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Cweate node_moduwes awchive
 
-  # Mixin must run before optimize, because the CSS loader will inline small SVGs
-  - script: |
+  # Mixin must wun befowe optimize, because the CSS woada wiww inwine smaww SVGs
+  - scwipt: |
       set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+      node buiwd/azuwe-pipewines/mixin
+    dispwayName: Mix in quawity
 
-  - script: |
+  - scwipt: |
       set -e
-      yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check
-    displayName: Compile & Hygiene
+      yawn npm-wun-aww -wp cowe-ci extensions-ci hygiene eswint vawid-wayews-check
+    dispwayName: Compiwe & Hygiene
 
-  - script: |
+  - scwipt: |
       set -e
-      yarn --cwd test/smoke compile
-      yarn --cwd test/integration/browser compile
-    displayName: Compile test suites
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      yawn --cwd test/smoke compiwe
+      yawn --cwd test/integwation/bwowsa compiwe
+    dispwayName: Compiwe test suites
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-        node build/azure-pipelines/upload-sourcemaps
-    displayName: Upload sourcemaps
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      AZUWE_STOWAGE_ACCESS_KEY="$(ticino-stowage-key)" \
+        node buiwd/azuwe-pipewines/upwoad-souwcemaps
+    dispwayName: Upwoad souwcemaps
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -
-      ./build/azure-pipelines/common/extract-telemetry.sh
-    displayName: Extract Telemetry
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      ./buiwd/azuwe-pipewines/common/extwact-tewemetwy.sh
+    dispwayName: Extwact Tewemetwy
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
-    displayName: Compress compilation artifact
+      taw -cz --ignowe-faiwed-wead -f $(Buiwd.AwtifactStagingDiwectowy)/compiwation.taw.gz .buiwd out-* test/integwation/bwowsa/out test/smoke/out test/automation/out
+    dispwayName: Compwess compiwation awtifact
 
-  - task: PublishPipelineArtifact@1
+  - task: PubwishPipewineAwtifact@1
     inputs:
-      targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      artifactName: Compilation
-    displayName: Publish compilation artifact
+      tawgetPath: $(Buiwd.AwtifactStagingDiwectowy)/compiwation.taw.gz
+      awtifactName: Compiwation
+    dispwayName: Pubwish compiwation awtifact
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn download-builtin-extensions-cg
-    displayName: Built-in extensions component details
+      VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)" \
+        yawn downwoad-buiwtin-extensions-cg
+    dispwayName: Buiwt-in extensions component detaiws
 
-  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-    displayName: "Component Detection"
+  - task: ms.vss-govewnance-buiwdtask.govewnance-buiwd-task-component-detection.ComponentGovewnanceComponentDetection@0
+    dispwayName: "Component Detection"
     inputs:
-      sourceScanPath: $(Build.SourcesDirectory)
-    continueOnError: true
+      souwceScanPath: $(Buiwd.SouwcesDiwectowy)
+    continueOnEwwow: twue

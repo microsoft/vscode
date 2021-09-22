@@ -1,444 +1,444 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { join, sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt { tmpdiw } fwom 'os';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { join, sep } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Pwomises, WimWafMode, wimwafSync, SymwinkSuppowt, wwiteFiweSync } fwom 'vs/base/node/pfs';
+impowt { fwakySuite, getPathFwomAmdModuwe, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
 
-flakySuite('PFS', function () {
+fwakySuite('PFS', function () {
 
-	let testDir: string;
+	wet testDiw: stwing;
 
 	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
+		testDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'pfs');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		wetuwn Pwomises.mkdiw(testDiw, { wecuwsive: twue });
 	});
 
-	teardown(() => {
-		return Promises.rm(testDir);
+	teawdown(() => {
+		wetuwn Pwomises.wm(testDiw);
 	});
 
-	test('writeFile', async () => {
-		const testFile = join(testDir, 'writefile.txt');
+	test('wwiteFiwe', async () => {
+		const testFiwe = join(testDiw, 'wwitefiwe.txt');
 
-		assert.ok(!(await Promises.exists(testFile)));
+		assewt.ok(!(await Pwomises.exists(testFiwe)));
 
-		await Promises.writeFile(testFile, 'Hello World', (null!));
+		await Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd', (nuww!));
 
-		assert.strictEqual((await Promises.readFile(testFile)).toString(), 'Hello World');
+		assewt.stwictEquaw((await Pwomises.weadFiwe(testFiwe)).toStwing(), 'Hewwo Wowwd');
 	});
 
-	test('writeFile - parallel write on different files works', async () => {
-		const testFile1 = join(testDir, 'writefile1.txt');
-		const testFile2 = join(testDir, 'writefile2.txt');
-		const testFile3 = join(testDir, 'writefile3.txt');
-		const testFile4 = join(testDir, 'writefile4.txt');
-		const testFile5 = join(testDir, 'writefile5.txt');
+	test('wwiteFiwe - pawawwew wwite on diffewent fiwes wowks', async () => {
+		const testFiwe1 = join(testDiw, 'wwitefiwe1.txt');
+		const testFiwe2 = join(testDiw, 'wwitefiwe2.txt');
+		const testFiwe3 = join(testDiw, 'wwitefiwe3.txt');
+		const testFiwe4 = join(testDiw, 'wwitefiwe4.txt');
+		const testFiwe5 = join(testDiw, 'wwitefiwe5.txt');
 
-		await Promise.all([
-			Promises.writeFile(testFile1, 'Hello World 1', (null!)),
-			Promises.writeFile(testFile2, 'Hello World 2', (null!)),
-			Promises.writeFile(testFile3, 'Hello World 3', (null!)),
-			Promises.writeFile(testFile4, 'Hello World 4', (null!)),
-			Promises.writeFile(testFile5, 'Hello World 5', (null!))
+		await Pwomise.aww([
+			Pwomises.wwiteFiwe(testFiwe1, 'Hewwo Wowwd 1', (nuww!)),
+			Pwomises.wwiteFiwe(testFiwe2, 'Hewwo Wowwd 2', (nuww!)),
+			Pwomises.wwiteFiwe(testFiwe3, 'Hewwo Wowwd 3', (nuww!)),
+			Pwomises.wwiteFiwe(testFiwe4, 'Hewwo Wowwd 4', (nuww!)),
+			Pwomises.wwiteFiwe(testFiwe5, 'Hewwo Wowwd 5', (nuww!))
 		]);
-		assert.strictEqual(fs.readFileSync(testFile1).toString(), 'Hello World 1');
-		assert.strictEqual(fs.readFileSync(testFile2).toString(), 'Hello World 2');
-		assert.strictEqual(fs.readFileSync(testFile3).toString(), 'Hello World 3');
-		assert.strictEqual(fs.readFileSync(testFile4).toString(), 'Hello World 4');
-		assert.strictEqual(fs.readFileSync(testFile5).toString(), 'Hello World 5');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe1).toStwing(), 'Hewwo Wowwd 1');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe2).toStwing(), 'Hewwo Wowwd 2');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe3).toStwing(), 'Hewwo Wowwd 3');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe4).toStwing(), 'Hewwo Wowwd 4');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe5).toStwing(), 'Hewwo Wowwd 5');
 	});
 
-	test('writeFile - parallel write on same files works and is sequentalized', async () => {
-		const testFile = join(testDir, 'writefile.txt');
+	test('wwiteFiwe - pawawwew wwite on same fiwes wowks and is sequentawized', async () => {
+		const testFiwe = join(testDiw, 'wwitefiwe.txt');
 
-		await Promise.all([
-			Promises.writeFile(testFile, 'Hello World 1', undefined),
-			Promises.writeFile(testFile, 'Hello World 2', undefined),
-			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 3', undefined)),
-			Promises.writeFile(testFile, 'Hello World 4', undefined),
-			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 5', undefined))
+		await Pwomise.aww([
+			Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd 1', undefined),
+			Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd 2', undefined),
+			timeout(10).then(() => Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd 3', undefined)),
+			Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd 4', undefined),
+			timeout(10).then(() => Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd 5', undefined))
 		]);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World 5');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe).toStwing(), 'Hewwo Wowwd 5');
 	});
 
-	test('rimraf - simple - unlink', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwaf - simpwe - unwink', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		await Promises.rm(testDir);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(testDiw);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimraf - simple - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwaf - simpwe - move', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		await Promises.rm(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(testDiw, WimWafMode.MOVE);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimraf - recursive folder structure - unlink', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+	test('wimwaf - wecuwsive fowda stwuctuwe - unwink', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
+		fs.mkdiwSync(join(testDiw, 'somefowda'));
+		fs.wwiteFiweSync(join(testDiw, 'somefowda', 'somefiwe.txt'), 'Contents');
 
-		await Promises.rm(testDir);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(testDiw);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimraf - recursive folder structure - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+	test('wimwaf - wecuwsive fowda stwuctuwe - move', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
+		fs.mkdiwSync(join(testDiw, 'somefowda'));
+		fs.wwiteFiweSync(join(testDiw, 'somefowda', 'somefiwe.txt'), 'Contents');
 
-		await Promises.rm(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(testDiw, WimWafMode.MOVE);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimraf - simple ends with dot - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwaf - simpwe ends with dot - move', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		await Promises.rm(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(testDiw, WimWafMode.MOVE);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimraf - simple ends with dot slash/backslash - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwaf - simpwe ends with dot swash/backswash - move', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		await Promises.rm(`${testDir}${sep}`, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await Pwomises.wm(`${testDiw}${sep}`, WimWafMode.MOVE);
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimrafSync - swallows file not found error', function () {
-		const nonExistingDir = join(testDir, 'not-existing');
-		rimrafSync(nonExistingDir);
+	test('wimwafSync - swawwows fiwe not found ewwow', function () {
+		const nonExistingDiw = join(testDiw, 'not-existing');
+		wimwafSync(nonExistingDiw);
 
-		assert.ok(!fs.existsSync(nonExistingDir));
+		assewt.ok(!fs.existsSync(nonExistingDiw));
 	});
 
-	test('rimrafSync - simple', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwafSync - simpwe', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		rimrafSync(testDir);
+		wimwafSync(testDiw);
 
-		assert.ok(!fs.existsSync(testDir));
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('rimrafSync - recursive folder structure', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('wimwafSync - wecuwsive fowda stwuctuwe', async () => {
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+		fs.mkdiwSync(join(testDiw, 'somefowda'));
+		fs.wwiteFiweSync(join(testDiw, 'somefowda', 'somefiwe.txt'), 'Contents');
 
-		rimrafSync(testDir);
+		wimwafSync(testDiw);
 
-		assert.ok(!fs.existsSync(testDir));
+		assewt.ok(!fs.existsSync(testDiw));
 	});
 
-	test('copy, move and delete', async () => {
-		const id = generateUuid();
-		const id2 = generateUuid();
-		const sourceDir = getPathFromAmdModule(require, './fixtures');
-		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
-		const targetDir = join(parentDir, id);
-		const targetDir2 = join(parentDir, id2);
+	test('copy, move and dewete', async () => {
+		const id = genewateUuid();
+		const id2 = genewateUuid();
+		const souwceDiw = getPathFwomAmdModuwe(wequiwe, './fixtuwes');
+		const pawentDiw = join(tmpdiw(), 'vsctests', 'pfs');
+		const tawgetDiw = join(pawentDiw, id);
+		const tawgetDiw2 = join(pawentDiw, id2);
 
-		await Promises.copy(sourceDir, targetDir, { preserveSymlinks: true });
+		await Pwomises.copy(souwceDiw, tawgetDiw, { pwesewveSymwinks: twue });
 
-		assert.ok(fs.existsSync(targetDir));
-		assert.ok(fs.existsSync(join(targetDir, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir, 'site.css')));
-		assert.ok(fs.existsSync(join(targetDir, 'examples')));
-		assert.ok(fs.statSync(join(targetDir, 'examples')).isDirectory());
-		assert.ok(fs.existsSync(join(targetDir, 'examples', 'small.jxs')));
+		assewt.ok(fs.existsSync(tawgetDiw));
+		assewt.ok(fs.existsSync(join(tawgetDiw, 'index.htmw')));
+		assewt.ok(fs.existsSync(join(tawgetDiw, 'site.css')));
+		assewt.ok(fs.existsSync(join(tawgetDiw, 'exampwes')));
+		assewt.ok(fs.statSync(join(tawgetDiw, 'exampwes')).isDiwectowy());
+		assewt.ok(fs.existsSync(join(tawgetDiw, 'exampwes', 'smaww.jxs')));
 
-		await Promises.move(targetDir, targetDir2);
+		await Pwomises.move(tawgetDiw, tawgetDiw2);
 
-		assert.ok(!fs.existsSync(targetDir));
-		assert.ok(fs.existsSync(targetDir2));
-		assert.ok(fs.existsSync(join(targetDir2, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir2, 'site.css')));
-		assert.ok(fs.existsSync(join(targetDir2, 'examples')));
-		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
-		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
+		assewt.ok(!fs.existsSync(tawgetDiw));
+		assewt.ok(fs.existsSync(tawgetDiw2));
+		assewt.ok(fs.existsSync(join(tawgetDiw2, 'index.htmw')));
+		assewt.ok(fs.existsSync(join(tawgetDiw2, 'site.css')));
+		assewt.ok(fs.existsSync(join(tawgetDiw2, 'exampwes')));
+		assewt.ok(fs.statSync(join(tawgetDiw2, 'exampwes')).isDiwectowy());
+		assewt.ok(fs.existsSync(join(tawgetDiw2, 'exampwes', 'smaww.jxs')));
 
-		await Promises.move(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
+		await Pwomises.move(join(tawgetDiw2, 'index.htmw'), join(tawgetDiw2, 'index_moved.htmw'));
 
-		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
+		assewt.ok(!fs.existsSync(join(tawgetDiw2, 'index.htmw')));
+		assewt.ok(fs.existsSync(join(tawgetDiw2, 'index_moved.htmw')));
 
-		await Promises.rm(parentDir);
+		await Pwomises.wm(pawentDiw);
 
-		assert.ok(!fs.existsSync(parentDir));
+		assewt.ok(!fs.existsSync(pawentDiw));
 	});
 
-	test('copy handles symbolic links', async () => {
-		const id1 = generateUuid();
-		const symbolicLinkTarget = join(testDir, id1);
+	test('copy handwes symbowic winks', async () => {
+		const id1 = genewateUuid();
+		const symbowicWinkTawget = join(testDiw, id1);
 
-		const id2 = generateUuid();
-		const symLink = join(testDir, id2);
+		const id2 = genewateUuid();
+		const symWink = join(testDiw, id2);
 
-		const id3 = generateUuid();
-		const copyTarget = join(testDir, id3);
+		const id3 = genewateUuid();
+		const copyTawget = join(testDiw, id3);
 
-		await Promises.mkdir(symbolicLinkTarget, { recursive: true });
+		await Pwomises.mkdiw(symbowicWinkTawget, { wecuwsive: twue });
 
-		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
+		fs.symwinkSync(symbowicWinkTawget, symWink, 'junction');
 
-		// Copy preserves symlinks if configured as such
+		// Copy pwesewves symwinks if configuwed as such
 		//
-		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
+		// Windows: this test does not wowk because cweating symwinks
+		// wequiwes pwiviwedged pewmissions (admin).
 		if (!isWindows) {
-			await Promises.copy(symLink, copyTarget, { preserveSymlinks: true });
+			await Pwomises.copy(symWink, copyTawget, { pwesewveSymwinks: twue });
 
-			assert.ok(fs.existsSync(copyTarget));
+			assewt.ok(fs.existsSync(copyTawget));
 
-			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(symbolicLink);
-			assert.ok(!symbolicLink.dangling);
+			const { symbowicWink } = await SymwinkSuppowt.stat(copyTawget);
+			assewt.ok(symbowicWink);
+			assewt.ok(!symbowicWink.dangwing);
 
-			const target = await Promises.readlink(copyTarget);
-			assert.strictEqual(target, symbolicLinkTarget);
+			const tawget = await Pwomises.weadwink(copyTawget);
+			assewt.stwictEquaw(tawget, symbowicWinkTawget);
 
-			// Copy does not preserve symlinks if configured as such
+			// Copy does not pwesewve symwinks if configuwed as such
 
-			await Promises.rm(copyTarget);
-			await Promises.copy(symLink, copyTarget, { preserveSymlinks: false });
+			await Pwomises.wm(copyTawget);
+			await Pwomises.copy(symWink, copyTawget, { pwesewveSymwinks: fawse });
 
-			assert.ok(fs.existsSync(copyTarget));
+			assewt.ok(fs.existsSync(copyTawget));
 
-			const { symbolicLink: symbolicLink2 } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(!symbolicLink2);
+			const { symbowicWink: symbowicWink2 } = await SymwinkSuppowt.stat(copyTawget);
+			assewt.ok(!symbowicWink2);
 		}
 
-		// Copy does not fail over dangling symlinks
+		// Copy does not faiw ova dangwing symwinks
 
-		await Promises.rm(copyTarget);
-		await Promises.rm(symbolicLinkTarget);
+		await Pwomises.wm(copyTawget);
+		await Pwomises.wm(symbowicWinkTawget);
 
-		await Promises.copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
+		await Pwomises.copy(symWink, copyTawget, { pwesewveSymwinks: twue }); // this shouwd not thwow
 
 		if (!isWindows) {
-			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(symbolicLink?.dangling);
-		} else {
-			assert.ok(!fs.existsSync(copyTarget));
+			const { symbowicWink } = await SymwinkSuppowt.stat(copyTawget);
+			assewt.ok(symbowicWink?.dangwing);
+		} ewse {
+			assewt.ok(!fs.existsSync(copyTawget));
 		}
 	});
 
-	test('copy handles symbolic links when the reference is inside source', async () => {
+	test('copy handwes symbowic winks when the wefewence is inside souwce', async () => {
 
-		// Source Folder
-		const sourceFolder = join(testDir, generateUuid(), 'copy-test'); 	// copy-test
-		const sourceLinkTestFolder = join(sourceFolder, 'link-test');		// copy-test/link-test
-		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
-		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
-		await Promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
-		await Promises.writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
+		// Souwce Fowda
+		const souwceFowda = join(testDiw, genewateUuid(), 'copy-test'); 	// copy-test
+		const souwceWinkTestFowda = join(souwceFowda, 'wink-test');		// copy-test/wink-test
+		const souwceWinkMD5JSFowda = join(souwceWinkTestFowda, 'md5');	// copy-test/wink-test/md5
+		const souwceWinkMD5JSFiwe = join(souwceWinkMD5JSFowda, 'md5.js');	// copy-test/wink-test/md5/md5.js
+		await Pwomises.mkdiw(souwceWinkMD5JSFowda, { wecuwsive: twue });
+		await Pwomises.wwiteFiwe(souwceWinkMD5JSFiwe, 'Hewwo fwom MD5');
 
-		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
-		fs.symlinkSync(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked, 'junction');
+		const souwceWinkMD5JSFowdewWinked = join(souwceWinkTestFowda, 'md5-winked');	// copy-test/wink-test/md5-winked
+		fs.symwinkSync(souwceWinkMD5JSFowda, souwceWinkMD5JSFowdewWinked, 'junction');
 
-		// Target Folder
-		const targetLinkTestFolder = join(sourceFolder, 'link-test copy');				// copy-test/link-test copy
-		const targetLinkMD5JSFolder = join(targetLinkTestFolder, 'md5');				// copy-test/link-test copy/md5
-		const targetLinkMD5JSFile = join(targetLinkMD5JSFolder, 'md5.js');				// copy-test/link-test copy/md5/md5.js
-		const targetLinkMD5JSFolderLinked = join(targetLinkTestFolder, 'md5-linked');	// copy-test/link-test copy/md5-linked
+		// Tawget Fowda
+		const tawgetWinkTestFowda = join(souwceFowda, 'wink-test copy');				// copy-test/wink-test copy
+		const tawgetWinkMD5JSFowda = join(tawgetWinkTestFowda, 'md5');				// copy-test/wink-test copy/md5
+		const tawgetWinkMD5JSFiwe = join(tawgetWinkMD5JSFowda, 'md5.js');				// copy-test/wink-test copy/md5/md5.js
+		const tawgetWinkMD5JSFowdewWinked = join(tawgetWinkTestFowda, 'md5-winked');	// copy-test/wink-test copy/md5-winked
 
-		// Copy with `preserveSymlinks: true` and verify result
+		// Copy with `pwesewveSymwinks: twue` and vewify wesuwt
 		//
-		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
+		// Windows: this test does not wowk because cweating symwinks
+		// wequiwes pwiviwedged pewmissions (admin).
 		if (!isWindows) {
-			await Promises.copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
+			await Pwomises.copy(souwceWinkTestFowda, tawgetWinkTestFowda, { pwesewveSymwinks: twue });
 
-			assert.ok(fs.existsSync(targetLinkTestFolder));
-			assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-			assert.ok(fs.existsSync(targetLinkMD5JSFile));
-			assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-			assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
+			assewt.ok(fs.existsSync(tawgetWinkTestFowda));
+			assewt.ok(fs.existsSync(tawgetWinkMD5JSFowda));
+			assewt.ok(fs.existsSync(tawgetWinkMD5JSFiwe));
+			assewt.ok(fs.existsSync(tawgetWinkMD5JSFowdewWinked));
+			assewt.ok(fs.wstatSync(tawgetWinkMD5JSFowdewWinked).isSymbowicWink());
 
-			const linkTarget = await Promises.readlink(targetLinkMD5JSFolderLinked);
-			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
+			const winkTawget = await Pwomises.weadwink(tawgetWinkMD5JSFowdewWinked);
+			assewt.stwictEquaw(winkTawget, tawgetWinkMD5JSFowda);
 
-			await Promises.rmdir(targetLinkTestFolder, { recursive: true });
+			await Pwomises.wmdiw(tawgetWinkTestFowda, { wecuwsive: twue });
 		}
 
-		// Copy with `preserveSymlinks: false` and verify result
-		await Promises.copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
+		// Copy with `pwesewveSymwinks: fawse` and vewify wesuwt
+		await Pwomises.copy(souwceWinkTestFowda, tawgetWinkTestFowda, { pwesewveSymwinks: fawse });
 
-		assert.ok(fs.existsSync(targetLinkTestFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFile));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-		assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isDirectory());
+		assewt.ok(fs.existsSync(tawgetWinkTestFowda));
+		assewt.ok(fs.existsSync(tawgetWinkMD5JSFowda));
+		assewt.ok(fs.existsSync(tawgetWinkMD5JSFiwe));
+		assewt.ok(fs.existsSync(tawgetWinkMD5JSFowdewWinked));
+		assewt.ok(fs.wstatSync(tawgetWinkMD5JSFowdewWinked).isDiwectowy());
 	});
 
-	test('readDirsInDir', async () => {
-		fs.mkdirSync(join(testDir, 'somefolder1'));
-		fs.mkdirSync(join(testDir, 'somefolder2'));
-		fs.mkdirSync(join(testDir, 'somefolder3'));
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+	test('weadDiwsInDiw', async () => {
+		fs.mkdiwSync(join(testDiw, 'somefowdew1'));
+		fs.mkdiwSync(join(testDiw, 'somefowdew2'));
+		fs.mkdiwSync(join(testDiw, 'somefowdew3'));
+		fs.wwiteFiweSync(join(testDiw, 'somefiwe.txt'), 'Contents');
+		fs.wwiteFiweSync(join(testDiw, 'someOthewFiwe.txt'), 'Contents');
 
-		const result = await Promises.readDirsInDir(testDir);
-		assert.strictEqual(result.length, 3);
-		assert.ok(result.indexOf('somefolder1') !== -1);
-		assert.ok(result.indexOf('somefolder2') !== -1);
-		assert.ok(result.indexOf('somefolder3') !== -1);
+		const wesuwt = await Pwomises.weadDiwsInDiw(testDiw);
+		assewt.stwictEquaw(wesuwt.wength, 3);
+		assewt.ok(wesuwt.indexOf('somefowdew1') !== -1);
+		assewt.ok(wesuwt.indexOf('somefowdew2') !== -1);
+		assewt.ok(wesuwt.indexOf('somefowdew3') !== -1);
 	});
 
-	test('stat link', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
+	test('stat wink', async () => {
+		const id1 = genewateUuid();
+		const diwectowy = join(testDiw, id1);
 
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const id2 = genewateUuid();
+		const symbowicWink = join(testDiw, id2);
 
-		await Promises.mkdir(directory, { recursive: true });
+		await Pwomises.mkdiw(diwectowy, { wecuwsive: twue });
 
-		fs.symlinkSync(directory, symbolicLink, 'junction');
+		fs.symwinkSync(diwectowy, symbowicWink, 'junction');
 
-		let statAndIsLink = await SymlinkSupport.stat(directory);
-		assert.ok(!statAndIsLink?.symbolicLink);
+		wet statAndIsWink = await SymwinkSuppowt.stat(diwectowy);
+		assewt.ok(!statAndIsWink?.symbowicWink);
 
-		statAndIsLink = await SymlinkSupport.stat(symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink);
-		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
+		statAndIsWink = await SymwinkSuppowt.stat(symbowicWink);
+		assewt.ok(statAndIsWink?.symbowicWink);
+		assewt.ok(!statAndIsWink?.symbowicWink?.dangwing);
 	});
 
-	test('stat link (non existing target)', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
+	test('stat wink (non existing tawget)', async () => {
+		const id1 = genewateUuid();
+		const diwectowy = join(testDiw, id1);
 
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const id2 = genewateUuid();
+		const symbowicWink = join(testDiw, id2);
 
-		await Promises.mkdir(directory, { recursive: true });
+		await Pwomises.mkdiw(diwectowy, { wecuwsive: twue });
 
-		fs.symlinkSync(directory, symbolicLink, 'junction');
+		fs.symwinkSync(diwectowy, symbowicWink, 'junction');
 
-		await Promises.rm(directory);
+		await Pwomises.wm(diwectowy);
 
-		const statAndIsLink = await SymlinkSupport.stat(symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink?.dangling);
+		const statAndIsWink = await SymwinkSuppowt.stat(symbowicWink);
+		assewt.ok(statAndIsWink?.symbowicWink);
+		assewt.ok(statAndIsWink?.symbowicWink?.dangwing);
 	});
 
-	test('readdir', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const id = generateUuid();
-			const newDir = join(testDir, 'pfs', id, 'öäü');
+	test('weaddiw', async () => {
+		if (typeof pwocess.vewsions['ewectwon'] !== 'undefined' /* needs ewectwon */) {
+			const id = genewateUuid();
+			const newDiw = join(testDiw, 'pfs', id, 'öäü');
 
-			await Promises.mkdir(newDir, { recursive: true });
+			await Pwomises.mkdiw(newDiw, { wecuwsive: twue });
 
-			assert.ok(fs.existsSync(newDir));
+			assewt.ok(fs.existsSync(newDiw));
 
-			const children = await Promises.readdir(join(testDir, 'pfs', id));
-			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
-		}
-	});
-
-	test('readdir (with file types)', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const newDir = join(testDir, 'öäü');
-			await Promises.mkdir(newDir, { recursive: true });
-
-			await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
-
-			assert.ok(fs.existsSync(newDir));
-
-			const children = await Promises.readdir(testDir, { withFileTypes: true });
-
-			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
-			assert.strictEqual(children.some(n => n.isDirectory()), true);
-
-			assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
-			assert.strictEqual(children.some(n => n.isFile()), true);
+			const chiwdwen = await Pwomises.weaddiw(join(testDiw, 'pfs', id));
+			assewt.stwictEquaw(chiwdwen.some(n => n === 'öäü'), twue); // Mac awways convewts to NFD, so
 		}
 	});
 
-	test('writeFile (string)', async () => {
-		const smallData = 'Hello World';
-		const bigData = (new Array(100 * 1024)).join('Large String\n');
+	test('weaddiw (with fiwe types)', async () => {
+		if (typeof pwocess.vewsions['ewectwon'] !== 'undefined' /* needs ewectwon */) {
+			const newDiw = join(testDiw, 'öäü');
+			await Pwomises.mkdiw(newDiw, { wecuwsive: twue });
 
-		return testWriteFileAndFlush(smallData, smallData, bigData, bigData);
+			await Pwomises.wwiteFiwe(join(testDiw, 'somefiwe.txt'), 'contents');
+
+			assewt.ok(fs.existsSync(newDiw));
+
+			const chiwdwen = await Pwomises.weaddiw(testDiw, { withFiweTypes: twue });
+
+			assewt.stwictEquaw(chiwdwen.some(n => n.name === 'öäü'), twue); // Mac awways convewts to NFD, so
+			assewt.stwictEquaw(chiwdwen.some(n => n.isDiwectowy()), twue);
+
+			assewt.stwictEquaw(chiwdwen.some(n => n.name === 'somefiwe.txt'), twue);
+			assewt.stwictEquaw(chiwdwen.some(n => n.isFiwe()), twue);
+		}
 	});
 
-	test('writeFile (Buffer)', async () => {
-		const smallData = 'Hello World';
-		const bigData = (new Array(100 * 1024)).join('Large String\n');
+	test('wwiteFiwe (stwing)', async () => {
+		const smawwData = 'Hewwo Wowwd';
+		const bigData = (new Awway(100 * 1024)).join('Wawge Stwing\n');
 
-		return testWriteFileAndFlush(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData);
+		wetuwn testWwiteFiweAndFwush(smawwData, smawwData, bigData, bigData);
 	});
 
-	test('writeFile (UInt8Array)', async () => {
-		const smallData = 'Hello World';
-		const bigData = (new Array(100 * 1024)).join('Large String\n');
+	test('wwiteFiwe (Buffa)', async () => {
+		const smawwData = 'Hewwo Wowwd';
+		const bigData = (new Awway(100 * 1024)).join('Wawge Stwing\n');
 
-		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
+		wetuwn testWwiteFiweAndFwush(Buffa.fwom(smawwData), smawwData, Buffa.fwom(bigData), bigData);
 	});
 
-	async function testWriteFileAndFlush(
-		smallData: string | Buffer | Uint8Array,
-		smallDataValue: string,
-		bigData: string | Buffer | Uint8Array,
-		bigDataValue: string
-	): Promise<void> {
-		const testFile = join(testDir, 'flushed.txt');
+	test('wwiteFiwe (UInt8Awway)', async () => {
+		const smawwData = 'Hewwo Wowwd';
+		const bigData = (new Awway(100 * 1024)).join('Wawge Stwing\n');
 
-		assert.ok(fs.existsSync(testDir));
+		wetuwn testWwiteFiweAndFwush(VSBuffa.fwomStwing(smawwData).buffa, smawwData, VSBuffa.fwomStwing(bigData).buffa, bigData);
+	});
 
-		await Promises.writeFile(testFile, smallData);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), smallDataValue);
+	async function testWwiteFiweAndFwush(
+		smawwData: stwing | Buffa | Uint8Awway,
+		smawwDataVawue: stwing,
+		bigData: stwing | Buffa | Uint8Awway,
+		bigDataVawue: stwing
+	): Pwomise<void> {
+		const testFiwe = join(testDiw, 'fwushed.txt');
 
-		await Promises.writeFile(testFile, bigData);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), bigDataValue);
+		assewt.ok(fs.existsSync(testDiw));
+
+		await Pwomises.wwiteFiwe(testFiwe, smawwData);
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe).toStwing(), smawwDataVawue);
+
+		await Pwomises.wwiteFiwe(testFiwe, bigData);
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe).toStwing(), bigDataVawue);
 	}
 
-	test('writeFile (string, error handling)', async () => {
-		const testFile = join(testDir, 'flushed.txt');
+	test('wwiteFiwe (stwing, ewwow handwing)', async () => {
+		const testFiwe = join(testDiw, 'fwushed.txt');
 
-		fs.mkdirSync(testFile); // this will trigger an error later because testFile is now a directory!
+		fs.mkdiwSync(testFiwe); // this wiww twigga an ewwow wata because testFiwe is now a diwectowy!
 
-		let expectedError: Error | undefined;
-		try {
-			await Promises.writeFile(testFile, 'Hello World');
-		} catch (error) {
-			expectedError = error;
+		wet expectedEwwow: Ewwow | undefined;
+		twy {
+			await Pwomises.wwiteFiwe(testFiwe, 'Hewwo Wowwd');
+		} catch (ewwow) {
+			expectedEwwow = ewwow;
 		}
 
-		assert.ok(expectedError);
+		assewt.ok(expectedEwwow);
 	});
 
-	test('writeFileSync', async () => {
-		const testFile = join(testDir, 'flushed.txt');
+	test('wwiteFiweSync', async () => {
+		const testFiwe = join(testDiw, 'fwushed.txt');
 
-		writeFileSync(testFile, 'Hello World');
-		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World');
+		wwiteFiweSync(testFiwe, 'Hewwo Wowwd');
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe).toStwing(), 'Hewwo Wowwd');
 
-		const largeString = (new Array(100 * 1024)).join('Large String\n');
+		const wawgeStwing = (new Awway(100 * 1024)).join('Wawge Stwing\n');
 
-		writeFileSync(testFile, largeString);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
+		wwiteFiweSync(testFiwe, wawgeStwing);
+		assewt.stwictEquaw(fs.weadFiweSync(testFiwe).toStwing(), wawgeStwing);
 	});
 });

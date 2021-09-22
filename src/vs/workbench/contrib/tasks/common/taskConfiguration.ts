@@ -1,253 +1,253 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Platform } from 'vs/base/common/platform';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { Pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt * as Types fwom 'vs/base/common/types';
+impowt * as UUID fwom 'vs/base/common/uuid';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
-import {
-	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
-	isNamedProblemMatcher, ProblemMatcherRegistry
-} from 'vs/workbench/contrib/tasks/common/problemMatcher';
+impowt { VawidationStatus, IPwobwemWepowta as IPwobwemWepowtewBase } fwom 'vs/base/common/pawsews';
+impowt {
+	NamedPwobwemMatcha, PwobwemMatcha, PwobwemMatchewPawsa, Config as PwobwemMatchewConfig,
+	isNamedPwobwemMatcha, PwobwemMatchewWegistwy
+} fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import * as Tasks from './tasks';
-import { TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { URI } from 'vs/base/common/uri';
-import { USER_TASKS_GROUP_KEY, ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+impowt { IWowkspaceFowda, IWowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt * as Tasks fwom './tasks';
+impowt { TaskDefinitionWegistwy } fwom './taskDefinitionWegistwy';
+impowt { ConfiguwedInput } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { USEW_TASKS_GWOUP_KEY, ShewwExecutionSuppowtedContext, PwocessExecutionSuppowtedContext } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-export const enum ShellQuoting {
+expowt const enum ShewwQuoting {
 	/**
-	 * Default is character escaping.
+	 * Defauwt is chawacta escaping.
 	 */
 	escape = 1,
 
 	/**
-	 * Default is strong quoting
+	 * Defauwt is stwong quoting
 	 */
-	strong = 2,
+	stwong = 2,
 
 	/**
-	 * Default is weak quoting.
+	 * Defauwt is weak quoting.
 	 */
 	weak = 3
 }
 
-export interface ShellQuotingOptions {
+expowt intewface ShewwQuotingOptions {
 	/**
-	 * The character used to do character escaping.
+	 * The chawacta used to do chawacta escaping.
 	 */
-	escape?: string | {
-		escapeChar: string;
-		charsToEscape: string;
+	escape?: stwing | {
+		escapeChaw: stwing;
+		chawsToEscape: stwing;
 	};
 
 	/**
-	 * The character used for string quoting.
+	 * The chawacta used fow stwing quoting.
 	 */
-	strong?: string;
+	stwong?: stwing;
 
 	/**
-	 * The character used for weak quoting.
+	 * The chawacta used fow weak quoting.
 	 */
-	weak?: string;
+	weak?: stwing;
 }
 
-export interface ShellConfiguration {
-	executable?: string;
-	args?: string[];
-	quoting?: ShellQuotingOptions;
+expowt intewface ShewwConfiguwation {
+	executabwe?: stwing;
+	awgs?: stwing[];
+	quoting?: ShewwQuotingOptions;
 }
 
-export interface CommandOptionsConfig {
+expowt intewface CommandOptionsConfig {
 	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
+	 * The cuwwent wowking diwectowy of the executed pwogwam ow sheww.
+	 * If omitted VSCode's cuwwent wowkspace woot is used.
 	 */
-	cwd?: string;
+	cwd?: stwing;
 
 	/**
-	 * The additional environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
+	 * The additionaw enviwonment of the executed pwogwam ow sheww. If omitted
+	 * the pawent pwocess' enviwonment is used.
 	 */
-	env?: IStringDictionary<string>;
+	env?: IStwingDictionawy<stwing>;
 
 	/**
-	 * The shell configuration;
+	 * The sheww configuwation;
 	 */
-	shell?: ShellConfiguration;
+	sheww?: ShewwConfiguwation;
 }
 
-export interface PresentationOptionsConfig {
+expowt intewface PwesentationOptionsConfig {
 	/**
-	 * Controls whether the terminal executing a task is brought to front or not.
-	 * Defaults to `RevealKind.Always`.
+	 * Contwows whetha the tewminaw executing a task is bwought to fwont ow not.
+	 * Defauwts to `WeveawKind.Awways`.
 	 */
-	reveal?: string;
+	weveaw?: stwing;
 
 	/**
-	 * Controls whether the problems panel is revealed when running this task or not.
-	 * Defaults to `RevealKind.Never`.
+	 * Contwows whetha the pwobwems panew is weveawed when wunning this task ow not.
+	 * Defauwts to `WeveawKind.Neva`.
 	 */
-	revealProblems?: string;
+	weveawPwobwems?: stwing;
 
 	/**
-	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 * Contwows whetha the executed command is pwinted to the output window ow tewminaw as weww.
 	 */
-	echo?: boolean;
+	echo?: boowean;
 
 	/**
-	 * Controls whether the terminal is focus when this task is executed
+	 * Contwows whetha the tewminaw is focus when this task is executed
 	 */
-	focus?: boolean;
+	focus?: boowean;
 
 	/**
-	 * Controls whether the task runs in a new terminal
+	 * Contwows whetha the task wuns in a new tewminaw
 	 */
-	panel?: string;
+	panew?: stwing;
 
 	/**
-	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 * Contwows whetha to show the "Tewminaw wiww be weused by tasks, pwess any key to cwose it" message.
 	 */
-	showReuseMessage?: boolean;
+	showWeuseMessage?: boowean;
 
 	/**
-	 * Controls whether the terminal should be cleared before running the task.
+	 * Contwows whetha the tewminaw shouwd be cweawed befowe wunning the task.
 	 */
-	clear?: boolean;
+	cweaw?: boowean;
 
 	/**
-	 * Controls whether the task is executed in a specific terminal group using split panes.
+	 * Contwows whetha the task is executed in a specific tewminaw gwoup using spwit panes.
 	 */
-	group?: string;
+	gwoup?: stwing;
 
 	/**
-	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 * Contwows whetha the tewminaw that the task wuns in is cwosed when the task compwetes.
 	 */
-	close?: boolean;
+	cwose?: boowean;
 }
 
-export interface RunOptionsConfig {
-	reevaluateOnRerun?: boolean;
-	runOn?: string;
-	instanceLimit?: number;
+expowt intewface WunOptionsConfig {
+	weevawuateOnWewun?: boowean;
+	wunOn?: stwing;
+	instanceWimit?: numba;
 }
 
-export interface TaskIdentifier {
-	type?: string;
-	[name: string]: any;
+expowt intewface TaskIdentifia {
+	type?: stwing;
+	[name: stwing]: any;
 }
 
-export namespace TaskIdentifier {
-	export function is(value: any): value is TaskIdentifier {
-		let candidate: TaskIdentifier = value;
-		return candidate !== undefined && Types.isString(value.type);
+expowt namespace TaskIdentifia {
+	expowt function is(vawue: any): vawue is TaskIdentifia {
+		wet candidate: TaskIdentifia = vawue;
+		wetuwn candidate !== undefined && Types.isStwing(vawue.type);
 	}
 }
 
-export interface LegacyTaskProperties {
+expowt intewface WegacyTaskPwopewties {
 	/**
-	 * @deprecated Use `isBackground` instead.
-	 * Whether the executed command is kept alive and is watching the file system.
+	 * @depwecated Use `isBackgwound` instead.
+	 * Whetha the executed command is kept awive and is watching the fiwe system.
 	 */
-	isWatching?: boolean;
+	isWatching?: boowean;
 
 	/**
-	 * @deprecated Use `group` instead.
-	 * Whether this task maps to the default build command.
+	 * @depwecated Use `gwoup` instead.
+	 * Whetha this task maps to the defauwt buiwd command.
 	 */
-	isBuildCommand?: boolean;
+	isBuiwdCommand?: boowean;
 
 	/**
-	 * @deprecated Use `group` instead.
-	 * Whether this task maps to the default test command.
+	 * @depwecated Use `gwoup` instead.
+	 * Whetha this task maps to the defauwt test command.
 	 */
-	isTestCommand?: boolean;
+	isTestCommand?: boowean;
 }
 
-export interface LegacyCommandProperties {
+expowt intewface WegacyCommandPwopewties {
 
 	/**
-	 * Whether this is a shell or process
+	 * Whetha this is a sheww ow pwocess
 	 */
-	type?: string;
+	type?: stwing;
 
 	/**
-	 * @deprecated Use presentation options
-	 * Controls whether the output view of the running tasks is brought to front or not.
-	 * See BaseTaskRunnerConfiguration#showOutput for details.
+	 * @depwecated Use pwesentation options
+	 * Contwows whetha the output view of the wunning tasks is bwought to fwont ow not.
+	 * See BaseTaskWunnewConfiguwation#showOutput fow detaiws.
 	 */
-	showOutput?: string;
+	showOutput?: stwing;
 
 	/**
-	 * @deprecated Use presentation options
-	 * Controls whether the executed command is printed to the output windows as well.
+	 * @depwecated Use pwesentation options
+	 * Contwows whetha the executed command is pwinted to the output windows as weww.
 	 */
-	echoCommand?: boolean;
+	echoCommand?: boowean;
 
 	/**
-	 * @deprecated Use presentation instead
+	 * @depwecated Use pwesentation instead
 	 */
-	terminal?: PresentationOptionsConfig;
+	tewminaw?: PwesentationOptionsConfig;
 
 	/**
-	 * @deprecated Use inline commands.
-	 * See BaseTaskRunnerConfiguration#suppressTaskName for details.
+	 * @depwecated Use inwine commands.
+	 * See BaseTaskWunnewConfiguwation#suppwessTaskName fow detaiws.
 	 */
-	suppressTaskName?: boolean;
+	suppwessTaskName?: boowean;
 
 	/**
-	 * Some commands require that the task argument is highlighted with a special
-	 * prefix (e.g. /t: for msbuild). This property can be used to control such
-	 * a prefix.
+	 * Some commands wequiwe that the task awgument is highwighted with a speciaw
+	 * pwefix (e.g. /t: fow msbuiwd). This pwopewty can be used to contwow such
+	 * a pwefix.
 	 */
-	taskSelector?: string;
+	taskSewectow?: stwing;
 
 	/**
-	 * @deprecated use the task type instead.
-	 * Specifies whether the command is a shell command and therefore must
-	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
+	 * @depwecated use the task type instead.
+	 * Specifies whetha the command is a sheww command and thewefowe must
+	 * be executed in a sheww intewpweta (e.g. cmd.exe, bash, ...).
 	 *
-	 * Defaults to false if omitted.
+	 * Defauwts to fawse if omitted.
 	 */
-	isShellCommand?: boolean | ShellConfiguration;
+	isShewwCommand?: boowean | ShewwConfiguwation;
 }
 
-export type CommandString = string | string[] | { value: string | string[], quoting: 'escape' | 'strong' | 'weak' };
+expowt type CommandStwing = stwing | stwing[] | { vawue: stwing | stwing[], quoting: 'escape' | 'stwong' | 'weak' };
 
-export namespace CommandString {
-	export function value(value: CommandString): string {
-		if (Types.isString(value)) {
-			return value;
-		} else if (Types.isStringArray(value)) {
-			return value.join(' ');
-		} else {
-			if (Types.isString(value.value)) {
-				return value.value;
-			} else {
-				return value.value.join(' ');
+expowt namespace CommandStwing {
+	expowt function vawue(vawue: CommandStwing): stwing {
+		if (Types.isStwing(vawue)) {
+			wetuwn vawue;
+		} ewse if (Types.isStwingAwway(vawue)) {
+			wetuwn vawue.join(' ');
+		} ewse {
+			if (Types.isStwing(vawue.vawue)) {
+				wetuwn vawue.vawue;
+			} ewse {
+				wetuwn vawue.vawue.join(' ');
 			}
 		}
 	}
 }
 
-export interface BaseCommandProperties {
+expowt intewface BaseCommandPwopewties {
 
 	/**
-	 * The command to be executed. Can be an external program or a shell
+	 * The command to be executed. Can be an extewnaw pwogwam ow a sheww
 	 * command.
 	 */
-	command?: CommandString;
+	command?: CommandStwing;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -255,145 +255,145 @@ export interface BaseCommandProperties {
 	options?: CommandOptionsConfig;
 
 	/**
-	 * The arguments passed to the command or additional arguments passed to the
-	 * command when using a global command.
+	 * The awguments passed to the command ow additionaw awguments passed to the
+	 * command when using a gwobaw command.
 	 */
-	args?: CommandString[];
+	awgs?: CommandStwing[];
 }
 
 
-export interface CommandProperties extends BaseCommandProperties {
+expowt intewface CommandPwopewties extends BaseCommandPwopewties {
 
 	/**
-	 * Windows specific command properties
+	 * Windows specific command pwopewties
 	 */
-	windows?: BaseCommandProperties;
+	windows?: BaseCommandPwopewties;
 
 	/**
-	 * OSX specific command properties
+	 * OSX specific command pwopewties
 	 */
-	osx?: BaseCommandProperties;
+	osx?: BaseCommandPwopewties;
 
 	/**
-	 * linux specific command properties
+	 * winux specific command pwopewties
 	 */
-	linux?: BaseCommandProperties;
+	winux?: BaseCommandPwopewties;
 }
 
-export interface GroupKind {
-	kind?: string;
-	isDefault?: boolean;
+expowt intewface GwoupKind {
+	kind?: stwing;
+	isDefauwt?: boowean;
 }
 
-export interface ConfigurationProperties {
+expowt intewface ConfiguwationPwopewties {
 	/**
 	 * The task's name
 	 */
-	taskName?: string;
+	taskName?: stwing;
 
 	/**
-	 * The UI label used for the task.
+	 * The UI wabew used fow the task.
 	 */
-	label?: string;
+	wabew?: stwing;
 
 	/**
-	 * An optional identifier which can be used to reference a task
-	 * in a dependsOn or other attributes.
+	 * An optionaw identifia which can be used to wefewence a task
+	 * in a dependsOn ow otha attwibutes.
 	 */
-	identifier?: string;
+	identifia?: stwing;
 
 	/**
-	 * Whether the executed command is kept alive and runs in the background.
+	 * Whetha the executed command is kept awive and wuns in the backgwound.
 	 */
-	isBackground?: boolean;
+	isBackgwound?: boowean;
 
 	/**
-	 * Whether the task should prompt on close for confirmation if running.
+	 * Whetha the task shouwd pwompt on cwose fow confiwmation if wunning.
 	 */
-	promptOnClose?: boolean;
+	pwomptOnCwose?: boowean;
 
 	/**
-	 * Defines the group the task belongs too.
+	 * Defines the gwoup the task bewongs too.
 	 */
-	group?: string | GroupKind;
+	gwoup?: stwing | GwoupKind;
 
 	/**
-	 * A description of the task.
+	 * A descwiption of the task.
 	 */
-	detail?: string;
+	detaiw?: stwing;
 
 	/**
-	 * The other tasks the task depend on
+	 * The otha tasks the task depend on
 	 */
-	dependsOn?: string | TaskIdentifier | Array<string | TaskIdentifier>;
+	dependsOn?: stwing | TaskIdentifia | Awway<stwing | TaskIdentifia>;
 
 	/**
-	 * The order the dependsOn tasks should be executed in.
+	 * The owda the dependsOn tasks shouwd be executed in.
 	 */
-	dependsOrder?: string;
+	dependsOwda?: stwing;
 
 	/**
-	 * Controls the behavior of the used terminal
+	 * Contwows the behaviow of the used tewminaw
 	 */
-	presentation?: PresentationOptionsConfig;
+	pwesentation?: PwesentationOptionsConfig;
 
 	/**
-	 * Controls shell options.
+	 * Contwows sheww options.
 	 */
 	options?: CommandOptionsConfig;
 
 	/**
-	 * The problem matcher(s) to use to capture problems in the tasks
+	 * The pwobwem matcha(s) to use to captuwe pwobwems in the tasks
 	 * output.
 	 */
-	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+	pwobwemMatcha?: PwobwemMatchewConfig.PwobwemMatchewType;
 
 	/**
-	 * Task run options. Control run related properties.
+	 * Task wun options. Contwow wun wewated pwopewties.
 	 */
-	runOptions?: RunOptionsConfig;
+	wunOptions?: WunOptionsConfig;
 }
 
-export interface CustomTask extends CommandProperties, ConfigurationProperties {
+expowt intewface CustomTask extends CommandPwopewties, ConfiguwationPwopewties {
 	/**
 	 * Custom tasks have the type CUSTOMIZED_TASK_TYPE
 	 */
-	type?: string;
+	type?: stwing;
 
 }
 
-export interface ConfiguringTask extends ConfigurationProperties {
+expowt intewface ConfiguwingTask extends ConfiguwationPwopewties {
 	/**
-	 * The contributed type of the task
+	 * The contwibuted type of the task
 	 */
-	type?: string;
+	type?: stwing;
 }
 
 /**
- * The base task runner configuration
+ * The base task wunna configuwation
  */
-export interface BaseTaskRunnerConfiguration {
+expowt intewface BaseTaskWunnewConfiguwation {
 
 	/**
-	 * The command to be executed. Can be an external program or a shell
+	 * The command to be executed. Can be an extewnaw pwogwam ow a sheww
 	 * command.
 	 */
-	command?: CommandString;
+	command?: CommandStwing;
 
 	/**
-	 * @deprecated Use type instead
+	 * @depwecated Use type instead
 	 *
-	 * Specifies whether the command is a shell command and therefore must
-	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
+	 * Specifies whetha the command is a sheww command and thewefowe must
+	 * be executed in a sheww intewpweta (e.g. cmd.exe, bash, ...).
 	 *
-	 * Defaults to false if omitted.
+	 * Defauwts to fawse if omitted.
 	 */
-	isShellCommand?: boolean;
+	isShewwCommand?: boowean;
 
 	/**
 	 * The task type
 	 */
-	type?: string;
+	type?: stwing;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
@@ -401,1739 +401,1739 @@ export interface BaseTaskRunnerConfiguration {
 	options?: CommandOptionsConfig;
 
 	/**
-	 * The arguments passed to the command. Can be omitted.
+	 * The awguments passed to the command. Can be omitted.
 	 */
-	args?: CommandString[];
+	awgs?: CommandStwing[];
 
 	/**
-	 * Controls whether the output view of the running tasks is brought to front or not.
-	 * Valid values are:
-	 *   "always": bring the output window always to front when a task is executed.
-	 *   "silent": only bring it to front if no problem matcher is defined for the task executed.
-	 *   "never": never bring the output window to front.
+	 * Contwows whetha the output view of the wunning tasks is bwought to fwont ow not.
+	 * Vawid vawues awe:
+	 *   "awways": bwing the output window awways to fwont when a task is executed.
+	 *   "siwent": onwy bwing it to fwont if no pwobwem matcha is defined fow the task executed.
+	 *   "neva": neva bwing the output window to fwont.
 	 *
-	 * If omitted "always" is used.
+	 * If omitted "awways" is used.
 	 */
-	showOutput?: string;
+	showOutput?: stwing;
 
 	/**
-	 * Controls whether the executed command is printed to the output windows as well.
+	 * Contwows whetha the executed command is pwinted to the output windows as weww.
 	 */
-	echoCommand?: boolean;
+	echoCommand?: boowean;
 
 	/**
-	 * The group
+	 * The gwoup
 	 */
-	group?: string | GroupKind;
+	gwoup?: stwing | GwoupKind;
 
 	/**
-	 * Controls the behavior of the used terminal
+	 * Contwows the behaviow of the used tewminaw
 	 */
-	presentation?: PresentationOptionsConfig;
+	pwesentation?: PwesentationOptionsConfig;
 
 	/**
-	 * If set to false the task name is added as an additional argument to the
-	 * command when executed. If set to true the task name is suppressed. If
-	 * omitted false is used.
+	 * If set to fawse the task name is added as an additionaw awgument to the
+	 * command when executed. If set to twue the task name is suppwessed. If
+	 * omitted fawse is used.
 	 */
-	suppressTaskName?: boolean;
+	suppwessTaskName?: boowean;
 
 	/**
-	 * Some commands require that the task argument is highlighted with a special
-	 * prefix (e.g. /t: for msbuild). This property can be used to control such
-	 * a prefix.
+	 * Some commands wequiwe that the task awgument is highwighted with a speciaw
+	 * pwefix (e.g. /t: fow msbuiwd). This pwopewty can be used to contwow such
+	 * a pwefix.
 	 */
-	taskSelector?: string;
+	taskSewectow?: stwing;
 
 	/**
-	 * The problem matcher(s) to used if a global command is executed (e.g. no tasks
-	 * are defined). A tasks.json file can either contain a global problemMatcher
-	 * property or a tasks property but not both.
+	 * The pwobwem matcha(s) to used if a gwobaw command is executed (e.g. no tasks
+	 * awe defined). A tasks.json fiwe can eitha contain a gwobaw pwobwemMatcha
+	 * pwopewty ow a tasks pwopewty but not both.
 	 */
-	problemMatcher?: ProblemMatcherConfig.ProblemMatcherType;
+	pwobwemMatcha?: PwobwemMatchewConfig.PwobwemMatchewType;
 
 	/**
-	 * @deprecated Use `isBackground` instead.
+	 * @depwecated Use `isBackgwound` instead.
 	 *
-	 * Specifies whether a global command is a watching the filesystem. A task.json
-	 * file can either contain a global isWatching property or a tasks property
+	 * Specifies whetha a gwobaw command is a watching the fiwesystem. A task.json
+	 * fiwe can eitha contain a gwobaw isWatching pwopewty ow a tasks pwopewty
 	 * but not both.
 	 */
-	isWatching?: boolean;
+	isWatching?: boowean;
 
 	/**
-	 * Specifies whether a global command is a background task.
+	 * Specifies whetha a gwobaw command is a backgwound task.
 	 */
-	isBackground?: boolean;
+	isBackgwound?: boowean;
 
 	/**
-	 * Whether the task should prompt on close for confirmation if running.
+	 * Whetha the task shouwd pwompt on cwose fow confiwmation if wunning.
 	 */
-	promptOnClose?: boolean;
+	pwomptOnCwose?: boowean;
 
 	/**
-	 * The configuration of the available tasks. A tasks.json file can either
-	 * contain a global problemMatcher property or a tasks property but not both.
+	 * The configuwation of the avaiwabwe tasks. A tasks.json fiwe can eitha
+	 * contain a gwobaw pwobwemMatcha pwopewty ow a tasks pwopewty but not both.
 	 */
-	tasks?: Array<CustomTask | ConfiguringTask>;
+	tasks?: Awway<CustomTask | ConfiguwingTask>;
 
 	/**
-	 * Problem matcher declarations.
+	 * Pwobwem matcha decwawations.
 	 */
-	declares?: ProblemMatcherConfig.NamedProblemMatcher[];
+	decwawes?: PwobwemMatchewConfig.NamedPwobwemMatcha[];
 
 	/**
-	 * Optional user input variables.
+	 * Optionaw usa input vawiabwes.
 	 */
-	inputs?: ConfiguredInput[];
+	inputs?: ConfiguwedInput[];
 }
 
 /**
- * A configuration of an external build system. BuildConfiguration.buildSystem
- * must be set to 'program'
+ * A configuwation of an extewnaw buiwd system. BuiwdConfiguwation.buiwdSystem
+ * must be set to 'pwogwam'
  */
-export interface ExternalTaskRunnerConfiguration extends BaseTaskRunnerConfiguration {
+expowt intewface ExtewnawTaskWunnewConfiguwation extends BaseTaskWunnewConfiguwation {
 
-	_runner?: string;
-
-	/**
-	 * Determines the runner to use
-	 */
-	runner?: string;
+	_wunna?: stwing;
 
 	/**
-	 * The config's version number
+	 * Detewmines the wunna to use
 	 */
-	version: string;
+	wunna?: stwing;
 
 	/**
-	 * Windows specific task configuration
+	 * The config's vewsion numba
 	 */
-	windows?: BaseTaskRunnerConfiguration;
+	vewsion: stwing;
 
 	/**
-	 * Mac specific task configuration
+	 * Windows specific task configuwation
 	 */
-	osx?: BaseTaskRunnerConfiguration;
+	windows?: BaseTaskWunnewConfiguwation;
 
 	/**
-	 * Linux specific task configuration
+	 * Mac specific task configuwation
 	 */
-	linux?: BaseTaskRunnerConfiguration;
+	osx?: BaseTaskWunnewConfiguwation;
+
+	/**
+	 * Winux specific task configuwation
+	 */
+	winux?: BaseTaskWunnewConfiguwation;
 }
 
-enum ProblemMatcherKind {
+enum PwobwemMatchewKind {
 	Unknown,
-	String,
-	ProblemMatcher,
-	Array
+	Stwing,
+	PwobwemMatcha,
+	Awway
 }
 
-const EMPTY_ARRAY: any[] = [];
-Object.freeze(EMPTY_ARRAY);
+const EMPTY_AWWAY: any[] = [];
+Object.fweeze(EMPTY_AWWAY);
 
-function assignProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
-	const sourceAtKey = source[key];
-	if (sourceAtKey !== undefined) {
-		target[key] = sourceAtKey!;
+function assignPwopewty<T, K extends keyof T>(tawget: T, souwce: Pawtiaw<T>, key: K) {
+	const souwceAtKey = souwce[key];
+	if (souwceAtKey !== undefined) {
+		tawget[key] = souwceAtKey!;
 	}
 }
 
-function fillProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
-	const sourceAtKey = source[key];
-	if (target[key] === undefined && sourceAtKey !== undefined) {
-		target[key] = sourceAtKey!;
+function fiwwPwopewty<T, K extends keyof T>(tawget: T, souwce: Pawtiaw<T>, key: K) {
+	const souwceAtKey = souwce[key];
+	if (tawget[key] === undefined && souwceAtKey !== undefined) {
+		tawget[key] = souwceAtKey!;
 	}
 }
 
 
-interface ParserType<T> {
-	isEmpty(value: T | undefined): boolean;
-	assignProperties(target: T | undefined, source: T | undefined): T | undefined;
-	fillProperties(target: T | undefined, source: T | undefined): T | undefined;
-	fillDefaults(value: T | undefined, context: ParseContext): T | undefined;
-	freeze(value: T): Readonly<T> | undefined;
+intewface PawsewType<T> {
+	isEmpty(vawue: T | undefined): boowean;
+	assignPwopewties(tawget: T | undefined, souwce: T | undefined): T | undefined;
+	fiwwPwopewties(tawget: T | undefined, souwce: T | undefined): T | undefined;
+	fiwwDefauwts(vawue: T | undefined, context: PawseContext): T | undefined;
+	fweeze(vawue: T): Weadonwy<T> | undefined;
 }
 
-interface MetaData<T, U> {
-	property: keyof T;
-	type?: ParserType<U>;
+intewface MetaData<T, U> {
+	pwopewty: keyof T;
+	type?: PawsewType<U>;
 }
 
 
-function _isEmpty<T>(this: void, value: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): boolean {
-	if (value === undefined || value === null || properties === undefined) {
-		return true;
+function _isEmpty<T>(this: void, vawue: T | undefined, pwopewties: MetaData<T, any>[] | undefined, awwowEmptyAwway: boowean = fawse): boowean {
+	if (vawue === undefined || vawue === nuww || pwopewties === undefined) {
+		wetuwn twue;
 	}
-	for (let meta of properties) {
-		let property = value[meta.property];
-		if (property !== undefined && property !== null) {
-			if (meta.type !== undefined && !meta.type.isEmpty(property)) {
-				return false;
-			} else if (!Array.isArray(property) || (property.length > 0) || allowEmptyArray) {
-				return false;
+	fow (wet meta of pwopewties) {
+		wet pwopewty = vawue[meta.pwopewty];
+		if (pwopewty !== undefined && pwopewty !== nuww) {
+			if (meta.type !== undefined && !meta.type.isEmpty(pwopewty)) {
+				wetuwn fawse;
+			} ewse if (!Awway.isAwway(pwopewty) || (pwopewty.wength > 0) || awwowEmptyAwway) {
+				wetuwn fawse;
 			}
 		}
 	}
-	return true;
+	wetuwn twue;
 }
 
-function _assignProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[]): T | undefined {
-	if (!source || _isEmpty(source, properties)) {
-		return target;
+function _assignPwopewties<T>(this: void, tawget: T | undefined, souwce: T | undefined, pwopewties: MetaData<T, any>[]): T | undefined {
+	if (!souwce || _isEmpty(souwce, pwopewties)) {
+		wetuwn tawget;
 	}
-	if (!target || _isEmpty(target, properties)) {
-		return source;
+	if (!tawget || _isEmpty(tawget, pwopewties)) {
+		wetuwn souwce;
 	}
-	for (let meta of properties) {
-		let property = meta.property;
-		let value: any;
+	fow (wet meta of pwopewties) {
+		wet pwopewty = meta.pwopewty;
+		wet vawue: any;
 		if (meta.type !== undefined) {
-			value = meta.type.assignProperties(target[property], source[property]);
-		} else {
-			value = source[property];
+			vawue = meta.type.assignPwopewties(tawget[pwopewty], souwce[pwopewty]);
+		} ewse {
+			vawue = souwce[pwopewty];
 		}
-		if (value !== undefined && value !== null) {
-			target[property] = value;
+		if (vawue !== undefined && vawue !== nuww) {
+			tawget[pwopewty] = vawue;
 		}
 	}
-	return target;
+	wetuwn tawget;
 }
 
-function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: MetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): T | undefined {
-	if (!source || _isEmpty(source, properties)) {
-		return target;
+function _fiwwPwopewties<T>(this: void, tawget: T | undefined, souwce: T | undefined, pwopewties: MetaData<T, any>[] | undefined, awwowEmptyAwway: boowean = fawse): T | undefined {
+	if (!souwce || _isEmpty(souwce, pwopewties)) {
+		wetuwn tawget;
 	}
-	if (!target || _isEmpty(target, properties, allowEmptyArray)) {
-		return source;
+	if (!tawget || _isEmpty(tawget, pwopewties, awwowEmptyAwway)) {
+		wetuwn souwce;
 	}
-	for (let meta of properties!) {
-		let property = meta.property;
-		let value: any;
+	fow (wet meta of pwopewties!) {
+		wet pwopewty = meta.pwopewty;
+		wet vawue: any;
 		if (meta.type) {
-			value = meta.type.fillProperties(target[property], source[property]);
-		} else if (target[property] === undefined) {
-			value = source[property];
+			vawue = meta.type.fiwwPwopewties(tawget[pwopewty], souwce[pwopewty]);
+		} ewse if (tawget[pwopewty] === undefined) {
+			vawue = souwce[pwopewty];
 		}
-		if (value !== undefined && value !== null) {
-			target[property] = value;
+		if (vawue !== undefined && vawue !== nuww) {
+			tawget[pwopewty] = vawue;
 		}
 	}
-	return target;
+	wetuwn tawget;
 }
 
-function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undefined, properties: MetaData<T, any>[], context: ParseContext): T | undefined {
-	if (target && Object.isFrozen(target)) {
-		return target;
+function _fiwwDefauwts<T>(this: void, tawget: T | undefined, defauwts: T | undefined, pwopewties: MetaData<T, any>[], context: PawseContext): T | undefined {
+	if (tawget && Object.isFwozen(tawget)) {
+		wetuwn tawget;
 	}
-	if (target === undefined || target === null || defaults === undefined || defaults === null) {
-		if (defaults !== undefined && defaults !== null) {
-			return Objects.deepClone(defaults);
-		} else {
-			return undefined;
+	if (tawget === undefined || tawget === nuww || defauwts === undefined || defauwts === nuww) {
+		if (defauwts !== undefined && defauwts !== nuww) {
+			wetuwn Objects.deepCwone(defauwts);
+		} ewse {
+			wetuwn undefined;
 		}
 	}
-	for (let meta of properties) {
-		let property = meta.property;
-		if (target[property] !== undefined) {
+	fow (wet meta of pwopewties) {
+		wet pwopewty = meta.pwopewty;
+		if (tawget[pwopewty] !== undefined) {
 			continue;
 		}
-		let value: any;
+		wet vawue: any;
 		if (meta.type) {
-			value = meta.type.fillDefaults(target[property], context);
-		} else {
-			value = defaults[property];
+			vawue = meta.type.fiwwDefauwts(tawget[pwopewty], context);
+		} ewse {
+			vawue = defauwts[pwopewty];
 		}
 
-		if (value !== undefined && value !== null) {
-			target[property] = value;
+		if (vawue !== undefined && vawue !== nuww) {
+			tawget[pwopewty] = vawue;
 		}
 	}
-	return target;
+	wetuwn tawget;
 }
 
-function _freeze<T>(this: void, target: T, properties: MetaData<T, any>[]): Readonly<T> | undefined {
-	if (target === undefined || target === null) {
-		return undefined;
+function _fweeze<T>(this: void, tawget: T, pwopewties: MetaData<T, any>[]): Weadonwy<T> | undefined {
+	if (tawget === undefined || tawget === nuww) {
+		wetuwn undefined;
 	}
-	if (Object.isFrozen(target)) {
-		return target;
+	if (Object.isFwozen(tawget)) {
+		wetuwn tawget;
 	}
-	for (let meta of properties) {
+	fow (wet meta of pwopewties) {
 		if (meta.type) {
-			let value = target[meta.property];
-			if (value) {
-				meta.type.freeze(value);
+			wet vawue = tawget[meta.pwopewty];
+			if (vawue) {
+				meta.type.fweeze(vawue);
 			}
 		}
 	}
-	Object.freeze(target);
-	return target;
+	Object.fweeze(tawget);
+	wetuwn tawget;
 }
 
-export namespace RunOnOptions {
-	export function fromString(value: string | undefined): Tasks.RunOnOptions {
-		if (!value) {
-			return Tasks.RunOnOptions.default;
+expowt namespace WunOnOptions {
+	expowt function fwomStwing(vawue: stwing | undefined): Tasks.WunOnOptions {
+		if (!vawue) {
+			wetuwn Tasks.WunOnOptions.defauwt;
 		}
-		switch (value.toLowerCase()) {
-			case 'folderopen':
-				return Tasks.RunOnOptions.folderOpen;
-			case 'default':
-			default:
-				return Tasks.RunOnOptions.default;
+		switch (vawue.toWowewCase()) {
+			case 'fowdewopen':
+				wetuwn Tasks.WunOnOptions.fowdewOpen;
+			case 'defauwt':
+			defauwt:
+				wetuwn Tasks.WunOnOptions.defauwt;
 		}
 	}
 }
 
-export namespace RunOptions {
-	const properties: MetaData<Tasks.RunOptions, void>[] = [{ property: 'reevaluateOnRerun' }, { property: 'runOn' }, { property: 'instanceLimit' }];
-	export function fromConfiguration(value: RunOptionsConfig | undefined): Tasks.RunOptions {
-		return {
-			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
-			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1
+expowt namespace WunOptions {
+	const pwopewties: MetaData<Tasks.WunOptions, void>[] = [{ pwopewty: 'weevawuateOnWewun' }, { pwopewty: 'wunOn' }, { pwopewty: 'instanceWimit' }];
+	expowt function fwomConfiguwation(vawue: WunOptionsConfig | undefined): Tasks.WunOptions {
+		wetuwn {
+			weevawuateOnWewun: vawue ? vawue.weevawuateOnWewun : twue,
+			wunOn: vawue ? WunOnOptions.fwomStwing(vawue.wunOn) : Tasks.WunOnOptions.defauwt,
+			instanceWimit: vawue ? vawue.instanceWimit : 1
 		};
 	}
 
-	export function assignProperties(target: Tasks.RunOptions, source: Tasks.RunOptions | undefined): Tasks.RunOptions {
-		return _assignProperties(target, source, properties)!;
+	expowt function assignPwopewties(tawget: Tasks.WunOptions, souwce: Tasks.WunOptions | undefined): Tasks.WunOptions {
+		wetuwn _assignPwopewties(tawget, souwce, pwopewties)!;
 	}
 
-	export function fillProperties(target: Tasks.RunOptions, source: Tasks.RunOptions | undefined): Tasks.RunOptions {
-		return _fillProperties(target, source, properties)!;
+	expowt function fiwwPwopewties(tawget: Tasks.WunOptions, souwce: Tasks.WunOptions | undefined): Tasks.WunOptions {
+		wetuwn _fiwwPwopewties(tawget, souwce, pwopewties)!;
 	}
 }
 
-interface ParseContext {
-	workspaceFolder: IWorkspaceFolder;
-	workspace: IWorkspace | undefined;
-	problemReporter: IProblemReporter;
-	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
+intewface PawseContext {
+	wowkspaceFowda: IWowkspaceFowda;
+	wowkspace: IWowkspace | undefined;
+	pwobwemWepowta: IPwobwemWepowta;
+	namedPwobwemMatchews: IStwingDictionawy<NamedPwobwemMatcha>;
 	uuidMap: UUIDMap;
 	engine: Tasks.ExecutionEngine;
-	schemaVersion: Tasks.JsonSchemaVersion;
-	platform: Platform;
-	taskLoadIssues: string[];
-	contextKeyService: IContextKeyService;
+	schemaVewsion: Tasks.JsonSchemaVewsion;
+	pwatfowm: Pwatfowm;
+	taskWoadIssues: stwing[];
+	contextKeySewvice: IContextKeySewvice;
 }
 
 
-namespace ShellConfiguration {
+namespace ShewwConfiguwation {
 
-	const properties: MetaData<Tasks.ShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }, { property: 'quoting' }];
+	const pwopewties: MetaData<Tasks.ShewwConfiguwation, void>[] = [{ pwopewty: 'executabwe' }, { pwopewty: 'awgs' }, { pwopewty: 'quoting' }];
 
-	export function is(value: any): value is ShellConfiguration {
-		let candidate: ShellConfiguration = value;
-		return candidate && (Types.isString(candidate.executable) || Types.isStringArray(candidate.args));
+	expowt function is(vawue: any): vawue is ShewwConfiguwation {
+		wet candidate: ShewwConfiguwation = vawue;
+		wetuwn candidate && (Types.isStwing(candidate.executabwe) || Types.isStwingAwway(candidate.awgs));
 	}
 
-	export function from(this: void, config: ShellConfiguration | undefined, context: ParseContext): Tasks.ShellConfiguration | undefined {
+	expowt function fwom(this: void, config: ShewwConfiguwation | undefined, context: PawseContext): Tasks.ShewwConfiguwation | undefined {
 		if (!is(config)) {
-			return undefined;
+			wetuwn undefined;
 		}
-		let result: ShellConfiguration = {};
-		if (config.executable !== undefined) {
-			result.executable = config.executable;
+		wet wesuwt: ShewwConfiguwation = {};
+		if (config.executabwe !== undefined) {
+			wesuwt.executabwe = config.executabwe;
 		}
-		if (config.args !== undefined) {
-			result.args = config.args.slice();
+		if (config.awgs !== undefined) {
+			wesuwt.awgs = config.awgs.swice();
 		}
 		if (config.quoting !== undefined) {
-			result.quoting = Objects.deepClone(config.quoting);
+			wesuwt.quoting = Objects.deepCwone(config.quoting);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function isEmpty(this: void, value: Tasks.ShellConfiguration): boolean {
-		return _isEmpty(value, properties, true);
+	expowt function isEmpty(this: void, vawue: Tasks.ShewwConfiguwation): boowean {
+		wetuwn _isEmpty(vawue, pwopewties, twue);
 	}
 
-	export function assignProperties(this: void, target: Tasks.ShellConfiguration | undefined, source: Tasks.ShellConfiguration | undefined): Tasks.ShellConfiguration | undefined {
-		return _assignProperties(target, source, properties);
+	expowt function assignPwopewties(this: void, tawget: Tasks.ShewwConfiguwation | undefined, souwce: Tasks.ShewwConfiguwation | undefined): Tasks.ShewwConfiguwation | undefined {
+		wetuwn _assignPwopewties(tawget, souwce, pwopewties);
 	}
 
-	export function fillProperties(this: void, target: Tasks.ShellConfiguration, source: Tasks.ShellConfiguration): Tasks.ShellConfiguration | undefined {
-		return _fillProperties(target, source, properties, true);
+	expowt function fiwwPwopewties(this: void, tawget: Tasks.ShewwConfiguwation, souwce: Tasks.ShewwConfiguwation): Tasks.ShewwConfiguwation | undefined {
+		wetuwn _fiwwPwopewties(tawget, souwce, pwopewties, twue);
 	}
 
-	export function fillDefaults(this: void, value: Tasks.ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
-		return value;
+	expowt function fiwwDefauwts(this: void, vawue: Tasks.ShewwConfiguwation, context: PawseContext): Tasks.ShewwConfiguwation {
+		wetuwn vawue;
 	}
 
-	export function freeze(this: void, value: Tasks.ShellConfiguration): Readonly<Tasks.ShellConfiguration> | undefined {
-		if (!value) {
-			return undefined;
+	expowt function fweeze(this: void, vawue: Tasks.ShewwConfiguwation): Weadonwy<Tasks.ShewwConfiguwation> | undefined {
+		if (!vawue) {
+			wetuwn undefined;
 		}
-		return Object.freeze(value);
+		wetuwn Object.fweeze(vawue);
 	}
 }
 
 namespace CommandOptions {
 
-	const properties: MetaData<Tasks.CommandOptions, Tasks.ShellConfiguration>[] = [{ property: 'cwd' }, { property: 'env' }, { property: 'shell', type: ShellConfiguration }];
-	const defaults: CommandOptionsConfig = { cwd: '${workspaceFolder}' };
+	const pwopewties: MetaData<Tasks.CommandOptions, Tasks.ShewwConfiguwation>[] = [{ pwopewty: 'cwd' }, { pwopewty: 'env' }, { pwopewty: 'sheww', type: ShewwConfiguwation }];
+	const defauwts: CommandOptionsConfig = { cwd: '${wowkspaceFowda}' };
 
-	export function from(this: void, options: CommandOptionsConfig, context: ParseContext): Tasks.CommandOptions | undefined {
-		let result: Tasks.CommandOptions = {};
+	expowt function fwom(this: void, options: CommandOptionsConfig, context: PawseContext): Tasks.CommandOptions | undefined {
+		wet wesuwt: Tasks.CommandOptions = {};
 		if (options.cwd !== undefined) {
-			if (Types.isString(options.cwd)) {
-				result.cwd = options.cwd;
-			} else {
-				context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidCWD', 'Warning: options.cwd must be of type string. Ignoring value {0}\n', options.cwd));
+			if (Types.isStwing(options.cwd)) {
+				wesuwt.cwd = options.cwd;
+			} ewse {
+				context.taskWoadIssues.push(nws.wocawize('ConfiguwationPawsa.invawidCWD', 'Wawning: options.cwd must be of type stwing. Ignowing vawue {0}\n', options.cwd));
 			}
 		}
 		if (options.env !== undefined) {
-			result.env = Objects.deepClone(options.env);
+			wesuwt.env = Objects.deepCwone(options.env);
 		}
-		result.shell = ShellConfiguration.from(options.shell, context);
-		return isEmpty(result) ? undefined : result;
+		wesuwt.sheww = ShewwConfiguwation.fwom(options.sheww, context);
+		wetuwn isEmpty(wesuwt) ? undefined : wesuwt;
 	}
 
-	export function isEmpty(value: Tasks.CommandOptions | undefined): boolean {
-		return _isEmpty(value, properties);
+	expowt function isEmpty(vawue: Tasks.CommandOptions | undefined): boowean {
+		wetuwn _isEmpty(vawue, pwopewties);
 	}
 
-	export function assignProperties(target: Tasks.CommandOptions | undefined, source: Tasks.CommandOptions | undefined): Tasks.CommandOptions | undefined {
-		if ((source === undefined) || isEmpty(source)) {
-			return target;
+	expowt function assignPwopewties(tawget: Tasks.CommandOptions | undefined, souwce: Tasks.CommandOptions | undefined): Tasks.CommandOptions | undefined {
+		if ((souwce === undefined) || isEmpty(souwce)) {
+			wetuwn tawget;
 		}
-		if ((target === undefined) || isEmpty(target)) {
-			return source;
+		if ((tawget === undefined) || isEmpty(tawget)) {
+			wetuwn souwce;
 		}
-		assignProperty(target, source, 'cwd');
-		if (target.env === undefined) {
-			target.env = source.env;
-		} else if (source.env !== undefined) {
-			let env: { [key: string]: string; } = Object.create(null);
-			if (target.env !== undefined) {
-				Object.keys(target.env).forEach(key => env[key] = target.env![key]);
+		assignPwopewty(tawget, souwce, 'cwd');
+		if (tawget.env === undefined) {
+			tawget.env = souwce.env;
+		} ewse if (souwce.env !== undefined) {
+			wet env: { [key: stwing]: stwing; } = Object.cweate(nuww);
+			if (tawget.env !== undefined) {
+				Object.keys(tawget.env).fowEach(key => env[key] = tawget.env![key]);
 			}
-			if (source.env !== undefined) {
-				Object.keys(source.env).forEach(key => env[key] = source.env![key]);
+			if (souwce.env !== undefined) {
+				Object.keys(souwce.env).fowEach(key => env[key] = souwce.env![key]);
 			}
-			target.env = env;
+			tawget.env = env;
 		}
-		target.shell = ShellConfiguration.assignProperties(target.shell, source.shell);
-		return target;
+		tawget.sheww = ShewwConfiguwation.assignPwopewties(tawget.sheww, souwce.sheww);
+		wetuwn tawget;
 	}
 
-	export function fillProperties(target: Tasks.CommandOptions | undefined, source: Tasks.CommandOptions | undefined): Tasks.CommandOptions | undefined {
-		return _fillProperties(target, source, properties);
+	expowt function fiwwPwopewties(tawget: Tasks.CommandOptions | undefined, souwce: Tasks.CommandOptions | undefined): Tasks.CommandOptions | undefined {
+		wetuwn _fiwwPwopewties(tawget, souwce, pwopewties);
 	}
 
-	export function fillDefaults(value: Tasks.CommandOptions | undefined, context: ParseContext): Tasks.CommandOptions | undefined {
-		return _fillDefaults(value, defaults, properties, context);
+	expowt function fiwwDefauwts(vawue: Tasks.CommandOptions | undefined, context: PawseContext): Tasks.CommandOptions | undefined {
+		wetuwn _fiwwDefauwts(vawue, defauwts, pwopewties, context);
 	}
 
-	export function freeze(value: Tasks.CommandOptions): Readonly<Tasks.CommandOptions> | undefined {
-		return _freeze(value, properties);
+	expowt function fweeze(vawue: Tasks.CommandOptions): Weadonwy<Tasks.CommandOptions> | undefined {
+		wetuwn _fweeze(vawue, pwopewties);
 	}
 }
 
-namespace CommandConfiguration {
+namespace CommandConfiguwation {
 
-	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }];
+	expowt namespace PwesentationOptions {
+		const pwopewties: MetaData<Tasks.PwesentationOptions, void>[] = [{ pwopewty: 'echo' }, { pwopewty: 'weveaw' }, { pwopewty: 'weveawPwobwems' }, { pwopewty: 'focus' }, { pwopewty: 'panew' }, { pwopewty: 'showWeuseMessage' }, { pwopewty: 'cweaw' }, { pwopewty: 'gwoup' }, { pwopewty: 'cwose' }];
 
-		interface PresentationOptionsShape extends LegacyCommandProperties {
-			presentation?: PresentationOptionsConfig;
+		intewface PwesentationOptionsShape extends WegacyCommandPwopewties {
+			pwesentation?: PwesentationOptionsConfig;
 		}
 
-		export function from(this: void, config: PresentationOptionsShape, context: ParseContext): Tasks.PresentationOptions | undefined {
-			let echo: boolean;
-			let reveal: Tasks.RevealKind;
-			let revealProblems: Tasks.RevealProblemKind;
-			let focus: boolean;
-			let panel: Tasks.PanelKind;
-			let showReuseMessage: boolean;
-			let clear: boolean;
-			let group: string | undefined;
-			let close: boolean | undefined;
-			let hasProps = false;
-			if (Types.isBoolean(config.echoCommand)) {
+		expowt function fwom(this: void, config: PwesentationOptionsShape, context: PawseContext): Tasks.PwesentationOptions | undefined {
+			wet echo: boowean;
+			wet weveaw: Tasks.WeveawKind;
+			wet weveawPwobwems: Tasks.WeveawPwobwemKind;
+			wet focus: boowean;
+			wet panew: Tasks.PanewKind;
+			wet showWeuseMessage: boowean;
+			wet cweaw: boowean;
+			wet gwoup: stwing | undefined;
+			wet cwose: boowean | undefined;
+			wet hasPwops = fawse;
+			if (Types.isBoowean(config.echoCommand)) {
 				echo = config.echoCommand;
-				hasProps = true;
+				hasPwops = twue;
 			}
-			if (Types.isString(config.showOutput)) {
-				reveal = Tasks.RevealKind.fromString(config.showOutput);
-				hasProps = true;
+			if (Types.isStwing(config.showOutput)) {
+				weveaw = Tasks.WeveawKind.fwomStwing(config.showOutput);
+				hasPwops = twue;
 			}
-			let presentation = config.presentation || config.terminal;
-			if (presentation) {
-				if (Types.isBoolean(presentation.echo)) {
-					echo = presentation.echo;
+			wet pwesentation = config.pwesentation || config.tewminaw;
+			if (pwesentation) {
+				if (Types.isBoowean(pwesentation.echo)) {
+					echo = pwesentation.echo;
 				}
-				if (Types.isString(presentation.reveal)) {
-					reveal = Tasks.RevealKind.fromString(presentation.reveal);
+				if (Types.isStwing(pwesentation.weveaw)) {
+					weveaw = Tasks.WeveawKind.fwomStwing(pwesentation.weveaw);
 				}
-				if (Types.isString(presentation.revealProblems)) {
-					revealProblems = Tasks.RevealProblemKind.fromString(presentation.revealProblems);
+				if (Types.isStwing(pwesentation.weveawPwobwems)) {
+					weveawPwobwems = Tasks.WeveawPwobwemKind.fwomStwing(pwesentation.weveawPwobwems);
 				}
-				if (Types.isBoolean(presentation.focus)) {
-					focus = presentation.focus;
+				if (Types.isBoowean(pwesentation.focus)) {
+					focus = pwesentation.focus;
 				}
-				if (Types.isString(presentation.panel)) {
-					panel = Tasks.PanelKind.fromString(presentation.panel);
+				if (Types.isStwing(pwesentation.panew)) {
+					panew = Tasks.PanewKind.fwomStwing(pwesentation.panew);
 				}
-				if (Types.isBoolean(presentation.showReuseMessage)) {
-					showReuseMessage = presentation.showReuseMessage;
+				if (Types.isBoowean(pwesentation.showWeuseMessage)) {
+					showWeuseMessage = pwesentation.showWeuseMessage;
 				}
-				if (Types.isBoolean(presentation.clear)) {
-					clear = presentation.clear;
+				if (Types.isBoowean(pwesentation.cweaw)) {
+					cweaw = pwesentation.cweaw;
 				}
-				if (Types.isString(presentation.group)) {
-					group = presentation.group;
+				if (Types.isStwing(pwesentation.gwoup)) {
+					gwoup = pwesentation.gwoup;
 				}
-				if (Types.isBoolean(presentation.close)) {
-					close = presentation.close;
+				if (Types.isBoowean(pwesentation.cwose)) {
+					cwose = pwesentation.cwose;
 				}
-				hasProps = true;
+				hasPwops = twue;
 			}
-			if (!hasProps) {
-				return undefined;
+			if (!hasPwops) {
+				wetuwn undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close };
+			wetuwn { echo: echo!, weveaw: weveaw!, weveawPwobwems: weveawPwobwems!, focus: focus!, panew: panew!, showWeuseMessage: showWeuseMessage!, cweaw: cweaw!, gwoup, cwose: cwose };
 		}
 
-		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions | undefined): Tasks.PresentationOptions | undefined {
-			return _assignProperties(target, source, properties);
+		expowt function assignPwopewties(tawget: Tasks.PwesentationOptions, souwce: Tasks.PwesentationOptions | undefined): Tasks.PwesentationOptions | undefined {
+			wetuwn _assignPwopewties(tawget, souwce, pwopewties);
 		}
 
-		export function fillProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions | undefined): Tasks.PresentationOptions | undefined {
-			return _fillProperties(target, source, properties);
+		expowt function fiwwPwopewties(tawget: Tasks.PwesentationOptions, souwce: Tasks.PwesentationOptions | undefined): Tasks.PwesentationOptions | undefined {
+			wetuwn _fiwwPwopewties(tawget, souwce, pwopewties);
 		}
 
-		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions | undefined {
-			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+		expowt function fiwwDefauwts(vawue: Tasks.PwesentationOptions, context: PawseContext): Tasks.PwesentationOptions | undefined {
+			wet defauwtEcho = context.engine === Tasks.ExecutionEngine.Tewminaw ? twue : fawse;
+			wetuwn _fiwwDefauwts(vawue, { echo: defauwtEcho, weveaw: Tasks.WeveawKind.Awways, weveawPwobwems: Tasks.WeveawPwobwemKind.Neva, focus: fawse, panew: Tasks.PanewKind.Shawed, showWeuseMessage: twue, cweaw: fawse }, pwopewties, context);
 		}
 
-		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> | undefined {
-			return _freeze(value, properties);
+		expowt function fweeze(vawue: Tasks.PwesentationOptions): Weadonwy<Tasks.PwesentationOptions> | undefined {
+			wetuwn _fweeze(vawue, pwopewties);
 		}
 
-		export function isEmpty(this: void, value: Tasks.PresentationOptions): boolean {
-			return _isEmpty(value, properties);
+		expowt function isEmpty(this: void, vawue: Tasks.PwesentationOptions): boowean {
+			wetuwn _isEmpty(vawue, pwopewties);
 		}
 	}
 
-	namespace ShellString {
-		export function from(this: void, value: CommandString | undefined): Tasks.CommandString | undefined {
-			if (value === undefined || value === null) {
-				return undefined;
+	namespace ShewwStwing {
+		expowt function fwom(this: void, vawue: CommandStwing | undefined): Tasks.CommandStwing | undefined {
+			if (vawue === undefined || vawue === nuww) {
+				wetuwn undefined;
 			}
-			if (Types.isString(value)) {
-				return value;
-			} else if (Types.isStringArray(value)) {
-				return value.join(' ');
-			} else {
-				let quoting = Tasks.ShellQuoting.from(value.quoting);
-				let result = Types.isString(value.value) ? value.value : Types.isStringArray(value.value) ? value.value.join(' ') : undefined;
-				if (result) {
-					return {
-						value: result,
+			if (Types.isStwing(vawue)) {
+				wetuwn vawue;
+			} ewse if (Types.isStwingAwway(vawue)) {
+				wetuwn vawue.join(' ');
+			} ewse {
+				wet quoting = Tasks.ShewwQuoting.fwom(vawue.quoting);
+				wet wesuwt = Types.isStwing(vawue.vawue) ? vawue.vawue : Types.isStwingAwway(vawue.vawue) ? vawue.vawue.join(' ') : undefined;
+				if (wesuwt) {
+					wetuwn {
+						vawue: wesuwt,
 						quoting: quoting
 					};
-				} else {
-					return undefined;
+				} ewse {
+					wetuwn undefined;
 				}
 			}
 		}
 	}
 
-	interface BaseCommandConfigurationShape extends BaseCommandProperties, LegacyCommandProperties {
+	intewface BaseCommandConfiguwationShape extends BaseCommandPwopewties, WegacyCommandPwopewties {
 	}
 
-	interface CommandConfigurationShape extends BaseCommandConfigurationShape {
-		windows?: BaseCommandConfigurationShape;
-		osx?: BaseCommandConfigurationShape;
-		linux?: BaseCommandConfigurationShape;
+	intewface CommandConfiguwationShape extends BaseCommandConfiguwationShape {
+		windows?: BaseCommandConfiguwationShape;
+		osx?: BaseCommandConfiguwationShape;
+		winux?: BaseCommandConfiguwationShape;
 	}
 
-	const properties: MetaData<Tasks.CommandConfiguration, any>[] = [
-		{ property: 'runtime' }, { property: 'name' }, { property: 'options', type: CommandOptions },
-		{ property: 'args' }, { property: 'taskSelector' }, { property: 'suppressTaskName' },
-		{ property: 'presentation', type: PresentationOptions }
+	const pwopewties: MetaData<Tasks.CommandConfiguwation, any>[] = [
+		{ pwopewty: 'wuntime' }, { pwopewty: 'name' }, { pwopewty: 'options', type: CommandOptions },
+		{ pwopewty: 'awgs' }, { pwopewty: 'taskSewectow' }, { pwopewty: 'suppwessTaskName' },
+		{ pwopewty: 'pwesentation', type: PwesentationOptions }
 	];
 
-	export function from(this: void, config: CommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
-		let result: Tasks.CommandConfiguration = fromBase(config, context)!;
+	expowt function fwom(this: void, config: CommandConfiguwationShape, context: PawseContext): Tasks.CommandConfiguwation | undefined {
+		wet wesuwt: Tasks.CommandConfiguwation = fwomBase(config, context)!;
 
-		let osConfig: Tasks.CommandConfiguration | undefined = undefined;
-		if (config.windows && context.platform === Platform.Windows) {
-			osConfig = fromBase(config.windows, context);
-		} else if (config.osx && context.platform === Platform.Mac) {
-			osConfig = fromBase(config.osx, context);
-		} else if (config.linux && context.platform === Platform.Linux) {
-			osConfig = fromBase(config.linux, context);
+		wet osConfig: Tasks.CommandConfiguwation | undefined = undefined;
+		if (config.windows && context.pwatfowm === Pwatfowm.Windows) {
+			osConfig = fwomBase(config.windows, context);
+		} ewse if (config.osx && context.pwatfowm === Pwatfowm.Mac) {
+			osConfig = fwomBase(config.osx, context);
+		} ewse if (config.winux && context.pwatfowm === Pwatfowm.Winux) {
+			osConfig = fwomBase(config.winux, context);
 		}
 		if (osConfig) {
-			result = assignProperties(result, osConfig, context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
+			wesuwt = assignPwopewties(wesuwt, osConfig, context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0);
 		}
-		return isEmpty(result) ? undefined : result;
+		wetuwn isEmpty(wesuwt) ? undefined : wesuwt;
 	}
 
-	function fromBase(this: void, config: BaseCommandConfigurationShape, context: ParseContext): Tasks.CommandConfiguration | undefined {
-		let name: Tasks.CommandString | undefined = ShellString.from(config.command);
-		let runtime: Tasks.RuntimeType;
-		if (Types.isString(config.type)) {
-			if (config.type === 'shell' || config.type === 'process') {
-				runtime = Tasks.RuntimeType.fromString(config.type);
+	function fwomBase(this: void, config: BaseCommandConfiguwationShape, context: PawseContext): Tasks.CommandConfiguwation | undefined {
+		wet name: Tasks.CommandStwing | undefined = ShewwStwing.fwom(config.command);
+		wet wuntime: Tasks.WuntimeType;
+		if (Types.isStwing(config.type)) {
+			if (config.type === 'sheww' || config.type === 'pwocess') {
+				wuntime = Tasks.WuntimeType.fwomStwing(config.type);
 			}
 		}
-		let isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
-		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
-			runtime = Tasks.RuntimeType.Shell;
-		} else if (config.isShellCommand !== undefined) {
-			runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
+		wet isShewwConfiguwation = ShewwConfiguwation.is(config.isShewwCommand);
+		if (Types.isBoowean(config.isShewwCommand) || isShewwConfiguwation) {
+			wuntime = Tasks.WuntimeType.Sheww;
+		} ewse if (config.isShewwCommand !== undefined) {
+			wuntime = !!config.isShewwCommand ? Tasks.WuntimeType.Sheww : Tasks.WuntimeType.Pwocess;
 		}
 
-		let result: Tasks.CommandConfiguration = {
+		wet wesuwt: Tasks.CommandConfiguwation = {
 			name: name,
-			runtime: runtime!,
-			presentation: PresentationOptions.from(config, context)!
+			wuntime: wuntime!,
+			pwesentation: PwesentationOptions.fwom(config, context)!
 		};
 
-		if (config.args !== undefined) {
-			result.args = [];
-			for (let arg of config.args) {
-				let converted = ShellString.from(arg);
-				if (converted !== undefined) {
-					result.args.push(converted);
-				} else {
-					context.taskLoadIssues.push(
-						nls.localize(
-							'ConfigurationParser.inValidArg',
-							'Error: command argument must either be a string or a quoted string. Provided value is:\n{0}',
-							arg ? JSON.stringify(arg, undefined, 4) : 'undefined'
+		if (config.awgs !== undefined) {
+			wesuwt.awgs = [];
+			fow (wet awg of config.awgs) {
+				wet convewted = ShewwStwing.fwom(awg);
+				if (convewted !== undefined) {
+					wesuwt.awgs.push(convewted);
+				} ewse {
+					context.taskWoadIssues.push(
+						nws.wocawize(
+							'ConfiguwationPawsa.inVawidAwg',
+							'Ewwow: command awgument must eitha be a stwing ow a quoted stwing. Pwovided vawue is:\n{0}',
+							awg ? JSON.stwingify(awg, undefined, 4) : 'undefined'
 						));
 				}
 			}
 		}
 		if (config.options !== undefined) {
-			result.options = CommandOptions.from(config.options, context);
-			if (result.options && result.options.shell === undefined && isShellConfiguration) {
-				result.options.shell = ShellConfiguration.from(config.isShellCommand as ShellConfiguration, context);
-				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
-					context.taskLoadIssues.push(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
+			wesuwt.options = CommandOptions.fwom(config.options, context);
+			if (wesuwt.options && wesuwt.options.sheww === undefined && isShewwConfiguwation) {
+				wesuwt.options.sheww = ShewwConfiguwation.fwom(config.isShewwCommand as ShewwConfiguwation, context);
+				if (context.engine !== Tasks.ExecutionEngine.Tewminaw) {
+					context.taskWoadIssues.push(nws.wocawize('ConfiguwationPawsa.noSheww', 'Wawning: sheww configuwation is onwy suppowted when executing tasks in the tewminaw.'));
 				}
 			}
 		}
 
-		if (Types.isString(config.taskSelector)) {
-			result.taskSelector = config.taskSelector;
+		if (Types.isStwing(config.taskSewectow)) {
+			wesuwt.taskSewectow = config.taskSewectow;
 		}
-		if (Types.isBoolean(config.suppressTaskName)) {
-			result.suppressTaskName = config.suppressTaskName;
+		if (Types.isBoowean(config.suppwessTaskName)) {
+			wesuwt.suppwessTaskName = config.suppwessTaskName;
 		}
 
-		return isEmpty(result) ? undefined : result;
+		wetuwn isEmpty(wesuwt) ? undefined : wesuwt;
 	}
 
-	export function hasCommand(value: Tasks.CommandConfiguration): boolean {
-		return value && !!value.name;
+	expowt function hasCommand(vawue: Tasks.CommandConfiguwation): boowean {
+		wetuwn vawue && !!vawue.name;
 	}
 
-	export function isEmpty(value: Tasks.CommandConfiguration | undefined): boolean {
-		return _isEmpty(value, properties);
+	expowt function isEmpty(vawue: Tasks.CommandConfiguwation | undefined): boowean {
+		wetuwn _isEmpty(vawue, pwopewties);
 	}
 
-	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration, overwriteArgs: boolean): Tasks.CommandConfiguration {
-		if (isEmpty(source)) {
-			return target;
+	expowt function assignPwopewties(tawget: Tasks.CommandConfiguwation, souwce: Tasks.CommandConfiguwation, ovewwwiteAwgs: boowean): Tasks.CommandConfiguwation {
+		if (isEmpty(souwce)) {
+			wetuwn tawget;
 		}
-		if (isEmpty(target)) {
-			return source;
+		if (isEmpty(tawget)) {
+			wetuwn souwce;
 		}
-		assignProperty(target, source, 'name');
-		assignProperty(target, source, 'runtime');
-		assignProperty(target, source, 'taskSelector');
-		assignProperty(target, source, 'suppressTaskName');
-		if (source.args !== undefined) {
-			if (target.args === undefined || overwriteArgs) {
-				target.args = source.args;
-			} else {
-				target.args = target.args.concat(source.args);
+		assignPwopewty(tawget, souwce, 'name');
+		assignPwopewty(tawget, souwce, 'wuntime');
+		assignPwopewty(tawget, souwce, 'taskSewectow');
+		assignPwopewty(tawget, souwce, 'suppwessTaskName');
+		if (souwce.awgs !== undefined) {
+			if (tawget.awgs === undefined || ovewwwiteAwgs) {
+				tawget.awgs = souwce.awgs;
+			} ewse {
+				tawget.awgs = tawget.awgs.concat(souwce.awgs);
 			}
 		}
-		target.presentation = PresentationOptions.assignProperties(target.presentation!, source.presentation)!;
-		target.options = CommandOptions.assignProperties(target.options, source.options);
-		return target;
+		tawget.pwesentation = PwesentationOptions.assignPwopewties(tawget.pwesentation!, souwce.pwesentation)!;
+		tawget.options = CommandOptions.assignPwopewties(tawget.options, souwce.options);
+		wetuwn tawget;
 	}
 
-	export function fillProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration | undefined {
-		return _fillProperties(target, source, properties);
+	expowt function fiwwPwopewties(tawget: Tasks.CommandConfiguwation, souwce: Tasks.CommandConfiguwation): Tasks.CommandConfiguwation | undefined {
+		wetuwn _fiwwPwopewties(tawget, souwce, pwopewties);
 	}
 
-	export function fillGlobals(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration | undefined, taskName: string | undefined): Tasks.CommandConfiguration {
-		if ((source === undefined) || isEmpty(source)) {
-			return target;
+	expowt function fiwwGwobaws(tawget: Tasks.CommandConfiguwation, souwce: Tasks.CommandConfiguwation | undefined, taskName: stwing | undefined): Tasks.CommandConfiguwation {
+		if ((souwce === undefined) || isEmpty(souwce)) {
+			wetuwn tawget;
 		}
-		target = target || {
+		tawget = tawget || {
 			name: undefined,
-			runtime: undefined,
-			presentation: undefined
+			wuntime: undefined,
+			pwesentation: undefined
 		};
-		if (target.name === undefined) {
-			fillProperty(target, source, 'name');
-			fillProperty(target, source, 'taskSelector');
-			fillProperty(target, source, 'suppressTaskName');
-			let args: Tasks.CommandString[] = source.args ? source.args.slice() : [];
-			if (!target.suppressTaskName && taskName) {
-				if (target.taskSelector !== undefined) {
-					args.push(target.taskSelector + taskName);
-				} else {
-					args.push(taskName);
+		if (tawget.name === undefined) {
+			fiwwPwopewty(tawget, souwce, 'name');
+			fiwwPwopewty(tawget, souwce, 'taskSewectow');
+			fiwwPwopewty(tawget, souwce, 'suppwessTaskName');
+			wet awgs: Tasks.CommandStwing[] = souwce.awgs ? souwce.awgs.swice() : [];
+			if (!tawget.suppwessTaskName && taskName) {
+				if (tawget.taskSewectow !== undefined) {
+					awgs.push(tawget.taskSewectow + taskName);
+				} ewse {
+					awgs.push(taskName);
 				}
 			}
-			if (target.args) {
-				args = args.concat(target.args);
+			if (tawget.awgs) {
+				awgs = awgs.concat(tawget.awgs);
 			}
-			target.args = args;
+			tawget.awgs = awgs;
 		}
-		fillProperty(target, source, 'runtime');
+		fiwwPwopewty(tawget, souwce, 'wuntime');
 
-		target.presentation = PresentationOptions.fillProperties(target.presentation!, source.presentation)!;
-		target.options = CommandOptions.fillProperties(target.options, source.options);
+		tawget.pwesentation = PwesentationOptions.fiwwPwopewties(tawget.pwesentation!, souwce.pwesentation)!;
+		tawget.options = CommandOptions.fiwwPwopewties(tawget.options, souwce.options);
 
-		return target;
+		wetuwn tawget;
 	}
 
-	export function fillDefaults(value: Tasks.CommandConfiguration | undefined, context: ParseContext): void {
-		if (!value || Object.isFrozen(value)) {
-			return;
+	expowt function fiwwDefauwts(vawue: Tasks.CommandConfiguwation | undefined, context: PawseContext): void {
+		if (!vawue || Object.isFwozen(vawue)) {
+			wetuwn;
 		}
-		if (value.name !== undefined && value.runtime === undefined) {
-			value.runtime = Tasks.RuntimeType.Process;
+		if (vawue.name !== undefined && vawue.wuntime === undefined) {
+			vawue.wuntime = Tasks.WuntimeType.Pwocess;
 		}
-		value.presentation = PresentationOptions.fillDefaults(value.presentation!, context)!;
-		if (!isEmpty(value)) {
-			value.options = CommandOptions.fillDefaults(value.options, context);
+		vawue.pwesentation = PwesentationOptions.fiwwDefauwts(vawue.pwesentation!, context)!;
+		if (!isEmpty(vawue)) {
+			vawue.options = CommandOptions.fiwwDefauwts(vawue.options, context);
 		}
-		if (value.args === undefined) {
-			value.args = EMPTY_ARRAY;
+		if (vawue.awgs === undefined) {
+			vawue.awgs = EMPTY_AWWAY;
 		}
-		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
+		if (vawue.suppwessTaskName === undefined) {
+			vawue.suppwessTaskName = (context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0);
 		}
 	}
 
-	export function freeze(value: Tasks.CommandConfiguration): Readonly<Tasks.CommandConfiguration> | undefined {
-		return _freeze(value, properties);
+	expowt function fweeze(vawue: Tasks.CommandConfiguwation): Weadonwy<Tasks.CommandConfiguwation> | undefined {
+		wetuwn _fweeze(vawue, pwopewties);
 	}
 }
 
-namespace ProblemMatcherConverter {
+namespace PwobwemMatchewConvewta {
 
-	export function namedFrom(this: void, declares: ProblemMatcherConfig.NamedProblemMatcher[] | undefined, context: ParseContext): IStringDictionary<NamedProblemMatcher> {
-		let result: IStringDictionary<NamedProblemMatcher> = Object.create(null);
+	expowt function namedFwom(this: void, decwawes: PwobwemMatchewConfig.NamedPwobwemMatcha[] | undefined, context: PawseContext): IStwingDictionawy<NamedPwobwemMatcha> {
+		wet wesuwt: IStwingDictionawy<NamedPwobwemMatcha> = Object.cweate(nuww);
 
-		if (!Types.isArray(declares)) {
-			return result;
+		if (!Types.isAwway(decwawes)) {
+			wetuwn wesuwt;
 		}
-		(<ProblemMatcherConfig.NamedProblemMatcher[]>declares).forEach((value) => {
-			let namedProblemMatcher = (new ProblemMatcherParser(context.problemReporter)).parse(value);
-			if (isNamedProblemMatcher(namedProblemMatcher)) {
-				result[namedProblemMatcher.name] = namedProblemMatcher;
-			} else {
-				context.problemReporter.error(nls.localize('ConfigurationParser.noName', 'Error: Problem Matcher in declare scope must have a name:\n{0}\n', JSON.stringify(value, undefined, 4)));
+		(<PwobwemMatchewConfig.NamedPwobwemMatcha[]>decwawes).fowEach((vawue) => {
+			wet namedPwobwemMatcha = (new PwobwemMatchewPawsa(context.pwobwemWepowta)).pawse(vawue);
+			if (isNamedPwobwemMatcha(namedPwobwemMatcha)) {
+				wesuwt[namedPwobwemMatcha.name] = namedPwobwemMatcha;
+			} ewse {
+				context.pwobwemWepowta.ewwow(nws.wocawize('ConfiguwationPawsa.noName', 'Ewwow: Pwobwem Matcha in decwawe scope must have a name:\n{0}\n', JSON.stwingify(vawue, undefined, 4)));
 			}
 		});
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext): ProblemMatcher[] | undefined {
-		let result: ProblemMatcher[] | undefined = undefined;
-		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
-			result = from(external.windows.problemMatcher, context);
-		} else if (external.osx && external.osx.problemMatcher && context.platform === Platform.Mac) {
-			result = from(external.osx.problemMatcher, context);
-		} else if (external.linux && external.linux.problemMatcher && context.platform === Platform.Linux) {
-			result = from(external.linux.problemMatcher, context);
-		} else if (external.problemMatcher) {
-			result = from(external.problemMatcher, context);
+	expowt function fwomWithOsConfig(this: void, extewnaw: ConfiguwationPwopewties & { [key: stwing]: any; }, context: PawseContext): PwobwemMatcha[] | undefined {
+		wet wesuwt: PwobwemMatcha[] | undefined = undefined;
+		if (extewnaw.windows && extewnaw.windows.pwobwemMatcha && context.pwatfowm === Pwatfowm.Windows) {
+			wesuwt = fwom(extewnaw.windows.pwobwemMatcha, context);
+		} ewse if (extewnaw.osx && extewnaw.osx.pwobwemMatcha && context.pwatfowm === Pwatfowm.Mac) {
+			wesuwt = fwom(extewnaw.osx.pwobwemMatcha, context);
+		} ewse if (extewnaw.winux && extewnaw.winux.pwobwemMatcha && context.pwatfowm === Pwatfowm.Winux) {
+			wesuwt = fwom(extewnaw.winux.pwobwemMatcha, context);
+		} ewse if (extewnaw.pwobwemMatcha) {
+			wesuwt = fwom(extewnaw.pwobwemMatcha, context);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): ProblemMatcher[] {
-		let result: ProblemMatcher[] = [];
+	expowt function fwom(this: void, config: PwobwemMatchewConfig.PwobwemMatchewType | undefined, context: PawseContext): PwobwemMatcha[] {
+		wet wesuwt: PwobwemMatcha[] = [];
 		if (config === undefined) {
-			return result;
+			wetuwn wesuwt;
 		}
-		let kind = getProblemMatcherKind(config);
-		if (kind === ProblemMatcherKind.Unknown) {
-			context.problemReporter.warn(nls.localize(
-				'ConfigurationParser.unknownMatcherKind',
-				'Warning: the defined problem matcher is unknown. Supported types are string | ProblemMatcher | Array<string | ProblemMatcher>.\n{0}\n',
-				JSON.stringify(config, null, 4)));
-			return result;
-		} else if (kind === ProblemMatcherKind.String || kind === ProblemMatcherKind.ProblemMatcher) {
-			let matcher = resolveProblemMatcher(config as ProblemMatcherConfig.ProblemMatcher, context);
-			if (matcher) {
-				result.push(matcher);
+		wet kind = getPwobwemMatchewKind(config);
+		if (kind === PwobwemMatchewKind.Unknown) {
+			context.pwobwemWepowta.wawn(nws.wocawize(
+				'ConfiguwationPawsa.unknownMatchewKind',
+				'Wawning: the defined pwobwem matcha is unknown. Suppowted types awe stwing | PwobwemMatcha | Awway<stwing | PwobwemMatcha>.\n{0}\n',
+				JSON.stwingify(config, nuww, 4)));
+			wetuwn wesuwt;
+		} ewse if (kind === PwobwemMatchewKind.Stwing || kind === PwobwemMatchewKind.PwobwemMatcha) {
+			wet matcha = wesowvePwobwemMatcha(config as PwobwemMatchewConfig.PwobwemMatcha, context);
+			if (matcha) {
+				wesuwt.push(matcha);
 			}
-		} else if (kind === ProblemMatcherKind.Array) {
-			let problemMatchers = <(string | ProblemMatcherConfig.ProblemMatcher)[]>config;
-			problemMatchers.forEach(problemMatcher => {
-				let matcher = resolveProblemMatcher(problemMatcher, context);
-				if (matcher) {
-					result.push(matcher);
+		} ewse if (kind === PwobwemMatchewKind.Awway) {
+			wet pwobwemMatchews = <(stwing | PwobwemMatchewConfig.PwobwemMatcha)[]>config;
+			pwobwemMatchews.fowEach(pwobwemMatcha => {
+				wet matcha = wesowvePwobwemMatcha(pwobwemMatcha, context);
+				if (matcha) {
+					wesuwt.push(matcha);
 				}
 			});
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	function getProblemMatcherKind(this: void, value: ProblemMatcherConfig.ProblemMatcherType): ProblemMatcherKind {
-		if (Types.isString(value)) {
-			return ProblemMatcherKind.String;
-		} else if (Types.isArray(value)) {
-			return ProblemMatcherKind.Array;
-		} else if (!Types.isUndefined(value)) {
-			return ProblemMatcherKind.ProblemMatcher;
-		} else {
-			return ProblemMatcherKind.Unknown;
+	function getPwobwemMatchewKind(this: void, vawue: PwobwemMatchewConfig.PwobwemMatchewType): PwobwemMatchewKind {
+		if (Types.isStwing(vawue)) {
+			wetuwn PwobwemMatchewKind.Stwing;
+		} ewse if (Types.isAwway(vawue)) {
+			wetuwn PwobwemMatchewKind.Awway;
+		} ewse if (!Types.isUndefined(vawue)) {
+			wetuwn PwobwemMatchewKind.PwobwemMatcha;
+		} ewse {
+			wetuwn PwobwemMatchewKind.Unknown;
 		}
 	}
 
-	function resolveProblemMatcher(this: void, value: string | ProblemMatcherConfig.ProblemMatcher, context: ParseContext): ProblemMatcher | undefined {
-		if (Types.isString(value)) {
-			let variableName = <string>value;
-			if (variableName.length > 1 && variableName[0] === '$') {
-				variableName = variableName.substring(1);
-				let global = ProblemMatcherRegistry.get(variableName);
-				if (global) {
-					return Objects.deepClone(global);
+	function wesowvePwobwemMatcha(this: void, vawue: stwing | PwobwemMatchewConfig.PwobwemMatcha, context: PawseContext): PwobwemMatcha | undefined {
+		if (Types.isStwing(vawue)) {
+			wet vawiabweName = <stwing>vawue;
+			if (vawiabweName.wength > 1 && vawiabweName[0] === '$') {
+				vawiabweName = vawiabweName.substwing(1);
+				wet gwobaw = PwobwemMatchewWegistwy.get(vawiabweName);
+				if (gwobaw) {
+					wetuwn Objects.deepCwone(gwobaw);
 				}
-				let localProblemMatcher: ProblemMatcher & Partial<NamedProblemMatcher> = context.namedProblemMatchers[variableName];
-				if (localProblemMatcher) {
-					localProblemMatcher = Objects.deepClone(localProblemMatcher);
-					// remove the name
-					delete localProblemMatcher.name;
-					return localProblemMatcher;
+				wet wocawPwobwemMatcha: PwobwemMatcha & Pawtiaw<NamedPwobwemMatcha> = context.namedPwobwemMatchews[vawiabweName];
+				if (wocawPwobwemMatcha) {
+					wocawPwobwemMatcha = Objects.deepCwone(wocawPwobwemMatcha);
+					// wemove the name
+					dewete wocawPwobwemMatcha.name;
+					wetuwn wocawPwobwemMatcha;
 				}
 			}
-			context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
-			return undefined;
-		} else {
-			let json = <ProblemMatcherConfig.ProblemMatcher>value;
-			return new ProblemMatcherParser(context.problemReporter).parse(json);
+			context.taskWoadIssues.push(nws.wocawize('ConfiguwationPawsa.invawidVawiabweWefewence', 'Ewwow: Invawid pwobwemMatcha wefewence: {0}\n', vawue));
+			wetuwn undefined;
+		} ewse {
+			wet json = <PwobwemMatchewConfig.PwobwemMatcha>vawue;
+			wetuwn new PwobwemMatchewPawsa(context.pwobwemWepowta).pawse(json);
 		}
 	}
 }
 
-const partialSource: Partial<Tasks.TaskSource> = {
-	label: 'Workspace',
+const pawtiawSouwce: Pawtiaw<Tasks.TaskSouwce> = {
+	wabew: 'Wowkspace',
 	config: undefined
 };
 
-export namespace GroupKind {
-	export function from(this: void, external: string | GroupKind | undefined): Tasks.TaskGroup | undefined {
-		if (external === undefined) {
-			return undefined;
-		} else if (Types.isString(external) && Tasks.TaskGroup.is(external)) {
-			return { _id: external, isDefault: false };
-		} else if (Types.isString(external.kind) && Tasks.TaskGroup.is(external.kind)) {
-			let group: string = external.kind;
-			let isDefault: boolean = !!external.isDefault;
+expowt namespace GwoupKind {
+	expowt function fwom(this: void, extewnaw: stwing | GwoupKind | undefined): Tasks.TaskGwoup | undefined {
+		if (extewnaw === undefined) {
+			wetuwn undefined;
+		} ewse if (Types.isStwing(extewnaw) && Tasks.TaskGwoup.is(extewnaw)) {
+			wetuwn { _id: extewnaw, isDefauwt: fawse };
+		} ewse if (Types.isStwing(extewnaw.kind) && Tasks.TaskGwoup.is(extewnaw.kind)) {
+			wet gwoup: stwing = extewnaw.kind;
+			wet isDefauwt: boowean = !!extewnaw.isDefauwt;
 
-			return { _id: group, isDefault };
+			wetuwn { _id: gwoup, isDefauwt };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	export function to(group: Tasks.TaskGroup | string): GroupKind | string {
-		if (Types.isString(group)) {
-			return group;
-		} else if (!group.isDefault) {
-			return group._id;
+	expowt function to(gwoup: Tasks.TaskGwoup | stwing): GwoupKind | stwing {
+		if (Types.isStwing(gwoup)) {
+			wetuwn gwoup;
+		} ewse if (!gwoup.isDefauwt) {
+			wetuwn gwoup._id;
 		}
-		return {
-			kind: group._id,
-			isDefault: group.isDefault
+		wetuwn {
+			kind: gwoup._id,
+			isDefauwt: gwoup.isDefauwt
 		};
 	}
 }
 
 namespace TaskDependency {
-	function uriFromSource(context: ParseContext, source: TaskConfigSource): URI | string {
-		switch (source) {
-			case TaskConfigSource.User: return USER_TASKS_GROUP_KEY;
-			case TaskConfigSource.TasksJson: return context.workspaceFolder.uri;
-			default: return context.workspace && context.workspace.configuration ? context.workspace.configuration : context.workspaceFolder.uri;
+	function uwiFwomSouwce(context: PawseContext, souwce: TaskConfigSouwce): UWI | stwing {
+		switch (souwce) {
+			case TaskConfigSouwce.Usa: wetuwn USEW_TASKS_GWOUP_KEY;
+			case TaskConfigSouwce.TasksJson: wetuwn context.wowkspaceFowda.uwi;
+			defauwt: wetuwn context.wowkspace && context.wowkspace.configuwation ? context.wowkspace.configuwation : context.wowkspaceFowda.uwi;
 		}
 	}
 
-	export function from(this: void, external: string | TaskIdentifier, context: ParseContext, source: TaskConfigSource): Tasks.TaskDependency | undefined {
-		if (Types.isString(external)) {
-			return { uri: uriFromSource(context, source), task: external };
-		} else if (TaskIdentifier.is(external)) {
-			return {
-				uri: uriFromSource(context, source),
-				task: Tasks.TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter)
+	expowt function fwom(this: void, extewnaw: stwing | TaskIdentifia, context: PawseContext, souwce: TaskConfigSouwce): Tasks.TaskDependency | undefined {
+		if (Types.isStwing(extewnaw)) {
+			wetuwn { uwi: uwiFwomSouwce(context, souwce), task: extewnaw };
+		} ewse if (TaskIdentifia.is(extewnaw)) {
+			wetuwn {
+				uwi: uwiFwomSouwce(context, souwce),
+				task: Tasks.TaskDefinition.cweateTaskIdentifia(extewnaw as Tasks.TaskIdentifia, context.pwobwemWepowta)
 			};
-		} else {
-			return undefined;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-namespace DependsOrder {
-	export function from(order: string | undefined): Tasks.DependsOrder {
-		switch (order) {
-			case Tasks.DependsOrder.sequence:
-				return Tasks.DependsOrder.sequence;
-			case Tasks.DependsOrder.parallel:
-			default:
-				return Tasks.DependsOrder.parallel;
+namespace DependsOwda {
+	expowt function fwom(owda: stwing | undefined): Tasks.DependsOwda {
+		switch (owda) {
+			case Tasks.DependsOwda.sequence:
+				wetuwn Tasks.DependsOwda.sequence;
+			case Tasks.DependsOwda.pawawwew:
+			defauwt:
+				wetuwn Tasks.DependsOwda.pawawwew;
 		}
 	}
 }
 
-namespace ConfigurationProperties {
+namespace ConfiguwationPwopewties {
 
-	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
+	const pwopewties: MetaData<Tasks.ConfiguwationPwopewties, any>[] = [
 
-		{ property: 'name' }, { property: 'identifier' }, { property: 'group' }, { property: 'isBackground' },
-		{ property: 'promptOnClose' }, { property: 'dependsOn' },
-		{ property: 'presentation', type: CommandConfiguration.PresentationOptions }, { property: 'problemMatchers' },
-		{ property: 'options' }
+		{ pwopewty: 'name' }, { pwopewty: 'identifia' }, { pwopewty: 'gwoup' }, { pwopewty: 'isBackgwound' },
+		{ pwopewty: 'pwomptOnCwose' }, { pwopewty: 'dependsOn' },
+		{ pwopewty: 'pwesentation', type: CommandConfiguwation.PwesentationOptions }, { pwopewty: 'pwobwemMatchews' },
+		{ pwopewty: 'options' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
-		if (!external) {
-			return undefined;
+	expowt function fwom(this: void, extewnaw: ConfiguwationPwopewties & { [key: stwing]: any; }, context: PawseContext, incwudeCommandOptions: boowean, souwce: TaskConfigSouwce, pwopewties?: IJSONSchemaMap): Tasks.ConfiguwationPwopewties | undefined {
+		if (!extewnaw) {
+			wetuwn undefined;
 		}
-		let result: Tasks.ConfigurationProperties & { [key: string]: any; } = {};
+		wet wesuwt: Tasks.ConfiguwationPwopewties & { [key: stwing]: any; } = {};
 
-		if (properties) {
-			for (const propertyName of Object.keys(properties)) {
-				if (external[propertyName] !== undefined) {
-					result[propertyName] = Objects.deepClone(external[propertyName]);
+		if (pwopewties) {
+			fow (const pwopewtyName of Object.keys(pwopewties)) {
+				if (extewnaw[pwopewtyName] !== undefined) {
+					wesuwt[pwopewtyName] = Objects.deepCwone(extewnaw[pwopewtyName]);
 				}
 			}
 		}
 
-		if (Types.isString(external.taskName)) {
-			result.name = external.taskName;
+		if (Types.isStwing(extewnaw.taskName)) {
+			wesuwt.name = extewnaw.taskName;
 		}
-		if (Types.isString(external.label) && context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
-			result.name = external.label;
+		if (Types.isStwing(extewnaw.wabew) && context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0) {
+			wesuwt.name = extewnaw.wabew;
 		}
-		if (Types.isString(external.identifier)) {
-			result.identifier = external.identifier;
+		if (Types.isStwing(extewnaw.identifia)) {
+			wesuwt.identifia = extewnaw.identifia;
 		}
-		if (external.isBackground !== undefined) {
-			result.isBackground = !!external.isBackground;
+		if (extewnaw.isBackgwound !== undefined) {
+			wesuwt.isBackgwound = !!extewnaw.isBackgwound;
 		}
-		if (external.promptOnClose !== undefined) {
-			result.promptOnClose = !!external.promptOnClose;
+		if (extewnaw.pwomptOnCwose !== undefined) {
+			wesuwt.pwomptOnCwose = !!extewnaw.pwomptOnCwose;
 		}
-		result.group = GroupKind.from(external.group);
-		if (external.dependsOn !== undefined) {
-			if (Types.isArray(external.dependsOn)) {
-				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
-					const dependency = TaskDependency.from(item, context, source);
+		wesuwt.gwoup = GwoupKind.fwom(extewnaw.gwoup);
+		if (extewnaw.dependsOn !== undefined) {
+			if (Types.isAwway(extewnaw.dependsOn)) {
+				wesuwt.dependsOn = extewnaw.dependsOn.weduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
+					const dependency = TaskDependency.fwom(item, context, souwce);
 					if (dependency) {
 						dependencies.push(dependency);
 					}
-					return dependencies;
+					wetuwn dependencies;
 				}, []);
-			} else {
-				const dependsOnValue = TaskDependency.from(external.dependsOn, context, source);
-				result.dependsOn = dependsOnValue ? [dependsOnValue] : undefined;
+			} ewse {
+				const dependsOnVawue = TaskDependency.fwom(extewnaw.dependsOn, context, souwce);
+				wesuwt.dependsOn = dependsOnVawue ? [dependsOnVawue] : undefined;
 			}
 		}
-		result.dependsOrder = DependsOrder.from(external.dependsOrder);
-		if (includeCommandOptions && (external.presentation !== undefined || (external as LegacyCommandProperties).terminal !== undefined)) {
-			result.presentation = CommandConfiguration.PresentationOptions.from(external, context);
+		wesuwt.dependsOwda = DependsOwda.fwom(extewnaw.dependsOwda);
+		if (incwudeCommandOptions && (extewnaw.pwesentation !== undefined || (extewnaw as WegacyCommandPwopewties).tewminaw !== undefined)) {
+			wesuwt.pwesentation = CommandConfiguwation.PwesentationOptions.fwom(extewnaw, context);
 		}
-		if (includeCommandOptions && (external.options !== undefined)) {
-			result.options = CommandOptions.from(external.options, context);
+		if (incwudeCommandOptions && (extewnaw.options !== undefined)) {
+			wesuwt.options = CommandOptions.fwom(extewnaw.options, context);
 		}
-		const configProblemMatcher = ProblemMatcherConverter.fromWithOsConfig(external, context);
-		if (configProblemMatcher !== undefined) {
-			result.problemMatchers = configProblemMatcher;
+		const configPwobwemMatcha = PwobwemMatchewConvewta.fwomWithOsConfig(extewnaw, context);
+		if (configPwobwemMatcha !== undefined) {
+			wesuwt.pwobwemMatchews = configPwobwemMatcha;
 		}
-		if (external.detail) {
-			result.detail = external.detail;
+		if (extewnaw.detaiw) {
+			wesuwt.detaiw = extewnaw.detaiw;
 		}
-		return isEmpty(result) ? undefined : result;
+		wetuwn isEmpty(wesuwt) ? undefined : wesuwt;
 	}
 
-	export function isEmpty(this: void, value: Tasks.ConfigurationProperties): boolean {
-		return _isEmpty(value, properties);
+	expowt function isEmpty(this: void, vawue: Tasks.ConfiguwationPwopewties): boowean {
+		wetuwn _isEmpty(vawue, pwopewties);
 	}
 }
 
-namespace ConfiguringTask {
+namespace ConfiguwingTask {
 
-	const grunt = 'grunt.';
+	const gwunt = 'gwunt.';
 	const jake = 'jake.';
-	const gulp = 'gulp.';
+	const guwp = 'guwp.';
 	const npm = 'vscode.npm.';
-	const typescript = 'vscode.typescript.';
+	const typescwipt = 'vscode.typescwipt.';
 
-	interface CustomizeShape {
-		customize: string;
+	intewface CustomizeShape {
+		customize: stwing;
 	}
 
-	export function from(this: void, external: ConfiguringTask, context: ParseContext, index: number, source: TaskConfigSource): Tasks.ConfiguringTask | undefined {
-		if (!external) {
-			return undefined;
+	expowt function fwom(this: void, extewnaw: ConfiguwingTask, context: PawseContext, index: numba, souwce: TaskConfigSouwce): Tasks.ConfiguwingTask | undefined {
+		if (!extewnaw) {
+			wetuwn undefined;
 		}
-		let type = external.type;
-		let customize = (external as CustomizeShape).customize;
+		wet type = extewnaw.type;
+		wet customize = (extewnaw as CustomizeShape).customize;
 		if (!type && !customize) {
-			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskType', 'Error: tasks configuration must have a type property. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
-			return undefined;
+			context.pwobwemWepowta.ewwow(nws.wocawize('ConfiguwationPawsa.noTaskType', 'Ewwow: tasks configuwation must have a type pwopewty. The configuwation wiww be ignowed.\n{0}\n', JSON.stwingify(extewnaw, nuww, 4)));
+			wetuwn undefined;
 		}
-		let typeDeclaration = type ? TaskDefinitionRegistry.get(type) : undefined;
-		if (!typeDeclaration) {
-			let message = nls.localize('ConfigurationParser.noTypeDefinition', 'Error: there is no registered task type \'{0}\'. Did you miss to install an extension that provides a corresponding task provider?', type);
-			context.problemReporter.error(message);
-			return undefined;
+		wet typeDecwawation = type ? TaskDefinitionWegistwy.get(type) : undefined;
+		if (!typeDecwawation) {
+			wet message = nws.wocawize('ConfiguwationPawsa.noTypeDefinition', 'Ewwow: thewe is no wegistewed task type \'{0}\'. Did you miss to instaww an extension that pwovides a cowwesponding task pwovida?', type);
+			context.pwobwemWepowta.ewwow(message);
+			wetuwn undefined;
 		}
-		let identifier: Tasks.TaskIdentifier | undefined;
-		if (Types.isString(customize)) {
-			if (customize.indexOf(grunt) === 0) {
-				identifier = { type: 'grunt', task: customize.substring(grunt.length) };
-			} else if (customize.indexOf(jake) === 0) {
-				identifier = { type: 'jake', task: customize.substring(jake.length) };
-			} else if (customize.indexOf(gulp) === 0) {
-				identifier = { type: 'gulp', task: customize.substring(gulp.length) };
-			} else if (customize.indexOf(npm) === 0) {
-				identifier = { type: 'npm', script: customize.substring(npm.length + 4) };
-			} else if (customize.indexOf(typescript) === 0) {
-				identifier = { type: 'typescript', tsconfig: customize.substring(typescript.length + 6) };
+		wet identifia: Tasks.TaskIdentifia | undefined;
+		if (Types.isStwing(customize)) {
+			if (customize.indexOf(gwunt) === 0) {
+				identifia = { type: 'gwunt', task: customize.substwing(gwunt.wength) };
+			} ewse if (customize.indexOf(jake) === 0) {
+				identifia = { type: 'jake', task: customize.substwing(jake.wength) };
+			} ewse if (customize.indexOf(guwp) === 0) {
+				identifia = { type: 'guwp', task: customize.substwing(guwp.wength) };
+			} ewse if (customize.indexOf(npm) === 0) {
+				identifia = { type: 'npm', scwipt: customize.substwing(npm.wength + 4) };
+			} ewse if (customize.indexOf(typescwipt) === 0) {
+				identifia = { type: 'typescwipt', tsconfig: customize.substwing(typescwipt.wength + 6) };
 			}
-		} else {
-			if (Types.isString(external.type)) {
-				identifier = external as Tasks.TaskIdentifier;
+		} ewse {
+			if (Types.isStwing(extewnaw.type)) {
+				identifia = extewnaw as Tasks.TaskIdentifia;
 			}
 		}
-		if (identifier === undefined) {
-			context.problemReporter.error(nls.localize(
-				'ConfigurationParser.missingType',
-				'Error: the task configuration \'{0}\' is missing the required property \'type\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
+		if (identifia === undefined) {
+			context.pwobwemWepowta.ewwow(nws.wocawize(
+				'ConfiguwationPawsa.missingType',
+				'Ewwow: the task configuwation \'{0}\' is missing the wequiwed pwopewty \'type\'. The task configuwation wiww be ignowed.', JSON.stwingify(extewnaw, undefined, 0)
 			));
-			return undefined;
+			wetuwn undefined;
 		}
-		let taskIdentifier: Tasks.KeyedTaskIdentifier | undefined = Tasks.TaskDefinition.createTaskIdentifier(identifier, context.problemReporter);
-		if (taskIdentifier === undefined) {
-			context.problemReporter.error(nls.localize(
-				'ConfigurationParser.incorrectType',
-				'Error: the task configuration \'{0}\' is using an unknown type. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
+		wet taskIdentifia: Tasks.KeyedTaskIdentifia | undefined = Tasks.TaskDefinition.cweateTaskIdentifia(identifia, context.pwobwemWepowta);
+		if (taskIdentifia === undefined) {
+			context.pwobwemWepowta.ewwow(nws.wocawize(
+				'ConfiguwationPawsa.incowwectType',
+				'Ewwow: the task configuwation \'{0}\' is using an unknown type. The task configuwation wiww be ignowed.', JSON.stwingify(extewnaw, undefined, 0)
 			));
-			return undefined;
+			wetuwn undefined;
 		}
-		let configElement: Tasks.TaskSourceConfigElement = {
-			workspaceFolder: context.workspaceFolder,
-			file: '.vscode/tasks.json',
+		wet configEwement: Tasks.TaskSouwceConfigEwement = {
+			wowkspaceFowda: context.wowkspaceFowda,
+			fiwe: '.vscode/tasks.json',
 			index,
-			element: external
+			ewement: extewnaw
 		};
-		let taskSource: Tasks.FileBasedTaskSource;
-		switch (source) {
-			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: configElement });
-				break;
+		wet taskSouwce: Tasks.FiweBasedTaskSouwce;
+		switch (souwce) {
+			case TaskConfigSouwce.Usa: {
+				taskSouwce = Object.assign({} as Tasks.UsewTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.Usa, config: configEwement });
+				bweak;
 			}
-			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement });
-				break;
+			case TaskConfigSouwce.WowkspaceFiwe: {
+				taskSouwce = Object.assign({} as Tasks.WowkspaceFiweTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.WowkspaceFiwe, config: configEwement });
+				bweak;
 			}
-			default: {
-				taskSource = Object.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: configElement });
-				break;
+			defauwt: {
+				taskSouwce = Object.assign({} as Tasks.WowkspaceTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.Wowkspace, config: configEwement });
+				bweak;
 			}
 		}
-		let result: Tasks.ConfiguringTask = new Tasks.ConfiguringTask(
-			`${typeDeclaration.extensionId}.${taskIdentifier._key}`,
-			taskSource,
+		wet wesuwt: Tasks.ConfiguwingTask = new Tasks.ConfiguwingTask(
+			`${typeDecwawation.extensionId}.${taskIdentifia._key}`,
+			taskSouwce,
 			undefined,
 			type,
-			taskIdentifier,
-			RunOptions.fromConfiguration(external.runOptions),
+			taskIdentifia,
+			WunOptions.fwomConfiguwation(extewnaw.wunOptions),
 			{}
 		);
-		let configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
-		if (configuration) {
-			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
-			if (result.configurationProperties.name) {
-				result._label = result.configurationProperties.name;
-			} else {
-				let label = result.configures.type;
-				if (typeDeclaration.required && typeDeclaration.required.length > 0) {
-					for (let required of typeDeclaration.required) {
-						let value = result.configures[required];
-						if (value) {
-							label = label + ' ' + value;
-							break;
+		wet configuwation = ConfiguwationPwopewties.fwom(extewnaw, context, twue, souwce, typeDecwawation.pwopewties);
+		if (configuwation) {
+			wesuwt.configuwationPwopewties = Object.assign(wesuwt.configuwationPwopewties, configuwation);
+			if (wesuwt.configuwationPwopewties.name) {
+				wesuwt._wabew = wesuwt.configuwationPwopewties.name;
+			} ewse {
+				wet wabew = wesuwt.configuwes.type;
+				if (typeDecwawation.wequiwed && typeDecwawation.wequiwed.wength > 0) {
+					fow (wet wequiwed of typeDecwawation.wequiwed) {
+						wet vawue = wesuwt.configuwes[wequiwed];
+						if (vawue) {
+							wabew = wabew + ' ' + vawue;
+							bweak;
 						}
 					}
 				}
-				result._label = label;
+				wesuwt._wabew = wabew;
 			}
-			if (!result.configurationProperties.identifier) {
-				result.configurationProperties.identifier = taskIdentifier._key;
+			if (!wesuwt.configuwationPwopewties.identifia) {
+				wesuwt.configuwationPwopewties.identifia = taskIdentifia._key;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 namespace CustomTask {
-	export function from(this: void, external: CustomTask, context: ParseContext, index: number, source: TaskConfigSource): Tasks.CustomTask | undefined {
-		if (!external) {
-			return undefined;
+	expowt function fwom(this: void, extewnaw: CustomTask, context: PawseContext, index: numba, souwce: TaskConfigSouwce): Tasks.CustomTask | undefined {
+		if (!extewnaw) {
+			wetuwn undefined;
 		}
-		let type = external.type;
-		if (type === undefined || type === null) {
+		wet type = extewnaw.type;
+		if (type === undefined || type === nuww) {
 			type = Tasks.CUSTOMIZED_TASK_TYPE;
 		}
-		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'shell' && type !== 'process') {
-			context.problemReporter.error(nls.localize('ConfigurationParser.notCustom', 'Error: tasks is not declared as a custom task. The configuration will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
-			return undefined;
+		if (type !== Tasks.CUSTOMIZED_TASK_TYPE && type !== 'sheww' && type !== 'pwocess') {
+			context.pwobwemWepowta.ewwow(nws.wocawize('ConfiguwationPawsa.notCustom', 'Ewwow: tasks is not decwawed as a custom task. The configuwation wiww be ignowed.\n{0}\n', JSON.stwingify(extewnaw, nuww, 4)));
+			wetuwn undefined;
 		}
-		let taskName = external.taskName;
-		if (Types.isString(external.label) && context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
-			taskName = external.label;
+		wet taskName = extewnaw.taskName;
+		if (Types.isStwing(extewnaw.wabew) && context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0) {
+			taskName = extewnaw.wabew;
 		}
 		if (!taskName) {
-			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: a task must provide a label property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
-			return undefined;
+			context.pwobwemWepowta.ewwow(nws.wocawize('ConfiguwationPawsa.noTaskName', 'Ewwow: a task must pwovide a wabew pwopewty. The task wiww be ignowed.\n{0}\n', JSON.stwingify(extewnaw, nuww, 4)));
+			wetuwn undefined;
 		}
 
-		let taskSource: Tasks.FileBasedTaskSource;
-		switch (source) {
-			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.UserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
-				break;
+		wet taskSouwce: Tasks.FiweBasedTaskSouwce;
+		switch (souwce) {
+			case TaskConfigSouwce.Usa: {
+				taskSouwce = Object.assign({} as Tasks.UsewTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.Usa, config: { index, ewement: extewnaw, fiwe: '.vscode/tasks.json', wowkspaceFowda: context.wowkspaceFowda } });
+				bweak;
 			}
-			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace } });
-				break;
+			case TaskConfigSouwce.WowkspaceFiwe: {
+				taskSouwce = Object.assign({} as Tasks.WowkspaceFiweTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.WowkspaceFiwe, config: { index, ewement: extewnaw, fiwe: '.vscode/tasks.json', wowkspaceFowda: context.wowkspaceFowda, wowkspace: context.wowkspace } });
+				bweak;
 			}
-			default: {
-				taskSource = Object.assign({} as Tasks.WorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
-				break;
+			defauwt: {
+				taskSouwce = Object.assign({} as Tasks.WowkspaceTaskSouwce, pawtiawSouwce, { kind: Tasks.TaskSouwceKind.Wowkspace, config: { index, ewement: extewnaw, fiwe: '.vscode/tasks.json', wowkspaceFowda: context.wowkspaceFowda } });
+				bweak;
 			}
 		}
 
-		let result: Tasks.CustomTask = new Tasks.CustomTask(
+		wet wesuwt: Tasks.CustomTask = new Tasks.CustomTask(
 			context.uuidMap.getUUID(taskName),
-			taskSource,
+			taskSouwce,
 			taskName,
 			Tasks.CUSTOMIZED_TASK_TYPE,
 			undefined,
-			false,
-			RunOptions.fromConfiguration(external.runOptions),
+			fawse,
+			WunOptions.fwomConfiguwation(extewnaw.wunOptions),
 			{
 				name: taskName,
-				identifier: taskName,
+				identifia: taskName,
 			}
 		);
-		let configuration = ConfigurationProperties.from(external, context, false, source);
-		if (configuration) {
-			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
+		wet configuwation = ConfiguwationPwopewties.fwom(extewnaw, context, fawse, souwce);
+		if (configuwation) {
+			wesuwt.configuwationPwopewties = Object.assign(wesuwt.configuwationPwopewties, configuwation);
 		}
-		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
-		if (supportLegacy) {
-			let legacy: LegacyTaskProperties = external as LegacyTaskProperties;
-			if (result.configurationProperties.isBackground === undefined && legacy.isWatching !== undefined) {
-				result.configurationProperties.isBackground = !!legacy.isWatching;
+		wet suppowtWegacy: boowean = twue; //context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0;
+		if (suppowtWegacy) {
+			wet wegacy: WegacyTaskPwopewties = extewnaw as WegacyTaskPwopewties;
+			if (wesuwt.configuwationPwopewties.isBackgwound === undefined && wegacy.isWatching !== undefined) {
+				wesuwt.configuwationPwopewties.isBackgwound = !!wegacy.isWatching;
 			}
-			if (result.configurationProperties.group === undefined) {
-				if (legacy.isBuildCommand === true) {
-					result.configurationProperties.group = Tasks.TaskGroup.Build;
-				} else if (legacy.isTestCommand === true) {
-					result.configurationProperties.group = Tasks.TaskGroup.Test;
+			if (wesuwt.configuwationPwopewties.gwoup === undefined) {
+				if (wegacy.isBuiwdCommand === twue) {
+					wesuwt.configuwationPwopewties.gwoup = Tasks.TaskGwoup.Buiwd;
+				} ewse if (wegacy.isTestCommand === twue) {
+					wesuwt.configuwationPwopewties.gwoup = Tasks.TaskGwoup.Test;
 				}
 			}
 		}
-		let command: Tasks.CommandConfiguration = CommandConfiguration.from(external, context)!;
+		wet command: Tasks.CommandConfiguwation = CommandConfiguwation.fwom(extewnaw, context)!;
 		if (command) {
-			result.command = command;
+			wesuwt.command = command;
 		}
-		if (external.command !== undefined) {
-			// if the task has its own command then we suppress the
-			// task name by default.
-			command.suppressTaskName = true;
+		if (extewnaw.command !== undefined) {
+			// if the task has its own command then we suppwess the
+			// task name by defauwt.
+			command.suppwessTaskName = twue;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
-		// We only merge a command from a global definition if there is no dependsOn
-		// or there is a dependsOn and a defined command.
-		if (CommandConfiguration.hasCommand(task.command) || task.configurationProperties.dependsOn === undefined) {
-			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.configurationProperties.name);
+	expowt function fiwwGwobaws(task: Tasks.CustomTask, gwobaws: Gwobaws): void {
+		// We onwy mewge a command fwom a gwobaw definition if thewe is no dependsOn
+		// ow thewe is a dependsOn and a defined command.
+		if (CommandConfiguwation.hasCommand(task.command) || task.configuwationPwopewties.dependsOn === undefined) {
+			task.command = CommandConfiguwation.fiwwGwobaws(task.command, gwobaws.command, task.configuwationPwopewties.name);
 		}
-		if (task.configurationProperties.problemMatchers === undefined && globals.problemMatcher !== undefined) {
-			task.configurationProperties.problemMatchers = Objects.deepClone(globals.problemMatcher);
-			task.hasDefinedMatchers = true;
+		if (task.configuwationPwopewties.pwobwemMatchews === undefined && gwobaws.pwobwemMatcha !== undefined) {
+			task.configuwationPwopewties.pwobwemMatchews = Objects.deepCwone(gwobaws.pwobwemMatcha);
+			task.hasDefinedMatchews = twue;
 		}
-		// promptOnClose is inferred from isBackground if available
-		if (task.configurationProperties.promptOnClose === undefined && task.configurationProperties.isBackground === undefined && globals.promptOnClose !== undefined) {
-			task.configurationProperties.promptOnClose = globals.promptOnClose;
-		}
-	}
-
-	export function fillDefaults(task: Tasks.CustomTask, context: ParseContext): void {
-		CommandConfiguration.fillDefaults(task.command, context);
-		if (task.configurationProperties.promptOnClose === undefined) {
-			task.configurationProperties.promptOnClose = task.configurationProperties.isBackground !== undefined ? !task.configurationProperties.isBackground : true;
-		}
-		if (task.configurationProperties.isBackground === undefined) {
-			task.configurationProperties.isBackground = false;
-		}
-		if (task.configurationProperties.problemMatchers === undefined) {
-			task.configurationProperties.problemMatchers = EMPTY_ARRAY;
+		// pwomptOnCwose is infewwed fwom isBackgwound if avaiwabwe
+		if (task.configuwationPwopewties.pwomptOnCwose === undefined && task.configuwationPwopewties.isBackgwound === undefined && gwobaws.pwomptOnCwose !== undefined) {
+			task.configuwationPwopewties.pwomptOnCwose = gwobaws.pwomptOnCwose;
 		}
 	}
 
-	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
-		let result: Tasks.CustomTask = new Tasks.CustomTask(
-			configuredProps._id,
-			Object.assign({}, configuredProps._source, { customizes: contributedTask.defines }),
-			configuredProps.configurationProperties.name || contributedTask._label,
+	expowt function fiwwDefauwts(task: Tasks.CustomTask, context: PawseContext): void {
+		CommandConfiguwation.fiwwDefauwts(task.command, context);
+		if (task.configuwationPwopewties.pwomptOnCwose === undefined) {
+			task.configuwationPwopewties.pwomptOnCwose = task.configuwationPwopewties.isBackgwound !== undefined ? !task.configuwationPwopewties.isBackgwound : twue;
+		}
+		if (task.configuwationPwopewties.isBackgwound === undefined) {
+			task.configuwationPwopewties.isBackgwound = fawse;
+		}
+		if (task.configuwationPwopewties.pwobwemMatchews === undefined) {
+			task.configuwationPwopewties.pwobwemMatchews = EMPTY_AWWAY;
+		}
+	}
+
+	expowt function cweateCustomTask(contwibutedTask: Tasks.ContwibutedTask, configuwedPwops: Tasks.ConfiguwingTask | Tasks.CustomTask): Tasks.CustomTask {
+		wet wesuwt: Tasks.CustomTask = new Tasks.CustomTask(
+			configuwedPwops._id,
+			Object.assign({}, configuwedPwops._souwce, { customizes: contwibutedTask.defines }),
+			configuwedPwops.configuwationPwopewties.name || contwibutedTask._wabew,
 			Tasks.CUSTOMIZED_TASK_TYPE,
-			contributedTask.command,
-			false,
-			contributedTask.runOptions,
+			contwibutedTask.command,
+			fawse,
+			contwibutedTask.wunOptions,
 			{
-				name: configuredProps.configurationProperties.name || contributedTask.configurationProperties.name,
-				identifier: configuredProps.configurationProperties.identifier || contributedTask.configurationProperties.identifier,
+				name: configuwedPwops.configuwationPwopewties.name || contwibutedTask.configuwationPwopewties.name,
+				identifia: configuwedPwops.configuwationPwopewties.identifia || contwibutedTask.configuwationPwopewties.identifia,
 			}
 		);
-		result.addTaskLoadMessages(configuredProps.taskLoadMessages);
-		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
+		wesuwt.addTaskWoadMessages(configuwedPwops.taskWoadMessages);
+		wet wesuwtConfigPwops: Tasks.ConfiguwationPwopewties = wesuwt.configuwationPwopewties;
 
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'group');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'isBackground');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'dependsOn');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'problemMatchers');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'promptOnClose');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'detail');
-		result.command.presentation = CommandConfiguration.PresentationOptions.assignProperties(
-			result.command.presentation!, configuredProps.configurationProperties.presentation)!;
-		result.command.options = CommandOptions.assignProperties(result.command.options, configuredProps.configurationProperties.options);
-		result.runOptions = RunOptions.assignProperties(result.runOptions, configuredProps.runOptions);
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'gwoup');
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'isBackgwound');
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'dependsOn');
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'pwobwemMatchews');
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'pwomptOnCwose');
+		assignPwopewty(wesuwtConfigPwops, configuwedPwops.configuwationPwopewties, 'detaiw');
+		wesuwt.command.pwesentation = CommandConfiguwation.PwesentationOptions.assignPwopewties(
+			wesuwt.command.pwesentation!, configuwedPwops.configuwationPwopewties.pwesentation)!;
+		wesuwt.command.options = CommandOptions.assignPwopewties(wesuwt.command.options, configuwedPwops.configuwationPwopewties.options);
+		wesuwt.wunOptions = WunOptions.assignPwopewties(wesuwt.wunOptions, configuwedPwops.wunOptions);
 
-		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask.configurationProperties;
-		fillProperty(resultConfigProps, contributedConfigProps, 'group');
-		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
-		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
-		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
-		fillProperty(resultConfigProps, contributedConfigProps, 'promptOnClose');
-		fillProperty(resultConfigProps, contributedConfigProps, 'detail');
-		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
-			result.command.presentation!, contributedConfigProps.presentation)!;
-		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
-		result.runOptions = RunOptions.fillProperties(result.runOptions, contributedTask.runOptions);
+		wet contwibutedConfigPwops: Tasks.ConfiguwationPwopewties = contwibutedTask.configuwationPwopewties;
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'gwoup');
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'isBackgwound');
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'dependsOn');
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'pwobwemMatchews');
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'pwomptOnCwose');
+		fiwwPwopewty(wesuwtConfigPwops, contwibutedConfigPwops, 'detaiw');
+		wesuwt.command.pwesentation = CommandConfiguwation.PwesentationOptions.fiwwPwopewties(
+			wesuwt.command.pwesentation!, contwibutedConfigPwops.pwesentation)!;
+		wesuwt.command.options = CommandOptions.fiwwPwopewties(wesuwt.command.options, contwibutedConfigPwops.options);
+		wesuwt.wunOptions = WunOptions.fiwwPwopewties(wesuwt.wunOptions, contwibutedTask.wunOptions);
 
-		if (contributedTask.hasDefinedMatchers === true) {
-			result.hasDefinedMatchers = true;
+		if (contwibutedTask.hasDefinedMatchews === twue) {
+			wesuwt.hasDefinedMatchews = twue;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-interface TaskParseResult {
+intewface TaskPawseWesuwt {
 	custom: Tasks.CustomTask[];
-	configured: Tasks.ConfiguringTask[];
+	configuwed: Tasks.ConfiguwingTask[];
 }
 
-namespace TaskParser {
+namespace TaskPawsa {
 
-	function isCustomTask(value: CustomTask | ConfiguringTask): value is CustomTask {
-		let type = value.type;
-		let customize = (value as any).customize;
-		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
+	function isCustomTask(vawue: CustomTask | ConfiguwingTask): vawue is CustomTask {
+		wet type = vawue.type;
+		wet customize = (vawue as any).customize;
+		wetuwn customize === undefined && (type === undefined || type === nuww || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'sheww' || type === 'pwocess');
 	}
 
-	const builtinTypeContextMap: IStringDictionary<RawContextKey<boolean>> = {
-		shell: ShellExecutionSupportedContext,
-		process: ProcessExecutionSupportedContext
+	const buiwtinTypeContextMap: IStwingDictionawy<WawContextKey<boowean>> = {
+		sheww: ShewwExecutionSuppowtedContext,
+		pwocess: PwocessExecutionSuppowtedContext
 	};
 
-	export function from(this: void, externals: Array<CustomTask | ConfiguringTask> | undefined, globals: Globals, context: ParseContext, source: TaskConfigSource): TaskParseResult {
-		let result: TaskParseResult = { custom: [], configured: [] };
-		if (!externals) {
-			return result;
+	expowt function fwom(this: void, extewnaws: Awway<CustomTask | ConfiguwingTask> | undefined, gwobaws: Gwobaws, context: PawseContext, souwce: TaskConfigSouwce): TaskPawseWesuwt {
+		wet wesuwt: TaskPawseWesuwt = { custom: [], configuwed: [] };
+		if (!extewnaws) {
+			wetuwn wesuwt;
 		}
-		let defaultBuildTask: { task: Tasks.Task | undefined; rank: number; } = { task: undefined, rank: -1 };
-		let defaultTestTask: { task: Tasks.Task | undefined; rank: number; } = { task: undefined, rank: -1 };
-		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
-		const baseLoadIssues = Objects.deepClone(context.taskLoadIssues);
-		for (let index = 0; index < externals.length; index++) {
-			let external = externals[index];
-			const definition = external.type ? TaskDefinitionRegistry.get(external.type) : undefined;
-			let typeNotSupported: boolean = false;
-			if (definition && definition.when && !context.contextKeyService.contextMatchesRules(definition.when)) {
-				typeNotSupported = true;
-			} else if (!definition && external.type) {
-				for (const key of Object.keys(builtinTypeContextMap)) {
-					if (external.type === key) {
-						typeNotSupported = !ShellExecutionSupportedContext.evaluate(context.contextKeyService.getContext(null));
-						break;
+		wet defauwtBuiwdTask: { task: Tasks.Task | undefined; wank: numba; } = { task: undefined, wank: -1 };
+		wet defauwtTestTask: { task: Tasks.Task | undefined; wank: numba; } = { task: undefined, wank: -1 };
+		wet schema2_0_0: boowean = context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0;
+		const baseWoadIssues = Objects.deepCwone(context.taskWoadIssues);
+		fow (wet index = 0; index < extewnaws.wength; index++) {
+			wet extewnaw = extewnaws[index];
+			const definition = extewnaw.type ? TaskDefinitionWegistwy.get(extewnaw.type) : undefined;
+			wet typeNotSuppowted: boowean = fawse;
+			if (definition && definition.when && !context.contextKeySewvice.contextMatchesWuwes(definition.when)) {
+				typeNotSuppowted = twue;
+			} ewse if (!definition && extewnaw.type) {
+				fow (const key of Object.keys(buiwtinTypeContextMap)) {
+					if (extewnaw.type === key) {
+						typeNotSuppowted = !ShewwExecutionSuppowtedContext.evawuate(context.contextKeySewvice.getContext(nuww));
+						bweak;
 					}
 				}
 			}
 
-			if (typeNotSupported) {
-				context.problemReporter.info(nls.localize(
-					'taskConfiguration.providerUnavailable', 'Warning: {0} tasks are unavailable in the current environment.\n',
-					external.type
+			if (typeNotSuppowted) {
+				context.pwobwemWepowta.info(nws.wocawize(
+					'taskConfiguwation.pwovidewUnavaiwabwe', 'Wawning: {0} tasks awe unavaiwabwe in the cuwwent enviwonment.\n',
+					extewnaw.type
 				));
 				continue;
 			}
 
-			if (isCustomTask(external)) {
-				let customTask = CustomTask.from(external, context, index, source);
+			if (isCustomTask(extewnaw)) {
+				wet customTask = CustomTask.fwom(extewnaw, context, index, souwce);
 				if (customTask) {
-					CustomTask.fillGlobals(customTask, globals);
-					CustomTask.fillDefaults(customTask, context);
+					CustomTask.fiwwGwobaws(customTask, gwobaws);
+					CustomTask.fiwwDefauwts(customTask, context);
 					if (schema2_0_0) {
-						if ((customTask.command === undefined || customTask.command.name === undefined) && (customTask.configurationProperties.dependsOn === undefined || customTask.configurationProperties.dependsOn.length === 0)) {
-							context.problemReporter.error(nls.localize(
-								'taskConfiguration.noCommandOrDependsOn', 'Error: the task \'{0}\' neither specifies a command nor a dependsOn property. The task will be ignored. Its definition is:\n{1}',
-								customTask.configurationProperties.name, JSON.stringify(external, undefined, 4)
+						if ((customTask.command === undefined || customTask.command.name === undefined) && (customTask.configuwationPwopewties.dependsOn === undefined || customTask.configuwationPwopewties.dependsOn.wength === 0)) {
+							context.pwobwemWepowta.ewwow(nws.wocawize(
+								'taskConfiguwation.noCommandOwDependsOn', 'Ewwow: the task \'{0}\' neitha specifies a command now a dependsOn pwopewty. The task wiww be ignowed. Its definition is:\n{1}',
+								customTask.configuwationPwopewties.name, JSON.stwingify(extewnaw, undefined, 4)
 							));
 							continue;
 						}
-					} else {
+					} ewse {
 						if (customTask.command === undefined || customTask.command.name === undefined) {
-							context.problemReporter.warn(nls.localize(
-								'taskConfiguration.noCommand', 'Error: the task \'{0}\' doesn\'t define a command. The task will be ignored. Its definition is:\n{1}',
-								customTask.configurationProperties.name, JSON.stringify(external, undefined, 4)
+							context.pwobwemWepowta.wawn(nws.wocawize(
+								'taskConfiguwation.noCommand', 'Ewwow: the task \'{0}\' doesn\'t define a command. The task wiww be ignowed. Its definition is:\n{1}',
+								customTask.configuwationPwopewties.name, JSON.stwingify(extewnaw, undefined, 4)
 							));
 							continue;
 						}
 					}
-					if (customTask.configurationProperties.group === Tasks.TaskGroup.Build && defaultBuildTask.rank < 2) {
-						defaultBuildTask.task = customTask;
-						defaultBuildTask.rank = 2;
-					} else if (customTask.configurationProperties.group === Tasks.TaskGroup.Test && defaultTestTask.rank < 2) {
-						defaultTestTask.task = customTask;
-						defaultTestTask.rank = 2;
-					} else if (customTask.configurationProperties.name === 'build' && defaultBuildTask.rank < 1) {
-						defaultBuildTask.task = customTask;
-						defaultBuildTask.rank = 1;
-					} else if (customTask.configurationProperties.name === 'test' && defaultTestTask.rank < 1) {
-						defaultTestTask.task = customTask;
-						defaultTestTask.rank = 1;
+					if (customTask.configuwationPwopewties.gwoup === Tasks.TaskGwoup.Buiwd && defauwtBuiwdTask.wank < 2) {
+						defauwtBuiwdTask.task = customTask;
+						defauwtBuiwdTask.wank = 2;
+					} ewse if (customTask.configuwationPwopewties.gwoup === Tasks.TaskGwoup.Test && defauwtTestTask.wank < 2) {
+						defauwtTestTask.task = customTask;
+						defauwtTestTask.wank = 2;
+					} ewse if (customTask.configuwationPwopewties.name === 'buiwd' && defauwtBuiwdTask.wank < 1) {
+						defauwtBuiwdTask.task = customTask;
+						defauwtBuiwdTask.wank = 1;
+					} ewse if (customTask.configuwationPwopewties.name === 'test' && defauwtTestTask.wank < 1) {
+						defauwtTestTask.task = customTask;
+						defauwtTestTask.wank = 1;
 					}
-					customTask.addTaskLoadMessages(context.taskLoadIssues);
-					result.custom.push(customTask);
+					customTask.addTaskWoadMessages(context.taskWoadIssues);
+					wesuwt.custom.push(customTask);
 				}
-			} else {
-				let configuredTask = ConfiguringTask.from(external, context, index, source);
-				if (configuredTask) {
-					configuredTask.addTaskLoadMessages(context.taskLoadIssues);
-					result.configured.push(configuredTask);
+			} ewse {
+				wet configuwedTask = ConfiguwingTask.fwom(extewnaw, context, index, souwce);
+				if (configuwedTask) {
+					configuwedTask.addTaskWoadMessages(context.taskWoadIssues);
+					wesuwt.configuwed.push(configuwedTask);
 				}
 			}
-			context.taskLoadIssues = Objects.deepClone(baseLoadIssues);
+			context.taskWoadIssues = Objects.deepCwone(baseWoadIssues);
 		}
-		// There is some special logic for tasks with the labels "build" and "test".
-		// Even if they are not marked as a task group Build or Test, we automagically group them as such.
-		// However, if they are already grouped as Build or Test, we don't need to add this grouping.
-		const defaultBuildGroupName = Types.isString(defaultBuildTask.task?.configurationProperties.group) ? defaultBuildTask.task?.configurationProperties.group : defaultBuildTask.task?.configurationProperties.group?._id;
-		const defaultTestTaskGroupName = Types.isString(defaultTestTask.task?.configurationProperties.group) ? defaultTestTask.task?.configurationProperties.group : defaultTestTask.task?.configurationProperties.group?._id;
-		if ((defaultBuildGroupName !== Tasks.TaskGroup.Build._id) && (defaultBuildTask.rank > -1) && (defaultBuildTask.rank < 2) && defaultBuildTask.task) {
-			defaultBuildTask.task.configurationProperties.group = Tasks.TaskGroup.Build;
-		} else if ((defaultTestTaskGroupName !== Tasks.TaskGroup.Test._id) && (defaultTestTask.rank > -1) && (defaultTestTask.rank < 2) && defaultTestTask.task) {
-			defaultTestTask.task.configurationProperties.group = Tasks.TaskGroup.Test;
+		// Thewe is some speciaw wogic fow tasks with the wabews "buiwd" and "test".
+		// Even if they awe not mawked as a task gwoup Buiwd ow Test, we automagicawwy gwoup them as such.
+		// Howeva, if they awe awweady gwouped as Buiwd ow Test, we don't need to add this gwouping.
+		const defauwtBuiwdGwoupName = Types.isStwing(defauwtBuiwdTask.task?.configuwationPwopewties.gwoup) ? defauwtBuiwdTask.task?.configuwationPwopewties.gwoup : defauwtBuiwdTask.task?.configuwationPwopewties.gwoup?._id;
+		const defauwtTestTaskGwoupName = Types.isStwing(defauwtTestTask.task?.configuwationPwopewties.gwoup) ? defauwtTestTask.task?.configuwationPwopewties.gwoup : defauwtTestTask.task?.configuwationPwopewties.gwoup?._id;
+		if ((defauwtBuiwdGwoupName !== Tasks.TaskGwoup.Buiwd._id) && (defauwtBuiwdTask.wank > -1) && (defauwtBuiwdTask.wank < 2) && defauwtBuiwdTask.task) {
+			defauwtBuiwdTask.task.configuwationPwopewties.gwoup = Tasks.TaskGwoup.Buiwd;
+		} ewse if ((defauwtTestTaskGwoupName !== Tasks.TaskGwoup.Test._id) && (defauwtTestTask.wank > -1) && (defauwtTestTask.wank < 2) && defauwtTestTask.task) {
+			defauwtTestTask.task.configuwationPwopewties.gwoup = Tasks.TaskGwoup.Test;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function assignTasks(target: Tasks.CustomTask[], source: Tasks.CustomTask[]): Tasks.CustomTask[] {
-		if (source === undefined || source.length === 0) {
-			return target;
+	expowt function assignTasks(tawget: Tasks.CustomTask[], souwce: Tasks.CustomTask[]): Tasks.CustomTask[] {
+		if (souwce === undefined || souwce.wength === 0) {
+			wetuwn tawget;
 		}
-		if (target === undefined || target.length === 0) {
-			return source;
+		if (tawget === undefined || tawget.wength === 0) {
+			wetuwn souwce;
 		}
 
-		if (source) {
-			// Tasks are keyed by ID but we need to merge by name
-			let map: IStringDictionary<Tasks.CustomTask> = Object.create(null);
-			target.forEach((task) => {
-				map[task.configurationProperties.name!] = task;
+		if (souwce) {
+			// Tasks awe keyed by ID but we need to mewge by name
+			wet map: IStwingDictionawy<Tasks.CustomTask> = Object.cweate(nuww);
+			tawget.fowEach((task) => {
+				map[task.configuwationPwopewties.name!] = task;
 			});
 
-			source.forEach((task) => {
-				map[task.configurationProperties.name!] = task;
+			souwce.fowEach((task) => {
+				map[task.configuwationPwopewties.name!] = task;
 			});
-			let newTarget: Tasks.CustomTask[] = [];
-			target.forEach(task => {
-				newTarget.push(map[task.configurationProperties.name!]);
-				delete map[task.configurationProperties.name!];
+			wet newTawget: Tasks.CustomTask[] = [];
+			tawget.fowEach(task => {
+				newTawget.push(map[task.configuwationPwopewties.name!]);
+				dewete map[task.configuwationPwopewties.name!];
 			});
-			Object.keys(map).forEach(key => newTarget.push(map[key]));
-			target = newTarget;
+			Object.keys(map).fowEach(key => newTawget.push(map[key]));
+			tawget = newTawget;
 		}
-		return target;
+		wetuwn tawget;
 	}
 }
 
-interface Globals {
-	command?: Tasks.CommandConfiguration;
-	problemMatcher?: ProblemMatcher[];
-	promptOnClose?: boolean;
-	suppressTaskName?: boolean;
+intewface Gwobaws {
+	command?: Tasks.CommandConfiguwation;
+	pwobwemMatcha?: PwobwemMatcha[];
+	pwomptOnCwose?: boowean;
+	suppwessTaskName?: boowean;
 }
 
-namespace Globals {
+namespace Gwobaws {
 
-	export function from(config: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
-		let result = fromBase(config, context);
-		let osGlobals: Globals | undefined = undefined;
-		if (config.windows && context.platform === Platform.Windows) {
-			osGlobals = fromBase(config.windows, context);
-		} else if (config.osx && context.platform === Platform.Mac) {
-			osGlobals = fromBase(config.osx, context);
-		} else if (config.linux && context.platform === Platform.Linux) {
-			osGlobals = fromBase(config.linux, context);
+	expowt function fwom(config: ExtewnawTaskWunnewConfiguwation, context: PawseContext): Gwobaws {
+		wet wesuwt = fwomBase(config, context);
+		wet osGwobaws: Gwobaws | undefined = undefined;
+		if (config.windows && context.pwatfowm === Pwatfowm.Windows) {
+			osGwobaws = fwomBase(config.windows, context);
+		} ewse if (config.osx && context.pwatfowm === Pwatfowm.Mac) {
+			osGwobaws = fwomBase(config.osx, context);
+		} ewse if (config.winux && context.pwatfowm === Pwatfowm.Winux) {
+			osGwobaws = fwomBase(config.winux, context);
 		}
-		if (osGlobals) {
-			result = Globals.assignProperties(result, osGlobals);
+		if (osGwobaws) {
+			wesuwt = Gwobaws.assignPwopewties(wesuwt, osGwobaws);
 		}
-		let command = CommandConfiguration.from(config, context);
+		wet command = CommandConfiguwation.fwom(config, context);
 		if (command) {
-			result.command = command;
+			wesuwt.command = command;
 		}
-		Globals.fillDefaults(result, context);
-		Globals.freeze(result);
-		return result;
+		Gwobaws.fiwwDefauwts(wesuwt, context);
+		Gwobaws.fweeze(wesuwt);
+		wetuwn wesuwt;
 	}
 
-	export function fromBase(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
-		let result: Globals = {};
-		if (config.suppressTaskName !== undefined) {
-			result.suppressTaskName = !!config.suppressTaskName;
+	expowt function fwomBase(this: void, config: BaseTaskWunnewConfiguwation, context: PawseContext): Gwobaws {
+		wet wesuwt: Gwobaws = {};
+		if (config.suppwessTaskName !== undefined) {
+			wesuwt.suppwessTaskName = !!config.suppwessTaskName;
 		}
-		if (config.promptOnClose !== undefined) {
-			result.promptOnClose = !!config.promptOnClose;
+		if (config.pwomptOnCwose !== undefined) {
+			wesuwt.pwomptOnCwose = !!config.pwomptOnCwose;
 		}
-		if (config.problemMatcher) {
-			result.problemMatcher = ProblemMatcherConverter.from(config.problemMatcher, context);
+		if (config.pwobwemMatcha) {
+			wesuwt.pwobwemMatcha = PwobwemMatchewConvewta.fwom(config.pwobwemMatcha, context);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	export function isEmpty(value: Globals): boolean {
-		return !value || value.command === undefined && value.promptOnClose === undefined && value.suppressTaskName === undefined;
+	expowt function isEmpty(vawue: Gwobaws): boowean {
+		wetuwn !vawue || vawue.command === undefined && vawue.pwomptOnCwose === undefined && vawue.suppwessTaskName === undefined;
 	}
 
-	export function assignProperties(target: Globals, source: Globals): Globals {
-		if (isEmpty(source)) {
-			return target;
+	expowt function assignPwopewties(tawget: Gwobaws, souwce: Gwobaws): Gwobaws {
+		if (isEmpty(souwce)) {
+			wetuwn tawget;
 		}
-		if (isEmpty(target)) {
-			return source;
+		if (isEmpty(tawget)) {
+			wetuwn souwce;
 		}
-		assignProperty(target, source, 'promptOnClose');
-		assignProperty(target, source, 'suppressTaskName');
-		return target;
+		assignPwopewty(tawget, souwce, 'pwomptOnCwose');
+		assignPwopewty(tawget, souwce, 'suppwessTaskName');
+		wetuwn tawget;
 	}
 
-	export function fillDefaults(value: Globals, context: ParseContext): void {
-		if (!value) {
-			return;
+	expowt function fiwwDefauwts(vawue: Gwobaws, context: PawseContext): void {
+		if (!vawue) {
+			wetuwn;
 		}
-		CommandConfiguration.fillDefaults(value.command, context);
-		if (value.suppressTaskName === undefined) {
-			value.suppressTaskName = (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0);
+		CommandConfiguwation.fiwwDefauwts(vawue.command, context);
+		if (vawue.suppwessTaskName === undefined) {
+			vawue.suppwessTaskName = (context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0);
 		}
-		if (value.promptOnClose === undefined) {
-			value.promptOnClose = true;
+		if (vawue.pwomptOnCwose === undefined) {
+			vawue.pwomptOnCwose = twue;
 		}
 	}
 
-	export function freeze(value: Globals): void {
-		Object.freeze(value);
-		if (value.command) {
-			CommandConfiguration.freeze(value.command);
+	expowt function fweeze(vawue: Gwobaws): void {
+		Object.fweeze(vawue);
+		if (vawue.command) {
+			CommandConfiguwation.fweeze(vawue.command);
 		}
 	}
 }
 
-export namespace ExecutionEngine {
+expowt namespace ExecutionEngine {
 
-	export function from(config: ExternalTaskRunnerConfiguration): Tasks.ExecutionEngine {
-		let runner = config.runner || config._runner;
-		let result: Tasks.ExecutionEngine | undefined;
-		if (runner) {
-			switch (runner) {
-				case 'terminal':
-					result = Tasks.ExecutionEngine.Terminal;
-					break;
-				case 'process':
-					result = Tasks.ExecutionEngine.Process;
-					break;
+	expowt function fwom(config: ExtewnawTaskWunnewConfiguwation): Tasks.ExecutionEngine {
+		wet wunna = config.wunna || config._wunna;
+		wet wesuwt: Tasks.ExecutionEngine | undefined;
+		if (wunna) {
+			switch (wunna) {
+				case 'tewminaw':
+					wesuwt = Tasks.ExecutionEngine.Tewminaw;
+					bweak;
+				case 'pwocess':
+					wesuwt = Tasks.ExecutionEngine.Pwocess;
+					bweak;
 			}
 		}
-		let schemaVersion = JsonSchemaVersion.from(config);
-		if (schemaVersion === Tasks.JsonSchemaVersion.V0_1_0) {
-			return result || Tasks.ExecutionEngine.Process;
-		} else if (schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
-			return Tasks.ExecutionEngine.Terminal;
-		} else {
-			throw new Error('Shouldn\'t happen.');
+		wet schemaVewsion = JsonSchemaVewsion.fwom(config);
+		if (schemaVewsion === Tasks.JsonSchemaVewsion.V0_1_0) {
+			wetuwn wesuwt || Tasks.ExecutionEngine.Pwocess;
+		} ewse if (schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0) {
+			wetuwn Tasks.ExecutionEngine.Tewminaw;
+		} ewse {
+			thwow new Ewwow('Shouwdn\'t happen.');
 		}
 	}
 }
 
-export namespace JsonSchemaVersion {
+expowt namespace JsonSchemaVewsion {
 
-	const _default: Tasks.JsonSchemaVersion = Tasks.JsonSchemaVersion.V2_0_0;
+	const _defauwt: Tasks.JsonSchemaVewsion = Tasks.JsonSchemaVewsion.V2_0_0;
 
-	export function from(config: ExternalTaskRunnerConfiguration): Tasks.JsonSchemaVersion {
-		let version = config.version;
-		if (!version) {
-			return _default;
+	expowt function fwom(config: ExtewnawTaskWunnewConfiguwation): Tasks.JsonSchemaVewsion {
+		wet vewsion = config.vewsion;
+		if (!vewsion) {
+			wetuwn _defauwt;
 		}
-		switch (version) {
+		switch (vewsion) {
 			case '0.1.0':
-				return Tasks.JsonSchemaVersion.V0_1_0;
+				wetuwn Tasks.JsonSchemaVewsion.V0_1_0;
 			case '2.0.0':
-				return Tasks.JsonSchemaVersion.V2_0_0;
-			default:
-				return _default;
+				wetuwn Tasks.JsonSchemaVewsion.V2_0_0;
+			defauwt:
+				wetuwn _defauwt;
 		}
 	}
 }
 
-export interface ParseResult {
-	validationStatus: ValidationStatus;
+expowt intewface PawseWesuwt {
+	vawidationStatus: VawidationStatus;
 	custom: Tasks.CustomTask[];
-	configured: Tasks.ConfiguringTask[];
+	configuwed: Tasks.ConfiguwingTask[];
 	engine: Tasks.ExecutionEngine;
 }
 
-export interface IProblemReporter extends IProblemReporterBase {
+expowt intewface IPwobwemWepowta extends IPwobwemWepowtewBase {
 }
 
-class UUIDMap {
+cwass UUIDMap {
 
-	private last: IStringDictionary<string | string[]> | undefined;
-	private current: IStringDictionary<string | string[]>;
+	pwivate wast: IStwingDictionawy<stwing | stwing[]> | undefined;
+	pwivate cuwwent: IStwingDictionawy<stwing | stwing[]>;
 
-	constructor(other?: UUIDMap) {
-		this.current = Object.create(null);
-		if (other) {
-			for (let key of Object.keys(other.current)) {
-				let value = other.current[key];
-				if (Array.isArray(value)) {
-					this.current[key] = value.slice();
-				} else {
-					this.current[key] = value;
+	constwuctow(otha?: UUIDMap) {
+		this.cuwwent = Object.cweate(nuww);
+		if (otha) {
+			fow (wet key of Object.keys(otha.cuwwent)) {
+				wet vawue = otha.cuwwent[key];
+				if (Awway.isAwway(vawue)) {
+					this.cuwwent[key] = vawue.swice();
+				} ewse {
+					this.cuwwent[key] = vawue;
 				}
 			}
 		}
 	}
 
-	public start(): void {
-		this.last = this.current;
-		this.current = Object.create(null);
+	pubwic stawt(): void {
+		this.wast = this.cuwwent;
+		this.cuwwent = Object.cweate(nuww);
 	}
 
-	public getUUID(identifier: string): string {
-		let lastValue = this.last ? this.last[identifier] : undefined;
-		let result: string | undefined = undefined;
-		if (lastValue !== undefined) {
-			if (Array.isArray(lastValue)) {
-				result = lastValue.shift();
-				if (lastValue.length === 0) {
-					delete this.last![identifier];
+	pubwic getUUID(identifia: stwing): stwing {
+		wet wastVawue = this.wast ? this.wast[identifia] : undefined;
+		wet wesuwt: stwing | undefined = undefined;
+		if (wastVawue !== undefined) {
+			if (Awway.isAwway(wastVawue)) {
+				wesuwt = wastVawue.shift();
+				if (wastVawue.wength === 0) {
+					dewete this.wast![identifia];
 				}
-			} else {
-				result = lastValue;
-				delete this.last![identifier];
+			} ewse {
+				wesuwt = wastVawue;
+				dewete this.wast![identifia];
 			}
 		}
-		if (result === undefined) {
-			result = UUID.generateUuid();
+		if (wesuwt === undefined) {
+			wesuwt = UUID.genewateUuid();
 		}
-		let currentValue = this.current[identifier];
-		if (currentValue === undefined) {
-			this.current[identifier] = result;
-		} else {
-			if (Array.isArray(currentValue)) {
-				currentValue.push(result);
-			} else {
-				let arrayValue: string[] = [currentValue];
-				arrayValue.push(result);
-				this.current[identifier] = arrayValue;
+		wet cuwwentVawue = this.cuwwent[identifia];
+		if (cuwwentVawue === undefined) {
+			this.cuwwent[identifia] = wesuwt;
+		} ewse {
+			if (Awway.isAwway(cuwwentVawue)) {
+				cuwwentVawue.push(wesuwt);
+			} ewse {
+				wet awwayVawue: stwing[] = [cuwwentVawue];
+				awwayVawue.push(wesuwt);
+				this.cuwwent[identifia] = awwayVawue;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public finish(): void {
-		this.last = undefined;
+	pubwic finish(): void {
+		this.wast = undefined;
 	}
 }
 
-export enum TaskConfigSource {
+expowt enum TaskConfigSouwce {
 	TasksJson,
-	WorkspaceFile,
-	User
+	WowkspaceFiwe,
+	Usa
 }
 
-class ConfigurationParser {
+cwass ConfiguwationPawsa {
 
-	private workspaceFolder: IWorkspaceFolder;
-	private workspace: IWorkspace | undefined;
-	private problemReporter: IProblemReporter;
-	private uuidMap: UUIDMap;
-	private platform: Platform;
+	pwivate wowkspaceFowda: IWowkspaceFowda;
+	pwivate wowkspace: IWowkspace | undefined;
+	pwivate pwobwemWepowta: IPwobwemWepowta;
+	pwivate uuidMap: UUIDMap;
+	pwivate pwatfowm: Pwatfowm;
 
-	constructor(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
-		this.workspaceFolder = workspaceFolder;
-		this.workspace = workspace;
-		this.platform = platform;
-		this.problemReporter = problemReporter;
+	constwuctow(wowkspaceFowda: IWowkspaceFowda, wowkspace: IWowkspace | undefined, pwatfowm: Pwatfowm, pwobwemWepowta: IPwobwemWepowta, uuidMap: UUIDMap) {
+		this.wowkspaceFowda = wowkspaceFowda;
+		this.wowkspace = wowkspace;
+		this.pwatfowm = pwatfowm;
+		this.pwobwemWepowta = pwobwemWepowta;
 		this.uuidMap = uuidMap;
 	}
 
-	public run(fileConfig: ExternalTaskRunnerConfiguration, source: TaskConfigSource, contextKeyService: IContextKeyService): ParseResult {
-		let engine = ExecutionEngine.from(fileConfig);
-		let schemaVersion = JsonSchemaVersion.from(fileConfig);
-		let context: ParseContext = {
-			workspaceFolder: this.workspaceFolder,
-			workspace: this.workspace,
-			problemReporter: this.problemReporter,
+	pubwic wun(fiweConfig: ExtewnawTaskWunnewConfiguwation, souwce: TaskConfigSouwce, contextKeySewvice: IContextKeySewvice): PawseWesuwt {
+		wet engine = ExecutionEngine.fwom(fiweConfig);
+		wet schemaVewsion = JsonSchemaVewsion.fwom(fiweConfig);
+		wet context: PawseContext = {
+			wowkspaceFowda: this.wowkspaceFowda,
+			wowkspace: this.wowkspace,
+			pwobwemWepowta: this.pwobwemWepowta,
 			uuidMap: this.uuidMap,
-			namedProblemMatchers: {},
+			namedPwobwemMatchews: {},
 			engine,
-			schemaVersion,
-			platform: this.platform,
-			taskLoadIssues: [],
-			contextKeyService
+			schemaVewsion,
+			pwatfowm: this.pwatfowm,
+			taskWoadIssues: [],
+			contextKeySewvice
 		};
-		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context, source);
-		return {
-			validationStatus: this.problemReporter.status,
-			custom: taskParseResult.custom,
-			configured: taskParseResult.configured,
+		wet taskPawseWesuwt = this.cweateTaskWunnewConfiguwation(fiweConfig, context, souwce);
+		wetuwn {
+			vawidationStatus: this.pwobwemWepowta.status,
+			custom: taskPawseWesuwt.custom,
+			configuwed: taskPawseWesuwt.configuwed,
 			engine
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext, source: TaskConfigSource): TaskParseResult {
-		let globals = Globals.from(fileConfig, context);
-		if (this.problemReporter.status.isFatal()) {
-			return { custom: [], configured: [] };
+	pwivate cweateTaskWunnewConfiguwation(fiweConfig: ExtewnawTaskWunnewConfiguwation, context: PawseContext, souwce: TaskConfigSouwce): TaskPawseWesuwt {
+		wet gwobaws = Gwobaws.fwom(fiweConfig, context);
+		if (this.pwobwemWepowta.status.isFataw()) {
+			wetuwn { custom: [], configuwed: [] };
 		}
-		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: Tasks.CustomTask[] | undefined = undefined;
-		let externalGlobalTasks: Array<ConfiguringTask | CustomTask> | undefined = undefined;
-		if (fileConfig.windows && context.platform === Platform.Windows) {
-			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context, source).custom;
-			externalGlobalTasks = fileConfig.windows.tasks;
-		} else if (fileConfig.osx && context.platform === Platform.Mac) {
-			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context, source).custom;
-			externalGlobalTasks = fileConfig.osx.tasks;
-		} else if (fileConfig.linux && context.platform === Platform.Linux) {
-			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context, source).custom;
-			externalGlobalTasks = fileConfig.linux.tasks;
+		context.namedPwobwemMatchews = PwobwemMatchewConvewta.namedFwom(fiweConfig.decwawes, context);
+		wet gwobawTasks: Tasks.CustomTask[] | undefined = undefined;
+		wet extewnawGwobawTasks: Awway<ConfiguwingTask | CustomTask> | undefined = undefined;
+		if (fiweConfig.windows && context.pwatfowm === Pwatfowm.Windows) {
+			gwobawTasks = TaskPawsa.fwom(fiweConfig.windows.tasks, gwobaws, context, souwce).custom;
+			extewnawGwobawTasks = fiweConfig.windows.tasks;
+		} ewse if (fiweConfig.osx && context.pwatfowm === Pwatfowm.Mac) {
+			gwobawTasks = TaskPawsa.fwom(fiweConfig.osx.tasks, gwobaws, context, souwce).custom;
+			extewnawGwobawTasks = fiweConfig.osx.tasks;
+		} ewse if (fiweConfig.winux && context.pwatfowm === Pwatfowm.Winux) {
+			gwobawTasks = TaskPawsa.fwom(fiweConfig.winux.tasks, gwobaws, context, souwce).custom;
+			extewnawGwobawTasks = fiweConfig.winux.tasks;
 		}
-		if (context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0 && globalTasks && globalTasks.length > 0 && externalGlobalTasks && externalGlobalTasks.length > 0) {
-			let taskContent: string[] = [];
-			for (let task of externalGlobalTasks) {
-				taskContent.push(JSON.stringify(task, null, 4));
+		if (context.schemaVewsion === Tasks.JsonSchemaVewsion.V2_0_0 && gwobawTasks && gwobawTasks.wength > 0 && extewnawGwobawTasks && extewnawGwobawTasks.wength > 0) {
+			wet taskContent: stwing[] = [];
+			fow (wet task of extewnawGwobawTasks) {
+				taskContent.push(JSON.stwingify(task, nuww, 4));
 			}
-			context.problemReporter.error(
-				nls.localize(
-					{ key: 'TaskParse.noOsSpecificGlobalTasks', comment: ['\"Task version 2.0.0\" refers to the 2.0.0 version of the task system. The \"version 2.0.0\" is not localizable as it is a json key and value.'] },
-					'Task version 2.0.0 doesn\'t support global OS specific tasks. Convert them to a task with a OS specific command. Affected tasks are:\n{0}', taskContent.join('\n'))
+			context.pwobwemWepowta.ewwow(
+				nws.wocawize(
+					{ key: 'TaskPawse.noOsSpecificGwobawTasks', comment: ['\"Task vewsion 2.0.0\" wefews to the 2.0.0 vewsion of the task system. The \"vewsion 2.0.0\" is not wocawizabwe as it is a json key and vawue.'] },
+					'Task vewsion 2.0.0 doesn\'t suppowt gwobaw OS specific tasks. Convewt them to a task with a OS specific command. Affected tasks awe:\n{0}', taskContent.join('\n'))
 			);
 		}
 
-		let result: TaskParseResult = { custom: [], configured: [] };
-		if (fileConfig.tasks) {
-			result = TaskParser.from(fileConfig.tasks, globals, context, source);
+		wet wesuwt: TaskPawseWesuwt = { custom: [], configuwed: [] };
+		if (fiweConfig.tasks) {
+			wesuwt = TaskPawsa.fwom(fiweConfig.tasks, gwobaws, context, souwce);
 		}
-		if (globalTasks) {
-			result.custom = TaskParser.assignTasks(result.custom, globalTasks);
+		if (gwobawTasks) {
+			wesuwt.custom = TaskPawsa.assignTasks(wesuwt.custom, gwobawTasks);
 		}
 
-		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
-			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
-			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-			let name = Tasks.CommandString.value(globals.command.name);
-			let task: Tasks.CustomTask = new Tasks.CustomTask(
+		if ((!wesuwt.custom || wesuwt.custom.wength === 0) && (gwobaws.command && gwobaws.command.name)) {
+			wet matchews: PwobwemMatcha[] = PwobwemMatchewConvewta.fwom(fiweConfig.pwobwemMatcha, context);
+			wet isBackgwound = fiweConfig.isBackgwound ? !!fiweConfig.isBackgwound : fiweConfig.isWatching ? !!fiweConfig.isWatching : undefined;
+			wet name = Tasks.CommandStwing.vawue(gwobaws.command.name);
+			wet task: Tasks.CustomTask = new Tasks.CustomTask(
 				context.uuidMap.getUUID(name),
-				Object.assign({} as Tasks.WorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				Object.assign({} as Tasks.WowkspaceTaskSouwce, souwce, { config: { index: -1, ewement: fiweConfig, wowkspaceFowda: context.wowkspaceFowda } }),
 				name,
 				Tasks.CUSTOMIZED_TASK_TYPE,
 				{
 					name: undefined,
-					runtime: undefined,
-					presentation: undefined,
-					suppressTaskName: true
+					wuntime: undefined,
+					pwesentation: undefined,
+					suppwessTaskName: twue
 				},
-				false,
-				{ reevaluateOnRerun: true },
+				fawse,
+				{ weevawuateOnWewun: twue },
 				{
 					name: name,
-					identifier: name,
-					group: Tasks.TaskGroup.Build,
-					isBackground: isBackground,
-					problemMatchers: matchers,
+					identifia: name,
+					gwoup: Tasks.TaskGwoup.Buiwd,
+					isBackgwound: isBackgwound,
+					pwobwemMatchews: matchews,
 				}
 			);
-			let taskGroupKind = GroupKind.from(fileConfig.group);
-			if (taskGroupKind !== undefined) {
-				task.configurationProperties.group = taskGroupKind;
-			} else if (fileConfig.group === 'none') {
-				task.configurationProperties.group = undefined;
+			wet taskGwoupKind = GwoupKind.fwom(fiweConfig.gwoup);
+			if (taskGwoupKind !== undefined) {
+				task.configuwationPwopewties.gwoup = taskGwoupKind;
+			} ewse if (fiweConfig.gwoup === 'none') {
+				task.configuwationPwopewties.gwoup = undefined;
 			}
-			CustomTask.fillGlobals(task, globals);
-			CustomTask.fillDefaults(task, context);
-			result.custom = [task];
+			CustomTask.fiwwGwobaws(task, gwobaws);
+			CustomTask.fiwwDefauwts(task, context);
+			wesuwt.custom = [task];
 		}
-		result.custom = result.custom || [];
-		result.configured = result.configured || [];
-		return result;
+		wesuwt.custom = wesuwt.custom || [];
+		wesuwt.configuwed = wesuwt.configuwed || [];
+		wetuwn wesuwt;
 	}
 }
 
-let uuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
-let recentUuidMaps: Map<TaskConfigSource, Map<string, UUIDMap>> = new Map();
-export function parse(workspaceFolder: IWorkspaceFolder, workspace: IWorkspace | undefined, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter, source: TaskConfigSource, contextKeyService: IContextKeyService, isRecents: boolean = false): ParseResult {
-	let recentOrOtherMaps = isRecents ? recentUuidMaps : uuidMaps;
-	let selectedUuidMaps = recentOrOtherMaps.get(source);
-	if (!selectedUuidMaps) {
-		recentOrOtherMaps.set(source, new Map());
-		selectedUuidMaps = recentOrOtherMaps.get(source)!;
+wet uuidMaps: Map<TaskConfigSouwce, Map<stwing, UUIDMap>> = new Map();
+wet wecentUuidMaps: Map<TaskConfigSouwce, Map<stwing, UUIDMap>> = new Map();
+expowt function pawse(wowkspaceFowda: IWowkspaceFowda, wowkspace: IWowkspace | undefined, pwatfowm: Pwatfowm, configuwation: ExtewnawTaskWunnewConfiguwation, wogga: IPwobwemWepowta, souwce: TaskConfigSouwce, contextKeySewvice: IContextKeySewvice, isWecents: boowean = fawse): PawseWesuwt {
+	wet wecentOwOthewMaps = isWecents ? wecentUuidMaps : uuidMaps;
+	wet sewectedUuidMaps = wecentOwOthewMaps.get(souwce);
+	if (!sewectedUuidMaps) {
+		wecentOwOthewMaps.set(souwce, new Map());
+		sewectedUuidMaps = wecentOwOthewMaps.get(souwce)!;
 	}
-	let uuidMap = selectedUuidMaps.get(workspaceFolder.uri.toString());
+	wet uuidMap = sewectedUuidMaps.get(wowkspaceFowda.uwi.toStwing());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();
-		selectedUuidMaps.set(workspaceFolder.uri.toString(), uuidMap);
+		sewectedUuidMaps.set(wowkspaceFowda.uwi.toStwing(), uuidMap);
 	}
-	try {
-		uuidMap.start();
-		return (new ConfigurationParser(workspaceFolder, workspace, platform, logger, uuidMap)).run(configuration, source, contextKeyService);
-	} finally {
+	twy {
+		uuidMap.stawt();
+		wetuwn (new ConfiguwationPawsa(wowkspaceFowda, wowkspace, pwatfowm, wogga, uuidMap)).wun(configuwation, souwce, contextKeySewvice);
+	} finawwy {
 		uuidMap.finish();
 	}
 }
 
 
 
-export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
-	return CustomTask.createCustomTask(contributedTask, configuredProps);
+expowt function cweateCustomTask(contwibutedTask: Tasks.ContwibutedTask, configuwedPwops: Tasks.ConfiguwingTask | Tasks.CustomTask): Tasks.CustomTask {
+	wetuwn CustomTask.cweateCustomTask(contwibutedTask, configuwedPwops);
 }
 

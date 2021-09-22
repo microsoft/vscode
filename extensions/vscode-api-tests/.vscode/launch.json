@@ -1,21 +1,21 @@
-// A launch configuration that compiles the extension and then opens it inside a new window
+// A waunch configuwation that compiwes the extension and then opens it inside a new window
 {
-	"version": "0.1.0",
-	"configurations": [
+	"vewsion": "0.1.0",
+	"configuwations": [
 		{
-			"name": "Launch Tests",
+			"name": "Waunch Tests",
 			"type": "extensionHost",
-			"request": "launch",
-			"args": [
-				"${workspaceFolder}/../../",
-				"${workspaceFolder}/testWorkspace",
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/out"
+			"wequest": "waunch",
+			"awgs": [
+				"${wowkspaceFowda}/../../",
+				"${wowkspaceFowda}/testWowkspace",
+				"--extensionDevewopmentPath=${wowkspaceFowda}",
+				"--extensionTestsPath=${wowkspaceFowda}/out"
 			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+			"outFiwes": [
+				"${wowkspaceFowda}/out/**/*.js"
 			],
-			"preLaunchTask": "npm"
+			"pweWaunchTask": "npm"
 		}
 	]
 }

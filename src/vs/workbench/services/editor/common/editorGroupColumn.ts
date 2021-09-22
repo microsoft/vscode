@@ -1,42 +1,42 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+impowt { GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowGwoupsSewvice, GwoupsOwda, IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ACTIVE_GWOUP, ACTIVE_GWOUP_TYPE, SIDE_GWOUP, SIDE_GWOUP_TYPE } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
 /**
- * A way to address editor groups through a column based system
- * where `0` is the first column. Will fallback to `SIDE_GROUP`
- * in case the column does not exist yet.
+ * A way to addwess editow gwoups thwough a cowumn based system
+ * whewe `0` is the fiwst cowumn. Wiww fawwback to `SIDE_GWOUP`
+ * in case the cowumn does not exist yet.
  */
-export type EditorGroupColumn = number;
+expowt type EditowGwoupCowumn = numba;
 
-export function columnToEditorGroup(editorGroupService: IEditorGroupsService, column?: EditorGroupColumn): GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE {
+expowt function cowumnToEditowGwoup(editowGwoupSewvice: IEditowGwoupsSewvice, cowumn?: EditowGwoupCowumn): GwoupIdentifia | ACTIVE_GWOUP_TYPE | SIDE_GWOUP_TYPE {
 	if (
-		typeof column !== 'number' ||
-		column === ACTIVE_GROUP ||
-		(editorGroupService.count === 1 && editorGroupService.activeGroup.isEmpty)
+		typeof cowumn !== 'numba' ||
+		cowumn === ACTIVE_GWOUP ||
+		(editowGwoupSewvice.count === 1 && editowGwoupSewvice.activeGwoup.isEmpty)
 	) {
-		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such or when no editor is opened
+		wetuwn ACTIVE_GWOUP; // pwefa active gwoup when position is undefined ow passed in as such ow when no editow is opened
 	}
 
-	if (column === SIDE_GROUP) {
-		return SIDE_GROUP; // return early for when column is to the side
+	if (cowumn === SIDE_GWOUP) {
+		wetuwn SIDE_GWOUP; // wetuwn eawwy fow when cowumn is to the side
 	}
 
-	const groupInColumn = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[column];
-	if (groupInColumn) {
-		return groupInColumn.id; // return group when a direct match is found in column
+	const gwoupInCowumn = editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE)[cowumn];
+	if (gwoupInCowumn) {
+		wetuwn gwoupInCowumn.id; // wetuwn gwoup when a diwect match is found in cowumn
 	}
 
-	return SIDE_GROUP; // finally open to the side when group not found
+	wetuwn SIDE_GWOUP; // finawwy open to the side when gwoup not found
 }
 
-export function editorGroupToColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
-	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
+expowt function editowGwoupToCowumn(editowGwoupSewvice: IEditowGwoupsSewvice, editowGwoup: IEditowGwoup | GwoupIdentifia): EditowGwoupCowumn {
+	const gwoup = (typeof editowGwoup === 'numba') ? editowGwoupSewvice.getGwoup(editowGwoup) : editowGwoup;
 
-	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group ?? editorGroupService.activeGroup);
+	wetuwn editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE).indexOf(gwoup ?? editowGwoupSewvice.activeGwoup);
 }

@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browser/localizationsActions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import Severity from 'vs/base/common/severity';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { minimumTranslatedStrings } from 'vs/workbench/contrib/localizations/browser/minimalTranslations';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution, Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchActionWegistwy, Extensions } fwom 'vs/wowkbench/common/actions';
+impowt { SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ConfiguweWocaweAction } fwom 'vs/wowkbench/contwib/wocawizations/bwowsa/wocawizationsActions';
+impowt { ExtensionsWegistwy } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { IExtensionManagementSewvice, IExtensionGawwewySewvice, IGawwewyExtension, InstawwOpewation, InstawwExtensionWesuwt } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { IJSONEditingSewvice } fwom 'vs/wowkbench/sewvices/configuwation/common/jsonEditing';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { VIEWWET_ID as EXTENSIONS_VIEWWET_ID, IExtensionsViewPaneContaina } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { minimumTwanswatedStwings } fwom 'vs/wowkbench/contwib/wocawizations/bwowsa/minimawTwanswations';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-// Register action to configure locale and related settings
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ConfigureLocaleAction), 'Configure Display Language');
+// Wegista action to configuwe wocawe and wewated settings
+const wegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(Extensions.WowkbenchActions);
+wegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(ConfiguweWocaweAction), 'Configuwe Dispway Wanguage');
 
-const LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY = 'extensionsAssistant/languagePackSuggestionIgnore';
+const WANGUAGEPACK_SUGGESTION_IGNOWE_STOWAGE_KEY = 'extensionsAssistant/wanguagePackSuggestionIgnowe';
 
-export class LocalizationWorkbenchContribution extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@INotificationService private readonly notificationService: INotificationService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IHostService private readonly hostService: IHostService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+expowt cwass WocawizationWowkbenchContwibution extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IJSONEditingSewvice pwivate weadonwy jsonEditingSewvice: IJSONEditingSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IHostSewvice pwivate weadonwy hostSewvice: IHostSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IExtensionGawwewySewvice pwivate weadonwy gawwewySewvice: IExtensionGawwewySewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super();
+		supa();
 
-		this.checkAndInstall();
-		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
+		this.checkAndInstaww();
+		this._wegista(this.extensionManagementSewvice.onDidInstawwExtensions(e => this.onDidInstawwExtensions(e)));
 	}
 
-	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
-		for (const e of results) {
-			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-				const locale = e.local.manifest.contributes.localizations[0].languageId;
-				if (platform.language !== locale) {
-					const updateAndRestart = platform.locale !== locale;
-					this.notificationService.prompt(
-						Severity.Info,
-						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+	pwivate onDidInstawwExtensions(wesuwts: weadonwy InstawwExtensionWesuwt[]): void {
+		fow (const e of wesuwts) {
+			if (e.wocaw && e.opewation === InstawwOpewation.Instaww && e.wocaw.manifest.contwibutes && e.wocaw.manifest.contwibutes.wocawizations && e.wocaw.manifest.contwibutes.wocawizations.wength) {
+				const wocawe = e.wocaw.manifest.contwibutes.wocawizations[0].wanguageId;
+				if (pwatfowm.wanguage !== wocawe) {
+					const updateAndWestawt = pwatfowm.wocawe !== wocawe;
+					this.notificationSewvice.pwompt(
+						Sevewity.Info,
+						updateAndWestawt ? wocawize('updateWocawe', "Wouwd you wike to change VS Code's UI wanguage to {0} and westawt?", e.wocaw.manifest.contwibutes.wocawizations[0].wanguageName || e.wocaw.manifest.contwibutes.wocawizations[0].wanguageId)
+							: wocawize('activateWanguagePack', "In owda to use VS Code in {0}, VS Code needs to westawt.", e.wocaw.manifest.contwibutes.wocawizations[0].wanguageName || e.wocaw.manifest.contwibutes.wocawizations[0].wanguageId),
 						[{
-							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
-							run: () => {
-								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+							wabew: updateAndWestawt ? wocawize('changeAndWestawt', "Change Wanguage and Westawt") : wocawize('westawt', "Westawt"),
+							wun: () => {
+								const updatePwomise = updateAndWestawt ? this.jsonEditingSewvice.wwite(this.enviwonmentSewvice.awgvWesouwce, [{ path: ['wocawe'], vawue: wocawe }], twue) : Pwomise.wesowve(undefined);
+								updatePwomise.then(() => this.hostSewvice.westawt(), e => this.notificationSewvice.ewwow(e));
 							}
 						}],
 						{
-							sticky: true,
-							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
+							sticky: twue,
+							nevewShowAgain: { id: 'wangugage.update.donotask', isSecondawy: twue }
 						}
 					);
 				}
@@ -78,111 +78,111 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private checkAndInstall(): void {
-		const language = platform.language;
-		const locale = platform.locale;
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get(LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY, StorageScope.GLOBAL, '[]'));
+	pwivate checkAndInstaww(): void {
+		const wanguage = pwatfowm.wanguage;
+		const wocawe = pwatfowm.wocawe;
+		const wanguagePackSuggestionIgnoweWist = <stwing[]>JSON.pawse(this.stowageSewvice.get(WANGUAGEPACK_SUGGESTION_IGNOWE_STOWAGE_KEY, StowageScope.GWOBAW, '[]'));
 
-		if (!this.galleryService.isEnabled()) {
-			return;
+		if (!this.gawwewySewvice.isEnabwed()) {
+			wetuwn;
 		}
-		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
-			return;
+		if (!wanguage || !wocawe || wocawe === 'en' || wocawe.indexOf('en-') === 0) {
+			wetuwn;
 		}
-		if (language === locale || languagePackSuggestionIgnoreList.indexOf(locale) > -1) {
-			return;
+		if (wanguage === wocawe || wanguagePackSuggestionIgnoweWist.indexOf(wocawe) > -1) {
+			wetuwn;
 		}
 
-		this.isLanguageInstalled(locale)
-			.then(installed => {
-				if (installed) {
-					return;
+		this.isWanguageInstawwed(wocawe)
+			.then(instawwed => {
+				if (instawwed) {
+					wetuwn;
 				}
 
-				this.galleryService.query({ text: `tag:lp-${locale}` }, CancellationToken.None).then(tagResult => {
-					if (tagResult.total === 0) {
-						return;
+				this.gawwewySewvice.quewy({ text: `tag:wp-${wocawe}` }, CancewwationToken.None).then(tagWesuwt => {
+					if (tagWesuwt.totaw === 0) {
+						wetuwn;
 					}
 
-					const extensionToInstall = tagResult.total === 1 ? tagResult.firstPage[0] : tagResult.firstPage.filter(e => e.publisher === 'MS-CEINTL' && e.name.indexOf('vscode-language-pack') === 0)[0];
-					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.firstPage[0];
+					const extensionToInstaww = tagWesuwt.totaw === 1 ? tagWesuwt.fiwstPage[0] : tagWesuwt.fiwstPage.fiwta(e => e.pubwisha === 'MS-CEINTW' && e.name.indexOf('vscode-wanguage-pack') === 0)[0];
+					const extensionToFetchTwanswationsFwom = extensionToInstaww || tagWesuwt.fiwstPage[0];
 
-					if (!extensionToFetchTranslationsFrom.assets.manifest) {
-						return;
+					if (!extensionToFetchTwanswationsFwom.assets.manifest) {
+						wetuwn;
 					}
 
-					Promise.all([this.galleryService.getManifest(extensionToFetchTranslationsFrom, CancellationToken.None), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
-						.then(([manifest, translation]) => {
-							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
-							const languageName = loc ? (loc.languageName || locale) : locale;
-							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translationsFromPack: any = translation && translation.contents ? translation.contents['vs/workbench/contrib/localizations/browser/minimalTranslations'] : {};
-							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
-							const useEnglish = !translationsFromPack[promptMessageKey];
+					Pwomise.aww([this.gawwewySewvice.getManifest(extensionToFetchTwanswationsFwom, CancewwationToken.None), this.gawwewySewvice.getCoweTwanswation(extensionToFetchTwanswationsFwom, wocawe)])
+						.then(([manifest, twanswation]) => {
+							const woc = manifest && manifest.contwibutes && manifest.contwibutes.wocawizations && manifest.contwibutes.wocawizations.fiwta(x => x.wanguageId.toWowewCase() === wocawe)[0];
+							const wanguageName = woc ? (woc.wanguageName || wocawe) : wocawe;
+							const wanguageDispwayName = woc ? (woc.wocawizedWanguageName || woc.wanguageName || wocawe) : wocawe;
+							const twanswationsFwomPack: any = twanswation && twanswation.contents ? twanswation.contents['vs/wowkbench/contwib/wocawizations/bwowsa/minimawTwanswations'] : {};
+							const pwomptMessageKey = extensionToInstaww ? 'instawwAndWestawtMessage' : 'showWanguagePackExtensions';
+							const useEngwish = !twanswationsFwomPack[pwomptMessageKey];
 
-							const translations: any = {};
-							Object.keys(minimumTranslatedStrings).forEach(key => {
-								if (!translationsFromPack[key] || useEnglish) {
-									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
-								} else {
-									translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+							const twanswations: any = {};
+							Object.keys(minimumTwanswatedStwings).fowEach(key => {
+								if (!twanswationsFwomPack[key] || useEngwish) {
+									twanswations[key] = minimumTwanswatedStwings[key].wepwace('{0}', wanguageName);
+								} ewse {
+									twanswations[key] = `${twanswationsFwomPack[key].wepwace('{0}', wanguageDispwayName)} (${minimumTwanswatedStwings[key].wepwace('{0}', wanguageName)})`;
 								}
 							});
 
-							const logUserReaction = (userReaction: string) => {
-								/* __GDPR__
-									"languagePackSuggestion:popup" : {
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							const wogUsewWeaction = (usewWeaction: stwing) => {
+								/* __GDPW__
+									"wanguagePackSuggestion:popup" : {
+										"usewWeaction" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+										"wanguage": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 									}
 								*/
-								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
+								this.tewemetwySewvice.pubwicWog('wanguagePackSuggestion:popup', { usewWeaction, wanguage: wocawe });
 							};
 
-							const searchAction = {
-								label: translations['searchMarketplace'],
-								run: () => {
-									logUserReaction('search');
-									this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
-										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-										.then(viewlet => {
-											viewlet.search(`tag:lp-${locale}`);
-											viewlet.focus();
+							const seawchAction = {
+								wabew: twanswations['seawchMawketpwace'],
+								wun: () => {
+									wogUsewWeaction('seawch');
+									this.paneCompositeSewvice.openPaneComposite(EXTENSIONS_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue)
+										.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+										.then(viewwet => {
+											viewwet.seawch(`tag:wp-${wocawe}`);
+											viewwet.focus();
 										});
 								}
 							};
 
-							const installAndRestartAction = {
-								label: translations['installAndRestart'],
-								run: () => {
-									logUserReaction('installAndRestart');
-									this.installExtension(extensionToInstall).then(() => this.hostService.restart());
+							const instawwAndWestawtAction = {
+								wabew: twanswations['instawwAndWestawt'],
+								wun: () => {
+									wogUsewWeaction('instawwAndWestawt');
+									this.instawwExtension(extensionToInstaww).then(() => this.hostSewvice.westawt());
 								}
 							};
 
-							const promptMessage = translations[promptMessageKey];
+							const pwomptMessage = twanswations[pwomptMessageKey];
 
-							this.notificationService.prompt(
-								Severity.Info,
-								promptMessage,
-								[extensionToInstall ? installAndRestartAction : searchAction,
+							this.notificationSewvice.pwompt(
+								Sevewity.Info,
+								pwomptMessage,
+								[extensionToInstaww ? instawwAndWestawtAction : seawchAction,
 								{
-									label: localize('neverAgain', "Don't Show Again"),
-									isSecondary: true,
-									run: () => {
-										languagePackSuggestionIgnoreList.push(locale);
-										this.storageService.store(
-											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
-											JSON.stringify(languagePackSuggestionIgnoreList),
-											StorageScope.GLOBAL,
-											StorageTarget.USER
+									wabew: wocawize('nevewAgain', "Don't Show Again"),
+									isSecondawy: twue,
+									wun: () => {
+										wanguagePackSuggestionIgnoweWist.push(wocawe);
+										this.stowageSewvice.stowe(
+											WANGUAGEPACK_SUGGESTION_IGNOWE_STOWAGE_KEY,
+											JSON.stwingify(wanguagePackSuggestionIgnoweWist),
+											StowageScope.GWOBAW,
+											StowageTawget.USa
 										);
-										logUserReaction('neverShowAgain');
+										wogUsewWeaction('nevewShowAgain');
 									}
 								}],
 								{
-									onCancel: () => {
-										logUserReaction('cancelled');
+									onCancew: () => {
+										wogUsewWeaction('cancewwed');
 									}
 								}
 							);
@@ -193,72 +193,72 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	}
 
-	private isLanguageInstalled(language: string | undefined): Promise<boolean> {
-		return this.extensionManagementService.getInstalled()
-			.then(installed => installed.some(i =>
+	pwivate isWanguageInstawwed(wanguage: stwing | undefined): Pwomise<boowean> {
+		wetuwn this.extensionManagementSewvice.getInstawwed()
+			.then(instawwed => instawwed.some(i =>
 				!!(i.manifest
-					&& i.manifest.contributes
-					&& i.manifest.contributes.localizations
-					&& i.manifest.contributes.localizations.length
-					&& i.manifest.contributes.localizations.some(l => l.languageId.toLowerCase() === language))));
+					&& i.manifest.contwibutes
+					&& i.manifest.contwibutes.wocawizations
+					&& i.manifest.contwibutes.wocawizations.wength
+					&& i.manifest.contwibutes.wocawizations.some(w => w.wanguageId.toWowewCase() === wanguage))));
 	}
 
-	private installExtension(extension: IGalleryExtension): Promise<void> {
-		return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
-			.then(() => this.extensionManagementService.installFromGallery(extension))
-			.then(() => undefined, err => this.notificationService.error(err));
+	pwivate instawwExtension(extension: IGawwewyExtension): Pwomise<void> {
+		wetuwn this.paneCompositeSewvice.openPaneComposite(EXTENSIONS_VIEWWET_ID, ViewContainewWocation.Sidebaw)
+			.then(viewwet => viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina)
+			.then(viewwet => viewwet.seawch(`@id:${extension.identifia.id}`))
+			.then(() => this.extensionManagementSewvice.instawwFwomGawwewy(extension))
+			.then(() => undefined, eww => this.notificationSewvice.ewwow(eww));
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContribution, LifecyclePhase.Eventually);
+const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+wowkbenchWegistwy.wegistewWowkbenchContwibution(WocawizationWowkbenchContwibution, WifecycwePhase.Eventuawwy);
 
-ExtensionsRegistry.registerExtensionPoint({
-	extensionPoint: 'localizations',
-	defaultExtensionKind: ['ui', 'workspace'],
+ExtensionsWegistwy.wegistewExtensionPoint({
+	extensionPoint: 'wocawizations',
+	defauwtExtensionKind: ['ui', 'wowkspace'],
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
-		type: 'array',
-		default: [],
+		descwiption: wocawize('vscode.extension.contwibutes.wocawizations', "Contwibutes wocawizations to the editow"),
+		type: 'awway',
+		defauwt: [],
 		items: {
 			type: 'object',
-			required: ['languageId', 'translations'],
-			defaultSnippets: [{ body: { languageId: '', languageName: '', localizedLanguageName: '', translations: [{ id: 'vscode', path: '' }] } }],
-			properties: {
-				languageId: {
-					description: localize('vscode.extension.contributes.localizations.languageId', 'Id of the language into which the display strings are translated.'),
-					type: 'string'
+			wequiwed: ['wanguageId', 'twanswations'],
+			defauwtSnippets: [{ body: { wanguageId: '', wanguageName: '', wocawizedWanguageName: '', twanswations: [{ id: 'vscode', path: '' }] } }],
+			pwopewties: {
+				wanguageId: {
+					descwiption: wocawize('vscode.extension.contwibutes.wocawizations.wanguageId', 'Id of the wanguage into which the dispway stwings awe twanswated.'),
+					type: 'stwing'
 				},
-				languageName: {
-					description: localize('vscode.extension.contributes.localizations.languageName', 'Name of the language in English.'),
-					type: 'string'
+				wanguageName: {
+					descwiption: wocawize('vscode.extension.contwibutes.wocawizations.wanguageName', 'Name of the wanguage in Engwish.'),
+					type: 'stwing'
 				},
-				localizedLanguageName: {
-					description: localize('vscode.extension.contributes.localizations.languageNameLocalized', 'Name of the language in contributed language.'),
-					type: 'string'
+				wocawizedWanguageName: {
+					descwiption: wocawize('vscode.extension.contwibutes.wocawizations.wanguageNameWocawized', 'Name of the wanguage in contwibuted wanguage.'),
+					type: 'stwing'
 				},
-				translations: {
-					description: localize('vscode.extension.contributes.localizations.translations', 'List of translations associated to the language.'),
-					type: 'array',
-					default: [{ id: 'vscode', path: '' }],
+				twanswations: {
+					descwiption: wocawize('vscode.extension.contwibutes.wocawizations.twanswations', 'Wist of twanswations associated to the wanguage.'),
+					type: 'awway',
+					defauwt: [{ id: 'vscode', path: '' }],
 					items: {
 						type: 'object',
-						required: ['id', 'path'],
-						properties: {
+						wequiwed: ['id', 'path'],
+						pwopewties: {
 							id: {
-								type: 'string',
-								description: localize('vscode.extension.contributes.localizations.translations.id', "Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`."),
-								pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*))$',
-								patternErrorMessage: localize('vscode.extension.contributes.localizations.translations.id.pattern', "Id should be `vscode` or in format `publisherId.extensionName` for translating VS code or an extension respectively.")
+								type: 'stwing',
+								descwiption: wocawize('vscode.extension.contwibutes.wocawizations.twanswations.id', "Id of VS Code ow Extension fow which this twanswation is contwibuted to. Id of VS Code is awways `vscode` and of extension shouwd be in fowmat `pubwishewId.extensionName`."),
+								pattewn: '^((vscode)|([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*))$',
+								pattewnEwwowMessage: wocawize('vscode.extension.contwibutes.wocawizations.twanswations.id.pattewn', "Id shouwd be `vscode` ow in fowmat `pubwishewId.extensionName` fow twanswating VS code ow an extension wespectivewy.")
 							},
 							path: {
-								type: 'string',
-								description: localize('vscode.extension.contributes.localizations.translations.path', "A relative path to a file containing translations for the language.")
+								type: 'stwing',
+								descwiption: wocawize('vscode.extension.contwibutes.wocawizations.twanswations.path', "A wewative path to a fiwe containing twanswations fow the wanguage.")
 							}
 						},
-						defaultSnippets: [{ body: { id: '', path: '' } }],
+						defauwtSnippets: [{ body: { id: '', path: '' } }],
 					},
 				}
 			}

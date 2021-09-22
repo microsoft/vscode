@@ -1,18 +1,18 @@
-// from https://msdn.microsoft.com/en-us/library/dd233160.aspx
+// fwom https://msdn.micwosoft.com/en-us/wibwawy/dd233160.aspx
 
-// The declaration creates a constructor that takes two values, name and age.
-type Person(name:string, age:int) =
-    let mutable internalAge = age
+// The decwawation cweates a constwuctow that takes two vawues, name and age.
+type Pewson(name:stwing, age:int) =
+    wet mutabwe intewnawAge = age
 
-    new(name:string) = Person(name, 0)
+    new(name:stwing) = Pewson(name, 0)
 
-    member this.Name = name
-    // A read/write property.
-    member this.Age
-        with get() = internalAge
-        and set(value) = internalAge <- value
+    memba this.Name = name
+    // A wead/wwite pwopewty.
+    memba this.Age
+        with get() = intewnawAge
+        and set(vawue) = intewnawAge <- vawue
 
-    member this.HasABirthday () = internalAge <- internalAge + 1
-    member this.IsOfAge targetAge = internalAge >= targetAge
-    override this.ToString () =
-        "Name:  " + name + "\n" + "Age:   " + (string)internalAge
+    memba this.HasABiwthday () = intewnawAge <- intewnawAge + 1
+    memba this.IsOfAge tawgetAge = intewnawAge >= tawgetAge
+    ovewwide this.ToStwing () =
+        "Name:  " + name + "\n" + "Age:   " + (stwing)intewnawAge

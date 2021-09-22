@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { OpewatingSystem } fwom 'vs/base/common/pwatfowm';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IRemoteAgentEnvironment {
-	pid: number;
-	connectionToken: string;
-	appRoot: URI;
-	settingsPath: URI;
-	logsPath: URI;
-	extensionsPath: URI;
-	extensionHostLogsPath: URI;
-	globalStorageHome: URI;
-	workspaceStorageHome: URI;
-	userHome: URI;
-	os: OperatingSystem;
-	arch: string;
-	marks: performance.PerformanceMark[];
-	useHostProxy: boolean;
+expowt intewface IWemoteAgentEnviwonment {
+	pid: numba;
+	connectionToken: stwing;
+	appWoot: UWI;
+	settingsPath: UWI;
+	wogsPath: UWI;
+	extensionsPath: UWI;
+	extensionHostWogsPath: UWI;
+	gwobawStowageHome: UWI;
+	wowkspaceStowageHome: UWI;
+	usewHome: UWI;
+	os: OpewatingSystem;
+	awch: stwing;
+	mawks: pewfowmance.PewfowmanceMawk[];
+	useHostPwoxy: boowean;
 }
 
-export interface RemoteAgentConnectionContext {
-	remoteAuthority: string;
-	clientId: string;
+expowt intewface WemoteAgentConnectionContext {
+	wemoteAuthowity: stwing;
+	cwientId: stwing;
 }

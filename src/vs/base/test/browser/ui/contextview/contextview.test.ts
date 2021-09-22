@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { layout, LayoutAnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+impowt * as assewt fwom 'assewt';
+impowt { wayout, WayoutAnchowPosition } fwom 'vs/base/bwowsa/ui/contextview/contextview';
 
 suite('Contextview', function () {
 
-	test('layout', () => {
-		assert.strictEqual(layout(200, 20, { offset: 0, size: 0, position: LayoutAnchorPosition.Before }), 0);
-		assert.strictEqual(layout(200, 20, { offset: 50, size: 0, position: LayoutAnchorPosition.Before }), 50);
-		assert.strictEqual(layout(200, 20, { offset: 200, size: 0, position: LayoutAnchorPosition.Before }), 180);
+	test('wayout', () => {
+		assewt.stwictEquaw(wayout(200, 20, { offset: 0, size: 0, position: WayoutAnchowPosition.Befowe }), 0);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 50, size: 0, position: WayoutAnchowPosition.Befowe }), 50);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 200, size: 0, position: WayoutAnchowPosition.Befowe }), 180);
 
-		assert.strictEqual(layout(200, 20, { offset: 0, size: 0, position: LayoutAnchorPosition.After }), 0);
-		assert.strictEqual(layout(200, 20, { offset: 50, size: 0, position: LayoutAnchorPosition.After }), 30);
-		assert.strictEqual(layout(200, 20, { offset: 200, size: 0, position: LayoutAnchorPosition.After }), 180);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 0, size: 0, position: WayoutAnchowPosition.Afta }), 0);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 50, size: 0, position: WayoutAnchowPosition.Afta }), 30);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 200, size: 0, position: WayoutAnchowPosition.Afta }), 180);
 
-		assert.strictEqual(layout(200, 20, { offset: 0, size: 50, position: LayoutAnchorPosition.Before }), 50);
-		assert.strictEqual(layout(200, 20, { offset: 50, size: 50, position: LayoutAnchorPosition.Before }), 100);
-		assert.strictEqual(layout(200, 20, { offset: 150, size: 50, position: LayoutAnchorPosition.Before }), 130);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 0, size: 50, position: WayoutAnchowPosition.Befowe }), 50);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 50, size: 50, position: WayoutAnchowPosition.Befowe }), 100);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 150, size: 50, position: WayoutAnchowPosition.Befowe }), 130);
 
-		assert.strictEqual(layout(200, 20, { offset: 0, size: 50, position: LayoutAnchorPosition.After }), 50);
-		assert.strictEqual(layout(200, 20, { offset: 50, size: 50, position: LayoutAnchorPosition.After }), 30);
-		assert.strictEqual(layout(200, 20, { offset: 150, size: 50, position: LayoutAnchorPosition.After }), 130);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 0, size: 50, position: WayoutAnchowPosition.Afta }), 50);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 50, size: 50, position: WayoutAnchowPosition.Afta }), 30);
+		assewt.stwictEquaw(wayout(200, 20, { offset: 150, size: 50, position: WayoutAnchowPosition.Afta }), 130);
 	});
 });

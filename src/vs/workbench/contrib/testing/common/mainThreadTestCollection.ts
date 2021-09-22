@@ -1,157 +1,157 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { AbstwactIncwementawTestCowwection, IncwementawTestCowwectionItem, IntewnawTestItem, TestDiffOpType, TestsDiff } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { IMainThweadTestCowwection } fwom 'vs/wowkbench/contwib/testing/common/testSewvice';
 
-export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
-	private busyProvidersChangeEmitter = new Emitter<number>();
-	private retireTestEmitter = new Emitter<string>();
-	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
-		pendingLvl: number;
-		doneLvl: number;
-		prom: Promise<void>;
+expowt cwass MainThweadTestCowwection extends AbstwactIncwementawTestCowwection<IncwementawTestCowwectionItem> impwements IMainThweadTestCowwection {
+	pwivate busyPwovidewsChangeEmitta = new Emitta<numba>();
+	pwivate wetiweTestEmitta = new Emitta<stwing>();
+	pwivate expandPwomises = new WeakMap<IncwementawTestCowwectionItem, {
+		pendingWvw: numba;
+		doneWvw: numba;
+		pwom: Pwomise<void>;
 	}>();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get busyProviders() {
-		return this.busyControllerCount;
+	pubwic get busyPwovidews() {
+		wetuwn this.busyContwowwewCount;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get rootItems() {
-		return this.roots;
+	pubwic get wootItems() {
+		wetuwn this.woots;
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get all() {
-		return this.getIterator();
+	pubwic get aww() {
+		wetuwn this.getItewatow();
 	}
 
-	public get rootIds() {
-		return Iterable.map(this.roots.values(), r => r.item.extId);
+	pubwic get wootIds() {
+		wetuwn Itewabwe.map(this.woots.vawues(), w => w.item.extId);
 	}
 
-	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
-	public readonly onDidRetireTest = this.retireTestEmitter.event;
+	pubwic weadonwy onBusyPwovidewsChange = this.busyPwovidewsChangeEmitta.event;
+	pubwic weadonwy onDidWetiweTest = this.wetiweTestEmitta.event;
 
-	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
-		super();
+	constwuctow(pwivate weadonwy expandActuaw: (id: stwing, wevews: numba) => Pwomise<void>) {
+		supa();
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public expand(testId: string, levels: number): Promise<void> {
+	pubwic expand(testId: stwing, wevews: numba): Pwomise<void> {
 		const test = this.items.get(testId);
 		if (!test) {
-			return Promise.resolve();
+			wetuwn Pwomise.wesowve();
 		}
 
-		// simple cache to avoid duplicate/unnecessary expansion calls
-		const existing = this.expandPromises.get(test);
-		if (existing && existing.pendingLvl >= levels) {
-			return existing.prom;
+		// simpwe cache to avoid dupwicate/unnecessawy expansion cawws
+		const existing = this.expandPwomises.get(test);
+		if (existing && existing.pendingWvw >= wevews) {
+			wetuwn existing.pwom;
 		}
 
-		const prom = this.expandActual(test.item.extId, levels);
-		const record = { doneLvl: existing ? existing.doneLvl : -1, pendingLvl: levels, prom };
-		this.expandPromises.set(test, record);
+		const pwom = this.expandActuaw(test.item.extId, wevews);
+		const wecowd = { doneWvw: existing ? existing.doneWvw : -1, pendingWvw: wevews, pwom };
+		this.expandPwomises.set(test, wecowd);
 
-		return prom.then(() => {
-			record.doneLvl = levels;
+		wetuwn pwom.then(() => {
+			wecowd.doneWvw = wevews;
 		});
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getNodeById(id: string) {
-		return this.items.get(id);
+	pubwic getNodeById(id: stwing) {
+		wetuwn this.items.get(id);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public getReviverDiff() {
-		const ops: TestsDiff = [[TestDiffOpType.IncrementPendingExtHosts, this.pendingRootCount]];
+	pubwic getWevivewDiff() {
+		const ops: TestsDiff = [[TestDiffOpType.IncwementPendingExtHosts, this.pendingWootCount]];
 
-		const queue = [this.rootIds];
-		while (queue.length) {
-			for (const child of queue.pop()!) {
-				const item = this.items.get(child)!;
+		const queue = [this.wootIds];
+		whiwe (queue.wength) {
+			fow (const chiwd of queue.pop()!) {
+				const item = this.items.get(chiwd)!;
 				ops.push([TestDiffOpType.Add, {
-					controllerId: item.controllerId,
+					contwowwewId: item.contwowwewId,
 					expand: item.expand,
 					item: item.item,
-					parent: item.parent,
+					pawent: item.pawent,
 				}]);
-				queue.push(item.children);
+				queue.push(item.chiwdwen);
 			}
 		}
 
-		return ops;
+		wetuwn ops;
 	}
 
 	/**
-	 * Applies the diff to the collection.
+	 * Appwies the diff to the cowwection.
 	 */
-	public override apply(diff: TestsDiff) {
-		let prevBusy = this.busyControllerCount;
-		super.apply(diff);
+	pubwic ovewwide appwy(diff: TestsDiff) {
+		wet pwevBusy = this.busyContwowwewCount;
+		supa.appwy(diff);
 
-		if (prevBusy !== this.busyControllerCount) {
-			this.busyProvidersChangeEmitter.fire(this.busyControllerCount);
+		if (pwevBusy !== this.busyContwowwewCount) {
+			this.busyPwovidewsChangeEmitta.fiwe(this.busyContwowwewCount);
 		}
 	}
 
 	/**
-	 * Clears everything from the collection, and returns a diff that applies
+	 * Cweaws evewything fwom the cowwection, and wetuwns a diff that appwies
 	 * that action.
 	 */
-	public clear() {
+	pubwic cweaw() {
 		const ops: TestsDiff = [];
-		for (const root of this.roots) {
-			ops.push([TestDiffOpType.Remove, root.item.extId]);
+		fow (const woot of this.woots) {
+			ops.push([TestDiffOpType.Wemove, woot.item.extId]);
 		}
 
-		this.roots.clear();
-		this.items.clear();
+		this.woots.cweaw();
+		this.items.cweaw();
 
-		return ops;
+		wetuwn ops;
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
-		return { ...internal, children: new Set() };
+	pwotected cweateItem(intewnaw: IntewnawTestItem): IncwementawTestCowwectionItem {
+		wetuwn { ...intewnaw, chiwdwen: new Set() };
 	}
 
 	/**
-	 * @override
+	 * @ovewwide
 	 */
-	protected override retireTest(testId: string) {
-		this.retireTestEmitter.fire(testId);
+	pwotected ovewwide wetiweTest(testId: stwing) {
+		this.wetiweTestEmitta.fiwe(testId);
 	}
 
-	private *getIterator() {
-		const queue = [this.rootIds];
-		while (queue.length) {
-			for (const id of queue.pop()!) {
+	pwivate *getItewatow() {
+		const queue = [this.wootIds];
+		whiwe (queue.wength) {
+			fow (const id of queue.pop()!) {
 				const node = this.getNodeById(id)!;
-				yield node;
-				queue.push(node.children);
+				yiewd node;
+				queue.push(node.chiwdwen);
 			}
 		}
 	}

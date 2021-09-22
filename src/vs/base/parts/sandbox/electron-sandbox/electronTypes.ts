@@ -1,229 +1,229 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
 // #######################################################################
 // ###                                                                 ###
-// ###      electron.d.ts types we expose from electron-sandbox        ###
-// ###                    (copied from Electron 11.x)                  ###
+// ###      ewectwon.d.ts types we expose fwom ewectwon-sandbox        ###
+// ###                    (copied fwom Ewectwon 11.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
-export interface IpcRendererEvent extends Event {
+expowt intewface IpcWendewewEvent extends Event {
 
-	// Docs: https://electronjs.org/docs/api/structures/ipc-renderer-event
+	// Docs: https://ewectwonjs.owg/docs/api/stwuctuwes/ipc-wendewa-event
 
-	// Note: API with `Transferable` intentionally commented out because you
-	// cannot transfer these when `contextIsolation: true`.
+	// Note: API with `Twansfewabwe` intentionawwy commented out because you
+	// cannot twansfa these when `contextIsowation: twue`.
 	// /**
-	//  * A list of MessagePorts that were transferred with this message
+	//  * A wist of MessagePowts that wewe twansfewwed with this message
 	//  */
-	// ports: MessagePort[];
+	// powts: MessagePowt[];
 	/**
-	 * The `IpcRenderer` instance that emitted the event originally
+	 * The `IpcWendewa` instance that emitted the event owiginawwy
 	 */
-	sender: IpcRenderer;
+	senda: IpcWendewa;
 	/**
-	 * The `webContents.id` that sent the message, you can call
-	 * `event.sender.sendTo(event.senderId, ...)` to reply to the message, see
-	 * ipcRenderer.sendTo for more information. This only applies to messages sent from
-	 * a different renderer. Messages sent directly from the main process set
-	 * `event.senderId` to `0`.
+	 * The `webContents.id` that sent the message, you can caww
+	 * `event.senda.sendTo(event.sendewId, ...)` to wepwy to the message, see
+	 * ipcWendewa.sendTo fow mowe infowmation. This onwy appwies to messages sent fwom
+	 * a diffewent wendewa. Messages sent diwectwy fwom the main pwocess set
+	 * `event.sendewId` to `0`.
 	 */
-	senderId: number;
+	sendewId: numba;
 }
 
-export interface IpcRenderer {
+expowt intewface IpcWendewa {
 
-	// Docs: https://electronjs.org/docs/api/ipc-renderer
+	// Docs: https://ewectwonjs.owg/docs/api/ipc-wendewa
 
 	/**
-	 * Listens to `channel`, when a new message arrives `listener` would be called with
-	 * `listener(event, args...)`.
+	 * Wistens to `channew`, when a new message awwives `wistena` wouwd be cawwed with
+	 * `wistena(event, awgs...)`.
 	 */
-	on(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
+	on(channew: stwing, wistena: (event: IpcWendewewEvent, ...awgs: any[]) => void): this;
 	/**
-	 * Adds a one time `listener` function for the event. This `listener` is invoked
-	 * only the next time a message is sent to `channel`, after which it is removed.
+	 * Adds a one time `wistena` function fow the event. This `wistena` is invoked
+	 * onwy the next time a message is sent to `channew`, afta which it is wemoved.
 	 */
-	once(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
+	once(channew: stwing, wistena: (event: IpcWendewewEvent, ...awgs: any[]) => void): this;
 	/**
-	 * Removes the specified `listener` from the listener array for the specified
-	 * `channel`.
+	 * Wemoves the specified `wistena` fwom the wistena awway fow the specified
+	 * `channew`.
 	 */
-	removeListener(channel: string, listener: (...args: any[]) => void): this;
+	wemoveWistena(channew: stwing, wistena: (...awgs: any[]) => void): this;
 	/**
-	 * Send an asynchronous message to the main process via `channel`, along with
-	 * arguments. Arguments will be serialized with the Structured Clone Algorithm,
-	 * just like `window.postMessage`, so prototype chains will not be included.
-	 * Sending Functions, Promises, Symbols, WeakMaps, or WeakSets will throw an
+	 * Send an asynchwonous message to the main pwocess via `channew`, awong with
+	 * awguments. Awguments wiww be sewiawized with the Stwuctuwed Cwone Awgowithm,
+	 * just wike `window.postMessage`, so pwototype chains wiww not be incwuded.
+	 * Sending Functions, Pwomises, Symbows, WeakMaps, ow WeakSets wiww thwow an
 	 * exception.
 	 *
-	 * > **NOTE:** Sending non-standard JavaScript types such as DOM objects or special
-	 * Electron objects will throw an exception.
+	 * > **NOTE:** Sending non-standawd JavaScwipt types such as DOM objects ow speciaw
+	 * Ewectwon objects wiww thwow an exception.
 	 *
-	 * Since the main process does not have support for DOM objects such as
-	 * `ImageBitmap`, `File`, `DOMMatrix` and so on, such objects cannot be sent over
-	 * Electron's IPC to the main process, as the main process would have no way to
-	 * decode them. Attempting to send such objects over IPC will result in an error.
+	 * Since the main pwocess does not have suppowt fow DOM objects such as
+	 * `ImageBitmap`, `Fiwe`, `DOMMatwix` and so on, such objects cannot be sent ova
+	 * Ewectwon's IPC to the main pwocess, as the main pwocess wouwd have no way to
+	 * decode them. Attempting to send such objects ova IPC wiww wesuwt in an ewwow.
 	 *
-	 * The main process handles it by listening for `channel` with the `ipcMain`
-	 * module.
+	 * The main pwocess handwes it by wistening fow `channew` with the `ipcMain`
+	 * moduwe.
 	 *
-	 * If you need to transfer a `MessagePort` to the main process, use
-	 * `ipcRenderer.postMessage`.
+	 * If you need to twansfa a `MessagePowt` to the main pwocess, use
+	 * `ipcWendewa.postMessage`.
 	 *
-	 * If you want to receive a single response from the main process, like the result
-	 * of a method call, consider using `ipcRenderer.invoke`.
+	 * If you want to weceive a singwe wesponse fwom the main pwocess, wike the wesuwt
+	 * of a method caww, consida using `ipcWendewa.invoke`.
 	 */
-	send(channel: string, ...args: any[]): void;
+	send(channew: stwing, ...awgs: any[]): void;
 	/**
-	 * Resolves with the response from the main process.
+	 * Wesowves with the wesponse fwom the main pwocess.
 	 *
-	 * Send a message to the main process via `channel` and expect a result
-	 * asynchronously. Arguments will be serialized with the Structured Clone
-	 * Algorithm, just like `window.postMessage`, so prototype chains will not be
-	 * included. Sending Functions, Promises, Symbols, WeakMaps, or WeakSets will throw
+	 * Send a message to the main pwocess via `channew` and expect a wesuwt
+	 * asynchwonouswy. Awguments wiww be sewiawized with the Stwuctuwed Cwone
+	 * Awgowithm, just wike `window.postMessage`, so pwototype chains wiww not be
+	 * incwuded. Sending Functions, Pwomises, Symbows, WeakMaps, ow WeakSets wiww thwow
 	 * an exception.
 	 *
-	 * > **NOTE:** Sending non-standard JavaScript types such as DOM objects or special
-	 * Electron objects will throw an exception.
+	 * > **NOTE:** Sending non-standawd JavaScwipt types such as DOM objects ow speciaw
+	 * Ewectwon objects wiww thwow an exception.
 	 *
-	 * Since the main process does not have support for DOM objects such as
-	 * `ImageBitmap`, `File`, `DOMMatrix` and so on, such objects cannot be sent over
-	 * Electron's IPC to the main process, as the main process would have no way to
-	 * decode them. Attempting to send such objects over IPC will result in an error.
+	 * Since the main pwocess does not have suppowt fow DOM objects such as
+	 * `ImageBitmap`, `Fiwe`, `DOMMatwix` and so on, such objects cannot be sent ova
+	 * Ewectwon's IPC to the main pwocess, as the main pwocess wouwd have no way to
+	 * decode them. Attempting to send such objects ova IPC wiww wesuwt in an ewwow.
 	 *
-	 * The main process should listen for `channel` with `ipcMain.handle()`.
+	 * The main pwocess shouwd wisten fow `channew` with `ipcMain.handwe()`.
 	 *
-	 * For example:
+	 * Fow exampwe:
 	 *
-	 * If you need to transfer a `MessagePort` to the main process, use
-	 * `ipcRenderer.postMessage`.
+	 * If you need to twansfa a `MessagePowt` to the main pwocess, use
+	 * `ipcWendewa.postMessage`.
 	 *
-	 * If you do not need a response to the message, consider using `ipcRenderer.send`.
+	 * If you do not need a wesponse to the message, consida using `ipcWendewa.send`.
 	 */
-	invoke(channel: string, ...args: any[]): Promise<any>;
+	invoke(channew: stwing, ...awgs: any[]): Pwomise<any>;
 
-	// Note: API with `Transferable` intentionally commented out because you
-	// cannot transfer these when `contextIsolation: true`.
+	// Note: API with `Twansfewabwe` intentionawwy commented out because you
+	// cannot twansfa these when `contextIsowation: twue`.
 	// /**
-	//  * Send a message to the main process, optionally transferring ownership of zero or
-	//  * more `MessagePort` objects.
+	//  * Send a message to the main pwocess, optionawwy twansfewwing ownewship of zewo ow
+	//  * mowe `MessagePowt` objects.
 	//  *
-	//  * The transferred `MessagePort` objects will be available in the main process as
-	//  * `MessagePortMain` objects by accessing the `ports` property of the emitted
+	//  * The twansfewwed `MessagePowt` objects wiww be avaiwabwe in the main pwocess as
+	//  * `MessagePowtMain` objects by accessing the `powts` pwopewty of the emitted
 	//  * event.
 	//  *
-	//  * For example:
+	//  * Fow exampwe:
 	//  *
-	//  * For more information on using `MessagePort` and `MessageChannel`, see the MDN
+	//  * Fow mowe infowmation on using `MessagePowt` and `MessageChannew`, see the MDN
 	//  * documentation.
 	//  */
-	// postMessage(channel: string, message: any, transfer?: MessagePort[]): void;
+	// postMessage(channew: stwing, message: any, twansfa?: MessagePowt[]): void;
 }
 
-export interface WebFrame {
+expowt intewface WebFwame {
 	/**
-	 * Changes the zoom level to the specified level. The original size is 0 and each
-	 * increment above or below represents zooming 20% larger or smaller to default
-	 * limits of 300% and 50% of original size, respectively.
+	 * Changes the zoom wevew to the specified wevew. The owiginaw size is 0 and each
+	 * incwement above ow bewow wepwesents zooming 20% wawga ow smawwa to defauwt
+	 * wimits of 300% and 50% of owiginaw size, wespectivewy.
 	 *
-	 * > **NOTE**: The zoom policy at the Chromium level is same-origin, meaning that
-	 * the zoom level for a specific domain propagates across all instances of windows
-	 * with the same domain. Differentiating the window URLs will make zoom work
-	 * per-window.
+	 * > **NOTE**: The zoom powicy at the Chwomium wevew is same-owigin, meaning that
+	 * the zoom wevew fow a specific domain pwopagates acwoss aww instances of windows
+	 * with the same domain. Diffewentiating the window UWWs wiww make zoom wowk
+	 * pew-window.
 	 */
-	setZoomLevel(level: number): void;
+	setZoomWevew(wevew: numba): void;
 }
 
-export interface ProcessMemoryInfo {
+expowt intewface PwocessMemowyInfo {
 
-	// Docs: https://electronjs.org/docs/api/structures/process-memory-info
+	// Docs: https://ewectwonjs.owg/docs/api/stwuctuwes/pwocess-memowy-info
 
 	/**
-	 * The amount of memory not shared by other processes, such as JS heap or HTML
-	 * content in Kilobytes.
+	 * The amount of memowy not shawed by otha pwocesses, such as JS heap ow HTMW
+	 * content in Kiwobytes.
 	 */
-	private: number;
+	pwivate: numba;
 	/**
-	 * The amount of memory currently pinned to actual physical RAM in Kilobytes.
+	 * The amount of memowy cuwwentwy pinned to actuaw physicaw WAM in Kiwobytes.
 	 *
-	 * @platform linux,win32
+	 * @pwatfowm winux,win32
 	 */
-	residentSet: number;
+	wesidentSet: numba;
 	/**
-	 * The amount of memory shared between processes, typically memory consumed by the
-	 * Electron code itself in Kilobytes.
+	 * The amount of memowy shawed between pwocesses, typicawwy memowy consumed by the
+	 * Ewectwon code itsewf in Kiwobytes.
 	 */
-	shared: number;
+	shawed: numba;
 }
 
-export interface CrashReporterStartOptions {
+expowt intewface CwashWepowtewStawtOptions {
 	/**
-	 * URL that crash reports will be sent to as POST.
+	 * UWW that cwash wepowts wiww be sent to as POST.
 	 */
-	submitURL: string;
+	submitUWW: stwing;
 	/**
-	 * Defaults to `app.name`.
+	 * Defauwts to `app.name`.
 	 */
-	productName?: string;
+	pwoductName?: stwing;
 	/**
-	 * Deprecated alias for `{ globalExtra: { _companyName: ... } }`.
+	 * Depwecated awias fow `{ gwobawExtwa: { _companyName: ... } }`.
 	 *
-	 * @deprecated
+	 * @depwecated
 	 */
-	companyName?: string;
+	companyName?: stwing;
 	/**
-	 * Whether crash reports should be sent to the server. If false, crash reports will
-	 * be collected and stored in the crashes directory, but not uploaded. Default is
-	 * `true`.
+	 * Whetha cwash wepowts shouwd be sent to the sewva. If fawse, cwash wepowts wiww
+	 * be cowwected and stowed in the cwashes diwectowy, but not upwoaded. Defauwt is
+	 * `twue`.
 	 */
-	uploadToServer?: boolean;
+	upwoadToSewva?: boowean;
 	/**
-	 * If true, crashes generated in the main process will not be forwarded to the
-	 * system crash handler. Default is `false`.
+	 * If twue, cwashes genewated in the main pwocess wiww not be fowwawded to the
+	 * system cwash handwa. Defauwt is `fawse`.
 	 */
-	ignoreSystemCrashHandler?: boolean;
+	ignoweSystemCwashHandwa?: boowean;
 	/**
-	 * If true, limit the number of crashes uploaded to 1/hour. Default is `false`.
+	 * If twue, wimit the numba of cwashes upwoaded to 1/houw. Defauwt is `fawse`.
 	 *
-	 * @platform darwin,win32
+	 * @pwatfowm dawwin,win32
 	 */
-	rateLimit?: boolean;
+	wateWimit?: boowean;
 	/**
-	 * If true, crash reports will be compressed and uploaded with `Content-Encoding:
-	 * gzip`. Default is `true`.
+	 * If twue, cwash wepowts wiww be compwessed and upwoaded with `Content-Encoding:
+	 * gzip`. Defauwt is `twue`.
 	 */
-	compress?: boolean;
+	compwess?: boowean;
 	/**
-	 * Extra string key/value annotations that will be sent along with crash reports
-	 * that are generated in the main process. Only string values are supported.
-	 * Crashes generated in child processes will not contain these extra parameters to
-	 * crash reports generated from child processes, call `addExtraParameter` from the
-	 * child process.
+	 * Extwa stwing key/vawue annotations that wiww be sent awong with cwash wepowts
+	 * that awe genewated in the main pwocess. Onwy stwing vawues awe suppowted.
+	 * Cwashes genewated in chiwd pwocesses wiww not contain these extwa pawametews to
+	 * cwash wepowts genewated fwom chiwd pwocesses, caww `addExtwaPawameta` fwom the
+	 * chiwd pwocess.
 	 */
-	extra?: Record<string, string>;
+	extwa?: Wecowd<stwing, stwing>;
 	/**
-	 * Extra string key/value annotations that will be sent along with any crash
-	 * reports generated in any process. These annotations cannot be changed once the
-	 * crash reporter has been started. If a key is present in both the global extra
-	 * parameters and the process-specific extra parameters, then the global one will
-	 * take precedence. By default, `productName` and the app version are included, as
-	 * well as the Electron version.
+	 * Extwa stwing key/vawue annotations that wiww be sent awong with any cwash
+	 * wepowts genewated in any pwocess. These annotations cannot be changed once the
+	 * cwash wepowta has been stawted. If a key is pwesent in both the gwobaw extwa
+	 * pawametews and the pwocess-specific extwa pawametews, then the gwobaw one wiww
+	 * take pwecedence. By defauwt, `pwoductName` and the app vewsion awe incwuded, as
+	 * weww as the Ewectwon vewsion.
 	 */
-	globalExtra?: Record<string, string>;
+	gwobawExtwa?: Wecowd<stwing, stwing>;
 }
 
 /**
- * Additional information around a `app.on('login')` event.
+ * Additionaw infowmation awound a `app.on('wogin')` event.
  */
-export interface AuthInfo {
-	isProxy: boolean;
-	scheme: string;
-	host: string;
-	port: number;
-	realm: string;
+expowt intewface AuthInfo {
+	isPwoxy: boowean;
+	scheme: stwing;
+	host: stwing;
+	powt: numba;
+	weawm: stwing;
 }

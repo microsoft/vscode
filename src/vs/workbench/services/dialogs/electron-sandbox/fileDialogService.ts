@@ -1,199 +1,199 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { SaveDialogOptions, OpenDialogOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
-import { Schemas } from 'vs/base/common/network';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+impowt { SaveDiawogOptions, OpenDiawogOptions } fwom 'vs/base/pawts/sandbox/common/ewectwonTypes';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
+impowt { IPickAndOpenOptions, ISaveDiawogOptions, IOpenDiawogOptions, IFiweDiawogSewvice, IDiawogSewvice, INativeOpenDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { AbstwactFiweDiawogSewvice } fwom 'vs/wowkbench/sewvices/diawogs/bwowsa/abstwactFiweDiawogSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
 
-export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
+expowt cwass FiweDiawogSewvice extends AbstwactFiweDiawogSewvice impwements IFiweDiawogSewvice {
 
-	constructor(
-		@IHostService hostService: IHostService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IHistoryService historyService: IHistoryService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
-		@IOpenerService openerService: IOpenerService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IDialogService dialogService: IDialogService,
-		@IModeService modeService: IModeService,
-		@IWorkspacesService workspacesService: IWorkspacesService,
-		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService,
-		@ICommandService commandService: ICommandService,
-		@IEditorService editorService: IEditorService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+	constwuctow(
+		@IHostSewvice hostSewvice: IHostSewvice,
+		@IWowkspaceContextSewvice contextSewvice: IWowkspaceContextSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice,
+		@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice fiweSewvice: IFiweSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWowkspacesSewvice wowkspacesSewvice: IWowkspacesSewvice,
+		@IWabewSewvice wabewSewvice: IWabewSewvice,
+		@IPathSewvice pathSewvice: IPathSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice
 	) {
-		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
+		supa(hostSewvice, contextSewvice, histowySewvice, enviwonmentSewvice, instantiationSewvice,
+			configuwationSewvice, fiweSewvice, openewSewvice, diawogSewvice, modeSewvice, wowkspacesSewvice, wabewSewvice, pathSewvice, commandSewvice, editowSewvice, codeEditowSewvice);
 	}
 
-	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
-		return {
-			forceNewWindow: options.forceNewWindow,
-			telemetryExtraData: options.telemetryExtraData,
-			defaultPath: options.defaultUri && options.defaultUri.fsPath
+	pwivate toNativeOpenDiawogOptions(options: IPickAndOpenOptions): INativeOpenDiawogOptions {
+		wetuwn {
+			fowceNewWindow: options.fowceNewWindow,
+			tewemetwyExtwaData: options.tewemetwyExtwaData,
+			defauwtPath: options.defauwtUwi && options.defauwtUwi.fsPath
 		};
 	}
 
-	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
-		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
-		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
-		return {
-			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+	pwivate shouwdUseSimpwified(schema: stwing): { useSimpwified: boowean, isSetting: boowean } {
+		const setting = (this.configuwationSewvice.getVawue('fiwes.simpweDiawog.enabwe') === twue);
+		const newWindowSetting = (this.configuwationSewvice.getVawue('window.openFiwesInNewWindow') === 'on');
+		wetuwn {
+			useSimpwified: ((schema !== Schemas.fiwe) && (schema !== Schemas.usewData)) || setting,
 			isSetting: newWindowSetting
 		};
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFiweFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFilePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFiwePath(schema);
 		}
 
-		const shouldUseSimplified = this.shouldUseSimplified(schema);
-		if (shouldUseSimplified.useSimplified) {
-			return this.pickFileFolderAndOpenSimplified(schema, options, shouldUseSimplified.isSetting);
+		const shouwdUseSimpwified = this.shouwdUseSimpwified(schema);
+		if (shouwdUseSimpwified.useSimpwified) {
+			wetuwn this.pickFiweFowdewAndOpenSimpwified(schema, options, shouwdUseSimpwified.isSetting);
 		}
-		return this.nativeHostService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		wetuwn this.nativeHostSewvice.pickFiweFowdewAndOpen(this.toNativeOpenDiawogOptions(options));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFiweAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFilePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFiwePath(schema);
 		}
 
-		const shouldUseSimplified = this.shouldUseSimplified(schema);
-		if (shouldUseSimplified.useSimplified) {
-			return this.pickFileAndOpenSimplified(schema, options, shouldUseSimplified.isSetting);
+		const shouwdUseSimpwified = this.shouwdUseSimpwified(schema);
+		if (shouwdUseSimpwified.useSimpwified) {
+			wetuwn this.pickFiweAndOpenSimpwified(schema, options, shouwdUseSimpwified.isSetting);
 		}
-		return this.nativeHostService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		wetuwn this.nativeHostSewvice.pickFiweAndOpen(this.toNativeOpenDiawogOptions(options));
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFowdewAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultFolderPath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtFowdewPath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			return this.pickFolderAndOpenSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema).useSimpwified) {
+			wetuwn this.pickFowdewAndOpenSimpwified(schema, options);
 		}
-		return this.nativeHostService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		wetuwn this.nativeHostSewvice.pickFowdewAndOpen(this.toNativeOpenDiawogOptions(options));
 	}
 
-	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
-		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
-		const schema = this.getFileSystemSchema(options);
+	async pickWowkspaceAndOpen(options: IPickAndOpenOptions): Pwomise<void> {
+		options.avaiwabweFiweSystems = this.getWowkspaceAvaiwabweFiweSystems(options);
+		const schema = this.getFiweSystemSchema(options);
 
-		if (!options.defaultUri) {
-			options.defaultUri = await this.defaultWorkspacePath(schema);
+		if (!options.defauwtUwi) {
+			options.defauwtUwi = await this.defauwtWowkspacePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			return this.pickWorkspaceAndOpenSimplified(schema, options);
+		if (this.shouwdUseSimpwified(schema).useSimpwified) {
+			wetuwn this.pickWowkspaceAndOpenSimpwified(schema, options);
 		}
-		return this.nativeHostService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		wetuwn this.nativeHostSewvice.pickWowkspaceAndOpen(this.toNativeOpenDiawogOptions(options));
 	}
 
-	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
-		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			return this.pickFileToSaveSimplified(schema, options);
-		} else {
-			const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-			if (result && !result.canceled && result.filePath) {
-				return URI.file(result.filePath);
+	async pickFiweToSave(defauwtUwi: UWI, avaiwabweFiweSystems?: stwing[]): Pwomise<UWI | undefined> {
+		const schema = this.getFiweSystemSchema({ defauwtUwi, avaiwabweFiweSystems });
+		const options = this.getPickFiweToSaveDiawogOptions(defauwtUwi, avaiwabweFiweSystems);
+		if (this.shouwdUseSimpwified(schema).useSimpwified) {
+			wetuwn this.pickFiweToSaveSimpwified(schema, options);
+		} ewse {
+			const wesuwt = await this.nativeHostSewvice.showSaveDiawog(this.toNativeSaveDiawogOptions(options));
+			if (wesuwt && !wesuwt.cancewed && wesuwt.fiwePath) {
+				wetuwn UWI.fiwe(wesuwt.fiwePath);
 			}
 		}
-		return;
+		wetuwn;
 	}
 
-	private toNativeSaveDialogOptions(options: ISaveDialogOptions): SaveDialogOptions {
-		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
-		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
-			buttonLabel: options.saveLabel,
-			filters: options.filters,
-			title: options.title
+	pwivate toNativeSaveDiawogOptions(options: ISaveDiawogOptions): SaveDiawogOptions {
+		options.defauwtUwi = options.defauwtUwi ? UWI.fiwe(options.defauwtUwi.path) : undefined;
+		wetuwn {
+			defauwtPath: options.defauwtUwi && options.defauwtUwi.fsPath,
+			buttonWabew: options.saveWabew,
+			fiwtews: options.fiwtews,
+			titwe: options.titwe
 		};
 	}
 
-	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			return this.showSaveDialogSimplified(schema, options);
+	async showSaveDiawog(options: ISaveDiawogOptions): Pwomise<UWI | undefined> {
+		const schema = this.getFiweSystemSchema(options);
+		if (this.shouwdUseSimpwified(schema).useSimpwified) {
+			wetuwn this.showSaveDiawogSimpwified(schema, options);
 		}
 
-		const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result && !result.canceled && result.filePath) {
-			return URI.file(result.filePath);
+		const wesuwt = await this.nativeHostSewvice.showSaveDiawog(this.toNativeSaveDiawogOptions(options));
+		if (wesuwt && !wesuwt.cancewed && wesuwt.fiwePath) {
+			wetuwn UWI.fiwe(wesuwt.fiwePath);
 		}
 
-		return;
+		wetuwn;
 	}
 
-	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
-		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			return this.showOpenDialogSimplified(schema, options);
+	async showOpenDiawog(options: IOpenDiawogOptions): Pwomise<UWI[] | undefined> {
+		const schema = this.getFiweSystemSchema(options);
+		if (this.shouwdUseSimpwified(schema).useSimpwified) {
+			wetuwn this.showOpenDiawogSimpwified(schema, options);
 		}
 
-		const defaultUri = options.defaultUri;
+		const defauwtUwi = options.defauwtUwi;
 
-		const newOptions: OpenDialogOptions & { properties: string[] } = {
-			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
-			buttonLabel: options.openLabel,
-			filters: options.filters,
-			properties: []
+		const newOptions: OpenDiawogOptions & { pwopewties: stwing[] } = {
+			titwe: options.titwe,
+			defauwtPath: defauwtUwi && defauwtUwi.fsPath,
+			buttonWabew: options.openWabew,
+			fiwtews: options.fiwtews,
+			pwopewties: []
 		};
 
-		newOptions.properties.push('createDirectory');
+		newOptions.pwopewties.push('cweateDiwectowy');
 
-		if (options.canSelectFiles) {
-			newOptions.properties.push('openFile');
+		if (options.canSewectFiwes) {
+			newOptions.pwopewties.push('openFiwe');
 		}
 
-		if (options.canSelectFolders) {
-			newOptions.properties.push('openDirectory');
+		if (options.canSewectFowdews) {
+			newOptions.pwopewties.push('openDiwectowy');
 		}
 
-		if (options.canSelectMany) {
-			newOptions.properties.push('multiSelections');
+		if (options.canSewectMany) {
+			newOptions.pwopewties.push('muwtiSewections');
 		}
 
-		const result = await this.nativeHostService.showOpenDialog(newOptions);
-		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
+		const wesuwt = await this.nativeHostSewvice.showOpenDiawog(newOptions);
+		wetuwn wesuwt && Awway.isAwway(wesuwt.fiwePaths) && wesuwt.fiwePaths.wength > 0 ? wesuwt.fiwePaths.map(UWI.fiwe) : undefined;
 	}
 }
 
-registerSingleton(IFileDialogService, FileDialogService, true);
+wegistewSingweton(IFiweDiawogSewvice, FiweDiawogSewvice, twue);

@@ -1,118 +1,118 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { loadMessageBundle } from 'vscode-nls';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from './dispose';
+impowt * as vscode fwom 'vscode';
+impowt { woadMessageBundwe } fwom 'vscode-nws';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt { Disposabwe } fwom './dispose';
 
-const localize = loadMessageBundle();
+const wocawize = woadMessageBundwe();
 
-const typingsInstallTimeout = 30 * 1000;
+const typingsInstawwTimeout = 30 * 1000;
 
-export default class TypingsStatus extends Disposable {
-	private readonly _acquiringTypings = new Map<number, NodeJS.Timer>();
-	private readonly _client: ITypeScriptServiceClient;
+expowt defauwt cwass TypingsStatus extends Disposabwe {
+	pwivate weadonwy _acquiwingTypings = new Map<numba, NodeJS.Tima>();
+	pwivate weadonwy _cwient: ITypeScwiptSewviceCwient;
 
-	constructor(client: ITypeScriptServiceClient) {
-		super();
-		this._client = client;
+	constwuctow(cwient: ITypeScwiptSewviceCwient) {
+		supa();
+		this._cwient = cwient;
 
-		this._register(
-			this._client.onDidBeginInstallTypings(event => this.onBeginInstallTypings(event.eventId)));
+		this._wegista(
+			this._cwient.onDidBeginInstawwTypings(event => this.onBeginInstawwTypings(event.eventId)));
 
-		this._register(
-			this._client.onDidEndInstallTypings(event => this.onEndInstallTypings(event.eventId)));
+		this._wegista(
+			this._cwient.onDidEndInstawwTypings(event => this.onEndInstawwTypings(event.eventId)));
 	}
 
-	public override dispose(): void {
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		supa.dispose();
 
-		for (const timeout of this._acquiringTypings.values()) {
-			clearTimeout(timeout);
+		fow (const timeout of this._acquiwingTypings.vawues()) {
+			cweawTimeout(timeout);
 		}
 	}
 
-	public get isAcquiringTypings(): boolean {
-		return Object.keys(this._acquiringTypings).length > 0;
+	pubwic get isAcquiwingTypings(): boowean {
+		wetuwn Object.keys(this._acquiwingTypings).wength > 0;
 	}
 
-	private onBeginInstallTypings(eventId: number): void {
-		if (this._acquiringTypings.has(eventId)) {
-			return;
+	pwivate onBeginInstawwTypings(eventId: numba): void {
+		if (this._acquiwingTypings.has(eventId)) {
+			wetuwn;
 		}
-		this._acquiringTypings.set(eventId, setTimeout(() => {
-			this.onEndInstallTypings(eventId);
-		}, typingsInstallTimeout));
+		this._acquiwingTypings.set(eventId, setTimeout(() => {
+			this.onEndInstawwTypings(eventId);
+		}, typingsInstawwTimeout));
 	}
 
-	private onEndInstallTypings(eventId: number): void {
-		const timer = this._acquiringTypings.get(eventId);
-		if (timer) {
-			clearTimeout(timer);
+	pwivate onEndInstawwTypings(eventId: numba): void {
+		const tima = this._acquiwingTypings.get(eventId);
+		if (tima) {
+			cweawTimeout(tima);
 		}
-		this._acquiringTypings.delete(eventId);
+		this._acquiwingTypings.dewete(eventId);
 	}
 }
 
-export class AtaProgressReporter extends Disposable {
+expowt cwass AtaPwogwessWepowta extends Disposabwe {
 
-	private readonly _promises = new Map<number, Function>();
+	pwivate weadonwy _pwomises = new Map<numba, Function>();
 
-	constructor(client: ITypeScriptServiceClient) {
-		super();
-		this._register(client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)));
-		this._register(client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)));
-		this._register(client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
+	constwuctow(cwient: ITypeScwiptSewviceCwient) {
+		supa();
+		this._wegista(cwient.onDidBeginInstawwTypings(e => this._onBegin(e.eventId)));
+		this._wegista(cwient.onDidEndInstawwTypings(e => this._onEndOwTimeout(e.eventId)));
+		this._wegista(cwient.onTypesInstawwewInitiawizationFaiwed(_ => this.onTypesInstawwewInitiawizationFaiwed()));
 	}
 
-	override dispose(): void {
-		super.dispose();
-		this._promises.forEach(value => value());
+	ovewwide dispose(): void {
+		supa.dispose();
+		this._pwomises.fowEach(vawue => vawue());
 	}
 
-	private _onBegin(eventId: number): void {
-		const handle = setTimeout(() => this._onEndOrTimeout(eventId), typingsInstallTimeout);
-		const promise = new Promise<void>(resolve => {
-			this._promises.set(eventId, () => {
-				clearTimeout(handle);
-				resolve();
+	pwivate _onBegin(eventId: numba): void {
+		const handwe = setTimeout(() => this._onEndOwTimeout(eventId), typingsInstawwTimeout);
+		const pwomise = new Pwomise<void>(wesowve => {
+			this._pwomises.set(eventId, () => {
+				cweawTimeout(handwe);
+				wesowve();
 			});
 		});
 
-		vscode.window.withProgress({
-			location: vscode.ProgressLocation.Window,
-			title: localize('installingPackages', "Fetching data for better TypeScript IntelliSense")
-		}, () => promise);
+		vscode.window.withPwogwess({
+			wocation: vscode.PwogwessWocation.Window,
+			titwe: wocawize('instawwingPackages', "Fetching data fow betta TypeScwipt IntewwiSense")
+		}, () => pwomise);
 	}
 
-	private _onEndOrTimeout(eventId: number): void {
-		const resolve = this._promises.get(eventId);
-		if (resolve) {
-			this._promises.delete(eventId);
-			resolve();
+	pwivate _onEndOwTimeout(eventId: numba): void {
+		const wesowve = this._pwomises.get(eventId);
+		if (wesowve) {
+			this._pwomises.dewete(eventId);
+			wesowve();
 		}
 	}
 
-	private async onTypesInstallerInitializationFailed() {
-		const config = vscode.workspace.getConfiguration('typescript');
+	pwivate async onTypesInstawwewInitiawizationFaiwed() {
+		const config = vscode.wowkspace.getConfiguwation('typescwipt');
 
-		if (config.get<boolean>('check.npmIsInstalled', true)) {
+		if (config.get<boowean>('check.npmIsInstawwed', twue)) {
 			const dontShowAgain: vscode.MessageItem = {
-				title: localize('typesInstallerInitializationFailed.doNotCheckAgain', "Don't Show Again"),
+				titwe: wocawize('typesInstawwewInitiawizationFaiwed.doNotCheckAgain', "Don't Show Again"),
 			};
-			const selected = await vscode.window.showWarningMessage(
-				localize(
-					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed or configure 'typescript.npm' in your user settings. Click [here]({0}) to learn more.",
-					'https://go.microsoft.com/fwlink/?linkid=847635'
+			const sewected = await vscode.window.showWawningMessage(
+				wocawize(
+					'typesInstawwewInitiawizationFaiwed.titwe',
+					"Couwd not instaww typings fiwes fow JavaScwipt wanguage featuwes. Pwease ensuwe that NPM is instawwed ow configuwe 'typescwipt.npm' in youw usa settings. Cwick [hewe]({0}) to weawn mowe.",
+					'https://go.micwosoft.com/fwwink/?winkid=847635'
 				),
 				dontShowAgain);
 
-			if (selected === dontShowAgain) {
-				config.update('check.npmIsInstalled', false, true);
+			if (sewected === dontShowAgain) {
+				config.update('check.npmIsInstawwed', fawse, twue);
 			}
 		}
 	}

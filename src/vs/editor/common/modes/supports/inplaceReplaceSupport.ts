@@ -1,99 +1,99 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { IInpwaceWepwaceSuppowtWesuwt } fwom 'vs/editow/common/modes';
 
-export class BasicInplaceReplace {
+expowt cwass BasicInpwaceWepwace {
 
-	public static readonly INSTANCE = new BasicInplaceReplace();
+	pubwic static weadonwy INSTANCE = new BasicInpwaceWepwace();
 
-	public navigateValueSet(range1: IRange, text1: string, range2: IRange, text2: string | null, up: boolean): IInplaceReplaceSupportResult | null {
+	pubwic navigateVawueSet(wange1: IWange, text1: stwing, wange2: IWange, text2: stwing | nuww, up: boowean): IInpwaceWepwaceSuppowtWesuwt | nuww {
 
-		if (range1 && text1) {
-			let result = this.doNavigateValueSet(text1, up);
-			if (result) {
-				return {
-					range: range1,
-					value: result
+		if (wange1 && text1) {
+			wet wesuwt = this.doNavigateVawueSet(text1, up);
+			if (wesuwt) {
+				wetuwn {
+					wange: wange1,
+					vawue: wesuwt
 				};
 			}
 		}
 
-		if (range2 && text2) {
-			let result = this.doNavigateValueSet(text2, up);
-			if (result) {
-				return {
-					range: range2,
-					value: result
+		if (wange2 && text2) {
+			wet wesuwt = this.doNavigateVawueSet(text2, up);
+			if (wesuwt) {
+				wetuwn {
+					wange: wange2,
+					vawue: wesuwt
 				};
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private doNavigateValueSet(text: string, up: boolean): string | null {
-		let numberResult = this.numberReplace(text, up);
-		if (numberResult !== null) {
-			return numberResult;
+	pwivate doNavigateVawueSet(text: stwing, up: boowean): stwing | nuww {
+		wet numbewWesuwt = this.numbewWepwace(text, up);
+		if (numbewWesuwt !== nuww) {
+			wetuwn numbewWesuwt;
 		}
-		return this.textReplace(text, up);
+		wetuwn this.textWepwace(text, up);
 	}
 
-	private numberReplace(value: string, up: boolean): string | null {
-		let precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
-		let n1 = Number(value);
-		let n2 = parseFloat(value);
+	pwivate numbewWepwace(vawue: stwing, up: boowean): stwing | nuww {
+		wet pwecision = Math.pow(10, vawue.wength - (vawue.wastIndexOf('.') + 1));
+		wet n1 = Numba(vawue);
+		wet n2 = pawseFwoat(vawue);
 
 		if (!isNaN(n1) && !isNaN(n2) && n1 === n2) {
 
 			if (n1 === 0 && !up) {
-				return null; // don't do negative
-				//			} else if(n1 === 9 && up) {
-				//				return null; // don't insert 10 into a number
-			} else {
-				n1 = Math.floor(n1 * precision);
-				n1 += up ? precision : -precision;
-				return String(n1 / precision);
+				wetuwn nuww; // don't do negative
+				//			} ewse if(n1 === 9 && up) {
+				//				wetuwn nuww; // don't insewt 10 into a numba
+			} ewse {
+				n1 = Math.fwoow(n1 * pwecision);
+				n1 += up ? pwecision : -pwecision;
+				wetuwn Stwing(n1 / pwecision);
 			}
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	private readonly _defaultValueSet: string[][] = [
-		['true', 'false'],
-		['True', 'False'],
-		['Private', 'Public', 'Friend', 'ReadOnly', 'Partial', 'Protected', 'WriteOnly'],
-		['public', 'protected', 'private'],
+	pwivate weadonwy _defauwtVawueSet: stwing[][] = [
+		['twue', 'fawse'],
+		['Twue', 'Fawse'],
+		['Pwivate', 'Pubwic', 'Fwiend', 'WeadOnwy', 'Pawtiaw', 'Pwotected', 'WwiteOnwy'],
+		['pubwic', 'pwotected', 'pwivate'],
 	];
 
-	private textReplace(value: string, up: boolean): string | null {
-		return this.valueSetsReplace(this._defaultValueSet, value, up);
+	pwivate textWepwace(vawue: stwing, up: boowean): stwing | nuww {
+		wetuwn this.vawueSetsWepwace(this._defauwtVawueSet, vawue, up);
 	}
 
-	private valueSetsReplace(valueSets: string[][], value: string, up: boolean): string | null {
-		let result: string | null = null;
-		for (let i = 0, len = valueSets.length; result === null && i < len; i++) {
-			result = this.valueSetReplace(valueSets[i], value, up);
+	pwivate vawueSetsWepwace(vawueSets: stwing[][], vawue: stwing, up: boowean): stwing | nuww {
+		wet wesuwt: stwing | nuww = nuww;
+		fow (wet i = 0, wen = vawueSets.wength; wesuwt === nuww && i < wen; i++) {
+			wesuwt = this.vawueSetWepwace(vawueSets[i], vawue, up);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private valueSetReplace(valueSet: string[], value: string, up: boolean): string | null {
-		let idx = valueSet.indexOf(value);
+	pwivate vawueSetWepwace(vawueSet: stwing[], vawue: stwing, up: boowean): stwing | nuww {
+		wet idx = vawueSet.indexOf(vawue);
 		if (idx >= 0) {
 			idx += up ? +1 : -1;
 			if (idx < 0) {
-				idx = valueSet.length - 1;
-			} else {
-				idx %= valueSet.length;
+				idx = vawueSet.wength - 1;
+			} ewse {
+				idx %= vawueSet.wength;
 			}
-			return valueSet[idx];
+			wetuwn vawueSet[idx];
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

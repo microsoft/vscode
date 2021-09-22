@@ -1,148 +1,148 @@
-# cleanup rules for node modules, .gitignore style
+# cweanup wuwes fow node moduwes, .gitignowe stywe
 
-# native node modules
+# native node moduwes
 
 nan/**
-*/node_modules/nan/**
+*/node_moduwes/nan/**
 
 fsevents/binding.gyp
 fsevents/fsevents.cc
-fsevents/build/**
-fsevents/src/**
+fsevents/buiwd/**
+fsevents/swc/**
 fsevents/test/**
 !fsevents/**/*.node
 
-@vscode/sqlite3/binding.gyp
-@vscode/sqlite3/benchmark/**
-@vscode/sqlite3/cloudformation/**
-@vscode/sqlite3/deps/**
-@vscode/sqlite3/test/**
-@vscode/sqlite3/build/**
-@vscode/sqlite3/src/**
-!@vscode/sqlite3/build/Release/*.node
+@vscode/sqwite3/binding.gyp
+@vscode/sqwite3/benchmawk/**
+@vscode/sqwite3/cwoudfowmation/**
+@vscode/sqwite3/deps/**
+@vscode/sqwite3/test/**
+@vscode/sqwite3/buiwd/**
+@vscode/sqwite3/swc/**
+!@vscode/sqwite3/buiwd/Wewease/*.node
 
 windows-mutex/binding.gyp
-windows-mutex/build/**
-windows-mutex/src/**
+windows-mutex/buiwd/**
+windows-mutex/swc/**
 !windows-mutex/**/*.node
 
 native-keymap/binding.gyp
-native-keymap/build/**
-native-keymap/src/**
+native-keymap/buiwd/**
+native-keymap/swc/**
 native-keymap/deps/**
-!native-keymap/build/Release/*.node
+!native-keymap/buiwd/Wewease/*.node
 
-native-is-elevated/binding.gyp
-native-is-elevated/build/**
-native-is-elevated/src/**
-native-is-elevated/deps/**
-!native-is-elevated/build/Release/*.node
+native-is-ewevated/binding.gyp
+native-is-ewevated/buiwd/**
+native-is-ewevated/swc/**
+native-is-ewevated/deps/**
+!native-is-ewevated/buiwd/Wewease/*.node
 
 native-watchdog/binding.gyp
-native-watchdog/build/**
-native-watchdog/src/**
-!native-watchdog/build/Release/*.node
+native-watchdog/buiwd/**
+native-watchdog/swc/**
+!native-watchdog/buiwd/Wewease/*.node
 
-spdlog/binding.gyp
-spdlog/build/**
-spdlog/deps/**
-spdlog/src/**
-spdlog/test/**
-spdlog/*.yml
-!spdlog/build/Release/*.node
+spdwog/binding.gyp
+spdwog/buiwd/**
+spdwog/deps/**
+spdwog/swc/**
+spdwog/test/**
+spdwog/*.ymw
+!spdwog/buiwd/Wewease/*.node
 
-jschardet/dist/**
+jschawdet/dist/**
 
-windows-foreground-love/binding.gyp
-windows-foreground-love/build/**
-windows-foreground-love/src/**
-!windows-foreground-love/**/*.node
+windows-fowegwound-wove/binding.gyp
+windows-fowegwound-wove/buiwd/**
+windows-fowegwound-wove/swc/**
+!windows-fowegwound-wove/**/*.node
 
-windows-process-tree/binding.gyp
-windows-process-tree/build/**
-windows-process-tree/src/**
-!windows-process-tree/**/*.node
+windows-pwocess-twee/binding.gyp
+windows-pwocess-twee/buiwd/**
+windows-pwocess-twee/swc/**
+!windows-pwocess-twee/**/*.node
 
-keytar/binding.gyp
-keytar/build/**
-keytar/src/**
-keytar/script/**
-keytar/node_modules/**
-!keytar/**/*.node
+keytaw/binding.gyp
+keytaw/buiwd/**
+keytaw/swc/**
+keytaw/scwipt/**
+keytaw/node_moduwes/**
+!keytaw/**/*.node
 
 node-pty/binding.gyp
-node-pty/build/**
-node-pty/src/**
-node-pty/tools/**
+node-pty/buiwd/**
+node-pty/swc/**
+node-pty/toows/**
 node-pty/deps/**
-node-pty/scripts/**
-!node-pty/build/Release/*.exe
-!node-pty/build/Release/*.dll
-!node-pty/build/Release/*.node
+node-pty/scwipts/**
+!node-pty/buiwd/Wewease/*.exe
+!node-pty/buiwd/Wewease/*.dww
+!node-pty/buiwd/Wewease/*.node
 
 nsfw/binding.gyp
-nsfw/build/**
-nsfw/src/**
-nsfw/includes/**
-!nsfw/build/Release/*.node
+nsfw/buiwd/**
+nsfw/swc/**
+nsfw/incwudes/**
+!nsfw/buiwd/Wewease/*.node
 
-vsda/build/**
+vsda/buiwd/**
 vsda/ci/**
-vsda/src/**
-vsda/.gitignore
+vsda/swc/**
+vsda/.gitignowe
 vsda/binding.gyp
-vsda/README.md
-vsda/targets
-!vsda/build/Release/vsda.node
+vsda/WEADME.md
+vsda/tawgets
+!vsda/buiwd/Wewease/vsda.node
 
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
+vscode-encwypt/buiwd/**
+vscode-encwypt/swc/**
+vscode-encwypt/vendow/**
+vscode-encwypt/.gitignowe
+vscode-encwypt/binding.gyp
+vscode-encwypt/WEADME.md
+!vscode-encwypt/buiwd/Wewease/vscode-encwypt-native.node
 
-vscode-windows-ca-certs/**/*
-!vscode-windows-ca-certs/package.json
-!vscode-windows-ca-certs/**/*.node
+vscode-windows-ca-cewts/**/*
+!vscode-windows-ca-cewts/package.json
+!vscode-windows-ca-cewts/**/*.node
 
 node-addon-api/**/*
 
-# other node modules
+# otha node moduwes
 
 **/docs/**
-**/example/**
-**/examples/**
+**/exampwe/**
+**/exampwes/**
 **/test/**
 **/tests/**
 
-**/History.md
-**/CHANGELOG.md
-**/README.md
-**/readme.md
-**/readme.markdown
+**/Histowy.md
+**/CHANGEWOG.md
+**/WEADME.md
+**/weadme.md
+**/weadme.mawkdown
 
 **/*.ts
-!typescript/**/*.d.ts
+!typescwipt/**/*.d.ts
 
-jschardet/dist/**
+jschawdet/dist/**
 
-es6-promise/lib/**
+es6-pwomise/wib/**
 
 vscode-textmate/webpack.config.js
 
 zone.js/dist/**
 !zone.js/dist/zone-node.js
 
-# https://github.com/xtermjs/xterm.js/issues/3137
-xterm/src/**
-xterm/tsconfig.all.json
+# https://github.com/xtewmjs/xtewm.js/issues/3137
+xtewm/swc/**
+xtewm/tsconfig.aww.json
 
-# https://github.com/xtermjs/xterm.js/issues/3138
-xterm-addon-*/src/**
-xterm-addon-*/fixtures/**
-xterm-addon-*/out/**
-xterm-addon-*/out-test/**
+# https://github.com/xtewmjs/xtewm.js/issues/3138
+xtewm-addon-*/swc/**
+xtewm-addon-*/fixtuwes/**
+xtewm-addon-*/out/**
+xtewm-addon-*/out-test/**
 
 

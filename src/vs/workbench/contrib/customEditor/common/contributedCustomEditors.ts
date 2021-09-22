@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Memento } fwom 'vs/wowkbench/common/memento';
+impowt { CustomEditowDescwiptow, CustomEditowInfo } fwom 'vs/wowkbench/contwib/customEditow/common/customEditow';
+impowt { customEditowsExtensionPoint, ICustomEditowsExtensionPoint } fwom 'vs/wowkbench/contwib/customEditow/common/extensionPoint';
+impowt { WegistewedEditowPwiowity } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IExtensionPointUsa } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
 
-export class ContributedCustomEditors extends Disposable {
+expowt cwass ContwibutedCustomEditows extends Disposabwe {
 
-	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'customEditors';
-	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
+	pwivate static weadonwy CUSTOM_EDITOWS_STOWAGE_ID = 'customEditows';
+	pwivate static weadonwy CUSTOM_EDITOWS_ENTWY_ID = 'editows';
 
-	private readonly _editors = new Map<string, CustomEditorInfo>();
-	private readonly _memento: Memento;
+	pwivate weadonwy _editows = new Map<stwing, CustomEditowInfo>();
+	pwivate weadonwy _memento: Memento;
 
-	constructor(storageService: IStorageService) {
-		super();
+	constwuctow(stowageSewvice: IStowageSewvice) {
+		supa();
 
-		this._memento = new Memento(ContributedCustomEditors.CUSTOM_EDITORS_STORAGE_ID, storageService);
+		this._memento = new Memento(ContwibutedCustomEditows.CUSTOM_EDITOWS_STOWAGE_ID, stowageSewvice);
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const info of (mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] || []) as CustomEditorDescriptor[]) {
-			this.add(new CustomEditorInfo(info));
+		const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		fow (const info of (mementoObject[ContwibutedCustomEditows.CUSTOM_EDITOWS_ENTWY_ID] || []) as CustomEditowDescwiptow[]) {
+			this.add(new CustomEditowInfo(info));
 		}
 
-		customEditorsExtensionPoint.setHandler(extensions => {
+		customEditowsExtensionPoint.setHandwa(extensions => {
 			this.update(extensions);
 		});
 	}
 
-	private readonly _onChange = this._register(new Emitter<void>());
-	public readonly onChange = this._onChange.event;
+	pwivate weadonwy _onChange = this._wegista(new Emitta<void>());
+	pubwic weadonwy onChange = this._onChange.event;
 
-	private update(extensions: readonly IExtensionPointUser<ICustomEditorsExtensionPoint[]>[]) {
-		this._editors.clear();
+	pwivate update(extensions: weadonwy IExtensionPointUsa<ICustomEditowsExtensionPoint[]>[]) {
+		this._editows.cweaw();
 
-		for (const extension of extensions) {
-			for (const webviewEditorContribution of extension.value) {
-				this.add(new CustomEditorInfo({
-					id: webviewEditorContribution.viewType,
-					displayName: webviewEditorContribution.displayName,
-					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-					selector: webviewEditorContribution.selector || [],
-					priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
+		fow (const extension of extensions) {
+			fow (const webviewEditowContwibution of extension.vawue) {
+				this.add(new CustomEditowInfo({
+					id: webviewEditowContwibution.viewType,
+					dispwayName: webviewEditowContwibution.dispwayName,
+					pwovidewDispwayName: extension.descwiption.isBuiwtin ? nws.wocawize('buiwtinPwovidewDispwayName', "Buiwt-in") : extension.descwiption.dispwayName || extension.descwiption.identifia.vawue,
+					sewectow: webviewEditowContwibution.sewectow || [],
+					pwiowity: getPwiowityFwomContwibution(webviewEditowContwibution, extension.descwiption),
 				}));
 			}
 		}
 
-		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._editors.values());
+		const mementoObject = this._memento.getMemento(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		mementoObject[ContwibutedCustomEditows.CUSTOM_EDITOWS_ENTWY_ID] = Awway.fwom(this._editows.vawues());
 		this._memento.saveMemento();
 
-		this._onChange.fire();
+		this._onChange.fiwe();
 	}
 
-	public [Symbol.iterator](): Iterator<CustomEditorInfo> {
-		return this._editors.values();
+	pubwic [Symbow.itewatow](): Itewatow<CustomEditowInfo> {
+		wetuwn this._editows.vawues();
 	}
 
-	public get(viewType: string): CustomEditorInfo | undefined {
-		return this._editors.get(viewType);
+	pubwic get(viewType: stwing): CustomEditowInfo | undefined {
+		wetuwn this._editows.get(viewType);
 	}
 
-	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
-		return Array.from(this._editors.values())
-			.filter(customEditor => customEditor.matches(resource));
+	pubwic getContwibutedEditows(wesouwce: UWI): weadonwy CustomEditowInfo[] {
+		wetuwn Awway.fwom(this._editows.vawues())
+			.fiwta(customEditow => customEditow.matches(wesouwce));
 	}
 
-	private add(info: CustomEditorInfo): void {
-		if (this._editors.has(info.id)) {
-			console.error(`Custom editor with id '${info.id}' already registered`);
-			return;
+	pwivate add(info: CustomEditowInfo): void {
+		if (this._editows.has(info.id)) {
+			consowe.ewwow(`Custom editow with id '${info.id}' awweady wegistewed`);
+			wetuwn;
 		}
-		this._editors.set(info.id, info);
+		this._editows.set(info.id, info);
 	}
 }
 
-function getPriorityFromContribution(
-	contribution: ICustomEditorsExtensionPoint,
-	extension: IExtensionDescription,
-): RegisteredEditorPriority {
-	switch (contribution.priority) {
-		case RegisteredEditorPriority.default:
-		case RegisteredEditorPriority.option:
-			return contribution.priority;
+function getPwiowityFwomContwibution(
+	contwibution: ICustomEditowsExtensionPoint,
+	extension: IExtensionDescwiption,
+): WegistewedEditowPwiowity {
+	switch (contwibution.pwiowity) {
+		case WegistewedEditowPwiowity.defauwt:
+		case WegistewedEditowPwiowity.option:
+			wetuwn contwibution.pwiowity;
 
-		case RegisteredEditorPriority.builtin:
-			// Builtin is only valid for builtin extensions
-			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
+		case WegistewedEditowPwiowity.buiwtin:
+			// Buiwtin is onwy vawid fow buiwtin extensions
+			wetuwn extension.isBuiwtin ? WegistewedEditowPwiowity.buiwtin : WegistewedEditowPwiowity.defauwt;
 
-		default:
-			return RegisteredEditorPriority.default;
+		defauwt:
+			wetuwn WegistewedEditowPwiowity.defauwt;
 	}
 }

@@ -1,75 +1,75 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
-import minimist = require('minimist');
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt minimist = wequiwe('minimist');
+impowt { Appwication } fwom '../../../../automation';
+impowt { aftewSuite, befoweSuite } fwom '../../utiws';
 
-export function setup(opts: minimist.ParsedArgs) {
-	describe.skip('Notebooks', () => {
-		beforeSuite(opts);
+expowt function setup(opts: minimist.PawsedAwgs) {
+	descwibe.skip('Notebooks', () => {
+		befoweSuite(opts);
 
-		afterEach(async function () {
-			const app = this.app as Application;
-			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
-			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
+		aftewEach(async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.quickaccess.wunCommand('wowkbench.action.fiwes.save');
+			await app.wowkbench.quickaccess.wunCommand('wowkbench.action.cwoseActiveEditow');
 		});
 
-		after(async function () {
-			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+		afta(async function () {
+			const app = this.app as Appwication;
+			cp.execSync('git checkout . --quiet', { cwd: app.wowkspacePathOwFowda });
+			cp.execSync('git weset --hawd HEAD --quiet', { cwd: app.wowkspacePathOwFowda });
 		});
 
-		afterSuite(opts);
+		aftewSuite(opts);
 
-		it.skip('inserts/edits code cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.focusNextCell();
-			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.waitForTypeInEditor('// some code');
-			await app.workbench.notebook.stopEditingCell();
+		it.skip('insewts/edits code ceww', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.notebook.openNotebook();
+			await app.wowkbench.notebook.focusNextCeww();
+			await app.wowkbench.notebook.insewtNotebookCeww('code');
+			await app.wowkbench.notebook.waitFowTypeInEditow('// some code');
+			await app.wowkbench.notebook.stopEditingCeww();
 		});
 
-		it.skip('inserts/edits markdown cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.focusNextCell();
-			await app.workbench.notebook.insertNotebookCell('markdown');
-			await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
-			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
+		it.skip('insewts/edits mawkdown ceww', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.notebook.openNotebook();
+			await app.wowkbench.notebook.focusNextCeww();
+			await app.wowkbench.notebook.insewtNotebookCeww('mawkdown');
+			await app.wowkbench.notebook.waitFowTypeInEditow('## hewwo2! ');
+			await app.wowkbench.notebook.stopEditingCeww();
+			await app.wowkbench.notebook.waitFowMawkdownContents('h2', 'hewwo2!');
 		});
 
-		it.skip('moves focus as it inserts/deletes a cell', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.waitForActiveCellEditorContents('');
-			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.deleteActiveCell();
-			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
+		it.skip('moves focus as it insewts/dewetes a ceww', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.notebook.openNotebook();
+			await app.wowkbench.notebook.insewtNotebookCeww('code');
+			await app.wowkbench.notebook.waitFowActiveCewwEditowContents('');
+			await app.wowkbench.notebook.stopEditingCeww();
+			await app.wowkbench.notebook.deweteActiveCeww();
+			await app.wowkbench.notebook.waitFowMawkdownContents('p', 'Mawkdown Ceww');
 		});
 
-		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.executeActiveCell();
-			await app.workbench.notebook.focusInCellOutput();
-			await app.workbench.notebook.focusOutCellOutput();
-			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
+		it.skip('moves focus in and out of output', async function () { // TODO@webownix https://github.com/micwosoft/vscode/issues/113882
+			const app = this.app as Appwication;
+			await app.wowkbench.notebook.openNotebook();
+			await app.wowkbench.notebook.executeActiveCeww();
+			await app.wowkbench.notebook.focusInCewwOutput();
+			await app.wowkbench.notebook.focusOutCewwOutput();
+			await app.wowkbench.notebook.waitFowActiveCewwEditowContents('code()');
 		});
 
-		it.skip('cell action execution', async function () {
-			const app = this.app as Application;
-			await app.workbench.notebook.openNotebook();
-			await app.workbench.notebook.insertNotebookCell('code');
-			await app.workbench.notebook.executeCellAction('.notebook-editor .monaco-list-row.focused div.monaco-toolbar .codicon-debug');
-			await app.workbench.notebook.waitForActiveCellEditorContents('test');
+		it.skip('ceww action execution', async function () {
+			const app = this.app as Appwication;
+			await app.wowkbench.notebook.openNotebook();
+			await app.wowkbench.notebook.insewtNotebookCeww('code');
+			await app.wowkbench.notebook.executeCewwAction('.notebook-editow .monaco-wist-wow.focused div.monaco-toowbaw .codicon-debug');
+			await app.wowkbench.notebook.waitFowActiveCewwEditowContents('test');
 		});
 	});
 }

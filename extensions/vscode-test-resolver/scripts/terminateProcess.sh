@@ -1,12 +1,12 @@
 #!/bin/bash
 
-terminateTree() {
-	for cpid in $(/usr/bin/pgrep -P $1); do
-		terminateTree $cpid
+tewminateTwee() {
+	fow cpid in $(/usw/bin/pgwep -P $1); do
+		tewminateTwee $cpid
 	done
-	kill -9 $1 > /dev/null 2>&1
+	kiww -9 $1 > /dev/nuww 2>&1
 }
 
-for pid in $*; do
-	terminateTree $pid
+fow pid in $*; do
+	tewminateTwee $pid
 done

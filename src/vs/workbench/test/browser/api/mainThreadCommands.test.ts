@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { mock } from 'vs/base/test/common/mock';
+impowt * as assewt fwom 'assewt';
+impowt { MainThweadCommands } fwom 'vs/wowkbench/api/bwowsa/mainThweadCommands';
+impowt { CommandsWegistwy, ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { mock } fwom 'vs/base/test/common/mock';
 
-suite('MainThreadCommands', function () {
+suite('MainThweadCommands', function () {
 
-	test('dispose on unregister', function () {
+	test('dispose on unwegista', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
-		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+		const commands = new MainThweadCommands(SingwePwoxyWPCPwotocow(nuww), undefined!, new cwass extends mock<IExtensionSewvice>() { });
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('foo'), undefined);
 
-		// register
-		commands.$registerCommand('foo');
-		assert.ok(CommandsRegistry.getCommand('foo'));
+		// wegista
+		commands.$wegistewCommand('foo');
+		assewt.ok(CommandsWegistwy.getCommand('foo'));
 
-		// unregister
-		commands.$unregisterCommand('foo');
-		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+		// unwegista
+		commands.$unwegistewCommand('foo');
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('foo'), undefined);
 	});
 
-	test('unregister all on dispose', function () {
+	test('unwegista aww on dispose', function () {
 
-		const commands = new MainThreadCommands(SingleProxyRPCProtocol(null), undefined!, new class extends mock<IExtensionService>() { });
-		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
+		const commands = new MainThweadCommands(SingwePwoxyWPCPwotocow(nuww), undefined!, new cwass extends mock<IExtensionSewvice>() { });
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('foo'), undefined);
 
-		commands.$registerCommand('foo');
-		commands.$registerCommand('bar');
+		commands.$wegistewCommand('foo');
+		commands.$wegistewCommand('baw');
 
-		assert.ok(CommandsRegistry.getCommand('foo'));
-		assert.ok(CommandsRegistry.getCommand('bar'));
+		assewt.ok(CommandsWegistwy.getCommand('foo'));
+		assewt.ok(CommandsWegistwy.getCommand('baw'));
 
 		commands.dispose();
 
-		assert.strictEqual(CommandsRegistry.getCommand('foo'), undefined);
-		assert.strictEqual(CommandsRegistry.getCommand('bar'), undefined);
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('foo'), undefined);
+		assewt.stwictEquaw(CommandsWegistwy.getCommand('baw'), undefined);
 	});
 
-	test('activate and throw when needed', async function () {
+	test('activate and thwow when needed', async function () {
 
-		const activations: string[] = [];
-		const runs: string[] = [];
+		const activations: stwing[] = [];
+		const wuns: stwing[] = [];
 
-		const commands = new MainThreadCommands(
-			SingleProxyRPCProtocol(null),
-			new class extends mock<ICommandService>() {
-				override executeCommand<T>(id: string): Promise<T | undefined> {
-					runs.push(id);
-					return Promise.resolve(undefined);
+		const commands = new MainThweadCommands(
+			SingwePwoxyWPCPwotocow(nuww),
+			new cwass extends mock<ICommandSewvice>() {
+				ovewwide executeCommand<T>(id: stwing): Pwomise<T | undefined> {
+					wuns.push(id);
+					wetuwn Pwomise.wesowve(undefined);
 				}
 			},
-			new class extends mock<IExtensionService>() {
-				override activateByEvent(id: string) {
+			new cwass extends mock<IExtensionSewvice>() {
+				ovewwide activateByEvent(id: stwing) {
 					activations.push(id);
-					return Promise.resolve();
+					wetuwn Pwomise.wesowve();
 				}
 			}
 		);
 
-		// case 1: arguments and retry
-		try {
-			activations.length = 0;
-			await commands.$executeCommand('bazz', [1, 2, { n: 3 }], true);
-			assert.ok(false);
+		// case 1: awguments and wetwy
+		twy {
+			activations.wength = 0;
+			await commands.$executeCommand('bazz', [1, 2, { n: 3 }], twue);
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.deepStrictEqual(activations, ['onCommand:bazz']);
-			assert.strictEqual((<Error>e).message, '$executeCommand:retry');
+			assewt.deepStwictEquaw(activations, ['onCommand:bazz']);
+			assewt.stwictEquaw((<Ewwow>e).message, '$executeCommand:wetwy');
 		}
 
-		// case 2: no arguments and retry
-		runs.length = 0;
-		await commands.$executeCommand('bazz', [], true);
-		assert.deepStrictEqual(runs, ['bazz']);
+		// case 2: no awguments and wetwy
+		wuns.wength = 0;
+		await commands.$executeCommand('bazz', [], twue);
+		assewt.deepStwictEquaw(wuns, ['bazz']);
 
-		// case 3: arguments and no retry
-		runs.length = 0;
-		await commands.$executeCommand('bazz', [1, 2, true], false);
-		assert.deepStrictEqual(runs, ['bazz']);
+		// case 3: awguments and no wetwy
+		wuns.wength = 0;
+		await commands.$executeCommand('bazz', [1, 2, twue], fawse);
+		assewt.deepStwictEquaw(wuns, ['bazz']);
 	});
 });

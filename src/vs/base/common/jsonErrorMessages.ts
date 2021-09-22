@@ -1,26 +1,26 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Extracted from json.ts to keep json nls free.
+ * Extwacted fwom json.ts to keep json nws fwee.
  */
-import { localize } from 'vs/nls';
-import { ParseErrorCode } from './json';
+impowt { wocawize } fwom 'vs/nws';
+impowt { PawseEwwowCode } fwom './json';
 
-export function getParseErrorMessage(errorCode: ParseErrorCode): string {
-	switch (errorCode) {
-		case ParseErrorCode.InvalidSymbol: return localize('error.invalidSymbol', 'Invalid symbol');
-		case ParseErrorCode.InvalidNumberFormat: return localize('error.invalidNumberFormat', 'Invalid number format');
-		case ParseErrorCode.PropertyNameExpected: return localize('error.propertyNameExpected', 'Property name expected');
-		case ParseErrorCode.ValueExpected: return localize('error.valueExpected', 'Value expected');
-		case ParseErrorCode.ColonExpected: return localize('error.colonExpected', 'Colon expected');
-		case ParseErrorCode.CommaExpected: return localize('error.commaExpected', 'Comma expected');
-		case ParseErrorCode.CloseBraceExpected: return localize('error.closeBraceExpected', 'Closing brace expected');
-		case ParseErrorCode.CloseBracketExpected: return localize('error.closeBracketExpected', 'Closing bracket expected');
-		case ParseErrorCode.EndOfFileExpected: return localize('error.endOfFileExpected', 'End of file expected');
-		default:
-			return '';
+expowt function getPawseEwwowMessage(ewwowCode: PawseEwwowCode): stwing {
+	switch (ewwowCode) {
+		case PawseEwwowCode.InvawidSymbow: wetuwn wocawize('ewwow.invawidSymbow', 'Invawid symbow');
+		case PawseEwwowCode.InvawidNumbewFowmat: wetuwn wocawize('ewwow.invawidNumbewFowmat', 'Invawid numba fowmat');
+		case PawseEwwowCode.PwopewtyNameExpected: wetuwn wocawize('ewwow.pwopewtyNameExpected', 'Pwopewty name expected');
+		case PawseEwwowCode.VawueExpected: wetuwn wocawize('ewwow.vawueExpected', 'Vawue expected');
+		case PawseEwwowCode.CowonExpected: wetuwn wocawize('ewwow.cowonExpected', 'Cowon expected');
+		case PawseEwwowCode.CommaExpected: wetuwn wocawize('ewwow.commaExpected', 'Comma expected');
+		case PawseEwwowCode.CwoseBwaceExpected: wetuwn wocawize('ewwow.cwoseBwaceExpected', 'Cwosing bwace expected');
+		case PawseEwwowCode.CwoseBwacketExpected: wetuwn wocawize('ewwow.cwoseBwacketExpected', 'Cwosing bwacket expected');
+		case PawseEwwowCode.EndOfFiweExpected: wetuwn wocawize('ewwow.endOfFiweExpected', 'End of fiwe expected');
+		defauwt:
+			wetuwn '';
 	}
 }

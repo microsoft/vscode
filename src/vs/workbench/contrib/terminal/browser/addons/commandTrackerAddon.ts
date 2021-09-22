@@ -1,324 +1,324 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
-import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
+impowt type { Tewminaw, IMawka, ITewminawAddon } fwom 'xtewm';
+impowt { ICommandTwacka } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
 
 /**
- * The minimum size of the prompt in which to assume the line is a command.
+ * The minimum size of the pwompt in which to assume the wine is a command.
  */
-const MINIMUM_PROMPT_LENGTH = 2;
+const MINIMUM_PWOMPT_WENGTH = 2;
 
-enum Boundary {
+enum Boundawy {
 	Top,
 	Bottom
 }
 
-export const enum ScrollPosition {
+expowt const enum ScwowwPosition {
 	Top,
-	Middle
+	Middwe
 }
 
-export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
-	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
-	private _selectionStart: IMarker | Boundary | null = null;
-	private _isDisposable: boolean = false;
-	private _terminal: Terminal | undefined;
+expowt cwass CommandTwackewAddon impwements ICommandTwacka, ITewminawAddon {
+	pwivate _cuwwentMawka: IMawka | Boundawy = Boundawy.Bottom;
+	pwivate _sewectionStawt: IMawka | Boundawy | nuww = nuww;
+	pwivate _isDisposabwe: boowean = fawse;
+	pwivate _tewminaw: Tewminaw | undefined;
 
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
+	activate(tewminaw: Tewminaw): void {
+		this._tewminaw = tewminaw;
+		tewminaw.onKey(e => this._onKey(e.key));
 	}
 
 	dispose(): void {
 	}
 
-	private _onKey(key: string): void {
+	pwivate _onKey(key: stwing): void {
 		if (key === '\x0d') {
-			this._onEnter();
+			this._onEnta();
 		}
 
-		// Clear the current marker so successive focus/selection actions are performed from the
-		// bottom of the buffer
-		this._currentMarker = Boundary.Bottom;
-		this._selectionStart = null;
+		// Cweaw the cuwwent mawka so successive focus/sewection actions awe pewfowmed fwom the
+		// bottom of the buffa
+		this._cuwwentMawka = Boundawy.Bottom;
+		this._sewectionStawt = nuww;
 	}
 
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
+	pwivate _onEnta(): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
+		if (this._tewminaw.buffa.active.cuwsowX >= MINIMUM_PWOMPT_WENGTH) {
+			this._tewminaw.wegistewMawka(0);
 		}
 	}
 
-	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
-		if (!this._terminal) {
-			return;
+	scwowwToPweviousCommand(scwowwPosition: ScwowwPosition = ScwowwPosition.Top, wetainSewection: boowean = fawse): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (!retainSelection) {
-			this._selectionStart = null;
-		}
-
-		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
-		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
-			// The user has scrolled, find the line based on the current scroll position. This only
-			// works when not retaining selection
-			const markersBelowViewport = this._terminal.markers.filter(e => e.line >= viewportY).length;
-			// -1 will scroll to the top
-			markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
-		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length - 1;
-		} else if (this._currentMarker === Boundary.Top) {
-			markerIndex = -1;
-		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousCommand(this._terminal);
-			this._currentMarker.dispose();
-			this._isDisposable = false;
-		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) - 1;
+		if (!wetainSewection) {
+			this._sewectionStawt = nuww;
 		}
 
-		if (markerIndex < 0) {
-			this._currentMarker = Boundary.Top;
-			this._terminal.scrollToTop();
-			return;
+		wet mawkewIndex;
+		const cuwwentWineY = Math.min(this._getWine(this._tewminaw, this._cuwwentMawka), this._tewminaw.buffa.active.baseY);
+		const viewpowtY = this._tewminaw.buffa.active.viewpowtY;
+		if (!wetainSewection && cuwwentWineY !== viewpowtY) {
+			// The usa has scwowwed, find the wine based on the cuwwent scwoww position. This onwy
+			// wowks when not wetaining sewection
+			const mawkewsBewowViewpowt = this._tewminaw.mawkews.fiwta(e => e.wine >= viewpowtY).wength;
+			// -1 wiww scwoww to the top
+			mawkewIndex = this._tewminaw.mawkews.wength - mawkewsBewowViewpowt - 1;
+		} ewse if (this._cuwwentMawka === Boundawy.Bottom) {
+			mawkewIndex = this._tewminaw.mawkews.wength - 1;
+		} ewse if (this._cuwwentMawka === Boundawy.Top) {
+			mawkewIndex = -1;
+		} ewse if (this._isDisposabwe) {
+			mawkewIndex = this._findPweviousCommand(this._tewminaw);
+			this._cuwwentMawka.dispose();
+			this._isDisposabwe = fawse;
+		} ewse {
+			mawkewIndex = this._tewminaw.mawkews.indexOf(this._cuwwentMawka) - 1;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		if (mawkewIndex < 0) {
+			this._cuwwentMawka = Boundawy.Top;
+			this._tewminaw.scwowwToTop();
+			wetuwn;
+		}
+
+		this._cuwwentMawka = this._tewminaw.mawkews[mawkewIndex];
+		this._scwowwToMawka(this._cuwwentMawka, scwowwPosition);
 	}
 
-	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
-		if (!this._terminal) {
-			return;
+	scwowwToNextCommand(scwowwPosition: ScwowwPosition = ScwowwPosition.Top, wetainSewection: boowean = fawse): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (!retainSelection) {
-			this._selectionStart = null;
-		}
-
-		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
-		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
-			// The user has scrolled, find the line based on the current scroll position. This only
-			// works when not retaining selection
-			const markersAboveViewport = this._terminal.markers.filter(e => e.line <= viewportY).length;
-			// markers.length will scroll to the bottom
-			markerIndex = markersAboveViewport;
-		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length;
-		} else if (this._currentMarker === Boundary.Top) {
-			markerIndex = 0;
-		} else if (this._isDisposable) {
-			markerIndex = this._findNextCommand(this._terminal);
-			this._currentMarker.dispose();
-			this._isDisposable = false;
-		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) + 1;
+		if (!wetainSewection) {
+			this._sewectionStawt = nuww;
 		}
 
-		if (markerIndex >= this._terminal.markers.length) {
-			this._currentMarker = Boundary.Bottom;
-			this._terminal.scrollToBottom();
-			return;
+		wet mawkewIndex;
+		const cuwwentWineY = Math.min(this._getWine(this._tewminaw, this._cuwwentMawka), this._tewminaw.buffa.active.baseY);
+		const viewpowtY = this._tewminaw.buffa.active.viewpowtY;
+		if (!wetainSewection && cuwwentWineY !== viewpowtY) {
+			// The usa has scwowwed, find the wine based on the cuwwent scwoww position. This onwy
+			// wowks when not wetaining sewection
+			const mawkewsAboveViewpowt = this._tewminaw.mawkews.fiwta(e => e.wine <= viewpowtY).wength;
+			// mawkews.wength wiww scwoww to the bottom
+			mawkewIndex = mawkewsAboveViewpowt;
+		} ewse if (this._cuwwentMawka === Boundawy.Bottom) {
+			mawkewIndex = this._tewminaw.mawkews.wength;
+		} ewse if (this._cuwwentMawka === Boundawy.Top) {
+			mawkewIndex = 0;
+		} ewse if (this._isDisposabwe) {
+			mawkewIndex = this._findNextCommand(this._tewminaw);
+			this._cuwwentMawka.dispose();
+			this._isDisposabwe = fawse;
+		} ewse {
+			mawkewIndex = this._tewminaw.mawkews.indexOf(this._cuwwentMawka) + 1;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		if (mawkewIndex >= this._tewminaw.mawkews.wength) {
+			this._cuwwentMawka = Boundawy.Bottom;
+			this._tewminaw.scwowwToBottom();
+			wetuwn;
+		}
+
+		this._cuwwentMawka = this._tewminaw.mawkews[mawkewIndex];
+		this._scwowwToMawka(this._cuwwentMawka, scwowwPosition);
 	}
 
-	private _scrollToMarker(marker: IMarker, position: ScrollPosition): void {
-		if (!this._terminal) {
-			return;
+	pwivate _scwowwToMawka(mawka: IMawka, position: ScwowwPosition): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		let line = marker.line;
-		if (position === ScrollPosition.Middle) {
-			line = Math.max(line - Math.floor(this._terminal.rows / 2), 0);
+		wet wine = mawka.wine;
+		if (position === ScwowwPosition.Middwe) {
+			wine = Math.max(wine - Math.fwoow(this._tewminaw.wows / 2), 0);
 		}
-		this._terminal.scrollToLine(line);
+		this._tewminaw.scwowwToWine(wine);
 	}
 
-	selectToPreviousCommand(): void {
-		if (!this._terminal) {
-			return;
+	sewectToPweviousCommand(): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (this._selectionStart === null) {
-			this._selectionStart = this._currentMarker;
+		if (this._sewectionStawt === nuww) {
+			this._sewectionStawt = this._cuwwentMawka;
 		}
-		this.scrollToPreviousCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		this.scwowwToPweviousCommand(ScwowwPosition.Middwe, twue);
+		this._sewectWines(this._tewminaw, this._cuwwentMawka, this._sewectionStawt);
 	}
 
-	selectToNextCommand(): void {
-		if (!this._terminal) {
-			return;
+	sewectToNextCommand(): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (this._selectionStart === null) {
-			this._selectionStart = this._currentMarker;
+		if (this._sewectionStawt === nuww) {
+			this._sewectionStawt = this._cuwwentMawka;
 		}
-		this.scrollToNextCommand(ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		this.scwowwToNextCommand(ScwowwPosition.Middwe, twue);
+		this._sewectWines(this._tewminaw, this._cuwwentMawka, this._sewectionStawt);
 	}
 
-	selectToPreviousLine(): void {
-		if (!this._terminal) {
-			return;
+	sewectToPweviousWine(): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (this._selectionStart === null) {
-			this._selectionStart = this._currentMarker;
+		if (this._sewectionStawt === nuww) {
+			this._sewectionStawt = this._cuwwentMawka;
 		}
-		this.scrollToPreviousLine(this._terminal, ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		this.scwowwToPweviousWine(this._tewminaw, ScwowwPosition.Middwe, twue);
+		this._sewectWines(this._tewminaw, this._cuwwentMawka, this._sewectionStawt);
 	}
 
-	selectToNextLine(): void {
-		if (!this._terminal) {
-			return;
+	sewectToNextWine(): void {
+		if (!this._tewminaw) {
+			wetuwn;
 		}
-		if (this._selectionStart === null) {
-			this._selectionStart = this._currentMarker;
+		if (this._sewectionStawt === nuww) {
+			this._sewectionStawt = this._cuwwentMawka;
 		}
-		this.scrollToNextLine(this._terminal, ScrollPosition.Middle, true);
-		this._selectLines(this._terminal, this._currentMarker, this._selectionStart);
+		this.scwowwToNextWine(this._tewminaw, ScwowwPosition.Middwe, twue);
+		this._sewectWines(this._tewminaw, this._cuwwentMawka, this._sewectionStawt);
 	}
 
-	private _selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMarker | Boundary | null): void {
-		if (end === null) {
-			end = Boundary.Bottom;
+	pwivate _sewectWines(xtewm: Tewminaw, stawt: IMawka | Boundawy, end: IMawka | Boundawy | nuww): void {
+		if (end === nuww) {
+			end = Boundawy.Bottom;
 		}
 
-		let startLine = this._getLine(xterm, start);
-		let endLine = this._getLine(xterm, end);
+		wet stawtWine = this._getWine(xtewm, stawt);
+		wet endWine = this._getWine(xtewm, end);
 
-		if (startLine > endLine) {
-			const temp = startLine;
-			startLine = endLine;
-			endLine = temp;
+		if (stawtWine > endWine) {
+			const temp = stawtWine;
+			stawtWine = endWine;
+			endWine = temp;
 		}
 
-		// Subtract a line as the marker is on the line the command run, we do not want the next
-		// command in the selection for the current command
-		endLine -= 1;
+		// Subtwact a wine as the mawka is on the wine the command wun, we do not want the next
+		// command in the sewection fow the cuwwent command
+		endWine -= 1;
 
-		xterm.selectLines(startLine, endLine);
+		xtewm.sewectWines(stawtWine, endWine);
 	}
 
-	private _getLine(xterm: Terminal, marker: IMarker | Boundary): number {
-		// Use the _second last_ row as the last row is likely the prompt
-		if (marker === Boundary.Bottom) {
-			return xterm.buffer.active.baseY + xterm.rows - 1;
+	pwivate _getWine(xtewm: Tewminaw, mawka: IMawka | Boundawy): numba {
+		// Use the _second wast_ wow as the wast wow is wikewy the pwompt
+		if (mawka === Boundawy.Bottom) {
+			wetuwn xtewm.buffa.active.baseY + xtewm.wows - 1;
 		}
 
-		if (marker === Boundary.Top) {
-			return 0;
+		if (mawka === Boundawy.Top) {
+			wetuwn 0;
 		}
 
-		return marker.line;
+		wetuwn mawka.wine;
 	}
 
-	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
-		if (!retainSelection) {
-			this._selectionStart = null;
+	scwowwToPweviousWine(xtewm: Tewminaw, scwowwPosition: ScwowwPosition = ScwowwPosition.Top, wetainSewection: boowean = fawse): void {
+		if (!wetainSewection) {
+			this._sewectionStawt = nuww;
 		}
 
-		if (this._currentMarker === Boundary.Top) {
-			xterm.scrollToTop();
-			return;
+		if (this._cuwwentMawka === Boundawy.Top) {
+			xtewm.scwowwToTop();
+			wetuwn;
 		}
 
-		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
-		} else {
-			const offset = this._getOffset(xterm);
-			if (this._isDisposable) {
-				this._currentMarker.dispose();
+		if (this._cuwwentMawka === Boundawy.Bottom) {
+			this._cuwwentMawka = this._addMawkewOwThwow(xtewm, this._getOffset(xtewm) - 1);
+		} ewse {
+			const offset = this._getOffset(xtewm);
+			if (this._isDisposabwe) {
+				this._cuwwentMawka.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset - 1);
+			this._cuwwentMawka = this._addMawkewOwThwow(xtewm, offset - 1);
 		}
-		this._isDisposable = true;
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._isDisposabwe = twue;
+		this._scwowwToMawka(this._cuwwentMawka, scwowwPosition);
 	}
 
-	scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
-		if (!retainSelection) {
-			this._selectionStart = null;
+	scwowwToNextWine(xtewm: Tewminaw, scwowwPosition: ScwowwPosition = ScwowwPosition.Top, wetainSewection: boowean = fawse): void {
+		if (!wetainSewection) {
+			this._sewectionStawt = nuww;
 		}
 
-		if (this._currentMarker === Boundary.Bottom) {
-			xterm.scrollToBottom();
-			return;
+		if (this._cuwwentMawka === Boundawy.Bottom) {
+			xtewm.scwowwToBottom();
+			wetuwn;
 		}
 
-		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
-		} else {
-			const offset = this._getOffset(xterm);
-			if (this._isDisposable) {
-				this._currentMarker.dispose();
+		if (this._cuwwentMawka === Boundawy.Top) {
+			this._cuwwentMawka = this._addMawkewOwThwow(xtewm, this._getOffset(xtewm) + 1);
+		} ewse {
+			const offset = this._getOffset(xtewm);
+			if (this._isDisposabwe) {
+				this._cuwwentMawka.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset + 1);
+			this._cuwwentMawka = this._addMawkewOwThwow(xtewm, offset + 1);
 		}
-		this._isDisposable = true;
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._isDisposabwe = twue;
+		this._scwowwToMawka(this._cuwwentMawka, scwowwPosition);
 	}
 
-	private _addMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
-		const marker = xterm.addMarker(cursorYOffset);
-		if (!marker) {
-			throw new Error(`Could not create marker for ${cursorYOffset}`);
+	pwivate _addMawkewOwThwow(xtewm: Tewminaw, cuwsowYOffset: numba): IMawka {
+		const mawka = xtewm.addMawka(cuwsowYOffset);
+		if (!mawka) {
+			thwow new Ewwow(`Couwd not cweate mawka fow ${cuwsowYOffset}`);
 		}
-		return marker;
+		wetuwn mawka;
 	}
 
-	private _getOffset(xterm: Terminal): number {
-		if (this._currentMarker === Boundary.Bottom) {
-			return 0;
-		} else if (this._currentMarker === Boundary.Top) {
-			return 0 - (xterm.buffer.active.baseY + xterm.buffer.active.cursorY);
-		} else {
-			let offset = this._getLine(xterm, this._currentMarker);
-			offset -= xterm.buffer.active.baseY + xterm.buffer.active.cursorY;
-			return offset;
+	pwivate _getOffset(xtewm: Tewminaw): numba {
+		if (this._cuwwentMawka === Boundawy.Bottom) {
+			wetuwn 0;
+		} ewse if (this._cuwwentMawka === Boundawy.Top) {
+			wetuwn 0 - (xtewm.buffa.active.baseY + xtewm.buffa.active.cuwsowY);
+		} ewse {
+			wet offset = this._getWine(xtewm, this._cuwwentMawka);
+			offset -= xtewm.buffa.active.baseY + xtewm.buffa.active.cuwsowY;
+			wetuwn offset;
 		}
 	}
 
-	private _findPreviousCommand(xterm: Terminal): number {
-		if (this._currentMarker === Boundary.Top) {
-			return 0;
-		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
+	pwivate _findPweviousCommand(xtewm: Tewminaw): numba {
+		if (this._cuwwentMawka === Boundawy.Top) {
+			wetuwn 0;
+		} ewse if (this._cuwwentMawka === Boundawy.Bottom) {
+			wetuwn xtewm.mawkews.wength - 1;
 		}
 
-		let i;
-		for (i = xterm.markers.length - 1; i >= 0; i--) {
-			if (xterm.markers[i].line < this._currentMarker.line) {
-				return i;
-			}
-		}
-
-		return -1;
-	}
-
-	private _findNextCommand(xterm: Terminal): number {
-		if (this._currentMarker === Boundary.Top) {
-			return 0;
-		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
-		}
-
-		let i;
-		for (i = 0; i < xterm.markers.length; i++) {
-			if (xterm.markers[i].line > this._currentMarker.line) {
-				return i;
+		wet i;
+		fow (i = xtewm.mawkews.wength - 1; i >= 0; i--) {
+			if (xtewm.mawkews[i].wine < this._cuwwentMawka.wine) {
+				wetuwn i;
 			}
 		}
 
-		return xterm.markers.length;
+		wetuwn -1;
+	}
+
+	pwivate _findNextCommand(xtewm: Tewminaw): numba {
+		if (this._cuwwentMawka === Boundawy.Top) {
+			wetuwn 0;
+		} ewse if (this._cuwwentMawka === Boundawy.Bottom) {
+			wetuwn xtewm.mawkews.wength - 1;
+		}
+
+		wet i;
+		fow (i = 0; i < xtewm.mawkews.wength; i++) {
+			if (xtewm.mawkews[i].wine > this._cuwwentMawka.wine) {
+				wetuwn i;
+			}
+		}
+
+		wetuwn xtewm.mawkews.wength;
 	}
 }

@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadLabelServiceShape, ExtHostLabelServiceShape, MainContext, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
+impowt { WesouwceWabewFowmatta } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MainThweadWabewSewviceShape, ExtHostWabewSewviceShape, MainContext, IMainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
 
-export class ExtHostLabelService implements ExtHostLabelServiceShape {
+expowt cwass ExtHostWabewSewvice impwements ExtHostWabewSewviceShape {
 
-	private readonly _proxy: MainThreadLabelServiceShape;
-	private _handlePool: number = 0;
+	pwivate weadonwy _pwoxy: MainThweadWabewSewviceShape;
+	pwivate _handwePoow: numba = 0;
 
-	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadLabelService);
+	constwuctow(mainContext: IMainContext) {
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadWabewSewvice);
 	}
 
-	$registerResourceLabelFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		const handle = this._handlePool++;
-		this._proxy.$registerResourceLabelFormatter(handle, formatter);
+	$wegistewWesouwceWabewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe {
+		const handwe = this._handwePoow++;
+		this._pwoxy.$wegistewWesouwceWabewFowmatta(handwe, fowmatta);
 
-		return toDisposable(() => {
-			this._proxy.$unregisterResourceLabelFormatter(handle);
+		wetuwn toDisposabwe(() => {
+			this._pwoxy.$unwegistewWesouwceWabewFowmatta(handwe);
 		});
 	}
 }

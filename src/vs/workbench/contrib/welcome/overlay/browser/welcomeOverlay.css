@@ -1,172 +1,172 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .welcomeOverlay {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway {
+	position: absowute;
 	top: 0px;
-	left: 0px;
+	weft: 0px;
 	height: 100%;
 	width: 100%;
 	z-index: 9999;
 	font-size: 10px;
-	transition: font-size .25s;
-	outline: none;
+	twansition: font-size .25s;
+	outwine: none;
 }
 
-#workbench\.parts\.editor {
-	transition: filter .25s, opacity .2s;
+#wowkbench\.pawts\.editow {
+	twansition: fiwta .25s, opacity .2s;
 }
 
-.monaco-workbench.blur-background #workbench\.parts\.panel,
-.monaco-workbench.blur-background #workbench\.parts\.sidebar,
-.monaco-workbench.blur-background #workbench\.parts\.editor {
-	filter: blur(2px);
+.monaco-wowkbench.bwuw-backgwound #wowkbench\.pawts\.panew,
+.monaco-wowkbench.bwuw-backgwound #wowkbench\.pawts\.sidebaw,
+.monaco-wowkbench.bwuw-backgwound #wowkbench\.pawts\.editow {
+	fiwta: bwuw(2px);
 	opacity: .4;
 }
 
-.monaco-workbench.hc-black.blur-background #workbench\.parts\.panel,
-.monaco-workbench.hc-black.blur-background #workbench\.parts\.sidebar,
-.monaco-workbench.hc-black.blur-background #workbench\.parts\.editor {
+.monaco-wowkbench.hc-bwack.bwuw-backgwound #wowkbench\.pawts\.panew,
+.monaco-wowkbench.hc-bwack.bwuw-backgwound #wowkbench\.pawts\.sidebaw,
+.monaco-wowkbench.hc-bwack.bwuw-backgwound #wowkbench\.pawts\.editow {
 	opacity: .2;
 }
 
-.monaco-workbench > .welcomeOverlay > .key {
+.monaco-wowkbench > .wewcomeOvewway > .key {
 	font-size: 1.6em;
 }
 
-.monaco-workbench > .welcomeOverlay > .key > .label {
+.monaco-wowkbench > .wewcomeOvewway > .key > .wabew {
 	padding: 0 1ex;
 }
 
-.monaco-workbench > .welcomeOverlay > .key > .shortcut {
-	letter-spacing: 0.15em;
+.monaco-wowkbench > .wewcomeOvewway > .key > .showtcut {
+	wetta-spacing: 0.15em;
 	font-size: 0.8125em;
-	font-family: "Lucida Grande", sans-serif;
+	font-famiwy: "Wucida Gwande", sans-sewif;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.explorer {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.expwowa {
+	position: absowute;
 	top: 13px;
-	left: 60px;
+	weft: 60px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.search {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.seawch {
+	position: absowute;
 	top: 63px;
-	left: 60px;
+	weft: 60px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.git {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.git {
+	position: absowute;
 	top: 113px;
-	left: 60px;
+	weft: 60px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.debug {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.debug {
+	position: absowute;
 	top: 163px;
-	left: 60px;
+	weft: 60px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.extensions {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.extensions {
+	position: absowute;
 	top: 213px;
-	left: 60px;
+	weft: 60px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.watermark {
-	position: absolute;
-	top: calc(50% + 30px);
-	left: calc(50% + 30px);
+.monaco-wowkbench > .wewcomeOvewway > .key.watewmawk {
+	position: absowute;
+	top: cawc(50% + 30px);
+	weft: cawc(50% + 30px);
 }
 
-.monaco-workbench > .welcomeOverlay > .key.watermark > .label {
-	vertical-align: super;
+.monaco-wowkbench > .wewcomeOvewway > .key.watewmawk > .wabew {
+	vewticaw-awign: supa;
 }
 
 @media (max-height: 500px) {
-	.monaco-workbench > .welcomeOverlay > .key.watermark {
-		display: none;
+	.monaco-wowkbench > .wewcomeOvewway > .key.watewmawk {
+		dispway: none;
 	}
 }
 
-.monaco-workbench > .welcomeOverlay > .key.problems {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.pwobwems {
+	position: absowute;
 	bottom: 25px;
-	left: 45px;
+	weft: 45px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.terminal {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.tewminaw {
+	position: absowute;
 	bottom: 25px;
-	left: 50%;
+	weft: 50%;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.notifications {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.notifications {
+	position: absowute;
 	bottom: 25px;
-	right: 16px;
+	wight: 16px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.problems > .label,
-.monaco-workbench > .welcomeOverlay > .key.problems > .shortcut,
-.monaco-workbench > .welcomeOverlay > .key.notifications > .label,
-.monaco-workbench > .welcomeOverlay > .key.notifications > .shortcut {
-	vertical-align: super;
+.monaco-wowkbench > .wewcomeOvewway > .key.pwobwems > .wabew,
+.monaco-wowkbench > .wewcomeOvewway > .key.pwobwems > .showtcut,
+.monaco-wowkbench > .wewcomeOvewway > .key.notifications > .wabew,
+.monaco-wowkbench > .wewcomeOvewway > .key.notifications > .showtcut {
+	vewticaw-awign: supa;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.openfile {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.openfiwe {
+	position: absowute;
 	bottom: 25px;
-	right: 45px;
+	wight: 45px;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.openfile > .label {
-	vertical-align: super;
+.monaco-wowkbench > .wewcomeOvewway > .key.openfiwe > .wabew {
+	vewticaw-awign: supa;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.commandPalette {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .key.commandPawette {
+	position: absowute;
 	top: 210px;
-	left: calc(50% - 52px);
-	transition: top .25s, left .25s;
+	weft: cawc(50% - 52px);
+	twansition: top .25s, weft .25s;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.commandPalette > .label {
-	vertical-align: sub;
+.monaco-wowkbench > .wewcomeOvewway > .key.commandPawette > .wabew {
+	vewticaw-awign: sub;
 }
 
-.monaco-workbench > .welcomeOverlay > .key.commandPalette > .shortcut {
-	padding-left: 0.5em;
-	vertical-align: sub;
+.monaco-wowkbench > .wewcomeOvewway > .key.commandPawette > .showtcut {
+	padding-weft: 0.5em;
+	vewticaw-awign: sub;
 }
 
-.monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
-	position: absolute;
+.monaco-wowkbench > .wewcomeOvewway > .commandPawettePwacehowda {
+	position: absowute;
 	top: 2px;
-	left: calc(50% - 193px);
+	weft: cawc(50% - 193px);
 	width: 386px;
 	height: 197px;
-	background-image: url('media/commandpalette.svg');
-	background-repeat: no-repeat;
-	background-size: 100%;
+	backgwound-image: uww('media/commandpawette.svg');
+	backgwound-wepeat: no-wepeat;
+	backgwound-size: 100%;
 }
 
-.monaco-workbench.vs-dark > .welcomeOverlay > .commandPalettePlaceholder,
-.monaco-workbench.hc-black > .welcomeOverlay > .commandPalettePlaceholder {
-	background-image: url('media/commandpalette-dark.svg');
+.monaco-wowkbench.vs-dawk > .wewcomeOvewway > .commandPawettePwacehowda,
+.monaco-wowkbench.hc-bwack > .wewcomeOvewway > .commandPawettePwacehowda {
+	backgwound-image: uww('media/commandpawette-dawk.svg');
 }
-@media screen and (max-width: 880px) {
-	.monaco-workbench > .welcomeOverlay {
+@media scween and (max-width: 880px) {
+	.monaco-wowkbench > .wewcomeOvewway {
 		font-size: 8px;
 	}
-	.monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
-		display: none;
+	.monaco-wowkbench > .wewcomeOvewway > .commandPawettePwacehowda {
+		dispway: none;
 	}
-	.monaco-workbench > .welcomeOverlay > .key.commandPalette {
+	.monaco-wowkbench > .wewcomeOvewway > .key.commandPawette {
 		top: 10px;
-		left: 50%;
+		weft: 50%;
 	}
 }

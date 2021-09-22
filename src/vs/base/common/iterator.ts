@@ -1,159 +1,159 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export namespace Iterable {
+expowt namespace Itewabwe {
 
-	export function is<T = any>(thing: any): thing is IterableIterator<T> {
-		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
+	expowt function is<T = any>(thing: any): thing is ItewabweItewatow<T> {
+		wetuwn thing && typeof thing === 'object' && typeof thing[Symbow.itewatow] === 'function';
 	}
 
-	const _empty: Iterable<any> = Object.freeze([]);
-	export function empty<T = any>(): Iterable<T> {
-		return _empty;
+	const _empty: Itewabwe<any> = Object.fweeze([]);
+	expowt function empty<T = any>(): Itewabwe<T> {
+		wetuwn _empty;
 	}
 
-	export function* single<T>(element: T): Iterable<T> {
-		yield element;
+	expowt function* singwe<T>(ewement: T): Itewabwe<T> {
+		yiewd ewement;
 	}
 
-	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
-		return iterable || _empty;
+	expowt function fwom<T>(itewabwe: Itewabwe<T> | undefined | nuww): Itewabwe<T> {
+		wetuwn itewabwe || _empty;
 	}
 
-	export function isEmpty<T>(iterable: Iterable<T> | undefined | null): boolean {
-		return !iterable || iterable[Symbol.iterator]().next().done === true;
+	expowt function isEmpty<T>(itewabwe: Itewabwe<T> | undefined | nuww): boowean {
+		wetuwn !itewabwe || itewabwe[Symbow.itewatow]().next().done === twue;
 	}
 
-	export function first<T>(iterable: Iterable<T>): T | undefined {
-		return iterable[Symbol.iterator]().next().value;
+	expowt function fiwst<T>(itewabwe: Itewabwe<T>): T | undefined {
+		wetuwn itewabwe[Symbow.itewatow]().next().vawue;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
-		for (const element of iterable) {
-			if (predicate(element)) {
-				return true;
+	expowt function some<T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => unknown): boowean {
+		fow (const ewement of itewabwe) {
+			if (pwedicate(ewement)) {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): T | undefined;
-	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined;
-	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined {
-		for (const element of iterable) {
-			if (predicate(element)) {
-				return element;
+	expowt function find<T, W extends T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => t is W): T | undefined;
+	expowt function find<T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => boowean): T | undefined;
+	expowt function find<T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => boowean): T | undefined {
+		fow (const ewement of itewabwe) {
+			if (pwedicate(ewement)) {
+				wetuwn ewement;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	export function filter<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): Iterable<R>;
-	export function filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T>;
-	export function* filter<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): Iterable<T> {
-		for (const element of iterable) {
-			if (predicate(element)) {
-				yield element;
-			}
-		}
-	}
-
-	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => R): Iterable<R> {
-		let index = 0;
-		for (const element of iterable) {
-			yield fn(element, index++);
-		}
-	}
-
-	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
+	expowt function fiwta<T, W extends T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => t is W): Itewabwe<W>;
+	expowt function fiwta<T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => boowean): Itewabwe<T>;
+	expowt function* fiwta<T>(itewabwe: Itewabwe<T>, pwedicate: (t: T) => boowean): Itewabwe<T> {
+		fow (const ewement of itewabwe) {
+			if (pwedicate(ewement)) {
+				yiewd ewement;
 			}
 		}
 	}
 
-	export function* concatNested<T>(iterables: Iterable<Iterable<T>>): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
+	expowt function* map<T, W>(itewabwe: Itewabwe<T>, fn: (t: T, index: numba) => W): Itewabwe<W> {
+		wet index = 0;
+		fow (const ewement of itewabwe) {
+			yiewd fn(ewement, index++);
+		}
+	}
+
+	expowt function* concat<T>(...itewabwes: Itewabwe<T>[]): Itewabwe<T> {
+		fow (const itewabwe of itewabwes) {
+			fow (const ewement of itewabwe) {
+				yiewd ewement;
 			}
 		}
 	}
 
-	export function reduce<T, R>(iterable: Iterable<T>, reducer: (previousValue: R, currentValue: T) => R, initialValue: R): R {
-		let value = initialValue;
-		for (const element of iterable) {
-			value = reducer(value, element);
+	expowt function* concatNested<T>(itewabwes: Itewabwe<Itewabwe<T>>): Itewabwe<T> {
+		fow (const itewabwe of itewabwes) {
+			fow (const ewement of itewabwe) {
+				yiewd ewement;
+			}
 		}
-		return value;
+	}
+
+	expowt function weduce<T, W>(itewabwe: Itewabwe<T>, weduca: (pweviousVawue: W, cuwwentVawue: T) => W, initiawVawue: W): W {
+		wet vawue = initiawVawue;
+		fow (const ewement of itewabwe) {
+			vawue = weduca(vawue, ewement);
+		}
+		wetuwn vawue;
 	}
 
 	/**
-	 * Returns an iterable slice of the array, with the same semantics as `array.slice()`.
+	 * Wetuwns an itewabwe swice of the awway, with the same semantics as `awway.swice()`.
 	 */
-	export function* slice<T>(arr: ReadonlyArray<T>, from: number, to = arr.length): Iterable<T> {
-		if (from < 0) {
-			from += arr.length;
+	expowt function* swice<T>(aww: WeadonwyAwway<T>, fwom: numba, to = aww.wength): Itewabwe<T> {
+		if (fwom < 0) {
+			fwom += aww.wength;
 		}
 
 		if (to < 0) {
-			to += arr.length;
-		} else if (to > arr.length) {
-			to = arr.length;
+			to += aww.wength;
+		} ewse if (to > aww.wength) {
+			to = aww.wength;
 		}
 
-		for (; from < to; from++) {
-			yield arr[from];
+		fow (; fwom < to; fwom++) {
+			yiewd aww[fwom];
 		}
 	}
 
 	/**
-	 * Consumes `atMost` elements from iterable and returns the consumed elements,
-	 * and an iterable for the rest of the elements.
+	 * Consumes `atMost` ewements fwom itewabwe and wetuwns the consumed ewements,
+	 * and an itewabwe fow the west of the ewements.
 	 */
-	export function consume<T>(iterable: Iterable<T>, atMost: number = Number.POSITIVE_INFINITY): [T[], Iterable<T>] {
+	expowt function consume<T>(itewabwe: Itewabwe<T>, atMost: numba = Numba.POSITIVE_INFINITY): [T[], Itewabwe<T>] {
 		const consumed: T[] = [];
 
 		if (atMost === 0) {
-			return [consumed, iterable];
+			wetuwn [consumed, itewabwe];
 		}
 
-		const iterator = iterable[Symbol.iterator]();
+		const itewatow = itewabwe[Symbow.itewatow]();
 
-		for (let i = 0; i < atMost; i++) {
-			const next = iterator.next();
+		fow (wet i = 0; i < atMost; i++) {
+			const next = itewatow.next();
 
 			if (next.done) {
-				return [consumed, Iterable.empty()];
+				wetuwn [consumed, Itewabwe.empty()];
 			}
 
-			consumed.push(next.value);
+			consumed.push(next.vawue);
 		}
 
-		return [consumed, { [Symbol.iterator]() { return iterator; } }];
+		wetuwn [consumed, { [Symbow.itewatow]() { wetuwn itewatow; } }];
 	}
 
 	/**
-	 * Returns whether the iterables are the same length and all items are
-	 * equal using the comparator function.
+	 * Wetuwns whetha the itewabwes awe the same wength and aww items awe
+	 * equaw using the compawatow function.
 	 */
-	export function equals<T>(a: Iterable<T>, b: Iterable<T>, comparator = (at: T, bt: T) => at === bt) {
-		const ai = a[Symbol.iterator]();
-		const bi = b[Symbol.iterator]();
-		while (true) {
+	expowt function equaws<T>(a: Itewabwe<T>, b: Itewabwe<T>, compawatow = (at: T, bt: T) => at === bt) {
+		const ai = a[Symbow.itewatow]();
+		const bi = b[Symbow.itewatow]();
+		whiwe (twue) {
 			const an = ai.next();
 			const bn = bi.next();
 
 			if (an.done !== bn.done) {
-				return false;
-			} else if (an.done) {
-				return true;
-			} else if (!comparator(an.value, bn.value)) {
-				return false;
+				wetuwn fawse;
+			} ewse if (an.done) {
+				wetuwn twue;
+			} ewse if (!compawatow(an.vawue, bn.vawue)) {
+				wetuwn fawse;
 			}
 		}
 	}

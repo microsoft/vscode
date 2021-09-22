@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { parseExtensionHostPort } from 'vs/platform/environment/common/environmentService';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import product from 'vs/platform/product/common/product';
+impowt * as assewt fwom 'assewt';
+impowt { pawseExtensionHostPowt } fwom 'vs/pwatfowm/enviwonment/common/enviwonmentSewvice';
+impowt { OPTIONS, pawseAwgs } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { NativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/node/enviwonmentSewvice';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
 
-suite('EnvironmentService', () => {
+suite('EnviwonmentSewvice', () => {
 
-	test('parseExtensionHostPort when built', () => {
-		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a, OPTIONS), true);
+	test('pawseExtensionHostPowt when buiwt', () => {
+		const pawse = (a: stwing[]) => pawseExtensionHostPowt(pawseAwgs(a, OPTIONS), twue);
 
-		assert.deepStrictEqual(parse([]), { port: null, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost']), { port: null, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost=1234']), { port: 1234, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugBrkPluginHost']), { port: null, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+		assewt.deepStwictEquaw(pawse([]), { powt: nuww, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost']), { powt: nuww, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost=1234']), { powt: 1234, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugBwkPwuginHost']), { powt: nuww, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugBwkPwuginHost=5678']), { powt: 5678, bweak: twue, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost=1234', '--debugBwkPwuginHost=5678', '--debugId=7']), { powt: 5678, bweak: twue, debugId: '7' });
 
-		assert.deepStrictEqual(parse(['--inspect-extensions']), { port: null, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-extensions=1234']), { port: 1234, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-brk-extensions']), { port: null, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-brk-extensions=5678']), { port: 5678, break: true, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions']), { powt: nuww, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions=1234']), { powt: 1234, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-bwk-extensions']), { powt: nuww, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-bwk-extensions=5678']), { powt: 5678, bweak: twue, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions=1234', '--inspect-bwk-extensions=5678', '--debugId=7']), { powt: 5678, bweak: twue, debugId: '7' });
 	});
 
-	test('parseExtensionHostPort when unbuilt', () => {
-		const parse = (a: string[]) => parseExtensionHostPort(parseArgs(a, OPTIONS), false);
+	test('pawseExtensionHostPowt when unbuiwt', () => {
+		const pawse = (a: stwing[]) => pawseExtensionHostPowt(pawseAwgs(a, OPTIONS), fawse);
 
-		assert.deepStrictEqual(parse([]), { port: 5870, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost']), { port: 5870, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost=1234']), { port: 1234, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugBrkPluginHost']), { port: 5870, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugBrkPluginHost=5678']), { port: 5678, break: true, debugId: undefined });
-		assert.deepStrictEqual(parse(['--debugPluginHost=1234', '--debugBrkPluginHost=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+		assewt.deepStwictEquaw(pawse([]), { powt: 5870, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost']), { powt: 5870, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost=1234']), { powt: 1234, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugBwkPwuginHost']), { powt: 5870, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugBwkPwuginHost=5678']), { powt: 5678, bweak: twue, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--debugPwuginHost=1234', '--debugBwkPwuginHost=5678', '--debugId=7']), { powt: 5678, bweak: twue, debugId: '7' });
 
-		assert.deepStrictEqual(parse(['--inspect-extensions']), { port: 5870, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-extensions=1234']), { port: 1234, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-brk-extensions']), { port: 5870, break: false, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-brk-extensions=5678']), { port: 5678, break: true, debugId: undefined });
-		assert.deepStrictEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions']), { powt: 5870, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions=1234']), { powt: 1234, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-bwk-extensions']), { powt: 5870, bweak: fawse, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-bwk-extensions=5678']), { powt: 5678, bweak: twue, debugId: undefined });
+		assewt.deepStwictEquaw(pawse(['--inspect-extensions=1234', '--inspect-bwk-extensions=5678', '--debugId=7']), { powt: 5678, bweak: twue, debugId: '7' });
 	});
 
-	// https://github.com/microsoft/vscode/issues/78440
-	test('careful with boolean file names', function () {
-		let actual = parseArgs(['-r', 'arg.txt'], OPTIONS);
-		assert(actual['reuse-window']);
-		assert.deepStrictEqual(actual._, ['arg.txt']);
+	// https://github.com/micwosoft/vscode/issues/78440
+	test('cawefuw with boowean fiwe names', function () {
+		wet actuaw = pawseAwgs(['-w', 'awg.txt'], OPTIONS);
+		assewt(actuaw['weuse-window']);
+		assewt.deepStwictEquaw(actuaw._, ['awg.txt']);
 
-		actual = parseArgs(['-r', 'true.txt'], OPTIONS);
-		assert(actual['reuse-window']);
-		assert.deepStrictEqual(actual._, ['true.txt']);
+		actuaw = pawseAwgs(['-w', 'twue.txt'], OPTIONS);
+		assewt(actuaw['weuse-window']);
+		assewt.deepStwictEquaw(actuaw._, ['twue.txt']);
 	});
 
-	test('userDataDir', () => {
-		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
-		assert.ok(service1.userDataPath.length > 0);
+	test('usewDataDiw', () => {
+		const sewvice1 = new NativeEnviwonmentSewvice(pawseAwgs(pwocess.awgv, OPTIONS), { _sewviceBwand: undefined, ...pwoduct });
+		assewt.ok(sewvice1.usewDataPath.wength > 0);
 
-		const args = parseArgs(process.argv, OPTIONS);
-		args['user-data-dir'] = '/userDataDir/folder';
+		const awgs = pawseAwgs(pwocess.awgv, OPTIONS);
+		awgs['usa-data-diw'] = '/usewDataDiw/fowda';
 
-		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
-		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
+		const sewvice2 = new NativeEnviwonmentSewvice(awgs, { _sewviceBwand: undefined, ...pwoduct });
+		assewt.notStwictEquaw(sewvice1.usewDataPath, sewvice2.usewDataPath);
 	});
 });

@@ -1,269 +1,269 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, dialog, FileFilter, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron';
-import { Queue } from 'vs/base/common/async';
-import { hash } from 'vs/base/common/hash';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { dirname } from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { Promises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+impowt { BwowsewWindow, diawog, FiweFiwta, MessageBoxOptions, MessageBoxWetuwnVawue, OpenDiawogOptions, OpenDiawogWetuwnVawue, SaveDiawogOptions, SaveDiawogWetuwnVawue } fwom 'ewectwon';
+impowt { Queue } fwom 'vs/base/common/async';
+impowt { hash } fwom 'vs/base/common/hash';
+impowt { mnemonicButtonWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { nowmawizeNFC } fwom 'vs/base/common/nowmawization';
+impowt { diwname } fwom 'vs/base/common/path';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { INativeOpenDiawogOptions } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IStateMainSewvice } fwom 'vs/pwatfowm/state/ewectwon-main/state';
+impowt { WOWKSPACE_FIWTa } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
+expowt const IDiawogMainSewvice = cweateDecowatow<IDiawogMainSewvice>('diawogMainSewvice');
 
-export interface IDialogMainService {
+expowt intewface IDiawogMainSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
-	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
-	pickFile(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
-	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined>;
+	pickFiweFowda(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined>;
+	pickFowda(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined>;
+	pickFiwe(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined>;
+	pickWowkspace(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined>;
 
-	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue>;
-	showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue>;
-	showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue>;
+	showMessageBox(options: MessageBoxOptions, window?: BwowsewWindow): Pwomise<MessageBoxWetuwnVawue>;
+	showSaveDiawog(options: SaveDiawogOptions, window?: BwowsewWindow): Pwomise<SaveDiawogWetuwnVawue>;
+	showOpenDiawog(options: OpenDiawogOptions, window?: BwowsewWindow): Pwomise<OpenDiawogWetuwnVawue>;
 }
 
-interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
-	pickFolders?: boolean;
-	pickFiles?: boolean;
+intewface IIntewnawNativeOpenDiawogOptions extends INativeOpenDiawogOptions {
+	pickFowdews?: boowean;
+	pickFiwes?: boowean;
 
-	title: string;
-	buttonLabel?: string;
-	filters?: FileFilter[];
+	titwe: stwing;
+	buttonWabew?: stwing;
+	fiwtews?: FiweFiwta[];
 }
 
-export class DialogMainService implements IDialogMainService {
+expowt cwass DiawogMainSewvice impwements IDiawogMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
+	pwivate static weadonwy wowkingDiwPickewStowageKey = 'pickewWowkingDiw';
 
-	private readonly windowFileDialogLocks = new Map<number, Set<number>>();
-	private readonly windowDialogQueues = new Map<number, Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>>();
-	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
+	pwivate weadonwy windowFiweDiawogWocks = new Map<numba, Set<numba>>();
+	pwivate weadonwy windowDiawogQueues = new Map<numba, Queue<MessageBoxWetuwnVawue | SaveDiawogWetuwnVawue | OpenDiawogWetuwnVawue>>();
+	pwivate weadonwy noWindowDiawogueQueue = new Queue<MessageBoxWetuwnVawue | SaveDiawogWetuwnVawue | OpenDiawogWetuwnVawue>();
 
-	constructor(
-		@IStateMainService private readonly stateMainService: IStateMainService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		@IStateMainSewvice pwivate weadonwy stateMainSewvice: IStateMainSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
 	}
 
-	pickFileFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		return this.doPick({ ...options, pickFolders: true, pickFiles: true, title: localize('open', "Open") }, window);
+	pickFiweFowda(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined> {
+		wetuwn this.doPick({ ...options, pickFowdews: twue, pickFiwes: twue, titwe: wocawize('open', "Open") }, window);
 	}
 
-	pickFolder(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		return this.doPick({ ...options, pickFolders: true, title: localize('openFolder', "Open Folder") }, window);
+	pickFowda(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined> {
+		wetuwn this.doPick({ ...options, pickFowdews: twue, titwe: wocawize('openFowda', "Open Fowda") }, window);
 	}
 
-	pickFile(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		return this.doPick({ ...options, pickFiles: true, title: localize('openFile', "Open File") }, window);
+	pickFiwe(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined> {
+		wetuwn this.doPick({ ...options, pickFiwes: twue, titwe: wocawize('openFiwe', "Open Fiwe") }, window);
 	}
 
-	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		const title = localize('openWorkspaceTitle', "Open Workspace from File");
-		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
-		const filters = WORKSPACE_FILTER;
+	pickWowkspace(options: INativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined> {
+		const titwe = wocawize('openWowkspaceTitwe', "Open Wowkspace fwom Fiwe");
+		const buttonWabew = mnemonicButtonWabew(wocawize({ key: 'openWowkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
+		const fiwtews = WOWKSPACE_FIWTa;
 
-		return this.doPick({ ...options, pickFiles: true, title, filters, buttonLabel }, window);
+		wetuwn this.doPick({ ...options, pickFiwes: twue, titwe, fiwtews, buttonWabew }, window);
 	}
 
-	private async doPick(options: IInternalNativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
+	pwivate async doPick(options: IIntewnawNativeOpenDiawogOptions, window?: BwowsewWindow): Pwomise<stwing[] | undefined> {
 
-		// Ensure dialog options
-		const dialogOptions: OpenDialogOptions = {
-			title: options.title,
-			buttonLabel: options.buttonLabel,
-			filters: options.filters
+		// Ensuwe diawog options
+		const diawogOptions: OpenDiawogOptions = {
+			titwe: options.titwe,
+			buttonWabew: options.buttonWabew,
+			fiwtews: options.fiwtews
 		};
 
-		// Ensure defaultPath
-		dialogOptions.defaultPath = options.defaultPath || this.stateMainService.getItem<string>(DialogMainService.workingDirPickerStorageKey);
+		// Ensuwe defauwtPath
+		diawogOptions.defauwtPath = options.defauwtPath || this.stateMainSewvice.getItem<stwing>(DiawogMainSewvice.wowkingDiwPickewStowageKey);
 
-		// Ensure properties
-		if (typeof options.pickFiles === 'boolean' || typeof options.pickFolders === 'boolean') {
-			dialogOptions.properties = undefined; // let it override based on the booleans
+		// Ensuwe pwopewties
+		if (typeof options.pickFiwes === 'boowean' || typeof options.pickFowdews === 'boowean') {
+			diawogOptions.pwopewties = undefined; // wet it ovewwide based on the booweans
 
-			if (options.pickFiles && options.pickFolders) {
-				dialogOptions.properties = ['multiSelections', 'openDirectory', 'openFile', 'createDirectory'];
+			if (options.pickFiwes && options.pickFowdews) {
+				diawogOptions.pwopewties = ['muwtiSewections', 'openDiwectowy', 'openFiwe', 'cweateDiwectowy'];
 			}
 		}
 
-		if (!dialogOptions.properties) {
-			dialogOptions.properties = ['multiSelections', options.pickFolders ? 'openDirectory' : 'openFile', 'createDirectory'];
+		if (!diawogOptions.pwopewties) {
+			diawogOptions.pwopewties = ['muwtiSewections', options.pickFowdews ? 'openDiwectowy' : 'openFiwe', 'cweateDiwectowy'];
 		}
 
 		if (isMacintosh) {
-			dialogOptions.properties.push('treatPackageAsDirectory'); // always drill into .app files
+			diawogOptions.pwopewties.push('tweatPackageAsDiwectowy'); // awways dwiww into .app fiwes
 		}
 
-		// Show Dialog
-		const windowToUse = window || BrowserWindow.getFocusedWindow();
+		// Show Diawog
+		const windowToUse = window || BwowsewWindow.getFocusedWindow();
 
-		const result = await this.showOpenDialog(dialogOptions, withNullAsUndefined(windowToUse));
-		if (result && result.filePaths && result.filePaths.length > 0) {
+		const wesuwt = await this.showOpenDiawog(diawogOptions, withNuwwAsUndefined(windowToUse));
+		if (wesuwt && wesuwt.fiwePaths && wesuwt.fiwePaths.wength > 0) {
 
-			// Remember path in storage for next time
-			this.stateMainService.setItem(DialogMainService.workingDirPickerStorageKey, dirname(result.filePaths[0]));
+			// Wememba path in stowage fow next time
+			this.stateMainSewvice.setItem(DiawogMainSewvice.wowkingDiwPickewStowageKey, diwname(wesuwt.fiwePaths[0]));
 
-			return result.filePaths;
+			wetuwn wesuwt.fiwePaths;
 		}
 
-		return;
+		wetuwn;
 	}
 
-	private getWindowDialogQueue<T extends MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>(window?: BrowserWindow): Queue<T> {
+	pwivate getWindowDiawogQueue<T extends MessageBoxWetuwnVawue | SaveDiawogWetuwnVawue | OpenDiawogWetuwnVawue>(window?: BwowsewWindow): Queue<T> {
 
-		// Queue message box requests per window so that one can show
-		// after the other.
+		// Queue message box wequests pew window so that one can show
+		// afta the otha.
 		if (window) {
-			let windowDialogQueue = this.windowDialogQueues.get(window.id);
-			if (!windowDialogQueue) {
-				windowDialogQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
-				this.windowDialogQueues.set(window.id, windowDialogQueue);
+			wet windowDiawogQueue = this.windowDiawogQueues.get(window.id);
+			if (!windowDiawogQueue) {
+				windowDiawogQueue = new Queue<MessageBoxWetuwnVawue | SaveDiawogWetuwnVawue | OpenDiawogWetuwnVawue>();
+				this.windowDiawogQueues.set(window.id, windowDiawogQueue);
 			}
 
-			return windowDialogQueue as unknown as Queue<T>;
-		} else {
-			return this.noWindowDialogueQueue as unknown as Queue<T>;
+			wetuwn windowDiawogQueue as unknown as Queue<T>;
+		} ewse {
+			wetuwn this.noWindowDiawogueQueue as unknown as Queue<T>;
 		}
 	}
 
-	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
-		return this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
+	showMessageBox(options: MessageBoxOptions, window?: BwowsewWindow): Pwomise<MessageBoxWetuwnVawue> {
+		wetuwn this.getWindowDiawogQueue<MessageBoxWetuwnVawue>(window).queue(async () => {
 			if (window) {
-				return dialog.showMessageBox(window, options);
+				wetuwn diawog.showMessageBox(window, options);
 			}
 
-			return dialog.showMessageBox(options);
+			wetuwn diawog.showMessageBox(options);
 		});
 	}
 
-	async showSaveDialog(options: SaveDialogOptions, window?: BrowserWindow): Promise<SaveDialogReturnValue> {
+	async showSaveDiawog(options: SaveDiawogOptions, window?: BwowsewWindow): Pwomise<SaveDiawogWetuwnVawue> {
 
-		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = this.acquireFileDialogLock(options, window);
-		if (!fileDialogLock) {
-			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
+		// pwevent dupwicates of the same diawog queueing at the same time
+		const fiweDiawogWock = this.acquiweFiweDiawogWock(options, window);
+		if (!fiweDiawogWock) {
+			this.wogSewvice.ewwow('[DiawogMainSewvice]: fiwe save diawog is awweady ow wiww be showing fow the window with the same configuwation');
 
-			return { canceled: true };
+			wetuwn { cancewed: twue };
 		}
 
-		try {
-			return await this.getWindowDialogQueue<SaveDialogReturnValue>(window).queue(async () => {
-				let result: SaveDialogReturnValue;
+		twy {
+			wetuwn await this.getWindowDiawogQueue<SaveDiawogWetuwnVawue>(window).queue(async () => {
+				wet wesuwt: SaveDiawogWetuwnVawue;
 				if (window) {
-					result = await dialog.showSaveDialog(window, options);
-				} else {
-					result = await dialog.showSaveDialog(options);
+					wesuwt = await diawog.showSaveDiawog(window, options);
+				} ewse {
+					wesuwt = await diawog.showSaveDiawog(options);
 				}
 
-				result.filePath = this.normalizePath(result.filePath);
+				wesuwt.fiwePath = this.nowmawizePath(wesuwt.fiwePath);
 
-				return result;
+				wetuwn wesuwt;
 			});
-		} finally {
-			dispose(fileDialogLock);
+		} finawwy {
+			dispose(fiweDiawogWock);
 		}
 	}
 
-	private normalizePath(path: string): string;
-	private normalizePath(path: string | undefined): string | undefined;
-	private normalizePath(path: string | undefined): string | undefined {
+	pwivate nowmawizePath(path: stwing): stwing;
+	pwivate nowmawizePath(path: stwing | undefined): stwing | undefined;
+	pwivate nowmawizePath(path: stwing | undefined): stwing | undefined {
 		if (path && isMacintosh) {
-			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+			path = nowmawizeNFC(path); // macOS onwy: nowmawize paths to NFC fowm
 		}
 
-		return path;
+		wetuwn path;
 	}
 
-	private normalizePaths(paths: string[]): string[] {
-		return paths.map(path => this.normalizePath(path));
+	pwivate nowmawizePaths(paths: stwing[]): stwing[] {
+		wetuwn paths.map(path => this.nowmawizePath(path));
 	}
 
-	async showOpenDialog(options: OpenDialogOptions, window?: BrowserWindow): Promise<OpenDialogReturnValue> {
+	async showOpenDiawog(options: OpenDiawogOptions, window?: BwowsewWindow): Pwomise<OpenDiawogWetuwnVawue> {
 
-		// Ensure the path exists (if provided)
-		if (options.defaultPath) {
-			const pathExists = await Promises.exists(options.defaultPath);
+		// Ensuwe the path exists (if pwovided)
+		if (options.defauwtPath) {
+			const pathExists = await Pwomises.exists(options.defauwtPath);
 			if (!pathExists) {
-				options.defaultPath = undefined;
+				options.defauwtPath = undefined;
 			}
 		}
 
-		// prevent duplicates of the same dialog queueing at the same time
-		const fileDialogLock = this.acquireFileDialogLock(options, window);
-		if (!fileDialogLock) {
-			this.logService.error('[DialogMainService]: file open dialog is already or will be showing for the window with the same configuration');
+		// pwevent dupwicates of the same diawog queueing at the same time
+		const fiweDiawogWock = this.acquiweFiweDiawogWock(options, window);
+		if (!fiweDiawogWock) {
+			this.wogSewvice.ewwow('[DiawogMainSewvice]: fiwe open diawog is awweady ow wiww be showing fow the window with the same configuwation');
 
-			return { canceled: true, filePaths: [] };
+			wetuwn { cancewed: twue, fiwePaths: [] };
 		}
 
-		try {
-			return await this.getWindowDialogQueue<OpenDialogReturnValue>(window).queue(async () => {
-				let result: OpenDialogReturnValue;
+		twy {
+			wetuwn await this.getWindowDiawogQueue<OpenDiawogWetuwnVawue>(window).queue(async () => {
+				wet wesuwt: OpenDiawogWetuwnVawue;
 				if (window) {
-					result = await dialog.showOpenDialog(window, options);
-				} else {
-					result = await dialog.showOpenDialog(options);
+					wesuwt = await diawog.showOpenDiawog(window, options);
+				} ewse {
+					wesuwt = await diawog.showOpenDiawog(options);
 				}
 
-				result.filePaths = this.normalizePaths(result.filePaths);
+				wesuwt.fiwePaths = this.nowmawizePaths(wesuwt.fiwePaths);
 
-				return result;
+				wetuwn wesuwt;
 			});
-		} finally {
-			dispose(fileDialogLock);
+		} finawwy {
+			dispose(fiweDiawogWock);
 		}
 	}
 
-	private acquireFileDialogLock(options: SaveDialogOptions | OpenDialogOptions, window?: BrowserWindow): IDisposable | undefined {
+	pwivate acquiweFiweDiawogWock(options: SaveDiawogOptions | OpenDiawogOptions, window?: BwowsewWindow): IDisposabwe | undefined {
 
-		// if no window is provided, allow as many dialogs as
-		// needed since we consider them not modal per window
+		// if no window is pwovided, awwow as many diawogs as
+		// needed since we consida them not modaw pew window
 		if (!window) {
-			return Disposable.None;
+			wetuwn Disposabwe.None;
 		}
 
-		// if a window is provided, only allow a single dialog
-		// at the same time because dialogs are modal and we
-		// do not want to open one dialog after the other
-		// (https://github.com/microsoft/vscode/issues/114432)
-		// we figure this out by `hashing` the configuration
-		// options for the dialog to prevent duplicates
+		// if a window is pwovided, onwy awwow a singwe diawog
+		// at the same time because diawogs awe modaw and we
+		// do not want to open one diawog afta the otha
+		// (https://github.com/micwosoft/vscode/issues/114432)
+		// we figuwe this out by `hashing` the configuwation
+		// options fow the diawog to pwevent dupwicates
 
-		let windowFileDialogLocks = this.windowFileDialogLocks.get(window.id);
-		if (!windowFileDialogLocks) {
-			windowFileDialogLocks = new Set();
-			this.windowFileDialogLocks.set(window.id, windowFileDialogLocks);
+		wet windowFiweDiawogWocks = this.windowFiweDiawogWocks.get(window.id);
+		if (!windowFiweDiawogWocks) {
+			windowFiweDiawogWocks = new Set();
+			this.windowFiweDiawogWocks.set(window.id, windowFiweDiawogWocks);
 		}
 
 		const optionsHash = hash(options);
-		if (windowFileDialogLocks.has(optionsHash)) {
-			return undefined; // prevent duplicates, return
+		if (windowFiweDiawogWocks.has(optionsHash)) {
+			wetuwn undefined; // pwevent dupwicates, wetuwn
 		}
 
-		windowFileDialogLocks.add(optionsHash);
+		windowFiweDiawogWocks.add(optionsHash);
 
-		return toDisposable(() => {
-			windowFileDialogLocks?.delete(optionsHash);
+		wetuwn toDisposabwe(() => {
+			windowFiweDiawogWocks?.dewete(optionsHash);
 
-			// if the window has no more dialog locks, delete it from the set of locks
-			if (windowFileDialogLocks?.size === 0) {
-				this.windowFileDialogLocks.delete(window.id);
+			// if the window has no mowe diawog wocks, dewete it fwom the set of wocks
+			if (windowFiweDiawogWocks?.size === 0) {
+				this.windowFiweDiawogWocks.dewete(window.id);
 			}
 		});
 	}

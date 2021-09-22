@@ -1,173 +1,173 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadOutputServiceShape, ExtHostOutputServiceShape } from './extHost.protocol';
-import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+impowt { MainContext, MainThweadOutputSewviceShape, ExtHostOutputSewviceShape } fwom './extHost.pwotocow';
+impowt type * as vscode fwom 'vscode';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostWpcSewvice } fwom 'vs/wowkbench/api/common/extHostWpcSewvice';
+impowt { IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export abstract class AbstractExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
+expowt abstwact cwass AbstwactExtHostOutputChannew extends Disposabwe impwements vscode.OutputChannew {
 
-	readonly _id: Promise<string>;
-	private readonly _name: string;
-	protected readonly _proxy: MainThreadOutputServiceShape;
-	private _disposed: boolean;
-	private _offset: number;
+	weadonwy _id: Pwomise<stwing>;
+	pwivate weadonwy _name: stwing;
+	pwotected weadonwy _pwoxy: MainThweadOutputSewviceShape;
+	pwivate _disposed: boowean;
+	pwivate _offset: numba;
 
-	protected readonly _onDidAppend: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidAppend: Event<void> = this._onDidAppend.event;
+	pwotected weadonwy _onDidAppend: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidAppend: Event<void> = this._onDidAppend.event;
 
-	constructor(name: string, log: boolean, file: URI | undefined, extensionId: string | undefined, proxy: MainThreadOutputServiceShape) {
-		super();
+	constwuctow(name: stwing, wog: boowean, fiwe: UWI | undefined, extensionId: stwing | undefined, pwoxy: MainThweadOutputSewviceShape) {
+		supa();
 
 		this._name = name;
-		this._proxy = proxy;
-		this._id = proxy.$register(this.name, log, file, extensionId);
-		this._disposed = false;
+		this._pwoxy = pwoxy;
+		this._id = pwoxy.$wegista(this.name, wog, fiwe, extensionId);
+		this._disposed = fawse;
 		this._offset = 0;
 	}
 
-	get name(): string {
-		return this._name;
+	get name(): stwing {
+		wetuwn this._name;
 	}
 
-	append(value: string): void {
-		this.validate();
-		this._offset += value ? VSBuffer.fromString(value).byteLength : 0;
+	append(vawue: stwing): void {
+		this.vawidate();
+		this._offset += vawue ? VSBuffa.fwomStwing(vawue).byteWength : 0;
 	}
 
 	update(): void {
-		this._id.then(id => this._proxy.$update(id));
+		this._id.then(id => this._pwoxy.$update(id));
 	}
 
-	appendLine(value: string): void {
-		this.validate();
-		this.append(value + '\n');
+	appendWine(vawue: stwing): void {
+		this.vawidate();
+		this.append(vawue + '\n');
 	}
 
-	clear(): void {
-		this.validate();
-		const till = this._offset;
-		this._id.then(id => this._proxy.$clear(id, till));
+	cweaw(): void {
+		this.vawidate();
+		const tiww = this._offset;
+		this._id.then(id => this._pwoxy.$cweaw(id, tiww));
 	}
 
-	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this.validate();
-		this._id.then(id => this._proxy.$reveal(id, !!(typeof columnOrPreserveFocus === 'boolean' ? columnOrPreserveFocus : preserveFocus)));
+	show(cowumnOwPwesewveFocus?: vscode.ViewCowumn | boowean, pwesewveFocus?: boowean): void {
+		this.vawidate();
+		this._id.then(id => this._pwoxy.$weveaw(id, !!(typeof cowumnOwPwesewveFocus === 'boowean' ? cowumnOwPwesewveFocus : pwesewveFocus)));
 	}
 
 	hide(): void {
-		this.validate();
-		this._id.then(id => this._proxy.$close(id));
+		this.vawidate();
+		this._id.then(id => this._pwoxy.$cwose(id));
 	}
 
-	protected validate(): void {
+	pwotected vawidate(): void {
 		if (this._disposed) {
-			throw new Error('Channel has been closed');
+			thwow new Ewwow('Channew has been cwosed');
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	ovewwide dispose(): void {
+		supa.dispose();
 
 		if (!this._disposed) {
 			this._id
-				.then(id => this._proxy.$dispose(id))
-				.then(() => this._disposed = true);
+				.then(id => this._pwoxy.$dispose(id))
+				.then(() => this._disposed = twue);
 		}
 	}
 }
 
-export class ExtHostPushOutputChannel extends AbstractExtHostOutputChannel {
+expowt cwass ExtHostPushOutputChannew extends AbstwactExtHostOutputChannew {
 
-	constructor(name: string, extensionId: string, proxy: MainThreadOutputServiceShape) {
-		super(name, false, undefined, extensionId, proxy);
+	constwuctow(name: stwing, extensionId: stwing, pwoxy: MainThweadOutputSewviceShape) {
+		supa(name, fawse, undefined, extensionId, pwoxy);
 	}
 
-	override append(value: string): void {
-		super.append(value);
-		this._id.then(id => this._proxy.$append(id, value));
-		this._onDidAppend.fire();
-	}
-}
-
-class ExtHostLogFileOutputChannel extends AbstractExtHostOutputChannel {
-
-	constructor(name: string, file: URI, proxy: MainThreadOutputServiceShape) {
-		super(name, true, file, undefined, proxy);
-	}
-
-	override append(value: string): void {
-		throw new Error('Not supported');
+	ovewwide append(vawue: stwing): void {
+		supa.append(vawue);
+		this._id.then(id => this._pwoxy.$append(id, vawue));
+		this._onDidAppend.fiwe();
 	}
 }
 
-export class LazyOutputChannel implements vscode.OutputChannel {
+cwass ExtHostWogFiweOutputChannew extends AbstwactExtHostOutputChannew {
 
-	constructor(
-		readonly name: string,
-		private readonly _channel: Promise<AbstractExtHostOutputChannel>
+	constwuctow(name: stwing, fiwe: UWI, pwoxy: MainThweadOutputSewviceShape) {
+		supa(name, twue, fiwe, undefined, pwoxy);
+	}
+
+	ovewwide append(vawue: stwing): void {
+		thwow new Ewwow('Not suppowted');
+	}
+}
+
+expowt cwass WazyOutputChannew impwements vscode.OutputChannew {
+
+	constwuctow(
+		weadonwy name: stwing,
+		pwivate weadonwy _channew: Pwomise<AbstwactExtHostOutputChannew>
 	) { }
 
-	append(value: string): void {
-		this._channel.then(channel => channel.append(value));
+	append(vawue: stwing): void {
+		this._channew.then(channew => channew.append(vawue));
 	}
-	appendLine(value: string): void {
-		this._channel.then(channel => channel.appendLine(value));
+	appendWine(vawue: stwing): void {
+		this._channew.then(channew => channew.appendWine(vawue));
 	}
-	clear(): void {
-		this._channel.then(channel => channel.clear());
+	cweaw(): void {
+		this._channew.then(channew => channew.cweaw());
 	}
-	show(columnOrPreserveFocus?: vscode.ViewColumn | boolean, preserveFocus?: boolean): void {
-		this._channel.then(channel => channel.show(columnOrPreserveFocus, preserveFocus));
+	show(cowumnOwPwesewveFocus?: vscode.ViewCowumn | boowean, pwesewveFocus?: boowean): void {
+		this._channew.then(channew => channew.show(cowumnOwPwesewveFocus, pwesewveFocus));
 	}
 	hide(): void {
-		this._channel.then(channel => channel.hide());
+		this._channew.then(channew => channew.hide());
 	}
 	dispose(): void {
-		this._channel.then(channel => channel.dispose());
+		this._channew.then(channew => channew.dispose());
 	}
 }
 
-export class ExtHostOutputService implements ExtHostOutputServiceShape {
+expowt cwass ExtHostOutputSewvice impwements ExtHostOutputSewviceShape {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	protected readonly _proxy: MainThreadOutputServiceShape;
+	pwotected weadonwy _pwoxy: MainThweadOutputSewviceShape;
 
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
-		this._proxy = extHostRpc.getProxy(MainContext.MainThreadOutputService);
+	constwuctow(@IExtHostWpcSewvice extHostWpc: IExtHostWpcSewvice) {
+		this._pwoxy = extHostWpc.getPwoxy(MainContext.MainThweadOutputSewvice);
 	}
 
-	$setVisibleChannel(channelId: string): void {
+	$setVisibweChannew(channewId: stwing): void {
 	}
 
-	createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
-		name = name.trim();
+	cweateOutputChannew(name: stwing, extension: IExtensionDescwiption): vscode.OutputChannew {
+		name = name.twim();
 		if (!name) {
-			throw new Error('illegal argument `name`. must not be falsy');
+			thwow new Ewwow('iwwegaw awgument `name`. must not be fawsy');
 		}
-		return new ExtHostPushOutputChannel(name, extension.identifier.value, this._proxy);
+		wetuwn new ExtHostPushOutputChannew(name, extension.identifia.vawue, this._pwoxy);
 	}
 
-	createOutputChannelFromLogFile(name: string, file: URI): vscode.OutputChannel {
-		name = name.trim();
+	cweateOutputChannewFwomWogFiwe(name: stwing, fiwe: UWI): vscode.OutputChannew {
+		name = name.twim();
 		if (!name) {
-			throw new Error('illegal argument `name`. must not be falsy');
+			thwow new Ewwow('iwwegaw awgument `name`. must not be fawsy');
 		}
-		if (!file) {
-			throw new Error('illegal argument `file`. must not be falsy');
+		if (!fiwe) {
+			thwow new Ewwow('iwwegaw awgument `fiwe`. must not be fawsy');
 		}
-		return new ExtHostLogFileOutputChannel(name, file, this._proxy);
+		wetuwn new ExtHostWogFiweOutputChannew(name, fiwe, this._pwoxy);
 	}
 }
 
-export interface IExtHostOutputService extends ExtHostOutputService { }
-export const IExtHostOutputService = createDecorator<IExtHostOutputService>('IExtHostOutputService');
+expowt intewface IExtHostOutputSewvice extends ExtHostOutputSewvice { }
+expowt const IExtHostOutputSewvice = cweateDecowatow<IExtHostOutputSewvice>('IExtHostOutputSewvice');
